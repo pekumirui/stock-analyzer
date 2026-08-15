@@ -1,0 +1,13 @@
+# 改行コードの正規化 (Windows/Linux混在時の差分ノイズを防ぐ)
+* text=auto eol=lf
+
+# Windows専用スクリプトはCRLFを維持
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# バイナリ
+*.png binary
+*.jpg binary
+*.gz binary
+*.db binary

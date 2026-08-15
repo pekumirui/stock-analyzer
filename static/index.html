@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>株式分析ツール</title>
+<script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root { --bg:#0f1419; --panel:#1a2129; --border:#2a3441; --text:#e6edf3; --sub:#8b98a5;
+          --accent:#4a9eff; --up:#e05260; --down:#3fb27f; --warn:#f0a020; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--text); font-family:-apple-system,"Hiragino Sans","Noto Sans JP",Meiryo,sans-serif; font-size:14px; }
+  header { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  header h1 { font-size:16px; margin-right:8px; }
+  nav button { background:none; border:none; color:var(--sub); padding:8px 10px; cursor:pointer; font-size:14px; border-bottom:2px solid transparent; }
+  nav button.active { color:var(--text); border-bottom-color:var(--accent); }
+  main { padding:12px; max-width:1200px; margin:0 auto; }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:12px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { padding:6px 8px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap; }
+  th { color:var(--sub); font-weight:normal; position:sticky; top:0; background:var(--panel); }
+  td:first-child, th:first-child, td.l, th.l { text-align:left; }
+  .pos { color:var(--up); } .neg { color:var(--down); }
+  .badge { display:inline-block; padding:1px 6px; border-radius:4px; font-size:11px; margin-left:4px; }
+  .badge.up { background:var(--up); color:#fff; }
+  .badge.dn { background:var(--down); color:#fff; }
+  .badge.st1 { background:#5b6470; } .badge.st2 { background:#2e8b57; }
+  .badge.st3 { background:#b8860b; } .badge.st4 { background:#a04050; }
+  .cal { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .cal .h { text-align:center; color:var(--sub); font-size:12px; padding:4px; }
+  .cal .d { min-height:52px; border:1px solid var(--border); border-radius:6px; padding:4px; cursor:pointer; }
+  .cal .d:hover { border-color:var(--accent); }
+  .cal .d.sel { border-color:var(--accent); background:#20304a; }
+  .cal .d .n { font-size:12px; color:var(--sub); }
+  .cal .d .cnt { font-size:12px; color:var(--accent); margin-top:4px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  input,select { background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:14px; }
+  button.btn { background:var(--accent); border:none; color:#fff; border-radius:6px; padding:6px 12px; cursor:pointer; }
+  #chart, #relchart { width:100%; }
+  .tbl-wrap { overflow-x:auto; }
+  .clicky { cursor:pointer; color:var(--accent); }
+  h3 { font-size:14px; color:var(--sub); margin:8px 0; }
+  .suggest { position:absolute; background:var(--panel); border:1px solid var(--border); border-radius:6px; z-index:10; max-height:240px; overflow:auto; }
+  .suggest div { padding:6px 10px; cursor:pointer; }
+  .suggest div:hover { background:#243044; }
+  @media (max-width:640px){ body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:40px} }
+</style>
+</head>
+<body>
+<header>
+  <h1>📈 株式分析</h1>
+  <nav>
+    <button data-tab="earnings" class="active">決算速報</button>
+    <button data-tab="chart">チャート</button>
+    <button data-tab="screener">スクリーナー</button>
+  </nav>
+</header>
+<main>
+
+<section id="tab-earnings">
+  <div class="panel">
+    <div class="row">
+      <button class="btn" onclick="calMove(-1)">◀</button>
+      <b id="cal-title"></b>
+      <button class="btn" onclick="calMove(1)">▶</button>
+    </div>
+    <div class="cal" id="cal"></div>
+  </div>
+  <div class="panel">
+    <h3 id="earn-title">日付を選択してください</h3>
+    <div class="tbl-wrap"><table id="earn-tbl"></table></div>
+  </div>
+</section>
+
+<section id="tab-chart" style="display:none">
+  <div class="panel">
+    <div class="row" style="position:relative">
+      <input id="sym" placeholder="銘柄名 or コード" autocomplete="off" style="width:200px">
+      <div id="suggest" class="suggest" style="display:none"></div>
+      <select id="tf"><option value="D">日足</option><option value="M">月足</option></select>
+      <input id="mas" value="50,150,200" style="width:110px" title="移動平均(カンマ区切り)">
+      <label><input type="checkbox" id="rel"> 対TOPIX</label>
+      <button class="btn" onclick="loadChart()">表示</button>
+    </div>
+    <div id="chart-title"></div>
+    <div id="chart" style="height:420px"></div>
+    <div id="relwrap" style="display:none"><h3>対TOPIX相対 (期首=100)</h3><div id="relchart" style="height:160px"></div></div>
+  </div>
+  <div class="panel">
+    <h3>決算発表後パフォーマンス (%, α=対TOPIX超過)</h3>
+    <div class="tbl-wrap"><table id="perf-tbl"></table></div>
+  </div>
+</section>
+
+<section id="tab-screener" style="display:none">
+  <div class="panel">
+    <div class="row">
+      ステージ:
+      <select id="sc-stage">
+        <option value="">全て</option><option value="2" selected>Stage 2 (上昇)</option>
+        <option value="1">Stage 1 (底固め)</option><option value="3">Stage 3 (天井圏)</option>
+        <option value="4">Stage 4 (下降)</option>
+      </select>
+      RS≧ <input id="sc-rs" type="number" value="70" style="width:70px">
+      <button class="btn" onclick="loadScreener()">検索</button>
+      <span id="sc-date" style="color:var(--sub)"></span>
+    </div>
+    <div class="tbl-wrap"><table id="sc-tbl"></table></div>
+  </div>
+</section>
+
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const api = p => fetch(p).then(r => { if(!r.ok) throw new Error(r.status); return r.json(); });
+const fmt = (v,d=0) => v==null ? "–" : Number(v).toLocaleString("ja-JP",{maximumFractionDigits:d,minimumFractionDigits:d});
+const pct = v => v==null ? "–" : `<span class="${v>=0?'pos':'neg'}">${v>0?'+':''}${fmt(v,1)}%</span>`;
+
+// ---- tabs ----
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");
+  ["earnings","chart","screener"].forEach(t => $("#tab-"+t).style.display = t===b.dataset.tab?"":"none");
+  if (b.dataset.tab==="screener" && !$("#sc-tbl").innerHTML) loadScreener();
+  if (b.dataset.tab==="chart" && chartObj) setTimeout(()=>chartObj.applyOptions({width:$("#chart").clientWidth}),0);
+});
+
+// ---- 決算カレンダー ----
+let calY, calM, selDate=null;
+(()=>{ const t=new Date(); calY=t.getFullYear(); calM=t.getMonth()+1; })();
+function calMove(d){ calM+=d; if(calM>12){calM=1;calY++} if(calM<1){calM=12;calY--} renderCal(); }
+async function renderCal(){
+  const mm = `${calY}-${String(calM).padStart(2,"0")}`;
+  $("#cal-title").textContent = `${calY}年${calM}月`;
+  const counts = await api(`/api/earnings/calendar?month=${mm}`).catch(()=>({}));
+  const first = new Date(calY, calM-1, 1), days = new Date(calY, calM, 0).getDate();
+  let html = ["日","月","火","水","木","金","土"].map(d=>`<div class="h">${d}</div>`).join("");
+  for(let i=0;i<first.getDay();i++) html += "<div></div>";
+  for(let d=1;d<=days;d++){
+    const ds = `${mm}-${String(d).padStart(2,"0")}`;
+    const c = counts[ds];
+    html += `<div class="d ${ds===selDate?'sel':''}" onclick="selectDate('${ds}')"><div class="n">${d}</div>${c?`<div class="cnt">${c}件</div>`:""}</div>`;
+  }
+  $("#cal").innerHTML = html;
+}
+async function selectDate(ds){
+  selDate = ds; renderCal();
+  $("#earn-title").textContent = `${ds} の決算発表`;
+  const rows = await api(`/api/earnings?date=${ds}`);
+  if(!rows.length){ $("#earn-tbl").innerHTML = "<tr><td class='l'>開示なし</td></tr>"; return; }
+  let h = `<tr><th class="l">銘柄</th><th>期</th><th>売上(累計)</th><th>YoY</th><th>営利(累計)</th><th>YoY</th>
+           <th>売上(Q単独)</th><th>YoY</th><th>営利(Q単独)</th><th>YoY</th><th>経常</th><th>純利</th><th>EPS</th>
+           <th>通期予想営利</th><th>RS</th><th>Stage</th><th>発表後α</th></tr>`;
+  for(const r of rows){
+    const s = r.summary, cu = s.cumulative, sg = s.single||{}, y=s.yoy||{}, ys=s.yoy_single||{};
+    h += `<tr>
+      <td class="l"><span class="clicky" onclick="gotoChart('${r.code}')">${r.name}</span> <small>${r.code.slice(0,4)}</small>
+        ${s.revision_pct==null?'':`<span class="badge ${s.revised_up?'up':'dn'}">${s.revised_up?'上方':'下方'}修正 ${s.revision_pct>0?'+':''}${s.revision_pct}%</span>`}</td>
+      <td>${r.period||''}</td>
+      <td>${fmt(cu.net_sales)}</td><td>${pct(y.net_sales)}</td>
+      <td>${fmt(cu.operating_profit)}</td><td>${pct(y.operating_profit)}</td>
+      <td>${fmt(sg.net_sales)}</td><td>${pct(ys.net_sales)}</td>
+      <td>${fmt(sg.operating_profit)}</td><td>${pct(ys.operating_profit)}</td>
+      <td>${fmt(cu.ordinary_profit)}</td><td>${fmt(cu.profit)}</td><td>${fmt(cu.eps,1)}</td>
+      <td>${fmt(s.forecast_fy.operating_profit)}</td>
+      <td>${r.rs_rank??'–'}</td>
+      <td>${r.stage?`<span class="badge st${r.stage}">S${r.stage}</span>`:'–'}</td>
+      <td>${pct(r.alpha_to_date)}</td></tr>`;
+  }
+  $("#earn-tbl").innerHTML = h;
+}
+
+// ---- チャート ----
+let chartObj=null, relObj=null, curCode=null;
+$("#sym").addEventListener("input", async e => {
+  const q = e.target.value.trim();
+  if(q.length<1){ $("#suggest").style.display="none"; return; }
+  const rs = await api(`/api/stocks/search?q=${encodeURIComponent(q)}`).catch(()=>[]);
+  $("#suggest").innerHTML = rs.map(s=>`<div onclick="pick('${s.code}','${s.name}')">${s.code.slice(0,4)} ${s.name}</div>`).join("");
+  $("#suggest").style.display = rs.length?"block":"none";
+});
+function pick(code,name){ curCode=code; $("#sym").value=name; $("#suggest").style.display="none"; loadChart(); }
+function gotoChart(code){ curCode=code; document.querySelector('nav button[data-tab="chart"]').click(); loadChart(); }
+async function loadChart(){
+  if(!curCode){ return; }
+  const tf=$("#tf").value, mas=$("#mas").value, rel=$("#rel").checked;
+  const d = await api(`/api/chart/${curCode}?tf=${tf}&ma=${mas}&rel=${rel}`);
+  $("#chart-title").innerHTML = `<b>${d.name}</b> <small>${d.code.slice(0,4)} / ${tf==="D"?"日足":"月足"}</small>`;
+  $("#chart").innerHTML="";
+  chartObj = LightweightCharts.createChart($("#chart"), {
+    height:420, layout:{background:{color:"transparent"},textColor:"#8b98a5"},
+    grid:{vertLines:{color:"#1e2630"},horzLines:{color:"#1e2630"}}, timeScale:{borderColor:"#2a3441"}});
+  const cs = chartObj.addCandlestickSeries({upColor:"#e05260",downColor:"#3fb27f",borderVisible:false,wickUpColor:"#e05260",wickDownColor:"#3fb27f"});
+  cs.setData(d.candles);
+  // 決算マーカー
+  const dates = new Set(d.candles.map(c=>c.time));
+  cs.setMarkers(d.earnings_dates.filter(t=>dates.has(t)).map(t=>({time:t,position:"belowBar",color:"#f0a020",shape:"arrowUp",text:"決"})));
+  const colors=["#4a9eff","#f0a020","#c678dd","#56b6c2"];
+  Object.entries(d.ma).forEach(([w,pts],i)=>{
+    chartObj.addLineSeries({color:colors[i%4],lineWidth:1,priceLineVisible:false,lastValueVisible:false,title:`MA${w}`}).setData(pts);
+  });
+  chartObj.timeScale().fitContent();
+  if(rel && d.relative){
+    $("#relwrap").style.display="";
+    $("#relchart").innerHTML="";
+    relObj = LightweightCharts.createChart($("#relchart"),{height:160,layout:{background:{color:"transparent"},textColor:"#8b98a5"},grid:{vertLines:{color:"#1e2630"},horzLines:{color:"#1e2630"}}});
+    relObj.addLineSeries({color:"#f0a020",lineWidth:2}).setData(d.relative);
+    relObj.timeScale().fitContent();
+  } else $("#relwrap").style.display="none";
+  // 決算後パフォーマンス
+  const perf = await api(`/api/earnings-performance/${curCode}`);
+  let h = "<tr><th class='l'>発表日</th><th>+1d</th><th>α</th><th>+5d</th><th>α</th><th>+20d</th><th>α</th><th>+60d</th><th>α</th><th>現在まで</th><th>α</th></tr>";
+  for(const p of perf.slice(0,12)){
+    h += `<tr><td class="l">${p.disclosed_date}</td><td>${pct(p.return_1d)}</td><td>${pct(p.alpha_1d)}</td>
+      <td>${pct(p.return_5d)}</td><td>${pct(p.alpha_5d)}</td><td>${pct(p.return_20d)}</td><td>${pct(p.alpha_20d)}</td>
+      <td>${pct(p.return_60d)}</td><td>${pct(p.alpha_60d)}</td><td>${pct(p.return_to_date)}</td><td>${pct(p.alpha_to_date)}</td></tr>`;
+  }
+  $("#perf-tbl").innerHTML = h;
+}
+
+// ---- スクリーナー ----
+async function loadScreener(){
+  const st=$("#sc-stage").value, rs=$("#sc-rs").value||0;
+  const d = await api(`/api/screener?${st?`stage=${st}&`:""}rs_min=${rs}`);
+  $("#sc-date").textContent = `基準日: ${d.date}`;
+  let h = "<tr><th class='l'>銘柄</th><th class='l'>業種</th><th>株価</th><th>RS</th><th>Stage</th><th>52週安値比</th><th>52週高値比</th><th>MA50</th><th>MA200</th></tr>";
+  for(const r of d.results){
+    h += `<tr><td class="l"><span class="clicky" onclick="gotoChart('${r.code}')">${r.name}</span> <small>${r.code.slice(0,4)}</small></td>
+      <td class="l">${r.sector||''}</td><td>${fmt(r.close,1)}</td><td><b>${r.rs_rank??'–'}</b></td>
+      <td>${r.stage?`<span class="badge st${r.stage}">S${r.stage}</span>`:'–'}</td>
+      <td>${pct(r.pct_from_low52)}</td><td>${pct(r.pct_from_high52)}</td>
+      <td>${fmt(r.ma50,1)}</td><td>${fmt(r.ma200,1)}</td></tr>`;
+  }
+  $("#sc-tbl").innerHTML = h;
+}
+
+renderCal();
+</script>
+</body>
+</html>

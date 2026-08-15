@@ -1,0 +1,40 @@
+# --- 秘密情報 (絶対にコミットしない) ---
+.env
+.env.*
+!.env.example
+*.key
+secrets/
+
+# --- データベース・取得データ ---
+stock.db
+stock.db-journal
+stock.db-wal
+stock.db-shm
+*.sqlite
+*.sqlite3
+data/
+*.csv.gz
+
+# --- Python ---
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- エディタ・OS ---
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# --- ログ・一時ファイル ---
+*.log
+tmp/
+.ipynb_checkpoints/
