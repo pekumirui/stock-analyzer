@@ -98,6 +98,28 @@ uvicorn app.main:app --reload
 # 実データ: set -a && . ./.env && set +a && python scripts/run_batch.py
 ```
 
+## VPS 運用 (ConoHa)
+
+作り直しは不要。同じ FastAPI + SQLite を Ubuntu に置く。推奨はメモリ 2GB / SSD 100GB（東京）。見本は `deploy/`。
+
+1. Ubuntu 24.04 を立て、SSH 鍵と ufw（22/80/443）を入れる
+2. 専用ユーザでリポジトリを clone し、venv + `pip install -r requirements.txt`
+3. `.env` に `JQUANTS_API_KEY` だけ書く（コミットしない）
+4. ローカルの backfill が終わってから `stock.db` を scp する。サーバで 5 年分を取り直さない
+5. `deploy/stock-analyzer.service` をパス・ユーザに合わせて `/etc/systemd/system/` へ
+6. `deploy/nginx.conf` をサイトにコピー。ドメインがあれば certbot、無ければ当面 IP + HTTP
+7. Basic 認証（`htpasswd`）。世界公開しない
+8. `deploy/crontab` をそのユーザの crontab に入れる（19:30 と 06:00 JST）
+
+uvicorn はワーカー 1。SQLite は複数ライターに弱い。日次バッチは 4 リクエストで短い。
+
+```bash
+# 開発PC → VPS（backfill 完了後。journal が残っていないことを確認）
+scp stock.db user@YOUR_HOST:/home/user/stock-analyzer/stock.db
+```
+
+DB のバックアップは ConoHa の自動バックアップか、日次で別パスへコピー。
+
 ## 構成
 
 ```
@@ -113,4 +135,8 @@ static/index.html   SPA (スマホ対応)
 scripts/
   run_batch.py  日次バッチ / バックフィル
   seed_demo.py  デモデータ生成
+deploy/
+  stock-analyzer.service  systemd（uvicorn ワーカー1）
+  nginx.conf              リバースプロキシ + Basic認証
+  crontab                 19:30 / 06:00 JST
 ```

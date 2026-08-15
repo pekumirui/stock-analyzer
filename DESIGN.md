@@ -5,8 +5,8 @@
 ```
 ┌─────────────┐   日次バッチ(19:30 JST)   ┌──────────────┐
 │ J-Quants API │ ─────────────────────→ │  DB           │
-│ (Light plan) │   上場銘柄/株価/財務/TOPIX │  SQLite(ローカル)│
-└─────────────┘                          │  Postgres(本番) │
+│ (Light plan) │   上場銘柄/株価/財務/TOPIX │  SQLite        │
+└─────────────┘                          │  (開発PC / VPS) │
 ┌─────────────┐   補完(必要時)            └──────┬───────┘
 │ IRBank MCP  │ ─────────────────────→        │
 └─────────────┘                                ↓
@@ -211,24 +211,40 @@ adj_close を使用。全銘柄(算出可能な上場銘柄)で降順に並べ�
 冪等設計 (UPSERT) のため何度実行しても安全。バックフィルは取得済みの日付を
 スキップするので、中断しても再実行すれば続きから埋まる。
 
-## 7. ホスティング (低コストPaaS案)
+## 7. ホスティング
 
-| 役割 | サービス | 費用 |
-|---|---|---|
-| API+SPA | **Fly.io** (shared-cpu 256MB) or Railway | $0〜5/月 |
-| DB | **Neon** or Supabase (Postgres 無料枠 0.5GB) | ¥0 |
-| バッチ | Fly.io Machines のスケジュール起動 or GitHub Actions cron | ¥0 |
-| 認証 | Basic認証 or Cloudflare Access (個人利用) | ¥0 |
+本番は **ConoHa VPS + 同じディスク上の SQLite**。Neon / Vercel Postgres の無料枠 (0.5GB) には 5 年分日足が乗らない。アプリはサーバレス前提ではないので作り直さない。
 
-データ量目安: 株価4,000銘柄×5年×250日 ≈ 500万行 ≈ 300-400MB → 無料枠内はギリギリ。本番は直近2年+月足集約で圧縮するか、Neon有料枠($19)へ。まずは全部SQLiteのままFly.io永続ボリューム(3GB無料)に置く構成が最安・最簡単。
+| 役割 | 置き場 |
+|---|---|
+| API + SPA | 同一 VPS の uvicorn（systemd、ワーカー1） |
+| DB | `stock.db`（VPS の SSD）。`DATABASE_URL` は今の SQLite のまま |
+| バッチ | crontab（19:30 JST と翌朝 6:00） |
+| 公開 | nginx + Let's Encrypt。個人利用は Basic 認証 |
+| 開発 | 今どおり Windows + `.\run.ps1` |
 
-ローカル→本番は `DATABASE_URL` 切替のみ (SQLAlchemyで両対応)。
+推奨プランは **メモリ 2GB / SSD 100GB**（東京）。512MB は Python + pandas + 1GB 級 SQLite で足りない。時間課金で立ててから長期契約を判断する。
+
+データ量: 4,000銘柄×5年×250日 ≈ 500万行。SQLite 実ファイルは途中実測で営業日約4割時点 620MB あり、完成後 1〜2GB もあり得る。VPS ディスクなら余裕。ローカル backfill 完了後に `stock.db` を scp する（サーバで取り直さない）。
+
+見本は `deploy/`（systemd / nginx / crontab）。SQLite は複数ライターに弱いので uvicorn はワーカー1。日次バッチは 4 リクエストで短い。
+
+Postgres 切替は将来オプション。今は使わない。`DATABASE_URL` だけ変えれば SQLAlchemy は両対応のまま。
 
 ## 8. 将来拡張
 
 - **米国株**: データソース差替え(Polygon/Alpaca等)を想定し、`source` 列と市場別カレンダー・通貨を吸収するアダプタ層を`jquants.py`と同一インターフェースで追加
 - **IRBank MCP**: J-Quantsに無い項目 (セグメント、株主、信用残日次) の補完
 - 通知 (Stage2入り銘柄・上方修正をLINE/メール)
+- **銘柄KPI（業種で項目が違う）**: 小売の月次売上・製造の受注残など。J-Quants `/fins/summary` には無い。業種ごとの列を `statements` に足さない。無い銘柄は行を持たない疎な時系列にする
+
+```
+stock_kpis  PK(code, metric, period)
+  code / metric (monthly_sales, order_backlog, …)
+  period (2026-07 / 2026Q1) / value / unit / source / disclosed_date
+```
+
+業種テンプレ（`config.py`）が「小売なら monthly_sales を見る」と決める。テンプレにあっても値が無い銘柄は UI で「なし」。決算予測は、その銘柄に実際にある metric だけ使う。取込は後で IR など。テーブルも今は作らない。
 
 ## 9. ローカル実行手順
 
