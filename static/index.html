@@ -26,6 +26,7 @@
   .badge { display:inline-block; padding:1px 6px; border-radius:4px; font-size:11px; margin-left:4px; }
   .badge.up { background:var(--up); color:#fff; }
   .badge.dn { background:var(--down); color:#fff; }
+  .badge.rev { background:var(--warn); color:#0f1419; }
   .badge.st1 { background:#5b6470; } .badge.st2 { background:#2e8b57; }
   .badge.st3 { background:#b8860b; } .badge.st4 { background:#a04050; }
   .cal { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
@@ -218,6 +219,8 @@ async function renderCal(){
 const MET = [["net_sales","売上"],["operating_profit","営利"],["ordinary_profit","経利"],["profit","純利"]];
 const KPFX = {actual_current:"(実)", forecast_h:"(中予)", forecast_fy:"(通予)", actual_fy_prev:"(通実)"};
 const mqNarrow = window.matchMedia("(max-width:700px)");
+// 既出期間の再提出で損益が変わったもの (値がそのままの再提出はAPI側で除外済み)
+const revBadge = r => r.restated ? `<span class="badge rev" title="既出期間の訂正">訂正</span>` : "";
 let earnRows=[], selNo=null, detailReq=0;
 
 async function selectDate(ds){
@@ -250,7 +253,7 @@ function tableHtml(){
     const tip = r.period==="1Q" ? ' title="前期4Q単独比"' : "";
     h += `<tr data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">`
        + `<td>${(r.disclosed_time||"").slice(0,5)}</td>`
-       + `<td class="l">${r.name} <small class="sub">${r.code.slice(0,4)}</small></td>`
+       + `<td class="l">${r.name} <small class="sub">${r.code.slice(0,4)}</small>${revBadge(r)}</td>`
        + `<td class="l">${r.fy_label}</td><td>${r.period||""}</td>`
        + MET.map(([k],i)=>`<td class="num ${i?'':'grp'}"${tip}>${gc((r.qoq||{})[k])}</td>`).join("")
        + MET.map(([k],i)=>`<td class="num ${i?'':'grp'}">${gc((r.yoy||{})[k])}</td>`).join("")
@@ -263,7 +266,7 @@ function cardsHtml(){
   return `<div class="cards">` + earnRows.map(r =>
     `<div class="card" data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">
        <div class="ch"><b>${(r.disclosed_time||"").slice(0,5)}</b><span>${r.name}</span>
-         <small class="sub">${r.code.slice(0,4)} / ${r.fy_label} ${r.period||""}</small></div>
+         <small class="sub">${r.code.slice(0,4)} / ${r.fy_label} ${r.period||""}</small>${revBadge(r)}</div>
        <div class="cg"><span class="hd"></span><span class="hd v">QoQ</span><span class="hd v">YoY</span>`
      + MET.map(([k,l])=>`<span class="hd">${l}</span><span class="v">${gc((r.qoq||{})[k])}</span><span class="v">${gc((r.yoy||{})[k])}</span>`).join("")
      + `</div></div>`).join("") + `</div>`;

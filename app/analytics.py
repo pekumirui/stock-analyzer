@@ -147,6 +147,9 @@ def compute_earnings_events(db: Session):
 # ---------- 決算サマリ (Q単独・YoY・QoQ・修正判定) ----------
 
 METRIC_KEYS = ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps")
+# 再提出が実質的な訂正かを見るときに比べる指標。EPSは分割・増資で遡及修正されるだけの
+# ことがあり (損益は不変)、それを訂正扱いすると再提出が速報一覧に残ってしまうので除く。
+PL_KEYS = ("net_sales", "operating_profit", "ordinary_profit", "profit")
 
 # CurPerType は 1Q/2Q/3Q/4Q/5Q/FY。FYと4Qはどちらも通期累計扱い。
 # 5Q(決算期変更等の変則期)は前後関係が定義できないためQ単独は算出しない。
@@ -182,6 +185,28 @@ def statement_history(db: Session, code: str, upto: date, days: int) -> list[Sta
                     Statement.disclosed_date <= upto,
                     Statement.disclosed_date >= upto - timedelta(days=days))
             .order_by(Statement.disclosed_date).all())
+
+
+def disclosure_state(hist: list[Statement], stmt: Statement) -> str:
+    """その開示が first(初出) / restated(既出だが数値が変化) / duplicate(既出で数値も同一) か。
+
+    遅延企業は過去の期を数値そのままで再提出することがあり、そのまま速報一覧に出すと
+    1銘柄で何行も並ぶ。同一銘柄の同一期間の再提出を見るので、find_statement の
+    ±tol_days 最近傍ではなく fiscal_year_end の完全一致で引く。
+    同一期間を同じ日に2回出す銘柄があるため、前後は (日付, 開示番号) の組で比べる。
+    """
+    key = (stmt.disclosed_date, stmt.disclosure_no)
+    cands = [s for s in hist
+             if s.fiscal_year_end == stmt.fiscal_year_end
+             and s.type_of_period == stmt.type_of_period
+             and is_actual(s) and (s.disclosed_date, s.disclosure_no) < key]
+    if not cands:
+        return "first"
+    prev = max(cands, key=lambda s: (s.disclosed_date, s.disclosure_no))
+    # 予想値は比べない: 予想のみの変更は EarnForecastRevision として一覧から除外済みで、
+    # 修正率は quarter_summary.revision_pct が別途拾う
+    same = all(getattr(prev, k) == getattr(stmt, k) for k in PL_KEYS)
+    return "duplicate" if same else "restated"
 
 
 def find_statement(hist: list[Statement], fy_end: date | None, period: str | None,
