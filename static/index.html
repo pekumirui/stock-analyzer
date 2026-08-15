@@ -366,13 +366,14 @@ function finLabel(r){
   return base;
 }
 function qBadge(r){
-  // 累計の FY を 4Q に読み替えない。Q単独の通期行だけ 4Q
+  // 4Q も FY と同じ通期累計。バッジは Q単独行だけ (累計の通期に 4Q を付けない)
   let q = r.period || "";
   if(r.kind==="single" && q==="FY") q = "4Q";
+  if(r.kind!=="single" && (q==="4Q" || q==="FY")) return "";
   return /^[1-4]Q$/.test(q) ? `<span class="qb qb-${q}">${q}</span>` : "";
 }
 function renderQchips(period){
-  const cur = period==="FY" ? "" : (period || "");
+  const cur = (period==="FY" || period==="4Q") ? "" : (period || "");
   $("#q-chips").innerHTML = ["1Q","2Q","3Q","4Q"]
     .map(q => `<span class="qchip${q===cur?" on":""}">${q}</span>`).join("");
 }
