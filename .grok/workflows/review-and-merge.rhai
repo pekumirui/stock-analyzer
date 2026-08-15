@@ -182,8 +182,11 @@ for d in dimensions {
 let review_results = parallel(review_jobs);
 
 let findings = [];
+let review_failed = 0;
 for r in review_results {
-    if r != () && r.success && r.output != () && r.output.findings != () {
+    if r == () || !r.success || r.output == () || r.output.findings == () {
+        review_failed += 1;
+    } else {
         for f in r.output.findings {
             if f != () && f.file != () && f.issue != () && in_repo(f.file) {
                 findings.push(f);
@@ -191,9 +194,23 @@ for r in review_results {
         }
     }
 }
-log(findings.len().to_string() + " merge-blocking findings before verification");
+log(findings.len().to_string() + " merge-blocking findings before verification; " + review_failed.to_string() + " review jobs unusable");
 
 if findings.len() == 0 {
+    if review_failed > 0 {
+        let summary = review_failed.to_string() + " review jobs failed or returned no findings list; not merged.";
+        let report = "# review-and-merge\n\n" + summary + "\n\nRe-run after the reviewers can complete.\n";
+        let path = write_scratch_file("report.md", report);
+        complete(#{
+            path: path,
+            merged: false,
+            branch: branch_name,
+            base: base,
+            summary: summary,
+            confirmed: [],
+            unverified: review_failed,
+        });
+    }
     if !want_merge {
         complete(#{
             merged: false,
@@ -238,8 +255,8 @@ if findings.len() == 0 {
     }
     log(confirmed.len().to_string() + " confirmed, " + unverified.to_string() + " unverified");
 
-    if confirmed.len() > 0 || unverified > 0 {
-        let summary = confirmed.len().to_string() + " confirmed / " + unverified.to_string() + " unverified findings; not merged.";
+    if confirmed.len() > 0 || unverified > 0 || review_failed > 0 {
+        let summary = confirmed.len().to_string() + " confirmed / " + unverified.to_string() + " unverified findings / " + review_failed.to_string() + " unusable review jobs; not merged.";
         let report = "# review-and-merge\n\n" + summary + "\n\nFix these on the topic branch and re-run.\n";
         let path = write_scratch_file("report.md", report);
         complete(#{
@@ -249,7 +266,7 @@ if findings.len() == 0 {
             base: base,
             summary: summary,
             confirmed: confirmed,
-            unverified: unverified,
+            unverified: unverified + review_failed,
         });
     }
 }
