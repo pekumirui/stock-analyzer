@@ -70,11 +70,7 @@ Python は `.venv\Scripts\python.exe` を使う。システムの python で依�
 ## Git（ソースを編集するとき）
 
 - `main` 上では実装しない。最初のファイル編集の前に `git checkout -b <type>/<短い名前>`（`feat` / `fix` / `chore`）
-- 実装が終わったら作業ブランチにコミットする。`.env` / `stock.db` / `.venv` は入れない
-- コミット後に `/workflow review-and-merge` を起動する。質問や調査だけのターンでは起動しない
-- 確認済み指摘、または検証不能の指摘があればマージしない。同じブランチで直して再実行する
-- `main` へのマージはワークフローだけが行う（`git merge --ff-only`）。指摘を無視して自分でマージしない
-- origin へ出すときは `/workflow review-and-merge {"push":true}`。省略時はローカル `main` まで
+- `.env` / `stock.db` / `.venv` はコミットしない
 
 ## 実装方針
 
