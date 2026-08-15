@@ -7,7 +7,8 @@
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <style>
   :root { --bg:#0f1419; --panel:#1a2129; --border:#2a3441; --text:#e6edf3; --sub:#8b98a5;
-          --accent:#4a9eff; --up:#e05260; --down:#3fb27f; --warn:#f0a020; }
+          --accent:#4a9eff; --up:#e05260; --down:#3fb27f; --warn:#f0a020;
+          --row:#202b38; --row-sel:#1d2a3d; }
   * { box-sizing:border-box; margin:0; }
   body { background:var(--bg); color:var(--text); font-family:-apple-system,"Hiragino Sans","Noto Sans JP",Meiryo,sans-serif; font-size:14px; }
   header { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
@@ -15,6 +16,7 @@
   nav button { background:none; border:none; color:var(--sub); padding:8px 10px; cursor:pointer; font-size:14px; border-bottom:2px solid transparent; }
   nav button.active { color:var(--text); border-bottom-color:var(--accent); }
   main { padding:12px; max-width:1200px; margin:0 auto; }
+  main.wide { max-width:1600px; }   /* 決算速報タブは2カラム密度を取るため広くする */
   .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:12px; }
   table { width:100%; border-collapse:collapse; font-size:13px; }
   th,td { padding:6px 8px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap; }
@@ -43,6 +45,44 @@
   .suggest { position:absolute; background:var(--panel); border:1px solid var(--border); border-radius:6px; z-index:10; max-height:240px; overflow:auto; }
   .suggest div { padding:6px 10px; cursor:pointer; }
   .suggest div:hover { background:#243044; }
+  .sub { color:var(--sub); }
+  .dim { opacity:.4; }
+
+  /* ---- 決算速報タブ ---- */
+  .egrid { display:grid; gap:12px; grid-template-columns:minmax(0,1fr); }
+  .egrid > * { min-width:0; }
+  /* 一覧は必ずスクロール枠に収める (ピーク日は1000件近くあり、下段の詳細に辿り着けなくなる) */
+  .a-list .scroll { max-height:50vh; overflow:auto; }
+  /* 上段は 一覧75% + カレンダー25%、下段は チャート50% + 決算表50% */
+  @media (min-width:1100px){
+    .egrid { grid-template-columns:repeat(4,minmax(0,1fr)); align-items:start; }
+    .a-list { grid-column:span 3; } .a-cal { grid-column:span 1; }
+    .a-chart { grid-column:span 2; } .a-fin { grid-column:span 2; }
+    .a-list .scroll { max-height:46vh; }
+    .a-cal { max-width:360px; justify-self:end; }
+  }
+  #earn-tbl th, #earn-tbl td { padding:5px 6px; }
+  .phead { display:flex; align-items:baseline; gap:8px; justify-content:space-between; margin-bottom:8px; }
+  .phead h3 { margin:0; }
+  summary { cursor:pointer; color:var(--sub); }
+  td.num { font-variant-numeric:tabular-nums; }
+  .grp { border-left:1px solid var(--border); }
+  #earn-list:focus { outline:none; }
+  #earn-tbl thead th { z-index:1; }
+  #earn-tbl thead tr:nth-child(2) th { top:29px; }   /* 2段ヘッダの下段 */
+  #earn-tbl tbody tr { cursor:pointer; }
+  #earn-tbl tbody tr:hover { background:var(--row); }
+  #earn-tbl tbody tr.sel { background:var(--row-sel); box-shadow:inset 3px 0 0 var(--accent); }
+  table.fin td:first-child, table.fin th:first-child { position:sticky; left:0; background:var(--panel); }
+  table.fin .g { display:block; font-size:11px; line-height:1.4; }
+  .cards { display:grid; gap:8px; }
+  .card { border:1px solid var(--border); border-radius:8px; padding:8px; cursor:pointer; }
+  .card.sel { border-color:var(--accent); background:var(--row-sel); }
+  .card .ch { display:flex; gap:6px; align-items:baseline; flex-wrap:wrap; margin-bottom:6px; }
+  .card .cg { display:grid; grid-template-columns:auto 1fr 1fr; gap:2px 10px; font-size:12px; }
+  .card .cg .hd { color:var(--sub); }
+  .card .cg .v { text-align:right; font-variant-numeric:tabular-nums; }
+
   @media (max-width:640px){ body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:40px} }
 </style>
 </head>
@@ -58,17 +98,38 @@
 <main>
 
 <section id="tab-earnings">
-  <div class="panel">
-    <div class="row">
-      <button class="btn" onclick="calMove(-1)">◀</button>
-      <b id="cal-title"></b>
-      <button class="btn" onclick="calMove(1)">▶</button>
+  <div class="egrid">
+
+    <div class="panel a-list">
+      <div class="phead">
+        <h3 id="earn-title">日付を選択してください</h3>
+        <span class="sub" id="earn-count" style="font-size:12px"></span>
+      </div>
+      <div class="tbl-wrap scroll" id="earn-list" tabindex="0"></div>
     </div>
-    <div class="cal" id="cal"></div>
-  </div>
-  <div class="panel">
-    <h3 id="earn-title">日付を選択してください</h3>
-    <div class="tbl-wrap"><table id="earn-tbl"></table></div>
+
+    <details class="panel a-cal" id="cal-panel">
+      <summary>決算カレンダー</summary>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" onclick="calMove(-1)">◀</button>
+        <b id="cal-title"></b>
+        <button class="btn" onclick="calMove(1)">▶</button>
+      </div>
+      <div class="cal" id="cal"></div>
+    </details>
+
+    <div class="panel a-chart">
+      <div class="phead"><h3 id="e-chart-title">銘柄を選択してください</h3></div>
+      <div id="e-chart" style="height:320px"></div>
+    </div>
+
+    <div class="panel a-fin">
+      <div class="phead"><h3>累計</h3><span class="sub" style="font-size:12px">単位: 百万円 / EPSは円</span></div>
+      <div class="tbl-wrap"><table class="fin" id="cum-tbl"></table></div>
+      <h3>3か月決算</h3>
+      <div class="tbl-wrap"><table class="fin" id="q-tbl"></table></div>
+    </div>
+
   </div>
 </section>
 
@@ -115,14 +176,24 @@ const $ = s => document.querySelector(s);
 const api = p => fetch(p).then(r => { if(!r.ok) throw new Error(r.status); return r.json(); });
 const fmt = (v,d=0) => v==null ? "–" : Number(v).toLocaleString("ja-JP",{maximumFractionDigits:d,minimumFractionDigits:d});
 const pct = v => v==null ? "–" : `<span class="${v>=0?'pos':'neg'}">${v>0?'+':''}${fmt(v,1)}%</span>`;
+// APIは円で返す。決算表の金額表示だけ百万円に換算する
+const mil = v => v==null ? "–" : fmt(v/1e6, 0);
+// 増減率セル: 前期が赤字/ゼロだと比率に意味がないので状態バッジで出す
+const GST = {turn_profit:["黒転","up"], turn_loss:["赤転","dn"], loss:["赤継",null]};
+function gc(c){
+  if(!c || c.state==="na") return "–";
+  if(c.state==="up" || c.state==="down") return pct(c.pct);
+  const [txt,cls] = GST[c.state];
+  return cls ? `<span class="badge ${cls}">${txt}</span>` : `<span class="sub">${txt}</span>`;
+}
 
 // ---- tabs ----
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
   b.classList.add("active");
   ["earnings","chart","screener"].forEach(t => $("#tab-"+t).style.display = t===b.dataset.tab?"":"none");
+  document.querySelector("main").classList.toggle("wide", b.dataset.tab==="earnings");
   if (b.dataset.tab==="screener" && !$("#sc-tbl").innerHTML) loadScreener();
-  if (b.dataset.tab==="chart" && chartObj) setTimeout(()=>chartObj.applyOptions({width:$("#chart").clientWidth}),0);
 });
 
 // ---- 決算カレンダー ----
@@ -143,35 +214,155 @@ async function renderCal(){
   }
   $("#cal").innerHTML = html;
 }
+// ---- 決算速報 一覧(マスター) / 詳細(ディテール) ----
+const MET = [["net_sales","売上"],["operating_profit","営利"],["ordinary_profit","経利"],["profit","純利"]];
+const KPFX = {actual_current:"(実)", forecast_h:"(中予)", forecast_fy:"(通予)", actual_fy_prev:"(通実)"};
+const mqNarrow = window.matchMedia("(max-width:700px)");
+let earnRows=[], selNo=null, detailReq=0;
+
 async function selectDate(ds){
   selDate = ds; renderCal();
   $("#earn-title").textContent = `${ds} の決算発表`;
-  const rows = await api(`/api/earnings?date=${ds}`);
-  if(!rows.length){ $("#earn-tbl").innerHTML = "<tr><td class='l'>開示なし</td></tr>"; return; }
-  let h = `<tr><th class="l">銘柄</th><th>期</th><th>売上(累計)</th><th>YoY</th><th>営利(累計)</th><th>YoY</th>
-           <th>売上(Q単独)</th><th>YoY</th><th>営利(Q単独)</th><th>YoY</th><th>経常</th><th>純利</th><th>EPS</th>
-           <th>通期予想営利</th><th>RS</th><th>Stage</th><th>発表後α</th></tr>`;
-  for(const r of rows){
-    const s = r.summary, cu = s.cumulative, sg = s.single||{}, y=s.yoy||{}, ys=s.yoy_single||{};
-    h += `<tr>
-      <td class="l"><span class="clicky" onclick="gotoChart('${r.code}')">${r.name}</span> <small>${r.code.slice(0,4)}</small>
-        ${s.revision_pct==null?'':`<span class="badge ${s.revised_up?'up':'dn'}">${s.revised_up?'上方':'下方'}修正 ${s.revision_pct>0?'+':''}${s.revision_pct}%</span>`}</td>
-      <td>${r.period||''}</td>
-      <td>${fmt(cu.net_sales)}</td><td>${pct(y.net_sales)}</td>
-      <td>${fmt(cu.operating_profit)}</td><td>${pct(y.operating_profit)}</td>
-      <td>${fmt(sg.net_sales)}</td><td>${pct(ys.net_sales)}</td>
-      <td>${fmt(sg.operating_profit)}</td><td>${pct(ys.operating_profit)}</td>
-      <td>${fmt(cu.ordinary_profit)}</td><td>${fmt(cu.profit)}</td><td>${fmt(cu.eps,1)}</td>
-      <td>${fmt(s.forecast_fy.operating_profit)}</td>
-      <td>${r.rs_rank??'–'}</td>
-      <td>${r.stage?`<span class="badge st${r.stage}">S${r.stage}</span>`:'–'}</td>
-      <td>${pct(r.alpha_to_date)}</td></tr>`;
-  }
-  $("#earn-tbl").innerHTML = h;
+  earnRows = await api(`/api/earnings?date=${ds}`).catch(()=>[]);
+  $("#earn-count").textContent = earnRows.length ? `${earnRows.length}件` : "";
+  selNo = null;
+  renderList();
+  if(earnRows.length) selectRow(earnRows[0].disclosure_no, false);
+  else clearDetail("開示なし");
 }
 
+function renderList(){
+  if(!earnRows.length){ $("#earn-list").innerHTML = `<div class="sub">開示なし</div>`; return; }
+  $("#earn-list").innerHTML = mqNarrow.matches ? cardsHtml() : tableHtml();
+  markSel();
+}
+
+function tableHtml(){
+  // 2段ヘッダにして列幅を詰める (1段だと「売上QoQ」等で8列が横に収まらない)
+  const sub = () => MET.map(([k,l],i) => `<th class="${i?'':'grp'}">${l}</th>`).join("");
+  let h = `<table id="earn-tbl"><thead>`
+        + `<tr><th rowspan="2">時刻</th><th rowspan="2" class="l">銘柄</th>`
+        + `<th rowspan="2" class="l">期</th><th rowspan="2">Q</th>`
+        + `<th colspan="4" class="grp">QoQ (3か月)</th><th colspan="4" class="grp">YoY (累計)</th></tr>`
+        + `<tr>${sub()}${sub()}</tr></thead><tbody>`;
+  for(const r of earnRows){
+    // 1QのQoQは前事業年度の4Q単独が相手になる (季節性が断絶するため注記する)
+    const tip = r.period==="1Q" ? ' title="前期4Q単独比"' : "";
+    h += `<tr data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">`
+       + `<td>${(r.disclosed_time||"").slice(0,5)}</td>`
+       + `<td class="l">${r.name} <small class="sub">${r.code.slice(0,4)}</small></td>`
+       + `<td class="l">${r.fy_label}</td><td>${r.period||""}</td>`
+       + MET.map(([k],i)=>`<td class="num ${i?'':'grp'}"${tip}>${gc((r.qoq||{})[k])}</td>`).join("")
+       + MET.map(([k],i)=>`<td class="num ${i?'':'grp'}">${gc((r.yoy||{})[k])}</td>`).join("")
+       + `</tr>`;
+  }
+  return h + `</tbody></table>`;
+}
+
+function cardsHtml(){
+  return `<div class="cards">` + earnRows.map(r =>
+    `<div class="card" data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">
+       <div class="ch"><b>${(r.disclosed_time||"").slice(0,5)}</b><span>${r.name}</span>
+         <small class="sub">${r.code.slice(0,4)} / ${r.fy_label} ${r.period||""}</small></div>
+       <div class="cg"><span class="hd"></span><span class="hd v">QoQ</span><span class="hd v">YoY</span>`
+     + MET.map(([k,l])=>`<span class="hd">${l}</span><span class="v">${gc((r.qoq||{})[k])}</span><span class="v">${gc((r.yoy||{})[k])}</span>`).join("")
+     + `</div></div>`).join("") + `</div>`;
+}
+
+function markSel(){
+  document.querySelectorAll("#earn-list [data-no]").forEach(el =>
+    el.classList.toggle("sel", el.dataset.no === selNo));
+}
+
+function selectRow(no, scroll){
+  selNo = no; markSel();
+  const row = earnRows.find(r => r.disclosure_no === no);
+  if(!row) return;
+  if(scroll !== false && mqNarrow.matches) $(".a-chart").scrollIntoView({behavior:"smooth", block:"start"});
+  loadDetail(row);
+}
+
+function clearDetail(msg){
+  $("#e-chart-title").textContent = msg;
+  $("#e-chart").innerHTML = ""; $("#cum-tbl").innerHTML = ""; $("#q-tbl").innerHTML = "";
+}
+
+async function loadDetail(row){
+  const my = ++detailReq;                      // 連続選択時に古いレスポンスで上書きしない
+  $("#e-chart-title").innerHTML = `<span class="clicky" onclick="gotoChart('${row.code}')">${row.name}</span>
+    <small class="sub">${row.code.slice(0,4)} / ${row.fy_label} ${row.period||""}</small>`;
+  const [d, ch] = await Promise.all([
+    api(`/api/earnings/detail/${row.code}?disclosure_no=${encodeURIComponent(row.disclosure_no)}`).catch(()=>null),
+    api(`/api/chart/${row.code}?tf=D&ma=50,150,200`).catch(()=>null)]);
+  if(my !== detailReq) return;
+  if(ch) eChartObj = renderPriceChart($("#e-chart"), ch, {height:320, prev:eChartObj, mark:d && d.disclosed_date});
+  else { $("#e-chart").innerHTML = `<div class="sub">株価データなし</div>`; }
+  renderFin($("#cum-tbl"), d && d.cumulative, d);
+  renderFin($("#q-tbl"),   d && d.quarterly,  d);
+}
+
+function renderFin(el, rows, d){
+  if(!rows || !rows.length){
+    el.innerHTML = `<tr><td class="l sub">${d && d.notes.single_unavailable ? "算出不能 (決算期変更など)" : "データなし"}</td></tr>`;
+    return;
+  }
+  const dim = d && d.notes.no_ordinary;                    // IFRS/米国基準は経常利益が無い
+  const dc = k => k==="ordinary_profit" && dim ? " dim" : "";
+  let h = `<thead><tr><th class="l">決算期</th>`
+        + MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("") + `<th>EPS</th></tr></thead><tbody>`;
+  for(const r of rows){
+    const cell = (k, txt) => {
+      const g = r.growth && r.growth[k];
+      return `<td class="num${dc(k)}">${txt}<span class="g">${g ? gc(g) : ""}</span></td>`;
+    };
+    h += `<tr><td class="l">${KPFX[r.kind]||""}${r.label}</td>`
+       + MET.map(([k])=>cell(k, mil(r.values[k]))).join("")
+       + cell("eps", r.values.eps==null ? "–" : fmt(r.values.eps,1)) + `</tr>`;
+  }
+  el.innerHTML = h + `</tbody>`;
+}
+
+// 画面幅がカード/テーブルの境界をまたいだら組み直す
+mqNarrow.addEventListener("change", renderList);
+
+$("#earn-list").addEventListener("keydown", e => {
+  if(e.key!=="ArrowDown" && e.key!=="ArrowUp") return;
+  e.preventDefault();
+  const i = earnRows.findIndex(r => r.disclosure_no === selNo);
+  const nxt = earnRows[Math.max(0, Math.min(earnRows.length-1, i + (e.key==="ArrowDown"?1:-1)))];
+  if(!nxt) return;
+  selectRow(nxt.disclosure_no, false);
+  const el = document.querySelector(`#earn-list [data-no="${nxt.disclosure_no}"]`);
+  if(el) el.scrollIntoView({block:"nearest"});
+});
+
 // ---- チャート ----
-let chartObj=null, relObj=null, curCode=null;
+let chartObj=null, relObj=null, curCode=null, eChartObj=null;
+
+// 決算タブは行選択のたびに描き直すので、必ず前のインスタンスを破棄してから作る
+function renderPriceChart(el, d, opt={}){
+  if(opt.prev){ try { opt.prev.remove(); } catch(e) {} }
+  el.innerHTML = "";
+  const c = LightweightCharts.createChart(el, {
+    height:opt.height||420, autoSize:true,
+    layout:{background:{color:"transparent"},textColor:"#8b98a5"},
+    grid:{vertLines:{color:"#1e2630"},horzLines:{color:"#1e2630"}}, timeScale:{borderColor:"#2a3441"}});
+  const cs = c.addCandlestickSeries({upColor:"#e05260",downColor:"#3fb27f",borderVisible:false,
+                                     wickUpColor:"#e05260",wickDownColor:"#3fb27f"});
+  cs.setData(d.candles);
+  const dates = new Set(d.candles.map(x=>x.time));
+  cs.setMarkers(d.earnings_dates.filter(t=>dates.has(t)).map(t=>({
+    time:t, position:"belowBar", color: t===opt.mark ? "#4a9eff" : "#f0a020", shape:"arrowUp", text:"決"})));
+  const colors=["#4a9eff","#f0a020","#c678dd","#56b6c2"];
+  Object.entries(d.ma).forEach(([w,pts],i)=>{
+    c.addLineSeries({color:colors[i%4],lineWidth:1,priceLineVisible:false,lastValueVisible:false,
+                     title:`MA${w}`}).setData(pts);
+  });
+  c.timeScale().fitContent();
+  // autoSize は生成後のレイアウトで幅が確定するため、確定後にもう一度フィットさせる
+  requestAnimationFrame(() => { try { c.timeScale().fitContent(); } catch(e) {} });
+  return c;
+}
 $("#sym").addEventListener("input", async e => {
   const q = e.target.value.trim();
   if(q.length<1){ $("#suggest").style.display="none"; return; }
@@ -186,24 +377,12 @@ async function loadChart(){
   const tf=$("#tf").value, mas=$("#mas").value, rel=$("#rel").checked;
   const d = await api(`/api/chart/${curCode}?tf=${tf}&ma=${mas}&rel=${rel}`);
   $("#chart-title").innerHTML = `<b>${d.name}</b> <small>${d.code.slice(0,4)} / ${tf==="D"?"日足":"月足"}</small>`;
-  $("#chart").innerHTML="";
-  chartObj = LightweightCharts.createChart($("#chart"), {
-    height:420, layout:{background:{color:"transparent"},textColor:"#8b98a5"},
-    grid:{vertLines:{color:"#1e2630"},horzLines:{color:"#1e2630"}}, timeScale:{borderColor:"#2a3441"}});
-  const cs = chartObj.addCandlestickSeries({upColor:"#e05260",downColor:"#3fb27f",borderVisible:false,wickUpColor:"#e05260",wickDownColor:"#3fb27f"});
-  cs.setData(d.candles);
-  // 決算マーカー
-  const dates = new Set(d.candles.map(c=>c.time));
-  cs.setMarkers(d.earnings_dates.filter(t=>dates.has(t)).map(t=>({time:t,position:"belowBar",color:"#f0a020",shape:"arrowUp",text:"決"})));
-  const colors=["#4a9eff","#f0a020","#c678dd","#56b6c2"];
-  Object.entries(d.ma).forEach(([w,pts],i)=>{
-    chartObj.addLineSeries({color:colors[i%4],lineWidth:1,priceLineVisible:false,lastValueVisible:false,title:`MA${w}`}).setData(pts);
-  });
-  chartObj.timeScale().fitContent();
+  chartObj = renderPriceChart($("#chart"), d, {height:420, prev:chartObj});
   if(rel && d.relative){
     $("#relwrap").style.display="";
+    if(relObj){ try { relObj.remove(); } catch(e) {} }
     $("#relchart").innerHTML="";
-    relObj = LightweightCharts.createChart($("#relchart"),{height:160,layout:{background:{color:"transparent"},textColor:"#8b98a5"},grid:{vertLines:{color:"#1e2630"},horzLines:{color:"#1e2630"}}});
+    relObj = LightweightCharts.createChart($("#relchart"),{height:160,autoSize:true,layout:{background:{color:"transparent"},textColor:"#8b98a5"},grid:{vertLines:{color:"#1e2630"},horzLines:{color:"#1e2630"}}});
     relObj.addLineSeries({color:"#f0a020",lineWidth:2}).setData(d.relative);
     relObj.timeScale().fitContent();
   } else $("#relwrap").style.display="none";
@@ -234,6 +413,9 @@ async function loadScreener(){
   $("#sc-tbl").innerHTML = h;
 }
 
+// 初期表示: 決算速報タブは広幅、カレンダーはPCのみ開いた状態にする
+document.querySelector("main").classList.add("wide");
+$("#cal-panel").open = window.innerWidth >= 1100;
 renderCal();
 </script>
 </body>

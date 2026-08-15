@@ -1,9 +1,11 @@
 """テクニカル指標・RS・ステージ判定・決算後リターンの一括計算。"""
+from datetime import date, timedelta
+
 import pandas as pd
 import numpy as np
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 
-from .config import STAGE_PARAMS as P
+from .config import STAGE_PARAMS as P, EARNINGS_PARAMS as EP
 from .models import DailyPrice, Topix, Indicator, Statement, EarningsEvent
 from .ingest import upsert
 
@@ -142,66 +144,246 @@ def compute_earnings_events(db: Session):
         upsert(db, EarningsEvent, rows)
 
 
-# ---------- 決算サマリ (Q単独・YoY・修正判定) ----------
+# ---------- 決算サマリ (Q単独・YoY・QoQ・修正判定) ----------
 
-def quarter_summary(db: Session, stmt: Statement) -> dict:
-    """1件の開示について 累計/Q単独/YoY/予想/上方修正 を導出。"""
-    hist = (db.query(Statement)
-            .filter(Statement.code == stmt.code,
-                    Statement.disclosed_date <= stmt.disclosed_date)
+METRIC_KEYS = ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps")
+
+# CurPerType は 1Q/2Q/3Q/4Q/5Q/FY。FYと4Qはどちらも通期累計扱い。
+# 5Q(決算期変更等の変則期)は前後関係が定義できないためQ単独は算出しない。
+ORDER = {"1Q": 1, "2Q": 2, "3Q": 3, "4Q": 4, "FY": 4}
+PERIODS_OF = {1: ("1Q",), 2: ("2Q",), 3: ("3Q",), 4: ("FY", "4Q")}
+
+# 売上はマイナスを取らないため黒字転換の概念がない
+SIGNED = {"net_sales": False, "operating_profit": True, "ordinary_profit": True,
+          "profit": True, "eps": True}
+
+
+def metrics(s: Statement) -> dict[str, float | None]:
+    return {k: getattr(s, k) for k in METRIC_KEYS}
+
+
+def shift_year(d: date, n: int) -> date:
+    """年を n ずらす。2/29決算は 2/28 に丸める (replace が ValueError を投げるため)。"""
+    try:
+        return d.replace(year=d.year + n)
+    except ValueError:
+        return d.replace(year=d.year + n, day=28)
+
+
+def is_actual(s: Statement) -> bool:
+    """実績値を含む決算短信本体か (予想修正のみの開示は実績が空なので除く)。"""
+    return "FinancialStatements" in (s.type_of_document or "")
+
+
+def statement_history(db: Session, code: str, upto: date, days: int) -> list[Statement]:
+    """指定日から遡った開示履歴。raw_json は使わないので defer する。"""
+    return (db.query(Statement).options(defer(Statement.raw_json))
+            .filter(Statement.code == code,
+                    Statement.disclosed_date <= upto,
+                    Statement.disclosed_date >= upto - timedelta(days=days))
             .order_by(Statement.disclosed_date).all())
 
-    def metrics(s):
-        return {"net_sales": s.net_sales, "operating_profit": s.operating_profit,
-                "ordinary_profit": s.ordinary_profit, "profit": s.profit, "eps": s.eps}
 
-    # CurPerType は 1Q/2Q/3Q/4Q/5Q/FY。FYと4Qはどちらも通期累計扱い。
-    # 5Q(決算期変更等の変則期)は前後関係が定義できないためQ単独は算出しない。
-    ORDER = {"1Q": 1, "2Q": 2, "3Q": 3, "4Q": 4, "FY": 4}
-    PREV_OF = {2: "1Q", 3: "2Q", 4: "3Q"}
-    cur_n = ORDER.get(stmt.type_of_period or "", None)
+def find_statement(hist: list[Statement], fy_end: date | None, period: str | None,
+                   tol_days: int) -> Statement | None:
+    """事業年度末が fy_end に最も近い(±tol_days)同一四半期の開示。
 
-    def find(fy_end, period):
-        """同一事業年度・同一四半期の直近開示 (修正開示より決算短信本体を優先)。"""
-        cands = [s for s in hist
-                 if s.fiscal_year_end == fy_end and s.type_of_period == period
-                 and s.net_sales is not None]
-        if not cands:
-            return None
-        body = [s for s in cands if not s.is_revision]
-        return (body or cands)[-1]
+    完全一致ではなく最近傍にするのは、決算期変更やうるう年で年度末がずれるため。
+    修正開示より決算短信本体を優先し、同条件なら後の開示 (訂正後の値) を採る。
+    """
+    if fy_end is None or not period:
+        return None
+    periods = PERIODS_OF.get(ORDER.get(period, 0), (period,))
+    cands = [s for s in hist
+             if s.fiscal_year_end is not None and s.type_of_period in periods
+             and abs((s.fiscal_year_end - fy_end).days) <= tol_days
+             and any(v is not None for v in metrics(s).values())]
+    if not cands:
+        return None
+    cands = [s for s in cands if not s.is_revision] or cands
+    return min(cands, key=lambda s: (abs((s.fiscal_year_end - fy_end).days),
+                                     -s.disclosed_date.toordinal()))
 
-    # Q単独 = 当期累計 - 前四半期累計
-    single = None
-    if cur_n and stmt.net_sales is not None:
-        if cur_n == 1:
-            single = metrics(stmt)
-        else:
-            prev = find(stmt.fiscal_year_end, PREV_OF[cur_n])
-            if prev:
-                single = {k: (v - metrics(prev)[k]) if v is not None and metrics(prev)[k] is not None else None
-                          for k, v in metrics(stmt).items()}
 
-    # 前年同期 (累計/単独)
-    yoy, yoy_single = {}, {}
+def growth_cell(cur: float | None, prev: float | None, signed: bool = True) -> dict:
+    """増減率セル。state は up/down/turn_profit(黒転)/turn_loss(赤転)/loss(赤字継続)/na。
+
+    前期が0以下だと比率に意味がないため、単純な None ではなく状態で返す
+    (営業赤字からの黒字転換が「–」に潰れるのを避ける)。
+    """
+    if cur is None or prev is None:
+        return {"pct": None, "state": "na"}
+    if prev > 0:
+        pct = round((cur / prev - 1) * 100, 1)
+        if signed and cur <= 0:
+            return {"pct": pct, "state": "turn_loss"}
+        return {"pct": pct, "state": "up" if pct >= 0 else "down"}
+    if not signed:
+        return {"pct": None, "state": "na"}
+    return {"pct": None, "state": "turn_profit" if cur > 0 else "loss"}
+
+
+def growth_map(cur: dict | None, prev: dict | None) -> dict | None:
+    if not cur or not prev:
+        return None
+    return {k: growth_cell(cur.get(k), prev.get(k), SIGNED[k]) for k in METRIC_KEYS}
+
+
+def prev_quarter(fy_end: date | None, period: str | None) -> tuple[date, str] | None:
+    """直前四半期の (事業年度末, 四半期)。1Qの前は前事業年度の通期。5Q・不明は None。"""
+    n = ORDER.get(period or "")
+    if not n or fy_end is None:
+        return None
+    if n == 1:
+        return (shift_year(fy_end, -1), "FY")
+    return (fy_end, PERIODS_OF[n - 1][0])
+
+
+def single_from(hist: list[Statement], stmt: Statement | None, tol_days: int) -> dict | None:
+    """Q単独 = 当該累計 - 直前四半期累計。1Q は累計そのもの。"""
+    if stmt is None:
+        return None
+    if ORDER.get(stmt.type_of_period or "") == 1:
+        return metrics(stmt)
+    pq = prev_quarter(stmt.fiscal_year_end, stmt.type_of_period)
+    prev = find_statement(hist, pq[0], pq[1], tol_days) if pq else None
+    if prev is None:
+        return None
+    cm, pm = metrics(stmt), metrics(prev)
+    return {k: (cm[k] - pm[k]) if cm[k] is not None and pm[k] is not None else None
+            for k in METRIC_KEYS}
+
+
+def single_metrics(hist: list[Statement], fy_end: date | None, period: str | None,
+                   tol_days: int) -> dict | None:
+    return single_from(hist, find_statement(hist, fy_end, period, tol_days), tol_days)
+
+
+def qoq_map(hist: list[Statement], stmt: Statement, tol_days: int) -> dict | None:
+    """Q単独(当四半期) vs Q単独(直前四半期)。1Q は前事業年度の4Q単独が相手になる。"""
+    cur = single_from(hist, stmt, tol_days)
+    pq = prev_quarter(stmt.fiscal_year_end, stmt.type_of_period)
+    if cur is None or pq is None:
+        return None
+    return growth_map(cur, single_metrics(hist, pq[0], pq[1], tol_days))
+
+
+def period_label(fy_end: date | None, period: str | None = None, quarterly: bool = False) -> str:
+    """FY27.3 / FY27.3_2Q 形式のラベル。
+
+    通期は累計表では `FY27.3` だが、3か月決算表では第4四半期単独なので `FY27.3_4Q` と書く。
+    """
+    if fy_end is None:
+        return "–"
+    base = f"FY{fy_end.year % 100:02d}.{fy_end.month}"
+    if not period:
+        return base
+    if ORDER.get(period) == 4:
+        return f"{base}_4Q" if quarterly else base
+    return f"{base}_{period}"
+
+
+def _row(fy_end: date | None, period: str | None, kind: str,
+         values: dict, growth: dict | None, quarterly: bool = False) -> dict:
+    return {"label": period_label(fy_end, period, quarterly), "kind": kind,
+            "fiscal_year_end": fy_end.isoformat() if fy_end else None,
+            "period": period, "values": values, "growth": growth}
+
+
+def cumulative_rows(hist: list[Statement], stmt: Statement, years: int, tol_days: int) -> list[dict]:
+    """累計テーブル: 過去(years-1)期の同一四半期 → 当期実績 → 中間予想 → 通期予想 → 前期通期実績。
+
+    データの無い期は行ごと省略する (バックフィル年数によって行数が変わる)。
+    """
+    fy_end, period = stmt.fiscal_year_end, stmt.type_of_period
+    if fy_end is None:
+        return []
+    rows = []
+    for back in range(years - 1, 0, -1):
+        s = find_statement(hist, shift_year(fy_end, -back), period, tol_days)
+        if s is None:
+            continue
+        ly = find_statement(hist, shift_year(s.fiscal_year_end, -1), period, tol_days)
+        rows.append(_row(s.fiscal_year_end, period, "actual", metrics(s),
+                         growth_map(metrics(s), metrics(ly) if ly else None)))
+    prev_fy_end = shift_year(fy_end, -1)
+    ly = find_statement(hist, prev_fy_end, period, tol_days)
+    rows.append(_row(fy_end, period, "actual_current", metrics(stmt),
+                     growth_map(metrics(stmt), metrics(ly) if ly else None)))
+
+    prev_fy = find_statement(hist, prev_fy_end, "FY", tol_days)
+    f2 = {k: getattr(stmt, "f2_" + k) for k in METRIC_KEYS}
+    if any(v is not None for v in f2.values()):
+        ly2 = find_statement(hist, prev_fy_end, "2Q", tol_days)
+        rows.append(_row(fy_end, None, "forecast_h", f2,
+                         growth_map(f2, metrics(ly2) if ly2 else None)))
+    fyf = {k: getattr(stmt, "fy_" + k) for k in METRIC_KEYS}
+    if any(v is not None for v in fyf.values()):
+        rows.append(_row(fy_end, None, "forecast_fy", fyf,
+                         growth_map(fyf, metrics(prev_fy) if prev_fy else None)))
+    if prev_fy is not None:
+        # 前期通期実績。ここは基準行なので前年比は付けない
+        rows.append(_row(prev_fy.fiscal_year_end, None, "actual_fy_prev", metrics(prev_fy), None))
+    return rows
+
+
+def quarterly_rows(hist: list[Statement], stmt: Statement, n: int, tol_days: int) -> list[dict]:
+    """3か月決算テーブル: 当四半期から n 個ぶん遡ったQ単独実績 (古い順)。"""
+    cursor = (stmt.fiscal_year_end, stmt.type_of_period) if stmt.fiscal_year_end else None
+    rows, first = [], True
+    for _ in range(n):
+        if cursor is None:
+            break
+        fy_end, period = cursor
+        cur = single_from(hist, stmt, tol_days) if first else single_metrics(hist, fy_end, period, tol_days)
+        first = False
+        if cur is not None:
+            ly = single_metrics(hist, shift_year(fy_end, -1), period, tol_days)
+            rows.append(_row(fy_end, period, "single", cur, growth_map(cur, ly), quarterly=True))
+        cursor = prev_quarter(fy_end, period)
+    rows.reverse()
+    return rows
+
+
+def earnings_detail(db: Session, stmt: Statement) -> dict:
+    """1件の開示について 累計テーブル・3か月決算テーブルを組み立てる。"""
+    tol = EP["fy_match_tol_days"]
+    hist = statement_history(db, stmt.code, stmt.disclosed_date,
+                             366 * (EP["cum_history_years"] + 1))
+    cum = cumulative_rows(hist, stmt, EP["cum_history_years"], tol)
+    qtr = quarterly_rows(hist, stmt, EP["single_history_quarters"], tol)
+    return {
+        "label": period_label(stmt.fiscal_year_end, stmt.type_of_period),
+        "cumulative": cum,
+        "quarterly": qtr,
+        "notes": {
+            # 全行で経常利益が空 = IFRS/米国基準。UI側で列を淡色化する
+            "no_ordinary": all(r["values"].get("ordinary_profit") is None for r in cum + qtr),
+            "single_unavailable": not qtr,
+        },
+    }
+
+
+def quarter_summary(db: Session, stmt: Statement, hist: list[Statement] | None = None) -> dict:
+    """1件の開示について 累計/Q単独/YoY/QoQ/予想/上方修正 を導出。
+
+    hist を渡すと追加クエリを発行しない (一覧APIの一括プリフェッチ用)。
+    """
+    tol = EP["fy_match_tol_days"]
+    if hist is None:
+        hist = statement_history(db, stmt.code, stmt.disclosed_date, EP["list_history_days"])
+
+    cum = metrics(stmt)
+    single = single_from(hist, stmt, tol)
+
+    yoy = yoy_single = None
     if stmt.fiscal_year_end:
-        prev_fy_end = stmt.fiscal_year_end.replace(year=stmt.fiscal_year_end.year - 1)
-        ly = find(prev_fy_end, stmt.type_of_period)
-        if ly:
-            for k, v in metrics(stmt).items():
-                lv = metrics(ly)[k]
-                yoy[k] = round((v / lv - 1) * 100, 1) if v is not None and lv not in (None, 0) and lv > 0 else None
-            if single and cur_n and cur_n > 1:
-                lp = find(prev_fy_end, [k for k, v in ORDER.items() if v == cur_n - 1][0])
-                if lp:
-                    ly_single = {k: (metrics(ly)[k] - metrics(lp)[k])
-                                 if metrics(ly)[k] is not None and metrics(lp)[k] is not None else None
-                                 for k in metrics(ly)}
-                    for k, v in single.items():
-                        lv = ly_single.get(k)
-                        yoy_single[k] = round((v / lv - 1) * 100, 1) if v is not None and lv not in (None, 0) and lv > 0 else None
-            elif single:
-                yoy_single = yoy
+        prev_fy_end = shift_year(stmt.fiscal_year_end, -1)
+        ly = find_statement(hist, prev_fy_end, stmt.type_of_period, tol)
+        if ly is not None:
+            yoy = growth_map(cum, metrics(ly))
+            yoy_single = growth_map(single, single_metrics(hist, prev_fy_end,
+                                                           stmt.type_of_period, tol))
 
     # 予想修正: 同一事業年度の直前開示の通期営業利益予想と比較
     revised_up = False
@@ -215,20 +397,19 @@ def quarter_summary(db: Session, stmt: Statement) -> dict:
             break
     if prev_fc and stmt.fy_operating_profit is not None and prev_fc.fy_operating_profit:
         diff = stmt.fy_operating_profit / prev_fc.fy_operating_profit - 1
-        if abs(diff) >= 0.001:                       # 端数差はノイズとして無視
+        if abs(diff) >= EP["revision_noise_th"]:
             revision_pct = round(diff * 100, 1)
             revised_up = diff > 0
 
     return {
         "revision_pct": revision_pct,
-        "cumulative": metrics(stmt),
+        "cumulative": cum,
         "single": single,
-        "yoy": yoy or None,
-        "yoy_single": yoy_single or None,
-        "forecast_h": {"net_sales": stmt.f2_net_sales, "operating_profit": stmt.f2_operating_profit,
-                       "ordinary_profit": stmt.f2_ordinary_profit, "profit": stmt.f2_profit, "eps": stmt.f2_eps},
-        "forecast_fy": {"net_sales": stmt.fy_net_sales, "operating_profit": stmt.fy_operating_profit,
-                        "ordinary_profit": stmt.fy_ordinary_profit, "profit": stmt.fy_profit, "eps": stmt.fy_eps},
+        "yoy": yoy,
+        "yoy_single": yoy_single,
+        "qoq": qoq_map(hist, stmt, tol),
+        "forecast_h": {k: getattr(stmt, "f2_" + k) for k in METRIC_KEYS},
+        "forecast_fy": {k: getattr(stmt, "fy_" + k) for k in METRIC_KEYS},
         "revised_up": revised_up,
         "is_revision_doc": bool(stmt.is_revision),
     }

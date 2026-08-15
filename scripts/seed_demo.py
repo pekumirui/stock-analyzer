@@ -1,4 +1,4 @@
-"""J-Quants不要のデモデータ投入 (合成株価3年+四半期決算2年)。"""
+"""J-Quants不要のデモデータ投入 (合成株価4年+四半期決算5期)。"""
 import json
 import sys
 from datetime import date, timedelta
@@ -35,8 +35,16 @@ COMPANIES = [
     ("00150", "デモ鉄鋼", "鉄鋼", 0.00, 0.20),
 ]
 
-START = date(2023, 8, 15)
+START = date(2022, 4, 1)   # FY23.3 の開示日に株価がある必要がある (決算後リターンの基準日)
 END = date(2026, 8, 14)
+
+# J-Quants の財務値は円単位。デモも同じ単位で入れる (表示側の百万円換算と揃える)
+YEN = 1_000_000
+
+# 決算表示の分岐を検証するためのデモ専用フラグ
+NO_SALES = {"00080"}       # 売上非開示 (銀行など)
+NO_ORDINARY = {"00010"}    # IFRS: 経常利益が無い
+LOSS_TURN = {"00070"}      # 赤字が続いた後に黒字転換する
 
 
 def biz_days(a, b):
@@ -91,7 +99,7 @@ def main():
         base_sales = rng.uniform(50_000, 300_000)  # 百万円
         opm = rng.uniform(0.06, 0.18)
         growth = max(-0.2, drift * 0.5) + 0.05
-        for fy_end_year in (2025, 2026, 2027):  # 2025/3期, 2026/3期, 2027/3期
+        for fy_end_year in range(2023, 2028):  # FY23.3〜FY27.3 (累計テーブルの過去4期+当期)
             fy_start = date(fy_end_year - 1, 4, 1)
             fy_end = date(fy_end_year, 3, 31)
             year_sales = base_sales * (1 + growth) ** (fy_end_year - 2025)
@@ -107,29 +115,37 @@ def main():
                 period = ["1Q", "2Q", "3Q", "FY"][qi - 1]
                 q_sales = year_sales / 4 * (1 + rng.normal(0, 0.06))
                 cum += q_sales
-                q_op = cum * opm * (1 + rng.normal(0, 0.08))
+                # 赤字継続→黒字転換のデモ (黒転/赤転バッジの検証用)
+                sign = -1.0 if (code in LOSS_TURN and fy_end_year <= 2026) else 1.0
+                q_op = cum * opm * (1 + rng.normal(0, 0.08)) * sign
                 fy_fc_sales = year_sales * (1 + rng.normal(0.01, 0.02))
+                fy_fc_op = fy_fc_sales * opm * sign
                 # デモ: 8月開示の一部を上方修正に
                 revise_boost = 1.10 if (m == 8 and rng.random() < 0.4) else 1.0
+                no_sales, ifrs = code in NO_SALES, code in NO_ORDINARY
+                yen = lambda v: None if v is None else round(v * YEN)
                 stmt_rows.append({
                     "disclosure_no": f"{code}-{fy_end_year}-{period}",
                     "code": code, "disclosed_date": ddate,
-                    "disclosed_time": "15:30" if rng.random() < 0.8 else "11:30",
+                    "disclosed_time": "15:30:00" if rng.random() < 0.8 else "11:30:00",
                     "type_of_period": period,
-                    "type_of_document": f"{period}FinancialStatements_Consolidated_JP",
+                    "type_of_document": f"{period}FinancialStatements_Consolidated_"
+                                        + ("IFRS" if ifrs else "JP"),
                     "period_start": fy_start, "period_end": fy_end,
                     "fiscal_year_start": fy_start, "fiscal_year_end": fy_end,
-                    "net_sales": round(cum), "operating_profit": round(q_op),
-                    "ordinary_profit": round(q_op * 1.02), "profit": round(q_op * 0.7),
+                    "net_sales": None if no_sales else yen(cum),
+                    "operating_profit": yen(q_op),
+                    "ordinary_profit": None if ifrs else yen(q_op * 1.02),
+                    "profit": yen(q_op * 0.7),
                     "eps": round(q_op * 0.7 / 50, 1),
-                    "f2_net_sales": round(year_sales / 2) if qi < 2 else None,
-                    "f2_operating_profit": round(year_sales / 2 * opm) if qi < 2 else None,
+                    "f2_net_sales": yen(year_sales / 2) if qi < 2 and not no_sales else None,
+                    "f2_operating_profit": yen(year_sales / 2 * opm * sign) if qi < 2 else None,
                     "f2_ordinary_profit": None, "f2_profit": None, "f2_eps": None,
-                    "fy_net_sales": round(fy_fc_sales * revise_boost),
-                    "fy_operating_profit": round(fy_fc_sales * opm * revise_boost),
-                    "fy_ordinary_profit": round(fy_fc_sales * opm * 1.02 * revise_boost),
-                    "fy_profit": round(fy_fc_sales * opm * 0.7 * revise_boost),
-                    "fy_eps": round(fy_fc_sales * opm * 0.7 / 50, 1),
+                    "fy_net_sales": None if no_sales else yen(fy_fc_sales * revise_boost),
+                    "fy_operating_profit": yen(fy_fc_op * revise_boost),
+                    "fy_ordinary_profit": None if ifrs else yen(fy_fc_op * 1.02 * revise_boost),
+                    "fy_profit": yen(fy_fc_op * 0.7 * revise_boost),
+                    "fy_eps": round(fy_fc_op * 0.7 / 50, 1),
                     "is_revision": False,
                     "raw_json": json.dumps({"demo": True}),
                 })

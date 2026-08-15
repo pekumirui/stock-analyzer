@@ -1,15 +1,21 @@
-from datetime import date, datetime
+from collections import defaultdict
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, defer
 
+from .config import EARNINGS_PARAMS as EP
 from .db import get_session
 from .models import Stock, DailyPrice, Topix, Statement, Indicator, EarningsEvent
-from .analytics import quarter_summary
+from .analytics import (METRIC_KEYS, quarter_summary, is_actual, period_label,
+                        earnings_detail as build_earnings_detail)
 
 router = APIRouter(prefix="/api")
+
+# 予想修正のみの開示は実績値を持たない (速報一覧に出すと全欄が空になる)
+_ACTUAL_DOC = Statement.type_of_document.contains("FinancialStatements")
 
 
 def _pd(s: str) -> date:
@@ -20,33 +26,84 @@ def _pd(s: str) -> date:
 def earnings_calendar(month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
                       db: Session = Depends(get_session)):
     rows = (db.query(Statement.disclosed_date, func.count(func.distinct(Statement.code)))
-            .filter(func.strftime("%Y-%m", Statement.disclosed_date) == month)
+            .filter(func.strftime("%Y-%m", Statement.disclosed_date) == month, _ACTUAL_DOC)
             .group_by(Statement.disclosed_date).all())
     return {d.isoformat(): n for d, n in rows}
 
 
 @router.get("/earnings")
 def earnings_by_date(date_: str = Query(..., alias="date"), db: Session = Depends(get_session)):
+    """その日の決算速報一覧 (QoQ=Q単独の前四半期比 / YoY=累計の前年同期比)。"""
     day = _pd(date_)
-    stmts = (db.query(Statement).filter(Statement.disclosed_date == day)
-             .order_by(Statement.code).all())
+    codes = select(Statement.code).where(Statement.disclosed_date == day, _ACTUAL_DOC)
+    # 開示1件ごとに履歴を引くとピーク日(約1,000件)で数千クエリになるため、まとめて取って配る
+    hist_by_code: dict[str, list[Statement]] = defaultdict(list)
+    for s in (db.query(Statement).options(defer(Statement.raw_json))
+              .filter(Statement.code.in_(codes),
+                      Statement.disclosed_date <= day,
+                      Statement.disclosed_date >= day - timedelta(days=EP["list_history_days"]))
+              .order_by(Statement.code, Statement.disclosed_date).all()):
+        hist_by_code[s.code].append(s)
+    names = dict(db.query(Stock.code, Stock.name).filter(Stock.code.in_(codes)).all())
+
     out = []
-    for s in stmts:
-        stock = db.get(Stock, s.code)
-        ind = (db.query(Indicator).filter(Indicator.code == s.code)
-               .order_by(Indicator.date.desc()).first())
-        ev = db.get(EarningsEvent, {"code": s.code, "disclosed_date": day})
-        out.append({
-            "code": s.code, "name": stock.name if stock else s.code,
-            "period": s.type_of_period,
-            "fiscal_year_end": s.fiscal_year_end.isoformat() if s.fiscal_year_end else None,
-            "disclosed_time": s.disclosed_time,
-            "summary": quarter_summary(db, s),
-            "rs_rank": ind.rs_rank if ind else None,
-            "stage": ind.stage if ind else None,
-            "alpha_to_date": ev.alpha_to_date if ev else None,
-        })
+    for code, hist in hist_by_code.items():
+        for s in hist:
+            if s.disclosed_date != day or not is_actual(s):
+                continue
+            summary = quarter_summary(db, s, hist=hist)
+            out.append({
+                "disclosure_no": s.disclosure_no,
+                "code": code, "name": names.get(code, code),
+                "disclosed_time": s.disclosed_time,
+                "period": s.type_of_period,
+                "fiscal_year_end": s.fiscal_year_end.isoformat() if s.fiscal_year_end else None,
+                "fy_label": period_label(s.fiscal_year_end),
+                "qoq": summary["qoq"],
+                "yoy": summary["yoy"],
+            })
+    out.sort(key=lambda r: (r["disclosed_time"] or "", r["code"]))
     return out
+
+
+@router.get("/earnings/detail/{code}")
+def earnings_detail(code: str, date_: str | None = Query(None, alias="date"),
+                    disclosure_no: str | None = None,
+                    db: Session = Depends(get_session)):
+    """累計テーブル・3か月決算テーブル。
+
+    同一銘柄が同じ日に複数開示する日があるため、一覧からは disclosure_no で一意に引く。
+    """
+    stmt = None
+    if disclosure_no:
+        stmt = db.get(Statement, disclosure_no)
+        if stmt is not None and stmt.code != code:
+            stmt = None
+    if stmt is None:
+        q = db.query(Statement).filter(Statement.code == code, _ACTUAL_DOC)
+        if date_:
+            day = _pd(date_)
+            stmt = (q.filter(Statement.disclosed_date == day, Statement.is_revision.isnot(True))
+                    .order_by(Statement.fiscal_year_end.desc()).first())
+            q = q.filter(Statement.disclosed_date <= day)
+        if stmt is None:
+            # 同日に複数期を開示する銘柄があるので、年度末の新しい方を既定にする
+            stmt = q.order_by(Statement.disclosed_date.desc(),
+                              Statement.fiscal_year_end.desc()).first()
+    if stmt is None:
+        raise HTTPException(404, "no statement")
+
+    stock = db.get(Stock, code)
+    return {
+        "code": code, "name": stock.name if stock else code,
+        "disclosure_no": stmt.disclosure_no,
+        "disclosed_date": stmt.disclosed_date.isoformat(),
+        "disclosed_time": stmt.disclosed_time,
+        "period": stmt.type_of_period,
+        "fiscal_year_end": stmt.fiscal_year_end.isoformat() if stmt.fiscal_year_end else None,
+        "unit": "yen", "metrics": list(METRIC_KEYS),
+        **build_earnings_detail(db, stmt),
+    }
 
 
 @router.get("/chart/{code}")
