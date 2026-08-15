@@ -308,11 +308,54 @@ def period_label(fy_end: date | None, period: str | None = None, quarterly: bool
     return f"{base}_{period}"
 
 
+def _month_end(year: int, month: int) -> date:
+    if month == 12:
+        return date(year, 12, 31)
+    return date(year, month + 1, 1) - timedelta(days=1)
+
+
+def calendar_span(fy_end: date | None, period: str | None) -> tuple[date, date] | None:
+    """当該四半期のカレンダー範囲 (月初〜月末)。5Q・不明は None。"""
+    n = ORDER.get(period or "")
+    if not n or fy_end is None:
+        return None
+    # 事業年度開始月 = 決算月の翌月。3月期なら4月、12月期なら1月
+    start_month = fy_end.month % 12 + 1
+    start_year = fy_end.year - 1 if start_month > fy_end.month else fy_end.year
+    raw = start_month + (n - 1) * 3
+    q_year = start_year + (raw - 1) // 12
+    q_month = (raw - 1) % 12 + 1
+    end_raw = q_month + 2
+    end_year = q_year + (end_raw - 1) // 12
+    end_month = (end_raw - 1) % 12 + 1
+    return date(q_year, q_month, 1), _month_end(end_year, end_month)
+
+
+def calendar_label(fy_end: date | None, period: str | None = None,
+                   quarterly: bool = False) -> str:
+    """UI向け。四半期は `26.04-06`、通期累計は `27.3期`。"""
+    if fy_end is None:
+        return "–"
+    n = ORDER.get(period or "")
+    # 通期累計は年度末ラベル。Q単独の4Qだけカレンダー範囲にする
+    if not n or (n == 4 and not quarterly):
+        return f"{fy_end.year % 100:02d}.{fy_end.month}期"
+    span = calendar_span(fy_end, period)
+    if span is None:
+        return period_label(fy_end, period, quarterly)
+    a, b = span
+    return f"{a.year % 100:02d}.{a.month:02d}-{b.month:02d}"
+
+
 def _row(fy_end: date | None, period: str | None, kind: str,
-         values: dict, growth: dict | None, quarterly: bool = False) -> dict:
-    return {"label": period_label(fy_end, period, quarterly), "kind": kind,
+         values: dict, growth: dict | None, quarterly: bool = False,
+         disclosed: date | None = None) -> dict:
+    return {"label": period_label(fy_end, period, quarterly),
+            "range": calendar_label(fy_end, period, quarterly), "kind": kind,
             "fiscal_year_end": fy_end.isoformat() if fy_end else None,
-            "period": period, "values": values, "growth": growth}
+            "period": period,
+            "disclosed_date": disclosed.isoformat() if disclosed else None,
+            "values": values, "growth": growth}
 
 
 def cumulative_rows(hist: list[Statement], stmt: Statement, years: int, tol_days: int) -> list[dict]:
@@ -330,25 +373,30 @@ def cumulative_rows(hist: list[Statement], stmt: Statement, years: int, tol_days
             continue
         ly = find_statement(hist, shift_year(s.fiscal_year_end, -1), period, tol_days)
         rows.append(_row(s.fiscal_year_end, period, "actual", metrics(s),
-                         growth_map(metrics(s), metrics(ly) if ly else None)))
+                         growth_map(metrics(s), metrics(ly) if ly else None),
+                         disclosed=s.disclosed_date))
     prev_fy_end = shift_year(fy_end, -1)
     ly = find_statement(hist, prev_fy_end, period, tol_days)
     rows.append(_row(fy_end, period, "actual_current", metrics(stmt),
-                     growth_map(metrics(stmt), metrics(ly) if ly else None)))
+                     growth_map(metrics(stmt), metrics(ly) if ly else None),
+                     disclosed=stmt.disclosed_date))
 
     prev_fy = find_statement(hist, prev_fy_end, "FY", tol_days)
     f2 = {k: getattr(stmt, "f2_" + k) for k in METRIC_KEYS}
     if any(v is not None for v in f2.values()):
         ly2 = find_statement(hist, prev_fy_end, "2Q", tol_days)
         rows.append(_row(fy_end, None, "forecast_h", f2,
-                         growth_map(f2, metrics(ly2) if ly2 else None)))
+                         growth_map(f2, metrics(ly2) if ly2 else None),
+                         disclosed=stmt.disclosed_date))
     fyf = {k: getattr(stmt, "fy_" + k) for k in METRIC_KEYS}
     if any(v is not None for v in fyf.values()):
         rows.append(_row(fy_end, None, "forecast_fy", fyf,
-                         growth_map(fyf, metrics(prev_fy) if prev_fy else None)))
+                         growth_map(fyf, metrics(prev_fy) if prev_fy else None),
+                         disclosed=stmt.disclosed_date))
     if prev_fy is not None:
         # 前期通期実績。ここは基準行なので前年比は付けない
-        rows.append(_row(prev_fy.fiscal_year_end, None, "actual_fy_prev", metrics(prev_fy), None))
+        rows.append(_row(prev_fy.fiscal_year_end, None, "actual_fy_prev", metrics(prev_fy), None,
+                         disclosed=prev_fy.disclosed_date))
     return rows
 
 
@@ -360,11 +408,14 @@ def quarterly_rows(hist: list[Statement], stmt: Statement, n: int, tol_days: int
         if cursor is None:
             break
         fy_end, period = cursor
-        cur = single_from(hist, stmt, tol_days) if first else single_metrics(hist, fy_end, period, tol_days)
+        s = stmt if first else find_statement(hist, fy_end, period, tol_days)
         first = False
+        cur = single_from(hist, s, tol_days)
         if cur is not None:
             ly = single_metrics(hist, shift_year(fy_end, -1), period, tol_days)
-            rows.append(_row(fy_end, period, "single", cur, growth_map(cur, ly), quarterly=True))
+            disc = s.disclosed_date if s is not None else None
+            rows.append(_row(fy_end, period, "single", cur, growth_map(cur, ly),
+                             quarterly=True, disclosed=disc))
         cursor = prev_quarter(fy_end, period)
     rows.reverse()
     return rows

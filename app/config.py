@@ -31,7 +31,7 @@ STAGE_PARAMS = {
 EARNINGS_PARAMS = {
     "list_history_days": 800,      # 一覧のYoY/QoQ算出に必要な履歴の遡り日数(前年同期+その前四半期を含む)
     "cum_history_years": 5,        # 累計テーブルの行数 = 過去4期 + 当期
-    "single_history_quarters": 4,  # 3か月決算テーブルの行数
+    "single_history_quarters": 12,  # 3か月決算テーブルの行数 (トレンドが追える長さ)
     "fy_match_tol_days": 45,       # 前年同期の突合許容日数 (決算期変更・うるう年を吸収)
     "revision_noise_th": 0.001,    # 予想修正とみなす最小変化率 (端数差はノイズ)
 }

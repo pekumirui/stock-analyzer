@@ -75,7 +75,34 @@
   #earn-tbl tbody tr:hover { background:var(--row); }
   #earn-tbl tbody tr.sel { background:var(--row-sel); box-shadow:inset 3px 0 0 var(--accent); }
   table.fin td:first-child, table.fin th:first-child { position:sticky; left:0; background:var(--panel); }
-  table.fin .g { display:block; font-size:11px; line-height:1.4; }
+  table.fin { font-variant-numeric:tabular-nums; }
+  table.fin th { font-size:11px; letter-spacing:.02em; }
+  table.fin td { padding:7px 8px; vertical-align:top; }
+  table.fin td.num { font-size:13px; font-weight:500; }
+  table.fin .g { display:block; font-size:11px; font-weight:400; line-height:1.35; min-height:1.35em; }
+  table.fin tbody tr:nth-child(even) td { background:rgba(255,255,255,.02); }
+  table.fin tbody tr:hover td { background:rgba(255,255,255,.045); }
+  table.fin tr.now td { background:#2e2818 !important; color:var(--text); }
+  table.fin tr.now td:first-child { font-weight:600; background:#2e2818 !important; box-shadow:inset 3px 0 0 var(--warn); }
+  table.fin tfoot td { border-top:1px solid var(--border); border-bottom:none; color:var(--sub); font-size:12px; padding-top:8px; }
+  table.fin .loss { color:var(--up); }
+  .fin-tabs { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .ftab { background:transparent; border:none; color:var(--sub); padding:5px 14px; cursor:pointer; font-size:13px; }
+  .ftab.on { background:var(--accent); color:#fff; }
+  .qchips { display:flex; gap:6px; margin:0 0 8px; }
+  .qchip { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); color:var(--sub); }
+  .qchip.on { border-color:var(--warn); color:var(--warn); background:rgba(240,160,32,.12); }
+  .qb { display:inline-block; margin-left:6px; font-size:10px; padding:0 5px; border-radius:3px; background:rgba(0,0,0,.35); color:var(--sub); vertical-align:middle; }
+  .qb-1Q { color:#f0b020; }
+  .qb-2Q { color:#3fb27f; }
+  .qb-3Q { color:#4a9eff; }
+  .qb-4Q { color:#c678dd; }
+  .fc-strip { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:6px; }
+  .fc-line { display:flex; flex-wrap:wrap; gap:6px 14px; align-items:baseline; font-size:13px; }
+  .fc-k { color:var(--sub); font-size:12px; min-width:4.5em; }
+  .fc-m { font-variant-numeric:tabular-nums; }
+  .fc-m .g { font-size:11px; margin-left:2px; }
+  .a-fin .tbl-wrap { max-height:min(52vh, 560px); }
   .cards { display:grid; gap:8px; }
   .card { border:1px solid var(--border); border-radius:8px; padding:8px; cursor:pointer; }
   .card.sel { border-color:var(--accent); background:var(--row-sel); }
@@ -84,7 +111,10 @@
   .card .cg .hd { color:var(--sub); }
   .card .cg .v { text-align:right; font-variant-numeric:tabular-nums; }
 
-  @media (max-width:640px){ body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:40px} }
+  @media (max-width:640px){
+    body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:40px}
+    table.fin .disc, table.fin th.disc { display:none; }
+  }
 </style>
 </head>
 <body>
@@ -125,10 +155,17 @@
     </div>
 
     <div class="panel a-fin">
-      <div class="phead"><h3>累計</h3><span class="sub" style="font-size:12px">単位: 百万円 / EPSは円</span></div>
-      <div class="tbl-wrap"><table class="fin" id="cum-tbl"></table></div>
-      <h3>3か月決算</h3>
-      <div class="tbl-wrap"><table class="fin" id="q-tbl"></table></div>
+      <div class="phead">
+        <div class="fin-tabs">
+          <button type="button" class="ftab on" data-fin="q">3か月</button>
+          <button type="button" class="ftab" data-fin="cum">累計</button>
+        </div>
+        <span class="sub" style="font-size:12px">単位: 百万円 / EPSは円</span>
+      </div>
+      <div class="qchips" id="q-chips"></div>
+      <div class="tbl-wrap" id="q-wrap"><table class="fin" id="q-tbl"></table></div>
+      <div class="tbl-wrap" id="cum-wrap" hidden><table class="fin" id="cum-tbl"></table></div>
+      <div class="fc-strip" id="fc-strip" style="display:none"></div>
     </div>
 
   </div>
@@ -183,8 +220,12 @@ const mil = v => v==null ? "–" : fmt(v/1e6, 0);
 const GST = {turn_profit:["黒転","up"], turn_loss:["赤転","dn"], loss:["赤継",null]};
 function gc(c){
   if(!c || c.state==="na") return "–";
-  if(c.state==="up" || c.state==="down") return pct(c.pct);
-  const [txt,cls] = GST[c.state];
+  if(c.state==="up" || c.state==="down"){
+    // 2倍以上は株たんと同じく倍数表記 (420% → 5.2倍)
+    if(c.pct != null && c.pct >= 100) return `<span class="pos">${fmt(c.pct/100+1,1)}倍</span>`;
+    return pct(c.pct);
+  }
+  const [txt,cls] = GST[c.state] || ["–", null];
   return cls ? `<span class="badge ${cls}">${txt}</span>` : `<span class="sub">${txt}</span>`;
 }
 
@@ -217,7 +258,6 @@ async function renderCal(){
 }
 // ---- 決算速報 一覧(マスター) / 詳細(ディテール) ----
 const MET = [["net_sales","売上"],["operating_profit","営利"],["ordinary_profit","経利"],["profit","純利"]];
-const KPFX = {actual_current:"(実)", forecast_h:"(中予)", forecast_fy:"(通予)", actual_fy_prev:"(通実)"};
 const mqNarrow = window.matchMedia("(max-width:700px)");
 // 既出期間の再提出で損益が変わったもの (値がそのままの再提出はAPI側で除外済み)
 const revBadge = r => r.restated ? `<span class="badge rev" title="既出期間の訂正">訂正</span>` : "";
@@ -288,6 +328,8 @@ function selectRow(no, scroll){
 function clearDetail(msg){
   $("#e-chart-title").textContent = msg;
   $("#e-chart").innerHTML = ""; $("#cum-tbl").innerHTML = ""; $("#q-tbl").innerHTML = "";
+  $("#q-chips").innerHTML = "";
+  $("#fc-strip").innerHTML = ""; $("#fc-strip").style.display = "none";
 }
 
 async function loadDetail(row){
@@ -300,30 +342,106 @@ async function loadDetail(row){
   if(my !== detailReq) return;
   if(ch) eChartObj = renderPriceChart($("#e-chart"), ch, {height:320, prev:eChartObj, mark:d && d.disclosed_date});
   else { $("#e-chart").innerHTML = `<div class="sub">株価データなし</div>`; }
-  renderFin($("#cum-tbl"), d && d.cumulative, d);
+  renderQchips(d && d.period);
+  const cum = (d && d.cumulative) || [];
+  // 通期予想を1Q実績と同じ表に混ぜない (桁が違い、見比べられない)
+  renderFin($("#cum-tbl"), cum.filter(r => r.kind==="actual" || r.kind==="actual_current"), d);
   renderFin($("#q-tbl"),   d && d.quarterly,  d);
+  renderForecast($("#fc-strip"), cum);
 }
 
+const FIN_MET = [["net_sales","売上高"],["operating_profit","営業益"],
+                 ["ordinary_profit","経常益"],["profit","最終益"]];
+function qName(p){ return p==="FY" ? "4Q" : (p || ""); }
+function disc(iso){ if(!iso) return "–"; const [y,m,d]=iso.split("-"); return `${y.slice(2)}/${m}/${d}`; }
+function opm(v){
+  const s = v && v.net_sales, o = v && v.operating_profit;
+  if(s == null || s <= 0 || o == null) return null;
+  return o / s * 100;
+}
+function amt(v){
+  if(v == null) return "–";
+  return `<span class="${v<0?"loss":""}">${mil(v)}</span>`;
+}
+function epsTxt(v){
+  if(v == null) return "–";
+  return `<span class="${v<0?"loss":""}">${fmt(v,1)}</span>`;
+}
+function finLabel(r){
+  const base = r.range || r.label;
+  if(r.kind==="forecast_fy") return `${base} 通期予想`;
+  if(r.kind==="forecast_h") return `${base} 中間予想`;
+  if(r.kind==="actual_fy_prev") return `${base} 通期`;
+  return base;
+}
+function qBadge(period){
+  const q = qName(period);
+  return /^[1-4]Q$/.test(q) ? `<span class="qb qb-${q}">${q}</span>` : "";
+}
+function renderQchips(period){
+  const cur = qName(period);
+  $("#q-chips").innerHTML = ["1Q","2Q","3Q","4Q"]
+    .map(q => `<span class="qchip${q===cur?" on":""}">${q}</span>`).join("");
+}
 function renderFin(el, rows, d){
   if(!rows || !rows.length){
-    el.innerHTML = `<tr><td class="l sub">${d && d.notes.single_unavailable ? "算出不能 (決算期変更など)" : "データなし"}</td></tr>`;
+    el.innerHTML = `<tr><td class="l sub">${d && d.notes && d.notes.single_unavailable ? "算出不能 (決算期変更など)" : "データなし"}</td></tr>`;
     return;
   }
-  const dim = d && d.notes.no_ordinary;                    // IFRS/米国基準は経常利益が無い
+  const dim = d && d.notes && d.notes.no_ordinary;          // IFRS/米国基準は経常利益が無い
   const dc = k => k==="ordinary_profit" && dim ? " dim" : "";
   let h = `<thead><tr><th class="l">決算期</th>`
-        + MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("") + `<th>EPS</th></tr></thead><tbody>`;
-  for(const r of rows){
+        + FIN_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
+        + `<th>EPS</th><th>営利率</th><th class="disc">発表日</th></tr></thead><tbody>`;
+  let hi = -1;
+  rows.forEach((r,i) => { if(r.kind==="actual_current" || r.kind==="single") hi = i; });
+  rows.forEach((r,i) => {
+    const now = r.kind==="actual_current" || (r.kind==="single" && i===hi);
     const cell = (k, txt) => {
       const g = r.growth && r.growth[k];
-      return `<td class="num${dc(k)}">${txt}<span class="g">${g ? gc(g) : ""}</span></td>`;
+      return `<td class="num${dc(k)}">${txt}<span class="g">${g ? gc(g) : " "}</span></td>`;
     };
-    h += `<tr><td class="l">${KPFX[r.kind]||""}${r.label}</td>`
-       + MET.map(([k])=>cell(k, mil(r.values[k]))).join("")
-       + cell("eps", r.values.eps==null ? "–" : fmt(r.values.eps,1)) + `</tr>`;
+    const m = opm(r.values);
+    const mTxt = m==null ? "–" : `<span class="${m<0?"loss":""}">${fmt(m,1)}%</span>`;
+    h += `<tr class="${now?"now":""}"><td class="l" title="${r.label||""}">${finLabel(r)}${qBadge(r.period)}</td>`
+       + FIN_MET.map(([k])=>cell(k, amt(r.values[k]))).join("")
+       + cell("eps", epsTxt(r.values.eps))
+       + `<td class="num">${mTxt}<span class="g"> </span></td>`
+       + `<td class="num disc sub">${disc(r.disclosed_date)}</td></tr>`;
+  });
+  h += `</tbody>`;
+  const latest = hi>=0 ? rows[hi] : null;
+  if(latest && latest.growth){
+    h += `<tfoot><tr><td class="l">前年同期比</td>`
+       + FIN_MET.map(([k])=>`<td class="num">${gc(latest.growth[k])}</td>`).join("")
+       + `<td class="num">${gc(latest.growth.eps)}</td><td></td><td class="disc"></td></tr></tfoot>`;
   }
-  el.innerHTML = h + `</tbody>`;
+  el.innerHTML = h;
 }
+function renderForecast(el, rows){
+  const fy = rows && rows.find(r => r.kind==="forecast_fy");
+  const h2 = rows && rows.find(r => r.kind==="forecast_h");
+  const prev = rows && rows.find(r => r.kind==="actual_fy_prev");
+  if(!fy && !h2){ el.innerHTML = ""; el.style.display = "none"; return; }
+  el.style.display = "";
+  const line = (title, r, growth) => {
+    if(!r) return "";
+    const g = growth ? (r.growth||{}) : {};
+    return `<div class="fc-line"><span class="fc-k">${title}</span>`
+      + FIN_MET.map(([k,l]) => `<span class="fc-m"><span class="sub">${l}</span> ${amt(r.values[k])}`
+        + `${g[k] ? ` <span class="g">${gc(g[k])}</span>` : ""}</span>`).join("")
+      + `<span class="fc-m"><span class="sub">EPS</span> ${epsTxt(r.values.eps)}`
+      + `${g.eps ? ` <span class="g">${gc(g.eps)}</span>` : ""}</span></div>`;
+  };
+  el.innerHTML = line("通期予想", fy, true) + line("前期通期", prev, false) + line("中間予想", h2, true);
+}
+
+document.querySelectorAll(".ftab").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".ftab").forEach(x => x.classList.toggle("on", x===b));
+  const q = b.dataset.fin === "q";
+  $("#q-wrap").hidden = !q;
+  $("#cum-wrap").hidden = q;
+});
 
 // 画面幅がカード/テーブルの境界をまたいだら組み直す
 mqNarrow.addEventListener("change", renderList);
