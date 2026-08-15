@@ -341,8 +341,11 @@ def calendar_label(fy_end: date | None, period: str | None = None,
         return "–"
     n = ORDER.get(period or "")
     # 通期累計は年度末ラベル。Q単独の4Qだけカレンダー範囲にする
-    if not n or (n == 4 and not quarterly):
+    if not period or (n == 4 and not quarterly):
         return f"{fy_end.year % 100:02d}.{fy_end.month}期"
+    if not n:
+        # 5Q など ORDER に無い変則期。通期に潰すと累計が本決算に見える
+        return f"{fy_end.year % 100:02d}.{fy_end.month}期 {period}"
     if quarterly:
         span = calendar_span(fy_end, period)
     else:

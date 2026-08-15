@@ -370,6 +370,7 @@ function qBadge(r){
   let q = r.period || "";
   if(r.kind==="single" && q==="FY") q = "4Q";
   if(r.kind!=="single" && (q==="4Q" || q==="FY")) return "";
+  if(q==="5Q") return `<span class="qb">5Q</span>`;
   return /^[1-4]Q$/.test(q) ? `<span class="qb qb-${q}">${q}</span>` : "";
 }
 function renderQchips(period){
