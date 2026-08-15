@@ -38,3 +38,6 @@ $RECYCLE.BIN/
 *.log
 tmp/
 .ipynb_checkpoints/
+
+# --- 手元のデザインメモ（リポジトリの DESIGN.md とは別） ---
+DESIGN/
