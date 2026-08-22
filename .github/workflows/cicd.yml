@@ -142,7 +142,6 @@ jobs:
       && (needs.release.result == 'success' || needs.release.result == 'skipped')
       && github.event_name != 'pull_request'
       && (github.event_name != 'workflow_dispatch' || inputs.skip_deploy == false)
-      && secrets.VPS_SSH_KEY != ''
     runs-on: ubuntu-latest
     concurrency:
       group: vps-production
@@ -153,9 +152,15 @@ jobs:
       VPS_PORT: ${{ secrets.VPS_PORT }}
       VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
     steps:
+      - name: Skip if no SSH key
+        if: env.VPS_SSH_KEY == ''
+        run: echo "::warning::VPS_SSH_KEY が未設定のため VPS デプロイをスキップします"
+
       - uses: actions/checkout@v4
+        if: env.VPS_SSH_KEY != ''
 
       - name: SSH deploy
+        if: env.VPS_SSH_KEY != ''
         run: |
           set -euo pipefail
           HOST="${VPS_HOST:-160.251.179.50}"
