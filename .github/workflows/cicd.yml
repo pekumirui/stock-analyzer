@@ -1,0 +1,179 @@
+name: CI/CD
+
+# PR: テストのみ
+# main へマージ: テスト → タグと GitHub Release → ConoHa VPS へデプロイ
+# 手動: Actions → CI/CD → Run workflow（再デプロイやバンプ指定）
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "バージョンの上げ方（none は Release を作らずデプロイだけ）"
+        type: choice
+        options: [auto, patch, minor, major, none]
+        default: auto
+      skip_deploy:
+        description: "VPS デプロイをスキップ"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install
+        run: pip install -r requirements.txt
+
+      - name: Compile
+        run: python -m compileall -q -f app scripts
+
+      - name: Smoke
+        run: python scripts/ci_smoke.py
+
+  release:
+    name: Release
+    needs: test
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.bump != 'none')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Bump version
+        id: bump
+        env:
+          BUMP_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.bump || 'auto' }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          prev="$(git tag --list 'v*' --sort=-v:refname | head -n1 || true)"
+          msgs=""
+          if [ -n "$prev" ]; then
+            msgs="$(git log "$prev"..HEAD --pretty=%s || true)"
+          else
+            msgs="$(git log --pretty=%s)"
+          fi
+
+          bump="$BUMP_INPUT"
+          if [ "$bump" = "auto" ]; then
+            bump=patch
+            if echo "$msgs" | grep -qE 'BREAKING CHANGE|^[a-z]+(\(.+\))?!:'; then
+              bump=major
+            elif echo "$msgs" | grep -qE '^feat(\(.+\))?:'; then
+              bump=minor
+            fi
+          fi
+
+          if [ -z "$prev" ]; then
+            tag="v0.1.0"
+          else
+            ver="${prev#v}"
+            IFS=. read -r maj min pat <<< "$ver"
+            maj=${maj:-0}; min=${min:-0}; pat=${pat:-0}
+            case "$bump" in
+              major) maj=$((maj+1)); min=0; pat=0 ;;
+              minor) min=$((min+1)); pat=0 ;;
+              patch) pat=$((pat+1)) ;;
+              *) echo "unknown bump: $bump" >&2; exit 1 ;;
+            esac
+            tag="v${maj}.${min}.${pat}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Next $tag (from ${prev:-none}, bump=$bump)"
+
+          {
+            echo "## ${tag}"
+            echo
+            if [ -n "$prev" ]; then
+              git log "$prev"..HEAD --pretty=format:"- %s (%h)"
+              echo
+            else
+              echo "初回リリース"
+              echo
+              git log --pretty=format:"- %s (%h)" | head -n 40
+              echo
+            fi
+          } > /tmp/release-notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.bump.outputs.tag }}
+        run: |
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes-file /tmp/release-notes.md \
+            --target "$GITHUB_SHA"
+
+  deploy:
+    name: Deploy VPS
+    needs: [test, release]
+    if: |
+      always()
+      && needs.test.result == 'success'
+      && (needs.release.result == 'success' || needs.release.result == 'skipped')
+      && github.event_name != 'pull_request'
+      && (github.event_name != 'workflow_dispatch' || inputs.skip_deploy == false)
+      && secrets.VPS_SSH_KEY != ''
+    runs-on: ubuntu-latest
+    concurrency:
+      group: vps-production
+      cancel-in-progress: false
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SSH deploy
+        run: |
+          set -euo pipefail
+          HOST="${VPS_HOST:-160.251.179.50}"
+          USER="${VPS_USER:-stock}"
+          PORT="${VPS_PORT:-22}"
+          APP_DIR="/home/stock/stock-analyzer"
+
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/id_deploy"
+          chmod 600 "$HOME/.ssh/id_deploy"
+
+          echo "Deploy $GITHUB_SHA → ${USER}@${HOST}:${APP_DIR}"
+          ssh -i "$HOME/.ssh/id_deploy" \
+            -p "$PORT" \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$GITHUB_WORKSPACE/deploy/known_hosts" \
+            -o ServerAliveInterval=15 \
+            "${USER}@${HOST}" \
+            "APP_DIR=${APP_DIR} bash -s" \
+            < deploy/update.sh

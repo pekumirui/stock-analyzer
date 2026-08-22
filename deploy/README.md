@@ -30,3 +30,32 @@ sudo -u stock crontab deploy/crontab
 ```
 
 ファイアウォールは 22 / 80 / 443 だけ開ける。
+
+## CI/CD（main マージで自動リリース）
+
+GitHub Actions (`.github/workflows/cicd.yml`) が `main` へのマージで:
+
+1. テスト (`scripts/ci_smoke.py`)
+2. タグと GitHub Release を切る
+3. この VPS に SSH して `deploy/update.sh` を実行する
+
+`update.sh` は `git pull --ff-only` → 依存更新 → `scripts/migrate.py` → `systemctl restart`。`.env` と `stock.db` は触らない。
+
+### 一度だけの鍵セットアップ
+
+```bash
+# 手元（秘密鍵はリポジトリに置かない）
+ssh-keygen -t ed25519 -C "github-actions@stock-analyzer" -f stock-analyzer-deploy -N ""
+```
+
+1. `stock-analyzer-deploy`（秘密鍵）を GitHub → **Settings → Secrets and variables → Actions** に `VPS_SSH_KEY` として登録
+2. 任意: ホストを変えるときだけ `VPS_HOST` / `VPS_USER` / `VPS_PORT`（未設定なら `160.251.179.50` / `stock` / `22`）
+3. VPS で公開鍵と sudoers を入れる:
+
+```bash
+ssh -t root@YOUR_HOST "cd /home/stock/stock-analyzer && sudo bash deploy/enable-cicd.sh '$(cat stock-analyzer-deploy.pub)'"
+```
+
+ホスト鍵は `deploy/known_hosts` にピン留めしてある。VPS を作り直したら `ssh-keyscan YOUR_HOST` で更新する。
+
+`VPS_SSH_KEY` が無い間は Release まで行い、デプロイ job はスキップする。失敗したデプロイのやり直しは Actions の **Run workflow**（`bump: none`）。
