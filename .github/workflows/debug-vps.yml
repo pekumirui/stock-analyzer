@@ -1,0 +1,65 @@
+name: Debug VPS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dump nginx / app status
+        run: |
+          set -euo pipefail
+          HOST="${VPS_HOST:-160.251.179.50}"
+          USER="${VPS_USER:-stock}"
+          PORT="${VPS_PORT:-22}"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          raw = os.environ["VPS_SSH_KEY"].replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
+          p = Path.home() / ".ssh"
+          p.mkdir(mode=0o700, exist_ok=True)
+          k = p / "id_deploy"
+          k.write_text(raw)
+          k.chmod(0o600)
+          PY
+          ssh -i "$HOME/.ssh/id_deploy" -p "$PORT" \
+            -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$GITHUB_WORKSPACE/deploy/known_hosts" \
+            -o ConnectTimeout=15 \
+            "${USER}@${HOST}" 'bash -s' <<'EOS'
+          set +e
+          echo "=== whoami / date ==="
+          whoami; date; uname -a
+          echo "=== listeners ==="
+          ss -lntp 2>/dev/null || netstat -lntp
+          echo "=== systemctl nginx ==="
+          systemctl is-active nginx; systemctl status nginx --no-pager -l | head -40
+          echo "=== systemctl app ==="
+          systemctl is-active stock-analyzer; systemctl status stock-analyzer --no-pager -l | head -40
+          echo "=== nginx files ==="
+          ls -l /etc/nginx/sites-enabled /etc/nginx/sites-available 2>/dev/null
+          echo "=== nginx -t ==="
+          nginx -t 2>&1
+          echo "=== journal nginx ==="
+          journalctl -u nginx -n 40 --no-pager
+          echo "=== which nginx ==="
+          command -v nginx; dpkg -l nginx 2>/dev/null | tail -3
+          echo "=== ufw ==="
+          sudo ufw status 2>&1 | head -20
+          echo "=== curl local ==="
+          curl -sS -o /dev/null -w "localhost80=%{http_code}\n" --max-time 3 http://127.0.0.1/ || true
+          curl -sS -o /dev/null -w "localhost8000=%{http_code}\n" --max-time 3 http://127.0.0.1:8000/ || true
+          echo "=== sudoers ==="
+          sudo -n true && echo sudo_ok || echo sudo_fail
+          EOS
