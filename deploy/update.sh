@@ -24,6 +24,10 @@ git fetch origin main
 git checkout -q main
 git pull --ff-only origin main
 
+if [ ! -x "$APP_DIR/.venv/bin/pip" ]; then
+  echo "venv が無いので作ります"
+  python3 -m venv "$APP_DIR/.venv"
+fi
 "$APP_DIR/.venv/bin/pip" install -r requirements.txt -q
 "$APP_DIR/.venv/bin/python" scripts/migrate.py
 
