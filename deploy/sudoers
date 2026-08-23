@@ -1,0 +1,5 @@
+# /etc/sudoers.d/stock-analyzer
+# GitHub Actions のデプロイが passwordless でサービス再起動できるようにする。
+# 入れ方: sudo bash deploy/enable-cicd.sh '<public key>'
+
+stock ALL=(root) NOPASSWD: /usr/bin/systemctl restart stock-analyzer, /usr/bin/systemctl is-active stock-analyzer, /usr/bin/systemctl status stock-analyzer

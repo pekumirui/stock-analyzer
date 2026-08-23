@@ -120,6 +120,24 @@ scp stock.db user@YOUR_HOST:/home/user/stock-analyzer/stock.db
 
 DB のバックアップは ConoHa の自動バックアップか、日次で別パスへコピー。
 
+## CI/CD
+
+`main` にマージすると GitHub Actions がテスト → GitHub Release（タグ）→ ConoHa VPS へデプロイする。
+
+1. **PR** — `scripts/ci_smoke.py`（起動・デモ投入・検索/スクリーナー/チャート）
+2. **main マージ** — コミットメッセージでバージョンを自動バンプ（`feat:` は minor、`BREAKING CHANGE` / `feat!:` は major、それ以外は patch）。初回は `v0.1.0`
+3. **VPS** — SSH で `git pull` → `pip install` → `migrate.py` → `systemctl restart`。`stock.db` と `.env` は触らない
+
+VPS へ自動デプロイするには、一度だけデプロイ用 SSH 鍵を入れる:
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions@stock-analyzer" -f stock-analyzer-deploy -N ""
+# stock-analyzer-deploy の中身 → GitHub → Settings → Secrets and variables → Actions → VPS_SSH_KEY
+ssh -t root@YOUR_HOST "cd /home/stock/stock-analyzer && sudo bash deploy/enable-cicd.sh '$(cat stock-analyzer-deploy.pub)'"
+```
+
+`VPS_SSH_KEY` が無い間は Release まで行い、VPS デプロイはスキップする。再デプロイは Actions の **Run workflow**（`bump: none`）。詳細は [deploy/README.md](deploy/README.md)。
+
 ## 構成
 
 ```
@@ -135,8 +153,11 @@ static/index.html   SPA (スマホ対応)
 scripts/
   run_batch.py  日次バッチ / バックフィル
   seed_demo.py  デモデータ生成
+  ci_smoke.py   CI 起動スモーク
 deploy/
   stock-analyzer.service  systemd（uvicorn ワーカー1）
   nginx.conf              リバースプロキシ + Basic認証
   crontab                 19:30 / 06:00 JST
+  update.sh               VPS 側デプロイ（Actions から実行）
+  enable-cicd.sh          デプロイ用 SSH 鍵と sudoers を一度だけ入れる
 ```
