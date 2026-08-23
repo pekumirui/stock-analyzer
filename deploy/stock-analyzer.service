@@ -7,7 +7,7 @@ Type=simple
 User=stock
 Group=stock
 WorkingDirectory=/home/stock/stock-analyzer
-EnvironmentFile=/home/stock/stock-analyzer/.env
+EnvironmentFile=-/home/stock/stock-analyzer/.env
 # SQLite は複数ライターに弱いのでワーカーは1
 ExecStart=/home/stock/stock-analyzer/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
 Restart=on-failure
