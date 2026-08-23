@@ -72,7 +72,7 @@ Python は `.venv\Scripts\python.exe` を使う。システムの python で依�
 - `main` 上では実装しない。最初のファイル編集の前に `git checkout -b <type>/<短い名前>`（`feat` / `fix` / `chore`）
 - `.env` / `stock.db` / `.venv` はコミットしない
 - `main` へマージすると GitHub Actions がテスト → タグ/Release → VPS デプロイする。手元で `main` に直接 push しない
-- VPS 初期設定は `deploy/provision.sh`（冪等）。Ansible は足さない
+- VPS 初期設定は `deploy/provision.sh`（冪等）
 - コミット先頭が `feat:` なら minor、`BREAKING CHANGE` / `type!:` なら major、それ以外は patch
 
 ## 実装方針

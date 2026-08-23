@@ -2,7 +2,7 @@
 
 手で nginx / ufw / systemd を積む必要はない。**root でデプロイ鍵を一度入れる**と、あとは GitHub Actions が冪等に初期設定する。
 
-Ansible は使わない。ホストは1台なので `deploy/provision.sh`（apt / nginx / ufw / certbot / systemd / crontab）で足りる。何度回しても同じ状態になる。
+`deploy/provision.sh` が apt / nginx / ufw / certbot / systemd / crontab を冪等に揃える。
 
 ## 一度だけ（root）
 
