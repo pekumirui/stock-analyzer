@@ -56,6 +56,8 @@ ssh-keygen -t ed25519 -C "github-actions@stock-analyzer" -f stock-analyzer-deplo
 ssh -t root@YOUR_HOST "cd /home/stock/stock-analyzer && sudo bash deploy/enable-cicd.sh '$(cat stock-analyzer-deploy.pub)'"
 ```
 
-ホスト鍵は `deploy/known_hosts` にピン留めしてある。VPS を作り直したら `ssh-keyscan YOUR_HOST` で更新する。
+ホスト鍵は `deploy/known_hosts` にピン留めしてある。VPS を再作成・再起動でホスト鍵が変わったら `ssh-keyscan YOUR_HOST` で更新する。
+
+ConoHa コンソールのキーペアは **root** 用。Actions は `stock` ユーザで入るので、コンソール鍵を `VPS_SSH_KEY` に入れただけでは足りない。上の `enable-cicd.sh` で stock の `authorized_keys` に GitHub 用の公開鍵を入れる。
 
 `VPS_SSH_KEY` が無い間は Release まで行い、デプロイ job はスキップする。失敗したデプロイのやり直しは Actions の **Run workflow**（`bump: none`）。

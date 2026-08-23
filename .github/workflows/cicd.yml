@@ -169,15 +169,28 @@ jobs:
           APP_DIR="/home/stock/stock-analyzer"
 
           install -m 700 -d "$HOME/.ssh"
-          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/id_deploy"
-          chmod 600 "$HOME/.ssh/id_deploy"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          raw = os.environ["VPS_SSH_KEY"].replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
+          if "PRIVATE KEY" not in raw:
+              raise SystemExit(
+                  "VPS_SSH_KEY は秘密鍵 (-----BEGIN ... PRIVATE KEY-----) である必要があります。"
+                  "公開鍵 (.pub) や ConoHa のキー名を入れていませんか?"
+              )
+          p = Path.home() / ".ssh" / "id_deploy"
+          p.write_text(raw)
+          p.chmod(0o600)
+          PY
 
           echo "Deploy $GITHUB_SHA → ${USER}@${HOST}:${APP_DIR}"
           ssh -i "$HOME/.ssh/id_deploy" \
             -p "$PORT" \
+            -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$GITHUB_WORKSPACE/deploy/known_hosts" \
+            -o ConnectTimeout=15 \
             -o ServerAliveInterval=15 \
             "${USER}@${HOST}" \
             "APP_DIR=${APP_DIR} bash -s" \
