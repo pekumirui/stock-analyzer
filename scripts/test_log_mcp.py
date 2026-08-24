@@ -102,7 +102,7 @@ def test_http_auth_and_tools() -> None:
 
     r = _rpc(client, "tools/list", req_id=2)
     names = {t["name"] for t in r.json()["result"]["tools"]}
-    expect = {"service_status", "app_logs", "batch_logs", "nginx_logs"}
+    expect = {"service_status", "app_logs", "batch_logs", "nginx_logs", "db_stats", "db_lookup"}
     if names != expect:
         raise SystemExit(f"tools {names} != {expect}")
 
@@ -284,6 +284,74 @@ def _test_oauth_inner(token: str) -> None:
         raise SystemExit("redirect_ok rejected grok.com")
 
 
+def test_db_tools() -> None:
+    from tempfile import TemporaryDirectory
+
+    token = "test-token-for-ci-only"
+    prev = os.environ.get("MCP_APP_DIR")
+    prev_url = os.environ.get("DATABASE_URL")
+    with TemporaryDirectory() as d:
+        os.environ["MCP_APP_DIR"] = d
+        os.environ.pop("DATABASE_URL", None)
+        dbp = Path(d) / "stock.db"
+        import sqlite3
+
+        conn = sqlite3.connect(dbp)
+        conn.executescript(
+            """
+            CREATE TABLE stocks (code TEXT PRIMARY KEY, name TEXT, market TEXT, sector33 TEXT, scale_category TEXT);
+            CREATE TABLE daily_prices (code TEXT, date TEXT, close REAL, adj_close REAL, adj_volume REAL, PRIMARY KEY(code, date));
+            CREATE TABLE topix (date TEXT PRIMARY KEY, close REAL);
+            CREATE TABLE statements (disclosure_no TEXT PRIMARY KEY, code TEXT, disclosed_date TEXT, type_of_period TEXT, type_of_document TEXT);
+            CREATE TABLE indicators (code TEXT, date TEXT, stage INTEGER, rs_rank INTEGER, ma50 REAL, ma150 REAL, ma200 REAL, PRIMARY KEY(code, date));
+            INSERT INTO stocks VALUES ('07203','デモ','', '', '');
+            INSERT INTO stocks VALUES ('72030','トヨタ','プライム','輸送用機器','TOPIX Large70');
+            INSERT INTO daily_prices VALUES ('72030','2026-08-20',3000,3000,1000);
+            INSERT INTO daily_prices VALUES ('72030','2026-08-21',3010,3010,1100);
+            INSERT INTO topix VALUES ('2026-08-21', 2800);
+            INSERT INTO statements VALUES ('1','72030','2026-05-08','FY','FinancialStatements');
+            INSERT INTO indicators VALUES ('72030','2026-08-21',2,85,2900,2800,2700);
+            """
+        )
+        conn.commit()
+        conn.close()
+        try:
+            if m.parse_code("7203") != "72030":
+                raise SystemExit("parse_code 7203")
+            try:
+                m.parse_code("drop table")
+            except ValueError:
+                pass
+            else:
+                raise SystemExit("parse_code must reject junk")
+            text = m.tool_db_stats({})
+            if "72030" in text or "トヨタ" in text:
+                pass
+            if "stocks: 2" not in text or "demo=1" not in text:
+                raise SystemExit(f"db_stats: {text}")
+            if "daily_prices: 2" not in text or "2026-08-20..2026-08-21" not in text:
+                raise SystemExit(f"db_stats prices: {text}")
+            looked = m.tool_db_lookup({"code": "7203", "lines": 5})
+            if "72030" not in looked or "トヨタ" not in looked or "adj=3010" not in looked:
+                raise SystemExit(f"db_lookup: {looked}")
+            missing = m.tool_db_lookup({"code": "99990"})
+            if "not in stocks" not in missing:
+                raise SystemExit(f"missing: {missing}")
+            client = TestClient(m.create_app(token))
+            r = _rpc(client, "tools/call", {"name": "db_stats", "arguments": {}}, req_id=90)
+            if r.status_code != 200 or "stocks: 2" not in r.json()["result"]["content"][0]["text"]:
+                raise SystemExit(f"rpc db_stats: {r.text}")
+        finally:
+            if prev is None:
+                os.environ.pop("MCP_APP_DIR", None)
+            else:
+                os.environ["MCP_APP_DIR"] = prev
+            if prev_url is None:
+                os.environ.pop("DATABASE_URL", None)
+            else:
+                os.environ["DATABASE_URL"] = prev_url
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -293,6 +361,7 @@ def main() -> None:
         test_pick_log(Path(d) / "pick")
     test_http_auth_and_tools()
     test_oauth()
+    test_db_tools()
     print("ok: log mcp")
 
 

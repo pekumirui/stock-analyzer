@@ -1,10 +1,11 @@
-"""Read-only Streamable HTTP MCP for VPS logs.
+"""Read-only Streamable HTTP MCP for VPS logs and SQLite stats.
 
 No extra deps: Starlette ships with FastAPI. Listens on 127.0.0.1:8010/mcp.
-Arbitrary shell is not exposed. journalctl units and log paths are allowlisted.
+Arbitrary shell/SQL is not exposed. journalctl units, log paths, and SELECT shapes are allowlisted.
 """
 from __future__ import annotations
 
+import sqlite3
 import base64
 import hashlib
 import html
@@ -69,6 +70,8 @@ SECRET_RE = re.compile(
 GREP_RE = re.compile(r"^[^\n\r\x00]{1,120}$")
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$")
 SHORT_SINCE_RE = re.compile(r"^(\d+)([smhd])$", re.I)
+CODE_RE = re.compile(r"^[0-9]{4,5}$")
+DB_TABLES = ("stocks", "daily_prices", "topix", "statements", "indicators", "earnings_events")
 
 
 def redact(text: str) -> str:
@@ -228,8 +231,8 @@ def tool_service_status(_args: dict[str, Any]) -> str:
         run_cmd(["ls", "-l", str(log_dir())]),
         "",
         "=== env flags ===",
-        f"JQUANTS_API_KEY: {env_flag('JQUANTS_API_KEY')}",
-        f"MCP_TOKEN: {env_flag('MCP_TOKEN')}",
+        f"jquants_key: {env_flag('JQUANTS_API_KEY')}",
+        f"mcp_token: {env_flag('MCP_TOKEN')}",
     ]
     return "\n".join(parts)
 
@@ -257,6 +260,138 @@ def tool_nginx_logs(args: dict[str, Any]) -> str:
     journal_out = journal("nginx", since, lines, grep)
     file_out = tail_grep(NGINX_ERROR_LOG, lines, grep)
     return f"=== journal nginx since {since} ===\n{journal_out}\n\n=== {NGINX_ERROR_LOG} ===\n{file_out}"
+
+
+def db_file() -> Path:
+    raw = (os.environ.get("DATABASE_URL") or "").strip()
+    if raw.startswith("sqlite:///"):
+        return Path(raw[len("sqlite:///"):])
+    return app_dir() / "stock.db"
+
+
+def open_db() -> sqlite3.Connection:
+    path = db_file()
+    if not path.is_file():
+        raise ValueError(f"missing {path}")
+    conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=8)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA query_only=ON")
+    return conn
+
+
+def parse_code(raw: Any) -> str:
+    s = str(raw or "").strip()
+    if not CODE_RE.fullmatch(s):
+        raise ValueError("code must be 4-5 digits (e.g. 7203 or 72030)")
+    if len(s) == 4:
+        s = s + "0"
+    return s
+
+
+def _scalar(conn: sqlite3.Connection, sql: str, params: tuple[Any, ...] = ()) -> Any:
+    row = conn.execute(sql, params).fetchone()
+    return None if row is None else row[0]
+
+
+def tool_db_stats(_args: dict[str, Any]) -> str:
+    path = db_file()
+    if not path.is_file():
+        return f"(missing {path})"
+    st = path.stat()
+    parts = [
+        f"path: {path}",
+        f"size_mb: {st.st_size / (1024 * 1024):.1f}",
+        f"mtime: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st.st_mtime))}",
+        "",
+    ]
+    conn = open_db()
+    try:
+        names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        for table in DB_TABLES:
+            if table not in names:
+                parts.append(f"{table}: (no table)")
+                continue
+            n = _scalar(conn, f"SELECT COUNT(*) FROM {table}")
+            extra = ""
+            if table == "stocks":
+                demo = _scalar(conn, "SELECT COUNT(*) FROM stocks WHERE code LIKE '0%'")
+                extra = f"  demo={demo} real={int(n) - int(demo)}"
+            elif table == "daily_prices":
+                mn, mx, codes, days = conn.execute(
+                    "SELECT MIN(date), MAX(date), COUNT(DISTINCT code), COUNT(DISTINCT date) FROM daily_prices"
+                ).fetchone()
+                extra = f"  {mn}..{mx}  codes={codes} days={days}"
+            elif table == "topix":
+                mn, mx = conn.execute("SELECT MIN(date), MAX(date) FROM topix").fetchone()
+                extra = f"  {mn}..{mx}"
+            elif table == "statements":
+                mn, mx, codes = conn.execute(
+                    "SELECT MIN(disclosed_date), MAX(disclosed_date), COUNT(DISTINCT code) FROM statements"
+                ).fetchone()
+                extra = f"  disclosed {mn}..{mx}  codes={codes}"
+            elif table == "indicators":
+                mn, mx = conn.execute("SELECT MIN(date), MAX(date) FROM indicators").fetchone()
+                extra = f"  {mn}..{mx}"
+            parts.append(f"{table}: {n}{extra}")
+    finally:
+        conn.close()
+    return "\n".join(parts)
+
+
+def tool_db_lookup(args: dict[str, Any]) -> str:
+    code = parse_code(args.get("code"))
+    lines = clamp_lines(args.get("lines") or 8)
+    path = db_file()
+    if not path.is_file():
+        return f"(missing {path})"
+    conn = open_db()
+    try:
+        stock = conn.execute(
+            "SELECT code, name, market, sector33, scale_category FROM stocks WHERE code = ?",
+            (code,),
+        ).fetchone()
+        if stock is None:
+            return f"{code}: not in stocks"
+        names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        parts = [
+            f"{stock['code']} {stock['name'] or ''}  market={stock['market'] or '-'}  sector={stock['sector33'] or '-'}  scale={stock['scale_category'] or '-'}",
+        ]
+        if "daily_prices" in names:
+            n_p = _scalar(conn, "SELECT COUNT(*) FROM daily_prices WHERE code = ?", (code,))
+            rng = conn.execute(
+                "SELECT MIN(date), MAX(date) FROM daily_prices WHERE code = ?",
+                (code,),
+            ).fetchone()
+            parts.append(f"prices: {n_p}  {rng[0]}..{rng[1]}")
+            rows = conn.execute(
+                "SELECT date, adj_close, adj_volume, close FROM daily_prices WHERE code = ? ORDER BY date DESC LIMIT ?",
+                (code, lines),
+            ).fetchall()
+            for r in rows:
+                parts.append(f"  {r['date']}  adj={r['adj_close']}  vol={r['adj_volume']}  raw={r['close']}")
+        if "statements" in names:
+            n_s = _scalar(conn, "SELECT COUNT(*) FROM statements WHERE code = ?", (code,))
+            last = conn.execute(
+                "SELECT disclosed_date, type_of_period, type_of_document FROM statements WHERE code = ? ORDER BY disclosed_date DESC LIMIT 5",
+                (code,),
+            ).fetchall()
+            parts.append(f"statements: {n_s}")
+            for r in last:
+                parts.append(f"  {r['disclosed_date']}  {r['type_of_period'] or ''}  {r['type_of_document'] or ''}")
+        if "indicators" in names:
+            ind = conn.execute(
+                "SELECT date, stage, rs_rank, ma50, ma150, ma200 FROM indicators WHERE code = ? ORDER BY date DESC LIMIT 1",
+                (code,),
+            ).fetchone()
+            if ind:
+                parts.append(
+                    f"indicator {ind['date']}: stage={ind['stage']} rs={ind['rs_rank']} ma50={ind['ma50']} ma150={ind['ma150']} ma200={ind['ma200']}"
+                )
+            else:
+                parts.append("indicators: 0")
+    finally:
+        conn.close()
+    return "\n".join(parts)
 
 
 TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = {
@@ -299,6 +434,23 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
             },
         },
         tool_nginx_logs,
+    ),
+    "db_stats": (
+        "stock.db の件数・日付範囲・デモ混在。取込が想定通りか見る用。読み取り専用。",
+        {"type": "object", "properties": {}},
+        tool_db_stats,
+    ),
+    "db_lookup": (
+        "1銘柄のマスタ・直近株価・決算・指標。code は 7203 または 72030。",
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "4-5 digit stock code"},
+                "lines": {"type": "integer", "description": "recent price rows, 1-500, default 8"},
+            },
+            "required": ["code"],
+        },
+        tool_db_lookup,
     ),
 }
 
