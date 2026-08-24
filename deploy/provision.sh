@@ -19,6 +19,11 @@ DOMAIN="${DOMAIN%%/*}"
 DOMAIN="${DOMAIN//$'\r'/}"
 echo "cert domain_len=${#DOMAIN}"
 getent hosts "$DOMAIN" | awk '{print "cert resolve", $1}' || echo "cert resolve failed"
+WWW=""
+if [[ "$DOMAIN" != www.* && "$DOMAIN" != *.sslip.io ]]; then
+  WWW="www.${DOMAIN}"
+fi
+SERVER_NAMES="${DOMAIN}${WWW:+ ${WWW}} _"
 CERT_LIVE="/etc/letsencrypt/live/${DOMAIN}"
 HTPASSWD="/etc/nginx/stock-analyzer.htpasswd"
 ACME_ROOT="/var/www/letsencrypt"
@@ -97,7 +102,7 @@ render_http_only() {
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    server_name ${DOMAIN} _;
+    server_name ${SERVER_NAMES};
 
     ${acme_block}
 
@@ -111,14 +116,33 @@ render_https() {
 server {
     listen 80 default_server;
     listen [::]:80 default_server;
-    server_name ${DOMAIN} _;
+    server_name ${SERVER_NAMES};
 
     ${acme_block}
 
     location / {
-        return 301 https://\$host\$request_uri;
+        return 301 https://${DOMAIN}\$request_uri;
     }
 }
+EOF
+  if [[ -n "$WWW" ]]; then
+    cat <<EOF
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name ${WWW};
+
+    ssl_certificate ${CERT_LIVE}/fullchain.pem;
+    ssl_certificate_key ${CERT_LIVE}/privkey.pem;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+
+    return 301 https://${DOMAIN}\$request_uri;
+}
+EOF
+  fi
+  cat <<EOF
 
 server {
     listen 443 ssl;
@@ -168,13 +192,16 @@ if [[ -n "$DOMAIN" && "$DOMAIN" != "_" ]]; then
 systemctl reload nginx
 EOF
   systemctl enable --now certbot.timer >/dev/null
-  if [[ ! -f "${CERT_LIVE}/fullchain.pem" ]]; then
-    echo "certbot: issue ${DOMAIN}"
-    certbot certonly --webroot -w "$ACME_ROOT" -d "$DOMAIN" "${certbot_opts[@]}"
-    write_if_changed /etc/nginx/sites-available/stock-analyzer 644 < <(render_https) || true
-    nginx -t
-    systemctl reload nginx
+  cert_names=(-d "$DOMAIN")
+  if [[ -n "$WWW" ]]; then
+    cert_names+=(-d "$WWW")
   fi
+  echo "certbot: issue ${DOMAIN}${WWW:+ + ${WWW}}"
+  certbot certonly --webroot -w "$ACME_ROOT" --expand --cert-name "$DOMAIN" \
+    "${cert_names[@]}" "${certbot_opts[@]}"
+  write_if_changed /etc/nginx/sites-available/stock-analyzer 644 < <(render_https) || true
+  nginx -t
+  systemctl reload nginx
 fi
 
 crontab -u "$STOCK_USER" "$APP_DIR/deploy/crontab"
