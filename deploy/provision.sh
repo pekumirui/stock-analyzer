@@ -48,7 +48,9 @@ apt-get update -qq
 apt-get install -y -qq \
   python3-venv python3-pip git curl \
   nginx apache2-utils certbot \
-  ufw
+  ufw tzdata
+
+timedatectl set-timezone Asia/Tokyo
 
 install -d -m 755 "$ACME_ROOT"
 
@@ -206,4 +208,4 @@ fi
 
 crontab -u "$STOCK_USER" "$APP_DIR/deploy/crontab"
 
-echo "provision ok domain=${DOMAIN}"
+echo "provision ok domain=${DOMAIN} tz=$(timedatectl show -p Timezone --value 2>/dev/null || echo Asia/Tokyo)"
