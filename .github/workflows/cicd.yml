@@ -199,10 +199,13 @@ jobs:
             -o ServerAliveInterval=15 \
             "${USER}@${HOST}" \
             bash -s
-          import os, shlex, pathlib
+          import os, shlex, pathlib, re
           os.environ.setdefault("APP_DIR", "/home/stock/stock-analyzer")
-          if not os.environ.get("VPS_DOMAIN"):
-              os.environ["VPS_DOMAIN"] = "160.251.179.50.sslip.io"
+          raw = (os.environ.get("VPS_DOMAIN") or "").strip().strip("\"'")
+          raw = re.sub(r"^https?://", "", raw, flags=re.I)
+          raw = raw.split("/")[0].strip()
+          os.environ["VPS_DOMAIN"] = raw or "160.251.179.50.sslip.io"
+          print(f"VPS_DOMAIN len={len(os.environ['VPS_DOMAIN'])}")
           keys = [
               "APP_DIR",
               "VPS_DOMAIN",
