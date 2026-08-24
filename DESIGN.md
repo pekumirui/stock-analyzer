@@ -257,12 +257,8 @@ stock_kpis  PK(code, metric, period)
 
 ```powershell
 .\setup.ps1              # .venv作成 + 依存インストール
-.\run.ps1 seed           # デモデータ投入 (J-Quants不要)
-.\run.ps1 serve          # → http://localhost:8000
-
-# 実データへ切替
-.\run.ps1 reset          # デモDB削除 (混在するとRSランクが狂うため必須)
 Copy-Item .env.example .env ; notepad .env    # APIキーを記入
 .\run.ps1 check          # 疎通 + 項目マッピング確認
 .\run.ps1 backfill       # 5年分 (約45分)
+.\run.ps1 serve          # → http://localhost:8000
 ```

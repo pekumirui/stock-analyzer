@@ -144,8 +144,8 @@ if type_of(branch_name) != "string" || branch_name == "" {
 phase("Review");
 let dimensions = [
     "correctness bugs and broken API/UI contracts",
-    "project-rule violations (J-Quants V2 only, adj_* prices, no demo/real mix, no extra layers, no hardcoded thresholds, no secrets)",
-    "DESIGN.md drift, missing verification, or regressions in screener/statements/chart/demo-mix guard",
+    "project-rule violations (J-Quants V2 only, adj_* prices, no leftover 0-prefix mix, no extra layers, no hardcoded thresholds, no secrets)",
+    "DESIGN.md drift, missing verification, or regressions in screener/statements/chart/leftover-demo guard",
 ];
 
 let review_jobs = [];
@@ -167,7 +167,7 @@ for d in dimensions {
     p += branch_name;
     p += ") plus read_file/grep on the changed files. Do not answer from memory. ";
     p += "Report at most 8 MERGE-BLOCKING findings as {file, issue}. ";
-    p += "Merge-blocking means a real bug, a broken contract, a secret, mixing demo and real data, ";
+    p += "Merge-blocking means a real bug, a broken contract, a secret, mixing leftover demo and real data, ";
     p += "using raw prices for analysis, calling J-Quants V1, adding a new layer/dependency, ";
     p += "or leaving DESIGN.md wrong after a behavior change. ";
     p += "Do NOT report nits, style, or optional cleanups — those must not block merge. ";

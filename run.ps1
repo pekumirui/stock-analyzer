@@ -1,10 +1,9 @@
 # 実行ヘルパー
-#   .\run.ps1 seed           デモデータ投入
 #   .\run.ps1 serve          開発サーバー起動 (http://localhost:8000)
 #   .\run.ps1 serve 8080     ポート指定
 #   .\run.ps1 check          J-Quants疎通・項目マッピング確認 (要 .env)
 #   .\run.ps1 check 2026-08-14   日付を指定して確認
-#   .\run.ps1 reset          DBを完全削除 (本番投入前に必ず実行)
+#   .\run.ps1 reset          DBを完全削除
 #   .\run.ps1 migrate        スキーマ変更後、既存DBに不足列を追加
 #   .\run.ps1 batch          日次バッチ (要 .env)
 #   .\run.ps1 batch 2026-08-14   特定日を取り込み
@@ -30,8 +29,6 @@ if (Test-Path ".env") {
 }
 
 switch ($cmd) {
-    "seed" { & $python scripts\seed_demo.py }
-
     "migrate" { & $python scripts\migrate.py }
 
     "check" {
@@ -78,5 +75,5 @@ switch ($cmd) {
         & $python scripts\run_batch.py --backfill $years
     }
 
-    default { Write-Host "使い方: .\run.ps1 [seed|serve|check|reset|migrate|batch|backfill] [引数]" }
+    default { Write-Host "使い方: .\run.ps1 [serve|check|reset|migrate|batch|backfill] [引数]" }
 }

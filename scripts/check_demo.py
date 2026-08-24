@@ -1,7 +1,7 @@
 """本番バッチ実行前のガード。
 
   1. DBスキーマがモデル定義と一致しているか
-  2. デモデータが残っていないか
+  2. 旧デモ由来の 0 始まりコードが残っていないか
 
 exit 0 = 実行OK / exit 1 = 問題あり
 """
@@ -34,7 +34,8 @@ def main() -> int:
         print("=" * 64)
         return 1
 
-    # --- 2. デモデータ検査 ---
+    # --- 2. 旧デモ取り残し ---
+    # 実コードは 1-9 始まり。0 始まりは seed_demo 時代の合成銘柄だけ。
     db = SessionLocal()
     try:
         n_demo_stock = db.query(Stock).filter(Stock.code.like("0%")).count()
@@ -44,7 +45,7 @@ def main() -> int:
 
     if n_demo_stock or n_demo_stmt:
         print("=" * 64)
-        print(f"デモデータが残っています (銘柄 {n_demo_stock}件 / 決算 {n_demo_stmt}件)")
+        print(f"旧デモデータが残っています (銘柄 {n_demo_stock}件 / 決算 {n_demo_stmt}件)")
         print("実データと混ざるとRSランクが全銘柄で狂います。")
         print("先に  .\\run.ps1 reset  でDBを削除してください。")
         print("=" * 64)
