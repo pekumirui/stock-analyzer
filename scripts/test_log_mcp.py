@@ -57,6 +57,34 @@ def test_tail_grep(tmp_path: Path) -> None:
         raise SystemExit(f"tail_grep filter failed: {out!r}")
 
 
+def test_pick_log(tmp_path: Path) -> None:
+    app = tmp_path / "app"
+    logs = tmp_path / "logs"
+    app.mkdir(parents=True)
+    logs.mkdir(parents=True)
+    (app / "batch.log").write_text("old\n", encoding="utf-8")
+    prev_app = os.environ.get("MCP_APP_DIR")
+    prev_log = os.environ.get("MCP_LOG_DIR")
+    os.environ["MCP_APP_DIR"] = str(app)
+    os.environ.pop("MCP_LOG_DIR", None)
+    try:
+        if m.pick_log("batch.log") != app / "batch.log":
+            raise SystemExit(f"fallback app_dir failed: {m.pick_log('batch.log')}")
+        (logs / "batch.log").write_text("new\n", encoding="utf-8")
+        os.environ["MCP_LOG_DIR"] = str(logs)
+        if m.pick_log("batch.log") != logs / "batch.log":
+            raise SystemExit(f"prefer log_dir failed: {m.pick_log('batch.log')}")
+    finally:
+        if prev_app is None:
+            os.environ.pop("MCP_APP_DIR", None)
+        else:
+            os.environ["MCP_APP_DIR"] = prev_app
+        if prev_log is None:
+            os.environ.pop("MCP_LOG_DIR", None)
+        else:
+            os.environ["MCP_LOG_DIR"] = prev_log
+
+
 def test_http_auth_and_tools() -> None:
     token = "test-token-for-ci-only"
     client = TestClient(m.create_app(token))
@@ -262,6 +290,7 @@ def main() -> None:
     test_since_and_grep()
     with TemporaryDirectory() as d:
         test_tail_grep(Path(d))
+        test_pick_log(Path(d) / "pick")
     test_http_auth_and_tools()
     test_oauth()
     print("ok: log mcp")

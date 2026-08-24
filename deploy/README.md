@@ -60,11 +60,13 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 ツール:
 
 - `service_status` — プロセスと localhost の HTTP コード
-- `app_logs` — `journalctl -u stock-analyzer`
-- `batch_logs` — `batch.log`
+- `app_logs` — `/var/log/app/stock-analyzer.log` と journalctl
+- `batch_logs` — `/var/log/app/batch.log`
 - `nginx_logs` — nginx journal と error.log
 
 任意コマンドも restart もない。行数は最大 500。`.env` の値は伏せる。
+
+アプリ・バッチ・MCP のファイルログは `/var/log/app/`。14 日で logrotate（copytruncate）。nginx は従来どおり `/var/log/nginx/`。
 
 Grok への繋ぎ方（カスタムコネクタは OAuth 前提）:
 

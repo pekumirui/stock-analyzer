@@ -5,10 +5,10 @@ CRON_TZ=Asia/Tokyo
 SHELL=/bin/bash
 
 # 日次（引け後の開示を夜に取る）
-30 19 * * * cd /home/stock/stock-analyzer && .venv/bin/python scripts/run_batch.py >> /home/stock/stock-analyzer/batch.log 2>&1
+30 19 * * * cd /home/stock/stock-analyzer && .venv/bin/python scripts/run_batch.py >> /var/log/app/batch.log 2>&1
 
 # 取りこぼし（翌朝）
-0 6 * * * cd /home/stock/stock-analyzer && .venv/bin/python scripts/run_batch.py >> /home/stock/stock-analyzer/batch.log 2>&1
+0 6 * * * cd /home/stock/stock-analyzer && .venv/bin/python scripts/run_batch.py >> /var/log/app/batch.log 2>&1
 
 # 任意: DB を日付付きで残す（直近だけ手元で間引く）
 # 15 20 * * * cp -a /home/stock/stock-analyzer/stock.db /home/stock/backups/stock-$(date +\%F).db
