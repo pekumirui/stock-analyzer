@@ -29,7 +29,19 @@ def app_dir() -> Path:
     return Path(os.environ.get("MCP_APP_DIR") or Path(__file__).resolve().parent.parent)
 
 
+def log_dir() -> Path:
+    return Path(os.environ.get("MCP_LOG_DIR") or DEFAULT_LOG_DIR)
+
+
+def pick_log(name: str) -> Path:
+    preferred = log_dir() / name
+    if preferred.is_file():
+        return preferred
+    return app_dir() / name
+
+
 NGINX_ERROR_LOG = Path("/var/log/nginx/error.log")
+DEFAULT_LOG_DIR = Path("/var/log/app")
 HOST = os.environ.get("MCP_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MCP_PORT", "8010"))
 MAX_LINES = 500
@@ -194,6 +206,9 @@ def tool_service_status(_args: dict[str, Any]) -> str:
         "80 " + run_cmd(["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "3", "http://127.0.0.1/"]),
         "8000 " + run_cmd(["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "3", "http://127.0.0.1:8000/"]),
         "8010 " + run_cmd(["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "3", "http://127.0.0.1:8010/mcp"]),
+        "",
+        f"=== {log_dir()} ===",
+        run_cmd(["ls", "-l", str(log_dir())]),
     ]
     return "\n".join(parts)
 
@@ -202,13 +217,16 @@ def tool_app_logs(args: dict[str, Any]) -> str:
     since = parse_since(args.get("since"))
     lines = clamp_lines(args.get("lines"))
     grep = parse_grep(args.get("grep"))
-    return journal("stock-analyzer", since, lines, grep)
+    path = pick_log("stock-analyzer.log")
+    file_out = tail_grep(path, lines, grep)
+    journal_out = journal("stock-analyzer", since, lines, grep)
+    return f"=== {path} ===\n{file_out}\n\n=== journal stock-analyzer since {since} ===\n{journal_out}"
 
 
 def tool_batch_logs(args: dict[str, Any]) -> str:
     lines = clamp_lines(args.get("lines"))
     grep = parse_grep(args.get("grep"))
-    return tail_grep(app_dir() / "batch.log", lines, grep)
+    return tail_grep(pick_log("batch.log"), lines, grep)
 
 
 def tool_nginx_logs(args: dict[str, Any]) -> str:
@@ -227,7 +245,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_service_status,
     ),
     "app_logs": (
-        "uvicorn (stock-analyzer) の journalctl。since は 1h / 30m / today / YYYY-MM-DD。",
+        "uvicorn (stock-analyzer) の /var/log/app/stock-analyzer.log と journalctl。since は 1h / 30m / today / YYYY-MM-DD。",
         {
             "type": "object",
             "properties": {
@@ -239,7 +257,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_app_logs,
     ),
     "batch_logs": (
-        "日次バッチの batch.log 末尾。",
+        "日次バッチの /var/log/app/batch.log 末尾。無ければアプリディレクトリの batch.log。",
         {
             "type": "object",
             "properties": {

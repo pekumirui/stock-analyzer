@@ -55,6 +55,25 @@ timedatectl set-timezone Asia/Tokyo
 install -d -m 755 "$ACME_ROOT"
 usermod -aG systemd-journal,adm "$STOCK_USER" 2>/dev/null || true
 
+LOG_DIR="/var/log/app"
+install -d -m 755 -o "$STOCK_USER" -g "$STOCK_USER" "$LOG_DIR"
+for f in stock-analyzer.log mcp.log batch.log; do
+  if [[ ! -f "$LOG_DIR/$f" ]]; then
+    install -m 640 -o "$STOCK_USER" -g "$STOCK_USER" /dev/null "$LOG_DIR/$f"
+  else
+    chown "$STOCK_USER:$STOCK_USER" "$LOG_DIR/$f"
+    chmod 640 "$LOG_DIR/$f"
+  fi
+done
+if [[ -s "$APP_DIR/batch.log" && ! -s "$LOG_DIR/batch.log" ]]; then
+  cp "$APP_DIR/batch.log" "$LOG_DIR/batch.log"
+  chown "$STOCK_USER:$STOCK_USER" "$LOG_DIR/batch.log"
+  echo "migrated batch.log → $LOG_DIR"
+fi
+if [[ -f "$APP_DIR/deploy/logrotate" ]]; then
+  write_if_changed /etc/logrotate.d/stock-analyzer 644 < "$APP_DIR/deploy/logrotate"
+fi
+
 if write_if_changed /etc/systemd/system/stock-analyzer.service 644 < "$APP_DIR/deploy/stock-analyzer.service"; then
   systemctl daemon-reload
 fi

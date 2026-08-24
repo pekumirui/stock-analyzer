@@ -8,6 +8,11 @@ User=stock
 Group=stock
 WorkingDirectory=/home/stock/stock-analyzer
 EnvironmentFile=-/home/stock/stock-analyzer/.env
+Environment=PYTHONUNBUFFERED=1
+LogsDirectory=app
+LogsDirectoryMode=0755
+StandardOutput=append:/var/log/app/stock-analyzer.log
+StandardError=append:/var/log/app/stock-analyzer.log
 # SQLite は複数ライターに弱いのでワーカーは1
 ExecStart=/home/stock/stock-analyzer/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
 Restart=on-failure

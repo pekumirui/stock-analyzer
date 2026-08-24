@@ -59,8 +59,14 @@ jobs:
           journalctl -u stock-analyzer -n 80 --no-pager
           echo "=== journal mcp ==="
           journalctl -u stock-analyzer-mcp -n 40 --no-pager
+          echo "=== /var/log/app ==="
+          ls -l /var/log/app 2>/dev/null || echo "(no /var/log/app)"
+          echo "=== stock-analyzer.log ==="
+          tail -n 80 /var/log/app/stock-analyzer.log 2>/dev/null || echo "(missing)"
           echo "=== batch.log ==="
-          tail -n 80 /home/stock/stock-analyzer/batch.log 2>/dev/null || echo "(no batch.log)"
+          tail -n 80 /var/log/app/batch.log 2>/dev/null || tail -n 80 /home/stock/stock-analyzer/batch.log 2>/dev/null || echo "(no batch.log)"
+          echo "=== mcp.log ==="
+          tail -n 40 /var/log/app/mcp.log 2>/dev/null || echo "(missing)"
           echo "=== which nginx ==="
           command -v nginx; dpkg -l nginx 2>/dev/null | tail -3
           echo "=== ufw ==="
