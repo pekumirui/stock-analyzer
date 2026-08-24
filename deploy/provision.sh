@@ -53,11 +53,26 @@ apt-get install -y -qq \
 timedatectl set-timezone Asia/Tokyo
 
 install -d -m 755 "$ACME_ROOT"
+usermod -aG systemd-journal,adm "$STOCK_USER" 2>/dev/null || true
 
 if write_if_changed /etc/systemd/system/stock-analyzer.service 644 < "$APP_DIR/deploy/stock-analyzer.service"; then
   systemctl daemon-reload
 fi
 systemctl enable stock-analyzer >/dev/null
+
+if write_if_changed /etc/systemd/system/stock-analyzer-mcp.service 644 < "$APP_DIR/deploy/stock-analyzer-mcp.service"; then
+  systemctl daemon-reload
+fi
+systemctl enable stock-analyzer-mcp >/dev/null
+
+if [[ -f "$APP_DIR/deploy/sudoers" ]]; then
+  if visudo -cf "$APP_DIR/deploy/sudoers" >/dev/null; then
+    write_if_changed /etc/sudoers.d/stock-analyzer 440 < "$APP_DIR/deploy/sudoers" || true
+  else
+    echo "sudoers の visudo 検証に失敗したので更新しません" >&2
+    exit 1
+  fi
+fi
 
 if [[ -n "${BASIC_AUTH_USER:-}" && -n "${BASIC_AUTH_PASSWORD:-}" ]]; then
   touch "$HTPASSWD"
@@ -76,15 +91,41 @@ EOF
 )
 fi
 
+mcp_block=$(cat <<'EOF'
+    location ~ ^/mcp/?$ {
+        auth_basic off;
+        proxy_pass http://127.0.0.1:8010;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Authorization $http_authorization;
+        proxy_set_header X-MCP-Token $http_x_mcp_token;
+        proxy_set_header Accept $http_accept;
+        proxy_set_header Content-Type $content_type;
+        proxy_set_header Mcp-Session-Id $http_mcp_session_id;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_request_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        client_max_body_size 1m;
+    }
+EOF
+)
+
 proxy_block=$(cat <<EOF
     client_max_body_size 1m;
+${mcp_block}
     location / {
 ${auth_block}
         proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_set_header Host \\$host;
+        proxy_set_header X-Real-IP \\$remote_addr;
+        proxy_set_header X-Forwarded-For \\$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \\$scheme;
         proxy_read_timeout 60s;
     }
 EOF
@@ -123,7 +164,7 @@ server {
     ${acme_block}
 
     location / {
-        return 301 https://${DOMAIN}\$request_uri;
+        return 301 https://${DOMAIN}\\$request_uri;
     }
 }
 EOF
@@ -140,7 +181,7 @@ server {
     ssl_session_timeout 1d;
     ssl_session_cache shared:SSL:10m;
 
-    return 301 https://${DOMAIN}\$request_uri;
+    return 301 https://${DOMAIN}\\$request_uri;
 }
 EOF
   fi

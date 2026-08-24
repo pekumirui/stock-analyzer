@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # GitHub Actions から stdin で流して実行する。
 # git pull → 冪等な初期設定 (provision.sh) → venv → migrate → 再起動
-# stock.db は触らない。.env は JQUANTS_API_KEY が渡されたときだけ当該行を更新する。
+# stock.db は触らない。.env は JQUANTS_API_KEY / MCP_TOKEN が渡されたときだけ当該行を更新する。
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/home/stock/stock-analyzer}"
@@ -44,6 +44,12 @@ upsert_env() {
 }
 
 upsert_env JQUANTS_API_KEY "${JQUANTS_API_KEY:-}"
+upsert_env MCP_TOKEN "${MCP_TOKEN:-}"
+
+if ! grep -qE '^MCP_TOKEN=.+' "$APP_DIR/.env" 2>/dev/null; then
+  upsert_env MCP_TOKEN "$(openssl rand -hex 32)"
+  echo "generated MCP_TOKEN on VPS (value not printed; set GitHub secret MCP_TOKEN to pin it)"
+fi
 
 chmod +x "$APP_DIR/deploy/provision.sh"
 sudo --preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,CERTBOT_EMAIL \
@@ -57,6 +63,7 @@ fi
 "$APP_DIR/.venv/bin/python" scripts/migrate.py
 
 sudo systemctl restart stock-analyzer
+sudo systemctl restart stock-analyzer-mcp
 
 ok=0
 for _ in $(seq 1 25); do
@@ -73,7 +80,26 @@ if [ "$ok" -ne 1 ]; then
   exit 1
 fi
 
+mcp_ok=0
+mcp_code=""
+for _ in $(seq 1 15); do
+  mcp_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:8010/mcp || true)"
+  if [ "$mcp_code" = "401" ] || [ "$mcp_code" = "200" ]; then
+    mcp_ok=1
+    break
+  fi
+  sleep 1
+done
+
+if [ "$mcp_ok" -ne 1 ]; then
+  echo "mcp health check failed (http=$mcp_code)" >&2
+  sudo systemctl --no-pager --full status stock-analyzer-mcp || true
+  exit 1
+fi
+
 echo "health ok"
+echo "mcp health ok ($mcp_code)"
 sudo systemctl is-active stock-analyzer
+sudo systemctl is-active stock-analyzer-mcp
 git log -1 --oneline
 echo "==> $(date -Is) deploy done"

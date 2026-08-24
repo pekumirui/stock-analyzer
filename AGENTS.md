@@ -23,6 +23,7 @@
 | `scripts/run_batch.py` | 日次バッチ / バックフィル |
 | `scripts/seed_demo.py` | デモデータ |
 | `scripts/check_demo.py` | 本番投入前ガード |
+| `deploy/log_mcp.py` | VPS 上の読み取り専用ログ MCP（本番のみ） |
 
 新しい依存やレイヤを増やさない。ロジックは上のファイルに足す。
 
@@ -74,6 +75,14 @@ Python は `.venv\Scripts\python.exe` を使う。システムの python で依�
 - `main` へマージすると GitHub Actions がテスト → タグ/Release → VPS デプロイする。手元で `main` に直接 push しない
 - VPS 初期設定は `deploy/provision.sh`（冪等）
 - コミット先頭が `feat:` なら minor、`BREAKING CHANGE` / `type!:` なら major、それ以外は patch
+
+## 本番ログ MCP
+
+- VPS 上の `stock-analyzer-mcp` が `127.0.0.1:8010/mcp` を待ち、nginx が `https://<domain>/mcp` に出す
+- ツールは `service_status` / `app_logs` / `batch_logs` / `nginx_logs` のみ。任意シェルも restart もない
+- 認証は `MCP_TOKEN`（Bearer または `?token=`）。GitHub secret と同値。値をログに出さない
+- アプリ本体 (`app/*`) にログ API を足さない。Debug VPS ワークフローは MCP が死んだときの退避路
+- Grok は [connectors](https://grok.com/connectors) → Custom に URL とトークンを入れる
 
 ## 実装方針
 
