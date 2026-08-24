@@ -21,34 +21,26 @@
 
 ## クイックスタート (Windows / PowerShell)
 
+APIキーは [jpx-jquants.com](https://jpx-jquants.com/ja) のダッシュボードで発行します。
+V2はAPIキー方式（`x-api-key`ヘッダー）で、V1のようなトークン更新は不要です。
+
 ```powershell
-.\setup.ps1        # .venv 作成 + 依存インストール
-.\run.ps1 seed     # デモデータ投入 (J-Quants不要)
-.\run.ps1 serve    # → http://localhost:8000
+.\setup.ps1                     # .venv 作成 + 依存インストール
+Copy-Item .env.example .env
+notepad .env                    # JQUANTS_API_KEY を記入
+.\run.ps1 check                 # 疎通確認 + 項目マッピング検証 (DBは触らない)
+.\run.ps1 backfill              # 初回: 5年分 (約45分)
+.\run.ps1 serve                 # → http://localhost:8000
+.\run.ps1 batch                 # 以降の日次 (4リクエストで完了)
 ```
 
 スクリプト実行がブロックされる場合は一度だけ:
 `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`
 
-## 実データ運用 (J-Quants API V2 / Light)
-
-APIキーは [jpx-jquants.com](https://jpx-jquants.com/ja) のダッシュボードで発行します。
-V2はAPIキー方式（`x-api-key`ヘッダー）で、V1のようなトークン更新は不要です。
-
-```powershell
-.\run.ps1 reset                # ★デモデータを消す (本番投入前に必須)
-Copy-Item .env.example .env
-notepad .env                   # JQUANTS_API_KEY を記入
-.\run.ps1 check                # 疎通確認 + 項目マッピング検証 (DBは触らない)
-.\run.ps1 backfill             # 初回: 5年分 (約45分)
-.\run.ps1 batch                # 日次 (4リクエストで完了)
-```
-
 ### コマンド一覧
 
 | コマンド | 内容 |
 |---|---|
-| `.\run.ps1 seed` | デモデータ投入 |
 | `.\run.ps1 serve` / `serve 8080` | サーバー起動 (ポート指定可) |
 | `.\run.ps1 check` / `check 2026-08-14` | API疎通・項目マッピング確認 |
 | `.\run.ps1 reset` | DB削除 |
@@ -72,11 +64,9 @@ notepad .env                   # JQUANTS_API_KEY を記入
 - レート制限は自動でスロットルし、429は指数バックオフで再試行
 - 取得済みの日付はスキップするため、中断しても再実行すれば続きから埋まる
 
-> **デモデータと実データは絶対に混ぜないこと。**
-> RSランクは全銘柄を横断してパーセンタイルを取るため、架空銘柄が1つでも残ると
-> 全銘柄のランクとステージ判定が狂います。
-> デモ銘柄コードは `0` 始まり (実コードは1-9始まりなので衝突はしない) にしてあり、
-> `batch` / `backfill` は実行前に `scripts/check_demo.py` で自動チェックして止まります。
+> 旧デモ由来の `0` 始まりコードが DB に残っていると RS ランクが狂うため、
+> `batch` / `backfill` は実行前に `scripts/check_demo.py` で止まります。
+> その場合は `.\run.ps1 reset` してから取り直してください。
 
 決算開示は引け後15時以降が多いため、当日夜(19:30頃)と翌朝6時の2回実行を推奨。
 タスクスケジューラに登録する場合の操作:
@@ -93,9 +83,10 @@ notepad .env                   # JQUANTS_API_KEY を記入
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-python scripts/seed_demo.py
+# .env に JQUANTS_API_KEY を記入してから
+set -a && . ./.env && set +a
+python scripts/run_batch.py --backfill 5
 uvicorn app.main:app --reload
-# 実データ: set -a && . ./.env && set +a && python scripts/run_batch.py
 ```
 
 ## VPS 運用 (ConoHa)
@@ -117,7 +108,7 @@ DB のバックアップは ConoHa の自動バックアップか、日次で別
 
 `main` にマージすると GitHub Actions がテスト → GitHub Release（タグ）→ ConoHa VPS へデプロイする。
 
-1. **PR** — `scripts/ci_smoke.py`（起動・デモ投入・検索/スクリーナー/チャート）
+1. **PR** — `scripts/ci_smoke.py`（起動・検索/スクリーナー/チャート）
 2. **main マージ** — コミットメッセージでバージョンを自動バンプ（`feat:` は minor、`BREAKING CHANGE` / `feat!:` は major、それ以外は patch）。初回は `v0.1.0`
 3. **VPS** — SSH で `git pull` → `provision.sh`（nginx/ufw/certbot/systemd）→ `pip install` → `migrate.py` → `systemctl restart`。`stock.db` は触らない
 
@@ -147,7 +138,7 @@ app/
 static/index.html   SPA (スマホ対応)
 scripts/
   run_batch.py  日次バッチ / バックフィル
-  seed_demo.py  デモデータ生成
+  check_demo.py スキーマ + 旧デモ取り残しガード
   ci_smoke.py   CI 起動スモーク
 deploy/
   stock-analyzer.service  systemd（uvicorn ワーカー1）

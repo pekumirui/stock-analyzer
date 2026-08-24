@@ -21,8 +21,7 @@
 | `app/api.py` | REST (`/api/*`) |
 | `app/main.py` | FastAPI エントリ + SPA 配信 |
 | `scripts/run_batch.py` | 日次バッチ / バックフィル |
-| `scripts/seed_demo.py` | デモデータ |
-| `scripts/check_demo.py` | 本番投入前ガード |
+| `scripts/check_demo.py` | スキーマ検査 + 旧デモ取り残しガード |
 | `deploy/log_mcp.py` | VPS 上の読み取り専用ログ MCP（本番のみ） |
 
 新しい依存やレイヤを増やさない。ロジックは上のファイルに足す。
@@ -41,9 +40,9 @@
 ## データルール
 
 - 分析・チャート・RS・ステージは **調整済価格** (`adj_*`)。生値は表示・保存用
-- 銘柄コードは 5 桁文字列（例 `"72030"`）
-- デモ銘柄は必ず `"0"` 始まり。実コードは 1-9 始まりなので衝突しない
-- **デモと実データを混ぜない。** `batch` / `backfill` の前に `scripts/check_demo.py` が走る。デモが残っていたら `.\run.ps1 reset` してから本番投入
+- 銘柄コードは 5 桁文字列（例 `"72030"`）。実コードは 1-9 始まり
+- 合成デモデータは投入しない。`scripts/seed_demo.py` は置かない
+- 旧デモの `0` 始まりコードが残っていると RS ランクが狂う。`batch` / `backfill` の前に `scripts/check_demo.py` が走る。残っていたら `.\run.ps1 reset`
 - 取込は UPSERT で冪等。何度走らせても壊れないこと
 - Q単独は保存しない。`analytics.quarter_summary` で累計差から都度算出
 - `Statement.raw_json` は元レスポンス全項目を残す（将来項目追加用）
@@ -53,9 +52,8 @@
 
 ```powershell
 .\setup.ps1              # .venv + 依存
-.\run.ps1 seed           # デモ投入（API不要）
 .\run.ps1 serve          # http://localhost:8000
-.\run.ps1 reset          # stock.db 削除（本番投入前）
+.\run.ps1 reset          # stock.db 削除
 .\run.ps1 batch          # 日次（要 .env）
 .\run.ps1 backfill       # 初回 5 年（要 .env）
 ```
@@ -64,9 +62,9 @@ Python は `.venv\Scripts\python.exe` を使う。システムの python で依�
 
 検証の目安:
 
-- API: `http://localhost:8000/api/stocks/search?q=デモ` や `/api/screener`
-- デモ投入後に UI の決算・チャート・スクリーナーが空でないこと
-- バッチ変更時はデモ混在ガードがまだ効くこと
+- API: `http://localhost:8000/api/stocks/search?q=トヨタ` や `/api/screener`
+- backfill 後に UI の決算・チャート・スクリーナーが空でないこと
+- バッチ変更時は 0 始まりコードの取り残しガードがまだ効くこと
 
 ## Git（ソースを編集するとき）
 
@@ -87,7 +85,7 @@ Python は `.venv\Scripts\python.exe` を使う。システムの python で依�
 
 ## 実装方針
 
-- 既存スタイルに合わせる。型ヒントは付ける。コメントは非自明な制約だけ（レート制限、調整済、デモ混在禁止など）
+- 既存スタイルに合わせる。型ヒントは付ける。コメントは非自明な制約だけ（レート制限、調整済、旧デモ取り残し禁止など）
 - 閾値・プラン上限・ベース URL は `config.py`。ハードコードしない
 - UI はスマホでも使えること。`static/index.html` を分割しない（現状の単一ファイル方針）
 - 秘密情報（`.env`, API キー）をコミットしない・ログに出さない

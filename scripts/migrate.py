@@ -1,7 +1,7 @@
 """既存DBに不足している列を追加する (データを消さずにスキーマだけ追随)。
 
 追加された列の値はNULLのままなので、株価・財務は再取得が必要。
-デモデータ段階なら .\\run.ps1 reset の方が確実。
+作り直してよいなら .\\run.ps1 reset の方が確実。
 """
 import sys
 from pathlib import Path

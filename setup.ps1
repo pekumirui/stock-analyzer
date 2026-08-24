@@ -34,6 +34,7 @@ if ((Test-Path "stock.db") -and ((Get-Item "stock.db").Length -eq 0)) {
 }
 
 Write-Host ""
-Write-Host "セットアップ完了。次のコマンドで起動:" -ForegroundColor Green
-Write-Host "  .\run.ps1 seed     # デモデータ投入 (J-Quants不要)" -ForegroundColor Cyan
-Write-Host "  .\run.ps1 serve    # サーバー起動 → http://localhost:8000" -ForegroundColor Cyan
+Write-Host "セットアップ完了。次:" -ForegroundColor Green
+Write-Host "  Copy-Item .env.example .env   # JQUANTS_API_KEY を記入" -ForegroundColor Cyan
+Write-Host "  .\run.ps1 backfill            # 初回データ取得" -ForegroundColor Cyan
+Write-Host "  .\run.ps1 serve               # サーバー起動 → http://localhost:8000" -ForegroundColor Cyan
