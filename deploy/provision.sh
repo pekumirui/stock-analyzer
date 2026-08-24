@@ -28,7 +28,7 @@ write_if_changed() {
     return 0
   fi
   rm -f "$tmp"
-  return 1
+  return 0
 }
 
 apt-get update -qq
