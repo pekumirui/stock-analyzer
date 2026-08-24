@@ -44,6 +44,8 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 4. venv / `pip install` / `migrate.py`
 5. `systemctl restart stock-analyzer` と localhost:8000 のヘルスチェック
 
+証明書の更新は `certbot.timer`（1日2回）。更新後は `renewal-hooks/deploy` で nginx を reload する。
+
 ブラウザは [https://160.251.179.50.sslip.io/](https://160.251.179.50.sslip.io/)（iPhone の HTTPS-Only 対策）。
 
 ホスト鍵は `deploy/known_hosts` にピン留め。VPS を作り直したら `ssh-keyscan YOUR_HOST` で更新する。

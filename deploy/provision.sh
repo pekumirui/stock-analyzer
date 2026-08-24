@@ -154,14 +154,18 @@ if [[ -n "$DOMAIN" && "$DOMAIN" != "_" ]]; then
   else
     certbot_opts+=(--register-unsafely-without-email)
   fi
+  install -d -m 755 /etc/letsencrypt/renewal-hooks/deploy
+  write_if_changed /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh 755 <<'EOF'
+#!/bin/bash
+systemctl reload nginx
+EOF
+  systemctl enable --now certbot.timer >/dev/null
   if [[ ! -f "${CERT_LIVE}/fullchain.pem" ]]; then
     echo "certbot: issue ${DOMAIN}"
     certbot certonly --webroot -w "$ACME_ROOT" -d "$DOMAIN" "${certbot_opts[@]}"
     write_if_changed /etc/nginx/sites-available/stock-analyzer 644 < <(render_https) || true
     nginx -t
     systemctl reload nginx
-  else
-    certbot renew --quiet || echo "certbot renew skipped/failed (non-fatal)"
   fi
 fi
 
