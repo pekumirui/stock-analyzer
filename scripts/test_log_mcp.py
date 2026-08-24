@@ -115,6 +115,147 @@ def test_http_auth_and_tools() -> None:
     _ = r, json  # silence unused if ping path changes
 
 
+def _pkce() -> tuple[str, str]:
+    import base64
+    import hashlib
+    import secrets
+
+    verifier = secrets.token_urlsafe(32)
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
+    return verifier, challenge
+
+
+def test_oauth() -> None:
+    from tempfile import TemporaryDirectory
+
+    token = "test-token-for-ci-only"
+    prev = os.environ.get("MCP_APP_DIR")
+    with TemporaryDirectory() as d:
+        os.environ["MCP_APP_DIR"] = d
+        try:
+            _test_oauth_inner(token)
+        finally:
+            if prev is None:
+                os.environ.pop("MCP_APP_DIR", None)
+            else:
+                os.environ["MCP_APP_DIR"] = prev
+
+
+def _test_oauth_inner(token: str) -> None:
+    client = TestClient(m.create_app(token))
+
+    r = client.get("/.well-known/oauth-authorization-server")
+    if r.status_code != 200:
+        raise SystemExit(f"as metadata: {r.status_code} {r.text}")
+    meta = r.json()
+    if meta["token_endpoint_auth_methods_supported"] != ["none"]:
+        raise SystemExit(f"auth methods: {meta}")
+    if "S256" not in meta["code_challenge_methods_supported"]:
+        raise SystemExit("S256 missing")
+    if not meta["authorization_endpoint"].endswith("/oauth/authorize"):
+        raise SystemExit(f"authorize: {meta['authorization_endpoint']}")
+
+    r = client.get("/.well-known/oauth-protected-resource")
+    if r.status_code != 200 or "/mcp" not in r.json().get("resource", ""):
+        raise SystemExit(f"pr metadata: {r.status_code} {r.text}")
+
+    r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "ping"})
+    www = r.headers.get("www-authenticate", "")
+    if r.status_code != 401 or "resource_metadata=" not in www:
+        raise SystemExit(f"401 www: {r.status_code} {www}")
+
+    verifier, challenge = _pkce()
+    q = {
+        "response_type": "code",
+        "client_id": "stock-analyzer",
+        "redirect_uri": "https://grok.com/oauth/callback",
+        "state": "st1",
+        "code_challenge": challenge,
+        "code_challenge_method": "S256",
+    }
+    r = client.get("/oauth/authorize", params=q)
+    if r.status_code != 200 or "MCP_TOKEN" not in r.text:
+        raise SystemExit(f"authorize get: {r.status_code} {r.text[:200]}")
+
+    r = client.post(
+        "/oauth/authorize",
+        data={**q, "redirect_uri": "https://evil.example/cb", "token": token},
+        follow_redirects=False,
+    )
+    if r.status_code != 400:
+        raise SystemExit(f"evil redirect should 400, got {r.status_code}")
+
+    r = client.post("/oauth/authorize", data={**q, "token": "wrong"}, follow_redirects=False)
+    if r.status_code != 401:
+        raise SystemExit(f"wrong token should 401, got {r.status_code}")
+
+    r = client.post("/oauth/authorize", data={**q, "token": token}, follow_redirects=False)
+    if r.status_code != 302:
+        raise SystemExit(f"authorize post: {r.status_code} {r.text[:200]}")
+    loc = r.headers.get("location") or ""
+    if "code=" not in loc or "state=st1" not in loc:
+        raise SystemExit(f"redirect: {loc}")
+    from urllib.parse import parse_qs, urlparse
+
+    code = parse_qs(urlparse(loc).query)["code"][0]
+
+    r = client.post(
+        "/oauth/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": q["redirect_uri"],
+            "client_id": "stock-analyzer",
+            "code_verifier": verifier,
+        },
+    )
+    if r.status_code != 200:
+        raise SystemExit(f"token: {r.status_code} {r.text}")
+    body = r.json()
+    access = body["access_token"]
+    refresh = body["refresh_token"]
+    if body["token_type"] != "Bearer":
+        raise SystemExit(body)
+
+    r = client.post(
+        "/oauth/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": q["redirect_uri"],
+            "client_id": "stock-analyzer",
+            "code_verifier": verifier,
+        },
+    )
+    if r.status_code != 400:
+        raise SystemExit(f"replayed code should 400, got {r.status_code} {r.text}")
+
+    r = _rpc(
+        client,
+        "initialize",
+        {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "t", "version": "1"}},
+        token=access,
+    )
+    if r.status_code != 200:
+        raise SystemExit(f"mcp with access token: {r.status_code} {r.text}")
+
+    r = client.post("/oauth/token", data={"grant_type": "refresh_token", "refresh_token": refresh})
+    if r.status_code != 200 or "access_token" not in r.json():
+        raise SystemExit(f"refresh: {r.status_code} {r.text}")
+
+    r = client.post(
+        "/oauth/register",
+        json={"client_name": "Grok", "redirect_uris": ["https://grok.com/oauth/callback"], "token_endpoint_auth_method": "none"},
+    )
+    if r.status_code != 201 or not r.json().get("client_id"):
+        raise SystemExit(f"dcr: {r.status_code} {r.text}")
+
+    if m.redirect_ok("https://evil.example/cb"):
+        raise SystemExit("redirect_ok allowed evil host")
+    if not m.redirect_ok("https://grok.com/oauth/callback"):
+        raise SystemExit("redirect_ok rejected grok.com")
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -122,6 +263,7 @@ def main() -> None:
     with TemporaryDirectory() as d:
         test_tail_grep(Path(d))
     test_http_auth_and_tools()
+    test_oauth()
     print("ok: log mcp")
 
 

@@ -5,18 +5,24 @@ Arbitrary shell is not exposed. journalctl units and log paths are allowlisted.
 """
 from __future__ import annotations
 
+import base64
+import hashlib
+import html
 import json
 import os
 import re
 import hmac
 import secrets
 import subprocess
+import threading
+import time
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urlencode, urlparse, parse_qsl, urlunparse
 
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import JSONResponse, PlainTextResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.routing import Route
 
 def app_dir() -> Path:
@@ -37,6 +43,12 @@ PROTOCOL_VERSIONS = (
     "2025-11-25",
     "2026-07-28",
 )
+OAUTH_CLIENT_ID = "stock-analyzer"
+OAUTH_SCOPE = "mcp"
+ACCESS_TTL = 30 * 24 * 3600
+REFRESH_TTL = 90 * 24 * 3600
+CODE_TTL = 300
+OAUTH_STORE_NAME = ".mcp-oauth.json"
 SINCE_UNITS = {"s": "seconds", "m": "minutes", "h": "hours", "d": "days"}
 SECRET_RE = re.compile(
     r"(MCP_TOKEN|JQUANTS_API_KEY|BASIC_AUTH_PASSWORD|api[_-]?key|password)\s*[:=]\s*\S+",
@@ -339,10 +351,212 @@ def encode_mcp(request: Request, payload: dict[str, Any], session_id: str) -> Re
     return Response(body, media_type="application/json", headers=headers)
 
 
+def public_base(request: Request) -> str:
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "https").split(",")[0].strip()
+    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "localhost").split(",")[0].strip()
+    if proto not in ("http", "https"):
+        proto = "https"
+    return f"{proto}://{host}"
+
+
+def cors_headers() -> dict[str, str]:
+    return {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type, MCP-Protocol-Version, Mcp-Session-Id",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Max-Age": "86400",
+        "Cache-Control": "no-store",
+    }
+
+
+def json_cors(payload: dict[str, Any], status: int = 200) -> JSONResponse:
+    return JSONResponse(payload, status_code=status, headers=cors_headers())
+
+
+async def read_form(request: Request) -> dict[str, str]:
+    ctype = (request.headers.get("content-type") or "").lower()
+    if "json" in ctype:
+        try:
+            body = await request.json()
+        except Exception:
+            return {}
+        if not isinstance(body, dict):
+            return {}
+        return {str(k): "" if v is None else str(v) for k, v in body.items()}
+    raw = (await request.body()).decode("utf-8", errors="replace")
+    return dict(parse_qsl(raw, keep_blank_values=True))
+
+
+def s256(verifier: str) -> str:
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
+def redirect_ok(uri: str) -> bool:
+    try:
+        parsed = urlparse(uri)
+    except ValueError:
+        return False
+    if not parsed.scheme or not parsed.netloc:
+        return False
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme in ("http", "https") and host in {"127.0.0.1", "localhost", "testserver"}:
+        return True
+    if parsed.scheme in {"grok", "x-grok", "grok-app"}:
+        return True
+    if parsed.scheme != "https":
+        return False
+    return host == "grok.com" or host.endswith(".grok.com") or host == "x.ai" or host.endswith(".x.ai")
+
+
+def oauth_path(app_dir_path: Path) -> Path:
+    return app_dir_path / OAUTH_STORE_NAME
+
+
+class OAuthStore:
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self.lock = threading.Lock()
+        self.codes: dict[str, dict[str, Any]] = {}
+        self.data: dict[str, Any] = {"access": {}, "refresh": {}, "clients": {}}
+        self._load()
+
+    def _load(self) -> None:
+        try:
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return
+        if isinstance(raw, dict):
+            for key in ("access", "refresh", "clients"):
+                if isinstance(raw.get(key), dict):
+                    self.data[key] = raw[key]
+
+    def _save(self) -> None:
+        tmp = self.path.with_suffix(".tmp")
+        try:
+            tmp.write_text(json.dumps(self.data), encoding="utf-8")
+            os.chmod(tmp, 0o600)
+            tmp.replace(self.path)
+            os.chmod(self.path, 0o600)
+        except OSError:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    def purge(self) -> None:
+        now = time.time()
+        for bucket in ("access", "refresh"):
+            dead = [k for k, v in self.data[bucket].items() if float(v.get("exp", 0)) < now]
+            for k in dead:
+                self.data[bucket].pop(k, None)
+        expired = [k for k, v in self.codes.items() if float(v.get("exp", 0)) < now]
+        for k in expired:
+            self.codes.pop(k, None)
+
+    def access_ok(self, got: str) -> bool:
+        if not got:
+            return False
+        with self.lock:
+            self.purge()
+            rec = self.data["access"].get(got)
+            return bool(rec) and float(rec.get("exp", 0)) >= time.time()
+
+
+def issue_pair(store: OAuthStore, client_id: str) -> dict[str, Any]:
+    access = secrets.token_urlsafe(32)
+    refresh = secrets.token_urlsafe(32)
+    now = time.time()
+    with store.lock:
+        store.purge()
+        store.data["access"][access] = {"exp": now + ACCESS_TTL, "client_id": client_id}
+        store.data["refresh"][refresh] = {"exp": now + REFRESH_TTL, "client_id": client_id}
+        store._save()
+    return {
+        "access_token": access,
+        "token_type": "Bearer",
+        "expires_in": ACCESS_TTL,
+        "refresh_token": refresh,
+        "scope": OAUTH_SCOPE,
+    }
+
+
+def as_server_metadata(base: str) -> dict[str, Any]:
+    return {
+        "issuer": base,
+        "authorization_endpoint": f"{base}/oauth/authorize",
+        "token_endpoint": f"{base}/oauth/token",
+        "registration_endpoint": f"{base}/oauth/register",
+        "revocation_endpoint": f"{base}/oauth/revoke",
+        "response_types_supported": ["code"],
+        "grant_types_supported": ["authorization_code", "refresh_token"],
+        "code_challenge_methods_supported": ["S256"],
+        "token_endpoint_auth_methods_supported": ["none"],
+        "scopes_supported": [OAUTH_SCOPE],
+        "authorization_response_iss_parameter_supported": True,
+    }
+
+
+def as_resource_metadata(base: str) -> dict[str, Any]:
+    return {
+        "resource": f"{base}/mcp",
+        "authorization_servers": [base],
+        "bearer_methods_supported": ["header"],
+        "scopes_supported": [OAUTH_SCOPE],
+    }
+
+
+def authorize_page(error: str = "", hidden: dict[str, str] | None = None) -> str:
+    fields = ""
+    for k, v in (hidden or {}).items():
+        fields += f'<input type="hidden" name="{html.escape(k)}" value="{html.escape(v)}">\n'
+    err = f'<p class="err">{html.escape(error)}</p>' if error else ""
+    return f"""<!doctype html>
+<html lang="ja"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>stock-analyzer MCP</title>
+<style>
+body{{font-family:system-ui,sans-serif;max-width:28rem;margin:12vh auto;padding:0 1.2rem;color:#111}}
+h1{{font-size:1.15rem}}
+p,label{{color:#444;line-height:1.5}}
+input[type=password]{{width:100%;box-sizing:border-box;padding:.7rem;font-size:1rem;margin:.4rem 0 1rem}}
+button{{background:#111;color:#fff;border:0;padding:.7rem 1.1rem;border-radius:6px;font-size:1rem}}
+.err{{color:#b00020}}
+</style></head><body>
+<h1>ログ MCP の接続許可</h1>
+<p>Grok が stock-analyzer の読み取り専用ログに接続しようとしています。GitHub secret と同じ <code>MCP_TOKEN</code> を入れて許可してください。</p>
+{err}
+<form method="post" action="/oauth/authorize" autocomplete="off">
+{fields}
+<label>MCP_TOKEN
+<input type="password" name="token" required autofocus>
+</label>
+<button type="submit">許可する</button>
+</form>
+</body></html>"""
+
+
+def unauthorized(request: Request) -> Response:
+    meta = public_base(request) + "/.well-known/oauth-protected-resource"
+    headers = cors_headers()
+    headers["WWW-Authenticate"] = f'Bearer realm="mcp", resource_metadata="{meta}"'
+    return PlainTextResponse("unauthorized", status_code=401, headers=headers)
+
+
 def create_app(token: str) -> Starlette:
+    store = OAuthStore(oauth_path(app_dir()))
+
+    def bearer_ok(got: str) -> bool:
+        if token_ok(got, token):
+            return True
+        return store.access_ok(got)
+
     async def mcp_endpoint(request: Request) -> Response:
-        if not token_ok(extract_token(request), token):
-            return PlainTextResponse("unauthorized", status_code=401)
+        if request.method == "OPTIONS":
+            return Response(status_code=204, headers=cors_headers())
+        if not bearer_ok(extract_token(request)):
+            return unauthorized(request)
         session_id = request.headers.get("mcp-session-id") or secrets.token_hex(8)
         if request.method == "GET":
             return PlainTextResponse(f"{SERVER_NAME} {SERVER_VERSION}\n", headers={"Mcp-Session-Id": session_id})
@@ -365,11 +579,155 @@ def create_app(token: str) -> Starlette:
             return Response(status_code=202, headers={"Mcp-Session-Id": session_id})
         return encode_mcp(request, reply, session_id)
 
+    async def well_known_as(request: Request) -> Response:
+        if request.method == "OPTIONS":
+            return Response(status_code=204, headers=cors_headers())
+        return json_cors(as_server_metadata(public_base(request)))
+
+    async def well_known_pr(request: Request) -> Response:
+        if request.method == "OPTIONS":
+            return Response(status_code=204, headers=cors_headers())
+        return json_cors(as_resource_metadata(public_base(request)))
+
+    def authz_params(request: Request, form: dict[str, str] | None = None) -> dict[str, str]:
+        src = form if form is not None else {k: v for k, v in request.query_params.items()}
+        keys = (
+            "response_type",
+            "client_id",
+            "redirect_uri",
+            "state",
+            "scope",
+            "code_challenge",
+            "code_challenge_method",
+            "resource",
+        )
+        return {k: (src.get(k) or "").strip() for k in keys}
+
+    async def authorize(request: Request) -> Response:
+        form: dict[str, str] | None = None
+        posted_token = ""
+        if request.method == "POST":
+            form = await read_form(request)
+            posted_token = (form.get("token") or "").strip()
+        p = authz_params(request, form)
+        hidden = {k: v for k, v in p.items() if v}
+        if p["response_type"] != "code":
+            return HTMLResponse(authorize_page("response_type は code のみです。", hidden), status_code=400)
+        if p["code_challenge_method"] != "S256" or len(p["code_challenge"]) < 43:
+            return HTMLResponse(authorize_page("PKCE (S256) が必要です。", hidden), status_code=400)
+        if not redirect_ok(p["redirect_uri"]):
+            return HTMLResponse(authorize_page("redirect_uri が許可されていません。", hidden), status_code=400)
+        if request.method == "GET":
+            return HTMLResponse(authorize_page("", hidden))
+        if not token_ok(posted_token, token):
+            return HTMLResponse(authorize_page("トークンが違います。", hidden), status_code=401)
+        code = secrets.token_urlsafe(24)
+        with store.lock:
+            store.purge()
+            store.codes[code] = {
+                "exp": time.time() + CODE_TTL,
+                "client_id": p["client_id"] or OAUTH_CLIENT_ID,
+                "redirect_uri": p["redirect_uri"],
+                "challenge": p["code_challenge"],
+                "resource": p["resource"],
+            }
+        q = dict(parse_qsl(urlparse(p["redirect_uri"]).query, keep_blank_values=True))
+        q["code"] = code
+        if p["state"]:
+            q["state"] = p["state"]
+        q["iss"] = public_base(request)
+        dest = urlparse(p["redirect_uri"])
+        loc = urlunparse((dest.scheme, dest.netloc, dest.path, dest.params, urlencode(q), dest.fragment))
+        return RedirectResponse(loc, status_code=302)
+
+    async def token_endpoint(request: Request) -> Response:
+        if request.method == "OPTIONS":
+            return Response(status_code=204, headers=cors_headers())
+        form = await read_form(request)
+        grant = (form.get("grant_type") or "").strip()
+        if grant == "refresh_token":
+            refresh = (form.get("refresh_token") or "").strip()
+            with store.lock:
+                store.purge()
+                rec = store.data["refresh"].pop(refresh, None)
+                if rec:
+                    store._save()
+            if not rec or float(rec.get("exp", 0)) < time.time():
+                return json_cors({"error": "invalid_grant"}, 400)
+            return json_cors(issue_pair(store, str(rec.get("client_id") or OAUTH_CLIENT_ID)))
+        if grant != "authorization_code":
+            return json_cors({"error": "unsupported_grant_type"}, 400)
+        code = (form.get("code") or "").strip()
+        verifier = (form.get("code_verifier") or "").strip()
+        redirect_uri = (form.get("redirect_uri") or "").strip()
+        with store.lock:
+            rec = store.codes.pop(code, None)
+        if not rec or float(rec.get("exp", 0)) < time.time():
+            return json_cors({"error": "invalid_grant"}, 400)
+        if rec.get("redirect_uri") != redirect_uri:
+            return json_cors({"error": "invalid_grant"}, 400)
+        if s256(verifier) != rec.get("challenge"):
+            return json_cors({"error": "invalid_grant"}, 400)
+        return json_cors(issue_pair(store, str(rec.get("client_id") or OAUTH_CLIENT_ID)))
+
+    async def register(request: Request) -> Response:
+        if request.method == "OPTIONS":
+            return Response(status_code=204, headers=cors_headers())
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        if not isinstance(body, dict):
+            body = {}
+        uris = body.get("redirect_uris") or []
+        if not isinstance(uris, list) or not uris or not all(isinstance(u, str) and redirect_ok(u) for u in uris):
+            return json_cors({"error": "invalid_redirect_uri"}, 400)
+        client_id = secrets.token_urlsafe(16)
+        with store.lock:
+            store.data["clients"][client_id] = {
+                "redirect_uris": uris,
+                "name": str(body.get("client_name") or "grok")[:80],
+                "created": int(time.time()),
+            }
+            store._save()
+        return json_cors(
+            {
+                "client_id": client_id,
+                "client_id_issued_at": int(time.time()),
+                "redirect_uris": uris,
+                "token_endpoint_auth_method": "none",
+                "grant_types": ["authorization_code", "refresh_token"],
+                "response_types": ["code"],
+            },
+            201,
+        )
+
+    async def revoke(request: Request) -> Response:
+        if request.method == "OPTIONS":
+            return Response(status_code=204, headers=cors_headers())
+        data = await read_form(request)
+        tok = str(data.get("token") or "").strip()
+        with store.lock:
+            store.data["access"].pop(tok, None)
+            store.data["refresh"].pop(tok, None)
+            store._save()
+        return Response(status_code=200, headers=cors_headers())
+
     routes = [
-        Route("/mcp", mcp_endpoint, methods=["GET", "POST"]),
-        Route("/mcp/", mcp_endpoint, methods=["GET", "POST"]),
+        Route("/mcp", mcp_endpoint, methods=["GET", "POST", "OPTIONS"]),
+        Route("/mcp/", mcp_endpoint, methods=["GET", "POST", "OPTIONS"]),
+        Route("/.well-known/oauth-authorization-server", well_known_as, methods=["GET", "OPTIONS"]),
+        Route("/.well-known/oauth-authorization-server/mcp", well_known_as, methods=["GET", "OPTIONS"]),
+        Route("/.well-known/oauth-protected-resource", well_known_pr, methods=["GET", "OPTIONS"]),
+        Route("/.well-known/oauth-protected-resource/mcp", well_known_pr, methods=["GET", "OPTIONS"]),
+        Route("/oauth/authorize", authorize, methods=["GET", "POST"]),
+        Route("/oauth/token", token_endpoint, methods=["POST", "OPTIONS"]),
+        Route("/oauth/register", register, methods=["POST", "OPTIONS"]),
+        Route("/oauth/revoke", revoke, methods=["POST", "OPTIONS"]),
     ]
-    return Starlette(routes=routes)
+    app = Starlette(routes=routes)
+    app.state.oauth = store
+    return app
 
 
 def configured_token() -> str:

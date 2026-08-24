@@ -66,11 +66,23 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 
 任意コマンドも restart もない。行数は最大 500。`.env` の値は伏せる。
 
-Grok への繋ぎ方:
+Grok への繋ぎ方（カスタムコネクタは OAuth 前提）:
 
 1. GitHub secret `MCP_TOKEN` を入れる（未設定ならデプロイが VPS の `.env` に生成する）
-2. デプロイ後、[grok.com/connectors](https://grok.com/connectors) → New Connector → Custom
-3. Server URL: `https://160.251.179.50.sslip.io/mcp`
-4. Authorization: `Bearer <MCP_TOKEN>`（UI にヘッダ欄が無ければ URL を `https://160.251.179.50.sslip.io/mcp?token=<MCP_TOKEN>` にする）
+2. [grok.com/connectors](https://grok.com/connectors) → New Connector → Custom
+3. Server URL: `https://kabukpi.com/mcp`
+4. OAuth を聞かれたら:
+
+| 項目 | 値 |
+|---|---|
+| クライアントID | `stock-analyzer` |
+| クライアントシークレット | 空 |
+| 認証エンドポイント | `https://kabukpi.com/oauth/authorize` |
+| トークンエンドポイント | `https://kabukpi.com/oauth/token` |
+| トークン認証方法 | none（PKCEのみ） |
+
+5. ブラウザに許可画面が出るので、`MCP_TOKEN` を入れて「許可する」
+
+well-known は Basic 認証の外。`/.well-known/oauth-authorization-server` と `/oauth/` は MCP プロセスへプロキシする。
 
 MCP 自体が死んだときの退避路は Actions の **Debug VPS**。
