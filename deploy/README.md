@@ -1,63 +1,51 @@
-# VPS 見本 (ConoHa / Ubuntu 24.04)
+# VPS (ConoHa / Ubuntu 24.04)
 
-アプリは作り直さない。パスとユーザ名を自分の環境に合わせてコピーする。
+手で nginx / ufw / systemd を積む必要はない。**root でデプロイ鍵を一度入れる**と、あとは GitHub Actions が冪等に初期設定する。
 
-```bash
-sudo apt update
-sudo apt install -y python3-venv python3-pip nginx apache2-utils certbot python3-certbot-nginx
+`deploy/provision.sh` が apt / nginx / ufw / certbot / systemd / crontab を冪等に揃える。
 
-sudo adduser --disabled-password --gecos "" stock
-sudo -u stock git clone https://github.com/pekumirui/stock-analyzer.git /home/stock/stock-analyzer
-sudo -u stock python3 -m venv /home/stock/stock-analyzer/.venv
-sudo -u stock /home/stock/stock-analyzer/.venv/bin/pip install -r /home/stock/stock-analyzer/requirements.txt
-
-# .env は手で置く。JQUANTS_API_KEY のみ
-# stock.db は開発PCの backfill 完了後に scp
-
-sudo cp deploy/stock-analyzer.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now stock-analyzer
-
-sudo cp deploy/nginx.conf /etc/nginx/sites-available/stock-analyzer
-sudo htpasswd -c /etc/nginx/stock-analyzer.htpasswd YOUR_USER
-sudo ln -s /etc/nginx/sites-available/stock-analyzer /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-
-# ドメインがあるときだけ
-# sudo certbot --nginx -d example.com
-
-sudo -u stock crontab deploy/crontab
-```
-
-ファイアウォールは 22 / 80 / 443 だけ開ける。
-
-## CI/CD（main マージで自動リリース）
-
-GitHub Actions (`.github/workflows/cicd.yml`) が `main` へのマージで:
-
-1. テスト (`scripts/ci_smoke.py`)
-2. タグと GitHub Release を切る
-3. この VPS に SSH して `deploy/update.sh` を実行する
-
-`update.sh` は `git pull --ff-only` → 依存更新 → `scripts/migrate.py` → `systemctl restart`。`.env` と `stock.db` は触らない。
-
-### 一度だけの鍵セットアップ
+## 一度だけ（root）
 
 ```bash
-# 手元（秘密鍵はリポジトリに置かない）
 ssh-keygen -t ed25519 -C "github-actions@stock-analyzer" -f stock-analyzer-deploy -N ""
+# 秘密鍵の中身 → GitHub → Settings → Secrets and variables → Actions → VPS_SSH_KEY
+ssh -t root@YOUR_HOST "bash -s '$(cat stock-analyzer-deploy.pub)'" < deploy/enable-cicd.sh
 ```
 
-1. `stock-analyzer-deploy`（秘密鍵）を GitHub → **Settings → Secrets and variables → Actions** に `VPS_SSH_KEY` として登録
-2. 任意: ホストを変えるときだけ `VPS_HOST` / `VPS_USER` / `VPS_PORT`（未設定なら `160.251.179.50` / `stock` / `22`）
-3. VPS で公開鍵と sudoers を入れる:
+`enable-cicd.sh` がやること（冪等）:
 
-```bash
-ssh -t root@YOUR_HOST "cd /home/stock/stock-analyzer && sudo bash deploy/enable-cicd.sh '$(cat stock-analyzer-deploy.pub)'"
-```
+- `stock` ユーザ（無ければ作成）
+- リポジトリ clone（無ければ）
+- `authorized_keys` にデプロイ公開鍵
+- `/etc/sudoers.d/stock-analyzer`（`provision.sh` と `systemctl` だけ）
 
-ホスト鍵は `deploy/known_hosts` にピン留めしてある。VPS を再作成・再起動でホスト鍵が変わったら `ssh-keyscan YOUR_HOST` で更新する。
+sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd.sh` を実行する**。
 
-ConoHa コンソールのキーペアは **root** 用。Actions は `stock` ユーザで入るので、コンソール鍵を `VPS_SSH_KEY` に入れただけでは足りない。上の `enable-cicd.sh` で stock の `authorized_keys` に GitHub 用の公開鍵を入れる。
+## GitHub Secrets
 
-`VPS_SSH_KEY` が無い間は Release まで行い、デプロイ job はスキップする。失敗したデプロイのやり直しは Actions の **Run workflow**（`bump: none`）。
+| Name | 必須 | 内容 |
+|---|---|---|
+| `VPS_SSH_KEY` | はい | デプロイ用秘密鍵 |
+| `JQUANTS_API_KEY` | 推奨 | あるときだけ `.env` の当該行を更新。無ければ既存 `.env` を触らない |
+| `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | 推奨 | nginx Basic 認証。無ければ既存 `htpasswd` を残す |
+| `VPS_DOMAIN` | 任意 | 未設定なら `160.251.179.50.sslip.io` |
+| `VPS_HOST` / `VPS_USER` / `VPS_PORT` | 任意 | 未設定なら `160.251.179.50` / `stock` / `22` |
+| `CERTBOT_EMAIL` | 任意 | 無いと certbot は `--register-unsafely-without-email` |
+
+`stock.db` はパイプラインが触らない。初回データは手元で backfill して scp するか、VPS 上で `scripts/run_batch.py`。
+
+## パイプラインが毎回やること
+
+`update.sh`:
+
+1. `git pull --ff-only origin main`
+2. `JQUANTS_API_KEY` があれば `.env` のその行だけ upsert
+3. `sudo provision.sh`（パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab）
+4. venv / `pip install` / `migrate.py`
+5. `systemctl restart stock-analyzer` と localhost:8000 のヘルスチェック
+
+ブラウザは [https://160.251.179.50.sslip.io/](https://160.251.179.50.sslip.io/)（iPhone の HTTPS-Only 対策）。
+
+ホスト鍵は `deploy/known_hosts` にピン留め。VPS を作り直したら `ssh-keyscan YOUR_HOST` で更新する。
+
+失敗したデプロイのやり直しは Actions の **Run workflow**（`bump: none`）。

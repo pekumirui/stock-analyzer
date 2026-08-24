@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# GitHub Actions から stdin で流して実行する。main の最新を取り込み再起動する。
-# stock.db / .env は触らない。スキーマ不足列だけ migrate.py に任せる。
+# GitHub Actions から stdin で流して実行する。
+# git pull → 冪等な初期設定 (provision.sh) → venv → migrate → 再起動
+# stock.db は触らない。.env は JQUANTS_API_KEY が渡されたときだけ当該行を更新する。
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/home/stock/stock-analyzer}"
@@ -23,6 +24,30 @@ echo "==> $(date -Is) deploy start $(git rev-parse --short HEAD 2>/dev/null || e
 git fetch origin main
 git checkout -q main
 git pull --ff-only origin main
+
+upsert_env() {
+  local key="$1" val="${2:-}"
+  local file="$APP_DIR/.env"
+  [ -n "$val" ] || return 0
+  umask 077
+  touch "$file"
+  chmod 600 "$file"
+  local tmp
+  tmp="$(mktemp)"
+  if [ -s "$file" ]; then
+    grep -v "^${key}=" "$file" > "$tmp" || true
+  fi
+  printf '%s=%s\n' "$key" "$val" >> "$tmp"
+  mv "$tmp" "$file"
+  chmod 600 "$file"
+  echo "updated .env ${key}"
+}
+
+upsert_env JQUANTS_API_KEY "${JQUANTS_API_KEY:-}"
+
+chmod +x "$APP_DIR/deploy/provision.sh"
+sudo --preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,CERTBOT_EMAIL \
+  "$APP_DIR/deploy/provision.sh"
 
 if [ ! -x "$APP_DIR/.venv/bin/pip" ]; then
   echo "venv が無いので作ります"

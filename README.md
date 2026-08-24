@@ -102,14 +102,7 @@ uvicorn app.main:app --reload
 
 作り直しは不要。同じ FastAPI + SQLite を Ubuntu に置く。推奨はメモリ 2GB / SSD 100GB（東京）。見本は `deploy/`。
 
-1. Ubuntu 24.04 を立て、SSH 鍵と ufw（22/80/443）を入れる
-2. 専用ユーザでリポジトリを clone し、venv + `pip install -r requirements.txt`
-3. `.env` に `JQUANTS_API_KEY` だけ書く（コミットしない）
-4. ローカルの backfill が終わってから `stock.db` を scp する。サーバで 5 年分を取り直さない
-5. `deploy/stock-analyzer.service` をパス・ユーザに合わせて `/etc/systemd/system/` へ
-6. `deploy/nginx.conf` をサイトにコピー。ドメインがあれば certbot、無ければ当面 IP + HTTP
-7. Basic 認証（`htpasswd`）。世界公開しない
-8. `deploy/crontab` をそのユーザの crontab に入れる（19:30 と 06:00 JST）
+初期設定（nginx / ufw / certbot / systemd / crontab）はパイプラインが冪等にやる。root でやるのはデプロイ用 SSH 鍵と sudoers だけ。手順は [deploy/README.md](deploy/README.md)。
 
 uvicorn はワーカー 1。SQLite は複数ライターに弱い。日次バッチは 4 リクエストで短い。
 
@@ -126,15 +119,17 @@ DB のバックアップは ConoHa の自動バックアップか、日次で別
 
 1. **PR** — `scripts/ci_smoke.py`（起動・デモ投入・検索/スクリーナー/チャート）
 2. **main マージ** — コミットメッセージでバージョンを自動バンプ（`feat:` は minor、`BREAKING CHANGE` / `feat!:` は major、それ以外は patch）。初回は `v0.1.0`
-3. **VPS** — SSH で `git pull` → `pip install` → `migrate.py` → `systemctl restart`。`stock.db` と `.env` は触らない
+3. **VPS** — SSH で `git pull` → `provision.sh`（nginx/ufw/certbot/systemd）→ `pip install` → `migrate.py` → `systemctl restart`。`stock.db` は触らない
 
 VPS へ自動デプロイするには、一度だけデプロイ用 SSH 鍵を入れる:
 
 ```bash
 ssh-keygen -t ed25519 -C "github-actions@stock-analyzer" -f stock-analyzer-deploy -N ""
 # stock-analyzer-deploy の中身 → GitHub → Settings → Secrets and variables → Actions → VPS_SSH_KEY
-ssh -t root@YOUR_HOST "cd /home/stock/stock-analyzer && sudo bash deploy/enable-cicd.sh '$(cat stock-analyzer-deploy.pub)'"
+ssh -t root@YOUR_HOST "bash -s '$(cat stock-analyzer-deploy.pub)'" < deploy/enable-cicd.sh
 ```
+
+任意 Secrets: `JQUANTS_API_KEY`、`BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD`、`VPS_DOMAIN`（未設定なら `160.251.179.50.sslip.io`）。
 
 `VPS_SSH_KEY` が無い間は Release まで行い、VPS デプロイはスキップする。再デプロイは Actions の **Run workflow**（`bump: none`）。詳細は [deploy/README.md](deploy/README.md)。
 
