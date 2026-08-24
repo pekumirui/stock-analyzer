@@ -1,7 +1,42 @@
 import os
+from collections.abc import MutableMapping
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def apply_dotenv(text: str, environ: MutableMapping[str, str]) -> None:
+    """KEY=VALUE を setdefault で載せる。既存の環境変数は上書きしない。"""
+    for line in text.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        if s.startswith("export "):
+            s = s[7:].strip()
+        if "=" not in s:
+            continue
+        key, _, val = s.partition("=")
+        key = key.strip()
+        if not key or not key.isidentifier():
+            continue
+        val = val.strip()
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in "\"'":
+            val = val[1:-1]
+        environ.setdefault(key, val)
+
+
+def load_dotenv(path: Path | None = None, environ: MutableMapping[str, str] | None = None) -> None:
+    dest = os.environ if environ is None else environ
+    src = BASE_DIR / ".env" if path is None else path
+    try:
+        text = src.read_text(encoding="utf-8")
+    except OSError:
+        return
+    apply_dotenv(text, dest)
+
+
+load_dotenv()
+
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'stock.db'}")
 
 # ---- J-Quants API V2 ----
