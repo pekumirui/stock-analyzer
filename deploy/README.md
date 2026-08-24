@@ -63,6 +63,8 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 - `app_logs` — `/var/log/app/stock-analyzer.log` と journalctl
 - `batch_logs` — `/var/log/app/batch.log`
 - `nginx_logs` — nginx journal と error.log
+- `db_stats` — stock.db の件数・日付範囲・デモ混在
+- `db_lookup` — 1銘柄のマスタ・直近株価・決算・指標
 
 任意コマンドも restart もない。行数は最大 500。`.env` の値は伏せる。
 

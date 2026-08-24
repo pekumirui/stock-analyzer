@@ -79,7 +79,7 @@ Python は `.venv\Scripts\python.exe` を使う。システムの python で依�
 ## 本番ログ MCP
 
 - VPS 上の `stock-analyzer-mcp` が `127.0.0.1:8010/mcp` を待ち、nginx が `https://<domain>/mcp` に出す
-- ツールは `service_status` / `app_logs` / `batch_logs` / `nginx_logs` のみ。任意シェルも restart もない
+- ツールは `service_status` / `app_logs` / `batch_logs` / `nginx_logs` / `db_stats` / `db_lookup` のみ。任意シェルも restart も任意 SQL もない
 - 認証は `MCP_TOKEN`（Bearer または OAuth で発行した access token）。GitHub secret と同値。値をログに出さない
 - 本番ログは `/var/log/app/`（`stock-analyzer.log` / `batch.log` / `mcp.log`）。journal も残る。ローカルのバッチはアプリディレクトリの `batch.log`
 - Grok カスタムコネクタは OAuth（PKCE、クライアントシークレットなし）。Client ID は `stock-analyzer`。許可画面で `MCP_TOKEN` を入れる
