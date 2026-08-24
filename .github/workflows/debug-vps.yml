@@ -47,12 +47,20 @@ jobs:
           systemctl is-active nginx; systemctl status nginx --no-pager -l | head -40
           echo "=== systemctl app ==="
           systemctl is-active stock-analyzer; systemctl status stock-analyzer --no-pager -l | head -40
+          echo "=== systemctl mcp ==="
+          systemctl is-active stock-analyzer-mcp; systemctl status stock-analyzer-mcp --no-pager -l | head -40
           echo "=== nginx files ==="
           ls -l /etc/nginx/sites-enabled /etc/nginx/sites-available 2>/dev/null
           echo "=== nginx -t ==="
           nginx -t 2>&1
           echo "=== journal nginx ==="
           journalctl -u nginx -n 40 --no-pager
+          echo "=== journal app ==="
+          journalctl -u stock-analyzer -n 80 --no-pager
+          echo "=== journal mcp ==="
+          journalctl -u stock-analyzer-mcp -n 40 --no-pager
+          echo "=== batch.log ==="
+          tail -n 80 /home/stock/stock-analyzer/batch.log 2>/dev/null || echo "(no batch.log)"
           echo "=== which nginx ==="
           command -v nginx; dpkg -l nginx 2>/dev/null | tail -3
           echo "=== ufw ==="
@@ -60,6 +68,7 @@ jobs:
           echo "=== curl local ==="
           curl -sS -o /dev/null -w "localhost80=%{http_code}\n" --max-time 3 http://127.0.0.1/ || true
           curl -sS -o /dev/null -w "localhost8000=%{http_code}\n" --max-time 3 http://127.0.0.1:8000/ || true
+          curl -sS -o /dev/null -w "localhost8010=%{http_code}\n" --max-time 3 http://127.0.0.1:8010/mcp || true
           echo "=== sudoers ==="
           sudo -n true && echo sudo_ok || echo sudo_fail
           EOS

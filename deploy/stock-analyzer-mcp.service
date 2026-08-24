@@ -1,0 +1,19 @@
+[Unit]
+Description=stock-analyzer logs MCP (read-only)
+After=network.target
+
+[Service]
+Type=simple
+User=stock
+Group=stock
+SupplementaryGroups=systemd-journal adm
+WorkingDirectory=/home/stock/stock-analyzer
+EnvironmentFile=-/home/stock/stock-analyzer/.env
+Environment=MCP_HOST=127.0.0.1
+Environment=MCP_PORT=8010
+ExecStart=/home/stock/stock-analyzer/.venv/bin/python deploy/log_mcp.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
