@@ -189,6 +189,23 @@ def journal(unit: str, since: str, lines: int, grep: str | None) -> str:
     return run_cmd(argv)
 
 
+def env_flag(name: str) -> str:
+    if (os.environ.get(name) or "").strip():
+        return "set"
+    path = app_dir() / ".env"
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            s = line.strip()
+            if s.startswith("export "):
+                s = s[7:].strip()
+            if s.startswith(f"{name}="):
+                val = s.split("=", 1)[1].strip().strip("\"'")
+                return "set" if val else "empty"
+    except OSError:
+        return "missing (.env unreadable)"
+    return "missing"
+
+
 def tool_service_status(_args: dict[str, Any]) -> str:
     parts = [
         "=== services ===",
@@ -209,6 +226,10 @@ def tool_service_status(_args: dict[str, Any]) -> str:
         "",
         f"=== {log_dir()} ===",
         run_cmd(["ls", "-l", str(log_dir())]),
+        "",
+        "=== env flags ===",
+        f"JQUANTS_API_KEY: {env_flag('JQUANTS_API_KEY')}",
+        f"MCP_TOKEN: {env_flag('MCP_TOKEN')}",
     ]
     return "\n".join(parts)
 

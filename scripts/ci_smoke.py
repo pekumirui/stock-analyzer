@@ -24,6 +24,18 @@ def _expect(resp, status: int, label: str) -> None:
 
 
 def main() -> None:
+    from app.config import apply_dotenv
+
+    got: dict[str, str] = {"FOO": "keep"}
+    apply_dotenv(
+        'JQUANTS_API_KEY=secret\n# c\nexport BAR="quoted"\nFOO=new\n=bad\nNOT KEY=x\n',
+        got,
+    )
+    if got.get("JQUANTS_API_KEY") != "secret" or got.get("BAR") != "quoted" or got.get("FOO") != "keep":
+        raise SystemExit(f"apply_dotenv: {got}")
+    if "NOT KEY" in got or "" in got:
+        raise SystemExit(f"apply_dotenv accepted bad keys: {got}")
+
     client = TestClient(app)
 
     r = client.get("/")
