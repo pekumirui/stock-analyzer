@@ -69,6 +69,7 @@ jobs:
           curl -sS -o /dev/null -w "localhost80=%{http_code}\n" --max-time 3 http://127.0.0.1/ || true
           curl -sS -o /dev/null -w "localhost8000=%{http_code}\n" --max-time 3 http://127.0.0.1:8000/ || true
           curl -sS -o /dev/null -w "localhost8010=%{http_code}\n" --max-time 3 http://127.0.0.1:8010/mcp || true
+          curl -sS -o /dev/null -w "oauth-as=%{http_code}\n" --max-time 3 http://127.0.0.1:8010/.well-known/oauth-authorization-server || true
           echo "=== sudoers ==="
           sudo -n true && echo sudo_ok || echo sudo_fail
           EOS

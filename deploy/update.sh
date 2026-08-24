@@ -97,8 +97,16 @@ if [ "$mcp_ok" -ne 1 ]; then
   exit 1
 fi
 
+oauth_code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 2 http://127.0.0.1:8010/.well-known/oauth-authorization-server || true)"
+if [ "$oauth_code" != "200" ]; then
+  echo "oauth metadata health check failed (http=$oauth_code)" >&2
+  sudo systemctl --no-pager --full status stock-analyzer-mcp || true
+  exit 1
+fi
+
 echo "health ok"
 echo "mcp health ok ($mcp_code)"
+echo "oauth metadata ok ($oauth_code)"
 sudo systemctl is-active stock-analyzer
 sudo systemctl is-active stock-analyzer-mcp
 git log -1 --oneline

@@ -81,8 +81,8 @@ Python は `.venv\Scripts\python.exe` を使う。システムの python で依�
 - VPS 上の `stock-analyzer-mcp` が `127.0.0.1:8010/mcp` を待ち、nginx が `https://<domain>/mcp` に出す
 - ツールは `service_status` / `app_logs` / `batch_logs` / `nginx_logs` のみ。任意シェルも restart もない
 - 認証は `MCP_TOKEN`（Bearer または `?token=`）。GitHub secret と同値。値をログに出さない
+- Grok カスタムコネクタは OAuth（PKCE、クライアントシークレットなし）。Client ID は `stock-analyzer`。許可画面で `MCP_TOKEN` を入れる
 - アプリ本体 (`app/*`) にログ API を足さない。Debug VPS ワークフローは MCP が死んだときの退避路
-- Grok は [connectors](https://grok.com/connectors) → Custom に URL とトークンを入れる
 
 ## 実装方針
 
