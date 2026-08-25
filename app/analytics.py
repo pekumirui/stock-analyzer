@@ -5,9 +5,18 @@ import pandas as pd
 import numpy as np
 from sqlalchemy.orm import Session, defer
 
-from .config import STAGE_PARAMS as P, EARNINGS_PARAMS as EP
-from .models import DailyPrice, Topix, Indicator, Statement, EarningsEvent
+from .config import STAGE_PARAMS as P, EARNINGS_PARAMS as EP, RS_PRODUCT_CATEGORIES
+from .models import DailyPrice, Topix, Indicator, Statement, EarningsEvent, Stock
 from .ingest import upsert
+
+
+def rs_universe_codes(db: Session) -> set[str] | None:
+    """RS/ステージ対象の銘柄コード。ProdCat 未取込なら None (=従来どおり全銘柄)。"""
+    has = db.query(Stock.code).filter(Stock.product_category.isnot(None)).limit(1).first()
+    if has is None:
+        return None
+    return {c for (c,) in db.query(Stock.code).filter(
+        Stock.product_category.in_(RS_PRODUCT_CATEGORIES)).all()}
 
 
 def _price_frame(db: Session) -> pd.DataFrame:
@@ -25,6 +34,11 @@ def compute_indicators(db: Session, keep_days: int = 400):
     df = _price_frame(db)
     if df.empty:
         return
+    universe = rs_universe_codes(db)
+    if universe is not None:
+        df = df[df["code"].isin(universe)]
+        if df.empty:
+            return
 
     g = df.groupby("code", group_keys=False)
     df["ma50"] = g["adj_close"].transform(lambda s: s.rolling(50).mean())

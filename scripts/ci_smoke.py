@@ -38,6 +38,7 @@ def _fixture() -> str:
             "code": code, "name": "トヨタ自動車", "sector17": "輸送用機器",
             "sector33": "輸送用機器", "market": "プライム",
             "scale_category": "TOPIX Large70", "margin_type": "貸借",
+            "product_category": "011",
         }])
         upsert(db, DailyPrice, [{
             "code": code, "date": day,
@@ -133,9 +134,87 @@ def main() -> None:
     if not candles:
         raise SystemExit("chart had no candles")
 
+    from app.analytics import compute_indicators, rs_universe_codes
     from app.db import SessionLocal
     from app.ingest import upsert
-    from app.models import Stock
+    from app.models import DailyPrice, Indicator, Statement, Stock
+
+    db = SessionLocal()
+    try:
+        u = rs_universe_codes(db)
+        if u != {code}:
+            raise SystemExit(f"rs_universe_codes expected {{{code!r}}}, got {u!r}")
+        upsert(db, Stock, [{
+            "code": "89510", "name": "日本ビルファンド投資法人",
+            "sector17": "不動産", "sector33": "不動産業", "market": "プライム",
+            "scale_category": "", "margin_type": "貸借", "product_category": "013",
+        }])
+        upsert(db, Indicator, [{
+            "code": "89510", "date": date(2026, 8, 21), "close": 140000,
+            "ma50": 139000, "ma150": 138000, "ma200": 137000, "ma200_slope_1m": 0.01,
+            "high_52w": 150000, "low_52w": 120000, "rs_raw": 30, "rs_rank": 90,
+            "stage": 2, "avg_volume_50": 1000,
+        }])
+        upsert(db, DailyPrice, [{
+            "code": "89510", "date": date(2026, 8, 21),
+            "open": 140000, "high": 141000, "low": 139000, "close": 140000,
+            "volume": 100, "turnover": 14_000_000, "adj_factor": 1.0,
+            "adj_open": 140000, "adj_high": 141000, "adj_low": 139000,
+            "adj_close": 140000, "adj_volume": 100, "market_cap": 2_000_000,
+        }])
+        common_stmt = {
+            "disclosed_date": date(2026, 8, 21), "disclosed_time": "15:00",
+            "type_of_period": "FY", "is_revision": False,
+            "net_sales": 1e8, "operating_profit": 1e7, "ordinary_profit": 1e7,
+            "profit": 8e6, "eps": 10,
+        }
+        upsert(db, Statement, [
+            {**common_stmt, "disclosure_no": "reit-1", "code": "89510",
+             "type_of_document": "FYFinancialStatements_Consolidated_JP"},
+            {**common_stmt, "disclosure_no": "stock-1", "code": code,
+             "type_of_document": "FYFinancialStatements_Consolidated_JP",
+             "disclosed_time": "15:30"},
+        ])
+    finally:
+        db.close()
+
+    r = client.get("/api/screener")
+    _expect(r, 200, "GET /api/screener (with REIT)")
+    sc_codes = {x["code"] for x in r.json().get("results") or []}
+    if "89510" in sc_codes:
+        raise SystemExit("screener should exclude REIT")
+    if code not in sc_codes:
+        raise SystemExit("screener dropped common stock after REIT fixture")
+
+    r = client.get("/api/earnings/calendar", params={"month": "2026-08"})
+    _expect(r, 200, "GET /api/earnings/calendar (with REIT)")
+    cal = r.json()
+    if cal.get("2026-08-21") != 1:
+        raise SystemExit(f"calendar should count only the stock, got {cal!r}")
+
+    r = client.get("/api/earnings", params={"date": "2026-08-21"})
+    _expect(r, 200, "GET /api/earnings (with REIT)")
+    earn_codes = {x["code"] for x in r.json()}
+    if "89510" in earn_codes:
+        raise SystemExit("earnings list should exclude REIT")
+    if code not in earn_codes:
+        raise SystemExit("earnings list dropped common stock")
+
+    r = client.get("/api/stocks/search", params={"q": "ビルファンド"})
+    _expect(r, 200, "GET /api/stocks/search (REIT)")
+    if not any(x.get("code") == "89510" for x in r.json()):
+        raise SystemExit("search should still find REIT for charts")
+
+    db = SessionLocal()
+    try:
+        compute_indicators(db)
+        ind_codes = {c for (c,) in db.query(Indicator.code).distinct().all()}
+        if "89510" in ind_codes:
+            raise SystemExit("compute_indicators should drop REIT from indicators")
+        if code not in ind_codes:
+            raise SystemExit("compute_indicators dropped common stock")
+    finally:
+        db.close()
 
     db = SessionLocal()
     try:

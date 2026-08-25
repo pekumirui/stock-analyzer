@@ -49,6 +49,11 @@ RATE_LIMIT_PER_MIN = int(os.getenv("JQUANTS_RATE_LIMIT", "60"))
 # /fins/summary は全プラン共通で60req/分の別枠
 RATE_LIMIT_FINS_PER_MIN = 60
 
+# J-Quants ProdCat (商品区分)。011 内国株券 / 012 優先出資 / 013 REIT / 014 ETF /
+# 021 外国株券 / 022 外国REIT / 023 外国ETF / 024 外国株預託証券
+RS_PRODUCT_CATEGORIES = ("011",)  # RS・ステージは普通株同士の相対
+EARNINGS_EXCLUDE_PRODUCT_CATEGORIES = ("013", "022")  # 決算速報から除外
+
 # ミネルヴィニ・ステージ判定パラメータ
 STAGE_PARAMS = {
     "rs_min_stage2": 70,        # Stage2に必要なRSランク下限
