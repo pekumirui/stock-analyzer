@@ -62,7 +62,8 @@ def ingest_master(db: Session, jq: JQuantsClient, day: str | None = None):
         {"code": r["Code"], "name": r.get("CoName"),
          "sector17": r.get("S17Nm"), "sector33": r.get("S33Nm"),
          "market": r.get("MktNm"), "scale_category": r.get("ScaleCat"),
-         "margin_type": r.get("MrgnNm")}
+         "margin_type": r.get("MrgnNm"),
+         "product_category": str(r.get("ProdCat") or "").strip() or None}
         for r in jq.equities_master(date=day)
     ]
     upsert(db, Stock, rows)

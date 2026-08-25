@@ -13,6 +13,7 @@ class Stock(Base):
     market = Column(String)
     scale_category = Column(String)   # TOPIX Large70 等
     margin_type = Column(String)      # 貸借信用区分名
+    product_category = Column(String)  # ProdCat: 011=内国株券, 013=REIT, 014=ETF 等
 
 
 class DailyPrice(Base):

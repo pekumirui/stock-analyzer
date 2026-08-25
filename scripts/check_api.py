@@ -37,7 +37,7 @@ def main():
         master = jq.equities_master()
         print(f"  取得件数: {len(master)}")
         show("サンプル", master[0] if master else None,
-             ["Code", "CoName", "S17Nm", "S33Nm", "MktNm", "ScaleCat", "MrgnNm"])
+             ["Code", "CoName", "S17Nm", "S33Nm", "MktNm", "ScaleCat", "MrgnNm", "ProdCat"])
 
         print("\n[2/4] 株価四本値 /equities/bars/daily (date指定=全銘柄)")
         bars = jq.bars_daily(date=day)

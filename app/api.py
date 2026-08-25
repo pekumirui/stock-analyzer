@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, aliased, defer
 
-from .config import EARNINGS_PARAMS as EP
+from .config import EARNINGS_PARAMS as EP, EARNINGS_EXCLUDE_PRODUCT_CATEGORIES, RS_PRODUCT_CATEGORIES
 from .db import get_session
 from .models import Stock, DailyPrice, Topix, Statement, Indicator, EarningsEvent
 from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
@@ -36,6 +36,13 @@ def _not_duplicate(a):
         same_values).exists())
 
 
+def _not_excluded_product(code_col):
+    """決算速報から REIT 等を除外。ProdCat 未設定の行は残す (マスタ取込前)。"""
+    return ~code_col.in_(
+        select(Stock.code).where(Stock.product_category.in_(EARNINGS_EXCLUDE_PRODUCT_CATEGORIES))
+    )
+
+
 @router.get("/earnings/calendar")
 def earnings_calendar(month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
                       db: Session = Depends(get_session)):
@@ -43,7 +50,8 @@ def earnings_calendar(month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
     rows = (db.query(a.disclosed_date, func.count(func.distinct(a.code)))
             .filter(func.strftime("%Y-%m", a.disclosed_date) == month,
                     a.type_of_document.contains("FinancialStatements"),
-                    _not_duplicate(a))          # 一覧の行数と件数を一致させる
+                    _not_duplicate(a),          # 一覧の行数と件数を一致させる
+                    _not_excluded_product(a.code))
             .group_by(a.disclosed_date).all())
     return {d.isoformat(): n for d, n in rows}
 
@@ -52,7 +60,8 @@ def earnings_calendar(month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
 def earnings_by_date(date_: str = Query(..., alias="date"), db: Session = Depends(get_session)):
     """その日の決算速報一覧 (QoQ=Q単独の前四半期比 / YoY=累計の前年同期比)。"""
     day = _pd(date_)
-    codes = select(Statement.code).where(Statement.disclosed_date == day, _ACTUAL_DOC)
+    codes = select(Statement.code).where(
+        Statement.disclosed_date == day, _ACTUAL_DOC, _not_excluded_product(Statement.code))
     # 開示1件ごとに履歴を引くとピーク日(約1,000件)で数千クエリになるため、まとめて取って配る
     hist_by_code: dict[str, list[Statement]] = defaultdict(list)
     for s in (db.query(Statement).options(defer(Statement.raw_json))
@@ -204,6 +213,8 @@ def screener(stage: int | None = None, rs_min: int = 0, sort: str = "rs",
         return []
     q = db.query(Indicator, Stock).join(Stock, Stock.code == Indicator.code) \
           .filter(Indicator.date == latest)
+    if db.query(Stock.code).filter(Stock.product_category.in_(RS_PRODUCT_CATEGORIES)).first():
+        q = q.filter(Stock.product_category.in_(RS_PRODUCT_CATEGORIES))
     if stage is not None:
         q = q.filter(Indicator.stage == stage)
     if rs_min:

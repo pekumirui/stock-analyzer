@@ -37,7 +37,7 @@ APIキー方式。ダッシュボードで発行したキーを `x-api-key` ヘ�
 
 | 用途 | V2エンドポイント | 備考 |
 |---|---|---|
-| 上場銘柄一覧 | `/v2/equities/master` | 17/33業種・市場区分・貸借信用区分 |
+| 上場銘柄一覧 | `/v2/equities/master` | 17/33業種・市場区分・貸借信用区分・商品区分(ProdCat) |
 | 株価四本値 | `/v2/equities/bars/daily` | **調整済OHLCV(AdjO/H/L/C/Vo)と時価総額を直接取得可** |
 | TOPIX四本値 | `/v2/indices/bars/daily/topix` | from/to指定 |
 | 財務情報 | `/v2/fins/summary` | 決算短信サマリ |
@@ -84,7 +84,12 @@ APIキー方式。ダッシュボードで発行したキーを `x-api-key` ヘ�
 ```sql
 stocks            -- 銘柄マスタ
   code TEXT PK    -- 5桁コード (例 "72030")
-  name, sector33, market, updated_at
+  name, sector33, market, product_category, updated_at
+  -- product_category = J-Quants ProdCat
+  --   011 内国株券 / 012 優先出資 / 013 REIT / 014 ETF
+  --   021 外国株券 / 022 外国REIT / 023 外国ETF / 024 外国株預託証券
+  -- 既存DBは migrate で列追加。値は次の日次バッチの銘柄マスタ更新で埋まる
+  -- (株価・財務の再取得は不要)
 
 daily_prices      -- 日足
   code, date PK(複合)
@@ -168,7 +173,10 @@ IFRS・米国基準の開示には**経常利益の概念が無く `OdP` は空�
 ```
 rs_raw = ((C-C63)/C63*0.4 + (C-C126)/C126*0.2 + (C-C189)/C189*0.2 + (C-C252)/C252*0.2) * 100
 ```
-adj_close を使用。全銘柄(算出可能な上場銘柄)で降順に並べ、上位1%→99、次の1%→98…と1-99を割当。
+adj_close を使用。`stocks.product_category = 011`(内国株券) の銘柄だけで降順に並べ、上位1%→99、次の1%→98…と1-99を割当。
+REIT・ETF・優先出資はユニバースに入れない (ミネルヴィニのRSは普通株同士の相対)。
+ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でランクする (migrate 直後のフォールバック)。
+ステージ判定・スクリーナーも同じユニバース。チャート検索では REIT も引ける。
 
 ### 4.2 ミネルヴィニ・ステージ判定
 優先順位付きルールベース (Stage2テンプレート → Stage4 → Stage1 → Stage3 → その他)。
@@ -190,9 +198,9 @@ adj_close を使用。全銘柄(算出可能な上場銘柄)で降順に並べ�
 
 | Method/Path | 内容 |
 |---|---|
-| `GET /api/earnings?date=2026-08-14` | その日の決算速報一覧。1行 = 1開示で QoQ(Q単独の前四半期比) と YoY(累計の前年同期比) を4指標ずつ返す。決算短信本体のみ (予想修正のみの開示、および損益が初回と同一の再提出は除外。損益が変わった再提出は `restated` を立てて残す) |
+| `GET /api/earnings?date=2026-08-14` | その日の決算速報一覧。1行 = 1開示で QoQ(Q単独の前四半期比) と YoY(累計の前年同期比) を4指標ずつ返す。決算短信本体のみ (予想修正のみの開示、および損益が初回と同一の再提出は除外。損益が変わった再提出は `restated` を立てて残す)。`product_category` が REIT (`013`/`022`) の銘柄は出さない |
 | `GET /api/earnings/detail/{code}?disclosure_no=…` | 選択銘柄の累計テーブル (過去4期+当期の同一四半期 + 中間予想 + 通期予想 + 前期通期実績) と3か月決算テーブル (直近12四半期のQ単独)。各行にカレンダー範囲 (`26.04-06`) と発表日を付ける。同一銘柄が同日に複数開示する日があるため `disclosure_no` で一意に引く (`?date=` でも可) |
-| `GET /api/earnings/calendar?month=2026-08` | 日別の決算件数 (カレンダー表示用。一覧と同じく本体のみを数える) |
+| `GET /api/earnings/calendar?month=2026-08` | 日別の決算件数 (カレンダー表示用。一覧と同じく本体のみを数え、REIT も除外する) |
 | `GET /api/chart/{code}?tf=D|M&ma=50,150,200&rel=topix` | 株価チャートデータ |
 | `GET /api/earnings-performance/{code}` | 決算日からの対TOPIXリターン |
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
@@ -207,10 +215,10 @@ adj_close を使用。全銘柄(算出可能な上場銘柄)で降順に並べ�
 
 ## 6. 日次バッチ (19:30 JST)
 
-1. `/equities/master` で銘柄マスタ更新
+1. `/equities/master` で銘柄マスタ更新 (ProdCat 含む)
 2. `/equities/bars/daily?date=当日` + `/indices/bars/daily/topix` 取込
 3. `/fins/summary?date=当日` 取込
-4. indicators 再計算 (MA/52週/RS/ステージ) → earnings_events 更新
+4. indicators 再計算 (MA/52週/RS/ステージ。RSユニバースは内国株券のみ) → earnings_events 更新
 
 日次は **計4リクエスト** で完了する。決算開示は15時以降が多いため、
 当日夜(19:30)と翌朝6:00の2回実行して取りこぼしを防ぐ。
