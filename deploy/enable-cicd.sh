@@ -48,9 +48,15 @@ sudo -u "$STOCK_USER" env APP_DIR="$APP_DIR" REPO_SSH="$REPO_URL" bash -c '
     bash "$APP_DIR/deploy/setup-github-ssh.sh"
     exit 0
   fi
-  KEY="$HOME/.ssh/id_ed25519"
+  KEY="$HOME/.ssh/id_github"
   if [[ ! -f "$KEY" ]]; then
     ssh-keygen -t ed25519 -C "stock-analyzer-vps-github" -f "$KEY" -N ""
+  fi
+  CFG="$HOME/.ssh/config"
+  touch "$CFG"
+  chmod 600 "$CFG"
+  if ! grep -qE "^Host github\\.com$" "$CFG"; then
+    printf "Host github.com\\n  IdentityFile %s\\n  IdentitiesOnly yes\\n" "$KEY" >> "$CFG"
   fi
   KNOWN="$HOME/.ssh/known_hosts"
   touch "$KNOWN"
@@ -63,7 +69,7 @@ if [[ ! -d "$APP_DIR/.git" ]]; then
   install -d -o "$STOCK_USER" -g "$STOCK_USER" "$(dirname "$APP_DIR")"
   if ! sudo -u "$STOCK_USER" git clone "$REPO_URL" "$APP_DIR"; then
     echo "clone 失敗。GitHub → Settings → Deploy keys に次の公開鍵を read-only で追加して再実行:" >&2
-    cat "$STOCK_HOME/.ssh/id_ed25519.pub" >&2
+    cat "$STOCK_HOME/.ssh/id_github.pub" >&2
     exit 1
   fi
   echo "clone $APP_DIR"

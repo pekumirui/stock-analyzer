@@ -1,23 +1,40 @@
 #!/usr/bin/env bash
 # プライベートリポジトリを git fetch できるよう、stock の GitHub deploy key と origin を SSH にする。
 # 公開鍵は GitHub → Settings → Deploy keys に read-only で登録する。
+# 既存 VPS は ~/.ssh/id_github + Host github.com の config を使う。
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/home/stock/stock-analyzer}"
 SSH_DIR="${HOME}/.ssh"
-KEY="${SSH_DIR}/id_ed25519"
 REPO_SSH="${REPO_SSH:-git@github.com:pekumirui/stock-analyzer.git}"
 
 install -d -m 700 "$SSH_DIR"
 
-if [[ ! -f "$KEY" ]]; then
+# 既にある GitHub 専用鍵を優先。無ければ作る。
+if [[ -f "${SSH_DIR}/id_github" ]]; then
+  KEY="${SSH_DIR}/id_github"
+elif [[ -f "${SSH_DIR}/id_ed25519" ]]; then
+  KEY="${SSH_DIR}/id_ed25519"
+else
+  KEY="${SSH_DIR}/id_github"
   ssh-keygen -t ed25519 -C "stock-analyzer-vps-github" -f "$KEY" -N ""
   echo "generated $KEY"
-else
-  echo "key exists $KEY"
 fi
 chmod 600 "$KEY"
 chmod 644 "${KEY}.pub"
+echo "key $KEY"
+
+CFG="${SSH_DIR}/config"
+touch "$CFG"
+chmod 600 "$CFG"
+if ! grep -qE '^Host github\.com$' "$CFG" 2>/dev/null; then
+  {
+    echo "Host github.com"
+    echo "  IdentityFile $KEY"
+    echo "  IdentitiesOnly yes"
+  } >> "$CFG"
+  echo "wrote $CFG"
+fi
 
 KNOWN="${SSH_DIR}/known_hosts"
 touch "$KNOWN"
