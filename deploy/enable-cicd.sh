@@ -9,7 +9,8 @@
 set -euo pipefail
 
 STOCK_USER="${STOCK_USER:-stock}"
-REPO_URL="${REPO_URL:-https://github.com/pekumirui/stock-analyzer.git}"
+# プライベートリポジトリなので HTTPS では clone / pull できない
+REPO_URL="${REPO_URL:-git@github.com:pekumirui/stock-analyzer.git}"
 export DEBIAN_FRONTEND=noninteractive
 
 if [[ ${EUID} -ne 0 ]]; then
@@ -40,16 +41,41 @@ fi
 STOCK_HOME="$(getent passwd "$STOCK_USER" | cut -d: -f6)"
 APP_DIR="${APP_DIR:-${STOCK_HOME}/stock-analyzer}"
 
+install -d -m 700 -o "$STOCK_USER" -g "$STOCK_USER" "$STOCK_HOME/.ssh"
+# clone 前は setup-github-ssh.sh がまだ無いので、鍵と GitHub host key だけ先に揃える
+sudo -u "$STOCK_USER" env APP_DIR="$APP_DIR" REPO_SSH="$REPO_URL" bash -c '
+  if [[ -f "$APP_DIR/deploy/setup-github-ssh.sh" ]]; then
+    bash "$APP_DIR/deploy/setup-github-ssh.sh"
+    exit 0
+  fi
+  KEY="$HOME/.ssh/id_ed25519"
+  if [[ ! -f "$KEY" ]]; then
+    ssh-keygen -t ed25519 -C "stock-analyzer-vps-github" -f "$KEY" -N ""
+  fi
+  KNOWN="$HOME/.ssh/known_hosts"
+  touch "$KNOWN"
+  chmod 644 "$KNOWN"
+  grep -qF "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" "$KNOWN" || \
+    echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" >> "$KNOWN"
+'
+
 if [[ ! -d "$APP_DIR/.git" ]]; then
   install -d -o "$STOCK_USER" -g "$STOCK_USER" "$(dirname "$APP_DIR")"
-  sudo -u "$STOCK_USER" git clone "$REPO_URL" "$APP_DIR"
+  if ! sudo -u "$STOCK_USER" git clone "$REPO_URL" "$APP_DIR"; then
+    echo "clone 失敗。GitHub → Settings → Deploy keys に次の公開鍵を read-only で追加して再実行:" >&2
+    cat "$STOCK_HOME/.ssh/id_ed25519.pub" >&2
+    exit 1
+  fi
   echo "clone $APP_DIR"
 else
   echo "repo は既にある ($APP_DIR)"
+  if [[ -f "$APP_DIR/deploy/setup-github-ssh.sh" ]]; then
+    sudo -u "$STOCK_USER" env APP_DIR="$APP_DIR" REPO_SSH="$REPO_URL" \
+      bash "$APP_DIR/deploy/setup-github-ssh.sh"
+  fi
 fi
 
 AUTH="$STOCK_HOME/.ssh/authorized_keys"
-install -d -m 700 -o "$STOCK_USER" -g "$STOCK_USER" "$STOCK_HOME/.ssh"
 touch "$AUTH"
 chown "$STOCK_USER:$STOCK_USER" "$AUTH"
 chmod 600 "$AUTH"
@@ -74,6 +100,6 @@ install -m 440 "$SRC" /etc/sudoers.d/stock-analyzer
 visudo -cf /etc/sudoers.d/stock-analyzer >/dev/null
 echo "sudoers を入れました (/etc/sudoers.d/stock-analyzer)"
 
-chmod +x "$APP_DIR/deploy/provision.sh" "$APP_DIR/deploy/update.sh"
+chmod +x "$APP_DIR/deploy/provision.sh" "$APP_DIR/deploy/update.sh" "$APP_DIR/deploy/setup-github-ssh.sh"
 
 echo "完了。GitHub の VPS_SSH_KEY を入れて Actions を回せば nginx / ufw / certbot / systemd まで入ります。"

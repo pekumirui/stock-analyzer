@@ -15,9 +15,12 @@ ssh -t root@YOUR_HOST "bash -s '$(cat stock-analyzer-deploy.pub)'" < deploy/enab
 `enable-cicd.sh` がやること（冪等）:
 
 - `stock` ユーザ（無ければ作成）
-- リポジトリ clone（無ければ）
+- GitHub 用 SSH 鍵（無ければ作成）と `origin` の SSH 化
+- リポジトリ clone（無ければ。プライベートなので HTTPS は使わない）
 - `authorized_keys` にデプロイ公開鍵
 - `/etc/sudoers.d/stock-analyzer`（`provision.sh` と `systemctl` だけ）
+
+リポジトリはプライベート。VPS の `stock` ユーザが `git pull` するには GitHub Deploy key（read-only）が必要。`setup-github-ssh.sh` が鍵を作り公開鍵を出すので、GitHub → Settings → Deploy keys に一度だけ登録する。clone が鍵未登録で落ちたら、出した公開鍵を入れてから `enable-cicd.sh` を再実行。
 
 sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd.sh` を実行する**。ただし `provision.sh` も sudoers を冪等に入れるので、通常の再デプロイだけでも足りる。
 
@@ -39,7 +42,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 
 `update.sh`:
 
-1. `git pull --ff-only origin main`
+1. GitHub SSH（deploy key）を冪等に揃えてから `git pull --ff-only origin main`
 2. `JQUANTS_API_KEY` / `MCP_TOKEN` があれば `.env` のその行だけ upsert
 3. `sudo provision.sh`（パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers）
 4. venv / `pip install` / `migrate.py`

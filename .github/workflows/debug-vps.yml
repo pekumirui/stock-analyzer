@@ -16,6 +16,39 @@ jobs:
       VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
     steps:
       - uses: actions/checkout@v4
+      - name: Setup GitHub SSH on VPS
+        run: |
+          set -euo pipefail
+          HOST="${VPS_HOST:-160.251.179.50}"
+          USER="${VPS_USER:-stock}"
+          PORT="${VPS_PORT:-22}"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          raw = os.environ["VPS_SSH_KEY"].replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
+          p = Path.home() / ".ssh"
+          p.mkdir(mode=0o700, exist_ok=True)
+          k = p / "id_deploy"
+          k.write_text(raw)
+          k.chmod(0o600)
+          PY
+          ADMIN_SSH_PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILDMGyw0aJsb7Kr8YoF6Qs8lLnAaVRZQPT/bljdSkq1E grok-stock-analyzer"
+          ssh -i "$HOME/.ssh/id_deploy" -p "$PORT" \
+            -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$GITHUB_WORKSPACE/deploy/known_hosts" \
+            -o ConnectTimeout=15 \
+            "${USER}@${HOST}" \
+            "export ADMIN_SSH_PUBKEY=$(printf %q "$ADMIN_SSH_PUBKEY"); export APP_DIR=/home/stock/stock-analyzer; bash -s" \
+            < deploy/setup-github-ssh.sh
+          echo "=== git fetch test ==="
+          ssh -i "$HOME/.ssh/id_deploy" -p "$PORT" \
+            -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$GITHUB_WORKSPACE/deploy/known_hosts" \
+            -o ConnectTimeout=15 \
+            "${USER}@${HOST}" \
+            'ssh -o BatchMode=yes -T git@github.com 2>&1 || true; git -C /home/stock/stock-analyzer remote -v; git -C /home/stock/stock-analyzer fetch origin 2>&1 || true'
       - name: Dump nginx / app status
         run: |
           set -euo pipefail
