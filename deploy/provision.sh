@@ -52,6 +52,40 @@ apt-get install -y -qq \
 
 timedatectl set-timezone Asia/Tokyo
 
+install_authorized_key() {
+  local home="$1" user="$2" pubkey="$3"
+  install -d -m 700 -o "$user" -g "$user" "$home/.ssh"
+  local auth="$home/.ssh/authorized_keys"
+  touch "$auth"
+  chown "$user:$user" "$auth"
+  chmod 600 "$auth"
+  if ! grep -qxF "$pubkey" "$auth"; then
+    printf '%s\n' "$pubkey" >> "$auth"
+    echo "authorized_keys: added key for $user"
+  fi
+}
+
+if [[ -f "$APP_DIR/deploy/admin_keys" ]]; then
+  stock_home="$(getent passwd "$STOCK_USER" | cut -d: -f6)"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "${line// }" || "$line" == \#* ]] && continue
+    install_authorized_key /root root "$line"
+    if [[ -n "$stock_home" ]]; then
+      install_authorized_key "$stock_home" "$STOCK_USER" "$line"
+    fi
+  done < "$APP_DIR/deploy/admin_keys"
+fi
+
+# cloud-init の drop-in より後になる番号。パスワード認証は使わない。
+write_if_changed /etc/ssh/sshd_config.d/99-key-only.conf 644 <<'EOF'
+PermitRootLogin prohibit-password
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+EOF
+sshd -t
+systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || true
+
 install -d -m 755 "$ACME_ROOT"
 usermod -aG systemd-journal,adm "$STOCK_USER" 2>/dev/null || true
 

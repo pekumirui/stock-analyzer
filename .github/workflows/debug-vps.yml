@@ -32,7 +32,7 @@ jobs:
           k.write_text(raw)
           k.chmod(0o600)
           PY
-          ADMIN_SSH_PUBKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILDMGyw0aJsb7Kr8YoF6Qs8lLnAaVRZQPT/bljdSkq1E grok-stock-analyzer"
+          ADMIN_SSH_PUBKEY="$(grep -E '^ssh-' deploy/admin_keys | head -n1)"
           ssh -i "$HOME/.ssh/id_deploy" -p "$PORT" \
             -o BatchMode=yes -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes \

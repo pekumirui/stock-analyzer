@@ -54,6 +54,27 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 
 ホスト鍵は `deploy/known_hosts` にピン留め。VPS を作り直したら `ssh-keyscan YOUR_HOST` で更新する。
 
+## このPCから SSH（鍵のみ）
+
+sshd はパスワードを受け付けない（`deploy/provision.sh` が `99-key-only.conf` を入れる）。手元の公開鍵は `deploy/admin_keys` に書き、root と `stock` の `authorized_keys` へ冪等に足す。
+
+```
+# 手元 ~/.ssh/config の例
+Host stock-vps
+  HostName 160.251.179.50
+  User stock
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+
+Host stock-vps-root
+  HostName 160.251.179.50
+  User root
+  IdentityFile ~/.ssh/id_ed25519
+  IdentitiesOnly yes
+```
+
+`ssh stock-vps` / `ssh stock-vps-root`。GitHub Actions のデプロイ鍵は従来どおり `stock` の `authorized_keys` だけ。
+
 失敗したデプロイのやり直しは Actions の **Run workflow**（`bump: none`）。
 
 ## ログ MCP（Grok）

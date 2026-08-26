@@ -106,6 +106,23 @@ install -m 440 "$SRC" /etc/sudoers.d/stock-analyzer
 visudo -cf /etc/sudoers.d/stock-analyzer >/dev/null
 echo "sudoers を入れました (/etc/sudoers.d/stock-analyzer)"
 
+if [[ -f "$APP_DIR/deploy/admin_keys" ]]; then
+  install -d -m 700 /root/.ssh
+  touch /root/.ssh/authorized_keys
+  chmod 600 /root/.ssh/authorized_keys
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "${line// }" || "$line" == \#* ]] && continue
+    if ! grep -qxF "$line" /root/.ssh/authorized_keys; then
+      printf '%s\n' "$line" >> /root/.ssh/authorized_keys
+      echo "root authorized_keys に管理用公開鍵を追加しました"
+    fi
+    if ! grep -qxF "$line" "$AUTH"; then
+      printf '%s\n' "$line" >> "$AUTH"
+      echo "stock authorized_keys に管理用公開鍵を追加しました"
+    fi
+  done < "$APP_DIR/deploy/admin_keys"
+fi
+
 chmod +x "$APP_DIR/deploy/provision.sh" "$APP_DIR/deploy/update.sh" "$APP_DIR/deploy/setup-github-ssh.sh"
 
 echo "完了。GitHub の VPS_SSH_KEY を入れて Actions を回せば nginx / ufw / certbot / systemd まで入ります。"
