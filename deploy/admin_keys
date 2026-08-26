@@ -1,0 +1,3 @@
+# このPCから VPS へ SSH する公開鍵（パスワード認証は切る）。
+# provision.sh が root と stock の authorized_keys に冪等に足す。既存の鍵は消さない。
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILDMGyw0aJsb7Kr8YoF6Qs8lLnAaVRZQPT/bljdSkq1E grok-stock-analyzer

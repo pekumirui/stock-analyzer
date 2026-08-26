@@ -21,7 +21,25 @@ fi
 
 echo "==> $(date -Is) deploy start $(git rev-parse --short HEAD 2>/dev/null || echo none)"
 
-git fetch origin main
+if [[ -f "$APP_DIR/deploy/setup-github-ssh.sh" ]]; then
+  bash "$APP_DIR/deploy/setup-github-ssh.sh"
+fi
+
+if ! git fetch origin main; then
+  echo "git fetch 失敗。プライベートリポジトリは Deploy keys (read-only) が必要です。" >&2
+  pub=""
+  if [[ -f "$HOME/.ssh/id_github.pub" ]]; then
+    pub="$HOME/.ssh/id_github.pub"
+  elif [[ -f "$HOME/.ssh/id_ed25519.pub" ]]; then
+    pub="$HOME/.ssh/id_ed25519.pub"
+  fi
+  if [[ -n "$pub" ]]; then
+    echo "DEPLOY_PUBKEY_BEGIN" >&2
+    cat "$pub" >&2
+    echo "DEPLOY_PUBKEY_END" >&2
+  fi
+  exit 1
+fi
 git checkout -q main
 git pull --ff-only origin main
 
