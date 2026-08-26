@@ -201,7 +201,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `GET /api/earnings?date=2026-08-14` | その日の決算速報一覧。1行 = 1開示で QoQ(Q単独の前四半期比) と YoY(累計の前年同期比) を4指標ずつ返す。決算短信本体のみ (予想修正のみの開示、および損益が初回と同一の再提出は除外。損益が変わった再提出は `restated` を立てて残す)。`product_category` が REIT (`013`/`022`) の銘柄は出さない |
 | `GET /api/earnings/detail/{code}?disclosure_no=…` | 選択銘柄の累計テーブル (過去4期+当期の同一四半期 + 中間予想 + 通期予想 + 前期通期実績) と3か月決算テーブル (直近12四半期のQ単独)。各行にカレンダー範囲 (`26.04-06`) と発表日を付ける。同一銘柄が同日に複数開示する日があるため `disclosure_no` で一意に引く (`?date=` でも可) |
 | `GET /api/earnings/calendar?month=2026-08` | 日別の決算件数 (カレンダー表示用。一覧と同じく本体のみを数え、REIT も除外する) |
-| `GET /api/chart/{code}?tf=D|M&ma=50,150,200&rel=topix` | 株価チャートデータ |
+| `GET /api/chart/{code}?tf=D|W|M&ma=50,150,200&rel=topix` | 株価チャートデータ。W/M は日足を ISO週 / 暦月で集約 (足の日付は期間の最終営業日)。MA 期間は営業日換算 (週=÷5、月=÷20) |
 | `GET /api/earnings-performance/{code}` | 決算日からの対TOPIXリターン |
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
 | `GET /api/stocks/search?q=トヨタ` | 銘柄検索 |

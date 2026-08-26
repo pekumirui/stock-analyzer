@@ -91,6 +91,8 @@ def main() -> None:
     _expect(r, 200, "GET /")
     if len(r.content) < 200:
         raise SystemExit("GET / returned too little content")
+    if "週足" not in r.text or 'value="W"' not in r.text:
+        raise SystemExit("chart timeframe missing 週足")
 
     r = client.get("/api/screener")
     _expect(r, 200, "GET /api/screener (empty)")
@@ -134,10 +136,55 @@ def main() -> None:
     if not candles:
         raise SystemExit("chart had no candles")
 
+    # 週足は日足を ISO 週で集約。2週にまたがる日足を足して本数と OHLC を確認する
     from app.analytics import compute_indicators, rs_universe_codes
     from app.db import SessionLocal
     from app.ingest import upsert
     from app.models import DailyPrice, Indicator, Statement, Stock
+
+    db = SessionLocal()
+    try:
+        upsert(db, DailyPrice, [
+            {
+                "code": code, "date": date(2026, 8, 17),
+                "open": 2980, "high": 2990, "low": 2970, "close": 2985,
+                "volume": 800, "turnover": 2_388_000, "adj_factor": 1.0,
+                "adj_open": 2980, "adj_high": 2990, "adj_low": 2970, "adj_close": 2985,
+                "adj_volume": 800, "market_cap": 50_000,
+            },
+            {
+                "code": code, "date": date(2026, 8, 24),
+                "open": 3010, "high": 3050, "low": 3000, "close": 3040,
+                "volume": 1200, "turnover": 3_648_000, "adj_factor": 1.0,
+                "adj_open": 3010, "adj_high": 3050, "adj_low": 3000, "adj_close": 3040,
+                "adj_volume": 1200, "market_cap": 50_000,
+            },
+        ])
+    finally:
+        db.close()
+
+    r = client.get(f"/api/chart/{code}", params={"tf": "D"})
+    _expect(r, 200, f"GET /api/chart/{code}?tf=D")
+    daily_n = len(r.json().get("candles") or [])
+    r = client.get(f"/api/chart/{code}", params={"tf": "W"})
+    _expect(r, 200, f"GET /api/chart/{code}?tf=W")
+    weekly = r.json().get("candles") or []
+    r = client.get(f"/api/chart/{code}", params={"tf": "M"})
+    _expect(r, 200, f"GET /api/chart/{code}?tf=M")
+    monthly = r.json().get("candles") or []
+    if daily_n != 3:
+        raise SystemExit(f"daily chart expected 3 candles, got {daily_n}")
+    if len(weekly) != 2:
+        raise SystemExit(f"weekly chart expected 2 candles, got {weekly!r}")
+    if len(monthly) != 1:
+        raise SystemExit(f"monthly chart expected 1 candle, got {monthly!r}")
+    w0, w1 = weekly
+    if (w0.get("time") != "2026-08-21" or w0.get("open") != 2980
+            or w0.get("high") != 3010 or w0.get("low") != 2970
+            or w0.get("close") != 3005 or w0.get("volume") != 1800):
+        raise SystemExit(f"weekly first candle: {w0!r}")
+    if w1.get("time") != "2026-08-24" or w1.get("open") != 3010 or w1.get("close") != 3040:
+        raise SystemExit(f"weekly second candle: {w1!r}")
 
     db = SessionLocal()
     try:

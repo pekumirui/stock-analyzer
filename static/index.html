@@ -172,7 +172,7 @@
     <div class="row" style="position:relative">
       <input id="sym" placeholder="銘柄名 or コード" autocomplete="off" style="width:200px">
       <div id="suggest" class="suggest" style="display:none"></div>
-      <select id="tf"><option value="D">日足</option><option value="M">月足</option></select>
+      <select id="tf"><option value="D">日足</option><option value="W">週足</option><option value="M">月足</option></select>
       <input id="mas" value="50,150,200" style="width:110px" title="移動平均(カンマ区切り)">
       <label><input type="checkbox" id="rel"> 対TOPIX</label>
       <button class="btn" onclick="loadChart()">表示</button>
@@ -473,7 +473,8 @@ async function loadChart(){
   if(!curCode){ return; }
   const tf=$("#tf").value, mas=$("#mas").value, rel=$("#rel").checked;
   const d = await api(`/api/chart/${curCode}?tf=${tf}&ma=${mas}&rel=${rel}`);
-  $("#chart-title").innerHTML = `<b>${d.name}</b> <small>${d.code.slice(0,4)} / ${tf==="D"?"日足":"月足"}</small>`;
+  const tfLabel = {D:"日足", W:"週足", M:"月足"}[tf] || tf;
+  $("#chart-title").innerHTML = `<b>${d.name}</b> <small>${d.code.slice(0,4)} / ${tfLabel}</small>`;
   chartObj = renderPriceChart($("#chart"), d, {height:420, prev:chartObj});
   if(rel && d.relative){
     $("#relwrap").style.display="";
