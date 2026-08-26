@@ -6,15 +6,17 @@
 <title>株式分析ツール</title>
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <style>
-  :root { --bg:#0f1419; --panel:#1a2129; --border:#2a3441; --text:#e6edf3; --sub:#8b98a5;
-          --accent:#4a9eff; --up:#e05260; --down:#3fb27f; --warn:#f0a020;
-          --row:#202b38; --row-sel:#1d2a3d; }
+  :root { --bg:#f3f5f7; --panel:#ffffff; --border:#d8dee6; --text:#222; --sub:#66707a;
+          --accent:#0077b6; --up:#d32f2f; --down:#1b8a5a; --warn:#e6a100;
+          --row:#f6f8fa; --row-sel:#e7f3fb; --now:#fff8e1; --grid:#e8ecf0; }
   * { box-sizing:border-box; margin:0; }
+  html { color-scheme: light; }
   body { background:var(--bg); color:var(--text); font-family:-apple-system,"Hiragino Sans","Noto Sans JP",Meiryo,sans-serif; font-size:14px; }
-  header { display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  header { display:flex; align-items:center; gap:8px; padding:10px 14px; border-top:3px solid var(--accent);
+           border-bottom:1px solid var(--border); flex-wrap:wrap; background:var(--panel); }
   header h1 { font-size:16px; margin-right:8px; }
   nav button { background:none; border:none; color:var(--sub); padding:8px 10px; cursor:pointer; font-size:14px; border-bottom:2px solid transparent; }
-  nav button.active { color:var(--text); border-bottom-color:var(--accent); }
+  nav button.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
   main { padding:12px; max-width:1200px; margin:0 auto; }
   main.wide { max-width:1600px; }   /* 決算速報タブは2カラム密度を取るため広くする */
   .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:12px; }
@@ -26,18 +28,18 @@
   .badge { display:inline-block; padding:1px 6px; border-radius:4px; font-size:11px; margin-left:4px; }
   .badge.up { background:var(--up); color:#fff; }
   .badge.dn { background:var(--down); color:#fff; }
-  .badge.rev { background:var(--warn); color:#0f1419; }
+  .badge.rev { background:var(--warn); color:#fff; }
   .badge.st1 { background:#5b6470; } .badge.st2 { background:#2e8b57; }
   .badge.st3 { background:#b8860b; } .badge.st4 { background:#a04050; }
   .cal { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
   .cal .h { text-align:center; color:var(--sub); font-size:12px; padding:4px; }
   .cal .d { min-height:52px; border:1px solid var(--border); border-radius:6px; padding:4px; cursor:pointer; }
   .cal .d:hover { border-color:var(--accent); }
-  .cal .d.sel { border-color:var(--accent); background:#20304a; }
+  .cal .d.sel { border-color:var(--accent); background:var(--row-sel); }
   .cal .d .n { font-size:12px; color:var(--sub); }
   .cal .d .cnt { font-size:12px; color:var(--accent); margin-top:4px; }
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
-  input,select { background:var(--bg); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:14px; }
+  input,select { background:var(--panel); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:14px; }
   button.btn { background:var(--accent); border:none; color:#fff; border-radius:6px; padding:6px 12px; cursor:pointer; }
   #chart, #relchart { width:100%; }
   .tbl-wrap { overflow-x:auto; }
@@ -45,7 +47,7 @@
   h3 { font-size:14px; color:var(--sub); margin:8px 0; }
   .suggest { position:absolute; background:var(--panel); border:1px solid var(--border); border-radius:6px; z-index:10; max-height:240px; overflow:auto; }
   .suggest div { padding:6px 10px; cursor:pointer; }
-  .suggest div:hover { background:#243044; }
+  .suggest div:hover { background:var(--row); }
   .sub { color:var(--sub); }
   .dim { opacity:.4; }
 
@@ -80,11 +82,11 @@
   table.fin td { padding:7px 8px; vertical-align:top; }
   table.fin td.num { font-size:13px; font-weight:500; }
   table.fin .g { display:block; font-size:11px; font-weight:400; line-height:1.35; min-height:1.35em; }
-  table.fin tbody tr:nth-child(even) td { background:rgba(255,255,255,.02); }
-  table.fin tbody tr:hover td { background:rgba(255,255,255,.045); }
-  table.fin tr.now td { background:#2e2818 !important; color:var(--text); }
-  table.fin tr.now td:first-child { font-weight:600; background:#2e2818 !important; box-shadow:inset 3px 0 0 var(--warn); }
-  table.fin tr.fc td { background:rgba(74,158,255,.06) !important; }
+  table.fin tbody tr:nth-child(even) td { background:var(--row); }
+  table.fin tbody tr:hover td { background:var(--row-sel); }
+  table.fin tr.now td { background:var(--now) !important; color:var(--text); }
+  table.fin tr.now td:first-child { font-weight:600; background:var(--now) !important; box-shadow:inset 3px 0 0 var(--warn); }
+  table.fin tr.fc td { background:#f0f7fc !important; }
   table.fin tr.prevfy td { opacity:.78; }
   table.fin tr.sep td { border-top:1px solid var(--border); }
   table.fin .loss { color:var(--up); }
@@ -94,11 +96,11 @@
   .qchips { display:flex; gap:6px; margin:0 0 8px; }
   .qchip { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); color:var(--sub); }
   .qchip.on { border-color:var(--warn); color:var(--warn); background:rgba(240,160,32,.12); }
-  .qb { display:inline-block; margin-left:6px; font-size:10px; padding:0 5px; border-radius:3px; background:rgba(0,0,0,.35); color:var(--sub); vertical-align:middle; }
-  .qb-1Q { color:#f0b020; }
-  .qb-2Q { color:#3fb27f; }
-  .qb-3Q { color:#4a9eff; }
-  .qb-4Q { color:#c678dd; }
+  .qb { display:inline-block; margin-left:6px; font-size:10px; padding:0 5px; border-radius:3px; background:var(--row); color:var(--sub); vertical-align:middle; }
+  .qb-1Q { color:#c48a00; }
+  .qb-2Q { color:#1b8a5a; }
+  .qb-3Q { color:#0077b6; }
+  .qb-4Q { color:#8e4ec6; }
   .a-fin .tbl-wrap { max-height:min(52vh, 560px); }
   .cards { display:grid; gap:8px; }
   .card { border:1px solid var(--border); border-radius:8px; padding:8px; cursor:pointer; }
@@ -436,21 +438,30 @@ $("#earn-list").addEventListener("keydown", e => {
 // ---- チャート ----
 let chartObj=null, relObj=null, curCode=null, eChartObj=null;
 
+function chartTheme(){
+  const s = getComputedStyle(document.documentElement);
+  const v = n => s.getPropertyValue(n).trim();
+  return {text:v("--sub"), grid:v("--grid"), border:v("--border"),
+          up:v("--up"), down:v("--down"), accent:v("--accent"), warn:v("--warn")};
+}
+
 // 決算タブは行選択のたびに描き直すので、必ず前のインスタンスを破棄してから作る
 function renderPriceChart(el, d, opt={}){
   if(opt.prev){ try { opt.prev.remove(); } catch(e) {} }
   el.innerHTML = "";
+  const th = chartTheme();
   const c = LightweightCharts.createChart(el, {
     height:opt.height||420, autoSize:true,
-    layout:{background:{color:"transparent"},textColor:"#8b98a5"},
-    grid:{vertLines:{color:"#1e2630"},horzLines:{color:"#1e2630"}}, timeScale:{borderColor:"#2a3441"}});
-  const cs = c.addCandlestickSeries({upColor:"#e05260",downColor:"#3fb27f",borderVisible:false,
-                                     wickUpColor:"#e05260",wickDownColor:"#3fb27f"});
+    layout:{background:{color:"transparent"},textColor:th.text},
+    grid:{vertLines:{color:th.grid},horzLines:{color:th.grid}}, timeScale:{borderColor:th.border},
+    rightPriceScale:{borderColor:th.border}});
+  const cs = c.addCandlestickSeries({upColor:th.up,downColor:th.down,borderVisible:false,
+                                     wickUpColor:th.up,wickDownColor:th.down});
   cs.setData(d.candles);
   const dates = new Set(d.candles.map(x=>x.time));
   cs.setMarkers(d.earnings_dates.filter(t=>dates.has(t)).map(t=>({
-    time:t, position:"belowBar", color: t===opt.mark ? "#4a9eff" : "#f0a020", shape:"arrowUp", text:"決"})));
-  const colors=["#4a9eff","#f0a020","#c678dd","#56b6c2"];
+    time:t, position:"belowBar", color: t===opt.mark ? th.accent : th.warn, shape:"arrowUp", text:"決"})));
+  const colors=[th.accent, th.warn, "#8e4ec6", th.down];
   Object.entries(d.ma).forEach(([w,pts],i)=>{
     c.addLineSeries({color:colors[i%4],lineWidth:1,priceLineVisible:false,lastValueVisible:false,
                      title:`MA${w}`}).setData(pts);
@@ -480,8 +491,9 @@ async function loadChart(){
     $("#relwrap").style.display="";
     if(relObj){ try { relObj.remove(); } catch(e) {} }
     $("#relchart").innerHTML="";
-    relObj = LightweightCharts.createChart($("#relchart"),{height:160,autoSize:true,layout:{background:{color:"transparent"},textColor:"#8b98a5"},grid:{vertLines:{color:"#1e2630"},horzLines:{color:"#1e2630"}}});
-    relObj.addLineSeries({color:"#f0a020",lineWidth:2}).setData(d.relative);
+    const th = chartTheme();
+    relObj = LightweightCharts.createChart($("#relchart"),{height:160,autoSize:true,layout:{background:{color:"transparent"},textColor:th.text},grid:{vertLines:{color:th.grid},horzLines:{color:th.grid}},timeScale:{borderColor:th.border},rightPriceScale:{borderColor:th.border}});
+    relObj.addLineSeries({color:th.warn,lineWidth:2}).setData(d.relative);
     relObj.timeScale().fitContent();
   } else $("#relwrap").style.display="none";
   // 決算後パフォーマンス
