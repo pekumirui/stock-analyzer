@@ -170,13 +170,18 @@ def chart(code: str, tf: str = "D", ma: str = "50,150,200", rel: bool = False,
             relative = [{"time": d.isoformat(), "value": round((c / base["close"]) / (t / base["tclose"]) * 100, 2)}
                         for d, c, t in zip(m["date"], m["close"], m["tclose"])]
 
-    if tf == "M":
-        df["ym"] = df["date"].map(lambda d: (d.year, d.month))
-        agg = df.groupby("ym").agg(
+    if tf in ("W", "M"):
+        if tf == "M":
+            df["_k"] = df["date"].map(lambda d: (d.year, d.month))
+            ma_div = 20  # 日数→月数 (約20営業日/月)
+        else:
+            df["_k"] = df["date"].map(lambda d: d.isocalendar()[:2])  # ISO週 (月曜始まり)
+            ma_div = 5   # 日数→週数 (約5営業日/週)
+        agg = df.groupby("_k").agg(
             date=("date", "last"), open=("open", "first"), high=("high", "max"),
             low=("low", "min"), close=("close", "last"), volume=("volume", "sum")).reset_index(drop=True)
         df = agg
-        mas = {w: df["close"].rolling(min(w // 20 or 1, len(df))).mean() for w in mas}  # 月足MA: 日数→月数換算(約20営業日/月)
+        mas = {w: df["close"].rolling(min(w // ma_div or 1, len(df))).mean() for w in mas}
 
     candles = [{"time": d.isoformat(), "open": round(o, 1), "high": round(h, 1),
                 "low": round(l, 1), "close": round(c, 1), "volume": v}
