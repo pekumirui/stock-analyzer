@@ -251,8 +251,10 @@ server {
 
     ssl_certificate ${CERT_LIVE}/fullchain.pem;
     ssl_certificate_key ${CERT_LIVE}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
     ssl_session_timeout 1d;
     ssl_session_cache shared:SSL:10m;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
     return 301 https://${DOMAIN}\$request_uri;
 }
@@ -267,8 +269,10 @@ server {
 
     ssl_certificate ${CERT_LIVE}/fullchain.pem;
     ssl_certificate_key ${CERT_LIVE}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
     ssl_session_timeout 1d;
     ssl_session_cache shared:SSL:10m;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
 ${proxy_block}
 }
@@ -313,7 +317,10 @@ EOF
     cert_names+=(-d "$WWW")
   fi
   echo "certbot: issue ${DOMAIN}${WWW:+ + ${WWW}}"
+  # ECDSA 既定は YE1 → Root YE。Root YE はまだ OS の信頼ストアに無く、
+  # ブラウザが「セキュリティ保護なし」になる。RSA + ISRG Root X1 にする。
   certbot certonly --webroot -w "$ACME_ROOT" --expand --cert-name "$DOMAIN" \
+    --key-type rsa --rsa-key-size 2048 \
     "${cert_names[@]}" "${certbot_opts[@]}"
   write_if_changed /etc/nginx/sites-available/stock-analyzer 644 < <(render_https) || true
   nginx -t
