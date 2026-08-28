@@ -126,6 +126,16 @@ earnings_events   -- 決算発表イベントと発表後パフォーマンス
   base_price              -- 発表当日(場中発表)or翌営業日始値
   return_1d, return_5d, return_20d, return_60d, return_to_date
   alpha_1d, ... alpha_to_date   -- 対TOPIX超過リターン
+
+monthly_tables    -- 銘柄×年度の月次表 (暦月1〜12。会計月ではない)
+  code, year PK           -- code は 4〜5桁、year は西暦4桁
+
+monthly_elements  -- 表の行。element はトリムした原文、sort_order が登録順
+  code, year, element PK
+
+monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字列は拒否)
+  code, year, element, month PK
+  value
 ```
 
 ### Q単独値の算出 (保存せずAPI側で導出)
@@ -206,6 +216,13 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `GET /api/earnings-performance/{code}` | 決算日からの対TOPIXリターン |
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
 | `GET /api/stocks/search?q=トヨタ` | 銘柄検索 |
+| `POST /api/v1/tables/{code}/{year}/elements` | 月次表の要素登録。表が無ければ作成。完全一致は冪等。類似は 409 (force=true で強制) |
+| `GET /api/v1/tables/{code}/{year}` | 月次表。要素は登録順、値のない月は省略。表が無ければ 404 |
+| `GET /api/v1/tables/{code}` | その銘柄の年度一覧 |
+| `PUT /api/v1/tables/{code}/{year}/values` | セル upsert。未登録要素は 404 (自動登録しない)。null でセル削除 |
+| `PUT /api/v1/tables/{code}/{year}/values/batch` | 複数月を検証してから一括 commit |
+
+月次 API のエラーは `{"error": {"code": "...", "message": "..."}}`。認証は既存アプリと同じ (アプリ本体には無く、本番は nginx Basic 認証)。
 
 ### 決算表の表示
 - タブは **累計が先**、3か月が後。既定は累計

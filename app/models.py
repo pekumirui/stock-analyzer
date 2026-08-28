@@ -115,3 +115,30 @@ class EarningsEvent(Base):
     alpha_20d = Column(Float)
     alpha_60d = Column(Float)
     alpha_to_date = Column(Float)
+
+
+class MonthlyTable(Base):
+    """銘柄×年度の月次表。セルは POST elements で表を作ってから入れる。"""
+    __tablename__ = "monthly_tables"
+    code = Column(String(5), primary_key=True)
+    year = Column(Integer, primary_key=True)
+
+
+class MonthlyElement(Base):
+    """月次表の行。element はトリムした原文を保存し、sort_order が登録順。"""
+    __tablename__ = "monthly_elements"
+    code = Column(String(5), primary_key=True)
+    year = Column(Integer, primary_key=True)
+    element = Column(String(50), primary_key=True)
+    sort_order = Column(Integer, nullable=False)
+
+
+class MonthlyValue(Base):
+    """月次セル。(code, year, element, month) 一意。value は数値のみ。"""
+    __tablename__ = "monthly_values"
+    code = Column(String(5), primary_key=True)
+    year = Column(Integer, primary_key=True)
+    element = Column(String(50), primary_key=True)
+    month = Column(Integer, primary_key=True)
+    value = Column(Float, nullable=False)
+
