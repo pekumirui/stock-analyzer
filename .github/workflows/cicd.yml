@@ -158,6 +158,8 @@ jobs:
       BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
       BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
       MCP_TOKEN: ${{ secrets.MCP_TOKEN }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       VPS_DOMAIN: ${{ secrets.VPS_DOMAIN }}
       CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
     steps:
@@ -218,6 +220,8 @@ jobs:
               "BASIC_AUTH_PASSWORD",
               "CERTBOT_EMAIL",
               "MCP_TOKEN",
+              "R2_ACCESS_KEY_ID",
+              "R2_SECRET_ACCESS_KEY",
           ]
           print("set -euo pipefail")
           for k in keys:

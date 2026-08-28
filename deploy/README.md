@@ -30,6 +30,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 |---|---|---|
 | `VPS_SSH_KEY` | はい | デプロイ用秘密鍵 |
 | `JQUANTS_API_KEY` | 推奨 | あるときだけ `.env` の当該行を更新。無ければ既存 `.env` を触らない |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | 推奨 | Cloudflare R2 (bucket `share`) の rclone 認証。あるときだけ `.env` と `~/.config/rclone/rclone.conf` を更新。無ければ既存を触らない |
 | `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | 推奨 | nginx Basic 認証。無ければ既存 `htpasswd` を残す |
 | `MCP_TOKEN` | 推奨 | ログ MCP の Bearer トークン。`openssl rand -hex 32`。無ければ VPS 上で生成（値は CI に出ない） |
 | `VPS_DOMAIN` | 任意 | 未設定なら `160.251.179.50.sslip.io` |
@@ -43,8 +44,8 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 `update.sh`:
 
 1. GitHub SSH（deploy key）を冪等に揃えてから `git pull --ff-only origin main`
-2. `JQUANTS_API_KEY` / `MCP_TOKEN` があれば `.env` のその行だけ upsert
-3. `sudo provision.sh`（パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers）
+2. `JQUANTS_API_KEY` / `MCP_TOKEN` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` があれば `.env` のその行だけ upsert。R2 の両方が揃っていれば `~/.config/rclone/rclone.conf` も書く
+3. `sudo provision.sh`（パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers、R2 user mount）
 4. venv / `pip install` / `migrate.py`
 5. `systemctl restart stock-analyzer` と `stock-analyzer-mcp`、localhost:8000 / :8010 のヘルスチェック
 
@@ -125,3 +126,14 @@ Cursor / Grok Bot も同じ OAuth（PKCE、クライアントシークレット�
 well-known は Basic 認証の外。`/.well-known/oauth-authorization-server` と `/.well-known/openid-configuration`（同じ AS メタデータ）と `/oauth/` は MCP プロセスへプロキシする。`/.well-known/` 全体は外さない（acme-challenge は従来どおり）。
 
 MCP 自体が死んだときの退避路は Actions の **Debug VPS**。
+
+## Cloudflare R2 mount と TDnet 月次 PDF
+
+VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount する（ユーザ `stock`、`loginctl enable-linger stock` でログアウト・再起動後も残る）。オブジェクトは `/home/stock/r2-share/monthly/...` として見える。systemd ユニットは `deploy/r2-share.service`（秘密情報は含まない）。
+
+1. この変更が main にマージされたあと（通常の CI/CD デプロイ）、GitHub secrets に `R2_ACCESS_KEY_ID` と `R2_SECRET_ACCESS_KEY` を入れる。
+2. Actions → CI/CD → Run workflow、`bump: none` でもう一度デプロイする。`.env` の当該行と `/home/stock/.config/rclone/rclone.conf`（chmod 600）が書かれ、user unit `r2-share.service` が mount する。secrets がまだ無いときは provision は落とさず、ユニットは enable のみ。
+3. 初回バックフィル: Actions → **TDnet monthly backfill** → Run workflow、`days=30`。SSH で `scripts/tdnet_monthly_r2.py 30` が走る（通常デプロイでは走らない）。
+4. 以降は cron 18:00 と 21:00 JST（`N=1`）が当日分を取る。既存の 19:30 / 06:00 の `run_batch.py` はそのまま。
+
+`rclone.conf` と取得 PDF はリポジトリに置かない。

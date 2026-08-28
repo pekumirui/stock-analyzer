@@ -1,0 +1,75 @@
+name: TDnet monthly backfill
+
+# 通常デプロイでは走らない。初回や取りこぼしのときだけ手動。
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "Days back from today JST (inclusive)"
+        required: true
+        default: "30"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    name: Fetch TDnet monthly PDFs
+    runs-on: ubuntu-latest
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      DAYS_IN: ${{ inputs.days }}
+    steps:
+      - name: Require SSH key
+        run: |
+          if [ -z "${VPS_SSH_KEY:-}" ]; then
+            echo "VPS_SSH_KEY が未設定です" >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: SSH run tdnet_monthly_r2.py
+        run: |
+          set -euo pipefail
+          DAYS="$(python3 - <<'PY'
+          import os, re, sys
+          raw = (os.environ.get("DAYS_IN") or "").strip()
+          if not re.fullmatch(r"[1-9][0-9]{0,2}", raw):
+              sys.exit("days must be a positive integer (1-999)")
+          print(int(raw))
+          PY
+          )"
+          HOST="${VPS_HOST:-160.251.179.50}"
+          USER="${VPS_USER:-stock}"
+          PORT="${VPS_PORT:-22}"
+
+          install -m 700 -d "$HOME/.ssh"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          raw = os.environ["VPS_SSH_KEY"].replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
+          if "PRIVATE KEY" not in raw:
+              raise SystemExit(
+                  "VPS_SSH_KEY は秘密鍵 (-----BEGIN ... PRIVATE KEY-----) である必要があります。"
+              )
+          p = Path.home() / ".ssh" / "id_deploy"
+          p.write_text(raw)
+          p.chmod(0o600)
+          PY
+
+          echo "Run tdnet_monthly_r2.py days=${DAYS} on ${USER}@${HOST}"
+          ssh -i "$HOME/.ssh/id_deploy" \
+            -p "$PORT" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$GITHUB_WORKSPACE/deploy/known_hosts" \
+            -o ConnectTimeout=15 \
+            -o ServerAliveInterval=15 \
+            "${USER}@${HOST}" \
+            "cd /home/stock/stock-analyzer && .venv/bin/python -u scripts/tdnet_monthly_r2.py $(printf %q "$DAYS")"

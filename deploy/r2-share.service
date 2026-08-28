@@ -1,0 +1,19 @@
+[Unit]
+Description=rclone mount Cloudflare R2 bucket share
+After=network-online.target
+Wants=network-online.target
+# Conf is written by update.sh from GitHub secrets; skip start if missing.
+AssertPathExists=/home/stock/.config/rclone/rclone.conf
+
+[Service]
+Type=notify
+ExecStartPre=-/usr/bin/fusermount3 -uz /home/stock/r2-share
+ExecStart=/usr/bin/rclone mount r2:share /home/stock/r2-share --config /home/stock/.config/rclone/rclone.conf --vfs-cache-mode writes --dir-cache-time 10s --umask 022 --cache-dir /home/stock/.cache/rclone
+ExecStop=/usr/bin/fusermount3 -uz /home/stock/r2-share
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=60
+TimeoutStopSec=20
+
+[Install]
+WantedBy=default.target
