@@ -1,7 +1,8 @@
-"""Read-only Streamable HTTP MCP for VPS logs and SQLite stats.
+"""Streamable HTTP MCP for VPS logs, SQLite stats, and monthly tables.
 
 No extra deps: Starlette ships with FastAPI. Listens on 127.0.0.1:8010/mcp.
 Arbitrary shell/SQL is not exposed. journalctl units, log paths, and SELECT shapes are allowlisted.
+Monthly table tools call http://127.0.0.1:8000/api/v1/tables only (not nginx, not user URLs).
 """
 from __future__ import annotations
 
@@ -17,9 +18,11 @@ import secrets
 import subprocess
 import threading
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any, Callable
-from urllib.parse import urlencode, urlparse, parse_qsl, urlunparse
+from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
 
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -71,7 +74,13 @@ GREP_RE = re.compile(r"^[^\n\r\x00]{1,120}$")
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$")
 SHORT_SINCE_RE = re.compile(r"^(\d+)([smhd])$", re.I)
 CODE_RE = re.compile(r"^[0-9]{4,5}$")
+YEAR_RE = re.compile(r"^\d{4}$")
 DB_TABLES = ("stocks", "daily_prices", "topix", "statements", "indicators", "earnings_events")
+DEFAULT_APP_HTTP = "http://127.0.0.1:8000"
+APP_HTTP_TIMEOUT = 10
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+MONTHLY_PATH_PREFIX = "/api/v1/tables"
+MONTHLY_TAILS = frozenset({"", "/elements", "/values/batch"})
 
 
 def redact(text: str) -> str:
@@ -288,6 +297,130 @@ def parse_code(raw: Any) -> str:
     return s
 
 
+def parse_monthly_code(raw: Any) -> str:
+    """4-5 digits as given. Do not pad; monthly API treats 7203 and 72030 as distinct."""
+    s = str(raw or "").strip()
+    # digits only: blocks path traversal (/, .., dots) in /api/v1/tables/{code}/...
+    if not CODE_RE.fullmatch(s) or "." in s or "/" in s:
+        raise ValueError("code must be 4-5 digits (e.g. 7203 or 72030)")
+    return s
+
+
+def parse_monthly_year(raw: Any) -> int:
+    if isinstance(raw, bool):
+        raise ValueError("year must be a 4-digit integer")
+    if isinstance(raw, int):
+        s = str(raw)
+    else:
+        s = str(raw or "").strip()
+    if not YEAR_RE.fullmatch(s):
+        raise ValueError("year must be a 4-digit integer")
+    return int(s)
+
+
+def parse_monthly_month(raw: Any) -> int:
+    if isinstance(raw, bool) or not isinstance(raw, int) or raw < 1 or raw > 12:
+        raise ValueError("month must be an integer 1-12")
+    return raw
+
+
+def parse_monthly_values(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        raise ValueError("values must be an array of {month, value}")
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict) or "month" not in item or "value" not in item:
+            raise ValueError("values must be an array of {month, value}")
+        # value is passed through; % / comma strings are rejected by the API as INVALID_VALUE
+        out.append({"month": parse_monthly_month(item.get("month")), "value": item.get("value")})
+    return out
+
+
+def _is_loopback_host(host: str | None) -> bool:
+    return (host or "").lower().strip("[]") in LOOPBACK_HOSTS
+
+
+def app_http_base() -> str:
+    """Loopback FastAPI only. MCP_APP_HTTP may override host/port for tests."""
+    raw = (os.environ.get("MCP_APP_HTTP") or DEFAULT_APP_HTTP).strip()
+    if not raw:
+        raw = DEFAULT_APP_HTTP
+    parsed = urlparse(raw)
+    if parsed.scheme not in ("http", "https") or not _is_loopback_host(parsed.hostname):
+        raise ValueError("MCP_APP_HTTP host must be loopback (127.0.0.1)")
+    host = (parsed.hostname or "").lower()
+    port = parsed.port
+    if ":" in host:
+        netloc = f"[{host}]" + (f":{port}" if port else "")
+    else:
+        netloc = host + (f":{port}" if port else "")
+    return f"{parsed.scheme}://{netloc}"
+
+
+def monthly_api_url(code: str | None = None, year: int | None = None, tail: str = "") -> str:
+    if tail not in MONTHLY_TAILS:
+        raise ValueError("invalid monthly API path")
+    if code is None:
+        path = MONTHLY_PATH_PREFIX
+    else:
+        safe_code = quote(code, safe="")
+        if safe_code != code or not CODE_RE.fullmatch(code):
+            raise ValueError("code must be 4-5 digits (e.g. 7203 or 72030)")
+        path = f"{MONTHLY_PATH_PREFIX}/{safe_code}/{year}{tail}"
+    if ".." in path or not path.startswith(MONTHLY_PATH_PREFIX):
+        raise ValueError("invalid monthly API path")
+    url = app_http_base() + path
+    parsed = urlparse(url)
+    if not _is_loopback_host(parsed.hostname) or not parsed.path.startswith(MONTHLY_PATH_PREFIX):
+        raise ValueError("monthly API URL must be loopback /api/v1/tables")
+    return url
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ARG002
+        return None
+
+
+def _monthly_opener() -> urllib.request.OpenerDirector:
+    # No HTTP(S)_PROXY: requests must stay on 127.0.0.1. Do not follow redirects off-path.
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirectHandler)
+
+
+def call_monthly_api(method: str, url: str, body: dict[str, Any] | None = None) -> str:
+    if method not in ("GET", "POST", "PUT"):
+        raise ValueError("invalid monthly HTTP method")
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not _is_loopback_host(parsed.hostname):
+        raise ValueError("monthly API host must be loopback")
+    if not parsed.path.startswith(MONTHLY_PATH_PREFIX):
+        raise ValueError("monthly API path must be /api/v1/tables")
+    data = None
+    headers = {"Accept": "application/json"}
+    if body is not None:
+        data = json.dumps(body, ensure_ascii=False, allow_nan=False).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    base = f"{parsed.scheme}://{parsed.netloc}"
+    try:
+        with _monthly_opener().open(req, timeout=APP_HTTP_TIMEOUT) as resp:
+            status = getattr(resp, "status", None) or resp.getcode()
+            raw = resp.read()
+    except urllib.error.HTTPError as exc:
+        status = exc.code
+        raw = exc.read() if exc.fp is not None else b""
+    except urllib.error.URLError as exc:
+        reason = exc.reason
+        if isinstance(reason, TimeoutError) or "timed out" in str(reason).lower():
+            raise ValueError(f"FastAPI monthly API timeout after {APP_HTTP_TIMEOUT}s at {base}") from None
+        raise ValueError(f"FastAPI monthly API connection refused at {base}: {reason}") from None
+    except TimeoutError:
+        raise ValueError(f"FastAPI monthly API timeout after {APP_HTTP_TIMEOUT}s at {base}") from None
+    except OSError as exc:
+        raise ValueError(f"FastAPI monthly API unreachable at {base}: {exc}") from None
+    text = raw.decode("utf-8", errors="replace") if raw else ""
+    return f"HTTP {status}\n{text}"
+
+
 def _scalar(conn: sqlite3.Connection, sql: str, params: tuple[Any, ...] = ()) -> Any:
     row = conn.execute(sql, params).fetchone()
     return None if row is None else row[0]
@@ -394,6 +527,40 @@ def tool_db_lookup(args: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+def tool_monthly_list(_args: dict[str, Any]) -> str:
+    return call_monthly_api("GET", monthly_api_url())
+
+
+def tool_monthly_get(args: dict[str, Any]) -> str:
+    code = parse_monthly_code(args.get("code"))
+    year = parse_monthly_year(args.get("year"))
+    return call_monthly_api("GET", monthly_api_url(code, year))
+
+
+def tool_monthly_add_element(args: dict[str, Any]) -> str:
+    code = parse_monthly_code(args.get("code"))
+    year = parse_monthly_year(args.get("year"))
+    element = args.get("element")
+    if not isinstance(element, str) or not element.strip():
+        raise ValueError("element is required")
+    body: dict[str, Any] = {"element": element}
+    if "force" in args:
+        if not isinstance(args["force"], bool):
+            raise ValueError("force must be a boolean")
+        body["force"] = args["force"]
+    return call_monthly_api("POST", monthly_api_url(code, year, "/elements"), body)
+
+
+def tool_monthly_put_values(args: dict[str, Any]) -> str:
+    code = parse_monthly_code(args.get("code"))
+    year = parse_monthly_year(args.get("year"))
+    element = args.get("element")
+    if not isinstance(element, str) or not element.strip():
+        raise ValueError("element is required")
+    body = {"element": element, "values": parse_monthly_values(args.get("values"))}
+    return call_monthly_api("PUT", monthly_api_url(code, year, "/values/batch"), body)
+
+
 TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = {
     "service_status": (
         "nginx / stock-analyzer / MCP の active 状態、待ち受けポート、localhost の HTTP コード。",
@@ -451,6 +618,62 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
             "required": ["code"],
         },
         tool_db_lookup,
+    ),
+    "monthly_list": (
+        "月次表がある銘柄一覧。localhost:8000 の GET /api/v1/tables（nginx Basic は使わない）。",
+        {"type": "object", "properties": {}},
+        tool_monthly_list,
+    ),
+    "monthly_get": (
+        "銘柄×年度の月次表。localhost:8000 の GET /api/v1/tables/{code}/{year}。",
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "4-5 digit stock code"},
+                "year": {"type": "integer", "description": "4-digit calendar year"},
+            },
+            "required": ["code", "year"],
+        },
+        tool_monthly_get,
+    ),
+    "monthly_add_element": (
+        "月次表に要素を登録。localhost:8000 の POST /api/v1/tables/{code}/{year}/elements。類似は 409。force=true で強制。",
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "4-5 digit stock code"},
+                "year": {"type": "integer", "description": "4-digit calendar year"},
+                "element": {"type": "string", "description": "row label, 1-50 chars"},
+                "force": {"type": "boolean", "description": "create even if a similar element exists"},
+            },
+            "required": ["code", "year", "element"],
+        },
+        tool_monthly_add_element,
+    ),
+    "monthly_put_values": (
+        "月次セルを一括 upsert。localhost:8000 の PUT /api/v1/tables/{code}/{year}/values/batch。value の null は削除。",
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "4-5 digit stock code"},
+                "year": {"type": "integer", "description": "4-digit calendar year"},
+                "element": {"type": "string", "description": "existing row label"},
+                "values": {
+                    "type": "array",
+                    "description": "list of {month, value}; value null deletes the cell",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "month": {"type": "integer", "description": "1-12"},
+                            "value": {"type": ["number", "null"], "description": "number, or null to delete"},
+                        },
+                        "required": ["month", "value"],
+                    },
+                },
+            },
+            "required": ["code", "year", "element", "values"],
+        },
+        tool_monthly_put_values,
     ),
 }
 

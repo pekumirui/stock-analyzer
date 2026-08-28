@@ -89,8 +89,12 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 - `nginx_logs` — nginx journal と error.log
 - `db_stats` — stock.db の件数・日付範囲・デモ混在
 - `db_lookup` — 1銘柄のマスタ・直近株価・決算・指標
+- `monthly_list` — 月次表一覧。localhost:8000 の GET /api/v1/tables
+- `monthly_get` — 銘柄×年度の月次表
+- `monthly_add_element` — 要素登録
+- `monthly_put_values` — セル一括 upsert（null で削除）
 
-任意コマンドも restart もない。行数は最大 500。`.env` の値は伏せる。
+任意コマンドも restart も任意 SQL もない。月次ツールは FastAPI の `http://127.0.0.1:8000` だけを叩く（nginx Basic は使わない）。行数は最大 500。`.env` の値は伏せる。
 
 アプリ・バッチ・MCP のファイルログは `/var/log/app/`。14 日で logrotate（copytruncate）。nginx は従来どおり `/var/log/nginx/`。
 

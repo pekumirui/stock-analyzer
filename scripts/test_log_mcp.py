@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "deploy"))
 
 os.environ.setdefault("MCP_TOKEN", "test-token-for-ci-only")
@@ -102,7 +103,18 @@ def test_http_auth_and_tools() -> None:
 
     r = _rpc(client, "tools/list", req_id=2)
     names = {t["name"] for t in r.json()["result"]["tools"]}
-    expect = {"service_status", "app_logs", "batch_logs", "nginx_logs", "db_stats", "db_lookup"}
+    expect = {
+        "service_status",
+        "app_logs",
+        "batch_logs",
+        "nginx_logs",
+        "db_stats",
+        "db_lookup",
+        "monthly_list",
+        "monthly_get",
+        "monthly_add_element",
+        "monthly_put_values",
+    }
     if names != expect:
         raise SystemExit(f"tools {names} != {expect}")
 
@@ -367,6 +379,411 @@ def test_db_tools() -> None:
                 os.environ["DATABASE_URL"] = prev_url
 
 
+def _http_status_body(text: str) -> tuple[int, object]:
+    line, _, rest = text.partition("\n")
+    if not line.startswith("HTTP "):
+        raise SystemExit(f"missing HTTP status line: {text!r}")
+    status = int(line.split()[1])
+    rest = rest.strip()
+    if not rest:
+        return status, None
+    try:
+        return status, json.loads(rest)
+    except json.JSONDecodeError:
+        return status, rest
+
+
+def _expect_value_error(fn, *args, needle: str) -> None:
+    try:
+        fn(*args)
+    except ValueError as exc:
+        if needle not in str(exc):
+            raise SystemExit(f"ValueError {exc!r} missing {needle!r}")
+    else:
+        raise SystemExit(f"{fn.__name__}{args} should have raised")
+
+
+def _stub_handle(method: str, path: str, raw: bytes, store: dict) -> tuple[int, object]:
+    import re
+    from urllib.parse import unquote
+
+    def load_body() -> dict:
+        if not raw:
+            return {}
+        body = json.loads(raw.decode("utf-8"))
+        if not isinstance(body, dict):
+            return {}
+        return body
+
+    list_re = re.compile(r"^/api/v1/tables$")
+    get_re = re.compile(r"^/api/v1/tables/(\d{4,5})/(\d{4})$")
+    el_re = re.compile(r"^/api/v1/tables/(\d{4,5})/(\d{4})/elements$")
+    batch_re = re.compile(r"^/api/v1/tables/(\d{4,5})/(\d{4})/values/batch$")
+
+    if method == "GET" and list_re.fullmatch(path):
+        by_code: dict[str, dict] = {}
+        for code, year in sorted(store):
+            item = by_code.setdefault(code, {"code": code, "name": None, "years": []})
+            item["years"].append(year)
+        return 200, list(by_code.values())
+
+    m = get_re.fullmatch(path)
+    if method == "GET" and m:
+        code, year = unquote(m.group(1)), int(m.group(2))
+        row = store.get((code, year))
+        if row is None:
+            return 404, {"error": {"code": "TABLE_NOT_FOUND", "message": "銘柄×年度の表がありません。"}}
+        elements = []
+        for el in row["order"]:
+            vals = {str(k): v for k, v in row["values"].get(el, {}).items()}
+            elements.append({"element": el, "values": vals})
+        return 200, {"code": code, "year": year, "elements": elements}
+
+    m = el_re.fullmatch(path)
+    if method == "POST" and m:
+        code, year = unquote(m.group(1)), int(m.group(2))
+        body = load_body()
+        element = str(body.get("element") or "").strip()
+        force = body.get("force") is True
+        key = (code, year)
+        row = store.setdefault(key, {"order": [], "values": {}})
+        if element in row["order"]:
+            return 200, {"code": code, "year": year, "element": element, "created": False}
+
+        def _norm(s: str) -> str:
+            return "".join(str(s).split()).lower()
+
+        similar = [e for e in row["order"] if _norm(e) == _norm(element)]
+        if similar and not force:
+            return 409, {
+                "error": {
+                    "code": "ELEMENT_SIMILAR_EXISTS",
+                    "message": "類似する要素が既に存在します。既存要素を使うか、force=true で強制登録してください。",
+                    "similar": similar,
+                }
+            }
+        row["order"].append(element)
+        row["values"][element] = {}
+        return 201, {"code": code, "year": year, "element": element, "created": True}
+
+    m = batch_re.fullmatch(path)
+    if method == "PUT" and m:
+        code, year = unquote(m.group(1)), int(m.group(2))
+        body = load_body()
+        element = str(body.get("element") or "").strip()
+        items = body.get("values")
+        key = (code, year)
+        row = store.get(key)
+        if row is None:
+            return 404, {"error": {"code": "TABLE_NOT_FOUND", "message": "銘柄×年度の表がありません。"}}
+        if element not in row["order"]:
+            return 404, {"error": {"code": "ELEMENT_NOT_FOUND", "message": "要素が登録されていません。"}}
+        if not isinstance(items, list):
+            return 400, {"error": {"code": "INVALID_PARAM", "message": "values は {month, value} の配列です。"}}
+        ops: dict[int, object] = {}
+        for item in items:
+            val = item.get("value")
+            if val is not None and (isinstance(val, bool) or not isinstance(val, (int, float))):
+                return 400, {
+                    "error": {
+                        "code": "INVALID_VALUE",
+                        "message": "value は数値のみ受け付けます。単位(%、円など)やカンマは除去してください。",
+                    }
+                }
+            ops[int(item["month"])] = val
+        for month, val in ops.items():
+            if val is None:
+                row["values"][element].pop(month, None)
+            else:
+                row["values"][element][month] = val
+        return 200, {"code": code, "year": year, "element": element, "updated": list(ops.keys())}
+
+    return 404, {"error": {"code": "NOT_FOUND", "message": path}}
+
+
+def _monthly_stub():
+    import threading
+    from contextlib import contextmanager
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from urllib.parse import urlparse as _urlparse
+
+    @contextmanager
+    def ctx():
+        recorded: list[dict] = []
+        store: dict = {}
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, format, *args):  # noqa: A003
+                return
+
+            def do_GET(self) -> None:
+                self._dispatch("GET")
+
+            def do_POST(self) -> None:
+                self._dispatch("POST")
+
+            def do_PUT(self) -> None:
+                self._dispatch("PUT")
+
+            def _dispatch(self, method: str) -> None:
+                path = _urlparse(self.path).path
+                length = int(self.headers.get("Content-Length") or 0)
+                raw = self.rfile.read(length) if length else b""
+                recorded.append({"method": method, "path": path, "host": self.headers.get("Host", ""), "body": raw})
+                status, payload = _stub_handle(method, path, raw, store)
+                body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        try:
+            yield httpd.server_address[1], recorded
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+
+    return ctx()
+
+
+def test_monthly_tools() -> None:
+    from tempfile import TemporaryDirectory
+    from urllib.parse import urlparse
+
+    if m.APP_HTTP_TIMEOUT != 10:
+        raise SystemExit(f"APP_HTTP_TIMEOUT {m.APP_HTTP_TIMEOUT} != 10")
+    if m.DEFAULT_APP_HTTP != "http://127.0.0.1:8000":
+        raise SystemExit(f"DEFAULT_APP_HTTP {m.DEFAULT_APP_HTTP}")
+
+    prev_http = os.environ.get("MCP_APP_HTTP")
+    os.environ.pop("MCP_APP_HTTP", None)
+    try:
+        if m.app_http_base() != "http://127.0.0.1:8000":
+            raise SystemExit(f"default base: {m.app_http_base()}")
+        url = m.monthly_api_url("7203", 2024)
+        parsed = urlparse(url)
+        if parsed.hostname != "127.0.0.1" or parsed.port != 8000:
+            raise SystemExit(f"url host: {url}")
+        if parsed.path != "/api/v1/tables/7203/2024":
+            raise SystemExit(f"url path not padded? {parsed.path}")
+        if m.monthly_api_url() != "http://127.0.0.1:8000/api/v1/tables":
+            raise SystemExit(f"list url: {m.monthly_api_url()}")
+        if m.monthly_api_url("7203", 2024, "/elements") != "http://127.0.0.1:8000/api/v1/tables/7203/2024/elements":
+            raise SystemExit("elements url")
+        if m.monthly_api_url("7203", 2024, "/values/batch") != "http://127.0.0.1:8000/api/v1/tables/7203/2024/values/batch":
+            raise SystemExit("batch url")
+        try:
+            m.monthly_api_url("7203", 2024, "/etc/passwd")
+        except ValueError:
+            pass
+        else:
+            raise SystemExit("arbitrary tail should fail")
+
+        os.environ["MCP_APP_HTTP"] = "http://kabukpi.com/api"
+        _expect_value_error(m.app_http_base, needle="loopback")
+        os.environ["MCP_APP_HTTP"] = "http://8.8.8.8:8000"
+        _expect_value_error(m.app_http_base, needle="loopback")
+        os.environ["MCP_APP_HTTP"] = "https://example.com"
+        _expect_value_error(m.app_http_base, needle="loopback")
+        os.environ["MCP_APP_HTTP"] = "http://127.0.0.1:9"
+        if m.app_http_base() != "http://127.0.0.1:9":
+            raise SystemExit(f"loopback override: {m.app_http_base()}")
+        os.environ["MCP_APP_HTTP"] = "http://localhost:8000/ignored"
+        if m.app_http_base() != "http://localhost:8000":
+            raise SystemExit(f"path should be stripped: {m.app_http_base()}")
+    finally:
+        if prev_http is None:
+            os.environ.pop("MCP_APP_HTTP", None)
+        else:
+            os.environ["MCP_APP_HTTP"] = prev_http
+
+    _expect_value_error(m.parse_monthly_code, "abc", needle="4-5")
+    _expect_value_error(m.parse_monthly_code, "12", needle="4-5")
+    _expect_value_error(m.parse_monthly_code, "7203/../etc", needle="4-5")
+    _expect_value_error(m.parse_monthly_code, "7203.0", needle="4-5")
+    _expect_value_error(m.parse_monthly_code, "720300", needle="4-5")
+    if m.parse_monthly_code("7203") != "7203":
+        raise SystemExit("monthly code must not pad 7203")
+    if m.parse_monthly_code("72030") != "72030":
+        raise SystemExit("72030")
+    _expect_value_error(m.parse_monthly_year, 24, needle="4-digit")
+    _expect_value_error(m.parse_monthly_year, "2024/../x", needle="4-digit")
+    _expect_value_error(m.parse_monthly_year, 20240, needle="4-digit")
+    if m.parse_monthly_year(2024) != 2024 or m.parse_monthly_year("2024") != 2024:
+        raise SystemExit("year parse")
+    _expect_value_error(m.parse_monthly_month, 0, needle="1-12")
+    _expect_value_error(m.parse_monthly_month, 13, needle="1-12")
+
+    prev_url = os.environ.get("DATABASE_URL")
+    with TemporaryDirectory() as d:
+        os.environ["DATABASE_URL"] = f"sqlite:///{d}/stock.db"
+        try:
+            from fastapi.testclient import TestClient as FastAPIClient
+
+            from app.main import app as fastapi_app
+
+            api = FastAPIClient(fastapi_app)
+            r = api.get("/api/v1/tables")
+            if r.status_code != 200 or r.json() != []:
+                raise SystemExit(f"TestClient empty tables: {r.status_code} {r.text}")
+            r = api.post("/api/v1/tables/7203/2024/elements", json={"element": "売上高前年比"})
+            if r.status_code != 201:
+                raise SystemExit(f"TestClient add: {r.status_code} {r.text}")
+            r = api.get("/api/v1/tables/7203/2024")
+            if r.status_code != 200 or [e["element"] for e in r.json()["elements"]] != ["売上高前年比"]:
+                raise SystemExit(f"TestClient get: {r.text}")
+        finally:
+            if prev_url is None:
+                os.environ.pop("DATABASE_URL", None)
+            else:
+                os.environ["DATABASE_URL"] = prev_url
+
+    prev_http = os.environ.get("MCP_APP_HTTP")
+    try:
+        with _monthly_stub() as (port, recorded):
+            os.environ["MCP_APP_HTTP"] = f"http://127.0.0.1:{port}"
+            token = "test-token-for-ci-only"
+            client = TestClient(m.create_app(token))
+
+            before = len(recorded)
+            for bad in ("abc", "12", "7203/../etc", "7203.0"):
+                text, is_error = m.call_tool("monthly_get", {"code": bad, "year": 2024})
+                if not is_error:
+                    raise SystemExit(f"bad code {bad!r} should isError: {text}")
+                text, is_error = m.call_tool(
+                    "monthly_add_element", {"code": bad, "year": 2024, "element": "x"}
+                )
+                if not is_error:
+                    raise SystemExit(f"add bad code {bad!r} should isError")
+                text, is_error = m.call_tool(
+                    "monthly_put_values",
+                    {"code": bad, "year": 2024, "element": "x", "values": [{"month": 1, "value": 1}]},
+                )
+                if not is_error:
+                    raise SystemExit(f"put bad code {bad!r} should isError")
+            if len(recorded) != before:
+                raise SystemExit(f"bad code must not hit HTTP: {recorded[before:]}")
+
+            text, is_error = m.call_tool("monthly_list", {})
+            if is_error:
+                raise SystemExit(f"monthly_list empty: {text}")
+            status, body = _http_status_body(text)
+            if status != 200 or body != []:
+                raise SystemExit(f"empty list shape: {text!r}")
+
+            r = _rpc(client, "tools/call", {"name": "monthly_list", "arguments": {}}, req_id=40)
+            rpc_text = r.json()["result"]["content"][0]["text"]
+            if r.json()["result"]["isError"] or "HTTP 200" not in rpc_text:
+                raise SystemExit(f"rpc monthly_list: {r.text}")
+
+            text, is_error = m.call_tool(
+                "monthly_add_element",
+                {"code": "7203", "year": 2024, "element": "売上高前年比"},
+            )
+            if is_error:
+                raise SystemExit(f"add: {text}")
+            status, body = _http_status_body(text)
+            if status != 201 or not isinstance(body, dict) or body.get("created") is not True:
+                raise SystemExit(f"add created: {text}")
+
+            text, is_error = m.call_tool("monthly_get", {"code": "7203", "year": 2024})
+            if is_error:
+                raise SystemExit(f"get after add: {text}")
+            status, body = _http_status_body(text)
+            if status != 200 or body["elements"][0]["element"] != "売上高前年比":
+                raise SystemExit(f"get roundtrip: {text}")
+
+            text, is_error = m.call_tool(
+                "monthly_add_element",
+                {"code": "7203", "year": 2024, "element": "売上高 前年比"},
+            )
+            if is_error:
+                raise SystemExit(f"similar should still return HTTP text: {text}")
+            status, body = _http_status_body(text)
+            if status != 409 or not isinstance(body, dict) or body.get("error", {}).get("code") != "ELEMENT_SIMILAR_EXISTS":
+                raise SystemExit(f"expected 409 ELEMENT_SIMILAR_EXISTS: {text}")
+
+            text, is_error = m.call_tool(
+                "monthly_put_values",
+                {
+                    "code": "7203",
+                    "year": 2024,
+                    "element": "売上高前年比",
+                    "values": [{"month": 4, "value": 12.5}, {"month": 5, "value": None}],
+                },
+            )
+            if is_error:
+                raise SystemExit(f"put: {text}")
+            status, body = _http_status_body(text)
+            if status != 200:
+                raise SystemExit(f"put status: {text}")
+
+            text, is_error = m.call_tool(
+                "monthly_put_values",
+                {
+                    "code": "7203",
+                    "year": 2024,
+                    "element": "売上高前年比",
+                    "values": [{"month": 4, "value": "10%"}],
+                },
+            )
+            if is_error:
+                raise SystemExit(f"% value should be API error text: {text}")
+            status, body = _http_status_body(text)
+            if status != 400 or not isinstance(body, dict) or body.get("error", {}).get("code") != "INVALID_VALUE":
+                raise SystemExit(f"expected INVALID_VALUE: {text}")
+
+            r = _rpc(
+                client,
+                "tools/call",
+                {"name": "monthly_get", "arguments": {"code": "7203/../etc", "year": 2024}},
+                req_id=41,
+            )
+            if not r.json()["result"]["isError"]:
+                raise SystemExit("rpc traversal code should isError")
+
+            allowed = {
+                ("GET", "/api/v1/tables"),
+                ("GET", "/api/v1/tables/7203/2024"),
+                ("POST", "/api/v1/tables/7203/2024/elements"),
+                ("PUT", "/api/v1/tables/7203/2024/values/batch"),
+            }
+            for rec in recorded:
+                host = rec["host"].split(":")[0]
+                if host != "127.0.0.1":
+                    raise SystemExit(f"non-loopback host: {rec}")
+                if not rec["path"].startswith("/api/v1/tables"):
+                    raise SystemExit(f"path not allowlisted: {rec}")
+                if ".." in rec["path"] or "/etc" in rec["path"]:
+                    raise SystemExit(f"traversal path: {rec}")
+                if (rec["method"], rec["path"]) not in allowed:
+                    raise SystemExit(f"unexpected monthly request: {rec}")
+            if not any(rec["method"] == "GET" and rec["path"] == "/api/v1/tables" for rec in recorded):
+                raise SystemExit("monthly_list did not hit GET /api/v1/tables")
+            if not any(rec["method"] == "POST" and rec["path"] == "/api/v1/tables/7203/2024/elements" for rec in recorded):
+                raise SystemExit("add_element path missing")
+            if not any(rec["method"] == "PUT" and rec["path"] == "/api/v1/tables/7203/2024/values/batch" for rec in recorded):
+                raise SystemExit("put_values path missing")
+
+        os.environ["MCP_APP_HTTP"] = "http://127.0.0.1:1"
+        text, is_error = m.call_tool("monthly_list", {})
+        if not is_error:
+            raise SystemExit(f"down FastAPI should isError: {text}")
+        if "connection refused" not in text.lower() and "unreachable" not in text.lower():
+            raise SystemExit(f"expected connection refused: {text!r}")
+        if "Traceback" in text:
+            raise SystemExit(f"traceback leaked: {text}")
+    finally:
+        if prev_http is None:
+            os.environ.pop("MCP_APP_HTTP", None)
+        else:
+            os.environ["MCP_APP_HTTP"] = prev_http
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -377,6 +794,7 @@ def main() -> None:
     test_http_auth_and_tools()
     test_oauth()
     test_db_tools()
+    test_monthly_tools()
     print("ok: log mcp")
 
 
