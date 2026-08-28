@@ -111,6 +111,12 @@ Grok への繋ぎ方（カスタムコネクタは OAuth 前提）:
 
 5. ブラウザに許可画面が出るので、`MCP_TOKEN` を入れて「許可する」
 
+Cursor / Grok Bot も同じ OAuth（PKCE、クライアントシークレットなし）。許可する redirect は:
+
+- `https://www.cursor.com/agents/mcp/oauth/callback`
+- デスクトップ: `http://localhost:8787/callback`（localhost で許可済）
+- フォールバック: `cursor://anysphere.cursor-mcp/oauth/callback`
+
 well-known は Basic 認証の外。`/.well-known/oauth-authorization-server` と `/oauth/` は MCP プロセスへプロキシする。
 
 MCP 自体が死んだときの退避路は Actions の **Debug VPS**。
