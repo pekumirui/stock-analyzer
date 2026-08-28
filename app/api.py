@@ -375,6 +375,23 @@ def post_element(code: str, year: str, response: Response,
     return {"code": code, "year": year_i, "element": element, "created": True}
 
 
+@router_v1.get("/tables")
+def list_tables(db: Session = Depends(get_session)):
+    """月次表がある銘柄。名前は stocks を LEFT JOIN。無いときは null。"""
+    rows = (db.query(MonthlyTable.code, MonthlyTable.year, Stock.name)
+            .outerjoin(Stock, Stock.code == MonthlyTable.code)
+            .order_by(MonthlyTable.code, MonthlyTable.year)
+            .all())
+    by_code: dict[str, dict] = {}
+    for code, year, name in rows:
+        item = by_code.get(code)
+        if item is None:
+            item = {"code": code, "name": name, "years": []}
+            by_code[code] = item
+        item["years"].append(year)
+    return list(by_code.values())
+
+
 @router_v1.get("/tables/{code}/{year}")
 def get_table(code: str, year: str, db: Session = Depends(get_session)):
     code = _parse_code(code)

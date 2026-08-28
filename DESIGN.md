@@ -217,6 +217,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
 | `GET /api/stocks/search?q=トヨタ` | 銘柄検索 |
 | `POST /api/v1/tables/{code}/{year}/elements` | 月次表の要素登録。表が無ければ作成。完全一致は冪等。類似は 409 (force=true で強制) |
+| `GET /api/v1/tables` | 月次表がある銘柄一覧 (code 順)。各要素は `{code, name, years}`。name は stocks を LEFT JOIN (無ければ null)。years は昇順。表が無ければ `[]` |
 | `GET /api/v1/tables/{code}/{year}` | 月次表。要素は登録順、値のない月は省略。表が無ければ 404 |
 | `GET /api/v1/tables/{code}` | その銘柄の年度一覧 |
 | `PUT /api/v1/tables/{code}/{year}/values` | セル upsert。未登録要素は 404 (自動登録しない)。null でセル削除 |

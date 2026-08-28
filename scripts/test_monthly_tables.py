@@ -48,6 +48,12 @@ def main() -> None:
     if _err(r)["code"] != "TABLE_NOT_FOUND":
         _fail(f"GET missing table code: {r.json()!r}")
 
+    # GET /tables empty (銘柄がまだ無い)
+    r = c.get("/api/v1/tables")
+    _expect(r, 200, "GET tables empty")
+    if r.json() != []:
+        _fail(f"empty tables: {r.json()!r}")
+
     # GET /tables/{code} with no years
     r = c.get(f"/api/v1/tables/{code}")
     _expect(r, 200, "GET years empty")
@@ -97,6 +103,11 @@ def main() -> None:
     _expect(r, 200, "GET years after create")
     if r.json() != {"code": code, "years": [2024]}:
         _fail(f"years: {r.json()!r}")
+
+    r = c.get("/api/v1/tables")
+    _expect(r, 200, "GET tables one code")
+    if r.json() != [{"code": code, "name": None, "years": [2024]}]:
+        _fail(f"tables one code: {r.json()!r}")
 
     # idempotent element create
     r = c.post(f"{base}/elements", json={"element": "売上高 前年比"})
@@ -266,6 +277,46 @@ def main() -> None:
     r = c.get("/api/v1/tables/72030")
     if r.json() != {"code": "72030", "years": [2024]}:
         _fail(f"5-digit years: {r.json()!r}")
+
+    # GET /tables: unique codes, years 昇順, code 順。stocks が無い name は null
+    r = c.get("/api/v1/tables")
+    _expect(r, 200, "GET tables list")
+    body = r.json()
+    if not isinstance(body, list):
+        _fail(f"tables should be a list: {body!r}")
+    if [x.get("code") for x in body] != ["7203", "72030"]:
+        _fail(f"tables sort by code: {body!r}")
+    t7203, t72030 = body
+    if t7203["years"] != [2024, 2025]:
+        _fail(f"years sorted: {t7203!r}")
+    if t72030["years"] != [2024]:
+        _fail(f"72030 years: {t72030!r}")
+    if t7203.get("name") not in (None, ""):
+        _fail(f"missing stock name should be null/empty: {t7203!r}")
+    if t72030.get("name") not in (None, ""):
+        _fail(f"missing stock name should be null/empty: {t72030!r}")
+
+    from app.db import SessionLocal
+    from app.models import Stock
+
+    db = SessionLocal()
+    try:
+        db.add(Stock(code="7203", name="トヨタ自動車"))
+        db.commit()
+    finally:
+        db.close()
+
+    r = c.get("/api/v1/tables")
+    _expect(r, 200, "GET tables with stock name")
+    by = {x["code"]: x for x in r.json()}
+    if set(by) != {"7203", "72030"}:
+        _fail(f"unique codes after stock: {list(by)!r}")
+    if by["7203"]["name"] != "トヨタ自動車":
+        _fail(f"name from stocks: {by['7203']!r}")
+    if by["72030"].get("name") not in (None, ""):
+        _fail(f"72030 still missing stock: {by['72030']!r}")
+    if by["7203"]["years"] != [2024, 2025] or by["72030"]["years"] != [2024]:
+        _fail(f"years after stock join: {by!r}")
 
     print("ok: monthly tables api")
 
