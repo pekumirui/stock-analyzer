@@ -83,7 +83,7 @@ APIキー方式。ダッシュボードで発行したキーを `x-api-key` ヘ�
 
 ```sql
 stocks            -- 銘柄マスタ
-  code TEXT PK    -- 5桁コード (例 "72030")
+  code TEXT PK    -- 5桁コード (例 "72030", "262A0")。先頭・末尾は数字、途中は 0-9A-Z
   name, sector33, market, product_category, updated_at
   -- product_category = J-Quants ProdCat
   --   011 内国株券 / 012 優先出資 / 013 REIT / 014 ETF
@@ -128,7 +128,7 @@ earnings_events   -- 決算発表イベントと発表後パフォーマンス
   alpha_1d, ... alpha_to_date   -- 対TOPIX超過リターン
 
 monthly_tables    -- 銘柄×年度の月次表 (暦月1〜12。会計月ではない)
-  code, year PK           -- code は 4〜5桁、year は西暦4桁
+  code, year PK           -- code は 4〜5桁 (英数字可。262A → 262A0)。year は西暦4桁
 
 monthly_elements  -- 表の行。element はトリムした原文、sort_order が登録順
   code, year, element PK

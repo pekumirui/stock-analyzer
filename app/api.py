@@ -272,10 +272,20 @@ def _normalize_element(s: str) -> str:
     return s.lower()
 
 
+# 5桁正規形は先頭・末尾が数字、途中は 0-9A-Z (72030 / 262A0)。4桁表示は末尾0を付けるが、
+# 数字4桁は従来どおりパディングしない (月次は 7203 と 72030 を別キー)。
+_CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
+
+
 def _parse_code(code: str) -> str:
-    if not isinstance(code, str) or not re.fullmatch(r"\d{4,5}", code):
-        raise ApiError(400, "INVALID_PARAM", "code は4〜5桁の数字です。")
-    return code
+    if not isinstance(code, str):
+        raise ApiError(400, "INVALID_PARAM", "code は4〜5桁の英数字です。")
+    s = code.upper()
+    if not _CODE_RE.fullmatch(s) or "." in s or "/" in s:
+        raise ApiError(400, "INVALID_PARAM", "code は4〜5桁の英数字です。")
+    if len(s) == 4 and not s.isdigit():
+        s = s + "0"
+    return s
 
 
 def _parse_year(year: str) -> int:

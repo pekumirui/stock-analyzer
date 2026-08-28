@@ -14,6 +14,7 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from app.api import ApiError, _parse_code  # noqa: E402
 from app.main import app  # noqa: E402
 
 INVALID_VALUE_MSG = "value は数値のみ受け付けます。単位(%、円など)やカンマは除去してください。"
@@ -317,6 +318,55 @@ def main() -> None:
         _fail(f"72030 still missing stock: {by['72030']!r}")
     if by["7203"]["years"] != [2024, 2025] or by["72030"]["years"] != [2024]:
         _fail(f"years after stock join: {by!r}")
+
+    # JPX alphanumeric (Intermestic 262A / canonical 262A0)
+    if _parse_code("262A") != "262A0":
+        _fail("parse 262A")
+    if _parse_code("262A0") != "262A0":
+        _fail("parse 262A0")
+    if _parse_code("262a") != "262A0":
+        _fail("parse 262a")
+    if _parse_code("7203") != "7203":
+        _fail("must not pad numeric 7203")
+    if _parse_code("72030") != "72030":
+        _fail("72030")
+    for bad in ("abc", "12", "262A/../x", "262A.0", "7203/../etc", "A2620"):
+        try:
+            _parse_code(bad)
+        except ApiError as exc:
+            if exc.status != 400 or exc.payload["error"]["code"] != "INVALID_PARAM":
+                _fail(f"bad code {bad!r}: {exc.payload!r}")
+        else:
+            _fail(f"should reject {bad!r}")
+
+    r = c.post("/api/v1/tables/262A/2024/elements", json={"element": "売上高前年比"})
+    _expect(r, 201, "262A create")
+    if r.json()["code"] != "262A0":
+        _fail(f"262A should canonicalize: {r.json()!r}")
+    r = c.get("/api/v1/tables/262A0/2024")
+    _expect(r, 200, "GET 262A0")
+    if r.json()["code"] != "262A0" or [e["element"] for e in r.json()["elements"]] != ["売上高前年比"]:
+        _fail(f"GET 262A0: {r.json()!r}")
+    r = c.get("/api/v1/tables/262A/2024")
+    _expect(r, 200, "GET 262A display")
+    if r.json()["code"] != "262A0":
+        _fail(f"GET 262A display: {r.json()!r}")
+    r = c.post("/api/v1/tables/262A0/2024/elements", json={"element": "売上高前年比"})
+    _expect(r, 200, "262A0 idempotent")
+    if r.json() != {"code": "262A0", "year": 2024, "element": "売上高前年比", "created": False}:
+        _fail(f"262A0 idempotent: {r.json()!r}")
+
+    r = c.post("/api/v1/tables/abc/2024/elements", json={"element": "x"})
+    _expect(r, 400, "abc")
+    if _err(r)["code"] != "INVALID_PARAM":
+        _fail(f"abc: {r.json()!r}")
+    r = c.post("/api/v1/tables/12/2024/elements", json={"element": "x"})
+    _expect(r, 400, "12")
+    if _err(r)["code"] != "INVALID_PARAM":
+        _fail(f"12: {r.json()!r}")
+    r = c.post("/api/v1/tables/262A/../x/2024/elements", json={"element": "x"})
+    if r.status_code == 201:
+        _fail(f"traversal created: {r.json()!r}")
 
     print("ok: monthly tables api")
 

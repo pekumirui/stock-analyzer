@@ -346,12 +346,26 @@ def test_db_tools() -> None:
         try:
             if m.parse_code("7203") != "72030":
                 raise SystemExit("parse_code 7203")
+            if m.parse_code("262A") != "262A0":
+                raise SystemExit("parse_code 262A")
+            if m.parse_code("262A0") != "262A0":
+                raise SystemExit("parse_code 262A0")
+            if m.parse_code("262a") != "262A0":
+                raise SystemExit("parse_code 262a")
             try:
                 m.parse_code("drop table")
             except ValueError:
                 pass
             else:
                 raise SystemExit("parse_code must reject junk")
+            for bad in ("abc", "12", "262A/../x", "262A.0"):
+                try:
+                    m.parse_code(bad)
+                except ValueError as exc:
+                    if "4-5" not in str(exc):
+                        raise SystemExit(f"parse_code {bad!r}: {exc}")
+                else:
+                    raise SystemExit(f"parse_code must reject {bad!r}")
             text = m.tool_db_stats({})
             if "72030" in text or "トヨタ" in text:
                 pass
@@ -417,10 +431,11 @@ def _stub_handle(method: str, path: str, raw: bytes, store: dict) -> tuple[int, 
         return body
 
     list_re = re.compile(r"^/api/v1/tables$")
-    get_re = re.compile(r"^/api/v1/tables/(\d{4,5})/(\d{4})$")
-    el_re = re.compile(r"^/api/v1/tables/(\d{4,5})/(\d{4})/elements$")
-    batch_re = re.compile(r"^/api/v1/tables/(\d{4,5})/(\d{4})/values/batch$")
-    ingest_re = re.compile(r"^/api/v1/tables/(\d{4,5})/ingest$")
+    _code = r"[0-9][0-9A-Z]{3}[0-9]?"
+    get_re = re.compile(rf"^/api/v1/tables/({_code})/(\d{{4}})$")
+    el_re = re.compile(rf"^/api/v1/tables/({_code})/(\d{{4}})/elements$")
+    batch_re = re.compile(rf"^/api/v1/tables/({_code})/(\d{{4}})/values/batch$")
+    ingest_re = re.compile(rf"^/api/v1/tables/({_code})/ingest$")
 
     if method == "GET" and list_re.fullmatch(path):
         by_code: dict[str, dict] = {}
@@ -595,6 +610,12 @@ def test_monthly_tools() -> None:
             raise SystemExit("batch url")
         if m.monthly_ingest_url("92790") != "http://127.0.0.1:8000/api/v1/tables/92790/ingest":
             raise SystemExit(f"ingest url: {m.monthly_ingest_url('92790')}")
+        if m.monthly_api_url("262A0", 2024) != "http://127.0.0.1:8000/api/v1/tables/262A0/2024":
+            raise SystemExit(f"alnum url: {m.monthly_api_url('262A0', 2024)}")
+        if m.monthly_api_url("262A", 2024) != "http://127.0.0.1:8000/api/v1/tables/262A/2024":
+            raise SystemExit(f"display url charset: {m.monthly_api_url('262A', 2024)}")
+        if m.monthly_ingest_url("262A0") != "http://127.0.0.1:8000/api/v1/tables/262A0/ingest":
+            raise SystemExit("alnum ingest url")
         if m.monthly_api_url("92790", tail="/ingest") != "http://127.0.0.1:8000/api/v1/tables/92790/ingest":
             raise SystemExit("ingest via monthly_api_url")
         ingest_parsed = urlparse(m.monthly_ingest_url("7203"))
@@ -638,10 +659,23 @@ def test_monthly_tools() -> None:
     _expect_value_error(m.parse_monthly_code, "7203/../etc", needle="4-5")
     _expect_value_error(m.parse_monthly_code, "7203.0", needle="4-5")
     _expect_value_error(m.parse_monthly_code, "720300", needle="4-5")
+    _expect_value_error(m.parse_monthly_code, "262A/../x", needle="4-5")
+    _expect_value_error(m.parse_monthly_code, "262A.0", needle="4-5")
     if m.parse_monthly_code("7203") != "7203":
         raise SystemExit("monthly code must not pad 7203")
     if m.parse_monthly_code("72030") != "72030":
         raise SystemExit("72030")
+    if m.parse_monthly_code("262A") != "262A0":
+        raise SystemExit("monthly 262A should canonicalize")
+    if m.parse_monthly_code("262A0") != "262A0":
+        raise SystemExit("monthly 262A0")
+    if m.parse_monthly_code("262a") != "262A0":
+        raise SystemExit("monthly 262a")
+    if not m.CODE_RE.fullmatch("262A0") or not m.CODE_RE.fullmatch("262A"):
+        raise SystemExit("CODE_RE must allow 262A / 262A0")
+    if m.CODE_RE.fullmatch("abc") or m.CODE_RE.fullmatch("12") or m.CODE_RE.fullmatch("262A/../x"):
+        raise SystemExit("CODE_RE must reject junk")
+    _expect_value_error(m.monthly_api_url, "262A/../x", 2024, needle="4-5")
     _expect_value_error(m.parse_monthly_year, 24, needle="4-digit")
     _expect_value_error(m.parse_monthly_year, "2024/../x", needle="4-digit")
     _expect_value_error(m.parse_monthly_year, 20240, needle="4-digit")
@@ -682,7 +716,7 @@ def test_monthly_tools() -> None:
             client = TestClient(m.create_app(token))
 
             before = len(recorded)
-            for bad in ("abc", "12", "7203/../etc", "7203.0"):
+            for bad in ("abc", "12", "7203/../etc", "7203.0", "262A/../x"):
                 text, is_error = m.call_tool("monthly_get", {"code": bad, "year": 2024})
                 if not is_error:
                     raise SystemExit(f"bad code {bad!r} should isError: {text}")
@@ -809,6 +843,32 @@ def test_monthly_tools() -> None:
             raise SystemExit(f"expected connection refused: {text!r}")
         if "Traceback" in text:
             raise SystemExit(f"traceback leaked: {text}")
+
+        with _monthly_stub() as (port, recorded):
+            os.environ["MCP_APP_HTTP"] = f"http://127.0.0.1:{port}"
+            text, is_error = m.call_tool(
+                "monthly_add_element",
+                {"code": "262A", "year": 2024, "element": "売上高前年比"},
+            )
+            if is_error:
+                raise SystemExit(f"alnum add: {text}")
+            text, is_error = m.call_tool("monthly_get", {"code": "262A0", "year": 2024})
+            if is_error:
+                raise SystemExit(f"alnum get: {text}")
+            status, body = _http_status_body(text)
+            if status != 200 or not isinstance(body, dict) or body.get("code") != "262A0":
+                raise SystemExit(f"alnum get body: {text}")
+            paths = [(rec["method"], rec["path"]) for rec in recorded]
+            if ("POST", "/api/v1/tables/262A0/2024/elements") not in paths:
+                raise SystemExit(f"262A should hit canonical path: {paths}")
+            if ("GET", "/api/v1/tables/262A0/2024") not in paths:
+                raise SystemExit(f"262A0 get path missing: {paths}")
+            for rec in recorded:
+                host = rec["host"].split(":")[0]
+                if host != "127.0.0.1":
+                    raise SystemExit(f"non-loopback host: {rec}")
+                if not rec["path"].startswith("/api/v1/tables"):
+                    raise SystemExit(f"path not allowlisted: {rec}")
     finally:
         if prev_http is None:
             os.environ.pop("MCP_APP_HTTP", None)
@@ -825,7 +885,7 @@ def test_monthly_ingest_tool() -> None:
             client = TestClient(m.create_app(token))
 
             before = len(recorded)
-            for bad in ("abc", "12", "7203/../etc", "7203.0"):
+            for bad in ("abc", "12", "7203/../etc", "7203.0", "262A/../x"):
                 text, is_error = m.call_tool(
                     "monthly_ingest",
                     {"code": bad, "months": [11, 12, 1], "rows": [{"element": "x", "values": {"11": 1}}]},
@@ -868,11 +928,23 @@ def test_monthly_ingest_tool() -> None:
             if r.json()["result"]["isError"] or "HTTP 200" not in rpc_text:
                 raise SystemExit(f"rpc monthly_ingest: {r.text}")
 
+            text, is_error = m.call_tool(
+                "monthly_ingest",
+                {
+                    "code": "262A",
+                    "months": [11, 12, 1],
+                    "rows": [{"element": "売上高", "values": {"11": 1.0}}],
+                },
+            )
+            if is_error:
+                raise SystemExit(f"alnum ingest: {text}")
+
             if not recorded:
                 raise SystemExit("monthly_ingest recorded nothing")
             allowed = {
                 ("POST", "/api/v1/tables/92790/ingest"),
                 ("POST", "/api/v1/tables/7203/ingest"),
+                ("POST", "/api/v1/tables/262A0/ingest"),
             }
             for rec in recorded:
                 host = rec["host"].split(":")[0]
@@ -889,6 +961,8 @@ def test_monthly_ingest_tool() -> None:
                     raise SystemExit(f"ingest body missing months/rows: {payload}")
             if not any(rec["path"] == "/api/v1/tables/92790/ingest" for rec in recorded):
                 raise SystemExit("did not POST /api/v1/tables/92790/ingest")
+            if not any(rec["path"] == "/api/v1/tables/262A0/ingest" for rec in recorded):
+                raise SystemExit("did not POST /api/v1/tables/262A0/ingest")
     finally:
         if prev_http is None:
             os.environ.pop("MCP_APP_HTTP", None)
