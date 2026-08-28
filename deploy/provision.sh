@@ -353,8 +353,8 @@ STOCK_HOME="$(getent passwd "$STOCK_USER" | cut -d: -f6)"
 if [[ -z "$STOCK_HOME" ]]; then
   echo "stock home not found; skip R2 mount" >&2
 else
-  # rclone FUSE rejects chown on a live mountpoint; skip if already mounted
-  if ! mountpoint -q "$STOCK_HOME/r2-share"; then
+  # if the path already exists (including a live rclone FUSE mount), do not mkdir/chown/chmod/install -d
+  if [[ ! -e "$STOCK_HOME/r2-share" ]]; then
     install -d -m 755 -o "$STOCK_USER" -g "$STOCK_USER" "$STOCK_HOME/r2-share"
   fi
   install -d -m 700 -o "$STOCK_USER" -g "$STOCK_USER" "$STOCK_HOME/.config"
