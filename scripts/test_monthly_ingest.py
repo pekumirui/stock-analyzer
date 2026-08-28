@@ -248,12 +248,40 @@ def test_all_or_nothing_similar() -> None:
         _fail(f"2026 after force: {r.json()!r}")
 
 
+def test_api_alnum_code() -> None:
+    c = TestClient(app)
+    _add_fy_end("262A0", date(2026, 5, 8), date(2025, 10, 31), "alnum-fy-1")
+    months = GIFT_MONTHS
+    values = {str(m): 100.0 + m for m in months}
+    r = c.post("/api/v1/tables/262A/ingest", json={
+        "months": months,
+        "rows": [{"element": "全店 売上高", "values": values}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 200, "alnum ingest")
+    if r.json().get("code") != "262A0":
+        _fail(f"alnum ingest code: {r.json()!r}")
+    r = c.get("/api/v1/tables/262A0/2025")
+    _expect(r, 200, "alnum GET 2025")
+    if r.json()["code"] != "262A0":
+        _fail(f"alnum GET code: {r.json()!r}")
+    r = c.post("/api/v1/tables/abc/ingest", json={
+        "months": months,
+        "rows": [{"element": "売上高", "values": {"11": 1}}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 400, "abc ingest")
+    if _err(r)["code"] != "INVALID_PARAM":
+        _fail(f"abc ingest: {r.json()!r}")
+
+
 def main() -> None:
     test_mapping_examples()
     test_fy_end_and_layout_errors()
     test_api_gift_ingest()
     test_api_errors()
     test_all_or_nothing_similar()
+    test_api_alnum_code()
     print("ok: monthly ingest")
 
 

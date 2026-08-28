@@ -74,7 +74,8 @@ SECRET_RE = re.compile(
 GREP_RE = re.compile(r"^[^\n\r\x00]{1,120}$")
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$")
 SHORT_SINCE_RE = re.compile(r"^(\d+)([smhd])$", re.I)
-CODE_RE = re.compile(r"^[0-9]{4,5}$")
+# 先頭・末尾は数字、途中は 0-9A-Z。4桁 (7203 / 262A) と 5桁 (72030 / 262A0) を許す。
+CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
 YEAR_RE = re.compile(r"^\d{4}$")
 DB_TABLES = ("stocks", "daily_prices", "topix", "statements", "indicators", "earnings_events")
 DEFAULT_APP_HTTP = "http://127.0.0.1:8000"
@@ -84,8 +85,9 @@ MONTHLY_PATH_PREFIX = "/api/v1/tables"
 MONTHLY_INGEST_TAIL = "/ingest"
 MONTHLY_TAILS = frozenset({"", "/elements", "/values/batch", MONTHLY_INGEST_TAIL})
 MONTHLY_URL_PATH_RE = re.compile(
-    r"^/api/v1/tables(?:/\d{4,5}(?:/\d{4}(?:/elements|/values/batch)?|/ingest))?$"
+    r"^/api/v1/tables(?:/[0-9][0-9A-Z]{3}[0-9]?(?:/\d{4}(?:/elements|/values/batch)?|/ingest))?$"
 )
+_CODE_ERR = "code must be 4-5 characters (e.g. 7203, 72030, 262A0)"
 
 
 def redact(text: str) -> str:
@@ -294,20 +296,25 @@ def open_db() -> sqlite3.Connection:
 
 
 def parse_code(raw: Any) -> str:
-    s = str(raw or "").strip()
-    if not CODE_RE.fullmatch(s):
-        raise ValueError("code must be 4-5 digits (e.g. 7203 or 72030)")
+    s = str(raw or "").strip().upper()
+    if not CODE_RE.fullmatch(s) or "." in s or "/" in s:
+        raise ValueError(_CODE_ERR)
     if len(s) == 4:
         s = s + "0"
     return s
 
 
 def parse_monthly_code(raw: Any) -> str:
-    """4-5 digits as given. Do not pad; monthly API treats 7203 and 72030 as distinct."""
-    s = str(raw or "").strip()
-    # digits only: blocks path traversal (/, .., dots) in /api/v1/tables/{code}/...
+    """4-5 char as given for numeric; 4-char JPX display (262A) becomes 262A0.
+
+    Do not pad 4-digit numeric; monthly API treats 7203 and 72030 as distinct.
+    """
+    s = str(raw or "").strip().upper()
+    # charset + explicit . / : blocks path traversal in /api/v1/tables/{code}/...
     if not CODE_RE.fullmatch(s) or "." in s or "/" in s:
-        raise ValueError("code must be 4-5 digits (e.g. 7203 or 72030)")
+        raise ValueError(_CODE_ERR)
+    if len(s) == 4 and not s.isdigit():
+        s = s + "0"
     return s
 
 
@@ -371,8 +378,8 @@ def monthly_api_url(code: str | None = None, year: int | None = None, tail: str 
         path = MONTHLY_PATH_PREFIX
     else:
         safe_code = quote(code, safe="")
-        if safe_code != code or not CODE_RE.fullmatch(code):
-            raise ValueError("code must be 4-5 digits (e.g. 7203 or 72030)")
+        if safe_code != code or not CODE_RE.fullmatch(code) or "." in code or "/" in code:
+            raise ValueError(_CODE_ERR)
         if tail == MONTHLY_INGEST_TAIL:
             if year is not None:
                 raise ValueError("invalid monthly API path")
@@ -683,11 +690,11 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_db_stats,
     ),
     "db_lookup": (
-        "1銘柄のマスタ・直近株価・決算・指標。code は 7203 または 72030。",
+        "1銘柄のマスタ・直近株価・決算・指標。code は 7203 / 72030 / 262A0。",
         {
             "type": "object",
             "properties": {
-                "code": {"type": "string", "description": "4-5 digit stock code"},
+                "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
                 "lines": {"type": "integer", "description": "recent price rows, 1-500, default 8"},
             },
             "required": ["code"],
@@ -704,7 +711,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         {
             "type": "object",
             "properties": {
-                "code": {"type": "string", "description": "4-5 digit stock code"},
+                "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
                 "year": {"type": "integer", "description": "4-digit calendar year"},
             },
             "required": ["code", "year"],
@@ -716,7 +723,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         {
             "type": "object",
             "properties": {
-                "code": {"type": "string", "description": "4-5 digit stock code"},
+                "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
                 "year": {"type": "integer", "description": "4-digit calendar year"},
                 "element": {"type": "string", "description": "row label, 1-50 chars"},
                 "force": {"type": "boolean", "description": "create even if a similar element exists"},
@@ -730,7 +737,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         {
             "type": "object",
             "properties": {
-                "code": {"type": "string", "description": "4-5 digit stock code"},
+                "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
                 "year": {"type": "integer", "description": "4-digit calendar year"},
                 "element": {"type": "string", "description": "existing row label"},
                 "values": {
@@ -755,7 +762,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         {
             "type": "object",
             "properties": {
-                "code": {"type": "string", "description": "4-5 digit stock code"},
+                "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
                 "months": {
                     "type": "array",
                     "description": "PDF column months in left-to-right order, unique integers 1-12",
