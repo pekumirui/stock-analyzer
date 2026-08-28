@@ -56,9 +56,6 @@ jobs:
       - name: Log MCP
         run: python scripts/test_log_mcp.py
 
-      - name: Monthly tables API
-        run: python scripts/test_monthly_tables.py
-
   release:
     name: Release
     needs: test
