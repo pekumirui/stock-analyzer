@@ -17,6 +17,7 @@ from .models import (
 )
 from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
+from .monthly_ingest import MonthlyIngestError, map_pdf_columns, parse_as_of
 
 router = APIRouter(prefix="/api")
 
@@ -341,6 +342,74 @@ def _upsert_value(db: Session, code: str, year: int, element: str, month: int, v
         row.value = value  # last-write-wins
 
 
+def _ensure_element(db: Session, code: str, year_i: int, element: str, force: bool) -> bool:
+    existing = (db.query(MonthlyElement)
+                .filter(MonthlyElement.code == code, MonthlyElement.year == year_i)
+                .all())
+    for row in existing:
+        if row.element == element:
+            return False
+    similar = [row.element for row in existing if _normalize_element(row.element) == _normalize_element(element)]
+    if similar and not force:
+        raise ApiError(409, "ELEMENT_SIMILAR_EXISTS", _SIMILAR_MSG, extra={"similar": similar})
+    if db.get(MonthlyTable, (code, year_i)) is None:
+        db.add(MonthlyTable(code=code, year=year_i))
+        db.flush()
+    max_order = (db.query(func.max(MonthlyElement.sort_order))
+                 .filter(MonthlyElement.code == code, MonthlyElement.year == year_i)
+                 .scalar())
+    db.add(MonthlyElement(code=code, year=year_i, element=element, sort_order=(max_order or 0) + 1))
+    db.flush()
+    return True
+
+
+def _parse_months(raw: Any) -> list[int]:
+    if not isinstance(raw, list) or len(raw) < 1:
+        raise ApiError(400, "INVALID_PARAM", "months は1〜12の重複しない整数の配列です。")
+    out: list[int] = []
+    seen: set[int] = set()
+    for item in raw:
+        month = _parse_month(item)
+        if month in seen:
+            raise ApiError(400, "INVALID_PARAM", "months は1〜12の重複しない整数の配列です。")
+        seen.add(month)
+        out.append(month)
+    return out
+
+
+def _parse_month_key(raw: Any) -> int:
+    if isinstance(raw, str) and raw.isdigit():
+        return _parse_month(int(raw))
+    return _parse_month(raw)
+
+
+def _parse_ingest_rows(raw: Any, months: list[int]) -> list[tuple[str, bool, dict[int, float | None]]]:
+    if not isinstance(raw, list):
+        raise ApiError(400, "INVALID_PARAM", "rows は {element, values} の配列です。")
+    month_set = set(months)
+    parsed: list[tuple[str, bool, dict[int, float | None]]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ApiError(400, "INVALID_PARAM", "rows の各要素は {element, values} です。")
+        element = _parse_element(item.get("element"))
+        force = item.get("force") is True
+        values_raw = item.get("values")
+        if not isinstance(values_raw, dict):
+            raise ApiError(400, "INVALID_PARAM", "values は月をキーにしたオブジェクトです。")
+        values: dict[int, float | None] = {}
+        for key, val in values_raw.items():
+            month = _parse_month_key(key)
+            if month not in month_set:
+                raise ApiError(400, "INVALID_PARAM", "values の月が months にありません。")
+            values[month] = _parse_value(val)
+        parsed.append((element, force, values))
+    return parsed
+
+
+def _ingest_error(exc: MonthlyIngestError) -> ApiError:
+    return ApiError(exc.status, exc.code, exc.message)
+
+
 @router_v1.post("/tables/{code}/{year}/elements")
 def post_element(code: str, year: str, response: Response,
                  payload: dict | None = Body(None), db: Session = Depends(get_session)):
@@ -349,30 +418,64 @@ def post_element(code: str, year: str, response: Response,
     body = _require_object(payload)
     element = _parse_element(body.get("element"))
     force = body.get("force") is True
-
-    existing = (db.query(MonthlyElement)
-                .filter(MonthlyElement.code == code, MonthlyElement.year == year_i)
-                .all())
-    for row in existing:
-        if row.element == element:
-            response.status_code = 200
-            return {"code": code, "year": year_i, "element": element, "created": False}
-
-    similar = [row.element for row in existing if _normalize_element(row.element) == _normalize_element(element)]
-    if similar and not force:
-        raise ApiError(409, "ELEMENT_SIMILAR_EXISTS", _SIMILAR_MSG, extra={"similar": similar})
-
-    if db.get(MonthlyTable, (code, year_i)) is None:
-        db.add(MonthlyTable(code=code, year=year_i))
-        db.flush()
-
-    max_order = (db.query(func.max(MonthlyElement.sort_order))
-                 .filter(MonthlyElement.code == code, MonthlyElement.year == year_i)
-                 .scalar())
-    db.add(MonthlyElement(code=code, year=year_i, element=element, sort_order=(max_order or 0) + 1))
+    created = _ensure_element(db, code, year_i, element, force)
     db.commit()
-    response.status_code = 201
-    return {"code": code, "year": year_i, "element": element, "created": True}
+    if created:
+        response.status_code = 201
+        return {"code": code, "year": year_i, "element": element, "created": True}
+    response.status_code = 200
+    return {"code": code, "year": year_i, "element": element, "created": False}
+
+
+@router_v1.post("/tables/{code}/ingest")
+def ingest_monthly(code: str, payload: dict | None = Body(None), db: Session = Depends(get_session)):
+    """PDF列順 + statements.fiscal_year_end から暦年を割り当てる。year は受け取らない。"""
+    code = _parse_code(code)
+    body = _require_object(payload)
+    months = _parse_months(body.get("months"))
+    rows = _parse_ingest_rows(body.get("rows"), months)
+    try:
+        as_of = parse_as_of(body.get("as_of"))
+    except MonthlyIngestError as exc:
+        raise _ingest_error(exc) from exc
+
+    fy_ends = [fy for (fy,) in (
+        db.query(Statement.fiscal_year_end)
+        .filter(Statement.code == code, Statement.fiscal_year_end.isnot(None))
+        .order_by(Statement.disclosed_date.desc())
+        .all()
+    )]
+    try:
+        fy_end_month, layout, mapping = map_pdf_columns(months, fy_ends, as_of)
+    except MonthlyIngestError as exc:
+        raise _ingest_error(exc) from exc
+
+    updated: list[dict] = []
+    try:
+        for element, force, values in rows:
+            by_year: dict[int, list[int]] = defaultdict(list)
+            for month in months:
+                if month not in values:
+                    continue
+                year_i = mapping[month]
+                _ensure_element(db, code, year_i, element, force)
+                _upsert_value(db, code, year_i, element, month, values[month])
+                by_year[year_i].append(month)
+            for year_i in sorted(by_year):
+                updated.append({"year": year_i, "element": element, "months": by_year[year_i]})
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    return {
+        "code": code,
+        "fy_end_month": fy_end_month,
+        "layout": layout,
+        "as_of": as_of.isoformat(),
+        "mapping": {str(month): mapping[month] for month in months},
+        "updated": updated,
+    }
 
 
 @router_v1.get("/tables")

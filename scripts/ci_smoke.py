@@ -292,6 +292,12 @@ def main() -> None:
     )
     if monthly.returncode != 0:
         raise SystemExit("monthly tables tests failed")
+    ingest = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "test_monthly_ingest.py")],
+        cwd=ROOT,
+    )
+    if ingest.returncode != 0:
+        raise SystemExit("monthly ingest tests failed")
 
 
 if __name__ == "__main__":

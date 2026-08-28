@@ -138,6 +138,9 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
   value
 ```
 
+月次の year は暦年。PDF 取込は `POST /api/v1/tables/{code}/ingest` が列順 (`months`) と `statements.fiscal_year_end` から暦年を割り当てる。クライアントは year を渡さない。年付き PUT は訂正用。
+
+
 ### Q単独値の算出 (保存せずAPI側で導出)
 `Q単独 = 当期累計 − 前四半期累計`(1Qはそのまま)。前年同期のQ単独と比較しYoY成長率を計算。EPSも同様。
 
