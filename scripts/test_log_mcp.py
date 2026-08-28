@@ -282,6 +282,14 @@ def _test_oauth_inner(token: str) -> None:
         raise SystemExit("redirect_ok allowed evil host")
     if not m.redirect_ok("https://grok.com/oauth/callback"):
         raise SystemExit("redirect_ok rejected grok.com")
+    if not m.redirect_ok("https://www.cursor.com/agents/mcp/oauth/callback"):
+        raise SystemExit("redirect_ok rejected www.cursor.com")
+    if not m.redirect_ok("https://cursor.com/agents/mcp/oauth/callback"):
+        raise SystemExit("redirect_ok rejected cursor.com")
+    if not m.redirect_ok("cursor://anysphere.cursor-mcp/oauth/callback"):
+        raise SystemExit("redirect_ok rejected cursor:// callback")
+    if m.redirect_ok("https://cursor.evil.example/cb"):
+        raise SystemExit("redirect_ok allowed cursor lookalike host")
 
 
 def test_db_tools() -> None:

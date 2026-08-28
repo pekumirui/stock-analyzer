@@ -593,11 +593,18 @@ def redirect_ok(uri: str) -> bool:
     host = (parsed.hostname or "").lower()
     if parsed.scheme in ("http", "https") and host in {"127.0.0.1", "localhost", "testserver"}:
         return True
-    if parsed.scheme in {"grok", "x-grok", "grok-app"}:
+    if parsed.scheme in {"grok", "x-grok", "grok-app", "cursor"}:
         return True
     if parsed.scheme != "https":
         return False
-    return host == "grok.com" or host.endswith(".grok.com") or host == "x.ai" or host.endswith(".x.ai")
+    return (
+        host == "grok.com"
+        or host.endswith(".grok.com")
+        or host == "x.ai"
+        or host.endswith(".x.ai")
+        or host == "cursor.com"
+        or host.endswith(".cursor.com")
+    )
 
 
 def oauth_path(app_dir_path: Path) -> Path:

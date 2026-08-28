@@ -81,6 +81,7 @@ Python は `.venv\Scripts\python.exe` を使う。システムの python で依�
 - 認証は `MCP_TOKEN`（Bearer または OAuth で発行した access token）。GitHub secret と同値。値をログに出さない
 - 本番ログは `/var/log/app/`（`stock-analyzer.log` / `batch.log` / `mcp.log`）。journal も残る。ローカルのバッチはアプリディレクトリの `batch.log`
 - Grok カスタムコネクタは OAuth（PKCE、クライアントシークレットなし）。Client ID は `stock-analyzer`。許可画面で `MCP_TOKEN` を入れる
+- Cursor / Grok Bot の OAuth callback は `https://www.cursor.com/agents/mcp/oauth/callback`、デスクトップは `http://localhost:8787/callback`（localhost で許可済）、フォールバックは `cursor://anysphere.cursor-mcp/oauth/callback`
 - アプリ本体 (`app/*`) にログ API を足さない。Debug VPS ワークフローは MCP が死んだときの退避路
 
 ## 実装方針
