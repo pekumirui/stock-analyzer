@@ -106,6 +106,14 @@ def dest_filename(pubdate: str, company_code: str, company_name: str, title: str
     return f"{stem}.pdf"
 
 
+def dest_path(
+    dest: Path, pubdate: str, company_code: str, company_name: str, title: str
+) -> Path:
+    """monthly/{code}/YYYYMMDD_CODE_….pdf。code は display_code（TDnet as-is）。"""
+    code = display_code(company_code)
+    return dest / code / dest_filename(pubdate, company_code, company_name, title)
+
+
 def already_have(path: Path) -> bool:
     try:
         return path.is_file() and path.stat().st_size > 0
@@ -262,24 +270,25 @@ def run(days: int, dest: Path) -> int:
     saved = skipped = failed = 0
     for rec in records:
         pdf_id = rec["_pdf_id"]
-        name = dest_filename(
+        path = dest_path(
+            dest,
             str(rec.get("pubdate") or ""),
             str(rec.get("company_code") or ""),
             str(rec.get("company_name") or ""),
             str(rec.get("title") or ""),
         )
-        path = dest / name
+        rel = path.relative_to(dest)
         if already_have(path):
             skipped += 1
-            print(f"skip exists {name}", flush=True)
+            print(f"skip exists {rel}", flush=True)
             continue
         try:
             n = download_pdf(pdf_id, path)
             saved += 1
-            print(f"saved {name} ({n} bytes)", flush=True)
+            print(f"saved {rel} ({n} bytes)", flush=True)
         except Exception as e:
             failed += 1
-            print(f"fail {name} id={pdf_id}: {e}", flush=True)
+            print(f"fail {rel} id={pdf_id}: {e}", flush=True)
         time.sleep(SLEEP_SEC)
     print(
         f"tdnet_monthly_r2 done listed={len(records)} "

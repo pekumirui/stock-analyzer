@@ -11,6 +11,7 @@ from tdnet_monthly_r2 import (  # noqa: E402
     already_have,
     date_window,
     dest_filename,
+    dest_path,
     display_code,
     is_monthly_title,
     parse_list_body,
@@ -86,6 +87,50 @@ def test_dest_filename_gift() -> None:
     )
     if nfkc != expect:
         _fail(f"nfkc dest_filename: {nfkc!r} != {expect!r}")
+
+
+def test_dest_path_per_code_dir() -> None:
+    dest = Path("/home/stock/r2-share/monthly")
+    got = dest_path(
+        dest,
+        "2026-08-05 19:00:00",
+        "92790",
+        "ギフトHD",
+        "2026年10月期7月度_直営店売上速報についてのお知らせ",
+    )
+    expect = (
+        dest
+        / "9279"
+        / "20260805_9279_ギフトHD_2026年10月期7月度_直営店売上速報についてのお知らせ.pdf"
+    )
+    if got != expect:
+        _fail(f"dest_path: {got} != {expect}")
+    if got.parent.name != "9279":
+        _fail(f"code dir: {got.parent.name!r}")
+    if "92790" in str(got):
+        _fail(f"must not pad 9279 to 5-digit: {got}")
+
+    as_is = dest_path(dest, "2026-08-05", "9279", "ギフトHD", "月次")
+    if as_is.parent.name != "9279" or as_is.name.split("_")[1] != "9279":
+        _fail(f"4-char as-is: {as_is}")
+
+    a = dest_path(dest, "2026-08-05", "262A", "テスト", "月次")
+    if a.parent.name != "262A":
+        _fail(f"262A dir: {a.parent.name!r}")
+    if a.name.split("_")[1] != "262A":
+        _fail(f"262A filename code: {a.name!r}")
+    if "262A0" in str(a):
+        _fail(f"must not pad 262A: {a}")
+
+    b = dest_path(dest, "2026-08-05", "386A0", "テスト", "月次")
+    if b.parent.name != "386A":
+        _fail(f"386A dir: {b.parent.name!r}")
+    if not b.name.startswith("20260805_386A_"):
+        _fail(f"386A dest: {b.name!r}")
+    if "386A0" in str(b):
+        _fail(f"must not keep yanoshin 5-char padding: {b}")
+    if b.parent == dest:
+        _fail("dest must be nested under {code}, not flat monthly/")
 
 
 def test_is_monthly_title() -> None:
@@ -164,6 +209,22 @@ def test_date_window_and_skip(tmp: Path) -> None:
     if already_have(missing):
         _fail("missing should not skip")
 
+    dest = tmp / "monthly"
+    dest.mkdir()
+    nested = dest_path(dest, "2026-08-05", "92790", "ギフトHD", "月次")
+    if already_have(nested):
+        _fail("missing nested should not skip")
+    flat = dest / dest_filename("2026-08-05", "92790", "ギフトHD", "月次")
+    flat.write_bytes(b"%PDF-1.4")
+    if already_have(nested):
+        _fail("old flat dest/name must not skip the nested path")
+    nested.parent.mkdir(parents=True, exist_ok=True)
+    nested.write_bytes(b"%PDF-1.4")
+    if not already_have(nested):
+        _fail("nested non-empty should skip")
+    if nested != dest / "9279" / dest_filename("2026-08-05", "92790", "ギフトHD", "月次"):
+        _fail(f"skip path is not nested: {nested}")
+
 
 def main() -> None:
     from tempfile import TemporaryDirectory
@@ -171,6 +232,7 @@ def main() -> None:
     test_display_code()
     test_tdnet_pdf_id()
     test_dest_filename_gift()
+    test_dest_path_per_code_dir()
     test_is_monthly_title()
     test_parse_list_body_tdnet_key()
     with TemporaryDirectory() as d:

@@ -22,7 +22,7 @@
 | `app/monthly_ingest.py` | PDF 月次列順 + `fiscal_year_end` → 暦年（純関数。year は受け取らない）。unit は見出しから |
 | `app/main.py` | FastAPI エントリ + SPA 配信 |
 | `scripts/run_batch.py` | 日次バッチ / バックフィル |
-| `scripts/tdnet_monthly_r2.py` | TDnet 月次PDF → R2 mount (`/home/stock/r2-share/monthly`) |
+| `scripts/tdnet_monthly_r2.py` | TDnet 月次PDF → R2 mount (`/home/stock/r2-share/monthly/{code}/`) |
 | `scripts/check_demo.py` | スキーマ検査 + 旧デモ取り残しガード |
 | `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ）。月次表ツールは localhost:8000 の FastAPI のみ |
 
@@ -86,7 +86,7 @@ Python は `.venv\Scripts\python.exe` を使う。システムの python で依�
 - 認証は `MCP_TOKEN`（Bearer または OAuth で発行した access token）。GitHub secret と同値。値をログに出さない
 - 本番ログは `/var/log/app/`（`stock-analyzer.log` / `batch.log` / `mcp.log`）。journal も残る。ローカルのバッチはアプリディレクトリの `batch.log`
 - Cloudflare R2 bucket `share` は VPS 上で rclone user mount（`stock`、`loginctl enable-linger`）→ `/home/stock/r2-share`。認証は GitHub secrets `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` を `update.sh` が `~/.config/rclone/rclone.conf` に書く（リポジトリに置かない）
-- `scripts/tdnet_monthly_r2.py N` が TDnet 月次PDF を `/home/stock/r2-share/monthly` へ保存。cron 18:00/21:00 JST は N=1。初回は Actions の **TDnet monthly backfill**（days=30）。`*.pdf` と `rclone.conf` はコミットしない
+- `scripts/tdnet_monthly_r2.py N` が TDnet 月次PDF を `/home/stock/r2-share/monthly/{code}/YYYYMMDD_CODE_….pdf` へ保存。`{code}` は TDnet の発行体コードそのまま（9279, 262A）。J-Quants の5桁（92790, 262A0）にはしない。cron 18:00/21:00 JST は N=1。初回は Actions の **TDnet monthly backfill**（days=30）。`*.pdf` と `rclone.conf` はコミットしない
 - Grok カスタムコネクタは OAuth（PKCE、クライアントシークレットなし）。Client ID は `stock-analyzer`。許可画面で `MCP_TOKEN` を入れる
 - Cursor / Grok Bot の OAuth callback は `https://www.cursor.com/agents/mcp/oauth/callback`、デスクトップは `http://localhost:8787/callback`（localhost で許可済）、フォールバックは `cursor://anysphere.cursor-mcp/oauth/callback`
 - アプリ本体 (`app/*`) にログ API を足さない。Debug VPS ワークフローは MCP が死んだときの退避路
