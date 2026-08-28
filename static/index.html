@@ -96,6 +96,18 @@
   table.fin tr.prevfy td { opacity:.78; }
   table.fin tr.sep td { border-top:1px solid var(--border); }
   table.fin .loss { color:var(--up); }
+  /* 月次タブ: 左一覧 + 右の年選択/表。決算速報の選択行と同じ強調 */
+  @media (min-width:1100px){
+    .monthly-grid.egrid { grid-template-columns:minmax(240px,1fr) minmax(0,3fr); }
+    .monthly-grid .a-list { grid-column:span 1; }
+    .monthly-grid .a-fin { grid-column:span 1; }
+    .monthly-grid .a-list .scroll { max-height:70vh; }
+    .monthly-grid .a-fin .tbl-wrap { max-height:70vh; }
+  }
+  #monthly-tbl tbody tr { cursor:pointer; }
+  #monthly-tbl tbody tr:hover { background:var(--row); }
+  #monthly-tbl tbody tr.sel { background:var(--row-sel); box-shadow:inset 3px 0 0 var(--accent); }
+  table.monthly { font-variant-numeric:tabular-nums; }
   .fin-tabs { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
   .ftab { background:transparent; border:none; color:var(--sub); padding:5px 14px; cursor:pointer; font-size:13px; }
   .ftab.on { background:var(--accent); color:#fff; }
@@ -130,6 +142,7 @@
     <button data-tab="earnings" class="active">決算速報</button>
     <button data-tab="chart">チャート</button>
     <button data-tab="screener">スクリーナー</button>
+    <button data-tab="monthly">月次</button>
   </nav>
 </header>
 <main>
@@ -215,6 +228,22 @@
   </div>
 </section>
 
+<section id="tab-monthly" style="display:none">
+  <div class="egrid monthly-grid">
+    <div class="panel a-list">
+      <div class="phead"><h3>月次データ</h3></div>
+      <div class="tbl-wrap scroll" id="monthly-list"></div>
+    </div>
+    <div class="panel a-fin">
+      <div class="phead">
+        <h3 id="monthly-title">銘柄を選択してください</h3>
+        <select id="monthly-year" style="display:none"></select>
+      </div>
+      <div class="tbl-wrap" id="monthly-table-wrap"></div>
+    </div>
+  </div>
+</section>
+
 </main>
 <script>
 const $ = s => document.querySelector(s);
@@ -240,9 +269,10 @@ function gc(c){
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
   b.classList.add("active");
-  ["earnings","chart","screener"].forEach(t => $("#tab-"+t).style.display = t===b.dataset.tab?"":"none");
-  document.querySelector("main").classList.toggle("wide", b.dataset.tab==="earnings");
+  ["earnings","chart","screener","monthly"].forEach(t => $("#tab-"+t).style.display = t===b.dataset.tab?"":"none");
+  document.querySelector("main").classList.toggle("wide", b.dataset.tab==="earnings" || b.dataset.tab==="monthly");
   if (b.dataset.tab==="screener" && !$("#sc-tbl").innerHTML) loadScreener();
+  if (b.dataset.tab==="monthly") loadMonthlyList();
 });
 
 // ---- 決算カレンダー ----
@@ -599,6 +629,74 @@ async function loadScreener(){
   }
   $("#sc-tbl").innerHTML = h;
 }
+
+// ---- 月次 ----
+let monthlyRows=[], selMonthlyCode=null;
+
+async function loadMonthlyList(){
+  monthlyRows = await api("/api/v1/tables").catch(()=>[]);
+  renderMonthlyList();
+}
+
+function renderMonthlyList(){
+  if(!monthlyRows.length){
+    $("#monthly-list").innerHTML = `<div class="sub">登録された月次データはありません</div>`;
+    return;
+  }
+  let h = `<table id="monthly-tbl"><thead><tr><th class="l">コード</th><th class="l">銘柄</th></tr></thead><tbody>`;
+  for(const r of monthlyRows){
+    h += `<tr data-code="${r.code}" onclick="selectMonthly('${r.code}')"><td class="l">${r.code}</td><td class="l">${r.name||""}</td></tr>`;
+  }
+  $("#monthly-list").innerHTML = h + `</tbody></table>`;
+  markMonthlySel();
+}
+
+function markMonthlySel(){
+  document.querySelectorAll("#monthly-list [data-code]").forEach(el =>
+    el.classList.toggle("sel", el.dataset.code === selMonthlyCode));
+}
+
+function selectMonthly(code){
+  selMonthlyCode = code;
+  markMonthlySel();
+  const row = monthlyRows.find(r => r.code === code);
+  if(!row) return;
+  const years = row.years || [];
+  const sel = $("#monthly-year");
+  sel.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join("");
+  if(years.length){
+    sel.value = String(years[years.length-1]);
+    sel.style.display = "";
+  } else {
+    sel.style.display = "none";
+  }
+  const nm = row.name || "";
+  $("#monthly-title").textContent = nm ? `${nm} ${row.code}` : row.code;
+  loadMonthlyTable();
+}
+
+async function loadMonthlyTable(){
+  if(!selMonthlyCode) return;
+  const year = $("#monthly-year").value;
+  if(!year){ $("#monthly-table-wrap").innerHTML = ""; return; }
+  const d = await api(`/api/v1/tables/${selMonthlyCode}/${year}`).catch(()=>null);
+  if(!d){ $("#monthly-table-wrap").innerHTML = `<div class="sub">データなし</div>`; return; }
+  let h = `<table class="fin monthly"><thead><tr><th class="l">項目</th>`;
+  for(let m=1;m<=12;m++) h += `<th>${m}月</th>`;
+  h += `</tr></thead><tbody>`;
+  for(const e of d.elements || []){
+    const vals = e.values || {};
+    h += `<tr><td class="l">${e.element}</td>`;
+    for(let m=1;m<=12;m++){
+      const v = vals[String(m)];
+      const txt = (v==null || v==="") ? "" : Number(v).toLocaleString("ja-JP",{maximumFractionDigits:4});
+      h += `<td class="num">${txt}</td>`;
+    }
+    h += `</tr>`;
+  }
+  $("#monthly-table-wrap").innerHTML = h + `</tbody></table>`;
+}
+$("#monthly-year").addEventListener("change", loadMonthlyTable);
 
 // 初期表示: 決算速報タブは広幅、カレンダーはPCのみ開いた状態にする
 document.querySelector("main").classList.add("wide");
