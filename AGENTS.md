@@ -22,7 +22,7 @@
 | `app/main.py` | FastAPI エントリ + SPA 配信 |
 | `scripts/run_batch.py` | 日次バッチ / バックフィル |
 | `scripts/check_demo.py` | スキーマ検査 + 旧デモ取り残しガード |
-| `deploy/log_mcp.py` | VPS 上の読み取り専用ログ MCP（本番のみ） |
+| `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ）。月次表ツールは localhost:8000 の FastAPI のみ |
 
 新しい依存やレイヤを増やさない。ロジックは上のファイルに足す。
 
@@ -77,7 +77,7 @@ Python は `.venv\Scripts\python.exe` を使う。システムの python で依�
 ## 本番ログ MCP
 
 - VPS 上の `stock-analyzer-mcp` が `127.0.0.1:8010/mcp` を待ち、nginx が `https://<domain>/mcp` に出す
-- ツールは `service_status` / `app_logs` / `batch_logs` / `nginx_logs` / `db_stats` / `db_lookup` のみ。任意シェルも restart も任意 SQL もない
+- ツールは `service_status` / `app_logs` / `batch_logs` / `nginx_logs` / `db_stats` / `db_lookup` / `monthly_list` / `monthly_get` / `monthly_add_element` / `monthly_put_values`。任意シェルも restart も任意 SQL もない。月次ツールは `http://127.0.0.1:8000/api/v1/tables` のみ（nginx Basic は使わない）
 - 認証は `MCP_TOKEN`（Bearer または OAuth で発行した access token）。GitHub secret と同値。値をログに出さない
 - 本番ログは `/var/log/app/`（`stock-analyzer.log` / `batch.log` / `mcp.log`）。journal も残る。ローカルのバッチはアプリディレクトリの `batch.log`
 - Grok カスタムコネクタは OAuth（PKCE、クライアントシークレットなし）。Client ID は `stock-analyzer`。許可画面で `MCP_TOKEN` を入れる
