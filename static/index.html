@@ -686,17 +686,25 @@ async function loadMonthlyTable(){
   h += `</tr></thead><tbody>`;
   for(const e of d.elements || []){
     const vals = e.values || {};
+    const unit = e.unit || "number";
     h += `<tr><td class="l">${e.element}</td>`;
     for(let m=1;m<=12;m++){
       const v = vals[String(m)];
-      const txt = (v==null || v==="") ? "" : Number(v).toLocaleString("ja-JP",{maximumFractionDigits:4});
-      h += `<td class="num">${txt}</td>`;
+      h += `<td class="num">${fmtMonthlyCell(v, unit)}</td>`;
     }
     h += `</tr>`;
   }
   $("#monthly-table-wrap").innerHTML = h + `</tbody></table>`;
 }
 $("#monthly-year").addEventListener("change", loadMonthlyTable);
+
+function fmtMonthlyCell(v, unit){
+  if(v==null || v==="") return "";
+  let n = Number(v);
+  if(!Number.isFinite(n)) return "";
+  if(unit==="yoy_pct") n += 100;
+  return n.toLocaleString("ja-JP",{maximumFractionDigits:4});
+}
 
 // 初期表示: 決算速報タブは広幅、カレンダーはPCのみ開いた状態にする
 document.querySelector("main").classList.add("wide");

@@ -18,7 +18,9 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
 from app.monthly_ingest import (  # noqa: E402
     MonthlyIngestError,
+    format_monthly_cell,
     map_pdf_columns,
+    parse_monthly_unit,
     plan_column_years,
     resolve_fy_end_month,
 )
@@ -157,6 +159,8 @@ def test_api_gift_ingest() -> None:
     els = r.json()["elements"]
     if [e["element"] for e in els] != ["全店 売上高"]:
         _fail(f"2025 elements: {els!r}")
+    if els[0].get("unit") != "number":
+        _fail(f"omitted unit defaults to number: {els!r}")
     v2025 = {str(k): float(val) for k, val in els[0]["values"].items()}
     if set(v2025) != {"11", "12"}:
         _fail(f"GET 2025 months: {v2025!r}")
@@ -275,6 +279,74 @@ def test_api_alnum_code() -> None:
         _fail(f"abc ingest: {r.json()!r}")
 
 
+def test_unit_display_and_ingest() -> None:
+    if format_monthly_cell(125.8, "yoy_index") != "125.8":
+        _fail(f"yoy_index display: {format_monthly_cell(125.8, 'yoy_index')!r}")
+    if format_monthly_cell(105.2, "yoy_index") != "105.2":
+        _fail(f"yoy_index 105.2: {format_monthly_cell(105.2, 'yoy_index')!r}")
+    if format_monthly_cell(-7.1, "yoy_pct") != "92.9":
+        _fail(f"yoy_pct display: {format_monthly_cell(-7.1, 'yoy_pct')!r}")
+    if format_monthly_cell(303, "number") != "303":
+        _fail(f"number display: {format_monthly_cell(303, 'number')!r}")
+    if format_monthly_cell(None, "number") != "":
+        _fail("empty cell")
+    try:
+        parse_monthly_unit("percent")
+    except MonthlyIngestError as exc:
+        if exc.status != 400 or exc.code != "INVALID_PARAM":
+            _fail(f"invalid unit: {exc.status} {exc.code}")
+    else:
+        _fail("invalid unit should 400")
+
+    c = TestClient(app)
+    code = "55550"
+    _add_fy_end(code, date(2026, 5, 8), date(2025, 10, 31), "unit-fy-1")
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [11, 12, 1],
+        "rows": [
+            {"element": "全店売上高", "values": {"11": 125.8}, "unit": "yoy_index"},
+            {"element": "売上高前年比", "values": {"11": -7.1}, "unit": "yoy_pct"},
+            {"element": "店舗数", "values": {"11": 303}, "unit": "number"},
+        ],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 200, "ingest with units")
+    r = c.get(f"/api/v1/tables/{code}/2025")
+    _expect(r, 200, "GET ingest units")
+    by = {e["element"]: e for e in r.json()["elements"]}
+    if by["全店売上高"]["unit"] != "yoy_index" or float(by["全店売上高"]["values"]["11"]) != 125.8:
+        _fail(f"ingest yoy_index stored: {by['全店売上高']!r}")
+    if format_monthly_cell(float(by["全店売上高"]["values"]["11"]), "yoy_index") != "125.8":
+        _fail("ingest yoy_index display")
+    if by["売上高前年比"]["unit"] != "yoy_pct" or float(by["売上高前年比"]["values"]["11"]) != -7.1:
+        _fail(f"ingest yoy_pct stored: {by['売上高前年比']!r}")
+    if format_monthly_cell(float(by["売上高前年比"]["values"]["11"]), "yoy_pct") != "92.9":
+        _fail("ingest yoy_pct display")
+    if by["店舗数"]["unit"] != "number" or float(by["店舗数"]["values"]["11"]) != 303:
+        _fail(f"ingest number stored: {by['店舗数']!r}")
+
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [11, 12, 1],
+        "rows": [{"element": "x", "values": {"11": 1}, "unit": "percent"}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 400, "ingest invalid unit")
+    if _err(r)["code"] != "INVALID_PARAM":
+        _fail(f"ingest invalid unit: {r.json()!r}")
+
+    # magnitude must not decide unit: 125.8 with yoy_pct stays 125.8
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [11, 12, 1],
+        "rows": [{"element": "大きい指数", "values": {"11": 125.8}, "unit": "yoy_pct"}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 200, "ingest 125.8 as yoy_pct")
+    r = c.get(f"/api/v1/tables/{code}/2025")
+    by = {e["element"]: e for e in r.json()["elements"]}
+    if by["大きい指数"]["unit"] != "yoy_pct" or float(by["大きい指数"]["values"]["11"]) != 125.8:
+        _fail(f"must not convert 125.8: {by['大きい指数']!r}")
+
+
 def main() -> None:
     test_mapping_examples()
     test_fy_end_and_layout_errors()
@@ -282,6 +354,7 @@ def main() -> None:
     test_api_errors()
     test_all_or_nothing_similar()
     test_api_alnum_code()
+    test_unit_display_and_ingest()
     print("ok: monthly ingest")
 
 

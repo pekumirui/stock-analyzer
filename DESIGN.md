@@ -132,6 +132,7 @@ monthly_tables    -- 銘柄×年度の月次表 (暦月1〜12。会計月では�
 
 monthly_elements  -- 表の行。element はトリムした原文、sort_order が登録順
   code, year, element PK
+  unit                  -- number | yoy_index | yoy_pct。保存値は PDF 原文のまま
 
 monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字列は拒否)
   code, year, element, month PK
@@ -139,6 +140,8 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
 ```
 
 月次の year は暦年。PDF 取込は `POST /api/v1/tables/{code}/ingest` が列順 (`months`) と `statements.fiscal_year_end` から暦年を割り当てる。クライアントは year を渡さない。年付き PUT は訂正用。
+
+月次の unit は PDF 見出しから付ける（値の大きさから推測しない）。`yoy_index` は 100=フラットの指数をそのまま保存・表示。`yoy_pct` は符号付き変化率をそのまま保存し、表では `100+v` を出す（▲ や +X.X% にはしない）。`number` は件数など。
 
 
 ### Q単独値の算出 (保存せずAPI側で導出)

@@ -4,6 +4,10 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Sequence
 
+# 保存値は PDF 原文。unit は表示だけ。値の大きさから推測しない。
+MONTHLY_UNITS = ("number", "yoy_index", "yoy_pct")
+_UNIT_MSG = "unit は number / yoy_index / yoy_pct です。"
+
 
 class MonthlyIngestError(Exception):
     """API の error.code に載せる。DB には触らない。"""
@@ -13,6 +17,29 @@ class MonthlyIngestError(Exception):
         self.code = code
         self.message = message
         super().__init__(message)
+
+
+def parse_monthly_unit(raw: Any, *, omitted_ok: bool = False) -> str | None:
+    """許可文字列だけ。省略時は omitted_ok なら None。大きさでは決めない。"""
+    if raw is None and omitted_ok:
+        return None
+    if not isinstance(raw, str) or raw not in MONTHLY_UNITS:
+        raise MonthlyIngestError(400, "INVALID_PARAM", _UNIT_MSG)
+    return raw
+
+
+def format_monthly_cell(value: float | None, unit: str | None) -> str:
+    """空セルは空。表は指数 100=フラット。保存値は変えない。"""
+    if value is None:
+        return ""
+    n = float(value)
+    if n != n or n in (float("inf"), float("-inf")):
+        return ""
+    u = unit or "number"
+    if u == "yoy_pct":
+        n = 100.0 + n
+    text = f"{n:.4f}".rstrip("0").rstrip(".")
+    return text if text else "0"
 
 
 def parse_as_of(raw: Any, *, default: date | None = None) -> date:

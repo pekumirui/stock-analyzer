@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.api import ApiError, _parse_code  # noqa: E402
 from app.main import app  # noqa: E402
+from app.monthly_ingest import MonthlyIngestError, format_monthly_cell, parse_monthly_unit  # noqa: E402
 
 INVALID_VALUE_MSG = "value は数値のみ受け付けます。単位(%、円など)やカンマは除去してください。"
 SIMILAR_MSG = "類似する要素が既に存在します。既存要素を使うか、force=true で強制登録してください。"
@@ -39,6 +40,40 @@ def _expect(resp, status: int, label: str) -> None:
 
 
 def main() -> None:
+    # display is index 100=flat (not +X.X% / ▲). unused third arg: value+unit only.
+    if format_monthly_cell(None, "yoy_index") != "":
+        _fail("empty cell")
+    if format_monthly_cell(105.2, "yoy_index") != "105.2":
+        _fail(f"yoy_index 105.2: {format_monthly_cell(105.2, 'yoy_index')!r}")
+    if format_monthly_cell(125.8, "yoy_index") != "125.8":
+        _fail(f"yoy_index 125.8: {format_monthly_cell(125.8, 'yoy_index')!r}")
+    if format_monthly_cell(94.8, "yoy_index") != "94.8":
+        _fail(f"yoy_index 94.8: {format_monthly_cell(94.8, 'yoy_index')!r}")
+    if format_monthly_cell(-7.1, "yoy_pct") != "92.9":
+        _fail(f"yoy_pct -7.1: {format_monthly_cell(-7.1, 'yoy_pct')!r}")
+    if format_monthly_cell(5.2, "yoy_pct") != "105.2":
+        _fail(f"yoy_pct 5.2: {format_monthly_cell(5.2, 'yoy_pct')!r}")
+    if format_monthly_cell(13, "yoy_pct") != "113":
+        _fail(f"yoy_pct +13: {format_monthly_cell(13, 'yoy_pct')!r}")
+    if format_monthly_cell(303, "number") != "303":
+        _fail(f"number 303: {format_monthly_cell(303, 'number')!r}")
+    if format_monthly_cell(None, "number") != "":
+        _fail("empty number")
+    try:
+        parse_monthly_unit("percent")
+    except MonthlyIngestError as exc:
+        if exc.status != 400 or exc.code != "INVALID_PARAM":
+            _fail(f"invalid unit: {exc.status} {exc.code}")
+    else:
+        _fail("invalid unit should 400")
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    if "fmtMonthlyCell" not in html:
+        _fail("index.html missing fmtMonthlyCell")
+    if "function fmtMonthlyCell" not in html:
+        _fail("index.html missing fmtMonthlyCell function")
+    if "▲" in html or "+X.X%" in html:
+        _fail("index.html still has percent/▲ monthly display")
+
     c = TestClient(app)
     code, year = "7203", "2024"
     base = f"/api/v1/tables/{code}/{year}"
@@ -90,7 +125,8 @@ def main() -> None:
     # table auto-create on POST elements
     r = c.post(f"{base}/elements", json={"element": " 売上高 前年比 "})
     _expect(r, 201, "create element")
-    if r.json() != {"code": code, "year": 2024, "element": "売上高 前年比", "created": True}:
+    if r.json() != {"code": code, "year": 2024, "element": "売上高 前年比",
+                    "unit": "number", "created": True}:
         _fail(f"create: {r.json()!r}")
 
     r = c.get(base)
@@ -99,6 +135,8 @@ def main() -> None:
         _fail(f"get table: {r.json()!r}")
     if [e["element"] for e in r.json()["elements"]] != ["売上高 前年比"]:
         _fail(f"elements after create: {r.json()!r}")
+    if r.json()["elements"][0].get("unit") != "number":
+        _fail(f"GET default unit: {r.json()!r}")
 
     r = c.get(f"/api/v1/tables/{code}")
     _expect(r, 200, "GET years after create")
@@ -113,7 +151,8 @@ def main() -> None:
     # idempotent element create
     r = c.post(f"{base}/elements", json={"element": "売上高 前年比"})
     _expect(r, 200, "idempotent exact")
-    if r.json() != {"code": code, "year": 2024, "element": "売上高 前年比", "created": False}:
+    if r.json() != {"code": code, "year": 2024, "element": "売上高 前年比",
+                    "unit": "number", "created": False}:
         _fail(f"idempotent: {r.json()!r}")
 
     r = c.post(f"{base}/elements", json={"element": " 売上高 前年比 "})
@@ -133,7 +172,8 @@ def main() -> None:
     # force=true
     r = c.post(f"{base}/elements", json={"element": "売上高前年比", "force": True})
     _expect(r, 201, "force create")
-    if r.json() != {"code": code, "year": 2024, "element": "売上高前年比", "created": True}:
+    if r.json() != {"code": code, "year": 2024, "element": "売上高前年比",
+                    "unit": "number", "created": True}:
         _fail(f"force: {r.json()!r}")
 
     # 3つ目 (登録順確認用)
@@ -353,7 +393,8 @@ def main() -> None:
         _fail(f"GET 262A display: {r.json()!r}")
     r = c.post("/api/v1/tables/262A0/2024/elements", json={"element": "売上高前年比"})
     _expect(r, 200, "262A0 idempotent")
-    if r.json() != {"code": "262A0", "year": 2024, "element": "売上高前年比", "created": False}:
+    if r.json() != {"code": "262A0", "year": 2024, "element": "売上高前年比",
+                    "unit": "number", "created": False}:
         _fail(f"262A0 idempotent: {r.json()!r}")
 
     r = c.post("/api/v1/tables/abc/2024/elements", json={"element": "x"})
@@ -368,7 +409,200 @@ def main() -> None:
     if r.status_code == 201:
         _fail(f"traversal created: {r.json()!r}")
 
+    # unit: ingest/POST accept it, PUT changes only unit, GET returns it.
+    # Storage is PDF original. Display is index 100=flat.
+    r = c.get(base)
+    _expect(r, 200, "GET units default")
+    for el in r.json()["elements"]:
+        if el.get("unit") != "number":
+            _fail(f"7203 default unit: {el!r}")
+
+    r = c.post("/api/v1/tables/7203/2026/elements", json={"element": "全店売上高", "unit": "yoy_index"})
+    _expect(r, 201, "create yoy_index")
+    if r.json()["unit"] != "yoy_index" or r.json()["created"] is not True:
+        _fail(f"yoy_index create: {r.json()!r}")
+    r = c.put("/api/v1/tables/7203/2026/values",
+              json={"element": "全店売上高", "month": 11, "value": 125.8})
+    _expect(r, 200, "put yoy_index 125.8")
+
+    r = c.post("/api/v1/tables/7203/2026/elements", json={"element": "売上変化", "unit": "yoy_pct"})
+    _expect(r, 201, "create yoy_pct")
+    r = c.put("/api/v1/tables/7203/2026/values",
+              json={"element": "売上変化", "month": 11, "value": -7.1})
+    _expect(r, 200, "put yoy_pct -7.1")
+
+    r = c.post("/api/v1/tables/7203/2026/elements", json={"element": "店舗数", "unit": "number"})
+    _expect(r, 201, "create number")
+    r = c.put("/api/v1/tables/7203/2026/values",
+              json={"element": "店舗数", "month": 11, "value": 303})
+    _expect(r, 200, "put number 303")
+
+    r = c.get("/api/v1/tables/7203/2026")
+    _expect(r, 200, "GET 2026 units")
+    by = {e["element"]: e for e in r.json()["elements"]}
+    if by["全店売上高"]["unit"] != "yoy_index" or float(by["全店売上高"]["values"]["11"]) != 125.8:
+        _fail(f"store yoy_index: {by['全店売上高']!r}")
+    if format_monthly_cell(float(by["全店売上高"]["values"]["11"]), by["全店売上高"]["unit"]) != "125.8":
+        _fail("display yoy_index 125.8")
+    if by["売上変化"]["unit"] != "yoy_pct" or float(by["売上変化"]["values"]["11"]) != -7.1:
+        _fail(f"store yoy_pct: {by['売上変化']!r}")
+    if format_monthly_cell(float(by["売上変化"]["values"]["11"]), by["売上変化"]["unit"]) != "92.9":
+        _fail("display yoy_pct -7.1")
+    if by["店舗数"]["unit"] != "number" or float(by["店舗数"]["values"]["11"]) != 303:
+        _fail(f"store number: {by['店舗数']!r}")
+    if format_monthly_cell(float(by["店舗数"]["values"]["11"]), by["店舗数"]["unit"]) != "303":
+        _fail("display number 303")
+
+    # PUT unit only; values stay
+    r = c.put("/api/v1/tables/7203/2026/elements",
+              json={"element": "全店売上高", "unit": "yoy_pct"})
+    _expect(r, 200, "PUT unit only")
+    if r.json() != {"code": "7203", "year": 2026, "element": "全店売上高", "unit": "yoy_pct"}:
+        _fail(f"PUT unit: {r.json()!r}")
+    r = c.get("/api/v1/tables/7203/2026")
+    by = {e["element"]: e for e in r.json()["elements"]}
+    if by["全店売上高"]["unit"] != "yoy_pct" or float(by["全店売上高"]["values"]["11"]) != 125.8:
+        _fail(f"PUT must not convert value: {by['全店売上高']!r}")
+    r = c.put("/api/v1/tables/7203/2026/elements",
+              json={"element": "全店売上高", "unit": "yoy_index"})
+    _expect(r, 200, "PUT unit restore")
+
+    # idempotent POST without unit keeps existing unit
+    r = c.post("/api/v1/tables/7203/2026/elements", json={"element": "全店売上高"})
+    _expect(r, 200, "POST omit unit")
+    if r.json()["unit"] != "yoy_index" or r.json()["created"] is not False:
+        _fail(f"omit unit must keep: {r.json()!r}")
+
+    # do not guess unit from magnitude
+    r = c.post("/api/v1/tables/7203/2026/elements",
+               json={"element": "大きい指数", "unit": "yoy_pct"})
+    _expect(r, 201, "yoy_pct with 125.8")
+    r = c.put("/api/v1/tables/7203/2026/values",
+              json={"element": "大きい指数", "month": 1, "value": 125.8})
+    _expect(r, 200, "put 125.8 as yoy_pct")
+    r = c.get("/api/v1/tables/7203/2026")
+    by = {e["element"]: e for e in r.json()["elements"]}
+    if by["大きい指数"]["unit"] != "yoy_pct" or float(by["大きい指数"]["values"]["1"]) != 125.8:
+        _fail(f"must not guess/convert 125.8: {by['大きい指数']!r}")
+
+    r = c.post("/api/v1/tables/7203/2026/elements", json={"element": "x", "unit": "percent"})
+    _expect(r, 400, "invalid unit POST")
+    if _err(r)["code"] != "INVALID_PARAM":
+        _fail(f"invalid unit POST: {r.json()!r}")
+    r = c.put("/api/v1/tables/7203/2026/elements",
+              json={"element": "店舗数", "unit": "percent"})
+    _expect(r, 400, "invalid unit PUT")
+    if _err(r)["code"] != "INVALID_PARAM":
+        _fail(f"invalid unit PUT: {r.json()!r}")
+    r = c.put("/api/v1/tables/7203/2026/elements", json={"element": "店舗数"})
+    _expect(r, 400, "PUT missing unit")
+    r = c.put("/api/v1/tables/7203/2099/elements",
+              json={"element": "店舗数", "unit": "number"})
+    _expect(r, 404, "PUT unit missing table")
+    if _err(r)["code"] != "TABLE_NOT_FOUND":
+        _fail(f"PUT missing table: {r.json()!r}")
+    r = c.put("/api/v1/tables/7203/2026/elements",
+              json={"element": "未登録", "unit": "number"})
+    _expect(r, 404, "PUT unit missing element")
+    if _err(r)["code"] != "ELEMENT_NOT_FOUND":
+        _fail(f"PUT missing element: {r.json()!r}")
+
+    # 7203 numeric values from earlier tests still intact
+    r = c.get(base)
+    by_name = {e["element"]: e["values"] for e in r.json()["elements"]}
+    ov = {str(k): v for k, v in by_name["営業利益"].items()}
+    if "2" not in ov or "3" not in ov or float(ov["2"]) != 98.7:
+        _fail(f"7203 numeric values broken: {ov!r}")
+
+    _assert_known_prod_units(c)
+
     print("ok: monthly tables api")
+
+
+def _assert_known_prod_units(c) -> None:
+    """Gift / Intermestic がテストDBにあれば unit を付ける。値は変換しない。無ければ skip。"""
+    from app.db import SessionLocal, apply_known_monthly_element_units
+    from app.models import MonthlyElement, MonthlyValue
+
+    db = SessionLocal()
+    try:
+        if (not db.query(MonthlyElement).filter(MonthlyElement.code == "92790").all()
+                and not db.query(MonthlyElement).filter(MonthlyElement.code == "262A0").all()):
+            return
+    finally:
+        db.close()
+
+    r = c.post("/api/v1/tables/92790/2025/elements", json={"element": "全店売上高"})
+    if r.status_code not in (200, 201):
+        _fail(f"seed 92790: {r.status_code} {r.text[:200]}")
+    r = c.post("/api/v1/tables/92790/2025/elements", json={"element": "店舗数"})
+    _expect(r, 201, "seed 92790 stores")
+    r = c.put("/api/v1/tables/92790/2025/values",
+              json={"element": "全店売上高", "month": 11, "value": 125.8})
+    _expect(r, 200, "seed gift 125.8")
+    r = c.put("/api/v1/tables/92790/2025/values",
+              json={"element": "店舗数", "month": 11, "value": 303})
+    _expect(r, 200, "seed gift stores")
+
+    r = c.get("/api/v1/tables/262A0/2024")
+    if r.status_code == 200:
+        r = c.post("/api/v1/tables/262A0/2024/elements", json={"element": "店舗数"})
+        if r.status_code not in (200, 201):
+            _fail(f"seed 262A0 stores: {r.status_code} {r.text[:200]}")
+        r = c.put("/api/v1/tables/262A0/2024/values",
+                  json={"element": "売上高前年比", "month": 1, "value": -7.1})
+        _expect(r, 200, "seed intermestic -7.1")
+
+    apply_known_monthly_element_units()
+
+    db = SessionLocal()
+    try:
+        gift = db.query(MonthlyElement).filter(MonthlyElement.code == "92790").all()
+        inter = db.query(MonthlyElement).filter(MonthlyElement.code == "262A0").all()
+        if not gift and not inter:
+            return
+        for row in gift:
+            want = "number" if "店舗数" in row.element else "yoy_index"
+            if row.unit != want:
+                _fail(f"92790 {row.element!r} unit {row.unit!r} != {want}")
+        for row in inter:
+            if row.element == "売上高前年比" and row.unit != "yoy_pct":
+                _fail(f"262A0 売上高前年比 unit {row.unit!r}")
+            if "店舗数" in row.element and row.unit != "number":
+                _fail(f"262A0 店舗数 unit {row.unit!r}")
+        v = db.get(MonthlyValue, ("92790", 2025, "全店売上高", 11))
+        if v is None or float(v.value) != 125.8:
+            _fail(f"gift value converted: {v}")
+        v = db.get(MonthlyValue, ("262A0", 2024, "売上高前年比", 1))
+        if v is not None and float(v.value) != -7.1:
+            _fail(f"intermestic value converted: {v.value}")
+    finally:
+        db.close()
+
+    r = c.get("/api/v1/tables/92790/2025")
+    _expect(r, 200, "GET 92790 after unit assign")
+    by = {e["element"]: e for e in r.json()["elements"]}
+    if by["全店売上高"]["unit"] != "yoy_index" or float(by["全店売上高"]["values"]["11"]) != 125.8:
+        _fail(f"92790 GET: {by['全店売上高']!r}")
+    if format_monthly_cell(125.8, by["全店売上高"]["unit"]) != "125.8":
+        _fail("92790 display")
+    if by["店舗数"]["unit"] != "number" or float(by["店舗数"]["values"]["11"]) != 303:
+        _fail(f"92790 stores GET: {by['店舗数']!r}")
+
+    r = c.get("/api/v1/tables/262A0/2024")
+    if r.status_code != 200:
+        return
+    by = {e["element"]: e for e in r.json()["elements"]}
+    if "売上高前年比" in by:
+        if by["売上高前年比"]["unit"] != "yoy_pct":
+            _fail(f"262A0 GET unit: {by['売上高前年比']!r}")
+        vals = by["売上高前年比"]["values"]
+        if "1" in vals or 1 in vals:
+            raw = float(vals.get("1", vals.get(1)))
+            if raw != -7.1:
+                _fail(f"262A0 value converted: {vals!r}")
+            if format_monthly_cell(raw, "yoy_pct") != "92.9":
+                _fail("262A0 display")
 
 
 if __name__ == "__main__":
