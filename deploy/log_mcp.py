@@ -3,6 +3,7 @@
 No extra deps: Starlette ships with FastAPI. Listens on 127.0.0.1:8010/mcp.
 Arbitrary shell/SQL is not exposed. journalctl units, log paths, and SELECT shapes are allowlisted.
 Monthly table tools call http://127.0.0.1:8000/api/v1/tables only (not nginx, not user URLs).
+monthly_ingest POSTs /api/v1/tables/{code}/ingest and does not send year.
 """
 from __future__ import annotations
 
@@ -80,7 +81,11 @@ DEFAULT_APP_HTTP = "http://127.0.0.1:8000"
 APP_HTTP_TIMEOUT = 10
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 MONTHLY_PATH_PREFIX = "/api/v1/tables"
-MONTHLY_TAILS = frozenset({"", "/elements", "/values/batch"})
+MONTHLY_INGEST_TAIL = "/ingest"
+MONTHLY_TAILS = frozenset({"", "/elements", "/values/batch", MONTHLY_INGEST_TAIL})
+MONTHLY_URL_PATH_RE = re.compile(
+    r"^/api/v1/tables(?:/\d{4,5}(?:/\d{4}(?:/elements|/values/batch)?|/ingest))?$"
+)
 
 
 def redact(text: str) -> str:
@@ -361,19 +366,37 @@ def monthly_api_url(code: str | None = None, year: int | None = None, tail: str 
     if tail not in MONTHLY_TAILS:
         raise ValueError("invalid monthly API path")
     if code is None:
+        if year is not None or tail:
+            raise ValueError("invalid monthly API path")
         path = MONTHLY_PATH_PREFIX
     else:
         safe_code = quote(code, safe="")
         if safe_code != code or not CODE_RE.fullmatch(code):
             raise ValueError("code must be 4-5 digits (e.g. 7203 or 72030)")
-        path = f"{MONTHLY_PATH_PREFIX}/{safe_code}/{year}{tail}"
+        if tail == MONTHLY_INGEST_TAIL:
+            if year is not None:
+                raise ValueError("invalid monthly API path")
+            path = f"{MONTHLY_PATH_PREFIX}/{safe_code}{MONTHLY_INGEST_TAIL}"
+        else:
+            if year is None:
+                raise ValueError("invalid monthly API path")
+            path = f"{MONTHLY_PATH_PREFIX}/{safe_code}/{year}{tail}"
     if ".." in path or not path.startswith(MONTHLY_PATH_PREFIX):
+        raise ValueError("invalid monthly API path")
+    if not MONTHLY_URL_PATH_RE.fullmatch(path):
         raise ValueError("invalid monthly API path")
     url = app_http_base() + path
     parsed = urlparse(url)
     if not _is_loopback_host(parsed.hostname) or not parsed.path.startswith(MONTHLY_PATH_PREFIX):
         raise ValueError("monthly API URL must be loopback /api/v1/tables")
+    if parsed.path != path:
+        raise ValueError("invalid monthly API path")
     return url
+
+
+def monthly_ingest_url(code: str) -> str:
+    """POST /api/v1/tables/{code}/ingest. No year in the path."""
+    return monthly_api_url(code, tail=MONTHLY_INGEST_TAIL)
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -393,6 +416,8 @@ def call_monthly_api(method: str, url: str, body: dict[str, Any] | None = None) 
     if parsed.scheme not in ("http", "https") or not _is_loopback_host(parsed.hostname):
         raise ValueError("monthly API host must be loopback")
     if not parsed.path.startswith(MONTHLY_PATH_PREFIX):
+        raise ValueError("monthly API path must be /api/v1/tables")
+    if not MONTHLY_URL_PATH_RE.fullmatch(parsed.path):
         raise ValueError("monthly API path must be /api/v1/tables")
     data = None
     headers = {"Accept": "application/json"}
@@ -561,6 +586,56 @@ def tool_monthly_put_values(args: dict[str, Any]) -> str:
     return call_monthly_api("PUT", monthly_api_url(code, year, "/values/batch"), body)
 
 
+def _parse_ingest_months(raw: Any) -> list[int]:
+    if not isinstance(raw, list) or len(raw) < 1:
+        raise ValueError("months must be a non-empty array of unique integers 1-12")
+    out: list[int] = []
+    seen: set[int] = set()
+    for item in raw:
+        month = parse_monthly_month(item)
+        if month in seen:
+            raise ValueError("months must be a non-empty array of unique integers 1-12")
+        seen.add(month)
+        out.append(month)
+    return out
+
+
+def _parse_ingest_rows(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        raise ValueError("rows must be an array of {element, values}")
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ValueError("rows must be an array of {element, values}")
+        element = item.get("element")
+        if not isinstance(element, str) or not element.strip():
+            raise ValueError("element is required")
+        values = item.get("values")
+        if not isinstance(values, dict):
+            raise ValueError("values must be an object of month -> number|null")
+        row: dict[str, Any] = {"element": element, "values": values}
+        if "force" in item:
+            if not isinstance(item["force"], bool):
+                raise ValueError("force must be a boolean")
+            row["force"] = item["force"]
+        out.append(row)
+    return out
+
+
+def tool_monthly_ingest(args: dict[str, Any]) -> str:
+    code = parse_monthly_code(args.get("code"))
+    body: dict[str, Any] = {
+        "months": _parse_ingest_months(args.get("months")),
+        "rows": _parse_ingest_rows(args.get("rows")),
+    }
+    if "as_of" in args and args["as_of"] is not None:
+        as_of = args["as_of"]
+        if not isinstance(as_of, str):
+            raise ValueError("as_of must be YYYY-MM-DD")
+        body["as_of"] = as_of
+    return call_monthly_api("POST", monthly_ingest_url(code), body)
+
+
 TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = {
     "service_status": (
         "nginx / stock-analyzer / MCP の active 状態、待ち受けポート、localhost の HTTP コード。",
@@ -651,7 +726,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_monthly_add_element,
     ),
     "monthly_put_values": (
-        "月次セルを一括 upsert。localhost:8000 の PUT /api/v1/tables/{code}/{year}/values/batch。value の null は削除。",
+        "月次セルを一括 upsert（訂正用）。localhost:8000 の PUT /api/v1/tables/{code}/{year}/values/batch。value の null は削除。新規登録は monthly_ingest。",
         {
             "type": "object",
             "properties": {
@@ -674,6 +749,40 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
             "required": ["code", "year", "element", "values"],
         },
         tool_monthly_put_values,
+    ),
+    "monthly_ingest": (
+        "PDF月次を暦年に割り当てて登録。localhost:8000 の POST /api/v1/tables/{code}/ingest。year は渡さない（決算の事業年度末から決める）。年付き put は訂正用。",
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "4-5 digit stock code"},
+                "months": {
+                    "type": "array",
+                    "description": "PDF column months in left-to-right order, unique integers 1-12",
+                    "items": {"type": "integer"},
+                },
+                "rows": {
+                    "type": "array",
+                    "description": "list of {element, values, force?}",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "element": {"type": "string", "description": "row label, 1-50 chars"},
+                            "values": {
+                                "type": "object",
+                                "description": "month (string or int key) -> number, or null to delete",
+                                "additionalProperties": {"type": ["number", "null"]},
+                            },
+                            "force": {"type": "boolean", "description": "create even if a similar element exists"},
+                        },
+                        "required": ["element", "values"],
+                    },
+                },
+                "as_of": {"type": "string", "description": "disclosure date YYYY-MM-DD; default server date"},
+            },
+            "required": ["code", "months", "rows"],
+        },
+        tool_monthly_ingest,
     ),
 }
 

@@ -114,6 +114,7 @@ def test_http_auth_and_tools() -> None:
         "monthly_get",
         "monthly_add_element",
         "monthly_put_values",
+        "monthly_ingest",
     }
     if names != expect:
         raise SystemExit(f"tools {names} != {expect}")
@@ -419,6 +420,7 @@ def _stub_handle(method: str, path: str, raw: bytes, store: dict) -> tuple[int, 
     get_re = re.compile(r"^/api/v1/tables/(\d{4,5})/(\d{4})$")
     el_re = re.compile(r"^/api/v1/tables/(\d{4,5})/(\d{4})/elements$")
     batch_re = re.compile(r"^/api/v1/tables/(\d{4,5})/(\d{4})/values/batch$")
+    ingest_re = re.compile(r"^/api/v1/tables/(\d{4,5})/ingest$")
 
     if method == "GET" and list_re.fullmatch(path):
         by_code: dict[str, dict] = {}
@@ -498,6 +500,21 @@ def _stub_handle(method: str, path: str, raw: bytes, store: dict) -> tuple[int, 
                 row["values"][element][month] = val
         return 200, {"code": code, "year": year, "element": element, "updated": list(ops.keys())}
 
+    m = ingest_re.fullmatch(path)
+    if method == "POST" and m:
+        code = unquote(m.group(1))
+        body = load_body()
+        if "year" in body:
+            return 400, {"error": {"code": "INVALID_PARAM", "message": "year must not be sent"}}
+        return 200, {
+            "code": code,
+            "fy_end_month": 10,
+            "layout": "fiscal",
+            "as_of": body.get("as_of"),
+            "mapping": {},
+            "updated": [],
+        }
+
     return 404, {"error": {"code": "NOT_FOUND", "message": path}}
 
 
@@ -576,12 +593,27 @@ def test_monthly_tools() -> None:
             raise SystemExit("elements url")
         if m.monthly_api_url("7203", 2024, "/values/batch") != "http://127.0.0.1:8000/api/v1/tables/7203/2024/values/batch":
             raise SystemExit("batch url")
+        if m.monthly_ingest_url("92790") != "http://127.0.0.1:8000/api/v1/tables/92790/ingest":
+            raise SystemExit(f"ingest url: {m.monthly_ingest_url('92790')}")
+        if m.monthly_api_url("92790", tail="/ingest") != "http://127.0.0.1:8000/api/v1/tables/92790/ingest":
+            raise SystemExit("ingest via monthly_api_url")
+        ingest_parsed = urlparse(m.monthly_ingest_url("7203"))
+        if ingest_parsed.path != "/api/v1/tables/7203/ingest":
+            raise SystemExit(f"ingest path has year?: {ingest_parsed.path}")
+        if ingest_parsed.hostname != "127.0.0.1":
+            raise SystemExit(f"ingest host: {ingest_parsed.hostname}")
         try:
             m.monthly_api_url("7203", 2024, "/etc/passwd")
         except ValueError:
             pass
         else:
             raise SystemExit("arbitrary tail should fail")
+        try:
+            m.monthly_api_url("7203", 2024, "/ingest")
+        except ValueError:
+            pass
+        else:
+            raise SystemExit("year-bearing ingest URL should fail")
 
         os.environ["MCP_APP_HTTP"] = "http://kabukpi.com/api"
         _expect_value_error(m.app_http_base, needle="loopback")
@@ -784,6 +816,86 @@ def test_monthly_tools() -> None:
             os.environ["MCP_APP_HTTP"] = prev_http
 
 
+def test_monthly_ingest_tool() -> None:
+    prev_http = os.environ.get("MCP_APP_HTTP")
+    try:
+        with _monthly_stub() as (port, recorded):
+            os.environ["MCP_APP_HTTP"] = f"http://127.0.0.1:{port}"
+            token = "test-token-for-ci-only"
+            client = TestClient(m.create_app(token))
+
+            before = len(recorded)
+            for bad in ("abc", "12", "7203/../etc", "7203.0"):
+                text, is_error = m.call_tool(
+                    "monthly_ingest",
+                    {"code": bad, "months": [11, 12, 1], "rows": [{"element": "x", "values": {"11": 1}}]},
+                )
+                if not is_error:
+                    raise SystemExit(f"ingest bad code {bad!r} should isError: {text}")
+            if len(recorded) != before:
+                raise SystemExit(f"ingest bad code must not hit HTTP: {recorded[before:]}")
+
+            text, is_error = m.call_tool(
+                "monthly_ingest",
+                {
+                    "code": "92790",
+                    "year": 2025,
+                    "months": [11, 12, 1, 2, 3, 4, 5, 6, 7],
+                    "rows": [{"element": "全店 売上高", "values": {"11": 125.8, "12": 124.7, "1": 125.9}}],
+                    "as_of": "2026-08-05",
+                },
+            )
+            if is_error:
+                raise SystemExit(f"monthly_ingest: {text}")
+            status, body = _http_status_body(text)
+            if status != 200 or not isinstance(body, dict) or body.get("code") != "92790":
+                raise SystemExit(f"ingest body: {text}")
+
+            r = _rpc(
+                client,
+                "tools/call",
+                {
+                    "name": "monthly_ingest",
+                    "arguments": {
+                        "code": "7203",
+                        "months": [1, 2, 3],
+                        "rows": [{"element": "売上高", "values": {"1": 1.0}}],
+                    },
+                },
+                req_id=50,
+            )
+            rpc_text = r.json()["result"]["content"][0]["text"]
+            if r.json()["result"]["isError"] or "HTTP 200" not in rpc_text:
+                raise SystemExit(f"rpc monthly_ingest: {r.text}")
+
+            if not recorded:
+                raise SystemExit("monthly_ingest recorded nothing")
+            allowed = {
+                ("POST", "/api/v1/tables/92790/ingest"),
+                ("POST", "/api/v1/tables/7203/ingest"),
+            }
+            for rec in recorded:
+                host = rec["host"].split(":")[0]
+                if host != "127.0.0.1":
+                    raise SystemExit(f"non-loopback host: {rec}")
+                if (rec["method"], rec["path"]) not in allowed:
+                    raise SystemExit(f"unexpected ingest request: {rec}")
+                if "/202" in rec["path"] or rec["path"].count("/") != 5:
+                    raise SystemExit(f"ingest path must be /api/v1/tables/{{code}}/ingest: {rec}")
+                payload = json.loads(rec["body"].decode("utf-8")) if rec["body"] else {}
+                if "year" in payload:
+                    raise SystemExit(f"ingest body must not include year: {payload}")
+                if "months" not in payload or "rows" not in payload:
+                    raise SystemExit(f"ingest body missing months/rows: {payload}")
+            if not any(rec["path"] == "/api/v1/tables/92790/ingest" for rec in recorded):
+                raise SystemExit("did not POST /api/v1/tables/92790/ingest")
+    finally:
+        if prev_http is None:
+            os.environ.pop("MCP_APP_HTTP", None)
+        else:
+            os.environ["MCP_APP_HTTP"] = prev_http
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -795,6 +907,7 @@ def main() -> None:
     test_oauth()
     test_db_tools()
     test_monthly_tools()
+    test_monthly_ingest_tool()
     print("ok: log mcp")
 
 
