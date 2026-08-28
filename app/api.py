@@ -17,7 +17,7 @@ from .models import (
 )
 from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
-from .monthly_ingest import MonthlyIngestError, map_pdf_columns, parse_as_of
+from .monthly_ingest import MonthlyIngestError, map_pdf_columns, parse_as_of, parse_monthly_unit
 
 router = APIRouter(prefix="/api")
 
@@ -303,6 +303,13 @@ def _parse_element(raw: Any) -> str:
     return s
 
 
+def _parse_unit(raw: Any, *, omitted_ok: bool = False) -> str | None:
+    try:
+        return parse_monthly_unit(raw, omitted_ok=omitted_ok)
+    except MonthlyIngestError as exc:
+        raise _ingest_error(exc) from exc
+
+
 def _parse_month(raw: Any) -> int:
     if isinstance(raw, bool) or not isinstance(raw, int) or raw < 1 or raw > 12:
         raise ApiError(400, "INVALID_PARAM", "month は1〜12の整数です。")
@@ -352,12 +359,19 @@ def _upsert_value(db: Session, code: str, year: int, element: str, month: int, v
         row.value = value  # last-write-wins
 
 
-def _ensure_element(db: Session, code: str, year_i: int, element: str, force: bool) -> bool:
+def _element_unit(row: MonthlyElement) -> str:
+    return row.unit or "number"
+
+
+def _ensure_element(db: Session, code: str, year_i: int, element: str, force: bool,
+                    unit: str | None = None) -> bool:
     existing = (db.query(MonthlyElement)
                 .filter(MonthlyElement.code == code, MonthlyElement.year == year_i)
                 .all())
     for row in existing:
         if row.element == element:
+            if unit is not None:
+                row.unit = unit
             return False
     similar = [row.element for row in existing if _normalize_element(row.element) == _normalize_element(element)]
     if similar and not force:
@@ -368,7 +382,10 @@ def _ensure_element(db: Session, code: str, year_i: int, element: str, force: bo
     max_order = (db.query(func.max(MonthlyElement.sort_order))
                  .filter(MonthlyElement.code == code, MonthlyElement.year == year_i)
                  .scalar())
-    db.add(MonthlyElement(code=code, year=year_i, element=element, sort_order=(max_order or 0) + 1))
+    db.add(MonthlyElement(
+        code=code, year=year_i, element=element,
+        sort_order=(max_order or 0) + 1, unit=unit or "number",
+    ))
     db.flush()
     return True
 
@@ -393,16 +410,17 @@ def _parse_month_key(raw: Any) -> int:
     return _parse_month(raw)
 
 
-def _parse_ingest_rows(raw: Any, months: list[int]) -> list[tuple[str, bool, dict[int, float | None]]]:
+def _parse_ingest_rows(raw: Any, months: list[int]) -> list[tuple[str, bool, str | None, dict[int, float | None]]]:
     if not isinstance(raw, list):
         raise ApiError(400, "INVALID_PARAM", "rows は {element, values} の配列です。")
     month_set = set(months)
-    parsed: list[tuple[str, bool, dict[int, float | None]]] = []
+    parsed: list[tuple[str, bool, str | None, dict[int, float | None]]] = []
     for item in raw:
         if not isinstance(item, dict):
             raise ApiError(400, "INVALID_PARAM", "rows の各要素は {element, values} です。")
         element = _parse_element(item.get("element"))
         force = item.get("force") is True
+        unit = _parse_unit(item.get("unit")) if "unit" in item else None
         values_raw = item.get("values")
         if not isinstance(values_raw, dict):
             raise ApiError(400, "INVALID_PARAM", "values は月をキーにしたオブジェクトです。")
@@ -412,7 +430,7 @@ def _parse_ingest_rows(raw: Any, months: list[int]) -> list[tuple[str, bool, dic
             if month not in month_set:
                 raise ApiError(400, "INVALID_PARAM", "values の月が months にありません。")
             values[month] = _parse_value(val)
-        parsed.append((element, force, values))
+        parsed.append((element, force, unit, values))
     return parsed
 
 
@@ -428,13 +446,37 @@ def post_element(code: str, year: str, response: Response,
     body = _require_object(payload)
     element = _parse_element(body.get("element"))
     force = body.get("force") is True
-    created = _ensure_element(db, code, year_i, element, force)
+    unit = _parse_unit(body.get("unit")) if "unit" in body else None
+    created = _ensure_element(db, code, year_i, element, force, unit)
+    row = _get_element(db, code, year_i, element)
     db.commit()
+    payload_out = {
+        "code": code, "year": year_i, "element": element,
+        "unit": _element_unit(row), "created": created,
+    }
     if created:
         response.status_code = 201
-        return {"code": code, "year": year_i, "element": element, "created": True}
+        return payload_out
     response.status_code = 200
-    return {"code": code, "year": year_i, "element": element, "created": False}
+    return payload_out
+
+
+@router_v1.put("/tables/{code}/{year}/elements")
+def put_element(code: str, year: str, payload: dict | None = Body(None),
+                db: Session = Depends(get_session)):
+    """既存行の unit だけ変える。値の再送は不要。新規作成はしない。"""
+    code = _parse_code(code)
+    year_i = _parse_year(year)
+    body = _require_object(payload)
+    element = _parse_element(body.get("element"))
+    if "unit" not in body:
+        raise ApiError(400, "INVALID_PARAM", "unit は number / yoy_index / yoy_pct です。")
+    unit = _parse_unit(body.get("unit"))
+    _get_table(db, code, year_i)
+    row = _get_element(db, code, year_i, element)
+    row.unit = unit
+    db.commit()
+    return {"code": code, "year": year_i, "element": element, "unit": unit}
 
 
 @router_v1.post("/tables/{code}/ingest")
@@ -462,13 +504,13 @@ def ingest_monthly(code: str, payload: dict | None = Body(None), db: Session = D
 
     updated: list[dict] = []
     try:
-        for element, force, values in rows:
+        for element, force, unit, values in rows:
             by_year: dict[int, list[int]] = defaultdict(list)
             for month in months:
                 if month not in values:
                     continue
                 year_i = mapping[month]
-                _ensure_element(db, code, year_i, element, force)
+                _ensure_element(db, code, year_i, element, force, unit)
                 _upsert_value(db, code, year_i, element, month, values[month])
                 by_year[year_i].append(month)
             for year_i in sorted(by_year):
@@ -523,7 +565,10 @@ def get_table(code: str, year: str, db: Session = Depends(get_session)):
     return {
         "code": code,
         "year": year_i,
-        "elements": [{"element": e.element, "values": by_el.get(e.element, {})} for e in elems],
+        "elements": [
+            {"element": e.element, "unit": _element_unit(e), "values": by_el.get(e.element, {})}
+            for e in elems
+        ],
     }
 
 

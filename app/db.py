@@ -1,8 +1,11 @@
+import re
+import unicodedata
+
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 
 from .config import DATABASE_URL
-from .models import Base
+from .models import Base, MonthlyElement
 
 engine = create_engine(DATABASE_URL, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, future=True)
@@ -47,11 +50,59 @@ def migrate_add_columns(verbose: bool = True) -> int:
             for cname in cols:
                 col = tables[tname].columns[cname]
                 ddl = col.type.compile(engine.dialect)
+                default_sql = _server_default_sql(col)
+                if default_sql:
+                    ddl = f"{ddl} DEFAULT {default_sql}"
                 conn.execute(text(f'ALTER TABLE {tname} ADD COLUMN "{cname}" {ddl}'))
                 if verbose:
                     print(f"  列を追加: {tname}.{cname} ({ddl})")
                 n += 1
+    apply_known_monthly_element_units()
     return n
+
+
+def _server_default_sql(col) -> str | None:
+    default = col.server_default
+    if default is None or default.arg is None:
+        return None
+    arg = default.arg
+    if isinstance(arg, str):
+        return "'" + arg.replace("'", "''") + "'"
+    return str(arg)
+
+
+def _norm_element_name(element: str) -> str:
+    s = unicodedata.normalize("NFKC", element)
+    return re.sub(r"\s+", "", s)
+
+
+def apply_known_monthly_element_units() -> int:
+    """Gift / Intermestic の既存行だけ unit を付ける。値は変換しない。該当が無ければ 0。"""
+    insp = inspect(engine)
+    if "monthly_elements" not in insp.get_table_names():
+        return 0
+    have = {c["name"] for c in insp.get_columns("monthly_elements")}
+    if "unit" not in have:
+        return 0
+    db = SessionLocal()
+    try:
+        n = 0
+        gift = db.query(MonthlyElement).filter(MonthlyElement.code == "92790").all()
+        for row in gift:
+            want = "number" if "店舗数" in _norm_element_name(row.element) else "yoy_index"
+            if row.unit != want:
+                row.unit = want
+                n += 1
+        inter = db.query(MonthlyElement).filter(MonthlyElement.code == "262A0").all()
+        for row in inter:
+            if _norm_element_name(row.element) == "売上高前年比" and row.unit != "yoy_pct":
+                row.unit = "yoy_pct"
+                n += 1
+        if n:
+            db.commit()
+        return n
+    finally:
+        db.close()
 
 
 def init_db(strict: bool = False):
@@ -67,6 +118,7 @@ def init_db(strict: bool = False):
                 "  A) .\\run.ps1 reset      DBを削除して作り直す (推奨・データは再取得)\n"
                 "  B) .\\run.ps1 migrate    列だけ追加して既存データを残す (追加列は空のまま)\n"
             )
+    apply_known_monthly_element_units()
 
 
 def get_session():

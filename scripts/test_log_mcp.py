@@ -451,9 +451,10 @@ def _stub_handle(method: str, path: str, raw: bytes, store: dict) -> tuple[int, 
         if row is None:
             return 404, {"error": {"code": "TABLE_NOT_FOUND", "message": "銘柄×年度の表がありません。"}}
         elements = []
+        units = row.get("units") or {}
         for el in row["order"]:
             vals = {str(k): v for k, v in row["values"].get(el, {}).items()}
-            elements.append({"element": el, "values": vals})
+            elements.append({"element": el, "unit": units.get(el, "number"), "values": vals})
         return 200, {"code": code, "year": year, "elements": elements}
 
     m = el_re.fullmatch(path)
@@ -462,10 +463,17 @@ def _stub_handle(method: str, path: str, raw: bytes, store: dict) -> tuple[int, 
         body = load_body()
         element = str(body.get("element") or "").strip()
         force = body.get("force") is True
+        unit = body.get("unit") if isinstance(body.get("unit"), str) else None
         key = (code, year)
-        row = store.setdefault(key, {"order": [], "values": {}})
+        row = store.setdefault(key, {"order": [], "values": {}, "units": {}})
+        row.setdefault("units", {})
         if element in row["order"]:
-            return 200, {"code": code, "year": year, "element": element, "created": False}
+            if unit is not None:
+                row["units"][element] = unit
+            return 200, {
+                "code": code, "year": year, "element": element,
+                "unit": row["units"].get(element, "number"), "created": False,
+            }
 
         def _norm(s: str) -> str:
             return "".join(str(s).split()).lower()
@@ -481,7 +489,25 @@ def _stub_handle(method: str, path: str, raw: bytes, store: dict) -> tuple[int, 
             }
         row["order"].append(element)
         row["values"][element] = {}
-        return 201, {"code": code, "year": year, "element": element, "created": True}
+        row["units"][element] = unit or "number"
+        return 201, {
+            "code": code, "year": year, "element": element,
+            "unit": row["units"][element], "created": True,
+        }
+
+    if method == "PUT" and m:
+        code, year = unquote(m.group(1)), int(m.group(2))
+        body = load_body()
+        element = str(body.get("element") or "").strip()
+        unit = body.get("unit")
+        key = (code, year)
+        row = store.get(key)
+        if row is None:
+            return 404, {"error": {"code": "TABLE_NOT_FOUND", "message": "銘柄×年度の表がありません。"}}
+        if element not in row["order"]:
+            return 404, {"error": {"code": "ELEMENT_NOT_FOUND", "message": "要素が登録されていません。"}}
+        row.setdefault("units", {})[element] = unit
+        return 200, {"code": code, "year": year, "element": element, "unit": unit}
 
     m = batch_re.fullmatch(path)
     if method == "PUT" and m:
@@ -683,6 +709,15 @@ def test_monthly_tools() -> None:
         raise SystemExit("year parse")
     _expect_value_error(m.parse_monthly_month, 0, needle="1-12")
     _expect_value_error(m.parse_monthly_month, 13, needle="1-12")
+    if m.parse_monthly_unit("yoy_index") != "yoy_index":
+        raise SystemExit("parse_monthly_unit yoy_index")
+    if m.parse_monthly_unit("yoy_pct") != "yoy_pct":
+        raise SystemExit("parse_monthly_unit yoy_pct")
+    if m.parse_monthly_unit("number") != "number":
+        raise SystemExit("parse_monthly_unit number")
+    _expect_value_error(m.parse_monthly_unit, "percent", needle="number, yoy_index, or yoy_pct")
+    _expect_value_error(m.parse_monthly_unit, 125.8, needle="number, yoy_index, or yoy_pct")
+    _expect_value_error(m.parse_monthly_unit, None, needle="number, yoy_index, or yoy_pct")
 
     prev_url = os.environ.get("DATABASE_URL")
     with TemporaryDirectory() as d:
@@ -756,12 +791,40 @@ def test_monthly_tools() -> None:
             if status != 201 or not isinstance(body, dict) or body.get("created") is not True:
                 raise SystemExit(f"add created: {text}")
 
+            text, is_error = m.call_tool(
+                "monthly_add_element",
+                {"code": "7203", "year": 2024, "element": "店舗数", "unit": "number"},
+            )
+            if is_error:
+                raise SystemExit(f"add with unit: {text}")
+            status, body = _http_status_body(text)
+            if status != 201 or not isinstance(body, dict) or body.get("unit") != "number":
+                raise SystemExit(f"add unit body: {text}")
+
+            before_bad_unit = len(recorded)
+            text, is_error = m.call_tool(
+                "monthly_add_element",
+                {"code": "7203", "year": 2024, "element": "x", "unit": "percent"},
+            )
+            if not is_error:
+                raise SystemExit(f"invalid unit should isError: {text}")
+            if "number, yoy_index, or yoy_pct" not in text:
+                raise SystemExit(f"invalid unit message: {text}")
+            if len(recorded) != before_bad_unit:
+                raise SystemExit(f"invalid unit must not hit HTTP: {recorded[before_bad_unit:]}")
+
             text, is_error = m.call_tool("monthly_get", {"code": "7203", "year": 2024})
             if is_error:
                 raise SystemExit(f"get after add: {text}")
             status, body = _http_status_body(text)
             if status != 200 or body["elements"][0]["element"] != "売上高前年比":
                 raise SystemExit(f"get roundtrip: {text}")
+            for el in body["elements"]:
+                if "unit" in el and el["unit"] not in ("number", "yoy_index", "yoy_pct"):
+                    raise SystemExit(f"GET JSON unit invalid: {el!r}")
+            by_el = {e["element"]: e for e in body["elements"]}
+            if "店舗数" in by_el and by_el["店舗数"].get("unit") not in (None, "number"):
+                raise SystemExit(f"GET unit for 店舗数: {by_el['店舗数']!r}")
 
             text, is_error = m.call_tool(
                 "monthly_add_element",
@@ -901,7 +964,11 @@ def test_monthly_ingest_tool() -> None:
                     "code": "92790",
                     "year": 2025,
                     "months": [11, 12, 1, 2, 3, 4, 5, 6, 7],
-                    "rows": [{"element": "全店 売上高", "values": {"11": 125.8, "12": 124.7, "1": 125.9}}],
+                    "rows": [{
+                        "element": "全店 売上高",
+                        "values": {"11": 125.8, "12": 124.7, "1": 125.9},
+                        "unit": "yoy_index",
+                    }],
                     "as_of": "2026-08-05",
                 },
             )
@@ -959,10 +1026,30 @@ def test_monthly_ingest_tool() -> None:
                     raise SystemExit(f"ingest body must not include year: {payload}")
                 if "months" not in payload or "rows" not in payload:
                     raise SystemExit(f"ingest body missing months/rows: {payload}")
+                if rec["path"] == "/api/v1/tables/92790/ingest":
+                    row0 = payload["rows"][0]
+                    if row0.get("unit") != "yoy_index":
+                        raise SystemExit(f"ingest must forward unit: {payload}")
+                    if row0.get("values", {}).get("11") != 125.8:
+                        raise SystemExit(f"ingest must not convert 125.8: {payload}")
             if not any(rec["path"] == "/api/v1/tables/92790/ingest" for rec in recorded):
                 raise SystemExit("did not POST /api/v1/tables/92790/ingest")
             if not any(rec["path"] == "/api/v1/tables/262A0/ingest" for rec in recorded):
                 raise SystemExit("did not POST /api/v1/tables/262A0/ingest")
+
+            before_bad = len(recorded)
+            text, is_error = m.call_tool(
+                "monthly_ingest",
+                {
+                    "code": "92790",
+                    "months": [11, 12, 1],
+                    "rows": [{"element": "x", "values": {"11": 1}, "unit": "percent"}],
+                },
+            )
+            if not is_error:
+                raise SystemExit(f"ingest invalid unit should isError: {text}")
+            if len(recorded) != before_bad:
+                raise SystemExit(f"ingest invalid unit must not hit HTTP: {recorded[before_bad:]}")
     finally:
         if prev_http is None:
             os.environ.pop("MCP_APP_HTTP", None)

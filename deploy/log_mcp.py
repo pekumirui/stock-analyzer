@@ -336,6 +336,16 @@ def parse_monthly_month(raw: Any) -> int:
     return raw
 
 
+MONTHLY_UNITS = frozenset({"number", "yoy_index", "yoy_pct"})
+
+
+def parse_monthly_unit(raw: Any) -> str:
+    """PDF heading decides unit. Do not infer from numeric magnitude."""
+    if not isinstance(raw, str) or raw not in MONTHLY_UNITS:
+        raise ValueError("unit must be number, yoy_index, or yoy_pct")
+    return raw
+
+
 def parse_monthly_values(raw: Any) -> list[dict[str, Any]]:
     if not isinstance(raw, list):
         raise ValueError("values must be an array of {month, value}")
@@ -580,6 +590,8 @@ def tool_monthly_add_element(args: dict[str, Any]) -> str:
         if not isinstance(args["force"], bool):
             raise ValueError("force must be a boolean")
         body["force"] = args["force"]
+    if "unit" in args and args["unit"] is not None:
+        body["unit"] = parse_monthly_unit(args["unit"])
     return call_monthly_api("POST", monthly_api_url(code, year, "/elements"), body)
 
 
@@ -625,6 +637,8 @@ def _parse_ingest_rows(raw: Any) -> list[dict[str, Any]]:
             if not isinstance(item["force"], bool):
                 raise ValueError("force must be a boolean")
             row["force"] = item["force"]
+        if "unit" in item and item["unit"] is not None:
+            row["unit"] = parse_monthly_unit(item["unit"])
         out.append(row)
     return out
 
@@ -719,13 +733,18 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_monthly_get,
     ),
     "monthly_add_element": (
-        "月次表に要素を登録。localhost:8000 の POST /api/v1/tables/{code}/{year}/elements。類似は 409。force=true で強制。",
+        "月次表に要素を登録。localhost:8000 の POST /api/v1/tables/{code}/{year}/elements。unit は PDF 見出しから (number / yoy_index / yoy_pct)。類似は 409。force=true で強制。既存行の unit 変更は同じパスへ PUT {element, unit}。",
         {
             "type": "object",
             "properties": {
                 "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
                 "year": {"type": "integer", "description": "4-digit calendar year"},
                 "element": {"type": "string", "description": "row label, 1-50 chars"},
+                "unit": {
+                    "type": "string",
+                    "enum": ["number", "yoy_index", "yoy_pct"],
+                    "description": "From PDF heading, never from magnitude. number=count; yoy_index=100 is flat (store/display as-is); yoy_pct=signed change stored as-is, table shows 100+v.",
+                },
                 "force": {"type": "boolean", "description": "create even if a similar element exists"},
             },
             "required": ["code", "year", "element"],
@@ -758,7 +777,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_monthly_put_values,
     ),
     "monthly_ingest": (
-        "PDF月次を暦年に割り当てて登録。localhost:8000 の POST /api/v1/tables/{code}/ingest。year は渡さない（決算の事業年度末から決める）。年付き put は訂正用。",
+        "PDF月次を暦年に割り当てて登録。localhost:8000 の POST /api/v1/tables/{code}/ingest。year は渡さない（決算の事業年度末から決める）。年付き put は訂正用。unit は PDF 見出しから number / yoy_index / yoy_pct（大きさから推測しない）。値は原文のまま。",
         {
             "type": "object",
             "properties": {
@@ -770,15 +789,20 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                 },
                 "rows": {
                     "type": "array",
-                    "description": "list of {element, values, force?}",
+                    "description": "list of {element, values, unit?, force?}. Store PDF numbers as-is (125.8 stays 125.8).",
                     "items": {
                         "type": "object",
                         "properties": {
                             "element": {"type": "string", "description": "row label, 1-50 chars"},
                             "values": {
                                 "type": "object",
-                                "description": "month (string or int key) -> number, or null to delete",
+                                "description": "month (string or int key) -> number, or null to delete. PDF original; do not convert 125.8 to +25.8.",
                                 "additionalProperties": {"type": ["number", "null"]},
+                            },
+                            "unit": {
+                                "type": "string",
+                                "enum": ["number", "yoy_index", "yoy_pct"],
+                                "description": "From PDF heading: 前年比 100基準 → yoy_index, ▲付き変化率 → yoy_pct, 店舗数 → number. Never from magnitude.",
                             },
                             "force": {"type": "boolean", "description": "create even if a similar element exists"},
                         },
