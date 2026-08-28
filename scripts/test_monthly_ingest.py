@@ -280,11 +280,11 @@ def test_api_alnum_code() -> None:
 
 
 def test_unit_display_and_ingest() -> None:
-    if format_monthly_cell(125.8, "yoy_index") != "+25.8%":
+    if format_monthly_cell(125.8, "yoy_index") != "125.8":
         _fail(f"yoy_index display: {format_monthly_cell(125.8, 'yoy_index')!r}")
-    if format_monthly_cell(105.2, "yoy_index") != "+5.2%":
+    if format_monthly_cell(105.2, "yoy_index") != "105.2":
         _fail(f"yoy_index 105.2: {format_monthly_cell(105.2, 'yoy_index')!r}")
-    if format_monthly_cell(-7.1, "yoy_pct") != "▲7.1%":
+    if format_monthly_cell(-7.1, "yoy_pct") != "92.9":
         _fail(f"yoy_pct display: {format_monthly_cell(-7.1, 'yoy_pct')!r}")
     if format_monthly_cell(303, "number") != "303":
         _fail(f"number display: {format_monthly_cell(303, 'number')!r}")
@@ -316,11 +316,11 @@ def test_unit_display_and_ingest() -> None:
     by = {e["element"]: e for e in r.json()["elements"]}
     if by["全店売上高"]["unit"] != "yoy_index" or float(by["全店売上高"]["values"]["11"]) != 125.8:
         _fail(f"ingest yoy_index stored: {by['全店売上高']!r}")
-    if format_monthly_cell(float(by["全店売上高"]["values"]["11"]), "yoy_index") != "+25.8%":
+    if format_monthly_cell(float(by["全店売上高"]["values"]["11"]), "yoy_index") != "125.8":
         _fail("ingest yoy_index display")
     if by["売上高前年比"]["unit"] != "yoy_pct" or float(by["売上高前年比"]["values"]["11"]) != -7.1:
         _fail(f"ingest yoy_pct stored: {by['売上高前年比']!r}")
-    if format_monthly_cell(float(by["売上高前年比"]["values"]["11"]), "yoy_pct") != "▲7.1%":
+    if format_monthly_cell(float(by["売上高前年比"]["values"]["11"]), "yoy_pct") != "92.9":
         _fail("ingest yoy_pct display")
     if by["店舗数"]["unit"] != "number" or float(by["店舗数"]["values"]["11"]) != 303:
         _fail(f"ingest number stored: {by['店舗数']!r}")

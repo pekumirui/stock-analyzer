@@ -29,26 +29,17 @@ def parse_monthly_unit(raw: Any, *, omitted_ok: bool = False) -> str | None:
 
 
 def format_monthly_cell(value: float | None, unit: str | None) -> str:
-    """空セルは空。yoy は +X.X% / ▲X.X%（1小数）。number は数値のまま。保存値は変えない。"""
+    """空セルは空。表は指数 100=フラット。保存値は変えない。"""
     if value is None:
         return ""
     n = float(value)
     if n != n or n in (float("inf"), float("-inf")):
         return ""
     u = unit or "number"
-    if u == "yoy_index":
-        return _format_signed_pct(n - 100.0)
     if u == "yoy_pct":
-        return _format_signed_pct(n)
+        n = 100.0 + n
     text = f"{n:.4f}".rstrip("0").rstrip(".")
     return text if text else "0"
-
-
-def _format_signed_pct(delta: float) -> str:
-    n = round(float(delta), 1)
-    if n < 0:
-        return f"▲{abs(n):.1f}%"
-    return f"+{n:.1f}%"
 
 
 def parse_as_of(raw: Any, *, default: date | None = None) -> date:

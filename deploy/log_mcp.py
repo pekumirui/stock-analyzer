@@ -743,7 +743,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                 "unit": {
                     "type": "string",
                     "enum": ["number", "yoy_index", "yoy_pct"],
-                    "description": "From PDF heading, never from magnitude. number=count; yoy_index=100 is flat stored as-is, table shows (v-100) as +X.X%/▲X.X%; yoy_pct=signed change stored as-is, table shows +X.X%/▲X.X%.",
+                    "description": "From PDF heading, never from magnitude. number=count; yoy_index=100 is flat (store/display as-is); yoy_pct=signed change stored as-is, table shows 100+v.",
                 },
                 "force": {"type": "boolean", "description": "create even if a similar element exists"},
             },

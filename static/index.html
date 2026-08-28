@@ -700,14 +700,9 @@ $("#monthly-year").addEventListener("change", loadMonthlyTable);
 
 function fmtMonthlyCell(v, unit){
   if(v==null || v==="") return "";
-  const n = Number(v);
+  let n = Number(v);
   if(!Number.isFinite(n)) return "";
-  if(unit==="yoy_index" || unit==="yoy_pct"){
-    const x = unit==="yoy_index" ? n-100 : n;
-    const r = Math.round(x*10)/10;
-    if(r<0) return "▲"+Math.abs(r).toFixed(1)+"%";
-    return "+"+r.toFixed(1)+"%";
-  }
+  if(unit==="yoy_pct") n += 100;
   return n.toLocaleString("ja-JP",{maximumFractionDigits:4});
 }
 

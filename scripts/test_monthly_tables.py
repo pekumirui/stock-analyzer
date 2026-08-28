@@ -40,19 +40,21 @@ def _expect(resp, status: int, label: str) -> None:
 
 
 def main() -> None:
-    # yoy display is +X.X% / ▲X.X% (one decimal). Storage is not converted.
+    # display is index 100=flat (not +X.X% / ▲). unused third arg: value+unit only.
     if format_monthly_cell(None, "yoy_index") != "":
         _fail("empty cell")
-    if format_monthly_cell(105.2, "yoy_index") != "+5.2%":
+    if format_monthly_cell(105.2, "yoy_index") != "105.2":
         _fail(f"yoy_index 105.2: {format_monthly_cell(105.2, 'yoy_index')!r}")
-    if format_monthly_cell(125.8, "yoy_index") != "+25.8%":
+    if format_monthly_cell(125.8, "yoy_index") != "125.8":
         _fail(f"yoy_index 125.8: {format_monthly_cell(125.8, 'yoy_index')!r}")
-    if format_monthly_cell(94.8, "yoy_index") != "▲5.2%":
+    if format_monthly_cell(94.8, "yoy_index") != "94.8":
         _fail(f"yoy_index 94.8: {format_monthly_cell(94.8, 'yoy_index')!r}")
-    if format_monthly_cell(-7.1, "yoy_pct") != "▲7.1%":
+    if format_monthly_cell(-7.1, "yoy_pct") != "92.9":
         _fail(f"yoy_pct -7.1: {format_monthly_cell(-7.1, 'yoy_pct')!r}")
-    if format_monthly_cell(5.2, "yoy_pct") != "+5.2%":
+    if format_monthly_cell(5.2, "yoy_pct") != "105.2":
         _fail(f"yoy_pct 5.2: {format_monthly_cell(5.2, 'yoy_pct')!r}")
+    if format_monthly_cell(13, "yoy_pct") != "113":
+        _fail(f"yoy_pct +13: {format_monthly_cell(13, 'yoy_pct')!r}")
     if format_monthly_cell(303, "number") != "303":
         _fail(f"number 303: {format_monthly_cell(303, 'number')!r}")
     if format_monthly_cell(None, "number") != "":
@@ -65,10 +67,12 @@ def main() -> None:
     else:
         _fail("invalid unit should 400")
     html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
-    if "fmtMonthlyCell" not in html or "▲" not in html:
-        _fail("index.html missing fmtMonthlyCell or ▲")
+    if "fmtMonthlyCell" not in html:
+        _fail("index.html missing fmtMonthlyCell")
     if "function fmtMonthlyCell" not in html:
         _fail("index.html missing fmtMonthlyCell function")
+    if "▲" in html or "+X.X%" in html:
+        _fail("index.html still has percent/▲ monthly display")
 
     c = TestClient(app)
     code, year = "7203", "2024"
@@ -438,11 +442,11 @@ def main() -> None:
     by = {e["element"]: e for e in r.json()["elements"]}
     if by["全店売上高"]["unit"] != "yoy_index" or float(by["全店売上高"]["values"]["11"]) != 125.8:
         _fail(f"store yoy_index: {by['全店売上高']!r}")
-    if format_monthly_cell(float(by["全店売上高"]["values"]["11"]), by["全店売上高"]["unit"]) != "+25.8%":
+    if format_monthly_cell(float(by["全店売上高"]["values"]["11"]), by["全店売上高"]["unit"]) != "125.8":
         _fail("display yoy_index 125.8")
     if by["売上変化"]["unit"] != "yoy_pct" or float(by["売上変化"]["values"]["11"]) != -7.1:
         _fail(f"store yoy_pct: {by['売上変化']!r}")
-    if format_monthly_cell(float(by["売上変化"]["values"]["11"]), by["売上変化"]["unit"]) != "▲7.1%":
+    if format_monthly_cell(float(by["売上変化"]["values"]["11"]), by["売上変化"]["unit"]) != "92.9":
         _fail("display yoy_pct -7.1")
     if by["店舗数"]["unit"] != "number" or float(by["店舗数"]["values"]["11"]) != 303:
         _fail(f"store number: {by['店舗数']!r}")
@@ -580,7 +584,7 @@ def _assert_known_prod_units(c) -> None:
     by = {e["element"]: e for e in r.json()["elements"]}
     if by["全店売上高"]["unit"] != "yoy_index" or float(by["全店売上高"]["values"]["11"]) != 125.8:
         _fail(f"92790 GET: {by['全店売上高']!r}")
-    if format_monthly_cell(125.8, by["全店売上高"]["unit"]) != "+25.8%":
+    if format_monthly_cell(125.8, by["全店売上高"]["unit"]) != "125.8":
         _fail("92790 display")
     if by["店舗数"]["unit"] != "number" or float(by["店舗数"]["values"]["11"]) != 303:
         _fail(f"92790 stores GET: {by['店舗数']!r}")
@@ -597,7 +601,7 @@ def _assert_known_prod_units(c) -> None:
             raw = float(vals.get("1", vals.get(1)))
             if raw != -7.1:
                 _fail(f"262A0 value converted: {vals!r}")
-            if format_monthly_cell(raw, "yoy_pct") != "▲7.1%":
+            if format_monthly_cell(raw, "yoy_pct") != "92.9":
                 _fail("262A0 display")
 
 
