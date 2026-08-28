@@ -1,14 +1,20 @@
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+import re
+import unicodedata
+from typing import Any
 
 import pandas as pd
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, aliased, defer
 
 from .config import EARNINGS_PARAMS as EP, EARNINGS_EXCLUDE_PRODUCT_CATEGORIES, RS_PRODUCT_CATEGORIES
 from .db import get_session
-from .models import Stock, DailyPrice, Topix, Statement, Indicator, EarningsEvent
+from .models import (
+    Stock, DailyPrice, Topix, Statement, Indicator, EarningsEvent,
+    MonthlyTable, MonthlyElement, MonthlyValue,
+)
 from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
 
@@ -240,3 +246,218 @@ def search(q: str, db: Session = Depends(get_session)):
     rows = (db.query(Stock).filter(
         (Stock.name.contains(q)) | (Stock.code.startswith(q))).limit(20).all())
     return [{"code": s.code, "name": s.name, "market": s.market} for s in rows]
+
+
+# ---- 月次データ登録 API (/api/v1) ----
+
+router_v1 = APIRouter(prefix="/api/v1")
+
+_INVALID_VALUE_MSG = "value は数値のみ受け付けます。単位(%、円など)やカンマは除去してください。"
+_SIMILAR_MSG = "類似する要素が既に存在します。既存要素を使うか、force=true で強制登録してください。"
+
+
+class ApiError(Exception):
+    """機械可読な error.code / error.message を返す。既存の HTTPException とは混ぜない。"""
+
+    def __init__(self, status: int, code: str, message: str, extra: dict | None = None):
+        self.status = status
+        self.payload = {"error": {"code": code, "message": message, **(extra or {})}}
+
+
+def _normalize_element(s: str) -> str:
+    # 類似判定: NFKC → 空白除去 → 小文字
+    s = unicodedata.normalize("NFKC", s)
+    s = re.sub(r"\s+", "", s)
+    return s.lower()
+
+
+def _parse_code(code: str) -> str:
+    if not isinstance(code, str) or not re.fullmatch(r"\d{4,5}", code):
+        raise ApiError(400, "INVALID_PARAM", "code は4〜5桁の数字です。")
+    return code
+
+
+def _parse_year(year: str) -> int:
+    if not isinstance(year, str) or not re.fullmatch(r"\d{4}", year):
+        raise ApiError(400, "INVALID_PARAM", "year は西暦4桁の整数です。")
+    return int(year)
+
+
+def _parse_element(raw: Any) -> str:
+    if not isinstance(raw, str):
+        raise ApiError(400, "INVALID_PARAM", "element は1〜50文字の文字列です。")
+    s = raw.strip()
+    if not s or len(s) > 50:
+        raise ApiError(400, "INVALID_PARAM", "element は1〜50文字の文字列です。")
+    return s
+
+
+def _parse_month(raw: Any) -> int:
+    if isinstance(raw, bool) or not isinstance(raw, int) or raw < 1 or raw > 12:
+        raise ApiError(400, "INVALID_PARAM", "month は1〜12の整数です。")
+    return raw
+
+
+def _parse_value(raw: Any) -> float | None:
+    if raw is None:
+        return None
+    if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+        raise ApiError(400, "INVALID_VALUE", _INVALID_VALUE_MSG)
+    v = float(raw)
+    if v != v or v in (float("inf"), float("-inf")):
+        raise ApiError(400, "INVALID_VALUE", _INVALID_VALUE_MSG)
+    return v
+
+
+def _require_object(payload: Any) -> dict:
+    if not isinstance(payload, dict):
+        raise ApiError(400, "INVALID_PARAM", "JSONオブジェクトのリクエストボディが必要です。")
+    return payload
+
+
+def _get_table(db: Session, code: str, year: int) -> MonthlyTable:
+    table = db.get(MonthlyTable, (code, year))
+    if table is None:
+        raise ApiError(404, "TABLE_NOT_FOUND", "銘柄×年度の表がありません。")
+    return table
+
+
+def _get_element(db: Session, code: str, year: int, element: str) -> MonthlyElement:
+    row = db.get(MonthlyElement, (code, year, element))
+    if row is None:
+        raise ApiError(404, "ELEMENT_NOT_FOUND", "要素が登録されていません。")
+    return row
+
+
+def _upsert_value(db: Session, code: str, year: int, element: str, month: int, value: float | None) -> None:
+    row = db.get(MonthlyValue, (code, year, element, month))
+    if value is None:
+        if row is not None:
+            db.delete(row)
+        return
+    if row is None:
+        db.add(MonthlyValue(code=code, year=year, element=element, month=month, value=value))
+    else:
+        row.value = value  # last-write-wins
+
+
+@router_v1.post("/tables/{code}/{year}/elements")
+def post_element(code: str, year: str, response: Response,
+                 payload: dict | None = Body(None), db: Session = Depends(get_session)):
+    code = _parse_code(code)
+    year_i = _parse_year(year)
+    body = _require_object(payload)
+    element = _parse_element(body.get("element"))
+    force = body.get("force") is True
+
+    existing = (db.query(MonthlyElement)
+                .filter(MonthlyElement.code == code, MonthlyElement.year == year_i)
+                .all())
+    for row in existing:
+        if row.element == element:
+            response.status_code = 200
+            return {"code": code, "year": year_i, "element": element, "created": False}
+
+    similar = [row.element for row in existing if _normalize_element(row.element) == _normalize_element(element)]
+    if similar and not force:
+        raise ApiError(409, "ELEMENT_SIMILAR_EXISTS", _SIMILAR_MSG, extra={"similar": similar})
+
+    if db.get(MonthlyTable, (code, year_i)) is None:
+        db.add(MonthlyTable(code=code, year=year_i))
+        db.flush()
+
+    max_order = (db.query(func.max(MonthlyElement.sort_order))
+                 .filter(MonthlyElement.code == code, MonthlyElement.year == year_i)
+                 .scalar())
+    db.add(MonthlyElement(code=code, year=year_i, element=element, sort_order=(max_order or 0) + 1))
+    db.commit()
+    response.status_code = 201
+    return {"code": code, "year": year_i, "element": element, "created": True}
+
+
+@router_v1.get("/tables/{code}/{year}")
+def get_table(code: str, year: str, db: Session = Depends(get_session)):
+    code = _parse_code(code)
+    year_i = _parse_year(year)
+    _get_table(db, code, year_i)
+    elems = (db.query(MonthlyElement)
+             .filter(MonthlyElement.code == code, MonthlyElement.year == year_i)
+             .order_by(MonthlyElement.sort_order)
+             .all())
+    vals = (db.query(MonthlyValue)
+            .filter(MonthlyValue.code == code, MonthlyValue.year == year_i)
+            .all())
+    by_el: dict[str, dict[str, float]] = defaultdict(dict)
+    for v in vals:
+        by_el[v.element][str(v.month)] = v.value
+    return {
+        "code": code,
+        "year": year_i,
+        "elements": [{"element": e.element, "values": by_el.get(e.element, {})} for e in elems],
+    }
+
+
+@router_v1.get("/tables/{code}")
+def list_years(code: str, db: Session = Depends(get_session)):
+    code = _parse_code(code)
+    years = [y for (y,) in (db.query(MonthlyTable.year)
+                            .filter(MonthlyTable.code == code)
+                            .order_by(MonthlyTable.year)
+                            .all())]
+    return {"code": code, "years": years}
+
+
+@router_v1.put("/tables/{code}/{year}/values")
+def put_value(code: str, year: str, payload: dict | None = Body(None),
+              db: Session = Depends(get_session)):
+    code = _parse_code(code)
+    year_i = _parse_year(year)
+    body = _require_object(payload)
+    element = _parse_element(body.get("element"))
+    if "month" not in body:
+        raise ApiError(400, "INVALID_PARAM", "month は1〜12の整数です。")
+    if "value" not in body:
+        raise ApiError(400, "INVALID_PARAM", "value がありません。")
+    month = _parse_month(body.get("month"))
+    value = _parse_value(body.get("value"))
+    _get_table(db, code, year_i)
+    _get_element(db, code, year_i, element)
+    _upsert_value(db, code, year_i, element, month, value)
+    db.commit()
+    return {"code": code, "year": year_i, "element": element, "updated": [month]}
+
+
+@router_v1.put("/tables/{code}/{year}/values/batch")
+def put_values_batch(code: str, year: str, payload: dict | None = Body(None),
+                     db: Session = Depends(get_session)):
+    code = _parse_code(code)
+    year_i = _parse_year(year)
+    body = _require_object(payload)
+    element = _parse_element(body.get("element"))
+    items = body.get("values")
+    if not isinstance(items, list):
+        raise ApiError(400, "INVALID_PARAM", "values は {month, value} の配列です。")
+
+    # 先に全部検証してから書く (all-or-nothing)
+    ops: dict[int, float | None] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            raise ApiError(400, "INVALID_PARAM", "values の各要素は {month, value} です。")
+        if "month" not in item:
+            raise ApiError(400, "INVALID_PARAM", "month は1〜12の整数です。")
+        if "value" not in item:
+            raise ApiError(400, "INVALID_PARAM", "value がありません。")
+        month = _parse_month(item.get("month"))
+        value = _parse_value(item.get("value"))
+        ops[month] = value
+
+    _get_table(db, code, year_i)
+    _get_element(db, code, year_i, element)
+    try:
+        for month, value in ops.items():
+            _upsert_value(db, code, year_i, element, month, value)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return {"code": code, "year": year_i, "element": element, "updated": list(ops.keys())}

@@ -285,6 +285,14 @@ def main() -> None:
         f"screener {len(results)}, chart {len(candles)} candles"
     )
 
+    import subprocess
+    monthly = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "test_monthly_tables.py")],
+        cwd=ROOT,
+    )
+    if monthly.returncode != 0:
+        raise SystemExit("monthly tables tests failed")
+
 
 if __name__ == "__main__":
     main()
