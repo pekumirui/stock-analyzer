@@ -48,7 +48,7 @@
 - Q単独は保存しない。`analytics.quarter_summary` で累計差から都度算出
 - `Statement.raw_json` は元レスポンス全項目を残す（将来項目追加用）
 - `indicators` のステージは 1/2/3/4。判定不能は `NULL`
-- 月次 `MonthlyElement.unit` は `number` / `yoy_index` / `yoy_pct`。PDF 見出しから付ける（値の大きさから推測しない）。保存値は原文のまま（Gift 125.8 は 125.8、Intermestic -7.1 は -7.1）。表の表示は指数 100=フラット（`yoy_index` はそのまま、`yoy_pct` は `100+v`。▲ や +X.X% にはしない）
+- 月次 `MonthlyElement.unit` は `number` / `yoy_index` / `yoy_pct`。PDF 見出しから付ける（値の大きさから推測しない）。保存値は原文のまま（Gift 125.8 は 125.8、Intermestic -7.1 は -7.1）。表の表示は `yoy_*` が `+X.X%` / `▲X.X%`（`yoy_index` は v-100、`yoy_pct` は v。マイナスは ▲）
 
 ## コマンド
 
@@ -81,7 +81,7 @@ Python は `.venv\Scripts\python.exe` を使う。システムの python で依�
 - VPS 上の `stock-analyzer-mcp` が `127.0.0.1:8010/mcp` を待ち、nginx が `https://<domain>/mcp` に出す
 - ツールは `service_status` / `app_logs` / `batch_logs` / `nginx_logs` / `db_stats` / `db_lookup` / `monthly_list` / `monthly_get` / `monthly_add_element` / `monthly_put_values` / `monthly_ingest`。任意シェルも restart も任意 SQL もない。月次ツールは `http://127.0.0.1:8000/api/v1/tables` のみ（nginx Basic は使わない）
 - 月次の新規登録は `monthly_ingest`（PDF 列順 + 決算の `fiscal_year_end` から暦年を決める。year は渡さない）。`monthly_put_values` の year は暦年で、訂正用。年付き put は訂正のみ
-- 月次の unit は `number` / `yoy_index` / `yoy_pct` の3種。エージェントは PDF 見出しから付ける（前年比 100基準 → `yoy_index`、▲付き変化率 → `yoy_pct`、店舗数 → `number`）。値の大きさから推測しない。保存値は PDF 原文のまま（125.8 は 125.8 のまま）。既存行の unit 変更は `PUT /api/v1/tables/{code}/{year}/elements`（`{element, unit}`）
+- 月次の unit は `number` / `yoy_index` / `yoy_pct` の3種。エージェントは PDF 見出しから付ける（前年比 100基準 → `yoy_index`、▲付き変化率 → `yoy_pct`、店舗数 → `number`）。値の大きさから推測しない。保存値は PDF 原文のまま（125.8 は 125.8 のまま）。表の表示は `yoy_*` が `+X.X%` / `▲X.X%`。既存行の unit 変更は `PUT /api/v1/tables/{code}/{year}/elements`（`{element, unit}`）
 - 認証は `MCP_TOKEN`（Bearer または OAuth で発行した access token）。GitHub secret と同値。値をログに出さない
 - 本番ログは `/var/log/app/`（`stock-analyzer.log` / `batch.log` / `mcp.log`）。journal も残る。ローカルのバッチはアプリディレクトリの `batch.log`
 - Grok カスタムコネクタは OAuth（PKCE、クライアントシークレットなし）。Client ID は `stock-analyzer`。許可画面で `MCP_TOKEN` を入れる

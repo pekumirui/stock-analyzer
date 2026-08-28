@@ -127,8 +127,9 @@ class MonthlyTable(Base):
 class MonthlyElement(Base):
     """月次表の行。element はトリムした原文を保存し、sort_order が登録順。
 
-    unit は表示用。値そのものは PDF 原文の数値のまま (125.8 を 25.8 にしない)。
-    number / yoy_index (保存も表示も 100=フラット) / yoy_pct (保存は符号付き変化率、表示は 100+v)。
+    unit は表示用。値そのものは PDF 原文の数値のまま (125.8 を +25.8 にしない)。
+    number / yoy_index (保存は 100=フラット、表示は v-100 を +X.X%/▲X.X%) /
+    yoy_pct (保存は符号付き変化率、表示は v を +X.X%/▲X.X%)。
     """
     __tablename__ = "monthly_elements"
     code = Column(String(5), primary_key=True)
