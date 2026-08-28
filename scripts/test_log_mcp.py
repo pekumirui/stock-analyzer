@@ -183,6 +183,13 @@ def _test_oauth_inner(token: str) -> None:
     if not meta["authorization_endpoint"].endswith("/oauth/authorize"):
         raise SystemExit(f"authorize: {meta['authorization_endpoint']}")
 
+    r = client.get("/.well-known/openid-configuration")
+    if r.status_code != 200:
+        raise SystemExit(f"openid-configuration: {r.status_code} {r.text}")
+    oidc = r.json()
+    if oidc["authorization_endpoint"] != meta["authorization_endpoint"]:
+        raise SystemExit(f"openid authorize: {oidc['authorization_endpoint']}")
+
     r = client.get("/.well-known/oauth-protected-resource")
     if r.status_code != 200 or "/mcp" not in r.json().get("resource", ""):
         raise SystemExit(f"pr metadata: {r.status_code} {r.text}")

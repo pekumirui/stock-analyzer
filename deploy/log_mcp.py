@@ -916,6 +916,8 @@ def create_app(token: str) -> Starlette:
         Route("/mcp/", mcp_endpoint, methods=["GET", "POST", "OPTIONS"]),
         Route("/.well-known/oauth-authorization-server", well_known_as, methods=["GET", "OPTIONS"]),
         Route("/.well-known/oauth-authorization-server/mcp", well_known_as, methods=["GET", "OPTIONS"]),
+        Route("/.well-known/openid-configuration", well_known_as, methods=["GET", "OPTIONS"]),
+        Route("/.well-known/openid-configuration/mcp", well_known_as, methods=["GET", "OPTIONS"]),
         Route("/.well-known/oauth-protected-resource", well_known_pr, methods=["GET", "OPTIONS"]),
         Route("/.well-known/oauth-protected-resource/mcp", well_known_pr, methods=["GET", "OPTIONS"]),
         Route("/oauth/authorize", authorize, methods=["GET", "POST"]),

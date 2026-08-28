@@ -117,6 +117,6 @@ Cursor / Grok Bot も同じ OAuth（PKCE、クライアントシークレット�
 - デスクトップ: `http://localhost:8787/callback`（localhost で許可済）
 - フォールバック: `cursor://anysphere.cursor-mcp/oauth/callback`
 
-well-known は Basic 認証の外。`/.well-known/oauth-authorization-server` と `/oauth/` は MCP プロセスへプロキシする。
+well-known は Basic 認証の外。`/.well-known/oauth-authorization-server` と `/.well-known/openid-configuration`（同じ AS メタデータ）と `/oauth/` は MCP プロセスへプロキシする。`/.well-known/` 全体は外さない（acme-challenge は従来どおり）。
 
 MCP 自体が死んだときの退避路は Actions の **Debug VPS**。
