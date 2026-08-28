@@ -48,9 +48,16 @@ apt-get update -qq
 apt-get install -y -qq \
   python3-venv python3-pip git curl \
   nginx apache2-utils certbot \
-  ufw tzdata
+  ufw tzdata fuse3 unzip
 
 timedatectl set-timezone Asia/Tokyo
+
+# rclone: Debian 版は古いことがある。無ければ公式インストーラ。
+if ! command -v rclone >/dev/null 2>&1; then
+  curl -fsSL https://rclone.org/install.sh | bash || echo "rclone install failed (R2 mount skipped)" >&2
+else
+  echo "rclone present: $(rclone version 2>/dev/null | head -n1)"
+fi
 
 install_authorized_key() {
   local home="$1" user="$2" pubkey="$3"
@@ -340,5 +347,49 @@ EOF
 fi
 
 crontab -u "$STOCK_USER" "$APP_DIR/deploy/crontab"
+
+# Cloudflare R2: stock の user systemd で rclone mount（linger で再起動後も残す）
+STOCK_HOME="$(getent passwd "$STOCK_USER" | cut -d: -f6)"
+if [[ -z "$STOCK_HOME" ]]; then
+  echo "stock home not found; skip R2 mount" >&2
+else
+  install -d -m 755 -o "$STOCK_USER" -g "$STOCK_USER" "$STOCK_HOME/r2-share"
+  install -d -m 700 -o "$STOCK_USER" -g "$STOCK_USER" "$STOCK_HOME/.config"
+  install -d -m 700 -o "$STOCK_USER" -g "$STOCK_USER" "$STOCK_HOME/.config/rclone"
+  install -d -m 700 -o "$STOCK_USER" -g "$STOCK_USER" "$STOCK_HOME/.config/systemd"
+  install -d -m 700 -o "$STOCK_USER" -g "$STOCK_USER" "$STOCK_HOME/.config/systemd/user"
+  install -d -m 700 -o "$STOCK_USER" -g "$STOCK_USER" "$STOCK_HOME/.cache"
+  install -d -m 700 -o "$STOCK_USER" -g "$STOCK_USER" "$STOCK_HOME/.cache/rclone"
+  if command -v loginctl >/dev/null 2>&1; then
+    loginctl enable-linger "$STOCK_USER" || echo "enable-linger ${STOCK_USER} failed" >&2
+  fi
+  if [[ -f "$APP_DIR/deploy/r2-share.service" ]]; then
+    if ! command -v rclone >/dev/null 2>&1; then
+      echo "rclone missing; skip r2-share.service"
+    else
+      write_if_changed "$STOCK_HOME/.config/systemd/user/r2-share.service" 644 < "$APP_DIR/deploy/r2-share.service" || true
+      chown "$STOCK_USER:$STOCK_USER" "$STOCK_HOME/.config/systemd/user/r2-share.service"
+      user_sys_ok=0
+      for _ in $(seq 1 15); do
+        if systemctl --user -M "${STOCK_USER}@" daemon-reload >/dev/null 2>&1; then
+          user_sys_ok=1
+          break
+        fi
+        sleep 1
+      done
+      if [[ "$user_sys_ok" -eq 1 ]]; then
+        systemctl --user -M "${STOCK_USER}@" enable r2-share.service >/dev/null 2>&1 || true
+        if [[ -f "$STOCK_HOME/.config/rclone/rclone.conf" ]]; then
+          systemctl --user -M "${STOCK_USER}@" restart r2-share.service >/dev/null 2>&1 \
+            || echo "r2-share.service start skipped or failed (conf present)" >&2
+        else
+          echo "r2-share.service enabled but not started (rclone.conf missing; set R2_* secrets and redeploy)"
+        fi
+      else
+        echo "user systemd for ${STOCK_USER} not ready; r2-share.service not enabled" >&2
+      fi
+    fi
+  fi
+fi
 
 echo "provision ok domain=${DOMAIN} tz=$(timedatectl show -p Timezone --value 2>/dev/null || echo Asia/Tokyo)"

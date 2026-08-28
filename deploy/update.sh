@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # GitHub Actions から stdin で流して実行する。
 # git pull → 冪等な初期設定 (provision.sh) → venv → migrate → 再起動
-# stock.db は触らない。.env は JQUANTS_API_KEY / MCP_TOKEN が渡されたときだけ当該行を更新する。
+# stock.db は触らない。.env は JQUANTS_API_KEY / MCP_TOKEN / R2_* が渡されたときだけ当該行を更新する。
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/home/stock/stock-analyzer}"
@@ -63,11 +63,51 @@ upsert_env() {
 
 upsert_env JQUANTS_API_KEY "${JQUANTS_API_KEY:-}"
 upsert_env MCP_TOKEN "${MCP_TOKEN:-}"
+upsert_env R2_ACCESS_KEY_ID "${R2_ACCESS_KEY_ID:-}"
+upsert_env R2_SECRET_ACCESS_KEY "${R2_SECRET_ACCESS_KEY:-}"
 
 if ! grep -qE '^MCP_TOKEN=.+' "$APP_DIR/.env" 2>/dev/null; then
   upsert_env MCP_TOKEN "$(openssl rand -hex 32)"
   echo "generated MCP_TOKEN on VPS (value not printed; set GitHub secret MCP_TOKEN to pin it)"
 fi
+
+write_rclone_conf() {
+  # 値はファイルにだけ書く。stdout に出さない。
+  if [ -z "${R2_ACCESS_KEY_ID:-}" ] || [ -z "${R2_SECRET_ACCESS_KEY:-}" ]; then
+    return 0
+  fi
+  python3 - <<'PY'
+import os
+from pathlib import Path
+
+key = os.environ.get("R2_ACCESS_KEY_ID") or ""
+secret = os.environ.get("R2_SECRET_ACCESS_KEY") or ""
+if not key or not secret:
+    raise SystemExit(0)
+conf_dir = Path.home() / ".config" / "rclone"
+conf_dir.mkdir(parents=True, exist_ok=True)
+conf_dir.chmod(0o700)
+text = (
+    "[r2]\n"
+    "type = s3\n"
+    "provider = Cloudflare\n"
+    f"access_key_id = {key}\n"
+    f"secret_access_key = {secret}\n"
+    "region = auto\n"
+    "endpoint = https://39a6da16651b53d44c459c3a4f4d59f5.r2.cloudflarestorage.com\n"
+    "acl = private\n"
+    "force_path_style = true\n"
+    "v2_auth = false\n"
+)
+path = conf_dir / "rclone.conf"
+path.write_text(text, encoding="utf-8")
+path.chmod(0o600)
+print("updated rclone.conf (keys not printed)")
+PY
+}
+
+umask 077
+write_rclone_conf
 
 chmod +x "$APP_DIR/deploy/provision.sh"
 sudo --preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,CERTBOT_EMAIL \
