@@ -129,7 +129,7 @@ MCP 自体が死んだときの退避路は Actions の **Debug VPS**。
 
 ## Cloudflare R2 mount と TDnet 月次 PDF
 
-VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount する（ユーザ `stock`、`loginctl enable-linger stock` でログアウト・再起動後も残る）。オブジェクトは `/home/stock/r2-share/monthly/...` として見える。systemd ユニットは `deploy/r2-share.service`（秘密情報は含まない）。
+VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount する（ユーザ `stock`、`loginctl enable-linger stock` でログアウト・再起動後も残る）。オブジェクトは `/home/stock/r2-share/monthly/{code}/YYYYMMDD_CODE_….pdf` として見える（`{code}` は TDnet の発行体コードそのまま。9279 / 262A。J-Quants 5桁にはしない）。systemd ユニットは `deploy/r2-share.service`（秘密情報は含まない）。
 
 1. この変更が main にマージされたあと（通常の CI/CD デプロイ）、GitHub secrets に `R2_ACCESS_KEY_ID` と `R2_SECRET_ACCESS_KEY` を入れる。
 2. Actions → CI/CD → Run workflow、`bump: none` でもう一度デプロイする。`.env` の当該行と `/home/stock/.config/rclone/rclone.conf`（chmod 600）が書かれ、user unit `r2-share.service` が mount する。secrets がまだ無いときは provision は落とさず、ユニットは enable のみ。
