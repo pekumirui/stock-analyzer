@@ -130,9 +130,11 @@ earnings_events   -- 決算発表イベントと発表後パフォーマンス
 monthly_tables    -- 銘柄×年度の月次表 (暦月1〜12。会計月ではない)
   code, year PK           -- code は J-Quants 5桁 (9279→92790, 262A→262A0)。year は西暦4桁
 
-monthly_elements  -- 表の行。element はトリムした原文、sort_order が登録順
+monthly_elements  -- 表の行。element は登録時の正規名、sort_order が登録順
   code, year, element PK
   unit                  -- number | yoy_index | yoy_pct。保存値は PDF 原文のまま
+  -- yoy: PDF 由来の前年比語を剥がし末尾に (前年比) を1回。number: トリムのみ
+  -- 既存行はリネームしない。GET は保存名。SPA は表示時に同じ規則
 
 monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字列は拒否)
   code, year, element, month PK
@@ -142,6 +144,8 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
 月次の year は暦年。PDF 取込は `POST /api/v1/tables/{code}/ingest` が列順 (`months`) と、開示日 `as_of` 時点の最新 `statements.fiscal_year_end` から暦年を割り当てる。クライアントは year を渡さない。年付き PUT は訂正用。決算期変更があっても as_of 時点の1か月だけを使う。
 
 月次の unit は PDF 見出しから付ける（値の大きさから推測しない）。`yoy_index` は 100=フラットの指数をそのまま保存・表示。`yoy_pct` は符号付き変化率をそのまま保存し、表では `100+v` を出す（▲ や +X.X% にはしない）。`number` は件数など。
+
+行ラベル: ingest と POST elements は unit に応じて保存名を正規化する。`yoy_index` / `yoy_pct` は `前年同月比` / `前年比` / `前年同月` / `(前年比)` / `（前年比）` を安定するまで除き、末尾に `(前年比)` を1回付ける（既にあれば二重にしない）。`number` はトリムのみで前年比を付けず剥がさない（`売上高` と `売上高(前年比)` は別行）。既存 DB 行は一括リネームしない。GET は保存名のまま。SPA の項目列は表示時に同じ規則を適用する。
 
 
 ### Q単独値の算出 (保存せずAPI側で導出)
@@ -222,7 +226,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `GET /api/earnings-performance/{code}` | 決算日からの対TOPIXリターン |
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
 | `GET /api/stocks/search?q=トヨタ` | 銘柄検索 |
-| `POST /api/v1/tables/{code}/{year}/elements` | 月次表の要素登録。表が無ければ作成。完全一致は冪等。類似は 409 (force=true で強制) |
+| `POST /api/v1/tables/{code}/{year}/elements` | 月次表の要素登録。表が無ければ作成。yoy は保存名を `(前年比)` 正規化してから完全一致・類似判定。完全一致は冪等。類似は 409 (force=true で強制) |
 | `GET /api/v1/tables` | 月次表がある銘柄一覧 (code 順)。各要素は `{code, name, years}`。name は stocks を LEFT JOIN (無ければ null)。years は昇順。表が無ければ `[]` |
 | `GET /api/v1/tables/{code}/{year}` | 月次表。要素は登録順、値のない月は省略。表が無ければ 404 |
 | `GET /api/v1/tables/{code}` | その銘柄の年度一覧 |

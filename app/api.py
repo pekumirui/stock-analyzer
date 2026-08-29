@@ -17,7 +17,10 @@ from .models import (
 )
 from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
-from .monthly_ingest import MonthlyIngestError, map_pdf_columns, parse_as_of, parse_monthly_unit
+from .monthly_ingest import (
+    MonthlyIngestError, canonicalize_element_label, map_pdf_columns,
+    parse_as_of, parse_monthly_unit,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -303,6 +306,14 @@ def _parse_element(raw: Any) -> str:
     return s
 
 
+def _canonical_element(raw: Any, unit: str | None) -> str:
+    """新規登録用。yoy は (前年比) 正規化。PUT の照合には使わない。"""
+    s = canonicalize_element_label(_parse_element(raw), unit)
+    if not s or len(s) > 50:
+        raise ApiError(400, "INVALID_PARAM", "element は1〜50文字の文字列です。")
+    return s
+
+
 def _parse_unit(raw: Any, *, omitted_ok: bool = False) -> str | None:
     try:
         return parse_monthly_unit(raw, omitted_ok=omitted_ok)
@@ -418,9 +429,9 @@ def _parse_ingest_rows(raw: Any, months: list[int]) -> list[tuple[str, bool, str
     for item in raw:
         if not isinstance(item, dict):
             raise ApiError(400, "INVALID_PARAM", "rows の各要素は {element, values} です。")
-        element = _parse_element(item.get("element"))
         force = item.get("force") is True
         unit = _parse_unit(item.get("unit")) if "unit" in item else None
+        element = _canonical_element(item.get("element"), unit)
         values_raw = item.get("values")
         if not isinstance(values_raw, dict):
             raise ApiError(400, "INVALID_PARAM", "values は月をキーにしたオブジェクトです。")
@@ -444,9 +455,9 @@ def post_element(code: str, year: str, response: Response,
     code = _parse_code(code)
     year_i = _parse_year(year)
     body = _require_object(payload)
-    element = _parse_element(body.get("element"))
     force = body.get("force") is True
     unit = _parse_unit(body.get("unit")) if "unit" in body else None
+    element = _canonical_element(body.get("element"), unit)
     created = _ensure_element(db, code, year_i, element, force, unit)
     row = _get_element(db, code, year_i, element)
     db.commit()

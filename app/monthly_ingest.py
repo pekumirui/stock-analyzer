@@ -1,11 +1,16 @@
 """PDF 月次列順と事業年度末月から暦年を割り当てる。year は呼び出し側が渡さない。"""
 from __future__ import annotations
 
+import re
 from datetime import date
 from typing import Any, Sequence
 
 # 保存値は PDF 原文。unit は表示だけ。値の大きさから推測しない。
 MONTHLY_UNITS = ("number", "yoy_index", "yoy_pct")
+_YOY_UNITS = frozenset({"yoy_index", "yoy_pct"})
+# 長い語を先に。前年同月比 を 前年同月 より先、括弧付きを 前年比 より先。
+_YOY_FRAGMENTS = ("前年同月比", "前年同月", "(前年比)", "（前年比）", "前年比")
+_YOY_SUFFIX = "(前年比)"
 _UNIT_MSG = "unit は number / yoy_index / yoy_pct です。"
 
 
@@ -26,6 +31,29 @@ def parse_monthly_unit(raw: Any, *, omitted_ok: bool = False) -> str | None:
     if not isinstance(raw, str) or raw not in MONTHLY_UNITS:
         raise MonthlyIngestError(400, "INVALID_PARAM", _UNIT_MSG)
     return raw
+
+
+def strip_yoy_fragments(name: str) -> str:
+    """PDF 由来の前年比語を繰り返し除去し、残り空白を畳む。"""
+    s = name.strip()
+    while True:
+        prev = s
+        for frag in _YOY_FRAGMENTS:
+            s = s.replace(frag, "")
+        s = re.sub(r"\s+", " ", s).strip()
+        if s == prev:
+            return s
+
+
+def canonicalize_element_label(element: str, unit: str | None) -> str:
+    """保存名・表示名。yoy は語を剥がして (前年比) を1回。number はトリムのみ。"""
+    trimmed = element.strip()
+    if (unit or "number") not in _YOY_UNITS:
+        return trimmed
+    base = strip_yoy_fragments(trimmed)
+    if base.endswith(_YOY_SUFFIX):
+        return base
+    return f"{base}{_YOY_SUFFIX}"
 
 
 def format_monthly_cell(value: float | None, unit: str | None) -> str:

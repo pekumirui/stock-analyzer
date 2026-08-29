@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
 from app.monthly_ingest import (  # noqa: E402
     MonthlyIngestError,
+    canonicalize_element_label,
     format_monthly_cell,
     map_pdf_columns,
     parse_monthly_unit,
@@ -58,6 +59,29 @@ def _expect_ingest_error(fn, code: str, needle: str | None = None) -> MonthlyIng
         return exc
     _fail(f"expected {code}")
     raise AssertionError  # unreachable
+
+
+def test_canonicalize_element_label() -> None:
+    if canonicalize_element_label("売上高前年同月比", "yoy_index") != "売上高(前年比)":
+        _fail("strip 前年同月比 + suffix")
+    if canonicalize_element_label("売上高前年比", "yoy_pct") != "売上高(前年比)":
+        _fail("strip 前年比 + suffix")
+    if canonicalize_element_label("既存売上高(前年比)", "yoy_index") != "既存売上高(前年比)":
+        _fail("no double suffix")
+    if canonicalize_element_label("既存売上高（前年比）", "yoy_index") != "既存売上高(前年比)":
+        _fail("fullwidth parens to ascii suffix")
+    if canonicalize_element_label("全店 売上高", "yoy_index") != "全店 売上高(前年比)":
+        _fail("yoy append even without 前年比")
+    if canonicalize_element_label(" 売上高 前年同月比 ", "yoy_index") != "売上高(前年比)":
+        _fail("trim leftover spaces after strip")
+    if canonicalize_element_label("売上高", "number") != "売上高":
+        _fail("number unchanged")
+    if canonicalize_element_label("売上高前年同月比", "number") != "売上高前年同月比":
+        _fail("number must not strip")
+    if canonicalize_element_label("店舗数", "number") != "店舗数":
+        _fail("number 店舗数")
+    if canonicalize_element_label("売上高前年同月比", None) != "売上高前年同月比":
+        _fail("omitted unit is number: no strip/suffix")
 
 
 def test_mapping_examples() -> None:
@@ -410,16 +434,22 @@ def test_unit_display_and_ingest() -> None:
     r = c.get(f"/api/v1/tables/{code}/2025")
     _expect(r, 200, "GET ingest units")
     by = {e["element"]: e for e in r.json()["elements"]}
-    if by["全店売上高"]["unit"] != "yoy_index" or float(by["全店売上高"]["values"]["11"]) != 125.8:
-        _fail(f"ingest yoy_index stored: {by['全店売上高']!r}")
-    if format_monthly_cell(float(by["全店売上高"]["values"]["11"]), "yoy_index") != "125.8":
+    if "全店売上高(前年比)" not in by:
+        _fail(f"ingest yoy_index name: {list(by)!r}")
+    if by["全店売上高(前年比)"]["unit"] != "yoy_index" or float(by["全店売上高(前年比)"]["values"]["11"]) != 125.8:
+        _fail(f"ingest yoy_index stored: {by['全店売上高(前年比)']!r}")
+    if format_monthly_cell(float(by["全店売上高(前年比)"]["values"]["11"]), "yoy_index") != "125.8":
         _fail("ingest yoy_index display")
-    if by["売上高前年比"]["unit"] != "yoy_pct" or float(by["売上高前年比"]["values"]["11"]) != -7.1:
-        _fail(f"ingest yoy_pct stored: {by['売上高前年比']!r}")
-    if format_monthly_cell(float(by["売上高前年比"]["values"]["11"]), "yoy_pct") != "92.9":
+    if "売上高(前年比)" not in by:
+        _fail(f"ingest yoy_pct name: {list(by)!r}")
+    if by["売上高(前年比)"]["unit"] != "yoy_pct" or float(by["売上高(前年比)"]["values"]["11"]) != -7.1:
+        _fail(f"ingest yoy_pct stored: {by['売上高(前年比)']!r}")
+    if format_monthly_cell(float(by["売上高(前年比)"]["values"]["11"]), "yoy_pct") != "92.9":
         _fail("ingest yoy_pct display")
     if by["店舗数"]["unit"] != "number" or float(by["店舗数"]["values"]["11"]) != 303:
         _fail(f"ingest number stored: {by['店舗数']!r}")
+    if "売上高前年比" in by:
+        _fail("yoy_pct must not keep PDF 前年比 wording")
 
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": [11, 12, 1],
@@ -439,11 +469,57 @@ def test_unit_display_and_ingest() -> None:
     _expect(r, 200, "ingest 125.8 as yoy_pct")
     r = c.get(f"/api/v1/tables/{code}/2025")
     by = {e["element"]: e for e in r.json()["elements"]}
-    if by["大きい指数"]["unit"] != "yoy_pct" or float(by["大きい指数"]["values"]["11"]) != 125.8:
-        _fail(f"must not convert 125.8: {by['大きい指数']!r}")
+    if "大きい指数(前年比)" not in by:
+        _fail(f"yoy_pct name missing suffix: {list(by)!r}")
+    if by["大きい指数(前年比)"]["unit"] != "yoy_pct" or float(by["大きい指数(前年比)"]["values"]["11"]) != 125.8:
+        _fail(f"must not convert 125.8: {by['大きい指数(前年比)']!r}")
+
+
+def test_ingest_yoy_label_and_number_separate() -> None:
+    c = TestClient(app)
+    code = "44440"
+    _add_fy_end(code, date(2026, 5, 8), date(2025, 10, 31), "label-fy-1")
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [11],
+        "rows": [{"element": "売上高前年同月比", "values": {"11": 125.8}, "unit": "yoy_index"}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 200, "ingest 前年同月比")
+    r = c.get(f"/api/v1/tables/{code}/2025")
+    _expect(r, 200, "GET after 前年同月比")
+    names = [e["element"] for e in r.json()["elements"]]
+    if names != ["売上高(前年比)"]:
+        _fail(f"save 売上高前年同月比 as 売上高(前年比): {names!r}")
+
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [11],
+        "rows": [{"element": "売上高前年比", "values": {"11": 126.0}, "unit": "yoy_index"}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 200, "ingest canonical same row")
+    r = c.get(f"/api/v1/tables/{code}/2025")
+    els = r.json()["elements"]
+    if [e["element"] for e in els] != ["売上高(前年比)"]:
+        _fail(f"canonical similar must be same row: {[e['element'] for e in els]!r}")
+    if float(els[0]["values"]["11"]) != 126.0:
+        _fail(f"canonical ingest overwrite: {els[0]!r}")
+
+    r = c.post(f"/api/v1/tables/{code}/{2025}/elements", json={"element": "売上高", "unit": "number"})
+    _expect(r, 201, "number 売上高 separate")
+    r = c.get(f"/api/v1/tables/{code}/2025")
+    names = [e["element"] for e in r.json()["elements"]]
+    if names != ["売上高(前年比)", "売上高"]:
+        _fail(f"number and yoy stay separate: {names!r}")
+
+    r = c.post(f"/api/v1/tables/{code}/{2025}/elements",
+               json={"element": "売上高前年同月比", "unit": "number"})
+    _expect(r, 201, "number keeps 前年同月比")
+    if r.json()["element"] != "売上高前年同月比":
+        _fail(f"number must not strip: {r.json()!r}")
 
 
 def main() -> None:
+    test_canonicalize_element_label()
     test_mapping_examples()
     test_fy_end_and_layout_errors()
     test_api_gift_ingest()
@@ -452,6 +528,7 @@ def main() -> None:
     test_all_or_nothing_similar()
     test_api_alnum_code()
     test_unit_display_and_ingest()
+    test_ingest_yoy_label_and_number_separate()
     print("ok: monthly ingest")
 
 
