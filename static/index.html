@@ -687,7 +687,7 @@ async function loadMonthlyTable(){
   for(const e of d.elements || []){
     const vals = e.values || {};
     const unit = e.unit || "number";
-    h += `<tr><td class="l">${e.element}</td>`;
+    h += `<tr><td class="l">${fmtMonthlyElement(e.element, unit)}</td>`;
     for(let m=1;m<=12;m++){
       const v = vals[String(m)];
       h += `<td class="num">${fmtMonthlyCell(v, unit)}</td>`;
@@ -704,6 +704,27 @@ function fmtMonthlyCell(v, unit){
   if(!Number.isFinite(n)) return "";
   if(unit==="yoy_pct") n += 100;
   return n.toLocaleString("ja-JP",{maximumFractionDigits:4});
+}
+
+function stripYoyFragments(name){
+  const frags = ["前年同月比","前年同月","(前年比)","（前年比）","前年比"];
+  let s = String(name || "").trim();
+  let prev;
+  do {
+    prev = s;
+    for(const frag of frags) s = s.split(frag).join("");
+    s = s.replace(/\s+/g, " ").trim();
+  } while(s !== prev);
+  return s;
+}
+
+function fmtMonthlyElement(name, unit){
+  const trimmed = String(name || "").trim();
+  const u = unit || "number";
+  if(u !== "yoy_index" && u !== "yoy_pct") return trimmed;
+  const base = stripYoyFragments(trimmed);
+  if(base.endsWith("(前年比)")) return base;
+  return base + "(前年比)";
 }
 
 // 初期表示: 決算速報タブは広幅、カレンダーはPCのみ開いた状態にする
