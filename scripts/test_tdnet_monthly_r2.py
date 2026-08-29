@@ -13,6 +13,7 @@ from tdnet_monthly_r2 import (  # noqa: E402
     dest_filename,
     dest_path,
     display_code,
+    download_skip_reason,
     is_monthly_title,
     jq_lookup_code,
     load_stock_product_map,
@@ -131,6 +132,68 @@ def test_stock_product_map_sqlite(tmp: Path) -> None:
         _fail("DB missing fallback should still skip インフラ投資法人")
     if should_skip_infra_fund(None, None, "ジャパン・ホテル・リート投資法人"):
         _fail("DB missing fallback should keep ホテル・リート")
+    if download_skip_reason("3032", "ゴルフ・ドゥ", empty) is not None:
+        _fail("missing db must not skip unknown 3032")
+    if download_skip_reason("3066", "JBイレブン", empty) is not None:
+        _fail("missing db must not skip unknown 3066")
+    if download_skip_reason("3032", "ゴルフ・ドゥ", m) != "unknown-stock 3032 ゴルフ・ドゥ":
+        _fail("loaded map must skip unknown 3032")
+
+
+def test_download_skip_reason() -> None:
+    stock_map: dict[str, tuple[str | None, str | None]] = {
+        "92820": ("013", "ジャパン・インフラファンド投資法人"),
+        "89850": ("013", "ジャパン・ホテル・リート投資法人"),
+        "72030": ("011", "トヨタ自動車"),
+        "92790": ("010", "ギフト"),
+    }
+    # 1. non-empty map + absent code (名古屋単独など) → skip, do not download
+    got = download_skip_reason("3032", "ゴルフ・ドゥ", stock_map)
+    if got != "unknown-stock 3032 ゴルフ・ドゥ":
+        _fail(f"3032 unknown: {got!r}")
+    got = download_skip_reason("3066", "JBイレブン", stock_map)
+    if got != "unknown-stock 3066 JBイレブン":
+        _fail(f"3066 unknown: {got!r}")
+    got = download_skip_reason("30320", "ゴルフ・ドゥ", stock_map)
+    if got != "unknown-stock 3032 ゴルフ・ドゥ":
+        _fail(f"30320 padded unknown: {got!r}")
+    # unknown takes precedence over infra-looking name when not in stocks
+    got = download_skip_reason("9999", "○○インフラ投資法人", stock_map)
+    if got != "unknown-stock 9999 ○○インフラ投資法人":
+        _fail(f"unknown infra-looking name: {got!r}")
+
+    # 2. empty map (DB unreadable / missing) → unknown filter off
+    empty: dict[str, tuple[str | None, str | None]] = {}
+    if download_skip_reason("3032", "ゴルフ・ドゥ", empty) is not None:
+        _fail("empty map must not skip 3032")
+    if download_skip_reason("3066", "JBイレブン", empty) is not None:
+        _fail("empty map must not skip 3066")
+    if download_skip_reason("7203", "トヨタ自動車", empty) is not None:
+        _fail("empty map must not skip known-looking 7203")
+    # empty map still infra-skips via company_name fallback
+    got = download_skip_reason("9282", "○○インフラ投資法人", empty)
+    if got != "infra-fund 9282 ○○インフラ投資法人":
+        _fail(f"empty map infra fallback: {got!r}")
+    if download_skip_reason("8985", "ジャパン・ホテル・リート投資法人", empty) is not None:
+        _fail("empty map must keep 8985")
+
+    # 3. code in stocks + infra fund → still infra skip
+    got = download_skip_reason("9282", "ジャパン・インフラファンド投資法人", stock_map)
+    if got != "infra-fund 9282 ジャパン・インフラファンド投資法人":
+        _fail(f"9282 infra: {got!r}")
+    got = download_skip_reason("92820", "ジャパン・インフラファンド投資法人", stock_map)
+    if got != "infra-fund 9282 ジャパン・インフラファンド投資法人":
+        _fail(f"92820 infra: {got!r}")
+
+    # 4. 8985 REIT in stocks, not infra → keep
+    if download_skip_reason("8985", "ジャパン・ホテル・リート投資法人", stock_map) is not None:
+        _fail("8985 should keep")
+    if download_skip_reason("89850", "ジャパン・ホテル・リート投資法人", stock_map) is not None:
+        _fail("89850 should keep")
+    if download_skip_reason("7203", "トヨタ自動車", stock_map) is not None:
+        _fail("7203 should keep")
+    if download_skip_reason("9279", "ギフト", stock_map) is not None:
+        _fail("9279 should keep")
 
 
 def test_tdnet_pdf_id() -> None:
@@ -331,6 +394,7 @@ def main() -> None:
     test_display_code()
     test_jq_lookup_code()
     test_should_skip_infra_fund()
+    test_download_skip_reason()
     test_tdnet_pdf_id()
     test_dest_filename_gift()
     test_dest_path_per_code_dir()
