@@ -117,6 +117,28 @@ def test_mapping_examples() -> None:
     if mapping != {m: 2026 for m in CAL_MONTHS}:
         _fail(f"dec mapping: {mapping}")
 
+    # 先頭が1でも会計年度開始でもない列。暦年は最終列 + as_of。拒否しない。
+    as_of_aug = date(2026, 8, 5)
+    layout, mapping = plan_column_years([7], 10, as_of_aug)
+    if layout != "partial":
+        _fail(f"single July layout: {layout}")
+    if mapping != {7: 2026}:
+        _fail(f"single July mapping: {mapping}")
+
+    layout, mapping = plan_column_years([7, 8], 3, as_of_aug)
+    if layout != "partial":
+        _fail(f"mid-start layout: {layout}")
+    if mapping != {7: 2026, 8: 2026}:
+        _fail(f"mid-start mapping: {mapping}")
+
+    fy, layout, mapping = map_pdf_columns(
+        [7],
+        [(date(2026, 5, 8), date(2025, 10, 31))],
+        as_of_aug,
+    )
+    if fy != 10 or layout != "partial" or mapping != {7: 2026}:
+        _fail(f"single July map_pdf_columns: {fy} {layout} {mapping}")
+
 
 def test_fy_end_and_layout_errors() -> None:
     as_of = date(2026, 8, 5)
@@ -171,13 +193,13 @@ def test_fy_end_and_layout_errors() -> None:
     if fy != 3 or layout != "fiscal":
         _fail(f"changed-fy map_pdf_columns: {fy} {layout} {mapping}")
 
-    exc = _expect_ingest_error(
-        lambda: plan_column_years([7, 8, 9, 10, 11, 12, 1], 10, date(2026, 8, 5)),
-        "AMBIGUOUS_LAYOUT",
-        needle="7",
-    )
-    if "10" not in exc.message:
-        _fail(f"AMBIGUOUS_LAYOUT should include fy_end_month: {exc.message}")
+    layout, mapping = plan_column_years([7, 8, 9, 10, 11, 12, 1], 10, date(2026, 8, 5))
+    if layout != "partial":
+        _fail(f"wrap mid-start layout: {layout}")
+    expect_wrap = {m: 2025 for m in (7, 8, 9, 10, 11, 12)}
+    expect_wrap[1] = 2026
+    if mapping != expect_wrap:
+        _fail(f"wrap mid-start mapping: {mapping}")
 
 
 def _add_fy_end(code: str, disclosed: date, fy_end: date, disclosure_no: str) -> None:
@@ -298,14 +320,36 @@ def test_api_errors() -> None:
 
     _add_fy_end("77770", date(2026, 5, 1), date(2025, 10, 31), "amb-1")
     r = c.post("/api/v1/tables/77770/ingest", json={
-        "months": [7, 8, 9, 10, 11, 12, 1],
+        "months": [7, 8],
+        "rows": [{"element": "売上高", "values": {"7": 1, "8": 2}}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 200, "mid-start ingest")
+    body = r.json()
+    if body.get("layout") != "partial" or body.get("fy_end_month") != 10:
+        _fail(f"mid-start ingest header: {body!r}")
+    if body.get("mapping") != {"7": 2026, "8": 2026}:
+        _fail(f"mid-start ingest mapping: {body.get('mapping')!r}")
+    r = c.get("/api/v1/tables/77770/2026")
+    _expect(r, 200, "GET 2026 mid-start")
+    v2026 = {str(k): float(val) for k, val in r.json()["elements"][0]["values"].items()}
+    if set(v2026) != {"7", "8"}:
+        _fail(f"GET 2026 mid-start months: {v2026!r}")
+    r = c.get("/api/v1/tables/77770/2025")
+    _expect(r, 404, "GET 2025 mid-start")
+    if _err(r)["code"] != "TABLE_NOT_FOUND":
+        _fail(f"2025 should not exist: {r.json()!r}")
+
+    _add_fy_end("33330", date(2026, 5, 1), date(2026, 3, 31), "single-jul-1")
+    r = c.post("/api/v1/tables/33330/ingest", json={
+        "months": [7],
         "rows": [{"element": "売上高", "values": {"7": 1}}],
         "as_of": "2026-08-05",
     })
-    _expect(r, 400, "AMBIGUOUS_LAYOUT")
-    err = _err(r)
-    if err["code"] != "AMBIGUOUS_LAYOUT" or "7" not in err["message"] or "10" not in err["message"]:
-        _fail(f"AMBIGUOUS_LAYOUT: {r.json()!r}")
+    _expect(r, 200, "single July ingest")
+    body = r.json()
+    if body.get("layout") != "partial" or body.get("mapping") != {"7": 2026}:
+        _fail(f"single July ingest: {body!r}")
 
     r = c.post("/api/v1/tables/77770/ingest", json={
         "months": GIFT_MONTHS,

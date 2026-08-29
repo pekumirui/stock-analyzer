@@ -142,7 +142,7 @@ def plan_column_years(
     fy_end_month: int,
     as_of: date,
 ) -> tuple[str, dict[int, int]]:
-    """列順 → 暦年。layout は calendar | fiscal。"""
+    """列順 → 暦年。layout は calendar | fiscal | partial。並びでは拒否しない。"""
     if not months:
         raise MonthlyIngestError(400, "INVALID_PARAM", "months は1〜12の重複しない整数の配列です。")
     start = months[0]
@@ -151,10 +151,7 @@ def plan_column_years(
     elif start == _fiscal_start_month(fy_end_month):
         layout = "fiscal"
     else:
-        raise MonthlyIngestError(
-            400, "AMBIGUOUS_LAYOUT",
-            f"列の先頭月 {start} は暦年でも会計年度開始月でもありません（事業年度末月 {fy_end_month}）。",
-        )
+        layout = "partial"
     return layout, _assign_years(months, as_of)
 
 
