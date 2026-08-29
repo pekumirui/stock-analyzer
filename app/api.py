@@ -481,7 +481,7 @@ def put_element(code: str, year: str, payload: dict | None = Body(None),
 
 @router_v1.post("/tables/{code}/ingest")
 def ingest_monthly(code: str, payload: dict | None = Body(None), db: Session = Depends(get_session)):
-    """PDF列順 + statements.fiscal_year_end から暦年を割り当てる。year は受け取らない。"""
+    """PDF列順 + as_of 時点の最新 statements.fiscal_year_end から暦年を割り当てる。year は受け取らない。"""
     code = _parse_code(code)
     body = _require_object(payload)
     months = _parse_months(body.get("months"))
@@ -491,14 +491,16 @@ def ingest_monthly(code: str, payload: dict | None = Body(None), db: Session = D
     except MonthlyIngestError as exc:
         raise _ingest_error(exc) from exc
 
-    fy_ends = [fy for (fy,) in (
-        db.query(Statement.fiscal_year_end)
-        .filter(Statement.code == code, Statement.fiscal_year_end.isnot(None))
-        .order_by(Statement.disclosed_date.desc())
-        .all()
-    )]
+    fy_end_rows = [
+        (disclosed, fy_end)
+        for disclosed, fy_end in (
+            db.query(Statement.disclosed_date, Statement.fiscal_year_end)
+            .filter(Statement.code == code, Statement.fiscal_year_end.isnot(None))
+            .all()
+        )
+    ]
     try:
-        fy_end_month, layout, mapping = map_pdf_columns(months, fy_ends, as_of)
+        fy_end_month, layout, mapping = map_pdf_columns(months, fy_end_rows, as_of)
     except MonthlyIngestError as exc:
         raise _ingest_error(exc) from exc
 

@@ -69,7 +69,12 @@ def test_mapping_examples() -> None:
         _fail(f"gift mapping: {mapping}")
 
     fy, layout, mapping = map_pdf_columns(
-        GIFT_MONTHS, [date(2025, 10, 31), date(2024, 10, 31)], date(2026, 8, 5),
+        GIFT_MONTHS,
+        [
+            (date(2026, 5, 8), date(2025, 10, 31)),
+            (date(2025, 5, 9), date(2024, 10, 31)),
+        ],
+        date(2026, 8, 5),
     )
     if fy != 10 or layout != "fiscal" or mapping != expect:
         _fail(f"gift map_pdf_columns: {fy} {layout} {mapping}")
@@ -90,19 +95,57 @@ def test_mapping_examples() -> None:
 
 
 def test_fy_end_and_layout_errors() -> None:
-    _expect_ingest_error(lambda: resolve_fy_end_month([]), "NEED_FY_END")
-    _expect_ingest_error(lambda: resolve_fy_end_month([None, None]), "NEED_FY_END")
-
-    exc = _expect_ingest_error(
-        lambda: resolve_fy_end_month([date(2026, 3, 31), date(2025, 10, 31)]),
-        "FY_END_CHANGED",
-        needle="3",
+    as_of = date(2026, 8, 5)
+    _expect_ingest_error(lambda: resolve_fy_end_month([], as_of), "NEED_FY_END")
+    _expect_ingest_error(lambda: resolve_fy_end_month([(None, None)], as_of), "NEED_FY_END")
+    _expect_ingest_error(
+        lambda: resolve_fy_end_month([(None, date(2025, 10, 31))], as_of),
+        "NEED_FY_END",
     )
-    if "10" not in exc.message:
-        _fail(f"FY_END_CHANGED should include both months: {exc.message}")
 
-    if resolve_fy_end_month([date(2025, 10, 31), date(2024, 10, 31)]) != 10:
+    oct_rows = [
+        (date(2026, 5, 8), date(2025, 10, 31)),
+        (date(2025, 5, 9), date(2024, 10, 31)),
+    ]
+    if resolve_fy_end_month(oct_rows, as_of) != 10:
         _fail("same fy_end month should be accepted")
+
+    # 2種の期末月があっても as_of 時点の最新開示の1か月。FY_END_CHANGED にはしない。
+    changed = [
+        (date(2026, 6, 1), date(2026, 3, 31)),
+        (date(2026, 5, 1), date(2025, 10, 31)),
+    ]
+    if resolve_fy_end_month(changed, as_of) != 3:
+        _fail("as-of after both disclosures should use latest month 3")
+    if resolve_fy_end_month(changed, date(2026, 5, 15)) != 10:
+        _fail("as-of between disclosures should use Oct")
+    _expect_ingest_error(
+        lambda: resolve_fy_end_month(changed, date(2026, 4, 30)),
+        "NEED_FY_END",
+    )
+
+    same_day = [
+        (date(2026, 6, 1), date(2026, 2, 28)),
+        (date(2026, 6, 1), date(2026, 11, 30)),
+    ]
+    if resolve_fy_end_month(same_day, as_of) != 11:
+        _fail("same disclosed_date should pick later fiscal_year_end")
+
+    # 実在の期変更銘柄: 後の開示の月末を使う（live DB は見ない）
+    for older_m, newer_m in ((2, 11), (1, 6), (2, 3), (11, 3), (8, 11), (1, 2)):
+        rows = [
+            (date(2020, 6, 1), date(2020, older_m, 1)),
+            (date(2021, 6, 1), date(2021, newer_m, 1)),
+        ]
+        got = resolve_fy_end_month(rows, date(2021, 7, 1))
+        if got != newer_m:
+            _fail(f"{older_m}->{newer_m}: expected {newer_m}, got {got}")
+
+    fy, layout, mapping = map_pdf_columns(
+        MARCH_MONTHS, changed, date(2026, 8, 5),
+    )
+    if fy != 3 or layout != "fiscal":
+        _fail(f"changed-fy map_pdf_columns: {fy} {layout} {mapping}")
 
     exc = _expect_ingest_error(
         lambda: plan_column_years([7, 8, 9, 10, 11, 12, 1], 10, date(2026, 8, 5)),
@@ -187,14 +230,47 @@ def test_api_errors() -> None:
     _add_fy_end("88880", date(2026, 6, 1), date(2026, 3, 31), "chg-1")
     _add_fy_end("88880", date(2026, 5, 1), date(2025, 10, 31), "chg-2")
     r = c.post("/api/v1/tables/88880/ingest", json={
-        "months": GIFT_MONTHS,
-        "rows": [{"element": "売上高", "values": {"11": 1}}],
+        "months": MARCH_MONTHS,
+        "rows": [{"element": "売上高", "values": {"4": 1}}],
         "as_of": "2026-08-05",
     })
-    _expect(r, 409, "FY_END_CHANGED")
-    err = _err(r)
-    if err["code"] != "FY_END_CHANGED" or "3" not in err["message"] or "10" not in err["message"]:
-        _fail(f"FY_END_CHANGED: {r.json()!r}")
+    _expect(r, 200, "fy change as-of")
+    body = r.json()
+    if body.get("fy_end_month") != 3 or body.get("layout") != "fiscal":
+        _fail(f"as-of after fy change: {body!r}")
+
+    r = c.post("/api/v1/tables/88880/ingest", json={
+        "months": MARCH_MONTHS,
+        "rows": [{"element": "売上高", "values": {"4": 1}}],
+        "as_of": "2026-04-30",
+    })
+    _expect(r, 400, "NEED_FY_END before statements")
+    if _err(r)["code"] != "NEED_FY_END":
+        _fail(f"as_of before fy_end rows: {r.json()!r}")
+
+    # 2月と11月: 後の開示が11月。FY_END_CHANGED にはしない。
+    _add_fy_end("26980", date(2020, 4, 10), date(2020, 2, 29), "candu-feb")
+    _add_fy_end("26980", date(2020, 12, 15), date(2020, 11, 30), "candu-nov")
+    r = c.post("/api/v1/tables/26980/ingest", json={
+        "months": CAL_MONTHS,
+        "rows": [{"element": "売上高", "values": {"1": 1}}],
+        "as_of": "2021-06-01",
+    })
+    _expect(r, 200, "2 and 11 as-of")
+    if r.json().get("fy_end_month") != 11 or r.json().get("layout") != "calendar":
+        _fail(f"2/11 as-of: {r.json()!r}")
+
+    # 同日開示は fiscal_year_end の新しい方
+    _add_fy_end("36120", date(2021, 6, 1), date(2021, 2, 28), "world-feb")
+    _add_fy_end("36120", date(2021, 6, 1), date(2021, 3, 31), "world-mar")
+    r = c.post("/api/v1/tables/36120/ingest", json={
+        "months": MARCH_MONTHS,
+        "rows": [{"element": "売上高", "values": {"4": 1}}],
+        "as_of": "2021-06-01",
+    })
+    _expect(r, 200, "same-day later fy_end")
+    if r.json().get("fy_end_month") != 3:
+        _fail(f"same-day later fy_end: {r.json()!r}")
 
     _add_fy_end("77770", date(2026, 5, 1), date(2025, 10, 31), "amb-1")
     r = c.post("/api/v1/tables/77770/ingest", json={
