@@ -75,7 +75,7 @@ def main() -> None:
         _fail("index.html still has percent/▲ monthly display")
 
     c = TestClient(app)
-    code, year = "7203", "2024"
+    code, year = "72030", "2024"
     base = f"/api/v1/tables/{code}/{year}"
 
     # TABLE_NOT_FOUND on GET missing table
@@ -312,11 +312,14 @@ def main() -> None:
     if r.json()["years"] != [2024, 2025]:
         _fail(f"years multi: {r.json()!r}")
 
-    # 5桁コードも可
+    # TDnet 4桁と J-Quants 5桁は同じ発行体 (7203 → 72030)
     r = c.post("/api/v1/tables/72030/2024/elements", json={"element": "売上高前年比"})
-    _expect(r, 201, "5-digit code")
+    _expect(r, 200, "5-digit same issuer")
+    r = c.get("/api/v1/tables/7203")
+    if r.json() != {"code": "72030", "years": [2024, 2025]}:
+        _fail(f"4-digit years: {r.json()!r}")
     r = c.get("/api/v1/tables/72030")
-    if r.json() != {"code": "72030", "years": [2024]}:
+    if r.json() != {"code": "72030", "years": [2024, 2025]}:
         _fail(f"5-digit years: {r.json()!r}")
 
     # GET /tables: unique codes, years 昇順, code 順。stocks が無い name は null
@@ -325,15 +328,11 @@ def main() -> None:
     body = r.json()
     if not isinstance(body, list):
         _fail(f"tables should be a list: {body!r}")
-    if [x.get("code") for x in body] != ["7203", "72030"]:
+    if [x.get("code") for x in body] != ["72030"]:
         _fail(f"tables sort by code: {body!r}")
-    t7203, t72030 = body
-    if t7203["years"] != [2024, 2025]:
-        _fail(f"years sorted: {t7203!r}")
-    if t72030["years"] != [2024]:
-        _fail(f"72030 years: {t72030!r}")
-    if t7203.get("name") not in (None, ""):
-        _fail(f"missing stock name should be null/empty: {t7203!r}")
+    t72030 = body[0]
+    if t72030["years"] != [2024, 2025]:
+        _fail(f"years sorted: {t72030!r}")
     if t72030.get("name") not in (None, ""):
         _fail(f"missing stock name should be null/empty: {t72030!r}")
 
@@ -342,7 +341,7 @@ def main() -> None:
 
     db = SessionLocal()
     try:
-        db.add(Stock(code="7203", name="トヨタ自動車"))
+        db.add(Stock(code="72030", name="トヨタ自動車"))
         db.commit()
     finally:
         db.close()
@@ -350,13 +349,11 @@ def main() -> None:
     r = c.get("/api/v1/tables")
     _expect(r, 200, "GET tables with stock name")
     by = {x["code"]: x for x in r.json()}
-    if set(by) != {"7203", "72030"}:
+    if set(by) != {"72030"}:
         _fail(f"unique codes after stock: {list(by)!r}")
-    if by["7203"]["name"] != "トヨタ自動車":
-        _fail(f"name from stocks: {by['7203']!r}")
-    if by["72030"].get("name") not in (None, ""):
-        _fail(f"72030 still missing stock: {by['72030']!r}")
-    if by["7203"]["years"] != [2024, 2025] or by["72030"]["years"] != [2024]:
+    if by["72030"]["name"] != "トヨタ自動車":
+        _fail(f"name from stocks: {by['72030']!r}")
+    if by["72030"]["years"] != [2024, 2025]:
         _fail(f"years after stock join: {by!r}")
 
     # JPX alphanumeric (Intermestic 262A / canonical 262A0)
@@ -366,10 +363,16 @@ def main() -> None:
         _fail("parse 262A0")
     if _parse_code("262a") != "262A0":
         _fail("parse 262a")
-    if _parse_code("7203") != "7203":
-        _fail("must not pad numeric 7203")
+    if _parse_code("7203") != "72030":
+        _fail("parse 7203")
     if _parse_code("72030") != "72030":
         _fail("72030")
+    if _parse_code("9279") != "92790":
+        _fail("parse 9279")
+    if _parse_code("92790") != "92790":
+        _fail("92790")
+    if _parse_code("7649") != "76490":
+        _fail("parse 7649")
     for bad in ("abc", "12", "262A/../x", "262A.0", "7203/../etc", "A2620"):
         try:
             _parse_code(bad)
@@ -457,7 +460,7 @@ def main() -> None:
     r = c.put("/api/v1/tables/7203/2026/elements",
               json={"element": "全店売上高", "unit": "yoy_pct"})
     _expect(r, 200, "PUT unit only")
-    if r.json() != {"code": "7203", "year": 2026, "element": "全店売上高", "unit": "yoy_pct"}:
+    if r.json() != {"code": "72030", "year": 2026, "element": "全店売上高", "unit": "yoy_pct"}:
         _fail(f"PUT unit: {r.json()!r}")
     r = c.get("/api/v1/tables/7203/2026")
     by = {e["element"]: e for e in r.json()["elements"]}

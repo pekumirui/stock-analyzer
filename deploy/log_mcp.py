@@ -74,7 +74,7 @@ SECRET_RE = re.compile(
 GREP_RE = re.compile(r"^[^\n\r\x00]{1,120}$")
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$")
 SHORT_SINCE_RE = re.compile(r"^(\d+)([smhd])$", re.I)
-# 先頭・末尾は数字、途中は 0-9A-Z。4桁 (7203 / 262A) と 5桁 (72030 / 262A0) を許す。
+# 先頭・末尾は数字、途中は 0-9A-Z。4桁は末尾0で 5桁正規形 (9279→92790, 262A→262A0)。
 CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
 YEAR_RE = re.compile(r"^\d{4}$")
 DB_TABLES = ("stocks", "daily_prices", "topix", "statements", "indicators", "earnings_events")
@@ -296,6 +296,11 @@ def open_db() -> sqlite3.Connection:
 
 
 def parse_code(raw: Any) -> str:
+    """TDnet 4-digit (9279) and JPX display (262A) become J-Quants 5-digit.
+
+    Same function for db_lookup, monthly fy_end lookup, and monthly save key.
+    charset + explicit . / blocks path traversal in /api/v1/tables/{code}/...
+    """
     s = str(raw or "").strip().upper()
     if not CODE_RE.fullmatch(s) or "." in s or "/" in s:
         raise ValueError(_CODE_ERR)
@@ -305,17 +310,7 @@ def parse_code(raw: Any) -> str:
 
 
 def parse_monthly_code(raw: Any) -> str:
-    """4-5 char as given for numeric; 4-char JPX display (262A) becomes 262A0.
-
-    Do not pad 4-digit numeric; monthly API treats 7203 and 72030 as distinct.
-    """
-    s = str(raw or "").strip().upper()
-    # charset + explicit . / : blocks path traversal in /api/v1/tables/{code}/...
-    if not CODE_RE.fullmatch(s) or "." in s or "/" in s:
-        raise ValueError(_CODE_ERR)
-    if len(s) == 4 and not s.isdigit():
-        s = s + "0"
-    return s
+    return parse_code(raw)
 
 
 def parse_monthly_year(raw: Any) -> int:

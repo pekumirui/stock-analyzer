@@ -346,6 +346,8 @@ def test_db_tools() -> None:
         try:
             if m.parse_code("7203") != "72030":
                 raise SystemExit("parse_code 7203")
+            if m.parse_code("9279") != "92790":
+                raise SystemExit("parse_code 9279")
             if m.parse_code("262A") != "262A0":
                 raise SystemExit("parse_code 262A")
             if m.parse_code("262A0") != "262A0":
@@ -687,16 +689,24 @@ def test_monthly_tools() -> None:
     _expect_value_error(m.parse_monthly_code, "720300", needle="4-5")
     _expect_value_error(m.parse_monthly_code, "262A/../x", needle="4-5")
     _expect_value_error(m.parse_monthly_code, "262A.0", needle="4-5")
-    if m.parse_monthly_code("7203") != "7203":
-        raise SystemExit("monthly code must not pad 7203")
+    if m.parse_monthly_code("7203") != "72030":
+        raise SystemExit("monthly 7203 should pad")
     if m.parse_monthly_code("72030") != "72030":
         raise SystemExit("72030")
+    if m.parse_monthly_code("9279") != "92790":
+        raise SystemExit("monthly 9279 should pad")
+    if m.parse_monthly_code("92790") != "92790":
+        raise SystemExit("92790")
     if m.parse_monthly_code("262A") != "262A0":
         raise SystemExit("monthly 262A should canonicalize")
     if m.parse_monthly_code("262A0") != "262A0":
         raise SystemExit("monthly 262A0")
     if m.parse_monthly_code("262a") != "262A0":
         raise SystemExit("monthly 262a")
+    if m.parse_monthly_code("7649") != "76490":
+        raise SystemExit("monthly 7649 should pad")
+    if m.parse_monthly_code("9279") != m.parse_code("9279"):
+        raise SystemExit("parse_monthly_code must match parse_code")
     if not m.CODE_RE.fullmatch("262A0") or not m.CODE_RE.fullmatch("262A"):
         raise SystemExit("CODE_RE must allow 262A / 262A0")
     if m.CODE_RE.fullmatch("abc") or m.CODE_RE.fullmatch("12") or m.CODE_RE.fullmatch("262A/../x"):
@@ -877,9 +887,9 @@ def test_monthly_tools() -> None:
 
             allowed = {
                 ("GET", "/api/v1/tables"),
-                ("GET", "/api/v1/tables/7203/2024"),
-                ("POST", "/api/v1/tables/7203/2024/elements"),
-                ("PUT", "/api/v1/tables/7203/2024/values/batch"),
+                ("GET", "/api/v1/tables/72030/2024"),
+                ("POST", "/api/v1/tables/72030/2024/elements"),
+                ("PUT", "/api/v1/tables/72030/2024/values/batch"),
             }
             for rec in recorded:
                 host = rec["host"].split(":")[0]
@@ -893,9 +903,9 @@ def test_monthly_tools() -> None:
                     raise SystemExit(f"unexpected monthly request: {rec}")
             if not any(rec["method"] == "GET" and rec["path"] == "/api/v1/tables" for rec in recorded):
                 raise SystemExit("monthly_list did not hit GET /api/v1/tables")
-            if not any(rec["method"] == "POST" and rec["path"] == "/api/v1/tables/7203/2024/elements" for rec in recorded):
+            if not any(rec["method"] == "POST" and rec["path"] == "/api/v1/tables/72030/2024/elements" for rec in recorded):
                 raise SystemExit("add_element path missing")
-            if not any(rec["method"] == "PUT" and rec["path"] == "/api/v1/tables/7203/2024/values/batch" for rec in recorded):
+            if not any(rec["method"] == "PUT" and rec["path"] == "/api/v1/tables/72030/2024/values/batch" for rec in recorded):
                 raise SystemExit("put_values path missing")
 
         os.environ["MCP_APP_HTTP"] = "http://127.0.0.1:1"
@@ -1010,7 +1020,7 @@ def test_monthly_ingest_tool() -> None:
                 raise SystemExit("monthly_ingest recorded nothing")
             allowed = {
                 ("POST", "/api/v1/tables/92790/ingest"),
-                ("POST", "/api/v1/tables/7203/ingest"),
+                ("POST", "/api/v1/tables/72030/ingest"),
                 ("POST", "/api/v1/tables/262A0/ingest"),
             }
             for rec in recorded:
