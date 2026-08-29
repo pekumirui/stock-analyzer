@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
+import sqlite3
 import sys
 import time
 import unicodedata
+from collections.abc import Mapping
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -43,6 +46,15 @@ INCLUDE_EXTRA = ("売上速報", "前年比", "営業概況", "店舗売上")
 EXCLUDE_UNLESS_MONTHLY = ("決算短信", "有報", "人事", "自己株式")
 _INBS_PDF_RE = re.compile(r"/inbs/([0-9A-Za-z]+)\.pdf", re.I)
 _BAD_FILENAME_RE = re.compile(r'[\x00-\x1f\\/:*?"<>|]')
+
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Infra funds share ProdCat 013/022 with REITs; J-Quants has no dedicated category.
+# Monthly skips only 013/022 whose name contains インフラ (not all REITs).
+INFRA_FUND_PRODUCT_CATEGORIES = ("013", "022")
+INFRA_FUND_NAME_NEEDLE = "インフラ"
+INFRA_FUND_FALLBACK_NEEDLE = "インフラ投資法人"
 
 
 def is_monthly_title(title: str) -> bool:
@@ -75,6 +87,123 @@ def display_code(company_code: str) -> str:
     if len(code) >= 5:
         return code[:4]
     return code or "0000"
+
+
+def jq_lookup_code(company_code: str) -> str:
+    """stocks 照合専用。display_code に末尾 0 を付けて J-Quants 5桁にする。"""
+    return display_code(company_code) + "0"
+
+
+def should_skip_infra_fund(
+    product_category: str | None,
+    stock_name: str | None,
+    company_name: str | None = None,
+) -> bool:
+    """インフラファンドの月次PDFを落とす。REIT 全除外や 011 は対象外。"""
+    cat = (product_category or "").strip()
+    names = (stock_name or "", company_name or "")
+    has_infra = any(INFRA_FUND_NAME_NEEDLE in n for n in names)
+    if cat in INFRA_FUND_PRODUCT_CATEGORIES:
+        return has_infra
+    if not cat:
+        return INFRA_FUND_FALLBACK_NEEDLE in (company_name or "")
+    return False
+
+
+def _dotenv_setdefault(text: str, environ: dict[str, str]) -> None:
+    for line in text.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        if s.startswith("export "):
+            s = s[7:].strip()
+        if "=" not in s:
+            continue
+        key, _, val = s.partition("=")
+        key = key.strip()
+        if not key:
+            continue
+        val = val.strip()
+        if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
+            val = val[1:-1]
+        environ.setdefault(key, val)
+
+
+def resolve_database_url(
+    environ: Mapping[str, str] | None = None,
+    dotenv_path: Path | None = None,
+    repo_root: Path | None = None,
+) -> str:
+    """DATABASE_URL env -> repo .env (setdefault) -> <repo>/stock.db. env is not overwritten."""
+    env = os.environ if environ is None else environ
+    root = REPO_ROOT if repo_root is None else repo_root
+    url = (env.get("DATABASE_URL") or "").strip()
+    if url:
+        return url
+    merged = dict(env)
+    src = root / ".env" if dotenv_path is None else dotenv_path
+    try:
+        _dotenv_setdefault(src.read_text(encoding="utf-8"), merged)
+    except OSError:
+        pass
+    url = (merged.get("DATABASE_URL") or "").strip()
+    if url:
+        return url
+    return f"sqlite:///{root / 'stock.db'}"
+
+
+def sqlite_path_from_url(url: str, repo_root: Path | None = None) -> Path | None:
+    raw = (url or "").strip()
+    if not raw.startswith("sqlite:///"):
+        return None
+    rest = raw[len("sqlite:///"):].split("?", 1)[0]
+    if not rest or rest == ":memory:":
+        return None
+    pth = Path(rest)
+    if not pth.is_absolute():
+        pth = (repo_root or REPO_ROOT) / pth
+    return pth
+
+
+def load_stock_product_map(
+    environ: Mapping[str, str] | None = None,
+    dotenv_path: Path | None = None,
+    repo_root: Path | None = None,
+    db_path: Path | None = None,
+) -> dict[str, tuple[str | None, str | None]]:
+    """code -> (product_category, name). empty dict on missing/non-sqlite/failure."""
+    try:
+        root = REPO_ROOT if repo_root is None else repo_root
+        if db_path is None:
+            url = resolve_database_url(
+                environ=environ, dotenv_path=dotenv_path, repo_root=root
+            )
+            db_path = sqlite_path_from_url(url, repo_root=root)
+            if db_path is None:
+                print("warn stocks db not sqlite; infra skip uses company_name only", flush=True)
+                return {}
+        if not db_path.is_file():
+            print(f"warn stocks db missing {db_path}", flush=True)
+            return {}
+        conn = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True, timeout=8)
+        try:
+            rows = conn.execute(
+                "SELECT code, product_category, name FROM stocks"
+            ).fetchall()
+        finally:
+            conn.close()
+        out: dict[str, tuple[str | None, str | None]] = {}
+        for code, cat, name in rows:
+            if not code:
+                continue
+            out[str(code)] = (
+                None if cat is None else str(cat),
+                None if name is None else str(name),
+            )
+        return out
+    except Exception as e:
+        print(f"warn stocks db unreadable: {e}", flush=True)
+        return {}
 
 
 def sanitize_filename_part(s: str) -> str:
@@ -267,14 +396,24 @@ def run(days: int, dest: Path) -> int:
         flush=True,
     )
     records = union_monthly_records(start, end)
+    stock_map = load_stock_product_map()
     saved = skipped = failed = 0
     for rec in records:
         pdf_id = rec["_pdf_id"]
+        company_code = str(rec.get("company_code") or "")
+        company_name = str(rec.get("company_name") or "")
+        jq = jq_lookup_code(company_code)
+        cat, stock_name = stock_map.get(jq, (None, None))
+        if should_skip_infra_fund(cat, stock_name, company_name):
+            skipped += 1
+            label = stock_name or company_name
+            print(f"skip infra-fund {display_code(company_code)} {label}", flush=True)
+            continue
         path = dest_path(
             dest,
             str(rec.get("pubdate") or ""),
-            str(rec.get("company_code") or ""),
-            str(rec.get("company_name") or ""),
+            company_code,
+            company_name,
             str(rec.get("title") or ""),
         )
         rel = path.relative_to(dest)
