@@ -118,7 +118,7 @@ class EarningsEvent(Base):
 
 
 class MonthlyTable(Base):
-    """銘柄×年度の月次表。セルは POST elements で表を作ってから入れる。"""
+    """銘柄×年度の月次表。code は stocks にあるものだけ書く。FK は付けない。"""
     __tablename__ = "monthly_tables"
     code = Column(String(5), primary_key=True)
     year = Column(Integer, primary_key=True)

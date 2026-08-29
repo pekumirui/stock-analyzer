@@ -735,7 +735,17 @@ def test_monthly_tools() -> None:
         try:
             from fastapi.testclient import TestClient as FastAPIClient
 
+            from app.db import SessionLocal
             from app.main import app as fastapi_app
+            from app.models import Stock
+
+            db = SessionLocal()
+            try:
+                if db.get(Stock, "72030") is None:
+                    db.add(Stock(code="72030", name="トヨタ自動車"))
+                    db.commit()
+            finally:
+                db.close()
 
             api = FastAPIClient(fastapi_app)
             r = api.get("/api/v1/tables")

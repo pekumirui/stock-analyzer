@@ -42,6 +42,7 @@ def migrate_add_columns(verbose: bool = True) -> int:
     """
     lacks = missing_columns()
     if not lacks:
+        delete_orphan_monthly_rows(verbose=verbose)
         return 0
     n = 0
     tables = {t.name: t for t in Base.metadata.sorted_tables}
@@ -58,6 +59,7 @@ def migrate_add_columns(verbose: bool = True) -> int:
                     print(f"  列を追加: {tname}.{cname} ({ddl})")
                 n += 1
     apply_known_monthly_element_units()
+    delete_orphan_monthly_rows(verbose=verbose)
     return n
 
 
@@ -105,6 +107,33 @@ def apply_known_monthly_element_units() -> int:
         db.close()
 
 
+def delete_orphan_monthly_rows(verbose: bool = True) -> dict[str, int]:
+    """stocks に無い code の月次行を子から消す。FK は付けない。何度呼んでも冪等。
+
+    順は monthly_values → monthly_elements → monthly_tables。
+    本番の名証単独 (30320 / 30660) など、マスタに無い表を落とす。
+    """
+    insp = inspect(engine)
+    names = set(insp.get_table_names())
+    deleted: dict[str, int] = {}
+    if "stocks" not in names:
+        return deleted
+    tables = ("monthly_values", "monthly_elements", "monthly_tables")
+    with engine.begin() as conn:
+        for tname in tables:
+            if tname not in names:
+                continue
+            result = conn.execute(text(
+                f"DELETE FROM {tname} WHERE code NOT IN (SELECT code FROM stocks)"
+            ))
+            deleted[tname] = result.rowcount or 0
+    total = sum(deleted.values())
+    if verbose and total:
+        parts = ", ".join(f"{k}={v}" for k, v in deleted.items())
+        print(f"孤立月次を削除: {parts}")
+    return deleted
+
+
 def init_db(strict: bool = False):
     """テーブル作成。strict=True なら既存スキーマの不整合で例外を投げる。"""
     Base.metadata.create_all(engine)
@@ -119,6 +148,7 @@ def init_db(strict: bool = False):
                 "  B) .\\run.ps1 migrate    列だけ追加して既存データを残す (追加列は空のまま)\n"
             )
     apply_known_monthly_element_units()
+    delete_orphan_monthly_rows()
 
 
 def get_session():
