@@ -246,7 +246,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 
 ## 6. 日次バッチ (19:30 JST)
 
-1. `/equities/master` で銘柄マスタ更新 (ProdCat 含む)
+1. `/equities/master` で銘柄マスタ更新 (ProdCat 含む)。直後に、名前が空の銘柄（非東証・名古屋単独など）を TDnet 月次 PDF ファイル名から INSERT/UPDATE する
 2. `/equities/bars/daily?date=当日` + `/indices/bars/daily/topix` 取込
 3. `/fins/summary?date=当日` 取込
 4. indicators 再計算 (MA/52週/RS/ステージ。RSユニバースは内国株券のみ) → earnings_events 更新

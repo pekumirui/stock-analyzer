@@ -39,6 +39,9 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'stock.db'}")
 
+# TDnet 月次 PDF（R2 mount）。未設定なら本番の rclone dest。
+TDNET_MONTHLY_DEST = os.getenv("TDNET_MONTHLY_DEST", "/home/stock/r2-share/monthly")
+
 # ---- J-Quants API V2 ----
 # V1 (メール/パスワード → idToken) は閉鎖予定。V2はダッシュボード発行のAPIキー方式。
 JQUANTS_API_KEY = os.getenv("JQUANTS_API_KEY", "")

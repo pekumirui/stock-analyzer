@@ -5,13 +5,21 @@
 5年バックフィル = 営業日約1,220日 × (株価1 + 財務1) ≒ 2,450リクエスト。
 """
 import json
+import os
+import re
 from datetime import date, datetime, timedelta
+from pathlib import Path
 
+from sqlalchemy import func
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
+from .config import TDNET_MONTHLY_DEST
 from .jquants import JQuantsClient
-from .models import Stock, DailyPrice, Topix, Statement
+from .models import Stock, DailyPrice, Topix, Statement, MonthlyTable
+
+# api._parse_code と同じ。4桁 TDnet (3032 / 262A) は末尾 0。
+_CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
 
 
 def _d(s):
@@ -57,6 +65,139 @@ def upsert(db: Session, model, rows: list[dict]):
 
 # ---------------- 銘柄マスタ ----------------
 
+def _to_code5(raw: str) -> str | None:
+    s = (raw or "").strip().upper()
+    if not _CODE_RE.fullmatch(s):
+        return None
+    if len(s) == 4:
+        return s + "0"
+    return s
+
+
+def _empty_name(name: str | None) -> bool:
+    return name is None or not str(name).strip()
+
+
+def _parse_pdf_issuer_name(filename: str) -> tuple[str, str] | None:
+    """YYYYMMDD_CODE_NAME_....pdf → (yyyymmdd, NAME)。解けなければ None。"""
+    if not filename.lower().endswith(".pdf"):
+        return None
+    parts = filename[:-4].split("_")
+    if len(parts) < 3:
+        return None
+    ymd, name = parts[0], parts[2]
+    if len(ymd) != 8 or not ymd.isdigit() or not name.strip():
+        return None
+    return ymd, name
+
+
+def _name_from_pdf_folder(folder: Path) -> str | None:
+    best: tuple[str, str] | None = None
+    try:
+        entries = list(folder.iterdir())
+    except OSError:
+        return None
+    for p in entries:
+        try:
+            if not p.is_file():
+                continue
+        except OSError:
+            continue
+        parsed = _parse_pdf_issuer_name(p.name)
+        if parsed is None:
+            continue
+        if best is None or parsed[0] > best[0]:
+            best = parsed
+    return best[1] if best else None
+
+
+def _names_from_dest(root: Path) -> dict[str, str]:
+    """display_code フォルダの最新 PDF から 5桁コード → NAME。"""
+    out: dict[str, str] = {}
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        return out
+    for entry in entries:
+        try:
+            if not entry.is_dir():
+                continue
+        except OSError:
+            continue
+        display = entry.name.strip()
+        if len(display) != 4:
+            continue
+        code = _to_code5(display)
+        if code is None:
+            continue
+        name = _name_from_pdf_folder(entry)
+        if name:
+            out[code] = name
+    return out
+
+
+def _resolve_tdnet_dest(dest: str | os.PathLike | None) -> Path:
+    if dest is not None:
+        return Path(dest)
+    env = (os.getenv("TDNET_MONTHLY_DEST") or "").strip()
+    if env:
+        return Path(env)
+    return Path(TDNET_MONTHLY_DEST)
+
+
+def fill_missing_stock_names(db: Session, dest: str | os.PathLike | None = None) -> int:
+    """J-Quants に無い銘柄の空名を TDnet 月次 PDF ファイル名から埋める。
+
+    dest が無い・読めないときは何もしない（日次バッチは落とさない）。
+    非空の J-Quants 名は上書きしない。
+    """
+    root = _resolve_tdnet_dest(dest)
+    try:
+        if not root.is_dir():
+            return 0
+    except OSError:
+        return 0
+
+    pdf_names = _names_from_dest(root)
+    candidates: set[str] = set(pdf_names)
+    for (raw,) in db.query(MonthlyTable.code).distinct().all():
+        code = _to_code5(raw) if raw else None
+        if code:
+            candidates.add(code)
+
+    n = 0
+    for code in sorted(candidates):
+        stock = db.get(Stock, code)
+        if stock is not None and not _empty_name(stock.name):
+            continue
+        name = pdf_names.get(code)
+        if not name:
+            continue
+        if stock is None:
+            db.add(Stock(code=code, name=name))
+        else:
+            stock.name = name
+        n += 1
+    if n:
+        db.commit()
+    return n
+
+
+def _upsert_stocks(db: Session, rows: list[dict]) -> None:
+    """空の CoName で既存の非空名（TDnet 補完）を消さない。"""
+    if not rows:
+        return
+    keys = [c.name for c in Stock.__table__.primary_key.columns]
+    for i in range(0, len(rows), 500):
+        chunk = rows[i:i + 500]
+        stmt = sqlite_insert(Stock).values(chunk)
+        upd = {c: stmt.excluded[c] for c in chunk[0] if c not in keys and c != "name"}
+        incoming = stmt.excluded.name
+        upd["name"] = func.coalesce(func.nullif(func.trim(incoming), ""), Stock.name)
+        db.execute(stmt.on_conflict_do_update(index_elements=keys, set_=upd))
+    db.commit()
+
+
 def ingest_master(db: Session, jq: JQuantsClient, day: str | None = None):
     rows = [
         {"code": r["Code"], "name": r.get("CoName"),
@@ -66,7 +207,7 @@ def ingest_master(db: Session, jq: JQuantsClient, day: str | None = None):
          "product_category": str(r.get("ProdCat") or "").strip() or None}
         for r in jq.equities_master(date=day)
     ]
-    upsert(db, Stock, rows)
+    _upsert_stocks(db, rows)
     return len(rows)
 
 
@@ -177,6 +318,7 @@ def run_daily(db: Session, day: str | None = None):
     day = day or date.today().strftime("%Y-%m-%d")
     with JQuantsClient() as jq:
         n_m = ingest_master(db, jq)
+        fill_missing_stock_names(db)
         n_p = ingest_prices_for_date(db, jq, day)
         n_t = ingest_topix(db, jq, from_=day, to=day)
         n_s = ingest_statements_for_date(db, jq, day)
@@ -196,6 +338,7 @@ def run_backfill(db: Session, years: int = 5, progress_every: int = 20):
     with JQuantsClient() as jq:
         print("銘柄マスタを取得中...")
         ingest_master(db, jq)
+        fill_missing_stock_names(db)
 
         print("TOPIXを取得中...")
         n = ingest_topix(db, jq, from_=start, to=today)

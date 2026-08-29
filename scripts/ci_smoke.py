@@ -304,6 +304,12 @@ def main() -> None:
     )
     if tdnet.returncode != 0:
         raise SystemExit("tdnet monthly r2 tests failed")
+    names = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "test_fill_missing_stock_names.py")],
+        cwd=ROOT,
+    )
+    if names.returncode != 0:
+        raise SystemExit("fill missing stock names tests failed")
 
 
 if __name__ == "__main__":
