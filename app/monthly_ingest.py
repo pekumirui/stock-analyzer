@@ -56,29 +56,24 @@ def parse_as_of(raw: Any, *, default: date | None = None) -> date:
     return parsed
 
 
-def resolve_fy_end_month(fy_ends: Sequence[date | None]) -> int:
-    """disclosed_date 降順の fiscal_year_end から月末月を取る。月が二種なら推測しない。"""
-    distinct: list[int] = []
-    seen: set[int] = set()
-    for fy_end in fy_ends:
-        if fy_end is None:
+def resolve_fy_end_month(
+    rows: Sequence[tuple[date | None, date | None]],
+    as_of: date,
+) -> int:
+    """as_of 以前の最新開示の事業年度末月。同日は期末の新しい方。過去の期変更は見ない。"""
+    eligible: list[tuple[date, date]] = []
+    for disclosed, fy_end in rows:
+        if disclosed is None or fy_end is None:
             continue
-        month = fy_end.month
-        if month not in seen:
-            seen.add(month)
-            distinct.append(month)
-    if not distinct:
+        if disclosed <= as_of:
+            eligible.append((disclosed, fy_end))
+    if not eligible:
         raise MonthlyIngestError(
             400, "NEED_FY_END",
             "この銘柄の決算に事業年度末 (fiscal_year_end) がありません。",
         )
-    if len(distinct) >= 2:
-        a, b = distinct[0], distinct[1]
-        raise MonthlyIngestError(
-            409, "FY_END_CHANGED",
-            f"事業年度末月が {a} と {b} で異なります。年は推測しません。",
-        )
-    return distinct[0]
+    _disclosed, fy_end = max(eligible, key=lambda item: (item[0], item[1]))
+    return fy_end.month
 
 
 def _is_calendar_layout(months: Sequence[int]) -> bool:
@@ -137,9 +132,9 @@ def plan_column_years(
 
 def map_pdf_columns(
     months: Sequence[int],
-    fy_ends: Sequence[date | None],
+    fy_end_rows: Sequence[tuple[date | None, date | None]],
     as_of: date,
 ) -> tuple[int, str, dict[int, int]]:
-    fy_end_month = resolve_fy_end_month(fy_ends)
+    fy_end_month = resolve_fy_end_month(fy_end_rows, as_of)
     layout, mapping = plan_column_years(months, fy_end_month, as_of)
     return fy_end_month, layout, mapping
