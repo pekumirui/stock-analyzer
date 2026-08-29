@@ -110,6 +110,28 @@ def should_skip_infra_fund(
     return False
 
 
+def download_skip_reason(
+    company_code: str,
+    company_name: str | None,
+    stock_map: Mapping[str, tuple[str | None, str | None]],
+) -> str | None:
+    """Download 前の skip 理由。`skip {return}` でログする。None なら取得してよい。
+
+    stock_map が空（DB 欠落・非 sqlite・読取失敗）なら unknown-stock 判定はしない。
+    インフラ判定は従来どおり（空 map では company_name フォールバック）。
+    """
+    jq = jq_lookup_code(company_code)
+    disp = display_code(company_code)
+    if stock_map and jq not in stock_map:
+        label = company_name or ""
+        return f"unknown-stock {disp} {label}"
+    cat, stock_name = stock_map.get(jq, (None, None))
+    if should_skip_infra_fund(cat, stock_name, company_name):
+        label = stock_name or company_name or ""
+        return f"infra-fund {disp} {label}"
+    return None
+
+
 def _dotenv_setdefault(text: str, environ: dict[str, str]) -> None:
     for line in text.splitlines():
         s = line.strip()
@@ -397,17 +419,17 @@ def run(days: int, dest: Path) -> int:
     )
     records = union_monthly_records(start, end)
     stock_map = load_stock_product_map()
+    if not stock_map:
+        print("warn stocks map empty; unknown-stock skip disabled", flush=True)
     saved = skipped = failed = 0
     for rec in records:
         pdf_id = rec["_pdf_id"]
         company_code = str(rec.get("company_code") or "")
         company_name = str(rec.get("company_name") or "")
-        jq = jq_lookup_code(company_code)
-        cat, stock_name = stock_map.get(jq, (None, None))
-        if should_skip_infra_fund(cat, stock_name, company_name):
+        reason = download_skip_reason(company_code, company_name, stock_map)
+        if reason:
             skipped += 1
-            label = stock_name or company_name
-            print(f"skip infra-fund {display_code(company_code)} {label}", flush=True)
+            print(f"skip {reason}", flush=True)
             continue
         path = dest_path(
             dest,
