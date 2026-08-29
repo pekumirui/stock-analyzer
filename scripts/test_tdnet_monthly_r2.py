@@ -14,7 +14,10 @@ from tdnet_monthly_r2 import (  # noqa: E402
     dest_path,
     display_code,
     is_monthly_title,
+    jq_lookup_code,
+    load_stock_product_map,
     parse_list_body,
+    should_skip_infra_fund,
     tdnet_pdf_id,
 )
 
@@ -32,6 +35,102 @@ def test_display_code() -> None:
         _fail(f"386A0 → {display_code('386A0')!r}")
     if display_code("7203") != "7203":
         _fail(f"7203 → {display_code('7203')!r}")
+
+
+def test_jq_lookup_code() -> None:
+    cases = (
+        ("9282", "92820"),
+        ("92820", "92820"),
+        ("262A", "262A0"),
+        ("262A0", "262A0"),
+    )
+    for raw, expect in cases:
+        got = jq_lookup_code(raw)
+        if got != expect:
+            _fail(f"jq_lookup_code({raw!r}) → {got!r} != {expect!r}")
+
+
+def test_should_skip_infra_fund() -> None:
+    # 013 + インフラ (9282 / 9284 / 9285)
+    if not should_skip_infra_fund(
+        "013", "ジャパン・インフラファンド投資法人", "ジャパン・インフラファンド投資法人"
+    ):
+        _fail("9282 013+インフラ should skip")
+    if not should_skip_infra_fund("013", "カナディアン・ソーラー・インフラ投資法人", ""):
+        _fail("9284 013+インフラ should skip")
+    if not should_skip_infra_fund(
+        "013", "東京インフラ・エネルギー投資法人", "東京インフラ・エネルギー投資法人"
+    ):
+        _fail("9285 013+インフラ should skip")
+    # 022 + インフラ
+    if not should_skip_infra_fund("022", "外国インフラREIT", "foreign infra"):
+        _fail("022 + インフラ should skip")
+    # either name is enough when 013/022
+    if not should_skip_infra_fund("013", "何かリート", "インフラファンド投資法人"):
+        _fail("013 + company_name インフラ should skip")
+    if not should_skip_infra_fund("013", "インフラファンド投資法人", "何かリート"):
+        _fail("013 + stock_name インフラ should skip")
+    # 013 without インフラ: 8985 ジャパン・ホテル・リート投資法人
+    if should_skip_infra_fund(
+        "013", "ジャパン・ホテル・リート投資法人", "ジャパン・ホテル・リート投資法人"
+    ):
+        _fail("8985 REIT should keep")
+    # master missing / unset + インフラ投資法人
+    if not should_skip_infra_fund(None, None, "○○インフラ投資法人"):
+        _fail("master missing + インフラ投資法人 should skip")
+    if not should_skip_infra_fund("", None, "インフラ投資法人"):
+        _fail("unset category + インフラ投資法人 should skip")
+    # master missing + ホテル・リート投資法人 (no インフラ投資法人)
+    if should_skip_infra_fund(None, None, "ジャパン・ホテル・リート投資法人"):
+        _fail("master missing + ホテル・リート should keep")
+    # 011 + インフラ in name → keep
+    if should_skip_infra_fund("011", "インフラ関連株式会社", "インフラ関連"):
+        _fail("011 + インフラ should keep")
+    if should_skip_infra_fund("011", "インフラ投資法人もどき", "インフラ投資法人"):
+        _fail("011 + インフラ投資法人 should keep")
+    # ファンドが挟まると「インフラ投資法人」非該当。マスタ無しでは残す
+    if should_skip_infra_fund(None, None, "ジャパン・インフラファンド投資法人"):
+        _fail("fallback should not skip インフラファンド投資法人 (no インフラ投資法人)")
+
+
+def test_stock_product_map_sqlite(tmp: Path) -> None:
+    import sqlite3
+
+    db = tmp / "stock.db"
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "CREATE TABLE stocks (code TEXT PRIMARY KEY, name TEXT, product_category TEXT)"
+    )
+    conn.execute(
+        "INSERT INTO stocks VALUES ('92820', 'ジャパン・インフラファンド投資法人', '013')"
+    )
+    conn.execute(
+        "INSERT INTO stocks VALUES ('89850', 'ジャパン・ホテル・リート投資法人', '013')"
+    )
+    conn.execute(
+        "INSERT INTO stocks VALUES ('72030', 'インフラ工事株式会社', '011')"
+    )
+    conn.commit()
+    conn.close()
+
+    m = load_stock_product_map(db_path=db)
+    cat, name = m[jq_lookup_code("9282")]
+    if not should_skip_infra_fund(cat, name, "ジャパン・インフラファンド投資法人"):
+        _fail("sqlite 9282 should skip")
+    cat, name = m[jq_lookup_code("8985")]
+    if should_skip_infra_fund(cat, name, "ジャパン・ホテル・リート投資法人"):
+        _fail("sqlite 8985 should keep")
+    cat, name = m[jq_lookup_code("7203")]
+    if should_skip_infra_fund(cat, name, "インフラ工事株式会社"):
+        _fail("sqlite 011 should keep")
+
+    empty = load_stock_product_map(db_path=tmp / "absent.db")
+    if empty:
+        _fail(f"missing db should be empty map: {empty!r}")
+    if not should_skip_infra_fund(None, None, "○○インフラ投資法人"):
+        _fail("DB missing fallback should still skip インフラ投資法人")
+    if should_skip_infra_fund(None, None, "ジャパン・ホテル・リート投資法人"):
+        _fail("DB missing fallback should keep ホテル・リート")
 
 
 def test_tdnet_pdf_id() -> None:
@@ -230,6 +329,8 @@ def main() -> None:
     from tempfile import TemporaryDirectory
 
     test_display_code()
+    test_jq_lookup_code()
+    test_should_skip_infra_fund()
     test_tdnet_pdf_id()
     test_dest_filename_gift()
     test_dest_path_per_code_dir()
@@ -237,6 +338,7 @@ def main() -> None:
     test_parse_list_body_tdnet_key()
     with TemporaryDirectory() as d:
         test_date_window_and_skip(Path(d))
+        test_stock_product_map_sqlite(Path(d))
     print("ok: tdnet monthly r2")
 
 
