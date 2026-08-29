@@ -202,10 +202,24 @@ def test_fy_end_and_layout_errors() -> None:
         _fail(f"wrap mid-start mapping: {mapping}")
 
 
+def _ensure_stock(code: str, name: str | None = None) -> None:
+    from app.db import SessionLocal
+    from app.models import Stock
+
+    db = SessionLocal()
+    try:
+        if db.get(Stock, code) is None:
+            db.add(Stock(code=code, name=name))
+            db.commit()
+    finally:
+        db.close()
+
+
 def _add_fy_end(code: str, disclosed: date, fy_end: date, disclosure_no: str) -> None:
     from app.db import SessionLocal
     from app.models import Statement
 
+    _ensure_stock(code)
     db = SessionLocal()
     try:
         db.add(Statement(
@@ -264,6 +278,16 @@ def test_api_gift_ingest() -> None:
 def test_api_errors() -> None:
     c = TestClient(app)
 
+    r = c.post("/api/v1/tables/30320/ingest", json={
+        "months": GIFT_MONTHS,
+        "rows": [{"element": "売上高", "values": {"11": 1}}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 404, "ingest without master")
+    if _err(r)["code"] != "NOT_IN_MASTER":
+        _fail(f"NOT_IN_MASTER: {r.json()!r}")
+
+    _ensure_stock("99990")
     r = c.post("/api/v1/tables/99990/ingest", json={
         "months": GIFT_MONTHS,
         "rows": [{"element": "売上高", "values": {"11": 1}}],

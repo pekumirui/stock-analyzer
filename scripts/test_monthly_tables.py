@@ -44,6 +44,19 @@ def _expect(resp, status: int, label: str) -> None:
         _fail(f"{label}: {resp.status_code} {resp.text[:400]}")
 
 
+def _ensure_stock(code: str, name: str | None = None) -> None:
+    from app.db import SessionLocal
+    from app.models import Stock
+
+    db = SessionLocal()
+    try:
+        if db.get(Stock, code) is None:
+            db.add(Stock(code=code, name=name))
+            db.commit()
+    finally:
+        db.close()
+
+
 def main() -> None:
     # display is index 100=flat (not +X.X% / ▲). unused third arg: value+unit only.
     if format_monthly_cell(None, "yoy_index") != "":
@@ -138,6 +151,13 @@ def main() -> None:
     _expect(r, 400, "element too long")
     if _err(r)["code"] != "INVALID_PARAM":
         _fail(f"long element: {r.json()!r}")
+
+    r = c.post("/api/v1/tables/30320/2024/elements", json={"element": "売上高前年比"})
+    _expect(r, 404, "POST without master")
+    if _err(r)["code"] != "NOT_IN_MASTER":
+        _fail(f"POST without master: {r.json()!r}")
+
+    _ensure_stock(code)
 
     # table auto-create on POST elements
     r = c.post(f"{base}/elements", json={"element": " 売上高 前年比 "})
@@ -358,7 +378,11 @@ def main() -> None:
 
     db = SessionLocal()
     try:
-        db.add(Stock(code="72030", name="トヨタ自動車"))
+        row = db.get(Stock, "72030")
+        if row is None:
+            db.add(Stock(code="72030", name="トヨタ自動車"))
+        else:
+            row.name = "トヨタ自動車"
         db.commit()
     finally:
         db.close()
@@ -399,6 +423,7 @@ def main() -> None:
         else:
             _fail(f"should reject {bad!r}")
 
+    _ensure_stock("262A0")
     r = c.post("/api/v1/tables/262A/2024/elements", json={"element": "売上高前年比"})
     _expect(r, 201, "262A create")
     if r.json()["code"] != "262A0":
@@ -552,6 +577,8 @@ def _assert_known_prod_units(c) -> None:
     from app.db import SessionLocal, apply_known_monthly_element_units
     from app.models import MonthlyElement, MonthlyValue
 
+    _ensure_stock("92790")
+    _ensure_stock("262A0")
     db = SessionLocal()
     try:
         if (not db.query(MonthlyElement).filter(MonthlyElement.code == "92790").all()

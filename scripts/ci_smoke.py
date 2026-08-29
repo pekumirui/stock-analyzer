@@ -298,6 +298,12 @@ def main() -> None:
     )
     if ingest.returncode != 0:
         raise SystemExit("monthly ingest tests failed")
+    master = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "test_monthly_stock_master.py")],
+        cwd=ROOT,
+    )
+    if master.returncode != 0:
+        raise SystemExit("monthly stock master tests failed")
     tdnet = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "test_tdnet_monthly_r2.py")],
         cwd=ROOT,

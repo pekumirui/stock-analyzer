@@ -258,6 +258,7 @@ router_v1 = APIRouter(prefix="/api/v1")
 
 _INVALID_VALUE_MSG = "value は数値のみ受け付けます。単位(%、円など)やカンマは除去してください。"
 _SIMILAR_MSG = "類似する要素が既に存在します。既存要素を使うか、force=true で強制登録してください。"
+_NOT_IN_MASTER_MSG = "銘柄マスタにありません。"
 
 
 class ApiError(Exception):
@@ -344,6 +345,14 @@ def _require_object(payload: Any) -> dict:
     return payload
 
 
+def _require_stock(db: Session, code: str) -> Stock:
+    """月次の書き込みは stocks 行が先。FK は付けないのでここで見る。"""
+    row = db.get(Stock, code)
+    if row is None:
+        raise ApiError(404, "NOT_IN_MASTER", _NOT_IN_MASTER_MSG)
+    return row
+
+
 def _get_table(db: Session, code: str, year: int) -> MonthlyTable:
     table = db.get(MonthlyTable, (code, year))
     if table is None:
@@ -376,6 +385,7 @@ def _element_unit(row: MonthlyElement) -> str:
 
 def _ensure_element(db: Session, code: str, year_i: int, element: str, force: bool,
                     unit: str | None = None) -> bool:
+    _require_stock(db, code)
     existing = (db.query(MonthlyElement)
                 .filter(MonthlyElement.code == code, MonthlyElement.year == year_i)
                 .all())
@@ -458,6 +468,7 @@ def post_element(code: str, year: str, response: Response,
     force = body.get("force") is True
     unit = _parse_unit(body.get("unit")) if "unit" in body else None
     element = _canonical_element(body.get("element"), unit)
+    _require_stock(db, code)
     created = _ensure_element(db, code, year_i, element, force, unit)
     row = _get_element(db, code, year_i, element)
     db.commit()
@@ -483,6 +494,7 @@ def put_element(code: str, year: str, payload: dict | None = Body(None),
     if "unit" not in body:
         raise ApiError(400, "INVALID_PARAM", "unit は number / yoy_index / yoy_pct です。")
     unit = _parse_unit(body.get("unit"))
+    _require_stock(db, code)
     _get_table(db, code, year_i)
     row = _get_element(db, code, year_i, element)
     row.unit = unit
@@ -495,6 +507,7 @@ def ingest_monthly(code: str, payload: dict | None = Body(None), db: Session = D
     """PDF列順 + as_of 時点の最新 statements.fiscal_year_end から暦年を割り当てる。year は受け取らない。"""
     code = _parse_code(code)
     body = _require_object(payload)
+    _require_stock(db, code)
     months = _parse_months(body.get("months"))
     rows = _parse_ingest_rows(body.get("rows"), months)
     try:
@@ -608,6 +621,7 @@ def put_value(code: str, year: str, payload: dict | None = Body(None),
         raise ApiError(400, "INVALID_PARAM", "value がありません。")
     month = _parse_month(body.get("month"))
     value = _parse_value(body.get("value"))
+    _require_stock(db, code)
     _get_table(db, code, year_i)
     _get_element(db, code, year_i, element)
     _upsert_value(db, code, year_i, element, month, value)
@@ -639,6 +653,7 @@ def put_values_batch(code: str, year: str, payload: dict | None = Body(None),
         value = _parse_value(item.get("value"))
         ops[month] = value
 
+    _require_stock(db, code)
     _get_table(db, code, year_i)
     _get_element(db, code, year_i, element)
     try:
