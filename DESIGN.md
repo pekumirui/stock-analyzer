@@ -128,7 +128,7 @@ earnings_events   -- 決算発表イベントと発表後パフォーマンス
   alpha_1d, ... alpha_to_date   -- 対TOPIX超過リターン
 
 monthly_tables    -- 銘柄×年度の月次表 (暦月1〜12。会計月ではない)
-  code, year PK           -- code は 4〜5桁 (英数字可。262A → 262A0)。year は西暦4桁
+  code, year PK           -- code は J-Quants 5桁 (9279→92790, 262A→262A0)。year は西暦4桁
 
 monthly_elements  -- 表の行。element はトリムした原文、sort_order が登録順
   code, year, element PK
