@@ -731,6 +731,10 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("chart must use max-width:640px (or similar) so phone fonts/gutters differ from PC")
     if "fsAxis" not in chart_body and 'font-size="11"' in chart_body and "280" not in chart_body:
         _fail("phone chart text must be larger than desktop font-size 11")
+    if "fsTitle" in chart_body:
+        _fail("chart must not draw a series title; #monthly-series is the label")
+    if "spec.label)}</text>" in chart_body:
+        _fail("chart SVG must not render spec.label as a title")
     mq = html.find("@media (max-width:640px)")
     if mq < 0:
         _fail("phone/PC split must use @media (max-width:640px)")

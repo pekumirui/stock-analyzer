@@ -104,7 +104,7 @@
   #monthly-tbl td.name:hover { text-decoration:underline; }
   .badge.new { background:var(--warn); color:#fff; margin-left:6px; }
   #monthly-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
-  #monthly-chart { width:100%; min-height:220px; margin:8px 0 16px; }
+  #monthly-chart { width:100%; min-height:220px; margin:0 0 16px; }
   #monthly-chart svg { width:100%; height:auto; display:block; font-family:inherit; overflow:visible; }
   /* Detail はカード枠なし。main の左右余白も潰して横幅を取る。背景は白 */
   #monthly-detail {
@@ -1057,8 +1057,7 @@ function drawMonthlyChart(tables, seriesId){
   monthlyChartCssW = cssW;
   const W = phone ? Math.max(cssW, 280) : 720;
   const H = phone ? 280 : 232;
-  const L = 52, R = phone ? 10 : 12, T = phone ? 36 : 28, B = phone ? 64 : 50;
-  const fsTitle = phone ? 15 : 13;
+  const L = 52, R = phone ? 10 : 12, T = phone ? 18 : 14, B = phone ? 64 : 50;
   const fsAxis = phone ? 13 : 11;
   const plotW=W-L-R, plotH=H-T-B;
   const yx = v => T + (1 - (v-ymin)/((ymax-ymin)||1)) * plotH;
@@ -1069,7 +1068,6 @@ function drawMonthlyChart(tables, seriesId){
   const legendY = H - (phone ? 8 : 6);
   const legendGap = Math.min(phone ? 70 : 80, plotW / Math.max(nY, 1));
   let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escHtml(spec.label)}">`;
-  svg += `<text x="${L}" y="${phone ? 22 : 16}" font-size="${fsTitle}" fill="currentColor">${escHtml(spec.label)}</text>`;
   for(const tick of monthlyYTicks(ymin, ymax, spec.yoy)){
     const y = yx(tick);
     svg += `<line x1="${L}" x2="${W-R}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e8ecf0"/>`;
