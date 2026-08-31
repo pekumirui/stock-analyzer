@@ -96,17 +96,16 @@
   table.fin tr.prevfy td { opacity:.78; }
   table.fin tr.sep td { border-top:1px solid var(--border); }
   table.fin .loss { color:var(--up); }
-  /* 月次タブ: 左一覧 + 右に暦年表を新しい年が上になるよう重ねる。決算速報の選択行と同じ強調 */
-  @media (min-width:1100px){
-    .monthly-grid.egrid { grid-template-columns:minmax(240px,1fr) minmax(0,3fr); }
-    .monthly-grid .a-list { grid-column:span 1; }
-    .monthly-grid .a-fin { grid-column:span 1; }
-    .monthly-grid .a-list .scroll { max-height:70vh; }
-    .monthly-grid .a-fin .tbl-wrap { max-height:70vh; }
-  }
-  #monthly-tbl tbody tr { cursor:pointer; }
-  #monthly-tbl tbody tr:hover { background:var(--row); }
-  #monthly-tbl tbody tr.sel { background:var(--row-sel); box-shadow:inset 3px 0 0 var(--accent); }
+  /* 月次タブ: TOP と Detail は同じ一段。1100px でも二段組にしない */
+  #monthly-groups { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
+  .mchip { background:transparent; border:1px solid var(--border); color:var(--sub); border-radius:999px; padding:4px 12px; cursor:pointer; font-size:13px; }
+  .mchip.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  #monthly-tbl td.name { cursor:pointer; color:var(--accent); }
+  #monthly-tbl td.name:hover { text-decoration:underline; }
+  .badge.new { background:var(--warn); color:#fff; margin-left:6px; }
+  #monthly-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
+  #monthly-chart { width:100%; min-height:220px; margin:8px 0 16px; }
+  #monthly-chart svg { width:100%; height:auto; display:block; }
   table.monthly { font-variant-numeric:tabular-nums; table-layout:fixed; }
   table.monthly col.monthly-m { width: var(--monthly-m-w); }
   table.monthly thead th:not(:first-child),
@@ -114,6 +113,8 @@
   table.monthly thead th.l { color:var(--text); font-weight:bold; font-size:13px; }
   #monthly-table-wrap { display:flex; flex-direction:column; gap:1.75rem; }
   table.monthly thead th { top:auto; }
+  table.monthly tbody tr[data-series] { cursor:pointer; }
+  table.monthly tbody tr[data-series].on td { background:var(--row-sel); }
   .fin-tabs { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
   .ftab { background:transparent; border:none; color:var(--sub); padding:5px 14px; cursor:pointer; font-size:13px; }
   .ftab.on { background:var(--accent); color:#fff; }
@@ -235,15 +236,21 @@
 </section>
 
 <section id="tab-monthly" style="display:none">
-  <div class="egrid monthly-grid">
-    <div class="panel a-list">
+  <div id="monthly-top">
+    <div class="panel">
       <div class="phead"><h3>月次データ</h3></div>
-      <div class="tbl-wrap scroll" id="monthly-list"></div>
+      <div id="monthly-groups"></div>
+      <div class="tbl-wrap" id="monthly-list"></div>
     </div>
-    <div class="panel a-fin">
+  </div>
+  <div id="monthly-detail" style="display:none">
+    <div class="panel">
       <div class="phead">
-        <h3 id="monthly-title">銘柄を選択してください</h3>
+        <button type="button" id="monthly-back" onclick="backMonthly()">戻る</button>
+        <h3 id="monthly-title"></h3>
       </div>
+      <div class="fin-tabs" id="monthly-series"></div>
+      <div id="monthly-chart"></div>
       <div class="tbl-wrap" id="monthly-table-wrap"></div>
     </div>
   </div>
@@ -636,7 +643,14 @@ async function loadScreener(){
 }
 
 // ---- 月次 ----
-let monthlyRows=[], selMonthlyCode=null;
+let monthlyRows=[], monthlyGroup="__new__", selMonthlyCode=null;
+let monthlySeries="all_store", monthlyYearTables=[];
+const MONTHLY_SERIES = [
+  {id:"all_store", label:"全店売上高(前年比)", yoy:true},
+  {id:"existing", label:"既存店売上高(前年比)", yoy:true},
+  {id:"stores", label:"店舗数", yoy:false},
+];
+const MONTHLY_YEAR_COLORS = ["#0077b6","#2e8b57","#b8860b","#8e4ec6"];
 
 function uniqueMonthlyIssuers(rows){
   const seen = new Set();
@@ -645,43 +659,152 @@ function uniqueMonthlyIssuers(rows){
     const code = r && r.code;
     if(!code || seen.has(code)) continue;
     seen.add(code);
-    out.push({code, name: r.name || ""});
+    out.push(r);
   }
   return out;
 }
 
+function monthlyElementKey(name){
+  return String(name || "").normalize("NFKC").replace(/\s+/g, "");
+}
+
+function monthlySeriesKind(element, unit){
+  const key = monthlyElementKey(element);
+  const u = unit || "number";
+  if(key.includes("店舗数") && u==="number") return "stores";
+  if(u!=="yoy_index" && u!=="yoy_pct") return null;
+  if(key.includes("既存")) return "existing";
+  if(key.includes("全店")) return "all_store";
+  return null;
+}
+
+function fmtMonthlyYoyList(v){
+  if(v==null || v==="") return "";
+  const n = Number(v);
+  if(!Number.isFinite(n)) return "";
+  return n.toLocaleString("ja-JP",{maximumFractionDigits:4});
+}
+
+function monthlyIndustries(issuers){
+  const set = new Set();
+  for(const r of issuers) set.add(r.industry || "その他");
+  return [...set].sort((a,b) => a.localeCompare(b, "ja"));
+}
+
+function defaultMonthlyGroup(issuers){
+  if(issuers.some(r => r.is_new)) return "__new__";
+  const ind = monthlyIndustries(issuers);
+  return ind[0] || "__new__";
+}
+
+function filteredMonthlyIssuers(){
+  const issuers = uniqueMonthlyIssuers(monthlyRows);
+  if(monthlyGroup==="__new__") return issuers.filter(r => r.is_new);
+  return issuers.filter(r => (r.industry || "その他") === monthlyGroup);
+}
+
 async function loadMonthlyList(){
-  monthlyRows = await api("/api/v1/tables").catch(()=>[]);
+  showMonthlyTop();
+  const rows = await api("/api/v1/tables").catch(()=>null);
+  if(!Array.isArray(rows)){
+    $("#monthly-groups").innerHTML = "";
+    $("#monthly-list").innerHTML = `<div class="sub">登録された月次データはありません</div>`;
+    return;
+  }
+  monthlyRows = rows;
+  const issuers = uniqueMonthlyIssuers(monthlyRows);
+  if(!issuers.length){
+    $("#monthly-groups").innerHTML = "";
+    $("#monthly-list").innerHTML = `<div class="sub">登録された月次データはありません</div>`;
+    return;
+  }
+  const groups = monthlyIndustries(issuers);
+  if(monthlyGroup!=="__new__" && !groups.includes(monthlyGroup)) monthlyGroup = defaultMonthlyGroup(issuers);
+  else if(monthlyGroup==="__new__" && !issuers.some(r => r.is_new) && groups.length) monthlyGroup = groups[0];
+  renderMonthlyGroups(groups);
+  renderMonthlyList();
+}
+
+function renderMonthlyGroups(groups){
+  let h = `<button type="button" class="mchip${monthlyGroup==="__new__"?" on":""}" data-group="__new__" onclick="setMonthlyGroup('__new__')">新着</button>`;
+  for(const g of groups){
+    const on = monthlyGroup===g ? " on" : "";
+    h += `<button type="button" class="mchip${on}" data-group="${g.replace(/"/g,"&quot;")}" onclick="setMonthlyGroup(this.dataset.group)">${g}</button>`;
+  }
+  $("#monthly-groups").innerHTML = h;
+}
+
+function setMonthlyGroup(g){
+  monthlyGroup = g;
+  renderMonthlyGroups(monthlyIndustries(uniqueMonthlyIssuers(monthlyRows)));
   renderMonthlyList();
 }
 
 function renderMonthlyList(){
-  const issuers = uniqueMonthlyIssuers(monthlyRows);
+  const issuers = filteredMonthlyIssuers();
   if(!issuers.length){
     $("#monthly-list").innerHTML = `<div class="sub">登録された月次データはありません</div>`;
     return;
   }
-  let h = `<table id="monthly-tbl"><thead><tr><th class="l">コード</th><th class="l">銘柄</th></tr></thead><tbody>`;
+  let h = `<table id="monthly-tbl"><thead><tr>` +
+    `<th class="l">会社名</th><th class="l">市場</th><th class="l">業種</th>` +
+    `<th class="l">月次業種</th><th>全店(前年比)</th><th>既存店(前年比)</th>` +
+    `</tr></thead><tbody>`;
   for(const r of issuers){
-    h += `<tr data-code="${r.code}" onclick="selectMonthly('${r.code}')"><td class="l">${r.code}</td><td class="l">${r.name||""}</td></tr>`;
+    const nm = r.name || r.code;
+    const neu = r.ingested_today ? `<span class="badge new">NEW</span>` : "";
+    h += `<tr data-code="${r.code}">` +
+      `<td class="l name" onclick="showMonthlyDetail('${r.code}')">${nm}${neu}</td>` +
+      `<td class="l">${r.market||""}</td>` +
+      `<td class="l">${r.sector33||""}</td>` +
+      `<td class="l">${r.industry||"その他"}</td>` +
+      `<td class="num">${fmtMonthlyYoyList(r.all_store_yoy)}</td>` +
+      `<td class="num">${fmtMonthlyYoyList(r.existing_store_yoy)}</td>` +
+      `</tr>`;
   }
   $("#monthly-list").innerHTML = h + `</tbody></table>`;
-  markMonthlySel();
 }
 
-function markMonthlySel(){
-  document.querySelectorAll("#monthly-list [data-code]").forEach(el =>
-    el.classList.toggle("sel", el.dataset.code === selMonthlyCode));
+function showMonthlyTop(){
+  $("#monthly-top").style.display = "";
+  $("#monthly-detail").style.display = "none";
 }
 
-function selectMonthly(code){
+function showMonthlyDetail(code){
   selMonthlyCode = code;
-  markMonthlySel();
   const row = uniqueMonthlyIssuers(monthlyRows).find(r => r.code === code);
   if(!row) return;
   const nm = row.name || "";
   $("#monthly-title").textContent = nm ? `${nm} ${row.code}` : row.code;
+  monthlySeries = "all_store";
+  $("#monthly-top").style.display = "none";
+  $("#monthly-detail").style.display = "";
+  renderMonthlySeriesTabs();
   loadMonthlyTables();
+}
+
+function backMonthly(){
+  showMonthlyTop();
+}
+
+function renderMonthlySeriesTabs(){
+  let h = "";
+  for(const s of MONTHLY_SERIES){
+    h += `<button type="button" class="ftab${monthlySeries===s.id?" on":""}" data-series="${s.id}" onclick="setMonthlySeries('${s.id}')">${s.label}</button>`;
+  }
+  $("#monthly-series").innerHTML = h;
+}
+
+function setMonthlySeries(id){
+  monthlySeries = id;
+  renderMonthlySeriesTabs();
+  drawMonthlyChart(monthlyYearTables, monthlySeries);
+  markMonthlySeriesRows();
+}
+
+function markMonthlySeriesRows(){
+  document.querySelectorAll("#monthly-table-wrap tr[data-series]").forEach(tr =>
+    tr.classList.toggle("on", tr.dataset.series === monthlySeries));
 }
 
 async function loadMonthlyTables(){
@@ -690,13 +813,16 @@ async function loadMonthlyTables(){
   const info = await api(`/api/v1/tables/${selMonthlyCode}`).catch(()=>null);
   const years = ((info && info.years) || []).slice().sort((a,b)=>b-a);
   if(!years.length){
+    monthlyYearTables = [];
     wrap.style.removeProperty("--monthly-m-w");
     wrap.innerHTML = `<div class="sub">データなし</div>`;
+    drawMonthlyChart([], monthlySeries);
     return;
   }
   const tables = await Promise.all(
     years.map(y => api(`/api/v1/tables/${selMonthlyCode}/${y}`).catch(()=>null))
   );
+  monthlyYearTables = tables.filter(Boolean);
   let h = "";
   let maxNumLen = 0;
   for(const d of tables){
@@ -707,7 +833,9 @@ async function loadMonthlyTables(){
     for(const e of d.elements || []){
       const vals = e.values || {};
       const unit = e.unit || "number";
-      h += `<tr><td class="l">${fmtMonthlyElement(e.element, unit)}</td>`;
+      const kind = monthlySeriesKind(e.element, unit);
+      const ds = kind ? ` data-series="${kind}" onclick="setMonthlySeries('${kind}')"` : "";
+      h += `<tr${ds}><td class="l">${fmtMonthlyElement(e.element, unit)}</td>`;
       for(let m=1;m<=12;m++){
         const v = vals[String(m)];
         const txt = fmtMonthlyCell(v, unit);
@@ -720,6 +848,81 @@ async function loadMonthlyTables(){
   }
   wrap.style.setProperty("--monthly-m-w", `calc(${Math.max(maxNumLen, 3)}ch + 16px)`);
   wrap.innerHTML = h || `<div class="sub">データなし</div>`;
+  drawMonthlyChart(monthlyYearTables, monthlySeries);
+  markMonthlySeriesRows();
+}
+
+function drawMonthlyChart(tables, seriesId){
+  const host = $("#monthly-chart");
+  const spec = MONTHLY_SERIES.find(s => s.id === seriesId) || MONTHLY_SERIES[0];
+  const years = [];
+  const byYear = {};
+  for(const d of tables || []){
+    const el = (d.elements || []).find(e => monthlySeriesKind(e.element, e.unit) === seriesId);
+    if(!el) continue;
+    const nums = [];
+    let any = false;
+    for(let m=1;m<=12;m++){
+      const raw = el.values && el.values[String(m)];
+      const n = raw==null || raw==="" ? null : Number(raw);
+      let v = null;
+      if(Number.isFinite(n)){
+        v = el.unit==="yoy_pct" ? n+100 : n;
+        any = true;
+      }
+      nums.push(v);
+    }
+    if(!any) continue;
+    years.push(d.year);
+    byYear[d.year] = nums;
+  }
+  years.sort((a,b)=>a-b);
+  if(!years.length){
+    host.innerHTML = `<div class="sub">データなし</div>`;
+    return;
+  }
+  const vals = [];
+  for(const y of years) for(const v of byYear[y]) if(v!=null) vals.push(v);
+  let ymin = 0;
+  let ymax = Math.max(...vals, spec.yoy ? 100 : 1);
+  ymax = ymax * 1.08;
+  const W=720, H=220, L=44, R=10, T=28, B=40;
+  const plotW=W-L-R, plotH=H-T-B;
+  const yx = v => T + (1 - (v-ymin)/((ymax-ymin)||1)) * plotH;
+  const nY = years.length;
+  const slot = plotW/12;
+  const barW = Math.max(3, (slot*0.72)/nY);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${spec.label}">`;
+  svg += `<text x="${L}" y="16" font-size="13" fill="currentColor">${spec.label}</text>`;
+  if(spec.yoy){
+    const y100 = yx(100);
+    svg += `<line x1="${L}" x2="${W-R}" y1="${y100}" y2="${y100}" stroke="#e6a100" stroke-dasharray="4 3"/>`;
+  }
+  years.forEach((year, yi) => {
+    const color = MONTHLY_YEAR_COLORS[yi % MONTHLY_YEAR_COLORS.length];
+    byYear[year].forEach((v, mi) => {
+      if(v==null) return;
+      const x = L + slot*mi + (slot-nY*barW)/2 + yi*barW;
+      const y = yx(Math.max(v, ymin));
+      const hgt = Math.max(1, yx(ymin) - y);
+      svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${hgt.toFixed(1)}" fill="${color}"/>`;
+      if(spec.yoy && v<100){
+        svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${hgt.toFixed(1)}" fill="#d32f2f" fill-opacity="0.35"/>`;
+      }
+    });
+  });
+  for(let m=1;m<=12;m++){
+    const x = L + slot*(m-1) + slot/2;
+    svg += `<text x="${x.toFixed(1)}" y="${H-18}" font-size="11" text-anchor="middle" fill="#66707a">${m}月</text>`;
+  }
+  years.forEach((year, yi) => {
+    const color = MONTHLY_YEAR_COLORS[yi % MONTHLY_YEAR_COLORS.length];
+    const x = L + yi*80;
+    svg += `<rect x="${x}" y="${H-12}" width="8" height="8" fill="${color}"/>`;
+    svg += `<text x="${x+12}" y="${H-4}" font-size="11" fill="#66707a">${year}年</text>`;
+  });
+  svg += `</svg>`;
+  host.innerHTML = svg;
 }
 
 function fmtMonthlyCell(v, unit){
