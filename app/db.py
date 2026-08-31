@@ -110,7 +110,7 @@ def apply_known_monthly_element_units() -> int:
 def delete_orphan_monthly_rows(verbose: bool = True) -> dict[str, int]:
     """stocks に無い code の月次行を子から消す。FK は付けない。何度呼んでも冪等。
 
-    順は monthly_values → monthly_elements → monthly_tables。
+    順は monthly_values → monthly_elements → monthly_tables → monthly_issuers。
     本番の名証単独 (30320 / 30660) など、マスタに無い表を落とす。
     """
     insp = inspect(engine)
@@ -118,7 +118,7 @@ def delete_orphan_monthly_rows(verbose: bool = True) -> dict[str, int]:
     deleted: dict[str, int] = {}
     if "stocks" not in names:
         return deleted
-    tables = ("monthly_values", "monthly_elements", "monthly_tables")
+    tables = ("monthly_values", "monthly_elements", "monthly_tables", "monthly_issuers")
     with engine.begin() as conn:
         for tname in tables:
             if tname not in names:

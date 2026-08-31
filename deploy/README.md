@@ -94,6 +94,7 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 - `monthly_get` — 銘柄×年度の月次表
 - `monthly_add_element` — 要素登録
 - `monthly_put_values` — セル一括 upsert（null で削除）。year は暦年。訂正用
+- `monthly_set_industry` — 月次業種。PUT /api/v1/tables/{code}/industry。銘柄マスタの業種とは別
 - `monthly_ingest` — PDF 月次の新規登録。POST /api/v1/tables/{code}/ingest。year は渡さない（列順 + 決算期末から暦年を決める）
 
 任意コマンドも restart も任意 SQL もない。月次ツールは FastAPI の `http://127.0.0.1:8000` だけを叩く（nginx Basic は使わない）。行数は最大 500。`.env` の値は伏せる。

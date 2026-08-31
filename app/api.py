@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 import re
 import unicodedata
 from typing import Any
@@ -9,17 +9,20 @@ from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, aliased, defer
 
-from .config import EARNINGS_PARAMS as EP, EARNINGS_EXCLUDE_PRODUCT_CATEGORIES, RS_PRODUCT_CATEGORIES
+from .config import (
+    EARNINGS_PARAMS as EP, EARNINGS_EXCLUDE_PRODUCT_CATEGORIES, MONTHLY_NEW_DAYS,
+    RS_PRODUCT_CATEGORIES,
+)
 from .db import get_session
 from .models import (
     Stock, DailyPrice, Topix, Statement, Indicator, EarningsEvent,
-    MonthlyTable, MonthlyElement, MonthlyValue,
+    MonthlyIssuer, MonthlyTable, MonthlyElement, MonthlyValue,
 )
 from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
 from .monthly_ingest import (
     MonthlyIngestError, canonicalize_element_label, map_pdf_columns,
-    parse_as_of, parse_monthly_unit,
+    monthly_series_kind, parse_as_of, parse_monthly_unit, yoy_display_number,
 )
 
 router = APIRouter(prefix="/api")
@@ -259,6 +262,9 @@ router_v1 = APIRouter(prefix="/api/v1")
 _INVALID_VALUE_MSG = "value は数値のみ受け付けます。単位(%、円など)やカンマは除去してください。"
 _SIMILAR_MSG = "類似する要素が既に存在します。既存要素を使うか、force=true で強制登録してください。"
 _NOT_IN_MASTER_MSG = "銘柄マスタにありません。"
+_JST = timezone(timedelta(hours=9))
+_INDUSTRY_MSG = "industry は1〜50文字の文字列です。"
+_DEFAULT_INDUSTRY = "その他"
 
 
 class ApiError(Exception):
@@ -351,6 +357,72 @@ def _require_stock(db: Session, code: str) -> Stock:
     if row is None:
         raise ApiError(404, "NOT_IN_MASTER", _NOT_IN_MASTER_MSG)
     return row
+
+
+def _jst_now() -> datetime:
+    return datetime.now(_JST).replace(tzinfo=None)
+
+
+def _jst_today() -> date:
+    return datetime.now(_JST).date()
+
+
+def _as_jst_date(dt: datetime) -> date:
+    if dt.tzinfo is not None:
+        return dt.astimezone(_JST).date()
+    return dt.date()
+
+
+def _parse_industry(raw: Any) -> str:
+    if not isinstance(raw, str):
+        raise ApiError(400, "INVALID_PARAM", _INDUSTRY_MSG)
+    s = raw.strip()
+    if not s or len(s) > 50:
+        raise ApiError(400, "INVALID_PARAM", _INDUSTRY_MSG)
+    return s
+
+
+def _require_any_monthly_table(db: Session, code: str) -> None:
+    if db.query(MonthlyTable.code).filter(MonthlyTable.code == code).first() is None:
+        raise ApiError(404, "TABLE_NOT_FOUND", "銘柄×年度の表がありません。")
+
+
+def _touch_monthly_issuer(db: Session, code: str) -> None:
+    now = _jst_now()
+    row = db.get(MonthlyIssuer, code)
+    if row is None:
+        db.add(MonthlyIssuer(code=code, industry=_DEFAULT_INDUSTRY, last_ingested_at=now))
+    else:
+        row.last_ingested_at = now
+
+
+def _latest_yoy_for_kind(
+    elems: list[MonthlyElement], vals: list[MonthlyValue], kind: str,
+) -> float | None:
+    matched = {
+        (e.year, e.element): e
+        for e in elems
+        if monthly_series_kind(e.element, e.unit) == kind
+    }
+    best: tuple[int, int, float, str] | None = None
+    for v in vals:
+        el = matched.get((v.year, v.element))
+        if el is None:
+            continue
+        if best is None or (v.year, v.month) > (best[0], best[1]):
+            best = (v.year, v.month, float(v.value), el.unit or "number")
+    if best is None:
+        return None
+    return yoy_display_number(best[2], best[3])
+
+
+def _new_flags(last_ingested_at: datetime | None) -> tuple[bool, bool]:
+    if last_ingested_at is None:
+        return False, False
+    ingested = _as_jst_date(last_ingested_at)
+    today = _jst_today()
+    is_new = 0 <= (today - ingested).days < MONTHLY_NEW_DAYS
+    return is_new, ingested == today
 
 
 def _get_table(db: Session, code: str, year: int) -> MonthlyTable:
@@ -541,6 +613,7 @@ def ingest_monthly(code: str, payload: dict | None = Body(None), db: Session = D
                 by_year[year_i].append(month)
             for year_i in sorted(by_year):
                 updated.append({"year": year_i, "element": element, "months": by_year[year_i]})
+        _touch_monthly_issuer(db, code)
         db.commit()
     except Exception:
         db.rollback()
@@ -556,21 +629,73 @@ def ingest_monthly(code: str, payload: dict | None = Body(None), db: Session = D
     }
 
 
+@router_v1.put("/tables/{code}/industry")
+def put_industry(code: str, payload: dict | None = Body(None),
+                 db: Session = Depends(get_session)):
+    code = _parse_code(code)
+    industry = _parse_industry(_require_object(payload).get("industry"))
+    _require_stock(db, code)
+    _require_any_monthly_table(db, code)
+    row = db.get(MonthlyIssuer, code)
+    if row is None:
+        db.add(MonthlyIssuer(code=code, industry=industry))
+    else:
+        row.industry = industry
+    db.commit()
+    return {"code": code, "industry": industry}
+
+
 @router_v1.get("/tables")
 def list_tables(db: Session = Depends(get_session)):
     """月次表がある銘柄。名前は stocks を LEFT JOIN。無いときは null。"""
-    rows = (db.query(MonthlyTable.code, MonthlyTable.year, Stock.name)
+    rows = (db.query(
+                MonthlyTable.code, MonthlyTable.year,
+                Stock.name, Stock.market, Stock.sector33)
             .outerjoin(Stock, Stock.code == MonthlyTable.code)
             .order_by(MonthlyTable.code, MonthlyTable.year)
             .all())
     by_code: dict[str, dict] = {}
-    for code, year, name in rows:
+    for code, year, name, market, sector33 in rows:
         item = by_code.get(code)
         if item is None:
-            item = {"code": code, "name": name, "years": []}
+            item = {
+                "code": code,
+                "name": name,
+                "years": [],
+                "market": market,
+                "sector33": sector33,
+            }
             by_code[code] = item
         item["years"].append(year)
-    return list(by_code.values())
+
+    codes = list(by_code)
+    issuers: dict[str, MonthlyIssuer] = {}
+    elems_by: dict[str, list[MonthlyElement]] = defaultdict(list)
+    vals_by: dict[str, list[MonthlyValue]] = defaultdict(list)
+    if codes:
+        issuers = {
+            r.code: r for r in db.query(MonthlyIssuer).filter(MonthlyIssuer.code.in_(codes))
+        }
+        for e in db.query(MonthlyElement).filter(MonthlyElement.code.in_(codes)):
+            elems_by[e.code].append(e)
+        for v in db.query(MonthlyValue).filter(MonthlyValue.code.in_(codes)):
+            vals_by[v.code].append(v)
+
+    out = []
+    for code, item in by_code.items():
+        issuer = issuers.get(code)
+        last_at = issuer.last_ingested_at if issuer is not None else None
+        is_new, ingested_today = _new_flags(last_at)
+        elems = elems_by.get(code, [])
+        vals = vals_by.get(code, [])
+        item["industry"] = issuer.industry if issuer is not None else _DEFAULT_INDUSTRY
+        item["last_ingested_at"] = last_at.isoformat() if last_at is not None else None
+        item["is_new"] = is_new
+        item["ingested_today"] = ingested_today
+        item["all_store_yoy"] = _latest_yoy_for_kind(elems, vals, "all_store")
+        item["existing_store_yoy"] = _latest_yoy_for_kind(elems, vals, "existing")
+        out.append(item)
+    return out
 
 
 @router_v1.get("/tables/{code}/{year}")

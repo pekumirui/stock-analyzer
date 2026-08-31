@@ -114,6 +114,7 @@ def test_http_auth_and_tools() -> None:
         "monthly_get",
         "monthly_add_element",
         "monthly_put_values",
+        "monthly_set_industry",
         "monthly_ingest",
     }
     if names != expect:
@@ -638,6 +639,8 @@ def test_monthly_tools() -> None:
             raise SystemExit("batch url")
         if m.monthly_ingest_url("92790") != "http://127.0.0.1:8000/api/v1/tables/92790/ingest":
             raise SystemExit(f"ingest url: {m.monthly_ingest_url('92790')}")
+        if m.monthly_industry_url("7203") != "http://127.0.0.1:8000/api/v1/tables/7203/industry":
+            raise SystemExit(f"industry url: {m.monthly_industry_url('7203')}")
         if m.monthly_api_url("262A0", 2024) != "http://127.0.0.1:8000/api/v1/tables/262A0/2024":
             raise SystemExit(f"alnum url: {m.monthly_api_url('262A0', 2024)}")
         if m.monthly_api_url("262A", 2024) != "http://127.0.0.1:8000/api/v1/tables/262A/2024":
@@ -663,6 +666,12 @@ def test_monthly_tools() -> None:
             pass
         else:
             raise SystemExit("year-bearing ingest URL should fail")
+        try:
+            m.monthly_api_url("7203", 2024, "/industry")
+        except ValueError:
+            pass
+        else:
+            raise SystemExit("year-bearing industry URL should fail")
 
         os.environ["MCP_APP_HTTP"] = "http://kabukpi.com/api"
         _expect_value_error(m.app_http_base, needle="loopback")

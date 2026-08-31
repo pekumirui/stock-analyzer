@@ -83,9 +83,12 @@ APP_HTTP_TIMEOUT = 10
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 MONTHLY_PATH_PREFIX = "/api/v1/tables"
 MONTHLY_INGEST_TAIL = "/ingest"
-MONTHLY_TAILS = frozenset({"", "/elements", "/values/batch", MONTHLY_INGEST_TAIL})
+MONTHLY_INDUSTRY_TAIL = "/industry"
+MONTHLY_TAILS = frozenset({
+    "", "/elements", "/values/batch", MONTHLY_INGEST_TAIL, MONTHLY_INDUSTRY_TAIL,
+})
 MONTHLY_URL_PATH_RE = re.compile(
-    r"^/api/v1/tables(?:/[0-9][0-9A-Z]{3}[0-9]?(?:/\d{4}(?:/elements|/values/batch)?|/ingest))?$"
+    r"^/api/v1/tables(?:/[0-9][0-9A-Z]{3}[0-9]?(?:/\d{4}(?:/elements|/values/batch)?|/ingest|/industry))?$"
 )
 _CODE_ERR = "code must be 4-5 characters (e.g. 7203, 72030, 262A0)"
 
@@ -385,10 +388,10 @@ def monthly_api_url(code: str | None = None, year: int | None = None, tail: str 
         safe_code = quote(code, safe="")
         if safe_code != code or not CODE_RE.fullmatch(code) or "." in code or "/" in code:
             raise ValueError(_CODE_ERR)
-        if tail == MONTHLY_INGEST_TAIL:
+        if tail in (MONTHLY_INGEST_TAIL, MONTHLY_INDUSTRY_TAIL):
             if year is not None:
                 raise ValueError("invalid monthly API path")
-            path = f"{MONTHLY_PATH_PREFIX}/{safe_code}{MONTHLY_INGEST_TAIL}"
+            path = f"{MONTHLY_PATH_PREFIX}/{safe_code}{tail}"
         else:
             if year is None:
                 raise ValueError("invalid monthly API path")
@@ -409,6 +412,11 @@ def monthly_api_url(code: str | None = None, year: int | None = None, tail: str 
 def monthly_ingest_url(code: str) -> str:
     """POST /api/v1/tables/{code}/ingest. No year in the path."""
     return monthly_api_url(code, tail=MONTHLY_INGEST_TAIL)
+
+
+def monthly_industry_url(code: str) -> str:
+    """PUT /api/v1/tables/{code}/industry. No year in the path."""
+    return monthly_api_url(code, tail=MONTHLY_INDUSTRY_TAIL)
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -638,6 +646,21 @@ def _parse_ingest_rows(raw: Any) -> list[dict[str, Any]]:
     return out
 
 
+def parse_monthly_industry(raw: Any) -> str:
+    if not isinstance(raw, str):
+        raise ValueError("industry must be 1-50 characters")
+    s = raw.strip()
+    if not s or len(s) > 50:
+        raise ValueError("industry must be 1-50 characters")
+    return s
+
+
+def tool_monthly_set_industry(args: dict[str, Any]) -> str:
+    code = parse_monthly_code(args.get("code"))
+    body = {"industry": parse_monthly_industry(args.get("industry"))}
+    return call_monthly_api("PUT", monthly_industry_url(code), body)
+
+
 def tool_monthly_ingest(args: dict[str, Any]) -> str:
     code = parse_monthly_code(args.get("code"))
     body: dict[str, Any] = {
@@ -770,6 +793,18 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
             "required": ["code", "year", "element", "values"],
         },
         tool_monthly_put_values,
+    ),
+    "monthly_set_industry": (
+        "月次業種を付ける。localhost:8000 の PUT /api/v1/tables/{code}/industry。銘柄マスタの業種とは別。",
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
+                "industry": {"type": "string", "description": "月次業種, 1-50 chars. Default その他 until set."},
+            },
+            "required": ["code", "industry"],
+        },
+        tool_monthly_set_industry,
     ),
     "monthly_ingest": (
         "PDF月次を暦年に割り当てて登録。localhost:8000 の POST /api/v1/tables/{code}/ingest。year は渡さない（決算の事業年度末から決める）。年付き put は訂正用。unit は PDF 見出しから number / yoy_index / yoy_pct（大きさから推測しない）。値は原文のまま。",

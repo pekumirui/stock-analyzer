@@ -183,8 +183,20 @@ def main() -> None:
 
     r = c.get("/api/v1/tables")
     _expect(r, 200, "GET tables one code")
-    if r.json() != [{"code": code, "name": None, "years": [2024]}]:
-        _fail(f"tables one code: {r.json()!r}")
+    body = r.json()
+    if not isinstance(body, list) or len(body) != 1:
+        _fail(f"tables one code: {body!r}")
+    one = body[0]
+    if one.get("code") != code or one.get("name") is not None or one.get("years") != [2024]:
+        _fail(f"tables one code core: {one!r}")
+    if one.get("industry") != "その他":
+        _fail(f"default industry: {one!r}")
+    if one.get("last_ingested_at") is not None:
+        _fail(f"no ingest yet: {one!r}")
+    if one.get("is_new") is not False or one.get("ingested_today") is not False:
+        _fail(f"new flags before ingest: {one!r}")
+    if "all_store_yoy" not in one or "existing_store_yoy" not in one:
+        _fail(f"missing yoy fields: {one!r}")
 
     # idempotent element create
     r = c.post(f"{base}/elements", json={"element": "売上高 前年比"})

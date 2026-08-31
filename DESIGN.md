@@ -127,6 +127,11 @@ earnings_events   -- 決算発表イベントと発表後パフォーマンス
   return_1d, return_5d, return_20d, return_60d, return_to_date
   alpha_1d, ... alpha_to_date   -- 対TOPIX超過リターン
 
+monthly_issuers   -- 発行体ごとの月次属性。月次業種は stocks.sector33 とは別
+  code PK                 -- stocks.code と同じ 5桁。FK は付けない
+  industry                -- 月次業種。既定は その他
+  last_ingested_at        -- ingest 成功のたびに更新。NULL は新着ではない
+
 monthly_tables    -- 銘柄×年度の月次表 (暦月1〜12。会計月ではない)
   code, year PK           -- code は J-Quants 5桁 (9279→92790, 262A→262A0)。year は西暦4桁
   -- stocks に無い code は書かない。FK は付けない (既存テーブルへ ADD できない / PRAGMA foreign_keys も有効化しない)
@@ -144,7 +149,7 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
 
 月次の year は暦年。PDF 取込は `POST /api/v1/tables/{code}/ingest` が列順 (`months`) と、開示日 `as_of` 時点の最新 `statements.fiscal_year_end` から暦年を割り当てる。暦年は最終列の月と as_of で決める。layout は calendar（先頭が1で昇順）/ fiscal（会計年度開始月始まり）/ それ以外は partial。列の並びでは拒否しない。クライアントは year を渡さない。年付き PUT は訂正用。決算期変更があっても as_of 時点の1か月だけを使う。
 
-月次の書き込みは `stocks` に行がある code だけ。ingest / POST elements / 訂正 PUT は先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`。マスタ無しでは ingest しない。FK は付けない。`init_db` / migrate は `stocks` に無い月次行を `monthly_values` → `monthly_elements` → `monthly_tables` の順に DELETE する（本番の名証単独 30320 / 30660 など。何度呼んでも冪等）。
+月次の書き込みは `stocks` に行がある code だけ。ingest / POST elements / 訂正 PUT は先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`。マスタ無しでは ingest しない。FK は付けない。`init_db` / migrate は `stocks` に無い月次行を `monthly_values` → `monthly_elements` → `monthly_tables` → `monthly_issuers` の順に DELETE する（本番の名証単独 30320 / 30660 など。何度呼んでも冪等）。
 
 月次の unit は PDF 見出しから付ける（値の大きさから推測しない）。`yoy_index` は 100=フラットの指数をそのまま保存・表示。`yoy_pct` は符号付き変化率をそのまま保存し、表では `100+v` を出す（▲ や +X.X% にはしない）。`number` は件数など。
 
@@ -233,7 +238,8 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `GET /api/stocks/search?q=トヨタ` | 銘柄検索 |
 | `POST /api/v1/tables/{code}/{year}/elements` | 月次表の要素登録。表が無ければ作成。yoy は保存名を `(前年比)` 正規化してから完全一致・類似判定。完全一致は冪等。類似は 409 (force=true で強制)。`stocks` に無ければ 4xx `NOT_IN_MASTER` |
 | `POST /api/v1/tables/{code}/ingest` | PDF 列順 + as_of 時点の最新 `fiscal_year_end` から暦年を割り当てて登録。year は受け取らない。マスタ無しでは 4xx `NOT_IN_MASTER` |
-| `GET /api/v1/tables` | 月次表がある銘柄一覧 (code 順)。各要素は `{code, name, years}`。name は stocks を LEFT JOIN (無ければ null)。years は昇順。表が無ければ `[]` |
+| `GET /api/v1/tables` | 月次表がある銘柄一覧 (code 順)。各要素は `{code, name, years, market, sector33, industry, last_ingested_at, is_new, ingested_today, all_store_yoy, existing_store_yoy}`。name/market/sector33 は stocks を LEFT JOIN (無ければ null)。industry は無ければ `その他`。years は昇順。表が無ければ `[]` |
+| `PUT /api/v1/tables/{code}/industry` | 月次業種。body `{industry}`。stocks 無ければ 4xx `NOT_IN_MASTER`。月次表が無ければ 4xx `TABLE_NOT_FOUND` |
 | `GET /api/v1/tables/{code}/{year}` | 月次表。要素は登録順、値のない月は省略。表が無ければ 404 |
 | `GET /api/v1/tables/{code}` | その銘柄の年度一覧 |
 | `PUT /api/v1/tables/{code}/{year}/values` | セル upsert。未登録要素は 404 (自動登録しない)。null でセル削除。マスタ無しは 4xx `NOT_IN_MASTER` |
