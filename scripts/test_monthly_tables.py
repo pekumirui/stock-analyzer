@@ -97,6 +97,7 @@ def main() -> None:
         _fail("index.html item column must use fmtMonthlyElement")
     if "▲" in html or "+X.X%" in html:
         _fail("index.html still has percent/▲ monthly display")
+    _assert_monthly_spa(html)
     if canonicalize_element_label("売上高前年同月比", "yoy_index") != "売上高(前年比)":
         _fail("canonicalize strip+suffix")
     if canonicalize_element_label("既存売上高(前年比)", "yoy_index") != "既存売上高(前年比)":
@@ -570,6 +571,52 @@ def main() -> None:
     _assert_known_prod_units(c)
 
     print("ok: monthly tables api")
+
+
+def _assert_monthly_spa(html: str) -> None:
+    """月次 SPA: 年ドロップダウン無し。左は code でまとめ、右は暦年表を新しい年が上。"""
+    start = html.find('id="tab-monthly"')
+    if start < 0:
+        _fail("index.html missing monthly tab")
+    end = html.find("</section>", start)
+    if end < 0:
+        _fail("index.html monthly tab unclosed")
+    section = html[start:end]
+    if 'id="monthly-year"' in html or "monthly-year" in html:
+        _fail("SPA still has #monthly-year")
+    if "<select" in section.lower():
+        _fail("monthly tab still has a year select")
+    if ">項目<" in html:
+        _fail("monthly thead still uses 項目")
+    if "function uniqueMonthlyIssuers" not in html:
+        _fail("index.html missing uniqueMonthlyIssuers")
+    if "uniqueMonthlyIssuers(monthlyRows)" not in html:
+        _fail("left list must uniqueMonthlyIssuers(monthlyRows)")
+    if "seen.has(code)" not in html:
+        _fail("uniqueMonthlyIssuers must skip duplicate codes")
+    list_fn = html.find("function renderMonthlyList")
+    mark_fn = html.find("function markMonthlySel")
+    if list_fn < 0 or mark_fn < 0 or mark_fn <= list_fn:
+        _fail("renderMonthlyList bounds")
+    list_body = html[list_fn:mark_fn]
+    if "r.year" in list_body or "${r.year}" in list_body:
+        _fail("left list must not show year")
+    if '<th class="l">コード</th><th class="l">銘柄</th>' not in list_body:
+        _fail("left list headers must be code + name")
+    if "function loadMonthlyTables" not in html:
+        _fail("index.html missing loadMonthlyTables")
+    if "`/api/v1/tables/${selMonthlyCode}`" not in html:
+        _fail("SPA must GET /api/v1/tables/{code}")
+    if "`/api/v1/tables/${selMonthlyCode}/${y}`" not in html:
+        _fail("SPA must GET /api/v1/tables/{code}/{year}")
+    if "Promise.all" not in html:
+        _fail("year tables must be fetched in parallel")
+    if ".sort((a,b)=>b-a)" not in html:
+        _fail("calendar-year tables must stack newest first")
+    if '<th class="l">${d.year}</th>' not in html:
+        _fail("thead top-left cell must be the calendar year")
+    if "データなし" not in html:
+        _fail("empty copy データなし missing")
 
 
 def _assert_known_prod_units(c) -> None:
