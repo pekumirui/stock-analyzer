@@ -107,7 +107,11 @@
   #monthly-tbl tbody tr { cursor:pointer; }
   #monthly-tbl tbody tr:hover { background:var(--row); }
   #monthly-tbl tbody tr.sel { background:var(--row-sel); box-shadow:inset 3px 0 0 var(--accent); }
-  table.monthly { font-variant-numeric:tabular-nums; }
+  table.monthly { font-variant-numeric:tabular-nums; table-layout:fixed; }
+  table.monthly col.monthly-m { width: var(--monthly-m-w); }
+  table.monthly thead th:not(:first-child),
+  table.monthly td.num { width: var(--monthly-m-w); }
+  table.monthly thead th.l { color:var(--text); font-weight:bold; font-size:13px; }
   #monthly-table-wrap { display:flex; flex-direction:column; gap:1.75rem; }
   table.monthly thead th { top:auto; }
   .fin-tabs { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
@@ -686,6 +690,7 @@ async function loadMonthlyTables(){
   const info = await api(`/api/v1/tables/${selMonthlyCode}`).catch(()=>null);
   const years = ((info && info.years) || []).slice().sort((a,b)=>b-a);
   if(!years.length){
+    wrap.style.removeProperty("--monthly-m-w");
     wrap.innerHTML = `<div class="sub">データなし</div>`;
     return;
   }
@@ -693,9 +698,10 @@ async function loadMonthlyTables(){
     years.map(y => api(`/api/v1/tables/${selMonthlyCode}/${y}`).catch(()=>null))
   );
   let h = "";
+  let maxNumLen = 0;
   for(const d of tables){
     if(!d) continue;
-    h += `<table class="fin monthly"><thead><tr><th class="l">${d.year}</th>`;
+    h += `<table class="fin monthly"><colgroup><col><col class="monthly-m" span="12"></colgroup><thead><tr><th class="l">${d.year}</th>`;
     for(let m=1;m<=12;m++) h += `<th>${m}月</th>`;
     h += `</tr></thead><tbody>`;
     for(const e of d.elements || []){
@@ -704,12 +710,15 @@ async function loadMonthlyTables(){
       h += `<tr><td class="l">${fmtMonthlyElement(e.element, unit)}</td>`;
       for(let m=1;m<=12;m++){
         const v = vals[String(m)];
-        h += `<td class="num">${fmtMonthlyCell(v, unit)}</td>`;
+        const txt = fmtMonthlyCell(v, unit);
+        if(txt) maxNumLen = Math.max(maxNumLen, txt.length);
+        h += `<td class="num">${txt}</td>`;
       }
       h += `</tr>`;
     }
     h += `</tbody></table>`;
   }
+  wrap.style.setProperty("--monthly-m-w", `calc(${Math.max(maxNumLen, 3)}ch + 16px)`);
   wrap.innerHTML = h || `<div class="sub">データなし</div>`;
 }
 
