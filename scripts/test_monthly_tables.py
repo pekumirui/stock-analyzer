@@ -586,7 +586,7 @@ def main() -> None:
 
 
 def _assert_monthly_spa(html: str) -> None:
-    """月次 SPA: 年ドロップダウン無し。左は code でまとめ、右は暦年表を新しい年が上。"""
+    """月次 SPA: TOP はチップ+6列。Detail はグラフと暦年表。年ドロップダウン無し。"""
     start = html.find('id="tab-monthly"')
     if start < 0:
         _fail("index.html missing monthly tab")
@@ -600,21 +600,35 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("monthly tab still has a year select")
     if ">項目<" in html:
         _fail("monthly thead still uses 項目")
+    if 'id="monthly-groups"' not in section:
+        _fail("TOP must have #monthly-groups")
+    if 'id="monthly-chart"' not in section:
+        _fail("Detail must have #monthly-chart")
+    if 'id="monthly-back"' not in section:
+        _fail("Detail must have #monthly-back")
     if "function uniqueMonthlyIssuers" not in html:
         _fail("index.html missing uniqueMonthlyIssuers")
     if "uniqueMonthlyIssuers(monthlyRows)" not in html:
-        _fail("left list must uniqueMonthlyIssuers(monthlyRows)")
+        _fail("list must uniqueMonthlyIssuers(monthlyRows)")
     if "seen.has(code)" not in html:
         _fail("uniqueMonthlyIssuers must skip duplicate codes")
+    if "function drawMonthlyChart" not in html:
+        _fail("index.html missing drawMonthlyChart")
+    if "monthly-grid" in html.replace(" ", "") and "grid-template-columns:minmax(240px,1fr)" in html.replace(" ", ""):
+        _fail("monthly tab must not use 1100px two-column grid")
     list_fn = html.find("function renderMonthlyList")
-    mark_fn = html.find("function markMonthlySel")
-    if list_fn < 0 or mark_fn < 0 or mark_fn <= list_fn:
-        _fail("renderMonthlyList bounds")
-    list_body = html[list_fn:mark_fn]
+    show_fn = html.find("function showMonthlyTop")
+    if list_fn < 0 or show_fn < 0:
+        _fail("renderMonthlyList / showMonthlyTop bounds")
+    list_body = html[list_fn:show_fn] if show_fn > list_fn else html[list_fn:list_fn + 1800]
     if "r.year" in list_body or "${r.year}" in list_body:
-        _fail("left list must not show year")
-    if '<th class="l">コード</th><th class="l">銘柄</th>' not in list_body:
-        _fail("left list headers must be code + name")
+        _fail("TOP list must not show year")
+    if '<th class="l">コード</th><th class="l">銘柄</th>' in list_body:
+        _fail("TOP list must not be code + name only")
+    if "会社名" not in list_body or "月次業種" not in list_body:
+        _fail("TOP headers must include 会社名 and 月次業種")
+    if "全店(前年比)" not in list_body or "既存店(前年比)" not in list_body:
+        _fail("TOP headers must include yoy columns")
     if "function loadMonthlyTables" not in html:
         _fail("index.html missing loadMonthlyTables")
     if "`/api/v1/tables/${selMonthlyCode}`" not in html:
