@@ -105,13 +105,19 @@
   .badge.new { background:var(--warn); color:#fff; margin-left:6px; }
   #monthly-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
   #monthly-chart { width:100%; min-height:220px; margin:8px 0 16px; }
-  #monthly-chart svg { width:100%; height:auto; display:block; }
+  #monthly-chart svg { width:100%; height:auto; display:block; font-family:inherit; overflow:visible; }
   /* 年表は table-layout:fixed + 月列等幅のまま。項目列は min-width で潰さず wrap が横スクロール */
   table.monthly { font-variant-numeric:tabular-nums; table-layout:fixed; width:max-content; min-width:100%; }
   table.monthly col.monthly-name { width:16em; min-width:16em; }
   table.monthly col.monthly-m { width: var(--monthly-m-w); }
+  /* 月列は左右 sticky しない。横スワイプで月が普通に動く */
   table.monthly thead th:not(:first-child),
-  table.monthly td.num { width: var(--monthly-m-w); }
+  table.monthly td.num,
+  table.monthly th:last-child,
+  table.monthly td:last-child {
+    width: var(--monthly-m-w);
+    position:static; left:auto; right:auto;
+  }
   table.monthly thead th:first-child,
   table.monthly td:first-child {
     min-width:16em; width:16em;
@@ -152,6 +158,26 @@
     body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:40px}
     table.fin .disc, table.fin th.disc { display:none; }
     .evt-toggles .evt-label { min-height:32px; }
+    #monthly-chart { min-height:280px; }
+    /* 16em sticky だと項目列が画面の大半を占め月が右端にしか出ない。スマホは sticky を外し項目列を短くする */
+    table.monthly col.monthly-name { width:8em; min-width:8em; }
+    table.monthly thead th:first-child,
+    table.monthly td:first-child {
+      min-width:8em; width:8em;
+      position:static; left:auto; right:auto; z-index:auto;
+      white-space:normal;
+      overflow:hidden;
+      background:var(--panel);
+    }
+    table.monthly tbody tr:nth-child(even) td:first-child { background:var(--row); }
+    table.monthly tbody tr:hover td:first-child { background:var(--row-sel); }
+    table.monthly tbody tr[data-series].on td:first-child { background:var(--row-sel); }
+    table.monthly thead th:not(:first-child),
+    table.monthly td.num,
+    table.monthly th:last-child,
+    table.monthly td:last-child {
+      position:static; left:auto; right:auto;
+    }
   }
 </style>
 </head>
@@ -911,6 +937,44 @@ async function loadMonthlyTables(){
   markMonthlySeriesRows();
 }
 
+function monthlyIsPhone(){
+  return window.matchMedia("(max-width:640px)").matches;
+}
+
+function monthlyYTicks(ymin, ymax, yoy){
+  const span = Math.max(ymax - ymin, yoy ? 20 : 1);
+  const raw = span / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / mag;
+  let step;
+  if(n <= 1) step = mag;
+  else if(n <= 2) step = 2 * mag;
+  else if(n <= 5) step = 5 * mag;
+  else step = 10 * mag;
+  const ticks = [];
+  const start = Math.ceil((ymin - step * 1e-9) / step) * step;
+  for(let v = start; v <= ymax + step * 1e-6; v += step){
+    const t = Math.round(v / step) * step;
+    let r = Math.abs(t) >= 100 ? Math.round(t) : Math.round(t * 100) / 100;
+    if(Math.abs(r) < 1e-9) r = 0;
+    if(!ticks.length || Math.abs(ticks[ticks.length-1] - r) > step * 0.01) ticks.push(r);
+  }
+  if(yoy && ymin <= 100 && 100 <= ymax && !ticks.some(t => Math.abs(t-100) < 1e-6)){
+    ticks.push(100);
+    ticks.sort((a,b)=>a-b);
+  }
+  return ticks.length ? ticks : [ymin, ymax];
+}
+
+function fmtMonthlyTick(v){
+  if(Math.abs(v) < 1e-9) v = 0;
+  if(Math.abs(v - Math.round(v)) < 1e-6)
+    return Math.round(v).toLocaleString("ja-JP");
+  return v.toLocaleString("ja-JP", {maximumFractionDigits:1});
+}
+
+let monthlyChartCssW = 0;
+
 function drawMonthlyChart(tables, seriesId){
   const host = $("#monthly-chart");
   const choices = monthlySeriesChoices(tables);
@@ -946,14 +1010,30 @@ function drawMonthlyChart(tables, seriesId){
   let ymin = 0;
   let ymax = Math.max(...vals, spec.yoy ? 100 : 1);
   ymax = ymax * 1.08;
-  const W=720, H=220, L=44, R=10, T=28, B=40;
+  // スマホは viewBox 720 を幅いっぱいに縮めると font-size 11 が読めない。1 CSS px ≒ 1 user unit にする
+  const phone = monthlyIsPhone();
+  const cssW = host.clientWidth || document.documentElement.clientWidth || 720;
+  monthlyChartCssW = cssW;
+  const W = phone ? Math.max(cssW, 280) : 720;
+  const H = phone ? 280 : 232;
+  const L = 52, R = phone ? 10 : 12, T = phone ? 36 : 28, B = phone ? 64 : 50;
+  const fsTitle = phone ? 15 : 13;
+  const fsAxis = phone ? 13 : 11;
   const plotW=W-L-R, plotH=H-T-B;
   const yx = v => T + (1 - (v-ymin)/((ymax-ymin)||1)) * plotH;
   const nY = years.length;
   const slot = plotW/12;
   const barW = Math.max(3, (slot*0.72)/nY);
-  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${spec.label}">`;
-  svg += `<text x="${L}" y="16" font-size="13" fill="currentColor">${spec.label}</text>`;
+  const monthY = T + plotH + (phone ? 18 : 14);
+  const legendY = H - (phone ? 8 : 6);
+  const legendGap = Math.min(phone ? 70 : 80, plotW / Math.max(nY, 1));
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escHtml(spec.label)}">`;
+  svg += `<text x="${L}" y="${phone ? 22 : 16}" font-size="${fsTitle}" fill="currentColor">${escHtml(spec.label)}</text>`;
+  for(const tick of monthlyYTicks(ymin, ymax, spec.yoy)){
+    const y = yx(tick);
+    svg += `<line x1="${L}" x2="${W-R}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e8ecf0"/>`;
+    svg += `<text x="${L-6}" y="${y.toFixed(1)}" font-size="${fsAxis}" text-anchor="end" dominant-baseline="middle" fill="#66707a">${fmtMonthlyTick(tick)}</text>`;
+  }
   if(spec.yoy){
     const y100 = yx(100);
     svg += `<line x1="${L}" x2="${W-R}" y1="${y100}" y2="${y100}" stroke="#e6a100" stroke-dasharray="4 3"/>`;
@@ -971,19 +1051,30 @@ function drawMonthlyChart(tables, seriesId){
       }
     });
   });
+  const monthLabel = slot < 28 ? (m => String(m)) : (m => `${m}月`);
   for(let m=1;m<=12;m++){
     const x = L + slot*(m-1) + slot/2;
-    svg += `<text x="${x.toFixed(1)}" y="${H-18}" font-size="11" text-anchor="middle" fill="#66707a">${m}月</text>`;
+    svg += `<text x="${x.toFixed(1)}" y="${monthY}" font-size="${fsAxis}" text-anchor="middle" fill="#66707a">${monthLabel(m)}</text>`;
   }
   years.forEach((year, yi) => {
     const color = MONTHLY_YEAR_COLORS[yi % MONTHLY_YEAR_COLORS.length];
-    const x = L + yi*80;
-    svg += `<rect x="${x}" y="${H-12}" width="8" height="8" fill="${color}"/>`;
-    svg += `<text x="${x+12}" y="${H-4}" font-size="11" fill="#66707a">${year}年</text>`;
+    const x = L + yi*legendGap;
+    svg += `<rect x="${x}" y="${legendY-10}" width="8" height="8" fill="${color}"/>`;
+    svg += `<text x="${x+12}" y="${legendY}" font-size="${fsAxis}" fill="#66707a">${year}年</text>`;
   });
   svg += `</svg>`;
   host.innerHTML = svg;
 }
+
+window.matchMedia("(max-width:640px)").addEventListener("change", () => {
+  if(monthlyYearTables.length) drawMonthlyChart(monthlyYearTables, monthlySeries);
+});
+window.addEventListener("resize", () => {
+  const host = $("#monthly-chart");
+  if(!host || !$("#monthly-detail") || $("#monthly-detail").style.display === "none") return;
+  if(Math.abs((host.clientWidth || 0) - monthlyChartCssW) < 8) return;
+  if(monthlyYearTables.length) drawMonthlyChart(monthlyYearTables, monthlySeries);
+});
 
 function fmtMonthlyCell(v, unit){
   if(v==null || v==="") return "";
