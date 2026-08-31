@@ -660,7 +660,7 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("year tables must be fetched in parallel")
     if ".sort((a,b)=>b-a)" not in html:
         _fail("calendar-year tables must stack newest first")
-    if '<th class="l">${d.year}</th>' not in html:
+    if '<th class="l year">${d.year}</th>' not in html:
         _fail("thead top-left cell must be the calendar year")
     if "table-layout:fixed" not in html.replace(" ", ""):
         _fail("monthly tables must use table-layout:fixed")
@@ -705,9 +705,11 @@ def _assert_monthly_spa(html: str) -> None:
     year_rule = html.find("table.monthly thead th.l")
     if year_rule < 0:
         _fail("year cell CSS missing (table.monthly thead th.l)")
-    year_block = html[year_rule:year_rule + 160]
-    if "var(--text)" not in year_block:
-        _fail("year cell must use body text color")
+    year_block = html[year_rule:year_rule + 280]
+    if "var(--up)" not in year_block:
+        _fail("year cell must be red fill")
+    if "color:#fff" not in year_block.replace(" ", "") and "color:#ffffff" not in year_block.replace(" ", ""):
+        _fail("year cell must be white text")
     if "font-weight:bold" not in year_block.replace(" ", "") and "font-weight:700" not in year_block.replace(" ", ""):
         _fail("year cell must be bold")
     if "font-size:11px" in year_block.replace(" ", ""):
