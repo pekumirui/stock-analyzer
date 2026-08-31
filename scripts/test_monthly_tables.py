@@ -615,6 +615,28 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("calendar-year tables must stack newest first")
     if '<th class="l">${d.year}</th>' not in html:
         _fail("thead top-left cell must be the calendar year")
+    if "table-layout:fixed" not in html.replace(" ", ""):
+        _fail("monthly tables must use table-layout:fixed")
+    if "<colgroup>" not in html:
+        _fail("monthly tables must emit colgroup")
+    if 'col class="monthly-m"' not in html:
+        _fail("month cols must share col.monthly-m")
+    if "--monthly-m-w" not in html:
+        _fail("one shared --monthly-m-w for all month cols")
+    if "maxNumLen" not in html or "txt.length" not in html:
+        _fail("month col width must come from fmtMonthlyCell text length")
+    year_rule = html.find("table.monthly thead th.l")
+    if year_rule < 0:
+        _fail("year cell CSS missing (table.monthly thead th.l)")
+    year_block = html[year_rule:year_rule + 160]
+    if "var(--text)" not in year_block:
+        _fail("year cell must use body text color")
+    if "font-weight:bold" not in year_block.replace(" ", "") and "font-weight:700" not in year_block.replace(" ", ""):
+        _fail("year cell must be bold")
+    if "font-size:11px" in year_block.replace(" ", ""):
+        _fail("year cell must be larger than 11px month headers")
+    if "font-size:13px" not in year_block.replace(" ", "") and "font-size:14px" not in year_block.replace(" ", ""):
+        _fail("year cell must be slightly larger than month headers")
     if "データなし" not in html:
         _fail("empty copy データなし missing")
 
