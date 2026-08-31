@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from datetime import date
 from typing import Any, Sequence
 
@@ -54,6 +55,33 @@ def canonicalize_element_label(element: str, unit: str | None) -> str:
     if base.endswith(_YOY_SUFFIX):
         return base
     return f"{base}{_YOY_SUFFIX}"
+
+
+def monthly_element_key(name: str) -> str:
+    s = unicodedata.normalize("NFKC", name)
+    return re.sub(r"\s+", "", s)
+
+
+def monthly_series_kind(element: str, unit: str | None) -> str | None:
+    """TOP/チャート用。all_store / existing / stores。どれでもなければ None。"""
+    key = monthly_element_key(element)
+    u = unit or "number"
+    if "店舗数" in key and u == "number":
+        return "stores"
+    if u not in _YOY_UNITS:
+        return None
+    if "既存" in key:
+        return "existing"
+    if "全店" in key:
+        return "all_store"
+    return None
+
+
+def yoy_display_number(value: float, unit: str | None) -> float:
+    n = float(value)
+    if (unit or "number") == "yoy_pct":
+        n = 100.0 + n
+    return n
 
 
 def format_monthly_cell(value: float | None, unit: str | None) -> str:

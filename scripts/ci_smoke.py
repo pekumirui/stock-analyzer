@@ -304,6 +304,12 @@ def main() -> None:
     )
     if master.returncode != 0:
         raise SystemExit("monthly stock master tests failed")
+    issuers = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "test_monthly_issuers.py")],
+        cwd=ROOT,
+    )
+    if issuers.returncode != 0:
+        raise SystemExit("monthly issuers tests failed")
     tdnet = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "test_tdnet_monthly_r2.py")],
         cwd=ROOT,

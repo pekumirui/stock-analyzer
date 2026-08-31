@@ -54,6 +54,9 @@ RATE_LIMIT_FINS_PER_MIN = 60
 RS_PRODUCT_CATEGORIES = ("011",)  # RS・ステージは普通株同士の相対
 EARNINGS_EXCLUDE_PRODUCT_CATEGORIES = ("013", "022")  # 決算速報から除外
 
+# 月次 TOP の「新着」。last_ingested_at の JST 日付が今日を含むこの日数。
+MONTHLY_NEW_DAYS = 7
+
 # ミネルヴィニ・ステージ判定パラメータ
 STAGE_PARAMS = {
     "rs_min_stage2": 70,        # Stage2に必要なRSランク下限

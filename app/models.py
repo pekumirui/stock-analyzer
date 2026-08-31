@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, Date, Integer, Boolean, Text, Index
+from sqlalchemy import Column, String, Float, Date, DateTime, Integer, Boolean, Text, Index
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -115,6 +115,14 @@ class EarningsEvent(Base):
     alpha_20d = Column(Float)
     alpha_60d = Column(Float)
     alpha_to_date = Column(Float)
+
+
+class MonthlyIssuer(Base):
+    """発行体ごとの月次属性。industry は月次業種で stocks.sector33 とは別。FK は付けない。"""
+    __tablename__ = "monthly_issuers"
+    code = Column(String(5), primary_key=True)
+    industry = Column(String(50), nullable=False, default="その他", server_default="その他")
+    last_ingested_at = Column(DateTime, nullable=True)
 
 
 class MonthlyTable(Base):

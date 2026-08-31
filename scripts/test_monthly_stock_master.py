@@ -68,7 +68,7 @@ def _add_fy_end(code: str, disclosed: date, fy_end: date, disclosure_no: str) ->
 
 def _add_orphan_monthly(code: str, year: int = 2024) -> None:
     from app.db import SessionLocal
-    from app.models import MonthlyElement, MonthlyTable, MonthlyValue
+    from app.models import MonthlyElement, MonthlyIssuer, MonthlyTable, MonthlyValue
 
     db = SessionLocal()
     try:
@@ -82,6 +82,8 @@ def _add_orphan_monthly(code: str, year: int = 2024) -> None:
             db.add(MonthlyValue(
                 code=code, year=year, element="売上高", month=1, value=1.0,
             ))
+        if db.get(MonthlyIssuer, code) is None:
+            db.add(MonthlyIssuer(code=code, industry="その他"))
         db.commit()
     finally:
         db.close()
@@ -159,7 +161,7 @@ def test_put_rejects_when_master_missing() -> None:
 
 def test_orphan_delete() -> None:
     from app.db import SessionLocal, delete_orphan_monthly_rows, init_db
-    from app.models import MonthlyElement, MonthlyTable, MonthlyValue, Stock
+    from app.models import MonthlyElement, MonthlyIssuer, MonthlyTable, MonthlyValue, Stock
 
     _ensure_stock("72030")
     _add_orphan_monthly("72030", 2025)
@@ -173,6 +175,8 @@ def test_orphan_delete() -> None:
         _fail(f"orphan elements: {deleted!r}")
     if deleted.get("monthly_tables") != 2:
         _fail(f"orphan tables: {deleted!r}")
+    if deleted.get("monthly_issuers") != 2:
+        _fail(f"orphan issuers: {deleted!r}")
 
     db = SessionLocal()
     try:
@@ -184,6 +188,8 @@ def test_orphan_delete() -> None:
             _fail("72030 element must remain")
         if db.get(MonthlyValue, ("72030", 2025, "売上高", 1)) is None:
             _fail("72030 value must remain")
+        if db.get(MonthlyIssuer, "72030") is None:
+            _fail("72030 issuer must remain")
         for code in ("30320", "30660"):
             if db.get(MonthlyTable, (code, 2024)) is not None:
                 _fail(f"{code} table should be gone")
@@ -191,11 +197,15 @@ def test_orphan_delete() -> None:
                 _fail(f"{code} element should be gone")
             if db.get(MonthlyValue, (code, 2024, "売上高", 1)) is not None:
                 _fail(f"{code} value should be gone")
+            if db.get(MonthlyIssuer, code) is not None:
+                _fail(f"{code} issuer should be gone")
     finally:
         db.close()
 
     again = delete_orphan_monthly_rows()
-    if any(again.get(k, 0) for k in ("monthly_values", "monthly_elements", "monthly_tables")):
+    if any(again.get(k, 0) for k in (
+        "monthly_values", "monthly_elements", "monthly_tables", "monthly_issuers",
+    )):
         _fail(f"orphan delete must be idempotent: {again!r}")
 
     _add_orphan_monthly("30320", 2024)
