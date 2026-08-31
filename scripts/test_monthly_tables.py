@@ -716,6 +716,38 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("year cell must be slightly larger than month headers")
     if "データなし" not in html:
         _fail("empty copy データなし missing")
+    chart_fn = html.find("function drawMonthlyChart")
+    chart_end = html.find("function fmtMonthlyCell")
+    if chart_fn < 0 or chart_end < 0 or chart_end <= chart_fn:
+        _fail("drawMonthlyChart bounds")
+    chart_body = html[chart_fn:chart_end]
+    if 'text-anchor="end"' not in chart_body:
+        _fail("Y-axis tick numbers must be drawn (text-anchor=end in the left gutter)")
+    if "monthlyYTicks" not in chart_body and "function monthlyYTicks" not in html:
+        _fail("Y-axis ticks must be generated, not left as empty L pad")
+    if "monthlyIsPhone" not in html and 'matchMedia("(max-width:640px)")' not in chart_body:
+        _fail("chart must use max-width:640px (or similar) so phone fonts/gutters differ from PC")
+    if "fsAxis" not in chart_body and 'font-size="11"' in chart_body and "280" not in chart_body:
+        _fail("phone chart text must be larger than desktop font-size 11")
+    mq = html.find("@media (max-width:640px)")
+    if mq < 0:
+        _fail("phone/PC split must use @media (max-width:640px)")
+    mq_block = html[mq:mq + 1400]
+    if "table.monthly" not in mq_block:
+        _fail("phone monthly table rules must live in max-width:640px")
+    mq_compact = mq_block.replace(" ", "").replace("\n", "")
+    if "position:static" not in mq_compact:
+        _fail("phone must turn off first-column sticky (or equivalent static position)")
+    if "min-width:8em" not in mq_compact and "width:8em" not in mq_compact:
+        _fail("phone name column must be much shorter than 16em so months are visible")
+    if "right:0" in mq_compact:
+        _fail("do not sticky-fix the rightmost month column on phone")
+    monthly_css_start = html.find("table.monthly")
+    monthly_css = html[monthly_css_start:mq] if mq > monthly_css_start else html[monthly_css_start:monthly_css_start + 2500]
+    if "right:0" in monthly_css.replace(" ", ""):
+        _fail("do not sticky-fix the rightmost month column")
+    if "right:auto" not in monthly_css.replace(" ", ""):
+        _fail("month columns must not be right-pinned (right:auto)")
 
 
 def _assert_known_prod_units(c) -> None:
