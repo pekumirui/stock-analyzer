@@ -82,7 +82,7 @@
   #earn-tbl tbody tr { cursor:pointer; }
   #earn-tbl tbody tr:hover { background:var(--row); }
   #earn-tbl tbody tr.sel { background:var(--row-sel); box-shadow:inset 3px 0 0 var(--accent); }
-  table.fin td:first-child, table.fin th:first-child { position:sticky; left:0; background:var(--panel); }
+  table.fin td:first-child, table.fin th:first-child { position:sticky; left:0; z-index:2; background:var(--panel); }
   table.fin { font-variant-numeric:tabular-nums; }
   table.fin th { font-size:11px; letter-spacing:.02em; }
   table.fin td { padding:7px 8px; vertical-align:top; }
@@ -106,13 +106,26 @@
   #monthly-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
   #monthly-chart { width:100%; min-height:220px; margin:8px 0 16px; }
   #monthly-chart svg { width:100%; height:auto; display:block; }
-  table.monthly { font-variant-numeric:tabular-nums; table-layout:fixed; }
+  /* 年表は table-layout:fixed + 月列等幅のまま。項目列は min-width で潰さず wrap が横スクロール */
+  table.monthly { font-variant-numeric:tabular-nums; table-layout:fixed; width:max-content; min-width:100%; }
+  table.monthly col.monthly-name { width:16em; min-width:16em; }
   table.monthly col.monthly-m { width: var(--monthly-m-w); }
   table.monthly thead th:not(:first-child),
   table.monthly td.num { width: var(--monthly-m-w); }
+  table.monthly thead th:first-child,
+  table.monthly td:first-child {
+    min-width:16em; width:16em;
+    position:sticky; left:0; z-index:2;
+    background:var(--panel);
+  }
+  table.monthly thead th:first-child { z-index:3; background:var(--panel); }
+  table.monthly tbody tr:nth-child(even) td:first-child { background:var(--row); }
+  table.monthly tbody tr:hover td:first-child { background:var(--row-sel); }
+  table.monthly tbody tr[data-series].on td:first-child { background:var(--row-sel); }
   table.monthly thead th.l { color:var(--text); font-weight:bold; font-size:13px; }
-  #monthly-table-wrap { display:flex; flex-direction:column; gap:1.75rem; }
+  #monthly-table-wrap { display:flex; flex-direction:column; gap:1.75rem; overflow-x:auto; min-width:0; }
   table.monthly thead th { top:auto; }
+  #monthly-series { max-width:100%; margin:0 0 8px; }
   table.monthly tbody tr[data-series] { cursor:pointer; }
   table.monthly tbody tr[data-series].on td { background:var(--row-sel); }
   .fin-tabs { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
@@ -249,7 +262,7 @@
         <button type="button" id="monthly-back" onclick="backMonthly()">戻る</button>
         <h3 id="monthly-title"></h3>
       </div>
-      <div class="fin-tabs" id="monthly-series"></div>
+      <select id="monthly-series" onchange="setMonthlySeries(this.value)"></select>
       <div id="monthly-chart"></div>
       <div class="tbl-wrap" id="monthly-table-wrap"></div>
     </div>
@@ -678,6 +691,43 @@ function monthlySeriesKind(element, unit){
   return null;
 }
 
+function escHtml(s){
+  return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+}
+
+function monthlyHasConventional(tables){
+  return (tables || []).some(d =>
+    (d.elements || []).some(e => monthlySeriesKind(e.element, e.unit)));
+}
+
+function monthlySeriesChoices(tables){
+  if(monthlyHasConventional(tables)) return MONTHLY_SERIES;
+  const seen = new Set();
+  const out = [];
+  for(const d of tables || []){
+    for(const e of d.elements || []){
+      const name = e.element;
+      if(!name || seen.has(name)) continue;
+      seen.add(name);
+      const unit = e.unit || "number";
+      out.push({
+        id: name,
+        label: fmtMonthlyElement(name, unit),
+        yoy: unit==="yoy_index" || unit==="yoy_pct",
+      });
+    }
+  }
+  return out.length ? out : MONTHLY_SERIES;
+}
+
+function monthlySeriesElement(d, seriesId){
+  const els = d.elements || [];
+  if(MONTHLY_SERIES.some(s => s.id === seriesId)){
+    return els.find(e => monthlySeriesKind(e.element, e.unit) === seriesId);
+  }
+  return els.find(e => e.element === seriesId);
+}
+
 function fmtMonthlyYoyList(v){
   if(v==null || v==="") return "";
   const n = Number(v);
@@ -779,7 +829,6 @@ function showMonthlyDetail(code){
   monthlySeries = "all_store";
   $("#monthly-top").style.display = "none";
   $("#monthly-detail").style.display = "";
-  renderMonthlySeriesTabs();
   loadMonthlyTables();
 }
 
@@ -787,17 +836,23 @@ function backMonthly(){
   showMonthlyTop();
 }
 
-function renderMonthlySeriesTabs(){
-  let h = "";
-  for(const s of MONTHLY_SERIES){
-    h += `<button type="button" class="ftab${monthlySeries===s.id?" on":""}" data-series="${s.id}" onclick="setMonthlySeries('${s.id}')">${s.label}</button>`;
+function renderMonthlySeriesSelect(){
+  const choices = monthlySeriesChoices(monthlyYearTables);
+  const sel = $("#monthly-series");
+  if(!choices.length){
+    sel.innerHTML = "";
+    return;
   }
-  $("#monthly-series").innerHTML = h;
+  if(!choices.some(s => s.id === monthlySeries)) monthlySeries = choices[0].id;
+  sel.innerHTML = choices.map(s =>
+    `<option value="${escHtml(s.id)}">${escHtml(s.label)}</option>`).join("");
+  sel.value = monthlySeries;
 }
 
 function setMonthlySeries(id){
   monthlySeries = id;
-  renderMonthlySeriesTabs();
+  const sel = $("#monthly-series");
+  if(sel && sel.value !== id) sel.value = id;
   drawMonthlyChart(monthlyYearTables, monthlySeries);
   markMonthlySeriesRows();
 }
@@ -816,6 +871,7 @@ async function loadMonthlyTables(){
     monthlyYearTables = [];
     wrap.style.removeProperty("--monthly-m-w");
     wrap.innerHTML = `<div class="sub">データなし</div>`;
+    renderMonthlySeriesSelect();
     drawMonthlyChart([], monthlySeries);
     return;
   }
@@ -823,18 +879,21 @@ async function loadMonthlyTables(){
     years.map(y => api(`/api/v1/tables/${selMonthlyCode}/${y}`).catch(()=>null))
   );
   monthlyYearTables = tables.filter(Boolean);
+  renderMonthlySeriesSelect();
+  const fallback = !monthlyHasConventional(monthlyYearTables);
   let h = "";
   let maxNumLen = 0;
   for(const d of tables){
     if(!d) continue;
-    h += `<table class="fin monthly"><colgroup><col><col class="monthly-m" span="12"></colgroup><thead><tr><th class="l">${d.year}</th>`;
+    h += `<table class="fin monthly"><colgroup><col class="monthly-name"><col class="monthly-m" span="12"></colgroup><thead><tr><th class="l">${d.year}</th>`;
     for(let m=1;m<=12;m++) h += `<th>${m}月</th>`;
     h += `</tr></thead><tbody>`;
     for(const e of d.elements || []){
       const vals = e.values || {};
       const unit = e.unit || "number";
       const kind = monthlySeriesKind(e.element, unit);
-      const ds = kind ? ` data-series="${kind}" onclick="setMonthlySeries('${kind}')"` : "";
+      const seriesId = fallback ? e.element : kind;
+      const ds = seriesId ? ` data-series="${escHtml(seriesId)}" onclick="setMonthlySeries(this.dataset.series)"` : "";
       h += `<tr${ds}><td class="l">${fmtMonthlyElement(e.element, unit)}</td>`;
       for(let m=1;m<=12;m++){
         const v = vals[String(m)];
@@ -854,11 +913,12 @@ async function loadMonthlyTables(){
 
 function drawMonthlyChart(tables, seriesId){
   const host = $("#monthly-chart");
-  const spec = MONTHLY_SERIES.find(s => s.id === seriesId) || MONTHLY_SERIES[0];
+  const choices = monthlySeriesChoices(tables);
+  const spec = choices.find(s => s.id === seriesId) || choices[0] || MONTHLY_SERIES[0];
   const years = [];
   const byYear = {};
   for(const d of tables || []){
-    const el = (d.elements || []).find(e => monthlySeriesKind(e.element, e.unit) === seriesId);
+    const el = monthlySeriesElement(d, spec.id);
     if(!el) continue;
     const nums = [];
     let any = false;
