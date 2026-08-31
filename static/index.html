@@ -96,7 +96,7 @@
   table.fin tr.prevfy td { opacity:.78; }
   table.fin tr.sep td { border-top:1px solid var(--border); }
   table.fin .loss { color:var(--up); }
-  /* 月次タブ: 左一覧 + 右の年選択/表。決算速報の選択行と同じ強調 */
+  /* 月次タブ: 左一覧 + 右に暦年表を新しい年が上になるよう重ねる。決算速報の選択行と同じ強調 */
   @media (min-width:1100px){
     .monthly-grid.egrid { grid-template-columns:minmax(240px,1fr) minmax(0,3fr); }
     .monthly-grid .a-list { grid-column:span 1; }
@@ -108,6 +108,8 @@
   #monthly-tbl tbody tr:hover { background:var(--row); }
   #monthly-tbl tbody tr.sel { background:var(--row-sel); box-shadow:inset 3px 0 0 var(--accent); }
   table.monthly { font-variant-numeric:tabular-nums; }
+  #monthly-table-wrap { display:flex; flex-direction:column; gap:1.75rem; }
+  table.monthly thead th { top:auto; }
   .fin-tabs { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
   .ftab { background:transparent; border:none; color:var(--sub); padding:5px 14px; cursor:pointer; font-size:13px; }
   .ftab.on { background:var(--accent); color:#fff; }
@@ -237,7 +239,6 @@
     <div class="panel a-fin">
       <div class="phead">
         <h3 id="monthly-title">銘柄を選択してください</h3>
-        <select id="monthly-year" style="display:none"></select>
       </div>
       <div class="tbl-wrap" id="monthly-table-wrap"></div>
     </div>
@@ -633,18 +634,31 @@ async function loadScreener(){
 // ---- 月次 ----
 let monthlyRows=[], selMonthlyCode=null;
 
+function uniqueMonthlyIssuers(rows){
+  const seen = new Set();
+  const out = [];
+  for(const r of rows || []){
+    const code = r && r.code;
+    if(!code || seen.has(code)) continue;
+    seen.add(code);
+    out.push({code, name: r.name || ""});
+  }
+  return out;
+}
+
 async function loadMonthlyList(){
   monthlyRows = await api("/api/v1/tables").catch(()=>[]);
   renderMonthlyList();
 }
 
 function renderMonthlyList(){
-  if(!monthlyRows.length){
+  const issuers = uniqueMonthlyIssuers(monthlyRows);
+  if(!issuers.length){
     $("#monthly-list").innerHTML = `<div class="sub">登録された月次データはありません</div>`;
     return;
   }
   let h = `<table id="monthly-tbl"><thead><tr><th class="l">コード</th><th class="l">銘柄</th></tr></thead><tbody>`;
-  for(const r of monthlyRows){
+  for(const r of issuers){
     h += `<tr data-code="${r.code}" onclick="selectMonthly('${r.code}')"><td class="l">${r.code}</td><td class="l">${r.name||""}</td></tr>`;
   }
   $("#monthly-list").innerHTML = h + `</tbody></table>`;
@@ -659,44 +673,45 @@ function markMonthlySel(){
 function selectMonthly(code){
   selMonthlyCode = code;
   markMonthlySel();
-  const row = monthlyRows.find(r => r.code === code);
+  const row = uniqueMonthlyIssuers(monthlyRows).find(r => r.code === code);
   if(!row) return;
-  const years = row.years || [];
-  const sel = $("#monthly-year");
-  sel.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join("");
-  if(years.length){
-    sel.value = String(years[years.length-1]);
-    sel.style.display = "";
-  } else {
-    sel.style.display = "none";
-  }
   const nm = row.name || "";
   $("#monthly-title").textContent = nm ? `${nm} ${row.code}` : row.code;
-  loadMonthlyTable();
+  loadMonthlyTables();
 }
 
-async function loadMonthlyTable(){
+async function loadMonthlyTables(){
   if(!selMonthlyCode) return;
-  const year = $("#monthly-year").value;
-  if(!year){ $("#monthly-table-wrap").innerHTML = ""; return; }
-  const d = await api(`/api/v1/tables/${selMonthlyCode}/${year}`).catch(()=>null);
-  if(!d){ $("#monthly-table-wrap").innerHTML = `<div class="sub">データなし</div>`; return; }
-  let h = `<table class="fin monthly"><thead><tr><th class="l">項目</th>`;
-  for(let m=1;m<=12;m++) h += `<th>${m}月</th>`;
-  h += `</tr></thead><tbody>`;
-  for(const e of d.elements || []){
-    const vals = e.values || {};
-    const unit = e.unit || "number";
-    h += `<tr><td class="l">${fmtMonthlyElement(e.element, unit)}</td>`;
-    for(let m=1;m<=12;m++){
-      const v = vals[String(m)];
-      h += `<td class="num">${fmtMonthlyCell(v, unit)}</td>`;
-    }
-    h += `</tr>`;
+  const wrap = $("#monthly-table-wrap");
+  const info = await api(`/api/v1/tables/${selMonthlyCode}`).catch(()=>null);
+  const years = ((info && info.years) || []).slice().sort((a,b)=>b-a);
+  if(!years.length){
+    wrap.innerHTML = `<div class="sub">データなし</div>`;
+    return;
   }
-  $("#monthly-table-wrap").innerHTML = h + `</tbody></table>`;
+  const tables = await Promise.all(
+    years.map(y => api(`/api/v1/tables/${selMonthlyCode}/${y}`).catch(()=>null))
+  );
+  let h = "";
+  for(const d of tables){
+    if(!d) continue;
+    h += `<table class="fin monthly"><thead><tr><th class="l">${d.year}</th>`;
+    for(let m=1;m<=12;m++) h += `<th>${m}月</th>`;
+    h += `</tr></thead><tbody>`;
+    for(const e of d.elements || []){
+      const vals = e.values || {};
+      const unit = e.unit || "number";
+      h += `<tr><td class="l">${fmtMonthlyElement(e.element, unit)}</td>`;
+      for(let m=1;m<=12;m++){
+        const v = vals[String(m)];
+        h += `<td class="num">${fmtMonthlyCell(v, unit)}</td>`;
+      }
+      h += `</tr>`;
+    }
+    h += `</tbody></table>`;
+  }
+  wrap.innerHTML = h || `<div class="sub">データなし</div>`;
 }
-$("#monthly-year").addEventListener("change", loadMonthlyTable);
 
 function fmtMonthlyCell(v, unit){
   if(v==null || v==="") return "";
