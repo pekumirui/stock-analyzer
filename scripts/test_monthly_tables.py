@@ -31,6 +31,22 @@ def _fail(msg: str) -> None:
     raise SystemExit(msg)
 
 
+def _select_tags(html: str) -> list[str]:
+    out: list[str] = []
+    low = html.lower()
+    start = 0
+    while True:
+        i = low.find("<select", start)
+        if i < 0:
+            break
+        j = html.find(">", i)
+        if j < 0:
+            break
+        out.append(html[i : j + 1])
+        start = j + 1
+    return out
+
+
 def _err(resp) -> dict:
     body = resp.json()
     err = body.get("error") if isinstance(body, dict) else None
@@ -596,8 +612,13 @@ def _assert_monthly_spa(html: str) -> None:
     section = html[start:end]
     if 'id="monthly-year"' in html or "monthly-year" in html:
         _fail("SPA still has #monthly-year")
-    if "<select" in section.lower():
-        _fail("monthly tab still has a year select")
+    if "<select" not in section.lower() or 'id="monthly-series"' not in section:
+        _fail("Detail series control must be <select id=\"monthly-series\">")
+    for chunk in _select_tags(section):
+        if "monthly-year" in chunk:
+            _fail("monthly tab still has a year select")
+        if 'id="monthly-series"' not in chunk:
+            _fail("monthly tab select must be #monthly-series, not a year picker")
     if ">項目<" in html:
         _fail("monthly thead still uses 項目")
     if 'id="monthly-groups"' not in section:
@@ -649,6 +670,36 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("month cols must share col.monthly-m")
     if "--monthly-m-w" not in html:
         _fail("one shared --monthly-m-w for all month cols")
+    wrap_rule = html.find("#monthly-table-wrap")
+    if wrap_rule < 0:
+        _fail("#monthly-table-wrap CSS missing")
+    wrap_block = html[wrap_rule:wrap_rule + 180]
+    if "overflow-x:auto" not in wrap_block.replace(" ", ""):
+        _fail("#monthly-table-wrap must overflow-x:auto")
+    name_rule = html.find("table.monthly thead th:first-child")
+    if name_rule < 0:
+        name_rule = html.find("table.monthly td:first-child")
+    if name_rule < 0:
+        _fail("monthly first-child column CSS missing")
+    name_block = html[name_rule:name_rule + 280]
+    if "min-width:16em" not in name_block.replace(" ", "") and "min-width:14em" not in name_block.replace(" ", ""):
+        _fail("monthly first column must have a readable min-width")
+    if "z-index:2" not in name_block.replace(" ", "") and "z-index:3" not in name_block.replace(" ", ""):
+        _fail("sticky first cells need z-index so month numbers stay underneath")
+    if "var(--panel)" not in name_block:
+        _fail("sticky first cells need opaque panel background")
+    if "function monthlySeriesChoices" not in html:
+        _fail("index.html missing monthlySeriesChoices")
+    if "MONTHLY_SERIES" not in html:
+        _fail("MONTHLY_SERIES is the default series option list")
+    if "monthlyHasConventional" not in html:
+        _fail("fallback series list must key off conventional 3-series match")
+    if "function monthlySeriesElement" not in html:
+        _fail("chart must resolve the selected row (conventional or actual element)")
+    if "renderMonthlySeriesSelect" not in html:
+        _fail("series <select> must be filled from MONTHLY_SERIES or actual elements")
+    if "onclick=\"setMonthlySeries(this.dataset.series)\"" not in html:
+        _fail("table row click must still switch the chart series")
     if "maxNumLen" not in html or "txt.length" not in html:
         _fail("month col width must come from fmtMonthlyCell text length")
     year_rule = html.find("table.monthly thead th.l")
