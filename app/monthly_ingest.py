@@ -57,6 +57,56 @@ def canonicalize_element_label(element: str, unit: str | None) -> str:
     return f"{base}{_YOY_SUFFIX}"
 
 
+def same_yoy_element(
+    stored_name: str,
+    stored_unit: str | None,
+    incoming_name: str,
+    incoming_unit: str | None,
+) -> bool:
+    """incoming は canonicalize 済み。yoy 既存行を同じ規則で正規化して同一行か見る。
+
+    number の `売上高` は yoy の `売上高(前年比)` とは別行。
+    """
+    if stored_name == incoming_name:
+        return True
+    stored_u = stored_unit or "number"
+    if stored_u not in _YOY_UNITS:
+        return False
+    if canonicalize_element_label(stored_name, stored_u) == incoming_name:
+        return True
+    if canonicalize_element_label(stored_name, incoming_unit) == incoming_name:
+        return True
+    return False
+
+
+def plan_yoy_duplicate_merges(
+    rows: Sequence[tuple[str, int, str, str | None]],
+) -> list[tuple[str, int, str, list[str]]]:
+    """同一 (code, year) の yoy 行で正規化名が同じもの。短い名を正規名へ寄せる。
+
+    number は見ない（売上高 と 売上高(前年比) は別行のまま）。
+    戻りは (code, year, canonical, short_names)。
+    """
+    groups: dict[tuple[str, int, str], set[str]] = {}
+    for code, year, element, unit in rows:
+        if (unit or "number") not in _YOY_UNITS:
+            continue
+        canonical = canonicalize_element_label(element, unit)
+        if not canonical:
+            continue
+        groups.setdefault((code, year, canonical), set()).add(element)
+    out: list[tuple[str, int, str, list[str]]] = []
+    for (code, year, canonical), names in groups.items():
+        if len(names) < 2:
+            continue
+        shorts = sorted(name for name in names if name != canonical)
+        if not shorts:
+            continue
+        out.append((code, year, canonical, shorts))
+    out.sort()
+    return out
+
+
 def monthly_element_key(name: str) -> str:
     s = unicodedata.normalize("NFKC", name)
     return re.sub(r"\s+", "", s)

@@ -531,7 +531,7 @@ def main() -> None:
     if format_monthly_cell(float(by["店舗数"]["values"]["11"]), by["店舗数"]["unit"]) != "303":
         _fail("display number 303")
 
-    # PUT unit only; values stay. Lookup is stored name (no rename).
+    # PUT unit only; values stay. Lookup is stored name (ingest/POST だけ yoy 正規化でリネーム)。
     r = c.put("/api/v1/tables/7203/2026/elements",
               json={"element": "全店売上高(前年比)", "unit": "yoy_pct"})
     _expect(r, 200, "PUT unit only")
@@ -552,6 +552,36 @@ def main() -> None:
         _fail(f"omit unit name: {r.json()!r}")
     if r.json()["unit"] != "yoy_index" or r.json()["created"] is not False:
         _fail(f"omit unit must keep: {r.json()!r}")
+
+    # POST yoy: canonicalize first, short then canonical is one row
+    _ensure_stock("60590", "ウチヤマ")
+    r = c.post("/api/v1/tables/60590/2026/elements", json={"element": "売上高", "unit": "yoy_index"})
+    _expect(r, 201, "60590 yoy 売上高")
+    if r.json()["element"] != "売上高(前年比)" or r.json()["created"] is not True:
+        _fail(f"60590 yoy short saved: {r.json()!r}")
+    r = c.post("/api/v1/tables/60590/2026/elements",
+               json={"element": "売上高(前年比)", "unit": "yoy_index"})
+    _expect(r, 200, "60590 yoy canonical same")
+    if r.json()["created"] is not False or r.json()["element"] != "売上高(前年比)":
+        _fail(f"60590 yoy canonical: {r.json()!r}")
+    r = c.get("/api/v1/tables/60590/2026")
+    if [e["element"] for e in r.json()["elements"]] != ["売上高(前年比)"]:
+        _fail(f"60590 one yoy row: {r.json()!r}")
+
+    r = c.post("/api/v1/tables/60590/2026/elements", json={"element": "カラオケ全店 売上高"})
+    _expect(r, 201, "60590 karaoke number")
+    r = c.put("/api/v1/tables/60590/2026/elements",
+              json={"element": "カラオケ全店 売上高", "unit": "yoy_index"})
+    _expect(r, 200, "60590 karaoke PUT unit")
+    r = c.post("/api/v1/tables/60590/2026/elements",
+               json={"element": "カラオケ全店 売上高(前年比)", "unit": "yoy_index"})
+    _expect(r, 200, "60590 karaoke rename")
+    if r.json()["created"] is not False or r.json()["element"] != "カラオケ全店 売上高(前年比)":
+        _fail(f"60590 karaoke POST rename: {r.json()!r}")
+    r = c.get("/api/v1/tables/60590/2026")
+    names = [e["element"] for e in r.json()["elements"]]
+    if names != ["売上高(前年比)", "カラオケ全店 売上高(前年比)"]:
+        _fail(f"60590 after karaoke rename: {names!r}")
 
     # do not guess unit from magnitude
     r = c.post("/api/v1/tables/7203/2026/elements",

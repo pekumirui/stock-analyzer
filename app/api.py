@@ -13,7 +13,7 @@ from .config import (
     EARNINGS_PARAMS as EP, EARNINGS_EXCLUDE_PRODUCT_CATEGORIES, MONTHLY_NEW_DAYS,
     RS_PRODUCT_CATEGORIES,
 )
-from .db import get_session
+from .db import fold_same_yoy_element, get_session
 from .models import (
     Stock, DailyPrice, Topix, Statement, Indicator, EarningsEvent,
     MonthlyIssuer, MonthlyTable, MonthlyElement, MonthlyValue,
@@ -22,7 +22,8 @@ from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period
                         disclosure_state, earnings_detail as build_earnings_detail)
 from .monthly_ingest import (
     MonthlyIngestError, canonicalize_element_label, map_pdf_columns,
-    monthly_series_kind, parse_as_of, parse_monthly_unit, yoy_display_number,
+    monthly_series_kind, parse_as_of, parse_monthly_unit, same_yoy_element,
+    yoy_display_number,
 )
 
 router = APIRouter(prefix="/api")
@@ -314,7 +315,7 @@ def _parse_element(raw: Any) -> str:
 
 
 def _canonical_element(raw: Any, unit: str | None) -> str:
-    """新規登録用。yoy は (前年比) 正規化。PUT の照合には使わない。"""
+    """ingest / POST は先に正規化してから既存行を探す。PUT の照合には使わない。"""
     s = canonicalize_element_label(_parse_element(raw), unit)
     if not s or len(s) > 50:
         raise ApiError(400, "INVALID_PARAM", "element は1〜50文字の文字列です。")
@@ -458,15 +459,19 @@ def _element_unit(row: MonthlyElement) -> str:
 def _ensure_element(db: Session, code: str, year_i: int, element: str, force: bool,
                     unit: str | None = None) -> bool:
     _require_stock(db, code)
+    folded = fold_same_yoy_element(db, code, year_i, element, unit)
+    if folded is not None:
+        if unit is not None:
+            folded.unit = unit
+        return False
     existing = (db.query(MonthlyElement)
                 .filter(MonthlyElement.code == code, MonthlyElement.year == year_i)
                 .all())
-    for row in existing:
-        if row.element == element:
-            if unit is not None:
-                row.unit = unit
-            return False
-    similar = [row.element for row in existing if _normalize_element(row.element) == _normalize_element(element)]
+    similar = [
+        row.element for row in existing
+        if _normalize_element(row.element) == _normalize_element(element)
+        and not same_yoy_element(row.element, row.unit, element, unit)
+    ]
     if similar and not force:
         raise ApiError(409, "ELEMENT_SIMILAR_EXISTS", _SIMILAR_MSG, extra={"similar": similar})
     if db.get(MonthlyTable, (code, year_i)) is None:
