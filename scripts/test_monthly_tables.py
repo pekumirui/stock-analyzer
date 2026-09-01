@@ -648,8 +648,28 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("TOP list must not be code + name only")
     if "会社名" not in list_body or "月次業種" not in list_body:
         _fail("TOP headers must include 会社名 and 月次業種")
+    if "function fmtMonthlyIssuerLabel" not in html:
+        _fail("TOP name must use fmtMonthlyIssuerLabel")
+    if "fmtMonthlyIssuerLabel(r.code, r.name)" not in list_body:
+        _fail("TOP name cell must be code + truncated company name")
+    if ".slice(0, 5)" not in html and ".slice(0,5)" not in html:
+        _fail("TOP company name must be first 5 characters")
     if "全店(前年比)" not in list_body or "既存店(前年比)" not in list_body:
         _fail("TOP headers must include yoy columns")
+    top_start = html.find('id="monthly-top"')
+    det_start = html.find('id="monthly-detail"')
+    if top_start < 0 or det_start < 0 or det_start <= top_start:
+        _fail("monthly-top / monthly-detail bounds")
+    if 'class="panel"' in html[top_start:det_start]:
+        _fail("TOP must not wrap in .panel")
+    tbl_css = html.find("#monthly-tbl th")
+    if tbl_css < 0:
+        tbl_css = html.find("#monthly-tbl td")
+    if tbl_css < 0:
+        _fail("TOP table cell CSS missing")
+    tbl_block = html[tbl_css:tbl_css + 220]
+    if "1px solid" not in tbl_block and "1pxsolid" not in tbl_block.replace(" ", ""):
+        _fail("TOP table cells must have full grid lines")
     if "function loadMonthlyTables" not in html:
         _fail("index.html missing loadMonthlyTables")
     if "`/api/v1/tables/${selMonthlyCode}`" not in html:
