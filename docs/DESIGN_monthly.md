@@ -51,8 +51,8 @@ AI による業種付けはしない。`industry` の更新は MCP と `PUT /api
 | 列 | 出所 |
 |---|---|
 | 会社名 | code + 半角スペース + 会社名の先頭 5 文字。今日 ingest なら NEW。このセルだけ Detail へ |
-| 市場 | `stocks.market` |
-| 業種 | `stocks.sector33` |
+| 市場 | プライムは 東証P、スタンダードは 東証S、グロースは 東証G。先頭に色付き記号 |
+| 業種 | `stocks.sector33`。末尾の「業」を外し先頭 5 文字 |
 | 月次業種 | `monthly_issuers.industry` |
 | 全店(前年比) | 系列マップの最新セル |
 | 既存店(前年比) | 系列マップの最新セル |

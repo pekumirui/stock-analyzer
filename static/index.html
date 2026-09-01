@@ -122,12 +122,21 @@
     padding:6px 8px;
   }
   #monthly-tbl th:first-child,
-  #monthly-tbl td.name {
+  #monthly-tbl td.name,
+  #monthly-tbl td.mkt,
+  #monthly-tbl td.sector {
     white-space:nowrap;
     width:1%;
   }
   #monthly-tbl td.name { cursor:pointer; color:var(--accent); }
   #monthly-tbl td.name:hover { text-decoration:underline; }
+  #monthly-tbl td.mkt::before {
+    content:''; display:inline-block; width:.55em; height:.55em;
+    border-radius:2px; margin-right:.35em; vertical-align:middle;
+  }
+  #monthly-tbl td.mkt-p::before { background:#2563eb; }
+  #monthly-tbl td.mkt-s::before { background:#9ca3af; }
+  #monthly-tbl td.mkt-g::before { background:#16a34a; }
   .badge.new { background:var(--warn); color:#fff; margin-left:6px; }
   #monthly-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
   #monthly-chart { width:100%; min-height:220px; margin:0 0 16px; }
@@ -874,6 +883,19 @@ function fmtMonthlyIssuerLabel(code, name){
   return `${code} ${short}`;
 }
 
+function fmtMonthlyMarket(market){
+  const s = String(market || "");
+  if(s.includes("プライム") || /prime/i.test(s)) return {cls:"mkt mkt-p", label:"東証P"};
+  if(s.includes("スタンダード") || /standard/i.test(s)) return {cls:"mkt mkt-s", label:"東証S"};
+  if(s.includes("グロース") || /growth/i.test(s)) return {cls:"mkt mkt-g", label:"東証G"};
+  return {cls:"", label:s};
+}
+
+function fmtMonthlySector(sector){
+  const s = String(sector || "").replace(/業$/, "");
+  return Array.from(s).slice(0, 5).join("");
+}
+
 function renderMonthlyList(){
   const issuers = filteredMonthlyIssuers();
   if(!issuers.length){
@@ -886,10 +908,11 @@ function renderMonthlyList(){
     `</tr></thead><tbody>`;
   for(const r of issuers){
     const neu = r.ingested_today ? `<span class="badge new">NEW</span>` : "";
+    const mkt = fmtMonthlyMarket(r.market);
     h += `<tr data-code="${r.code}">` +
       `<td class="l name" onclick="showMonthlyDetail('${r.code}')">${escHtml(fmtMonthlyIssuerLabel(r.code, r.name))}${neu}</td>` +
-      `<td class="l">${r.market||""}</td>` +
-      `<td class="l">${r.sector33||""}</td>` +
+      `<td class="l ${mkt.cls}">${escHtml(mkt.label)}</td>` +
+      `<td class="l sector">${escHtml(fmtMonthlySector(r.sector33))}</td>` +
       `<td class="l">${r.industry||"その他"}</td>` +
       `<td class="num">${fmtMonthlyYoyList(r.all_store_yoy)}</td>` +
       `<td class="num">${fmtMonthlyYoyList(r.existing_store_yoy)}</td>` +
