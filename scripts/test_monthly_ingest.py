@@ -23,7 +23,9 @@ from app.monthly_ingest import (  # noqa: E402
     map_pdf_columns,
     parse_monthly_unit,
     plan_column_years,
+    plan_yoy_duplicate_merges,
     resolve_fy_end_month,
+    same_yoy_element,
 )
 
 GIFT_MONTHS = [11, 12, 1, 2, 3, 4, 5, 6, 7]
@@ -82,6 +84,25 @@ def test_canonicalize_element_label() -> None:
         _fail("number 店舗数")
     if canonicalize_element_label("売上高前年同月比", None) != "売上高前年同月比":
         _fail("omitted unit is number: no strip/suffix")
+    if not same_yoy_element("売上高", "yoy_index", "売上高(前年比)", "yoy_index"):
+        _fail("short yoy name matches canonical")
+    if not same_yoy_element("カラオケ全店 売上高", "yoy_index", "カラオケ全店 売上高(前年比)", "yoy_index"):
+        _fail("karaoke short matches canonical")
+    if same_yoy_element("売上高", "number", "売上高(前年比)", "number"):
+        _fail("number 売上高 is not the yoy row")
+    if same_yoy_element("売上高", "number", "売上高(前年比)", "yoy_index"):
+        _fail("number 売上高 stays separate from yoy")
+    planned = plan_yoy_duplicate_merges([
+        ("60590", 2026, "カラオケ全店 売上高", "yoy_index"),
+        ("60590", 2026, "カラオケ全店 売上高(前年比)", "yoy_index"),
+        ("72030", 2024, "売上高", "number"),
+        ("72030", 2024, "売上高(前年比)", "number"),
+        ("44440", 2025, "売上高(前年比)", "yoy_index"),
+        ("44440", 2025, "売上高", "number"),
+        ("44440", 2025, "売上高前年同月比", "number"),
+    ])
+    if planned != [("60590", 2026, "カラオケ全店 売上高(前年比)", ["カラオケ全店 売上高"])]:
+        _fail(f"plan_yoy_duplicate_merges: {planned!r}")
 
 
 def test_mapping_examples() -> None:
@@ -586,6 +607,151 @@ def test_ingest_yoy_label_and_number_separate() -> None:
         _fail(f"number must not strip: {r.json()!r}")
 
 
+def test_ingest_yoy_short_and_canonical_same_row() -> None:
+    c = TestClient(app)
+    code = "88880"
+    _add_fy_end(code, date(2026, 5, 8), date(2025, 12, 31), "yoy-same-1")
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [1],
+        "rows": [{"element": "売上高", "values": {"1": 101.0}, "unit": "yoy_index"}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 200, "ingest 売上高 yoy_index")
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [1],
+        "rows": [{"element": "売上高(前年比)", "values": {"1": 102.0}, "unit": "yoy_index"}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 200, "ingest 売上高(前年比) yoy_index")
+    r = c.get(f"/api/v1/tables/{code}/2026")
+    _expect(r, 200, "GET after yoy short+canonical")
+    els = r.json()["elements"]
+    names = [e["element"] for e in els]
+    if names != ["売上高(前年比)"]:
+        _fail(f"ingest 売上高 then 売上高(前年比) must be one row: {names!r}")
+    if els[0]["unit"] != "yoy_index" or float(els[0]["values"]["1"]) != 102.0:
+        _fail(f"second ingest upsert: {els[0]!r}")
+
+
+def test_existing_short_yoy_renamed_on_canonical() -> None:
+    c = TestClient(app)
+    code = "88890"
+    _add_fy_end(code, date(2026, 5, 8), date(2025, 12, 31), "yoy-rename-1")
+    r = c.post(f"/api/v1/tables/{code}/2026/elements", json={"element": "カラオケ全店 売上高"})
+    _expect(r, 201, "seed short name")
+    if r.json()["element"] != "カラオケ全店 売上高":
+        _fail(f"number short stored: {r.json()!r}")
+    r = c.put(f"/api/v1/tables/{code}/2026/elements",
+              json={"element": "カラオケ全店 売上高", "unit": "yoy_index"})
+    _expect(r, 200, "PUT unit yoy on short")
+    r = c.put(f"/api/v1/tables/{code}/2026/values",
+              json={"element": "カラオケ全店 売上高", "month": 1, "value": 110.0})
+    _expect(r, 200, "PUT value on short")
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [1],
+        "rows": [{"element": "カラオケ全店 売上高(前年比)", "values": {"1": 111.0}, "unit": "yoy_index"}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 200, "ingest canonical onto short")
+    r = c.get(f"/api/v1/tables/{code}/2026")
+    els = r.json()["elements"]
+    names = [e["element"] for e in els]
+    if names != ["カラオケ全店 売上高(前年比)"]:
+        _fail(f"short must rename to canonical: {names!r}")
+    if els[0]["unit"] != "yoy_index" or float(els[0]["values"]["1"]) != 111.0:
+        _fail(f"rename+upsert: {els[0]!r}")
+
+    r = c.post(f"/api/v1/tables/{code}/2026/elements",
+               json={"element": "カラオケ全店 売上高(前年比)", "unit": "yoy_index"})
+    _expect(r, 200, "POST canonical after rename")
+    if r.json()["created"] is not False or r.json()["element"] != "カラオケ全店 売上高(前年比)":
+        _fail(f"POST after rename: {r.json()!r}")
+
+
+def test_number_stores_not_yoy_suffix() -> None:
+    c = TestClient(app)
+    code = "88900"
+    _add_fy_end(code, date(2026, 5, 8), date(2025, 12, 31), "stores-1")
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [1],
+        "rows": [{"element": "店舗数", "values": {"1": 42}, "unit": "number"}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 200, "ingest 店舗数")
+    r = c.get(f"/api/v1/tables/{code}/2026")
+    els = r.json()["elements"]
+    if [e["element"] for e in els] != ["店舗数"]:
+        _fail(f"number 店舗数 must not get (前年比): {[e['element'] for e in els]!r}")
+    if els[0]["unit"] != "number" or float(els[0]["values"]["1"]) != 42:
+        _fail(f"店舗数 stored: {els[0]!r}")
+
+
+def test_merge_uchiyama_like_yoy_duplicates() -> None:
+    from app.db import SessionLocal, merge_yoy_duplicate_elements
+    from app.models import MonthlyElement, MonthlyTable, MonthlyValue
+
+    code, year = "60590", 2026
+    short = "カラオケ全店 売上高"
+    canon = "カラオケ全店 売上高(前年比)"
+    _ensure_stock(code, "ウチヤマ")
+    db = SessionLocal()
+    try:
+        db.add(MonthlyTable(code=code, year=year))
+        db.add(MonthlyElement(code=code, year=year, element=short, sort_order=1, unit="yoy_index"))
+        db.add(MonthlyElement(code=code, year=year, element=canon, sort_order=2, unit="yoy_index"))
+        db.add(MonthlyValue(code=code, year=year, element=short, month=1, value=101.0))
+        db.add(MonthlyValue(code=code, year=year, element=canon, month=1, value=101.0))
+        db.add(MonthlyValue(code=code, year=year, element=short, month=2, value=102.0))
+        db.add(MonthlyValue(code=code, year=year, element=canon, month=3, value=103.0))
+        db.add(MonthlyValue(code=code, year=year, element=short, month=4, value=104.0))
+        db.add(MonthlyValue(code=code, year=year, element=canon, month=4, value=105.0))
+        db.commit()
+    finally:
+        db.close()
+
+    reports = merge_yoy_duplicate_elements()
+    print(f"merge 60590 reports: {reports!r}")
+    if any(r.get("code") == "44440" for r in reports):
+        _fail(f"must not merge number 売上高 into yoy: {reports!r}")
+    hit = [r for r in reports if r.get("code") == code and r.get("year") == year]
+    if not hit:
+        _fail(f"60590 2026 merge missing: {reports!r}")
+    one = hit[0]
+    if one.get("canonical") != canon or short not in (one.get("deleted") or []):
+        _fail(f"60590 merge target: {one!r}")
+    conflicts = one.get("conflicts") or []
+    if not any(c.get("month") == 4 and c.get("kept") == 105.0 and c.get("dropped") == 104.0
+               for c in conflicts):
+        _fail(f"60590 month 4 conflict not reported: {conflicts!r}")
+
+    db = SessionLocal()
+    try:
+        els = (db.query(MonthlyElement)
+               .filter(MonthlyElement.code == code, MonthlyElement.year == year)
+               .all())
+        names = sorted(e.element for e in els)
+        if names != [canon]:
+            _fail(f"60590 after merge names: {names!r}")
+        if els[0].unit != "yoy_index":
+            _fail(f"60590 unit: {els[0].unit!r}")
+        vals = {
+            v.month: float(v.value)
+            for v in db.query(MonthlyValue).filter(
+                MonthlyValue.code == code, MonthlyValue.year == year,
+            )
+        }
+        if vals != {1: 101.0, 2: 102.0, 3: 103.0, 4: 105.0}:
+            _fail(f"60590 after merge values: {vals!r}")
+        if db.get(MonthlyElement, (code, year, short)) is not None:
+            _fail("short row must be deleted")
+    finally:
+        db.close()
+
+    again = merge_yoy_duplicate_elements()
+    if any(r.get("code") == code and r.get("year") == year for r in again):
+        _fail(f"merge must be idempotent: {again!r}")
+
+
 def main() -> None:
     test_canonicalize_element_label()
     test_mapping_examples()
@@ -597,6 +763,10 @@ def main() -> None:
     test_api_alnum_code()
     test_unit_display_and_ingest()
     test_ingest_yoy_label_and_number_separate()
+    test_ingest_yoy_short_and_canonical_same_row()
+    test_existing_short_yoy_renamed_on_canonical()
+    test_number_stores_not_yoy_suffix()
+    test_merge_uchiyama_like_yoy_duplicates()
     print("ok: monthly ingest")
 
 

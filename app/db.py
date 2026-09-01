@@ -5,7 +5,8 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 
 from .config import DATABASE_URL
-from .models import Base, MonthlyElement
+from .models import Base, MonthlyElement, MonthlyValue
+from .monthly_ingest import plan_yoy_duplicate_merges, same_yoy_element
 
 engine = create_engine(DATABASE_URL, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, future=True)
@@ -42,6 +43,7 @@ def migrate_add_columns(verbose: bool = True) -> int:
     """
     lacks = missing_columns()
     if not lacks:
+        merge_yoy_duplicate_elements(verbose=verbose)
         delete_orphan_monthly_rows(verbose=verbose)
         return 0
     n = 0
@@ -59,6 +61,7 @@ def migrate_add_columns(verbose: bool = True) -> int:
                     print(f"  列を追加: {tname}.{cname} ({ddl})")
                 n += 1
     apply_known_monthly_element_units()
+    merge_yoy_duplicate_elements(verbose=verbose)
     delete_orphan_monthly_rows(verbose=verbose)
     return n
 
@@ -76,6 +79,176 @@ def _server_default_sql(col) -> str | None:
 def _norm_element_name(element: str) -> str:
     s = unicodedata.normalize("NFKC", element)
     return re.sub(r"\s+", "", s)
+
+
+def rename_monthly_element(db, code: str, year: int, old: str, new: str) -> None:
+    """複合PKの element 名を変える。先に values、無い正規名はコピーしてから短い行を消す。"""
+    if old == new:
+        return
+    src = db.get(MonthlyElement, (code, year, old))
+    dst = db.get(MonthlyElement, (code, year, new))
+    if src is None:
+        return
+    if dst is not None:
+        merge_monthly_element_into(db, src, dst)
+        return
+    db.add(MonthlyElement(
+        code=code, year=year, element=new,
+        sort_order=src.sort_order, unit=src.unit,
+    ))
+    db.flush()
+    for v in list(db.query(MonthlyValue).filter_by(code=code, year=year, element=old)):
+        db.add(MonthlyValue(
+            code=code, year=year, element=new, month=v.month, value=v.value,
+        ))
+        db.delete(v)
+    db.delete(src)
+    db.flush()
+
+
+def merge_monthly_element_into(db, src: MonthlyElement, dst: MonthlyElement) -> list[dict]:
+    """短い行の値を正規名へ。欠損は埋める。両方非NULLで不一致なら正規名を残して報告。"""
+    if src is dst or (
+        src.code == dst.code and src.year == dst.year and src.element == dst.element
+    ):
+        return []
+    conflicts: list[dict] = []
+    src_vals = list(db.query(MonthlyValue).filter_by(
+        code=src.code, year=src.year, element=src.element,
+    ))
+    for v in src_vals:
+        existing = db.get(MonthlyValue, (dst.code, dst.year, dst.element, v.month))
+        if existing is None:
+            db.add(MonthlyValue(
+                code=dst.code, year=dst.year, element=dst.element,
+                month=v.month, value=v.value,
+            ))
+        elif float(existing.value) != float(v.value):
+            conflicts.append({
+                "code": src.code,
+                "year": src.year,
+                "month": v.month,
+                "canonical": dst.element,
+                "dropped_from": src.element,
+                "kept": float(existing.value),
+                "dropped": float(v.value),
+            })
+        db.delete(v)
+    db.delete(src)
+    db.flush()
+    return conflicts
+
+
+def fold_same_yoy_element(
+    db, code: str, year: int, incoming_name: str, incoming_unit: str | None,
+) -> MonthlyElement | None:
+    """正規化後に同一の既存行を1行にまとめる。無ければ None（新規作成へ）。"""
+    existing = (
+        db.query(MonthlyElement)
+        .filter(MonthlyElement.code == code, MonthlyElement.year == year)
+        .all()
+    )
+    matches = [
+        row for row in existing
+        if same_yoy_element(row.element, row.unit, incoming_name, incoming_unit)
+    ]
+    if not matches:
+        return None
+    exact = next((row for row in matches if row.element == incoming_name), None)
+    if exact is None:
+        src = min(matches, key=lambda row: row.sort_order)
+        if incoming_unit is not None:
+            src.unit = incoming_unit
+        rename_monthly_element(db, code, year, src.element, incoming_name)
+    elif incoming_unit is not None:
+        exact.unit = incoming_unit
+    target = db.get(MonthlyElement, (code, year, incoming_name))
+    if target is None:
+        return None
+    leftovers = (
+        db.query(MonthlyElement)
+        .filter(MonthlyElement.code == code, MonthlyElement.year == year)
+        .all()
+    )
+    for row in leftovers:
+        if row.element == incoming_name:
+            continue
+        if not same_yoy_element(row.element, row.unit, incoming_name, incoming_unit):
+            continue
+        src = db.get(MonthlyElement, (code, year, row.element))
+        dst = db.get(MonthlyElement, (code, year, incoming_name))
+        if src is not None and dst is not None:
+            merge_monthly_element_into(db, src, dst)
+    return db.get(MonthlyElement, (code, year, incoming_name))
+
+
+def merge_yoy_duplicate_elements(verbose: bool = True) -> list[dict]:
+    """同一 (code, year) の短い yoy 名と正規名を1行にする。何度呼んでも冪等。"""
+    insp = inspect(engine)
+    if "monthly_elements" not in insp.get_table_names():
+        return []
+    db = SessionLocal()
+    reports: list[dict] = []
+    try:
+        rows = [
+            (r.code, r.year, r.element, r.unit)
+            for r in db.query(MonthlyElement).all()
+        ]
+        plans = plan_yoy_duplicate_merges(rows)
+        for code, year, canonical, shorts in plans:
+            dst = db.get(MonthlyElement, (code, year, canonical))
+            if dst is None:
+                first = None
+                for name in shorts:
+                    first = db.get(MonthlyElement, (code, year, name))
+                    if first is not None:
+                        break
+                if first is None:
+                    continue
+                rename_monthly_element(db, code, year, first.element, canonical)
+                dst = db.get(MonthlyElement, (code, year, canonical))
+                shorts = [name for name in shorts if name != first.element]
+            if dst is None:
+                continue
+            conflicts: list[dict] = []
+            deleted: list[str] = []
+            for name in shorts:
+                src = db.get(MonthlyElement, (code, year, name))
+                if src is None:
+                    continue
+                conflicts.extend(merge_monthly_element_into(db, src, dst))
+                deleted.append(name)
+                dst = db.get(MonthlyElement, (code, year, canonical))
+                if dst is None:
+                    break
+            if not deleted and not conflicts:
+                continue
+            report = {
+                "code": code,
+                "year": year,
+                "canonical": canonical,
+                "deleted": deleted,
+                "conflicts": conflicts,
+            }
+            reports.append(report)
+            if verbose:
+                print(
+                    f"月次yoy行を統合: {code} {year} {deleted!r} → {canonical!r}"
+                )
+                for item in conflicts:
+                    print(
+                        f"  月{item['month']} 値の衝突: "
+                        f"正規名={item['kept']} 短い名={item['dropped']} "
+                        f"({item['dropped_from']!r}、正規名を残す)"
+                    )
+        if reports:
+            db.commit()
+        return reports
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def apply_known_monthly_element_units() -> int:
@@ -148,6 +321,7 @@ def init_db(strict: bool = False):
                 "  B) .\\run.ps1 migrate    列だけ追加して既存データを残す (追加列は空のまま)\n"
             )
     apply_known_monthly_element_units()
+    merge_yoy_duplicate_elements()
     delete_orphan_monthly_rows()
 
 

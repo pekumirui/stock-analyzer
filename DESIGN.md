@@ -140,7 +140,7 @@ monthly_elements  -- 表の行。element は登録時の正規名、sort_order �
   code, year, element PK
   unit                  -- number | yoy_index | yoy_pct。保存値は PDF 原文のまま
   -- yoy: PDF 由来の前年比語を剥がし末尾に (前年比) を1回。number: トリムのみ
-  -- 既存行はリネームしない。GET は保存名。SPA は表示時に同じ規則
+  -- yoy 正規化後に同一なら同一行。短い保存名は正規名へリネームする。GET は保存名。SPA は表示時に同じ規則
 
 monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字列は拒否)
   code, year, element, month PK
@@ -153,7 +153,7 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
 
 月次の unit は PDF 見出しから付ける（値の大きさから推測しない）。`yoy_index` は 100=フラットの指数をそのまま保存・表示。`yoy_pct` は符号付き変化率をそのまま保存し、表では `100+v` を出す（▲ や +X.X% にはしない）。`number` は件数など。
 
-行ラベル: ingest と POST elements は unit に応じて保存名を正規化する。`yoy_index` / `yoy_pct` は `前年同月比` / `前年比` / `前年同月` / `(前年比)` / `（前年比）` を安定するまで除き、末尾に `(前年比)` を1回付ける（既にあれば二重にしない）。`number` はトリムのみで前年比を付けず剥がさない（`売上高` と `売上高(前年比)` は別行）。既存 DB 行は一括リネームしない。GET は保存名のまま。SPA の項目列は表示時に同じ規則を適用する。
+行ラベル: ingest と POST elements は unit に応じて保存名を正規化してから既存行を探す。`yoy_index` / `yoy_pct` は `前年同月比` / `前年比` / `前年同月` / `(前年比)` / `（前年比）` を安定するまで除き、末尾に `(前年比)` を1回付ける（既にあれば二重にしない）。既存行も同じ規則で正規化し、一致すれば同一行。短い保存名（`売上高` / `カラオケ全店 売上高`）に正規名（`…(前年比)`）が当たれば値を UPSERT し、保存名を正規名へリネームする。`number` はトリムのみで前年比を付けず剥がさない（`売上高` と `売上高(前年比)` は別行）。同一 (code, year) に短い名と正規名が両方ある行は init_db / migrate で正規名へ値を寄せて短い行を消す（同じ月は非NULL優先、両方非NULLで不一致なら正規名を残して記録する）。GET は保存名のまま。SPA の項目列は表示時に同じ規則を適用する。
 
 TDnet 月次 PDF (`scripts/tdnet_monthly_r2.py`) はダウンロード時にインフラファンドを除外する。商品区分は REIT と同じ `013`/`022` しか無く、名称に「インフラ」を含むものだけ落とす（マスタ欠落時は TDnet 社名の「インフラ投資法人」）。通常の REIT（8985 ジャパン・ホテル・リート投資法人など）は残す。stocks に無いコードはダウンロードしない（DB が読めない／map が空なら警告のみで継続）。保存先 `{code}` は TDnet のまま。stocks 照合だけ 4 桁 display + 末尾 0。既存 PDF は消さない。決算速報の REIT 全除外とは別。
 
@@ -236,7 +236,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `GET /api/earnings-performance/{code}` | 決算日からの対TOPIXリターン |
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
 | `GET /api/stocks/search?q=トヨタ` | 銘柄検索 |
-| `POST /api/v1/tables/{code}/{year}/elements` | 月次表の要素登録。表が無ければ作成。yoy は保存名を `(前年比)` 正規化してから完全一致・類似判定。完全一致は冪等。類似は 409 (force=true で強制)。`stocks` に無ければ 4xx `NOT_IN_MASTER` |
+| `POST /api/v1/tables/{code}/{year}/elements` | 月次表の要素登録。表が無ければ作成。yoy は保存名を `(前年比)` 正規化してから既存行を探す。正規化後に同一なら同一行（短い保存名は正規名へリネーム）。完全一致は冪等。類似は 409 (force=true で強制)。`stocks` に無ければ 4xx `NOT_IN_MASTER` |
 | `POST /api/v1/tables/{code}/ingest` | PDF 列順 + as_of 時点の最新 `fiscal_year_end` から暦年を割り当てて登録。year は受け取らない。マスタ無しでは 4xx `NOT_IN_MASTER` |
 | `GET /api/v1/tables` | 月次表がある銘柄一覧 (code 順)。各要素は `{code, name, years, market, sector33, industry, last_ingested_at, is_new, ingested_today, all_store_yoy, existing_store_yoy}`。name/market/sector33 は stocks を LEFT JOIN (無ければ null)。industry は無ければ `その他`。years は昇順。表が無ければ `[]` |
 | `PUT /api/v1/tables/{code}/industry` | 月次業種。body `{industry}`。stocks 無ければ 4xx `NOT_IN_MASTER`。月次表が無ければ 4xx `TABLE_NOT_FOUND` |

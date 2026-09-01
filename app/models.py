@@ -137,7 +137,8 @@ class MonthlyElement(Base):
 
     unit は表示用。値そのものは PDF 原文の数値のまま (125.8 を 25.8 にしない)。
     number / yoy_index (保存も表示も 100=フラット) / yoy_pct (保存は符号付き変化率、表示は 100+v)。
-    yoy の element は前年比語を剥がして末尾 (前年比)。number はトリムのみ。既存行はリネームしない。
+    yoy の element は前年比語を剥がして末尾 (前年比)。number はトリムのみ。
+    正規化後に同一なら同一行。短い保存名は正規名へリネームする。
     """
     __tablename__ = "monthly_elements"
     code = Column(String(5), primary_key=True)
