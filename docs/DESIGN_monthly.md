@@ -50,7 +50,7 @@ AI による業種付けはしない。`industry` の更新は MCP と `PUT /api
 
 | 列 | 出所 |
 |---|---|
-| 会社名 | `「code」` + 会社名の先頭 5 文字。今日 ingest なら NEW。このセルだけ Detail へ |
+| 会社名 | code + 半角スペース + 会社名の先頭 5 文字。今日 ingest なら NEW。このセルだけ Detail へ |
 | 市場 | `stocks.market` |
 | 業種 | `stocks.sector33` |
 | 月次業種 | `monthly_issuers.industry` |

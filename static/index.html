@@ -871,7 +871,7 @@ function setMonthlyGroup(g){
 
 function fmtMonthlyIssuerLabel(code, name){
   const short = Array.from(String(name || "")).slice(0, 5).join("");
-  return `「${code}」${short}`;
+  return `${code} ${short}`;
 }
 
 function renderMonthlyList(){
