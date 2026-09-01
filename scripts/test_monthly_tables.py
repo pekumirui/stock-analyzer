@@ -654,6 +654,14 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("TOP name cell must be code + truncated company name")
     if ".slice(0, 5)" not in html and ".slice(0,5)" not in html:
         _fail("TOP company name must be first 5 characters")
+    label_fn = html.find("function fmtMonthlyIssuerLabel")
+    if label_fn < 0:
+        _fail("fmtMonthlyIssuerLabel missing")
+    label_body = html[label_fn:label_fn + 280]
+    if "「" in label_body or "」" in label_body:
+        _fail("TOP name must not wrap the code in 「」")
+    if "`${code} ${short}`" not in label_body:
+        _fail("TOP name is code, space, then 5-char name")
     if "全店(前年比)" not in list_body or "既存店(前年比)" not in list_body:
         _fail("TOP headers must include yoy columns")
     top_start = html.find('id="monthly-top"')
