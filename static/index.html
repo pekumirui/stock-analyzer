@@ -724,12 +724,7 @@ async function loadScreener(){
 
 // ---- 月次 ----
 let monthlyRows=[], monthlyGroup="__new__", selMonthlyCode=null;
-let monthlySeries="all_store", monthlyYearTables=[];
-const MONTHLY_SERIES = [
-  {id:"all_store", label:"全店売上高(前年比)", yoy:true},
-  {id:"existing", label:"既存店売上高(前年比)", yoy:true},
-  {id:"stores", label:"店舗数", yoy:false},
-];
+let monthlySeries="", monthlyYearTables=[];
 const MONTHLY_YEAR_COLORS = ["#0077b6","#2e8b57","#b8860b","#8e4ec6"];
 
 function uniqueMonthlyIssuers(rows){
@@ -762,13 +757,7 @@ function escHtml(s){
   return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 }
 
-function monthlyHasConventional(tables){
-  return (tables || []).some(d =>
-    (d.elements || []).some(e => monthlySeriesKind(e.element, e.unit)));
-}
-
 function monthlySeriesChoices(tables){
-  if(monthlyHasConventional(tables)) return MONTHLY_SERIES;
   const seen = new Set();
   const out = [];
   for(const d of tables || []){
@@ -784,15 +773,21 @@ function monthlySeriesChoices(tables){
       });
     }
   }
-  return out.length ? out : MONTHLY_SERIES;
+  return out;
+}
+
+function pickDefaultMonthlySeries(tables){
+  for(const d of tables || []){
+    for(const e of d.elements || []){
+      if(monthlySeriesKind(e.element, e.unit) === "all_store") return e.element;
+    }
+  }
+  const choices = monthlySeriesChoices(tables);
+  return choices.length ? choices[0].id : "";
 }
 
 function monthlySeriesElement(d, seriesId){
-  const els = d.elements || [];
-  if(MONTHLY_SERIES.some(s => s.id === seriesId)){
-    return els.find(e => monthlySeriesKind(e.element, e.unit) === seriesId);
-  }
-  return els.find(e => e.element === seriesId);
+  return (d.elements || []).find(e => e.element === seriesId);
 }
 
 function fmtMonthlyYoyList(v){
@@ -893,7 +888,7 @@ function showMonthlyDetail(code){
   if(!row) return;
   const nm = row.name || "";
   $("#monthly-title").textContent = nm ? `${nm} ${row.code}` : row.code;
-  monthlySeries = "all_store";
+  monthlySeries = "";
   $("#monthly-top").style.display = "none";
   $("#monthly-detail").style.display = "";
   loadMonthlyTables();
@@ -910,7 +905,7 @@ function renderMonthlySeriesSelect(){
     sel.innerHTML = "";
     return;
   }
-  if(!choices.some(s => s.id === monthlySeries)) monthlySeries = choices[0].id;
+  if(!choices.some(s => s.id === monthlySeries)) monthlySeries = pickDefaultMonthlySeries(monthlyYearTables);
   sel.innerHTML = choices.map(s =>
     `<option value="${escHtml(s.id)}">${escHtml(s.label)}</option>`).join("");
   sel.value = monthlySeries;
@@ -947,7 +942,6 @@ async function loadMonthlyTables(){
   );
   monthlyYearTables = tables.filter(Boolean);
   renderMonthlySeriesSelect();
-  const fallback = !monthlyHasConventional(monthlyYearTables);
   let h = "";
   let maxNumLen = 0;
   for(const d of tables){
@@ -958,9 +952,7 @@ async function loadMonthlyTables(){
     for(const e of d.elements || []){
       const vals = e.values || {};
       const unit = e.unit || "number";
-      const kind = monthlySeriesKind(e.element, unit);
-      const seriesId = fallback ? e.element : kind;
-      const ds = seriesId ? ` data-series="${escHtml(seriesId)}" onclick="setMonthlySeries(this.dataset.series)"` : "";
+      const ds = ` data-series="${escHtml(e.element)}" onclick="setMonthlySeries(this.dataset.series)"`;
       h += `<tr${ds}><td class="l">${fmtMonthlyElement(e.element, unit)}</td>`;
       for(let m=1;m<=12;m++){
         const v = vals[String(m)];
@@ -1019,7 +1011,11 @@ let monthlyChartCssW = 0;
 function drawMonthlyChart(tables, seriesId){
   const host = $("#monthly-chart");
   const choices = monthlySeriesChoices(tables);
-  const spec = choices.find(s => s.id === seriesId) || choices[0] || MONTHLY_SERIES[0];
+  const spec = choices.find(s => s.id === seriesId) || choices[0];
+  if(!spec){
+    host.innerHTML = `<div class="sub">データなし</div>`;
+    return;
+  }
   const years = [];
   const byYear = {};
   for(const d of tables || []){
