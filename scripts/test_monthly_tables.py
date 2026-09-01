@@ -690,14 +690,21 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("sticky first cells need opaque panel background")
     if "function monthlySeriesChoices" not in html:
         _fail("index.html missing monthlySeriesChoices")
-    if "MONTHLY_SERIES" not in html:
-        _fail("MONTHLY_SERIES is the default series option list")
-    if "monthlyHasConventional" not in html:
-        _fail("fallback series list must key off conventional 3-series match")
+    choices_fn = html.find("function monthlySeriesChoices")
+    choices_end = html.find("function pickDefaultMonthlySeries")
+    if choices_fn < 0 or choices_end <= choices_fn:
+        _fail("monthlySeriesChoices / pickDefaultMonthlySeries bounds")
+    choices_body = html[choices_fn:choices_end]
+    if "return MONTHLY_SERIES" in choices_body:
+        _fail("select options must be the table's element names, not MONTHLY_SERIES")
+    if "e.element" not in choices_body:
+        _fail("choices must come from table elements")
     if "function monthlySeriesElement" not in html:
-        _fail("chart must resolve the selected row (conventional or actual element)")
+        _fail("chart must resolve the selected row by element name")
     if "renderMonthlySeriesSelect" not in html:
-        _fail("series <select> must be filled from MONTHLY_SERIES or actual elements")
+        _fail("series <select> must be filled from actual table elements")
+    if 'data-series="${escHtml(e.element)}"' not in html:
+        _fail("every table row must be selectable by element name")
     if "onclick=\"setMonthlySeries(this.dataset.series)\"" not in html:
         _fail("table row click must still switch the chart series")
     if "maxNumLen" not in html or "txt.length" not in html:
