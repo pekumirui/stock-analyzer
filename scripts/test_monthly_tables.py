@@ -769,6 +769,19 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("year cell must be larger than 11px month headers")
     if "font-size:13px" not in year_block.replace(" ", "") and "font-size:14px" not in year_block.replace(" ", ""):
         _fail("year cell must be slightly larger than month headers")
+    month_hdr = html.find("background:#eceff2")
+    if month_hdr < 0:
+        month_hdr = html.find("background: #eceff2")
+    if month_hdr < 0:
+        _fail("month header cells must use light gray #eceff2")
+    month_hdr_block = html[max(0, month_hdr - 180):month_hdr + 140]
+    if "thead th:not(:first-child)" not in month_hdr_block:
+        _fail("light gray must apply to month header cells, not the year cell")
+    month_hdr_compact = month_hdr_block.replace(" ", "")
+    if "font-weight:700" not in month_hdr_compact and "font-weight:bold" not in month_hdr_compact:
+        _fail("month labels must be bold")
+    if "text-align:center" not in month_hdr_compact:
+        _fail("month labels must be center-aligned")
     if "データなし" not in html:
         _fail("empty copy データなし missing")
     chart_fn = html.find("function drawMonthlyChart")
