@@ -652,6 +652,24 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("TOP name must use fmtMonthlyIssuerLabel")
     if "fmtMonthlyIssuerLabel(r.code, r.name)" not in list_body:
         _fail("TOP name cell must be code + truncated company name")
+    if "function fmtMonthlyMarket" not in html:
+        _fail("TOP market must use fmtMonthlyMarket")
+    if "東証P" not in html or "東証S" not in html or "東証G" not in html:
+        _fail("TOP market labels must be 東証P / 東証S / 東証G")
+    if "mkt-p" not in html or "mkt-s" not in html or "mkt-g" not in html:
+        _fail("TOP market cells must have colored mkt classes")
+    if "td.mkt::before" not in html:
+        _fail("TOP market cells must have a color square")
+    if "function fmtMonthlySector" not in html:
+        _fail("TOP sector must use fmtMonthlySector")
+    if 'replace(/業$/, "")' not in html and "replace(/業$/," not in html:
+        _fail("TOP sector must drop trailing 業")
+    if "fmtMonthlySector(r.sector33)" not in list_body:
+        _fail("TOP sector cell must be truncated sector33")
+    if "${r.market||\"\"}" in list_body or "${r.market||''}" in list_body:
+        _fail("TOP must not dump raw market names")
+    if "${r.sector33||\"\"}" in list_body:
+        _fail("TOP must not dump raw sector33")
     if ".slice(0, 5)" not in html and ".slice(0,5)" not in html:
         _fail("TOP company name must be first 5 characters")
     label_fn = html.find("function fmtMonthlyIssuerLabel")
