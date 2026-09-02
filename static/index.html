@@ -827,12 +827,15 @@ function monthlyRowOrder(tables){
   for(const d of years){
     for(const e of d.elements || []){
       const name = e.element;
-      if(!name || seen.has(name)) continue;
-      seen.add(name);
+      if(!name) continue;
       const unit = e.unit || "number";
-      const segment = monthlyRowSegment(name);
+      // 行キーは表示名。年ごとの短い保存名も同一行に畳む
+      const display = fmtMonthlyElement(name, unit);
+      if(seen.has(display)) continue;
+      seen.add(display);
+      const segment = monthlyRowSegment(display);
       if(!(segment in segIndex)) segIndex[segment] = segN++;
-      items.push({element:name, unit, segment, slot:monthlyRowSlot(name, unit), idx:items.length});
+      items.push({element:display, unit, segment, slot:monthlyRowSlot(display, unit), idx:items.length});
     }
   }
   items.sort((a,b)=>{
@@ -849,26 +852,29 @@ function escHtml(s){
 }
 
 function monthlySeriesChoices(tables){
-  return monthlyRowOrder(tables).map(e => ({
-    id: e.element,
-    label: fmtMonthlyElement(e.element, e.unit),
-    yoy: e.unit==="yoy_index" || e.unit==="yoy_pct",
-  }));
+  return monthlyRowOrder(tables).map(e => {
+    const id = fmtMonthlyElement(e.element, e.unit);
+    return {
+      id,
+      label: id,
+      yoy: e.unit==="yoy_index" || e.unit==="yoy_pct",
+    };
+  });
 }
 
 function pickDefaultMonthlySeries(tables){
   const rows = monthlyRowOrder(tables);
   for(const e of rows){
-    if(monthlyRowSlot(e.element, e.unit) === 1) return e.element;
+    if(monthlyRowSlot(e.element, e.unit) === 1) return fmtMonthlyElement(e.element, e.unit);
   }
   for(const e of rows){
-    if(monthlySeriesKind(e.element, e.unit) === "all_store") return e.element;
+    if(monthlySeriesKind(e.element, e.unit) === "all_store") return fmtMonthlyElement(e.element, e.unit);
   }
-  return rows.length ? rows[0].element : "";
+  return rows.length ? fmtMonthlyElement(rows[0].element, rows[0].unit) : "";
 }
 
 function monthlySeriesElement(d, seriesId){
-  return (d.elements || []).find(e => e.element === seriesId);
+  return (d.elements || []).find(e => fmtMonthlyElement(e.element, e.unit) === seriesId);
 }
 
 function fmtMonthlyYoyList(v){
@@ -1050,7 +1056,7 @@ async function loadMonthlyTables(){
     for(let m=1;m<=12;m++) h += `<th>${m}月</th>`;
     h += `</tr></thead><tbody>`;
     const byName = {};
-    for(const src of d.elements || []) byName[src.element] = src;
+    for(const src of d.elements || []) byName[fmtMonthlyElement(src.element, src.unit)] = src;
     for(const e of rowOrder){
       const src = byName[e.element];
       const vals = (src && src.values) || {};

@@ -139,6 +139,7 @@ class MonthlyElement(Base):
     number / yoy_index (保存も表示も 100=フラット) / yoy_pct (保存は符号付き変化率、表示は 100+v)。
     yoy の element は前年比語を剥がして末尾 (前年比)。number はトリムのみ。
     正規化後に同一なら同一行。短い保存名は正規名へリネームする。
+    init_db / migrate は同一年の重複がなくても yoy を正規名へ揃える。
     """
     __tablename__ = "monthly_elements"
     code = Column(String(5), primary_key=True)
