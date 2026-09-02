@@ -19,7 +19,7 @@
 | `app/ingest.py` | API → DB 取込（UPSERT・冪等） |
 | `app/analytics.py` | MA / RS / ステージ / Q単独 / 決算後リターン |
 | `app/api.py` | REST (`/api/*`) |
-| `app/monthly_ingest.py` | PDF 月次列順 + as_of 時点の最新 `fiscal_year_end` → 暦年（純関数。year は受け取らない）。layout は calendar / fiscal / partial（並びでは拒否しない）。unit は見出しから。yoy 行名は前年比語を剥がして `(前年比)`。銘柄固有の名寄せは `ISSUER_ELEMENT_ALIASES`（Rule に examples を書く。テストは `plan_issuer_alias_cases` が生成。既存関数に引数を足さない） |
+| `app/monthly_ingest.py` | PDF 月次列順 + as_of 時点の最新 `fiscal_year_end` → 暦年（純関数。year は受け取らない）。layout は calendar / fiscal / partial（並びでは拒否しない）。unit は見出しから。yoy 行名は前年比語を剥がして `(前年比)`。銘柄固有の名寄せは `ISSUER_ELEMENT_ALIASES`（Rule に examples を書く。テストは `plan_issuer_alias_cases` が生成） |
 | `app/main.py` | FastAPI エントリ + SPA 配信 |
 | `scripts/run_batch.py` | 日次バッチ / バックフィル |
 | `scripts/tdnet_monthly_r2.py` | TDnet 月次PDF → R2 mount (`/home/stock/r2-share/monthly/{code}/`) |
