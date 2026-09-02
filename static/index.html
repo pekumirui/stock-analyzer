@@ -784,37 +784,74 @@ function monthlySeriesKind(element, unit){
   return null;
 }
 
-function escHtml(s){
-  return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+function monthlyRowSegment(element){
+  const key = monthlyElementKey(element);
+  let cut = -1;
+  for(const kw of ["全店","既存","店舗数"]){
+    const i = key.indexOf(kw);
+    if(i>=0 && (cut<0 || i<cut)) cut = i;
+  }
+  return cut<0 ? "" : key.slice(0, cut);
 }
 
-function monthlySeriesChoices(tables){
+function monthlyRowSlot(element, unit){
+  const key = monthlyElementKey(element);
+  const u = unit || "number";
+  const yoy = u==="yoy_index" || u==="yoy_pct";
+  if(yoy && key.includes("売上") && key.includes("全店") && !key.includes("既存") && !key.includes("店舗数")) return 1;
+  if(yoy && key.includes("売上") && key.includes("既存") && !key.includes("店舗数")) return 2;
+  if(key.includes("客単価") || key.includes("単価")) return 3;
+  if(key.includes("店舗数")) return 4;
+  return 5;
+}
+
+function monthlyRowOrder(tables){
+  const years = (tables || []).filter(Boolean).slice().sort((a,b)=>(b.year||0)-(a.year||0));
   const seen = new Set();
-  const out = [];
-  for(const d of tables || []){
+  const items = [];
+  const segIndex = {};
+  let segN = 0;
+  for(const d of years){
     for(const e of d.elements || []){
       const name = e.element;
       if(!name || seen.has(name)) continue;
       seen.add(name);
       const unit = e.unit || "number";
-      out.push({
-        id: name,
-        label: fmtMonthlyElement(name, unit),
-        yoy: unit==="yoy_index" || unit==="yoy_pct",
-      });
+      const segment = monthlyRowSegment(name);
+      if(!(segment in segIndex)) segIndex[segment] = segN++;
+      items.push({element:name, unit, segment, slot:monthlyRowSlot(name, unit), idx:items.length});
     }
   }
-  return out;
+  items.sort((a,b)=>{
+    const s = segIndex[a.segment] - segIndex[b.segment];
+    if(s) return s;
+    if(a.slot!==b.slot) return a.slot - b.slot;
+    return a.idx - b.idx;
+  });
+  return items.map(e => ({element:e.element, unit:e.unit}));
+}
+
+function escHtml(s){
+  return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+}
+
+function monthlySeriesChoices(tables){
+  return monthlyRowOrder(tables).map(e => ({
+    id: e.element,
+    label: fmtMonthlyElement(e.element, e.unit),
+    yoy: e.unit==="yoy_index" || e.unit==="yoy_pct",
+  }));
 }
 
 function pickDefaultMonthlySeries(tables){
-  for(const d of tables || []){
-    for(const e of d.elements || []){
-      if(monthlySeriesKind(e.element, e.unit) === "all_store") return e.element;
-    }
+  const rows = monthlyRowOrder(tables);
+  for(const e of rows){
+    if(monthlyRowSlot(e.element, e.unit) === 1) return e.element;
   }
-  const choices = monthlySeriesChoices(tables);
-  return choices.length ? choices[0].id : "";
+  for(const e of rows){
+    if(monthlySeriesKind(e.element, e.unit) === "all_store") return e.element;
+  }
+  return rows.length ? rows[0].element : "";
 }
 
 function monthlySeriesElement(d, seriesId){
@@ -990,6 +1027,7 @@ async function loadMonthlyTables(){
     years.map(y => api(`/api/v1/tables/${selMonthlyCode}/${y}`).catch(()=>null))
   );
   monthlyYearTables = tables.filter(Boolean);
+  const rowOrder = monthlyRowOrder(monthlyYearTables);
   renderMonthlySeriesSelect();
   let h = "";
   let maxNumLen = 0;
@@ -998,9 +1036,12 @@ async function loadMonthlyTables(){
     h += `<table class="fin monthly"><colgroup><col class="monthly-name"><col class="monthly-m" span="12"></colgroup><thead><tr><th class="l year">${d.year}</th>`;
     for(let m=1;m<=12;m++) h += `<th>${m}月</th>`;
     h += `</tr></thead><tbody>`;
-    for(const e of d.elements || []){
-      const vals = e.values || {};
-      const unit = e.unit || "number";
+    const byName = {};
+    for(const src of d.elements || []) byName[src.element] = src;
+    for(const e of rowOrder){
+      const src = byName[e.element];
+      const vals = (src && src.values) || {};
+      const unit = (src && src.unit) || e.unit || "number";
       const ds = ` data-series="${escHtml(e.element)}" onclick="setMonthlySeries(this.dataset.series)"`;
       h += `<tr${ds}><td class="l">${fmtMonthlyElement(e.element, unit)}</td>`;
       for(let m=1;m<=12;m++){

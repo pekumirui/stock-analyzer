@@ -20,7 +20,10 @@ from app.monthly_ingest import (  # noqa: E402
     MonthlyIngestError,
     canonicalize_element_label,
     format_monthly_cell,
+    monthly_row_segment,
+    monthly_row_slot,
     parse_monthly_unit,
+    union_monthly_elements,
 )
 
 INVALID_VALUE_MSG = "value は数値のみ受け付けます。単位(%、円など)やカンマは除去してください。"
@@ -626,9 +629,144 @@ def main() -> None:
     if "2" not in ov or "3" not in ov or float(ov["2"]) != 98.7:
         _fail(f"7203 numeric values broken: {ov!r}")
 
+    _assert_monthly_row_order(c)
     _assert_known_prod_units(c)
 
     print("ok: monthly tables api")
+
+
+def _post_monthly_elements(c, code: str, year: int, rows: list[tuple[str, str]]) -> None:
+    for name, unit in rows:
+        r = c.post(f"/api/v1/tables/{code}/{year}/elements",
+                   json={"element": name, "unit": unit})
+        if r.status_code not in (200, 201):
+            _fail(f"POST {code}/{year} {name!r}: {r.status_code} {r.text[:200]}")
+
+
+def _assert_monthly_row_order(c) -> None:
+    """ウチヤマ型: 年をまたいで同じ行順。カラオケ塊のあと飲食。全店売上→既存売上→店舗数。"""
+    if monthly_row_segment("カラオケ全店 売上高(前年比)") != "カラオケ":
+        _fail("segment karaoke all-store")
+    if monthly_row_segment("飲食既存店 店舗数") != "飲食":
+        _fail("segment food existing stores")
+    if monthly_row_segment("全店売上高(前年比)") != "":
+        _fail("segment empty prefix")
+    if monthly_row_slot("カラオケ全店 売上高(前年比)", "yoy_index") != 1:
+        _fail("slot all-store sales")
+    if monthly_row_slot("カラオケ既存店 売上高(前年比)", "yoy_index") != 2:
+        _fail("slot existing sales")
+    if monthly_row_slot("カラオケ全店 客単価(前年比)", "yoy_index") != 3:
+        _fail("slot unit price")
+    if monthly_row_slot("平均単価", "number") != 3:
+        _fail("slot 単価")
+    if monthly_row_slot("カラオケ全店 店舗数", "number") != 4:
+        _fail("slot stores")
+    if monthly_row_slot("カラオケ既存店 店舗数", "number") != 4:
+        _fail("stores must not be 売上")
+    if monthly_row_slot("カラオケ全店 来客数(前年比)", "yoy_index") != 5:
+        _fail("slot other")
+    if monthly_row_slot("全店売上高(前年比)", "yoy_index") != 1:
+        _fail("slot MONTHLY_SERIES 全店売上高")
+
+    code = "60590"
+    _ensure_stock(code, "ウチヤマ")
+    # 新しい年: カラオケ先だが店舗数が売上より前
+    _post_monthly_elements(c, code, 2025, [
+        ("カラオケ全店 店舗数", "number"),
+        ("カラオケ既存店 店舗数", "number"),
+        ("カラオケ全店 売上高", "yoy_index"),
+        ("カラオケ既存店 売上高", "yoy_index"),
+        ("カラオケ全店 客単価", "yoy_index"),
+        ("飲食全店 売上高", "yoy_index"),
+        ("飲食既存店 売上高", "yoy_index"),
+        ("飲食全店 店舗数", "number"),
+        ("飲食既存店 店舗数", "number"),
+        ("飲食全店 客単価", "yoy_index"),
+    ])
+    # 古い年: 飲食先・店舗数先。来客数はこの年だけ
+    _post_monthly_elements(c, code, 2024, [
+        ("飲食全店 店舗数", "number"),
+        ("飲食既存店 店舗数", "number"),
+        ("飲食全店 売上高", "yoy_index"),
+        ("飲食既存店 売上高", "yoy_index"),
+        ("飲食全店 客単価", "yoy_index"),
+        ("カラオケ全店 店舗数", "number"),
+        ("カラオケ既存店 店舗数", "number"),
+        ("カラオケ全店 売上高", "yoy_index"),
+        ("カラオケ既存店 売上高", "yoy_index"),
+        ("カラオケ全店 客単価", "yoy_index"),
+        ("カラオケ全店 来客数", "yoy_index"),
+    ])
+    r = c.put(f"/api/v1/tables/{code}/2024/values",
+              json={"element": "カラオケ全店 来客数(前年比)", "month": 1, "value": 104.6})
+    _expect(r, 200, "60590 2024 visitors")
+
+    y2025 = c.get(f"/api/v1/tables/{code}/2025")
+    y2024 = c.get(f"/api/v1/tables/{code}/2024")
+    _expect(y2025, 200, "GET 60590 2025")
+    _expect(y2024, 200, "GET 60590 2024")
+    ingest_2025 = [e["element"] for e in y2025.json()["elements"]]
+    ingest_2024 = [e["element"] for e in y2024.json()["elements"]]
+    if ingest_2025[0] != "カラオケ全店 店舗数":
+        _fail(f"API 2025 stays registration order: {ingest_2025!r}")
+    if ingest_2024[0] != "飲食全店 店舗数":
+        _fail(f"API 2024 stays registration order: {ingest_2024!r}")
+    if ingest_2025 == ingest_2024:
+        _fail("fixture years must differ in ingest order")
+
+    order = [row["element"] for row in union_monthly_elements([y2025.json(), y2024.json()])]
+    swapped = [row["element"] for row in union_monthly_elements([y2024.json(), y2025.json()])]
+    if order != swapped:
+        _fail(f"newest-first must ignore input list order: {order!r} vs {swapped!r}")
+
+    want = [
+        "カラオケ全店 売上高(前年比)",
+        "カラオケ既存店 売上高(前年比)",
+        "カラオケ全店 客単価(前年比)",
+        "カラオケ全店 店舗数",
+        "カラオケ既存店 店舗数",
+        "カラオケ全店 来客数(前年比)",
+        "飲食全店 売上高(前年比)",
+        "飲食既存店 売上高(前年比)",
+        "飲食全店 客単価(前年比)",
+        "飲食全店 店舗数",
+        "飲食既存店 店舗数",
+    ]
+    if order != want:
+        _fail(f"60590 union order: {order!r}")
+
+    k_names = [n for n in order if n.startswith("カラオケ")]
+    f_names = [n for n in order if n.startswith("飲食")]
+    if not k_names or not f_names:
+        _fail(f"missing segment block: {order!r}")
+    if order.index(k_names[-1]) >= order.index(f_names[0]):
+        _fail(f"karaoke block must precede food: {order!r}")
+    if any(n.startswith("飲食") for n in order[:order.index(k_names[-1]) + 1]):
+        _fail(f"segments interleaved: {order!r}")
+    if (order.index("カラオケ全店 売上高(前年比)")
+            >= order.index("カラオケ既存店 売上高(前年比)")
+            or order.index("カラオケ既存店 売上高(前年比)")
+            >= order.index("カラオケ全店 店舗数")):
+        _fail(f"karaoke 全店売上 before 既存売上 before 店舗数: {order!r}")
+    if (order.index("飲食全店 売上高(前年比)")
+            >= order.index("飲食既存店 売上高(前年比)")
+            or order.index("飲食既存店 売上高(前年比)")
+            >= order.index("飲食全店 店舗数")):
+        _fail(f"food 全店売上 before 既存売上 before 店舗数: {order!r}")
+
+    present_2025 = {e["element"] for e in y2025.json()["elements"]}
+    if "カラオケ全店 来客数(前年比)" in present_2025:
+        _fail("2025 must omit 来客数 so the union row is empty")
+    if "カラオケ全店 来客数(前年比)" not in order:
+        _fail("missing-year row must stay in the union")
+
+    default = next(
+        (row["element"] for row in union_monthly_elements([y2025.json(), y2024.json()])
+         if monthly_row_slot(row["element"], row["unit"]) == 1),
+        "",
+    )
+    if default != "カラオケ全店 売上高(前年比)":
+        _fail(f"default 全店売上: {default!r}")
 
 
 def _assert_monthly_spa(html: str) -> None:
@@ -764,6 +902,12 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("sticky first cells need z-index so month numbers stay underneath")
     if "var(--panel)" not in name_block:
         _fail("sticky first cells need opaque panel background")
+    if "function monthlyRowOrder" not in html:
+        _fail("index.html missing monthlyRowOrder")
+    if "function monthlyRowSlot" not in html:
+        _fail("index.html missing monthlyRowSlot")
+    if "function monthlyRowSegment" not in html:
+        _fail("index.html missing monthlyRowSegment")
     if "function monthlySeriesChoices" not in html:
         _fail("index.html missing monthlySeriesChoices")
     choices_fn = html.find("function monthlySeriesChoices")
@@ -775,6 +919,25 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("select options must be the table's element names, not MONTHLY_SERIES")
     if "e.element" not in choices_body:
         _fail("choices must come from table elements")
+    if "monthlyRowOrder(" not in choices_body:
+        _fail("#monthly-series options must follow year-table row order")
+    load_fn = html.find("function loadMonthlyTables")
+    if load_fn < 0:
+        _fail("loadMonthlyTables missing")
+    load_body = html[load_fn:load_fn + 4000]
+    if "monthlyRowOrder(monthlyYearTables)" not in load_body:
+        _fail("year tables must share one union row order")
+    if "for(const e of rowOrder)" not in load_body:
+        _fail("each year table must iterate the shared row order")
+    pick_fn = html.find("function pickDefaultMonthlySeries")
+    pick_end = html.find("function monthlySeriesElement")
+    if pick_fn < 0 or pick_end <= pick_fn:
+        _fail("pickDefaultMonthlySeries / monthlySeriesElement bounds")
+    pick_body = html[pick_fn:pick_end]
+    if "monthlyRowSlot" not in pick_body or "===1" not in pick_body.replace(" ", ""):
+        _fail("default series must prefer 全店売上 (slot 1)")
+    if "all_store" not in pick_body:
+        _fail("default series must still fall back to all_store")
     if "function monthlySeriesElement" not in html:
         _fail("chart must resolve the selected row by element name")
     if "renderMonthlySeriesSelect" not in html:
