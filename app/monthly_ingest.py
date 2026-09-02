@@ -76,19 +76,55 @@ def prefix_if_absent(prefix: str, *existing: str) -> Callable[[str], str]:
     return apply
 
 
+class IssuerAliasRule:
+    """銘柄1件の名寄せ。transforms と examples を一緒に置く。"""
+
+    def __init__(
+        self,
+        *transforms: Callable[[str], str],
+        examples: tuple[tuple[str, str], ...] = (),
+    ) -> None:
+        self.transforms = transforms
+        self.examples = examples
+
+    def apply(self, name: str) -> str:
+        for fn in self.transforms:
+            name = fn(name)
+        return name
+
+
 # 銘柄ごとの名寄せ。既存の canonicalize / same_yoy には引数を足さない。
+# 新しい発行体はここに Rule と examples を足す。テストは examples から生成する。
 # 141A0 は 2025-08 開示からトライアル/西友。旧PDFのセグメント無しに トライアル を付ける。
-ISSUER_ELEMENT_ALIASES: dict[str, tuple[Callable[[str], str], ...]] = {
-    "141A0": (prefix_if_absent("トライアル ", "トライアル", "西友"),),
+ISSUER_ELEMENT_ALIASES: dict[str, IssuerAliasRule] = {
+    "141A0": IssuerAliasRule(
+        prefix_if_absent("トライアル ", "トライアル", "西友"),
+        examples=(
+            ("全店 売上高(前年比)", "トライアル 全店 売上高(前年比)"),
+            ("新規出店数", "トライアル 新規出店数"),
+            ("トライアル 全店 売上高(前年比)", "トライアル 全店 売上高(前年比)"),
+            ("西友 全店 売上高(前年比)", "西友 全店 売上高(前年比)"),
+        ),
+    ),
 }
 
 
 def apply_issuer_aliases(code: str, element: str) -> str:
     """保存前の行名。yoy 正規化のあと、銘柄ルールがあれば適用。"""
     name = element.strip()
-    for fn in ISSUER_ELEMENT_ALIASES.get(code, ()):
-        name = fn(name)
-    return name
+    rule = ISSUER_ELEMENT_ALIASES.get(code)
+    if rule is None:
+        return name
+    return rule.apply(name)
+
+
+def plan_issuer_alias_cases() -> list[tuple[str, str, str]]:
+    """テスト用。(code, incoming, stored)。ルールの examples から作る。"""
+    cases: list[tuple[str, str, str]] = []
+    for code, rule in sorted(ISSUER_ELEMENT_ALIASES.items()):
+        for incoming, stored in rule.examples:
+            cases.append((code, incoming, stored))
+    return cases
 
 
 def same_yoy_element(

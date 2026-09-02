@@ -25,6 +25,7 @@ from app.monthly_ingest import (  # noqa: E402
     map_pdf_columns,
     parse_monthly_unit,
     plan_column_years,
+    plan_issuer_alias_cases,
     plan_yoy_duplicate_merges,
     prefix_if_absent,
     resolve_fy_end_month,
@@ -112,16 +113,25 @@ def test_canonicalize_element_label() -> None:
         ("60590", 2026, "カラオケ全店 売上高(前年比)", ["カラオケ全店 売上高"]),
     ]:
         _fail(f"plan_yoy_duplicate_merges: {planned!r}")
-    if apply_issuer_aliases("141A0", "全店 売上高(前年比)") != "トライアル 全店 売上高(前年比)":
-        _fail("141A0 legacy yoy prefix")
-    if apply_issuer_aliases("141A0", "新規出店数") != "トライアル 新規出店数":
-        _fail("141A0 legacy number prefix")
-    if apply_issuer_aliases("141A0", "トライアル 全店 売上高(前年比)") != "トライアル 全店 売上高(前年比)":
-        _fail("141A0 already trial")
-    if apply_issuer_aliases("141A0", "西友 全店 売上高(前年比)") != "西友 全店 売上高(前年比)":
-        _fail("141A0 seiyu stays")
-    if apply_issuer_aliases("92790", "全店 売上高(前年比)") != "全店 売上高(前年比)":
-        _fail("other issuers unchanged")
+
+
+def test_issuer_alias_cases() -> None:
+    cases = plan_issuer_alias_cases()
+    if not cases:
+        _fail("ISSUER_ELEMENT_ALIASES の examples が空")
+    codes = {code for code, _, _ in cases}
+    from app.monthly_ingest import ISSUER_ELEMENT_ALIASES
+    missing = sorted(set(ISSUER_ELEMENT_ALIASES) - codes)
+    if missing:
+        _fail(f"examples が無い銘柄: {missing!r}")
+    for code, incoming, stored in cases:
+        got = apply_issuer_aliases(code, incoming)
+        if got != stored:
+            _fail(f"{code} {incoming!r} → {got!r}, want {stored!r}")
+        if apply_issuer_aliases(code, stored) != stored:
+            _fail(f"{code} stored not idempotent: {stored!r}")
+        if apply_issuer_aliases("72030", incoming) != incoming:
+            _fail(f"other issuer must not alias {incoming!r}")
     rename = exact_rename({"既存店売上": "既存店 売上高"})
     if rename("既存店売上") != "既存店 売上高" or rename("全店売上") != "全店売上":
         _fail("exact_rename")
@@ -890,113 +900,128 @@ def test_rename_29260_style_cross_year_yoy() -> None:
         _fail(f"29260 rename must be idempotent: {again!r}")
 
 
-def test_trial_legacy_prefix_ingest_and_migrate() -> None:
+def test_issuer_alias_ingest_and_migrate() -> None:
     from app.db import SessionLocal, apply_issuer_element_aliases
     from app.models import MonthlyElement, MonthlyTable, MonthlyValue
 
+    cases = plan_issuer_alias_cases()
+    by_code: dict[str, list[tuple[str, str]]] = {}
+    for code, incoming, stored in cases:
+        by_code.setdefault(code, []).append((incoming, stored))
+
     c = TestClient(app)
-    code = "141A0"
-    _add_fy_end(code, date(2025, 6, 1), date(2025, 6, 30), "trial-fy-1")
-    r = c.post(f"/api/v1/tables/{code}/ingest", json={
-        "months": [6, 7],
-        "rows": [
-            {"element": "全店 売上高", "values": {"6": 111.2, "7": 111.9}, "unit": "yoy_index"},
-            {"element": "新規出店数", "values": {"6": 4}, "unit": "number"},
-            {"element": "西友 全店 売上高", "values": {"7": 107.4}, "unit": "yoy_index"},
-        ],
-        "as_of": "2025-08-05",
-    })
-    _expect(r, 200, "141A0 ingest old names")
-    r = c.get(f"/api/v1/tables/{code}/2025")
-    _expect(r, 200, "GET 141A0 2025")
-    names = [e["element"] for e in r.json()["elements"]]
-    if "トライアル 全店 売上高(前年比)" not in names:
-        _fail(f"legacy yoy must prefix: {names!r}")
-    if "全店 売上高(前年比)" in names:
-        _fail(f"unprefixed yoy must not remain: {names!r}")
-    if "トライアル 新規出店数" not in names:
-        _fail(f"legacy number must prefix: {names!r}")
-    if "西友 全店 売上高(前年比)" not in names:
-        _fail(f"seiyu must stay: {names!r}")
-    by = {e["element"]: e for e in r.json()["elements"]}
-    if float(by["トライアル 全店 売上高(前年比)"]["values"]["6"]) != 111.2:
-        _fail(f"prefixed yoy values: {by['トライアル 全店 売上高(前年比)']!r}")
+    for i, (code, pairs) in enumerate(sorted(by_code.items())):
+        year = 2010 + i
+        as_of = f"{year}-08-05"
+        _add_fy_end(code, date(year, 6, 1), date(year, 6, 30), f"alias-fy-{code}-{year}")
+        rows = []
+        for j, (incoming, stored) in enumerate(pairs):
+            unit = "yoy_index" if stored.endswith("(前年比)") else "number"
+            rows.append({
+                "element": incoming,
+                "values": {"6": 100.0 + j},
+                "unit": unit,
+            })
+        r = c.post(f"/api/v1/tables/{code}/ingest", json={
+            "months": [6],
+            "rows": rows,
+            "as_of": as_of,
+        })
+        _expect(r, 200, f"{code} ingest alias examples")
+        r = c.get(f"/api/v1/tables/{code}/{year}")
+        _expect(r, 200, f"GET {code} {year}")
+        names = [e["element"] for e in r.json()["elements"]]
+        by = {e["element"]: e for e in r.json()["elements"]}
+        for incoming, stored in pairs:
+            if stored not in names:
+                _fail(f"{code} stored missing {stored!r}: {names!r}")
+            if incoming != stored and incoming in names:
+                _fail(f"{code} incoming leftover {incoming!r}: {names!r}")
+        first_rename = next(((a, b) for a, b in pairs if a != b), None)
+        if first_rename is None:
+            continue
+        incoming, stored = first_rename
+        unit = "yoy_index" if stored.endswith("(前年比)") else "number"
+        r = c.post(f"/api/v1/tables/{code}/ingest", json={
+            "months": [6],
+            "rows": [{"element": stored, "values": {"6": 200.0}, "unit": unit}],
+            "as_of": as_of,
+        })
+        _expect(r, 200, f"{code} ingest stored name")
+        r = c.get(f"/api/v1/tables/{code}/{year}")
+        by = {e["element"]: e for e in r.json()["elements"]}
+        if float(by[stored]["values"]["6"]) != 200.0:
+            _fail(f"{code} stored upsert: {by[stored]!r}")
 
-    r = c.post(f"/api/v1/tables/{code}/ingest", json={
-        "months": [7],
-        "rows": [{"element": "トライアル 全店 売上高", "values": {"7": 112.0}, "unit": "yoy_index"}],
-        "as_of": "2025-08-05",
-    })
-    _expect(r, 200, "141A0 ingest new name same row")
-    r = c.get(f"/api/v1/tables/{code}/2025")
-    by = {e["element"]: e for e in r.json()["elements"]}
-    if float(by["トライアル 全店 売上高(前年比)"]["values"]["7"]) != 112.0:
-        _fail(f"new name must upsert same row: {by['トライアル 全店 売上高(前年比)']!r}")
+        old_year = year - 1
+        merge_year = year - 2
+        db = SessionLocal()
+        try:
+            db.add(MonthlyTable(code=code, year=old_year))
+            db.add(MonthlyElement(
+                code=code, year=old_year, element=incoming,
+                sort_order=1, unit=unit,
+            ))
+            db.add(MonthlyValue(
+                code=code, year=old_year, element=incoming, month=5, value=105.2,
+            ))
+            db.add(MonthlyTable(code=code, year=merge_year))
+            db.add(MonthlyElement(
+                code=code, year=merge_year, element=stored,
+                sort_order=1, unit=unit,
+            ))
+            db.add(MonthlyElement(
+                code=code, year=merge_year, element=incoming,
+                sort_order=2, unit=unit,
+            ))
+            db.add(MonthlyValue(
+                code=code, year=merge_year, element=stored, month=8, value=98.3,
+            ))
+            db.add(MonthlyValue(
+                code=code, year=merge_year, element=incoming, month=7, value=101.4,
+            ))
+            db.commit()
+        finally:
+            db.close()
 
-    db = SessionLocal()
-    try:
-        db.add(MonthlyTable(code=code, year=2024))
-        db.add(MonthlyElement(
-            code=code, year=2024, element="既存店 売上高(前年比)",
-            sort_order=1, unit="yoy_index",
-        ))
-        db.add(MonthlyValue(
-            code=code, year=2024, element="既存店 売上高(前年比)", month=5, value=105.2,
-        ))
-        db.add(MonthlyTable(code=code, year=2023))
-        db.add(MonthlyElement(
-            code=code, year=2023, element="トライアル 既存店 売上高(前年比)",
-            sort_order=1, unit="yoy_index",
-        ))
-        db.add(MonthlyElement(
-            code=code, year=2023, element="既存店 売上高(前年比)",
-            sort_order=2, unit="yoy_index",
-        ))
-        db.add(MonthlyValue(
-            code=code, year=2023, element="トライアル 既存店 売上高(前年比)", month=8, value=98.3,
-        ))
-        db.add(MonthlyValue(
-            code=code, year=2023, element="既存店 売上高(前年比)", month=7, value=101.4,
-        ))
-        db.commit()
-    finally:
-        db.close()
+        reports = apply_issuer_element_aliases()
+        if not any(
+            r.get("code") == code and r.get("year") == old_year and r.get("canonical") == stored
+            for r in reports
+        ):
+            _fail(f"{code} {old_year} rename missing: {reports!r}")
+        db = SessionLocal()
+        try:
+            names_old = sorted(
+                e.element for e in db.query(MonthlyElement).filter_by(code=code, year=old_year)
+            )
+            if names_old != [stored]:
+                _fail(f"{code} {old_year} after migrate: {names_old!r}")
+            v = db.get(MonthlyValue, (code, old_year, stored, 5))
+            if v is None or float(v.value) != 105.2:
+                _fail(f"{code} {old_year} value not moved: {v}")
+            names_merge = sorted(
+                e.element for e in db.query(MonthlyElement).filter_by(code=code, year=merge_year)
+            )
+            if names_merge != [stored]:
+                _fail(f"{code} {merge_year} merge leftover: {names_merge!r}")
+            vals_merge = {
+                v.month: float(v.value)
+                for v in db.query(MonthlyValue).filter_by(code=code, year=merge_year)
+            }
+            if vals_merge != {7: 101.4, 8: 98.3}:
+                _fail(f"{code} {merge_year} merged values: {vals_merge!r}")
+        finally:
+            db.close()
 
-    reports = apply_issuer_element_aliases()
-    if not any(r.get("year") == 2024 and r.get("canonical") == "トライアル 既存店 売上高(前年比)"
-               for r in reports):
-        _fail(f"2024 rename missing: {reports!r}")
-    db = SessionLocal()
-    try:
-        names_2024 = sorted(
-            e.element for e in db.query(MonthlyElement).filter_by(code=code, year=2024)
-        )
-        if names_2024 != ["トライアル 既存店 売上高(前年比)"]:
-            _fail(f"2024 after migrate: {names_2024!r}")
-        v = db.get(MonthlyValue, (code, 2024, "トライアル 既存店 売上高(前年比)", 5))
-        if v is None or float(v.value) != 105.2:
-            _fail(f"2024 value not moved: {v}")
-        names_2023 = sorted(
-            e.element for e in db.query(MonthlyElement).filter_by(code=code, year=2023)
-        )
-        if names_2023 != ["トライアル 既存店 売上高(前年比)"]:
-            _fail(f"2023 merge leftover: {names_2023!r}")
-        vals_2023 = {
-            v.month: float(v.value)
-            for v in db.query(MonthlyValue).filter_by(code=code, year=2023)
-        }
-        if vals_2023 != {7: 101.4, 8: 98.3}:
-            _fail(f"2023 merged values: {vals_2023!r}")
-    finally:
-        db.close()
-
-    again = apply_issuer_element_aliases()
-    if any(r.get("code") == code for r in again):
-        _fail(f"trial rename must be idempotent: {again!r}")
+        again = apply_issuer_element_aliases()
+        if any(r.get("code") == code and r.get("year") in {old_year, merge_year} for r in again):
+            _fail(f"{code} alias migrate must be idempotent: {again!r}")
 
 
 def main() -> None:
     test_canonicalize_element_label()
+    test_issuer_alias_cases()
     test_mapping_examples()
     test_fy_end_and_layout_errors()
     test_api_gift_ingest()
@@ -1011,7 +1036,7 @@ def main() -> None:
     test_number_stores_not_yoy_suffix()
     test_merge_uchiyama_like_yoy_duplicates()
     test_rename_29260_style_cross_year_yoy()
-    test_trial_legacy_prefix_ingest_and_migrate()
+    test_issuer_alias_ingest_and_migrate()
     print("ok: monthly ingest")
 
 
