@@ -103,6 +103,8 @@ def main() -> None:
             _fail(f"invalid unit: {exc.status} {exc.code}")
     else:
         _fail("invalid unit should 400")
+    _assert_monthly_year_window()
+    _assert_monthly_year_color_stable()
     html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
     if "fmtMonthlyCell" not in html:
         _fail("index.html missing fmtMonthlyCell")
@@ -643,6 +645,52 @@ def _post_monthly_elements(c, code: str, year: int, rows: list[tuple[str, str]])
             _fail(f"POST {code}/{year} {name!r}: {r.status_code} {r.text[:200]}")
 
 
+# SPA 年表・チャート用。ingest には置かない。static/index.html と同じ規則。
+_MONTHLY_YEAR_COLORS = ("#0077b6", "#2e8b57", "#b8860b", "#8e4ec6")
+
+
+def _monthly_display_years(years: list[int]) -> list[int]:
+    ys = sorted({int(y) for y in years}, reverse=True)
+    if not ys:
+        return []
+    latest = ys[0]
+    return [y for y in ys if y >= latest - 2]
+
+
+def _monthly_year_color(year: int) -> str:
+    n = len(_MONTHLY_YEAR_COLORS)
+    return _MONTHLY_YEAR_COLORS[int(year) % n]
+
+
+def _assert_monthly_year_window() -> None:
+    """最新暦年とその前2年。2023–2026 なら 2026/2025/2024。新しい年が先。"""
+    got = _monthly_display_years([2023, 2024, 2025, 2026])
+    if got != [2026, 2025, 2024]:
+        _fail(f"last-3-year window 2023-2026: {got!r}")
+    if 2023 in got:
+        _fail("years older than latest-2 must not render")
+    if _monthly_display_years([2026, 2023, 2024, 2025]) != [2026, 2025, 2024]:
+        _fail("window must ignore input order")
+    if _monthly_display_years([2026, 2023]) != [2026]:
+        _fail("gap: only years in [latest, latest-2]")
+    if _monthly_display_years([2024]) != [2024]:
+        _fail("single year stays")
+    if _monthly_display_years([]) != []:
+        _fail("empty years")
+
+
+def _assert_monthly_year_color_stable() -> None:
+    """色は暦年。2025 は 2026 の有無で変わらない。"""
+    if _monthly_year_color(2025) != _MONTHLY_YEAR_COLORS[2025 % 4]:
+        _fail("2025 must use year % 4, not display index")
+    colors_with = {y: _monthly_year_color(y) for y in _monthly_display_years([2024, 2025, 2026])}
+    colors_without = {y: _monthly_year_color(y) for y in _monthly_display_years([2023, 2024, 2025])}
+    if colors_with[2025] != colors_without[2025]:
+        _fail(f"2025 color moved when 2026 dropped: {colors_with[2025]!r} vs {colors_without[2025]!r}")
+    if colors_with[2024] != colors_without[2024]:
+        _fail("2024 color must stay when the window slides")
+
+
 def _assert_monthly_row_order(c) -> None:
     """ウチヤマ型: 年をまたいで同じ行順。カラオケ塊のあと飲食。全店売上→既存売上→店舗数。"""
     if monthly_row_segment("カラオケ全店 売上高(前年比)") != "カラオケ":
@@ -866,6 +914,19 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("TOP table cells must have full grid lines")
     if "function loadMonthlyTables" not in html:
         _fail("index.html missing loadMonthlyTables")
+    if "function monthlyDisplayYears" not in html:
+        _fail("index.html missing monthlyDisplayYears")
+    disp_fn = html.find("function monthlyDisplayYears")
+    disp_end = html.find("function monthlyYearColor")
+    if disp_fn < 0 or disp_end <= disp_fn:
+        _fail("monthlyDisplayYears / monthlyYearColor bounds")
+    disp_body = html[disp_fn:disp_end]
+    if "latest - 2" not in disp_body and "latest-2" not in disp_body.replace(" ", ""):
+        _fail("monthlyDisplayYears must keep latest and previous 2 calendar years")
+    if "function monthlyYearColor" not in html:
+        _fail("index.html missing monthlyYearColor")
+    if 'const MONTHLY_YEAR_COLORS = ["#0077b6","#2e8b57","#b8860b","#8e4ec6"]' not in html:
+        _fail("SPA MONTHLY_YEAR_COLORS palette")
     if "`/api/v1/tables/${selMonthlyCode}`" not in html:
         _fail("SPA must GET /api/v1/tables/{code}")
     if "`/api/v1/tables/${selMonthlyCode}/${y}`" not in html:
@@ -874,6 +935,8 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("year tables must be fetched in parallel")
     if ".sort((a,b)=>b-a)" not in html:
         _fail("calendar-year tables must stack newest first")
+    if "monthlyDisplayYears((info && info.years) || [])" not in html:
+        _fail("stacked year tables must use the last-3-year window")
     if '<th class="l year">${d.year}</th>' not in html:
         _fail("thead top-left cell must be the calendar year")
     if "table-layout:fixed" not in html.replace(" ", ""):
@@ -927,6 +990,8 @@ def _assert_monthly_spa(html: str) -> None:
     load_body = html[load_fn:load_fn + 4000]
     if "monthlyRowOrder(monthlyYearTables)" not in load_body:
         _fail("year tables must share one union row order")
+    if "monthlyDisplayYears" not in load_body:
+        _fail("loadMonthlyTables must window to the last 3 calendar years")
     if "for(const e of rowOrder)" not in load_body:
         _fail("each year table must iterate the shared row order")
     pick_fn = html.find("function pickDefaultMonthlySeries")
@@ -982,6 +1047,27 @@ def _assert_monthly_spa(html: str) -> None:
     if chart_fn < 0 or chart_end < 0 or chart_end <= chart_fn:
         _fail("drawMonthlyChart bounds")
     chart_body = html[chart_fn:chart_end]
+    if "monthlyDisplayYears" not in chart_body:
+        _fail("chart must use the same last-3-year window as the tables")
+    if "monthlyYearColor(year)" not in chart_body:
+        _fail("bars and legend must use monthlyYearColor(year)")
+    if "MONTHLY_YEAR_COLORS[yi" in chart_body:
+        _fail("chart colors must not follow display order")
+    if "fill-opacity" in chart_body or 'fill="#d32f2f"' in chart_body:
+        _fail("no red-below-100 overlay in JS")
+    if "v<100" in chart_body.replace(" ", ""):
+        _fail("must not special-case yoy under 100 for bar fill")
+    if "y100" not in chart_body or "stroke-dasharray" not in chart_body:
+        _fail("keep yoy 100 horizontal line")
+    color_fn = html.find("function monthlyYearColor")
+    color_end = html.find("function uniqueMonthlyIssuers")
+    if color_fn < 0 or color_end <= color_fn:
+        _fail("monthlyYearColor / uniqueMonthlyIssuers bounds")
+    color_body = html[color_fn:color_end]
+    if "Number(year)" not in color_body:
+        _fail("monthlyYearColor must key off the calendar year")
+    if "% n" not in color_body and "%n" not in color_body.replace(" ", ""):
+        _fail("monthlyYearColor must map year % palette length")
     if 'text-anchor="end"' not in chart_body:
         _fail("Y-axis tick numbers must be drawn (text-anchor=end in the left gutter)")
     if "monthlyYTicks" not in chart_body and "function monthlyYTicks" not in html:

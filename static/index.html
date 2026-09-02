@@ -758,6 +758,19 @@ let monthlyRows=[], monthlyGroup="__new__", selMonthlyCode=null;
 let monthlySeries="", monthlyYearTables=[];
 const MONTHLY_YEAR_COLORS = ["#0077b6","#2e8b57","#b8860b","#8e4ec6"];
 
+function monthlyDisplayYears(years){
+  const ys = [...new Set((years || []).map(Number).filter(Number.isFinite))].sort((a,b)=>b-a);
+  if(!ys.length) return [];
+  const latest = ys[0];
+  return ys.filter(y => y >= latest - 2);
+}
+
+function monthlyYearColor(year){
+  const n = MONTHLY_YEAR_COLORS.length;
+  const i = ((Number(year) % n) + n) % n;
+  return MONTHLY_YEAR_COLORS[i];
+}
+
 function uniqueMonthlyIssuers(rows){
   const seen = new Set();
   const out = [];
@@ -1014,7 +1027,7 @@ async function loadMonthlyTables(){
   if(!selMonthlyCode) return;
   const wrap = $("#monthly-table-wrap");
   const info = await api(`/api/v1/tables/${selMonthlyCode}`).catch(()=>null);
-  const years = ((info && info.years) || []).slice().sort((a,b)=>b-a);
+  const years = monthlyDisplayYears((info && info.years) || []);
   if(!years.length){
     monthlyYearTables = [];
     wrap.style.removeProperty("--monthly-m-w");
@@ -1106,9 +1119,11 @@ function drawMonthlyChart(tables, seriesId){
     host.innerHTML = `<div class="sub">データなし</div>`;
     return;
   }
+  const keep = new Set(monthlyDisplayYears((tables || []).map(d => d && d.year)));
   const years = [];
   const byYear = {};
   for(const d of tables || []){
+    if(!d || !keep.has(Number(d.year))) continue;
     const el = monthlySeriesElement(d, spec.id);
     if(!el) continue;
     const nums = [];
@@ -1164,16 +1179,13 @@ function drawMonthlyChart(tables, seriesId){
     svg += `<line x1="${L}" x2="${W-R}" y1="${y100}" y2="${y100}" stroke="#e6a100" stroke-dasharray="4 3"/>`;
   }
   years.forEach((year, yi) => {
-    const color = MONTHLY_YEAR_COLORS[yi % MONTHLY_YEAR_COLORS.length];
+    const color = monthlyYearColor(year);
     byYear[year].forEach((v, mi) => {
       if(v==null) return;
       const x = L + slot*mi + (slot-nY*barW)/2 + yi*barW;
       const y = yx(Math.max(v, ymin));
       const hgt = Math.max(1, yx(ymin) - y);
       svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${hgt.toFixed(1)}" fill="${color}"/>`;
-      if(spec.yoy && v<100){
-        svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${hgt.toFixed(1)}" fill="#d32f2f" fill-opacity="0.35"/>`;
-      }
     });
   });
   const monthLabel = slot < 28 ? (m => String(m)) : (m => `${m}月`);
@@ -1182,7 +1194,7 @@ function drawMonthlyChart(tables, seriesId){
     svg += `<text x="${x.toFixed(1)}" y="${monthY}" font-size="${fsAxis}" text-anchor="middle" fill="#66707a">${monthLabel(m)}</text>`;
   }
   years.forEach((year, yi) => {
-    const color = MONTHLY_YEAR_COLORS[yi % MONTHLY_YEAR_COLORS.length];
+    const color = monthlyYearColor(year);
     const x = L + yi*legendGap;
     svg += `<rect x="${x}" y="${legendY-10}" width="8" height="8" fill="${color}"/>`;
     svg += `<text x="${x+12}" y="${legendY}" font-size="${fsAxis}" fill="#66707a">${year}年</text>`;
