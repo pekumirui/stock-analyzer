@@ -41,11 +41,11 @@ notepad .env                    # JQUANTS_API_KEY を記入
 
 | コマンド | 内容 |
 |---|---|
-| `.\run.ps1 serve` / `serve 8080` | サーバー起動 (ポート指定可) |
-| `.\run.ps1 check` / `check 2026-08-14` | API疎通・項目マッピング確認 |
-| `.\run.ps1 reset` | DB削除 |
-| `.\run.ps1 batch` / `batch 2026-08-14` | 日次取込 (日付指定可) |
-| `.\run.ps1 backfill` / `backfill 2` | バックフィル (既定5年、年数指定可) |
+| `.\run.ps1 serve` / `./run.sh serve` / `serve 8080` | サーバー起動 (ポート指定可) |
+| `.\run.ps1 check` / `./run.sh check` / `check 2026-08-14` | API疎通・項目マッピング確認 |
+| `.\run.ps1 reset` / `./run.sh reset` | DB削除。非対話は `./run.sh reset y` |
+| `.\run.ps1 batch` / `./run.sh batch` / `batch 2026-08-14` | 日次取込 (日付指定可) |
+| `.\run.ps1 backfill` / `./run.sh backfill` / `backfill 2` | バックフィル (既定5年、年数指定可) |
 
 > **バックフィル年数の目安**
 > 指標の計算にはRSが252営業日、MA200が200営業日の履歴を必要とするため、
@@ -66,7 +66,7 @@ notepad .env                    # JQUANTS_API_KEY を記入
 
 > 旧デモ由来の `0` 始まりコードが DB に残っていると RS ランクが狂うため、
 > `batch` / `backfill` は実行前に `scripts/check_demo.py` で止まります。
-> その場合は `.\run.ps1 reset` してから取り直してください。
+> その場合は `.\run.ps1 reset` または `./run.sh reset` してから取り直してください。
 
 決算開示は引け後15時以降が多いため、当日夜(19:30頃)と翌朝6時の2回実行を推奨。
 タスクスケジューラに登録する場合の操作:
@@ -78,16 +78,21 @@ notepad .env                    # JQUANTS_API_KEY を記入
 （この場合 `.env` は読み込まれないため、認証情報はシステム環境変数に設定するか
 `powershell -File run.ps1 batch` で起動する）
 
-## macOS / Linux の場合
+## クイックスタート (macOS / Linux)
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-# .env に JQUANTS_API_KEY を記入してから
-set -a && . ./.env && set +a
-python scripts/run_batch.py --backfill 5
-uvicorn app.main:app --reload
+./setup.sh                      # .venv 作成 + 依存インストール
+cp .env.example .env            # 既存 .env がある場合は上書きしない
+# .env に JQUANTS_API_KEY を記入
+./run.sh check                  # 疎通確認
+./run.sh backfill               # 初回: 5年分 (約45分)
+./run.sh serve                  # → http://localhost:8000
+./run.sh batch                  # 以降の日次
 ```
+
+`.env` / `stock.db` / `.venv` はコミットしない。既存の `.env` があるときは `cp .env.example .env` を実行しない。
+Python は `.venv/bin/python` を使う。システムの python で依存を入れない。
+非対話で DB を消すときは `./run.sh reset y`。
 
 ## VPS 運用 (ConoHa)
 
