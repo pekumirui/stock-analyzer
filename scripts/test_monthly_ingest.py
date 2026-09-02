@@ -18,13 +18,15 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
 from app.monthly_ingest import (  # noqa: E402
     MonthlyIngestError,
-    apply_trial_legacy_prefix,
+    apply_issuer_aliases,
     canonicalize_element_label,
+    exact_rename,
     format_monthly_cell,
     map_pdf_columns,
     parse_monthly_unit,
     plan_column_years,
     plan_yoy_duplicate_merges,
+    prefix_if_absent,
     resolve_fy_end_month,
     same_yoy_element,
 )
@@ -110,16 +112,22 @@ def test_canonicalize_element_label() -> None:
         ("60590", 2026, "カラオケ全店 売上高(前年比)", ["カラオケ全店 売上高"]),
     ]:
         _fail(f"plan_yoy_duplicate_merges: {planned!r}")
-    if apply_trial_legacy_prefix("141A0", "全店 売上高(前年比)") != "トライアル 全店 売上高(前年比)":
+    if apply_issuer_aliases("141A0", "全店 売上高(前年比)") != "トライアル 全店 売上高(前年比)":
         _fail("141A0 legacy yoy prefix")
-    if apply_trial_legacy_prefix("141A0", "新規出店数") != "トライアル 新規出店数":
+    if apply_issuer_aliases("141A0", "新規出店数") != "トライアル 新規出店数":
         _fail("141A0 legacy number prefix")
-    if apply_trial_legacy_prefix("141A0", "トライアル 全店 売上高(前年比)") != "トライアル 全店 売上高(前年比)":
+    if apply_issuer_aliases("141A0", "トライアル 全店 売上高(前年比)") != "トライアル 全店 売上高(前年比)":
         _fail("141A0 already trial")
-    if apply_trial_legacy_prefix("141A0", "西友 全店 売上高(前年比)") != "西友 全店 売上高(前年比)":
+    if apply_issuer_aliases("141A0", "西友 全店 売上高(前年比)") != "西友 全店 売上高(前年比)":
         _fail("141A0 seiyu stays")
-    if apply_trial_legacy_prefix("92790", "全店 売上高(前年比)") != "全店 売上高(前年比)":
+    if apply_issuer_aliases("92790", "全店 売上高(前年比)") != "全店 売上高(前年比)":
         _fail("other issuers unchanged")
+    rename = exact_rename({"既存店売上": "既存店 売上高"})
+    if rename("既存店売上") != "既存店 売上高" or rename("全店売上") != "全店売上":
+        _fail("exact_rename")
+    prefixed = prefix_if_absent("A ", "A", "B")
+    if prefixed("全店") != "A 全店" or prefixed("B 全店") != "B 全店" or prefixed("A全店") != "A全店":
+        _fail("prefix_if_absent")
 
 
 def test_mapping_examples() -> None:
@@ -883,7 +891,7 @@ def test_rename_29260_style_cross_year_yoy() -> None:
 
 
 def test_trial_legacy_prefix_ingest_and_migrate() -> None:
-    from app.db import SessionLocal, apply_trial_legacy_element_names
+    from app.db import SessionLocal, apply_issuer_element_aliases
     from app.models import MonthlyElement, MonthlyTable, MonthlyValue
 
     c = TestClient(app)
@@ -954,7 +962,7 @@ def test_trial_legacy_prefix_ingest_and_migrate() -> None:
     finally:
         db.close()
 
-    reports = apply_trial_legacy_element_names()
+    reports = apply_issuer_element_aliases()
     if not any(r.get("year") == 2024 and r.get("canonical") == "トライアル 既存店 売上高(前年比)"
                for r in reports):
         _fail(f"2024 rename missing: {reports!r}")
@@ -982,7 +990,7 @@ def test_trial_legacy_prefix_ingest_and_migrate() -> None:
     finally:
         db.close()
 
-    again = apply_trial_legacy_element_names()
+    again = apply_issuer_element_aliases()
     if any(r.get("code") == code for r in again):
         _fail(f"trial rename must be idempotent: {again!r}")
 
