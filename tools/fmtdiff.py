@@ -9,6 +9,7 @@ fmtdiff.py — 月次資料PDFの「フォーマット変更」を機械的に�
   python fmtdiff.py new.pdf --base old.pdf --json
   python fmtdiff.py --dir DIR               # 同一発行体の連続月だけ隣接比較
   python fmtdiff.py --dir DIR --json
+  # DIR/*.pdf と DIR/<code>/*.pdf。空で DIR/monthly があればそこを1段だけ見る
 
 終了コード: 0=変更なし / 1=フォーマット変更あり / 2=エラー
 """
@@ -298,8 +299,16 @@ def issuer_code(pdf_path, root):
 
 
 def scan_directory(root):
-    """発行体ごとに basename 順で隣接ペアだけ比較。全対比較はしない。"""
+    """発行体ごとに basename 順で隣接ペアだけ比較。全対比較はしない。
+
+    DIR 直下に PDF が無く DIR/monthly がディレクトリなら、そこをルートにする
+    （R2 の monthly/{code}/*.pdf。任意再帰はしない）。
+    """
     root = Path(root)
+    if not discover_pdfs(root):
+        monthly = root / "monthly"
+        if monthly.is_dir():
+            root = monthly
     groups = {}
     for pdf in discover_pdfs(root):
         groups.setdefault(issuer_code(pdf, root), []).append(pdf)
