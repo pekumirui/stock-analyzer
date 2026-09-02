@@ -127,6 +127,76 @@ def monthly_series_kind(element: str, unit: str | None) -> str | None:
     return None
 
 
+def monthly_row_segment(element: str) -> str:
+    """全店 / 既存 / 店舗数 より前。`カラオケ全店 売上高(前年比)` → カラオケ。無ければ空。"""
+    key = monthly_element_key(element)
+    cut: int | None = None
+    for kw in ("全店", "既存", "店舗数"):
+        i = key.find(kw)
+        if i >= 0 and (cut is None or i < cut):
+            cut = i
+    if cut is None:
+        return ""
+    return key[:cut]
+
+
+def monthly_row_slot(element: str, unit: str | None) -> int:
+    """セグメント内の行枠。1全店売上 2既存店売上 3客単価 4店舗数 5その他。店舗数は売上に入れない。"""
+    key = monthly_element_key(element)
+    u = unit or "number"
+    is_yoy = u in _YOY_UNITS
+    if (
+        is_yoy
+        and "売上" in key
+        and "全店" in key
+        and "既存" not in key
+        and "店舗数" not in key
+    ):
+        return 1
+    if is_yoy and "売上" in key and "既存" in key and "店舗数" not in key:
+        return 2
+    if "客単価" in key or "単価" in key:
+        return 3
+    if "店舗数" in key:
+        return 4
+    return 5
+
+
+def union_monthly_elements(tables: Sequence[Any]) -> list[dict[str, str]]:
+    """発行体の年をまたいだ行順。新しい年から初出のセグメント、各ブロックは 5 枠。"""
+    newest_first = sorted(
+        (t for t in tables if t),
+        key=lambda t: int(t.get("year") or 0),
+        reverse=True,
+    )
+    seen: set[str] = set()
+    items: list[dict[str, Any]] = []
+    seg_index: dict[str, int] = {}
+    for table in newest_first:
+        for raw in table.get("elements") or []:
+            if not isinstance(raw, dict):
+                continue
+            name = raw.get("element")
+            if not isinstance(name, str) or not name or name in seen:
+                continue
+            seen.add(name)
+            unit = raw.get("unit") or "number"
+            if not isinstance(unit, str):
+                unit = "number"
+            segment = monthly_row_segment(name)
+            if segment not in seg_index:
+                seg_index[segment] = len(seg_index)
+            items.append({
+                "element": name,
+                "unit": unit,
+                "segment": segment,
+                "slot": monthly_row_slot(name, unit),
+                "idx": len(items),
+            })
+    items.sort(key=lambda it: (seg_index[it["segment"]], it["slot"], it["idx"]))
+    return [{"element": it["element"], "unit": it["unit"]} for it in items]
+
+
 def yoy_display_number(value: float, unit: str | None) -> float:
     n = float(value)
     if (unit or "number") == "yoy_pct":
