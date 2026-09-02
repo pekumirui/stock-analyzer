@@ -13,7 +13,7 @@ from .config import (
     EARNINGS_PARAMS as EP, EARNINGS_EXCLUDE_PRODUCT_CATEGORIES, MONTHLY_NEW_DAYS,
     RS_PRODUCT_CATEGORIES,
 )
-from .db import fold_same_yoy_element, fold_trial_legacy_element, get_session
+from .db import fold_aliased_element, fold_same_yoy_element, get_session
 from .models import (
     Stock, DailyPrice, Topix, Statement, Indicator, EarningsEvent,
     MonthlyIssuer, MonthlyTable, MonthlyElement, MonthlyValue,
@@ -21,7 +21,7 @@ from .models import (
 from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
 from .monthly_ingest import (
-    MonthlyIngestError, apply_trial_legacy_prefix, canonicalize_element_label, map_pdf_columns,
+    MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label, map_pdf_columns,
     monthly_series_kind, parse_as_of, parse_monthly_unit, same_yoy_element,
     yoy_display_number,
 )
@@ -314,11 +314,17 @@ def _parse_element(raw: Any) -> str:
     return s
 
 
-def _canonical_element(raw: Any, unit: str | None, code: str | None = None) -> str:
-    """ingest / POST は先に正規化してから既存行を探す。PUT の照合には使わない。"""
-    s = canonicalize_element_label(_parse_element(raw), unit)
-    if code:
-        s = apply_trial_legacy_prefix(code, s)
+def _canonical_element(raw: Any, unit: str | None, code: str) -> str:
+    """ingest / POST は先に正規化してから既存行を探す。銘柄エイリアスもここで掛ける。"""
+    s = apply_issuer_aliases(code, canonicalize_element_label(_parse_element(raw), unit))
+    if not s or len(s) > 50:
+        raise ApiError(400, "INVALID_PARAM", "element は1〜50文字の文字列です。")
+    return s
+
+
+def _lookup_element(raw: Any, code: str) -> str:
+    """PUT は yoy 正規化しない。銘柄エイリアスだけ掛けて保存名に合わせる。"""
+    s = apply_issuer_aliases(code, _parse_element(raw))
     if not s or len(s) > 50:
         raise ApiError(400, "INVALID_PARAM", "element は1〜50文字の文字列です。")
     return s
@@ -466,7 +472,7 @@ def _ensure_element(db: Session, code: str, year_i: int, element: str, force: bo
         if unit is not None:
             folded.unit = unit
         return False
-    folded = fold_trial_legacy_element(db, code, year_i, element, unit)
+    folded = fold_aliased_element(db, code, year_i, element, unit)
     if folded is not None:
         if unit is not None:
             folded.unit = unit
@@ -516,7 +522,7 @@ def _parse_month_key(raw: Any) -> int:
 
 
 def _parse_ingest_rows(
-    raw: Any, months: list[int], code: str | None = None,
+    raw: Any, months: list[int], code: str,
 ) -> list[tuple[str, bool, str | None, dict[int, float | None]]]:
     if not isinstance(raw, list):
         raise ApiError(400, "INVALID_PARAM", "rows は {element, values} の配列です。")
@@ -576,7 +582,7 @@ def put_element(code: str, year: str, payload: dict | None = Body(None),
     code = _parse_code(code)
     year_i = _parse_year(year)
     body = _require_object(payload)
-    element = apply_trial_legacy_prefix(code, _parse_element(body.get("element")))
+    element = _lookup_element(body.get("element"), code)
     if "unit" not in body:
         raise ApiError(400, "INVALID_PARAM", "unit は number / yoy_index / yoy_pct です。")
     unit = _parse_unit(body.get("unit"))
@@ -753,7 +759,7 @@ def put_value(code: str, year: str, payload: dict | None = Body(None),
     code = _parse_code(code)
     year_i = _parse_year(year)
     body = _require_object(payload)
-    element = apply_trial_legacy_prefix(code, _parse_element(body.get("element")))
+    element = _lookup_element(body.get("element"), code)
     if "month" not in body:
         raise ApiError(400, "INVALID_PARAM", "month は1〜12の整数です。")
     if "value" not in body:
@@ -774,7 +780,7 @@ def put_values_batch(code: str, year: str, payload: dict | None = Body(None),
     code = _parse_code(code)
     year_i = _parse_year(year)
     body = _require_object(payload)
-    element = apply_trial_legacy_prefix(code, _parse_element(body.get("element")))
+    element = _lookup_element(body.get("element"), code)
     items = body.get("values")
     if not isinstance(items, list):
         raise ApiError(400, "INVALID_PARAM", "values は {month, value} の配列です。")

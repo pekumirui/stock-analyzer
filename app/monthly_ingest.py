@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from datetime import date
-from typing import Any, Sequence
+from typing import Any, Callable, Sequence
 
 # 保存値は PDF 原文。unit は表示だけ。値の大きさから推測しない。
 MONTHLY_UNITS = ("number", "yoy_index", "yoy_pct")
@@ -12,10 +12,6 @@ _YOY_UNITS = frozenset({"yoy_index", "yoy_pct"})
 # 長い語を先に。前年同月比 を 前年同月 より先、括弧付きを 前年比 より先。
 _YOY_FRAGMENTS = ("前年同月比", "前年同月", "(前年比)", "（前年比）", "前年比")
 _YOY_SUFFIX = "(前年比)"
-# 141A0 は 2025-08 開示からトライアル/西友に分かれた。旧PDFはセグメント無し。
-TRIAL_HOLDINGS_CODE = "141A0"
-TRIAL_SEGMENT_PREFIXES = ("トライアル", "西友")
-TRIAL_LEGACY_PREFIX = "トライアル "
 _UNIT_MSG = "unit は number / yoy_index / yoy_pct です。"
 
 
@@ -61,21 +57,38 @@ def canonicalize_element_label(element: str, unit: str | None) -> str:
     return f"{base}{_YOY_SUFFIX}"
 
 
-def apply_trial_legacy_prefix(code: str, element: str) -> str:
-    """141A0 のセグメント無し行名に `トライアル ` を付ける。西友・既存トライアルは触らない。
+def exact_rename(mapping: dict[str, str]) -> Callable[[str], str]:
+    """完全一致の旧名→新名。新しい銘柄ルールは ISSUER_ELEMENT_ALIASES に足す。"""
+    def apply(name: str) -> str:
+        return mapping.get(name, name)
+    return apply
 
-    2025年8月開示前の PDF は `全店 売上高(前年比)`。以降は `トライアル 全店 売上高(前年比)`。
-    """
-    if code != TRIAL_HOLDINGS_CODE:
-        return element
-    name = element.strip()
-    if not name:
-        return name
-    key = monthly_element_key(name)
-    for prefix in TRIAL_SEGMENT_PREFIXES:
-        if key.startswith(monthly_element_key(prefix)):
+
+def prefix_if_absent(prefix: str, *existing: str) -> Callable[[str], str]:
+    """existing のどれでも始まらなければ prefix を付ける。"""
+    def apply(name: str) -> str:
+        if not name:
             return name
-    return f"{TRIAL_LEGACY_PREFIX}{name}"
+        key = monthly_element_key(name)
+        if any(key.startswith(monthly_element_key(part)) for part in existing):
+            return name
+        return f"{prefix}{name}"
+    return apply
+
+
+# 銘柄ごとの名寄せ。既存の canonicalize / same_yoy には引数を足さない。
+# 141A0 は 2025-08 開示からトライアル/西友。旧PDFのセグメント無しに トライアル を付ける。
+ISSUER_ELEMENT_ALIASES: dict[str, tuple[Callable[[str], str], ...]] = {
+    "141A0": (prefix_if_absent("トライアル ", "トライアル", "西友"),),
+}
+
+
+def apply_issuer_aliases(code: str, element: str) -> str:
+    """保存前の行名。yoy 正規化のあと、銘柄ルールがあれば適用。"""
+    name = element.strip()
+    for fn in ISSUER_ELEMENT_ALIASES.get(code, ()):
+        name = fn(name)
+    return name
 
 
 def same_yoy_element(
