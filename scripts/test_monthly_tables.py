@@ -105,6 +105,7 @@ def main() -> None:
         _fail("invalid unit should 400")
     _assert_monthly_year_window()
     _assert_monthly_year_color_stable()
+    _assert_union_collapses_yoy_display_names()
     html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
     if "fmtMonthlyCell" not in html:
         _fail("index.html missing fmtMonthlyCell")
@@ -691,6 +692,41 @@ def _assert_monthly_year_color_stable() -> None:
         _fail("2024 color must stay when the window slides")
 
 
+def _assert_union_collapses_yoy_display_names() -> None:
+    """年Aの短い yoy 名と年Bの正規名は表示名で1行。number は分けたまま。"""
+    short = "全店 売上高前期比"
+    canon = "全店 売上高前期比(前年比)"
+    leftover = [
+        {"year": 2026, "elements": [
+            {"element": short, "unit": "yoy_index", "values": {"1": 110.0}},
+            {"element": "店舗数", "unit": "number", "values": {"1": 50.0}},
+            {"element": "売上高", "unit": "number", "values": {"1": 1000.0}},
+        ]},
+        {"year": 2025, "elements": [
+            {"element": canon, "unit": "yoy_index", "values": {"1": 105.0}},
+            {"element": "店舗数", "unit": "number", "values": {"1": 48.0}},
+            {"element": "売上高", "unit": "number", "values": {"1": 900.0}},
+        ]},
+    ]
+    rows = union_monthly_elements(leftover)
+    order = [row["element"] for row in rows]
+    if order != [canon, "店舗数", "売上高"]:
+        _fail(f"cross-year yoy short/canonical must be one row: {order!r}")
+    if monthly_row_slot(rows[0]["element"], rows[0]["unit"]) != 1:
+        _fail("collapsed yoy 全店売上 stays slot 1")
+    if monthly_row_slot("店舗数", "number") != 4:
+        _fail("number 店舗数 stays slot 4")
+    hit = next(
+        e for e in leftover[0]["elements"]
+        if canonicalize_element_label(e["element"], e["unit"]) == canon
+    )
+    if float(hit["values"]["1"]) != 110.0:
+        _fail("2026 values come from the short stored row")
+    swapped = [row["element"] for row in union_monthly_elements(list(reversed(leftover)))]
+    if swapped != order:
+        _fail(f"display-name union must ignore input order: {swapped!r}")
+
+
 def _assert_monthly_row_order(c) -> None:
     """ウチヤマ型: 年をまたいで同じ行順。カラオケ塊のあと飲食。全店売上→既存売上→店舗数。"""
     if monthly_row_segment("カラオケ全店 売上高(前年比)") != "カラオケ":
@@ -971,6 +1007,15 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("index.html missing monthlyRowSlot")
     if "function monthlyRowSegment" not in html:
         _fail("index.html missing monthlyRowSegment")
+    row_fn = html.find("function monthlyRowOrder")
+    row_end = html.find("function escHtml")
+    if row_fn < 0 or row_end <= row_fn:
+        _fail("monthlyRowOrder / escHtml bounds")
+    row_body = html[row_fn:row_end]
+    if "fmtMonthlyElement(" not in row_body:
+        _fail("monthlyRowOrder must key by fmtMonthlyElement display name")
+    if "seen.has(name)" in row_body:
+        _fail("monthlyRowOrder must not key by raw stored element name")
     if "function monthlySeriesChoices" not in html:
         _fail("index.html missing monthlySeriesChoices")
     choices_fn = html.find("function monthlySeriesChoices")
@@ -984,6 +1029,8 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("choices must come from table elements")
     if "monthlyRowOrder(" not in choices_body:
         _fail("#monthly-series options must follow year-table row order")
+    if "fmtMonthlyElement(" not in choices_body:
+        _fail("#monthly-series ids must use fmtMonthlyElement")
     load_fn = html.find("function loadMonthlyTables")
     if load_fn < 0:
         _fail("loadMonthlyTables missing")
@@ -994,6 +1041,10 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("loadMonthlyTables must window to the last 3 calendar years")
     if "for(const e of rowOrder)" not in load_body:
         _fail("each year table must iterate the shared row order")
+    if "byName[src.element]" in load_body:
+        _fail("year table cells must map stored names through fmtMonthlyElement")
+    if "fmtMonthlyElement(src.element" not in load_body:
+        _fail("year table cells must look up rows by fmtMonthlyElement")
     pick_fn = html.find("function pickDefaultMonthlySeries")
     pick_end = html.find("function monthlySeriesElement")
     if pick_fn < 0 or pick_end <= pick_fn:
@@ -1005,6 +1056,15 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("default series must still fall back to all_store")
     if "function monthlySeriesElement" not in html:
         _fail("chart must resolve the selected row by element name")
+    series_el_fn = html.find("function monthlySeriesElement")
+    series_el_end = html.find("function fmtMonthlyYoyList")
+    if series_el_fn < 0 or series_el_end <= series_el_fn:
+        _fail("monthlySeriesElement / fmtMonthlyYoyList bounds")
+    series_el_body = html[series_el_fn:series_el_end]
+    if "fmtMonthlyElement(" not in series_el_body:
+        _fail("chart row lookup must match leftover short names via fmtMonthlyElement")
+    if "e.element===seriesId" in series_el_body.replace(" ", ""):
+        _fail("monthlySeriesElement must not require stored name == series id")
     if "renderMonthlySeriesSelect" not in html:
         _fail("series <select> must be filled from actual table elements")
     if 'data-series="${escHtml(e.element)}"' not in html:

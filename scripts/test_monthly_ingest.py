@@ -100,8 +100,14 @@ def test_canonicalize_element_label() -> None:
         ("44440", 2025, "売上高(前年比)", "yoy_index"),
         ("44440", 2025, "売上高", "number"),
         ("44440", 2025, "売上高前年同月比", "number"),
+        ("29260", 2026, "全店 売上高前期比", "yoy_index"),
+        ("29260", 2026, "店舗数", "number"),
+        ("29260", 2026, "売上高", "number"),
     ])
-    if planned != [("60590", 2026, "カラオケ全店 売上高(前年比)", ["カラオケ全店 売上高"])]:
+    if planned != [
+        ("29260", 2026, "全店 売上高前期比(前年比)", ["全店 売上高前期比"]),
+        ("60590", 2026, "カラオケ全店 売上高(前年比)", ["カラオケ全店 売上高"]),
+    ]:
         _fail(f"plan_yoy_duplicate_merges: {planned!r}")
 
 
@@ -752,6 +758,119 @@ def test_merge_uchiyama_like_yoy_duplicates() -> None:
         _fail(f"merge must be idempotent: {again!r}")
 
 
+def test_rename_29260_style_cross_year_yoy() -> None:
+    """年Aは短い yoy 名、年Bは正規名。migrate で短い名を正規名へ。number は触らない。"""
+    from app.db import SessionLocal, merge_yoy_duplicate_elements
+    from app.models import MonthlyElement, MonthlyTable, MonthlyValue
+    from app.monthly_ingest import union_monthly_elements
+
+    c = TestClient(app)
+    code = "29260"
+    short = "全店 売上高前期比"
+    canon = "全店 売上高前期比(前年比)"
+    _ensure_stock(code, "Action")
+    db = SessionLocal()
+    try:
+        db.add(MonthlyTable(code=code, year=2026))
+        db.add(MonthlyTable(code=code, year=2025))
+        db.add(MonthlyElement(code=code, year=2026, element=short, sort_order=1, unit="yoy_index"))
+        db.add(MonthlyElement(code=code, year=2026, element="店舗数", sort_order=2, unit="number"))
+        db.add(MonthlyElement(code=code, year=2026, element="売上高", sort_order=3, unit="number"))
+        db.add(MonthlyElement(code=code, year=2025, element=canon, sort_order=1, unit="yoy_index"))
+        db.add(MonthlyElement(code=code, year=2025, element="店舗数", sort_order=2, unit="number"))
+        db.add(MonthlyElement(code=code, year=2025, element="売上高", sort_order=3, unit="number"))
+        db.add(MonthlyValue(code=code, year=2026, element=short, month=1, value=110.0))
+        db.add(MonthlyValue(code=code, year=2026, element="店舗数", month=1, value=50.0))
+        db.add(MonthlyValue(code=code, year=2026, element="売上高", month=1, value=1000.0))
+        db.add(MonthlyValue(code=code, year=2025, element=canon, month=1, value=105.0))
+        db.add(MonthlyValue(code=code, year=2025, element="店舗数", month=1, value=48.0))
+        db.add(MonthlyValue(code=code, year=2025, element="売上高", month=1, value=900.0))
+        db.commit()
+    finally:
+        db.close()
+
+    reports = merge_yoy_duplicate_elements()
+    print(f"rename 29260 reports: {reports!r}")
+    hit = [r for r in reports if r.get("code") == code and r.get("year") == 2026]
+    if not hit:
+        _fail(f"29260 2026 rename missing: {reports!r}")
+    one = hit[0]
+    if one.get("canonical") != canon:
+        _fail(f"29260 rename target: {one!r}")
+    moved = (one.get("renamed") or []) + (one.get("deleted") or [])
+    if short not in moved:
+        _fail(f"29260 short not moved: {one!r}")
+    if any(r.get("canonical") in ("店舗数", "売上高") for r in reports if r.get("code") == code):
+        _fail(f"must not rename number rows: {reports!r}")
+
+    db = SessionLocal()
+    try:
+        els = (db.query(MonthlyElement)
+               .filter(MonthlyElement.code == code, MonthlyElement.year == 2026)
+               .all())
+        names = sorted(e.element for e in els)
+        if short in names:
+            _fail(f"29260 2026 short still present: {names!r}")
+        if canon not in names:
+            _fail(f"29260 2026 missing canonical: {names!r}")
+        if "店舗数" not in names or "売上高" not in names:
+            _fail(f"number rows must stay: {names!r}")
+        if "売上高(前年比)" in names:
+            _fail(f"number 売上高 must not gain (前年比): {names!r}")
+        v = db.get(MonthlyValue, (code, 2026, canon, 1))
+        if v is None or float(v.value) != 110.0:
+            _fail(f"2026 values must come from the renamed short row: {v}")
+        if db.get(MonthlyValue, (code, 2026, short, 1)) is not None:
+            _fail("old short values must move with the rename")
+        stores = db.get(MonthlyValue, (code, 2026, "店舗数", 1))
+        if stores is None or float(stores.value) != 50.0:
+            _fail(f"number 店舗数 values: {stores}")
+        sales = db.get(MonthlyValue, (code, 2026, "売上高", 1))
+        if sales is None or float(sales.value) != 1000.0:
+            _fail(f"number 売上高 values: {sales}")
+        if db.get(MonthlyElement, (code, 2025, canon)) is None:
+            _fail("2025 canonical row must stay")
+    finally:
+        db.close()
+
+    r = c.get(f"/api/v1/tables/{code}/2026")
+    _expect(r, 200, "GET 29260 2026")
+    y2026 = r.json()
+    r = c.get(f"/api/v1/tables/{code}/2025")
+    _expect(r, 200, "GET 29260 2025")
+    y2025 = r.json()
+    order = [row["element"] for row in union_monthly_elements([y2026, y2025])]
+    if order != [canon, "店舗数", "売上高"]:
+        _fail(f"29260 union must be one yoy row: {order!r}")
+    by = {e["element"]: e for e in y2026["elements"]}
+    if canon not in by or float(by[canon]["values"]["1"]) != 110.0:
+        _fail(f"GET 2026 values from renamed short: {by!r}")
+    if by.get("店舗数", {}).get("unit") != "number" or float(by["店舗数"]["values"]["1"]) != 50.0:
+        _fail(f"GET 2026 店舗数: {by.get('店舗数')!r}")
+    if by.get("売上高", {}).get("unit") != "number" or float(by["売上高"]["values"]["1"]) != 1000.0:
+        _fail(f"GET 2026 number 売上高: {by.get('売上高')!r}")
+
+    leftover = [
+        {"year": 2026, "elements": [
+            {"element": short, "unit": "yoy_index", "values": {"1": 110.0}},
+            {"element": "店舗数", "unit": "number"},
+            {"element": "売上高", "unit": "number"},
+        ]},
+        {"year": 2025, "elements": [
+            {"element": canon, "unit": "yoy_index", "values": {"1": 105.0}},
+            {"element": "店舗数", "unit": "number"},
+            {"element": "売上高", "unit": "number"},
+        ]},
+    ]
+    leftover_order = [row["element"] for row in union_monthly_elements(leftover)]
+    if leftover_order != [canon, "店舗数", "売上高"]:
+        _fail(f"leftover short names must collapse by display: {leftover_order!r}")
+
+    again = merge_yoy_duplicate_elements()
+    if any(r.get("code") == code for r in again):
+        _fail(f"29260 rename must be idempotent: {again!r}")
+
+
 def main() -> None:
     test_canonicalize_element_label()
     test_mapping_examples()
@@ -767,6 +886,7 @@ def main() -> None:
     test_existing_short_yoy_renamed_on_canonical()
     test_number_stores_not_yoy_suffix()
     test_merge_uchiyama_like_yoy_duplicates()
+    test_rename_29260_style_cross_year_yoy()
     print("ok: monthly ingest")
 
 

@@ -183,7 +183,7 @@ def fold_same_yoy_element(
 
 
 def merge_yoy_duplicate_elements(verbose: bool = True) -> list[dict]:
-    """同一 (code, year) の短い yoy 名と正規名を1行にする。何度呼んでも冪等。"""
+    """yoy 保存名を正規名へ。同一年に両方あれば正規名へ寄せて短い行を消す。冪等。"""
     insp = inspect(engine)
     if "monthly_elements" not in insp.get_table_names():
         return []
@@ -197,6 +197,9 @@ def merge_yoy_duplicate_elements(verbose: bool = True) -> list[dict]:
         plans = plan_yoy_duplicate_merges(rows)
         for code, year, canonical, shorts in plans:
             dst = db.get(MonthlyElement, (code, year, canonical))
+            renamed: list[str] = []
+            conflicts: list[dict] = []
+            deleted: list[str] = []
             if dst is None:
                 first = None
                 for name in shorts:
@@ -205,13 +208,13 @@ def merge_yoy_duplicate_elements(verbose: bool = True) -> list[dict]:
                         break
                 if first is None:
                     continue
-                rename_monthly_element(db, code, year, first.element, canonical)
+                old = first.element
+                rename_monthly_element(db, code, year, old, canonical)
                 dst = db.get(MonthlyElement, (code, year, canonical))
-                shorts = [name for name in shorts if name != first.element]
+                renamed.append(old)
+                shorts = [name for name in shorts if name != old]
             if dst is None:
                 continue
-            conflicts: list[dict] = []
-            deleted: list[str] = []
             for name in shorts:
                 src = db.get(MonthlyElement, (code, year, name))
                 if src is None:
@@ -221,19 +224,21 @@ def merge_yoy_duplicate_elements(verbose: bool = True) -> list[dict]:
                 dst = db.get(MonthlyElement, (code, year, canonical))
                 if dst is None:
                     break
-            if not deleted and not conflicts:
+            if not renamed and not deleted and not conflicts:
                 continue
             report = {
                 "code": code,
                 "year": year,
                 "canonical": canonical,
+                "renamed": renamed,
                 "deleted": deleted,
                 "conflicts": conflicts,
             }
             reports.append(report)
             if verbose:
+                moved = renamed + deleted
                 print(
-                    f"月次yoy行を統合: {code} {year} {deleted!r} → {canonical!r}"
+                    f"月次yoy行を正規化: {code} {year} {moved!r} → {canonical!r}"
                 )
                 for item in conflicts:
                     print(

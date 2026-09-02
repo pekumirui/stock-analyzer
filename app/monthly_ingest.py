@@ -82,7 +82,7 @@ def same_yoy_element(
 def plan_yoy_duplicate_merges(
     rows: Sequence[tuple[str, int, str, str | None]],
 ) -> list[tuple[str, int, str, list[str]]]:
-    """同一 (code, year) の yoy 行で正規化名が同じもの。短い名を正規名へ寄せる。
+    """yoy の短い保存名を正規名へ。同一年の重複が無くても返す。
 
     number は見ない（売上高 と 売上高(前年比) は別行のまま）。
     戻りは (code, year, canonical, short_names)。
@@ -97,8 +97,6 @@ def plan_yoy_duplicate_merges(
         groups.setdefault((code, year, canonical), set()).add(element)
     out: list[tuple[str, int, str, list[str]]] = []
     for (code, year, canonical), names in groups.items():
-        if len(names) < 2:
-            continue
         shorts = sorted(name for name in names if name != canonical)
         if not shorts:
             continue
@@ -163,7 +161,7 @@ def monthly_row_slot(element: str, unit: str | None) -> int:
 
 
 def union_monthly_elements(tables: Sequence[Any]) -> list[dict[str, str]]:
-    """発行体の年をまたいだ行順。新しい年から初出のセグメント、各ブロックは 5 枠。"""
+    """発行体の年をまたいだ行順。キーは表示名。新しい年から初出のセグメント、各ブロックは 5 枠。"""
     newest_first = sorted(
         (t for t in tables if t),
         key=lambda t: int(t.get("year") or 0),
@@ -177,20 +175,23 @@ def union_monthly_elements(tables: Sequence[Any]) -> list[dict[str, str]]:
             if not isinstance(raw, dict):
                 continue
             name = raw.get("element")
-            if not isinstance(name, str) or not name or name in seen:
+            if not isinstance(name, str) or not name:
                 continue
-            seen.add(name)
             unit = raw.get("unit") or "number"
             if not isinstance(unit, str):
                 unit = "number"
-            segment = monthly_row_segment(name)
+            display = canonicalize_element_label(name, unit)
+            if display in seen:
+                continue
+            seen.add(display)
+            segment = monthly_row_segment(display)
             if segment not in seg_index:
                 seg_index[segment] = len(seg_index)
             items.append({
-                "element": name,
+                "element": display,
                 "unit": unit,
                 "segment": segment,
-                "slot": monthly_row_slot(name, unit),
+                "slot": monthly_row_slot(display, unit),
                 "idx": len(items),
             })
     items.sort(key=lambda it: (seg_index[it["segment"]], it["slot"], it["idx"]))
