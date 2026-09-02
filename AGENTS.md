@@ -25,7 +25,7 @@
 | `scripts/tdnet_monthly_r2.py` | TDnet 月次PDF → R2 mount (`/home/stock/r2-share/monthly/{code}/`) |
 | `scripts/check_demo.py` | スキーマ検査 + 旧デモ取り残しガード |
 | `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ）。月次表ツールは localhost:8000 の FastAPI のみ |
-| `tools/` | オフラインの月次PDFフォーマット指紋（`fmtdiff.py`）。ingest は従来どおり pdftotext |
+| `tools/` | オフラインの月次PDFフォーマット指紋（`fmtdiff.py`）。`--dir` は同一発行体の連続月だけ比較。ingest は従来どおり pdftotext |
 
 新しい依存やレイヤを増やさない。ロジックは上のファイルに足す。
 

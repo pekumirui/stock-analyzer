@@ -7,6 +7,8 @@ fmtdiff.py — 月次資料PDFの「フォーマット変更」を機械的に�
   python fmtdiff.py new.pdf                 # 指紋(structure_hash)を出す
   python fmtdiff.py new.pdf --base old.pdf  # 前月と比較して差分を出す
   python fmtdiff.py new.pdf --base old.pdf --json
+  python fmtdiff.py --dir DIR               # 同一発行体の連続月だけ隣接比較
+  python fmtdiff.py --dir DIR --json
 
 終了コード: 0=変更なし / 1=フォーマット変更あり / 2=エラー
 """
@@ -17,6 +19,7 @@ import re
 import sys
 import unicodedata
 from difflib import SequenceMatcher
+from pathlib import Path
 
 import pdfplumber
 
@@ -25,6 +28,9 @@ import pdfplumber
 RE_DATE = re.compile(r"\d+\s*年\s*\d+\s*月(\s*\d+\s*日)?|\d{4}[/-]\d{1,2}([/-]\d{1,2})?")
 RE_QUARTER = re.compile(r"第\s*\d+\s*(四半期|Q)")
 RE_NUM = re.compile(r"[△▲\-−+]?\d[\d,]*(\.\d+)?")
+# TDnet 発行体コード（4桁）。ディレクトリ名優先、なければファイル名の _CODE_
+RE_ISSUER_DIR = re.compile(r"^[0-9][0-9A-Z]{3}$")
+RE_ISSUER_IN_NAME = re.compile(r"_([0-9][0-9A-Z]{3})_")
 
 
 def norm(s: str) -> str:
@@ -257,12 +263,140 @@ def render(changed, changes, notes, old, new):
     return "\n".join(out)
 
 
+# ---------------------------------------------------------------- ディレクトリ走査（同一発行体の隣接比較）
+
+
+def discover_pdfs(root):
+    """DIR/*.pdf と DIR/<subdir>/*.pdf のみ。2段以上は見ない。"""
+    root = Path(root)
+    found = []
+    for child in root.iterdir():
+        if child.is_file() and child.suffix.lower() == ".pdf":
+            found.append(child)
+        elif child.is_dir():
+            for gchild in child.iterdir():
+                if gchild.is_file() and gchild.suffix.lower() == ".pdf":
+                    found.append(gchild)
+    return found
+
+
+def issuer_code(pdf_path, root):
+    """1段サブフォルダ名が銘柄コードならそれを優先。なければ basename の _CODE_。"""
+    pdf_path = Path(pdf_path)
+    root = Path(root)
+    try:
+        rel = pdf_path.resolve().relative_to(root.resolve())
+    except ValueError:
+        rel = Path(pdf_path.name)
+    parts = rel.parts
+    if len(parts) >= 2 and RE_ISSUER_DIR.match(parts[0]):
+        return parts[0]
+    m = RE_ISSUER_IN_NAME.search(pdf_path.name)
+    if m:
+        return m.group(1)
+    return "?"
+
+
+def scan_directory(root):
+    """発行体ごとに basename 順で隣接ペアだけ比較。全対比較はしない。"""
+    root = Path(root)
+    groups = {}
+    for pdf in discover_pdfs(root):
+        groups.setdefault(issuer_code(pdf, root), []).append(pdf)
+
+    issuers = []
+    for code in sorted(groups):
+        files = sorted(groups[code], key=lambda p: p.name)
+        fps = [fingerprint(str(p)) for p in files]
+        changed_pairs = []
+        unchanged = 0
+        for i in range(len(files) - 1):
+            old, new = fps[i], fps[i + 1]
+            if old["structure_hash"] == new["structure_hash"]:
+                unchanged += 1
+                continue
+            changes, _notes = compare(old, new)
+            changed_pairs.append(
+                {
+                    "files": [files[i].name, files[i + 1].name],
+                    "hashes": [old["structure_hash"], new["structure_hash"]],
+                    "changes_count": len(changes),
+                }
+            )
+        issuers.append(
+            {
+                "code": code,
+                "pdf_count": len(files),
+                "pair_count": max(0, len(files) - 1),
+                "unchanged": unchanged,
+                "changed": len(changed_pairs),
+                "changed_pairs": changed_pairs,
+            }
+        )
+    totals = {
+        "issuers": len(issuers),
+        "pdfs": sum(x["pdf_count"] for x in issuers),
+        "pairs": sum(x["pair_count"] for x in issuers),
+        "unchanged": sum(x["unchanged"] for x in issuers),
+        "changed": sum(x["changed"] for x in issuers),
+    }
+    return {"issuers": issuers, "totals": totals}
+
+
+def render_dir(result):
+    lines = []
+    for iss in result["issuers"]:
+        lines.append(
+            f"issuer {iss['code']}  pdfs={iss['pdf_count']}  "
+            f"pairs={iss['pair_count']}  unchanged={iss['unchanged']}  "
+            f"changed={iss['changed']}"
+        )
+        for pair in iss["changed_pairs"]:
+            f0, f1 = pair["files"]
+            h0, h1 = pair["hashes"]
+            lines.append(f"  CHANGED  {f0}  hash={h0}")
+            lines.append(f"           {f1}  hash={h1}")
+            lines.append(f"           changes={pair['changes_count']}")
+    t = result["totals"]
+    lines.append(
+        f"TOTAL  issuers={t['issuers']}  pdfs={t['pdfs']}  "
+        f"pairs={t['pairs']}  unchanged={t['unchanged']}  changed={t['changed']}"
+    )
+    return "\n".join(lines)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("target")
+    ap.add_argument("target", nargs="?", help="指紋を取るPDF")
     ap.add_argument("--base", help="比較元（前月）のPDF")
+    ap.add_argument("--dir", help="issuer ごとに隣接PDFを比較")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args()
+
+    if a.dir and a.target:
+        print("ERROR: --dir and target are mutually exclusive", file=sys.stderr)
+        return 2
+    if a.dir and a.base:
+        print("ERROR: --dir and --base are mutually exclusive", file=sys.stderr)
+        return 2
+    if not a.dir and not a.target:
+        print("ERROR: specify a PDF or --dir DIR", file=sys.stderr)
+        return 2
+
+    if a.dir:
+        root = Path(a.dir)
+        if not root.exists():
+            print(f"ERROR: directory not found: {a.dir}", file=sys.stderr)
+            return 2
+        if not root.is_dir():
+            print(f"ERROR: not a directory: {a.dir}", file=sys.stderr)
+            return 2
+        result = scan_directory(root)
+        if a.json:
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        else:
+            print(render_dir(result))
+        return 1 if result["totals"]["changed"] else 0
 
     new = fingerprint(a.target)
     if not a.base:
