@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
 from app.monthly_ingest import (  # noqa: E402
     MonthlyIngestError,
+    apply_trial_legacy_prefix,
     canonicalize_element_label,
     format_monthly_cell,
     map_pdf_columns,
@@ -109,6 +110,16 @@ def test_canonicalize_element_label() -> None:
         ("60590", 2026, "カラオケ全店 売上高(前年比)", ["カラオケ全店 売上高"]),
     ]:
         _fail(f"plan_yoy_duplicate_merges: {planned!r}")
+    if apply_trial_legacy_prefix("141A0", "全店 売上高(前年比)") != "トライアル 全店 売上高(前年比)":
+        _fail("141A0 legacy yoy prefix")
+    if apply_trial_legacy_prefix("141A0", "新規出店数") != "トライアル 新規出店数":
+        _fail("141A0 legacy number prefix")
+    if apply_trial_legacy_prefix("141A0", "トライアル 全店 売上高(前年比)") != "トライアル 全店 売上高(前年比)":
+        _fail("141A0 already trial")
+    if apply_trial_legacy_prefix("141A0", "西友 全店 売上高(前年比)") != "西友 全店 売上高(前年比)":
+        _fail("141A0 seiyu stays")
+    if apply_trial_legacy_prefix("92790", "全店 売上高(前年比)") != "全店 売上高(前年比)":
+        _fail("other issuers unchanged")
 
 
 def test_mapping_examples() -> None:
@@ -871,6 +882,111 @@ def test_rename_29260_style_cross_year_yoy() -> None:
         _fail(f"29260 rename must be idempotent: {again!r}")
 
 
+def test_trial_legacy_prefix_ingest_and_migrate() -> None:
+    from app.db import SessionLocal, apply_trial_legacy_element_names
+    from app.models import MonthlyElement, MonthlyTable, MonthlyValue
+
+    c = TestClient(app)
+    code = "141A0"
+    _add_fy_end(code, date(2025, 6, 1), date(2025, 6, 30), "trial-fy-1")
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [6, 7],
+        "rows": [
+            {"element": "全店 売上高", "values": {"6": 111.2, "7": 111.9}, "unit": "yoy_index"},
+            {"element": "新規出店数", "values": {"6": 4}, "unit": "number"},
+            {"element": "西友 全店 売上高", "values": {"7": 107.4}, "unit": "yoy_index"},
+        ],
+        "as_of": "2025-08-05",
+    })
+    _expect(r, 200, "141A0 ingest old names")
+    r = c.get(f"/api/v1/tables/{code}/2025")
+    _expect(r, 200, "GET 141A0 2025")
+    names = [e["element"] for e in r.json()["elements"]]
+    if "トライアル 全店 売上高(前年比)" not in names:
+        _fail(f"legacy yoy must prefix: {names!r}")
+    if "全店 売上高(前年比)" in names:
+        _fail(f"unprefixed yoy must not remain: {names!r}")
+    if "トライアル 新規出店数" not in names:
+        _fail(f"legacy number must prefix: {names!r}")
+    if "西友 全店 売上高(前年比)" not in names:
+        _fail(f"seiyu must stay: {names!r}")
+    by = {e["element"]: e for e in r.json()["elements"]}
+    if float(by["トライアル 全店 売上高(前年比)"]["values"]["6"]) != 111.2:
+        _fail(f"prefixed yoy values: {by['トライアル 全店 売上高(前年比)']!r}")
+
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [7],
+        "rows": [{"element": "トライアル 全店 売上高", "values": {"7": 112.0}, "unit": "yoy_index"}],
+        "as_of": "2025-08-05",
+    })
+    _expect(r, 200, "141A0 ingest new name same row")
+    r = c.get(f"/api/v1/tables/{code}/2025")
+    by = {e["element"]: e for e in r.json()["elements"]}
+    if float(by["トライアル 全店 売上高(前年比)"]["values"]["7"]) != 112.0:
+        _fail(f"new name must upsert same row: {by['トライアル 全店 売上高(前年比)']!r}")
+
+    db = SessionLocal()
+    try:
+        db.add(MonthlyTable(code=code, year=2024))
+        db.add(MonthlyElement(
+            code=code, year=2024, element="既存店 売上高(前年比)",
+            sort_order=1, unit="yoy_index",
+        ))
+        db.add(MonthlyValue(
+            code=code, year=2024, element="既存店 売上高(前年比)", month=5, value=105.2,
+        ))
+        db.add(MonthlyTable(code=code, year=2023))
+        db.add(MonthlyElement(
+            code=code, year=2023, element="トライアル 既存店 売上高(前年比)",
+            sort_order=1, unit="yoy_index",
+        ))
+        db.add(MonthlyElement(
+            code=code, year=2023, element="既存店 売上高(前年比)",
+            sort_order=2, unit="yoy_index",
+        ))
+        db.add(MonthlyValue(
+            code=code, year=2023, element="トライアル 既存店 売上高(前年比)", month=8, value=98.3,
+        ))
+        db.add(MonthlyValue(
+            code=code, year=2023, element="既存店 売上高(前年比)", month=7, value=101.4,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    reports = apply_trial_legacy_element_names()
+    if not any(r.get("year") == 2024 and r.get("canonical") == "トライアル 既存店 売上高(前年比)"
+               for r in reports):
+        _fail(f"2024 rename missing: {reports!r}")
+    db = SessionLocal()
+    try:
+        names_2024 = sorted(
+            e.element for e in db.query(MonthlyElement).filter_by(code=code, year=2024)
+        )
+        if names_2024 != ["トライアル 既存店 売上高(前年比)"]:
+            _fail(f"2024 after migrate: {names_2024!r}")
+        v = db.get(MonthlyValue, (code, 2024, "トライアル 既存店 売上高(前年比)", 5))
+        if v is None or float(v.value) != 105.2:
+            _fail(f"2024 value not moved: {v}")
+        names_2023 = sorted(
+            e.element for e in db.query(MonthlyElement).filter_by(code=code, year=2023)
+        )
+        if names_2023 != ["トライアル 既存店 売上高(前年比)"]:
+            _fail(f"2023 merge leftover: {names_2023!r}")
+        vals_2023 = {
+            v.month: float(v.value)
+            for v in db.query(MonthlyValue).filter_by(code=code, year=2023)
+        }
+        if vals_2023 != {7: 101.4, 8: 98.3}:
+            _fail(f"2023 merged values: {vals_2023!r}")
+    finally:
+        db.close()
+
+    again = apply_trial_legacy_element_names()
+    if any(r.get("code") == code for r in again):
+        _fail(f"trial rename must be idempotent: {again!r}")
+
+
 def main() -> None:
     test_canonicalize_element_label()
     test_mapping_examples()
@@ -887,6 +1003,7 @@ def main() -> None:
     test_number_stores_not_yoy_suffix()
     test_merge_uchiyama_like_yoy_duplicates()
     test_rename_29260_style_cross_year_yoy()
+    test_trial_legacy_prefix_ingest_and_migrate()
     print("ok: monthly ingest")
 
 

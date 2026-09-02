@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 
 from .config import DATABASE_URL
 from .models import Base, MonthlyElement, MonthlyValue
-from .monthly_ingest import plan_yoy_duplicate_merges, same_yoy_element
+from .monthly_ingest import apply_trial_legacy_prefix, plan_yoy_duplicate_merges, same_yoy_element
 
 engine = create_engine(DATABASE_URL, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, future=True)
@@ -44,6 +44,7 @@ def migrate_add_columns(verbose: bool = True) -> int:
     lacks = missing_columns()
     if not lacks:
         merge_yoy_duplicate_elements(verbose=verbose)
+        apply_trial_legacy_element_names(verbose=verbose)
         delete_orphan_monthly_rows(verbose=verbose)
         return 0
     n = 0
@@ -62,6 +63,7 @@ def migrate_add_columns(verbose: bool = True) -> int:
                 n += 1
     apply_known_monthly_element_units()
     merge_yoy_duplicate_elements(verbose=verbose)
+    apply_trial_legacy_element_names(verbose=verbose)
     delete_orphan_monthly_rows(verbose=verbose)
     return n
 
@@ -180,6 +182,90 @@ def fold_same_yoy_element(
         if src is not None and dst is not None:
             merge_monthly_element_into(db, src, dst)
     return db.get(MonthlyElement, (code, year, incoming_name))
+
+
+def fold_trial_legacy_element(
+    db, code: str, year: int, incoming_name: str, incoming_unit: str | None,
+) -> MonthlyElement | None:
+    """141A0 の旧名（セグメント無し）を `トライアル ` 付きへ寄せる。無ければ None。"""
+    incoming = apply_trial_legacy_prefix(code, incoming_name)
+    existing = (
+        db.query(MonthlyElement)
+        .filter(MonthlyElement.code == code, MonthlyElement.year == year)
+        .all()
+    )
+    matches = [
+        row for row in existing
+        if apply_trial_legacy_prefix(code, row.element) == incoming
+    ]
+    if not matches:
+        return None
+    exact = next((row for row in matches if row.element == incoming), None)
+    if exact is None:
+        src = min(matches, key=lambda row: row.sort_order)
+        if incoming_unit is not None:
+            src.unit = incoming_unit
+        rename_monthly_element(db, code, year, src.element, incoming)
+    elif incoming_unit is not None:
+        exact.unit = incoming_unit
+    target = db.get(MonthlyElement, (code, year, incoming))
+    if target is None:
+        return None
+    leftovers = (
+        db.query(MonthlyElement)
+        .filter(MonthlyElement.code == code, MonthlyElement.year == year)
+        .all()
+    )
+    for row in leftovers:
+        if row.element == incoming:
+            continue
+        if apply_trial_legacy_prefix(code, row.element) != incoming:
+            continue
+        src = db.get(MonthlyElement, (code, year, row.element))
+        dst = db.get(MonthlyElement, (code, year, incoming))
+        if src is not None and dst is not None:
+            merge_monthly_element_into(db, src, dst)
+    return db.get(MonthlyElement, (code, year, incoming))
+
+
+def apply_trial_legacy_element_names(verbose: bool = True) -> list[dict]:
+    """141A0 のセグメント無し行を `トライアル ` 付きへ。既存のトライアル行があれば値を寄せる。冪等。"""
+    insp = inspect(engine)
+    if "monthly_elements" not in insp.get_table_names():
+        return []
+    db = SessionLocal()
+    reports: list[dict] = []
+    try:
+        rows = [
+            r for r in db.query(MonthlyElement).all()
+            if apply_trial_legacy_prefix(r.code, r.element) != r.element
+        ]
+        rows.sort(key=lambda r: (r.code, r.year, r.sort_order, r.element))
+        for row in rows:
+            old = row.element
+            new = apply_trial_legacy_prefix(row.code, old)
+            if db.get(MonthlyElement, (row.code, row.year, old)) is None:
+                continue
+            dst_existed = db.get(MonthlyElement, (row.code, row.year, new)) is not None
+            rename_monthly_element(db, row.code, row.year, old, new)
+            report = {
+                "code": row.code,
+                "year": row.year,
+                "canonical": new,
+                "renamed": [] if dst_existed else [old],
+                "deleted": [old] if dst_existed else [],
+            }
+            reports.append(report)
+            if verbose:
+                print(f"月次トライアル旧名: {row.code} {row.year} {old!r} → {new!r}")
+        if reports:
+            db.commit()
+        return reports
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def merge_yoy_duplicate_elements(verbose: bool = True) -> list[dict]:
@@ -327,6 +413,7 @@ def init_db(strict: bool = False):
             )
     apply_known_monthly_element_units()
     merge_yoy_duplicate_elements()
+    apply_trial_legacy_element_names()
     delete_orphan_monthly_rows()
 
 

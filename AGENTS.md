@@ -19,7 +19,7 @@
 | `app/ingest.py` | API → DB 取込（UPSERT・冪等） |
 | `app/analytics.py` | MA / RS / ステージ / Q単独 / 決算後リターン |
 | `app/api.py` | REST (`/api/*`) |
-| `app/monthly_ingest.py` | PDF 月次列順 + as_of 時点の最新 `fiscal_year_end` → 暦年（純関数。year は受け取らない）。layout は calendar / fiscal / partial（並びでは拒否しない）。unit は見出しから。yoy 行名は前年比語を剥がして `(前年比)` |
+| `app/monthly_ingest.py` | PDF 月次列順 + as_of 時点の最新 `fiscal_year_end` → 暦年（純関数。year は受け取らない）。layout は calendar / fiscal / partial（並びでは拒否しない）。unit は見出しから。yoy 行名は前年比語を剥がして `(前年比)`。141A0 のセグメント無し旧名は `トライアル ` を先頭へ |
 | `app/main.py` | FastAPI エントリ + SPA 配信 |
 | `scripts/run_batch.py` | 日次バッチ / バックフィル |
 | `scripts/tdnet_monthly_r2.py` | TDnet 月次PDF → R2 mount (`/home/stock/r2-share/monthly/{code}/`) |
@@ -51,7 +51,7 @@
 - `Statement.raw_json` は元レスポンス全項目を残す（将来項目追加用）
 - `indicators` のステージは 1/2/3/4。判定不能は `NULL`
 - 月次 `MonthlyElement.unit` は `number` / `yoy_index` / `yoy_pct`。PDF 見出しから付ける（値の大きさから推測しない）。保存値は原文のまま（Gift 125.8 は 125.8、Intermestic -7.1 は -7.1）。表の表示は指数 100=フラット（`yoy_index` はそのまま、`yoy_pct` は `100+v`。▲ や +X.X% にはしない）
-- 月次の行名: yoy は PDF 由来の前年比語を剥がして `(前年比)` を1回（保存も表示も同じ。保存名は常に正規名）。ingest / POST は正規化してから既存行を探す。strip+suffix 後に同じなら同一行。既存の短い名（`売上高`）に正規名（`売上高(前年比)`）が当たれば値を UPSERT し保存名を正規名へリネームする。`init_db` / migrate は `yoy_index` / `yoy_pct` の保存名をすべて `canonicalize_element_label` へリネームする（同一年の重複がなくても。例: `全店 売上高前期比` → `全店 売上高前期比(前年比)`）。正規名が既にあれば正規名を残し、値は非NULL優先で寄せて短い行を消す。number はトリムのみ（前年比を付けない・剥がさない）。SPA の行キーは表示名（`fmtMonthlyElement`）なので、取り残した短い名も同一行に畳む
+- 月次の行名: yoy は PDF 由来の前年比語を剥がして `(前年比)` を1回（保存も表示も同じ。保存名は常に正規名）。ingest / POST は正規化してから既存行を探す。strip+suffix 後に同じなら同一行。既存の短い名（`売上高`）に正規名（`売上高(前年比)`）が当たれば値を UPSERT し保存名を正規名へリネームする。`init_db` / migrate は `yoy_index` / `yoy_pct` の保存名をすべて `canonicalize_element_label` へリネームする（同一年の重複がなくても。例: `全店 売上高前期比` → `全店 売上高前期比(前年比)`）。正規名が既にあれば正規名を残し、値は非NULL優先で寄せて短い行を消す。number はトリムのみ（前年比を付けない・剥がさない）。SPA の行キーは表示名（`fmtMonthlyElement`）なので、取り残した短い名も同一行に畳む。141A0（トライアルHD）は 2025年8月開示からトライアル/西友に分かれた。セグメント無しの旧名（`全店 売上高(前年比)`）は ingest / POST / PUT で先頭に `トライアル ` を付ける。既に `トライアル` / `西友` で始まる行は触らない。`init_db` / migrate も同じ規則で既存行をリネームし、同年に新名があれば値を寄せる
 - 月次は `stocks` にある code だけ書く。ingest / POST elements / 訂正 PUT / industry PUT は先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`。マスタ無しでは ingest しない。FK は付けない（`PRAGMA foreign_keys` も有効化しない）。`init_db` / migrate は stocks に無い月次を values → elements → tables → issuers の順に DELETE（冪等）
 - 月次業種は `monthly_issuers.industry`。既定は `その他`。`stocks.sector33` とは別。ingest は `last_ingested_at` を更新し industry は触らない
 

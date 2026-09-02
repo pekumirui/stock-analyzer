@@ -12,6 +12,10 @@ _YOY_UNITS = frozenset({"yoy_index", "yoy_pct"})
 # 長い語を先に。前年同月比 を 前年同月 より先、括弧付きを 前年比 より先。
 _YOY_FRAGMENTS = ("前年同月比", "前年同月", "(前年比)", "（前年比）", "前年比")
 _YOY_SUFFIX = "(前年比)"
+# 141A0 は 2025-08 開示からトライアル/西友に分かれた。旧PDFはセグメント無し。
+TRIAL_HOLDINGS_CODE = "141A0"
+TRIAL_SEGMENT_PREFIXES = ("トライアル", "西友")
+TRIAL_LEGACY_PREFIX = "トライアル "
 _UNIT_MSG = "unit は number / yoy_index / yoy_pct です。"
 
 
@@ -55,6 +59,23 @@ def canonicalize_element_label(element: str, unit: str | None) -> str:
     if base.endswith(_YOY_SUFFIX):
         return base
     return f"{base}{_YOY_SUFFIX}"
+
+
+def apply_trial_legacy_prefix(code: str, element: str) -> str:
+    """141A0 のセグメント無し行名に `トライアル ` を付ける。西友・既存トライアルは触らない。
+
+    2025年8月開示前の PDF は `全店 売上高(前年比)`。以降は `トライアル 全店 売上高(前年比)`。
+    """
+    if code != TRIAL_HOLDINGS_CODE:
+        return element
+    name = element.strip()
+    if not name:
+        return name
+    key = monthly_element_key(name)
+    for prefix in TRIAL_SEGMENT_PREFIXES:
+        if key.startswith(monthly_element_key(prefix)):
+            return name
+    return f"{TRIAL_LEGACY_PREFIX}{name}"
 
 
 def same_yoy_element(
