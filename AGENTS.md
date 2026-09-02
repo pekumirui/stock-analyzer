@@ -7,7 +7,7 @@
 - Python 3.10+ / FastAPI / SQLAlchemy 2 / pandas
 - フロントは `static/index.html` の単一 SPA（lightweight-charts + vanilla JS）。フレームワークを足さない
 - DB はローカル SQLite (`stock.db`)。本番切替は `DATABASE_URL` のみ
-- Windows 前提。仮想環境は `.venv`。実行は `.\run.ps1`、初回は `.\setup.ps1`
+- Windows と Linux。仮想環境は `.venv`。Windows は `.\setup.ps1` / `.\run.ps1`（python は `.venv\Scripts\python.exe`）。Linux は `./setup.sh` / `./run.sh`（python は `.venv/bin/python`）
 
 ## モジュール分担
 
@@ -44,7 +44,7 @@
 - 分析・チャート・RS・ステージは **調整済価格** (`adj_*`)。生値は表示・保存用
 - 銘柄コードは 5 桁文字列（例 `"72030"`, `"262A0"`）。パターンは `^[0-9][0-9A-Z]{3}[0-9]$`。表示の4桁 (262A / 7203) もある。実コードは 1-9 始まり
 - 合成デモデータは投入しない。`scripts/seed_demo.py` は置かない
-- 旧デモの `0` 始まりコードが残っていると RS ランクが狂う。`batch` / `backfill` の前に `scripts/check_demo.py` が走る。残っていたら `.\run.ps1 reset`
+- 旧デモの `0` 始まりコードが残っていると RS ランクが狂う。`batch` / `backfill` の前に `scripts/check_demo.py` が走る。残っていたら `.\run.ps1 reset` または `./run.sh reset`
 - 取込は UPSERT で冪等。何度走らせても壊れないこと
 - Q単独は保存しない。`analytics.quarter_summary` で累計差から都度算出
 - `Statement.raw_json` は元レスポンス全項目を残す（将来項目追加用）
@@ -64,7 +64,15 @@
 .\run.ps1 backfill       # 初回 5 年（要 .env）
 ```
 
-Python は `.venv\Scripts\python.exe` を使う。システムの python で依存を入れない。
+```bash
+./setup.sh               # .venv + 依存
+./run.sh serve           # http://localhost:8000
+./run.sh reset           # stock.db 削除
+./run.sh batch           # 日次（要 .env）
+./run.sh backfill        # 初回 5 年（要 .env）
+```
+
+Python は Windows では `.venv\Scripts\python.exe`、Linux では `.venv/bin/python` を使う。システムの python で依存を入れない。`.env` / `stock.db` / `.venv` はコミットしない。既存の `.env` は上書きしない。
 
 検証の目安:
 
