@@ -625,6 +625,23 @@ def main() -> None:
     if _err(r)["code"] != "ELEMENT_NOT_FOUND":
         _fail(f"PUT missing element: {r.json()!r}")
 
+    r = c.request("DELETE", "/api/v1/tables/7203/2026/elements", json={"element": "店舗数"})
+    _expect(r, 200, "DELETE element")
+    if r.json() != {"code": "72030", "year": 2026, "element": "店舗数", "deleted": True}:
+        _fail(f"DELETE body: {r.json()!r}")
+    r = c.get("/api/v1/tables/7203/2026")
+    names = [e["element"] for e in r.json()["elements"]]
+    if "店舗数" in names:
+        _fail(f"DELETE leftover: {names!r}")
+    r = c.request("DELETE", "/api/v1/tables/7203/2026/elements", json={"element": "店舗数"})
+    _expect(r, 404, "DELETE missing element")
+    if _err(r)["code"] != "ELEMENT_NOT_FOUND":
+        _fail(f"DELETE missing: {r.json()!r}")
+    r = c.request("DELETE", "/api/v1/tables/7203/2099/elements", json={"element": "店舗数"})
+    _expect(r, 404, "DELETE missing table")
+    if _err(r)["code"] != "TABLE_NOT_FOUND":
+        _fail(f"DELETE missing table: {r.json()!r}")
+
     # 7203 numeric values from earlier tests still intact
     r = c.get(base)
     by_name = {e["element"]: e["values"] for e in r.json()["elements"]}

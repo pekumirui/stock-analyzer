@@ -13,7 +13,7 @@ from .config import (
     EARNINGS_PARAMS as EP, EARNINGS_EXCLUDE_PRODUCT_CATEGORIES, MONTHLY_NEW_DAYS,
     RS_PRODUCT_CATEGORIES,
 )
-from .db import fold_aliased_element, fold_same_yoy_element, get_session
+from .db import delete_monthly_element, fold_aliased_element, fold_same_yoy_element, get_session
 from .models import (
     Stock, DailyPrice, Topix, Statement, Indicator, EarningsEvent,
     MonthlyIssuer, MonthlyTable, MonthlyElement, MonthlyValue,
@@ -598,6 +598,22 @@ def put_element(code: str, year: str, payload: dict | None = Body(None),
     row.unit = unit
     db.commit()
     return {"code": code, "year": year_i, "element": element, "unit": unit}
+
+
+@router_v1.delete("/tables/{code}/{year}/elements")
+def delete_element(code: str, year: str, payload: dict | None = Body(None),
+                   db: Session = Depends(get_session)):
+    """行と値を消す。表は残す。新規作成はしない。"""
+    code = _parse_code(code)
+    year_i = _parse_year(year)
+    body = _require_object(payload)
+    element = _lookup_element(body.get("element"), code, year=year_i)
+    _require_stock(db, code)
+    _get_table(db, code, year_i)
+    _get_element(db, code, year_i, element)
+    delete_monthly_element(db, code, year_i, element)
+    db.commit()
+    return {"code": code, "year": year_i, "element": element, "deleted": True}
 
 
 @router_v1.post("/tables/{code}/ingest")
