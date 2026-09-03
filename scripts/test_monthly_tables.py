@@ -1077,6 +1077,8 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("loadMonthlyTables must window to the last 3 calendar years")
     if "for(const e of rowOrder)" not in load_body:
         _fail("each year table must iterate the shared row order")
+    if "Object.keys(vals).length" not in load_body:
+        _fail("year table must skip rows with no values that year")
     if "byName[src.element]" in load_body:
         _fail("year table cells must map stored names through fmtMonthlyElement")
     if "fmtMonthlyElement(src.element" not in load_body:

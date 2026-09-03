@@ -1060,6 +1060,7 @@ async function loadMonthlyTables(){
     for(const e of rowOrder){
       const src = byName[e.element];
       const vals = (src && src.values) || {};
+      if(!Object.keys(vals).length) continue;
       const unit = (src && src.unit) || e.unit || "number";
       const ds = ` data-series="${escHtml(e.element)}" onclick="setMonthlySeries(this.dataset.series)"`;
       h += `<tr${ds}><td class="l">${fmtMonthlyElement(e.element, unit)}</td>`;
