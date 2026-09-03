@@ -56,7 +56,7 @@ Harness: HTTP against the same routes the SPA uses, plus the browser when CDP is
 | 型の調査 tab | `nav button[data-tab="census"]` |
 | チャート tab | `nav button[data-tab="chart"]` |
 | スクリーナー tab | `nav button[data-tab="screener"]` |
-| Earnings calendar day | `#cal .d` with `onclick="selectDate('YYYY-MM-DD')"`; days with disclosures show `.cnt` |
+| Earnings calendar | `#cal-btn` opens `#cal-pop`; day cells are `#cal .d` with `onclick="selectDate('YYYY-MM-DD')"`. Days with disclosures show `.cnt`. Esc / `#cal-backdrop` / a day click close the popover. |
 | Earnings row | `#earn-tbl tr[data-no]` |
 | 累計 / 3か月 | `.ftab[data-fin="cum"]` (default on) / `.ftab[data-fin="q"]` |
 | Chart search | `#sym` (placeholder `銘柄名 or コード`), suggestions `#suggest` |
