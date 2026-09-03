@@ -6,7 +6,7 @@
 <title>株式分析ツール</title>
 <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
 <style>
-  :root { --bg:#f3f5f7; --panel:#ffffff; --border:#d8dee6; --text:#222; --sub:#66707a;
+  :root { --bg:#ffffff; --panel:#ffffff; --border:#d8dee6; --text:#222; --sub:#66707a;
           --accent:#0077b6; --up:#d32f2f; --down:#1b8a5a; --warn:#e6a100;
           --row:#f6f8fa; --row-sel:#e7f3fb; --now:#fff8e1; --grid:#e8ecf0; }
   * { box-sizing:border-box; margin:0; }
@@ -17,10 +17,10 @@
   header h1 { font-size:16px; margin-right:8px; }
   nav button { background:none; border:none; color:var(--sub); padding:8px 10px; cursor:pointer; font-size:14px; border-bottom:2px solid transparent; }
   nav button.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
-  main { padding:12px; max-width:1200px; margin:0 auto; }
-  main.wide { max-width:1600px; }   /* 決算速報タブは2カラム密度を取るため広くする */
-  .panel { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px; margin-bottom:12px; }
-  table { width:100%; border-collapse:collapse; font-size:13px; }
+  main { padding:8px 12px; }
+  .panel { background:var(--panel); padding:12px; margin-bottom:12px; }
+  .a-list, .a-cal, .a-chart, .a-fin { border:1px solid var(--border); }
+  table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
   th,td { padding:6px 8px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap; }
   th { color:var(--sub); font-weight:normal; position:sticky; top:0; background:var(--panel); }
   td:first-child, th:first-child, td.l, th.l { text-align:left; }
@@ -100,18 +100,9 @@
   #monthly-groups { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
   .mchip { background:transparent; border:1px solid var(--border); color:var(--sub); border-radius:999px; padding:4px 12px; cursor:pointer; font-size:13px; }
   .mchip.on { background:var(--accent); color:#fff; border-color:var(--accent); }
-  /* Detail はカード枠なし。main の左右余白も潰して横幅を取る。背景は白 */
-  #monthly-top,
-  #monthly-detail {
-    background:#fff;
-    margin:-12px;
-    padding:10px 8px 32px;
-  }
-  #monthly-detail {
-    min-height:calc(100vh - 52px);
-  }
+  #monthly-detail { min-height:calc(100vh - 52px); }
   #monthly-tbl {
-    width:max-content; min-width:100%;
+    width:max-content;
     border-collapse:collapse;
     background:#fff;
   }
@@ -214,17 +205,9 @@
   .qb-3Q { color:#0077b6; }
   .qb-4Q { color:#8e4ec6; }
   .a-fin .tbl-wrap { max-height:min(52vh, 560px); }
-  .cards { display:grid; gap:8px; }
-  .card { border:1px solid var(--border); border-radius:8px; padding:8px; cursor:pointer; }
-  .card.sel { border-color:var(--accent); background:var(--row-sel); }
-  .card .ch { display:flex; gap:6px; align-items:baseline; flex-wrap:wrap; margin-bottom:6px; }
-  .card .cg { display:grid; grid-template-columns:auto 1fr 1fr; gap:2px 10px; font-size:12px; }
-  .card .cg .hd { color:var(--sub); }
-  .card .cg .v { text-align:right; font-variant-numeric:tabular-nums; }
 
   @media (max-width:640px){
     body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:40px}
-    table.fin .disc, table.fin th.disc { display:none; }
     .evt-toggles .evt-label { min-height:32px; }
     #monthly-chart { min-height:280px; }
     /* 16em sticky だと項目列が画面の大半を占め月が右端にしか出ない。スマホは sticky を外し項目列を短くする */
@@ -280,7 +263,7 @@
       <div class="tbl-wrap scroll" id="earn-list" tabindex="0"></div>
     </div>
 
-    <details class="panel a-cal" id="cal-panel">
+    <details class="panel a-cal" id="cal-panel" open>
       <summary>決算カレンダー</summary>
       <div class="row" style="margin-top:8px">
         <button class="btn" onclick="calMove(-1)">◀</button>
@@ -393,7 +376,6 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x=>x.classList.remove("active"));
   b.classList.add("active");
   ["earnings","chart","screener","monthly"].forEach(t => $("#tab-"+t).style.display = t===b.dataset.tab?"":"none");
-  document.querySelector("main").classList.toggle("wide", b.dataset.tab==="earnings" || b.dataset.tab==="monthly");
   if (b.dataset.tab==="screener" && !$("#sc-tbl").innerHTML) loadScreener();
   if (b.dataset.tab==="monthly") loadMonthlyList();
 });
@@ -436,7 +418,7 @@ async function selectDate(ds){
 
 function renderList(){
   if(!earnRows.length){ $("#earn-list").innerHTML = `<div class="sub">開示なし</div>`; return; }
-  $("#earn-list").innerHTML = mqNarrow.matches ? cardsHtml() : tableHtml();
+  $("#earn-list").innerHTML = tableHtml();
   markSel();
 }
 
@@ -460,16 +442,6 @@ function tableHtml(){
        + `</tr>`;
   }
   return h + `</tbody></table>`;
-}
-
-function cardsHtml(){
-  return `<div class="cards">` + earnRows.map(r =>
-    `<div class="card" data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">
-       <div class="ch"><b>${(r.disclosed_time||"").slice(0,5)}</b><span>${r.name}</span>
-         <small class="sub">${r.code.slice(0,4)} / ${r.fy_label} ${r.period||""}</small>${revBadge(r)}</div>
-       <div class="cg"><span class="hd"></span><span class="hd v">QoQ</span><span class="hd v">YoY</span>`
-     + MET.map(([k,l])=>`<span class="hd">${l}</span><span class="v">${gc((r.qoq||{})[k])}</span><span class="v">${gc((r.yoy||{})[k])}</span>`).join("")
-     + `</div></div>`).join("") + `</div>`;
 }
 
 function markSel(){
@@ -582,9 +554,6 @@ document.querySelectorAll(".ftab").forEach(b => b.onclick = () => {
   $("#q-wrap").hidden = !q;
   $("#cum-wrap").hidden = q;
 });
-
-// 画面幅がカード/テーブルの境界をまたいだら組み直す
-mqNarrow.addEventListener("change", renderList);
 
 $("#earn-list").addEventListener("keydown", e => {
   if(e.key!=="ArrowDown" && e.key!=="ArrowUp") return;
@@ -1249,9 +1218,6 @@ function fmtMonthlyElement(name, unit){
   return base + "(前年比)";
 }
 
-// 初期表示: 決算速報タブは広幅、カレンダーはPCのみ開いた状態にする
-document.querySelector("main").classList.add("wide");
-$("#cal-panel").open = window.innerWidth >= 1100;
 fillEventToggles();
 renderCal();
 </script>
