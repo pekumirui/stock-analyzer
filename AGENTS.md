@@ -93,7 +93,7 @@ Python は Windows では `.venv\Scripts\python.exe`、Linux では `.venv/bin/p
 
 - VPS 上の `stock-analyzer-mcp` が `127.0.0.1:8010/mcp` を待ち、nginx が `https://<domain>/mcp` に出す
 - ツールは `service_status` / `app_logs` / `batch_logs` / `nginx_logs` / `db_stats` / `db_lookup` / `monthly_list` / `monthly_get` / `monthly_add_element` / `monthly_put_values` / `monthly_delete_element` / `monthly_set_industry` / `monthly_ingest`。任意シェルも restart も任意 SQL もない。月次ツールは `http://127.0.0.1:8000/api/v1/tables` のみ（nginx Basic は使わない）
-- 月次の新規登録は `monthly_ingest`（PDF 列順 + as_of 時点の最新 `fiscal_year_end` から暦年を決める。year は渡さない）。`monthly_put_values` の year は暦年で、訂正用。年付き put は訂正のみ。行の削除は `monthly_delete_element`（値も消す。表は残す）。月次業種は `monthly_set_industry`。書き込みは stocks にある code だけ（マスタ無しは `NOT_IN_MASTER`。FK は付けない）
+- 月次の新規登録は `monthly_ingest`（PDF 列順 + as_of 時点の最新 `fiscal_year_end` から暦年を決める。year は渡さない）。`monthly_put_values` の year は暦年で、訂正用。年付き put は訂正のみ。行の削除は `monthly_delete_element`（値が無い行だけ。残っていれば 409。表は残す）。月次業種は `monthly_set_industry`。書き込みは stocks にある code だけ（マスタ無しは `NOT_IN_MASTER`。FK は付けない）
 - 月次の unit は `number` / `yoy_index` / `yoy_pct` の3種。エージェントは PDF 見出しから付ける（前年比 100基準 → `yoy_index`、▲付き変化率 → `yoy_pct`、店舗数 → `number`）。値の大きさから推測しない。保存値は PDF 原文のまま（125.8 は 125.8 のまま）。既存行の unit 変更は `PUT /api/v1/tables/{code}/{year}/elements`（`{element, unit}`）
 - 認証は `MCP_TOKEN`（Bearer または OAuth で発行した access token）。GitHub secret と同値。値をログに出さない
 - 本番ログは `/var/log/app/`（`stock-analyzer.log` / `batch.log` / `mcp.log`）。journal も残る。ローカルのバッチはアプリディレクトリの `batch.log`

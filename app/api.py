@@ -603,7 +603,7 @@ def put_element(code: str, year: str, payload: dict | None = Body(None),
 @router_v1.delete("/tables/{code}/{year}/elements")
 def delete_element(code: str, year: str, payload: dict | None = Body(None),
                    db: Session = Depends(get_session)):
-    """行と値を消す。表は残す。新規作成はしない。"""
+    """空の行だけ消す。値が残っていれば 409。表は残す。"""
     code = _parse_code(code)
     year_i = _parse_year(year)
     body = _require_object(payload)
@@ -611,6 +611,13 @@ def delete_element(code: str, year: str, payload: dict | None = Body(None),
     _require_stock(db, code)
     _get_table(db, code, year_i)
     _get_element(db, code, year_i, element)
+    leftover = (
+        db.query(MonthlyValue)
+        .filter_by(code=code, year=year_i, element=element)
+        .count()
+    )
+    if leftover:
+        raise ApiError(409, "ELEMENT_HAS_VALUES", "値が残っている行は消せません。先にセルを空にしてください。")
     delete_monthly_element(db, code, year_i, element)
     db.commit()
     return {"code": code, "year": year_i, "element": element, "deleted": True}
