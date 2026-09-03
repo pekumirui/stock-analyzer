@@ -19,7 +19,7 @@
   nav button.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
   main { padding:8px 12px; }
   .panel { background:var(--panel); padding:12px; margin-bottom:12px; }
-  .a-list, .a-cal, .a-chart, .a-fin { border:1px solid var(--border); }
+  .a-list, .a-chart, .a-fin { border:1px solid var(--border); }
   table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
   th,td { padding:6px 8px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap; }
   th { color:var(--sub); font-weight:normal; position:sticky; top:0; background:var(--panel); }
@@ -31,13 +31,16 @@
   .badge.rev { background:var(--warn); color:#fff; }
   .badge.st1 { background:#5b6470; } .badge.st2 { background:#2e8b57; }
   .badge.st3 { background:#b8860b; } .badge.st4 { background:#a04050; }
-  .cal { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
-  .cal .h { text-align:center; color:var(--sub); font-size:12px; padding:4px; }
-  .cal .d { min-height:52px; border:1px solid var(--border); border-radius:6px; padding:4px; cursor:pointer; }
+  .cal { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+  .cal .h { text-align:center; color:var(--sub); font-size:11px; padding:2px 0; }
+  .cal .d { min-height:36px; border:1px solid transparent; border-radius:6px; padding:3px 2px 10px; cursor:pointer; position:relative; text-align:center; }
   .cal .d:hover { border-color:var(--accent); }
+  .cal .d.today { background:var(--now); }
   .cal .d.sel { border-color:var(--accent); background:var(--row-sel); }
-  .cal .d .n { font-size:12px; color:var(--sub); }
-  .cal .d .cnt { font-size:12px; color:var(--accent); margin-top:4px; }
+  .cal .d.today.sel { background:var(--row-sel); border-bottom:2px solid var(--warn); }
+  .cal .d .n { font-size:12px; color:var(--text); }
+  .cal .d.sel .n { font-weight:600; color:var(--accent); }
+  .cal .d .cnt { position:absolute; right:2px; bottom:1px; font-size:9px; line-height:1; color:var(--accent); }
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
   input,select { background:var(--panel); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:14px; }
   button.btn { background:var(--accent); border:none; color:#fff; border-radius:6px; padding:6px 12px; cursor:pointer; }
@@ -62,17 +65,25 @@
   .egrid > * { min-width:0; }
   /* 一覧は必ずスクロール枠に収める (ピーク日は1000件近くあり、下段の詳細に辿り着けなくなる) */
   .a-list .scroll { max-height:50vh; overflow:auto; }
-  /* 上段は 一覧75% + カレンダー25%、下段は チャート50% + 決算表50% */
+  /* 上段は一覧フル幅、下段は チャート50% + 決算表50% */
   @media (min-width:1100px){
-    .egrid { grid-template-columns:repeat(4,minmax(0,1fr)); align-items:start; }
-    .a-list { grid-column:span 3; } .a-cal { grid-column:span 1; }
-    .a-chart { grid-column:span 2; } .a-fin { grid-column:span 2; }
+    .egrid { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
+    .a-list { grid-column:span 2; }
+    .a-chart { grid-column:span 1; } .a-fin { grid-column:span 1; }
     .a-list .scroll { max-height:46vh; }
-    .a-cal { max-width:360px; justify-self:end; }
   }
   #earn-tbl th, #earn-tbl td { padding:5px 6px; }
-  .phead { display:flex; align-items:baseline; gap:8px; justify-content:space-between; margin-bottom:8px; }
+  .phead { display:flex; align-items:center; gap:8px; justify-content:space-between; margin-bottom:8px; }
   .phead h3 { margin:0; }
+  .phead-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+  .cal-wrap { position:relative; }
+  .cal-btn { background:transparent; border:1px solid var(--border); color:var(--sub); border-radius:6px; width:32px; height:32px; padding:0; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+  .cal-btn:hover, .cal-btn[aria-expanded="true"] { border-color:var(--accent); color:var(--accent); }
+  .cal-btn svg { width:16px; height:16px; }
+  .cal-pop { position:absolute; top:calc(100% + 6px); right:0; z-index:30; width:min(300px, calc(100vw - 24px)); background:var(--panel); border:1px solid var(--border); padding:10px; }
+  .cal-pop .row { margin-bottom:6px; justify-content:space-between; }
+  .cal-pop .btn { background:transparent; color:var(--text); border:1px solid var(--border); padding:2px 8px; }
+  #cal-backdrop { position:fixed; inset:0; z-index:20; }
   summary { cursor:pointer; color:var(--sub); }
   td.num { font-variant-numeric:tabular-nums; }
   .grp { border-left:1px solid var(--border); }
@@ -207,7 +218,7 @@
   .a-fin .tbl-wrap { max-height:min(52vh, 560px); }
 
   @media (max-width:640px){
-    body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:40px}
+    body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:34px}
     .evt-toggles .evt-label { min-height:32px; }
     #monthly-chart { min-height:280px; }
     /* 16em sticky だと項目列が画面の大半を占め月が右端にしか出ない。スマホは sticky を外し項目列を短くする */
@@ -258,20 +269,28 @@
     <div class="panel a-list">
       <div class="phead">
         <h3 id="earn-title">日付を選択してください</h3>
-        <span class="sub" id="earn-count" style="font-size:12px"></span>
+        <div class="phead-right">
+          <span class="sub" id="earn-count" style="font-size:12px"></span>
+          <div class="cal-wrap" id="cal-wrap">
+            <button type="button" class="cal-btn" id="cal-btn" aria-label="決算カレンダーを開く" aria-haspopup="dialog" aria-expanded="false" aria-controls="cal-pop">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="5" width="18" height="16" rx="2"/>
+                <path d="M8 3v4M16 3v4M3 10h18"/>
+              </svg>
+            </button>
+            <div class="cal-pop" id="cal-pop" hidden role="dialog" aria-label="決算カレンダー">
+              <div class="row">
+                <button type="button" class="btn" onclick="calMove(-1)">◀</button>
+                <b id="cal-title"></b>
+                <button type="button" class="btn" onclick="calMove(1)">▶</button>
+              </div>
+              <div class="cal" id="cal"></div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="tbl-wrap scroll" id="earn-list" tabindex="0"></div>
     </div>
-
-    <details class="panel a-cal" id="cal-panel" open>
-      <summary>決算カレンダー</summary>
-      <div class="row" style="margin-top:8px">
-        <button class="btn" onclick="calMove(-1)">◀</button>
-        <b id="cal-title"></b>
-        <button class="btn" onclick="calMove(1)">▶</button>
-      </div>
-      <div class="cal" id="cal"></div>
-    </details>
 
     <div class="panel a-chart">
       <div class="phead"><h3 id="e-chart-title">銘柄を選択してください</h3></div>
@@ -351,6 +370,7 @@
 </section>
 
 </main>
+<div id="cal-backdrop" hidden></div>
 <script>
 const $ = s => document.querySelector(s);
 const api = p => fetch(p).then(r => { if(!r.ok) throw new Error(r.status); return r.json(); });
@@ -383,21 +403,53 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
 // ---- 決算カレンダー ----
 let calY, calM, selDate=null;
 (()=>{ const t=new Date(); calY=t.getFullYear(); calM=t.getMonth()+1; })();
+const todayISO = () => {
+  const t = new Date();
+  return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`;
+};
+function calOpen(){
+  const pop = $("#cal-pop"), btn = $("#cal-btn"), bd = $("#cal-backdrop");
+  pop.hidden = false;
+  bd.hidden = false;
+  btn.setAttribute("aria-expanded", "true");
+  renderCal();
+}
+function calClose(){
+  const pop = $("#cal-pop"), btn = $("#cal-btn"), bd = $("#cal-backdrop");
+  if(pop.hidden) return;
+  pop.hidden = true;
+  bd.hidden = true;
+  btn.setAttribute("aria-expanded", "false");
+}
+function calToggle(){ $("#cal-pop").hidden ? calOpen() : calClose(); }
 function calMove(d){ calM+=d; if(calM>12){calM=1;calY++} if(calM<1){calM=12;calY--} renderCal(); }
 async function renderCal(){
   const mm = `${calY}-${String(calM).padStart(2,"0")}`;
   $("#cal-title").textContent = `${calY}年${calM}月`;
   const counts = await api(`/api/earnings/calendar?month=${mm}`).catch(()=>({}));
   const first = new Date(calY, calM-1, 1), days = new Date(calY, calM, 0).getDate();
+  const today = todayISO();
   let html = ["日","月","火","水","木","金","土"].map(d=>`<div class="h">${d}</div>`).join("");
   for(let i=0;i<first.getDay();i++) html += "<div></div>";
   for(let d=1;d<=days;d++){
     const ds = `${mm}-${String(d).padStart(2,"0")}`;
     const c = counts[ds];
-    html += `<div class="d ${ds===selDate?'sel':''}" onclick="selectDate('${ds}')"><div class="n">${d}</div>${c?`<div class="cnt">${c}件</div>`:""}</div>`;
+    const cls = ["d"];
+    if(ds===selDate) cls.push("sel");
+    if(ds===today) cls.push("today");
+    html += `<div class="${cls.join(" ")}" onclick="selectDate('${ds}')"><div class="n">${d}</div>${c?`<div class="cnt">${c}件</div>`:""}</div>`;
   }
   $("#cal").innerHTML = html;
 }
+$("#cal-btn").addEventListener("click", e => { e.stopPropagation(); calToggle(); });
+$("#cal-pop").addEventListener("click", e => e.stopPropagation());
+$("#cal-backdrop").addEventListener("click", calClose);
+document.addEventListener("keydown", e => { if(e.key==="Escape") calClose(); });
+document.addEventListener("click", e => {
+  if($("#cal-pop").hidden) return;
+  if(!$("#cal-wrap").contains(e.target) && e.target!==$("#cal-backdrop")) calClose();
+});
+
 // ---- 決算速報 一覧(マスター) / 詳細(ディテール) ----
 const MET = [["net_sales","売上"],["operating_profit","営利"],["ordinary_profit","経利"],["profit","純利"]];
 const mqNarrow = window.matchMedia("(max-width:700px)");
@@ -407,7 +459,8 @@ let earnRows=[], selNo=null, detailReq=0;
 
 async function selectDate(ds){
   selDate = ds; renderCal();
-  $("#earn-title").textContent = `${ds} の決算発表`;
+  calClose();
+  $("#earn-title").textContent = `${ds}の決算発表`;
   earnRows = await api(`/api/earnings?date=${ds}`).catch(()=>[]);
   $("#earn-count").textContent = earnRows.length ? `${earnRows.length}件` : "";
   selNo = null;
@@ -1219,7 +1272,7 @@ function fmtMonthlyElement(name, unit){
 }
 
 fillEventToggles();
-renderCal();
+selectDate(todayISO());
 </script>
 </body>
 </html>
