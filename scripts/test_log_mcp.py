@@ -783,8 +783,8 @@ def test_monthly_tools() -> None:
             if r.status_code != 201:
                 raise SystemExit(f"TestClient add: {r.status_code} {r.text}")
             r = api.get("/api/v1/tables/7203/2024")
-            if r.status_code != 200 or [e["element"] for e in r.json()["elements"]] != ["売上高前年比"]:
-                raise SystemExit(f"TestClient get: {r.text}")
+            if r.status_code != 200 or r.json()["elements"]:
+                raise SystemExit(f"TestClient get empty: {r.text}")
         finally:
             if prev_url is None:
                 os.environ.pop("DATABASE_URL", None)

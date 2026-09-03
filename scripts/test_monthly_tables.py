@@ -193,10 +193,8 @@ def main() -> None:
     _expect(r, 200, "GET after auto-create")
     if r.json()["code"] != code or r.json()["year"] != 2024:
         _fail(f"get table: {r.json()!r}")
-    if [e["element"] for e in r.json()["elements"]] != ["売上高 前年比"]:
-        _fail(f"elements after create: {r.json()!r}")
-    if r.json()["elements"][0].get("unit") != "number":
-        _fail(f"GET default unit: {r.json()!r}")
+    if r.json()["elements"]:
+        _fail(f"empty year row must be omitted: {r.json()!r}")
 
     r = c.get(f"/api/v1/tables/{code}")
     _expect(r, 200, "GET years after create")
@@ -312,8 +310,8 @@ def main() -> None:
         _fail(f"omit empty months: {v!r}")
     if float(v["4"]) != 105.2 or float(v["6"]) != 110:
         _fail(f"values: {v!r}")
-    if by_name["売上高 前年比"] != {}:
-        _fail(f"empty element should have empty values: {by_name!r}")
+    if "売上高 前年比" in by_name:
+        _fail(f"empty element must be omitted: {by_name!r}")
 
     # last-write-wins overwrite
     r = c.put(f"{base}/values", json={"element": "売上高前年比", "month": 4, "value": 99.9})
@@ -343,8 +341,8 @@ def main() -> None:
         _fail(f"batch invalid: {r.json()!r}")
     r = c.get(base)
     by_name = {e["element"]: e["values"] for e in r.json()["elements"]}
-    if by_name["営業利益"] != {}:
-        _fail(f"batch leaked: {by_name['営業利益']!r}")
+    if "営業利益" in by_name:
+        _fail(f"batch leaked: {by_name.get('営業利益')!r}")
 
     r = c.put(f"{base}/values/batch", json={
         "element": "営業利益",
@@ -374,7 +372,7 @@ def main() -> None:
     # elements in registration order
     r = c.get(base)
     names = [e["element"] for e in r.json()["elements"]]
-    if names != ["売上高 前年比", "売上高前年比", "営業利益"]:
+    if names != ["売上高前年比", "営業利益"]:
         _fail(f"registration order: {names!r}")
 
     # 別年度
@@ -463,6 +461,13 @@ def main() -> None:
     _expect(r, 201, "262A create")
     if r.json()["code"] != "262A0":
         _fail(f"262A should canonicalize: {r.json()!r}")
+    r = c.get("/api/v1/tables/262A0/2024")
+    _expect(r, 200, "GET 262A0 empty")
+    if r.json()["code"] != "262A0" or r.json()["elements"]:
+        _fail(f"GET 262A0 empty: {r.json()!r}")
+    r = c.put("/api/v1/tables/262A0/2024/values",
+              json={"element": "売上高前年比", "month": 1, "value": 1.0})
+    _expect(r, 200, "262A0 seed value")
     r = c.get("/api/v1/tables/262A0/2024")
     _expect(r, 200, "GET 262A0")
     if r.json()["code"] != "262A0" or [e["element"] for e in r.json()["elements"]] != ["売上高前年比"]:
@@ -571,8 +576,8 @@ def main() -> None:
     if r.json()["created"] is not False or r.json()["element"] != "売上高(前年比)":
         _fail(f"60590 yoy canonical: {r.json()!r}")
     r = c.get("/api/v1/tables/60590/2026")
-    if [e["element"] for e in r.json()["elements"]] != ["売上高(前年比)"]:
-        _fail(f"60590 one yoy row: {r.json()!r}")
+    if r.json()["elements"]:
+        _fail(f"60590 empty rows omitted: {r.json()!r}")
 
     r = c.post("/api/v1/tables/60590/2026/elements", json={"element": "カラオケ全店 売上高"})
     _expect(r, 201, "60590 karaoke number")
@@ -586,8 +591,8 @@ def main() -> None:
         _fail(f"60590 karaoke POST rename: {r.json()!r}")
     r = c.get("/api/v1/tables/60590/2026")
     names = [e["element"] for e in r.json()["elements"]]
-    if names != ["売上高(前年比)", "カラオケ全店 売上高(前年比)"]:
-        _fail(f"60590 after karaoke rename: {names!r}")
+    if names:
+        _fail(f"60590 after karaoke rename empty: {names!r}")
 
     # do not guess unit from magnitude
     r = c.post("/api/v1/tables/7203/2026/elements",
@@ -670,6 +675,11 @@ def _post_monthly_elements(c, code: str, year: int, rows: list[tuple[str, str]])
                    json={"element": name, "unit": unit})
         if r.status_code not in (200, 201):
             _fail(f"POST {code}/{year} {name!r}: {r.status_code} {r.text[:200]}")
+        stored = r.json()["element"]
+        r = c.put(f"/api/v1/tables/{code}/{year}/values",
+                  json={"element": stored, "month": 1, "value": 1.0})
+        if r.status_code != 200:
+            _fail(f"PUT {code}/{year} {stored!r}: {r.status_code} {r.text[:200]}")
 
 
 # SPA 年表・チャート用。ingest には置かない。static/index.html と同じ規則。

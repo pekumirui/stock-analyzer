@@ -460,8 +460,8 @@ def test_all_or_nothing_similar() -> None:
     _expect(r, 200, "force ingest")
     r = c.get(f"/api/v1/tables/{code}/2025")
     names = [e["element"] for e in r.json()["elements"]]
-    if "全店 売上高" not in names or "全店売上高" not in names:
-        _fail(f"force elements: {names!r}")
+    if names != ["全店 売上高"]:
+        _fail(f"force elements omit empty seed: {names!r}")
     r = c.get(f"/api/v1/tables/{code}/2026")
     _expect(r, 200, "GET 2026 after force")
     if [e["element"] for e in r.json()["elements"]] != ["全店 売上高"]:
@@ -622,6 +622,9 @@ def test_ingest_yoy_label_and_number_separate() -> None:
 
     r = c.post(f"/api/v1/tables/{code}/{2025}/elements", json={"element": "売上高", "unit": "number"})
     _expect(r, 201, "number 売上高 separate")
+    r = c.put(f"/api/v1/tables/{code}/2025/values",
+              json={"element": "売上高", "month": 11, "value": 1.0})
+    _expect(r, 200, "number 売上高 value")
     r = c.get(f"/api/v1/tables/{code}/2025")
     names = [e["element"] for e in r.json()["elements"]]
     if names != ["売上高(前年比)", "売上高"]:
