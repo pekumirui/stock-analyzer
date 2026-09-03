@@ -108,6 +108,7 @@ Python は Windows では `.venv\Scripts\python.exe`、Linux では `.venv/bin/p
 - 既存スタイルに合わせる。型ヒントは付ける。コメントは非自明な制約だけ（レート制限、調整済、旧デモ取り残し禁止など）
 - 閾値・プラン上限・ベース URL は `config.py`。ハードコードしない
 - UI はスマホでも使えること。`static/index.html` を分割しない（現状の単一ファイル方針）
+- キャンバスは白。カードを浮かさない。横幅はビューポート。密度優先。スマホとPCは同じ構造。詳細は `docs/SCREEN_SPEC.md` の共通見た目
 - 月次タブの画面は `docs/DESIGN_monthly.md`。他タブの画面仕様を足すときは `docs/SCREEN_SPEC.md`
 - 秘密情報（`.env`, API キー）をコミットしない・ログに出さない
 - DESIGN.md と実装が食い違うときは、実装を直すか DESIGN を更新する。放置しない
