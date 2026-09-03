@@ -1,10 +1,12 @@
 """PDF 月次列順と事業年度末月から暦年を割り当てる。year は呼び出し側が渡さない。"""
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
-from datetime import date
-from typing import Any, Callable, Sequence
+from datetime import date, timedelta
+from pathlib import Path
+from typing import Any, Sequence
 
 # 保存値は PDF 原文。unit は表示だけ。値の大きさから推測しない。
 MONTHLY_UNITS = ("number", "yoy_index", "yoy_pct")
@@ -57,73 +59,80 @@ def canonicalize_element_label(element: str, unit: str | None) -> str:
     return f"{base}{_YOY_SUFFIX}"
 
 
-def exact_rename(mapping: dict[str, str]) -> Callable[[str], str]:
-    """完全一致の旧名→新名。新しい銘柄ルールは ISSUER_ELEMENT_ALIASES に足す。"""
-    def apply(name: str) -> str:
-        return mapping.get(name, name)
-    return apply
+class IssuerPeriodRename:
+    """until 未満の as_of、または until.year 以下の year に rename を掛ける。"""
+
+    def __init__(self, until: date, rename: dict[str, str]) -> None:
+        self.until = until
+        self.rename = rename
 
 
-def prefix_if_absent(prefix: str, *existing: str) -> Callable[[str], str]:
-    """existing のどれでも始まらなければ prefix を付ける。"""
-    def apply(name: str) -> str:
-        if not name:
-            return name
-        key = monthly_element_key(name)
-        if any(key.startswith(monthly_element_key(part)) for part in existing):
-            return name
-        return f"{prefix}{name}"
-    return apply
+_ALIAS_PATH = Path(__file__).with_name("issuer_aliases.json")
 
 
-class IssuerAliasRule:
-    """銘柄1件の名寄せ。transforms と examples を一緒に置く。"""
-
-    def __init__(
-        self,
-        *transforms: Callable[[str], str],
-        examples: tuple[tuple[str, str], ...] = (),
-    ) -> None:
-        self.transforms = transforms
-        self.examples = examples
-
-    def apply(self, name: str) -> str:
-        for fn in self.transforms:
-            name = fn(name)
-        return name
-
-
-# 銘柄ごとの名寄せ。既存の canonicalize / same_yoy には引数を足さない。
-# 新しい発行体はここに Rule と examples を足す。テストは examples から生成する。
-# 141A0 は 2025-08 開示からトライアル/西友。旧PDFのセグメント無しに トライアル を付ける。
-ISSUER_ELEMENT_ALIASES: dict[str, IssuerAliasRule] = {
-    "141A0": IssuerAliasRule(
-        prefix_if_absent("トライアル ", "トライアル", "西友"),
-        examples=(
-            ("全店 売上高(前年比)", "トライアル 全店 売上高(前年比)"),
-            ("新規出店数", "トライアル 新規出店数"),
-            ("トライアル 全店 売上高(前年比)", "トライアル 全店 売上高(前年比)"),
-            ("西友 全店 売上高(前年比)", "西友 全店 売上高(前年比)"),
-        ),
-    ),
-}
+def load_issuer_aliases(path: Path | None = None) -> dict[str, tuple[IssuerPeriodRename, ...]]:
+    raw = json.loads((path or _ALIAS_PATH).read_text(encoding="utf-8"))
+    out: dict[str, tuple[IssuerPeriodRename, ...]] = {}
+    if not isinstance(raw, dict):
+        return out
+    for code, periods in raw.items():
+        if not isinstance(periods, list):
+            continue
+        rules: list[IssuerPeriodRename] = []
+        for item in periods:
+            if not isinstance(item, dict):
+                continue
+            until_raw = item.get("until")
+            rename_raw = item.get("rename")
+            if not isinstance(until_raw, str) or not isinstance(rename_raw, dict):
+                continue
+            rename = {
+                str(src).strip(): str(dst).strip()
+                for src, dst in rename_raw.items()
+                if str(src).strip() and str(dst).strip()
+            }
+            rules.append(IssuerPeriodRename(date.fromisoformat(until_raw), rename))
+        rules.sort(key=lambda rule: rule.until)
+        out[str(code)] = tuple(rules)
+    return out
 
 
-def apply_issuer_aliases(code: str, element: str) -> str:
-    """保存前の行名。yoy 正規化のあと、銘柄ルールがあれば適用。"""
+ISSUER_ELEMENT_ALIASES = load_issuer_aliases()
+
+
+def apply_issuer_aliases(
+    code: str,
+    element: str,
+    *,
+    year: int | None = None,
+    as_of: date | None = None,
+) -> str:
+    """canonicalize 後の行名。ingest は as_of、POST/PUT/migrate は year。"""
     name = element.strip()
-    rule = ISSUER_ELEMENT_ALIASES.get(code)
-    if rule is None:
-        return name
-    return rule.apply(name)
+    for rule in ISSUER_ELEMENT_ALIASES.get(code, ()):
+        active = False
+        if as_of is not None:
+            active = as_of < rule.until
+        elif year is not None:
+            active = year <= rule.until.year
+        if active:
+            name = rule.rename.get(name, name)
+    return name
 
 
-def plan_issuer_alias_cases() -> list[tuple[str, str, str]]:
-    """テスト用。(code, incoming, stored)。ルールの examples から作る。"""
-    cases: list[tuple[str, str, str]] = []
-    for code, rule in sorted(ISSUER_ELEMENT_ALIASES.items()):
-        for incoming, stored in rule.examples:
-            cases.append((code, incoming, stored))
+def plan_issuer_alias_cases() -> list[tuple[str, str, str, dict[str, date | int]]]:
+    """テスト用。(code, incoming, stored, ctx)。rename 表から as_of / year を生成。"""
+    cases: list[tuple[str, str, str, dict[str, date | int]]] = []
+    for code, rules in sorted(ISSUER_ELEMENT_ALIASES.items()):
+        for rule in rules:
+            before = rule.until - timedelta(days=1)
+            after = rule.until
+            for src, dst in rule.rename.items():
+                cases.append((code, src, dst, {"as_of": before}))
+                cases.append((code, src, src, {"as_of": after}))
+                cases.append((code, src, dst, {"year": rule.until.year}))
+                cases.append((code, src, src, {"year": rule.until.year + 1}))
+                cases.append((code, dst, dst, {"year": rule.until.year}))
     return cases
 
 

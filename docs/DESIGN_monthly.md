@@ -34,7 +34,7 @@
 
 最新セルは値のある最大の `(year, month)`。無いときは空。表示の 100=フラットは既存の `fmtMonthlyCell` と同じ。`yoy_index` はそのまま。`yoy_pct` は `100+v`。
 
-**行名。** yoy の保存名は常に `canonicalize_element_label`（末尾 `(前年比)`）。`init_db` / migrate は既存の短い yoy 名を正規名へリネームする（同一年の重複がなくても。例: `全店 売上高前期比` → `全店 売上高前期比(前年比)`）。正規名が既にあれば正規名を残し、値は非NULL優先。number（`店舗数` や number の `売上高`）は前年比を付けない。銘柄固有の旧名寄せは `ISSUER_ELEMENT_ALIASES`（例: 141A0 のセグメント無し名へ `トライアル `）。SPA の年表・系列・チャートの行キーは `fmtMonthlyElement`（表示名）。年ごとの保存名が違っても表示名が同じなら1行。取り残した短い名も畳む。その年の値は、その年の保存 element のうち表示名が一致するものから取る。
+**行名。** yoy の保存名は常に `canonicalize_element_label`（末尾 `(前年比)`）。`init_db` / migrate は既存の短い yoy 名を正規名へリネームする（同一年の重複がなくても。例: `全店 売上高前期比` → `全店 売上高前期比(前年比)`）。正規名が既にあれば正規名を残し、値は非NULL優先。number（`店舗数` や number の `売上高`）は前年比を付けない。銘柄固有の旧名寄せは `app/issuer_aliases.json`（ingest は `as_of < until`、それ以外は `year <= until.year`。例: 141A0 は 2025-08-01 未満の旧名をトライアル付きへ）。SPA の年表・系列・チャートの行キーは `fmtMonthlyElement`（表示名）。年ごとの保存名が違っても表示名が同じなら1行。取り残した短い名も畳む。その年の値は、その年の保存 element のうち表示名が一致するものから取る。
 
 AI による業種付けはしない。`industry` の更新は MCP と `PUT /api/v1/tables/{code}/industry`。SPA からは書かない。
 
