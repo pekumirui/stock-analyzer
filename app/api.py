@@ -314,17 +314,23 @@ def _parse_element(raw: Any) -> str:
     return s
 
 
-def _canonical_element(raw: Any, unit: str | None, code: str) -> str:
+def _canonical_element(
+    raw: Any, unit: str | None, code: str,
+    *, year: int | None = None, as_of: date | None = None,
+) -> str:
     """ingest / POST は先に正規化してから既存行を探す。銘柄エイリアスもここで掛ける。"""
-    s = apply_issuer_aliases(code, canonicalize_element_label(_parse_element(raw), unit))
+    s = apply_issuer_aliases(
+        code, canonicalize_element_label(_parse_element(raw), unit),
+        year=year, as_of=as_of,
+    )
     if not s or len(s) > 50:
         raise ApiError(400, "INVALID_PARAM", "element は1〜50文字の文字列です。")
     return s
 
 
-def _lookup_element(raw: Any, code: str) -> str:
+def _lookup_element(raw: Any, code: str, *, year: int | None = None) -> str:
     """PUT は yoy 正規化しない。銘柄エイリアスだけ掛けて保存名に合わせる。"""
-    s = apply_issuer_aliases(code, _parse_element(raw))
+    s = apply_issuer_aliases(code, _parse_element(raw), year=year)
     if not s or len(s) > 50:
         raise ApiError(400, "INVALID_PARAM", "element は1〜50文字の文字列です。")
     return s
@@ -522,7 +528,7 @@ def _parse_month_key(raw: Any) -> int:
 
 
 def _parse_ingest_rows(
-    raw: Any, months: list[int], code: str,
+    raw: Any, months: list[int], code: str, *, as_of: date | None = None,
 ) -> list[tuple[str, bool, str | None, dict[int, float | None]]]:
     if not isinstance(raw, list):
         raise ApiError(400, "INVALID_PARAM", "rows は {element, values} の配列です。")
@@ -533,7 +539,7 @@ def _parse_ingest_rows(
             raise ApiError(400, "INVALID_PARAM", "rows の各要素は {element, values} です。")
         force = item.get("force") is True
         unit = _parse_unit(item.get("unit")) if "unit" in item else None
-        element = _canonical_element(item.get("element"), unit, code)
+        element = _canonical_element(item.get("element"), unit, code, as_of=as_of)
         values_raw = item.get("values")
         if not isinstance(values_raw, dict):
             raise ApiError(400, "INVALID_PARAM", "values は月をキーにしたオブジェクトです。")
@@ -559,7 +565,7 @@ def post_element(code: str, year: str, response: Response,
     body = _require_object(payload)
     force = body.get("force") is True
     unit = _parse_unit(body.get("unit")) if "unit" in body else None
-    element = _canonical_element(body.get("element"), unit, code)
+    element = _canonical_element(body.get("element"), unit, code, year=year_i)
     _require_stock(db, code)
     created = _ensure_element(db, code, year_i, element, force, unit)
     row = _get_element(db, code, year_i, element)
@@ -582,7 +588,7 @@ def put_element(code: str, year: str, payload: dict | None = Body(None),
     code = _parse_code(code)
     year_i = _parse_year(year)
     body = _require_object(payload)
-    element = _lookup_element(body.get("element"), code)
+    element = _lookup_element(body.get("element"), code, year=year_i)
     if "unit" not in body:
         raise ApiError(400, "INVALID_PARAM", "unit は number / yoy_index / yoy_pct です。")
     unit = _parse_unit(body.get("unit"))
@@ -601,12 +607,11 @@ def ingest_monthly(code: str, payload: dict | None = Body(None), db: Session = D
     body = _require_object(payload)
     _require_stock(db, code)
     months = _parse_months(body.get("months"))
-    rows = _parse_ingest_rows(body.get("rows"), months, code)
     try:
         as_of = parse_as_of(body.get("as_of"))
     except MonthlyIngestError as exc:
         raise _ingest_error(exc) from exc
-
+    rows = _parse_ingest_rows(body.get("rows"), months, code, as_of=as_of)
     fy_end_rows = [
         (disclosed, fy_end)
         for disclosed, fy_end in (
@@ -759,7 +764,7 @@ def put_value(code: str, year: str, payload: dict | None = Body(None),
     code = _parse_code(code)
     year_i = _parse_year(year)
     body = _require_object(payload)
-    element = _lookup_element(body.get("element"), code)
+    element = _lookup_element(body.get("element"), code, year=year_i)
     if "month" not in body:
         raise ApiError(400, "INVALID_PARAM", "month は1〜12の整数です。")
     if "value" not in body:
@@ -780,7 +785,7 @@ def put_values_batch(code: str, year: str, payload: dict | None = Body(None),
     code = _parse_code(code)
     year_i = _parse_year(year)
     body = _require_object(payload)
-    element = _lookup_element(body.get("element"), code)
+    element = _lookup_element(body.get("element"), code, year=year_i)
     items = body.get("values")
     if not isinstance(items, list):
         raise ApiError(400, "INVALID_PARAM", "values は {month, value} の配列です。")

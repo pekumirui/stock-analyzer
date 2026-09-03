@@ -20,14 +20,12 @@ from app.monthly_ingest import (  # noqa: E402
     MonthlyIngestError,
     apply_issuer_aliases,
     canonicalize_element_label,
-    exact_rename,
     format_monthly_cell,
     map_pdf_columns,
     parse_monthly_unit,
     plan_column_years,
     plan_issuer_alias_cases,
     plan_yoy_duplicate_merges,
-    prefix_if_absent,
     resolve_fy_end_month,
     same_yoy_element,
 )
@@ -118,26 +116,20 @@ def test_canonicalize_element_label() -> None:
 def test_issuer_alias_cases() -> None:
     cases = plan_issuer_alias_cases()
     if not cases:
-        _fail("ISSUER_ELEMENT_ALIASES の examples が空")
-    codes = {code for code, _, _ in cases}
+        _fail("issuer_aliases.json の rename が空")
     from app.monthly_ingest import ISSUER_ELEMENT_ALIASES
+    codes = {code for code, _, _, _ in cases}
     missing = sorted(set(ISSUER_ELEMENT_ALIASES) - codes)
     if missing:
-        _fail(f"examples が無い銘柄: {missing!r}")
-    for code, incoming, stored in cases:
-        got = apply_issuer_aliases(code, incoming)
+        _fail(f"rename が無い銘柄: {missing!r}")
+    for code, incoming, stored, ctx in cases:
+        got = apply_issuer_aliases(
+            code, incoming, year=ctx.get("year"), as_of=ctx.get("as_of"),  # type: ignore[arg-type]
+        )
         if got != stored:
-            _fail(f"{code} {incoming!r} → {got!r}, want {stored!r}")
-        if apply_issuer_aliases(code, stored) != stored:
-            _fail(f"{code} stored not idempotent: {stored!r}")
-        if apply_issuer_aliases("72030", incoming) != incoming:
+            _fail(f"{code} {incoming!r} {ctx} → {got!r}, want {stored!r}")
+        if apply_issuer_aliases("72030", incoming, year=ctx.get("year"), as_of=ctx.get("as_of")) != incoming:  # type: ignore[arg-type]
             _fail(f"other issuer must not alias {incoming!r}")
-    rename = exact_rename({"既存店売上": "既存店 売上高"})
-    if rename("既存店売上") != "既存店 売上高" or rename("全店売上") != "全店売上":
-        _fail("exact_rename")
-    prefixed = prefix_if_absent("A ", "A", "B")
-    if prefixed("全店") != "A 全店" or prefixed("B 全店") != "B 全店" or prefixed("A全店") != "A全店":
-        _fail("prefix_if_absent")
 
 
 def test_mapping_examples() -> None:
@@ -905,17 +897,24 @@ def test_issuer_alias_ingest_and_migrate() -> None:
     from app.models import MonthlyElement, MonthlyTable, MonthlyValue
 
     cases = plan_issuer_alias_cases()
-    by_code: dict[str, list[tuple[str, str]]] = {}
-    for code, incoming, stored in cases:
-        by_code.setdefault(code, []).append((incoming, stored))
+    by_code: dict[str, list[tuple[str, str, date]]] = {}
+    after_until: dict[str, date] = {}
+    for code, incoming, stored, ctx in cases:
+        as_of = ctx.get("as_of")
+        if not isinstance(as_of, date):
+            continue
+        if incoming != stored:
+            by_code.setdefault(code, []).append((incoming, stored, as_of))
+        else:
+            after_until[code] = as_of
 
     c = TestClient(app)
     for i, (code, pairs) in enumerate(sorted(by_code.items())):
-        year = 2010 + i
-        as_of = f"{year}-08-05"
+        as_of = pairs[0][2]
+        year = as_of.year if as_of.month >= 6 else as_of.year - 1
         _add_fy_end(code, date(year, 6, 1), date(year, 6, 30), f"alias-fy-{code}-{year}")
         rows = []
-        for j, (incoming, stored) in enumerate(pairs):
+        for j, (incoming, stored, _) in enumerate(pairs):
             unit = "yoy_index" if stored.endswith("(前年比)") else "number"
             rows.append({
                 "element": incoming,
@@ -925,36 +924,40 @@ def test_issuer_alias_ingest_and_migrate() -> None:
         r = c.post(f"/api/v1/tables/{code}/ingest", json={
             "months": [6],
             "rows": rows,
-            "as_of": as_of,
+            "as_of": as_of.isoformat(),
         })
-        _expect(r, 200, f"{code} ingest alias examples")
-        r = c.get(f"/api/v1/tables/{code}/{year}")
-        _expect(r, 200, f"GET {code} {year}")
+        _expect(r, 200, f"{code} ingest old as_of")
+        mapped_year = r.json()["updated"][0]["year"]
+        r = c.get(f"/api/v1/tables/{code}/{mapped_year}")
+        _expect(r, 200, f"GET {code} {mapped_year}")
         names = [e["element"] for e in r.json()["elements"]]
-        by = {e["element"]: e for e in r.json()["elements"]}
-        for incoming, stored in pairs:
+        for incoming, stored, _ in pairs:
             if stored not in names:
                 _fail(f"{code} stored missing {stored!r}: {names!r}")
             if incoming != stored and incoming in names:
                 _fail(f"{code} incoming leftover {incoming!r}: {names!r}")
-        first_rename = next(((a, b) for a, b in pairs if a != b), None)
-        if first_rename is None:
-            continue
-        incoming, stored = first_rename
-        unit = "yoy_index" if stored.endswith("(前年比)") else "number"
-        r = c.post(f"/api/v1/tables/{code}/ingest", json={
-            "months": [6],
-            "rows": [{"element": stored, "values": {"6": 200.0}, "unit": unit}],
-            "as_of": as_of,
-        })
-        _expect(r, 200, f"{code} ingest stored name")
-        r = c.get(f"/api/v1/tables/{code}/{year}")
-        by = {e["element"]: e for e in r.json()["elements"]}
-        if float(by[stored]["values"]["6"]) != 200.0:
-            _fail(f"{code} stored upsert: {by[stored]!r}")
 
-        old_year = year - 1
-        merge_year = year - 2
+        incoming, stored, _ = pairs[0]
+        unit = "yoy_index" if stored.endswith("(前年比)") else "number"
+        new_as_of = after_until.get(code)
+        if new_as_of is not None:
+            r = c.post(f"/api/v1/tables/{code}/ingest", json={
+                "months": [6],
+                "rows": [{"element": incoming, "values": {"6": 1.0}, "unit": unit}],
+                "as_of": new_as_of.isoformat(),
+            })
+            _expect(r, 200, f"{code} ingest new as_of")
+            new_name = r.json()["updated"][0]["element"]
+            if new_name != incoming and incoming.endswith("(前年比)"):
+                _fail(f"{code} as_of>={new_as_of} must keep {incoming!r}, got {new_name!r}")
+            if incoming.endswith("(前年比)") is False:
+                canon = canonicalize_element_label(incoming, unit)
+                kept = r.json()["updated"][0]["element"]
+                if kept != canon:
+                    _fail(f"{code} new as_of must keep {canon!r}, got {kept!r}")
+
+        old_year = 2008 + i
+        merge_year = 2007 + i
         db = SessionLocal()
         try:
             db.add(MonthlyTable(code=code, year=old_year))
@@ -1013,6 +1016,16 @@ def test_issuer_alias_ingest_and_migrate() -> None:
                 _fail(f"{code} {merge_year} merged values: {vals_merge!r}")
         finally:
             db.close()
+
+        later = 2026 + i
+        r = c.post(f"/api/v1/tables/{code}/{later}/elements", json={
+            "element": incoming, "unit": unit,
+        })
+        _expect(r, 201, f"{code} POST after until.year")
+        created = r.json()["element"]
+        expect_kept = canonicalize_element_label(incoming, unit)
+        if created != expect_kept:
+            _fail(f"{code} year {later} must keep {expect_kept!r}, got {created!r}")
 
         again = apply_issuer_element_aliases()
         if any(r.get("code") == code and r.get("year") in {old_year, merge_year} for r in again):

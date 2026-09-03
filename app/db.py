@@ -188,7 +188,7 @@ def fold_aliased_element(
     db, code: str, year: int, incoming_name: str, incoming_unit: str | None,
 ) -> MonthlyElement | None:
     """銘柄エイリアス後に同一になる既存行を寄せる。無ければ None。"""
-    incoming = apply_issuer_aliases(code, incoming_name)
+    incoming = apply_issuer_aliases(code, incoming_name, year=year)
     existing = (
         db.query(MonthlyElement)
         .filter(MonthlyElement.code == code, MonthlyElement.year == year)
@@ -196,7 +196,7 @@ def fold_aliased_element(
     )
     matches = [
         row for row in existing
-        if apply_issuer_aliases(code, row.element) == incoming
+        if apply_issuer_aliases(code, row.element, year=year) == incoming
     ]
     if not matches:
         return None
@@ -219,7 +219,7 @@ def fold_aliased_element(
     for row in leftovers:
         if row.element == incoming:
             continue
-        if apply_issuer_aliases(code, row.element) != incoming:
+        if apply_issuer_aliases(code, row.element, year=year) != incoming:
             continue
         src = db.get(MonthlyElement, (code, year, row.element))
         dst = db.get(MonthlyElement, (code, year, incoming))
@@ -238,12 +238,12 @@ def apply_issuer_element_aliases(verbose: bool = True) -> list[dict]:
     try:
         rows = [
             r for r in db.query(MonthlyElement).all()
-            if apply_issuer_aliases(r.code, r.element) != r.element
+            if apply_issuer_aliases(r.code, r.element, year=r.year) != r.element
         ]
         rows.sort(key=lambda r: (r.code, r.year, r.sort_order, r.element))
         for row in rows:
             old = row.element
-            new = apply_issuer_aliases(row.code, old)
+            new = apply_issuer_aliases(row.code, old, year=row.year)
             if db.get(MonthlyElement, (row.code, row.year, old)) is None:
                 continue
             dst_existed = db.get(MonthlyElement, (row.code, row.year, new)) is not None
