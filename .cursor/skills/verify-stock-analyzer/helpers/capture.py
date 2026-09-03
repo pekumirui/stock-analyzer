@@ -92,7 +92,7 @@ def main() -> None:
         return
 
     if args.feature == "chart":
-        url = f"{base}/api/chart/{args.code}"
+        url = f"{base}/api/chart/{args.code}?tf=D&ma=50,150,200&rel=false"
         status, body = _get(url)
         path = _write("chart", "body.json", "GET", url, status, body)
         candles = body.get("candles") if isinstance(body, dict) else None

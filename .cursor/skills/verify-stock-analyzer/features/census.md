@@ -23,7 +23,7 @@ Preconditions:
 - **Tab.** Click `nav button[data-tab="census"]`. `#tab-census` is displayed.
 - **List.** `artifacts/census/body.json` has `summary` and non-empty `rows`. `#cen-count` is non-empty.
 - **Detail.** Choosing a row calls the monthly issuer payload into `#cen-kpi`.
-- **Proof.** Keep `body.json` and (if CDP) `ui.png` of `#cen-list` with `株式分析ツール`.
+- **Proof.** Keep `body.json` and (if CDP) `ui.png` of `#cen-list` with header `h1` `株式分析`.
 
 ## Gotchas
 

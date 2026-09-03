@@ -57,7 +57,7 @@ def main() -> None:
 
     st, body = _get(url + "/")
     out["home_status"] = st
-    out["home_ok"] = st == 200 and isinstance(body, str) and "株式分析ツール" in body
+    out["home_ok"] = st == 200 and isinstance(body, str) and "<title>株式分析ツール</title>" in body
     if not out["home_ok"]:
         print(json.dumps(out, ensure_ascii=False, indent=2))
         raise SystemExit("GET / is not the SPA")

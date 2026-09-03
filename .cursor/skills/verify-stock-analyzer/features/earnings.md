@@ -30,7 +30,7 @@ Preconditions:
 - **Day list.** `artifacts/earnings/body.json` is a non-empty array. Each row has `code` (no leading `0`), `name`, `disclosure_no`, `yoy`, `qoq`. `#earn-title` reads `{date} の決算発表`.
 - **Detail.** `GET /api/earnings/detail/{code}` for the first row's `code` returns tables the UI puts in `#cum-tbl`.
 - **3か月.** Click `.ftab[data-fin="q"]`. `#q-wrap` is not `hidden`; `#cum-wrap` is.
-- **Proof.** Keep `calendar.json`, `body.json`, and (if CDP) `artifacts/earnings/ui.png` showing `#earn-tbl` or cards plus `株式分析ツール`.
+- **Proof.** Keep `calendar.json`, `body.json`, and (if CDP) `artifacts/earnings/ui.png` showing `#earn-tbl` or cards plus header `h1` `株式分析`.
 
 ## Gotchas
 

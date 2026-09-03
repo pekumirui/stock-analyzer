@@ -19,7 +19,7 @@ Run this as a **long-lived background command** (it prints one JSON line when re
 .\.venv\Scripts\python.exe .cursor\skills\verify-stock-analyzer\helpers\launch.py
 ```
 
-Default URL: `http://127.0.0.1:8011`. Override with env `VERIFY_PORT`. Ready when stdout JSON appears and `GET /` returns 200 with `株式分析ツール`. State is `.cursor/skills/verify-stock-analyzer/.run/state.json` (`pid`, `port`, `url`). Set `VERIFY_WAIT=0` only if you confirmed the child survives after launch.py exits.
+Default URL: `http://127.0.0.1:8011`. Override with env `VERIFY_PORT`. Ready when stdout JSON appears and `GET /` returns 200 whose HTML contains `<title>株式分析ツール</title>`. Visible header `h1` is `📈 株式分析`. State is `.cursor/skills/verify-stock-analyzer/.run/state.json` (`pid`, `port`, `url`). Set `VERIFY_WAIT=0` only if you confirmed the child survives after launch.py exits.
 
 Uses the repo's `stock.db` (read-only for UI proofs). Do not `.\run.ps1 reset`. Do not point `DATABASE_URL` at the user's DB from a second writer. If port 8011 is taken, launch exits non-zero — pick another `VERIFY_PORT` or cleanup the previous verify run. Never steal 8000.
 
@@ -37,7 +37,7 @@ Read-only. Run first whenever anything looks off.
 
 Exit 0 only when:
 
-- `.run/state.json` pid is alive and `GET {url}/` is 200 with `株式分析ツール`
+- `.run/state.json` pid is alive and `GET {url}/` is 200 with `<title>株式分析ツール</title>`
 - `GET /api/screener?stage=2&rs_min=70` returns JSON `{date, results}` and `results` is a non-empty list (this DB has been backfilled)
 - `GET /api/stocks/search?q=トヨタ` returns at least one hit whose `code` does not start with `0`
 
@@ -65,7 +65,7 @@ Harness: HTTP against the same routes the SPA uses, plus the browser when CDP is
 | 対TOPIX | `#rel` checkbox |
 | Screener stage | `#sc-stage` (default `2`) |
 | Screener RS | `#sc-rs` (default `70`) |
-| Screener 検索 | `button.btn` calling `loadScreener()` |
+| Screener 検索 | `#tab-screener button.btn` (label 検索) |
 
 **SPA → API (prove the same payloads the UI renders):**
 
@@ -75,7 +75,7 @@ Harness: HTTP against the same routes the SPA uses, plus the browser when CDP is
 | Click a day | `GET /api/earnings?date=YYYY-MM-DD` |
 | Select a row | `GET /api/earnings/detail/{code}` |
 | Chart search typeahead | `GET /api/stocks/search?q=...` |
-| Chart / 対TOPIX / 決算後リターン | `GET /api/chart/{code}` and `GET /api/earnings-performance/{code}` |
+| Chart 表示 (UI defaults) | `GET /api/chart/{code}?tf=D&ma=50,150,200&rel=false` and `GET /api/earnings-performance/{code}` |
 | Screener 検索 (UI defaults) | `GET /api/screener?stage=2&rs_min=70` |
 | 月次 calendar | `GET /api/monthly/calendar?month=YYYY-MM` |
 | 月次 day list | `GET /api/monthly?date=YYYY-MM-DD` |
@@ -111,7 +111,7 @@ Minimum files per feature:
 
 - `request.txt` — method, URL, status
 - `body.json` — response (truncate lists to 20 rows if huge, keep `date` / counts)
-- `ui.png` — only when the browser path ran
+- `ui.png` — only when the browser path ran. The visible brand is header `h1` `株式分析` (document title is `株式分析ツール`)
 
 ## Cleanup
 

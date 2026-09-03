@@ -25,10 +25,10 @@ Preconditions:
 
 - **Tab.** Click `nav button[data-tab="chart"]`. `#tab-chart` is displayed.
 - **Search.** `GET /api/stocks/search?q=トヨタ` returns `{code,name,market}` with no `0`-prefix `code`. Typing the same into `#sym` opens `#suggest`.
-- **Candles.** Run `helpers/capture.py chart --code 72030`. `artifacts/chart/body.json` has `candles` length > 0 with `adj` prices. `#chart-title` is non-empty.
+- **Candles.** Run `helpers/capture.py chart --code 72030`. `artifacts/chart/body.json` has `candles` length > 0. Candle fields are `open`/`high`/`low`/`close` already filled from `adj_*`. `#chart-title` is non-empty.
 - **Performance.** `artifacts/chart/performance.json` is a list (may be empty for a name with no events; still 200).
 - **対TOPIX.** Check `#rel`. `#relwrap` display is not `none` when the chart payload can compute relative series.
-- **Proof.** Keep `body.json` and (if CDP) `ui.png` with `#chart` tall enough to show candles and the heading `株式分析ツール`.
+- **Proof.** Keep `body.json` and (if CDP) `ui.png` with `#chart` tall enough to show candles and header `h1` `株式分析`.
 
 ## Gotchas
 

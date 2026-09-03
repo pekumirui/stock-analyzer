@@ -26,7 +26,7 @@ Preconditions:
 - **Calendar.** `artifacts/monthly/calendar.json` maps `YYYY-MM-DD` to counts ≥ 1.
 - **Day list.** `artifacts/monthly/body.json` is a non-empty array of disclosures for the captured day (`code` not `0`-prefix).
 - **Issuer.** `GET /api/monthly/{code}` for a list code returns KPI rows the UI shows in `#mon-kpi`.
-- **Proof.** Keep `calendar.json` and `body.json`, plus (if CDP) `ui.png` of `#mon-list`.
+- **Proof.** Keep `calendar.json` and `body.json`, plus (if CDP) `ui.png` of `#mon-list` with header `h1` `株式分析`.
 
 ## Gotchas
 

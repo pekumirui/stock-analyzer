@@ -21,7 +21,7 @@ This directory is the maintained source for verifying the user-facing behavior o
 ## Proof and skip reporting
 
 - Capture the user action and the resulting state, not only the final screen.
-- UI proof includes a screenshot with the heading `株式分析ツール` visible.
+- UI proof includes a screenshot with header `h1` `株式分析` visible (document title is `株式分析ツール`).
 - HTTP proof includes `request.txt` and `body.json`.
 - Record the feature ID and entry point with every artifact.
 - Report an unreachable path with the attempted command and the unmet precondition.
