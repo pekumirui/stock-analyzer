@@ -108,6 +108,17 @@ def rename_monthly_element(db, code: str, year: int, old: str, new: str) -> None
     db.flush()
 
 
+def delete_monthly_element(db, code: str, year: int, element: str) -> None:
+    """行と値を消す。表自体は残す。"""
+    src = db.get(MonthlyElement, (code, year, element))
+    if src is None:
+        return
+    for v in list(db.query(MonthlyValue).filter_by(code=code, year=year, element=element)):
+        db.delete(v)
+    db.delete(src)
+    db.flush()
+
+
 def merge_monthly_element_into(db, src: MonthlyElement, dst: MonthlyElement) -> list[dict]:
     """短い行の値を正規名へ。欠損は埋める。両方非NULLで不一致なら正規名を残して報告。"""
     if src is dst or (

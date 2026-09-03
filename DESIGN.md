@@ -242,7 +242,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `PUT /api/v1/tables/{code}/industry` | 月次業種。body `{industry}`。stocks 無ければ 4xx `NOT_IN_MASTER`。月次表が無ければ 4xx `TABLE_NOT_FOUND` |
 | `GET /api/v1/tables/{code}/{year}` | 月次表。要素は登録順、値のない月は省略。表が無ければ 404 |
 | `GET /api/v1/tables/{code}` | その銘柄の年度一覧 |
-| `PUT /api/v1/tables/{code}/{year}/values` | セル upsert。未登録要素は 404 (自動登録しない)。null でセル削除。マスタ無しは 4xx `NOT_IN_MASTER` |
+| `DELETE /api/v1/tables/{code}/{year}/elements` | 月次の行と値を消す。body `{element}`。表は残す。未登録は 404。マスタ無しは 4xx `NOT_IN_MASTER` |
 | `PUT /api/v1/tables/{code}/{year}/values/batch` | 複数月を検証してから一括 commit。マスタ無しは 4xx `NOT_IN_MASTER` |
 
 月次 API のエラーは `{"error": {"code": "...", "message": "..."}}`。認証は既存アプリと同じ (アプリ本体には無く、本番は nginx Basic 認証)。

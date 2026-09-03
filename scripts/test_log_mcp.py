@@ -114,6 +114,7 @@ def test_http_auth_and_tools() -> None:
         "monthly_get",
         "monthly_add_element",
         "monthly_put_values",
+        "monthly_delete_element",
         "monthly_set_industry",
         "monthly_ingest",
     }
@@ -512,6 +513,21 @@ def _stub_handle(method: str, path: str, raw: bytes, store: dict) -> tuple[int, 
         row.setdefault("units", {})[element] = unit
         return 200, {"code": code, "year": year, "element": element, "unit": unit}
 
+    if method == "DELETE" and m:
+        code, year = unquote(m.group(1)), int(m.group(2))
+        body = load_body()
+        element = str(body.get("element") or "").strip()
+        key = (code, year)
+        row = store.get(key)
+        if row is None:
+            return 404, {"error": {"code": "TABLE_NOT_FOUND", "message": "銘柄×年度の表がありません。"}}
+        if element not in row["order"]:
+            return 404, {"error": {"code": "ELEMENT_NOT_FOUND", "message": "要素が登録されていません。"}}
+        row["order"] = [e for e in row["order"] if e != element]
+        row["values"].pop(element, None)
+        row.get("units", {}).pop(element, None)
+        return 200, {"code": code, "year": year, "element": element, "deleted": True}
+
     m = batch_re.fullmatch(path)
     if method == "PUT" and m:
         code, year = unquote(m.group(1)), int(m.group(2))
@@ -585,6 +601,9 @@ def _monthly_stub():
 
             def do_PUT(self) -> None:
                 self._dispatch("PUT")
+
+            def do_DELETE(self) -> None:
+                self._dispatch("DELETE")
 
             def _dispatch(self, method: str) -> None:
                 path = _urlparse(self.path).path
@@ -895,6 +914,16 @@ def test_monthly_tools() -> None:
             if status != 400 or not isinstance(body, dict) or body.get("error", {}).get("code") != "INVALID_VALUE":
                 raise SystemExit(f"expected INVALID_VALUE: {text}")
 
+            text, is_error = m.call_tool(
+                "monthly_delete_element",
+                {"code": "7203", "year": 2024, "element": "店舗数"},
+            )
+            if is_error:
+                raise SystemExit(f"delete: {text}")
+            status, body = _http_status_body(text)
+            if status != 200 or not isinstance(body, dict) or body.get("deleted") is not True:
+                raise SystemExit(f"delete body: {text}")
+
             r = _rpc(
                 client,
                 "tools/call",
@@ -909,6 +938,7 @@ def test_monthly_tools() -> None:
                 ("GET", "/api/v1/tables/72030/2024"),
                 ("POST", "/api/v1/tables/72030/2024/elements"),
                 ("PUT", "/api/v1/tables/72030/2024/values/batch"),
+                ("DELETE", "/api/v1/tables/72030/2024/elements"),
             }
             for rec in recorded:
                 host = rec["host"].split(":")[0]
@@ -926,6 +956,8 @@ def test_monthly_tools() -> None:
                 raise SystemExit("add_element path missing")
             if not any(rec["method"] == "PUT" and rec["path"] == "/api/v1/tables/72030/2024/values/batch" for rec in recorded):
                 raise SystemExit("put_values path missing")
+            if not any(rec["method"] == "DELETE" and rec["path"] == "/api/v1/tables/72030/2024/elements" for rec in recorded):
+                raise SystemExit("delete_element path missing")
 
         os.environ["MCP_APP_HTTP"] = "http://127.0.0.1:1"
         text, is_error = m.call_tool("monthly_list", {})

@@ -430,7 +430,7 @@ def _monthly_opener() -> urllib.request.OpenerDirector:
 
 
 def call_monthly_api(method: str, url: str, body: dict[str, Any] | None = None) -> str:
-    if method not in ("GET", "POST", "PUT"):
+    if method not in ("GET", "POST", "PUT", "DELETE"):
         raise ValueError("invalid monthly HTTP method")
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https") or not _is_loopback_host(parsed.hostname):
@@ -606,6 +606,16 @@ def tool_monthly_put_values(args: dict[str, Any]) -> str:
         raise ValueError("element is required")
     body = {"element": element, "values": parse_monthly_values(args.get("values"))}
     return call_monthly_api("PUT", monthly_api_url(code, year, "/values/batch"), body)
+
+
+def tool_monthly_delete_element(args: dict[str, Any]) -> str:
+    code = parse_monthly_code(args.get("code"))
+    year = parse_monthly_year(args.get("year"))
+    element = args.get("element")
+    if not isinstance(element, str) or not element.strip():
+        raise ValueError("element is required")
+    body = {"element": element}
+    return call_monthly_api("DELETE", monthly_api_url(code, year, "/elements"), body)
 
 
 def _parse_ingest_months(raw: Any) -> list[int]:
@@ -793,6 +803,19 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
             "required": ["code", "year", "element", "values"],
         },
         tool_monthly_put_values,
+    ),
+    "monthly_delete_element": (
+        "月次の行と値を消す。localhost:8000 の DELETE /api/v1/tables/{code}/{year}/elements。表は残す。新規登録は monthly_ingest。",
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
+                "year": {"type": "integer", "description": "4-digit calendar year"},
+                "element": {"type": "string", "description": "existing row label"},
+            },
+            "required": ["code", "year", "element"],
+        },
+        tool_monthly_delete_element,
     ),
     "monthly_set_industry": (
         "月次業種を付ける。localhost:8000 の PUT /api/v1/tables/{code}/industry。銘柄マスタの業種とは別。",
