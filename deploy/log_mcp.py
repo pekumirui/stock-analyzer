@@ -805,7 +805,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_monthly_put_values,
     ),
     "monthly_delete_element": (
-        "月次の行と値を消す。localhost:8000 の DELETE /api/v1/tables/{code}/{year}/elements。表は残す。新規登録は monthly_ingest。",
+        "月次の空行を消す。localhost:8000 の DELETE /api/v1/tables/{code}/{year}/elements。値が残っていれば 409。表は残す。新規登録は monthly_ingest。",
         {
             "type": "object",
             "properties": {

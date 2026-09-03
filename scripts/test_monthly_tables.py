@@ -626,7 +626,16 @@ def main() -> None:
         _fail(f"PUT missing element: {r.json()!r}")
 
     r = c.request("DELETE", "/api/v1/tables/7203/2026/elements", json={"element": "店舗数"})
-    _expect(r, 200, "DELETE element")
+    _expect(r, 409, "DELETE with values")
+    if _err(r)["code"] != "ELEMENT_HAS_VALUES":
+        _fail(f"DELETE with values: {r.json()!r}")
+    r = c.put("/api/v1/tables/7203/2026/values/batch", json={
+        "element": "店舗数",
+        "values": [{"month": 11, "value": None}],
+    })
+    _expect(r, 200, "clear 店舗数 before DELETE")
+    r = c.request("DELETE", "/api/v1/tables/7203/2026/elements", json={"element": "店舗数"})
+    _expect(r, 200, "DELETE empty element")
     if r.json() != {"code": "72030", "year": 2026, "element": "店舗数", "deleted": True}:
         _fail(f"DELETE body: {r.json()!r}")
     r = c.get("/api/v1/tables/7203/2026")
