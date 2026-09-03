@@ -765,8 +765,9 @@ def get_table(code: str, year: str, db: Session = Depends(get_session)):
         "code": code,
         "year": year_i,
         "elements": [
-            {"element": e.element, "unit": _element_unit(e), "values": by_el.get(e.element, {})}
+            {"element": e.element, "unit": _element_unit(e), "values": by_el[e.element]}
             for e in elems
+            if e.element in by_el
         ],
     }
 
