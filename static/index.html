@@ -19,7 +19,8 @@
   nav button.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
   main { padding:8px 12px; }
   .panel { background:var(--panel); padding:12px; margin-bottom:12px; }
-  .a-list, .a-chart, .a-fin { border:1px solid var(--border); }
+  .a-chart, .a-fin { border:1px solid var(--border); }
+  .a-list.panel { border:none; padding-left:0; padding-right:0; }
   table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
   th,td { padding:6px 8px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap; }
   th { color:var(--sub); font-weight:normal; position:sticky; top:0; background:var(--panel); }
@@ -454,7 +455,6 @@ document.addEventListener("click", e => {
 
 // ---- 決算速報 一覧(マスター) / 詳細(ディテール) ----
 const MET = [["net_sales","売上"],["operating_profit","営利"],["ordinary_profit","経利"],["profit","純利"]];
-const mqNarrow = window.matchMedia("(max-width:700px)");
 // 既出期間の再提出で損益が変わったもの (値がそのままの再提出はAPI側で除外済み)
 const revBadge = r => r.restated ? `<span class="badge rev" title="既出期間の訂正">訂正</span>` : "";
 const shortName = n => { const s = String(n||""); return s.length>5 ? s.slice(0,5) : s; };
@@ -468,7 +468,7 @@ async function selectDate(ds){
   $("#earn-count").textContent = earnRows.length ? `${earnRows.length}件` : "";
   selNo = null;
   renderList();
-  if(earnRows.length) selectRow(earnRows[0].disclosure_no, false);
+  if(earnRows.length) selectRow(earnRows[0].disclosure_no);
   else clearDetail("開示なし");
 }
 
@@ -505,11 +505,10 @@ function markSel(){
     el.classList.toggle("sel", el.dataset.no === selNo));
 }
 
-function selectRow(no, scroll){
+function selectRow(no){
   selNo = no; markSel();
   const row = earnRows.find(r => r.disclosure_no === no);
   if(!row) return;
-  if(scroll !== false && mqNarrow.matches) $(".a-chart").scrollIntoView({behavior:"smooth", block:"start"});
   loadDetail(row);
 }
 
@@ -617,7 +616,7 @@ $("#earn-list").addEventListener("keydown", e => {
   const i = earnRows.findIndex(r => r.disclosure_no === selNo);
   const nxt = earnRows[Math.max(0, Math.min(earnRows.length-1, i + (e.key==="ArrowDown"?1:-1)))];
   if(!nxt) return;
-  selectRow(nxt.disclosure_no, false);
+  selectRow(nxt.disclosure_no);
   const el = document.querySelector(`#earn-list [data-no="${nxt.disclosure_no}"]`);
   if(el) el.scrollIntoView({block:"nearest"});
 });
