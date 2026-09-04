@@ -72,7 +72,9 @@
     .a-chart { grid-column:span 1; } .a-fin { grid-column:span 1; }
     .a-list .scroll { max-height:46vh; }
   }
-  #earn-tbl th, #earn-tbl td { padding:5px 6px; }
+  #earn-tbl { width:100%; }
+  #earn-tbl th, #earn-tbl td { padding:4px 5px; border:1px solid var(--border); }
+  #earn-tbl td.name, #earn-tbl th.name { width:1%; max-width:8em; overflow:hidden; text-overflow:ellipsis; }
   .phead { display:flex; align-items:center; gap:8px; justify-content:space-between; margin-bottom:8px; }
   .phead h3 { margin:0; }
   .phead-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
@@ -455,6 +457,7 @@ const MET = [["net_sales","売上"],["operating_profit","営利"],["ordinary_pro
 const mqNarrow = window.matchMedia("(max-width:700px)");
 // 既出期間の再提出で損益が変わったもの (値がそのままの再提出はAPI側で除外済み)
 const revBadge = r => r.restated ? `<span class="badge rev" title="既出期間の訂正">訂正</span>` : "";
+const shortName = n => { const s = String(n||""); return s.length>5 ? s.slice(0,5) : s; };
 let earnRows=[], selNo=null, detailReq=0;
 
 async function selectDate(ds){
@@ -479,7 +482,7 @@ function tableHtml(){
   // 2段ヘッダにして列幅を詰める (1段だと「売上QoQ」等で8列が横に収まらない)
   const sub = () => MET.map(([k,l],i) => `<th class="${i?'':'grp'}">${l}</th>`).join("");
   let h = `<table id="earn-tbl"><thead>`
-        + `<tr><th rowspan="2">時刻</th><th rowspan="2" class="l">銘柄</th>`
+        + `<tr><th rowspan="2">時刻</th><th rowspan="2" class="l name">銘柄</th>`
         + `<th rowspan="2" class="l">期</th><th rowspan="2">Q</th>`
         + `<th colspan="4" class="grp">QoQ (3か月)</th><th colspan="4" class="grp">YoY (累計)</th></tr>`
         + `<tr>${sub()}${sub()}</tr></thead><tbody>`;
@@ -488,7 +491,7 @@ function tableHtml(){
     const tip = r.period==="1Q" ? ' title="前期4Q単独比"' : "";
     h += `<tr data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">`
        + `<td>${(r.disclosed_time||"").slice(0,5)}</td>`
-       + `<td class="l">${r.name} <small class="sub">${r.code.slice(0,4)}</small>${revBadge(r)}</td>`
+       + `<td class="l name" title="${r.name}">${shortName(r.name)} <small class="sub">${r.code.slice(0,4)}</small>${revBadge(r)}</td>`
        + `<td class="l">${r.fy_label}</td><td>${r.period||""}</td>`
        + MET.map(([k],i)=>`<td class="num ${i?'':'grp'}"${tip}>${gc((r.qoq||{})[k])}</td>`).join("")
        + MET.map(([k],i)=>`<td class="num ${i?'':'grp'}">${gc((r.yoy||{})[k])}</td>`).join("")
