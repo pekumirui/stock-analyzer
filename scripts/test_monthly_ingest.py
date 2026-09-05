@@ -1020,7 +1020,7 @@ def test_issuer_alias_ingest_and_migrate() -> None:
         finally:
             db.close()
 
-        later = 2026 + i
+        later = (after_until[code].year + 1) if code in after_until else 2026 + i
         r = c.post(f"/api/v1/tables/{code}/{later}/elements", json={
             "element": incoming, "unit": unit,
         })
