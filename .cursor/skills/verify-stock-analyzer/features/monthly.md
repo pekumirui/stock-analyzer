@@ -1,36 +1,41 @@
 # 月次
 
-The monthly tab lists TDnet monthly-sales style disclosures by day, then one issuer's KPIs.
+The monthly tab lists ingested issuer monthly-sales tables with industry chips, then opens a Detail view (series select, 3-year clustered chart, year-stacked tables). It is not a TDnet day calendar.
 
 ## Sub-features
 
-- `monthly-cal` paints `#mon-cal` from `/api/monthly/calendar`.
-- `monthly-day` fills `#mon-list` from `/api/monthly?date=`.
-- `monthly-issuer` fills `#mon-kpi` from `/api/monthly/{code}`.
-- `monthly-to-chart` uses `#mon-to-chart`.
+- `monthly-list` fills `#monthly-groups` (新着 + industry chips) and `#monthly-tbl` from `GET /api/v1/tables`.
+- `monthly-detail` opens `#monthly-detail` for a row `data-code` via `GET /api/v1/tables/{code}` then parallel `GET /api/v1/tables/{code}/{year}` for the latest calendar year and up to two prior years.
+- `monthly-series` switches `#monthly-series` (default: 全店売上 yoy row when present, else first series) and redraws `#monthly-chart`.
+- `monthly-back` returns to TOP via `#monthly-back` while keeping the selected chip.
 
 ## How to get to it (user POV)
 
 - Click `nav button[data-tab="monthly"]`.
-- Click a `#mon-cal .d` cell with `.cnt`.
-- Click a row in `#mon-list`.
+- Click an industry / 新着 chip in `#monthly-groups` (chips with count 0 are omitted).
+- Click a company-name cell (`.name`) in `#monthly-tbl` to open Detail.
+- Change `#monthly-series` or click a `tr[data-series]` in the year tables.
+- Click `#monthly-back` to restore TOP + chip.
 
 ## Driving it with verify-stock-analyzer
 
 Preconditions:
 
 - Doctor reports `ok`.
-- Monthly tables are populated (`helpers/capture.py monthly` must not exit 1). If it fails, this feature is unreachable until `.\run.ps1 monthly-init` — report that, do not fake rows.
+- `GET /api/v1/tables` returns a non-empty array (`helpers/capture.py monthly` must not exit 1). If empty, monthly ingest never ran — report that, do not fake rows.
 
-- **Tab.** Click `nav button[data-tab="monthly"]`. `#tab-monthly` is displayed. `renderMonCal` runs.
-- **Calendar.** `artifacts/monthly/calendar.json` maps `YYYY-MM-DD` to counts ≥ 1.
-- **Day list.** `artifacts/monthly/body.json` is a non-empty array of disclosures for the captured day (`code` not `0`-prefix).
-- **Issuer.** `GET /api/monthly/{code}` for a list code returns KPI rows the UI shows in `#mon-kpi`.
-- **Proof.** Keep `calendar.json` and `body.json`, plus (if CDP) `ui.png` of `#mon-list` with header `h1` `株式分析`.
+- **Tab.** Click `nav button[data-tab="monthly"]`. `#tab-monthly` is displayed; `#monthly-top` is shown and `#monthly-detail` is `display:none`.
+- **List.** `helpers/capture.py monthly` writes `artifacts/monthly/body.json` from `GET /api/v1/tables`. Assert a JSON array; each item has `code` (not `0`-prefix), `industry`, `is_new`, `all_store_yoy` / `existing_store_yoy`. `#monthly-tbl` shows 会社名 / 市場 / 業種 / 月次業種 / 全店(前年比) / 既存店(前年比) (no standalone code column).
+- **Detail.** Pass `--code` from the list. Capture also writes years + one year payload. UI: click a `.name` cell → `#monthly-detail` visible, `#monthly-chart` has an SVG, `#monthly-table-wrap` stacks `table.monthly` newest-year-first.
+- **Proof.** Keep `body.json` (list) and, when `--code` was used, the year artifact(s). If CDP: `ui.png` of Detail or list with header `h1` `株式分析`.
+- Do **not** call `/api/monthly*`, `#mon-cal`, or `#mon-to-chart` — those are not on this tip.
 
 ## Gotchas
 
-- Public TDnet PDFs vanish after ~30 days. An old `pdf_path` on disk can exist while a new date is empty.
-- Foreign / REIT names are filtered out (`is_domestic_equity`). Calendar counts only kept rows.
-- `#mon-cal-panel` is a `<details>` closed on narrow viewports.
-- Capture `--month` when the local calendar month has no filings; pick a month that `calendar.json` showed keys for.
+- Empty `/api/v1/tables` renders「登録された月次データはありません」— that is empty ingest, not a render bug.
+- Detail with no years shows「データなし」.
+- NEW badge uses `ingested_today` (JST today); 新着 chip window is `MONTHLY_NEW_DAYS` (7) via `is_new`.
+- YoY chart values are display-adjusted (+100) with a 100 horizontal line; year bar colors cycle `MONTHLY_YEAR_COLORS[year % 4]`.
+- Row order follows segment × slot (`monthlyRowOrder`); yoy row labels end with `(前年比)` via `fmtMonthlyElement`.
+- SPA only reads `/api/v1/tables*`. Write routes (`POST …/ingest`, `PUT …/industry`, values/elements) are MCP/ingest — do not use them in verify.
+- Narrow viewports (`@media (max-width:640px)`) drop the left sticky columns; do not require desktop sticky layout.

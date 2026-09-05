@@ -20,11 +20,29 @@ DEFAULT_PORT = 8011
 RESERVED = {8000}
 
 
+def _venv_python() -> Path:
+    unix = ROOT / ".venv" / "bin" / "python"
+    win = ROOT / ".venv" / "Scripts" / "python.exe"
+    if sys.platform == "win32":
+        if win.is_file():
+            return win
+        if unix.is_file():
+            return unix
+    else:
+        if unix.is_file():
+            return unix
+        if win.is_file():
+            return win
+    raise SystemExit("missing .venv; run .\\setup.ps1 (Windows) or ./setup.sh (Linux/mac)")
+
+
 def _port() -> int:
     raw = os.environ.get("VERIFY_PORT", str(DEFAULT_PORT))
     port = int(raw)
     if port in RESERVED:
-        raise SystemExit(f"VERIFY_PORT={port} is reserved for the user's .\run.ps1 serve")
+        raise SystemExit(
+            f"VERIFY_PORT={port} is reserved for the user's run.ps1/run.sh serve"
+        )
     return port
 
 
@@ -45,9 +63,7 @@ def _get(url: str) -> tuple[int, bytes]:
 
 
 def main() -> None:
-    python = ROOT / ".venv" / "Scripts" / "python.exe"
-    if not python.is_file():
-        raise SystemExit("missing .venv; run .\\setup.ps1")
+    python = _venv_python()
     port = _port()
     if _listening(port):
         raise SystemExit(f"127.0.0.1:{port} already in use; set VERIFY_PORT or run cleanup.py")
@@ -56,23 +72,28 @@ def main() -> None:
     # DETACHED + BREAKAWAY so this helper can return without the Job Object
     # killing uvicorn. If the job forbids breakaway, the process still stays
     # up while launch.py waits (run it as a background command).
-    flags = 0
+    popen_kw: dict = {
+        "cwd": str(ROOT),
+        "stdin": subprocess.DEVNULL,
+        "stdout": None,  # set below
+        "stderr": subprocess.STDOUT,
+        "close_fds": True,
+    }
+    logf = log.open("w", encoding="utf-8")
+    popen_kw["stdout"] = logf
     if sys.platform == "win32":
-        flags = (
+        popen_kw["creationflags"] = (
             getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
             | 0x00000008  # DETACHED_PROCESS
             | 0x01000000  # CREATE_BREAKAWAY_FROM_JOB
             | 0x08000000  # CREATE_NO_WINDOW
         )
-    logf = log.open("w", encoding="utf-8")
+    else:
+        # Start a new session so cleanup can signal the process group if needed.
+        popen_kw["start_new_session"] = True
     proc = subprocess.Popen(
         [str(python), "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(port)],
-        cwd=str(ROOT),
-        stdin=subprocess.DEVNULL,
-        stdout=logf,
-        stderr=subprocess.STDOUT,
-        creationflags=flags,
-        close_fds=True,
+        **popen_kw,
     )
     url = f"http://127.0.0.1:{port}"
     deadline = time.time() + 30

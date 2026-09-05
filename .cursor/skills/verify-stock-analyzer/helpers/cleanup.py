@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -12,12 +14,7 @@ RUN = SKILL / ".run"
 STATE = RUN / "state.json"
 
 
-def main() -> None:
-    if not STATE.is_file():
-        print("nothing to clean (no .run/state.json)")
-        return
-    state = json.loads(STATE.read_text(encoding="utf-8"))
-    pid = int(state["pid"])
+def _kill(pid: int) -> None:
     if sys.platform == "win32":
         subprocess.run(
             ["taskkill", "/PID", str(pid), "/T", "/F"],
@@ -27,14 +24,20 @@ def main() -> None:
             errors="replace",
             check=False,
         )
-    else:
-        try:
-            import os
-            import signal
+        return
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError:
+        pass
 
-            os.kill(pid, signal.SIGTERM)
-        except OSError:
-            pass
+
+def main() -> None:
+    if not STATE.is_file():
+        print("nothing to clean (no .run/state.json)")
+        return
+    state = json.loads(STATE.read_text(encoding="utf-8"))
+    pid = int(state["pid"])
+    _kill(pid)
     shutil.rmtree(RUN, ignore_errors=True)
     print(json.dumps({"killed_pid": pid, "run_dir_removed": True, "artifacts_kept": True}))
 

@@ -28,7 +28,7 @@ Preconditions:
 - **Tab.** Click `nav button[data-tab="earnings"]`. `#tab-earnings` is displayed; `#tab-screener` is not.
 - **Month payload.** Run `helpers/capture.py earnings`. `artifacts/earnings/calendar.json` is a `{YYYY-MM-DD: count}` object with at least one key.
 - **Day list.** `artifacts/earnings/body.json` is a non-empty array. Each row has `code` (no leading `0`), `name`, `disclosure_no`, `yoy`, `qoq`. `#earn-title` reads `{date}の決算発表`.
-- **Detail.** `GET /api/earnings/detail/{code}` for the first row's `code` returns tables the UI puts in `#cum-tbl`.
+- **Detail.** `GET /api/earnings/detail/{code}?disclosure_no={disclosure_no}` for the first row returns tables the UI puts in `#cum-tbl` (SPA always sends `disclosure_no` from `tr[data-no]`).
 - **3か月.** Click `.ftab[data-fin="q"]`. `#q-wrap` is not `hidden`; `#cum-wrap` is.
 - **Proof.** Keep `calendar.json`, `body.json`, and (if CDP) `artifacts/earnings/ui.png` showing `#earn-tbl` plus header `h1` `株式分析`. The month grid must not occupy the first row; the list is at the top of `#tab-earnings`.
 
