@@ -22,8 +22,8 @@ from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period
                         disclosure_state, earnings_detail as build_earnings_detail)
 from .monthly_ingest import (
     MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label, map_pdf_columns,
-    monthly_series_kind, parse_as_of, parse_monthly_unit, same_yoy_element,
-    yoy_display_number,
+    monthly_series_kind, parse_as_of, parse_monthly_unit, reject_prior_period_element,
+    same_yoy_element, yoy_display_number,
 )
 
 router = APIRouter(prefix="/api")
@@ -319,8 +319,13 @@ def _canonical_element(
     *, year: int | None = None, as_of: date | None = None,
 ) -> str:
     """ingest / POST は先に正規化してから既存行を探す。銘柄エイリアスもここで掛ける。"""
+    raw_name = _parse_element(raw)
+    try:
+        reject_prior_period_element(raw_name)
+    except MonthlyIngestError as exc:
+        raise _ingest_error(exc) from exc
     s = apply_issuer_aliases(
-        code, canonicalize_element_label(_parse_element(raw), unit),
+        code, canonicalize_element_label(raw_name, unit),
         year=year, as_of=as_of,
     )
     if not s or len(s) > 50:
