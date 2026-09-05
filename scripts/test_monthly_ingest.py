@@ -26,6 +26,7 @@ from app.monthly_ingest import (  # noqa: E402
     plan_column_years,
     plan_issuer_alias_cases,
     plan_yoy_duplicate_merges,
+    reject_prior_period_element,
     resolve_fy_end_month,
     same_yoy_element,
 )
@@ -1035,6 +1036,60 @@ def test_issuer_alias_ingest_and_migrate() -> None:
             _fail(f"{code} alias migrate must be idempotent: {again!r}")
 
 
+def test_reject_prior_period_element() -> None:
+    blocked = (
+        "前期計店舗数",
+        "店舗数（前期）",
+        "前期店舗数",
+        "店舗数 前期",
+        "国内リテール 前年同月店舗数",
+        "ディスカウント 前年同月店舗数",
+        "UNY 前年同月店舗数",
+        "前年同期 店舗数",
+    )
+    allowed = (
+        "当期計店舗数",
+        "全店 売上高(前年比)",
+        "売上高前年同月比",
+        "前期比",
+        "既存店 店舗数",
+    )
+    for name in blocked:
+        _expect_ingest_error(
+            lambda n=name: reject_prior_period_element(n),
+            "PRIOR_PERIOD_ELEMENT",
+            "前期の実数",
+        )
+    for name in allowed:
+        reject_prior_period_element(name)
+
+    c = TestClient(app)
+    code = "88880"
+    _add_fy_end(code, date(2026, 5, 1), date(2026, 3, 31), "prior-fy-1")
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [7],
+        "rows": [
+            {"element": "当期計店舗数", "values": {"7": 68}, "unit": "number"},
+            {"element": "前期計店舗数", "values": {"7": 66}, "unit": "number"},
+        ],
+        "as_of": "2026-08-14",
+    })
+    _expect(r, 400, "ingest prior period")
+    if _err(r)["code"] != "PRIOR_PERIOD_ELEMENT":
+        _fail(f"ingest prior: {r.json()!r}")
+    if "前期計店舗数" not in _err(r)["message"]:
+        _fail(f"message missing name: {r.json()!r}")
+    r = c.get(f"/api/v1/tables/{code}/2026")
+    _expect(r, 404, "prior ingest rolled back")
+
+    r = c.post(f"/api/v1/tables/{code}/2026/elements", json={
+        "element": "店舗数（前期）", "unit": "number",
+    })
+    _expect(r, 400, "POST prior period")
+    if _err(r)["code"] != "PRIOR_PERIOD_ELEMENT":
+        _fail(f"POST prior: {r.json()!r}")
+
+
 def main() -> None:
     test_canonicalize_element_label()
     test_issuer_alias_cases()
@@ -1053,6 +1108,7 @@ def main() -> None:
     test_merge_uchiyama_like_yoy_duplicates()
     test_rename_29260_style_cross_year_yoy()
     test_issuer_alias_ingest_and_migrate()
+    test_reject_prior_period_element()
     print("ok: monthly ingest")
 
 
