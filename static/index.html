@@ -73,8 +73,16 @@
     .a-chart { grid-column:span 1; } .a-fin { grid-column:span 1; }
     .a-list .scroll { max-height:46vh; }
   }
-  #earn-tbl { width:100%; }
-  #earn-tbl th, #earn-tbl td { padding:4px 5px; border:1px solid var(--border); }
+  #earn-tbl { width:100%; border-collapse:separate; border-spacing:0; }
+  #earn-tbl th, #earn-tbl td {
+    padding:4px 5px;
+    border:0 solid var(--border);
+    border-right-width:1px;
+    border-bottom-width:1px;
+    background:var(--panel);
+  }
+  #earn-tbl tr > :first-child { border-left-width:1px; }
+  #earn-tbl thead tr:first-child th { border-top-width:1px; }
   #earn-tbl td.name, #earn-tbl th.name { width:1%; max-width:8em; overflow:hidden; text-overflow:ellipsis; }
   #earn-tbl td.fy, #earn-tbl th.fy { width:1%; }
   .phead { display:flex; align-items:center; gap:8px; justify-content:space-between; margin-bottom:8px; }
@@ -92,11 +100,13 @@
   td.num { font-variant-numeric:tabular-nums; }
   .grp { border-left:1px solid var(--border); }
   #earn-list:focus { outline:none; }
-  #earn-tbl thead th { z-index:1; }
-  #earn-tbl thead tr:nth-child(2) th { top:29px; }   /* 2段ヘッダの下段 */
+  /* 2段ヘッダは thead ごと固定。th 単体 + top:29px だと段の実高さとズレて本文が透ける */
+  #earn-tbl thead { position:sticky; top:0; z-index:2; }
+  #earn-tbl thead th { position:static; top:auto; z-index:auto; background:var(--panel); }
   #earn-tbl tbody tr { cursor:pointer; }
-  #earn-tbl tbody tr:hover { background:var(--row); }
-  #earn-tbl tbody tr.sel { background:var(--row-sel); box-shadow:inset 3px 0 0 var(--accent); }
+  #earn-tbl tbody tr:hover td { background:var(--row); }
+  #earn-tbl tbody tr.sel td { background:var(--row-sel); }
+  #earn-tbl tbody tr.sel td:first-child { box-shadow:inset 3px 0 0 var(--accent); }
   table.fin td:first-child, table.fin th:first-child { position:sticky; left:0; z-index:2; background:var(--panel); }
   table.fin { font-variant-numeric:tabular-nums; }
   table.fin th { font-size:11px; letter-spacing:.02em; }
