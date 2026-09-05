@@ -1080,7 +1080,12 @@ def test_reject_prior_period_element() -> None:
     if "前期計店舗数" not in _err(r)["message"]:
         _fail(f"message missing name: {r.json()!r}")
     r = c.get(f"/api/v1/tables/{code}/2026")
-    _expect(r, 404, "prior ingest rolled back")
+    if r.status_code == 200:
+        names = [e["element"] for e in r.json()["elements"]]
+        if "前期計店舗数" in names or "当期計店舗数" in names:
+            _fail(f"prior ingest leftover: {names!r}")
+    elif r.status_code != 404:
+        _fail(f"prior ingest GET: {r.status_code} {r.text[:200]}")
 
     r = c.post(f"/api/v1/tables/{code}/2026/elements", json={
         "element": "店舗数（前期）", "unit": "number",
