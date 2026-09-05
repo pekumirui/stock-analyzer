@@ -200,7 +200,7 @@ def reject_prior_period_element(element: str) -> None:
     raise MonthlyIngestError(
         400,
         "PRIOR_PERIOD_ELEMENT",
-        f「{label}」は前期の実数です。前年の同じ項目に既にあるので、この行は投入しないでください。",
+        f"「{label}」は前期の実数です。前年の同じ項目に既にあるので、この行は投入しないでください。",
     )
 
 
