@@ -47,9 +47,9 @@ def _pick_earnings_date(base: str, month: str) -> str | None:
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("feature", choices=["screener", "earnings", "chart", "monthly", "census", "search"])
+    p.add_argument("feature", choices=["screener", "earnings", "chart", "monthly", "search"])
     p.add_argument("--date", default="")
-    p.add_argument("--code", default="72030")
+    p.add_argument("--code", default="")
     p.add_argument("--month", default="")
     args = p.parse_args()
     base = _url()
@@ -92,40 +92,39 @@ def main() -> None:
         return
 
     if args.feature == "chart":
-        url = f"{base}/api/chart/{args.code}?tf=D&ma=50,150,200&rel=false"
+        code = args.code or "72030"
+        url = f"{base}/api/chart/{code}?tf=D&ma=50,150,200&rel=false"
         status, body = _get(url)
         path = _write("chart", "body.json", "GET", url, status, body)
         candles = body.get("candles") if isinstance(body, dict) else None
         if status != 200 or not candles:
-            raise SystemExit(f"chart {args.code} has no candles")
-        perf_url = f"{base}/api/earnings-performance/{args.code}"
+            raise SystemExit(f"chart {code} has no candles")
+        perf_url = f"{base}/api/earnings-performance/{code}"
         pst, pbody = _get(perf_url)
         _write("chart", "performance.json", "GET", perf_url, pst, pbody)
         print(path)
         return
 
     if args.feature == "monthly":
-        cal_url = f"{base}/api/monthly/calendar?month={month}"
-        st, counts = _get(cal_url)
-        _write("monthly", "calendar.json", "GET", cal_url, st, counts)
-        if st != 200 or not counts:
-            raise SystemExit(f"no monthly days in {month}")
-        day = args.date or max(counts, key=lambda d: counts[d])
-        url = f"{base}/api/monthly?date={day}"
-        status, body = _get(url)
-        path = _write("monthly", "body.json", "GET", url, status, body)
-        if status != 200 or not body:
-            raise SystemExit(f"monthly {day} empty")
-        print(path)
-        return
-
-    if args.feature == "census":
-        url = f"{base}/api/monthly/census"
-        status, body = _get(url)
-        path = _write("census", "body.json", "GET", url, status, body)
-        rows = body.get("rows") if isinstance(body, dict) else None
-        if status != 200 or not rows:
-            raise SystemExit("census empty")
+        list_url = f"{base}/api/v1/tables"
+        status, body = _get(list_url)
+        path = _write("monthly", "body.json", "GET", list_url, status, body)
+        if status != 200 or not isinstance(body, list) or not body:
+            raise SystemExit(f"monthly list empty status={status}")
+        if args.code:
+            code = args.code
+            years_url = f"{base}/api/v1/tables/{code}"
+            yst, ybody = _get(years_url)
+            _write("monthly", "years.json", "GET", years_url, yst, ybody)
+            years = ybody.get("years") if isinstance(ybody, dict) else None
+            if yst != 200 or not years:
+                raise SystemExit(f"monthly {code} has no years")
+            year = max(int(y) for y in years)
+            year_url = f"{base}/api/v1/tables/{code}/{year}"
+            dst, dbody = _get(year_url)
+            _write("monthly", "year.json", "GET", year_url, dst, dbody)
+            if dst != 200:
+                raise SystemExit(f"monthly {code}/{year} failed status={dst}")
         print(path)
         return
 

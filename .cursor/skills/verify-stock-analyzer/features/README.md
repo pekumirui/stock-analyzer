@@ -39,7 +39,6 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 ## Features
 
 - [決算速報](./earnings.md) calendar day list, row detail, 累計 / 3か月 tabs.
-- [チャート](./chart.md) symbol search, daily candles, 対TOPIX, 決算発表後リターン.
+- [チャート](./chart.md) symbol search, daily/weekly/monthly candles, 対TOPIX, 決算発表後リターン.
 - [スクリーナー](./screener.md) Stage + RS filter table (UI defaults Stage 2, RS≥70).
-- [月次](./monthly.md) TDnet monthly disclosures by day and issuer.
-- [型の調査](./census.md) monthly KPI census across issuers.
+- [月次](./monthly.md) issuer list + industry chips via `/api/v1/tables`, Detail with series select, 3-year chart, year-stacked tables.
