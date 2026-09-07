@@ -71,9 +71,13 @@ Harness: HTTP against the same routes the SPA uses, plus the browser when CDP is
 | チャート tab | `nav button[data-tab="chart"]` |
 | スクリーナー tab | `nav button[data-tab="screener"]` |
 | Earnings calendar | `#cal-btn` opens `#cal-pop`; day cells are `#cal .d` with `onclick="selectDate('YYYY-MM-DD')"`. Days with disclosures show `.cnt`. Esc / `#cal-backdrop` / a day click close the popover. |
-| Earnings row | `#earn-tbl tr[data-no]` |
+| Earnings row | `#earn-tbl tr[data-no]` (first row auto-selected on day load) |
 | 累計 / 3か月 | `.ftab[data-fin="cum"]` (default on) / `.ftab[data-fin="q"]` |
+| Earnings period chips | `#q-chips` (display only) |
+| Earnings embedded chart | `#e-chart` / `.a-chart` (same `/api/chart` as chart tab) |
+| Event overlays | `.evt-toggles` on earnings + chart (`input[data-evt="earnings"]`, label 決算発表) |
 | Chart search | `#sym` (placeholder `銘柄名 or コード`), suggestions `#suggest` |
+| Chart 表示 | `#tab-chart button.btn` (label 表示) — required after changing `#tf` / `#mas` / `#rel` |
 | Timeframe | `#tf` (`D` / `W` / `M`) |
 | MA list | `#mas` (default `50,150,200`) |
 | 対TOPIX | `#rel` checkbox |
@@ -89,9 +93,9 @@ Harness: HTTP against the same routes the SPA uses, plus the browser when CDP is
 |---|---|
 | Open 決算速報 calendar | `GET /api/earnings/calendar?month=YYYY-MM` |
 | Click a day | `GET /api/earnings?date=YYYY-MM-DD` |
-| Select a row | `GET /api/earnings/detail/{code}?disclosure_no=...` |
+| Select a row | `GET /api/earnings/detail/{code}?disclosure_no=...` and `GET /api/chart/{code}?tf=D&ma=50,150,200` into `#e-chart` |
 | Chart search typeahead | `GET /api/stocks/search?q=...` |
-| Chart 表示 (UI defaults) | `GET /api/chart/{code}?tf=D&ma=50,150,200&rel=false` and `GET /api/earnings-performance/{code}` |
+| Chart 表示 (UI defaults) | `GET /api/chart/{code}?tf=D&ma=50,150,200&rel=false` (may include `earnings_dates`) and `GET /api/earnings-performance/{code}` |
 | Screener 検索 (UI defaults) | `GET /api/screener?stage=2&rs_min=70` |
 | 月次 TOP list | `GET /api/v1/tables` |
 | 月次 Detail years | `GET /api/v1/tables/{code}` |

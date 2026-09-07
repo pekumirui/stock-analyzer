@@ -5,16 +5,18 @@ The chart tab searches an issuer and draws adjusted daily, weekly, or monthly ca
 ## Sub-features
 
 - `chart-search` typeahead from `#sym` via `/api/stocks/search`.
-- `chart-candles` fills `#chart` from `/api/chart/{code}` `candles`.
-- `chart-rel` toggles `#rel` and shows `#relwrap` when `/api/chart/{code}` includes TOPIX.
+- `chart-candles` fills `#chart` from `/api/chart/{code}` `candles` when `表示` / `pick` / `gotoChart` runs `loadChart()`.
+- `chart-rel` toggles `#rel` and shows `#relwrap` when `/api/chart/{code}` includes TOPIX (still needs `表示` after flipping the checkbox).
 - `chart-perf` fills `#perf-tbl` from `/api/earnings-performance/{code}`.
+- `chart-events` `.evt-toggles` (決算発表) overlays markers from chart JSON `earnings_dates`; default off.
 
 ## How to get to it (user POV)
 
 - Click `nav button[data-tab="chart"]`.
 - Type a name or 5-digit code into `#sym` and pick `#suggest`.
 - From 決算速報 (issuer title) or スクリーナー (name cell), use `gotoChart(code)`. There is no chart button on 月次; 型の調査 / census is not in the SPA.
-- Change `#tf` (`D` / `W` / `M` — 日足/週足/月足), `#mas`, or `#rel`.
+- Change `#tf` (`D` / `W` / `M` — 日足/週足/月足), `#mas`, or `#rel`, then click `表示` (changing those controls alone does not redraw).
+- Optionally tick `.evt-toggles` 決算発表 for earnings markers.
 
 ## Driving it with verify-stock-analyzer
 
@@ -25,9 +27,10 @@ Preconditions:
 
 - **Tab.** Click `nav button[data-tab="chart"]`. `#tab-chart` is displayed.
 - **Search.** `GET /api/stocks/search?q=トヨタ` returns `{code,name,market}` with no `0`-prefix `code`. Typing the same into `#sym` opens `#suggest`.
-- **Candles.** Run `helpers/capture.py chart --code 72030`. `artifacts/chart/body.json` has `candles` length > 0. Candle fields are `open`/`high`/`low`/`close` already filled from `adj_*`. `#chart-title` is non-empty.
+- **Candles.** Run `helpers/capture.py chart --code 72030`. `artifacts/chart/body.json` has `candles` length > 0. Candle fields are `open`/`high`/`low`/`close` already filled from `adj_*`. `#chart-title` is non-empty. Body may include `earnings_dates` (used by `.evt-toggles`).
 - **Performance.** `artifacts/chart/performance.json` is a list (may be empty for a name with no events; still 200).
-- **対TOPIX.** Check `#rel`. `#relwrap` display is not `none` when the chart payload can compute relative series.
+- **対TOPIX.** Check `#rel`, then click `表示`. `#relwrap` display is not `none` when the chart payload can compute relative series.
+- **Timeframe.** Change `#tf` to `W` or `M` and click `表示` — a control change without `表示` must not be treated as a redraw proof.
 - **Proof.** Keep `body.json` and (if CDP) `ui.png` with `#chart` tall enough to show candles and header `h1` `株式分析`.
 
 ## Gotchas

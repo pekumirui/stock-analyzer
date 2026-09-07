@@ -12,7 +12,7 @@ The monthly tab lists ingested issuer monthly-sales tables with industry chips, 
 ## How to get to it (user POV)
 
 - Click `nav button[data-tab="monthly"]`.
-- Click an industry / 新着 chip in `#monthly-groups` (chips with count 0 are omitted).
+- Click an industry / 新着 chip in `#monthly-groups`. The 新着 chip is always rendered; if no issuer has `is_new`, selection falls back to the first industry chip but 新着 stays visible. Industry chips appear only for industries present in the list.
 - Click a company-name cell (`.name`) in `#monthly-tbl` to open Detail.
 - Change `#monthly-series` or click a `tr[data-series]` in the year tables.
 - Click `#monthly-back` to restore TOP + chip.
@@ -35,7 +35,7 @@ Preconditions:
 - Empty `/api/v1/tables` renders「登録された月次データはありません」— that is empty ingest, not a render bug.
 - Detail with no years shows「データなし」.
 - NEW badge uses `ingested_today` (JST today); 新着 chip window is `MONTHLY_NEW_DAYS` (7) via `is_new`.
-- YoY chart values are display-adjusted (+100) with a 100 horizontal line; year bar colors cycle `MONTHLY_YEAR_COLORS[year % 4]`.
+- YoY chart/cell values add +100 only for `yoy_pct` (not `yoy_index`), with a 100 horizontal line; year bar colors cycle `MONTHLY_YEAR_COLORS[year % 4]`.
 - Row order follows segment × slot (`monthlyRowOrder`); yoy row labels end with `(前年比)` via `fmtMonthlyElement`.
 - SPA only reads `/api/v1/tables*`. Write routes (`POST …/ingest`, `PUT …/industry`, values/elements) are MCP/ingest — do not use them in verify.
 - Narrow viewports (`@media (max-width:640px)`) drop the left sticky columns; do not require desktop sticky layout.
