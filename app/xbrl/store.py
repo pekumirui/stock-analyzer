@@ -116,11 +116,17 @@ def parse_zip_into_filing(
     try:
         with TemporaryDirectory(prefix="xbrl-parse-") as tmp:
             unpacked = extract_zip(zip_path, Path(tmp) / "unpacked")
+            exclude: set[date] = set()
+            if filing.submitted_at is not None:
+                exclude.add(filing.submitted_at.date())
+            # Always resolve 本表の期末 from package contents (ignore stale column).
             pkg = parse_package(
                 unpacked,
                 cache_dir=cache,
                 text_max=limit,
-                fiscal_year_end=filing.fiscal_year_end,
+                fiscal_year_end=None,
+                title=title,
+                exclude_dates=exclude or None,
             )
     except ValueError as exc:
         if str(exc) == "no-ixbrl":
@@ -137,9 +143,8 @@ def parse_zip_into_filing(
         db.commit()
         return filing
 
-    ends = [c.end_date for c in pkg.contexts]
-    if ends and filing.fiscal_year_end is None:
-        filing.fiscal_year_end = max(ends)
+    # Resolved 本表の期末 (never submitted_at/pubdate; see resolve_fiscal_year_end).
+    filing.fiscal_year_end = pkg.fiscal_year_end
 
     ctx_rows: dict[str, XbrlContext] = {}
     for ctx in pkg.contexts:
