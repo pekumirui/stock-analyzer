@@ -1,4 +1,17 @@
-from sqlalchemy import Column, String, Float, Date, DateTime, Integer, Boolean, Text, Index
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
@@ -158,3 +171,154 @@ class MonthlyValue(Base):
     month = Column(Integer, primary_key=True)
     value = Column(Float, nullable=False)
 
+
+class XbrlFiling(Base):
+    __tablename__ = "xbrl_filings"
+    id = Column(Integer, primary_key=True)
+    code = Column(String(5), nullable=False, index=True)
+    source = Column(String(16), nullable=False, default="tdnet")
+    doc_id = Column(String(64), nullable=False)
+    doc_type = Column(String(16), nullable=False, default="other")
+    period_type = Column(String(8))
+    fiscal_year_end = Column(Date)
+    submitted_at = Column(DateTime, nullable=False)
+    title = Column(Text)
+    accounting_standard = Column(String(16))
+    is_amendment = Column(Boolean, nullable=False, default=False)
+    raw_path = Column(Text, nullable=False)
+    raw_sha256 = Column(String(64))
+    parse_status = Column(String(16), nullable=False, default="pending")
+    parse_error = Column(Text)
+    parsed_at = Column(DateTime)
+    created_at = Column(DateTime, nullable=False)
+    __table_args__ = (
+        UniqueConstraint("source", "doc_id", name="uq_xbrl_filings_source_doc"),
+        Index("idx_xbrl_filings_code_submitted", "code", "submitted_at"),
+        Index("idx_xbrl_filings_parse_status", "parse_status"),
+    )
+
+
+class XbrlElement(Base):
+    __tablename__ = "xbrl_elements"
+    id = Column(Integer, primary_key=True)
+    namespace_uri = Column(Text, nullable=False)
+    namespace_key = Column(String(64), nullable=False)
+    local_name = Column(String(255), nullable=False)
+    label_ja = Column(Text)
+    label_en = Column(Text)
+    item_type = Column(String(16))
+    is_custom = Column(Boolean, nullable=False, default=False)
+    first_seen_at = Column(DateTime, nullable=False)
+    __table_args__ = (
+        UniqueConstraint("namespace_uri", "local_name", name="uq_xbrl_elements_ns_local"),
+        Index("idx_xbrl_elements_key", "namespace_key", "local_name"),
+    )
+
+
+class XbrlContext(Base):
+    __tablename__ = "xbrl_contexts"
+    id = Column(Integer, primary_key=True)
+    filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), nullable=False)
+    context_ref = Column(String(255), nullable=False)
+    period_type = Column(String(16), nullable=False)
+    start_date = Column(Date)
+    end_date = Column(Date, nullable=False)
+    is_consolidated = Column(Integer, nullable=False, default=1)
+    relative_period = Column(String(16))
+    dimensions_json = Column(Text, nullable=False, default="{}")
+    has_dimensions = Column(Boolean, nullable=False, default=False)
+    __table_args__ = (
+        UniqueConstraint("filing_id", "context_ref", name="uq_xbrl_contexts_filing_ref"),
+        Index("idx_xbrl_contexts_filing", "filing_id"),
+    )
+
+
+class XbrlFact(Base):
+    __tablename__ = "xbrl_facts"
+    id = Column(Integer, primary_key=True)
+    filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), nullable=False)
+    element_id = Column(Integer, ForeignKey("xbrl_elements.id"), nullable=False)
+    context_id = Column(Integer, ForeignKey("xbrl_contexts.id"), nullable=False)
+    unit = Column(String(64))
+    decimals = Column(Integer)
+    scale = Column(Integer)
+    value_num = Column(Numeric(30, 4))
+    value_text = Column(Text)
+    is_nil = Column(Boolean, nullable=False, default=False)
+    __table_args__ = (
+        UniqueConstraint(
+            "filing_id", "element_id", "context_id", "unit",
+            name="uq_xbrl_facts_key",
+        ),
+        Index("idx_xbrl_facts_filing", "filing_id"),
+        Index("idx_xbrl_facts_element", "element_id"),
+    )
+
+
+class XbrlStdItem(Base):
+    __tablename__ = "xbrl_std_items"
+    id = Column(Integer, primary_key=True)
+    code = Column(String(64), nullable=False, unique=True)
+    statement = Column(String(8), nullable=False)
+    section = Column(String(64))
+    label_ja = Column(String(128), nullable=False)
+    display_order = Column(Integer, nullable=False, default=0)
+    sign = Column(String(16), nullable=False, default="natural")
+    is_required = Column(Boolean, nullable=False, default=False)
+
+
+class XbrlElementMapping(Base):
+    __tablename__ = "xbrl_element_mappings"
+    id = Column(Integer, primary_key=True)
+    std_item_id = Column(Integer, ForeignKey("xbrl_std_items.id"), nullable=False)
+    namespace_key = Column(String(64), nullable=False)
+    local_name = Column(String(255), nullable=False)
+    priority = Column(Integer, nullable=False, default=100)
+    accounting_standard = Column(String(16))
+    note = Column(Text)
+    __table_args__ = (
+        UniqueConstraint(
+            "std_item_id", "namespace_key", "local_name", "accounting_standard",
+            name="uq_xbrl_element_mappings",
+        ),
+        Index("idx_xbrl_mappings_elem", "namespace_key", "local_name"),
+    )
+
+
+class XbrlFinancial(Base):
+    __tablename__ = "xbrl_financials"
+    id = Column(Integer, primary_key=True)
+    code = Column(String(5), nullable=False)
+    filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), nullable=False)
+    std_item_id = Column(Integer, ForeignKey("xbrl_std_items.id"), nullable=False)
+    is_consolidated = Column(Boolean, nullable=False)
+    period_type = Column(String(8), nullable=False)
+    period_start = Column(Date)
+    period_end = Column(Date, nullable=False)
+    value = Column(Numeric(30, 4), nullable=False)
+    unit = Column(String(16), nullable=False, default="JPY")
+    source_fact_id = Column(Integer, ForeignKey("xbrl_facts.id"))
+    source_element_id = Column(Integer, ForeignKey("xbrl_elements.id"))
+    generated_at = Column(DateTime, nullable=False)
+    __table_args__ = (
+        UniqueConstraint(
+            "filing_id", "std_item_id", "is_consolidated", "period_end",
+            name="uq_xbrl_financials_key",
+        ),
+        Index(
+            "idx_xbrl_financials_lookup",
+            "code", "std_item_id", "is_consolidated", "period_end",
+        ),
+    )
+
+
+class XbrlJobRun(Base):
+    __tablename__ = "xbrl_job_runs"
+    id = Column(Integer, primary_key=True)
+    job_name = Column(String(32), nullable=False)
+    status = Column(String(16), nullable=False)
+    processed_count = Column(Integer, default=0)
+    error_count = Column(Integer, default=0)
+    message = Column(Text)
+    started_at = Column(DateTime, nullable=False)
+    finished_at = Column(DateTime)

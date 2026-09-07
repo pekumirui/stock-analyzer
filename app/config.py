@@ -39,6 +39,11 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'stock.db'}")
 
+# TDnet XBRL (parse/normalize). Fetch dest matches scripts/tdnet_xbrl_r2.DEFAULT_DEST.
+XBRL_DEST = os.getenv("XBRL_DEST", "/home/stock/r2-share/xbrl")
+XBRL_CACHE_DIR = os.getenv("XBRL_CACHE_DIR", "/home/stock/r2-share/xbrl/_cache")
+XBRL_TEXT_MAX_CHARS = int(os.getenv("XBRL_TEXT_MAX_CHARS", "1000"))
+
 # ---- J-Quants API V2 ----
 # V1 (メール/パスワード → idToken) は閉鎖予定。V2はダッシュボード発行のAPIキー方式。
 JQUANTS_API_KEY = os.getenv("JQUANTS_API_KEY", "")

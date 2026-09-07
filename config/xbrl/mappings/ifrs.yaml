@@ -1,0 +1,24 @@
+- std_item: net_sales
+  elements:
+    - { ns: jpigp_cor, name: RevenueIFRS, priority: 10, standard: IFRS }
+    - { ns: jpigp_cor, name: Revenue, priority: 20, standard: IFRS }
+- std_item: operating_income
+  elements:
+    - { ns: jpigp_cor, name: OperatingProfitLossIFRS, priority: 10, standard: IFRS }
+    - { ns: jpigp_cor, name: OperatingIncome, priority: 20, standard: IFRS }
+- std_item: profit_before_tax
+  elements:
+    - { ns: jpigp_cor, name: ProfitLossBeforeTaxIFRS, priority: 10, standard: IFRS }
+- std_item: net_income
+  elements:
+    - { ns: jpigp_cor, name: ProfitLossAttributableToOwnersOfParentIFRS, priority: 10, standard: IFRS }
+- std_item: total_assets
+  elements:
+    - { ns: jpigp_cor, name: AssetsIFRS, priority: 10, standard: IFRS }
+    - { ns: jpigp_cor, name: Assets, priority: 20, standard: IFRS }
+- std_item: net_assets
+  elements:
+    - { ns: jpigp_cor, name: EquityIFRS, priority: 10, standard: IFRS }
+- std_item: operating_cf
+  elements:
+    - { ns: jpigp_cor, name: NetCashProvidedByUsedInOperatingActivitiesIFRS, priority: 10, standard: IFRS }

@@ -1,0 +1,29 @@
+- std_item: net_sales
+  elements:
+    - { ns: jppfs_cor, name: NetSales, priority: 10 }
+    - { ns: jppfs_cor, name: OperatingRevenue1, priority: 20 }
+    - { ns: jppfs_cor, name: NetSalesOfCompletedConstructionContracts, priority: 30 }
+- std_item: cost_of_sales
+  elements:
+    - { ns: jppfs_cor, name: CostOfSales, priority: 10 }
+- std_item: gross_profit
+  elements:
+    - { ns: jppfs_cor, name: GrossProfit, priority: 10 }
+- std_item: sga
+  elements:
+    - { ns: jppfs_cor, name: SellingGeneralAndAdministrativeExpenses, priority: 10 }
+- std_item: operating_income
+  elements:
+    - { ns: jppfs_cor, name: OperatingIncome, priority: 10 }
+    - { ns: jppfs_cor, name: OperatingIncomeLoss, priority: 20 }
+- std_item: ordinary_income
+  elements:
+    - { ns: jppfs_cor, name: OrdinaryIncome, priority: 10 }
+- std_item: profit_before_tax
+  elements:
+    - { ns: jppfs_cor, name: IncomeBeforeIncomeTaxes, priority: 10 }
+- std_item: net_income
+  elements:
+    - { ns: jppfs_cor, name: ProfitLossAttributableToOwnersOfParent, priority: 10 }
+    - { ns: jppfs_cor, name: ProfitLoss, priority: 20 }
+    - { ns: jppfs_cor, name: NetIncome, priority: 30 }
