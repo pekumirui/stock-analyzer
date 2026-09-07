@@ -18,7 +18,13 @@ os.environ.setdefault("DATABASE_URL", f"sqlite:///{tempfile.mkdtemp(prefix='xbrl
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.ingest import upsert  # noqa: E402
 from app.models import Stock, XbrlFact, XbrlFiling, XbrlFinancial, XbrlStdItem  # noqa: E402
-from app.xbrl.context import classify_title, infer_consolidated  # noqa: E402
+from app.xbrl.context import (  # noqa: E402
+    classify_title,
+    fiscal_year_end_from_title,
+    infer_consolidated,
+    resolve_fiscal_year_end,
+)
+from datetime import date  # noqa: E402
 from app.xbrl.jobs import run_normalize  # noqa: E402
 from app.xbrl.mappings import apply_mappings  # noqa: E402
 from app.xbrl.parser import find_ixbrl_files, parse_package  # noqa: E402
@@ -43,6 +49,8 @@ def _ixbrl_html(
     current_start: str = "2025-04-01",
     consol: str = "jppfs_cor:ConsolidatedMember",
     extra_context: str = "",
+    filing_instant: str | None = None,
+    dei_period_end: str | None = None,
 ) -> str:
     fact_xml = []
     for name, ctx, unit, scale, value in facts:
@@ -51,6 +59,29 @@ def _ixbrl_html(
             f'unitRef="{unit}" scale="{scale}" decimals="-6">{value}</ix:nonFraction>'
         )
     hidden = "\n      ".join(fact_xml)
+    dei_bits = []
+    filing_ctx = ""
+    if filing_instant:
+        filing_ctx = f"""
+      <xbrli:context id="FilingDateInstant">
+        <xbrli:entity><xbrli:identifier scheme="http://disclosure.edinet-fsa.go.jp">E00000</xbrli:identifier></xbrli:entity>
+        <xbrli:period>
+          <xbrli:instant>{filing_instant}</xbrli:instant>
+        </xbrli:period>
+      </xbrli:context>"""
+        dei_bits.append(
+            f'<ix:nonNumeric name="jpdei_cor:DummyFilingMarker" contextRef="FilingDateInstant">'
+            f'{filing_instant}</ix:nonNumeric>'
+        )
+    if dei_period_end:
+        # DEI period-end fact often sits on FilingDateInstant in real TDnet packages.
+        dei_ctx = "FilingDateInstant" if filing_instant else "CurrentYearInstant"
+        dei_bits.append(
+            f'<ix:nonNumeric name="jpdei_cor:CurrentPeriodEndDateDEI" contextRef="{dei_ctx}">'
+            f'{dei_period_end}</ix:nonNumeric>'
+        )
+    dei_hidden = "\n      ".join(dei_bits)
+    extra_context = (extra_context or "") + filing_ctx
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml"
       xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"
@@ -58,11 +89,13 @@ def _ixbrl_html(
       xmlns:xbrldi="http://xbrl.org/2006/xbrldi"
       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
       xmlns:{ns_prefix}="{ns_uri}"
+      xmlns:jpdei_cor="http://disclosure.edinet-fsa.go.jp/taxonomy/jpdei/2013-08-31/jpdei_cor"
       xmlns:iso4217="http://www.xbrl.org/2003/iso4217">
 <head>
   <ix:header>
     <ix:hidden>
       {hidden}
+      {dei_hidden}
     </ix:hidden>
     <ix:resources>
       <xbrli:context id="CurrentYearDuration">
@@ -429,9 +462,122 @@ def test_manifest_job(tmp: Path) -> None:
         db.close()
 
 
+def test_fiscal_year_end_not_disclosure_date(tmp: Path) -> None:
+    """FilingDateInstant (pubdate) must not become fiscal_year_end or relative=current."""
+    init_db()
+    db = SessionLocal()
+    try:
+        seed_stock(db, "72030", "トヨタ自動車")
+        apply_mappings(db)
+        # Period end 2026-03-31; disclosure/pubdate 2026-05-15 later than period end
+        # (same trap as real TDnet Attachment FilingDateInstant).
+        data = build_zip(
+            MANUFACTURING,
+            current_end="2026-03-31",
+            current_start="2025-04-01",
+            filing_instant="2026-05-15",
+            dei_period_end="2026-03-31",
+        )
+        zpath = write_zip(tmp, "7203/flash_fy.zip", data)
+        filing = parse_zip_into_filing(
+            db,
+            zip_path=zpath,
+            code="72030",
+            doc_id="flashfy1",
+            title="2026年3月期 決算短信〔日本基準〕（連結）",
+            raw_path="7203/flash_fy.zip",
+            raw_sha256="fy1",
+            submitted_at="2026-05-15 15:00:00",
+            cache_dir=tmp / "cache",
+        )
+        if filing.parse_status != "parsed":
+            _fail(f"parse status {filing.parse_status} {filing.parse_error}")
+        if filing.fiscal_year_end != date(2026, 3, 31):
+            _fail(f"fiscal_year_end {filing.fiscal_year_end} want 2026-03-31 (not disclosure)")
+        if filing.fiscal_year_end == date(2026, 5, 15):
+            _fail("fiscal_year_end must never be submitted_at/pubdate")
+        from app.models import XbrlContext
+        currents = (
+            db.query(XbrlContext)
+            .filter_by(filing_id=filing.id, relative_period="current")
+            .all()
+        )
+        if not currents:
+            _fail("no current contexts after fy_end fix")
+        if any(c.context_ref == "FilingDateInstant" and c.relative_period == "current" for c in currents):
+            # FilingDateInstant may only be current if its instant equals period end (it does not here)
+            bad = [c for c in currents if c.context_ref == "FilingDateInstant"]
+            if bad:
+                _fail(f"FilingDateInstant marked current: {bad[0].end_date}")
+        pl_current = [c for c in currents if c.context_ref == "CurrentYearDuration"]
+        if not pl_current:
+            _fail(f"CurrentYearDuration not current: {[(c.context_ref, c.relative_period) for c in currents]}")
+
+        run_normalize(db)
+        n_fin = db.query(XbrlFinancial).filter_by(filing_id=filing.id).count()
+        if n_fin <= 0:
+            _fail("normalize wrote 0 xbrl_financials")
+        sales = _std_value(db, filing.id, "net_sales")
+        op = _std_value(db, filing.id, "operating_income")
+        if sales != Decimal("200000000"):
+            _fail(f"net_sales after normalize {sales}")
+        if op != Decimal("50000000"):
+            _fail(f"operating_income after normalize {op}")
+    finally:
+        db.close()
+
+
+def test_fy_end_from_pl_when_dei_missing(tmp: Path) -> None:
+    """Without DEI, duration ends used by NetSales beat FilingDateInstant max."""
+    init_db()
+    db = SessionLocal()
+    try:
+        seed_stock(db, "72030", "トヨタ自動車")
+        apply_mappings(db)
+        data = build_zip(
+            MANUFACTURING,
+            current_end="2026-06-30",
+            current_start="2026-04-01",
+            filing_instant="2026-08-10",
+            # no dei_period_end
+        )
+        zpath = write_zip(tmp, "7203/flash_pl.zip", data)
+        filing = parse_zip_into_filing(
+            db,
+            zip_path=zpath,
+            code="72030",
+            doc_id="flashpl1",
+            title="2027年3月期 第1四半期決算短信〔日本基準〕（連結）",
+            raw_path="7203/flash_pl.zip",
+            raw_sha256="pl1",
+            submitted_at="2026-08-10 15:00:00",
+            cache_dir=tmp / "cache",
+        )
+        if filing.fiscal_year_end != date(2026, 6, 30):
+            _fail(f"PL-inferred fy_end {filing.fiscal_year_end} want 2026-06-30")
+        run_normalize(db)
+        if db.query(XbrlFinancial).filter_by(filing_id=filing.id).count() <= 0:
+            _fail("expected financials from PL-inferred fy_end")
+        if _std_value(db, filing.id, "net_sales") is None:
+            _fail("net_sales missing")
+    finally:
+        db.close()
+
+
+def test_title_fy_end_annual_only() -> None:
+    if fiscal_year_end_from_title("2026年3月期 決算短信〔日本基準〕（連結）") != date(2026, 3, 31):
+        _fail("annual title fy_end")
+    if fiscal_year_end_from_title("2027年3月期 第1四半期決算短信〔日本基準〕（連結）") is not None:
+        _fail("quarterly title must not supply period end")
+    if fiscal_year_end_from_title("2026年12月期 第2四半期(中間期)決算短信") is not None:
+        _fail("semi-annual title must not supply period end")
+
+
+
 def main() -> None:
     test_classify_title()
     test_infer_consolidated()
+    test_title_fy_end_annual_only()
     with tempfile.TemporaryDirectory() as d:
         tmp = Path(d)
         test_find_ixbrl_and_parse_package(tmp)
@@ -439,6 +585,8 @@ def main() -> None:
         test_bank_ifrs_standalone_custom(tmp)
         test_no_ixbrl_skipped(tmp)
         test_manifest_job(tmp)
+        test_fiscal_year_end_not_disclosure_date(tmp)
+        test_fy_end_from_pl_when_dei_missing(tmp)
     print("ok: xbrl parse")
 
 

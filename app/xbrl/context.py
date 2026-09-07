@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import json
+import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import date
+from calendar import monthrange
 from pathlib import Path
 from typing import Any
 
@@ -133,13 +135,149 @@ def parse_contexts_from_xml(path: Path) -> list[ParsedContext]:
     return contexts
 
 
+# DEI / known local names for the report's current period end (本表の期末).
+# Prefer CurrentPeriod* over CurrentFiscalYear* (annual FY end) and FiscalYearEnd.
+DEI_CURRENT_PERIOD_END_NAMES = (
+    "CurrentPeriodEndDateDEI",
+    "CurrentPeriodEndDate",
+    "DocumentPeriodEndDateDEI",
+    "DocumentPeriodEndDate",
+)
+
+# Monetary PL locals often present on flash-report duration contexts.
+_PL_DURATION_HINTS = frozenset({
+    "NetSales",
+    "SalesIFRS",
+    "RevenueIFRS",
+    "OperatingRevenue1",
+    "OperatingIncome",
+    "OperatingProfitLossIFRS",
+    "OrdinaryIncome",
+    "ProfitLossAttributableToOwnersOfParent",
+    "ProfitAttributableToOwnersOfParentIFRS",
+    "ProfitLossAttributableToOwnersOfParentIFRS",
+})
+
+
+def _parse_iso_date_text(raw: str | None) -> date | None:
+    if not raw:
+        return None
+    s = str(raw).strip()
+    # Accept plain ISO; ignore Japanese filing-date style.
+    if len(s) >= 10 and s[4] == "-" and s[7] == "-":
+        return parse_date(s[:10])
+    return None
+
+
+def fiscal_year_end_from_title(title: str | None) -> date | None:
+    """Annual flash-report titles only: ``YYYY年M月期`` → month-end.
+
+    Quarterly / semi-annual titles name the *annual* FY end, not the period end,
+    so they are skipped.
+    """
+    if not title:
+        return None
+    if any(tok in title for tok in ("四半期", "半期", "中間")):
+        return None
+    m = re.search(r"(\d{4})\s*年\s*(\d{1,2})\s*月期", title)
+    if not m:
+        return None
+    year, month = int(m.group(1)), int(m.group(2))
+    if not (1 <= month <= 12):
+        return None
+    day = monthrange(year, month)[1]
+    return date(year, month, day)
+
+
+def fiscal_year_end_from_dei(facts) -> date | None:
+    """Pick CurrentPeriodEndDate* / DocumentPeriodEndDate* from parsed facts."""
+    by_local: dict[str, date] = {}
+    for fact in facts:
+        local = getattr(fact, "local_name", None) or ""
+        if local not in DEI_CURRENT_PERIOD_END_NAMES:
+            continue
+        raw = getattr(fact, "value_text", None)
+        if raw is None and getattr(fact, "value_num", None) is not None:
+            raw = str(fact.value_num)
+        d = _parse_iso_date_text(raw)
+        if d is not None:
+            by_local[local] = d
+    for name in DEI_CURRENT_PERIOD_END_NAMES:
+        if name in by_local:
+            return by_local[name]
+    return None
+
+
+def fiscal_year_end_from_pl_contexts(contexts: list[ParsedContext], facts) -> date | None:
+    """Latest duration end among contexts that carry monetary PL facts."""
+    ctx_by = {c.context_ref: c for c in contexts}
+    ends: list[date] = []
+    for fact in facts:
+        if not getattr(fact, "is_numeric", False):
+            continue
+        if getattr(fact, "value_num", None) is None:
+            continue
+        local = getattr(fact, "local_name", "") or ""
+        if local not in _PL_DURATION_HINTS:
+            continue
+        ctx = ctx_by.get(getattr(fact, "context_ref", ""))
+        if ctx is None or ctx.period_type != "duration":
+            continue
+        ends.append(ctx.end_date)
+    return max(ends) if ends else None
+
+
+def fiscal_year_end_from_duration_contexts(contexts: list[ParsedContext]) -> date | None:
+    """Fallback: max end among duration contexts only (skip filing-date instants)."""
+    ends = [c.end_date for c in contexts if c.period_type == "duration"]
+    return max(ends) if ends else None
+
+
+def resolve_fiscal_year_end(
+    contexts: list[ParsedContext],
+    facts,
+    *,
+    title: str | None = None,
+    exclude_dates: set[date] | None = None,
+) -> date | None:
+    """Determine 本表の期末 for relative_period assignment.
+
+    Order: DEI CurrentPeriod/DocumentPeriod end → reliable annual title →
+    PL monetary duration ends → any duration ends.
+    Never returns a date in ``exclude_dates`` (e.g. submitted_at / pubdate day).
+    """
+    excluded = exclude_dates or set()
+
+    def _ok(d: date | None) -> date | None:
+        if d is None or d in excluded:
+            return None
+        return d
+
+    for candidate in (
+        fiscal_year_end_from_dei(facts),
+        fiscal_year_end_from_title(title),
+        fiscal_year_end_from_pl_contexts(contexts, facts),
+        fiscal_year_end_from_duration_contexts(contexts),
+    ):
+        got = _ok(candidate)
+        if got is not None:
+            return got
+    return None
+
+
 def assign_relative_periods(
     contexts: list[ParsedContext],
     fiscal_year_end: date | None,
 ) -> None:
     if not contexts:
         return
-    fy_end = fiscal_year_end or max(c.end_date for c in contexts)
+    if fiscal_year_end is not None:
+        fy_end = fiscal_year_end
+    else:
+        fy_end = (
+            fiscal_year_end_from_duration_contexts(contexts)
+            or max(c.end_date for c in contexts)
+        )
     for ctx in contexts:
         if ctx.end_date == fy_end:
             ctx.relative_period = "current"

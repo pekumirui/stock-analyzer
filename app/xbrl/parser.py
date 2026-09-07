@@ -12,6 +12,7 @@ from app.xbrl.context import (
     assign_relative_periods,
     classify_title,
     parse_contexts_from_xml,
+    resolve_fiscal_year_end,
 )
 from app.xbrlp import Fact, FileLoader, Label, Parser
 
@@ -64,6 +65,7 @@ class ParsedPackage:
     facts: list[ParsedFact]
     labels: dict[tuple[str, str], dict[str, str]]
     ixbrl_files: list[Path]
+    fiscal_year_end: date | None = None
 
 
 def looks_like_ixbrl(path: Path) -> bool:
@@ -173,6 +175,8 @@ def parse_package(
     cache_dir: Path,
     text_max: int,
     fiscal_year_end: date | None = None,
+    title: str | None = None,
+    exclude_dates: set[date] | None = None,
 ) -> ParsedPackage:
     files = find_ixbrl_files(unpacked)
     manifest = find_manifest(unpacked)
@@ -220,12 +224,21 @@ def parse_package(
                 continue
             seen_ctx.add(ctx.context_ref)
             contexts.append(ctx)
-    assign_relative_periods(contexts, fiscal_year_end)
+    fy_end = fiscal_year_end
+    if fy_end is None:
+        fy_end = resolve_fiscal_year_end(
+            contexts,
+            facts,
+            title=title,
+            exclude_dates=exclude_dates,
+        )
+    assign_relative_periods(contexts, fy_end)
     return ParsedPackage(
         contexts=contexts,
         facts=facts,
         labels=labels,
         ixbrl_files=list(parser.ixbrl_files),
+        fiscal_year_end=fy_end,
     )
 
 
