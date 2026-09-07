@@ -20,6 +20,7 @@ from app.ingest import upsert  # noqa: E402
 from app.models import Stock, XbrlFact, XbrlFiling, XbrlFinancial, XbrlStdItem  # noqa: E402
 from app.xbrl.context import (  # noqa: E402
     classify_title,
+    infer_accounting_standard_from_namespaces,
     fiscal_year_end_from_title,
     infer_consolidated,
     resolve_fiscal_year_end,
@@ -229,6 +230,46 @@ def test_classify_title() -> None:
     c = classify_title("訂正四半期決算短信")
     if not c["is_amendment"] or c["doc_type"] != "quarterly":
         _fail(f"amendment: {c}")
+    # Fullwidth IFRS / JPGAAP (TDnet titles often use ＩＦＲＳ)
+    d = classify_title("2026年3月期 決算短信〔ＩＦＲＳ〕（連結）")
+    if d["accounting_standard"] != "IFRS" or d["doc_type"] != "annual":
+        _fail(f"fullwidth IFRS: {d}")
+    e = classify_title("2027年3月期 第１四半期決算短信〔ＩＦＲＳ〕（連結）")
+    if e["accounting_standard"] != "IFRS" or e["period_type"] != "Q1":
+        _fail(f"fullwidth Q1 IFRS: {e}")
+    f = classify_title("2026年3月期 決算短信〔日本基準〕（連結）")
+    if f["accounting_standard"] != "JPGAAP":
+        _fail(f"JPGAAP still: {f}")
+    g = classify_title("2026年3月期 決算短信（連結）")
+    if g["accounting_standard"] is not None:
+        _fail(f"ambiguous title should stay NULL: {g}")
+
+
+def test_infer_accounting_standard_from_namespaces() -> None:
+    from types import SimpleNamespace
+
+    ifrs_fact = SimpleNamespace(
+        namespace_key="jpigp_cor",
+        namespace_uri=IFRS_NS,
+        local_name="RevenueIFRS",
+        value_text=None,
+    )
+    got = infer_accounting_standard_from_namespaces([ifrs_fact], title_standard=None)
+    if got != "IFRS":
+        _fail(f"jpigp namespace → IFRS: {got}")
+    # Title wins over namespace
+    got2 = infer_accounting_standard_from_namespaces([ifrs_fact], title_standard="JPGAAP")
+    if got2 != "JPGAAP":
+        _fail(f"title should win: {got2}")
+    jppfs = SimpleNamespace(
+        namespace_key="jppfs_cor",
+        namespace_uri="http://disclosure.edinet-fsa.go.jp/taxonomy/jppfs/2024-11-01/jppfs_cor",
+        local_name="NetSales",
+        value_text=None,
+    )
+    got3 = infer_accounting_standard_from_namespaces([jppfs], title_standard=None)
+    if got3 is not None:
+        _fail(f"jppfs alone must stay NULL: {got3}")
 
 
 def test_infer_consolidated() -> None:
@@ -387,6 +428,47 @@ def test_bank_ifrs_standalone_custom(tmp: Path) -> None:
             _fail(f"custom element missing: {weird}")
         if db.query(XbrlFact).filter_by(filing_id=custom.id).count() == 0:
             _fail("custom filing stored no facts")
+    finally:
+        db.close()
+
+
+def test_fullwidth_ifrs_and_namespace_fallback(tmp: Path) -> None:
+    """Fullwidth title and ambiguous+jpigp both set accounting_standard=IFRS."""
+    init_db()
+    db = SessionLocal()
+    try:
+        seed_stock(db, "21700", "全角ＩＦＲＳ銘柄")
+        seed_stock(db, "38530", "名前空間フォールバック")
+        apply_mappings(db)
+        ifrs_zip = write_zip(
+            tmp, "fw_ifrs.zip",
+            build_zip(IFRS_FACTS, ns_prefix="jpigp_cor", ns_uri=IFRS_NS),
+        )
+        fw = parse_zip_into_filing(
+            db, zip_path=ifrs_zip, code="21700", doc_id="fw-ifrs1",
+            title="2026年3月期 決算短信〔ＩＦＲＳ〕（連結）",
+            raw_path="fw_ifrs.zip", raw_sha256="fw", submitted_at="2026-05-02 15:00:00",
+            cache_dir=tmp / "cache",
+        )
+        if fw.accounting_standard != "IFRS":
+            _fail(f"fullwidth title filing standard: {fw.accounting_standard}")
+        amb_zip = write_zip(
+            tmp, "amb_ifrs.zip",
+            build_zip(IFRS_FACTS, ns_prefix="jpigp_cor", ns_uri=IFRS_NS),
+        )
+        amb = parse_zip_into_filing(
+            db, zip_path=amb_zip, code="38530", doc_id="amb-ifrs1",
+            title="2026年3月期 決算短信（連結）",
+            raw_path="amb_ifrs.zip", raw_sha256="amb", submitted_at="2026-05-02 15:00:00",
+            cache_dir=tmp / "cache",
+        )
+        if amb.accounting_standard != "IFRS":
+            _fail(f"namespace fallback standard: {amb.accounting_standard}")
+        run_normalize(db)
+        if _std_value(db, fw.id, "net_sales") != Decimal("300000000"):
+            _fail(f"fullwidth ifrs normalize sales {_std_value(db, fw.id, 'net_sales')}")
+        if _std_value(db, amb.id, "net_sales") != Decimal("300000000"):
+            _fail(f"ambiguous ifrs normalize sales {_std_value(db, amb.id, 'net_sales')}")
     finally:
         db.close()
 
@@ -576,6 +658,7 @@ def test_title_fy_end_annual_only() -> None:
 
 def main() -> None:
     test_classify_title()
+    test_infer_accounting_standard_from_namespaces()
     test_infer_consolidated()
     test_title_fy_end_annual_only()
     with tempfile.TemporaryDirectory() as d:
@@ -583,6 +666,7 @@ def main() -> None:
         test_find_ixbrl_and_parse_package(tmp)
         test_parse_normalize_idempotent(tmp)
         test_bank_ifrs_standalone_custom(tmp)
+        test_fullwidth_ifrs_and_namespace_fallback(tmp)
         test_no_ixbrl_skipped(tmp)
         test_manifest_job(tmp)
         test_fiscal_year_end_not_disclosure_date(tmp)

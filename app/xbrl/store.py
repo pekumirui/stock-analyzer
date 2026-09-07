@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.config import XBRL_CACHE_DIR, XBRL_TEXT_MAX_CHARS
 from app.models import Stock, XbrlContext, XbrlElement, XbrlFact, XbrlFiling
-from app.xbrl.context import classify_title
+from app.xbrl.context import classify_title, infer_accounting_standard_from_namespaces
 from app.xbrl.parser import extract_zip, namespace_is_standard, parse_package
 
 
@@ -145,6 +145,12 @@ def parse_zip_into_filing(
 
     # Resolved 本表の期末 (never submitted_at/pubdate; see resolve_fiscal_year_end).
     filing.fiscal_year_end = pkg.fiscal_year_end
+
+    # Prefer title; if ambiguous, use fact namespaces / DEI (jpigp|ifrs|us-gaap).
+    filing.accounting_standard = infer_accounting_standard_from_namespaces(
+        pkg.facts,
+        title_standard=filing.accounting_standard,
+    )
 
     ctx_rows: dict[str, XbrlContext] = {}
     for ctx in pkg.contexts:
