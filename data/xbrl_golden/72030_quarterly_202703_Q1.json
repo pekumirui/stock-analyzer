@@ -1,0 +1,24 @@
+{
+  "code": "72030",
+  "name": "トヨタ自動車",
+  "edinet_code": "E02144",
+  "period_type": "quarterly",
+  "fiscal_year": "2027/03",
+  "quarter": "Q1",
+  "accounting_standard": "IFRS",
+  "is_consolidated": true,
+  "unit": "million_jpy",
+  "fetched_at": "2026-09-07T10:49:37.684408+00:00",
+  "source": "IRBANK Connect get_financials",
+  "metrics": {
+    "net_sales": 13525400,
+    "operating_income": 1063473,
+    "ordinary_income": null,
+    "net_income": 1477044,
+    "total_assets": null,
+    "net_assets": null,
+    "total_liabilities": null,
+    "operating_cf": 536551,
+    "investing_cf": 1427456
+  }
+}

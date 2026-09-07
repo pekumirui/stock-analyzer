@@ -1,0 +1,24 @@
+{
+  "code": "68610",
+  "name": "キーエンス",
+  "edinet_code": "E01967",
+  "period_type": "annual",
+  "fiscal_year": "2026/03",
+  "quarter": null,
+  "accounting_standard": "J-GAAP",
+  "is_consolidated": true,
+  "unit": "million_jpy",
+  "fetched_at": "2026-09-07T10:49:37.684408+00:00",
+  "source": "IRBANK Connect get_financials",
+  "metrics": {
+    "net_sales": 1169289,
+    "operating_income": 595759,
+    "ordinary_income": 635756,
+    "net_income": 445185,
+    "total_assets": 3670655,
+    "net_assets": 3471472,
+    "total_liabilities": 199183,
+    "operating_cf": 430680,
+    "investing_cf": -312387
+  }
+}

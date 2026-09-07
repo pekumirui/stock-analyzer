@@ -1,0 +1,24 @@
+{
+  "code": "72030",
+  "name": "トヨタ自動車",
+  "edinet_code": "E02144",
+  "period_type": "annual",
+  "fiscal_year": "2025/03",
+  "quarter": null,
+  "accounting_standard": "IFRS",
+  "is_consolidated": true,
+  "unit": "million_jpy",
+  "fetched_at": "2026-09-07T10:49:37.684408+00:00",
+  "source": "IRBANK Connect get_financials",
+  "metrics": {
+    "net_sales": 48036704,
+    "operating_income": 4795586,
+    "ordinary_income": null,
+    "net_income": 4765086,
+    "total_assets": 93601350,
+    "net_assets": 36878913,
+    "total_liabilities": 56722437,
+    "operating_cf": 3696934,
+    "investing_cf": -4189736
+  }
+}

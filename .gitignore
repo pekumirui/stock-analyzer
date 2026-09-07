@@ -14,7 +14,13 @@ stock.db-wal
 stock.db-shm
 *.sqlite
 *.sqlite3
-data/
+stock_verify.db
+stock_verify.db-journal
+stock_verify.db-wal
+stock_verify.db-shm
+data/*
+!data/xbrl_golden/
+!data/xbrl_golden/**
 *.csv.gz
 
 # --- Python ---

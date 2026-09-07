@@ -1,0 +1,24 @@
+{
+  "code": "99840",
+  "name": "ソフトバンクグループ",
+  "edinet_code": "E02778",
+  "period_type": "annual",
+  "fiscal_year": "2022/03",
+  "quarter": null,
+  "accounting_standard": "IFRS",
+  "is_consolidated": true,
+  "unit": "million_jpy",
+  "fetched_at": "2026-09-07T10:49:37.684408+00:00",
+  "source": "IRBANK Connect get_financials",
+  "metrics": {
+    "net_sales": 6221534,
+    "operating_income": 713852,
+    "ordinary_income": null,
+    "net_income": -1708029,
+    "total_assets": 47544670,
+    "net_assets": 11707762,
+    "total_liabilities": 35836908,
+    "operating_cf": 2725450,
+    "investing_cf": -3018654
+  }
+}
