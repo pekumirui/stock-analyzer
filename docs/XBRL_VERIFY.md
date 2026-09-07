@@ -1,61 +1,129 @@
-# XBRL 正規化のオフライン検証
+# XBRL 検証DBと IRBANK ゴールデン一致率
 
-`xbrl_financials` と `data/xbrl_golden/`（IRBANK）の突合。**本番 `stock.db` には書かない**（symlink でも不可）。マッピング YAML に科目を独断で足さない（`docs/DESIGN_xbrl.md` §7.2）。
+TDnet 短信 iXBRL の正規化層（`xbrl_financials`）を、IRBANK の百万円値とオフラインで突合する。
+決算 UI / `statements` / `config/xbrl/` マッピングは触らない。設計の科目セットは [`DESIGN_xbrl.md`](DESIGN_xbrl.md) §7.2。
 
-## 1. verify DB
+## 検証用 DB
 
-```bash
-.venv/bin/python tools/xbrl_setup_verify_db.py
-# --db stock_verify.db  --source-db stock.db（stocks だけ読む。source は変更しない）
+本番 `stock.db`（リポジトリ直下のシンボリックリンク先 `/workspace/verify-live/stock.db` を含む）には **書かない**。
+別ファイルを `DATABASE_URL` に指す。SQLite の絶対パスはスラッシュ 4 本:
+
+```
+DATABASE_URL=sqlite:////absolute/path/stock_verify.db
 ```
 
-`DATABASE_URL=sqlite:///…/stock_verify.db` で `init_db()` し、`xbrl_*` を作ってから stocks をコピーする。source に stocks が無ければ非ゼロ終了。
+`init_db` / `python scripts/migrate.py` は通常どおり同じスキーマを作る（`xbrl_*` を含む）。
 
-## 2. parse / normalize（ZIP があるとき）
+parse は `stocks` マスタが無いコードを skip する。検証DBへは **stocks テーブルだけ** コピーする:
 
-R2 のサンプル ZIP を `--dest` に向ける。ジョブは verify DB だけを見る。
-
-```bash
-export DATABASE_URL="sqlite:///$(pwd)/stock_verify.db"
-.venv/bin/python scripts/xbrl_parse.py --dest /path/to/xbrl-sample
-.venv/bin/python scripts/xbrl_normalize.py
+```
+python scripts/copy_stocks_for_verify.py --from /path/to/stock.db --to /absolute/path/stock_verify.db
 ```
 
-`--dest` の実体はインフラ側が R2 mount や手元コピーで渡す。無いときは parse を飛ばして golden 検査だけできる。
+`--from`/`--source` は読むだけ。`--to`/`--dest-db` がソースと同じ、または本番 `stock.db` / `verify-live/stock.db` なら拒否する。
 
-## 3. golden
+## dest は R2 のコピー
 
-`72030` / `68610` / `99840` の通期+Q1 はシード済み。再取得は IRBANK Connect を外部で行い、必要なら `tools/xbrl_fetch_golden.py --from-payload` で JSON を書き直す。形式は `data/xbrl_golden/README.md`。
+`scripts/xbrl_parse.py --dest` は ZIP ツリーを読む。共有 R2 マウント（`/home/stock/r2-share/xbrl`）を直接指さず、手元へコピーした verify dest を渡す。
 
-```bash
-.venv/bin/python tools/xbrl_fetch_golden.py
+```
+# 例: rsync -a /home/stock/r2-share/xbrl/ /tmp/xbrl-verify-dest/
 ```
 
-## 4. match_rate（ネットワーク無し）
+XSD キャッシュは `XBRL_CACHE_DIR`（既定は R2 配下）。手元だけなら別ディレクトリを指してよい。
 
-```bash
-.venv/bin/python tools/xbrl_match_rate.py
-.venv/bin/python tools/xbrl_match_rate.py --db stock_verify.db --golden-dir data/xbrl_golden --tolerance 1
-.venv/bin/python tools/xbrl_match_rate.py --codes 72030 68610
+## コマンド列（parse → normalize → 一致率）
+
+```
+VERIFY_DB=/absolute/path/stock_verify.db
+DEST=/absolute/path/xbrl-verify-dest
+GOLDEN=data/xbrl_golden
+
+python scripts/copy_stocks_for_verify.py --from /path/to/stock.db --to "$VERIFY_DB"
+
+# sqlite 絶対パスは sqlite:/// + /abs/... でスラッシュ 4 本
+DATABASE_URL="sqlite:///$VERIFY_DB" python scripts/migrate.py
+
+DATABASE_URL="sqlite:///$VERIFY_DB" XBRL_DEST="$DEST" \
+  python scripts/xbrl_parse.py --dest "$DEST"
+
+DATABASE_URL="sqlite:///$VERIFY_DB" python scripts/xbrl_normalize.py
+
+# ゴールデン: 既定はファイル入力（ネットワーク無し）
+python tools/fetch_xbrl_golden.py --input /path/to/irbank_or_mcp.json --out-dir "$GOLDEN"
+# 任意の live HTTP は --live --url が両方必要。キーはコードに書かない（IRBANK_API_KEY / IRBANK_TOKEN）
+
+python tools/xbrl_match_rate.py \
+  --db "$VERIFY_DB" \
+  --golden-dir "$GOLDEN" \
+  --out /tmp/xbrl_match_rate.json
 ```
 
-結合: 同じ `code`、連結優先 (`is_consolidated=1`)。通期は `period_end` の年月 = `fiscal_year` (YYYY/MM)。四半期は filing/financial の `period_type` を Q1/Q2/Q3 に合わせ、`fiscal_year_end` または `period_end` の年月で FY を見る。`full_year` golden はスキップ。
+ZIP が無いときは下のフィクスチャだけで一致率コマンドを確認する。
 
-終了コードは成功なら常に 0（一致率 100% 未満でも）。IO / スキーマエラーだけ非ゼロ。
+## スケール
 
-## 5. 許容差
+- ゴールデンの `metrics` は **百万円**（`unit: million_jpy`）。
+- `xbrl_financials.value` の `unit` が `JPY` / `yen` / 空 / NULL / `iso4217:JPY`（大小無視）なら円とみなし、比較前に **1e6 で割る**。
+- `unit` が百万円を示す場合（`million_jpy`, `JPY_MILLIONS`, `million` を含む、など）は割らない。
+- 値の大きさからの推定はしない。`unit` を信じる。
 
-DB の金額を百万円整数にしてから比較する。
+## 許容差
 
-- unit が `JPY` / `Yen` / 空 → `value / 1e6`
-- 既に `million_jpy` → そのまま
-- 四捨五入して整数百万円
-- `abs(db - golden) <= --tolerance`（既定 1）
+次のどちらかを満たせば一致:
 
-片方欠損は `missing`（分母から除外）。golden の null はスキップ。
+- 絶対差 ≤ 1（百万円）
+- 相対差 ≤ 0.1%（`|a-b| / max(|a|, |b|, eps) ≤ 0.001`）
 
-`match_rate = matches / (matches + mismatches)`
+## 欠損（分母から除外）
 
-## 6. マッピング
+ゴールデンに数値がある科目で、XBRL 側に行が無い（短信に BS が無い等）ときは **不一致にしない**。
+`missing` / `excluded` として分母から外す。レポートは `matched / compared / missing / mismatches` を出す。
 
-一致率が低いときに `config/xbrl/mappings/*.yaml` へ科目を足さない。`report-unmapped` を出して確認してから。
+同一 code × period_end × 科目に連結と単体があるときは **連結を優先**する。
+
+## ゴールデン
+
+スキーマは `data/xbrl_golden/README.md` と `data/xbrl_golden/schema.example.json`。
+実データの JSON は git に入れない（`.gitignore`）。テスト用は `scripts/fixtures/xbrl_match/`。
+
+IRBANK 指標キー → `xbrl_std_items.code`:
+
+| golden | std_item |
+|---|---|
+| revenue | net_sales |
+| operating_income | operating_income |
+| ordinary_income | ordinary_income |
+| net_income | net_income |
+| total_assets | total_assets |
+| equity | net_assets |
+| total_liabilities | total_liabilities |
+| operating_cf | operating_cf |
+| investing_cf | investing_cf |
+
+## フィクスチャだけで一致率を出す（R2 不要）
+
+```
+DB=$(.venv/bin/python - <<'PY'
+import sqlite3, tempfile
+from pathlib import Path
+root = Path("scripts/fixtures/xbrl_match")
+db = Path(tempfile.mkdtemp()) / "fixture.db"
+sqlite3.connect(db).executescript((root / "seed.sql").read_text(encoding="utf-8"))
+print(db)
+PY
+)
+
+.venv/bin/python tools/xbrl_match_rate.py \
+  --db "$DB" \
+  --golden-dir scripts/fixtures/xbrl_match
+```
+
+期待する stdout の形:
+
+```
+overall: 7/8 = 87.50%  (missing_excluded=1)
+per_metric: net_sales=1/1 ...
+```
+
+テスト: `.venv/bin/python scripts/test_xbrl_match_rate.py`

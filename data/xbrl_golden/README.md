@@ -1,66 +1,45 @@
-# XBRL golden（IRBANK）
+# XBRL golden store (IRBANK)
 
-`xbrl_financials` とのオフライン突合用。再取得は `match_rate` とは別作業。
+IRBANK の財務値を、XBRL 正規化層との突合用に置けるディレクトリ。
 
-## ファイル
+- 実データ JSON は git に入れない（`.gitignore`）。手元で `tools/fetch_xbrl_golden.py --input` が書く。
+- この README と `schema.example.json` だけ追跡する。
+- テスト用の小さな JSON は `scripts/fixtures/xbrl_match/`。
 
-- 1 開示期間 = 1 JSON。ファイル名 `{code}_{annual|quarterly}_{YYYYMM}[_Qn].json`
-- シード済み: `72030` / `68610` / `99840`（通期 2022/03–2026/03 と Q1 2027/03）
-- `INDEX.json` は一覧。`match_rate` は読まない
+## 単位
 
-## スキーマ
+`metrics` の値は **百万円**（`unit` は `million_jpy`）。円ではない。
+`tools/xbrl_match_rate.py` は `xbrl_financials.unit` が円なら 1e6 で割ってから比較する（`docs/XBRL_VERIFY.md`）。
 
-```json
-{
-  "code": "72030",
-  "name": "トヨタ自動車",
-  "edinet_code": "E02144",
-  "period_type": "annual",
-  "fiscal_year": "2025/03",
-  "quarter": null,
-  "accounting_standard": "IFRS",
-  "is_consolidated": true,
-  "unit": "million_jpy",
-  "fetched_at": "2026-09-07T10:49:37+00:00",
-  "source": "IRBANK Connect get_financials",
-  "metrics": {
-    "net_sales": 48036704,
-    "operating_income": 4795586,
-    "ordinary_income": null,
-    "net_income": 4765086,
-    "total_assets": 93601350,
-    "net_assets": 36878913,
-    "total_liabilities": 56722437,
-    "operating_cf": 3696934,
-    "investing_cf": -4189736
-  }
-}
-```
+## ファイル名
 
-`fiscal_year` は IRBANK の決算期（YYYY/MM）。四半期も通期期末月（例 Q1 でも `2027/03`）。
-`period_type=full_year` の行は突合から除外する。
-値の単位は **百万円**。null は欠損（分母に入れない）。
+発行体 × 期末で 1 ファイル: `{code4}_{period_end}.json`  
+例: `7203_2025-03-31.json`
 
-## IRBANK フィールド対応
+## フィールド
 
-| IRBANK | golden metrics |
+| キー | 内容 |
 |---|---|
-| sales | net_sales |
-| operating_profit | operating_income |
+| `code` | J-Quants 5桁（`"72030"`） |
+| `code4` | 表示・TDnet の 4桁（`"7203"`） |
+| `period_end` | 会計期間終了日 `YYYY-MM-DD` |
+| `accounting_standard` | `JPGAAP` / `IFRS` / `USGAAP` / `null` |
+| `is_consolidated` | 連結なら true |
+| `metrics` | 下表。値は百万円。欠損キーは比較しない |
+| `unit` | 常に `million_jpy` |
+| `source` | 既定 `irbank` |
+| `fetched_at` | ISO 8601（JST なら `+09:00`） |
+
+`metrics` キー（IRBANK → `xbrl_std_items.code`）:
+
+| metrics | std_item |
+|---|---|
+| revenue | net_sales |
+| operating_income | operating_income |
 | ordinary_income | ordinary_income |
 | net_income | net_income |
 | total_assets | total_assets |
-| equity / net_assets | net_assets |
-| liabilities / total_liabilities | total_liabilities |
+| equity | net_assets |
+| total_liabilities | total_liabilities |
 | operating_cf | operating_cf |
 | investing_cf | investing_cf |
-
-再取得は IRBANK Connect を外部で叩く。このリポジトリの CLI はネットワークしない。
-
-```bash
-# 既存ファイルの検査
-.venv/bin/python tools/xbrl_fetch_golden.py
-
-# 貼り付けた raw JSON から 1 ファイルを書き直す
-.venv/bin/python tools/xbrl_fetch_golden.py --from-payload /tmp/irbank.json
-```

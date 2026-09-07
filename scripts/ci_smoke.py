@@ -322,6 +322,12 @@ def main() -> None:
     )
     if xbrl.returncode != 0:
         raise SystemExit("xbrl parse tests failed")
+    xbrl_match = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "test_xbrl_match_rate.py")],
+        cwd=ROOT,
+    )
+    if xbrl_match.returncode != 0:
+        raise SystemExit("xbrl match rate tests failed")
 
 
 if __name__ == "__main__":

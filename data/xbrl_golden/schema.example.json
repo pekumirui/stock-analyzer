@@ -1,0 +1,21 @@
+{
+  "code": "72030",
+  "code4": "7203",
+  "period_end": "2025-03-31",
+  "accounting_standard": "jppa",
+  "is_consolidated": true,
+  "metrics": {
+    "revenue": 123456,
+    "operating_income": 1,
+    "ordinary_income": 1,
+    "net_income": 1,
+    "total_assets": 1,
+    "equity": 1,
+    "total_liabilities": 1,
+    "operating_cf": 1,
+    "investing_cf": 1
+  },
+  "unit": "million_jpy",
+  "source": "irbank",
+  "fetched_at": "2026-09-07T00:00:00+09:00"
+}
