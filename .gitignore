@@ -14,7 +14,16 @@ stock.db-wal
 stock.db-shm
 *.sqlite
 *.sqlite3
-data/
+stock_verify.db
+stock_verify.db-journal
+stock_verify.db-wal
+stock_verify.db-shm
+# data/ は手元ダンプ。ゴールデン実JSONは無視し、説明ファイルだけ追跡する
+data/*
+!data/xbrl_golden/
+data/xbrl_golden/*
+!data/xbrl_golden/README.md
+!data/xbrl_golden/schema.example.json
 *.csv.gz
 
 # --- Python ---
