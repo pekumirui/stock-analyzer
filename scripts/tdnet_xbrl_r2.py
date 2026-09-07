@@ -22,7 +22,7 @@ import sys
 import time
 import unicodedata
 import zipfile
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -37,7 +37,7 @@ DEFAULT_DEST = "/home/stock/r2-share/xbrl"
 LIST_BASE = "https://webapi.yanoshin.jp/webapi/tdnet/list"
 ZIP_BASE = "https://www.release.tdnet.info/inbs"
 USER_AGENT = "stock-analyzer-tdnet-xbrl/1.0"
-LIST_LIMIT = 300
+LIST_LIMIT = 1000
 SLEEP_SEC = 0.4
 HTTP_TIMEOUT = 30.0
 STEM_MAX = 180
@@ -436,36 +436,32 @@ def http_get(url: str, timeout: float = HTTP_TIMEOUT) -> bytes:
     raise last
 
 
-def _min_yanoshin_id(records: list[dict]) -> int | None:
-    ids: list[int] = []
-    for rec in records:
-        raw = rec.get("id")
-        try:
-            ids.append(int(raw))
-        except (TypeError, ValueError):
-            continue
-    return min(ids) if ids else None
+def fetch_xbrl_records(
+    start: date,
+    end: date,
+    get: Callable[[str], bytes] | None = None,
+) -> list[dict]:
+    """List one calendar day at a time. Multi-day span URLs and by_id paging are not used.
 
-
-def fetch_xbrl_records(start: date, end: date) -> list[dict]:
+    Yanoshin truncates at `limit` (and reports that cap as total_count). by_id next
+    pages come back empty, so a 30-day span with limit=300 stops at 300 items.
+    """
+    getter = http_get if get is None else get
     out: list[dict] = []
-    by_id: int | None = None
-    seen_by: set[int] = set()
-    while True:
-        url = list_url(start, end, by_id=by_id)
-        body = http_get(url).decode("utf-8", errors="replace")
+    cur = start
+    while cur <= end:
+        url = list_url(cur, cur)
+        body = getter(url).decode("utf-8", errors="replace")
         time.sleep(SLEEP_SEC)
         batch = parse_list_body(body)
-        if not batch:
-            break
+        if len(batch) == LIST_LIMIT:
+            print(
+                f"warn list truncated for {cur.isoformat()}: "
+                f"got {LIST_LIMIT} items (day may be incomplete)",
+                flush=True,
+            )
         out.extend(batch)
-        if len(batch) < LIST_LIMIT:
-            break
-        nxt = _min_yanoshin_id(batch)
-        if nxt is None or nxt in seen_by:
-            break
-        seen_by.add(nxt)
-        by_id = nxt
+        cur += timedelta(days=1)
     rows: list[dict] = []
     seen_ids: set[str] = set()
     for rec in out:
