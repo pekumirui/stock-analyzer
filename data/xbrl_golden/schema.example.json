@@ -1,7 +1,10 @@
 {
   "code": "72030",
   "code4": "7203",
-  "period_end": "2025-03-31",
+  "period_end": "2025-09-30",
+  "fiscal_year_end": "2026-03-31",
+  "quarter": "Q2",
+  "period_basis": "cumulative",
   "accounting_standard": "jppa",
   "is_consolidated": true,
   "metrics": {
@@ -17,5 +20,6 @@
   },
   "unit": "million_jpy",
   "source": "irbank",
-  "fetched_at": "2026-09-07T00:00:00+09:00"
+  "fetched_at": "2026-09-07T00:00:00+09:00",
+  "cumulative_build": "sum_q1_q2_standalone"
 }

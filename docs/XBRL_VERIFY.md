@@ -82,6 +82,21 @@ ZIP が無いときは下のフィクスチャだけで一致率コマンドを�
 
 同一 code × period_end × 科目に連結と単体があるときは **連結を優先**する。
 
+## 期間（累計どうし）
+
+既存 `statements` と同じく **累計 YTD のみ**を突合する。短信 PL は期首〜当期末の累計。
+
+| 四半期 | ゴールデンの作り方 |
+|---|---|
+| Q1 | その四半期そのもの（単独=累計） |
+| Q2 | 上期累計。IRBANK semiannual の H1、または quarterly 単独の Q1+Q2 |
+| Q3 | 9か月累計（単独 Q1+Q2+Q3） |
+| FY | 通期 / full_year |
+
+`period_basis` が `"cumulative"` 以外（`single_quarter` / 欠落）のゴールデンは **スキップ**（理由付き。バッチは続行）。IRBANK 四半期単独を短信累計と生比較しない。
+
+詳細は `data/xbrl_golden/README.md`。
+
 ## ゴールデン
 
 スキーマは `data/xbrl_golden/README.md` と `data/xbrl_golden/schema.example.json`。
@@ -122,7 +137,7 @@ PY
 期待する stdout の形:
 
 ```
-overall: 7/8 = 87.50%  (missing_excluded=1)
+overall: 7/8 = 87.50%  (missing_excluded=1, skipped_non_cumulative=2)
 per_metric: net_sales=1/1 ...
 ```
 

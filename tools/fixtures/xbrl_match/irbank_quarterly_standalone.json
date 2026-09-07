@@ -1,0 +1,72 @@
+{
+  "results": [
+    {
+      "edinet_code": "E02144",
+      "code": "72030",
+      "code4": "7203",
+      "periods": [
+        {
+          "fiscal_year": "2026/03",
+          "quarter": "Q1",
+          "accounting_standard": "IFRS",
+          "is_consolidated": true,
+          "sales": 100,
+          "operating_profit": 10,
+          "ordinary_income": null,
+          "net_income": 8,
+          "operating_cf": 5,
+          "investing_cf": -2,
+          "total_assets": null,
+          "net_assets": null,
+          "total_liabilities": null
+        },
+        {
+          "fiscal_year": "2026/03",
+          "quarter": "Q2",
+          "accounting_standard": "IFRS",
+          "is_consolidated": true,
+          "sales": 200,
+          "operating_profit": 20,
+          "ordinary_income": null,
+          "net_income": 16,
+          "operating_cf": 6,
+          "investing_cf": -3,
+          "total_assets": null,
+          "net_assets": null,
+          "total_liabilities": null
+        },
+        {
+          "fiscal_year": "2026/03",
+          "quarter": "Q3",
+          "accounting_standard": "IFRS",
+          "is_consolidated": true,
+          "sales": 300,
+          "operating_profit": 30,
+          "ordinary_income": null,
+          "net_income": 24,
+          "operating_cf": 7,
+          "investing_cf": -4,
+          "total_assets": null,
+          "net_assets": null,
+          "total_liabilities": null
+        },
+        {
+          "fiscal_year": "2026/03",
+          "quarter": "full_year",
+          "accounting_standard": "IFRS",
+          "is_consolidated": true,
+          "sales": 1000,
+          "operating_profit": 100,
+          "ordinary_income": null,
+          "net_income": 80,
+          "operating_cf": 40,
+          "investing_cf": -20,
+          "total_assets": 5000,
+          "net_assets": 2000,
+          "total_liabilities": 3000
+        }
+      ]
+    }
+  ],
+  "source": "IRBANK Connect get_financials"
+}

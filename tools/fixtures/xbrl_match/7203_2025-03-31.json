@@ -17,5 +17,9 @@
   },
   "unit": "million_jpy",
   "source": "irbank",
-  "fetched_at": "2026-09-07T00:00:00+09:00"
+  "fetched_at": "2026-09-07T00:00:00+09:00",
+  "period_basis": "cumulative",
+  "quarter": "FY",
+  "fiscal_year_end": "2025-03-31",
+  "cumulative_build": "fixture_fy"
 }
