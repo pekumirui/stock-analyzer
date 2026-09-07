@@ -29,5 +29,6 @@ Preconditions:
 ## Gotchas
 
 - Bare `GET /api/screener` (no query) is **not** the UI default. The UI always sends `stage` when the select is not empty, and `rs_min`. Prove `stage=2&rs_min=70` unless you changed the controls.
+- The API caps `limit=100` (default). A full Stage∩RS set can be truncated; `helpers/capture.py` may also trim the saved `results` list.
 - Switching away and back does not reload if `#sc-tbl` already has HTML.
-- RS ranking excludes non-011 product categories. A name missing from the table can still exist in search.
+- RS ranking excludes non-011 product categories. A name missing from the table can still exist in search. The "no `0`-prefix code" rule is DB hygiene, not a screener filter.

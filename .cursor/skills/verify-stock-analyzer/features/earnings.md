@@ -5,9 +5,10 @@ The default tab lists financial-statement disclosures for a calendar day, then s
 ## Sub-features
 
 - `earnings-cal` paints `#cal` inside `#cal-pop` for the current month with per-day `.cnt`.
-- `earnings-day` fills `#earn-list` after a day click (`selectDate`).
-- `earnings-row` loads `#cum-tbl` (default) for the selected `data-no`.
+- `earnings-day` fills `#earn-list` after a day click (`selectDate`); an empty day shows `開示なし`.
+- `earnings-row` selects a `data-no` (auto-selects the first row when the list loads) and loads `#cum-tbl` (default), display-only `#q-chips`, and the embedded price chart `#e-chart` (`.a-chart`).
 - `earnings-qtab` switches `.ftab[data-fin="q"]` to `#q-tbl`.
+- `earnings-events` shows `.evt-toggles` under `#e-chart` (checkbox `input[data-evt="earnings"]`, label 決算発表); markers come from the chart payload `earnings_dates`.
 
 ## How to get to it (user POV)
 
@@ -28,9 +29,10 @@ Preconditions:
 - **Tab.** Click `nav button[data-tab="earnings"]`. `#tab-earnings` is displayed; `#tab-screener` is not.
 - **Month payload.** Run `helpers/capture.py earnings`. `artifacts/earnings/calendar.json` is a `{YYYY-MM-DD: count}` object with at least one key.
 - **Day list.** `artifacts/earnings/body.json` is a non-empty array. Each row has `code` (no leading `0`), `name`, `disclosure_no`, `yoy`, `qoq`. `#earn-title` reads `{date}の決算発表`.
-- **Detail.** `GET /api/earnings/detail/{code}?disclosure_no={disclosure_no}` for the first row returns tables the UI puts in `#cum-tbl` (SPA always sends `disclosure_no` from `tr[data-no]`).
+- **Detail.** `GET /api/earnings/detail/{code}?disclosure_no={disclosure_no}` for the first row returns tables the UI puts in `#cum-tbl` (SPA always sends `disclosure_no` from `tr[data-no]`). The same selection also `GET /api/chart/{code}?tf=D&ma=50,150,200` into `#e-chart` and fills `#q-chips` (1Q–4Q display only).
 - **3か月.** Click `.ftab[data-fin="q"]`. `#q-wrap` is not `hidden`; `#cum-wrap` is.
-- **Proof.** Keep `calendar.json`, `body.json`, and (if CDP) `artifacts/earnings/ui.png` showing `#earn-tbl` plus header `h1` `株式分析`. The month grid must not occupy the first row; the list is at the top of `#tab-earnings`.
+- **イベント.** `.evt-toggles` under `#e-chart` is present after a row is selected; toggling 決算発表 uses `earnings_dates` from the chart payload (same layer as the chart tab).
+- **Proof.** Keep `calendar.json`, `body.json`, and (if CDP) `artifacts/earnings/ui.png` showing `#earn-tbl` (or a chosen day's list) plus header `h1` `株式分析`. Prefer a calendar day with `.cnt` — today's empty `開示なし` is not a list proof. The month grid must not occupy the first row; the list is at the top of `#tab-earnings`.
 
 ## Gotchas
 
