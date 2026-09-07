@@ -4,8 +4,8 @@
 Reads the source. Never writes prod stock.db (repo ./stock.db or
 /workspace/verify-live/stock.db). Target must be a different path.
 
-  python scripts/copy_stocks_for_verify.py --from PATH --to PATH
-  python scripts/copy_stocks_for_verify.py --source PATH --dest-db PATH
+  python tools/copy_stocks_for_verify.py --from PATH --to PATH
+  python tools/copy_stocks_for_verify.py --source PATH --dest-db PATH
 """
 from __future__ import annotations
 

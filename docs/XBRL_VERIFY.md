@@ -17,7 +17,7 @@ DATABASE_URL=sqlite:////absolute/path/stock_verify.db
 parse は `stocks` マスタが無いコードを skip する。検証DBへは **stocks テーブルだけ** コピーする:
 
 ```
-python scripts/copy_stocks_for_verify.py --from /path/to/stock.db --to /absolute/path/stock_verify.db
+python tools/copy_stocks_for_verify.py --from /path/to/stock.db --to /absolute/path/stock_verify.db
 ```
 
 `--from`/`--source` は読むだけ。`--to`/`--dest-db` がソースと同じ、または本番 `stock.db` / `verify-live/stock.db` なら拒否する。
@@ -39,7 +39,7 @@ VERIFY_DB=/absolute/path/stock_verify.db
 DEST=/absolute/path/xbrl-verify-dest
 GOLDEN=data/xbrl_golden
 
-python scripts/copy_stocks_for_verify.py --from /path/to/stock.db --to "$VERIFY_DB"
+python tools/copy_stocks_for_verify.py --from /path/to/stock.db --to "$VERIFY_DB"
 
 # sqlite 絶対パスは sqlite:/// + /abs/... でスラッシュ 4 本
 DATABASE_URL="sqlite:///$VERIFY_DB" python scripts/migrate.py
@@ -85,7 +85,7 @@ ZIP が無いときは下のフィクスチャだけで一致率コマンドを�
 ## ゴールデン
 
 スキーマは `data/xbrl_golden/README.md` と `data/xbrl_golden/schema.example.json`。
-実データの JSON は git に入れない（`.gitignore`）。テスト用は `scripts/fixtures/xbrl_match/`。
+実データの JSON は git に入れない（`.gitignore`）。テスト用は `tools/fixtures/xbrl_match/`。
 
 IRBANK 指標キー → `xbrl_std_items.code`:
 
@@ -107,7 +107,7 @@ IRBANK 指標キー → `xbrl_std_items.code`:
 DB=$(.venv/bin/python - <<'PY'
 import sqlite3, tempfile
 from pathlib import Path
-root = Path("scripts/fixtures/xbrl_match")
+root = Path("tools/fixtures/xbrl_match")
 db = Path(tempfile.mkdtemp()) / "fixture.db"
 sqlite3.connect(db).executescript((root / "seed.sql").read_text(encoding="utf-8"))
 print(db)
@@ -116,7 +116,7 @@ PY
 
 .venv/bin/python tools/xbrl_match_rate.py \
   --db "$DB" \
-  --golden-dir scripts/fixtures/xbrl_match
+  --golden-dir tools/fixtures/xbrl_match
 ```
 
 期待する stdout の形:
@@ -126,4 +126,4 @@ overall: 7/8 = 87.50%  (missing_excluded=1)
 per_metric: net_sales=1/1 ...
 ```
 
-テスト: `.venv/bin/python scripts/test_xbrl_match_rate.py`
+テスト: `.venv/bin/python tools/test_xbrl_match_rate.py`

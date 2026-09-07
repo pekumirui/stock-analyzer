@@ -19,7 +19,7 @@ import copy_stocks_for_verify as copy_mod  # noqa: E402
 import fetch_xbrl_golden as fetch_mod  # noqa: E402
 import xbrl_match_rate as mr  # noqa: E402
 
-FIXTURE_DIR = ROOT / "scripts" / "fixtures" / "xbrl_match"
+FIXTURE_DIR = ROOT / "tools" / "fixtures" / "xbrl_match"
 
 
 def _fail(msg: str) -> None:
