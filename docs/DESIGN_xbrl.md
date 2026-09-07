@@ -483,7 +483,7 @@ python scripts/xbrl_normalize.py --rebuild
 
 dest 既定は `tdnet_xbrl_r2.DEFAULT_DEST`。`--dest` で上書き。
 
-cron 第1弾は parse を fetch の後に手動または別行で足す。正規化も同様。既存の 16–23 時 fetch を止めない。
+cron は parse 1:30 / normalize 2:00 JST（0 時 fetch の後）。既存の 16–23 時 fetch は止めない。
 
 ---
 
@@ -619,7 +619,7 @@ XBRL_TEXT_MAX_CHARS=1000
 6. normalize + `--rebuild`
 7. `report-unmapped` を実行し上位要素を報告（マッピング追加は確認後）
 8. テスト
-9. cron に parse / normalize を足すかは運用を見てから
+9. cron に parse 1:30 / normalize 2:00 JST を載せる
 
 フロント・`statements` 置換・EDINET はこのリストの外。
 
