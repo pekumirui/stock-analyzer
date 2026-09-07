@@ -4,15 +4,20 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import re
 import sys
 import zipfile
-from datetime import date
+from contextlib import redirect_stdout
+from datetime import date, timedelta
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import tdnet_xbrl_r2 as xbrl_mod  # noqa: E402
 from tdnet_xbrl_r2 import (  # noqa: E402
+    LIST_LIMIT,
     NOCODE_DIR,
     UNMATCHED_DIR,
     append_manifest,
@@ -21,6 +26,7 @@ from tdnet_xbrl_r2 import (  # noqa: E402
     dest_filename,
     dest_path,
     dest_route,
+    fetch_xbrl_records,
     list_url,
     load_seen_xbrl_ids,
     part_path,
@@ -175,9 +181,128 @@ def test_list_url() -> None:
         _fail(f"must not filter keyword: {url}")
     if "20260805-20260805.json" not in url:
         _fail(f"span: {url}")
+    if LIST_LIMIT < 1000:
+        _fail(f"LIST_LIMIT too small for a full day: {LIST_LIMIT}")
+    qs = parse_qs(urlparse(url).query)
+    if qs.get("limit") != [str(LIST_LIMIT)]:
+        _fail(f"limit in URL: {url}")
     paged = list_url(date(2026, 8, 1), date(2026, 8, 5), by_id=99)
     if "by_id=99" not in paged:
         _fail(f"by_id: {paged}")
+
+
+def _no_sleep(*_a: object, **_k: object) -> None:
+    return None
+
+
+def _tdnet_item(day: date, n: int) -> dict:
+    ymd = day.strftime("%Y%m%d")
+    xid = f"{ymd}{n:06d}"
+    return {
+        "Tdnet": {
+            "company_code": "72030",
+            "title": f"item-{n}",
+            "pubdate": f"{day.isoformat()} 10:00:00",
+            "url_xbrl": f"https://www.release.tdnet.info/inbs/{xid}.zip",
+        }
+    }
+
+
+def test_fetch_splits_per_day() -> None:
+    """A 30-day window must hit one same-day list URL per day, not one span cap."""
+    start, end = date_window(30, today=date(2026, 8, 5))
+    if str(start) != "2026-07-07" or str(end) != "2026-08-05":
+        _fail(f"fixture window: {start} {end}")
+    n_days = (end - start).days + 1
+    if n_days != 30:
+        _fail(f"expected 30 days, got {n_days}")
+    per_day = 20
+    urls: list[str] = []
+
+    def fake_get(url: str) -> bytes:
+        urls.append(url)
+        m = re.search(r"/(\d{8})-(\d{8})\.json", url)
+        if not m:
+            _fail(f"not a list URL: {url}")
+        if m.group(1) != m.group(2):
+            _fail(f"multi-day span list URL: {url}")
+        if "by_id=" in url:
+            _fail(f"by_id on main path: {url}")
+        day = date.fromisoformat(f"{m.group(1)[0:4]}-{m.group(1)[4:6]}-{m.group(1)[6:8]}")
+        payload = {"items": [_tdnet_item(day, i) for i in range(per_day)]}
+        return json.dumps(payload).encode("utf-8")
+
+    orig_sleep = xbrl_mod.time.sleep
+    xbrl_mod.time.sleep = _no_sleep
+    try:
+        rows = fetch_xbrl_records(start, end, get=fake_get)
+    finally:
+        xbrl_mod.time.sleep = orig_sleep
+
+    if len(urls) != n_days:
+        _fail(f"expected {n_days} daily list URLs, got {len(urls)}")
+    span = f"{start:%Y%m%d}-{end:%Y%m%d}.json"
+    if any(span in u for u in urls):
+        _fail(f"used multi-day span {span}")
+    cur = start
+    for i, url in enumerate(urls):
+        want = f"{cur:%Y%m%d}-{cur:%Y%m%d}.json"
+        if want not in url:
+            _fail(f"day {i} expected {want} in {url}")
+        if f"limit={LIST_LIMIT}" not in url:
+            _fail(f"day {i} missing raised limit: {url}")
+        cur += timedelta(days=1)
+    expect_n = n_days * per_day
+    if len(rows) != expect_n:
+        _fail(f"listed {len(rows)} != {expect_n} (must not stop at a 300 cap)")
+    if expect_n <= 300:
+        _fail("fixture too small to prove 300-cap is gone")
+
+
+def test_fetch_warns_when_day_hits_list_limit() -> None:
+    day = date(2026, 8, 5)
+
+    def fake_get(url: str) -> bytes:
+        if f"{day:%Y%m%d}-{day:%Y%m%d}.json" not in url:
+            _fail(f"expected single-day URL: {url}")
+        payload = {"items": [_tdnet_item(day, i) for i in range(LIST_LIMIT)]}
+        return json.dumps(payload).encode("utf-8")
+
+    buf = io.StringIO()
+    orig_sleep = xbrl_mod.time.sleep
+    xbrl_mod.time.sleep = _no_sleep
+    try:
+        with redirect_stdout(buf):
+            rows = fetch_xbrl_records(day, day, get=fake_get)
+    finally:
+        xbrl_mod.time.sleep = orig_sleep
+
+    text = buf.getvalue()
+    want = (
+        f"warn list truncated for {day.isoformat()}: "
+        f"got {LIST_LIMIT} items (day may be incomplete)"
+    )
+    if want not in text:
+        _fail(f"missing truncation warn: {text!r}")
+    if len(rows) != LIST_LIMIT:
+        _fail(f"rows {len(rows)} != LIST_LIMIT {LIST_LIMIT}")
+
+    def fake_get_short(url: str) -> bytes:
+        payload = {"items": [_tdnet_item(day, 0)]}
+        return json.dumps(payload).encode("utf-8")
+
+    buf2 = io.StringIO()
+    orig_sleep = xbrl_mod.time.sleep
+    xbrl_mod.time.sleep = _no_sleep
+    try:
+        with redirect_stdout(buf2):
+            short_rows = fetch_xbrl_records(day, day, get=fake_get_short)
+    finally:
+        xbrl_mod.time.sleep = orig_sleep
+    if "warn list truncated" in buf2.getvalue():
+        _fail(f"short day should not warn: {buf2.getvalue()!r}")
+    if len(short_rows) != 1:
+        _fail(f"short day rows: {len(short_rows)}")
 
 
 def test_corrupt_zip_not_promoted(tmp: Path) -> None:
@@ -329,6 +454,8 @@ def main() -> None:
     test_unmatched_and_dest_paths()
     test_tdnet_xbrl_id()
     test_list_url()
+    test_fetch_splits_per_day()
+    test_fetch_warns_when_day_hits_list_limit()
     test_date_window()
     test_sha256_of_tiny_zip()
     with TemporaryDirectory() as d:
