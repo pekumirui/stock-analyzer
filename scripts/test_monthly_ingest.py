@@ -21,10 +21,12 @@ from app.monthly_ingest import (  # noqa: E402
     apply_issuer_aliases,
     canonicalize_element_label,
     format_monthly_cell,
+    is_issuer_element_deleted,
     map_pdf_columns,
     parse_monthly_unit,
     plan_column_years,
     plan_issuer_alias_cases,
+    plan_issuer_delete_cases,
     plan_yoy_duplicate_merges,
     reject_prior_period_element,
     resolve_fy_end_month,
@@ -116,11 +118,15 @@ def test_canonicalize_element_label() -> None:
 
 def test_issuer_alias_cases() -> None:
     cases = plan_issuer_alias_cases()
-    if not cases:
-        _fail("issuer_aliases.json の rename が空")
     from app.monthly_ingest import ISSUER_ELEMENT_ALIASES
+    rename_codes = {
+        code for code, rules in ISSUER_ELEMENT_ALIASES.items()
+        if any(rule.rename for rule in rules)
+    }
+    if not cases and rename_codes:
+        _fail("issuer_aliases.json の rename が空")
     codes = {code for code, _, _, _ in cases}
-    missing = sorted(set(ISSUER_ELEMENT_ALIASES) - codes)
+    missing = sorted(rename_codes - codes)
     if missing:
         _fail(f"rename が無い銘柄: {missing!r}")
     for code, incoming, stored, ctx in cases:
@@ -131,6 +137,100 @@ def test_issuer_alias_cases() -> None:
             _fail(f"{code} {incoming!r} {ctx} → {got!r}, want {stored!r}")
         if apply_issuer_aliases("72030", incoming, year=ctx.get("year"), as_of=ctx.get("as_of")) != incoming:  # type: ignore[arg-type]
             _fail(f"other issuer must not alias {incoming!r}")
+        if is_issuer_element_deleted(
+            code, incoming, year=ctx.get("year"), as_of=ctx.get("as_of"),  # type: ignore[arg-type]
+        ) or is_issuer_element_deleted(
+            code, stored, year=ctx.get("year"), as_of=ctx.get("as_of"),  # type: ignore[arg-type]
+        ):
+            _fail(f"{code} rename {incoming!r}/{stored!r} must not be delete")
+
+
+def test_issuer_delete_cases() -> None:
+    cases = plan_issuer_delete_cases()
+    from app.monthly_ingest import ISSUER_ELEMENT_ALIASES
+    delete_codes = {
+        code for code, rules in ISSUER_ELEMENT_ALIASES.items()
+        if any(rule.delete for rule in rules)
+    }
+    if not cases and delete_codes:
+        _fail("issuer_aliases.json の delete が空")
+    codes = {code for code, _, _, _ in cases}
+    missing = sorted(delete_codes - codes)
+    if missing:
+        _fail(f"delete が無い銘柄: {missing!r}")
+    for code, name, deleted, ctx in cases:
+        got = is_issuer_element_deleted(
+            code, name, year=ctx.get("year"), as_of=ctx.get("as_of"),  # type: ignore[arg-type]
+        )
+        if got != deleted:
+            _fail(f"{code} {name!r} {ctx} deleted={got}, want {deleted}")
+        if is_issuer_element_deleted("72030", name, year=ctx.get("year"), as_of=ctx.get("as_of")):  # type: ignore[arg-type]
+            _fail(f"other issuer must not delete {name!r}")
+        if apply_issuer_aliases(
+            code, name, year=ctx.get("year"), as_of=ctx.get("as_of"),  # type: ignore[arg-type]
+        ) != name:
+            _fail(f"{code} delete {name!r} must not also rename")
+
+
+def test_issuer_alias_identity_unchanged() -> None:
+    from app.monthly_ingest import ISSUER_ELEMENT_ALIASES
+    probes = (
+        "合計 売上高",
+        "ASKUL事業 売上高",
+        "LOHACO事業 売上高",
+        "合計 売上高(前年比)",
+        "ASKUL事業 購入お客様単価(前年比)",
+        "ASKUL事業 購入お客様数(前年比)",
+        "ASKUL事業 売上高(前年比)",
+    )
+    for code, rules in ISSUER_ELEMENT_ALIASES.items():
+        for rule in rules:
+            mapped = set(rule.rename) | set(rule.rename.values()) | set(rule.delete)
+            for probe in probes:
+                if probe in mapped:
+                    continue
+                if apply_issuer_aliases(code, probe, year=rule.until.year) != probe:
+                    _fail(f"{code} identity {probe!r} was renamed")
+                if is_issuer_element_deleted(code, probe, year=rule.until.year):
+                    _fail(f"{code} identity {probe!r} marked deleted")
+            for dst in rule.rename.values():
+                if apply_issuer_aliases(code, dst, year=rule.until.year) != dst:
+                    _fail(f"{code} dest {dst!r} must stay")
+
+
+def test_load_issuer_aliases_delete_schema() -> None:
+    import json
+    from app.monthly_ingest import load_issuer_aliases
+
+    payload = {
+        "138A0": [{"until": "2099-12-31", "rename": {"旧店": "新店"}}],
+        "99990": [{"until": "2026-12-31", "delete": ["捨てる(前年比)", "  ", ""]}],
+        "88880": [{"until": "2026-12-31", "rename": {"a": "a", "旧": "新"}, "delete": ["消す"]}],
+        "77770": [{"until": "2026-12-31"}],
+    }
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=False)
+        path = Path(fh.name)
+    try:
+        loaded = load_issuer_aliases(path)
+    finally:
+        path.unlink(missing_ok=True)
+    if "77770" in loaded:
+        _fail("empty period must be skipped")
+    if "138A0" not in loaded or loaded["138A0"][0].rename.get("旧店") != "新店":
+        _fail("rename-only must load")
+    if loaded["138A0"][0].delete:
+        _fail("rename-only delete must be empty")
+    if "99990" not in loaded or loaded["99990"][0].rename:
+        _fail("delete-only rename must be empty")
+    if loaded["99990"][0].delete != frozenset({"捨てる(前年比)"}):
+        _fail(f"blank delete names: {loaded['99990'][0].delete!r}")
+    if "a" in loaded["88880"][0].rename:
+        _fail("identity rename must skip")
+    if loaded["88880"][0].rename.get("旧") != "新":
+        _fail("mixed rename missing")
+    if "消す" not in loaded["88880"][0].delete:
+        _fail("mixed delete missing")
 
 
 def test_mapping_examples() -> None:
@@ -1036,6 +1136,164 @@ def test_issuer_alias_ingest_and_migrate() -> None:
             _fail(f"{code} alias migrate must be idempotent: {again!r}")
 
 
+def test_issuer_delete_ingest_and_migrate() -> None:
+    from app.db import SessionLocal, apply_issuer_element_aliases
+    from app.models import MonthlyElement, MonthlyTable, MonthlyValue
+
+    cases = plan_issuer_delete_cases()
+    if not cases:
+        _fail("issuer_aliases.json の delete が空")
+    by_code: dict[str, list[tuple[str, date]]] = {}
+    after_until: dict[str, date] = {}
+    year_on: dict[str, int] = {}
+    year_off: dict[str, int] = {}
+    for code, name, deleted, ctx in cases:
+        as_of = ctx.get("as_of")
+        year = ctx.get("year")
+        if isinstance(as_of, date):
+            if deleted:
+                by_code.setdefault(code, []).append((name, as_of))
+            else:
+                after_until[code] = as_of
+        if isinstance(year, int):
+            if deleted:
+                year_on[code] = year
+            else:
+                year_off[code] = year
+
+    c = TestClient(app)
+    keeper = "残す行"
+    for i, (code, pairs) in enumerate(sorted(by_code.items())):
+        as_of = pairs[0][1]
+        fy_year = as_of.year if as_of.month >= 6 else as_of.year - 1
+        _add_fy_end(code, date(fy_year, 6, 1), date(fy_year, 6, 30), f"del-fy-{code}-{fy_year}")
+        rows = [{
+            "element": keeper,
+            "values": {"6": 1.0},
+            "unit": "number",
+        }]
+        for name, _ in pairs:
+            unit = "yoy_index" if name.endswith("(前年比)") else "number"
+            rows.append({
+                "element": name,
+                "values": {"6": 99.0},
+                "unit": unit,
+            })
+        r = c.post(f"/api/v1/tables/{code}/ingest", json={
+            "months": [6],
+            "rows": rows,
+            "as_of": as_of.isoformat(),
+        })
+        _expect(r, 200, f"{code} ingest skip deleted")
+        updated_names = [u["element"] for u in r.json()["updated"]]
+        if keeper not in updated_names:
+            _fail(f"{code} keeper missing from ingest: {updated_names!r}")
+        for name, _ in pairs:
+            if name in updated_names:
+                _fail(f"{code} deleted ingested {name!r}: {updated_names!r}")
+        mapped_year = r.json()["updated"][0]["year"]
+        r = c.get(f"/api/v1/tables/{code}/{mapped_year}")
+        _expect(r, 200, f"GET {code} {mapped_year}")
+        names = [e["element"] for e in r.json()["elements"]]
+        if keeper not in names:
+            _fail(f"{code} keeper leftover missing: {names!r}")
+        for name, _ in pairs:
+            if name in names:
+                _fail(f"{code} deleted leftover {name!r}: {names!r}")
+
+        new_as_of = after_until.get(code)
+        if new_as_of is not None:
+            name = pairs[0][0]
+            unit = "yoy_index" if name.endswith("(前年比)") else "number"
+            r = c.post(f"/api/v1/tables/{code}/ingest", json={
+                "months": [6],
+                "rows": [{"element": name, "values": {"6": 1.0}, "unit": unit}],
+                "as_of": new_as_of.isoformat(),
+            })
+            _expect(r, 200, f"{code} ingest new as_of")
+            kept = r.json()["updated"][0]["element"]
+            expect_kept = canonicalize_element_label(name, unit)
+            if kept != expect_kept:
+                _fail(f"{code} as_of>={new_as_of} must keep {expect_kept!r}, got {kept!r}")
+
+        on = year_on[code]
+        off = year_off[code]
+        name = pairs[0][0]
+        unit = "yoy_index" if name.endswith("(前年比)") else "number"
+        r = c.post(f"/api/v1/tables/{code}/{on}/elements", json={
+            "element": name, "unit": unit,
+        })
+        _expect(r, 400, f"{code} POST deleted in range")
+        if _err(r)["code"] != "DELETED_ELEMENT":
+            _fail(f"{code} POST in-range: {r.json()!r}")
+        if name not in _err(r)["message"]:
+            _fail(f"{code} POST message missing {name!r}: {r.json()!r}")
+        r = c.post(f"/api/v1/tables/{code}/{off}/elements", json={
+            "element": name, "unit": unit,
+        })
+        _expect(r, 201, f"{code} POST after until.year")
+        created = r.json()["element"]
+        expect_kept = canonicalize_element_label(name, unit)
+        if created != expect_kept:
+            _fail(f"{code} year {off} must keep {expect_kept!r}, got {created!r}")
+
+        mig_on = 1990 + i
+        mig_off = 2110 + i
+        db = SessionLocal()
+        try:
+            db.add(MonthlyTable(code=code, year=mig_on))
+            for j, (el_name, _) in enumerate(pairs):
+                el_unit = "yoy_index" if el_name.endswith("(前年比)") else "number"
+                db.add(MonthlyElement(
+                    code=code, year=mig_on, element=el_name,
+                    sort_order=j + 1, unit=el_unit,
+                ))
+                db.add(MonthlyValue(
+                    code=code, year=mig_on, element=el_name, month=5, value=105.2,
+                ))
+            db.add(MonthlyTable(code=code, year=mig_off))
+            db.add(MonthlyElement(
+                code=code, year=mig_off, element=name,
+                sort_order=1, unit=unit,
+            ))
+            db.commit()
+        finally:
+            db.close()
+
+        reports = apply_issuer_element_aliases()
+        reported = {
+            el
+            for rec in reports
+            if rec.get("code") == code and rec.get("year") == mig_on
+            for el in (rec.get("deleted") or [])
+        }
+        missing_del = [el for el, _ in pairs if el not in reported]
+        if missing_del:
+            _fail(f"{code} {mig_on} delete missing {missing_del!r}: {reports!r}")
+        db = SessionLocal()
+        try:
+            names_on = sorted(
+                e.element for e in db.query(MonthlyElement).filter_by(code=code, year=mig_on)
+            )
+            leftover = [el for el, _ in pairs if el in names_on]
+            if leftover:
+                _fail(f"{code} {mig_on} after migrate leftover: {leftover!r} in {names_on!r}")
+            vals_on = list(db.query(MonthlyValue).filter_by(code=code, year=mig_on))
+            if vals_on:
+                _fail(f"{code} {mig_on} values leftover: {vals_on!r}")
+            names_off = sorted(
+                e.element for e in db.query(MonthlyElement).filter_by(code=code, year=mig_off)
+            )
+            if name not in names_off:
+                _fail(f"{code} {mig_off} must keep {name!r}: {names_off!r}")
+        finally:
+            db.close()
+
+        again = apply_issuer_element_aliases()
+        if any(rec.get("code") == code and rec.get("year") == mig_on for rec in again):
+            _fail(f"{code} delete migrate must be idempotent: {again!r}")
+
+
 def test_reject_prior_period_element() -> None:
     blocked = (
         "前期計店舗数",
@@ -1098,6 +1356,9 @@ def test_reject_prior_period_element() -> None:
 def main() -> None:
     test_canonicalize_element_label()
     test_issuer_alias_cases()
+    test_issuer_delete_cases()
+    test_issuer_alias_identity_unchanged()
+    test_load_issuer_aliases_delete_schema()
     test_mapping_examples()
     test_fy_end_and_layout_errors()
     test_api_gift_ingest()
@@ -1113,6 +1374,7 @@ def main() -> None:
     test_merge_uchiyama_like_yoy_duplicates()
     test_rename_29260_style_cross_year_yoy()
     test_issuer_alias_ingest_and_migrate()
+    test_issuer_delete_ingest_and_migrate()
     test_reject_prior_period_element()
     print("ok: monthly ingest")
 

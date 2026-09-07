@@ -21,9 +21,10 @@ from .models import (
 from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
 from .monthly_ingest import (
-    MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label, map_pdf_columns,
-    monthly_series_kind, parse_as_of, parse_monthly_unit, reject_prior_period_element,
-    same_yoy_element, yoy_display_number,
+    MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label,
+    is_issuer_element_deleted, map_pdf_columns, monthly_series_kind, parse_as_of,
+    parse_monthly_unit, reject_prior_period_element, same_yoy_element,
+    yoy_display_number,
 )
 
 router = APIRouter(prefix="/api")
@@ -544,7 +545,14 @@ def _parse_ingest_rows(
             raise ApiError(400, "INVALID_PARAM", "rows の各要素は {element, values} です。")
         force = item.get("force") is True
         unit = _parse_unit(item.get("unit")) if "unit" in item else None
-        element = _canonical_element(item.get("element"), unit, code, as_of=as_of)
+        raw_el = item.get("element")
+        if isinstance(raw_el, str) and is_issuer_element_deleted(
+            code, canonicalize_element_label(raw_el, unit), as_of=as_of,
+        ):
+            continue
+        element = _canonical_element(raw_el, unit, code, as_of=as_of)
+        if is_issuer_element_deleted(code, element, as_of=as_of):
+            continue
         values_raw = item.get("values")
         if not isinstance(values_raw, dict):
             raise ApiError(400, "INVALID_PARAM", "values は月をキーにしたオブジェクトです。")
@@ -571,6 +579,8 @@ def post_element(code: str, year: str, response: Response,
     force = body.get("force") is True
     unit = _parse_unit(body.get("unit")) if "unit" in body else None
     element = _canonical_element(body.get("element"), unit, code, year=year_i)
+    if is_issuer_element_deleted(code, element, year=year_i):
+        raise ApiError(400, "DELETED_ELEMENT", f"「{element}」は取り込み対象外です。")
     _require_stock(db, code)
     created = _ensure_element(db, code, year_i, element, force, unit)
     row = _get_element(db, code, year_i, element)

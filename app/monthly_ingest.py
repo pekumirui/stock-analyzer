@@ -60,11 +60,17 @@ def canonicalize_element_label(element: str, unit: str | None) -> str:
 
 
 class IssuerPeriodRename:
-    """until 未満の as_of、または until.year 以下の year に rename を掛ける。"""
+    """until 未満の as_of、または until.year 以下の year に rename / delete を掛ける。"""
 
-    def __init__(self, until: date, rename: dict[str, str]) -> None:
+    def __init__(
+        self,
+        until: date,
+        rename: dict[str, str],
+        delete: frozenset[str] = frozenset(),
+    ) -> None:
         self.until = until
         self.rename = rename
+        self.delete = delete
 
 
 _ALIAS_PATH = Path(__file__).with_name("issuer_aliases.json")
@@ -83,21 +89,52 @@ def load_issuer_aliases(path: Path | None = None) -> dict[str, tuple[IssuerPerio
             if not isinstance(item, dict):
                 continue
             until_raw = item.get("until")
+            if not isinstance(until_raw, str):
+                continue
             rename_raw = item.get("rename")
-            if not isinstance(until_raw, str) or not isinstance(rename_raw, dict):
+            if rename_raw is None:
+                rename_raw = {}
+            if not isinstance(rename_raw, dict):
+                continue
+            delete_raw = item.get("delete")
+            if delete_raw is None:
+                delete_raw = []
+            if not isinstance(delete_raw, list):
                 continue
             rename = {
                 str(src).strip(): str(dst).strip()
                 for src, dst in rename_raw.items()
                 if str(src).strip() and str(dst).strip()
+                and str(src).strip() != str(dst).strip()
             }
-            rules.append(IssuerPeriodRename(date.fromisoformat(until_raw), rename))
+            delete = frozenset(
+                str(name).strip()
+                for name in delete_raw
+                if str(name).strip()
+            )
+            if not rename and not delete:
+                continue
+            rules.append(IssuerPeriodRename(date.fromisoformat(until_raw), rename, delete))
         rules.sort(key=lambda rule: rule.until)
-        out[str(code)] = tuple(rules)
+        if rules:
+            out[str(code)] = tuple(rules)
     return out
 
 
 ISSUER_ELEMENT_ALIASES = load_issuer_aliases()
+
+
+def _issuer_rule_active(
+    rule: IssuerPeriodRename,
+    *,
+    year: int | None = None,
+    as_of: date | None = None,
+) -> bool:
+    if as_of is not None:
+        return as_of < rule.until
+    if year is not None:
+        return year <= rule.until.year
+    return False
 
 
 def apply_issuer_aliases(
@@ -110,14 +147,26 @@ def apply_issuer_aliases(
     """canonicalize 後の行名。ingest は as_of、POST/PUT/migrate は year。"""
     name = element.strip()
     for rule in ISSUER_ELEMENT_ALIASES.get(code, ()):
-        active = False
-        if as_of is not None:
-            active = as_of < rule.until
-        elif year is not None:
-            active = year <= rule.until.year
-        if active:
+        if _issuer_rule_active(rule, year=year, as_of=as_of):
             name = rule.rename.get(name, name)
     return name
+
+
+def is_issuer_element_deleted(
+    code: str,
+    element: str,
+    *,
+    year: int | None = None,
+    as_of: date | None = None,
+) -> bool:
+    """canonicalize 済みの保存名が delete リストにあれば真。ゲートは rename と同じ。"""
+    name = element.strip()
+    if not name:
+        return False
+    for rule in ISSUER_ELEMENT_ALIASES.get(code, ()):
+        if _issuer_rule_active(rule, year=year, as_of=as_of) and name in rule.delete:
+            return True
+    return False
 
 
 def plan_issuer_alias_cases() -> list[tuple[str, str, str, dict[str, date | int]]]:
@@ -133,6 +182,21 @@ def plan_issuer_alias_cases() -> list[tuple[str, str, str, dict[str, date | int]
                 cases.append((code, src, dst, {"year": rule.until.year}))
                 cases.append((code, src, src, {"year": rule.until.year + 1}))
                 cases.append((code, dst, dst, {"year": rule.until.year}))
+    return cases
+
+
+def plan_issuer_delete_cases() -> list[tuple[str, str, bool, dict[str, date | int]]]:
+    """テスト用。(code, name, deleted, ctx)。delete 表から as_of / year を生成。"""
+    cases: list[tuple[str, str, bool, dict[str, date | int]]] = []
+    for code, rules in sorted(ISSUER_ELEMENT_ALIASES.items()):
+        for rule in rules:
+            before = rule.until - timedelta(days=1)
+            after = rule.until
+            for name in sorted(rule.delete):
+                cases.append((code, name, True, {"as_of": before}))
+                cases.append((code, name, False, {"as_of": after}))
+                cases.append((code, name, True, {"year": rule.until.year}))
+                cases.append((code, name, False, {"year": rule.until.year + 1}))
     return cases
 
 

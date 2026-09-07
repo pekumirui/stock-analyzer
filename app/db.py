@@ -6,7 +6,10 @@ from sqlalchemy.orm import sessionmaker
 
 from .config import DATABASE_URL
 from .models import Base, MonthlyElement, MonthlyValue
-from .monthly_ingest import apply_issuer_aliases, plan_yoy_duplicate_merges, same_yoy_element
+from .monthly_ingest import (
+    apply_issuer_aliases, is_issuer_element_deleted, plan_yoy_duplicate_merges,
+    same_yoy_element,
+)
 
 engine = create_engine(DATABASE_URL, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, future=True)
@@ -240,7 +243,7 @@ def fold_aliased_element(
 
 
 def apply_issuer_element_aliases(verbose: bool = True) -> list[dict]:
-    """銘柄エイリアスで保存名が変わる行をリネーム。先に正規名があれば値を寄せる。冪等。"""
+    """銘柄エイリアスで保存名が変わる行をリネーム。delete は行ごと消す。冪等。"""
     insp = inspect(engine)
     if "monthly_elements" not in insp.get_table_names():
         return []
@@ -269,6 +272,25 @@ def apply_issuer_element_aliases(verbose: bool = True) -> list[dict]:
             reports.append(report)
             if verbose:
                 print(f"月次エイリアス: {row.code} {row.year} {old!r} → {new!r}")
+        doomed = [
+            (r.code, r.year, r.element)
+            for r in db.query(MonthlyElement).all()
+            if is_issuer_element_deleted(r.code, r.element, year=r.year)
+        ]
+        doomed.sort()
+        for code, year, element in doomed:
+            if db.get(MonthlyElement, (code, year, element)) is None:
+                continue
+            delete_monthly_element(db, code, year, element)
+            reports.append({
+                "code": code,
+                "year": year,
+                "canonical": element,
+                "renamed": [],
+                "deleted": [element],
+            })
+            if verbose:
+                print(f"月次エイリアス削除: {code} {year} {element!r}")
         if reports:
             db.commit()
         return reports
