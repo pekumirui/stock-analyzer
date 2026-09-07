@@ -1,0 +1,18 @@
+- std_item: operating_cf
+  elements:
+    - { ns: jppfs_cor, name: NetCashProvidedByUsedInOperatingActivities, priority: 10 }
+- std_item: investing_cf
+  elements:
+    - { ns: jppfs_cor, name: NetCashProvidedByUsedInInvestmentActivities, priority: 10 }
+- std_item: financing_cf
+  elements:
+    - { ns: jppfs_cor, name: NetCashProvidedByUsedInFinancingActivities, priority: 10 }
+- std_item: capex
+  elements:
+    - { ns: jppfs_cor, name: PurchaseOfPropertyPlantAndEquipment, priority: 10 }
+- std_item: depreciation
+  elements:
+    - { ns: jppfs_cor, name: DepreciationAndAmortizationOpeCF, priority: 10 }
+- std_item: cash_end
+  elements:
+    - { ns: jppfs_cor, name: CashAndCashEquivalents, priority: 10 }

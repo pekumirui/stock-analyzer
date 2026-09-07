@@ -1,0 +1,29 @@
+- std_item: cash_and_deposits
+  elements:
+    - { ns: jppfs_cor, name: CashAndDeposits, priority: 10 }
+- std_item: current_assets
+  elements:
+    - { ns: jppfs_cor, name: CurrentAssets, priority: 10 }
+- std_item: noncurrent_assets
+  elements:
+    - { ns: jppfs_cor, name: NoncurrentAssets, priority: 10 }
+- std_item: total_assets
+  elements:
+    - { ns: jppfs_cor, name: Assets, priority: 10 }
+    - { ns: jppfs_cor, name: TotalAssets, priority: 20 }
+- std_item: current_liabilities
+  elements:
+    - { ns: jppfs_cor, name: CurrentLiabilities, priority: 10 }
+- std_item: noncurrent_liabilities
+  elements:
+    - { ns: jppfs_cor, name: NoncurrentLiabilities, priority: 10 }
+- std_item: total_liabilities
+  elements:
+    - { ns: jppfs_cor, name: Liabilities, priority: 10 }
+    - { ns: jppfs_cor, name: TotalLiabilities, priority: 20 }
+- std_item: shareholders_equity
+  elements:
+    - { ns: jppfs_cor, name: ShareholdersEquity, priority: 10 }
+- std_item: net_assets
+  elements:
+    - { ns: jppfs_cor, name: NetAssets, priority: 10 }

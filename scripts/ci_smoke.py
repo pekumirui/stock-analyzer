@@ -316,6 +316,12 @@ def main() -> None:
     )
     if tdnet.returncode != 0:
         raise SystemExit("tdnet monthly r2 tests failed")
+    xbrl = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "test_xbrl_parse.py")],
+        cwd=ROOT,
+    )
+    if xbrl.returncode != 0:
+        raise SystemExit("xbrl parse tests failed")
 
 
 if __name__ == "__main__":

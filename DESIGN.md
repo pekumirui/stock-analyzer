@@ -157,6 +157,8 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
 
 TDnet 月次 PDF (`scripts/tdnet_monthly_r2.py`) はダウンロード時にインフラファンドを除外する。商品区分は REIT と同じ `013`/`022` しか無く、名称に「インフラ」を含むものだけ落とす（マスタ欠落時は TDnet 社名の「インフラ投資法人」）。通常の REIT（8985 ジャパン・ホテル・リート投資法人など）は残す。stocks に無いコードはダウンロードしない（DB が読めない／map が空なら警告のみで継続）。保存先 `{code}` は TDnet のまま。stocks 照合だけ 4 桁 display + 末尾 0。既存 PDF は消さない。決算速報の REIT 全除外とは別。
 
+TDnet 短信 XBRL は取得済み ZIP（`scripts/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。決算速報 UI の正本は当面 `statements` のまま。XBRL 層で上書きしない。
+
 
 ### Q単独値の算出 (保存せずAPI側で導出)
 `Q単独 = 当期累計 − 前四半期累計`(1Qはそのまま)。前年同期のQ単独と比較しYoY成長率を計算。EPSも同様。
