@@ -23,6 +23,7 @@
 | `app/main.py` | FastAPI エントリ + SPA 配信 |
 | `scripts/run_batch.py` | 日次バッチ / バックフィル |
 | `scripts/tdnet_monthly_r2.py` | TDnet 月次PDF → R2 mount (`/home/stock/r2-share/monthly/{code}/`) |
+| `scripts/tdnet_xbrl_r2.py` | TDnet XBRL ZIP → R2 mount (`/home/stock/r2-share/xbrl/`) |
 | `scripts/check_demo.py` | スキーマ検査 + 旧デモ取り残しガード |
 | `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ）。月次表ツールは localhost:8000 の FastAPI のみ |
 | `tools/` | オフラインの月次PDFフォーマット指紋（`fmtdiff.py`）。`--dir` は同一発行体の連続月だけ比較（DIR/*.pdf と DIR/<code>/*.pdf。空なら DIR/monthly を1段だけ見る）。ingest は従来どおり pdftotext |
@@ -99,6 +100,7 @@ Python は Windows では `.venv\Scripts\python.exe`、Linux では `.venv/bin/p
 - 本番ログは `/var/log/app/`（`stock-analyzer.log` / `batch.log` / `mcp.log`）。journal も残る。ローカルのバッチはアプリディレクトリの `batch.log`
 - Cloudflare R2 bucket `share` は VPS 上で rclone user mount（`stock`、`loginctl enable-linger`）→ `/home/stock/r2-share`。認証は GitHub secrets `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` を `update.sh` が `~/.config/rclone/rclone.conf` に書く（リポジトリに置かない）
 - `scripts/tdnet_monthly_r2.py N` が TDnet 月次PDF を `/home/stock/r2-share/monthly/{code}/YYYYMMDD_CODE_….pdf` へ保存。`{code}` は TDnet の発行体コードそのまま（9279, 262A）。J-Quants の5桁（92790, 262A0）にはしない。インフラファンドはダウンロード時にスキップ（`013`/`022` かつ名称に「インフラ」。マスタ欠落時は TDnet 社名の「インフラ投資法人」）。通常の REIT（8985 ジャパン・ホテル・リート等）は残す。stocks に無いコードはダウンロードしない（DB が読めない／map が空なら警告のみで継続）。stocks 照合だけ display_code + 末尾 0（9282→92820, 262A→262A0）。既存 PDF は消さない。cron 18:00/21:00 JST は N=1。初回は Actions の **TDnet monthly backfill**（days=30）。`*.pdf` と `rclone.conf` はコミットしない
+- `scripts/tdnet_xbrl_r2.py N` が TDnet XBRL ZIP を `/home/stock/r2-share/xbrl/{code4}/` へ保存。マスタ無しとインフラはスキップせず `_unmatched/`。skip は lookback 内 manifest の `xbrl_id`。cron は 16–23 時と 0 時 JST、N=1。
 - Grok カスタムコネクタは OAuth（PKCE、クライアントシークレットなし）。Client ID は `stock-analyzer`。許可画面で `MCP_TOKEN` を入れる
 - Cursor / Grok Bot の OAuth callback は `https://www.cursor.com/agents/mcp/oauth/callback`、デスクトップは `http://localhost:8787/callback`（localhost で許可済）、フォールバックは `cursor://anysphere.cursor-mcp/oauth/callback`
 - アプリ本体 (`app/*`) にログ API を足さない。Debug VPS ワークフローは MCP が死んだときの退避路
