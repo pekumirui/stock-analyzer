@@ -18,33 +18,6 @@
 
 ---
 
-## 0.1 緑地設計からの差分
-
-元の緑地設計（EDINET 一次 / `companies.edinet_code` / Arelle / PostgreSQL 専用 / 独立プロジェクト）を、現行 stock-analyzer に合わせて次のように読み替える。
-
-| 緑地設計 | stock-analyzer |
-|---|---|
-| 新規リポジトリ | 既存 `pekumirui/stock-analyzer` に載せる |
-| 企業マスタ `companies`（EDINET コード PK） | 既存 `stocks.code`（J-Quants 5桁）。`edinet_code` は今は持たない |
-| 取得元 EDINET API v2 一次、TDnet 任意 | **TDnet 一次**。ZIP 取得は実装済み (`scripts/tdnet_xbrl_r2.py` → R2) |
-| パーサ Arelle | **xbrlp**（[kawasin73 gist](https://gist.github.com/kawasin73/346ed6a24382a2b238e1ff0d10f3f40c)） |
-| PostgreSQL 前提の DDL | 既存どおり `DATABASE_URL`（本番は SQLite `stock.db`）。型は SQLite でも動くものに落とす |
-| Alembic / `python -m app.cli` | 既存の `init_db` / `migrate_add_columns` + `scripts/` エントリ |
-| `statements` 相当を新設して置き換え | **`statements` は触らない**（J-Quants `/v2/fins/summary` のまま。決算速報 UI の正本） |
-
-今回やらないこと（緑地設計と同じ＋プロジェクト制約）:
-
-- 財務指標計算（ROE 等）。別レイヤー
-- フロント追加（決算タブを XBRL 正規化層に切り替えるのは後続）
-- 有報テキストブロックの全文検索
-- EDINET からの ZIP 取得（API キーも未接続）
-- `companies` テーブルの新設
-- 勘定科目を列にしたテーブル
-- `financials` への手作業 INSERT
-- マッピングのコード埋め込み
-
----
-
 ## 1. 目的とスコープ
 
 ### 1.1 目的
