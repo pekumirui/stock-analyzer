@@ -84,12 +84,21 @@ CREATE TABLE xbrl_financials (
 """
 
 
-def _write_golden(dir_path: Path, metrics: dict, code: str = "72030", period_end: str = "2025-03-31") -> Path:
+def _write_golden(
+    dir_path: Path,
+    metrics: dict,
+    code: str = "72030",
+    period_end: str = "2025-03-31",
+    *,
+    period_basis: str = "cumulative",
+    extra: dict | None = None,
+) -> Path:
     dir_path.mkdir(parents=True, exist_ok=True)
     rec = {
         "code": code,
         "code4": code[:4],
         "period_end": period_end,
+        "period_basis": period_basis,
         "accounting_standard": None,
         "is_consolidated": True,
         "metrics": metrics,
@@ -97,6 +106,8 @@ def _write_golden(dir_path: Path, metrics: dict, code: str = "72030", period_end
         "source": "irbank",
         "fetched_at": "2026-09-07T00:00:00+09:00",
     }
+    if extra:
+        rec.update(extra)
     path = dir_path / f"{code[:4]}_{period_end}.json"
     path.write_text(json.dumps(rec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return path
@@ -237,6 +248,8 @@ def test_fixture_overall(tmp: Path) -> None:
         _fail(f"fixture stdout: {text}")
     if "missing_excluded=1" not in text:
         _fail(f"missing not in stdout: {text}")
+    if "skipped_non_cumulative=2" not in text:
+        _fail(f"expected 2 skipped non-cumulative goldens: {text}")
     if "investing_cf=0/1" not in text:
         _fail(f"per_metric missing mismatch: {text}")
     out = json.loads((tmp / "out.json").read_text(encoding="utf-8"))
@@ -327,6 +340,8 @@ def test_fetch_golden(tmp: Path) -> None:
         _fail(f"unit {rec['unit']}")
     if rec["metrics"].get("revenue") != 100 or rec["metrics"].get("equity") != 200:
         _fail(f"metrics {rec['metrics']}")
+    if rec.get("period_basis") != "cumulative":
+        _fail(f"period_basis {rec.get('period_basis')}")
     nested_dir = tmp / "irbank_map"
     nested_dir.mkdir()
     (nested_dir / "pl.json").write_text(
@@ -340,6 +355,128 @@ def test_fetch_golden(tmp: Path) -> None:
         _fail(f"map metrics {rec2['metrics']}")
 
 
+def test_skip_single_quarter_golden(tmp: Path) -> None:
+    db = tmp / "skip_sq.db"
+    conn = sqlite3.connect(db)
+    try:
+        conn.executescript(MIN_SCHEMA)
+        _insert_std(conn, [(1, "net_sales", "PL")])
+        _insert_fin(conn, std_item_id=1, value=4_646_000_000, unit="JPY",
+                    code="17240", period_end="2026-06-30")
+        conn.commit()
+    finally:
+        conn.close()
+    gdir = tmp / "g_sq"
+    _write_golden(
+        gdir,
+        {"revenue": 2348},
+        code="17240",
+        period_end="2026-06-30",
+        period_basis="single_quarter",
+    )
+    report = mr.run(db, gdir)
+    if report.skipped != 1 or report.compared != 0:
+        _fail(f"single_quarter should skip: skipped={report.skipped} compared={report.compared}")
+    if not report.skipped_rows or report.skipped_rows[0].reason != "single_quarter_not_comparable":
+        _fail(f"skip reason: {report.skipped_rows}")
+
+
+def test_skip_missing_period_basis(tmp: Path) -> None:
+    db = tmp / "skip_miss.db"
+    conn = sqlite3.connect(db)
+    try:
+        conn.executescript(MIN_SCHEMA)
+        _insert_std(conn, [(1, "net_sales", "PL")])
+        _insert_fin(conn, std_item_id=1, value=100_000_000, unit="JPY")
+        conn.commit()
+    finally:
+        conn.close()
+    gdir = tmp / "g_miss_basis"
+    # Write without period_basis key
+    gdir.mkdir(parents=True, exist_ok=True)
+    rec = {
+        "code": "72030",
+        "code4": "7203",
+        "period_end": "2025-03-31",
+        "metrics": {"revenue": 100},
+        "unit": "million_jpy",
+        "source": "irbank",
+        "fetched_at": "2026-09-07T00:00:00+09:00",
+    }
+    (gdir / "7203_2025-03-31.json").write_text(
+        json.dumps(rec, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    report = mr.run(db, gdir)
+    if report.skipped != 1 or report.compared != 0:
+        _fail(f"missing basis should skip: {report.skipped}/{report.compared}")
+    if report.skipped_rows[0].reason != "missing_period_basis":
+        _fail(f"reason {report.skipped_rows}")
+
+
+def test_fetch_builds_cumulative_from_standalone(tmp: Path) -> None:
+    out = tmp / "cum_out"
+    src = FIXTURE_DIR / "irbank_quarterly_standalone.json"
+    rc = fetch_mod.main(["--input", str(src), "--out-dir", str(out)])
+    if rc != 0:
+        _fail(f"fetch exit {rc}")
+    q1 = json.loads((out / "7203_2025-06-30.json").read_text(encoding="utf-8"))
+    q2 = json.loads((out / "7203_2025-09-30.json").read_text(encoding="utf-8"))
+    q3 = json.loads((out / "7203_2025-12-31.json").read_text(encoding="utf-8"))
+    fy = json.loads((out / "7203_2026-03-31.json").read_text(encoding="utf-8"))
+    for rec, label in ((q1, "Q1"), (q2, "Q2"), (q3, "Q3"), (fy, "FY")):
+        if rec.get("period_basis") != "cumulative":
+            _fail(f"{label} basis {rec.get('period_basis')}")
+    if q1["metrics"]["revenue"] != 100:
+        _fail(f"Q1 revenue {q1['metrics']}")
+    if q2["metrics"]["revenue"] != 300:  # 100+200
+        _fail(f"Q2 H1 revenue {q2['metrics']}")
+    if q3["metrics"]["revenue"] != 600:  # 100+200+300
+        _fail(f"Q3 9M revenue {q3['metrics']}")
+    if fy["metrics"]["revenue"] != 1000:
+        _fail(f"FY revenue {fy['metrics']}")
+    if q2.get("cumulative_build") != "sum_q1_q2_standalone":
+        _fail(f"Q2 build {q2.get('cumulative_build')}")
+    if q3.get("cumulative_build") != "sum_q1_q2_q3_standalone":
+        _fail(f"Q3 build {q3.get('cumulative_build')}")
+    # Must not write period_basis=single_quarter files
+    for p in out.glob("*.json"):
+        rec = json.loads(p.read_text(encoding="utf-8"))
+        if rec.get("period_basis") == "single_quarter":
+            _fail(f"wrote single_quarter {p}")
+
+
+def test_fetch_rejects_orphan_q2_standalone(tmp: Path) -> None:
+    """Q2 standalone without Q1 cannot build H1 — nothing matchable written."""
+    src = tmp / "orphan_q2.json"
+    src.write_text(
+        json.dumps(
+            {
+                "code": "17240",
+                "fiscal_year": "2026/12",
+                "quarter": "Q2",
+                "period_basis": "single_quarter",
+                "metrics": {"revenue": 2348},
+                "source": "irbank",
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    out = tmp / "orphan_out"
+    try:
+        fetch_mod.main(["--input", str(src), "--out-dir", str(out)])
+    except SystemExit as exc:
+        if "no cumulative" not in str(exc).lower() and "no cumulative" not in str(exc):
+            # main raises SystemExit with message
+            if out.exists() and any(out.glob("*.json")):
+                _fail(f"should not write goldens: {list(out.glob('*.json'))}")
+        # ok — either exit or empty
+    else:
+        files = list(out.glob("*.json")) if out.exists() else []
+        if files:
+            _fail(f"orphan Q2 should not write: {files}")
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory(prefix="xbrl-match-") as d:
         tmp = Path(d)
@@ -350,6 +487,10 @@ def main() -> None:
         test_prefer_consolidated(tmp)
         test_copy_stocks(tmp)
         test_fetch_golden(tmp)
+        test_skip_single_quarter_golden(tmp)
+        test_skip_missing_period_basis(tmp)
+        test_fetch_builds_cumulative_from_standalone(tmp)
+        test_fetch_rejects_orphan_q2_standalone(tmp)
     print("ok: xbrl match rate")
 
 

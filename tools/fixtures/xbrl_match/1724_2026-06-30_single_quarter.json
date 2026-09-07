@@ -1,0 +1,19 @@
+{
+  "code": "17240",
+  "code4": "1724",
+  "period_end": "2026-06-30",
+  "period_basis": "single_quarter",
+  "quarter": "Q2",
+  "fiscal_year_end": "2026-12-31",
+  "accounting_standard": "JPGAAP",
+  "is_consolidated": true,
+  "metrics": {
+    "revenue": 2348,
+    "operating_income": 76,
+    "ordinary_income": 78,
+    "net_income": 54
+  },
+  "unit": "million_jpy",
+  "source": "irbank",
+  "fetched_at": "2026-09-07T00:00:00+09:00"
+}

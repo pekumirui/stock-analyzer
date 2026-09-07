@@ -1,0 +1,13 @@
+{
+  "code": "99990",
+  "code4": "9999",
+  "period_end": "2025-03-31",
+  "accounting_standard": null,
+  "is_consolidated": true,
+  "metrics": {
+    "revenue": 1
+  },
+  "unit": "million_jpy",
+  "source": "irbank",
+  "fetched_at": "2026-09-07T00:00:00+09:00"
+}

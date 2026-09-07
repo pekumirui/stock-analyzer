@@ -20,6 +20,11 @@ Missing: golden has a metric, XBRL has no row → exclude from denominator
 
 Prefer consolidated when both consol and non-consol exist for the same
 code × period_end × std_item.
+
+Period basis (KPI): compare **cumulative YTD ↔ cumulative YTD only**, same as
+`statements`. Goldens must have `period_basis: "cumulative"`. Single-quarter /
+standalone / missing `period_basis` rows are **skipped** (reason in report;
+batch continues) — never raw-compared to flash cumulative PL.
 """
 from __future__ import annotations
 
@@ -48,6 +53,16 @@ METRIC_TO_STD: dict[str, str] = {
 ABS_TOL = Decimal("1")
 REL_TOL = Decimal("0.001")
 EPS = Decimal("1e-9")
+
+PERIOD_BASIS_CUMULATIVE = "cumulative"
+PERIOD_BASIS_SINGLE_ALIASES = {
+    "single_quarter",
+    "standalone",
+    "single",
+    "quarter_only",
+    "単四半期",
+    "単独四半期",
+}
 
 YEN_UNITS = {
     "",
@@ -87,13 +102,23 @@ class MetricStats:
 
 
 @dataclass
+class SkipRow:
+    code: str
+    period_end: str
+    reason: str
+    period_basis: str | None = None
+
+
+@dataclass
 class Report:
     matched: int = 0
     compared: int = 0
     missing: int = 0
     mismatches: int = 0
+    skipped: int = 0
     per_metric: dict[str, MetricStats] = field(default_factory=dict)
     rows: list[CmpRow] = field(default_factory=list)
+    skipped_rows: list[SkipRow] = field(default_factory=list)
 
     @property
     def rate(self) -> float | None:
@@ -248,6 +273,22 @@ def _metric_num(metrics: dict[str, Any], key: str) -> Decimal | None:
         return None
 
 
+def golden_period_basis(g: dict[str, Any]) -> str | None:
+    """Normalize golden period_basis; None if missing/blank."""
+    raw = g.get("period_basis")
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    low = s.lower().replace(" ", "_")
+    if low in PERIOD_BASIS_SINGLE_ALIASES or s in PERIOD_BASIS_SINGLE_ALIASES:
+        return "single_quarter"
+    if low in {PERIOD_BASIS_CUMULATIVE, "ytd", "current_ytd", "累計"}:
+        return PERIOD_BASIS_CUMULATIVE
+    return low
+
+
 def compare(goldens: list[dict[str, Any]], xbrl: dict[tuple[str, str, str], dict[str, Any]]) -> Report:
     report = Report()
     for std in METRIC_TO_STD.values():
@@ -257,6 +298,24 @@ def compare(goldens: list[dict[str, Any]], xbrl: dict[tuple[str, str, str], dict
         if not code and g.get("code4"):
             code = str(g["code4"]) + "0"
         period_end = norm_date(g.get("period_end"))
+        basis = golden_period_basis(g)
+        if basis != PERIOD_BASIS_CUMULATIVE:
+            if basis is None:
+                reason = "missing_period_basis"
+            elif basis == "single_quarter":
+                reason = "single_quarter_not_comparable"
+            else:
+                reason = f"unsupported_period_basis:{basis}"
+            report.skipped += 1
+            report.skipped_rows.append(
+                SkipRow(
+                    code=code,
+                    period_end=period_end,
+                    reason=reason,
+                    period_basis=basis,
+                )
+            )
+            continue
         metrics = g.get("metrics") if isinstance(g.get("metrics"), dict) else {}
         for metric, std in METRIC_TO_STD.items():
             golden_v = _metric_num(metrics, metric)
@@ -315,7 +374,7 @@ def _pct(matched: int, compared: int) -> str:
 def format_summary(report: Report) -> str:
     overall = (
         f"overall: {report.matched}/{report.compared} = {_pct(report.matched, report.compared)}"
-        f"  (missing_excluded={report.missing})"
+        f"  (missing_excluded={report.missing}, skipped_non_cumulative={report.skipped})"
     )
     parts = []
     for std in METRIC_TO_STD.values():
@@ -334,6 +393,12 @@ def format_summary(report: Report) -> str:
         lines.append("missing_excluded:")
         for r in miss:
             lines.append(f"  {r.code} {r.period_end} {r.std_item}")
+    if report.skipped_rows:
+        lines.append("skipped_non_cumulative:")
+        for r in report.skipped_rows:
+            lines.append(
+                f"  {r.code} {r.period_end} reason={r.reason} period_basis={r.period_basis}"
+            )
     return "\n".join(lines)
 
 
@@ -353,10 +418,12 @@ def report_to_json(report: Report) -> dict[str, Any]:
             "compared": report.compared,
             "missing": report.missing,
             "mismatches": report.mismatches,
+            "skipped": report.skipped,
             "rate": report.rate,
         },
         "per_metric": per,
         "rows": [asdict(r) for r in report.rows],
+        "skipped_rows": [asdict(r) for r in report.skipped_rows],
     }
 
 
