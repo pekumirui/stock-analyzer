@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 import xml.etree.ElementTree as ET
+from calendar import monthrange
 from dataclasses import dataclass, field
 from datetime import date
-from calendar import monthrange
 from pathlib import Path
 from typing import Any
 
@@ -293,7 +294,8 @@ def assign_relative_periods(
 
 
 def classify_title(title: str) -> dict[str, Any]:
-    t = title or ""
+    # NFKC so fullwidth tokens like ＩＦＲＳ / 〔ＩＦＲＳ〕 match halfwidth IFRS etc.
+    t = unicodedata.normalize("NFKC", title or "")
     amendment = "訂正" in t
     period: str | None
     if "四半期" in t:
@@ -329,3 +331,44 @@ def classify_title(title: str) -> dict[str, Any]:
         "is_amendment": amendment,
         "accounting_standard": standard,
     }
+
+
+def infer_accounting_standard_from_namespaces(
+    facts,
+    *,
+    title_standard: str | None = None,
+) -> str | None:
+    """When title leaves accounting_standard NULL, prefer namespace evidence.
+
+    DESIGN_xbrl: DEI/namespaces with ``jpigp`` / ``ifrs`` → IFRS,
+    ``us-gaap`` → USGAAP; otherwise leave NULL (do not invent JPGAAP).
+    Title result wins when already set.
+    """
+    if title_standard:
+        return title_standard
+    saw_ifrs = False
+    saw_us = False
+    for fact in facts or ():
+        key = (getattr(fact, "namespace_key", None) or "").lower()
+        uri = (getattr(fact, "namespace_uri", None) or "").lower()
+        blob = f"{key} {uri}"
+        if "jpigp" in blob or "ifrs" in blob:
+            saw_ifrs = True
+        if "us-gaap" in blob or "usgaap" in blob:
+            saw_us = True
+        # DEI text values sometimes name the standard explicitly.
+        local = (getattr(fact, "local_name", None) or "").lower().replace("_", "")
+        if "accountingstandard" in local:
+            raw_nfkc = unicodedata.normalize("NFKC", str(getattr(fact, "value_text", None) or ""))
+            upper = raw_nfkc.upper()
+            if "IFRS" in upper or "国際会計" in raw_nfkc:
+                return "IFRS"
+            if "US-GAAP" in upper or "USGAAP" in upper or "米国" in raw_nfkc:
+                return "USGAAP"
+            if "日本基準" in raw_nfkc or "JPGAAP" in upper:
+                return "JPGAAP"
+    if saw_ifrs and not saw_us:
+        return "IFRS"
+    if saw_us and not saw_ifrs:
+        return "USGAAP"
+    return None
