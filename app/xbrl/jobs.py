@@ -10,7 +10,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import XBRL_CACHE_DIR, XBRL_DEST, XBRL_TEXT_MAX_CHARS
-from app.models import Stock, XbrlElement, XbrlElementMapping, XbrlFact, XbrlFiling, XbrlJobRun
+from app.models import Stock, XbrlElement, XbrlElementMapping, XbrlFact, XbrlFiling, XbrlFinancial, XbrlJobRun
 from app.xbrl.normalize import normalize_filing, rebuild_all
 from app.xbrl.store import mark_failed, parse_zip_into_filing
 
@@ -157,6 +157,31 @@ def run_parse(
     return {"processed": processed, "errors": errors, "skipped": skipped}
 
 
+def filings_pending_normalize(db: Session) -> list[XbrlFiling]:
+    """parsed のうち、未正規化か再パース後の filing だけ。"""
+    latest = (
+        db.query(
+            XbrlFinancial.filing_id,
+            func.max(XbrlFinancial.generated_at).label("generated_at"),
+        )
+        .group_by(XbrlFinancial.filing_id)
+        .subquery()
+    )
+    return (
+        db.query(XbrlFiling)
+        .outerjoin(latest, latest.c.filing_id == XbrlFiling.id)
+        .filter(XbrlFiling.parse_status == "parsed")
+        .filter(
+            (latest.c.generated_at.is_(None))
+            | (
+                XbrlFiling.parsed_at.isnot(None)
+                & (XbrlFiling.parsed_at > latest.c.generated_at)
+            )
+        )
+        .all()
+    )
+
+
 def run_normalize(db: Session, *, rebuild: bool = False) -> dict:
     run = start_run(db, "normalize")
     if rebuild:
@@ -164,8 +189,8 @@ def run_normalize(db: Session, *, rebuild: bool = False) -> dict:
         finish_run(db, run, "success" if stats["errors"] == 0 else "failed", stats["processed"], stats["errors"])
         return stats
     processed = errors = 0
-    filings = db.query(XbrlFiling).filter_by(parse_status="parsed").all()
-    for filing in filings:
+    pending = filings_pending_normalize(db)
+    for filing in pending:
         try:
             stats = normalize_filing(db, filing)
             db.commit()
@@ -180,8 +205,11 @@ def run_normalize(db: Session, *, rebuild: bool = False) -> dict:
             db.rollback()
             errors += 1
             print(f"normalize failed doc_id={filing.doc_id} code={filing.code} err={exc}", flush=True)
-    finish_run(db, run, "success" if errors == 0 else "failed", processed, errors)
-    return {"processed": processed, "errors": errors}
+    skipped = db.query(XbrlFiling).filter_by(parse_status="parsed").count() - processed - errors
+    if skipped < 0:
+        skipped = 0
+    finish_run(db, run, "success" if errors == 0 else "failed", processed, errors, f"skipped={skipped}")
+    return {"processed": processed, "errors": errors, "skipped": skipped}
 
 
 def report_unmapped(db: Session, limit: int = 50) -> list[dict]:

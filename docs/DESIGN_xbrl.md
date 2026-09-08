@@ -461,7 +461,7 @@ filing 単位。
 6. UPSERT
 7. `is_required=1` が欠けたら警告ログ（`code, filing_id, std_item.code`）。処理は継続
 
-`--rebuild` は `xbrl_financials` を全削除して全 parsed filing を再処理する。
+通常実行は `xbrl_financials` が無い filing と、`parsed_at` が既存の `generated_at` より新しい filing だけ。`--rebuild` は `xbrl_financials` を全削除して全 parsed filing を再処理する。
 
 ### 6.5 CLI
 
@@ -483,7 +483,7 @@ python scripts/xbrl_normalize.py --rebuild
 
 dest 既定は `tdnet_xbrl_r2.DEFAULT_DEST`。`--dest` で上書き。
 
-cron は parse 1:30 / normalize 2:00 JST（0 時 fetch の後）。既存の 16–23 時 fetch は止めない。
+cron は 12–23 時 JST に毎時 `fetch :00` → `parse :10` → `normalize :20`。normalize は未反映と再パース分だけ（マッピング変更は `--rebuild`）。
 
 ---
 
@@ -619,7 +619,7 @@ XBRL_TEXT_MAX_CHARS=1000
 6. normalize + `--rebuild`
 7. `report-unmapped` を実行し上位要素を報告（マッピング追加は確認後）
 8. テスト
-9. cron に parse 1:30 / normalize 2:00 JST を載せる
+9. cron は 12–23 時 JST の毎時 fetch / parse+10分 / normalize+20分
 
 フロント・`statements` 置換・EDINET はこのリストの外。
 
