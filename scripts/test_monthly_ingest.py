@@ -132,6 +132,15 @@ def test_issuer_alias_cases() -> None:
         if apply_issuer_aliases("72030", incoming, year=ctx.get("year"), as_of=ctx.get("as_of")) != incoming:  # type: ignore[arg-type]
             _fail(f"other issuer must not alias {incoming!r}")
 
+    sample_34150 = apply_issuer_aliases(
+        "34150", "全社 国内 合計 売上高(前年比)", year=2099,
+    )
+    if sample_34150 != "日本 合計 売上高(前年比)":
+        _fail(f"34150 sample: {sample_34150!r}")
+    sample_26980 = apply_issuer_aliases("26980", "全社(前年比)", year=2099)
+    if sample_26980 != "全社 売上高(前年比)":
+        _fail(f"26980 sample: {sample_26980!r}")
+
 
 def test_mapping_examples() -> None:
     layout, mapping = plan_column_years(GIFT_MONTHS, 10, date(2026, 8, 5))
