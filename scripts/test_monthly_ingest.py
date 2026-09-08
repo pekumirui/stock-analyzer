@@ -926,8 +926,13 @@ def test_issuer_alias_ingest_and_migrate() -> None:
         as_of = pairs[0][2]
         year = as_of.year if as_of.month >= 6 else as_of.year - 1
         _add_fy_end(code, date(year, 6, 1), date(year, 6, 30), f"alias-fy-{code}-{year}")
+        # many-to-one rename（複数 before → 同一 after）は同一 ingest で衝突するため stored で畳む
         rows = []
+        seen_stored: set[str] = set()
         for j, (incoming, stored, _) in enumerate(pairs):
+            if stored in seen_stored:
+                continue
+            seen_stored.add(stored)
             unit = "yoy_index" if stored.endswith("(前年比)") else "number"
             rows.append({
                 "element": incoming,
