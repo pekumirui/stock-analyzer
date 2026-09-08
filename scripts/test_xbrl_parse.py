@@ -350,7 +350,9 @@ def test_parse_normalize_idempotent(tmp: Path) -> None:
         n2 = db.query(XbrlFact).filter_by(filing_id=filing.id).count()
         if n1 != n2:
             _fail(f"idempotent facts {n1} != {n2}")
-        run_normalize(db)
+        first = run_normalize(db)
+        if first.get("processed", 0) != 1:
+            _fail(f"first normalize {first}")
         sales = _std_value(db, filing.id, "net_sales")
         assets = _std_value(db, filing.id, "total_assets")
         liab = _std_value(db, filing.id, "total_liabilities")
@@ -364,6 +366,9 @@ def test_parse_normalize_idempotent(tmp: Path) -> None:
         ocf = _std_value(db, filing.id, "operating_cf")
         if ocf != Decimal("80000000"):
             _fail(f"operating_cf {ocf}")
+        second = run_normalize(db)
+        if second.get("processed", 0) != 0:
+            _fail(f"second normalize should skip: {second}")
     finally:
         db.close()
 
