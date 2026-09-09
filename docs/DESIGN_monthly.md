@@ -22,6 +22,8 @@
 
 書き込みは先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`。既存の `monthly_tables` / `monthly_elements` / `monthly_values` は変えない。
 
+**ingest の列と暦年。** `months` は PDF 左→右。同じ月番号が2回（Genky 型 13 列の Jun…Jun など）でもよい。年は列ごとに右端 + `as_of` から左へ割り当て、`(code, year, element, month)` に残す。一意月の `values` は `{月: 値}` のまま。重複時は列順配列（または列番号キー）。詳細は `DESIGN.md`。
+
 **新着。** 仮想グループ。`last_ingested_at` の JST 日付が今日を含む直近 7 日。業種グループと重複してよい。JST の日付が今日なら、行に NEW を付ける。
 
 **系列の対応。** PDF の `element` 名を ID にはしない。一覧とグラフは次の規則で行を拾う。`sort_order` が先の行を使う。

@@ -34,6 +34,13 @@ from app.monthly_ingest import (  # noqa: E402
 GIFT_MONTHS = [11, 12, 1, 2, 3, 4, 5, 6, 7]
 MARCH_MONTHS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]
 CAL_MONTHS = list(range(1, 13))
+# Genky 20250630: Jun2024 … Jun2025 (13 cols, month 6 twice)
+GENKY_MONTHS = [6, 7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6]
+
+
+def _map_dict(mapping: list[tuple[int, int]]) -> dict[int, int]:
+    """一意月の比較用。重複がある mapping では使わない。"""
+    return {month: year for month, year in mapping}
 
 
 def _fail(msg: str) -> None:
@@ -147,7 +154,7 @@ def test_mapping_examples() -> None:
     if layout != "fiscal":
         _fail(f"gift layout: {layout}")
     expect = {11: 2025, 12: 2025, 1: 2026, 2: 2026, 3: 2026, 4: 2026, 5: 2026, 6: 2026, 7: 2026}
-    if mapping != expect:
+    if _map_dict(mapping) != expect:
         _fail(f"gift mapping: {mapping}")
 
     fy, layout, mapping = map_pdf_columns(
@@ -158,7 +165,7 @@ def test_mapping_examples() -> None:
         ],
         date(2026, 8, 5),
     )
-    if fy != 10 or layout != "fiscal" or mapping != expect:
+    if fy != 10 or layout != "fiscal" or _map_dict(mapping) != expect:
         _fail(f"gift map_pdf_columns: {fy} {layout} {mapping}")
 
     layout, mapping = plan_column_years(MARCH_MONTHS, 3, date(2026, 4, 10))
@@ -166,13 +173,13 @@ def test_mapping_examples() -> None:
         _fail(f"march layout: {layout}")
     expect = {m: 2025 for m in range(4, 13)}
     expect.update({1: 2026, 2: 2026, 3: 2026})
-    if mapping != expect:
+    if _map_dict(mapping) != expect:
         _fail(f"march mapping: {mapping}")
 
     layout, mapping = plan_column_years(CAL_MONTHS, 12, date(2027, 1, 10))
     if layout != "calendar":
         _fail(f"dec layout: {layout}")
-    if mapping != {m: 2026 for m in CAL_MONTHS}:
+    if _map_dict(mapping) != {m: 2026 for m in CAL_MONTHS}:
         _fail(f"dec mapping: {mapping}")
 
     # 先頭が1でも会計年度開始でもない列。暦年は最終列 + as_of。拒否しない。
@@ -180,13 +187,13 @@ def test_mapping_examples() -> None:
     layout, mapping = plan_column_years([7], 10, as_of_aug)
     if layout != "partial":
         _fail(f"single July layout: {layout}")
-    if mapping != {7: 2026}:
+    if _map_dict(mapping) != {7: 2026}:
         _fail(f"single July mapping: {mapping}")
 
     layout, mapping = plan_column_years([7, 8], 3, as_of_aug)
     if layout != "partial":
         _fail(f"mid-start layout: {layout}")
-    if mapping != {7: 2026, 8: 2026}:
+    if _map_dict(mapping) != {7: 2026, 8: 2026}:
         _fail(f"mid-start mapping: {mapping}")
 
     fy, layout, mapping = map_pdf_columns(
@@ -194,8 +201,19 @@ def test_mapping_examples() -> None:
         [(date(2026, 5, 8), date(2025, 10, 31))],
         as_of_aug,
     )
-    if fy != 10 or layout != "partial" or mapping != {7: 2026}:
+    if fy != 10 or layout != "partial" or _map_dict(mapping) != {7: 2026}:
         _fail(f"single July map_pdf_columns: {fy} {layout} {mapping}")
+
+    # Genky 13列: 月6が2回。右端 as_of=2025-06-30 → 先頭6は2024、末尾6は2025。
+    layout, mapping = plan_column_years(GENKY_MONTHS, 6, date(2025, 6, 30))
+    if layout != "partial":
+        _fail(f"genky layout: {layout}")
+    expect_years = [2024] * 7 + [2025] * 6
+    got_years = [y for _, y in mapping]
+    if [m for m, _ in mapping] != GENKY_MONTHS or got_years != expect_years:
+        _fail(f"genky mapping: {mapping}")
+    if mapping[0] != (6, 2024) or mapping[-1] != (6, 2025):
+        _fail(f"genky June split: {mapping[0]} {mapping[-1]}")
 
 
 def test_fy_end_and_layout_errors() -> None:
@@ -256,7 +274,7 @@ def test_fy_end_and_layout_errors() -> None:
         _fail(f"wrap mid-start layout: {layout}")
     expect_wrap = {m: 2025 for m in (7, 8, 9, 10, 11, 12)}
     expect_wrap[1] = 2026
-    if mapping != expect_wrap:
+    if _map_dict(mapping) != expect_wrap:
         _fail(f"wrap mid-start mapping: {mapping}")
 
 
@@ -1109,12 +1127,88 @@ def test_reject_prior_period_element() -> None:
         _fail(f"POST prior: {r.json()!r}")
 
 
+def test_api_genky_year_wrap_ingest() -> None:
+    """Genky 20250630 型: 13列で月6が2回。配列 values で暦年分割して両年に残る。"""
+    c = TestClient(app)
+    code = "92670"
+    _add_fy_end(code, date(2025, 5, 1), date(2025, 6, 30), "genky-fy-1")
+    _add_fy_end(code, date(2024, 5, 1), date(2024, 6, 30), "genky-fy-2")
+
+    # fixture 売上高前年比（全店）の数値
+    values = [
+        104.6, 107.5, 106.7, 106.2, 110.4, 104.5, 109.4,
+        111.1, 109.1, 106.5, 113.0, 108.8, 110.1,
+    ]
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": GENKY_MONTHS,
+        "rows": [{"element": "売上高前年比（全店）", "unit": "yoy_index", "values": values}],
+        "as_of": "2025-06-30",
+    })
+    _expect(r, 200, "genky ingest")
+    body = r.json()
+    if body.get("fy_end_month") != 6 or body.get("layout") != "partial":
+        _fail(f"genky header: {body!r}")
+    mapping = body.get("mapping")
+    if not isinstance(mapping, list) or len(mapping) != 13:
+        _fail(f"genky mapping shape: {mapping!r}")
+    if mapping[0] != {"month": 6, "year": 2024} or mapping[-1] != {"month": 6, "year": 2025}:
+        _fail(f"genky mapping ends: {mapping[0]!r} {mapping[-1]!r}")
+    expect_years = [2024] * 7 + [2025] * 6
+    if [item["year"] for item in mapping] != expect_years:
+        _fail(f"genky mapping years: {mapping!r}")
+
+    r = c.get(f"/api/v1/tables/{code}/2024")
+    _expect(r, 200, "GET genky 2024")
+    els = r.json()["elements"]
+    if len(els) != 1:
+        _fail(f"2024 elements: {els!r}")
+    v2024 = {str(k): float(val) for k, val in els[0]["values"].items()}
+    if set(v2024) != {"6", "7", "8", "9", "10", "11", "12"}:
+        _fail(f"GET 2024 months: {v2024!r}")
+    if abs(v2024["6"] - 104.6) > 1e-6:
+        _fail(f"2024 June value: {v2024!r}")
+
+    r = c.get(f"/api/v1/tables/{code}/2025")
+    _expect(r, 200, "GET genky 2025")
+    v2025 = {str(k): float(val) for k, val in r.json()["elements"][0]["values"].items()}
+    if set(v2025) != {"1", "2", "3", "4", "5", "6"}:
+        _fail(f"GET 2025 months: {v2025!r}")
+    if abs(v2025["6"] - 110.1) > 1e-6:
+        _fail(f"2025 June value: {v2025!r}")
+
+    # 重複月なのに月キー object は拒否
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": GENKY_MONTHS,
+        "rows": [{"element": "客数", "unit": "yoy_index", "values": {"6": 1.0}}],
+        "as_of": "2025-06-30",
+    })
+    _expect(r, 400, "genky ambiguous values")
+    if _err(r)["code"] != "INVALID_PARAM":
+        _fail(f"ambiguous: {r.json()!r}")
+
+    # 列番号キーは許可
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": GENKY_MONTHS,
+        "rows": [{"element": "客数前年比（既存店）", "unit": "yoy_index",
+                  "values": {"0": 102.5, "12": 102.2}}],
+        "as_of": "2025-06-30",
+    })
+    _expect(r, 200, "genky col-index values")
+    r = c.get(f"/api/v1/tables/{code}/2024")
+    names = [e["element"] for e in r.json()["elements"]]
+    if "客数前年比（既存店）(前年比)" not in names and "客数前年比（既存店）" not in names:
+        # canonicalize may add (前年比)
+        if not any("客数" in n for n in names):
+            _fail(f"col-index 2024 missing: {names!r}")
+
+
 def main() -> None:
     test_canonicalize_element_label()
     test_issuer_alias_cases()
     test_mapping_examples()
     test_fy_end_and_layout_errors()
     test_api_gift_ingest()
+    test_api_genky_year_wrap_ingest()
     test_tdnet_4digit_fy_end_lookup()
     test_api_errors()
     test_all_or_nothing_similar()
