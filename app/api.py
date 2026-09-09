@@ -23,7 +23,7 @@ from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period
 from .monthly_ingest import (
     MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label, map_pdf_columns,
     monthly_series_kind, parse_as_of, parse_monthly_unit, reject_prior_period_element,
-    same_yoy_element, yoy_display_number,
+    same_yoy_element, serialize_column_mapping, yoy_display_number,
 )
 
 router = APIRouter(prefix="/api")
@@ -513,17 +513,10 @@ def _ensure_element(db: Session, code: str, year_i: int, element: str, force: bo
 
 
 def _parse_months(raw: Any) -> list[int]:
+    """1〜12 の整数配列。年跨ぎの Genky 型では同じ月が2回出てよい。"""
     if not isinstance(raw, list) or len(raw) < 1:
-        raise ApiError(400, "INVALID_PARAM", "months は1〜12の重複しない整数の配列です。")
-    out: list[int] = []
-    seen: set[int] = set()
-    for item in raw:
-        month = _parse_month(item)
-        if month in seen:
-            raise ApiError(400, "INVALID_PARAM", "months は1〜12の重複しない整数の配列です。")
-        seen.add(month)
-        out.append(month)
-    return out
+        raise ApiError(400, "INVALID_PARAM", "months は1〜12の整数の配列です。")
+    return [_parse_month(item) for item in raw]
 
 
 def _parse_month_key(raw: Any) -> int:
@@ -532,12 +525,74 @@ def _parse_month_key(raw: Any) -> int:
     return _parse_month(raw)
 
 
+def _months_have_duplicates(months: list[int]) -> bool:
+    return len(months) != len(set(months))
+
+
+def _parse_ingest_values_by_column(
+    values_raw: Any, months: list[int],
+) -> dict[int, float | None]:
+    """列インデックス → 値。重複月があるときは配列（または列番号キー）必須。"""
+    n = len(months)
+    has_dup = _months_have_duplicates(months)
+    if isinstance(values_raw, list):
+        if len(values_raw) != n:
+            raise ApiError(
+                400, "INVALID_PARAM",
+                f"values 配列は months と同じ長さ（{n}）にしてください。",
+            )
+        return {i: _parse_value(val) for i, val in enumerate(values_raw)}
+
+    if not isinstance(values_raw, dict):
+        raise ApiError(
+            400, "INVALID_PARAM",
+            "values は月キーのオブジェクト、または列順の配列です。",
+        )
+
+    if has_dup:
+        by_col: dict[int, float | None] = {}
+        for key, val in values_raw.items():
+            if isinstance(key, str) and key.isdigit():
+                idx = int(key)
+            elif isinstance(key, int) and not isinstance(key, bool):
+                idx = key
+            else:
+                raise ApiError(
+                    400, "INVALID_PARAM",
+                    'months に重複があるとき values は配列か列番号キー（"0"…）のオブジェクトです。',
+                )
+            if idx < 0 or idx >= n:
+                raise ApiError(400, "INVALID_PARAM", "values の列番号が months の範囲外です。")
+            by_col[idx] = _parse_value(val)
+        # 月番号キー {"6": …} は曖昧なので拒否（0 始まりの列番号だけ許可）
+        if (
+            by_col
+            and 0 not in by_col
+            and set(by_col) <= set(months)
+            and all(1 <= k <= 12 for k in by_col)
+        ):
+            raise ApiError(
+                400, "INVALID_PARAM",
+                'months に重複があるとき values は配列か列番号キー（"0"…）のオブジェクトです。',
+            )
+        return by_col
+
+    month_set = set(months)
+    by_col: dict[int, float | None] = {}
+    for key, val in values_raw.items():
+        month = _parse_month_key(key)
+        if month not in month_set:
+            raise ApiError(400, "INVALID_PARAM", "values の月が months にありません。")
+        by_col[months.index(month)] = _parse_value(val)
+    return by_col
+
+
 def _parse_ingest_rows(
     raw: Any, months: list[int], code: str, *, as_of: date | None = None,
 ) -> list[tuple[str, bool, str | None, dict[int, float | None]]]:
+    """各行の values は列インデックス → 値（null 可）。"""
     if not isinstance(raw, list):
         raise ApiError(400, "INVALID_PARAM", "rows は {element, values} の配列です。")
-    month_set = set(months)
     parsed: list[tuple[str, bool, str | None, dict[int, float | None]]] = []
     for item in raw:
         if not isinstance(item, dict):
@@ -545,15 +600,7 @@ def _parse_ingest_rows(
         force = item.get("force") is True
         unit = _parse_unit(item.get("unit")) if "unit" in item else None
         element = _canonical_element(item.get("element"), unit, code, as_of=as_of)
-        values_raw = item.get("values")
-        if not isinstance(values_raw, dict):
-            raise ApiError(400, "INVALID_PARAM", "values は月をキーにしたオブジェクトです。")
-        values: dict[int, float | None] = {}
-        for key, val in values_raw.items():
-            month = _parse_month_key(key)
-            if month not in month_set:
-                raise ApiError(400, "INVALID_PARAM", "values の月が months にありません。")
-            values[month] = _parse_value(val)
+        values = _parse_ingest_values_by_column(item.get("values"), months)
         parsed.append((element, force, unit, values))
     return parsed
 
@@ -655,14 +702,13 @@ def ingest_monthly(code: str, payload: dict | None = Body(None), db: Session = D
 
     updated: list[dict] = []
     try:
-        for element, force, unit, values in rows:
+        for element, force, unit, values_by_col in rows:
             by_year: dict[int, list[int]] = defaultdict(list)
-            for month in months:
-                if month not in values:
+            for col, (month, year_i) in enumerate(mapping):
+                if col not in values_by_col:
                     continue
-                year_i = mapping[month]
                 _ensure_element(db, code, year_i, element, force, unit)
-                _upsert_value(db, code, year_i, element, month, values[month])
+                _upsert_value(db, code, year_i, element, month, values_by_col[col])
                 by_year[year_i].append(month)
             for year_i in sorted(by_year):
                 updated.append({"year": year_i, "element": element, "months": by_year[year_i]})
@@ -677,7 +723,7 @@ def ingest_monthly(code: str, payload: dict | None = Body(None), db: Session = D
         "fy_end_month": fy_end_month,
         "layout": layout,
         "as_of": as_of.isoformat(),
-        "mapping": {str(month): mapping[month] for month in months},
+        "mapping": serialize_column_mapping(mapping),
         "updated": updated,
     }
 

@@ -147,7 +147,7 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
   value
 ```
 
-月次の year は暦年。PDF 取込は `POST /api/v1/tables/{code}/ingest` が列順 (`months`) と、開示日 `as_of` 時点の最新 `statements.fiscal_year_end` から暦年を割り当てる。暦年は最終列の月と as_of で決める。layout は calendar（先頭が1で昇順）/ fiscal（会計年度開始月始まり）/ それ以外は partial。列の並びでは拒否しない。クライアントは year を渡さない。年付き PUT は訂正用。決算期変更があっても as_of 時点の1か月だけを使う。
+月次の year は暦年。PDF 取込は `POST /api/v1/tables/{code}/ingest` が列順 (`months`) と、開示日 `as_of` 時点の最新 `statements.fiscal_year_end` から暦年を割り当てる。暦年は最終列の月と as_of から右→左へ列ごとに決める（同じ月番号が2回あっても列が違えば年が違う。Genky 型 13 列の Jun…Jun など）。layout は calendar（先頭が1で昇順）/ fiscal（会計年度開始月始まり）/ それ以外は partial。列の並びでは拒否しない。`months` に重複が無いとき `values` は従来どおり `{月: 値}`。重複があるときは列順の配列（または列番号キー `"0"`…）。応答 `mapping` も一意月は `{月: 年}`、重複時は列順 `[{month, year}, …]`。クライアントは year を渡さない。年付き PUT は訂正用。決算期変更があっても as_of 時点の1か月だけを使う。
 
 月次の書き込みは `stocks` に行がある code だけ。ingest / POST elements / 訂正 PUT は先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`。マスタ無しでは ingest しない。FK は付けない。`init_db` / migrate は `stocks` に無い月次行を `monthly_values` → `monthly_elements` → `monthly_tables` → `monthly_issuers` の順に DELETE する（本番の名証単独 30320 / 30660 など。何度呼んでも冪等）。
 

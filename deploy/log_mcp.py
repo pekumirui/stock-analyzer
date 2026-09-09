@@ -619,17 +619,10 @@ def tool_monthly_delete_element(args: dict[str, Any]) -> str:
 
 
 def _parse_ingest_months(raw: Any) -> list[int]:
+    # Genky-style year-wrap may repeat a month (e.g. 13 cols with June twice).
     if not isinstance(raw, list) or len(raw) < 1:
-        raise ValueError("months must be a non-empty array of unique integers 1-12")
-    out: list[int] = []
-    seen: set[int] = set()
-    for item in raw:
-        month = parse_monthly_month(item)
-        if month in seen:
-            raise ValueError("months must be a non-empty array of unique integers 1-12")
-        seen.add(month)
-        out.append(month)
-    return out
+        raise ValueError("months must be a non-empty array of integers 1-12")
+    return [parse_monthly_month(item) for item in raw]
 
 
 def _parse_ingest_rows(raw: Any) -> list[dict[str, Any]]:
@@ -643,8 +636,11 @@ def _parse_ingest_rows(raw: Any) -> list[dict[str, Any]]:
         if not isinstance(element, str) or not element.strip():
             raise ValueError("element is required")
         values = item.get("values")
-        if not isinstance(values, dict):
-            raise ValueError("values must be an object of month -> number|null")
+        if not isinstance(values, (dict, list)):
+            raise ValueError(
+                "values must be an object of month -> number|null, "
+                "or a column-aligned array when months has duplicates"
+            )
         row: dict[str, Any] = {"element": element, "values": values}
         if "force" in item:
             if not isinstance(item["force"], bool):
@@ -837,7 +833,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                 "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
                 "months": {
                     "type": "array",
-                    "description": "PDF column months in left-to-right order, unique integers 1-12",
+                    "description": "PDF column months in left-to-right order, integers 1-12. Duplicates allowed for year-wrap (e.g. Genky 13-col Jun…Jun).",
                     "items": {"type": "integer"},
                 },
                 "rows": {
@@ -848,9 +844,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                         "properties": {
                             "element": {"type": "string", "description": "row label, 1-50 chars"},
                             "values": {
-                                "type": "object",
-                                "description": "month (string or int key) -> number, or null to delete. PDF original; do not convert 125.8 to +25.8.",
-                                "additionalProperties": {"type": ["number", "null"]},
+                                "description": "Unique months: object month -> number|null. Duplicate months: JSON array aligned to months (or object keyed by column index \"0\"..). PDF original; do not convert 125.8 to +25.8.",
                             },
                             "unit": {
                                 "type": "string",

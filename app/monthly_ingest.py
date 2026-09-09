@@ -368,26 +368,27 @@ def _anchor_year(last_month: int, as_of: date) -> int:
     return year - 1
 
 
-def _assign_years(months: Sequence[int], as_of: date) -> dict[int, int]:
+def _assign_years(months: Sequence[int], as_of: date) -> list[tuple[int, int]]:
+    """列ごとに暦年。右端列 + as_of から左へ。同じ月番号でも列が違えば年が違ってよい。"""
     year = _anchor_year(months[-1], as_of)
-    assigned: dict[int, int] = {months[-1]: year}
+    years: list[int] = [0] * len(months)
+    years[-1] = year
     for i in range(len(months) - 2, -1, -1):
-        prev_month = months[i]
-        curr_month = months[i + 1]
-        if prev_month > curr_month:
+        if months[i] > months[i + 1]:
             year -= 1
-        assigned[prev_month] = year
-    return {month: assigned[month] for month in months}
+        years[i] = year
+    return list(zip(months, years))
 
 
 def plan_column_years(
     months: Sequence[int],
     fy_end_month: int,
     as_of: date,
-) -> tuple[str, dict[int, int]]:
-    """列順 → 暦年。layout は calendar | fiscal | partial。並びでは拒否しない。"""
+) -> tuple[str, list[tuple[int, int]]]:
+    """列順 → 暦年。layout は calendar | fiscal | partial。並びでは拒否しない。
+    戻り mapping は列順の (month, year)。Genky 型の月重複（13列）も列インデックス単位。"""
     if not months:
-        raise MonthlyIngestError(400, "INVALID_PARAM", "months は1〜12の重複しない整数の配列です。")
+        raise MonthlyIngestError(400, "INVALID_PARAM", "months は1〜12の整数の配列です。")
     start = months[0]
     if _is_calendar_layout(months):
         layout = "calendar"
@@ -402,7 +403,17 @@ def map_pdf_columns(
     months: Sequence[int],
     fy_end_rows: Sequence[tuple[date | None, date | None]],
     as_of: date,
-) -> tuple[int, str, dict[int, int]]:
+) -> tuple[int, str, list[tuple[int, int]]]:
     fy_end_month = resolve_fy_end_month(fy_end_rows, as_of)
     layout, mapping = plan_column_years(months, fy_end_month, as_of)
     return fy_end_month, layout, mapping
+
+
+def serialize_column_mapping(
+    mapping: Sequence[tuple[int, int]],
+) -> dict[str, int] | list[dict[str, int]]:
+    """一意な月は {month: year}、重複があるときは列順 [{month, year}, ...]。"""
+    months = [m for m, _ in mapping]
+    if len(months) == len(set(months)):
+        return {str(month): year for month, year in mapping}
+    return [{"month": month, "year": year} for month, year in mapping]
