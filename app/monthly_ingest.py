@@ -300,12 +300,12 @@ def yoy_display_number(value: float, unit: str | None) -> float:
 
 
 def format_monthly_cell(value: float | None, unit: str | None) -> str:
-    """空セルは空。表は指数 100=フラット。保存値は変えない。"""
+    """空セルは -。表は指数 100=フラット。保存値は変えない。"""
     if value is None:
-        return ""
+        return "-"
     n = float(value)
     if n != n or n in (float("inf"), float("-inf")):
-        return ""
+        return "-"
     u = unit or "number"
     if u == "yoy_pct":
         n = 100.0 + n
