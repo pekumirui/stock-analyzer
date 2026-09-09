@@ -121,18 +121,43 @@ def apply_issuer_aliases(
 
 
 def plan_issuer_alias_cases() -> list[tuple[str, str, str, dict[str, date | int]]]:
-    """テスト用。(code, incoming, stored, ctx)。rename 表から as_of / year を生成。"""
+    """テスト用。(code, incoming, stored, ctx)。rename 表から as_of / year を生成。
+
+    複数 until がある銘柄では、ある period の外側でも後続ルールが残る。
+    境界の「非適用」側の expected は、残りのアクティブルール適用後の名前にする。
+    """
     cases: list[tuple[str, str, str, dict[str, date | int]]] = []
+
+    def _apply_all(
+        rules: tuple[IssuerPeriodRename, ...],
+        name: str,
+        *,
+        year: int | None = None,
+        as_of: date | None = None,
+    ) -> str:
+        out = name
+        for r in rules:
+            active = False
+            if as_of is not None:
+                active = as_of < r.until
+            elif year is not None:
+                active = year <= r.until.year
+            if active:
+                out = r.rename.get(out, out)
+        return out
+
     for code, rules in sorted(ISSUER_ELEMENT_ALIASES.items()):
         for rule in rules:
             before = rule.until - timedelta(days=1)
             after = rule.until
+            year_on = rule.until.year
+            year_off = rule.until.year + 1
             for src, dst in rule.rename.items():
                 cases.append((code, src, dst, {"as_of": before}))
-                cases.append((code, src, src, {"as_of": after}))
-                cases.append((code, src, dst, {"year": rule.until.year}))
-                cases.append((code, src, src, {"year": rule.until.year + 1}))
-                cases.append((code, dst, dst, {"year": rule.until.year}))
+                cases.append((code, src, _apply_all(rules, src, as_of=after), {"as_of": after}))
+                cases.append((code, src, dst, {"year": year_on}))
+                cases.append((code, src, _apply_all(rules, src, year=year_off), {"year": year_off}))
+                cases.append((code, dst, dst, {"year": year_on}))
     return cases
 
 

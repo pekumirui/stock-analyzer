@@ -148,6 +148,17 @@ def test_issuer_alias_cases() -> None:
     if sample_26980 != "全社 売上高(前年比)":
         _fail(f"26980 sample: {sample_26980!r}")
 
+    # 262A0: 2025 無印月次 → Zoff。2026 多セグメントはメガネスーパー等を触らない。
+    sample_262a0_2025 = apply_issuer_aliases("262A0", "全店", year=2025)
+    if sample_262a0_2025 != "Zoff 全店":
+        _fail(f"262A0 year=2025 全店: {sample_262a0_2025!r}")
+    sample_262a0_2026_mega = apply_issuer_aliases("262A0", "メガネスーパー 全店", year=2026)
+    if sample_262a0_2026_mega != "メガネスーパー 全店":
+        _fail(f"262A0 year=2026 メガネスーパー: {sample_262a0_2026_mega!r}")
+    sample_262a0_2026_bare = apply_issuer_aliases("262A0", "全店", year=2026)
+    if sample_262a0_2026_bare != "全店":
+        _fail(f"262A0 year=2026 must not force-prefix 全店: {sample_262a0_2026_bare!r}")
+
 
 def test_mapping_examples() -> None:
     layout, mapping = plan_column_years(GIFT_MONTHS, 10, date(2026, 8, 5))
@@ -937,7 +948,15 @@ def test_issuer_alias_ingest_and_migrate() -> None:
         if incoming != stored:
             by_code.setdefault(code, []).append((incoming, stored, as_of))
         else:
-            after_until[code] = as_of
+            # 複数 until では最早の境界を「新 as_of」側にする
+            prev = after_until.get(code)
+            if prev is None or as_of < prev:
+                after_until[code] = as_of
+
+    # 複数 until の銘柄は period を混ぜると同一 ingest で衝突するため、最早 as_of だけ使う
+    for code, pairs in list(by_code.items()):
+        min_as = min(p[2] for p in pairs)
+        by_code[code] = [p for p in pairs if p[2] == min_as]
 
     c = TestClient(app)
     for i, (code, pairs) in enumerate(sorted(by_code.items())):
