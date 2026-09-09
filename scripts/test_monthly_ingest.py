@@ -534,7 +534,7 @@ def test_unit_display_and_ingest() -> None:
         _fail(f"yoy_pct display: {format_monthly_cell(-7.1, 'yoy_pct')!r}")
     if format_monthly_cell(303, "number") != "303":
         _fail(f"number display: {format_monthly_cell(303, 'number')!r}")
-    if format_monthly_cell(None, "number") != "":
+    if format_monthly_cell(None, "number") != "-":
         _fail("empty cell")
     try:
         parse_monthly_unit("percent")

@@ -78,7 +78,7 @@ def _ensure_stock(code: str, name: str | None = None) -> None:
 
 def main() -> None:
     # display is index 100=flat (not +X.X% / ▲). unused third arg: value+unit only.
-    if format_monthly_cell(None, "yoy_index") != "":
+    if format_monthly_cell(None, "yoy_index") != "-":
         _fail("empty cell")
     if format_monthly_cell(105.2, "yoy_index") != "105.2":
         _fail(f"yoy_index 105.2: {format_monthly_cell(105.2, 'yoy_index')!r}")
@@ -94,8 +94,10 @@ def main() -> None:
         _fail(f"yoy_pct +13: {format_monthly_cell(13, 'yoy_pct')!r}")
     if format_monthly_cell(303, "number") != "303":
         _fail(f"number 303: {format_monthly_cell(303, 'number')!r}")
-    if format_monthly_cell(None, "number") != "":
+    if format_monthly_cell(None, "number") != "-":
         _fail("empty number")
+    if format_monthly_cell(0, "number") != "0":
+        _fail(f"zero number: {format_monthly_cell(0, 'number')!r}")
     try:
         parse_monthly_unit("percent")
     except MonthlyIngestError as exc:
@@ -111,6 +113,20 @@ def main() -> None:
         _fail("index.html missing fmtMonthlyCell")
     if "function fmtMonthlyCell" not in html:
         _fail("index.html missing fmtMonthlyCell function")
+    cell_fn = html.find("function fmtMonthlyCell")
+    if cell_fn < 0:
+        _fail("fmtMonthlyCell bounds")
+    cell_body = html[cell_fn:cell_fn + 280]
+    if 'return "-"' not in cell_body:
+        _fail("fmtMonthlyCell empty must display -")
+    if 'return ""' in cell_body:
+        _fail("fmtMonthlyCell must not return blank for empty")
+    yoy_fn = html.find("function fmtMonthlyYoyList")
+    if yoy_fn < 0:
+        _fail("fmtMonthlyYoyList missing")
+    yoy_body = html[yoy_fn:yoy_fn + 220]
+    if 'return "-"' not in yoy_body:
+        _fail("fmtMonthlyYoyList empty must display -")
     if "function fmtMonthlyElement" not in html:
         _fail("index.html missing fmtMonthlyElement function")
     if "function stripYoyFragments" not in html:
