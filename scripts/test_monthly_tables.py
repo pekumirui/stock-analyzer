@@ -789,8 +789,8 @@ def _assert_union_collapses_yoy_display_names() -> None:
         _fail(f"cross-year yoy short/canonical must be one row: {order!r}")
     if monthly_row_slot(rows[0]["element"], rows[0]["unit"]) != 1:
         _fail("collapsed yoy 全店売上 stays slot 1")
-    if monthly_row_slot("店舗数", "number") != 4:
-        _fail("number 店舗数 stays slot 4")
+    if monthly_row_slot("店舗数", "number") != 7:
+        _fail("number 店舗数 stays slot 7")
     hit = next(
         e for e in leftover[0]["elements"]
         if canonicalize_element_label(e["element"], e["unit"]) == canon
@@ -803,7 +803,7 @@ def _assert_union_collapses_yoy_display_names() -> None:
 
 
 def _assert_monthly_row_order(c) -> None:
-    """全店→既存店→FC店→セグメント。各塊は 売上高→客数→客単価→店舗数。全社は全店。"""
+    """全店→既存店→FC店→セグメント。各塊は 売上高→客数→客単価→出店→退店→店舗数。全社は全店。"""
     if monthly_row_segment("カラオケ全店 売上高(前年比)") != "カラオケ":
         _fail("segment karaoke all-store")
     if monthly_row_segment("飲食既存店 店舗数") != "飲食":
@@ -822,10 +822,24 @@ def _assert_monthly_row_order(c) -> None:
         _fail("slot unit price")
     if monthly_row_slot("平均単価", "number") != 3:
         _fail("slot 単価")
-    if monthly_row_slot("カラオケ全店 店舗数", "number") != 4:
+    if monthly_row_slot("カラオケ全店 店舗数", "number") != 7:
         _fail("slot stores")
-    if monthly_row_slot("カラオケ既存店 店舗数", "number") != 4:
+    if monthly_row_slot("カラオケ既存店 店舗数", "number") != 7:
         _fail("stores must not be 売上")
+    if monthly_row_slot("出店", "number") != 4:
+        _fail("slot 出店")
+    if monthly_row_slot("退店", "number") != 5:
+        _fail("slot 退店")
+    if monthly_row_slot("100円ショップ 閉鎖", "number") != 5:
+        _fail("閉鎖 folds to 退店 slot")
+    if monthly_row_slot("純増 店舗数", "number") != 6:
+        _fail("slot 純増 before 店舗数")
+    if monthly_row_slot("新設店舗", "number") != 6:
+        _fail("slot 新設")
+    if monthly_row_slot("改装", "number") != 6:
+        _fail("slot 改装")
+    if monthly_row_slot("業態転換", "number") != 6:
+        _fail("slot 業態転換")
     if monthly_row_slot("全店売上高(前年比)", "yoy_index") != 1:
         _fail("slot MONTHLY_SERIES 全店売上高")
     if monthly_row_slot("全社 売上高(前年比)", "yoy_index") != 1:
@@ -1033,12 +1047,36 @@ def _assert_monthly_row_order(c) -> None:
         "全店 売上高(前年比)",
         "100円ショップ 直営 全店(前年比)",
         "100円ショップ 直営 既存(前年比)",
-        "100円ショップ 店舗数",
         "100円ショップ 出店",
-        "100円ショップ 閉鎖",
+        "100円ショップ 退店",
+        "100円ショップ 店舗数",
     ]
     if watts_names != want_watts:
-        _fail(f"出店/閉鎖 must follow 売上高, not split as segments: {watts_names!r}")
+        _fail(f"出店/退店 must precede 店舗数, not split as segments: {watts_names!r}")
+
+    adj = union_monthly_elements([{
+        "year": 2026,
+        "elements": [
+            {"element": "店舗数", "unit": "number"},
+            {"element": "純増 店舗数", "unit": "number"},
+            {"element": "出店", "unit": "number"},
+            {"element": "退店", "unit": "number"},
+            {"element": "改装", "unit": "number"},
+            {"element": "新設店舗", "unit": "number"},
+            {"element": "業態転換", "unit": "number"},
+            {"element": "M&A", "unit": "number"},
+        ],
+    }])
+    adj_names = [row["element"] for row in adj]
+    want_adj = [
+        "出店", "退店", "純増 店舗数", "改装", "新設店舗", "業態転換", "店舗数", "M&A",
+    ]
+    if monthly_row_segment("純増 店舗数") != "":
+        _fail("純増 is not a segment")
+    if monthly_row_segment("ジンズ 純増 店舗数") != "ジンズ":
+        _fail("純増 must not steal the brand")
+    if adj_names != want_adj:
+        _fail(f"純増/新設/改装/業態転換 before 店舗数, names unchanged: {adj_names!r}")
 
 
 def _assert_monthly_spa(html: str) -> None:
