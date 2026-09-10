@@ -146,6 +146,7 @@ _METRIC_FILL_ALL = frozenset({"売上高", "客数", "客単価"})
 _STORE_FLOW_CANON = {
     "出店": "出店", "出店数": "出店",
     "開店": "出店", "開店数": "出店",
+    "新規": "出店",
     "退店": "退店", "退店数": "退店",
     "閉店": "退店", "閉店数": "退店",
     "閉鎖": "退店", "閉鎖数": "退店",
@@ -208,7 +209,7 @@ def _is_flow_metric(metric: str) -> bool:
 
 
 def _stitch_store_flow(leftover: list[str], metric: str) -> tuple[list[str], str]:
-    """店数→店舗数 が 退店/開店/閉店 を割った残骸を指標へ戻す。新規は出店の修飾。"""
+    """店数→店舗数 が 退店/開店/閉店 を割った残骸を指標へ戻す。新規は出店。"""
     if metric in ("", "店舗数"):
         if any(tok in _OPEN_SHARDS for tok in leftover):
             leftover = [tok for tok in leftover if tok not in _OPEN_SHARDS]
@@ -219,10 +220,7 @@ def _stitch_store_flow(leftover: list[str], metric: str) -> tuple[list[str], str
     if _is_flow_metric(metric):
         leftover = [tok for tok in leftover if tok not in _DUMMY_STORE_TOKS]
     if metric.endswith("出店"):
-        had_new = any(tok in _OPEN_QUALIFIERS for tok in leftover)
         leftover = [tok for tok in leftover if tok not in _OPEN_QUALIFIERS]
-        if had_new and metric == "出店":
-            metric = "新規 出店"
     return leftover, metric
 
 

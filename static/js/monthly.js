@@ -98,7 +98,7 @@ const MONTHLY_METRIC_PREFIX = [
 const MONTHLY_METRIC_START = new Set(["店舗数","来客数","客単価","売上高","客数"]);
 const MONTHLY_FILL_ALL = new Set(["売上高","客数","客単価"]);
 const MONTHLY_STORE_FLOW = {
-  出店:"出店", 出店数:"出店", 開店:"出店", 開店数:"出店",
+  出店:"出店", 出店数:"出店", 開店:"出店", 開店数:"出店", 新規:"出店",
   退店:"退店", 退店数:"退店", 閉店:"退店", 閉店数:"退店",
   閉鎖:"退店", 閉鎖数:"退店",
 };
@@ -152,9 +152,7 @@ function monthlyStitchStoreFlow(leftover, metric){
     leftover = leftover.filter(tok => !MONTHLY_DUMMY_STORE.has(tok));
   }
   if(String(metric).endsWith("出店")){
-    const hadNew = leftover.some(tok => MONTHLY_OPEN_QUALIFIERS.has(tok));
     leftover = leftover.filter(tok => !MONTHLY_OPEN_QUALIFIERS.has(tok));
-    if(hadNew && metric === "出店") metric = "新規 出店";
   }
   return [leftover, metric];
 }
