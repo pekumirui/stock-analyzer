@@ -1234,7 +1234,6 @@ def test_api_genky_year_wrap_ingest() -> None:
     _add_fy_end(code, date(2025, 5, 1), date(2025, 6, 30), "genky-fy-1")
     _add_fy_end(code, date(2024, 5, 1), date(2024, 6, 30), "genky-fy-2")
 
-    # fixture 売上高前年比（全店）の数値
     values = [
         104.6, 107.5, 106.7, 106.2, 110.4, 104.5, 109.4,
         111.1, 109.1, 106.5, 113.0, 108.8, 110.1,

@@ -53,12 +53,10 @@
   .sub { color:var(--sub); }
   .dim { opacity:.4; }
 
-  /* ---- 決算速報タブ ---- */
   .egrid { display:grid; gap:12px; grid-template-columns:minmax(0,1fr); }
   .egrid > * { min-width:0; }
   /* 一覧は必ずスクロール枠に収める (ピーク日は1000件近くあり、下段の詳細に辿り着けなくなる) */
   .a-list .scroll { max-height:50vh; overflow:auto; }
-  /* 上段は一覧フル幅、下段は 決算表50% + チャート50% */
   @media (min-width:1100px){
     .egrid { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
     .a-list { grid-column:span 2; }
@@ -114,7 +112,6 @@
   table.fin tr.prevfy td { opacity:.78; }
   table.fin tr.sep td { border-top:1px solid var(--border); }
   table.fin .loss { color:var(--up); }
-  /* 月次タブ: TOP と Detail は同じ一段。1100px でも二段組にしない */
   #monthly-groups { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
   .mchip { background:transparent; border:1px solid var(--border); color:var(--sub); border-radius:999px; padding:4px 12px; cursor:pointer; font-size:13px; }
   .mchip.on { background:var(--accent); color:#fff; border-color:var(--accent); }
@@ -150,7 +147,6 @@
   #monthly-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
   #monthly-chart { width:100%; min-height:220px; margin:0 0 16px; }
   #monthly-chart svg { width:100%; height:auto; display:block; font-family:inherit; overflow:visible; }
-  /* 年表は table-layout:fixed + 月列等幅のまま。項目列は min-width で潰さず wrap が横スクロール */
   table.monthly {
     font-variant-numeric:tabular-nums;
     table-layout:fixed;

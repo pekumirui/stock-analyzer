@@ -7,7 +7,7 @@ description: "Drive the stock-analyzer SPA (FastAPI + static/index.html + static
 
 Personal Japan-equity viewer. Primary surface is the single-page UI at `/` (`static/index.html` + `static/css/` + `static/js/`). REST under `/api/*` is what the SPA fetches; batch scripts are ingest, not the user surface.
 
-This skill is for the **next agent**. Do not invent selectors or ports.
+Do not invent selectors or ports.
 
 ## Launch
 
@@ -162,5 +162,5 @@ All run from the repo root with the venv interpreter (`.venv\Scripts\python.exe`
 |---|---|
 | `helpers/launch.py` | Start uvicorn on `VERIFY_PORT` (8011), wait for `GET /`, write `.run/state.json` |
 | `helpers/doctor.py` | Read-only health JSON; exit 1 if not worth driving |
-| `helpers/capture.py <feature> [--date YYYY-MM-DD] [--code CODE]` | Hit the SPA's API and write `artifacts/<feature>/` |
+| `helpers/capture.py <feature> [--date YYYY-MM-DD] [--code CODE]` | GET the SPA `/api/*` routes into `artifacts/<feature>/` |
 | `helpers/cleanup.py` | Stop the pid we started; keep artifacts |

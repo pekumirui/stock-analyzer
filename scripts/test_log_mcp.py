@@ -145,7 +145,7 @@ def test_http_auth_and_tools() -> None:
     if r.status_code != 401:
         raise SystemExit("wrong token should 401")
 
-    r = _rpc(client, "tools/call", {"name": "batch_logs", "arguments": {}}, req_id=5)
+    _rpc(client, "tools/call", {"name": "batch_logs", "arguments": {}}, req_id=5)
     sse = client.post(
         "/mcp",
         json={"jsonrpc": "2.0", "id": 6, "method": "ping"},
@@ -155,7 +155,6 @@ def test_http_auth_and_tools() -> None:
         raise SystemExit(f"SSE content-type: {sse.headers.get('content-type')}")
     if "event: message" not in sse.text:
         raise SystemExit(f"SSE body: {sse.text!r}")
-    _ = r, json  # silence unused if ping path changes
 
 
 def _pkce() -> tuple[str, str]:

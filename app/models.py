@@ -24,8 +24,8 @@ class Stock(Base):
     sector17 = Column(String)
     sector33 = Column(String)
     market = Column(String)
-    scale_category = Column(String)   # TOPIX Large70 等
-    margin_type = Column(String)      # 貸借信用区分名
+    scale_category = Column(String)
+    margin_type = Column(String)
     product_category = Column(String)  # ProdCat: 011=内国株券, 013=REIT, 014=ETF 等
 
 
@@ -39,7 +39,7 @@ class DailyPrice(Base):
     low = Column(Float)
     close = Column(Float)
     volume = Column(Float)
-    turnover = Column(Float)          # 売買代金
+    turnover = Column(Float)
     adj_factor = Column(Float, default=1.0)
     # 調整済 (分割・併合・ライツイシュー遡及調整済。分析は必ずこちらを使う)
     adj_open = Column(Float)
@@ -68,23 +68,20 @@ class Statement(Base):
     disclosed_time = Column(String)
     type_of_period = Column(String)      # 1Q/2Q/3Q/4Q/5Q/FY
     type_of_document = Column(String)
-    period_start = Column(Date)          # 当会計期間開始日
-    period_end = Column(Date)            # 当会計期間終了日
-    fiscal_year_start = Column(Date)     # 当事業年度開始日
-    fiscal_year_end = Column(Date)       # 当事業年度終了日
-    # 累計実績
+    period_start = Column(Date)
+    period_end = Column(Date)
+    fiscal_year_start = Column(Date)
+    fiscal_year_end = Column(Date)
     net_sales = Column(Float)
     operating_profit = Column(Float)
     ordinary_profit = Column(Float)
     profit = Column(Float)
     eps = Column(Float)
-    # 半期(2Q)会社予想
     f2_net_sales = Column(Float)
     f2_operating_profit = Column(Float)
     f2_ordinary_profit = Column(Float)
     f2_profit = Column(Float)
     f2_eps = Column(Float)
-    # 通期会社予想
     fy_net_sales = Column(Float)
     fy_operating_profit = Column(Float)
     fy_ordinary_profit = Column(Float)

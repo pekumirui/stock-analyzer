@@ -1,4 +1,3 @@
-// ---- スクリーナー ----
 async function loadScreener(){
   const st=$("#sc-stage").value, rs=$("#sc-rs").value||0;
   const d = await api(`/api/screener?${st?`stage=${st}&`:""}rs_min=${rs}`);

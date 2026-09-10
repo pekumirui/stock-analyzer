@@ -55,8 +55,6 @@ def upsert(db: Session, model, rows: list[dict]):
     db.commit()
 
 
-# ---------------- 銘柄マスタ ----------------
-
 def ingest_master(db: Session, jq: JQuantsClient, day: str | None = None):
     rows = [
         {"code": r["Code"], "name": r.get("CoName"),
@@ -69,8 +67,6 @@ def ingest_master(db: Session, jq: JQuantsClient, day: str | None = None):
     upsert(db, Stock, rows)
     return len(rows)
 
-
-# ---------------- 株価 ----------------
 
 def _price_row(q: dict) -> dict | None:
     if q.get("C") is None and q.get("AdjC") is None:
@@ -103,8 +99,6 @@ def ingest_prices_for_code(db: Session, jq: JQuantsClient, code: str,
     return len(rows)
 
 
-# ---------------- TOPIX ----------------
-
 def ingest_topix(db: Session, jq: JQuantsClient, from_: str | None = None, to: str | None = None) -> int:
     rows = [
         {"date": _d(t["Date"]), "open": _f(t.get("O")), "high": _f(t.get("H")),
@@ -115,8 +109,6 @@ def ingest_topix(db: Session, jq: JQuantsClient, from_: str | None = None, to: s
     upsert(db, Topix, rows)
     return len(rows)
 
-
-# ---------------- 財務情報 ----------------
 
 def _statement_row(s: dict) -> dict:
     doc = s.get("DocType", "") or ""
@@ -131,19 +123,16 @@ def _statement_row(s: dict) -> dict:
         "period_end": _d(s.get("CurPerEn")),
         "fiscal_year_start": _d(s.get("CurFYSt")),
         "fiscal_year_end": _d(s.get("CurFYEn")),
-        # 累計実績
         "net_sales": _f(s.get("Sales")),
         "operating_profit": _f(s.get("OP")),
         "ordinary_profit": _f(s.get("OdP")),   # IFRS/USGAAPは空欄
         "profit": _f(s.get("NP")),
         "eps": _f(s.get("EPS")),
-        # 半期(2Q)会社予想
         "f2_net_sales": _f(s.get("FSales2Q")),
         "f2_operating_profit": _f(s.get("FOP2Q")),
         "f2_ordinary_profit": _f(s.get("FOdP2Q")),
         "f2_profit": _f(s.get("FNP2Q")),
         "f2_eps": _f(s.get("FEPS2Q")),
-        # 通期会社予想
         "fy_net_sales": _f(s.get("FSales")),
         "fy_operating_profit": _f(s.get("FOP")),
         "fy_ordinary_profit": _f(s.get("FOdP")),
@@ -169,8 +158,6 @@ def ingest_statements_for_code(db: Session, jq: JQuantsClient, code: str) -> int
     upsert(db, Statement, rows)
     return len(rows)
 
-
-# ---------------- バッチ ----------------
 
 def run_daily(db: Session, day: str | None = None):
     """日次バッチ: 当日の全銘柄株価・財務・TOPIXを取得 (計4リクエスト)。"""
@@ -205,7 +192,6 @@ def run_backfill(db: Session, years: int = 5, progress_every: int = 20):
         days = jq.trading_days(start, today)
         print(f"  営業日 {len(days)}日分を取得します (推定 {len(days) * 2 / 60:.0f}分)")
 
-        # 既に株価が入っている日はスキップ (再開時に高速化)
         done = {d for (d,) in db.query(DailyPrice.date).distinct().all()}
         todo = [d for d in days if _d(d) not in done]
         print(f"  未取得: {len(todo)}日分")

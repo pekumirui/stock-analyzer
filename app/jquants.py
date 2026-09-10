@@ -98,8 +98,6 @@ class JQuantsClient:
                 return out
             params["pagination_key"] = pk
 
-    # ---- エンドポイント ----
-
     def equities_master(self, date: str | None = None, code: str | None = None) -> list[dict]:
         """上場銘柄一覧 /v2/equities/master"""
         p = {}

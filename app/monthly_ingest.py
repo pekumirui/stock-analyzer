@@ -515,7 +515,6 @@ def monthly_series_kind(element: str, unit: str | None) -> str | None:
     return None
 
 
-# 表示順。
 _SCOPE_RANK = {"all": 0, "existing": 1, "other": 3}
 _METRIC_RANK = {
     "sales": 1, "customers": 2, "spend": 3,

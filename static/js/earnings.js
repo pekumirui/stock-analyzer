@@ -13,7 +13,6 @@ function gc(c){
   return cls ? `<span class="badge ${cls}">${txt}</span>` : `<span class="sub">${txt}</span>`;
 }
 
-// ---- 決算カレンダー ----
 let calY, calM, selDate=null;
 (()=>{ const t=new Date(); calY=t.getFullYear(); calM=t.getMonth()+1; })();
 const todayISO = () => {
@@ -63,7 +62,6 @@ document.addEventListener("click", e => {
   if(!$("#cal-wrap").contains(e.target) && e.target!==$("#cal-backdrop")) calClose();
 });
 
-// ---- 決算速報 一覧(マスター) / 詳細(ディテール) ----
 const MET = [["net_sales","売上"],["operating_profit","営利"],["ordinary_profit","経利"],["profit","純利"]];
 // 既出期間の再提出で損益が変わったもの (値がそのままの再提出はAPI側で除外済み)
 const revBadge = r => r.restated ? `<span class="badge rev" title="既出期間の訂正">訂正</span>` : "";

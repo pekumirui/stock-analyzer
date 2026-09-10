@@ -1,4 +1,3 @@
-// ---- 月次 ----
 let monthlyRows=[], monthlyGroup="__new__", selMonthlyCode=null;
 let monthlySeries="", monthlyYearTables=[];
 const MONTHLY_YEAR_COLORS = ["#0077b6","#2e8b57","#b8860b","#8e4ec6"];

@@ -175,25 +175,21 @@ def main() -> None:
     code, year = "72030", "2024"
     base = f"/api/v1/tables/{code}/{year}"
 
-    # TABLE_NOT_FOUND on GET missing table
     r = c.get(base)
     _expect(r, 404, "GET missing table")
     if _err(r)["code"] != "TABLE_NOT_FOUND":
         _fail(f"GET missing table code: {r.json()!r}")
 
-    # GET /tables empty (銘柄がまだ無い)
     r = c.get("/api/v1/tables")
     _expect(r, 200, "GET tables empty")
     if r.json() != []:
         _fail(f"empty tables: {r.json()!r}")
 
-    # GET /tables/{code} with no years
     r = c.get(f"/api/v1/tables/{code}")
     _expect(r, 200, "GET years empty")
     if r.json() != {"code": code, "years": []}:
         _fail(f"empty years: {r.json()!r}")
 
-    # INVALID_PARAM: bad code / year / element
     r = c.post("/api/v1/tables/72/2024/elements", json={"element": "売上高前年比"})
     _expect(r, 400, "bad code short")
     if _err(r)["code"] != "INVALID_PARAM":
@@ -226,7 +222,6 @@ def main() -> None:
 
     _ensure_stock(code)
 
-    # table auto-create on POST elements
     r = c.post(f"{base}/elements", json={"element": " 売上高 "})
     _expect(r, 201, "create element")
     if r.json() != {"code": code, "year": 2024, "element": "全店 売上高",
@@ -262,7 +257,6 @@ def main() -> None:
     if "all_store_yoy" not in one or "existing_store_yoy" not in one:
         _fail(f"missing yoy fields: {one!r}")
 
-    # idempotent element create
     r = c.post(f"{base}/elements", json={"element": "売上高"})
     _expect(r, 200, "idempotent exact")
     if r.json() != {"code": code, "year": 2024, "element": "全店 売上高",
@@ -290,25 +284,21 @@ def main() -> None:
     if err.get("similar") != ["世界観ビジネス"]:
         _fail(f"similar list: {r.json()!r}")
 
-    # force=true
     r = c.post(f"{base}/elements", json={"element": "世界観 ビジネス", "force": True})
     _expect(r, 201, "force create")
     if r.json() != {"code": code, "year": 2024, "element": "世界観 ビジネス",
                     "unit": "number", "created": True}:
         _fail(f"force: {r.json()!r}")
 
-    # 3つ目 (登録順確認用)
     r = c.post(f"{base}/elements", json={"element": "営業利益"})
     _expect(r, 201, "third element")
 
-    # PUT missing table (別年度)
     r = c.put("/api/v1/tables/7203/2025/values",
               json={"element": "営業利益", "month": 4, "value": 1})
     _expect(r, 404, "PUT missing table")
     if _err(r)["code"] != "TABLE_NOT_FOUND":
         _fail(f"PUT missing table: {r.json()!r}")
 
-    # ELEMENT_NOT_FOUND, 自動登録しない
     r = c.put(f"{base}/values", json={"element": "未登録要素", "month": 4, "value": 1.0})
     _expect(r, 404, "unregistered element")
     if _err(r)["code"] != "ELEMENT_NOT_FOUND":
@@ -318,7 +308,6 @@ def main() -> None:
     if "未登録要素" in names:
         _fail("values PUT must not auto-register element")
 
-    # INVALID_VALUE
     r = c.put(f"{base}/values", json={"element": "売上高", "month": 4, "value": "105.2%"})
     _expect(r, 400, "percent string")
     err = _err(r)
@@ -330,7 +319,6 @@ def main() -> None:
     if _err(r)["code"] != "INVALID_VALUE" or _err(r)["message"] != INVALID_VALUE_MSG:
         _fail(f"1,234百万円: {r.json()!r}")
 
-    # INVALID_PARAM month
     r = c.put(f"{base}/values", json={"element": "売上高", "month": 0, "value": 1})
     _expect(r, 400, "month 0")
     if _err(r)["code"] != "INVALID_PARAM":
@@ -344,7 +332,6 @@ def main() -> None:
     if _err(r)["code"] != "INVALID_PARAM":
         _fail(f"month string: {r.json()!r}")
 
-    # 正常 upsert。GET の values は 1〜12、無い月は null
     r = c.put(f"{base}/values", json={"element": "売上高", "month": 4, "value": 105.2})
     _expect(r, 200, "put value")
     if r.json() != {"code": code, "year": 2024, "element": "全店 売上高", "updated": [4]}:
@@ -359,7 +346,6 @@ def main() -> None:
     _assert_calendar_values(by_name["全店 売上高"], {"4": 105.2, "6": 110}, "omit empty")
     if "世界観ビジネス" in by_name:
         _fail(f"empty element must be omitted: {by_name!r}")
-    # last-write-wins overwrite
     r = c.put(f"{base}/values", json={"element": "売上高", "month": 4, "value": 99.9})
     _expect(r, 200, "overwrite")
     r = c.get(base)
@@ -367,13 +353,11 @@ def main() -> None:
     if float(by_name["全店 売上高"]["4"]) != 99.9:
         _fail(f"overwrite: {by_name['全店 売上高']!r}")
 
-    # null deletes a cell
     r = c.put(f"{base}/values", json={"element": "売上高", "month": 4, "value": None})
     _expect(r, 200, "delete cell")
     r = c.get(base)
     by_name = {e["element"]: e["values"] for e in r.json()["elements"]}
     _assert_calendar_values(by_name["全店 売上高"], {"6": 110}, "null delete")
-    # batch all-or-nothing: 1件目は妥当、2件目は不正 → どちらも書かない
     r = c.put(f"{base}/values/batch", json={
         "element": "営業利益",
         "values": [{"month": 1, "value": 10}, {"month": 2, "value": "105.2%"}],
@@ -399,7 +383,6 @@ def main() -> None:
     if float(ov["1"]) != 105.2 or float(ov["2"]) != 98.7:
         _fail(f"batch values: {ov!r}")
 
-    # batch null delete + all-or-nothing on month
     r = c.put(f"{base}/values/batch", json={
         "element": "営業利益",
         "values": [{"month": 1, "value": None}, {"month": 3, "value": 1.5}],
@@ -409,20 +392,17 @@ def main() -> None:
     by_name = {e["element"]: e["values"] for e in r.json()["elements"]}
     _assert_calendar_values(
         by_name["営業利益"], {"2": 98.7, "3": 1.5}, "batch null")
-    # elements in registration order
     r = c.get(base)
     names = [e["element"] for e in r.json()["elements"]]
     if names != ["全店 売上高", "営業利益"]:
         _fail(f"registration order: {names!r}")
 
-    # 別年度
     r = c.post("/api/v1/tables/7203/2025/elements", json={"element": "売上高前年比"})
     _expect(r, 201, "other year")
     r = c.get(f"/api/v1/tables/{code}")
     if r.json()["years"] != [2024, 2025]:
         _fail(f"years multi: {r.json()!r}")
 
-    # TDnet 4桁と J-Quants 5桁は同じ発行体 (7203 → 72030)
     r = c.post("/api/v1/tables/72030/2024/elements", json={"element": "売上高前年比"})
     _expect(r, 200, "5-digit same issuer")
     r = c.get("/api/v1/tables/7203")
@@ -432,7 +412,6 @@ def main() -> None:
     if r.json() != {"code": "72030", "years": [2024, 2025]}:
         _fail(f"5-digit years: {r.json()!r}")
 
-    # GET /tables: unique codes, years 昇順, code 順。stocks が無い name は null
     r = c.get("/api/v1/tables")
     _expect(r, 200, "GET tables list")
     body = r.json()
@@ -598,7 +577,6 @@ def main() -> None:
               json={"element": "全店売上高(前年比)", "unit": "yoy_index"})
     _expect(r, 200, "PUT unit restore")
 
-    # idempotent POST without unit keeps existing unit (stored canonical name)
     r = c.post("/api/v1/tables/7203/2026/elements", json={"element": "全店売上高(前年比)"})
     _expect(r, 200, "POST omit unit")
     if r.json()["element"] != "全店 売上高(前年比)":
@@ -606,7 +584,6 @@ def main() -> None:
     if r.json()["unit"] != "yoy_index" or r.json()["created"] is not False:
         _fail(f"omit unit must keep: {r.json()!r}")
 
-    # POST yoy: canonicalize first, short then canonical is one row
     _ensure_stock("60590", "ウチヤマ")
     r = c.post("/api/v1/tables/60590/2026/elements", json={"element": "売上高", "unit": "yoy_index"})
     _expect(r, 201, "60590 yoy 売上高")
@@ -698,7 +675,6 @@ def main() -> None:
     if _err(r)["code"] != "TABLE_NOT_FOUND":
         _fail(f"DELETE missing table: {r.json()!r}")
 
-    # 7203 numeric values from earlier tests still intact
     r = c.get(base)
     by_name = {e["element"]: e["values"] for e in r.json()["elements"]}
     _assert_calendar_values(

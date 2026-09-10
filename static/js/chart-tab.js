@@ -23,7 +23,6 @@ async function loadChart(){
     relObj.addLineSeries({color:th.warn,lineWidth:2}).setData(d.relative);
     relObj.timeScale().fitContent();
   } else $("#relwrap").style.display="none";
-  // 決算後パフォーマンス
   const perf = await api(`/api/earnings-performance/${curCode}`);
   let h = "<tr><th class='l'>発表日</th><th>+1d</th><th>α</th><th>+5d</th><th>α</th><th>+20d</th><th>α</th><th>+60d</th><th>α</th><th>現在まで</th><th>α</th></tr>";
   for(const p of perf.slice(0,12)){
