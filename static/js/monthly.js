@@ -55,6 +55,7 @@ const MONTHLY_FLOW_RESTORE = MONTHLY_FLOW_PROTECT.map(([src, mark]) => [mark, sr
 const MONTHLY_UNGLUE = [
   ["既存直営店","直営 既存"],
   ["全店舗数","店舗数"],
+  ["実店舗数","実店舗 店舗数"],
   ["店舗数","店舗数"],
   ["店数","店舗数"],
   ["来客数","来客数"],
@@ -157,6 +158,13 @@ function monthlyStitchStoreFlow(leftover, metric){
   return [leftover, metric];
 }
 
+function monthlyStitchRealStore(leftover, metric){
+  if(metric === "店舗数"){
+    leftover = leftover.map(tok => tok === "実" ? "実店舗" : tok);
+  }
+  return [leftover, metric];
+}
+
 function monthlyPeelAdjMetric(leftover, metric){
   if(metric) return [leftover, metric];
   const kept = [];
@@ -204,6 +212,7 @@ function parseMonthlyLayers(element){
     leftover.push(tok);
   }
   [leftover, metric] = monthlyStitchStoreFlow(leftover, metric);
+  [leftover, metric] = monthlyStitchRealStore(leftover, metric);
   [leftover, metric] = monthlyPeelAdjMetric(leftover, metric);
   if(monthlyIsFlowMetric(metric)) scope = "";
   if(!scope && MONTHLY_FILL_ALL.has(metric)) scope = "全店";

@@ -1283,6 +1283,10 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("index.html missing monthlyRowSlot")
     if "function monthlyRowSegment" not in html:
         _fail("index.html missing monthlyRowSegment")
+    if "function monthlyStitchRealStore" not in html:
+        _fail("index.html missing monthlyStitchRealStore")
+    if '["実店舗数","実店舗 店舗数"]' not in html:
+        _fail("SPA must unglue 実店舗数 before 店舗数")
     if "function monthlyRowScopeRank" not in html:
         _fail("index.html missing monthlyRowScopeRank")
     scope_fn = html.find("function monthlyRowScopeRank")

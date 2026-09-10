@@ -67,6 +67,7 @@ def canonicalize_element_label(element: str, unit: str | None) -> str:
 _UNGLUE: tuple[tuple[str, str], ...] = (
     ("既存直営店", "直営 既存"),
     ("全店舗数", "店舗数"),
+    ("実店舗数", "実店舗 店舗数"),
     ("店舗数", "店舗数"),
     ("店数", "店舗数"),
     ("来客数", "来客数"),
@@ -224,6 +225,13 @@ def _stitch_store_flow(leftover: list[str], metric: str) -> tuple[list[str], str
     return leftover, metric
 
 
+def _stitch_real_store(leftover: list[str], metric: str) -> tuple[list[str], str]:
+    """店舗数 unglue が 実店舗 を 実 に割った残骸を戻す。"""
+    if metric == "店舗数":
+        leftover = ["実店舗" if tok == "実" else tok for tok in leftover]
+    return leftover, metric
+
+
 def _peel_adj_metric(leftover: list[str], metric: str) -> tuple[list[str], str]:
     """業態転換などを指標にして 全店 が末尾に残らないようにする。名前は変えない。"""
     if metric:
@@ -286,6 +294,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
             continue
         leftover.append(tok)
     leftover, metric = _stitch_store_flow(leftover, metric)
+    leftover, metric = _stitch_real_store(leftover, metric)
     leftover, metric = _peel_adj_metric(leftover, metric)
     if _is_flow_metric(metric):
         scope = ""

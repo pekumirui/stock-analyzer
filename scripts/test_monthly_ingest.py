@@ -118,6 +118,12 @@ def test_canonicalize_element_label() -> None:
         _fail("期末店舗数 drops 期末")
     if canonicalize_element_label("全店舗数", "number") != "店舗数":
         _fail("全店舗数 is 店舗数, not 全店 店舗数")
+    if canonicalize_element_label("実店舗数", "number") != "実店舗 店舗数":
+        _fail("実店舗数 keeps 実店舗 as segment")
+    if canonicalize_element_label("実 店舗数", "number") != "実店舗 店舗数":
+        _fail("実 leftover stitches to 実店舗")
+    if canonicalize_element_label("実店舗 店舗数", "number") != "実店舗 店舗数":
+        _fail("実店舗 店舗数 is idempotent")
     if canonicalize_element_label("直営店数", "number") != "直営 店舗数":
         _fail("直営店数")
     if canonicalize_element_label("新規出店数", "number") != "出店":
