@@ -124,8 +124,30 @@ def test_canonicalize_element_label() -> None:
         _fail("出店店舗数 is 出店")
     if canonicalize_element_label("100円ショップ 出店 店舗数", "number") != "100円ショップ 出店":
         _fail("出店 stays metric, not a segment")
-    if canonicalize_element_label("100円ショップ 閉鎖 店舗数", "number") != "100円ショップ 閉鎖":
-        _fail("閉鎖 stays metric")
+    if canonicalize_element_label("100円ショップ 閉鎖 店舗数", "number") != "100円ショップ 退店":
+        _fail("閉鎖 folds to 退店")
+    if canonicalize_element_label("閉店", "number") != "退店":
+        _fail("閉店 folds to 退店")
+    if canonicalize_element_label("開店", "number") != "出店":
+        _fail("開店 folds to 出店")
+    if canonicalize_element_label("開店数", "number") != "出店":
+        _fail("開店数 folds to 出店")
+    if canonicalize_element_label("退 店舗数", "number") != "退店":
+        _fail("退 店舗数 stitches to 退店")
+    if canonicalize_element_label("開 店舗数", "number") != "出店":
+        _fail("開 店舗数 stitches to 出店")
+    if canonicalize_element_label("閉 店舗数", "number") != "退店":
+        _fail("閉 店舗数 stitches to 退店")
+    if canonicalize_element_label("店舗 閉店", "number") != "退店":
+        _fail("dummy 店舗 on 閉店 drops")
+    if canonicalize_element_label("純増 店舗数", "number") != "純増 店舗数":
+        _fail("純増 stays")
+    if canonicalize_element_label("新設店舗", "number") != "新設店舗":
+        _fail("新設 stays")
+    if canonicalize_element_label("改装", "number") != "改装":
+        _fail("改装 stays")
+    if canonicalize_element_label("業態転換", "number") != "業態転換":
+        _fail("業態転換 stays")
     if canonicalize_element_label("退店数", "number") != "退店":
         _fail("退店数")
     if canonicalize_element_label("中国 店舗数", "number") != "中国 店舗数":

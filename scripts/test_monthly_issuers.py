@@ -90,6 +90,14 @@ def test_series_kind() -> None:
         _fail("全店+既存 is existing, not all_store")
     if monthly_series_kind("店舗数", "number") != "stores":
         _fail("stores")
+    if monthly_series_kind("純増 店舗数", "number") is not None:
+        _fail("純増 店舗数 is not stores")
+    if monthly_series_kind("新設店舗", "number") is not None:
+        _fail("新設 is not stores")
+    if monthly_series_kind("出店店舗数", "number") is not None:
+        _fail("出店店舗数 is not stores")
+    if monthly_series_kind("100円ショップ 閉鎖 店舗数", "number") is not None:
+        _fail("閉鎖 店舗数 is not stores")
     if monthly_series_kind("売上高(前年比)", "yoy_index") is not None:
         _fail("generic yoy is not mapped")
     if yoy_display_number(-7.1, "yoy_pct") != 92.9:

@@ -102,21 +102,27 @@ _LEAVE_CNT_MARK = "\x00LEAVECNT\x00"
 _LEAVE_MARK = "\x00LEAVE\x00"
 _SHUT_CNT_MARK = "\x00SHUTCNT\x00"
 _SHUT_MARK = "\x00SHUT\x00"
+_LAUNCH_CNT_MARK = "\x00LAUNCHCNT\x00"
+_LAUNCH_MARK = "\x00LAUNCH\x00"
 _FLOW_PROTECT: tuple[tuple[str, str], ...] = (
+    ("開店数", _LAUNCH_CNT_MARK),
     ("出店数", _OPEN_CNT_MARK),
     ("退店数", _LEAVE_CNT_MARK),
     ("閉店数", _SHUT_CNT_MARK),
     ("閉鎖数", _CLOSE_CNT_MARK),
+    ("開店", _LAUNCH_MARK),
     ("出店", _OPEN_MARK),
     ("退店", _LEAVE_MARK),
     ("閉店", _SHUT_MARK),
     ("閉鎖", _CLOSE_MARK),
 )
 _FLOW_RESTORE: tuple[tuple[str, str], ...] = (
+    (_LAUNCH_CNT_MARK, "開店数"),
     (_OPEN_CNT_MARK, "出店数"),
     (_LEAVE_CNT_MARK, "退店数"),
     (_SHUT_CNT_MARK, "閉店数"),
     (_CLOSE_CNT_MARK, "閉鎖数"),
+    (_LAUNCH_MARK, "開店"),
     (_OPEN_MARK, "出店"),
     (_LEAVE_MARK, "退店"),
     (_SHUT_MARK, "閉店"),
@@ -139,11 +145,16 @@ _SCOPE_ALL = frozenset({"全店"})
 _METRIC_FILL_ALL = frozenset({"売上高", "客数", "客単価"})
 _STORE_FLOW_CANON = {
     "出店": "出店", "出店数": "出店",
-    "閉鎖": "閉鎖", "閉鎖数": "閉鎖",
+    "開店": "出店", "開店数": "出店",
     "退店": "退店", "退店数": "退店",
-    "閉店": "閉店", "閉店数": "閉店",
+    "閉店": "退店", "閉店数": "退店",
+    "閉鎖": "退店", "閉鎖数": "退店",
 }
-_STORE_FLOW_METRICS = frozenset(_STORE_FLOW_CANON.values())
+_STORE_FLOW_METRICS = frozenset({"出店", "退店"})
+_OPEN_SHARDS = frozenset({"開"})
+_CLOSE_SHARDS = frozenset({"退", "閉"})
+_DUMMY_STORE_TOKS = frozenset({"店舗"})
+_STORE_ADJ_MARKS = ("純増", "新設", "改装", "業態転換")
 _METRIC_PREFIX: tuple[tuple[str, str], ...] = (
     ("店舗数", "店舗数"),
     ("来客数", "客数"),
@@ -191,6 +202,25 @@ def _peel_metric(tok: str) -> tuple[str | None, str | None]:
     return None, tok
 
 
+def _stitch_store_flow(leftover: list[str], metric: str) -> tuple[list[str], str]:
+    """店数→店舗数 が 退店/開店/閉店 を割った残骸を指標へ戻す。"""
+    if metric in ("", "店舗数"):
+        if any(tok in _OPEN_SHARDS for tok in leftover):
+            leftover = [tok for tok in leftover if tok not in _OPEN_SHARDS]
+            metric = "出店"
+        elif any(tok in _CLOSE_SHARDS for tok in leftover):
+            leftover = [tok for tok in leftover if tok not in _CLOSE_SHARDS]
+            metric = "退店"
+    if metric in _STORE_FLOW_METRICS:
+        leftover = [tok for tok in leftover if tok not in _DUMMY_STORE_TOKS]
+    return leftover, metric
+
+
+def _is_store_adj(element: str, segment: str = "") -> bool:
+    blob = f"{segment}{element}"
+    return any(mark in blob for mark in _STORE_ADJ_MARKS)
+
+
 def parse_element_layers(element: str) -> dict[str, str]:
     """国 / セグメント / チャネル / スコープ / 指標。正規化前の名前でも読む。"""
     country = ""
@@ -233,6 +263,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
             scope = "全店"
             continue
         leftover.append(tok)
+    leftover, metric = _stitch_store_flow(leftover, metric)
     if not scope and metric in _METRIC_FILL_ALL:
         scope = "全店"
     return {
@@ -445,6 +476,10 @@ def monthly_series_kind(element: str, unit: str | None) -> str | None:
     key = monthly_element_key(element)
     u = unit or "number"
     if "店舗数" in key and u == "number":
+        if any(mark in key for mark in _STORE_ADJ_MARKS):
+            return None
+        if parse_element_layers(strip_yoy_fragments(element))["metric"] in _STORE_FLOW_METRICS:
+            return None
         return "stores"
     if u not in _YOY_UNITS:
         return None
@@ -458,8 +493,8 @@ def monthly_series_kind(element: str, unit: str | None) -> str | None:
 # 表示順。
 _SCOPE_RANK = {"all": 0, "existing": 1, "other": 3}
 _METRIC_RANK = {
-    "sales": 1, "customers": 2, "spend": 3, "stores": 4,
-    "open": 5, "close": 6, "other": 7,
+    "sales": 1, "customers": 2, "spend": 3,
+    "open": 4, "close": 5, "adj": 6, "stores": 7, "other": 8,
 }
 
 
@@ -478,13 +513,16 @@ def _row_scope(key: str) -> str:
 
 
 def _row_metric(key: str) -> str:
-    metric = _layers_of(key)["metric"]
-    if metric == "店舗数":
-        return "stores"
+    layers = _layers_of(key)
+    metric = layers["metric"]
     if metric == "出店":
         return "open"
-    if metric in {"閉鎖", "退店", "閉店"}:
+    if metric == "退店":
         return "close"
+    if _is_store_adj(key, layers["segment"]):
+        return "adj"
+    if metric == "店舗数":
+        return "stores"
     if metric == "客単価":
         return "spend"
     if metric == "客数":
@@ -492,6 +530,8 @@ def _row_metric(key: str) -> str:
     if metric == "売上高":
         return "sales"
     # 正規化で指標が取れない旧名
+    if any(mark in key for mark in _STORE_ADJ_MARKS):
+        return "adj"
     if "店舗数" in key:
         return "stores"
     if "客単価" in key or "単価" in key:
@@ -504,8 +544,13 @@ def _row_metric(key: str) -> str:
 
 
 def _row_segment(key: str) -> str:
-    """ブランド。国・チャネル・スコープ・指標を除いた残り。"""
-    return _layers_of(key)["segment"]
+    """ブランド。国・チャネル・スコープ・指標を除いた残り。純増等は塊にしない。"""
+    toks = []
+    for tok in _layers_of(key)["segment"].split():
+        if any(mark in tok for mark in _STORE_ADJ_MARKS):
+            continue
+        toks.append(tok)
+    return " ".join(toks)
 
 
 def monthly_row_segment(element: str) -> str:
@@ -514,7 +559,7 @@ def monthly_row_segment(element: str) -> str:
 
 
 def monthly_row_slot(element: str, unit: str | None) -> int:
-    """指標枠。1売上高 2客数 3客単価 4店舗数 5出店 6閉鎖/退店 7その他。unit は互換のため残す。"""
+    """指標枠。1売上高 2客数 3客単価 4出店 5退店 6純増/新設/改装/業態転換 7店舗数 8その他。"""
     _ = unit
     return _METRIC_RANK[_row_metric(element)]
 
@@ -528,7 +573,7 @@ def monthly_row_scope_rank(element: str) -> int:
         return _SCOPE_RANK["all"]
     if layers["metric"] in _STORE_FLOW_METRICS or layers["metric"] == "店舗数":
         return _SCOPE_RANK["other"]
-    if _row_metric(element) in {"stores", "open", "close"}:
+    if _row_metric(element) in {"stores", "open", "close", "adj"}:
         return _SCOPE_RANK["other"]
     if not layers["segment"]:
         return _SCOPE_RANK["all"]
@@ -550,7 +595,7 @@ def union_monthly_elements(tables: Sequence[Any]) -> list[dict[str, str]]:
 
     国なし → 日本 → 海外。セグメント無しが先、名前付きは新しい年の初出順。
     各塊は 全店 → 既存 → チャネル（直営+FC → 直営 → FC）→
-    売上高 → 客数 → 客単価 → 店舗数 → 出店 → 閉鎖/退店 → その他。
+    売上高 → 客数 → 客単価 → 出店 → 退店 → 純増/新設/改装/業態転換 → 店舗数 → その他。
     スコープ無しの店舗数は既存の後。保存名は変えない。
     """
     newest_first = sorted(
