@@ -150,12 +150,12 @@ def main() -> None:
     if "▲" in html or "+X.X%" in html:
         _fail("index.html still has percent/▲ monthly display")
     _assert_monthly_spa(html)
-    if canonicalize_element_label("売上高前年同月比", "yoy_index") != "売上高(前年比)":
+    if canonicalize_element_label("売上高前年同月比", "yoy_index") != "全店 売上高(前年比)":
         _fail("canonicalize strip+suffix")
-    if canonicalize_element_label("既存売上高(前年比)", "yoy_index") != "既存売上高(前年比)":
+    if canonicalize_element_label("既存売上高(前年比)", "yoy_index") != "既存 売上高(前年比)":
         _fail("canonicalize no double")
-    if canonicalize_element_label("売上高前年同月比", "number") != "売上高前年同月比":
-        _fail("canonicalize number unchanged")
+    if canonicalize_element_label("売上高前年同月比", "number") != "全店 売上高":
+        _fail("canonicalize number tokens")
 
     c = TestClient(app)
     code, year = "72030", "2024"
@@ -213,9 +213,9 @@ def main() -> None:
     _ensure_stock(code)
 
     # table auto-create on POST elements
-    r = c.post(f"{base}/elements", json={"element": " 売上高 前年比 "})
+    r = c.post(f"{base}/elements", json={"element": " 売上高 "})
     _expect(r, 201, "create element")
-    if r.json() != {"code": code, "year": 2024, "element": "売上高 前年比",
+    if r.json() != {"code": code, "year": 2024, "element": "全店 売上高",
                     "unit": "number", "created": True}:
         _fail(f"create: {r.json()!r}")
 
@@ -249,30 +249,37 @@ def main() -> None:
         _fail(f"missing yoy fields: {one!r}")
 
     # idempotent element create
-    r = c.post(f"{base}/elements", json={"element": "売上高 前年比"})
+    r = c.post(f"{base}/elements", json={"element": "売上高"})
     _expect(r, 200, "idempotent exact")
-    if r.json() != {"code": code, "year": 2024, "element": "売上高 前年比",
+    if r.json() != {"code": code, "year": 2024, "element": "全店 売上高",
                     "unit": "number", "created": False}:
         _fail(f"idempotent: {r.json()!r}")
 
-    r = c.post(f"{base}/elements", json={"element": " 売上高 前年比 "})
+    r = c.post(f"{base}/elements", json={"element": " 売上高 "})
     _expect(r, 200, "idempotent trimmed")
     if r.json()["created"] is not False:
         _fail(f"idempotent trimmed: {r.json()!r}")
 
-    # similar-element 409 (空白差)
     r = c.post(f"{base}/elements", json={"element": "売上高前年比"})
+    _expect(r, 200, "number drops 前年比 token")
+    if r.json()["element"] != "全店 売上高" or r.json()["created"] is not False:
+        _fail(f"売上高前年比 number folds: {r.json()!r}")
+
+    # similar-element 409 (空白差。トークン正規化後も別名)
+    r = c.post(f"{base}/elements", json={"element": "世界観ビジネス"})
+    _expect(r, 201, "segment create")
+    r = c.post(f"{base}/elements", json={"element": "世界観 ビジネス"})
     _expect(r, 409, "similar")
     err = _err(r)
     if err["code"] != "ELEMENT_SIMILAR_EXISTS" or err["message"] != SIMILAR_MSG:
         _fail(f"similar err: {r.json()!r}")
-    if err.get("similar") != ["売上高 前年比"]:
+    if err.get("similar") != ["世界観ビジネス"]:
         _fail(f"similar list: {r.json()!r}")
 
     # force=true
-    r = c.post(f"{base}/elements", json={"element": "売上高前年比", "force": True})
+    r = c.post(f"{base}/elements", json={"element": "世界観 ビジネス", "force": True})
     _expect(r, 201, "force create")
-    if r.json() != {"code": code, "year": 2024, "element": "売上高前年比",
+    if r.json() != {"code": code, "year": 2024, "element": "世界観 ビジネス",
                     "unit": "number", "created": True}:
         _fail(f"force: {r.json()!r}")
 
@@ -298,68 +305,68 @@ def main() -> None:
         _fail("values PUT must not auto-register element")
 
     # INVALID_VALUE
-    r = c.put(f"{base}/values", json={"element": "売上高前年比", "month": 4, "value": "105.2%"})
+    r = c.put(f"{base}/values", json={"element": "売上高", "month": 4, "value": "105.2%"})
     _expect(r, 400, "percent string")
     err = _err(r)
     if err["code"] != "INVALID_VALUE" or err["message"] != INVALID_VALUE_MSG:
         _fail(f"105.2%: {r.json()!r}")
 
-    r = c.put(f"{base}/values", json={"element": "売上高前年比", "month": 4, "value": "1,234百万円"})
+    r = c.put(f"{base}/values", json={"element": "売上高", "month": 4, "value": "1,234百万円"})
     _expect(r, 400, "unit string")
     if _err(r)["code"] != "INVALID_VALUE" or _err(r)["message"] != INVALID_VALUE_MSG:
         _fail(f"1,234百万円: {r.json()!r}")
 
     # INVALID_PARAM month
-    r = c.put(f"{base}/values", json={"element": "売上高前年比", "month": 0, "value": 1})
+    r = c.put(f"{base}/values", json={"element": "売上高", "month": 0, "value": 1})
     _expect(r, 400, "month 0")
     if _err(r)["code"] != "INVALID_PARAM":
         _fail(f"month 0: {r.json()!r}")
-    r = c.put(f"{base}/values", json={"element": "売上高前年比", "month": 13, "value": 1})
+    r = c.put(f"{base}/values", json={"element": "売上高", "month": 13, "value": 1})
     _expect(r, 400, "month 13")
     if _err(r)["code"] != "INVALID_PARAM":
         _fail(f"month 13: {r.json()!r}")
-    r = c.put(f"{base}/values", json={"element": "売上高前年比", "month": "4", "value": 1})
+    r = c.put(f"{base}/values", json={"element": "売上高", "month": "4", "value": 1})
     _expect(r, 400, "month string")
     if _err(r)["code"] != "INVALID_PARAM":
         _fail(f"month string: {r.json()!r}")
 
     # 正常 upsert + 空月は GET から省略
-    r = c.put(f"{base}/values", json={"element": "売上高前年比", "month": 4, "value": 105.2})
+    r = c.put(f"{base}/values", json={"element": "売上高", "month": 4, "value": 105.2})
     _expect(r, 200, "put value")
-    if r.json() != {"code": code, "year": 2024, "element": "売上高前年比", "updated": [4]}:
+    if r.json() != {"code": code, "year": 2024, "element": "全店 売上高", "updated": [4]}:
         _fail(f"put: {r.json()!r}")
 
-    r = c.put(f"{base}/values", json={"element": "売上高前年比", "month": 6, "value": 110})
+    r = c.put(f"{base}/values", json={"element": "売上高", "month": 6, "value": 110})
     _expect(r, 200, "put month 6")
 
     r = c.get(base)
     _expect(r, 200, "GET values")
     by_name = {e["element"]: e["values"] for e in r.json()["elements"]}
-    v = by_name["売上高前年比"]
+    v = by_name["全店 売上高"]
     if set(str(k) for k in v.keys()) != {"4", "6"}:
         _fail(f"omit empty months: {v!r}")
     if float(v["4"]) != 105.2 or float(v["6"]) != 110:
         _fail(f"values: {v!r}")
-    if "売上高 前年比" in by_name:
+    if "世界観ビジネス" in by_name:
         _fail(f"empty element must be omitted: {by_name!r}")
 
     # last-write-wins overwrite
-    r = c.put(f"{base}/values", json={"element": "売上高前年比", "month": 4, "value": 99.9})
+    r = c.put(f"{base}/values", json={"element": "売上高", "month": 4, "value": 99.9})
     _expect(r, 200, "overwrite")
     r = c.get(base)
     by_name = {e["element"]: e["values"] for e in r.json()["elements"]}
-    if float(by_name["売上高前年比"]["4"]) != 99.9:
-        _fail(f"overwrite: {by_name['売上高前年比']!r}")
+    if float(by_name["全店 売上高"]["4"]) != 99.9:
+        _fail(f"overwrite: {by_name['全店 売上高']!r}")
 
     # null deletes a cell
-    r = c.put(f"{base}/values", json={"element": "売上高前年比", "month": 4, "value": None})
+    r = c.put(f"{base}/values", json={"element": "売上高", "month": 4, "value": None})
     _expect(r, 200, "delete cell")
     r = c.get(base)
     by_name = {e["element"]: e["values"] for e in r.json()["elements"]}
-    if "4" in by_name["売上高前年比"] or 4 in by_name["売上高前年比"]:
-        _fail(f"null did not delete: {by_name['売上高前年比']!r}")
-    if "6" not in {str(k) for k in by_name["売上高前年比"].keys()}:
-        _fail(f"unrelated month dropped: {by_name['売上高前年比']!r}")
+    if "4" in by_name["全店 売上高"] or 4 in by_name["全店 売上高"]:
+        _fail(f"null did not delete: {by_name['全店 売上高']!r}")
+    if "6" not in {str(k) for k in by_name["全店 売上高"].keys()}:
+        _fail(f"unrelated month dropped: {by_name['全店 売上高']!r}")
 
     # batch all-or-nothing: 1件目は妥当、2件目は不正 → どちらも書かない
     r = c.put(f"{base}/values/batch", json={
@@ -402,7 +409,7 @@ def main() -> None:
     # elements in registration order
     r = c.get(base)
     names = [e["element"] for e in r.json()["elements"]]
-    if names != ["売上高前年比", "営業利益"]:
+    if names != ["全店 売上高", "営業利益"]:
         _fail(f"registration order: {names!r}")
 
     # 別年度
@@ -491,16 +498,18 @@ def main() -> None:
     _expect(r, 201, "262A create")
     if r.json()["code"] != "262A0":
         _fail(f"262A should canonicalize: {r.json()!r}")
+    if r.json()["element"] != "全店 売上高":
+        _fail(f"262A token name: {r.json()!r}")
     r = c.get("/api/v1/tables/262A0/2024")
     _expect(r, 200, "GET 262A0 empty")
     if r.json()["code"] != "262A0" or r.json()["elements"]:
         _fail(f"GET 262A0 empty: {r.json()!r}")
     r = c.put("/api/v1/tables/262A0/2024/values",
-              json={"element": "売上高前年比", "month": 1, "value": 1.0})
+              json={"element": "売上高", "month": 1, "value": 1.0})
     _expect(r, 200, "262A0 seed value")
     r = c.get("/api/v1/tables/262A0/2024")
     _expect(r, 200, "GET 262A0")
-    if r.json()["code"] != "262A0" or [e["element"] for e in r.json()["elements"]] != ["売上高前年比"]:
+    if r.json()["code"] != "262A0" or [e["element"] for e in r.json()["elements"]] != ["全店 売上高"]:
         _fail(f"GET 262A0: {r.json()!r}")
     r = c.get("/api/v1/tables/262A/2024")
     _expect(r, 200, "GET 262A display")
@@ -508,7 +517,7 @@ def main() -> None:
         _fail(f"GET 262A display: {r.json()!r}")
     r = c.post("/api/v1/tables/262A0/2024/elements", json={"element": "売上高前年比"})
     _expect(r, 200, "262A0 idempotent")
-    if r.json() != {"code": "262A0", "year": 2024, "element": "売上高前年比",
+    if r.json() != {"code": "262A0", "year": 2024, "element": "全店 売上高",
                     "unit": "number", "created": False}:
         _fail(f"262A0 idempotent: {r.json()!r}")
 
@@ -534,7 +543,7 @@ def main() -> None:
 
     r = c.post("/api/v1/tables/7203/2026/elements", json={"element": "全店売上高", "unit": "yoy_index"})
     _expect(r, 201, "create yoy_index")
-    if r.json()["element"] != "全店売上高(前年比)":
+    if r.json()["element"] != "全店 売上高(前年比)":
         _fail(f"yoy_index saved name: {r.json()!r}")
     if r.json()["unit"] != "yoy_index" or r.json()["created"] is not True:
         _fail(f"yoy_index create: {r.json()!r}")
@@ -559,9 +568,9 @@ def main() -> None:
     r = c.get("/api/v1/tables/7203/2026")
     _expect(r, 200, "GET 2026 units")
     by = {e["element"]: e for e in r.json()["elements"]}
-    if by["全店売上高(前年比)"]["unit"] != "yoy_index" or float(by["全店売上高(前年比)"]["values"]["11"]) != 125.8:
-        _fail(f"store yoy_index: {by['全店売上高(前年比)']!r}")
-    if format_monthly_cell(float(by["全店売上高(前年比)"]["values"]["11"]), by["全店売上高(前年比)"]["unit"]) != "125.8":
+    if by["全店 売上高(前年比)"]["unit"] != "yoy_index" or float(by["全店 売上高(前年比)"]["values"]["11"]) != 125.8:
+        _fail(f"store yoy_index: {by['全店 売上高(前年比)']!r}")
+    if format_monthly_cell(float(by["全店 売上高(前年比)"]["values"]["11"]), by["全店 売上高(前年比)"]["unit"]) != "125.8":
         _fail("display yoy_index 125.8")
     if by["売上変化(前年比)"]["unit"] != "yoy_pct" or float(by["売上変化(前年比)"]["values"]["11"]) != -7.1:
         _fail(f"store yoy_pct: {by['売上変化(前年比)']!r}")
@@ -572,16 +581,16 @@ def main() -> None:
     if format_monthly_cell(float(by["店舗数"]["values"]["11"]), by["店舗数"]["unit"]) != "303":
         _fail("display number 303")
 
-    # PUT unit only; values stay. Lookup is stored name (ingest/POST だけ yoy 正規化でリネーム)。
+    # PUT unit only; values stay. Lookup はトークン正規化後の保存名。
     r = c.put("/api/v1/tables/7203/2026/elements",
               json={"element": "全店売上高(前年比)", "unit": "yoy_pct"})
     _expect(r, 200, "PUT unit only")
-    if r.json() != {"code": "72030", "year": 2026, "element": "全店売上高(前年比)", "unit": "yoy_pct"}:
+    if r.json() != {"code": "72030", "year": 2026, "element": "全店 売上高(前年比)", "unit": "yoy_pct"}:
         _fail(f"PUT unit: {r.json()!r}")
     r = c.get("/api/v1/tables/7203/2026")
     by = {e["element"]: e for e in r.json()["elements"]}
-    if by["全店売上高(前年比)"]["unit"] != "yoy_pct" or float(by["全店売上高(前年比)"]["values"]["11"]) != 125.8:
-        _fail(f"PUT must not convert value: {by['全店売上高(前年比)']!r}")
+    if by["全店 売上高(前年比)"]["unit"] != "yoy_pct" or float(by["全店 売上高(前年比)"]["values"]["11"]) != 125.8:
+        _fail(f"PUT must not convert value: {by['全店 売上高(前年比)']!r}")
     r = c.put("/api/v1/tables/7203/2026/elements",
               json={"element": "全店売上高(前年比)", "unit": "yoy_index"})
     _expect(r, 200, "PUT unit restore")
@@ -589,7 +598,7 @@ def main() -> None:
     # idempotent POST without unit keeps existing unit (stored canonical name)
     r = c.post("/api/v1/tables/7203/2026/elements", json={"element": "全店売上高(前年比)"})
     _expect(r, 200, "POST omit unit")
-    if r.json()["element"] != "全店売上高(前年比)":
+    if r.json()["element"] != "全店 売上高(前年比)":
         _fail(f"omit unit name: {r.json()!r}")
     if r.json()["unit"] != "yoy_index" or r.json()["created"] is not False:
         _fail(f"omit unit must keep: {r.json()!r}")
@@ -598,12 +607,12 @@ def main() -> None:
     _ensure_stock("60590", "ウチヤマ")
     r = c.post("/api/v1/tables/60590/2026/elements", json={"element": "売上高", "unit": "yoy_index"})
     _expect(r, 201, "60590 yoy 売上高")
-    if r.json()["element"] != "売上高(前年比)" or r.json()["created"] is not True:
+    if r.json()["element"] != "全店 売上高(前年比)" or r.json()["created"] is not True:
         _fail(f"60590 yoy short saved: {r.json()!r}")
     r = c.post("/api/v1/tables/60590/2026/elements",
                json={"element": "売上高(前年比)", "unit": "yoy_index"})
     _expect(r, 200, "60590 yoy canonical same")
-    if r.json()["created"] is not False or r.json()["element"] != "売上高(前年比)":
+    if r.json()["created"] is not False or r.json()["element"] != "全店 売上高(前年比)":
         _fail(f"60590 yoy canonical: {r.json()!r}")
     r = c.get("/api/v1/tables/60590/2026")
     if r.json()["elements"]:
@@ -617,7 +626,7 @@ def main() -> None:
     r = c.post("/api/v1/tables/60590/2026/elements",
                json={"element": "カラオケ全店 売上高(前年比)", "unit": "yoy_index"})
     _expect(r, 200, "60590 karaoke rename")
-    if r.json()["created"] is not False or r.json()["element"] != "カラオケ全店 売上高(前年比)":
+    if r.json()["created"] is not False or r.json()["element"] != "カラオケ 全店 売上高(前年比)":
         _fail(f"60590 karaoke POST rename: {r.json()!r}")
     r = c.get("/api/v1/tables/60590/2026")
     names = [e["element"] for e in r.json()["elements"]]
@@ -761,7 +770,7 @@ def _assert_monthly_year_color_stable() -> None:
 def _assert_union_collapses_yoy_display_names() -> None:
     """年Aの短い yoy 名と年Bの正規名は表示名で1行。number は分けたまま。"""
     short = "全店 売上高前期比"
-    canon = "全店 売上高前期比(前年比)"
+    canon = "全店 売上高(前年比)"
     leftover = [
         {"year": 2026, "elements": [
             {"element": short, "unit": "yoy_index", "values": {"1": 110.0}},
@@ -776,7 +785,7 @@ def _assert_union_collapses_yoy_display_names() -> None:
     ]
     rows = union_monthly_elements(leftover)
     order = [row["element"] for row in rows]
-    if order != [canon, "売上高", "店舗数"]:
+    if order != [canon, "全店 売上高", "店舗数"]:
         _fail(f"cross-year yoy short/canonical must be one row: {order!r}")
     if monthly_row_slot(rows[0]["element"], rows[0]["unit"]) != 1:
         _fail("collapsed yoy 全店売上 stays slot 1")
@@ -877,9 +886,9 @@ def _assert_monthly_row_order(c) -> None:
     _expect(y2024, 200, "GET 60590 2024")
     ingest_2025 = [e["element"] for e in y2025.json()["elements"]]
     ingest_2024 = [e["element"] for e in y2024.json()["elements"]]
-    if ingest_2025[0] != "カラオケ全店 店舗数":
+    if ingest_2025[0] != "カラオケ 全店 店舗数":
         _fail(f"API 2025 stays registration order: {ingest_2025!r}")
-    if ingest_2024[0] != "飲食全店 店舗数":
+    if ingest_2024[0] != "飲食 全店 店舗数":
         _fail(f"API 2024 stays registration order: {ingest_2024!r}")
     if ingest_2025 == ingest_2024:
         _fail("fixture years must differ in ingest order")
@@ -890,17 +899,17 @@ def _assert_monthly_row_order(c) -> None:
         _fail(f"newest-first must ignore input list order: {order!r} vs {swapped!r}")
 
     want = [
-        "カラオケ全店 売上高(前年比)",
-        "カラオケ全店 来客数(前年比)",
-        "カラオケ全店 客単価(前年比)",
-        "カラオケ全店 店舗数",
-        "カラオケ既存店 売上高(前年比)",
-        "カラオケ既存店 店舗数",
-        "飲食全店 売上高(前年比)",
-        "飲食全店 客単価(前年比)",
-        "飲食全店 店舗数",
-        "飲食既存店 売上高(前年比)",
-        "飲食既存店 店舗数",
+        "カラオケ 全店 売上高(前年比)",
+        "カラオケ 全店 客数(前年比)",
+        "カラオケ 全店 客単価(前年比)",
+        "カラオケ 全店 店舗数",
+        "カラオケ 既存 売上高(前年比)",
+        "カラオケ 既存 店舗数",
+        "飲食 全店 売上高(前年比)",
+        "飲食 全店 客単価(前年比)",
+        "飲食 全店 店舗数",
+        "飲食 既存 売上高(前年比)",
+        "飲食 既存 店舗数",
     ]
     if order != want:
         _fail(f"60590 union order: {order!r}")
@@ -913,21 +922,21 @@ def _assert_monthly_row_order(c) -> None:
         _fail(f"karaoke block must precede food: {order!r}")
     if any(n.startswith("飲食") for n in order[:order.index(k_names[-1]) + 1]):
         _fail(f"segments interleaved: {order!r}")
-    if (order.index("カラオケ全店 売上高(前年比)")
-            >= order.index("カラオケ既存店 売上高(前年比)")
-            or order.index("カラオケ既存店 売上高(前年比)")
-            >= order.index("カラオケ既存店 店舗数")):
+    if (order.index("カラオケ 全店 売上高(前年比)")
+            >= order.index("カラオケ 既存 売上高(前年比)")
+            or order.index("カラオケ 既存 売上高(前年比)")
+            >= order.index("カラオケ 既存 店舗数")):
         _fail(f"karaoke 全店 before 既存, 売上 before 店舗数: {order!r}")
-    if (order.index("飲食全店 売上高(前年比)")
-            >= order.index("飲食既存店 売上高(前年比)")
-            or order.index("飲食既存店 売上高(前年比)")
-            >= order.index("飲食既存店 店舗数")):
+    if (order.index("飲食 全店 売上高(前年比)")
+            >= order.index("飲食 既存 売上高(前年比)")
+            or order.index("飲食 既存 売上高(前年比)")
+            >= order.index("飲食 既存 店舗数")):
         _fail(f"food 全店 before 既存, 売上 before 店舗数: {order!r}")
 
     present_2025 = {e["element"] for e in y2025.json()["elements"]}
-    if "カラオケ全店 来客数(前年比)" in present_2025:
+    if "カラオケ 全店 客数(前年比)" in present_2025:
         _fail("2025 must omit 来客数 so the union row is empty")
-    if "カラオケ全店 来客数(前年比)" not in order:
+    if "カラオケ 全店 客数(前年比)" not in order:
         _fail("missing-year row must stay in the union")
 
     default = next(
@@ -936,7 +945,7 @@ def _assert_monthly_row_order(c) -> None:
          and "全店" in row["element"] and "既存" not in row["element"]),
         "",
     )
-    if default != "カラオケ全店 売上高(前年比)":
+    if default != "カラオケ 全店 売上高(前年比)":
         _fail(f"default 全店売上: {default!r}")
 
     mixed = union_monthly_elements([{
@@ -952,12 +961,12 @@ def _assert_monthly_row_order(c) -> None:
     }])
     mixed_names = [row["element"] for row in mixed]
     want_mixed = [
-        "全社 売上高(前年比)",
-        "全社 客数(前年比)",
-        "既存直営店 客単価(前年比)",
-        "FC 月末店舗数",
+        "全店 売上高(前年比)",
+        "全店 客数(前年比)",
+        "直営 既存 客単価(前年比)",
+        "FC 店舗数",
         "焼肉 全店 売上高(前年比)",
-        "焼肉 既存店 売上高(前年比)",
+        "焼肉 既存 売上高(前年比)",
     ]
     if mixed_names != want_mixed:
         _fail(f"company-wide before segment, 全社=全店: {mixed_names!r}")
@@ -979,15 +988,34 @@ def _assert_monthly_row_order(c) -> None:
         "全店 売上高(前年比)",
         "全店 客数(前年比)",
         "全店 客単価(前年比)",
-        "既存店 売上高(前年比)",
-        "既存店 客数(前年比)",
-        "既存店 客単価(前年比)",
-        "合計 店舗数",
+        "既存 売上高(前年比)",
+        "既存 客数(前年比)",
+        "既存 客単価(前年比)",
+        "店舗数",
     ]
     if aoki_names != want_aoki:
         _fail(f"合計店舗数 must follow 既存店, not sit in 全店: {aoki_names!r}")
-    if aoki_names.index("合計 店舗数") < aoki_names.index("既存店 客単価(前年比)"):
-        _fail(f"合計 店舗数 in the middle: {aoki_names!r}")
+    if aoki_names.index("店舗数") < aoki_names.index("既存 客単価(前年比)"):
+        _fail(f"店舗数 in the middle: {aoki_names!r}")
+
+    monogatari = union_monthly_elements([{
+        "year": 2026,
+        "elements": [
+            {"element": "焼肉 全店 売上高(前年比)", "unit": "yoy_index"},
+            {"element": "焼肉 既存店 売上高(前年比)", "unit": "yoy_index"},
+            {"element": "焼肉 直営店舗数", "unit": "number"},
+            {"element": "焼肉 既存店 店舗数", "unit": "number"},
+        ],
+    }])
+    monogatari_names = [row["element"] for row in monogatari]
+    want_monogatari = [
+        "焼肉 全店 売上高(前年比)",
+        "焼肉 既存 売上高(前年比)",
+        "焼肉 既存 店舗数",
+        "焼肉 直営 店舗数",
+    ]
+    if monogatari_names != want_monogatari:
+        _fail(f"直営 is channel, not 全店: {monogatari_names!r}")
 
 
 def _assert_monthly_spa(html: str) -> None:
@@ -1151,7 +1179,8 @@ def _assert_monthly_spa(html: str) -> None:
     if scope_fn < 0 or scope_end <= scope_fn:
         _fail("monthlyRowScopeRank / isAllStoreSalesYoy bounds")
     scope_body = html[scope_fn:scope_end]
-    if 'monthlyRowMetricName(element)==="stores"' not in scope_body.replace(" ", ""):
+    compact = scope_body.replace(" ", "")
+    if 'p.metric==="店舗数"' not in compact:
         _fail("SPA must not fold unlabeled 店舗数 into 全店")
     row_fn = html.find("function monthlyRowOrder")
     row_end = html.find("function escHtml")
@@ -1342,7 +1371,7 @@ def _assert_known_prod_units(c) -> None:
         if r.status_code not in (200, 201):
             _fail(f"seed 262A0 stores: {r.status_code} {r.text[:200]}")
         r = c.put("/api/v1/tables/262A0/2024/values",
-                  json={"element": "売上高前年比", "month": 1, "value": -7.1})
+                  json={"element": "売上高", "month": 1, "value": -7.1})
         _expect(r, 200, "seed intermestic -7.1")
 
     apply_known_monthly_element_units()
@@ -1358,14 +1387,12 @@ def _assert_known_prod_units(c) -> None:
             if row.unit != want:
                 _fail(f"92790 {row.element!r} unit {row.unit!r} != {want}")
         for row in inter:
-            if row.element == "売上高前年比" and row.unit != "yoy_pct":
-                _fail(f"262A0 売上高前年比 unit {row.unit!r}")
             if "店舗数" in row.element and row.unit != "number":
                 _fail(f"262A0 店舗数 unit {row.unit!r}")
-        v = db.get(MonthlyValue, ("92790", 2025, "全店売上高", 11))
+        v = db.get(MonthlyValue, ("92790", 2025, "全店 売上高", 11))
         if v is None or float(v.value) != 125.8:
             _fail(f"gift value converted: {v}")
-        v = db.get(MonthlyValue, ("262A0", 2024, "売上高前年比", 1))
+        v = db.get(MonthlyValue, ("262A0", 2024, "全店 売上高", 1))
         if v is not None and float(v.value) != -7.1:
             _fail(f"intermestic value converted: {v.value}")
     finally:
@@ -1374,9 +1401,9 @@ def _assert_known_prod_units(c) -> None:
     r = c.get("/api/v1/tables/92790/2025")
     _expect(r, 200, "GET 92790 after unit assign")
     by = {e["element"]: e for e in r.json()["elements"]}
-    if by["全店売上高"]["unit"] != "yoy_index" or float(by["全店売上高"]["values"]["11"]) != 125.8:
-        _fail(f"92790 GET: {by['全店売上高']!r}")
-    if format_monthly_cell(125.8, by["全店売上高"]["unit"]) != "125.8":
+    if by["全店 売上高"]["unit"] != "yoy_index" or float(by["全店 売上高"]["values"]["11"]) != 125.8:
+        _fail(f"92790 GET: {by['全店 売上高']!r}")
+    if format_monthly_cell(125.8, by["全店 売上高"]["unit"]) != "125.8":
         _fail("92790 display")
     if by["店舗数"]["unit"] != "number" or float(by["店舗数"]["values"]["11"]) != 303:
         _fail(f"92790 stores GET: {by['店舗数']!r}")
@@ -1385,16 +1412,12 @@ def _assert_known_prod_units(c) -> None:
     if r.status_code != 200:
         return
     by = {e["element"]: e for e in r.json()["elements"]}
-    if "売上高前年比" in by:
-        if by["売上高前年比"]["unit"] != "yoy_pct":
-            _fail(f"262A0 GET unit: {by['売上高前年比']!r}")
-        vals = by["売上高前年比"]["values"]
+    if "全店 売上高" in by:
+        vals = by["全店 売上高"]["values"]
         if "1" in vals or 1 in vals:
             raw = float(vals.get("1", vals.get(1)))
             if raw != -7.1:
                 _fail(f"262A0 value converted: {vals!r}")
-            if format_monthly_cell(raw, "yoy_pct") != "92.9":
-                _fail("262A0 display")
 
 
 if __name__ == "__main__":

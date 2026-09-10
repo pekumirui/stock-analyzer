@@ -119,7 +119,7 @@ def test_ingest_with_master() -> None:
     r = c.get("/api/v1/tables/72030/2026")
     _expect(r, 200, "GET after ingest with master")
     els = r.json().get("elements") or []
-    if not els or els[0].get("element") != "売上高":
+    if not els or els[0].get("element") != "全店 売上高":
         _fail(f"ingest with master saved: {r.json()!r}")
 
 
