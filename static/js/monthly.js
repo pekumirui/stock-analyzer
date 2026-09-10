@@ -43,9 +43,11 @@ function monthlySeriesKind(element, unit){
 }
 
 const MONTHLY_CHAN_BOTH = "\0CHANBOTH\0";
-const MONTHLY_OPEN_CNT = "\0OPENCNT\0";
-const MONTHLY_OPEN = "\0OPEN\0";
-const MONTHLY_CLOSE = "\0CLOSE\0";
+const MONTHLY_FLOW_PROTECT = [
+  ["出店数","\0OPENCNT\0"],["退店数","\0LEAVECNT\0"],["閉店数","\0SHUTCNT\0"],["閉鎖数","\0CLOSECNT\0"],
+  ["出店","\0OPEN\0"],["退店","\0LEAVE\0"],["閉店","\0SHUT\0"],["閉鎖","\0CLOSE\0"],
+];
+const MONTHLY_FLOW_RESTORE = MONTHLY_FLOW_PROTECT.map(([src, mark]) => [mark, src]);
 const MONTHLY_UNGLUE = [
   ["既存直営店","直営 既存"],
   ["全店舗数","店舗数"],
@@ -91,17 +93,21 @@ const MONTHLY_METRIC_PREFIX = [
 ];
 const MONTHLY_METRIC_START = new Set(["店舗数","来客数","客単価","売上高","客数"]);
 const MONTHLY_FILL_ALL = new Set(["売上高","客数","客単価"]);
+const MONTHLY_STORE_FLOW = {
+  出店:"出店", 出店数:"出店", 閉鎖:"閉鎖", 閉鎖数:"閉鎖",
+  退店:"退店", 退店数:"退店", 閉店:"閉店", 閉店数:"閉店",
+};
+const MONTHLY_STORE_FLOW_METRICS = new Set(["出店","閉鎖","退店","閉店"]);
 const MONTHLY_COUNTRY_RANK = {"":0, 日本:1, 海外:2};
 const MONTHLY_CHANNEL_RANK = {"直営+FC":0, 直営:1, FC:2, "":3};
 
 function monthlyUnglue(text){
   let s = String(text || "").split("直営+FC").join(" "+MONTHLY_CHAN_BOTH+" ").split("直営＋FC").join(" "+MONTHLY_CHAN_BOTH+" ");
-  s = s.split("出店数").join(" "+MONTHLY_OPEN_CNT+" ").split("出店").join(" "+MONTHLY_OPEN+" ");
-  s = s.split("閉鎖").join(" "+MONTHLY_CLOSE+" ");
+  for(const [src, mark] of MONTHLY_FLOW_PROTECT) s = s.split(src).join(" "+mark+" ");
   for(const [src,dst] of MONTHLY_UNGLUE) s = s.split(src).join(" "+dst+" ");
   s = s.replace(/(?<![A-Za-z])FC(?![A-Za-z])/g, " FC ");
   s = s.split("ＦＣ").join(" FC ");
-  s = s.split(MONTHLY_OPEN_CNT).join("出店数").split(MONTHLY_OPEN).join("出店").split(MONTHLY_CLOSE).join("閉鎖");
+  for(const [mark, dst] of MONTHLY_FLOW_RESTORE) s = s.split(mark).join(dst);
   s = s.split(MONTHLY_CHAN_BOTH).join("直営+FC");
   return s.replace(/\s+/g, " ").trim();
 }
@@ -121,10 +127,19 @@ function parseMonthlyLayers(element){
   const unglued = monthlyUnglue(stripYoyFragments(element));
   for(const tok of unglued.split(" ").filter(Boolean)){
     if(MONTHLY_DROP.has(tok)) continue;
+    if(tok in MONTHLY_STORE_FLOW){
+      if(metric === "" || metric === "店舗数") metric = MONTHLY_STORE_FLOW[tok];
+      continue;
+    }
     const [peeled, rest] = monthlyPeelMetric(tok);
     if(peeled){
-      metric = peeled;
-      if(rest && !MONTHLY_DROP.has(rest)) leftover.push(rest);
+      const restFlow = rest && MONTHLY_STORE_FLOW[rest];
+      if(restFlow){
+        if(metric === "" || metric === "店舗数") metric = restFlow;
+      }else if(!(peeled === "店舗数" && MONTHLY_STORE_FLOW_METRICS.has(metric))){
+        metric = peeled;
+        if(rest && !MONTHLY_DROP.has(rest)) leftover.push(rest);
+      }else if(rest && !MONTHLY_DROP.has(rest)) leftover.push(rest);
       continue;
     }
     if(tok in MONTHLY_COUNTRY){ country = MONTHLY_COUNTRY[tok]; continue; }
@@ -151,7 +166,7 @@ function monthlyRowSegment(element){
 
 function monthlyRowSlot(element, unit){
   const m = parseMonthlyLayers(element).metric;
-  const map = {売上高:1, 客数:2, 客単価:3, 店舗数:4};
+  const map = {売上高:1, 客数:2, 客単価:3, 店舗数:4, 出店:5, 閉鎖:6, 退店:6, 閉店:6};
   if(map[m]) return map[m];
   const key = monthlyElementKey(element);
   if(key.includes("店舗数")) return 4;
@@ -165,7 +180,7 @@ function monthlyRowScopeRank(element){
   const p = parseMonthlyLayers(element);
   if(p.scope === "既存") return 1;
   if(p.scope === "全店") return 0;
-  if(p.metric === "店舗数" || monthlyRowSlot(element) === 4) return 3;
+  if(p.metric === "店舗数" || MONTHLY_STORE_FLOW_METRICS.has(p.metric) || monthlyRowSlot(element) === 4) return 3;
   if(!p.segment) return 0;
   return 3;
 }

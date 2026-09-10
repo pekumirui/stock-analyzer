@@ -1017,6 +1017,29 @@ def _assert_monthly_row_order(c) -> None:
     if monogatari_names != want_monogatari:
         _fail(f"直営 is channel, not 全店: {monogatari_names!r}")
 
+    watts = union_monthly_elements([{
+        "year": 2026,
+        "elements": [
+            {"element": "全店 売上高(前年比)", "unit": "yoy_index"},
+            {"element": "100円ショップ 出店 店舗数", "unit": "number"},
+            {"element": "100円ショップ 閉鎖 店舗数", "unit": "number"},
+            {"element": "100円ショップ 店舗数", "unit": "number"},
+            {"element": "100円ショップ 直営 既存(前年比)", "unit": "yoy_index"},
+            {"element": "100円ショップ 直営 全店(前年比)", "unit": "yoy_index"},
+        ],
+    }])
+    watts_names = [row["element"] for row in watts]
+    want_watts = [
+        "全店 売上高(前年比)",
+        "100円ショップ 直営 全店(前年比)",
+        "100円ショップ 直営 既存(前年比)",
+        "100円ショップ 店舗数",
+        "100円ショップ 出店",
+        "100円ショップ 閉鎖",
+    ]
+    if watts_names != want_watts:
+        _fail(f"出店/閉鎖 must follow 売上高, not split as segments: {watts_names!r}")
+
 
 def _assert_monthly_spa(html: str) -> None:
     """月次 SPA: TOP はチップ+6列。Detail はグラフと暦年表。年ドロップダウン無し。"""
