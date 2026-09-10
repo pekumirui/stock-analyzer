@@ -70,7 +70,7 @@ Harness: HTTP against the same routes the SPA uses, plus the browser when CDP is
 | 月次 tab | `nav button[data-tab="monthly"]` |
 | チャート tab | `nav button[data-tab="chart"]` |
 | スクリーナー tab | `nav button[data-tab="screener"]` |
-| Earnings calendar | `#cal-btn` opens `#cal-pop`; day cells are `#cal .d` with `onclick="selectDate('YYYY-MM-DD')"`. Days with disclosures show `.cnt`. Esc / `#cal-backdrop` / a day click close the popover. |
+| Earnings calendar | `#cal-btn` opens `#cal-pop`; `#cal-title` + ◀/▶ (`calMove(±1)`) change month and refetch `/api/earnings/calendar?month=YYYY-MM`; day cells are `#cal .d` with `onclick="selectDate('YYYY-MM-DD')"`. Days with disclosures show `.cnt`. Esc / `#cal-backdrop` / a day click close the popover. |
 | Earnings row | `#earn-tbl tr[data-no]` (first row auto-selected on day load) |
 | 累計 / 3か月 | `.ftab[data-fin="cum"]` (default on) / `.ftab[data-fin="q"]` |
 | Earnings period chips | `#q-chips` (display only) |
@@ -84,7 +84,7 @@ Harness: HTTP against the same routes the SPA uses, plus the browser when CDP is
 | Screener stage | `#sc-stage` (default `2`) |
 | Screener RS | `#sc-rs` (default `70`) |
 | Screener 検索 | `#tab-screener button.btn` (label 検索) |
-| Monthly list | `#monthly-groups`, `#monthly-tbl` |
+| Monthly list | `#monthly-groups`, `#monthly-list` (host), `#monthly-tbl` |
 | Monthly detail | `#monthly-detail`, `#monthly-series`, `#monthly-chart`, `#monthly-table-wrap`, `#monthly-back` |
 
 **SPA → API (prove the same payloads the UI renders):**

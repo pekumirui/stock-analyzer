@@ -24,8 +24,8 @@ Preconditions:
 - Doctor reports `ok`.
 - `GET /api/v1/tables` returns a non-empty array (`helpers/capture.py monthly` must not exit 1). If empty, monthly ingest never ran — report that, do not fake rows.
 
-- **Tab.** Click `nav button[data-tab="monthly"]`. `#tab-monthly` is displayed; `#monthly-top` is shown and `#monthly-detail` is `display:none`.
-- **List.** `helpers/capture.py monthly` writes `artifacts/monthly/body.json` from `GET /api/v1/tables`. Assert a JSON array; each item has `code` (not `0`-prefix), `industry`, `is_new`, `all_store_yoy` / `existing_store_yoy`. `#monthly-tbl` shows 会社名 / 市場 / 業種 / 月次業種 / 全店(前年比) / 既存店(前年比) (no standalone code column).
+- **Tab.** Click `nav button[data-tab="monthly"]`. `#tab-monthly` is displayed; `#monthly-top` is shown and `#monthly-detail` is `display:none`. List host is `#monthly-list` (holds empty copy or `#monthly-tbl`).
+- **List.** `helpers/capture.py monthly` writes `artifacts/monthly/body.json` from `GET /api/v1/tables`. Assert a JSON array; each item has `code` (not `0`-prefix), `industry`, `is_new`, `all_store_yoy` / `existing_store_yoy` (nulls are fine). `#monthly-tbl` shows 会社名 / 市場 / 業種 / 月次業種 / 全店(前年比) / 既存店(前年比) (no standalone code column); null YoY cells show `-`.
 - **Detail.** Pass `--code` from the list. Capture also writes years + one year payload. UI: click a `.name` cell → `#monthly-detail` visible, `#monthly-chart` has an SVG, `#monthly-table-wrap` stacks `table.monthly` newest-year-first.
 - **Proof.** Keep `body.json` (list) and, when `--code` was used, the year artifact(s). If CDP: `ui.png` of Detail or list with header `h1` `株式分析`.
 - Do **not** call `/api/monthly*`, `#mon-cal`, or `#mon-to-chart` — those are not on this tip.
@@ -36,6 +36,7 @@ Preconditions:
 - Detail with no years shows「データなし」.
 - NEW badge uses `ingested_today` (JST today); 新着 chip window is `MONTHLY_NEW_DAYS` (7) via `is_new`.
 - YoY chart/cell values add +100 only for `yoy_pct` (not `yoy_index`), with a 100 horizontal line; year bar colors cycle `MONTHLY_YEAR_COLORS[year % 4]`.
-- Row order is 全店 → 既存店 → FC店 → named segments (`monthlyRowOrder`); 全社 counts as 全店. Within each block 売上高 → 客数 → 客単価 → 店舗数. yoy row labels end with `(前年比)` via `fmtMonthlyElement`.
+- Row order is 全店 → 既存店 → FC店 → named segments (`monthlyRowOrder`); 全社 counts as 全店. Within each block 売上高 → 客数 → 客単価 → 店舗数. Scope-less 店舗数 / 合計店舗数 (no 全店・既存・FC token) is **not** in the 全店 block — it sorts after 既存/FC with other unlabeled store counts (`monthlyRowScopeRank` stores→3). yoy row labels end with `(前年比)` via `fmtMonthlyElement`.
+- Missing values render as `-` (not a blank cell): list 全店/既存店 YoY via `fmtMonthlyYoyList`, Detail month cells via `fmtMonthlyCell` / server `format_monthly_cell`.
 - SPA only reads `/api/v1/tables*`. Write routes (`POST …/ingest`, `PUT …/industry`, values/elements) are MCP/ingest — do not use them in verify.
 - Narrow viewports (`@media (max-width:640px)`) drop the left sticky columns; do not require desktop sticky layout.
