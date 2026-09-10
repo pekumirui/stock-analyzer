@@ -5,7 +5,7 @@
 ## スタック
 
 - Python 3.10+ / FastAPI / SQLAlchemy 2 / pandas
-- フロントは `static/index.html` の単一 SPA（lightweight-charts + vanilla JS）。フレームワークを足さない
+- フロントは `static/index.html` + `static/css/` + `static/js/` の vanilla JS。フレームワークを足さない
 - DB はローカル SQLite (`stock.db`)。本番切替は `DATABASE_URL` のみ
 - Windows と Linux。仮想環境は `.venv`。Windows は `.\setup.ps1` / `.\run.ps1`（python は `.venv\Scripts\python.exe`）。Linux は `./setup.sh` / `./run.sh`（python は `.venv/bin/python`）
 
@@ -113,7 +113,9 @@ Python は Windows では `.venv\Scripts\python.exe`、Linux では `.venv/bin/p
 
 - 既存スタイルに合わせる。型ヒントは付ける。コメントは非自明な制約だけ（レート制限、調整済、旧デモ取り残し禁止など）
 - 閾値・プラン上限・ベース URL は `config.py`。ハードコードしない
-- UI はスマホでも使えること。`static/index.html` を分割しない（現状の単一ファイル方針）
+- UI はスマホでも使えること。
+- UI の変更は該当ファイルだけ読む。例: 月次なら `static/js/monthly.js` と必要な CSS。`index.html` 全体と全 JS を読まない
+- 新規タブを足すときは `static/js/<tab>.js` を追加し、`index.html` に section と script を1行足す
 - キャンバスは白。カードを浮かさない。横幅はビューポート。密度優先。スマホとPCは同じ構造。詳細は `docs/SCREEN_SPEC.md` の共通見た目
 - 月次タブの画面は `docs/DESIGN_monthly.md`。他タブの画面仕様を足すときは `docs/SCREEN_SPEC.md`
 - 秘密情報（`.env`, API キー）をコミットしない・ログに出さない

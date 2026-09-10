@@ -1,0 +1,2 @@
+fillEventToggles();
+selectDate(todayISO());

@@ -1,0 +1,561 @@
+// ---- 月次 ----
+let monthlyRows=[], monthlyGroup="__new__", selMonthlyCode=null;
+let monthlySeries="", monthlyYearTables=[];
+const MONTHLY_YEAR_COLORS = ["#0077b6","#2e8b57","#b8860b","#8e4ec6"];
+
+function monthlyDisplayYears(years){
+  const ys = [...new Set((years || []).map(Number).filter(Number.isFinite))].sort((a,b)=>b-a);
+  if(!ys.length) return [];
+  const latest = ys[0];
+  return ys.filter(y => y >= latest - 2);
+}
+
+function monthlyYearColor(year){
+  const n = MONTHLY_YEAR_COLORS.length;
+  const i = ((Number(year) % n) + n) % n;
+  return MONTHLY_YEAR_COLORS[i];
+}
+
+function uniqueMonthlyIssuers(rows){
+  const seen = new Set();
+  const out = [];
+  for(const r of rows || []){
+    const code = r && r.code;
+    if(!code || seen.has(code)) continue;
+    seen.add(code);
+    out.push(r);
+  }
+  return out;
+}
+
+function monthlyElementKey(name){
+  return String(name || "").normalize("NFKC").replace(/\s+/g, "");
+}
+
+function monthlySeriesKind(element, unit){
+  const key = monthlyElementKey(element);
+  const u = unit || "number";
+  if(key.includes("店舗数") && u==="number") return "stores";
+  if(u!=="yoy_index" && u!=="yoy_pct") return null;
+  if(key.includes("既存")) return "existing";
+  if(key.includes("全店") || key.includes("全社")) return "all_store";
+  return null;
+}
+
+const MONTHLY_ROW_CHANNELS = ["直営+FC","直営＋FC","直営"];
+const MONTHLY_ROW_COMPANY = ["当期計","連結","単体","合計","うち"];
+const MONTHLY_ROW_SCOPE_EX = ["既存直営店","既存店舗","既存店","既存"];
+const MONTHLY_ROW_SCOPE_ALL = ["全店舗","全店","全社"];
+const MONTHLY_ROW_SCOPE_FC = ["フランチャイズ","FC店舗","FC店","ＦＣ店舗","ＦＣ店"];
+const MONTHLY_ROW_METRICS = ["(前年比)","（前年比）","前年比","前期比","同期比","増減率","売上高","売上","客単価","単価","来客数","客数","来客","店舗数","期末","月末","出店","退店"];
+
+function monthlyStripToks(text, toks){
+  let s = text;
+  for(const t of toks) s = s.split(t).join("");
+  return s;
+}
+
+function monthlyRowScopeName(element){
+  const key = monthlyElementKey(element);
+  if(MONTHLY_ROW_SCOPE_EX.some(t => key.includes(t))) return "existing";
+  if(MONTHLY_ROW_SCOPE_ALL.some(t => key.includes(t))) return "all";
+  if(key.includes("直営")) return "all";
+  const stripped = monthlyStripToks(key, MONTHLY_ROW_CHANNELS);
+  if(MONTHLY_ROW_SCOPE_FC.some(t => stripped.includes(t))) return "fc";
+  if(/(?:^|[^A-Za-z])(?:FC|ＦＣ)(?:店|店舗|出店|退店|月末|$)/.test(stripped)) return "fc";
+  return "other";
+}
+
+function monthlyRowMetricName(element){
+  const key = monthlyElementKey(element);
+  if(key.includes("店舗数")) return "stores";
+  if(key.includes("客単価") || key.includes("単価")) return "spend";
+  if(key.includes("客数") || key.includes("来客")) return "customers";
+  if(key.includes("売上")) return "sales";
+  return "other";
+}
+
+function monthlyRowSegment(element){
+  let rest = monthlyElementKey(element);
+  rest = monthlyStripToks(rest, MONTHLY_ROW_METRICS);
+  rest = monthlyStripToks(rest, MONTHLY_ROW_CHANNELS);
+  rest = monthlyStripToks(rest, MONTHLY_ROW_SCOPE_EX.concat(MONTHLY_ROW_SCOPE_ALL, MONTHLY_ROW_SCOPE_FC));
+  rest = rest.replace(/FC/g, "").replace(/ＦＣ/g, "");
+  rest = monthlyStripToks(rest, MONTHLY_ROW_COMPANY);
+  return rest;
+}
+
+function monthlyRowSlot(element, unit){
+  const m = monthlyRowMetricName(element);
+  return {sales:1, customers:2, spend:3, stores:4, other:5}[m];
+}
+
+function monthlyRowScopeRank(element){
+  const scope = monthlyRowScopeName(element);
+  if(scope==="other" && !monthlyRowSegment(element)){
+    // 売上高など社名なしは全店。合計店舗数は入れない（既存店の前＝真ん中）
+    if(monthlyRowMetricName(element)==="stores") return 3;
+    return 0;
+  }
+  return {all:0, existing:1, fc:2, other:3}[scope];
+}
+
+function isAllStoreSalesYoy(element, unit){
+  const u = unit || "number";
+  if(u!=="yoy_index" && u!=="yoy_pct") return false;
+  const key = monthlyElementKey(element);
+  if(key.includes("既存") || key.includes("店舗数")) return false;
+  if(!key.includes("売上")) return false;
+  return key.includes("全店") || key.includes("全社");
+}
+
+function monthlyRowOrder(tables){
+  const years = (tables || []).filter(Boolean).slice().sort((a,b)=>(b.year||0)-(a.year||0));
+  const seen = new Set();
+  const items = [];
+  const segIndex = {};
+  let segN = 0;
+  for(const d of years){
+    for(const e of d.elements || []){
+      const name = e.element;
+      if(!name) continue;
+      const unit = e.unit || "number";
+      // 行キーは表示名。年ごとの短い保存名も同一行に畳む
+      const display = fmtMonthlyElement(name, unit);
+      if(seen.has(display)) continue;
+      seen.add(display);
+      const segment = monthlyRowSegment(display);
+      if(!(segment in segIndex)) segIndex[segment] = segN++;
+      items.push({
+        element:display, unit, segment,
+        scope:monthlyRowScopeRank(display),
+        slot:monthlyRowSlot(display, unit),
+        idx:items.length
+      });
+    }
+  }
+  items.sort((a,b)=>{
+    const ta = a.segment ? 1 : 0, tb = b.segment ? 1 : 0;
+    if(ta!==tb) return ta - tb;
+    if(a.segment){
+      const s = segIndex[a.segment] - segIndex[b.segment];
+      if(s) return s;
+    }
+    if(a.scope!==b.scope) return a.scope - b.scope;
+    if(a.slot!==b.slot) return a.slot - b.slot;
+    return a.idx - b.idx;
+  });
+  return items.map(e => ({element:e.element, unit:e.unit}));
+}
+
+function escHtml(s){
+  return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+}
+
+function monthlySeriesChoices(tables){
+  return monthlyRowOrder(tables).map(e => {
+    const id = fmtMonthlyElement(e.element, e.unit);
+    return {
+      id,
+      label: id,
+      yoy: e.unit==="yoy_index" || e.unit==="yoy_pct",
+    };
+  });
+}
+
+function pickDefaultMonthlySeries(tables){
+  const rows = monthlyRowOrder(tables);
+  for(const e of rows){
+    if(!monthlyRowSegment(e.element) && isAllStoreSalesYoy(e.element, e.unit)){
+      return fmtMonthlyElement(e.element, e.unit);
+    }
+  }
+  for(const e of rows){
+    if(isAllStoreSalesYoy(e.element, e.unit)) return fmtMonthlyElement(e.element, e.unit);
+  }
+  for(const e of rows){
+    if(monthlySeriesKind(e.element, e.unit) === "all_store") return fmtMonthlyElement(e.element, e.unit);
+  }
+  return rows.length ? fmtMonthlyElement(rows[0].element, rows[0].unit) : "";
+}
+
+function monthlySeriesElement(d, seriesId){
+  return (d.elements || []).find(e => fmtMonthlyElement(e.element, e.unit) === seriesId);
+}
+
+function fmtMonthlyYoyList(v){
+  if(v==null || v==="") return "-";
+  const n = Number(v);
+  if(!Number.isFinite(n)) return "-";
+  return n.toLocaleString("ja-JP",{maximumFractionDigits:4});
+}
+
+function monthlyIndustries(issuers){
+  const set = new Set();
+  for(const r of issuers) set.add(r.industry || "その他");
+  return [...set].sort((a,b) => a.localeCompare(b, "ja"));
+}
+
+function defaultMonthlyGroup(issuers){
+  if(issuers.some(r => r.is_new)) return "__new__";
+  const ind = monthlyIndustries(issuers);
+  return ind[0] || "__new__";
+}
+
+function filteredMonthlyIssuers(){
+  const issuers = uniqueMonthlyIssuers(monthlyRows);
+  if(monthlyGroup==="__new__") return issuers.filter(r => r.is_new);
+  return issuers.filter(r => (r.industry || "その他") === monthlyGroup);
+}
+
+async function loadMonthlyList(){
+  showMonthlyTop();
+  const rows = await api("/api/v1/tables").catch(()=>null);
+  if(!Array.isArray(rows)){
+    $("#monthly-groups").innerHTML = "";
+    $("#monthly-list").innerHTML = `<div class="sub">登録された月次データはありません</div>`;
+    return;
+  }
+  monthlyRows = rows;
+  const issuers = uniqueMonthlyIssuers(monthlyRows);
+  if(!issuers.length){
+    $("#monthly-groups").innerHTML = "";
+    $("#monthly-list").innerHTML = `<div class="sub">登録された月次データはありません</div>`;
+    return;
+  }
+  const groups = monthlyIndustries(issuers);
+  if(monthlyGroup!=="__new__" && !groups.includes(monthlyGroup)) monthlyGroup = defaultMonthlyGroup(issuers);
+  else if(monthlyGroup==="__new__" && !issuers.some(r => r.is_new) && groups.length) monthlyGroup = groups[0];
+  renderMonthlyGroups(groups);
+  renderMonthlyList();
+}
+
+function renderMonthlyGroups(groups){
+  let h = `<button type="button" class="mchip${monthlyGroup==="__new__"?" on":""}" data-group="__new__" onclick="setMonthlyGroup('__new__')">新着</button>`;
+  for(const g of groups){
+    const on = monthlyGroup===g ? " on" : "";
+    h += `<button type="button" class="mchip${on}" data-group="${g.replace(/"/g,"&quot;")}" onclick="setMonthlyGroup(this.dataset.group)">${g}</button>`;
+  }
+  $("#monthly-groups").innerHTML = h;
+}
+
+function setMonthlyGroup(g){
+  monthlyGroup = g;
+  renderMonthlyGroups(monthlyIndustries(uniqueMonthlyIssuers(monthlyRows)));
+  renderMonthlyList();
+}
+
+function fmtMonthlyIssuerLabel(code, name){
+  const short = Array.from(String(name || "")).slice(0, 5).join("");
+  return `${code} ${short}`;
+}
+
+function fmtMonthlyMarket(market){
+  const s = String(market || "");
+  if(s.includes("プライム") || /prime/i.test(s)) return {cls:"mkt mkt-p", label:"東証P"};
+  if(s.includes("スタンダード") || /standard/i.test(s)) return {cls:"mkt mkt-s", label:"東証S"};
+  if(s.includes("グロース") || /growth/i.test(s)) return {cls:"mkt mkt-g", label:"東証G"};
+  return {cls:"", label:s};
+}
+
+function fmtMonthlySector(sector){
+  const s = String(sector || "").replace(/業$/, "");
+  return Array.from(s).slice(0, 5).join("");
+}
+
+function renderMonthlyList(){
+  const issuers = filteredMonthlyIssuers();
+  if(!issuers.length){
+    $("#monthly-list").innerHTML = `<div class="sub">登録された月次データはありません</div>`;
+    return;
+  }
+  let h = `<table id="monthly-tbl"><thead><tr>` +
+    `<th class="l">会社名</th><th class="l">市場</th><th class="l">業種</th>` +
+    `<th class="l">月次業種</th><th>全店(前年比)</th><th>既存店(前年比)</th>` +
+    `</tr></thead><tbody>`;
+  for(const r of issuers){
+    const neu = r.ingested_today ? `<span class="badge new">NEW</span>` : "";
+    const mkt = fmtMonthlyMarket(r.market);
+    h += `<tr data-code="${r.code}">` +
+      `<td class="l name" onclick="showMonthlyDetail('${r.code}')">${escHtml(fmtMonthlyIssuerLabel(r.code, r.name))}${neu}</td>` +
+      `<td class="l ${mkt.cls}">${escHtml(mkt.label)}</td>` +
+      `<td class="l sector">${escHtml(fmtMonthlySector(r.sector33))}</td>` +
+      `<td class="l">${r.industry||"その他"}</td>` +
+      `<td class="num">${fmtMonthlyYoyList(r.all_store_yoy)}</td>` +
+      `<td class="num">${fmtMonthlyYoyList(r.existing_store_yoy)}</td>` +
+      `</tr>`;
+  }
+  $("#monthly-list").innerHTML = h + `</tbody></table>`;
+}
+
+function showMonthlyTop(){
+  $("#monthly-top").style.display = "";
+  $("#monthly-detail").style.display = "none";
+}
+
+function showMonthlyDetail(code){
+  selMonthlyCode = code;
+  const row = uniqueMonthlyIssuers(monthlyRows).find(r => r.code === code);
+  if(!row) return;
+  const nm = row.name || "";
+  $("#monthly-title").textContent = nm ? `${nm} ${row.code}` : row.code;
+  monthlySeries = "";
+  $("#monthly-top").style.display = "none";
+  $("#monthly-detail").style.display = "";
+  loadMonthlyTables();
+}
+
+function backMonthly(){
+  showMonthlyTop();
+}
+
+function renderMonthlySeriesSelect(){
+  const choices = monthlySeriesChoices(monthlyYearTables);
+  const sel = $("#monthly-series");
+  if(!choices.length){
+    sel.innerHTML = "";
+    return;
+  }
+  if(!choices.some(s => s.id === monthlySeries)) monthlySeries = pickDefaultMonthlySeries(monthlyYearTables);
+  sel.innerHTML = choices.map(s =>
+    `<option value="${escHtml(s.id)}">${escHtml(s.label)}</option>`).join("");
+  sel.value = monthlySeries;
+}
+
+function setMonthlySeries(id){
+  monthlySeries = id;
+  const sel = $("#monthly-series");
+  if(sel && sel.value !== id) sel.value = id;
+  drawMonthlyChart(monthlyYearTables, monthlySeries);
+  markMonthlySeriesRows();
+}
+
+function markMonthlySeriesRows(){
+  document.querySelectorAll("#monthly-table-wrap tr[data-series]").forEach(tr =>
+    tr.classList.toggle("on", tr.dataset.series === monthlySeries));
+}
+
+async function loadMonthlyTables(){
+  if(!selMonthlyCode) return;
+  const wrap = $("#monthly-table-wrap");
+  const info = await api(`/api/v1/tables/${selMonthlyCode}`).catch(()=>null);
+  const years = monthlyDisplayYears((info && info.years) || []);
+  if(!years.length){
+    monthlyYearTables = [];
+    wrap.style.removeProperty("--monthly-m-w");
+    wrap.innerHTML = `<div class="sub">データなし</div>`;
+    renderMonthlySeriesSelect();
+    drawMonthlyChart([], monthlySeries);
+    return;
+  }
+  const tables = await Promise.all(
+    years.map(y => api(`/api/v1/tables/${selMonthlyCode}/${y}`).catch(()=>null))
+  );
+  monthlyYearTables = tables.filter(Boolean);
+  const rowOrder = monthlyRowOrder(monthlyYearTables);
+  renderMonthlySeriesSelect();
+  let h = "";
+  let maxNumLen = 0;
+  for(const d of tables){
+    if(!d) continue;
+    h += `<table class="fin monthly"><colgroup><col class="monthly-name"><col class="monthly-m" span="12"></colgroup><thead><tr><th class="l year">${d.year}</th>`;
+    for(let m=1;m<=12;m++) h += `<th>${m}月</th>`;
+    h += `</tr></thead><tbody>`;
+    const byName = {};
+    for(const src of d.elements || []) byName[fmtMonthlyElement(src.element, src.unit)] = src;
+    for(const e of rowOrder){
+      const src = byName[e.element];
+      const vals = (src && src.values) || {};
+      if(!Object.keys(vals).length) continue;
+      const unit = (src && src.unit) || e.unit || "number";
+      const ds = ` data-series="${escHtml(e.element)}" onclick="setMonthlySeries(this.dataset.series)"`;
+      h += `<tr${ds}><td class="l">${fmtMonthlyElement(e.element, unit)}</td>`;
+      for(let m=1;m<=12;m++){
+        const v = vals[String(m)];
+        const txt = fmtMonthlyCell(v, unit);
+        if(txt) maxNumLen = Math.max(maxNumLen, txt.length);
+        h += `<td class="num">${txt}</td>`;
+      }
+      h += `</tr>`;
+    }
+    h += `</tbody></table>`;
+  }
+  wrap.style.setProperty("--monthly-m-w", `calc(${Math.max(maxNumLen, 3)}ch + 16px)`);
+  wrap.innerHTML = h || `<div class="sub">データなし</div>`;
+  drawMonthlyChart(monthlyYearTables, monthlySeries);
+  markMonthlySeriesRows();
+}
+
+function monthlyIsPhone(){
+  return window.matchMedia("(max-width:640px)").matches;
+}
+
+function monthlyYTicks(ymin, ymax, yoy){
+  const span = Math.max(ymax - ymin, yoy ? 20 : 1);
+  const raw = span / 4;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const n = raw / mag;
+  let step;
+  if(n <= 1) step = mag;
+  else if(n <= 2) step = 2 * mag;
+  else if(n <= 5) step = 5 * mag;
+  else step = 10 * mag;
+  const ticks = [];
+  const start = Math.ceil((ymin - step * 1e-9) / step) * step;
+  for(let v = start; v <= ymax + step * 1e-6; v += step){
+    const t = Math.round(v / step) * step;
+    let r = Math.abs(t) >= 100 ? Math.round(t) : Math.round(t * 100) / 100;
+    if(Math.abs(r) < 1e-9) r = 0;
+    if(!ticks.length || Math.abs(ticks[ticks.length-1] - r) > step * 0.01) ticks.push(r);
+  }
+  if(yoy && ymin <= 100 && 100 <= ymax && !ticks.some(t => Math.abs(t-100) < 1e-6)){
+    ticks.push(100);
+    ticks.sort((a,b)=>a-b);
+  }
+  return ticks.length ? ticks : [ymin, ymax];
+}
+
+function fmtMonthlyTick(v){
+  if(Math.abs(v) < 1e-9) v = 0;
+  if(Math.abs(v - Math.round(v)) < 1e-6)
+    return Math.round(v).toLocaleString("ja-JP");
+  return v.toLocaleString("ja-JP", {maximumFractionDigits:1});
+}
+
+let monthlyChartCssW = 0;
+
+function drawMonthlyChart(tables, seriesId){
+  const host = $("#monthly-chart");
+  const choices = monthlySeriesChoices(tables);
+  const spec = choices.find(s => s.id === seriesId) || choices[0];
+  if(!spec){
+    host.innerHTML = `<div class="sub">データなし</div>`;
+    return;
+  }
+  const keep = new Set(monthlyDisplayYears((tables || []).map(d => d && d.year)));
+  const years = [];
+  const byYear = {};
+  for(const d of tables || []){
+    if(!d || !keep.has(Number(d.year))) continue;
+    const el = monthlySeriesElement(d, spec.id);
+    if(!el) continue;
+    const nums = [];
+    let any = false;
+    for(let m=1;m<=12;m++){
+      const raw = el.values && el.values[String(m)];
+      const n = raw==null || raw==="" ? null : Number(raw);
+      let v = null;
+      if(Number.isFinite(n)){
+        v = el.unit==="yoy_pct" ? n+100 : n;
+        any = true;
+      }
+      nums.push(v);
+    }
+    if(!any) continue;
+    years.push(d.year);
+    byYear[d.year] = nums;
+  }
+  years.sort((a,b)=>a-b);
+  if(!years.length){
+    host.innerHTML = `<div class="sub">データなし</div>`;
+    return;
+  }
+  const vals = [];
+  for(const y of years) for(const v of byYear[y]) if(v!=null) vals.push(v);
+  let ymin = 0;
+  let ymax = Math.max(...vals, spec.yoy ? 100 : 1);
+  ymax = ymax * 1.08;
+  // スマホは viewBox 720 を幅いっぱいに縮めると font-size 11 が読めない。1 CSS px ≒ 1 user unit にする
+  const phone = monthlyIsPhone();
+  const cssW = host.clientWidth || document.documentElement.clientWidth || 720;
+  monthlyChartCssW = cssW;
+  const W = phone ? Math.max(cssW, 280) : 720;
+  const H = phone ? 280 : 232;
+  const L = 52, R = phone ? 10 : 12, T = phone ? 18 : 14, B = phone ? 64 : 50;
+  const fsAxis = phone ? 13 : 11;
+  const plotW=W-L-R, plotH=H-T-B;
+  const yx = v => T + (1 - (v-ymin)/((ymax-ymin)||1)) * plotH;
+  const nY = years.length;
+  const slot = plotW/12;
+  const barW = Math.max(3, (slot*0.72)/nY);
+  const monthY = T + plotH + (phone ? 18 : 14);
+  const legendY = H - (phone ? 8 : 6);
+  const legendGap = Math.min(phone ? 70 : 80, plotW / Math.max(nY, 1));
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escHtml(spec.label)}">`;
+  for(const tick of monthlyYTicks(ymin, ymax, spec.yoy)){
+    const y = yx(tick);
+    svg += `<line x1="${L}" x2="${W-R}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e8ecf0"/>`;
+    svg += `<text x="${L-6}" y="${y.toFixed(1)}" font-size="${fsAxis}" text-anchor="end" dominant-baseline="middle" fill="#66707a">${fmtMonthlyTick(tick)}</text>`;
+  }
+  if(spec.yoy){
+    const y100 = yx(100);
+    svg += `<line x1="${L}" x2="${W-R}" y1="${y100}" y2="${y100}" stroke="#e6a100" stroke-dasharray="4 3"/>`;
+  }
+  years.forEach((year, yi) => {
+    const color = monthlyYearColor(year);
+    byYear[year].forEach((v, mi) => {
+      if(v==null) return;
+      const x = L + slot*mi + (slot-nY*barW)/2 + yi*barW;
+      const y = yx(Math.max(v, ymin));
+      const hgt = Math.max(1, yx(ymin) - y);
+      svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${hgt.toFixed(1)}" fill="${color}"/>`;
+    });
+  });
+  const monthLabel = slot < 28 ? (m => String(m)) : (m => `${m}月`);
+  for(let m=1;m<=12;m++){
+    const x = L + slot*(m-1) + slot/2;
+    svg += `<text x="${x.toFixed(1)}" y="${monthY}" font-size="${fsAxis}" text-anchor="middle" fill="#66707a">${monthLabel(m)}</text>`;
+  }
+  years.forEach((year, yi) => {
+    const color = monthlyYearColor(year);
+    const x = L + yi*legendGap;
+    svg += `<rect x="${x}" y="${legendY-10}" width="8" height="8" fill="${color}"/>`;
+    svg += `<text x="${x+12}" y="${legendY}" font-size="${fsAxis}" fill="#66707a">${year}年</text>`;
+  });
+  svg += `</svg>`;
+  host.innerHTML = svg;
+}
+
+window.matchMedia("(max-width:640px)").addEventListener("change", () => {
+  if(monthlyYearTables.length) drawMonthlyChart(monthlyYearTables, monthlySeries);
+});
+window.addEventListener("resize", () => {
+  const host = $("#monthly-chart");
+  if(!host || !$("#monthly-detail") || $("#monthly-detail").style.display === "none") return;
+  if(Math.abs((host.clientWidth || 0) - monthlyChartCssW) < 8) return;
+  if(monthlyYearTables.length) drawMonthlyChart(monthlyYearTables, monthlySeries);
+});
+
+function fmtMonthlyCell(v, unit){
+  if(v==null || v==="") return "-";
+  let n = Number(v);
+  if(!Number.isFinite(n)) return "-";
+  if(unit==="yoy_pct") n += 100;
+  return n.toLocaleString("ja-JP",{maximumFractionDigits:4});
+}
+
+function stripYoyFragments(name){
+  const frags = ["前年同月比","前年同月","(前年比)","（前年比）","前年比"];
+  let s = String(name || "").trim();
+  let prev;
+  do {
+    prev = s;
+    for(const frag of frags) s = s.split(frag).join("");
+    s = s.replace(/\s+/g, " ").trim();
+  } while(s !== prev);
+  return s;
+}
+
+function fmtMonthlyElement(name, unit){
+  const trimmed = String(name || "").trim();
+  const u = unit || "number";
+  if(u !== "yoy_index" && u !== "yoy_pct") return trimmed;
+  const base = stripYoyFragments(trimmed);
+  if(base.endsWith("(前年比)")) return base;
+  return base + "(前年比)";
+}
+
+window.setMonthlyGroup = setMonthlyGroup;
+window.showMonthlyDetail = showMonthlyDetail;
+window.backMonthly = backMonthly;
+window.setMonthlySeries = setMonthlySeries;

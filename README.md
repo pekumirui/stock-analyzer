@@ -140,7 +140,10 @@ app/
   analytics.py  MA/RS/ステージ/Q単独/決算後リターン
   api.py        REST API
   main.py       FastAPIエントリ
-static/index.html   SPA (スマホ対応)
+static/
+  index.html    SPA マークアップ
+  css/app.css   スタイル
+  js/           タブ別 vanilla JS
 scripts/
   run_batch.py  日次バッチ / バックフィル
   check_demo.py スキーマ + 旧デモ取り残しガード
