@@ -48,6 +48,20 @@ def _fail(msg: str) -> None:
     raise SystemExit(msg)
 
 
+def _assert_calendar_values(vals: dict, present: dict[str, float], label: str) -> None:
+    """GET values は 1〜12。present 以外は null。"""
+    keys = [str(m) for m in range(1, 13)]
+    if list(vals.keys()) != keys:
+        _fail(f"{label} months: {list(vals.keys())!r}")
+    for k in keys:
+        got = vals[k]
+        if k in present:
+            if got is None or float(got) != float(present[k]):
+                _fail(f"{label} {k}: want {present[k]!r} got {got!r}")
+        elif got is not None:
+            _fail(f"{label} {k}: want null got {got!r}")
+
+
 def _select_tags(html: str) -> list[str]:
     out: list[str] = []
     low = html.lower()
@@ -330,7 +344,7 @@ def main() -> None:
     if _err(r)["code"] != "INVALID_PARAM":
         _fail(f"month string: {r.json()!r}")
 
-    # 正常 upsert + 空月は GET から省略
+    # 正常 upsert。GET の values は 1〜12、無い月は null
     r = c.put(f"{base}/values", json={"element": "売上高", "month": 4, "value": 105.2})
     _expect(r, 200, "put value")
     if r.json() != {"code": code, "year": 2024, "element": "全店 売上高", "updated": [4]}:
@@ -342,14 +356,9 @@ def main() -> None:
     r = c.get(base)
     _expect(r, 200, "GET values")
     by_name = {e["element"]: e["values"] for e in r.json()["elements"]}
-    v = by_name["全店 売上高"]
-    if set(str(k) for k in v.keys()) != {"4", "6"}:
-        _fail(f"omit empty months: {v!r}")
-    if float(v["4"]) != 105.2 or float(v["6"]) != 110:
-        _fail(f"values: {v!r}")
+    _assert_calendar_values(by_name["全店 売上高"], {"4": 105.2, "6": 110}, "omit empty")
     if "世界観ビジネス" in by_name:
         _fail(f"empty element must be omitted: {by_name!r}")
-
     # last-write-wins overwrite
     r = c.put(f"{base}/values", json={"element": "売上高", "month": 4, "value": 99.9})
     _expect(r, 200, "overwrite")
@@ -363,11 +372,7 @@ def main() -> None:
     _expect(r, 200, "delete cell")
     r = c.get(base)
     by_name = {e["element"]: e["values"] for e in r.json()["elements"]}
-    if "4" in by_name["全店 売上高"] or 4 in by_name["全店 売上高"]:
-        _fail(f"null did not delete: {by_name['全店 売上高']!r}")
-    if "6" not in {str(k) for k in by_name["全店 売上高"].keys()}:
-        _fail(f"unrelated month dropped: {by_name['全店 売上高']!r}")
-
+    _assert_calendar_values(by_name["全店 売上高"], {"6": 110}, "null delete")
     # batch all-or-nothing: 1件目は妥当、2件目は不正 → どちらも書かない
     r = c.put(f"{base}/values/batch", json={
         "element": "営業利益",
@@ -402,10 +407,8 @@ def main() -> None:
     _expect(r, 200, "batch mixed")
     r = c.get(base)
     by_name = {e["element"]: e["values"] for e in r.json()["elements"]}
-    ov = {str(k): v for k, v in by_name["営業利益"].items()}
-    if "1" in ov or "3" not in ov or "2" not in ov:
-        _fail(f"batch null: {ov!r}")
-
+    _assert_calendar_values(
+        by_name["営業利益"], {"2": 98.7, "3": 1.5}, "batch null")
     # elements in registration order
     r = c.get(base)
     names = [e["element"] for e in r.json()["elements"]]
@@ -698,10 +701,8 @@ def main() -> None:
     # 7203 numeric values from earlier tests still intact
     r = c.get(base)
     by_name = {e["element"]: e["values"] for e in r.json()["elements"]}
-    ov = {str(k): v for k, v in by_name["営業利益"].items()}
-    if "2" not in ov or "3" not in ov or float(ov["2"]) != 98.7:
-        _fail(f"7203 numeric values broken: {ov!r}")
-
+    _assert_calendar_values(
+        by_name["営業利益"], {"2": 98.7, "3": 1.5}, "7203 numeric")
     _assert_monthly_row_order(c)
     _assert_known_prod_units(c)
 
@@ -1524,11 +1525,9 @@ def _assert_known_prod_units(c) -> None:
     by = {e["element"]: e for e in r.json()["elements"]}
     if "全店 売上高" in by:
         vals = by["全店 売上高"]["values"]
-        if "1" in vals or 1 in vals:
-            raw = float(vals.get("1", vals.get(1)))
-            if raw != -7.1:
-                _fail(f"262A0 value converted: {vals!r}")
-
+        raw = vals.get("1", vals.get(1))
+        if raw is not None and float(raw) != -7.1:
+            _fail(f"262A0 value converted: {vals!r}")
 
 if __name__ == "__main__":
     main()

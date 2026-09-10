@@ -47,6 +47,10 @@ def _fail(msg: str) -> None:
     raise SystemExit(msg)
 
 
+def _present_months(vals: dict) -> dict[str, float]:
+    return {str(k): float(v) for k, v in vals.items() if v is not None}
+
+
 def _err(resp) -> dict:
     body = resp.json()
     err = body.get("error") if isinstance(body, dict) else None
@@ -429,13 +433,13 @@ def test_api_gift_ingest() -> None:
         _fail(f"2025 elements: {els!r}")
     if els[0].get("unit") != "number":
         _fail(f"omitted unit defaults to number: {els!r}")
-    v2025 = {str(k): float(val) for k, val in els[0]["values"].items()}
+    v2025 = _present_months(els[0]["values"])
     if set(v2025) != {"11", "12"}:
         _fail(f"GET 2025 months: {v2025!r}")
 
     r = c.get(f"/api/v1/tables/{code}/2026")
     _expect(r, 200, "GET 2026")
-    v2026 = {str(k): float(val) for k, val in r.json()["elements"][0]["values"].items()}
+    v2026 = _present_months(r.json()["elements"][0]["values"])
     if set(v2026) != {"1", "2", "3", "4", "5", "6", "7"}:
         _fail(f"GET 2026 months: {v2026!r}")
 
@@ -521,7 +525,7 @@ def test_api_errors() -> None:
         _fail(f"mid-start ingest mapping: {body.get('mapping')!r}")
     r = c.get("/api/v1/tables/77770/2026")
     _expect(r, 200, "GET 2026 mid-start")
-    v2026 = {str(k): float(val) for k, val in r.json()["elements"][0]["values"].items()}
+    v2026 = _present_months(r.json()["elements"][0]["values"])
     if set(v2026) != {"7", "8"}:
         _fail(f"GET 2026 mid-start months: {v2026!r}")
     r = c.get("/api/v1/tables/77770/2025")
@@ -1258,7 +1262,7 @@ def test_api_genky_year_wrap_ingest() -> None:
     els = r.json()["elements"]
     if len(els) != 1:
         _fail(f"2024 elements: {els!r}")
-    v2024 = {str(k): float(val) for k, val in els[0]["values"].items()}
+    v2024 = _present_months(els[0]["values"])
     if set(v2024) != {"6", "7", "8", "9", "10", "11", "12"}:
         _fail(f"GET 2024 months: {v2024!r}")
     if abs(v2024["6"] - 104.6) > 1e-6:
@@ -1266,7 +1270,7 @@ def test_api_genky_year_wrap_ingest() -> None:
 
     r = c.get(f"/api/v1/tables/{code}/2025")
     _expect(r, 200, "GET genky 2025")
-    v2025 = {str(k): float(val) for k, val in r.json()["elements"][0]["values"].items()}
+    v2025 = _present_months(r.json()["elements"][0]["values"])
     if set(v2025) != {"1", "2", "3", "4", "5", "6"}:
         _fail(f"GET 2025 months: {v2025!r}")
     if abs(v2025["6"] - 110.1) > 1e-6:

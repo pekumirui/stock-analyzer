@@ -107,7 +107,7 @@ TOP と同じ。年表は横スクロール。項目列は min-width で潰れ�
 
 `GET /api/v1/tables` は `{code, name, years}` を維持し、次を足す。`market`, `sector33`, `industry`, `last_ingested_at`, `is_new`, `ingested_today`, `all_store_yoy`, `existing_store_yoy`。
 
-`GET /api/v1/tables/{code}` と `GET /api/v1/tables/{code}/{year}` の形は変えない。Detail の年表は今どおり years を並列 GET する。
+`GET /api/v1/tables/{code}` の形は変えない。`GET /api/v1/tables/{code}/{year}` の `values` は 1〜12。無い月は null。0 は実ゼロ。1年通して値のない行は出さない。Detail の年表は今どおり years を並列 GET する。画面の空セルは従来どおり `-`。
 
 `PUT /api/v1/tables/{code}/industry` の body は `{industry}`。stocks に無い code、月次表が無い code は 4xx。
 

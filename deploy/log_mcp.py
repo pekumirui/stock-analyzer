@@ -745,7 +745,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_monthly_list,
     ),
     "monthly_get": (
-        "銘柄×年度の月次表。localhost:8000 の GET /api/v1/tables/{code}/{year}。",
+        "銘柄×年度の月次表。localhost:8000 の GET /api/v1/tables/{code}/{year}。values は 1〜12。無い月は null。0 は実ゼロ。",
         {
             "type": "object",
             "properties": {

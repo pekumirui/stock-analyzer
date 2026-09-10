@@ -91,7 +91,7 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 - `db_stats` — stock.db の件数・日付範囲・デモ混在
 - `db_lookup` — 1銘柄のマスタ・直近株価・決算・指標
 - `monthly_list` — 月次表一覧。localhost:8000 の GET /api/v1/tables
-- `monthly_get` — 銘柄×年度の月次表
+- `monthly_get` — 銘柄×年度の月次表。values は 1〜12。無い月は null
 - `monthly_add_element` — 要素登録
 - `monthly_put_values` — セル一括 upsert（null で削除）。year は暦年。訂正用
 - `monthly_set_industry` — 月次業種。PUT /api/v1/tables/{code}/industry。銘柄マスタの業種とは別
