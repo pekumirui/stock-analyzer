@@ -116,10 +116,14 @@ def test_canonicalize_element_label() -> None:
         _fail("全店舗数 is 店舗数, not 全店 店舗数")
     if canonicalize_element_label("直営店数", "number") != "直営 店舗数":
         _fail("直営店数")
-    if canonicalize_element_label("新規出店数", "number") != "新規 出店":
+    if canonicalize_element_label("新規出店数", "number") != "出店":
         _fail("出店数 is 出店 metric, not 店舗数")
-    if canonicalize_element_label("全店 新規出店数", "number") != "新規 全店 出店":
-        _fail("出店 metric, 全店 is scope")
+    if canonicalize_element_label("全店 新規出店数", "number") != "全店 出店":
+        _fail("新規 folds to 出店")
+    if canonicalize_element_label("トライアル 新規 全店 出店", "number") != "トライアル 全店 出店":
+        _fail("新規 is 出店, not a brand")
+    if canonicalize_element_label("西友 業態転換数 全店", "number") != "西友 全店 業態転換数":
+        _fail("業態転換数 is the metric")
     if canonicalize_element_label("出店店舗数", "number") != "出店":
         _fail("出店店舗数 is 出店")
     if canonicalize_element_label("100円ショップ 出店 店舗数", "number") != "100円ショップ 出店":

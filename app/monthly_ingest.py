@@ -146,6 +146,7 @@ _METRIC_FILL_ALL = frozenset({"売上高", "客数", "客単価"})
 _STORE_FLOW_CANON = {
     "出店": "出店", "出店数": "出店",
     "開店": "出店", "開店数": "出店",
+    "新規": "出店",
     "退店": "退店", "退店数": "退店",
     "閉店": "退店", "閉店数": "退店",
     "閉鎖": "退店", "閉鎖数": "退店",
@@ -154,6 +155,7 @@ _STORE_FLOW_METRICS = frozenset({"出店", "退店"})
 _OPEN_SHARDS = frozenset({"開"})
 _CLOSE_SHARDS = frozenset({"退", "閉"})
 _DUMMY_STORE_TOKS = frozenset({"店舗"})
+_OPEN_QUALIFIERS = frozenset({"新規"})
 _STORE_ADJ_MARKS = ("純増", "新設", "改装", "業態転換")
 _METRIC_PREFIX: tuple[tuple[str, str], ...] = (
     ("店舗数", "店舗数"),
@@ -202,8 +204,12 @@ def _peel_metric(tok: str) -> tuple[str | None, str | None]:
     return None, tok
 
 
+def _is_flow_metric(metric: str) -> bool:
+    return metric.endswith("出店") or metric.endswith("退店")
+
+
 def _stitch_store_flow(leftover: list[str], metric: str) -> tuple[list[str], str]:
-    """店数→店舗数 が 退店/開店/閉店 を割った残骸を指標へ戻す。"""
+    """店数→店舗数 が 退店/開店/閉店 を割った残骸を指標へ戻す。新規は出店。"""
     if metric in ("", "店舗数"):
         if any(tok in _OPEN_SHARDS for tok in leftover):
             leftover = [tok for tok in leftover if tok not in _OPEN_SHARDS]
@@ -211,9 +217,25 @@ def _stitch_store_flow(leftover: list[str], metric: str) -> tuple[list[str], str
         elif any(tok in _CLOSE_SHARDS for tok in leftover):
             leftover = [tok for tok in leftover if tok not in _CLOSE_SHARDS]
             metric = "退店"
-    if metric in _STORE_FLOW_METRICS:
+    if _is_flow_metric(metric):
         leftover = [tok for tok in leftover if tok not in _DUMMY_STORE_TOKS]
+    if metric.endswith("出店"):
+        leftover = [tok for tok in leftover if tok not in _OPEN_QUALIFIERS]
     return leftover, metric
+
+
+def _peel_adj_metric(leftover: list[str], metric: str) -> tuple[list[str], str]:
+    """業態転換などを指標にして 全店 が末尾に残らないようにする。名前は変えない。"""
+    if metric:
+        return leftover, metric
+    kept: list[str] = []
+    peeled = ""
+    for tok in leftover:
+        if not peeled and any(mark in tok for mark in _STORE_ADJ_MARKS):
+            peeled = tok
+            continue
+        kept.append(tok)
+    return kept, peeled
 
 
 def _is_store_adj(element: str, segment: str = "") -> bool:
@@ -242,7 +264,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
             if rest_flow:
                 if metric in ("", "店舗数"):
                     metric = rest_flow
-            elif not (peeled == "店舗数" and metric in _STORE_FLOW_METRICS):
+            elif not (peeled == "店舗数" and _is_flow_metric(metric)):
                 metric = peeled
                 if rest and rest not in _DROP_TOKS:
                     leftover.append(rest)
@@ -264,6 +286,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
             continue
         leftover.append(tok)
     leftover, metric = _stitch_store_flow(leftover, metric)
+    leftover, metric = _peel_adj_metric(leftover, metric)
     if not scope and metric in _METRIC_FILL_ALL:
         scope = "全店"
     return {
@@ -478,7 +501,7 @@ def monthly_series_kind(element: str, unit: str | None) -> str | None:
     if "店舗数" in key and u == "number":
         if any(mark in key for mark in _STORE_ADJ_MARKS):
             return None
-        if parse_element_layers(strip_yoy_fragments(element))["metric"] in _STORE_FLOW_METRICS:
+        if _is_flow_metric(parse_element_layers(strip_yoy_fragments(element))["metric"]):
             return None
         return "stores"
     if u not in _YOY_UNITS:
@@ -515,9 +538,9 @@ def _row_scope(key: str) -> str:
 def _row_metric(key: str) -> str:
     layers = _layers_of(key)
     metric = layers["metric"]
-    if metric == "出店":
+    if metric.endswith("出店"):
         return "open"
-    if metric == "退店":
+    if metric.endswith("退店"):
         return "close"
     if _is_store_adj(key, layers["segment"]):
         return "adj"
@@ -544,10 +567,10 @@ def _row_metric(key: str) -> str:
 
 
 def _row_segment(key: str) -> str:
-    """ブランド。国・チャネル・スコープ・指標を除いた残り。純増等は塊にしない。"""
+    """ブランド。国・チャネル・スコープ・指標を除いた残り。純増・新規は塊にしない。"""
     toks = []
     for tok in _layers_of(key)["segment"].split():
-        if any(mark in tok for mark in _STORE_ADJ_MARKS):
+        if tok in _OPEN_QUALIFIERS or any(mark in tok for mark in _STORE_ADJ_MARKS):
             continue
         toks.append(tok)
     return " ".join(toks)
@@ -571,7 +594,7 @@ def monthly_row_scope_rank(element: str) -> int:
         return _SCOPE_RANK["existing"]
     if layers["scope"] == "全店":
         return _SCOPE_RANK["all"]
-    if layers["metric"] in _STORE_FLOW_METRICS or layers["metric"] == "店舗数":
+    if _is_flow_metric(layers["metric"]) or layers["metric"] == "店舗数":
         return _SCOPE_RANK["other"]
     if _row_metric(element) in {"stores", "open", "close", "adj"}:
         return _SCOPE_RANK["other"]
