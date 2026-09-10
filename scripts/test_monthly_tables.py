@@ -31,6 +31,19 @@ INVALID_VALUE_MSG = "value は数値のみ受け付けます。単位(%、円な
 SIMILAR_MSG = "類似する要素が既に存在します。既存要素を使うか、force=true で強制登録してください。"
 
 
+def _spa_source() -> str:
+    """Markup + CSS + monthly JS. Guards used to read static/index.html as one file."""
+    files = [
+        ROOT / "static" / "index.html",
+        ROOT / "static" / "css" / "app.css",
+        ROOT / "static" / "js" / "monthly.js",
+    ]
+    missing = [str(p.relative_to(ROOT)) for p in files if not p.is_file()]
+    if missing:
+        _fail("SPA source missing: " + ", ".join(missing))
+    return "\n".join(p.read_text(encoding="utf-8") for p in files)
+
+
 def _fail(msg: str) -> None:
     raise SystemExit(msg)
 
@@ -109,7 +122,7 @@ def main() -> None:
     _assert_monthly_year_window()
     _assert_monthly_year_color_stable()
     _assert_union_collapses_yoy_display_names()
-    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    html = _spa_source()
     if "fmtMonthlyCell" not in html:
         _fail("index.html missing fmtMonthlyCell")
     if "function fmtMonthlyCell" not in html:
@@ -699,7 +712,7 @@ def _post_monthly_elements(c, code: str, year: int, rows: list[tuple[str, str]])
             _fail(f"PUT {code}/{year} {stored!r}: {r.status_code} {r.text[:200]}")
 
 
-# SPA 年表・チャート用。ingest には置かない。static/index.html と同じ規則。
+# SPA 年表・チャート用。ingest には置かない。static/js/monthly.js と同じ規則。
 _MONTHLY_YEAR_COLORS = ("#0077b6", "#2e8b57", "#b8860b", "#8e4ec6")
 
 

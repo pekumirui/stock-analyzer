@@ -1,11 +1,11 @@
 ---
 name: verify-stock-analyzer
-description: "Drive the stock-analyzer SPA (FastAPI + static/index.html) the way a user does: launch uvicorn, open tabs, call the same /api/* the UI uses, capture evidence. Reach for this when proving 決算速報 / チャート / スクリーナー / 月次 after a UI or API change."
+description: "Drive the stock-analyzer SPA (FastAPI + static/index.html + static/css/ + static/js/) the way a user does: launch uvicorn, open tabs, call the same /api/* the UI uses, capture evidence. Reach for this when proving 決算速報 / チャート / スクリーナー / 月次 after a UI or API change."
 ---
 
 # verify-stock-analyzer
 
-Personal Japan-equity viewer. Primary surface is the single-page UI at `/` (`static/index.html`). REST under `/api/*` is what the SPA fetches; batch scripts are ingest, not the user surface.
+Personal Japan-equity viewer. Primary surface is the single-page UI at `/` (`static/index.html` + `static/css/` + `static/js/`). REST under `/api/*` is what the SPA fetches; batch scripts are ingest, not the user surface.
 
 This skill is for the **next agent**. Do not invent selectors or ports.
 

@@ -1,0 +1,258 @@
+  :root { --bg:#ffffff; --panel:#ffffff; --border:#d8dee6; --text:#222; --sub:#66707a;
+          --accent:#0077b6; --up:#d32f2f; --down:#1b8a5a; --warn:#e6a100;
+          --row:#f6f8fa; --row-sel:#e7f3fb; --now:#fff8e1; --grid:#e8ecf0; }
+  * { box-sizing:border-box; margin:0; }
+  html { color-scheme: light; }
+  body { background:var(--bg); color:var(--text); font-family:-apple-system,"Hiragino Sans","Noto Sans JP",Meiryo,sans-serif; font-size:14px; }
+  header { display:flex; align-items:center; gap:8px; padding:10px 14px; border-top:3px solid var(--accent);
+           border-bottom:1px solid var(--border); flex-wrap:wrap; background:var(--panel); }
+  header h1 { font-size:16px; margin-right:8px; }
+  nav button { background:none; border:none; color:var(--sub); padding:8px 10px; cursor:pointer; font-size:14px; border-bottom:2px solid transparent; }
+  nav button.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+  main { padding:8px 12px; }
+  .panel { background:var(--panel); padding:12px; margin-bottom:12px; }
+  .a-chart, .a-fin { border:1px solid var(--border); }
+  .a-list.panel { border:none; padding-left:0; padding-right:0; }
+  table { width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
+  th,td { padding:6px 8px; text-align:right; border-bottom:1px solid var(--border); white-space:nowrap; }
+  th { color:var(--sub); font-weight:normal; position:sticky; top:0; background:var(--panel); }
+  td:first-child, th:first-child, td.l, th.l { text-align:left; }
+  .pos { color:var(--up); } .neg { color:var(--down); }
+  .badge { display:inline-block; padding:1px 6px; border-radius:4px; font-size:11px; margin-left:4px; }
+  .badge.up { background:var(--up); color:#fff; }
+  .badge.dn { background:var(--down); color:#fff; }
+  .badge.rev { background:var(--warn); color:#fff; }
+  .badge.st1 { background:#5b6470; } .badge.st2 { background:#2e8b57; }
+  .badge.st3 { background:#b8860b; } .badge.st4 { background:#a04050; }
+  .cal { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
+  .cal .h { text-align:center; color:var(--sub); font-size:11px; padding:2px 0; }
+  .cal .d { min-height:36px; border:1px solid transparent; border-radius:6px; padding:3px 2px 10px; cursor:pointer; position:relative; text-align:center; }
+  .cal .d:hover { border-color:var(--accent); }
+  .cal .d.today { background:var(--now); }
+  .cal .d.sel { border-color:var(--accent); background:var(--row-sel); }
+  .cal .d.today.sel { background:var(--row-sel); border-bottom:2px solid var(--warn); }
+  .cal .d .n { font-size:12px; color:var(--text); }
+  .cal .d.sel .n { font-weight:600; color:var(--accent); }
+  .cal .d .cnt { position:absolute; right:2px; bottom:1px; font-size:9px; line-height:1; color:var(--accent); }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
+  input,select { background:var(--panel); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:14px; }
+  button.btn { background:var(--accent); border:none; color:#fff; border-radius:6px; padding:6px 12px; cursor:pointer; }
+  #chart, #relchart { width:100%; }
+  .evt-toggles { display:flex; gap:14px; flex-wrap:wrap; align-items:center;
+                 margin-top:8px; padding-top:8px; border-top:1px solid var(--border);
+                 font-size:13px; color:var(--sub); }
+  .evt-toggles .evt-cap { font-size:12px; }
+  .evt-toggles .evt-label { display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none; }
+  .evt-toggles .swatch { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .tbl-wrap { overflow-x:auto; }
+  .clicky { cursor:pointer; color:var(--accent); }
+  h3 { font-size:14px; color:var(--sub); margin:8px 0; }
+  .suggest { position:absolute; background:var(--panel); border:1px solid var(--border); border-radius:6px; z-index:10; max-height:240px; overflow:auto; }
+  .suggest div { padding:6px 10px; cursor:pointer; }
+  .suggest div:hover { background:var(--row); }
+  .sub { color:var(--sub); }
+  .dim { opacity:.4; }
+
+  /* ---- 決算速報タブ ---- */
+  .egrid { display:grid; gap:12px; grid-template-columns:minmax(0,1fr); }
+  .egrid > * { min-width:0; }
+  /* 一覧は必ずスクロール枠に収める (ピーク日は1000件近くあり、下段の詳細に辿り着けなくなる) */
+  .a-list .scroll { max-height:50vh; overflow:auto; }
+  /* 上段は一覧フル幅、下段は 決算表50% + チャート50% */
+  @media (min-width:1100px){
+    .egrid { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
+    .a-list { grid-column:span 2; }
+    .a-chart { grid-column:span 1; } .a-fin { grid-column:span 1; }
+    .a-list .scroll { max-height:46vh; }
+  }
+  #earn-tbl { width:100%; border-collapse:separate; border-spacing:0; }
+  #earn-tbl th, #earn-tbl td {
+    padding:4px 5px;
+    border:0 solid var(--border);
+    border-right-width:1px;
+    border-bottom-width:1px;
+    background:var(--panel);
+    text-align:left;
+  }
+  #earn-tbl tr > :first-child { border-left-width:1px; }
+  #earn-tbl thead tr:first-child th { border-top-width:1px; }
+  #earn-tbl td.name, #earn-tbl th.name { width:1%; white-space:nowrap; }
+  #earn-tbl td.fy, #earn-tbl th.fy { width:1%; }
+  .phead { display:flex; align-items:center; gap:8px; justify-content:space-between; margin-bottom:8px; }
+  .phead h3 { margin:0; }
+  .phead-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+  .cal-wrap { position:relative; }
+  .cal-btn { background:transparent; border:1px solid var(--border); color:var(--sub); border-radius:6px; width:32px; height:32px; padding:0; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+  .cal-btn:hover, .cal-btn[aria-expanded="true"] { border-color:var(--accent); color:var(--accent); }
+  .cal-btn svg { width:16px; height:16px; }
+  .cal-pop { position:absolute; top:calc(100% + 6px); right:0; z-index:30; width:min(300px, calc(100vw - 24px)); background:var(--panel); border:1px solid var(--border); padding:10px; }
+  .cal-pop .row { margin-bottom:6px; justify-content:space-between; }
+  .cal-pop .btn { background:transparent; color:var(--text); border:1px solid var(--border); padding:2px 8px; }
+  #cal-backdrop { position:fixed; inset:0; z-index:20; }
+  summary { cursor:pointer; color:var(--sub); }
+  td.num { font-variant-numeric:tabular-nums; }
+  .grp { border-left:1px solid var(--border); }
+  #earn-list:focus { outline:none; }
+  /* 2段ヘッダは thead ごと固定。th 単体 + top:29px だと段の実高さとズレて本文が透ける */
+  #earn-tbl thead { position:sticky; top:0; z-index:2; }
+  #earn-tbl thead th { position:static; top:auto; z-index:auto; background:var(--panel); }
+  #earn-tbl tbody tr { cursor:pointer; }
+  #earn-tbl tbody tr:hover td { background:var(--row); }
+  #earn-tbl tbody tr.sel td { background:var(--row-sel); }
+  #earn-tbl tbody tr.sel td:first-child { box-shadow:inset 3px 0 0 var(--accent); }
+  table.fin td:first-child, table.fin th:first-child { position:sticky; left:0; z-index:2; background:var(--panel); }
+  table.fin { font-variant-numeric:tabular-nums; }
+  table.fin th { font-size:11px; letter-spacing:.02em; }
+  table.fin td { padding:7px 8px; vertical-align:top; }
+  table.fin td.num { font-size:13px; font-weight:500; }
+  table.fin .g { display:block; font-size:11px; font-weight:400; line-height:1.35; min-height:1.35em; }
+  table.fin tbody tr:nth-child(even) td { background:var(--row); }
+  table.fin tbody tr:hover td { background:var(--row-sel); }
+  table.fin tr.now td { background:var(--now) !important; color:var(--text); }
+  table.fin tr.now td:first-child { font-weight:600; background:var(--now) !important; box-shadow:inset 3px 0 0 var(--warn); }
+  table.fin tr.fc td { background:#f0f7fc !important; }
+  table.fin tr.prevfy td { opacity:.78; }
+  table.fin tr.sep td { border-top:1px solid var(--border); }
+  table.fin .loss { color:var(--up); }
+  /* 月次タブ: TOP と Detail は同じ一段。1100px でも二段組にしない */
+  #monthly-groups { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
+  .mchip { background:transparent; border:1px solid var(--border); color:var(--sub); border-radius:999px; padding:4px 12px; cursor:pointer; font-size:13px; }
+  .mchip.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  #monthly-detail { min-height:calc(100vh - 52px); }
+  #monthly-tbl {
+    width:max-content;
+    border-collapse:collapse;
+    background:#fff;
+  }
+  #monthly-tbl th,
+  #monthly-tbl td {
+    border:1px solid var(--border);
+    background:#fff;
+    padding:6px 8px;
+  }
+  #monthly-tbl th:first-child,
+  #monthly-tbl td.name,
+  #monthly-tbl td.mkt,
+  #monthly-tbl td.sector {
+    white-space:nowrap;
+    width:1%;
+  }
+  #monthly-tbl td.name { cursor:pointer; color:var(--accent); }
+  #monthly-tbl td.name:hover { text-decoration:underline; }
+  #monthly-tbl td.mkt::before {
+    content:''; display:inline-block; width:.55em; height:.55em;
+    border-radius:2px; margin-right:.35em; vertical-align:middle;
+  }
+  #monthly-tbl td.mkt-p::before { background:#2563eb; }
+  #monthly-tbl td.mkt-s::before { background:#9ca3af; }
+  #monthly-tbl td.mkt-g::before { background:#16a34a; }
+  .badge.new { background:var(--warn); color:#fff; margin-left:6px; }
+  #monthly-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
+  #monthly-chart { width:100%; min-height:220px; margin:0 0 16px; }
+  #monthly-chart svg { width:100%; height:auto; display:block; font-family:inherit; overflow:visible; }
+  /* 年表は table-layout:fixed + 月列等幅のまま。項目列は min-width で潰さず wrap が横スクロール */
+  table.monthly {
+    font-variant-numeric:tabular-nums;
+    table-layout:fixed;
+    width:max-content;
+    min-width:100%;
+    background:#fff;
+    border-collapse:collapse;
+  }
+  table.monthly col.monthly-name { width:16em; min-width:16em; }
+  table.monthly col.monthly-m { width: var(--monthly-m-w); }
+  table.monthly th,
+  table.monthly td {
+    border:1px solid var(--border);
+    background:#fff;
+  }
+  /* 月列は左右 sticky しない。横スワイプで月が普通に動く */
+  table.monthly thead th:not(:first-child),
+  table.monthly td.num,
+  table.monthly th:last-child,
+  table.monthly td:last-child {
+    width: var(--monthly-m-w);
+    position:static; left:auto; right:auto;
+  }
+  table.monthly thead th:first-child,
+  table.monthly td:first-child {
+    min-width:16em; width:16em;
+    position:sticky; left:0; z-index:2;
+    background:var(--panel);
+  }
+  table.monthly td:first-child { font-weight:700; }
+  table.monthly thead th.l,
+  table.monthly thead th:first-child,
+  table.monthly thead th.year {
+    z-index:3;
+    background:var(--up);
+    color:#fff;
+    font-weight:700;
+    font-size:13px;
+  }
+  table.monthly tbody tr:nth-child(even) td,
+  table.monthly tbody tr:nth-child(even) td:first-child {
+    background:#fff;
+  }
+  table.monthly tbody tr:hover td,
+  table.monthly tbody tr:hover td:first-child {
+    background:var(--row-sel);
+  }
+  table.monthly tbody tr[data-series].on td,
+  table.monthly tbody tr[data-series].on td:first-child {
+    background:var(--row-sel);
+  }
+  #monthly-table-wrap { display:flex; flex-direction:column; gap:1.75rem; overflow-x:auto; min-width:0; background:#fff; }
+  table.monthly thead th { top:auto; }
+  table.monthly thead th:not(:first-child) {
+    background:#eceff2;
+    font-weight:700;
+    text-align:center;
+  }
+  #monthly-series { max-width:100%; margin:0 0 8px; }
+  table.monthly tbody tr[data-series] { cursor:pointer; }
+  .fin-tabs { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .ftab { background:transparent; border:none; color:var(--sub); padding:5px 14px; cursor:pointer; font-size:13px; }
+  .ftab.on { background:var(--accent); color:#fff; }
+  .qchips { display:flex; gap:6px; margin:0 0 8px; }
+  .qchip { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); color:var(--sub); }
+  .qchip.on { border-color:var(--warn); color:var(--warn); background:rgba(240,160,32,.12); }
+  .qb { display:inline-block; margin-left:6px; font-size:10px; padding:0 5px; border-radius:3px; background:var(--row); color:var(--sub); vertical-align:middle; }
+  .qb-1Q { color:#c48a00; }
+  .qb-2Q { color:#1b8a5a; }
+  .qb-3Q { color:#0077b6; }
+  .qb-4Q { color:#8e4ec6; }
+  .a-fin .tbl-wrap { max-height:min(52vh, 560px); }
+
+  @media (max-width:640px){
+    body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:34px}
+    .evt-toggles .evt-label { min-height:32px; }
+    #monthly-chart { min-height:280px; }
+    /* 16em sticky だと項目列が画面の大半を占め月が右端にしか出ない。スマホは sticky を外し項目列を短くする */
+    table.monthly col.monthly-name { width:8em; min-width:8em; }
+    table.monthly thead th:first-child,
+    table.monthly td:first-child {
+      min-width:8em; width:8em;
+      position:static; left:auto; right:auto; z-index:auto;
+      white-space:normal;
+      overflow:hidden;
+      background:#fff;
+    }
+    table.monthly thead th:first-child,
+    table.monthly thead th.year {
+      background:var(--up);
+      color:#fff;
+    }
+    table.monthly tbody tr:nth-child(even) td,
+    table.monthly tbody tr:nth-child(even) td:first-child { background:#fff; }
+    table.monthly tbody tr:hover td,
+    table.monthly tbody tr:hover td:first-child { background:var(--row-sel); }
+    table.monthly tbody tr[data-series].on td,
+    table.monthly tbody tr[data-series].on td:first-child { background:var(--row-sel); }
+    table.monthly thead th:not(:first-child),
+    table.monthly td.num,
+    table.monthly th:last-child,
+    table.monthly td:last-child {
+      position:static; left:auto; right:auto;
+    }
+  }
