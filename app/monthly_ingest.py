@@ -322,7 +322,9 @@ def monthly_row_scope_rank(element: str) -> int:
     key = monthly_element_key(element)
     scope = _row_scope(key)
     if scope == "other" and not _row_segment(key):
-        # 合計店舗数・売上高 など社名なしは全店枠へ。
+        # 売上高など社名なしは全店枠。合計店舗数は入れない（既存店の前＝真ん中になる）。
+        if _row_metric(key) == "stores":
+            return _SCOPE_RANK["other"]
         return _SCOPE_RANK["all"]
     return _SCOPE_RANK[scope]
 
@@ -332,7 +334,8 @@ def union_monthly_elements(tables: Sequence[Any]) -> list[dict[str, str]]:
 
     全店 → 既存店 → FC店 → セグメント初出順。各塊の中は
     売上高 → 客数 → 客単価 → 店舗数 → その他。無い枠は飛ばす。
-    全社・全店舗は全店と同じ枠。保存名は変えない。
+    全社・全店舗は全店と同じ枠。合計店舗数などスコープ無しの店舗数は
+    全店に入れず、既存店・FC の後。保存名は変えない。
     """
     newest_first = sorted(
         (t for t in tables if t),

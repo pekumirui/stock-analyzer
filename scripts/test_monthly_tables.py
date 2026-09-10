@@ -20,6 +20,7 @@ from app.monthly_ingest import (  # noqa: E402
     MonthlyIngestError,
     canonicalize_element_label,
     format_monthly_cell,
+    monthly_row_scope_rank,
     monthly_row_segment,
     monthly_row_slot,
     parse_monthly_unit,
@@ -807,6 +808,22 @@ def _assert_monthly_row_order(c) -> None:
         _fail("slot MONTHLY_SERIES 全店売上高")
     if monthly_row_slot("全社 売上高(前年比)", "yoy_index") != 1:
         _fail("全社 売上高 is sales")
+    if monthly_row_scope_rank("全店 売上高(前年比)") != 0:
+        _fail("全店 is scope 0")
+    if monthly_row_scope_rank("既存店 売上高(前年比)") != 1:
+        _fail("既存店 is scope 1")
+    if monthly_row_scope_rank("売上高") != 0:
+        _fail("unlabeled 売上高 stays 全店")
+    if monthly_row_scope_rank("全店 店舗数") != 0:
+        _fail("全店 店舗数 stays in 全店")
+    if monthly_row_scope_rank("既存店 店舗数") != 1:
+        _fail("既存店 店舗数 stays in 既存店")
+    if monthly_row_scope_rank("合計 店舗数") != 3:
+        _fail("合計 店舗数 must not fold into 全店")
+    if monthly_row_scope_rank("店舗数") != 3:
+        _fail("bare 店舗数 must not fold into 全店")
+    if monthly_row_scope_rank("当期計店舗数") != 3:
+        _fail("当期計店舗数 must not fold into 全店")
 
     code = "60590"
     _ensure_stock(code, "ウチヤマ")
@@ -931,6 +948,33 @@ def _assert_monthly_row_order(c) -> None:
     ]
     if mixed_names != want_mixed:
         _fail(f"company-wide before segment, 全社=全店: {mixed_names!r}")
+
+    aoki = union_monthly_elements([{
+        "year": 2026,
+        "elements": [
+            {"element": "全店 売上高(前年比)", "unit": "yoy_index"},
+            {"element": "既存店 売上高(前年比)", "unit": "yoy_index"},
+            {"element": "全店 客数(前年比)", "unit": "yoy_index"},
+            {"element": "既存店 客数(前年比)", "unit": "yoy_index"},
+            {"element": "全店 客単価(前年比)", "unit": "yoy_index"},
+            {"element": "既存店 客単価(前年比)", "unit": "yoy_index"},
+            {"element": "合計 店舗数", "unit": "number"},
+        ],
+    }])
+    aoki_names = [row["element"] for row in aoki]
+    want_aoki = [
+        "全店 売上高(前年比)",
+        "全店 客数(前年比)",
+        "全店 客単価(前年比)",
+        "既存店 売上高(前年比)",
+        "既存店 客数(前年比)",
+        "既存店 客単価(前年比)",
+        "合計 店舗数",
+    ]
+    if aoki_names != want_aoki:
+        _fail(f"合計店舗数 must follow 既存店, not sit in 全店: {aoki_names!r}")
+    if aoki_names.index("合計 店舗数") < aoki_names.index("既存店 客単価(前年比)"):
+        _fail(f"合計 店舗数 in the middle: {aoki_names!r}")
 
 
 def _assert_monthly_spa(html: str) -> None:
@@ -1087,6 +1131,15 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("index.html missing monthlyRowSlot")
     if "function monthlyRowSegment" not in html:
         _fail("index.html missing monthlyRowSegment")
+    if "function monthlyRowScopeRank" not in html:
+        _fail("index.html missing monthlyRowScopeRank")
+    scope_fn = html.find("function monthlyRowScopeRank")
+    scope_end = html.find("function isAllStoreSalesYoy")
+    if scope_fn < 0 or scope_end <= scope_fn:
+        _fail("monthlyRowScopeRank / isAllStoreSalesYoy bounds")
+    scope_body = html[scope_fn:scope_end]
+    if 'monthlyRowMetricName(element)==="stores"' not in scope_body.replace(" ", ""):
+        _fail("SPA must not fold unlabeled 店舗数 into 全店")
     row_fn = html.find("function monthlyRowOrder")
     row_end = html.find("function escHtml")
     if row_fn < 0 or row_end <= row_fn:
