@@ -36,6 +36,6 @@ Preconditions:
 - Detail with no years shows「データなし」.
 - NEW badge uses `ingested_today` (JST today); 新着 chip window is `MONTHLY_NEW_DAYS` (7) via `is_new`.
 - YoY chart/cell values add +100 only for `yoy_pct` (not `yoy_index`), with a 100 horizontal line; year bar colors cycle `MONTHLY_YEAR_COLORS[year % 4]`.
-- Row order follows segment × slot (`monthlyRowOrder`); yoy row labels end with `(前年比)` via `fmtMonthlyElement`.
+- Row order is 全店 → 既存店 → FC店 → named segments (`monthlyRowOrder`); 全社 counts as 全店. Within each block 売上高 → 客数 → 客単価 → 店舗数. yoy row labels end with `(前年比)` via `fmtMonthlyElement`.
 - SPA only reads `/api/v1/tables*`. Write routes (`POST …/ingest`, `PUT …/industry`, values/elements) are MCP/ingest — do not use them in verify.
 - Narrow viewports (`@media (max-width:640px)`) drop the left sticky columns; do not require desktop sticky layout.

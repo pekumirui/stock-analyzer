@@ -80,6 +80,10 @@ def _add_fy_end(code: str, disclosed: date, fy_end: date, disclosure_no: str) ->
 def test_series_kind() -> None:
     if monthly_series_kind("全店売上高(前年比)", "yoy_index") != "all_store":
         _fail("all_store")
+    if monthly_series_kind("全社 売上高(前年比)", "yoy_index") != "all_store":
+        _fail("全社 is all_store")
+    if monthly_series_kind("全店舗 売上高(前年比)", "yoy_index") != "all_store":
+        _fail("全店舗 is all_store")
     if monthly_series_kind("既存店売上高(前年比)", "yoy_pct") != "existing":
         _fail("existing")
     if monthly_series_kind("全店既存店合算(前年比)", "yoy_index") != "existing":
