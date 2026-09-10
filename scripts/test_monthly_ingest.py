@@ -116,10 +116,18 @@ def test_canonicalize_element_label() -> None:
         _fail("全店舗数 is 店舗数, not 全店 店舗数")
     if canonicalize_element_label("直営店数", "number") != "直営 店舗数":
         _fail("直営店数")
-    if canonicalize_element_label("新規出店数", "number") != "新規 出店数":
-        _fail("出店数 must not become 店舗数")
-    if canonicalize_element_label("全店 新規出店数", "number") != "新規 出店数 全店":
-        _fail("出店数 stays, 全店 is scope")
+    if canonicalize_element_label("新規出店数", "number") != "新規 出店":
+        _fail("出店数 is 出店 metric, not 店舗数")
+    if canonicalize_element_label("全店 新規出店数", "number") != "新規 全店 出店":
+        _fail("出店 metric, 全店 is scope")
+    if canonicalize_element_label("出店店舗数", "number") != "出店":
+        _fail("出店店舗数 is 出店")
+    if canonicalize_element_label("100円ショップ 出店 店舗数", "number") != "100円ショップ 出店":
+        _fail("出店 stays metric, not a segment")
+    if canonicalize_element_label("100円ショップ 閉鎖 店舗数", "number") != "100円ショップ 閉鎖":
+        _fail("閉鎖 stays metric")
+    if canonicalize_element_label("退店数", "number") != "退店":
+        _fail("退店数")
     if canonicalize_element_label("中国 店舗数", "number") != "中国 店舗数":
         _fail("中国 stays a segment")
     if canonicalize_element_label("海外 中国 店舗数", "number") != "海外 中国 店舗数":

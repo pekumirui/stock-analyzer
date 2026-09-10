@@ -96,7 +96,32 @@ _UNGLUE: tuple[tuple[str, str], ...] = (
 _CHAN_BOTH_MARK = "\x00CHANBOTH\x00"
 _OPEN_CNT_MARK = "\x00OPENCNT\x00"
 _OPEN_MARK = "\x00OPEN\x00"
+_CLOSE_CNT_MARK = "\x00CLOSECNT\x00"
 _CLOSE_MARK = "\x00CLOSE\x00"
+_LEAVE_CNT_MARK = "\x00LEAVECNT\x00"
+_LEAVE_MARK = "\x00LEAVE\x00"
+_SHUT_CNT_MARK = "\x00SHUTCNT\x00"
+_SHUT_MARK = "\x00SHUT\x00"
+_FLOW_PROTECT: tuple[tuple[str, str], ...] = (
+    ("出店数", _OPEN_CNT_MARK),
+    ("退店数", _LEAVE_CNT_MARK),
+    ("閉店数", _SHUT_CNT_MARK),
+    ("閉鎖数", _CLOSE_CNT_MARK),
+    ("出店", _OPEN_MARK),
+    ("退店", _LEAVE_MARK),
+    ("閉店", _SHUT_MARK),
+    ("閉鎖", _CLOSE_MARK),
+)
+_FLOW_RESTORE: tuple[tuple[str, str], ...] = (
+    (_OPEN_CNT_MARK, "出店数"),
+    (_LEAVE_CNT_MARK, "退店数"),
+    (_SHUT_CNT_MARK, "閉店数"),
+    (_CLOSE_CNT_MARK, "閉鎖数"),
+    (_OPEN_MARK, "出店"),
+    (_LEAVE_MARK, "退店"),
+    (_SHUT_MARK, "閉店"),
+    (_CLOSE_MARK, "閉鎖"),
+)
 _FC_EMBED_RE = re.compile(r"(?<![A-Za-z])FC(?![A-Za-z])")
 _FCW_EMBED_RE = re.compile(r"ＦＣ")
 _DROP_TOKS = frozenset({
@@ -112,6 +137,13 @@ _CHANNEL_CANON = {
 _SCOPE_EXISTING = frozenset({"既存"})
 _SCOPE_ALL = frozenset({"全店"})
 _METRIC_FILL_ALL = frozenset({"売上高", "客数", "客単価"})
+_STORE_FLOW_CANON = {
+    "出店": "出店", "出店数": "出店",
+    "閉鎖": "閉鎖", "閉鎖数": "閉鎖",
+    "退店": "退店", "退店数": "退店",
+    "閉店": "閉店", "閉店数": "閉店",
+}
+_STORE_FLOW_METRICS = frozenset(_STORE_FLOW_CANON.values())
 _METRIC_PREFIX: tuple[tuple[str, str], ...] = (
     ("店舗数", "店舗数"),
     ("来客数", "客数"),
@@ -132,18 +164,15 @@ def _unglue_element(text: str) -> str:
     s = text.replace("直営+FC", f" {_CHAN_BOTH_MARK} ").replace(
         "直営＋FC", f" {_CHAN_BOTH_MARK} ",
     )
-    s = s.replace("出店数", f" {_OPEN_CNT_MARK} ").replace("出店", f" {_OPEN_MARK} ")
-    s = s.replace("閉鎖", f" {_CLOSE_MARK} ")
+    for src, mark in _FLOW_PROTECT:
+        s = s.replace(src, f" {mark} ")
     for src, dst in _UNGLUE:
         s = s.replace(src, f" {dst} ")
     s = _FC_EMBED_RE.sub(" FC ", s)
     s = _FCW_EMBED_RE.sub(" FC ", s)
-    s = (
-        s.replace(_OPEN_CNT_MARK, "出店数")
-        .replace(_OPEN_MARK, "出店")
-        .replace(_CLOSE_MARK, "閉鎖")
-        .replace(_CHAN_BOTH_MARK, "直営+FC")
-    )
+    for mark, dst in _FLOW_RESTORE:
+        s = s.replace(mark, dst)
+    s = s.replace(_CHAN_BOTH_MARK, "直営+FC")
     return re.sub(r"\s+", " ", s).strip()
 
 
@@ -172,10 +201,22 @@ def parse_element_layers(element: str) -> dict[str, str]:
     for tok in _unglue_element(element).split():
         if tok in _DROP_TOKS:
             continue
+        flow = _STORE_FLOW_CANON.get(tok)
+        if flow:
+            if metric in ("", "店舗数"):
+                metric = flow
+            continue
         peeled, rest = _peel_metric(tok)
         if peeled:
-            metric = peeled
-            if rest and rest not in _DROP_TOKS:
+            rest_flow = _STORE_FLOW_CANON.get(rest) if rest else None
+            if rest_flow:
+                if metric in ("", "店舗数"):
+                    metric = rest_flow
+            elif not (peeled == "店舗数" and metric in _STORE_FLOW_METRICS):
+                metric = peeled
+                if rest and rest not in _DROP_TOKS:
+                    leftover.append(rest)
+            elif rest and rest not in _DROP_TOKS:
                 leftover.append(rest)
             continue
         if tok in _COUNTRY_CANON:
@@ -416,7 +457,10 @@ def monthly_series_kind(element: str, unit: str | None) -> str | None:
 
 # 表示順。
 _SCOPE_RANK = {"all": 0, "existing": 1, "other": 3}
-_METRIC_RANK = {"sales": 1, "customers": 2, "spend": 3, "stores": 4, "other": 5}
+_METRIC_RANK = {
+    "sales": 1, "customers": 2, "spend": 3, "stores": 4,
+    "open": 5, "close": 6, "other": 7,
+}
 
 
 def _layers_of(element: str) -> dict[str, str]:
@@ -437,6 +481,10 @@ def _row_metric(key: str) -> str:
     metric = _layers_of(key)["metric"]
     if metric == "店舗数":
         return "stores"
+    if metric == "出店":
+        return "open"
+    if metric in {"閉鎖", "退店", "閉店"}:
+        return "close"
     if metric == "客単価":
         return "spend"
     if metric == "客数":
@@ -466,7 +514,7 @@ def monthly_row_segment(element: str) -> str:
 
 
 def monthly_row_slot(element: str, unit: str | None) -> int:
-    """指標枠。1売上高 2客数 3客単価 4店舗数 5その他。unit は互換のため残す。"""
+    """指標枠。1売上高 2客数 3客単価 4店舗数 5出店 6閉鎖/退店 7その他。unit は互換のため残す。"""
     _ = unit
     return _METRIC_RANK[_row_metric(element)]
 
@@ -478,7 +526,9 @@ def monthly_row_scope_rank(element: str) -> int:
         return _SCOPE_RANK["existing"]
     if layers["scope"] == "全店":
         return _SCOPE_RANK["all"]
-    if layers["metric"] == "店舗数" or _row_metric(element) == "stores":
+    if layers["metric"] in _STORE_FLOW_METRICS or layers["metric"] == "店舗数":
+        return _SCOPE_RANK["other"]
+    if _row_metric(element) in {"stores", "open", "close"}:
         return _SCOPE_RANK["other"]
     if not layers["segment"]:
         return _SCOPE_RANK["all"]
@@ -500,7 +550,7 @@ def union_monthly_elements(tables: Sequence[Any]) -> list[dict[str, str]]:
 
     国なし → 日本 → 海外。セグメント無しが先、名前付きは新しい年の初出順。
     各塊は 全店 → 既存 → チャネル（直営+FC → 直営 → FC）→
-    売上高 → 客数 → 客単価 → 店舗数 → その他。
+    売上高 → 客数 → 客単価 → 店舗数 → 出店 → 閉鎖/退店 → その他。
     スコープ無しの店舗数は既存の後。保存名は変えない。
     """
     newest_first = sorted(
