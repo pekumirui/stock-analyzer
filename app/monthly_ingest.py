@@ -232,6 +232,25 @@ def _stitch_real_store(leftover: list[str], metric: str) -> tuple[list[str], str
     return leftover, metric
 
 
+def _stitch_vs_sales(leftover: list[str], metric: str) -> tuple[list[str], str]:
+    """対前年比の残り 対 を落とし、指標が空なら 売上高。"""
+    had = False
+    kept: list[str] = []
+    for tok in leftover:
+        if tok == "対":
+            had = True
+            continue
+        if len(tok) > 1 and tok.endswith("対"):
+            had = True
+            tok = tok[:-1]
+            if not tok or tok in _DROP_TOKS:
+                continue
+        kept.append(tok)
+    if not metric and had:
+        metric = "売上高"
+    return kept, metric
+
+
 def _peel_adj_metric(leftover: list[str], metric: str) -> tuple[list[str], str]:
     """業態転換などを指標にして 全店 が末尾に残らないようにする。名前は変えない。"""
     if metric:
@@ -295,6 +314,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
         leftover.append(tok)
     leftover, metric = _stitch_store_flow(leftover, metric)
     leftover, metric = _stitch_real_store(leftover, metric)
+    leftover, metric = _stitch_vs_sales(leftover, metric)
     leftover, metric = _peel_adj_metric(leftover, metric)
     if _is_flow_metric(metric):
         scope = ""
