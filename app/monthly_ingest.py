@@ -287,6 +287,8 @@ def parse_element_layers(element: str) -> dict[str, str]:
         leftover.append(tok)
     leftover, metric = _stitch_store_flow(leftover, metric)
     leftover, metric = _peel_adj_metric(leftover, metric)
+    if _is_flow_metric(metric):
+        scope = ""
     if not scope and metric in _METRIC_FILL_ALL:
         scope = "全店"
     return {

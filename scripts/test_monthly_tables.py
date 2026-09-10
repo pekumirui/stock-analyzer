@@ -1077,8 +1077,10 @@ def _assert_monthly_row_order(c) -> None:
         _fail("純増 must not steal the brand")
     if monthly_row_segment("トライアル 新規 全店 出店") != "トライアル":
         _fail("新規 must not steal the brand")
-    if monthly_row_slot("トライアル 全店 出店", "number") != 4:
-        _fail("新規 出店 is still 出店")
+    if monthly_row_slot("トライアル 出店", "number") != 4:
+        _fail("出店 slot")
+    if monthly_row_scope_rank("トライアル 全店 出店") != 3:
+        _fail("出店 drops 全店, after 既存")
     if adj_names != want_adj:
         _fail(f"純増/新設/改装/業態転換 before 店舗数, names unchanged: {adj_names!r}")
 
@@ -1106,24 +1108,24 @@ def _assert_monthly_row_order(c) -> None:
     trial_names = [row["element"] for row in trial]
     want_trial = [
         "トライアル 全店 売上高(前年比)",
-        "トライアル 全店 出店",
-        "トライアル 全店 退店",
         "トライアル 全店 店舗数",
         "トライアル 既存 売上高(前年比)",
         "トライアル 既存 客数(前年比)",
         "トライアル 既存 客単価(前年比)",
+        "トライアル 出店",
+        "トライアル 退店",
         "西友 全店 売上高(前年比)",
-        "西友 全店 出店",
-        "西友 全店 退店",
         "西友 全店 業態転換数",
         "西友 全店 店舗数",
         "西友 既存 売上高(前年比)",
         "西友 既存 客数(前年比)",
         "西友 既存 客単価(前年比)",
+        "西友 出店",
+        "西友 退店",
         "西友 業態転換数",
     ]
     if trial_names != want_trial:
-        _fail(f"trial 新規 出店 must stay in brand 全店: {trial_names!r}")
+        _fail(f"出店/退店 are not 全店 scope: {trial_names!r}")
 
 
 def _assert_monthly_spa(html: str) -> None:

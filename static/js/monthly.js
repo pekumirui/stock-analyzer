@@ -205,6 +205,7 @@ function parseMonthlyLayers(element){
   }
   [leftover, metric] = monthlyStitchStoreFlow(leftover, metric);
   [leftover, metric] = monthlyPeelAdjMetric(leftover, metric);
+  if(monthlyIsFlowMetric(metric)) scope = "";
   if(!scope && MONTHLY_FILL_ALL.has(metric)) scope = "全店";
   return {country, segment: leftover.join(" "), channel, scope, metric};
 }
