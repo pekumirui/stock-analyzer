@@ -14,7 +14,7 @@ The default tab lists financial-statement disclosures for a calendar day, then s
 
 - Open `{url}/`. The 決算速報 nav button is already `.active`. Today's list is already loaded; `#earn-title` reads `{date}の決算発表`.
 - Click `nav button[data-tab="earnings"]` from any other tab.
-- Click `#cal-btn` to open `#cal-pop`. Click a day cell `#cal .d` that shows `.cnt`. The popover closes.
+- Click `#cal-btn` to open `#cal-pop`. Use `#cal-title` ◀/▶ (`calMove`) to change month when needed. Click a day cell `#cal .d` that shows `.cnt`. The popover closes.
 - Click a row `#earn-tbl tr[data-no]`.
 - Click 累計 / 3か月 in `.fin-tabs`.
 
