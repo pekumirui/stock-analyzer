@@ -20,7 +20,6 @@ def main() -> int:
     if not inspect(engine).has_table("stocks"):
         return 0  # DB未作成 = クリーン
 
-    # --- 1. スキーマ検査 ---
     lacks = missing_columns()
     if lacks:
         print("=" * 64)
@@ -34,7 +33,6 @@ def main() -> int:
         print("=" * 64)
         return 1
 
-    # --- 2. 旧デモ取り残し ---
     # 実コードは 1-9 始まり。0 始まりは seed_demo 時代の合成銘柄だけ。
     db = SessionLocal()
     try:

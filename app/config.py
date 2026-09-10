@@ -44,7 +44,6 @@ XBRL_DEST = os.getenv("XBRL_DEST", "/home/stock/r2-share/xbrl")
 XBRL_CACHE_DIR = os.getenv("XBRL_CACHE_DIR", "/home/stock/r2-share/xbrl/_cache")
 XBRL_TEXT_MAX_CHARS = int(os.getenv("XBRL_TEXT_MAX_CHARS", "1000"))
 
-# ---- J-Quants API V2 ----
 # V1 (メール/パスワード → idToken) は閉鎖予定。V2はダッシュボード発行のAPIキー方式。
 JQUANTS_API_KEY = os.getenv("JQUANTS_API_KEY", "")
 JQUANTS_BASE = os.getenv("JQUANTS_BASE", "https://api.jquants.com/v2")
@@ -57,12 +56,11 @@ RATE_LIMIT_FINS_PER_MIN = 60
 # J-Quants ProdCat (商品区分)。011 内国株券 / 012 優先出資 / 013 REIT / 014 ETF /
 # 021 外国株券 / 022 外国REIT / 023 外国ETF / 024 外国株預託証券
 RS_PRODUCT_CATEGORIES = ("011",)  # RS・ステージは普通株同士の相対
-EARNINGS_EXCLUDE_PRODUCT_CATEGORIES = ("013", "022")  # 決算速報から除外
+EARNINGS_EXCLUDE_PRODUCT_CATEGORIES = ("013", "022")
 
 # 月次 TOP の「新着」。last_ingested_at の JST 日付が今日を含むこの日数。
 MONTHLY_NEW_DAYS = 7
 
-# ミネルヴィニ・ステージ判定パラメータ
 STAGE_PARAMS = {
     "rs_min_stage2": 70,        # Stage2に必要なRSランク下限
     "low52_margin": 1.30,       # 52週安値からの上昇率 (30%以上)
@@ -75,7 +73,6 @@ STAGE_PARAMS = {
     "stage4_near_low": 1.10,    # 52週安値の1.1倍以内
 }
 
-# 決算速報パラメータ (analytics.quarter_summary / earnings_detail, api.earnings_*)
 EARNINGS_PARAMS = {
     "list_history_days": 800,      # 一覧のYoY/QoQ算出に必要な履歴の遡り日数(前年同期+その前四半期を含む)
     "cum_history_years": 5,        # 累計テーブルの行数 = 過去4期 + 当期

@@ -24,8 +24,6 @@ from pathlib import Path
 
 import pdfplumber
 
-# ---------------------------------------------------------------- 正規化
-
 RE_DATE = re.compile(r"\d+\s*年\s*\d+\s*月(\s*\d+\s*日)?|\d{4}[/-]\d{1,2}([/-]\d{1,2})?")
 RE_QUARTER = re.compile(r"第\s*\d+\s*(四半期|Q)")
 RE_NUM = re.compile(r"[△▲\-−+]?\d[\d,]*(\.\d+)?")
@@ -54,15 +52,11 @@ def is_label(s: str) -> bool:
     return bool(re.search(r"[^\W\d_]", stripped, re.UNICODE))
 
 
-# ---------------------------------------------------------------- 指紋抽出
-
-
 def table_fingerprint(raw_table, page_no, idx):
     rows = [[norm(c) for c in (r or [])] for r in raw_table if r]
     if not rows:
         return None
     header = rows[0]
-    # 行ラベル = 各行の最初の「文字を含むセル」
     labels = []
     for r in rows[1:]:
         for c in r:
@@ -91,7 +85,6 @@ def fingerprint(path):
             text = page.extract_text() or ""
             for line in text.split("\n"):
                 n = norm(line)
-                # 短めで文字を含む行＝見出し・項目名とみなす
                 if is_label(n) and 2 <= len(n) <= 40:
                     headings.append(n)
     # 表の中身が見出しとして二重計上されるのを除去
@@ -121,9 +114,6 @@ def fingerprint(path):
         ).encode()
     ).hexdigest()[:16]
     return fp
-
-
-# ---------------------------------------------------------------- 突合
 
 
 def similarity(a, b):
@@ -233,9 +223,6 @@ def compare(old, new):
     return changes, notes
 
 
-# ---------------------------------------------------------------- 出力
-
-
 def render(changed, changes, notes, old, new):
     out = []
     out.append(f"旧: {old['pages']}p / 表{len(old['tables'])} / hash={old['structure_hash']}")
@@ -262,9 +249,6 @@ def render(changed, changes, notes, old, new):
             for it in c.get("items", [])[:10]:
                 out.append(f"      {it}")
     return "\n".join(out)
-
-
-# ---------------------------------------------------------------- ディレクトリ走査（同一発行体の隣接比較）
 
 
 def discover_pdfs(root):

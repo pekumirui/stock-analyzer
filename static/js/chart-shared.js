@@ -1,4 +1,3 @@
-// ---- チャート ----
 let chartObj=null, relObj=null, curCode=null, eChartObj=null;
 
 function chartTheme(){
@@ -8,7 +7,6 @@ function chartTheme(){
           up:v("--up"), down:v("--down"), accent:v("--accent"), warn:v("--warn")};
 }
 
-// イベント重ね合わせ。既定オフ。種別を足すときは EVENT_LAYERS と API の日付配列だけ増やす
 const EVENT_LAYERS = [
   {id:"earnings", label:"決算発表", color:"warn", text:"決", key:"earnings_dates"},
 ];

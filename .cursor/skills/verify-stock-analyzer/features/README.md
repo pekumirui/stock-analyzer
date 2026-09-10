@@ -1,6 +1,6 @@
 # stock-analyzer verification map
 
-This directory is the maintained source for verifying the user-facing behavior of stock-analyzer. Read the index before driving the app, then use the matching feature file as the recipe.
+Read this index, then the matching feature file, before driving the app.
 
 ## Baseline preconditions
 

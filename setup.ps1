@@ -19,7 +19,6 @@ if (-not $py) {
 }
 Write-Host "使用する Python: $py ($(& $py --version 2>&1))" -ForegroundColor Green
 
-# 仮想環境
 if (-not (Test-Path ".venv")) {
     Write-Host "仮想環境を作成中 (.venv)..."
     & $py -m venv .venv
@@ -28,7 +27,6 @@ if (-not (Test-Path ".venv")) {
 Write-Host "依存パッケージをインストール中..."
 & .\.venv\Scripts\python.exe -m pip install -r requirements.txt --quiet
 
-# 古い空DBを掃除
 if ((Test-Path "stock.db") -and ((Get-Item "stock.db").Length -eq 0)) {
     Remove-Item "stock.db", "stock.db-journal" -ErrorAction SilentlyContinue
 }

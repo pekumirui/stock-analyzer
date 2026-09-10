@@ -52,14 +52,12 @@ def compute_indicators(db: Session, keep_days: int = 400):
         df[f"r{n}"] = g["adj_close"].transform(lambda s, n=n: s / s.shift(n) - 1)
     df["rs_raw"] = (df["r63"] * 0.4 + df["r126"] * 0.2 + df["r189"] * 0.2 + df["r252"] * 0.2) * 100
 
-    # RSランク: 日毎にパーセンタイル→1-99
     def rank_day(s: pd.Series) -> pd.Series:
         pct = s.rank(pct=True, method="average")
         return np.ceil(pct * 99).clip(1, 99)
     df["rs_rank"] = df.groupby("date")["rs_raw"].transform(rank_day)
     df.loc[df["rs_raw"].isna(), "rs_rank"] = np.nan
 
-    # Stage1用: MA200±band 帯域内比率 (直近N日)
     in_band = ((df["adj_close"] >= df["ma200"] * (1 - P["stage1_band"])) &
                (df["adj_close"] <= df["ma200"] * (1 + P["stage1_band"]))).astype(float)
     df["band_ratio"] = in_band.groupby(df["code"]).transform(
@@ -95,7 +93,6 @@ def compute_indicators(db: Session, keep_days: int = 400):
     )
     df["stage"] = np.select([stage2, stage4, stage1, stage3], [2, 4, 1, 3], default=np.nan)
 
-    # 保存は直近keep_days分のみ (容量節約)
     cutoff = sorted(df["date"].unique())[-keep_days] if df["date"].nunique() > keep_days else df["date"].min()
     out = df[df["date"] >= cutoff]
     cols = ["code", "date", "adj_close", "ma50", "ma150", "ma200", "ma200_slope_1m",
@@ -157,8 +154,6 @@ def compute_earnings_events(db: Session):
     if rows:
         upsert(db, EarningsEvent, rows)
 
-
-# ---------- 決算サマリ (Q単独・YoY・QoQ・修正判定) ----------
 
 METRIC_KEYS = ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps")
 # 再提出が実質的な訂正かを見るときに比べる指標。EPSは分割・増資で遡及修正されるだけの
@@ -423,7 +418,6 @@ def cumulative_rows(hist: list[Statement], stmt: Statement, years: int, tol_days
                          growth_map(fyf, metrics(prev_fy) if prev_fy else None),
                          disclosed=stmt.disclosed_date))
     if prev_fy is not None:
-        # 前期通期実績。ここは基準行なので前年比は付けない
         rows.append(_row(prev_fy.fiscal_year_end, None, "actual_fy_prev", metrics(prev_fy), None,
                          disclosed=prev_fy.disclosed_date))
     return rows

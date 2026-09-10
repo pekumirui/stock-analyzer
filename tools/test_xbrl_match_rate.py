@@ -392,7 +392,6 @@ def test_skip_missing_period_basis(tmp: Path) -> None:
     finally:
         conn.close()
     gdir = tmp / "g_miss_basis"
-    # Write without period_basis key
     gdir.mkdir(parents=True, exist_ok=True)
     rec = {
         "code": "72030",
@@ -438,7 +437,6 @@ def test_fetch_builds_cumulative_from_standalone(tmp: Path) -> None:
         _fail(f"Q2 build {q2.get('cumulative_build')}")
     if q3.get("cumulative_build") != "sum_q1_q2_q3_standalone":
         _fail(f"Q3 build {q3.get('cumulative_build')}")
-    # Must not write period_basis=single_quarter files
     for p in out.glob("*.json"):
         rec = json.loads(p.read_text(encoding="utf-8"))
         if rec.get("period_basis") == "single_quarter":
@@ -467,10 +465,8 @@ def test_fetch_rejects_orphan_q2_standalone(tmp: Path) -> None:
         fetch_mod.main(["--input", str(src), "--out-dir", str(out)])
     except SystemExit as exc:
         if "no cumulative" not in str(exc).lower() and "no cumulative" not in str(exc):
-            # main raises SystemExit with message
             if out.exists() and any(out.glob("*.json")):
                 _fail(f"should not write goldens: {list(out.glob('*.json'))}")
-        # ok — either exit or empty
     else:
         files = list(out.glob("*.json")) if out.exists() else []
         if files:

@@ -91,7 +91,6 @@ def earnings_by_date(date_: str = Query(..., alias="date"), db: Session = Depend
         for s in hist:
             if s.disclosed_date != day or not is_actual(s):
                 continue
-            # 既出期間の数値そのままの再提出は速報ではないので出さない
             state = disclosure_state(hist, s)
             if state == "duplicate":
                 continue
@@ -256,8 +255,6 @@ def search(q: str, db: Session = Depends(get_session)):
     return [{"code": s.code, "name": s.name, "market": s.market} for s in rows]
 
 
-# ---- 月次データ登録 API (/api/v1) ----
-
 router_v1 = APIRouter(prefix="/api/v1")
 
 _INVALID_VALUE_MSG = "value は数値のみ受け付けます。単位(%、円など)やカンマは除去してください。"
@@ -277,7 +274,6 @@ class ApiError(Exception):
 
 
 def _normalize_element(s: str) -> str:
-    # 類似判定: NFKC → 空白除去 → 小文字
     s = unicodedata.normalize("NFKC", s)
     s = re.sub(r"\s+", "", s)
     return s.lower()
@@ -474,7 +470,7 @@ def _upsert_value(db: Session, code: str, year: int, element: str, month: int, v
     if row is None:
         db.add(MonthlyValue(code=code, year=year, element=element, month=month, value=value))
     else:
-        row.value = value  # last-write-wins
+        row.value = value
 
 
 def _element_unit(row: MonthlyElement) -> str:
@@ -880,7 +876,6 @@ def put_values_batch(code: str, year: str, payload: dict | None = Body(None),
     if not isinstance(items, list):
         raise ApiError(400, "INVALID_PARAM", "values は {month, value} の配列です。")
 
-    # 先に全部検証してから書く (all-or-nothing)
     ops: dict[int, float | None] = {}
     for item in items:
         if not isinstance(item, dict):
