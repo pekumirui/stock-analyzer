@@ -49,14 +49,178 @@ def strip_yoy_fragments(name: str) -> str:
 
 
 def canonicalize_element_label(element: str, unit: str | None) -> str:
-    """保存名・表示名。yoy は語を剥がして (前年比) を1回。number はトリムのみ。"""
+    """保存名・表示名。トークン順を揃え、yoy は (前年比) を1回。"""
     trimmed = element.strip()
-    if (unit or "number") not in _YOY_UNITS:
-        return trimmed
-    base = strip_yoy_fragments(trimmed)
+    is_yoy = (unit or "number") in _YOY_UNITS
+    if unit is None and ("(前年比)" in trimmed or "（前年比）" in trimmed):
+        is_yoy = True
+    base = strip_yoy_fragments(trimmed) if is_yoy else trimmed
+    base = normalize_element_tokens(base)
+    if not is_yoy:
+        return base
     if base.endswith(_YOY_SUFFIX):
         return base
     return f"{base}{_YOY_SUFFIX}"
+
+
+# [国] [セグメント] [チャネル] [スコープ] [指標]。無いトークンは出さない。
+_UNGLUE: tuple[tuple[str, str], ...] = (
+    ("既存直営店", "直営 既存"),
+    ("全店舗数", "店舗数"),
+    ("店舗数", "店舗数"),
+    ("店数", "店舗数"),
+    ("来客数", "来客数"),
+    ("客単価", "客単価"),
+    ("売上高", "売上高"),
+    ("既存店舗", "既存"),
+    ("既存店", "既存"),
+    ("全店舗", "全店"),
+    ("全店", "全店"),
+    ("全社", "全店"),
+    ("フランチャイズ", "FC"),
+    ("FC店舗", "FC"),
+    ("FC店", "FC"),
+    ("ＦＣ店舗", "FC"),
+    ("ＦＣ店", "FC"),
+    ("直営店", "直営"),
+    ("直営", "直営"),
+    ("既存", "既存"),
+    ("月末", "月末"),
+    ("期末", "期末"),
+    ("合計", "合計"),
+    ("総計", "総計"),
+    ("小計", "小計"),
+    ("部門", "部門"),
+    ("うち", "うち"),
+)
+_CHAN_BOTH_MARK = "\x00CHANBOTH\x00"
+_OPEN_CNT_MARK = "\x00OPENCNT\x00"
+_OPEN_MARK = "\x00OPEN\x00"
+_CLOSE_MARK = "\x00CLOSE\x00"
+_FC_EMBED_RE = re.compile(r"(?<![A-Za-z])FC(?![A-Za-z])")
+_FCW_EMBED_RE = re.compile(r"ＦＣ")
+_DROP_TOKS = frozenset({
+    "合計", "総計", "小計", "計", "月末", "期末", "うち", "部門", "店",
+    "前期比", "同期比", "増減率", "前年比", "前年同月比", "前年同月", "全",
+    "（", "）", "(", ")", "(前年比)", "（前年比）",
+})
+_COUNTRY_CANON = {"日本": "日本", "国内": "日本", "海外": "海外"}
+_CHANNEL_CANON = {
+    "直営+FC": "直営+FC", "直営＋FC": "直営+FC", "直営": "直営",
+    "FC": "FC", "ＦＣ": "FC", "フランチャイズ": "FC",
+}
+_SCOPE_EXISTING = frozenset({"既存"})
+_SCOPE_ALL = frozenset({"全店"})
+_METRIC_FILL_ALL = frozenset({"売上高", "客数", "客単価"})
+_METRIC_PREFIX: tuple[tuple[str, str], ...] = (
+    ("店舗数", "店舗数"),
+    ("来客数", "客数"),
+    ("客単価", "客単価"),
+    ("売上高", "売上高"),
+    ("客数", "客数"),
+    ("来客", "客数"),
+    ("単価", "客単価"),
+    ("売上", "売上高"),
+)
+_METRIC_STARTSWITH = frozenset({"店舗数", "来客数", "客単価", "売上高", "客数"})
+_COUNTRY_RANK = {"": 0, "日本": 1, "海外": 2}
+_CHANNEL_RANK = {"直営+FC": 0, "直営": 1, "FC": 2, "": 3}
+_FC_TOKEN_RE = re.compile(r"^(?:FC|ＦＣ)$")
+
+
+def _unglue_element(text: str) -> str:
+    s = text.replace("直営+FC", f" {_CHAN_BOTH_MARK} ").replace(
+        "直営＋FC", f" {_CHAN_BOTH_MARK} ",
+    )
+    s = s.replace("出店数", f" {_OPEN_CNT_MARK} ").replace("出店", f" {_OPEN_MARK} ")
+    s = s.replace("閉鎖", f" {_CLOSE_MARK} ")
+    for src, dst in _UNGLUE:
+        s = s.replace(src, f" {dst} ")
+    s = _FC_EMBED_RE.sub(" FC ", s)
+    s = _FCW_EMBED_RE.sub(" FC ", s)
+    s = (
+        s.replace(_OPEN_CNT_MARK, "出店数")
+        .replace(_OPEN_MARK, "出店")
+        .replace(_CLOSE_MARK, "閉鎖")
+        .replace(_CHAN_BOTH_MARK, "直営+FC")
+    )
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _peel_metric(tok: str) -> tuple[str | None, str | None]:
+    """指標語をトークンの前後から剥がす。残りはセグメント候補。
+
+    短い接頭辞（売上/来客/単価）は前方一致しない（売上変化を売上高にしない）。
+    """
+    for src, canon in _METRIC_PREFIX:
+        if tok == src:
+            return canon, None
+        if len(tok) > len(src) and tok.endswith(src):
+            return canon, tok[:-len(src)]
+        if src in _METRIC_STARTSWITH and len(tok) > len(src) and tok.startswith(src):
+            return canon, tok[len(src):]
+    return None, tok
+
+
+def parse_element_layers(element: str) -> dict[str, str]:
+    """国 / セグメント / チャネル / スコープ / 指標。正規化前の名前でも読む。"""
+    country = ""
+    channel = ""
+    scope = ""
+    metric = ""
+    leftover: list[str] = []
+    for tok in _unglue_element(element).split():
+        if tok in _DROP_TOKS:
+            continue
+        peeled, rest = _peel_metric(tok)
+        if peeled:
+            metric = peeled
+            if rest and rest not in _DROP_TOKS:
+                leftover.append(rest)
+            continue
+        if tok in _COUNTRY_CANON:
+            country = _COUNTRY_CANON[tok]
+            continue
+        mapped_ch = _CHANNEL_CANON.get(tok)
+        if mapped_ch or _FC_TOKEN_RE.fullmatch(tok):
+            channel = mapped_ch or "FC"
+            continue
+        if tok in _SCOPE_EXISTING:
+            scope = "既存"
+            continue
+        if tok in _SCOPE_ALL:
+            scope = "全店"
+            continue
+        leftover.append(tok)
+    if not scope and metric in _METRIC_FILL_ALL:
+        scope = "全店"
+    return {
+        "country": country,
+        "segment": " ".join(leftover),
+        "channel": channel,
+        "scope": scope,
+        "metric": metric,
+    }
+
+
+def normalize_element_tokens(element: str) -> str:
+    """空白区切り [国] [セグメント] [チャネル] [スコープ] [指標]。"""
+    trimmed = re.sub(r"\s+", " ", element.strip())
+    if not trimmed:
+        return trimmed
+    parts = parse_element_layers(trimmed)
+    ordered = [
+        parts["country"], parts["segment"], parts["channel"],
+        parts["scope"], parts["metric"],
+    ]
+    built = " ".join(p for p in ordered if p)
+    return built or trimmed
+
+
+def _alias_unit(name: str) -> str:
+    if any(frag in name for frag in ("(前年比)", "（前年比）", "前年比")):
+        return "yoy_index"
+    return "number"
 
 
 class IssuerPeriodRename:
@@ -86,11 +250,17 @@ def load_issuer_aliases(path: Path | None = None) -> dict[str, tuple[IssuerPerio
             rename_raw = item.get("rename")
             if not isinstance(until_raw, str) or not isinstance(rename_raw, dict):
                 continue
-            rename = {
-                str(src).strip(): str(dst).strip()
-                for src, dst in rename_raw.items()
-                if str(src).strip() and str(dst).strip()
-            }
+            rename = {}
+            for src, dst in rename_raw.items():
+                src_s = str(src).strip()
+                dst_s = str(dst).strip()
+                if not src_s or not dst_s:
+                    continue
+                unit = _alias_unit(src_s) if _alias_unit(src_s) == "yoy_index" else _alias_unit(dst_s)
+                key = canonicalize_element_label(src_s, unit)
+                val = canonicalize_element_label(dst_s, unit)
+                if key:
+                    rename[key] = val or key
             rules.append(IssuerPeriodRename(date.fromisoformat(until_raw), rename))
         rules.sort(key=lambda rule: rule.until)
         out[str(code)] = tuple(rules)
@@ -167,34 +337,31 @@ def same_yoy_element(
     incoming_name: str,
     incoming_unit: str | None,
 ) -> bool:
-    """incoming は canonicalize 済み。yoy 既存行を同じ規則で正規化して同一行か見る。
+    """incoming は canonicalize 済み。正規化後に同一なら同一行。
 
     number の `売上高` は yoy の `売上高(前年比)` とは別行。
     """
     if stored_name == incoming_name:
         return True
     stored_u = stored_unit or "number"
-    if stored_u not in _YOY_UNITS:
+    incoming_u = incoming_unit or "number"
+    stored_yoy = stored_u in _YOY_UNITS
+    incoming_yoy = incoming_u in _YOY_UNITS
+    if stored_yoy != incoming_yoy:
         return False
-    if canonicalize_element_label(stored_name, stored_u) == incoming_name:
-        return True
-    if canonicalize_element_label(stored_name, incoming_unit) == incoming_name:
-        return True
-    return False
+    return canonicalize_element_label(stored_name, stored_u) == incoming_name
 
 
 def plan_yoy_duplicate_merges(
     rows: Sequence[tuple[str, int, str, str | None]],
 ) -> list[tuple[str, int, str, list[str]]]:
-    """yoy の短い保存名を正規名へ。同一年の重複が無くても返す。
+    """保存名を canonicalize へ。同一年の重複がなくても返す。
 
-    number は見ない（売上高 と 売上高(前年比) は別行のまま）。
+    number の `売上高` と yoy の `売上高(前年比)` は別行のまま。
     戻りは (code, year, canonical, short_names)。
     """
     groups: dict[tuple[str, int, str], set[str]] = {}
     for code, year, element, unit in rows:
-        if (unit or "number") not in _YOY_UNITS:
-            continue
         canonical = canonicalize_element_label(element, unit)
         if not canonical:
             continue
@@ -247,44 +414,36 @@ def monthly_series_kind(element: str, unit: str | None) -> str | None:
     return None
 
 
-# 表示順。保存名は変えない。長い語を先に剥がす。
-_ROW_CHANNELS = ("直営+FC", "直営＋FC", "直営")
-_ROW_COMPANY = ("当期計", "連結", "単体", "合計", "うち")
-_ROW_SCOPE_EX = ("既存直営店", "既存店舗", "既存店", "既存")
-_ROW_SCOPE_ALL = ("全店舗", "全店", "全社")
-_ROW_SCOPE_FC = ("フランチャイズ", "FC店舗", "FC店", "ＦＣ店舗", "ＦＣ店")
-_ROW_METRICS = (
-    "(前年比)", "（前年比）", "前年比", "前期比", "同期比", "増減率",
-    "売上高", "売上", "客単価", "単価", "来客数", "客数", "来客",
-    "店舗数", "期末", "月末", "出店", "退店",
-)
-_SCOPE_RANK = {"all": 0, "existing": 1, "fc": 2, "other": 3}
+# 表示順。
+_SCOPE_RANK = {"all": 0, "existing": 1, "other": 3}
 _METRIC_RANK = {"sales": 1, "customers": 2, "spend": 3, "stores": 4, "other": 5}
 
 
-def _strip_toks(text: str, toks: tuple[str, ...]) -> str:
-    for tok in toks:
-        text = text.replace(tok, "")
-    return text
+def _layers_of(element: str) -> dict[str, str]:
+    return parse_element_layers(strip_yoy_fragments(element))
 
 
 def _row_scope(key: str) -> str:
-    """既存 > 全店/全社 > 直営(+FC)は全店枠 > FC。直営+FC の FC はチャネルなので見ない。"""
-    if any(tok in key for tok in _ROW_SCOPE_EX):
+    """既存 / 全店。チャネルの直営・FC はスコープにしない。"""
+    scope = _layers_of(key)["scope"]
+    if scope == "既存":
         return "existing"
-    if any(tok in key for tok in _ROW_SCOPE_ALL):
+    if scope == "全店":
         return "all"
-    if "直営" in key:
-        return "all"
-    stripped = _strip_toks(key, _ROW_CHANNELS)
-    if any(tok in stripped for tok in _ROW_SCOPE_FC):
-        return "fc"
-    if re.search(r"(?:^|[^A-Za-z])(?:FC|ＦＣ)(?:店|店舗|出店|退店|月末|$)", stripped):
-        return "fc"
     return "other"
 
 
 def _row_metric(key: str) -> str:
+    metric = _layers_of(key)["metric"]
+    if metric == "店舗数":
+        return "stores"
+    if metric == "客単価":
+        return "spend"
+    if metric == "客数":
+        return "customers"
+    if metric == "売上高":
+        return "sales"
+    # 正規化で指標が取れない旧名
     if "店舗数" in key:
         return "stores"
     if "客単価" in key or "単価" in key:
@@ -297,45 +456,52 @@ def _row_metric(key: str) -> str:
 
 
 def _row_segment(key: str) -> str:
-    """全店/既存/FC/チャネル/指標を除いた残り。空なら全社行。"""
-    rest = _strip_toks(key, _ROW_METRICS)
-    rest = _strip_toks(rest, _ROW_CHANNELS)
-    rest = _strip_toks(rest, _ROW_SCOPE_EX + _ROW_SCOPE_ALL + _ROW_SCOPE_FC)
-    rest = rest.replace("FC", "").replace("ＦＣ", "")
-    rest = _strip_toks(rest, _ROW_COMPANY)
-    return rest
+    """ブランド。国・チャネル・スコープ・指標を除いた残り。"""
+    return _layers_of(key)["segment"]
 
 
 def monthly_row_segment(element: str) -> str:
-    """ブランド。`カラオケ全店 売上高(前年比)` → カラオケ。全社/全店のみなら空。"""
-    return _row_segment(monthly_element_key(element))
+    """ブランド。`カラオケ 全店 売上高(前年比)` → カラオケ。全社/全店のみなら空。"""
+    return _row_segment(element)
 
 
 def monthly_row_slot(element: str, unit: str | None) -> int:
     """指標枠。1売上高 2客数 3客単価 4店舗数 5その他。unit は互換のため残す。"""
     _ = unit
-    return _METRIC_RANK[_row_metric(monthly_element_key(element))]
+    return _METRIC_RANK[_row_metric(element)]
 
 
 def monthly_row_scope_rank(element: str) -> int:
-    """0全店 1既存店 2FC店 3その他。全社・全店舗は全店。"""
-    key = monthly_element_key(element)
-    scope = _row_scope(key)
-    if scope == "other" and not _row_segment(key):
-        # 売上高など社名なしは全店枠。合計店舗数は入れない（既存店の前＝真ん中になる）。
-        if _row_metric(key) == "stores":
-            return _SCOPE_RANK["other"]
+    """0全店 1既存 3その他。スコープ無しの店舗数は 3（既存の後）。"""
+    layers = _layers_of(element)
+    if layers["scope"] == "既存":
+        return _SCOPE_RANK["existing"]
+    if layers["scope"] == "全店":
         return _SCOPE_RANK["all"]
-    return _SCOPE_RANK[scope]
+    if layers["metric"] == "店舗数" or _row_metric(element) == "stores":
+        return _SCOPE_RANK["other"]
+    if not layers["segment"]:
+        return _SCOPE_RANK["all"]
+    return _SCOPE_RANK["other"]
+
+
+def _row_country_rank(element: str) -> int:
+    country = _layers_of(element)["country"]
+    return _COUNTRY_RANK.get(country, 3)
+
+
+def _row_channel_rank(element: str) -> int:
+    channel = _layers_of(element)["channel"]
+    return _CHANNEL_RANK.get(channel, 3)
 
 
 def union_monthly_elements(tables: Sequence[Any]) -> list[dict[str, str]]:
     """発行体の年をまたいだ行順。キーは表示名。
 
-    全店 → 既存店 → FC店 → セグメント初出順。各塊の中は
-    売上高 → 客数 → 客単価 → 店舗数 → その他。無い枠は飛ばす。
-    全社・全店舗は全店と同じ枠。合計店舗数などスコープ無しの店舗数は
-    全店に入れず、既存店・FC の後。保存名は変えない。
+    国なし → 日本 → 海外。セグメント無しが先、名前付きは新しい年の初出順。
+    各塊は 全店 → 既存 → チャネル（直営+FC → 直営 → FC）→
+    売上高 → 客数 → 客単価 → 店舗数 → その他。
+    スコープ無しの店舗数は既存の後。保存名は変えない。
     """
     newest_first = sorted(
         (t for t in tables if t),
@@ -366,14 +532,18 @@ def union_monthly_elements(tables: Sequence[Any]) -> list[dict[str, str]]:
                 "element": display,
                 "unit": unit,
                 "segment": segment,
+                "country": _row_country_rank(display),
                 "scope": monthly_row_scope_rank(display),
+                "channel": _row_channel_rank(display),
                 "slot": monthly_row_slot(display, unit),
                 "idx": len(items),
             })
     items.sort(key=lambda it: (
         0 if not it["segment"] else 1,
+        it["country"],
         0 if not it["segment"] else seg_index[it["segment"]],
         it["scope"],
+        it["channel"],
         it["slot"],
         it["idx"],
     ))

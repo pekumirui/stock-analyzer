@@ -328,14 +328,20 @@ def _canonical_element(
         code, canonicalize_element_label(raw_name, unit),
         year=year, as_of=as_of,
     )
+    s = canonicalize_element_label(s, unit)
     if not s or len(s) > 50:
         raise ApiError(400, "INVALID_PARAM", "element は1〜50文字の文字列です。")
     return s
 
 
 def _lookup_element(raw: Any, code: str, *, year: int | None = None) -> str:
-    """PUT は yoy 正規化しない。銘柄エイリアスだけ掛けて保存名に合わせる。"""
-    s = apply_issuer_aliases(code, _parse_element(raw), year=year)
+    """PUT は保存名に合わせる。トークン正規化と銘柄エイリアスを掛ける。"""
+    raw_name = _parse_element(raw)
+    unit = "yoy_index" if any(f in raw_name for f in ("(前年比)", "（前年比）", "前年比")) else "number"
+    s = apply_issuer_aliases(
+        code, canonicalize_element_label(raw_name, unit), year=year,
+    )
+    s = canonicalize_element_label(s, unit)
     if not s or len(s) > 50:
         raise ApiError(400, "INVALID_PARAM", "element は1〜50文字の文字列です。")
     return s

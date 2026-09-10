@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 
 from .config import DATABASE_URL
 from .models import Base, MonthlyElement, MonthlyValue
-from .monthly_ingest import apply_issuer_aliases, plan_yoy_duplicate_merges, same_yoy_element
+from .monthly_ingest import apply_issuer_aliases, canonicalize_element_label, plan_yoy_duplicate_merges, same_yoy_element
 
 engine = create_engine(DATABASE_URL, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, future=True)
@@ -199,7 +199,9 @@ def fold_aliased_element(
     db, code: str, year: int, incoming_name: str, incoming_unit: str | None,
 ) -> MonthlyElement | None:
     """銘柄エイリアス後に同一になる既存行を寄せる。無ければ None。"""
-    incoming = apply_issuer_aliases(code, incoming_name, year=year)
+    incoming = canonicalize_element_label(
+        apply_issuer_aliases(code, incoming_name, year=year), incoming_unit,
+    )
     existing = (
         db.query(MonthlyElement)
         .filter(MonthlyElement.code == code, MonthlyElement.year == year)
@@ -207,7 +209,12 @@ def fold_aliased_element(
     )
     matches = [
         row for row in existing
-        if apply_issuer_aliases(code, row.element, year=year) == incoming
+        if canonicalize_element_label(
+            apply_issuer_aliases(
+                code, canonicalize_element_label(row.element, row.unit), year=year,
+            ),
+            row.unit,
+        ) == incoming
     ]
     if not matches:
         return None
@@ -230,7 +237,12 @@ def fold_aliased_element(
     for row in leftovers:
         if row.element == incoming:
             continue
-        if apply_issuer_aliases(code, row.element, year=year) != incoming:
+        if canonicalize_element_label(
+            apply_issuer_aliases(
+                code, canonicalize_element_label(row.element, row.unit), year=year,
+            ),
+            row.unit,
+        ) != incoming:
             continue
         src = db.get(MonthlyElement, (code, year, row.element))
         dst = db.get(MonthlyElement, (code, year, incoming))
@@ -249,12 +261,22 @@ def apply_issuer_element_aliases(verbose: bool = True) -> list[dict]:
     try:
         rows = [
             r for r in db.query(MonthlyElement).all()
-            if apply_issuer_aliases(r.code, r.element, year=r.year) != r.element
+            if canonicalize_element_label(
+                apply_issuer_aliases(
+                    r.code, canonicalize_element_label(r.element, r.unit), year=r.year,
+                ),
+                r.unit,
+            ) != r.element
         ]
         rows.sort(key=lambda r: (r.code, r.year, r.sort_order, r.element))
         for row in rows:
             old = row.element
-            new = apply_issuer_aliases(row.code, old, year=row.year)
+            new = canonicalize_element_label(
+                apply_issuer_aliases(
+                    row.code, canonicalize_element_label(old, row.unit), year=row.year,
+                ),
+                row.unit,
+            )
             if db.get(MonthlyElement, (row.code, row.year, old)) is None:
                 continue
             dst_existed = db.get(MonthlyElement, (row.code, row.year, new)) is not None
@@ -280,7 +302,7 @@ def apply_issuer_element_aliases(verbose: bool = True) -> list[dict]:
 
 
 def merge_yoy_duplicate_elements(verbose: bool = True) -> list[dict]:
-    """yoy 保存名を正規名へ。同一年に両方あれば正規名へ寄せて短い行を消す。冪等。"""
+    """保存名を canonicalize へ。同一年に両方あれば正規名へ寄せて短い行を消す。冪等。"""
     insp = inspect(engine)
     if "monthly_elements" not in insp.get_table_names():
         return []
@@ -335,7 +357,7 @@ def merge_yoy_duplicate_elements(verbose: bool = True) -> list[dict]:
             if verbose:
                 moved = renamed + deleted
                 print(
-                    f"月次yoy行を正規化: {code} {year} {moved!r} → {canonical!r}"
+                    f"月次行を正規化: {code} {year} {moved!r} → {canonical!r}"
                 )
                 for item in conflicts:
                     print(
