@@ -230,7 +230,10 @@ def reject_prior_period_element(element: str) -> None:
 
 
 def monthly_series_kind(element: str, unit: str | None) -> str | None:
-    """TOP/チャート用。all_store / existing / stores。どれでもなければ None。"""
+    """TOP/チャート用。all_store / existing / stores。どれでもなければ None。
+
+    全社・全店舗は全店と同じ。既存が付いていれば既存を優先。
+    """
     key = monthly_element_key(element)
     u = unit or "number"
     if "店舗数" in key and u == "number":
@@ -239,48 +242,98 @@ def monthly_series_kind(element: str, unit: str | None) -> str | None:
         return None
     if "既存" in key:
         return "existing"
-    if "全店" in key:
+    if "全店" in key or "全社" in key:
         return "all_store"
     return None
 
 
+# 表示順。保存名は変えない。長い語を先に剥がす。
+_ROW_CHANNELS = ("直営+FC", "直営＋FC", "直営")
+_ROW_COMPANY = ("当期計", "連結", "単体", "合計", "うち")
+_ROW_SCOPE_EX = ("既存直営店", "既存店舗", "既存店", "既存")
+_ROW_SCOPE_ALL = ("全店舗", "全店", "全社")
+_ROW_SCOPE_FC = ("フランチャイズ", "FC店舗", "FC店", "ＦＣ店舗", "ＦＣ店")
+_ROW_METRICS = (
+    "(前年比)", "（前年比）", "前年比", "前期比", "同期比", "増減率",
+    "売上高", "売上", "客単価", "単価", "来客数", "客数", "来客",
+    "店舗数", "期末", "月末", "出店", "退店",
+)
+_SCOPE_RANK = {"all": 0, "existing": 1, "fc": 2, "other": 3}
+_METRIC_RANK = {"sales": 1, "customers": 2, "spend": 3, "stores": 4, "other": 5}
+
+
+def _strip_toks(text: str, toks: tuple[str, ...]) -> str:
+    for tok in toks:
+        text = text.replace(tok, "")
+    return text
+
+
+def _row_scope(key: str) -> str:
+    """既存 > 全店/全社 > 直営(+FC)は全店枠 > FC。直営+FC の FC はチャネルなので見ない。"""
+    if any(tok in key for tok in _ROW_SCOPE_EX):
+        return "existing"
+    if any(tok in key for tok in _ROW_SCOPE_ALL):
+        return "all"
+    if "直営" in key:
+        return "all"
+    stripped = _strip_toks(key, _ROW_CHANNELS)
+    if any(tok in stripped for tok in _ROW_SCOPE_FC):
+        return "fc"
+    if re.search(r"(?:^|[^A-Za-z])(?:FC|ＦＣ)(?:店|店舗|出店|退店|月末|$)", stripped):
+        return "fc"
+    return "other"
+
+
+def _row_metric(key: str) -> str:
+    if "店舗数" in key:
+        return "stores"
+    if "客単価" in key or "単価" in key:
+        return "spend"
+    if "客数" in key or "来客" in key:
+        return "customers"
+    if "売上" in key:
+        return "sales"
+    return "other"
+
+
+def _row_segment(key: str) -> str:
+    """全店/既存/FC/チャネル/指標を除いた残り。空なら全社行。"""
+    rest = _strip_toks(key, _ROW_METRICS)
+    rest = _strip_toks(rest, _ROW_CHANNELS)
+    rest = _strip_toks(rest, _ROW_SCOPE_EX + _ROW_SCOPE_ALL + _ROW_SCOPE_FC)
+    rest = rest.replace("FC", "").replace("ＦＣ", "")
+    rest = _strip_toks(rest, _ROW_COMPANY)
+    return rest
+
+
 def monthly_row_segment(element: str) -> str:
-    """全店 / 既存 / 店舗数 より前。`カラオケ全店 売上高(前年比)` → カラオケ。無ければ空。"""
-    key = monthly_element_key(element)
-    cut: int | None = None
-    for kw in ("全店", "既存", "店舗数"):
-        i = key.find(kw)
-        if i >= 0 and (cut is None or i < cut):
-            cut = i
-    if cut is None:
-        return ""
-    return key[:cut]
+    """ブランド。`カラオケ全店 売上高(前年比)` → カラオケ。全社/全店のみなら空。"""
+    return _row_segment(monthly_element_key(element))
 
 
 def monthly_row_slot(element: str, unit: str | None) -> int:
-    """セグメント内の行枠。1全店売上 2既存店売上 3客単価 4店舗数 5その他。店舗数は売上に入れない。"""
+    """指標枠。1売上高 2客数 3客単価 4店舗数 5その他。unit は互換のため残す。"""
+    _ = unit
+    return _METRIC_RANK[_row_metric(monthly_element_key(element))]
+
+
+def monthly_row_scope_rank(element: str) -> int:
+    """0全店 1既存店 2FC店 3その他。全社・全店舗は全店。"""
     key = monthly_element_key(element)
-    u = unit or "number"
-    is_yoy = u in _YOY_UNITS
-    if (
-        is_yoy
-        and "売上" in key
-        and "全店" in key
-        and "既存" not in key
-        and "店舗数" not in key
-    ):
-        return 1
-    if is_yoy and "売上" in key and "既存" in key and "店舗数" not in key:
-        return 2
-    if "客単価" in key or "単価" in key:
-        return 3
-    if "店舗数" in key:
-        return 4
-    return 5
+    scope = _row_scope(key)
+    if scope == "other" and not _row_segment(key):
+        # 合計店舗数・売上高 など社名なしは全店枠へ。
+        return _SCOPE_RANK["all"]
+    return _SCOPE_RANK[scope]
 
 
 def union_monthly_elements(tables: Sequence[Any]) -> list[dict[str, str]]:
-    """発行体の年をまたいだ行順。キーは表示名。新しい年から初出のセグメント、各ブロックは 5 枠。"""
+    """発行体の年をまたいだ行順。キーは表示名。
+
+    全店 → 既存店 → FC店 → セグメント初出順。各塊の中は
+    売上高 → 客数 → 客単価 → 店舗数 → その他。無い枠は飛ばす。
+    全社・全店舗は全店と同じ枠。保存名は変えない。
+    """
     newest_first = sorted(
         (t for t in tables if t),
         key=lambda t: int(t.get("year") or 0),
@@ -310,10 +363,17 @@ def union_monthly_elements(tables: Sequence[Any]) -> list[dict[str, str]]:
                 "element": display,
                 "unit": unit,
                 "segment": segment,
+                "scope": monthly_row_scope_rank(display),
                 "slot": monthly_row_slot(display, unit),
                 "idx": len(items),
             })
-    items.sort(key=lambda it: (seg_index[it["segment"]], it["slot"], it["idx"]))
+    items.sort(key=lambda it: (
+        0 if not it["segment"] else 1,
+        0 if not it["segment"] else seg_index[it["segment"]],
+        it["scope"],
+        it["slot"],
+        it["idx"],
+    ))
     return [{"element": it["element"], "unit": it["unit"]} for it in items]
 
 

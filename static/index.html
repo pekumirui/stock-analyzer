@@ -831,29 +831,71 @@ function monthlySeriesKind(element, unit){
   if(key.includes("店舗数") && u==="number") return "stores";
   if(u!=="yoy_index" && u!=="yoy_pct") return null;
   if(key.includes("既存")) return "existing";
-  if(key.includes("全店")) return "all_store";
+  if(key.includes("全店") || key.includes("全社")) return "all_store";
   return null;
 }
 
-function monthlyRowSegment(element){
+const MONTHLY_ROW_CHANNELS = ["直営+FC","直営＋FC","直営"];
+const MONTHLY_ROW_COMPANY = ["当期計","連結","単体","合計","うち"];
+const MONTHLY_ROW_SCOPE_EX = ["既存直営店","既存店舗","既存店","既存"];
+const MONTHLY_ROW_SCOPE_ALL = ["全店舗","全店","全社"];
+const MONTHLY_ROW_SCOPE_FC = ["フランチャイズ","FC店舗","FC店","ＦＣ店舗","ＦＣ店"];
+const MONTHLY_ROW_METRICS = ["(前年比)","（前年比）","前年比","前期比","同期比","増減率","売上高","売上","客単価","単価","来客数","客数","来客","店舗数","期末","月末","出店","退店"];
+
+function monthlyStripToks(text, toks){
+  let s = text;
+  for(const t of toks) s = s.split(t).join("");
+  return s;
+}
+
+function monthlyRowScopeName(element){
   const key = monthlyElementKey(element);
-  let cut = -1;
-  for(const kw of ["全店","既存","店舗数"]){
-    const i = key.indexOf(kw);
-    if(i>=0 && (cut<0 || i<cut)) cut = i;
-  }
-  return cut<0 ? "" : key.slice(0, cut);
+  if(MONTHLY_ROW_SCOPE_EX.some(t => key.includes(t))) return "existing";
+  if(MONTHLY_ROW_SCOPE_ALL.some(t => key.includes(t))) return "all";
+  if(key.includes("直営")) return "all";
+  const stripped = monthlyStripToks(key, MONTHLY_ROW_CHANNELS);
+  if(MONTHLY_ROW_SCOPE_FC.some(t => stripped.includes(t))) return "fc";
+  if(/(?:^|[^A-Za-z])(?:FC|ＦＣ)(?:店|店舗|出店|退店|月末|$)/.test(stripped)) return "fc";
+  return "other";
+}
+
+function monthlyRowMetricName(element){
+  const key = monthlyElementKey(element);
+  if(key.includes("店舗数")) return "stores";
+  if(key.includes("客単価") || key.includes("単価")) return "spend";
+  if(key.includes("客数") || key.includes("来客")) return "customers";
+  if(key.includes("売上")) return "sales";
+  return "other";
+}
+
+function monthlyRowSegment(element){
+  let rest = monthlyElementKey(element);
+  rest = monthlyStripToks(rest, MONTHLY_ROW_METRICS);
+  rest = monthlyStripToks(rest, MONTHLY_ROW_CHANNELS);
+  rest = monthlyStripToks(rest, MONTHLY_ROW_SCOPE_EX.concat(MONTHLY_ROW_SCOPE_ALL, MONTHLY_ROW_SCOPE_FC));
+  rest = rest.replace(/FC/g, "").replace(/ＦＣ/g, "");
+  rest = monthlyStripToks(rest, MONTHLY_ROW_COMPANY);
+  return rest;
 }
 
 function monthlyRowSlot(element, unit){
-  const key = monthlyElementKey(element);
+  const m = monthlyRowMetricName(element);
+  return {sales:1, customers:2, spend:3, stores:4, other:5}[m];
+}
+
+function monthlyRowScopeRank(element){
+  const scope = monthlyRowScopeName(element);
+  if(scope==="other" && !monthlyRowSegment(element)) return 0;
+  return {all:0, existing:1, fc:2, other:3}[scope];
+}
+
+function isAllStoreSalesYoy(element, unit){
   const u = unit || "number";
-  const yoy = u==="yoy_index" || u==="yoy_pct";
-  if(yoy && key.includes("売上") && key.includes("全店") && !key.includes("既存") && !key.includes("店舗数")) return 1;
-  if(yoy && key.includes("売上") && key.includes("既存") && !key.includes("店舗数")) return 2;
-  if(key.includes("客単価") || key.includes("単価")) return 3;
-  if(key.includes("店舗数")) return 4;
-  return 5;
+  if(u!=="yoy_index" && u!=="yoy_pct") return false;
+  const key = monthlyElementKey(element);
+  if(key.includes("既存") || key.includes("店舗数")) return false;
+  if(!key.includes("売上")) return false;
+  return key.includes("全店") || key.includes("全社");
 }
 
 function monthlyRowOrder(tables){
@@ -873,12 +915,22 @@ function monthlyRowOrder(tables){
       seen.add(display);
       const segment = monthlyRowSegment(display);
       if(!(segment in segIndex)) segIndex[segment] = segN++;
-      items.push({element:display, unit, segment, slot:monthlyRowSlot(display, unit), idx:items.length});
+      items.push({
+        element:display, unit, segment,
+        scope:monthlyRowScopeRank(display),
+        slot:monthlyRowSlot(display, unit),
+        idx:items.length
+      });
     }
   }
   items.sort((a,b)=>{
-    const s = segIndex[a.segment] - segIndex[b.segment];
-    if(s) return s;
+    const ta = a.segment ? 1 : 0, tb = b.segment ? 1 : 0;
+    if(ta!==tb) return ta - tb;
+    if(a.segment){
+      const s = segIndex[a.segment] - segIndex[b.segment];
+      if(s) return s;
+    }
+    if(a.scope!==b.scope) return a.scope - b.scope;
     if(a.slot!==b.slot) return a.slot - b.slot;
     return a.idx - b.idx;
   });
@@ -903,7 +955,12 @@ function monthlySeriesChoices(tables){
 function pickDefaultMonthlySeries(tables){
   const rows = monthlyRowOrder(tables);
   for(const e of rows){
-    if(monthlyRowSlot(e.element, e.unit) === 1) return fmtMonthlyElement(e.element, e.unit);
+    if(!monthlyRowSegment(e.element) && isAllStoreSalesYoy(e.element, e.unit)){
+      return fmtMonthlyElement(e.element, e.unit);
+    }
+  }
+  for(const e of rows){
+    if(isAllStoreSalesYoy(e.element, e.unit)) return fmtMonthlyElement(e.element, e.unit);
   }
   for(const e of rows){
     if(monthlySeriesKind(e.element, e.unit) === "all_store") return fmtMonthlyElement(e.element, e.unit);

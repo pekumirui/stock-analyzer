@@ -762,7 +762,7 @@ def _assert_union_collapses_yoy_display_names() -> None:
     ]
     rows = union_monthly_elements(leftover)
     order = [row["element"] for row in rows]
-    if order != [canon, "店舗数", "売上高"]:
+    if order != [canon, "売上高", "店舗数"]:
         _fail(f"cross-year yoy short/canonical must be one row: {order!r}")
     if monthly_row_slot(rows[0]["element"], rows[0]["unit"]) != 1:
         _fail("collapsed yoy 全店売上 stays slot 1")
@@ -780,17 +780,21 @@ def _assert_union_collapses_yoy_display_names() -> None:
 
 
 def _assert_monthly_row_order(c) -> None:
-    """ウチヤマ型: 年をまたいで同じ行順。カラオケ塊のあと飲食。全店売上→既存売上→店舗数。"""
+    """全店→既存店→FC店→セグメント。各塊は 売上高→客数→客単価→店舗数。全社は全店。"""
     if monthly_row_segment("カラオケ全店 売上高(前年比)") != "カラオケ":
         _fail("segment karaoke all-store")
     if monthly_row_segment("飲食既存店 店舗数") != "飲食":
         _fail("segment food existing stores")
     if monthly_row_segment("全店売上高(前年比)") != "":
         _fail("segment empty prefix")
+    if monthly_row_segment("全社 売上高(前年比)") != "":
+        _fail("全社 is company-wide, not a brand")
     if monthly_row_slot("カラオケ全店 売上高(前年比)", "yoy_index") != 1:
-        _fail("slot all-store sales")
-    if monthly_row_slot("カラオケ既存店 売上高(前年比)", "yoy_index") != 2:
-        _fail("slot existing sales")
+        _fail("slot sales")
+    if monthly_row_slot("カラオケ既存店 売上高(前年比)", "yoy_index") != 1:
+        _fail("existing sales is still 売上高")
+    if monthly_row_slot("カラオケ全店 来客数(前年比)", "yoy_index") != 2:
+        _fail("slot customers")
     if monthly_row_slot("カラオケ全店 客単価(前年比)", "yoy_index") != 3:
         _fail("slot unit price")
     if monthly_row_slot("平均単価", "number") != 3:
@@ -799,10 +803,10 @@ def _assert_monthly_row_order(c) -> None:
         _fail("slot stores")
     if monthly_row_slot("カラオケ既存店 店舗数", "number") != 4:
         _fail("stores must not be 売上")
-    if monthly_row_slot("カラオケ全店 来客数(前年比)", "yoy_index") != 5:
-        _fail("slot other")
     if monthly_row_slot("全店売上高(前年比)", "yoy_index") != 1:
         _fail("slot MONTHLY_SERIES 全店売上高")
+    if monthly_row_slot("全社 売上高(前年比)", "yoy_index") != 1:
+        _fail("全社 売上高 is sales")
 
     code = "60590"
     _ensure_stock(code, "ウチヤマ")
@@ -857,15 +861,15 @@ def _assert_monthly_row_order(c) -> None:
 
     want = [
         "カラオケ全店 売上高(前年比)",
-        "カラオケ既存店 売上高(前年比)",
+        "カラオケ全店 来客数(前年比)",
         "カラオケ全店 客単価(前年比)",
         "カラオケ全店 店舗数",
+        "カラオケ既存店 売上高(前年比)",
         "カラオケ既存店 店舗数",
-        "カラオケ全店 来客数(前年比)",
         "飲食全店 売上高(前年比)",
-        "飲食既存店 売上高(前年比)",
         "飲食全店 客単価(前年比)",
         "飲食全店 店舗数",
+        "飲食既存店 売上高(前年比)",
         "飲食既存店 店舗数",
     ]
     if order != want:
@@ -882,13 +886,13 @@ def _assert_monthly_row_order(c) -> None:
     if (order.index("カラオケ全店 売上高(前年比)")
             >= order.index("カラオケ既存店 売上高(前年比)")
             or order.index("カラオケ既存店 売上高(前年比)")
-            >= order.index("カラオケ全店 店舗数")):
-        _fail(f"karaoke 全店売上 before 既存売上 before 店舗数: {order!r}")
+            >= order.index("カラオケ既存店 店舗数")):
+        _fail(f"karaoke 全店 before 既存, 売上 before 店舗数: {order!r}")
     if (order.index("飲食全店 売上高(前年比)")
             >= order.index("飲食既存店 売上高(前年比)")
             or order.index("飲食既存店 売上高(前年比)")
-            >= order.index("飲食全店 店舗数")):
-        _fail(f"food 全店売上 before 既存売上 before 店舗数: {order!r}")
+            >= order.index("飲食既存店 店舗数")):
+        _fail(f"food 全店 before 既存, 売上 before 店舗数: {order!r}")
 
     present_2025 = {e["element"] for e in y2025.json()["elements"]}
     if "カラオケ全店 来客数(前年比)" in present_2025:
@@ -898,11 +902,35 @@ def _assert_monthly_row_order(c) -> None:
 
     default = next(
         (row["element"] for row in union_monthly_elements([y2025.json(), y2024.json()])
-         if monthly_row_slot(row["element"], row["unit"]) == 1),
+         if monthly_row_slot(row["element"], row["unit"]) == 1
+         and "全店" in row["element"] and "既存" not in row["element"]),
         "",
     )
     if default != "カラオケ全店 売上高(前年比)":
         _fail(f"default 全店売上: {default!r}")
+
+    mixed = union_monthly_elements([{
+        "year": 2026,
+        "elements": [
+            {"element": "焼肉 既存店 売上高(前年比)", "unit": "yoy_index"},
+            {"element": "FC 月末店舗数", "unit": "number"},
+            {"element": "全社 売上高(前年比)", "unit": "yoy_index"},
+            {"element": "既存直営店 客単価(前年比)", "unit": "yoy_index"},
+            {"element": "焼肉 全店 売上高(前年比)", "unit": "yoy_index"},
+            {"element": "全社 客数(前年比)", "unit": "yoy_index"},
+        ],
+    }])
+    mixed_names = [row["element"] for row in mixed]
+    want_mixed = [
+        "全社 売上高(前年比)",
+        "全社 客数(前年比)",
+        "既存直営店 客単価(前年比)",
+        "FC 月末店舗数",
+        "焼肉 全店 売上高(前年比)",
+        "焼肉 既存店 売上高(前年比)",
+    ]
+    if mixed_names != want_mixed:
+        _fail(f"company-wide before segment, 全社=全店: {mixed_names!r}")
 
 
 def _assert_monthly_spa(html: str) -> None:
@@ -1104,8 +1132,8 @@ def _assert_monthly_spa(html: str) -> None:
     if pick_fn < 0 or pick_end <= pick_fn:
         _fail("pickDefaultMonthlySeries / monthlySeriesElement bounds")
     pick_body = html[pick_fn:pick_end]
-    if "monthlyRowSlot" not in pick_body or "===1" not in pick_body.replace(" ", ""):
-        _fail("default series must prefer 全店売上 (slot 1)")
+    if "isAllStoreSalesYoy" not in pick_body:
+        _fail("default series must prefer 全店/全社 売上 yoy")
     if "all_store" not in pick_body:
         _fail("default series must still fall back to all_store")
     if "function monthlySeriesElement" not in html:
