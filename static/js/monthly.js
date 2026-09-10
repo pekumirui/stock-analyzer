@@ -37,7 +37,7 @@ function monthlySeriesKind(element, unit){
   const u = unit || "number";
   if(key.includes("店舗数") && u==="number"){
     if(["純増","新設","改装","業態転換"].some(m => key.includes(m))) return null;
-    if(MONTHLY_STORE_FLOW_METRICS.has(parseMonthlyLayers(element).metric)) return null;
+    if(monthlyIsFlowMetric(parseMonthlyLayers(element).metric)) return null;
     return "stores";
   }
   if(u!=="yoy_index" && u!=="yoy_pct") return null;
@@ -106,6 +106,7 @@ const MONTHLY_STORE_FLOW_METRICS = new Set(["出店","退店"]);
 const MONTHLY_OPEN_SHARDS = new Set(["開"]);
 const MONTHLY_CLOSE_SHARDS = new Set(["退","閉"]);
 const MONTHLY_DUMMY_STORE = new Set(["店舗"]);
+const MONTHLY_OPEN_QUALIFIERS = new Set(["新規"]);
 const MONTHLY_STORE_ADJ = ["純増","新設","改装","業態転換"];
 const MONTHLY_METRIC_RANK = {
   sales:1, customers:2, spend:3, open:4, close:5, adj:6, stores:7, other:8,
@@ -133,6 +134,10 @@ function monthlyPeelMetric(tok){
   return [null, tok];
 }
 
+function monthlyIsFlowMetric(metric){
+  return String(metric || "").endsWith("出店") || String(metric || "").endsWith("退店");
+}
+
 function monthlyStitchStoreFlow(leftover, metric){
   if(metric === "" || metric === "店舗数"){
     if(leftover.some(tok => MONTHLY_OPEN_SHARDS.has(tok))){
@@ -143,10 +148,29 @@ function monthlyStitchStoreFlow(leftover, metric){
       metric = "退店";
     }
   }
-  if(MONTHLY_STORE_FLOW_METRICS.has(metric)){
+  if(monthlyIsFlowMetric(metric)){
     leftover = leftover.filter(tok => !MONTHLY_DUMMY_STORE.has(tok));
   }
+  if(String(metric).endsWith("出店")){
+    const hadNew = leftover.some(tok => MONTHLY_OPEN_QUALIFIERS.has(tok));
+    leftover = leftover.filter(tok => !MONTHLY_OPEN_QUALIFIERS.has(tok));
+    if(hadNew && metric === "出店") metric = "新規 出店";
+  }
   return [leftover, metric];
+}
+
+function monthlyPeelAdjMetric(leftover, metric){
+  if(metric) return [leftover, metric];
+  const kept = [];
+  let peeled = "";
+  for(const tok of leftover){
+    if(!peeled && MONTHLY_STORE_ADJ.some(mark => tok.includes(mark))){
+      peeled = tok;
+      continue;
+    }
+    kept.push(tok);
+  }
+  return [kept, peeled];
 }
 
 function monthlyIsStoreAdj(element, segment){
@@ -169,7 +193,7 @@ function parseMonthlyLayers(element){
       const restFlow = rest && MONTHLY_STORE_FLOW[rest];
       if(restFlow){
         if(metric === "" || metric === "店舗数") metric = restFlow;
-      }else if(!(peeled === "店舗数" && MONTHLY_STORE_FLOW_METRICS.has(metric))){
+      }else if(!(peeled === "店舗数" && monthlyIsFlowMetric(metric))){
         metric = peeled;
         if(rest && !MONTHLY_DROP.has(rest)) leftover.push(rest);
       }else if(rest && !MONTHLY_DROP.has(rest)) leftover.push(rest);
@@ -182,6 +206,7 @@ function parseMonthlyLayers(element){
     leftover.push(tok);
   }
   [leftover, metric] = monthlyStitchStoreFlow(leftover, metric);
+  [leftover, metric] = monthlyPeelAdjMetric(leftover, metric);
   if(!scope && MONTHLY_FILL_ALL.has(metric)) scope = "全店";
   return {country, segment: leftover.join(" "), channel, scope, metric};
 }
@@ -196,13 +221,13 @@ function normalizeElementTokens(element){
 
 function monthlyRowSegment(element){
   const toks = parseMonthlyLayers(element).segment.split(" ").filter(Boolean);
-  return toks.filter(tok => !MONTHLY_STORE_ADJ.some(mark => tok.includes(mark))).join(" ");
+  return toks.filter(tok => !MONTHLY_OPEN_QUALIFIERS.has(tok) && !MONTHLY_STORE_ADJ.some(mark => tok.includes(mark))).join(" ");
 }
 
 function monthlyRowMetric(element){
   const p = parseMonthlyLayers(element);
-  if(p.metric === "出店") return "open";
-  if(p.metric === "退店") return "close";
+  if(p.metric.endsWith("出店")) return "open";
+  if(p.metric.endsWith("退店")) return "close";
   if(monthlyIsStoreAdj(element, p.segment)) return "adj";
   if(p.metric === "店舗数") return "stores";
   if(p.metric === "客単価") return "spend";
@@ -226,7 +251,7 @@ function monthlyRowScopeRank(element){
   const p = parseMonthlyLayers(element);
   if(p.scope === "既存") return 1;
   if(p.scope === "全店") return 0;
-  if(p.metric === "店舗数" || MONTHLY_STORE_FLOW_METRICS.has(p.metric)) return 3;
+  if(p.metric === "店舗数" || monthlyIsFlowMetric(p.metric)) return 3;
   const kind = monthlyRowMetric(element);
   if(kind === "stores" || kind === "open" || kind === "close" || kind === "adj") return 3;
   if(!p.segment) return 0;
