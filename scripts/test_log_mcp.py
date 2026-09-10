@@ -458,6 +458,8 @@ def _stub_handle(method: str, path: str, raw: bytes, store: dict) -> tuple[int, 
         units = row.get("units") or {}
         for el in row["order"]:
             vals = {str(k): v for k, v in row["values"].get(el, {}).items()}
+            if vals:
+                vals = {str(m): vals.get(str(m)) for m in range(1, 13)}
             elements.append({"element": el, "unit": units.get(el, "number"), "values": vals})
         return 200, {"code": code, "year": year, "elements": elements}
 

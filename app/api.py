@@ -803,6 +803,11 @@ def list_tables(db: Session = Depends(get_session)):
     return out
 
 
+def _calendar_month_values(stored: dict[str, float]) -> dict[str, float | None]:
+    """GET の values。1〜12 を必ず出し、無い月は null（0 は実ゼロ）。"""
+    return {str(m): stored.get(str(m)) for m in range(1, 13)}
+
+
 @router_v1.get("/tables/{code}/{year}")
 def get_table(code: str, year: str, db: Session = Depends(get_session)):
     code = _parse_code(code)
@@ -822,7 +827,11 @@ def get_table(code: str, year: str, db: Session = Depends(get_session)):
         "code": code,
         "year": year_i,
         "elements": [
-            {"element": e.element, "unit": _element_unit(e), "values": by_el[e.element]}
+            {
+                "element": e.element,
+                "unit": _element_unit(e),
+                "values": _calendar_month_values(by_el[e.element]),
+            }
             for e in elems
             if e.element in by_el
         ],
