@@ -12,7 +12,6 @@ import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
-# helpers/ -> verify-stock-analyzer/ -> skills/ -> .cursor/ -> repo
 ROOT = Path(__file__).resolve().parents[4]
 SKILL = Path(__file__).resolve().parents[1]
 RUN = SKILL / ".run"
@@ -69,13 +68,9 @@ def main() -> None:
         raise SystemExit(f"127.0.0.1:{port} already in use; set VERIFY_PORT or run cleanup.py")
     RUN.mkdir(parents=True, exist_ok=True)
     log = RUN / "uvicorn.log"
-    # DETACHED + BREAKAWAY so this helper can return without the Job Object
-    # killing uvicorn. If the job forbids breakaway, the process still stays
-    # up while launch.py waits (run it as a background command).
     popen_kw: dict = {
         "cwd": str(ROOT),
         "stdin": subprocess.DEVNULL,
-        "stdout": None,  # set below
         "stderr": subprocess.STDOUT,
         "close_fds": True,
     }
@@ -89,7 +84,6 @@ def main() -> None:
             | 0x08000000  # CREATE_NO_WINDOW
         )
     else:
-        # Start a new session so cleanup can signal the process group if needed.
         popen_kw["start_new_session"] = True
     proc = subprocess.Popen(
         [str(python), "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(port)],
