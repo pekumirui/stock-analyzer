@@ -885,7 +885,11 @@ function monthlyRowSlot(element, unit){
 
 function monthlyRowScopeRank(element){
   const scope = monthlyRowScopeName(element);
-  if(scope==="other" && !monthlyRowSegment(element)) return 0;
+  if(scope==="other" && !monthlyRowSegment(element)){
+    // 売上高など社名なしは全店。合計店舗数は入れない（既存店の前＝真ん中）
+    if(monthlyRowMetricName(element)==="stores") return 3;
+    return 0;
+  }
   return {all:0, existing:1, fc:2, other:3}[scope];
 }
 
