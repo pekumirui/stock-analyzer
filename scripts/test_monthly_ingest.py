@@ -278,8 +278,9 @@ def test_mapping_examples() -> None:
     layout, mapping = plan_column_years(MARCH_MONTHS, 3, date(2026, 4, 10))
     if layout != "fiscal":
         _fail(f"march layout: {layout}")
-    expect = {m: 2025 for m in range(4, 13)}
-    expect.update({1: 2026, 2: 2026, 3: 2026})
+    # as_of が期末月(3)より後 → 現行 FY は 2027/3 期末（4/2026…3/2027）
+    expect = {m: 2026 for m in range(4, 13)}
+    expect.update({1: 2027, 2: 2027, 3: 2027})
     if _map_dict(mapping) != expect:
         _fail(f"march mapping: {mapping}")
 
@@ -321,6 +322,25 @@ def test_mapping_examples() -> None:
         _fail(f"genky mapping: {mapping}")
     if mapping[0] != (6, 2024) or mapping[-1] != (6, 2025):
         _fail(f"genky June split: {mapping[0]} {mapping[-1]}")
+
+    # 60400 型: 7月期末・as_of が期末月より後（9月）→ 現行 FY は翌年7月期末
+    july_months = [8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7]
+    layout, mapping = plan_column_years(july_months, 7, date(2026, 9, 11))
+    if layout != "fiscal":
+        _fail(f"july post-end layout: {layout}")
+    expect_july = {m: 2026 for m in (8, 9, 10, 11, 12)}
+    expect_july.update({m: 2027 for m in (1, 2, 3, 4, 5, 6, 7)})
+    if _map_dict(mapping) != expect_july:
+        _fail(f"july post-end mapping: {mapping}")
+
+    # 同 FY・as_of が期末月より前（6月）→ 現行 FY は当年7月期末
+    layout, mapping = plan_column_years(july_months, 7, date(2026, 6, 15))
+    if layout != "fiscal":
+        _fail(f"july mid-fy layout: {layout}")
+    expect_july_mid = {m: 2025 for m in (8, 9, 10, 11, 12)}
+    expect_july_mid.update({m: 2026 for m in (1, 2, 3, 4, 5, 6, 7)})
+    if _map_dict(mapping) != expect_july_mid:
+        _fail(f"july mid-fy mapping: {mapping}")
 
 
 def test_fy_end_and_layout_errors() -> None:
@@ -774,7 +794,8 @@ def test_ingest_yoy_label_and_number_separate() -> None:
 
 def test_ingest_yoy_short_and_canonical_same_row() -> None:
     c = TestClient(app)
-    code = "88880"
+    # 88880 は test_api_errors で 3月期末の売上高を ingest 済み（現行 FY は 2026 年列）と衝突するため別コード。
+    code = "88770"
     _add_fy_end(code, date(2026, 5, 8), date(2025, 12, 31), "yoy-same-1")
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": [1],
