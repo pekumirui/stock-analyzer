@@ -490,17 +490,22 @@ function showMonthlyTop(){
 function showMonthlyDetail(code){
   selMonthlyCode = code;
   const row = uniqueMonthlyIssuers(monthlyRows).find(r => r.code === code);
-  if(!row) return;
+  if(!row){
+    if(typeof writeRoute === "function") writeRoute("monthly", "");
+    return;
+  }
   const nm = row.name || "";
   $("#monthly-title").textContent = nm ? `${nm} ${row.code}` : row.code;
   monthlySeries = "";
   $("#monthly-top").style.display = "none";
   $("#monthly-detail").style.display = "";
+  if(typeof writeRoute === "function") writeRoute("monthly", code);
   loadMonthlyTables();
 }
 
 function backMonthly(){
   showMonthlyTop();
+  if(typeof writeRoute === "function") writeRoute("monthly", "");
 }
 
 function renderMonthlySeriesSelect(){
