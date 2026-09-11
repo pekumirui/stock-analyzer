@@ -768,15 +768,40 @@ def _fiscal_start_month(fy_end_month: int) -> int:
 
 
 def _anchor_year(last_month: int, as_of: date) -> int:
+    """暦年レイアウト用。右端月が as_of 年に既に始まっていればその年、そうでなければ as_of.year-1。"""
     year = as_of.year
     if date(year, last_month, 1) <= as_of:
         return year
     return year - 1
 
 
-def _assign_years(months: Sequence[int], as_of: date) -> list[tuple[int, int]]:
-    """列ごとに暦年。右端列 + as_of から左へ。同じ月番号でも列が違えば年が違ってよい。"""
-    year = _anchor_year(months[-1], as_of)
+def _current_fy_end_year(fy_end_month: int, as_of: date) -> int:
+    """as_of が属する会計年度の期末年。期末月 M より後なら翌年期末。"""
+    if as_of.month > fy_end_month:
+        return as_of.year + 1
+    return as_of.year
+
+
+def _anchor_year_for_fy(last_month: int, fy_end_month: int, as_of: date) -> int:
+    """fiscal: 現行 FY の期末年から右端列の暦年を決める。"""
+    fy_end_year = _current_fy_end_year(fy_end_month, as_of)
+    if last_month <= fy_end_month:
+        return fy_end_year
+    return fy_end_year - 1
+
+
+def _assign_years(
+    months: Sequence[int],
+    as_of: date,
+    *,
+    fy_end_month: int | None = None,
+) -> list[tuple[int, int]]:
+    """列ごとに暦年。右端列から左へ。同じ月番号でも列が違えば年が違ってよい。
+    fy_end_month あり → 会計年度アンカー。なし → 暦年アンカー。"""
+    if fy_end_month is None:
+        year = _anchor_year(months[-1], as_of)
+    else:
+        year = _anchor_year_for_fy(months[-1], fy_end_month, as_of)
     years: list[int] = [0] * len(months)
     years[-1] = year
     for i in range(len(months) - 2, -1, -1):
@@ -792,17 +817,23 @@ def plan_column_years(
     as_of: date,
 ) -> tuple[str, list[tuple[int, int]]]:
     """列順 → 暦年。layout は calendar | fiscal | partial。並びでは拒否しない。
-    戻り mapping は列順の (month, year)。Genky 型の月重複（13列）も列インデックス単位。"""
+    戻り mapping は列順の (month, year)。Genky 型の月重複（13列）も列インデックス単位。
+    calendar/partial は右端月+as_of。fiscal は fy_end+as_of で現行 FY を決める。"""
     if not months:
         raise MonthlyIngestError(400, "INVALID_PARAM", "months は1〜12の整数の配列です。")
     start = months[0]
     if _is_calendar_layout(months):
         layout = "calendar"
+        mapping = _assign_years(months, as_of)
     elif start == _fiscal_start_month(fy_end_month):
         layout = "fiscal"
+        # 期末月+as_of で現行 FY を決める（as_of が期末月より後なら期末は翌年）
+        mapping = _assign_years(months, as_of, fy_end_month=fy_end_month)
     else:
         layout = "partial"
-    return layout, _assign_years(months, as_of)
+        # 部分列は右端月+as_of（暦年アンカー）。FY 全体を仮定しない。
+        mapping = _assign_years(months, as_of)
+    return layout, mapping
 
 
 def map_pdf_columns(
