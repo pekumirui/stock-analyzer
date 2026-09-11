@@ -124,6 +124,14 @@ def test_canonicalize_element_label() -> None:
         _fail("実 leftover stitches to 実店舗")
     if canonicalize_element_label("実店舗 店舗数", "number") != "実店舗 店舗数":
         _fail("実店舗 店舗数 is idempotent")
+    if canonicalize_element_label("LOWYA 対(前年比)", "yoy_index") != "LOWYA 全店 売上高(前年比)":
+        _fail("対 leftover is 売上高")
+    if canonicalize_element_label("LOWYA対前年比", "yoy_index") != "LOWYA 全店 売上高(前年比)":
+        _fail("glued 対前年比 is 売上高")
+    if canonicalize_element_label("LOWYA 売上高(前年比)", "yoy_index") != "LOWYA 全店 売上高(前年比)":
+        _fail("LOWYA 売上高 fills 全店")
+    if canonicalize_element_label("100円ショップ 直営 全店(前年比)", "yoy_index") != "100円ショップ 直営 全店(前年比)":
+        _fail("empty-metric 直営 全店 yoy stays")
     if canonicalize_element_label("直営店数", "number") != "直営 店舗数":
         _fail("直営店数")
     if canonicalize_element_label("新規出店数", "number") != "出店":

@@ -164,6 +164,23 @@ function monthlyStitchRealStore(leftover, metric){
   return [leftover, metric];
 }
 
+function monthlyStitchVsSales(leftover, metric){
+  let had = false;
+  const kept = [];
+  for(const raw of leftover){
+    let tok = raw;
+    if(tok === "対"){ had = true; continue; }
+    if(tok.length > 1 && tok.endsWith("対")){
+      had = true;
+      tok = tok.slice(0, -1);
+      if(!tok || MONTHLY_DROP.has(tok)) continue;
+    }
+    kept.push(tok);
+  }
+  if(!metric && had) metric = "売上高";
+  return [kept, metric];
+}
+
 function monthlyPeelAdjMetric(leftover, metric){
   if(metric) return [leftover, metric];
   const kept = [];
@@ -212,6 +229,7 @@ function parseMonthlyLayers(element){
   }
   [leftover, metric] = monthlyStitchStoreFlow(leftover, metric);
   [leftover, metric] = monthlyStitchRealStore(leftover, metric);
+  [leftover, metric] = monthlyStitchVsSales(leftover, metric);
   [leftover, metric] = monthlyPeelAdjMetric(leftover, metric);
   if(monthlyIsFlowMetric(metric)) scope = "";
   if(!scope && MONTHLY_FILL_ALL.has(metric)) scope = "全店";
