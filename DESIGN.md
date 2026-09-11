@@ -139,21 +139,27 @@ monthly_tables    -- 銘柄×年度の月次表 (暦月1〜12。会計月では�
 monthly_elements  -- 表の行。element は登録時の正規名、sort_order が登録順
   code, year, element PK
   unit                  -- number | yoy_index | yoy_pct。保存値は PDF 原文のまま
-  -- 空白区切り [国] [セグメント] [チャネル] [スコープ] [指標]。yoy は末尾 (前年比)
-  -- 正規化後に同一なら同一行。短い保存名は正規名へ。init_db/migrate は number/yoy とも。GET は保存名。SPA は表示名で行を畳む
+  -- 行名は docs/DESIGN_monthly_labels.md。GET は保存名。SPA は表示名で行を畳む
 
 monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字列は拒否)
   code, year, element, month PK
   value
 ```
 
-月次の year は暦年。PDF 取込は `POST /api/v1/tables/{code}/ingest` が列順 (`months`) と、開示日 `as_of` 時点の最新 `statements.fiscal_year_end` から暦年を割り当てる。暦年は最終列の月と as_of から右→左へ列ごとに決める（同じ月番号が2回あっても列が違えば年が違う。Genky 型 13 列の Jun…Jun など）。layout は calendar（先頭が1で昇順）/ fiscal（会計年度開始月始まり）/ それ以外は partial。列の並びでは拒否しない。`months` に重複が無いとき `values` は従来どおり `{月: 値}`。重複があるときは列順の配列（または列番号キー `"0"`…）。応答 `mapping` も一意月は `{月: 年}`、重複時は列順 `[{month, year}, …]`。クライアントは year を渡さない。年付き PUT は訂正用。決算期変更があっても as_of 時点の1か月だけを使う。
+月次の year は暦年。PDF 取込は `POST /api/v1/tables/{code}/ingest`。
+
+- `months` は PDF 左→右。年は最終列の月と開示日 `as_of` 時点の最新 `statements.fiscal_year_end` から右→左へ列ごとに決める
+- 同じ月番号が2回あっても列が違えば年が違う（Genky 型 13 列の Jun…Jun など）
+- layout は calendar（先頭が1で昇順）/ fiscal（会計年度開始月始まり）/ それ以外は partial。列の並びでは拒否しない
+- `months` に重複が無いとき `values` は `{月: 値}`。重複があるときは列順の配列（または列番号キー `"0"`…）
+- 応答 `mapping` も一意月は `{月: 年}`、重複時は列順 `[{month, year}, …]`
+- クライアントは year を渡さない。年付き PUT は訂正用。決算期変更があっても as_of 時点の1か月だけを使う
 
 月次の書き込みは `stocks` に行がある code だけ。ingest / POST elements / 訂正 PUT は先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`。マスタ無しでは ingest しない。FK は付けない。`init_db` / migrate は `stocks` に無い月次行を `monthly_values` → `monthly_elements` → `monthly_tables` → `monthly_issuers` の順に DELETE する（本番の名証単独 30320 / 30660 など。何度呼んでも冪等）。
 
 月次の unit は PDF 見出しから付ける（値の大きさから推測しない）。`yoy_index` は 100=フラットの指数をそのまま保存・表示。`yoy_pct` は符号付き変化率をそのまま保存し、表では `100+v` を出す（▲ や +X.X% にはしない）。`number` は件数など。
 
-行ラベル: ingest と POST elements は保存名を `canonicalize_element_label` してから既存行を探す。空白区切り `[国] [セグメント] [チャネル] [スコープ] [指標]`（無い層は出さない）。国は `日本` / `海外`（裸の `国内` だけ `日本`。`国内リテール` 等の複合はセグメントのまま。国名の `中国` もセグメント）。チャネルは `直営` / `FC` / `直営+FC`。スコープは `既存` / `全店`（`既存店`/`全店舗` は短く、`全社` は `全店` へ。`全店舗数` は `店舗数`）。指標は `売上高` / `客数` / `客単価` / `出店` / `退店` / `店舗数`。開店/新規は出店、閉店/閉鎖は退店。出店/退店に 全店/既存 は付けない（スコープ層は 売上高/客数/客単価）。スコープが空で指標が 売上高/客数/客単価 なら `全店` を補う。`店舗数` と出店/退店には補わない。独立トークンの 合計/総計/小計/計 と、店舗数に付く 月末/期末 は落とす。対（対前年比の残り）は落とす。指標が空なら 売上高（`LOWYA 対(前年比)` → `LOWYA 全店 売上高(前年比)`。空指標の `直営 全店(前年比)` は触らない）。出店/退店は指標（店舗数にしない、セグメントにもしない。並びは 出店 → 退店 → 純増/新設/改装/業態転換 → 店舗数。純増等は名前を変えないが指標位置へ）。実店舗/EC はセグメント（`実店舗数` は `実店舗 店舗数`）。`yoy_index` / `yoy_pct` は `前年同月比` / `前年比` / `前年同月` / `(前年比)` / `（前年比）` を安定するまで除き、末尾に `(前年比)` を1回（既にあれば二重にしない）。number は前年比を付けない（number の `売上高` と yoy の `売上高(前年比)` は別行）。既存行も同じ規則で正規化し、一致すれば同一行。短い保存名（`売上高` / `カラオケ全店 売上高`）に正規名が当たれば値を UPSERT し、保存名を正規名へリネームする。`init_db` / migrate は number / yoy とも正規名へリネームする（同一年の重複がなくても。例: `全店 売上高前期比` → `全店 売上高(前年比)`）。正規名が既にあれば正規名へ値を寄せて短い行を消す（同じ月は非NULL優先、両方非NULLで不一致なら正規名を残して記録する）。GET は保存名のまま。SPA の年表・系列・チャートの行キーは表示名（`fmtMonthlyElement`、同じ規則）なので、取り残した短い名も同一行に畳む。銘柄固有の残りは `app/issuer_aliases.json`（キーも先に canonicalize。ingest は `as_of < until`、それ以外は `year <= until.year`）。保存名は NFKC しない。正規化後 50 文字超は 400。
+行ラベルの正本は [`docs/DESIGN_monthly_labels.md`](docs/DESIGN_monthly_labels.md)。ingest / POST は `canonicalize_element_label` してから既存行を探す。GET は保存名。SPA は `fmtMonthlyElement`。
 
 TDnet 月次 PDF (`scripts/tdnet_monthly_r2.py`) はダウンロード時にインフラファンドを除外する。商品区分は REIT と同じ `013`/`022` しか無く、名称に「インフラ」を含むものだけ落とす（マスタ欠落時は TDnet 社名の「インフラ投資法人」）。通常の REIT（8985 ジャパン・ホテル・リート投資法人など）は残す。stocks に無いコードはダウンロードしない（DB が読めない／map が空なら警告のみで継続）。保存先 `{code}` は TDnet のまま。stocks 照合だけ 4 桁 display + 末尾 0。既存 PDF は消さない。決算速報の REIT 全除外とは別。
 

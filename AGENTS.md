@@ -1,6 +1,6 @@
 # stock-analyzer
 
-個人用の日本株分析ツール。設計の正本は `DESIGN.md`。画面は `docs/DESIGN_*.md`。README は利用者向け手順。ここには実装時の約束だけ書く。
+個人用の日本株分析ツール。設計の正本は `DESIGN.md`。画面は `docs/DESIGN_*.md`。月次の行名は `docs/DESIGN_monthly_labels.md`。README は利用者向け手順。ここには実装時の約束だけ書く。
 
 ## スタック
 
@@ -19,7 +19,7 @@
 | `app/ingest.py` | API → DB 取込（UPSERT・冪等） |
 | `app/analytics.py` | MA / RS / ステージ / Q単独 / 決算後リターン |
 | `app/api.py` | REST (`/api/*`) |
-| `app/monthly_ingest.py` | PDF 月次列順 + as_of 時点の最新 `fiscal_year_end` → 暦年（純関数。year は受け取らない。列ごと右→左。月重複の year-wrap 可）。layout は calendar / fiscal / partial（並びでは拒否しない）。unit は見出しから。行名は空白区切り `[国] [セグメント] [チャネル] [スコープ] [指標]`（`canonicalize_element_label`。yoy は前年比語を剥がして `(前年比)`）。銘柄固有の残りは `app/issuer_aliases.json`（キーも canonicalize 後。ingest は as_of < until、POST/PUT/migrate は year <= until.year。テストは `plan_issuer_alias_cases` が JSON から生成） |
+| `app/monthly_ingest.py` | PDF 月次列 → 暦年。行名正規化と aliases（正本 `docs/DESIGN_monthly_labels.md`） |
 | `app/main.py` | FastAPI エントリ + SPA 配信 |
 | `scripts/run_batch.py` | 日次バッチ / バックフィル |
 | `scripts/tdnet_monthly_r2.py` | TDnet 月次PDF → R2 mount (`/home/stock/r2-share/monthly/{code}/`) |
@@ -54,7 +54,7 @@
 - `Statement.raw_json` は元レスポンス全項目を残す（将来項目追加用）
 - `indicators` のステージは 1/2/3/4。判定不能は `NULL`
 - 月次 `MonthlyElement.unit` は `number` / `yoy_index` / `yoy_pct`。PDF 見出しから付ける（値の大きさから推測しない）。保存値は原文のまま（Gift 125.8 は 125.8、Intermestic -7.1 は -7.1）。表の表示は指数 100=フラット（`yoy_index` はそのまま、`yoy_pct` は `100+v`。▲ や +X.X% にはしない）
-- 月次の行名: `canonicalize_element_label`。空白区切り `[国] [セグメント] [チャネル] [スコープ] [指標]`（無い層は出さない）。国は `日本` / `海外`（裸の `国内` だけ `日本`。複合の `国内リテール` 等はセグメント。`中国` もセグメント）。チャネルは `直営` / `FC` / `直営+FC`。スコープは `既存` / `全店`（`既存店`/`全店舗` は短く、`全社` は `全店`。`全店舗数` は `店舗数`）。指標は `売上高` / `客数` / `客単価` / `出店` / `退店` / `店舗数`。開店/新規は出店、閉店/閉鎖は退店。出店/退店に 全店/既存 は付けない（スコープ層は 売上高/客数/客単価）。スコープ空で 売上高/客数/客単価 なら `全店` を補う。`店舗数` と出店/退店には補わない。合計/総計/小計/計 と、店舗数の 月末/期末 は落とす。対（対前年比の残り）は落とす。指標が空なら 売上高（`LOWYA 対(前年比)` → `LOWYA 全店 売上高(前年比)`。ワッツの空指標 `直営 全店(前年比)` は触らない）。出店/退店は指標（店舗数にしない、セグメントにもしない。並びは 出店 → 退店 → 純増/新設/改装/業態転換 → 店舗数。純増等は名前を変えないが指標位置へ）。実店舗/EC はセグメント（`実店舗数` は `実店舗 店舗数`。店舗数 unglue で 実 に割らない）。yoy は PDF 由来の前年比語を剥がして `(前年比)` を1回（保存も表示も同じ。保存名は常に正規名）。number は前年比を付けない（number の `売上高` と yoy の `売上高(前年比)` は別行）。ingest / POST は正規化してから既存行を探す。正規化後に同じなら同一行。短い保存名は正規名へリネームする。`init_db` / migrate は number / yoy とも `canonicalize_element_label` へリネームする（同一年の重複がなくても。例: `全店 売上高前期比` → `全店 売上高(前年比)`）。正規名が既にあれば正規名を残し、値は非NULL優先で寄せて短い行を消す。SPA の行キーは表示名（`fmtMonthlyElement`、同じ規則）。銘柄固有の残りは `app/issuer_aliases.json`。`until` 未満の as_of（ingest）または `until.year` 以下の year（POST / PUT / 新規行 / migrate）で canonicalize 後の名前を rename する。JSON のキーも canonicalize してから載せる。マップに無い名前はそのまま。`scripts/test_monthly_ingest.py` に銘柄分岐は足さない。前期・前年同月・前年同期の実数行（直後が `比` でない）は canonicalize 前に 400 `PRIOR_PERIOD_ELEMENT`。ingest / POST elements のみ。保存名は NFKC しない。正規化後 50 文字超は 400
+- 月次の行名は `canonicalize_element_label`（正本 `docs/DESIGN_monthly_labels.md`）。空白区切り `[国] [セグメント] [チャネル] [スコープ] [指標]`。銘柄固有は `app/issuer_aliases.json`。`scripts/test_monthly_ingest.py` に銘柄分岐は足さない。新しい例外は labels.md に箇条書きし、ここや DESIGN.md の1行に追記しない
 - 月次は `stocks` にある code だけ書く。ingest / POST elements / 訂正 PUT / industry PUT は先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`。マスタ無しでは ingest しない。FK は付けない（`PRAGMA foreign_keys` も有効化しない）。`init_db` / migrate は stocks に無い月次を values → elements → tables → issuers の順に DELETE（冪等）
 - 月次業種は `monthly_issuers.industry`。既定は `その他`。`stocks.sector33` とは別。ingest は `last_ingested_at` を更新し industry は触らない
 
@@ -117,7 +117,7 @@ Python は Windows では `.venv\Scripts\python.exe`、Linux では `.venv/bin/p
 - UI の変更は該当ファイルだけ読む。例: 月次なら `static/js/monthly.js` と必要な CSS。`index.html` 全体と全 JS を読まない
 - 新規タブを足すときは `static/js/<tab>.js` を追加し、`index.html` に section と script を1行足す
 - キャンバスは白。カードを浮かさない。横幅はビューポート。密度優先。スマホとPCは同じ構造。詳細は `docs/SCREEN_SPEC.md` の共通見た目
-- 月次タブの画面は `docs/DESIGN_monthly.md`。他タブの画面仕様を足すときは `docs/SCREEN_SPEC.md`
+- 月次タブの画面は `docs/DESIGN_monthly.md`。行名は `docs/DESIGN_monthly_labels.md`。他タブの画面仕様を足すときは `docs/SCREEN_SPEC.md`
 - 秘密情報（`.env`, API キー）をコミットしない・ログに出さない
-- DESIGN.md と実装が食い違うときは、実装を直すか DESIGN を更新する。放置しない
+- DESIGN.md と実装が食い違うときは、実装を直すか DESIGN を更新する。行名は `docs/DESIGN_monthly_labels.md`。放置しない
 - 米国株・IRBank・通知は将来拡張。今は日本株 + J-Quants に閉じる
