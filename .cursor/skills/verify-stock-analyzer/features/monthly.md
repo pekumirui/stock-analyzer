@@ -36,7 +36,7 @@ Preconditions:
 - Detail with no years shows「データなし」.
 - NEW badge uses `ingested_today` (JST today); 新着 chip window is `MONTHLY_NEW_DAYS` (7) via `is_new`.
 - YoY chart/cell values add +100 only for `yoy_pct` (not `yoy_index`), with a 100 horizontal line; year bar colors cycle `MONTHLY_YEAR_COLORS[year % 4]`.
-- Row order is 全店 → 既存店 → FC店 → named segments (`monthlyRowOrder`); 全社 counts as 全店. Within each block 売上高 → 客数 → 客単価 → 店舗数. Scope-less 店舗数 / 合計店舗数 (no 全店・既存・FC token) is **not** in the 全店 block — it sorts after 既存/FC with other unlabeled store counts (`monthlyRowScopeRank` stores→3). yoy row labels end with `(前年比)` via `fmtMonthlyElement`.
-- Missing values render as `-` (not a blank cell): list 全店/既存店 YoY via `fmtMonthlyYoyList`, Detail month cells via `fmtMonthlyCell` / server `format_monthly_cell`.
+- Row order (`monthlyRowOrder`): unsegmented rows first, then named segments (first-seen). Inside each group: country → scope 全店 → 既存 → other (`monthlyRowScopeRank`; 全社 counts as 全店) → channel 直営+FC → 直営 → FC → unlabeled → metric slot 売上高 → 客数 → 客単価 → 出店 → 退店 → 純増/新設/改装/業態転換 → 店舗数 → その他 (`MONTHLY_METRIC_RANK`). Scope-less 店舗数 / 合計店舗数 and 出店/退店 (no 全店・既存 token) sort in the other-scope bucket (rank 3), not under 全店. Ingest/UI unglue maps `実店舗数` → `実店舗 店舗数` (metric 店舗数, leftover 実店舗). yoy row labels end with `(前年比)` via `fmtMonthlyElement`.
+- Missing values render as `-` (not a blank cell): list 全店/既存店 YoY via `fmtMonthlyYoyList`, Detail month cells via `fmtMonthlyCell` / server `format_monthly_cell`. Year JSON from `GET /api/v1/tables/{code}/{year}` always has month keys `"1"`…`"12"` with absent months as `null` (0 is a real zero).
 - SPA only reads `/api/v1/tables*`. Write routes (`POST …/ingest`, `PUT …/industry`, values/elements) are MCP/ingest — do not use them in verify.
 - Narrow viewports (`@media (max-width:640px)`) drop the left sticky columns; do not require desktop sticky layout.
