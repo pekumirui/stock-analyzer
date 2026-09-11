@@ -1,2 +1,3 @@
 fillEventToggles();
 selectDate(todayISO());
+restoreRoute();

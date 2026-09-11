@@ -6,9 +6,10 @@ $("#sym").addEventListener("input", async e => {
   $("#suggest").style.display = rs.length?"block":"none";
 });
 function pick(code,name){ curCode=code; $("#sym").value=name; $("#suggest").style.display="none"; loadChart(); }
-function gotoChart(code){ curCode=code; document.querySelector('nav button[data-tab="chart"]').click(); loadChart(); }
+function gotoChart(code){ curCode=code; selectTab("chart"); loadChart(); }
 async function loadChart(){
   if(!curCode){ return; }
+  if(typeof writeRoute === "function") writeRoute("chart", curCode);
   const tf=$("#tf").value, mas=$("#mas").value, rel=$("#rel").checked;
   const d = await api(`/api/chart/${curCode}?tf=${tf}&ma=${mas}&rel=${rel}`);
   const tfLabel = {D:"日足", W:"週足", M:"月足"}[tf] || tf;
