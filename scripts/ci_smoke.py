@@ -316,6 +316,12 @@ def main() -> None:
     )
     if tdnet.returncode != 0:
         raise SystemExit("tdnet monthly r2 tests failed")
+    ir_monthly = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "test_ir_monthly_r2.py")],
+        cwd=ROOT,
+    )
+    if ir_monthly.returncode != 0:
+        raise SystemExit("ir monthly r2 tests failed")
     xbrl = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "test_xbrl_parse.py")],
         cwd=ROOT,
