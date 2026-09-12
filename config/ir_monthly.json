@@ -1,0 +1,32 @@
+{
+  "issuers": [
+    {
+      "code": "2695",
+      "name": "くら寿司",
+      "index_url": "https://www.kurasushi.co.jp/company/ir/library/monthly_reports.html",
+      "link_re": "\\.pdf(?:$|[?#])",
+      "title": "月次報告書"
+    },
+    {
+      "code": "3088",
+      "name": "マツキヨココカラ＆カンパニー",
+      "index_url": "https://www.matsukiyococokara.com/ir/finance/proceeds/",
+      "link_re": "\\.pdf(?:$|[?#])",
+      "title": "売上月次情報"
+    },
+    {
+      "code": "3382",
+      "name": "セブン＆アイ・ホールディングス",
+      "index_url": "https://www.7andi.com/ir/financial/monthly_highlight.html",
+      "link_re": "Monthly_Business_Performance.*\\.xlsx(?:$|[?#])",
+      "title": "月次営業情報"
+    },
+    {
+      "code": "3397",
+      "name": "トリドールホールディングス",
+      "index_url": "https://www.toridoll.com/ir/finance/report/index.html",
+      "link_re": "monthly-sales-report.*\\.xlsx(?:$|[?#])",
+      "title": "月次売上高レポート"
+    }
+  ]
+}
