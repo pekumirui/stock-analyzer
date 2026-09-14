@@ -65,15 +65,24 @@ _FY_MONTH_RANGE_RE = re.compile(
     r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月(?!期)"
 )
 _YM_DO_RE = re.compile(r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月度")
+_YM_HEAD_RE = re.compile(
+    r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月(?!\s*期)(?!\s*度)(?!\s*\d)"
+)
+_YEAR_ONLY_HEAD_RE = re.compile(r"(20\d{2})\s*年(?!\s*\d)")
+_YEAR_TAB_RE = re.compile(
+    r'class=["\'][^"\']*\b(?:here|current|active|selected|is-active|is-current)\b'
+    r'[^"\']*["\'][^>]*>[\s\S]{0,160}?(20\d{2})',
+    re.I,
+)
 _SKIP_AXIS_RE = re.compile(
-    r"^(?:累計|通期計|通期|通期累計|通年|合計|計|年月|"
+    r"^(?:累計|通期計|通期|通期累計|年度累計|通年|合計|計|年月|"
     r"上期計|下期計|上期累計|下期累計|上半期|下半期|上期|下期|半期|"
     r"[1-4]Q|[１-４]Q|[1-4]四半期|四半期|\d+\s*ヶ月|月計)$"
 )
 _SKIP_SPAN_RE = re.compile(r"\d+\s*[～〜~\-－]\s*\d+\s*月")
 _UPDATE_RE = re.compile(
     r"(\d{4})\s*[/-年]\s*(\d{1,2})\s*[/-月]\s*(\d{1,2})\s*日?\s*"
-    r"(?:更新|公表|発表|開示|掲載|確定)"
+    r"(?:更新|公表|発表|開示|掲載|確定|現在|時点)"
 )
 _UNIT_TAIL_RE = re.compile(r"(?:百万円|千円|億円|百万|円|店|度)+$")
 _EMPTY_VAL_RE = re.compile(r"^(?:[-−－―–—ー…‥.．]|n/?a|なし)?$", re.I)
@@ -178,7 +187,36 @@ def parse_as_of_text(html: str) -> str | None:
             return month_end_iso(y, mo)
         except ValueError:
             return None
+    heads = " ".join(_plain(m.group(1)) for m in _HEADING_RE.finditer(html or ""))
+    headed = [
+        (int(y), int(mo))
+        for y, mo in _YM_HEAD_RE.findall(unicodedata.normalize("NFKC", heads))
+    ]
+    if headed:
+        y, mo = max(headed)
+        try:
+            return month_end_iso(y, mo)
+        except ValueError:
+            return None
     return None
+
+
+def heading_year_month(html: str) -> tuple[int, int] | None:
+    heads = " ".join(_plain(m.group(1)) for m in _HEADING_RE.finditer(html or ""))
+    found = [
+        (int(y), int(mo))
+        for y, mo in _YM_HEAD_RE.findall(unicodedata.normalize("NFKC", heads))
+    ]
+    return max(found) if found else None
+
+
+def page_year(html: str) -> int | None:
+    m = _YEAR_TAB_RE.search(html or "")
+    if m:
+        return int(m.group(1))
+    ctx = page_context(html)
+    years = [int(y) for y in _YEAR_ONLY_HEAD_RE.findall(unicodedata.normalize("NFKC", ctx))]
+    return max(years) if years else None
 
 
 def parse_eir_date(raw: str) -> str | None:
@@ -243,9 +281,21 @@ def fy_end_from_text(text: str) -> tuple[int, int] | None:
     return None
 
 
-def pick_fy_end(grid: list[list[str]], html: str) -> tuple[int, int] | None:
+def pick_fy_end(
+    grid: list[list[str]],
+    html: str,
+    months: list[int] | None = None,
+) -> tuple[int, int] | None:
     blob = " ".join(c for row in grid for c in row)
-    return fy_end_from_text(blob) or fy_end_from_text(page_context(html)) or fy_end_from_text(html)
+    found = fy_end_from_text(blob) or fy_end_from_text(page_context(html)) or fy_end_from_text(html)
+    if found:
+        return found
+    y = page_year(html)
+    if y is None:
+        return None
+    if months:
+        return y, months[-1]
+    return y + 1, 3
 
 
 def last_filled_month(rows: list[dict], months: list[int] | None = None) -> int | None:
@@ -295,7 +345,11 @@ def as_of_from_table(
             year, month = parse_month_year(cell)
             if month == last_m and year is not None:
                 cell_year = year if cell_year is None else max(cell_year, year)
-    year = year_for_month(last_m, pick_fy_end(grid, html), cell_year)
+    year = year_for_month(last_m, pick_fy_end(grid, html, months), cell_year)
+    if year is None:
+        head = heading_year_month(html)
+        if head is not None:
+            year = year_for_month(last_m, (head[0], head[1]), None)
     if year is None:
         return None
     return month_end_iso(year, last_m)
@@ -505,10 +559,14 @@ def infer_unit(header: str, samples: list[str], context: str = "") -> str:
         return "number"
     has_tri = any(_TRI_RE.search(v or "") for v in samples)
     has_pct = any(_PCT_MARK_RE.search(v or "") for v in samples) or bool(_PCT_MARK_RE.search(h))
+    signed_pct = any(
+        re.match(r"^[+＋]", unicodedata.normalize("NFKC", v or "").strip()) and _PCT_MARK_RE.search(v or "")
+        for v in samples
+    )
     yoy = any(k in blob for k in ("前年", "同月比", "100基準"))
     if "100基準" in blob:
         return "yoy_index"
-    if has_tri:
+    if has_tri or signed_pct:
         return "yoy_pct"
     if has_pct or (_PCT_MARK_RE.search(blob) and yoy):
         return "yoy_index"
@@ -545,16 +603,73 @@ def _first_data_row(grid: list[list[str]]) -> int | None:
     return None
 
 
-def parse_grid(grid: list[list[str]], context: str = "") -> dict | None:
+def parse_grid(grid: list[list[str]], context: str = "", html: str = "") -> dict | None:
     if not grid:
         return None
     col_hi = _detect_col_header(grid)
     if col_hi is not None:
         return _parse_col_months(grid, col_hi, context)
     data_i = _first_data_row(grid)
-    if data_i is None:
+    if data_i is not None:
+        return _parse_row_months(grid, data_i, context)
+    snap = heading_year_month(html)
+    if snap:
+        return _parse_snapshot_month(grid, snap[0], snap[1], context)
+    return None
+
+
+def _axis_compact(text: str) -> str:
+    s = unicodedata.normalize("NFKC", text or "").strip()
+    return re.sub(r"\s+", "", s)
+
+
+def _is_tangetsu_cum_row(row: list[str]) -> bool:
+    cells = [_axis_compact(c) for c in row if str(c).strip()]
+    if len(cells) < 2:
+        return False
+    return all(c == "単月" or c.startswith("単月") or c == "累計" or c.startswith("累計") for c in cells)
+
+
+def _parse_snapshot_month(grid: list[list[str]], year: int, month: int, context: str) -> dict | None:
+    """見出し `YYYY年M月` + 単月/累計列（住友林業の当月速報）。"""
+    header_i = None
+    for i, row in enumerate(grid[:4]):
+        if _is_tangetsu_cum_row(row):
+            header_i = i
+            break
+    if header_i is None:
         return None
-    return _parse_row_months(grid, data_i, context)
+    header = grid[header_i]
+    cats = grid[header_i - 1] if header_i > 0 else [""] * len(header)
+    month_cols: list[int] = []
+    for c, cell in enumerate(header):
+        ax = _axis_compact(cell)
+        if ax == "単月" or ax.startswith("単月"):
+            month_cols.append(c)
+    if not month_cols:
+        return None
+    rows_out: list[dict] = []
+    for row in grid[header_i + 1 :]:
+        if not _row_has_number(row):
+            continue
+        for c in month_cols:
+            cat = cats[c].strip() if c < len(cats) else ""
+            if not cat or _is_skip_axis(cat):
+                continue
+            if c >= len(row):
+                continue
+            n = parse_number(row[c])
+            if n is None:
+                continue
+            samples = [row[c]]
+            unit = infer_unit(cat, samples, context)
+            rows_out.append(
+                {"element": cat, "unit": unit, "values": {str(month): json_number(n)}}
+            )
+        break
+    if not rows_out:
+        return None
+    return {"months": [month], "rows": rows_out}
 
 
 def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dict | None:
@@ -732,7 +847,7 @@ def html_to_ingest(
     candidates: list[tuple[list[list[str]], dict]] = []
     for i in indices:
         try:
-            parsed = parse_grid(tables[i], ctx)
+            parsed = parse_grid(tables[i], ctx, html)
         except Exception as e:
             last_err = str(e)
             parsed = None
