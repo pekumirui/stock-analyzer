@@ -734,6 +734,161 @@ def test_follow_re_picks_latest_year() -> None:
         _fail(url)
 
 
+SEKISUI_MONTH_HTML = """
+<html><body>
+<h1>2026年8月度受注速報（対前年同期比）（2026年2月～2027年1月）</h1>
+<table>
+<tr><th></th><th>累計 （2026年2月～2026年8月）</th><th>単月 （2026年8月）</th></tr>
+<tr><td>全体</td><td>101%</td><td>94%</td></tr>
+<tr><td>【戸建住宅】</td><td>101%</td><td>102%</td></tr>
+<tr><td>【賃貸･事業用建物 (RC造除く)】</td><td>93%</td><td>78%</td></tr>
+<tr><td>【リフォーム】</td><td>117%</td><td>111%</td></tr>
+<tr><td>【マンション】</td><td>126%</td><td>131%</td></tr>
+</table>
+</body></html>
+"""
+
+SEKISUI_YEAR_HTML = """
+<html><body>
+<h1>2026年：受注速報</h1>
+<table>
+<tr><td>9月10日</td><td><a href="/company/financial/order/orders_2026/2026_8">2026年8月度受注速報</a></td></tr>
+<tr><td>8月10日</td><td><a href="/company/financial/order/orders_2026/2026_7">2026年7月度受注速報</a></td></tr>
+<tr><td>7月10日</td><td><a href="/company/financial/order/orders_2026/2026_10">2026年10月度受注速報</a></td></tr>
+<tr><td>1月9日</td><td><a href="/company/financial/order/orders_2026/2025_12">2025年12月度受注速報</a></td></tr>
+</table>
+</body></html>
+"""
+
+SEKISUI_INDEX_HTML = """
+<html><body>
+<a href="/company/financial/order/orders_2025/">2025年</a>
+<a href="/company/financial/order/orders_2026/">2026年</a>
+</body></html>
+"""
+
+
+def test_follow_re_picks_latest_month_not_year_folder() -> None:
+    url = pick_follow_url(
+        SEKISUI_YEAR_HTML,
+        "https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/",
+        r"orders_20\d{2}",
+    )
+    if url != "https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/2026_10":
+        _fail(f"string sort would pick 2026_8; got {url}")
+    year = pick_follow_url(
+        SEKISUI_INDEX_HTML,
+        "https://www.sekisuihouse.co.jp/company/financial/order/",
+        r"orders_20\d{2}",
+    )
+    if year != "https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/":
+        _fail(year)
+    child = pick_follow_url(
+        SEKISUI_YEAR_HTML,
+        "https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/",
+        r"orders_20\d{2}",
+        under="https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/",
+    )
+    if child != "https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/2026_10":
+        _fail(child)
+    none = pick_follow_url(
+        SEKISUI_MONTH_HTML,
+        "https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/2026_8",
+        r"orders_20\d{2}",
+        under="https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/2026_8",
+    )
+    if none is not None:
+        _fail(f"month page has no child {none}")
+
+
+def test_sekisui_single_month_col_skips_cumulative() -> None:
+    got = html_to_ingest(SEKISUI_MONTH_HTML, "1928")
+    if got["as_of"] != "2026-08-31":
+        _fail(f"sekisui as_of {got['as_of']}")
+    if got["months"] != [8]:
+        _fail(f"sekisui months {got['months']}")
+    overall = _row(got, "全体")
+    if overall["unit"] != "yoy_index" or overall["values"] != {"8": 94}:
+        _fail(f"累計 leaked into values {overall}")
+    house = _row(got, "【戸建住宅】")
+    if house["values"].get("8") != 102:
+        _fail(f"house {house}")
+    if any("累計" in r["element"] for r in got["rows"]):
+        _fail("累計 element leaked")
+    if any("2" in r["values"] for r in got["rows"]):
+        _fail("累計 range parsed as month 2")
+
+
+def test_follow_year_then_latest_month(tmp: Path) -> None:
+    import ir_monthly_html_r2 as mod
+
+    dest = tmp / "sekisui"
+    index = "https://www.sekisuihouse.co.jp/company/financial/order/"
+    year = "https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/"
+    month = "https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/2026_8"
+    year_html = """
+    <html><body>
+    <h1>2026年：受注速報</h1>
+    <table>
+    <tr><td>9月10日</td><td><a href="/company/financial/order/orders_2026/2026_8">2026年8月度受注速報</a></td></tr>
+    <tr><td>8月10日</td><td><a href="/company/financial/order/orders_2026/2026_7">2026年7月度受注速報</a></td></tr>
+    <tr><td>1月9日</td><td><a href="/company/financial/order/orders_2026/2025_12">2025年12月度受注速報</a></td></tr>
+    </table>
+    </body></html>
+    """
+    bodies = {
+        index: SEKISUI_INDEX_HTML.encode("utf-8"),
+        year: year_html.encode("utf-8"),
+        month: SEKISUI_MONTH_HTML.encode("utf-8"),
+    }
+    calls: list[str] = []
+
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+        calls.append(url)
+        if url not in bodies:
+            raise RuntimeError(url)
+        return bodies[url]
+
+    orig = mod.http_get
+    orig_sleep = mod.SLEEP_SEC
+    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.SLEEP_SEC = 0
+    try:
+        iss = HtmlIssuer(
+            code="1928",
+            name="積水ハウス",
+            index_url=index,
+            title="月次",
+            source="html",
+            table=None,
+            eir_code="1928",
+            eir_n=0,
+            eir_title_re="月次",
+            follow_re=r"orders_20\d{2}",
+            parse=True,
+        )
+        n, s, k, f = fetch_issuer(
+            iss, dest, {"19280": ("011", "積水ハウス")}, date(2026, 9, 14), dry_run=False
+        )
+        if (n, s, k, f) != (1, 1, 0, 0):
+            _fail(f"sekisui fetch {n, s, k, f} calls={calls}")
+        if calls != [index, year, month]:
+            _fail(f"expected index→year→month {calls}")
+        htmls = list((dest / "1928").glob("*.html"))
+        jsons = list((dest / "1928").glob("*.ingest.json"))
+        if len(htmls) != 1 or len(jsons) != 1:
+            _fail(f"files {htmls} {jsons}")
+        body = htmls[0].read_text(encoding="utf-8")
+        if "単月" not in body or "2026年：受注速報" in body:
+            _fail("saved year listing instead of month page")
+        payload = json.loads(jsons[0].read_text(encoding="utf-8"))
+        if payload["as_of"] != "2026-08-31" or payload["rows"][0]["values"] != {"8": 94}:
+            _fail(payload)
+    finally:
+        mod.http_get = orig
+        mod.SLEEP_SEC = orig_sleep
+
+
 def test_parse_false_saves_html_without_json(tmp: Path) -> None:
     import ir_monthly_html_r2 as mod
 
@@ -843,6 +998,8 @@ def main() -> None:
     test_skip_span_total_column()
     test_eir_same_date_picks_later_fy()
     test_follow_re_picks_latest_year()
+    test_follow_re_picks_latest_month_not_year_folder()
+    test_sekisui_single_month_col_skips_cumulative()
     with TemporaryDirectory() as d:
         p = Path(d)
         test_hash_skip_and_reparse(p)
@@ -851,6 +1008,7 @@ def main() -> None:
         test_run_only_dry_run(p)
         test_no_as_of_does_not_write_json(p)
         test_parse_false_saves_html_without_json(p)
+        test_follow_year_then_latest_month(p)
     print("ok: ir monthly html r2")
 
 
