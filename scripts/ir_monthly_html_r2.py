@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import argparse
+import calendar
 import json
 import re
 import sys
@@ -54,7 +55,10 @@ _MONTH_RE = re.compile(
 _FY_CAPTION_RE = re.compile(r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月期")
 _FY_YEAR_RE = re.compile(r"(\d{4})\s*年度")
 _SKIP_AXIS_RE = re.compile(r"^(?:累計|通期計|通期|合計|計|年月)$")
-_UPDATE_RE = re.compile(r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日更新")
+_UPDATE_RE = re.compile(
+    r"(\d{4})\s*[/-年]\s*(\d{1,2})\s*[/-月]\s*(\d{1,2})\s*日?\s*"
+    r"(?:更新|公表|発表|開示|掲載)"
+)
 _UNIT_TAIL_RE = re.compile(r"(?:百万円|千円|億円|百万|円|店|度)+$")
 _EMPTY_VAL_RE = re.compile(r"^(?:[-−－―–—ー…‥.．]|n/?a|なし)?$", re.I)
 _PCT_MARK_RE = re.compile(r"[%％]")
@@ -123,7 +127,10 @@ def parse_as_of_text(html: str) -> str | None:
     m = _UPDATE_RE.search(html or "")
     if not m:
         return None
-    return date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
+    try:
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
+    except ValueError:
+        return None
 
 
 def parse_eir_date(raw: str) -> str | None:
@@ -131,21 +138,111 @@ def parse_eir_date(raw: str) -> str | None:
     m = re.match(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", s)
     if not m:
         return None
-    return date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
+    try:
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
+    except ValueError:
+        return None
 
 
-def parse_month_cell(text: str) -> int | None:
+def parse_month_year(text: str) -> tuple[int | None, int | None]:
+    """セルから (year or None, month or None)。月期キャプションは月軸にしない。"""
     s = unicodedata.normalize("NFKC", text or "").strip()
     if not s or _SKIP_AXIS_RE.fullmatch(s) or _FY_CAPTION_RE.search(s) or _FY_YEAR_RE.fullmatch(s):
-        return None
+        return None, None
     m = _MONTH_RE.search(s)
     if not m:
-        return None
+        return None, None
     n = m.group("m") or m.group("m2")
     month = int(n)
     if month < 1 or month > 12:
-        return None
+        return None, None
+    y_raw = m.group("y") or m.group("y2")
+    year = int(y_raw) if y_raw else None
+    if year is not None and year < 1990:
+        year = None
+    return year, month
+
+
+def parse_month_cell(text: str) -> int | None:
+    _year, month = parse_month_year(text)
     return month
+
+
+def month_end_iso(year: int, month: int) -> str:
+    return date(year, month, calendar.monthrange(year, month)[1]).isoformat()
+
+
+def fy_end_from_text(text: str) -> tuple[int, int] | None:
+    """`2027年3月期` の最新（年, 期末月）。`YYYY年度` は開始/終了が曖昧なので使わない。"""
+    found = [(int(y), int(m)) for y, m in _FY_CAPTION_RE.findall(text or "")]
+    if not found:
+        return None
+    return max(found)
+
+
+def pick_fy_end(grid: list[list[str]], html: str) -> tuple[int, int] | None:
+    blob = " ".join(c for row in grid for c in row)
+    return fy_end_from_text(blob) or fy_end_from_text(page_context(html)) or fy_end_from_text(html)
+
+
+def last_filled_month(rows: list[dict]) -> int | None:
+    months: list[int] = []
+    for row in rows:
+        values = row.get("values") or {}
+        if not isinstance(values, dict):
+            continue
+        for k, v in values.items():
+            if v is None:
+                continue
+            try:
+                months.append(int(k))
+            except (TypeError, ValueError):
+                continue
+    return max(months) if months else None
+
+
+def year_for_month(month: int, fy_end: tuple[int, int] | None, cell_year: int | None) -> int | None:
+    if cell_year is not None:
+        return cell_year
+    if fy_end is None:
+        return None
+    fy_y, fy_m = fy_end
+    return fy_y if month <= fy_m else fy_y - 1
+
+
+def as_of_from_table(grid: list[list[str]], html: str, rows: list[dict]) -> str | None:
+    """値がある最後の月の年月。セルに年が無ければ `YYYY年M月期` から補う。"""
+    last_m = last_filled_month(rows)
+    if last_m is None:
+        return None
+    cell_year: int | None = None
+    for row in grid:
+        for cell in row:
+            year, month = parse_month_year(cell)
+            if month == last_m and year is not None:
+                cell_year = year if cell_year is None else max(cell_year, year)
+    year = year_for_month(last_m, pick_fy_end(grid, html), cell_year)
+    if year is None:
+        return None
+    return month_end_iso(year, last_m)
+
+
+def resolve_as_of(
+    html: str,
+    grid: list[list[str]] | None,
+    rows: list[dict],
+    hint: str | None,
+) -> str:
+    """開示日 → 表の最終値の年月 → 呼び出し側 hint（E-IR 日付）。取得日は使わない。"""
+    explicit = parse_as_of_text(html)
+    if explicit:
+        return explicit
+    derived = as_of_from_table(grid or [], html, rows)
+    if derived:
+        return derived
+    if hint:
+        return hint
+    raise ValueError("no as_of")
 
 
 def parse_number(text: str) -> float | None:
@@ -501,7 +598,7 @@ def html_to_ingest(
     html: str,
     code: str,
     *,
-    as_of: str,
+    as_of: str | None = None,
     table: int | None = 0,
     context: str | None = None,
 ) -> dict:
@@ -517,6 +614,7 @@ def html_to_ingest(
             raise ValueError(f"table index {table} out of range ({len(tables)})")
         indices = [table]
     parsed = None
+    grid_used: list[list[str]] | None = None
     last_err: str | None = None
     for i in indices:
         try:
@@ -525,11 +623,12 @@ def html_to_ingest(
             last_err = str(e)
             parsed = None
         if parsed and parsed.get("rows"):
+            grid_used = tables[i]
             break
         parsed = None
     if not parsed:
         raise ValueError(last_err or "no monthly rows")
-    as_of_s = parse_as_of_text(html) or as_of
+    as_of_s = resolve_as_of(html, grid_used, parsed["rows"], as_of)
     return {
         "code": display_code(code),
         "months": parsed["months"],
@@ -681,7 +780,7 @@ def fetch_html_bytes(iss: HtmlIssuer) -> tuple[bytes, str | None, str]:
     return data, None, iss.index_url
 
 
-def write_ingest(html_path: Path, html: str, iss: HtmlIssuer, as_of: str) -> None:
+def write_ingest(html_path: Path, html: str, iss: HtmlIssuer, as_of: str | None = None) -> None:
     payload = html_to_ingest(html, iss.code, as_of=as_of, table=iss.table)
     atomic_write(ingest_path(html_path), dumps_ingest(payload).encode("utf-8"))
 
@@ -718,7 +817,7 @@ def fetch_issuer(
     rel = path.relative_to(dest)
     prev = hashes.get(digest)
     html = decode_html_bytes(data)
-    as_of = eir_as_of or parse_as_of_text(html) or pubdate
+    as_of = eir_as_of
     if prev is not None:
         sidecar = ingest_path(prev)
         try:
@@ -767,15 +866,7 @@ def reparse_issuer(iss: HtmlIssuer, dest: Path) -> tuple[int, int, int]:
                 skipped += 1
                 continue
             html = decode_html_bytes(data)
-            as_of = parse_as_of_text(html)
-            if as_of is None:
-                m = re.match(r"^(\d{8})_", path.name)
-                if m:
-                    ymd = m.group(1)
-                    as_of = f"{ymd[0:4]}-{ymd[4:6]}-{ymd[6:8]}"
-                else:
-                    as_of = jst_today().isoformat()
-            write_ingest(path, html, iss, as_of)
+            write_ingest(path, html, iss)
             parsed += 1
             print(f"reparse {rel} -> {ingest_path(path).name}", flush=True)
         except Exception as e:
