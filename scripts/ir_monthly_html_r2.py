@@ -24,7 +24,7 @@ from dataclasses import dataclass
 from datetime import date
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -39,6 +39,8 @@ from ir_monthly_r2 import (  # noqa: E402
     http_get,
     jst_today,
     sha256_bytes,
+    _AParser,
+    _SKIP_HREF_RE,
 )
 from tdnet_monthly_r2 import (  # noqa: E402
     display_code,
@@ -50,14 +52,28 @@ EIR_URL = "https://ssl4.eir-parts.net/V4Public/eir/{code}/ja/announcement/announ
 _CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
 _MONTH_RE = re.compile(
     r"(?:(?P<y>\d{4})\s*[/-年]\s*)?(?P<m>1[0-2]|0?[1-9])\s*月"
-    r"|(?P<y2>\d{4})\s*[/-]\s*(?P<m2>1[0-2]|0?[1-9])\b"
+    r"|(?P<y2>\d{4})\s*[./-]\s*(?P<m2>1[0-2]|0?[1-9])(?!\d)(?!\s*[./-]\s*\d)"
 )
 _FY_CAPTION_RE = re.compile(r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月期")
 _FY_YEAR_RE = re.compile(r"(\d{4})\s*年度")
-_SKIP_AXIS_RE = re.compile(r"^(?:累計|通期計|通期|合計|計|年月)$")
+_FY_RANGE_RE = re.compile(
+    r"(\d{4})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{1,2})\s*[～〜~\-－]\s*"
+    r"(\d{4})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{1,2})"
+)
+_FY_MONTH_RANGE_RE = re.compile(
+    r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月\s*[～〜~\-－]\s*"
+    r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月(?!期)"
+)
+_YM_DO_RE = re.compile(r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月度")
+_SKIP_AXIS_RE = re.compile(
+    r"^(?:累計|通期計|通期|通期累計|通年|合計|計|年月|"
+    r"上期計|下期計|上期累計|下期累計|上半期|下半期|上期|下期|半期|"
+    r"[1-4]Q|[１-４]Q|[1-4]四半期|四半期|\d+\s*ヶ月|月計)$"
+)
+_SKIP_SPAN_RE = re.compile(r"\d+\s*[～〜~\-－]\s*\d+\s*月")
 _UPDATE_RE = re.compile(
     r"(\d{4})\s*[/-年]\s*(\d{1,2})\s*[/-月]\s*(\d{1,2})\s*日?\s*"
-    r"(?:更新|公表|発表|開示|掲載)"
+    r"(?:更新|公表|発表|開示|掲載|確定)"
 )
 _UNIT_TAIL_RE = re.compile(r"(?:百万円|千円|億円|百万|円|店|度)+$")
 _EMPTY_VAL_RE = re.compile(r"^(?:[-−－―–—ー…‥.．]|n/?a|なし)?$", re.I)
@@ -65,6 +81,8 @@ _PCT_MARK_RE = re.compile(r"[%％]")
 _TRI_RE = re.compile(r"[△▲]")
 _CHARSET_RE = re.compile(br"charset\s*=\s*[\"']?\s*([a-zA-Z0-9_-]+)", re.I)
 _HEADING_RE = re.compile(r"<h[1-4][^>]*>(.*?)</h[1-4]>", re.I | re.S)
+_P_RE = re.compile(r"<p[^>]*>(.*?)</p>", re.I | re.S)
+_CAPTION_RE = re.compile(r"<caption[^>]*>(.*?)</caption>", re.I | re.S)
 _TAG_RE = re.compile(r"<[^>]+>")
 _CHARSET_ALIAS = {
     "utf8": "utf-8",
@@ -88,6 +106,8 @@ class HtmlIssuer:
     eir_code: str
     eir_n: int
     eir_title_re: str
+    follow_re: str = ""
+    parse: bool = True
 
 
 def ingest_path(html_path: Path) -> Path:
@@ -114,23 +134,51 @@ def decode_html_bytes(data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+def _plain(html_frag: str) -> str:
+    t = unicodedata.normalize("NFKC", html_frag or "")
+    t = _TAG_RE.sub(" ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
 def page_context(html: str) -> str:
     parts: list[str] = []
-    for m in _HEADING_RE.finditer(html or ""):
-        t = re.sub(r"\s+", " ", _TAG_RE.sub(" ", m.group(1))).strip()
-        if t:
+    seen: set[str] = set()
+    for rx in (_HEADING_RE, _CAPTION_RE):
+        for m in rx.finditer(html or ""):
+            t = _plain(m.group(1))
+            if t and t not in seen:
+                seen.add(t)
+                parts.append(t)
+    for m in _P_RE.finditer(html or ""):
+        t = _plain(m.group(1))
+        if not t or t in seen:
+            continue
+        if any(k in t for k in ("月期", "年度", "月度", "前年", "対前年")):
+            seen.add(t)
             parts.append(t)
+        if len(parts) >= 24:
+            break
     return " ".join(parts)
 
 
 def parse_as_of_text(html: str) -> str | None:
-    m = _UPDATE_RE.search(html or "")
-    if not m:
-        return None
-    try:
-        return date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
-    except ValueError:
-        return None
+    s = unicodedata.normalize("NFKC", html or "")
+    m = _UPDATE_RE.search(s)
+    if m:
+        try:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
+        except ValueError:
+            pass
+    found: list[tuple[int, int]] = []
+    for y, mo in _YM_DO_RE.findall(s):
+        found.append((int(y), int(mo)))
+    if found:
+        y, mo = max(found)
+        try:
+            return month_end_iso(y, mo)
+        except ValueError:
+            return None
+    return None
 
 
 def parse_eir_date(raw: str) -> str | None:
@@ -173,11 +221,26 @@ def month_end_iso(year: int, month: int) -> str:
 
 
 def fy_end_from_text(text: str) -> tuple[int, int] | None:
-    """`2027年3月期` の最新（年, 期末月）。`YYYY年度` は開始/終了が曖昧なので使わない。"""
-    found = [(int(y), int(m)) for y, m in _FY_CAPTION_RE.findall(text or "")]
-    if not found:
-        return None
-    return max(found)
+    """`2027年3月期` の最新（年, 期末月）。無ければ期間末、さらに `YYYY年度` は4月始まり（翌年3月期末）。"""
+    s = unicodedata.normalize("NFKC", text or "")
+    found = [(int(y), int(m)) for y, m in _FY_CAPTION_RE.findall(s)]
+    if found:
+        return max(found)
+    ranges = _FY_RANGE_RE.findall(s)
+    if ranges:
+        y2, m2 = int(ranges[-1][3]), int(ranges[-1][4])
+        if 1 <= m2 <= 12:
+            return y2, m2
+    month_ranges = _FY_MONTH_RANGE_RE.findall(s)
+    if month_ranges:
+        y2, m2 = int(month_ranges[-1][2]), int(month_ranges[-1][3])
+        if 1 <= m2 <= 12:
+            return y2, m2
+    years = [int(y) for y in _FY_YEAR_RE.findall(s)]
+    if years:
+        y = max(years)
+        return y + 1, 3
+    return None
 
 
 def pick_fy_end(grid: list[list[str]], html: str) -> tuple[int, int] | None:
@@ -185,8 +248,8 @@ def pick_fy_end(grid: list[list[str]], html: str) -> tuple[int, int] | None:
     return fy_end_from_text(blob) or fy_end_from_text(page_context(html)) or fy_end_from_text(html)
 
 
-def last_filled_month(rows: list[dict]) -> int | None:
-    months: list[int] = []
+def last_filled_month(rows: list[dict], months: list[int] | None = None) -> int | None:
+    filled: set[int] = set()
     for row in rows:
         values = row.get("values") or {}
         if not isinstance(values, dict):
@@ -195,10 +258,16 @@ def last_filled_month(rows: list[dict]) -> int | None:
             if v is None:
                 continue
             try:
-                months.append(int(k))
+                filled.add(int(k))
             except (TypeError, ValueError):
                 continue
-    return max(months) if months else None
+    if not filled:
+        return None
+    if months:
+        for m in reversed(months):
+            if m in filled:
+                return m
+    return max(filled)
 
 
 def year_for_month(month: int, fy_end: tuple[int, int] | None, cell_year: int | None) -> int | None:
@@ -210,9 +279,14 @@ def year_for_month(month: int, fy_end: tuple[int, int] | None, cell_year: int | 
     return fy_y if month <= fy_m else fy_y - 1
 
 
-def as_of_from_table(grid: list[list[str]], html: str, rows: list[dict]) -> str | None:
-    """値がある最後の月の年月。セルに年が無ければ `YYYY年M月期` から補う。"""
-    last_m = last_filled_month(rows)
+def as_of_from_table(
+    grid: list[list[str]],
+    html: str,
+    rows: list[dict],
+    months: list[int] | None = None,
+) -> str | None:
+    """値がある最後の月の年月。セルに年が無ければ `YYYY年M月期` / `YYYY年度` から補う。"""
+    last_m = last_filled_month(rows, months)
     if last_m is None:
         return None
     cell_year: int | None = None
@@ -232,12 +306,13 @@ def resolve_as_of(
     grid: list[list[str]] | None,
     rows: list[dict],
     hint: str | None,
+    months: list[int] | None = None,
 ) -> str:
     """開示日 → 表の最終値の年月 → 呼び出し側 hint（E-IR 日付）。取得日は使わない。"""
     explicit = parse_as_of_text(html)
     if explicit:
         return explicit
-    derived = as_of_from_table(grid or [], html, rows)
+    derived = as_of_from_table(grid or [], html, rows, months)
     if derived:
         return derived
     if hint:
@@ -362,7 +437,12 @@ def parse_tables(html: str) -> list[list[list[str]]]:
 
 def _is_skip_axis(text: str) -> bool:
     s = unicodedata.normalize("NFKC", text or "").strip()
-    return bool(_SKIP_AXIS_RE.fullmatch(s))
+    s = re.sub(r"\s+", "", s)
+    if not s:
+        return False
+    if _SKIP_AXIS_RE.fullmatch(s) or _SKIP_SPAN_RE.search(s):
+        return True
+    return False
 
 
 def _is_caption_cell(text: str) -> bool:
@@ -422,13 +502,13 @@ def infer_unit(header: str, samples: list[str], context: str = "") -> str:
     if any(k in h for k in ("百万円", "千円", "億円")) and "前年" not in h:
         return "number"
     has_tri = any(_TRI_RE.search(v or "") for v in samples)
-    has_pct = any(_PCT_MARK_RE.search(v or "") for v in samples)
+    has_pct = any(_PCT_MARK_RE.search(v or "") for v in samples) or bool(_PCT_MARK_RE.search(h))
     yoy = any(k in blob for k in ("前年", "同月比", "100基準"))
     if "100基準" in blob:
         return "yoy_index"
     if has_tri:
         return "yoy_pct"
-    if has_pct:
+    if has_pct or (_PCT_MARK_RE.search(blob) and yoy):
         return "yoy_index"
     if yoy:
         return "yoy_pct"
@@ -480,20 +560,24 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
     if len(month_cols) < 3:
         return None
     months = [m for _c, m in month_cols]
-    samples = [
-        cell
-        for row in grid[header_i + 1 :]
-        for _c, cell in enumerate(row)
-        if any(c == _c for c, _m in month_cols)
-    ]
-    unit = infer_unit("", samples, context)
+    month_i = min(c for c, _m in month_cols)
     rows_out: list[dict] = []
     for row in grid[header_i + 1 :]:
-        label = (row[0] if row else "").strip()
-        if not label or _is_skip_axis(label) or parse_month_cell(label) is not None:
+        parts: list[str] = []
+        for c in range(month_i):
+            t = row[c].strip() if c < len(row) else ""
+            if not t or t in parts:
+                continue
+            if parse_month_cell(t) is not None or _is_skip_axis(t) or _is_caption_cell(t):
+                continue
+            parts.append(t)
+        label = " ".join(parts).strip()
+        if not label or parse_month_cell(label) is not None:
             continue
-        if not _row_has_number(row, 1):
+        if not _row_has_number(row, month_i):
             continue
+        samples = [row[c] if c < len(row) else "" for c, _m in month_cols]
+        unit = infer_unit(label, samples, context)
         values: dict[str, int | float] = {}
         for c, month in month_cols:
             if c >= len(row):
@@ -505,10 +589,14 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
         if not values:
             continue
         element = label
-        if context and "前年" in context and "前年" not in label and "売上" not in label:
-            metric = "売上高前年同月比" if "売上" in context else context.split()[-1]
-            if metric and metric not in element:
-                element = f"{label} {metric}".strip()
+        if (
+            context
+            and "前年" in context
+            and "前年" not in label
+            and "売上" not in label
+            and "売上" in context
+        ):
+            element = f"{label} 売上高前年同月比".strip()
         rows_out.append({"element": element, "unit": unit, "values": values})
     if not rows_out:
         return None
@@ -567,6 +655,8 @@ def _parse_row_months(grid: list[list[str]], data_i: int, context: str) -> dict 
             continue
         month = parse_month_cell(head)
         if month is None:
+            if head:
+                continue
             month = carry_month
         else:
             carry_month = month
@@ -594,6 +684,17 @@ def _parse_row_months(grid: list[list[str]], data_i: int, context: str) -> dict 
     return {"months": months, "rows": rows_out}
 
 
+def _parsed_score(
+    html: str,
+    grid: list[list[str]],
+    parsed: dict,
+) -> tuple[str, int, int]:
+    as_of_s = as_of_from_table(grid, html, parsed["rows"], parsed.get("months")) or ""
+    n_yoy = sum(1 for r in parsed["rows"] if r.get("unit") != "number")
+    n_val = sum(len(r.get("values") or {}) for r in parsed["rows"])
+    return (as_of_s, n_yoy, n_val)
+
+
 def html_to_ingest(
     html: str,
     code: str,
@@ -613,9 +714,8 @@ def html_to_ingest(
         if table < 0 or table >= len(tables):
             raise ValueError(f"table index {table} out of range ({len(tables)})")
         indices = [table]
-    parsed = None
-    grid_used: list[list[str]] | None = None
     last_err: str | None = None
+    candidates: list[tuple[list[list[str]], dict]] = []
     for i in indices:
         try:
             parsed = parse_grid(tables[i], ctx)
@@ -623,12 +723,13 @@ def html_to_ingest(
             last_err = str(e)
             parsed = None
         if parsed and parsed.get("rows"):
-            grid_used = tables[i]
-            break
-        parsed = None
-    if not parsed:
+            candidates.append((tables[i], parsed))
+            if table is not None:
+                break
+    if not candidates:
         raise ValueError(last_err or "no monthly rows")
-    as_of_s = resolve_as_of(html, grid_used, parsed["rows"], as_of)
+    grid_used, parsed = max(candidates, key=lambda it: _parsed_score(html, it[0], it[1]))
+    as_of_s = resolve_as_of(html, grid_used, parsed["rows"], as_of, parsed.get("months"))
     return {
         "code": display_code(code),
         "months": parsed["months"],
@@ -672,7 +773,13 @@ def pick_eir_monthly(payload: dict, title_re: str) -> tuple[str, str | None]:
             matched.append(it)
     if not matched:
         raise ValueError("no eir monthly item")
-    latest = max(matched, key=lambda it: str(it.get("date") or ""))
+    latest = max(
+        matched,
+        key=lambda it: (
+            str(it.get("date") or ""),
+            fy_end_from_text(str(it.get("title") or "")) or (0, 0),
+        ),
+    )
     html = str(latest.get("text") or "").strip()
     if not html:
         raise ValueError("eir monthly text empty")
@@ -734,6 +841,15 @@ def _parse_html_issuer(raw: object) -> HtmlIssuer:
         re.compile(eir_title_re)
     except re.error as e:
         raise ValueError(f"issuer {code} invalid eir_title_re: {e}") from e
+    follow_re = str(raw.get("follow_re") or "").strip()
+    if follow_re:
+        try:
+            re.compile(follow_re)
+        except re.error as e:
+            raise ValueError(f"issuer {code} invalid follow_re: {e}") from e
+    parse_raw = raw.get("parse", True)
+    if not isinstance(parse_raw, bool):
+        raise ValueError(f"issuer {code} invalid parse")
     return HtmlIssuer(
         code=code,
         name=name,
@@ -744,6 +860,8 @@ def _parse_html_issuer(raw: object) -> HtmlIssuer:
         eir_code=eir_code,
         eir_n=eir_n_raw,
         eir_title_re=eir_title_re,
+        follow_re=follow_re,
+        parse=parse_raw,
     )
 
 
@@ -766,6 +884,35 @@ def load_html_registry(path: Path) -> list[HtmlIssuer]:
     return out
 
 
+def pick_follow_url(html: str, base_url: str, follow_re: str) -> str:
+    """index から follow_re に合うリンクを集め、URL 内の西暦が最大のものを返す。"""
+    try:
+        rx = re.compile(follow_re)
+    except re.error as e:
+        raise ValueError(f"invalid follow_re: {follow_re!r} ({e})") from e
+    parser = _AParser()
+    parser.feed(html or "")
+    parser.close()
+    found: list[tuple[int, str]] = []
+    seen: set[str] = set()
+    for href, _text in parser.links:
+        raw = (href or "").strip()
+        if not raw or _SKIP_HREF_RE.match(raw):
+            continue
+        abs_url = urljoin(base_url, raw).split("#", 1)[0]
+        if abs_url in seen:
+            continue
+        if not rx.search(abs_url) and not rx.search(raw):
+            continue
+        seen.add(abs_url)
+        years = [int(y) for y in re.findall(r"20\d{2}", abs_url)]
+        found.append((max(years) if years else 0, abs_url))
+    if not found:
+        raise ValueError(f"no follow url matching {follow_re!r}")
+    found.sort()
+    return found[-1][1]
+
+
 def fetch_html_bytes(iss: HtmlIssuer) -> tuple[bytes, str | None, str]:
     """returns (html_bytes, as_of, source_url)."""
     if iss.source == "eir":
@@ -775,14 +922,41 @@ def fetch_html_bytes(iss: HtmlIssuer) -> tuple[bytes, str | None, str]:
         payload = parse_eir_jsonp(decode_html_bytes(body))
         html, as_of = pick_eir_monthly(payload, iss.eir_title_re)
         return html.encode("utf-8"), as_of, url
-    data = http_get(iss.index_url)
+    url = iss.index_url
+    data = http_get(url)
     time.sleep(SLEEP_SEC)
-    return data, None, iss.index_url
+    if iss.follow_re:
+        followed = pick_follow_url(decode_html_bytes(data), url, iss.follow_re)
+        if followed.rstrip("/") != url.rstrip("/"):
+            data = http_get(followed)
+            time.sleep(SLEEP_SEC)
+            url = followed
+    return data, None, url
 
 
 def write_ingest(html_path: Path, html: str, iss: HtmlIssuer, as_of: str | None = None) -> None:
     payload = html_to_ingest(html, iss.code, as_of=as_of, table=iss.table)
     atomic_write(ingest_path(html_path), dumps_ingest(payload).encode("utf-8"))
+
+
+def _try_write_ingest(
+    html_path: Path,
+    html: str,
+    iss: HtmlIssuer,
+    as_of: str | None,
+    rel: object,
+) -> int:
+    """0 ok, 1 failed. parse=false は JSON を書かず成功。"""
+    if not iss.parse:
+        print(f"skip parse {rel}", flush=True)
+        return 0
+    try:
+        write_ingest(html_path, html, iss, as_of)
+    except Exception as e:
+        print(f"fail ingest {rel}: {e}", flush=True)
+        return 1
+    print(f"saved {ingest_path(html_path).name}", flush=True)
+    return 0
 
 
 def fetch_issuer(
@@ -801,6 +975,8 @@ def fetch_issuer(
     if dry_run:
         if iss.source == "eir":
             print(f"dry-run {iss.code} eir {eir_url(iss.eir_code, iss.eir_n)}", flush=True)
+        elif iss.follow_re:
+            print(f"dry-run {iss.code} html {iss.index_url} follow={iss.follow_re}", flush=True)
         else:
             print(f"dry-run {iss.code} html {iss.index_url}", flush=True)
         return 1, 0, 1, 0
@@ -824,13 +1000,9 @@ def fetch_issuer(
             missing = (not sidecar.is_file()) or sidecar.stat().st_size <= 0
         except OSError:
             missing = True
-        if missing:
-            try:
-                write_ingest(prev, html, iss, as_of)
-            except Exception as e:
-                print(f"fail ingest {prev.relative_to(dest)}: {e}", flush=True)
+        if missing and iss.parse:
+            if _try_write_ingest(prev, html, iss, as_of, sidecar.relative_to(dest)):
                 return 1, 0, 0, 1
-            print(f"saved {sidecar.relative_to(dest)}", flush=True)
             return 1, 1, 0, 0
         print(f"skip hash {rel} == {prev.relative_to(dest)}", flush=True)
         return 1, 0, 1, 0
@@ -842,12 +1014,8 @@ def fetch_issuer(
         print(f"fail {rel} url={url}: {e}", flush=True)
         return 1, 0, 0, 1
     print(f"saved {rel} ({len(data)} bytes)", flush=True)
-    try:
-        write_ingest(path, html, iss, as_of)
-    except Exception as e:
-        print(f"fail ingest {rel}: {e}", flush=True)
+    if _try_write_ingest(path, html, iss, as_of, rel):
         return 1, 1, 0, 1
-    print(f"saved {ingest_path(path).relative_to(dest)}", flush=True)
     return 1, 1, 0, 0
 
 
@@ -855,6 +1023,9 @@ def reparse_issuer(iss: HtmlIssuer, dest: Path) -> tuple[int, int, int]:
     """returns parsed, skipped, failed."""
     code_dir = dest / display_code(iss.code)
     if not code_dir.is_dir():
+        return 0, 0, 0
+    if not iss.parse:
+        print(f"skip parse {iss.code}", flush=True)
         return 0, 0, 0
     parsed = skipped = failed = 0
     files = sorted(p for p in code_dir.iterdir() if p.is_file() and p.suffix.lower() == ".html")
