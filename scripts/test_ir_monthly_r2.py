@@ -187,6 +187,11 @@ def test_url_stem_and_magic() -> None:
         _fail("xlsx magic")
     if looks_like_file(b"%PDF-1.4", "xlsx"):
         _fail("pdf is not xlsx")
+    html = dest_filename("2026-09-14", "2664", "カワチ薬品", "月次", "html")
+    if html != "20260914_2664_カワチ薬品_月次.html":
+        _fail(f"html dest: {html!r}")
+    if not looks_like_file(b"  <html>", "html"):
+        _fail("html magic")
 
 
 def test_load_registry(tmp: Path) -> None:

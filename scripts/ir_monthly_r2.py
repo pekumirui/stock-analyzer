@@ -44,7 +44,7 @@ USER_AGENT = "stock-analyzer-ir-monthly/1.0"
 SLEEP_SEC = 0.4
 HTTP_TIMEOUT = 30.0
 _EXT_RE = re.compile(r"\.(pdf|xlsx)(?:$|[?#])", re.I)
-_ALLOWED_EXT = frozenset({"pdf", "xlsx"})
+_ALLOWED_EXT = frozenset({"pdf", "xlsx", "html"})
 _CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
 _SKIP_HREF_RE = re.compile(r"^(?:javascript:|mailto:|#)", re.I)
 _HASH_STEM_RE = re.compile(r"^[0-9a-f]{32,}$", re.I)
@@ -229,6 +229,9 @@ def looks_like_file(data: bytes, ext: str) -> bool:
         return data.startswith(b"%PDF")
     if ext == "xlsx":
         return data.startswith(b"PK")
+    if ext == "html":
+        head = data.lstrip()[:200].lower()
+        return head.startswith(b"<") or head.startswith(b"<!doctype")
     return False
 
 
