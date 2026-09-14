@@ -8,7 +8,8 @@ The chart tab searches an issuer and draws adjusted daily, weekly, or monthly ca
 - `chart-candles` fills `#chart` from `/api/chart/{code}` `candles` when `表示` / `pick` / `gotoChart` runs `loadChart()`.
 - `chart-rel` toggles `#rel` and shows `#relwrap` when `/api/chart/{code}` includes TOPIX (still needs `表示` after flipping the checkbox).
 - `chart-perf` fills `#perf-tbl` from `/api/earnings-performance/{code}`.
-- `chart-events` `.evt-toggles` (決算発表) overlays markers from chart JSON `earnings_dates`; default off.
+- `chart-events` `.evt-toggles` (決算発表) overlays markers from chart JSON `earnings_dates`; defaults off unless `localStorage.chartEventOverlays` restored them.
+- `chart-route` persists `#chart` or `#chart/{code}` via `ui.route` / hash; reload restores the tab and re-runs `loadChart()` when a code is present.
 
 ## How to get to it (user POV)
 
@@ -17,6 +18,7 @@ The chart tab searches an issuer and draws adjusted daily, weekly, or monthly ca
 - From 決算速報 (issuer title) or スクリーナー (name cell), use `gotoChart(code)`. There is no chart button on 月次; 型の調査 / census is not in the SPA.
 - Change `#tf` (`D` / `W` / `M` — 日足/週足/月足), `#mas`, or `#rel`, then click `表示` (changing those controls alone does not redraw).
 - Optionally tick `.evt-toggles` 決算発表 for earnings markers.
+- Reload with `#chart/{code}` to reopen that issuer without searching.
 
 ## Driving it with verify-stock-analyzer
 
@@ -40,3 +42,5 @@ Preconditions:
 - Empty `candles` is 404 or missing history, not a drawing bug — fail the precondition.
 - `#suggest` is `display:none` until there are hits; do not click it while hidden.
 - `#tf` defaults to `D`; `W` and `M` resample on the server (MA windows scale down for week/month).
+- Event overlay on/off is remembered in `localStorage.chartEventOverlays` across reloads.
+- `#perf-tbl` shows at most 12 rows even if the API returns more.

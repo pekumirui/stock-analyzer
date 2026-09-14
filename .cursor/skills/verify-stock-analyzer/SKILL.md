@@ -62,11 +62,13 @@ Stdout is JSON. If screener is empty, the instance is up but not worth driving a
 
 Harness: HTTP against the same routes the SPA uses, plus the browser when CDP is available.
 
+**Route memory (#130):** `boot.js` calls `restoreRoute()` after priming today's earnings list. Hash / `localStorage` `ui.route` forms are `earnings` | `screener` | `chart` | `monthly` | `chart/{code}` | `monthly/{code}`. Clear them when proving the cold default tab.
+
 **SPA handles (do not use coordinates):**
 
 | User control | Handle |
 |---|---|
-| 決算速報 tab | `nav button[data-tab="earnings"]` (default, `#tab-earnings` visible) |
+| 決算速報 tab | `nav button[data-tab="earnings"]` (fallback default when no `ui.route`/hash; `#tab-earnings` visible) |
 | 月次 tab | `nav button[data-tab="monthly"]` |
 | チャート tab | `nav button[data-tab="chart"]` |
 | スクリーナー tab | `nav button[data-tab="screener"]` |
