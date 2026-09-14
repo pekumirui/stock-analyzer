@@ -440,6 +440,8 @@ def _is_skip_axis(text: str) -> bool:
     s = re.sub(r"\s+", "", s)
     if not s:
         return False
+    if s.startswith("累計"):
+        return True
     if _SKIP_AXIS_RE.fullmatch(s) or _SKIP_SPAN_RE.search(s):
         return True
     return False
@@ -521,8 +523,15 @@ def _row_has_number(row: list[str], start: int = 0) -> bool:
 
 def _detect_col_header(grid: list[list[str]]) -> int | None:
     for i, row in enumerate(grid[:4]):
-        months = [parse_month_cell(c) for c in row]
-        if sum(1 for m in months if m is not None) >= 3:
+        n_month = 0
+        n_skip = 0
+        for c in row:
+            if _is_skip_axis(c):
+                n_skip += 1
+                continue
+            if parse_month_cell(c) is not None:
+                n_month += 1
+        if n_month >= 3 or (n_month >= 1 and n_skip >= 1):
             return i
     return None
 
@@ -557,14 +566,19 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
         m = parse_month_cell(cell)
         if m is not None:
             month_cols.append((c, m))
-    if len(month_cols) < 3:
+    if not month_cols:
         return None
     months = [m for _c, m in month_cols]
-    month_i = min(c for c, _m in month_cols)
+    cuts = [
+        c
+        for c, cell in enumerate(header)
+        if _is_skip_axis(cell) or parse_month_cell(cell) is not None
+    ]
+    label_end = min(cuts) if cuts else min(c for c, _m in month_cols)
     rows_out: list[dict] = []
     for row in grid[header_i + 1 :]:
         parts: list[str] = []
-        for c in range(month_i):
+        for c in range(label_end):
             t = row[c].strip() if c < len(row) else ""
             if not t or t in parts:
                 continue
@@ -574,7 +588,7 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
         label = " ".join(parts).strip()
         if not label or parse_month_cell(label) is not None:
             continue
-        if not _row_has_number(row, month_i):
+        if not _row_has_number(row, label_end):
             continue
         samples = [row[c] if c < len(row) else "" for c, _m in month_cols]
         unit = infer_unit(label, samples, context)
@@ -884,8 +898,31 @@ def load_html_registry(path: Path) -> list[HtmlIssuer]:
     return out
 
 
-def pick_follow_url(html: str, base_url: str, follow_re: str) -> str:
-    """index から follow_re に合うリンクを集め、URL 内の西暦が最大のものを返す。"""
+_FOLLOW_YM_RE = re.compile(r"(20\d{2})_(1[0-2]|0?[1-9])(?:/|$)")
+
+
+def _follow_key(url: str) -> tuple[int, int, int, str]:
+    """年 → 月 → パス深さ。`orders_2026/2026_8` は年ページより後。`2026_10` は `2026_9` より後。"""
+    path = urlparse(url).path.rstrip("/")
+    ms = list(_FOLLOW_YM_RE.finditer(path))
+    if ms:
+        return (int(ms[-1].group(1)), int(ms[-1].group(2)), path.count("/"), url)
+    years = [int(y) for y in re.findall(r"20\d{2}", path)]
+    y = years[-1] if years else 0
+    return (y, 0, path.count("/"), url)
+
+
+def pick_follow_url(
+    html: str,
+    base_url: str,
+    follow_re: str,
+    *,
+    under: str | None = None,
+) -> str | None:
+    """index から follow_re に合うリンクを集め、年・月が最大のものを返す。
+
+    under を付けると、その URL の子パスだけ（年一覧 → 最新月）。無ければ None。
+    """
     try:
         rx = re.compile(follow_re)
     except re.error as e:
@@ -893,7 +930,7 @@ def pick_follow_url(html: str, base_url: str, follow_re: str) -> str:
     parser = _AParser()
     parser.feed(html or "")
     parser.close()
-    found: list[tuple[int, str]] = []
+    found: list[str] = []
     seen: set[str] = set()
     for href, _text in parser.links:
         raw = (href or "").strip()
@@ -905,12 +942,17 @@ def pick_follow_url(html: str, base_url: str, follow_re: str) -> str:
         if not rx.search(abs_url) and not rx.search(raw):
             continue
         seen.add(abs_url)
-        years = [int(y) for y in re.findall(r"20\d{2}", abs_url)]
-        found.append((max(years) if years else 0, abs_url))
+        found.append(abs_url)
+    if under:
+        prefix = under.rstrip("/") + "/"
+        under_n = under.rstrip("/")
+        found = [u for u in found if u.rstrip("/") != under_n and u.startswith(prefix)]
     if not found:
+        if under is not None:
+            return None
         raise ValueError(f"no follow url matching {follow_re!r}")
-    found.sort()
-    return found[-1][1]
+    found.sort(key=_follow_key)
+    return found[-1]
 
 
 def fetch_html_bytes(iss: HtmlIssuer) -> tuple[bytes, str | None, str]:
@@ -927,10 +969,21 @@ def fetch_html_bytes(iss: HtmlIssuer) -> tuple[bytes, str | None, str]:
     time.sleep(SLEEP_SEC)
     if iss.follow_re:
         followed = pick_follow_url(decode_html_bytes(data), url, iss.follow_re)
+        assert followed is not None
         if followed.rstrip("/") != url.rstrip("/"):
             data = http_get(followed)
             time.sleep(SLEEP_SEC)
             url = followed
+        if iss.parse:
+            html = decode_html_bytes(data)
+            try:
+                html_to_ingest(html, iss.code, table=iss.table)
+            except ValueError:
+                child = pick_follow_url(html, url, iss.follow_re, under=url)
+                if child and child.rstrip("/") != url.rstrip("/"):
+                    data = http_get(child)
+                    time.sleep(SLEEP_SEC)
+                    url = child
     return data, None, url
 
 
