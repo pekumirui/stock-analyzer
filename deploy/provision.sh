@@ -44,8 +44,18 @@ write_if_changed() {
   return 0
 }
 
-apt-get update -qq
-apt-get install -y -qq \
+apt_retry() {
+  # security.ubuntu.com の IPv6 ミラーが古い .deb を指して 404 になることがある。
+  apt-get -o Acquire::ForceIPv4=true update -qq
+  if apt-get -o Acquire::ForceIPv4=true install -y -qq "$@"; then
+    return 0
+  fi
+  echo "apt install failed; retry after update --fix-missing" >&2
+  apt-get -o Acquire::ForceIPv4=true update -qq
+  apt-get -o Acquire::ForceIPv4=true install -y -qq --fix-missing "$@"
+}
+
+apt_retry \
   python3-venv python3-pip git curl \
   nginx apache2-utils certbot \
   ufw tzdata fuse3 unzip
