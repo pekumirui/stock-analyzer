@@ -787,8 +787,10 @@ def pick_eir_monthly(payload: dict, title_re: str) -> tuple[str, str | None]:
             matched.append(it)
     if not matched:
         raise ValueError("no eir monthly item")
+    with_text = [it for it in matched if str(it.get("text") or "").strip()]
+    pool = with_text or matched
     latest = max(
-        matched,
+        pool,
         key=lambda it: (
             str(it.get("date") or ""),
             fy_end_from_text(str(it.get("title") or "")) or (0, 0),

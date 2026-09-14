@@ -721,6 +721,46 @@ def test_eir_same_date_picks_later_fy() -> None:
         _fail("did not pick later FY")
 
 
+def test_eir_skips_empty_url_same_date() -> None:
+    payload = parse_eir_jsonp(
+        "eolparts_announcement_24("
+        + json.dumps(
+            {
+                "item": [
+                    {
+                        "date": "2026/09/07 17:00:00",
+                        "title": "2026年3月期　月次情報",
+                        "text": MOS_HTML,
+                        "type": "space",
+                    },
+                    {
+                        "date": "2026/09/07 17:00:00",
+                        "title": "2027年3月期　月次情報（8月）",
+                        "text": "",
+                        "type": "url",
+                        "link": "https://www.mos.co.jp/company/ir/library/monthly_info/",
+                    },
+                    {
+                        "date": "2026/04/07 18:00:00",
+                        "title": "2026年3月期　月次情報",
+                        "text": "<p>2025年4月～2026年3月</p><table><tr><th>4月</th><td>1</td></tr></table>",
+                        "type": "space",
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        )
+        + ");"
+    )
+    html, as_of = pick_eir_monthly(payload, "月次情報")
+    if as_of != "2026-09-07":
+        _fail(f"as_of {as_of}")
+    if "103.9" not in html:
+        _fail("did not pick widget with table")
+    if "2025年4月" in html:
+        _fail("picked previous FY widget")
+
+
 def test_follow_re_picks_latest_year() -> None:
     listing = """
     <html><body>
@@ -997,6 +1037,7 @@ def main() -> None:
     test_nendo_and_fullwidth_fy_as_of()
     test_skip_span_total_column()
     test_eir_same_date_picks_later_fy()
+    test_eir_skips_empty_url_same_date()
     test_follow_re_picks_latest_year()
     test_follow_re_picks_latest_month_not_year_folder()
     test_sekisui_single_month_col_skips_cumulative()
