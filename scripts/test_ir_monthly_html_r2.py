@@ -25,6 +25,7 @@ from ir_monthly_html_r2 import (  # noqa: E402
     parse_number,
     parse_tables,
     pick_eir_monthly,
+    pick_follow_url,
     reparse_issuer,
     run,
 )
@@ -320,11 +321,22 @@ def test_dest_html_and_ingest_sidecar() -> None:
 def test_load_html_registry() -> None:
     live = load_html_registry(ROOT / "config" / "ir_monthly.json")
     codes = [i.code for i in live]
-    if codes != ["2664", "2742", "7616", "8217"]:
-        _fail(f"repo html issuers: {codes}")
+    if len(codes) != 41:
+        _fail(f"repo html issuers count {len(codes)}: {codes}")
+    if codes != sorted(codes):
+        _fail(f"html issuers must be code-sorted: {codes}")
     colo = next(i for i in live if i.code == "7616")
     if colo.source != "eir" or colo.eir_n != 0:
         _fail(f"colo {colo}")
+    mos = next(i for i in live if i.code == "8153")
+    if mos.source != "eir" or mos.eir_n != 24:
+        _fail(f"mos {mos}")
+    no_parse = {i.code for i in live if not i.parse}
+    if no_parse != {"1878", "2792", "3080", "3196", "7544"}:
+        _fail(f"parse=false {no_parse}")
+    follows = {i.code: i.follow_re for i in live if i.follow_re}
+    if "7522" not in follows or "1928" not in follows or "8153" in follows:
+        _fail(f"follow_re {follows}")
 
 
 def test_hash_skip_and_reparse(tmp: Path) -> None:
@@ -556,6 +568,210 @@ def test_dumps_matches_ingest_shape() -> None:
         _fail("values keys must be strings in json")
 
 
+MOS_HTML = """
+<p>2026年4月～2027年3月（対前年比：%）</p>
+<table>
+<tr><th></th><th>既存店売上高</th><th>既存店客数</th><th>全店売上高</th></tr>
+<tr><th>4月</th><td>102.6</td><td>102.7</td><td>102.0</td></tr>
+<tr><th>8月</th><td>103.9</td><td>100.3</td><td>103.5</td></tr>
+<tr><th>9月</th><td></td><td></td><td></td></tr>
+<tr><th>上期計</th><td>103.8</td><td>102.2</td><td>103.2</td></tr>
+<tr><th>3月</th><td></td><td></td><td></td></tr>
+<tr><th>下期計</th><td>103.8</td><td>102.2</td><td>103.2</td></tr>
+<tr><th>通期計</th><td>103.8</td><td>102.2</td><td>103.2</td></tr>
+</table>
+"""
+
+WATAMI_HTML = """
+<html><body>
+<h2>2025年度 月次推移</h2>
+<table>
+<tr><td></td><td></td><td>2026.1</td><td>2026.2</td><td>2026.3</td><td>4Q</td><td>通年</td></tr>
+<tr><td>全店 (全業態)</td><td>売上高（%）</td><td>110.1</td><td>106.1</td><td>106.7</td><td>107.7</td><td>107.5</td></tr>
+<tr><td>全店 (全業態)</td><td>客数（%）</td><td>111.5</td><td>108.9</td><td>110.0</td><td>110.2</td><td>108.2</td></tr>
+</table>
+</body></html>
+"""
+
+KAPPA_HTML = """
+<html><body>
+<h3>国内回転寿司事業 月次売上推移速報</h3>
+<table>
+<tr><td rowspan="2">2026年度</td><td colspan="3">既存店舗</td><td colspan="3">全店舗</td></tr>
+<tr><td>売上高</td><td>客数</td><td>客単価</td><td>売上高</td><td>客数</td><td>客単価</td></tr>
+<tr><td>4月</td><td>94.0%</td><td>99.3%</td><td>94.7%</td><td>95.4%</td><td>100.7%</td><td>94.7%</td></tr>
+<tr><td>8月</td><td>98.1%</td><td>99.6%</td><td>98.5%</td><td>97.7%</td><td>99.2%</td><td>98.4%</td></tr>
+<tr><td>累計</td><td>98.6%</td><td>101.7%</td><td>96.9%</td><td>99.5%</td><td>101.8%</td><td>97.7%</td></tr>
+</table>
+</body></html>
+"""
+
+TSURUHA_HTML = """
+<html><body>
+<h2>連結月次前年対比伸び率</h2>
+<p>2027年２月期 (2026年3月1日～2027年2月28日)</p>
+<table>
+<tr><th>ツルハグループ</th><th></th><th>3月</th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th>
+<th>9月</th><th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th></tr>
+<tr><td>既存店</td><td>単月売上</td><td>3.3</td><td>5.0</td><td>4.6</td><td>▲ 1.1</td><td>1.7</td><td>1.4</td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>既存店</td><td>（内 物販）</td><td>1.5</td><td>3.8</td><td>4.8</td><td>▲ 3.8</td><td>0.0</td><td>0.2</td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+</body></html>
+"""
+
+ARCS_HTML = """
+<html><body>
+<h3>2027年２月期（2026.03.01～2027.02.28）</h3>
+<table>
+<tr><td></td><td></td><td>3月</td><td>4月</td><td>5月</td><td>3～5 月計</td><td>6月</td><td>7月</td></tr>
+<tr><td>売上高</td><td>全店</td><td>100.8</td><td>102.2</td><td>105.2</td><td>102.7</td><td>99.0</td><td>100.7</td></tr>
+<tr><td>売上高</td><td>既存店</td><td>100.6</td><td>102.3</td><td>105.3</td><td>102.7</td><td>98.7</td><td>100.2</td></tr>
+</table>
+</body></html>
+"""
+
+
+def test_mos_skips_half_year_total() -> None:
+    got = html_to_ingest(MOS_HTML, "8153")
+    if got["as_of"] != "2026-08-31":
+        _fail(f"mos as_of {got['as_of']}")
+    sales = _row(got, "既存店売上高")
+    if sales["unit"] != "yoy_index":
+        _fail(f"mos unit {sales}")
+    if sales["values"] != {"4": 102.6, "8": 103.9}:
+        _fail(f"上期計 leaked {sales['values']}")
+    if "9" in sales["values"] or "3" in sales["values"]:
+        _fail(f"empty/total months kept as values {sales['values']}")
+
+
+def test_year_dot_month_and_skip_quarter() -> None:
+    if parse_month_cell("2026.1") != 1 or parse_month_cell("2026.10") != 10:
+        _fail("YYYY.M")
+    if parse_month_cell("2026.03.01") is not None:
+        _fail("date range is not a month")
+    got = html_to_ingest(WATAMI_HTML, "7522")
+    if got["months"] != [1, 2, 3]:
+        _fail(f"watami months {got['months']}")
+    sales = _row(got, "全店 (全業態) 売上高（%）")
+    if sales["values"] != {"1": 110.1, "2": 106.1, "3": 106.7}:
+        _fail(f"4Q/通年 leaked {sales['values']}")
+    if sales["unit"] != "yoy_index":
+        _fail(f"watami unit {sales}")
+
+
+def test_nendo_and_fullwidth_fy_as_of() -> None:
+    got = html_to_ingest(KAPPA_HTML, "7421")
+    if got["as_of"] != "2026-08-31":
+        _fail(f"kappa 2026年度 + 8月 {got['as_of']}")
+    exist = _row(got, "既存店舗 売上高")
+    if exist["unit"] != "yoy_index" or exist["values"].get("8") != 98.1:
+        _fail(f"kappa {exist}")
+    if any("累計" in r["element"] for r in got["rows"]):
+        _fail("累計 row leaked")
+    got2 = html_to_ingest(TSURUHA_HTML, "3391")
+    if got2["as_of"] != "2026-08-31":
+        _fail(f"tsuruha fullwidth 月期 {got2['as_of']}")
+    sales = _row(got2, "既存店 単月売上")
+    if sales["unit"] != "yoy_pct" or sales["values"].get("6") != -1.1:
+        _fail(f"tsuruha {sales}")
+    goods = _row(got2, "既存店 （内 物販）")
+    if goods["values"].get("6") != -3.8:
+        _fail(f"tsuruha goods {goods}")
+
+
+def test_skip_span_total_column() -> None:
+    got = html_to_ingest(ARCS_HTML, "9948")
+    if got["as_of"] != "2026-07-31":
+        _fail(f"arcs as_of {got['as_of']}")
+    sales = _row(got, "売上高 全店")
+    if "計" in "".join(str(k) for k in sales["values"]):
+        _fail(f"span total col {sales}")
+    if sales["values"] != {"3": 100.8, "4": 102.2, "5": 105.2, "6": 99, "7": 100.7}:
+        _fail(f"arcs values {sales['values']}")
+
+
+def test_eir_same_date_picks_later_fy() -> None:
+    payload = parse_eir_jsonp(
+        "eolparts_announcement_24("
+        + json.dumps(
+            {
+                "item": [
+                    {
+                        "date": "2026/09/07 17:00:00",
+                        "title": "2026年3月期　月次情報",
+                        "text": "<table><tr><th>4月</th><td>1</td></tr></table>",
+                    },
+                    {
+                        "date": "2026/09/07 17:00:00",
+                        "title": "2027年3月期　月次情報（8月）",
+                        "text": MOS_HTML,
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        )
+        + ");"
+    )
+    html, as_of = pick_eir_monthly(payload, "月次情報")
+    if as_of != "2026-09-07":
+        _fail(f"as_of {as_of}")
+    if "103.9" not in html or "2026年3月期" in html:
+        _fail("did not pick later FY")
+
+
+def test_follow_re_picks_latest_year() -> None:
+    listing = """
+    <html><body>
+    <a href="/ir/library/recent/fy2024/">2024</a>
+    <a href="/ir/library/recent/fy2025/">2025</a>
+    <a href="/ir/library/recent/fy2023/">2023</a>
+    </body></html>
+    """
+    url = pick_follow_url(listing, "https://www.watami.co.jp/ir/library/recent", r"fy20\d{2}")
+    if url != "https://www.watami.co.jp/ir/library/recent/fy2025/":
+        _fail(url)
+
+
+def test_parse_false_saves_html_without_json(tmp: Path) -> None:
+    import ir_monthly_html_r2 as mod
+
+    dest = tmp / "monthly"
+    orig = mod.http_get
+    orig_sleep = mod.SLEEP_SEC
+    mod.http_get = lambda url, timeout=30.0: b"<html><body><p>graph only</p></body></html>"  # noqa: ARG005
+    mod.SLEEP_SEC = 0
+    try:
+        iss = HtmlIssuer(
+            code="1878",
+            name="大東建託",
+            index_url="https://example.test/kentaku/",
+            title="月次",
+            source="html",
+            table=0,
+            eir_code="1878",
+            eir_n=0,
+            eir_title_re="月次",
+            follow_re="",
+            parse=False,
+        )
+        n, s, k, f = fetch_issuer(
+            iss, dest, {"18780": ("011", "大東建託")}, date(2026, 9, 14), dry_run=False
+        )
+        if (n, s, k, f) != (1, 1, 0, 0):
+            _fail(f"parse=false {n, s, k, f}")
+        htmls = list((dest / "1878").glob("*.html"))
+        jsons = list((dest / "1878").glob("*.ingest.json"))
+        if len(htmls) != 1:
+            _fail(f"html {htmls}")
+        if jsons:
+            _fail(f"json must not be written {jsons}")
+    finally:
+        mod.http_get = orig
+        mod.SLEEP_SEC = orig_sleep
+
+
 def test_no_as_of_does_not_write_json(tmp: Path) -> None:
     import ir_monthly_html_r2 as mod
 
@@ -621,6 +837,12 @@ def main() -> None:
     test_dest_html_and_ingest_sidecar()
     test_load_html_registry()
     test_dumps_matches_ingest_shape()
+    test_mos_skips_half_year_total()
+    test_year_dot_month_and_skip_quarter()
+    test_nendo_and_fullwidth_fy_as_of()
+    test_skip_span_total_column()
+    test_eir_same_date_picks_later_fy()
+    test_follow_re_picks_latest_year()
     with TemporaryDirectory() as d:
         p = Path(d)
         test_hash_skip_and_reparse(p)
@@ -628,6 +850,7 @@ def main() -> None:
         test_unknown_stock_skip(p)
         test_run_only_dry_run(p)
         test_no_as_of_does_not_write_json(p)
+        test_parse_false_saves_html_without_json(p)
     print("ok: ir monthly html r2")
 
 
