@@ -19,6 +19,7 @@ from ir_monthly_html_r2 import (  # noqa: E402
     html_to_ingest,
     ingest_path,
     load_html_registry,
+    parse_as_of_text,
     parse_eir_jsonp,
     parse_month_cell,
     parse_number,
@@ -193,16 +194,20 @@ def test_parse_number_and_month() -> None:
         _fail("2026/07")
     if parse_month_cell("累計") is not None or parse_month_cell("通期計") is not None:
         _fail("skip axis")
+    if parse_as_of_text("（2026年9月4日更新）") != "2026-09-04":
+        _fail("日更新")
+    if parse_as_of_text("2026/09/11 公表") != "2026-09-11":
+        _fail("slash 公表")
 
 
 def test_cawachi_col_months() -> None:
-    got = html_to_ingest(CAWACHI_HTML, "2664", as_of="2026-09-11")
+    got = html_to_ingest(CAWACHI_HTML, "2664")
     if got["code"] != "2664":
         _fail(f"code {got['code']}")
     if got["months"] != [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]:
         _fail(f"months {got['months']}")
-    if got["as_of"] != "2026-09-11":
-        _fail(f"as_of {got['as_of']}")
+    if got["as_of"] != "2026-08-31":
+        _fail(f"as_of from 2027年3月期 + 8月 {got['as_of']}")
     all_store = _row(got, "全店 売上高前年同月比")
     exist = _row(got, "既存店 売上高前年同月比")
     if all_store["unit"] != "yoy_pct" or exist["unit"] != "yoy_pct":
@@ -219,7 +224,9 @@ def test_cawachi_col_months() -> None:
 
 
 def test_halows_rowspan() -> None:
-    got = html_to_ingest(HALOWS_HTML, "2742", as_of="2026-09-14")
+    got = html_to_ingest(HALOWS_HTML, "2742")
+    if got["as_of"] != "2026-07-31":
+        _fail(f"as_of from 2026/07 {got['as_of']}")
     if got["months"] != [3, 7]:
         _fail(f"months should be fiscal order {got['months']}")
     sales = _row(got, "全店 売上高", unit="number")
@@ -237,7 +244,9 @@ def test_halows_rowspan() -> None:
 
 
 def test_okuwa_reverse_months_and_store_count() -> None:
-    got = html_to_ingest(OKUWA_HTML, "8217", as_of="2026-09-14")
+    got = html_to_ingest(OKUWA_HTML, "8217")
+    if got["as_of"] != "2026-08-31":
+        _fail(f"as_of from 2026年8月度 {got['as_of']}")
     if got["months"] != [3, 7, 8]:
         _fail(f"months {got['months']}")
     exist = _row(got, "既存店")
@@ -249,7 +258,7 @@ def test_okuwa_reverse_months_and_store_count() -> None:
 
 
 def test_colowide_grouped_header_skips_total() -> None:
-    got = html_to_ingest(COLOWIDE_HTML, "7616", as_of="2026-01-01")
+    got = html_to_ingest(COLOWIDE_HTML, "7616")
     if got["as_of"] != "2026-09-04":
         _fail(f"update date {got['as_of']}")
     if got["months"] != [4, 8, 9, 3]:
@@ -359,6 +368,8 @@ def test_hash_skip_and_reparse(tmp: Path) -> None:
         payload = json.loads(json_files[0].read_text(encoding="utf-8"))
         if payload["rows"][0]["values"]["7"] != -4.3:
             _fail(payload)
+        if payload["as_of"] != "2026-08-31":
+            _fail(f"cawachi as_of {payload['as_of']}")
         if "year" in payload:
             _fail("year must not be in ingest json")
 
@@ -536,13 +547,65 @@ def test_run_only_dry_run(tmp: Path) -> None:
 
 
 def test_dumps_matches_ingest_shape() -> None:
-    got = html_to_ingest(CAWACHI_HTML, "26640", as_of="2026-09-11")
+    got = html_to_ingest(CAWACHI_HTML, "26640")
     text = dumps_ingest(got)
     parsed = json.loads(text)
     if set(parsed) != {"code", "months", "rows", "as_of"}:
         _fail(f"keys {parsed.keys()}")
     if not isinstance(next(iter(parsed["rows"][0]["values"])), str):
         _fail("values keys must be strings in json")
+
+
+def test_no_as_of_does_not_write_json(tmp: Path) -> None:
+    import ir_monthly_html_r2 as mod
+
+    bare = """
+    <html><body>
+    <table>
+    <tr><th></th><th>4月</th><th>5月</th><th>6月</th></tr>
+    <tr><td>全店</td><td>1.0</td><td>2.0</td><td>3.0</td></tr>
+    </table>
+    </body></html>
+    """
+    try:
+        html_to_ingest(bare, "2664")
+    except ValueError as e:
+        if "no as_of" not in str(e):
+            _fail(f"expected no as_of, got {e}")
+    else:
+        _fail("bare table must not emit ingest json")
+
+    dest = tmp / "no-as-of"
+    orig = mod.http_get
+    orig_sleep = mod.SLEEP_SEC
+    mod.http_get = lambda url, timeout=30.0: bare.encode("utf-8")  # noqa: ARG005
+    mod.SLEEP_SEC = 0
+    try:
+        iss = HtmlIssuer(
+            code="2664",
+            name="カワチ薬品",
+            index_url="https://example.test/bare/",
+            title="月次",
+            source="html",
+            table=0,
+            eir_code="2664",
+            eir_n=0,
+            eir_title_re="月次",
+        )
+        n, s, k, f = fetch_issuer(
+            iss, dest, {"26640": ("011", "カワチ薬品")}, date(2026, 9, 14), dry_run=False
+        )
+        if (n, s, k, f) != (1, 1, 0, 1):
+            _fail(f"html saved, ingest failed {n, s, k, f}")
+        htmls = list((dest / "2664").glob("*.html"))
+        jsons = list((dest / "2664").glob("*.ingest.json"))
+        if len(htmls) != 1:
+            _fail(f"html {htmls}")
+        if jsons:
+            _fail(f"json must not be written {jsons}")
+    finally:
+        mod.http_get = orig
+        mod.SLEEP_SEC = orig_sleep
 
 
 def main() -> None:
@@ -564,6 +627,7 @@ def main() -> None:
         test_eir_fetch_saves_item_html(p)
         test_unknown_stock_skip(p)
         test_run_only_dry_run(p)
+        test_no_as_of_does_not_write_json(p)
     print("ok: ir monthly html r2")
 
 

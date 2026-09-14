@@ -165,7 +165,7 @@ TDnet 月次 PDF (`scripts/tdnet_monthly_r2.py`) はダウンロード時にイ�
 
 IR 月次（TDnet に月次が無い発行体）は `scripts/ir_monthly_r2.py` が同じ `monthly/{code}/` へ PDF/xlsx を置く。対象は `config/ir_monthly.json` の issuers。xlsx と pdf が両方あれば xlsx。ingest はまだ MCP。TDnet の cron とは分ける。
 
-HTML 月次は `scripts/ir_monthly_html_r2.py` が同じ場所へ `.html`（原本）と `.ingest.json`（派生、`POST /api/v1/tables/{code}/ingest` と同じ形）を置く。対象は `config/ir_monthly.json` の html。自動 POST しない。パーサーを直したら保存済み HTML を `--reparse`。E-IR は Pronexus JSONP の月次 HTML を同じ `.html` として保存する。
+HTML 月次は `scripts/ir_monthly_html_r2.py` が同じ場所へ `.html`（原本）と `.ingest.json`（派生、`POST /api/v1/tables/{code}/ingest` と同じ形）を置く。対象は `config/ir_monthly.json` の html。自動 POST しない。`as_of` は開示日、なければ表の最終値の年月（セルの年 or `YYYY年M月期`）。取れなければ JSON は書かない（HTML は残す）。パーサーを直したら保存済み HTML を `--reparse`。E-IR は Pronexus JSONP の月次 HTML を同じ `.html` として保存する。
 
 TDnet 短信 XBRL は取得済み ZIP（`scripts/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。決算速報 UI の正本は当面 `statements` のまま。XBRL 層で上書きしない。
 
