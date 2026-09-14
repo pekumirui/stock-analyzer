@@ -11,7 +11,7 @@ Read this index, then the matching feature file, before driving the app.
 
 ## Driving conventions
 
-- Start every recipe from the SPA at `{url}/` with the 決算速報 tab showing unless the file says otherwise.
+- Boot restores the last tab (and chart/monthly code) from `location.hash` or `localStorage` key `ui.route` via `restoreRoute()` (`static/js/tabs.js`, called from `boot.js`). For a cold 決算速報 start, clear hash + `ui.route` then reload, or open a fresh profile.
 - Prefer `nav button[data-tab]`, `#id`, and `data-fin` / `data-no` over pixel clicks.
 - Treat every command as literal.
 - HTTP proofs use `helpers/capture.py <feature>` against the same `/api/*` the SPA calls.
