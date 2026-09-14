@@ -199,6 +199,12 @@ def test_parse_number_and_month() -> None:
         _fail("日更新")
     if parse_as_of_text("2026/09/11 公表") != "2026-09-11":
         _fail("slash 公表")
+    if parse_as_of_text("2026年8月31日 現在") != "2026-08-31":
+        _fail("日現在")
+    if parse_as_of_text("<h2>2026年8月</h2>") != "2026-08-31":
+        _fail("heading YYYY年M月")
+    if parse_as_of_text(CAWACHI_HTML) is not None:
+        _fail("cawachi range must not be as_of")
 
 
 def test_cawachi_col_months() -> None:
@@ -859,6 +865,97 @@ def test_sekisui_single_month_col_skips_cumulative() -> None:
         _fail("累計 range parsed as month 2")
 
 
+SUMITOMO_HTML = """
+<html><body>
+<h1>国内受注速報</h1>
+<h2>2026年8月</h2>
+<table>
+<tr><th>戸建注文住宅</th><th>戸建注文住宅</th><th>賃貸住宅</th><th>賃貸住宅</th>
+<th>リフォーム</th><th>リフォーム</th><th>合計</th><th>合計</th></tr>
+<tr><th>単月</th><th>累計</th><th>単月</th><th>累計</th>
+<th>単月</th><th>累計</th><th>単月</th><th>累計</th></tr>
+<tr><td>+0%</td><td>+7%</td><td>+74%</td><td>+25%</td>
+<td>+15%</td><td>+12%</td><td>+6%</td><td>+9%</td></tr>
+</table>
+<table>
+<tr><th>年月</th><th>戸建注文住宅</th><th>戸建注文住宅</th></tr>
+<tr><th>年月</th><th>単月</th><th>累計</th></tr>
+<tr><th>7月</th><td>+4%</td><td>+8%</td></tr>
+<tr><th>2026年1月</th><td>+14%</td><td>+14%</td></tr>
+<tr><th>8月</th><td>+9%</td><td>+4%</td></tr>
+</table>
+</body></html>
+"""
+
+HIMALAYA_HTML = """
+<html><body>
+<h1>月次売上/店舗数</h1>
+<ul>
+<li class="here"><a href="/ir/library/monthly/?y=2026">2026</a></li>
+<li><a href="/ir/library/monthly/?y=2025">2025</a></li>
+</ul>
+<table>
+<tr><td></td><td>9月</td><td>10月</td><td>11月</td><td>12月</td>
+<td>1月</td><td>2月</td><td>3月</td><td>4月</td><td>5月</td>
+<td>6月</td><td>7月</td><td>8月</td><td>年度累計</td></tr>
+<tr><td>既存店</td><td>96.2</td><td>101.6</td><td>98.6</td><td>91.3</td>
+<td>104.9</td><td>96.5</td><td>98.8</td><td>100.0</td><td>105.6</td>
+<td>94.1</td><td>106.1</td><td>105.3</td><td>100.0</td></tr>
+<tr><td>全店</td><td>96.2</td><td>101.6</td><td>98.6</td><td>91.3</td>
+<td>104.9</td><td>96.5</td><td>98.8</td><td>100.0</td><td>105.6</td>
+<td>94.1</td><td>106.1</td><td>105.3</td><td>100.0</td></tr>
+</table>
+</body></html>
+"""
+
+MINISTOP_HTML = """
+<html><body>
+<h1>月次営業報告 2026年</h1>
+<h2>既存店1店1日当り</h2>
+<p>2026年8月31日 現在</p>
+<table>
+<tr><th></th><th>3月</th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>上期累計</th></tr>
+<tr><td>平均売上高前年比（％）</td><td>95.9</td><td>92.2</td><td>96.8</td><td>91.6</td><td>95.5</td><td>96.4</td><td>94.8</td></tr>
+</table>
+</body></html>
+"""
+
+
+def test_sumitomo_snapshot_heading_month() -> None:
+    got = html_to_ingest(SUMITOMO_HTML, "1911", table=None)
+    if got["as_of"] != "2026-08-31":
+        _fail(f"sumitomo as_of {got['as_of']}")
+    if 8 not in got["months"]:
+        _fail(f"sumitomo months {got['months']}")
+    house = _row(got, "戸建注文住宅")
+    if house["values"].get("8") != 0:
+        _fail(f"current Aug overwritten by old 8月 {house}")
+    if house["unit"] != "yoy_pct":
+        _fail(f"unit {house}")
+
+
+def test_himalaya_year_tab_as_of() -> None:
+    got = html_to_ingest(HIMALAYA_HTML, "7514", table=None)
+    if got["as_of"] != "2026-08-31":
+        _fail(f"himalaya as_of {got['as_of']}")
+    exist = _row(got, "既存店")
+    if exist["values"].get("8") != 105.3:
+        _fail(f"himalaya {exist}")
+    if "13" in exist["values"] or "累計" in "".join(exist["values"]):
+        _fail(f"年度累計 leaked {exist}")
+
+
+def test_ministop_genzai_as_of() -> None:
+    got = html_to_ingest(MINISTOP_HTML, "9946", table=None)
+    if got["as_of"] != "2026-08-31":
+        _fail(f"ministop as_of {got['as_of']}")
+    sales = _row(got, "平均売上高前年比（％）")
+    if sales["values"].get("8") != 96.4:
+        _fail(f"ministop {sales}")
+    if any("上期" in str(r) for r in got["rows"]):
+        _fail("上期累計 leaked")
+
+
 def test_follow_year_then_latest_month(tmp: Path) -> None:
     import ir_monthly_html_r2 as mod
 
@@ -1041,6 +1138,9 @@ def main() -> None:
     test_follow_re_picks_latest_year()
     test_follow_re_picks_latest_month_not_year_folder()
     test_sekisui_single_month_col_skips_cumulative()
+    test_sumitomo_snapshot_heading_month()
+    test_himalaya_year_tab_as_of()
+    test_ministop_genzai_as_of()
     with TemporaryDirectory() as d:
         p = Path(d)
         test_hash_skip_and_reparse(p)
