@@ -163,7 +163,9 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
 
 TDnet 月次 PDF (`scripts/tdnet_monthly_r2.py`) はダウンロード時にインフラファンドを除外する。商品区分は REIT と同じ `013`/`022` しか無く、名称に「インフラ」を含むものだけ落とす（マスタ欠落時は TDnet 社名の「インフラ投資法人」）。通常の REIT（8985 ジャパン・ホテル・リート投資法人など）は残す。stocks に無いコードはダウンロードしない（DB が読めない／map が空なら警告のみで継続）。保存先 `{code}` は TDnet のまま。stocks 照合だけ 4 桁 display + 末尾 0。既存 PDF は消さない。決算速報の REIT 全除外とは別。
 
-IR 月次（TDnet に月次が無い発行体）は `scripts/ir_monthly_r2.py` が同じ `monthly/{code}/` へ PDF/xlsx を置く。対象は `config/ir_monthly.json`。xlsx と pdf が両方あれば xlsx。ingest はまだ MCP。TDnet の cron とは分ける。
+IR 月次（TDnet に月次が無い発行体）は `scripts/ir_monthly_r2.py` が同じ `monthly/{code}/` へ PDF/xlsx を置く。対象は `config/ir_monthly.json` の issuers。xlsx と pdf が両方あれば xlsx。ingest はまだ MCP。TDnet の cron とは分ける。
+
+HTML 月次は `scripts/ir_monthly_html_r2.py` が同じ場所へ `.html`（原本）と `.ingest.json`（派生、`POST /api/v1/tables/{code}/ingest` と同じ形）を置く。対象は `config/ir_monthly.json` の html。自動 POST しない。パーサーを直したら保存済み HTML を `--reparse`。E-IR は Pronexus JSONP の月次 HTML を同じ `.html` として保存する。
 
 TDnet 短信 XBRL は取得済み ZIP（`scripts/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。決算速報 UI の正本は当面 `statements` のまま。XBRL 層で上書きしない。
 

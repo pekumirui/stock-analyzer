@@ -23,7 +23,8 @@
 | `app/main.py` | FastAPI エントリ + SPA 配信 |
 | `scripts/run_batch.py` | 日次バッチ / バックフィル |
 | `scripts/tdnet_monthly_r2.py` | TDnet 月次PDF → R2 mount (`/home/stock/r2-share/monthly/{code}/`) |
-| `scripts/ir_monthly_r2.py` | IR 月次 PDF/xlsx → 同じ R2 mount。対象は `config/ir_monthly.json` |
+| `scripts/ir_monthly_r2.py` | IR 月次 PDF/xlsx → 同じ R2 mount。対象は `config/ir_monthly.json` の issuers |
+| `scripts/ir_monthly_html_r2.py` | IR 月次 HTML → 同じ R2 mount + `.ingest.json`。対象は `config/ir_monthly.json` の html |
 | `scripts/tdnet_xbrl_r2.py` | TDnet XBRL ZIP → R2 mount (`/home/stock/r2-share/xbrl/`) |
 | `app/xbrl/` | TDnet 短信 iXBRL の parse / YAML マッピング / normalize。UI には出さない |
 | `app/xbrlp/` | kawasin73 gist の vendor。改変しない |
@@ -103,7 +104,8 @@ Python は Windows では `.venv\Scripts\python.exe`、Linux では `.venv/bin/p
 - 本番ログは `/var/log/app/`（`stock-analyzer.log` / `batch.log` / `mcp.log`）。journal も残る。ローカルのバッチはアプリディレクトリの `batch.log`
 - Cloudflare R2 bucket `share` は VPS 上で rclone user mount（`stock`、`loginctl enable-linger`）→ `/home/stock/r2-share`。認証は GitHub secrets `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` を `update.sh` が `~/.config/rclone/rclone.conf` に書く（リポジトリに置かない）
 - `scripts/tdnet_monthly_r2.py N` が TDnet 月次PDF を `/home/stock/r2-share/monthly/{code}/YYYYMMDD_CODE_….pdf` へ保存。`{code}` は TDnet の発行体コードそのまま（9279, 262A）。J-Quants の5桁（92790, 262A0）にはしない。インフラファンドはダウンロード時にスキップ（`013`/`022` かつ名称に「インフラ」。マスタ欠落時は TDnet 社名の「インフラ投資法人」）。通常の REIT（8985 ジャパン・ホテル・リート等）は残す。stocks に無いコードはダウンロードしない（DB が読めない／map が空なら警告のみで継続）。stocks 照合だけ display_code + 末尾 0（9282→92820, 262A→262A0）。既存 PDF は消さない。cron 18:00/21:00 JST は N=1。初回は Actions の **TDnet monthly backfill**（days=30）。`*.pdf` と `rclone.conf` はコミットしない
-- `scripts/ir_monthly_r2.py` が TDnet に月次の無い発行体の IR ファイルを同じ `monthly/{code}/YYYYMMDD_CODE_….pdf|xlsx` へ保存。対象は `config/ir_monthly.json`（URL 確認済みだけ。今は 2695 / 3088 / 3382 / 3397）。xlsx と pdf が両方あるページは xlsx だけ取る。既存は中身の sha256 でスキップし、上書き公開の latest は日付付きで残す。stocks に無いコードはダウンロードしない。cron 10:00/16:00 JST。ingest / パーサーはまだ。TDnet バッチとは混ぜない
+- `scripts/ir_monthly_r2.py` が TDnet に月次の無い発行体の IR ファイルを同じ `monthly/{code}/YYYYMMDD_CODE_….pdf|xlsx` へ保存。対象は `config/ir_monthly.json` の issuers（URL 確認済みだけ。今は 2695 / 3088 / 3382 / 3397）。xlsx と pdf が両方あるページは xlsx だけ取る。既存は中身の sha256 でスキップし、上書き公開の latest は日付付きで残す。stocks に無いコードはダウンロードしない。cron 10:00/16:00 JST。ingest / パーサーはまだ。TDnet バッチとは混ぜない
+- `scripts/ir_monthly_html_r2.py` が HTML 月次を同じ `monthly/{code}/YYYYMMDD_CODE_…_月次.html` へ保存し、隣に `POST /api/v1/tables/{code}/ingest` と同じ `.ingest.json` を書く。対象は `config/ir_monthly.json` の html（今は 2664 / 2742 / 7616 / 8217）。銘柄クラスは作らない。E-IR は Pronexus JSONP の月次 item `text` を `.html` として保存（sha256 はその HTML）。同じ URL の上書きは日付付きで残し、sha256 が同じなら skip。year は書かない。`△1.9` は `-1.9`。unit は見出し（100基準 → `yoy_index`、▲/△付き変化率 → `yoy_pct`、店舗数 → `number`）。`累計` / `通期計` は months に入れない。自動 POST しない。パーサー修正後は `--reparse`。cron 10:20/16:20 JST。pdf/xlsx バッチとは混ぜない
 - `scripts/tdnet_xbrl_r2.py N` が TDnet XBRL ZIP を `/home/stock/r2-share/xbrl/{code4}/` へ保存。マスタ無しとインフラはスキップせず `_unmatched/`。skip は lookback 内 manifest の `xbrl_id`。cron は 12–23 時 JST の毎時0分、N=1。
 - XBRL のパース以降は `docs/DESIGN_xbrl.md`。`python scripts/xbrl_parse.py` が manifest → `xbrl_*` 生データ、`python scripts/xbrl_normalize.py` が YAML → `xbrl_financials`。cron は 12–23 時 JST の毎時10分 parse / 20分 normalize。normalize は未反映と再パース分だけ。決算 UI / `statements` は触らない。マッピングは `config/xbrl/` だけ。`_unmatched/` と iXBRL 無し ZIP は skipped。
 - XBRL 検証DBと IRBANK ゴールデン一致率は `docs/XBRL_VERIFY.md`。計測は `tools/xbrl_match_rate.py`（ネットワーク無し）。stocks コピーは `tools/copy_stocks_for_verify.py`（prod `stock.db` には書かない）。

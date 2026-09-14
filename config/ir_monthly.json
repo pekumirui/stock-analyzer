@@ -28,5 +28,34 @@
       "link_re": "monthly-sales-report.*\\.xlsx(?:$|[?#])",
       "title": "月次売上高レポート"
     }
+  ],
+  "html": [
+    {
+      "code": "2664",
+      "name": "カワチ薬品",
+      "index_url": "https://www.cawachi.co.jp/ir/monthly/",
+      "title": "月次"
+    },
+    {
+      "code": "2742",
+      "name": "ハローズ",
+      "index_url": "https://www.halows.com/ir/finance_monthly",
+      "title": "月次"
+    },
+    {
+      "code": "7616",
+      "name": "コロワイド",
+      "index_url": "https://www.colowide.co.jp/ir/sale/",
+      "title": "月次",
+      "source": "eir",
+      "eir_n": 0,
+      "eir_title_re": "月次"
+    },
+    {
+      "code": "8217",
+      "name": "オークワ",
+      "index_url": "https://www.okuwa.net/ir/monthly",
+      "title": "月次"
+    }
   ]
 }
