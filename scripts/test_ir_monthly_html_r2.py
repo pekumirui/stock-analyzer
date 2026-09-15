@@ -617,6 +617,30 @@ def test_same_fy_prefers_later_filled_half() -> None:
         _fail(f"picked H1 {exist}")
 
 
+def test_same_fy_prefers_last_quarter_over_prior() -> None:
+    html = """
+    <html><body>
+    <h2>2025年度 月次推移</h2>
+    <table>
+    <tr><td></td><td>2026.1</td><td>2026.2</td><td>2026.3</td></tr>
+    <tr><td>全店 (全業態)</td><td>110.1</td><td>106.1</td><td>106.7</td></tr>
+    </table>
+    <table>
+    <tr><td></td><td>2025.10</td><td>2025.11</td><td>2025.12</td></tr>
+    <tr><td>全店 (全業態)</td><td>108.0</td><td>107.0</td><td>106.0</td></tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "7522", table=None)
+    if got["as_of"] != "2026-03-31":
+        _fail(f"last quarter as_of {got['as_of']}")
+    if got["months"] != [1, 2, 3]:
+        _fail(f"last quarter months {got['months']}")
+    sales = _row(got, "全店 (全業態)")
+    if sales["values"].get("3") != 106.7:
+        _fail(f"picked prior quarter {sales}")
+
+
 def test_hash_skip_and_reparse(tmp: Path) -> None:
     import ir_monthly_html_r2 as mod
 
@@ -1420,6 +1444,7 @@ def main() -> None:
     test_yoy_context_does_not_rename_guest_metrics()
     test_repeated_scope_row_prefixes_existing_and_all_store()
     test_same_fy_prefers_later_filled_half()
+    test_same_fy_prefers_last_quarter_over_prior()
     with TemporaryDirectory() as d:
         p = Path(d)
         test_hash_skip_and_reparse(p)

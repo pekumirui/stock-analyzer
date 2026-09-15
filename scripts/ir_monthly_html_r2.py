@@ -894,7 +894,12 @@ def _parsed_score(
     fy_y, fy_m = fy if fy is not None else (0, 0)
     last_m = last_filled_month(parsed["rows"], months)
     derived = as_of_from_table(grid, html, parsed["rows"], months, section_fy)
-    complete = last_m is not None and fy_m != 0 and last_m == fy_m
+    complete = (
+        last_m is not None
+        and fy_m != 0
+        and last_m == fy_m
+        and len({m for m in (months or []) if isinstance(m, int)}) >= 12
+    )
     as_key = 0
     if derived and not complete:
         as_key = date.fromisoformat(derived).toordinal()
