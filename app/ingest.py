@@ -43,7 +43,7 @@ def _f(v):
         return None
 
 
-def upsert(db: Session, model, rows: list[dict]):
+def upsert(db: Session, model, rows: list[dict], *, commit: bool = True) -> None:
     if not rows:
         return
     keys = [c.name for c in model.__table__.primary_key.columns]
@@ -52,7 +52,8 @@ def upsert(db: Session, model, rows: list[dict]):
         stmt = sqlite_insert(model).values(chunk)
         upd = {c: stmt.excluded[c] for c in chunk[0] if c not in keys}
         db.execute(stmt.on_conflict_do_update(index_elements=keys, set_=upd))
-    db.commit()
+    if commit:
+        db.commit()
 
 
 def ingest_master(db: Session, jq: JQuantsClient, day: str | None = None):
@@ -84,10 +85,12 @@ def _price_row(q: dict) -> dict | None:
     }
 
 
-def ingest_prices_for_date(db: Session, jq: JQuantsClient, day: str) -> int:
+def ingest_prices_for_date(
+    db: Session, jq: JQuantsClient, day: str, *, commit: bool = True,
+) -> int:
     """指定日の全上場銘柄の株価を1リクエストで取得。"""
     rows = [r for r in (_price_row(q) for q in jq.bars_daily(date=day)) if r]
-    upsert(db, DailyPrice, rows)
+    upsert(db, DailyPrice, rows, commit=commit)
     return len(rows)
 
 
@@ -145,10 +148,12 @@ def _statement_row(s: dict) -> dict:
     }
 
 
-def ingest_statements_for_date(db: Session, jq: JQuantsClient, day: str) -> int:
+def ingest_statements_for_date(
+    db: Session, jq: JQuantsClient, day: str, *, commit: bool = True,
+) -> int:
     rows = [_statement_row(s) for s in jq.fins_summary(date=day)]
     rows = [r for r in rows if r["disclosed_date"]]
-    upsert(db, Statement, rows)
+    upsert(db, Statement, rows, commit=commit)
     return len(rows)
 
 
@@ -170,11 +175,19 @@ def run_daily(db: Session, day: str | None = None):
     print(f"{day}: 銘柄{n_m} / 株価{n_p} / TOPIX{n_t} / 決算{n_s}")
 
 
-def run_backfill(db: Session, years: int = 5, progress_every: int = 20):
+class BackfillError(RuntimeError):
+    def __init__(self, code: str, message: str, *, failed_day: str | None = None) -> None:
+        self.code = code
+        self.failed_day = failed_day
+        super().__init__(message)
+
+
+def run_backfill(db: Session, years: int = 5, progress_every: int = 20) -> None:
     """初回バックフィル。営業日ごとに全銘柄を1リクエストで取得。
 
     Lightプラン(60req/分)で5年分 ≒ 2,450リクエスト ≒ 45分。
     UPSERTなので途中で止めても再実行すれば埋まる。
+    1日は株価と決算をまとめて commit する。失敗した日は rollback して中断する。
     """
     start_d = date.today() - timedelta(days=int(365.25 * years))
     start = start_d.strftime("%Y-%m-%d")
@@ -189,7 +202,18 @@ def run_backfill(db: Session, years: int = 5, progress_every: int = 20):
         print(f"  TOPIX {n}件")
 
         print("取引カレンダーを取得中...")
-        days = jq.trading_days(start, today)
+        try:
+            days = jq.trading_days(start, today)
+        except RuntimeError as exc:
+            raise BackfillError(
+                "CALENDAR_EMPTY" if "CALENDAR_EMPTY" in str(exc) else "BACKFILL_INCOMPLETE",
+                str(exc),
+            ) from exc
+        if not days:
+            raise BackfillError(
+                "BACKFILL_INCOMPLETE",
+                "CALENDAR_EMPTY: trading day list is empty",
+            )
         print(f"  営業日 {len(days)}日分を取得します (推定 {len(days) * 2 / 60:.0f}分)")
 
         done = {d for (d,) in db.query(DailyPrice.date).distinct().all()}
@@ -198,11 +222,16 @@ def run_backfill(db: Session, years: int = 5, progress_every: int = 20):
 
         for i, d in enumerate(todo, 1):
             try:
-                n_p = ingest_prices_for_date(db, jq, d)
-                n_s = ingest_statements_for_date(db, jq, d)
-            except Exception as e:
-                print(f"  {d} でエラー: {e} (スキップして続行)")
-                continue
+                n_p = ingest_prices_for_date(db, jq, d, commit=False)
+                n_s = ingest_statements_for_date(db, jq, d, commit=False)
+                db.commit()
+            except Exception as exc:
+                db.rollback()
+                raise BackfillError(
+                    "BACKFILL_INCOMPLETE",
+                    f"{d} の取込に失敗しました: {exc}",
+                    failed_day=d,
+                ) from exc
             if i % progress_every == 0 or i == len(todo):
                 pct = i / len(todo) * 100
                 print(f"  [{i}/{len(todo)} {pct:.0f}%] {d}  株価{n_p} 決算{n_s}")

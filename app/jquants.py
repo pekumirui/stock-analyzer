@@ -142,16 +142,8 @@ class JQuantsClient:
         try:
             rows = self.calendar(from_, to)
             days = [r["Date"] for r in rows if str(r.get("HolDiv")) == "1"]
-            if days:
-                return sorted(days)
-        except Exception as e:  # カレンダー取得失敗時は平日で代替 (休日は空応答になるだけ)
-            print(f"  取引カレンダー取得に失敗、平日で代替します: {e}")
-        from datetime import datetime, timedelta
-        d = datetime.strptime(from_, "%Y-%m-%d").date()
-        end = datetime.strptime(to, "%Y-%m-%d").date()
-        out = []
-        while d <= end:
-            if d.weekday() < 5:
-                out.append(d.strftime("%Y-%m-%d"))
-            d += timedelta(days=1)
-        return out
+        except Exception as exc:
+            raise RuntimeError(f"CALENDAR_EMPTY: {exc}") from exc
+        if not days:
+            raise RuntimeError("CALENDAR_EMPTY: no HolDiv=='1' trading days")
+        return sorted(days)

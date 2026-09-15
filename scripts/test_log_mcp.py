@@ -780,7 +780,7 @@ def test_monthly_tools() -> None:
             r = api.get("/api/v1/tables")
             if r.status_code != 200 or r.json() != []:
                 raise SystemExit(f"TestClient empty tables: {r.status_code} {r.text}")
-            r = api.post("/api/v1/tables/7203/2024/elements", json={"element": "売上高前年比"})
+            r = api.post("/api/v1/tables/7203/2024/elements", json={"element": "売上高前年比", "unit": "number"})
             if r.status_code != 201:
                 raise SystemExit(f"TestClient add: {r.status_code} {r.text}")
             r = api.get("/api/v1/tables/7203/2024")
@@ -832,7 +832,7 @@ def test_monthly_tools() -> None:
 
             text, is_error = m.call_tool(
                 "monthly_add_element",
-                {"code": "7203", "year": 2024, "element": "売上高前年比"},
+                {"code": "7203", "year": 2024, "element": "売上高前年比", "unit": "number"},
             )
             if is_error:
                 raise SystemExit(f"add: {text}")
@@ -875,11 +875,25 @@ def test_monthly_tools() -> None:
             if "店舗数" in by_el and by_el["店舗数"].get("unit") not in (None, "number"):
                 raise SystemExit(f"GET unit for 店舗数: {by_el['店舗数']!r}")
 
+            before_omit_unit = len(recorded)
             text, is_error = m.call_tool(
                 "monthly_add_element",
-                {"code": "7203", "year": 2024, "element": "売上高 前年比"},
+                {"code": "7203", "year": 2024, "element": "x"},
             )
-            if is_error:
+            if not is_error:
+                raise SystemExit(f"omit unit should isError: {text}")
+            if "unit is required" not in text:
+                raise SystemExit(f"omit unit message: {text}")
+            if len(recorded) != before_omit_unit:
+                raise SystemExit(f"omit unit must not hit HTTP: {recorded[before_omit_unit:]}")
+
+            text, is_error = m.call_tool(
+                "monthly_add_element",
+                {"code": "7203", "year": 2024, "element": "売上高 前年比", "unit": "number"},
+            )
+            if not is_error:
+                raise SystemExit(f"similar should set isError: {text}")
+            if not text.startswith("HTTP 409"):
                 raise SystemExit(f"similar should still return HTTP text: {text}")
             status, body = _http_status_body(text)
             if status != 409 or not isinstance(body, dict) or body.get("error", {}).get("code") != "ELEMENT_SIMILAR_EXISTS":
@@ -909,7 +923,9 @@ def test_monthly_tools() -> None:
                     "values": [{"month": 4, "value": "10%"}],
                 },
             )
-            if is_error:
+            if not is_error:
+                raise SystemExit(f"% value should set isError: {text}")
+            if not text.startswith("HTTP 400"):
                 raise SystemExit(f"% value should be API error text: {text}")
             status, body = _http_status_body(text)
             if status != 400 or not isinstance(body, dict) or body.get("error", {}).get("code") != "INVALID_VALUE":
@@ -973,7 +989,7 @@ def test_monthly_tools() -> None:
             os.environ["MCP_APP_HTTP"] = f"http://127.0.0.1:{port}"
             text, is_error = m.call_tool(
                 "monthly_add_element",
-                {"code": "262A", "year": 2024, "element": "売上高前年比"},
+                {"code": "262A", "year": 2024, "element": "売上高前年比", "unit": "number"},
             )
             if is_error:
                 raise SystemExit(f"alnum add: {text}")
@@ -1048,7 +1064,8 @@ def test_monthly_ingest_tool() -> None:
                     "arguments": {
                         "code": "7203",
                         "months": [1, 2, 3],
-                        "rows": [{"element": "売上高", "values": {"1": 1.0}}],
+                        "rows": [{"element": "売上高", "values": {"1": 1.0}, "unit": "number"}],
+                        "as_of": "2026-08-05",
                     },
                 },
                 req_id=50,
@@ -1062,7 +1079,8 @@ def test_monthly_ingest_tool() -> None:
                 {
                     "code": "262A",
                     "months": [11, 12, 1],
-                    "rows": [{"element": "売上高", "values": {"11": 1.0}}],
+                    "rows": [{"element": "売上高", "values": {"11": 1.0}, "unit": "number"}],
+                    "as_of": "2026-08-05",
                 },
             )
             if is_error:
@@ -1098,6 +1116,34 @@ def test_monthly_ingest_tool() -> None:
                 raise SystemExit("did not POST /api/v1/tables/92790/ingest")
             if not any(rec["path"] == "/api/v1/tables/262A0/ingest" for rec in recorded):
                 raise SystemExit("did not POST /api/v1/tables/262A0/ingest")
+
+            before_omit = len(recorded)
+            text, is_error = m.call_tool(
+                "monthly_ingest",
+                {
+                    "code": "92790",
+                    "months": [11, 12, 1],
+                    "rows": [{"element": "x", "values": {"11": 1}, "unit": "number"}],
+                },
+            )
+            if not is_error or "as_of is required" not in text:
+                raise SystemExit(f"omit as_of should isError: {text}")
+            if len(recorded) != before_omit:
+                raise SystemExit(f"omit as_of must not hit HTTP: {recorded[before_omit:]}")
+
+            text, is_error = m.call_tool(
+                "monthly_ingest",
+                {
+                    "code": "92790",
+                    "months": [11, 12, 1],
+                    "rows": [{"element": "x", "values": {"11": 1}}],
+                    "as_of": "2026-08-05",
+                },
+            )
+            if not is_error or "unit is required" not in text:
+                raise SystemExit(f"ingest omit unit should isError: {text}")
+            if len(recorded) != before_omit:
+                raise SystemExit(f"ingest omit unit must not hit HTTP: {recorded[before_omit:]}")
 
             before_bad = len(recorded)
             text, is_error = m.call_tool(
