@@ -12,6 +12,9 @@ sudo apt-get install -y -qq --no-install-recommends python3-venv poppler-utils r
 ./setup.sh
 .venv/bin/python -m pip install -q -r tools/requirements.txt
 
+# 任意: Cursor Secrets の VPS_SSH_KEY があれば stock-vps へ SSH 可能にする
+bash .cursor/setup-vps-ssh.sh || echo "setup-vps-ssh skipped"
+
 if [[ -z "${JQUANTS_API_KEY:-}" ]]; then
   echo "JQUANTS_API_KEY が無いので stock.db は触らない"
   exit 0
