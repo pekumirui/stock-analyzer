@@ -18,6 +18,7 @@
 - DB はローカル SQLite (`stock.db`)。本番切替は `DATABASE_URL` のみ
 - 仮想環境は `.venv`。Windows は `.\setup.ps1` / `.\run.ps1`、Linux は `./setup.sh` / `./run.sh`
 - Python は `.venv\Scripts\python.exe`（Windows）/ `.venv/bin/python`（Linux）。システムの python で依存を入れない
+- Cursor Cloud Agent は `.cursor/environment.json` の install が `.venv` / `pdftotext` / `rclone` を用意する。`stock.db` は無いので UI 確認は `JQUANTS_API_KEY` を Secrets に入れて `./run.sh backfill 1` から
 - 新しい依存やレイヤを増やさない。ロジックは下の表のファイルに足す
 
 ## モジュール分担

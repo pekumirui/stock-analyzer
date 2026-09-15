@@ -1,0 +1,4 @@
+{
+  "name": "stock-analyzer",
+  "install": "sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends python3-venv poppler-utils rclone && ./setup.sh && .venv/bin/python -m pip install -q -r tools/requirements.txt"
+}
