@@ -587,6 +587,36 @@ def test_repeated_scope_row_prefixes_existing_and_all_store() -> None:
         _fail(f"既存店 {exist}")
 
 
+def test_same_fy_prefers_later_filled_half() -> None:
+    html = """
+    <html><body>
+    <h2>2026年9月期(前年同月比%)</h2>
+    <table>
+    <tr><th></th><th>10月</th><th>11月</th><th>3月</th><th>上半期</th></tr>
+    <tr><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td></tr>
+    <tr><td>売上高</td><td>96.4</td><td>105.1</td><td>99.8</td><td>99.6</td></tr>
+    <tr><td>全店</td><td>全店</td><td>全店</td><td>全店</td><td>全店</td></tr>
+    <tr><td>売上高</td><td>95.9</td><td>106.1</td><td>96.4</td><td>98.8</td></tr>
+    </table>
+    <table>
+    <tr><th></th><th>4月</th><th>5月</th><th>8月</th><th>下半期</th></tr>
+    <tr><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td></tr>
+    <tr><td>売上高</td><td>98.3</td><td>105.8</td><td>101.0</td><td>98.4</td></tr>
+    <tr><td>全店</td><td>全店</td><td>全店</td><td>全店</td><td>全店</td></tr>
+    <tr><td>売上高</td><td>94.4</td><td>103.1</td><td>96.7</td><td>94.7</td></tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "7494", table=None)
+    if got["as_of"] != "2026-08-31":
+        _fail(f"same-fy as_of {got['as_of']}")
+    if got["months"] != [4, 5, 8]:
+        _fail(f"same-fy months {got['months']}")
+    exist = _row(got, "既存店 売上高")
+    if exist["values"].get("8") != 101:
+        _fail(f"picked H1 {exist}")
+
+
 def test_hash_skip_and_reparse(tmp: Path) -> None:
     import ir_monthly_html_r2 as mod
 
@@ -1389,6 +1419,7 @@ def main() -> None:
     test_village_nafco_sagami_as_of_not_future_fy()
     test_yoy_context_does_not_rename_guest_metrics()
     test_repeated_scope_row_prefixes_existing_and_all_store()
+    test_same_fy_prefers_later_filled_half()
     with TemporaryDirectory() as d:
         p = Path(d)
         test_hash_skip_and_reparse(p)

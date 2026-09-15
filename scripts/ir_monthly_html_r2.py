@@ -887,14 +887,20 @@ def _parsed_score(
     *,
     table_index: int = 0,
     section_fy: tuple[int, int] | None = None,
-) -> tuple[int, int, int, int, int]:
-    """期が新しい表を優先。同点なら上にある表（小さい index）、その後 yoy 行数・値数。"""
+) -> tuple[int, int, int, int, int, int]:
+    """期が新しい表を優先。同点なら最終値の新しい表（期末まで埋まった表は除く）。"""
     months = parsed.get("months")
     fy = section_fy or pick_fy_end(grid, html, months)
     fy_y, fy_m = fy if fy is not None else (0, 0)
+    last_m = last_filled_month(parsed["rows"], months)
+    derived = as_of_from_table(grid, html, parsed["rows"], months, section_fy)
+    complete = last_m is not None and fy_m != 0 and last_m == fy_m
+    as_key = 0
+    if derived and not complete:
+        as_key = date.fromisoformat(derived).toordinal()
     n_yoy = sum(1 for r in parsed["rows"] if r.get("unit") != "number")
     n_val = sum(len(r.get("values") or {}) for r in parsed["rows"])
-    return (fy_y, fy_m, -table_index, n_yoy, n_val)
+    return (fy_y, fy_m, as_key, -table_index, n_yoy, n_val)
 
 
 def html_to_ingest(
