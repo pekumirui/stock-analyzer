@@ -466,6 +466,16 @@ def call_monthly_api(method: str, url: str, body: dict[str, Any] | None = None) 
     return f"HTTP {status}\n{text}"
 
 
+def _http_status_is_error(text: str) -> bool:
+    first = text.split("\n", 1)[0]
+    if not first.startswith("HTTP "):
+        return False
+    parts = first.split()
+    if len(parts) < 2 or not parts[1].isdigit():
+        return False
+    return int(parts[1]) >= 400
+
+
 def _scalar(conn: sqlite3.Connection, sql: str, params: tuple[Any, ...] = ()) -> Any:
     row = conn.execute(sql, params).fetchone()
     return None if row is None else row[0]
@@ -588,13 +598,16 @@ def tool_monthly_add_element(args: dict[str, Any]) -> str:
     element = args.get("element")
     if not isinstance(element, str) or not element.strip():
         raise ValueError("element is required")
-    body: dict[str, Any] = {"element": element}
+    if "unit" not in args or args["unit"] is None:
+        raise ValueError("unit is required")
+    body: dict[str, Any] = {
+        "element": element,
+        "unit": parse_monthly_unit(args["unit"]),
+    }
     if "force" in args:
         if not isinstance(args["force"], bool):
             raise ValueError("force must be a boolean")
         body["force"] = args["force"]
-    if "unit" in args and args["unit"] is not None:
-        body["unit"] = parse_monthly_unit(args["unit"])
     return call_monthly_api("POST", monthly_api_url(code, year, "/elements"), body)
 
 
@@ -646,8 +659,9 @@ def _parse_ingest_rows(raw: Any) -> list[dict[str, Any]]:
             if not isinstance(item["force"], bool):
                 raise ValueError("force must be a boolean")
             row["force"] = item["force"]
-        if "unit" in item and item["unit"] is not None:
-            row["unit"] = parse_monthly_unit(item["unit"])
+        if "unit" not in item or item["unit"] is None:
+            raise ValueError("unit is required")
+        row["unit"] = parse_monthly_unit(item["unit"])
         out.append(row)
     return out
 
@@ -673,11 +687,12 @@ def tool_monthly_ingest(args: dict[str, Any]) -> str:
         "months": _parse_ingest_months(args.get("months")),
         "rows": _parse_ingest_rows(args.get("rows")),
     }
-    if "as_of" in args and args["as_of"] is not None:
-        as_of = args["as_of"]
-        if not isinstance(as_of, str):
-            raise ValueError("as_of must be YYYY-MM-DD")
-        body["as_of"] = as_of
+    as_of = args.get("as_of")
+    if as_of is None:
+        raise ValueError("as_of is required")
+    if not isinstance(as_of, str):
+        raise ValueError("as_of must be YYYY-MM-DD")
+    body["as_of"] = as_of
     return call_monthly_api("POST", monthly_ingest_url(code), body)
 
 
@@ -771,7 +786,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                 },
                 "force": {"type": "boolean", "description": "create even if a similar element exists"},
             },
-            "required": ["code", "year", "element"],
+            "required": ["code", "year", "element", "unit"],
         },
         tool_monthly_add_element,
     ),
@@ -838,7 +853,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                 },
                 "rows": {
                     "type": "array",
-                    "description": "list of {element, values, unit?, force?}. Store PDF numbers as-is (125.8 stays 125.8).",
+                    "description": "list of {element, values, unit, force?}. Store PDF numbers as-is (125.8 stays 125.8).",
                     "items": {
                         "type": "object",
                         "properties": {
@@ -853,12 +868,12 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                             },
                             "force": {"type": "boolean", "description": "create even if a similar element exists"},
                         },
-                        "required": ["element", "values"],
+                        "required": ["element", "values", "unit"],
                     },
                 },
-                "as_of": {"type": "string", "description": "disclosure date YYYY-MM-DD; default server date"},
+                "as_of": {"type": "string", "description": "disclosure date YYYY-MM-DD"},
             },
-            "required": ["code", "months", "rows"],
+            "required": ["code", "months", "rows", "as_of"],
         },
         tool_monthly_ingest,
     ),
@@ -878,7 +893,7 @@ def call_tool(name: str, arguments: dict[str, Any] | None) -> tuple[str, bool]:
         return f"unknown tool: {name}", True
     try:
         text = spec[2](arguments or {})
-        return redact(text), False
+        return redact(text), _http_status_is_error(text)
     except ValueError as exc:
         return str(exc), True
     except Exception as exc:  # noqa: BLE001 — surface unexpected errors to the agent
