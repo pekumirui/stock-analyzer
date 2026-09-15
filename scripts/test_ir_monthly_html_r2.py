@@ -343,6 +343,126 @@ def test_load_html_registry() -> None:
     follows = {i.code: i.follow_re for i in live if i.follow_re}
     if "7522" not in follows or "1928" not in follows or "8153" in follows:
         _fail(f"follow_re {follows}")
+    if "9843" in follows:
+        _fail(f"9843 must not follow_re {follows}")
+    nitori = next(i for i in live if i.code == "9843")
+    if nitori.table is not None:
+        _fail(f"9843 table {nitori.table}")
+
+
+NITORI_HTML = """
+<html><body>
+<h1>2027年3月期 月次売上概況</h1>
+<table>
+<tr><th></th><th></th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th>
+<th>9月</th><th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th><th>3月</th></tr>
+<tr><td>売上（%）</td><td>既存店</td><td>101.2</td><td>99.5</td><td>102.0</td><td>100.1</td><td>98.8</td>
+<td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>売上（%）</td><td>全店</td><td>103.0</td><td>101.1</td><td>104.2</td><td>102.5</td><td>100.9</td>
+<td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>店舗数</td><td>出店</td><td>2</td><td>1</td><td>0</td><td>3</td><td>1</td>
+<td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+</body></html>
+"""
+
+YAMAZAWA_HTML = """
+<html><body>
+<h1>月次業績推移</h1>
+<h2><strong>65期</strong>（2026.03.01～2027.02.28）</h2>
+<p>(単位：％)</p>
+<table>
+<tr><th></th><th></th><th>3月</th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>上期計</th></tr>
+<tr><td>全店</td><td>売 上</td><td>92.4</td><td>93.2</td><td>97.2</td><td>91.3</td><td>92.6</td><td>90.9</td><td>92.9</td></tr>
+<tr><td>既存店</td><td>売 上</td><td>100.0</td><td>101.1</td><td>105.6</td><td>99.2</td><td>100.7</td><td>98.9</td><td>100.9</td></tr>
+</table>
+<h2><strong>64期</strong>（2025.03.01～2026.02.28）</h2>
+<p>(単位：％)</p>
+<table>
+<tr><th></th><th></th><th>3月</th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th>
+<th>9月</th><th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th></tr>
+<tr><td>全店</td><td>売 上</td><td>105.6</td><td>105.6</td><td>101.9</td><td>103.6</td><td>104.6</td><td>103.1</td>
+<td>102.0</td><td>101.0</td><td>100.0</td><td>99.0</td><td>98.0</td><td>97.0</td></tr>
+<tr><td>既存店</td><td>売 上</td><td>106.2</td><td>106.1</td><td>102.4</td><td>104.2</td><td>105.2</td><td>103.6</td>
+<td>102.5</td><td>101.5</td><td>100.5</td><td>99.5</td><td>98.5</td><td>97.5</td></tr>
+</table>
+<h2><strong>40期</strong>（2004.03.01～2005.02.28）</h2>
+<table>
+<tr><th></th><th></th><th>3月</th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th>
+<th>9月</th><th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th></tr>
+<tr><td>全店</td><td>売 上</td><td>90.0</td><td>91.0</td><td>92.0</td><td>93.0</td><td>94.0</td><td>95.0</td>
+<td>96.0</td><td>97.0</td><td>98.0</td><td>99.0</td><td>100.0</td><td>101.0</td></tr>
+<tr><td>既存店</td><td>売 上</td><td>90.0</td><td>91.0</td><td>92.0</td><td>93.0</td><td>94.0</td><td>95.0</td>
+<td>96.0</td><td>97.0</td><td>98.0</td><td>99.0</td><td>100.0</td><td>101.0</td></tr>
+</table>
+</body></html>
+"""
+
+AEON_HOKKAIDO_HTML = """
+<html><body>
+<h1>月次売上速報</h1>
+<div class="slide-item">
+<p class="year-tit">2026年(令和8年)</p>
+<table>
+<tr><th></th><th></th><th>3月</th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th>
+<th>9月</th><th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th></tr>
+<tr><td>企業計</td><td>既存計</td><td>102.6</td><td>101.4</td><td>104.3</td><td>99.8</td><td>101.0</td><td>102.5</td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>企業計</td><td>企業計</td><td>102.2</td><td>100.9</td><td>103.8</td><td>99.4</td><td>100.6</td><td>102.1</td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+</div>
+<div class="slide-item">
+<p class="year-tit">2023年(令和5年)</p>
+<table>
+<tr><th></th><th></th><th>3月</th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th>
+<th>9月</th><th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th></tr>
+<tr><td>企業計</td><td>既存計</td><td>103.6</td><td>100.7</td><td>100.2</td><td>105.9</td><td>100.7</td><td>103.0</td>
+<td>105.1</td><td>98.5</td><td>101.2</td><td>100.4</td><td>101.6</td><td>104.2</td></tr>
+<tr><td>企業計</td><td>企業計</td><td>104.3</td><td>101.4</td><td>100.8</td><td>106.4</td><td>101.4</td><td>103.5</td>
+<td>105.8</td><td>99.3</td><td>102.0</td><td>101.0</td><td>102.6</td><td>105.3</td></tr>
+</table>
+</div>
+</body></html>
+"""
+
+
+def test_nitori_direct_page_no_follow() -> None:
+    got = html_to_ingest(NITORI_HTML, "9843", table=None)
+    if got["as_of"] != "2026-08-31":
+        _fail(f"nitori as_of {got['as_of']}")
+    if got["months"][:5] != [4, 5, 6, 7, 8]:
+        _fail(f"nitori months {got['months']}")
+    exist = _row(got, "売上（%） 既存店")
+    if exist["values"].get("8") != 98.8:
+        _fail(f"nitori {exist}")
+    stores = _row(got, "店舗数 出店")
+    if stores["unit"] != "number" or stores["values"].get("8") != 1:
+        _fail(f"nitori stores {stores}")
+
+
+def test_yamazawa_prefers_current_period() -> None:
+    got = html_to_ingest(YAMAZAWA_HTML, "9993", table=None)
+    if got["as_of"] != "2026-08-31":
+        _fail(f"yamazawa as_of {got['as_of']}")
+    if got["months"] != [3, 4, 5, 6, 7, 8]:
+        _fail(f"yamazawa months {got['months']}")
+    all_store = _row(got, "全店 売 上")
+    if all_store["values"].get("8") != 90.9:
+        _fail(f"yamazawa picked old period {all_store}")
+    if any("上期" in r["element"] for r in got["rows"]):
+        _fail("上期計 leaked")
+
+
+def test_aeon_hokkaido_prefers_current_year_slide() -> None:
+    got = html_to_ingest(AEON_HOKKAIDO_HTML, "7512", table=None)
+    if got["as_of"] != "2026-08-31":
+        _fail(f"aeon as_of {got['as_of']}")
+    exist = _row(got, "企業計 既存計")
+    if exist["values"].get("8") != 102.5:
+        _fail(f"aeon picked old year {exist}")
+    if exist["values"].get("2") is not None:
+        _fail(f"aeon should not use full old year values {exist}")
 
 
 def test_hash_skip_and_reparse(tmp: Path) -> None:
@@ -1141,6 +1261,9 @@ def main() -> None:
     test_sumitomo_snapshot_heading_month()
     test_himalaya_year_tab_as_of()
     test_ministop_genzai_as_of()
+    test_nitori_direct_page_no_follow()
+    test_yamazawa_prefers_current_period()
+    test_aeon_hokkaido_prefers_current_year_slide()
     with TemporaryDirectory() as d:
         p = Path(d)
         test_hash_skip_and_reparse(p)

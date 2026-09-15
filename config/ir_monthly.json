@@ -277,7 +277,6 @@
       "name": "ニトリホールディングス",
       "index_url": "https://www.nitorihd.co.jp/ir/performance/sales_2027.html",
       "title": "月次",
-      "follow_re": "sales_20\\d{2}",
       "table": null
     },
     {

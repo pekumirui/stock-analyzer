@@ -196,7 +196,8 @@ IR 月次 HTML（`scripts/ir_monthly_html_r2.py`）:
 - 対象は `config/ir_monthly.json` の html。セレクタは json（`table` / `follow_re` / `source=eir` / `parse`）。銘柄クラスは作らない
 - 年度別ページは `follow_re` で最新年を辿る。画像・本文のみは `parse: false`（HTML は残し JSON は書かない）
 - E-IR は Pronexus JSONP の月次 item `text` を `.html` として保存する（sha256 はその HTML）
-- `as_of` は開示日。なければ表の最終値の年月（セルの年 or `YYYY年M月期` / `YYYY年度` / `YYYY年M月～YYYY年M月`）。取れなければ JSON は書かない
+- `as_of` は開示日。なければ表の最終値の年月（セルの年 or 表直前の期見出し / `YYYY年M月期` / `YYYY年度` / `YYYY年M月～YYYY年M月`）。取れなければ JSON は書かない
+- 複数年度のアーカイブは期が新しい表を優先
 - year は書かない。`△1.9` は `-1.9`。unit は見出しから（上の表）。`累計` / `通期計` / `上期計` は months に入れない
 - パーサーを直したら保存済み HTML を `--reparse`
 
