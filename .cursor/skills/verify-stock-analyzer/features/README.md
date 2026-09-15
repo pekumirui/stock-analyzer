@@ -4,10 +4,10 @@ Read this index, then the matching feature file, before driving the app.
 
 ## Baseline preconditions
 
-- Launch with `helpers/launch.py` at `http://127.0.0.1:8011` (or `VERIFY_PORT`). Never drive `:8000` unless that pid is in `.run/state.json`.
+- Launch with `helpers/launch.py` at `http://127.0.0.1:8000` (or `VERIFY_PORT`). Reuses an already-running SPA on that port (`adopted: true`).
 - `stock.db` is the backfilled SQLite next to the repo (not a CI temp DB, not demo `0`-prefix codes).
 - Run `helpers/doctor.py` and require `ok: true`, non-empty screener, and a トヨタ search hit.
-- Never drive an instance that was not started by this verification run.
+- Drive the instance recorded in `.run/state.json` (adopted or launched).
 
 ## Driving conventions
 

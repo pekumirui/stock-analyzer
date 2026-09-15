@@ -48,12 +48,21 @@ def main() -> None:
     if not STATE.is_file():
         raise SystemExit("no .run/state.json — run launch.py first")
     state = json.loads(STATE.read_text(encoding="utf-8"))
-    pid = int(state["pid"])
     url = state["url"].rstrip("/")
-    out: dict = {"url": url, "pid": pid, "pid_alive": _alive(pid)}
-    if not out["pid_alive"]:
-        print(json.dumps(out, ensure_ascii=False, indent=2))
-        raise SystemExit("pid from state.json is not running")
+    adopted = bool(state.get("adopted"))
+    pid_raw = state.get("pid")
+    pid = int(pid_raw) if pid_raw is not None else None
+    out: dict = {"url": url, "pid": pid, "adopted": adopted}
+    if adopted:
+        out["pid_alive"] = None
+    else:
+        if pid is None:
+            print(json.dumps(out, ensure_ascii=False, indent=2))
+            raise SystemExit("state.json missing pid for a non-adopted launch")
+        out["pid_alive"] = _alive(pid)
+        if not out["pid_alive"]:
+            print(json.dumps(out, ensure_ascii=False, indent=2))
+            raise SystemExit("pid from state.json is not running")
 
     st, body = _get(url + "/")
     out["home_status"] = st

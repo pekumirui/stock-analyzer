@@ -36,10 +36,23 @@ def main() -> None:
         print("nothing to clean (no .run/state.json)")
         return
     state = json.loads(STATE.read_text(encoding="utf-8"))
-    pid = int(state["pid"])
-    _kill(pid)
+    adopted = bool(state.get("adopted"))
+    pid_raw = state.get("pid")
+    killed_pid = None
+    if not adopted and pid_raw is not None:
+        killed_pid = int(pid_raw)
+        _kill(killed_pid)
     shutil.rmtree(RUN, ignore_errors=True)
-    print(json.dumps({"killed_pid": pid, "run_dir_removed": True, "artifacts_kept": True}))
+    print(
+        json.dumps(
+            {
+                "killed_pid": killed_pid,
+                "adopted": adopted,
+                "run_dir_removed": True,
+                "artifacts_kept": True,
+            }
+        )
+    )
 
 
 if __name__ == "__main__":

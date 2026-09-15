@@ -11,12 +11,9 @@ Do not invent selectors or ports.
 
 ## Launch
 
-Repo root, `.venv` already created (`.\setup.ps1` on Windows, `./setup.sh` on Linux/mac). Do **not** use the product serve helpers for verification:
+Repo root, `.venv` already created (`.\setup.ps1` on Windows, `./setup.sh` on Linux/mac). Prefer the already-running app on `:8000` when Cloud Agent `start` (or the user's `./run.sh serve`) has it up. Otherwise the helper starts uvicorn on `VERIFY_PORT` (default **8000**).
 
-- Windows: do not run `.\run.ps1 serve` — that binds 8000 with `--reload` and fights the user's session.
-- Linux/mac: do not run `./run.sh serve` for verify — same conflict on 8000; use the helpers on 8011 instead.
-
-Prefer a helper that picks the right interpreter (`.venv\Scripts\python.exe` on Windows, `.venv/bin/python` on Linux/mac). Run launch as a **long-lived background command** (it prints one JSON line when ready, then waits so the child is not reaped):
+Prefer a helper that picks the right interpreter (`.venv\Scripts\python.exe` on Windows, `.venv/bin/python` on Linux/mac). Run launch as a **long-lived background command** when it starts a new process (it prints one JSON line when ready, then waits so the child is not reaped). If it **adopts** an existing `:8000`, it prints JSON and exits:
 
 ```powershell
 # Windows
@@ -28,9 +25,9 @@ Prefer a helper that picks the right interpreter (`.venv\Scripts\python.exe` on 
 .venv/bin/python .cursor/skills/verify-stock-analyzer/helpers/launch.py
 ```
 
-Default URL: `http://127.0.0.1:8011`. Override with env `VERIFY_PORT`. Ready when stdout JSON appears and `GET /` returns 200 whose HTML contains `<title>株式分析ツール</title>`. Visible header `h1` is `📈 株式分析`. State is `.cursor/skills/verify-stock-analyzer/.run/state.json` (`pid`, `port`, `url`). Set `VERIFY_WAIT=0` only if you confirmed the child survives after launch.py exits.
+Default URL: `http://127.0.0.1:8000`. Override with env `VERIFY_PORT`. Ready when stdout JSON appears and `GET /` returns 200 whose HTML contains `<title>株式分析ツール</title>`. Visible header `h1` is `📈 株式分析`. State is `.cursor/skills/verify-stock-analyzer/.run/state.json` (`pid`, `port`, `url`, `adopted`). Adopted servers have `"adopted": true` and `pid: null` — do not kill them. Set `VERIFY_WAIT=0` only if you confirmed the child survives after launch.py exits.
 
-Uses the repo's `stock.db` (read-only for UI proofs). Do not `.\run.ps1 reset` / `./run.sh reset`. Do not point `DATABASE_URL` at the user's DB from a second writer. If port 8011 is taken, launch exits non-zero — pick another `VERIFY_PORT` or cleanup the previous verify run. Never steal 8000.
+Uses the repo's `stock.db` (read-only for UI proofs). Do not `.\run.ps1 reset` / `./run.sh reset`. Do not point `DATABASE_URL` at the user's DB from a second writer. If the port is taken by a non-SPA process, launch exits non-zero — free the port or pick another `VERIFY_PORT`.
 
 If `stock.db` is missing, launch still starts (empty UI). Doctor then fails until backfill exists.
 
@@ -117,7 +114,7 @@ HTTP capture:
 
 Writes under `artifacts/<feature>/`. For a calendar day, pass `capture.py earnings --date YYYY-MM-DD`. For monthly Detail, pass `capture.py monthly --code CODE`.
 
-**Browser (user path).** When `browser-use` / CDP works: `new_tab(url)` from state.json, `wait_for_load()`, click `nav button[data-tab="..."]`, then the feature file. Do not `goto_url` for the first navigation. Screenshots via `capture_screenshot()` saved into `artifacts/<feature>/`. If Chrome remote debugging is denied, record that and finish the proof with the HTTP captures of the same routes — do not click the user's existing tab on :8000.
+**Browser (user path).** When `browser-use` / CDP works: `new_tab(url)` from state.json, `wait_for_load()`, click `nav button[data-tab="..."]`, then the feature file. Do not `goto_url` for the first navigation. Screenshots via `capture_screenshot()` saved into `artifacts/<feature>/`. If Chrome remote debugging is denied, record that and finish the proof with the HTTP captures of the same routes.
 
 Read `features/README.md` and the matching feature file before driving. Cover every entry point the file lists, or report the skipped one with the unmet precondition.
 
@@ -152,7 +149,7 @@ Minimum files per feature:
 .venv/bin/python .cursor/skills/verify-stock-analyzer/helpers/cleanup.py
 ```
 
-Kills **only** the pid in `.run/state.json` (Windows `taskkill /PID /T`; elsewhere `os.kill` / SIGTERM). Removes `.run/`. Does **not** remove `artifacts/`, `stock.db`, or `.venv`. Never `taskkill /IM python.exe` or blanket-kill all Python processes.
+Kills **only** a pid this skill started (`adopted: false` in `.run/state.json`). Adopted `:8000` (Cloud Agent `start` / user's serve) is left running. Removes `.run/`. Does **not** remove `artifacts/`, `stock.db`, or `.venv`. Never `taskkill /IM python.exe` or blanket-kill all Python processes.
 
 After cleanup, confirm `artifacts/` still has the files from this run.
 
@@ -162,7 +159,7 @@ All run from the repo root with the venv interpreter (`.venv\Scripts\python.exe`
 
 | Script | What |
 |---|---|
-| `helpers/launch.py` | Start uvicorn on `VERIFY_PORT` (8011), wait for `GET /`, write `.run/state.json` |
+| `helpers/launch.py` | Adopt or start uvicorn on `VERIFY_PORT` (default 8000), wait for `GET /`, write `.run/state.json` |
 | `helpers/doctor.py` | Read-only health JSON; exit 1 if not worth driving |
 | `helpers/capture.py <feature> [--date YYYY-MM-DD] [--code CODE]` | GET the SPA `/api/*` routes into `artifacts/<feature>/` |
-| `helpers/cleanup.py` | Stop the pid we started; keep artifacts |
+| `helpers/cleanup.py` | Stop a pid we started; leave adopted servers alone; keep artifacts |

@@ -1,4 +1,4 @@
-"""Start a dedicated uvicorn on VERIFY_PORT (default 8011). Never binds 8000."""
+"""Start or adopt uvicorn on VERIFY_PORT (default 8000)."""
 from __future__ import annotations
 
 import json
@@ -15,8 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[4]
 SKILL = Path(__file__).resolve().parents[1]
 RUN = SKILL / ".run"
-DEFAULT_PORT = 8011
-RESERVED = {8000}
+DEFAULT_PORT = 8000
 
 
 def _venv_python() -> Path:
@@ -36,13 +35,7 @@ def _venv_python() -> Path:
 
 
 def _port() -> int:
-    raw = os.environ.get("VERIFY_PORT", str(DEFAULT_PORT))
-    port = int(raw)
-    if port in RESERVED:
-        raise SystemExit(
-            f"VERIFY_PORT={port} is reserved for the user's run.ps1/run.sh serve"
-        )
-    return port
+    return int(os.environ.get("VERIFY_PORT", str(DEFAULT_PORT)))
 
 
 def _listening(port: int) -> bool:
@@ -61,11 +54,40 @@ def _get(url: str) -> tuple[int, bytes]:
         return 0, b""
 
 
+def _spa_ready(url: str) -> bool:
+    status, body = _get(url + "/")
+    return status == 200 and "株式分析ツール".encode("utf-8") in body
+
+
+def _write_state(pid: int | None, port: int, url: str, adopted: bool) -> dict:
+    RUN.mkdir(parents=True, exist_ok=True)
+    state = {
+        "pid": pid,
+        "port": port,
+        "url": url,
+        "adopted": adopted,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "db": str(ROOT / "stock.db"),
+    }
+    (RUN / "state.json").write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    return state
+
+
 def main() -> None:
-    python = _venv_python()
     port = _port()
+    url = f"http://127.0.0.1:{port}"
+
     if _listening(port):
-        raise SystemExit(f"127.0.0.1:{port} already in use; set VERIFY_PORT or run cleanup.py")
+        if not _spa_ready(url):
+            raise SystemExit(
+                f"127.0.0.1:{port} is in use but GET / is not the SPA; "
+                "stop that process or set VERIFY_PORT"
+            )
+        state = _write_state(pid=None, port=port, url=url, adopted=True)
+        print(json.dumps(state, ensure_ascii=False), flush=True)
+        return
+
+    python = _venv_python()
     RUN.mkdir(parents=True, exist_ok=True)
     log = RUN / "uvicorn.log"
     popen_kw: dict = {
@@ -89,28 +111,19 @@ def main() -> None:
         [str(python), "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(port)],
         **popen_kw,
     )
-    url = f"http://127.0.0.1:{port}"
     deadline = time.time() + 30
-    body = b""
     status = 0
     while time.time() < deadline:
         if proc.poll() is not None:
             raise SystemExit(f"uvicorn exited {proc.returncode}; see {log}")
-        status, body = _get(url + "/")
-        if status == 200 and "株式分析ツール".encode("utf-8") in body:
+        if _spa_ready(url):
             break
         time.sleep(0.25)
     else:
         proc.kill()
         raise SystemExit(f"GET {url}/ never became ready (last status={status})")
-    state = {
-        "pid": proc.pid,
-        "port": port,
-        "url": url,
-        "started_at": datetime.now(timezone.utc).isoformat(),
-        "db": str(ROOT / "stock.db"),
-    }
-    (RUN / "state.json").write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    state = _write_state(pid=proc.pid, port=port, url=url, adopted=False)
     print(json.dumps(state, ensure_ascii=False), flush=True)
     if os.environ.get("VERIFY_WAIT", "1") not in ("0", "false", "no"):
         proc.wait()
