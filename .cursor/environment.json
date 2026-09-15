@@ -1,11 +1,12 @@
 {
   "name": "stock-analyzer",
   "install": "bash .cursor/install.sh",
+  "start": "bash .cursor/start-web.sh",
   "terminals": [
     {
-      "name": "web",
-      "description": "stock.db の欠けた営業日を埋めてから http://localhost:8000 で SPA を配信する。検証用サーバーは verify-stock-analyzer skill の 8011 を使い、この 8000 は触らない",
-      "command": "./run.sh backfill 2 || echo 'backfill skipped'; ./run.sh serve"
+      "name": "web-log",
+      "description": "8000 の serve ログ。本体は start が起動する。検証用は verify-stock-analyzer の 8011",
+      "command": "mkdir -p /tmp && touch /tmp/stock-web.log && tail -F /tmp/stock-web.log"
     }
   ],
   "ports": [

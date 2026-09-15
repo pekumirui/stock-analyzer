@@ -18,7 +18,7 @@
 - DB はローカル SQLite (`stock.db`)。本番切替は `DATABASE_URL` のみ
 - 仮想環境は `.venv`。Windows は `.\setup.ps1` / `.\run.ps1`、Linux は `./setup.sh` / `./run.sh`
 - Python は `.venv\Scripts\python.exe`（Windows）/ `.venv/bin/python`（Linux）。システムの python で依存を入れない
-- Cursor Cloud Agent は `.cursor/install.sh` が `.venv` / `pdftotext` / `rclone` と `stock.db`（2 年分）を用意し、terminal `web` が欠けた営業日を埋めて 8000 で配信する。UI 検証は 8011（`.cursor/skills/verify-stock-analyzer/`）。8000 を止めない・`reset` しない
+- Cursor Cloud Agent は `.cursor/install.sh` が `.venv` / `pdftotext` / `rclone` と `stock.db`（2 年分）を用意し、`start`（`.cursor/start-web.sh`）が 8000 で SPA を配信する。UI 検証は 8011（`.cursor/skills/verify-stock-analyzer/`）。8000 を止めない・`reset` しない
 - 新しい依存やレイヤを増やさない。ロジックは下の表のファイルに足す
 
 ## モジュール分担
