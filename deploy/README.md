@@ -164,6 +164,7 @@ cron（JST）。`run_batch.py` の 19:30 / 06:00 はそのまま。
 | `scripts/tdnet_monthly_r2.py 1` | 18:00 / 21:00 |
 | `scripts/ir_monthly_r2.py` | 10:00 / 16:00 |
 | `scripts/ir_monthly_html_r2.py` | 10:20 / 16:20 |
+| `scripts/ir_monthly_html_ingest.py` | 10:30 / 16:30（HTML 取得の後。ledger は `/var/log/app/html_ingest_ledger.json`） |
 | `scripts/tdnet_xbrl_r2.py 1` | 12–23 時の毎時 00 分 |
 | `scripts/xbrl_parse.py` / `scripts/xbrl_normalize.py` | 12–23 時の毎時 10 分 / 20 分 |
 
