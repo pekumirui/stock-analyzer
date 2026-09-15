@@ -64,6 +64,9 @@ _FY_MONTH_RANGE_RE = re.compile(
     r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月\s*[～〜~\-－]\s*"
     r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月(?!期)"
 )
+_YEAR_TIT_RE = re.compile(r"(20\d{2})\s*年\s*[（(]\s*令和")
+_TABLE_START_RE = re.compile(r"<table\b", re.I)
+_SECTION_LOOKBACK = 900
 _YM_DO_RE = re.compile(r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月度")
 _YM_HEAD_RE = re.compile(
     r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月(?!\s*期)(?!\s*度)(?!\s*\d)"
@@ -281,11 +284,50 @@ def fy_end_from_text(text: str) -> tuple[int, int] | None:
     return None
 
 
+def _named_year_fy_end(year: int, months: list[int] | None) -> tuple[int, int]:
+    """`2026年(令和…)` のような年ラベル。3月始まりの月軸なら期末は翌年2月。"""
+    if months and (any(m >= 3 for m in months) or (1 in months or 2 in months)):
+        if any(m >= 3 for m in months):
+            return year + 1, 2
+    return year, 12
+
+
+def section_fy_end_from_text(
+    text: str,
+    months: list[int] | None = None,
+) -> tuple[int, int] | None:
+    """表直前の期見出しから期末を取る。ページ全体の古い年は見ない。"""
+    found = fy_end_from_text(text)
+    if found:
+        return found
+    s = unicodedata.normalize("NFKC", text or "")
+    m = _YEAR_TIT_RE.search(s)
+    if m:
+        return _named_year_fy_end(int(m.group(1)), months)
+    years = [int(y) for y in _YEAR_ONLY_HEAD_RE.findall(s)]
+    if years:
+        return _named_year_fy_end(years[-1], months)
+    return None
+
+
+def table_section_texts(html: str) -> list[str]:
+    """各 table 開始直前のテキスト（新しい期見出しが表の直上にある前提）。"""
+    raw = html or ""
+    out: list[str] = []
+    for m in _TABLE_START_RE.finditer(raw):
+        start = max(0, m.start() - _SECTION_LOOKBACK)
+        out.append(_plain(raw[start:m.start()]))
+    return out
+
+
 def pick_fy_end(
     grid: list[list[str]],
     html: str,
     months: list[int] | None = None,
+    section_fy: tuple[int, int] | None = None,
 ) -> tuple[int, int] | None:
+    if section_fy is not None:
+        return section_fy
     blob = " ".join(c for row in grid for c in row)
     found = fy_end_from_text(blob) or fy_end_from_text(page_context(html)) or fy_end_from_text(html)
     if found:
@@ -334,8 +376,9 @@ def as_of_from_table(
     html: str,
     rows: list[dict],
     months: list[int] | None = None,
+    section_fy: tuple[int, int] | None = None,
 ) -> str | None:
-    """値がある最後の月の年月。セルに年が無ければ `YYYY年M月期` / `YYYY年度` から補う。"""
+    """値がある最後の月の年月。セルに年が無ければ期見出し / `YYYY年M月期` / `YYYY年度` から補う。"""
     last_m = last_filled_month(rows, months)
     if last_m is None:
         return None
@@ -345,7 +388,7 @@ def as_of_from_table(
             year, month = parse_month_year(cell)
             if month == last_m and year is not None:
                 cell_year = year if cell_year is None else max(cell_year, year)
-    year = year_for_month(last_m, pick_fy_end(grid, html, months), cell_year)
+    year = year_for_month(last_m, pick_fy_end(grid, html, months, section_fy), cell_year)
     if year is None:
         head = heading_year_month(html)
         if head is not None:
@@ -361,12 +404,13 @@ def resolve_as_of(
     rows: list[dict],
     hint: str | None,
     months: list[int] | None = None,
+    section_fy: tuple[int, int] | None = None,
 ) -> str:
     """開示日 → 表の最終値の年月 → 呼び出し側 hint（E-IR 日付）。取得日は使わない。"""
     explicit = parse_as_of_text(html)
     if explicit:
         return explicit
-    derived = as_of_from_table(grid or [], html, rows, months)
+    derived = as_of_from_table(grid or [], html, rows, months, section_fy)
     if derived:
         return derived
     if hint:
@@ -817,11 +861,17 @@ def _parsed_score(
     html: str,
     grid: list[list[str]],
     parsed: dict,
-) -> tuple[str, int, int]:
-    as_of_s = as_of_from_table(grid, html, parsed["rows"], parsed.get("months")) or ""
+    *,
+    table_index: int = 0,
+    section_fy: tuple[int, int] | None = None,
+) -> tuple[int, int, int, int, int]:
+    """期が新しい表を優先。同点なら上にある表（小さい index）、その後 yoy 行数・値数。"""
+    months = parsed.get("months")
+    fy = section_fy or pick_fy_end(grid, html, months)
+    fy_y, fy_m = fy if fy is not None else (0, 0)
     n_yoy = sum(1 for r in parsed["rows"] if r.get("unit") != "number")
     n_val = sum(len(r.get("values") or {}) for r in parsed["rows"])
-    return (as_of_s, n_yoy, n_val)
+    return (fy_y, fy_m, -table_index, n_yoy, n_val)
 
 
 def html_to_ingest(
@@ -835,6 +885,7 @@ def html_to_ingest(
     tables = parse_tables(html)
     if not tables:
         raise ValueError("no html table")
+    sections = table_section_texts(html)
     ctx = context if context is not None else page_context(html)
     indices: list[int]
     if table is None:
@@ -844,21 +895,35 @@ def html_to_ingest(
             raise ValueError(f"table index {table} out of range ({len(tables)})")
         indices = [table]
     last_err: str | None = None
-    candidates: list[tuple[list[list[str]], dict]] = []
+    candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]] = []
     for i in indices:
+        section_text = sections[i] if i < len(sections) else ""
         try:
             parsed = parse_grid(tables[i], ctx, html)
         except Exception as e:
             last_err = str(e)
             parsed = None
         if parsed and parsed.get("rows"):
-            candidates.append((tables[i], parsed))
+            section_fy = section_fy_end_from_text(section_text, parsed.get("months"))
+            candidates.append((i, tables[i], parsed, section_fy))
             if table is not None:
                 break
     if not candidates:
         raise ValueError(last_err or "no monthly rows")
-    grid_used, parsed = max(candidates, key=lambda it: _parsed_score(html, it[0], it[1]))
-    as_of_s = resolve_as_of(html, grid_used, parsed["rows"], as_of, parsed.get("months"))
+    table_index, grid_used, parsed, section_fy = max(
+        candidates,
+        key=lambda it: _parsed_score(
+            html, it[1], it[2], table_index=it[0], section_fy=it[3]
+        ),
+    )
+    as_of_s = resolve_as_of(
+        html,
+        grid_used,
+        parsed["rows"],
+        as_of,
+        parsed.get("months"),
+        section_fy,
+    )
     return {
         "code": display_code(code),
         "months": parsed["months"],
