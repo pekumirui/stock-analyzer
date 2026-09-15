@@ -363,6 +363,16 @@ def last_filled_month(rows: list[dict], months: list[int] | None = None) -> int 
     return max(filled)
 
 
+def drop_trailing_empty_months(months: list[int], rows: list[dict]) -> list[int]:
+    last = last_filled_month(rows, months)
+    if last is None or not months:
+        return months
+    for i in range(len(months) - 1, -1, -1):
+        if months[i] == last:
+            return months[: i + 1]
+    return months
+
+
 def year_for_month(month: int, fy_end: tuple[int, int] | None, cell_year: int | None) -> int | None:
     if cell_year is not None:
         return cell_year
@@ -958,9 +968,10 @@ def html_to_ingest(
         parsed.get("months"),
         section_fy,
     )
+    months = drop_trailing_empty_months(list(parsed.get("months") or []), parsed["rows"])
     return {
         "code": display_code(code),
-        "months": parsed["months"],
+        "months": months,
         "rows": parsed["rows"],
         "as_of": as_of_s,
     }

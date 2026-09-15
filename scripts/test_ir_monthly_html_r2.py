@@ -211,7 +211,7 @@ def test_cawachi_col_months() -> None:
     got = html_to_ingest(CAWACHI_HTML, "2664")
     if got["code"] != "2664":
         _fail(f"code {got['code']}")
-    if got["months"] != [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]:
+    if got["months"] != [4, 5, 6, 7, 8]:
         _fail(f"months {got['months']}")
     if got["as_of"] != "2026-08-31":
         _fail(f"as_of from 2027年3月期 + 8月 {got['as_of']}")
@@ -268,7 +268,7 @@ def test_colowide_grouped_header_skips_total() -> None:
     got = html_to_ingest(COLOWIDE_HTML, "7616")
     if got["as_of"] != "2026-09-04":
         _fail(f"update date {got['as_of']}")
-    if got["months"] != [4, 8, 9, 3]:
+    if got["months"] != [4, 8]:
         _fail(f"months keep fiscal holes {got['months']}")
     exist_sales = _row(got, "既存店舗（全業態） 売上高")
     if exist_sales["unit"] != "yoy_index":
@@ -490,7 +490,7 @@ def test_nitori_direct_page_no_follow() -> None:
     got = html_to_ingest(NITORI_HTML, "9843", table=None)
     if got["as_of"] != "2026-08-31":
         _fail(f"nitori as_of {got['as_of']}")
-    if got["months"][:5] != [4, 5, 6, 7, 8]:
+    if got["months"] != [4, 5, 6, 7, 8]:
         _fail(f"nitori months {got['months']}")
     exist = _row(got, "売上（%） 既存店")
     if exist["values"].get("8") != 98.8:
@@ -522,6 +522,8 @@ def test_aeon_hokkaido_prefers_current_year_slide() -> None:
         _fail(f"aeon picked old year {exist}")
     if exist["values"].get("2") is not None:
         _fail(f"aeon should not use full old year values {exist}")
+    if got["months"] != [3, 4, 5, 6, 7, 8]:
+        _fail(f"aeon months {got['months']}")
 
 
 def test_village_nafco_sagami_as_of_not_future_fy() -> None:

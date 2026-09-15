@@ -152,32 +152,27 @@ class PostErr:
 
 
 MARCH_FY_MONTHS = (4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3)
-FEB_FY_MONTHS = (3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2)
 HALOWS_MONTHS = (3, 4, 5, 6, 7, 8)
 
 MAPPING_CASES: tuple[MappingCase, ...] = (
     MappingCase(
         code="2664",
         as_of=date(2026, 8, 31),
-        months=MARCH_FY_MONTHS,
+        months=(4, 5, 6, 7, 8),
         fy_end_month=3,
         layout="fiscal",
         mapping={
             "4": 2026, "5": 2026, "6": 2026, "7": 2026, "8": 2026,
-            "9": 2026, "10": 2026, "11": 2026, "12": 2026,
-            "1": 2027, "2": 2027, "3": 2027,
         },
     ),
     MappingCase(
         code="7512",
         as_of=date(2026, 8, 31),
-        months=FEB_FY_MONTHS,
+        months=(3, 4, 5, 6, 7, 8),
         fy_end_month=2,
         layout="fiscal",
         mapping={
             "3": 2026, "4": 2026, "5": 2026, "6": 2026, "7": 2026, "8": 2026,
-            "9": 2026, "10": 2026, "11": 2026, "12": 2026,
-            "1": 2027, "2": 2027,
         },
     ),
     MappingCase(

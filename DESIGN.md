@@ -202,6 +202,7 @@ IR 月次 HTML（`scripts/ir_monthly_html_r2.py`）:
 - ページ見出しが売上の前年比でも、客数・客単価・店舗数の行には `売上高前年同月比` を足さない
 - 数値の無い 既存店/全店 の帯行は、直後の指標行に付ける
 - year は書かない。`△1.9` は `-1.9`。unit は見出しから（上の表）。`累計` / `通期計` / `上期計` は months に入れない
+- HTML ingest JSON の `months` は末尾の空列を落とす（値のある最終月で終わる）。途中の欠月は残す
 - パーサーを直したら保存済み HTML を `--reparse`
 
 TDnet 短信 XBRL は取得済み ZIP（`scripts/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。
