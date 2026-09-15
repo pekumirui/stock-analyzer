@@ -168,3 +168,28 @@ cron（JST）。`run_batch.py` の 19:30 / 06:00 はそのまま。
 | `scripts/xbrl_parse.py` / `scripts/xbrl_normalize.py` | 12–23 時の毎時 10 分 / 20 分 |
 
 振る舞いは `DESIGN.md` §3 と `docs/DESIGN_xbrl.md`。`rclone.conf` と取得ファイルはリポジトリに置かない。
+
+### Cursor Cloud Agent から読む
+
+Cloud Agent の VM には mount が無い。同じ bucket を S3 互換 API で読む。
+
+1. Cursor Dashboard → Cloud Agents → Secrets に `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` を登録する（このリポジトリ scope。R2 側で **Object Read only** のトークンを別に発行する）。
+   Secrets は VM 起動時に環境変数として入る。登録後に始めたエージェントから有効
+2. `rclone` は `.cursor/install.sh`（環境ビルド）で入る。同じスクリプトが `.venv` / `pdftotext` と、Secrets に `JQUANTS_API_KEY` があれば `stock.db`（2 年分）も作る
+3. 設定ファイルは書かず、環境変数だけで remote `r2` を定義する
+
+```bash
+export RCLONE_CONFIG_R2_TYPE=s3
+export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
+export RCLONE_CONFIG_R2_ENDPOINT=https://39a6da16651b53d44c459c3a4f4d59f5.r2.cloudflarestorage.com
+export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+
+rclone lsd r2:share/monthly/
+rclone ls r2:share/monthly/9279/
+rclone copy r2:share/monthly/9279/ /tmp/r2/monthly/9279/   # 必要な分だけ /tmp へ
+```
+
+- 取得先は `/tmp` 配下。リポジトリに置かない（`*.pdf` は commit 禁止）
+- 書き込みはしない。R2 へ書くのは VPS の cron だけ
+- 鍵の値を `echo` やログに出さない
