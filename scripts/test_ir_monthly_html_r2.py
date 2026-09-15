@@ -641,6 +641,68 @@ def test_same_fy_prefers_last_quarter_over_prior() -> None:
         _fail(f"picked prior quarter {sales}")
 
 
+def test_calendar_ytd_drops_trailing_empty_months() -> None:
+    html = """
+    <html><body>
+    <p>（2026年9月4日更新）</p>
+    <h2>2026年 月次</h2>
+    <table>
+    <tr><th></th><th>1月</th><th>2月</th><th>3月</th><th>4月</th><th>5月</th><th>6月</th>
+    <th>7月</th><th>8月</th><th>9月</th><th>10月</th><th>11月</th><th>12月</th></tr>
+    <tr><td>全店</td><td>92.6</td><td>90.0</td><td>81.1</td><td>104.2</td><td>94.5</td><td>85.0</td>
+    <td>107.4</td><td>80.5</td><td></td><td></td><td></td><td></td></tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "6537", table=None)
+    if got["months"] != [1, 2, 3, 4, 5, 6, 7, 8]:
+        _fail(f"calendar YTD months {got['months']}")
+    sales = _row(got, "全店")
+    if sales["values"].get("8") != 80.5:
+        _fail(f"calendar YTD values {sales}")
+    if any(k in sales["values"] for k in ("9", "10", "11", "12")):
+        _fail(f"trailing months leaked into values {sales['values']}")
+
+
+def test_partial_apr_sep_ytd_drops_trailing_empty_months() -> None:
+    html = """
+    <html><body>
+    <h2>2026年9月期(前年同月比%)</h2>
+    <table>
+    <tr><th></th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>9月</th></tr>
+    <tr><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td></tr>
+    <tr><td>売上高</td><td>98.3</td><td>105.8</td><td>87.4</td><td>100.6</td><td>101.0</td><td></td></tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "7494", table=None)
+    if got["months"] != [4, 5, 6, 7, 8]:
+        _fail(f"partial YTD months {got['months']}")
+    exist = _row(got, "既存店 売上高")
+    if exist["values"].get("8") != 101:
+        _fail(f"partial YTD {exist}")
+    if "9" in exist["values"]:
+        _fail(f"Sep empty leaked {exist}")
+
+
+def test_trailing_empty_months_keep_middle_gaps() -> None:
+    html = """
+    <html><body>
+    <p>（2026年9月4日更新）</p>
+    <table>
+    <tr><th></th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>9月</th></tr>
+    <tr><td>売上高</td><td>98.3</td><td></td><td>87.4</td><td></td><td>101.0</td><td></td></tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "7494", table=None)
+    if got["months"] != [4, 5, 6, 7, 8]:
+        _fail(f"middle gaps months {got['months']}")
+    sales = _row(got, "売上高")
+    if sales["values"] != {"4": 98.3, "6": 87.4, "8": 101}:
+        _fail(f"middle gaps values {sales['values']}")
+
+
 def test_hash_skip_and_reparse(tmp: Path) -> None:
     import ir_monthly_html_r2 as mod
 
@@ -1445,6 +1507,9 @@ def main() -> None:
     test_repeated_scope_row_prefixes_existing_and_all_store()
     test_same_fy_prefers_later_filled_half()
     test_same_fy_prefers_last_quarter_over_prior()
+    test_calendar_ytd_drops_trailing_empty_months()
+    test_partial_apr_sep_ytd_drops_trailing_empty_months()
+    test_trailing_empty_months_keep_middle_gaps()
     with TemporaryDirectory() as d:
         p = Path(d)
         test_hash_skip_and_reparse(p)
