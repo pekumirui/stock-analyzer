@@ -20,10 +20,17 @@ _UNIT_MSG = "unit は number / yoy_index / yoy_pct です。"
 class MonthlyIngestError(Exception):
     """API の error.code に載せる。DB には触らない。"""
 
-    def __init__(self, status: int, code: str, message: str):
+    def __init__(
+        self,
+        status: int,
+        code: str,
+        message: str,
+        extra: dict | None = None,
+    ) -> None:
         self.status = status
         self.code = code
         self.message = message
+        self.extra = extra or {}
         super().__init__(message)
 
 
@@ -31,6 +38,11 @@ def parse_monthly_unit(raw: Any, *, omitted_ok: bool = False) -> str | None:
     """許可文字列だけ。省略時は omitted_ok なら None。大きさでは決めない。"""
     if raw is None and omitted_ok:
         return None
+    if raw is None:
+        raise MonthlyIngestError(
+            400, "UNIT_REQUIRED",
+            "unit は number / yoy_index / yoy_pct です。省略できません。",
+        )
     if not isinstance(raw, str) or raw not in MONTHLY_UNITS:
         raise MonthlyIngestError(400, "INVALID_PARAM", _UNIT_MSG)
     return raw
@@ -721,7 +733,12 @@ def format_monthly_cell(value: float | None, unit: str | None) -> str:
 
 def parse_as_of(raw: Any, *, default: date | None = None) -> date:
     if raw is None:
-        return default if default is not None else date.today()
+        if default is not None:
+            return default
+        raise MonthlyIngestError(
+            400, "AS_OF_REQUIRED",
+            "as_of は必須です。YYYY-MM-DD で指定してください。",
+        )
     if not isinstance(raw, str) or not raw:
         raise MonthlyIngestError(400, "INVALID_PARAM", "as_of は YYYY-MM-DD です。")
     try:

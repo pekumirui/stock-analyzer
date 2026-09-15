@@ -110,7 +110,7 @@ def test_ingest_with_master() -> None:
     _add_fy_end("72030", date(2026, 5, 8), date(2026, 3, 31), "master-fy-1")
     r = c.post("/api/v1/tables/72030/ingest", json={
         "months": [4, 5],
-        "rows": [{"element": "売上高", "values": {"4": 10.0, "5": 11.0}}],
+        "rows": [{"element": "売上高", "unit": "number", "values": {"4": 10.0, "5": 11.0}}],
         "as_of": "2026-08-05",
     })
     _expect(r, 200, "ingest with master")
@@ -125,13 +125,13 @@ def test_ingest_with_master() -> None:
 
 def test_post_elements_without_and_with_master() -> None:
     c = TestClient(app)
-    r = c.post("/api/v1/tables/30660/2024/elements", json={"element": "売上高"})
+    r = c.post("/api/v1/tables/30660/2024/elements", json={"element": "売上高", "unit": "number"})
     _expect(r, 404, "POST elements without master")
     if _err(r)["code"] != "NOT_IN_MASTER":
         _fail(f"POST without master: {r.json()!r}")
 
     _ensure_stock("262A0", "インターメスティック")
-    r = c.post("/api/v1/tables/262A0/2024/elements", json={"element": "売上高"})
+    r = c.post("/api/v1/tables/262A0/2024/elements", json={"element": "売上高", "unit": "number"})
     _expect(r, 201, "POST elements with master")
     if r.json().get("code") != "262A0" or r.json().get("created") is not True:
         _fail(f"POST with master: {r.json()!r}")

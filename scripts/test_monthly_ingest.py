@@ -22,6 +22,7 @@ from app.monthly_ingest import (  # noqa: E402
     canonicalize_element_label,
     format_monthly_cell,
     map_pdf_columns,
+    parse_as_of,
     parse_monthly_unit,
     plan_column_years,
     plan_issuer_alias_cases,
@@ -446,7 +447,7 @@ def test_api_gift_ingest() -> None:
     values = {str(m): 100.0 + m for m in months}
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": months,
-        "rows": [{"element": "全店 売上高", "values": values}],
+        "rows": [{"element": "全店 売上高", "values": values, "unit": "number"}],
         "as_of": "2026-08-05",
     })
     _expect(r, 200, "gift ingest")
@@ -466,7 +467,7 @@ def test_api_gift_ingest() -> None:
     if [e["element"] for e in els] != ["全店 売上高"]:
         _fail(f"2025 elements: {els!r}")
     if els[0].get("unit") != "number":
-        _fail(f"omitted unit defaults to number: {els!r}")
+        _fail(f"gift unit: {els!r}")
     v2025 = _present_months(els[0]["values"])
     if set(v2025) != {"11", "12"}:
         _fail(f"GET 2025 months: {v2025!r}")
@@ -483,7 +484,7 @@ def test_api_errors() -> None:
 
     r = c.post("/api/v1/tables/30320/ingest", json={
         "months": GIFT_MONTHS,
-        "rows": [{"element": "売上高", "values": {"11": 1}}],
+        "rows": [{"element": "売上高", "unit": "number", "values": {"11": 1}}],
         "as_of": "2026-08-05",
     })
     _expect(r, 404, "ingest without master")
@@ -493,7 +494,7 @@ def test_api_errors() -> None:
     _ensure_stock("99990")
     r = c.post("/api/v1/tables/99990/ingest", json={
         "months": GIFT_MONTHS,
-        "rows": [{"element": "売上高", "values": {"11": 1}}],
+        "rows": [{"element": "売上高", "unit": "number", "values": {"11": 1}}],
         "as_of": "2026-08-05",
     })
     _expect(r, 400, "NEED_FY_END")
@@ -504,7 +505,7 @@ def test_api_errors() -> None:
     _add_fy_end("88880", date(2026, 5, 1), date(2025, 10, 31), "chg-2")
     r = c.post("/api/v1/tables/88880/ingest", json={
         "months": MARCH_MONTHS,
-        "rows": [{"element": "売上高", "values": {"4": 1}}],
+        "rows": [{"element": "売上高", "unit": "number", "values": {"4": 1}}],
         "as_of": "2026-08-05",
     })
     _expect(r, 200, "fy change as-of")
@@ -514,7 +515,7 @@ def test_api_errors() -> None:
 
     r = c.post("/api/v1/tables/88880/ingest", json={
         "months": MARCH_MONTHS,
-        "rows": [{"element": "売上高", "values": {"4": 1}}],
+        "rows": [{"element": "売上高", "unit": "number", "values": {"4": 1}}],
         "as_of": "2026-04-30",
     })
     _expect(r, 400, "NEED_FY_END before statements")
@@ -526,7 +527,7 @@ def test_api_errors() -> None:
     _add_fy_end("26980", date(2020, 12, 15), date(2020, 11, 30), "candu-nov")
     r = c.post("/api/v1/tables/26980/ingest", json={
         "months": CAL_MONTHS,
-        "rows": [{"element": "売上高", "values": {"1": 1}}],
+        "rows": [{"element": "売上高", "unit": "number", "values": {"1": 1}}],
         "as_of": "2021-06-01",
     })
     _expect(r, 200, "2 and 11 as-of")
@@ -538,7 +539,7 @@ def test_api_errors() -> None:
     _add_fy_end("36120", date(2021, 6, 1), date(2021, 3, 31), "world-mar")
     r = c.post("/api/v1/tables/36120/ingest", json={
         "months": MARCH_MONTHS,
-        "rows": [{"element": "売上高", "values": {"4": 1}}],
+        "rows": [{"element": "売上高", "unit": "number", "values": {"4": 1}}],
         "as_of": "2021-06-01",
     })
     _expect(r, 200, "same-day later fy_end")
@@ -548,7 +549,7 @@ def test_api_errors() -> None:
     _add_fy_end("77770", date(2026, 5, 1), date(2025, 10, 31), "amb-1")
     r = c.post("/api/v1/tables/77770/ingest", json={
         "months": [7, 8],
-        "rows": [{"element": "売上高", "values": {"7": 1, "8": 2}}],
+        "rows": [{"element": "売上高", "unit": "number", "values": {"7": 1, "8": 2}}],
         "as_of": "2026-08-05",
     })
     _expect(r, 200, "mid-start ingest")
@@ -570,7 +571,7 @@ def test_api_errors() -> None:
     _add_fy_end("33330", date(2026, 5, 1), date(2026, 3, 31), "single-jul-1")
     r = c.post("/api/v1/tables/33330/ingest", json={
         "months": [7],
-        "rows": [{"element": "売上高", "values": {"7": 1}}],
+        "rows": [{"element": "売上高", "unit": "number", "values": {"7": 1}}],
         "as_of": "2026-08-05",
     })
     _expect(r, 200, "single July ingest")
@@ -580,7 +581,7 @@ def test_api_errors() -> None:
 
     r = c.post("/api/v1/tables/77770/ingest", json={
         "months": GIFT_MONTHS,
-        "rows": [{"element": "売上高", "values": {"8": 1.0}}],
+        "rows": [{"element": "売上高", "unit": "number", "values": {"8": 1.0}}],
         "as_of": "2026-08-05",
     })
     _expect(r, 400, "month not in months")
@@ -592,11 +593,11 @@ def test_all_or_nothing_similar() -> None:
     c = TestClient(app)
     code = "66660"
     _add_fy_end(code, date(2026, 5, 1), date(2025, 10, 31), "sim-1")
-    r = c.post(f"/api/v1/tables/{code}/2025/elements", json={"element": "世界観ビジネス"})
+    r = c.post(f"/api/v1/tables/{code}/2025/elements", json={"element": "世界観ビジネス", "unit": "number"})
     _expect(r, 201, "seed similar")
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": GIFT_MONTHS,
-        "rows": [{"element": "世界観 ビジネス", "values": {"11": 1, "1": 2}}],
+        "rows": [{"element": "世界観 ビジネス", "values": {"11": 1, "1": 2}, "unit": "number"}],
         "as_of": "2026-08-05",
     })
     _expect(r, 409, "similar ingest")
@@ -609,7 +610,7 @@ def test_all_or_nothing_similar() -> None:
 
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": GIFT_MONTHS,
-        "rows": [{"element": "全店 売上高", "values": {"11": 1, "1": 2}, "force": True}],
+        "rows": [{"element": "全店 売上高", "values": {"11": 1, "1": 2}, "unit": "number", "force": True}],
         "as_of": "2026-08-05",
     })
     _expect(r, 200, "force ingest")
@@ -631,7 +632,7 @@ def test_tdnet_4digit_fy_end_lookup() -> None:
     values = {str(m): 100.0 + m for m in months}
     r = c.post("/api/v1/tables/9279/ingest", json={
         "months": months,
-        "rows": [{"element": "全店 売上高", "values": values}],
+        "rows": [{"element": "全店 売上高", "values": values, "unit": "number"}],
         "as_of": "2026-08-05",
     })
     _expect(r, 200, "9279 ingest with 92790 fy_end")
@@ -650,7 +651,7 @@ def test_api_alnum_code() -> None:
     values = {str(m): 100.0 + m for m in months}
     r = c.post("/api/v1/tables/262A/ingest", json={
         "months": months,
-        "rows": [{"element": "全店 売上高", "values": values}],
+        "rows": [{"element": "全店 売上高", "values": values, "unit": "number"}],
         "as_of": "2026-08-05",
     })
     _expect(r, 200, "alnum ingest")
@@ -662,7 +663,7 @@ def test_api_alnum_code() -> None:
         _fail(f"alnum GET code: {r.json()!r}")
     r = c.post("/api/v1/tables/abc/ingest", json={
         "months": months,
-        "rows": [{"element": "売上高", "values": {"11": 1}}],
+        "rows": [{"element": "売上高", "unit": "number", "values": {"11": 1}}],
         "as_of": "2026-08-05",
     })
     _expect(r, 400, "abc ingest")
@@ -688,6 +689,10 @@ def test_unit_display_and_ingest() -> None:
             _fail(f"invalid unit: {exc.status} {exc.code}")
     else:
         _fail("invalid unit should 400")
+    _expect_ingest_error(lambda: parse_monthly_unit(None), "UNIT_REQUIRED")
+    _expect_ingest_error(lambda: parse_as_of(None), "AS_OF_REQUIRED")
+    if parse_as_of(None, default=date(2026, 8, 5)) != date(2026, 8, 5):
+        _fail("parse_as_of default")
 
     c = TestClient(app)
     code = "55550"
@@ -799,7 +804,7 @@ def test_ingest_yoy_short_and_canonical_same_row() -> None:
     _add_fy_end(code, date(2026, 5, 8), date(2025, 12, 31), "yoy-same-1")
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": [1],
-        "rows": [{"element": "売上高", "values": {"1": 101.0}, "unit": "yoy_index"}],
+        "rows": [{"element": "売上高", "unit": "number", "values": {"1": 101.0}, "unit": "yoy_index"}],
         "as_of": "2026-08-05",
     })
     _expect(r, 200, "ingest 売上高 yoy_index")
@@ -823,7 +828,7 @@ def test_existing_short_yoy_renamed_on_canonical() -> None:
     c = TestClient(app)
     code = "88890"
     _add_fy_end(code, date(2026, 5, 8), date(2025, 12, 31), "yoy-rename-1")
-    r = c.post(f"/api/v1/tables/{code}/2026/elements", json={"element": "カラオケ全店 売上高"})
+    r = c.post(f"/api/v1/tables/{code}/2026/elements", json={"element": "カラオケ全店 売上高", "unit": "number"})
     _expect(r, 201, "seed short name")
     if r.json()["element"] != "カラオケ 全店 売上高":
         _fail(f"number short stored: {r.json()!r}")
@@ -1336,6 +1341,124 @@ def test_api_genky_year_wrap_ingest() -> None:
             _fail(f"col-index 2024 missing: {names!r}")
 
 
+def test_fail_loud_required_and_conflicts() -> None:
+    c = TestClient(app)
+    code = "81110"
+    _ensure_stock(code)
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [1],
+        "rows": [{"element": "店舗数", "values": {"1": 1}, "unit": "number"}],
+    })
+    _expect(r, 400, "AS_OF_REQUIRED")
+    if _err(r)["code"] != "AS_OF_REQUIRED":
+        _fail(f"AS_OF_REQUIRED: {r.json()!r}")
+
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [1],
+        "rows": [{"element": "店舗数", "values": {"1": 1}}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 400, "UNIT_REQUIRED ingest")
+    if _err(r)["code"] != "UNIT_REQUIRED":
+        _fail(f"UNIT_REQUIRED ingest: {r.json()!r}")
+
+    r = c.post(f"/api/v1/tables/{code}/2026/elements", json={"element": "店舗数"})
+    _expect(r, 400, "UNIT_REQUIRED POST")
+    if _err(r)["code"] != "UNIT_REQUIRED":
+        _fail(f"UNIT_REQUIRED POST: {r.json()!r}")
+
+    r = c.post(f"/api/v1/tables/{code}/2026/elements", json={"element": "店舗数", "unit": None})
+    _expect(r, 400, "UNIT_REQUIRED null")
+    if _err(r)["code"] != "UNIT_REQUIRED":
+        _fail(f"UNIT_REQUIRED null: {r.json()!r}")
+
+    r = c.post(
+        f"/api/v1/tables/{code}/2026/elements",
+        json={"element": "売上高前年比", "unit": "yoy_index"},
+    )
+    _expect(r, 201, "seed yoy_index")
+    r = c.post(
+        f"/api/v1/tables/{code}/2026/elements",
+        json={"element": "売上高前年比", "unit": "yoy_pct"},
+    )
+    _expect(r, 409, "UNIT_CONFLICT")
+    err = _err(r)
+    if err["code"] != "UNIT_CONFLICT":
+        _fail(f"UNIT_CONFLICT: {r.json()!r}")
+    if err.get("existing") != "yoy_index" or err.get("incoming") != "yoy_pct":
+        _fail(f"UNIT_CONFLICT extra: {r.json()!r}")
+    r = c.get(f"/api/v1/tables/{code}/2026")
+    if r.status_code == 200:
+        by = {e["element"]: e for e in r.json()["elements"]}
+        yoy = by.get("全店 売上高(前年比)")
+        if yoy is not None and yoy.get("unit") != "yoy_index":
+            _fail(f"UNIT_CONFLICT must not write: {yoy!r}")
+
+    r = c.post(
+        f"/api/v1/tables/{code}/2026/elements",
+        json={"element": "売上高前年比", "unit": "yoy_pct", "force": True},
+    )
+    _expect(r, 200, "UNIT_CONFLICT force")
+    if r.json().get("unit") != "yoy_pct":
+        _fail(f"force unit overwrite: {r.json()!r}")
+
+    fold_code = "81120"
+    _add_fy_end(fold_code, date(2026, 5, 8), date(2025, 12, 31), "fold-fy-1")
+    from app.db import SessionLocal
+    from app.models import MonthlyElement, MonthlyTable, MonthlyValue
+
+    db = SessionLocal()
+    try:
+        db.add(MonthlyTable(code=fold_code, year=2026))
+        db.add(MonthlyElement(
+            code=fold_code, year=2026, element="全店 売上高(前年比)",
+            sort_order=1, unit="yoy_index",
+        ))
+        db.add(MonthlyElement(
+            code=fold_code, year=2026, element="売上高(前年比)",
+            sort_order=2, unit="yoy_index",
+        ))
+        db.add(MonthlyValue(
+            code=fold_code, year=2026, element="全店 売上高(前年比)",
+            month=1, value=100.0,
+        ))
+        db.add(MonthlyValue(
+            code=fold_code, year=2026, element="売上高(前年比)",
+            month=1, value=200.0,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+    r = c.post(f"/api/v1/tables/{fold_code}/ingest", json={
+        "months": [1],
+        "rows": [{"element": "全店 売上高(前年比)", "values": {"1": 100.0}, "unit": "yoy_index"}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 409, "FOLD_CONFLICT")
+    err = _err(r)
+    if err["code"] != "FOLD_CONFLICT":
+        _fail(f"FOLD_CONFLICT: {r.json()!r}")
+    conflicts = err.get("conflicts")
+    if not isinstance(conflicts, list) or not conflicts:
+        _fail(f"FOLD_CONFLICT conflicts: {r.json()!r}")
+    db = SessionLocal()
+    try:
+        names = sorted(
+            e.element for e in db.query(MonthlyElement).filter_by(code=fold_code, year=2026)
+        )
+        if names != ["全店 売上高(前年比)", "売上高(前年比)"]:
+            _fail(f"FOLD_CONFLICT must not delete src: {names!r}")
+        kept = db.get(MonthlyValue, (fold_code, 2026, "全店 売上高(前年比)", 1))
+        dropped = db.get(MonthlyValue, (fold_code, 2026, "売上高(前年比)", 1))
+        if kept is None or float(kept.value) != 100.0:
+            _fail(f"FOLD_CONFLICT kept: {kept}")
+        if dropped is None or float(dropped.value) != 200.0:
+            _fail(f"FOLD_CONFLICT dropped row gone: {dropped}")
+    finally:
+        db.close()
+
+
 def main() -> None:
     test_canonicalize_element_label()
     test_issuer_alias_cases()
@@ -1356,6 +1479,7 @@ def main() -> None:
     test_rename_29260_style_cross_year_yoy()
     test_issuer_alias_ingest_and_migrate()
     test_reject_prior_period_element()
+    test_fail_loud_required_and_conflicts()
     print("ok: monthly ingest")
 
 

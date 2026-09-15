@@ -205,24 +205,24 @@ def main() -> None:
     if _err(r)["code"] != "INVALID_PARAM":
         _fail(f"bad year: {r.json()!r}")
 
-    r = c.post(f"{base}/elements", json={"element": ""})
+    r = c.post(f"{base}/elements", json={"element": "", "unit": "number"})
     _expect(r, 400, "empty element")
     if _err(r)["code"] != "INVALID_PARAM":
         _fail(f"empty element: {r.json()!r}")
 
-    r = c.post(f"{base}/elements", json={"element": "あ" * 51})
+    r = c.post(f"{base}/elements", json={"element": "あ" * 51, "unit": "number"})
     _expect(r, 400, "element too long")
     if _err(r)["code"] != "INVALID_PARAM":
         _fail(f"long element: {r.json()!r}")
 
-    r = c.post("/api/v1/tables/30320/2024/elements", json={"element": "売上高前年比"})
+    r = c.post("/api/v1/tables/30320/2024/elements", json={"element": "売上高前年比", "unit": "number"})
     _expect(r, 404, "POST without master")
     if _err(r)["code"] != "NOT_IN_MASTER":
         _fail(f"POST without master: {r.json()!r}")
 
     _ensure_stock(code)
 
-    r = c.post(f"{base}/elements", json={"element": " 売上高 "})
+    r = c.post(f"{base}/elements", json={"element": " 売上高 ", "unit": "number"})
     _expect(r, 201, "create element")
     if r.json() != {"code": code, "year": 2024, "element": "全店 売上高",
                     "unit": "number", "created": True}:
@@ -257,26 +257,26 @@ def main() -> None:
     if "all_store_yoy" not in one or "existing_store_yoy" not in one:
         _fail(f"missing yoy fields: {one!r}")
 
-    r = c.post(f"{base}/elements", json={"element": "売上高"})
+    r = c.post(f"{base}/elements", json={"element": "売上高", "unit": "number"})
     _expect(r, 200, "idempotent exact")
     if r.json() != {"code": code, "year": 2024, "element": "全店 売上高",
                     "unit": "number", "created": False}:
         _fail(f"idempotent: {r.json()!r}")
 
-    r = c.post(f"{base}/elements", json={"element": " 売上高 "})
+    r = c.post(f"{base}/elements", json={"element": " 売上高 ", "unit": "number"})
     _expect(r, 200, "idempotent trimmed")
     if r.json()["created"] is not False:
         _fail(f"idempotent trimmed: {r.json()!r}")
 
-    r = c.post(f"{base}/elements", json={"element": "売上高前年比"})
+    r = c.post(f"{base}/elements", json={"element": "売上高前年比", "unit": "number"})
     _expect(r, 200, "number drops 前年比 token")
     if r.json()["element"] != "全店 売上高" or r.json()["created"] is not False:
         _fail(f"売上高前年比 number folds: {r.json()!r}")
 
     # similar-element 409 (空白差。トークン正規化後も別名)
-    r = c.post(f"{base}/elements", json={"element": "世界観ビジネス"})
+    r = c.post(f"{base}/elements", json={"element": "世界観ビジネス", "unit": "number"})
     _expect(r, 201, "segment create")
-    r = c.post(f"{base}/elements", json={"element": "世界観 ビジネス"})
+    r = c.post(f"{base}/elements", json={"element": "世界観 ビジネス", "unit": "number"})
     _expect(r, 409, "similar")
     err = _err(r)
     if err["code"] != "ELEMENT_SIMILAR_EXISTS" or err["message"] != SIMILAR_MSG:
@@ -284,13 +284,13 @@ def main() -> None:
     if err.get("similar") != ["世界観ビジネス"]:
         _fail(f"similar list: {r.json()!r}")
 
-    r = c.post(f"{base}/elements", json={"element": "世界観 ビジネス", "force": True})
+    r = c.post(f"{base}/elements", json={"element": "世界観 ビジネス", "force": True, "unit": "number"})
     _expect(r, 201, "force create")
     if r.json() != {"code": code, "year": 2024, "element": "世界観 ビジネス",
                     "unit": "number", "created": True}:
         _fail(f"force: {r.json()!r}")
 
-    r = c.post(f"{base}/elements", json={"element": "営業利益"})
+    r = c.post(f"{base}/elements", json={"element": "営業利益", "unit": "number"})
     _expect(r, 201, "third element")
 
     r = c.put("/api/v1/tables/7203/2025/values",
@@ -397,13 +397,13 @@ def main() -> None:
     if names != ["全店 売上高", "営業利益"]:
         _fail(f"registration order: {names!r}")
 
-    r = c.post("/api/v1/tables/7203/2025/elements", json={"element": "売上高前年比"})
+    r = c.post("/api/v1/tables/7203/2025/elements", json={"element": "売上高前年比", "unit": "number"})
     _expect(r, 201, "other year")
     r = c.get(f"/api/v1/tables/{code}")
     if r.json()["years"] != [2024, 2025]:
         _fail(f"years multi: {r.json()!r}")
 
-    r = c.post("/api/v1/tables/72030/2024/elements", json={"element": "売上高前年比"})
+    r = c.post("/api/v1/tables/72030/2024/elements", json={"element": "売上高前年比", "unit": "number"})
     _expect(r, 200, "5-digit same issuer")
     r = c.get("/api/v1/tables/7203")
     if r.json() != {"code": "72030", "years": [2024, 2025]}:
@@ -476,7 +476,7 @@ def main() -> None:
             _fail(f"should reject {bad!r}")
 
     _ensure_stock("262A0")
-    r = c.post("/api/v1/tables/262A/2024/elements", json={"element": "売上高前年比"})
+    r = c.post("/api/v1/tables/262A/2024/elements", json={"element": "売上高前年比", "unit": "number"})
     _expect(r, 201, "262A create")
     if r.json()["code"] != "262A0":
         _fail(f"262A should canonicalize: {r.json()!r}")
@@ -497,7 +497,7 @@ def main() -> None:
     _expect(r, 200, "GET 262A display")
     if r.json()["code"] != "262A0":
         _fail(f"GET 262A display: {r.json()!r}")
-    r = c.post("/api/v1/tables/262A0/2024/elements", json={"element": "売上高前年比"})
+    r = c.post("/api/v1/tables/262A0/2024/elements", json={"element": "売上高前年比", "unit": "number"})
     _expect(r, 200, "262A0 idempotent")
     if r.json() != {"code": "262A0", "year": 2024, "element": "全店 売上高",
                     "unit": "number", "created": False}:
@@ -578,11 +578,9 @@ def main() -> None:
     _expect(r, 200, "PUT unit restore")
 
     r = c.post("/api/v1/tables/7203/2026/elements", json={"element": "全店売上高(前年比)"})
-    _expect(r, 200, "POST omit unit")
-    if r.json()["element"] != "全店 売上高(前年比)":
-        _fail(f"omit unit name: {r.json()!r}")
-    if r.json()["unit"] != "yoy_index" or r.json()["created"] is not False:
-        _fail(f"omit unit must keep: {r.json()!r}")
+    _expect(r, 400, "POST omit unit")
+    if _err(r)["code"] != "UNIT_REQUIRED":
+        _fail(f"omit unit: {r.json()!r}")
 
     _ensure_stock("60590", "ウチヤマ")
     r = c.post("/api/v1/tables/60590/2026/elements", json={"element": "売上高", "unit": "yoy_index"})
@@ -598,7 +596,7 @@ def main() -> None:
     if r.json()["elements"]:
         _fail(f"60590 empty rows omitted: {r.json()!r}")
 
-    r = c.post("/api/v1/tables/60590/2026/elements", json={"element": "カラオケ全店 売上高"})
+    r = c.post("/api/v1/tables/60590/2026/elements", json={"element": "カラオケ全店 売上高", "unit": "number"})
     _expect(r, 201, "60590 karaoke number")
     r = c.put("/api/v1/tables/60590/2026/elements",
               json={"element": "カラオケ全店 売上高", "unit": "yoy_index"})
@@ -1446,10 +1444,10 @@ def _assert_known_prod_units(c) -> None:
     finally:
         db.close()
 
-    r = c.post("/api/v1/tables/92790/2025/elements", json={"element": "全店売上高"})
+    r = c.post("/api/v1/tables/92790/2025/elements", json={"element": "全店売上高", "unit": "number"})
     if r.status_code not in (200, 201):
         _fail(f"seed 92790: {r.status_code} {r.text[:200]}")
-    r = c.post("/api/v1/tables/92790/2025/elements", json={"element": "店舗数"})
+    r = c.post("/api/v1/tables/92790/2025/elements", json={"element": "店舗数", "unit": "number"})
     _expect(r, 201, "seed 92790 stores")
     r = c.put("/api/v1/tables/92790/2025/values",
               json={"element": "全店売上高", "month": 11, "value": 125.8})
@@ -1460,7 +1458,7 @@ def _assert_known_prod_units(c) -> None:
 
     r = c.get("/api/v1/tables/262A0/2024")
     if r.status_code == 200:
-        r = c.post("/api/v1/tables/262A0/2024/elements", json={"element": "店舗数"})
+        r = c.post("/api/v1/tables/262A0/2024/elements", json={"element": "店舗数", "unit": "number"})
         if r.status_code not in (200, 201):
             _fail(f"seed 262A0 stores: {r.status_code} {r.text[:200]}")
         r = c.put("/api/v1/tables/262A0/2024/values",

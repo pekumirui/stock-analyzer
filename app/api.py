@@ -477,19 +477,37 @@ def _element_unit(row: MonthlyElement) -> str:
     return row.unit or "number"
 
 
+def _apply_incoming_unit(row: MonthlyElement, unit: str, force: bool) -> None:
+    existing = row.unit or "number"
+    if existing == unit:
+        return
+    if not force:
+        raise ApiError(
+            409, "UNIT_CONFLICT",
+            "既存の unit と異なります。force=true で上書きできます。",
+            extra={"existing": existing, "incoming": unit},
+        )
+    row.unit = unit
+
+
 def _ensure_element(db: Session, code: str, year_i: int, element: str, force: bool,
-                    unit: str | None = None) -> bool:
+                    unit: str) -> bool:
     _require_stock(db, code)
-    folded = fold_same_yoy_element(db, code, year_i, element, unit)
-    if folded is not None:
-        if unit is not None:
-            folded.unit = unit
-        return False
-    folded = fold_aliased_element(db, code, year_i, element, unit)
-    if folded is not None:
-        if unit is not None:
-            folded.unit = unit
-        return False
+    try:
+        folded = fold_same_yoy_element(
+            db, code, year_i, element, unit, strict=True,
+        )
+        if folded is not None:
+            _apply_incoming_unit(folded, unit, force)
+            return False
+        folded = fold_aliased_element(
+            db, code, year_i, element, unit, strict=True,
+        )
+        if folded is not None:
+            _apply_incoming_unit(folded, unit, force)
+            return False
+    except MonthlyIngestError as exc:
+        raise _ingest_error(exc) from exc
     existing = (db.query(MonthlyElement)
                 .filter(MonthlyElement.code == code, MonthlyElement.year == year_i)
                 .all())
@@ -508,7 +526,7 @@ def _ensure_element(db: Session, code: str, year_i: int, element: str, force: bo
                  .scalar())
     db.add(MonthlyElement(
         code=code, year=year_i, element=element,
-        sort_order=(max_order or 0) + 1, unit=unit or "number",
+        sort_order=(max_order or 0) + 1, unit=unit,
     ))
     db.flush()
     return True
@@ -591,16 +609,21 @@ def _parse_ingest_values_by_column(
 
 def _parse_ingest_rows(
     raw: Any, months: list[int], code: str, *, as_of: date | None = None,
-) -> list[tuple[str, bool, str | None, dict[int, float | None]]]:
-    """各行の values は列インデックス → 値（null 可）。"""
+) -> list[tuple[str, bool, str, dict[int, float | None]]]:
+    """各行の values は列インデックス → 値（null 可）。unit は必須。"""
     if not isinstance(raw, list):
         raise ApiError(400, "INVALID_PARAM", "rows は {element, values} の配列です。")
-    parsed: list[tuple[str, bool, str | None, dict[int, float | None]]] = []
+    parsed: list[tuple[str, bool, str, dict[int, float | None]]] = []
     for item in raw:
         if not isinstance(item, dict):
             raise ApiError(400, "INVALID_PARAM", "rows の各要素は {element, values} です。")
         force = item.get("force") is True
-        unit = _parse_unit(item.get("unit")) if "unit" in item else None
+        unit = _parse_unit(item.get("unit"))
+        if unit is None:
+            raise ApiError(
+                400, "UNIT_REQUIRED",
+                "unit は number / yoy_index / yoy_pct です。省略できません。",
+            )
         element = _canonical_element(item.get("element"), unit, code, as_of=as_of)
         values = _parse_ingest_values_by_column(item.get("values"), months)
         parsed.append((element, force, unit, values))
@@ -608,7 +631,8 @@ def _parse_ingest_rows(
 
 
 def _ingest_error(exc: MonthlyIngestError) -> ApiError:
-    return ApiError(exc.status, exc.code, exc.message)
+    extra = exc.extra or None
+    return ApiError(exc.status, exc.code, exc.message, extra=extra)
 
 
 @router_v1.post("/tables/{code}/{year}/elements")
@@ -618,7 +642,12 @@ def post_element(code: str, year: str, response: Response,
     year_i = _parse_year(year)
     body = _require_object(payload)
     force = body.get("force") is True
-    unit = _parse_unit(body.get("unit")) if "unit" in body else None
+    unit = _parse_unit(body.get("unit"))
+    if unit is None:
+        raise ApiError(
+            400, "UNIT_REQUIRED",
+            "unit は number / yoy_index / yoy_pct です。省略できません。",
+        )
     element = _canonical_element(body.get("element"), unit, code, year=year_i)
     _require_stock(db, code)
     created = _ensure_element(db, code, year_i, element, force, unit)
@@ -716,6 +745,9 @@ def ingest_monthly(code: str, payload: dict | None = Body(None), db: Session = D
                 updated.append({"year": year_i, "element": element, "months": by_year[year_i]})
         _touch_monthly_issuer(db, code)
         db.commit()
+    except MonthlyIngestError as exc:
+        db.rollback()
+        raise _ingest_error(exc) from exc
     except Exception:
         db.rollback()
         raise
