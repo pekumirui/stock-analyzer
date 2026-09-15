@@ -90,15 +90,15 @@ cp .env.example .env            # 既存 .env がある場合は上書きしな�
 ./run.sh batch                  # 以降の日次
 ```
 
-`.env` / `stock.db` / `.venv` はコミットしない。既存の `.env` があるときは `cp .env.example .env` を実行しない。
-Python は `.venv/bin/python` を使う。システムの python で依存を入れない。
+既存の `.env` があるときは `cp .env.example .env` を実行しない。Python は `.venv/bin/python` を使う。
 非対話で DB を消すときは `./run.sh reset y`。
 
 ## VPS 運用 (ConoHa)
 
 作り直しは不要。同じ FastAPI + SQLite を Ubuntu に置く。推奨はメモリ 2GB / SSD 100GB（東京）。見本は `deploy/`。
 
-初期設定（nginx / ufw / certbot / systemd / crontab）はパイプラインが冪等にやる。root でやるのはデプロイ用 SSH 鍵と sudoers だけ。手順は [deploy/README.md](deploy/README.md)。
+初期設定（nginx / ufw / certbot / systemd / crontab）はパイプラインが冪等にやる。root でやるのはデプロイ用 SSH 鍵と sudoers だけ。
+手順は [deploy/README.md](deploy/README.md)。
 
 uvicorn はワーカー 1。SQLite は複数ライターに弱い。日次バッチは 4 リクエストで短い。
 
@@ -115,19 +115,11 @@ DB のバックアップは ConoHa の自動バックアップか、日次で別
 
 1. **PR** — `scripts/ci_smoke.py`（起動・検索/スクリーナー/チャート）
 2. **main マージ** — コミットメッセージでバージョンを自動バンプ（`feat:` は minor、`BREAKING CHANGE` / `feat!:` は major、それ以外は patch）。初回は `v0.1.0`
-3. **VPS** — SSH で `git pull` → `provision.sh`（nginx/ufw/certbot/systemd）→ `pip install` → `migrate.py` → `systemctl restart`。`stock.db` は触らない
+3. **VPS** — SSH で `git pull` → `provision.sh`（nginx/ufw/certbot/systemd）→ `pip install` → `migrate.py` → `systemctl restart`。
+   `stock.db` は触らない
 
-VPS へ自動デプロイするには、一度だけデプロイ用 SSH 鍵を入れる:
-
-```bash
-ssh-keygen -t ed25519 -C "github-actions@stock-analyzer" -f stock-analyzer-deploy -N ""
-# stock-analyzer-deploy の中身 → GitHub → Settings → Secrets and variables → Actions → VPS_SSH_KEY
-ssh -t root@YOUR_HOST "bash -s '$(cat stock-analyzer-deploy.pub)'" < deploy/enable-cicd.sh
-```
-
-任意 Secrets: `JQUANTS_API_KEY`、`BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD`、`VPS_DOMAIN`（未設定なら `160.251.179.50.sslip.io`）。
-
-`VPS_SSH_KEY` が無い間は Release まで行い、VPS デプロイはスキップする。再デプロイは Actions の **Run workflow**（`bump: none`）。詳細は [deploy/README.md](deploy/README.md)。
+VPS へ自動デプロイするには、一度だけデプロイ用 SSH 鍵を入れる。手順と Secrets 一覧は [deploy/README.md](deploy/README.md)。
+`VPS_SSH_KEY` が無い間は Release まで行い、VPS デプロイはスキップする。再デプロイは Actions の **Run workflow**（`bump: none`）。
 
 ## 構成
 
