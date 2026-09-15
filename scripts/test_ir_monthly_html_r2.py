@@ -16,8 +16,11 @@ from ir_monthly_html_r2 import (  # noqa: E402
     eir_url,
     existing_html_hashes,
     fetch_issuer,
+    history_path,
+    html_to_history,
     html_to_ingest,
     ingest_path,
+    list_follow_urls,
     load_html_registry,
     parse_as_of_text,
     parse_eir_jsonp,
@@ -25,6 +28,7 @@ from ir_monthly_html_r2 import (  # noqa: E402
     parse_number,
     parse_tables,
     pick_eir_monthly,
+    pick_eir_monthly_items,
     pick_follow_url,
     reparse_issuer,
     run,
@@ -465,6 +469,145 @@ def test_aeon_hokkaido_prefers_current_year_slide() -> None:
         _fail(f"aeon should not use full old year values {exist}")
 
 
+def test_yamazawa_history_emits_older_periods() -> None:
+    primary = html_to_ingest(YAMAZAWA_HTML, "9993", table=None)
+    hist = html_to_history(YAMAZAWA_HTML, "9993", primary=primary, table=None)
+    if not hist:
+        _fail("expected history payloads")
+    as_ofs = [h["as_of"] for h in hist]
+    if as_ofs != sorted(as_ofs):
+        _fail(f"history not ascending {as_ofs}")
+    if any(a >= primary["as_of"] for a in as_ofs):
+        _fail(f"history must be older than primary {primary['as_of']} {as_ofs}")
+    old = hist[-1]
+    if old["as_of"] != "2026-02-28":
+        _fail(f"expected 64期 end {old}")
+    if _row(old, "全店 売 上")["values"].get("8") != 103.1:
+        _fail(f"64期 Aug {old}")
+    ancient = next(h for h in hist if h["as_of"].startswith("2005"))
+    if _row(ancient, "全店 売 上")["values"].get("2") != 101.0:
+        _fail(f"40期 {ancient}")
+
+
+def test_aeon_history_emits_2023_slide() -> None:
+    primary = html_to_ingest(AEON_HOKKAIDO_HTML, "7512", table=None)
+    hist = html_to_history(AEON_HOKKAIDO_HTML, "7512", primary=primary, table=None)
+    if len(hist) != 1:
+        _fail(f"aeon history {hist}")
+    old = hist[0]
+    if old["as_of"] != "2024-02-29":
+        _fail(f"aeon old as_of {old['as_of']}")
+    if _row(old, "企業計 既存計")["values"].get("2") != 104.2:
+        _fail(f"aeon old feb {old}")
+
+
+def test_history_sidecar_written_on_reparse(tmp: Path) -> None:
+    import ir_monthly_html_r2 as mod
+
+    dest = tmp / "hist"
+    code_dir = dest / "9993"
+    code_dir.mkdir(parents=True)
+    html_path = code_dir / "20260915_9993_ヤマザワ_月次.html"
+    html_path.write_text(YAMAZAWA_HTML, encoding="utf-8")
+    iss = HtmlIssuer(
+        code="9993",
+        name="ヤマザワ",
+        index_url="https://example.test/yamazawa/",
+        title="月次",
+        source="html",
+        table=None,
+        eir_code="9993",
+        eir_n=0,
+        eir_title_re="月次",
+    )
+    p, k, f = reparse_issuer(iss, dest)
+    if (p, k, f) != (1, 0, 0):
+        _fail(f"reparse {p, k, f}")
+    if not ingest_path(html_path).is_file():
+        _fail("missing ingest")
+    hist = history_path(html_path)
+    if not hist.is_file():
+        _fail("missing history sidecar")
+    rows = json.loads(hist.read_text(encoding="utf-8"))
+    if not isinstance(rows, list) or len(rows) < 2:
+        _fail(f"history rows {rows}")
+    if history_path(html_path).name != "20260915_9993_ヤマザワ_月次.history.json":
+        _fail(hist.name)
+
+
+def test_eir_fetch_saves_older_dated_files(tmp: Path) -> None:
+    import ir_monthly_html_r2 as mod
+
+    dest = tmp / "eir-hist"
+    old_html = """
+    <html><body><table>
+    <tr><th></th><th>4月</th><th>5月</th><th>6月</th></tr>
+    <tr><td>既存店</td><td>90.0</td><td>91.0</td><td>92.0</td></tr>
+    </table><p>2025年6月度</p></body></html>
+    """
+    new_html = """
+    <html><body><table>
+    <tr><th></th><th>4月</th><th>5月</th><th>6月</th></tr>
+    <tr><td>既存店</td><td>100.0</td><td>101.0</td><td>102.0</td></tr>
+    </table><p>2026年6月度</p></body></html>
+    """
+    payload = {
+        "item": [
+            {"title": "月次売上", "date": "2025/05/10", "text": old_html},
+            {"title": "月次売上", "date": "2026/06/10", "text": new_html},
+        ]
+    }
+    body = ("cb(" + json.dumps(payload, ensure_ascii=False) + ")").encode("utf-8")
+    orig = mod.http_get
+    orig_sleep = mod.SLEEP_SEC
+    mod.http_get = lambda url, timeout=30.0: body  # noqa: ARG005
+    mod.SLEEP_SEC = 0
+    try:
+        items = pick_eir_monthly_items(payload, "月次")
+        if len(items) != 2:
+            _fail(f"items {items}")
+        iss = HtmlIssuer(
+            code="7616",
+            name="コロワイド",
+            index_url="https://example.test/colo/",
+            title="月次",
+            source="eir",
+            table=0,
+            eir_code="7616",
+            eir_n=0,
+            eir_title_re="月次",
+        )
+        n, s, k, f = fetch_issuer(
+            iss, dest, {"76160": ("011", "コロワイド")}, date(2026, 9, 15), dry_run=False
+        )
+        if (n, s, k, f) != (2, 2, 0, 0):
+            _fail(f"failed {n, s, k, f}")
+        htmls = sorted((dest / "7616").glob("*.html"))
+        names = [p.name for p in htmls]
+        if not any("20250510" in n for n in names):
+            _fail(f"missing dated old html {names}")
+        if not any(n.endswith("_月次.html") and "20250510" not in n for n in names):
+            _fail(f"missing latest html {names}")
+    finally:
+        mod.http_get = orig
+        mod.SLEEP_SEC = orig_sleep
+
+
+def test_list_follow_urls_ascending() -> None:
+    html = """
+    <html><body>
+    <a href="/ir/fy2024/">2024</a>
+    <a href="/ir/fy2026/">2026</a>
+    <a href="/ir/fy2025/">2025</a>
+    </body></html>
+    """
+    got = list_follow_urls(html, "https://example.test/", r"fy20\d{2}")
+    if [u.rsplit("/", 2)[-2] for u in got] != ["fy2024", "fy2025", "fy2026"]:
+        _fail(f"order {got}")
+    if pick_follow_url(html, "https://example.test/", r"fy20\d{2}") != got[-1]:
+        _fail("pick must be last")
+
+
 def test_hash_skip_and_reparse(tmp: Path) -> None:
     import ir_monthly_html_r2 as mod
 
@@ -587,8 +730,10 @@ def test_eir_fetch_saves_item_html(tmp: Path) -> None:
         n, s, k, f = fetch_issuer(
             iss, dest, {"76160": ("011", "コロワイド")}, date(2026, 9, 14), dry_run=False
         )
-        if (n, s, k, f) != (1, 1, 0, 0):
+        if f != 0:
             _fail(f"eir fetch {n, s, k, f}")
+        if n < 2 or s < 2:
+            _fail(f"eir should save latest + older item {n, s, k, f}")
         html_path = dest / "7616" / "20260914_7616_コロワイド_月次.html"
         body = html_path.read_text(encoding="utf-8")
         if "eolparts" in body or "announcement_0" in body:
@@ -598,6 +743,9 @@ def test_eir_fetch_saves_item_html(tmp: Path) -> None:
         payload = json.loads(ingest_path(html_path).read_text(encoding="utf-8"))
         if payload["as_of"] != "2026-09-04":
             _fail(payload["as_of"])
+        old_htmls = list((dest / "7616").glob("*_月次_20260406.html"))
+        if len(old_htmls) != 1:
+            _fail(f"older eir html {list((dest / '7616').iterdir())}")
     finally:
         mod.http_get = orig
         mod.SLEEP_SEC = orig_sleep
@@ -1264,10 +1412,15 @@ def main() -> None:
     test_nitori_direct_page_no_follow()
     test_yamazawa_prefers_current_period()
     test_aeon_hokkaido_prefers_current_year_slide()
+    test_yamazawa_history_emits_older_periods()
+    test_aeon_history_emits_2023_slide()
+    test_list_follow_urls_ascending()
     with TemporaryDirectory() as d:
         p = Path(d)
         test_hash_skip_and_reparse(p)
         test_eir_fetch_saves_item_html(p)
+        test_eir_fetch_saves_older_dated_files(p)
+        test_history_sidecar_written_on_reparse(p)
         test_unknown_stock_skip(p)
         test_run_only_dry_run(p)
         test_no_as_of_does_not_write_json(p)

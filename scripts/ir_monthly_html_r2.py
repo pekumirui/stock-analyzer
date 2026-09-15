@@ -5,9 +5,11 @@
   python scripts/ir_monthly_html_r2.py --dest /tmp/monthly --only 2664
   python scripts/ir_monthly_html_r2.py --dry-run
   python scripts/ir_monthly_html_r2.py --reparse
+  python scripts/ir_monthly_html_r2.py --history
 
 対象は config/ir_monthly.json の html。セレクタ駆動で銘柄クラスは作らない。
-原本は .html、派生が .ingest.json。自動 POST しない。パーサーを直したら --reparse。
+原本は .html、派生が .ingest.json（最新期）と任意の .history.json（同一ページの過去期配列）。
+自動 POST しない。パーサーを直したら --reparse。follow_re / E-IR の過去ページ一括は --history。
 ネットワークと app/ はテストから分離する。
 """
 from __future__ import annotations
@@ -124,6 +126,18 @@ class HtmlIssuer:
 
 def ingest_path(html_path: Path) -> Path:
     return html_path.with_name(html_path.stem + ".ingest.json")
+
+
+def history_path(html_path: Path) -> Path:
+    return html_path.with_name(html_path.stem + ".history.json")
+
+
+def dumps_ingest(payload: dict) -> str:
+    return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+
+
+def dumps_history(payloads: list[dict]) -> str:
+    return json.dumps(payloads, ensure_ascii=False, indent=2) + "\n"
 
 
 def decode_html_bytes(data: bytes) -> str:
@@ -301,9 +315,10 @@ def section_fy_end_from_text(
     if found:
         return found
     s = unicodedata.normalize("NFKC", text or "")
-    m = _YEAR_TIT_RE.search(s)
-    if m:
-        return _named_year_fy_end(int(m.group(1)), months)
+    # lookback 末尾が表に近い。最初ではなく最後の year-tit を使う
+    tit_hits = list(_YEAR_TIT_RE.finditer(s))
+    if tit_hits:
+        return _named_year_fy_end(int(tit_hits[-1].group(1)), months)
     years = [int(y) for y in _YEAR_ONLY_HEAD_RE.findall(s)]
     if years:
         return _named_year_fy_end(years[-1], months)
@@ -874,20 +889,18 @@ def _parsed_score(
     return (fy_y, fy_m, -table_index, n_yoy, n_val)
 
 
-def html_to_ingest(
+def _collect_table_candidates(
     html: str,
-    code: str,
     *,
-    as_of: str | None = None,
     table: int | None = 0,
     context: str | None = None,
-) -> dict:
+) -> tuple[list[tuple[int, list[list[str]], dict, tuple[int, int] | None]], str | None]:
+    """returns (candidates, last_err). candidate = (index, grid, parsed, section_fy)."""
     tables = parse_tables(html)
     if not tables:
-        raise ValueError("no html table")
+        return [], "no html table"
     sections = table_section_texts(html)
     ctx = context if context is not None else page_context(html)
-    indices: list[int]
     if table is None:
         indices = list(range(len(tables)))
     else:
@@ -908,22 +921,35 @@ def html_to_ingest(
             candidates.append((i, tables[i], parsed, section_fy))
             if table is not None:
                 break
-    if not candidates:
-        raise ValueError(last_err or "no monthly rows")
-    table_index, grid_used, parsed, section_fy = max(
-        candidates,
-        key=lambda it: _parsed_score(
-            html, it[1], it[2], table_index=it[0], section_fy=it[3]
-        ),
-    )
-    as_of_s = resolve_as_of(
-        html,
-        grid_used,
-        parsed["rows"],
-        as_of,
-        parsed.get("months"),
-        section_fy,
-    )
+    return candidates, last_err
+
+
+def _payload_from_candidate(
+    html: str,
+    code: str,
+    cand: tuple[int, list[list[str]], dict, tuple[int, int] | None],
+    *,
+    as_of_hint: str | None = None,
+    table_local_as_of: bool = False,
+) -> dict | None:
+    _index, grid, parsed, section_fy = cand
+    if table_local_as_of:
+        as_of_s = as_of_from_table(
+            grid, html, parsed["rows"], parsed.get("months"), section_fy
+        )
+        if not as_of_s and as_of_hint:
+            as_of_s = as_of_hint
+        if not as_of_s:
+            return None
+    else:
+        as_of_s = resolve_as_of(
+            html,
+            grid,
+            parsed["rows"],
+            as_of_hint,
+            parsed.get("months"),
+            section_fy,
+        )
     return {
         "code": display_code(code),
         "months": parsed["months"],
@@ -932,8 +958,72 @@ def html_to_ingest(
     }
 
 
-def dumps_ingest(payload: dict) -> str:
-    return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+def _history_key(payload: dict) -> tuple[str, tuple[int, ...]]:
+    months = payload.get("months") or []
+    return (str(payload.get("as_of") or ""), tuple(int(m) for m in months))
+
+
+def html_to_ingest(
+    html: str,
+    code: str,
+    *,
+    as_of: str | None = None,
+    table: int | None = 0,
+    context: str | None = None,
+) -> dict:
+    candidates, last_err = _collect_table_candidates(html, table=table, context=context)
+    if not candidates:
+        raise ValueError(last_err or "no monthly rows")
+    winner = max(
+        candidates,
+        key=lambda it: _parsed_score(
+            html, it[1], it[2], table_index=it[0], section_fy=it[3]
+        ),
+    )
+    payload = _payload_from_candidate(html, code, winner, as_of_hint=as_of)
+    if payload is None:
+        raise ValueError("no as_of")
+    return payload
+
+
+def html_to_history(
+    html: str,
+    code: str,
+    *,
+    primary: dict | None = None,
+    as_of: str | None = None,
+    table: int | None = 0,
+    context: str | None = None,
+) -> list[dict]:
+    """同一 HTML の過去期。主ペイロードより新しい/同じ as_of は出さない。表単位の as_of。"""
+    if table is not None:
+        # 単一表指定ではアーカイブ走査しない
+        return []
+    candidates, _err = _collect_table_candidates(html, table=None, context=context)
+    if not candidates:
+        return []
+    primary_payload = primary or html_to_ingest(
+        html, code, as_of=as_of, table=None, context=context
+    )
+    primary_as_of = str(primary_payload.get("as_of") or "")
+    primary_key = _history_key(primary_payload)
+    seen: set[tuple[str, tuple[int, ...]]] = {primary_key}
+    out: list[dict] = []
+    for cand in candidates:
+        payload = _payload_from_candidate(
+            html, code, cand, as_of_hint=None, table_local_as_of=True
+        )
+        if payload is None:
+            continue
+        key = _history_key(payload)
+        if key in seen:
+            continue
+        if primary_as_of and str(payload["as_of"]) >= primary_as_of:
+            continue
+        seen.add(key)
+        out.append(payload)
+    out.sort(key=lambda p: (str(p.get("as_of") or ""), tuple(p.get("months") or [])))
+    return out
 
 
 def parse_eir_jsonp(body: str) -> dict:
@@ -950,7 +1040,8 @@ def parse_eir_jsonp(body: str) -> dict:
     return data
 
 
-def pick_eir_monthly(payload: dict, title_re: str) -> tuple[str, str | None]:
+def pick_eir_monthly_items(payload: dict, title_re: str) -> list[tuple[str, str | None, str]]:
+    """月次 item を古い順に (html, as_of, date_raw)。text が空の item は除く。"""
     try:
         rx = re.compile(title_re)
     except re.error as e:
@@ -963,23 +1054,28 @@ def pick_eir_monthly(payload: dict, title_re: str) -> tuple[str, str | None]:
         if not isinstance(it, dict):
             continue
         title = str(it.get("title") or "")
-        if rx.search(title):
+        if rx.search(title) and str(it.get("text") or "").strip():
             matched.append(it)
     if not matched:
         raise ValueError("no eir monthly item")
-    with_text = [it for it in matched if str(it.get("text") or "").strip()]
-    pool = with_text or matched
-    latest = max(
-        pool,
+    matched.sort(
         key=lambda it: (
             str(it.get("date") or ""),
             fy_end_from_text(str(it.get("title") or "")) or (0, 0),
-        ),
+        )
     )
-    html = str(latest.get("text") or "").strip()
-    if not html:
-        raise ValueError("eir monthly text empty")
-    return html, parse_eir_date(str(latest.get("date") or ""))
+    out: list[tuple[str, str | None, str]] = []
+    for it in matched:
+        html = str(it.get("text") or "").strip()
+        date_raw = str(it.get("date") or "")
+        out.append((html, parse_eir_date(date_raw), date_raw))
+    return out
+
+
+def pick_eir_monthly(payload: dict, title_re: str) -> tuple[str, str | None]:
+    items = pick_eir_monthly_items(payload, title_re)
+    html, as_of, _date_raw = items[-1]
+    return html, as_of
 
 
 def eir_url(code: str, n: int) -> str:
@@ -1094,17 +1190,14 @@ def _follow_key(url: str) -> tuple[int, int, int, str]:
     return (y, 0, path.count("/"), url)
 
 
-def pick_follow_url(
+def list_follow_urls(
     html: str,
     base_url: str,
     follow_re: str,
     *,
     under: str | None = None,
-) -> str | None:
-    """index から follow_re に合うリンクを集め、年・月が最大のものを返す。
-
-    under を付けると、その URL の子パスだけ（年一覧 → 最新月）。無ければ None。
-    """
+) -> list[str]:
+    """follow_re に合う URL を年・月の昇順で返す。"""
     try:
         rx = re.compile(follow_re)
     except re.error as e:
@@ -1129,23 +1222,48 @@ def pick_follow_url(
         prefix = under.rstrip("/") + "/"
         under_n = under.rstrip("/")
         found = [u for u in found if u.rstrip("/") != under_n and u.startswith(prefix)]
+    found.sort(key=_follow_key)
+    return found
+
+
+def pick_follow_url(
+    html: str,
+    base_url: str,
+    follow_re: str,
+    *,
+    under: str | None = None,
+) -> str | None:
+    """index から follow_re に合うリンクを集め、年・月が最大のものを返す。
+
+    under を付けると、その URL の子パスだけ（年一覧 → 最新月）。無ければ None。
+    """
+    found = list_follow_urls(html, base_url, follow_re, under=under)
     if not found:
         if under is not None:
             return None
         raise ValueError(f"no follow url matching {follow_re!r}")
-    found.sort(key=_follow_key)
     return found[-1]
+
+
+def fetch_eir_bundle(
+    iss: HtmlIssuer,
+) -> tuple[bytes, str | None, str, list[tuple[bytes, str | None, str]]]:
+    """latest html, as_of, url, older [(bytes, as_of, date_raw)]."""
+    url = eir_url(iss.eir_code, iss.eir_n)
+    body = http_get(url)
+    time.sleep(SLEEP_SEC)
+    payload = parse_eir_jsonp(decode_html_bytes(body))
+    items = pick_eir_monthly_items(payload, iss.eir_title_re)
+    older = [(html.encode("utf-8"), as_of, date_raw) for html, as_of, date_raw in items[:-1]]
+    latest_html, latest_as_of, _latest_date = items[-1]
+    return latest_html.encode("utf-8"), latest_as_of, url, older
 
 
 def fetch_html_bytes(iss: HtmlIssuer) -> tuple[bytes, str | None, str]:
     """returns (html_bytes, as_of, source_url)."""
     if iss.source == "eir":
-        url = eir_url(iss.eir_code, iss.eir_n)
-        body = http_get(url)
-        time.sleep(SLEEP_SEC)
-        payload = parse_eir_jsonp(decode_html_bytes(body))
-        html, as_of = pick_eir_monthly(payload, iss.eir_title_re)
-        return html.encode("utf-8"), as_of, url
+        data, as_of, url, _older = fetch_eir_bundle(iss)
+        return data, as_of, url
     url = iss.index_url
     data = http_get(url)
     time.sleep(SLEEP_SEC)
@@ -1169,9 +1287,37 @@ def fetch_html_bytes(iss: HtmlIssuer) -> tuple[bytes, str | None, str]:
     return data, None, url
 
 
-def write_ingest(html_path: Path, html: str, iss: HtmlIssuer, as_of: str | None = None) -> None:
+def write_ingest(
+    html_path: Path,
+    html: str,
+    iss: HtmlIssuer,
+    as_of: str | None = None,
+    *,
+    extra_history: list[dict] | None = None,
+) -> None:
     payload = html_to_ingest(html, iss.code, as_of=as_of, table=iss.table)
     atomic_write(ingest_path(html_path), dumps_ingest(payload).encode("utf-8"))
+    history = html_to_history(
+        html, iss.code, primary=payload, as_of=as_of, table=iss.table
+    )
+    if extra_history:
+        seen = {_history_key(payload)} | {_history_key(p) for p in history}
+        for item in extra_history:
+            key = _history_key(item)
+            if key in seen:
+                continue
+            if str(item.get("as_of") or "") >= str(payload.get("as_of") or ""):
+                continue
+            seen.add(key)
+            history.append(item)
+        history.sort(
+            key=lambda p: (str(p.get("as_of") or ""), tuple(p.get("months") or []))
+        )
+    hist = history_path(html_path)
+    if history:
+        atomic_write(hist, dumps_history(history).encode("utf-8"))
+    elif hist.is_file():
+        hist.unlink()
 
 
 def _try_write_ingest(
@@ -1180,18 +1326,82 @@ def _try_write_ingest(
     iss: HtmlIssuer,
     as_of: str | None,
     rel: object,
+    *,
+    extra_history: list[dict] | None = None,
 ) -> int:
     """0 ok, 1 failed. parse=false は JSON を書かず成功。"""
     if not iss.parse:
         print(f"skip parse {rel}", flush=True)
         return 0
     try:
-        write_ingest(html_path, html, iss, as_of)
+        write_ingest(html_path, html, iss, as_of, extra_history=extra_history)
     except Exception as e:
         print(f"fail ingest {rel}: {e}", flush=True)
         return 1
     print(f"saved {ingest_path(html_path).name}", flush=True)
+    hist = history_path(html_path)
+    if hist.is_file():
+        print(f"saved {hist.name}", flush=True)
     return 0
+
+
+def _save_html_snapshot(
+    dest: Path,
+    iss: HtmlIssuer,
+    data: bytes,
+    today: date,
+    *,
+    title: str,
+    as_of: str | None,
+    url: str,
+    extra_history: list[dict] | None = None,
+) -> tuple[int, int, int, int]:
+    """returns listed, saved, skipped, failed for one HTML blob."""
+    digest = sha256_bytes(data)
+    code_dir = dest / display_code(iss.code)
+    hashes = existing_html_hashes(code_dir)
+    pubdate = today.isoformat()
+    path = dest_path(dest, pubdate, iss.code, iss.name, title, "html")
+    rel = path.relative_to(dest)
+    prev = hashes.get(digest)
+    html = decode_html_bytes(data)
+    if prev is not None:
+        sidecar = ingest_path(prev)
+        try:
+            missing = (not sidecar.is_file()) or sidecar.stat().st_size <= 0
+        except OSError:
+            missing = True
+        if missing and iss.parse:
+            if _try_write_ingest(
+                prev,
+                html,
+                iss,
+                as_of,
+                sidecar.relative_to(dest),
+                extra_history=extra_history,
+            ):
+                return 1, 0, 0, 1
+            return 1, 1, 0, 0
+        print(f"skip hash {rel} == {prev.relative_to(dest)}", flush=True)
+        return 1, 0, 1, 0
+    try:
+        if path.is_file() and path.stat().st_size > 0:
+            hashes.pop(sha256_bytes(path.read_bytes()), None)
+        atomic_write(path, data)
+    except Exception as e:
+        print(f"fail {rel} url={url}: {e}", flush=True)
+        return 1, 0, 0, 1
+    print(f"saved {rel} ({len(data)} bytes)", flush=True)
+    if _try_write_ingest(path, html, iss, as_of, rel, extra_history=extra_history):
+        return 1, 1, 0, 1
+    return 1, 1, 0, 0
+
+
+def _eir_date_title(title: str, date_raw: str) -> str:
+    compact = re.sub(r"\D", "", date_raw)[:8]
+    if len(compact) == 8:
+        return f"{title}_{compact}"
+    return title
 
 
 def fetch_issuer(
@@ -1215,43 +1425,150 @@ def fetch_issuer(
         else:
             print(f"dry-run {iss.code} html {iss.index_url}", flush=True)
         return 1, 0, 1, 0
+    listed = saved = skipped = failed = 0
     try:
+        if iss.source == "eir":
+            data, eir_as_of, url, older = fetch_eir_bundle(iss)
+            for old_data, old_as_of, date_raw in older:
+                title = _eir_date_title(iss.title, date_raw)
+                n, s, k, f = _save_html_snapshot(
+                    dest,
+                    iss,
+                    old_data,
+                    today,
+                    title=title,
+                    as_of=old_as_of,
+                    url=url,
+                )
+                listed += n
+                saved += s
+                skipped += k
+                failed += f
+            n, s, k, f = _save_html_snapshot(
+                dest,
+                iss,
+                data,
+                today,
+                title=iss.title,
+                as_of=eir_as_of,
+                url=url,
+            )
+            return listed + n, saved + s, skipped + k, failed + f
         data, eir_as_of, url = fetch_html_bytes(iss)
     except Exception as e:
         print(f"fail issuer {iss.code} fetch: {e}", flush=True)
         return 1, 0, 0, 1
-    digest = sha256_bytes(data)
-    code_dir = dest / display_code(iss.code)
-    hashes = existing_html_hashes(code_dir)
-    pubdate = today.isoformat()
-    path = dest_path(dest, pubdate, iss.code, iss.name, iss.title, "html")
-    rel = path.relative_to(dest)
-    prev = hashes.get(digest)
-    html = decode_html_bytes(data)
-    as_of = eir_as_of
-    if prev is not None:
-        sidecar = ingest_path(prev)
-        try:
-            missing = (not sidecar.is_file()) or sidecar.stat().st_size <= 0
-        except OSError:
-            missing = True
-        if missing and iss.parse:
-            if _try_write_ingest(prev, html, iss, as_of, sidecar.relative_to(dest)):
-                return 1, 0, 0, 1
-            return 1, 1, 0, 0
-        print(f"skip hash {rel} == {prev.relative_to(dest)}", flush=True)
+    return _save_html_snapshot(
+        dest,
+        iss,
+        data,
+        today,
+        title=iss.title,
+        as_of=eir_as_of,
+        url=url,
+    )
+
+
+def _history_title_for_url(title: str, url: str) -> str:
+    key = _follow_key(url)
+    y, m = key[0], key[1]
+    if y <= 0:
+        return title
+    if m > 0:
+        return f"{title}_{y}_{m}"
+    return f"{title}_{y}"
+
+
+def fetch_issuer_history(
+    iss: HtmlIssuer,
+    dest: Path,
+    stock_map: Mapping[str, tuple[str | None, str | None]],
+    today: date,
+    *,
+    dry_run: bool,
+) -> tuple[int, int, int, int]:
+    """follow_re / E-IR の過去ページを全部取る。"""
+    reason = download_skip_reason(iss.code, iss.name, stock_map)
+    if reason:
+        print(f"skip {reason}", flush=True)
+        return 0, 0, 1, 0
+    if iss.source == "eir":
+        return fetch_issuer(iss, dest, stock_map, today, dry_run=dry_run)
+    if not iss.follow_re:
+        print(f"skip history-no-follow {iss.code}", flush=True)
+        return 0, 0, 1, 0
+    if dry_run:
+        print(
+            f"dry-run history {iss.code} html {iss.index_url} follow={iss.follow_re}",
+            flush=True,
+        )
         return 1, 0, 1, 0
+    listed = saved = skipped = failed = 0
     try:
-        if path.is_file() and path.stat().st_size > 0:
-            hashes.pop(sha256_bytes(path.read_bytes()), None)
-        atomic_write(path, data)
+        index_data = http_get(iss.index_url)
+        time.sleep(SLEEP_SEC)
+        year_urls = list_follow_urls(
+            decode_html_bytes(index_data), iss.index_url, iss.follow_re
+        )
     except Exception as e:
-        print(f"fail {rel} url={url}: {e}", flush=True)
+        print(f"fail issuer {iss.code} history index: {e}", flush=True)
         return 1, 0, 0, 1
-    print(f"saved {rel} ({len(data)} bytes)", flush=True)
-    if _try_write_ingest(path, html, iss, as_of, rel):
-        return 1, 1, 0, 1
-    return 1, 1, 0, 0
+    if not year_urls:
+        print(f"fail issuer {iss.code} history: no follow urls", flush=True)
+        return 1, 0, 0, 1
+    for year_url in year_urls:
+        try:
+            data = http_get(year_url)
+            time.sleep(SLEEP_SEC)
+            html = decode_html_bytes(data)
+            children: list[str] = []
+            if iss.parse:
+                try:
+                    html_to_ingest(html, iss.code, table=iss.table)
+                except ValueError:
+                    children = list_follow_urls(
+                        html, year_url, iss.follow_re, under=year_url
+                    )
+            if children:
+                for child in children:
+                    try:
+                        child_data = http_get(child)
+                        time.sleep(SLEEP_SEC)
+                    except Exception as e:
+                        failed += 1
+                        print(f"fail history {iss.code} {child}: {e}", flush=True)
+                        continue
+                    n, s, k, f = _save_html_snapshot(
+                        dest,
+                        iss,
+                        child_data,
+                        today,
+                        title=_history_title_for_url(iss.title, child),
+                        as_of=None,
+                        url=child,
+                    )
+                    listed += n
+                    saved += s
+                    skipped += k
+                    failed += f
+                continue
+            n, s, k, f = _save_html_snapshot(
+                dest,
+                iss,
+                data,
+                today,
+                title=_history_title_for_url(iss.title, year_url),
+                as_of=None,
+                url=year_url,
+            )
+            listed += n
+            saved += s
+            skipped += k
+            failed += f
+        except Exception as e:
+            failed += 1
+            print(f"fail history {iss.code} {year_url}: {e}", flush=True)
+    return listed, saved, skipped, failed
 
 
 def reparse_issuer(iss: HtmlIssuer, dest: Path) -> tuple[int, int, int]:
@@ -1275,6 +1592,9 @@ def reparse_issuer(iss: HtmlIssuer, dest: Path) -> tuple[int, int, int]:
             write_ingest(path, html, iss)
             parsed += 1
             print(f"reparse {rel} -> {ingest_path(path).name}", flush=True)
+            hist = history_path(path)
+            if hist.is_file():
+                print(f"reparse {rel} -> {hist.name}", flush=True)
         except Exception as e:
             failed += 1
             print(f"fail reparse {rel}: {e}", flush=True)
@@ -1288,6 +1608,7 @@ def run(
     only: list[str] | None = None,
     dry_run: bool = False,
     reparse: bool = False,
+    history: bool = False,
     today: date | None = None,
 ) -> int:
     issuers = load_html_registry(config_path)
@@ -1304,7 +1625,8 @@ def run(
     dest.mkdir(parents=True, exist_ok=True)
     print(
         f"ir_monthly_html_r2 start dest={dest} issuers={len(issuers)} "
-        f"day={day.isoformat()} dry_run={int(dry_run)} reparse={int(reparse)}",
+        f"day={day.isoformat()} dry_run={int(dry_run)} reparse={int(reparse)} "
+        f"history={int(history)}",
         flush=True,
     )
     if reparse:
@@ -1327,7 +1649,12 @@ def run(
     for iss in issuers:
         print(f"issuer {iss.code} {iss.name}", flush=True)
         try:
-            n, s, k, f = fetch_issuer(iss, dest, stock_map, day, dry_run=dry_run)
+            if history:
+                n, s, k, f = fetch_issuer_history(
+                    iss, dest, stock_map, day, dry_run=dry_run
+                )
+            else:
+                n, s, k, f = fetch_issuer(iss, dest, stock_map, day, dry_run=dry_run)
         except Exception as e:
             failed += 1
             print(f"fail issuer {iss.code} {iss.index_url}: {e}", flush=True)
@@ -1355,6 +1682,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--dry-run", action="store_true", help="list URLs, do not download")
     ap.add_argument("--reparse", action="store_true", help="rebuild ingest JSON from saved HTML")
+    ap.add_argument(
+        "--history",
+        action="store_true",
+        help="backfill older follow_re / E-IR monthly pages (one-shot, not for cron)",
+    )
     args = ap.parse_args(argv)
     return run(
         Path(args.dest),
@@ -1362,6 +1694,7 @@ def main(argv: list[str] | None = None) -> int:
         only=args.only or None,
         dry_run=args.dry_run,
         reparse=args.reparse,
+        history=args.history,
     )
 
 

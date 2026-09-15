@@ -107,14 +107,14 @@
 |---|---|---|---|
 | `scripts/tdnet_monthly_r2.py N` | `monthly/{code}/YYYYMMDD_CODE_….pdf` | 18:00 / 21:00（N=1）。初回は Actions の **TDnet monthly backfill** | `DESIGN.md` §3 |
 | `scripts/ir_monthly_r2.py` | `monthly/{code}/….pdf` / `.xlsx` | 10:00 / 16:00 | `DESIGN.md` §3、対象は `config/ir_monthly.json` の issuers |
-| `scripts/ir_monthly_html_r2.py` | `monthly/{code}/…_月次.html` + `.ingest.json` | 10:20 / 16:20 | `DESIGN.md` §3、対象は `config/ir_monthly.json` の html |
+| `scripts/ir_monthly_html_r2.py` | `monthly/{code}/…_月次.html` + `.ingest.json`（+ `.history.json`） | 10:20 / 16:20。過去年一括は `--history` | `DESIGN.md` §3、対象は `config/ir_monthly.json` の html |
 | `scripts/tdnet_xbrl_r2.py N` | `xbrl/{code4}/` | 12–23 時 毎時 00 分（N=1） | `docs/DESIGN_xbrl.md` |
 | `scripts/xbrl_parse.py` → `scripts/xbrl_normalize.py` | `xbrl_*` テーブル | 毎時 10 分 / 20 分 | `docs/DESIGN_xbrl.md` |
 
 - 月次の `{code}` は TDnet の発行体コードそのまま（9279, 262A）。J-Quants の 5 桁にしない。stocks 照合だけ末尾 0 を足す
 - `stocks` に無いコードは取らない。XBRL だけは `_unmatched/` へ置く
 - 既存ファイルは消さない。IR は同じ URL の上書きを日付付きで残し、中身の sha256 が同じなら skip
-- HTML 月次は `.ingest.json` を書くだけ。自動 POST しない。パーサー修正後は `--reparse`
+- HTML 月次は `.ingest.json`（最新）と必要なら `.history.json`（過去期配列）を書くだけ。自動 POST しない。パーサー修正後は `--reparse`。`follow_re` / E-IR の過去ページ一括は `--history`
 - 各バッチの cron は分ける。1 本にまとめない
 - XBRL は決算 UI / `statements` を触らない。マッピングは `config/xbrl/` だけ。エージェントが独断で足さない
 - XBRL 検証は別 DB。本番 `stock.db` に書かない（`docs/XBRL_VERIFY.md`）

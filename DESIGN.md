@@ -192,12 +192,13 @@ IR 月次 PDF/xlsx（`scripts/ir_monthly_r2.py`）:
 
 IR 月次 HTML（`scripts/ir_monthly_html_r2.py`）:
 
-- `.html`（原本）と `.ingest.json`（派生。`POST /api/v1/tables/{code}/ingest` と同じ形）を隣に置く。自動 POST しない
+- `.html`（原本）と `.ingest.json`（派生・最新期。`POST /api/v1/tables/{code}/ingest` と同じ形）を隣に置く。自動 POST しない
+- 同一ページに過去期の表があるときは `.history.json`（古い順の配列。各要素は ingest と同じ形。`as_of` は表単位）も書く
 - 対象は `config/ir_monthly.json` の html。セレクタは json（`table` / `follow_re` / `source=eir` / `parse`）。銘柄クラスは作らない
-- 年度別ページは `follow_re` で最新年を辿る。画像・本文のみは `parse: false`（HTML は残し JSON は書かない）
-- E-IR は Pronexus JSONP の月次 item `text` を `.html` として保存する（sha256 はその HTML）
+- 年度別ページは `follow_re` で最新年を辿る。過去年の一括取得は `--history`（cron には載せない）。画像・本文のみは `parse: false`（HTML は残し JSON は書かない）
+- E-IR は Pronexus JSONP の月次 item `text` を `.html` として保存する（sha256 はその HTML）。過去 item は `月次_YYYYMMDD` の日付付きファイルで残す
 - `as_of` は開示日。なければ表の最終値の年月（セルの年 or 表直前の期見出し / `YYYY年M月期` / `YYYY年度` / `YYYY年M月～YYYY年M月`）。取れなければ JSON は書かない
-- 複数年度のアーカイブは期が新しい表を優先
+- 主ペイロードは期が新しい表を優先。履歴はそれより古い期だけ
 - year は書かない。`△1.9` は `-1.9`。unit は見出しから（上の表）。`累計` / `通期計` / `上期計` は months に入れない
 - パーサーを直したら保存済み HTML を `--reparse`
 
