@@ -211,7 +211,7 @@ def test_cawachi_col_months() -> None:
     got = html_to_ingest(CAWACHI_HTML, "2664")
     if got["code"] != "2664":
         _fail(f"code {got['code']}")
-    if got["months"] != [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]:
+    if got["months"] != [4, 5, 6, 7, 8]:
         _fail(f"months {got['months']}")
     if got["as_of"] != "2026-08-31":
         _fail(f"as_of from 2027年3月期 + 8月 {got['as_of']}")
@@ -268,7 +268,7 @@ def test_colowide_grouped_header_skips_total() -> None:
     got = html_to_ingest(COLOWIDE_HTML, "7616")
     if got["as_of"] != "2026-09-04":
         _fail(f"update date {got['as_of']}")
-    if got["months"] != [4, 8, 9, 3]:
+    if got["months"] != [4, 8]:
         _fail(f"months keep fiscal holes {got['months']}")
     exist_sales = _row(got, "既存店舗（全業態） 売上高")
     if exist_sales["unit"] != "yoy_index":
@@ -426,12 +426,71 @@ AEON_HOKKAIDO_HTML = """
 </body></html>
 """
 
+# Archive table is complete; current FY caption is next year. Page-global FY + n_val
+# used to stamp 2027-05-31 / 2027-03-31. table=None must keep last filled month.
+VILLAGE_HTML = """
+<html><body>
+<h2>2026年5月期</h2>
+<table>
+<tr><th></th><th>6月</th><th>7月</th><th>8月</th><th>9月</th><th>10月</th><th>11月</th>
+<th>12月</th><th>1月</th><th>2月</th><th>3月</th><th>4月</th><th>5月</th></tr>
+<tr><td>全店</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td>
+<td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+</table>
+<h2>2027年5月期</h2>
+<table>
+<tr><th></th><th>6月</th><th>7月</th><th>8月</th><th>9月</th><th>10月</th><th>11月</th>
+<th>12月</th><th>1月</th><th>2月</th><th>3月</th><th>4月</th><th>5月</th></tr>
+<tr><td>全店</td><td>10</td><td>11</td><td>12</td><td></td><td></td><td></td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+</body></html>
+"""
+
+NAFCO_HTML = """
+<html><body>
+<h2>2026年3月期</h2>
+<table>
+<tr><th></th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>9月</th>
+<th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th><th>3月</th></tr>
+<tr><td>既存店</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td>
+<td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+</table>
+<h2>2027年3月期</h2>
+<table>
+<tr><th></th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>9月</th>
+<th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th><th>3月</th></tr>
+<tr><td>既存店</td><td>10</td><td>11</td><td>12</td><td>13</td><td>14</td><td></td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+</body></html>
+"""
+
+SAGAMI_HTML = """
+<html><body>
+<h2>2026年3月期</h2>
+<table>
+<tr><th></th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>9月</th>
+<th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th><th>3月</th></tr>
+<tr><td>全店</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td>
+<td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+</table>
+<h2>2027年3月期</h2>
+<table>
+<tr><th></th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>9月</th>
+<th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th><th>3月</th></tr>
+<tr><td>全店</td><td>20</td><td>21</td><td>22</td><td>23</td><td>24</td><td></td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+</body></html>
+"""
+
 
 def test_nitori_direct_page_no_follow() -> None:
     got = html_to_ingest(NITORI_HTML, "9843", table=None)
     if got["as_of"] != "2026-08-31":
         _fail(f"nitori as_of {got['as_of']}")
-    if got["months"][:5] != [4, 5, 6, 7, 8]:
+    if got["months"] != [4, 5, 6, 7, 8]:
         _fail(f"nitori months {got['months']}")
     exist = _row(got, "売上（%） 既存店")
     if exist["values"].get("8") != 98.8:
@@ -463,6 +522,187 @@ def test_aeon_hokkaido_prefers_current_year_slide() -> None:
         _fail(f"aeon picked old year {exist}")
     if exist["values"].get("2") is not None:
         _fail(f"aeon should not use full old year values {exist}")
+    if got["months"] != [3, 4, 5, 6, 7, 8]:
+        _fail(f"aeon months {got['months']}")
+
+
+def test_village_nafco_sagami_as_of_not_future_fy() -> None:
+    cases = (
+        (VILLAGE_HTML, "2769", "全店", 12),
+        (NAFCO_HTML, "2790", "既存店", 14),
+        (SAGAMI_HTML, "9900", "全店", 24),
+    )
+    for html, code, element, august in cases:
+        got = html_to_ingest(html, code, table=None)
+        if got["as_of"] != "2026-08-31":
+            _fail(f"{code} as_of {got['as_of']}")
+        row = _row(got, element)
+        if row["values"].get("8") != august:
+            _fail(f"{code} picked archive {row}")
+        if len(row["values"]) >= 12:
+            _fail(f"{code} leaked archive months {row}")
+
+
+def test_yoy_context_does_not_rename_guest_metrics() -> None:
+    html = """
+    <html><body>
+    <h2>2027年3月期 売上高前年同月比</h2>
+    <table>
+    <tr><th></th><th>1月</th><th>2月</th><th>8月</th></tr>
+    <tr><td>売上高</td><td>106.5</td><td>104.3</td><td>99.8</td></tr>
+    <tr><td>来客数</td><td>100.1</td><td>98.9</td><td>92.7</td></tr>
+    <tr><td>客単価</td><td>106.4</td><td>105.5</td><td>107.7</td></tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "8179", table=None)
+    labels = [r["element"] for r in got["rows"]]
+    if any("売上高前年同月比" in el for el in labels if "来客" in el or "客単" in el):
+        _fail(f"guest metric leaked sales yoy {labels}")
+    if not any("来客数" == el or el.startswith("来客数") for el in labels):
+        _fail(f"来客数 missing {labels}")
+
+
+def test_repeated_scope_row_prefixes_existing_and_all_store() -> None:
+    html = """
+    <html><body>
+    <h2>2027年3月期</h2>
+    <table>
+    <tr><th></th><th>4月</th><th>5月</th><th>8月</th><th>下半期</th></tr>
+    <tr><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td></tr>
+    <tr><td>売上高</td><td>98.3</td><td>105.8</td><td>101.0</td><td>98.4</td></tr>
+    <tr><td>客数</td><td>100.3</td><td>104.0</td><td>96.2</td><td>95.8</td></tr>
+    <tr><td>全店</td><td>全店</td><td>全店</td><td>全店</td><td>全店</td></tr>
+    <tr><td>売上高</td><td>94.4</td><td>103.1</td><td>96.7</td><td>94.7</td></tr>
+    <tr><td>客数</td><td>95.9</td><td>101.8</td><td>91.7</td><td>92.0</td></tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "7494", table=None)
+    labels = [r["element"] for r in got["rows"]]
+    if "既存店 売上高" not in labels or "全店 売上高" not in labels:
+        _fail(f"scope prefix missing {labels}")
+    if labels.count("売上高"):
+        _fail(f"bare 売上高 remained {labels}")
+    exist = _row(got, "既存店 売上高")
+    if exist["values"].get("8") != 101:
+        _fail(f"既存店 {exist}")
+
+
+def test_same_fy_prefers_later_filled_half() -> None:
+    html = """
+    <html><body>
+    <h2>2026年9月期(前年同月比%)</h2>
+    <table>
+    <tr><th></th><th>10月</th><th>11月</th><th>3月</th><th>上半期</th></tr>
+    <tr><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td></tr>
+    <tr><td>売上高</td><td>96.4</td><td>105.1</td><td>99.8</td><td>99.6</td></tr>
+    <tr><td>全店</td><td>全店</td><td>全店</td><td>全店</td><td>全店</td></tr>
+    <tr><td>売上高</td><td>95.9</td><td>106.1</td><td>96.4</td><td>98.8</td></tr>
+    </table>
+    <table>
+    <tr><th></th><th>4月</th><th>5月</th><th>8月</th><th>下半期</th></tr>
+    <tr><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td></tr>
+    <tr><td>売上高</td><td>98.3</td><td>105.8</td><td>101.0</td><td>98.4</td></tr>
+    <tr><td>全店</td><td>全店</td><td>全店</td><td>全店</td><td>全店</td></tr>
+    <tr><td>売上高</td><td>94.4</td><td>103.1</td><td>96.7</td><td>94.7</td></tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "7494", table=None)
+    if got["as_of"] != "2026-08-31":
+        _fail(f"same-fy as_of {got['as_of']}")
+    if got["months"] != [4, 5, 8]:
+        _fail(f"same-fy months {got['months']}")
+    exist = _row(got, "既存店 売上高")
+    if exist["values"].get("8") != 101:
+        _fail(f"picked H1 {exist}")
+
+
+def test_same_fy_prefers_last_quarter_over_prior() -> None:
+    html = """
+    <html><body>
+    <h2>2025年度 月次推移</h2>
+    <table>
+    <tr><td></td><td>2026.1</td><td>2026.2</td><td>2026.3</td></tr>
+    <tr><td>全店 (全業態)</td><td>110.1</td><td>106.1</td><td>106.7</td></tr>
+    </table>
+    <table>
+    <tr><td></td><td>2025.10</td><td>2025.11</td><td>2025.12</td></tr>
+    <tr><td>全店 (全業態)</td><td>108.0</td><td>107.0</td><td>106.0</td></tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "7522", table=None)
+    if got["as_of"] != "2026-03-31":
+        _fail(f"last quarter as_of {got['as_of']}")
+    if got["months"] != [1, 2, 3]:
+        _fail(f"last quarter months {got['months']}")
+    sales = _row(got, "全店 (全業態)")
+    if sales["values"].get("3") != 106.7:
+        _fail(f"picked prior quarter {sales}")
+
+
+def test_calendar_ytd_drops_trailing_empty_months() -> None:
+    html = """
+    <html><body>
+    <p>（2026年9月4日更新）</p>
+    <h2>2026年 月次</h2>
+    <table>
+    <tr><th></th><th>1月</th><th>2月</th><th>3月</th><th>4月</th><th>5月</th><th>6月</th>
+    <th>7月</th><th>8月</th><th>9月</th><th>10月</th><th>11月</th><th>12月</th></tr>
+    <tr><td>全店</td><td>92.6</td><td>90.0</td><td>81.1</td><td>104.2</td><td>94.5</td><td>85.0</td>
+    <td>107.4</td><td>80.5</td><td></td><td></td><td></td><td></td></tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "6537", table=None)
+    if got["months"] != [1, 2, 3, 4, 5, 6, 7, 8]:
+        _fail(f"calendar YTD months {got['months']}")
+    sales = _row(got, "全店")
+    if sales["values"].get("8") != 80.5:
+        _fail(f"calendar YTD values {sales}")
+    if any(k in sales["values"] for k in ("9", "10", "11", "12")):
+        _fail(f"trailing months leaked into values {sales['values']}")
+
+
+def test_partial_apr_sep_ytd_drops_trailing_empty_months() -> None:
+    html = """
+    <html><body>
+    <h2>2026年9月期(前年同月比%)</h2>
+    <table>
+    <tr><th></th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>9月</th></tr>
+    <tr><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td></tr>
+    <tr><td>売上高</td><td>98.3</td><td>105.8</td><td>87.4</td><td>100.6</td><td>101.0</td><td></td></tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "7494", table=None)
+    if got["months"] != [4, 5, 6, 7, 8]:
+        _fail(f"partial YTD months {got['months']}")
+    exist = _row(got, "既存店 売上高")
+    if exist["values"].get("8") != 101:
+        _fail(f"partial YTD {exist}")
+    if "9" in exist["values"]:
+        _fail(f"Sep empty leaked {exist}")
+
+
+def test_trailing_empty_months_keep_middle_gaps() -> None:
+    html = """
+    <html><body>
+    <p>（2026年9月4日更新）</p>
+    <table>
+    <tr><th></th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>9月</th></tr>
+    <tr><td>売上高</td><td>98.3</td><td></td><td>87.4</td><td></td><td>101.0</td><td></td></tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "7494", table=None)
+    if got["months"] != [4, 5, 6, 7, 8]:
+        _fail(f"middle gaps months {got['months']}")
+    sales = _row(got, "売上高")
+    if sales["values"] != {"4": 98.3, "6": 87.4, "8": 101}:
+        _fail(f"middle gaps values {sales['values']}")
 
 
 def test_hash_skip_and_reparse(tmp: Path) -> None:
@@ -1264,6 +1504,14 @@ def main() -> None:
     test_nitori_direct_page_no_follow()
     test_yamazawa_prefers_current_period()
     test_aeon_hokkaido_prefers_current_year_slide()
+    test_village_nafco_sagami_as_of_not_future_fy()
+    test_yoy_context_does_not_rename_guest_metrics()
+    test_repeated_scope_row_prefixes_existing_and_all_store()
+    test_same_fy_prefers_later_filled_half()
+    test_same_fy_prefers_last_quarter_over_prior()
+    test_calendar_ytd_drops_trailing_empty_months()
+    test_partial_apr_sep_ytd_drops_trailing_empty_months()
+    test_trailing_empty_months_keep_middle_gaps()
     with TemporaryDirectory() as d:
         p = Path(d)
         test_hash_skip_and_reparse(p)
