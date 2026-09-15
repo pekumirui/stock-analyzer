@@ -21,7 +21,7 @@
 ```
 
 - **言語**: Python 3.10+ / FastAPI / SQLAlchemy / pandas
-- **フロント**: `static/index.html` + `static/css/` + `static/js/` の vanilla JS SPA (lightweight-charts)。レスポンシブでスマホ対応。フレームワークを足さない
+- **フロント**: `static/index.html` + `static/css/` + `static/js/` の vanilla JS SPA (lightweight-charts)。スマホ対応。フレームワークを足さない
 - **バッチ**: `scripts/run_batch.py` を cron / スケジューラで日次実行
 
 ## 2. J-Quants API V2 / Light プランの前提
@@ -155,19 +155,53 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
 - 応答 `mapping` も一意月は `{月: 年}`、重複時は列順 `[{month, year}, …]`
 - クライアントは year を渡さない。年付き PUT は訂正用。決算期変更があっても as_of 時点の1か月だけを使う
 
-月次の書き込みは `stocks` に行がある code だけ。ingest / POST elements / 訂正 PUT は先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`。マスタ無しでは ingest しない。FK は付けない。`init_db` / migrate は `stocks` に無い月次行を `monthly_values` → `monthly_elements` → `monthly_tables` → `monthly_issuers` の順に DELETE する（本番の名証単独 30320 / 30660 など。何度呼んでも冪等）。
+**銘柄マスタとの関係。**
 
-月次の unit は PDF 見出しから付ける（値の大きさから推測しない）。`yoy_index` は 100=フラットの指数をそのまま保存・表示。`yoy_pct` は符号付き変化率をそのまま保存し、表では `100+v` を出す（▲ や +X.X% にはしない）。`number` は件数など。
+- 書き込みは `stocks` に行がある code だけ。ingest / POST elements / 訂正 PUT / industry PUT は先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`
+- FK は付けない（既存テーブルへ ADD できない）。`PRAGMA foreign_keys` も有効化しない
+- `init_db` / migrate は `stocks` に無い月次行を DELETE する（本番の名証単独 30320 / 30660 など。冪等）。順は `monthly_values` → `monthly_elements` → `monthly_tables` → `monthly_issuers`
 
-行ラベルの正本は [`docs/DESIGN_monthly_labels.md`](docs/DESIGN_monthly_labels.md)。ingest / POST は `canonicalize_element_label` してから既存行を探す。GET は保存名。SPA は `fmtMonthlyElement`。
+**unit。** PDF 見出しから付ける。値の大きさから推測しない。保存値は原文のまま。
 
-TDnet 月次 PDF (`scripts/tdnet_monthly_r2.py`) はダウンロード時にインフラファンドを除外する。商品区分は REIT と同じ `013`/`022` しか無く、名称に「インフラ」を含むものだけ落とす（マスタ欠落時は TDnet 社名の「インフラ投資法人」）。通常の REIT（8985 ジャパン・ホテル・リート投資法人など）は残す。stocks に無いコードはダウンロードしない（DB が読めない／map が空なら警告のみで継続）。保存先 `{code}` は TDnet のまま。stocks 照合だけ 4 桁 display + 末尾 0。既存 PDF は消さない。決算速報の REIT 全除外とは別。
+| unit | 見出し | 保存 | 表の表示 |
+|---|---|---|---|
+| `yoy_index` | 前年比 100 基準 | そのまま（125.8） | そのまま。100=フラット |
+| `yoy_pct` | ▲/△ 付き変化率 | 符号付きそのまま（-7.1） | `100+v`。▲ や +X.X% にはしない |
+| `number` | 店舗数など件数 | そのまま | そのまま |
 
-IR 月次（TDnet に月次が無い発行体）は `scripts/ir_monthly_r2.py` が同じ `monthly/{code}/` へ PDF/xlsx を置く。対象は `config/ir_monthly.json` の issuers。xlsx と pdf が両方あれば xlsx。ingest はまだ MCP。TDnet の cron とは分ける。
+**行名。** 正本は [`docs/DESIGN_monthly_labels.md`](docs/DESIGN_monthly_labels.md)。
+ingest / POST は `canonicalize_element_label` してから既存行を探す。GET は保存名。SPA は `fmtMonthlyElement`。
 
-HTML 月次は `scripts/ir_monthly_html_r2.py` が同じ場所へ `.html`（原本）と `.ingest.json`（派生、`POST /api/v1/tables/{code}/ingest` と同じ形）を置く。対象は `config/ir_monthly.json` の html（#134 の 41 社。セレクタは json。銘柄クラスは作らない）。自動 POST しない。`as_of` は開示日、なければ表の最終値の年月（セルの年 or `YYYY年M月期` / `YYYY年度` / `YYYY年M月～YYYY年M月`）。取れなければ JSON は書かない（HTML は残す）。画像・本文のみは `parse: false`。年度ページは `follow_re`。パーサーを直したら保存済み HTML を `--reparse`。E-IR は Pronexus JSONP の月次 HTML を同じ `.html` として保存する。
+**R2 への保存（`scripts/*_r2.py`）。** 保存先は `/home/stock/r2-share/monthly/{code}/`。cron と運用は `deploy/README.md`。共通の約束は次のとおり。
 
-TDnet 短信 XBRL は取得済み ZIP（`scripts/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。決算速報 UI の正本は当面 `statements` のまま。XBRL 層で上書きしない。
+- `{code}` は TDnet の発行体コードそのまま（9279 / 262A）。J-Quants 5 桁にしない。stocks 照合だけ display_code + 末尾 0（9282→92820, 262A→262A0）
+- stocks に無いコードはダウンロードしない。DB が読めない／map が空なら警告のみで継続
+- 既存ファイルは消さない。IR（PDF/xlsx/HTML）は同じ URL の上書き公開を日付付きで残し、中身の sha256 が同じなら skip
+- 3 本のバッチ（TDnet PDF / IR PDF・xlsx / IR HTML）の cron は分ける
+
+TDnet 月次 PDF（`scripts/tdnet_monthly_r2.py`）:
+
+- ダウンロード時にインフラファンドを除外する。商品区分は REIT と同じ `013`/`022` しか無いので、名称に「インフラ」を含むものだけ落とす（マスタ欠落時は TDnet 社名の「インフラ投資法人」）
+- 通常の REIT（8985 ジャパン・ホテル・リート投資法人など）は残す。決算速報の REIT 全除外とは別
+
+IR 月次 PDF/xlsx（`scripts/ir_monthly_r2.py`）:
+
+- TDnet に月次が無い発行体が対象。`config/ir_monthly.json` の issuers（URL 確認済みだけ載せる）
+- xlsx と pdf が両方あるページは xlsx だけ取る
+- ingest はまだ MCP 経由。パーサーは無い
+
+IR 月次 HTML（`scripts/ir_monthly_html_r2.py`）:
+
+- `.html`（原本）と `.ingest.json`（派生。`POST /api/v1/tables/{code}/ingest` と同じ形）を隣に置く。自動 POST しない
+- 対象は `config/ir_monthly.json` の html。セレクタは json（`table` / `follow_re` / `source=eir` / `parse`）。銘柄クラスは作らない
+- 年度別ページは `follow_re` で最新年を辿る。画像・本文のみは `parse: false`（HTML は残し JSON は書かない）
+- E-IR は Pronexus JSONP の月次 item `text` を `.html` として保存する（sha256 はその HTML）
+- `as_of` は開示日。なければ表の最終値の年月（セルの年 or `YYYY年M月期` / `YYYY年度` / `YYYY年M月～YYYY年M月`）。取れなければ JSON は書かない
+- year は書かない。`△1.9` は `-1.9`。unit は見出しから（上の表）。`累計` / `通期計` / `上期計` は months に入れない
+- パーサーを直したら保存済み HTML を `--reparse`
+
+TDnet 短信 XBRL は取得済み ZIP（`scripts/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。
+スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。決算速報 UI の正本は当面 `statements` のまま。XBRL 層で上書きしない。
 
 
 ### Q単独値の算出 (保存せずAPI側で導出)
@@ -223,7 +257,16 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 ### 4.2 ミネルヴィニ・ステージ判定
 優先順位付きルールベース (Stage2テンプレート → Stage4 → Stage1 → Stage3 → その他)。
 
-**Stage 2 (全条件AND)**: C > MA150 かつ C > MA200 / MA150 > MA200 / MA200が1ヶ月以上上昇 (`ma200_slope_1m > 0`) / MA50 > MA150 > MA200 / C > MA50 / C ≥ 52週安値×1.3 / C ≥ 52週高値×0.75 / RSランク ≥ 70
+**Stage 2 (全条件AND)**:
+
+- C > MA150 かつ C > MA200
+- MA150 > MA200
+- MA200 が1ヶ月以上上昇 (`ma200_slope_1m > 0`)
+- MA50 > MA150 > MA200
+- C > MA50
+- C ≥ 52週安値×1.3
+- C ≥ 52週高値×0.75
+- RSランク ≥ 70
 
 **Stage 4**: C < MA200 かつ MA200下降 (`ma200_slope_1m < -閾値`) かつ Cが52週安値の1.1倍以内
 
@@ -261,7 +304,9 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 
 ### 決算表の表示
 - タブは **累計が先**、3か月が後。既定は累計
-- **累計**: 同一四半期の年次比較の下に、通期予想・中間予想・前期通期を行として足す。2Q/3Qの期は期首〜当期末 (`26.04-09`) で、Q単独の3か月 (`26.07-09`) と区別する。年をまたぐ累計は `25.10-26.06`。通期行に4Qバッジは付けない。5Qは通期に潰さず `27.3期 5Q`
+- **累計**: 同一四半期の年次比較の下に、通期予想・中間予想・前期通期を行として足す
+  - 2Q/3Q の期は期首〜当期末 (`26.04-09`) で、Q単独の3か月 (`26.07-09`) と区別する。年をまたぐ累計は `25.10-26.06`
+  - 通期行に 4Q バッジは付けない。5Q は通期に潰さず `27.3期 5Q`
 - **3か月**: Q単独を時系列。決算期は当該3か月 (`26.07-09`)。FY単独だけ 4Q と書く
 - 最新実績行を強調。増減率は各セル下に出す (前年同期比の重複行は置かない)
 - 営利率 = 営業利益 / 売上。IFRS・米国基準は経常利益列を淡色
@@ -297,7 +342,8 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 
 推奨プランは **メモリ 2GB / SSD 100GB**（東京）。512MB は Python + pandas + 1GB 級 SQLite で足りない。時間課金で立ててから長期契約を判断する。
 
-データ量: 4,000銘柄×5年×250日 ≈ 500万行。SQLite 実ファイルは途中実測で営業日約4割時点 620MB あり、完成後 1〜2GB もあり得る。VPS ディスクなら余裕。ローカル backfill 完了後に `stock.db` を scp する（サーバで取り直さない）。
+データ量: 4,000銘柄×5年×250日 ≈ 500万行。SQLite 実ファイルは 1〜2GB になり得る（本番は約 1.1GB）。VPS ディスクなら余裕。
+ローカル backfill 完了後に `stock.db` を scp する（サーバで取り直さない）。
 
 見本は `deploy/`（systemd / nginx / crontab）。SQLite は複数ライターに弱いので uvicorn はワーカー1。日次バッチは 4 リクエストで短い。
 
@@ -320,10 +366,4 @@ stock_kpis  PK(code, metric, period)
 
 ## 9. ローカル実行手順
 
-```powershell
-.\setup.ps1              # .venv作成 + 依存インストール
-Copy-Item .env.example .env ; notepad .env    # APIキーを記入
-.\run.ps1 check          # 疎通 + 項目マッピング確認
-.\run.ps1 backfill       # 5年分 (約45分)
-.\run.ps1 serve          # → http://localhost:8000
-```
+[README.md](README.md) のクイックスタートとコマンド一覧。

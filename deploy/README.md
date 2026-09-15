@@ -20,7 +20,9 @@ ssh -t root@YOUR_HOST "bash -s '$(cat stock-analyzer-deploy.pub)'" < deploy/enab
 - `authorized_keys` にデプロイ公開鍵
 - `/etc/sudoers.d/stock-analyzer`（`provision.sh` と `systemctl` だけ）
 
-リポジトリはプライベート。VPS の `stock` ユーザが `git pull` するには GitHub Deploy key（read-only）が必要。`setup-github-ssh.sh` が鍵を作り公開鍵を出すので、GitHub → Settings → Deploy keys に一度だけ登録する。clone が鍵未登録で落ちたら、出した公開鍵を入れてから `enable-cicd.sh` を再実行。
+リポジトリはプライベート。VPS の `stock` ユーザが `git pull` するには GitHub Deploy key（read-only）が必要。
+`setup-github-ssh.sh` が鍵を作り公開鍵を出すので、GitHub → Settings → Deploy keys に一度だけ登録する。
+clone が鍵未登録で落ちたら、出した公開鍵を入れてから `enable-cicd.sh` を再実行。
 
 sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd.sh` を実行する**。ただし `provision.sh` も sudoers を冪等に入れるので、通常の再デプロイだけでも足りる。
 
@@ -94,12 +96,19 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 - `monthly_get` — 銘柄×年度の月次表。values は 1〜12。無い月は null
 - `monthly_add_element` — 要素登録
 - `monthly_put_values` — セル一括 upsert（null で削除）。year は暦年。訂正用
+- `monthly_delete_element` — 値の無い行を消す。値が残っていれば 409。表は残す
 - `monthly_set_industry` — 月次業種。PUT /api/v1/tables/{code}/industry。銘柄マスタの業種とは別
-- `monthly_ingest` — PDF 月次の新規登録。POST /api/v1/tables/{code}/ingest。year は渡さない（列順 + 決算期末から暦年を決める）
+- `monthly_ingest` — PDF 月次の新規登録。POST /api/v1/tables/{code}/ingest。year は渡さない。
+  列順 + as_of 時点の最新 `fiscal_year_end` から暦年を決める。月が重複する year-wrap は列順配列の `values`
 
 任意コマンドも restart も任意 SQL もない。月次ツールは FastAPI の `http://127.0.0.1:8000` だけを叩く（nginx Basic は使わない）。行数は最大 500。`.env` の値は伏せる。
+`monthly_get` の `values` は 1〜12。無い月は null。0 は実ゼロ。1年通して値のない行は出さない。
+月次の unit は PDF 見出しから付ける（`DESIGN.md` §3 の表）。既存行の unit 変更は `PUT /api/v1/tables/{code}/{year}/elements`（`{element, unit}`）。
 
-アプリ・バッチ・MCP のファイルログは `/var/log/app/`。14 日で logrotate（copytruncate）。nginx は従来どおり `/var/log/nginx/`。
+認証は `MCP_TOKEN`（Bearer または OAuth で発行した access token）。GitHub secret と同値。値をログに出さない。
+
+アプリ・バッチ・MCP のファイルログは `/var/log/app/`（`stock-analyzer.log` / `batch.log` / `mcp.log`）。journal も残る。
+14 日で logrotate（copytruncate）。nginx は従来どおり `/var/log/nginx/`。ローカルのバッチはアプリディレクトリの `batch.log`。
 
 Grok への繋ぎ方（カスタムコネクタは OAuth 前提）:
 
@@ -124,17 +133,38 @@ Cursor / Grok Bot も同じ OAuth（PKCE、クライアントシークレット�
 - デスクトップ: `http://localhost:8787/callback`（localhost で許可済）
 - フォールバック: `cursor://anysphere.cursor-mcp/oauth/callback`
 
-well-known は Basic 認証の外。`/.well-known/oauth-authorization-server` と `/.well-known/openid-configuration`（同じ AS メタデータ）と `/oauth/` は MCP プロセスへプロキシする。`/.well-known/` 全体は外さない（acme-challenge は従来どおり）。
+well-known は Basic 認証の外。`/.well-known/oauth-authorization-server` と `/.well-known/openid-configuration`（同じ AS メタデータ）と `/oauth/` は MCP プロセスへプロキシする。
+`/.well-known/` 全体は外さない（acme-challenge は従来どおり）。
 
 MCP 自体が死んだときの退避路は Actions の **Debug VPS**。
 
-## Cloudflare R2 mount と TDnet 月次 PDF
+## Cloudflare R2 mount と月次 / XBRL バッチ
 
-VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount する（ユーザ `stock`、`loginctl enable-linger stock` でログアウト・再起動後も残る）。オブジェクトは `/home/stock/r2-share/monthly/{code}/YYYYMMDD_CODE_….pdf` として見える（`{code}` は TDnet の発行体コードそのまま。9279 / 262A。J-Quants 5桁にはしない）。systemd ユニットは `deploy/r2-share.service`（秘密情報は含まない）。
+VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount する。
+ユーザ `stock`、`loginctl enable-linger stock` でログアウト・再起動後も残る。systemd ユニットは `deploy/r2-share.service`（秘密情報は含まない）。
 
-1. この変更が main にマージされたあと（通常の CI/CD デプロイ）、GitHub secrets に `R2_ACCESS_KEY_ID` と `R2_SECRET_ACCESS_KEY` を入れる。
-2. Actions → CI/CD → Run workflow、`bump: none` でもう一度デプロイする。`.env` の当該行と `/home/stock/.config/rclone/rclone.conf`（chmod 600）が書かれ、user unit `r2-share.service` が mount する。secrets がまだ無いときは provision は落とさず、ユニットは enable のみ。
-3. 初回バックフィル: Actions → **TDnet monthly backfill** → Run workflow、`days=30`。SSH で `scripts/tdnet_monthly_r2.py 30` が走る（通常デプロイでは走らない）。
-4. 以降は cron 18:00 と 21:00 JST（`N=1`）が当日分を取る。既存の 19:30 / 06:00 の `run_batch.py` はそのまま。
+見える場所:
 
-`rclone.conf` と取得 PDF はリポジトリに置かない。
+- `monthly/{code}/YYYYMMDD_CODE_….pdf|xlsx|html`（`{code}` は TDnet の発行体コードそのまま。9279 / 262A。J-Quants 5桁にはしない）
+- `xbrl/{code4}/…zip` と `xbrl/_unmatched/`
+
+初回設定:
+
+1. GitHub secrets に `R2_ACCESS_KEY_ID` と `R2_SECRET_ACCESS_KEY` を入れる
+2. Actions → CI/CD → Run workflow、`bump: none` で再デプロイする。
+   `.env` の当該行と `/home/stock/.config/rclone/rclone.conf`（chmod 600）が書かれ、user unit `r2-share.service` が mount する。
+   secrets が無いときは provision は落とさず、ユニットは enable のみ
+3. 月次 PDF の初回バックフィルは Actions → **TDnet monthly backfill** → Run workflow、`days=30`。
+   SSH で `scripts/tdnet_monthly_r2.py 30` が走る（通常デプロイでは走らない）
+
+cron（JST）。`run_batch.py` の 19:30 / 06:00 はそのまま。
+
+| スクリプト | cron |
+|---|---|
+| `scripts/tdnet_monthly_r2.py 1` | 18:00 / 21:00 |
+| `scripts/ir_monthly_r2.py` | 10:00 / 16:00 |
+| `scripts/ir_monthly_html_r2.py` | 10:20 / 16:20 |
+| `scripts/tdnet_xbrl_r2.py 1` | 12–23 時の毎時 00 分 |
+| `scripts/xbrl_parse.py` / `scripts/xbrl_normalize.py` | 12–23 時の毎時 10 分 / 20 分 |
+
+振る舞いは `DESIGN.md` §3 と `docs/DESIGN_xbrl.md`。`rclone.conf` と取得ファイルはリポジトリに置かない。
