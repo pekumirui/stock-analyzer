@@ -328,6 +328,12 @@ def main() -> None:
     )
     if ir_html.returncode != 0:
         raise SystemExit("ir monthly html r2 tests failed")
+    ir_html_ingest = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "test_ir_monthly_html_ingest.py")],
+        cwd=ROOT,
+    )
+    if ir_html_ingest.returncode != 0:
+        raise SystemExit("ir monthly html ingest tests failed")
     xbrl = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "test_xbrl_parse.py")],
         cwd=ROOT,
