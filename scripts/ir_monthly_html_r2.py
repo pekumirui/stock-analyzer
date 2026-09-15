@@ -91,6 +91,8 @@ _UPDATE_RE = re.compile(
 _UNIT_TAIL_RE = re.compile(r"(?:百万円|千円|億円|百万|円|店|度)+$")
 _EMPTY_VAL_RE = re.compile(r"^(?:[-−－―–—ー…‥.．]|n/?a|なし)?$", re.I)
 _PCT_MARK_RE = re.compile(r"[%％]")
+_UNIT_MARK_RE = re.compile(r"[(（]?\s*単位\s*[:：]?\s*[%％]\s*[)）]?")
+_VALID_UNITS = frozenset({"number", "yoy_index", "yoy_pct"})
 _TRI_RE = re.compile(r"[△▲]")
 _CHARSET_RE = re.compile(br"charset\s*=\s*[\"']?\s*([a-zA-Z0-9_-]+)", re.I)
 _HEADING_RE = re.compile(r"<h[1-4][^>]*>(.*?)</h[1-4]>", re.I | re.S)
@@ -121,6 +123,7 @@ class HtmlIssuer:
     eir_title_re: str
     follow_re: str = ""
     parse: bool = True
+    force_unit: str | None = None
 
 
 def ingest_path(html_path: Path) -> Path:
@@ -171,6 +174,19 @@ def page_context(html: str) -> str:
             parts.append(t)
         if len(parts) >= 24:
             break
+    return " ".join(parts)
+
+
+def unit_mark_context(html: str) -> str:
+    """ページ全体の `(単位：%)` / `単位:%`。表の後ろにある銘柄向け。"""
+    plain = _plain(html)
+    seen: set[str] = set()
+    parts: list[str] = []
+    for m in _UNIT_MARK_RE.finditer(plain):
+        t = m.group(0).strip()
+        if t and t not in seen:
+            seen.add(t)
+            parts.append(t)
     return " ".join(parts)
 
 
@@ -918,6 +934,16 @@ def _parsed_score(
     return (fy_y, fy_m, as_key, -table_index, n_yoy, n_val)
 
 
+def _apply_force_unit(rows: list[dict], force_unit: str | None) -> None:
+    if not force_unit:
+        return
+    if force_unit not in _VALID_UNITS:
+        raise ValueError(f"invalid force_unit: {force_unit!r}")
+    for row in rows:
+        if row.get("unit") in ("yoy_pct", "yoy_index"):
+            row["unit"] = force_unit
+
+
 def html_to_ingest(
     html: str,
     code: str,
@@ -925,12 +951,14 @@ def html_to_ingest(
     as_of: str | None = None,
     table: int | None = 0,
     context: str | None = None,
+    force_unit: str | None = None,
 ) -> dict:
     tables = parse_tables(html)
     if not tables:
         raise ValueError("no html table")
     sections = table_section_texts(html)
-    ctx = context if context is not None else page_context(html)
+    base_ctx = context if context is not None else page_context(html)
+    unit_marks = unit_mark_context(html)
     indices: list[int]
     if table is None:
         indices = list(range(len(tables)))
@@ -942,6 +970,7 @@ def html_to_ingest(
     candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]] = []
     for i in indices:
         section_text = sections[i] if i < len(sections) else ""
+        ctx = " ".join(p for p in (base_ctx, section_text, unit_marks) if p)
         try:
             parsed = parse_grid(tables[i], ctx, html)
         except Exception as e:
@@ -960,6 +989,7 @@ def html_to_ingest(
             html, it[1], it[2], table_index=it[0], section_fy=it[3]
         ),
     )
+    _apply_force_unit(parsed["rows"], force_unit)
     as_of_s = resolve_as_of(
         html,
         grid_used,
@@ -1091,6 +1121,14 @@ def _parse_html_issuer(raw: object) -> HtmlIssuer:
     parse_raw = raw.get("parse", True)
     if not isinstance(parse_raw, bool):
         raise ValueError(f"issuer {code} invalid parse")
+    force_raw = raw.get("force_unit")
+    force_unit: str | None
+    if force_raw is None:
+        force_unit = None
+    elif isinstance(force_raw, str) and force_raw in _VALID_UNITS:
+        force_unit = force_raw
+    else:
+        raise ValueError(f"issuer {code} invalid force_unit: {force_raw!r}")
     return HtmlIssuer(
         code=code,
         name=name,
@@ -1103,6 +1141,7 @@ def _parse_html_issuer(raw: object) -> HtmlIssuer:
         eir_title_re=eir_title_re,
         follow_re=follow_re,
         parse=parse_raw,
+        force_unit=force_unit,
     )
 
 
@@ -1204,7 +1243,7 @@ def fetch_html_bytes(iss: HtmlIssuer) -> tuple[bytes, str | None, str]:
         if iss.parse:
             html = decode_html_bytes(data)
             try:
-                html_to_ingest(html, iss.code, table=iss.table)
+                html_to_ingest(html, iss.code, table=iss.table, force_unit=iss.force_unit)
             except ValueError:
                 child = pick_follow_url(html, url, iss.follow_re, under=url)
                 if child and child.rstrip("/") != url.rstrip("/"):
@@ -1215,7 +1254,9 @@ def fetch_html_bytes(iss: HtmlIssuer) -> tuple[bytes, str | None, str]:
 
 
 def write_ingest(html_path: Path, html: str, iss: HtmlIssuer, as_of: str | None = None) -> None:
-    payload = html_to_ingest(html, iss.code, as_of=as_of, table=iss.table)
+    payload = html_to_ingest(
+        html, iss.code, as_of=as_of, table=iss.table, force_unit=iss.force_unit
+    )
     atomic_write(ingest_path(html_path), dumps_ingest(payload).encode("utf-8"))
 
 
