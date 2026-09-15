@@ -98,8 +98,9 @@ def _ok_payload(case: MappingCase) -> dict[str, Any]:
     }
 
 
-def _years_payload(case: MappingCase) -> dict[str, Any]:
-    years = sorted({int(y) for y in case.mapping.values()}) if isinstance(case.mapping, dict) else []
+def _years_payload(case: MappingCase, years: list[int] | None = None) -> dict[str, Any]:
+    if years is None:
+        years = [2026]
     return {"code": case.code + "0", "years": years}
 
 
@@ -252,6 +253,30 @@ def test_mapping_case_mismatch_fails(tmp: Path) -> None:
         _fail("mismatch must not GET years")
 
 
+def test_confirm_years_uses_updated_not_empty_months(tmp: Path) -> None:
+    dest = tmp / "confirm-years"
+    _write_sidecar(
+        dest,
+        "2664",
+        "20260915_2664_カワチ薬品_月次.ingest.json",
+        as_of="2026-08-31",
+        months=list(CAWACHI.months),
+    )
+    client = FakeClient(post_payload=_ok_payload(CAWACHI), get_payload={"code": "26640", "years": [2026]})
+    rc = run(
+        dest,
+        ledger_path=tmp / "confirm-ledger.json",
+        client=client,
+        today=date(2026, 9, 15),
+        cases=(CAWACHI,),
+        verify_mapping=True,
+    )
+    if rc != 0:
+        _fail(f"empty 2027 month must not fail GET confirm rc={rc}")
+    if not client.gets:
+        _fail("confirm must GET years")
+
+
 def test_as_of_gate_blocks_post(tmp: Path) -> None:
     dest = tmp / "asof-gate"
     _write_sidecar(
@@ -328,6 +353,7 @@ def main_tests() -> None:
         p = Path(d)
         test_ledger_skip_does_not_post(p)
         test_mapping_case_mismatch_fails(p)
+        test_confirm_years_uses_updated_not_empty_months(p)
         test_as_of_gate_blocks_post(p)
         test_dry_run_verify_mapping_usage_error(p)
         test_cli_repeatable_only(p)

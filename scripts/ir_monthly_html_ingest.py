@@ -379,15 +379,19 @@ def assert_mapping(ok: PostOk, case: MappingCase) -> None:
         )
 
 
-def mapping_years(mapping: dict[str, int] | list[dict[str, int]]) -> set[int]:
-    if isinstance(mapping, dict):
-        return {int(y) for y in mapping.values()}
-    return {int(item["year"]) for item in mapping}
+def written_years(updated: Sequence[Mapping[str, Any]]) -> set[int]:
+    """Years the API actually wrote. Mapping still names empty future months."""
+    out: set[int] = set()
+    for item in updated:
+        y = item.get("year")
+        if isinstance(y, int) and not isinstance(y, bool):
+            out.add(y)
+    return out
 
 
-def confirm_years(code: str, years: Sequence[int], mapping: dict[str, int] | list[dict[str, int]]) -> None:
+def confirm_years(code: str, years: Sequence[int], updated: Sequence[Mapping[str, Any]]) -> None:
     have = {int(y) for y in years}
-    missing = sorted(mapping_years(mapping) - have)
+    missing = sorted(written_years(updated) - have)
     if missing:
         raise MappingMismatch(f"{code} GET years missing {missing} have={sorted(have)}")
 
@@ -665,7 +669,7 @@ def run(
             years = g_payload.get("years")
             if not isinstance(years, list):
                 raise MappingMismatch(f"{s.code} GET years missing")
-            confirm_years(s.code, years, ok.mapping)
+            confirm_years(s.code, years, ok.updated)
         except MappingMismatch as e:
             failed += 1
             print(f"fail mapping {s.code}: {e}", flush=True)
