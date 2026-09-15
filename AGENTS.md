@@ -98,6 +98,7 @@
 - `monthly_delete_element` は値の無い行だけ（残っていれば 409）。表は残す
 - アプリ本体 (`app/*`) にログ API を足さない。MCP が死んだときの退避路は Actions の **Debug VPS**
 - R2 bucket `share` は VPS で `/home/stock/r2-share` に rclone mount。`rclone.conf` はリポジトリに置かない
+- Cloud Agent から R2 を読むときは `deploy/README.md` の「Cursor Cloud Agent から読む」。読み取りのみ。取得先は `/tmp`
 
 ### R2 バッチ
 
