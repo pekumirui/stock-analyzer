@@ -169,6 +169,28 @@ cron（JST）。`run_batch.py` の 19:30 / 06:00 はそのまま。
 
 振る舞いは `DESIGN.md` §3 と `docs/DESIGN_xbrl.md`。`rclone.conf` と取得ファイルはリポジトリに置かない。
 
+### Cursor Cloud Agent から VPS を触る
+
+経路は2つ。任意シェルは MCP に足さない（`AGENTS.md`）。
+
+| やりたいこと | 経路 |
+|---|---|
+| ログ・DB 件数・月次 ingest / 訂正 | Cursor の `stock-analyzer` MCP（`https://kabukpi.com/mcp`） |
+| `--reparse` や `ir_monthly_html_ingest.py` などシェル | Cloud Agent Secrets の `VPS_SSH_KEY` → `ssh stock-vps` |
+
+`VPS_SSH_KEY` は GitHub Actions と同じデプロイ秘密鍵でよい（`stock` の `authorized_keys` に載っているもの）。チャットに貼らない。
+
+1. Cursor Dashboard → Cloud Agents → Secrets（このリポジトリ scope）に `VPS_SSH_KEY` を登録
+2. 新しい Cloud Agent を起動する（既存 VM には入らない。`.cursor/install.sh` が `.cursor/setup-vps-ssh.sh` を呼ぶ）
+3. エージェントから:
+
+```bash
+ssh stock-vps 'cd /home/stock/stock-analyzer && .venv/bin/python -u scripts/ir_monthly_html_r2.py --reparse'
+ssh stock-vps 'cd /home/stock/stock-analyzer && .venv/bin/python -u scripts/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json'
+```
+
+接続確認: `ssh stock-vps 'echo ok $(hostname)'`。失敗したら公開鍵が `stock` の `authorized_keys` にあるか、Actions の **Debug VPS** を見る。
+
 ### Cursor Cloud Agent から読む
 
 Cloud Agent の VM には mount が無い。同じ bucket を S3 互換 API で読む。
