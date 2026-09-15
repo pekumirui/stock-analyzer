@@ -426,6 +426,65 @@ AEON_HOKKAIDO_HTML = """
 </body></html>
 """
 
+# Archive table is complete; current FY caption is next year. Page-global FY + n_val
+# used to stamp 2027-05-31 / 2027-03-31. table=None must keep last filled month.
+VILLAGE_HTML = """
+<html><body>
+<h2>2026年5月期</h2>
+<table>
+<tr><th></th><th>6月</th><th>7月</th><th>8月</th><th>9月</th><th>10月</th><th>11月</th>
+<th>12月</th><th>1月</th><th>2月</th><th>3月</th><th>4月</th><th>5月</th></tr>
+<tr><td>全店</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td>
+<td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+</table>
+<h2>2027年5月期</h2>
+<table>
+<tr><th></th><th>6月</th><th>7月</th><th>8月</th><th>9月</th><th>10月</th><th>11月</th>
+<th>12月</th><th>1月</th><th>2月</th><th>3月</th><th>4月</th><th>5月</th></tr>
+<tr><td>全店</td><td>10</td><td>11</td><td>12</td><td></td><td></td><td></td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+</body></html>
+"""
+
+NAFCO_HTML = """
+<html><body>
+<h2>2026年3月期</h2>
+<table>
+<tr><th></th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>9月</th>
+<th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th><th>3月</th></tr>
+<tr><td>既存店</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td>
+<td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+</table>
+<h2>2027年3月期</h2>
+<table>
+<tr><th></th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>9月</th>
+<th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th><th>3月</th></tr>
+<tr><td>既存店</td><td>10</td><td>11</td><td>12</td><td>13</td><td>14</td><td></td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+</body></html>
+"""
+
+SAGAMI_HTML = """
+<html><body>
+<h2>2026年3月期</h2>
+<table>
+<tr><th></th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>9月</th>
+<th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th><th>3月</th></tr>
+<tr><td>全店</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td>
+<td>1</td><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+</table>
+<h2>2027年3月期</h2>
+<table>
+<tr><th></th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>9月</th>
+<th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th><th>3月</th></tr>
+<tr><td>全店</td><td>20</td><td>21</td><td>22</td><td>23</td><td>24</td><td></td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+</body></html>
+"""
+
 
 def test_nitori_direct_page_no_follow() -> None:
     got = html_to_ingest(NITORI_HTML, "9843", table=None)
@@ -463,6 +522,23 @@ def test_aeon_hokkaido_prefers_current_year_slide() -> None:
         _fail(f"aeon picked old year {exist}")
     if exist["values"].get("2") is not None:
         _fail(f"aeon should not use full old year values {exist}")
+
+
+def test_village_nafco_sagami_as_of_not_future_fy() -> None:
+    cases = (
+        (VILLAGE_HTML, "2769", "全店", 12),
+        (NAFCO_HTML, "2790", "既存店", 14),
+        (SAGAMI_HTML, "9900", "全店", 24),
+    )
+    for html, code, element, august in cases:
+        got = html_to_ingest(html, code, table=None)
+        if got["as_of"] != "2026-08-31":
+            _fail(f"{code} as_of {got['as_of']}")
+        row = _row(got, element)
+        if row["values"].get("8") != august:
+            _fail(f"{code} picked archive {row}")
+        if len(row["values"]) >= 12:
+            _fail(f"{code} leaked archive months {row}")
 
 
 def test_hash_skip_and_reparse(tmp: Path) -> None:
@@ -1264,6 +1340,7 @@ def main() -> None:
     test_nitori_direct_page_no_follow()
     test_yamazawa_prefers_current_period()
     test_aeon_hokkaido_prefers_current_year_slide()
+    test_village_nafco_sagami_as_of_not_future_fy()
     with TemporaryDirectory() as d:
         p = Path(d)
         test_hash_skip_and_reparse(p)
