@@ -541,6 +541,52 @@ def test_village_nafco_sagami_as_of_not_future_fy() -> None:
             _fail(f"{code} leaked archive months {row}")
 
 
+def test_yoy_context_does_not_rename_guest_metrics() -> None:
+    html = """
+    <html><body>
+    <h2>2027年3月期 売上高前年同月比</h2>
+    <table>
+    <tr><th></th><th>1月</th><th>2月</th><th>8月</th></tr>
+    <tr><td>売上高</td><td>106.5</td><td>104.3</td><td>99.8</td></tr>
+    <tr><td>来客数</td><td>100.1</td><td>98.9</td><td>92.7</td></tr>
+    <tr><td>客単価</td><td>106.4</td><td>105.5</td><td>107.7</td></tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "8179", table=None)
+    labels = [r["element"] for r in got["rows"]]
+    if any("売上高前年同月比" in el for el in labels if "来客" in el or "客単" in el):
+        _fail(f"guest metric leaked sales yoy {labels}")
+    if not any("来客数" == el or el.startswith("来客数") for el in labels):
+        _fail(f"来客数 missing {labels}")
+
+
+def test_repeated_scope_row_prefixes_existing_and_all_store() -> None:
+    html = """
+    <html><body>
+    <h2>2027年3月期</h2>
+    <table>
+    <tr><th></th><th>4月</th><th>5月</th><th>8月</th><th>下半期</th></tr>
+    <tr><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td><td>既存店</td></tr>
+    <tr><td>売上高</td><td>98.3</td><td>105.8</td><td>101.0</td><td>98.4</td></tr>
+    <tr><td>客数</td><td>100.3</td><td>104.0</td><td>96.2</td><td>95.8</td></tr>
+    <tr><td>全店</td><td>全店</td><td>全店</td><td>全店</td><td>全店</td></tr>
+    <tr><td>売上高</td><td>94.4</td><td>103.1</td><td>96.7</td><td>94.7</td></tr>
+    <tr><td>客数</td><td>95.9</td><td>101.8</td><td>91.7</td><td>92.0</td></tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "7494", table=None)
+    labels = [r["element"] for r in got["rows"]]
+    if "既存店 売上高" not in labels or "全店 売上高" not in labels:
+        _fail(f"scope prefix missing {labels}")
+    if labels.count("売上高"):
+        _fail(f"bare 売上高 remained {labels}")
+    exist = _row(got, "既存店 売上高")
+    if exist["values"].get("8") != 101:
+        _fail(f"既存店 {exist}")
+
+
 def test_hash_skip_and_reparse(tmp: Path) -> None:
     import ir_monthly_html_r2 as mod
 
@@ -1341,6 +1387,8 @@ def main() -> None:
     test_yamazawa_prefers_current_period()
     test_aeon_hokkaido_prefers_current_year_slide()
     test_village_nafco_sagami_as_of_not_future_fy()
+    test_yoy_context_does_not_rename_guest_metrics()
+    test_repeated_scope_row_prefixes_existing_and_all_store()
     with TemporaryDirectory() as d:
         p = Path(d)
         test_hash_skip_and_reparse(p)

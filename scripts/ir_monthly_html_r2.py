@@ -83,6 +83,7 @@ _SKIP_AXIS_RE = re.compile(
     r"[1-4]Q|[１-４]Q|[1-4]四半期|四半期|\d+\s*ヶ月|月計)$"
 )
 _SKIP_SPAN_RE = re.compile(r"\d+\s*[～〜~\-－]\s*\d+\s*月")
+_NAMED_METRIC_RE = re.compile(r"来客数|客単価|客数|店舗数|店数")
 _UPDATE_RE = re.compile(
     r"(\d{4})\s*[/-年]\s*(\d{1,2})\s*[/-月]\s*(\d{1,2})\s*日?\s*"
     r"(?:更新|公表|発表|開示|掲載|確定|現在|時点)"
@@ -716,6 +717,19 @@ def _parse_snapshot_month(grid: list[list[str]], year: int, month: int, context:
     return {"months": [month], "rows": rows_out}
 
 
+def _repeated_scope_row(row: list[str]) -> str | None:
+    """全セルが同じ 既存店/全店 の帯。数値行のスコープにする。"""
+    filled = [_plain(c).strip() for c in row if str(c).strip()]
+    if len(filled) < 2 or len(set(filled)) != 1:
+        return None
+    if any(parse_number(c) is not None for c in filled):
+        return None
+    name = filled[0]
+    if parse_month_cell(name) is not None or _is_skip_axis(name):
+        return None
+    return name
+
+
 def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dict | None:
     header = grid[header_i]
     month_cols: list[tuple[int, int]] = []
@@ -735,7 +749,12 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
     ]
     label_end = min(cuts) if cuts else min(c for c, _m in month_cols)
     rows_out: list[dict] = []
+    scope = ""
     for row in grid[header_i + 1 :]:
+        band = _repeated_scope_row(row)
+        if band is not None:
+            scope = band
+            continue
         parts: list[str] = []
         for c in range(label_end):
             t = row[c].strip() if c < len(row) else ""
@@ -745,6 +764,8 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
                 continue
             parts.append(t)
         label = " ".join(parts).strip()
+        if scope and scope not in label:
+            label = f"{scope} {label}".strip()
         if not label or parse_month_cell(label) is not None:
             continue
         if not _row_has_number(row, label_end):
@@ -762,12 +783,14 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
         if not values:
             continue
         element = label
+        # Page yoy context is for unlabeled 全店/既存 rows, not 客数/客単価.
         if (
             context
             and "前年" in context
             and "前年" not in label
-            and "売上" not in label
             and "売上" in context
+            and "売上" not in label
+            and _NAMED_METRIC_RE.search(label) is None
         ):
             element = f"{label} 売上高前年同月比".strip()
         rows_out.append({"element": element, "unit": unit, "values": values})
