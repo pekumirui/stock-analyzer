@@ -103,8 +103,16 @@ def test_canonicalize_element_label() -> None:
         _fail("合計 店舗数 drops 合計")
     if canonicalize_element_label("既存店 売上高(前年比)", "yoy_index") != "既存 売上高(前年比)":
         _fail("既存店 shortens")
-    if canonicalize_element_label("全社 売上高(前年比)", "yoy_index") != "全店 売上高(前年比)":
-        _fail("全社 folds to 全店")
+    if canonicalize_element_label("全社 売上高(前年比)", "yoy_index") != "全社 売上高(前年比)":
+        _fail("全社 stays 全社 (not 全店)")
+    if canonicalize_element_label("既存店計 単月", "yoy_index") != "既存 売上高(前年比)":
+        _fail("Alpen 既存店計 単月 → 既存 売上高")
+    if canonicalize_element_label("全店計 単月", "yoy_index") != "全店 売上高(前年比)":
+        _fail("Alpen 全店計 単月 → 全店 売上高")
+    if canonicalize_element_label("全社計 ※ 単月", "yoy_index") != "全社 売上高(前年比)":
+        _fail("Alpen 全社計 ※ 単月 → 全社 売上高")
+    if canonicalize_element_label("ゼビオ 単月 既存", "yoy_index") != "ゼビオ 単月 既存(前年比)":
+        _fail("Xevo empty-metric 単月 stays with segment")
     if canonicalize_element_label("直営+FC 既存店 焼肉 売上高(前年比)", "yoy_index") != "焼肉 直営+FC 既存 売上高(前年比)":
         _fail("channel stays a layer")
     if canonicalize_element_label("国内FC店舗数", "number") != "日本 FC 店舗数":
