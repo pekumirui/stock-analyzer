@@ -1064,6 +1064,10 @@ TSURUHA_HTML = """
 <td></td><td></td><td></td><td></td><td></td><td></td></tr>
 <tr><td>既存店</td><td>（内 物販）</td><td>1.5</td><td>3.8</td><td>4.8</td><td>▲ 3.8</td><td>0.0</td><td>0.2</td>
 <td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>既存店</td><td>（内 調剤）</td><td>11.2</td><td>10.0</td><td>3.9</td><td>11.4</td><td>9.0</td><td>7.0</td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>全店</td><td>客単価</td><td>2.9</td><td>3.9</td><td>2.2</td><td>3.1</td><td>3.5</td><td>3.7</td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
 <tr><td>店舗状況</td><td>店舗数</td><td>5663</td><td>5665</td><td>5665</td><td>5663</td><td>5660</td><td>5652</td>
 <td></td><td></td><td></td><td></td><td></td><td></td></tr>
 <tr><td>店舗状況</td><td>（内 開店）</td><td>17</td><td>14</td><td>5</td><td>3</td><td>8</td><td>6</td>
@@ -1132,6 +1136,12 @@ def test_nendo_and_fullwidth_fy_as_of() -> None:
     goods = _row(got2, "既存店 （内 物販） 売上高前年同月比")
     if goods["unit"] != "yoy_pct" or goods["values"].get("6") != -3.8:
         _fail(f"tsuruha goods {goods}")
+    pharm = _row(got2, "既存店 （内 調剤） 売上高前年同月比")
+    if pharm["unit"] != "yoy_pct" or pharm["values"].get("8") != 7.0:
+        _fail(f"tsuruha 調剤 must be yoy_pct (伸び率) {pharm}")
+    guest = _row(got2, "全店 客単価")
+    if guest["unit"] != "yoy_pct" or guest["values"].get("8") != 3.7:
+        _fail(f"tsuruha 客単価 must be yoy_pct (伸び率) {guest}")
     stores = _row(got2, "店舗数")
     if stores["unit"] != "number" or stores["values"].get("3") != 5663:
         _fail(f"tsuruha stores {stores}")
@@ -1147,6 +1157,35 @@ def test_nendo_and_fullwidth_fy_as_of() -> None:
         _fail(f"close must not get yoy rename {closed}")
     if closed["element"] == opened["element"]:
         _fail(f"open/close labels collided {opened} {closed}")
+
+
+def test_sagami_zougenhi_is_yoy_pct() -> None:
+    """前年同月増減比:% は変化率。単位:% だけで指数にしない。"""
+    html = """
+    <html><body>
+    <h2>2026年度 和食麺処サガミ部門 (前年同月増減比:%)</h2>
+    <table>
+    <tr><td></td><td>全店</td><td>全店</td><td>全店</td><td>既存店</td><td>既存店</td><td>既存店</td></tr>
+    <tr><td></td><td>売上高</td><td>客数</td><td>客単価</td><td>売上高</td><td>客数</td><td>客単価</td></tr>
+    <tr><td>4月</td><td>8.1</td><td>5.6</td><td>2.4</td><td>0.4</td><td>-1.7</td><td>2.1</td></tr>
+    <tr><td>5月</td><td>18.3</td><td>16.1</td><td>1.9</td><td>9.8</td><td>8.1</td><td>1.7</td></tr>
+    <tr><td>8月</td><td>9.3</td><td>7.5</td><td>1.6</td><td>1.2</td><td>-0.4</td><td>1.6</td></tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "9900", table=None)
+    if got["as_of"] != "2026-08-31":
+        _fail(f"sagami as_of {got['as_of']}")
+    for el in ("全店 売上高", "全店 客数", "全店 客単価", "既存店 売上高", "既存店 客数", "既存店 客単価"):
+        row = _row(got, el)
+        if row["unit"] != "yoy_pct":
+            _fail(f"sagami {el} must be yoy_pct {row}")
+    sales = _row(got, "全店 売上高")
+    if sales["values"].get("8") != 9.3 or sales["values"].get("4") != 8.1:
+        _fail(f"sagami values {sales}")
+    guest = _row(got, "既存店 客数")
+    if guest["values"].get("4") != -1.7:
+        _fail(f"sagami signed {guest}")
 
 
 def test_skip_span_total_column() -> None:
@@ -1757,6 +1796,7 @@ def main() -> None:
     test_mos_skips_half_year_total()
     test_year_dot_month_and_skip_quarter()
     test_nendo_and_fullwidth_fy_as_of()
+    test_sagami_zougenhi_is_yoy_pct()
     test_skip_span_total_column()
     test_eir_same_date_picks_later_fy()
     test_eir_skips_empty_url_same_date()

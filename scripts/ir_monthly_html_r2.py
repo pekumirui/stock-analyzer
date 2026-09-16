@@ -767,6 +767,9 @@ def infer_unit(header: str, samples: list[str], context: str = "") -> str:
         for v in samples
     )
     yoy = any(k in blob for k in ("前年", "同月比", "100基準"))
+    # 増減比/伸び率は変化率。単位:% より優先（ツルハ・サガミ）
+    if any(k in blob for k in ("増減比", "増減率", "変化率", "伸び率", "伸長率")):
+        return "yoy_pct"
     if "100基準" in blob:
         return "yoy_index"
     if has_tri or signed_pct:

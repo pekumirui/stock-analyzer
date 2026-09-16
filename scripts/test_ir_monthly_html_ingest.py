@@ -139,12 +139,14 @@ def test_select_latest_as_of_tiebreak() -> None:
 
 
 def test_ingest_body_keys_only() -> None:
-    s = _sidecar(
-        "2664",
-        Path("x.ingest.json"),
+    s = Sidecar(
+        code="2664",
+        path=Path("x.ingest.json"),
         filename_date=date(2026, 9, 15),
         as_of=date(2026, 8, 31),
         months=(4, 5, 8),
+        rows=({"element": "全店", "unit": "yoy_pct", "values": {"8": -1.9}},),
+        sha256="x",
     )
     body = ingest_body(s)
     if set(body) != {"months", "rows", "as_of"}:
@@ -153,6 +155,8 @@ def test_ingest_body_keys_only() -> None:
         _fail(f"body leaked {body}")
     if body["as_of"] != "2026-08-31" or body["months"] != [4, 5, 8]:
         _fail(f"body {body}")
+    if not body["rows"] or not all(r.get("force") is True for r in body["rows"]):
+        _fail(f"html ingest rows must force unit/label fixes {body['rows']}")
 
 
 def test_as_of_gate_month_end_hi() -> None:

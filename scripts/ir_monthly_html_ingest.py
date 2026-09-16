@@ -215,9 +215,15 @@ def select_latest_per_code(sidecars: Sequence[Sidecar]) -> dict[str, Sidecar]:
 
 
 def ingest_body(s: Sidecar) -> dict[str, Any]:
+    # HTML reparse で unit 訂正（伸び率→yoy_pct 等）を入れられるよう force
+    rows = []
+    for r in s.rows:
+        row = dict(r)
+        row["force"] = True
+        rows.append(row)
     return {
         "months": list(s.months),
-        "rows": [dict(r) for r in s.rows],
+        "rows": rows,
         "as_of": s.as_of.isoformat(),
     }
 
