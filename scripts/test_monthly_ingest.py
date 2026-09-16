@@ -202,6 +202,22 @@ def test_canonicalize_element_label() -> None:
         _fail("累計 time-axis drops")
     if canonicalize_element_label("運用戸数 単月増加", "number") != "運用戸数 単月増加":
         _fail("単月増加 stays one token")
+    if canonicalize_element_label("既存店舗 客 数", "yoy_index") != "既存 客数(前年比)":
+        _fail("客 数 shards stitch to 客数")
+    if canonicalize_element_label("売上 （％） 既存店", "yoy_index") != "既存 売上高(前年比)":
+        _fail("（％） unit noise drops")
+    if canonicalize_element_label("（％） 全店 売上高(前年比)", "yoy_index") != "全店 売上高(前年比)":
+        _fail("leading （％） drops")
+    if canonicalize_element_label("店舗状況 店舗数", "number") != "店舗数":
+        _fail("店舗状況 section drops")
+    if canonicalize_element_label("店舗状況 （内 出店", "number") != "出店":
+        _fail("broken inner open stitches to 出店")
+    if canonicalize_element_label("全店", "yoy_index") != "全店 売上高(前年比)":
+        _fail("bare scope yoy fills 売上高")
+    if canonicalize_element_label("既存(前年比)", "yoy_index") != "既存 売上高(前年比)":
+        _fail("bare 既存 yoy fills 売上高")
+    if canonicalize_element_label("直営 全店(前年比)", "yoy_index") != "直営 全店(前年比)":
+        _fail("channel+scope empty metric stays")
     twice = canonicalize_element_label("焼肉 直営+FC 既存 売上高(前年比)", "yoy_index")
     if twice != "焼肉 直営+FC 既存 売上高(前年比)":
         _fail("canonicalize idempotent")
