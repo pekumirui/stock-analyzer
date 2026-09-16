@@ -67,7 +67,7 @@ def canonicalize_element_label(element: str, unit: str | None) -> str:
     if unit is None and ("(前年比)" in trimmed or "（前年比）" in trimmed):
         is_yoy = True
     base = strip_yoy_fragments(trimmed) if is_yoy else trimmed
-    base = normalize_element_tokens(base)
+    base = normalize_element_tokens(base, fill_default_metric=is_yoy)
     if not is_yoy:
         return base
     if base.endswith(_YOY_SUFFIX):
@@ -147,7 +147,7 @@ _FCW_EMBED_RE = re.compile(r"ＦＣ")
 _DROP_TOKS = frozenset({
     "合計", "総計", "小計", "計", "月末", "期末", "うち", "部門", "店",
     "前期比", "同期比", "増減率", "前年比", "前年同月比", "前年同月", "全",
-    "累計",
+    "累計", "店舗状況", "（％）", "（%）", "%",
     "（", "）", "(", ")", "(前年比)", "（前年比）",
 })
 # 単月/Monthly は指標がある行だけ落とす。空指標の 単月 vs 裸は月次/累計の別系列（ゼビオ）。
@@ -188,6 +188,23 @@ _METRIC_STARTSWITH = frozenset({"店舗数", "来客数", "客単価", "売上�
 _COUNTRY_RANK = {"": 0, "日本": 1, "海外": 2}
 _CHANNEL_RANK = {"直営+FC": 0, "直営": 1, "FC": 2, "": 3}
 _FC_TOKEN_RE = re.compile(r"^(?:FC|ＦＣ)$")
+_METRIC_SHARD_PAIRS: tuple[tuple[str, str], ...] = (
+    ("客", "数"),
+    ("売", "上"),
+)
+
+
+def _stitch_metric_shards(tokens: list[str]) -> list[str]:
+    out: list[str] = []
+    i = 0
+    while i < len(tokens):
+        if i + 1 < len(tokens) and (tokens[i], tokens[i + 1]) in _METRIC_SHARD_PAIRS:
+            out.append(tokens[i] + tokens[i + 1])
+            i += 2
+            continue
+        out.append(tokens[i])
+        i += 1
+    return out
 
 
 def _unglue_element(text: str) -> str:
@@ -293,7 +310,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
     scope = ""
     metric = ""
     leftover: list[str] = []
-    for tok in _unglue_element(element).split():
+    for tok in _stitch_metric_shards(_unglue_element(element).split()):
         if tok in _DROP_TOKS:
             continue
         flow = _STORE_FLOW_CANON.get(tok)
@@ -336,6 +353,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
         leftover = [tok for tok in leftover if tok not in _TIME_AXIS_TOKS]
     if _is_flow_metric(metric):
         scope = ""
+        leftover = [tok for tok in leftover if tok != "（内"]
     if not scope and metric in _METRIC_FILL_ALL:
         scope = "全店"
     return {
@@ -347,12 +365,20 @@ def parse_element_layers(element: str) -> dict[str, str]:
     }
 
 
-def normalize_element_tokens(element: str) -> str:
+def normalize_element_tokens(element: str, *, fill_default_metric: bool = False) -> str:
     """空白区切り [国] [セグメント] [チャネル] [スコープ] [指標]。"""
     trimmed = re.sub(r"\s+", " ", element.strip())
     if not trimmed:
         return trimmed
     parts = parse_element_layers(trimmed)
+    if (
+        fill_default_metric
+        and not parts["metric"]
+        and parts["scope"]
+        and not parts["channel"]
+        and not parts["segment"]
+    ):
+        parts["metric"] = "売上高"
     ordered = [
         parts["country"], parts["segment"], parts["channel"],
         parts["scope"], parts["metric"],

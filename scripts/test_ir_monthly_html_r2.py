@@ -576,7 +576,7 @@ def test_yamazawa_prefers_current_period() -> None:
         _fail(f"yamazawa as_of {got['as_of']}")
     if got["months"] != [3, 4, 5, 6, 7, 8]:
         _fail(f"yamazawa months {got['months']}")
-    all_store = _row(got, "全店 売 上")
+    all_store = _row(got, "全店 売上")
     if all_store["values"].get("8") != 90.9:
         _fail(f"yamazawa picked old period {all_store}")
     if any("上期" in r["element"] for r in got["rows"]):
@@ -1123,15 +1123,15 @@ def test_nendo_and_fullwidth_fy_as_of() -> None:
     goods = _row(got2, "既存店 （内 物販） 売上高前年同月比")
     if goods["unit"] != "yoy_pct" or goods["values"].get("6") != -3.8:
         _fail(f"tsuruha goods {goods}")
-    stores = _row(got2, "店舗状況 店舗数")
+    stores = _row(got2, "店舗数")
     if stores["unit"] != "number" or stores["values"].get("3") != 5663:
         _fail(f"tsuruha stores {stores}")
-    opened = _row(got2, "店舗状況 （内 開店）")
+    opened = _row(got2, "出店")
     if opened["unit"] != "number" or opened["values"].get("3") != 17:
         _fail(f"tsuruha open count {opened}")
     if "売上高" in opened["element"] or "前年" in opened["element"]:
         _fail(f"open must not get yoy rename {opened}")
-    closed = _row(got2, "店舗状況 （内 閉店）")
+    closed = _row(got2, "退店")
     if closed["unit"] != "number" or closed["values"].get("3") != 30:
         _fail(f"tsuruha close count {closed}")
     if "売上高" in closed["element"] or "前年" in closed["element"]:
@@ -1392,10 +1392,33 @@ def test_himalaya_year_tab_as_of() -> None:
     if got["as_of"] != "2026-08-31":
         _fail(f"himalaya as_of {got['as_of']}")
     exist = _row(got, "既存店")
+    if exist["unit"] != "yoy_index":
+        _fail(f"himalaya unit {exist}")
     if exist["values"].get("8") != 105.3:
         _fail(f"himalaya {exist}")
     if "13" in exist["values"] or "累計" in "".join(exist["values"]):
         _fail(f"年度累計 leaked {exist}")
+
+
+def test_drop_ytd_row_when_monthly_pair() -> None:
+    html = """
+    <html><body>
+    <h2>月次</h2>
+    <table>
+    <tr><td></td><td>6月</td><td>7月</td><td>8月</td></tr>
+    <tr><td>既存店 Existing stores 単月 Monthly</td><td>100</td><td>103.4</td><td>101.8</td></tr>
+    <tr><td>既存店 Existing stores</td><td>100</td><td>101.7</td><td>101.7</td></tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "3148", table=None)
+    labels = [r["element"] for r in got["rows"]]
+    if "既存店 Existing stores" in labels and any("単月" in el for el in labels):
+        if sum(1 for el in labels if "Existing stores" in el) != 1:
+            _fail(f"ytd pair must drop bare row {labels}")
+    row = _row(got, "既存店 Existing stores 単月 Monthly")
+    if row["unit"] != "yoy_index" or row["values"].get("7") != 103.4:
+        _fail(f"monthly row {row}")
 
 
 def test_ministop_genzai_as_of() -> None:

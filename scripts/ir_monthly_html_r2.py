@@ -621,6 +621,48 @@ def normalize_month_order(months: list[int]) -> list[int]:
     return months
 
 
+def _squash_label_metric_spaces(label: str) -> str:
+    s = label.replace("客 数", "客数").replace("売 上", "売上")
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _compact_store_status_label(label: str) -> str:
+    s = _squash_label_metric_spaces(label.strip())
+    if s.startswith("店舗状況 "):
+        s = s[len("店舗状況 ") :].strip()
+    if re.search(r"（内\s*開店", s) or s.startswith("（内 出店"):
+        return "出店"
+    if re.search(r"（内\s*閉店", s) or s.startswith("（内 退店"):
+        return "退店"
+    if s == "店舗数":
+        return "店舗数"
+    return s
+
+
+def _monthly_pair_key(element: str) -> str:
+    s = element
+    for frag in ("単月 Monthly", "単月Monthly", "単月", "Monthly"):
+        s = s.replace(frag, " ")
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def _drop_ytd_when_monthly_pair(rows: list[dict]) -> list[dict]:
+    monthly_keys = {
+        _monthly_pair_key(r["element"])
+        for r in rows
+        if "単月" in r["element"] or "Monthly" in r["element"]
+    }
+    if not monthly_keys:
+        return rows
+    out: list[dict] = []
+    for r in rows:
+        el = r["element"]
+        if "単月" not in el and "Monthly" not in el and _monthly_pair_key(el) in monthly_keys:
+            continue
+        out.append(r)
+    return out
+
+
 def infer_unit(header: str, samples: list[str], context: str = "") -> str:
     h = header or ""
     blob = f"{h} {context}"
@@ -643,6 +685,15 @@ def infer_unit(header: str, samples: list[str], context: str = "") -> str:
         return "yoy_index"
     if yoy:
         return "yoy_pct"
+    nums = [n for v in samples if (n := parse_number(v)) is not None]
+    if (
+        nums
+        and all(50 <= n <= 200 for n in nums)
+        and "店舗数" not in h
+        and _STORE_FLOW_RE.search(h) is None
+        and ("売上" in blob or "同月" in blob or "前年" in blob)
+    ):
+        return "yoy_index"
     return "number"
 
 
@@ -789,9 +840,9 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
             if parse_month_cell(t) is not None or _is_skip_axis(t) or _is_caption_cell(t):
                 continue
             parts.append(t)
-        label = " ".join(parts).strip()
+        label = _compact_store_status_label(" ".join(parts).strip())
         if scope and scope not in label:
-            label = f"{scope} {label}".strip()
+            label = _compact_store_status_label(f"{scope} {label}".strip())
         if not label or parse_month_cell(label) is not None:
             continue
         if not _row_has_number(row, label_end):
@@ -894,7 +945,7 @@ def _parse_row_months(grid: list[list[str]], data_i: int, context: str) -> dict 
             if n is None:
                 continue
             parts = [p for p in [*labels, header] if p]
-            element = " ".join(parts).strip() or header or "売上高"
+            element = _squash_label_metric_spaces(" ".join(parts).strip()) or header or "売上高"
             key = (element, unit)
             series.setdefault(key, {})[str(month)] = json_number(n)
     if not series:
@@ -990,6 +1041,7 @@ def html_to_ingest(
         ),
     )
     _apply_force_unit(parsed["rows"], force_unit)
+    parsed["rows"] = _drop_ytd_when_monthly_pair(parsed["rows"])
     as_of_s = resolve_as_of(
         html,
         grid_used,
