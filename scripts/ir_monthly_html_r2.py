@@ -345,6 +345,50 @@ def _is_store_event_parsed(parsed: dict) -> bool:
     return n_area >= max(1, (len(rows) + 1) // 2)
 
 
+_ALL_STORE_SALES_HEAD_RE = re.compile(
+    r"全店売上(?:（％）|\(%\)|％|%)?(?=※|この表|$)"
+)
+
+
+def _section_tail(section_text: str, n: int = 160) -> str:
+    s = unicodedata.normalize("NFKC", section_text or "")
+    s = re.sub(r"\s+", "", s)
+    return s[-n:] if len(s) > n else s
+
+
+def _section_pick_rank(section_text: str) -> int:
+    """表直前見出しの優先度。全店売上 > 通常 > 1店1日/店舗数。"""
+    tail = _section_tail(section_text)
+    # セル連結の「全店」「売上」は除外（全店売上100.0 など）
+    if _ALL_STORE_SALES_HEAD_RE.search(tail):
+        return 2
+    if "1店1日" in tail or "一店一日" in tail or "店舗数" in tail:
+        return 0
+    return 1
+
+
+def _prefer_section_candidates(
+    candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
+    sections: list[str],
+) -> list[tuple[int, list[list[str]], dict, tuple[int, int] | None]]:
+    if not candidates:
+        return candidates
+    ranks = [
+        _section_pick_rank(sections[i] if i < len(sections) else "")
+        for i, _g, _p, _fy in candidates
+    ]
+    best = max(ranks)
+    return [c for c, r in zip(candidates, ranks) if r == best]
+
+
+def _drop_all_store_sales_breakdowns(rows: list[dict], section_text: str) -> list[dict]:
+    """全店売上セクションで売上高合計があるときだけ、内訳行（CVS/FF）を落とす。"""
+    if "全店売上" not in _section_tail(section_text):
+        return rows
+    totals = [r for r in rows if "売上高合計" in str(r.get("element") or "")]
+    return totals or rows
+
+
 def _merge_companion_total_stores(
     primary: dict,
     candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
@@ -1082,15 +1126,18 @@ def html_to_ingest(
         raise ValueError(last_err or "no monthly rows")
     monthly_cands = [c for c in candidates if not _is_store_event_parsed(c[2])]
     pick_pool = monthly_cands or candidates
+    pick_pool = _prefer_section_candidates(pick_pool, sections)
     table_index, grid_used, parsed, section_fy = max(
         pick_pool,
         key=lambda it: _parsed_score(
             html, it[1], it[2], table_index=it[0], section_fy=it[3]
         ),
     )
+    section_text = sections[table_index] if table_index < len(sections) else ""
     _merge_companion_total_stores(parsed, candidates, primary_index=table_index)
     _apply_force_unit(parsed["rows"], force_unit)
     parsed["rows"] = _drop_ytd_when_monthly_pair(parsed["rows"])
+    parsed["rows"] = _drop_all_store_sales_breakdowns(parsed["rows"], section_text)
     as_of_s = resolve_as_of(
         html,
         grid_used,
