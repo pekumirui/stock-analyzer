@@ -8,6 +8,7 @@ Read this index, then the matching feature file, before driving the app.
 - `stock.db` is the backfilled SQLite next to the repo (not a CI temp DB, not demo `0`-prefix codes).
 - Run `helpers/doctor.py` and require `ok: true`, non-empty screener, and a トヨタ search hit.
 - Drive the instance recorded in `.run/state.json` (adopted or launched).
+- 月次 Detail needs a non-empty `GET /api/v1/tables`. Cloud Agent `stock.db` is often J-Quants bars/statements only — empty monthly is `verified-unreachable`, not a render bug (see `features/monthly.md`).
 
 ## Driving conventions
 
