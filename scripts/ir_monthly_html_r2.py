@@ -357,14 +357,77 @@ def _section_tail(section_text: str, n: int = 160) -> str:
 
 
 def _section_pick_rank(section_text: str) -> int:
-    """表直前見出しの優先度。全店売上 > 通常 > 1店1日/店舗数。"""
+    """表直前見出しの優先度。全店売上 > 全店帯 > 通常 > 1店1日。卸計は選ばない。"""
     tail = _section_tail(section_text)
+    if "卸計" in tail:
+        return -1
     # セル連結の「全店」「売上」は除外（全店売上100.0 など）
     if _ALL_STORE_SALES_HEAD_RE.search(tail):
+        return 3
+    # やまやの「全店 (単位:…)」帯。セル値の全店97.1 は除外
+    if re.search(r"全店(?=(?:・卸計)?(?:\(単位|（単位|単位|$))", tail):
         return 2
     if "1店1日" in tail or "一店一日" in tail or "店舗数" in tail:
         return 0
     return 1
+
+
+def _store_scope_from_section(section_text: str) -> str | None:
+    """表直前の見出し帯だけ（やまやの「既存店 (単位:…)」）。卸計は対象外。"""
+    tail = _section_tail(section_text, 80)
+    if "卸計" in tail:
+        return None
+    m = re.search(r"(既存店|全店)(?=(?:・卸計)?(?:\(単位|（単位|単位|$))", tail)
+    if not m:
+        return None
+    return "既存店" if m.group(1) == "既存店" else "全店"
+
+
+def _rows_need_store_scope(rows: list[dict]) -> bool:
+    """当年/前年比由来の裸の売上高だけスコープを付ける。"""
+    if not rows:
+        return False
+    for row in rows:
+        el = str(row.get("element") or "").strip()
+        compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", el))
+        if compact != "売上高":
+            return False
+        if "既存" in el or "全店" in el:
+            return False
+    return True
+
+
+def _apply_store_scope(rows: list[dict], scope: str) -> None:
+    """既存/全店を行名に付ける。全店の前年比は売上高のみ（canonicalize が全店を補う）。"""
+    for row in rows:
+        el = str(row.get("element") or "").strip()
+        if not el:
+            continue
+        if scope in el or ("既存" in scope and "既存" in el) or (scope == "全店" and "全店" in el):
+            continue
+        compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", el))
+        unit = row.get("unit")
+        if scope == "全店" and unit in ("yoy_index", "yoy_pct") and compact == "売上高":
+            row["element"] = "売上高"
+            continue
+        row["element"] = f"{scope} {el}".strip()
+
+
+def _is_prior_year_absolute(text: str) -> bool:
+    """前年/前期の実数列。前年比は除外。"""
+    compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", text or ""))
+    if not compact or "比" in compact:
+        return False
+    return compact in ("前年", "前期", "前年同月", "前年同期")
+
+
+def _rewrite_period_header(text: str) -> str:
+    """当年/前年比 → 売上高。unit 判定は書き換え前の見出しで行う。"""
+    s = (text or "").strip()
+    compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", s))
+    if compact in ("当年", "前年比"):
+        return "売上高"
+    return s
 
 
 def _prefer_section_candidates(
@@ -411,6 +474,38 @@ def _merge_companion_total_stores(
                 continue
             primary.setdefault("rows", []).append(row)
             have.add(el)
+
+
+def _merge_companion_store_scopes(
+    primary: dict,
+    candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
+    sections: list[str],
+    *,
+    primary_index: int,
+) -> None:
+    """同月軸の 既存店/全店 表を足す（やまや。卸計は入れない）。"""
+    primary_months = list(primary.get("months") or [])
+    have = {
+        (str(r.get("element") or ""), r.get("unit"))
+        for r in primary.get("rows") or []
+    }
+    for idx, _grid, other, _fy in candidates:
+        if idx == primary_index or _is_store_event_parsed(other):
+            continue
+        if list(other.get("months") or []) != primary_months:
+            continue
+        scope = _store_scope_from_section(sections[idx] if idx < len(sections) else "")
+        if scope is None or not _rows_need_store_scope(other.get("rows") or []):
+            continue
+        for row in other.get("rows") or []:
+            merged = dict(row)
+            _apply_store_scope([merged], scope)
+            el = str(merged.get("element") or "")
+            key = (el, merged.get("unit"))
+            if not el or key in have:
+                continue
+            primary.setdefault("rows", []).append(merged)
+            have.add(key)
 
 
 def table_section_texts(html: str) -> list[str]:
@@ -755,6 +850,10 @@ def _drop_ytd_when_monthly_pair(rows: list[dict]) -> list[dict]:
 
 def infer_unit(header: str, samples: list[str], context: str = "") -> str:
     h = header or ""
+    compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", h))
+    # 当年の実数は、他表の「前年」が context に混ざっても number に固定
+    if compact == "当年":
+        return "number"
     blob = f"{h} {context}"
     if "店舗数" in h or _STORE_FLOW_RE.search(h):
         return "number"
@@ -1000,13 +1099,14 @@ def _parse_row_months(grid: list[list[str]], data_i: int, context: str) -> dict 
         return None
     col_meta: list[tuple[int, str, str]] = []
     for c in range(metric_start, width):
-        header = _header_label(header_rows, c)
-        if _is_skip_axis(header):
+        raw_header = _header_label(header_rows, c)
+        if _is_skip_axis(raw_header) or _is_prior_year_absolute(raw_header):
             continue
         samples = [row[c] for row in grid[data_i:] if c < len(row)]
         if not any(parse_number(v) is not None for v in samples):
             continue
-        unit = infer_unit(header, samples, context)
+        unit = infer_unit(raw_header, samples, context)
+        header = _rewrite_period_header(raw_header)
         col_meta.append((c, header, unit))
     if not col_meta:
         return None
@@ -1137,7 +1237,13 @@ def html_to_ingest(
         ),
     )
     section_text = sections[table_index] if table_index < len(sections) else ""
+    scope = _store_scope_from_section(section_text)
+    if scope and _rows_need_store_scope(parsed["rows"]):
+        _apply_store_scope(parsed["rows"], scope)
     _merge_companion_total_stores(parsed, candidates, primary_index=table_index)
+    _merge_companion_store_scopes(
+        parsed, candidates, sections, primary_index=table_index
+    )
     _apply_force_unit(parsed["rows"], force_unit)
     parsed["rows"] = _drop_ytd_when_monthly_pair(parsed["rows"])
     parsed["rows"] = _drop_all_store_sales_breakdowns(parsed["rows"], section_text)

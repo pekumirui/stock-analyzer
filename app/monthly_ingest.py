@@ -571,7 +571,14 @@ _PRIOR_PERIOD_RE = re.compile(r"(前期|前年同月|前年同期)(?!比)")
 def reject_prior_period_element(element: str) -> None:
     """前期・前年同月の実数行は入れない。比（前期比など）は今期の比率なので通す。"""
     label = element.strip()
-    if not _PRIOR_PERIOD_RE.search(monthly_element_key(label)):
+    key = monthly_element_key(label)
+    if key in ("前年", "前期", "前年同月", "前年同期"):
+        raise MonthlyIngestError(
+            400,
+            "PRIOR_PERIOD_ELEMENT",
+            f"「{label}」は前期の実数です。前年の同じ項目に既にあるので、この行は投入しないでください。",
+        )
+    if not _PRIOR_PERIOD_RE.search(key):
         return
     raise MonthlyIngestError(
         400,
