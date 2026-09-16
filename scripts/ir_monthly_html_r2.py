@@ -71,6 +71,9 @@ _YM_DO_RE = re.compile(r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月度")
 _YM_HEAD_RE = re.compile(
     r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月(?!\s*期)(?!\s*度)(?!\s*\d)"
 )
+# カレンダー日付・季節予定の「2027年」は期末に使わない（改装表 lookback 対策）。
+_CAL_DATE_YEAR_RE = re.compile(r"20\d{2}\s*年\s*(?:1[0-2]|0?[1-9])\s*月")
+_SEASON_YEAR_RE = re.compile(r"20\d{2}\s*年\s*[春夏秋冬]")
 _YEAR_ONLY_HEAD_RE = re.compile(r"(20\d{2})\s*年(?!\s*\d)")
 _YEAR_TAB_RE = re.compile(
     r'class=["\'][^"\']*\b(?:here|current|active|selected|is-active|is-current)\b'
@@ -321,10 +324,45 @@ def section_fy_end_from_text(
     m = _YEAR_TIT_RE.search(s)
     if m:
         return _named_year_fy_end(int(m.group(1)), months)
-    years = [int(y) for y in _YEAR_ONLY_HEAD_RE.findall(s)]
+    s_for_year = _CAL_DATE_YEAR_RE.sub(" ", s)
+    s_for_year = _SEASON_YEAR_RE.sub(" ", s_for_year)
+    years = [int(y) for y in _YEAR_ONLY_HEAD_RE.findall(s_for_year)]
     if years:
         return _named_year_fy_end(years[-1], months)
     return None
+
+
+def _is_store_event_parsed(parsed: dict) -> bool:
+    """開店/閉店/改装の店名×店舗面積リスト。月次速報ではない。"""
+    rows = parsed.get("rows") or []
+    if not rows:
+        return False
+    n_area = sum(1 for r in rows if "店舗面積" in str(r.get("element") or ""))
+    return n_area >= max(1, (len(rows) + 1) // 2)
+
+
+def _merge_companion_total_stores(
+    primary: dict,
+    candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
+    *,
+    primary_index: int,
+) -> None:
+    """営業速報表に、同月軸の店舗推移から総店舗数だけ足す。"""
+    primary_months = list(primary.get("months") or [])
+    have = {str(r.get("element") or "") for r in primary.get("rows") or []}
+    for idx, _grid, other, _fy in candidates:
+        if idx == primary_index or _is_store_event_parsed(other):
+            continue
+        if list(other.get("months") or []) != primary_months:
+            continue
+        for row in other.get("rows") or []:
+            el = str(row.get("element") or "")
+            if "総店舗数" not in el:
+                continue
+            if el in have:
+                continue
+            primary.setdefault("rows", []).append(row)
+            have.add(el)
 
 
 def table_section_texts(html: str) -> list[str]:
@@ -1034,12 +1072,15 @@ def html_to_ingest(
                 break
     if not candidates:
         raise ValueError(last_err or "no monthly rows")
+    monthly_cands = [c for c in candidates if not _is_store_event_parsed(c[2])]
+    pick_pool = monthly_cands or candidates
     table_index, grid_used, parsed, section_fy = max(
-        candidates,
+        pick_pool,
         key=lambda it: _parsed_score(
             html, it[1], it[2], table_index=it[0], section_fy=it[3]
         ),
     )
+    _merge_companion_total_stores(parsed, candidates, primary_index=table_index)
     _apply_force_unit(parsed["rows"], force_unit)
     parsed["rows"] = _drop_ytd_when_monthly_pair(parsed["rows"])
     as_of_s = resolve_as_of(

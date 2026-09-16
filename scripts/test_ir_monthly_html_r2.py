@@ -1403,7 +1403,7 @@ def test_himalaya_year_tab_as_of() -> None:
 def test_drop_ytd_row_when_monthly_pair() -> None:
     html = """
     <html><body>
-    <h2>月次</h2>
+    <h2>2027年5月期 月次</h2>
     <table>
     <tr><td></td><td>6月</td><td>7月</td><td>8月</td></tr>
     <tr><td>既存店 Existing stores 単月 Monthly</td><td>100</td><td>103.4</td><td>101.8</td></tr>
@@ -1419,6 +1419,53 @@ def test_drop_ytd_row_when_monthly_pair() -> None:
     row = _row(got, "既存店 Existing stores 単月 Monthly")
     if row["unit"] != "yoy_index" or row["values"].get("7") != 103.4:
         _fail(f"monthly row {row}")
+
+
+FUJI_HTML = """
+<!doctype html><html><body>
+<h4>月次売上：2026年度月次営業速報</h4>
+<table>
+<tr><th></th><th>3月</th><th>4月</th><th>5月</th><th>6月</th><th>7月</th></tr>
+<tr><th>既存店</th><td>99.5%</td><td>98.8%</td><td>103.3%</td><td>97.5%</td><td>99.3%</td></tr>
+<tr><th>全店</th><td>97.1%</td><td>95.7%</td><td>99.9%</td><td>94.2%</td><td>95.8%</td></tr>
+</table>
+<h4>店舗推移表</h4>
+<table>
+<tr><th></th><th>3月</th><th>4月</th><th>5月</th><th>6月</th><th>7月</th></tr>
+<tr><th>新店舗</th><td>1</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><th>閉店店舗</th><td>1</td><td>1</td><td>1</td><td>0</td><td>0</td></tr>
+<tr><th>活性化店舗</th><td>0</td><td>5</td><td>3</td><td>3</td><td>2</td></tr>
+<tr><th>総店舗数</th><td>481</td><td>479</td><td>478</td><td>478</td><td>478</td></tr>
+</table>
+""" + ("<!--" + ("pad " * 250) + "-->") + """
+<p>2026年5月31日 (2027年春 予定) マックスバリュ安田店</p>
+<h4>既存店の改装</h4>
+<table>
+<tr><th>活性化年月</th><th>店名</th><th>県</th><th>店舗面積</th></tr>
+<tr><td>2026年4月</td><td>マルナカ善通寺店</td><td>香川県</td><td>3,541</td></tr>
+<tr><td>2026年7月</td><td>マルナカ三木店</td><td>香川県</td><td>7,170</td></tr>
+</table>
+</body></html>
+"""
+
+
+def test_fuji_skips_renovation_merges_total_stores() -> None:
+    """改装の店舗面積リストを選ばず、営業速報+総店舗数を取る。"""
+    got = html_to_ingest(FUJI_HTML, "8278", table=None)
+    labels = [r["element"] for r in got["rows"]]
+    if any("店舗面積" in el for el in labels):
+        _fail(f"renovation area must not win {labels}")
+    exist = _row(got, "既存店")
+    all_store = _row(got, "全店")
+    if exist["unit"] != "yoy_index" or exist["values"].get("7") != 99.3:
+        _fail(f"fuji existing {exist}")
+    if all_store["unit"] != "yoy_index" or all_store["values"].get("7") != 95.8:
+        _fail(f"fuji all {all_store}")
+    total = _row(got, "総店舗数")
+    if total["unit"] != "number" or total["values"].get("3") != 481:
+        _fail(f"fuji total stores {total}")
+    if any(el in labels for el in ("新店舗", "閉店店舗", "活性化店舗")):
+        _fail(f"companion merge must not pull open/close counts {labels}")
 
 
 def test_ministop_genzai_as_of() -> None:
@@ -1619,6 +1666,7 @@ def main() -> None:
     test_sekisui_single_month_col_skips_cumulative()
     test_sumitomo_snapshot_heading_month()
     test_himalaya_year_tab_as_of()
+    test_fuji_skips_renovation_merges_total_stores()
     test_ministop_genzai_as_of()
     test_nitori_direct_page_no_follow()
     test_yamazawa_prefers_current_period()

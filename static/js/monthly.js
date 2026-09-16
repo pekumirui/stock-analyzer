@@ -54,6 +54,7 @@ const MONTHLY_FLOW_RESTORE = MONTHLY_FLOW_PROTECT.map(([src, mark]) => [mark, sr
 const MONTHLY_UNGLUE = [
   ["既存直営店","直営 既存"],
   ["全店舗数","店舗数"],
+  ["総店舗数","店舗数"],
   ["実店舗数","実店舗 店舗数"],
   ["店舗数","店舗数"],
   ["店数","店舗数"],
