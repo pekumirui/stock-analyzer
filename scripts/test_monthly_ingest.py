@@ -127,6 +127,8 @@ def test_canonicalize_element_label() -> None:
         _fail("期末店舗数 drops 期末")
     if canonicalize_element_label("全店舗数", "number") != "店舗数":
         _fail("全店舗数 is 店舗数, not 全店 店舗数")
+    if canonicalize_element_label("総店舗数", "number") != "店舗数":
+        _fail("総店舗数 is 店舗数")
     if canonicalize_element_label("実店舗数", "number") != "実店舗 店舗数":
         _fail("実店舗数 keeps 実店舗 as segment")
     if canonicalize_element_label("実 店舗数", "number") != "実店舗 店舗数":
