@@ -353,7 +353,6 @@ def test_load_html_registry() -> None:
         _fail(f"force_unit {forced}")
 
 
-# 2910-like: (単位：%) sits in the section above the table, not in page headings.
 ROCKFIELD_SECTION_UNIT_HTML = """
 <html><body>
 <h2>業態別売上推移（前年同月比）</h2>
@@ -366,7 +365,6 @@ ROCKFIELD_SECTION_UNIT_HTML = """
 </body></html>
 """
 
-# 8179-like: 単位:% appears after the table.
 ROYAL_TRAILING_UNIT_HTML = """
 <html><body>
 <h2>既存店売上（前年同月比）</h2>
@@ -379,7 +377,6 @@ ROYAL_TRAILING_UNIT_HTML = """
 </body></html>
 """
 
-# No unit/% marks; force_unit must lift yoy_pct → yoy_index without touching 店舗数.
 FORCE_UNIT_HTML = """
 <html><body>
 <h2>全店売上高前年同月比</h2>

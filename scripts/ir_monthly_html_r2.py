@@ -178,7 +178,6 @@ def page_context(html: str) -> str:
 
 
 def unit_mark_context(html: str) -> str:
-    """ページ全体の `(単位：%)` / `単位:%`。表の後ろにある銘柄向け。"""
     plain = _plain(html)
     seen: set[str] = set()
     parts: list[str] = []
