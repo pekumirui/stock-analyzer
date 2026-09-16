@@ -111,6 +111,13 @@ def test_canonicalize_element_label() -> None:
         _fail("Alpen 全店計 単月 → 全店 売上高")
     if canonicalize_element_label("全社計 ※ 単月", "yoy_index") != "全社 売上高(前年比)":
         _fail("Alpen 全社計 ※ 単月 → 全社 売上高")
+    if canonicalize_element_label("全店 売上高(1)", "yoy_index") != "全店 売上高(前年比)":
+        _fail("SRS footnote (1) dropped")
+    if (
+        canonicalize_element_label("(2) ＊M&A除く 全店 売上高(前年比)", "yoy_index")
+        != "＊M&A除く 全店 売上高(前年比)"
+    ):
+        _fail("SRS footnote (2) dropped")
     if canonicalize_element_label("ゼビオ 単月 既存", "yoy_index") != "ゼビオ 既存 売上高(前年比)":
         _fail("Xevo 単月 既存 → ゼビオ 既存 売上高")
     if canonicalize_element_label("直営+FC 既存店 焼肉 売上高(前年比)", "yoy_index") != "焼肉 直営+FC 既存 売上高(前年比)":

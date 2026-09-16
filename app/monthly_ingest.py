@@ -151,6 +151,8 @@ _DROP_TOKS = frozenset({
     "累計", "店舗状況", "（％）", "（%）", "%", "※",
     "（", "）", "(", ")", "(前年比)", "（前年比）",
 })
+# 表の注番号（SRS の 売上高(1) / (2) ＊M&A除く）。(前年比) は数字だけではないので残る。
+_FOOTNOTE_NUM_RE = re.compile(r"[（(]\d+[）)]")
 # 単月/Monthly は時間軸。累計列は HTML パーサが落とすので、ここでは指標補完で落とす。
 _TIME_AXIS_TOKS = frozenset({"単月", "Monthly", "monthly"})
 _COUNTRY_CANON = {"日本": "日本", "国内": "日本", "海外": "海外"}
@@ -212,7 +214,8 @@ def _stitch_metric_shards(tokens: list[str]) -> list[str]:
 
 
 def _unglue_element(text: str) -> str:
-    s = text.replace("直営+FC", f" {_CHAN_BOTH_MARK} ").replace(
+    s = _FOOTNOTE_NUM_RE.sub(" ", text)
+    s = s.replace("直営+FC", f" {_CHAN_BOTH_MARK} ").replace(
         "直営＋FC", f" {_CHAN_BOTH_MARK} ",
     )
     for src, mark in _FLOW_PROTECT:
