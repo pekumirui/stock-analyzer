@@ -83,7 +83,8 @@ _SKIP_AXIS_RE = re.compile(
     r"[1-4]Q|[１-４]Q|[1-4]四半期|四半期|\d+\s*ヶ月|月計)$"
 )
 _SKIP_SPAN_RE = re.compile(r"\d+\s*[～〜~\-－]\s*\d+\s*月")
-_NAMED_METRIC_RE = re.compile(r"来客数|客単価|客数|店舗数|店数")
+_NAMED_METRIC_RE = re.compile(r"来客数|客単価|客数|店舗数|店数|開店|閉店|出店|退店")
+_STORE_FLOW_RE = re.compile(r"開店|閉店|出店|退店")
 _UPDATE_RE = re.compile(
     r"(\d{4})\s*[/-年]\s*(\d{1,2})\s*[/-月]\s*(\d{1,2})\s*日?\s*"
     r"(?:更新|公表|発表|開示|掲載|確定|現在|時点)"
@@ -623,7 +624,7 @@ def normalize_month_order(months: list[int]) -> list[int]:
 def infer_unit(header: str, samples: list[str], context: str = "") -> str:
     h = header or ""
     blob = f"{h} {context}"
-    if "店舗数" in h:
+    if "店舗数" in h or _STORE_FLOW_RE.search(h):
         return "number"
     if any(k in h for k in ("百万円", "千円", "億円")) and "前年" not in h:
         return "number"
@@ -808,7 +809,7 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
         if not values:
             continue
         element = label
-        # Page yoy context is for unlabeled 全店/既存 rows, not 客数/客単価.
+        # Page yoy context is for unlabeled 全店/既存 rows, not 客数/客単価/出退店.
         if (
             context
             and "前年" in context
