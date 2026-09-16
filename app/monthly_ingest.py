@@ -77,6 +77,7 @@ def canonicalize_element_label(element: str, unit: str | None) -> str:
 
 # [国] [セグメント] [チャネル] [スコープ] [指標]。無いトークンは出さない。
 _UNGLUE: tuple[tuple[str, str], ...] = (
+    ("単月Monthly", "単月 Monthly"),
     ("既存直営店", "直営 既存"),
     ("全店舗数", "店舗数"),
     ("実店舗数", "実店舗 店舗数"),
@@ -146,6 +147,7 @@ _FCW_EMBED_RE = re.compile(r"ＦＣ")
 _DROP_TOKS = frozenset({
     "合計", "総計", "小計", "計", "月末", "期末", "うち", "部門", "店",
     "前期比", "同期比", "増減率", "前年比", "前年同月比", "前年同月", "全",
+    "単月", "Monthly", "monthly", "累計",
     "（", "）", "(", ")", "(前年比)", "（前年比）",
 })
 _COUNTRY_CANON = {"日本": "日本", "国内": "日本", "海外": "海外"}
