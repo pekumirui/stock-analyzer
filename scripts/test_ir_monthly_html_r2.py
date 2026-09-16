@@ -348,7 +348,7 @@ def test_load_html_registry() -> None:
     nitori = next(i for i in live if i.code == "9843")
     if nitori.table is not None:
         _fail(f"9843 table {nitori.table}")
-    forced = {i.code: getattr(i, "force_unit", None) for i in live if getattr(i, "force_unit", None)}
+    forced = {i.code: i.force_unit for i in live if i.force_unit}
     if forced != {"2769": "yoy_index", "8281": "yoy_index", "9994": "yoy_index"}:
         _fail(f"force_unit {forced}")
 
