@@ -1046,12 +1046,20 @@ TSURUHA_HTML = """
 <html><body>
 <h2>連結月次前年対比伸び率</h2>
 <p>2027年２月期 (2026年3月1日～2027年2月28日)</p>
+<p>単位:%</p>
+<p>1. ツルハグループの既存店売上は「ドラッグ(物販)・調剤」の内訳を記載。</p>
 <table>
 <tr><th>ツルハグループ</th><th></th><th>3月</th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th>
 <th>9月</th><th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th></tr>
 <tr><td>既存店</td><td>単月売上</td><td>3.3</td><td>5.0</td><td>4.6</td><td>▲ 1.1</td><td>1.7</td><td>1.4</td>
 <td></td><td></td><td></td><td></td><td></td><td></td></tr>
 <tr><td>既存店</td><td>（内 物販）</td><td>1.5</td><td>3.8</td><td>4.8</td><td>▲ 3.8</td><td>0.0</td><td>0.2</td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>店舗状況</td><td>店舗数</td><td>5663</td><td>5665</td><td>5665</td><td>5663</td><td>5660</td><td>5652</td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>店舗状況</td><td>（内 開店）</td><td>17</td><td>14</td><td>5</td><td>3</td><td>8</td><td>6</td>
+<td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td>店舗状況</td><td>（内 閉店）</td><td>30</td><td>12</td><td>5</td><td>5</td><td>11</td><td>14</td>
 <td></td><td></td><td></td><td></td><td></td><td></td></tr>
 </table>
 </body></html>
@@ -1112,9 +1120,24 @@ def test_nendo_and_fullwidth_fy_as_of() -> None:
     sales = _row(got2, "既存店 単月売上")
     if sales["unit"] != "yoy_pct" or sales["values"].get("6") != -1.1:
         _fail(f"tsuruha {sales}")
-    goods = _row(got2, "既存店 （内 物販）")
-    if goods["values"].get("6") != -3.8:
+    goods = _row(got2, "既存店 （内 物販） 売上高前年同月比")
+    if goods["unit"] != "yoy_pct" or goods["values"].get("6") != -3.8:
         _fail(f"tsuruha goods {goods}")
+    stores = _row(got2, "店舗状況 店舗数")
+    if stores["unit"] != "number" or stores["values"].get("3") != 5663:
+        _fail(f"tsuruha stores {stores}")
+    opened = _row(got2, "店舗状況 （内 開店）")
+    if opened["unit"] != "number" or opened["values"].get("3") != 17:
+        _fail(f"tsuruha open count {opened}")
+    if "売上高" in opened["element"] or "前年" in opened["element"]:
+        _fail(f"open must not get yoy rename {opened}")
+    closed = _row(got2, "店舗状況 （内 閉店）")
+    if closed["unit"] != "number" or closed["values"].get("3") != 30:
+        _fail(f"tsuruha close count {closed}")
+    if "売上高" in closed["element"] or "前年" in closed["element"]:
+        _fail(f"close must not get yoy rename {closed}")
+    if closed["element"] == opened["element"]:
+        _fail(f"open/close labels collided {opened} {closed}")
 
 
 def test_skip_span_total_column() -> None:
