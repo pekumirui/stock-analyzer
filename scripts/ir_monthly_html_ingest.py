@@ -5,6 +5,9 @@
   python scripts/ir_monthly_html_ingest.py --dest /tmp/r2/monthly --only 2664
   python scripts/ir_monthly_html_ingest.py --dest /tmp/r2/monthly --dry-run
   python scripts/ir_monthly_html_ingest.py --dest /tmp/r2/monthly --verify-mapping
+
+VPS cron (JST, after ir_monthly_html_r2.py): 10:30 / 16:30 with
+  --ledger /var/log/app/html_ingest_ledger.json
 """
 from __future__ import annotations
 
