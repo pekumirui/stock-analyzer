@@ -103,8 +103,16 @@ def test_canonicalize_element_label() -> None:
         _fail("合計 店舗数 drops 合計")
     if canonicalize_element_label("既存店 売上高(前年比)", "yoy_index") != "既存 売上高(前年比)":
         _fail("既存店 shortens")
-    if canonicalize_element_label("全社 売上高(前年比)", "yoy_index") != "全店 売上高(前年比)":
-        _fail("全社 folds to 全店")
+    if canonicalize_element_label("全社 売上高(前年比)", "yoy_index") != "全社 売上高(前年比)":
+        _fail("全社 stays 全社 (not 全店)")
+    if canonicalize_element_label("既存店計 単月", "yoy_index") != "既存 売上高(前年比)":
+        _fail("Alpen 既存店計 単月 → 既存 売上高")
+    if canonicalize_element_label("全店計 単月", "yoy_index") != "全店 売上高(前年比)":
+        _fail("Alpen 全店計 単月 → 全店 売上高")
+    if canonicalize_element_label("全社計 ※ 単月", "yoy_index") != "全社 売上高(前年比)":
+        _fail("Alpen 全社計 ※ 単月 → 全社 売上高")
+    if canonicalize_element_label("ゼビオ 単月 既存", "yoy_index") != "ゼビオ 単月 既存(前年比)":
+        _fail("Xevo empty-metric 単月 stays with segment")
     if canonicalize_element_label("直営+FC 既存店 焼肉 売上高(前年比)", "yoy_index") != "焼肉 直営+FC 既存 売上高(前年比)":
         _fail("channel stays a layer")
     if canonicalize_element_label("国内FC店舗数", "number") != "日本 FC 店舗数":
@@ -191,8 +199,8 @@ def test_canonicalize_element_label() -> None:
         _fail("stored 単月 segment drops")
     if canonicalize_element_label("ゼビオ 単月 既存(前年比)", "yoy_index") != "ゼビオ 単月 既存(前年比)":
         _fail("empty-metric 単月 stays (monthly vs cumulative)")
-    if canonicalize_element_label("単月 既存(前年比)", "yoy_index") != "単月 既存(前年比)":
-        _fail("empty-metric 単月 既存 stays")
+    if canonicalize_element_label("単月 既存(前年比)", "yoy_index") != "既存 売上高(前年比)":
+        _fail("bare 単月 既存 fills 売上高 (Alpen; 累計列はパーサが落とす)")
     if (
         canonicalize_element_label("All stores 単月Monthly 全店 売上高(前年比)", "yoy_pct")
         != "All stores 全店 売上高(前年比)"
@@ -279,7 +287,7 @@ def test_issuer_alias_cases() -> None:
     sample_26980 = apply_issuer_aliases(
         "26980", canonicalize_element_label("全社(前年比)", "yoy_index"), year=2099,
     )
-    if sample_26980 != "全店 売上高(前年比)":
+    if sample_26980 != "全社 売上高(前年比)":
         _fail(f"26980 sample: {sample_26980!r}")
 
     # 262A0: 2025 無印月次 → Zoff。2026 多セグメントはメガネスーパー等を触らない。

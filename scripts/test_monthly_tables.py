@@ -778,7 +778,7 @@ def _assert_union_collapses_yoy_display_names() -> None:
 
 
 def _assert_monthly_row_order(c) -> None:
-    """全店→既存店→FC店→セグメント。各塊は 売上高→客数→客単価→出店→退店→店舗数。全社は全店。"""
+    """全店→全社→既存店→FC店→セグメント。各塊は 売上高→客数→客単価→出店→退店→店舗数。全社は別スコープ。"""
     if monthly_row_segment("カラオケ全店 売上高(前年比)") != "カラオケ":
         _fail("segment karaoke all-store")
     if monthly_row_segment("飲食既存店 店舗数") != "飲食":
@@ -821,13 +821,15 @@ def _assert_monthly_row_order(c) -> None:
         _fail("全社 売上高 is sales")
     if monthly_row_scope_rank("全店 売上高(前年比)") != 0:
         _fail("全店 is scope 0")
-    if monthly_row_scope_rank("既存店 売上高(前年比)") != 1:
-        _fail("既存店 is scope 1")
+    if monthly_row_scope_rank("全社 売上高(前年比)") != 1:
+        _fail("全社 is scope 1")
+    if monthly_row_scope_rank("既存店 売上高(前年比)") != 2:
+        _fail("既存店 is scope 2")
     if monthly_row_scope_rank("売上高") != 0:
         _fail("unlabeled 売上高 stays 全店")
     if monthly_row_scope_rank("全店 店舗数") != 0:
         _fail("全店 店舗数 stays in 全店")
-    if monthly_row_scope_rank("既存店 店舗数") != 1:
+    if monthly_row_scope_rank("既存店 店舗数") != 2:
         _fail("既存店 店舗数 stays in 既存店")
     if monthly_row_scope_rank("合計 店舗数") != 3:
         _fail("合計 店舗数 must not fold into 全店")
@@ -950,15 +952,15 @@ def _assert_monthly_row_order(c) -> None:
     }])
     mixed_names = [row["element"] for row in mixed]
     want_mixed = [
-        "全店 売上高(前年比)",
-        "全店 客数(前年比)",
+        "全社 売上高(前年比)",
+        "全社 客数(前年比)",
         "直営 既存 客単価(前年比)",
         "FC 店舗数",
         "焼肉 全店 売上高(前年比)",
         "焼肉 既存 売上高(前年比)",
     ]
     if mixed_names != want_mixed:
-        _fail(f"company-wide before segment, 全社=全店: {mixed_names!r}")
+        _fail(f"company-wide before segment, 全社 stays 全社: {mixed_names!r}")
 
     aoki = union_monthly_elements([{
         "year": 2026,

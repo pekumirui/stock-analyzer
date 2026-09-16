@@ -90,7 +90,7 @@ _UNGLUE: tuple[tuple[str, str], ...] = (
     ("既存店", "既存"),
     ("全店舗", "全店"),
     ("全店", "全店"),
-    ("全社", "全店"),
+    ("全社計", "全社"),
     ("フランチャイズ", "FC"),
     ("FC店舗", "FC"),
     ("FC店", "FC"),
@@ -147,18 +147,22 @@ _FCW_EMBED_RE = re.compile(r"ＦＣ")
 _DROP_TOKS = frozenset({
     "合計", "総計", "小計", "計", "月末", "期末", "うち", "部門", "店",
     "前期比", "同期比", "増減率", "前年比", "前年同月比", "前年同月", "全",
-    "累計", "店舗状況", "（％）", "（%）", "%",
+    "累計", "店舗状況", "（％）", "（%）", "%", "※",
     "（", "）", "(", ")", "(前年比)", "（前年比）",
 })
 # 単月/Monthly は指標がある行だけ落とす。空指標の 単月 vs 裸は月次/累計の別系列（ゼビオ）。
+# スコープのみ（セグメントなし）なら 売上高を補って 単月も落とす（アルペン）。
 _TIME_AXIS_TOKS = frozenset({"単月", "Monthly", "monthly"})
 _COUNTRY_CANON = {"日本": "日本", "国内": "日本", "海外": "海外"}
 _CHANNEL_CANON = {
     "直営+FC": "直営+FC", "直営＋FC": "直営+FC", "直営": "直営",
     "FC": "FC", "ＦＣ": "FC", "フランチャイズ": "FC",
 }
-_SCOPE_EXISTING = frozenset({"既存"})
-_SCOPE_ALL = frozenset({"全店"})
+_SCOPE_CANON = {
+    "既存": "既存",
+    "全店": "全店",
+    "全社": "全社",
+}
 _METRIC_FILL_ALL = frozenset({"売上高", "客数", "客単価"})
 _STORE_FLOW_CANON = {
     "出店": "出店", "出店数": "出店",
@@ -304,14 +308,18 @@ def _is_store_adj(element: str, segment: str = "") -> bool:
 
 
 def parse_element_layers(element: str) -> dict[str, str]:
-    """国 / セグメント / チャネル / スコープ / 指標。正規化前の名前でも読む。"""
+    """国 / セグメント / 時間軸 / チャネル / スコープ / 指標。正規化前の名前でも読む。"""
     country = ""
     channel = ""
     scope = ""
     metric = ""
+    time_axis = ""
     leftover: list[str] = []
     for tok in _stitch_metric_shards(_unglue_element(element).split()):
         if tok in _DROP_TOKS:
+            continue
+        if tok in _TIME_AXIS_TOKS:
+            time_axis = "単月"
             continue
         flow = _STORE_FLOW_CANON.get(tok)
         if flow:
@@ -338,19 +346,22 @@ def parse_element_layers(element: str) -> dict[str, str]:
         if mapped_ch or _FC_TOKEN_RE.fullmatch(tok):
             channel = mapped_ch or "FC"
             continue
-        if tok in _SCOPE_EXISTING:
-            scope = "既存"
-            continue
-        if tok in _SCOPE_ALL:
-            scope = "全店"
+        mapped_scope = _SCOPE_CANON.get(tok)
+        if mapped_scope:
+            scope = mapped_scope
             continue
         leftover.append(tok)
     leftover, metric = _stitch_store_flow(leftover, metric)
     leftover, metric = _stitch_real_store(leftover, metric)
     leftover, metric = _stitch_vs_sales(leftover, metric)
     leftover, metric = _peel_adj_metric(leftover, metric)
+    # 単月売上等で指標に剥がした残り、または単独トークン
+    axis_left = [tok for tok in leftover if tok in _TIME_AXIS_TOKS]
+    leftover = [tok for tok in leftover if tok not in _TIME_AXIS_TOKS]
+    if axis_left and not time_axis:
+        time_axis = "単月"
     if metric:
-        leftover = [tok for tok in leftover if tok not in _TIME_AXIS_TOKS]
+        time_axis = ""
     if _is_flow_metric(metric):
         scope = ""
         leftover = [tok for tok in leftover if tok != "（内"]
@@ -359,6 +370,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
     return {
         "country": country,
         "segment": " ".join(leftover),
+        "time_axis": time_axis,
         "channel": channel,
         "scope": scope,
         "metric": metric,
@@ -366,7 +378,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
 
 
 def normalize_element_tokens(element: str, *, fill_default_metric: bool = False) -> str:
-    """空白区切り [国] [セグメント] [チャネル] [スコープ] [指標]。"""
+    """空白区切り [国] [セグメント] [単月?] [チャネル] [スコープ] [指標]。"""
     trimmed = re.sub(r"\s+", " ", element.strip())
     if not trimmed:
         return trimmed
@@ -379,8 +391,9 @@ def normalize_element_tokens(element: str, *, fill_default_metric: bool = False)
         and not parts["segment"]
     ):
         parts["metric"] = "売上高"
+        parts["time_axis"] = ""
     ordered = [
-        parts["country"], parts["segment"], parts["channel"],
+        parts["country"], parts["segment"], parts["time_axis"], parts["channel"],
         parts["scope"], parts["metric"],
     ]
     built = " ".join(p for p in ordered if p)
@@ -569,7 +582,7 @@ def reject_prior_period_element(element: str) -> None:
 def monthly_series_kind(element: str, unit: str | None) -> str | None:
     """TOP/チャート用。all_store / existing / stores。どれでもなければ None。
 
-    全社・全店舗は全店と同じ。既存が付いていれば既存を優先。
+    全社・全店舗は会社/全店系。既存が付いていれば既存を優先。
     """
     key = monthly_element_key(element)
     u = unit or "number"
@@ -588,7 +601,7 @@ def monthly_series_kind(element: str, unit: str | None) -> str | None:
     return None
 
 
-_SCOPE_RANK = {"all": 0, "existing": 1, "other": 3}
+_SCOPE_RANK = {"all": 0, "company": 1, "existing": 2, "other": 3}
 _METRIC_RANK = {
     "sales": 1, "customers": 2, "spend": 3,
     "open": 4, "close": 5, "adj": 6, "stores": 7, "other": 8,
@@ -600,12 +613,14 @@ def _layers_of(element: str) -> dict[str, str]:
 
 
 def _row_scope(key: str) -> str:
-    """既存 / 全店。チャネルの直営・FC はスコープにしない。"""
+    """既存 / 全店 / 全社。チャネルの直営・FC はスコープにしない。"""
     scope = _layers_of(key)["scope"]
     if scope == "既存":
         return "existing"
     if scope == "全店":
         return "all"
+    if scope == "全社":
+        return "company"
     return "other"
 
 
@@ -662,10 +677,12 @@ def monthly_row_slot(element: str, unit: str | None) -> int:
 
 
 def monthly_row_scope_rank(element: str) -> int:
-    """0全店 1既存 3その他。スコープ無しの店舗数は 3（既存の後）。"""
+    """0全店 1全社 2既存 3その他。スコープ無しの店舗数は 3（既存の後）。"""
     layers = _layers_of(element)
     if layers["scope"] == "既存":
         return _SCOPE_RANK["existing"]
+    if layers["scope"] == "全社":
+        return _SCOPE_RANK["company"]
     if layers["scope"] == "全店":
         return _SCOPE_RANK["all"]
     if _is_flow_metric(layers["metric"]) or layers["metric"] == "店舗数":
