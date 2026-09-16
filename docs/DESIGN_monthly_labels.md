@@ -60,8 +60,12 @@
 
 ## 拒否
 
-- 前期・前年同月・前年同期の実数行（直後が `比` でない）は canonicalize 前に 400 `PRIOR_PERIOD_ELEMENT`。ingest / POST elements のみ
+- 前期・前年同月・前年同期・前年（`前 年` 含む）の実数行（直後が `比` でない）は canonicalize 前に 400 `PRIOR_PERIOD_ELEMENT`。ingest / POST elements のみ
 - 正規化後 50 文字超は 400
+
+## HTML 銘柄メモ
+
+- やまや (9994): 既存店/全店の `当 年`→`売上高`、`前年比`→`売上高`(yoy)。`前 年` と累計・全店・卸計は落とす。既存+全店をマージ。全店の yoy は裸の `売上高`（canonicalize で `全店 売上高(前年比)`）
 
 ## 例
 

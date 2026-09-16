@@ -1265,6 +1265,8 @@ def test_reject_prior_period_element() -> None:
         "ディスカウント 前年同月店舗数",
         "UNY 前年同月店舗数",
         "前年同期 店舗数",
+        "前 年",
+        "前年",
     )
     allowed = (
         "当期計店舗数",

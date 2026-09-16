@@ -1577,6 +1577,41 @@ FUJI_HTML = """
 """
 
 
+YAMAYA_HTML = """
+<html><body>
+<a href="?y=2024">2024年3月期</a>
+<a href="?y=2023">2023年3月期</a>
+<table><tr><td>既存店</td><td>（単位：千円、千円未満切り捨て）</td><td></td><td></td></tr></table>
+<table>
+<tr><td>区分</td><td>当 年</td><td>前 年</td><td>前年比</td></tr>
+<tr><td>2026年04月</td><td>9,909,844</td><td>9,480,775</td><td>104.53</td></tr>
+<tr><td>2026年05月</td><td>10,770,579</td><td>10,276,913</td><td>104.80</td></tr>
+<tr><td>2026年06月</td><td>10,363,354</td><td>10,791,836</td><td>96.03</td></tr>
+<tr><td>2026年07月</td><td>10,927,664</td><td>11,125,322</td><td>98.22</td></tr>
+<tr><td>累計(前期除く)</td><td>41,971,441</td><td>41,674,846</td><td>100.71</td></tr>
+</table>
+<table><tr><td>全店</td><td>（単位：千円、千円未満切り捨て）</td><td></td><td></td></tr></table>
+<table>
+<tr><td>区分</td><td>当 年</td><td>前 年</td><td>前年比</td></tr>
+<tr><td>2026年04月</td><td>10,005,362</td><td>9,497,043</td><td>105.35</td></tr>
+<tr><td>2026年05月</td><td>10,876,990</td><td>10,294,162</td><td>105.66</td></tr>
+<tr><td>2026年06月</td><td>10,495,148</td><td>10,809,483</td><td>97.09</td></tr>
+<tr><td>2026年07月</td><td>11,012,467</td><td>11,168,134</td><td>98.61</td></tr>
+<tr><td>累計(前期除く)</td><td>42,389,967</td><td>41,768,822</td><td>101.49</td></tr>
+</table>
+<table><tr><td>全店・卸計</td><td>（単位：千円、千円未満切り捨て）</td><td></td><td></td></tr></table>
+<table>
+<tr><td>区分</td><td>当 年</td><td>前 年</td><td>前年比</td></tr>
+<tr><td>2026年04月</td><td>10,196,527</td><td>9,735,063</td><td>104.74</td></tr>
+<tr><td>2026年05月</td><td>11,054,982</td><td>10,487,886</td><td>105.41</td></tr>
+<tr><td>2026年06月</td><td>10,653,734</td><td>10,963,486</td><td>97.17</td></tr>
+<tr><td>2026年07月</td><td>11,199,723</td><td>11,439,301</td><td>97.91</td></tr>
+<tr><td>累計(前期除く)</td><td>43,104,966</td><td>42,625,736</td><td>101.12</td></tr>
+</table>
+</body></html>
+"""
+
+
 def test_fuji_skips_renovation_merges_total_stores() -> None:
     """改装の店舗面積リストを選ばず、営業速報+総店舗数を取る。"""
     got = html_to_ingest(FUJI_HTML, "8278", table=None)
@@ -1594,6 +1629,36 @@ def test_fuji_skips_renovation_merges_total_stores() -> None:
         _fail(f"fuji total stores {total}")
     if any(el in labels for el in ("新店舗", "閉店店舗", "活性化店舗")):
         _fail(f"companion merge must not pull open/close counts {labels}")
+
+
+def test_yamaya_scopes_skip_prior_and_wholesale() -> None:
+    """やまや: 既存+全店をマージ。当年→売上高、前年・累計・卸計は落とす。"""
+    got = html_to_ingest(YAMAYA_HTML, "9994", table=None, force_unit="yoy_index")
+    if got["months"] != [4, 5, 6, 7]:
+        _fail(f"yamaya months {got['months']}")
+    labels = [(r["element"], r["unit"]) for r in got["rows"]]
+    if labels != [
+        ("全店 売上高", "number"),
+        ("売上高", "yoy_index"),
+        ("既存店 売上高", "number"),
+        ("既存店 売上高", "yoy_index"),
+    ]:
+        _fail(f"yamaya labels {labels}")
+    all_sales = _row(got, "全店 売上高", unit="number")
+    if all_sales["values"].get("7") != 11012467:
+        _fail(f"yamaya all sales {all_sales}")
+    all_yoy = _row(got, "売上高", unit="yoy_index")
+    if all_yoy["values"].get("7") != 98.61:
+        _fail(f"yamaya all yoy {all_yoy}")
+    exist_sales = _row(got, "既存店 売上高", unit="number")
+    if exist_sales["values"].get("4") != 9909844:
+        _fail(f"yamaya exist sales {exist_sales}")
+    exist_yoy = _row(got, "既存店 売上高", unit="yoy_index")
+    if exist_yoy["values"].get("4") != 104.53:
+        _fail(f"yamaya exist yoy {exist_yoy}")
+    blob = " ".join(el for el, _u in labels)
+    if "前 年" in blob or "卸" in blob or "累計" in blob:
+        _fail(f"prior/wholesale/ytd leaked {labels}")
 
 
 def test_ministop_genzai_as_of() -> None:
@@ -1808,6 +1873,7 @@ def main() -> None:
     test_drop_ytd_row_when_monthly_pair()
     test_xevo_prefers_current_fy_drops_ytd()
     test_fuji_skips_renovation_merges_total_stores()
+    test_yamaya_scopes_skip_prior_and_wholesale()
     test_ministop_genzai_as_of()
     test_nitori_direct_page_no_follow()
     test_yamazawa_prefers_current_period()
