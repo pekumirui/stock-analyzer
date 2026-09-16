@@ -22,6 +22,7 @@ from ir_monthly_html_r2 import (  # noqa: E402
     parse_as_of_text,
     parse_eir_jsonp,
     parse_month_cell,
+    parse_month_year,
     parse_number,
     parse_tables,
     pick_eir_monthly,
@@ -205,6 +206,14 @@ def test_parse_number_and_month() -> None:
         _fail("heading YYYY年M月")
     if parse_as_of_text(CAWACHI_HTML) is not None:
         _fail("cawachi range must not be as_of")
+    if parse_as_of_text("<p>※2026年4月度より、算定対象を見直し</p>") is not None:
+        _fail("footnote 月度より is not as_of")
+    if parse_month_year("2026年度 ３月期") != (None, None):
+        _fail("年度+月期 is not a month axis")
+    if parse_month_year("2026年3月期") != (None, None):
+        _fail("月期 caption is not a month axis")
+    if parse_month_year("2026年03月") != (2026, 3):
+        _fail("YYYY年MM月 stays a month")
 
 
 def test_cawachi_col_months() -> None:
@@ -1403,7 +1412,7 @@ def test_himalaya_year_tab_as_of() -> None:
 def test_drop_ytd_row_when_monthly_pair() -> None:
     html = """
     <html><body>
-    <h2>2027年5月期 月次</h2>
+    <h2>2027年5月期 月次 売上高前年同月比</h2>
     <table>
     <tr><td></td><td>6月</td><td>7月</td><td>8月</td></tr>
     <tr><td>既存店 Existing stores 単月 Monthly</td><td>100</td><td>103.4</td><td>101.8</td></tr>
@@ -1413,12 +1422,78 @@ def test_drop_ytd_row_when_monthly_pair() -> None:
     """
     got = html_to_ingest(html, "3148", table=None)
     labels = [r["element"] for r in got["rows"]]
-    if "既存店 Existing stores" in labels and any("単月" in el for el in labels):
-        if sum(1 for el in labels if "Existing stores" in el) != 1:
-            _fail(f"ytd pair must drop bare row {labels}")
-    row = _row(got, "既存店 Existing stores 単月 Monthly")
-    if row["unit"] != "yoy_index" or row["values"].get("7") != 103.4:
+    monthly = [el for el in labels if "単月" in el or "Monthly" in el]
+    bare = [el for el in labels if "Existing stores" in el and "単月" not in el and "Monthly" not in el]
+    if not monthly:
+        _fail(f"monthly row missing {labels}")
+    if bare:
+        _fail(f"ytd pair must drop bare row {labels}")
+    row = got["rows"][0]
+    if row["unit"] not in ("yoy_index", "yoy_pct") or row["values"].get("7") != 103.4:
         _fail(f"monthly row {row}")
+
+
+XEVO_HTML = """
+<!doctype html><html><body>
+<p class="notes">※2026年4月度より、月次売上高前年比の算定対象を一部見直し</p>
+<table>
+<tr><th>2026年度 2027年 3月期</th><th>ゼビオ</th><th>ゼビオ</th><th>ゼビオ</th><th>ゼビオ</th></tr>
+<tr><th>2026年度 ３月期</th><th>単月</th><th>単月</th><th>累計</th><th>累計</th></tr>
+<tr><th>2026年度 ３月期</th><th>既存店</th><th>全店</th><th>既存店</th><th>全店</th></tr>
+<tr><td>2026年04月</td><td>103.2</td><td>103.0</td><td>103.2</td><td>103.0</td></tr>
+<tr><td>2026年05月</td><td>110.5</td><td>110.6</td><td>106.9</td><td>106.8</td></tr>
+<tr><td>2026年06月</td><td>96.7</td><td>97.2</td><td>103.5</td><td>103.7</td></tr>
+<tr><td>2026年07月</td><td>101.2</td><td>102.9</td><td>101.5</td><td>103.1</td></tr>
+<tr><td>2026年08月</td><td>99.9</td><td>102.3</td><td>99.6</td><td>102.4</td></tr>
+<tr><td>2026年09月</td><td></td><td></td><td></td><td></td></tr>
+<tr><td>2026年10月</td><td></td><td></td><td></td><td></td></tr>
+<tr><td>2026年11月</td><td></td><td></td><td></td><td></td></tr>
+<tr><td>2026年12月</td><td></td><td></td><td></td><td></td></tr>
+<tr><td>2027年01月</td><td></td><td></td><td></td><td></td></tr>
+<tr><td>2027年02月</td><td></td><td></td><td></td><td></td></tr>
+<tr><td>2027年03月</td><td></td><td></td><td></td><td></td></tr>
+</table>
+<table>
+<tr><th>2025年度 2026年 3月期</th><th>ゼビオ</th><th>ゼビオ</th><th>ゼビオ</th><th>ゼビオ</th></tr>
+<tr><th>2025年度 2026年 3月期</th><th>単月</th><th>単月</th><th>累計</th><th>累計</th></tr>
+<tr><th>2025年度 2026年 3月期</th><th>既存店</th><th>全店</th><th>既存店</th><th>全店</th></tr>
+<tr><td>2025年04月</td><td>93.4</td><td>96.3</td><td>93.4</td><td>96.3</td></tr>
+<tr><td>2025年05月</td><td>97.9</td><td>99.8</td><td>95.6</td><td>98.0</td></tr>
+<tr><td>2025年06月</td><td>96.9</td><td>99.5</td><td>96.0</td><td>98.5</td></tr>
+<tr><td>2025年07月</td><td>101.3</td><td>100.2</td><td>98.7</td><td>98.9</td></tr>
+<tr><td>2025年08月</td><td>102.0</td><td>101.9</td><td>99.3</td><td>99.5</td></tr>
+<tr><td>2025年09月</td><td>97.1</td><td>98.8</td><td>99.1</td><td>99.4</td></tr>
+<tr><td>2025年10月</td><td>104.4</td><td>104.7</td><td>99.8</td><td>100.1</td></tr>
+<tr><td>2025年11月</td><td>103.6</td><td>103.8</td><td>100.2</td><td>100.5</td></tr>
+<tr><td>2025年12月</td><td>92.5</td><td>93.3</td><td>99.2</td><td>99.5</td></tr>
+<tr><td>2026年01月</td><td>99.8</td><td>102.3</td><td>99.2</td><td>99.8</td></tr>
+<tr><td>2026年02月</td><td>94.4</td><td>96.6</td><td>98.8</td><td>99.6</td></tr>
+<tr><td>2026年03月</td><td>97.7</td><td>99.2</td><td>98.7</td><td>99.6</td></tr>
+</table>
+</body></html>
+"""
+
+
+def test_xevo_prefers_current_fy_drops_ytd() -> None:
+    """ゼビオ: 現行FYの単月のみ。月期キャプションと注記月度で年をずらさない。"""
+    got = html_to_ingest(XEVO_HTML, "8281", table=None, force_unit="yoy_index")
+    if got["as_of"] != "2026-08-31":
+        _fail(f"xevo as_of {got['as_of']}")
+    if got["months"] != [4, 5, 6, 7, 8]:
+        _fail(f"xevo months {got['months']}")
+    labels = [r["element"] for r in got["rows"]]
+    if any("累計" in el for el in labels):
+        _fail(f"ytd leaked {labels}")
+    if any(el in labels for el in ("ゼビオ 既存店", "ゼビオ 全店")):
+        _fail(f"bare ytd labels {labels}")
+    exist = _row(got, "ゼビオ 単月 既存店")
+    all_store = _row(got, "ゼビオ 単月 全店")
+    if exist["unit"] != "yoy_index" or exist["values"].get("8") != 99.9:
+        _fail(f"xevo exist {exist}")
+    if all_store["values"].get("4") != 103.0 and all_store["values"].get("4") != 103:
+        _fail(f"xevo all {all_store}")
+    if exist["values"].get("4") == 93.4:
+        _fail(f"picked prior FY {exist}")
 
 
 FUJI_HTML = """
@@ -1666,6 +1741,8 @@ def main() -> None:
     test_sekisui_single_month_col_skips_cumulative()
     test_sumitomo_snapshot_heading_month()
     test_himalaya_year_tab_as_of()
+    test_drop_ytd_row_when_monthly_pair()
+    test_xevo_prefers_current_fy_drops_ytd()
     test_fuji_skips_renovation_merges_total_stores()
     test_ministop_genzai_as_of()
     test_nitori_direct_page_no_follow()

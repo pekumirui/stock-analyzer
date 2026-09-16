@@ -111,8 +111,8 @@ def test_canonicalize_element_label() -> None:
         _fail("Alpen 全店計 単月 → 全店 売上高")
     if canonicalize_element_label("全社計 ※ 単月", "yoy_index") != "全社 売上高(前年比)":
         _fail("Alpen 全社計 ※ 単月 → 全社 売上高")
-    if canonicalize_element_label("ゼビオ 単月 既存", "yoy_index") != "ゼビオ 単月 既存(前年比)":
-        _fail("Xevo empty-metric 単月 stays with segment")
+    if canonicalize_element_label("ゼビオ 単月 既存", "yoy_index") != "ゼビオ 既存 売上高(前年比)":
+        _fail("Xevo 単月 既存 → ゼビオ 既存 売上高")
     if canonicalize_element_label("直営+FC 既存店 焼肉 売上高(前年比)", "yoy_index") != "焼肉 直営+FC 既存 売上高(前年比)":
         _fail("channel stays a layer")
     if canonicalize_element_label("国内FC店舗数", "number") != "日本 FC 店舗数":
@@ -199,8 +199,8 @@ def test_canonicalize_element_label() -> None:
         _fail("bare 単月売上 fills 全店")
     if canonicalize_element_label("単月 全店 売上高(前年比)", "yoy_pct") != "全店 売上高(前年比)":
         _fail("stored 単月 segment drops")
-    if canonicalize_element_label("ゼビオ 単月 既存(前年比)", "yoy_index") != "ゼビオ 単月 既存(前年比)":
-        _fail("empty-metric 単月 stays (monthly vs cumulative)")
+    if canonicalize_element_label("ゼビオ 単月 既存(前年比)", "yoy_index") != "ゼビオ 既存 売上高(前年比)":
+        _fail("empty-metric 単月 with segment fills 売上高")
     if canonicalize_element_label("単月 既存(前年比)", "yoy_index") != "既存 売上高(前年比)":
         _fail("bare 単月 既存 fills 売上高 (Alpen; 累計列はパーサが落とす)")
     if (
