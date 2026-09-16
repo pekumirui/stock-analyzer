@@ -77,6 +77,7 @@ def canonicalize_element_label(element: str, unit: str | None) -> str:
 
 # [国] [セグメント] [チャネル] [スコープ] [指標]。無いトークンは出さない。
 _UNGLUE: tuple[tuple[str, str], ...] = (
+    ("単月Monthly", "単月 Monthly"),
     ("既存直営店", "直営 既存"),
     ("全店舗数", "店舗数"),
     ("実店舗数", "実店舗 店舗数"),
@@ -146,8 +147,11 @@ _FCW_EMBED_RE = re.compile(r"ＦＣ")
 _DROP_TOKS = frozenset({
     "合計", "総計", "小計", "計", "月末", "期末", "うち", "部門", "店",
     "前期比", "同期比", "増減率", "前年比", "前年同月比", "前年同月", "全",
+    "累計",
     "（", "）", "(", ")", "(前年比)", "（前年比）",
 })
+# 単月/Monthly は指標がある行だけ落とす。空指標の 単月 vs 裸は月次/累計の別系列（ゼビオ）。
+_TIME_AXIS_TOKS = frozenset({"単月", "Monthly", "monthly"})
 _COUNTRY_CANON = {"日本": "日本", "国内": "日本", "海外": "海外"}
 _CHANNEL_CANON = {
     "直営+FC": "直営+FC", "直営＋FC": "直営+FC", "直営": "直営",
@@ -328,6 +332,8 @@ def parse_element_layers(element: str) -> dict[str, str]:
     leftover, metric = _stitch_real_store(leftover, metric)
     leftover, metric = _stitch_vs_sales(leftover, metric)
     leftover, metric = _peel_adj_metric(leftover, metric)
+    if metric:
+        leftover = [tok for tok in leftover if tok not in _TIME_AXIS_TOKS]
     if _is_flow_metric(metric):
         scope = ""
     if not scope and metric in _METRIC_FILL_ALL:
