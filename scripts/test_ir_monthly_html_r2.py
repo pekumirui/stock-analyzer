@@ -1373,11 +1373,25 @@ HIMALAYA_HTML = """
 MINISTOP_HTML = """
 <html><body>
 <h1>月次営業報告 2026年</h1>
-<h2>既存店1店1日当り</h2>
 <p>2026年8月31日 現在</p>
+<h2>既存店1店1日当り</h2>
 <table>
 <tr><th></th><th>3月</th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>上期累計</th></tr>
+<tr><td>平均売上高（千円）</td><td>407</td><td>407</td><td>421</td><td>414</td><td>444</td><td>443</td><td>422</td></tr>
 <tr><td>平均売上高前年比（％）</td><td>95.9</td><td>92.2</td><td>96.8</td><td>91.6</td><td>95.5</td><td>96.4</td><td>94.8</td></tr>
+<tr><td>客数前年比（％）</td><td>94.5</td><td>91.9</td><td>95.5</td><td>90.6</td><td>94.3</td><td>94.8</td><td>93.6</td></tr>
+</table>
+<h2>全店1店1日当り</h2>
+<table>
+<tr><th></th><th>3月</th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>上期累計</th></tr>
+<tr><td>平均売上高前年比（％）</td><td>97.1</td><td>93.9</td><td>98.0</td><td>93.1</td><td>97.3</td><td>98.1</td><td>96.2</td></tr>
+</table>
+<h2>全店売上</h2>
+<table>
+<tr><th></th><th>3月</th><th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th><th>上期累計</th></tr>
+<tr><td>売上高合計前年比（％）</td><td>93.5</td><td>89.6</td><td>93.7</td><td>89.2</td><td>92.4</td><td>92.9</td><td>91.0</td></tr>
+<tr><td>CVS前年比（％）</td><td>97.8</td><td>92.9</td><td>95.8</td><td>93.9</td><td>95.6</td><td>93.3</td><td>94.9</td></tr>
+<tr><td>店内加工FF前年比（％）</td><td>73.8</td><td>74.8</td><td>84.0</td><td>68.2</td><td>78.6</td><td>90.8</td><td>78.3</td></tr>
 </table>
 </body></html>
 """
@@ -1544,14 +1558,24 @@ def test_fuji_skips_renovation_merges_total_stores() -> None:
 
 
 def test_ministop_genzai_as_of() -> None:
+    """1店1日当りより全店売上を選び、売上高合計だけ残す。"""
     got = html_to_ingest(MINISTOP_HTML, "9946", table=None)
     if got["as_of"] != "2026-08-31":
         _fail(f"ministop as_of {got['as_of']}")
-    sales = _row(got, "平均売上高前年比（％）")
-    if sales["values"].get("8") != 96.4:
+    if got["months"] != [3, 4, 5, 6, 7, 8]:
+        _fail(f"ministop months {got['months']}")
+    labels = [r["element"] for r in got["rows"]]
+    if labels != ["売上高合計前年比（％）"]:
+        _fail(f"want only 全店売上 total {labels}")
+    sales = _row(got, "売上高合計前年比（％）")
+    if sales["unit"] != "yoy_index" or sales["values"].get("8") != 92.9:
         _fail(f"ministop {sales}")
+    if sales["values"].get("3") == 95.9:
+        _fail(f"picked 既存店1店1日 {sales}")
     if any("上期" in str(r) for r in got["rows"]):
         _fail("上期累計 leaked")
+    if any("CVS" in el or "FF" in el or "平均" in el or "客数" in el for el in labels):
+        _fail(f"breakdown leaked {labels}")
 
 
 def test_follow_year_then_latest_month(tmp: Path) -> None:
