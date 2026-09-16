@@ -310,6 +310,25 @@ def test_issuer_alias_cases() -> None:
     if sample_262a0_2026_bare != "全店":
         _fail(f"262A0 year=2026 must not force-prefix 全店: {sample_262a0_2026_bare!r}")
 
+    # 38170: 株式会社SRA/AIT → 短名（year=2026）。短名からは戻さない。
+    for incoming, stored in (
+        ("株式会社SRA 全店 売上高", "SRA 全店 売上高"),
+        ("株式会社SRA 全店 売上高(前年比)", "SRA 全店 売上高(前年比)"),
+        ("株式会社AIT 全店 売上高", "AIT 全店 売上高"),
+        ("株式会社AIT 全店 売上高(前年比)", "AIT 全店 売上高(前年比)"),
+    ):
+        unit = "yoy_index" if incoming.endswith("(前年比)") else "number"
+        got = apply_issuer_aliases(
+            "38170", canonicalize_element_label(incoming, unit), year=2026,
+        )
+        if got != stored:
+            _fail(f"38170 year=2026 {incoming!r}: {got!r}, want {stored!r}")
+        reverse = apply_issuer_aliases(
+            "38170", canonicalize_element_label(stored, unit), year=2026,
+        )
+        if reverse != stored:
+            _fail(f"38170 year=2026 reverse {stored!r}: {reverse!r}")
+
 
 def test_mapping_examples() -> None:
     layout, mapping = plan_column_years(GIFT_MONTHS, 10, date(2026, 8, 5))
