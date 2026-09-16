@@ -348,6 +348,76 @@ def test_load_html_registry() -> None:
     nitori = next(i for i in live if i.code == "9843")
     if nitori.table is not None:
         _fail(f"9843 table {nitori.table}")
+    forced = {i.code: i.force_unit for i in live if i.force_unit}
+    if forced != {"2769": "yoy_index", "8281": "yoy_index", "9994": "yoy_index"}:
+        _fail(f"force_unit {forced}")
+
+
+ROCKFIELD_SECTION_UNIT_HTML = """
+<html><body>
+<h2>業態別売上推移（前年同月比）</h2>
+<p>2026年5月度</p>
+<p>(単位：%)</p>
+<table>
+<tr><td></td><td>3月</td><td>4月</td><td>5月</td></tr>
+<tr><td>RF1</td><td>101.0</td><td>102.0</td><td>103.4</td></tr>
+</table>
+</body></html>
+"""
+
+ROYAL_TRAILING_UNIT_HTML = """
+<html><body>
+<h2>既存店売上（前年同月比）</h2>
+<p>2026年5月度</p>
+<table>
+<tr><td></td><td>3月</td><td>4月</td><td>5月</td></tr>
+<tr><td>既存店</td><td>99.0</td><td>98.0</td><td>98.5</td></tr>
+</table>
+<p>単位:%</p>
+</body></html>
+"""
+
+FORCE_UNIT_HTML = """
+<html><body>
+<h2>全店売上高前年同月比</h2>
+<p>2026年5月度</p>
+<table>
+<tr><td></td><td>3月</td><td>4月</td><td>5月</td></tr>
+<tr><td>全店</td><td>101.0</td><td>102.0</td><td>103.0</td></tr>
+<tr><td>店舗数</td><td>10</td><td>10</td><td>11</td></tr>
+</table>
+</body></html>
+"""
+
+
+def test_section_unit_percent_is_yoy_index() -> None:
+    got = html_to_ingest(ROCKFIELD_SECTION_UNIT_HTML, "2910")
+    row = _row(got, "RF1 売上高前年同月比")
+    if row["unit"] != "yoy_index":
+        _fail(f"section unit:% must be yoy_index {row}")
+    if row["values"].get("5") != 103.4:
+        _fail(f"value must stay raw {row}")
+
+
+def test_trailing_unit_percent_is_yoy_index() -> None:
+    got = html_to_ingest(ROYAL_TRAILING_UNIT_HTML, "8179")
+    row = _row(got, "既存店 売上高前年同月比")
+    if row["unit"] != "yoy_index":
+        _fail(f"trailing 単位:% must be yoy_index {row}")
+    if row["values"].get("5") != 98.5:
+        _fail(f"value must stay raw {row}")
+
+
+def test_force_unit_overrides_yoy_keeps_number() -> None:
+    got = html_to_ingest(FORCE_UNIT_HTML, "2769", force_unit="yoy_index")
+    yoy = _row(got, "全店 売上高前年同月比")
+    if yoy["unit"] != "yoy_index":
+        _fail(f"force_unit {yoy}")
+    if yoy["values"].get("5") != 103.0:
+        _fail(f"force_unit value {yoy}")
+    stores = _row(got, "店舗数")
+    if stores["unit"] != "number" or stores["values"].get("5") != 11:
+        _fail(f"number row must stay number {stores}")
 
 
 NITORI_HTML = """
@@ -1487,6 +1557,9 @@ def main() -> None:
     test_eir_jsonp_picks_latest_monthly()
     test_decode_shift_jis()
     test_dest_html_and_ingest_sidecar()
+    test_section_unit_percent_is_yoy_index()
+    test_trailing_unit_percent_is_yoy_index()
+    test_force_unit_overrides_yoy_keeps_number()
     test_load_html_registry()
     test_dumps_matches_ingest_shape()
     test_mos_skips_half_year_total()

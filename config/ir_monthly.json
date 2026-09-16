@@ -69,7 +69,8 @@
       "name": "ヴィレッジヴァンガードコーポレーション",
       "index_url": "https://www.village-v.co.jp/company/ir/sales_trend",
       "title": "月次",
-      "table": null
+      "table": null,
+      "force_unit": "yoy_index"
     },
     {
       "code": "2790",
@@ -270,7 +271,8 @@
       "name": "ゼビオホールディングス",
       "index_url": "https://www.xebio.co.jp/ja/ir/monthly.html",
       "title": "月次",
-      "table": null
+      "table": null,
+      "force_unit": "yoy_index"
     },
     {
       "code": "9843",
@@ -320,7 +322,8 @@
       "name": "やまや",
       "index_url": "https://www.yamaya.jp/ynhp/contents/company/getuji.php",
       "title": "月次",
-      "table": null
+      "table": null,
+      "force_unit": "yoy_index"
     }
   ]
 }
