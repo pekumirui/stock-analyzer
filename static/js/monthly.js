@@ -64,7 +64,7 @@ const MONTHLY_UNGLUE = [
   ["既存店","既存"],
   ["全店舗","全店"],
   ["全店","全店"],
-  ["全社","全店"],
+  ["全社","全社"],
   ["フランチャイズ","FC"],
   ["FC店舗","FC"],
   ["FC店","FC"],
@@ -84,13 +84,16 @@ const MONTHLY_UNGLUE = [
 const MONTHLY_DROP = new Set([
   "合計","総計","小計","計","月末","期末","うち","部門","店",
   "前期比","同期比","増減率","前年比","前年同月比","前年同月","全",
+  "累計","店舗状況","（％）","（%）","%","※",
   "（","）","(",")","(前年比)","（前年比）",
 ]);
+const MONTHLY_TIME_AXIS = new Set(["単月","Monthly","monthly"]);
 const MONTHLY_COUNTRY = {日本:"日本", 国内:"日本", 海外:"海外"};
 const MONTHLY_CHANNEL = {
   "直営+FC":"直営+FC", "直営＋FC":"直営+FC", 直営:"直営",
   FC:"FC", ＦＣ:"FC", フランチャイズ:"FC",
 };
+const MONTHLY_SCOPE = {既存:"既存", 全店:"全店", 全社:"全社"};
 const MONTHLY_METRIC_PREFIX = [
   ["店舗数","店舗数"],["来客数","客数"],["客単価","客単価"],["売上高","売上高"],
   ["客数","客数"],["来客","客数"],["単価","客単価"],["売上","売上高"],
@@ -201,11 +204,12 @@ function monthlyIsStoreAdj(element, segment){
 }
 
 function parseMonthlyLayers(element){
-  let country="", channel="", scope="", metric="";
+  let country="", channel="", scope="", metric="", timeAxis="";
   let leftover = [];
   const unglued = monthlyUnglue(stripYoyFragments(element));
   for(const tok of unglued.split(" ").filter(Boolean)){
     if(MONTHLY_DROP.has(tok)) continue;
+    if(MONTHLY_TIME_AXIS.has(tok)){ timeAxis = "単月"; continue; }
     if(tok in MONTHLY_STORE_FLOW){
       if(metric === "" || metric === "店舗数") metric = MONTHLY_STORE_FLOW[tok];
       continue;
@@ -223,24 +227,40 @@ function parseMonthlyLayers(element){
     }
     if(tok in MONTHLY_COUNTRY){ country = MONTHLY_COUNTRY[tok]; continue; }
     if(tok in MONTHLY_CHANNEL || tok === "ＦＣ"){ channel = MONTHLY_CHANNEL[tok] || "FC"; continue; }
-    if(tok === "既存"){ scope = "既存"; continue; }
-    if(tok === "全店"){ scope = "全店"; continue; }
+    if(tok in MONTHLY_SCOPE){ scope = MONTHLY_SCOPE[tok]; continue; }
     leftover.push(tok);
   }
   [leftover, metric] = monthlyStitchStoreFlow(leftover, metric);
   [leftover, metric] = monthlyStitchRealStore(leftover, metric);
   [leftover, metric] = monthlyStitchVsSales(leftover, metric);
   [leftover, metric] = monthlyPeelAdjMetric(leftover, metric);
-  if(monthlyIsFlowMetric(metric)) scope = "";
+  const axisLeft = leftover.filter(tok => MONTHLY_TIME_AXIS.has(tok));
+  leftover = leftover.filter(tok => !MONTHLY_TIME_AXIS.has(tok));
+  if(axisLeft.length && !timeAxis) timeAxis = "単月";
+  if(metric) timeAxis = "";
+  if(monthlyIsFlowMetric(metric)){
+    scope = "";
+    leftover = leftover.filter(tok => tok !== "（内");
+  }
   if(!scope && MONTHLY_FILL_ALL.has(metric)) scope = "全店";
-  return {country, segment: leftover.join(" "), channel, scope, metric};
+  return {country, segment: leftover.join(" "), time_axis: timeAxis, channel, scope, metric};
 }
 
-function normalizeElementTokens(element){
+function normalizeElementTokens(element, fillDefaultMetric){
   const trimmed = String(element || "").trim().replace(/\s+/g, " ");
   if(!trimmed) return trimmed;
   const p = parseMonthlyLayers(trimmed);
-  const built = [p.country, p.segment, p.channel, p.scope, p.metric].filter(Boolean).join(" ");
+  if(
+    fillDefaultMetric
+    && !p.metric
+    && p.scope
+    && !p.channel
+    && !p.segment
+  ){
+    p.metric = "売上高";
+    p.time_axis = "";
+  }
+  const built = [p.country, p.segment, p.time_axis, p.channel, p.scope, p.metric].filter(Boolean).join(" ");
   return built || trimmed;
 }
 
@@ -274,7 +294,8 @@ function monthlyRowSlot(element, unit){
 
 function monthlyRowScopeRank(element){
   const p = parseMonthlyLayers(element);
-  if(p.scope === "既存") return 1;
+  if(p.scope === "既存") return 2;
+  if(p.scope === "全社") return 1;
   if(p.scope === "全店") return 0;
   if(p.metric === "店舗数" || monthlyIsFlowMetric(p.metric)) return 3;
   const kind = monthlyRowMetric(element);
@@ -749,7 +770,7 @@ function fmtMonthlyElement(name, unit){
   const trimmed = String(name || "").trim();
   const u = unit || "number";
   const isYoy = u === "yoy_index" || u === "yoy_pct";
-  const base = normalizeElementTokens(isYoy ? stripYoyFragments(trimmed) : trimmed);
+  const base = normalizeElementTokens(isYoy ? stripYoyFragments(trimmed) : trimmed, isYoy);
   if(!isYoy) return base;
   if(base.endsWith("(前年比)")) return base;
   return base + "(前年比)";
