@@ -151,8 +151,7 @@ _DROP_TOKS = frozenset({
     "累計", "店舗状況", "（％）", "（%）", "%", "※",
     "（", "）", "(", ")", "(前年比)", "（前年比）",
 })
-# 単月/Monthly は指標がある行だけ落とす。空指標の 単月 vs 裸は月次/累計の別系列（ゼビオ）。
-# スコープのみ（セグメントなし）なら 売上高を補って 単月も落とす（アルペン）。
+# 単月/Monthly は時間軸。累計列は HTML パーサが落とすので、ここでは指標補完で落とす。
 _TIME_AXIS_TOKS = frozenset({"単月", "Monthly", "monthly"})
 _COUNTRY_CANON = {"日本": "日本", "国内": "日本", "海外": "海外"}
 _CHANNEL_CANON = {
@@ -384,12 +383,13 @@ def normalize_element_tokens(element: str, *, fill_default_metric: bool = False)
     if not trimmed:
         return trimmed
     parts = parse_element_layers(trimmed)
+    # yoy のスコープ行は売上高を補う。セグメント付き（ゼビオ 単月 既存）も同じ。
+    # チャネル付きの空指標（直営 全店）は触らない。
     if (
         fill_default_metric
         and not parts["metric"]
         and parts["scope"]
         and not parts["channel"]
-        and not parts["segment"]
     ):
         parts["metric"] = "売上高"
         parts["time_axis"] = ""

@@ -67,7 +67,8 @@ _FY_MONTH_RANGE_RE = re.compile(
 _YEAR_TIT_RE = re.compile(r"(20\d{2})\s*年\s*[（(]\s*令和")
 _TABLE_START_RE = re.compile(r"<table\b", re.I)
 _SECTION_LOOKBACK = 900
-_YM_DO_RE = re.compile(r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月度")
+# 注記の「YYYY年M月度より」は開示月ではない
+_YM_DO_RE = re.compile(r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月度(?!より|から|以降)")
 _YM_HEAD_RE = re.compile(
     r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月(?!\s*期)(?!\s*度)(?!\s*\d)"
 )
@@ -257,6 +258,9 @@ def parse_month_year(text: str) -> tuple[int | None, int | None]:
     """セルから (year or None, month or None)。月期キャプションは月軸にしない。"""
     s = unicodedata.normalize("NFKC", text or "").strip()
     if not s or _SKIP_AXIS_RE.fullmatch(s) or _FY_CAPTION_RE.search(s) or _FY_YEAR_RE.fullmatch(s):
+        return None, None
+    # `2026年度 3月期` は `_FY_CAPTION_RE` に当たらず、`3月` だけ月軸になる
+    if "月期" in s:
         return None, None
     m = _MONTH_RE.search(s)
     if not m:
@@ -612,7 +616,11 @@ def _is_skip_axis(text: str) -> bool:
 
 def _is_caption_cell(text: str) -> bool:
     s = unicodedata.normalize("NFKC", text or "").strip()
-    return bool(_FY_CAPTION_RE.search(s) or _FY_YEAR_RE.fullmatch(s))
+    return bool(
+        _FY_CAPTION_RE.search(s)
+        or _FY_YEAR_RE.search(s)
+        or "月期" in s
+    )
 
 
 def _header_label(header_rows: list[list[str]], col: int) -> str:
