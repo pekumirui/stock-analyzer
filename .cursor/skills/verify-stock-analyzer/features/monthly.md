@@ -6,7 +6,7 @@ The monthly tab lists ingested issuer monthly-sales tables with industry chips, 
 
 - `monthly-list` fills `#monthly-groups` (新着 + industry chips) and `#monthly-tbl` from `GET /api/v1/tables`.
 - `monthly-detail` opens `#monthly-detail` for a row `data-code` via `GET /api/v1/tables/{code}` then parallel `GET /api/v1/tables/{code}/{year}` for the latest calendar year and up to two prior years.
-- `monthly-series` switches `#monthly-series` (default: 全店売上 yoy row when present, else first series) and redraws `#monthly-chart`.
+- `monthly-series` switches `#monthly-series` (default: unsegmented 全店+売上高 yoy when present, else any `all_store` yoy including 全社, else first series) and redraws `#monthly-chart`.
 - `monthly-back` returns to TOP via `#monthly-back` while keeping the selected chip.
 - `monthly-route` persists `#monthly` or `#monthly/{code}` in `location.hash` + `localStorage` `ui.route`; reload/`restoreRoute` reopens TOP or Detail.
 
@@ -39,7 +39,8 @@ Preconditions:
 - Detail with no years shows「データなし」.
 - NEW badge uses `ingested_today` (JST today); 新着 chip window is `MONTHLY_NEW_DAYS` (7) via `is_new`.
 - YoY chart/cell values add +100 only for `yoy_pct` (not `yoy_index`), with a 100 horizontal line; year bar colors cycle `MONTHLY_YEAR_COLORS[year % 4]`.
-- Row order (`monthlyRowOrder`): unsegmented rows first, then named segments (first-seen). Inside each group: country → scope 全店 → 既存 → other (`monthlyRowScopeRank`; 全社 counts as 全店) → channel 直営+FC → 直営 → FC → unlabeled → metric slot 売上高 → 客数 → 客単価 → 出店 → 退店 → 純増/新設/改装/業態転換 → 店舗数 → その他 (`MONTHLY_METRIC_RANK`). Scope-less 店舗数 / 合計店舗数 and 出店/退店 (no 全店・既存 token) sort in the other-scope bucket (rank 3), not under 全店. Ingest/UI unglue maps `実店舗数` → `実店舗 店舗数` (metric 店舗数, leftover 実店舗). yoy row labels end with `(前年比)` via `fmtMonthlyElement`.
+- Row order (`monthlyRowOrder`): unsegmented rows first, then named segments (first-seen). Inside each group: country → scope 全店 (0) → 全社 (1) → 既存 (2) → other (3) (`monthlyRowScopeRank`; 全社 is its own bucket, not folded into 全店) → channel 直営+FC → 直営 → FC → unlabeled → metric slot 売上高 → 客数 → 客単価 → 出店 → 退店 → 純増/新設/改装/業態転換 → 店舗数 → その他 (`MONTHLY_METRIC_RANK`). Scope-less 店舗数 / 合計店舗数 and 出店/退店 (no 全店・既存・全社 token) sort in the other-scope bucket (rank 3), not under 全店. Ingest/UI unglue maps `実店舗数` → `実店舗 店舗数` (metric 店舗数, leftover 実店舗). yoy row labels end with `(前年比)` via `fmtMonthlyElement`.
+- Series default (`pickDefaultMonthlySeries`): prefer unsegmented 全店+売上高 yoy; else any row whose `monthlySeriesKind` is `all_store` (全店 / 全社, including non-売上); else the first ordered row.
 - Missing values render as `-` (not a blank cell): list 全店/既存店 YoY via `fmtMonthlyYoyList`, Detail month cells via `fmtMonthlyCell` / server `format_monthly_cell`. Year JSON from `GET /api/v1/tables/{code}/{year}` always has month keys `"1"`…`"12"` with absent months as `null` (0 is a real zero).
 - SPA only reads `/api/v1/tables*`. Write routes (`POST …/ingest`, `PUT …/industry`, values/elements) are MCP/ingest — do not use them in verify.
 - Narrow viewports (`@media (max-width:640px)`) drop the left sticky columns; do not require desktop sticky layout.
