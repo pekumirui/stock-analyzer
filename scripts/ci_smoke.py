@@ -310,6 +310,12 @@ def main() -> None:
     )
     if issuers.returncode != 0:
         raise SystemExit("monthly issuers tests failed")
+    monthly_sync = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "test_sync_monthly_from_vps.py")],
+        cwd=ROOT,
+    )
+    if monthly_sync.returncode != 0:
+        raise SystemExit("monthly vps sync tests failed")
     tdnet = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "test_tdnet_monthly_r2.py")],
         cwd=ROOT,

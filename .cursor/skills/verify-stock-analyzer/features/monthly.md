@@ -35,7 +35,7 @@ Preconditions:
 
 ## Gotchas
 
-- Empty `/api/v1/tables` renders「登録された月次データはありません」— that is empty ingest, not a render bug.
+- Empty `/api/v1/tables` renders「登録された月次データはありません」— that is empty ingest, or a Cloud Agent build that skipped VPS monthly copy. Not a render bug.
 - Detail with no years shows「データなし」.
 - NEW badge uses `ingested_today` (JST today); 新着 chip window is `MONTHLY_NEW_DAYS` (7) via `is_new`.
 - Stored YoY is `yoy_index` (100=flat). Display is the stored number. Chart has a 100 horizontal line; year bar colors cycle `MONTHLY_YEAR_COLORS[year % 4]`.
