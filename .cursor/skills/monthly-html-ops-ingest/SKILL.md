@@ -4,7 +4,8 @@ description: >
   Operational IR HTML monthly ingest for stock-analyzer: fill calendar-year gaps via
   archive/year URLs, merge multi-table pages, override parser as_of when live HTML
   proves the fiscal year, clean label ghosts with issuer_aliases + ops merge.
-  Requires pair review with monthly_get for 2024/2025/2026 per code before closing a wave.
+  Requires pair review with monthly_get for 2024/2025/2026 per code and
+  spot-checks that DB numbers match source HTML before closing a wave.
   Use when backfilling HTML 月次, issue #180-style ops, monthly_ingest MCP posts,
   missing 2024/1–2 or H1/H2 halves, or after adding aliases that do not rewrite DB rows.
 ---
@@ -18,6 +19,7 @@ Production loopback via stock-analyzer MCP (`monthly_*`). Design stays in `DESIG
 - Fill missing calendar months for HTML issuers in `config/ir_monthly.json`
 - Track a wave on a GitHub issue (#180 pattern)
 - Clean old row labels after alias/canonicalize ships
+- Pair-review a wave: confirm **2024 / 2025 / 2026** coverage **and** that sample numbers match source HTML before closing
 
 Not for: parser code changes (separate PR), TDnet PDF, XBRL, SPA verify (use `verify-stock-analyzer`).
 
@@ -92,11 +94,17 @@ A second pass by another agent or the human. The executing agent must not self-c
 
 Fail the review if any of 2024–2026 was not checked. 2024 is often incomplete after the first wave — treat missing 2024/1–2 or entire 2024 as a defect unless the issue lists a proven blocker (404, no archive).
 
+**Numbers must match (mandatory).** Spot-check DB values against the source HTML (or the JSON actually POSTed), not only that months exist.
+
+- Pick at least: one early month, one mid, one late (and calendar 1–2 when filled from an adjacent FY page)
+- For each sample: same element, same calendar month → DB value == source (yoy: saved form; ingest of `yoy_pct` becomes `yoy_index` with +100)
+- Fail on any mismatch, silent null where the source has a number, or wrong year bucket (value landed in 2025 instead of 2024)
+
 Also re-check:
 
 - [ ] Row labels: no ghost twins (`全店`/`全社`, `売上（%）`, `①`, `U.S.M.H` …) vs current rules
 - [ ] Units sane (no count rows as `yoy_pct`)
-- [ ] Issue comment: matrix + blockers; open follow-ups for unfixed gaps
+- [ ] Issue comment: matrix + number samples + blockers; open follow-ups for unfixed gaps
 
 ## Label cleanup playbook
 
