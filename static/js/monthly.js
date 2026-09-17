@@ -1,6 +1,30 @@
 let monthlyRows=[], monthlyGroup="__new__", selMonthlyCode=null;
 let monthlySeries="", monthlyYearTables=[];
 const MONTHLY_YEAR_COLORS = ["#0077b6","#2e8b57","#b8860b","#8e4ec6"];
+let MONTHLY_ROW_ORDER = {};
+let _monthlyRowOrderReady = null;
+const MONTHLY_SEGMENT_TAIL_BASE = 10000;
+
+function loadMonthlyRowOrderConfig(){
+  if(_monthlyRowOrderReady) return _monthlyRowOrderReady;
+  _monthlyRowOrderReady = fetch("/static/monthly_row_order.json")
+    .then(r => r.ok ? r.json() : {})
+    .then(j => { MONTHLY_ROW_ORDER = (j && typeof j === "object") ? j : {}; return MONTHLY_ROW_ORDER; })
+    .catch(() => { MONTHLY_ROW_ORDER = {}; return MONTHLY_ROW_ORDER; });
+  return _monthlyRowOrderReady;
+}
+
+function issuerSegmentTail(code){
+  if(!code) return [];
+  const cfg = MONTHLY_ROW_ORDER[String(code)];
+  const tail = cfg && Array.isArray(cfg.segment_tail) ? cfg.segment_tail : [];
+  const out = [];
+  for(const item of tail){
+    const name = String(item || "").trim();
+    if(name && !out.includes(name)) out.push(name);
+  }
+  return out;
+}
 
 function monthlyDisplayYears(years){
   const ys = [...new Set((years || []).map(Number).filter(Number.isFinite))].sort((a,b)=>b-a);
@@ -322,7 +346,16 @@ function isAllStoreSalesYoy(element, unit){
   return p.metric === "売上高" && p.scope === "全店" && !p.segment;
 }
 
-function monthlyRowOrder(tables){
+function monthlyRowOrder(tables, code){
+  let resolved = code || null;
+  if(!resolved){
+    for(const t of tables || []){
+      if(t && t.code){ resolved = String(t.code); break; }
+    }
+  }
+  const tail = issuerSegmentTail(resolved);
+  const tailRank = {};
+  tail.forEach((name, i) => { tailRank[name] = i; });
   const years = (tables || []).filter(Boolean).slice().sort((a,b)=>(b.year||0)-(a.year||0));
   const seen = new Set();
   const items = [];
@@ -337,7 +370,7 @@ function monthlyRowOrder(tables){
       if(seen.has(display)) continue;
       seen.add(display);
       const segment = monthlyRowSegment(display);
-      if(!(segment in segIndex)) segIndex[segment] = segN++;
+      if(segment && !(segment in tailRank) && !(segment in segIndex)) segIndex[segment] = segN++;
       items.push({
         element:display, unit, segment,
         country:monthlyRowCountryRank(display),
@@ -348,12 +381,17 @@ function monthlyRowOrder(tables){
       });
     }
   }
+  function segKey(segment){
+    if(!segment) return 0;
+    if(segment in tailRank) return MONTHLY_SEGMENT_TAIL_BASE + tailRank[segment];
+    return segment in segIndex ? segIndex[segment] : MONTHLY_SEGMENT_TAIL_BASE - 1;
+  }
   items.sort((a,b)=>{
     const ta = a.segment ? 1 : 0, tb = b.segment ? 1 : 0;
     if(ta!==tb) return ta - tb;
     if(a.country!==b.country) return a.country - b.country;
-    if(a.segment){
-      const s = segIndex[a.segment] - segIndex[b.segment];
+    if(a.segment || b.segment){
+      const s = segKey(a.segment) - segKey(b.segment);
       if(s) return s;
     }
     if(a.scope!==b.scope) return a.scope - b.scope;
@@ -559,6 +597,7 @@ function markMonthlySeriesRows(){
 async function loadMonthlyTables(){
   if(!selMonthlyCode) return;
   const wrap = $("#monthly-table-wrap");
+  await loadMonthlyRowOrderConfig();
   const info = await api(`/api/v1/tables/${selMonthlyCode}`).catch(()=>null);
   const years = monthlyDisplayYears((info && info.years) || []);
   if(!years.length){

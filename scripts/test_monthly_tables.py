@@ -18,6 +18,7 @@ from app.api import ApiError, _parse_code  # noqa: E402
 from app.main import app  # noqa: E402
 from app.monthly_ingest import (  # noqa: E402
     MonthlyIngestError,
+    apply_issuer_aliases,
     canonicalize_element_label,
     format_monthly_cell,
     monthly_row_scope_rank,
@@ -136,6 +137,7 @@ def main() -> None:
     _assert_monthly_year_window()
     _assert_monthly_year_color_stable()
     _assert_union_collapses_yoy_display_names()
+    _assert_segment_tail_row_order()
     html = _spa_source()
     if "fmtMonthlyCell" not in html:
         _fail("index.html missing fmtMonthlyCell")
@@ -1105,6 +1107,72 @@ def _assert_monthly_row_order(c) -> None:
         _fail(f"出店/退店 are not 全店 scope: {trial_names!r}")
 
 
+
+def _assert_segment_tail_row_order() -> None:
+    """76830: 内アパレルは segment_tail で非 tail の後。他銘柄は初出順のまま。"""
+    app_cfg = ROOT / "app" / "monthly_row_order.json"
+    static_cfg = ROOT / "static" / "monthly_row_order.json"
+    if not app_cfg.is_file() or not static_cfg.is_file():
+        _fail("monthly_row_order.json missing under app/ or static/")
+    if app_cfg.read_text(encoding="utf-8") != static_cfg.read_text(encoding="utf-8"):
+        _fail("app/monthly_row_order.json and static/monthly_row_order.json must match")
+
+    elements = [
+        {"element": "内アパレル 全店 売上高", "unit": "number"},
+        {"element": "内アパレル 全店 売上高(前年比)", "unit": "yoy_index"},
+        {"element": "店舗販売 全店 売上高", "unit": "number"},
+        {"element": "店舗販売 全店 売上高(前年比)", "unit": "yoy_index"},
+        {"element": "オンライン販売 全店 売上高", "unit": "number"},
+        {"element": "オンライン販売 全店 売上高(前年比)", "unit": "yoy_index"},
+        {"element": "その他 全店 売上高", "unit": "number"},
+        {"element": "その他 全店 売上高(前年比)", "unit": "yoy_index"},
+        {"element": "全店 売上高", "unit": "number"},
+        {"element": "全店 売上高(前年比)", "unit": "yoy_index"},
+    ]
+    table = {"code": "76830", "year": 2026, "elements": elements}
+    order = [row["element"] for row in union_monthly_elements([table])]
+    want = [
+        "全店 売上高",
+        "全店 売上高(前年比)",
+        "店舗販売 全店 売上高",
+        "店舗販売 全店 売上高(前年比)",
+        "オンライン販売 全店 売上高",
+        "オンライン販売 全店 売上高(前年比)",
+        "その他 全店 売上高",
+        "その他 全店 売上高(前年比)",
+        "内アパレル 全店 売上高",
+        "内アパレル 全店 売上高(前年比)",
+    ]
+    if order != want:
+        _fail(f"76830 segment_tail order: {order!r}")
+    via_kw = [row["element"] for row in union_monthly_elements(
+        [{"year": 2026, "elements": elements}], code="76830",
+    )]
+    if via_kw != want:
+        _fail(f"76830 code= kw order: {via_kw!r}")
+
+    other = [row["element"] for row in union_monthly_elements(
+        [{"code": "99999", "year": 2026, "elements": elements}],
+    )]
+    other_named = [n for n in other if monthly_row_segment(n)]
+    if not other_named or not other_named[0].startswith("内アパレル"):
+        _fail(f"other issuer must keep first-seen 内アパレル first: {other!r}")
+
+    # Lane B: 内 MM → 内アパレル（canonicalize 後キー）
+    for src, unit, want_name in [
+        ("内 MM 全店 売上高", "number", "内アパレル 全店 売上高"),
+        ("内 MM 売上", "number", "内アパレル 全店 売上高"),
+        ("内 MM 全店 売上高(前年比)", "yoy_index", "内アパレル 全店 売上高(前年比)"),
+        ("内 MM 売上高(前年比)", "yoy_index", "内アパレル 全店 売上高(前年比)"),
+    ]:
+        got = apply_issuer_aliases(
+            "76830", canonicalize_element_label(src, unit), year=2026,
+        )
+        got = canonicalize_element_label(got, unit)
+        if got != want_name:
+            _fail(f"76830 alias {src!r} → {got!r}, want {want_name!r}")
+
+
 def _assert_monthly_spa(html: str) -> None:
     """月次 SPA: TOP はチップ+6列。Detail はグラフと暦年表。年ドロップダウン無し。"""
     start = html.find('id="tab-monthly"')
@@ -1305,6 +1373,16 @@ def _assert_monthly_spa(html: str) -> None:
     load_body = html[load_fn:load_fn + 4000]
     if "monthlyRowOrder(monthlyYearTables)" not in load_body:
         _fail("year tables must share one union row order")
+    if "await loadMonthlyRowOrderConfig()" not in load_body:
+        _fail("loadMonthlyTables must await monthly_row_order.json")
+    if "function loadMonthlyRowOrderConfig" not in html:
+        _fail("SPA missing loadMonthlyRowOrderConfig")
+    if "function issuerSegmentTail" not in html:
+        _fail("SPA missing issuerSegmentTail")
+    if "/static/monthly_row_order.json" not in html:
+        _fail("SPA must fetch /static/monthly_row_order.json")
+    if "MONTHLY_SEGMENT_TAIL_BASE" not in html:
+        _fail("SPA missing MONTHLY_SEGMENT_TAIL_BASE for segment_tail")
     if "monthlyDisplayYears" not in load_body:
         _fail("loadMonthlyTables must window to the last 3 calendar years")
     if "for(const e of rowOrder)" not in load_body:
