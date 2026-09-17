@@ -772,7 +772,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_monthly_get,
     ),
     "monthly_add_element": (
-        "月次表に要素を登録。localhost:8000 の POST /api/v1/tables/{code}/{year}/elements。unit は PDF 見出しから (number / yoy_index / yoy_pct)。類似は 409。force=true で強制。既存行の unit 変更は同じパスへ PUT {element, unit}。",
+        "月次表に要素を登録。localhost:8000 の POST /api/v1/tables/{code}/{year}/elements。unit は PDF 見出しから (number / yoy_index / yoy_pct)。yoy_pct の POST/PUT は保存 unit を yoy_index にする。類似は 409。force=true で強制。既存行の unit 変更は同じパスへ PUT {element, unit}。PUT unit は値を書き換えない。",
         {
             "type": "object",
             "properties": {
@@ -782,7 +782,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                 "unit": {
                     "type": "string",
                     "enum": ["number", "yoy_index", "yoy_pct"],
-                    "description": "From PDF heading, never from magnitude. number=count; yoy_index=100 is flat (store/display as-is); yoy_pct=signed change stored as-is, table shows 100+v.",
+                    "description": "From PDF heading, never from magnitude. number=count. yoy_index=100 is flat, store as-is. yoy_pct=signed change (e.g. -7.1); POST stores yoy_index. Value +100 is ingest, not this tool.",
                 },
                 "force": {"type": "boolean", "description": "create even if a similar element exists"},
             },
@@ -791,7 +791,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_monthly_add_element,
     ),
     "monthly_put_values": (
-        "月次セルを一括 upsert（訂正用）。localhost:8000 の PUT /api/v1/tables/{code}/{year}/values/batch。value の null は削除。新規登録は monthly_ingest。",
+        "月次セルを一括 upsert（訂正用）。localhost:8000 の PUT /api/v1/tables/{code}/{year}/values/batch。保存形（指数）を送る。unit は無い。+100 しない。value の null は削除。新規登録は monthly_ingest。",
         {
             "type": "object",
             "properties": {
@@ -841,7 +841,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_monthly_set_industry,
     ),
     "monthly_ingest": (
-        "PDF月次を暦年に割り当てて登録。localhost:8000 の POST /api/v1/tables/{code}/ingest。year は渡さない（決算の事業年度末から決める）。年付き put は訂正用。unit は PDF 見出しから number / yoy_index / yoy_pct（大きさから推測しない）。値は原文のまま。",
+        "PDF月次を暦年に割り当てて登録。localhost:8000 の POST /api/v1/tables/{code}/ingest。year は渡さない（決算の事業年度末から決める）。年付き put は訂正用で unit も +100 もしない。unit は PDF 見出しから number / yoy_index / yoy_pct（大きさから推測しない）。yoy_pct は符号付き変化率。ingest は yoy_index と value+100 で書く。yoy_index と number はそのまま。",
         {
             "type": "object",
             "properties": {
@@ -853,18 +853,18 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                 },
                 "rows": {
                     "type": "array",
-                    "description": "list of {element, values, unit, force?}. Store PDF numbers as-is (125.8 stays 125.8).",
+                    "description": "list of {element, values, unit, force?}. yoy_index and number store as-is. yoy_pct input is signed; ingest writes yoy_index and value+100.",
                     "items": {
                         "type": "object",
                         "properties": {
                             "element": {"type": "string", "description": "row label, 1-50 chars"},
                             "values": {
-                                "description": "Unique months: object month -> number|null. Duplicate months: JSON array aligned to months (or object keyed by column index \"0\"..). PDF original; do not convert 125.8 to +25.8.",
+                                "description": "Unique months: object month -> number|null. Duplicate months: JSON array aligned to months (or object keyed by column index \"0\"..). yoy_index/number as-is (125.8 stays 125.8). yoy_pct signed rate; ingest stores value+100 as yoy_index.",
                             },
                             "unit": {
                                 "type": "string",
                                 "enum": ["number", "yoy_index", "yoy_pct"],
-                                "description": "From PDF heading: 前年比 100基準 → yoy_index, ▲付き変化率 → yoy_pct, 店舗数 → number. Never from magnitude.",
+                                "description": "From PDF heading, never from magnitude. 前年比 100基準 → yoy_index (as-is). ▲付き変化率 → yoy_pct input, ingest stores yoy_index and value+100. 店舗数 → number.",
                             },
                             "force": {"type": "boolean", "description": "create even if a similar element exists"},
                         },

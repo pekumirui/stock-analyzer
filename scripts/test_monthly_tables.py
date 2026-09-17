@@ -517,8 +517,6 @@ def main() -> None:
     if r.status_code == 201:
         _fail(f"traversal created: {r.json()!r}")
 
-    # unit: ingest/POST accept it, PUT changes only unit, GET returns it.
-    # Storage is PDF original. Display is index 100=flat.
     r = c.get(base)
     _expect(r, 200, "GET units default")
     for el in r.json()["elements"]:
@@ -539,9 +537,11 @@ def main() -> None:
     _expect(r, 201, "create yoy_pct")
     if r.json()["element"] != "売上変化(前年比)":
         _fail(f"yoy_pct saved name: {r.json()!r}")
+    if r.json()["unit"] != "yoy_index":
+        _fail(f"POST yoy_pct must store yoy_index: {r.json()!r}")
     r = c.put("/api/v1/tables/7203/2026/values",
-              json={"element": "売上変化(前年比)", "month": 11, "value": -7.1})
-    _expect(r, 200, "put yoy_pct -7.1")
+              json={"element": "売上変化(前年比)", "month": 11, "value": 92.9})
+    _expect(r, 200, "put stored yoy_index 92.9")
 
     r = c.post("/api/v1/tables/7203/2026/elements", json={"element": "店舗数", "unit": "number"})
     _expect(r, 201, "create number")
@@ -556,25 +556,24 @@ def main() -> None:
         _fail(f"store yoy_index: {by['全店 売上高(前年比)']!r}")
     if format_monthly_cell(float(by["全店 売上高(前年比)"]["values"]["11"]), by["全店 売上高(前年比)"]["unit"]) != "125.8":
         _fail("display yoy_index 125.8")
-    if by["売上変化(前年比)"]["unit"] != "yoy_pct" or float(by["売上変化(前年比)"]["values"]["11"]) != -7.1:
-        _fail(f"store yoy_pct: {by['売上変化(前年比)']!r}")
+    if by["売上変化(前年比)"]["unit"] != "yoy_index" or float(by["売上変化(前年比)"]["values"]["11"]) != 92.9:
+        _fail(f"PUT stored yoy_index 92.9: {by['売上変化(前年比)']!r}")
     if format_monthly_cell(float(by["売上変化(前年比)"]["values"]["11"]), by["売上変化(前年比)"]["unit"]) != "92.9":
-        _fail("display yoy_pct -7.1")
+        _fail("display yoy_index 92.9")
     if by["店舗数"]["unit"] != "number" or float(by["店舗数"]["values"]["11"]) != 303:
         _fail(f"store number: {by['店舗数']!r}")
     if format_monthly_cell(float(by["店舗数"]["values"]["11"]), by["店舗数"]["unit"]) != "303":
         _fail("display number 303")
 
-    # PUT unit only; values stay. Lookup はトークン正規化後の保存名。
     r = c.put("/api/v1/tables/7203/2026/elements",
               json={"element": "全店売上高(前年比)", "unit": "yoy_pct"})
     _expect(r, 200, "PUT unit only")
-    if r.json() != {"code": "72030", "year": 2026, "element": "全店 売上高(前年比)", "unit": "yoy_pct"}:
-        _fail(f"PUT unit: {r.json()!r}")
+    if r.json() != {"code": "72030", "year": 2026, "element": "全店 売上高(前年比)", "unit": "yoy_index"}:
+        _fail(f"PUT yoy_pct must store yoy_index: {r.json()!r}")
     r = c.get("/api/v1/tables/7203/2026")
     by = {e["element"]: e for e in r.json()["elements"]}
-    if by["全店 売上高(前年比)"]["unit"] != "yoy_pct" or float(by["全店 売上高(前年比)"]["values"]["11"]) != 125.8:
-        _fail(f"PUT must not convert value: {by['全店 売上高(前年比)']!r}")
+    if by["全店 売上高(前年比)"]["unit"] != "yoy_index" or float(by["全店 売上高(前年比)"]["values"]["11"]) != 125.8:
+        _fail(f"PUT unit must not convert value: {by['全店 売上高(前年比)']!r}")
     r = c.put("/api/v1/tables/7203/2026/elements",
               json={"element": "全店売上高(前年比)", "unit": "yoy_index"})
     _expect(r, 200, "PUT unit restore")
@@ -613,19 +612,20 @@ def main() -> None:
     if names:
         _fail(f"60590 after karaoke rename empty: {names!r}")
 
-    # do not guess unit from magnitude
     r = c.post("/api/v1/tables/7203/2026/elements",
                json={"element": "大きい指数", "unit": "yoy_pct"})
     _expect(r, 201, "yoy_pct with 125.8")
     if r.json()["element"] != "大きい指数(前年比)":
         _fail(f"yoy_pct 大きい指数 name: {r.json()!r}")
+    if r.json()["unit"] != "yoy_index":
+        _fail(f"POST yoy_pct must store yoy_index: {r.json()!r}")
     r = c.put("/api/v1/tables/7203/2026/values",
               json={"element": "大きい指数(前年比)", "month": 1, "value": 125.8})
-    _expect(r, 200, "put 125.8 as yoy_pct")
+    _expect(r, 200, "put 125.8 as stored index")
     r = c.get("/api/v1/tables/7203/2026")
     by = {e["element"]: e for e in r.json()["elements"]}
-    if by["大きい指数(前年比)"]["unit"] != "yoy_pct" or float(by["大きい指数(前年比)"]["values"]["1"]) != 125.8:
-        _fail(f"must not guess/convert 125.8: {by['大きい指数(前年比)']!r}")
+    if by["大きい指数(前年比)"]["unit"] != "yoy_index" or float(by["大きい指数(前年比)"]["values"]["1"]) != 125.8:
+        _fail(f"PUT must not convert 125.8: {by['大きい指数(前年比)']!r}")
 
     r = c.post("/api/v1/tables/7203/2026/elements", json={"element": "x", "unit": "percent"})
     _expect(r, 400, "invalid unit POST")
@@ -1510,7 +1510,6 @@ def _assert_monthly_spa(html: str) -> None:
 
 
 def _assert_known_prod_units(c) -> None:
-    """Gift / Intermestic がテストDBにあれば unit を付ける。値は変換しない。無ければ skip。"""
     from app.db import SessionLocal, apply_known_monthly_element_units
     from app.models import MonthlyElement, MonthlyValue
 
@@ -1560,6 +1559,8 @@ def _assert_known_prod_units(c) -> None:
         for row in inter:
             if "店舗数" in row.element and row.unit != "number":
                 _fail(f"262A0 店舗数 unit {row.unit!r}")
+            if row.unit == "yoy_pct":
+                _fail(f"262A0 must not force yoy_pct: {row.element!r} {row.unit!r}")
         v = db.get(MonthlyValue, ("92790", 2025, "全店 売上高", 11))
         if v is None or float(v.value) != 125.8:
             _fail(f"gift value converted: {v}")

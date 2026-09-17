@@ -396,7 +396,7 @@ def merge_yoy_duplicate_elements(verbose: bool = True) -> list[dict]:
 
 
 def apply_known_monthly_element_units() -> int:
-    """Gift / Intermestic の既存行だけ unit を付ける。値は変換しない。該当が無ければ 0。"""
+    """Gift 92790 の既存行だけ unit を付ける。値は変換しない。該当が無ければ 0。"""
     insp = inspect(engine)
     if "monthly_elements" not in insp.get_table_names():
         return 0
@@ -411,11 +411,6 @@ def apply_known_monthly_element_units() -> int:
             want = "number" if "店舗数" in _norm_element_name(row.element) else "yoy_index"
             if row.unit != want:
                 row.unit = want
-                n += 1
-        inter = db.query(MonthlyElement).filter(MonthlyElement.code == "262A0").all()
-        for row in inter:
-            if _norm_element_name(row.element) == "売上高前年比" and row.unit != "yoy_pct":
-                row.unit = "yoy_pct"
                 n += 1
         if n:
             db.commit()

@@ -37,7 +37,7 @@ ingest の列割り当てと暦年は `DESIGN.md` §3。
 | 既存店 | 名前に `既存` を含み、unit が `yoy_index` または `yoy_pct` |
 | 店舗数 | 名前に `店舗数` を含み、unit が `number`。純増/新設/改装/業態転換は除く |
 
-最新セルは値のある最大の `(year, month)`。無いときは空。表示の 100=フラットは `fmtMonthlyCell`（`yoy_index` はそのまま。`yoy_pct` は `100+v`）。
+最新セルは値のある最大の `(year, month)`。無いときは空。表示の 100=フラットは保存の `yoy_index` のまま。残っている `yoy_pct` だけ `fmtMonthlyCell` が `100+v` する。
 その年に値が1つも無い行は年表に出さない。系列セレクトは年をまたいだ行を残す。
 
 **行名。** 保存と正規化の正本は [`DESIGN_monthly_labels.md`](DESIGN_monthly_labels.md)。画面の行キーは `fmtMonthlyElement`。

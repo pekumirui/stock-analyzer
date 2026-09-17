@@ -138,7 +138,7 @@ monthly_tables    -- 銘柄×年度の月次表 (暦月1〜12。会計月では�
 
 monthly_elements  -- 表の行。element は登録時の正規名、sort_order が登録順
   code, year, element PK
-  unit                  -- number | yoy_index | yoy_pct。保存値は PDF 原文のまま
+  unit                  -- number | yoy_index。入力 JSON は yoy_pct も可。ingest は yoy_index と value+100
   -- 行名は docs/DESIGN_monthly_labels.md。GET は保存名。SPA は表示名で行を畳む
 
 monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字列は拒否)
@@ -162,13 +162,15 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
 - FK は付けない（既存テーブルへ ADD できない）。`PRAGMA foreign_keys` も有効化しない
 - `init_db` / migrate は `stocks` に無い月次行を DELETE する（本番の名証単独 30320 / 30660 など。冪等）。順は `monthly_values` → `monthly_elements` → `monthly_tables` → `monthly_issuers`
 
-**unit。** PDF 見出しから付ける。値の大きさから推測しない。保存値は原文のまま。ingest の各行と `POST .../elements` は `unit` 必須。省略・null は 400 `UNIT_REQUIRED`。GET の NULL は number として出す。
+**unit。** PDF 見出しが入力タグを決める。値の大きさから推測しない。入力は `number` / `yoy_index` / `yoy_pct`。保存は `number` / `yoy_index`。`yoy_pct` は書かない。ingest の各行と `POST .../elements` は `unit` 必須。省略・null は 400 `UNIT_REQUIRED`。GET の NULL は number として出す。PUT values は訂正で、保存形（指数）を送る。unit も `+100` もしない。
 
-| unit | 見出し | 保存 | 表の表示 |
-|---|---|---|---|
-| `yoy_index` | 前年比 100 基準（`単位:%` のみ等） | そのまま（125.8） | そのまま。100=フラット |
-| `yoy_pct` | ▲/△ 付き変化率、または見出しの 増減比/伸び率 | 符号付きそのまま（-7.1） | `100+v`。▲ や +X.X% にはしない |
-| `number` | 店舗数など件数 | そのまま | そのまま |
+| 入力 unit | 見出し | 保存 |
+|---|---|---|
+| `yoy_index` | 前年比 100 基準（`単位:%` のみ等） | `yoy_index` のまま（125.8）。表示もそのまま。100=フラット |
+| `yoy_pct` | ▲/△ 付き変化率、または見出しの 増減比/伸び率 | `yoy_index`、`value+100`（-7.1 → 92.9） |
+| `number` | 店舗数など件数 | `number` のまま |
+
+表の表示は保存値のまま（指数 100=フラット）。残っている DB の `yoy_pct` だけ `fmtMonthlyCell` が `100+v` する。▲ や +X.X% にはしない。
 
 **行名。** 正本は [`docs/DESIGN_monthly_labels.md`](docs/DESIGN_monthly_labels.md)。
 ingest / POST は `canonicalize_element_label` してから既存行を探す。GET は保存名。SPA は `fmtMonthlyElement`。

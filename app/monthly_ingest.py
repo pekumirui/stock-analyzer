@@ -8,7 +8,6 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Sequence
 
-# 保存値は PDF 原文。unit は表示だけ。値の大きさから推測しない。
 MONTHLY_UNITS = ("number", "yoy_index", "yoy_pct")
 _YOY_UNITS = frozenset({"yoy_index", "yoy_pct"})
 # 長い語を先に。前年同月比 を 前年同月 より先、括弧付きを 前年比 より先。
@@ -46,6 +45,14 @@ def parse_monthly_unit(raw: Any, *, omitted_ok: bool = False) -> str | None:
     if not isinstance(raw, str) or raw not in MONTHLY_UNITS:
         raise MonthlyIngestError(400, "INVALID_PARAM", _UNIT_MSG)
     return raw
+
+
+def coerce_monthly_storage(unit: str, value: float | None) -> tuple[str, float | None]:
+    if unit != "yoy_pct":
+        return unit, value
+    if value is None:
+        return "yoy_index", None
+    return "yoy_index", value + 100.0
 
 
 def strip_yoy_fragments(name: str) -> str:
