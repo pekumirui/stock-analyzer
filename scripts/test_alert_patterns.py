@@ -209,13 +209,9 @@ def test_secret_contract() -> None:
         _fail("provision.sh must write /etc/fluent-bit/slack.env")
     if "EnvironmentFile=-/etc/fluent-bit/slack.env" not in provision:
         _fail("provision.sh must install the fluent-bit slack.env drop-in")
-    if "EnvironmentFile=-/home/stock/stock-analyzer/.env" in provision and "fluent-bit" in provision:
-        dropin = ""
-        for chunk in provision.split("fluent-bit.service.d"):
-            if "EnvironmentFile" in chunk[:400]:
-                dropin = chunk[:400]
-        if "/home/stock/stock-analyzer/.env" in dropin:
-            _fail("fluent-bit drop-in must not EnvironmentFile the app .env")
+    dropin = provision.split("fluent-bit.service.d", 1)[-1]
+    if "stock-analyzer/.env" in dropin.split("echo \"provision ok", 1)[0]:
+        _fail("fluent-bit drop-in must not EnvironmentFile the app .env")
     crontab = (ROOT / "deploy" / "crontab").read_text(encoding="utf-8")
     for line in crontab.splitlines():
         stripped = line.strip()

@@ -73,16 +73,20 @@ fi
 if command -v fluent-bit >/dev/null 2>&1 || [[ -x /opt/fluent-bit/bin/fluent-bit ]]; then
   echo "fluent-bit present"
 else
-  install -d -m 755 /usr/share/keyrings
-  key_tmp="$(mktemp)"
-  curl -fsSL https://packages.fluentbit.io/fluentbit.key | gpg --dearmor > "$key_tmp"
-  install -m 644 "$key_tmp" /usr/share/keyrings/fluentbit-keyring.gpg
-  rm -f "$key_tmp"
-  codename="$(grep -oP '(?<=VERSION_CODENAME=).*' /etc/os-release 2>/dev/null || lsb_release -cs)"
-  write_if_changed /etc/apt/sources.list.d/fluent-bit.list 644 <<EOF
+  if ! (
+    install -d -m 755 /usr/share/keyrings
+    key_tmp="$(mktemp)"
+    curl -fsSL https://packages.fluentbit.io/fluentbit.key | gpg --dearmor > "$key_tmp"
+    install -m 644 "$key_tmp" /usr/share/keyrings/fluentbit-keyring.gpg
+    rm -f "$key_tmp"
+    codename="$(grep -oP '(?<=VERSION_CODENAME=).*' /etc/os-release 2>/dev/null || lsb_release -cs)"
+    write_if_changed /etc/apt/sources.list.d/fluent-bit.list 644 <<EOF
 deb [signed-by=/usr/share/keyrings/fluentbit-keyring.gpg] https://packages.fluentbit.io/ubuntu/${codename} ${codename} main
 EOF
-  apt_retry fluent-bit
+    apt_retry fluent-bit
+  ); then
+    echo "fluent-bit install failed (alerts skipped)" >&2
+  fi
 fi
 
 install_authorized_key() {
