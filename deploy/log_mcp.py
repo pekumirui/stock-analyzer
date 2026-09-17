@@ -68,7 +68,7 @@ CODE_TTL = 300
 OAUTH_STORE_NAME = ".mcp-oauth.json"
 SINCE_UNITS = {"s": "seconds", "m": "minutes", "h": "hours", "d": "days"}
 SECRET_RE = re.compile(
-    r"(MCP_TOKEN|JQUANTS_API_KEY|BASIC_AUTH_PASSWORD|api[_-]?key|password)\s*[:=]\s*\S+",
+    r"(MCP_TOKEN|JQUANTS_API_KEY|BASIC_AUTH_PASSWORD|SLACK_WEBHOOK_URL|api[_-]?key|password)\s*[:=]\s*\S+",
     re.I,
 )
 GREP_RE = re.compile(r"^[^\n\r\x00]{1,120}$")
