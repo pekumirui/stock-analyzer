@@ -3,6 +3,7 @@
 # apt → .venv → tools 依存 → JQUANTS_API_KEY があれば stock.db を用意。
 # 初回だけ backfill 2（MA200 + RS 252日 + 1か月傾きに要る約 14 か月を満たす）。
 # 既に stock.db がある Recurring Build は日次 batch だけ（毎回 2 年は取らない）。
+# VPS_SSH_KEY があれば本番の monthly_* だけ載せ替える（DB 丸ごとコピーしない）。
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -26,4 +27,8 @@ if [[ -f stock.db ]]; then
 else
   echo "stock.db が無いので初回 backfill 2"
   ./run.sh backfill 2
+fi
+
+if [[ -f stock.db ]]; then
+  bash .cursor/sync-monthly-from-vps.sh
 fi

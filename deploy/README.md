@@ -198,7 +198,7 @@ Cloud Agent の VM には mount が無い。同じ bucket を S3 互換 API で�
 
 1. Cursor Dashboard → Cloud Agents → Secrets に `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` を登録する（このリポジトリ scope。R2 側で **Object Read only** のトークンを別に発行する）。
    Secrets は VM 起動時に環境変数として入る。登録後に始めたエージェントから有効
-2. `rclone` は `.cursor/install.sh`（環境ビルド）で入る。同じスクリプトが `.venv` / `pdftotext` と、Secrets に `JQUANTS_API_KEY` があれば `stock.db`（2 年分）も作る
+2. `rclone` は `.cursor/install.sh`（環境ビルド）で入る。同じスクリプトが `.venv` / `pdftotext` と、Secrets に `JQUANTS_API_KEY` があれば `stock.db`（2 年分）も作る。`VPS_SSH_KEY` があれば続けて本番の `monthly_issuers` / `monthly_tables` / `monthly_elements` / `monthly_values` だけを載せ替える（DB 丸ごとコピーしない。SSH が無い・繋がらないときは skip）
 3. 設定ファイルは書かず、環境変数だけで remote `r2` を定義する
 
 ```bash

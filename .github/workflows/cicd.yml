@@ -48,7 +48,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Compile
-        run: python -m compileall -q -f app scripts deploy
+        run: python -m compileall -q -f app scripts deploy .cursor
 
       - name: Smoke
         run: python scripts/ci_smoke.py
