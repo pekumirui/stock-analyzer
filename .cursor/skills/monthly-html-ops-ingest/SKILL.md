@@ -4,6 +4,7 @@ description: >
   Operational IR HTML monthly ingest for stock-analyzer: fill calendar-year gaps via
   archive/year URLs, merge multi-table pages, override parser as_of when live HTML
   proves the fiscal year, clean label ghosts with issuer_aliases + ops merge.
+  Requires pair review with monthly_get for 2024/2025/2026 per code before closing a wave.
   Use when backfilling HTML 月次, issue #180-style ops, monthly_ingest MCP posts,
   missing 2024/1–2 or H1/H2 halves, or after adding aliases that do not rewrite DB rows.
 ---
@@ -64,16 +65,38 @@ Copy and tick:
 - [ ] Overlap vs monthly_get: no conflicting non-null cells (or force only after proof equal)
 - [ ] Not year-PUT for new cells
 - [ ] Issue comment: URL, as_of, mapping years, what fills
+- [ ] After the wave: schedule pair review (2024/2025/2026 matrix)
 ```
 
 ## Fill-gap playbook
 
-1. `monthly_get` for 2024/2025/2026 — list missing months **per code**
+1. `monthly_get` for **2024 / 2025 / 2026** — list missing months **per code** (all three years, every wave)
 2. Find archive/year URL (not only `index_url`). Cron/`follow_re` + `select_latest_per_code` cannot backfill same-URL-only issuers
 3. Parse → `plan_column_years`. If the page labeled "2024" maps 1–2 to calendar **2025**, get the **previous FY** page for calendar 2024/1–2
 4. Multi-table (上期+下期): merge before POST — parser keeps one table
 5. POST `monthly_ingest`; verify `monthly_get`
 6. After any "2024" page wave: re-scan **2024 months 1–12** systematically (first wave often leaves 1–2 or H2 empty)
+7. End of wave → **Pair review** below (do not close the issue without it)
+
+## Pair review (required)
+
+A second pass by another agent or the human. The executing agent must not self-certify the wave as done.
+
+**Coverage matrix (mandatory).** For every code touched in the wave, `monthly_get` **2024, 2025, and 2026**. Record per year:
+
+| year | months with any non-null | gaps | expected empty? (未開示 / no archive) |
+|---|---|---|---|
+| 2024 | … | … | … |
+| 2025 | … | … | … |
+| 2026 | … | … | … |
+
+Fail the review if any of 2024–2026 was not checked. 2024 is often incomplete after the first wave — treat missing 2024/1–2 or entire 2024 as a defect unless the issue lists a proven blocker (404, no archive).
+
+Also re-check:
+
+- [ ] Row labels: no ghost twins (`全店`/`全社`, `売上（%）`, `①`, `U.S.M.H` …) vs current rules
+- [ ] Units sane (no count rows as `yoy_pct`)
+- [ ] Issue comment: matrix + blockers; open follow-ups for unfixed gaps
 
 ## Label cleanup playbook
 
