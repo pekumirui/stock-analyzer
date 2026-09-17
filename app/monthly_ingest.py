@@ -459,6 +459,39 @@ def load_issuer_aliases(path: Path | None = None) -> dict[str, tuple[IssuerPerio
 
 ISSUER_ELEMENT_ALIASES = load_issuer_aliases()
 
+_ROW_ORDER_PATH = Path(__file__).with_name("monthly_row_order.json")
+_SEGMENT_TAIL_BASE = 10_000
+
+
+def load_monthly_row_order(path: Path | None = None) -> dict[str, tuple[str, ...]]:
+    """issuer code → segment_tail の表示順。無い銘柄は空。"""
+    raw = json.loads((path or _ROW_ORDER_PATH).read_text(encoding="utf-8"))
+    out: dict[str, tuple[str, ...]] = {}
+    if not isinstance(raw, dict):
+        return out
+    for code, cfg in raw.items():
+        if not isinstance(cfg, dict):
+            continue
+        tail_raw = cfg.get("segment_tail")
+        if not isinstance(tail_raw, list):
+            continue
+        tail: list[str] = []
+        for item in tail_raw:
+            name = str(item).strip()
+            if name and name not in tail:
+                tail.append(name)
+        out[str(code)] = tuple(tail)
+    return out
+
+
+MONTHLY_ROW_ORDER = load_monthly_row_order()
+
+
+def issuer_segment_tail(code: str | None) -> tuple[str, ...]:
+    if not code:
+        return ()
+    return MONTHLY_ROW_ORDER.get(str(code), ())
+
 
 def apply_issuer_aliases(
     code: str,
@@ -718,14 +751,31 @@ def _row_channel_rank(element: str) -> int:
     return _CHANNEL_RANK.get(channel, 3)
 
 
-def union_monthly_elements(tables: Sequence[Any]) -> list[dict[str, str]]:
+def union_monthly_elements(
+    tables: Sequence[Any],
+    *,
+    code: str | None = None,
+) -> list[dict[str, str]]:
     """発行体の年をまたいだ行順。キーは表示名。
 
     国なし → 日本 → 海外。セグメント無しが先、名前付きは新しい年の初出順。
+    segment_tail（monthly_row_order.json）は非 tail の後。
     各塊は 全店 → 既存 → チャネル（直営+FC → 直営 → FC）→
     売上高 → 客数 → 客単価 → 出店 → 退店 → 純増/新設/改装/業態転換 → 店舗数 → その他。
     スコープ無しの店舗数は既存の後。保存名は変えない。
     """
+    resolved = code
+    if resolved is None:
+        for t in tables:
+            if not t:
+                continue
+            c = t.get("code") if isinstance(t, dict) else getattr(t, "code", None)
+            if c:
+                resolved = str(c)
+                break
+    tail = issuer_segment_tail(resolved)
+    tail_rank = {name: i for i, name in enumerate(tail)}
+
     newest_first = sorted(
         (t for t in tables if t),
         key=lambda t: int(t.get("year") or 0),
@@ -749,7 +799,7 @@ def union_monthly_elements(tables: Sequence[Any]) -> list[dict[str, str]]:
                 continue
             seen.add(display)
             segment = monthly_row_segment(display)
-            if segment not in seg_index:
+            if segment and segment not in tail_rank and segment not in seg_index:
                 seg_index[segment] = len(seg_index)
             items.append({
                 "element": display,
@@ -761,10 +811,18 @@ def union_monthly_elements(tables: Sequence[Any]) -> list[dict[str, str]]:
                 "slot": monthly_row_slot(display, unit),
                 "idx": len(items),
             })
+
+    def _seg_key(segment: str) -> int:
+        if not segment:
+            return 0
+        if segment in tail_rank:
+            return _SEGMENT_TAIL_BASE + tail_rank[segment]
+        return seg_index.get(segment, _SEGMENT_TAIL_BASE - 1)
+
     items.sort(key=lambda it: (
         0 if not it["segment"] else 1,
         it["country"],
-        0 if not it["segment"] else seg_index[it["segment"]],
+        _seg_key(it["segment"]),
         it["scope"],
         it["channel"],
         it["slot"],

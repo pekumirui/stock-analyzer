@@ -323,6 +323,20 @@ def test_issuer_alias_cases() -> None:
     if sample_27800_yoy != "全店 売上高(前年比)":
         _fail(f"27800 year=2026 全店 売上高(前年比): {sample_27800_yoy!r}")
 
+    # 76830: 内 MM → 内アパレル（Lane B / re-ingest）。canonicalize 後キーで照合。
+    sample_76830 = apply_issuer_aliases(
+        "76830", canonicalize_element_label("内 MM 全店 売上高", "number"), year=2026,
+    )
+    sample_76830 = canonicalize_element_label(sample_76830, "number")
+    if sample_76830 != "内アパレル 全店 売上高":
+        _fail(f"76830 内 MM 全店 売上高: {sample_76830!r}")
+    sample_76830_yoy = apply_issuer_aliases(
+        "76830", canonicalize_element_label("内 MM 全店 売上高(前年比)", "yoy_index"), year=2026,
+    )
+    sample_76830_yoy = canonicalize_element_label(sample_76830_yoy, "yoy_index")
+    if sample_76830_yoy != "内アパレル 全店 売上高(前年比)":
+        _fail(f"76830 内 MM 全店 売上高(前年比): {sample_76830_yoy!r}")
+
     # 38170: 株式会社SRA/AIT → 短名（year=2026）。短名からは戻さない。
     for incoming, stored in (
         ("株式会社SRA 全店 売上高", "SRA 全店 売上高"),
