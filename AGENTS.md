@@ -74,6 +74,7 @@
 - 行名は `canonicalize_element_label`。銘柄固有は `app/issuer_aliases.json`。新しい例外は `docs/DESIGN_monthly_labels.md` に箇条書きで足す
 - `scripts/test_monthly_ingest.py` に銘柄分岐は足さない
 - 月次業種は `monthly_issuers.industry`（既定 `その他`）。`stocks.sector33` とは別。ingest は `last_ingested_at` だけ更新し industry を触らない
+- HTML 月次の穴埋め・archive 投入は `.cursor/skills/monthly-html-ops-ingest/SKILL.md`
 
 ## 検証の目安
 
