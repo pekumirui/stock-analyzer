@@ -118,6 +118,15 @@ def test_canonicalize_element_label() -> None:
         != "＊M&A除く 全店 売上高(前年比)"
     ):
         _fail("SRS footnote (2) dropped")
+    if canonicalize_element_label("全店 売上高①", "yoy_index") != "全店 売上高(前年比)":
+        _fail("SRS circled footnote ① dropped")
+    if (
+        canonicalize_element_label("全店 売上高② ＊M&A除く", "yoy_index")
+        != "＊M&A除く 全店 売上高(前年比)"
+    ):
+        _fail("SRS circled footnote ② dropped")
+    if canonicalize_element_label("① 全店 売上高(前年比)", "yoy_index") != "全店 売上高(前年比)":
+        _fail("SRS leading ① dropped")
     if (
         canonicalize_element_label("前年比 売上高 ※ 2026年（令和8年）度", "yoy_index")
         != "全店 売上高(前年比)"
