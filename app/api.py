@@ -21,9 +21,10 @@ from .models import (
 from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
 from .monthly_ingest import (
-    MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label, map_pdf_columns,
-    monthly_series_kind, parse_as_of, parse_monthly_unit, reject_prior_period_element,
-    same_yoy_element, serialize_column_mapping, yoy_display_number,
+    MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label,
+    coerce_monthly_storage, map_pdf_columns, monthly_series_kind, parse_as_of,
+    parse_monthly_unit, reject_prior_period_element, same_yoy_element,
+    serialize_column_mapping, yoy_display_number,
 )
 
 router = APIRouter(prefix="/api")
@@ -626,7 +627,12 @@ def _parse_ingest_rows(
             )
         element = _canonical_element(item.get("element"), unit, code, as_of=as_of)
         values = _parse_ingest_values_by_column(item.get("values"), months)
-        parsed.append((element, force, unit, values))
+        stored_unit = coerce_monthly_storage(unit, None)[0]
+        stored: dict[int, float | None] = {}
+        for col, val in values.items():
+            _, stored_val = coerce_monthly_storage(unit, val)
+            stored[col] = stored_val
+        parsed.append((element, force, stored_unit, stored))
     return parsed
 
 
@@ -649,6 +655,7 @@ def post_element(code: str, year: str, response: Response,
             "unit は number / yoy_index / yoy_pct です。省略できません。",
         )
     element = _canonical_element(body.get("element"), unit, code, year=year_i)
+    unit = coerce_monthly_storage(unit, None)[0]
     _require_stock(db, code)
     created = _ensure_element(db, code, year_i, element, force, unit)
     row = _get_element(db, code, year_i, element)
@@ -674,7 +681,10 @@ def put_element(code: str, year: str, payload: dict | None = Body(None),
     element = _lookup_element(body.get("element"), code, year=year_i)
     if "unit" not in body:
         raise ApiError(400, "INVALID_PARAM", "unit は number / yoy_index / yoy_pct です。")
-    unit = _parse_unit(body.get("unit"))
+    incoming = _parse_unit(body.get("unit"))
+    if incoming is None:
+        raise ApiError(400, "INVALID_PARAM", "unit は number / yoy_index / yoy_pct です。")
+    unit = coerce_monthly_storage(incoming, None)[0]
     _require_stock(db, code)
     _get_table(db, code, year_i)
     row = _get_element(db, code, year_i, element)

@@ -126,10 +126,12 @@ def test_put_and_list() -> None:
         "element": "既存店売上高", "unit": "yoy_pct",
     })
     _expect(r, 201, "seed existing")
+    if r.json().get("unit") != "yoy_index":
+        _fail(f"POST yoy_pct must store yoy_index: {r.json()!r}")
     r = c.put("/api/v1/tables/72030/2026/values", json={
-        "element": "既存店売上高(前年比)", "month": 11, "value": -7.1,
+        "element": "既存店売上高(前年比)", "month": 11, "value": 92.9,
     })
-    _expect(r, 200, "seed existing value")
+    _expect(r, 200, "seed existing stored yoy_index 92.9")
 
     r = c.get("/api/v1/tables")
     _expect(r, 200, "GET after elements")

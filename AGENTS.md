@@ -70,7 +70,7 @@
 
 - `stocks` に無い code は書かない。ingest / POST / PUT は先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`
 - FK は付けない。`PRAGMA foreign_keys` も有効化しない
-- `MonthlyElement.unit` は `number` / `yoy_index` / `yoy_pct`。見出しから付ける（値の大きさから推測しない）。保存値は原文のまま
+- `MonthlyElement.unit` は保存 `number` / `yoy_index`。入力タグは `yoy_pct` も可（見出し。値の大きさから推測しない）。ingest は `yoy_pct` を `yoy_index` と `value+100` にして書く。PUT values は保存形の訂正で `+100` しない
 - 行名は `canonicalize_element_label`。銘柄固有は `app/issuer_aliases.json`。新しい例外は `docs/DESIGN_monthly_labels.md` に箇条書きで足す
 - `scripts/test_monthly_ingest.py` に銘柄分岐は足さない
 - 月次業種は `monthly_issuers.industry`（既定 `その他`）。`stocks.sector33` とは別。ingest は `last_ingested_at` だけ更新し industry を触らない

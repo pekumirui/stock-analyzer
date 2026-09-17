@@ -751,6 +751,8 @@ def test_unit_display_and_ingest() -> None:
         _fail(f"yoy_index 105.2: {format_monthly_cell(105.2, 'yoy_index')!r}")
     if format_monthly_cell(-7.1, "yoy_pct") != "92.9":
         _fail(f"yoy_pct display: {format_monthly_cell(-7.1, 'yoy_pct')!r}")
+    if format_monthly_cell(92.9, "yoy_index") != "92.9":
+        _fail(f"yoy_index 92.9: {format_monthly_cell(92.9, 'yoy_index')!r}")
     if format_monthly_cell(303, "number") != "303":
         _fail(f"number display: {format_monthly_cell(303, 'number')!r}")
     if format_monthly_cell(None, "number") != "-":
@@ -774,6 +776,7 @@ def test_unit_display_and_ingest() -> None:
         "months": [11, 12, 1],
         "rows": [
             {"element": "全店売上高", "values": {"11": 125.8}, "unit": "yoy_index"},
+            {"element": "既存店売上高", "values": {"11": 103.4}, "unit": "yoy_index"},
             {"element": "客数前年比", "values": {"11": -7.1}, "unit": "yoy_pct"},
             {"element": "店舗数", "values": {"11": 303}, "unit": "number"},
         ],
@@ -789,16 +792,31 @@ def test_unit_display_and_ingest() -> None:
         _fail(f"ingest yoy_index stored: {by['全店 売上高(前年比)']!r}")
     if format_monthly_cell(float(by["全店 売上高(前年比)"]["values"]["11"]), "yoy_index") != "125.8":
         _fail("ingest yoy_index display")
+    if "既存 売上高(前年比)" not in by:
+        _fail(f"ingest yoy_index 103.4 name: {list(by)!r}")
+    if by["既存 売上高(前年比)"]["unit"] != "yoy_index" or float(by["既存 売上高(前年比)"]["values"]["11"]) != 103.4:
+        _fail(f"ingest yoy_index 103.4 stored: {by['既存 売上高(前年比)']!r}")
     if "全店 客数(前年比)" not in by:
         _fail(f"ingest yoy_pct name: {list(by)!r}")
-    if by["全店 客数(前年比)"]["unit"] != "yoy_pct" or float(by["全店 客数(前年比)"]["values"]["11"]) != -7.1:
-        _fail(f"ingest yoy_pct stored: {by['全店 客数(前年比)']!r}")
-    if format_monthly_cell(float(by["全店 客数(前年比)"]["values"]["11"]), "yoy_pct") != "92.9":
-        _fail("ingest yoy_pct display")
+    if by["全店 客数(前年比)"]["unit"] != "yoy_index" or float(by["全店 客数(前年比)"]["values"]["11"]) != 92.9:
+        _fail(f"ingest yoy_pct stored as yoy_index 92.9: {by['全店 客数(前年比)']!r}")
+    if format_monthly_cell(float(by["全店 客数(前年比)"]["values"]["11"]), "yoy_index") != "92.9":
+        _fail("ingest yoy_index 92.9 display")
     if by["店舗数"]["unit"] != "number" or float(by["店舗数"]["values"]["11"]) != 303:
         _fail(f"ingest number stored: {by['店舗数']!r}")
     if "客数前年比" in by:
         _fail("yoy_pct must not keep PDF 前年比 wording")
+
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [11, 12, 1],
+        "rows": [{"element": "客数前年比", "values": {"11": -7.1}, "unit": "yoy_pct"}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 200, "re-ingest yoy_pct -7.1")
+    r = c.get(f"/api/v1/tables/{code}/2025")
+    by = {e["element"]: e for e in r.json()["elements"]}
+    if by["全店 客数(前年比)"]["unit"] != "yoy_index" or float(by["全店 客数(前年比)"]["values"]["11"]) != 92.9:
+        _fail(f"re-ingest must not add 100 twice: {by['全店 客数(前年比)']!r}")
 
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": [11, 12, 1],
@@ -809,7 +827,6 @@ def test_unit_display_and_ingest() -> None:
     if _err(r)["code"] != "INVALID_PARAM":
         _fail(f"ingest invalid unit: {r.json()!r}")
 
-    # magnitude must not decide unit: 125.8 with yoy_pct stays 125.8
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": [11, 12, 1],
         "rows": [{"element": "大きい指数", "values": {"11": 125.8}, "unit": "yoy_pct"}],
@@ -820,8 +837,8 @@ def test_unit_display_and_ingest() -> None:
     by = {e["element"]: e for e in r.json()["elements"]}
     if "大きい指数(前年比)" not in by:
         _fail(f"yoy_pct name missing suffix: {list(by)!r}")
-    if by["大きい指数(前年比)"]["unit"] != "yoy_pct" or float(by["大きい指数(前年比)"]["values"]["11"]) != 125.8:
-        _fail(f"must not convert 125.8: {by['大きい指数(前年比)']!r}")
+    if by["大きい指数(前年比)"]["unit"] != "yoy_index" or float(by["大きい指数(前年比)"]["values"]["11"]) != 225.8:
+        _fail(f"yoy_pct 125.8 must become yoy_index 225.8: {by['大きい指数(前年比)']!r}")
 
 
 def test_ingest_yoy_label_and_number_separate() -> None:
@@ -1456,26 +1473,23 @@ def test_fail_loud_required_and_conflicts() -> None:
         f"/api/v1/tables/{code}/2026/elements",
         json={"element": "売上高前年比", "unit": "yoy_pct"},
     )
-    _expect(r, 409, "UNIT_CONFLICT")
-    err = _err(r)
-    if err["code"] != "UNIT_CONFLICT":
-        _fail(f"UNIT_CONFLICT: {r.json()!r}")
-    if err.get("existing") != "yoy_index" or err.get("incoming") != "yoy_pct":
-        _fail(f"UNIT_CONFLICT extra: {r.json()!r}")
+    _expect(r, 200, "yoy_pct is stored yoy_index, not UNIT_CONFLICT")
+    if r.json().get("unit") != "yoy_index":
+        _fail(f"POST yoy_pct must store yoy_index: {r.json()!r}")
     r = c.get(f"/api/v1/tables/{code}/2026")
     if r.status_code == 200:
         by = {e["element"]: e for e in r.json()["elements"]}
         yoy = by.get("全店 売上高(前年比)")
         if yoy is not None and yoy.get("unit") != "yoy_index":
-            _fail(f"UNIT_CONFLICT must not write: {yoy!r}")
+            _fail(f"stored unit after yoy_pct POST: {yoy!r}")
 
     r = c.post(
         f"/api/v1/tables/{code}/2026/elements",
         json={"element": "売上高前年比", "unit": "yoy_pct", "force": True},
     )
-    _expect(r, 200, "UNIT_CONFLICT force")
-    if r.json().get("unit") != "yoy_pct":
-        _fail(f"force unit overwrite: {r.json()!r}")
+    _expect(r, 200, "force yoy_pct")
+    if r.json().get("unit") != "yoy_index":
+        _fail(f"force yoy_pct must return yoy_index: {r.json()!r}")
 
     fold_code = "81120"
     _add_fy_end(fold_code, date(2026, 5, 8), date(2025, 12, 31), "fold-fy-1")
