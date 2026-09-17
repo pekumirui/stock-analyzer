@@ -17,7 +17,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.config import MONTHLY_NEW_DAYS  # noqa: E402
 from app.main import app  # noqa: E402
-from app.monthly_ingest import monthly_series_kind, yoy_display_number  # noqa: E402
+from app.monthly_ingest import monthly_series_kind  # noqa: E402
 
 
 def _fail(msg: str) -> None:
@@ -100,10 +100,6 @@ def test_series_kind() -> None:
         _fail("閉鎖 店舗数 is not stores")
     if monthly_series_kind("売上高(前年比)", "yoy_index") is not None:
         _fail("generic yoy is not mapped")
-    if yoy_display_number(-7.1, "yoy_pct") != 92.9:
-        _fail("yoy_pct display")
-    if yoy_display_number(125.8, "yoy_index") != 125.8:
-        _fail("yoy_index display")
 
 
 def test_put_and_list() -> None:

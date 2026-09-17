@@ -706,7 +706,7 @@ function drawMonthlyChart(tables, seriesId){
       const n = raw==null || raw==="" ? null : Number(raw);
       let v = null;
       if(Number.isFinite(n)){
-        v = el.unit==="yoy_pct" ? n+100 : n;
+        v = n;
         any = true;
       }
       nums.push(v);
@@ -788,9 +788,8 @@ window.addEventListener("resize", () => {
 
 function fmtMonthlyCell(v, unit){
   if(v==null || v==="") return "-";
-  let n = Number(v);
+  const n = Number(v);
   if(!Number.isFinite(n)) return "-";
-  if(unit==="yoy_pct") n += 100;
   return n.toLocaleString("ja-JP",{maximumFractionDigits:4});
 }
 

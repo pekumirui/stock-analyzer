@@ -838,23 +838,13 @@ def union_monthly_elements(
     return [{"element": it["element"], "unit": it["unit"]} for it in items]
 
 
-def yoy_display_number(value: float, unit: str | None) -> float:
-    n = float(value)
-    if (unit or "number") == "yoy_pct":
-        n = 100.0 + n
-    return n
-
-
-def format_monthly_cell(value: float | None, unit: str | None) -> str:
-    """空セルは -。表は指数 100=フラット。保存値は変えない。"""
+def format_monthly_cell(value: float | None, unit: str | None = None) -> str:
+    """空セルは -。保存値のまま。指数は 100=フラット。"""
     if value is None:
         return "-"
     n = float(value)
     if n != n or n in (float("inf"), float("-inf")):
         return "-"
-    u = unit or "number"
-    if u == "yoy_pct":
-        n = 100.0 + n
     text = f"{n:.4f}".rstrip("0").rstrip(".")
     return text if text else "0"
 

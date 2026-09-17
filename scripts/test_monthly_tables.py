@@ -115,12 +115,8 @@ def main() -> None:
         _fail(f"yoy_index 125.8: {format_monthly_cell(125.8, 'yoy_index')!r}")
     if format_monthly_cell(94.8, "yoy_index") != "94.8":
         _fail(f"yoy_index 94.8: {format_monthly_cell(94.8, 'yoy_index')!r}")
-    if format_monthly_cell(-7.1, "yoy_pct") != "92.9":
-        _fail(f"yoy_pct -7.1: {format_monthly_cell(-7.1, 'yoy_pct')!r}")
-    if format_monthly_cell(5.2, "yoy_pct") != "105.2":
-        _fail(f"yoy_pct 5.2: {format_monthly_cell(5.2, 'yoy_pct')!r}")
-    if format_monthly_cell(13, "yoy_pct") != "113":
-        _fail(f"yoy_pct +13: {format_monthly_cell(13, 'yoy_pct')!r}")
+    if format_monthly_cell(92.9, "yoy_index") != "92.9":
+        _fail(f"yoy_index 92.9: {format_monthly_cell(92.9, 'yoy_index')!r}")
     if format_monthly_cell(303, "number") != "303":
         _fail(f"number 303: {format_monthly_cell(303, 'number')!r}")
     if format_monthly_cell(None, "number") != "-":
@@ -151,6 +147,8 @@ def main() -> None:
         _fail("fmtMonthlyCell empty must display -")
     if 'return ""' in cell_body:
         _fail("fmtMonthlyCell must not return blank for empty")
+    if "+= 100" in cell_body or "n+100" in cell_body.replace(" ", ""):
+        _fail("fmtMonthlyCell must not convert leftover yoy_pct")
     yoy_fn = html.find("function fmtMonthlyYoyList")
     if yoy_fn < 0:
         _fail("fmtMonthlyYoyList missing")
@@ -1467,6 +1465,8 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("must not special-case yoy under 100 for bar fill")
     if "y100" not in chart_body or "stroke-dasharray" not in chart_body:
         _fail("keep yoy 100 horizontal line")
+    if "n+100" in chart_body.replace(" ", "") or "+=100" in chart_body.replace(" ", ""):
+        _fail("chart must plot stored values, not leftover yoy_pct+100")
     color_fn = html.find("function monthlyYearColor")
     color_end = html.find("function uniqueMonthlyIssuers")
     if color_fn < 0 or color_end <= color_fn:
