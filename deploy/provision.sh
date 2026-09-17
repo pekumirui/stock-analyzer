@@ -430,6 +430,7 @@ else
 fi
 
 # slack.env only. The app .env has JQUANTS_API_KEY and MCP_TOKEN.
+# Webhook は sudo env ではなく stock 所有の deploy/slack.env.local から読む（古い sudoers でも動く）。
 install -d -m 755 /etc/fluent-bit
 install -d -m 755 /var/lib/fluent-bit
 if [[ -f "$APP_DIR/deploy/fluent-bit.conf" ]]; then
@@ -440,6 +441,11 @@ write_if_changed /etc/systemd/system/fluent-bit.service.d/slack.conf 644 <<'EOF'
 [Service]
 EnvironmentFile=-/etc/fluent-bit/slack.env
 EOF
+SLACK_STAGING="$APP_DIR/deploy/slack.env.local"
+if [[ -z "${SLACK_WEBHOOK_URL:-}" && -f "$SLACK_STAGING" ]]; then
+  _line="$(grep -E '^SLACK_WEBHOOK_URL=' "$SLACK_STAGING" | head -n1 || true)"
+  SLACK_WEBHOOK_URL="${_line#SLACK_WEBHOOK_URL=}"
+fi
 if [[ -n "${SLACK_WEBHOOK_URL:-}" ]]; then
   if [[ "$SLACK_WEBHOOK_URL" == *$'\n'* ]]; then
     echo "SLACK_WEBHOOK_URL rejected (newline)" >&2

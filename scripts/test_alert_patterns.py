@@ -194,17 +194,24 @@ def test_secret_contract() -> None:
         _fail("cicd.yml deploy env must include SLACK_WEBHOOK_URL")
     if '"SLACK_WEBHOOK_URL"' not in cicd:
         _fail("cicd.yml export keys must include SLACK_WEBHOOK_URL")
+    if "print(f\"VPS_DOMAIN len=" in cicd and "file=sys.stderr" not in cicd:
+        _fail("cicd.yml VPS_DOMAIN debug print must go to stderr (not remote bash stdin)")
     update = (ROOT / "deploy" / "update.sh").read_text(encoding="utf-8")
     if "upsert_env SLACK_WEBHOOK_URL" in update:
         _fail("update.sh must not upsert SLACK_WEBHOOK_URL into the app .env")
-    if "SLACK_WEBHOOK_URL" not in update or "--preserve-env=" not in update:
-        _fail("update.sh must pass SLACK_WEBHOOK_URL via sudo --preserve-env")
-    if "SLACK_WEBHOOK_URL" not in update.split("--preserve-env=", 1)[-1].split("\n", 1)[0]:
-        _fail("update.sh --preserve-env must list SLACK_WEBHOOK_URL")
+    if "deploy/slack.env.local" not in update or "write_slack_staging" not in update:
+        _fail("update.sh must stage SLACK_WEBHOOK_URL to deploy/slack.env.local")
+    preserve = update.split("--preserve-env=", 1)[-1].split("\n", 1)[0]
+    if "SLACK_WEBHOOK_URL" in preserve:
+        _fail("update.sh must not pass SLACK_WEBHOOK_URL via sudo --preserve-env")
     sudoers = (ROOT / "deploy" / "sudoers").read_text(encoding="utf-8")
-    if "SLACK_WEBHOOK_URL" not in sudoers or "env_keep" not in sudoers:
-        _fail("deploy/sudoers must env_keep SLACK_WEBHOOK_URL")
+    if "SLACK_WEBHOOK_URL" in sudoers:
+        _fail("deploy/sudoers must not env_keep SLACK_WEBHOOK_URL (file handoff)")
+    if "env_keep" not in sudoers:
+        _fail("deploy/sudoers must keep env_keep for non-webhook deploy vars")
     provision = (ROOT / "deploy" / "provision.sh").read_text(encoding="utf-8")
+    if "deploy/slack.env.local" not in provision:
+        _fail("provision.sh must read deploy/slack.env.local")
     if "/etc/fluent-bit/slack.env" not in provision:
         _fail("provision.sh must write /etc/fluent-bit/slack.env")
     if "EnvironmentFile=-/etc/fluent-bit/slack.env" not in provision:

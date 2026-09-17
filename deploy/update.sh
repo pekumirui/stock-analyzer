@@ -2,7 +2,7 @@
 # GitHub Actions から stdin で流して実行する。
 # git pull → 冪等な初期設定 (provision.sh) → venv → migrate → 再起動
 # stock.db は触らない。.env は JQUANTS_API_KEY / MCP_TOKEN / R2_* が渡されたときだけ当該行を更新する。
-# SLACK_WEBHOOK_URL は .env に書かない。provision が /etc/fluent-bit/slack.env へ書く。
+# SLACK_WEBHOOK_URL は .env に書かない。stock が deploy/slack.env.local に書き、provision が /etc/fluent-bit/slack.env へコピー。sudo 経由の env 渡しはしない。
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/home/stock/stock-analyzer}"
@@ -110,8 +110,24 @@ PY
 umask 077
 write_rclone_conf
 
+write_slack_staging() {
+  # sudo env_keep に頼らない。既存 VPS の古い sudoers でも deploy できるようにする。
+  local dest="$APP_DIR/deploy/slack.env.local"
+  if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+    return 0
+  fi
+  if [[ "$SLACK_WEBHOOK_URL" == *$'\n'* ]]; then
+    echo "SLACK_WEBHOOK_URL rejected (newline)" >&2
+    return 1
+  fi
+  printf 'SLACK_WEBHOOK_URL=%s\n' "$SLACK_WEBHOOK_URL" > "$dest"
+  chmod 600 "$dest"
+  echo "wrote deploy/slack.env.local (value not printed)"
+}
+write_slack_staging
+
 chmod +x "$APP_DIR/deploy/provision.sh"
-sudo --preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,CERTBOT_EMAIL,SLACK_WEBHOOK_URL \
+sudo --preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,CERTBOT_EMAIL \
   "$APP_DIR/deploy/provision.sh"
 
 if [ ! -x "$APP_DIR/.venv/bin/pip" ]; then

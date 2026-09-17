@@ -5,6 +5,7 @@
 *.key
 secrets/
 rclone.conf
+deploy/slack.env.local
 
 # --- データベース・取得データ ---
 *.pdf
