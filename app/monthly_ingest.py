@@ -158,8 +158,9 @@ _DROP_TOKS = frozenset({
     "累計", "店舗状況", "（％）", "（%）", "%", "※",
     "（", "）", "(", ")", "(前年比)", "（前年比）",
 })
-# 表の注番号（SRS の 売上高(1) / (2) ＊M&A除く）。(前年比) は数字だけではないので残る。
+# 表の注番号（SRS の 売上高(1) / 売上高① / (2) ＊M&A除く）。(前年比) は数字だけではないので残る。
 _FOOTNOTE_NUM_RE = re.compile(r"[（(]\d+[）)]")
+_FOOTNOTE_CIRCLED_RE = re.compile(r"[①-⑳]")
 # 大黒天物産などの `2026年（令和8年）度` / `2026年度` 年度帯
 _FY_NENDO_RE = re.compile(r"\d{4}\s*年(?:\s*[（(][^）)]*[）)])?\s*度")
 # 単月/Monthly は時間軸。累計列は HTML パーサが落とすので、ここでは指標補完で落とす。
@@ -224,6 +225,7 @@ def _stitch_metric_shards(tokens: list[str]) -> list[str]:
 
 def _unglue_element(text: str) -> str:
     s = _FOOTNOTE_NUM_RE.sub(" ", text)
+    s = _FOOTNOTE_CIRCLED_RE.sub(" ", s)
     s = _FY_NENDO_RE.sub(" ", s)
     s = s.replace("直営+FC", f" {_CHAN_BOTH_MARK} ").replace(
         "直営＋FC", f" {_CHAN_BOTH_MARK} ",
