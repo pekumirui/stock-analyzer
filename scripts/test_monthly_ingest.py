@@ -310,6 +310,14 @@ def test_issuer_alias_cases() -> None:
     if sample_262a0_2026_bare != "全店":
         _fail(f"262A0 year=2026 must not force-prefix 全店: {sample_262a0_2026_bare!r}")
 
+    # 27800: 売上高 に コメ兵 prefix を付けない。canonicalize 済みの全店ラベルはそのまま。
+    sample_27800 = apply_issuer_aliases("27800", "全店 売上高", year=2026)
+    if sample_27800 != "全店 売上高":
+        _fail(f"27800 year=2026 全店 売上高: {sample_27800!r}")
+    sample_27800_yoy = apply_issuer_aliases("27800", "全店 売上高(前年比)", year=2026)
+    if sample_27800_yoy != "全店 売上高(前年比)":
+        _fail(f"27800 year=2026 全店 売上高(前年比): {sample_27800_yoy!r}")
+
     # 38170: 株式会社SRA/AIT → 短名（year=2026）。短名からは戻さない。
     for incoming, stored in (
         ("株式会社SRA 全店 売上高", "SRA 全店 売上高"),
