@@ -118,6 +118,11 @@ def test_canonicalize_element_label() -> None:
         != "＊M&A除く 全店 売上高(前年比)"
     ):
         _fail("SRS footnote (2) dropped")
+    if (
+        canonicalize_element_label("前年比 売上高 ※ 2026年（令和8年）度", "yoy_index")
+        != "全店 売上高(前年比)"
+    ):
+        _fail("Daikokuten 令和年度帯 dropped")
     if canonicalize_element_label("ゼビオ 単月 既存", "yoy_index") != "ゼビオ 既存 売上高(前年比)":
         _fail("Xevo 単月 既存 → ゼビオ 既存 売上高")
     if canonicalize_element_label("直営+FC 既存店 焼肉 売上高(前年比)", "yoy_index") != "焼肉 直営+FC 既存 売上高(前年比)":

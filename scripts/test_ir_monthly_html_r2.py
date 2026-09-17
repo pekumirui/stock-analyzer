@@ -1661,6 +1661,40 @@ def test_yamaya_scopes_skip_prior_and_wholesale() -> None:
         _fail(f"prior/wholesale/ytd leaked {labels}")
 
 
+DAIKOKUTEN_HTML = """
+<html><body>
+<h2>月次情報(全店)</h2>
+<table>
+<tr><td></td><td>前年比</td><td>前年比</td><td>前年比</td></tr>
+<tr><td>年月</td><td>売上高</td><td>既存店売上高</td><td>客数</td></tr>
+<tr><td>※ 2026年（令和8年）度</td><td>※ 2026年（令和8年）度</td><td>※ 2026年（令和8年）度</td><td>※ 2026年（令和8年）度</td></tr>
+<tr><td>2026年8月</td><td>108.9％</td><td>101.1%</td><td>109.2％</td></tr>
+<tr><td>2026年7月</td><td>106.9％</td><td>99.0%</td><td>106.0％</td></tr>
+<tr><td>2026年6月</td><td>101.7％</td><td>94.8%</td><td>102.8％</td></tr>
+<tr><td>※ 2025年（令和7年）度</td><td>※ 2025年（令和7年）度</td><td>※ 2025年（令和7年）度</td><td>※ 2025年（令和7年）度</td></tr>
+<tr><td>2026年5月</td><td>106.7％</td><td></td><td>107.9％</td></tr>
+<tr><td>2022年8月</td><td>100.7％</td><td></td><td>101.6％</td></tr>
+</table>
+</body></html>
+"""
+
+
+def test_daikokuten_drops_nendo_keeps_newest_month() -> None:
+    """年度帯は行名に入れず、同月の古い年で上書きしない。既存の空欄はソースどおり。"""
+    got = html_to_ingest(DAIKOKUTEN_HTML, "2791", table=None)
+    labels = [r["element"] for r in got["rows"]]
+    if any("令和" in el or "年度" in el or "2026年" in el for el in labels):
+        _fail(f"nendo leaked into labels {labels}")
+    sales = _row(got, "前年比 売上高")
+    if sales["unit"] != "yoy_index" or sales["values"].get("8") != 108.9:
+        _fail(f"want newest Aug 108.9, got {sales}")
+    if sales["values"].get("8") == 100.7:
+        _fail(f"old year overwrote {sales}")
+    exist = _row(got, "前年比 既存店売上高")
+    if exist["values"].get("8") != 101.1 or exist["values"].get("5") is not None:
+        _fail(f"exist blank months {exist}")
+
+
 def test_ministop_genzai_as_of() -> None:
     """1店1日当りより全店売上を選び、売上高合計だけ残す。"""
     got = html_to_ingest(MINISTOP_HTML, "9946", table=None)
@@ -1874,6 +1908,7 @@ def main() -> None:
     test_xevo_prefers_current_fy_drops_ytd()
     test_fuji_skips_renovation_merges_total_stores()
     test_yamaya_scopes_skip_prior_and_wholesale()
+    test_daikokuten_drops_nendo_keeps_newest_month()
     test_ministop_genzai_as_of()
     test_nitori_direct_page_no_follow()
     test_yamazawa_prefers_current_period()

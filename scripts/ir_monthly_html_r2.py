@@ -55,7 +55,8 @@ _MONTH_RE = re.compile(
     r"|(?P<y2>\d{4})\s*[./-]\s*(?P<m2>1[0-2]|0?[1-9])(?!\d)(?!\s*[./-]\s*\d)"
 )
 _FY_CAPTION_RE = re.compile(r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月期")
-_FY_YEAR_RE = re.compile(r"(\d{4})\s*年度")
+# `2026年度` と `2026年（令和8年）度`（大黒天物産の年度帯）
+_FY_YEAR_RE = re.compile(r"(\d{4})\s*年(?:\s*[（(][^）)]*[）)])?\s*度")
 _FY_RANGE_RE = re.compile(
     r"(\d{4})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{1,2})\s*[～〜~\-－]\s*"
     r"(\d{4})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{1,2})"
@@ -257,7 +258,13 @@ def parse_eir_date(raw: str) -> str | None:
 def parse_month_year(text: str) -> tuple[int | None, int | None]:
     """セルから (year or None, month or None)。月期キャプションは月軸にしない。"""
     s = unicodedata.normalize("NFKC", text or "").strip()
-    if not s or _SKIP_AXIS_RE.fullmatch(s) or _FY_CAPTION_RE.search(s) or _FY_YEAR_RE.fullmatch(s):
+    s_bare = re.sub(r"^※\s*", "", s)
+    if (
+        not s
+        or _SKIP_AXIS_RE.fullmatch(s)
+        or _FY_CAPTION_RE.search(s)
+        or _FY_YEAR_RE.search(s_bare)
+    ):
         return None, None
     # `2026年度 3月期` は `_FY_CAPTION_RE` に当たらず、`3月` だけ月軸になる
     if "月期" in s:
@@ -755,6 +762,7 @@ def _is_skip_axis(text: str) -> bool:
 
 def _is_caption_cell(text: str) -> bool:
     s = unicodedata.normalize("NFKC", text or "").strip()
+    s = re.sub(r"^※\s*", "", s)
     return bool(
         _FY_CAPTION_RE.search(s)
         or _FY_YEAR_RE.search(s)
@@ -1140,7 +1148,11 @@ def _parse_row_months(grid: list[list[str]], data_i: int, context: str) -> dict 
             parts = [p for p in [*labels, header] if p]
             element = _squash_label_metric_spaces(" ".join(parts).strip()) or header or "売上高"
             key = (element, unit)
-            series.setdefault(key, {})[str(month)] = json_number(n)
+            # 複数年アーカイブ表は同月が繰り返される。先に出た方（新しい方）を残す。
+            vals = series.setdefault(key, {})
+            mk = str(month)
+            if mk not in vals:
+                vals[mk] = json_number(n)
     if not series:
         return None
     months = normalize_month_order(month_order)
