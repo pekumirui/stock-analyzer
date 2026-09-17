@@ -25,6 +25,19 @@ def _rpc(client: TestClient, method: str, params: dict | None = None, token: str
     return client.post("/mcp", json=body, headers={"Authorization": f"Bearer {token}"})
 
 
+def test_redact() -> None:
+    out = m.redact("SLACK_WEBHOOK_URL=https://example.invalid/hook")
+    if out != "SLACK_WEBHOOK_URL=<redacted>":
+        raise SystemExit(f"redact slack: {out!r}")
+    if "example.invalid" in out:
+        raise SystemExit(f"redact leaked webhook host: {out!r}")
+    out = m.redact("JQUANTS_API_KEY=secret-value")
+    if out != "JQUANTS_API_KEY=<redacted>":
+        raise SystemExit(f"redact jquants: {out!r}")
+    if "SLACK_WEBHOOK_URL" not in m.SECRET_RE.pattern:
+        raise SystemExit("SECRET_RE must include SLACK_WEBHOOK_URL")
+
+
 def test_since_and_grep() -> None:
     assert m.parse_since("1h") == "1 hours ago"
     assert m.parse_since("30m") == "30 minutes ago"
@@ -1168,6 +1181,7 @@ def test_monthly_ingest_tool() -> None:
 def main() -> None:
     from tempfile import TemporaryDirectory
 
+    test_redact()
     test_since_and_grep()
     with TemporaryDirectory() as d:
         test_tail_grep(Path(d))

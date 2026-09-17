@@ -352,6 +352,12 @@ def main() -> None:
     )
     if xbrl_match.returncode != 0:
         raise SystemExit("xbrl match rate tests failed")
+    alerts = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "test_alert_patterns.py")],
+        cwd=ROOT,
+    )
+    if alerts.returncode != 0:
+        raise SystemExit("alert pattern tests failed")
 
 
 if __name__ == "__main__":

@@ -56,7 +56,7 @@ apt_retry() {
 }
 
 apt_retry \
-  python3-venv python3-pip git curl \
+  python3-venv python3-pip git curl gnupg ca-certificates \
   nginx apache2-utils certbot \
   ufw tzdata fuse3 unzip
 
@@ -67,6 +67,26 @@ if ! command -v rclone >/dev/null 2>&1; then
   curl -fsSL https://rclone.org/install.sh | bash || echo "rclone install failed (R2 mount skipped)" >&2
 else
   echo "rclone present: $(rclone version 2>/dev/null | head -n1)"
+fi
+
+# fluent-bit: 無ければ公式 Ubuntu apt リポジトリ。
+if command -v fluent-bit >/dev/null 2>&1 || [[ -x /opt/fluent-bit/bin/fluent-bit ]]; then
+  echo "fluent-bit present"
+else
+  if ! (
+    install -d -m 755 /usr/share/keyrings
+    key_tmp="$(mktemp)"
+    curl -fsSL https://packages.fluentbit.io/fluentbit.key | gpg --dearmor > "$key_tmp"
+    install -m 644 "$key_tmp" /usr/share/keyrings/fluentbit-keyring.gpg
+    rm -f "$key_tmp"
+    codename="$(grep -oP '(?<=VERSION_CODENAME=).*' /etc/os-release 2>/dev/null || lsb_release -cs)"
+    write_if_changed /etc/apt/sources.list.d/fluent-bit.list 644 <<EOF
+deb [signed-by=/usr/share/keyrings/fluentbit-keyring.gpg] https://packages.fluentbit.io/ubuntu/${codename} ${codename} main
+EOF
+    apt_retry fluent-bit
+  ); then
+    echo "fluent-bit install failed (alerts skipped)" >&2
+  fi
 fi
 
 install_authorized_key() {
@@ -356,6 +376,9 @@ EOF
   systemctl reload nginx
 fi
 
+if [[ -f "$APP_DIR/deploy/cron-run.sh" ]]; then
+  chmod +x "$APP_DIR/deploy/cron-run.sh"
+fi
 crontab -u "$STOCK_USER" "$APP_DIR/deploy/crontab"
 
 # Cloudflare R2: stock の user systemd で rclone mount（linger で再起動後も残す）
@@ -404,6 +427,37 @@ else
       fi
     fi
   fi
+fi
+
+# slack.env only. The app .env has JQUANTS_API_KEY and MCP_TOKEN.
+install -d -m 755 /etc/fluent-bit
+install -d -m 755 /var/lib/fluent-bit
+if [[ -f "$APP_DIR/deploy/fluent-bit.conf" ]]; then
+  write_if_changed /etc/fluent-bit/fluent-bit.conf 644 < "$APP_DIR/deploy/fluent-bit.conf"
+fi
+install -d -m 755 /etc/systemd/system/fluent-bit.service.d
+write_if_changed /etc/systemd/system/fluent-bit.service.d/slack.conf 644 <<'EOF'
+[Service]
+EnvironmentFile=-/etc/fluent-bit/slack.env
+EOF
+if [[ -n "${SLACK_WEBHOOK_URL:-}" ]]; then
+  if [[ "$SLACK_WEBHOOK_URL" == *$'\n'* ]]; then
+    echo "SLACK_WEBHOOK_URL rejected (newline)" >&2
+  else
+    printf 'SLACK_WEBHOOK_URL=%s\n' "$SLACK_WEBHOOK_URL" | write_if_changed /etc/fluent-bit/slack.env 600
+    chmod 600 /etc/fluent-bit/slack.env
+  fi
+fi
+systemctl daemon-reload
+if command -v fluent-bit >/dev/null 2>&1 || [[ -x /opt/fluent-bit/bin/fluent-bit ]]; then
+  systemctl enable fluent-bit >/dev/null
+  if [[ -f /etc/fluent-bit/slack.env ]] && grep -qE '^SLACK_WEBHOOK_URL=.+' /etc/fluent-bit/slack.env; then
+    systemctl restart fluent-bit
+  else
+    echo "fluent-bit enabled but not started (slack.env missing; set SLACK_WEBHOOK_URL and redeploy)"
+  fi
+else
+  echo "fluent-bit missing; skip enable"
 fi
 
 echo "provision ok domain=${DOMAIN} tz=$(timedatectl show -p Timezone --value 2>/dev/null || echo Asia/Tokyo)"

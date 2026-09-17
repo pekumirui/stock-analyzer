@@ -56,6 +56,9 @@ jobs:
       - name: Log MCP
         run: python scripts/test_log_mcp.py
 
+      - name: Alert patterns
+        run: python scripts/test_alert_patterns.py
+
   release:
     name: Release
     needs: test
@@ -160,6 +163,7 @@ jobs:
       MCP_TOKEN: ${{ secrets.MCP_TOKEN }}
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       VPS_DOMAIN: ${{ secrets.VPS_DOMAIN }}
       CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
     steps:
@@ -222,6 +226,7 @@ jobs:
               "MCP_TOKEN",
               "R2_ACCESS_KEY_ID",
               "R2_SECRET_ACCESS_KEY",
+              "SLACK_WEBHOOK_URL",
           ]
           print("set -euo pipefail")
           for k in keys:
