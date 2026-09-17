@@ -24,7 +24,7 @@ from .monthly_ingest import (
     MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label,
     coerce_monthly_storage, map_pdf_columns, monthly_series_kind, parse_as_of,
     parse_monthly_unit, reject_prior_period_element, same_yoy_element,
-    serialize_column_mapping, yoy_display_number,
+    serialize_column_mapping,
 )
 
 router = APIRouter(prefix="/api")
@@ -427,16 +427,16 @@ def _latest_yoy_for_kind(
         for e in elems
         if monthly_series_kind(e.element, e.unit) == kind
     }
-    best: tuple[int, int, float, str] | None = None
+    best: tuple[int, int, float] | None = None
     for v in vals:
         el = matched.get((v.year, v.element))
         if el is None:
             continue
         if best is None or (v.year, v.month) > (best[0], best[1]):
-            best = (v.year, v.month, float(v.value), el.unit or "number")
+            best = (v.year, v.month, float(v.value))
     if best is None:
         return None
-    return yoy_display_number(best[2], best[3])
+    return best[2]
 
 
 def _new_flags(last_ingested_at: datetime | None) -> tuple[bool, bool]:

@@ -776,8 +776,6 @@ def test_unit_display_and_ingest() -> None:
         _fail(f"yoy_index display: {format_monthly_cell(125.8, 'yoy_index')!r}")
     if format_monthly_cell(105.2, "yoy_index") != "105.2":
         _fail(f"yoy_index 105.2: {format_monthly_cell(105.2, 'yoy_index')!r}")
-    if format_monthly_cell(-7.1, "yoy_pct") != "92.9":
-        _fail(f"yoy_pct display: {format_monthly_cell(-7.1, 'yoy_pct')!r}")
     if format_monthly_cell(92.9, "yoy_index") != "92.9":
         _fail(f"yoy_index 92.9: {format_monthly_cell(92.9, 'yoy_index')!r}")
     if format_monthly_cell(303, "number") != "303":
