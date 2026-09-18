@@ -1266,13 +1266,27 @@ def test_issuer_alias_ingest_and_migrate() -> None:
         r = c.get(f"/api/v1/tables/{code}/{mapped_year}")
         _expect(r, 200, f"GET {code} {mapped_year}")
         names = [e["element"] for e in r.json()["elements"]]
+
+        def _folded_stored(stored: str, *, year: int | None = None, as_of: date | None = None) -> str:
+            # fold_aliased_element: dest が別 src なら保存名はもう一段 alias 後
+            unit = "yoy_index" if stored.endswith("(前年比)") else "number"
+            return canonicalize_element_label(
+                apply_issuer_aliases(code, stored, year=year, as_of=as_of),
+                unit,
+            )
+
         for incoming, stored, _ in pairs:
-            if stored not in names:
-                _fail(f"{code} stored missing {stored!r}: {names!r}")
-            if incoming != stored and incoming in names:
+            expect = _folded_stored(stored, year=mapped_year)
+            if expect not in names:
+                _fail(f"{code} stored missing {expect!r}: {names!r}")
+            if incoming != expect and incoming in names:
                 _fail(f"{code} incoming leftover {incoming!r}: {names!r}")
 
-        incoming, stored, _ = pairs[0]
+        # migrate / POST は一段 hop。stored が最終名の pair を使う
+        incoming, stored, _ = next(
+            (p for p in pairs if _folded_stored(p[1], as_of=as_of) == p[1]),
+            pairs[0],
+        )
         unit = "yoy_index" if stored.endswith("(前年比)") else "number"
         new_as_of = after_until.get(code)
         if new_as_of is not None:
