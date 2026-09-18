@@ -5,17 +5,17 @@ The monthly tab lists ingested issuer monthly-sales tables with industry chips, 
 ## Sub-features
 
 - `monthly-list` fills `#monthly-groups` (新着 + industry chips) and `#monthly-tbl` from `GET /api/v1/tables`.
-- `monthly-issuer-search` types into `#monthly-sym` (placeholder `銘柄名 or コード`) and fills `#monthly-suggest` from the loaded list (`monthlyRows` / `uniqueMonthlyIssuers`). Pick or Enter opens Detail. It does not call `/api/stocks/search` and does not live-filter `#monthly-tbl`.
+- `monthly-issuer-search` types into `#monthly-sym` (placeholder `銘柄名 or コード`) and fills `#monthly-suggest` from the loaded list (`monthlyRows` / `uniqueMonthlyIssuers`). Typing does not change `#monthly-tbl`. Enter or a suggestion pick commits `monthlySearchApplied` and filters the table (name / code / `industry` / `sector33`). It does not open Detail and does not call `/api/stocks/search`.
 - `monthly-detail` opens `#monthly-detail` for a row `data-code` via `GET /api/v1/tables/{code}` then parallel `GET /api/v1/tables/{code}/{year}` for the latest calendar year and up to two prior years.
 - `monthly-series` switches `#monthly-series` (default: unsegmented 全店+売上高 yoy when present, else any `all_store` yoy including 全社, else first series) and redraws `#monthly-chart`.
-- `monthly-back` returns to TOP via `#monthly-back` while keeping the selected chip.
+- `monthly-back` returns to TOP via `#monthly-back` while keeping the selected chip and any committed search filter.
 - `monthly-route` persists `#monthly` or `#monthly/{code}` in `location.hash` + `localStorage` `ui.route`; reload/`restoreRoute` reopens TOP or Detail.
 
 ## How to get to it (user POV)
 
 - Click `nav button[data-tab="monthly"]`.
-- Type a known issuer name or 4-digit / 5-digit code into `#monthly-sym` and pick `#monthly-suggest` (or press Enter on the first hit).
-- Click an industry / 新着 chip in `#monthly-groups`. The 新着 chip is always rendered; if no issuer has `is_new`, selection falls back to the first industry chip but 新着 stays visible. Industry chips appear only for industries present in the list.
+- Type a known issuer name, 4-digit / 5-digit code, or industry fragment into `#monthly-sym` and press Enter (or pick `#monthly-suggest`) to filter `#monthly-tbl`. Click a company-name cell to open Detail.
+- Click an industry / 新着 chip in `#monthly-groups`. The 新着 chip is always rendered; if no issuer has `is_new`, selection falls back to the first industry chip but 新着 stays visible. Industry chips appear only for industries present in the list. A chip click clears the search field and `monthlySearchApplied`.
 - Click a company-name cell (`.name`) in `#monthly-tbl` to open Detail.
 - Change `#monthly-series` or click a `tr[data-series]` in the year tables.
 - Click `#monthly-back` to restore TOP + chip.
@@ -30,7 +30,7 @@ Preconditions:
 
 - **Tab.** Click `nav button[data-tab="monthly"]`. `#tab-monthly` is displayed; `#monthly-top` is shown and `#monthly-detail` is `display:none`. List host is `#monthly-list` (holds empty copy or `#monthly-tbl`). Search field is `#monthly-sym` above chips; suggestion box is `#monthly-suggest` (`display:none` until there are hits).
 - **List.** `helpers/capture.py monthly` writes `artifacts/monthly/body.json` from `GET /api/v1/tables`. Assert a JSON array; each item has `code` (not `0`-prefix), `industry`, `is_new`, `all_store_yoy` / `existing_store_yoy` (nulls are fine). `#monthly-tbl` shows 会社名 / 市場 / 業種 / 月次業種 / 全店(前年比) / 既存店(前年比) (no standalone code column); null YoY cells show `-`.
-- **Issuer search.** After the list is loaded, type a known issuer name or code from that list into `#monthly-sym`. `#monthly-suggest` shows up to 20 rows as 4-digit code + full name. Click a suggestion or press Enter → `#monthly-detail` visible and `location.hash` is `#monthly/{code}`. A query that matches no monthly issuer keeps `#monthly-suggest` at `display:none` (do not treat that as the ingest-empty copy). Chips still change the table without filtering on the search field.
+- **Issuer search.** After the list is loaded, type a known issuer name, code, or industry fragment from that list into `#monthly-sym`. `#monthly-suggest` shows up to 20 rows as 4-digit code + full name. Row count of `#monthly-tbl` must not change while typing. Press Enter or click a suggestion → still `#monthly-top`, `#monthly-detail` stays `display:none`, and `#monthly-tbl` shows only rows whose name, code, `industry`, or `sector33` matches. Click a `.name` cell to open Detail. Clear `#monthly-sym` and press Enter → chip list is restored. Click a chip → search filter clears (`monthlySearchApplied` becomes empty) and the chip list is shown. A query with no suggestion hits keeps `#monthly-suggest` at `display:none`. Enter on that query shows 「該当する発行体はありません」 in `#monthly-list` (not the ingest-empty copy 「登録された月次データはありません」).
 - **Detail.** Pass `--code` from the list. Capture also writes years + one year payload. UI: click a `.name` cell → `#monthly-detail` visible, `#monthly-chart` has an SVG, `#monthly-table-wrap` stacks `table.monthly` newest-year-first.
 - **Proof.** Keep `body.json` (list) and, when `--code` was used, the year artifact(s). If CDP: `ui.png` of Detail or list with header `h1` `株式分析`.
 - **Route restore.** After Detail, confirm `location.hash` is `#monthly/{code}`. Reload → Detail for that code (list loads first). `#monthly-back` writes `#monthly`.
@@ -40,6 +40,7 @@ Preconditions:
 
 - Empty `/api/v1/tables` renders「登録された月次データはありません」— that is empty ingest, or a Cloud Agent build that skipped VPS monthly copy. Not a render bug.
 - `#monthly-suggest` is filled only from the loaded monthly list. Do not call `/api/stocks/search` here. A stock without monthly data must not appear. Empty query or no hits hide the box; that is not the ingest-empty copy.
+- Committed search (`monthlySearchApplied`) filters `#monthly-tbl` and ignores chips until a chip click or empty Enter clears it. Typing does not write it. Zero hits after Enter is 「該当する発行体はありません」, not the ingest-empty copy.
 - Mobile/IME: `compositionend` must refresh suggestions even when no trailing `input` fires. Queries fold via NFKC + hiragana→katakana, so `にとり` and fullwidth `９８４３` hit the same rows as `ニトリ` / `9843`.
 - Detail with no years shows「データなし」.
 - NEW badge uses `ingested_today` (JST today); 新着 chip window is `MONTHLY_NEW_DAYS` (7) via `is_new`.
