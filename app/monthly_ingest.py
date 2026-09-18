@@ -566,6 +566,7 @@ def plan_issuer_alias_cases() -> list[tuple[str, str, str, dict[str, date | int]
 
     複数 until がある銘柄では、ある period の外側でも後続ルールが残る。
     境界の「非適用」側の expected は、残りのアクティブルール適用後の名前にする。
+    dest 側の expected もアクティブルール適用後（canonicalize 後に dest が別 src になる場合がある）。
     """
     cases: list[tuple[str, str, str, dict[str, date | int]]] = []
 
@@ -598,7 +599,9 @@ def plan_issuer_alias_cases() -> list[tuple[str, str, str, dict[str, date | int]
                 cases.append((code, src, _apply_all(rules, src, as_of=after), {"as_of": after}))
                 cases.append((code, src, dst, {"year": year_on}))
                 cases.append((code, src, _apply_all(rules, src, year=year_off), {"year": year_off}))
-                cases.append((code, dst, dst, {"year": year_on}))
+                cases.append(
+                    (code, dst, _apply_all(rules, dst, year=year_on), {"year": year_on}),
+                )
     return cases
 
 
