@@ -258,8 +258,10 @@ def test_slack_payload_jst_danger() -> None:
     assert isinstance(att, dict)
     if att.get("color") != SLACK_COLOR_DANGER:
         _fail(f"slack color: {att.get('color')!r}")
-    if att.get("ts") != epoch:
-        _fail(f"slack ts: {att.get('ts')!r}")
+    legacy = {"fallback", "ts", "title", "text", "pretext", "mrkdwn_in", "fields"}
+    extra = legacy.intersection(att)
+    if extra:
+        _fail(f"attachment mixed legacy keys with blocks: {sorted(extra)}")
     text = str(payload.get("text") or "")
     if "2026-09-18 09:02:41 JST" not in text:
         _fail(f"fallback missing JST: {text!r}")
@@ -288,6 +290,8 @@ def test_slack_payload_jst_danger() -> None:
     lua = (ROOT / "deploy" / "fluent-bit_slack.lua").read_text(encoding="utf-8")
     if 'color":"danger"' not in lua or "JST" not in lua or "format_slack" not in lua:
         _fail("fluent-bit_slack.lua must emit danger + JST")
+    if '"fallback"' in lua.split("local json", 1)[-1]:
+        _fail("lua attachment must not mix fallback with blocks")
 
 
 def main() -> None:
