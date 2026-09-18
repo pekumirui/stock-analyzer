@@ -14,13 +14,12 @@
 ## スタック
 
 - Python 3.10+ / FastAPI / SQLAlchemy 2 / pandas
-- フロントは `static/index.html` + `static/css/` + `static/js/` の vanilla JS。フレームワークを足さない
+- フロントは `static/index.html` + `static/css/` + `static/js/` の vanilla JS
 - DB はローカル SQLite (`stock.db`)。本番切替は `DATABASE_URL` のみ
 - 仮想環境は `.venv`。Windows は `.\setup.ps1` / `.\run.ps1`、Linux は `./setup.sh` / `./run.sh`
 - Python は `.venv\Scripts\python.exe`（Windows）/ `.venv/bin/python`（Linux）。システムの python で依存を入れない
 - Cursor Cloud Agent は `.cursor/install.sh` が `.venv` / `pdftotext` / `rclone` と `stock.db`（2 年分 + 本番の `monthly_*`）を用意し、`start`（`.cursor/start-web.sh`）が 8000 で SPA を配信する。UI 検証も 8000（`.cursor/skills/verify-stock-analyzer/`）。8000 を止めない・`reset` しない
 - Cloud Agent から VPS シェルが要るときは Secrets に `VPS_SSH_KEY`（デプロイ秘密鍵）。`install.sh` → `.cursor/setup-vps-ssh.sh` が `ssh stock-vps` を用意する。ログ・月次 API は MCP。任意シェルを MCP に足さない。手順は `deploy/README.md`「Cursor Cloud Agent から VPS を触る」
-- 新しい依存やレイヤを増やさない。ロジックは下の表のファイルに足す
 
 ## モジュール分担
 
@@ -28,6 +27,7 @@
 |---|---|
 | `app/config.py` | 環境変数・閾値・プラン上限・ベース URL。ハードコードせずここに集約 |
 | `app/models.py` | SQLAlchemy スキーマ |
+| `app/db.py` | セッションと migrate |
 | `app/jquants.py` | J-Quants API V2 クライアント（認証・ページング・レート制限） |
 | `app/ingest.py` | API → DB 取込（UPSERT・冪等） |
 | `app/analytics.py` | MA / RS / ステージ / Q単独 / 決算後リターン |
