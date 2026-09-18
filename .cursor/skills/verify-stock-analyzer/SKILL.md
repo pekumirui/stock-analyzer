@@ -84,6 +84,7 @@ Harness: HTTP against the same routes the SPA uses, plus the browser when CDP is
 | Screener RS | `#sc-rs` (default `70`) |
 | Screener 検索 | `#tab-screener button.btn` (label 検索) |
 | Monthly list | `#monthly-groups`, `#monthly-list` (host), `#monthly-tbl` |
+| Monthly issuer search | `#monthly-sym` (placeholder `銘柄名 or コード`), suggestions `#monthly-suggest` from loaded monthly issuers (not `/api/stocks/search`) |
 | Monthly detail | `#monthly-detail`, `#monthly-series`, `#monthly-chart`, `#monthly-table-wrap`, `#monthly-back` |
 
 **SPA → API (prove the same payloads the UI renders):**
