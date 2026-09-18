@@ -171,7 +171,7 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
 | `number` | 店舗数など件数 | `number` のまま |
 
 前年比の表の表示は保存値のまま（指数 100=フラット）。▲ や +X.X% にはしない。
-number で表示単位がある指標は四捨五入して末尾に単位を付ける。対応は [`docs/DESIGN_monthly_labels.md`](docs/DESIGN_monthly_labels.md)。GET の JSON は保存値のまま。
+number で表示単位がある指標は項目名の末尾に `（単位）` を付け、セルは四捨五入した数字だけにする。対応は [`docs/DESIGN_monthly_labels.md`](docs/DESIGN_monthly_labels.md)。GET の JSON と保存名は単位なし。
 
 **行名。** 正本は [`docs/DESIGN_monthly_labels.md`](docs/DESIGN_monthly_labels.md)。
 ingest / POST は `canonicalize_element_label` してから既存行を探す。GET は保存名。SPA は `fmtMonthlyElement`。

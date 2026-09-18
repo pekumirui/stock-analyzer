@@ -41,7 +41,8 @@
 
 ## 表示単位
 
-保存 `unit` は `number` / `yoy_index` のまま。GET の JSON も保存値。年表セル（`fmtMonthlyCell` / `format_monthly_cell`）だけ、行名に次の token を含む number 行を四捨五入して末尾に単位を付ける。長い token を先に見る。前年比は保存値のまま（100=フラット）。単位ノイズを行名に残さない。
+保存 `unit` は `number` / `yoy_index` のまま。GET の JSON も保存値。canonicalize は単位ノイズを行名に残さない。
+画面の項目名（`fmtMonthlyElement` / `monthly_display_label`）だけ、次の token を含む number 行の末尾に `（単位）` を付ける。セルは同じ表の桁で四捨五入し、単位は付けない。長い token を先に見る。前年比の項目名とセルは保存値のまま（100=フラット）。
 
 | token | 単位 | 小数桁 |
 |---|---|---|
@@ -92,7 +93,7 @@
 
 ## xls 銘柄メモ
 
-- 大東建託 (1878): `history.xls`。`家賃ベース入居率` は Excel パーセント 0.9785 を 97.85 で `number` 保存（issue #195）。`空室在庫`（カ月）は掛けない。canonicalize 後 `既存 空室数` は `空室数 既存`。受注トレンドと管理戸数は入れない。画面の表示単位は上の表。JSON は保存値のまま
+- 大東建託 (1878): `history.xls`。`家賃ベース入居率` は Excel パーセント 0.9785 を 97.85 で `number` 保存（issue #195）。`空室在庫`（カ月）は掛けない。canonicalize 後 `既存 空室数` は `空室数 既存`。受注トレンドと管理戸数は入れない。画面の表示単位は上の表（項目名。セルは数字だけ）。JSON は保存値のまま
 
 ## 例
 

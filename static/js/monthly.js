@@ -369,14 +369,15 @@ function monthlyRowOrder(tables, code){
       const display = fmtMonthlyElement(name, unit);
       if(seen.has(display)) continue;
       seen.add(display);
-      const segment = monthlyRowSegment(display);
+      const rankName = stripMonthlyDisplayUnit(display, unit);
+      const segment = monthlyRowSegment(rankName);
       if(segment && !(segment in tailRank) && !(segment in segIndex)) segIndex[segment] = segN++;
       items.push({
         element:display, unit, segment,
-        country:monthlyRowCountryRank(display),
-        scope:monthlyRowScopeRank(display),
-        channel:monthlyRowChannelRank(display),
-        slot:monthlyRowSlot(display, unit),
+        country:monthlyRowCountryRank(rankName),
+        scope:monthlyRowScopeRank(rankName),
+        channel:monthlyRowChannelRank(rankName),
+        slot:monthlyRowSlot(rankName, unit),
         idx:items.length
       });
     }
@@ -786,24 +787,34 @@ window.addEventListener("resize", () => {
   if(monthlyYearTables.length) drawMonthlyChart(monthlyYearTables, monthlySeries);
 });
 
+const MONTHLY_DISPLAY_UNITS = [
+  ["1人当たり受注高", "万円", 0],
+  ["新規受注高", "百万円", 0],
+  ["キャンセル額", "百万円", 0],
+  ["家賃ベース入居率", "%", 2],
+  ["入居者斡旋件数", "件", 0],
+  ["営業人員数", "人", 0],
+  ["空室在庫", "カ月", 2],
+  ["空室数", "戸", 0],
+  ["受注高", "百万円", 0],
+];
+
 function monthlyDisplayUnit(element, unit){
   if((unit || "number") !== "number") return null;
   const name = String(element || "");
-  const rows = [
-    ["1人当たり受注高", "万円", 0],
-    ["新規受注高", "百万円", 0],
-    ["キャンセル額", "百万円", 0],
-    ["家賃ベース入居率", "%", 2],
-    ["入居者斡旋件数", "件", 0],
-    ["営業人員数", "人", 0],
-    ["空室在庫", "カ月", 2],
-    ["空室数", "戸", 0],
-    ["受注高", "百万円", 0],
-  ];
-  for(const [token, suffix, digits] of rows){
+  for(const [token, suffix, digits] of MONTHLY_DISPLAY_UNITS){
     if(name.includes(token)) return {suffix, digits};
   }
   return null;
+}
+
+function stripMonthlyDisplayUnit(name, unit){
+  let s = String(name || "");
+  if((unit || "number") !== "number") return s;
+  for(const row of MONTHLY_DISPLAY_UNITS){
+    s = s.split("（" + row[1] + "）").join("");
+  }
+  return s.replace(/\s+/g, " ").trim();
 }
 
 function fmtMonthlyCell(v, unit, element){
@@ -816,8 +827,7 @@ function fmtMonthlyCell(v, unit, element){
   }
   const p = 10 ** spec.digits;
   const rounded = Math.round(n * p) / p;
-  const num = rounded.toLocaleString("ja-JP", {maximumFractionDigits: spec.digits});
-  return num + spec.suffix;
+  return rounded.toLocaleString("ja-JP", {maximumFractionDigits: spec.digits});
 }
 
 function stripYoyFragments(name){
@@ -833,11 +843,15 @@ function stripYoyFragments(name){
 }
 
 function fmtMonthlyElement(name, unit){
-  const trimmed = String(name || "").trim();
   const u = unit || "number";
   const isYoy = u === "yoy_index" || u === "yoy_pct";
+  const trimmed = stripMonthlyDisplayUnit(String(name || "").trim(), u);
   const base = normalizeElementTokens(isYoy ? stripYoyFragments(trimmed) : trimmed, isYoy);
-  if(!isYoy) return base;
+  if(!isYoy){
+    const spec = monthlyDisplayUnit(base, u);
+    if(!spec) return base;
+    return base + "（" + spec.suffix + "）";
+  }
   if(base.endsWith("(前年比)")) return base;
   return base + "(前年比)";
 }

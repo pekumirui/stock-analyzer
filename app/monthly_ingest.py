@@ -889,6 +889,25 @@ def monthly_display_unit(element: str | None, unit: str | None = None) -> tuple[
     return None
 
 
+def strip_monthly_display_unit(element: str | None, unit: str | None = None) -> str:
+    name = element or ""
+    if (unit or "number") != "number":
+        return name
+    for _token, suffix, _digits in MONTHLY_DISPLAY_UNITS:
+        name = name.replace(f"（{suffix}）", "")
+    return " ".join(name.split())
+
+
+def monthly_display_label(element: str | None, unit: str | None = None) -> str:
+    """画面の項目名だけ。保存名は単位なし。"""
+    name = strip_monthly_display_unit(element, unit)
+    spec = monthly_display_unit(name, unit)
+    if spec is None:
+        return name
+    suffix, _digits = spec
+    return name + f"（{suffix}）"
+
+
 def _round_half_up(value: float, digits: int) -> Decimal:
     quant = Decimal(1).scaleb(-digits)
     return Decimal(str(value)).quantize(quant, rounding=ROUND_HALF_UP)
@@ -899,7 +918,7 @@ def format_monthly_cell(
     unit: str | None = None,
     element: str | None = None,
 ) -> str:
-    """空セルは -。前年比は保存値。number で表示単位がある行は四捨五入して末尾に単位。"""
+    """空セルは -。前年比は保存値。number で表示単位がある行は四捨五入。単位は項目名。"""
     if value is None:
         return "-"
     n = float(value)
@@ -909,13 +928,13 @@ def format_monthly_cell(
     if spec is None:
         text = f"{n:.4f}".rstrip("0").rstrip(".")
         return text if text else "0"
-    suffix, digits = spec
+    _suffix, digits = spec
     text = format(_round_half_up(n, digits), "f")
     if "." in text:
         text = text.rstrip("0").rstrip(".")
     if not text:
         text = "0"
-    return text + suffix
+    return text
 
 
 def parse_as_of(raw: Any, *, default: date | None = None) -> date:
