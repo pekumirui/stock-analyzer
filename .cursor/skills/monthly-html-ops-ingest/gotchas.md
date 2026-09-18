@@ -11,7 +11,7 @@ Short traps from #180-style waves. Codes are examples, not exclusive.
 | One table of two | Ministop 9946, Konaka 7494: H1 or H2 only | Merge 上期+下期 before POST |
 | "2024" page ≠ full 2024 | Mar–Feb FY: page 1–2 → next calendar year | Previous FY page for calendar 1–2 (USMH `y2023`→2024/1–2; Fuji `year2023` 404 = blocked) |
 | First wave incomplete | After ingesting "2024" labeled pages, 1–2 or H2 still empty | Scan 2024/1–12 per code every wave |
-| No pair review | Agent self-certifies; 2024–2026 holes or wrong values slip through | Second agent/human: `monthly_get` all three years per code **and** spot-check numbers vs source HTML; fail if any year unchecked or a sample mismatches |
+| No pair review | Agent self-certifies; holes, wrong values, or 表記揺れ slip through | Second pass: three-year coverage + number spot-check + element-name twin/ghost scan; fail if any year unchecked, a sample mismatches, or duplicate labels for one metric |
 | 全社 vs 全店 | Old canonicalize folded 全社→全店 | Keep both when HTML has both (Alpen). USMH: merge ghost 全店→全社 only if HTML is 全社-only |
 | `U.S.M.H` prefix | Company total column | Alias `32220` + ops rename to `全社`/`既存` |
 | `売上（%）` prefix | Nitori header stays after canonicalize | Alias `98430` + ops merge; 客数/客単価 `（%）` already drops |
