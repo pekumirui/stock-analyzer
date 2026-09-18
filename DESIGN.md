@@ -187,10 +187,11 @@ TDnet 月次 PDF（`scripts/tdnet_monthly_r2.py`）:
 - ダウンロード時にインフラファンドを除外する。商品区分は REIT と同じ `013`/`022` しか無いので、名称に「インフラ」を含むものだけ落とす（マスタ欠落時は TDnet 社名の「インフラ投資法人」）
 - 通常の REIT（8985 ジャパン・ホテル・リート投資法人など）は残す。決算速報の REIT 全除外とは別
 
-IR 月次 PDF/xlsx（`scripts/ir_monthly_r2.py`）:
+IR 月次 PDF/xlsx/xls（`scripts/ir_monthly_r2.py`）:
 
 - TDnet に月次が無い発行体が対象。`config/ir_monthly.json` の issuers（URL 確認済みだけ載せる）
-- xlsx と pdf が両方あるページは xlsx だけ取る
+- 表計算と pdf が両方あるページは表計算だけ取る。xlsx があれば xlsx、なければ xls（大東建託 `history_*.xls`）
+- AWS ELB が識別 UA を 403 する発行体は、同じ `http_get` がブラウザ UA に一度だけフォールバックする
 - ingest はまだ MCP 経由。パーサーは無い
 
 IR 月次 HTML（`scripts/ir_monthly_html_r2.py`）:

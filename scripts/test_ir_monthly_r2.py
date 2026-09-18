@@ -10,14 +10,17 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from ir_monthly_r2 import (  # noqa: E402
+    BROWSER_UA,
     FileLink,
     Issuer,
+    USER_AGENT,
     dest_filename,
     dest_path,
     dest_title,
     existing_hashes,
     fetch_issuer,
     filter_links,
+    http_get,
     load_registry,
     looks_like_file,
     parse_file_links,
@@ -59,6 +62,13 @@ BOTH_HTML = """
 <a href="/files/2026-08.xlsx">8月 xlsx</a>
 <a href="/files/2026-08.pdf">8月 pdf</a>
 <a href="/files/2026-07.pdf">7月 pdf</a>
+</body></html>
+"""
+
+XLS_HTML = """
+<html><body>
+<a href="/monthly-report/__icsFiles/afieldfile/2026/09/02/202608.pdf">PDF形式</a>
+<a href="/monthly-report/__icsFiles/afieldfile/2026/09/02/history_1.xls">エクセル形式</a>
 </body></html>
 """
 
@@ -113,6 +123,13 @@ def test_filter_xlsx_priority() -> None:
         _fail(f"seven filter: {picked}")
     if any("other.pdf" in ln.url for ln in picked):
         _fail("unrelated pdf survived")
+    kentaku = parse_file_links(XLS_HTML, "https://www.kentaku.co.jp/ir/library/")
+    xls_only = filter_links(kentaku, r"history_.*\.xls(?:$|[?#])")
+    if [ln.ext for ln in xls_only] != ["xls"] or xls_only[0].stem != "history_1":
+        _fail(f"kentaku xls filter: {xls_only}")
+    sheet_over_pdf = filter_links(kentaku, r"\.(pdf|xlsx|xls)(?:$|[?#])")
+    if [ln.ext for ln in sheet_over_pdf] != ["xls"]:
+        _fail(f"xls should drop pdf: {sheet_over_pdf}")
 
 
 def test_dest_filename_ext_and_unique_stem() -> None:
@@ -187,6 +204,13 @@ def test_url_stem_and_magic() -> None:
         _fail("xlsx magic")
     if looks_like_file(b"%PDF-1.4", "xlsx"):
         _fail("pdf is not xlsx")
+    if not looks_like_file(b"\xd0\xcf\x11\xe0rest", "xls"):
+        _fail("xls magic")
+    if looks_like_file(b"PK\x03\x04rest", "xls"):
+        _fail("xlsx is not xls")
+    xls_name = dest_filename("2026-09-18", "1878", "大東建託", "history_1", "xls")
+    if xls_name != "20260918_1878_大東建託_history_1.xls":
+        _fail(f"xls dest: {xls_name!r}")
     html = dest_filename("2026-09-14", "2664", "カワチ薬品", "月次", "html")
     if html != "20260914_2664_カワチ薬品_月次.html":
         _fail(f"html dest: {html!r}")
@@ -228,8 +252,11 @@ def test_load_registry(tmp: Path) -> None:
     repo_cfg = ROOT / "config" / "ir_monthly.json"
     live = load_registry(repo_cfg)
     codes = {i.code for i in live}
-    if codes != {"2695", "3088", "3382", "3397"}:
+    if codes != {"1878", "2695", "3088", "3382", "3397"}:
         _fail(f"repo issuers: {codes}")
+    kentaku = next(i for i in live if i.code == "1878")
+    if "history_" not in kentaku.link_re or "xls" not in kentaku.link_re:
+        _fail(f"1878 link_re: {kentaku.link_re}")
     bad = tmp / "bad.json"
     bad.write_text(json.dumps({"issuers": [{"code": "12", "name": "x", "index_url": "http://x", "link_re": "."}]}), encoding="utf-8")
     try:
@@ -311,6 +338,87 @@ def test_hash_skip_and_xlsx_priority_fetch(tmp: Path) -> None:
     finally:
         mod.http_get = orig
         mod.SLEEP_SEC = orig_sleep
+
+
+def test_xls_hash_skip_fetch(tmp: Path) -> None:
+    import ir_monthly_r2 as mod
+
+    dest = tmp / "monthly"
+    xls = b"\xd0\xcf\x11\xe0sheet"
+    index = (
+        "<html><body>"
+        '<a href="/history_1.xls">excel</a>'
+        '<a href="/202608.pdf">pdf</a>'
+        "</body></html>"
+    )
+    bodies = {
+        "https://example.test/kentaku/": index.encode("utf-8"),
+        "https://example.test/history_1.xls": xls,
+    }
+    calls: list[str] = []
+
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+        calls.append(url)
+        if url not in bodies:
+            raise RuntimeError(f"unexpected url {url}")
+        return bodies[url]
+
+    orig = mod.http_get
+    orig_sleep = mod.SLEEP_SEC
+    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.SLEEP_SEC = 0
+    try:
+        iss = Issuer(
+            code="1878",
+            name="大東建託",
+            index_url="https://example.test/kentaku/",
+            link_re=r"history_.*\.xls(?:$|[?#])",
+            title="月次",
+        )
+        n, s, k, f = fetch_issuer(
+            iss, dest, {"18780": ("011", "大東建託")}, date(2026, 9, 18), dry_run=False
+        )
+        if (n, s, k, f) != (1, 1, 0, 0):
+            _fail(f"xls fetch: listed={n} saved={s} skipped={k} failed={f} calls={calls}")
+        if any(c.endswith(".pdf") for c in calls):
+            _fail(f"pdf downloaded despite xls: {calls}")
+        files = list((dest / "1878").glob("*.xls"))
+        if len(files) != 1 or files[0].name != "20260918_1878_大東建託_history_1.xls":
+            _fail(f"xls files: {files}")
+        hashes = existing_hashes(dest / "1878")
+        if sha256_bytes(xls) not in hashes:
+            _fail(f"xls hash missing: {hashes}")
+    finally:
+        mod.http_get = orig
+        mod.SLEEP_SEC = orig_sleep
+
+
+def test_http_get_falls_back_on_403() -> None:
+    from urllib.error import HTTPError
+    from unittest.mock import MagicMock, patch
+
+    import ir_monthly_r2 as mod
+
+    uas: list[str] = []
+
+    def fake_urlopen(req, timeout=30.0):  # noqa: ARG001
+        ua = req.get_header("User-agent") or req.get_header("User-Agent")
+        uas.append(ua)
+        if ua == USER_AGENT:
+            raise HTTPError(req.full_url, 403, "Forbidden", hdrs=None, fp=None)
+        cm = MagicMock()
+        cm.__enter__.return_value.read.return_value = b"ok-body"
+        cm.__exit__.return_value = False
+        return cm
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        body = http_get("https://www.kentaku.co.jp/ir/library/monthly-report/")
+    if body != b"ok-body":
+        _fail(f"fallback body: {body!r}")
+    if uas != [USER_AGENT, BROWSER_UA]:
+        _fail(f"uas: {uas}")
+    if mod.USER_AGENT != USER_AGENT or mod.BROWSER_UA != BROWSER_UA:
+        _fail("UA constants drifted")
 
 
 def test_unknown_stock_skip(tmp: Path) -> None:
@@ -412,8 +520,10 @@ def main() -> None:
         p = Path(d)
         test_load_registry(p)
         test_hash_skip_and_xlsx_priority_fetch(p)
+        test_xls_hash_skip_fetch(p)
         test_unknown_stock_skip(p)
         test_run_only_and_dry_run(p)
+    test_http_get_falls_back_on_403()
     print("ok: ir monthly r2")
 
 

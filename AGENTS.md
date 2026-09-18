@@ -110,7 +110,7 @@
 | スクリプト | 保存先 | cron | 振る舞いの正本 |
 |---|---|---|---|
 | `scripts/tdnet_monthly_r2.py N` | `monthly/{code}/YYYYMMDD_CODE_….pdf` | 18:00 / 21:00（N=1）。初回は Actions の **TDnet monthly backfill** | `DESIGN.md` §3 |
-| `scripts/ir_monthly_r2.py` | `monthly/{code}/….pdf` / `.xlsx` | 10:00 / 16:00 | `DESIGN.md` §3、対象は `config/ir_monthly.json` の issuers |
+| `scripts/ir_monthly_r2.py` | `monthly/{code}/….pdf` / `.xlsx` / `.xls` | 10:00 / 16:00 | `DESIGN.md` §3、対象は `config/ir_monthly.json` の issuers |
 | `scripts/ir_monthly_html_r2.py` | `monthly/{code}/…_月次.html` + `.ingest.json` | 10:20 / 16:20 | `DESIGN.md` §3、対象は `config/ir_monthly.json` の html。自動 POST しない |
 | `scripts/ir_monthly_html_ingest.py` | （R2 は読まない。loopback POST） | 10:30 / 16:30 | `DESIGN.md` §3。`--ledger` は `/var/log/app/html_ingest_ledger.json` |
 | `scripts/tdnet_xbrl_r2.py N` | `xbrl/{code4}/` | 12–23 時 毎時 00 分（N=1） | `docs/DESIGN_xbrl.md` |

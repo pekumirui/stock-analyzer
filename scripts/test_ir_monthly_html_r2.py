@@ -336,8 +336,10 @@ def test_dest_html_and_ingest_sidecar() -> None:
 def test_load_html_registry() -> None:
     live = load_html_registry(ROOT / "config" / "ir_monthly.json")
     codes = [i.code for i in live]
-    if len(codes) != 41:
+    if len(codes) != 40:
         _fail(f"repo html issuers count {len(codes)}: {codes}")
+    if "1878" in codes:
+        _fail("1878 moved to issuers (xls), must not stay in html")
     if codes != sorted(codes):
         _fail(f"html issuers must be code-sorted: {codes}")
     colo = next(i for i in live if i.code == "7616")
@@ -347,7 +349,7 @@ def test_load_html_registry() -> None:
     if mos.source != "eir" or mos.eir_n != 24:
         _fail(f"mos {mos}")
     no_parse = {i.code for i in live if not i.parse}
-    if no_parse != {"1878", "2792", "3080", "3196", "7544"}:
+    if no_parse != {"2792", "3080", "3196", "7544"}:
         _fail(f"parse=false {no_parse}")
     follows = {i.code: i.follow_re for i in live if i.follow_re}
     if "7522" not in follows or "1928" not in follows or "8153" in follows:
