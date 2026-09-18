@@ -1,5 +1,5 @@
 -- Keep in sync with deploy/alert_patterns.py slack_payload.
--- Incoming Webhook JSON: JST clock + danger attachment (red bar).
+-- Incoming Webhook JSON: JST clock + hex-red attachment bar (#E01E5A).
 
 local JST_OFFSET = 9 * 3600
 local HEADER_MAX = 150
@@ -57,7 +57,7 @@ function format_slack(tag, timestamp, record)
 
   -- color + blocks only. fallback/ts/title here → Slack 400 invalid_attachments.
   local json = string.format(
-    '{"text":"%s","attachments":[{"color":"danger","blocks":[{"type":"header","text":{"type":"plain_text","text":"%s","emoji":true}},{"type":"section","text":{"type":"mrkdwn","text":"%s"}}]}]}',
+    '{"text":"%s","attachments":[{"color":"#E01E5A","blocks":[{"type":"header","text":{"type":"plain_text","text":"%s","emoji":true}},{"type":"section","text":{"type":"mrkdwn","text":"%s"}}]}]}',
     json_esc(fallback),
     json_esc(header),
     json_esc(body)
