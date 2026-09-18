@@ -55,11 +55,10 @@ function format_slack(tag, timestamp, record)
   local body = clip("*" .. jst .. "*\n```\n" .. line .. "\n```", SECTION_MAX)
   local fallback = clip("[" .. source .. "] " .. jst .. ": " .. line, FALLBACK_MAX)
 
+  -- color + blocks only. fallback/ts/title here → Slack 400 invalid_attachments.
   local json = string.format(
-    '{"text":"%s","attachments":[{"color":"danger","fallback":"%s","ts":%d,"blocks":[{"type":"header","text":{"type":"plain_text","text":"%s","emoji":true}},{"type":"section","text":{"type":"mrkdwn","text":"%s"}}]}]}',
+    '{"text":"%s","attachments":[{"color":"danger","blocks":[{"type":"header","text":{"type":"plain_text","text":"%s","emoji":true}},{"type":"section","text":{"type":"mrkdwn","text":"%s"}}]}]}',
     json_esc(fallback),
-    json_esc(fallback),
-    sec,
     json_esc(header),
     json_esc(body)
   )

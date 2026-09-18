@@ -78,7 +78,11 @@ def _clip(text: str, limit: int) -> str:
 
 
 def slack_payload(source: str, line: str, epoch: float) -> dict[str, object]:
-    """Incoming Webhook body: JST clock + danger attachment (red bar)."""
+    """Incoming Webhook body: JST clock + danger attachment (red bar).
+
+    Attachment may only have color + blocks. Mixing fallback/ts/title with
+    blocks makes Slack return HTTP 400 invalid_attachments.
+    """
     src = (source or "log").strip() or "log"
     text = (line or "").replace("\r\n", "\n").rstrip("\n")
     jst = format_jst(epoch)
@@ -90,8 +94,6 @@ def slack_payload(source: str, line: str, epoch: float) -> dict[str, object]:
         "attachments": [
             {
                 "color": SLACK_COLOR_DANGER,
-                "fallback": fallback,
-                "ts": int(float(epoch)),
                 "blocks": [
                     {
                         "type": "header",
