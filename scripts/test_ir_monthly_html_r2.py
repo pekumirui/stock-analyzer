@@ -1102,6 +1102,104 @@ WATAMI_KYOTEN_HTML = """
 </body></html>
 """
 
+WATAMI_SECTIONS_HTML = """
+<html><body>
+<h2>2026年度 月次推移</h2>
+<p>※既存店(売上高・客数比・客単価)前年比は業態転換店を含んでおります。</p>
+<h3>国内外食事業(月次前年比推移)</h3>
+<table>
+<tr><td></td><td></td><td></td><td>2026.4</td><td>2026.5</td><td>2026.6</td><td>1Q</td></tr>
+<tr><td>全店 (全業態)</td><td>全店 (全業態)</td><td>売上高（%）</td><td>107.8</td><td>117.6</td><td>103.3</td><td>108.1</td></tr>
+<tr><td>国内外食 （サブウェイ事業除く）</td><td>全店</td><td>売上高（%）</td><td>100.4</td><td>104.0</td><td>97.6</td><td>100.8</td></tr>
+</table>
+<table>
+<tr><td></td><td></td><td></td><td>2026.7</td><td>2026.8</td><td>2Q</td></tr>
+<tr><td>全店 (全業態)</td><td>全店 (全業態)</td><td>売上高（%）</td><td>110.4</td><td>104.9</td></tr>
+<tr><td>全店 (全業態)</td><td>全店 (全業態)</td><td>期末店舗数</td><td>525</td><td>527</td></tr>
+<tr><td>国内外食 （サブウェイ事業除く）</td><td>全店</td><td>売上高（%）</td><td>103.6</td><td>97.5</td></tr>
+<tr><td>国内外食 （サブウェイ事業除く）</td><td>既存店</td><td>売上高（%）</td><td>107.4</td><td>100.5</td></tr>
+<tr><td>サブウェイ</td><td>全店</td><td>売上高（%）</td><td>128.0</td><td>125.2</td></tr>
+<tr><td>サブウェイ</td><td>既存店</td><td>対象店舗数</td><td>174</td><td>174</td></tr>
+</table>
+<h3>海外事業</h3>
+<table>
+<tr><td></td><td></td><td>2026.1</td><td>2026.7</td><td>2026.8</td></tr>
+<tr><td>店舗数</td><td>新規出店数</td><td>2</td><td>1</td><td>1</td></tr>
+<tr><td>店舗数</td><td>転換出店数</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>店舗数</td><td>撤退数</td><td>0</td><td>0</td><td>3</td></tr>
+<tr><td>店舗数</td><td>店舗数合計</td><td>83</td><td>84</td><td>82</td></tr>
+</table>
+<h3>宅食事業</h3>
+<table>
+<tr><td></td><td></td><td>2026.4</td><td>2026.7</td><td>2026.8</td></tr>
+<tr><td>拠点数</td><td>調理済み商品お届け数(※)（千食）</td><td>231</td><td>238</td><td>241</td></tr>
+<tr><td>拠点数</td><td>新規開設数</td><td>-</td><td>1</td><td>-</td></tr>
+<tr><td>拠点数</td><td>撤退数</td><td>-</td><td>0</td><td>-</td></tr>
+<tr><td>拠点数</td><td>営業所数合計</td><td>506</td><td>507</td><td>507</td></tr>
+</table>
+</body></html>
+"""
+
+WATAMI_FY2024_HTML = """
+<html><body>
+<h2>2024年度 月次推移</h2>
+<p>※SUBWAY事業の数値は除いております。 ※上記の数値はフランチャイズ店舗を除いております。</p>
+<h3>国内外食事業</h3>
+<table>
+<tr><td></td><td></td><td>2025.1</td><td>2025.2</td><td>2025.3</td><td>4Q</td></tr>
+<tr><td>既存店</td><td>売上高前年比（%）</td><td>109.2</td><td>103.9</td><td>105.3</td><td>106.1</td></tr>
+<tr><td>全店合計</td><td>売上高前年比（%）</td><td>104.0</td><td>99.0</td><td>100.3</td><td>101.1</td></tr>
+</table>
+<h3>海外事業</h3>
+<table>
+<tr><td></td><td></td><td>2025.1</td><td>2025.2</td><td>2025.3</td></tr>
+<tr><td>店舗数</td><td>店舗数合計</td><td>72</td><td>71</td><td>72</td></tr>
+</table>
+<h3>宅食事業</h3>
+<table>
+<tr><td></td><td></td><td>2025.1</td><td>2025.2</td><td>2025.3</td></tr>
+<tr><td>拠点数</td><td>調理済み商品お届け数(※)（千食）</td><td>224</td><td>223</td><td>219</td></tr>
+<tr><td>拠点数</td><td>営業所数合計</td><td>516</td><td>515</td><td>508</td></tr>
+</table>
+</body></html>
+"""
+
+WATAMI_NAV_PERIOD_HTML = """
+<html><body>
+<p>国内外食事業 海外事業 宅食事業</p>
+<h2>2024年度 月次推移</h2>
+<h3>国内外食事業</h3>
+<table>
+<tr><td></td><td></td><td>2025.1</td><td>2025.2</td><td>2025.3</td></tr>
+<tr><td>既存店</td><td>売上高前年比（%）</td><td>109.2</td><td>103.9</td><td>105.3</td></tr>
+<tr><td>全店合計</td><td>店舗数合計</td><td>188</td><td>186</td><td>186</td></tr>
+</table>
+<table>
+<tr><td></td><td></td><td>2024.10</td><td>2024.11</td><td>2024.12</td></tr>
+<tr><td>既存店</td><td>売上高前年比（%）</td><td>105.2</td><td>112.2</td><td>106.1</td></tr>
+</table>
+<h3>海外事業</h3>
+<table>
+<tr><td></td><td></td><td>2024.1</td><td>2024.2</td><td>2024.6</td></tr>
+<tr><td>店舗数</td><td>店舗数合計</td><td>57</td><td>57</td><td>62</td></tr>
+</table>
+<table>
+<tr><td></td><td></td><td>2025.1</td><td>2025.2</td><td>2025.3</td></tr>
+<tr><td>店舗数</td><td>店舗数合計</td><td>72</td><td>71</td><td>72</td></tr>
+</table>
+<h3>宅食事業</h3>
+<table>
+<tr><td></td><td></td><td>2024.4</td><td>2024.9</td></tr>
+<tr><td>拠点数</td><td>調理済み商品お届け数(※)（千食）</td><td>209</td><td>226</td></tr>
+</table>
+<table>
+<tr><td></td><td></td><td>2024.10</td><td>2025.1</td><td>2025.2</td><td>2025.3</td></tr>
+<tr><td>拠点数</td><td>調理済み商品お届け数(※)（千食）</td><td>228</td><td>224</td><td>223</td><td>219</td></tr>
+<tr><td>拠点数</td><td>営業所数合計</td><td>516</td><td>516</td><td>515</td><td>508</td></tr>
+</table>
+</body></html>
+"""
+
 KAPPA_HTML = """
 <html><body>
 <h3>国内回転寿司事業 月次売上推移速報</h3>
@@ -1184,14 +1282,14 @@ def test_year_dot_month_and_skip_quarter() -> None:
 
 def test_watami_kyoten_count_is_number() -> None:
     got = html_to_ingest(WATAMI_KYOTEN_HTML, "7522", table=None)
-    meals = _row(got, "拠点数 調理済み商品お届け数(※)（千食）")
+    meals = _row(got, "宅食 調理済み商品お届け数(※)（千食）", unit="number")
     if meals["unit"] != "number":
         _fail(f"お届け数 unit {meals}")
     if meals["values"].get("12") != 218:
         _fail(f"お届け数 values {meals['values']}")
     if "売上" in meals["element"] or "前年" in meals["element"]:
         _fail(f"拠点数 must not get yoy rename {meals}")
-    offices = _row(got, "拠点数 営業所数合計")
+    offices = _row(got, "宅食 営業所数合計", unit="number")
     if offices["unit"] != "number" or offices["values"].get("12") != 516:
         _fail(f"営業所数 {offices}")
 
@@ -1231,6 +1329,148 @@ def test_watami_prefers_sales_over_kyoten() -> None:
         _fail(f"picked kyoten {got['rows']}")
     if any("拠点数" in r["element"] for r in got["rows"]):
         _fail(f"kyoten table won {got['rows']}")
+
+
+def _watami_stored(element: str, unit: str, *, year: int = 2026) -> str:
+    sys.path.insert(0, str(ROOT))
+    from app.monthly_ingest import apply_issuer_aliases, canonicalize_element_label
+
+    name = canonicalize_element_label(element, unit)
+    name = apply_issuer_aliases("75220", name, year=year)
+    return canonicalize_element_label(name, unit)
+
+
+def test_watami_sections_prefix_and_count_units() -> None:
+    got = html_to_ingest(WATAMI_SECTIONS_HTML, "7522", table=None)
+    if got["as_of"] != "2026-08-31":
+        _fail(f"watami sections as_of {got['as_of']}")
+    if got["months"] != [1, 4, 7, 8]:
+        _fail(f"watami sections months {got['months']}")
+    sales = _row(got, "全店 (全業態) 売上高（%）")
+    if sales["values"] != {"7": 110.4, "8": 104.9}:
+        _fail(f"picked Q1 or leaked 2Q {sales['values']}")
+    if any(
+        "売上高前年同月比" in r["element"]
+        for r in got["rows"]
+        if "宅食" in r["element"] or "お届け" in r["element"]
+    ):
+        _fail(f"宅食 yoy rename {got['rows']}")
+    meals = _row(got, "宅食 調理済み商品お届け数(※)（千食）", unit="number")
+    if meals["values"].get("8") != 241 or meals["values"].get("4") != 231:
+        _fail(f"watami meals {meals}")
+    if "売上高" in meals["element"] or "前年" in meals["element"]:
+        _fail(f"meals must not get yoy rename {meals}")
+    offices = _row(got, "宅食 営業所数合計", unit="number")
+    if offices["values"].get("8") != 507:
+        _fail(f"watami offices {offices}")
+    opened = _row(got, "宅食 新規開設数", unit="number")
+    if opened["values"].get("7") != 1:
+        _fail(f"watami 開設 {opened}")
+    overseas = _row(got, "海外 店舗数 店舗数合計", unit="number")
+    if overseas["values"] != {"1": 83, "7": 84, "8": 82}:
+        _fail(f"watami overseas stores {overseas}")
+    overseas_open = _row(got, "海外 店舗数 新規出店数", unit="number")
+    if overseas_open["values"].get("1") != 2:
+        _fail(f"watami overseas open {overseas_open}")
+    convert = _row(got, "海外 店舗数 転換出店数", unit="number")
+    if convert["values"].get("8") != 0:
+        _fail(f"watami convert {convert}")
+    if _watami_stored(sales["element"], sales["unit"]) != "国内外食 全店 売上高(前年比)":
+        _fail(f"alias 全業態 {_watami_stored(sales['element'], sales['unit'])}")
+    stores_all = _row(got, "全店 (全業態) 期末店舗数", unit="number")
+    if _watami_stored(stores_all["element"], stores_all["unit"]) != "国内外食 全店 店舗数":
+        _fail(f"alias 全業態 店舗数 {_watami_stored(stores_all['element'], stores_all['unit'])}")
+    ex = _row(got, "国内外食 （サブウェイ事業除く） 既存店 売上高（%）")
+    if _watami_stored(ex["element"], ex["unit"]) != "国内外食 サブウェイ除く 既存 売上高(前年比)":
+        _fail(f"alias 除く {_watami_stored(ex['element'], ex['unit'])}")
+    sub = _row(got, "サブウェイ 全店 売上高（%）")
+    if _watami_stored(sub["element"], sub["unit"]) != "国内外食 サブウェイ 全店 売上高(前年比)":
+        _fail(f"alias subway {_watami_stored(sub['element'], sub['unit'])}")
+    if _watami_stored(meals["element"], meals["unit"]) != "宅食 調理済み商品お届け数（千食）":
+        _fail(f"alias meals {_watami_stored(meals['element'], meals['unit'])}")
+    if _watami_stored(opened["element"], opened["unit"]) != "宅食 出店":
+        _fail(f"alias 開設 {_watami_stored(opened['element'], opened['unit'])}")
+    if _watami_stored(overseas["element"], overseas["unit"]) != "海外 店舗数":
+        _fail(f"alias overseas {_watami_stored(overseas['element'], overseas['unit'])}")
+    if _watami_stored(convert["element"], convert["unit"]) != "海外 転換出店":
+        _fail(f"alias convert {_watami_stored(convert['element'], convert['unit'])}")
+    targets = _row(got, "サブウェイ 既存店 対象店舗数", unit="number")
+    if _watami_stored(targets["element"], targets["unit"]) != "国内外食 サブウェイ 既存 店舗数":
+        _fail(f"alias 対象 {_watami_stored(targets['element'], targets['unit'])}")
+
+
+def test_watami_canonicalize_aliases() -> None:
+    cases = [
+        ("全店 (全業態) 売上高（%）", "yoy_index", "国内外食 全店 売上高(前年比)"),
+        (
+            "国内外食 （サブウェイ事業除く） 既存店 売上高（%）",
+            "yoy_index",
+            "国内外食 サブウェイ除く 既存 売上高(前年比)",
+        ),
+        ("既存店 売上高前年比（%）", "yoy_index", "国内外食 サブウェイ除く 既存 売上高(前年比)"),
+        ("全店 (全業態) 期末店舗数", "number", "国内外食 全店 店舗数"),
+        (
+            "国内外食 （サブウェイ事業除く） 全店 期末店舗数",
+            "number",
+            "国内外食 サブウェイ除く 全店 店舗数",
+        ),
+        ("サブウェイ 全店 期末店舗数", "number", "国内外食 サブウェイ 全店 店舗数"),
+        ("全店合計 店舗数合計", "number", "国内外食 サブウェイ除く 全店 店舗数"),
+        (
+            "拠点数 調理済み商品お届け数(※)（千食）",
+            "number",
+            "宅食 調理済み商品お届け数（千食）",
+        ),
+    ]
+    for src, unit, want in cases:
+        got = _watami_stored(src, unit)
+        if got != want:
+            _fail(f"alias {src!r} → {got!r}, want {want!r}")
+        if len(got) > 50:
+            _fail(f"alias dest longer than 50: {got!r}")
+    all_brand = _watami_stored("全店 (全業態) 売上高（%）", "yoy_index")
+    if "サブウェイ除く" in all_brand:
+        _fail(f"全業態 must not become サブウェイ除く {all_brand}")
+
+
+def test_watami_nav_does_not_prefix_domestic_or_mix_years() -> None:
+    got = html_to_ingest(WATAMI_NAV_PERIOD_HTML, "7522", table=None)
+    if got["as_of"] != "2025-03-31":
+        _fail(f"nav as_of {got['as_of']}")
+    exist = _row(got, "既存店 売上高前年比（%）")
+    if exist["values"] != {"1": 109.2, "2": 103.9, "3": 105.3}:
+        _fail(f"picked Q3 or prefixed 宅食 {exist}")
+    if any(str(r.get("element") or "").startswith("宅食 既存") for r in got["rows"]):
+        _fail(f"nav 宅食 leaked onto 国内外食 {got['rows']}")
+    overseas = _row(got, "海外 店舗数 店舗数合計", unit="number")
+    if overseas["values"] != {"1": 72, "2": 71, "3": 72}:
+        _fail(f"2024 H1 海外 mixed into Q4 {overseas}")
+    meals = _row(got, "宅食 調理済み商品お届け数(※)（千食）", unit="number")
+    if meals["values"].get("1") != 224 or meals["values"].get("10") != 228:
+        _fail(f"same-as_of 宅食 {meals}")
+    if meals["values"].get("4") == 209 or meals["values"].get("9") == 226:
+        _fail(f"earlier 宅食 H1 mixed {meals}")
+    if _watami_stored(exist["element"], exist["unit"], year=2025) != (
+        "国内外食 サブウェイ除く 既存 売上高(前年比)"
+    ):
+        _fail(f"nav alias {_watami_stored(exist['element'], exist['unit'], year=2025)}")
+
+
+def test_watami_fy2024_bare_names_alias_to_subway_excluded() -> None:
+    got = html_to_ingest(WATAMI_FY2024_HTML, "7522", table=None)
+    exist = _row(got, "既存店 売上高前年比（%）")
+    if exist["values"] != {"1": 109.2, "2": 103.9, "3": 105.3}:
+        _fail(f"fy2024 exist {exist}")
+    stored = _watami_stored(exist["element"], exist["unit"], year=2025)
+    if stored != "国内外食 サブウェイ除く 既存 売上高(前年比)":
+        _fail(f"fy2024 alias {stored}")
+    all_store = _row(got, "全店合計 売上高前年比（%）")
+    stored_all = _watami_stored(all_store["element"], all_store["unit"], year=2025)
+    if stored_all != "国内外食 サブウェイ除く 全店 売上高(前年比)":
+        _fail(f"fy2024 all alias {stored_all}")
+    meals = _row(got, "宅食 調理済み商品お届け数(※)（千食）", unit="number")
+    if meals["values"].get("1") != 224:
+        _fail(f"fy2024 meals {meals}")
 
 
 def test_nendo_and_fullwidth_fy_as_of() -> None:
@@ -2012,6 +2252,10 @@ def main() -> None:
     test_year_dot_month_and_skip_quarter()
     test_watami_kyoten_count_is_number()
     test_watami_prefers_sales_over_kyoten()
+    test_watami_sections_prefix_and_count_units()
+    test_watami_canonicalize_aliases()
+    test_watami_nav_does_not_prefix_domestic_or_mix_years()
+    test_watami_fy2024_bare_names_alias_to_subway_excluded()
     test_nendo_and_fullwidth_fy_as_of()
     test_sagami_zougenhi_is_yoy_pct()
     test_skip_span_total_column()

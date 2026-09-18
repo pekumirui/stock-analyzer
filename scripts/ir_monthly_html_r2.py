@@ -89,10 +89,26 @@ _SKIP_AXIS_RE = re.compile(
 )
 _SKIP_SPAN_RE = re.compile(r"\d+\s*[～〜~\-－]\s*\d+\s*月")
 _NAMED_METRIC_RE = re.compile(
-    r"来客数|客単価|客数|店舗数|店数|拠点数|営業所数|開店|閉店|出店|退店|開設|撤退"
+    r"来客数|客単価|客数|店舗数|店数|拠点数|営業所数|開店|閉店|出店|退店|"
+    r"千食|お届け|開設|転換|撤退"
+)
+_COUNT_METRIC_MARKS = (
+    "店舗数",
+    "店数",
+    "開店",
+    "閉店",
+    "出店",
+    "退店",
+    "千食",
+    "お届け",
+    "営業所",
+    "拠点",
+    "開設",
+    "転換",
+    "撤退",
 )
 _STORE_FLOW_RE = re.compile(r"開店|閉店|出店|退店|開設|撤退")
-_COUNT_HEAD_RE = re.compile(r"店舗数|拠点数|営業所数")
+_COUNT_HEAD_RE = re.compile(r"店舗数|拠点数|営業所数|千食|お届け")
 _UPDATE_RE = re.compile(
     r"(\d{4})\s*[/-年]\s*(\d{1,2})\s*[/-月]\s*(\d{1,2})\s*日?\s*"
     r"(?:更新|公表|発表|開示|掲載|確定|現在|時点)"
@@ -381,11 +397,20 @@ def _section_tail(section_text: str, n: int = 160) -> str:
     return s[-n:] if len(s) > n else s
 
 
-def _section_pick_rank(section_text: str) -> int:
+_SECTION_PREFIXES: tuple[tuple[str, str], ...] = (
+    ("海外事業", "海外"),
+    ("宅食事業", "宅食"),
+)
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
+
+
+def _section_pick_rank(section_text: str, segment: str | None = None) -> int:
     """表直前見出しの優先度。全店売上 > 全店帯 > 通常 > 1店1日。卸計は選ばない。"""
     tail = _section_tail(section_text)
     if "卸計" in tail:
         return -1
+    if segment or _section_segment(section_text):
+        return 0
     # セル連結の「全店」「売上」は除外（全店売上100.0 など）
     if _ALL_STORE_SALES_HEAD_RE.search(tail):
         return 3
@@ -458,13 +483,15 @@ def _rewrite_period_header(text: str) -> str:
 def _prefer_section_candidates(
     candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
     sections: list[str],
+    segments: list[str | None] | None = None,
 ) -> list[tuple[int, list[list[str]], dict, tuple[int, int] | None]]:
     if not candidates:
         return candidates
-    ranks = [
-        _section_pick_rank(sections[i] if i < len(sections) else "")
-        for i, _g, _p, _fy in candidates
-    ]
+    ranks = []
+    for i, _g, _p, _fy in candidates:
+        text = sections[i] if i < len(sections) else ""
+        seg = segments[i] if segments is not None and i < len(segments) else None
+        ranks.append(_section_pick_rank(text, seg))
     best = max(ranks)
     return [c for c, r in zip(candidates, ranks) if r == best]
 
@@ -533,9 +560,128 @@ def _merge_companion_store_scopes(
             have.add(key)
 
 
+def _section_segment(section_text: str) -> str | None:
+    """表直前見出しの事業。国内外食は付けない（2024 全店と全業態を別名のまま残す）。"""
+    tail = _section_tail(section_text, _SECTION_LOOKBACK)
+    last_i = -1
+    last_prefix: str | None = None
+    for mark, prefix in _SECTION_PREFIXES:
+        i = tail.rfind(mark)
+        if i > last_i:
+            last_i = i
+            last_prefix = prefix
+    if last_prefix is None:
+        return None
+    if tail.rfind("国内外食") > last_i:
+        return None
+    return last_prefix
+
+
+def _sticky_section_segments(sections: list[str]) -> list[str | None]:
+    """半年表は直前の事業見出しを引き継ぐ。国内外食見出しでリセット。"""
+    out: list[str | None] = []
+    last: str | None = None
+    for text in sections:
+        explicit = _section_segment(text)
+        if explicit:
+            last = explicit
+            out.append(explicit)
+            continue
+        tail = _section_tail(text, _SECTION_LOOKBACK)
+        overseas = tail.rfind("海外事業")
+        takushoku = tail.rfind("宅食事業")
+        domestic = tail.rfind("国内外食")
+        if domestic > max(overseas, takushoku):
+            last = None
+            out.append(None)
+            continue
+        out.append(last)
+    return out
+
+
+def _apply_section_segment(rows: list[dict], segment: str | None) -> None:
+    if not segment:
+        return
+    for row in rows:
+        el = str(row.get("element") or "").strip()
+        if not el:
+            continue
+        if el == segment or el.startswith(segment + " "):
+            continue
+        row["element"] = f"{segment} {el}".strip()
+
+
+def _union_ingest_months(months: list[int]) -> list[int]:
+    seen: list[int] = []
+    for m in months:
+        if isinstance(m, int) and 1 <= m <= 12 and m not in seen:
+            seen.append(m)
+    cal = sorted(seen)
+    if _is_fiscal_seq(cal):
+        return cal
+    wrapped = normalize_month_order(seen)
+    if _is_fiscal_seq(wrapped):
+        return wrapped
+    if 1 in seen:
+        return cal
+    return wrapped
+
+
+def _merge_other_section_companions(
+    primary: dict,
+    candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
+    *,
+    primary_index: int,
+    segments: list[str | None],
+    html: str,
+    primary_as_of: str | None,
+) -> None:
+    """pick した国内外食四半期に、同じ as_of の海外/宅食表を足す。他の国内外食四半期は入れない。"""
+    have = {
+        (str(r.get("element") or ""), r.get("unit")): r
+        for r in primary.get("rows") or []
+    }
+    extra_months: list[int] = []
+    for idx, grid, other, section_fy in candidates:
+        if idx == primary_index or _is_store_event_parsed(other):
+            continue
+        seg = segments[idx] if idx < len(segments) else None
+        if not seg:
+            continue
+        if primary_as_of:
+            other_as = as_of_from_table(
+                grid, html, other.get("rows") or [], other.get("months"), section_fy
+            )
+            if other_as != primary_as_of:
+                continue
+        for row in other.get("rows") or []:
+            merged = dict(row)
+            merged["values"] = dict(row.get("values") or {})
+            _apply_section_segment([merged], seg)
+            el = str(merged.get("element") or "")
+            key = (el, merged.get("unit"))
+            if not el:
+                continue
+            existing = have.get(key)
+            if existing is not None:
+                vals = existing.setdefault("values", {})
+                for mk, mv in merged["values"].items():
+                    vals.setdefault(mk, mv)
+                continue
+            primary.setdefault("rows", []).append(merged)
+            have[key] = merged
+        extra_months.extend(
+            m for m in (other.get("months") or []) if isinstance(m, int)
+        )
+    if extra_months:
+        primary["months"] = _union_ingest_months(
+            [*(primary.get("months") or []), *extra_months]
+        )
+
+
 def table_section_texts(html: str) -> list[str]:
     """各 table 開始直前のテキスト（新しい期見出しが表の直上にある前提）。"""
-    raw = html or ""
+    raw = _HTML_COMMENT_RE.sub(" ", html or "")
     out: list[str] = []
     for m in _TABLE_START_RE.finditer(raw):
         start = max(0, m.start() - _SECTION_LOOKBACK)
@@ -841,6 +987,8 @@ def _compact_store_status_label(label: str) -> str:
     s = _squash_label_metric_spaces(label.strip())
     if s.startswith("店舗状況 "):
         s = s[len("店舗状況 ") :].strip()
+    if s.startswith("拠点数 "):
+        s = s[len("拠点数 ") :].strip()
     if re.search(r"（内\s*開店", s) or s.startswith("（内 出店"):
         return "出店"
     if re.search(r"（内\s*閉店", s) or s.startswith("（内 退店"):
@@ -874,6 +1022,12 @@ def _drop_ytd_when_monthly_pair(rows: list[dict]) -> list[dict]:
     return out
 
 
+def _is_count_metric(header: str) -> bool:
+    """店舗数・出退店・千食/営業所など。ページ見出しの前年で yoy にしない。"""
+    compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", header or ""))
+    return any(mark in compact for mark in _COUNT_METRIC_MARKS)
+
+
 def infer_unit(header: str, samples: list[str], context: str = "") -> str:
     h = header or ""
     compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", h))
@@ -881,7 +1035,7 @@ def infer_unit(header: str, samples: list[str], context: str = "") -> str:
     if compact == "当年":
         return "number"
     blob = f"{h} {context}"
-    if _is_count_header(h):
+    if _is_count_metric(h) or _is_count_header(h):
         return "number"
     if any(k in h for k in ("百万円", "千円", "億円")) and "前年" not in h:
         return "number"
@@ -1085,6 +1239,7 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
             and "売上" in context
             and "売上" not in label
             and _NAMED_METRIC_RE.search(label) is None
+            and not _is_count_metric(label)
         ):
             element = f"{label} 売上高前年同月比".strip()
         rows_out.append({"element": element, "unit": unit, "values": values})
@@ -1189,10 +1344,17 @@ def _parsed_score(
 ) -> tuple[int, int, int, int, int, int]:
     """期が新しい表を優先。同点なら最終値の新しい表（期末まで埋まった表は除く）。"""
     months = parsed.get("months")
-    fy = section_fy or pick_fy_end(grid, html, months)
-    fy_y, fy_m = fy if fy is not None else (0, 0)
     last_m = last_filled_month(parsed["rows"], months)
     derived = as_of_from_table(grid, html, parsed["rows"], months, section_fy)
+    # 見出しの無い表はページ全体の年度ナビを見ない（ワタミ後続表が翌年度になる）
+    if section_fy is not None:
+        fy = section_fy
+    elif derived:
+        d = date.fromisoformat(derived)
+        fy = (d.year, d.month)
+    else:
+        fy = pick_fy_end(grid, html, months)
+    fy_y, fy_m = fy if fy is not None else (0, 0)
     complete = (
         last_m is not None
         and fy_m != 0
@@ -1259,7 +1421,8 @@ def html_to_ingest(
     monthly_cands = [c for c in candidates if not _is_store_event_parsed(c[2])]
     sales_cands = [c for c in monthly_cands if not _is_count_only_parsed(c[2])]
     pick_pool = sales_cands or monthly_cands or candidates
-    pick_pool = _prefer_section_candidates(pick_pool, sections)
+    segments = _sticky_section_segments(sections)
+    pick_pool = _prefer_section_candidates(pick_pool, sections, segments)
     table_index, grid_used, parsed, section_fy = max(
         pick_pool,
         key=lambda it: _parsed_score(
@@ -1274,9 +1437,10 @@ def html_to_ingest(
     _merge_companion_store_scopes(
         parsed, candidates, sections, primary_index=table_index
     )
-    _apply_force_unit(parsed["rows"], force_unit)
-    parsed["rows"] = _drop_ytd_when_monthly_pair(parsed["rows"])
-    parsed["rows"] = _drop_all_store_sales_breakdowns(parsed["rows"], section_text)
+    _apply_section_segment(
+        parsed["rows"],
+        segments[table_index] if table_index < len(segments) else None,
+    )
     as_of_s = resolve_as_of(
         html,
         grid_used,
@@ -1285,6 +1449,18 @@ def html_to_ingest(
         parsed.get("months"),
         section_fy,
     )
+    if table is None:
+        _merge_other_section_companions(
+            parsed,
+            monthly_cands,
+            primary_index=table_index,
+            segments=segments,
+            html=html,
+            primary_as_of=as_of_s,
+        )
+    _apply_force_unit(parsed["rows"], force_unit)
+    parsed["rows"] = _drop_ytd_when_monthly_pair(parsed["rows"])
+    parsed["rows"] = _drop_all_store_sales_breakdowns(parsed["rows"], section_text)
     months = drop_trailing_empty_months(list(parsed.get("months") or []), parsed["rows"])
     return {
         "code": display_code(code),
