@@ -136,6 +136,16 @@ def test_canonicalize_element_label() -> None:
         _fail("Xevo 単月 既存 → ゼビオ 既存 売上高")
     if canonicalize_element_label("直営+FC 既存店 焼肉 売上高(前年比)", "yoy_index") != "焼肉 直営+FC 既存 売上高(前年比)":
         _fail("channel stays a layer")
+    if canonicalize_element_label("売上高合計(直営・FC)", "number") != "直営+FC 全店 売上高":
+        _fail("71340 売上高合計(直営・FC) → 直営+FC 全店 売上高")
+    if canonicalize_element_label("直営・FC 全店 売上高", "number") != "直営+FC 全店 売上高":
+        _fail("71340 直営・FC middle-dot → 直営+FC")
+    if canonicalize_element_label("売上高合計(直営・FC)", "yoy_index") != "直営+FC 全店 売上高(前年比)":
+        _fail("71340 直営・FC yoy → 直営+FC 全店 売上高(前年比)")
+    if canonicalize_element_label("直営･FC 全店 売上高", "number") != "直営+FC 全店 売上高":
+        _fail("71340 halfwidth middle-dot 直営･FC")
+    if canonicalize_element_label("直営・ＦＣ 全店 売上高", "number") != "直営+FC 全店 売上高":
+        _fail("71340 fullwidth ＦＣ with middle-dot")
     if canonicalize_element_label("国内FC店舗数", "number") != "日本 FC 店舗数":
         _fail("国内 to 日本, FC channel")
     if canonicalize_element_label("日本 合計 売上高(前年比)", "yoy_index") != "日本 全店 売上高(前年比)":
@@ -357,6 +367,19 @@ def test_issuer_alias_cases() -> None:
     sample_76830_yoy = canonicalize_element_label(sample_76830_yoy, "yoy_index")
     if sample_76830_yoy != "内アパレル 全店 売上高(前年比)":
         _fail(f"76830 内 MM 全店 売上高(前年比): {sample_76830_yoy!r}")
+
+    # 71340: 壊れた ・ FC ラベル → 直営+FC（Lane B / 既存格納・再ingest）。
+    for incoming, stored, unit in (
+        ("・ FC 全店 売上高", "直営+FC 全店 売上高", "number"),
+        ("・ FC(前年比)", "直営+FC 全店 売上高(前年比)", "yoy_index"),
+        ("・ FC 全店(前年比)", "直営+FC 全店 売上高(前年比)", "yoy_index"),
+        ("・ FC 全店 売上高(前年比)", "直営+FC 全店 売上高(前年比)", "yoy_index"),
+    ):
+        got = apply_issuer_aliases(
+            "71340", canonicalize_element_label(incoming, unit), year=2099,
+        )
+        if got != stored:
+            _fail(f"71340 year=2099 {incoming!r}: {got!r}, want {stored!r}")
 
     # 38170: 株式会社SRA/AIT → 短名（year=2026）。短名からは戻さない。
     for incoming, stored in (

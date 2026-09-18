@@ -263,6 +263,8 @@ def _unglue_element(text: str) -> str:
     s = _FY_NENDO_RE.sub(" ", s)
     s = re.sub(r"[（(]※[）)]", "", s)
     s = s.replace("※", "")
+    for both in ("直営・ＦＣ", "直営･ＦＣ", "直営・FC", "直営･FC"):
+        s = s.replace(both, "直営+FC")
     s = s.replace("直営+FC", f" {_CHAN_BOTH_MARK} ").replace(
         "直営＋FC", f" {_CHAN_BOTH_MARK} ",
     )
