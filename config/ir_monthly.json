@@ -119,7 +119,8 @@
       "code": "3148",
       "name": "クリエイトＳＤホールディングス",
       "index_url": "https://www.createsdhd.co.jp/ir/monthly/",
-      "title": "月次"
+      "title": "月次",
+      "force_unit": "yoy_index"
     },
     {
       "code": "3196",

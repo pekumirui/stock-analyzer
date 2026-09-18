@@ -360,7 +360,12 @@ def test_load_html_registry() -> None:
     if nitori.table is not None:
         _fail(f"9843 table {nitori.table}")
     forced = {i.code: i.force_unit for i in live if i.force_unit}
-    if forced != {"2769": "yoy_index", "8281": "yoy_index", "9994": "yoy_index"}:
+    if forced != {
+        "2769": "yoy_index",
+        "3148": "yoy_index",
+        "8281": "yoy_index",
+        "9994": "yoy_index",
+    }:
         _fail(f"force_unit {forced}")
 
 
@@ -429,6 +434,42 @@ def test_force_unit_overrides_yoy_keeps_number() -> None:
     stores = _row(got, "店舗数")
     if stores["unit"] != "number" or stores["values"].get("5") != 11:
         _fail(f"number row must stay number {stores}")
+
+
+CREATE_SD_NOBIRITSU_HTML = """
+<html><body>
+<h2>2027年5月期（FYE May 2027）</h2>
+<p>売上伸び率（単位：％） Year-on-year change in sales(%)</p>
+<table>
+<tr><td></td><td>6月</td><td>7月</td><td>8月</td></tr>
+<tr><td>既存店 Existing stores 単月 Monthly</td><td>100.0</td><td>103.7</td><td>101.8</td></tr>
+<tr><td>全店 All stores 単月 Monthly</td><td>103.6</td><td>107.1</td><td>105.5</td></tr>
+</table>
+</body></html>
+"""
+
+
+def test_create_sd_nobiritsu_force_yoy_index() -> None:
+    """3148: 見出しは伸び率だがセルは100基準。force_unit で yoy_index のまま。"""
+    bare = html_to_ingest(CREATE_SD_NOBIRITSU_HTML, "3148")
+    bare_exist = _row(bare, "既存店 Existing stores 単月 Monthly")
+    if bare_exist["unit"] != "yoy_pct" or bare_exist["values"].get("7") != 103.7:
+        _fail(f"伸び率 heading must infer yoy_pct as-is {bare_exist}")
+    live = load_html_registry(ROOT / "config" / "ir_monthly.json")
+    iss = next(i for i in live if i.code == "3148")
+    if iss.force_unit != "yoy_index":
+        _fail(f"3148 force_unit {iss.force_unit}")
+    got = html_to_ingest(
+        CREATE_SD_NOBIRITSU_HTML, iss.code, table=iss.table, force_unit=iss.force_unit
+    )
+    exist = _row(got, "既存店 Existing stores 単月 Monthly")
+    if exist["unit"] != "yoy_index":
+        _fail(f"3148 must emit yoy_index {exist}")
+    if exist["values"].get("7") != 103.7:
+        _fail(f"3148 value must stay 103.7 not +100 {exist}")
+    all_store = _row(got, "全店 All stores 単月 Monthly")
+    if all_store["unit"] != "yoy_index" or all_store["values"].get("7") != 107.1:
+        _fail(f"3148 all store {all_store}")
 
 
 NITORI_HTML = """
@@ -1964,6 +2005,7 @@ def main() -> None:
     test_section_unit_percent_is_yoy_index()
     test_trailing_unit_percent_is_yoy_index()
     test_force_unit_overrides_yoy_keeps_number()
+    test_create_sd_nobiritsu_force_yoy_index()
     test_load_html_registry()
     test_dumps_matches_ingest_shape()
     test_mos_skips_half_year_total()
