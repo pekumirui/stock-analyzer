@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -17,6 +18,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.api import ApiError, _parse_code  # noqa: E402
 from app.main import app  # noqa: E402
 from app.monthly_ingest import (  # noqa: E402
+    MONTHLY_DISPLAY_UNITS,
     MonthlyIngestError,
     apply_issuer_aliases,
     canonicalize_element_label,
@@ -106,7 +108,7 @@ def _ensure_stock(code: str, name: str | None = None) -> None:
 
 
 def main() -> None:
-    # display is index 100=flat (not +X.X% / ▲). unused third arg: value+unit only.
+    # display is index 100=flat (not +X.X% / ▲). number rows may append a known unit.
     if format_monthly_cell(None, "yoy_index") != "-":
         _fail("empty cell")
     if format_monthly_cell(105.2, "yoy_index") != "105.2":
@@ -123,6 +125,24 @@ def main() -> None:
         _fail("empty number")
     if format_monthly_cell(0, "number") != "0":
         _fail(f"zero number: {format_monthly_cell(0, 'number')!r}")
+    if format_monthly_cell(29296.646549, "number", "受注高") != "29297百万円":
+        _fail(f"受注高 display: {format_monthly_cell(29296.646549, 'number', '受注高')!r}")
+    if format_monthly_cell(97.48, "number", "家賃ベース入居率") != "97.48%":
+        _fail(f"入居率 display: {format_monthly_cell(97.48, 'number', '家賃ベース入居率')!r}")
+    if format_monthly_cell(97.48, "number", "家賃ベース入居率 事業用") != "97.48%":
+        _fail("入居率 事業用 must use the same % spec")
+    if format_monthly_cell(1.2640801936119992, "number", "空室在庫") != "1.26カ月":
+        _fail(f"空室在庫 display: {format_monthly_cell(1.2640801936119992, 'number', '空室在庫')!r}")
+    if format_monthly_cell(30470.0, "number", "空室数 既存") != "30470戸":
+        _fail(f"空室数 既存 display: {format_monthly_cell(30470.0, 'number', '空室数 既存')!r}")
+    if format_monthly_cell(2884.77, "number", "営業人員数") != "2885人":
+        _fail(f"営業人員数 display: {format_monthly_cell(2884.77, 'number', '営業人員数')!r}")
+    if format_monthly_cell(1326.1196840995988, "number", "1人当たり受注高") != "1326万円":
+        _fail(f"1人当たり受注高 display: {format_monthly_cell(1326.1196840995988, 'number', '1人当たり受注高')!r}")
+    if format_monthly_cell(125.8, "yoy_index", "受注高") != "125.8":
+        _fail("yoy_index must ignore display units")
+    if format_monthly_cell(303, "number", "店舗数") != "303":
+        _fail("unknown number rows stay stored")
     try:
         parse_monthly_unit("percent")
     except MonthlyIngestError as exc:
@@ -139,6 +159,18 @@ def main() -> None:
         _fail("index.html missing fmtMonthlyCell")
     if "function fmtMonthlyCell" not in html:
         _fail("index.html missing fmtMonthlyCell function")
+    if "function monthlyDisplayUnit" not in html:
+        _fail("index.html missing monthlyDisplayUnit")
+    if "fmtMonthlyCell(v, unit, e.element)" not in html:
+        _fail("year table cells must pass element into fmtMonthlyCell")
+    js_fn = html.find("function monthlyDisplayUnit")
+    js_end = html.find("function fmtMonthlyCell")
+    if js_fn < 0 or js_end <= js_fn:
+        _fail("monthlyDisplayUnit / fmtMonthlyCell bounds")
+    js_rows = re.findall(r'\["([^"]+)", "([^"]+)", (\d+)\]', html[js_fn:js_end])
+    py_rows = [(token, suffix, str(digits)) for token, suffix, digits in MONTHLY_DISPLAY_UNITS]
+    if js_rows != py_rows:
+        _fail(f"JS/Python display units drifted: {js_rows} vs {py_rows}")
     cell_fn = html.find("function fmtMonthlyCell")
     if cell_fn < 0:
         _fail("fmtMonthlyCell bounds")

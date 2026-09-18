@@ -10,7 +10,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT))
 
-from app.monthly_ingest import canonicalize_element_label, plan_column_years  # noqa: E402
+from app.monthly_ingest import (  # noqa: E402
+    canonicalize_element_label,
+    format_monthly_cell,
+    plan_column_years,
+)
 from ir_monthly_xls_ingest import (  # noqa: E402
     COLUMNS,
     as_of_from_url,
@@ -250,6 +254,12 @@ def test_fixture_spots() -> None:
         _fail(f"2026-08 受注高 {orders[-1]}")
     if occ[-1] != 97.85:
         _fail(f"2026-08 入居率 {occ[-1]}")
+    if format_monthly_cell(orders[3], "number", "受注高") != "29297百万円":
+        _fail("display 2024-04 受注高")
+    if format_monthly_cell(occ[19], "number", "家賃ベース入居率") != "97.48%":
+        _fail("display 2025-08 入居率")
+    if format_monthly_cell(orders[-1], "number", "受注高") != "35646百万円":
+        _fail("display 2026-08 受注高")
     from_xls = ingest_from_xls(FIXTURE, as_of=date(2026, 9, 2), from_year=2024)
     if from_xls["rows"][2]["values"][3] != 29296.646549:
         _fail("ingest_from_xls must match grid path")

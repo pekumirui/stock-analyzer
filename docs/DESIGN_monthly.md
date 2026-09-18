@@ -38,6 +38,7 @@ ingest の列割り当てと暦年は `DESIGN.md` §3。
 | 店舗数 | 名前に `店舗数` を含み、unit が `number`。純増/新設/改装/業態転換は除く |
 
 最新セルは値のある最大の `(year, month)`。無いときは空。表示の 100=フラットは保存の `yoy_index` のまま。
+年表の number セルは、表示単位がある指標だけ四捨五入して末尾に単位（`fmtMonthlyCell`）。JSON は保存値。
 その年に値が1つも無い行は年表に出さない。系列セレクトは年をまたいだ行を残す。
 
 **行名。** 保存と正規化の正本は [`DESIGN_monthly_labels.md`](DESIGN_monthly_labels.md)。画面の行キーは `fmtMonthlyElement`。

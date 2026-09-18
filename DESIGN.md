@@ -170,7 +170,8 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
 | `yoy_pct` | ▲/△ 付き変化率、または見出しの 増減比/伸び率 | `yoy_index`、`value+100`（-7.1 → 92.9） |
 | `number` | 店舗数など件数 | `number` のまま |
 
-表の表示は保存値のまま（指数 100=フラット）。▲ や +X.X% にはしない。
+前年比の表の表示は保存値のまま（指数 100=フラット）。▲ や +X.X% にはしない。
+number で表示単位がある指標は四捨五入して末尾に単位を付ける。対応は [`docs/DESIGN_monthly_labels.md`](docs/DESIGN_monthly_labels.md)。GET の JSON は保存値のまま。
 
 **行名。** 正本は [`docs/DESIGN_monthly_labels.md`](docs/DESIGN_monthly_labels.md)。
 ingest / POST は `canonicalize_element_label` してから既存行を探す。GET は保存名。SPA は `fmtMonthlyElement`。

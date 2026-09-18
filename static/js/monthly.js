@@ -632,7 +632,7 @@ async function loadMonthlyTables(){
       h += `<tr${ds}><td class="l">${fmtMonthlyElement(e.element, unit)}</td>`;
       for(let m=1;m<=12;m++){
         const v = vals[String(m)];
-        const txt = fmtMonthlyCell(v, unit);
+        const txt = fmtMonthlyCell(v, unit, e.element);
         if(txt) maxNumLen = Math.max(maxNumLen, txt.length);
         h += `<td class="num">${txt}</td>`;
       }
@@ -786,11 +786,38 @@ window.addEventListener("resize", () => {
   if(monthlyYearTables.length) drawMonthlyChart(monthlyYearTables, monthlySeries);
 });
 
-function fmtMonthlyCell(v, unit){
+function monthlyDisplayUnit(element, unit){
+  if((unit || "number") !== "number") return null;
+  const name = String(element || "");
+  const rows = [
+    ["1人当たり受注高", "万円", 0],
+    ["新規受注高", "百万円", 0],
+    ["キャンセル額", "百万円", 0],
+    ["家賃ベース入居率", "%", 2],
+    ["入居者斡旋件数", "件", 0],
+    ["営業人員数", "人", 0],
+    ["空室在庫", "カ月", 2],
+    ["空室数", "戸", 0],
+    ["受注高", "百万円", 0],
+  ];
+  for(const [token, suffix, digits] of rows){
+    if(name.includes(token)) return {suffix, digits};
+  }
+  return null;
+}
+
+function fmtMonthlyCell(v, unit, element){
   if(v==null || v==="") return "-";
   const n = Number(v);
   if(!Number.isFinite(n)) return "-";
-  return n.toLocaleString("ja-JP",{maximumFractionDigits:4});
+  const spec = monthlyDisplayUnit(element, unit);
+  if(!spec){
+    return n.toLocaleString("ja-JP",{maximumFractionDigits:4});
+  }
+  const p = 10 ** spec.digits;
+  const rounded = Math.round(n * p) / p;
+  const num = rounded.toLocaleString("ja-JP", {maximumFractionDigits: spec.digits});
+  return num + spec.suffix;
 }
 
 function stripYoyFragments(name){

@@ -803,6 +803,10 @@ def test_unit_display_and_ingest() -> None:
         _fail(f"number display: {format_monthly_cell(303, 'number')!r}")
     if format_monthly_cell(None, "number") != "-":
         _fail("empty cell")
+    if format_monthly_cell(29296.646549, "number", "受注高") != "29297百万円":
+        _fail(f"受注高 display: {format_monthly_cell(29296.646549, 'number', '受注高')!r}")
+    if format_monthly_cell(125.8, "yoy_index", "受注高") != "125.8":
+        _fail("yoy_index must ignore display units")
     try:
         parse_monthly_unit("percent")
     except MonthlyIngestError as exc:
