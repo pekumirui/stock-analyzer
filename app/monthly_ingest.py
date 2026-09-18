@@ -95,7 +95,7 @@ def canonicalize_element_label(element: str, unit: str | None) -> str:
     return f"{base}{_YOY_SUFFIX}"
 
 
-# [国] [セグメント] [チャネル] [スコープ] [指標]。無いトークンは出さない。
+# [国] [セグメント] [チャネル] [スコープ] [指標] [内訳]。無いトークンは出さない。
 _UNGLUE: tuple[tuple[str, str], ...] = (
     ("単月Monthly", "単月 Monthly"),
     ("既存直営店", "直営 既存"),
@@ -207,6 +207,15 @@ _SCOPE_CANON = {
     "全社": "全社",
 }
 _METRIC_FILL_ALL = frozenset({"売上高", "客数", "客単価"})
+_BREAKDOWN_CANON = {
+    "ドラッグ": "ドラッグ",
+    "ドラッグ店舗": "ドラッグ",
+    "調剤": "調剤",
+    "調剤店舗": "調剤",
+    "物販": "物販",
+}
+_BREAKDOWN_MARKS = frozenset({"内)", "（内", "うち"})
+_BREAKDOWN_RANK = {"": 0, "ドラッグ": 1, "調剤": 2, "物販": 3}
 _STORE_FLOW_CANON = {
     "出店": "出店", "出店数": "出店",
     "開店": "出店", "開店数": "出店",
@@ -363,8 +372,45 @@ def _is_store_adj(element: str, segment: str = "") -> bool:
     return any(mark in blob for mark in _STORE_ADJ_MARKS)
 
 
+def _token_breakdown(tok: str) -> str:
+    """売上高の内訳語。内)/（内/うち と 店舗 を剥がしてから照合する。"""
+    t = tok
+    for mark in ("内)", "（内", "うち"):
+        if t.startswith(mark):
+            t = t[len(mark):]
+    t = t.replace("）", "").replace(")", "").replace("（", "").replace("(", "").strip()
+    if t in _BREAKDOWN_CANON:
+        return _BREAKDOWN_CANON[t]
+    if t.endswith("店舗") and t[:-2] in _BREAKDOWN_CANON:
+        return _BREAKDOWN_CANON[t[:-2]]
+    return ""
+
+
+def _peel_breakdown(leftover: list[str], metric: str) -> tuple[list[str], str]:
+    """売上高の leftover 末尾/内) を内訳へ。調剤事業や内アパレルは残す。"""
+    if metric != "売上高":
+        return leftover, ""
+    kept: list[str] = []
+    breakdown = ""
+    for tok in leftover:
+        if tok in _BREAKDOWN_MARKS:
+            continue
+        bd = _token_breakdown(tok)
+        if bd:
+            breakdown = bd
+            continue
+        kept.append(tok)
+    while kept:
+        bd = _token_breakdown(kept[-1])
+        if not bd:
+            break
+        breakdown = bd
+        kept.pop()
+    return kept, breakdown
+
+
 def parse_element_layers(element: str) -> dict[str, str]:
-    """国 / セグメント / 時間軸 / チャネル / スコープ / 指標。正規化前の名前でも読む。"""
+    """国 / セグメント / 時間軸 / チャネル / スコープ / 指標 / 内訳。正規化前の名前でも読む。"""
     country = ""
     channel = ""
     scope = ""
@@ -423,6 +469,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
         leftover = [tok for tok in leftover if tok != "（内"]
     if not scope and metric in _METRIC_FILL_ALL:
         scope = "全店"
+    leftover, breakdown = _peel_breakdown(leftover, metric)
     return {
         "country": country,
         "segment": " ".join(leftover),
@@ -430,11 +477,12 @@ def parse_element_layers(element: str) -> dict[str, str]:
         "channel": channel,
         "scope": scope,
         "metric": metric,
+        "breakdown": breakdown,
     }
 
 
 def normalize_element_tokens(element: str, *, fill_default_metric: bool = False) -> str:
-    """空白区切り [国] [セグメント] [単月?] [チャネル] [スコープ] [指標]。"""
+    """空白区切り [国] [セグメント] [単月?] [チャネル] [スコープ] [指標] [内訳]。"""
     trimmed = re.sub(r"\s+", " ", element.strip())
     if not trimmed:
         return trimmed
@@ -449,9 +497,12 @@ def normalize_element_tokens(element: str, *, fill_default_metric: bool = False)
     ):
         parts["metric"] = "売上高"
         parts["time_axis"] = ""
+        leftover, breakdown = _peel_breakdown(parts["segment"].split(), "売上高")
+        parts["segment"] = " ".join(leftover)
+        parts["breakdown"] = breakdown
     ordered = [
         parts["country"], parts["segment"], parts["time_axis"], parts["channel"],
-        parts["scope"], parts["metric"],
+        parts["scope"], parts["metric"], parts["breakdown"],
     ]
     built = " ".join(p for p in ordered if p)
     return built or trimmed
@@ -694,6 +745,8 @@ def monthly_series_kind(element: str, unit: str | None) -> str | None:
         return "stores"
     if u not in _YOY_UNITS:
         return None
+    if _layers_of(element)["breakdown"]:
+        return None
     if "既存" in key:
         return "existing"
     if "全店" in key or "全社" in key:
@@ -774,6 +827,12 @@ def monthly_row_slot(element: str, unit: str | None) -> int:
     """指標枠。1売上高 2客数 3客単価 4出店 5退店 6純増/新設/改装/業態転換 7店舗数 8その他。"""
     _ = unit
     return _METRIC_RANK[_row_metric(element)]
+
+
+def monthly_row_breakdown_rank(element: str) -> int:
+    """売上高の親が先。内訳は ドラッグ → 調剤 → 物販。"""
+    bd = _layers_of(element)["breakdown"]
+    return _BREAKDOWN_RANK.get(bd, 4)
 
 
 def monthly_row_scope_rank(element: str) -> int:
@@ -862,6 +921,7 @@ def union_monthly_elements(
                 "scope": monthly_row_scope_rank(display),
                 "channel": _row_channel_rank(display),
                 "slot": monthly_row_slot(display, unit),
+                "bd": monthly_row_breakdown_rank(display),
                 "idx": len(items),
             })
 
@@ -879,6 +939,7 @@ def union_monthly_elements(
         it["scope"],
         it["channel"],
         it["slot"],
+        it["bd"],
         it["idx"],
     ))
     return [{"element": it["element"], "unit": it["unit"]} for it in items]

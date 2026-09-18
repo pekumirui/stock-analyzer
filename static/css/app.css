@@ -200,6 +200,11 @@
   table.monthly.monthly-gated td.monthly-stub-ch { left:0; }
   table.monthly.monthly-gated td.monthly-stub-sc { left:var(--stub-ch); }
   table.monthly.monthly-gated td.monthly-stub-leaf { left:calc(var(--stub-ch) + var(--stub-sc)); }
+  table.monthly.monthly-gated td.monthly-stub-leaf.monthly-bd {
+    padding-left:1.25em;
+    font-size:12px;
+    font-weight:600;
+  }
   table.monthly thead th.l,
   table.monthly thead th:first-child,
   table.monthly thead th.year {

@@ -22,7 +22,11 @@ from app.monthly_ingest import (  # noqa: E402
     canonicalize_element_label,
     format_monthly_cell,
     map_pdf_columns,
+    monthly_row_breakdown_rank,
+    monthly_row_segment,
+    monthly_series_kind,
     parse_as_of,
+    parse_element_layers,
     parse_monthly_unit,
     plan_column_years,
     plan_issuer_alias_cases,
@@ -30,6 +34,7 @@ from app.monthly_ingest import (  # noqa: E402
     reject_prior_period_element,
     resolve_fy_end_month,
     same_yoy_element,
+    union_monthly_elements,
 )
 
 GIFT_MONTHS = [11, 12, 1, 2, 3, 4, 5, 6, 7]
@@ -274,6 +279,61 @@ def test_canonicalize_element_label() -> None:
     twice = canonicalize_element_label("焼肉 直営+FC 既存 売上高(前年比)", "yoy_index")
     if twice != "焼肉 直営+FC 既存 売上高(前年比)":
         _fail("canonicalize idempotent")
+    if canonicalize_element_label("全店 内)ドラッグ店舗", "yoy_index") != "全店 売上高 ドラッグ(前年比)":
+        _fail("内)ドラッグ店舗 peels to 内訳")
+    if canonicalize_element_label("MKG ドラッグ 全店 売上高(前年比)", "yoy_index") != "MKG 全店 売上高 ドラッグ(前年比)":
+        _fail("leftover ドラッグ moves after 売上高")
+    if canonicalize_element_label("MKG 全店 売上高 ドラッグ(前年比)", "yoy_index") != "MKG 全店 売上高 ドラッグ(前年比)":
+        _fail("内訳 canonicalize is idempotent")
+    if canonicalize_element_label("（内 物販） 既存 売上高(前年比)", "yoy_index") != "既存 売上高 物販(前年比)":
+        _fail("（内 物販） peels to 内訳")
+    if canonicalize_element_label("内)調剤店舗 全店 売上高", "number") != "全店 売上高 調剤":
+        _fail("内)調剤店舗 peels to 内訳")
+    if canonicalize_element_label("調剤事業 全店 売上高(前年比)", "yoy_index") != "調剤事業 全店 売上高(前年比)":
+        _fail("調剤事業 stays a segment")
+    if canonicalize_element_label("内アパレル 全店 売上高(前年比)", "yoy_index") != "内アパレル 全店 売上高(前年比)":
+        _fail("内アパレル stays a segment")
+    if canonicalize_element_label("内 MM 全店 売上高", "number") != "内 MM 全店 売上高":
+        _fail("内 MM stays leftover, not 内訳")
+    if canonicalize_element_label("店舗状況 （内 出店", "number") != "出店":
+        _fail("（内 出店 stays flow, not 内訳")
+    layers = parse_element_layers("MKG ドラッグ 全店 売上高")
+    if layers["segment"] != "MKG" or layers["breakdown"] != "ドラッグ" or layers["metric"] != "売上高":
+        _fail(f"parse 内訳 layers: {layers!r}")
+    if monthly_row_segment("MKG 全店 売上高 ドラッグ(前年比)") != "MKG":
+        _fail("gate leftover stays MKG after 内訳 peel")
+    if monthly_row_breakdown_rank("MKG 全店 売上高(前年比)") != 0:
+        _fail("parent 売上高 bd rank 0")
+    if monthly_row_breakdown_rank("MKG 全店 売上高 ドラッグ(前年比)") != 1:
+        _fail("ドラッグ bd rank 1")
+    if monthly_row_breakdown_rank("MKG 全店 売上高 調剤(前年比)") != 2:
+        _fail("調剤 bd rank 2")
+    if monthly_row_breakdown_rank("既存 売上高 物販(前年比)") != 3:
+        _fail("物販 bd rank 3")
+    if monthly_series_kind("全店 売上高 ドラッグ(前年比)", "yoy_index") is not None:
+        _fail("会社 ドラッグ must not be TOP 全店")
+    if monthly_series_kind("MKG 全店 売上高 ドラッグ(前年比)", "yoy_index") is not None:
+        _fail("ブランド 内訳 is not a series")
+    if monthly_series_kind("MKG 全店 売上高(前年比)", "yoy_index") != "all_store":
+        _fail("ブランド 売上高 parent stays all_store")
+    bd_order = [row["element"] for row in union_monthly_elements([{
+        "year": 2026,
+        "elements": [
+            {"element": "MKG 全店 売上高 調剤(前年比)", "unit": "yoy_index"},
+            {"element": "MKG 全店 売上高 物販(前年比)", "unit": "yoy_index"},
+            {"element": "MKG ドラッグ 全店 売上高(前年比)", "unit": "yoy_index"},
+            {"element": "MKG 全店 売上高(前年比)", "unit": "yoy_index"},
+            {"element": "MKG 既存 売上高(前年比)", "unit": "yoy_index"},
+        ],
+    }])]
+    if bd_order != [
+        "MKG 全店 売上高(前年比)",
+        "MKG 全店 売上高 ドラッグ(前年比)",
+        "MKG 全店 売上高 調剤(前年比)",
+        "MKG 全店 売上高 物販(前年比)",
+        "MKG 既存 売上高(前年比)",
+    ]:
+        _fail(f"売上高 内訳 order: {bd_order!r}")
     if not same_yoy_element("売上高", "yoy_index", "全店 売上高(前年比)", "yoy_index"):
         _fail("short yoy name matches canonical")
     if not same_yoy_element("カラオケ全店 売上高", "yoy_index", "カラオケ 全店 売上高(前年比)", "yoy_index"):

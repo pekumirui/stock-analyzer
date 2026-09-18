@@ -100,6 +100,10 @@ def test_series_kind() -> None:
         _fail("閉鎖 店舗数 is not stores")
     if monthly_series_kind("売上高(前年比)", "yoy_index") is not None:
         _fail("generic yoy is not mapped")
+    if monthly_series_kind("全店 売上高 ドラッグ(前年比)", "yoy_index") is not None:
+        _fail("売上高 内訳 is not all_store")
+    if monthly_series_kind("MKG 全店 売上高 調剤(前年比)", "yoy_index") is not None:
+        _fail("brand 内訳 is not a series")
 
 
 def test_put_and_list() -> None:
