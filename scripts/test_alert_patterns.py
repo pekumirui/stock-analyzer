@@ -25,14 +25,12 @@ PAGE: tuple[tuple[str, str], ...] = (
     ("app", 'INFO:     127.0.0.1:43721 - "GET /api/screener HTTP/1.1" 500 Internal Server Error'),
     ("app", "ERROR: Error loading ASGI app. Could not import module \"app.main\"."),
     ("app", "SchemaMismatch: stocks missing column"),
-    ("batch", "fail POST 7203 status=500 boom"),
     ("batch", "fail cron scripts/run_batch.py exit=1"),
     ("batch", "fail cron cwd exit=1"),
     ("batch", "tdnet_monthly_r2 done listed=10 saved=1 skipped=0 failed=3"),
     ("batch", "tdnet_monthly_r2 done listed=10 saved=1 skipped=0 failed=10"),
     ("batch", "parse processed=3 errors=2 skipped=0"),
     ("batch", "parse processed=3 errors=10 skipped=0"),
-    ("batch", "Traceback (most recent call last):"),
     ("batch", "リトライ上限に達しました: /v2/equities/bars/daily"),
     ("batch", "JQUANTS_API_KEY が未設定です。"),
     ("batch", "warn list truncated for 2026-08-05: next_flag=1"),
@@ -65,6 +63,9 @@ NOT_PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "saved xbrl/3032/foo.zip (12 bytes) unknown-stock"),
     ("batch", "tdnet_monthly_r2 done listed=10 saved=1 skipped=9 failed=0"),
     ("batch", "parse processed=3 errors=0 skipped=1"),
+    ("batch", "fail POST 7203 status=500 boom"),
+    ("batch", "fail issuer 1878 fetch: HTTP Error 403: Forbidden"),
+    ("batch", "Traceback (most recent call last):"),
     ("app", 'INFO:     127.0.0.1:43721 - "GET / HTTP/1.1" 200 OK'),
     ("app", 'INFO:     127.0.0.1:43721 - "GET /api/v1/tables/7203/2024 HTTP/1.1" 404 Not Found'),
     ("app", "INFO:     Started server process [12345]"),
@@ -145,6 +146,26 @@ def test_conf_has_registry_regexes() -> None:
                 break
         if not found:
             _fail(f"fluent-bit.conf missing Grep regex for {pattern.source}: {pattern.regex!r}")
+    for block in greps:
+        match = block["match"]
+        if match not in GREP_FIELD:
+            continue
+        field = GREP_FIELD[match]
+        lines = block["lines"]
+        assert isinstance(lines, list)
+        for line in lines:
+            assert isinstance(line, str)
+            if not line.lower().startswith("regex"):
+                continue
+            owned = False
+            for pattern in ALERT_PATTERNS:
+                if pattern.source != match:
+                    continue
+                if field in line and pattern.regex in line:
+                    owned = True
+                    break
+            if not owned:
+                _fail(f"fluent-bit.conf extra Grep regex for {match}: {line!r}")
     if "Webhook ${SLACK_WEBHOOK_URL}" in conf:
         _fail("fluent-bit.conf must not use the slack output plugin")
     if "Name         http" not in conf:
