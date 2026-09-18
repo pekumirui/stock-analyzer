@@ -20,7 +20,7 @@
 - Python は `.venv\Scripts\python.exe`（Windows）/ `.venv/bin/python`（Linux）。システムの python で依存を入れない
 - Cursor Cloud Agent は `.cursor/install.sh` が `.venv` / `pdftotext` / `rclone` と `stock.db`（2 年分 + 本番の `monthly_*`）を用意し、`start`（`.cursor/start-web.sh`）が 8000 で SPA を配信する。UI 検証も 8000（`.cursor/skills/verify-stock-analyzer/`）。8000 を止めない・`reset` しない
 - Cloud Agent から VPS シェルが要るときは Secrets に `VPS_SSH_KEY`（デプロイ秘密鍵）。`install.sh` → `.cursor/setup-vps-ssh.sh` が `ssh stock-vps` を用意する。ログ・月次 API は MCP。任意シェルを MCP に足さない。手順は `deploy/README.md`「Cursor Cloud Agent から VPS を触る」
-- pip 依存・フレームワーク・service / repository / DTO・銘柄 Parser クラスは足さない。ドメインの塊はファイルを足してよい。足したら下の表を更新する。巨大ファイルの分割はレイヤ追加ではない
+- service / repository / DTO・銘柄 Parser クラスは足さない。ドメインの塊はファイルを足してよい。足したら下の表を更新する。巨大ファイルの分割はレイヤ追加ではない
 
 ## モジュール分担
 
