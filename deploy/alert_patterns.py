@@ -20,11 +20,10 @@ ALERT_PATTERNS: tuple[AlertPattern, ...] = (
     AlertPattern("app", "access_5xx", r" 5[0-9][0-9] "),
     AlertPattern("app", "startup", r"ERROR: Error loading ASGI app"),
     AlertPattern("app", "fail", r"SchemaMismatch"),
-    AlertPattern("batch", "fail", r"^fail "),
+    # job wrapper (cron-run.sh); per-item "fail …" lines stay in batch.log
     AlertPattern("batch", "cron_exit", r"^fail cron "),
     AlertPattern("batch", "summary", r"failed=0*[1-9][0-9]*"),
     AlertPattern("batch", "summary", r"errors=0*[1-9][0-9]*"),
-    AlertPattern("batch", "traceback", r"Traceback"),
     AlertPattern("batch", "jquants", r"リトライ上限"),
     AlertPattern("batch", "jquants", r"JQUANTS_API_KEY が未設定"),
     AlertPattern("batch", "xbrl", r"list truncated"),

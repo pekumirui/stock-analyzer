@@ -111,7 +111,7 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 アプリ・バッチ・MCP のファイルログは `/var/log/app/`（`stock-analyzer.log` / `batch.log` / `mcp.log`）。journal も残る。
 14 日で logrotate（copytruncate）。nginx は従来どおり `/var/log/nginx/`。ローカルのバッチはアプリディレクトリの `batch.log`。
 
-fluent-bit は live ファイルだけを tail する（`/var/log/app/stock-analyzer.log` / `batch.log` / `mcp.log`、`/var/log/nginx/error.log`）。systemd は `stock-analyzer.service` と `stock-analyzer-mcp.service` の `Failed with result` / `Main process exited`。access.log と `html_ingest_ledger.json` と rotate 済みの `.1` / `.gz` は見ない。Webhook が無いときはユニットを enable するだけで start しない。Slack は公式 slack 出力ではなく http + `fluent-bit_slack.lua`（JST と `#E01E5A` の赤帯）。URI は `slack.env` の `SLACK_WEBHOOK_URI`。アプリにログ API は足さない。
+fluent-bit は live ファイルだけを tail する（`/var/log/app/stock-analyzer.log` / `batch.log` / `mcp.log`、`/var/log/nginx/error.log`）。systemd は `stock-analyzer.service` と `stock-analyzer-mcp.service` の `Failed with result` / `Main process exited`。access.log と `html_ingest_ledger.json` と rotate 済みの `.1` / `.gz` は見ない。batch はジョブ単位の `fail cron` と非ゼロの `failed=` と `errors=` を page する。行単位の `fail ` と batch の Traceback は page しない。Webhook が無いときはユニットを enable するだけで start しない。Slack は公式 slack 出力ではなく http + `fluent-bit_slack.lua`（JST と `#E01E5A` の赤帯）。URI は `slack.env` の `SLACK_WEBHOOK_URI`。アプリにログ API は足さない。
 
 Grok への繋ぎ方（カスタムコネクタは OAuth 前提）:
 
