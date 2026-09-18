@@ -57,6 +57,8 @@
 - rename のみ。DELETE は載せない
 - 旧 PDF 名の再 ingest でも寄せ続けたい場合は `until` を遠くする（例: 138A0 / KPI の `2099-12-31`）
 - 例: 141A0 は 2025-08-01 未満の旧名をトライアル付きへ
+- 30380: canonicalize 後も残る `総 店舗数` → `店舗数`。`総店舗数` は canonicalize だけで `店舗数` になるので alias に載せない
+- 73700: `売上高` → `グループ売上高`。`PR事業 成約高前年同期比(前年比)` → `PR事業 成約高(前年比)`
 - `scripts/test_monthly_ingest.py` に銘柄分岐は足さない。テストは `plan_issuer_alias_cases` が JSON から生成する
 
 ## 拒否
