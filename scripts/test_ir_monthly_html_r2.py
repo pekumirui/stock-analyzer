@@ -1377,6 +1377,9 @@ def test_watami_sections_prefix_and_count_units() -> None:
         _fail(f"watami convert {convert}")
     if _watami_stored(sales["element"], sales["unit"]) != "国内外食 全店 売上高(前年比)":
         _fail(f"alias 全業態 {_watami_stored(sales['element'], sales['unit'])}")
+    stores_all = _row(got, "全店 (全業態) 期末店舗数", unit="number")
+    if _watami_stored(stores_all["element"], stores_all["unit"]) != "国内外食 全店 店舗数":
+        _fail(f"alias 全業態 店舗数 {_watami_stored(stores_all['element'], stores_all['unit'])}")
     ex = _row(got, "国内外食 （サブウェイ事業除く） 既存店 売上高（%）")
     if _watami_stored(ex["element"], ex["unit"]) != "国内外食 サブウェイ除く 既存 売上高(前年比)":
         _fail(f"alias 除く {_watami_stored(ex['element'], ex['unit'])}")
@@ -1405,6 +1408,14 @@ def test_watami_canonicalize_aliases() -> None:
             "国内外食 サブウェイ除く 既存 売上高(前年比)",
         ),
         ("既存店 売上高前年比（%）", "yoy_index", "国内外食 サブウェイ除く 既存 売上高(前年比)"),
+        ("全店 (全業態) 期末店舗数", "number", "国内外食 全店 店舗数"),
+        (
+            "国内外食 （サブウェイ事業除く） 全店 期末店舗数",
+            "number",
+            "国内外食 サブウェイ除く 全店 店舗数",
+        ),
+        ("サブウェイ 全店 期末店舗数", "number", "国内外食 サブウェイ 全店 店舗数"),
+        ("全店合計 店舗数合計", "number", "国内外食 サブウェイ除く 全店 店舗数"),
         (
             "拠点数 調理済み商品お届け数(※)（千食）",
             "number",
