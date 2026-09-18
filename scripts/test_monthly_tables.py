@@ -1588,6 +1588,14 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("gated tables must emit channel/scope/leaf stub columns")
     if "colspan=\"3\"" not in html and "colspan='3'" not in html:
         _fail("gated year header must span the three stub columns")
+    if '<tr class="monthly-sec"><td class="monthly-sec-label" colspan="3">' not in html:
+        _fail("section row label must span only the three stub columns so the month grid continues")
+    if "monthly-sec-label" not in html:
+        _fail("section label cell must use monthly-sec-label (not bare :first-child)")
+    if "monthly-sec-month" not in html:
+        _fail("section row must emit monthly-sec-month cells with 1月…12月")
+    if 'colspan="15"' in html:
+        _fail("section row must not be one full-width cell (it cannot stick and it breaks the month grid)")
     gate_fn = html.find("function monthlySegmentGate")
     gate_end = html.find("function monthlyStubChannelText")
     if gate_fn < 0 or gate_end <= gate_fn:

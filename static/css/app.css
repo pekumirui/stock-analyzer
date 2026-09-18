@@ -179,31 +179,27 @@
     background:var(--panel);
   }
   table.monthly td:first-child { font-weight:700; }
-  table.monthly.monthly-gated col.monthly-stub-ch { width:4.5em; min-width:4.5em; }
-  table.monthly.monthly-gated col.monthly-stub-sc { width:3.5em; min-width:3.5em; }
-  table.monthly.monthly-gated col.monthly-stub-leaf { width:8em; min-width:8em; }
+  table.monthly.monthly-gated {
+    --stub-ch: 5em;
+    --stub-sc: 4.25em;
+    --stub-leaf: 9.5em;
+    min-width: 0;
+  }
+  table.monthly.monthly-gated col.monthly-stub-ch { width: var(--stub-ch); }
+  table.monthly.monthly-gated col.monthly-stub-sc { width: var(--stub-sc); }
+  table.monthly.monthly-gated col.monthly-stub-leaf { width: var(--stub-leaf); }
   table.monthly.monthly-gated td:first-child {
     min-width:0; width:auto;
   }
   table.monthly.monthly-gated td.monthly-stub {
     position:sticky; z-index:2; background:var(--panel);
     white-space:normal; overflow:visible;
+    padding-left:6px; padding-right:6px;
+    text-align:left; vertical-align:top; font-weight:700;
   }
-  table.monthly.monthly-gated td.monthly-stub-ch {
-    left:0; font-weight:600; text-align:center; vertical-align:middle;
-  }
-  table.monthly.monthly-gated td.monthly-stub-sc {
-    left:4.5em; font-weight:600; text-align:center; vertical-align:middle;
-  }
-  table.monthly.monthly-gated td.monthly-stub-leaf {
-    left:8em; font-weight:700; text-align:left;
-  }
-  table.monthly tbody tr.monthly-sec td {
-    background:#f0f3f6; color:#111827; font-weight:700; font-size:12px;
-    letter-spacing:.02em; padding:7px 10px; border-top:2px solid #9aa3ad;
-    text-align:left; cursor:default;
-    position:sticky; left:0; z-index:2;
-  }
+  table.monthly.monthly-gated td.monthly-stub-ch { left:0; }
+  table.monthly.monthly-gated td.monthly-stub-sc { left:var(--stub-ch); }
+  table.monthly.monthly-gated td.monthly-stub-leaf { left:calc(var(--stub-ch) + var(--stub-sc)); }
   table.monthly thead th.l,
   table.monthly thead th:first-child,
   table.monthly thead th.year {
@@ -227,9 +223,21 @@
   table.monthly tbody tr[data-series].on td.monthly-stub {
     background:var(--row-sel);
   }
-  table.monthly tbody tr.monthly-sec td,
-  table.monthly tbody tr.monthly-sec:hover td {
-    background:#f0f3f6;
+  table.monthly tbody tr.monthly-sec td {
+    text-align:left; cursor:default;
+  }
+  table.monthly tbody tr.monthly-sec td.monthly-sec-label,
+  table.monthly tbody tr.monthly-sec:hover td.monthly-sec-label {
+    background:#f0f3f6; color:#111827; font-weight:700; font-size:12px;
+    padding:7px 10px;
+    position:sticky; left:0; z-index:2;
+  }
+  table.monthly tbody tr.monthly-sec td.monthly-sec-month {
+    text-align:center; color:var(--sub); font-weight:400; font-size:11px;
+    background:#fff;
+  }
+  table.monthly tbody tr.monthly-sec:hover td.monthly-sec-month {
+    background:#fff;
   }
   #monthly-table-wrap { display:flex; flex-direction:column; gap:1.75rem; overflow-x:auto; min-width:0; background:#fff; }
   table.monthly thead th { top:auto; }
@@ -280,11 +288,8 @@
     table.monthly tbody tr[data-series].on td,
     table.monthly tbody tr[data-series].on td:first-child,
     table.monthly tbody tr[data-series].on td.monthly-stub { background:var(--row-sel); }
-    table.monthly tbody tr.monthly-sec td,
-    table.monthly tbody tr.monthly-sec:hover td { background:#f0f3f6; position:static; }
-    table.monthly.monthly-gated col.monthly-stub-ch,
-    table.monthly.monthly-gated col.monthly-stub-sc { width:2em; min-width:2em; }
-    table.monthly.monthly-gated col.monthly-stub-leaf { width:4em; min-width:4em; }
+    table.monthly tbody tr.monthly-sec td.monthly-sec-label { position:static; background:#f0f3f6; }
+    table.monthly.monthly-gated { --stub-ch:2em; --stub-sc:2em; --stub-leaf:4em; }
     table.monthly.monthly-gated thead th:first-child { min-width:8em; width:8em; }
     table.monthly.monthly-gated td.monthly-stub,
     table.monthly.monthly-gated td.monthly-stub-ch,
