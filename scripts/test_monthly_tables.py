@@ -1592,6 +1592,8 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("section row label must span only the three stub columns so the month grid continues")
     if "monthly-sec-label" not in html:
         _fail("section label cell must use monthly-sec-label (not bare :first-child)")
+    if "monthly-sec-month" not in html:
+        _fail("section row must emit monthly-sec-month cells with 1月…12月")
     if 'colspan="15"' in html:
         _fail("section row must not be one full-width cell (it cannot stick and it breaks the month grid)")
     gate_fn = html.find("function monthlySegmentGate")

@@ -232,6 +232,13 @@
     padding:7px 10px;
     position:sticky; left:0; z-index:2;
   }
+  table.monthly tbody tr.monthly-sec td.monthly-sec-month {
+    text-align:center; color:var(--sub); font-weight:400; font-size:11px;
+    background:#fff;
+  }
+  table.monthly tbody tr.monthly-sec:hover td.monthly-sec-month {
+    background:#fff;
+  }
   #monthly-table-wrap { display:flex; flex-direction:column; gap:1.75rem; overflow-x:auto; min-width:0; background:#fff; }
   table.monthly thead th { top:auto; }
   table.monthly thead th:not(:first-child) {
