@@ -11,7 +11,11 @@ from alert_patterns import (  # noqa: E402
     ALERT_PATTERNS,
     GREP_FIELD,
     SECRET_LINE_MARKERS,
+    SLACK_COLOR_DANGER,
+    format_jst,
     should_page,
+    slack_payload,
+    slack_payload_json,
 )
 
 FORBIDDEN_WEBHOOK_PREFIX = "hooks.slack.com" + "/services/"
@@ -141,8 +145,20 @@ def test_conf_has_registry_regexes() -> None:
                 break
         if not found:
             _fail(f"fluent-bit.conf missing Grep regex for {pattern.source}: {pattern.regex!r}")
-    if "Webhook ${SLACK_WEBHOOK_URL}" not in conf:
-        _fail("fluent-bit.conf must use Webhook ${SLACK_WEBHOOK_URL}")
+    if "Webhook ${SLACK_WEBHOOK_URL}" in conf:
+        _fail("fluent-bit.conf must not use the slack output plugin")
+    if "Name         http" not in conf:
+        _fail("fluent-bit.conf must POST via http")
+    if "Host         hooks.slack.com" not in conf:
+        _fail("fluent-bit.conf must POST to hooks.slack.com")
+    if "URI          ${SLACK_WEBHOOK_URI}" not in conf:
+        _fail("fluent-bit.conf must use URI ${SLACK_WEBHOOK_URI}")
+    if "body_key     $body" not in conf or "headers_key  $headers" not in conf:
+        _fail("fluent-bit.conf must send the Lua webhook body as-is")
+    if "call    format_slack" not in conf:
+        _fail("fluent-bit.conf must run format_slack")
+    if "/etc/fluent-bit/slack.lua" not in conf:
+        _fail("fluent-bit.conf must load /etc/fluent-bit/slack.lua")
     if "HTTP_Server    Off" not in conf and "HTTP_Server  Off" not in conf:
         _fail("fluent-bit.conf must set HTTP_Server Off")
     for marker in SECRET_LINE_MARKERS:
@@ -207,8 +223,14 @@ def test_secret_contract() -> None:
     provision = (ROOT / "deploy" / "provision.sh").read_text(encoding="utf-8")
     if "/etc/fluent-bit/slack.env" not in provision:
         _fail("provision.sh must write /etc/fluent-bit/slack.env")
+    if "SLACK_WEBHOOK_URI=%s" not in provision:
+        _fail("provision.sh must write SLACK_WEBHOOK_URI into slack.env")
+    if "fluent-bit_slack.lua" not in provision or "/etc/fluent-bit/slack.lua" not in provision:
+        _fail("provision.sh must install fluent-bit_slack.lua")
     if "EnvironmentFile=-/etc/fluent-bit/slack.env" not in provision:
         _fail("provision.sh must install the fluent-bit slack.env drop-in")
+    if "SLACK_WEBHOOK_URI=/services/" not in provision:
+        _fail("provision.sh must start fluent-bit only when SLACK_WEBHOOK_URI is set")
     dropin = provision.split("fluent-bit.service.d", 1)[-1]
     if "stock-analyzer/.env" in dropin.split("echo \"provision ok", 1)[0]:
         _fail("fluent-bit drop-in must not EnvironmentFile the app .env")
@@ -224,11 +246,64 @@ def test_secret_contract() -> None:
         _fail("deploy/cron-run.sh must be executable")
 
 
+def test_slack_payload_jst_danger() -> None:
+    # 2026-09-18 00:02:41 UTC == 09:02:41 JST
+    epoch = 1789689761
+    if format_jst(epoch) != "2026-09-18 09:02:41 JST":
+        _fail(f"JST clock: {format_jst(epoch)!r}")
+    payload = slack_payload("batch", "fail cron slack-probe exit=1\n", epoch)
+    if not isinstance(payload.get("attachments"), list) or not payload["attachments"]:
+        _fail("slack payload needs attachments")
+    att = payload["attachments"][0]
+    assert isinstance(att, dict)
+    if att.get("color") != SLACK_COLOR_DANGER:
+        _fail(f"slack color: {att.get('color')!r}")
+    legacy = {"fallback", "ts", "title", "text", "pretext", "mrkdwn_in", "fields"}
+    extra = legacy.intersection(att)
+    if extra:
+        _fail(f"attachment mixed legacy keys with blocks: {sorted(extra)}")
+    text = str(payload.get("text") or "")
+    if "2026-09-18 09:02:41 JST" not in text:
+        _fail(f"fallback missing JST: {text!r}")
+    if "1789689761" in text or "timestamp" in text.lower():
+        _fail(f"fallback leaked raw timestamp: {text!r}")
+    blocks = att.get("blocks")
+    if not isinstance(blocks, list) or len(blocks) != 2:
+        _fail("slack attachment needs header+section")
+    header = blocks[0]
+    section = blocks[1]
+    assert isinstance(header, dict) and isinstance(section, dict)
+    if header.get("type") != "header":
+        _fail("first block must be header")
+    header_text = header.get("text")
+    assert isinstance(header_text, dict)
+    if header_text.get("text") != "error · batch":
+        _fail(f"header: {header_text.get('text')!r}")
+    section_text = section.get("text")
+    assert isinstance(section_text, dict)
+    body = str(section_text.get("text") or "")
+    if "*2026-09-18 09:02:41 JST*" not in body or "fail cron slack-probe exit=1" not in body:
+        _fail(f"section missing JST/line: {body!r}")
+    raw = slack_payload_json("batch", "fail cron slack-probe exit=1", epoch)
+    if SLACK_COLOR_DANGER not in raw or "09:02:41 JST" not in raw:
+        _fail("slack json missing hex red/JST")
+    if SLACK_COLOR_DANGER != "#E01E5A":
+        _fail(f"SLACK_COLOR_DANGER must be Slack danger hex: {SLACK_COLOR_DANGER!r}")
+    lua = (ROOT / "deploy" / "fluent-bit_slack.lua").read_text(encoding="utf-8")
+    if 'color":"#E01E5A"' not in lua or "JST" not in lua or "format_slack" not in lua:
+        _fail("fluent-bit_slack.lua must emit #E01E5A + JST")
+    if 'color":"danger"' in lua:
+        _fail("named danger is ignored on Block Kit attachments")
+    if '"fallback"' in lua.split("local json", 1)[-1]:
+        _fail("lua attachment must not mix fallback with blocks")
+
+
 def main() -> None:
     test_fixtures()
     test_conf_has_registry_regexes()
     test_no_committed_webhook_url()
     test_secret_contract()
+    test_slack_payload_jst_danger()
     print("ok: alert patterns")
 
 

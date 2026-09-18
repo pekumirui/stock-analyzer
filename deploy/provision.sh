@@ -435,23 +435,46 @@ install -d -m 755 /var/lib/fluent-bit
 if [[ -f "$APP_DIR/deploy/fluent-bit.conf" ]]; then
   write_if_changed /etc/fluent-bit/fluent-bit.conf 644 < "$APP_DIR/deploy/fluent-bit.conf"
 fi
+if [[ -f "$APP_DIR/deploy/fluent-bit_slack.lua" ]]; then
+  write_if_changed /etc/fluent-bit/slack.lua 644 < "$APP_DIR/deploy/fluent-bit_slack.lua"
+fi
 install -d -m 755 /etc/systemd/system/fluent-bit.service.d
 write_if_changed /etc/systemd/system/fluent-bit.service.d/slack.conf 644 <<'EOF'
 [Service]
 EnvironmentFile=-/etc/fluent-bit/slack.env
 EOF
-if [[ -n "${SLACK_WEBHOOK_URL:-}" ]]; then
-  if [[ "$SLACK_WEBHOOK_URL" == *$'\n'* ]]; then
+write_slack_env() {
+  local url="$1"
+  if [[ "$url" == *$'\n'* || "$url" == *$'\r'* ]]; then
     echo "SLACK_WEBHOOK_URL rejected (newline)" >&2
-  else
-    printf 'SLACK_WEBHOOK_URL=%s\n' "$SLACK_WEBHOOK_URL" | write_if_changed /etc/fluent-bit/slack.env 600
-    chmod 600 /etc/fluent-bit/slack.env
+    return 1
+  fi
+  local rest="${url#https://}"
+  local host="${rest%%/*}"
+  local uri="/${rest#*/}"
+  if [[ "$host" != "hooks.slack.com" ]]; then
+    echo "SLACK_WEBHOOK_URL rejected (host)" >&2
+    return 1
+  fi
+  if [[ "$uri" != /services/* ]]; then
+    echo "SLACK_WEBHOOK_URL rejected (path)" >&2
+    return 1
+  fi
+  printf 'SLACK_WEBHOOK_URL=%s\nSLACK_WEBHOOK_URI=%s\n' "$url" "$uri" | write_if_changed /etc/fluent-bit/slack.env 600
+  chmod 600 /etc/fluent-bit/slack.env
+}
+if [[ -n "${SLACK_WEBHOOK_URL:-}" ]]; then
+  write_slack_env "$SLACK_WEBHOOK_URL" || true
+elif [[ -f /etc/fluent-bit/slack.env ]]; then
+  existing_url="$(awk -F= '/^SLACK_WEBHOOK_URL=/{print substr($0,19); exit}' /etc/fluent-bit/slack.env || true)"
+  if [[ -n "$existing_url" ]]; then
+    write_slack_env "$existing_url" || true
   fi
 fi
 systemctl daemon-reload
 if command -v fluent-bit >/dev/null 2>&1 || [[ -x /opt/fluent-bit/bin/fluent-bit ]]; then
   systemctl enable fluent-bit >/dev/null
-  if [[ -f /etc/fluent-bit/slack.env ]] && grep -qE '^SLACK_WEBHOOK_URL=.+' /etc/fluent-bit/slack.env; then
+  if [[ -f /etc/fluent-bit/slack.env ]] && grep -qE '^SLACK_WEBHOOK_URI=/services/.+' /etc/fluent-bit/slack.env; then
     systemctl restart fluent-bit
   else
     echo "fluent-bit enabled but not started (slack.env missing; set SLACK_WEBHOOK_URL and redeploy)"
