@@ -400,9 +400,9 @@ def test_mapping_examples() -> None:
     layout, mapping = plan_column_years(MARCH_MONTHS, 3, date(2026, 4, 10))
     if layout != "fiscal":
         _fail(f"march layout: {layout}")
-    # as_of が期末月(3)より後 → 現行 FY は 2027/3 期末（4/2026…3/2027）
-    expect = {m: 2026 for m in range(4, 13)}
-    expect.update({1: 2027, 2: 2027, 3: 2027})
+    # April is fiscal start after March-end → completed FY（4/2025…3/2026）
+    expect = {m: 2025 for m in range(4, 13)}
+    expect.update({1: 2026, 2: 2026, 3: 2026})
     if _map_dict(mapping) != expect:
         _fail(f"march mapping: {mapping}")
 
@@ -463,6 +463,25 @@ def test_mapping_examples() -> None:
     expect_july_mid.update({m: 2026 for m in (1, 2, 3, 4, 5, 6, 7)})
     if _map_dict(mapping) != expect_july_mid:
         _fail(f"july mid-fy mapping: {mapping}")
+
+    # 27360 型: 8月期末・as_of が新FY先頭月（9月）→ 完了直後の FY（9/2025…8/2026）
+    aug_months = [9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8]
+    layout, mapping = plan_column_years(aug_months, 8, date(2026, 9, 14))
+    if layout != "fiscal":
+        _fail(f"aug post-end layout: {layout}")
+    expect_aug = {m: 2025 for m in (9, 10, 11, 12)}
+    expect_aug.update({m: 2026 for m in (1, 2, 3, 4, 5, 6, 7, 8)})
+    if _map_dict(mapping) != expect_aug:
+        _fail(f"aug post-end mapping: {mapping}")
+
+    # 同 FY・as_of が期末月内（8月）→ まだ当期 FY（9/2025…7/2026）
+    layout, mapping = plan_column_years(aug_months[:-1], 8, date(2026, 8, 10))
+    if layout != "fiscal":
+        _fail(f"aug mid-fy layout: {layout}")
+    expect_aug_mid = {m: 2025 for m in (9, 10, 11, 12)}
+    expect_aug_mid.update({m: 2026 for m in (1, 2, 3, 4, 5, 6, 7)})
+    if _map_dict(mapping) != expect_aug_mid:
+        _fail(f"aug mid-fy mapping: {mapping}")
 
 
 def test_fy_end_and_layout_errors() -> None:
