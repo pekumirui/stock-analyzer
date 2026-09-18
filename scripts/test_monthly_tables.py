@@ -1252,8 +1252,10 @@ def _assert_monthly_spa(html: str) -> None:
     for chunk in _select_tags(section):
         if "monthly-year" in chunk:
             _fail("monthly tab still has a year select")
-        if 'id="monthly-series"' not in chunk:
-            _fail("monthly tab select must be #monthly-series, not a year picker")
+        if 'id="monthly-series"' not in chunk and 'id="monthly-layout-mode"' not in chunk:
+            _fail("monthly tab select must be #monthly-series or TEMP #monthly-layout-mode")
+    if 'id="monthly-layout-debug"' not in section or 'id="monthly-layout-mode"' not in section:
+        _fail("TEMP flat/gated compare control #monthly-layout-debug must be in Detail")
     if ">項目<" in html:
         _fail("monthly thead still uses 項目")
     if 'id="monthly-groups"' not in section:
@@ -1433,9 +1435,7 @@ def _assert_monthly_spa(html: str) -> None:
     load_fn = html.find("function loadMonthlyTables")
     if load_fn < 0:
         _fail("loadMonthlyTables missing")
-    load_body = html[load_fn:load_fn + 4000]
-    if "monthlyRowOrder(monthlyYearTables)" not in load_body:
-        _fail("year tables must share one union row order")
+    load_body = html[load_fn:load_fn + 1200]
     if "await loadMonthlyRowOrderConfig()" not in load_body:
         _fail("loadMonthlyTables must await monthly_row_order.json")
     if "function loadMonthlyRowOrderConfig" not in html:
@@ -1448,14 +1448,24 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("SPA missing MONTHLY_SEGMENT_TAIL_BASE for segment_tail")
     if "monthlyDisplayYears" not in load_body:
         _fail("loadMonthlyTables must window to the last 3 calendar years")
-    if "for(const e of rowOrder)" not in load_body:
+    if "renderMonthlyYearTables(monthlyYearTables)" not in load_body:
+        _fail("loadMonthlyTables must render via renderMonthlyYearTables")
+    render_fn = html.find("function renderMonthlyYearTables")
+    if render_fn < 0:
+        _fail("renderMonthlyYearTables missing")
+    render_body = html[render_fn:render_fn + 4500]
+    if "monthlyRowOrder(" not in render_body:
+        _fail("year tables must share one union row order")
+    if "for(const e of rowOrder)" not in render_body:
         _fail("each year table must iterate the shared row order")
-    if "Object.keys(vals).length" not in load_body:
+    if "Object.keys(vals).length" not in render_body:
         _fail("year table must skip rows with no values that year")
-    if "byName[src.element]" in load_body:
+    if "byName[src.element]" in render_body:
         _fail("year table cells must map stored names through fmtMonthlyElement")
-    if "fmtMonthlyElement(src.element" not in load_body:
+    if "fmtMonthlyElement(src.element" not in render_body:
         _fail("year table cells must look up rows by fmtMonthlyElement")
+    if "monthlyTableLayout(rowOrder" not in render_body:
+        _fail("renderMonthlyYearTables must apply monthlyTableLayout after monthlyRowOrder")
     pick_fn = html.find("function pickDefaultMonthlySeries")
     pick_end = html.find("function monthlySeriesElement")
     if pick_fn < 0 or pick_end <= pick_fn:
@@ -1578,8 +1588,16 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("index.html missing monthlyTableLayout")
     if "monthly-sec" not in html:
         _fail("SPA missing monthly-sec section row class")
-    if "monthlyTableLayout(rowOrder" not in load_body:
-        _fail("loadMonthlyTables must apply monthlyTableLayout after monthlyRowOrder")
+    if "monthlyTableLayout(rowOrder" not in html:
+        _fail("SPA must apply monthlyTableLayout after monthlyRowOrder")
+    if 'id="monthly-layout-debug"' not in html:
+        _fail("TEMP debug control #monthly-layout-debug must exist for flat vs gated compare")
+    if "setMonthlyLayoutMode" not in html:
+        _fail("SPA missing setMonthlyLayoutMode for TEMP flat layout toggle")
+    if "MONTHLY_LAYOUT_MODE_KEY" not in html:
+        _fail("TEMP layout mode must use a named sessionStorage key")
+    if "forceFlat" not in html:
+        _fail("monthlyTableLayout must accept forceFlat / flat mode for TEMP debug")
     if "<optgroup" not in html:
         _fail("#monthly-series must support optgroup for gated brands")
     if "monthly-gated" not in html:
@@ -1705,12 +1723,22 @@ const summary = layout.rows.map((r) => {
     leaf: r.leaf,
   };
 });
+const flatForce = sandbox.monthlyTableLayout(rowOrder, gatedTables, {forceFlat: true});
+sandbox.setMonthlyLayoutMode("flat");
+const flatMode = sandbox.monthlyTableLayout(rowOrder, gatedTables);
+sandbox.setMonthlyLayoutMode("gated");
 const flatOrder = sandbox.monthlyRowOrder(flatTables);
 const flat = sandbox.monthlyTableLayout(flatOrder, flatTables);
 console.log(JSON.stringify({
   gated,
   gatedFlag: layout.gated,
   summary,
+  rowOrderIds: rowOrder.map((r) => r.element),
+  flatForceGated: flatForce.gated,
+  flatForceKinds: flatForce.rows.map((r) => r.kind),
+  flatForceIds: flatForce.rows.map((r) => r.element),
+  flatModeGated: flatMode.gated,
+  flatModeIds: flatMode.rows.map((r) => r.element),
   flatGated: flat.gated,
   flatIds: flat.rows.map((r) => r.element),
   flatKinds: flat.rows.map((r) => r.kind),
@@ -1744,6 +1772,16 @@ console.log(JSON.stringify({
     ]
     if got.get("summary") != want:
         _fail(f"gated layout: {got.get('summary')!r}")
+    if got.get("flatForceGated") is not False:
+        _fail("forceFlat must disable gate layout")
+    if "section" in (got.get("flatForceKinds") or []):
+        _fail("forceFlat must not emit section rows")
+    if got.get("flatForceIds") != got.get("rowOrderIds"):
+        _fail(f"forceFlat must keep monthlyRowOrder ids: {got.get('flatForceIds')!r}")
+    if got.get("flatModeGated") is not False:
+        _fail("monthlyLayoutMode=flat must disable gate layout")
+    if got.get("flatModeIds") != got.get("rowOrderIds"):
+        _fail(f"monthlyLayoutMode=flat must keep monthlyRowOrder ids: {got.get('flatModeIds')!r}")
     if got.get("flatGated") is not False:
         _fail("simple issuer must stay ungated")
     if got.get("flatKinds") != ["data", "data"]:

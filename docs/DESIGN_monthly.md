@@ -138,6 +138,8 @@ AI による業種付けはしない。`industry` の更新は MCP と `PUT /api
 
 `#monthly-back` で TOP に戻る。直前のチップを保つ。グラフの指標は `#monthly-series` の切替、または年表の該当行をクリックして変える。年の選択 UI は置かない。
 
+**一時デバッグ:** ゲート通過銘柄の Detail だけ `#monthly-layout-debug`（「表レイアウト（一時）」）を出す。`ゲート（節+stub）` が既定。`元表（マージ前）` は `monthlyTableLayout` をゲート無し相当に戻し、項目 1 列の和集合順で描く（DB・API は触らない）。選択は `sessionStorage` `monthly.layoutMode.debug`。比較が終わったらこの UI とフラグを消す。
+
 ### 空とエラー
 
 years が空なら「データなし」。選んだ系列に値が無い年はグラフから落とす。年表は残す。チャート用の 3 行が PDF に無くても、年表は全行のまま。
