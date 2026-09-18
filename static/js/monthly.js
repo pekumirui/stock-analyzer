@@ -1,4 +1,5 @@
 let monthlyRows=[], monthlyGroup="__new__", selMonthlyCode=null;
+let monthlySearchApplied="";
 let monthlySeries="", monthlyYearTables=[];
 const MONTHLY_YEAR_COLORS = ["#0077b6","#2e8b57","#b8860b","#8e4ec6"];
 let MONTHLY_ROW_ORDER = {};
@@ -65,8 +66,14 @@ function matchMonthlyIssuerQuery(issuer, q){
   if(!raw) return false;
   const name = monthlySearchFold(issuer && issuer.name);
   const code = monthlySearchFold(issuer && issuer.code).toUpperCase();
+  const industry = monthlySearchFold((issuer && issuer.industry) || "その他");
+  const sector = monthlySearchFold(issuer && issuer.sector33);
   const qCode = raw.toUpperCase();
-  return name.includes(raw) || code.slice(0, 4).startsWith(qCode) || code.startsWith(qCode);
+  return name.includes(raw)
+    || code.slice(0, 4).startsWith(qCode)
+    || code.startsWith(qCode)
+    || industry.includes(raw)
+    || sector.includes(raw);
 }
 
 function monthlyIssuerSuggestHits(q){
@@ -649,6 +656,8 @@ function defaultMonthlyGroup(issuers){
 
 function filteredMonthlyIssuers(){
   const issuers = uniqueMonthlyIssuers(monthlyRows);
+  const q = String(monthlySearchApplied || "").trim();
+  if(q) return issuers.filter(r => matchMonthlyIssuerQuery(r, q));
   if(monthlyGroup==="__new__") return issuers.filter(r => r.is_new);
   return issuers.filter(r => (r.industry || "その他") === monthlyGroup);
 }
@@ -688,6 +697,10 @@ function renderMonthlyGroups(groups){
 
 function setMonthlyGroup(g){
   monthlyGroup = g;
+  monthlySearchApplied = "";
+  const inp = $("#monthly-sym");
+  if(inp) inp.value = "";
+  hideMonthlySuggest();
   renderMonthlyGroups(monthlyIndustries(uniqueMonthlyIssuers(monthlyRows)));
   renderMonthlyList();
 }
@@ -713,7 +726,10 @@ function fmtMonthlySector(sector){
 function renderMonthlyList(){
   const issuers = filteredMonthlyIssuers();
   if(!issuers.length){
-    $("#monthly-list").innerHTML = `<div class="sub">登録された月次データはありません</div>`;
+    const empty = String(monthlySearchApplied || "").trim()
+      ? "該当する発行体はありません"
+      : "登録された月次データはありません";
+    $("#monthly-list").innerHTML = `<div class="sub">${empty}</div>`;
     return;
   }
   let h = `<table id="monthly-tbl"><thead><tr>` +
@@ -762,11 +778,19 @@ function fillMonthlySuggest(hits){
   box.style.display = "block";
 }
 
+function applyMonthlyIssuerSearch(q){
+  const applied = String(q || "").trim();
+  monthlySearchApplied = applied;
+  const inp = $("#monthly-sym");
+  if(inp && inp.value.trim() !== applied) inp.value = applied;
+  hideMonthlySuggest();
+  renderMonthlyList();
+}
+
 function pickMonthlyIssuer(code, name){
   const inp = $("#monthly-sym");
   if(inp) inp.value = name;
-  hideMonthlySuggest();
-  showMonthlyDetail(code);
+  applyMonthlyIssuerSearch(name);
 }
 
 function refreshMonthlyIssuerSuggest(inp){
@@ -787,8 +811,8 @@ function bindMonthlyIssuerSearch(){
       return;
     }
     if(e.key === "Enter"){
-      const hits = monthlyIssuerSuggestHits(inp.value);
-      if(hits[0]) pickMonthlyIssuer(hits[0].code, hits[0].name);
+      if(e.isComposing || e.keyCode === 229) return;
+      applyMonthlyIssuerSearch(inp.value);
     }
   });
 }
