@@ -286,10 +286,14 @@ def test_slack_payload_jst_danger() -> None:
         _fail(f"section missing JST/line: {body!r}")
     raw = slack_payload_json("batch", "fail cron slack-probe exit=1", epoch)
     if SLACK_COLOR_DANGER not in raw or "09:02:41 JST" not in raw:
-        _fail("slack json missing danger/JST")
+        _fail("slack json missing hex red/JST")
+    if SLACK_COLOR_DANGER != "#E01E5A":
+        _fail(f"SLACK_COLOR_DANGER must be Slack danger hex: {SLACK_COLOR_DANGER!r}")
     lua = (ROOT / "deploy" / "fluent-bit_slack.lua").read_text(encoding="utf-8")
-    if 'color":"danger"' not in lua or "JST" not in lua or "format_slack" not in lua:
-        _fail("fluent-bit_slack.lua must emit danger + JST")
+    if 'color":"#E01E5A"' not in lua or "JST" not in lua or "format_slack" not in lua:
+        _fail("fluent-bit_slack.lua must emit #E01E5A + JST")
+    if 'color":"danger"' in lua:
+        _fail("named danger is ignored on Block Kit attachments")
     if '"fallback"' in lua.split("local json", 1)[-1]:
         _fail("lua attachment must not mix fallback with blocks")
 

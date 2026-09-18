@@ -59,7 +59,8 @@ GREP_FIELD: dict[str, str] = {
 }
 
 JST = timezone(timedelta(hours=9), name="JST")
-SLACK_COLOR_DANGER = "danger"
+# Named "danger" is ignored on Block Kit attachments (bar falls back to app blue).
+SLACK_COLOR_DANGER = "#E01E5A"
 SLACK_HEADER_MAX = 150
 SLACK_SECTION_MAX = 2900
 SLACK_FALLBACK_MAX = 2000
@@ -78,7 +79,7 @@ def _clip(text: str, limit: int) -> str:
 
 
 def slack_payload(source: str, line: str, epoch: float) -> dict[str, object]:
-    """Incoming Webhook body: JST clock + danger attachment (red bar).
+    """Incoming Webhook body: JST clock + hex-red attachment bar.
 
     Attachment may only have color + blocks. Mixing fallback/ts/title with
     blocks makes Slack return HTTP 400 invalid_attachments.
