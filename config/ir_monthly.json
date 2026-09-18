@@ -1,6 +1,13 @@
 {
   "issuers": [
     {
+      "code": "1878",
+      "name": "大東建託",
+      "index_url": "https://www.kentaku.co.jp/ir/library/monthly-report/",
+      "link_re": "history_.*\\.xls(?:$|[?#])",
+      "title": "月次"
+    },
+    {
       "code": "2695",
       "name": "くら寿司",
       "index_url": "https://www.kurasushi.co.jp/company/ir/library/monthly_reports.html",
@@ -30,13 +37,6 @@
     }
   ],
   "html": [
-    {
-      "code": "1878",
-      "name": "大東建託",
-      "index_url": "https://www.kentaku.co.jp/ir/library/monthly-report/",
-      "title": "月次",
-      "parse": false
-    },
     {
       "code": "1911",
       "name": "住友林業",

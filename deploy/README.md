@@ -148,7 +148,7 @@ VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount �
 
 見える場所:
 
-- `monthly/{code}/YYYYMMDD_CODE_….pdf|xlsx|html`（`{code}` は TDnet の発行体コードそのまま。9279 / 262A。J-Quants 5桁にはしない）
+- `monthly/{code}/YYYYMMDD_CODE_….pdf|xlsx|xls|html`（`{code}` は TDnet の発行体コードそのまま。9279 / 262A。J-Quants 5桁にはしない）
 - `xbrl/{code4}/…zip` と `xbrl/_unmatched/`
 
 初回設定:

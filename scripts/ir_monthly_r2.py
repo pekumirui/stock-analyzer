@@ -1,12 +1,13 @@
-"""IR サイトの月次 PDF/xlsx を Cloudflare R2 mount へ保存する。
+"""IR サイトの月次 PDF/xlsx/xls を Cloudflare R2 mount へ保存する。
 
 使い方:
   python scripts/ir_monthly_r2.py
   python scripts/ir_monthly_r2.py --dest /tmp/monthly --only 3382
   python scripts/ir_monthly_r2.py --dry-run
 
-対象は config/ir_monthly.json。xlsx と pdf が両方あるページは xlsx だけ取る。
-ingest / パーサーはまだ。ネットワークと app/ はテストから分離する。
+対象は config/ir_monthly.json。表計算と pdf が両方あるページは表計算だけ取る。
+xlsx があれば xlsx、なければ xls。ingest / パーサーはまだ。
+ネットワークと app/ はテストから分離する。
 """
 from __future__ import annotations
 
@@ -41,10 +42,16 @@ JST = ZoneInfo("Asia/Tokyo")
 DEFAULT_DEST = "/home/stock/r2-share/monthly"
 DEFAULT_CONFIG = SCRIPT_DIR.parent / "config" / "ir_monthly.json"
 USER_AGENT = "stock-analyzer-ir-monthly/1.0"
+# AWS ELB が識別 UA を 403 する発行体（大東建託）向け。通常は USER_AGENT を先に使う。
+BROWSER_UA = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+)
 SLEEP_SEC = 0.4
 HTTP_TIMEOUT = 30.0
-_EXT_RE = re.compile(r"\.(pdf|xlsx)(?:$|[?#])", re.I)
-_ALLOWED_EXT = frozenset({"pdf", "xlsx", "html"})
+_EXT_RE = re.compile(r"\.(pdf|xlsx|xls)(?:$|[?#])", re.I)
+_ALLOWED_EXT = frozenset({"pdf", "xlsx", "xls", "html"})
+_XLS_MAGIC = b"\xd0\xcf\x11\xe0"
 _CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
 _SKIP_HREF_RE = re.compile(r"^(?:javascript:|mailto:|#)", re.I)
 _HASH_STEM_RE = re.compile(r"^[0-9a-f]{32,}$", re.I)
@@ -121,7 +128,7 @@ def url_stem(url: str) -> str:
 
 
 def parse_file_links(html: str, base_url: str) -> list[FileLink]:
-    """<a href> の pdf/xlsx だけ。コメント内のリンクは HTMLParser が無視する。"""
+    """<a href> の pdf/xlsx/xls だけ。コメント内のリンクは HTMLParser が無視する。"""
     parser = _AParser()
     parser.feed(html or "")
     parser.close()
@@ -161,6 +168,9 @@ def filter_links(links: list[FileLink], link_re: str) -> list[FileLink]:
     xlsx = [ln for ln in matched if ln.ext == "xlsx"]
     if xlsx:
         return xlsx
+    xls = [ln for ln in matched if ln.ext == "xls"]
+    if xls:
+        return xls
     return [ln for ln in matched if ln.ext == "pdf"]
 
 
@@ -211,7 +221,7 @@ def existing_hashes(code_dir: Path) -> dict[str, Path]:
     if not code_dir.is_dir():
         return out
     for p in code_dir.iterdir():
-        if not p.is_file() or p.suffix.lower() not in (".pdf", ".xlsx"):
+        if not p.is_file() or p.suffix.lower() not in (".pdf", ".xlsx", ".xls"):
             continue
         try:
             if p.stat().st_size <= 0:
@@ -229,6 +239,8 @@ def looks_like_file(data: bytes, ext: str) -> bool:
         return data.startswith(b"%PDF")
     if ext == "xlsx":
         return data.startswith(b"PK")
+    if ext == "xls":
+        return data.startswith(_XLS_MAGIC)
     if ext == "html":
         head = data.lstrip()[:200].lower()
         return head.startswith(b"<") or head.startswith(b"<!doctype")
@@ -238,20 +250,23 @@ def looks_like_file(data: bytes, ext: str) -> bool:
 def http_get(url: str, timeout: float = HTTP_TIMEOUT) -> bytes:
     from urllib.request import Request, urlopen
 
-    req = Request(url, headers={"User-Agent": USER_AGENT, "Accept": "*/*"})
     last: Exception | None = None
-    for attempt in range(2):
-        try:
-            with urlopen(req, timeout=timeout) as resp:
-                return resp.read()
-        except HTTPError as e:
-            last = e
-            if e.code < 500 and e.code not in (408, 429):
-                raise
-        except (URLError, TimeoutError, OSError) as e:
-            last = e
-        if attempt == 0:
-            time.sleep(1.5)
+    for ua in (USER_AGENT, BROWSER_UA):
+        req = Request(url, headers={"User-Agent": ua, "Accept": "*/*"})
+        for attempt in range(2):
+            try:
+                with urlopen(req, timeout=timeout) as resp:
+                    return resp.read()
+            except HTTPError as e:
+                last = e
+                if e.code == 403 and ua == USER_AGENT:
+                    break
+                if e.code < 500 and e.code not in (408, 429):
+                    raise
+            except (URLError, TimeoutError, OSError) as e:
+                last = e
+            if attempt == 0:
+                time.sleep(1.5)
     assert last is not None
     raise last
 
@@ -414,7 +429,7 @@ def run(
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Fetch IR monthly PDF/xlsx into R2 mount")
+    ap = argparse.ArgumentParser(description="Fetch IR monthly PDF/xlsx/xls into R2 mount")
     ap.add_argument("--dest", default=DEFAULT_DEST, help="destination directory")
     ap.add_argument("--config", default=str(DEFAULT_CONFIG), help="issuer registry JSON")
     ap.add_argument(
