@@ -51,6 +51,28 @@ function uniqueMonthlyIssuers(rows){
   return out;
 }
 
+function matchMonthlyIssuerQuery(issuer, q){
+  const raw = String(q || "").trim();
+  if(!raw) return false;
+  const name = String(issuer && issuer.name || "").toLowerCase();
+  const code = String(issuer && issuer.code || "").toUpperCase();
+  const qName = raw.toLowerCase();
+  const qCode = raw.toUpperCase();
+  return name.includes(qName) || code.slice(0, 4).startsWith(qCode) || code.startsWith(qCode);
+}
+
+function monthlyIssuerSuggestHits(q){
+  const raw = String(q || "").trim();
+  if(!raw) return [];
+  const hits = [];
+  for(const r of uniqueMonthlyIssuers(monthlyRows)){
+    if(!matchMonthlyIssuerQuery(r, raw)) continue;
+    hits.push(r);
+    if(hits.length >= 20) break;
+  }
+  return hits;
+}
+
 function monthlyElementKey(name){
   return String(name || "").normalize("NFKC").replace(/\s+/g, "");
 }
@@ -469,6 +491,7 @@ async function loadMonthlyList(){
   if(!Array.isArray(rows)){
     $("#monthly-groups").innerHTML = "";
     $("#monthly-list").innerHTML = `<div class="sub">登録された月次データはありません</div>`;
+    hideMonthlySuggest();
     return;
   }
   monthlyRows = rows;
@@ -476,6 +499,7 @@ async function loadMonthlyList(){
   if(!issuers.length){
     $("#monthly-groups").innerHTML = "";
     $("#monthly-list").innerHTML = `<div class="sub">登録された月次データはありません</div>`;
+    hideMonthlySuggest();
     return;
   }
   const groups = monthlyIndustries(issuers);
@@ -548,7 +572,57 @@ function showMonthlyTop(){
   $("#monthly-detail").style.display = "none";
 }
 
+function hideMonthlySuggest(){
+  const box = $("#monthly-suggest");
+  if(!box) return;
+  box.style.display = "none";
+  box.innerHTML = "";
+}
+
+function fillMonthlySuggest(hits){
+  const box = $("#monthly-suggest");
+  if(!box) return;
+  if(!hits.length){
+    hideMonthlySuggest();
+    return;
+  }
+  box.innerHTML = hits.map(s => {
+    const code = String(s.code || "");
+    const name = String(s.name || "");
+    return `<div onclick="pickMonthlyIssuer('${escHtml(code)}','${escHtml(name)}')">${escHtml(code.slice(0,4))} ${escHtml(name)}</div>`;
+  }).join("");
+  box.style.display = "block";
+}
+
+function pickMonthlyIssuer(code, name){
+  const inp = $("#monthly-sym");
+  if(inp) inp.value = name;
+  hideMonthlySuggest();
+  showMonthlyDetail(code);
+}
+
+function bindMonthlyIssuerSearch(){
+  const inp = $("#monthly-sym");
+  if(!inp) return;
+  inp.addEventListener("input", e => {
+    const q = e.target.value.trim();
+    if(!q){ hideMonthlySuggest(); return; }
+    fillMonthlySuggest(monthlyIssuerSuggestHits(q));
+  });
+  inp.addEventListener("keydown", e => {
+    if(e.key === "Escape"){
+      hideMonthlySuggest();
+      return;
+    }
+    if(e.key === "Enter"){
+      const hits = monthlyIssuerSuggestHits(inp.value);
+      if(hits[0]) pickMonthlyIssuer(hits[0].code, hits[0].name);
+    }
+  });
+}
+
 function showMonthlyDetail(code){
+  hideMonthlySuggest();
   selMonthlyCode = code;
   const row = uniqueMonthlyIssuers(monthlyRows).find(r => r.code === code);
   if(!row){
@@ -858,5 +932,7 @@ function fmtMonthlyElement(name, unit){
 
 window.setMonthlyGroup = setMonthlyGroup;
 window.showMonthlyDetail = showMonthlyDetail;
+window.pickMonthlyIssuer = pickMonthlyIssuer;
 window.backMonthly = backMonthly;
 window.setMonthlySeries = setMonthlySeries;
+bindMonthlyIssuerSearch();

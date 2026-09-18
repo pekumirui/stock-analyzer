@@ -5,6 +5,7 @@ The monthly tab lists ingested issuer monthly-sales tables with industry chips, 
 ## Sub-features
 
 - `monthly-list` fills `#monthly-groups` (新着 + industry chips) and `#monthly-tbl` from `GET /api/v1/tables`.
+- `monthly-issuer-search` types into `#monthly-sym` (placeholder `銘柄名 or コード`) and fills `#monthly-suggest` from the loaded list (`monthlyRows` / `uniqueMonthlyIssuers`). Pick or Enter opens Detail. It does not call `/api/stocks/search` and does not live-filter `#monthly-tbl`.
 - `monthly-detail` opens `#monthly-detail` for a row `data-code` via `GET /api/v1/tables/{code}` then parallel `GET /api/v1/tables/{code}/{year}` for the latest calendar year and up to two prior years.
 - `monthly-series` switches `#monthly-series` (default: unsegmented 全店+売上高 yoy when present, else any `all_store` yoy including 全社, else first series) and redraws `#monthly-chart`.
 - `monthly-back` returns to TOP via `#monthly-back` while keeping the selected chip.
@@ -13,6 +14,7 @@ The monthly tab lists ingested issuer monthly-sales tables with industry chips, 
 ## How to get to it (user POV)
 
 - Click `nav button[data-tab="monthly"]`.
+- Type a known issuer name or 4-digit / 5-digit code into `#monthly-sym` and pick `#monthly-suggest` (or press Enter on the first hit).
 - Click an industry / 新着 chip in `#monthly-groups`. The 新着 chip is always rendered; if no issuer has `is_new`, selection falls back to the first industry chip but 新着 stays visible. Industry chips appear only for industries present in the list.
 - Click a company-name cell (`.name`) in `#monthly-tbl` to open Detail.
 - Change `#monthly-series` or click a `tr[data-series]` in the year tables.
@@ -26,8 +28,9 @@ Preconditions:
 - Doctor reports `ok`.
 - `GET /api/v1/tables` returns a non-empty array (`helpers/capture.py monthly` must not exit 1). If empty, monthly ingest never ran — report that, do not fake rows.
 
-- **Tab.** Click `nav button[data-tab="monthly"]`. `#tab-monthly` is displayed; `#monthly-top` is shown and `#monthly-detail` is `display:none`. List host is `#monthly-list` (holds empty copy or `#monthly-tbl`).
+- **Tab.** Click `nav button[data-tab="monthly"]`. `#tab-monthly` is displayed; `#monthly-top` is shown and `#monthly-detail` is `display:none`. List host is `#monthly-list` (holds empty copy or `#monthly-tbl`). Search field is `#monthly-sym` above chips; suggestion box is `#monthly-suggest` (`display:none` until there are hits).
 - **List.** `helpers/capture.py monthly` writes `artifacts/monthly/body.json` from `GET /api/v1/tables`. Assert a JSON array; each item has `code` (not `0`-prefix), `industry`, `is_new`, `all_store_yoy` / `existing_store_yoy` (nulls are fine). `#monthly-tbl` shows 会社名 / 市場 / 業種 / 月次業種 / 全店(前年比) / 既存店(前年比) (no standalone code column); null YoY cells show `-`.
+- **Issuer search.** After the list is loaded, type a known issuer name or code from that list into `#monthly-sym`. `#monthly-suggest` shows up to 20 rows as 4-digit code + full name. Click a suggestion or press Enter → `#monthly-detail` visible and `location.hash` is `#monthly/{code}`. A query that matches no monthly issuer keeps `#monthly-suggest` at `display:none` (do not treat that as the ingest-empty copy). Chips still change the table without filtering on the search field.
 - **Detail.** Pass `--code` from the list. Capture also writes years + one year payload. UI: click a `.name` cell → `#monthly-detail` visible, `#monthly-chart` has an SVG, `#monthly-table-wrap` stacks `table.monthly` newest-year-first.
 - **Proof.** Keep `body.json` (list) and, when `--code` was used, the year artifact(s). If CDP: `ui.png` of Detail or list with header `h1` `株式分析`.
 - **Route restore.** After Detail, confirm `location.hash` is `#monthly/{code}`. Reload → Detail for that code (list loads first). `#monthly-back` writes `#monthly`.
@@ -36,6 +39,7 @@ Preconditions:
 ## Gotchas
 
 - Empty `/api/v1/tables` renders「登録された月次データはありません」— that is empty ingest, or a Cloud Agent build that skipped VPS monthly copy. Not a render bug.
+- `#monthly-suggest` is filled only from the loaded monthly list. Do not call `/api/stocks/search` here. A stock without monthly data must not appear. Empty query or no hits hide the box; that is not the ingest-empty copy.
 - Detail with no years shows「データなし」.
 - NEW badge uses `ingested_today` (JST today); 新着 chip window is `MONTHLY_NEW_DAYS` (7) via `is_new`.
 - Stored YoY is `yoy_index` (100=flat). YoY display is the stored number. Number cells with a known display unit round half-up (`fmtMonthlyCell`) and the unit goes on the row label (`fmtMonthlyElement`, e.g. `受注高（百万円）`). GET JSON and stored names stay without units. Chart has a 100 horizontal line; year bar colors cycle `MONTHLY_YEAR_COLORS[year % 4]`.
