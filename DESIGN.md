@@ -192,7 +192,7 @@ IR 月次 PDF/xlsx/xls（`scripts/ir_monthly_r2.py`）:
 - TDnet に月次が無い発行体が対象。`config/ir_monthly.json` の issuers（URL 確認済みだけ載せる）
 - 表計算と pdf が両方あるページは表計算だけ取る。xlsx があれば xlsx、なければ xls（大東建託 `history_*.xls`）
 - AWS ELB が識別 UA を 403 する発行体は、同じ `http_get` がブラウザ UA に一度だけフォールバックする
-- ingest はまだ MCP 経由。パーサーは無い
+- 大東建託 (1878) の `history.xls` は `scripts/ir_monthly_xls_ingest.py` が ingest JSON を作り loopback POST する。year は送らない。汎用 xlsx パーサは無い。HTML ingest の cron には混ぜない
 
 IR 月次 HTML（`scripts/ir_monthly_html_r2.py`）:
 
