@@ -40,6 +40,7 @@ Preconditions:
 
 - Empty `/api/v1/tables` renders「登録された月次データはありません」— that is empty ingest, or a Cloud Agent build that skipped VPS monthly copy. Not a render bug.
 - `#monthly-suggest` is filled only from the loaded monthly list. Do not call `/api/stocks/search` here. A stock without monthly data must not appear. Empty query or no hits hide the box; that is not the ingest-empty copy.
+- Mobile/IME: `compositionend` must refresh suggestions even when no trailing `input` fires. Queries fold via NFKC + hiragana→katakana, so `にとり` and fullwidth `９８４３` hit the same rows as `ニトリ` / `9843`.
 - Detail with no years shows「データなし」.
 - NEW badge uses `ingested_today` (JST today); 新着 chip window is `MONTHLY_NEW_DAYS` (7) via `is_new`.
 - Stored YoY is `yoy_index` (100=flat). YoY display is the stored number. Number cells with a known display unit round half-up (`fmtMonthlyCell`) and the unit goes on the row label (`fmtMonthlyElement`, e.g. `受注高（百万円）`). GET JSON and stored names stay without units. Chart has a 100 horizontal line; year bar colors cycle `MONTHLY_YEAR_COLORS[year % 4]`.
