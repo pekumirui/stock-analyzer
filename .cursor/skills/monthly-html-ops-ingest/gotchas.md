@@ -16,7 +16,7 @@ Short traps from #180-style waves. Codes are examples, not exclusive.
 | `U.S.M.H` prefix | Company total column | Alias `32220` + ops rename to `全社`/`既存` |
 | `売上（%）` prefix | Nitori header stays after canonicalize | Alias `98430` + ops merge; 客数/客単価 `（%）` already drops |
 | Circled footnotes `①` | #169 drops `(1)` only | Canonicalize `①`–`⑳` (or alias) + ops merge old `① 全店 …` |
-| Bad unit | Watami 拠点数 as `yoy_pct` | Do not POST; fix parser first |
+| Bad unit | Watami 拠点数 as `yoy_pct` | Parser treats 拠点数 as `number`. Still stop if a count row is yoy |
 | Dual brand columns | マックスバリュ関東 vs イオンフードスタイル | Never merge as same metric |
 
 ## Verify snippet

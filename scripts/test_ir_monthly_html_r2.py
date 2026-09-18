@@ -1140,7 +1140,6 @@ def test_year_dot_month_and_skip_quarter() -> None:
 
 
 def test_watami_kyoten_count_is_number() -> None:
-    """宅食の拠点数は件数。ページの前年比見出しで yoy_pct にしない。"""
     got = html_to_ingest(WATAMI_KYOTEN_HTML, "7522", table=None)
     meals = _row(got, "拠点数 調理済み商品お届け数(※)（千食）")
     if meals["unit"] != "number":
@@ -1152,6 +1151,43 @@ def test_watami_kyoten_count_is_number() -> None:
     offices = _row(got, "拠点数 営業所数合計")
     if offices["unit"] != "number" or offices["values"].get("12") != 516:
         _fail(f"営業所数 {offices}")
+
+
+def test_watami_prefers_sales_over_kyoten() -> None:
+    pad = "あ" * 400
+    html = f"""
+    <html><body>
+    <h2>2024年度 月次推移</h2>
+    <p>既存店(売上高・客数比・客単価)前年比は業態転換店を含んでおります。</p>
+    <h4>国内外食事業</h4>
+    <table>
+    <tr><td></td><td></td><td>2025.1</td><td>2025.2</td><td>2025.3</td></tr>
+    <tr><td>全店合計</td><td>売上高前年比（%）</td><td>104.0</td><td>99.0</td><td>100.3</td></tr>
+    <tr><td>全店合計</td><td>店舗数合計</td><td>188</td><td>186</td><td>186</td></tr>
+    </table>
+    <p>{pad}</p>
+    <h4>宅食事業</h4>
+    <table>
+    <tr><td colspan="2"></td><th>2024.10</th><th>2024.11</th><th>2024.12</th>
+    <th>2025.1</th><th>2025.2</th><th>2025.3</th></tr>
+    <tr>
+    <th rowspan="2">拠点数</th>
+    <th>調理済み商品お届け数(※)（千食）</th>
+    <td>228</td><td>225</td><td>218</td><td>224</td><td>223</td><td>219</td>
+    </tr>
+    <tr>
+    <th>営業所数合計</th>
+    <td>516</td><td>516</td><td>516</td><td>516</td><td>515</td><td>508</td>
+    </tr>
+    </table>
+    </body></html>
+    """
+    got = html_to_ingest(html, "7522", table=None)
+    sales = _row(got, "全店合計 売上高前年比（%）")
+    if sales["unit"] != "yoy_index" or sales["values"].get("1") != 104:
+        _fail(f"picked kyoten {got['rows']}")
+    if any("拠点数" in r["element"] for r in got["rows"]):
+        _fail(f"kyoten table won {got['rows']}")
 
 
 def test_nendo_and_fullwidth_fy_as_of() -> None:
@@ -1931,6 +1967,7 @@ def main() -> None:
     test_mos_skips_half_year_total()
     test_year_dot_month_and_skip_quarter()
     test_watami_kyoten_count_is_number()
+    test_watami_prefers_sales_over_kyoten()
     test_nendo_and_fullwidth_fy_as_of()
     test_sagami_zougenhi_is_yoy_pct()
     test_skip_span_total_column()
