@@ -127,12 +127,12 @@ AI による業種付けはしない。`industry` の更新は MCP と `PUT /api
 - ゲートは表示する最新暦年。`monthlyRowSegment` が空でなく、rank 名（`stripMonthlyDisplayUnit`）へ `parseMonthlyLayers` したとき metric・channel・scope のいずれかがあり、同じ leftover がその年に 2 行以上あるとき、その leftover をゲートする
 - ゲート 0 件の発行体は現状どおり。項目列は 1 列。行順は上の scope 優先のまま
 - ゲートがあるとき、ゲートしなかった行は会社全体の 1 ブロックにまとめる（`日本+海外` が和集合の末尾でも会社ブロックへ戻す）。ゲート leftover は `monthlyRowOrder` の初出順で続く。節の内側だけ channel → scope → metric。国では並べない。国とゲートしていない leftover は葉ラベルだけ（例: `日本 店舗数`, `日本+海外 店舗数`）
-- ゲート表の左は stub 3 列（チャネル | スコープ | 葉）。連続するチャネルとスコープは rowspan。スコープ `既存` は stub 文言 `既存店`。空のチャネルとスコープは `—`。ゲート leftover に入るとき `tr.monthly-sec` を 1 行。ラベルは `td.monthly-sec-label` で stub 3 列ぶん `colspan=3`、続けて月セル 12（`td.num.monthly-sec-month` に `1月`…`12月`。薄い字・中央・白地。数値は入れない）。月の縦罫線を節行でも切らない。グレーは `monthly-sec-label` だけ。`data-series` なし、クリックしない。PC で sticky なのはラベルセルだけ（全幅 1 セルだと sticky が効かず横スクロールで消える。月セルまで sticky にするとラベルの上に積み重なる）
+- ゲート表の左は stub 3 列（チャネル | スコープ | 葉）。連続するチャネルとスコープは rowspan。スコープ `既存` は stub 文言 `既存店`。空のチャネルとスコープは `—`。ゲート leftover に入るとき `tr.monthly-sec` を 1 行。ラベルは `td.monthly-sec-label` で stub 3 列ぶん `colspan=3`、続けて月セル 12（`td.num.monthly-sec-month` に `1月`…`12月`。年表ヘッダの月と同じ太字・中央・`#eceff2`。数値は入れない）。月の縦罫線を節行でも切らない。グレー帯は `monthly-sec-label` だけ。`data-series` なし、クリックしない。PC で sticky なのはラベルセルだけ（全幅 1 セルだと sticky が効かず横スクロールで消える。月セルまで sticky にするとラベルの上に積み重なる）
 - `data-series` と系列 ID は `fmtMonthlyElement` の表示名のまま。`#monthly-series` は年表と同順。ゲート leftover は `<optgroup label="焼肉">`。会社全体は optgroup「全体」。option の value はフル ID。グループ下の表示は葉でよい
 - 項目列は太字。セルは縦横罫線。ゼブラは付けない。選択中の系列行だけ `--row-sel`。ゲート表の stub 3 列と節ラベルも 700 で揃える。左揃え・上揃え（rowspan のチャネル/スコープは塊の先頭行の横に出る）。中央揃えや 600/700 の混在はしない
 - 1〜12月列は表示値の最長に揃えた同一幅（`--monthly-m-w`）。空セルと項目列は幅の根拠にしない。項目列は min-width で潰れない。ゲート表は `min-width:100%` で画面幅に広げない（`table-layout:fixed` が余りを全列に比例配分し、stub と月列が太る。1400px で月列が 53px → 86px になっていた）。幅は列幅の合計。右に余白が出てよい。ゲート無しの表は従来どおり
 - PC の左端 th/td は sticky、不透明な白（暦年セルは赤）、z-index。右端の月列は sticky にしない。ゲート表の stub 3 列も PC では左に sticky する。stub 列の幅は PC で `--stub-ch` 5em / `--stub-sc` 4.25em / `--stub-leaf` 9.5em（`直営+FC` / `既存店` / `日本+海外 店舗数` が 1 行に収まる最小。stub の左右 padding は 6px）。sticky の `left` はこの変数から導く。幅だけ変えて left を直し忘れない
-- スマホ（`@media (max-width:640px)`）は左端 sticky を外し、項目列を短くして月列が見えるようにする。第2 sticky 列は足さない。節の月ラベルも白のまま（グレーはラベルセルだけ）。stub 幅は同じ変数を 2em / 2em / 4em に上書き。stub 列は折返し可。名前領域の合計はおおよそ 8em
+- スマホ（`@media (max-width:640px)`）は左端 sticky を外し、項目列を短くして月列が見えるようにする。第2 sticky 列は足さない。節の月ラベルも年表ヘッダと同じ見た目（グレーはブランドラベルセルだけ）。stub 幅は同じ変数を 2em / 2em / 4em に上書き。stub 列は折返し可。名前領域の合計はおおよそ 8em
 
 ### 操作
 
