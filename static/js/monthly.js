@@ -116,6 +116,7 @@ function monthlySeriesKind(element, unit){
     return "stores";
   }
   if(u!=="yoy_index" && u!=="yoy_pct") return null;
+  if(parseMonthlyLayers(element).breakdown) return null;
   if(key.includes("既存")) return "existing";
   if(key.includes("全店") || key.includes("全社")) return "all_store";
   return null;
@@ -191,6 +192,11 @@ const MONTHLY_STORE_ADJ = ["純増","新設","改装","業態転換"];
 const MONTHLY_METRIC_RANK = {
   sales:1, customers:2, spend:3, open:4, close:5, adj:6, stores:7, other:8,
 };
+const MONTHLY_BREAKDOWN_CANON = {
+  ドラッグ:"ドラッグ", ドラッグ店舗:"ドラッグ", 調剤:"調剤", 調剤店舗:"調剤", 物販:"物販",
+};
+const MONTHLY_BREAKDOWN_MARKS = new Set(["内)","（内","うち"]);
+const MONTHLY_BREAKDOWN_RANK = {"":0, ドラッグ:1, 調剤:2, 物販:3};
 const MONTHLY_COUNTRY_RANK = {"":0, 日本:1, 海外:2};
 const MONTHLY_CHANNEL_RANK = {"直営+FC":0, 直営:1, FC:2, "":3};
 
@@ -280,6 +286,41 @@ function monthlyIsStoreAdj(element, segment){
   return MONTHLY_STORE_ADJ.some(mark => blob.includes(mark));
 }
 
+function monthlyTokenBreakdown(tok){
+  let t = String(tok || "");
+  for(const mark of ["内)","（内","うち"]){
+    if(t.startsWith(mark)) t = t.slice(mark.length);
+  }
+  t = t.replace(/[）)（(]/g, "").trim();
+  if(t in MONTHLY_BREAKDOWN_CANON) return MONTHLY_BREAKDOWN_CANON[t];
+  if(t.endsWith("店舗") && t.slice(0, -2) in MONTHLY_BREAKDOWN_CANON){
+    return MONTHLY_BREAKDOWN_CANON[t.slice(0, -2)];
+  }
+  return "";
+}
+
+function monthlyPeelBreakdown(leftover, metric){
+  if(metric !== "売上高") return [leftover, ""];
+  const kept = [];
+  let breakdown = "";
+  for(const tok of leftover){
+    if(MONTHLY_BREAKDOWN_MARKS.has(tok)) continue;
+    const bd = monthlyTokenBreakdown(tok);
+    if(bd){
+      breakdown = bd;
+      continue;
+    }
+    kept.push(tok);
+  }
+  while(kept.length){
+    const bd = monthlyTokenBreakdown(kept[kept.length - 1]);
+    if(!bd) break;
+    breakdown = bd;
+    kept.pop();
+  }
+  return [kept, breakdown];
+}
+
 function parseMonthlyLayers(element){
   let country="", channel="", scope="", metric="", timeAxis="";
   let leftover = [];
@@ -320,7 +361,9 @@ function parseMonthlyLayers(element){
     leftover = leftover.filter(tok => tok !== "（内");
   }
   if(!scope && MONTHLY_FILL_ALL.has(metric)) scope = "全店";
-  return {country, segment: leftover.join(" "), time_axis: timeAxis, channel, scope, metric};
+  let breakdown = "";
+  [leftover, breakdown] = monthlyPeelBreakdown(leftover, metric);
+  return {country, segment: leftover.join(" "), time_axis: timeAxis, channel, scope, metric, breakdown};
 }
 
 function normalizeElementTokens(element, fillDefaultMetric){
@@ -332,12 +375,14 @@ function normalizeElementTokens(element, fillDefaultMetric){
     && !p.metric
     && p.scope
     && !p.channel
-    && !p.segment
   ){
     p.metric = "売上高";
     p.time_axis = "";
+    const [leftover, breakdown] = monthlyPeelBreakdown(p.segment.split(" ").filter(Boolean), "売上高");
+    p.segment = leftover.join(" ");
+    p.breakdown = breakdown;
   }
-  const built = [p.country, p.segment, p.time_axis, p.channel, p.scope, p.metric].filter(Boolean).join(" ");
+  const built = [p.country, p.segment, p.time_axis, p.channel, p.scope, p.metric, p.breakdown].filter(Boolean).join(" ");
   return built || trimmed;
 }
 
@@ -369,6 +414,11 @@ function monthlyRowSlot(element, unit){
   return MONTHLY_METRIC_RANK[monthlyRowMetric(element)];
 }
 
+function monthlyRowBreakdownRank(element){
+  const bd = parseMonthlyLayers(element).breakdown || "";
+  return bd in MONTHLY_BREAKDOWN_RANK ? MONTHLY_BREAKDOWN_RANK[bd] : 4;
+}
+
 function monthlyRowScopeRank(element){
   const p = parseMonthlyLayers(element);
   if(p.scope === "既存") return 2;
@@ -395,7 +445,7 @@ function isAllStoreSalesYoy(element, unit){
   const u = unit || "number";
   if(u!=="yoy_index" && u!=="yoy_pct") return false;
   const p = parseMonthlyLayers(element);
-  return p.metric === "売上高" && p.scope === "全店" && !p.segment;
+  return p.metric === "売上高" && p.scope === "全店" && !p.segment && !p.breakdown;
 }
 
 function monthlyRowOrder(tables, code){
@@ -430,6 +480,7 @@ function monthlyRowOrder(tables, code){
         scope:monthlyRowScopeRank(rankName),
         channel:monthlyRowChannelRank(rankName),
         slot:monthlyRowSlot(rankName, unit),
+        bd:monthlyRowBreakdownRank(rankName),
         idx:items.length
       });
     }
@@ -450,6 +501,7 @@ function monthlyRowOrder(tables, code){
     if(a.scope!==b.scope) return a.scope - b.scope;
     if(a.channel!==b.channel) return a.channel - b.channel;
     if(a.slot!==b.slot) return a.slot - b.slot;
+    if(a.bd!==b.bd) return a.bd - b.bd;
     return a.idx - b.idx;
   });
   return items.map(e => ({element:e.element, unit:e.unit}));
@@ -500,9 +552,14 @@ function monthlyLayoutLeaf(display, unit, dropSegment){
   const rank = stripMonthlyDisplayUnit(display, unit);
   const p = parseMonthlyLayers(rank);
   const leftover = (dropSegment && p.segment === dropSegment) ? "" : p.segment;
-  let metric = p.metric || "";
   const u = unit || "number";
   const isYoy = u === "yoy_index" || u === "yoy_pct";
+  if(p.breakdown){
+    let bd = p.breakdown;
+    if(isYoy && !bd.endsWith("(前年比)")) bd += "(前年比)";
+    return "└ " + bd;
+  }
+  let metric = p.metric || "";
   if(isYoy && metric && !metric.endsWith("(前年比)")) metric += "(前年比)";
   if(!isYoy && metric){
     const spec = monthlyDisplayUnit(rank, u);
@@ -521,10 +578,12 @@ function monthlyLayoutDataRow(e, gatedSegment, idx){
     group: gatedSegment || "",
     channel: p.channel,
     scope: p.scope,
+    breakdown: p.breakdown || "",
     leaf: monthlyLayoutLeaf(e.element, e.unit, gatedSegment || ""),
     channelRank: monthlyRowChannelRank(rank),
     scopeRank: monthlyRowScopeRank(rank),
     slot: monthlyRowSlot(rank, e.unit),
+    bdRank: monthlyRowBreakdownRank(rank),
     idx
   };
 }
@@ -534,6 +593,7 @@ function monthlyReorderBlock(block){
     if(a.channelRank !== b.channelRank) return a.channelRank - b.channelRank;
     if(a.scopeRank !== b.scopeRank) return a.scopeRank - b.scopeRank;
     if(a.slot !== b.slot) return a.slot - b.slot;
+    if((a.bdRank || 0) !== (b.bdRank || 0)) return (a.bdRank || 0) - (b.bdRank || 0);
     return a.idx - b.idx;
   });
 }
@@ -1049,7 +1109,8 @@ function renderMonthlyYearTables(tables){
         let stubs = "";
         if(e.channelSpan) stubs += `<td class="monthly-stub monthly-stub-ch" rowspan="${e.channelSpan}">${escHtml(monthlyStubChannelText(e.channel))}</td>`;
         if(e.scopeSpan) stubs += `<td class="monthly-stub monthly-stub-sc" rowspan="${e.scopeSpan}">${escHtml(monthlyStubScopeText(e.scope))}</td>`;
-        stubs += `<td class="l monthly-stub monthly-stub-leaf">${escHtml(e.leaf)}</td>`;
+        const bdClass = e.breakdown ? " monthly-bd" : "";
+        stubs += `<td class="l monthly-stub monthly-stub-leaf${bdClass}">${escHtml(e.leaf)}</td>`;
         h += `<tr${ds}>${stubs}`;
         for(let m=1;m<=12;m++){
           const v = vals[String(m)];

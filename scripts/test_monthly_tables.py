@@ -1404,6 +1404,12 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("index.html missing monthlyStitchRealStore")
     if "function monthlyStitchVsSales" not in html:
         _fail("index.html missing monthlyStitchVsSales")
+    if "function monthlyPeelBreakdown" not in html:
+        _fail("index.html missing monthlyPeelBreakdown")
+    if "function monthlyRowBreakdownRank" not in html:
+        _fail("index.html missing monthlyRowBreakdownRank")
+    if "function monthlyLayoutLeaf" not in html:
+        _fail("index.html missing monthlyLayoutLeaf")
     if '["実店舗数","実店舗 店舗数"]' not in html:
         _fail("SPA must unglue 実店舗数 before 店舗数")
     if "function monthlyRowScopeRank" not in html:
@@ -1425,6 +1431,16 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("monthlyRowOrder must key by fmtMonthlyElement display name")
     if "seen.has(name)" in row_body:
         _fail("monthlyRowOrder must not key by raw stored element name")
+    if "bd:monthlyRowBreakdownRank" not in row_body.replace(" ", ""):
+        _fail("monthlyRowOrder must sort 売上高 内訳 after the parent")
+    if "function monthlySeriesKind" not in html:
+        _fail("index.html missing monthlySeriesKind")
+    kind_fn = html.find("function monthlySeriesKind")
+    kind_end = html.find("const MONTHLY_CHAN_BOTH")
+    if kind_fn < 0 or kind_end <= kind_fn:
+        _fail("monthlySeriesKind / MONTHLY_CHAN_BOTH bounds")
+    if ".breakdown" not in html[kind_fn:kind_end]:
+        _fail("monthlySeriesKind must skip 売上高 内訳")
     if "function monthlySeriesChoices" not in html:
         _fail("index.html missing monthlySeriesChoices")
     choices_fn = html.find("function monthlySeriesChoices")
@@ -1612,6 +1628,14 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("gated year tables must use a monthly-gated class")
     if "monthly-stub-ch" not in html or "monthly-stub-sc" not in html or "monthly-stub-leaf" not in html:
         _fail("gated tables must emit channel/scope/leaf stub columns")
+    if "monthly-bd" not in html:
+        _fail("売上高 内訳 leaf must use monthly-bd")
+    if "td.monthly-stub-leaf.monthly-bd" not in html:
+        _fail("内訳 leaf CSS must stay on the existing stub-leaf column")
+    if "└" not in html:
+        _fail("内訳 leaf must indent with └")
+    if "font-size:12px" not in html[html.find("td.monthly-stub-leaf.monthly-bd"):html.find("td.monthly-stub-leaf.monthly-bd") + 180]:
+        _fail("内訳 leaf must be 12px")
     if "colspan=\"3\"" not in html and "colspan='3'" not in html:
         _fail("gated year header must span the three stub columns")
     if '<tr class="monthly-sec"><td class="monthly-sec-label" colspan="3">' not in html:
@@ -1737,6 +1761,21 @@ const flatMode = sandbox.monthlyTableLayout(rowOrder, gatedTables);
 sandbox.setMonthlyLayoutMode("gated");
 const flatOrder = sandbox.monthlyRowOrder(flatTables);
 const flat = sandbox.monthlyTableLayout(flatOrder, flatTables);
+const matsukiyo = [{
+  year: 2026,
+  code: "30880",
+  elements: [
+    { element: "全店 売上高 ドラッグ(前年比)", unit: "yoy_index", values: vals() },
+    { element: "MKG ドラッグ 全店 売上高(前年比)", unit: "yoy_index", values: vals() },
+    { element: "MKG 全店 売上高 調剤(前年比)", unit: "yoy_index", values: vals() },
+    { element: "MKG 全店 客数(前年比)", unit: "yoy_index", values: vals() },
+    { element: "MKG 全店 売上高(前年比)", unit: "yoy_index", values: vals() },
+    { element: "全店 売上高(前年比)", unit: "yoy_index", values: vals() },
+    { element: "既存 売上高(前年比)", unit: "yoy_index", values: vals() },
+  ],
+}];
+const bdOrder = sandbox.monthlyRowOrder(matsukiyo);
+const bdLayout = sandbox.monthlyTableLayout(bdOrder, matsukiyo);
 console.log(JSON.stringify({
   gated,
   gatedFlag: layout.gated,
@@ -1750,6 +1789,23 @@ console.log(JSON.stringify({
   flatGated: flat.gated,
   flatIds: flat.rows.map((r) => r.element),
   flatKinds: flat.rows.map((r) => r.kind),
+  bdCanon: sandbox.fmtMonthlyElement("MKG ドラッグ 全店 売上高(前年比)", "yoy_index"),
+  bdGate: [...sandbox.monthlySegmentGate(matsukiyo)].sort(),
+  bdDefault: sandbox.pickDefaultMonthlySeries(matsukiyo),
+  bdCompanyKind: sandbox.monthlySeriesKind("全店 売上高 ドラッグ(前年比)", "yoy_index"),
+  bdCols: bdLayout.rows.some((r) => r.rail || r.col4 || r.stub4) ? 4 : 3,
+  bdSummary: bdLayout.rows.map((r) => {
+    if (r.kind === "section") return { kind: "section", label: r.label };
+    return {
+      kind: "data",
+      element: r.element,
+      group: r.group,
+      channel: r.channel,
+      scope: r.scope,
+      leaf: r.leaf,
+      breakdown: r.breakdown || "",
+    };
+  }),
 }));
 """
     proc = subprocess.run(
@@ -1798,6 +1854,28 @@ console.log(JSON.stringify({
         _fail("ungated issuer must not grow section rows")
     if got.get("flatIds") != ["全店 売上高(前年比)", "既存 売上高(前年比)"]:
         _fail(f"ungated ids stay full names: {got.get('flatIds')!r}")
+    if got.get("bdCanon") != "MKG 全店 売上高 ドラッグ(前年比)":
+        _fail(f"old leftover ドラッグ must display-canonicalize: {got.get('bdCanon')!r}")
+    if got.get("bdGate") != ["MKG"]:
+        _fail(f"30880 gate leftover must stay MKG: {got.get('bdGate')!r}")
+    if got.get("bdDefault") != "全店 売上高(前年比)":
+        _fail(f"TOP series must ignore 内訳: {got.get('bdDefault')!r}")
+    if got.get("bdCompanyKind") is not None:
+        _fail(f"会社 ドラッグ must not be all_store: {got.get('bdCompanyKind')!r}")
+    if got.get("bdCols") != 3:
+        _fail(f"内訳 must not add a stub column: {got.get('bdCols')!r}")
+    want_bd = [
+        {"kind": "data", "element": "全店 売上高(前年比)", "group": "", "channel": "", "scope": "全店", "leaf": "売上高(前年比)", "breakdown": ""},
+        {"kind": "data", "element": "全店 売上高 ドラッグ(前年比)", "group": "", "channel": "", "scope": "全店", "leaf": "└ ドラッグ(前年比)", "breakdown": "ドラッグ"},
+        {"kind": "data", "element": "既存 売上高(前年比)", "group": "", "channel": "", "scope": "既存", "leaf": "売上高(前年比)", "breakdown": ""},
+        {"kind": "section", "label": "MKG"},
+        {"kind": "data", "element": "MKG 全店 売上高(前年比)", "group": "MKG", "channel": "", "scope": "全店", "leaf": "売上高(前年比)", "breakdown": ""},
+        {"kind": "data", "element": "MKG 全店 売上高 ドラッグ(前年比)", "group": "MKG", "channel": "", "scope": "全店", "leaf": "└ ドラッグ(前年比)", "breakdown": "ドラッグ"},
+        {"kind": "data", "element": "MKG 全店 売上高 調剤(前年比)", "group": "MKG", "channel": "", "scope": "全店", "leaf": "└ 調剤(前年比)", "breakdown": "調剤"},
+        {"kind": "data", "element": "MKG 全店 客数(前年比)", "group": "MKG", "channel": "", "scope": "全店", "leaf": "客数(前年比)", "breakdown": ""},
+    ]
+    if got.get("bdSummary") != want_bd:
+        _fail(f"30880 内訳 layout: {got.get('bdSummary')!r}")
 
 
 
