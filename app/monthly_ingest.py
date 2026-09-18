@@ -999,7 +999,15 @@ def _anchor_year(last_month: int, as_of: date) -> int:
 
 
 def _current_fy_end_year(fy_end_month: int, as_of: date) -> int:
-    """as_of が属する会計年度の期末年。期末月 M より後なら翌年期末。"""
+    """as_of が属する会計年度の期末年。
+
+    新FYの先頭月（期末月の翌月）は、完了直後の期末速報とみなし直前FYの期末年を返す。
+    それ以外は期末月より後なら翌年期末、そうでなければ当年期末。
+    """
+    if as_of.month == _fiscal_start_month(fy_end_month):
+        if fy_end_month < as_of.month:
+            return as_of.year
+        return as_of.year - 1
     if as_of.month > fy_end_month:
         return as_of.year + 1
     return as_of.year
