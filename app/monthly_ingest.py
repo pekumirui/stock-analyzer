@@ -5,6 +5,7 @@ import json
 import re
 import unicodedata
 from datetime import date, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -14,6 +15,18 @@ _YOY_UNITS = frozenset({"yoy_index", "yoy_pct"})
 _YOY_FRAGMENTS = ("前年同月比", "前年同月", "(前年比)", "（前年比）", "前年比")
 _YOY_SUFFIX = "(前年比)"
 _UNIT_MSG = "unit は number / yoy_index / yoy_pct です。"
+# 表示だけ。保存 unit は number|yoy_index。長い token を先に（受注高 ⊂ 新規受注高）。
+MONTHLY_DISPLAY_UNITS: tuple[tuple[str, str, int], ...] = (
+    ("1人当たり受注高", "万円", 0),
+    ("新規受注高", "百万円", 0),
+    ("キャンセル額", "百万円", 0),
+    ("家賃ベース入居率", "%", 2),
+    ("入居者斡旋件数", "件", 0),
+    ("営業人員数", "人", 0),
+    ("空室在庫", "カ月", 2),
+    ("空室数", "戸", 0),
+    ("受注高", "百万円", 0),
+)
 
 
 class MonthlyIngestError(Exception):
@@ -866,15 +879,62 @@ def union_monthly_elements(
     return [{"element": it["element"], "unit": it["unit"]} for it in items]
 
 
-def format_monthly_cell(value: float | None, unit: str | None = None) -> str:
-    """空セルは -。保存値のまま。指数は 100=フラット。"""
+def monthly_display_unit(element: str | None, unit: str | None = None) -> tuple[str, int] | None:
+    if (unit or "number") != "number":
+        return None
+    name = element or ""
+    for token, suffix, digits in MONTHLY_DISPLAY_UNITS:
+        if token in name:
+            return suffix, digits
+    return None
+
+
+def strip_monthly_display_unit(element: str | None, unit: str | None = None) -> str:
+    name = element or ""
+    if (unit or "number") != "number":
+        return name
+    for _token, suffix, _digits in MONTHLY_DISPLAY_UNITS:
+        name = name.replace(f"（{suffix}）", "")
+    return " ".join(name.split())
+
+
+def monthly_display_label(element: str | None, unit: str | None = None) -> str:
+    """画面の項目名だけ。保存名は単位なし。"""
+    name = strip_monthly_display_unit(element, unit)
+    spec = monthly_display_unit(name, unit)
+    if spec is None:
+        return name
+    suffix, _digits = spec
+    return name + f"（{suffix}）"
+
+
+def _round_half_up(value: float, digits: int) -> Decimal:
+    quant = Decimal(1).scaleb(-digits)
+    return Decimal(str(value)).quantize(quant, rounding=ROUND_HALF_UP)
+
+
+def format_monthly_cell(
+    value: float | None,
+    unit: str | None = None,
+    element: str | None = None,
+) -> str:
+    """空セルは -。前年比は保存値。number で表示単位がある行は四捨五入。単位は項目名。"""
     if value is None:
         return "-"
     n = float(value)
     if n != n or n in (float("inf"), float("-inf")):
         return "-"
-    text = f"{n:.4f}".rstrip("0").rstrip(".")
-    return text if text else "0"
+    spec = monthly_display_unit(element, unit)
+    if spec is None:
+        text = f"{n:.4f}".rstrip("0").rstrip(".")
+        return text if text else "0"
+    _suffix, digits = spec
+    text = format(_round_half_up(n, digits), "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    if not text:
+        text = "0"
+    return text
 
 
 def parse_as_of(raw: Any, *, default: date | None = None) -> date:

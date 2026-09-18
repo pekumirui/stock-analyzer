@@ -170,7 +170,8 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
 | `yoy_pct` | ▲/△ 付き変化率、または見出しの 増減比/伸び率 | `yoy_index`、`value+100`（-7.1 → 92.9） |
 | `number` | 店舗数など件数 | `number` のまま |
 
-表の表示は保存値のまま（指数 100=フラット）。▲ や +X.X% にはしない。
+前年比の表の表示は保存値のまま（指数 100=フラット）。▲ や +X.X% にはしない。
+number で表示単位がある指標は項目名の末尾に `（単位）` を付け、セルは四捨五入した数字だけにする。対応は [`docs/DESIGN_monthly_labels.md`](docs/DESIGN_monthly_labels.md)。GET の JSON と保存名は単位なし。
 
 **行名。** 正本は [`docs/DESIGN_monthly_labels.md`](docs/DESIGN_monthly_labels.md)。
 ingest / POST は `canonicalize_element_label` してから既存行を探す。GET は保存名。SPA は `fmtMonthlyElement`。
@@ -192,7 +193,7 @@ IR 月次 PDF/xlsx/xls（`scripts/ir_monthly_r2.py`）:
 - TDnet に月次が無い発行体が対象。`config/ir_monthly.json` の issuers（URL 確認済みだけ載せる）
 - 表計算と pdf が両方あるページは表計算だけ取る。xlsx があれば xlsx、なければ xls（大東建託 `history_*.xls`）
 - AWS ELB が識別 UA を 403 する発行体は、同じ `http_get` がブラウザ UA に一度だけフォールバックする
-- ingest はまだ MCP 経由。パーサーは無い
+- 大東建託 (1878) の `history.xls` は `scripts/ir_monthly_xls_ingest.py` が ingest JSON を作り loopback POST する。year は送らない。汎用 xlsx パーサは無い。HTML ingest の cron には混ぜない
 
 IR 月次 HTML（`scripts/ir_monthly_html_r2.py`）:
 
