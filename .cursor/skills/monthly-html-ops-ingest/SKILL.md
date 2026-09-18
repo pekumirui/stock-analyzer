@@ -4,8 +4,9 @@ description: >
   Operational IR HTML monthly ingest for stock-analyzer: fill calendar-year gaps via
   archive/year URLs, merge multi-table pages, override parser as_of when live HTML
   proves the fiscal year, clean label ghosts with issuer_aliases + ops merge.
-  Requires pair review with monthly_get for 2024/2025/2026 per code and
-  spot-checks that DB numbers match source HTML before closing a wave.
+  Requires pair review with monthly_get for 2024/2025/2026 per code,
+  spot-checks that DB numbers match source HTML, and a 表記揺れ (duplicate/ghost
+  label) check before closing a wave.
   Use when backfilling HTML 月次, issue #180-style ops, monthly_ingest MCP posts,
   missing 2024/1–2 or H1/H2 halves, or after adding aliases that do not rewrite DB rows.
 ---
@@ -19,7 +20,7 @@ Production loopback via stock-analyzer MCP (`monthly_*`). Design stays in `DESIG
 - Fill missing calendar months for HTML issuers in `config/ir_monthly.json`
 - Track a wave on a GitHub issue (#180 pattern)
 - Clean old row labels after alias/canonicalize ships
-- Pair-review a wave: confirm **2024 / 2025 / 2026** coverage **and** that sample numbers match source HTML before closing
+- Pair-review a wave: confirm **2024 / 2025 / 2026** coverage, sample numbers match source HTML, and **no 表記揺れ** before closing
 
 Not for: parser code changes (separate PR), TDnet PDF, XBRL, SPA verify (use `verify-stock-analyzer`).
 
@@ -100,11 +101,19 @@ Fail the review if any of 2024–2026 was not checked. 2024 is often incomplete 
 - For each sample: same element, same calendar month → DB value == source (yoy: saved form; ingest of `yoy_pct` becomes `yoy_index` with +100)
 - Fail on any mismatch, silent null where the source has a number, or wrong year bucket (value landed in 2025 instead of 2024)
 
+**表記揺れなし (mandatory).** For every touched code × year (2024–2026), list all `element` names from `monthly_get`. Fail if the same metric appears under two labels, or a known ghost prefix/suffix remains.
+
+Check for:
+
+- Scope twins that should be one row (例: `全店` vs `全社` when HTML is 全社-only — USMH). **Do not** fail Alpen when HTML truly has both
+- Prefix leftovers: `売上（%）`, `U.S.M.H`, circled `①`/`②`, old `(1)` footnotes that canonicalize should have dropped
+- Same brand under two names in one year when they are a rename split across months (例: マックスバリュ関東 vs イオンフードスタイル) — report, do **not** auto-merge; ask
+- Split months across twin rows (3–8 on name A, 1–2 on name B for the same metric)
+
 Also re-check:
 
-- [ ] Row labels: no ghost twins (`全店`/`全社`, `売上（%）`, `①`, `U.S.M.H` …) vs current rules
 - [ ] Units sane (no count rows as `yoy_pct`)
-- [ ] Issue comment: matrix + number samples + blockers; open follow-ups for unfixed gaps
+- [ ] Issue comment: matrix + number samples + label list / 表記揺れ findings + blockers
 
 ## Label cleanup playbook
 
