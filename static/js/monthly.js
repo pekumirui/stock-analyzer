@@ -5,6 +5,16 @@ const MONTHLY_YEAR_COLORS = ["#0077b6","#2e8b57","#b8860b","#8e4ec6"];
 let MONTHLY_ROW_ORDER = {};
 let _monthlyRowOrderReady = null;
 const MONTHLY_SEGMENT_TAIL_BASE = 10000;
+/* TEMP debug: compare pre-merge flat tables vs gated stubs. Remove with #monthly-layout-debug. */
+const MONTHLY_LAYOUT_MODE_KEY = "monthly.layoutMode.debug";
+let monthlyLayoutMode = (() => {
+  try{
+    const v = sessionStorage.getItem(MONTHLY_LAYOUT_MODE_KEY);
+    return v === "flat" ? "flat" : "gated";
+  }catch(_){
+    return "gated";
+  }
+})();
 
 function loadMonthlyRowOrderConfig(){
   if(_monthlyRowOrderReady) return _monthlyRowOrderReady;
@@ -523,8 +533,9 @@ function monthlyReorderBlock(block){
   });
 }
 
-function monthlyTableLayout(rowOrder, tables){
-  const gated = monthlySegmentGate(tables);
+function monthlyTableLayout(rowOrder, tables, opts){
+  const forceFlat = (opts && opts.forceFlat) || monthlyLayoutMode === "flat";
+  const gated = forceFlat ? new Set() : monthlySegmentGate(tables);
   if(!gated.size){
     return {
       gated: false,
@@ -876,31 +887,34 @@ function setMonthlySeries(id){
   markMonthlySeriesRows();
 }
 
-function markMonthlySeriesRows(){
-  document.querySelectorAll("#monthly-table-wrap tr[data-series]").forEach(tr =>
-    tr.classList.toggle("on", tr.dataset.series === monthlySeries));
+function syncMonthlyLayoutDebugUi(canGate){
+  const host = $("#monthly-layout-debug");
+  const sel = $("#monthly-layout-mode");
+  if(!host || !sel) return;
+  if(canGate){
+    host.hidden = false;
+    sel.value = monthlyLayoutMode === "flat" ? "flat" : "gated";
+  }else{
+    host.hidden = true;
+  }
 }
 
-async function loadMonthlyTables(){
-  if(!selMonthlyCode) return;
+function setMonthlyLayoutMode(mode){
+  monthlyLayoutMode = mode === "flat" ? "flat" : "gated";
+  try{ sessionStorage.setItem(MONTHLY_LAYOUT_MODE_KEY, monthlyLayoutMode); }catch(_){}
+  const sel = $("#monthly-layout-mode");
+  if(sel && sel.value !== monthlyLayoutMode) sel.value = monthlyLayoutMode;
+  if(!monthlyYearTables.length) return;
+  renderMonthlyYearTables(monthlyYearTables);
+}
+
+function renderMonthlyYearTables(tables){
   const wrap = $("#monthly-table-wrap");
-  await loadMonthlyRowOrderConfig();
-  const info = await api(`/api/v1/tables/${selMonthlyCode}`).catch(()=>null);
-  const years = monthlyDisplayYears((info && info.years) || []);
-  if(!years.length){
-    monthlyYearTables = [];
-    wrap.style.removeProperty("--monthly-m-w");
-    wrap.innerHTML = `<div class="sub">データなし</div>`;
-    renderMonthlySeriesSelect();
-    drawMonthlyChart([], monthlySeries);
-    return;
-  }
-  const tables = await Promise.all(
-    years.map(y => api(`/api/v1/tables/${selMonthlyCode}/${y}`).catch(()=>null))
-  );
-  monthlyYearTables = tables.filter(Boolean);
-  const rowOrder = monthlyRowOrder(monthlyYearTables);
-  const layout = monthlyTableLayout(rowOrder, monthlyYearTables);
+  if(!wrap) return;
+  const rowOrder = monthlyRowOrder(tables);
+  const canGate = monthlySegmentGate(tables).size > 0;
+  const layout = monthlyTableLayout(rowOrder, tables);
+  syncMonthlyLayoutDebugUi(canGate);
   renderMonthlySeriesSelect();
   let h = "";
   let maxNumLen = 0;
@@ -962,8 +976,35 @@ async function loadMonthlyTables(){
   }
   wrap.style.setProperty("--monthly-m-w", `calc(${Math.max(maxNumLen, 3)}ch + 16px)`);
   wrap.innerHTML = h || `<div class="sub">データなし</div>`;
-  drawMonthlyChart(monthlyYearTables, monthlySeries);
+  drawMonthlyChart(tables, monthlySeries);
   markMonthlySeriesRows();
+}
+
+function markMonthlySeriesRows(){
+  document.querySelectorAll("#monthly-table-wrap tr[data-series]").forEach(tr =>
+    tr.classList.toggle("on", tr.dataset.series === monthlySeries));
+}
+
+async function loadMonthlyTables(){
+  if(!selMonthlyCode) return;
+  const wrap = $("#monthly-table-wrap");
+  await loadMonthlyRowOrderConfig();
+  const info = await api(`/api/v1/tables/${selMonthlyCode}`).catch(()=>null);
+  const years = monthlyDisplayYears((info && info.years) || []);
+  if(!years.length){
+    monthlyYearTables = [];
+    wrap.style.removeProperty("--monthly-m-w");
+    wrap.innerHTML = `<div class="sub">データなし</div>`;
+    syncMonthlyLayoutDebugUi(false);
+    renderMonthlySeriesSelect();
+    drawMonthlyChart([], monthlySeries);
+    return;
+  }
+  const tables = await Promise.all(
+    years.map(y => api(`/api/v1/tables/${selMonthlyCode}/${y}`).catch(()=>null))
+  );
+  monthlyYearTables = tables.filter(Boolean);
+  renderMonthlyYearTables(monthlyYearTables);
 }
 
 function monthlyIsPhone(){
