@@ -179,12 +179,11 @@
     background:var(--panel);
   }
   table.monthly td:first-child { font-weight:700; }
-  /* stub 3 列。幅は変数 1 か所。sticky の left は幅から導く（幅だけ変えて left を直し忘れない） */
   table.monthly.monthly-gated {
-    --stub-ch: 5em;      /* 直営+FC が 1 行に収まる最小（テキスト 48.9px + padding 12px + 4px） */
-    --stub-sc: 4.25em;   /* 既存店 39px + 12px + 4px */
-    --stub-leaf: 9.5em;  /* 日本+海外 店舗数 101.8px + 12px + 10px */
-    min-width: 0;        /* min-width:100% だと fixed layout が余りを全列に配り stub と月列が太る */
+    --stub-ch: 5em;
+    --stub-sc: 4.25em;
+    --stub-leaf: 9.5em;
+    min-width: 0;
   }
   table.monthly.monthly-gated col.monthly-stub-ch { width: var(--stub-ch); }
   table.monthly.monthly-gated col.monthly-stub-sc { width: var(--stub-sc); }
@@ -226,15 +225,12 @@
   }
   table.monthly tbody tr.monthly-sec td {
     text-align:left; cursor:default;
-    /* month cells on section row stay default white; borders draw the grid */
   }
-  table.monthly tbody tr.monthly-sec td:first-child {
+  table.monthly tbody tr.monthly-sec td.monthly-sec-label,
+  table.monthly tbody tr.monthly-sec:hover td.monthly-sec-label {
     background:#f0f3f6; color:#111827; font-weight:700; font-size:12px;
     padding:7px 10px;
     position:sticky; left:0; z-index:2;
-  }
-  table.monthly tbody tr.monthly-sec:hover td:first-child {
-    background:#f0f3f6;
   }
   #monthly-table-wrap { display:flex; flex-direction:column; gap:1.75rem; overflow-x:auto; min-width:0; background:#fff; }
   table.monthly thead th { top:auto; }
@@ -285,7 +281,7 @@
     table.monthly tbody tr[data-series].on td,
     table.monthly tbody tr[data-series].on td:first-child,
     table.monthly tbody tr[data-series].on td.monthly-stub { background:var(--row-sel); }
-    table.monthly tbody tr.monthly-sec td:first-child { position:static; background:#f0f3f6; }
+    table.monthly tbody tr.monthly-sec td.monthly-sec-label { position:static; background:#f0f3f6; }
     table.monthly.monthly-gated { --stub-ch:2em; --stub-sc:2em; --stub-leaf:4em; }
     table.monthly.monthly-gated thead th:first-child { min-width:8em; width:8em; }
     table.monthly.monthly-gated td.monthly-stub,

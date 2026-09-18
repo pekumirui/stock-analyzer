@@ -934,7 +934,7 @@ async function loadMonthlyTables(){
     if(layout.gated){
       for(const e of monthlyVisibleLayoutRows(layout, byName)){
         if(e.kind === "section"){
-          h += `<tr class="monthly-sec"><td colspan="3">${escHtml(e.label)}</td>${'<td class="num"></td>'.repeat(12)}</tr>`;
+          h += `<tr class="monthly-sec"><td class="monthly-sec-label" colspan="3">${escHtml(e.label)}</td>${'<td class="num"></td>'.repeat(12)}</tr>`;
           continue;
         }
         const src = byName[e.element];
