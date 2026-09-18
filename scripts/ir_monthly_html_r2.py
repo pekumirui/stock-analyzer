@@ -88,8 +88,11 @@ _SKIP_AXIS_RE = re.compile(
     r"[1-4]Q|[１-４]Q|[1-4]四半期|四半期|\d+\s*ヶ月|月計)$"
 )
 _SKIP_SPAN_RE = re.compile(r"\d+\s*[～〜~\-－]\s*\d+\s*月")
-_NAMED_METRIC_RE = re.compile(r"来客数|客単価|客数|店舗数|店数|開店|閉店|出店|退店")
-_STORE_FLOW_RE = re.compile(r"開店|閉店|出店|退店")
+_NAMED_METRIC_RE = re.compile(
+    r"来客数|客単価|客数|店舗数|店数|拠点数|営業所数|開店|閉店|出店|退店|開設|撤退"
+)
+_STORE_FLOW_RE = re.compile(r"開店|閉店|出店|退店|開設|撤退")
+_COUNT_HEAD_RE = re.compile(r"店舗数|拠点数|営業所数")
 _UPDATE_RE = re.compile(
     r"(\d{4})\s*[/-年]\s*(\d{1,2})\s*[/-月]\s*(\d{1,2})\s*日?\s*"
     r"(?:更新|公表|発表|開示|掲載|確定|現在|時点)"
@@ -343,6 +346,11 @@ def section_fy_end_from_text(
     return None
 
 
+def _is_count_header(header: str) -> bool:
+    h = header or ""
+    return _COUNT_HEAD_RE.search(h) is not None or _STORE_FLOW_RE.search(h) is not None
+
+
 def _is_store_event_parsed(parsed: dict) -> bool:
     """開店/閉店/改装の店名×店舗面積リスト。月次速報ではない。"""
     rows = parsed.get("rows") or []
@@ -350,6 +358,16 @@ def _is_store_event_parsed(parsed: dict) -> bool:
         return False
     n_area = sum(1 for r in rows if "店舗面積" in str(r.get("element") or ""))
     return n_area >= max(1, (len(rows) + 1) // 2)
+
+
+def _is_count_only_parsed(parsed: dict) -> bool:
+    rows = parsed.get("rows") or []
+    if not rows:
+        return False
+    return all(
+        r.get("unit") == "number" and _is_count_header(str(r.get("element") or ""))
+        for r in rows
+    )
 
 
 _ALL_STORE_SALES_HEAD_RE = re.compile(
@@ -374,7 +392,7 @@ def _section_pick_rank(section_text: str) -> int:
     # やまやの「全店 (単位:…)」帯。セル値の全店97.1 は除外
     if re.search(r"全店(?=(?:・卸計)?(?:\(単位|（単位|単位|$))", tail):
         return 2
-    if "1店1日" in tail or "一店一日" in tail or "店舗数" in tail:
+    if "1店1日" in tail or "一店一日" in tail or "店舗数" in tail or "拠点数" in tail:
         return 0
     return 1
 
@@ -863,7 +881,7 @@ def infer_unit(header: str, samples: list[str], context: str = "") -> str:
     if compact == "当年":
         return "number"
     blob = f"{h} {context}"
-    if "店舗数" in h or _STORE_FLOW_RE.search(h):
+    if _is_count_header(h):
         return "number"
     if any(k in h for k in ("百万円", "千円", "億円")) and "前年" not in h:
         return "number"
@@ -889,8 +907,7 @@ def infer_unit(header: str, samples: list[str], context: str = "") -> str:
     if (
         nums
         and all(50 <= n <= 200 for n in nums)
-        and "店舗数" not in h
-        and _STORE_FLOW_RE.search(h) is None
+        and not _is_count_header(h)
         and ("売上" in blob or "同月" in blob or "前年" in blob)
     ):
         return "yoy_index"
@@ -1240,7 +1257,8 @@ def html_to_ingest(
     if not candidates:
         raise ValueError(last_err or "no monthly rows")
     monthly_cands = [c for c in candidates if not _is_store_event_parsed(c[2])]
-    pick_pool = monthly_cands or candidates
+    sales_cands = [c for c in monthly_cands if not _is_count_only_parsed(c[2])]
+    pick_pool = sales_cands or monthly_cands or candidates
     pick_pool = _prefer_section_candidates(pick_pool, sections)
     table_index, grid_used, parsed, section_fy = max(
         pick_pool,
