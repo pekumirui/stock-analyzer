@@ -50,6 +50,7 @@
   .suggest { position:absolute; background:var(--panel); border:1px solid var(--border); border-radius:6px; z-index:10; max-height:240px; overflow:auto; }
   .suggest div { padding:6px 10px; cursor:pointer; }
   .suggest div:hover { background:var(--row); }
+  #monthly-top .row { z-index:2; }
   #monthly-suggest { left:0; top:100%; }
   .sub { color:var(--sub); }
   .dim { opacity:.4; }
