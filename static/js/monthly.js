@@ -51,14 +51,22 @@ function uniqueMonthlyIssuers(rows){
   return out;
 }
 
+function monthlySearchFold(s){
+  // NFKC folds fullwidth digits/letters from mobile JP keyboards.
+  // Hiragana→katakana so にとり matches ニトリ without waiting for IME convert.
+  return String(s || "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\u3041-\u3096]/g, ch => String.fromCharCode(ch.charCodeAt(0) + 0x60));
+}
+
 function matchMonthlyIssuerQuery(issuer, q){
-  const raw = String(q || "").trim();
+  const raw = monthlySearchFold(q).trim();
   if(!raw) return false;
-  const name = String(issuer && issuer.name || "").toLowerCase();
-  const code = String(issuer && issuer.code || "").toUpperCase();
-  const qName = raw.toLowerCase();
+  const name = monthlySearchFold(issuer && issuer.name);
+  const code = monthlySearchFold(issuer && issuer.code).toUpperCase();
   const qCode = raw.toUpperCase();
-  return name.includes(qName) || code.slice(0, 4).startsWith(qCode) || code.startsWith(qCode);
+  return name.includes(raw) || code.slice(0, 4).startsWith(qCode) || code.startsWith(qCode);
 }
 
 function monthlyIssuerSuggestHits(q){
@@ -601,14 +609,18 @@ function pickMonthlyIssuer(code, name){
   showMonthlyDetail(code);
 }
 
+function refreshMonthlyIssuerSuggest(inp){
+  const q = (inp && inp.value || "").trim();
+  if(!q){ hideMonthlySuggest(); return; }
+  fillMonthlySuggest(monthlyIssuerSuggestHits(q));
+}
+
 function bindMonthlyIssuerSearch(){
   const inp = $("#monthly-sym");
   if(!inp) return;
-  inp.addEventListener("input", e => {
-    const q = e.target.value.trim();
-    if(!q){ hideMonthlySuggest(); return; }
-    fillMonthlySuggest(monthlyIssuerSuggestHits(q));
-  });
+  // WebKit/iOS often ends IME with compositionend and no trailing input.
+  inp.addEventListener("input", () => refreshMonthlyIssuerSuggest(inp));
+  inp.addEventListener("compositionend", () => refreshMonthlyIssuerSuggest(inp));
   inp.addEventListener("keydown", e => {
     if(e.key === "Escape"){
       hideMonthlySuggest();
