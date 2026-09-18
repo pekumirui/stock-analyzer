@@ -186,6 +186,18 @@ def test_canonicalize_element_label() -> None:
         _fail("開店 folds to 出店")
     if canonicalize_element_label("開店数", "number") != "出店":
         _fail("開店数 folds to 出店")
+    if canonicalize_element_label("新規開設数", "number") != "出店":
+        _fail("開設 folds to 出店")
+    if canonicalize_element_label("開設", "number") != "出店":
+        _fail("開設 token folds to 出店")
+    if canonicalize_element_label("海外 転換出店数", "number") != "海外 転換出店":
+        _fail("転換出店 stays distinct")
+    if canonicalize_element_label("海外 転換 出店", "number") != "海外 転換出店":
+        _fail("転換 leftover stitches to 転換出店")
+    if canonicalize_element_label("海外 撤退数", "number") != "海外 退店":
+        _fail("撤退 folds to 退店")
+    if canonicalize_element_label("拠点数 調理済み商品お届け数(※)（千食）", "number") != "調理済み商品お届け数（千食）":
+        _fail("拠点数 heading and ※ drop")
     if canonicalize_element_label("退 店舗数", "number") != "退店":
         _fail("退 店舗数 stitches to 退店")
     if canonicalize_element_label("開 店舗数", "number") != "出店":

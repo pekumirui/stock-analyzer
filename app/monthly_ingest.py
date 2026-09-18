@@ -126,36 +126,54 @@ _SHUT_CNT_MARK = "\x00SHUTCNT\x00"
 _SHUT_MARK = "\x00SHUT\x00"
 _LAUNCH_CNT_MARK = "\x00LAUNCHCNT\x00"
 _LAUNCH_MARK = "\x00LAUNCH\x00"
+_TENKAN_CNT_MARK = "\x00TENKANCNT\x00"
+_TENKAN_MARK = "\x00TENKAN\x00"
+_KAISETSU_CNT_MARK = "\x00KAISETSUCNT\x00"
+_KAISETSU_MARK = "\x00KAISETSU\x00"
+_TETTAI_CNT_MARK = "\x00TETTAICNT\x00"
+_TETTAI_MARK = "\x00TETTAI\x00"
 _FLOW_PROTECT: tuple[tuple[str, str], ...] = (
+    ("転換出店数", _TENKAN_CNT_MARK),
+    ("転換出店", _TENKAN_MARK),
     ("開店数", _LAUNCH_CNT_MARK),
     ("出店数", _OPEN_CNT_MARK),
     ("退店数", _LEAVE_CNT_MARK),
     ("閉店数", _SHUT_CNT_MARK),
     ("閉鎖数", _CLOSE_CNT_MARK),
+    ("開設数", _KAISETSU_CNT_MARK),
+    ("撤退数", _TETTAI_CNT_MARK),
     ("開店", _LAUNCH_MARK),
     ("出店", _OPEN_MARK),
     ("退店", _LEAVE_MARK),
     ("閉店", _SHUT_MARK),
     ("閉鎖", _CLOSE_MARK),
+    ("開設", _KAISETSU_MARK),
+    ("撤退", _TETTAI_MARK),
 )
 _FLOW_RESTORE: tuple[tuple[str, str], ...] = (
+    (_TENKAN_CNT_MARK, "転換出店数"),
+    (_TENKAN_MARK, "転換出店"),
     (_LAUNCH_CNT_MARK, "開店数"),
     (_OPEN_CNT_MARK, "出店数"),
     (_LEAVE_CNT_MARK, "退店数"),
     (_SHUT_CNT_MARK, "閉店数"),
     (_CLOSE_CNT_MARK, "閉鎖数"),
+    (_KAISETSU_CNT_MARK, "開設数"),
+    (_TETTAI_CNT_MARK, "撤退数"),
     (_LAUNCH_MARK, "開店"),
     (_OPEN_MARK, "出店"),
     (_LEAVE_MARK, "退店"),
     (_SHUT_MARK, "閉店"),
     (_CLOSE_MARK, "閉鎖"),
+    (_KAISETSU_MARK, "開設"),
+    (_TETTAI_MARK, "撤退"),
 )
 _FC_EMBED_RE = re.compile(r"(?<![A-Za-z])FC(?![A-Za-z])")
 _FCW_EMBED_RE = re.compile(r"ＦＣ")
 _DROP_TOKS = frozenset({
     "合計", "総計", "小計", "計", "月末", "期末", "うち", "部門", "店",
     "前期比", "同期比", "増減率", "前年比", "前年同月比", "前年同月", "全",
-    "累計", "店舗状況", "（％）", "（%）", "%", "※",
+    "累計", "店舗状況", "拠点数", "（％）", "（%）", "%", "※",
     "（", "）", "(", ")", "(前年比)", "（前年比）",
 })
 # 表の注番号（SRS の 売上高(1) / 売上高① / (2) ＊M&A除く）。(前年比) は数字だけではないので残る。
@@ -180,11 +198,14 @@ _STORE_FLOW_CANON = {
     "出店": "出店", "出店数": "出店",
     "開店": "出店", "開店数": "出店",
     "新規": "出店",
+    "開設": "出店", "開設数": "出店",
+    "転換出店": "転換出店", "転換出店数": "転換出店",
     "退店": "退店", "退店数": "退店",
     "閉店": "退店", "閉店数": "退店",
     "閉鎖": "退店", "閉鎖数": "退店",
+    "撤退": "退店", "撤退数": "退店",
 }
-_STORE_FLOW_METRICS = frozenset({"出店", "退店"})
+_STORE_FLOW_METRICS = frozenset({"出店", "退店", "転換出店"})
 _OPEN_SHARDS = frozenset({"開"})
 _CLOSE_SHARDS = frozenset({"退", "閉"})
 _DUMMY_STORE_TOKS = frozenset({"店舗"})
@@ -227,6 +248,8 @@ def _unglue_element(text: str) -> str:
     s = _FOOTNOTE_NUM_RE.sub(" ", text)
     s = _FOOTNOTE_CIRCLED_RE.sub(" ", s)
     s = _FY_NENDO_RE.sub(" ", s)
+    s = re.sub(r"[（(]※[）)]", "", s)
+    s = s.replace("※", "")
     s = s.replace("直営+FC", f" {_CHAN_BOTH_MARK} ").replace(
         "直営＋FC", f" {_CHAN_BOTH_MARK} ",
     )
@@ -274,6 +297,9 @@ def _stitch_store_flow(leftover: list[str], metric: str) -> tuple[list[str], str
         leftover = [tok for tok in leftover if tok not in _DUMMY_STORE_TOKS]
     if metric.endswith("出店"):
         leftover = [tok for tok in leftover if tok not in _OPEN_QUALIFIERS]
+    if metric == "出店" and "転換" in leftover:
+        leftover = [tok for tok in leftover if tok != "転換"]
+        metric = "転換出店"
     return leftover, metric
 
 
