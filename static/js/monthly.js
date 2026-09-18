@@ -15,6 +15,11 @@ let monthlyLayoutMode = (() => {
     return "gated";
   }
 })();
+/* TEMP debug: TOP chip that lists gate-pass issuers only. Remove with __gate__ chip. */
+const MONTHLY_GATE_CODES_KEY = "monthly.gateCodes.debug";
+let monthlyGateCodes = null;
+let monthlyGateIndexFp = "";
+let monthlyGateIndexPromise = null;
 
 function loadMonthlyRowOrderConfig(){
   if(_monthlyRowOrderReady) return _monthlyRowOrderReady;
@@ -670,7 +675,81 @@ function filteredMonthlyIssuers(){
   const q = String(monthlySearchApplied || "").trim();
   if(q) return issuers.filter(r => matchMonthlyIssuerQuery(r, q));
   if(monthlyGroup==="__new__") return issuers.filter(r => r.is_new);
+  if(monthlyGroup==="__gate__"){
+    const gated = monthlyGateCodes || new Set();
+    return issuers.filter(r => gated.has(r.code));
+  }
   return issuers.filter(r => (r.industry || "その他") === monthlyGroup);
+}
+
+function monthlyIssuerListFingerprint(issuers){
+  return (issuers || []).map(r => String(r.code || "")).filter(Boolean).sort().join(",");
+}
+
+function monthlyLatestYearFromList(row){
+  let best = null;
+  for(const y of (row && row.years) || []){
+    const n = Number(y);
+    if(!Number.isFinite(n)) continue;
+    if(best == null || n > best) best = n;
+  }
+  return best;
+}
+
+function invalidateMonthlyGateIndex(){
+  monthlyGateCodes = null;
+  monthlyGateIndexFp = "";
+  monthlyGateIndexPromise = null;
+}
+
+async function ensureMonthlyGateIndex(){
+  const issuers = uniqueMonthlyIssuers(monthlyRows);
+  const fp = monthlyIssuerListFingerprint(issuers);
+  if(monthlyGateCodes && monthlyGateIndexFp === fp) return monthlyGateCodes;
+  if(monthlyGateIndexPromise) return monthlyGateIndexPromise;
+  monthlyGateIndexPromise = (async () => {
+    try{
+      const raw = sessionStorage.getItem(MONTHLY_GATE_CODES_KEY);
+      const savedFp = sessionStorage.getItem(MONTHLY_GATE_CODES_KEY + ".fp");
+      if(raw && savedFp === fp){
+        const arr = JSON.parse(raw);
+        if(Array.isArray(arr)){
+          monthlyGateCodes = new Set(arr.map(String));
+          monthlyGateIndexFp = fp;
+          return monthlyGateCodes;
+        }
+      }
+    }catch(_){}
+    const gated = new Set();
+    const jobs = [];
+    for(const r of issuers){
+      const year = monthlyLatestYearFromList(r);
+      if(year == null) continue;
+      jobs.push({code: r.code, year});
+    }
+    let cursor = 0;
+    const workers = Array.from({length: Math.min(8, Math.max(jobs.length, 1))}, async () => {
+      while(cursor < jobs.length){
+        const job = jobs[cursor++];
+        const table = await api(`/api/v1/tables/${job.code}/${job.year}`).catch(() => null);
+        if(!table) continue;
+        if(monthlySegmentGate([table]).size) gated.add(job.code);
+      }
+    });
+    await Promise.all(workers);
+    monthlyGateCodes = gated;
+    monthlyGateIndexFp = fp;
+    try{
+      sessionStorage.setItem(MONTHLY_GATE_CODES_KEY, JSON.stringify([...gated].sort()));
+      sessionStorage.setItem(MONTHLY_GATE_CODES_KEY + ".fp", fp);
+    }catch(_){}
+    return monthlyGateCodes;
+  })();
+  try{
+    return await monthlyGateIndexPromise;
+  }finally{
+    monthlyGateIndexPromise = null;
+  }
 }
 
 async function loadMonthlyList(){
@@ -684,6 +763,8 @@ async function loadMonthlyList(){
   }
   monthlyRows = rows;
   const issuers = uniqueMonthlyIssuers(monthlyRows);
+  const fp = monthlyIssuerListFingerprint(issuers);
+  if(fp !== monthlyGateIndexFp) invalidateMonthlyGateIndex();
   if(!issuers.length){
     $("#monthly-groups").innerHTML = "";
     $("#monthly-list").innerHTML = `<div class="sub">登録された月次データはありません</div>`;
@@ -699,6 +780,7 @@ async function loadMonthlyList(){
 
 function renderMonthlyGroups(groups){
   let h = `<button type="button" class="mchip${monthlyGroup==="__new__"?" on":""}" data-group="__new__" onclick="setMonthlyGroup('__new__')">新着</button>`;
+  h += `<button type="button" class="mchip${monthlyGroup==="__gate__"?" on":""}" data-group="__gate__" onclick="setMonthlyGroup('__gate__')">ゲート（一時）</button>`;
   for(const g of groups){
     const on = monthlyGroup===g ? " on" : "";
     h += `<button type="button" class="mchip${on}" data-group="${g.replace(/"/g,"&quot;")}" onclick="setMonthlyGroup(this.dataset.group)">${g}</button>`;
@@ -706,13 +788,19 @@ function renderMonthlyGroups(groups){
   $("#monthly-groups").innerHTML = h;
 }
 
-function setMonthlyGroup(g){
+async function setMonthlyGroup(g){
   monthlyGroup = g;
   monthlySearchApplied = "";
   const inp = $("#monthly-sym");
   if(inp) inp.value = "";
   hideMonthlySuggest();
   renderMonthlyGroups(monthlyIndustries(uniqueMonthlyIssuers(monthlyRows)));
+  if(g === "__gate__"){
+    const list = $("#monthly-list");
+    if(list) list.innerHTML = `<div class="sub">ゲート判定中…</div>`;
+    await ensureMonthlyGateIndex();
+    if(monthlyGroup !== "__gate__") return;
+  }
   renderMonthlyList();
 }
 
@@ -739,7 +827,7 @@ function renderMonthlyList(){
   if(!issuers.length){
     const empty = String(monthlySearchApplied || "").trim()
       ? "該当する発行体はありません"
-      : "登録された月次データはありません";
+      : (monthlyGroup === "__gate__" ? "ゲート対象はありません" : "登録された月次データはありません");
     $("#monthly-list").innerHTML = `<div class="sub">${empty}</div>`;
     return;
   }

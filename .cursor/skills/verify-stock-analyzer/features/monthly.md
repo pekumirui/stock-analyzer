@@ -4,7 +4,7 @@ The monthly tab lists ingested issuer monthly-sales tables with industry chips, 
 
 ## Sub-features
 
-- `monthly-list` fills `#monthly-groups` (新着 + industry chips) and `#monthly-tbl` from `GET /api/v1/tables`.
+- `monthly-list` fills `#monthly-groups` (新着 + industry chips) and TEMP `ゲート（一時）` / `__gate__` and `#monthly-tbl` from `GET /api/v1/tables`.
 - `monthly-issuer-search` types into `#monthly-sym` (placeholder `銘柄名 or コード`) and fills `#monthly-suggest` from the loaded list (`monthlyRows` / `uniqueMonthlyIssuers`). Typing does not change `#monthly-tbl`. Enter or a suggestion pick commits `monthlySearchApplied` and filters the table (name / code / `industry` / `sector33`). It does not open Detail and does not call `/api/stocks/search`.
 - `monthly-detail` opens `#monthly-detail` for a row `data-code` via `GET /api/v1/tables/{code}` then parallel `GET /api/v1/tables/{code}/{year}` for the latest calendar year and up to two prior years.
 - `monthly-series` switches `#monthly-series` (default: unsegmented 全店+売上高 yoy when present, else any `all_store` yoy including 全社, else first series) and redraws `#monthly-chart`.
