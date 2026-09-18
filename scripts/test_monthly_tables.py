@@ -228,6 +228,7 @@ def main() -> None:
     if "▲" in html or "+X.X%" in html:
         _fail("index.html still has percent/▲ monthly display")
     _assert_monthly_spa(html)
+    _assert_monthly_layout_js()
     if canonicalize_element_label("売上高前年同月比", "yoy_index") != "全店 売上高(前年比)":
         _fail("canonicalize strip+suffix")
     if canonicalize_element_label("既存売上高(前年比)", "yoy_index") != "既存 売上高(前年比)":
@@ -1571,6 +1572,179 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("do not sticky-fix the rightmost month column")
     if "right:auto" not in monthly_css.replace(" ", ""):
         _fail("month columns must not be right-pinned (right:auto)")
+    if "function monthlySegmentGate" not in html:
+        _fail("index.html missing monthlySegmentGate")
+    if "function monthlyTableLayout" not in html:
+        _fail("index.html missing monthlyTableLayout")
+    if "monthly-sec" not in html:
+        _fail("SPA missing monthly-sec section row class")
+    if "monthlyTableLayout(rowOrder" not in load_body:
+        _fail("loadMonthlyTables must apply monthlyTableLayout after monthlyRowOrder")
+    if "<optgroup" not in html:
+        _fail("#monthly-series must support optgroup for gated brands")
+    if "monthly-gated" not in html:
+        _fail("gated year tables must use a monthly-gated class")
+    if "monthly-stub-ch" not in html or "monthly-stub-sc" not in html or "monthly-stub-leaf" not in html:
+        _fail("gated tables must emit channel/scope/leaf stub columns")
+    if "colspan=\"3\"" not in html and "colspan='3'" not in html:
+        _fail("gated year header must span the three stub columns")
+    gate_fn = html.find("function monthlySegmentGate")
+    gate_end = html.find("function monthlyStubChannelText")
+    if gate_fn < 0 or gate_end <= gate_fn:
+        _fail("monthlySegmentGate / monthlyStubChannelText bounds")
+    gate_body = html[gate_fn:gate_end]
+    if "monthlyLatestYearTable" not in gate_body and "latest" not in gate_body:
+        _fail("monthlySegmentGate must look at the latest display year")
+    if ">= 2" not in gate_body and ">=2" not in gate_body.replace(" ", ""):
+        _fail("monthlySegmentGate must require the leftover on at least 2 rows")
+    layout_fn = html.find("function monthlyTableLayout")
+    layout_end = html.find("function monthlyAssignStubSpans")
+    if layout_fn < 0 or layout_end <= layout_fn:
+        _fail("monthlyTableLayout / monthlyAssignStubSpans bounds")
+    layout_body = html[layout_fn:layout_end]
+    if "monthlyReorderBlock" not in layout_body:
+        _fail("gated sections must share one channel-first reorder")
+    reorder_fn = html.find("function monthlyReorderBlock")
+    if reorder_fn < 0 or reorder_fn > layout_fn:
+        _fail("monthlyReorderBlock missing")
+    reorder_body = html[reorder_fn:layout_fn]
+    chan_at = reorder_body.find("channelRank")
+    scope_at = reorder_body.find("scopeRank")
+    if chan_at < 0 or scope_at < 0 or chan_at > scope_at:
+        _fail("gated blocks must reorder by channel before scope")
+    if "既存店" not in html:
+        _fail("scope stub text must map 既存 to 既存店")
+
+
+def _assert_monthly_layout_js() -> None:
+    """Gate + second layout pass. Calls the SPA functions, not a Python reimplementation."""
+    import json
+    import subprocess
+
+    js_path = ROOT / "static" / "js" / "monthly.js"
+    if not js_path.is_file():
+        _fail("static/js/monthly.js missing")
+    harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+const jsPath = process.argv[1];
+const code = fs.readFileSync(jsPath, "utf8");
+const el = {
+  innerHTML: "",
+  value: "",
+  textContent: "",
+  style: { display: "", setProperty() {}, removeProperty() {} },
+  classList: { toggle() {} },
+  dataset: {},
+  clientWidth: 720,
+  addEventListener() {},
+};
+const sandbox = {
+  console,
+  fetch: async () => ({ ok: false, json: async () => ({}) }),
+  $: () => el,
+  document: {
+    querySelector: () => el,
+    querySelectorAll: () => [],
+    documentElement: { clientWidth: 720 },
+  },
+  window: {
+    matchMedia: () => ({ matches: false, addEventListener() {} }),
+    addEventListener() {},
+  },
+};
+sandbox.window = sandbox.window;
+sandbox.globalThis = sandbox;
+vm.createContext(sandbox);
+vm.runInContext(code, sandbox);
+
+function vals() {
+  const o = {};
+  for (let m = 1; m <= 12; m++) o[String(m)] = m === 1 ? 1 : null;
+  return o;
+}
+const gatedTables = [{
+  year: 2026,
+  code: "30970",
+  elements: [
+    { element: "直営+FC 全店 売上高(前年比)", unit: "yoy_index", values: vals() },
+    { element: "焼肉 直営+FC 既存 売上高(前年比)", unit: "yoy_index", values: vals() },
+    { element: "焼肉 直営 既存 売上高(前年比)", unit: "yoy_index", values: vals() },
+    { element: "日本+海外 直営+FC 全店 店舗数", unit: "number", values: vals() },
+    { element: "ラーメン 直営+FC 既存 売上高(前年比)", unit: "yoy_index", values: vals() },
+    { element: "ラーメン 直営 既存 店舗数", unit: "number", values: vals() },
+  ],
+}];
+const flatTables = [{
+  year: 2026,
+  code: "72030",
+  elements: [
+    { element: "全店 売上高(前年比)", unit: "yoy_index", values: vals() },
+    { element: "既存 売上高(前年比)", unit: "yoy_index", values: vals() },
+  ],
+}];
+const rowOrder = sandbox.monthlyRowOrder(gatedTables);
+const layout = sandbox.monthlyTableLayout(rowOrder, gatedTables);
+const gated = [...sandbox.monthlySegmentGate(gatedTables)].sort();
+const summary = layout.rows.map((r) => {
+  if (r.kind === "section") return { kind: "section", label: r.label };
+  return {
+    kind: "data",
+    element: r.element,
+    group: r.group,
+    channel: r.channel,
+    scope: r.scope,
+    leaf: r.leaf,
+  };
+});
+const flatOrder = sandbox.monthlyRowOrder(flatTables);
+const flat = sandbox.monthlyTableLayout(flatOrder, flatTables);
+console.log(JSON.stringify({
+  gated,
+  gatedFlag: layout.gated,
+  summary,
+  flatGated: flat.gated,
+  flatIds: flat.rows.map((r) => r.element),
+  flatKinds: flat.rows.map((r) => r.kind),
+}));
+"""
+    proc = subprocess.run(
+        ["node", "-e", harness, str(js_path)],
+        capture_output=True,
+        text=True,
+        cwd=str(ROOT),
+    )
+    if proc.returncode != 0:
+        _fail(f"monthly layout js: {proc.stderr.strip() or proc.stdout.strip() or proc.returncode}")
+    try:
+        got = json.loads(proc.stdout.strip().splitlines()[-1])
+    except json.JSONDecodeError:
+        _fail(f"monthly layout js stdout: {proc.stdout[:400]!r}")
+    if got.get("gated") != ["ラーメン", "焼肉"]:
+        _fail(f"gate leftovers: {got.get('gated')!r}")
+    if got.get("gatedFlag") is not True:
+        _fail("30970 fixture must be gated")
+    want = [
+        {"kind": "data", "element": "直営+FC 全店 売上高(前年比)", "group": "", "channel": "直営+FC", "scope": "全店", "leaf": "売上高(前年比)"},
+        {"kind": "data", "element": "日本+海外 直営+FC 全店 店舗数", "group": "", "channel": "直営+FC", "scope": "全店", "leaf": "日本+海外 店舗数"},
+        {"kind": "section", "label": "焼肉"},
+        {"kind": "data", "element": "焼肉 直営+FC 既存 売上高(前年比)", "group": "焼肉", "channel": "直営+FC", "scope": "既存", "leaf": "売上高(前年比)"},
+        {"kind": "data", "element": "焼肉 直営 既存 売上高(前年比)", "group": "焼肉", "channel": "直営", "scope": "既存", "leaf": "売上高(前年比)"},
+        {"kind": "section", "label": "ラーメン"},
+        {"kind": "data", "element": "ラーメン 直営+FC 既存 売上高(前年比)", "group": "ラーメン", "channel": "直営+FC", "scope": "既存", "leaf": "売上高(前年比)"},
+        {"kind": "data", "element": "ラーメン 直営 既存 店舗数", "group": "ラーメン", "channel": "直営", "scope": "既存", "leaf": "店舗数"},
+    ]
+    if got.get("summary") != want:
+        _fail(f"gated layout: {got.get('summary')!r}")
+    if got.get("flatGated") is not False:
+        _fail("simple issuer must stay ungated")
+    if got.get("flatKinds") != ["data", "data"]:
+        _fail(f"ungated kinds: {got.get('flatKinds')!r}")
+    if "section" in (got.get("flatKinds") or []):
+        _fail("ungated issuer must not grow section rows")
+    if got.get("flatIds") != ["全店 売上高(前年比)", "既存 売上高(前年比)"]:
+        _fail(f"ungated ids stay full names: {got.get('flatIds')!r}")
+
 
 
 def _assert_known_prod_units(c) -> None:

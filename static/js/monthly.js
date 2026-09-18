@@ -437,15 +437,175 @@ function escHtml(s){
   return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 }
 
-function monthlySeriesChoices(tables){
-  return monthlyRowOrder(tables).map(e => {
-    const id = fmtMonthlyElement(e.element, e.unit);
-    return {
-      id,
-      label: id,
-      yoy: e.unit==="yoy_index" || e.unit==="yoy_pct",
-    };
+function monthlyLatestYearTable(tables){
+  let best = null;
+  for(const t of tables || []){
+    if(!t || !Number.isFinite(Number(t.year))) continue;
+    if(!best || Number(t.year) > Number(best.year)) best = t;
+  }
+  return best;
+}
+
+function monthlySegmentGate(tables){
+  const latest = monthlyLatestYearTable(tables);
+  const counts = {};
+  for(const e of (latest && latest.elements) || []){
+    const unit = e.unit || "number";
+    const display = fmtMonthlyElement(e.element, unit);
+    const segment = monthlyRowSegment(display);
+    if(!segment) continue;
+    const p = parseMonthlyLayers(stripMonthlyDisplayUnit(display, unit));
+    if(!p.metric && !p.channel && !p.scope) continue;
+    counts[segment] = (counts[segment] || 0) + 1;
+  }
+  const gated = new Set();
+  for(const [seg, n] of Object.entries(counts)){
+    if(n >= 2) gated.add(seg);
+  }
+  return gated;
+}
+
+function monthlyStubChannelText(channel){
+  return channel || "—";
+}
+
+function monthlyStubScopeText(scope){
+  if(scope === "既存") return "既存店";
+  return scope || "—";
+}
+
+function monthlyLayoutLeaf(display, unit, dropSegment){
+  const rank = stripMonthlyDisplayUnit(display, unit);
+  const p = parseMonthlyLayers(rank);
+  const leftover = (dropSegment && p.segment === dropSegment) ? "" : p.segment;
+  let metric = p.metric || "";
+  const u = unit || "number";
+  const isYoy = u === "yoy_index" || u === "yoy_pct";
+  if(isYoy && metric && !metric.endsWith("(前年比)")) metric += "(前年比)";
+  if(!isYoy && metric){
+    const spec = monthlyDisplayUnit(rank, u);
+    if(spec && !metric.includes("（" + spec.suffix + "）")) metric += "（" + spec.suffix + "）";
+  }
+  return [p.country, leftover, metric].filter(Boolean).join(" ") || String(display || "");
+}
+
+function monthlyLayoutDataRow(e, gatedSegment, idx){
+  const rank = stripMonthlyDisplayUnit(e.element, e.unit);
+  const p = parseMonthlyLayers(rank);
+  return {
+    kind: "data",
+    element: e.element,
+    unit: e.unit,
+    group: gatedSegment || "",
+    channel: p.channel,
+    scope: p.scope,
+    leaf: monthlyLayoutLeaf(e.element, e.unit, gatedSegment || ""),
+    channelRank: monthlyRowChannelRank(rank),
+    scopeRank: monthlyRowScopeRank(rank),
+    slot: monthlyRowSlot(rank, e.unit),
+    idx
+  };
+}
+
+function monthlyReorderBlock(block){
+  return block.slice().sort((a, b) => {
+    if(a.channelRank !== b.channelRank) return a.channelRank - b.channelRank;
+    if(a.scopeRank !== b.scopeRank) return a.scopeRank - b.scopeRank;
+    if(a.slot !== b.slot) return a.slot - b.slot;
+    return a.idx - b.idx;
   });
+}
+
+function monthlyTableLayout(rowOrder, tables){
+  const gated = monthlySegmentGate(tables);
+  if(!gated.size){
+    return {
+      gated: false,
+      rows: (rowOrder || []).map((e, idx) => monthlyLayoutDataRow(e, "", idx))
+    };
+  }
+  const company = [];
+  const brands = new Map();
+  (rowOrder || []).forEach((e, idx) => {
+    const seg = monthlyRowSegment(e.element);
+    if(seg && gated.has(seg)){
+      if(!brands.has(seg)) brands.set(seg, []);
+      brands.get(seg).push(monthlyLayoutDataRow(e, seg, idx));
+    }else{
+      // leftover that failed the gate (日本+海外) stays with company-wide rows
+      company.push(monthlyLayoutDataRow(e, "", idx));
+    }
+  });
+  const rows = monthlyReorderBlock(company);
+  for(const [label, items] of brands){
+    rows.push({kind: "section", label});
+    rows.push(...monthlyReorderBlock(items));
+  }
+  return {gated: true, rows};
+}
+
+function monthlyAssignStubSpans(rows){
+  const n = rows.length;
+  let i = 0;
+  while(i < n){
+    if(rows[i].kind !== "data"){
+      i++;
+      continue;
+    }
+    let j = i + 1;
+    while(j < n && rows[j].kind === "data" && rows[j].channel === rows[i].channel) j++;
+    const chanSpan = j - i;
+    let k = i;
+    while(k < j){
+      let m = k + 1;
+      while(m < j && rows[m].scope === rows[k].scope) m++;
+      const scSpan = m - k;
+      for(let t = k; t < m; t++){
+        rows[t].channelSpan = (t === i) ? chanSpan : 0;
+        rows[t].scopeSpan = (t === k) ? scSpan : 0;
+      }
+      k = m;
+    }
+    i = j;
+  }
+  return rows;
+}
+
+function monthlyVisibleLayoutRows(layout, byName){
+  const out = [];
+  let section = null;
+  for(const rec of (layout && layout.rows) || []){
+    if(rec.kind === "section"){
+      section = rec;
+      continue;
+    }
+    const src = byName[rec.element];
+    const vals = (src && src.values) || {};
+    if(!src || !Object.keys(vals).length) continue;
+    if(section){
+      out.push(section);
+      section = null;
+    }
+    out.push(rec);
+  }
+  return monthlyAssignStubSpans(out);
+}
+
+function monthlySeriesChoices(tables){
+  const rowOrder = monthlyRowOrder(tables);
+  const layout = monthlyTableLayout(rowOrder, tables);
+  const out = [];
+  for(const e of layout.rows){
+    if(e.kind === "section") continue;
+    const id = fmtMonthlyElement(e.element, e.unit);
+    out.push({
+      id,
+      label: layout.gated ? (e.leaf || id) : id,
+      yoy: e.unit==="yoy_index" || e.unit==="yoy_pct",
+      group: layout.gated ? (e.group || "全体") : "",
+    });
+  }
+  return out;
 }
 
 function pickDefaultMonthlySeries(tables){
@@ -663,8 +823,24 @@ function renderMonthlySeriesSelect(){
     return;
   }
   if(!choices.some(s => s.id === monthlySeries)) monthlySeries = pickDefaultMonthlySeries(monthlyYearTables);
-  sel.innerHTML = choices.map(s =>
-    `<option value="${escHtml(s.id)}">${escHtml(s.label)}</option>`).join("");
+  const grouped = choices.some(s => s.group);
+  if(!grouped){
+    sel.innerHTML = choices.map(s =>
+      `<option value="${escHtml(s.id)}">${escHtml(s.label)}</option>`).join("");
+  }else{
+    let h = "";
+    let cur = null;
+    for(const s of choices){
+      if(s.group !== cur){
+        if(cur !== null) h += `</optgroup>`;
+        h += `<optgroup label="${escHtml(s.group)}">`;
+        cur = s.group;
+      }
+      h += `<option value="${escHtml(s.id)}">${escHtml(s.label)}</option>`;
+    }
+    if(cur !== null) h += `</optgroup>`;
+    sel.innerHTML = h;
+  }
   sel.value = monthlySeries;
 }
 
@@ -700,17 +876,23 @@ async function loadMonthlyTables(){
   );
   monthlyYearTables = tables.filter(Boolean);
   const rowOrder = monthlyRowOrder(monthlyYearTables);
+  const layout = monthlyTableLayout(rowOrder, monthlyYearTables);
   renderMonthlySeriesSelect();
   let h = "";
   let maxNumLen = 0;
   for(const d of tables){
     if(!d) continue;
-    h += `<table class="fin monthly"><colgroup><col class="monthly-name"><col class="monthly-m" span="12"></colgroup><thead><tr><th class="l year">${d.year}</th>`;
+    if(layout.gated){
+      h += `<table class="fin monthly monthly-gated"><colgroup><col class="monthly-stub-ch"><col class="monthly-stub-sc"><col class="monthly-stub-leaf"><col class="monthly-m" span="12"></colgroup><thead><tr><th class="l year" colspan="3">${d.year}</th>`;
+    }else{
+      h += `<table class="fin monthly"><colgroup><col class="monthly-name"><col class="monthly-m" span="12"></colgroup><thead><tr><th class="l year">${d.year}</th>`;
+    }
     for(let m=1;m<=12;m++) h += `<th>${m}月</th>`;
     h += `</tr></thead><tbody>`;
     const byName = {};
     for(const src of d.elements || []) byName[fmtMonthlyElement(src.element, src.unit)] = src;
     for(const e of rowOrder){
+      if(layout.gated) break;
       const src = byName[e.element];
       const vals = (src && src.values) || {};
       if(!Object.keys(vals).length) continue;
@@ -724,6 +906,31 @@ async function loadMonthlyTables(){
         h += `<td class="num">${txt}</td>`;
       }
       h += `</tr>`;
+    }
+    if(layout.gated){
+      for(const e of monthlyVisibleLayoutRows(layout, byName)){
+        if(e.kind === "section"){
+          h += `<tr class="monthly-sec"><td colspan="15">${escHtml(e.label)}</td></tr>`;
+          continue;
+        }
+        const src = byName[e.element];
+        const vals = (src && src.values) || {};
+        if(!Object.keys(vals).length) continue;
+        const unit = (src && src.unit) || e.unit || "number";
+        const ds = ` data-series="${escHtml(e.element)}" onclick="setMonthlySeries(this.dataset.series)"`;
+        let stubs = "";
+        if(e.channelSpan) stubs += `<td class="monthly-stub monthly-stub-ch" rowspan="${e.channelSpan}">${escHtml(monthlyStubChannelText(e.channel))}</td>`;
+        if(e.scopeSpan) stubs += `<td class="monthly-stub monthly-stub-sc" rowspan="${e.scopeSpan}">${escHtml(monthlyStubScopeText(e.scope))}</td>`;
+        stubs += `<td class="l monthly-stub monthly-stub-leaf">${escHtml(e.leaf)}</td>`;
+        h += `<tr${ds}>${stubs}`;
+        for(let m=1;m<=12;m++){
+          const v = vals[String(m)];
+          const txt = fmtMonthlyCell(v, unit, e.element);
+          if(txt) maxNumLen = Math.max(maxNumLen, txt.length);
+          h += `<td class="num">${txt}</td>`;
+        }
+        h += `</tr>`;
+      }
     }
     h += `</tbody></table>`;
   }
