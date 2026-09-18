@@ -1260,6 +1260,14 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("monthly thead still uses 項目")
     if 'id="monthly-groups"' not in section:
         _fail("TOP must have #monthly-groups")
+    if 'data-group="__gate__"' not in html and "setMonthlyGroup('__gate__')" not in html:
+        _fail("TEMP gate list chip __gate__ must exist on TOP")
+    if "ゲート（一時）" not in html:
+        _fail("TEMP gate list chip label ゲート（一時） missing")
+    if "function ensureMonthlyGateIndex" not in html:
+        _fail("TEMP gate list must build ensureMonthlyGateIndex")
+    if "MONTHLY_GATE_CODES_KEY" not in html:
+        _fail("TEMP gate list must cache codes under MONTHLY_GATE_CODES_KEY")
     if 'id="monthly-chart"' not in section:
         _fail("Detail must have #monthly-chart")
     if 'id="monthly-back"' not in section:
