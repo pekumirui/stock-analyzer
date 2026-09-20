@@ -411,6 +411,12 @@ _ALL_STORE_SALES_HEAD_RE = re.compile(
 _SCOPED_STORE_UNIT_HEAD_RE = re.compile(
     r"(既存店|全店)(?=(?:・卸計)?(?:\(単位|（単位|単位|$))"
 )
+# Royal form: （既存店前年比）. Scope is inside the parens.
+# 既存店売上（前年同月比） (ROYAL_TRAILING_UNIT_HTML) must not match.
+_SCOPED_STORE_YOY_HEAD_RE = re.compile(
+    r"[（(](既存店|全店)[^）)]*前年(?:同月)?比[）)]"
+)
+_SCOPE_METRICS = frozenset({"売上高", "来客数", "客数", "客単価"})
 
 
 def _section_tail(section_text: str, n: int = 160) -> str:
@@ -424,7 +430,30 @@ _SECTION_PREFIXES: tuple[tuple[str, str], ...] = (
     ("宅食事業", "宅食"),
     ("ほっかほっか亭", "ほっかほっか亭"),
     ("店舗流通ネット", "店舗流通ネット"),
+    ("ロイヤルホスト", "ロイヤルホスト"),
+    ("てんや", "てんや"),
 )
+# A mark that ends a branded section without starting one (Watami 国内外食).
+_SECTION_RESET_MARKS: tuple[str, ...] = ("国内外食",)
+
+
+@dataclass(frozen=True)
+class Section:
+    """Heading band above a table. Sticky across unheaded continuation tables."""
+
+    segment: str | None
+    scope: str | None
+
+
+@dataclass(frozen=True)
+class _Series:
+    """Same-segment tables tiled onto one month axis."""
+
+    indices: tuple[int, ...]
+    months: tuple[int, ...]
+    as_of: str | None
+
+
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 _PRE_MERGER_REF_RE = re.compile(r"経営統合前|統合前")
 _NUMBERED_NOTE_RE = re.compile(r"\d+\.[^。]*。")
@@ -462,24 +491,24 @@ def _section_pick_rank(section_text: str, segment: str | None = None) -> int:
 
 
 def _store_scope_from_section(section_text: str) -> str | None:
-    """表直前の見出し帯だけ（やまやの「既存店 (単位:…)」）。卸計は対象外。"""
+    """表直前の見出し帯だけ（やまやの「既存店 (単位:…)」、Royal の「（既存店前年比）」）。卸計は対象外。"""
     tail = _section_tail(section_text, 80)
     if "卸計" in tail:
         return None
-    m = _SCOPED_STORE_UNIT_HEAD_RE.search(tail)
+    m = _SCOPED_STORE_UNIT_HEAD_RE.search(tail) or _SCOPED_STORE_YOY_HEAD_RE.search(tail)
     if not m:
         return None
     return "既存店" if m.group(1) == "既存店" else "全店"
 
 
 def _rows_need_store_scope(rows: list[dict]) -> bool:
-    """当年/前年比由来の裸の売上高だけスコープを付ける。"""
+    """裸のスコープ層指標（売上高/来客数/客数/客単価）だけスコープを付ける。"""
     if not rows:
         return False
     for row in rows:
         el = str(row.get("element") or "").strip()
         compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", el))
-        if compact != "売上高":
+        if compact not in _SCOPE_METRICS:
             return False
         if "既存" in el or "全店" in el:
             return False
@@ -570,7 +599,7 @@ def _merge_companion_total_stores(
 def _merge_companion_store_scopes(
     primary: dict,
     candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
-    sections: list[str],
+    sections: list[Section],
     *,
     primary_index: int,
 ) -> None:
@@ -585,7 +614,7 @@ def _merge_companion_store_scopes(
             continue
         if list(other.get("months") or []) != primary_months:
             continue
-        scope = _store_scope_from_section(sections[idx] if idx < len(sections) else "")
+        scope = sections[idx].scope if idx < len(sections) else None
         if scope is None or not _rows_need_store_scope(other.get("rows") or []):
             continue
         for row in other.get("rows") or []:
@@ -597,6 +626,15 @@ def _merge_companion_store_scopes(
                 continue
             primary.setdefault("rows", []).append(merged)
             have.add(key)
+
+
+def _section_mark_last(tail: str, marks: tuple[str, ...]) -> int:
+    last = -1
+    for mark in marks:
+        i = tail.rfind(mark)
+        if i > last:
+            last = i
+    return last
 
 
 def _section_segment(section_text: str) -> str | None:
@@ -611,30 +649,34 @@ def _section_segment(section_text: str) -> str | None:
             last_prefix = prefix
     if last_prefix is None:
         return None
-    if tail.rfind("国内外食") > last_i:
+    if _section_mark_last(tail, _SECTION_RESET_MARKS) > last_i:
         return None
     return last_prefix
 
 
-def _sticky_section_segments(sections: list[str]) -> list[str | None]:
-    """半年表は直前の事業見出しを引き継ぐ。国内外食見出しでリセット。"""
-    out: list[str | None] = []
-    last: str | None = None
-    for text in sections:
-        explicit = _section_segment(text)
-        if explicit:
-            last = explicit
-            out.append(explicit)
-            continue
+def _sticky_sections(section_texts: list[str]) -> list[Section]:
+    """半年表は直前の事業見出しとスコープを引き継ぐ。国内外食見出しでリセット。"""
+    out: list[Section] = []
+    prev = Section(None, None)
+    brand_marks = tuple(mark for mark, _prefix in _SECTION_PREFIXES)
+    for text in section_texts:
+        seg = _section_segment(text)
+        scope = _store_scope_from_section(text)
         tail = _section_tail(text, _SECTION_LOOKBACK)
-        overseas = tail.rfind("海外事業")
-        takushoku = tail.rfind("宅食事業")
-        domestic = tail.rfind("国内外食")
-        if domestic > max(overseas, takushoku):
-            last = None
-            out.append(None)
-            continue
-        out.append(last)
+        reset = _section_mark_last(tail, _SECTION_RESET_MARKS) > _section_mark_last(
+            tail, brand_marks
+        )
+        if seg:
+            cur_scope = scope if scope or seg != prev.segment else prev.scope
+            cur = Section(seg, cur_scope)
+        elif reset:
+            cur = Section(None, scope)
+        elif prev.segment:
+            cur = Section(prev.segment, scope or prev.scope)
+        else:
+            cur = Section(None, scope)
+        out.append(cur)
+        prev = cur
     return out
 
 
@@ -681,50 +723,154 @@ def _valued_months(rows: list[dict]) -> list[int]:
     return out
 
 
+def _member_months(parsed: dict) -> list[int]:
+    months = [
+        m for m in (parsed.get("months") or []) if isinstance(m, int) and 1 <= m <= 12
+    ]
+    return months or _valued_months(parsed.get("rows") or [])
+
+
+def _grid_self_dated(grid: list[list[str]]) -> bool:
+    for row in grid:
+        for cell in row:
+            year, _month = parse_month_year(cell)
+            if year is not None:
+                return True
+    return False
+
+
+def _tileable(
+    members: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
+    html: str,
+) -> _Series | None:
+    """Same-segment halves of one fiscal run. Self-dated year-in-cell tables never tile."""
+    if len(members) < 2:
+        return None
+    if any(_grid_self_dated(grid) for _idx, grid, _parsed, _fy in members):
+        return None
+    month_sets: list[set[int]] = []
+    as_ofs: list[str] = []
+    for _idx, grid, parsed, section_fy in members:
+        month_sets.append(set(_member_months(parsed)))
+        derived = as_of_from_table(
+            grid, html, parsed.get("rows") or [], parsed.get("months"), section_fy
+        )
+        if derived:
+            as_ofs.append(derived)
+    for i, left in enumerate(month_sets):
+        for right in month_sets[i + 1 :]:
+            if left & right:
+                return None
+    union = _union_ingest_months([m for s in month_sets for m in s])
+    if not _is_fiscal_seq(union):
+        return None
+    if not as_ofs:
+        return None
+    series_as_of = max(as_ofs)
+    series_date = date.fromisoformat(series_as_of)
+    for _idx, grid, parsed, section_fy in members:
+        last_m = last_filled_month(parsed.get("rows") or [], parsed.get("months"))
+        if last_m is None:
+            continue
+        member_as = as_of_from_table(
+            grid, html, parsed.get("rows") or [], parsed.get("months"), section_fy
+        )
+        if member_as is None:
+            continue
+        window_y = year_for_month(last_m, (series_date.year, series_date.month), None)
+        if date.fromisoformat(member_as).year != window_y:
+            return None
+    return _Series(
+        indices=tuple(idx for idx, _g, _p, _fy in members),
+        months=tuple(union),
+        as_of=series_as_of,
+    )
+
+
+def _tile_segment_series(
+    candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
+    sections: list[Section],
+    html: str,
+) -> list[_Series]:
+    by_seg: dict[str, list[tuple[int, list[list[str]], dict, tuple[int, int] | None]]] = {}
+    for cand in candidates:
+        idx, _grid, parsed, _fy = cand
+        if _is_store_event_parsed(parsed):
+            continue
+        seg = sections[idx].segment if idx < len(sections) else None
+        if not seg:
+            continue
+        by_seg.setdefault(seg, []).append(cand)
+    out: list[_Series] = []
+    for members in by_seg.values():
+        tiled = _tileable(members, html)
+        if tiled:
+            out.append(tiled)
+            continue
+        for idx, grid, parsed, section_fy in members:
+            derived = as_of_from_table(
+                grid, html, parsed.get("rows") or [], parsed.get("months"), section_fy
+            )
+            out.append(
+                _Series(
+                    (idx,),
+                    tuple(_union_ingest_months(_member_months(parsed))),
+                    derived,
+                )
+            )
+    return out
+
+
 def _merge_other_section_companions(
     primary: dict,
     candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
     *,
     primary_index: int,
-    segments: list[str | None],
+    sections: list[Section],
     html: str,
     primary_as_of: str | None,
 ) -> None:
-    """pick した国内外食四半期に、同じ as_of の海外/宅食表を足す。他の国内外食四半期は入れない。"""
+    """同じ as_of のブランド系列を足す。系列の as_of はメンバの max。"""
     have = {
         (str(r.get("element") or ""), r.get("unit")): r
         for r in primary.get("rows") or []
     }
     extra_months: list[int] = []
-    for idx, grid, other, section_fy in candidates:
-        if idx == primary_index or _is_store_event_parsed(other):
+    by_idx = {c[0]: c for c in candidates}
+    for series in _tile_segment_series(candidates, sections, html):
+        if primary_as_of and series.as_of != primary_as_of:
             continue
-        seg = segments[idx] if idx < len(segments) else None
-        if not seg:
-            continue
-        if primary_as_of:
-            other_as = as_of_from_table(
-                grid, html, other.get("rows") or [], other.get("months"), section_fy
-            )
-            if other_as != primary_as_of:
+        for idx in series.indices:
+            if idx == primary_index:
                 continue
-        for row in other.get("rows") or []:
-            merged = dict(row)
-            merged["values"] = dict(row.get("values") or {})
-            _apply_section_segment([merged], seg)
-            el = str(merged.get("element") or "")
-            key = (el, merged.get("unit"))
-            if not el:
+            other_c = by_idx.get(idx)
+            if other_c is None:
                 continue
-            existing = have.get(key)
-            if existing is not None:
-                vals = existing.setdefault("values", {})
-                for mk, mv in merged["values"].items():
-                    vals.setdefault(mk, mv)
+            _i, _grid, other, _fy = other_c
+            if _is_store_event_parsed(other):
                 continue
-            primary.setdefault("rows", []).append(merged)
-            have[key] = merged
-        extra_months.extend(_valued_months(other.get("rows") or []))
+            tag = sections[idx] if idx < len(sections) else Section(None, None)
+            rows = [
+                dict(row, values=dict(row.get("values") or {}))
+                for row in other.get("rows") or []
+            ]
+            if tag.scope and _rows_need_store_scope(rows):
+                _apply_store_scope(rows, tag.scope)
+            _apply_section_segment(rows, tag.segment)
+            for merged in rows:
+                el = str(merged.get("element") or "")
+                key = (el, merged.get("unit"))
+                if not el:
+                    continue
+                existing = have.get(key)
+                if existing is not None:
+                    vals = existing.setdefault("values", {})
+                    for mk, mv in merged["values"].items():
+                        vals.setdefault(mk, mv)
+                    continue
+                primary.setdefault("rows", []).append(merged)
+                have[key] = merged
+            extra_months.extend(_valued_months(other.get("rows") or []))
     if extra_months:
         primary["months"] = _union_ingest_months(
             [*_valued_months(primary.get("rows") or []), *extra_months]
@@ -1445,7 +1591,7 @@ def html_to_ingest(
     tables = parse_tables(html)
     if not tables:
         raise ValueError("no html table")
-    sections = table_section_texts(html)
+    section_texts = table_section_texts(html)
     base_ctx = context if context is not None else page_context(html)
     unit_marks = unit_mark_context(html)
     indices: list[int]
@@ -1458,7 +1604,7 @@ def html_to_ingest(
     last_err: str | None = None
     candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]] = []
     for i in indices:
-        section_text = sections[i] if i < len(sections) else ""
+        section_text = section_texts[i] if i < len(section_texts) else ""
         ctx = " ".join(p for p in (base_ctx, section_text, unit_marks) if p)
         try:
             parsed = parse_grid(tables[i], ctx, html)
@@ -1475,16 +1621,18 @@ def html_to_ingest(
     monthly_cands = [c for c in candidates if not _is_store_event_parsed(c[2])]
     sales_cands = [c for c in monthly_cands if not _is_count_only_parsed(c[2])]
     pick_pool = sales_cands or monthly_cands or candidates
-    segments = _sticky_section_segments(sections)
-    pick_pool = _prefer_section_candidates(pick_pool, sections, segments)
+    sections = _sticky_sections(section_texts)
+    pick_pool = _prefer_section_candidates(
+        pick_pool, section_texts, [s.segment for s in sections]
+    )
     table_index, grid_used, parsed, section_fy = max(
         pick_pool,
         key=lambda it: _parsed_score(
             html, it[1], it[2], table_index=it[0], section_fy=it[3]
         ),
     )
-    section_text = sections[table_index] if table_index < len(sections) else ""
-    scope = _store_scope_from_section(section_text)
+    section_text = section_texts[table_index] if table_index < len(section_texts) else ""
+    scope = sections[table_index].scope if table_index < len(sections) else None
     if scope and _rows_need_store_scope(parsed["rows"]):
         _apply_store_scope(parsed["rows"], scope)
     _merge_companion_total_stores(parsed, candidates, primary_index=table_index)
@@ -1493,7 +1641,7 @@ def html_to_ingest(
     )
     _apply_section_segment(
         parsed["rows"],
-        segments[table_index] if table_index < len(segments) else None,
+        sections[table_index].segment if table_index < len(sections) else None,
     )
     as_of_s = resolve_as_of(
         html,
@@ -1508,7 +1656,7 @@ def html_to_ingest(
             parsed,
             monthly_cands,
             primary_index=table_index,
-            segments=segments,
+            sections=sections,
             html=html,
             primary_as_of=as_of_s,
         )
