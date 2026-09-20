@@ -858,6 +858,12 @@ function fmtMonthlyTick(v){
   return v.toLocaleString("ja-JP", {maximumFractionDigits:1});
 }
 
+function fmtMonthlyBarV(v){
+  if(Math.abs(v) < 1e-9) v = 0;
+  if(Math.abs(v - Math.round(v)) < 1e-6) return String(Math.round(v));
+  return String(Math.round(v * 10) / 10);
+}
+
 let monthlyChartCssW = 0;
 
 function drawMonthlyChart(tables, seriesId){
@@ -880,75 +886,74 @@ function drawMonthlyChart(tables, seriesId){
     for(let m=1;m<=12;m++){
       const raw = el.values && el.values[String(m)];
       const n = raw==null || raw==="" ? null : Number(raw);
-      let v = null;
-      if(Number.isFinite(n)){
-        v = n;
-        any = true;
-      }
+      const v = Number.isFinite(n) ? n : null;
+      if(v!=null) any = true;
       nums.push(v);
     }
     if(!any) continue;
     years.push(d.year);
     byYear[d.year] = nums;
   }
-  years.sort((a,b)=>a-b);
+  years.sort((a,b)=>b-a);
   if(!years.length){
     host.innerHTML = `<div class="sub">データなし</div>`;
     return;
   }
   const vals = [];
   for(const y of years) for(const v of byYear[y]) if(v!=null) vals.push(v);
-  let ymin = 0;
-  let ymax = Math.max(...vals, spec.yoy ? 100 : 1);
-  ymax = ymax * 1.08;
+  const ymin = 0;
+  const ymax = Math.max(...vals, spec.yoy ? 100 : 1) * 1.08;
+  const panels = years.map(year => ({
+    year,
+    color: monthlyYearColor(year),
+    values: byYear[year],
+  }));
+  const chart = {spec, ymin, ymax, panels};
+
   const phone = monthlyIsPhone();
   const cssW = host.clientWidth || document.documentElement.clientWidth || 720;
   monthlyChartCssW = cssW;
-  const W = phone ? Math.max(cssW, 280) : 720;
-  const H = phone ? 280 : 232;
-  const L = 52, R = phone ? 10 : 12, T = phone ? 18 : 14, B = phone ? 64 : 50;
+  const W = Math.max(cssW, phone ? 280 : 480);
+  const H = phone ? 148 : 140;
+  const L = 52, R = phone ? 10 : 12, T = 20, B = phone ? 28 : 24;
   const fsAxis = phone ? 13 : 11;
   const plotW=W-L-R, plotH=H-T-B;
-  const yx = v => T + (1 - (v-ymin)/((ymax-ymin)||1)) * plotH;
-  const nY = years.length;
+  const yx = v => T + (1 - (v-chart.ymin)/((chart.ymax-chart.ymin)||1)) * plotH;
   const slot = plotW/12;
-  const barW = Math.max(3, (slot*0.72)/nY);
-  const monthY = T + plotH + (phone ? 18 : 14);
-  const legendY = H - (phone ? 8 : 6);
-  const legendGap = Math.min(phone ? 70 : 80, plotW / Math.max(nY, 1));
-  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escHtml(spec.label)}">`;
-  for(const tick of monthlyYTicks(ymin, ymax, spec.yoy)){
-    const y = yx(tick);
-    svg += `<line x1="${L}" x2="${W-R}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e8ecf0"/>`;
-    svg += `<text x="${L-6}" y="${y.toFixed(1)}" font-size="${fsAxis}" text-anchor="end" dominant-baseline="middle" fill="#66707a">${fmtMonthlyTick(tick)}</text>`;
-  }
-  if(spec.yoy){
-    const y100 = yx(100);
-    svg += `<line x1="${L}" x2="${W-R}" y1="${y100}" y2="${y100}" stroke="#e6a100" stroke-dasharray="4 3"/>`;
-  }
-  years.forEach((year, yi) => {
-    const color = monthlyYearColor(year);
-    byYear[year].forEach((v, mi) => {
-      if(v==null) return;
-      const x = L + slot*mi + (slot-nY*barW)/2 + yi*barW;
-      const y = yx(Math.max(v, ymin));
-      const hgt = Math.max(1, yx(ymin) - y);
-      svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${hgt.toFixed(1)}" fill="${color}"/>`;
-    });
-  });
+  const barW = Math.max(3, slot*0.5);
+  const fsBar = slot < 32 ? 9 : 11;
+  const monthY = T + plotH + (phone ? 16 : 14);
   const monthLabel = slot < 28 ? (m => String(m)) : (m => `${m}月`);
-  for(let m=1;m<=12;m++){
-    const x = L + slot*(m-1) + slot/2;
-    svg += `<text x="${x.toFixed(1)}" y="${monthY}" font-size="${fsAxis}" text-anchor="middle" fill="#66707a">${monthLabel(m)}</text>`;
+
+  let html = "";
+  for(const p of chart.panels){
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escHtml(chart.spec.label)}">`;
+    for(const tick of monthlyYTicks(chart.ymin, chart.ymax, chart.spec.yoy)){
+      const y = yx(tick);
+      svg += `<line x1="${L}" x2="${W-R}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e8ecf0"/>`;
+      svg += `<text x="${L-6}" y="${y.toFixed(1)}" font-size="${fsAxis}" text-anchor="end" dominant-baseline="middle" fill="#66707a">${fmtMonthlyTick(tick)}</text>`;
+    }
+    if(chart.spec.yoy){
+      const y100 = yx(100);
+      svg += `<line x1="${L}" x2="${W-R}" y1="${y100}" y2="${y100}" stroke="#e6a100" stroke-dasharray="4 3"/>`;
+    }
+    p.values.forEach((v, mi) => {
+      if(v==null) return;
+      const x = L + slot*mi + (slot-barW)/2;
+      const y = yx(Math.max(v, chart.ymin));
+      const hgt = Math.max(1, yx(chart.ymin) - y);
+      svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${hgt.toFixed(1)}" fill="${p.color}"/>`;
+      const lx = x + barW/2;
+      svg += `<text class="monthly-bar-v" x="${lx.toFixed(1)}" y="${(y-3).toFixed(1)}" font-size="${fsBar}" text-anchor="middle" fill="#333">${fmtMonthlyBarV(v)}</text>`;
+    });
+    for(let m=1;m<=12;m++){
+      const x = L + slot*(m-1) + slot/2;
+      svg += `<text x="${x.toFixed(1)}" y="${monthY}" font-size="${fsAxis}" text-anchor="middle" fill="#66707a">${monthLabel(m)}</text>`;
+    }
+    svg += `</svg>`;
+    html += `<div class="monthly-year-chart"><div class="monthly-year-lab"><span class="monthly-year-swatch" style="background:${p.color}"></span>${p.year}年</div>${svg}</div>`;
   }
-  years.forEach((year, yi) => {
-    const color = monthlyYearColor(year);
-    const x = L + yi*legendGap;
-    svg += `<rect x="${x}" y="${legendY-10}" width="8" height="8" fill="${color}"/>`;
-    svg += `<text x="${x+12}" y="${legendY}" font-size="${fsAxis}" fill="#66707a">${year}年</text>`;
-  });
-  svg += `</svg>`;
-  host.innerHTML = svg;
+  host.innerHTML = html;
 }
 
 window.matchMedia("(max-width:640px)").addEventListener("change", () => {

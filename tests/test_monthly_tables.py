@@ -1234,7 +1234,7 @@ def _assert_monthly_spa(html: str) -> None:
     if end < 0:
         _fail("index.html monthly tab unclosed")
     section = html[start:end]
-    if 'id="monthly-year"' in html or "monthly-year" in html:
+    if 'id="monthly-year"' in html:
         _fail("SPA still has #monthly-year")
     if "<select" not in section.lower() or 'id="monthly-series"' not in section:
         _fail("Detail series control must be <select id=\"monthly-series\">")
@@ -1535,6 +1535,19 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("keep yoy 100 horizontal line")
     if "n+100" in chart_body.replace(" ", "") or "+=100" in chart_body.replace(" ", ""):
         _fail("chart must plot stored values, not leftover yoy_pct+100")
+    if "monthly-year-chart" not in chart_body:
+        _fail("drawMonthlyChart must emit .monthly-year-chart year panels")
+    if "monthly-bar-v" not in chart_body:
+        _fail("drawMonthlyChart must label stored bar values with monthly-bar-v")
+    compact_chart = chart_body.replace(" ", "").replace("\n", "")
+    if "(slot*0.72)/nY" in compact_chart:
+        _fail("chart must not use clustered bar width (slot*0.72)/nY")
+    if re.search(r"W\s*=\s*[^;]*:\s*720\b", chart_body):
+        _fail("PC chart width must not be fixed 720")
+    if re.search(r"if\s*\(\s*!?\s*phone\s*\)\s*\{[^}]*monthly-bar-v", chart_body.replace("\n", " ")):
+        _fail("bar labels must not be wrapped in if(phone) / if(!phone)")
+    if re.search(r"(?:!phone|phone)\s*\?[^;]*monthly-bar-v", compact_chart):
+        _fail("bar labels must not be hidden behind a phone ternary")
     color_fn = html.find("function monthlyYearColor")
     color_end = html.find("function uniqueMonthlyIssuers")
     if color_fn < 0 or color_end <= color_fn:
@@ -1705,6 +1718,28 @@ def _assert_monthly_layout_js() -> None:
             ],
         }],
         "leftoverMkg": _el("MKG ドラッグ 全店 売上高(前年比)"),
+        "chartTables": [
+            {
+                "year": 2026,
+                "code": "72030",
+                "elements": [{
+                    "element": "全店 売上高(前年比)",
+                    "unit": "yoy_index",
+                    "label": monthly_element_label("全店 売上高(前年比)", "yoy_index"),
+                    "values": {str(m): (110 if m == 1 else None) for m in range(1, 13)},
+                }],
+            },
+            {
+                "year": 2025,
+                "code": "72030",
+                "elements": [{
+                    "element": "全店 売上高(前年比)",
+                    "unit": "yoy_index",
+                    "label": monthly_element_label("全店 売上高(前年比)", "yoy_index"),
+                    "values": {str(m): (100 if m == 1 else None) for m in range(1, 13)},
+                }],
+            },
+        ],
         "belluna": [{
             "year": 2026,
             "code": "99970",
@@ -1862,6 +1897,8 @@ const gmvTables = fixtures.gmvTables;
 const gmvOrder = sandbox.monthlyRowOrder(gmvTables);
 const gmvLayout = sandbox.monthlyTableLayout(gmvOrder, gmvTables);
 const drugRow = matsukiyo[0].elements.find((e) => e.element === "全店 売上高 ドラッグ(前年比)");
+sandbox.drawMonthlyChart(fixtures.chartTables, "全店 売上高(前年比)");
+const chartHtml = el.innerHTML;
 const belluna = fixtures.belluna;
 const areaOrder = sandbox.monthlyRowOrder(belluna);
 const areaLayout = sandbox.monthlyTableLayout(areaOrder, belluna);
@@ -1898,6 +1935,7 @@ console.log(JSON.stringify({
       breakdown: r.breakdown || "",
     };
   }),
+  chartHtml,
   areaCols: areaLayout.rows.some((r) => r.rail || r.col4 || r.stub4) ? 4 : 3,
   areaSummary: areaLayout.rows.map((r) => {
     if (r.kind === "section") return { kind: "section", label: r.label };
@@ -2001,6 +2039,15 @@ console.log(JSON.stringify({
     ]
     if got.get("bdSummary") != want_bd:
         _fail(f"30880 内訳 layout: {got.get('bdSummary')!r}")
+    chart_html = got.get("chartHtml") or ""
+    if chart_html.count("<svg") != 2:
+        _fail(f"year panels must draw two svgs: {chart_html[:400]!r}")
+    if "2026年" not in chart_html or "2025年" not in chart_html:
+        _fail(f"year panel labels missing: {chart_html[:400]!r}")
+    if "monthly-bar-v" not in chart_html:
+        _fail("year panels must label bars with monthly-bar-v")
+    if "110" not in chart_html or "100" not in chart_html:
+        _fail(f"bar labels must include 110 and 100: {chart_html[:400]!r}")
     if got.get("gmvGate") != ["CPAソリューション事業", "戦略事業"]:
         _fail(f"取扱高 gate leftovers: {got.get('gmvGate')!r}")
     if got.get("gmvGated") is not True:
