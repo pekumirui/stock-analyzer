@@ -1592,6 +1592,13 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("phone must turn off first-column sticky (or equivalent static position)")
     if "min-width:8em" not in mq_compact and "width:8em" not in mq_compact:
         _fail("phone name column must be much shorter than 16em so months are visible")
+    phone_stub = html[mq:mq + 2800].replace(" ", "").replace("\n", "")
+    if "--stub-sc:4.25em" not in phone_stub:
+        _fail("phone scope stub must be 4.25em so 既存店 fits on one line")
+    if "--stub-leaf:8.5em" not in phone_stub:
+        _fail("phone leaf stub must be 8.5em so 売上高(前年比) fits on one line")
+    if "td.monthly-stub-sc{white-space:nowrap" not in phone_stub:
+        _fail("phone scope stub must nowrap so 既存店 does not stack vertically")
     if "right:0" in mq_compact:
         _fail("do not sticky-fix the rightmost month column on phone")
     monthly_css_start = html.find("table.monthly")

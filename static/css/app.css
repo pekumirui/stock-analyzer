@@ -319,8 +319,8 @@
     table.monthly tbody tr[data-series].on td:first-child,
     table.monthly tbody tr[data-series].on td.monthly-stub { background:var(--row-sel); }
     table.monthly tbody tr.monthly-sec td.monthly-sec-label { position:static; background:#f0f3f6; }
-    table.monthly.monthly-gated { --stub-ch:2em; --stub-sc:2em; --stub-leaf:4em; }
-    table.monthly.monthly-gated thead th:first-child { min-width:8em; width:8em; }
+    table.monthly.monthly-gated { --stub-ch:2em; --stub-sc:4.25em; --stub-leaf:8.5em; }
+    table.monthly.monthly-gated thead th:first-child { min-width:14.75em; width:14.75em; }
     table.monthly.monthly-gated td.monthly-stub,
     table.monthly.monthly-gated td.monthly-stub-ch,
     table.monthly.monthly-gated td.monthly-stub-sc,
@@ -328,6 +328,7 @@
       position:static; left:auto; right:auto; z-index:auto;
       min-width:0; width:auto; white-space:normal; overflow:visible;
     }
+    table.monthly.monthly-gated td.monthly-stub-sc { white-space:nowrap; }
     table.monthly thead th:not(:first-child),
     table.monthly td.num,
     table.monthly th:last-child,
