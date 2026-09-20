@@ -1144,6 +1144,12 @@ HURXLEY_SECTIONS_HTML = """
 <html><body>
 <p>ほっかほっか亭 店舗流通ネット株式会社</p>
 <h2>ほっかほっか亭</h2>
+<div class="u-select-year">
+<select>
+<option value="year_2027年3月期">2027年3月期</option>
+<option value="year_2026年3月期">2026年3月期</option>
+</select>
+</div>
 <table>
 <tr>
 <th colspan="2">2027年3月期</th>
@@ -1201,6 +1207,12 @@ HURXLEY_SECTIONS_HTML = """
 </tr>
 </table>
 <h2>店舗流通ネット株式会社</h2>
+<div class="u-select-year">
+<select>
+<option value="year_2027年3月期">2027年3月期</option>
+<option value="year_2026年3月期">2026年3月期</option>
+</select>
+</div>
 <table>
 <tr>
 <th colspan="2">2027年3月期</th>
