@@ -22,6 +22,7 @@ from app.monthly_ingest import (  # noqa: E402
     canonicalize_element_label,
     format_monthly_cell,
     map_pdf_columns,
+    monthly_breakdown_depth,
     monthly_element_label,
     monthly_row_breakdown_rank,
     monthly_row_segment,
@@ -294,6 +295,37 @@ def test_canonicalize_element_label() -> None:
         _fail("調剤事業 stays a segment")
     if canonicalize_element_label("内アパレル 全店 売上高(前年比)", "yoy_index") != "内アパレル 全店 売上高(前年比)":
         _fail("内アパレル stays a segment")
+    if canonicalize_element_label("グロース領域 売上高 プロパティ", "number") != "グロース領域 全店 売上高 プロパティ":
+        _fail("グロース領域 売上高 プロパティ peels to 内訳")
+    if canonicalize_element_label("グロース領域 売上高 ホテル", "number") != "グロース領域 全店 売上高 ホテル":
+        _fail("グロース領域 売上高 ホテル peels to 内訳")
+    area = parse_element_layers("グロース領域 売上高 ホテル")
+    if (
+        area["segment"] != "グロース領域"
+        or area["scope"] != "全店"
+        or area["metric"] != "売上高"
+        or area["breakdown"] != "ホテル"
+    ):
+        _fail(f"parse area 内訳 layers: {area!r}")
+    if canonicalize_element_label("グロース領域 全店 売上高 インカム、太陽光", "number") != "グロース領域 全店 売上高 インカム太陽光":
+        _fail("インカム、太陽光 aliases to インカム太陽光")
+    if canonicalize_element_label("サステナブル領域 売上高 その他", "number") != "サステナブル領域 全店 売上高 その他":
+        _fail("サステナブル領域 その他 peels to 内訳")
+    if canonicalize_element_label("サステナブル領域 全店 売上高 アパレル・雑貨", "number") != "サステナブル領域 全店 売上高 アパレル雑貨":
+        _fail("アパレル・雑貨 aliases to アパレル雑貨")
+    if canonicalize_element_label("グロース領域 売上高 ホテル", "yoy_index") != "グロース領域 全店 売上高 ホテル(前年比)":
+        _fail("area 内訳 yoy suffix")
+    if canonicalize_element_label("グロース領域 全店 ホテル", "yoy_index") != "グロース領域 全店 売上高 ホテル(前年比)":
+        _fail("area 内訳 empty-metric yoy peels")
+    if canonicalize_element_label("ホテル 全店 売上高", "number") != "ホテル 全店 売上高":
+        _fail("ホテル without parent stays segment")
+    if canonicalize_element_label("その他 全店 売上高", "number") != "その他 全店 売上高":
+        _fail("その他 without parent stays segment")
+    area_twice = canonicalize_element_label("グロース領域 全店 売上高 ホテル", "number")
+    if area_twice != canonicalize_element_label(area_twice, "number"):
+        _fail("area 内訳 canonicalize is idempotent")
+    if len(canonicalize_element_label("サステナブル領域 売上高 アパレル・雑貨", "yoy_index")) > 50:
+        _fail("area 内訳 name exceeds 50")
     if canonicalize_element_label("連結売上高", "number") != "全店 連結売上高":
         _fail("連結売上高 is a metric, not a segment")
     if canonicalize_element_label("連結 売上高", "number") != "全店 連結売上高":
@@ -312,6 +344,23 @@ def test_canonicalize_element_label() -> None:
         _fail("連結 営業収益 glues to a metric")
     if canonicalize_element_label("連結 顧客口座数", "number") != "連結顧客口座数":
         _fail("連結 leftover KPI is a metric")
+    if canonicalize_element_label("CPAソリューション事業 取扱高", "number") != "CPAソリューション事業 取扱高":
+        _fail("取扱高 is a metric, no 全店 fill")
+    if canonicalize_element_label("CPAソリューション事業取扱高", "number") != "CPAソリューション事業 取扱高":
+        _fail("unglue 取扱高")
+    if canonicalize_element_label("CPAソリューション事業 取扱高(前年比)", "yoy_index") != "CPAソリューション事業 取扱高(前年比)":
+        _fail("取扱高 yoy keeps leftover")
+    if canonicalize_element_label("取扱高", "number") != "取扱高":
+        _fail("bare 取扱高 stays metric without 全店")
+    if canonicalize_element_label("戦略事業 取扱高", "number") != "戦略事業 取扱高":
+        _fail("named leftover + 取扱高")
+    if canonicalize_element_label("連結 取扱高", "number") != "連結取扱高":
+        _fail("連結 取扱高 glues like 連結営業収益")
+    gmv = parse_element_layers("CPAソリューション事業 取扱高")
+    if gmv["segment"] != "CPAソリューション事業" or gmv["metric"] != "取扱高" or gmv["scope"]:
+        _fail(f"parse 取扱高 layers: {gmv!r}")
+    if monthly_row_segment("CPAソリューション事業 取扱高") != "CPAソリューション事業":
+        _fail("gate leftover peels 取扱高")
     if canonicalize_element_label("内 MM 全店 売上高", "number") != "内 MM 全店 売上高":
         _fail("内 MM stays leftover, not 内訳")
     if canonicalize_element_label("店舗状況 （内 出店", "number") != "出店":
@@ -329,10 +378,28 @@ def test_canonicalize_element_label() -> None:
         _fail("調剤 bd rank 2")
     if monthly_row_breakdown_rank("既存 売上高 物販(前年比)") != 3:
         _fail("物販 bd rank 3")
+    if monthly_row_breakdown_rank("グロース領域 全店 売上高") != 0:
+        _fail("area parent bd rank 0")
+    if monthly_row_breakdown_rank("グロース領域 全店 売上高 プロパティ") != 1:
+        _fail("プロパティ bd rank 1")
+    if monthly_row_breakdown_rank("グロース領域 全店 売上高 ホテル") != 2:
+        _fail("ホテル bd rank 2")
+    if monthly_breakdown_depth("グロース領域 全店 売上高") != 0:
+        _fail("area parent depth 0")
+    if monthly_breakdown_depth("グロース領域 全店 売上高 プロパティ") != 1:
+        _fail("プロパティ depth 1")
+    if monthly_breakdown_depth("グロース領域 全店 売上高 ホテル") != 2:
+        _fail("ホテル depth 2")
+    if monthly_breakdown_depth("グロース領域 全店 売上高 インカム太陽光") != 2:
+        _fail("インカム太陽光 depth 2")
+    if monthly_breakdown_depth("MKG 全店 売上高 ドラッグ") != 1:
+        _fail("ドラッグ depth 1")
     if monthly_series_kind("全店 売上高 ドラッグ(前年比)", "yoy_index") is not None:
         _fail("会社 ドラッグ must not be TOP 全店")
     if monthly_series_kind("MKG 全店 売上高 ドラッグ(前年比)", "yoy_index") is not None:
         _fail("ブランド 内訳 is not a series")
+    if monthly_series_kind("グロース領域 全店 売上高 ホテル(前年比)", "yoy_index") is not None:
+        _fail("area 内訳 yoy is not a series")
     if monthly_series_kind("MKG 全店 売上高(前年比)", "yoy_index") != "all_store":
         _fail("ブランド 売上高 parent stays all_store")
     bd_order = [row["element"] for row in union_monthly_elements([{
@@ -353,6 +420,26 @@ def test_canonicalize_element_label() -> None:
         "MKG 既存 売上高(前年比)",
     ]:
         _fail(f"売上高 内訳 order: {bd_order!r}")
+    area_order = [row["element"] for row in union_monthly_elements([{
+        "year": 2026,
+        "elements": [
+            {"element": "グロース領域 全店 売上高 専門通販", "unit": "number"},
+            {"element": "グロース領域 全店 売上高 ホテル", "unit": "number"},
+            {"element": "グロース領域 全店 売上高 化粧品健康食品", "unit": "number"},
+            {"element": "グロース領域 全店 売上高", "unit": "number"},
+            {"element": "グロース領域 全店 売上高 インカム太陽光", "unit": "number"},
+            {"element": "グロース領域 全店 売上高 プロパティ", "unit": "number"},
+        ],
+    }])]
+    if area_order != [
+        "グロース領域 全店 売上高",
+        "グロース領域 全店 売上高 プロパティ",
+        "グロース領域 全店 売上高 ホテル",
+        "グロース領域 全店 売上高 インカム太陽光",
+        "グロース領域 全店 売上高 専門通販",
+        "グロース領域 全店 売上高 化粧品健康食品",
+    ]:
+        _fail(f"area 小枝 order: {area_order!r}")
     if not same_yoy_element("売上高", "yoy_index", "全店 売上高(前年比)", "yoy_index"):
         _fail("short yoy name matches canonical")
     if not same_yoy_element("カラオケ全店 売上高", "yoy_index", "カラオケ 全店 売上高(前年比)", "yoy_index"):
@@ -1747,6 +1834,7 @@ def test_monthly_element_label() -> None:
         "scope": "全店",
         "metric": "売上高",
         "breakdown": "",
+        "breakdown_depth": 0,
     }
     if leftover != want_left:
         _fail(f"leftover 売上高: {leftover!r}")
@@ -1763,6 +1851,7 @@ def test_monthly_element_label() -> None:
         "scope": "全店",
         "metric": "売上高",
         "breakdown": "ドラッグ",
+        "breakdown_depth": 1,
     }
     if mkg != want_mkg:
         _fail(f"MKG: {mkg!r}")
@@ -1779,12 +1868,46 @@ def test_monthly_element_label() -> None:
         "scope": "全店",
         "metric": "連結売上高",
         "breakdown": "",
+        "breakdown_depth": 0,
     }
     if consol != want_consol:
         _fail(f"連結売上高: {consol!r}")
     profit = monthly_element_label("連結営業利益", "number")
     if profit["group"] != "" or profit["metric"] != "連結営業利益" or profit["display"] != "連結営業利益":
         _fail(f"連結営業利益: {profit!r}")
+    hotel = monthly_element_label("グロース領域 全店 売上高 ホテル", "number")
+    if hotel["breakdown"] != "ホテル" or hotel["breakdown_depth"] != 2 or hotel["group"] != "グロース領域":
+        _fail(f"ホテル 小枝: {hotel!r}")
+    prop = monthly_element_label("グロース領域 全店 売上高 プロパティ", "number")
+    if prop["breakdown"] != "プロパティ" or prop["breakdown_depth"] != 1:
+        _fail(f"プロパティ 中節: {prop!r}")
+    gmv = monthly_element_label("CPAソリューション事業 取扱高", "number")
+    want_gmv = {
+        "display": "CPAソリューション事業 取扱高",
+        "group": "CPAソリューション事業",
+        "metric_kind": "other",
+        "series_kind": None,
+        "country": "",
+        "segment": "CPAソリューション事業",
+        "time_axis": "",
+        "channel": "",
+        "scope": "",
+        "metric": "取扱高",
+        "breakdown": "",
+        "breakdown_depth": 0,
+    }
+    if gmv != want_gmv:
+        _fail(f"取扱高 label: {gmv!r}")
+    gmv_yoy = monthly_element_label("CPAソリューション事業 取扱高(前年比)", "yoy_index")
+    if (
+        gmv_yoy["group"] != "CPAソリューション事業"
+        or gmv_yoy["metric"] != "取扱高"
+        or gmv_yoy["display"] != "CPAソリューション事業 取扱高(前年比)"
+    ):
+        _fail(f"取扱高 yoy label: {gmv_yoy!r}")
+    bare_gmv = monthly_element_label("取扱高", "number")
+    if bare_gmv["group"] or bare_gmv["metric"] != "取扱高" or bare_gmv["scope"]:
+        _fail(f"bare 取扱高 label: {bare_gmv!r}")
 
 
 def main() -> None:

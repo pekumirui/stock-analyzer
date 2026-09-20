@@ -1618,6 +1618,13 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("内訳 leaf must indent with └")
     if "font-size:12px" not in html[html.find("td.monthly-stub-leaf.monthly-bd"):html.find("td.monthly-stub-leaf.monthly-bd") + 180]:
         _fail("内訳 leaf must be 12px")
+    if "monthly-bd-2" not in html:
+        _fail("area 小枝 leaf must use monthly-bd-2")
+    bd2_at = html.find("td.monthly-stub-leaf.monthly-bd-2")
+    if bd2_at < 0 or "2.25em" not in html[bd2_at:bd2_at + 120]:
+        _fail("小枝 leaf must indent further with 2.25em")
+    if "breakdownDepth" not in html:
+        _fail("gated leaf must read label.breakdown_depth")
     if "colspan=\"3\"" not in html and "colspan='3'" not in html:
         _fail("gated year header must span the three stub columns")
     if '<tr class="monthly-sec"><td class="monthly-sec-label" colspan="3">' not in html:
@@ -1633,8 +1640,8 @@ def _assert_monthly_spa(html: str) -> None:
     if gate_fn < 0 or gate_end <= gate_fn:
         _fail("monthlySegmentGate / monthlyStubChannelText bounds")
     gate_body = html[gate_fn:gate_end]
-    if "monthlyLatestYearTable" not in gate_body and "latest" not in gate_body:
-        _fail("monthlySegmentGate must look at the latest display year")
+    if "monthlyDisplayYears" not in gate_body:
+        _fail("monthlySegmentGate must look at displayed years")
     if ">= 2" not in gate_body and ">=2" not in gate_body.replace(" ", ""):
         _fail("monthlySegmentGate must require the leftover on at least 2 rows")
     layout_fn = html.find("function monthlyTableLayout")
@@ -1733,6 +1740,98 @@ def _assert_monthly_layout_js() -> None:
                 }],
             },
         ],
+        "belluna": [{
+            "year": 2026,
+            "code": "99970",
+            "elements": [
+                _el("グロース領域 全店 売上高 ホテル", "number"),
+                _el("グロース領域 全店 売上高 専門通販", "number"),
+                _el("グロース領域 全店 売上高 化粧品健康食品", "number"),
+                _el("グロース領域 全店 売上高", "number"),
+                _el("グロース領域 全店 売上高 インカム太陽光", "number"),
+                _el("グロース領域 全店 売上高 プロパティ", "number"),
+                _el("全店 連結売上高", "number"),
+            ],
+        }],
+        "gmvTables": [{
+            "year": 2026,
+            "code": "24610",
+            "elements": [
+                _el("全店 売上高", "number"),
+                _el("全店 売上高(前年比)"),
+                _el("取扱高", "number"),
+                _el("取扱高(前年比)"),
+                _el("CPAソリューション事業 全店 売上高", "number"),
+                _el("CPAソリューション事業 全店 売上高(前年比)"),
+                _el("CPAソリューション事業 取扱高", "number"),
+                _el("CPAソリューション事業 取扱高(前年比)"),
+                _el("戦略事業 全店 売上高", "number"),
+                _el("戦略事業 全店 売上高(前年比)"),
+                _el("戦略事業 取扱高", "number"),
+                _el("戦略事業 取扱高(前年比)"),
+            ],
+        }],
+        "renameYears": [
+            {
+                "year": 2026,
+                "code": "24610",
+                "elements": [
+                    _el("全店 売上高", "number"),
+                    _el("CPAソリューション事業 全店 売上高", "number"),
+                    _el("CPAソリューション事業 全店 売上高(前年比)"),
+                    _el("戦略事業 全店 売上高", "number"),
+                    _el("戦略事業 全店 売上高(前年比)"),
+                ],
+            },
+            {
+                "year": 2024,
+                "code": "24610",
+                "elements": [
+                    _el("全店 売上高", "number"),
+                    _el("CPAソリューション事業 全店 売上高", "number"),
+                    _el("CPAソリューション事業 全店 売上高(前年比)"),
+                    _el("ADコミュニケーション事業 全店 売上高", "number"),
+                    _el("ADコミュニケーション事業 全店 売上高(前年比)"),
+                ],
+            },
+        ],
+        "lonePrior": [
+            {
+                "year": 2026,
+                "code": "24610",
+                "elements": [
+                    _el("全店 売上高", "number"),
+                    _el("CPAソリューション事業 全店 売上高", "number"),
+                    _el("CPAソリューション事業 全店 売上高(前年比)"),
+                ],
+            },
+            {
+                "year": 2024,
+                "code": "24610",
+                "elements": [
+                    _el("ADコミュニケーション事業 全店 売上高", "number"),
+                ],
+            },
+        ],
+        "tooOld": [
+            {
+                "year": 2026,
+                "code": "24610",
+                "elements": [
+                    _el("全店 売上高", "number"),
+                    _el("CPAソリューション事業 全店 売上高", "number"),
+                    _el("CPAソリューション事業 全店 売上高(前年比)"),
+                ],
+            },
+            {
+                "year": 2022,
+                "code": "24610",
+                "elements": [
+                    _el("ADコミュニケーション事業 全店 売上高", "number"),
+                    _el("ADコミュニケーション事業 全店 売上高(前年比)"),
+                ],
+            },
+        ],
     }
     harness = r"""
 const fs = require("fs");
@@ -1794,9 +1893,18 @@ const flatOrder = sandbox.monthlyRowOrder(flatTables);
 const flat = sandbox.monthlyTableLayout(flatOrder, flatTables);
 const bdOrder = sandbox.monthlyRowOrder(matsukiyo);
 const bdLayout = sandbox.monthlyTableLayout(bdOrder, matsukiyo);
+const gmvTables = fixtures.gmvTables;
+const gmvOrder = sandbox.monthlyRowOrder(gmvTables);
+const gmvLayout = sandbox.monthlyTableLayout(gmvOrder, gmvTables);
 const drugRow = matsukiyo[0].elements.find((e) => e.element === "全店 売上高 ドラッグ(前年比)");
 sandbox.drawMonthlyChart(fixtures.chartTables, "全店 売上高(前年比)");
 const chartHtml = el.innerHTML;
+const belluna = fixtures.belluna;
+const areaOrder = sandbox.monthlyRowOrder(belluna);
+const areaLayout = sandbox.monthlyTableLayout(areaOrder, belluna);
+const renameYears = fixtures.renameYears;
+const renameOrder = sandbox.monthlyRowOrder(renameYears);
+const renameLayout = sandbox.monthlyTableLayout(renameOrder, renameYears);
 console.log(JSON.stringify({
   gated,
   gatedFlag: layout.gated,
@@ -1828,6 +1936,38 @@ console.log(JSON.stringify({
     };
   }),
   chartHtml,
+  areaCols: areaLayout.rows.some((r) => r.rail || r.col4 || r.stub4) ? 4 : 3,
+  areaSummary: areaLayout.rows.map((r) => {
+    if (r.kind === "section") return { kind: "section", label: r.label };
+    return {
+      kind: "data",
+      element: r.element,
+      group: r.group,
+      leaf: r.leaf,
+      breakdown: r.breakdown || "",
+      breakdownDepth: r.breakdownDepth ?? 0,
+    };
+  }),
+  gmvGate: [...sandbox.monthlySegmentGate(gmvTables)].sort(),
+  gmvGated: gmvLayout.gated,
+  gmvSummary: gmvLayout.rows.map((r) => {
+    if (r.kind === "section") return { kind: "section", label: r.label };
+    return {
+      kind: "data",
+      element: r.element,
+      group: r.group,
+      scope: r.scope,
+      leaf: r.leaf,
+    };
+  }),
+  renameGate: [...sandbox.monthlySegmentGate(renameYears)].sort(),
+  renameGated: renameLayout.gated,
+  renameSummary: renameLayout.rows.map((r) => {
+    if (r.kind === "section") return { kind: "section", label: r.label };
+    return { kind: "data", element: r.element, group: r.group, leaf: r.leaf };
+  }),
+  lonePriorGate: [...sandbox.monthlySegmentGate(fixtures.lonePrior)].sort(),
+  tooOldGate: [...sandbox.monthlySegmentGate(fixtures.tooOld)].sort(),
 }));
 """
     proc = subprocess.run(
@@ -1908,6 +2048,64 @@ console.log(JSON.stringify({
         _fail("year panels must label bars with monthly-bar-v")
     if "110" not in chart_html or "100" not in chart_html:
         _fail(f"bar labels must include 110 and 100: {chart_html[:400]!r}")
+    if got.get("gmvGate") != ["CPAソリューション事業", "戦略事業"]:
+        _fail(f"取扱高 gate leftovers: {got.get('gmvGate')!r}")
+    if got.get("gmvGated") is not True:
+        _fail("取扱高 issuer must stay gated via 売上高")
+    want_gmv = [
+        {"kind": "data", "element": "全店 売上高", "group": "", "scope": "全店", "leaf": "売上高"},
+        {"kind": "data", "element": "全店 売上高(前年比)", "group": "", "scope": "全店", "leaf": "売上高(前年比)"},
+        {"kind": "data", "element": "取扱高", "group": "", "scope": "", "leaf": "取扱高"},
+        {"kind": "data", "element": "取扱高(前年比)", "group": "", "scope": "", "leaf": "取扱高(前年比)"},
+        {"kind": "section", "label": "CPAソリューション事業"},
+        {"kind": "data", "element": "CPAソリューション事業 全店 売上高", "group": "CPAソリューション事業", "scope": "全店", "leaf": "売上高"},
+        {"kind": "data", "element": "CPAソリューション事業 全店 売上高(前年比)", "group": "CPAソリューション事業", "scope": "全店", "leaf": "売上高(前年比)"},
+        {"kind": "data", "element": "CPAソリューション事業 取扱高", "group": "CPAソリューション事業", "scope": "", "leaf": "取扱高"},
+        {"kind": "data", "element": "CPAソリューション事業 取扱高(前年比)", "group": "CPAソリューション事業", "scope": "", "leaf": "取扱高(前年比)"},
+        {"kind": "section", "label": "戦略事業"},
+        {"kind": "data", "element": "戦略事業 全店 売上高", "group": "戦略事業", "scope": "全店", "leaf": "売上高"},
+        {"kind": "data", "element": "戦略事業 全店 売上高(前年比)", "group": "戦略事業", "scope": "全店", "leaf": "売上高(前年比)"},
+        {"kind": "data", "element": "戦略事業 取扱高", "group": "戦略事業", "scope": "", "leaf": "取扱高"},
+        {"kind": "data", "element": "戦略事業 取扱高(前年比)", "group": "戦略事業", "scope": "", "leaf": "取扱高(前年比)"},
+    ]
+    if got.get("gmvSummary") != want_gmv:
+        _fail(f"取扱高 gated layout: {got.get('gmvSummary')!r}")
+    if got.get("areaCols") != 3:
+        _fail(f"area 小枝 must not add a stub column: {got.get('areaCols')!r}")
+    want_area = [
+        {"kind": "data", "element": "全店 連結売上高", "group": "", "leaf": "連結売上高", "breakdown": "", "breakdownDepth": 0},
+        {"kind": "section", "label": "グロース領域"},
+        {"kind": "data", "element": "グロース領域 全店 売上高", "group": "グロース領域", "leaf": "売上高", "breakdown": "", "breakdownDepth": 0},
+        {"kind": "data", "element": "グロース領域 全店 売上高 プロパティ", "group": "グロース領域", "leaf": "└ プロパティ", "breakdown": "プロパティ", "breakdownDepth": 1},
+        {"kind": "data", "element": "グロース領域 全店 売上高 ホテル", "group": "グロース領域", "leaf": "└ ホテル", "breakdown": "ホテル", "breakdownDepth": 2},
+        {"kind": "data", "element": "グロース領域 全店 売上高 インカム太陽光", "group": "グロース領域", "leaf": "└ インカム太陽光", "breakdown": "インカム太陽光", "breakdownDepth": 2},
+        {"kind": "data", "element": "グロース領域 全店 売上高 専門通販", "group": "グロース領域", "leaf": "└ 専門通販", "breakdown": "専門通販", "breakdownDepth": 1},
+        {"kind": "data", "element": "グロース領域 全店 売上高 化粧品健康食品", "group": "グロース領域", "leaf": "└ 化粧品健康食品", "breakdown": "化粧品健康食品", "breakdownDepth": 2},
+    ]
+    if got.get("areaSummary") != want_area:
+        _fail(f"99970 小枝 layout: {got.get('areaSummary')!r}")
+    if got.get("renameGate") != ["ADコミュニケーション事業", "CPAソリューション事業", "戦略事業"]:
+        _fail(f"prior-year leftover must gate: {got.get('renameGate')!r}")
+    if got.get("renameGated") is not True:
+        _fail("rename years must stay gated")
+    want_rename = [
+        {"kind": "data", "element": "全店 売上高", "group": "", "leaf": "売上高"},
+        {"kind": "section", "label": "CPAソリューション事業"},
+        {"kind": "data", "element": "CPAソリューション事業 全店 売上高", "group": "CPAソリューション事業", "leaf": "売上高"},
+        {"kind": "data", "element": "CPAソリューション事業 全店 売上高(前年比)", "group": "CPAソリューション事業", "leaf": "売上高(前年比)"},
+        {"kind": "section", "label": "戦略事業"},
+        {"kind": "data", "element": "戦略事業 全店 売上高", "group": "戦略事業", "leaf": "売上高"},
+        {"kind": "data", "element": "戦略事業 全店 売上高(前年比)", "group": "戦略事業", "leaf": "売上高(前年比)"},
+        {"kind": "section", "label": "ADコミュニケーション事業"},
+        {"kind": "data", "element": "ADコミュニケーション事業 全店 売上高", "group": "ADコミュニケーション事業", "leaf": "売上高"},
+        {"kind": "data", "element": "ADコミュニケーション事業 全店 売上高(前年比)", "group": "ADコミュニケーション事業", "leaf": "売上高(前年比)"},
+    ]
+    if got.get("renameSummary") != want_rename:
+        _fail(f"prior-year leftover layout: {got.get('renameSummary')!r}")
+    if got.get("lonePriorGate") != ["CPAソリューション事業"]:
+        _fail(f"one prior-year row must not gate: {got.get('lonePriorGate')!r}")
+    if got.get("tooOldGate") != ["CPAソリューション事業"]:
+        _fail(f"year outside display window must not gate: {got.get('tooOldGate')!r}")
 
 
 
