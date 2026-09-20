@@ -1140,6 +1140,102 @@ WATAMI_SECTIONS_HTML = """
 </body></html>
 """
 
+HURXLEY_SECTIONS_HTML = """
+<html><body>
+<p>ほっかほっか亭 店舗流通ネット株式会社</p>
+<h2>ほっかほっか亭</h2>
+<table>
+<tr>
+<th colspan="2">2027年3月期</th>
+<th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th>
+<th>9月</th><th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th><th>3月</th>
+</tr>
+<tr>
+<th rowspan="2">売上(前年同月比:%)</th>
+<th>全店</th>
+<td>88.6</td><td>92.7</td><td>90.0</td><td>92.3</td><td>89.4</td>
+<td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+</tr>
+<tr>
+<th>既存店</th>
+<td>92.0</td><td>94.7</td><td>91.1</td><td>94.1</td><td>91.3</td>
+<td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+</tr>
+<tr>
+<th colspan="2">店舖数(店)</th>
+<td>713</td><td>714</td><td>713</td><td>711</td><td>710</td>
+<td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+</tr>
+<tr>
+<th colspan="2">出店(店)</th>
+<td>2</td><td>3</td><td>1</td><td>1</td><td>0</td>
+<td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+</tr>
+<tr>
+<th colspan="2">閉店(店)</th>
+<td>5</td><td>2</td><td>2</td><td>3</td><td>1</td>
+<td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+</tr>
+</table>
+<table>
+<tr>
+<th colspan="2">2026年3月期</th>
+<th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th>
+<th>9月</th><th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th><th>3月</th>
+</tr>
+<tr>
+<th rowspan="2">売上(前年同月比:%)</th>
+<th>全店</th>
+<td>101.9</td><td>98.7</td><td>96.4</td><td>92.2</td><td>95.5</td>
+<td>92.8</td><td>93.5</td><td>96.4</td><td>89.8</td><td>89.9</td><td>93.4</td><td>89.5</td>
+</tr>
+<tr>
+<th>既存店</th>
+<td>104.1</td><td>102.7</td><td>101.3</td><td>96.8</td><td>99.8</td>
+<td>97.6</td><td>98.4</td><td>101.3</td><td>96.2</td><td>93.9</td><td>99.9</td><td>89.5</td>
+</tr>
+<tr>
+<th colspan="2">店舖数(店)</th>
+<td>810</td><td>798</td><td>793</td><td>793</td><td>792</td>
+<td>791</td><td>788</td><td>788</td><td>785</td><td>784</td><td>786</td><td>716</td>
+</tr>
+</table>
+<h2>店舗流通ネット株式会社</h2>
+<table>
+<tr>
+<th colspan="2">2027年3月期</th>
+<th>4月</th><th>5月</th><th>6月</th><th>7月</th><th>8月</th>
+<th>9月</th><th>10月</th><th>11月</th><th>12月</th><th>1月</th><th>2月</th><th>3月</th>
+</tr>
+<tr>
+<th colspan="2">稼働店舖数(①+②) (店)</th>
+<td>1,032</td><td>1,039</td><td>1,041</td><td>1,050</td><td>1,063</td>
+<td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+</tr>
+<tr>
+<th colspan="2">① 店舗不動産の<br>管理テナント数 (店)</th>
+<td>167</td><td>170</td><td>171</td><td>171</td><td>177</td>
+<td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+</tr>
+<tr>
+<th colspan="2">② 店舖リースの<br>取引店舖数 (店)</th>
+<td>865</td><td>869</td><td>870</td><td>879</td><td>886</td>
+<td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+</tr>
+<tr>
+<th></th><th>増加(店)</th>
+<td>13</td><td>20</td><td>13</td><td>16</td><td>15</td>
+<td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+</tr>
+<tr>
+<th></th><th>減少(店)</th>
+<td>11</td><td>16</td><td>12</td><td>7</td><td>8</td>
+<td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+</tr>
+</table>
+</body></html>
+"""
+
 WATAMI_FY2024_HTML = """
 <html><body>
 <h2>2024年度 月次推移</h2>
@@ -1397,6 +1493,72 @@ def test_watami_sections_prefix_and_count_units() -> None:
     targets = _row(got, "サブウェイ 既存店 対象店舗数", unit="number")
     if _watami_stored(targets["element"], targets["unit"]) != "国内外食 サブウェイ 既存 店舗数":
         _fail(f"alias 対象 {_watami_stored(targets['element'], targets['unit'])}")
+
+
+def test_hurxley_dual_brand_prefixes_and_count_units() -> None:
+    got = html_to_ingest(HURXLEY_SECTIONS_HTML, "7561", table=None)
+    if got["as_of"] != "2026-08-31":
+        _fail(f"hurxley as_of {got['as_of']}")
+    if got["months"] != [4, 5, 6, 7, 8]:
+        _fail(f"hurxley months {got['months']}")
+    all_store = _row(got, "ほっかほっか亭 売上(前年同月比:%) 全店")
+    if all_store["unit"] != "yoy_index":
+        _fail(f"hokka sales unit {all_store}")
+    if all_store["values"] != {"4": 88.6, "5": 92.7, "6": 90, "7": 92.3, "8": 89.4}:
+        _fail(f"hokka all-store {all_store['values']}")
+    exist = _row(got, "ほっかほっか亭 売上(前年同月比:%) 既存店")
+    if exist["unit"] != "yoy_index" or exist["values"].get("4") != 92:
+        _fail(f"hokka existing {exist}")
+    store_hits = [
+        r
+        for r in got["rows"]
+        if r["element"] in ("ほっかほっか亭 店舖数(店)", "ほっかほっか亭 店舗数(店)")
+        and r["unit"] == "number"
+    ]
+    if len(store_hits) != 1:
+        _fail(f"hokka stores {got['rows']}")
+    if store_hits[0]["values"] != {"4": 713, "5": 714, "6": 713, "7": 711, "8": 710}:
+        _fail(f"hokka store values {store_hits[0]['values']}")
+    opened = _row(got, "ほっかほっか亭 出店(店)", unit="number")
+    if opened["values"].get("4") != 2:
+        _fail(f"hokka open {opened}")
+    closed = _row(got, "ほっかほっか亭 閉店(店)", unit="number")
+    if closed["values"].get("4") != 5:
+        _fail(f"hokka close {closed}")
+    active = _row(got, "店舗流通ネット 稼働店舖数(①+②) (店)", unit="number")
+    if active["values"] != {"4": 1032, "5": 1039, "6": 1041, "7": 1050, "8": 1063}:
+        _fail(f"trn active {active}")
+    tenants = [
+        r
+        for r in got["rows"]
+        if r["unit"] == "number"
+        and str(r["element"]).startswith("店舗流通ネット")
+        and "テナント数" in str(r["element"])
+    ]
+    if len(tenants) != 1 or tenants[0]["values"].get("8") != 177:
+        _fail(f"trn tenants {got['rows']}")
+    traded = [
+        r
+        for r in got["rows"]
+        if r["unit"] == "number"
+        and str(r["element"]).startswith("店舗流通ネット")
+        and "取引店" in str(r["element"]).replace("舖", "舗")
+    ]
+    if len(traded) != 1 or traded[0]["values"].get("8") != 886:
+        _fail(f"trn traded {got['rows']}")
+    plus = _row(got, "店舗流通ネット 増加(店)", unit="number")
+    if plus["values"].get("5") != 20:
+        _fail(f"trn plus {plus}")
+    minus = _row(got, "店舗流通ネット 減少(店)", unit="number")
+    if minus["values"].get("4") != 11:
+        _fail(f"trn minus {minus}")
+    if any(not str(r["element"]).startswith(("ほっかほっか亭 ", "店舗流通ネット ")) for r in got["rows"]):
+        _fail(f"unprefixed {got['rows']}")
+    archive_vals = {101.9, 810, 716}
+    for row in got["rows"]:
+        overlap = archive_vals.intersection((row.get("values") or {}).values())
+        if overlap:
+            _fail(f"FY2026 archive leaked {row}")
 
 
 def test_watami_canonicalize_aliases() -> None:
@@ -2253,6 +2415,7 @@ def main() -> None:
     test_watami_kyoten_count_is_number()
     test_watami_prefers_sales_over_kyoten()
     test_watami_sections_prefix_and_count_units()
+    test_hurxley_dual_brand_prefixes_and_count_units()
     test_watami_canonicalize_aliases()
     test_watami_nav_does_not_prefix_domestic_or_mix_years()
     test_watami_fy2024_bare_names_alias_to_subway_excluded()
