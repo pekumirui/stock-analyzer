@@ -1,9 +1,9 @@
 """日次バッチ / 初回バックフィル。
 
 使い方:
-  python scripts/run_batch.py                # 当日取込+指標再計算
-  python scripts/run_batch.py --date 2026-08-14
-  python scripts/run_batch.py --backfill 5   # 初回: 5年分。失敗したら非ゼロ終了
+  python jobs/run_batch.py                # 当日取込+指標再計算
+  python jobs/run_batch.py --date 2026-08-14
+  python jobs/run_batch.py --backfill 5   # 初回: 5年分。失敗したら非ゼロ終了
 """
 import argparse
 import sys

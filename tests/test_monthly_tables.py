@@ -1165,12 +1165,9 @@ def _assert_monthly_row_order(c) -> None:
 
 def _assert_segment_tail_row_order() -> None:
     """76830: 内アパレルは segment_tail で非 tail の後。他銘柄は初出順のまま。"""
-    app_cfg = ROOT / "app" / "monthly_row_order.json"
-    static_cfg = ROOT / "static" / "monthly_row_order.json"
-    if not app_cfg.is_file() or not static_cfg.is_file():
-        _fail("monthly_row_order.json missing under app/ or static/")
-    if app_cfg.read_text(encoding="utf-8") != static_cfg.read_text(encoding="utf-8"):
-        _fail("app/monthly_row_order.json and static/monthly_row_order.json must match")
+    cfg = ROOT / "config" / "monthly_row_order.json"
+    if not cfg.is_file():
+        _fail("monthly_row_order.json missing under config/")
 
     elements = [
         {"element": "内アパレル 全店 売上高", "unit": "number"},

@@ -772,7 +772,7 @@ def test_monthly_tools() -> None:
     _expect_value_error(m.parse_monthly_unit, None, needle="number, yoy_index, or yoy_pct")
 
     prev_url = os.environ.get("DATABASE_URL")
-    with TemporaryDirectory() as d:
+    with TemporaryDirectory(ignore_cleanup_errors=True) as d:
         os.environ["DATABASE_URL"] = f"sqlite:///{d}/stock.db"
         try:
             from fastapi.testclient import TestClient as FastAPIClient

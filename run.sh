@@ -53,20 +53,20 @@ case "$cmd" in
     ;;
   check)
     if [[ -n "$arg" ]]; then
-      "$python" scripts/check_api.py "$arg"
+      "$python" tools/check_api.py "$arg"
     else
-      "$python" scripts/check_api.py
+      "$python" tools/check_api.py
     fi
     ;;
   migrate)
-    "$python" scripts/migrate.py
+    "$python" jobs/migrate.py
     ;;
   batch)
-    "$python" scripts/check_demo.py
+    "$python" jobs/check_demo.py
     if [[ -n "$arg" ]]; then
-      "$python" scripts/run_batch.py --date "$arg"
+      "$python" jobs/run_batch.py --date "$arg"
     else
-      "$python" scripts/run_batch.py
+      "$python" jobs/run_batch.py
     fi
     ;;
   backfill)
@@ -82,9 +82,9 @@ case "$cmd" in
       echo "年数は1〜20の範囲で指定してください"
       exit 1
     fi
-    "$python" scripts/check_demo.py
+    "$python" jobs/check_demo.py
     echo "過去 $years 年分を取得します"
-    "$python" scripts/run_batch.py --backfill "$years"
+    "$python" jobs/run_batch.py --backfill "$years"
     ;;
   reset)
     if [[ ! -f stock.db ]]; then

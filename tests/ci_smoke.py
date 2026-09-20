@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import tempfile
 from datetime import date
@@ -62,7 +63,7 @@ def _fixture() -> str:
 def _check_demo_exit() -> int:
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("check_demo", ROOT / "scripts" / "check_demo.py")
+    spec = importlib.util.spec_from_file_location("check_demo", ROOT / "jobs" / "check_demo.py")
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -82,10 +83,19 @@ def main() -> None:
     if "NOT KEY" in got or "" in got:
         raise SystemExit(f"apply_dotenv accepted bad keys: {got}")
 
-    if (ROOT / "scripts" / "seed_demo.py").exists():
-        raise SystemExit("scripts/seed_demo.py should have been removed")
+    layout = subprocess.run(
+        [sys.executable, str(ROOT / "tests" / "test_layout.py")],
+        cwd=ROOT,
+    )
+    if layout.returncode != 0:
+        raise SystemExit("layout tests failed")
 
     client = TestClient(app)
+
+    r = client.get("/static/monthly_row_order.json")
+    _expect(r, 200, "GET /static/monthly_row_order.json")
+    if "76830" not in r.text:
+        raise SystemExit("row-order JSON missing 76830")
 
     r = client.get("/")
     _expect(r, 200, "GET /")
@@ -285,81 +295,80 @@ def main() -> None:
         f"screener {len(results)}, chart {len(candles)} candles"
     )
 
-    import subprocess
     monthly = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "test_monthly_tables.py")],
+        [sys.executable, str(ROOT / "tests" / "test_monthly_tables.py")],
         cwd=ROOT,
     )
     if monthly.returncode != 0:
         raise SystemExit("monthly tables tests failed")
     ingest = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "test_monthly_ingest.py")],
+        [sys.executable, str(ROOT / "tests" / "test_monthly_ingest.py")],
         cwd=ROOT,
     )
     if ingest.returncode != 0:
         raise SystemExit("monthly ingest tests failed")
     master = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "test_monthly_stock_master.py")],
+        [sys.executable, str(ROOT / "tests" / "test_monthly_stock_master.py")],
         cwd=ROOT,
     )
     if master.returncode != 0:
         raise SystemExit("monthly stock master tests failed")
     issuers = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "test_monthly_issuers.py")],
+        [sys.executable, str(ROOT / "tests" / "test_monthly_issuers.py")],
         cwd=ROOT,
     )
     if issuers.returncode != 0:
         raise SystemExit("monthly issuers tests failed")
     monthly_sync = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "test_sync_monthly_from_vps.py")],
+        [sys.executable, str(ROOT / "tests" / "test_sync_monthly_from_vps.py")],
         cwd=ROOT,
     )
     if monthly_sync.returncode != 0:
         raise SystemExit("monthly vps sync tests failed")
     tdnet = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "test_tdnet_monthly_r2.py")],
+        [sys.executable, str(ROOT / "tests" / "test_tdnet_monthly_r2.py")],
         cwd=ROOT,
     )
     if tdnet.returncode != 0:
         raise SystemExit("tdnet monthly r2 tests failed")
     ir_monthly = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "test_ir_monthly_r2.py")],
+        [sys.executable, str(ROOT / "tests" / "test_ir_monthly_r2.py")],
         cwd=ROOT,
     )
     if ir_monthly.returncode != 0:
         raise SystemExit("ir monthly r2 tests failed")
     ir_html = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "test_ir_monthly_html_r2.py")],
+        [sys.executable, str(ROOT / "tests" / "test_ir_monthly_html_r2.py")],
         cwd=ROOT,
     )
     if ir_html.returncode != 0:
         raise SystemExit("ir monthly html r2 tests failed")
     ir_html_ingest = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "test_ir_monthly_html_ingest.py")],
+        [sys.executable, str(ROOT / "tests" / "test_ir_monthly_html_ingest.py")],
         cwd=ROOT,
     )
     if ir_html_ingest.returncode != 0:
         raise SystemExit("ir monthly html ingest tests failed")
     ir_xls_ingest = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "test_ir_monthly_xls_ingest.py")],
+        [sys.executable, str(ROOT / "tests" / "test_ir_monthly_xls_ingest.py")],
         cwd=ROOT,
     )
     if ir_xls_ingest.returncode != 0:
         raise SystemExit("ir monthly xls ingest tests failed")
     xbrl = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "test_xbrl_parse.py")],
+        [sys.executable, str(ROOT / "tests" / "test_xbrl_parse.py")],
         cwd=ROOT,
     )
     if xbrl.returncode != 0:
         raise SystemExit("xbrl parse tests failed")
     xbrl_match = subprocess.run(
-        [sys.executable, str(ROOT / "tools" / "test_xbrl_match_rate.py")],
+        [sys.executable, str(ROOT / "tests" / "test_xbrl_match_rate.py")],
         cwd=ROOT,
     )
     if xbrl_match.returncode != 0:
         raise SystemExit("xbrl match rate tests failed")
     alerts = subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "test_alert_patterns.py")],
+        [sys.executable, str(ROOT / "tests" / "test_alert_patterns.py")],
         cwd=ROOT,
     )
     if alerts.returncode != 0:

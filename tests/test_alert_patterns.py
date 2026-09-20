@@ -1,6 +1,7 @@
 """AlertPattern fixtures: page / do not page. fluent-bit.conf must list each regex."""
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 
@@ -25,7 +26,7 @@ PAGE: tuple[tuple[str, str], ...] = (
     ("app", 'INFO:     127.0.0.1:43721 - "GET /api/screener HTTP/1.1" 500 Internal Server Error'),
     ("app", "ERROR: Error loading ASGI app. Could not import module \"app.main\"."),
     ("app", "SchemaMismatch: stocks missing column"),
-    ("batch", "fail cron scripts/run_batch.py exit=1"),
+    ("batch", "fail cron jobs/run_batch.py exit=1"),
     ("batch", "fail cron cwd exit=1"),
     ("batch", "tdnet_monthly_r2 done listed=10 saved=1 skipped=0 failed=3"),
     ("batch", "tdnet_monthly_r2 done listed=10 saved=1 skipped=0 failed=10"),
@@ -207,7 +208,9 @@ def test_conf_has_registry_regexes() -> None:
 def test_no_committed_webhook_url() -> None:
     roots = (
         ROOT / "deploy",
-        ROOT / "scripts",
+        ROOT / "jobs",
+        ROOT / "tests",
+        ROOT / "tools",
         ROOT / ".github",
         ROOT / "docs",
         ROOT / "README.md",
@@ -263,8 +266,15 @@ def test_secret_contract() -> None:
         if ".venv/bin/python" in stripped and "cron-run.sh" not in stripped:
             _fail(f"crontab python job must use cron-run.sh: {stripped}")
     wrapper = ROOT / "deploy" / "cron-run.sh"
-    if not wrapper.is_file() or not wrapper.stat().st_mode & 0o111:
-        _fail("deploy/cron-run.sh must be executable")
+    if not wrapper.is_file():
+        _fail("deploy/cron-run.sh missing")
+    listed = subprocess.check_output(
+        ["git", "ls-files", "-s", "--", "deploy/cron-run.sh"],
+        cwd=ROOT,
+        text=True,
+    )
+    if not listed.startswith("100755"):
+        _fail(f"deploy/cron-run.sh must be executable in git: {listed!r}")
 
 
 def test_slack_payload_jst_danger() -> None:

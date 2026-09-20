@@ -2,7 +2,7 @@
 
 正本。保存名は `canonicalize_element_label`（書き込み時）。GET の表示名と層は `monthly_element_label`。実装は `app/monthly_ingest.py`。
 year GET の各行は保存 `element` に加え、派生の `label`（display / group / metric_kind / series_kind / 7層）を返す。SPA は再パースしない。
-銘柄固有の残りは `app/issuer_aliases.json`。画面の並びは `docs/DESIGN_monthly.md`。
+銘柄固有の残りは `config/issuer_aliases.json`。画面の並びは `docs/DESIGN_monthly.md`。
 取込と unit は `DESIGN.md`。
 
 新しい例外は **このファイルに箇条書きで足す**。`AGENTS.md` / `DESIGN.md` / `DESIGN_monthly.md` の1行に追記しない。
@@ -72,7 +72,7 @@ year GET の各行は保存 `element` に加え、派生の `label`（display / 
 
 ## 銘柄固有
 
-`app/issuer_aliases.json`。キーも canonicalize してから載せる。マップに無い名前はそのまま。
+`config/issuer_aliases.json`。キーも canonicalize してから載せる。マップに無い名前はそのまま。
 
 - ingest は `as_of < until`
 - POST / PUT / 新規行 / migrate は `year <= until.year`
@@ -81,7 +81,7 @@ year GET の各行は保存 `element` に加え、派生の `label`（display / 
 - 例: 141A0 は 2025-08-01 未満の旧名をトライアル付きへ
 - 30380: canonicalize 後も残る `総 店舗数` → `店舗数`。`総店舗数` は canonicalize だけで `店舗数` になるので alias に載せない
 - 73700: `売上高` → `グループ売上高`。`PR事業 成約高前年同期比(前年比)` → `PR事業 成約高(前年比)`
-- `scripts/test_monthly_ingest.py` に銘柄分岐は足さない。テストは `plan_issuer_alias_cases` が JSON から生成する
+- `tests/test_monthly_ingest.py` に銘柄分岐は足さない。テストは `plan_issuer_alias_cases` が JSON から生成する
 
 ## 拒否
 
