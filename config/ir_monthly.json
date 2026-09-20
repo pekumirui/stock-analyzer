@@ -245,7 +245,8 @@
       "name": "ロイヤルホールディングス",
       "index_url": "https://www.royal-holdings.co.jp/ir/finance/sales/",
       "title": "月次",
-      "table": null
+      "table": null,
+      "force_unit": "yoy_index"
     },
     {
       "code": "8194",

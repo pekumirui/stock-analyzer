@@ -363,6 +363,7 @@ def test_load_html_registry() -> None:
     if forced != {
         "2769": "yoy_index",
         "3148": "yoy_index",
+        "8179": "yoy_index",
         "8281": "yoy_index",
         "9994": "yoy_index",
     }:
