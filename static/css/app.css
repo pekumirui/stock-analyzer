@@ -117,7 +117,7 @@
   #monthly-groups { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
   .mchip { background:transparent; border:1px solid var(--border); color:var(--sub); border-radius:999px; padding:4px 12px; cursor:pointer; font-size:13px; }
   .mchip.on { background:var(--accent); color:#fff; border-color:var(--accent); }
-  #monthly-detail { min-height:calc(100vh - 52px); }
+  #monthly-detail { min-height:calc(100vh - 52px); max-width:1080px; margin:0 auto; }
   #monthly-tbl {
     width:max-content;
     border-collapse:collapse;
@@ -147,9 +147,20 @@
   #monthly-tbl td.mkt-g::before { background:#16a34a; }
   .badge.new { background:var(--warn); color:#fff; margin-left:6px; }
   #monthly-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
-  #monthly-chart { width:100%; min-height:220px; margin:0 0 16px; }
+  #monthly-chart { width:100%; margin:0 0 16px; }
   #monthly-chart svg { width:100%; height:auto; display:block; font-family:inherit; overflow:visible; }
+  #monthly-chart .monthly-year-chart { margin:0 0 10px; min-height:140px; }
+  #monthly-chart .monthly-year-chart:last-child { margin-bottom:0; }
+  #monthly-chart .monthly-year-lab {
+    display:flex; align-items:center; gap:6px;
+    font-size:12px; font-weight:600;
+    margin:0 0 2px; color:var(--text);
+  }
+  #monthly-chart .monthly-year-swatch {
+    display:inline-block; width:8px; height:8px; flex-shrink:0;
+  }
   table.monthly {
+    font-size:14px;
     font-variant-numeric:tabular-nums;
     table-layout:fixed;
     width:max-content;
@@ -164,7 +175,6 @@
     border:1px solid var(--border);
     background:#fff;
   }
-  /* 月列は左右 sticky しない。横スワイプで月が普通に動く */
   table.monthly thead th:not(:first-child),
   table.monthly td.num,
   table.monthly th:last-child,
@@ -204,6 +214,9 @@
     padding-left:1.25em;
     font-size:12px;
     font-weight:600;
+  }
+  table.monthly.monthly-gated td.monthly-stub-leaf.monthly-bd-2 {
+    padding-left:2.25em;
   }
   table.monthly thead th.l,
   table.monthly thead th:first-child,
@@ -254,7 +267,6 @@
     text-align:center;
   }
   #monthly-series { max-width:100%; margin:0 0 8px; }
-  /* TEMP: flat vs gated table compare — remove with #monthly-layout-debug */
   .monthly-layout-debug {
     display:flex; align-items:center; gap:6px; flex-wrap:wrap;
     margin:0 0 8px; font-size:12px; color:#666;
@@ -278,8 +290,10 @@
   @media (max-width:640px){
     body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:34px}
     .evt-toggles .evt-label { min-height:32px; }
-    #monthly-chart { min-height:280px; }
-    /* 16em sticky だと項目列が画面の大半を占め月が右端にしか出ない。スマホは sticky を外し項目列を短くする */
+    #monthly-chart .monthly-year-chart { min-height:148px; }
+    table.monthly th,
+    table.monthly td { font-size:13px; }
+    table.monthly.monthly-gated td.monthly-stub-leaf.monthly-bd { font-size:12px; }
     table.monthly col.monthly-name { width:8em; min-width:8em; }
     table.monthly thead th:first-child,
     table.monthly td:first-child {

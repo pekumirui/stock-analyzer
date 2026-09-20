@@ -1,6 +1,6 @@
 # 月次
 
-The monthly tab lists ingested issuer monthly-sales tables with industry chips, then opens a Detail view (series select, 3-year clustered chart, year-stacked tables). It is not a TDnet day calendar.
+The monthly tab lists ingested issuer monthly-sales tables with industry chips, then opens a Detail view (series select, year-panel chart, year-stacked tables). It is not a TDnet day calendar.
 
 ## Sub-features
 
@@ -31,7 +31,7 @@ Preconditions:
 - **Tab.** Click `nav button[data-tab="monthly"]`. `#tab-monthly` is displayed; `#monthly-top` is shown and `#monthly-detail` is `display:none`. List host is `#monthly-list` (holds empty copy or `#monthly-tbl`). Search field is `#monthly-sym` above chips; suggestion box is `#monthly-suggest` (`display:none` until there are hits).
 - **List.** `helpers/capture.py monthly` writes `artifacts/monthly/body.json` from `GET /api/v1/tables`. Assert a JSON array; each item has `code` (not `0`-prefix), `industry`, `is_new`, `all_store_yoy` / `existing_store_yoy` (nulls are fine). `#monthly-tbl` shows 会社名 / 市場 / 業種 / 月次業種 / 全店(前年比) / 既存店(前年比) (no standalone code column); null YoY cells show `-`.
 - **Issuer search.** After the list is loaded, type a known issuer name, code, or industry fragment from that list into `#monthly-sym`. `#monthly-suggest` shows up to 20 rows as 4-digit code + full name. Row count of `#monthly-tbl` must not change while typing. Press Enter or click a suggestion → still `#monthly-top`, `#monthly-detail` stays `display:none`, and `#monthly-tbl` shows only rows whose name, code, `industry`, or `sector33` matches. Click a `.name` cell to open Detail. Clear `#monthly-sym` and press Enter → chip list is restored. Click a chip → search filter clears (`monthlySearchApplied` becomes empty) and the chip list is shown. A query with no suggestion hits keeps `#monthly-suggest` at `display:none`. Enter on that query shows 「該当する発行体はありません」 in `#monthly-list` (not the ingest-empty copy 「登録された月次データはありません」).
-- **Detail.** Pass `--code` from the list. Capture also writes years + one year payload. UI: click a `.name` cell → `#monthly-detail` visible, `#monthly-chart` has an SVG, `#monthly-table-wrap` stacks `table.monthly` newest-year-first.
+- **Detail.** Pass `--code` from the list. Capture also writes years + one year payload. UI: click a `.name` cell → `#monthly-detail` visible, `#monthly-chart` has SVG(s) (one per year panel), `#monthly-table-wrap` stacks `table.monthly` newest-year-first.
 - **Proof.** Keep `body.json` (list) and, when `--code` was used, the year artifact(s). If CDP: `ui.png` of Detail or list with header `h1` `株式分析`.
 - **Route restore.** After Detail, confirm `location.hash` is `#monthly/{code}`. Reload → Detail for that code (list loads first). `#monthly-back` writes `#monthly`.
 - Do **not** call `/api/monthly*`, `#mon-cal`, or `#mon-to-chart` — those are not on this tip.

@@ -83,6 +83,7 @@
 - API: `/api/stocks/search?q=トヨタ` や `/api/screener`
 - backfill 後に UI の決算・チャート・スクリーナーが空でないこと
 - UI を実際に動かして確かめるなら `.cursor/skills/verify-stock-analyzer/SKILL.md`
+- 画面録画は作らない
 
 ## Git
 
