@@ -216,27 +216,43 @@ _BREAKDOWN_CANON = {
 }
 _BREAKDOWN_MARKS = frozenset({"内)", "（内", "うち"})
 _BREAKDOWN_RANK = {"": 0, "ドラッグ": 1, "調剤": 2, "物販": 3}
-_AREA_CHILDREN: dict[str, dict[str, int]] = {
-    "グロース領域": {
-        "プロパティ": 1,
-        "ホテル": 2,
-        "インカム太陽光": 3,
-        "専門通販": 4,
-        "化粧品健康食品": 5,
-        "グルメ": 6,
-        "ワイン": 7,
-        "ナース関連": 8,
-    },
-    "サステナブル領域": {
-        "呉服関連": 1,
-        "アパレル雑貨": 2,
-        "その他": 3,
-    },
+# 領域 leftover の木。中節のあと小枝。保存の内訳は1語。
+_AREA_TREE: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
+    "グロース領域": (
+        ("プロパティ", ("ホテル", "インカム太陽光")),
+        ("専門通販", ("化粧品健康食品", "グルメ", "ワイン", "ナース関連")),
+    ),
+    "サステナブル領域": (
+        ("呉服関連", ()),
+        ("アパレル雑貨", ()),
+        ("その他", ()),
+    ),
 }
 _AREA_CHILD_ALIAS: dict[str, str] = {
     "インカム、太陽光": "インカム太陽光",
     "アパレル・雑貨": "アパレル雑貨",
 }
+
+
+def _area_child_maps() -> tuple[dict[str, dict[str, int]], dict[str, int]]:
+    children: dict[str, dict[str, int]] = {}
+    depth: dict[str, int] = {}
+    for area, nodes in _AREA_TREE.items():
+        cmap: dict[str, int] = {}
+        rank = 1
+        for mid, twigs in nodes:
+            cmap[mid] = rank
+            depth[mid] = 1
+            rank += 1
+            for twig in twigs:
+                cmap[twig] = rank
+                depth[twig] = 2
+                rank += 1
+        children[area] = cmap
+    return children, depth
+
+
+_AREA_CHILDREN, _AREA_BREAKDOWN_DEPTH = _area_child_maps()
 for _area_children in _AREA_CHILDREN.values():
     _BREAKDOWN_RANK.update(_area_children)
 _STORE_FLOW_CANON = {
@@ -907,9 +923,17 @@ def monthly_row_slot(element: str, unit: str | None) -> int:
 
 
 def monthly_row_breakdown_rank(element: str) -> int:
-    """売上高の親が先。内訳は ドラッグ → 調剤 → 物販。"""
+    """売上高の親が先。内訳は ドラッグ → 調剤 → 物販。領域は木の先行順。"""
     bd = _layers_of(element)["breakdown"]
     return _BREAKDOWN_RANK.get(bd, 4)
+
+
+def monthly_breakdown_depth(element: str) -> int:
+    """0=親。1=内訳。2=領域の小枝（プロパティの下のホテル）。"""
+    bd = _layers_of(element)["breakdown"]
+    if not bd:
+        return 0
+    return _AREA_BREAKDOWN_DEPTH.get(bd, 1)
 
 
 def monthly_row_scope_rank(element: str) -> int:
@@ -1067,6 +1091,7 @@ class MonthlyElementLabel(TypedDict):
     scope: str
     metric: str
     breakdown: str
+    breakdown_depth: int
 
 
 def monthly_element_label(element: str, unit: str | None) -> MonthlyElementLabel:
@@ -1080,6 +1105,7 @@ def monthly_element_label(element: str, unit: str | None) -> MonthlyElementLabel
         "metric_kind": _row_metric(canon),
         "series_kind": monthly_series_kind(canon, u),
         **layers,
+        "breakdown_depth": monthly_breakdown_depth(canon),
     }
 
 

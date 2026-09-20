@@ -1605,6 +1605,13 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("内訳 leaf must indent with └")
     if "font-size:12px" not in html[html.find("td.monthly-stub-leaf.monthly-bd"):html.find("td.monthly-stub-leaf.monthly-bd") + 180]:
         _fail("内訳 leaf must be 12px")
+    if "monthly-bd-2" not in html:
+        _fail("area 小枝 leaf must use monthly-bd-2")
+    bd2_at = html.find("td.monthly-stub-leaf.monthly-bd-2")
+    if bd2_at < 0 or "2.25em" not in html[bd2_at:bd2_at + 120]:
+        _fail("小枝 leaf must indent further with 2.25em")
+    if "breakdownDepth" not in html:
+        _fail("gated leaf must read label.breakdown_depth")
     if "colspan=\"3\"" not in html and "colspan='3'" not in html:
         _fail("gated year header must span the three stub columns")
     if '<tr class="monthly-sec"><td class="monthly-sec-label" colspan="3">' not in html:
@@ -1698,6 +1705,19 @@ def _assert_monthly_layout_js() -> None:
             ],
         }],
         "leftoverMkg": _el("MKG ドラッグ 全店 売上高(前年比)"),
+        "belluna": [{
+            "year": 2026,
+            "code": "99970",
+            "elements": [
+                _el("グロース領域 全店 売上高 ホテル", "number"),
+                _el("グロース領域 全店 売上高 専門通販", "number"),
+                _el("グロース領域 全店 売上高 化粧品健康食品", "number"),
+                _el("グロース領域 全店 売上高", "number"),
+                _el("グロース領域 全店 売上高 インカム太陽光", "number"),
+                _el("グロース領域 全店 売上高 プロパティ", "number"),
+                _el("全店 連結売上高", "number"),
+            ],
+        }],
     }
     harness = r"""
 const fs = require("fs");
@@ -1760,6 +1780,9 @@ const flat = sandbox.monthlyTableLayout(flatOrder, flatTables);
 const bdOrder = sandbox.monthlyRowOrder(matsukiyo);
 const bdLayout = sandbox.monthlyTableLayout(bdOrder, matsukiyo);
 const drugRow = matsukiyo[0].elements.find((e) => e.element === "全店 売上高 ドラッグ(前年比)");
+const belluna = fixtures.belluna;
+const areaOrder = sandbox.monthlyRowOrder(belluna);
+const areaLayout = sandbox.monthlyTableLayout(areaOrder, belluna);
 console.log(JSON.stringify({
   gated,
   gatedFlag: layout.gated,
@@ -1788,6 +1811,18 @@ console.log(JSON.stringify({
       scope: r.scope,
       leaf: r.leaf,
       breakdown: r.breakdown || "",
+    };
+  }),
+  areaCols: areaLayout.rows.some((r) => r.rail || r.col4 || r.stub4) ? 4 : 3,
+  areaSummary: areaLayout.rows.map((r) => {
+    if (r.kind === "section") return { kind: "section", label: r.label };
+    return {
+      kind: "data",
+      element: r.element,
+      group: r.group,
+      leaf: r.leaf,
+      breakdown: r.breakdown || "",
+      breakdownDepth: r.breakdownDepth ?? 0,
     };
   }),
 }));
@@ -1861,6 +1896,20 @@ console.log(JSON.stringify({
     ]
     if got.get("bdSummary") != want_bd:
         _fail(f"30880 内訳 layout: {got.get('bdSummary')!r}")
+    if got.get("areaCols") != 3:
+        _fail(f"area 小枝 must not add a stub column: {got.get('areaCols')!r}")
+    want_area = [
+        {"kind": "data", "element": "全店 連結売上高", "group": "", "leaf": "連結売上高", "breakdown": "", "breakdownDepth": 0},
+        {"kind": "section", "label": "グロース領域"},
+        {"kind": "data", "element": "グロース領域 全店 売上高", "group": "グロース領域", "leaf": "売上高", "breakdown": "", "breakdownDepth": 0},
+        {"kind": "data", "element": "グロース領域 全店 売上高 プロパティ", "group": "グロース領域", "leaf": "└ プロパティ", "breakdown": "プロパティ", "breakdownDepth": 1},
+        {"kind": "data", "element": "グロース領域 全店 売上高 ホテル", "group": "グロース領域", "leaf": "└ ホテル", "breakdown": "ホテル", "breakdownDepth": 2},
+        {"kind": "data", "element": "グロース領域 全店 売上高 インカム太陽光", "group": "グロース領域", "leaf": "└ インカム太陽光", "breakdown": "インカム太陽光", "breakdownDepth": 2},
+        {"kind": "data", "element": "グロース領域 全店 売上高 専門通販", "group": "グロース領域", "leaf": "└ 専門通販", "breakdown": "専門通販", "breakdownDepth": 1},
+        {"kind": "data", "element": "グロース領域 全店 売上高 化粧品健康食品", "group": "グロース領域", "leaf": "└ 化粧品健康食品", "breakdown": "化粧品健康食品", "breakdownDepth": 2},
+    ]
+    if got.get("areaSummary") != want_area:
+        _fail(f"99970 小枝 layout: {got.get('areaSummary')!r}")
 
 
 

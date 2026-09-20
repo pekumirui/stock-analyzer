@@ -250,6 +250,7 @@ function monthlyLayoutDataRow(item, gatedSegment, idx){
     channel: L.channel,
     scope: L.scope,
     breakdown: L.breakdown || "",
+    breakdownDepth: L.breakdown_depth ?? (L.breakdown ? 1 : 0),
     leaf: monthlyLayoutLeaf(L, item.unit, gatedSegment || ""),
     channelRank: MONTHLY_CHANNEL_RANK[L.channel] ?? 3,
     scopeRank: monthlyRowScopeRank(L),
@@ -778,7 +779,9 @@ function renderMonthlyYearTables(tables){
         let stubs = "";
         if(e.channelSpan) stubs += `<td class="monthly-stub monthly-stub-ch" rowspan="${e.channelSpan}">${escHtml(monthlyStubChannelText(e.channel))}</td>`;
         if(e.scopeSpan) stubs += `<td class="monthly-stub monthly-stub-sc" rowspan="${e.scopeSpan}">${escHtml(monthlyStubScopeText(e.scope))}</td>`;
-        const bdClass = e.breakdown ? " monthly-bd" : "";
+        const bdClass = e.breakdown
+          ? (Number(e.breakdownDepth) === 2 ? " monthly-bd monthly-bd-2" : " monthly-bd")
+          : "";
         stubs += `<td class="l monthly-stub monthly-stub-leaf${bdClass}">${escHtml(e.leaf)}</td>`;
         h += `<tr${ds}>${stubs}`;
         for(let m=1;m<=12;m++){
