@@ -103,7 +103,7 @@ _UNGLUE: tuple[tuple[str, str], ...] = (
     ("全店舗数", "店舗数"),
     ("総店舗数", "店舗数"),
     ("実店舗数", "実店舗 店舗数"),
-    ("購入お客様数", "客数"),
+    ("購入お客様数", "購入お客様数"),
     ("稼働日修正後", "稼働日修正後"),
     ("店舗数", "店舗数"),
     ("店数", "店舗数"),
@@ -218,7 +218,7 @@ _SCOPE_CANON = {
     "全店": "全店",
     "全社": "全社",
 }
-_METRIC_FILL_ALL = frozenset({"売上高", "客数", "客単価"})
+_METRIC_FILL_ALL = frozenset({"売上高", "客数"})
 _BREAKDOWN_CANON = {
     "ドラッグ": "ドラッグ",
     "ドラッグ店舗": "ドラッグ",
@@ -293,6 +293,7 @@ _DUMMY_STORE_TOKS = frozenset({"店舗"})
 _OPEN_QUALIFIERS = frozenset({"新規"})
 _STORE_ADJ_MARKS = ("純増", "新設", "改装", "業態転換")
 _METRIC_PREFIX: tuple[tuple[str, str], ...] = (
+    ("購入お客様数", "購入お客様数"),
     ("稼働日修正後", "稼働日修正後"),
     ("稼働店舗数", "稼働店舗数"),
     ("店舗数", "店舗数"),
@@ -306,7 +307,7 @@ _METRIC_PREFIX: tuple[tuple[str, str], ...] = (
     ("売上", "売上高"),
 )
 _METRIC_STARTSWITH = frozenset({
-    "稼働日修正後", "稼働店舗数", "店舗数", "来客数", "客単価", "売上高", "取扱高", "客数",
+    "購入お客様数", "稼働日修正後", "稼働店舗数", "店舗数", "来客数", "客単価", "売上高", "取扱高", "客数",
 })
 _COUNTRY_RANK = {"": 0, "日本": 1, "海外": 2}
 _CHANNEL_RANK = {"直営+FC": 0, "直営": 1, "FC": 2, "": 3}
@@ -937,7 +938,7 @@ def _row_metric(key: str) -> str:
         return "stores"
     if metric == "客単価":
         return "spend"
-    if metric == "客数":
+    if metric == "客数" or metric == "購入お客様数":
         return "customers"
     if metric == "売上高" or metric == "稼働日修正後":
         return "sales"
