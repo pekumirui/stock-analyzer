@@ -230,12 +230,89 @@ def test_year_payload_unchanged() -> None:
         _fail(f"year keys: {body!r}")
 
 
+def test_year_label_block() -> None:
+    from app.db import SessionLocal
+    from app.models import MonthlyElement, MonthlyTable, MonthlyValue
+
+    c = TestClient(app)
+    code, year = "33820", 2026
+    leftover_name = "売上高"
+    mkg_name = "MKG 全店 売上高 ドラッグ(前年比)"
+    _ensure_stock(code, "クスリのアオキ")
+    db = SessionLocal()
+    try:
+        db.add(MonthlyTable(code=code, year=year))
+        db.add(MonthlyElement(
+            code=code, year=year, element=leftover_name, sort_order=1, unit="yoy_index",
+        ))
+        db.add(MonthlyElement(
+            code=code, year=year, element=mkg_name, sort_order=2, unit="yoy_index",
+        ))
+        db.add(MonthlyValue(code=code, year=year, element=leftover_name, month=1, value=101.0))
+        db.add(MonthlyValue(code=code, year=year, element=mkg_name, month=1, value=103.2))
+        db.commit()
+    finally:
+        db.close()
+
+    r = c.get(f"/api/v1/tables/{code}/{year}")
+    _expect(r, 200, "GET leftover label")
+    body = r.json()
+    if set(body) != {"code", "year", "elements"}:
+        _fail(f"year keys: {body!r}")
+    els = body["elements"]
+    if [e["element"] for e in els] != [leftover_name, mkg_name]:
+        _fail(f"GET order must follow sort_order: {[e['element'] for e in els]!r}")
+    for e in els:
+        if set(e) != {"element", "unit", "label", "values"}:
+            _fail(f"element keys: {e!r}")
+    leftover = els[0]
+    if leftover["element"] != leftover_name or leftover["unit"] != "yoy_index":
+        _fail(f"leftover stored row rewritten: {leftover!r}")
+    want_left = {
+        "display": "全店 売上高(前年比)",
+        "group": "",
+        "metric_kind": "sales",
+        "series_kind": "all_store",
+        "country": "",
+        "segment": "",
+        "time_axis": "",
+        "channel": "",
+        "scope": "全店",
+        "metric": "売上高",
+        "breakdown": "",
+    }
+    if leftover["label"] != want_left:
+        _fail(f"leftover 売上高 label: {leftover['label']!r}")
+    want_mkg = {
+        "display": "MKG 全店 売上高 ドラッグ(前年比)",
+        "group": "MKG",
+        "metric_kind": "sales",
+        "series_kind": None,
+        "country": "",
+        "segment": "MKG",
+        "time_axis": "",
+        "channel": "",
+        "scope": "全店",
+        "metric": "売上高",
+        "breakdown": "ドラッグ",
+    }
+    if els[1]["label"] != want_mkg:
+        _fail(f"MKG label: {els[1]['label']!r}")
+    db = SessionLocal()
+    try:
+        if db.get(MonthlyElement, (code, year, leftover_name)) is None:
+            _fail("leftover 売上高 must stay in DB")
+    finally:
+        db.close()
+
+
 def main() -> None:
     test_series_kind()
     test_put_and_list()
     test_ingest_timestamp()
     test_new_window()
     test_year_payload_unchanged()
+    test_year_label_block()
     print("ok: monthly issuers")
 
 

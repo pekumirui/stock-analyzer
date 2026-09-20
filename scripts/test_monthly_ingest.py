@@ -22,6 +22,7 @@ from app.monthly_ingest import (  # noqa: E402
     canonicalize_element_label,
     format_monthly_cell,
     map_pdf_columns,
+    monthly_element_label,
     monthly_row_breakdown_rank,
     monthly_row_segment,
     monthly_series_kind,
@@ -1714,8 +1715,44 @@ def test_fail_loud_required_and_conflicts() -> None:
         db.close()
 
 
+def test_monthly_element_label() -> None:
+    leftover = monthly_element_label("売上高", "yoy_index")
+    want_left = {
+        "display": "全店 売上高(前年比)",
+        "group": "",
+        "metric_kind": "sales",
+        "series_kind": "all_store",
+        "country": "",
+        "segment": "",
+        "time_axis": "",
+        "channel": "",
+        "scope": "全店",
+        "metric": "売上高",
+        "breakdown": "",
+    }
+    if leftover != want_left:
+        _fail(f"leftover 売上高: {leftover!r}")
+    mkg = monthly_element_label("MKG 全店 売上高 ドラッグ(前年比)", "yoy_index")
+    want_mkg = {
+        "display": "MKG 全店 売上高 ドラッグ(前年比)",
+        "group": "MKG",
+        "metric_kind": "sales",
+        "series_kind": None,
+        "country": "",
+        "segment": "MKG",
+        "time_axis": "",
+        "channel": "",
+        "scope": "全店",
+        "metric": "売上高",
+        "breakdown": "ドラッグ",
+    }
+    if mkg != want_mkg:
+        _fail(f"MKG: {mkg!r}")
+
+
 def main() -> None:
     test_canonicalize_element_label()
+    test_monthly_element_label()
     test_issuer_alias_cases()
     test_mapping_examples()
     test_fy_end_and_layout_errors()
