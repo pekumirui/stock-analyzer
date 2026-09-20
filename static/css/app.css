@@ -147,13 +147,42 @@
   #monthly-tbl td.mkt-g::before { background:#16a34a; }
   .badge.new { background:var(--warn); color:#fff; margin-left:6px; }
   #monthly-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
-  #monthly-chart { width:100%; min-height:220px; margin:0 0 16px; }
+  #monthly-detail > .phead {
+    justify-content:flex-start;
+    gap:12px;
+    align-items:baseline;
+    margin-bottom:10px;
+  }
+  #monthly-title {
+    font-size:18px;
+    font-weight:700;
+    color:var(--text);
+    margin:0;
+    line-height:1.3;
+  }
+  #monthly-title small { font-size:13px; font-weight:500; color:var(--sub); margin-left:6px; }
+  .monthly-toolbar {
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:10px;
+    margin:0 0 12px;
+  }
+  #monthly-chart { width:100%; margin:0 0 24px; }
   #monthly-chart svg { width:100%; height:auto; display:block; font-family:inherit; overflow:visible; }
+  .monthly-year-chart { margin:0 0 14px; }
+  .monthly-year-chart:last-child { margin-bottom:0; }
+  .monthly-year-label {
+    font-size:13px;
+    font-weight:700;
+    color:var(--text);
+    margin:0 0 4px;
+  }
   table.monthly {
     font-variant-numeric:tabular-nums;
     table-layout:fixed;
     width:max-content;
-    min-width:100%;
+    min-width:0;
     background:#fff;
     border-collapse:collapse;
   }
@@ -244,6 +273,11 @@
     font-weight:700;
     text-align:center;
   }
+  table.monthly td.num.monthly-empty {
+    color:#c5cdd6;
+    font-weight:400;
+  }
+  table.monthly.monthly-gated td.monthly-stub-empty { color:#c5cdd6; }
   table.monthly tbody tr.monthly-sec td.monthly-sec-month,
   table.monthly tbody tr.monthly-sec:hover td.monthly-sec-month {
     background:#eceff2;
@@ -253,7 +287,7 @@
     letter-spacing:.02em;
     text-align:center;
   }
-  #monthly-series { max-width:100%; margin:0 0 8px; }
+  #monthly-series { max-width:100%; margin:0; }
   /* TEMP: flat vs gated table compare — remove with #monthly-layout-debug */
   .monthly-layout-debug {
     display:flex; align-items:center; gap:6px; flex-wrap:wrap;
@@ -278,7 +312,7 @@
   @media (max-width:640px){
     body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:34px}
     .evt-toggles .evt-label { min-height:32px; }
-    #monthly-chart { min-height:280px; }
+    #monthly-title { font-size:16px; }
     /* 16em sticky だと項目列が画面の大半を占め月が右端にしか出ない。スマホは sticky を外し項目列を短くする */
     table.monthly col.monthly-name { width:8em; min-width:8em; }
     table.monthly thead th:first-child,

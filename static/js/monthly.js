@@ -649,7 +649,10 @@ function showMonthlyDetail(code){
     return;
   }
   const nm = row.name || "";
-  $("#monthly-title").textContent = nm ? `${nm} ${row.code}` : row.code;
+  const code4 = String(row.code || "").slice(0, 4);
+  $("#monthly-title").innerHTML = nm
+    ? `${escHtml(nm)} <small>${escHtml(code4)}</small>`
+    : escHtml(code4);
   monthlySeries = "";
   $("#monthly-top").style.display = "none";
   $("#monthly-detail").style.display = "";
@@ -753,7 +756,7 @@ function renderMonthlyYearTables(tables){
         const v = vals[String(m)];
         const txt = fmtMonthlyCell(v, unit, e.element);
         if(txt) maxNumLen = Math.max(maxNumLen, txt.length);
-        h += `<td class="num">${txt}</td>`;
+        h += monthlyNumCell(txt);
       }
       h += `</tr>`;
     }
@@ -771,8 +774,14 @@ function renderMonthlyYearTables(tables){
         const unit = (src && src.unit) || e.unit || "number";
         const ds = ` data-series="${escHtml(e.element)}" onclick="setMonthlySeries(this.dataset.series)"`;
         let stubs = "";
-        if(e.channelSpan) stubs += `<td class="monthly-stub monthly-stub-ch" rowspan="${e.channelSpan}">${escHtml(monthlyStubChannelText(e.channel))}</td>`;
-        if(e.scopeSpan) stubs += `<td class="monthly-stub monthly-stub-sc" rowspan="${e.scopeSpan}">${escHtml(monthlyStubScopeText(e.scope))}</td>`;
+        if(e.channelSpan){
+          const empty = e.channel ? "" : " monthly-stub-empty";
+          stubs += `<td class="monthly-stub monthly-stub-ch${empty}" rowspan="${e.channelSpan}">${escHtml(monthlyStubChannelText(e.channel))}</td>`;
+        }
+        if(e.scopeSpan){
+          const empty = e.scope ? "" : " monthly-stub-empty";
+          stubs += `<td class="monthly-stub monthly-stub-sc${empty}" rowspan="${e.scopeSpan}">${escHtml(monthlyStubScopeText(e.scope))}</td>`;
+        }
         const bdClass = e.breakdown ? " monthly-bd" : "";
         stubs += `<td class="l monthly-stub monthly-stub-leaf${bdClass}">${escHtml(e.leaf)}</td>`;
         h += `<tr${ds}>${stubs}`;
@@ -780,7 +789,7 @@ function renderMonthlyYearTables(tables){
           const v = vals[String(m)];
           const txt = fmtMonthlyCell(v, unit, e.element);
           if(txt) maxNumLen = Math.max(maxNumLen, txt.length);
-          h += `<td class="num">${txt}</td>`;
+          h += monthlyNumCell(txt);
         }
         h += `</tr>`;
       }
@@ -858,6 +867,21 @@ function fmtMonthlyTick(v){
 
 let monthlyChartCssW = 0;
 
+function monthlyNumCell(txt){
+  const empty = txt === "-" ? " monthly-empty" : "";
+  return `<td class="num${empty}">${txt}</td>`;
+}
+
+function fmtMonthlyBarLabel(v, yoy){
+  if(v == null || !Number.isFinite(v)) return "";
+  if(yoy){
+    const r = Math.round(v * 10) / 10;
+    if(Math.abs(r - Math.round(r)) < 1e-6) return String(Math.round(r));
+    return r.toLocaleString("ja-JP", {maximumFractionDigits:1});
+  }
+  return fmtMonthlyTick(v);
+}
+
 function drawMonthlyChart(tables, seriesId){
   const host = $("#monthly-chart");
   const choices = monthlySeriesChoices(tables);
@@ -889,7 +913,7 @@ function drawMonthlyChart(tables, seriesId){
     years.push(d.year);
     byYear[d.year] = nums;
   }
-  years.sort((a,b)=>a-b);
+  years.sort((a,b)=>b-a);
   if(!years.length){
     host.innerHTML = `<div class="sub">データなし</div>`;
     return;
@@ -898,55 +922,54 @@ function drawMonthlyChart(tables, seriesId){
   for(const y of years) for(const v of byYear[y]) if(v!=null) vals.push(v);
   let ymin = 0;
   let ymax = Math.max(...vals, spec.yoy ? 100 : 1);
-  ymax = ymax * 1.08;
+  ymax = ymax * 1.18;
   const phone = monthlyIsPhone();
   const cssW = host.clientWidth || document.documentElement.clientWidth || 720;
   monthlyChartCssW = cssW;
-  const W = phone ? Math.max(cssW, 280) : 720;
-  const H = phone ? 280 : 232;
-  const L = 52, R = phone ? 10 : 12, T = phone ? 18 : 14, B = phone ? 64 : 50;
+  const W = Math.max(cssW, phone ? 280 : 480);
+  const H = phone ? 168 : 148;
+  const L = phone ? 44 : 40, R = phone ? 8 : 10, T = phone ? 22 : 20, B = phone ? 28 : 24;
   const fsAxis = phone ? 13 : 11;
+  const fsBar = phone ? 11 : 10;
   const plotW=W-L-R, plotH=H-T-B;
   const yx = v => T + (1 - (v-ymin)/((ymax-ymin)||1)) * plotH;
-  const nY = years.length;
   const slot = plotW/12;
-  const barW = Math.max(3, (slot*0.72)/nY);
-  const monthY = T + plotH + (phone ? 18 : 14);
-  const legendY = H - (phone ? 8 : 6);
-  const legendGap = Math.min(phone ? 70 : 80, plotW / Math.max(nY, 1));
-  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escHtml(spec.label)}">`;
-  for(const tick of monthlyYTicks(ymin, ymax, spec.yoy)){
-    const y = yx(tick);
-    svg += `<line x1="${L}" x2="${W-R}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e8ecf0"/>`;
-    svg += `<text x="${L-6}" y="${y.toFixed(1)}" font-size="${fsAxis}" text-anchor="end" dominant-baseline="middle" fill="#66707a">${fmtMonthlyTick(tick)}</text>`;
-  }
-  if(spec.yoy){
-    const y100 = yx(100);
-    svg += `<line x1="${L}" x2="${W-R}" y1="${y100}" y2="${y100}" stroke="#e6a100" stroke-dasharray="4 3"/>`;
-  }
-  years.forEach((year, yi) => {
+  const barW = Math.max(4, slot * 0.46);
+  const monthY = T + plotH + (phone ? 16 : 14);
+  const monthLabel = slot < 28 ? (m => String(m)) : (m => `${m}月`);
+  let html = "";
+  for(const year of years){
     const color = monthlyYearColor(year);
+    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escHtml(spec.label)} ${year}年">`;
+    for(const tick of monthlyYTicks(ymin, ymax, spec.yoy)){
+      const y = yx(tick);
+      svg += `<line x1="${L}" x2="${W-R}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e8ecf0"/>`;
+      svg += `<text x="${L-6}" y="${y.toFixed(1)}" font-size="${fsAxis}" text-anchor="end" dominant-baseline="middle" fill="#66707a">${fmtMonthlyTick(tick)}</text>`;
+    }
+    if(spec.yoy){
+      const y100 = yx(100);
+      svg += `<line x1="${L}" x2="${W-R}" y1="${y100}" y2="${y100}" stroke="#d32f2f" stroke-dasharray="4 3"/>`;
+    }
     byYear[year].forEach((v, mi) => {
       if(v==null) return;
-      const x = L + slot*mi + (slot-nY*barW)/2 + yi*barW;
+      const x = L + slot*mi + (slot-barW)/2;
       const y = yx(Math.max(v, ymin));
       const hgt = Math.max(1, yx(ymin) - y);
       svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${hgt.toFixed(1)}" fill="${color}"/>`;
+      const label = fmtMonthlyBarLabel(v, spec.yoy);
+      if(!label) return;
+      const lx = L + slot*mi + slot/2;
+      const ly = Math.max(11, y - 4);
+      svg += `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" font-size="${fsBar}" text-anchor="middle" fill="#222">${escHtml(label)}</text>`;
     });
-  });
-  const monthLabel = slot < 28 ? (m => String(m)) : (m => `${m}月`);
-  for(let m=1;m<=12;m++){
-    const x = L + slot*(m-1) + slot/2;
-    svg += `<text x="${x.toFixed(1)}" y="${monthY}" font-size="${fsAxis}" text-anchor="middle" fill="#66707a">${monthLabel(m)}</text>`;
+    for(let m=1;m<=12;m++){
+      const x = L + slot*(m-1) + slot/2;
+      svg += `<text x="${x.toFixed(1)}" y="${monthY}" font-size="${fsAxis}" text-anchor="middle" fill="#66707a">${monthLabel(m)}</text>`;
+    }
+    svg += `</svg>`;
+    html += `<div class="monthly-year-chart"><div class="monthly-year-label">${year}年</div>${svg}</div>`;
   }
-  years.forEach((year, yi) => {
-    const color = monthlyYearColor(year);
-    const x = L + yi*legendGap;
-    svg += `<rect x="${x}" y="${legendY-10}" width="8" height="8" fill="${color}"/>`;
-    svg += `<text x="${x+12}" y="${legendY}" font-size="${fsAxis}" fill="#66707a">${year}年</text>`;
-  });
-  svg += `</svg>`;
-  host.innerHTML = svg;
+  host.innerHTML = html;
 }
 
 window.matchMedia("(max-width:640px)").addEventListener("change", () => {

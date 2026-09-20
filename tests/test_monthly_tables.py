@@ -1234,7 +1234,7 @@ def _assert_monthly_spa(html: str) -> None:
     if end < 0:
         _fail("index.html monthly tab unclosed")
     section = html[start:end]
-    if 'id="monthly-year"' in html or "monthly-year" in html:
+    if 'id="monthly-year"' in html:
         _fail("SPA still has #monthly-year")
     if "<select" not in section.lower() or 'id="monthly-series"' not in section:
         _fail("Detail series control must be <select id=\"monthly-series\">")
@@ -1524,7 +1524,7 @@ def _assert_monthly_spa(html: str) -> None:
     if "monthlyDisplayYears" not in chart_body:
         _fail("chart must use the same last-3-year window as the tables")
     if "monthlyYearColor(year)" not in chart_body:
-        _fail("bars and legend must use monthlyYearColor(year)")
+        _fail("bars must use monthlyYearColor(year)")
     if "MONTHLY_YEAR_COLORS[yi" in chart_body:
         _fail("chart colors must not follow display order")
     if "fill-opacity" in chart_body or 'fill="#d32f2f"' in chart_body:
@@ -1535,6 +1535,26 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("keep yoy 100 horizontal line")
     if "n+100" in chart_body.replace(" ", "") or "+=100" in chart_body.replace(" ", ""):
         _fail("chart must plot stored values, not leftover yoy_pct+100")
+    if "monthly-year-chart" not in chart_body:
+        _fail("chart must stack one bar chart per year")
+    if "monthly-year-label" not in chart_body:
+        _fail("each year chart must show a year heading")
+    if "legendY" in chart_body:
+        _fail("year-separated charts must not keep a clustered legend")
+    if "nY" in chart_body:
+        _fail("must not cluster multiple years in one month slot")
+    if "fmtMonthlyBarLabel" not in html:
+        _fail("bars must show values via fmtMonthlyBarLabel")
+    if "years.sort((a,b)=>b-a)" not in chart_body.replace(" ", ""):
+        _fail("year charts must stack newest first")
+    if "monthly-empty" not in html:
+        _fail("empty month cells must use monthly-empty")
+    if "monthly-stub-empty" not in html:
+        _fail("empty stub em dash must use monthly-stub-empty")
+    if 'class="monthly-toolbar"' not in html:
+        _fail("Detail series select must sit in .monthly-toolbar")
+    if "min-width:100%" in html[html.find("table.monthly"):html.find("table.monthly.monthly-gated")].replace(" ", ""):
+        _fail("year tables must not stretch with min-width:100%")
     color_fn = html.find("function monthlyYearColor")
     color_end = html.find("function uniqueMonthlyIssuers")
     if color_fn < 0 or color_end <= color_fn:

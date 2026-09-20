@@ -122,14 +122,16 @@
         <button type="button" id="monthly-back" onclick="backMonthly()">戻る</button>
         <h3 id="monthly-title"></h3>
       </div>
-      <select id="monthly-series" onchange="setMonthlySeries(this.value)"></select>
-      <label id="monthly-layout-debug" class="monthly-layout-debug" hidden>
-        表レイアウト（一時）
-        <select id="monthly-layout-mode" onchange="setMonthlyLayoutMode(this.value)">
-          <option value="gated">ゲート（節+stub）</option>
-          <option value="flat">元表（マージ前）</option>
-        </select>
-      </label>
+      <div class="monthly-toolbar">
+        <select id="monthly-series" onchange="setMonthlySeries(this.value)"></select>
+        <label id="monthly-layout-debug" class="monthly-layout-debug" hidden>
+          表レイアウト（一時）
+          <select id="monthly-layout-mode" onchange="setMonthlyLayoutMode(this.value)">
+            <option value="gated">ゲート（節+stub）</option>
+            <option value="flat">元表（マージ前）</option>
+          </select>
+        </label>
+      </div>
       <div id="monthly-chart"></div>
       <div class="tbl-wrap" id="monthly-table-wrap"></div>
   </div>
