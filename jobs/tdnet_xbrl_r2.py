@@ -32,8 +32,14 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from app.config import XBRL_DEST  # noqa: E402
+
 JST = ZoneInfo("Asia/Tokyo")
-DEFAULT_DEST = "/home/stock/r2-share/xbrl"
+DEFAULT_DEST = XBRL_DEST
 LIST_BASE = "https://webapi.yanoshin.jp/webapi/tdnet/list"
 ZIP_BASE = "https://www.release.tdnet.info/inbs"
 USER_AGENT = "stock-analyzer-tdnet-xbrl/1.0"
@@ -48,8 +54,6 @@ _INBS_ZIP_RE = re.compile(r"/inbs/([0-9A-Za-z]+)\.zip", re.I)
 _ZIP_NAME_RE = re.compile(r"([0-9A-Za-z]+)\.zip(?:\?|$)", re.I)
 _BAD_FILENAME_RE = re.compile(r'[\x00-\x1f\\/:*?"<>|]')
 _CODE4_HEAD_RE = re.compile(r"^[0-9][0-9A-Z]{3}$")
-
-REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Infra funds share ProdCat 013/022 with REITs; J-Quants has no dedicated category.
 # Monthly skips these; XBRL still downloads them under _unmatched/.
