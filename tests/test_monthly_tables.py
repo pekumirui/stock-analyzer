@@ -1627,8 +1627,8 @@ def _assert_monthly_spa(html: str) -> None:
     if gate_fn < 0 or gate_end <= gate_fn:
         _fail("monthlySegmentGate / monthlyStubChannelText bounds")
     gate_body = html[gate_fn:gate_end]
-    if "monthlyLatestYearTable" not in gate_body and "latest" not in gate_body:
-        _fail("monthlySegmentGate must look at the latest display year")
+    if "monthlyDisplayYears" not in gate_body:
+        _fail("monthlySegmentGate must look at displayed years")
     if ">= 2" not in gate_body and ">=2" not in gate_body.replace(" ", ""):
         _fail("monthlySegmentGate must require the leftover on at least 2 rows")
     layout_fn = html.find("function monthlyTableLayout")
@@ -1736,6 +1736,67 @@ def _assert_monthly_layout_js() -> None:
                 _el("戦略事業 取扱高(前年比)"),
             ],
         }],
+        "renameYears": [
+            {
+                "year": 2026,
+                "code": "24610",
+                "elements": [
+                    _el("全店 売上高", "number"),
+                    _el("CPAソリューション事業 全店 売上高", "number"),
+                    _el("CPAソリューション事業 全店 売上高(前年比)"),
+                    _el("戦略事業 全店 売上高", "number"),
+                    _el("戦略事業 全店 売上高(前年比)"),
+                ],
+            },
+            {
+                "year": 2024,
+                "code": "24610",
+                "elements": [
+                    _el("全店 売上高", "number"),
+                    _el("CPAソリューション事業 全店 売上高", "number"),
+                    _el("CPAソリューション事業 全店 売上高(前年比)"),
+                    _el("ADコミュニケーション事業 全店 売上高", "number"),
+                    _el("ADコミュニケーション事業 全店 売上高(前年比)"),
+                ],
+            },
+        ],
+        "lonePrior": [
+            {
+                "year": 2026,
+                "code": "24610",
+                "elements": [
+                    _el("全店 売上高", "number"),
+                    _el("CPAソリューション事業 全店 売上高", "number"),
+                    _el("CPAソリューション事業 全店 売上高(前年比)"),
+                ],
+            },
+            {
+                "year": 2024,
+                "code": "24610",
+                "elements": [
+                    _el("ADコミュニケーション事業 全店 売上高", "number"),
+                ],
+            },
+        ],
+        "tooOld": [
+            {
+                "year": 2026,
+                "code": "24610",
+                "elements": [
+                    _el("全店 売上高", "number"),
+                    _el("CPAソリューション事業 全店 売上高", "number"),
+                    _el("CPAソリューション事業 全店 売上高(前年比)"),
+                ],
+            },
+            {
+                "year": 2022,
+                "code": "24610",
+                "elements": [
+                    _el("ADコミュニケーション事業 全店 売上高", "number"),
+                    _el("ADコミュニケーション事業 全店 売上高(前年比)"),
+                ],
+            },
+        ],
     }
     harness = r"""
 const fs = require("fs");
@@ -1804,6 +1865,9 @@ const drugRow = matsukiyo[0].elements.find((e) => e.element === "全店 売上�
 const belluna = fixtures.belluna;
 const areaOrder = sandbox.monthlyRowOrder(belluna);
 const areaLayout = sandbox.monthlyTableLayout(areaOrder, belluna);
+const renameYears = fixtures.renameYears;
+const renameOrder = sandbox.monthlyRowOrder(renameYears);
+const renameLayout = sandbox.monthlyTableLayout(renameOrder, renameYears);
 console.log(JSON.stringify({
   gated,
   gatedFlag: layout.gated,
@@ -1858,6 +1922,14 @@ console.log(JSON.stringify({
       leaf: r.leaf,
     };
   }),
+  renameGate: [...sandbox.monthlySegmentGate(renameYears)].sort(),
+  renameGated: renameLayout.gated,
+  renameSummary: renameLayout.rows.map((r) => {
+    if (r.kind === "section") return { kind: "section", label: r.label };
+    return { kind: "data", element: r.element, group: r.group, leaf: r.leaf };
+  }),
+  lonePriorGate: [...sandbox.monthlySegmentGate(fixtures.lonePrior)].sort(),
+  tooOldGate: [...sandbox.monthlySegmentGate(fixtures.tooOld)].sort(),
 }));
 """
     proc = subprocess.run(
@@ -1965,6 +2037,28 @@ console.log(JSON.stringify({
     ]
     if got.get("areaSummary") != want_area:
         _fail(f"99970 小枝 layout: {got.get('areaSummary')!r}")
+    if got.get("renameGate") != ["ADコミュニケーション事業", "CPAソリューション事業", "戦略事業"]:
+        _fail(f"prior-year leftover must gate: {got.get('renameGate')!r}")
+    if got.get("renameGated") is not True:
+        _fail("rename years must stay gated")
+    want_rename = [
+        {"kind": "data", "element": "全店 売上高", "group": "", "leaf": "売上高"},
+        {"kind": "section", "label": "CPAソリューション事業"},
+        {"kind": "data", "element": "CPAソリューション事業 全店 売上高", "group": "CPAソリューション事業", "leaf": "売上高"},
+        {"kind": "data", "element": "CPAソリューション事業 全店 売上高(前年比)", "group": "CPAソリューション事業", "leaf": "売上高(前年比)"},
+        {"kind": "section", "label": "戦略事業"},
+        {"kind": "data", "element": "戦略事業 全店 売上高", "group": "戦略事業", "leaf": "売上高"},
+        {"kind": "data", "element": "戦略事業 全店 売上高(前年比)", "group": "戦略事業", "leaf": "売上高(前年比)"},
+        {"kind": "section", "label": "ADコミュニケーション事業"},
+        {"kind": "data", "element": "ADコミュニケーション事業 全店 売上高", "group": "ADコミュニケーション事業", "leaf": "売上高"},
+        {"kind": "data", "element": "ADコミュニケーション事業 全店 売上高(前年比)", "group": "ADコミュニケーション事業", "leaf": "売上高(前年比)"},
+    ]
+    if got.get("renameSummary") != want_rename:
+        _fail(f"prior-year leftover layout: {got.get('renameSummary')!r}")
+    if got.get("lonePriorGate") != ["CPAソリューション事業"]:
+        _fail(f"one prior-year row must not gate: {got.get('lonePriorGate')!r}")
+    if got.get("tooOldGate") != ["CPAソリューション事業"]:
+        _fail(f"year outside display window must not gate: {got.get('tooOldGate')!r}")
 
 
 

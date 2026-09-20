@@ -126,7 +126,7 @@ AI による業種付けはしない。`industry` の更新は MCP と `PUT /api
 - 純増/新設/改装/業態転換は名前を変えず店舗数の前
 - 直営はチャネルなので `焼肉 直営 店舗数` を全店の先頭に上げない。ブランド付きはセグメント（`カラオケ 全店 売上高(前年比)` は カラオケ）
 - ゲート銘柄だけ、年表は `monthlyRowOrder` のあとに表示だけの第二レイアウトを掛ける。DB・API・`union_monthly_elements` は変えない
-- ゲートは表示する最新暦年。`label.group` が空でなく、`label.metric`・`label.channel`・`label.scope` のいずれかがあり、同じ group がその年に 2 行以上あるとき、その group をゲートする
+- ゲートは表示する3年（最新とその前2年、データがある年）。年ごとに独立に数える。`label.group` が空でなく、`label.metric`・`label.channel`・`label.scope` のいずれかがあり、同じ group がいずれかの年で 2 行以上あるとき、その group をゲートする。年をまたいで1+1にはしない
 - ゲート 0 件の発行体は現状どおり。項目列は 1 列。行順は上の scope 優先のまま
 - ゲートがあるとき、ゲートしなかった行は会社全体の 1 ブロックにまとめる（`日本+海外` が和集合の末尾でも会社ブロックへ戻す）。ゲート leftover は `monthlyRowOrder` の初出順で続く。節の内側だけ channel → scope → metric。国では並べない。国とゲートしていない leftover は葉ラベルだけ（例: `日本 店舗数`, `日本+海外 店舗数`）
 - ゲート表の左は stub 3 列（チャネル | スコープ | 葉）。列は増やさない。連続するチャネルとスコープは rowspan。スコープ `既存` は stub 文言 `既存店`。空のチャネルとスコープは `—`。売上高の内訳の葉は `└ ドラッグ(前年比)` のように字下げし、`td.monthly-stub-leaf.monthly-bd` で 12px・600。`label.breakdown_depth` が 2 の小枝（プロパティの下のホテル）は同じ葉列で `monthly-bd-2`（padding-left 2.25em）。葉テキストは `└ ホテル` のまま。親の売上高と客数は今の 13px・700。ゲート leftover に入るとき `tr.monthly-sec` を 1 行。ラベルは `td.monthly-sec-label` で stub 3 列ぶん `colspan=3`、続けて月セル 12（`td.num.monthly-sec-month` に `1月`…`12月`。年表ヘッダの月と同じ太字・中央・`#eceff2`。数値は入れない）。月の縦罫線を節行でも切らない。グレー帯は `monthly-sec-label` だけ。`data-series` なし、クリックしない。PC で sticky なのはラベルセルだけ（全幅 1 セルだと sticky が効かず横スクロールで消える。月セルまで sticky にするとラベルの上に積み重なる）
