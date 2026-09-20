@@ -173,6 +173,31 @@ def test_canonicalize_element_label() -> None:
         _fail("実 leftover stitches to 実店舗")
     if canonicalize_element_label("実店舗 店舗数", "number") != "実店舗 店舗数":
         _fail("実店舗 店舗数 is idempotent")
+    if canonicalize_element_label("稼働店舗数", "number") != "稼働店舗数":
+        _fail("稼働店舗数 stays one metric")
+    if canonicalize_element_label("稼働 店舗数", "number") != "稼働店舗数":
+        _fail("稼働 leftover stitches to 稼働店舗数")
+    if canonicalize_element_label("取引店舗数", "number") != "取引店舗数":
+        _fail("取引店舗数 stays one token")
+    active = parse_element_layers("店舗流通ネット 稼働店舗数 管理テナント数")
+    if (
+        active["segment"] != "店舗流通ネット"
+        or active["metric"] != "稼働店舗数"
+        or active["breakdown"] != "管理テナント数"
+    ):
+        _fail(f"稼働店舗数 peels 管理テナント数 {active}")
+    if canonicalize_element_label(
+        "店舗流通ネット 稼働店舗数 取引店舗数", "number",
+    ) != "店舗流通ネット 稼働店舗数 取引店舗数":
+        _fail("稼働店舗数 取引店舗数 is idempotent")
+    if monthly_breakdown_depth("店舗流通ネット 稼働店舗数") != 0:
+        _fail("稼働店舗数 parent depth")
+    if monthly_breakdown_depth("店舗流通ネット 稼働店舗数 増加") != 1:
+        _fail("稼働店舗数 child depth")
+    if monthly_row_breakdown_rank("店舗流通ネット 稼働店舗数 減少") != 4:
+        _fail("減少 breakdown rank")
+    if monthly_element_label("店舗流通ネット 稼働店舗数", "number")["group"] != "店舗流通ネット":
+        _fail("店舗流通ネット is the group")
     if canonicalize_element_label("LOWYA 対(前年比)", "yoy_index") != "LOWYA 全店 売上高(前年比)":
         _fail("対 leftover is 売上高")
     if canonicalize_element_label("LOWYA対前年比", "yoy_index") != "LOWYA 全店 売上高(前年比)":

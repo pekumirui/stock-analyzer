@@ -1609,16 +1609,36 @@ def test_hurxley_canonicalize_aliases() -> None:
         ("ほっかほっか亭 店舖数(店)", "number", "ほっかほっか亭 店舗数"),
         ("ほっかほっか亭 出店(店)", "number", "ほっかほっか亭 出店"),
         ("ほっかほっか亭 閉店(店)", "number", "ほっかほっか亭 退店"),
-        ("店舗流通ネット 稼働店舖数(①+②) (店)", "number", "店舗流通ネット 稼働 店舗数"),
-        ("店舗流通ネット ① 店舗不動産の 管理テナント数 (店)", "number", "店舗流通ネット 管理テナント数"),
-        ("店舗流通ネット ② 店舖リースの 取引店舖数 (店)", "number", "店舗流通ネット 取引 店舗数"),
-        ("店舗流通ネット 増加(店)", "number", "店舗流通ネット 増加"),
-        ("店舗流通ネット 減少(店)", "number", "店舗流通ネット 減少"),
+        ("店舗流通ネット 稼働店舖数(①+②) (店)", "number", "店舗流通ネット 稼働店舗数"),
+        ("店舗流通ネット ① 店舗不動産の 管理テナント数 (店)", "number", "店舗流通ネット 稼働店舗数 管理テナント数"),
+        ("店舗流通ネット ② 店舖リースの 取引店舖数 (店)", "number", "店舗流通ネット 稼働店舗数 取引店舗数"),
+        ("店舗流通ネット 増加(店)", "number", "店舗流通ネット 稼働店舗数 増加"),
+        ("店舗流通ネット 減少(店)", "number", "店舗流通ネット 稼働店舗数 減少"),
+        # previous flat ops names also fold into the parent/child form
+        ("店舗流通ネット 管理テナント数", "number", "店舗流通ネット 稼働店舗数 管理テナント数"),
+        ("店舗流通ネット 取引 店舗数", "number", "店舗流通ネット 稼働店舗数 取引店舗数"),
+        ("店舗流通ネット 増加", "number", "店舗流通ネット 稼働店舗数 増加"),
+        ("店舗流通ネット 減少", "number", "店舗流通ネット 稼働店舗数 減少"),
+        ("店舗流通ネット 稼働 店舗数", "number", "店舗流通ネット 稼働店舗数"),
     ]
     for src, unit, want in cases:
         got = _hurxley_stored(src, unit)
         if got != want:
             _fail(f"hurxley alias {src!r} → {got!r}, want {want!r}")
+    parent = _hurxley_stored("店舗流通ネット 稼働店舖数(①+②) (店)", "number")
+    from app.monthly_ingest import monthly_element_label
+
+    lab = monthly_element_label(parent, "number")
+    if lab["group"] != "店舗流通ネット" or lab["metric"] != "稼働店舗数" or lab["breakdown"]:
+        _fail(f"hurxley TRN parent label {lab}")
+    child = _hurxley_stored("店舗流通ネット 増加(店)", "number")
+    lab_c = monthly_element_label(child, "number")
+    if (
+        lab_c["group"] != "店舗流通ネット"
+        or lab_c["breakdown"] != "増加"
+        or lab_c["breakdown_depth"] != 1
+    ):
+        _fail(f"hurxley TRN child label {lab_c}")
 
 
 def test_watami_canonicalize_aliases() -> None:
