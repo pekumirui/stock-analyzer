@@ -1,141 +1,136 @@
 ---
 name: monthly-html-ops-ingest
 description: >
-  Operational IR HTML monthly ingest for stock-analyzer: fill calendar-year gaps via
-  archive/year URLs, merge multi-table pages, override parser as_of when live HTML
-  proves the fiscal year, clean label ghosts with issuer_aliases + ops merge.
-  Requires pair review with monthly_get for 2024/2025/2026 per code,
-  spot-checks that DB numbers match source HTML, and a 表記揺れ (duplicate/ghost
-  label) check before closing a wave.
-  Use when backfilling HTML 月次, issue #180-style ops, monthly_ingest MCP posts,
-  missing 2024/1–2 or H1/H2 halves, or after adding aliases that do not rewrite DB rows.
+  stock-analyzer 用の運用向け IR HTML 月次データ取り込み: アーカイブ/年次 URL を用いた暦年のギャップ埋め、複数テーブルページの結合、ライブ HTML で会計年度が証明できる場合のパーサーの as_of の上書き、issuer_aliases と運用マージによるラベルのゴースト（不要な表記揺れ）のクリーンアップ。
+  銘柄ごとの 2024/2025/2026 年の monthly_get を用いたペアレビュー、DB の数値がソース HTML と一致することの抜き打ちチェック、およびウェーブ（一連の作業）を閉じる前の表記揺れ（重複/ゴーストラベル）チェックが必要です。
+  HTML 月次データのバックフィル、Issue #180 スタイルの運用、monthly_ingest MCP の POST、2024年1〜2月や上期/下期の欠損、または DB の行を書き換えないエイリアスを追加した後の対応時に使用します。
 ---
 
-# IR HTML monthly ops ingest
+# IR HTML 月次運用取り込み (IR HTML monthly ops ingest)
 
-Production loopback via stock-analyzer MCP (`monthly_*`). Design stays in `DESIGN.md` / `docs/DESIGN_monthly.md` / `docs/DESIGN_monthly_labels.md`. This skill is **ops only**.
+stock-analyzer MCP (`monthly_*`) を経由した本番環境へのループバックです。設計については `DESIGN.md` / `docs/DESIGN_monthly.md` / `docs/DESIGN_monthly_labels.md` を正とします。このスキルは **運用専用 (ops only)** です。
 
-## When to use
+## いつ使用するか (When to use)
 
-- Fill missing calendar months for HTML issuers in `config/ir_monthly.json`
-- Track a wave on a GitHub issue (#180 pattern)
-- Clean old row labels after alias/canonicalize ships
-- Pair-review a wave: confirm **2024 / 2025 / 2026** coverage, sample numbers match source HTML, and **no 表記揺れ** before closing
+- `config/ir_monthly.json` にある HTML 発行体の欠損している暦月を埋める場合
+- GitHub Issue (#180 のパターン) での一連の作業（ウェーブ）を追跡する場合
+- エイリアス/正規化 (canonicalize) をリリースした後に、古い行ラベルをクリーンアップする場合
+- ウェーブのペアレビュー: **2024 / 2025 / 2026** の網羅性の確認、サンプルの数値がソース HTML と一致することの確認、およびクローズ前の **表記揺れがないこと** の確認
 
-Not for: parser code changes (separate PR), TDnet PDF, XBRL, SPA verify (use `verify-stock-analyzer`).
+対象外: パーサーのコード変更 (別の PR で対応)、TDnet の PDF、XBRL、SPA の検証 (`verify-stock-analyzer` を使用)。
 
-## Pipeline (truth)
+## パイプライン (正本) (Pipeline (truth))
 
-1. Live HTML (year/archive URL) → parse locally with `scripts.ir_monthly_html_r2.html_to_ingest`
-2. Optional: hand-edit payload (`as_of`, months, element names, merge tables)
-3. `plan_column_years(months, fy_end_month, as_of)` — prove calendar years before POST
-4. Conflict-check vs `monthly_get` on overlapping cells
-5. `monthly_ingest` (MCP) — **no `year`**. UPSERT ok
-6. `monthly_get` verify
+1. ライブ HTML (年次/アーカイブ URL) → ローカルで `scripts.ir_monthly_html_r2.html_to_ingest` を使ってパースする
+2. 任意: ペイロードを手動で編集する (`as_of`、月、要素名、テーブルの結合)
+3. `plan_column_years(months, fy_end_month, as_of)` — POST 前に暦年を証明する
+4. 重複するセルについて `monthly_get` との競合チェックを行う
+5. `monthly_ingest` (MCP) — **`year` は指定しない**。UPSERT は可能
+6. `monthly_get` で検証する
 
-Cron path is different: `ir_monthly_html_r2` writes `.ingest.json` only; `ir_monthly_html_ingest` POSTs **latest-per-code**. Past years need ops + archive URLs.
+Cron のパスは異なります: `ir_monthly_html_r2` は `.ingest.json` のみを書き出します。`ir_monthly_html_ingest` は **銘柄ごとに最新のもの (latest-per-code)** を POST します。過去の年については、運用作業とアーカイブ URL が必要です。
 
-## Hard rules
+## 厳守事項 (Hard rules)
 
-- Agent-authored ingest JSON is allowed. Do **not** treat parser `as_of` as sacred. Override `as_of` / labels when live HTML proves the fiscal year (example: Kappa nav max `YYYY年度` poisoning as_of). Parser bug ≠ cannot ingest.
-- HTML parser does **not** apply `issuer_aliases`. Aliases run only in `POST …/ingest` (`app/api.py` `_canonical_element`: canonicalize → `apply_issuer_aliases` → canonicalize). Adding aliases does **not** rewrite existing DB rows — ops merge after.
-- Do **not** year-PUT for new data (`monthly_put_values` is correction only).
-- Do **not** merge brand renames (例: マックスバリュ関東 ↔ イオンフードスタイル).
-- Do **not** POST Watami-class bad units (実数 tagged `yoy_pct`).
-- Ask when unsure (as_of/year mapping, dual-scope Alpen, unit ambiguity).
+- エージェントが作成した ingest JSON は許可されます。パーサーの `as_of` を絶対視**しない**でください。ライブ HTML で会計年度が証明できる場合は、`as_of` / ラベルを上書きしてください（例：かっぱ寿司 (Kappa) のナビゲーションにある最大の `YYYY年度` が as_of を汚染するケース）。パーサーのバグ ≠ 取り込み不可、です。
+- HTML パーサーは `issuer_aliases` を適用**しません**。エイリアスは `POST …/ingest` (`app/api.py` の `_canonical_element`: 正規化 → `apply_issuer_aliases` → 正規化) の中でのみ実行されます。エイリアスを追加しても既存の DB の行は書き換えられ**ません** — その後の運用マージが必要です。
+- 新しいデータに対して year を指定した PUT を行わ**ない**でください (`monthly_put_values` は訂正専用です)。
+- ブランド名の変更をマージし**ない**でください (例: マックスバリュ関東 ↔ イオンフードスタイル)。
+- ワタミ (Watami) クラスの誤った単位（実数なのに `yoy_pct` タグが付いている）を POST し**ない**でください。
+- 不明な点（as_of/年のマッピング、アルペン (Alpen) のような二重スコープ、単位の曖昧さ）がある場合は質問してください。
 
-## Tools
+## ツール (Tools)
 
-| Tool | Use |
+| ツール | 用途 |
 |---|---|
-| MCP `monthly_get` / `monthly_ingest` / `monthly_put_values` / `monthly_add_element` / `monthly_delete_element` | Prod loopback |
-| `config/ir_monthly.json` | `index_url`, `follow_re`, html issuers |
-| `.venv/bin/python` + `html_to_ingest` / `plan_column_years` | Local parse + year map |
-| `config/issuer_aliases.json` + `docs/DESIGN_monthly_labels.md` | New rename rules (code PR) |
-| GitHub issue | Progress before/after |
+| MCP `monthly_get` / `monthly_ingest` / `monthly_put_values` / `monthly_add_element` / `monthly_delete_element` | 本番ループバック |
+| `config/ir_monthly.json` | `index_url`, `follow_re`, html 発行体 |
+| `.venv/bin/python` + `html_to_ingest` / `plan_column_years` | ローカルパース + 年マッピング |
+| `config/issuer_aliases.json` + `docs/DESIGN_monthly_labels.md` | 新しいリネームルール (コードの PR) |
+| GitHub Issue | 作業前/作業後の進捗 |
 
-VPS: `ssh stock-vps` + `curl http://127.0.0.1:8000/api/v1/tables/...` is the same API as MCP.
+VPS: `ssh stock-vps` + `curl http://127.0.0.1:8000/api/v1/tables/...` は MCP と同じ API です。
 
-## Pre-POST checklist
+## POST 前のチェックリスト (Pre-POST checklist)
 
-Copy and tick:
+コピーしてチェックを入れてください:
 
 ```
-- [ ] Source URL fetched; parse shows needed months
-- [ ] fy_end from prod statements (or known); plan_column_years printed
-- [ ] as_of chosen deliberately (parser default or override) — leap days ok (2024-02-29)
-- [ ] Element names match DB finals (no ghost prefixes if aliases not on VPS yet: send clean names)
-- [ ] Overlap vs monthly_get: no conflicting non-null cells (or force only after proof equal)
-- [ ] Not year-PUT for new cells
-- [ ] Issue comment: URL, as_of, mapping years, what fills
-- [ ] After the wave: schedule pair review (2024/2025/2026 matrix)
+- [ ] ソース URL を取得した; パース結果に必要な月が含まれている
+- [ ] 本番の statements (または既知の情報) から fy_end を確認した; plan_column_years を出力した
+- [ ] as_of を意図的に選択した (パーサーのデフォルトまたは上書き) — うるう日も可 (2024-02-29)
+- [ ] 要素名が DB の最終形と一致している (エイリアスが VPS にまだない場合はゴーストのプレフィックスを付けない: クリーンな名前を送信する)
+- [ ] monthly_get との重複: 競合する null でないセルがない (または一致を証明した後にのみ force を使用する)
+- [ ] 新しいセルに対して year-PUT を行っていない
+- [ ] Issue コメント: URL、as_of、マッピングする年、何を埋めるか
+- [ ] ウェーブ完了後: ペアレビューをスケジュールする (2024/2025/2026 マトリックス)
 ```
 
-## Fill-gap playbook
+## ギャップ埋めプレイブック (Fill-gap playbook)
 
-1. `monthly_get` for **2024 / 2025 / 2026** — list missing months **per code** (all three years, every wave)
-2. Find archive/year URL (not only `index_url`). Cron/`follow_re` + `select_latest_per_code` cannot backfill same-URL-only issuers
-3. Parse → `plan_column_years`. If the page labeled "2024" maps 1–2 to calendar **2025**, get the **previous FY** page for calendar 2024/1–2
-4. Multi-table (上期+下期): merge before POST — parser keeps one table
-5. POST `monthly_ingest`; verify `monthly_get`
-6. After any "2024" page wave: re-scan **2024 months 1–12** systematically (first wave often leaves 1–2 or H2 empty)
-7. End of wave → **Pair review** below (do not close the issue without it)
+1. **2024 / 2025 / 2026** の `monthly_get` を実行する — **銘柄ごと**に欠損月をリストアップする (3年分すべて、各ウェーブごと)
+2. アーカイブ/年次 URL を探す (`index_url` だけではない)。Cron/`follow_re` + `select_latest_per_code` では、同一 URL のみの発行体のバックフィルはできない
+3. パース → `plan_column_years`。もし "2024" とラベル付けされたページが 1〜2 月を暦年の **2025** にマッピングする場合、暦年の 2024/1〜2 には **前年度 (previous FY)** のページを取得する
+4. 複数テーブル (上期+下期): POST 前にマージする — パーサーは 1 つのテーブルしか保持しない
+5. `monthly_ingest` を POST する; `monthly_get` で検証する
+6. "2024" ページのウェーブの後: **2024 年の 1〜12 月**を体系的に再スキャンする (最初のウェーブでは 1〜2 月や下期が空のまま残ることが多い)
+7. ウェーブの終了 → 以下の **ペアレビュー** を行う (これなしで Issue をクローズしないこと)
 
-## Pair review (required)
+## ペアレビュー (必須) (Pair review (required))
 
-A second pass by another agent or the human. The executing agent must not self-certify the wave as done.
+別のアージェントまたは人間による 2 回目の確認。実行したエージェントは、自分でウェーブの完了を証明してはならない。
 
-**Coverage matrix (mandatory).** For every code touched in the wave, `monthly_get` **2024, 2025, and 2026**. Record per year:
+**網羅性マトリックス (必須)。** ウェーブで触れたすべての銘柄コードについて、`monthly_get` で **2024、2025、および 2026** を確認する。年ごとに記録する:
 
-| year | months with any non-null | gaps | expected empty? (未開示 / no archive) |
+| year | 何らかの非 null がある月 | 欠損 (gaps) | 空で想定通りか? (未開示 / アーカイブなし) |
 |---|---|---|---|
 | 2024 | … | … | … |
 | 2025 | … | … | … |
 | 2026 | … | … | … |
 
-Fail the review if any of 2024–2026 was not checked. 2024 is often incomplete after the first wave — treat missing 2024/1–2 or entire 2024 as a defect unless the issue lists a proven blocker (404, no archive).
+2024〜2026 のいずれかがチェックされなかった場合はレビューを不合格とする。最初のウェーブの後、2024 は不完全であることが多い — Issue に証明済みのブロッカー (404、アーカイブなし) が記載されていない限り、2024/1〜2 の欠損や 2024 全体の欠損は欠陥として扱う。
 
-**Numbers must match (mandatory).** Spot-check DB values against the source HTML (or the JSON actually POSTed), not only that months exist.
+**数値の一致 (必須)。** 月が存在することだけでなく、DB の数値をソース HTML (または実際に POST された JSON) と抜き打ちで照合する。
 
-- Pick at least: one early month, one mid, one late (and calendar 1–2 when filled from an adjacent FY page)
-- For each sample: same element, same calendar month → DB value == source (yoy: saved form; ingest of `yoy_pct` becomes `yoy_index` with +100)
-- Fail on any mismatch, silent null where the source has a number, or wrong year bucket (value landed in 2025 instead of 2024)
+- 少なくとも以下を選ぶこと: 序盤の月 1 つ、中盤の月 1 つ、終盤の月 1 つ (および隣接する年度のページから埋められた場合は暦年の 1〜2 月)
+- 各サンプルについて: 同じ要素、同じ暦月 → DB の値 == ソース (`yoy`: 保存された形式; `yoy_pct` の取り込みは +100 されて `yoy_index` になる)
+- 不一致、ソースに数値があるのに無言で null になっている場合、または年のバケツが間違っている場合 (値が 2024 ではなく 2025 に入った場合) は不合格とする
 
-**表記揺れなし (mandatory).** For every touched code × year (2024–2026), list all `element` names from `monthly_get`. Fail if the same metric appears under two labels, or a known ghost prefix/suffix remains.
+**表記揺れなし (必須)。** 触れた銘柄コード × 年 (2024〜2026) のすべてについて、`monthly_get` からすべての `element` 名をリストアップする。同じ指標が 2 つのラベルの下に表示されている場合、または既知のゴーストのプレフィックス/サフィックスが残っている場合は不合格とする。
 
-Check for:
+以下の点をチェックする:
 
-- Scope twins that should be one row (例: `全店` vs `全社` when HTML is 全社-only — USMH). **Do not** fail Alpen when HTML truly has both
-- Prefix leftovers: `売上（%）`, `U.S.M.H`, circled `①`/`②`, old `(1)` footnotes that canonicalize should have dropped
-- Same brand under two names in one year when they are a rename split across months (例: マックスバリュ関東 vs イオンフードスタイル) — report, do **not** auto-merge; ask
-- Split months across twin rows (3–8 on name A, 1–2 on name B for the same metric)
+- 1 つの行になるべきスコープの双子 (例: HTML が全社のみの場合の `全店` vs `全社` — USMH)。HTML に本当に両方がある場合 (アルペン)、不合格にしては**ならない**
+- プレフィックスの残りカス: `売上（%）`、`U.S.M.H`、丸囲みの `①`/`②`、正規化で削除されるべきだった古い `(1)` の脚注
+- 1 つの年の中で、月をまたいでブランド名が変更された場合の 2 つの名前 (例: マックスバリュ関東 vs イオンフードスタイル) — 報告するが、自動マージは**しない**; 質問すること
+- 同じ指標に対して、双子の行にまたがって月が分割されている (名前 A に 3〜8 月、名前 B に 1〜2 月)
 
-Also re-check:
+以下の点も再確認する:
 
-- [ ] Units sane (no count rows as `yoy_pct`)
-- [ ] Issue comment: matrix + number samples + label list / 表記揺れ findings + blockers
+- [ ] 単位がまともであるか (カウント行が `yoy_pct` になっていないか)
+- [ ] Issue コメント: マトリックス + 数値サンプル + ラベルリスト / 表記揺れの発見事項 + ブロッカー
 
-## Label cleanup playbook
+## ラベルクリーンアッププレイブック (Label cleanup playbook)
 
-1. Prove rule: canonicalize alone vs `issuer_aliases` (grep / local apply)
-2. If rule missing → small PR (aliases or canonicalize) + DESIGN_monthly_labels one-liner
-3. Ops on prod (aliases do not migrate old rows):
-   - conflict-check same month on src vs dst
-   - `monthly_add_element` dst if needed (`force` when similar)
-   - `monthly_put_values` copy → null-clear src → `monthly_delete_element` empty src
-4. Never invent 全店↔全社 folds. **全社 ≠ 全店** globally. Alpen keeps both. USMH ghost `全店` → `全社` only when HTML is 全社-only
+1. ルールの証明: `issuer_aliases` に対する単独の正規化 (grep / ローカル適用)
+2. ルールが欠落している場合 → 小さな PR (エイリアスまたは正規化) + DESIGN_monthly_labels の 1 行追加
+3. 本番環境での運用 (エイリアスは古い行を移行しない):
+   - ソース (src) と宛先 (dst) で同じ月の競合チェックを行う
+   - 必要に応じて dst を `monthly_add_element` する (類似している場合は `force`)
+   - `monthly_put_values` でコピー → src を null クリア → 空になった src を `monthly_delete_element` する
+4. 全店↔全社の統合をでっち上げないこと。グローバルにおいて **全社 ≠ 全店** である。アルペンは両方を保持する。USMH のゴースト `全店` → `全社` は、HTML が全社のみの場合にのみ行う。
 
-## Stop conditions
+## 停止条件 (Stop conditions)
 
-Stop and ask (do not POST):
+停止して質問すること (POST しないこと):
 
-- as_of / calendar mapping unclear (Kappa-class)
-- unit looks wrong (`yoy_pct` on counts)
-- archive 404 and no other URL proves the months
-- merge would collide unequal values
-- brand/scope rename judgment call
+- as_of / 暦年のマッピングが不明確 (かっぱ寿司クラス)
+- 単位が間違っているように見える (カウントに対する `yoy_pct`)
+- アーカイブが 404 であり、その月を証明する他の URL がない
+- マージすると等しくない値が衝突する
+- ブランド/スコープのリネームの判断が必要な場合
 
-## Related
+## 関連 (Related)
 
-- Trap table: [gotchas.md](gotchas.md)
-- UI proof after data lands: `.cursor/skills/verify-stock-analyzer/SKILL.md`
+- トラップテーブル: [gotchas.md](gotchas.md)
+- データ着信後の UI 証明: `.cursor/skills/verify-stock-analyzer/SKILL.md`

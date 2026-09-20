@@ -1,25 +1,25 @@
-# HTML monthly ops gotchas
+# HTML 月次運用のトラップ (HTML monthly ops gotchas)
 
-Short traps from #180-style waves. Codes are examples, not exclusive.
+Issue #180 スタイルのウェーブで発生しやすい短いトラップ（落とし穴）集です。記載されている銘柄コードは例であり、これらに限定されません。
 
-| Trap | What happens | What to do |
+| トラップ (Trap) | 発生する事象 (What happens) | 対応方法 (What to do) |
 |---|---|---|
-| Parser `as_of` poisoned | Kappa: nav max `YYYY年度` → wrong year map | Override `as_of` from live HTML / FY end; still ingest |
-| Aliases in JSON only | `html_to_ingest` never calls aliases; DB keeps old names | POST still goes through `_canonical_element`; **ops merge** existing rows |
-| Latest-only cron | `follow_re` + latest sidecar → one year | Use year/archive URLs for past calendars |
-| Same-URL overwrite | No archive → cannot backfill | List as blocked; ask for another URL |
-| One table of two | Ministop 9946, Konaka 7494: H1 or H2 only | Merge 上期+下期 before POST |
-| "2024" page ≠ full 2024 | Mar–Feb FY: page 1–2 → next calendar year | Previous FY page for calendar 1–2 (USMH `y2023`→2024/1–2; Fuji `year2023` 404 = blocked) |
-| First wave incomplete | After ingesting "2024" labeled pages, 1–2 or H2 still empty | Scan 2024/1–12 per code every wave |
-| No pair review | Agent self-certifies; holes, wrong values, or 表記揺れ slip through | Second pass: three-year coverage + number spot-check + element-name twin/ghost scan; fail if any year unchecked, a sample mismatches, or duplicate labels for one metric |
-| 全社 vs 全店 | Old canonicalize folded 全社→全店 | Keep both when HTML has both (Alpen). USMH: merge ghost 全店→全社 only if HTML is 全社-only |
-| `U.S.M.H` prefix | Company total column | Alias `32220` + ops rename to `全社`/`既存` |
-| `売上（%）` prefix | Nitori header stays after canonicalize | Alias `98430` + ops merge; 客数/客単価 `（%）` already drops |
-| Circled footnotes `①` | #169 drops `(1)` only | Canonicalize `①`–`⑳` (or alias) + ops merge old `① 全店 …` |
-| Bad unit | Watami 拠点数 as `yoy_pct` | Parser treats 拠点数 as `number`. Still stop if a count row is yoy |
-| Dual brand columns | マックスバリュ関東 vs イオンフードスタイル | Never merge as same metric |
+| パーサーの `as_of` 汚染 | かっぱ寿司 (Kappa): ナビゲーションの最大の `YYYY年度` により、年のマッピングが間違える | ライブ HTML / 決算期末 (FY end) から `as_of` を上書きする; 取り込みは続行する |
+| JSON 内のみのエイリアス | `html_to_ingest` はエイリアスを呼び出さない; DB には古い名前が残る | POST は引き続き `_canonical_element` を通過する; 既存の行を **運用マージ (ops merge)** する |
+| 最新のみの Cron | `follow_re` + 最新のサイドカー → 1年分のみ | 過去の暦年については、年次/アーカイブ URL を使用する |
+| 同一 URL の上書き | アーカイブなし → バックフィル不可 | ブロックされているものとしてリストアップする; 別の URL がないか質問する |
+| 2つのうち1つのテーブルのみ | ミニストップ 9946、コナカ 7494: 上期または下期のみになる | POST 前に 上期+下期 をマージする |
+| "2024" ページ ≠ 2024年全体 | 2月期決算 (Mar–Feb FY): ページの 1〜2 月 → 翌暦年になる | 暦年の 1〜2 月には前年度 (Previous FY) のページを使用する (USMH `y2023`→2024/1–2; Fuji `year2023` 404 = ブロック) |
+| 最初のウェーブが不完全 | "2024" とラベル付けされたページを取り込んだ後、1〜2 月や下期がまだ空である | 各ウェーブごとに、銘柄ごとに 2024/1–12 をスキャンする |
+| ペアレビューなし | エージェントが自己証明する; 抜け穴、間違った数値、または表記揺れが見逃される | 2回目の確認: 3年分の網羅性 + 数値の抜き打ちチェック + 要素名の双子/ゴーストのスキャン; いずれかの年が未チェック、サンプルが不一致、または1つの指標に重複ラベルがある場合は不合格とする |
+| 全社 vs 全店 | 古い正規化では 全社→全店 に統合されていた | HTML に両方がある場合 (アルペン) は両方残す。USMH: HTML が全社のみの場合に限り、ゴーストの 全店→全社 をマージする |
+| `U.S.M.H` プレフィックス | 会社合計の列 | `32220` のエイリアス + 運用で `全社`/`既存` にリネームする |
+| `売上（%）` プレフィックス | ニトリのヘッダーが正規化後も残る | `98430` のエイリアス + 運用マージ; 客数/客単価の `（%）` はすでに削除される |
+| 丸囲み数字の脚注 `①` | #169 では `(1)` のみ削除される | `①`–`⑳` を正規化 (またはエイリアス) + 古い `① 全店 …` を運用マージする |
+| 誤った単位 | ワタミの拠点数が `yoy_pct` になっている | パーサーは拠点数を `number` として扱う。カウント行が yoy になっている場合は停止する |
+| 2つのブランド列 | マックスバリュ関東 vs イオンフードスタイル | 同じ指標としてマージしてはならない |
 
-## Verify snippet
+## 検証用スニペット (Verify snippet)
 
 ```python
 from datetime import date
