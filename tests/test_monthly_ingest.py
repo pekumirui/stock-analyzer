@@ -591,6 +591,39 @@ def test_issuer_alias_cases() -> None:
         if reverse != stored:
             _fail(f"38170 year=2026 reverse {stored!r}: {reverse!r}")
 
+    # 30820: 短名→業態長名、中黒なしへ（Lane B / re-ingest）。canonicalize 後キー、year=2026。
+    # 店舗数 と 全店 店舗数 は canonicalize 後も別キー。裸プレフィックスも寄せる。
+    suffixes_30820 = (
+        (" 全店 売上高(前年比)", "yoy_index"),
+        (" 全店 客数(前年比)", "yoy_index"),
+        (" 全店 客単価(前年比)", "yoy_index"),
+        (" 店舗数", "number"),
+        (" 全店 店舗数", "number"),
+        (" 既存 売上高(前年比)", "yoy_index"),
+        (" 既存 客数(前年比)", "yoy_index"),
+        (" 既存 客単価(前年比)", "yoy_index"),
+        (" 既存 店舗数", "number"),
+        ("", "number"),
+    )
+    for src_prefix, dst_prefix in (
+        ("都市型ダイニング", "都市型ダイニング業態"),
+        ("モール郊外型", "モール郊外型レストラン業態"),
+        ("モール・郊外型レストラン業態", "モール郊外型レストラン業態"),
+    ):
+        for suffix, unit in suffixes_30820:
+            incoming = src_prefix + suffix
+            stored = dst_prefix + suffix
+            got = apply_issuer_aliases(
+                "30820", canonicalize_element_label(incoming, unit), year=2026,
+            )
+            if got != stored:
+                _fail(f"30820 year=2026 {incoming!r}: {got!r}, want {stored!r}")
+            reverse = apply_issuer_aliases(
+                "30820", canonicalize_element_label(stored, unit), year=2026,
+            )
+            if reverse != stored:
+                _fail(f"30820 year=2026 reverse {stored!r}: {reverse!r}")
+
 
 def test_mapping_examples() -> None:
     layout, mapping = plan_column_years(GIFT_MONTHS, 10, date(2026, 8, 5))
