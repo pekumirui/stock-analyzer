@@ -420,7 +420,6 @@ def _is_pre_merger_reference_section(section_text: str) -> bool:
 
 
 def _section_pick_rank(section_text: str, segment: str | None = None) -> int:
-    """表直前見出しの優先度。全店売上 > 全店帯 > 通常 > 1店1日。卸計は選ばない。"""
     tail = _section_heading_tail(section_text)
     if "卸計" in tail:
         return -1
@@ -428,10 +427,8 @@ def _section_pick_rank(section_text: str, segment: str | None = None) -> int:
         return -1
     if segment or _section_segment(section_text):
         return 0
-    # セル連結の「全店」「売上」は除外（全店売上100.0 など）
     if _ALL_STORE_SALES_HEAD_RE.search(tail):
         return 3
-    # やまやの「全店 (単位:…)」帯。セル値の全店97.1 は除外
     if re.search(r"全店(?=(?:・卸計)?(?:\(単位|（単位|単位|$))", tail):
         return 2
     if "1店1日" in tail or "一店一日" in tail or "拠点数" in tail or "店舗数" in tail:
