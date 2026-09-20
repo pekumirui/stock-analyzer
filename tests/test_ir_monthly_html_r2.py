@@ -393,6 +393,59 @@ ROYAL_TRAILING_UNIT_HTML = """
 </body></html>
 """
 
+# Live 8179 index shape: nav both brands, h2 + year h3 with （既存店前年比）,
+# H1 1–6 / H2 7–12 (7–8 filled). Values from /tmp/royal_index.html.
+ROYAL_DUAL_BRAND_HTML = """
+<html><body>
+<nav>
+<ul>
+<li><a href="#royalhost">ロイヤルホスト</a></li>
+<li><a href="#tenya">てんや</a></li>
+</ul>
+</nav>
+<section id="royalhost">
+<h2>ロイヤルホスト</h2>
+<h3>2026年（令和8年）（既存店前年比）</h3>
+<table>
+<tr><th></th><th>1月</th><th>2月</th><th>3月</th><th>4月</th><th>5月</th><th>6月</th><th>上半期</th></tr>
+<tr><th>売上高</th><td>106.5</td><td>104.3</td><td>104.4</td><td>106.1</td><td>112.2</td><td>99.8</td><td>105.6</td></tr>
+<tr><th>来客数</th><td>100.1</td><td>98.9</td><td>98.7</td><td>99.7</td><td>105.9</td><td>92.7</td><td>99.3</td></tr>
+<tr><th>客単価</th><td>106.4</td><td>105.5</td><td>105.7</td><td>106.4</td><td>105.9</td><td>107.7</td><td>106.3</td></tr>
+</table>
+<table>
+<tr><th></th><th>7月</th><th>8月</th><th>9月</th><th>10月</th><th>11月</th><th>12月</th><th>下半期</th><th>年間</th></tr>
+<tr><th>売上高</th><td>106.8</td><td>108.1</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><th>来客数</th><td>100.0</td><td>101.3</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><th>客単価</th><td>106.7</td><td>106.8</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+<p>（単位：％）</p>
+<ul>
+<li>上記数値は2026年8月度の確定値です。</li>
+</ul>
+</section>
+<section id="tenya">
+<h2>てんや</h2>
+<h3>2026年（令和8年）（既存店前年比）</h3>
+<table>
+<tr><th></th><th>1月</th><th>2月</th><th>3月</th><th>4月</th><th>5月</th><th>6月</th><th>上半期</th></tr>
+<tr><th>売上高</th><td>106.2</td><td>105.6</td><td>106.6</td><td>100.1</td><td>103.2</td><td>98.4</td><td>103.4</td></tr>
+<tr><th>来客数</th><td>94.1</td><td>97.6</td><td>100.1</td><td>94.3</td><td>97.3</td><td>92.1</td><td>95.9</td></tr>
+<tr><th>客単価</th><td>112.9</td><td>108.2</td><td>106.5</td><td>106.2</td><td>106.0</td><td>106.9</td><td>107.7</td></tr>
+</table>
+<table>
+<tr><th></th><th>7月</th><th>8月</th><th>9月</th><th>10月</th><th>11月</th><th>12月</th><th>下半期</th><th>年間</th></tr>
+<tr><th>売上高</th><td>102.3</td><td>98.0</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><th>来客数</th><td>94.7</td><td>90.6</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><th>客単価</th><td>108.0</td><td>108.2</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+<p>（単位：％）</p>
+<ul>
+<li>上記数値は2026年8月度の確定値です。</li>
+</ul>
+</section>
+</body></html>
+"""
+
 FORCE_UNIT_HTML = """
 <html><body>
 <h2>全店売上高前年同月比</h2>
@@ -683,6 +736,48 @@ def test_yoy_context_does_not_rename_guest_metrics() -> None:
         _fail(f"guest metric leaked sales yoy {labels}")
     if not any("来客数" == el or el.startswith("来客数") for el in labels):
         _fail(f"来客数 missing {labels}")
+
+
+def test_royal_two_brands_union_halves_and_keep_existing_scope() -> None:
+    got = html_to_ingest(ROYAL_DUAL_BRAND_HTML, "8179", table=None)
+    if got["as_of"] != "2026-08-31":
+        _fail(f"royal as_of {got['as_of']}")
+    if 1 not in got["months"] or 8 not in got["months"]:
+        _fail(f"royal months {got['months']}")
+    labels = [r["element"] for r in got["rows"]]
+    host = _row(got, "ロイヤルホスト 既存店 売上高")
+    if host["unit"] != "yoy_index":
+        _fail(f"host unit {host}")
+    if host["values"].get("1") != 106.5 or host["values"].get("8") != 108.1:
+        _fail(f"host H1+H2 {host}")
+    tenya_sales = _row(got, "てんや 既存店 売上高")
+    if tenya_sales["values"].get("1") != 106.2:
+        _fail(f"tenya H1 dropped {tenya_sales}")
+    tenya_guest = _row(got, "てんや 既存店 来客数")
+    if tenya_guest["unit"] != "yoy_index":
+        _fail(f"tenya guest unit {tenya_guest}")
+    branded = (
+        "ロイヤルホスト 既存店 売上高",
+        "ロイヤルホスト 既存店 来客数",
+        "ロイヤルホスト 既存店 客単価",
+        "てんや 既存店 売上高",
+        "てんや 既存店 来客数",
+        "てんや 既存店 客単価",
+    )
+    for el in branded:
+        row = _row(got, el)
+        if row["unit"] != "yoy_index":
+            _fail(f"{el} unit {row}")
+    if any(el in ("売上高", "来客数", "客単価") or el.startswith("既存店 ") for el in labels):
+        _fail(f"bare rows leaked {labels}")
+    if any(not el.startswith(("ロイヤルホスト ", "てんや ")) for el in labels):
+        _fail(f"unbranded {labels}")
+    sys.path.insert(0, str(ROOT))
+    from app.monthly_ingest import canonicalize_element_label
+
+    stored = canonicalize_element_label(tenya_guest["element"], tenya_guest["unit"])
+    if stored != "てんや 既存 客数(前年比)":
+        _fail(f"royal canonicalize {stored}")
 
 
 def test_repeated_scope_row_prefixes_existing_and_all_store() -> None:
@@ -2525,6 +2620,7 @@ def main() -> None:
     test_aeon_hokkaido_prefers_current_year_slide()
     test_village_nafco_sagami_as_of_not_future_fy()
     test_yoy_context_does_not_rename_guest_metrics()
+    test_royal_two_brands_union_halves_and_keep_existing_scope()
     test_repeated_scope_row_prefixes_existing_and_all_store()
     test_same_fy_prefers_later_filled_half()
     test_same_fy_prefers_last_quarter_over_prior()
