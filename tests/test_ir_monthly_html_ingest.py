@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "jobs"))
 
 from ir_monthly_html_ingest import (  # noqa: E402
     DEFAULT_LEDGER,
@@ -331,10 +331,8 @@ def test_loopback_and_default_ledger() -> None:
         pass
     else:
         _fail("remote base_url must fail")
-    if DEFAULT_LEDGER != Path("/tmp/html_ingest_ledger.json"):
+    if DEFAULT_LEDGER.as_posix() != "/tmp/html_ingest_ledger.json":
         _fail(f"ledger default {DEFAULT_LEDGER}")
-    if DEFAULT_LEDGER.parts[:2] != ("/", "tmp"):
-        _fail(f"ledger must not sit under dest {DEFAULT_LEDGER}")
 
 
 def test_cli_repeatable_only(tmp: Path) -> None:

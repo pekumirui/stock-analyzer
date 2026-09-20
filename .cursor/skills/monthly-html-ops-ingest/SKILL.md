@@ -51,7 +51,7 @@ Cron path is different: `ir_monthly_html_r2` writes `.ingest.json` only; `ir_mon
 | MCP `monthly_get` / `monthly_ingest` / `monthly_put_values` / `monthly_add_element` / `monthly_delete_element` | Prod loopback |
 | `config/ir_monthly.json` | `index_url`, `follow_re`, html issuers |
 | `.venv/bin/python` + `html_to_ingest` / `plan_column_years` | Local parse + year map |
-| `app/issuer_aliases.json` + `docs/DESIGN_monthly_labels.md` | New rename rules (code PR) |
+| `config/issuer_aliases.json` + `docs/DESIGN_monthly_labels.md` | New rename rules (code PR) |
 | GitHub issue | Progress before/after |
 
 VPS: `ssh stock-vps` + `curl http://127.0.0.1:8000/api/v1/tables/...` is the same API as MCP.

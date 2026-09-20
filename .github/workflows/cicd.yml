@@ -48,16 +48,16 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Compile
-        run: python -m compileall -q -f app scripts deploy .cursor
+        run: python -m compileall -q -f app jobs tests tools deploy .cursor
 
       - name: Smoke
-        run: python scripts/ci_smoke.py
+        run: python tests/ci_smoke.py
 
       - name: Log MCP
-        run: python scripts/test_log_mcp.py
+        run: python tests/test_log_mcp.py
 
       - name: Alert patterns
-        run: python scripts/test_alert_patterns.py
+        run: python tests/test_alert_patterns.py
 
   release:
     name: Release

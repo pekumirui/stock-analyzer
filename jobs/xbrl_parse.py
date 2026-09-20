@@ -1,12 +1,12 @@
 """Parse TDnet XBRL ZIPs from R2 dest into xbrl_* tables.
 
 使い方:
-  python scripts/xbrl_parse.py
-  python scripts/xbrl_parse.py --from 2026-01-01 --to 2026-09-05
-  python scripts/xbrl_parse.py --doc-id 081220260805509698
-  python scripts/xbrl_parse.py --retry-failed
-  python scripts/xbrl_parse.py load-mappings
-  python scripts/xbrl_parse.py report-unmapped --limit 50
+  python jobs/xbrl_parse.py
+  python jobs/xbrl_parse.py --from 2026-01-01 --to 2026-09-05
+  python jobs/xbrl_parse.py --doc-id 081220260805509698
+  python jobs/xbrl_parse.py --retry-failed
+  python jobs/xbrl_parse.py load-mappings
+  python jobs/xbrl_parse.py report-unmapped --limit 50
 """
 from __future__ import annotations
 

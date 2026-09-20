@@ -36,11 +36,13 @@
 | `app/main.py` | FastAPI エントリ + SPA 配信 |
 | `app/xbrl/` | TDnet 短信 iXBRL の parse / YAML マッピング / normalize。UI には出さない |
 | `app/xbrlp/` | kawasin73 gist の vendor。改変しない |
-| `scripts/run_batch.py` | 日次バッチ / バックフィル |
-| `scripts/check_demo.py` | スキーマ検査 + 旧デモ取り残しガード。`batch` / `backfill` の前に走る |
-| `scripts/*_r2.py` | TDnet / IR → R2 mount。下の「R2 バッチ」 |
+| `jobs/run_batch.py` | 日次バッチ / バックフィル |
+| `jobs/check_demo.py` | スキーマ検査 + 旧デモ取り残しガード。`batch` / `backfill` の前に走る |
+| `jobs/*_r2.py` | TDnet / IR → R2 mount。下の「R2 バッチ」 |
+| `config/` | `ir_monthly.json`、`issuer_aliases.json`、`monthly_row_order.json`、XBRL YAML |
+| `tests/` | `test_*.py` と `ci_smoke.py` |
 | `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ） |
-| `tools/` | オフライン検証。月次 PDF 指紋は `fmtdiff.py`（pdfplumber。ingest は従来どおり pdftotext）。XBRL 一致率は `xbrl_match_rate.py` |
+| `tools/` | オフライン検証と手元ヘルパー。月次 PDF 指紋は `fmtdiff.py`（pdfplumber。ingest は従来どおり pdftotext）。XBRL 一致率は `xbrl_match_rate.py`。`check_api.py` と `read_xls.py` |
 
 ## J-Quants（必須）
 
@@ -57,7 +59,7 @@
 
 - 分析・チャート・RS・ステージは **調整済価格** (`adj_*`)。生値は表示・保存用
 - 銘柄コードは 5 桁文字列（例 `"72030"`, `"262A0"`）。パターンは `^[0-9][0-9A-Z]{3}[0-9]$`。実コードは 1-9 始まり。表示は 4 桁 (7203 / 262A)
-- 合成デモデータは投入しない。`scripts/seed_demo.py` は置かない
+- 合成デモデータは投入しない。`seed_demo.py` は置かない
 - 旧デモの `0` 始まりコードが残っていると RS ランクが狂う。`check_demo.py` のガードを外さない。残っていたら `reset`
 - 取込は UPSERT で冪等。何度走らせても壊れないこと
 - Q単独は保存しない。`analytics.quarter_summary` で累計差から都度算出
@@ -71,8 +73,8 @@
 - `stocks` に無い code は書かない。ingest / POST / PUT は先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`
 - FK は付けない。`PRAGMA foreign_keys` も有効化しない
 - `MonthlyElement.unit` は保存 `number` / `yoy_index`。入力タグは `yoy_pct` も可（見出し。値の大きさから推測しない）。ingest は `yoy_pct` を `yoy_index` と `value+100` にして書く。PUT values は保存形の訂正で `+100` しない
-- 行名は `canonicalize_element_label`。銘柄固有は `app/issuer_aliases.json`。新しい例外は `docs/DESIGN_monthly_labels.md` に箇条書きで足す
-- `scripts/test_monthly_ingest.py` に銘柄分岐は足さない
+- 行名は `canonicalize_element_label`。銘柄固有は `config/issuer_aliases.json`。新しい例外は `docs/DESIGN_monthly_labels.md` に箇条書きで足す
+- `tests/test_monthly_ingest.py` に銘柄分岐は足さない
 - 月次業種は `monthly_issuers.industry`（既定 `その他`）。`stocks.sector33` とは別。ingest は `last_ingested_at` だけ更新し industry を触らない
 - HTML 月次の穴埋め・archive 投入は `.cursor/skills/monthly-html-ops-ingest/SKILL.md`
 
@@ -109,17 +111,17 @@
 
 | スクリプト | 保存先 | cron | 振る舞いの正本 |
 |---|---|---|---|
-| `scripts/tdnet_monthly_r2.py N` | `monthly/{code}/YYYYMMDD_CODE_….pdf` | 18:00 / 21:00（N=1）。初回は Actions の **TDnet monthly backfill** | `DESIGN.md` §3 |
-| `scripts/ir_monthly_r2.py` | `monthly/{code}/….pdf` / `.xlsx` / `.xls` | 10:00 / 16:00 | `DESIGN.md` §3、対象は `config/ir_monthly.json` の issuers |
-| `scripts/ir_monthly_html_r2.py` | `monthly/{code}/…_月次.html` + `.ingest.json` | 10:20 / 16:20 | `DESIGN.md` §3、対象は `config/ir_monthly.json` の html。自動 POST しない |
-| `scripts/ir_monthly_html_ingest.py` | （R2 は読まない。loopback POST） | 10:30 / 16:30 | `DESIGN.md` §3。`--ledger` は `/var/log/app/html_ingest_ledger.json` |
-| `scripts/tdnet_xbrl_r2.py N` | `xbrl/{code4}/` | 12–23 時 毎時 00 分（N=1） | `docs/DESIGN_xbrl.md` |
-| `scripts/xbrl_parse.py` → `scripts/xbrl_normalize.py` | `xbrl_*` テーブル | 毎時 10 分 / 20 分 | `docs/DESIGN_xbrl.md` |
+| `jobs/tdnet_monthly_r2.py N` | `monthly/{code}/YYYYMMDD_CODE_….pdf` | 18:00 / 21:00（N=1）。初回は Actions の **TDnet monthly backfill** | `DESIGN.md` §3 |
+| `jobs/ir_monthly_r2.py` | `monthly/{code}/….pdf` / `.xlsx` / `.xls` | 10:00 / 16:00 | `DESIGN.md` §3、対象は `config/ir_monthly.json` の issuers |
+| `jobs/ir_monthly_html_r2.py` | `monthly/{code}/…_月次.html` + `.ingest.json` | 10:20 / 16:20 | `DESIGN.md` §3、対象は `config/ir_monthly.json` の html。自動 POST しない |
+| `jobs/ir_monthly_html_ingest.py` | （R2 は読まない。loopback POST） | 10:30 / 16:30 | `DESIGN.md` §3。`--ledger` は `/var/log/app/html_ingest_ledger.json` |
+| `jobs/tdnet_xbrl_r2.py N` | `xbrl/{code4}/` | 12–23 時 毎時 00 分（N=1） | `docs/DESIGN_xbrl.md` |
+| `jobs/xbrl_parse.py` → `jobs/xbrl_normalize.py` | `xbrl_*` テーブル | 毎時 10 分 / 20 分 | `docs/DESIGN_xbrl.md` |
 
 - 月次の `{code}` は TDnet の発行体コードそのまま（9279, 262A）。J-Quants の 5 桁にしない。stocks 照合だけ末尾 0 を足す
 - `stocks` に無いコードは取らない。XBRL だけは `_unmatched/` へ置く
 - 既存ファイルは消さない。IR は同じ URL の上書きを日付付きで残し、中身の sha256 が同じなら skip
-- HTML 月次は `.ingest.json` を書くだけ。自動 POST しない。パーサー修正後は `--reparse`。DB 投入は別 cron の `scripts/ir_monthly_html_ingest.py`（loopback、latest-per-code、sha256 ledger）
+- HTML 月次は `.ingest.json` を書くだけ。自動 POST しない。パーサー修正後は `--reparse`。DB 投入は別 cron の `jobs/ir_monthly_html_ingest.py`（loopback、latest-per-code、sha256 ledger）
 - 各バッチの cron は分ける。1 本にまとめない
 - XBRL は決算 UI / `statements` を触らない。マッピングは `config/xbrl/` だけ。エージェントが独断で足さない
 - XBRL 検証は別 DB。本番 `stock.db` に書かない（`docs/XBRL_VERIFY.md`）

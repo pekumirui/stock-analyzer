@@ -1,9 +1,9 @@
 """IR サイトの月次 PDF/xlsx/xls を Cloudflare R2 mount へ保存する。
 
 使い方:
-  python scripts/ir_monthly_r2.py
-  python scripts/ir_monthly_r2.py --dest /tmp/monthly --only 3382
-  python scripts/ir_monthly_r2.py --dry-run
+  python jobs/ir_monthly_r2.py
+  python jobs/ir_monthly_r2.py --dest /tmp/monthly --only 3382
+  python jobs/ir_monthly_r2.py --dry-run
 
 対象は config/ir_monthly.json。表計算と pdf が両方あるページは表計算だけ取る。
 xlsx があれば xlsx、なければ xls。ingest / パーサーはまだ。

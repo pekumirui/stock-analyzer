@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from .config import MONTHLY_ROW_ORDER_PATH
 from .db import init_db
 from .api import ApiError, router, router_v1
 
@@ -14,6 +15,13 @@ app.include_router(router)
 app.include_router(router_v1)
 
 STATIC = Path(__file__).resolve().parent.parent / "static"
+
+
+@app.get("/static/monthly_row_order.json")
+def monthly_row_order():
+    return FileResponse(MONTHLY_ROW_ORDER_PATH)
+
+
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 

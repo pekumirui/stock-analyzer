@@ -29,10 +29,10 @@ if (Test-Path ".env") {
 }
 
 switch ($cmd) {
-    "migrate" { & $python scripts\migrate.py }
+    "migrate" { & $python jobs\migrate.py }
 
     "check" {
-        if ($arg) { & $python scripts\check_api.py $arg } else { & $python scripts\check_api.py }
+        if ($arg) { & $python tools\check_api.py $arg } else { & $python tools\check_api.py }
     }
 
     "serve" {
@@ -50,9 +50,9 @@ switch ($cmd) {
     }
 
     "batch" {
-        & $python scripts\check_demo.py
+        & $python jobs\check_demo.py
         if ($LASTEXITCODE -ne 0) { break }
-        if ($arg) { & $python scripts\run_batch.py --date $arg } else { & $python scripts\run_batch.py }
+        if ($arg) { & $python jobs\run_batch.py --date $arg } else { & $python jobs\run_batch.py }
     }
 
     "backfill" {
@@ -69,10 +69,10 @@ switch ($cmd) {
             Write-Host "年数は1〜20の範囲で指定してください" -ForegroundColor Red
             break
         }
-        & $python scripts\check_demo.py
+        & $python jobs\check_demo.py
         if ($LASTEXITCODE -ne 0) { break }
         Write-Host "過去 $years 年分を取得します" -ForegroundColor Cyan
-        & $python scripts\run_batch.py --backfill $years
+        & $python jobs\run_batch.py --backfill $years
     }
 
     default { Write-Host "使い方: .\run.ps1 [serve|check|reset|migrate|batch|backfill] [引数]" }

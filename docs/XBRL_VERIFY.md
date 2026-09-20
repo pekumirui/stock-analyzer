@@ -12,7 +12,7 @@ TDnet 短信 iXBRL の正規化層（`xbrl_financials`）を、IRBANK の百万�
 DATABASE_URL=sqlite:////absolute/path/stock_verify.db
 ```
 
-`init_db` / `python scripts/migrate.py` は通常どおり同じスキーマを作る（`xbrl_*` を含む）。
+`init_db` / `python jobs/migrate.py` は通常どおり同じスキーマを作る（`xbrl_*` を含む）。
 
 parse は `stocks` マスタが無いコードを skip する。検証DBへは **stocks テーブルだけ** コピーする:
 
@@ -24,7 +24,7 @@ python tools/copy_stocks_for_verify.py --from /path/to/stock.db --to /absolute/p
 
 ## dest は R2 のコピー
 
-`scripts/xbrl_parse.py --dest` は ZIP ツリーを読む。共有 R2 マウント（`/home/stock/r2-share/xbrl`）を直接指さず、手元へコピーした verify dest を渡す。
+`jobs/xbrl_parse.py --dest` は ZIP ツリーを読む。共有 R2 マウント（`/home/stock/r2-share/xbrl`）を直接指さず、手元へコピーした verify dest を渡す。
 
 ```
 # 例: rsync -a /home/stock/r2-share/xbrl/ /tmp/xbrl-verify-dest/
@@ -42,12 +42,12 @@ GOLDEN=data/xbrl_golden
 python tools/copy_stocks_for_verify.py --from /path/to/stock.db --to "$VERIFY_DB"
 
 # sqlite 絶対パスは sqlite:/// + /abs/... でスラッシュ 4 本
-DATABASE_URL="sqlite:///$VERIFY_DB" python scripts/migrate.py
+DATABASE_URL="sqlite:///$VERIFY_DB" python jobs/migrate.py
 
 DATABASE_URL="sqlite:///$VERIFY_DB" XBRL_DEST="$DEST" \
-  python scripts/xbrl_parse.py --dest "$DEST"
+  python jobs/xbrl_parse.py --dest "$DEST"
 
-DATABASE_URL="sqlite:///$VERIFY_DB" python scripts/xbrl_normalize.py
+DATABASE_URL="sqlite:///$VERIFY_DB" python jobs/xbrl_normalize.py
 
 # ゴールデン: 既定はファイル入力（ネットワーク無し）
 python tools/fetch_xbrl_golden.py --input /path/to/irbank_or_mcp.json --out-dir "$GOLDEN"

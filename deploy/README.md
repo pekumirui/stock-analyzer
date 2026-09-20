@@ -40,7 +40,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 | `VPS_HOST` / `VPS_USER` / `VPS_PORT` | 任意 | 未設定なら `160.251.179.50` / `stock` / `22` |
 | `CERTBOT_EMAIL` | 任意 | 無いと certbot は `--register-unsafely-without-email` |
 
-`stock.db` はパイプラインが触らない。初回データは手元で backfill して scp するか、VPS 上で `scripts/run_batch.py`。
+`stock.db` はパイプラインが触らない。初回データは手元で backfill して scp するか、VPS 上で `jobs/run_batch.py`。
 
 ## パイプラインが毎回やること
 
@@ -158,18 +158,18 @@ VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount �
    `.env` の当該行と `/home/stock/.config/rclone/rclone.conf`（chmod 600）が書かれ、user unit `r2-share.service` が mount する。
    secrets が無いときは provision は落とさず、ユニットは enable のみ
 3. 月次 PDF の初回バックフィルは Actions → **TDnet monthly backfill** → Run workflow、`days=30`。
-   SSH で `scripts/tdnet_monthly_r2.py 30` が走る（通常デプロイでは走らない）
+   SSH で `jobs/tdnet_monthly_r2.py 30` が走る（通常デプロイでは走らない）
 
 cron（JST）。`run_batch.py` の 19:30 / 06:00 はそのまま。
 
 | スクリプト | cron |
 |---|---|
-| `scripts/tdnet_monthly_r2.py 1` | 18:00 / 21:00 |
-| `scripts/ir_monthly_r2.py` | 10:00 / 16:00 |
-| `scripts/ir_monthly_html_r2.py` | 10:20 / 16:20 |
-| `scripts/ir_monthly_html_ingest.py` | 10:30 / 16:30（HTML 取得の後。ledger は `/var/log/app/html_ingest_ledger.json`） |
-| `scripts/tdnet_xbrl_r2.py 1` | 12–23 時の毎時 00 分 |
-| `scripts/xbrl_parse.py` / `scripts/xbrl_normalize.py` | 12–23 時の毎時 10 分 / 20 分 |
+| `jobs/tdnet_monthly_r2.py 1` | 18:00 / 21:00 |
+| `jobs/ir_monthly_r2.py` | 10:00 / 16:00 |
+| `jobs/ir_monthly_html_r2.py` | 10:20 / 16:20 |
+| `jobs/ir_monthly_html_ingest.py` | 10:30 / 16:30（HTML 取得の後。ledger は `/var/log/app/html_ingest_ledger.json`） |
+| `jobs/tdnet_xbrl_r2.py 1` | 12–23 時の毎時 00 分 |
+| `jobs/xbrl_parse.py` / `jobs/xbrl_normalize.py` | 12–23 時の毎時 10 分 / 20 分 |
 
 振る舞いは `DESIGN.md` §3 と `docs/DESIGN_xbrl.md`。`rclone.conf` と取得ファイルはリポジトリに置かない。
 
@@ -189,8 +189,8 @@ cron（JST）。`run_batch.py` の 19:30 / 06:00 はそのまま。
 3. エージェントから:
 
 ```bash
-ssh stock-vps 'cd /home/stock/stock-analyzer && .venv/bin/python -u scripts/ir_monthly_html_r2.py --reparse'
-ssh stock-vps 'cd /home/stock/stock-analyzer && .venv/bin/python -u scripts/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json'
+ssh stock-vps 'cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_monthly_html_r2.py --reparse'
+ssh stock-vps 'cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json'
 ```
 
 接続確認: `ssh stock-vps 'echo ok $(hostname)'`。失敗したら公開鍵が `stock` の `authorized_keys` にあるか、Actions の **Debug VPS** を見る。

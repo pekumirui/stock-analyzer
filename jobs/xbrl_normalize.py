@@ -1,8 +1,8 @@
 """Normalize parsed XBRL facts into xbrl_financials.
 
 使い方:
-  python scripts/xbrl_normalize.py
-  python scripts/xbrl_normalize.py --rebuild
+  python jobs/xbrl_normalize.py
+  python jobs/xbrl_normalize.py --rebuild
 """
 from __future__ import annotations
 

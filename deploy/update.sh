@@ -119,7 +119,7 @@ if [ ! -x "$APP_DIR/.venv/bin/pip" ]; then
   python3 -m venv "$APP_DIR/.venv"
 fi
 "$APP_DIR/.venv/bin/pip" install -r requirements.txt -q
-"$APP_DIR/.venv/bin/python" scripts/migrate.py
+"$APP_DIR/.venv/bin/python" jobs/migrate.py
 
 sudo systemctl restart stock-analyzer
 sudo systemctl restart stock-analyzer-mcp

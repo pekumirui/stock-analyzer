@@ -13,8 +13,10 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "jobs"))
 
+from app.config import XBRL_DEST  # noqa: E402
 import tdnet_xbrl_r2 as xbrl_mod  # noqa: E402
 from tdnet_xbrl_r2 import (  # noqa: E402
     LIST_LIMIT,
@@ -427,6 +429,11 @@ def test_manifest_skip_by_xbrl_id(tmp: Path) -> None:
         _fail(f"manifest fields: {line!r}")
 
 
+def test_default_dest_shares_xbrl_dest() -> None:
+    if xbrl_mod.DEFAULT_DEST != XBRL_DEST:
+        _fail(f"DEFAULT_DEST {xbrl_mod.DEFAULT_DEST!r} != XBRL_DEST {XBRL_DEST!r}")
+
+
 def test_date_window() -> None:
     start, end = date_window(1, today=date(2026, 8, 5))
     if start != end or str(start) != "2026-08-05":
@@ -450,6 +457,7 @@ def test_sha256_of_tiny_zip() -> None:
 def main() -> None:
     from tempfile import TemporaryDirectory
 
+    test_default_dest_shares_xbrl_dest()
     test_to_code4()
     test_unmatched_and_dest_paths()
     test_tdnet_xbrl_id()

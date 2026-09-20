@@ -53,11 +53,11 @@
 ```
 [TDnet inbs ZIP]
         │
-        │ 既存: scripts/tdnet_xbrl_r2.py
+        │ 既存: jobs/tdnet_xbrl_r2.py
         ▼
 [R2 mount /home/stock/r2-share/xbrl/{code4}/ + manifest/*.jsonl]
         │
-        │ (2) parse   scripts/xbrl_parse.py
+        │ (2) parse   jobs/xbrl_parse.py
         ▼
 ┌──────────────────────────────────────┐
 │ 生データ層                            │
@@ -65,7 +65,7 @@
 │  xbrl_elements / xbrl_facts           │
 └──────────────────────────────────────┘
         │
-        │ (3) normalize   scripts/xbrl_normalize.py
+        │ (3) normalize   jobs/xbrl_normalize.py
         ▼
 ┌──────────────────────────────────────┐
 │ 正規化層  xbrl_financials             │
@@ -79,9 +79,9 @@
 
 | ジョブ | 実装 | 責務 |
 |---|---|---|
-| (1) fetch | `scripts/tdnet_xbrl_r2.py`（既存・変更最小） | 一覧 → ZIP → R2。skip 正本は manifest の `xbrl_id` |
-| (2) parse | `scripts/xbrl_parse.py`（新規） | ZIP → xbrlp → `xbrl_*` 生データ |
-| (3) normalize | `scripts/xbrl_normalize.py`（新規） | facts + YAML マッピング → `xbrl_financials` |
+| (1) fetch | `jobs/tdnet_xbrl_r2.py`（既存・変更最小） | 一覧 → ZIP → R2。skip 正本は manifest の `xbrl_id` |
+| (2) parse | `jobs/xbrl_parse.py`（新規） | ZIP → xbrlp → `xbrl_*` 生データ |
+| (3) normalize | `jobs/xbrl_normalize.py`（新規） | facts + YAML マッピング → `xbrl_financials` |
 
 テーブル名に `xbrl_` を付ける。既存の `statements` / 月次 `*_elements` と衝突させない。
 
@@ -271,7 +271,7 @@ CREATE TABLE xbrl_job_runs (
 );
 ```
 
-`unmapped` は VIEW ではなく `scripts/xbrl_parse.py report-unmapped` のクエリで出す（SQLite の VIEW 運用を増やさない）。
+`unmapped` は VIEW ではなく `jobs/xbrl_parse.py report-unmapped` のクエリで出す（SQLite の VIEW 運用を増やさない）。
 
 ### 4.3 設計意図
 
@@ -313,9 +313,9 @@ config/xbrl/
     bs_jpgaap.yaml
     cf_jpgaap.yaml
     ifrs.yaml
-scripts/xbrl_parse.py
-scripts/xbrl_normalize.py
-scripts/test_xbrl_parse.py
+jobs/xbrl_parse.py
+jobs/xbrl_normalize.py
+tests/test_xbrl_parse.py
 ```
 
 ### 5.3 xbrlp が提供するもの / しないもの
@@ -411,7 +411,7 @@ manifest の `title` から機械判定する。取りこぼしは `other` / NUL
 
 ### 6.1 fetch（既存）
 
-仕様の正本は `scripts/tdnet_xbrl_r2.py` の docstring。本設計では変えない。
+仕様の正本は `jobs/tdnet_xbrl_r2.py` の docstring。本設計では変えない。
 
 - 入力: 日数 N（cron は 1）
 - 出力: `{dest}/{code4}/YYYYMMDD_..._{xbrl_id}.zip` と `manifest/{YYYY-MM-DD}.jsonl`
@@ -442,7 +442,7 @@ parse ジョブは manifest を入力カタログにする。fetch 側に parse_
 `config/xbrl/` の YAML が正本。DB を直接編集しない。
 
 ```
-python scripts/xbrl_parse.py load-mappings
+python jobs/xbrl_parse.py load-mappings
 ```
 
 差分 UPSERT。YAML から消えたマッピングは削除。`xbrl_std_items` も同様。
@@ -467,18 +467,18 @@ filing 単位。
 
 ```bash
 # 既存
-./run.sh 相当で python scripts/tdnet_xbrl_r2.py 1
+./run.sh 相当で python jobs/tdnet_xbrl_r2.py 1
 
 # 新規
-python scripts/xbrl_parse.py                     # pending + 未登録 ZIP
-python scripts/xbrl_parse.py --from 2026-01-01 --to 2026-09-05
-python scripts/xbrl_parse.py --doc-id 2026090750xxxx
-python scripts/xbrl_parse.py --retry-failed
-python scripts/xbrl_parse.py load-mappings
-python scripts/xbrl_parse.py report-unmapped --limit 50
+python jobs/xbrl_parse.py                     # pending + 未登録 ZIP
+python jobs/xbrl_parse.py --from 2026-01-01 --to 2026-09-05
+python jobs/xbrl_parse.py --doc-id 2026090750xxxx
+python jobs/xbrl_parse.py --retry-failed
+python jobs/xbrl_parse.py load-mappings
+python jobs/xbrl_parse.py report-unmapped --limit 50
 
-python scripts/xbrl_normalize.py
-python scripts/xbrl_normalize.py --rebuild
+python jobs/xbrl_normalize.py
+python jobs/xbrl_normalize.py --rebuild
 ```
 
 dest 既定は `tdnet_xbrl_r2.DEFAULT_DEST`。`--dest` で上書き。
@@ -585,7 +585,7 @@ XBRL_TEXT_MAX_CHARS=1000
 
 ## 10. テスト
 
-`scripts/test_xbrl_parse.py`。実 ZIP は `scripts/fixtures/xbrl/` に最低 5 件。git に大きな ZIP を載せたくなければテストは「ファイルが無いとき skip」でもよいが、CI で 1 件は欲しい。
+`tests/test_xbrl_parse.py`。実 ZIP は `tests/fixtures/xbrl/` に最低 5 件。git に大きな ZIP を載せたくなければテストは「ファイルが無いとき skip」でもよいが、CI で 1 件は欲しい。
 
 必ず含める種類:
 

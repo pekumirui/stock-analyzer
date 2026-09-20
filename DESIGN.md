@@ -22,7 +22,7 @@
 
 - **言語**: Python 3.10+ / FastAPI / SQLAlchemy / pandas
 - **フロント**: `static/index.html` + `static/css/` + `static/js/` の vanilla JS SPA (lightweight-charts)。スマホ対応。フレームワークを足さない
-- **バッチ**: `scripts/run_batch.py` を cron / スケジューラで日次実行
+- **バッチ**: `jobs/run_batch.py` を cron / スケジューラで日次実行
 
 ## 2. J-Quants API V2 / Light プランの前提
 
@@ -176,29 +176,29 @@ number で表示単位がある指標は項目名の末尾に `（単位）` を
 **行名。** 正本は [`docs/DESIGN_monthly_labels.md`](docs/DESIGN_monthly_labels.md)。
 ingest / POST は `canonicalize_element_label` してから既存行を探す。GET は保存名。SPA は `fmtMonthlyElement`。
 
-**R2 への保存（`scripts/*_r2.py`）。** 保存先は `/home/stock/r2-share/monthly/{code}/`。cron と運用は `deploy/README.md`。共通の約束は次のとおり。
+**R2 への保存（`jobs/*_r2.py`）。** 保存先は `/home/stock/r2-share/monthly/{code}/`。cron と運用は `deploy/README.md`。共通の約束は次のとおり。
 
 - `{code}` は TDnet の発行体コードそのまま（9279 / 262A）。J-Quants 5 桁にしない。stocks 照合だけ display_code + 末尾 0（9282→92820, 262A→262A0）
 - stocks に無いコードはダウンロードしない。DB が読めない／map が空なら警告のみで継続
 - 既存ファイルは消さない。IR（PDF/xlsx/HTML）は同じ URL の上書き公開を日付付きで残し、中身の sha256 が同じなら skip
 - 3 本のバッチ（TDnet PDF / IR PDF・xlsx / IR HTML）の cron は分ける
 
-TDnet 月次 PDF（`scripts/tdnet_monthly_r2.py`）:
+TDnet 月次 PDF（`jobs/tdnet_monthly_r2.py`）:
 
 - ダウンロード時にインフラファンドを除外する。商品区分は REIT と同じ `013`/`022` しか無いので、名称に「インフラ」を含むものだけ落とす（マスタ欠落時は TDnet 社名の「インフラ投資法人」）
 - 通常の REIT（8985 ジャパン・ホテル・リート投資法人など）は残す。決算速報の REIT 全除外とは別
 
-IR 月次 PDF/xlsx/xls（`scripts/ir_monthly_r2.py`）:
+IR 月次 PDF/xlsx/xls（`jobs/ir_monthly_r2.py`）:
 
 - TDnet に月次が無い発行体が対象。`config/ir_monthly.json` の issuers（URL 確認済みだけ載せる）
 - 表計算と pdf が両方あるページは表計算だけ取る。xlsx があれば xlsx、なければ xls（大東建託 `history_*.xls`）
 - AWS ELB が識別 UA を 403 する発行体は、同じ `http_get` がブラウザ UA に一度だけフォールバックする
-- 大東建託 (1878) の `history.xls` は `scripts/ir_monthly_xls_ingest.py` が ingest JSON を作り loopback POST する。year は送らない。汎用 xlsx パーサは無い。HTML ingest の cron には混ぜない
+- 大東建託 (1878) の `history.xls` は `jobs/ir_monthly_xls_ingest.py` が ingest JSON を作り loopback POST する。year は送らない。汎用 xlsx パーサは無い。HTML ingest の cron には混ぜない
 
-IR 月次 HTML（`scripts/ir_monthly_html_r2.py`）:
+IR 月次 HTML（`jobs/ir_monthly_html_r2.py`）:
 
 - `.html`（原本）と `.ingest.json`（派生。`POST /api/v1/tables/{code}/ingest` と同じ形）を隣に置く。自動 POST しない
-- DB 投入は別スクリプト `scripts/ir_monthly_html_ingest.py`。code ごとにファイル名日付が最新の `.ingest.json` を loopback へ POST する。year は送らない。sha256 が前回成功分と同じなら POST しない。cron は producer（10:20 / 16:20）の後（10:30 / 16:30）。ledger は dest/R2 ではなく `/var/log/app/html_ingest_ledger.json`
+- DB 投入は別スクリプト `jobs/ir_monthly_html_ingest.py`。code ごとにファイル名日付が最新の `.ingest.json` を loopback へ POST する。year は送らない。sha256 が前回成功分と同じなら POST しない。cron は producer（10:20 / 16:20）の後（10:30 / 16:30）。ledger は dest/R2 ではなく `/var/log/app/html_ingest_ledger.json`
 - 対象は `config/ir_monthly.json` の html。セレクタは json（`table` / `follow_re` / `source=eir` / `parse` / `force_unit`）。銘柄クラスは作らない
 - unit 判定の context は page 見出しに加え、当該 table 直上の section とページ内の `(単位：%)` / `単位:%` を含む。ページに単位表示が無く指数な銘柄だけ `force_unit: "yoy_index"` を json に書く。見出しに 増減比/伸び率 があれば `単位:%` より `yoy_pct` を優先（ツルハ・サガミ）。見出しが伸び率でもセルが符号なし100基準なら `force_unit`（3148 クリエイトSD）
 - 年度別ページは `follow_re` で最新年を辿る。画像・本文のみは `parse: false`（HTML は残し JSON は書かない）
@@ -214,7 +214,7 @@ IR 月次 HTML（`scripts/ir_monthly_html_r2.py`）:
 - HTML ingest JSON の `months` は末尾の空列を落とす（値のある最終月で終わる）。途中の欠月は残す
 - パーサーを直したら保存済み HTML を `--reparse`
 
-TDnet 短信 XBRL は取得済み ZIP（`scripts/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。
+TDnet 短信 XBRL は取得済み ZIP（`jobs/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。
 スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。決算速報 UI の正本は当面 `statements` のまま。XBRL 層で上書きしない。
 
 
