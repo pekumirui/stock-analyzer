@@ -55,6 +55,7 @@ $RECYCLE.BIN/
 tmp/
 .ipynb_checkpoints/
 .mcp-oauth.json
+.audit/
 
 # --- 手元のデザインメモ（リポジトリの DESIGN.md とは別） ---
 DESIGN/
