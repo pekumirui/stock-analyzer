@@ -187,27 +187,21 @@ function escHtml(s){
   return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 }
 
-function monthlyLatestYearTable(tables){
-  let best = null;
-  for(const t of tables || []){
-    if(!t || !Number.isFinite(Number(t.year))) continue;
-    if(!best || Number(t.year) > Number(best.year)) best = t;
-  }
-  return best;
-}
-
 function monthlySegmentGate(tables){
-  const latest = monthlyLatestYearTable(tables);
-  const counts = {};
-  for(const e of (latest && latest.elements) || []){
-    const L = e.label;
-    if(!L.group) continue;
-    if(!L.metric && !L.channel && !L.scope) continue;
-    counts[L.group] = (counts[L.group] || 0) + 1;
-  }
+  const keep = new Set(monthlyDisplayYears((tables || []).map(t => t && t.year)));
   const gated = new Set();
-  for(const [seg, n] of Object.entries(counts)){
-    if(n >= 2) gated.add(seg);
+  for(const t of tables || []){
+    if(!t || !keep.has(Number(t.year))) continue;
+    const counts = {};
+    for(const e of t.elements || []){
+      const L = e.label;
+      if(!L || !L.group) continue;
+      if(!L.metric && !L.channel && !L.scope) continue;
+      counts[L.group] = (counts[L.group] || 0) + 1;
+    }
+    for(const [seg, n] of Object.entries(counts)){
+      if(n >= 2) gated.add(seg);
+    }
   }
   return gated;
 }
