@@ -1592,6 +1592,55 @@ def test_hurxley_dual_brand_prefixes_and_count_units() -> None:
             _fail(f"FY2026 archive leaked {row}")
 
 
+def _hurxley_stored(element: str, unit: str, *, year: int = 2026) -> str:
+    sys.path.insert(0, str(ROOT))
+    from app.monthly_ingest import apply_issuer_aliases, canonicalize_element_label
+
+    name = canonicalize_element_label(element, unit)
+    name = apply_issuer_aliases("75610", name, year=year)
+    return canonicalize_element_label(name, unit)
+
+
+def test_hurxley_canonicalize_aliases() -> None:
+    # parser raw → canonicalize → 75610 alias → ops final (no extra parser 名寄せ)
+    cases = [
+        ("ほっかほっか亭 売上(前年同月比:%) 全店", "yoy_index", "ほっかほっか亭 全店 売上高(前年比)"),
+        ("ほっかほっか亭 売上(前年同月比:%) 既存店", "yoy_index", "ほっかほっか亭 既存 売上高(前年比)"),
+        ("ほっかほっか亭 店舖数(店)", "number", "ほっかほっか亭 店舗数"),
+        ("ほっかほっか亭 出店(店)", "number", "ほっかほっか亭 出店"),
+        ("ほっかほっか亭 閉店(店)", "number", "ほっかほっか亭 退店"),
+        ("店舗流通ネット 稼働店舖数(①+②) (店)", "number", "店舗流通ネット 稼働店舗数"),
+        ("店舗流通ネット ① 店舗不動産の 管理テナント数 (店)", "number", "店舗流通ネット 稼働店舗数 管理テナント数"),
+        ("店舗流通ネット ② 店舖リースの 取引店舖数 (店)", "number", "店舗流通ネット 稼働店舗数 取引店舗数"),
+        ("店舗流通ネット 増加(店)", "number", "店舗流通ネット 稼働店舗数 増加"),
+        ("店舗流通ネット 減少(店)", "number", "店舗流通ネット 稼働店舗数 減少"),
+        # previous flat ops names also fold into the parent/child form
+        ("店舗流通ネット 管理テナント数", "number", "店舗流通ネット 稼働店舗数 管理テナント数"),
+        ("店舗流通ネット 取引 店舗数", "number", "店舗流通ネット 稼働店舗数 取引店舗数"),
+        ("店舗流通ネット 増加", "number", "店舗流通ネット 稼働店舗数 増加"),
+        ("店舗流通ネット 減少", "number", "店舗流通ネット 稼働店舗数 減少"),
+        ("店舗流通ネット 稼働 店舗数", "number", "店舗流通ネット 稼働店舗数"),
+    ]
+    for src, unit, want in cases:
+        got = _hurxley_stored(src, unit)
+        if got != want:
+            _fail(f"hurxley alias {src!r} → {got!r}, want {want!r}")
+    parent = _hurxley_stored("店舗流通ネット 稼働店舖数(①+②) (店)", "number")
+    from app.monthly_ingest import monthly_element_label
+
+    lab = monthly_element_label(parent, "number")
+    if lab["group"] != "店舗流通ネット" or lab["metric"] != "稼働店舗数" or lab["breakdown"]:
+        _fail(f"hurxley TRN parent label {lab}")
+    child = _hurxley_stored("店舗流通ネット 増加(店)", "number")
+    lab_c = monthly_element_label(child, "number")
+    if (
+        lab_c["group"] != "店舗流通ネット"
+        or lab_c["breakdown"] != "増加"
+        or lab_c["breakdown_depth"] != 1
+    ):
+        _fail(f"hurxley TRN child label {lab_c}")
+
+
 def test_watami_canonicalize_aliases() -> None:
     cases = [
         ("全店 (全業態) 売上高（%）", "yoy_index", "国内外食 全店 売上高(前年比)"),
@@ -2451,6 +2500,7 @@ def main() -> None:
     test_watami_prefers_sales_over_kyoten()
     test_watami_sections_prefix_and_count_units()
     test_hurxley_dual_brand_prefixes_and_count_units()
+    test_hurxley_canonicalize_aliases()
     test_watami_canonicalize_aliases()
     test_watami_nav_does_not_prefix_domestic_or_mix_years()
     test_watami_fy2024_bare_names_alias_to_subway_excluded()

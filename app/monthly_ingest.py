@@ -147,6 +147,8 @@ _KAISETSU_CNT_MARK = "\x00KAISETSUCNT\x00"
 _KAISETSU_MARK = "\x00KAISETSU\x00"
 _TETTAI_CNT_MARK = "\x00TETTAICNT\x00"
 _TETTAI_MARK = "\x00TETTAI\x00"
+_KADO_STORES_MARK = "\x00KADOSTORES\x00"
+_TRADE_STORES_MARK = "\x00TRADESTORES\x00"
 _FLOW_PROTECT: tuple[tuple[str, str], ...] = (
     ("転換出店数", _TENKAN_CNT_MARK),
     ("転換出店", _TENKAN_MARK),
@@ -157,6 +159,8 @@ _FLOW_PROTECT: tuple[tuple[str, str], ...] = (
     ("閉鎖数", _CLOSE_CNT_MARK),
     ("開設数", _KAISETSU_CNT_MARK),
     ("撤退数", _TETTAI_CNT_MARK),
+    ("稼働店舗数", _KADO_STORES_MARK),
+    ("取引店舗数", _TRADE_STORES_MARK),
     ("開店", _LAUNCH_MARK),
     ("出店", _OPEN_MARK),
     ("退店", _LEAVE_MARK),
@@ -175,6 +179,8 @@ _FLOW_RESTORE: tuple[tuple[str, str], ...] = (
     (_CLOSE_CNT_MARK, "閉鎖数"),
     (_KAISETSU_CNT_MARK, "開設数"),
     (_TETTAI_CNT_MARK, "撤退数"),
+    (_KADO_STORES_MARK, "稼働店舗数"),
+    (_TRADE_STORES_MARK, "取引店舗数"),
     (_LAUNCH_MARK, "開店"),
     (_OPEN_MARK, "出店"),
     (_LEAVE_MARK, "退店"),
@@ -217,6 +223,14 @@ _BREAKDOWN_CANON = {
 }
 _BREAKDOWN_MARKS = frozenset({"内)", "（内", "うち"})
 _BREAKDOWN_RANK = {"": 0, "ドラッグ": 1, "調剤": 2, "物販": 3}
+# 稼働店舗数の内訳（ハークスレイ店舗流通ネットなど）。保存は1語。
+_ACTIVE_STORE_BREAKDOWN_RANK = {
+    "管理テナント数": 1,
+    "取引店舗数": 2,
+    "増加": 3,
+    "減少": 4,
+}
+_BREAKDOWN_RANK.update(_ACTIVE_STORE_BREAKDOWN_RANK)
 # 領域 leftover の木。中節のあと小枝。保存の内訳は1語。
 _AREA_TREE: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
     "グロース領域": (
@@ -274,6 +288,7 @@ _DUMMY_STORE_TOKS = frozenset({"店舗"})
 _OPEN_QUALIFIERS = frozenset({"新規"})
 _STORE_ADJ_MARKS = ("純増", "新設", "改装", "業態転換")
 _METRIC_PREFIX: tuple[tuple[str, str], ...] = (
+    ("稼働店舗数", "稼働店舗数"),
     ("店舗数", "店舗数"),
     ("来客数", "客数"),
     ("客単価", "客単価"),
@@ -284,7 +299,9 @@ _METRIC_PREFIX: tuple[tuple[str, str], ...] = (
     ("単価", "客単価"),
     ("売上", "売上高"),
 )
-_METRIC_STARTSWITH = frozenset({"店舗数", "来客数", "客単価", "売上高", "取扱高", "客数"})
+_METRIC_STARTSWITH = frozenset({
+    "稼働店舗数", "店舗数", "来客数", "客単価", "売上高", "取扱高", "客数",
+})
 _COUNTRY_RANK = {"": 0, "日本": 1, "海外": 2}
 _CHANNEL_RANK = {"直営+FC": 0, "直営": 1, "FC": 2, "": 3}
 _FC_TOKEN_RE = re.compile(r"^(?:FC|ＦＣ)$")
@@ -335,6 +352,8 @@ def _peel_metric(tok: str) -> tuple[str | None, str | None]:
 
     短い接頭辞（売上/来客/単価）は前方一致しない（売上変化を売上高にしない）。
     """
+    if tok in _ACTIVE_STORE_BREAKDOWN_RANK:
+        return None, tok
     for src, canon in _METRIC_PREFIX:
         if tok == src:
             return canon, None
@@ -372,6 +391,14 @@ def _stitch_real_store(leftover: list[str], metric: str) -> tuple[list[str], str
     """店舗数 unglue が 実店舗 を 実 に割った残骸を戻す。"""
     if metric == "店舗数":
         leftover = ["実店舗" if tok == "実" else tok for tok in leftover]
+    return leftover, metric
+
+
+def _stitch_active_stores(leftover: list[str], metric: str) -> tuple[list[str], str]:
+    """稼働 + 店舗数 → 稼働店舗数。セグメントに 稼働 を残さない。"""
+    if metric == "店舗数" and "稼働" in leftover:
+        leftover = [tok for tok in leftover if tok != "稼働"]
+        return leftover, "稼働店舗数"
     return leftover, metric
 
 
@@ -503,6 +530,22 @@ def _peel_area_breakdown(
     return leftover[: parent_i + 1], child
 
 
+def _peel_active_store_breakdown(
+    leftover: list[str], metric: str, breakdown: str,
+) -> tuple[list[str], str]:
+    """稼働店舗数の子（管理テナント数 / 取引店舗数 / 増加 / 減少）を内訳へ。"""
+    if breakdown or metric != "稼働店舗数" or not leftover:
+        return leftover, breakdown
+    last = leftover[-1]
+    if last in _ACTIVE_STORE_BREAKDOWN_RANK:
+        return leftover[:-1], last
+    if len(leftover) >= 2:
+        joined = leftover[-2] + leftover[-1]
+        if joined in _ACTIVE_STORE_BREAKDOWN_RANK:
+            return leftover[:-2], joined
+    return leftover, breakdown
+
+
 def parse_element_layers(element: str) -> dict[str, str]:
     """国 / セグメント / 時間軸 / チャネル / スコープ / 指標 / 内訳。正規化前の名前でも読む。"""
     country = ""
@@ -549,6 +592,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
         leftover.append(tok)
     leftover, metric = _stitch_store_flow(leftover, metric)
     leftover, metric = _stitch_real_store(leftover, metric)
+    leftover, metric = _stitch_active_stores(leftover, metric)
     leftover, metric = _stitch_vs_sales(leftover, metric)
     leftover, metric = _peel_adj_metric(leftover, metric)
     leftover, metric = _stitch_consolidated(leftover, metric)
@@ -565,6 +609,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
         scope = "全店"
     leftover, breakdown = _peel_breakdown(leftover, _metric_core(metric))
     leftover, breakdown = _peel_area_breakdown(leftover, metric, breakdown)
+    leftover, breakdown = _peel_active_store_breakdown(leftover, metric, breakdown)
     return {
         "country": country,
         "segment": " ".join(leftover),
@@ -882,7 +927,7 @@ def _row_metric(key: str) -> str:
         return "close"
     if _is_store_adj(key, layers["segment"]):
         return "adj"
-    if metric == "店舗数":
+    if metric == "店舗数" or metric == "稼働店舗数":
         return "stores"
     if metric == "客単価":
         return "spend"
@@ -935,6 +980,8 @@ def monthly_breakdown_depth(element: str) -> int:
     bd = _layers_of(element)["breakdown"]
     if not bd:
         return 0
+    if bd in _ACTIVE_STORE_BREAKDOWN_RANK:
+        return 1
     return _AREA_BREAKDOWN_DEPTH.get(bd, 1)
 
 
@@ -947,7 +994,7 @@ def monthly_row_scope_rank(element: str) -> int:
         return _SCOPE_RANK["company"]
     if layers["scope"] == "全店":
         return _SCOPE_RANK["all"]
-    if _is_flow_metric(layers["metric"]) or layers["metric"] == "店舗数":
+    if _is_flow_metric(layers["metric"]) or layers["metric"] in ("店舗数", "稼働店舗数"):
         return _SCOPE_RANK["other"]
     if _row_metric(element) in {"stores", "open", "close", "adj"}:
         return _SCOPE_RANK["other"]
