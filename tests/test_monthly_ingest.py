@@ -294,6 +294,35 @@ def test_canonicalize_element_label() -> None:
         _fail("調剤事業 stays a segment")
     if canonicalize_element_label("内アパレル 全店 売上高(前年比)", "yoy_index") != "内アパレル 全店 売上高(前年比)":
         _fail("内アパレル stays a segment")
+    if canonicalize_element_label("グロース領域 売上高 ホテル", "number") != "グロース領域 全店 売上高 ホテル":
+        _fail("グロース領域 売上高 ホテル peels to 内訳")
+    area = parse_element_layers("グロース領域 売上高 ホテル")
+    if (
+        area["segment"] != "グロース領域"
+        or area["scope"] != "全店"
+        or area["metric"] != "売上高"
+        or area["breakdown"] != "ホテル"
+    ):
+        _fail(f"parse area 内訳 layers: {area!r}")
+    if canonicalize_element_label("グロース領域 全店 売上高 インカム、太陽光", "number") != "グロース領域 全店 売上高 インカム太陽光":
+        _fail("インカム、太陽光 aliases to インカム太陽光")
+    if canonicalize_element_label("サステナブル領域 売上高 その他", "number") != "サステナブル領域 全店 売上高 その他":
+        _fail("サステナブル領域 その他 peels to 内訳")
+    if canonicalize_element_label("サステナブル領域 全店 売上高 アパレル・雑貨", "number") != "サステナブル領域 全店 売上高 アパレル雑貨":
+        _fail("アパレル・雑貨 aliases to アパレル雑貨")
+    if canonicalize_element_label("グロース領域 売上高 ホテル", "yoy_index") != "グロース領域 全店 売上高 ホテル(前年比)":
+        _fail("area 内訳 yoy suffix")
+    if canonicalize_element_label("グロース領域 全店 ホテル", "yoy_index") != "グロース領域 全店 売上高 ホテル(前年比)":
+        _fail("area 内訳 empty-metric yoy peels")
+    if canonicalize_element_label("ホテル 全店 売上高", "number") != "ホテル 全店 売上高":
+        _fail("ホテル without parent stays segment")
+    if canonicalize_element_label("その他 全店 売上高", "number") != "その他 全店 売上高":
+        _fail("その他 without parent stays segment")
+    area_twice = canonicalize_element_label("グロース領域 全店 売上高 ホテル", "number")
+    if area_twice != canonicalize_element_label(area_twice, "number"):
+        _fail("area 内訳 canonicalize is idempotent")
+    if len(canonicalize_element_label("サステナブル領域 売上高 アパレル・雑貨", "yoy_index")) > 50:
+        _fail("area 内訳 name exceeds 50")
     if canonicalize_element_label("連結売上高", "number") != "全店 連結売上高":
         _fail("連結売上高 is a metric, not a segment")
     if canonicalize_element_label("連結 売上高", "number") != "全店 連結売上高":
@@ -329,10 +358,16 @@ def test_canonicalize_element_label() -> None:
         _fail("調剤 bd rank 2")
     if monthly_row_breakdown_rank("既存 売上高 物販(前年比)") != 3:
         _fail("物販 bd rank 3")
+    if monthly_row_breakdown_rank("グロース領域 全店 売上高") != 0:
+        _fail("area parent bd rank 0")
+    if monthly_row_breakdown_rank("グロース領域 全店 売上高 ホテル") != 2:
+        _fail("ホテル bd rank 2")
     if monthly_series_kind("全店 売上高 ドラッグ(前年比)", "yoy_index") is not None:
         _fail("会社 ドラッグ must not be TOP 全店")
     if monthly_series_kind("MKG 全店 売上高 ドラッグ(前年比)", "yoy_index") is not None:
         _fail("ブランド 内訳 is not a series")
+    if monthly_series_kind("グロース領域 全店 売上高 ホテル(前年比)", "yoy_index") is not None:
+        _fail("area 内訳 yoy is not a series")
     if monthly_series_kind("MKG 全店 売上高(前年比)", "yoy_index") != "all_store":
         _fail("ブランド 売上高 parent stays all_store")
     bd_order = [row["element"] for row in union_monthly_elements([{

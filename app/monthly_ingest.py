@@ -216,6 +216,29 @@ _BREAKDOWN_CANON = {
 }
 _BREAKDOWN_MARKS = frozenset({"内)", "（内", "うち"})
 _BREAKDOWN_RANK = {"": 0, "ドラッグ": 1, "調剤": 2, "物販": 3}
+_AREA_CHILDREN: dict[str, dict[str, int]] = {
+    "グロース領域": {
+        "プロパティ": 1,
+        "ホテル": 2,
+        "インカム太陽光": 3,
+        "専門通販": 4,
+        "化粧品健康食品": 5,
+        "グルメ": 6,
+        "ワイン": 7,
+        "ナース関連": 8,
+    },
+    "サステナブル領域": {
+        "呉服関連": 1,
+        "アパレル雑貨": 2,
+        "その他": 3,
+    },
+}
+_AREA_CHILD_ALIAS: dict[str, str] = {
+    "インカム、太陽光": "インカム太陽光",
+    "アパレル・雑貨": "アパレル雑貨",
+}
+for _area_children in _AREA_CHILDREN.values():
+    _BREAKDOWN_RANK.update(_area_children)
 _STORE_FLOW_CANON = {
     "出店": "出店", "出店数": "出店",
     "開店": "出店", "開店数": "出店",
@@ -437,6 +460,31 @@ def _peel_breakdown(leftover: list[str], metric: str) -> tuple[list[str], str]:
     return kept, breakdown
 
 
+def _peel_area_breakdown(
+    leftover: list[str], metric: str, breakdown: str,
+) -> tuple[list[str], str]:
+    if breakdown or _metric_core(metric) != "売上高":
+        return leftover, breakdown
+    parent_i = next(
+        (i for i, tok in enumerate(leftover) if tok in _AREA_CHILDREN),
+        None,
+    )
+    if parent_i is None:
+        return leftover, breakdown
+    rest = leftover[parent_i + 1:]
+    if not rest:
+        return leftover, breakdown
+    children = _AREA_CHILDREN[leftover[parent_i]]
+    joined = " ".join(rest)
+    child = _AREA_CHILD_ALIAS.get(joined, joined)
+    if child not in children:
+        compact = joined.replace(" ", "")
+        child = _AREA_CHILD_ALIAS.get(compact, compact)
+    if child not in children:
+        return leftover, breakdown
+    return leftover[: parent_i + 1], child
+
+
 def parse_element_layers(element: str) -> dict[str, str]:
     """国 / セグメント / 時間軸 / チャネル / スコープ / 指標 / 内訳。正規化前の名前でも読む。"""
     country = ""
@@ -498,6 +546,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
     if not scope and _metric_core(metric) in _METRIC_FILL_ALL:
         scope = "全店"
     leftover, breakdown = _peel_breakdown(leftover, _metric_core(metric))
+    leftover, breakdown = _peel_area_breakdown(leftover, metric, breakdown)
     return {
         "country": country,
         "segment": " ".join(leftover),
@@ -524,6 +573,7 @@ def normalize_element_tokens(element: str, *, fill_default_metric: bool = False)
         parts["metric"] = "売上高"
         parts["time_axis"] = ""
         leftover, breakdown = _peel_breakdown(parts["segment"].split(), "売上高")
+        leftover, breakdown = _peel_area_breakdown(leftover, "売上高", breakdown)
         leftover, metric = _stitch_consolidated(leftover, parts["metric"])
         parts["segment"] = " ".join(leftover)
         parts["metric"] = metric

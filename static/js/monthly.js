@@ -102,7 +102,12 @@ function monthlyIssuerSuggestHits(q){
 const MONTHLY_METRIC_RANK = {
   sales:1, customers:2, spend:3, open:4, close:5, adj:6, stores:7, other:8,
 };
-const MONTHLY_BREAKDOWN_RANK = {"":0, ドラッグ:1, 調剤:2, 物販:3};
+const MONTHLY_BREAKDOWN_RANK = {
+  "":0, ドラッグ:1, 調剤:2, 物販:3,
+  プロパティ:1, ホテル:2, インカム太陽光:3, 専門通販:4,
+  化粧品健康食品:5, グルメ:6, ワイン:7, ナース関連:8,
+  呉服関連:1, アパレル雑貨:2, その他:3,
+};
 const MONTHLY_COUNTRY_RANK = {"":0, 日本:1, 海外:2};
 const MONTHLY_CHANNEL_RANK = {"直営+FC":0, 直営:1, FC:2, "":3};
 
