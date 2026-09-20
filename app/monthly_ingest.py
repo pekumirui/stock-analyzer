@@ -365,6 +365,35 @@ def _peel_adj_metric(leftover: list[str], metric: str) -> tuple[list[str], str]:
     return kept, peeled
 
 
+def _metric_core(metric: str) -> str:
+    if metric.startswith("連結") and len(metric) > 2:
+        return metric[2:]
+    return metric
+
+
+def _stitch_consolidated(leftover: list[str], metric: str) -> tuple[list[str], str]:
+    """連結は指標の接頭辞（連結売上高）。セグメント leftover に残さない。"""
+    kept: list[str] = []
+    has_consol = False
+    for tok in leftover:
+        if tok == "連結":
+            has_consol = True
+            continue
+        kept.append(tok)
+    if not metric and len(kept) == 1 and kept[0].startswith("連結") and kept[0] != "連結":
+        metric = kept.pop(0)
+    if has_consol:
+        if metric:
+            if not metric.startswith("連結"):
+                metric = "連結" + metric
+        elif len(kept) == 1:
+            rest = kept.pop(0)
+            metric = rest if rest.startswith("連結") else "連結" + rest
+        else:
+            kept.insert(0, "連結")
+    return kept, metric
+
+
 def _is_store_adj(element: str, segment: str = "") -> bool:
     blob = f"{segment}{element}"
     return any(mark in blob for mark in _STORE_ADJ_MARKS)
@@ -455,6 +484,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
     leftover, metric = _stitch_real_store(leftover, metric)
     leftover, metric = _stitch_vs_sales(leftover, metric)
     leftover, metric = _peel_adj_metric(leftover, metric)
+    leftover, metric = _stitch_consolidated(leftover, metric)
     axis_left = [tok for tok in leftover if tok in _TIME_AXIS_TOKS]
     leftover = [tok for tok in leftover if tok not in _TIME_AXIS_TOKS]
     if axis_left and not time_axis:
@@ -464,9 +494,9 @@ def parse_element_layers(element: str) -> dict[str, str]:
     if _is_flow_metric(metric):
         scope = ""
         leftover = [tok for tok in leftover if tok != "（内"]
-    if not scope and metric in _METRIC_FILL_ALL:
+    if not scope and _metric_core(metric) in _METRIC_FILL_ALL:
         scope = "全店"
-    leftover, breakdown = _peel_breakdown(leftover, metric)
+    leftover, breakdown = _peel_breakdown(leftover, _metric_core(metric))
     return {
         "country": country,
         "segment": " ".join(leftover),
@@ -493,7 +523,9 @@ def normalize_element_tokens(element: str, *, fill_default_metric: bool = False)
         parts["metric"] = "売上高"
         parts["time_axis"] = ""
         leftover, breakdown = _peel_breakdown(parts["segment"].split(), "売上高")
+        leftover, metric = _stitch_consolidated(leftover, parts["metric"])
         parts["segment"] = " ".join(leftover)
+        parts["metric"] = metric
         parts["breakdown"] = breakdown
     ordered = [
         parts["country"], parts["segment"], parts["time_axis"], parts["channel"],

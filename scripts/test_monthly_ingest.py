@@ -308,6 +308,10 @@ def test_canonicalize_element_label() -> None:
         _fail("named leftover stays a segment")
     if canonicalize_element_label("連結営業利益", "number") != "連結営業利益":
         _fail("連結営業利益 is a metric")
+    if canonicalize_element_label("連結 営業収益", "number") != "連結営業収益":
+        _fail("連結 営業収益 glues to a metric")
+    if canonicalize_element_label("連結 顧客口座数", "number") != "連結顧客口座数":
+        _fail("連結 leftover KPI is a metric")
     if canonicalize_element_label("内 MM 全店 売上高", "number") != "内 MM 全店 売上高":
         _fail("内 MM stays leftover, not 内訳")
     if canonicalize_element_label("店舗状況 （内 出店", "number") != "出店":
