@@ -372,7 +372,6 @@ def _metric_core(metric: str) -> str:
 
 
 def _stitch_consolidated(leftover: list[str], metric: str) -> tuple[list[str], str]:
-    """連結は指標の接頭辞（連結売上高）。セグメント leftover に残さない。"""
     kept: list[str] = []
     has_consol = False
     for tok in leftover:
