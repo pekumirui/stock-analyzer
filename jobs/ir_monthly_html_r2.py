@@ -389,6 +389,9 @@ def _is_count_only_parsed(parsed: dict) -> bool:
 _ALL_STORE_SALES_HEAD_RE = re.compile(
     r"全店売上(?:（％）|\(%\)|％|%)?(?=※|この表|$)"
 )
+_SCOPED_STORE_UNIT_HEAD_RE = re.compile(
+    r"(既存店|全店)(?=(?:・卸計)?(?:\(単位|（単位|単位|$))"
+)
 
 
 def _section_tail(section_text: str, n: int = 160) -> str:
@@ -429,7 +432,8 @@ def _section_pick_rank(section_text: str, segment: str | None = None) -> int:
         return 0
     if _ALL_STORE_SALES_HEAD_RE.search(tail):
         return 3
-    if re.search(r"全店(?=(?:・卸計)?(?:\(単位|（単位|単位|$))", tail):
+    m = _SCOPED_STORE_UNIT_HEAD_RE.search(tail)
+    if m and m.group(1) == "全店":
         return 2
     if "1店1日" in tail or "一店一日" in tail or "拠点数" in tail or "店舗数" in tail:
         return 0
@@ -441,7 +445,7 @@ def _store_scope_from_section(section_text: str) -> str | None:
     tail = _section_tail(section_text, 80)
     if "卸計" in tail:
         return None
-    m = re.search(r"(既存店|全店)(?=(?:・卸計)?(?:\(単位|（単位|単位|$))", tail)
+    m = _SCOPED_STORE_UNIT_HEAD_RE.search(tail)
     if not m:
         return None
     return "既存店" if m.group(1) == "既存店" else "全店"
