@@ -344,6 +344,23 @@ def test_canonicalize_element_label() -> None:
         _fail("連結 営業収益 glues to a metric")
     if canonicalize_element_label("連結 顧客口座数", "number") != "連結顧客口座数":
         _fail("連結 leftover KPI is a metric")
+    if canonicalize_element_label("CPAソリューション事業 取扱高", "number") != "CPAソリューション事業 取扱高":
+        _fail("取扱高 is a metric, no 全店 fill")
+    if canonicalize_element_label("CPAソリューション事業取扱高", "number") != "CPAソリューション事業 取扱高":
+        _fail("unglue 取扱高")
+    if canonicalize_element_label("CPAソリューション事業 取扱高(前年比)", "yoy_index") != "CPAソリューション事業 取扱高(前年比)":
+        _fail("取扱高 yoy keeps leftover")
+    if canonicalize_element_label("取扱高", "number") != "取扱高":
+        _fail("bare 取扱高 stays metric without 全店")
+    if canonicalize_element_label("戦略事業 取扱高", "number") != "戦略事業 取扱高":
+        _fail("named leftover + 取扱高")
+    if canonicalize_element_label("連結 取扱高", "number") != "連結取扱高":
+        _fail("連結 取扱高 glues like 連結営業収益")
+    gmv = parse_element_layers("CPAソリューション事業 取扱高")
+    if gmv["segment"] != "CPAソリューション事業" or gmv["metric"] != "取扱高" or gmv["scope"]:
+        _fail(f"parse 取扱高 layers: {gmv!r}")
+    if monthly_row_segment("CPAソリューション事業 取扱高") != "CPAソリューション事業":
+        _fail("gate leftover peels 取扱高")
     if canonicalize_element_label("内 MM 全店 売上高", "number") != "内 MM 全店 売上高":
         _fail("内 MM stays leftover, not 内訳")
     if canonicalize_element_label("店舗状況 （内 出店", "number") != "出店":
@@ -1864,6 +1881,33 @@ def test_monthly_element_label() -> None:
     prop = monthly_element_label("グロース領域 全店 売上高 プロパティ", "number")
     if prop["breakdown"] != "プロパティ" or prop["breakdown_depth"] != 1:
         _fail(f"プロパティ 中節: {prop!r}")
+    gmv = monthly_element_label("CPAソリューション事業 取扱高", "number")
+    want_gmv = {
+        "display": "CPAソリューション事業 取扱高",
+        "group": "CPAソリューション事業",
+        "metric_kind": "other",
+        "series_kind": None,
+        "country": "",
+        "segment": "CPAソリューション事業",
+        "time_axis": "",
+        "channel": "",
+        "scope": "",
+        "metric": "取扱高",
+        "breakdown": "",
+        "breakdown_depth": 0,
+    }
+    if gmv != want_gmv:
+        _fail(f"取扱高 label: {gmv!r}")
+    gmv_yoy = monthly_element_label("CPAソリューション事業 取扱高(前年比)", "yoy_index")
+    if (
+        gmv_yoy["group"] != "CPAソリューション事業"
+        or gmv_yoy["metric"] != "取扱高"
+        or gmv_yoy["display"] != "CPAソリューション事業 取扱高(前年比)"
+    ):
+        _fail(f"取扱高 yoy label: {gmv_yoy!r}")
+    bare_gmv = monthly_element_label("取扱高", "number")
+    if bare_gmv["group"] or bare_gmv["metric"] != "取扱高" or bare_gmv["scope"]:
+        _fail(f"bare 取扱高 label: {bare_gmv!r}")
 
 
 def main() -> None:
