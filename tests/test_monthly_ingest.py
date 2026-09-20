@@ -294,6 +294,24 @@ def test_canonicalize_element_label() -> None:
         _fail("調剤事業 stays a segment")
     if canonicalize_element_label("内アパレル 全店 売上高(前年比)", "yoy_index") != "内アパレル 全店 売上高(前年比)":
         _fail("内アパレル stays a segment")
+    if canonicalize_element_label("連結売上高", "number") != "全店 連結売上高":
+        _fail("連結売上高 is a metric, not a segment")
+    if canonicalize_element_label("連結 売上高", "number") != "全店 連結売上高":
+        _fail("連結 売上高 glues to 連結売上高")
+    if canonicalize_element_label("連結 全店 売上高", "number") != "全店 連結売上高":
+        _fail("連結 全店 売上高 → 全店 連結売上高")
+    if canonicalize_element_label("連結売上高", "yoy_index") != "全店 連結売上高(前年比)":
+        _fail("連結売上高 yoy keeps 全店 for TOP")
+    if canonicalize_element_label("連結 全店", "yoy_index") != "全店 連結売上高(前年比)":
+        _fail("連結 全店 yoy fills 連結売上高")
+    if canonicalize_element_label("クラウド事業 全店 売上高", "number") != "クラウド事業 全店 売上高":
+        _fail("named leftover stays a segment")
+    if canonicalize_element_label("連結営業利益", "number") != "連結営業利益":
+        _fail("連結営業利益 is a metric")
+    if canonicalize_element_label("連結 営業収益", "number") != "連結営業収益":
+        _fail("連結 営業収益 glues to a metric")
+    if canonicalize_element_label("連結 顧客口座数", "number") != "連結顧客口座数":
+        _fail("連結 leftover KPI is a metric")
     if canonicalize_element_label("内 MM 全店 売上高", "number") != "内 MM 全店 売上高":
         _fail("内 MM stays leftover, not 内訳")
     if canonicalize_element_label("店舗状況 （内 出店", "number") != "出店":
@@ -1748,6 +1766,25 @@ def test_monthly_element_label() -> None:
     }
     if mkg != want_mkg:
         _fail(f"MKG: {mkg!r}")
+    consol = monthly_element_label("連結売上高", "yoy_index")
+    want_consol = {
+        "display": "全店 連結売上高(前年比)",
+        "group": "",
+        "metric_kind": "sales",
+        "series_kind": "all_store",
+        "country": "",
+        "segment": "",
+        "time_axis": "",
+        "channel": "",
+        "scope": "全店",
+        "metric": "連結売上高",
+        "breakdown": "",
+    }
+    if consol != want_consol:
+        _fail(f"連結売上高: {consol!r}")
+    profit = monthly_element_label("連結営業利益", "number")
+    if profit["group"] != "" or profit["metric"] != "連結営業利益" or profit["display"] != "連結営業利益":
+        _fail(f"連結営業利益: {profit!r}")
 
 
 def main() -> None:
