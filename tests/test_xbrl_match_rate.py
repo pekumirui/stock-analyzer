@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools"))
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "jobs"))
 
 import copy_stocks_for_verify as copy_mod  # noqa: E402
 import fetch_xbrl_golden as fetch_mod  # noqa: E402
@@ -474,7 +474,7 @@ def test_fetch_rejects_orphan_q2_standalone(tmp: Path) -> None:
 
 
 def main() -> None:
-    with tempfile.TemporaryDirectory(prefix="xbrl-match-") as d:
+    with tempfile.TemporaryDirectory(prefix="xbrl-match-", ignore_cleanup_errors=True) as d:
         tmp = Path(d)
         test_scale_yen_to_million(tmp)
         test_tolerance(tmp)

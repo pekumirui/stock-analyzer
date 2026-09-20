@@ -1,10 +1,10 @@
 """IR サイトの月次 HTML を Cloudflare R2 mount へ保存し、ingest JSON を隣に書く。
 
 使い方:
-  python scripts/ir_monthly_html_r2.py
-  python scripts/ir_monthly_html_r2.py --dest /tmp/monthly --only 2664
-  python scripts/ir_monthly_html_r2.py --dry-run
-  python scripts/ir_monthly_html_r2.py --reparse
+  python jobs/ir_monthly_html_r2.py
+  python jobs/ir_monthly_html_r2.py --dest /tmp/monthly --only 2664
+  python jobs/ir_monthly_html_r2.py --dry-run
+  python jobs/ir_monthly_html_r2.py --reparse
 
 対象は config/ir_monthly.json の html。セレクタ駆動で銘柄クラスは作らない。
 原本は .html、派生が .ingest.json。自動 POST しない。パーサーを直したら --reparse。

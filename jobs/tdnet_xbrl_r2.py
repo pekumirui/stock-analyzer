@@ -1,8 +1,8 @@
 """TDnet の XBRL ZIP を Cloudflare R2 mount へ保存する。
 
 使い方:
-  python scripts/tdnet_xbrl_r2.py 1
-  python scripts/tdnet_xbrl_r2.py 30 --dest /tmp/xbrl
+  python jobs/tdnet_xbrl_r2.py 1
+  python jobs/tdnet_xbrl_r2.py 30 --dest /tmp/xbrl
 
 N は今日(JST)から遡る日数（当日を含む）。ネットワークと app/ はテストから分離する。
 

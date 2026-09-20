@@ -65,14 +65,14 @@ notepad .env                    # JQUANTS_API_KEY を記入
 - 取得済みの日付はスキップするため、中断しても再実行すれば続きから埋まる
 
 > 旧デモ由来の `0` 始まりコードが DB に残っていると RS ランクが狂うため、
-> `batch` / `backfill` は実行前に `scripts/check_demo.py` で止まります。
+> `batch` / `backfill` は実行前に `jobs/check_demo.py` で止まります。
 > その場合は `.\run.ps1 reset` または `./run.sh reset` してから取り直してください。
 
 決算開示は引け後15時以降が多いため、当日夜(19:30頃)と翌朝6時の2回実行を推奨。
 タスクスケジューラに登録する場合の操作:
 
 - プログラム: `E:\project\stock-analyzer\.venv\Scripts\python.exe`
-- 引数: `scripts\run_batch.py`
+- 引数: `jobs\run_batch.py`
 - 開始場所: `E:\project\stock-analyzer`
 
 （この場合 `.env` は読み込まれないため、認証情報はシステム環境変数に設定するか
@@ -113,7 +113,7 @@ DB のバックアップは ConoHa の自動バックアップか、日次で別
 
 `main` にマージすると GitHub Actions がテスト → GitHub Release（タグ）→ ConoHa VPS へデプロイする。
 
-1. **PR** — `scripts/ci_smoke.py`（起動・検索/スクリーナー/チャート）
+1. **PR** — `tests/ci_smoke.py`（起動・検索/スクリーナー/チャート）
 2. **main マージ** — コミットメッセージでバージョンを自動バンプ（`feat:` は minor、`BREAKING CHANGE` / `feat!:` は major、それ以外は patch）。初回は `v0.1.0`
 3. **VPS** — SSH で `git pull` → `provision.sh`（nginx/ufw/certbot/systemd）→ `pip install` → `migrate.py` → `systemctl restart`。
    `stock.db` は触らない
@@ -136,10 +136,13 @@ static/
   index.html    SPA マークアップ
   css/app.css   スタイル
   js/           タブ別 vanilla JS
-scripts/
+jobs/
   run_batch.py  日次バッチ / バックフィル
   check_demo.py スキーマ + 旧デモ取り残しガード
+tests/
   ci_smoke.py   CI 起動スモーク
+tools/
+  check_api.py  J-Quants 疎通確認
 deploy/
   stock-analyzer.service  systemd（uvicorn ワーカー1）
   nginx.conf              リバースプロキシ + Basic認証

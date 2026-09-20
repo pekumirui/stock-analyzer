@@ -3,6 +3,9 @@ from collections.abc import MutableMapping
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+CONFIG_DIR = BASE_DIR / "config"
+ISSUER_ALIASES_PATH = CONFIG_DIR / "issuer_aliases.json"
+MONTHLY_ROW_ORDER_PATH = CONFIG_DIR / "monthly_row_order.json"
 
 
 def apply_dotenv(text: str, environ: MutableMapping[str, str]) -> None:
@@ -39,7 +42,6 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'stock.db'}")
 
-# TDnet XBRL (parse/normalize). Fetch dest matches scripts/tdnet_xbrl_r2.DEFAULT_DEST.
 XBRL_DEST = os.getenv("XBRL_DEST", "/home/stock/r2-share/xbrl")
 XBRL_CACHE_DIR = os.getenv("XBRL_CACHE_DIR", "/home/stock/r2-share/xbrl/_cache")
 XBRL_TEXT_MAX_CHARS = int(os.getenv("XBRL_TEXT_MAX_CHARS", "1000"))

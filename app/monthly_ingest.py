@@ -9,6 +9,8 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Literal, Sequence, TypedDict
 
+from app.config import ISSUER_ALIASES_PATH, MONTHLY_ROW_ORDER_PATH
+
 MONTHLY_UNITS = ("number", "yoy_index", "yoy_pct")
 _YOY_UNITS = frozenset({"yoy_index", "yoy_pct"})
 # 長い語を先に。前年同月比 を 前年同月 より先、括弧付きを 前年比 より先。
@@ -517,7 +519,7 @@ class IssuerPeriodRename:
         self.rename = rename
 
 
-_ALIAS_PATH = Path(__file__).with_name("issuer_aliases.json")
+_ALIAS_PATH = ISSUER_ALIASES_PATH
 
 
 def load_issuer_aliases(path: Path | None = None) -> dict[str, tuple[IssuerPeriodRename, ...]]:
@@ -555,7 +557,7 @@ def load_issuer_aliases(path: Path | None = None) -> dict[str, tuple[IssuerPerio
 
 ISSUER_ELEMENT_ALIASES = load_issuer_aliases()
 
-_ROW_ORDER_PATH = Path(__file__).with_name("monthly_row_order.json")
+_ROW_ORDER_PATH = MONTHLY_ROW_ORDER_PATH
 _SEGMENT_TAIL_BASE = 10_000
 
 

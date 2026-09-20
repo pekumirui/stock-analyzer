@@ -5,31 +5,31 @@ CRON_TZ=Asia/Tokyo
 SHELL=/bin/bash
 
 # 日次（引け後の開示を夜に取る）
-30 19 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh scripts/run_batch.py >> /var/log/app/batch.log 2>&1
+30 19 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/run_batch.py >> /var/log/app/batch.log 2>&1
 
 # 取りこぼし（翌朝）
-0 6 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh scripts/run_batch.py >> /var/log/app/batch.log 2>&1
+0 6 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/run_batch.py >> /var/log/app/batch.log 2>&1
 
 # TDnet 月次PDF → R2 mount（当日分）
-0 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh scripts/tdnet_monthly_r2.py 1 >> /var/log/app/batch.log 2>&1
-0 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh scripts/tdnet_monthly_r2.py 1 >> /var/log/app/batch.log 2>&1
+0 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_r2.py 1 >> /var/log/app/batch.log 2>&1
+0 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_r2.py 1 >> /var/log/app/batch.log 2>&1
 
 # IR 月次 PDF/xlsx → R2 mount（TDnet に月次が無い発行体。config/ir_monthly.json issuers）
-0 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh scripts/ir_monthly_r2.py >> /var/log/app/batch.log 2>&1
-0 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh scripts/ir_monthly_r2.py >> /var/log/app/batch.log 2>&1
+0 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_r2.py >> /var/log/app/batch.log 2>&1
+0 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_r2.py >> /var/log/app/batch.log 2>&1
 
 # IR 月次 HTML → R2 mount + ingest JSON（自動 POST しない。config/ir_monthly.json html）
-20 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh scripts/ir_monthly_html_r2.py >> /var/log/app/batch.log 2>&1
-20 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh scripts/ir_monthly_html_r2.py >> /var/log/app/batch.log 2>&1
+20 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_html_r2.py >> /var/log/app/batch.log 2>&1
+20 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_html_r2.py >> /var/log/app/batch.log 2>&1
 
 # IR 月次 HTML → DB（loopback POST。取得の後。ledger は dest/R2 に置かない）
-30 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh scripts/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json >> /var/log/app/batch.log 2>&1
-30 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh scripts/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json >> /var/log/app/batch.log 2>&1
+30 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json >> /var/log/app/batch.log 2>&1
+30 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json >> /var/log/app/batch.log 2>&1
 
 # TDnet XBRL ZIP → R2 mount（当日分・毎時 12–23）
-0 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh scripts/tdnet_xbrl_r2.py 1 >> /var/log/app/batch.log 2>&1
-10 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh scripts/xbrl_parse.py >> /var/log/app/batch.log 2>&1
-20 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh scripts/xbrl_normalize.py >> /var/log/app/batch.log 2>&1
+0 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_xbrl_r2.py 1 >> /var/log/app/batch.log 2>&1
+10 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl_parse.py >> /var/log/app/batch.log 2>&1
+20 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl_normalize.py >> /var/log/app/batch.log 2>&1
 
 # 任意: DB を日付付きで残す（直近だけ手元で間引く）
 # 15 20 * * * cp -a /home/stock/stock-analyzer/stock.db /home/stock/backups/stock-$(date +\%F).db

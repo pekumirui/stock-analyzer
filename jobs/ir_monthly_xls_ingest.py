@@ -1,9 +1,9 @@
 """大東建託 (1878) の history.xls を monthly ingest JSON にする。
 
 使い方:
-  python scripts/ir_monthly_xls_ingest.py --xls /tmp/history_1.xls --as-of 2026-09-02
-  python scripts/ir_monthly_xls_ingest.py --dest /tmp/r2/monthly --dry-run
-  python scripts/ir_monthly_xls_ingest.py --xls history.xls --as-of 2026-09-02 --post
+  python jobs/ir_monthly_xls_ingest.py --xls /tmp/history_1.xls --as-of 2026-09-02
+  python jobs/ir_monthly_xls_ingest.py --dest /tmp/r2/monthly --dry-run
+  python jobs/ir_monthly_xls_ingest.py --xls history.xls --as-of 2026-09-02 --post
 
 取得は ir_monthly_r2.py。このスクリプトは JSON 化と loopback POST だけ。
 year は送らない。HTML ingest の cron には混ぜない。
@@ -22,9 +22,11 @@ from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlparse
 
+ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
+for _p in (str(ROOT), str(SCRIPT_DIR)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 from ir_monthly_html_ingest import UrllibClient, assert_loopback_base  # noqa: E402
 from ir_monthly_r2 import DEFAULT_DEST  # noqa: E402

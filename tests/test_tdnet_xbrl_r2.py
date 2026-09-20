@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "jobs"))
 
 import tdnet_xbrl_r2 as xbrl_mod  # noqa: E402
 from tdnet_xbrl_r2 import (  # noqa: E402

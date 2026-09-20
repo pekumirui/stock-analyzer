@@ -1,8 +1,8 @@
 """J-Quants V2 の疎通確認と項目マッピング検証 (DBには書き込まない)。
 
 バックフィル前にこれを実行して、APIキー・プラン範囲・項目名を確認する。
-  python scripts\\check_api.py           # 直近営業日で確認
-  python scripts\\check_api.py 2026-08-14
+  python tools\\check_api.py           # 直近営業日で確認
+  python tools\\check_api.py 2026-08-14
 """
 import sys
 from datetime import date, timedelta

@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "jobs"))
 sys.path.insert(0, str(ROOT))
 
 from app.monthly_ingest import (  # noqa: E402
@@ -26,7 +26,7 @@ from ir_monthly_xls_ingest import (  # noqa: E402
 )
 from tools.read_xls import read_sheet_builtin  # noqa: E402
 
-FIXTURE = ROOT / "scripts" / "testdata" / "1878_history_1.xls"
+FIXTURE = ROOT / "tests" / "testdata" / "1878_history_1.xls"
 SOURCE_URL = "https://www.kentaku.co.jp/ir/library/monthly-report/__icsFiles/afieldfile/2026/09/02/history_1.xls"
 
 

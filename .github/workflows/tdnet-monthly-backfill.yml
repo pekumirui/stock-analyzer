@@ -72,4 +72,4 @@ jobs:
             -o ConnectTimeout=15 \
             -o ServerAliveInterval=15 \
             "${USER}@${HOST}" \
-            "cd /home/stock/stock-analyzer && .venv/bin/python -u scripts/tdnet_monthly_r2.py $(printf %q "$DAYS")"
+            "cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/tdnet_monthly_r2.py $(printf %q "$DAYS")"
