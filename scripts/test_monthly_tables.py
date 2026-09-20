@@ -24,6 +24,7 @@ from app.monthly_ingest import (  # noqa: E402
     canonicalize_element_label,
     format_monthly_cell,
     monthly_display_label,
+    monthly_element_label,
     monthly_row_scope_rank,
     monthly_row_segment,
     monthly_row_slot,
@@ -180,8 +181,6 @@ def main() -> None:
         _fail("index.html missing monthlyDisplayUnit")
     if "const MONTHLY_DISPLAY_UNITS" not in html:
         _fail("index.html missing MONTHLY_DISPLAY_UNITS")
-    if "function stripMonthlyDisplayUnit" not in html:
-        _fail("index.html missing stripMonthlyDisplayUnit")
     if "fmtMonthlyCell(v, unit, e.element)" not in html:
         _fail("year table cells must pass element into fmtMonthlyCell")
     js_fn = html.find("const MONTHLY_DISPLAY_UNITS")
@@ -195,9 +194,9 @@ def main() -> None:
     cell_fn = html.find("function fmtMonthlyCell")
     if cell_fn < 0:
         _fail("fmtMonthlyCell bounds")
-    cell_end = html.find("function stripYoyFragments")
+    cell_end = html.find("window.setMonthlyGroup")
     if cell_end <= cell_fn:
-        _fail("fmtMonthlyCell / stripYoyFragments bounds")
+        _fail("fmtMonthlyCell / window.setMonthlyGroup bounds")
     cell_body = html[cell_fn:cell_end]
     if 'return "-"' not in cell_body:
         _fail("fmtMonthlyCell empty must display -")
@@ -207,24 +206,18 @@ def main() -> None:
         _fail("fmtMonthlyCell must not convert leftover yoy_pct")
     if "spec.suffix" in cell_body:
         _fail("fmtMonthlyCell must not append the unit to the number")
-    el_fn = html.find("function fmtMonthlyElement")
-    if el_fn < 0:
-        _fail("fmtMonthlyElement bounds")
-    el_body = html[el_fn:el_fn + 520]
-    if '"（" + spec.suffix + "）"' not in el_body:
-        _fail("fmtMonthlyElement must put the unit on the row label")
     yoy_fn = html.find("function fmtMonthlyYoyList")
     if yoy_fn < 0:
         _fail("fmtMonthlyYoyList missing")
     yoy_body = html[yoy_fn:yoy_fn + 220]
     if 'return "-"' not in yoy_body:
         _fail("fmtMonthlyYoyList empty must display -")
-    if "function fmtMonthlyElement" not in html:
-        _fail("index.html missing fmtMonthlyElement function")
-    if "function stripYoyFragments" not in html:
-        _fail("index.html missing stripYoyFragments")
-    if "fmtMonthlyElement(e.element, unit)" not in html:
-        _fail("index.html item column must use fmtMonthlyElement")
+    if "function fmtMonthlyElement" in html:
+        _fail("SPA must not re-parse row names with fmtMonthlyElement")
+    if "function parseMonthlyLayers" in html:
+        _fail("SPA must not keep parseMonthlyLayers")
+    if "L.display" not in html:
+        _fail("monthlyRowOrder must fold on label.display")
     if "▲" in html or "+X.X%" in html:
         _fail("index.html still has percent/▲ monthly display")
     _assert_monthly_spa(html)
@@ -761,7 +754,6 @@ def _post_monthly_elements(c, code: str, year: int, rows: list[tuple[str, str]])
             _fail(f"PUT {code}/{year} {stored!r}: {r.status_code} {r.text[:200]}")
 
 
-# SPA 年表・チャート用。ingest には置かない。static/js/monthly.js と同じ規則。
 _MONTHLY_YEAR_COLORS = ("#0077b6", "#2e8b57", "#b8860b", "#8e4ec6")
 
 
@@ -1396,22 +1388,8 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("sticky first cells need opaque panel background")
     if "function monthlyRowOrder" not in html:
         _fail("index.html missing monthlyRowOrder")
-    if "function monthlyRowSlot" not in html:
-        _fail("index.html missing monthlyRowSlot")
-    if "function monthlyRowSegment" not in html:
-        _fail("index.html missing monthlyRowSegment")
-    if "function monthlyStitchRealStore" not in html:
-        _fail("index.html missing monthlyStitchRealStore")
-    if "function monthlyStitchVsSales" not in html:
-        _fail("index.html missing monthlyStitchVsSales")
-    if "function monthlyPeelBreakdown" not in html:
-        _fail("index.html missing monthlyPeelBreakdown")
-    if "function monthlyRowBreakdownRank" not in html:
-        _fail("index.html missing monthlyRowBreakdownRank")
     if "function monthlyLayoutLeaf" not in html:
         _fail("index.html missing monthlyLayoutLeaf")
-    if '["実店舗数","実店舗 店舗数"]' not in html:
-        _fail("SPA must unglue 実店舗数 before 店舗数")
     if "function monthlyRowScopeRank" not in html:
         _fail("index.html missing monthlyRowScopeRank")
     scope_fn = html.find("function monthlyRowScopeRank")
@@ -1420,27 +1398,23 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("monthlyRowScopeRank / isAllStoreSalesYoy bounds")
     scope_body = html[scope_fn:scope_end]
     compact = scope_body.replace(" ", "")
-    if 'p.metric==="店舗数"' not in compact:
+    if 'label.metric_kind==="stores"' not in compact:
         _fail("SPA must not fold unlabeled 店舗数 into 全店")
     row_fn = html.find("function monthlyRowOrder")
     row_end = html.find("function escHtml")
     if row_fn < 0 or row_end <= row_fn:
         _fail("monthlyRowOrder / escHtml bounds")
     row_body = html[row_fn:row_end]
-    if "fmtMonthlyElement(" not in row_body:
-        _fail("monthlyRowOrder must key by fmtMonthlyElement display name")
+    if "L.display" not in row_body:
+        _fail("monthlyRowOrder must fold on label.display")
+    if "label: L" not in row_body and "label:L" not in row_body:
+        _fail("monthlyRowOrder must keep label on items")
     if "seen.has(name)" in row_body:
         _fail("monthlyRowOrder must not key by raw stored element name")
-    if "bd:monthlyRowBreakdownRank" not in row_body.replace(" ", ""):
+    if "MONTHLY_BREAKDOWN_RANK[L.breakdown]" not in row_body:
         _fail("monthlyRowOrder must sort 売上高 内訳 after the parent")
-    if "function monthlySeriesKind" not in html:
-        _fail("index.html missing monthlySeriesKind")
-    kind_fn = html.find("function monthlySeriesKind")
-    kind_end = html.find("const MONTHLY_CHAN_BOTH")
-    if kind_fn < 0 or kind_end <= kind_fn:
-        _fail("monthlySeriesKind / MONTHLY_CHAN_BOTH bounds")
-    if ".breakdown" not in html[kind_fn:kind_end]:
-        _fail("monthlySeriesKind must skip 売上高 内訳")
+    if "function monthlySeriesKind" in html:
+        _fail("SPA must not keep monthlySeriesKind string parser")
     if "function monthlySeriesChoices" not in html:
         _fail("index.html missing monthlySeriesChoices")
     choices_fn = html.find("function monthlySeriesChoices")
@@ -1450,12 +1424,10 @@ def _assert_monthly_spa(html: str) -> None:
     choices_body = html[choices_fn:choices_end]
     if "return MONTHLY_SERIES" in choices_body:
         _fail("select options must be the table's element names, not MONTHLY_SERIES")
-    if "e.element" not in choices_body:
-        _fail("choices must come from table elements")
+    if "e.label.display" not in choices_body:
+        _fail("#monthly-series ids must use label.display")
     if "monthlyRowOrder(" not in choices_body:
         _fail("#monthly-series options must follow year-table row order")
-    if "fmtMonthlyElement(" not in choices_body:
-        _fail("#monthly-series ids must use fmtMonthlyElement")
     load_fn = html.find("function loadMonthlyTables")
     if load_fn < 0:
         _fail("loadMonthlyTables missing")
@@ -1485,9 +1457,9 @@ def _assert_monthly_spa(html: str) -> None:
     if "Object.keys(vals).length" not in render_body:
         _fail("year table must skip rows with no values that year")
     if "byName[src.element]" in render_body:
-        _fail("year table cells must map stored names through fmtMonthlyElement")
-    if "fmtMonthlyElement(src.element" not in render_body:
-        _fail("year table cells must look up rows by fmtMonthlyElement")
+        _fail("year table cells must map stored names through label.display")
+    if "src.label.display" not in render_body:
+        _fail("year table cells must look up rows by label.display")
     if "monthlyTableLayout(rowOrder" not in render_body:
         _fail("renderMonthlyYearTables must apply monthlyTableLayout after monthlyRowOrder")
     pick_fn = html.find("function pickDefaultMonthlySeries")
@@ -1497,7 +1469,7 @@ def _assert_monthly_spa(html: str) -> None:
     pick_body = html[pick_fn:pick_end]
     if "isAllStoreSalesYoy" not in pick_body:
         _fail("default series must prefer 全店/全社 売上 yoy")
-    if "all_store" not in pick_body:
+    if "series_kind" not in pick_body:
         _fail("default series must still fall back to all_store")
     if "function monthlySeriesElement" not in html:
         _fail("chart must resolve the selected row by element name")
@@ -1506,8 +1478,8 @@ def _assert_monthly_spa(html: str) -> None:
     if series_el_fn < 0 or series_el_end <= series_el_fn:
         _fail("monthlySeriesElement / fmtMonthlyYoyList bounds")
     series_el_body = html[series_el_fn:series_el_end]
-    if "fmtMonthlyElement(" not in series_el_body:
-        _fail("chart row lookup must match leftover short names via fmtMonthlyElement")
+    if "e.label.display" not in series_el_body:
+        _fail("chart row lookup must match leftover short names via label.display")
     if "e.element===seriesId" in series_el_body.replace(" ", ""):
         _fail("monthlySeriesElement must not require stored name == series id")
     if "renderMonthlySeriesSelect" not in html:
@@ -1682,10 +1654,59 @@ def _assert_monthly_layout_js() -> None:
     js_path = ROOT / "static" / "js" / "monthly.js"
     if not js_path.is_file():
         _fail("static/js/monthly.js missing")
+
+    def _vals() -> dict:
+        return {str(m): (1 if m == 1 else None) for m in range(1, 13)}
+
+    def _el(name: str, unit: str = "yoy_index") -> dict:
+        return {
+            "element": name,
+            "unit": unit,
+            "label": monthly_element_label(name, unit),
+            "values": _vals(),
+        }
+
+    fixtures = {
+        "gatedTables": [{
+            "year": 2026,
+            "code": "30970",
+            "elements": [
+                _el("直営+FC 全店 売上高(前年比)"),
+                _el("焼肉 直営+FC 既存 売上高(前年比)"),
+                _el("焼肉 直営 既存 売上高(前年比)"),
+                _el("日本+海外 直営+FC 全店 店舗数", "number"),
+                _el("ラーメン 直営+FC 既存 売上高(前年比)"),
+                _el("ラーメン 直営 既存 店舗数", "number"),
+            ],
+        }],
+        "flatTables": [{
+            "year": 2026,
+            "code": "72030",
+            "elements": [
+                _el("全店 売上高(前年比)"),
+                _el("既存 売上高(前年比)"),
+            ],
+        }],
+        "matsukiyo": [{
+            "year": 2026,
+            "code": "30880",
+            "elements": [
+                _el("全店 売上高 ドラッグ(前年比)"),
+                _el("MKG ドラッグ 全店 売上高(前年比)"),
+                _el("MKG 全店 売上高 調剤(前年比)"),
+                _el("MKG 全店 客数(前年比)"),
+                _el("MKG 全店 売上高(前年比)"),
+                _el("全店 売上高(前年比)"),
+                _el("既存 売上高(前年比)"),
+            ],
+        }],
+        "leftoverMkg": _el("MKG ドラッグ 全店 売上高(前年比)"),
+    }
     harness = r"""
 const fs = require("fs");
 const vm = require("vm");
 const jsPath = process.argv[1];
+const fixtures = """ + json.dumps(fixtures, ensure_ascii=False) + r""";
 const code = fs.readFileSync(jsPath, "utf8");
 const el = {
   innerHTML: "",
@@ -1716,31 +1737,9 @@ sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
 vm.runInContext(code, sandbox);
 
-function vals() {
-  const o = {};
-  for (let m = 1; m <= 12; m++) o[String(m)] = m === 1 ? 1 : null;
-  return o;
-}
-const gatedTables = [{
-  year: 2026,
-  code: "30970",
-  elements: [
-    { element: "直営+FC 全店 売上高(前年比)", unit: "yoy_index", values: vals() },
-    { element: "焼肉 直営+FC 既存 売上高(前年比)", unit: "yoy_index", values: vals() },
-    { element: "焼肉 直営 既存 売上高(前年比)", unit: "yoy_index", values: vals() },
-    { element: "日本+海外 直営+FC 全店 店舗数", unit: "number", values: vals() },
-    { element: "ラーメン 直営+FC 既存 売上高(前年比)", unit: "yoy_index", values: vals() },
-    { element: "ラーメン 直営 既存 店舗数", unit: "number", values: vals() },
-  ],
-}];
-const flatTables = [{
-  year: 2026,
-  code: "72030",
-  elements: [
-    { element: "全店 売上高(前年比)", unit: "yoy_index", values: vals() },
-    { element: "既存 売上高(前年比)", unit: "yoy_index", values: vals() },
-  ],
-}];
+const gatedTables = fixtures.gatedTables;
+const flatTables = fixtures.flatTables;
+const matsukiyo = fixtures.matsukiyo;
 const rowOrder = sandbox.monthlyRowOrder(gatedTables);
 const layout = sandbox.monthlyTableLayout(rowOrder, gatedTables);
 const gated = [...sandbox.monthlySegmentGate(gatedTables)].sort();
@@ -1761,21 +1760,9 @@ const flatMode = sandbox.monthlyTableLayout(rowOrder, gatedTables);
 sandbox.setMonthlyLayoutMode("gated");
 const flatOrder = sandbox.monthlyRowOrder(flatTables);
 const flat = sandbox.monthlyTableLayout(flatOrder, flatTables);
-const matsukiyo = [{
-  year: 2026,
-  code: "30880",
-  elements: [
-    { element: "全店 売上高 ドラッグ(前年比)", unit: "yoy_index", values: vals() },
-    { element: "MKG ドラッグ 全店 売上高(前年比)", unit: "yoy_index", values: vals() },
-    { element: "MKG 全店 売上高 調剤(前年比)", unit: "yoy_index", values: vals() },
-    { element: "MKG 全店 客数(前年比)", unit: "yoy_index", values: vals() },
-    { element: "MKG 全店 売上高(前年比)", unit: "yoy_index", values: vals() },
-    { element: "全店 売上高(前年比)", unit: "yoy_index", values: vals() },
-    { element: "既存 売上高(前年比)", unit: "yoy_index", values: vals() },
-  ],
-}];
 const bdOrder = sandbox.monthlyRowOrder(matsukiyo);
 const bdLayout = sandbox.monthlyTableLayout(bdOrder, matsukiyo);
+const drugRow = matsukiyo[0].elements.find((e) => e.element === "全店 売上高 ドラッグ(前年比)");
 console.log(JSON.stringify({
   gated,
   gatedFlag: layout.gated,
@@ -1789,10 +1776,10 @@ console.log(JSON.stringify({
   flatGated: flat.gated,
   flatIds: flat.rows.map((r) => r.element),
   flatKinds: flat.rows.map((r) => r.kind),
-  bdCanon: sandbox.fmtMonthlyElement("MKG ドラッグ 全店 売上高(前年比)", "yoy_index"),
+  bdCanon: fixtures.leftoverMkg.label.display,
   bdGate: [...sandbox.monthlySegmentGate(matsukiyo)].sort(),
   bdDefault: sandbox.pickDefaultMonthlySeries(matsukiyo),
-  bdCompanyKind: sandbox.monthlySeriesKind("全店 売上高 ドラッグ(前年比)", "yoy_index"),
+  bdCompanyKind: drugRow && drugRow.label.series_kind,
   bdCols: bdLayout.rows.some((r) => r.rail || r.col4 || r.stub4) ? 4 : 3,
   bdSummary: bdLayout.rows.map((r) => {
     if (r.kind === "section") return { kind: "section", label: r.label };
@@ -1812,6 +1799,7 @@ console.log(JSON.stringify({
         ["node", "-e", harness, str(js_path)],
         capture_output=True,
         text=True,
+        encoding="utf-8",
         cwd=str(ROOT),
     )
     if proc.returncode != 0:

@@ -7,7 +7,7 @@ import unicodedata
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Literal, Sequence, TypedDict
 
 MONTHLY_UNITS = ("number", "yoy_index", "yoy_pct")
 _YOY_UNITS = frozenset({"yoy_index", "yoy_pct"})
@@ -95,7 +95,6 @@ def canonicalize_element_label(element: str, unit: str | None) -> str:
     return f"{base}{_YOY_SUFFIX}"
 
 
-# [国] [セグメント] [チャネル] [スコープ] [指標] [内訳]。無いトークンは出さない。
 _UNGLUE: tuple[tuple[str, str], ...] = (
     ("単月Monthly", "単月 Monthly"),
     ("既存直営店", "直営 既存"),
@@ -194,7 +193,6 @@ _FOOTNOTE_NUM_RE = re.compile(r"[（(]\d+[）)]")
 _FOOTNOTE_CIRCLED_RE = re.compile(r"[①-⑳]")
 # 大黒天物産などの `2026年（令和8年）度` / `2026年度` 年度帯
 _FY_NENDO_RE = re.compile(r"\d{4}\s*年(?:\s*[（(][^）)]*[）)])?\s*度")
-# 単月/Monthly は時間軸。累計列は HTML パーサが落とすので、ここでは指標補完で落とす。
 _TIME_AXIS_TOKS = frozenset({"単月", "Monthly", "monthly"})
 _COUNTRY_CANON = {"日本": "日本", "国内": "日本", "海外": "海外"}
 _CHANNEL_CANON = {
@@ -457,7 +455,6 @@ def parse_element_layers(element: str) -> dict[str, str]:
     leftover, metric = _stitch_real_store(leftover, metric)
     leftover, metric = _stitch_vs_sales(leftover, metric)
     leftover, metric = _peel_adj_metric(leftover, metric)
-    # 単月売上等で指標に剥がした残り、または単独トークン
     axis_left = [tok for tok in leftover if tok in _TIME_AXIS_TOKS]
     leftover = [tok for tok in leftover if tok not in _TIME_AXIS_TOKS]
     if axis_left and not time_axis:
@@ -487,8 +484,6 @@ def normalize_element_tokens(element: str, *, fill_default_metric: bool = False)
     if not trimmed:
         return trimmed
     parts = parse_element_layers(trimmed)
-    # yoy のスコープ行は売上高を補う。セグメント付き（ゼビオ 単月 既存）も同じ。
-    # チャネル付きの空指標（直営 全店）は触らない。
     if (
         fill_default_metric
         and not parts["metric"]
@@ -794,7 +789,6 @@ def _row_metric(key: str) -> str:
         return "customers"
     if metric == "売上高":
         return "sales"
-    # 正規化で指標が取れない旧名
     if any(mark in key for mark in _STORE_ADJ_MARKS):
         return "adj"
     if "店舗数" in key:
@@ -972,6 +966,38 @@ def monthly_display_label(element: str | None, unit: str | None = None) -> str:
         return name
     suffix, _digits = spec
     return name + f"（{suffix}）"
+
+
+MetricKind = Literal["sales", "customers", "spend", "open", "close", "adj", "stores", "other"]
+SeriesKind = Literal["all_store", "existing", "stores"]
+
+
+class MonthlyElementLabel(TypedDict):
+    display: str
+    group: str
+    metric_kind: MetricKind
+    series_kind: SeriesKind | None
+    country: str
+    segment: str
+    time_axis: str
+    channel: str
+    scope: str
+    metric: str
+    breakdown: str
+
+
+def monthly_element_label(element: str, unit: str | None) -> MonthlyElementLabel:
+    u = unit or "number"
+    canon = canonicalize_element_label(strip_monthly_display_unit(element, u), u)
+    display = monthly_display_label(canon, u)
+    layers = _layers_of(canon)
+    return {
+        "display": display,
+        "group": monthly_row_segment(canon),
+        "metric_kind": _row_metric(canon),
+        "series_kind": monthly_series_kind(canon, u),
+        **layers,
+    }
 
 
 def _round_half_up(value: float, digits: int) -> Decimal:

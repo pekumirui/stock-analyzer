@@ -22,9 +22,9 @@ from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period
                         disclosure_state, earnings_detail as build_earnings_detail)
 from .monthly_ingest import (
     MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label,
-    coerce_monthly_storage, map_pdf_columns, monthly_series_kind, parse_as_of,
-    parse_monthly_unit, reject_prior_period_element, same_yoy_element,
-    serialize_column_mapping,
+    coerce_monthly_storage, map_pdf_columns, monthly_element_label,
+    monthly_series_kind, parse_as_of, parse_monthly_unit,
+    reject_prior_period_element, same_yoy_element, serialize_column_mapping,
 )
 
 router = APIRouter(prefix="/api")
@@ -868,6 +868,7 @@ def get_table(code: str, year: str, db: Session = Depends(get_session)):
             {
                 "element": e.element,
                 "unit": _element_unit(e),
+                "label": monthly_element_label(e.element, _element_unit(e)),
                 "values": _calendar_month_values(by_el[e.element]),
             }
             for e in elems
