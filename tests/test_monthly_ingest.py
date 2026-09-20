@@ -386,6 +386,27 @@ def test_canonicalize_element_label() -> None:
         _fail(f"parse 取扱高 layers: {gmv!r}")
     if monthly_row_segment("CPAソリューション事業 取扱高") != "CPAソリューション事業":
         _fail("gate leftover peels 取扱高")
+    if canonicalize_element_label("ASKUL事業 購入お客様 客単価(前年比)", "yoy_index") != "ASKUL事業 全店 客単価(前年比)":
+        _fail("購入お客様 drops, 客単価 fills 全店")
+    if canonicalize_element_label("ASKUL事業 購入お客様 全店 客単価(前年比)", "yoy_index") != "ASKUL事業 全店 客単価(前年比)":
+        _fail("購入お客様 already-scoped 客単価")
+    if canonicalize_element_label("ASKUL事業 購入お客様数(前年比)", "yoy_index") != "ASKUL事業 全店 客数(前年比)":
+        _fail("購入お客様数 → 客数, fills 全店")
+    if canonicalize_element_label("BtoB事業 購入お客様数(前年比)", "yoy_index") != "BtoB事業 全店 客数(前年比)":
+        _fail("BtoB 購入お客様数 → 客数")
+    if canonicalize_element_label("ASKUL事業 稼働日修正後(前年比)", "yoy_index") != "ASKUL事業 稼働日修正後(前年比)":
+        _fail("稼働日修正後 is a metric, no 全店 fill")
+    if canonicalize_element_label("ASKUL事業稼働日修正後", "yoy_index") != "ASKUL事業 稼働日修正後(前年比)":
+        _fail("unglue 稼働日修正後")
+    kado = parse_element_layers("ASKUL事業 稼働日修正後")
+    if kado["segment"] != "ASKUL事業" or kado["metric"] != "稼働日修正後" or kado["scope"]:
+        _fail(f"parse 稼働日修正後 layers: {kado!r}")
+    if monthly_row_segment("ASKUL事業 稼働日修正後(前年比)") != "ASKUL事業":
+        _fail("gate leftover peels 稼働日修正後")
+    if monthly_row_segment("ASKUL事業 全店 客数(前年比)") != "ASKUL事業":
+        _fail("gate leftover peels 客数")
+    if monthly_row_segment("ASKUL事業 全店 客単価(前年比)") != "ASKUL事業":
+        _fail("gate leftover peels 客単価")
     if canonicalize_element_label("内 MM 全店 売上高", "number") != "内 MM 全店 売上高":
         _fail("内 MM stays leftover, not 内訳")
     if canonicalize_element_label("店舗状況 （内 出店", "number") != "出店":
@@ -1966,6 +1987,34 @@ def test_monthly_element_label() -> None:
     bare_gmv = monthly_element_label("取扱高", "number")
     if bare_gmv["group"] or bare_gmv["metric"] != "取扱高" or bare_gmv["scope"]:
         _fail(f"bare 取扱高 label: {bare_gmv!r}")
+    kado_yoy = monthly_element_label("ASKUL事業 稼働日修正後(前年比)", "yoy_index")
+    if (
+        kado_yoy["group"] != "ASKUL事業"
+        or kado_yoy["metric"] != "稼働日修正後"
+        or kado_yoy["scope"]
+        or kado_yoy["metric_kind"] != "sales"
+        or kado_yoy["series_kind"] is not None
+        or kado_yoy["display"] != "ASKUL事業 稼働日修正後(前年比)"
+    ):
+        _fail(f"稼働日修正後 yoy label: {kado_yoy!r}")
+    cust = monthly_element_label("ASKUL事業 購入お客様数(前年比)", "yoy_index")
+    if (
+        cust["group"] != "ASKUL事業"
+        or cust["metric"] != "客数"
+        or cust["scope"] != "全店"
+        or cust["metric_kind"] != "customers"
+        or cust["series_kind"] != "all_store"
+        or cust["display"] != "ASKUL事業 全店 客数(前年比)"
+    ):
+        _fail(f"購入お客様数 label: {cust!r}")
+    spend = monthly_element_label("ASKUL事業 購入お客様 全店 客単価(前年比)", "yoy_index")
+    if (
+        spend["group"] != "ASKUL事業"
+        or spend["metric"] != "客単価"
+        or spend["scope"] != "全店"
+        or spend["display"] != "ASKUL事業 全店 客単価(前年比)"
+    ):
+        _fail(f"購入お客様 客単価 label: {spend!r}")
 
 
 def main() -> None:
