@@ -177,6 +177,16 @@ def test_canonicalize_element_label() -> None:
         _fail("稼働店舗数 stays one metric")
     if canonicalize_element_label("稼働 店舗数", "number") != "稼働店舗数":
         _fail("稼働 leftover stitches to 稼働店舗数")
+    if canonicalize_element_label("昨対増減率 全店 売上高", "yoy_index") != "全店 売上高(前年比)":
+        _fail("昨対増減率 drops")
+    if canonicalize_element_label("昨対増減率 既存 客数", "yoy_index") != "既存 客数(前年比)":
+        _fail("昨対増減率 既存 客数")
+    if canonicalize_element_label("昨年比 全店 売上高", "yoy_index") != "全店 売上高(前年比)":
+        _fail("昨年比 drops")
+    if canonicalize_element_label("内数 FC 既存 店舗数", "number") != "FC 既存 店舗数":
+        _fail("内数 drops like うち")
+    if canonicalize_element_label("内数 FC 稼働店舗数", "number") != "FC 稼働店舗数":
+        _fail("内数 drops, 稼働店舗数 stays metric")
     if canonicalize_element_label("取引店舗数", "number") != "取引店舗数":
         _fail("取引店舗数 stays one token")
     active = parse_element_layers("店舗流通ネット 稼働店舗数 管理テナント数")
