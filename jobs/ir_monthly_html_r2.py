@@ -402,15 +402,29 @@ _SECTION_PREFIXES: tuple[tuple[str, str], ...] = (
     ("宅食事業", "宅食"),
 )
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
+_PRE_MERGER_REF_RE = re.compile(r"経営統合前|統合前")
+_NUMBERED_NOTE_RE = re.compile(r"\d+\.[^。]*。")
+_PAREN_NOTE_RE = re.compile(r"（注）[^。]*。?")
+
+
+def _section_heading_tail(section_text: str, n: int = 160) -> str:
+    s = unicodedata.normalize("NFKC", section_text or "")
+    s = re.sub(r"\s+", "", s)
+    s = _NUMBERED_NOTE_RE.sub("", s)
+    s = _PAREN_NOTE_RE.sub("", s)
+    return s[-n:] if len(s) > n else s
+
+
+def _is_pre_merger_reference_section(section_text: str) -> bool:
+    return _PRE_MERGER_REF_RE.search(_section_heading_tail(section_text)) is not None
 
 
 def _section_pick_rank(section_text: str, segment: str | None = None) -> int:
-    """表直前見出しの優先度。全店売上 > 全店帯 > 通常 > 1店1日。卸計・統合前参考は選ばない。"""
-    tail = _section_tail(section_text)
+    """表直前見出しの優先度。全店売上 > 全店帯 > 通常 > 1店1日。卸計は選ばない。"""
+    tail = _section_heading_tail(section_text)
     if "卸計" in tail:
         return -1
-    # ツルハ: 連結本表のあとに「参考:経営統合前…」が続く。参考側を選ばない。
-    if "経営統合前" in tail or "統合前" in tail:
+    if _is_pre_merger_reference_section(section_text):
         return -1
     if segment or _section_segment(section_text):
         return 0
@@ -420,10 +434,7 @@ def _section_pick_rank(section_text: str, segment: str | None = None) -> int:
     # やまやの「全店 (単位:…)」帯。セル値の全店97.1 は除外
     if re.search(r"全店(?=(?:・卸計)?(?:\(単位|（単位|単位|$))", tail):
         return 2
-    if "1店1日" in tail or "一店一日" in tail or "拠点数" in tail:
-        return 0
-    # 「グループ店舗数内訳は割愛」などの注記は本表を落とさない
-    if "店舗数" in tail and "店舗数内訳" not in tail:
+    if "1店1日" in tail or "一店一日" in tail or "拠点数" in tail or "店舗数" in tail:
         return 0
     return 1
 
