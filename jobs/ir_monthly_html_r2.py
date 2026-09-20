@@ -90,7 +90,8 @@ _SKIP_AXIS_RE = re.compile(
 _SKIP_SPAN_RE = re.compile(r"\d+\s*[～〜~\-－]\s*\d+\s*月")
 _NAMED_METRIC_RE = re.compile(
     r"来客数|客単価|客数|店舗数|店数|拠点数|営業所数|開店|閉店|出店|退店|"
-    r"千食|お届け|開設|転換|撤退"
+    r"千食|お届け|開設|転換|撤退|テナント数|稼働店舗数|取引店舗数|"
+    r"増加\(店\)|減少\(店\)"
 )
 _COUNT_METRIC_MARKS = (
     "店舗数",
@@ -106,9 +107,23 @@ _COUNT_METRIC_MARKS = (
     "開設",
     "転換",
     "撤退",
+    "テナント数",
+    "稼働店舗数",
+    "取引店舗数",
 )
 _STORE_FLOW_RE = re.compile(r"開店|閉店|出店|退店|開設|撤退")
-_COUNT_HEAD_RE = re.compile(r"店舗数|拠点数|営業所数|千食|お届け")
+_COUNT_HEAD_RE = re.compile(
+    r"店舗数|拠点数|営業所数|千食|お届け|テナント数|稼働店舗数|取引店舗数"
+)
+# 舖 (U+8216) vs 舗 (U+8217): NFKC does not unify; some IR HTML uses 舖.
+_COUNT_DELTA_RE = re.compile(r"(?:増加|減少)\(店\)")
+
+
+def _normalize_count_text(header: str) -> str:
+    compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", header or ""))
+    return compact.replace("舖", "舗")
+
+
 _UPDATE_RE = re.compile(
     r"(\d{4})\s*[/-年]\s*(\d{1,2})\s*[/-月]\s*(\d{1,2})\s*日?\s*"
     r"(?:更新|公表|発表|開示|掲載|確定|現在|時点)"
@@ -363,8 +378,12 @@ def section_fy_end_from_text(
 
 
 def _is_count_header(header: str) -> bool:
-    h = header or ""
-    return _COUNT_HEAD_RE.search(h) is not None or _STORE_FLOW_RE.search(h) is not None
+    h = _normalize_count_text(header)
+    return (
+        _COUNT_HEAD_RE.search(h) is not None
+        or _STORE_FLOW_RE.search(h) is not None
+        or _COUNT_DELTA_RE.search(h) is not None
+    )
 
 
 def _is_store_event_parsed(parsed: dict) -> bool:
@@ -403,6 +422,8 @@ def _section_tail(section_text: str, n: int = 160) -> str:
 _SECTION_PREFIXES: tuple[tuple[str, str], ...] = (
     ("海外事業", "海外"),
     ("宅食事業", "宅食"),
+    ("ほっかほっか亭", "ほっかほっか亭"),
+    ("店舗流通ネット", "店舗流通ネット"),
 )
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 _PRE_MERGER_REF_RE = re.compile(r"経営統合前|統合前")
@@ -645,6 +666,21 @@ def _union_ingest_months(months: list[int]) -> list[int]:
     return wrapped
 
 
+def _valued_months(rows: list[dict]) -> list[int]:
+    out: list[int] = []
+    seen: set[int] = set()
+    for row in rows:
+        for k in (row.get("values") or {}):
+            try:
+                m = int(k)
+            except (TypeError, ValueError):
+                continue
+            if 1 <= m <= 12 and m not in seen:
+                seen.add(m)
+                out.append(m)
+    return out
+
+
 def _merge_other_section_companions(
     primary: dict,
     candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
@@ -688,12 +724,10 @@ def _merge_other_section_companions(
                 continue
             primary.setdefault("rows", []).append(merged)
             have[key] = merged
-        extra_months.extend(
-            m for m in (other.get("months") or []) if isinstance(m, int)
-        )
+        extra_months.extend(_valued_months(other.get("rows") or []))
     if extra_months:
         primary["months"] = _union_ingest_months(
-            [*(primary.get("months") or []), *extra_months]
+            [*_valued_months(primary.get("rows") or []), *extra_months]
         )
 
 
@@ -1042,8 +1076,10 @@ def _drop_ytd_when_monthly_pair(rows: list[dict]) -> list[dict]:
 
 def _is_count_metric(header: str) -> bool:
     """店舗数・出退店・千食/営業所など。ページ見出しの前年で yoy にしない。"""
-    compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", header or ""))
-    return any(mark in compact for mark in _COUNT_METRIC_MARKS)
+    compact = _normalize_count_text(header)
+    if any(mark in compact for mark in _COUNT_METRIC_MARKS):
+        return True
+    return _COUNT_DELTA_RE.search(compact) is not None
 
 
 def infer_unit(header: str, samples: list[str], context: str = "") -> str:
@@ -1256,7 +1292,7 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
             and "前年" not in label
             and "売上" in context
             and "売上" not in label
-            and _NAMED_METRIC_RE.search(label) is None
+            and _NAMED_METRIC_RE.search(_normalize_count_text(label)) is None
             and not _is_count_metric(label)
         ):
             element = f"{label} 売上高前年同月比".strip()
