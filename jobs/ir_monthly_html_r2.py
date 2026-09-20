@@ -389,6 +389,9 @@ def _is_count_only_parsed(parsed: dict) -> bool:
 _ALL_STORE_SALES_HEAD_RE = re.compile(
     r"全店売上(?:（％）|\(%\)|％|%)?(?=※|この表|$)"
 )
+_SCOPED_STORE_UNIT_HEAD_RE = re.compile(
+    r"(既存店|全店)(?=(?:・卸計)?(?:\(単位|（単位|単位|$))"
+)
 
 
 def _section_tail(section_text: str, n: int = 160) -> str:
@@ -402,22 +405,37 @@ _SECTION_PREFIXES: tuple[tuple[str, str], ...] = (
     ("宅食事業", "宅食"),
 )
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
+_PRE_MERGER_REF_RE = re.compile(r"経営統合前|統合前")
+_NUMBERED_NOTE_RE = re.compile(r"\d+\.[^。]*。")
+_PAREN_NOTE_RE = re.compile(r"（注）[^。]*。?")
+
+
+def _section_heading_tail(section_text: str, n: int = 160) -> str:
+    s = unicodedata.normalize("NFKC", section_text or "")
+    s = re.sub(r"\s+", "", s)
+    s = _NUMBERED_NOTE_RE.sub("", s)
+    s = _PAREN_NOTE_RE.sub("", s)
+    return s[-n:] if len(s) > n else s
+
+
+def _is_pre_merger_reference_section(section_text: str) -> bool:
+    return _PRE_MERGER_REF_RE.search(_section_heading_tail(section_text)) is not None
 
 
 def _section_pick_rank(section_text: str, segment: str | None = None) -> int:
-    """表直前見出しの優先度。全店売上 > 全店帯 > 通常 > 1店1日。卸計は選ばない。"""
-    tail = _section_tail(section_text)
+    tail = _section_heading_tail(section_text)
     if "卸計" in tail:
+        return -1
+    if _is_pre_merger_reference_section(section_text):
         return -1
     if segment or _section_segment(section_text):
         return 0
-    # セル連結の「全店」「売上」は除外（全店売上100.0 など）
     if _ALL_STORE_SALES_HEAD_RE.search(tail):
         return 3
-    # やまやの「全店 (単位:…)」帯。セル値の全店97.1 は除外
-    if re.search(r"全店(?=(?:・卸計)?(?:\(単位|（単位|単位|$))", tail):
+    m = _SCOPED_STORE_UNIT_HEAD_RE.search(tail)
+    if m and m.group(1) == "全店":
         return 2
-    if "1店1日" in tail or "一店一日" in tail or "店舗数" in tail or "拠点数" in tail:
+    if "1店1日" in tail or "一店一日" in tail or "拠点数" in tail or "店舗数" in tail:
         return 0
     return 1
 
@@ -427,7 +445,7 @@ def _store_scope_from_section(section_text: str) -> str | None:
     tail = _section_tail(section_text, 80)
     if "卸計" in tail:
         return None
-    m = re.search(r"(既存店|全店)(?=(?:・卸計)?(?:\(単位|（単位|単位|$))", tail)
+    m = _SCOPED_STORE_UNIT_HEAD_RE.search(tail)
     if not m:
         return None
     return "既存店" if m.group(1) == "既存店" else "全店"
