@@ -1330,6 +1330,18 @@ def _assert_monthly_spa(html: str) -> None:
     tbl_block = html[tbl_css:tbl_css + 220]
     if "1px solid" not in tbl_block and "1pxsolid" not in tbl_block.replace(" ", ""):
         _fail("TOP table cells must have full grid lines")
+    tbl_rule = html.find("#monthly-tbl {")
+    if tbl_rule < 0:
+        _fail("#monthly-tbl rule missing")
+    tbl_rule_block = html[tbl_rule:tbl_rule + 180].replace(" ", "")
+    if "margin-inline:auto" not in tbl_rule_block:
+        _fail("TOP table must center with margin-inline:auto when narrower than the viewport")
+    monthly_rule = html.find("table.monthly {")
+    if monthly_rule < 0:
+        _fail("table.monthly rule missing")
+    monthly_rule_block = html[monthly_rule:monthly_rule + 280].replace(" ", "")
+    if "margin-inline:auto" not in monthly_rule_block:
+        _fail("year tables must center with margin-inline:auto when narrower than the detail column")
     if "function loadMonthlyTables" not in html:
         _fail("index.html missing loadMonthlyTables")
     if "function monthlyDisplayYears" not in html:
