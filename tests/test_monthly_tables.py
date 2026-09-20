@@ -1718,6 +1718,24 @@ def _assert_monthly_layout_js() -> None:
                 _el("全店 連結売上高", "number"),
             ],
         }],
+        "gmvTables": [{
+            "year": 2026,
+            "code": "24610",
+            "elements": [
+                _el("全店 売上高", "number"),
+                _el("全店 売上高(前年比)"),
+                _el("取扱高", "number"),
+                _el("取扱高(前年比)"),
+                _el("CPAソリューション事業 全店 売上高", "number"),
+                _el("CPAソリューション事業 全店 売上高(前年比)"),
+                _el("CPAソリューション事業 取扱高", "number"),
+                _el("CPAソリューション事業 取扱高(前年比)"),
+                _el("戦略事業 全店 売上高", "number"),
+                _el("戦略事業 全店 売上高(前年比)"),
+                _el("戦略事業 取扱高", "number"),
+                _el("戦略事業 取扱高(前年比)"),
+            ],
+        }],
     }
     harness = r"""
 const fs = require("fs");
@@ -1779,6 +1797,9 @@ const flatOrder = sandbox.monthlyRowOrder(flatTables);
 const flat = sandbox.monthlyTableLayout(flatOrder, flatTables);
 const bdOrder = sandbox.monthlyRowOrder(matsukiyo);
 const bdLayout = sandbox.monthlyTableLayout(bdOrder, matsukiyo);
+const gmvTables = fixtures.gmvTables;
+const gmvOrder = sandbox.monthlyRowOrder(gmvTables);
+const gmvLayout = sandbox.monthlyTableLayout(gmvOrder, gmvTables);
 const drugRow = matsukiyo[0].elements.find((e) => e.element === "全店 売上高 ドラッグ(前年比)");
 const belluna = fixtures.belluna;
 const areaOrder = sandbox.monthlyRowOrder(belluna);
@@ -1823,6 +1844,18 @@ console.log(JSON.stringify({
       leaf: r.leaf,
       breakdown: r.breakdown || "",
       breakdownDepth: r.breakdownDepth ?? 0,
+    };
+  }),
+  gmvGate: [...sandbox.monthlySegmentGate(gmvTables)].sort(),
+  gmvGated: gmvLayout.gated,
+  gmvSummary: gmvLayout.rows.map((r) => {
+    if (r.kind === "section") return { kind: "section", label: r.label };
+    return {
+      kind: "data",
+      element: r.element,
+      group: r.group,
+      scope: r.scope,
+      leaf: r.leaf,
     };
   }),
 }));
@@ -1896,6 +1929,28 @@ console.log(JSON.stringify({
     ]
     if got.get("bdSummary") != want_bd:
         _fail(f"30880 内訳 layout: {got.get('bdSummary')!r}")
+    if got.get("gmvGate") != ["CPAソリューション事業", "戦略事業"]:
+        _fail(f"取扱高 gate leftovers: {got.get('gmvGate')!r}")
+    if got.get("gmvGated") is not True:
+        _fail("取扱高 issuer must stay gated via 売上高")
+    want_gmv = [
+        {"kind": "data", "element": "全店 売上高", "group": "", "scope": "全店", "leaf": "売上高"},
+        {"kind": "data", "element": "全店 売上高(前年比)", "group": "", "scope": "全店", "leaf": "売上高(前年比)"},
+        {"kind": "data", "element": "取扱高", "group": "", "scope": "", "leaf": "取扱高"},
+        {"kind": "data", "element": "取扱高(前年比)", "group": "", "scope": "", "leaf": "取扱高(前年比)"},
+        {"kind": "section", "label": "CPAソリューション事業"},
+        {"kind": "data", "element": "CPAソリューション事業 全店 売上高", "group": "CPAソリューション事業", "scope": "全店", "leaf": "売上高"},
+        {"kind": "data", "element": "CPAソリューション事業 全店 売上高(前年比)", "group": "CPAソリューション事業", "scope": "全店", "leaf": "売上高(前年比)"},
+        {"kind": "data", "element": "CPAソリューション事業 取扱高", "group": "CPAソリューション事業", "scope": "", "leaf": "取扱高"},
+        {"kind": "data", "element": "CPAソリューション事業 取扱高(前年比)", "group": "CPAソリューション事業", "scope": "", "leaf": "取扱高(前年比)"},
+        {"kind": "section", "label": "戦略事業"},
+        {"kind": "data", "element": "戦略事業 全店 売上高", "group": "戦略事業", "scope": "全店", "leaf": "売上高"},
+        {"kind": "data", "element": "戦略事業 全店 売上高(前年比)", "group": "戦略事業", "scope": "全店", "leaf": "売上高(前年比)"},
+        {"kind": "data", "element": "戦略事業 取扱高", "group": "戦略事業", "scope": "", "leaf": "取扱高"},
+        {"kind": "data", "element": "戦略事業 取扱高(前年比)", "group": "戦略事業", "scope": "", "leaf": "取扱高(前年比)"},
+    ]
+    if got.get("gmvSummary") != want_gmv:
+        _fail(f"取扱高 gated layout: {got.get('gmvSummary')!r}")
     if got.get("areaCols") != 3:
         _fail(f"area 小枝 must not add a stub column: {got.get('areaCols')!r}")
     want_area = [
