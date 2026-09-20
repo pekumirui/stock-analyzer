@@ -102,7 +102,12 @@ function monthlyIssuerSuggestHits(q){
 const MONTHLY_METRIC_RANK = {
   sales:1, customers:2, spend:3, open:4, close:5, adj:6, stores:7, other:8,
 };
-const MONTHLY_BREAKDOWN_RANK = {"":0, ドラッグ:1, 調剤:2, 物販:3};
+const MONTHLY_BREAKDOWN_RANK = {
+  "":0, ドラッグ:1, 調剤:2, 物販:3,
+  プロパティ:1, ホテル:2, インカム太陽光:3, 専門通販:4,
+  化粧品健康食品:5, グルメ:6, ワイン:7, ナース関連:8,
+  呉服関連:1, アパレル雑貨:2, その他:3,
+};
 const MONTHLY_COUNTRY_RANK = {"":0, 日本:1, 海外:2};
 const MONTHLY_CHANNEL_RANK = {"直営+FC":0, 直営:1, FC:2, "":3};
 
@@ -245,6 +250,7 @@ function monthlyLayoutDataRow(item, gatedSegment, idx){
     channel: L.channel,
     scope: L.scope,
     breakdown: L.breakdown || "",
+    breakdownDepth: L.breakdown_depth ?? (L.breakdown ? 1 : 0),
     leaf: monthlyLayoutLeaf(L, item.unit, gatedSegment || ""),
     channelRank: MONTHLY_CHANNEL_RANK[L.channel] ?? 3,
     scopeRank: monthlyRowScopeRank(L),
@@ -773,7 +779,9 @@ function renderMonthlyYearTables(tables){
         let stubs = "";
         if(e.channelSpan) stubs += `<td class="monthly-stub monthly-stub-ch" rowspan="${e.channelSpan}">${escHtml(monthlyStubChannelText(e.channel))}</td>`;
         if(e.scopeSpan) stubs += `<td class="monthly-stub monthly-stub-sc" rowspan="${e.scopeSpan}">${escHtml(monthlyStubScopeText(e.scope))}</td>`;
-        const bdClass = e.breakdown ? " monthly-bd" : "";
+        const bdClass = e.breakdown
+          ? (Number(e.breakdownDepth) === 2 ? " monthly-bd monthly-bd-2" : " monthly-bd")
+          : "";
         stubs += `<td class="l monthly-stub monthly-stub-leaf${bdClass}">${escHtml(e.leaf)}</td>`;
         h += `<tr${ds}>${stubs}`;
         for(let m=1;m<=12;m++){

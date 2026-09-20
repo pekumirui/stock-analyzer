@@ -205,6 +205,9 @@
     font-size:12px;
     font-weight:600;
   }
+  table.monthly.monthly-gated td.monthly-stub-leaf.monthly-bd-2 {
+    padding-left:2.25em;
+  }
   table.monthly thead th.l,
   table.monthly thead th:first-child,
   table.monthly thead th.year {

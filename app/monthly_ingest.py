@@ -216,6 +216,45 @@ _BREAKDOWN_CANON = {
 }
 _BREAKDOWN_MARKS = frozenset({"内)", "（内", "うち"})
 _BREAKDOWN_RANK = {"": 0, "ドラッグ": 1, "調剤": 2, "物販": 3}
+# 領域 leftover の木。中節のあと小枝。保存の内訳は1語。
+_AREA_TREE: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
+    "グロース領域": (
+        ("プロパティ", ("ホテル", "インカム太陽光")),
+        ("専門通販", ("化粧品健康食品", "グルメ", "ワイン", "ナース関連")),
+    ),
+    "サステナブル領域": (
+        ("呉服関連", ()),
+        ("アパレル雑貨", ()),
+        ("その他", ()),
+    ),
+}
+_AREA_CHILD_ALIAS: dict[str, str] = {
+    "インカム、太陽光": "インカム太陽光",
+    "アパレル・雑貨": "アパレル雑貨",
+}
+
+
+def _area_child_maps() -> tuple[dict[str, dict[str, int]], dict[str, int]]:
+    children: dict[str, dict[str, int]] = {}
+    depth: dict[str, int] = {}
+    for area, nodes in _AREA_TREE.items():
+        cmap: dict[str, int] = {}
+        rank = 1
+        for mid, twigs in nodes:
+            cmap[mid] = rank
+            depth[mid] = 1
+            rank += 1
+            for twig in twigs:
+                cmap[twig] = rank
+                depth[twig] = 2
+                rank += 1
+        children[area] = cmap
+    return children, depth
+
+
+_AREA_CHILDREN, _AREA_BREAKDOWN_DEPTH = _area_child_maps()
+for _area_children in _AREA_CHILDREN.values():
+    _BREAKDOWN_RANK.update(_area_children)
 _STORE_FLOW_CANON = {
     "出店": "出店", "出店数": "出店",
     "開店": "出店", "開店数": "出店",
@@ -437,6 +476,31 @@ def _peel_breakdown(leftover: list[str], metric: str) -> tuple[list[str], str]:
     return kept, breakdown
 
 
+def _peel_area_breakdown(
+    leftover: list[str], metric: str, breakdown: str,
+) -> tuple[list[str], str]:
+    if breakdown or _metric_core(metric) != "売上高":
+        return leftover, breakdown
+    parent_i = next(
+        (i for i, tok in enumerate(leftover) if tok in _AREA_CHILDREN),
+        None,
+    )
+    if parent_i is None:
+        return leftover, breakdown
+    rest = leftover[parent_i + 1:]
+    if not rest:
+        return leftover, breakdown
+    children = _AREA_CHILDREN[leftover[parent_i]]
+    joined = " ".join(rest)
+    child = _AREA_CHILD_ALIAS.get(joined, joined)
+    if child not in children:
+        compact = joined.replace(" ", "")
+        child = _AREA_CHILD_ALIAS.get(compact, compact)
+    if child not in children:
+        return leftover, breakdown
+    return leftover[: parent_i + 1], child
+
+
 def parse_element_layers(element: str) -> dict[str, str]:
     """国 / セグメント / 時間軸 / チャネル / スコープ / 指標 / 内訳。正規化前の名前でも読む。"""
     country = ""
@@ -498,6 +562,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
     if not scope and _metric_core(metric) in _METRIC_FILL_ALL:
         scope = "全店"
     leftover, breakdown = _peel_breakdown(leftover, _metric_core(metric))
+    leftover, breakdown = _peel_area_breakdown(leftover, metric, breakdown)
     return {
         "country": country,
         "segment": " ".join(leftover),
@@ -524,6 +589,7 @@ def normalize_element_tokens(element: str, *, fill_default_metric: bool = False)
         parts["metric"] = "売上高"
         parts["time_axis"] = ""
         leftover, breakdown = _peel_breakdown(parts["segment"].split(), "売上高")
+        leftover, breakdown = _peel_area_breakdown(leftover, "売上高", breakdown)
         leftover, metric = _stitch_consolidated(leftover, parts["metric"])
         parts["segment"] = " ".join(leftover)
         parts["metric"] = metric
@@ -857,9 +923,17 @@ def monthly_row_slot(element: str, unit: str | None) -> int:
 
 
 def monthly_row_breakdown_rank(element: str) -> int:
-    """売上高の親が先。内訳は ドラッグ → 調剤 → 物販。"""
+    """売上高の親が先。内訳は ドラッグ → 調剤 → 物販。領域は木の先行順。"""
     bd = _layers_of(element)["breakdown"]
     return _BREAKDOWN_RANK.get(bd, 4)
+
+
+def monthly_breakdown_depth(element: str) -> int:
+    """0=親。1=内訳。2=領域の小枝（プロパティの下のホテル）。"""
+    bd = _layers_of(element)["breakdown"]
+    if not bd:
+        return 0
+    return _AREA_BREAKDOWN_DEPTH.get(bd, 1)
 
 
 def monthly_row_scope_rank(element: str) -> int:
@@ -1017,6 +1091,7 @@ class MonthlyElementLabel(TypedDict):
     scope: str
     metric: str
     breakdown: str
+    breakdown_depth: int
 
 
 def monthly_element_label(element: str, unit: str | None) -> MonthlyElementLabel:
@@ -1030,6 +1105,7 @@ def monthly_element_label(element: str, unit: str | None) -> MonthlyElementLabel
         "metric_kind": _row_metric(canon),
         "series_kind": monthly_series_kind(canon, u),
         **layers,
+        "breakdown_depth": monthly_breakdown_depth(canon),
     }
 
 

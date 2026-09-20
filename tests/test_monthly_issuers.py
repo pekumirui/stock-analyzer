@@ -280,6 +280,7 @@ def test_year_label_block() -> None:
         "scope": "全店",
         "metric": "売上高",
         "breakdown": "",
+        "breakdown_depth": 0,
     }
     if leftover["label"] != want_left:
         _fail(f"leftover 売上高 label: {leftover['label']!r}")
@@ -295,6 +296,7 @@ def test_year_label_block() -> None:
         "scope": "全店",
         "metric": "売上高",
         "breakdown": "ドラッグ",
+        "breakdown_depth": 1,
     }
     if els[1]["label"] != want_mkg:
         _fail(f"MKG label: {els[1]['label']!r}")
