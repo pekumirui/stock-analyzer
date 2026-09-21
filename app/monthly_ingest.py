@@ -218,7 +218,6 @@ _SCOPE_CANON = {
     "全店": "全店",
     "全社": "全社",
 }
-_METRIC_FILL_ALL = frozenset({"売上高", "客数"})
 _BREAKDOWN_CANON = {
     "ドラッグ": "ドラッグ",
     "ドラッグ店舗": "ドラッグ",
@@ -612,8 +611,6 @@ def parse_element_layers(element: str) -> dict[str, str]:
     if _is_flow_metric(metric):
         scope = ""
         leftover = [tok for tok in leftover if tok != "（内"]
-    if not scope and _metric_core(metric) in _METRIC_FILL_ALL:
-        scope = "全店"
     leftover, breakdown = _peel_breakdown(leftover, _metric_core(metric))
     leftover, breakdown = _peel_area_breakdown(leftover, metric, breakdown)
     leftover, breakdown = _peel_active_store_breakdown(leftover, metric, breakdown)
@@ -882,6 +879,7 @@ def monthly_series_kind(element: str, unit: str | None) -> str | None:
     """TOP/チャート用。all_store / existing / stores。どれでもなければ None。
 
     全社・全店舗は会社/全店系。既存が付いていれば既存を優先。
+    スコープ無しの yoy 売上高/連結売上高/客数/客単価は全店枠。
     """
     key = monthly_element_key(element)
     u = unit or "number"
@@ -893,11 +891,14 @@ def monthly_series_kind(element: str, unit: str | None) -> str | None:
         return "stores"
     if u not in _YOY_UNITS:
         return None
-    if _layers_of(element)["breakdown"]:
+    layers = _layers_of(element)
+    if layers["breakdown"]:
         return None
     if "既存" in key:
         return "existing"
     if "全店" in key or "全社" in key:
+        return "all_store"
+    if _metric_core(layers["metric"]) in {"売上高", "客数", "客単価"}:
         return "all_store"
     return None
 
@@ -914,7 +915,7 @@ def _layers_of(element: str) -> dict[str, str]:
 
 
 def _row_scope(key: str) -> str:
-    """既存 / 全店 / 全社。チャネルの直営・FC はスコープにしない。"""
+    """既存 / 全店 / 全社。空スコープの売上高/客数/客単価は全店枠。"""
     scope = _layers_of(key)["scope"]
     if scope == "既存":
         return "existing"
@@ -922,6 +923,8 @@ def _row_scope(key: str) -> str:
         return "all"
     if scope == "全社":
         return "company"
+    if _row_metric(key) in {"sales", "customers", "spend"}:
+        return "all"
     return "other"
 
 
@@ -1007,7 +1010,7 @@ def monthly_row_scope_rank(element: str) -> int:
         return _SCOPE_RANK["other"]
     if not layers["segment"]:
         return _SCOPE_RANK["all"]
-    return _SCOPE_RANK["other"]
+    return _SCOPE_RANK[_row_scope(element)]
 
 
 def _row_country_rank(element: str) -> int:

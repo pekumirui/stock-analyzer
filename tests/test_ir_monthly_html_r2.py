@@ -2336,7 +2336,7 @@ def test_yamaya_scopes_skip_prior_and_wholesale() -> None:
     labels = [(r["element"], r["unit"]) for r in got["rows"]]
     if labels != [
         ("全店 売上高", "number"),
-        ("売上高", "yoy_index"),
+        ("全店 売上高", "yoy_index"),
         ("既存店 売上高", "number"),
         ("既存店 売上高", "yoy_index"),
     ]:
@@ -2344,7 +2344,7 @@ def test_yamaya_scopes_skip_prior_and_wholesale() -> None:
     all_sales = _row(got, "全店 売上高", unit="number")
     if all_sales["values"].get("7") != 11012467:
         _fail(f"yamaya all sales {all_sales}")
-    all_yoy = _row(got, "売上高", unit="yoy_index")
+    all_yoy = _row(got, "全店 売上高", unit="yoy_index")
     if all_yoy["values"].get("7") != 98.61:
         _fail(f"yamaya all yoy {all_yoy}")
     exist_sales = _row(got, "既存店 売上高", unit="number")

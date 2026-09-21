@@ -98,8 +98,14 @@ def test_series_kind() -> None:
         _fail("出店店舗数 is not stores")
     if monthly_series_kind("100円ショップ 閉鎖 店舗数", "number") is not None:
         _fail("閉鎖 店舗数 is not stores")
-    if monthly_series_kind("売上高(前年比)", "yoy_index") is not None:
-        _fail("generic yoy is not mapped")
+    if monthly_series_kind("売上高(前年比)", "yoy_index") != "all_store":
+        _fail("unlabeled yoy 売上高 is all_store")
+    if monthly_series_kind("客数(前年比)", "yoy_index") != "all_store":
+        _fail("unlabeled yoy 客数 is all_store")
+    if monthly_series_kind("客単価(前年比)", "yoy_index") != "all_store":
+        _fail("unlabeled yoy 客単価 is all_store")
+    if monthly_series_kind("取扱高(前年比)", "yoy_index") is not None:
+        _fail("取扱高 yoy is not a series")
     if monthly_series_kind("全店 売上高 ドラッグ(前年比)", "yoy_index") is not None:
         _fail("売上高 内訳 is not all_store")
     if monthly_series_kind("MKG 全店 売上高 調剤(前年比)", "yoy_index") is not None:
@@ -269,7 +275,7 @@ def test_year_label_block() -> None:
     if leftover["element"] != leftover_name or leftover["unit"] != "yoy_index":
         _fail(f"leftover stored row rewritten: {leftover!r}")
     want_left = {
-        "display": "全店 売上高(前年比)",
+        "display": "売上高(前年比)",
         "group": "",
         "metric_kind": "sales",
         "series_kind": "all_store",
@@ -277,7 +283,7 @@ def test_year_label_block() -> None:
         "segment": "",
         "time_axis": "",
         "channel": "",
-        "scope": "全店",
+        "scope": "",
         "metric": "売上高",
         "breakdown": "",
         "breakdown_depth": 0,
