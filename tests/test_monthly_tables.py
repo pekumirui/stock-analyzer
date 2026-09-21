@@ -1241,18 +1241,22 @@ def _assert_monthly_spa(html: str) -> None:
     for chunk in _select_tags(section):
         if "monthly-year" in chunk:
             _fail("monthly tab still has a year select")
-        if 'id="monthly-series"' not in chunk:
-            _fail("monthly tab select must be #monthly-series")
-    if 'id="monthly-layout-debug"' in html or 'id="monthly-layout-mode"' in html:
-        _fail("TEMP layout debug control must be removed")
+        if 'id="monthly-series"' not in chunk and 'id="monthly-layout-mode"' not in chunk:
+            _fail("monthly tab select must be #monthly-series or TEMP #monthly-layout-mode")
+    if 'id="monthly-layout-debug"' not in section or 'id="monthly-layout-mode"' not in section:
+        _fail("TEMP flat/gated compare control #monthly-layout-debug must be in Detail")
     if ">項目<" in html:
         _fail("monthly thead still uses 項目")
     if 'id="monthly-groups"' not in section:
         _fail("TOP must have #monthly-groups")
-    if 'data-group="__gate__"' in html or "ゲート（一時）" in html:
-        _fail("TEMP gate list chip must be removed")
-    if "ensureMonthlyGateIndex" in html or "MONTHLY_GATE_CODES_KEY" in html:
-        _fail("TEMP gate list index must be removed")
+    if 'data-group="__gate__"' not in html and "setMonthlyGroup('__gate__')" not in html:
+        _fail("TEMP gate list chip __gate__ must exist on TOP")
+    if "ゲート（一時）" not in html:
+        _fail("TEMP gate list chip label ゲート（一時） missing")
+    if "function ensureMonthlyGateIndex" not in html:
+        _fail("TEMP gate list must build ensureMonthlyGateIndex")
+    if "MONTHLY_GATE_CODES_KEY" not in html:
+        _fail("TEMP gate list must cache codes under MONTHLY_GATE_CODES_KEY")
     if 'id="monthly-chart"' not in section:
         _fail("Detail must have #monthly-chart")
     if 'id="monthly-back"' not in section:
@@ -1613,10 +1617,14 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("SPA missing monthly-sec section row class")
     if "monthlyTableLayout(rowOrder" not in html:
         _fail("SPA must apply monthlyTableLayout after monthlyRowOrder")
-    if 'id="monthly-layout-debug"' in html or "setMonthlyLayoutMode" in html:
-        _fail("TEMP layout debug must be removed")
-    if "MONTHLY_LAYOUT_MODE_KEY" in html or "forceFlat" in html:
-        _fail("TEMP layout mode / forceFlat must be removed")
+    if 'id="monthly-layout-debug"' not in html:
+        _fail("TEMP debug control #monthly-layout-debug must exist for flat vs gated compare")
+    if "setMonthlyLayoutMode" not in html:
+        _fail("SPA missing setMonthlyLayoutMode for TEMP flat layout toggle")
+    if "MONTHLY_LAYOUT_MODE_KEY" not in html:
+        _fail("TEMP layout mode must use a named sessionStorage key")
+    if "forceFlat" not in html:
+        _fail("monthlyTableLayout must accept forceFlat / flat mode for TEMP debug")
     if "<optgroup" not in html:
         _fail("#monthly-series must support optgroup for gated brands")
     if "monthly-gated" not in html:
@@ -1899,6 +1907,10 @@ const summary = layout.rows.map((r) => {
     leaf: r.leaf,
   };
 });
+const flatForce = sandbox.monthlyTableLayout(rowOrder, gatedTables, {forceFlat: true});
+sandbox.setMonthlyLayoutMode("flat");
+const flatMode = sandbox.monthlyTableLayout(rowOrder, gatedTables);
+sandbox.setMonthlyLayoutMode("gated");
 const flatOrder = sandbox.monthlyRowOrder(flatTables);
 const flat = sandbox.monthlyTableLayout(flatOrder, flatTables);
 const bdOrder = sandbox.monthlyRowOrder(matsukiyo);
@@ -1919,6 +1931,12 @@ console.log(JSON.stringify({
   gated,
   gatedFlag: layout.gated,
   summary,
+  rowOrderIds: rowOrder.map((r) => r.element),
+  flatForceGated: flatForce.gated,
+  flatForceKinds: flatForce.rows.map((r) => r.kind),
+  flatForceIds: flatForce.rows.map((r) => r.element),
+  flatModeGated: flatMode.gated,
+  flatModeIds: flatMode.rows.map((r) => r.element),
   flatGated: flat.gated,
   flatIds: flat.rows.map((r) => r.element),
   flatKinds: flat.rows.map((r) => r.kind),
@@ -2011,6 +2029,16 @@ console.log(JSON.stringify({
     ]
     if got.get("summary") != want:
         _fail(f"gated layout: {got.get('summary')!r}")
+    if got.get("flatForceGated") is not False:
+        _fail("forceFlat must disable gate layout")
+    if "section" in (got.get("flatForceKinds") or []):
+        _fail("forceFlat must not emit section rows")
+    if got.get("flatForceIds") != got.get("rowOrderIds"):
+        _fail(f"forceFlat must keep monthlyRowOrder ids: {got.get('flatForceIds')!r}")
+    if got.get("flatModeGated") is not False:
+        _fail("monthlyLayoutMode=flat must disable gate layout")
+    if got.get("flatModeIds") != got.get("rowOrderIds"):
+        _fail(f"monthlyLayoutMode=flat must keep monthlyRowOrder ids: {got.get('flatModeIds')!r}")
     if got.get("flatGated") is not False:
         _fail("simple issuer must stay ungated")
     if got.get("flatKinds") != ["data", "data"]:

@@ -269,6 +269,12 @@
     text-align:center;
   }
   #monthly-series { max-width:100%; margin:0 0 8px; }
+  .monthly-layout-debug {
+    display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+    margin:0 0 8px; font-size:12px; color:#666;
+  }
+  .monthly-layout-debug[hidden] { display:none; }
+  .monthly-layout-debug select { font-size:12px; max-width:100%; }
   table.monthly tbody tr[data-series] { cursor:pointer; }
   header a.brand { font-size:16px; font-weight:700; color:var(--text); text-decoration:none; margin-right:8px; }
   a#monthly-back { display:inline-block; background:var(--accent); border:none; color:#fff; border-radius:6px; padding:6px 12px; cursor:pointer; text-decoration:none; font-size:14px; }

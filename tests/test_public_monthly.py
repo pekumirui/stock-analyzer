@@ -62,8 +62,11 @@ def main() -> None:
     _expect(r, 200, "GET /app")
     if "週足" not in r.text or "<title>株式分析ツール</title>" not in r.text:
         _fail("GET /app is not the private SPA")
-    if "ゲート（一時）" in r.text or 'id="monthly-layout-debug"' in r.text:
-        _fail("private SPA still has TEMP debug UI")
+    if 'id="monthly-layout-debug"' not in r.text:
+        _fail("private SPA must keep TEMP layout debug")
+    spa_js = (ROOT / "static" / "js" / "monthly.js").read_text(encoding="utf-8")
+    if "ゲート（一時）" not in spa_js:
+        _fail("private SPA JS must keep TEMP gate chip")
 
     r = c.get("/monthly")
     _expect(r, 200, "GET /monthly")
@@ -79,6 +82,8 @@ def main() -> None:
         _fail("public TOP must not show J-Quants market/sector33")
     if "lightweight-charts" in r.text:
         _fail("public HTML must not load chart CDN")
+    if "ゲート（一時）" in r.text or 'id="monthly-layout-debug"' in r.text:
+        _fail("public TOP must not show TEMP debug UI")
     if "data-public-monthly" not in r.text:
         _fail("public body flag missing")
 
@@ -135,12 +140,9 @@ def main() -> None:
     if r.status_code not in (200, 201):
         _fail(f"loopback POST should work: {r.status_code} {r.text[:200]}")
 
-    spa = (ROOT / "static" / "js" / "monthly.js").read_text(encoding="utf-8")
-    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
-    blob = spa + html
-    for needle in ("ゲート（一時）", "monthly-layout-debug", "MONTHLY_GATE_CODES_KEY", "forceFlat"):
-        if needle in blob:
-            _fail(f"debug leftover {needle!r}")
+    pub = (ROOT / "app" / "public_monthly.py").read_text(encoding="utf-8")
+    if "ゲート（一時）" in pub or "monthly-layout-debug" in pub:
+        _fail("public HTML builder must not emit TEMP debug UI")
 
     print("ok: public monthly")
 
