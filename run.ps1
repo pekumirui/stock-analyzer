@@ -9,6 +9,7 @@
 #   .\run.ps1 batch 2026-08-14   特定日を取り込み
 #   .\run.ps1 backfill       初回バックフィル (既定5年分, 要 .env)
 #   .\run.ps1 backfill 2     過去2年分
+#   .\run.ps1 lint           Ruff + Bandit
 param(
     [Parameter(Position = 0)][string]$cmd = "serve",
     [Parameter(Position = 1)][string]$arg = ""
@@ -75,5 +76,12 @@ switch ($cmd) {
         & $python jobs\run_batch.py --backfill $years
     }
 
-    default { Write-Host "使い方: .\run.ps1 [serve|check|reset|migrate|batch|backfill] [引数]" }
+    "lint" {
+        & $python -m pip install -r requirements-dev.txt --quiet
+        & $python -m ruff check app jobs tests tools deploy
+        if ($LASTEXITCODE -ne 0) { break }
+        & $python -m bandit -c pyproject.toml -r app jobs tests tools deploy -x app/xbrlp,.cursor,tmp,.venv
+    }
+
+    default { Write-Host "使い方: .\run.ps1 [serve|check|reset|migrate|batch|backfill|lint] [引数]" }
 }

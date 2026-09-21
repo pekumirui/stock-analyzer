@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import traceback
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 

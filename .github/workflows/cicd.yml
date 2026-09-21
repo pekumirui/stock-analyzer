@@ -59,9 +59,32 @@ jobs:
       - name: Alert patterns
         run: python tests/test_alert_patterns.py
 
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install
+        run: pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Ruff
+        run: python -m ruff check app jobs tests tools deploy
+
+      - name: Bandit
+        run: python -m bandit -c pyproject.toml -r app jobs tests tools deploy -x app/xbrlp,.cursor,tmp,.venv
+
   release:
     name: Release
-    needs: test
+    needs: [test, lint]
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.bump != 'none')
     runs-on: ubuntu-latest
     permissions:
@@ -141,10 +164,11 @@ jobs:
 
   deploy:
     name: Deploy VPS
-    needs: [test, release]
+    needs: [test, lint, release]
     if: |
       always()
       && needs.test.result == 'success'
+      && needs.lint.result == 'success'
       && (needs.release.result == 'success' || needs.release.result == 'skipped')
       && github.event_name != 'pull_request'
       && (github.event_name != 'workflow_dispatch' || inputs.skip_deploy == false)

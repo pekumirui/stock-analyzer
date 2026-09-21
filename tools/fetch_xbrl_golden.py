@@ -41,6 +41,7 @@ import sys
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 JST = timezone(timedelta(hours=9))
@@ -624,7 +625,15 @@ def build_cumulative_goldens(raw_rows: list[dict[str, Any]]) -> list[dict[str, A
         fy_end = date.fromisoformat(fy_end_s[:10])
         sample = rows[0]
 
-        def emit(label: str, metrics: dict[str, float], note: str) -> None:
+        def emit(
+            label: str,
+            metrics: dict[str, float],
+            note: str,
+            *,
+            fy_end: date = fy_end,
+            code: str = code,
+            sample: dict[str, Any] = sample,
+        ) -> None:
             if not metrics:
                 return
             pe = period_end_for_quarter(fy_end, label).isoformat()
@@ -765,6 +774,9 @@ def write_goldens(rows: list[dict[str, Any]], out_dir: Path) -> list[Path]:
 def live_get_json(url: str) -> Any:
     import urllib.request
 
+    scheme = urlparse(url).scheme.lower()
+    if scheme not in ("http", "https"):
+        raise ValueError(f"unsupported URL scheme: {scheme or 'missing'}")
     headers = {
         "User-Agent": "stock-analyzer-xbrl-golden/1.0",
         "Accept": "application/json",
@@ -773,7 +785,7 @@ def live_get_json(url: str) -> Any:
     if token:
         headers["Authorization"] = "Bearer " + token
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=60) as resp:
+    with urllib.request.urlopen(req, timeout=60) as resp:  # nosec B310
         raw = resp.read()
     return json.loads(raw.decode("utf-8"))
 

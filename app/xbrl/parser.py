@@ -14,7 +14,7 @@ from app.xbrl.context import (
     parse_contexts_from_xml,
     resolve_fiscal_year_end,
 )
-from app.xbrlp import Fact, FileLoader, Label, Parser
+from app.xbrlp import Fact, FileLoader, Parser
 
 
 STANDARD_NS_PREFIXES = (

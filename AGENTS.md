@@ -80,6 +80,7 @@
 
 ## 検証の目安
 
+- 静的解析: `.\run.ps1 lint` / `./run.sh lint`（Ruff + Bandit。設定は `pyproject.toml`）
 - API: `/api/stocks/search?q=トヨタ` や `/api/screener`
 - backfill 後に UI の決算・チャート・スクリーナーが空でないこと
 - UI を実際に動かして確かめるなら `.cursor/skills/verify-stock-analyzer/SKILL.md`

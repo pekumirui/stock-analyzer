@@ -1,0 +1,57 @@
+# Tool config only (not a packaged project).
+# Ruff 0.16 default select (413 rules). Version pin: requirements-dev.txt.
+
+[tool.ruff]
+target-version = "py310"
+extend-exclude = ["app/xbrlp"]
+
+[tool.ruff.lint]
+ignore = [
+    "B008",     # FastAPI Depends() in defaults
+    "BLE001",   # batch/MCP catch Exception
+    "DTZ003",   # naive datetime (SQLite / JST)
+    "DTZ005",
+    "DTZ007",
+    "DTZ011",
+    "FURB157",  # Decimal constructor style
+    "FURB167",  # re.I vs re.IGNORECASE
+    "FURB188",  # removeprefix
+    "I001",     # import sort (separate chore)
+    "PIE810",   # startswith/endswith tuple
+    "PLR0124",  # v != v NaN check
+    "PLR1730",  # if -> max()
+    "PLW1510",  # subprocess.run check=
+    "PYI034",   # test fake __enter__
+    "RUF007",   # itertools.pairwise
+    "RUF034",   # useless if/else
+    "RUF100",   # leftover noqa: E402 (E402 not in 0.16 default)
+    "S110",     # try/except/pass
+    "S112",     # try/except/continue
+    "SIM102",   # collapse nested if
+    "SIM103",   # return bool condition
+    "SIM114",   # combine if arms
+    "SIM117",   # nested with
+    "TRY004",   # ValueError vs TypeError
+    "UP012",    # encode utf-8
+    "UP034",    # extra parens
+    "UP035",    # collections.abc
+    "UP037",    # quoted annotation
+]
+
+[tool.bandit]
+exclude_dirs = ["app/xbrlp", ".cursor", "tmp", ".venv"]
+skips = [
+    "B101",
+    "B105",
+    "B106",
+    "B107",
+    "B108",
+    "B110",
+    "B112",
+    "B314",
+    "B404",
+    "B405",
+    "B603",
+    "B607",
+    "B608",
+]

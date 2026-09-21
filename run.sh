@@ -11,6 +11,7 @@
 #   ./run.sh batch 2026-08-14   特定日を取り込み
 #   ./run.sh backfill       初回バックフィル (既定5年分, 要 .env)
 #   ./run.sh backfill 2     過去2年分
+#   ./run.sh lint           Ruff + Bandit
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
@@ -107,8 +108,13 @@ case "$cmd" in
     rm -f stock.db stock.db-journal stock.db-wal stock.db-shm
     echo "削除しました。次: ./run.sh backfill"
     ;;
+  lint)
+    "$python" -m pip install -r requirements-dev.txt
+    "$python" -m ruff check app jobs tests tools deploy
+    "$python" -m bandit -c pyproject.toml -r app jobs tests tools deploy -x app/xbrlp,.cursor,tmp,.venv
+    ;;
   *)
-    echo "使い方: ./run.sh [serve|check|reset|migrate|batch|backfill] [引数]"
+    echo "使い方: ./run.sh [serve|check|reset|migrate|batch|backfill|lint] [引数]"
     exit 1
     ;;
 esac
