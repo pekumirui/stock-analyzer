@@ -516,17 +516,12 @@ def _rows_need_store_scope(rows: list[dict]) -> bool:
 
 
 def _apply_store_scope(rows: list[dict], scope: str) -> None:
-    """既存/全店を行名に付ける。全店の前年比は売上高のみ（canonicalize が全店を補う）。"""
+    """見出しの既存/全店を行名に付ける。"""
     for row in rows:
         el = str(row.get("element") or "").strip()
         if not el:
             continue
         if scope in el or ("既存" in scope and "既存" in el) or (scope == "全店" and "全店" in el):
-            continue
-        compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", el))
-        unit = row.get("unit")
-        if scope == "全店" and unit in ("yoy_index", "yoy_pct") and compact == "売上高":
-            row["element"] = "売上高"
             continue
         row["element"] = f"{scope} {el}".strip()
 

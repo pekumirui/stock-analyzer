@@ -119,13 +119,15 @@ function monthlyRowScopeRank(label){
   if(label.metric_kind === "stores" || label.metric_kind === "open"
       || label.metric_kind === "close" || label.metric_kind === "adj") return 3;
   if(!label.segment) return 0;
+  if(!label.scope && (label.metric_kind === "sales"
+      || label.metric_kind === "customers" || label.metric_kind === "spend")) return 0;
   return 3;
 }
 
 function isAllStoreSalesYoy(label, unit){
   const u = unit || "number";
   return (u === "yoy_index" || u === "yoy_pct")
-    && label.metric === "売上高" && label.scope === "全店"
+    && label.metric === "売上高" && (label.scope === "全店" || !label.scope)
     && !label.segment && !label.breakdown;
 }
 

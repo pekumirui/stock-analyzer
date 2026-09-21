@@ -86,9 +86,9 @@ def _expect_ingest_error(fn, code: str, needle: str | None = None) -> MonthlyIng
 
 
 def test_canonicalize_element_label() -> None:
-    if canonicalize_element_label("売上高前年同月比", "yoy_index") != "全店 売上高(前年比)":
+    if canonicalize_element_label("売上高前年同月比", "yoy_index") != "売上高(前年比)":
         _fail("strip 前年同月比 + suffix")
-    if canonicalize_element_label("売上高前年比", "yoy_pct") != "全店 売上高(前年比)":
+    if canonicalize_element_label("売上高前年比", "yoy_pct") != "売上高(前年比)":
         _fail("strip 前年比 + suffix")
     if canonicalize_element_label("既存売上高(前年比)", "yoy_index") != "既存 売上高(前年比)":
         _fail("no double suffix")
@@ -96,15 +96,15 @@ def test_canonicalize_element_label() -> None:
         _fail("fullwidth parens to ascii suffix")
     if canonicalize_element_label("全店 売上高", "yoy_index") != "全店 売上高(前年比)":
         _fail("yoy append even without 前年比")
-    if canonicalize_element_label(" 売上高 前年同月比 ", "yoy_index") != "全店 売上高(前年比)":
+    if canonicalize_element_label(" 売上高 前年同月比 ", "yoy_index") != "売上高(前年比)":
         _fail("trim leftover spaces after strip")
-    if canonicalize_element_label("売上高", "number") != "全店 売上高":
-        _fail("number 売上高 fills 全店")
-    if canonicalize_element_label("売上高前年同月比", "number") != "全店 売上高":
+    if canonicalize_element_label("売上高", "number") != "売上高":
+        _fail("number 売上高 stays unlabeled")
+    if canonicalize_element_label("売上高前年同月比", "number") != "売上高":
         _fail("number token-normalize still skips yoy suffix")
     if canonicalize_element_label("店舗数", "number") != "店舗数":
         _fail("number 店舗数")
-    if canonicalize_element_label("売上高前年同月比", None) != "全店 売上高":
+    if canonicalize_element_label("売上高前年同月比", None) != "売上高":
         _fail("omitted unit is number: tokens only")
     if canonicalize_element_label("合計 店舗数", "number") != "店舗数":
         _fail("合計 店舗数 drops 合計")
@@ -136,27 +136,27 @@ def test_canonicalize_element_label() -> None:
         _fail("SRS leading ① dropped")
     if (
         canonicalize_element_label("前年比 売上高 ※ 2026年（令和8年）度", "yoy_index")
-        != "全店 売上高(前年比)"
+        != "売上高(前年比)"
     ):
         _fail("Daikokuten 令和年度帯 dropped")
     if canonicalize_element_label("ゼビオ 単月 既存", "yoy_index") != "ゼビオ 既存 売上高(前年比)":
         _fail("Xevo 単月 既存 → ゼビオ 既存 売上高")
     if canonicalize_element_label("直営+FC 既存店 焼肉 売上高(前年比)", "yoy_index") != "焼肉 直営+FC 既存 売上高(前年比)":
         _fail("channel stays a layer")
-    if canonicalize_element_label("売上高合計(直営・FC)", "number") != "直営+FC 全店 売上高":
-        _fail("71340 売上高合計(直営・FC) → 直営+FC 全店 売上高")
+    if canonicalize_element_label("売上高合計(直営・FC)", "number") != "直営+FC 売上高":
+        _fail("71340 売上高合計(直営・FC) → 直営+FC 売上高")
     if canonicalize_element_label("直営・FC 全店 売上高", "number") != "直営+FC 全店 売上高":
         _fail("71340 直営・FC middle-dot → 直営+FC")
-    if canonicalize_element_label("売上高合計(直営・FC)", "yoy_index") != "直営+FC 全店 売上高(前年比)":
-        _fail("71340 直営・FC yoy → 直営+FC 全店 売上高(前年比)")
+    if canonicalize_element_label("売上高合計(直営・FC)", "yoy_index") != "直営+FC 売上高(前年比)":
+        _fail("71340 直営・FC yoy → 直営+FC 売上高(前年比)")
     if canonicalize_element_label("直営･FC 全店 売上高", "number") != "直営+FC 全店 売上高":
         _fail("71340 halfwidth middle-dot 直営･FC")
     if canonicalize_element_label("直営・ＦＣ 全店 売上高", "number") != "直営+FC 全店 売上高":
         _fail("71340 fullwidth ＦＣ with middle-dot")
     if canonicalize_element_label("国内FC店舗数", "number") != "日本 FC 店舗数":
         _fail("国内 to 日本, FC channel")
-    if canonicalize_element_label("日本 合計 売上高(前年比)", "yoy_index") != "日本 全店 売上高(前年比)":
-        _fail("合計 on sales fills 全店")
+    if canonicalize_element_label("日本 合計 売上高(前年比)", "yoy_index") != "日本 売上高(前年比)":
+        _fail("合計 on sales drops, no 全店 fill")
     if canonicalize_element_label("国内リテール 既存店 売上高(前年比)", "yoy_index") != "国内リテール 既存 売上高(前年比)":
         _fail("国内リテール stays one segment")
     if canonicalize_element_label("月末店舗数", "number") != "店舗数":
@@ -208,12 +208,12 @@ def test_canonicalize_element_label() -> None:
         _fail("減少 breakdown rank")
     if monthly_element_label("店舗流通ネット 稼働店舗数", "number")["group"] != "店舗流通ネット":
         _fail("店舗流通ネット is the group")
-    if canonicalize_element_label("LOWYA 対(前年比)", "yoy_index") != "LOWYA 全店 売上高(前年比)":
+    if canonicalize_element_label("LOWYA 対(前年比)", "yoy_index") != "LOWYA 売上高(前年比)":
         _fail("対 leftover is 売上高")
-    if canonicalize_element_label("LOWYA対前年比", "yoy_index") != "LOWYA 全店 売上高(前年比)":
+    if canonicalize_element_label("LOWYA対前年比", "yoy_index") != "LOWYA 売上高(前年比)":
         _fail("glued 対前年比 is 売上高")
-    if canonicalize_element_label("LOWYA 売上高(前年比)", "yoy_index") != "LOWYA 全店 売上高(前年比)":
-        _fail("LOWYA 売上高 fills 全店")
+    if canonicalize_element_label("LOWYA 売上高(前年比)", "yoy_index") != "LOWYA 売上高(前年比)":
+        _fail("LOWYA 売上高 stays unlabeled")
     if canonicalize_element_label("100円ショップ 直営 全店(前年比)", "yoy_index") != "100円ショップ 直営 全店(前年比)":
         _fail("empty-metric 直営 全店 yoy stays")
     if canonicalize_element_label("直営店数", "number") != "直営 店舗数":
@@ -280,8 +280,8 @@ def test_canonicalize_element_label() -> None:
         _fail("単月売上 drops 単月 time-axis")
     if canonicalize_element_label("全店 単月売上", "yoy_pct") != "全店 売上高(前年比)":
         _fail("全店 単月売上 drops 単月")
-    if canonicalize_element_label("単月売上", "yoy_pct") != "全店 売上高(前年比)":
-        _fail("bare 単月売上 fills 全店")
+    if canonicalize_element_label("単月売上", "yoy_pct") != "売上高(前年比)":
+        _fail("bare 単月売上 does not fill 全店")
     if canonicalize_element_label("単月 全店 売上高(前年比)", "yoy_pct") != "全店 売上高(前年比)":
         _fail("stored 単月 segment drops")
     if canonicalize_element_label("ゼビオ 単月 既存(前年比)", "yoy_index") != "ゼビオ 既存 売上高(前年比)":
@@ -330,25 +330,25 @@ def test_canonicalize_element_label() -> None:
         _fail("調剤事業 stays a segment")
     if canonicalize_element_label("内アパレル 全店 売上高(前年比)", "yoy_index") != "内アパレル 全店 売上高(前年比)":
         _fail("内アパレル stays a segment")
-    if canonicalize_element_label("グロース領域 売上高 プロパティ", "number") != "グロース領域 全店 売上高 プロパティ":
+    if canonicalize_element_label("グロース領域 売上高 プロパティ", "number") != "グロース領域 売上高 プロパティ":
         _fail("グロース領域 売上高 プロパティ peels to 内訳")
-    if canonicalize_element_label("グロース領域 売上高 ホテル", "number") != "グロース領域 全店 売上高 ホテル":
+    if canonicalize_element_label("グロース領域 売上高 ホテル", "number") != "グロース領域 売上高 ホテル":
         _fail("グロース領域 売上高 ホテル peels to 内訳")
     area = parse_element_layers("グロース領域 売上高 ホテル")
     if (
         area["segment"] != "グロース領域"
-        or area["scope"] != "全店"
+        or area["scope"]
         or area["metric"] != "売上高"
         or area["breakdown"] != "ホテル"
     ):
         _fail(f"parse area 内訳 layers: {area!r}")
     if canonicalize_element_label("グロース領域 全店 売上高 インカム、太陽光", "number") != "グロース領域 全店 売上高 インカム太陽光":
         _fail("インカム、太陽光 aliases to インカム太陽光")
-    if canonicalize_element_label("サステナブル領域 売上高 その他", "number") != "サステナブル領域 全店 売上高 その他":
+    if canonicalize_element_label("サステナブル領域 売上高 その他", "number") != "サステナブル領域 売上高 その他":
         _fail("サステナブル領域 その他 peels to 内訳")
     if canonicalize_element_label("サステナブル領域 全店 売上高 アパレル・雑貨", "number") != "サステナブル領域 全店 売上高 アパレル雑貨":
         _fail("アパレル・雑貨 aliases to アパレル雑貨")
-    if canonicalize_element_label("グロース領域 売上高 ホテル", "yoy_index") != "グロース領域 全店 売上高 ホテル(前年比)":
+    if canonicalize_element_label("グロース領域 売上高 ホテル", "yoy_index") != "グロース領域 売上高 ホテル(前年比)":
         _fail("area 内訳 yoy suffix")
     if canonicalize_element_label("グロース領域 全店 ホテル", "yoy_index") != "グロース領域 全店 売上高 ホテル(前年比)":
         _fail("area 内訳 empty-metric yoy peels")
@@ -361,14 +361,14 @@ def test_canonicalize_element_label() -> None:
         _fail("area 内訳 canonicalize is idempotent")
     if len(canonicalize_element_label("サステナブル領域 売上高 アパレル・雑貨", "yoy_index")) > 50:
         _fail("area 内訳 name exceeds 50")
-    if canonicalize_element_label("連結売上高", "number") != "全店 連結売上高":
+    if canonicalize_element_label("連結売上高", "number") != "連結売上高":
         _fail("連結売上高 is a metric, not a segment")
-    if canonicalize_element_label("連結 売上高", "number") != "全店 連結売上高":
+    if canonicalize_element_label("連結 売上高", "number") != "連結売上高":
         _fail("連結 売上高 glues to 連結売上高")
     if canonicalize_element_label("連結 全店 売上高", "number") != "全店 連結売上高":
         _fail("連結 全店 売上高 → 全店 連結売上高")
-    if canonicalize_element_label("連結売上高", "yoy_index") != "全店 連結売上高(前年比)":
-        _fail("連結売上高 yoy keeps 全店 for TOP")
+    if canonicalize_element_label("連結売上高", "yoy_index") != "連結売上高(前年比)":
+        _fail("連結売上高 yoy stays unlabeled")
     if canonicalize_element_label("連結 全店", "yoy_index") != "全店 連結売上高(前年比)":
         _fail("連結 全店 yoy fills 連結売上高")
     if canonicalize_element_label("クラウド事業 全店 売上高", "number") != "クラウド事業 全店 売上高":
@@ -397,11 +397,11 @@ def test_canonicalize_element_label() -> None:
     if monthly_row_segment("CPAソリューション事業 取扱高") != "CPAソリューション事業":
         _fail("gate leftover peels 取扱高")
     if canonicalize_element_label("ASKUL事業 購入お客様 客単価(前年比)", "yoy_index") != "ASKUL事業 客単価(前年比)":
-        _fail("購入お客様 drops, 客単価 does not fill 全店")
+        _fail("購入お客様 drops, 客単価 stays unlabeled")
     if canonicalize_element_label("ASKUL事業 購入お客様 全店 客単価(前年比)", "yoy_index") != "ASKUL事業 全店 客単価(前年比)":
         _fail("購入お客様 already-scoped 客単価")
     if canonicalize_element_label("ASKUL事業 購入お客様数(前年比)", "yoy_index") != "ASKUL事業 購入お客様数(前年比)":
-        _fail("購入お客様数 stays metric, no 全店")
+        _fail("購入お客様数 stays metric")
     if canonicalize_element_label("BtoB事業 購入お客様数(前年比)", "yoy_index") != "BtoB事業 購入お客様数(前年比)":
         _fail("BtoB 購入お客様数 stays metric")
     if canonicalize_element_label("ASKUL事業 稼働日修正後(前年比)", "yoy_index") != "ASKUL事業 稼働日修正後(前年比)":
@@ -496,8 +496,10 @@ def test_canonicalize_element_label() -> None:
         "グロース領域 全店 売上高 化粧品健康食品",
     ]:
         _fail(f"area 小枝 order: {area_order!r}")
-    if not same_yoy_element("売上高", "yoy_index", "全店 売上高(前年比)", "yoy_index"):
-        _fail("short yoy name matches canonical")
+    if same_yoy_element("売上高", "yoy_index", "全店 売上高(前年比)", "yoy_index"):
+        _fail("売上高 yoy does not fold into 全店 売上高")
+    if not same_yoy_element("売上高", "yoy_index", "売上高(前年比)", "yoy_index"):
+        _fail("short yoy name matches unlabeled canonical")
     if not same_yoy_element("カラオケ全店 売上高", "yoy_index", "カラオケ 全店 売上高(前年比)", "yoy_index"):
         _fail("karaoke short matches canonical")
     if same_yoy_element("売上高", "number", "売上高(前年比)", "number"):
@@ -517,13 +519,11 @@ def test_canonicalize_element_label() -> None:
         ("29260", 2026, "売上高", "number"),
     ])
     if planned != [
-        ("29260", 2026, "全店 売上高", ["売上高"]),
         ("29260", 2026, "全店 売上高(前年比)", ["全店 売上高前期比"]),
-        ("44440", 2025, "全店 売上高", ["売上高", "売上高前年同月比"]),
-        ("44440", 2025, "全店 売上高(前年比)", ["売上高(前年比)"]),
+        ("44440", 2025, "売上高", ["売上高前年同月比"]),
         ("60590", 2026, "カラオケ 全店 売上高(前年比)",
          ["カラオケ全店 売上高", "カラオケ全店 売上高(前年比)"]),
-        ("72030", 2024, "全店 売上高", ["売上高", "売上高(前年比)"]),
+        ("72030", 2024, "売上高", ["売上高(前年比)"]),
     ]:
         _fail(f"plan_yoy_duplicate_merges: {planned!r}")
 
@@ -549,7 +549,7 @@ def test_issuer_alias_cases() -> None:
     sample_34150 = apply_issuer_aliases(
         "34150", canonicalize_element_label("全社 国内 合計 売上高(前年比)", "yoy_index"), year=2099,
     )
-    if sample_34150 != "日本 全店 売上高(前年比)":
+    if sample_34150 != "日本 売上高(前年比)":
         _fail(f"34150 sample: {sample_34150!r}")
     sample_26980 = apply_issuer_aliases(
         "26980", canonicalize_element_label("全社(前年比)", "yoy_index"), year=2099,
@@ -1143,11 +1143,11 @@ def test_unit_display_and_ingest() -> None:
         _fail(f"ingest yoy_index 103.4 name: {list(by)!r}")
     if by["既存 売上高(前年比)"]["unit"] != "yoy_index" or float(by["既存 売上高(前年比)"]["values"]["11"]) != 103.4:
         _fail(f"ingest yoy_index 103.4 stored: {by['既存 売上高(前年比)']!r}")
-    if "全店 客数(前年比)" not in by:
+    if "客数(前年比)" not in by:
         _fail(f"ingest yoy_pct name: {list(by)!r}")
-    if by["全店 客数(前年比)"]["unit"] != "yoy_index" or float(by["全店 客数(前年比)"]["values"]["11"]) != 92.9:
-        _fail(f"ingest yoy_pct stored as yoy_index 92.9: {by['全店 客数(前年比)']!r}")
-    if format_monthly_cell(float(by["全店 客数(前年比)"]["values"]["11"]), "yoy_index") != "92.9":
+    if by["客数(前年比)"]["unit"] != "yoy_index" or float(by["客数(前年比)"]["values"]["11"]) != 92.9:
+        _fail(f"ingest yoy_pct stored as yoy_index 92.9: {by['客数(前年比)']!r}")
+    if format_monthly_cell(float(by["客数(前年比)"]["values"]["11"]), "yoy_index") != "92.9":
         _fail("ingest yoy_index 92.9 display")
     if by["店舗数"]["unit"] != "number" or float(by["店舗数"]["values"]["11"]) != 303:
         _fail(f"ingest number stored: {by['店舗数']!r}")
@@ -1162,8 +1162,8 @@ def test_unit_display_and_ingest() -> None:
     _expect(r, 200, "re-ingest yoy_pct -7.1")
     r = c.get(f"/api/v1/tables/{code}/2025")
     by = {e["element"]: e for e in r.json()["elements"]}
-    if by["全店 客数(前年比)"]["unit"] != "yoy_index" or float(by["全店 客数(前年比)"]["values"]["11"]) != 92.9:
-        _fail(f"re-ingest must not add 100 twice: {by['全店 客数(前年比)']!r}")
+    if by["客数(前年比)"]["unit"] != "yoy_index" or float(by["客数(前年比)"]["values"]["11"]) != 92.9:
+        _fail(f"re-ingest must not add 100 twice: {by['客数(前年比)']!r}")
 
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": [11, 12, 1],
@@ -1201,8 +1201,8 @@ def test_ingest_yoy_label_and_number_separate() -> None:
     r = c.get(f"/api/v1/tables/{code}/2025")
     _expect(r, 200, "GET after 前年同月比")
     names = [e["element"] for e in r.json()["elements"]]
-    if names != ["全店 売上高(前年比)"]:
-        _fail(f"save 売上高前年同月比 as 全店 売上高(前年比): {names!r}")
+    if names != ["売上高(前年比)"]:
+        _fail(f"save 売上高前年同月比 as 売上高(前年比): {names!r}")
 
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": [11],
@@ -1212,7 +1212,7 @@ def test_ingest_yoy_label_and_number_separate() -> None:
     _expect(r, 200, "ingest canonical same row")
     r = c.get(f"/api/v1/tables/{code}/2025")
     els = r.json()["elements"]
-    if [e["element"] for e in els] != ["全店 売上高(前年比)"]:
+    if [e["element"] for e in els] != ["売上高(前年比)"]:
         _fail(f"canonical similar must be same row: {[e['element'] for e in els]!r}")
     if float(els[0]["values"]["11"]) != 126.0:
         _fail(f"canonical ingest overwrite: {els[0]!r}")
@@ -1224,13 +1224,13 @@ def test_ingest_yoy_label_and_number_separate() -> None:
     _expect(r, 200, "number 売上高 value")
     r = c.get(f"/api/v1/tables/{code}/2025")
     names = [e["element"] for e in r.json()["elements"]]
-    if names != ["全店 売上高(前年比)", "全店 売上高"]:
+    if names != ["売上高(前年比)", "売上高"]:
         _fail(f"number and yoy stay separate: {names!r}")
 
     r = c.post(f"/api/v1/tables/{code}/{2025}/elements",
                json={"element": "売上高前年同月比", "unit": "number"})
-    _expect(r, 200, "number 前年同月比 folds to 全店 売上高")
-    if r.json()["element"] != "全店 売上高":
+    _expect(r, 200, "number 前年同月比 folds to 売上高")
+    if r.json()["element"] != "売上高":
         _fail(f"number token-normalize: {r.json()!r}")
 
 
@@ -1255,7 +1255,7 @@ def test_ingest_yoy_short_and_canonical_same_row() -> None:
     _expect(r, 200, "GET after yoy short+canonical")
     els = r.json()["elements"]
     names = [e["element"] for e in els]
-    if names != ["全店 売上高(前年比)"]:
+    if names != ["売上高(前年比)"]:
         _fail(f"ingest 売上高 then 売上高(前年比) must be one row: {names!r}")
     if els[0]["unit"] != "yoy_index" or float(els[0]["values"]["1"]) != 102.0:
         _fail(f"second ingest upsert: {els[0]!r}")
@@ -1434,7 +1434,7 @@ def test_rename_29260_style_cross_year_yoy() -> None:
             _fail(f"29260 2026 short still present: {names!r}")
         if canon not in names:
             _fail(f"29260 2026 missing canonical: {names!r}")
-        if "店舗数" not in names or "全店 売上高" not in names:
+        if "店舗数" not in names or "売上高" not in names:
             _fail(f"number rows must stay: {names!r}")
         if "売上高(前年比)" in names:
             _fail(f"number 売上高 must not gain (前年比): {names!r}")
@@ -1446,7 +1446,7 @@ def test_rename_29260_style_cross_year_yoy() -> None:
         stores = db.get(MonthlyValue, (code, 2026, "店舗数", 1))
         if stores is None or float(stores.value) != 50.0:
             _fail(f"number 店舗数 values: {stores}")
-        sales = db.get(MonthlyValue, (code, 2026, "全店 売上高", 1))
+        sales = db.get(MonthlyValue, (code, 2026, "売上高", 1))
         if sales is None or float(sales.value) != 1000.0:
             _fail(f"number 売上高 values: {sales}")
         if db.get(MonthlyElement, (code, 2025, canon)) is None:
@@ -1461,15 +1461,15 @@ def test_rename_29260_style_cross_year_yoy() -> None:
     _expect(r, 200, "GET 29260 2025")
     y2025 = r.json()
     order = [row["element"] for row in union_monthly_elements([y2026, y2025])]
-    if order != [canon, "全店 売上高", "店舗数"]:
+    if order != [canon, "売上高", "店舗数"]:
         _fail(f"29260 union must be one yoy row: {order!r}")
     by = {e["element"]: e for e in y2026["elements"]}
     if canon not in by or float(by[canon]["values"]["1"]) != 110.0:
         _fail(f"GET 2026 values from renamed short: {by!r}")
     if by.get("店舗数", {}).get("unit") != "number" or float(by["店舗数"]["values"]["1"]) != 50.0:
         _fail(f"GET 2026 店舗数: {by.get('店舗数')!r}")
-    if by.get("全店 売上高", {}).get("unit") != "number" or float(by["全店 売上高"]["values"]["1"]) != 1000.0:
-        _fail(f"GET 2026 number 売上高: {by.get('全店 売上高')!r}")
+    if by.get("売上高", {}).get("unit") != "number" or float(by["売上高"]["values"]["1"]) != 1000.0:
+        _fail(f"GET 2026 number 売上高: {by.get('売上高')!r}")
 
     leftover = [
         {"year": 2026, "elements": [
@@ -1484,7 +1484,7 @@ def test_rename_29260_style_cross_year_yoy() -> None:
         ]},
     ]
     leftover_order = [row["element"] for row in union_monthly_elements(leftover)]
-    if leftover_order != [canon, "全店 売上高", "店舗数"]:
+    if leftover_order != [canon, "売上高", "店舗数"]:
         _fail(f"leftover short names must collapse by display: {leftover_order!r}")
 
     again = merge_yoy_duplicate_elements()
@@ -1871,7 +1871,7 @@ def test_fail_loud_required_and_conflicts() -> None:
             sort_order=1, unit="yoy_index",
         ))
         db.add(MonthlyElement(
-            code=fold_code, year=2026, element="売上高(前年比)",
+            code=fold_code, year=2026, element="全店 売上高前期比",
             sort_order=2, unit="yoy_index",
         ))
         db.add(MonthlyValue(
@@ -1879,7 +1879,7 @@ def test_fail_loud_required_and_conflicts() -> None:
             month=1, value=100.0,
         ))
         db.add(MonthlyValue(
-            code=fold_code, year=2026, element="売上高(前年比)",
+            code=fold_code, year=2026, element="全店 売上高前期比",
             month=1, value=200.0,
         ))
         db.commit()
@@ -1903,10 +1903,10 @@ def test_fail_loud_required_and_conflicts() -> None:
         names = sorted(
             e.element for e in db.query(MonthlyElement).filter_by(code=fold_code, year=2026)
         )
-        if names != ["全店 売上高(前年比)", "売上高(前年比)"]:
+        if names != ["全店 売上高(前年比)", "全店 売上高前期比"]:
             _fail(f"FOLD_CONFLICT must not delete src: {names!r}")
         kept = db.get(MonthlyValue, (fold_code, 2026, "全店 売上高(前年比)", 1))
-        dropped = db.get(MonthlyValue, (fold_code, 2026, "売上高(前年比)", 1))
+        dropped = db.get(MonthlyValue, (fold_code, 2026, "全店 売上高前期比", 1))
         if kept is None or float(kept.value) != 100.0:
             _fail(f"FOLD_CONFLICT kept: {kept}")
         if dropped is None or float(dropped.value) != 200.0:
@@ -1918,7 +1918,7 @@ def test_fail_loud_required_and_conflicts() -> None:
 def test_monthly_element_label() -> None:
     leftover = monthly_element_label("売上高", "yoy_index")
     want_left = {
-        "display": "全店 売上高(前年比)",
+        "display": "売上高(前年比)",
         "group": "",
         "metric_kind": "sales",
         "series_kind": "all_store",
@@ -1926,7 +1926,7 @@ def test_monthly_element_label() -> None:
         "segment": "",
         "time_axis": "",
         "channel": "",
-        "scope": "全店",
+        "scope": "",
         "metric": "売上高",
         "breakdown": "",
         "breakdown_depth": 0,
@@ -1952,7 +1952,7 @@ def test_monthly_element_label() -> None:
         _fail(f"MKG: {mkg!r}")
     consol = monthly_element_label("連結売上高", "yoy_index")
     want_consol = {
-        "display": "全店 連結売上高(前年比)",
+        "display": "連結売上高(前年比)",
         "group": "",
         "metric_kind": "sales",
         "series_kind": "all_store",
@@ -1960,7 +1960,7 @@ def test_monthly_element_label() -> None:
         "segment": "",
         "time_axis": "",
         "channel": "",
-        "scope": "全店",
+        "scope": "",
         "metric": "連結売上高",
         "breakdown": "",
         "breakdown_depth": 0,

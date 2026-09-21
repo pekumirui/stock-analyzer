@@ -222,11 +222,11 @@ def main() -> None:
         _fail("index.html still has percent/▲ monthly display")
     _assert_monthly_spa(html)
     _assert_monthly_layout_js()
-    if canonicalize_element_label("売上高前年同月比", "yoy_index") != "全店 売上高(前年比)":
+    if canonicalize_element_label("売上高前年同月比", "yoy_index") != "売上高(前年比)":
         _fail("canonicalize strip+suffix")
     if canonicalize_element_label("既存売上高(前年比)", "yoy_index") != "既存 売上高(前年比)":
         _fail("canonicalize no double")
-    if canonicalize_element_label("売上高前年同月比", "number") != "全店 売上高":
+    if canonicalize_element_label("売上高前年同月比", "number") != "売上高":
         _fail("canonicalize number tokens")
 
     c = TestClient(app)
@@ -282,7 +282,7 @@ def main() -> None:
 
     r = c.post(f"{base}/elements", json={"element": " 売上高 ", "unit": "number"})
     _expect(r, 201, "create element")
-    if r.json() != {"code": code, "year": 2024, "element": "全店 売上高",
+    if r.json() != {"code": code, "year": 2024, "element": "売上高",
                     "unit": "number", "created": True}:
         _fail(f"create: {r.json()!r}")
 
@@ -317,7 +317,7 @@ def main() -> None:
 
     r = c.post(f"{base}/elements", json={"element": "売上高", "unit": "number"})
     _expect(r, 200, "idempotent exact")
-    if r.json() != {"code": code, "year": 2024, "element": "全店 売上高",
+    if r.json() != {"code": code, "year": 2024, "element": "売上高",
                     "unit": "number", "created": False}:
         _fail(f"idempotent: {r.json()!r}")
 
@@ -328,7 +328,7 @@ def main() -> None:
 
     r = c.post(f"{base}/elements", json={"element": "売上高前年比", "unit": "number"})
     _expect(r, 200, "number drops 前年比 token")
-    if r.json()["element"] != "全店 売上高" or r.json()["created"] is not False:
+    if r.json()["element"] != "売上高" or r.json()["created"] is not False:
         _fail(f"売上高前年比 number folds: {r.json()!r}")
 
     # similar-element 409 (空白差。トークン正規化後も別名)
@@ -392,7 +392,7 @@ def main() -> None:
 
     r = c.put(f"{base}/values", json={"element": "売上高", "month": 4, "value": 105.2})
     _expect(r, 200, "put value")
-    if r.json() != {"code": code, "year": 2024, "element": "全店 売上高", "updated": [4]}:
+    if r.json() != {"code": code, "year": 2024, "element": "売上高", "updated": [4]}:
         _fail(f"put: {r.json()!r}")
 
     r = c.put(f"{base}/values", json={"element": "売上高", "month": 6, "value": 110})
@@ -401,21 +401,21 @@ def main() -> None:
     r = c.get(base)
     _expect(r, 200, "GET values")
     by_name = {e["element"]: e["values"] for e in r.json()["elements"]}
-    _assert_calendar_values(by_name["全店 売上高"], {"4": 105.2, "6": 110}, "omit empty")
+    _assert_calendar_values(by_name["売上高"], {"4": 105.2, "6": 110}, "omit empty")
     if "世界観ビジネス" in by_name:
         _fail(f"empty element must be omitted: {by_name!r}")
     r = c.put(f"{base}/values", json={"element": "売上高", "month": 4, "value": 99.9})
     _expect(r, 200, "overwrite")
     r = c.get(base)
     by_name = {e["element"]: e["values"] for e in r.json()["elements"]}
-    if float(by_name["全店 売上高"]["4"]) != 99.9:
-        _fail(f"overwrite: {by_name['全店 売上高']!r}")
+    if float(by_name["売上高"]["4"]) != 99.9:
+        _fail(f"overwrite: {by_name['売上高']!r}")
 
     r = c.put(f"{base}/values", json={"element": "売上高", "month": 4, "value": None})
     _expect(r, 200, "delete cell")
     r = c.get(base)
     by_name = {e["element"]: e["values"] for e in r.json()["elements"]}
-    _assert_calendar_values(by_name["全店 売上高"], {"6": 110}, "null delete")
+    _assert_calendar_values(by_name["売上高"], {"6": 110}, "null delete")
     r = c.put(f"{base}/values/batch", json={
         "element": "営業利益",
         "values": [{"month": 1, "value": 10}, {"month": 2, "value": "105.2%"}],
@@ -452,7 +452,7 @@ def main() -> None:
         by_name["営業利益"], {"2": 98.7, "3": 1.5}, "batch null")
     r = c.get(base)
     names = [e["element"] for e in r.json()["elements"]]
-    if names != ["全店 売上高", "営業利益"]:
+    if names != ["売上高", "営業利益"]:
         _fail(f"registration order: {names!r}")
 
     r = c.post("/api/v1/tables/7203/2025/elements", json={"element": "売上高前年比", "unit": "number"})
@@ -538,7 +538,7 @@ def main() -> None:
     _expect(r, 201, "262A create")
     if r.json()["code"] != "262A0":
         _fail(f"262A should canonicalize: {r.json()!r}")
-    if r.json()["element"] != "全店 売上高":
+    if r.json()["element"] != "売上高":
         _fail(f"262A token name: {r.json()!r}")
     r = c.get("/api/v1/tables/262A0/2024")
     _expect(r, 200, "GET 262A0 empty")
@@ -549,7 +549,7 @@ def main() -> None:
     _expect(r, 200, "262A0 seed value")
     r = c.get("/api/v1/tables/262A0/2024")
     _expect(r, 200, "GET 262A0")
-    if r.json()["code"] != "262A0" or [e["element"] for e in r.json()["elements"]] != ["全店 売上高"]:
+    if r.json()["code"] != "262A0" or [e["element"] for e in r.json()["elements"]] != ["売上高"]:
         _fail(f"GET 262A0: {r.json()!r}")
     r = c.get("/api/v1/tables/262A/2024")
     _expect(r, 200, "GET 262A display")
@@ -557,7 +557,7 @@ def main() -> None:
         _fail(f"GET 262A display: {r.json()!r}")
     r = c.post("/api/v1/tables/262A0/2024/elements", json={"element": "売上高前年比", "unit": "number"})
     _expect(r, 200, "262A0 idempotent")
-    if r.json() != {"code": "262A0", "year": 2024, "element": "全店 売上高",
+    if r.json() != {"code": "262A0", "year": 2024, "element": "売上高",
                     "unit": "number", "created": False}:
         _fail(f"262A0 idempotent: {r.json()!r}")
 
@@ -642,12 +642,12 @@ def main() -> None:
     _ensure_stock("60590", "ウチヤマ")
     r = c.post("/api/v1/tables/60590/2026/elements", json={"element": "売上高", "unit": "yoy_index"})
     _expect(r, 201, "60590 yoy 売上高")
-    if r.json()["element"] != "全店 売上高(前年比)" or r.json()["created"] is not True:
+    if r.json()["element"] != "売上高(前年比)" or r.json()["created"] is not True:
         _fail(f"60590 yoy short saved: {r.json()!r}")
     r = c.post("/api/v1/tables/60590/2026/elements",
                json={"element": "売上高(前年比)", "unit": "yoy_index"})
     _expect(r, 200, "60590 yoy canonical same")
-    if r.json()["created"] is not False or r.json()["element"] != "全店 売上高(前年比)":
+    if r.json()["created"] is not False or r.json()["element"] != "売上高(前年比)":
         _fail(f"60590 yoy canonical: {r.json()!r}")
     r = c.get("/api/v1/tables/60590/2026")
     if r.json()["elements"]:
@@ -817,7 +817,7 @@ def _assert_union_collapses_yoy_display_names() -> None:
     ]
     rows = union_monthly_elements(leftover)
     order = [row["element"] for row in rows]
-    if order != [canon, "全店 売上高", "店舗数"]:
+    if order != [canon, "売上高", "店舗数"]:
         _fail(f"cross-year yoy short/canonical must be one row: {order!r}")
     if monthly_row_slot(rows[0]["element"], rows[0]["unit"]) != 1:
         _fail("collapsed yoy 全店売上 stays slot 1")
@@ -1213,9 +1213,9 @@ def _assert_segment_tail_row_order() -> None:
     # Lane B: 内 MM → 内アパレル（canonicalize 後キー）
     for src, unit, want_name in [
         ("内 MM 全店 売上高", "number", "内アパレル 全店 売上高"),
-        ("内 MM 売上", "number", "内アパレル 全店 売上高"),
+        ("内 MM 売上", "number", "内アパレル 売上高"),
         ("内 MM 全店 売上高(前年比)", "yoy_index", "内アパレル 全店 売上高(前年比)"),
-        ("内 MM 売上高(前年比)", "yoy_index", "内アパレル 全店 売上高(前年比)"),
+        ("内 MM 売上高(前年比)", "yoy_index", "内アパレル 売上高(前年比)"),
     ]:
         got = apply_issuer_aliases(
             "76830", canonicalize_element_label(src, unit), year=2026,
@@ -2183,7 +2183,7 @@ def _assert_known_prod_units(c) -> None:
         v = db.get(MonthlyValue, ("92790", 2025, "全店 売上高", 11))
         if v is None or float(v.value) != 125.8:
             _fail(f"gift value converted: {v}")
-        v = db.get(MonthlyValue, ("262A0", 2024, "全店 売上高", 1))
+        v = db.get(MonthlyValue, ("262A0", 2024, "売上高", 1))
         if v is not None and float(v.value) != -7.1:
             _fail(f"intermestic value converted: {v.value}")
     finally:
@@ -2203,8 +2203,8 @@ def _assert_known_prod_units(c) -> None:
     if r.status_code != 200:
         return
     by = {e["element"]: e for e in r.json()["elements"]}
-    if "全店 売上高" in by:
-        vals = by["全店 売上高"]["values"]
+    if "売上高" in by:
+        vals = by["売上高"]["values"]
         raw = vals.get("1", vals.get(1))
         if raw is not None and float(raw) != -7.1:
             _fail(f"262A0 value converted: {vals!r}")
