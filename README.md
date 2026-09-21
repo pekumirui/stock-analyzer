@@ -145,7 +145,7 @@ tools/
   check_api.py  J-Quants 疎通確認
 deploy/
   stock-analyzer.service  systemd（uvicorn ワーカー1）
-  nginx.conf              リバースプロキシ + Basic認証
+  nginx.conf              リバースプロキシ。月次閲覧は公開、/app は Basic 認証
   crontab                 19:30 / 06:00 JST
   update.sh               VPS 側デプロイ（Actions から実行）
   enable-cicd.sh          デプロイ用 SSH 鍵と sudoers を一度だけ入れる

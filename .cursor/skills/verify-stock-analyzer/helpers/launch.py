@@ -55,7 +55,7 @@ def _get(url: str) -> tuple[int, bytes]:
 
 
 def _spa_ready(url: str) -> bool:
-    status, body = _get(url + "/")
+    status, body = _get(url + "/app")
     return status == 200 and "株式分析ツール".encode("utf-8") in body
 
 

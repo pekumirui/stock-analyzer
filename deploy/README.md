@@ -54,7 +54,9 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 
 証明書の更新は `certbot.timer`（1日2回）。更新後は `renewal-hooks/deploy` で nginx を reload する。
 
-ブラウザは [https://kabukpi.com/](https://kabukpi.com/)（証明書は RSA + ISRG Root X1。ECDSA 既定の Root YE は端末にまだ無く「セキュリティ保護なし」になる）。
+ブラウザは [https://kabukpi.com/monthly](https://kabukpi.com/monthly) が公開の月次。個人ツールは [https://kabukpi.com/app](https://kabukpi.com/app)（Basic 認証）。証明書は RSA + ISRG Root X1。ECDSA 既定の Root YE は端末にまだ無く「セキュリティ保護なし」になる。
+
+公開 location は `/monthly`・GET `/api/v1/tables`（code/year まで）・`/static/`・`robots.txt` / `sitemap.xml`。書き込み API と `/app` は Basic。公開側は `limit_req` 5r/s。
 
 ホスト鍵は `deploy/known_hosts` にピン留め。VPS を作り直したら `ssh-keyscan YOUR_HOST` で更新する。
 

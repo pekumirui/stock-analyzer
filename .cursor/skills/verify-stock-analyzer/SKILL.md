@@ -25,7 +25,7 @@ Prefer a helper that picks the right interpreter (`.venv\Scripts\python.exe` on 
 .venv/bin/python .cursor/skills/verify-stock-analyzer/helpers/launch.py
 ```
 
-Default URL: `http://127.0.0.1:8000`. Override with env `VERIFY_PORT`. Ready when stdout JSON appears and `GET /` returns 200 whose HTML contains `<title>株式分析ツール</title>`. Visible header `h1` is `📈 株式分析`. State is `.cursor/skills/verify-stock-analyzer/.run/state.json` (`pid`, `port`, `url`, `adopted`). Adopted servers have `"adopted": true` and `pid: null` — do not kill them. Set `VERIFY_WAIT=0` only if you confirmed the child survives after launch.py exits.
+Default URL: `http://127.0.0.1:8000`. Override with env `VERIFY_PORT`. Ready when stdout JSON appears and `GET /app` returns 200 whose HTML contains `<title>株式分析ツール</title>`. Visible header `h1` is `📈 株式分析`. `GET /` は `/monthly` へ 301。 State is `.cursor/skills/verify-stock-analyzer/.run/state.json` (`pid`, `port`, `url`, `adopted`). Adopted servers have `"adopted": true` and `pid: null` — do not kill them. Set `VERIFY_WAIT=0` only if you confirmed the child survives after launch.py exits.
 
 Uses the repo's `stock.db` (read-only for UI proofs). Do not `.\run.ps1 reset` / `./run.sh reset`. Do not point `DATABASE_URL` at the user's DB from a second writer. If the port is taken by a non-SPA process, launch exits non-zero — free the port or pick another `VERIFY_PORT`.
 
