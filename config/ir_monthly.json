@@ -142,13 +142,6 @@
       "table": null
     },
     {
-      "code": "3077",
-      "name": "ホリイフードサービス",
-      "index_url": "https://www.horiifood.co.jp/ir/",
-      "title": "月次",
-      "parse": false
-    },
-    {
       "code": "3080",
       "name": "ジェーソン",
       "index_url": "https://jason.co.jp/ir/",
@@ -169,13 +162,6 @@
       "index_url": "https://www.createsdhd.co.jp/ir/monthly/",
       "title": "月次",
       "force_unit": "yoy_index"
-    },
-    {
-      "code": "3178",
-      "name": "チムニー",
-      "index_url": "https://www.chimney.co.jp/ir/sales/",
-      "title": "月次",
-      "parse": false
     },
     {
       "code": "3196",
