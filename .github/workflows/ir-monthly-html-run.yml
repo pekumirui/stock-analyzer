@@ -1,0 +1,85 @@
+name: IR monthly HTML run
+
+# 通常デプロイでは走らない。取りこぼしのときだけ手動。
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Issuer code (empty = all html issuers)"
+        required: false
+        default: "7544"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    name: Fetch IR monthly HTML
+    runs-on: ubuntu-latest
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+      ONLY_IN: ${{ inputs.only }}
+    steps:
+      - name: Require SSH key
+        run: |
+          if [ -z "${VPS_SSH_KEY:-}" ]; then
+            echo "VPS_SSH_KEY が未設定です" >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - name: SSH run ir_monthly_html_r2.py
+        run: |
+          set -euo pipefail
+          ONLY="$(python3 - <<'PY'
+          import os, re, sys
+          raw = (os.environ.get("ONLY_IN") or "").strip().upper()
+          if not raw:
+              print("")
+              raise SystemExit(0)
+          if not re.fullmatch(r"[0-9][0-9A-Z]{3,4}", raw):
+              sys.exit("only must be a 4-5 char issuer code")
+          print(raw)
+          PY
+          )"
+          HOST="${VPS_HOST:-160.251.179.50}"
+          USER="${VPS_USER:-stock}"
+          PORT="${VPS_PORT:-22}"
+
+          install -m 700 -d "$HOME/.ssh"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          raw = os.environ["VPS_SSH_KEY"].replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
+          if "PRIVATE KEY" not in raw:
+              raise SystemExit(
+                  "VPS_SSH_KEY は秘密鍵 (-----BEGIN ... PRIVATE KEY-----) である必要があります。"
+              )
+          p = Path.home() / ".ssh" / "id_deploy"
+          p.write_text(raw)
+          p.chmod(0o600)
+          PY
+
+          if [ -n "$ONLY" ]; then
+            REMOTE="cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_monthly_html_r2.py --only $(printf %q "$ONLY")"
+            echo "Run ir_monthly_html_r2.py --only ${ONLY} on ${USER}@${HOST}"
+          else
+            REMOTE="cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_monthly_html_r2.py"
+            echo "Run ir_monthly_html_r2.py (all) on ${USER}@${HOST}"
+          fi
+
+          ssh -i "$HOME/.ssh/id_deploy" \
+            -p "$PORT" \
+            -o BatchMode=yes \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$GITHUB_WORKSPACE/deploy/known_hosts" \
+            -o ConnectTimeout=15 \
+            -o ServerAliveInterval=15 \
+            "${USER}@${HOST}" \
+            "$REMOTE"
