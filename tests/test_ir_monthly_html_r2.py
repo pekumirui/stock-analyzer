@@ -336,7 +336,7 @@ def test_dest_html_and_ingest_sidecar() -> None:
 def test_load_html_registry() -> None:
     live = load_html_registry(ROOT / "config" / "ir_monthly.json")
     codes = [i.code for i in live]
-    if len(codes) != 40:
+    if len(codes) != 59:
         _fail(f"repo html issuers count {len(codes)}: {codes}")
     if "1878" in codes:
         _fail("1878 moved to issuers (xls), must not stay in html")
@@ -349,10 +349,10 @@ def test_load_html_registry() -> None:
     if mos.source != "eir" or mos.eir_n != 24:
         _fail(f"mos {mos}")
     no_parse = {i.code for i in live if not i.parse}
-    if no_parse != {"2792", "3080", "3196", "7544"}:
+    if no_parse != {"2792", "3077", "3080", "3178", "3196", "7544"}:
         _fail(f"parse=false {no_parse}")
     follows = {i.code: i.follow_re for i in live if i.follow_re}
-    if "7522" not in follows or "1928" not in follows or "8153" in follows:
+    if "7522" not in follows or "1928" not in follows or "2685" not in follows or "8153" in follows:
         _fail(f"follow_re {follows}")
     if "9843" in follows:
         _fail(f"9843 must not follow_re {follows}")
@@ -1491,6 +1491,8 @@ def test_mos_skips_half_year_total() -> None:
 def test_year_dot_month_and_skip_quarter() -> None:
     if parse_month_cell("2026.1") != 1 or parse_month_cell("2026.10") != 10:
         _fail("YYYY.M")
+    if parse_month_year("26.03") != (2026, 3):
+        _fail("YY.MM full cell")
     if parse_month_cell("2026.03.01") is not None:
         _fail("date range is not a month")
     got = html_to_ingest(WATAMI_HTML, "7522")
@@ -2573,6 +2575,114 @@ def test_no_as_of_does_not_write_json(tmp: Path) -> None:
         mod.SLEEP_SEC = orig_sleep
 
 
+CANDO_YYMM_HTML = """
+<html><body>
+<h2>月次売上高前年比速報 2026年8月度</h2>
+<table>
+<tr><td></td><td>26.03</td><td>26.04</td><td>26.05</td><td>26.06</td><td>26.07</td><td>26.08</td></tr>
+<tr><td>全社売上高</td><td>103.6</td><td>103.4</td><td>104.3</td><td>101.0</td><td>101.2</td><td>104.5</td></tr>
+<tr><td>既存直営店売上高</td><td>101.8</td><td>103.9</td><td>106.0</td><td>100.5</td><td>102.9</td><td>104.4</td></tr>
+</table>
+</body></html>
+"""
+
+
+def test_yy_mm_cando_table() -> None:
+    got = html_to_ingest(CANDO_YYMM_HTML, "2698")
+    if got["months"] != [3, 4, 5, 6, 7, 8]:
+        _fail(f"cando months {got['months']}")
+    sales = _row(got, "全社売上高")
+    if sales["values"].get("3") != 103.6 or sales["values"].get("8") != 104.5:
+        _fail(f"cando sales {sales}")
+    exist = _row(got, "既存直営店売上高")
+    if exist["values"].get("3") != 101.8:
+        _fail(f"cando exist {exist}")
+
+
+TRIAL_LETTERSPACING_HTML = """
+<html><body>
+<h2>2027年6月期 月次売上高速報</h2>
+<table>
+<tr><td></td><td>7月</td><td>8月</td><td>9月</td></tr>
+<tr><td>ト ラ イ ア ル 既 存 店 売上高</td><td>104.0</td><td>103.5</td><td></td></tr>
+<tr><td>ト ラ イ ア ル 全 店 売上高</td><td>110.6</td><td>108.6</td><td></td></tr>
+<tr><td>全店 売上高</td><td>99.0</td><td>98.5</td><td></td></tr>
+</table>
+</body></html>
+"""
+
+
+def test_letterspacing_trial_table() -> None:
+    got = html_to_ingest(TRIAL_LETTERSPACING_HTML, "141A")
+    labels = [r["element"] for r in got["rows"]]
+    if "トライアル既存店 売上高" not in labels:
+        _fail(f"letterspacing not collapsed {labels}")
+    if any("ト ラ イ" in el for el in labels):
+        _fail(f"letterspacing leaked {labels}")
+    if "全店 売上高" not in labels:
+        _fail(f"word spaces must stay {labels}")
+    trial = next(r for r in got["rows"] if "トライアル" in r["element"] and "既存" in r["element"])
+    if trial["values"].get("7") != 104:
+        _fail(f"trial exist {trial}")
+
+
+FY_CAPTION_HTML = """
+<html><body>
+<h2>月次速報</h2>
+<table>
+<tr><td></td><td>4月</td><td>5月</td><td>6月</td><td>7月</td></tr>
+<tr><td>2027年3月期 取扱高</td><td>7,212</td><td>6,589</td><td>6,668</td><td>5,706</td></tr>
+<tr><td>2026年3月期 取扱高</td><td>2,688</td><td>3,013</td><td>2,692</td><td>2,673</td></tr>
+<tr><td>2027年3月期 売上高</td><td>4,187</td><td>3,664</td><td>3,960</td><td>3,191</td></tr>
+<tr><td>2026年3月期 売上高</td><td>333</td><td>344</td><td>342</td><td>358</td></tr>
+</table>
+</body></html>
+"""
+
+
+def test_fy_caption_handling_keeps_metric_newer_wins() -> None:
+    got = html_to_ingest(FY_CAPTION_HTML, "6045")
+    labels = [r["element"] for r in got["rows"]]
+    if any("2027年" in el or "2026年" in el or "月期" in el for el in labels):
+        _fail(f"fy caption leaked {labels}")
+    handling = _row(got, "取扱高")
+    if handling["values"].get("4") != 7212 or handling["values"].get("7") != 5706:
+        _fail(f"newer FY must win {handling}")
+    sales = _row(got, "売上高")
+    if sales["values"].get("4") != 4187:
+        _fail(f"sales newer FY {sales}")
+
+
+VEGA_PERIOD_HTML = """
+<html><body>
+<h2>2026年8月度 月次業績概況</h2>
+<table>
+<tr><td></td><td>4月</td><td>5月</td><td>6月</td><td>7月</td><td>8月</td><td>9月</td></tr>
+<tr><td>当期</td><td>1,810</td><td>1,564</td><td>1,543</td><td>1,764</td><td>1,489</td><td></td></tr>
+<tr><td>前期</td><td>1,604</td><td>1,376</td><td>1,281</td><td>1,415</td><td>1,169</td><td>1,265</td></tr>
+<tr><td>対前年同月比（%）</td><td>112.8</td><td>113.7</td><td>120.4</td><td>124.7</td><td>127.4</td><td></td></tr>
+</table>
+</body></html>
+"""
+
+
+def test_current_period_rewrites_skips_prior() -> None:
+    got = html_to_ingest(VEGA_PERIOD_HTML, "3542")
+    if got["as_of"] != "2026-08-31":
+        _fail(f"vega as_of {got['as_of']}")
+    labels = [r["element"] for r in got["rows"]]
+    if any("前期" in el or el == "当期" for el in labels):
+        _fail(f"prior/当期 leaked {labels}")
+    sales = _row(got, "売上高")
+    if sales["unit"] != "number" or sales["values"].get("8") != 1489:
+        _fail(f"当期 → 売上高 {sales}")
+    if sales["values"].get("4") == 1604:
+        _fail(f"前期 leaked into 売上高 {sales}")
+    yoy = _row(got, "対前年同月比（%）")
+    if yoy["values"].get("8") != 127.4:
+        _fail(f"yoy {yoy}")
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -2592,6 +2702,10 @@ def main() -> None:
     test_dumps_matches_ingest_shape()
     test_mos_skips_half_year_total()
     test_year_dot_month_and_skip_quarter()
+    test_yy_mm_cando_table()
+    test_letterspacing_trial_table()
+    test_fy_caption_handling_keeps_metric_newer_wins()
+    test_current_period_rewrites_skips_prior()
     test_watami_kyoten_count_is_number()
     test_watami_prefers_sales_over_kyoten()
     test_watami_sections_prefix_and_count_units()

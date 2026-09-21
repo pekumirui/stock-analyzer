@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="月次情報 | ソフトウェア・サービスは医療サービスの向上を医療機関と共に考え、専門性を活かした医療情報システムの創造を行うことにより、社会への貢献し続けられるように取り組んでおります。" />
+    <meta name="keywords" content="月次情報,月次速報,電子カルテ,eカルテ,電子,医療,カルテ,システム,医療情報システム,株式会社ソフトウェア・サービス,ソフトウェア・サービス,ソフトウェアサービス" />
+    <title>月次情報 | 電子カルテ、医療情報システムの開発・販売 - (株)ソフトウェア・サービス</title>
+    <link rel="shortcut icon" href="../../favicon.ico" />
+    <link rel="stylesheet" href="../../common/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="../../common/css/reset.css" />
+    <link rel="stylesheet" href="../../common/css/var.css" />
+    <link rel="stylesheet" href="../../common/css/layout.css" />
+    <link rel="stylesheet" href="../../common/css/style.css" />
+    <link rel="stylesheet" href="../../common/css/component.css" />
+    <link rel="stylesheet" href="../css/main.css" />
+  </head>
+  <body>
+    <!-- ヘッダー -->
+    <header id="header" class="l-header DownMove">
+      <div id="header_bar" class="l-header_bar">
+        <!-- SP用メニュー展開（ハンバーガーメニュー） -->
+        <nav class="nav-bar-global" id="js-nav">
+          <div class="nav-bar-global-menu">
+            <span class="nav-bar-global-menu-title">MENU</span>
+            <span class="nav-bar-global-menu-subtitle">メニュー</span>
+          </div>
+          <ul class="nav-bar-global-contents">
+            <li class="nav-bar-global-content" id="js-nav-product">
+              <span>製品情報</span>
+              <span class="m-icon-arrow-right-green-2em"></span>
+            </li>
+            <li class="nav-bar-global-content" id="js-nav-corporate">
+              <span>会社案内</span>
+              <span class="m-icon-arrow-right-green-2em"></span>
+            </li>
+            <li class="nav-bar-global-content" id="js-nav-ir">
+              <span>IR情報</span>
+              <span class="m-icon-arrow-right-green-2em"></span>
+            </li>
+            <li class="nav-bar-global-content" id="js-nav-recruit">
+              <span>採用情報</span>
+              <span class="m-icon-arrow-right-green-2em"></span>
+            </li>
+          </ul>
+          <div class="nav-bar-global-buttons">
+            <!-- お客様HP -->
+            <div class="nav-bar-global-button">
+              <a href="https://asp.softs.co.jp/users/" class="">
+                <img src="../../common/assets/img/icon/customer-green.svg" />
+                <span>お客様ページ</span>
+              </a>
+            </div>
+            <!-- お問い合わせ -->
+            <div class="nav-bar-global-button">
+              <a href="https://asp.softs.co.jp/send/contact/" class="">
+                <img src="../../common/assets/img/icon/mail-outline.svg" />
+                <span>お問い合わせ</span>
+              </a>
+            </div>
+          </div>
+        </nav>
+        <!-- 第二階層 -->
+        <div class="nav-bar-global-sub" id="js-product">
+          <a href="../../business/index.html" class="nav-bar-global-sub-menu">
+            <span class="nav-bar-global-sub-menu-title">Services</span>
+            <span class="nav-bar-global-sub-menu-subtitle">製品情報</span>
+          </a>
+          <div class="nav-bar-global-sub-back">
+            <span class="m-icon-nav-bar-global-sub-back-arrow_right"></span>
+            <button class="nav-bar-global-sub-back-btn" id="js-product-back">メニュートップ</button>
+          </div>
+          <ul class="nav-bar-global-contents-sub">
+            <a href="../../business/index.html#features">
+              <li class="nav-bar-global-content-sub">SSIの強み</li>
+            </a>
+            <a href="../../business/index.html#products">
+              <li class="nav-bar-global-content-sub">製品ラインナップ</li>
+            </a>
+            <a href="../../business/index.html#support">
+              <li class="nav-bar-global-content-sub">導入・保守サービス</li>
+            </a>
+            <a href="../../business/user/area.html">
+              <li class="nav-bar-global-content-sub">導入実績</li>
+            </a>
+            <a href="../../e-map/share.html">
+              <li class="nav-bar-global-content-sub">電子カルテシェア情報</li>
+            </a>
+          </ul>
+        </div>
+        <div class="nav-bar-global-sub" id="js-corporate">
+          <a href="../../company/index.html" class="nav-bar-global-sub-menu">
+            <span class="nav-bar-global-sub-menu-title">Corporate</span>
+            <span class="nav-bar-global-sub-menu-subtitle">会社案内</span>
+          </a>
+          <div class="nav-bar-global-sub-back">
+            <span class="m-icon-nav-bar-global-sub-back-arrow_right"></span>
+            <button class="nav-bar-global-sub-back-btn" id="js-corporate-back">メニュートップ</button>
+          </div>
+          <ul class="nav-bar-global-contents-sub">
+            <a href="../../company/index.html#company-policy">
+              <li class="nav-bar-global-content-sub">経営理念・ビジョン・ポリシー</li>
+            </a>
+            <a href="../../company/spirit.html">
+              <li class="nav-bar-global-content-sub">創業スピリット</li>
+            </a>
+            <a href="../../company/history.html">
+              <li class="nav-bar-global-content-sub">SSIの歩み</li>
+            </a>
+            <a href="../../company/index.html#company-info">
+              <li class="nav-bar-global-content-sub">会社概要</li>
+            </a>
+            <a href="../../company/directors.html">
+              <li class="nav-bar-global-content-sub">組織図・役員紹介</li>
+            </a>
+            <a href="../../index.html#access">
+              <li class="nav-bar-global-content-sub">アクセス</li>
+            </a>
+            <a href="../../company/index.html#relation-companies">
+              <li class="nav-bar-global-content-sub">関連会社</li>
+            </a>
+          </ul>
+        </div>
+        <div class="nav-bar-global-sub" id="js-ir">
+          <a href="../../ir/index.html" class="nav-bar-global-sub-menu">
+            <span class="nav-bar-global-sub-menu-title">IR</span>
+            <span class="nav-bar-global-sub-menu-subtitle">株主・投資家情報</span>
+          </a>
+          <div class="nav-bar-global-sub-back">
+            <span class="m-icon-nav-bar-global-sub-back-arrow_right"></span>
+            <button class="nav-bar-global-sub-back-btn" id="js-ir-back">メニュートップ</button>
+          </div>
+          <ul class="nav-bar-global-contents-sub">
+            <a href="../../ir/news.html">
+              <li class="nav-bar-global-content-sub">IRニュース</li>
+            </a>
+            <a href="../../ir/financial/calendar.html">
+              <li class="nav-bar-global-content-sub">IRカレンダー</li>
+            </a>
+            <a href="../../ir/financial/quarter.html">
+              <li class="nav-bar-global-content-sub">IR資料室</li>
+            </a>
+            <a href="../../ir/financial/greeting.html">
+              <li class="nav-bar-global-content-sub">株式情報</li>
+            </a>
+            <a href="../../ir/financial/irpolicy.html">
+              <li class="nav-bar-global-content-sub">IRポリシー</li>
+            </a>
+          </ul>
+        </div>
+        <div class="nav-bar-global-sub" id="js-recruit">
+          <a href="../../index.html#recruit" class="nav-bar-global-sub-menu">
+            <span class="nav-bar-global-sub-menu-title">Recruit</span>
+            <span class="nav-bar-global-sub-menu-subtitle">採用情報</span>
+          </a>
+          <div class="nav-bar-global-sub-back">
+            <span class="m-icon-nav-bar-global-sub-back-arrow_right"></span>
+            <button class="nav-bar-global-sub-back-btn" id="js-recruit-back">メニュートップ</button>
+          </div>
+          <ul class="nav-bar-global-contents-sub">
+            <a href="https://recruit.softs.co.jp/">
+              <li class="nav-bar-global-content-sub">新卒採用</li>
+            </a>
+            <a href="https://recruit.softs.co.jp/entry-all/">
+              <li class="nav-bar-global-content-sub">キャリア採用</li>
+            </a>
+            <a href="https://www.softs.co.jp/ss-support/recruit/">
+              <li class="nav-bar-global-content-sub">システム管理者採用（エスエスサポート）</li>
+            </a>
+          </ul>
+        </div>
+        <div class="l-header_logo order2">
+          <a href="../../index.html"></a>
+        </div>
+        <!-- PC用メニュー展開 -->
+        <ul class="menu__list order3">
+          <!-- 製品情報 -->
+          <li class="menu__item">
+            <a href="../../business/index.html" class="menu__link">製品情報</a>
+            <ul class="drop-menu">
+              <div class="drop-menu__link">
+                <div class="drop-menu__text">
+                  <a href="../../business/index.html">
+                    <h1 class="font-ca">Services</h1>
+                    <h2 class="font-ca">製品情報</h2>
+                  </a>
+                </div>
+                <div class="drop-menu__itemsBox">
+                  <ul class="drop-menu__items">
+                    <a href="../../business/index.html#features" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>SSIの強み</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                    <a href="../../business/index.html#products" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>製品ラインナップ</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                    <a href="../../business/index.html#support" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>導入・保守サービス</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                    <a href="../../business/user/area.html" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>導入実績</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                    <a href="../../e-map/share.html" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>電子カルテのシェア情報</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                  </ul>
+                </div>
+              </div>
+            </ul>
+          </li>
+          <!-- 会社案内 -->
+          <li class="menu__item">
+            <a href="../../company/index.html" class="menu__link">会社案内</a>
+            <ul class="drop-menu">
+              <div class="drop-menu__link">
+                <div class="drop-menu__text">
+                  <a href="../../company/index.html">
+                    <h1 class="font-ca">Corporate</h1>
+                    <h2 class="font-ca">会社案内</h2>
+                  </a>
+                </div>
+                <div class="drop-menu__itemsBox">
+                  <ul class="drop-menu__items">
+                    <a href="../../company/index.html#company-policy" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>経営理念・ビジョン・ポリシー</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                    <a href="../../company/spirit.html" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>創業スピリット</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                    <a href="../../company/history.html" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>SSIの歩み</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                    <a href="../../company/index.html#company-info" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>会社概要</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                    <a href="../../company/directors.html" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>組織図・役員紹介</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                    <a href="../../index.html#access" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>アクセス</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                    <a href="../../company/index.html#relation-companies" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>関連会社</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                  </ul>
+                </div>
+              </div>
+            </ul>
+          </li>
+          <!-- IR情報 -->
+          <li class="menu__item">
+            <a href="../../ir/index.html" class="menu__link">IR情報</a>
+            <ul class="drop-menu">
+              <div class="drop-menu__link">
+                <div class="drop-menu__text">
+                  <a href="../../ir/index.html">
+                    <h1 class="font-ca">IR</h1>
+                    <h2 class="font-ca">株主・投資家情報</h2>
+                  </a>
+                </div>
+                <div class="drop-menu__itemsBox">
+                  <ul class="drop-menu__items">
+                    <a href="../../ir/news.html" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>IRニュース</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                    <a href="../../ir/financial/calendar.html" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>IRカレンダー</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                    <a href="../../ir/financial/quarter.html" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>IR資料室</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                    <a href="../../ir/financial/info.html" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>株式情報</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                    <a href="../../ir/financial/irpolicy.html" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>IRポリシー</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                  </ul>
+                </div>
+              </div>
+            </ul>
+          </li>
+          <!-- 採用情報 -->
+          <li class="menu__item">
+            <a href="../../index.html#recruit" class="menu__link">採用情報</a>
+            <ul class="drop-menu">
+              <div class="drop-menu__link">
+                <div class="drop-menu__text">
+                  <a href="../../index.html#recruit">
+                    <h1 class="font-ca">Recruit</h1>
+                    <h2 class="font-ca">採用情報</h2>
+                  </a>
+                </div>
+                <div class="drop-menu__itemsBox">
+                  <ul class="drop-menu__items">
+                    <a href="https://www.softs.co.jp/recruit/" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>新卒採用</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                    <a href="https://recruit.softs.co.jp/entry-all/" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>キャリア採用</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                    <a href="https://www.softs.co.jp/ss-support/recruit/" id="text-slide_nav">
+                      <li class="drop-menu__item">
+                        <p>システム管理者採用（エスエスサポート）</p>
+                        <p class="m-icon-arrow-right-green-2em"></p>
+                      </li>
+                    </a>
+                  </ul>
+                </div>
+              </div>
+            </ul>
+          </li>
+          <!-- English -->
+          <a href="../../global/company/index_g.html" class="l-header_nav_botton-global">
+            <img src="../../common/assets/img/icon/world-green.svg" />
+            <span>English</span>
+          </a>
+          <!-- お客様HP -->
+          <a href="https://asp.softs.co.jp/users/" class="l-header_nav_botton-userLogin">
+            <img src="../../common/assets/img/icon/customer-green.svg" />
+            <span>お客様ページ</span>
+          </a>
+          <!-- お問い合わせ -->
+          <a href="https://asp.softs.co.jp/send/contact/" class="l-header_nav_botton-contact">
+            <img src="../../common/assets/img/icon/mail-white.svg" />
+            <span>お問い合わせ</span>
+          </a>
+        </ul>
+        <button class="nav-bar-humbuger-btn order1" id="js-humbuger">
+          <span class="nav-bar-humbuger-btn-line"></span>
+          <span class="nav-bar-humbuger-btn-line"></span>
+          <span class="nav-bar-humbuger-btn-line"></span>
+        </button>
+      </div>
+    </header>
+    <!-- キービジュアル -->
+    <!-- メイン-->
+    <main>
+      <div class="main-container">
+        <!-- サブページのタイトル領域 -->
+        <div class="subpage-title-area">
+          <!-- サブページタイトル -->
+          <h1 class="subpage-title">月次情報</h1>
+          <h2 class="subpage-subtitle">Monthly Data of Sales Development</h2>
+        </div>
+        <!-- コンテンツコンテナー -->
+        <div id="js-header_navmenu_hide_position"></div>
+        <div class="subpage-contant-area">
+          <!-- コンテンツ -->
+
+          <section class="content accordion-content">
+            <!-- タイトル領域 -->
+            <div class="content-title-area accordion-title-area">
+              <h2 class="monthly-content-title underline-bicolor accordion-title">2026年10月期 月次売上高等の推移</h2>
+            </div>
+            <!-- コンテンツ領域 -->
+            <div class="content-item accordion-area">
+              <div class="content-sub-title-area">
+                <h3 class="content-sub-title">売上高</h3>
+              </div>
+              <div class="detail-info-area">
+                <div class="table-area">
+                  <table>
+                    <tbody>
+                      <tr>
+                        <th class="fixed"></th>
+                        <th>11月</th>
+                        <th>12月</th>
+                        <th>1月</th>
+                        <th>2月</th>
+                        <th>3月</th>
+                        <th>4月</th>
+                        <th class="txt-highlight">半期累計</th>
+                        <th>5月</th>
+                        <th>6月</th>
+                        <th>7月</th>
+                        <th>8月</th>
+                        <th>9月</th>
+                        <th>10月</th>
+                        <th class="txt-highlight">通期累計</th>
+                      </tr>
+                      <tr>
+                        <th class="fixed">売上高(百万円)</th>
+                        <td>2,502</td>
+                        <td>2,311</td>
+                        <td>4,441</td>
+                        <td>2,695</td>
+                        <td>9,348</td>
+                        <td>2,477</td>
+                        <td class="six-month">23,777</td>
+                        <td>2,446</td>
+                        <td>2,639</td>
+                        <td>3,393</td>
+                        <td>3,084</td>
+                        <td></td>
+                        <td></td>
+                        <td class="total">35,341</td>
+                      </tr>
+                      <tr>
+                        <th class="fixed">前年同月比(%)</th>
+                        <td>88.3</td>
+                        <td>86.3</td>
+                        <td>133.4</td>
+                        <td>71.2</td>
+                        <td>193.0</td>
+                        <td>124.3</td>
+                        <td class="six-month">122.2</td>
+                        <td>106.5</td>
+                        <td>79.7</td>
+                        <td>121.2</td>
+                        <td>64.5</td>
+                        <td></td>
+                        <td></td>
+                        <td class="total">108.2</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="content-sub-title-area">
+                <h3 class="content-sub-title">受注高及び受注残高の推移</h3>
+              </div>
+              <div class="detail-info-area">
+                <div class="table-area">
+                  <table>
+                    <tbody>
+                      <tr>
+                        <th class="fixed"></th>
+                        <th>11月</th>
+                        <th>12月</th>
+                        <th>1月</th>
+                        <th>2月</th>
+                        <th>3月</th>
+                        <th>4月</th>
+                        <th class="txt-highlight">半期累計</th>
+                        <th>5月</th>
+                        <th>6月</th>
+                        <th>7月</th>
+                        <th>8月</th>
+                        <th>9月</th>
+                        <th>10月</th>
+                        <th class="txt-highlight">通期累計</th>
+                      </tr>
+                      <tr>
+                        <th class="fixed">受注高(百万円)</th>
+                        <td>1,705</td>
+                        <td>1,437</td>
+                        <td>6,094</td>
+                        <td>4,165</td>
+                        <td>5,499</td>
+                        <td>3,739</td>
+                        <td class="six-month">22,643</td>
+                        <td>2,615</td>
+                        <td>4,310</td>
+                        <td>3,679</td>
+                        <td>1,208</td>
+                        <td></td>
+                        <td></td>
+                        <td class="total">34,457</td>
+                      </tr>
+                      <tr>
+                        <th class="fixed">前年同月比(%)</th>
+                        <td>171.2</td>
+                        <td>51.3</td>
+                        <td>381.1</td>
+                        <td>127.3</td>
+                        <td>97.8</td>
+                        <td>136.2</td>
+                        <td class="six-month">132.9</td>
+                        <td>116.4</td>
+                        <td>78.7</td>
+                        <td>87.4</td>
+                        <td>93.9</td>
+                        <td></td>
+                        <td></td>
+                        <td class="total">113.9</td>
+                      </tr>
+                      <tr class="switch-line">
+                        <th class="fixed">受注残高(百万円)</th>
+                        <td>15,580</td>
+                        <td>15,606</td>
+                        <td>18,175</td>
+                        <td>20,569</td>
+                        <td>17,662</td>
+                        <td>19,869</td>
+                        <td class="six-month">-</td>
+                        <td>20,981</td>
+                        <td>23,636</td>
+                        <td>24,903</td>
+                        <td>24,019</td>
+                        <td></td>
+                        <td></td>
+                        <td class="total">-</td>
+                      </tr>
+                      <tr>
+                        <th class="fixed">前年同月比(%)</th>
+                        <td>152.2</td>
+                        <td>139.6</td>
+                        <td>177.0</td>
+                        <td>194.4</td>
+                        <td>145.0</td>
+                        <td>144.4</td>
+                        <td class="six-month">-</td>
+                        <td>144.0</td>
+                        <td>134.4</td>
+                        <td>125.5</td>
+                        <td>139.5</td>
+                        <td></td>
+                        <td></td>
+                        <td class="total">-</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="note-area">
+                  <p class="note">
+                    <span class="color-red">(注)</span><br />
+                    1.上記売上高、受注高及び受注残高 は、当社単体の数値を記載しております。なお、監査法人による会計監査を受けておりませんので決算の数値とは差異が発生する場合があります。<br />
+                    2.売上高の内訳としては、ソフトウェア、ハードウェア、保守サービスがありますが、その性質上、受注高及び受注残高の計算において保守サービス分は除外して計算しております。<br />
+                    3.受注高及び受注残高には、顧客である病院と受注に関する文書を締結又は文書により受注の意思表示を受けたものを集計しており、口頭等による受注の内定分は含みません。<br />
+                    4.当社の受注案件は、個別性が強いため月別の変動が大きくなります。
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+
+          <section class="content accordion-content">
+            <!-- タイトル領域 -->
+            <div class="content-title-area accordion-title-area">
+              <h2 class="monthly-content-title underline-bicolor accordion-title">2025年10月期 月次売上高等の推移</h2>
+            </div>
+            <!-- コンテンツ領域 -->
+            <div class="content-item accordion-area">
+              <div class="content-sub-title-area">
+                <h3 class="content-sub-title">売上高</h3>
+              </div>
+              <div class="detail-info-area">
+                <div class="table-area">
+                  <table>
+                    <tbody>
+                      <tr>
+                        <th class="fixed"></th>
+                        <th>11月</th>
+                        <th>12月</th>
+                        <th>1月</th>
+                        <th>2月</th>
+                        <th>3月</th>
+                        <th>4月</th>
+                        <th class="txt-highlight">半期累計</th>
+                        <th>5月</th>
+                        <th>6月</th>
+                        <th>7月</th>
+                        <th>8月</th>
+                        <th>9月</th>
+                        <th>10月</th>
+                        <th class="txt-highlight">通期累計</th>
+                      </tr>
+                      <tr>
+                        <th class="fixed">売上高(百万円)</th>
+                        <td>2,833</td>
+                        <td>2,676</td>
+                        <td>3,329</td>
+                        <td>3,783</td>
+                        <td>4,844</td>
+                        <td>1,992</td>
+                        <td class="six-month">19,461</td>
+                        <td>2,296</td>
+                        <td>3,310</td>
+                        <td>2,799</td>
+                        <td>4,782</td>
+                        <td>3,429</td>
+                        <td>4,978</td>
+                        <td class="total">41,057</td>
+                      </tr>
+                      <tr>
+                        <th class="fixed">前年同月比(%)</th>
+                        <td>93.8</td>
+                        <td>72.4</td>
+                        <td>95.0</td>
+                        <td>113.7</td>
+                        <td>81.6</td>
+                        <td>97.1</td>
+                        <td class="six-month">90.4</td>
+                        <td>149.9</td>
+                        <td>156.6</td>
+                        <td>83.7</td>
+                        <td>167.3</td>
+                        <td>131.3</td>
+                        <td>149.3</td>
+                        <td class="total">110.0</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="content-sub-title-area">
+                <h3 class="content-sub-title">受注高及び受注残高の推移</h3>
+              </div>
+              <div class="detail-info-area">
+                <div class="table-area">
+                  <table>
+                    <tbody>
+                      <tr>
+                        <th class="fixed"></th>
+                        <th>11月</th>
+                        <th>12月</th>
+                        <th>1月</th>
+                        <th>2月</th>
+                        <th>3月</th>
+                        <th>4月</th>
+                        <th class="txt-highlight">半期累計</th>
+                        <th>5月</th>
+                        <th>6月</th>
+                        <th>7月</th>
+                        <th>8月</th>
+                        <th>9月</th>
+                        <th>10月</th>
+                        <th class="txt-highlight">通期累計</th>
+                      </tr>
+                      <tr>
+                        <th class="fixed">受注高(百万円)</th>
+                        <td>996</td>
+                        <td>2,804</td>
+                        <td>1,599</td>
+                        <td>3,270</td>
+                        <td>5,621</td>
+                        <td>2,746</td>
+                        <td class="six-month">17,039</td>
+                        <td>2,246</td>
+                        <td>5,478</td>
+                        <td>4,209</td>
+                        <td>1,286</td>
+                        <td>2,171</td>
+                        <td>2,755</td>
+                        <td class="total">35,187</td>
+                      </tr>
+                      <tr>
+                        <th class="fixed">前年同月比(%)</th>
+                        <td>28.9</td>
+                        <td>102.0</td>
+                        <td>106.4</td>
+                        <td>175.9</td>
+                        <td>162.6</td>
+                        <td>109.0</td>
+                        <td class="six-month">109.7</td>
+                        <td>125.6</td>
+                        <td>215.4</td>
+                        <td>222.2</td>
+                        <td>65.6</td>
+                        <td>101.9</td>
+                        <td>78.9</td>
+                        <td class="total">119.9</td>
+                      </tr>
+                      <tr class="switch-line">
+                        <th class="fixed">受注残高(百万円)</th>
+                        <td>10,237</td>
+                        <td>11,180</td>
+                        <td>10,270</td>
+                        <td>10,578</td>
+                        <td>12,184</td>
+                        <td>13,764</td>
+                        <td class="six-month">-</td>
+                        <td>14,566</td>
+                        <td>17,591</td>
+                        <td>19,845</td>
+                        <td>17,217</td>
+                        <td>16,833</td>
+                        <td>15,487</td>
+                        <td class="total">-</td>
+                      </tr>
+                      <tr>
+                        <th class="fixed">前年同月比(%)</th>
+                        <td>91.2</td>
+                        <td>101.5</td>
+                        <td>105.1</td>
+                        <td>116.9</td>
+                        <td>166.5</td>
+                        <td>161.0</td>
+                        <td class="six-month">-</td>
+                        <td>152.2</td>
+                        <td>163.1</td>
+                        <td>196.2</td>
+                        <td>172.1</td>
+                        <td>163.2</td>
+                        <td>137.4</td>
+                        <td class="total">-</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="note-area">
+                  <p class="note">
+                    <span class="color-red">(注)</span><br />
+                    1.上記売上高、受注高及び受注残高 は、 当社単体の数値を記載しております。なお、監査法人による会計監査を受けておりませんので決算の数値とは差異が発生する場合があります。<br />
+                    2.売上高の内訳としては、ソフトウェア、ハードウェア、保守サービスがありますが、その性質上、受注高及び受注残高の計算において保守サービ ス分は除外して計算しております。<br />
+                    3.受注高及び受注残高には、顧客である病院と受注に関する文書を締結又は文書により受注の意思表示を受けたものを集計しており、口頭等による受注の内定分は含みません。<br />
+                    4.当社の受注案件は、個別性が強いため月別の変動が大きくなります。
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+
+
+        </div>
+      </div>
+    </main>
+    <div id="btn-pagetop" class="on">
+      <a href="#">
+        <img src="../../common/assets/img/icon/arrow-up-circle-gray.svg" alt="トップページ" />
+      </a>
+    </div>
+    <!-- パンくずリスト -->
+    <nav class="l-breadcrumb">
+      <ul class="breadcrumb-container">
+        <li class="breadcrumb-home">
+          <a href="../../index.html"><img src="../../common/assets/img/icon/breadcrumb-home.svg" /></a>
+        </li>
+        <li>
+          <a href="../index.html">IR情報</a>
+        </li>
+        <li><span>財務情報：月次情報</span></li>
+      </ul>
+    </nav>
+    <!-- フッター -->
+    <footer class="footer">
+      <div class="footer-content">
+        <div class="footer-main">
+          <dl class="footer-product-info">
+            <dt>
+              <a href="../../business/index.html" class="footer-togele-link">製品情報</a>
+              <button class="footer-toggle-button">+</button>
+            </dt>
+            <dd class="footer-hidden-info">
+              <ul>
+                <li><a href="../../business/index.html#features">SSIの強み</a></li>
+                <li><a href="../../business/index.html#products">製品ラインナップ</a></li>
+                <li><a href="../../business/index.html#support">導入・保守サービス</a></li>
+                <li><a href="../../business/user/area.html">導入実績</a></li>
+                <li><a href="../../e-map/share.html">電子カルテのシェア情報</a></li>
+              </ul>
+            </dd>
+          </dl>
+          <dl class="footer-product-info">
+            <dt>
+              <a href="../../company/index.html" class="footer-togele-link">会社案内</a>
+              <button class="footer-toggle-button">+</button>
+            </dt>
+            <dd class="footer-hidden-info">
+              <ul>
+                <li><a href="../../company/index.html#company-policy">経営理念・ビジョン・ポリシー</a></li>
+                <li><a href="../../company/spirit.html">創業スピリット</a></li>
+                <li><a href="../../company/history.html">SSIの歩み</a></li>
+                <li><a href="../../company/index.html#company-info">会社概要</a></li>
+                <li><a href="../../company/directors.html">組織図・役員紹介</a></li>
+                <li><a href="../../index.html#access">アクセス</a></li>
+                <li><a href="../../company/index.html#relation-companies">関連会社</a></li>
+              </ul>
+            </dd>
+          </dl>
+          <dl class="footer-product-info">
+            <dt>
+              <a href="../../ir/index.html" class="footer-togele-link">IR情報</a>
+              <button class="footer-toggle-button">+</button>
+            </dt>
+            <dd class="footer-hidden-info">
+              <ul>
+                <li><a href="../../ir/news.html">IRニュース</a></li>
+                <li><a href="../../ir/financial/calendar.html">IRカレンダー</a></li>
+                <li><a href="../../ir/financial/quarter.html">IR資料室</a></li>
+                <li><a href="../../ir/financial/info.html">株式情報</a></li>
+                <li><a href="../../ir/financial/irpolicy.html">IRポリシー</a></li>
+              </ul>
+            </dd>
+          </dl>
+          <dl class="footer-product-info">
+            <dt>
+              <a href="../../index.html#recruit" class="footer-togele-link">採用情報</a>
+              <button class="footer-toggle-button">+</button>
+            </dt>
+            <dd class="footer-hidden-info">
+              <ul>
+                <li><a href="https://recruit.softs.co.jp/">新卒採用</a></li>
+                <li><a href="https://recruit.softs.co.jp/entry-all/">キャリア採用</a></li>
+                <li>
+                  <a href="https://www.softs.co.jp/ss-support/">システム管理者採用<br class="pc_only" />（エスエスサポート）</a>
+                </li>
+              </ul>
+            </dd>
+          </dl>
+        </div>
+        <div class="footer-link">
+          <ul>
+            <li><a href="../../news/index.html">ニュース</a></li>
+            <li><a href="../../other/customer-harassment.html">カスタマーハラスメントに対する行動指針</a></li>
+            <li><a href="../../other/link.html">外部リンク</a></li>
+            <li><a href="../../other/term.html">用語集</a></li>
+            <br class="footer-pc-only" />
+            <li><a href="../../other/privacypolicy.html">プライバシーポリシー</a></li>
+            <li><a href="../../other/anonymously.html">匿名加工情報の取扱いについて</a></li>
+            <li><a href="../../other/securitypolicy.html">情報セキュリティ基本方針</a></li>
+            <li><a href="../../other/qualitypolicy.html">全社品質方針</a></li>
+            <br class="footer-pc-only" />
+            <li><a href="../../other/use.html">このサイトのご利用について</a></li>
+            <li><a href="../../other/escape.html">免責条項</a></li>
+          </ul>  
+        </div>
+        <div class="footer-jisq">
+          <div class="footer-jisq-img">
+            <img src="../../common/assets/img/copy-right/iso.jpg" alt="" class="footer-jisq-img1" />
+            <a href="https://privacymark.jp/" target="_blank">
+              <img src="../../common/assets/img/copy-right/pmark.png" alt="Pマーク ロゴ" class="footer-jisq-img2" />
+            </a>
+          </div>
+        </div>
+        <div class="footer-copyright">
+          <p>「e-カルテ」、「CareMill」、「ケアミル」、「SeavoPACS」、「SeavoView」は、株式会社ソフトウェア・サービスの登録商標です。</p>
+          <p>Copyright (c) 2024 Software Service, Inc. All Rights Reserved.</p>
+        </div>
+      </div>
+    </footer>
+    <script src="../../common/js/jquery-3.6.4.min.js"></script>
+    <script src="../../common/js/bootstrap.bundle.min.js"></script>
+    <script type="text/javascript" src="../../common/js/humburgerMenu.js"></script>
+    <script type="text/javascript" src="../../common/js/footer-toggle.js"></script>
+    <script type="text/javascript" src="../../common/js/page-top.js"></script>
+    <script type="text/javascript" src="../../common/js/nav-menu-updown.js"></script>
+    <script type="text/javascript" src="../../common/js/gnav-menu.js"></script>
+    <script>
+      $(function () {
+        $(".accordion-title-area:first").addClass("open");
+        $(".accordion-title-area").click(function () {
+          $(this).next().slideToggle();
+          $(this).toggleClass("open");
+        });
+      });
+    </script>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-M59DHDZ1VK"></script>
+    <script type="text/javascript" src="../../js/analytics.js"></script>            
+  </body>
+</html>

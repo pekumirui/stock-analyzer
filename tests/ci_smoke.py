@@ -343,6 +343,12 @@ def main() -> None:
     )
     if ir_html.returncode != 0:
         raise SystemExit("ir monthly html r2 tests failed")
+    ir_html_parity = subprocess.run(
+        [sys.executable, str(ROOT / "tests" / "test_html_issue248_parity.py")],
+        cwd=ROOT,
+    )
+    if ir_html_parity.returncode != 0:
+        raise SystemExit("ir monthly html issue248 parity tests failed")
     ir_html_ingest = subprocess.run(
         [sys.executable, str(ROOT / "tests" / "test_ir_monthly_html_ingest.py")],
         cwd=ROOT,
