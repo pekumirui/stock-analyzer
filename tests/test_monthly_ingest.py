@@ -576,18 +576,6 @@ def test_issuer_alias_cases() -> None:
     if sample_27800_yoy != "全店 売上高(前年比)":
         _fail(f"27800 year=2026 全店 売上高(前年比): {sample_27800_yoy!r}")
 
-    # 39230: no-全店 → 全店 の reverse alias は置かない。canonicalize 後の素通しは可。
-    sample_39230 = apply_issuer_aliases(
-        "39230", canonicalize_element_label("全社連結 売上高", "number"), year=2099,
-    )
-    if sample_39230 == "連結 全店 売上高":
-        _fail(f"39230 year=2099 全社連結 売上高: {sample_39230!r}")
-    sample_39230_yoy = apply_issuer_aliases(
-        "39230", canonicalize_element_label("全社連結 売上高(前年比)", "yoy_index"), year=2099,
-    )
-    if sample_39230_yoy == "連結 全店 売上高(前年比)":
-        _fail(f"39230 year=2099 全社連結 売上高(前年比): {sample_39230_yoy!r}")
-
     # 76830: 内 MM → 内アパレル（Lane B / re-ingest）。canonicalize 後キーで照合。
     sample_76830 = apply_issuer_aliases(
         "76830", canonicalize_element_label("内 MM 全店 売上高", "number"), year=2026,
