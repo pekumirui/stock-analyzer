@@ -264,13 +264,6 @@
       "table": null
     },
     {
-      "code": "7532",
-      "name": "パン・パシフィック・インターナショナルホールディングス",
-      "index_url": "https://ppih.co.jp/ir/highlight/monthly/",
-      "title": "月次",
-      "table": null
-    },
-    {
       "code": "7544",
       "name": "スリーエフ",
       "index_url": "https://www.three-f.co.jp/ir/recentFact.html",
@@ -299,13 +292,6 @@
       "source": "eir",
       "eir_n": 0,
       "eir_title_re": "月次"
-    },
-    {
-      "code": "7649",
-      "name": "スギホールディングス",
-      "index_url": "https://www.sugi-hd.co.jp/ir/library/monthly-report.html",
-      "title": "月次",
-      "table": null
     },
     {
       "code": "7679",

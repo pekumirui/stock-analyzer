@@ -337,7 +337,7 @@ def test_dest_html_and_ingest_sidecar() -> None:
 def test_load_html_registry() -> None:
     live = load_html_registry(ROOT / "config" / "ir_monthly.json")
     codes = [i.code for i in live]
-    if len(codes) != 57:
+    if len(codes) != 55:
         _fail(f"repo html issuers count {len(codes)}: {codes}")
     if "1878" in codes:
         _fail("1878 moved to issuers (xls), must not stay in html")
