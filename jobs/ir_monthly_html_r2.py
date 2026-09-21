@@ -728,6 +728,31 @@ def _sticky_sections(section_texts: list[str]) -> list[Section]:
     return out
 
 
+def _fy_captions(text: str) -> list[tuple[int, int]]:
+    s = unicodedata.normalize("NFKC", text or "")
+    return [
+        (int(y), int(m))
+        for y, m in _FY_CAPTION_RE.findall(s)
+        if int(y) >= _MIN_AS_OF_YEAR
+    ]
+
+
+def _sticky_section_fy(section_texts: list[str]) -> list[tuple[int, int] | None]:
+    """単月表は直前の `YYYY年M月期` を引き継ぐ。年セレクトに複数期があるときは新しい方。"""
+    out: list[tuple[int, int] | None] = []
+    prev: tuple[int, int] | None = None
+    for text in section_texts:
+        found = _fy_captions(text)
+        if not found:
+            out.append(prev)
+            continue
+        years = {y for y, _m in found}
+        cur = max(found) if len(years) > 1 else found[-1]
+        prev = cur
+        out.append(cur)
+    return out
+
+
 def _apply_section_segment(rows: list[dict], segment: str | None) -> None:
     if not segment:
         return
@@ -1695,6 +1720,7 @@ def html_to_ingest(
             raise ValueError(f"table index {table} out of range ({len(tables)})")
         indices = [table]
     last_err: str | None = None
+    sticky_fy = _sticky_section_fy(section_texts)
     candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]] = []
     for i in indices:
         section_text = section_texts[i] if i < len(section_texts) else ""
@@ -1705,7 +1731,11 @@ def html_to_ingest(
             last_err = str(e)
             parsed = None
         if parsed and parsed.get("rows"):
-            section_fy = section_fy_end_from_text(section_text, parsed.get("months"))
+            section_fy = sticky_fy[i] if i < len(sticky_fy) else None
+            if section_fy is None:
+                section_fy = section_fy_end_from_text(
+                    section_text, parsed.get("months")
+                )
             candidates.append((i, tables[i], parsed, section_fy))
             if table is not None:
                 break

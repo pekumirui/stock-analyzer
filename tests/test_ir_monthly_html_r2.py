@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "jobs"))
 
 from ir_monthly_html_r2 import (  # noqa: E402
     HtmlIssuer,
+    _sticky_section_fy,
     decode_html_bytes,
     dumps_ingest,
     eir_url,
@@ -2683,6 +2684,36 @@ def test_current_period_rewrites_skips_prior() -> None:
         _fail(f"yoy {yoy}")
 
 
+def test_sticky_fy_inherits_caption_to_unheaded_monthly() -> None:
+    got = _sticky_section_fy(
+        [
+            "2027年3月期 売上高（累計）",
+            "売上高（単月）",
+            "2026年3月期 売上高（累計）",
+            "売上高（単月）",
+        ]
+    )
+    if got != [(2027, 3), (2027, 3), (2026, 3), (2026, 3)]:
+        _fail(f"sticky fy {got}")
+    nav = _sticky_section_fy(["2027年3月期 2026年3月期"])
+    if nav != [(2027, 3)]:
+        _fail(f"year select {nav}")
+
+
+def test_nsd_monthly_keeps_current_fy_not_prior_complete() -> None:
+    path = ROOT / "tests" / "testdata" / "html_issue248" / "9759.html"
+    got = html_to_ingest(path.read_text(encoding="utf-8"), "9759", table=None)
+    sales = _row(got, "売上高（百万円）")
+    if sales["values"].get("4") != 9905:
+        _fail(f"picked prior-year 単月 {sales}")
+    if sales["values"].get("5") != 9786:
+        _fail(f"current 単月 May {sales}")
+    if sales["values"].get("3") is not None:
+        _fail(f"prior March leaked {sales}")
+    if got["as_of"] != "2026-08-31":
+        _fail(f"nsd as_of {got['as_of']}")
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -2706,6 +2737,8 @@ def main() -> None:
     test_letterspacing_trial_table()
     test_fy_caption_handling_keeps_metric_newer_wins()
     test_current_period_rewrites_skips_prior()
+    test_sticky_fy_inherits_caption_to_unheaded_monthly()
+    test_nsd_monthly_keeps_current_fy_not_prior_complete()
     test_watami_kyoten_count_is_number()
     test_watami_prefers_sales_over_kyoten()
     test_watami_sections_prefix_and_count_units()
