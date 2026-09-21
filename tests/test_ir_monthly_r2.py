@@ -14,6 +14,7 @@ from ir_monthly_r2 import (  # noqa: E402
     FileLink,
     Issuer,
     USER_AGENT,
+    aia_ca_issuer_uris,
     dest_filename,
     dest_path,
     dest_title,
@@ -421,6 +422,71 @@ def test_http_get_falls_back_on_403() -> None:
         _fail("UA constants drifted")
 
 
+def _tlv(tag: int, body: bytes) -> bytes:
+    n = len(body)
+    if n >= 128:
+        raise AssertionError("short-form test helper")
+    return bytes((tag, n)) + body
+
+
+def test_aia_ca_issuer_uris() -> None:
+    uri = b"http://example.test/ca.crt"
+    ocsp = b"http://example.test/ocsp"
+    ca_iss = bytes((0x2B, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x02))
+    ocsp_oid = bytes((0x2B, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x01))
+    aia_oid = bytes((0x2B, 0x06, 0x01, 0x05, 0x05, 0x07, 0x01, 0x01))
+    acc_ca = _tlv(0x30, _tlv(0x06, ca_iss) + _tlv(0x86, uri))
+    acc_ocsp = _tlv(0x30, _tlv(0x06, ocsp_oid) + _tlv(0x86, ocsp))
+    octet = _tlv(0x30, acc_ca + acc_ocsp)
+    der = _tlv(0x06, aia_oid) + _tlv(0x04, octet)
+    got = aia_ca_issuer_uris(der)
+    if got != ["http://example.test/ca.crt"]:
+        _fail(f"aia uris: {got}")
+    if aia_ca_issuer_uris(b"\x30\x00") != []:
+        _fail("empty der should be empty")
+    if aia_ca_issuer_uris(_tlv(0x06, ocsp_oid) + _tlv(0x04, octet)) != []:
+        _fail("non-AIA oid should be ignored")
+
+
+def test_http_get_aia_on_incomplete_chain() -> None:
+    from urllib.error import URLError
+    from unittest.mock import MagicMock, patch
+    import ssl as sslmod
+
+    import ir_monthly_r2 as mod
+
+    contexts: list[object] = []
+
+    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+        contexts.append(context)
+        if context is None:
+            raise URLError(
+                sslmod.SSLCertVerificationError(
+                    "certificate verify failed: unable to get local issuer certificate"
+                )
+            )
+        cm = MagicMock()
+        cm.__enter__.return_value.read.return_value = b"<html>aia-ok</html>"
+        cm.__exit__.return_value = False
+        return cm
+
+    dummy = sslmod.create_default_context()
+    with (
+        patch("urllib.request.urlopen", side_effect=fake_urlopen),
+        patch.object(mod, "ssl_context_with_aia", return_value=dummy) as aia,
+    ):
+        body = http_get("https://www.three-f.co.jp/ir/recentFact.html")
+    if body != b"<html>aia-ok</html>":
+        _fail(f"aia body: {body!r}")
+    if aia.call_count != 1:
+        _fail(f"aia calls: {aia.call_count}")
+    if contexts != [None, dummy]:
+        _fail(f"contexts: {contexts}")
+    # chain 欠落は UA を変えても直らないので 1 UA で打ち切る
+    if len(contexts) != 2:
+        _fail(f"should not fall back to second UA: {len(contexts)}")
+
+
 def test_unknown_stock_skip(tmp: Path) -> None:
     import ir_monthly_r2 as mod
 
@@ -524,6 +590,8 @@ def main() -> None:
         test_unknown_stock_skip(p)
         test_run_only_and_dry_run(p)
     test_http_get_falls_back_on_403()
+    test_aia_ca_issuer_uris()
+    test_http_get_aia_on_incomplete_chain()
     print("ok: ir monthly r2")
 
 
