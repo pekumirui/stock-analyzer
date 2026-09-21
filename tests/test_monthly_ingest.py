@@ -622,6 +622,51 @@ def test_issuer_alias_cases() -> None:
         if reverse != stored:
             _fail(f"38170 year=2026 reverse {stored!r}: {reverse!r}")
 
+    # 39230: 全店付き・全社連結 → 全社（連結）等（year=2099）。旧 連結 全店 へは寄せない。
+    for incoming, stored in (
+        ("全社連結 売上高", "全社（連結） 売上高"),
+        ("全社連結 売上高(前年比)", "全社（連結） 売上高(前年比)"),
+        ("連結 全店 売上高", "全社（連結） 売上高"),
+        ("連結 全店 売上高(前年比)", "全社（連結） 売上高(前年比)"),
+        ("全店 連結売上高", "全社（連結） 売上高"),
+        ("全店 連結売上高(前年比)", "全社（連結） 売上高(前年比)"),
+        ("クラウド事業 全店 売上高", "クラウド事業 売上高"),
+        ("クラウド事業 全店 売上高(前年比)", "クラウド事業 売上高(前年比)"),
+        ("クラウド事業 ストック 全店 売上高", "クラウド事業 ストック 売上高"),
+        ("クラウド事業 ストック 全店 売上高(前年比)", "クラウド事業 ストック 売上高(前年比)"),
+        ("楽楽精算 全店 売上高", "楽楽精算 売上高"),
+        ("楽楽精算 全店 売上高(前年比)", "楽楽精算 売上高(前年比)"),
+        ("楽楽明細 全店 売上高", "楽楽明細 売上高"),
+        ("楽楽明細 全店 売上高(前年比)", "楽楽明細 売上高(前年比)"),
+        ("IT人材事業 全店 売上高", "IT人材事業 売上高"),
+        ("IT人材事業 全店 売上高(前年比)", "IT人材事業 売上高(前年比)"),
+    ):
+        unit = "yoy_index" if incoming.endswith("(前年比)") else "number"
+        got = apply_issuer_aliases(
+            "39230", canonicalize_element_label(incoming, unit), year=2099,
+        )
+        if got != stored:
+            _fail(f"39230 year=2099 {incoming!r}: {got!r}, want {stored!r}")
+        if "全店" in got:
+            _fail(f"39230 year=2099 {incoming!r} still has 全店: {got!r}")
+        reverse = apply_issuer_aliases(
+            "39230", canonicalize_element_label(stored, unit), year=2099,
+        )
+        if reverse != stored:
+            _fail(f"39230 year=2099 reverse {stored!r}: {reverse!r}")
+    for incoming in ("全社連結 売上高", "全社連結 売上高(前年比)"):
+        unit = "yoy_index" if incoming.endswith("(前年比)") else "number"
+        got = apply_issuer_aliases(
+            "39230", canonicalize_element_label(incoming, unit), year=2099,
+        )
+        if got in (
+            "連結 全店 売上高",
+            "連結 全店 売上高(前年比)",
+            "全店 連結売上高",
+            "全店 連結売上高(前年比)",
+        ):
+            _fail(f"39230 old 全社連結 → 連結 全店 still applies: {incoming!r} → {got!r}")
+
     # 30820: 短名→業態長名、中黒なしへ（Lane B / re-ingest）。canonicalize 後キー、year=2026。
     # 店舗数 と 全店 店舗数 は canonicalize 後も別キー。裸プレフィックスも寄せる。
     suffixes_30820 = (
