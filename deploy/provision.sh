@@ -181,8 +181,148 @@ EOF
 )
 fi
 
+write_if_changed /etc/nginx/conf.d/stock-analyzer-limit.conf 644 <<'EOF'
+limit_req_zone $binary_remote_addr zone=pub:10m rate=5r/s;
+limit_conn_zone $binary_remote_addr zone=addr:10m;
+EOF
+
+pub_headers=$(cat <<'EOF'
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+EOF
+)
+
 proxy_block=$(cat <<EOF
     client_max_body_size 1m;
+    location = / {
+        auth_basic off;
+        return 301 /monthly;
+    }
+    location = /robots.txt {
+        auth_basic off;
+        limit_req zone=pub burst=20 nodelay;
+        limit_conn addr 16;
+${pub_headers}
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 60s;
+    }
+    location = /sitemap.xml {
+        auth_basic off;
+        limit_req zone=pub burst=20 nodelay;
+        limit_conn addr 16;
+${pub_headers}
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 60s;
+    }
+    location = /favicon.ico {
+        auth_basic off;
+        limit_req zone=pub burst=20 nodelay;
+${pub_headers}
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 60s;
+    }
+    location ^~ /monthly {
+        auth_basic off;
+        limit_req zone=pub burst=20 nodelay;
+        limit_conn addr 16;
+        limit_except GET { deny all; }
+${pub_headers}
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" always;
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 60s;
+    }
+    location ^~ /static/ {
+        auth_basic off;
+        limit_req zone=pub burst=40 nodelay;
+${pub_headers}
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 60s;
+    }
+    location = /api/v1/tables {
+        auth_basic off;
+        limit_req zone=pub burst=20 nodelay;
+        limit_conn addr 16;
+        limit_except GET { deny all; }
+${pub_headers}
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 60s;
+    }
+    location ~ ^/api/v1/tables/[0-9][0-9A-Z]{3}[0-9](?:/[0-9]{4})?\$ {
+        auth_basic off;
+        limit_req zone=pub burst=20 nodelay;
+        limit_conn addr 16;
+        limit_except GET { deny all; }
+${pub_headers}
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 60s;
+    }
+    location ^~ /app {
+${auth_block}
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 60s;
+    }
+    location ^~ /docs {
+${auth_block}
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 60s;
+    }
+    location ^~ /redoc {
+${auth_block}
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 60s;
+    }
+    location = /openapi.json {
+${auth_block}
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 60s;
+    }
     location ^~ /.well-known/oauth- {
         auth_basic off;
         proxy_pass http://127.0.0.1:8010;

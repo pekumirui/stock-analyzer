@@ -42,6 +42,10 @@ load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'stock.db'}")
 
+# 公開月次のサイト名と canonical のオリジン。空ならリクエストの Host から組み立てる。
+PUBLIC_SITE_NAME = os.getenv("PUBLIC_SITE_NAME", "株KPI")
+PUBLIC_ORIGIN = os.getenv("PUBLIC_ORIGIN", "").rstrip("/")
+
 XBRL_DEST = os.getenv("XBRL_DEST", "/home/stock/r2-share/xbrl")
 XBRL_CACHE_DIR = os.getenv("XBRL_CACHE_DIR", "/home/stock/r2-share/xbrl/_cache")
 XBRL_TEXT_MAX_CHARS = int(os.getenv("XBRL_TEXT_MAX_CHARS", "1000"))

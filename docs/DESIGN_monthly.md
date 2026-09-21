@@ -14,6 +14,7 @@
 - Detail は戻る操作、系列切替つきの棒グラフ、その発行体の暦年表。左の発行体一覧は置かない。年のドロップダウンは無い
 - 戻ると TOP に戻り、直前のチップ選択と検索絞り込みを保つ
 - 再読込は直近のタブを開く。Detail を見ていたらその発行体の Detail に戻る
+- 公開面は `https://kabukpi.com/monthly` と `/monthly/{code4}`（パス）。個人ツール `/app` はハッシュ `#monthly` / `#monthly/{code}`
 
 ## データ形
 
@@ -78,7 +79,7 @@ AI による業種付けはしない。`industry` の更新は MCP と `PUT /api
 
 チップをクリックすると検索絞り込みを外し、そのグループの行だけ残す。新着は `is_new` が真の行。業種チップは `industry` が一致する行。会社名をクリックすると Detail を開く。チップ以外の列は遷移しない。
 
-**一時デバッグ:** 新着の右に `ゲート（一時）`（`data-group="__gate__"`）。初回クリックで各発行体の最新暦年を取り `monthlySegmentGate` し、通過 code だけ一覧に残す。判定中は「ゲート判定中…」、0 件は「ゲート対象はありません」。結果は `sessionStorage` `monthly.gateCodes.debug`（指紋 `monthly.gateCodes.debug.fp`）。比較が終わったらこのチップと index を消す。
+公開 TOP の既定チップは すべて。列は会社名・月次業種・全店(前年比)・既存店(前年比)。市場と `sector33` は出さない。
 
 ### 空とエラー
 
@@ -141,8 +142,6 @@ AI による業種付けはしない。`industry` の更新は MCP と `PUT /api
 ### 操作
 
 `#monthly-back` で TOP に戻る。直前のチップを保つ。グラフの指標は `#monthly-series` の切替、または年表の該当行をクリックして変える。年の選択 UI は置かない。
-
-**一時デバッグ:** ゲート通過銘柄の Detail だけ `#monthly-layout-debug`（「表レイアウト（一時）」）を出す。`ゲート（節+stub）` が既定。`元表（マージ前）` は `monthlyTableLayout` をゲート無し相当に戻し、項目 1 列の和集合順で描く（DB・API は触らない）。選択は `sessionStorage` `monthly.layoutMode.debug`。比較が終わったらこの UI とフラグを消す。
 
 ### 空とエラー
 

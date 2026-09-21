@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>株式分析ツール</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
@@ -119,17 +120,10 @@
   </div>
   <div id="monthly-detail" style="display:none">
       <div class="phead">
-        <button type="button" id="monthly-back" onclick="backMonthly()">戻る</button>
+        <button type="button" id="monthly-back">戻る</button>
         <h3 id="monthly-title"></h3>
       </div>
       <select id="monthly-series" onchange="setMonthlySeries(this.value)"></select>
-      <label id="monthly-layout-debug" class="monthly-layout-debug" hidden>
-        表レイアウト（一時）
-        <select id="monthly-layout-mode" onchange="setMonthlyLayoutMode(this.value)">
-          <option value="gated">ゲート（節+stub）</option>
-          <option value="flat">元表（マージ前）</option>
-        </select>
-      </label>
       <div id="monthly-chart"></div>
       <div class="tbl-wrap" id="monthly-table-wrap"></div>
   </div>

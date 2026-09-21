@@ -97,12 +97,28 @@ def main() -> None:
     if "76830" not in r.text:
         raise SystemExit("row-order JSON missing 76830")
 
-    r = client.get("/")
-    _expect(r, 200, "GET /")
+    r = client.get("/", follow_redirects=False)
+    _expect(r, 301, "GET /")
+    loc = r.headers.get("location") or ""
+    if not loc.endswith("/monthly"):
+        raise SystemExit(f"GET / should redirect to /monthly, got {loc!r}")
+
+    r = client.get("/app")
+    _expect(r, 200, "GET /app")
     if len(r.content) < 200:
-        raise SystemExit("GET / returned too little content")
+        raise SystemExit("GET /app returned too little content")
     if "週足" not in r.text or 'value="W"' not in r.text:
         raise SystemExit("chart timeframe missing 週足")
+
+    r = client.get("/monthly")
+    _expect(r, 200, "GET /monthly")
+    if "株KPI" not in r.text:
+        raise SystemExit("GET /monthly missing site name")
+
+    r = client.get("/robots.txt")
+    _expect(r, 200, "GET /robots.txt")
+    if "Sitemap:" not in r.text:
+        raise SystemExit("robots.txt missing Sitemap")
 
     r = client.get("/api/screener")
     _expect(r, 200, "GET /api/screener (empty)")
@@ -301,6 +317,18 @@ def main() -> None:
     )
     if monthly.returncode != 0:
         raise SystemExit("monthly tables tests failed")
+    public = subprocess.run(
+        [sys.executable, str(ROOT / "tests" / "test_public_monthly.py")],
+        cwd=ROOT,
+    )
+    if public.returncode != 0:
+        raise SystemExit("public monthly tests failed")
+    nginx = subprocess.run(
+        [sys.executable, str(ROOT / "tests" / "test_nginx_public.py")],
+        cwd=ROOT,
+    )
+    if nginx.returncode != 0:
+        raise SystemExit("nginx public tests failed")
     ingest = subprocess.run(
         [sys.executable, str(ROOT / "tests" / "test_monthly_ingest.py")],
         cwd=ROOT,

@@ -64,12 +64,12 @@ def main() -> None:
             print(json.dumps(out, ensure_ascii=False, indent=2))
             raise SystemExit("pid from state.json is not running")
 
-    st, body = _get(url + "/")
+    st, body = _get(url + "/app")
     out["home_status"] = st
     out["home_ok"] = st == 200 and isinstance(body, str) and "<title>株式分析ツール</title>" in body
     if not out["home_ok"]:
         print(json.dumps(out, ensure_ascii=False, indent=2))
-        raise SystemExit("GET / is not the SPA")
+        raise SystemExit("GET /app is not the SPA")
 
     st, body = _get(url + "/api/screener?stage=2&rs_min=70")
     out["screener_status"] = st

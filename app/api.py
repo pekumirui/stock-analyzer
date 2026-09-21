@@ -5,7 +5,7 @@ import unicodedata
 from typing import Any
 
 import pandas as pd
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, aliased, defer
 
@@ -283,6 +283,17 @@ def _normalize_element(s: str) -> str:
 # 5桁正規形は先頭・末尾が数字、途中は 0-9A-Z (72030 / 262A0)。
 # 4桁 (9279 / 7203 / 262A) は末尾0。fy_end 参照と月次の保存キーは同じ 5桁。
 _CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
+_PUBLIC_GET_CACHE = "public, max-age=60"
+
+
+def forbid_proxied_monthly_write(request: Request) -> None:
+    """nginx 経由の書き込みを拒否する。MCP / ジョブは 127.0.0.1 直叩き。"""
+    if request.headers.get("x-forwarded-for") or request.headers.get("x-real-ip"):
+        raise ApiError(403, "FORBIDDEN", "月次の更新は loopback のみです。")
+
+
+def _public_get_cache(response: Response) -> None:
+    response.headers["Cache-Control"] = _PUBLIC_GET_CACHE
 
 
 def _parse_code(code: str) -> str:
@@ -643,7 +654,8 @@ def _ingest_error(exc: MonthlyIngestError) -> ApiError:
 
 @router_v1.post("/tables/{code}/{year}/elements")
 def post_element(code: str, year: str, response: Response,
-                 payload: dict | None = Body(None), db: Session = Depends(get_session)):
+                 payload: dict | None = Body(None), db: Session = Depends(get_session),
+                 _: None = Depends(forbid_proxied_monthly_write)):
     code = _parse_code(code)
     year_i = _parse_year(year)
     body = _require_object(payload)
@@ -673,7 +685,8 @@ def post_element(code: str, year: str, response: Response,
 
 @router_v1.put("/tables/{code}/{year}/elements")
 def put_element(code: str, year: str, payload: dict | None = Body(None),
-                db: Session = Depends(get_session)):
+                db: Session = Depends(get_session),
+                _: None = Depends(forbid_proxied_monthly_write)):
     """既存行の unit だけ変える。値の再送は不要。新規作成はしない。"""
     code = _parse_code(code)
     year_i = _parse_year(year)
@@ -695,7 +708,8 @@ def put_element(code: str, year: str, payload: dict | None = Body(None),
 
 @router_v1.delete("/tables/{code}/{year}/elements")
 def delete_element(code: str, year: str, payload: dict | None = Body(None),
-                   db: Session = Depends(get_session)):
+                   db: Session = Depends(get_session),
+                   _: None = Depends(forbid_proxied_monthly_write)):
     """空の行だけ消す。値が残っていれば 409。表は残す。"""
     code = _parse_code(code)
     year_i = _parse_year(year)
@@ -717,7 +731,9 @@ def delete_element(code: str, year: str, payload: dict | None = Body(None),
 
 
 @router_v1.post("/tables/{code}/ingest")
-def ingest_monthly(code: str, payload: dict | None = Body(None), db: Session = Depends(get_session)):
+def ingest_monthly(code: str, payload: dict | None = Body(None),
+                   db: Session = Depends(get_session),
+                   _: None = Depends(forbid_proxied_monthly_write)):
     """PDF列順 + as_of 時点の最新 statements.fiscal_year_end から暦年を割り当てる。year は受け取らない。"""
     code = _parse_code(code)
     body = _require_object(payload)
@@ -774,7 +790,8 @@ def ingest_monthly(code: str, payload: dict | None = Body(None), db: Session = D
 
 @router_v1.put("/tables/{code}/industry")
 def put_industry(code: str, payload: dict | None = Body(None),
-                 db: Session = Depends(get_session)):
+                 db: Session = Depends(get_session),
+                 _: None = Depends(forbid_proxied_monthly_write)):
     code = _parse_code(code)
     industry = _parse_industry(_require_object(payload).get("industry"))
     _require_stock(db, code)
@@ -788,8 +805,7 @@ def put_industry(code: str, payload: dict | None = Body(None),
     return {"code": code, "industry": industry}
 
 
-@router_v1.get("/tables")
-def list_tables(db: Session = Depends(get_session)):
+def list_tables_payload(db: Session) -> list[dict]:
     """月次表がある銘柄。名前は stocks を LEFT JOIN。無いときは null。"""
     rows = (db.query(
                 MonthlyTable.code, MonthlyTable.year,
@@ -841,15 +857,18 @@ def list_tables(db: Session = Depends(get_session)):
     return out
 
 
+@router_v1.get("/tables")
+def list_tables(db: Session = Depends(get_session),
+                _: None = Depends(_public_get_cache)):
+    return list_tables_payload(db)
+
+
 def _calendar_month_values(stored: dict[str, float]) -> dict[str, float | None]:
     """GET の values。1〜12 を必ず出し、無い月は null（0 は実ゼロ）。"""
     return {str(m): stored.get(str(m)) for m in range(1, 13)}
 
 
-@router_v1.get("/tables/{code}/{year}")
-def get_table(code: str, year: str, db: Session = Depends(get_session)):
-    code = _parse_code(code)
-    year_i = _parse_year(year)
+def table_year_payload(db: Session, code: str, year_i: int) -> dict:
     _get_table(db, code, year_i)
     elems = (db.query(MonthlyElement)
              .filter(MonthlyElement.code == code, MonthlyElement.year == year_i)
@@ -877,9 +896,15 @@ def get_table(code: str, year: str, db: Session = Depends(get_session)):
     }
 
 
-@router_v1.get("/tables/{code}")
-def list_years(code: str, db: Session = Depends(get_session)):
+@router_v1.get("/tables/{code}/{year}")
+def get_table(code: str, year: str, db: Session = Depends(get_session),
+              _: None = Depends(_public_get_cache)):
     code = _parse_code(code)
+    year_i = _parse_year(year)
+    return table_year_payload(db, code, year_i)
+
+
+def list_years_payload(db: Session, code: str) -> dict:
     years = [y for (y,) in (db.query(MonthlyTable.year)
                             .filter(MonthlyTable.code == code)
                             .order_by(MonthlyTable.year)
@@ -887,9 +912,17 @@ def list_years(code: str, db: Session = Depends(get_session)):
     return {"code": code, "years": years}
 
 
+@router_v1.get("/tables/{code}")
+def list_years(code: str, db: Session = Depends(get_session),
+               _: None = Depends(_public_get_cache)):
+    code = _parse_code(code)
+    return list_years_payload(db, code)
+
+
 @router_v1.put("/tables/{code}/{year}/values")
 def put_value(code: str, year: str, payload: dict | None = Body(None),
-              db: Session = Depends(get_session)):
+              db: Session = Depends(get_session),
+              _: None = Depends(forbid_proxied_monthly_write)):
     code = _parse_code(code)
     year_i = _parse_year(year)
     body = _require_object(payload)
@@ -910,7 +943,8 @@ def put_value(code: str, year: str, payload: dict | None = Body(None),
 
 @router_v1.put("/tables/{code}/{year}/values/batch")
 def put_values_batch(code: str, year: str, payload: dict | None = Body(None),
-                     db: Session = Depends(get_session)):
+                     db: Session = Depends(get_session),
+                     _: None = Depends(forbid_proxied_monthly_write)):
     code = _parse_code(code)
     year_i = _parse_year(year)
     body = _require_object(payload)

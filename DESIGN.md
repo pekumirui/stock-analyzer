@@ -315,7 +315,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `DELETE /api/v1/tables/{code}/{year}/elements` | 空の月次行を消す。body `{element}`。値が残っていれば 409 `ELEMENT_HAS_VALUES`。表は残す。未登録は 404。マスタ無しは 4xx `NOT_IN_MASTER` |
 | `PUT /api/v1/tables/{code}/{year}/values/batch` | 複数月を検証してから一括 commit。マスタ無しは 4xx `NOT_IN_MASTER` |
 
-月次 API のエラーは `{"error": {"code": "...", "message": "..."}}`。認証は既存アプリと同じ (アプリ本体には無く、本番は nginx Basic 認証)。
+月次 API のエラーは `{"error": {"code": "...", "message": "..."}}`。閲覧 GET は公開。書き込みは loopback のみ（nginx 経由は 403）。本番の個人ツールは `/app` と Basic 認証。
 
 ### 決算表の表示
 - タブは **累計が先**、3か月が後。既定は累計
@@ -352,7 +352,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | API + SPA | 同一 VPS の uvicorn（systemd、ワーカー1） |
 | DB | `stock.db`（VPS の SSD）。`DATABASE_URL` は今の SQLite のまま |
 | バッチ | crontab（19:30 JST と翌朝 6:00） |
-| 公開 | nginx + Let's Encrypt。個人利用は Basic 認証 |
+| 公開 | nginx + Let's Encrypt。月次閲覧は `/monthly`（Basic なし）。個人ツールは `/app` + Basic 認証 |
 | 開発 | 今どおり Windows + `.\run.ps1` |
 
 推奨プランは **メモリ 2GB / SSD 100GB**（東京）。512MB は Python + pandas + 1GB 級 SQLite で足りない。時間課金で立ててから長期契約を判断する。

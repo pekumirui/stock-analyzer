@@ -1241,22 +1241,18 @@ def _assert_monthly_spa(html: str) -> None:
     for chunk in _select_tags(section):
         if "monthly-year" in chunk:
             _fail("monthly tab still has a year select")
-        if 'id="monthly-series"' not in chunk and 'id="monthly-layout-mode"' not in chunk:
-            _fail("monthly tab select must be #monthly-series or TEMP #monthly-layout-mode")
-    if 'id="monthly-layout-debug"' not in section or 'id="monthly-layout-mode"' not in section:
-        _fail("TEMP flat/gated compare control #monthly-layout-debug must be in Detail")
+        if 'id="monthly-series"' not in chunk:
+            _fail("monthly tab select must be #monthly-series")
+    if 'id="monthly-layout-debug"' in html or 'id="monthly-layout-mode"' in html:
+        _fail("TEMP layout debug control must be removed")
     if ">項目<" in html:
         _fail("monthly thead still uses 項目")
     if 'id="monthly-groups"' not in section:
         _fail("TOP must have #monthly-groups")
-    if 'data-group="__gate__"' not in html and "setMonthlyGroup('__gate__')" not in html:
-        _fail("TEMP gate list chip __gate__ must exist on TOP")
-    if "ゲート（一時）" not in html:
-        _fail("TEMP gate list chip label ゲート（一時） missing")
-    if "function ensureMonthlyGateIndex" not in html:
-        _fail("TEMP gate list must build ensureMonthlyGateIndex")
-    if "MONTHLY_GATE_CODES_KEY" not in html:
-        _fail("TEMP gate list must cache codes under MONTHLY_GATE_CODES_KEY")
+    if 'data-group="__gate__"' in html or "ゲート（一時）" in html:
+        _fail("TEMP gate list chip must be removed")
+    if "ensureMonthlyGateIndex" in html or "MONTHLY_GATE_CODES_KEY" in html:
+        _fail("TEMP gate list index must be removed")
     if 'id="monthly-chart"' not in section:
         _fail("Detail must have #monthly-chart")
     if 'id="monthly-back"' not in section:
@@ -1312,8 +1308,10 @@ def _assert_monthly_spa(html: str) -> None:
     label_body = html[label_fn:label_fn + 280]
     if "「" in label_body or "」" in label_body:
         _fail("TOP name must not wrap the code in 「」")
-    if "`${code} ${short}`" not in label_body:
-        _fail("TOP name is code, space, then 5-char name")
+    if "`${monthlyCode4(code)} ${short}`" not in label_body:
+        _fail("TOP name is 4-digit code, space, then 5-char name")
+    if "function monthlyCode4" not in html:
+        _fail("display code must use monthlyCode4")
     if "全店(前年比)" not in list_body or "既存店(前年比)" not in list_body:
         _fail("TOP headers must include yoy columns")
     top_start = html.find('id="monthly-top"')
@@ -1615,14 +1613,10 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("SPA missing monthly-sec section row class")
     if "monthlyTableLayout(rowOrder" not in html:
         _fail("SPA must apply monthlyTableLayout after monthlyRowOrder")
-    if 'id="monthly-layout-debug"' not in html:
-        _fail("TEMP debug control #monthly-layout-debug must exist for flat vs gated compare")
-    if "setMonthlyLayoutMode" not in html:
-        _fail("SPA missing setMonthlyLayoutMode for TEMP flat layout toggle")
-    if "MONTHLY_LAYOUT_MODE_KEY" not in html:
-        _fail("TEMP layout mode must use a named sessionStorage key")
-    if "forceFlat" not in html:
-        _fail("monthlyTableLayout must accept forceFlat / flat mode for TEMP debug")
+    if 'id="monthly-layout-debug"' in html or "setMonthlyLayoutMode" in html:
+        _fail("TEMP layout debug must be removed")
+    if "MONTHLY_LAYOUT_MODE_KEY" in html or "forceFlat" in html:
+        _fail("TEMP layout mode / forceFlat must be removed")
     if "<optgroup" not in html:
         _fail("#monthly-series must support optgroup for gated brands")
     if "monthly-gated" not in html:
@@ -1686,6 +1680,7 @@ def _assert_monthly_layout_js() -> None:
     """Gate + second layout pass. Calls the SPA functions, not a Python reimplementation."""
     import json
     import subprocess
+    import tempfile
 
     js_path = ROOT / "static" / "js" / "monthly.js"
     if not js_path.is_file():
@@ -1855,7 +1850,7 @@ def _assert_monthly_layout_js() -> None:
     harness = r"""
 const fs = require("fs");
 const vm = require("vm");
-const jsPath = process.argv[1];
+const jsPath = process.argv[process.argv.length - 1];
 const fixtures = """ + json.dumps(fixtures, ensure_ascii=False) + r""";
 const code = fs.readFileSync(jsPath, "utf8");
 const el = {
@@ -1904,10 +1899,6 @@ const summary = layout.rows.map((r) => {
     leaf: r.leaf,
   };
 });
-const flatForce = sandbox.monthlyTableLayout(rowOrder, gatedTables, {forceFlat: true});
-sandbox.setMonthlyLayoutMode("flat");
-const flatMode = sandbox.monthlyTableLayout(rowOrder, gatedTables);
-sandbox.setMonthlyLayoutMode("gated");
 const flatOrder = sandbox.monthlyRowOrder(flatTables);
 const flat = sandbox.monthlyTableLayout(flatOrder, flatTables);
 const bdOrder = sandbox.monthlyRowOrder(matsukiyo);
@@ -1928,12 +1919,6 @@ console.log(JSON.stringify({
   gated,
   gatedFlag: layout.gated,
   summary,
-  rowOrderIds: rowOrder.map((r) => r.element),
-  flatForceGated: flatForce.gated,
-  flatForceKinds: flatForce.rows.map((r) => r.kind),
-  flatForceIds: flatForce.rows.map((r) => r.element),
-  flatModeGated: flatMode.gated,
-  flatModeIds: flatMode.rows.map((r) => r.element),
   flatGated: flat.gated,
   flatIds: flat.rows.map((r) => r.element),
   flatKinds: flat.rows.map((r) => r.kind),
@@ -1989,13 +1974,21 @@ console.log(JSON.stringify({
   tooOldGate: [...sandbox.monthlySegmentGate(fixtures.tooOld)].sort(),
 }));
 """
-    proc = subprocess.run(
-        ["node", "-e", harness, str(js_path)],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        cwd=str(ROOT),
-    )
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".js", delete=False, encoding="utf-8",
+    ) as tmp:
+        tmp.write(harness)
+        harness_path = tmp.name
+    try:
+        proc = subprocess.run(
+            ["node", harness_path, str(js_path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            cwd=str(ROOT),
+        )
+    finally:
+        Path(harness_path).unlink(missing_ok=True)
     if proc.returncode != 0:
         _fail(f"monthly layout js: {proc.stderr.strip() or proc.stdout.strip() or proc.returncode}")
     try:
@@ -2018,16 +2011,6 @@ console.log(JSON.stringify({
     ]
     if got.get("summary") != want:
         _fail(f"gated layout: {got.get('summary')!r}")
-    if got.get("flatForceGated") is not False:
-        _fail("forceFlat must disable gate layout")
-    if "section" in (got.get("flatForceKinds") or []):
-        _fail("forceFlat must not emit section rows")
-    if got.get("flatForceIds") != got.get("rowOrderIds"):
-        _fail(f"forceFlat must keep monthlyRowOrder ids: {got.get('flatForceIds')!r}")
-    if got.get("flatModeGated") is not False:
-        _fail("monthlyLayoutMode=flat must disable gate layout")
-    if got.get("flatModeIds") != got.get("rowOrderIds"):
-        _fail(f"monthlyLayoutMode=flat must keep monthlyRowOrder ids: {got.get('flatModeIds')!r}")
     if got.get("flatGated") is not False:
         _fail("simple issuer must stay ungated")
     if got.get("flatKinds") != ["data", "data"]:

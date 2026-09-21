@@ -101,6 +101,7 @@
 
 - MCP に任意シェル・restart・任意 SQL は無い。足さない
 - 月次ツールは `http://127.0.0.1:8000/api/v1/tables` のみ（nginx Basic は使わない）
+- 月次 GET は公開（`/monthly`）。書き込みは loopback。nginx 経由の POST/PUT/DELETE は 403。個人 SPA は `/app` + Basic
 - 月次の新規登録は `monthly_ingest`。year は渡さない。`monthly_put_values` の year は暦年で訂正専用
 - `monthly_delete_element` は値の無い行だけ（残っていれば 409）。表は残す
 - アプリ本体 (`app/*`) にログ API を足さない。MCP が死んだときの退避路は Actions の **Debug VPS**
