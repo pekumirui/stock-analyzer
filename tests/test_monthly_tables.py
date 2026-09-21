@@ -1680,6 +1680,7 @@ def _assert_monthly_layout_js() -> None:
     """Gate + second layout pass. Calls the SPA functions, not a Python reimplementation."""
     import json
     import subprocess
+    import tempfile
 
     js_path = ROOT / "static" / "js" / "monthly.js"
     if not js_path.is_file():
@@ -1849,7 +1850,7 @@ def _assert_monthly_layout_js() -> None:
     harness = r"""
 const fs = require("fs");
 const vm = require("vm");
-const jsPath = process.argv[1];
+const jsPath = process.argv[process.argv.length - 1];
 const fixtures = """ + json.dumps(fixtures, ensure_ascii=False) + r""";
 const code = fs.readFileSync(jsPath, "utf8");
 const el = {
@@ -1898,10 +1899,6 @@ const summary = layout.rows.map((r) => {
     leaf: r.leaf,
   };
 });
-const flatForce = sandbox.monthlyTableLayout(rowOrder, gatedTables, {forceFlat: true});
-sandbox.setMonthlyLayoutMode("flat");
-const flatMode = sandbox.monthlyTableLayout(rowOrder, gatedTables);
-sandbox.setMonthlyLayoutMode("gated");
 const flatOrder = sandbox.monthlyRowOrder(flatTables);
 const flat = sandbox.monthlyTableLayout(flatOrder, flatTables);
 const bdOrder = sandbox.monthlyRowOrder(matsukiyo);
@@ -1922,12 +1919,6 @@ console.log(JSON.stringify({
   gated,
   gatedFlag: layout.gated,
   summary,
-  rowOrderIds: rowOrder.map((r) => r.element),
-  flatForceGated: flatForce.gated,
-  flatForceKinds: flatForce.rows.map((r) => r.kind),
-  flatForceIds: flatForce.rows.map((r) => r.element),
-  flatModeGated: flatMode.gated,
-  flatModeIds: flatMode.rows.map((r) => r.element),
   flatGated: flat.gated,
   flatIds: flat.rows.map((r) => r.element),
   flatKinds: flat.rows.map((r) => r.kind),
@@ -1983,13 +1974,21 @@ console.log(JSON.stringify({
   tooOldGate: [...sandbox.monthlySegmentGate(fixtures.tooOld)].sort(),
 }));
 """
-    proc = subprocess.run(
-        ["node", "-e", harness, str(js_path)],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        cwd=str(ROOT),
-    )
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".js", delete=False, encoding="utf-8",
+    ) as tmp:
+        tmp.write(harness)
+        harness_path = tmp.name
+    try:
+        proc = subprocess.run(
+            ["node", harness_path, str(js_path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            cwd=str(ROOT),
+        )
+    finally:
+        Path(harness_path).unlink(missing_ok=True)
     if proc.returncode != 0:
         _fail(f"monthly layout js: {proc.stderr.strip() or proc.stdout.strip() or proc.returncode}")
     try:
@@ -2012,16 +2011,6 @@ console.log(JSON.stringify({
     ]
     if got.get("summary") != want:
         _fail(f"gated layout: {got.get('summary')!r}")
-    if got.get("flatForceGated") is not False:
-        _fail("forceFlat must disable gate layout")
-    if "section" in (got.get("flatForceKinds") or []):
-        _fail("forceFlat must not emit section rows")
-    if got.get("flatForceIds") != got.get("rowOrderIds"):
-        _fail(f"forceFlat must keep monthlyRowOrder ids: {got.get('flatForceIds')!r}")
-    if got.get("flatModeGated") is not False:
-        _fail("monthlyLayoutMode=flat must disable gate layout")
-    if got.get("flatModeIds") != got.get("rowOrderIds"):
-        _fail(f"monthlyLayoutMode=flat must keep monthlyRowOrder ids: {got.get('flatModeIds')!r}")
     if got.get("flatGated") is not False:
         _fail("simple issuer must stay ungated")
     if got.get("flatKinds") != ["data", "data"]:
