@@ -374,9 +374,11 @@ def ssl_context_with_aia(url: str, timeout: float = HTTP_TIMEOUT) -> ssl.SSLCont
         der = _peer_leaf_der(host, timeout)
         extras: list[bytes | str] = []
         for uri in aia_ca_issuer_uris(der)[:3]:
+            if urlparse(uri).scheme.lower() not in ("http", "https"):
+                continue
             try:
                 req = Request(uri, headers={"User-Agent": USER_AGENT, "Accept": "*/*"})
-                with urlopen(req, timeout=timeout) as resp:
+                with urlopen(req, timeout=timeout) as resp:  # nosec B310
                     blob = resp.read(_AIA_MAX_CERT + 1)
                 if not blob or len(blob) > _AIA_MAX_CERT:
                     continue
@@ -403,13 +405,16 @@ def ssl_context_with_aia(url: str, timeout: float = HTTP_TIMEOUT) -> ssl.SSLCont
 def http_get(url: str, timeout: float = HTTP_TIMEOUT) -> bytes:
     from urllib.request import Request, urlopen
 
+    scheme = urlparse(url).scheme.lower()
+    if scheme not in ("http", "https"):
+        raise ValueError(f"unsupported URL scheme: {scheme or 'missing'}")
     last: Exception | None = None
     aia_tried = False
     for ua in (USER_AGENT, BROWSER_UA):
         req = Request(url, headers={"User-Agent": ua, "Accept": "*/*"})
         for attempt in range(2):
             try:
-                with urlopen(req, timeout=timeout) as resp:
+                with urlopen(req, timeout=timeout) as resp:  # nosec B310
                     return resp.read()
             except HTTPError as e:
                 last = e
@@ -424,7 +429,7 @@ def http_get(url: str, timeout: float = HTTP_TIMEOUT) -> bytes:
                     ctx = ssl_context_with_aia(url, timeout)
                     if ctx is not None:
                         try:
-                            with urlopen(req, timeout=timeout, context=ctx) as resp:
+                            with urlopen(req, timeout=timeout, context=ctx) as resp:  # nosec B310
                                 return resp.read()
                         except (HTTPError, URLError, TimeoutError, OSError) as e2:
                             last = e2

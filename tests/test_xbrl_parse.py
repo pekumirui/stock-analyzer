@@ -23,7 +23,6 @@ from app.xbrl.context import (  # noqa: E402
     infer_accounting_standard_from_namespaces,
     fiscal_year_end_from_title,
     infer_consolidated,
-    resolve_fiscal_year_end,
 )
 from datetime import date  # noqa: E402
 from app.xbrl.jobs import run_normalize  # noqa: E402

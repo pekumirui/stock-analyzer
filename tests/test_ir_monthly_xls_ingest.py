@@ -17,7 +17,6 @@ from app.monthly_ingest import (  # noqa: E402
     plan_column_years,
 )
 from ir_monthly_xls_ingest import (  # noqa: E402
-    COLUMNS,
     as_of_from_url,
     ingest_from_grid,
     ingest_from_xls,

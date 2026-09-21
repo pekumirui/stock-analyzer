@@ -112,7 +112,6 @@ def compute_earnings_events(db: Session):
     tp = pd.DataFrame(db.query(Topix.date, Topix.close).all(), columns=["date", "tclose"]).sort_values("date")
     if px.empty or tp.empty:
         return
-    tdates = tp["date"].tolist()
     tclose = dict(zip(tp["date"], tp["tclose"]))
     stmts = db.query(Statement.code, Statement.disclosed_date, Statement.disclosed_time).all()
 

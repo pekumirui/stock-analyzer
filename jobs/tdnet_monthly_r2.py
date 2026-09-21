@@ -20,7 +20,7 @@ from collections.abc import Mapping
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
@@ -329,11 +329,14 @@ def list_url(start: date, end: date, keyword: str, by_id: int | None = None) -> 
 
 
 def http_get(url: str, timeout: float = HTTP_TIMEOUT) -> bytes:
+    scheme = urlparse(url).scheme.lower()
+    if scheme not in ("http", "https"):
+        raise ValueError(f"unsupported URL scheme: {scheme or 'missing'}")
     req = Request(url, headers={"User-Agent": USER_AGENT, "Accept": "*/*"})
     last: Exception | None = None
     for attempt in range(2):
         try:
-            with urlopen(req, timeout=timeout) as resp:
+            with urlopen(req, timeout=timeout) as resp:  # nosec B310
                 return resp.read()
         except HTTPError as e:
             last = e

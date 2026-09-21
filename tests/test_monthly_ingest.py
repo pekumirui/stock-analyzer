@@ -1241,7 +1241,7 @@ def test_ingest_yoy_short_and_canonical_same_row() -> None:
     _add_fy_end(code, date(2026, 5, 8), date(2025, 12, 31), "yoy-same-1")
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": [1],
-        "rows": [{"element": "売上高", "unit": "number", "values": {"1": 101.0}, "unit": "yoy_index"}],
+        "rows": [{"element": "売上高", "values": {"1": 101.0}, "unit": "yoy_index"}],
         "as_of": "2026-08-05",
     })
     _expect(r, 200, "ingest 売上高 yoy_index")
@@ -1545,7 +1545,13 @@ def test_issuer_alias_ingest_and_migrate() -> None:
         _expect(r, 200, f"GET {code} {mapped_year}")
         names = [e["element"] for e in r.json()["elements"]]
 
-        def _folded_stored(stored: str, *, year: int | None = None, as_of: date | None = None) -> str:
+        def _folded_stored(
+            stored: str,
+            *,
+            year: int | None = None,
+            as_of: date | None = None,
+            code: str = code,
+        ) -> str:
             # fold_aliased_element: dest が別 src なら保存名はもう一段 alias 後
             unit = "yoy_index" if stored.endswith("(前年比)") else "number"
             return canonicalize_element_label(

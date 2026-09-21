@@ -87,7 +87,8 @@ def slack_payload(source: str, line: str, epoch: float) -> dict[str, object]:
     text = (line or "").replace("\r\n", "\n").rstrip("\n")
     jst = format_jst(epoch)
     header = _clip(f"error · {src}", SLACK_HEADER_MAX)
-    body = _clip(f"*{jst}*\n```\n{text.replace('```', "'''")}\n```", SLACK_SECTION_MAX)
+    fenced = text.replace("```", "'''")
+    body = _clip(f"*{jst}*\n```\n{fenced}\n```", SLACK_SECTION_MAX)
     fallback = _clip(f"[{src}] {jst}: {text}", SLACK_FALLBACK_MAX)
     return {
         "text": fallback,
