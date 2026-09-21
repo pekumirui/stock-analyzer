@@ -54,7 +54,10 @@ _MONTH_RE = re.compile(
     r"(?:(?P<y>\d{4})\s*[/-年]\s*)?(?P<m>1[0-2]|0?[1-9])\s*月"
     r"|(?P<y2>\d{4})\s*[./-]\s*(?P<m2>1[0-2]|0?[1-9])(?!\d)(?!\s*[./-]\s*\d)"
 )
+# CanDo `26.03`. Fullmatch + zero-padded MM so `97.6` (yoy) and `2026.03.01` are not months.
+_YY_MM_CELL_RE = re.compile(r"^(?P<y>\d{2})\s*[./-]\s*(?P<m>0[1-9]|1[0-2])$")
 _FY_CAPTION_RE = re.compile(r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月期")
+_MIN_AS_OF_YEAR = 2015
 # `2026年度` と `2026年（令和8年）度`（大黒天物産の年度帯）
 _FY_YEAR_RE = re.compile(r"(\d{4})\s*年(?:\s*[（(][^）)]*[）)])?\s*度")
 _FY_RANGE_RE = re.compile(
@@ -87,7 +90,7 @@ _SKIP_AXIS_RE = re.compile(
     r"上期計|下期計|上期累計|下期累計|上半期|下半期|上期|下期|半期|"
     r"[1-4]Q|[１-４]Q|[1-4]四半期|四半期|\d+\s*ヶ月|月計)$"
 )
-_SKIP_SPAN_RE = re.compile(r"\d+\s*[～〜~\-－]\s*\d+\s*月")
+_SKIP_SPAN_RE = re.compile(r"\d+\s*月?\s*[～〜~\-－]\s*\d+\s*月")
 _NAMED_METRIC_RE = re.compile(
     r"来客数|客単価|客数|店舗数|店数|拠点数|営業所数|開店|閉店|出店|退店|"
     r"千食|お届け|開設|転換|撤退|テナント数|稼働店舗数|取引店舗数|"
@@ -233,13 +236,17 @@ def parse_as_of_text(html: str) -> str | None:
     s = unicodedata.normalize("NFKC", html or "")
     m = _UPDATE_RE.search(s)
     if m:
-        try:
-            return date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
-        except ValueError:
-            pass
+        y = int(m.group(1))
+        if y >= _MIN_AS_OF_YEAR:
+            try:
+                return date(y, int(m.group(2)), int(m.group(3))).isoformat()
+            except ValueError:
+                pass
     found: list[tuple[int, int]] = []
     for y, mo in _YM_DO_RE.findall(s):
-        found.append((int(y), int(mo)))
+        yi = int(y)
+        if yi >= _MIN_AS_OF_YEAR:
+            found.append((yi, int(mo)))
     if found:
         y, mo = max(found)
         try:
@@ -250,7 +257,24 @@ def parse_as_of_text(html: str) -> str | None:
     headed = [
         (int(y), int(mo))
         for y, mo in _YM_HEAD_RE.findall(unicodedata.normalize("NFKC", heads))
+        if int(y) >= _MIN_AS_OF_YEAR
     ]
+    if headed:
+        y, mo = max(headed)
+        try:
+            return month_end_iso(y, mo)
+        except ValueError:
+            return None
+    # Vega: `2026年8月の月次業績` is a <p>, not h1-h4
+    for m in _P_RE.finditer(html or ""):
+        t = _plain(m.group(1))
+        if "月次" not in t and "月度" not in t:
+            continue
+        headed.extend(
+            (int(y), int(mo))
+            for y, mo in _YM_HEAD_RE.findall(unicodedata.normalize("NFKC", t))
+            if int(y) >= _MIN_AS_OF_YEAR
+        )
     if headed:
         y, mo = max(headed)
         try:
@@ -265,6 +289,7 @@ def heading_year_month(html: str) -> tuple[int, int] | None:
     found = [
         (int(y), int(mo))
         for y, mo in _YM_HEAD_RE.findall(unicodedata.normalize("NFKC", heads))
+        if int(y) >= _MIN_AS_OF_YEAR
     ]
     return max(found) if found else None
 
@@ -272,9 +297,15 @@ def heading_year_month(html: str) -> tuple[int, int] | None:
 def page_year(html: str) -> int | None:
     m = _YEAR_TAB_RE.search(html or "")
     if m:
-        return int(m.group(1))
+        y = int(m.group(1))
+        if y >= _MIN_AS_OF_YEAR:
+            return y
     ctx = page_context(html)
-    years = [int(y) for y in _YEAR_ONLY_HEAD_RE.findall(unicodedata.normalize("NFKC", ctx))]
+    years = [
+        int(y)
+        for y in _YEAR_ONLY_HEAD_RE.findall(unicodedata.normalize("NFKC", ctx))
+        if int(y) >= _MIN_AS_OF_YEAR
+    ]
     return max(years) if years else None
 
 
@@ -303,6 +334,13 @@ def parse_month_year(text: str) -> tuple[int | None, int | None]:
     # `2026年度 3月期` は `_FY_CAPTION_RE` に当たらず、`3月` だけ月軸になる
     if "月期" in s:
         return None, None
+    yy = _YY_MM_CELL_RE.fullmatch(s)
+    if yy:
+        year = 2000 + int(yy.group("y"))
+        month = int(yy.group("m"))
+        if month < 1 or month > 12 or year < _MIN_AS_OF_YEAR or year > 2040:
+            return None, None
+        return year, month
     m = _MONTH_RE.search(s)
     if not m:
         return None, None
@@ -329,7 +367,11 @@ def month_end_iso(year: int, month: int) -> str:
 def fy_end_from_text(text: str) -> tuple[int, int] | None:
     """`2027年3月期` の最新（年, 期末月）。無ければ期間末、さらに `YYYY年度` は4月始まり（翌年3月期末）。"""
     s = unicodedata.normalize("NFKC", text or "")
-    found = [(int(y), int(m)) for y, m in _FY_CAPTION_RE.findall(s)]
+    found = [
+        (int(y), int(m))
+        for y, m in _FY_CAPTION_RE.findall(s)
+        if int(y) >= _MIN_AS_OF_YEAR
+    ]
     if found:
         return max(found)
     ranges = _FY_RANGE_RE.findall(s)
@@ -342,7 +384,7 @@ def fy_end_from_text(text: str) -> tuple[int, int] | None:
         y2, m2 = int(month_ranges[-1][2]), int(month_ranges[-1][3])
         if 1 <= m2 <= 12:
             return y2, m2
-    years = [int(y) for y in _FY_YEAR_RE.findall(s)]
+    years = [int(y) for y in _FY_YEAR_RE.findall(s) if int(y) >= _MIN_AS_OF_YEAR]
     if years:
         y = max(years)
         return y + 1, 3
@@ -367,11 +409,15 @@ def section_fy_end_from_text(
         return found
     s = unicodedata.normalize("NFKC", text or "")
     m = _YEAR_TIT_RE.search(s)
-    if m:
+    if m and int(m.group(1)) >= _MIN_AS_OF_YEAR:
         return _named_year_fy_end(int(m.group(1)), months)
     s_for_year = _CAL_DATE_YEAR_RE.sub(" ", s)
     s_for_year = _SEASON_YEAR_RE.sub(" ", s_for_year)
-    years = [int(y) for y in _YEAR_ONLY_HEAD_RE.findall(s_for_year)]
+    years = [
+        int(y)
+        for y in _YEAR_ONLY_HEAD_RE.findall(s_for_year)
+        if int(y) >= _MIN_AS_OF_YEAR
+    ]
     if years:
         return _named_year_fy_end(years[-1], months)
     return None
@@ -476,6 +522,8 @@ def _section_pick_rank(section_text: str, segment: str | None = None) -> int:
     tail = _section_heading_tail(section_text)
     if "卸計" in tail:
         return -1
+    if "（累計）" in tail or "(累計)" in tail:
+        return -1
     if _is_pre_merger_reference_section(section_text):
         return -1
     if segment or _section_segment(section_text):
@@ -535,10 +583,10 @@ def _is_prior_year_absolute(text: str) -> bool:
 
 
 def _rewrite_period_header(text: str) -> str:
-    """当年/前年比 → 売上高。unit 判定は書き換え前の見出しで行う。"""
+    """当年/当期/前年比 → 売上高。unit 判定は書き換え前の見出しで行う。"""
     s = (text or "").strip()
     compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", s))
-    if compact in ("当年", "前年比"):
+    if compact in ("当年", "当期", "前年比"):
         return "売上高"
     return s
 
@@ -672,6 +720,31 @@ def _sticky_sections(section_texts: list[str]) -> list[Section]:
             cur = Section(None, scope)
         out.append(cur)
         prev = cur
+    return out
+
+
+def _fy_captions(text: str) -> list[tuple[int, int]]:
+    s = unicodedata.normalize("NFKC", text or "")
+    return [
+        (int(y), int(m))
+        for y, m in _FY_CAPTION_RE.findall(s)
+        if int(y) >= _MIN_AS_OF_YEAR
+    ]
+
+
+def _sticky_section_fy(section_texts: list[str]) -> list[tuple[int, int] | None]:
+    """単月表は直前の `YYYY年M月期` を引き継ぐ。年セレクトに複数期があるときは新しい方。"""
+    out: list[tuple[int, int] | None] = []
+    prev: tuple[int, int] | None = None
+    for text in section_texts:
+        found = _fy_captions(text)
+        if not found:
+            out.append(prev)
+            continue
+        years = {y for y, _m in found}
+        cur = max(found) if len(years) > 1 else found[-1]
+        prev = cur
+        out.append(cur)
     return out
 
 
@@ -891,7 +964,17 @@ def pick_fy_end(
     if section_fy is not None:
         return section_fy
     blob = " ".join(c for row in grid for c in row)
-    found = fy_end_from_text(blob) or fy_end_from_text(page_context(html)) or fy_end_from_text(html)
+    found = fy_end_from_text(blob)
+    if found:
+        return found
+    years = [
+        int(y)
+        for y in _YEAR_ONLY_HEAD_RE.findall(unicodedata.normalize("NFKC", blob))
+        if int(y) >= _MIN_AS_OF_YEAR
+    ]
+    if years:
+        return _named_year_fy_end(max(years), months)
+    found = fy_end_from_text(page_context(html)) or fy_end_from_text(html)
     if found:
         return found
     y = page_year(html)
@@ -958,7 +1041,7 @@ def as_of_from_table(
     for row in grid:
         for cell in row:
             year, month = parse_month_year(cell)
-            if month == last_m and year is not None:
+            if month == last_m and year is not None and year >= _MIN_AS_OF_YEAR:
                 cell_year = year if cell_year is None else max(cell_year, year)
     year = year_for_month(last_m, pick_fy_end(grid, html, months, section_fy), cell_year)
     if year is None:
@@ -1112,28 +1195,49 @@ def _is_skip_axis(text: str) -> bool:
         return False
     if s.startswith("累計"):
         return True
+    if "四半期" in s:
+        return True
     if _SKIP_AXIS_RE.fullmatch(s) or _SKIP_SPAN_RE.search(s):
         return True
     return False
 
 
+def _strip_fy_caption(text: str) -> str:
+    """`2027年3月期 取扱高` → `取扱高`。キャプションだけのセルは空。"""
+    s = unicodedata.normalize("NFKC", text or "").strip()
+    s = re.sub(r"^※\s*", "", s)
+    s = _FY_CAPTION_RE.sub(" ", s)
+    s = _FY_YEAR_RE.sub(" ", s)
+    return re.sub(r"\s+", " ", s).strip()
+
+
 def _is_caption_cell(text: str) -> bool:
     s = unicodedata.normalize("NFKC", text or "").strip()
     s = re.sub(r"^※\s*", "", s)
-    return bool(
-        _FY_CAPTION_RE.search(s)
-        or _FY_YEAR_RE.search(s)
-        or "月期" in s
-    )
+    if not (_FY_CAPTION_RE.search(s) or _FY_YEAR_RE.search(s) or "月期" in s):
+        return False
+    return _strip_fy_caption(s) == ""
+
+
+def _label_from_cell(text: str) -> str:
+    """FY キャプションを剥がしたラベル。キャプション以外は原文のまま（NFKC しない）。"""
+    raw = (text or "").strip()
+    if not raw or _is_caption_cell(raw):
+        return ""
+    nfkc = unicodedata.normalize("NFKC", raw)
+    nfkc_bare = re.sub(r"^※\s*", "", nfkc).strip()
+    if _FY_CAPTION_RE.search(nfkc_bare) or _FY_YEAR_RE.search(nfkc_bare):
+        return _strip_fy_caption(raw)
+    return raw
 
 
 def _header_label(header_rows: list[list[str]], col: int) -> str:
     parts: list[str] = []
     for row in header_rows:
-        t = row[col].strip() if col < len(row) else ""
+        t = _label_from_cell(row[col] if col < len(row) else "")
         if not t or t in parts:
             continue
-        if parse_month_cell(t) is not None or _is_skip_axis(t) or _is_caption_cell(t):
+        if parse_month_cell(t) is not None or _is_skip_axis(t):
             continue
         parts.append(t)
     return " ".join(parts)
@@ -1171,8 +1275,15 @@ def normalize_month_order(months: list[int]) -> list[int]:
     return months
 
 
+_CJK_CHAR = r"[\u3040-\u30FF\u4E00-\u9FFF]"
+# `ト ラ イ ア ル` → `トライアル`. Lookahead stops at `店 売上高` so 売上高 is not eaten.
+_CJK_LETTERSPACING_RE = re.compile(rf"(?:{_CJK_CHAR} ){{2,}}{_CJK_CHAR}(?=\s|$)")
+
+
 def _squash_label_metric_spaces(label: str) -> str:
     s = label.replace("客 数", "客数").replace("売 上", "売上")
+    s = re.sub(r"[［\[]([^］\]]*)[］\]]", r"\1 ", s)
+    s = _CJK_LETTERSPACING_RE.sub(lambda m: m.group(0).replace(" ", ""), s)
     return re.sub(r"\s+", " ", s).strip()
 
 
@@ -1226,8 +1337,8 @@ def _is_count_metric(header: str) -> bool:
 def infer_unit(header: str, samples: list[str], context: str = "") -> str:
     h = header or ""
     compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", h))
-    # 当年の実数は、他表の「前年」が context に混ざっても number に固定
-    if compact == "当年":
+    # 当年/当期の実数は、他表の「前年」が context に混ざっても number に固定
+    if compact in ("当年", "当期"):
         return "number"
     blob = f"{h} {context}"
     if _is_count_metric(h) or _is_count_header(h):
@@ -1241,6 +1352,8 @@ def infer_unit(header: str, samples: list[str], context: str = "") -> str:
         for v in samples
     )
     yoy = any(k in blob for k in ("前年", "同月比", "100基準"))
+    nums = [n for v in samples if (n := parse_number(v)) is not None]
+    index_like = bool(nums) and all(50 <= n <= 200 for n in nums) and not _is_count_header(h)
     # 増減比/伸び率は変化率。単位:% より優先（ツルハ・サガミ）
     if any(k in blob for k in ("増減比", "増減率", "変化率", "伸び率", "伸長率")):
         return "yoy_pct"
@@ -1248,18 +1361,13 @@ def infer_unit(header: str, samples: list[str], context: str = "") -> str:
         return "yoy_index"
     if has_tri or signed_pct:
         return "yoy_pct"
-    if has_pct or (_PCT_MARK_RE.search(blob) and yoy):
+    # 100基準のセルは index。成長率%（マクドナルド 13.6%）は yoy_pct → ingest で +100
+    if index_like and (yoy or has_pct or "売上" in blob or "同月" in blob):
         return "yoy_index"
     if yoy:
-        return "yoy_pct"
-    nums = [n for v in samples if (n := parse_number(v)) is not None]
-    if (
-        nums
-        and all(50 <= n <= 200 for n in nums)
-        and not _is_count_header(h)
-        and ("売上" in blob or "同月" in blob or "前年" in blob)
-    ):
-        return "yoy_index"
+        if "前年" in compact or "同月比" in compact or has_pct:
+            return "yoy_pct"
+        return "number"
     return "number"
 
 
@@ -1391,7 +1499,7 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
         if _is_skip_axis(cell) or parse_month_cell(cell) is not None
     ]
     label_end = min(cuts) if cuts else min(c for c, _m in month_cols)
-    rows_out: list[dict] = []
+    series: dict[tuple[str, str], dict[str, int | float]] = {}
     scope = ""
     for row in grid[header_i + 1 :]:
         band = _repeated_scope_row(row)
@@ -1400,21 +1508,24 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
             continue
         parts: list[str] = []
         for c in range(label_end):
-            t = row[c].strip() if c < len(row) else ""
+            t = _label_from_cell(row[c] if c < len(row) else "")
             if not t or t in parts:
                 continue
-            if parse_month_cell(t) is not None or _is_skip_axis(t) or _is_caption_cell(t):
+            if parse_month_cell(t) is not None or _is_skip_axis(t):
                 continue
             parts.append(t)
-        label = _compact_store_status_label(" ".join(parts).strip())
-        if scope and scope not in label:
-            label = _compact_store_status_label(f"{scope} {label}".strip())
-        if not label or parse_month_cell(label) is not None:
+        raw_label = _compact_store_status_label(" ".join(parts).strip())
+        if scope and scope not in raw_label:
+            raw_label = _compact_store_status_label(f"{scope} {raw_label}".strip())
+        if not raw_label or parse_month_cell(raw_label) is not None:
+            continue
+        if _is_prior_year_absolute(raw_label):
             continue
         if not _row_has_number(row, label_end):
             continue
         samples = [row[c] if c < len(row) else "" for c, _m in month_cols]
-        unit = infer_unit(label, samples, context)
+        unit = infer_unit(raw_label, samples, context)
+        label = _rewrite_period_header(raw_label)
         values: dict[str, int | float] = {}
         for c, month in month_cols:
             if c >= len(row):
@@ -1437,7 +1548,11 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
             and not _is_count_metric(label)
         ):
             element = f"{label} 売上高前年同月比".strip()
-        rows_out.append({"element": element, "unit": unit, "values": values})
+        vals = series.setdefault((element, unit), {})
+        for mk, mv in values.items():
+            if mk not in vals:
+                vals[mk] = mv
+    rows_out = [{"element": el, "unit": unit, "values": vals} for (el, unit), vals in series.items() if vals]
     if not rows_out:
         return None
     return {"months": months, "rows": rows_out}
@@ -1505,7 +1620,11 @@ def _parse_row_months(grid: list[list[str]], data_i: int, context: str) -> dict 
             continue
         if month not in month_order:
             month_order.append(month)
-        labels = [row[c].strip() for c in range(1, metric_start) if c < len(row) and row[c].strip()]
+        labels = [
+            t
+            for c in range(1, metric_start)
+            if c < len(row) and (t := _label_from_cell(row[c]))
+        ]
         for c, header, unit in col_meta:
             if c >= len(row):
                 continue
@@ -1550,12 +1669,11 @@ def _parsed_score(
     else:
         fy = pick_fy_end(grid, html, months)
     fy_y, fy_m = fy if fy is not None else (0, 0)
-    complete = (
-        last_m is not None
-        and fy_m != 0
-        and last_m == fy_m
-        and len({m for m in (months or []) if isinstance(m, int)}) >= 12
+    filled_n = max(
+        (sum(1 for v in (r.get("values") or {}).values() if v is not None) for r in parsed["rows"]),
+        default=0,
     )
+    complete = last_m is not None and fy_m != 0 and last_m == fy_m and filled_n >= 12
     as_key = 0
     if derived and not complete:
         as_key = date.fromisoformat(derived).toordinal()
@@ -1597,6 +1715,7 @@ def html_to_ingest(
             raise ValueError(f"table index {table} out of range ({len(tables)})")
         indices = [table]
     last_err: str | None = None
+    sticky_fy = _sticky_section_fy(section_texts)
     candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]] = []
     for i in indices:
         section_text = section_texts[i] if i < len(section_texts) else ""
@@ -1607,7 +1726,11 @@ def html_to_ingest(
             last_err = str(e)
             parsed = None
         if parsed and parsed.get("rows"):
-            section_fy = section_fy_end_from_text(section_text, parsed.get("months"))
+            section_fy = sticky_fy[i] if i < len(sticky_fy) else None
+            if section_fy is None:
+                section_fy = section_fy_end_from_text(
+                    section_text, parsed.get("months")
+                )
             candidates.append((i, tables[i], parsed, section_fy))
             if table is not None:
                 break
