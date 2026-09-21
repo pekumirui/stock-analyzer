@@ -1,4 +1,4 @@
-# Tool config only (not a packaged project).
+# Ruff / Bandit. Not a packaged project.
 # Ruff 0.16 default select (413 rules). Version pin: requirements-dev.txt.
 
 [tool.ruff]

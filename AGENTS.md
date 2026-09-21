@@ -39,7 +39,7 @@
 | `jobs/run_batch.py` | 日次バッチ / バックフィル |
 | `jobs/check_demo.py` | スキーマ検査 + 旧デモ取り残しガード。`batch` / `backfill` の前に走る |
 | `jobs/*_r2.py` | TDnet / IR → R2 mount。下の「R2 バッチ」 |
-| `config/` | `ir_monthly.json`、`issuer_aliases.json`、`monthly_row_order.json`、XBRL YAML |
+| `config/` | `ir_monthly.json`、`issuer_aliases.json`、`monthly_row_order.json`、XBRL YAML、Ruff/Bandit は `pyproject.toml` |
 | `tests/` | `test_*.py` と `ci_smoke.py` |
 | `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ） |
 | `tools/` | オフライン検証と手元ヘルパー。月次 PDF 指紋は `fmtdiff.py`（pdfplumber。ingest は従来どおり pdftotext）。XBRL 一致率は `xbrl_match_rate.py`。`check_api.py` と `read_xls.py` |
@@ -80,7 +80,7 @@
 
 ## 検証の目安
 
-- 静的解析: `.\run.ps1 lint` / `./run.sh lint`（Ruff + Bandit。設定は `pyproject.toml`）
+- 静的解析: `.\run.ps1 lint` / `./run.sh lint`（Ruff + Bandit。設定は `config/pyproject.toml`）
 - API: `/api/stocks/search?q=トヨタ` や `/api/screener`
 - backfill 後に UI の決算・チャート・スクリーナーが空でないこと
 - UI を実際に動かして確かめるなら `.cursor/skills/verify-stock-analyzer/SKILL.md`
