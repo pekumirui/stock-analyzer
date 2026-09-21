@@ -610,7 +610,6 @@ def parse_element_layers(element: str) -> dict[str, str]:
     if metric:
         time_axis = ""
     if _is_flow_metric(metric):
-        scope = ""
         leftover = [tok for tok in leftover if tok != "（内"]
     leftover, breakdown = _peel_breakdown(leftover, _metric_core(metric))
     leftover, breakdown = _peel_area_breakdown(leftover, metric, breakdown)
