@@ -274,7 +274,7 @@ ${pub_headers}
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 60s;
     }
-    location ~ ^/api/v1/tables/[0-9][0-9A-Z]{3}[0-9](?:/[0-9]{4})?\$ {
+    location ~ "^/api/v1/tables/[0-9][0-9A-Z]{3}[0-9](?:/[0-9]{4})?\$" {
         auth_basic off;
         limit_req zone=pub burst=20 nodelay;
         limit_conn addr 16;
