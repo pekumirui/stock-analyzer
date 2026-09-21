@@ -396,14 +396,14 @@ def test_canonicalize_element_label() -> None:
         _fail(f"parse 取扱高 layers: {gmv!r}")
     if monthly_row_segment("CPAソリューション事業 取扱高") != "CPAソリューション事業":
         _fail("gate leftover peels 取扱高")
-    if canonicalize_element_label("ASKUL事業 購入お客様 客単価(前年比)", "yoy_index") != "ASKUL事業 全店 客単価(前年比)":
-        _fail("購入お客様 drops, 客単価 fills 全店")
+    if canonicalize_element_label("ASKUL事業 購入お客様 客単価(前年比)", "yoy_index") != "ASKUL事業 客単価(前年比)":
+        _fail("購入お客様 drops, 客単価 does not fill 全店")
     if canonicalize_element_label("ASKUL事業 購入お客様 全店 客単価(前年比)", "yoy_index") != "ASKUL事業 全店 客単価(前年比)":
         _fail("購入お客様 already-scoped 客単価")
-    if canonicalize_element_label("ASKUL事業 購入お客様数(前年比)", "yoy_index") != "ASKUL事業 全店 客数(前年比)":
-        _fail("購入お客様数 → 客数, fills 全店")
-    if canonicalize_element_label("BtoB事業 購入お客様数(前年比)", "yoy_index") != "BtoB事業 全店 客数(前年比)":
-        _fail("BtoB 購入お客様数 → 客数")
+    if canonicalize_element_label("ASKUL事業 購入お客様数(前年比)", "yoy_index") != "ASKUL事業 購入お客様数(前年比)":
+        _fail("購入お客様数 stays metric, no 全店")
+    if canonicalize_element_label("BtoB事業 購入お客様数(前年比)", "yoy_index") != "BtoB事業 購入お客様数(前年比)":
+        _fail("BtoB 購入お客様数 stays metric")
     if canonicalize_element_label("ASKUL事業 稼働日修正後(前年比)", "yoy_index") != "ASKUL事業 稼働日修正後(前年比)":
         _fail("稼働日修正後 is a metric, no 全店 fill")
     if canonicalize_element_label("ASKUL事業稼働日修正後", "yoy_index") != "ASKUL事業 稼働日修正後(前年比)":
@@ -413,9 +413,9 @@ def test_canonicalize_element_label() -> None:
         _fail(f"parse 稼働日修正後 layers: {kado!r}")
     if monthly_row_segment("ASKUL事業 稼働日修正後(前年比)") != "ASKUL事業":
         _fail("gate leftover peels 稼働日修正後")
-    if monthly_row_segment("ASKUL事業 全店 客数(前年比)") != "ASKUL事業":
-        _fail("gate leftover peels 客数")
-    if monthly_row_segment("ASKUL事業 全店 客単価(前年比)") != "ASKUL事業":
+    if monthly_row_segment("ASKUL事業 購入お客様数(前年比)") != "ASKUL事業":
+        _fail("gate leftover peels 購入お客様数")
+    if monthly_row_segment("ASKUL事業 客単価(前年比)") != "ASKUL事業":
         _fail("gate leftover peels 客単価")
     if canonicalize_element_label("内 MM 全店 売上高", "number") != "内 MM 全店 売上高":
         _fail("内 MM stays leftover, not 内訳")
@@ -2010,19 +2010,19 @@ def test_monthly_element_label() -> None:
     cust = monthly_element_label("ASKUL事業 購入お客様数(前年比)", "yoy_index")
     if (
         cust["group"] != "ASKUL事業"
-        or cust["metric"] != "客数"
-        or cust["scope"] != "全店"
+        or cust["metric"] != "購入お客様数"
+        or cust["scope"]
         or cust["metric_kind"] != "customers"
-        or cust["series_kind"] != "all_store"
-        or cust["display"] != "ASKUL事業 全店 客数(前年比)"
+        or cust["series_kind"] is not None
+        or cust["display"] != "ASKUL事業 購入お客様数(前年比)"
     ):
         _fail(f"購入お客様数 label: {cust!r}")
-    spend = monthly_element_label("ASKUL事業 購入お客様 全店 客単価(前年比)", "yoy_index")
+    spend = monthly_element_label("ASKUL事業 購入お客様 客単価(前年比)", "yoy_index")
     if (
         spend["group"] != "ASKUL事業"
         or spend["metric"] != "客単価"
-        or spend["scope"] != "全店"
-        or spend["display"] != "ASKUL事業 全店 客単価(前年比)"
+        or spend["scope"]
+        or spend["display"] != "ASKUL事業 客単価(前年比)"
     ):
         _fail(f"購入お客様 客単価 label: {spend!r}")
 
