@@ -31,6 +31,10 @@ def main() -> None:
         _fail("provision.sh missing CSP")
     if "stock-analyzer-limit.conf" not in provision:
         _fail("provision.sh must write conf.d limit zone")
+    if 'location ~ "^/api/v1/tables/' not in provision:
+        _fail("provision.sh GET tables regex must be quoted for nginx")
+    if 'location ~ "^/api/v1/tables/' not in sample:
+        _fail("nginx.conf GET tables regex must be quoted for nginx")
     print("ok: nginx public locations")
 
 
