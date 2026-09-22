@@ -414,7 +414,36 @@
       "name": "サンドラッグ",
       "index_url": "https://www.sundrug.co.jp/ir/irdata/monthly",
       "title": "月次",
-      "table": null
+      "recipes": [
+        {
+          "id": "group",
+          "match": {"header_re": "^グループ合計"},
+          "role": "primary",
+          "expect": {"selected": [1, 1]}
+        },
+        {
+          "id": "drug",
+          "match": {"header_re": "^ドラッグストア事業"},
+          "segment": "ドラッグストア事業",
+          "expect": {"selected": [1, 1]}
+        },
+        {
+          "id": "discount",
+          "match": {"header_re": "^ディスカウントストア事業"},
+          "segment": "ディスカウントストア事業",
+          "expect": {"selected": [1, 1]}
+        },
+        {
+          "id": "stores",
+          "match": {"label_re": "総店舗数"},
+          "unit": "number",
+          "expect": {"selected": [1, 1]}
+        }
+      ],
+      "drift": {
+        "claim_re": "ドラッグストア事業|ディスカウントストア事業",
+        "tables": [12, 40]
+      }
     },
     {
       "code": "9993",
