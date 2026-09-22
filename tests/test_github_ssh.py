@@ -63,6 +63,22 @@ def test_static_contracts() -> None:
             _fail(f"update.sh must embed official host key for {host}")
     if GITHUB_ED25519 not in update:
         _fail("update.sh must embed official GitHub host keys before fetch, not only alias known_hosts")
+    if "git clean" in update:
+        _fail("update.sh must not call git clean")
+    reset_at = update.find("git reset --hard HEAD")
+    fetch_at = update.find("git fetch origin main")
+    if reset_at < 0 or fetch_at < 0 or reset_at > fetch_at:
+        _fail("update.sh must git reset --hard HEAD before git fetch origin main")
+    pre = update[:reset_at]
+    post = update[reset_at:fetch_at]
+    if "--untracked-files=no" not in pre or "--untracked-files=no" not in post:
+        _fail(
+            "update.sh must log tracked porcelain, reset, then fail only if tracked porcelain remains"
+        )
+    if "exit 1" not in post:
+        _fail("update.sh must still exit if reset --hard leaves tracked changes")
+    if 'git status --porcelain)"' in update or "git status --porcelain')" in update:
+        _fail("update.sh must not abort on unrestricted git status --porcelain")
 
 
 def test_rewrites_existing_github_host() -> None:
