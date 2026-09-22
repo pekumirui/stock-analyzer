@@ -49,7 +49,7 @@ Read-only. Run first whenever anything looks off.
 
 Exit 0 only when:
 
-- `.run/state.json` pid is alive and `GET {url}/` is 200 with `<title>株式分析ツール</title>`
+- `.run/state.json` pid is alive and `GET {url}/app` is 200 with `<title>株式分析ツール</title>`
 - `GET /api/screener?stage=2&rs_min=70` returns JSON `{date, results}` and `results` is a non-empty list (this DB has been backfilled)
 - `GET /api/stocks/search?q=トヨタ` returns at least one hit whose `code` does not start with `0`
 
@@ -160,7 +160,7 @@ All run from the repo root with the venv interpreter (`.venv\Scripts\python.exe`
 
 | Script | What |
 |---|---|
-| `helpers/launch.py` | Adopt or start uvicorn on `VERIFY_PORT` (default 8000), wait for `GET /`, write `.run/state.json` |
+| `helpers/launch.py` | Adopt or start uvicorn on `VERIFY_PORT` (default 8000), wait for `GET /app`, write `.run/state.json` |
 | `helpers/doctor.py` | Read-only health JSON; exit 1 if not worth driving |
 | `helpers/capture.py <feature> [--date YYYY-MM-DD] [--code CODE]` | GET the SPA `/api/*` routes into `artifacts/<feature>/` |
 | `helpers/cleanup.py` | Stop a pid we started; leave adopted servers alone; keep artifacts |
