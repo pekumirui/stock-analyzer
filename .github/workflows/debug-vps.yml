@@ -2,6 +2,14 @@ name: Debug VPS
 
 on:
   workflow_dispatch:
+    inputs:
+      restore_tracked:
+        description: >-
+          Discard local modifications to tracked files under APP_DIR
+          (git restore --source=HEAD --staged --worktree .). Use when Deploy fails
+          with "VPS working tree is dirty". Does not delete untracked files.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -49,6 +57,79 @@ jobs:
             -o ConnectTimeout=15 \
             "${USER}@${HOST}" \
             'ssh -o BatchMode=yes -T git@github.com 2>&1 || true; git -C /home/stock/stock-analyzer remote -v; git -C /home/stock/stock-analyzer fetch origin 2>&1 || true'
+      - name: Dump git dirty tree
+        run: |
+          set -euo pipefail
+          HOST="${VPS_HOST:-160.251.179.50}"
+          USER="${VPS_USER:-stock}"
+          PORT="${VPS_PORT:-22}"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          raw = os.environ["VPS_SSH_KEY"].replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
+          p = Path.home() / ".ssh"
+          p.mkdir(mode=0o700, exist_ok=True)
+          k = p / "id_deploy"
+          k.write_text(raw)
+          k.chmod(0o600)
+          PY
+          ssh -i "$HOME/.ssh/id_deploy" -p "$PORT" \
+            -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$GITHUB_WORKSPACE/deploy/known_hosts" \
+            -o ConnectTimeout=15 \
+            "${USER}@${HOST}" 'bash -s' <<'EOS'
+          set -euo pipefail
+          APP_DIR=/home/stock/stock-analyzer
+          cd "$APP_DIR"
+          echo "=== HEAD ==="
+          git rev-parse --short HEAD
+          git log -1 --oneline
+          echo "=== git status --porcelain ==="
+          git status --porcelain || true
+          echo "=== git diff --stat ==="
+          git diff --stat || true
+          echo "=== git diff (tracked) ==="
+          git diff || true
+          EOS
+      - name: Restore tracked dirty files
+        if: ${{ inputs.restore_tracked }}
+        run: |
+          set -euo pipefail
+          HOST="${VPS_HOST:-160.251.179.50}"
+          USER="${VPS_USER:-stock}"
+          PORT="${VPS_PORT:-22}"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          raw = os.environ["VPS_SSH_KEY"].replace("\r\n", "\n").replace("\r", "\n").strip() + "\n"
+          p = Path.home() / ".ssh"
+          p.mkdir(mode=0o700, exist_ok=True)
+          k = p / "id_deploy"
+          k.write_text(raw)
+          k.chmod(0o600)
+          PY
+          ssh -i "$HOME/.ssh/id_deploy" -p "$PORT" \
+            -o BatchMode=yes -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$GITHUB_WORKSPACE/deploy/known_hosts" \
+            -o ConnectTimeout=15 \
+            "${USER}@${HOST}" 'bash -s' <<'EOS'
+          set -euo pipefail
+          APP_DIR=/home/stock/stock-analyzer
+          cd "$APP_DIR"
+          echo "=== before restore ==="
+          git status --porcelain
+          git restore --source=HEAD --staged --worktree .
+          echo "=== after restore ==="
+          git status --porcelain
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "still dirty after restore (untracked?)" >&2
+            git status --porcelain >&2
+            exit 1
+          fi
+          echo "working tree clean"
+          EOS
       - name: Dump nginx / app status
         run: |
           set -euo pipefail

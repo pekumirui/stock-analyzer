@@ -143,6 +143,8 @@ well-known は Basic 認証の外。`/.well-known/oauth-authorization-server` �
 
 MCP 自体が死んだときの退避路は Actions の **Debug VPS**。
 
+Deploy が `VPS working tree is dirty` で落ちたら、原因は VPS 上の追跡ファイルへの手編集（scp 含む）が多い。`deploy/update.sh` は意図的に dirty を拒否する。手で `git pull` しない。Actions → **Debug VPS** が `git status` / `git diff` を出し、入力 `restore_tracked=true` で追跡ファイルだけ `git restore` してから、失敗した **CI/CD → Deploy VPS** を Re-run する。
+
 ## Cloudflare R2 mount と月次 / XBRL バッチ
 
 VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount する。
