@@ -8,10 +8,25 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+GITHUB_ED25519 = (
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl"
+)
 
 
 def _fail(msg: str) -> None:
     raise SystemExit(msg)
+
+
+def _host_github_block(text: str, label: str) -> str:
+    marker = 'echo "Host github.com"'
+    start = text.find(marker)
+    if start < 0:
+        _fail(f"{label} missing Host github.com block")
+    rest = text[start:]
+    end = rest.find("IdentitiesOnly yes")
+    if end < 0:
+        _fail(f"{label} Host github.com block has no IdentitiesOnly yes")
+    return rest[: end + len("IdentitiesOnly yes")]
 
 
 def test_static_contracts() -> None:
@@ -36,6 +51,18 @@ def test_static_contracts() -> None:
     update = (ROOT / "deploy" / "update.sh").read_text(encoding="utf-8")
     if "Port 443" not in update or "ssh.github.com" not in update:
         _fail("update.sh must force GitHub SSH port 443 before fetch")
+    for label, text in (
+        ("setup-github-ssh.sh", setup),
+        ("update.sh", update),
+    ):
+        block = _host_github_block(text, label)
+        if "HostKeyAlias github.com" not in block:
+            _fail(f"{label} Host github.com block missing HostKeyAlias github.com")
+    for host in ("github.com", "ssh.github.com", "[ssh.github.com]:443"):
+        if host not in update:
+            _fail(f"update.sh must embed official host key for {host}")
+    if GITHUB_ED25519 not in update:
+        _fail("update.sh must embed official GitHub host keys before fetch, not only alias known_hosts")
 
 
 def test_rewrites_existing_github_host() -> None:
@@ -78,6 +105,8 @@ def test_rewrites_existing_github_host() -> None:
         text = cfg.read_text(encoding="utf-8")
         if "Port 443" not in text or "ssh.github.com" not in text:
             _fail(f"existing Host github.com block was not rewritten to port 443:\n{text}")
+        if "HostKeyAlias github.com" not in text:
+            _fail(f"rewritten Host github.com block missing HostKeyAlias github.com:\n{text}")
         known = (ssh_dir / "known_hosts").read_text(encoding="utf-8")
         if "ssh.github.com" not in known:
             _fail("known_hosts missing ssh.github.com host keys")
