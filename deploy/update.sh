@@ -8,10 +8,17 @@ set -euo pipefail
 APP_DIR="${APP_DIR:-/home/stock/stock-analyzer}"
 cd "$APP_DIR"
 
-if [ -n "$(git status --porcelain)" ]; then
-  echo "VPS working tree is dirty:" >&2
-  git status --porcelain
-  exit 1
+tracked_dirty="$(git status --porcelain --untracked-files=no)"
+if [ -n "$tracked_dirty" ]; then
+  echo "VPS tracked local modifications; discarding:" >&2
+  printf '%s\n' "$tracked_dirty" >&2
+  git reset --hard HEAD
+  tracked_dirty="$(git status --porcelain --untracked-files=no)"
+  if [ -n "$tracked_dirty" ]; then
+    echo "VPS tracked changes remain after reset --hard:" >&2
+    printf '%s\n' "$tracked_dirty" >&2
+    exit 1
+  fi
 fi
 
 exec 9>/tmp/stock-analyzer-deploy.lock
