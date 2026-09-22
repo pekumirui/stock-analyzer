@@ -36,15 +36,13 @@ Unit = Literal["number", "yoy_index", "yoy_pct"]
 Role = Literal["primary", "companion"]
 Pick = Literal["latest", "same_as_primary", "tile", "all"]
 Level = Literal["error", "warn"]
-_VALID_UNITS = frozenset({"number", "yoy_index", "yoy_pct"})
-_VALID_PICKS = frozenset({"latest", "same_as_primary", "tile", "all"})
 _RECIPE_KEYS = frozenset(
     {"id", "match", "role", "pick", "segment", "unit", "rows", "expect"}
 )
 _MATCH_KEYS = frozenset(
     {"caption_re", "header_re", "section_re", "label_re", "index", "auto"}
 )
-_EXPECT_KEYS = frozenset({"tables", "rows", "units", "months_min", "fingerprint"})
+_EXPECT_KEYS = frozenset({"selected", "rows", "units", "months_min", "fingerprint"})
 _DRIFT_KEYS = frozenset({"tables", "claim_re"})
 _ROW_FILTER_KEYS = frozenset({"keep_re", "drop_re"})
 _SEGMENT_KEYS = frozenset({"literal", "capture"})
@@ -101,7 +99,7 @@ class RowFilter:
 
 @dataclass(frozen=True)
 class Expect:
-    tables: tuple[int, int] | None = None
+    selected: tuple[int, int] | None = None
     rows: tuple[re.Pattern[str], ...] = ()
     units: frozenset[str] | None = None
     months_min: int | None = None
@@ -123,8 +121,6 @@ class TableRecipe:
     def effective_pick(self) -> Pick:
         if self.pick is not None:
             return self.pick
-        # Companions default to latest of their own match set. same_as_primary
-        # is opt-in because section FY lookback is noisy on multi-year pages.
         return "latest"
 
 
@@ -298,15 +294,51 @@ def _parse_segment(raw: object, path: str) -> SegmentRule | None:
     )
 
 
+def _as_role(raw: object, path: str) -> Role:
+    if raw is None:
+        return "companion"
+    if raw == "primary":
+        return "primary"
+    if raw == "companion":
+        return "companion"
+    raise ValueError(f"{path}.role invalid")
+
+
+def _as_pick(raw: object, path: str) -> Pick | None:
+    if raw is None:
+        return None
+    if raw == "latest":
+        return "latest"
+    if raw == "same_as_primary":
+        return "same_as_primary"
+    if raw == "tile":
+        return "tile"
+    if raw == "all":
+        return "all"
+    raise ValueError(f"{path}.pick invalid")
+
+
+def _as_unit(raw: object, path: str) -> Unit:
+    if raw == "number":
+        return "number"
+    if raw == "yoy_index":
+        return "yoy_index"
+    if raw == "yoy_pct":
+        return "yoy_pct"
+    raise ValueError(f"{path} invalid: {raw!r}")
+
+
 def _parse_expect(raw: object, path: str) -> Expect:
     if raw is None:
         return Expect()
     if not isinstance(raw, dict):
         raise ValueError(f"{path} must be an object")
     _unknown_keys(raw, _EXPECT_KEYS, path)
-    tables_t: tuple[int, int] | None = None
-    if "tables" in raw:
-        tables_t = _minmax(raw.get("tables"), f"{path}.tables")
+    selected: tuple[int, int] | None = None
+    if "selected" in raw:
+        selected = _minmax(raw.get("selected"), f"{path}.selected")
+    elif "selected" in raw:
+        selected = _minmax(raw.get("selected"), f"{path}.selected")
     rows_raw = raw.get("rows") or []
     if not isinstance(rows_raw, list):
         raise ValueError(f"{path}.rows must be a list")
@@ -326,7 +358,7 @@ def _parse_expect(raw: object, path: str) -> Expect:
     if not isinstance(fps_raw, list) or not all(isinstance(x, str) for x in fps_raw):
         raise ValueError(f"{path}.fingerprint must be string list")
     return Expect(
-        tables=tables_t,
+        selected=selected,
         rows=rows,
         units=units,
         months_min=months_min,
@@ -383,22 +415,14 @@ def _parse_recipe(raw: object, path: str) -> TableRecipe:
     rid = raw.get("id")
     if not isinstance(rid, str) or not rid.strip():
         raise ValueError(f"{path}.id required")
-    role = raw.get("role", "companion")
-    if role not in ("primary", "companion"):
-        raise ValueError(f"{path}.role invalid")
-    pick = raw.get("pick")
-    if pick is not None and pick not in _VALID_PICKS:
-        raise ValueError(f"{path}.pick invalid")
-    unit = raw.get("unit")
-    if unit is not None and unit not in _VALID_UNITS:
-        raise ValueError(f"{path}.unit invalid")
+    unit_raw = raw.get("unit")
     return TableRecipe(
         id=rid.strip(),
         match=_parse_match(raw.get("match"), f"{path}.match"),
-        role=role,
-        pick=pick,
+        role=_as_role(raw.get("role", "companion"), path),
+        pick=_as_pick(raw.get("pick"), path),
         segment=_parse_segment(raw.get("segment"), f"{path}.segment"),
-        unit=unit,
+        unit=None if unit_raw is None else _as_unit(unit_raw, f"{path}.unit"),
         rows=_parse_row_filter(raw.get("rows"), f"{path}.rows"),
         expect=_parse_expect(raw.get("expect"), f"{path}.expect"),
     )
@@ -422,11 +446,9 @@ def _parse_drift(raw: object, path: str) -> DriftPolicy:
 
 def compile_recipes(raw_issuer: Mapping[str, Any]) -> RecipeSet:
     force = raw_issuer.get("force_unit")
-    default_unit: Unit | None = None
-    if force is not None:
-        if force not in _VALID_UNITS:
-            raise ValueError(f"force_unit invalid: {force!r}")
-        default_unit = force
+    default_unit: Unit | None = (
+        None if force is None else _as_unit(force, "force_unit")
+    )
 
     if "recipes" in raw_issuer:
         if "table" in raw_issuer and raw_issuer.get("table") != 0:
@@ -877,15 +899,15 @@ def _check(
                 Finding("error", recipe.id, "no_match", "primary matched no tables")
             )
         elif (
-            recipe.expect.tables is not None
-            and recipe.expect.tables[0] >= 1
+            recipe.expect.selected is not None
+            and recipe.expect.selected[0] >= 1
             and matched_n == 0
         ):
             findings.append(
                 Finding("error", recipe.id, "no_match", "recipe matched no tables")
             )
-        if recipe.expect.tables is not None and matched_n != 0:
-            lo, hi = recipe.expect.tables
+        if recipe.expect.selected is not None and matched_n != 0:
+            lo, hi = recipe.expect.selected
             if not (lo <= selected_n <= hi):
                 findings.append(
                     Finding(
