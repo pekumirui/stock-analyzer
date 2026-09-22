@@ -329,6 +329,12 @@ def main() -> None:
     )
     if nginx.returncode != 0:
         raise SystemExit("nginx public tests failed")
+    github_ssh = subprocess.run(
+        [sys.executable, str(ROOT / "tests" / "test_github_ssh.py")],
+        cwd=ROOT,
+    )
+    if github_ssh.returncode != 0:
+        raise SystemExit("github ssh tests failed")
     ingest = subprocess.run(
         [sys.executable, str(ROOT / "tests" / "test_monthly_ingest.py")],
         cwd=ROOT,

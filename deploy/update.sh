@@ -26,8 +26,59 @@ if [[ -f "$APP_DIR/deploy/setup-github-ssh.sh" ]]; then
   bash "$APP_DIR/deploy/setup-github-ssh.sh"
 fi
 
+# Piped from Actions. On-disk setup-github-ssh.sh is stale until fetch, so rewrite port 443 here.
+install -d -m 700 "$HOME/.ssh"
+CFG="$HOME/.ssh/config"
+touch "$CFG"
+chmod 600 "$CFG"
+KEY=""
+if [[ -f "$HOME/.ssh/id_github" ]]; then
+  KEY="$HOME/.ssh/id_github"
+elif [[ -f "$HOME/.ssh/id_ed25519" ]]; then
+  KEY="$HOME/.ssh/id_ed25519"
+fi
+if [[ -n "$KEY" ]]; then
+  tmp="$(mktemp)"
+  awk '
+    BEGIN { skip=0 }
+    /^Host[[:space:]]+github\.com[[:space:]]*$/ { skip=1; next }
+    /^Host[[:space:]]/ || /^Match[[:space:]]/ { skip=0 }
+    skip { next }
+    { print }
+  ' "$CFG" > "$tmp"
+  {
+    echo "Host github.com"
+    echo "  HostName ssh.github.com"
+    echo "  Port 443"
+    echo "  User git"
+    echo "  IdentityFile $KEY"
+    echo "  IdentitiesOnly yes"
+  } >> "$tmp"
+  mv "$tmp" "$CFG"
+  chmod 600 "$CFG"
+fi
+KNOWN="$HOME/.ssh/known_hosts"
+touch "$KNOWN"
+chmod 644 "$KNOWN"
+aliases="$(mktemp)"
+while IFS= read -r line; do
+  case "$line" in
+    github.com\ *)
+      rest="${line#github.com }"
+      printf '%s\n' "ssh.github.com $rest"
+      printf '%s\n' "[ssh.github.com]:443 $rest"
+      ;;
+  esac
+done < "$KNOWN" > "$aliases"
+while IFS= read -r entry; do
+  [[ -z "$entry" ]] && continue
+  grep -qxF "$entry" "$KNOWN" || printf '%s\n' "$entry" >> "$KNOWN"
+done < "$aliases"
+rm -f "$aliases"
+
 if ! git fetch origin main; then
   echo "git fetch 失敗。プライベートリポジトリは Deploy keys (read-only) が必要です。" >&2
+  echo "hint: GitHub SSH uses ssh.github.com port 443 (outbound 22 often times out)." >&2
   pub=""
   if [[ -f "$HOME/.ssh/id_github.pub" ]]; then
     pub="$HOME/.ssh/id_github.pub"
