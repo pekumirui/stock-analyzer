@@ -419,18 +419,21 @@
           "id": "group",
           "match": {"header_re": "^グループ合計"},
           "role": "primary",
+          "unit": "yoy_pct",
           "expect": {"selected": [1, 1]}
         },
         {
           "id": "drug",
           "match": {"header_re": "^ドラッグストア事業"},
           "segment": "ドラッグストア事業",
+          "unit": "yoy_pct",
           "expect": {"selected": [1, 1]}
         },
         {
           "id": "discount",
           "match": {"header_re": "^ディスカウントストア事業"},
           "segment": "ディスカウントストア事業",
+          "unit": "yoy_pct",
           "expect": {"selected": [1, 1]}
         },
         {

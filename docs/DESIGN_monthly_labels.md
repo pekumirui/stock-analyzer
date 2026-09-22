@@ -113,6 +113,7 @@ year GET の各行は保存 `element` に加え、派生の `label`（display / 
 - NSD (97590): HTML の金額速報 `全店 売上高` を `全店 連結売上高` へ。増減率も連結売上高(前年比)
 - PPIH (75320): HTML の `対象 既存 店舗数` を `国内リテール 対象 既存 店舗数` へ
 - 単位ノイズ: `(％)` / `(%)` / `（百万円）` / `(百万円)` / `売上（％）` / `売上（%）` は落とす。`［売上高］全店` の括弧はパーサ側で中身を出す
+- サンドラッグ (9989): HTML が `既存店Existing store` / `全店All stores` / `新規出店数Number of new store openings` / `退店店舗数Number of store closings` / `総店舗数Total number of stores` と日英連結。canonicalize 後に残る英語は `99890` alias で落とす。売上表（グループ/DG/DS）の unit は `ir_monthly.json` recipes の `yoy_pct`（セルに `%` が無くても）。店舗は `number`
 
 ## xls 銘柄メモ
 
