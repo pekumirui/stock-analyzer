@@ -40,6 +40,7 @@ awk '
   echo "Host github.com"
   echo "  HostName ssh.github.com"
   echo "  Port 443"
+  echo "  HostKeyAlias github.com"
   echo "  User git"
   echo "  IdentityFile $KEY"
   echo "  IdentitiesOnly yes"
