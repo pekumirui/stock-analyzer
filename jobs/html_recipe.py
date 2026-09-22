@@ -42,7 +42,7 @@ _RECIPE_KEYS = frozenset(
 _MATCH_KEYS = frozenset(
     {"caption_re", "header_re", "section_re", "label_re", "index", "auto"}
 )
-_EXPECT_KEYS = frozenset({"tables", "selected", "rows", "units", "months_min", "fingerprint"})
+_EXPECT_KEYS = frozenset({"selected", "rows", "units", "months_min", "fingerprint"})
 _DRIFT_KEYS = frozenset({"tables", "claim_re"})
 _ROW_FILTER_KEYS = frozenset({"keep_re", "drop_re"})
 _SEGMENT_KEYS = frozenset({"literal", "capture"})
@@ -99,7 +99,7 @@ class RowFilter:
 
 @dataclass(frozen=True)
 class Expect:
-    tables: tuple[int, int] | None = None
+    selected: tuple[int, int] | None = None
     rows: tuple[re.Pattern[str], ...] = ()
     units: frozenset[str] | None = None
     months_min: int | None = None
@@ -121,7 +121,7 @@ class TableRecipe:
     def effective_pick(self) -> Pick:
         if self.pick is not None:
             return self.pick
-        return "latest" if self.role == "primary" else "same_as_primary"
+        return "latest"
 
 
 @dataclass(frozen=True)
@@ -334,11 +334,11 @@ def _parse_expect(raw: object, path: str) -> Expect:
     if not isinstance(raw, dict):
         raise ValueError(f"{path} must be an object")
     _unknown_keys(raw, _EXPECT_KEYS, path)
-    tables_t: tuple[int, int] | None = None
-    if "tables" in raw:
-        tables_t = _minmax(raw.get("tables"), f"{path}.tables")
+    selected: tuple[int, int] | None = None
+    if "selected" in raw:
+        selected = _minmax(raw.get("selected"), f"{path}.selected")
     elif "selected" in raw:
-        tables_t = _minmax(raw.get("selected"), f"{path}.selected")
+        selected = _minmax(raw.get("selected"), f"{path}.selected")
     rows_raw = raw.get("rows") or []
     if not isinstance(rows_raw, list):
         raise ValueError(f"{path}.rows must be a list")
@@ -358,7 +358,7 @@ def _parse_expect(raw: object, path: str) -> Expect:
     if not isinstance(fps_raw, list) or not all(isinstance(x, str) for x in fps_raw):
         raise ValueError(f"{path}.fingerprint must be string list")
     return Expect(
-        tables=tables_t,
+        selected=selected,
         rows=rows,
         units=units,
         months_min=months_min,
@@ -899,15 +899,15 @@ def _check(
                 Finding("error", recipe.id, "no_match", "primary matched no tables")
             )
         elif (
-            recipe.expect.tables is not None
-            and recipe.expect.tables[0] >= 1
+            recipe.expect.selected is not None
+            and recipe.expect.selected[0] >= 1
             and matched_n == 0
         ):
             findings.append(
                 Finding("error", recipe.id, "no_match", "recipe matched no tables")
             )
-        if recipe.expect.tables is not None and matched_n != 0:
-            lo, hi = recipe.expect.tables
+        if recipe.expect.selected is not None and matched_n != 0:
+            lo, hi = recipe.expect.selected
             if not (lo <= selected_n <= hi):
                 findings.append(
                     Finding(

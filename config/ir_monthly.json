@@ -419,29 +419,29 @@
           "id": "group",
           "match": {"header_re": "^グループ合計"},
           "role": "primary",
-          "expect": {"tables": [1, 4]}
+          "expect": {"selected": [1, 1]}
         },
         {
           "id": "drug",
           "match": {"header_re": "^ドラッグストア事業"},
           "segment": "ドラッグストア事業",
-          "expect": {"tables": [1, 4]}
+          "expect": {"selected": [1, 1]}
         },
         {
           "id": "discount",
           "match": {"header_re": "^ディスカウントストア事業"},
           "segment": "ディスカウントストア事業",
-          "expect": {"tables": [1, 4]}
+          "expect": {"selected": [1, 1]}
         },
         {
           "id": "stores",
-          "match": {"label_re": "店舗数"},
+          "match": {"label_re": "総店舗数"},
           "unit": "number",
-          "expect": {"tables": [1, 4]}
+          "expect": {"selected": [1, 1]}
         }
       ],
       "drift": {
-        "claim_re": "事業|合計|店舗数",
+        "claim_re": "ドラッグストア事業|ディスカウントストア事業",
         "tables": [12, 40]
       }
     },
