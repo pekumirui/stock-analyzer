@@ -34,6 +34,7 @@ Cron のパスは異なります: `ir_monthly_html_r2` は `.ingest.json` のみ
 
 - エージェントが作成した ingest JSON は許可されます。パーサーの `as_of` を絶対視**しない**でください。ライブ HTML で会計年度が証明できる場合は、`as_of` / ラベルを上書きしてください（例：かっぱ寿司 (Kappa) のナビゲーションにある最大の `YYYY年度` が as_of を汚染するケース）。パーサーのバグ ≠ 取り込み不可、です。
 - HTML パーサーは `issuer_aliases` を適用**しません**。エイリアスは `POST …/ingest` (`app/api.py` の `_canonical_element`: 正規化 → `apply_issuer_aliases` → 正規化) の中でのみ実行されます。エイリアスを追加しても既存の DB の行は書き換えられ**ません** — その後の運用マージが必要です。
+- **`config/issuer_aliases.json` / `config/ir_monthly.json` を VPS へ scp しない。** エイリアス・レシピは PR → Deploy のみ。手置きは Deploy を dirty で止める（`AGENTS.md` / `deploy/README.md`）。
 - 新しいデータに対して year を指定した PUT を行わ**ない**でください (`monthly_put_values` は訂正専用です)。
 - ブランド名の変更をマージし**ない**でください (例: マックスバリュ関東 ↔ イオンフードスタイル)。
 - ワタミ (Watami) クラスの誤った単位（実数なのに `yoy_pct` タグが付いている）を POST し**ない**でください。

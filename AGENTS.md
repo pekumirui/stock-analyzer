@@ -19,7 +19,7 @@
 - 仮想環境は `.venv`。Windows は `.\setup.ps1` / `.\run.ps1`、Linux は `./setup.sh` / `./run.sh`
 - Python は `.venv\Scripts\python.exe`（Windows）/ `.venv/bin/python`（Linux）。システムの python で依存を入れない
 - Cursor Cloud Agent は `.cursor/install.sh` が `.venv` / `pdftotext` / `rclone` と `stock.db`（2 年分 + 本番の `monthly_*`）を用意し、`start`（`.cursor/start-web.sh`）が 8000 で SPA を配信する。UI 検証も 8000（`.cursor/skills/verify-stock-analyzer/`）。8000 を止めない・`reset` しない
-- Cloud Agent から VPS シェルが要るときは Secrets に `VPS_SSH_KEY`（デプロイ秘密鍵）。`install.sh` → `.cursor/setup-vps-ssh.sh` が `ssh stock-vps` を用意する。ログ・月次 API は MCP。任意シェルを MCP に足さない。手順は `deploy/README.md`「Cursor Cloud Agent から VPS を触る」
+- Cloud Agent から VPS シェルが要るときは Secrets に `VPS_SSH_KEY`（デプロイ秘密鍵）。`install.sh` → `.cursor/setup-vps-ssh.sh` が `ssh stock-vps` を用意する。ログ・月次 API は MCP。任意シェルを MCP に足さない。**追跡ファイルの scp / 手置き禁止**（Git 条項）。手順は `deploy/README.md`「Cursor Cloud Agent から VPS を触る」
 
 ## モジュール分担
 
@@ -94,12 +94,14 @@
 - `main` へマージすると GitHub Actions がテスト → タグ/Release → VPS デプロイする。手元で `main` に直接 push しない
 - コミット先頭が `feat:` なら minor、`BREAKING CHANGE` / `type!:` なら major、それ以外は patch
 - VPS 初期設定は `deploy/provision.sh`（冪等）
+- **リポジトリの追跡ファイル（`app/` / `config/` / `jobs/` / `static/` / `deploy/` 等）を VPS へ直接置かない。** `scp` / `rsync` / エディタ上書き / `cat >` 禁止。変更は PR → `main` マージ → Actions Deploy のみ。手置きは working tree を dirty にし Deploy を止める
 
 ## 本番（VPS / MCP / R2）
 
 ツール一覧・OAuth・Secrets・ログの場所は `deploy/README.md`。ここは守る点だけ。
 
 - MCP に任意シェル・restart・任意 SQL は無い。足さない
+- Cloud Agent の `ssh stock-vps` は **ジョブ実行だけ**（`--reparse` / `ir_monthly_html_ingest.py` 等）。アプリツリーへのファイル投入・`git pull` / 手デプロイはしない（上の Git 条項）
 - 月次ツールは `http://127.0.0.1:8000/api/v1/tables` のみ（nginx Basic は使わない）
 - 月次 GET は公開（`/monthly`）。書き込みは loopback。nginx 経由の POST/PUT/DELETE は 403。個人 SPA は `/app` + Basic
 - 月次の新規登録は `monthly_ingest`。year は渡さない。`monthly_put_values` の year は暦年で訂正専用

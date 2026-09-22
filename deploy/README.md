@@ -184,11 +184,13 @@ cron（JST）。`run_batch.py` の 19:30 / 06:00 はそのまま。
 | ログ・DB 件数・月次 ingest / 訂正 | Cursor の `stock-analyzer` MCP（`https://kabukpi.com/mcp`） |
 | `--reparse` や `ir_monthly_html_ingest.py` などシェル | Cloud Agent Secrets の `VPS_SSH_KEY` → `ssh stock-vps` |
 
+**禁止:** リポジトリの追跡ファイルを VPS へ直接置かない（`scp` / `rsync` / エディタ / `cat >` で `config/` `app/` `jobs/` 等を上書きしない）。コードと設定は PR → `main` → Actions **Deploy VPS** だけ。手置きは dirty tree になり Deploy が止まる。SSH はジョブ実行のみ。手で `git pull` / `systemctl restart` / デプロイ相当もしない（CI が落ちたら原因究明 → **Debug VPS** / Re-run）。
+
 `VPS_SSH_KEY` は GitHub Actions と同じデプロイ秘密鍵でよい（`stock` の `authorized_keys` に載っているもの）。チャットに貼らない。
 
 1. Cursor Dashboard → Cloud Agents → Secrets（このリポジトリ scope）に `VPS_SSH_KEY` を登録
 2. 新しい Cloud Agent を起動する（既存 VM には入らない。`.cursor/install.sh` が `.cursor/setup-vps-ssh.sh` を呼ぶ）
-3. エージェントから:
+3. エージェントから（ジョブ例のみ）:
 
 ```bash
 ssh stock-vps 'cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_monthly_html_r2.py --reparse'
