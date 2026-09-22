@@ -230,11 +230,15 @@ def test_explain_does_not_raise_on_drift() -> None:
     recipes = compile_recipes(SUNDRUG_RECIPES)
     report = explain_recipes(html, "9989", recipes)
     text = report.render()
-    if "9989" not in text or "no_match" not in text and "missing_row" not in text:
+    if "9989" not in text:
+        _fail(text)
+    if "no_match" not in text and "missing_row" not in text:
         _fail(text)
 
 
-def test_write_ingest_recipes_and_drift(tmp_path: Path) -> None:
+def test_write_ingest_recipes_and_drift() -> None:
+    import tempfile
+
     recipes = compile_recipes(SUNDRUG_RECIPES)
     iss = HtmlIssuer(
         code="9989",
@@ -248,26 +252,30 @@ def test_write_ingest_recipes_and_drift(tmp_path: Path) -> None:
         eir_title_re="月次",
         recipes=recipes,
     )
-    html_path = tmp_path / "20260922_9989_サンドラッグ_月次.html"
-    html_path.write_text(SUNDRUG_HTML, encoding="utf-8")
-    write_ingest(html_path, SUNDRUG_HTML, iss)
-    side = json.loads(ingest_path(html_path).read_text(encoding="utf-8"))
-    if side["code"] != "9989" or side["as_of"] != "2026-08-31":
-        _fail(str(side))
-    if not any(r["element"] == "ドラッグストア事業 全店 売上高" for r in side["rows"]):
-        _fail(str(side["rows"]))
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        html_path = tmp / "20260922_9989_サンドラッグ_月次.html"
+        html_path.write_text(SUNDRUG_HTML, encoding="utf-8")
+        write_ingest(html_path, SUNDRUG_HTML, iss)
+        side = json.loads(ingest_path(html_path).read_text(encoding="utf-8"))
+        if side["code"] != "9989" or side["as_of"] != "2026-08-31":
+            _fail(str(side))
+        if not any(
+            r["element"] == "ドラッグストア事業 全店 売上高" for r in side["rows"]
+        ):
+            _fail(str(side["rows"]))
 
-    bad = SUNDRUG_HTML.replace("ドラッグストア事業", "別名事業")
-    html_path.write_text(bad, encoding="utf-8")
-    ingest_path(html_path).unlink()
-    try:
-        write_ingest(html_path, bad, iss)
-    except RecipeDrift:
-        pass
-    else:
-        _fail("write_ingest should raise RecipeDrift")
-    if ingest_path(html_path).exists():
-        _fail("sidecar written on drift")
+        bad = SUNDRUG_HTML.replace("ドラッグストア事業", "別名事業")
+        html_path.write_text(bad, encoding="utf-8")
+        ingest_path(html_path).unlink()
+        try:
+            write_ingest(html_path, bad, iss)
+        except RecipeDrift:
+            pass
+        else:
+            _fail("write_ingest should raise RecipeDrift")
+        if ingest_path(html_path).exists():
+            _fail("sidecar written on drift")
 
 
 def test_config_9989_compiles() -> None:
@@ -285,3 +293,21 @@ def test_config_9989_compiles() -> None:
     no_recipes = next(i for i in live if i.code == "9993")
     if no_recipes.recipes is not None:
         _fail("9993 should stay on html_to_ingest")
+
+
+def main() -> None:
+    test_compile_rejects_two_primaries()
+    test_compile_rejects_bad_regex_and_table_plus_recipes()
+    test_compile_auto_when_no_recipes_key()
+    test_sundrug_recipes_prefix_dg_ds()
+    test_no_recipes_path_drops_brand_tables()
+    test_missing_claimed_table_is_recipe_drift()
+    test_unclaimed_claim_re_is_recipe_drift()
+    test_explain_does_not_raise_on_drift()
+    test_write_ingest_recipes_and_drift()
+    test_config_9989_compiles()
+    print("ok: html_recipe")
+
+
+if __name__ == "__main__":
+    main()
