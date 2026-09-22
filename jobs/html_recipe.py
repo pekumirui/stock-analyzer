@@ -337,8 +337,6 @@ def _parse_expect(raw: object, path: str) -> Expect:
     selected: tuple[int, int] | None = None
     if "selected" in raw:
         selected = _minmax(raw.get("selected"), f"{path}.selected")
-    elif "selected" in raw:
-        selected = _minmax(raw.get("selected"), f"{path}.selected")
     rows_raw = raw.get("rows") or []
     if not isinstance(rows_raw, list):
         raise ValueError(f"{path}.rows must be a list")
