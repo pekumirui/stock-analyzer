@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from datetime import date
 from html.parser import HTMLParser
 from pathlib import Path
+from typing import TYPE_CHECKING
 from urllib.parse import urljoin, urlparse
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -47,6 +48,9 @@ from tdnet_monthly_r2 import (  # noqa: E402
     download_skip_reason,
     load_stock_product_map,
 )
+
+if TYPE_CHECKING:
+    from html_recipe import RecipeSet
 
 EIR_URL = "https://ssl4.eir-parts.net/V4Public/eir/{code}/ja/announcement/announcement_{n}.js"
 _CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
@@ -167,6 +171,7 @@ class HtmlIssuer:
     follow_re: str = ""
     parse: bool = True
     force_unit: str | None = None
+    recipes: RecipeSet | None = None
 
 
 def ingest_path(html_path: Path) -> Path:
@@ -1912,6 +1917,14 @@ def _parse_html_issuer(raw: object) -> HtmlIssuer:
         force_unit = force_raw
     else:
         raise ValueError(f"issuer {code} invalid force_unit: {force_raw!r}")
+    recipes = None
+    if "recipes" in raw:
+        from html_recipe import compile_recipes
+
+        try:
+            recipes = compile_recipes(raw)
+        except ValueError as e:
+            raise ValueError(f"issuer {code} recipes: {e}") from e
     return HtmlIssuer(
         code=code,
         name=name,
@@ -1925,6 +1938,7 @@ def _parse_html_issuer(raw: object) -> HtmlIssuer:
         follow_re=follow_re,
         parse=parse_raw,
         force_unit=force_unit,
+        recipes=recipes,
     )
 
 
@@ -2037,9 +2051,20 @@ def fetch_html_bytes(iss: HtmlIssuer) -> tuple[bytes, str | None, str]:
 
 
 def write_ingest(html_path: Path, html: str, iss: HtmlIssuer, as_of: str | None = None) -> None:
-    payload = html_to_ingest(
-        html, iss.code, as_of=as_of, table=iss.table, force_unit=iss.force_unit
-    )
+    if iss.recipes is not None:
+        from html_recipe import execute_recipes
+
+        result = execute_recipes(html, iss.code, iss.recipes, as_of=as_of)
+        for f in result.findings:
+            print(
+                f"recipe {iss.code} {f.level} {f.recipe_id}: {f.detail}",
+                flush=True,
+            )
+        payload = result.sidecar
+    else:
+        payload = html_to_ingest(
+            html, iss.code, as_of=as_of, table=iss.table, force_unit=iss.force_unit
+        )
     atomic_write(ingest_path(html_path), dumps_ingest(payload).encode("utf-8"))
 
 
