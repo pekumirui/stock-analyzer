@@ -1486,20 +1486,21 @@ def _repeated_scope_row(row: list[str]) -> str | None:
     return name
 
 
-def _skip_axis_column_is_values(grid: list[list[str]], header_i: int, col: int) -> bool:
-    saw_number = False
-    for row in grid[header_i + 1 :]:
-        if col >= len(row):
+def _label_band_end(header: list[str], month_start: int) -> int:
+    """同じ文言が横に続くスキップ軸は colspan の帯。1列だけの軸（累計）で切る。"""
+    c = 0
+    while c < month_start:
+        cell = header[c] if c < len(header) else ""
+        if not _is_skip_axis(cell):
+            c += 1
             continue
-        raw = row[col]
-        if parse_number(raw) is not None:
-            saw_number = True
-            continue
-        text = re.sub(r"\s+", "", unicodedata.normalize("NFKC", raw or "").strip())
-        if not text or _EMPTY_VAL_RE.fullmatch(text):
-            continue
-        return False
-    return saw_number
+        end = c + 1
+        while end < month_start and end < len(header) and header[end] == cell:
+            end += 1
+        if end == c + 1:
+            return c
+        c = end
+    return month_start
 
 
 def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dict | None:
@@ -1515,13 +1516,7 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
         return None
     months = [m for _c, m in month_cols]
     month_start = min(c for c, _m in month_cols)
-    label_end = month_start
-    for c, cell in enumerate(header):
-        if c >= month_start:
-            break
-        if _is_skip_axis(cell) and _skip_axis_column_is_values(grid, header_i, c):
-            label_end = c
-            break
+    label_end = _label_band_end(header, month_start)
     series: dict[tuple[str, str], dict[str, int | float]] = {}
     scope = ""
     for row in grid[header_i + 1 :]:
