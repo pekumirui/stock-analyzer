@@ -18,6 +18,8 @@ const MONTHLY_GATE_CODES_KEY = "monthly.gateCodes.debug";
 let monthlyGateCodes = null;
 let monthlyGateIndexFp = "";
 let monthlyGateIndexPromise = null;
+let monthlyIrCodes = null;
+let _monthlyIrCodesReady = null;
 
 function monthlyPublic(){
   return !!(document.body && document.body.dataset.publicMonthly === "1");
@@ -34,6 +36,24 @@ function loadMonthlyRowOrderConfig(){
     .then(j => { MONTHLY_ROW_ORDER = (j && typeof j === "object") ? j : {}; return MONTHLY_ROW_ORDER; })
     .catch(() => { MONTHLY_ROW_ORDER = {}; return MONTHLY_ROW_ORDER; });
   return _monthlyRowOrderReady;
+}
+
+function loadMonthlyIrCodes(){
+  if(monthlyPublic()) return Promise.resolve(new Set());
+  if(_monthlyIrCodesReady) return _monthlyIrCodesReady;
+  _monthlyIrCodesReady = fetch("/static/ir_monthly_codes.json")
+    .then(r => r.ok ? r.json() : {codes:[]})
+    .then(j => {
+      const codes = new Set();
+      for(const c of (j && j.codes) || []){
+        const s = String(c || "").trim().toUpperCase();
+        if(s) codes.add(s.slice(0, 4));
+      }
+      monthlyIrCodes = codes;
+      return monthlyIrCodes;
+    })
+    .catch(() => { monthlyIrCodes = new Set(); return monthlyIrCodes; });
+  return _monthlyIrCodesReady;
 }
 
 function issuerSegmentTail(code){
@@ -416,6 +436,10 @@ function filteredMonthlyIssuers(){
     const gated = monthlyGateCodes || new Set();
     return issuers.filter(r => gated.has(r.code));
   }
+  if(monthlyGroup==="__ir__"){
+    const want = monthlyIrCodes || new Set();
+    return issuers.filter(r => want.has(monthlyCode4(r.code).toUpperCase()));
+  }
   return issuers.filter(r => (r.industry || "その他") === monthlyGroup);
 }
 
@@ -499,6 +523,7 @@ async function loadMonthlyList(opts){
     return;
   }
   monthlyRows = rows;
+  if(!monthlyPublic()) await loadMonthlyIrCodes();
   const issuers = uniqueMonthlyIssuers(monthlyRows);
   const fp = monthlyIssuerListFingerprint(issuers);
   if(fp !== monthlyGateIndexFp) invalidateMonthlyGateIndex();
@@ -510,7 +535,7 @@ async function loadMonthlyList(opts){
     return;
   }
   const groups = monthlyIndustries(issuers);
-  if(monthlyGroup!=="__new__" && monthlyGroup!=="__all__" && monthlyGroup!=="__gate__" && !groups.includes(monthlyGroup)){
+  if(monthlyGroup!=="__new__" && monthlyGroup!=="__all__" && monthlyGroup!=="__gate__" && monthlyGroup!=="__ir__" && !groups.includes(monthlyGroup)){
     monthlyGroup = monthlyPublic() ? "__all__" : defaultMonthlyGroup(issuers);
   }else if(monthlyGroup==="__new__" && !issuers.some(r => r.is_new) && groups.length){
     monthlyGroup = groups[0];
@@ -527,6 +552,7 @@ function renderMonthlyGroups(groups){
   h += `<button type="button" class="mchip${monthlyGroup==="__new__"?" on":""}" data-group="__new__" onclick="setMonthlyGroup('__new__')">新着</button>`;
   if(!monthlyPublic()){
     h += `<button type="button" class="mchip${monthlyGroup==="__gate__"?" on":""}" data-group="__gate__" onclick="setMonthlyGroup('__gate__')">ゲート（一時）</button>`;
+    h += `<button type="button" class="mchip${monthlyGroup==="__ir__"?" on":""}" data-group="__ir__" onclick="setMonthlyGroup('__ir__')">IR（一時）</button>`;
   }
   for(const g of groups){
     const on = monthlyGroup===g ? " on" : "";
@@ -542,6 +568,10 @@ async function setMonthlyGroup(g){
   if(inp) inp.value = "";
   hideMonthlySuggest();
   renderMonthlyGroups(monthlyIndustries(uniqueMonthlyIssuers(monthlyRows)));
+  if(g === "__ir__"){
+    await loadMonthlyIrCodes();
+    if(monthlyGroup !== "__ir__") return;
+  }
   if(g === "__gate__"){
     const list = $("#monthly-list");
     if(list) list.innerHTML = `<div class="sub">ゲート判定中…</div>`;
@@ -574,7 +604,8 @@ function renderMonthlyList(){
   if(!issuers.length){
     const empty = String(monthlySearchApplied || "").trim()
       ? "該当する発行体はありません"
-      : (monthlyGroup === "__gate__" ? "ゲート対象はありません" : "登録された月次データはありません");
+      : (monthlyGroup === "__gate__" ? "ゲート対象はありません"
+        : (monthlyGroup === "__ir__" ? "IR対象はありません" : "登録された月次データはありません"));
     $("#monthly-list").innerHTML = `<div class="sub">${empty}</div>`;
     return;
   }

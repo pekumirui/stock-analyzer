@@ -82,7 +82,7 @@ def main() -> None:
         _fail("public TOP must not show J-Quants market/sector33")
     if "lightweight-charts" in r.text:
         _fail("public HTML must not load chart CDN")
-    if "ゲート（一時）" in r.text or 'id="monthly-layout-debug"' in r.text:
+    if "ゲート（一時）" in r.text or "IR（一時）" in r.text or 'id="monthly-layout-debug"' in r.text:
         _fail("public TOP must not show TEMP debug UI")
     if "data-public-monthly" not in r.text:
         _fail("public body flag missing")
@@ -141,7 +141,7 @@ def main() -> None:
         _fail(f"loopback POST should work: {r.status_code} {r.text[:200]}")
 
     pub = (ROOT / "app" / "public_monthly.py").read_text(encoding="utf-8")
-    if "ゲート（一時）" in pub or "monthly-layout-debug" in pub:
+    if "ゲート（一時）" in pub or "IR（一時）" in pub or "monthly-layout-debug" in pub:
         _fail("public HTML builder must not emit TEMP debug UI")
 
     print("ok: public monthly")

@@ -81,6 +81,8 @@ AI による業種付けはしない。`industry` の更新は MCP と `PUT /api
 
 **一時デバッグ:** 新着の右に `ゲート（一時）`（`data-group="__gate__"`）。初回クリックで各発行体の最新暦年を取り `monthlySegmentGate` し、通過 code だけ一覧に残す。判定中は「ゲート判定中…」、0 件は「ゲート対象はありません」。結果は `sessionStorage` `monthly.gateCodes.debug`（指紋 `monthly.gateCodes.debug.fp`）。公開 `/monthly` には出さない。
 
+**一時デバッグ:** ゲートの右に `IR（一時）`（`data-group="__ir__"`）。`config/ir_monthly.json` の `issuers` と `html` に書いた code と、一覧 code の先頭 4 桁が一致する行だけ残す。コードは `GET /static/ir_monthly_codes.json` の `codes`（4 桁、URL は出さない）。0 件は「IR対象はありません」。月次表がまだ無い銘柄は出ない。公開 `/monthly` には出さない。
+
 公開 TOP の既定チップは すべて。列は会社名・月次業種・全店(前年比)・既存店(前年比)。市場と `sector33` は出さない。
 
 ### 空とエラー
