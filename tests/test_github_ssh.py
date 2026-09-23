@@ -51,6 +51,31 @@ def test_static_contracts() -> None:
     update = (ROOT / "deploy" / "update.sh").read_text(encoding="utf-8")
     if "Port 443" not in update or "ssh.github.com" not in update:
         _fail("update.sh must force GitHub SSH port 443 before fetch")
+    if "git status --porcelain --untracked-files=no" not in update:
+        _fail("update.sh missing git status --porcelain --untracked-files=no")
+    for needle in (
+        "git → CI → VPS",
+        "Hand edits",
+        "SCP",
+        "not allowed",
+        "detected to stop deploy",
+    ):
+        if needle not in update:
+            _fail(f"update.sh missing tracked-dirty policy text {needle!r}")
+    if "git reset --hard" in update:
+        _fail("update.sh must not git reset --hard")
+    if "git clean" in update:
+        _fail("update.sh must not git clean")
+    bare_status = [
+        line
+        for line in update.splitlines()
+        if "git status --porcelain" in line and "--untracked-files=no" not in line
+    ]
+    if bare_status or update.count("git status --porcelain") != 1:
+        _fail(
+            "update.sh must invoke git status only as "
+            "git status --porcelain --untracked-files=no"
+        )
     for label, text in (
         ("setup-github-ssh.sh", setup),
         ("update.sh", update),
@@ -114,9 +139,142 @@ def test_rewrites_existing_github_host() -> None:
             _fail("known_hosts missing [ssh.github.com]:443 host keys")
 
 
+def _git(app: Path, env: dict[str, str], *args: str) -> None:
+    proc = subprocess.run(
+        ["git", *args],
+        cwd=str(app),
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        _fail(
+            f"git {' '.join(args)} failed: rc={proc.returncode} "
+            f"stderr={proc.stderr!r} stdout={proc.stdout!r}"
+        )
+
+
+def _run_update(app: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    script = ROOT / "deploy" / "update.sh"
+    try:
+        return subprocess.run(
+            ["bash", str(script)],
+            cwd=str(app),
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except subprocess.TimeoutExpired as exc:
+        _fail(
+            "deploy/update.sh timed out: "
+            f"stdout={exc.stdout!r} stderr={exc.stderr!r}"
+        )
+
+
+def test_tracked_dirty_stops_deploy() -> None:
+    with tempfile.TemporaryDirectory(prefix="deploy-dirty-") as raw:
+        root = Path(raw)
+        app = root / "app"
+        home = root / "home"
+        app.mkdir()
+        home.mkdir()
+        env = os.environ.copy()
+        env["HOME"] = str(home)
+        env["APP_DIR"] = str(app)
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        _git(app, env, "init")
+        _git(app, env, "config", "user.email", "deploy-test@example.com")
+        _git(app, env, "config", "user.name", "deploy-test")
+        tracked = app / "readme.txt"
+        tracked.write_text("one\n", encoding="utf-8")
+        _git(app, env, "add", "readme.txt")
+        _git(app, env, "commit", "-m", "init")
+
+        tracked.write_text("two\n", encoding="utf-8")
+        note = app / "note.txt"
+        note.write_text("note\n", encoding="utf-8")
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=str(app),
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if dirty.returncode != 0 or not dirty.stdout.strip():
+            _fail(f"expected tracked dirt before deploy: {dirty.stderr!r}")
+        proc = _run_update(app, env)
+        if proc.returncode != 1:
+            _fail(
+                "tracked dirt must exit 1 before deploy: "
+                f"rc={proc.returncode} stderr={proc.stderr!r} stdout={proc.stdout!r}"
+            )
+        for needle in (
+            "git → CI → VPS",
+            "Hand edits",
+            "SCP",
+            "not allowed",
+            "detected to stop deploy",
+        ):
+            if needle not in proc.stderr:
+                _fail(f"tracked-dirty stderr missing {needle!r}: {proc.stderr!r}")
+        if dirty.stdout.strip() not in proc.stderr:
+            _fail(
+                "tracked-dirty stderr missing porcelain line "
+                f"{dirty.stdout.strip()!r}: {proc.stderr!r}"
+            )
+        if "deploy start" in proc.stdout or "deploy start" in proc.stderr:
+            _fail(
+                "tracked dirt reached deploy start: "
+                f"stderr={proc.stderr!r} stdout={proc.stdout!r}"
+            )
+        still = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=str(app),
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if still.returncode != 0 or not still.stdout.strip():
+            _fail(f"tracked file was repaired: {still.stdout!r} {still.stderr!r}")
+        if not note.is_file():
+            _fail("untracked note.txt was removed")
+
+        _git(app, env, "add", "readme.txt")
+        _git(app, env, "commit", "-m", "fresh")
+        (app / ".env").write_text("X=1\n", encoding="utf-8")
+        (app / "stock.db").write_bytes(b"")
+        (app / "logs").mkdir()
+        (app / "logs" / "app.log").write_text("log\n", encoding="utf-8")
+        note.write_text("note\n", encoding="utf-8")
+        clean = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=str(app),
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if clean.returncode != 0 or clean.stdout.strip():
+            _fail(f"case B must have no tracked dirt: {clean.stdout!r} {clean.stderr!r}")
+        proc = _run_update(app, env)
+        if "deploy start" not in proc.stdout:
+            _fail(
+                "untracked and ignored files must pass the dirty gate: "
+                f"rc={proc.returncode} stderr={proc.stderr!r} stdout={proc.stdout!r}"
+            )
+        if "Hand edits" in proc.stderr:
+            _fail(f"untracked tree hit the dirty policy: {proc.stderr!r}")
+
+
 def main() -> None:
     test_static_contracts()
     test_rewrites_existing_github_host()
+    test_tracked_dirty_stops_deploy()
     print("ok: github ssh port 443")
 
 
