@@ -1237,6 +1237,34 @@ WATAMI_SECTIONS_HTML = """
 </body></html>
 """
 
+WATAMI_QUARTER_BANNER_HTML = """
+<html><body>
+<h2>2026年度 月次推移</h2>
+<p>※既存店(売上高・客数比・客単価)前年比は業態転換店を含んでおります。</p>
+<h3>国内外食事業（月次前年比推移）</h3>
+<table>
+<tr>
+<td colspan="3" class="quarter">【第2四半期】</td>
+<th>2026.7</th><th>2026.8</th><th>2026.9</th>
+<th>2Q</th><th>半期</th>
+</tr>
+<tr><td>全店 (全業態)</td><td>全店 (全業態)</td><td>売上高（%）</td><td>110.4</td><td>104.9</td><td></td><td></td><td></td></tr>
+<tr><td>国内外食 （サブウェイ事業除く）</td><td>既存店</td><td>売上高（%）</td><td>107.4</td><td>100.5</td><td></td><td></td><td></td></tr>
+<tr><td>サブウェイ</td><td>全店</td><td>売上高（%）</td><td>128.0</td><td>125.2</td><td></td><td></td><td></td></tr>
+</table>
+<h3>海外事業</h3>
+<table>
+<tr><td></td><td></td><td>2026.6</td><td>2026.7</td><td>2026.8</td></tr>
+<tr><td>店舗数</td><td>店舗数合計</td><td>83</td><td>84</td><td>82</td></tr>
+</table>
+<h3>宅食事業</h3>
+<table>
+<tr><td></td><td></td><td>2026.6</td><td>2026.7</td><td>2026.8</td></tr>
+<tr><td>拠点数</td><td>営業所数合計</td><td>506</td><td>507</td><td>507</td></tr>
+</table>
+</body></html>
+"""
+
 HURXLEY_SECTIONS_HTML = """
 <html><body>
 <p>ほっかほっか亭 店舗流通ネット株式会社</p>
@@ -1623,6 +1651,25 @@ def test_watami_sections_prefix_and_count_units() -> None:
     targets = _row(got, "サブウェイ 既存店 対象店舗数", unit="number")
     if _watami_stored(targets["element"], targets["unit"]) != "国内外食 サブウェイ 既存 店舗数":
         _fail(f"alias 対象 {_watami_stored(targets['element'], targets['unit'])}")
+
+
+def test_watami_quarter_banner_keeps_sales_labels() -> None:
+    got = html_to_ingest(WATAMI_QUARTER_BANNER_HTML, "7522", table=None)
+    sales = _row(got, "全店 (全業態) 売上高（%）")
+    if sales["unit"] != "yoy_index" or sales["values"] != {"7": 110.4, "8": 104.9}:
+        _fail(f"quarter banner dropped 全店 sales {sales}")
+    existing = _row(got, "国内外食 （サブウェイ事業除く） 既存店 売上高（%）")
+    if existing["unit"] != "yoy_index" or existing["values"] != {"7": 107.4, "8": 100.5}:
+        _fail(f"quarter banner dropped 既存店 sales {existing}")
+    subway = _row(got, "サブウェイ 全店 売上高（%）")
+    if subway["values"] != {"7": 128.0, "8": 125.2}:
+        _fail(f"quarter banner dropped subway sales {subway}")
+    overseas = _row(got, "海外 店舗数 店舗数合計", unit="number")
+    if overseas["values"] != {"6": 83, "7": 84, "8": 82}:
+        _fail(f"overseas counts {overseas}")
+    offices = _row(got, "宅食 営業所数合計", unit="number")
+    if offices["values"] != {"6": 506, "7": 507, "8": 507}:
+        _fail(f"宅食 counts {offices}")
 
 
 def test_hurxley_dual_brand_prefixes_and_count_units() -> None:
@@ -2742,6 +2789,7 @@ def main() -> None:
     test_watami_kyoten_count_is_number()
     test_watami_prefers_sales_over_kyoten()
     test_watami_sections_prefix_and_count_units()
+    test_watami_quarter_banner_keeps_sales_labels()
     test_hurxley_dual_brand_prefixes_and_count_units()
     test_hurxley_canonicalize_aliases()
     test_watami_canonicalize_aliases()
