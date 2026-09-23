@@ -1255,6 +1255,22 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("TEMP gate list chip __gate__ must exist on TOP")
     if "ゲート（一時）" not in html:
         _fail("TEMP gate list chip label ゲート（一時） missing")
+    if 'data-group="__ir__"' not in html and "setMonthlyGroup('__ir__')" not in html:
+        _fail("TEMP IR list chip __ir__ must exist on TOP")
+    if "IR（一時）" not in html:
+        _fail("TEMP IR list chip label IR（一時） missing")
+    if "/static/ir_monthly_codes.json" not in html:
+        _fail("SPA must fetch /static/ir_monthly_codes.json")
+    if "IR対象はありません" not in html:
+        _fail("TEMP IR list empty copy missing")
+    grp_fn = html.find("function renderMonthlyGroups")
+    grp_end = html.find("async function setMonthlyGroup")
+    if grp_fn < 0 or grp_end <= grp_fn:
+        _fail("renderMonthlyGroups / setMonthlyGroup bounds")
+    grp_body = html[grp_fn:grp_end]
+    priv = grp_body.find("if(!monthlyPublic())")
+    if priv < 0 or grp_body.find("IR（一時）") < priv or grp_body.find("ゲート（一時）") < priv:
+        _fail("TEMP IR and gate chips must stay inside the private branch")
     if "function ensureMonthlyGateIndex" not in html:
         _fail("TEMP gate list must build ensureMonthlyGateIndex")
     if "MONTHLY_GATE_CODES_KEY" not in html:

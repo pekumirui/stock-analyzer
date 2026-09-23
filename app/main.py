@@ -10,6 +10,7 @@ from .api import (
 )
 from .config import MONTHLY_ROW_ORDER_PATH
 from .db import get_session, init_db
+from .ir_monthly_codes import load_ir_monthly_codes
 from .public_monthly import (
     code4, detail_html, display_years, not_found_html, public_origin, robots_txt,
     sitemap_xml, top_html,
@@ -35,6 +36,11 @@ def _parse_public_code(raw: str) -> str | None:
 @app.get("/static/monthly_row_order.json")
 def monthly_row_order():
     return FileResponse(MONTHLY_ROW_ORDER_PATH)
+
+
+@app.get("/static/ir_monthly_codes.json")
+def ir_monthly_codes():
+    return {"codes": load_ir_monthly_codes()}
 
 
 app.mount("/static", StaticFiles(directory=STATIC), name="static")

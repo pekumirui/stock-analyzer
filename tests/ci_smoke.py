@@ -1,6 +1,7 @@
 """CI smoke: 空DBで起動し、主要 API が応答すること。データ投入は CI 用の最小フィクスチャのみ。"""
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -96,6 +97,27 @@ def main() -> None:
     _expect(r, 200, "GET /static/monthly_row_order.json")
     if "76830" not in r.text:
         raise SystemExit("row-order JSON missing 76830")
+
+    r = client.get("/static/ir_monthly_codes.json")
+    _expect(r, 200, "GET /static/ir_monthly_codes.json")
+    codes = r.json().get("codes")
+    if not isinstance(codes, list) or "1878" not in codes or "141A" not in codes or "9989" not in codes or "2792" not in codes:
+        raise SystemExit(f"IR codes JSON missing watchlist codes: {codes!r}"[:400])
+    if len(codes) != len(set(codes)):
+        raise SystemExit("IR codes JSON has duplicates")
+    if codes.index("1878") > codes.index("141A"):
+        raise SystemExit("IR codes must list issuers before html")
+    if "index_url" in r.text or "http" in r.text.lower():
+        raise SystemExit("IR codes JSON must not include crawl URLs")
+    from app.ir_monthly_codes import load_ir_monthly_codes
+
+    sample = Path(_tmp) / "ir.json"
+    sample.write_text(json.dumps({
+        "issuers": [{"code": "1878"}, {"code": "18780"}, {"code": "nope"}],
+        "html": [{"code": "141a", "parse": False}, {"code": "1878"}],
+    }), encoding="utf-8")
+    if load_ir_monthly_codes(sample) != ["1878", "141A"]:
+        raise SystemExit(f"load_ir_monthly_codes: {load_ir_monthly_codes(sample)!r}")
 
     r = client.get("/", follow_redirects=False)
     _expect(r, 301, "GET /")
