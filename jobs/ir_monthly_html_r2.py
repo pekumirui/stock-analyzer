@@ -1486,6 +1486,22 @@ def _repeated_scope_row(row: list[str]) -> str | None:
     return name
 
 
+def _skip_axis_column_is_values(grid: list[list[str]], header_i: int, col: int) -> bool:
+    saw_number = False
+    for row in grid[header_i + 1 :]:
+        if col >= len(row):
+            continue
+        raw = row[col]
+        if parse_number(raw) is not None:
+            saw_number = True
+            continue
+        text = re.sub(r"\s+", "", unicodedata.normalize("NFKC", raw or "").strip())
+        if not text or _EMPTY_VAL_RE.fullmatch(text):
+            continue
+        return False
+    return saw_number
+
+
 def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dict | None:
     header = grid[header_i]
     month_cols: list[tuple[int, int]] = []
@@ -1498,12 +1514,14 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
     if not month_cols:
         return None
     months = [m for _c, m in month_cols]
-    cuts = [
-        c
-        for c, cell in enumerate(header)
-        if _is_skip_axis(cell) or parse_month_cell(cell) is not None
-    ]
-    label_end = min(cuts) if cuts else min(c for c, _m in month_cols)
+    month_start = min(c for c, _m in month_cols)
+    label_end = month_start
+    for c, cell in enumerate(header):
+        if c >= month_start:
+            break
+        if _is_skip_axis(cell) and _skip_axis_column_is_values(grid, header_i, c):
+            label_end = c
+            break
     series: dict[tuple[str, str], dict[str, int | float]] = {}
     scope = ""
     for row in grid[header_i + 1 :]:
