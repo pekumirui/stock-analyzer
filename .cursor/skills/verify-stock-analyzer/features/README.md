@@ -4,7 +4,7 @@ Read this index, then the matching feature file, before driving the app.
 
 ## Baseline preconditions
 
-- Launch with `helpers/launch.py` at `http://127.0.0.1:8000` (or `VERIFY_PORT`). Reuses an already-running SPA on that port (`adopted: true`).
+- Launch with `helpers/launch.py` at `http://127.0.0.1:8000` (or `VERIFY_PORT`). SPA entry is `GET /app` (`GET /` → public `/monthly`). Reuses an already-running SPA on that port (`adopted: true`).
 - `stock.db` is the backfilled SQLite next to the repo (not a CI temp DB, not demo `0`-prefix codes).
 - Run `helpers/doctor.py` and require `ok: true`, non-empty screener, and a トヨタ search hit.
 - Drive the instance recorded in `.run/state.json` (adopted or launched).
@@ -16,7 +16,7 @@ Read this index, then the matching feature file, before driving the app.
 - Prefer `nav button[data-tab]`, `#id`, and `data-fin` / `data-no` over pixel clicks.
 - Treat every command as literal.
 - HTTP proofs use `helpers/capture.py <feature>` against the same `/api/*` the SPA calls.
-- Browser proofs use `browser-use`: `new_tab(url)` then click the tab handle.
+- Browser proofs use `browser-use`: open `{url}/app` then click the tab handle.
 - Cleanup removes `.run/` only. Leave `artifacts/`.
 
 ## Proof and skip reporting

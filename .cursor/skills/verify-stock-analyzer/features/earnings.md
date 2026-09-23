@@ -12,7 +12,7 @@ The default tab lists financial-statement disclosures for a calendar day, then s
 
 ## How to get to it (user POV)
 
-- Open `{url}/` with no hash and no `ui.route` (or after clearing them). 決算速報 is the fallback tab; boot still runs `selectDate(todayISO())` before `restoreRoute()`, so today's list loads even if another tab is restored. With a clean route: nav is `.active` on 決算速報 and `#earn-title` reads `{date}の決算発表`.
+- Open `{url}/app` with no hash and no `ui.route` (or after clearing them). 決算速報 is the fallback tab; boot still runs `selectDate(todayISO())` before `restoreRoute()`, so today's list loads even if another tab is restored. With a clean route: nav is `.active` on 決算速報 and `#earn-title` reads `{date}の決算発表`.
 - Click `nav button[data-tab="earnings"]` from any other tab.
 - Click `#cal-btn` to open `#cal-pop`. Use `#cal-title` ◀/▶ (`calMove`) to change month when needed. Click a day cell `#cal .d` that shows `.cnt`. The popover closes.
 - Click a row `#earn-tbl tr[data-no]`.
@@ -23,7 +23,7 @@ The default tab lists financial-statement disclosures for a calendar day, then s
 Preconditions:
 
 - Doctor reports `ok`.
-- `{url}/` is loaded.
+- `{url}/app` is loaded.
 - `#cal-pop` starts `hidden`. Open it with `#cal-btn`. Close with Esc, `#cal-backdrop`, or a day click.
 
 - **Tab.** Click `nav button[data-tab="earnings"]`. `#tab-earnings` is displayed; `#tab-screener` is not.

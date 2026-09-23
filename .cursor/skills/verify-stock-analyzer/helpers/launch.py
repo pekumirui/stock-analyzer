@@ -80,7 +80,7 @@ def main() -> None:
     if _listening(port):
         if not _spa_ready(url):
             raise SystemExit(
-                f"127.0.0.1:{port} is in use but GET / is not the SPA; "
+                f"127.0.0.1:{port} is in use but GET /app is not the SPA; "
                 "stop that process or set VERIFY_PORT"
             )
         state = _write_state(pid=None, port=port, url=url, adopted=True)
@@ -121,7 +121,7 @@ def main() -> None:
         time.sleep(0.25)
     else:
         proc.kill()
-        raise SystemExit(f"GET {url}/ never became ready (last status={status})")
+        raise SystemExit(f"GET {url}/app never became ready (last status={status})")
 
     state = _write_state(pid=proc.pid, port=port, url=url, adopted=False)
     print(json.dumps(state, ensure_ascii=False), flush=True)
