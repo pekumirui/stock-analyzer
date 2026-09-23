@@ -5,7 +5,7 @@ description: "Drive the stock-analyzer SPA (FastAPI + static/index.html + static
 
 # verify-stock-analyzer
 
-Personal Japan-equity viewer. Primary surface is the single-page UI at `/` (`static/index.html` + `static/css/` + `static/js/`). REST under `/api/*` is what the SPA fetches; batch scripts are ingest, not the user surface.
+Personal Japan-equity viewer. Primary surface is the Basic SPA at `/app` (`static/index.html` + `static/css/` + `static/js/`). `GET /` 301s to public `/monthly`. REST under `/api/*` is what the SPA fetches; batch scripts are ingest, not the user surface.
 
 Do not invent selectors or ports.
 
@@ -115,7 +115,7 @@ HTTP capture:
 
 Writes under `artifacts/<feature>/`. For a calendar day, pass `capture.py earnings --date YYYY-MM-DD`. For monthly Detail, pass `capture.py monthly --code CODE`.
 
-**Browser (user path).** When `browser-use` / CDP works: `new_tab(url)` from state.json, `wait_for_load()`, click `nav button[data-tab="..."]`, then the feature file. Do not `goto_url` for the first navigation. Screenshots via `capture_screenshot()` saved into `artifacts/<feature>/`. If Chrome remote debugging is denied, record that and finish the proof with the HTTP captures of the same routes.
+**Browser (user path).** When `browser-use` / CDP works: open `{url}/app` from state.json (`new_tab(url + "/app")`), `wait_for_load()`, click `nav button[data-tab="..."]`, then the feature file. Bare `{url}/` is public `/monthly` (301), not the Basic SPA. Do not `goto_url` for the first navigation. Screenshots via `capture_screenshot()` saved into `artifacts/<feature>/`. If Chrome remote debugging is denied, record that and finish the proof with the HTTP captures of the same routes.
 
 Read `features/README.md` and the matching feature file before driving. Cover every entry point the file lists, or report the skipped one with the unmet precondition.
 
@@ -125,7 +125,7 @@ Directory: `.cursor/skills/verify-stock-analyzer/artifacts/<feature>/`. Cleanup 
 
 Proof standards:
 
-- Exercise the real SPA routes (`/` + `/api/*` the UI calls). Do not hit TestClient, `ci_smoke.py` fixtures, or invent test-only endpoints.
+- Exercise the real SPA routes (`/app` + `/api/*` the UI calls). Do not hit TestClient, `ci_smoke.py` fixtures, or invent test-only endpoints.
 - Capture the **action** (request URL + status, or the click) and the **resulting state** (JSON body and/or screenshot), not only a final screen.
 - Screener / search / earnings lists must show real names and 5-digit codes that do not start with `0`.
 - Chart proof needs `candles` length > 0 in `/api/chart/{code}`.
