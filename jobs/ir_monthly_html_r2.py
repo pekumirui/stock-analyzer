@@ -6,7 +6,7 @@
   python jobs/ir_monthly_html_r2.py --dry-run
   python jobs/ir_monthly_html_r2.py --reparse
 
-対象は config/ir_monthly.json の html。セレクタ駆動で銘柄クラスは作らない。
+対象は config/ir_monthly.json の html。セレクタは json。
 原本は .html、派生が .ingest.json。自動 POST しない。パーサーを直したら --reparse。
 ネットワークと app/ はテストから分離する。
 """
