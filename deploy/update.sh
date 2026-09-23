@@ -8,9 +8,11 @@ set -euo pipefail
 APP_DIR="${APP_DIR:-/home/stock/stock-analyzer}"
 cd "$APP_DIR"
 
-if [ -n "$(git status --porcelain)" ]; then
-  echo "VPS working tree is dirty:" >&2
-  git status --porcelain
+tracked="$(git status --porcelain --untracked-files=no)"
+if [ -n "$tracked" ]; then
+  echo "Deploy must go git → CI → VPS only." >&2
+  echo "Hand edits / SCP changes on the VPS are not allowed and are detected to stop deploy." >&2
+  printf '%s\n' "$tracked" >&2
   exit 1
 fi
 
