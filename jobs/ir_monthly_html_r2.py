@@ -7,6 +7,7 @@
   python jobs/ir_monthly_html_r2.py --reparse
 
 対象は config/ir_monthly.json の html。セレクタは json。
+9989 / 7522 / 7561 / 8179 は jobs/html_issuers。それ以外は html_to_ingest。
 原本は .html、派生が .ingest.json。自動 POST しない。パーサーを直したら --reparse。
 ネットワークと app/ はテストから分離する。
 """
@@ -22,7 +23,6 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import TYPE_CHECKING
 from urllib.parse import urljoin, urlparse
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -46,35 +46,27 @@ from tdnet_monthly_r2 import (  # noqa: E402
     download_skip_reason,
     load_stock_product_map,
 )
+from html_issuers import PARSERS  # noqa: E402
 from html_monthly import (  # noqa: E402
-    _SECTION_LOOKBACK,
     _VALID_UNITS,
     _apply_force_unit,
     _drop_ytd_when_monthly_pair,
-    _fy_captions,
     _is_count_header,
-    _is_fiscal_seq,
-    as_of_from_table,
+    _parsed_score,
+    _section_pick_rank,
+    _sticky_section_fy,
     decode_html_bytes,
     drop_trailing_empty_months,
     dumps_ingest,
     fy_end_from_text,
-    last_filled_month,
-    normalize_month_order,
     page_context,
     parse_grid,
-    parse_month_year,
     parse_tables,
-    pick_fy_end,
     resolve_as_of,
     section_fy_end_from_text,
     table_section_texts,
     unit_mark_context,
-    year_for_month,
 )
-
-if TYPE_CHECKING:
-    from html_recipe import RecipeSet
 
 EIR_URL = "https://ssl4.eir-parts.net/V4Public/eir/{code}/ja/announcement/announcement_{n}.js"
 _CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
@@ -94,7 +86,6 @@ class HtmlIssuer:
     follow_re: str = ""
     parse: bool = True
     force_unit: str | None = None
-    recipes: RecipeSet | None = None
 
 
 def ingest_path(html_path: Path) -> Path:
@@ -131,9 +122,6 @@ def _is_count_only_parsed(parsed: dict) -> bool:
     )
 
 
-_ALL_STORE_SALES_HEAD_RE = re.compile(
-    r"全店売上(?:（％）|\(%\)|％|%)?(?=※|この表|$)"
-)
 _SCOPED_STORE_UNIT_HEAD_RE = re.compile(
     r"(既存店|全店)(?=(?:・卸計)?(?:\(単位|（単位|単位|$))"
 )
@@ -151,70 +139,12 @@ def _section_tail(section_text: str, n: int = 160) -> str:
     return s[-n:] if len(s) > n else s
 
 
-_SECTION_PREFIXES: tuple[tuple[str, str], ...] = (
-    ("海外事業", "海外"),
-    ("宅食事業", "宅食"),
-    ("ほっかほっか亭", "ほっかほっか亭"),
-    ("店舗流通ネット", "店舗流通ネット"),
-    ("ロイヤルホスト", "ロイヤルホスト"),
-    ("てんや", "てんや"),
-)
-# A mark that ends a branded section without starting one (Watami 国内外食).
-_SECTION_RESET_MARKS: tuple[str, ...] = ("国内外食",)
-
-
 @dataclass(frozen=True)
 class Section:
-    """Heading band above a table. Sticky across unheaded continuation tables."""
+    """表直前の見出し帯。スコープ（既存店/全店）だけ。事業接頭辞は html_issuers。"""
 
     segment: str | None
     scope: str | None
-
-
-@dataclass(frozen=True)
-class _Series:
-    """Same-segment tables tiled onto one month axis."""
-
-    indices: tuple[int, ...]
-    months: tuple[int, ...]
-    as_of: str | None
-
-
-_PRE_MERGER_REF_RE = re.compile(r"経営統合前|統合前")
-_NUMBERED_NOTE_RE = re.compile(r"\d+\.[^。]*。")
-_PAREN_NOTE_RE = re.compile(r"（注）[^。]*。?")
-
-
-def _section_heading_tail(section_text: str, n: int = 160) -> str:
-    s = unicodedata.normalize("NFKC", section_text or "")
-    s = re.sub(r"\s+", "", s)
-    s = _NUMBERED_NOTE_RE.sub("", s)
-    s = _PAREN_NOTE_RE.sub("", s)
-    return s[-n:] if len(s) > n else s
-
-
-def _is_pre_merger_reference_section(section_text: str) -> bool:
-    return _PRE_MERGER_REF_RE.search(_section_heading_tail(section_text)) is not None
-
-
-def _section_pick_rank(section_text: str, segment: str | None = None) -> int:
-    tail = _section_heading_tail(section_text)
-    if "卸計" in tail:
-        return -1
-    if "（累計）" in tail or "(累計)" in tail:
-        return -1
-    if _is_pre_merger_reference_section(section_text):
-        return -1
-    if segment or _section_segment(section_text):
-        return 0
-    if _ALL_STORE_SALES_HEAD_RE.search(tail):
-        return 3
-    m = _SCOPED_STORE_UNIT_HEAD_RE.search(tail)
-    if m and m.group(1) == "全店":
-        return 2
-    if "1店1日" in tail or "一店一日" in tail or "拠点数" in tail or "店舗数" in tail:
-        return 0
-    return 1
 
 
 def _store_scope_from_section(section_text: str) -> str | None:
@@ -256,15 +186,13 @@ def _apply_store_scope(rows: list[dict], scope: str) -> None:
 def _prefer_section_candidates(
     candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
     sections: list[str],
-    segments: list[str | None] | None = None,
 ) -> list[tuple[int, list[list[str]], dict, tuple[int, int] | None]]:
     if not candidates:
         return candidates
-    ranks = []
-    for i, _g, _p, _fy in candidates:
-        text = sections[i] if i < len(sections) else ""
-        seg = segments[i] if segments is not None and i < len(segments) else None
-        ranks.append(_section_pick_rank(text, seg))
+    ranks = [
+        _section_pick_rank(sections[i] if i < len(sections) else "")
+        for i, _g, _p, _fy in candidates
+    ]
     best = max(ranks)
     return [c for c, r in zip(candidates, ranks) if r == best]
 
@@ -333,303 +261,10 @@ def _merge_companion_store_scopes(
             have.add(key)
 
 
-def _section_mark_last(tail: str, marks: tuple[str, ...]) -> int:
-    last = -1
-    for mark in marks:
-        i = tail.rfind(mark)
-        if i > last:
-            last = i
-    return last
-
-
-def _section_segment(section_text: str) -> str | None:
-    """表直前見出しの事業。国内外食は付けない（2024 全店と全業態を別名のまま残す）。"""
-    tail = _section_tail(section_text, _SECTION_LOOKBACK)
-    last_i = -1
-    last_prefix: str | None = None
-    for mark, prefix in _SECTION_PREFIXES:
-        i = tail.rfind(mark)
-        if i > last_i:
-            last_i = i
-            last_prefix = prefix
-    if last_prefix is None:
-        return None
-    if _section_mark_last(tail, _SECTION_RESET_MARKS) > last_i:
-        return None
-    return last_prefix
-
-
 def _sticky_sections(section_texts: list[str]) -> list[Section]:
-    """半年表は直前の事業見出しとスコープを引き継ぐ。国内外食見出しでリセット。"""
-    out: list[Section] = []
-    prev = Section(None, None)
-    brand_marks = tuple(mark for mark, _prefix in _SECTION_PREFIXES)
-    for text in section_texts:
-        seg = _section_segment(text)
-        scope = _store_scope_from_section(text)
-        tail = _section_tail(text, _SECTION_LOOKBACK)
-        reset = _section_mark_last(tail, _SECTION_RESET_MARKS) > _section_mark_last(
-            tail, brand_marks
-        )
-        if seg:
-            cur_scope = scope if scope or seg != prev.segment else prev.scope
-            cur = Section(seg, cur_scope)
-        elif reset:
-            cur = Section(None, scope)
-        elif prev.segment:
-            cur = Section(prev.segment, scope or prev.scope)
-        else:
-            cur = Section(None, scope)
-        out.append(cur)
-        prev = cur
-    return out
+    """各表の見出し帯から既存店/全店だけ取る。事業接頭辞は html_issuers。"""
+    return [Section(None, _store_scope_from_section(text)) for text in section_texts]
 
-
-def _sticky_section_fy(section_texts: list[str]) -> list[tuple[int, int] | None]:
-    """単月表は直前の `YYYY年M月期` を引き継ぐ。年セレクトに複数期があるときは新しい方。"""
-    out: list[tuple[int, int] | None] = []
-    prev: tuple[int, int] | None = None
-    for text in section_texts:
-        found = _fy_captions(text)
-        if not found:
-            out.append(prev)
-            continue
-        years = {y for y, _m in found}
-        cur = max(found) if len(years) > 1 else found[-1]
-        prev = cur
-        out.append(cur)
-    return out
-
-
-def _apply_section_segment(rows: list[dict], segment: str | None) -> None:
-    if not segment:
-        return
-    for row in rows:
-        el = str(row.get("element") or "").strip()
-        if not el:
-            continue
-        if el == segment or el.startswith(segment + " "):
-            continue
-        row["element"] = f"{segment} {el}".strip()
-
-
-def _union_ingest_months(months: list[int]) -> list[int]:
-    seen: list[int] = []
-    for m in months:
-        if isinstance(m, int) and 1 <= m <= 12 and m not in seen:
-            seen.append(m)
-    cal = sorted(seen)
-    if _is_fiscal_seq(cal):
-        return cal
-    wrapped = normalize_month_order(seen)
-    if _is_fiscal_seq(wrapped):
-        return wrapped
-    if 1 in seen:
-        return cal
-    return wrapped
-
-
-def _valued_months(rows: list[dict]) -> list[int]:
-    out: list[int] = []
-    seen: set[int] = set()
-    for row in rows:
-        for k in (row.get("values") or {}):
-            try:
-                m = int(k)
-            except (TypeError, ValueError):
-                continue
-            if 1 <= m <= 12 and m not in seen:
-                seen.add(m)
-                out.append(m)
-    return out
-
-
-def _member_months(parsed: dict) -> list[int]:
-    months = [
-        m for m in (parsed.get("months") or []) if isinstance(m, int) and 1 <= m <= 12
-    ]
-    return months or _valued_months(parsed.get("rows") or [])
-
-
-def _grid_self_dated(grid: list[list[str]]) -> bool:
-    for row in grid:
-        for cell in row:
-            year, _month = parse_month_year(cell)
-            if year is not None:
-                return True
-    return False
-
-
-def _tileable(
-    members: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
-    html: str,
-) -> _Series | None:
-    """Same-segment halves of one fiscal run. Self-dated year-in-cell tables never tile."""
-    if len(members) < 2:
-        return None
-    if any(_grid_self_dated(grid) for _idx, grid, _parsed, _fy in members):
-        return None
-    month_sets: list[set[int]] = []
-    as_ofs: list[str] = []
-    for _idx, grid, parsed, section_fy in members:
-        month_sets.append(set(_member_months(parsed)))
-        derived = as_of_from_table(
-            grid, html, parsed.get("rows") or [], parsed.get("months"), section_fy
-        )
-        if derived:
-            as_ofs.append(derived)
-    for i, left in enumerate(month_sets):
-        for right in month_sets[i + 1 :]:
-            if left & right:
-                return None
-    union = _union_ingest_months([m for s in month_sets for m in s])
-    if not _is_fiscal_seq(union):
-        return None
-    if not as_ofs:
-        return None
-    series_as_of = max(as_ofs)
-    series_date = date.fromisoformat(series_as_of)
-    for _idx, grid, parsed, section_fy in members:
-        last_m = last_filled_month(parsed.get("rows") or [], parsed.get("months"))
-        if last_m is None:
-            continue
-        member_as = as_of_from_table(
-            grid, html, parsed.get("rows") or [], parsed.get("months"), section_fy
-        )
-        if member_as is None:
-            continue
-        window_y = year_for_month(last_m, (series_date.year, series_date.month), None)
-        if date.fromisoformat(member_as).year != window_y:
-            return None
-    return _Series(
-        indices=tuple(idx for idx, _g, _p, _fy in members),
-        months=tuple(union),
-        as_of=series_as_of,
-    )
-
-
-def _tile_segment_series(
-    candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
-    sections: list[Section],
-    html: str,
-) -> list[_Series]:
-    by_seg: dict[str, list[tuple[int, list[list[str]], dict, tuple[int, int] | None]]] = {}
-    for cand in candidates:
-        idx, _grid, parsed, _fy = cand
-        if _is_store_event_parsed(parsed):
-            continue
-        seg = sections[idx].segment if idx < len(sections) else None
-        if not seg:
-            continue
-        by_seg.setdefault(seg, []).append(cand)
-    out: list[_Series] = []
-    for members in by_seg.values():
-        tiled = _tileable(members, html)
-        if tiled:
-            out.append(tiled)
-            continue
-        for idx, grid, parsed, section_fy in members:
-            derived = as_of_from_table(
-                grid, html, parsed.get("rows") or [], parsed.get("months"), section_fy
-            )
-            out.append(
-                _Series(
-                    (idx,),
-                    tuple(_union_ingest_months(_member_months(parsed))),
-                    derived,
-                )
-            )
-    return out
-
-
-def _merge_other_section_companions(
-    primary: dict,
-    candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
-    *,
-    primary_index: int,
-    sections: list[Section],
-    html: str,
-    primary_as_of: str | None,
-) -> None:
-    """同じ as_of のブランド系列を足す。系列の as_of はメンバの max。"""
-    have = {
-        (str(r.get("element") or ""), r.get("unit")): r
-        for r in primary.get("rows") or []
-    }
-    extra_months: list[int] = []
-    by_idx = {c[0]: c for c in candidates}
-    for series in _tile_segment_series(candidates, sections, html):
-        if primary_as_of and series.as_of != primary_as_of:
-            continue
-        for idx in series.indices:
-            if idx == primary_index:
-                continue
-            other_c = by_idx.get(idx)
-            if other_c is None:
-                continue
-            _i, _grid, other, _fy = other_c
-            if _is_store_event_parsed(other):
-                continue
-            tag = sections[idx] if idx < len(sections) else Section(None, None)
-            rows = [
-                dict(row, values=dict(row.get("values") or {}))
-                for row in other.get("rows") or []
-            ]
-            if tag.scope and _rows_need_store_scope(rows):
-                _apply_store_scope(rows, tag.scope)
-            _apply_section_segment(rows, tag.segment)
-            for merged in rows:
-                el = str(merged.get("element") or "")
-                key = (el, merged.get("unit"))
-                if not el:
-                    continue
-                existing = have.get(key)
-                if existing is not None:
-                    vals = existing.setdefault("values", {})
-                    for mk, mv in merged["values"].items():
-                        vals.setdefault(mk, mv)
-                    continue
-                primary.setdefault("rows", []).append(merged)
-                have[key] = merged
-            extra_months.extend(_valued_months(other.get("rows") or []))
-    if extra_months:
-        primary["months"] = _union_ingest_months(
-            [*_valued_months(primary.get("rows") or []), *extra_months]
-        )
-
-
-def _parsed_score(
-    html: str,
-    grid: list[list[str]],
-    parsed: dict,
-    *,
-    table_index: int = 0,
-    section_fy: tuple[int, int] | None = None,
-) -> tuple[int, int, int, int, int, int]:
-    """期が新しい表を優先。同点なら最終値の新しい表（期末まで埋まった表は除く）。"""
-    months = parsed.get("months")
-    last_m = last_filled_month(parsed["rows"], months)
-    derived = as_of_from_table(grid, html, parsed["rows"], months, section_fy)
-    # 見出しの無い表はページ全体の年度ナビを見ない（ワタミ後続表が翌年度になる）
-    if section_fy is not None:
-        fy = section_fy
-    elif derived:
-        d = date.fromisoformat(derived)
-        fy = (d.year, d.month)
-    else:
-        fy = pick_fy_end(grid, html, months)
-    fy_y, fy_m = fy if fy is not None else (0, 0)
-    filled_n = max(
-        (sum(1 for v in (r.get("values") or {}).values() if v is not None) for r in parsed["rows"]),
-        default=0,
-    )
-    complete = last_m is not None and fy_m != 0 and last_m == fy_m and filled_n >= 12
-    as_key = 0
-    if derived and not complete:
-        as_key = date.fromisoformat(derived).toordinal()
-    n_yoy = sum(1 for r in parsed["rows"] if r.get("unit") != "number")
-    n_val = sum(len(r.get("values") or {}) for r in parsed["rows"])
-    return (fy_y, fy_m, as_key, -table_index, n_yoy, n_val)
 
 
 def html_to_ingest(
@@ -680,9 +315,7 @@ def html_to_ingest(
     sales_cands = [c for c in monthly_cands if not _is_count_only_parsed(c[2])]
     pick_pool = sales_cands or monthly_cands or candidates
     sections = _sticky_sections(section_texts)
-    pick_pool = _prefer_section_candidates(
-        pick_pool, section_texts, [s.segment for s in sections]
-    )
+    pick_pool = _prefer_section_candidates(pick_pool, section_texts)
     table_index, grid_used, parsed, section_fy = max(
         pick_pool,
         key=lambda it: _parsed_score(
@@ -697,10 +330,6 @@ def html_to_ingest(
     _merge_companion_store_scopes(
         parsed, candidates, sections, primary_index=table_index
     )
-    _apply_section_segment(
-        parsed["rows"],
-        sections[table_index].segment if table_index < len(sections) else None,
-    )
     as_of_s = resolve_as_of(
         html,
         grid_used,
@@ -709,15 +338,6 @@ def html_to_ingest(
         parsed.get("months"),
         section_fy,
     )
-    if table is None:
-        _merge_other_section_companions(
-            parsed,
-            monthly_cands,
-            primary_index=table_index,
-            sections=sections,
-            html=html,
-            primary_as_of=as_of_s,
-        )
     _apply_force_unit(parsed["rows"], force_unit)
     parsed["rows"] = _drop_ytd_when_monthly_pair(parsed["rows"])
     parsed["rows"] = _drop_all_store_sales_breakdowns(parsed["rows"], section_text)
@@ -848,14 +468,6 @@ def _parse_html_issuer(raw: object) -> HtmlIssuer:
         force_unit = force_raw
     else:
         raise ValueError(f"issuer {code} invalid force_unit: {force_raw!r}")
-    recipes = None
-    if "recipes" in raw:
-        from html_recipe import compile_recipes
-
-        try:
-            recipes = compile_recipes(raw)
-        except ValueError as e:
-            raise ValueError(f"issuer {code} recipes: {e}") from e
     return HtmlIssuer(
         code=code,
         name=name,
@@ -869,7 +481,6 @@ def _parse_html_issuer(raw: object) -> HtmlIssuer:
         follow_re=follow_re,
         parse=parse_raw,
         force_unit=force_unit,
-        recipes=recipes,
     )
 
 
@@ -971,7 +582,7 @@ def fetch_html_bytes(iss: HtmlIssuer) -> tuple[bytes, str | None, str]:
         if iss.parse:
             html = decode_html_bytes(data)
             try:
-                html_to_ingest(html, iss.code, table=iss.table, force_unit=iss.force_unit)
+                ingest_payload(html, iss)
             except ValueError:
                 child = pick_follow_url(html, url, iss.follow_re, under=url)
                 if child and child.rstrip("/") != url.rstrip("/"):
@@ -981,21 +592,18 @@ def fetch_html_bytes(iss: HtmlIssuer) -> tuple[bytes, str | None, str]:
     return data, None, url
 
 
-def write_ingest(html_path: Path, html: str, iss: HtmlIssuer, as_of: str | None = None) -> None:
-    if iss.recipes is not None:
-        from html_recipe import execute_recipes
+def ingest_payload(html: str, iss: HtmlIssuer, as_of: str | None = None) -> dict:
+    """PARSERS の code は銘柄パーサ。それ以外は html_to_ingest。"""
+    parser = PARSERS.get(iss.code)
+    if parser is not None:
+        return parser(html, as_of=as_of)
+    return html_to_ingest(
+        html, iss.code, as_of=as_of, table=iss.table, force_unit=iss.force_unit
+    )
 
-        result = execute_recipes(html, iss.code, iss.recipes, as_of=as_of)
-        for f in result.findings:
-            print(
-                f"recipe {iss.code} {f.level} {f.recipe_id}: {f.detail}",
-                flush=True,
-            )
-        payload = result.sidecar
-    else:
-        payload = html_to_ingest(
-            html, iss.code, as_of=as_of, table=iss.table, force_unit=iss.force_unit
-        )
+
+def write_ingest(html_path: Path, html: str, iss: HtmlIssuer, as_of: str | None = None) -> None:
+    payload = ingest_payload(html, iss, as_of)
     atomic_write(ingest_path(html_path), dumps_ingest(payload).encode("utf-8"))
 
 
