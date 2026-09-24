@@ -1811,6 +1811,14 @@ def _assert_monthly_layout_js() -> None:
                 _el("戦略事業 取扱高(前年比)"),
             ],
         }],
+        "kyoshitsuTables": [{
+            "year": 2026,
+            "code": "65610",
+            "elements": [
+                _el("ホテル 客室収入", "number"),
+                _el("ホテル 客室収入(前年比)"),
+            ],
+        }],
         "renameYears": [
             {
                 "year": 2026,
@@ -2000,6 +2008,22 @@ console.log(JSON.stringify({
       leaf: r.leaf,
     };
   }),
+  kyoshitsuGate: [...sandbox.monthlySegmentGate(fixtures.kyoshitsuTables)].sort(),
+  kyoshitsuGated: sandbox.monthlyTableLayout(
+    sandbox.monthlyRowOrder(fixtures.kyoshitsuTables), fixtures.kyoshitsuTables,
+  ).gated,
+  kyoshitsuSummary: sandbox.monthlyTableLayout(
+    sandbox.monthlyRowOrder(fixtures.kyoshitsuTables), fixtures.kyoshitsuTables,
+  ).rows.map((r) => {
+    if (r.kind === "section") return { kind: "section", label: r.label };
+    return {
+      kind: "data",
+      element: r.element,
+      group: r.group,
+      scope: r.scope,
+      leaf: r.leaf,
+    };
+  }),
   renameGate: [...sandbox.monthlySegmentGate(renameYears)].sort(),
   renameGated: renameLayout.gated,
   renameSummary: renameLayout.rows.map((r) => {
@@ -2118,6 +2142,17 @@ console.log(JSON.stringify({
     ]
     if got.get("gmvSummary") != want_gmv:
         _fail(f"取扱高 gated layout: {got.get('gmvSummary')!r}")
+    if got.get("kyoshitsuGate") != ["ホテル"]:
+        _fail(f"客室収入 gate leftovers: {got.get('kyoshitsuGate')!r}")
+    if got.get("kyoshitsuGated") is not True:
+        _fail("客室収入 issuer must gate ホテル when metric is non-empty")
+    want_room = [
+        {"kind": "section", "label": "ホテル"},
+        {"kind": "data", "element": "ホテル 客室収入", "group": "ホテル", "scope": "", "leaf": "客室収入"},
+        {"kind": "data", "element": "ホテル 客室収入(前年比)", "group": "ホテル", "scope": "", "leaf": "客室収入(前年比)"},
+    ]
+    if got.get("kyoshitsuSummary") != want_room:
+        _fail(f"客室収入 gated layout: {got.get('kyoshitsuSummary')!r}")
     if got.get("areaCols") != 3:
         _fail(f"area 小枝 must not add a stub column: {got.get('areaCols')!r}")
     want_area = [
