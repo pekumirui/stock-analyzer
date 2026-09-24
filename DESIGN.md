@@ -200,14 +200,16 @@ IR 月次 HTML（`jobs/ir_monthly_html_r2.py`）:
 
 - `.html`（原本）と `.ingest.json`（派生。`POST /api/v1/tables/{code}/ingest` と同じ形）を隣に置く。自動 POST しない
 - DB 投入は別スクリプト `jobs/ir_monthly_html_ingest.py`。code ごとにファイル名日付が最新の `.ingest.json` を loopback へ POST する。year は送らない。sha256 が前回成功分と同じなら POST しない。cron は producer（10:20 / 16:20）の後（10:30 / 16:30）。ledger は dest/R2 ではなく `/var/log/app/html_ingest_ledger.json`
-- 対象は `config/ir_monthly.json` の html。セレクタは json（`table` / `follow_re` / `source=eir` / `parse` / `force_unit`）。9989 / 7522 / 7561 / 8179 は `jobs/html_issuers` の `parse`（`PARSERS`）。それ以外は `html_to_ingest`
+- 対象は `config/ir_monthly.json` の html。セレクタは json（`table` / `follow_re` / `source=eir` / `parse` / `force_unit`）。9989 / 7522 / 7561 / 8179 / 3148 / 8278 / 9946 / 9994 は `jobs/html_issuers` の `parse`（`PARSERS`）。それ以外は `html_to_ingest`
 - unit 判定の context は page 見出しに加え、当該 table 直上の section とページ内の `(単位：%)` / `単位:%` を含む。ページに単位表示が無く指数な銘柄だけ `force_unit: "yoy_index"` を json に書く。見出しに 増減比/伸び率 があれば `単位:%` より `yoy_pct` を優先（ツルハ・サガミ）。見出しが伸び率でもセルが符号なし100基準なら `force_unit`（3148 クリエイトSD）
 - 年度別ページは `follow_re` で最新年を辿る。画像・本文のみは `parse: false`（HTML は残し JSON は書かない）
 - E-IR は Pronexus JSONP の月次 item `text` を `.html` として保存する（sha256 はその HTML）
 - `as_of` は開示日。なければ表の最終値の年月（セルの年 or 表直前の期見出し / `YYYY年M月期` / `YYYY年度` / `YYYY年M月～YYYY年M月`）。取れなければ JSON は書かない
 - 複数年度のアーカイブは期が新しい表を優先。同じ期末なら最終値の新しい表を優先。12か月埋まっている表は最終値では選ばない
-- 同じページに `1店1日当り` と `全店売上` があるときは `全店売上` を選ぶ。その表では `売上高合計`（全店売上高前年比）だけ残し、CVS / 店内加工FF などの内訳行は落とす
-- やまやのように 既存店/全店/卸計が別表のときは 既存+全店をマージし、卸計は選ばない。`当 年`→`売上高`、`前 年` は落とす
+- ミニストップ (9946) は `jobs/html_issuers/i9946.py`。`全店売上` を選び、`売上高合計` だけ残す。`1店1日当り` と CVS / 店内加工FF は採らない
+- やまや (9994) は `jobs/html_issuers/i9994.py`。既存店と全店をマージし、卸計は選ばない。`当 年`→`売上高`、`前 年` は落とす。unit は `yoy_index`
+- フジ (8278) は `jobs/html_issuers/i8278.py`。改装の店舗面積リストは選ばず、営業速報に総店舗数だけ足す
+- クリエイトSD (3148) は `jobs/html_issuers/i3148.py`。見出しが伸び率でも `yoy_index`（json の `force_unit` は残す）
 - 1表に複数年が並ぶアーカイブ（大黒天物産）は同月の先勝ち（新しい方）。`YYYY年（令和N年）度` 年度帯は見出しに入れない
 - ページ見出しが売上の前年比でも、客数・客単価・店舗数・拠点数・営業所数・開店/閉店/出店/退店/開設/撤退の行には `売上高前年同月比` を足さない。店舗数・拠点数・出退店は件数なので unit も `number`
 - 数値の無い 既存店/全店 の帯行は、直後の指標行に付ける

@@ -1151,12 +1151,6 @@ def dumps_ingest(payload: dict) -> str:
 _PRE_MERGER_REF_RE = re.compile(r"経営統合前|統合前")
 _NUMBERED_NOTE_RE = re.compile(r"\d+\.[^。]*。")
 _PAREN_NOTE_RE = re.compile(r"（注）[^。]*。?")
-_ALL_STORE_SALES_HEAD_RE = re.compile(
-    r"全店売上(?:（％）|\(%\)|％|%)?(?=※|この表|$)"
-)
-_SCOPED_STORE_UNIT_HEAD_RE = re.compile(
-    r"(既存店|全店)(?=(?:・卸計)?(?:\(単位|（単位|単位|$))"
-)
 
 
 def _section_heading_tail(section_text: str, n: int = 160) -> str:
@@ -1173,18 +1167,11 @@ def _is_pre_merger_reference_section(section_text: str) -> bool:
 
 def _section_pick_rank(section_text: str) -> int:
     tail = _section_heading_tail(section_text)
-    if "卸計" in tail:
-        return -1
     if "（累計）" in tail or "(累計)" in tail:
         return -1
     if _is_pre_merger_reference_section(section_text):
         return -1
-    if _ALL_STORE_SALES_HEAD_RE.search(tail):
-        return 3
-    m = _SCOPED_STORE_UNIT_HEAD_RE.search(tail)
-    if m and m.group(1) == "全店":
-        return 2
-    if "1店1日" in tail or "一店一日" in tail or "拠点数" in tail or "店舗数" in tail:
+    if "拠点数" in tail or "店舗数" in tail:
         return 0
     return 1
 
