@@ -9,23 +9,25 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "jobs"))
 
+from html_monthly import (  # noqa: E402
+    decode_html_bytes,
+    dumps_ingest,
+    parse_as_of_text,
+    parse_month_cell,
+    parse_month_year,
+    parse_number,
+    parse_tables,
+)
 from ir_monthly_html_r2 import (  # noqa: E402
     HtmlIssuer,
     _sticky_section_fy,
-    decode_html_bytes,
-    dumps_ingest,
     eir_url,
     existing_html_hashes,
     fetch_issuer,
     html_to_ingest,
     ingest_path,
     load_html_registry,
-    parse_as_of_text,
     parse_eir_jsonp,
-    parse_month_cell,
-    parse_month_year,
-    parse_number,
-    parse_tables,
     pick_eir_monthly,
     pick_follow_url,
     reparse_issuer,

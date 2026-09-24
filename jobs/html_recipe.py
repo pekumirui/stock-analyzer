@@ -13,12 +13,11 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from ir_monthly_html_r2 import (  # noqa: E402
+from html_monthly import (  # noqa: E402
     _apply_force_unit,
     _detect_col_header,
     _drop_ytd_when_monthly_pair,
     _first_data_row,
-    display_code,
     drop_trailing_empty_months,
     heading_year_month,
     last_filled_month,
@@ -31,6 +30,7 @@ from ir_monthly_html_r2 import (  # noqa: E402
     table_section_texts,
     unit_mark_context,
 )
+from tdnet_monthly_r2 import display_code  # noqa: E402
 
 Unit = Literal["number", "yoy_index", "yoy_pct"]
 Role = Literal["primary", "companion"]
