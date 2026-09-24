@@ -18,9 +18,13 @@ from html_monthly import (  # noqa: E402
     parse_number,
     parse_tables,
 )
+from html_issuers.i3148 import parse as parse_3148  # noqa: E402
 from html_issuers.i7522 import parse as parse_7522  # noqa: E402
 from html_issuers.i7561 import parse as parse_7561  # noqa: E402
 from html_issuers.i8179 import parse as parse_8179  # noqa: E402
+from html_issuers.i8278 import parse as parse_8278  # noqa: E402
+from html_issuers.i9946 import parse as parse_9946  # noqa: E402
+from html_issuers.i9994 import parse as parse_9994  # noqa: E402
 from ir_monthly_html_r2 import (  # noqa: E402
     HtmlIssuer,
     _sticky_section_fy,
@@ -557,9 +561,7 @@ def test_create_sd_nobiritsu_force_yoy_index() -> None:
     iss = next(i for i in live if i.code == "3148")
     if iss.force_unit != "yoy_index":
         _fail(f"3148 force_unit {iss.force_unit}")
-    got = html_to_ingest(
-        CREATE_SD_NOBIRITSU_HTML, iss.code, table=iss.table, force_unit=iss.force_unit
-    )
+    got = parse_3148(CREATE_SD_NOBIRITSU_HTML)
     exist = _row(got, "既存店 Existing stores 単月 Monthly")
     if exist["unit"] != "yoy_index":
         _fail(f"3148 must emit yoy_index {exist}")
@@ -2404,7 +2406,7 @@ YAMAYA_HTML = """
 
 def test_fuji_skips_renovation_merges_total_stores() -> None:
     """改装の店舗面積リストを選ばず、営業速報+総店舗数を取る。"""
-    got = html_to_ingest(FUJI_HTML, "8278", table=None)
+    got = parse_8278(FUJI_HTML)
     labels = [r["element"] for r in got["rows"]]
     if any("店舗面積" in el for el in labels):
         _fail(f"renovation area must not win {labels}")
@@ -2423,7 +2425,7 @@ def test_fuji_skips_renovation_merges_total_stores() -> None:
 
 def test_yamaya_scopes_skip_prior_and_wholesale() -> None:
     """やまや: 既存+全店をマージ。当年→売上高、前年・累計・卸計は落とす。"""
-    got = html_to_ingest(YAMAYA_HTML, "9994", table=None, force_unit="yoy_index")
+    got = parse_9994(YAMAYA_HTML)
     if got["months"] != [4, 5, 6, 7]:
         _fail(f"yamaya months {got['months']}")
     labels = [(r["element"], r["unit"]) for r in got["rows"]]
@@ -2487,7 +2489,7 @@ def test_daikokuten_drops_nendo_keeps_newest_month() -> None:
 
 def test_ministop_genzai_as_of() -> None:
     """1店1日当りより全店売上を選び、売上高合計だけ残す。"""
-    got = html_to_ingest(MINISTOP_HTML, "9946", table=None)
+    got = parse_9946(MINISTOP_HTML)
     if got["as_of"] != "2026-08-31":
         _fail(f"ministop as_of {got['as_of']}")
     if got["months"] != [3, 4, 5, 6, 7, 8]:
@@ -2824,7 +2826,7 @@ def test_brand_issuers_reject_foreign_page_without_sidecar() -> None:
     live = {i.code: i for i in load_html_registry(ROOT / "config" / "ir_monthly.json")}
     with tempfile.TemporaryDirectory() as d:
         tmp = Path(d)
-        for code in ("7522", "7561", "8179"):
+        for code in ("3148", "7522", "7561", "8179", "8278", "9946", "9994"):
             fresh = tmp / f"{code}_fresh.html"
             fresh.write_text(foreign, encoding="utf-8")
             try:

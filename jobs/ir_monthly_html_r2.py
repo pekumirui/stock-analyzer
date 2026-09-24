@@ -7,7 +7,7 @@
   python jobs/ir_monthly_html_r2.py --reparse
 
 対象は config/ir_monthly.json の html。セレクタは json。
-9989 / 7522 / 7561 / 8179 は jobs/html_issuers。それ以外は html_to_ingest。
+9989 / 7522 / 7561 / 8179 / 3148 / 8278 / 9946 / 9994 は jobs/html_issuers。それ以外は html_to_ingest。
 原本は .html、派生が .ingest.json。自動 POST しない。パーサーを直したら --reparse。
 ネットワークと app/ はテストから分離する。
 """
@@ -18,7 +18,6 @@ import json
 import re
 import sys
 import time
-import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
@@ -122,89 +121,6 @@ def _is_count_only_parsed(parsed: dict) -> bool:
     )
 
 
-_SCOPED_STORE_UNIT_HEAD_RE = re.compile(
-    r"(既存店|全店)(?=(?:・卸計)?(?:\(単位|（単位|単位|$))"
-)
-# Royal form: （既存店前年比）. Scope is inside the parens.
-# 既存店売上（前年同月比） (ROYAL_TRAILING_UNIT_HTML) must not match.
-_SCOPED_STORE_YOY_HEAD_RE = re.compile(
-    r"[（(](既存店|全店)[^）)]*前年(?:同月)?比[）)]"
-)
-_SCOPE_METRICS = frozenset({"売上高", "来客数", "客数", "客単価"})
-
-
-def _section_tail(section_text: str, n: int = 160) -> str:
-    s = unicodedata.normalize("NFKC", section_text or "")
-    s = re.sub(r"\s+", "", s)
-    return s[-n:] if len(s) > n else s
-
-
-@dataclass(frozen=True)
-class Section:
-    """表直前の見出し帯。スコープ（既存店/全店）だけ。事業接頭辞は html_issuers。"""
-
-    segment: str | None
-    scope: str | None
-
-
-def _store_scope_from_section(section_text: str) -> str | None:
-    """表直前の見出し帯だけ（やまやの「既存店 (単位:…)」、Royal の「（既存店前年比）」）。卸計は対象外。"""
-    tail = _section_tail(section_text, 80)
-    if "卸計" in tail:
-        return None
-    m = _SCOPED_STORE_UNIT_HEAD_RE.search(tail) or _SCOPED_STORE_YOY_HEAD_RE.search(tail)
-    if not m:
-        return None
-    return "既存店" if m.group(1) == "既存店" else "全店"
-
-
-def _rows_need_store_scope(rows: list[dict]) -> bool:
-    """裸のスコープ層指標（売上高/来客数/客数/客単価）だけスコープを付ける。"""
-    if not rows:
-        return False
-    for row in rows:
-        el = str(row.get("element") or "").strip()
-        compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", el))
-        if compact not in _SCOPE_METRICS:
-            return False
-        if "既存" in el or "全店" in el:
-            return False
-    return True
-
-
-def _apply_store_scope(rows: list[dict], scope: str) -> None:
-    """見出しの既存/全店を行名に付ける。"""
-    for row in rows:
-        el = str(row.get("element") or "").strip()
-        if not el:
-            continue
-        if scope in el or ("既存" in scope and "既存" in el) or (scope == "全店" and "全店" in el):
-            continue
-        row["element"] = f"{scope} {el}".strip()
-
-
-def _prefer_section_candidates(
-    candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
-    sections: list[str],
-) -> list[tuple[int, list[list[str]], dict, tuple[int, int] | None]]:
-    if not candidates:
-        return candidates
-    ranks = [
-        _section_pick_rank(sections[i] if i < len(sections) else "")
-        for i, _g, _p, _fy in candidates
-    ]
-    best = max(ranks)
-    return [c for c, r in zip(candidates, ranks) if r == best]
-
-
-def _drop_all_store_sales_breakdowns(rows: list[dict], section_text: str) -> list[dict]:
-    """全店売上セクションで売上高合計があるときだけ、内訳行（CVS/FF）を落とす。"""
-    if "全店売上" not in _section_tail(section_text):
-        return rows
-    totals = [r for r in rows if "売上高合計" in str(r.get("element") or "")]
-    return totals or rows
-
-
 def _merge_companion_total_stores(
     primary: dict,
     candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
@@ -229,42 +145,18 @@ def _merge_companion_total_stores(
             have.add(el)
 
 
-def _merge_companion_store_scopes(
-    primary: dict,
+def _prefer_section_candidates(
     candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
-    sections: list[Section],
-    *,
-    primary_index: int,
-) -> None:
-    """同月軸の 既存店/全店 表を足す（やまや。卸計は入れない）。"""
-    primary_months = list(primary.get("months") or [])
-    have = {
-        (str(r.get("element") or ""), r.get("unit"))
-        for r in primary.get("rows") or []
-    }
-    for idx, _grid, other, _fy in candidates:
-        if idx == primary_index or _is_store_event_parsed(other):
-            continue
-        if list(other.get("months") or []) != primary_months:
-            continue
-        scope = sections[idx].scope if idx < len(sections) else None
-        if scope is None or not _rows_need_store_scope(other.get("rows") or []):
-            continue
-        for row in other.get("rows") or []:
-            merged = dict(row)
-            _apply_store_scope([merged], scope)
-            el = str(merged.get("element") or "")
-            key = (el, merged.get("unit"))
-            if not el or key in have:
-                continue
-            primary.setdefault("rows", []).append(merged)
-            have.add(key)
-
-
-def _sticky_sections(section_texts: list[str]) -> list[Section]:
-    """各表の見出し帯から既存店/全店だけ取る。事業接頭辞は html_issuers。"""
-    return [Section(None, _store_scope_from_section(text)) for text in section_texts]
-
+    sections: list[str],
+) -> list[tuple[int, list[list[str]], dict, tuple[int, int] | None]]:
+    if not candidates:
+        return candidates
+    ranks = [
+        _section_pick_rank(sections[i] if i < len(sections) else "")
+        for i, _g, _p, _fy in candidates
+    ]
+    best = max(ranks)
+    return [c for c, r in zip(candidates, ranks) if r == best]
 
 
 def html_to_ingest(
@@ -313,23 +205,16 @@ def html_to_ingest(
         raise ValueError(last_err or "no monthly rows")
     monthly_cands = [c for c in candidates if not _is_store_event_parsed(c[2])]
     sales_cands = [c for c in monthly_cands if not _is_count_only_parsed(c[2])]
-    pick_pool = sales_cands or monthly_cands or candidates
-    sections = _sticky_sections(section_texts)
-    pick_pool = _prefer_section_candidates(pick_pool, section_texts)
+    pick_pool = _prefer_section_candidates(
+        sales_cands or monthly_cands or candidates, section_texts
+    )
     table_index, grid_used, parsed, section_fy = max(
         pick_pool,
         key=lambda it: _parsed_score(
             html, it[1], it[2], table_index=it[0], section_fy=it[3]
         ),
     )
-    section_text = section_texts[table_index] if table_index < len(section_texts) else ""
-    scope = sections[table_index].scope if table_index < len(sections) else None
-    if scope and _rows_need_store_scope(parsed["rows"]):
-        _apply_store_scope(parsed["rows"], scope)
     _merge_companion_total_stores(parsed, candidates, primary_index=table_index)
-    _merge_companion_store_scopes(
-        parsed, candidates, sections, primary_index=table_index
-    )
     as_of_s = resolve_as_of(
         html,
         grid_used,
@@ -340,7 +225,6 @@ def html_to_ingest(
     )
     _apply_force_unit(parsed["rows"], force_unit)
     parsed["rows"] = _drop_ytd_when_monthly_pair(parsed["rows"])
-    parsed["rows"] = _drop_all_store_sales_breakdowns(parsed["rows"], section_text)
     months = drop_trailing_empty_months(list(parsed.get("months") or []), parsed["rows"])
     return {
         "code": display_code(code),
