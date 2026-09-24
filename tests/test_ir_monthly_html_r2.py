@@ -18,6 +18,9 @@ from html_monthly import (  # noqa: E402
     parse_number,
     parse_tables,
 )
+from html_issuers.i7522 import parse as parse_7522  # noqa: E402
+from html_issuers.i7561 import parse as parse_7561  # noqa: E402
+from html_issuers.i8179 import parse as parse_8179  # noqa: E402
 from ir_monthly_html_r2 import (  # noqa: E402
     HtmlIssuer,
     _sticky_section_fy,
@@ -32,6 +35,7 @@ from ir_monthly_html_r2 import (  # noqa: E402
     pick_follow_url,
     reparse_issuer,
     run,
+    write_ingest,
 )
 from ir_monthly_r2 import dest_filename, dest_path, looks_like_file  # noqa: E402
 
@@ -510,7 +514,7 @@ def test_section_unit_percent_is_yoy_index() -> None:
 
 
 def test_trailing_unit_percent_is_yoy_index() -> None:
-    got = html_to_ingest(ROYAL_TRAILING_UNIT_HTML, "8179")
+    got = parse_8179(ROYAL_TRAILING_UNIT_HTML)
     row = _row(got, "既存店 売上高前年同月比")
     if row["unit"] != "yoy_index":
         _fail(f"trailing 単位:% must be yoy_index {row}")
@@ -771,7 +775,7 @@ def test_yoy_context_does_not_rename_guest_metrics() -> None:
     </table>
     </body></html>
     """
-    got = html_to_ingest(html, "8179", table=None)
+    got = parse_8179(html)
     labels = [r["element"] for r in got["rows"]]
     if any("売上高前年同月比" in el for el in labels if "来客" in el or "客単" in el):
         _fail(f"guest metric leaked sales yoy {labels}")
@@ -780,7 +784,7 @@ def test_yoy_context_does_not_rename_guest_metrics() -> None:
 
 
 def test_royal_two_brands_union_halves_and_keep_existing_scope() -> None:
-    got = html_to_ingest(ROYAL_DUAL_BRAND_HTML, "8179", table=None)
+    got = parse_8179(ROYAL_DUAL_BRAND_HTML)
     if got["as_of"] != "2026-08-31":
         _fail(f"royal as_of {got['as_of']}")
     if 1 not in got["months"] or 8 not in got["months"]:
@@ -891,7 +895,7 @@ def test_same_fy_prefers_last_quarter_over_prior() -> None:
     </table>
     </body></html>
     """
-    got = html_to_ingest(html, "7522", table=None)
+    got = parse_7522(html)
     if got["as_of"] != "2026-03-31":
         _fail(f"last quarter as_of {got['as_of']}")
     if got["months"] != [1, 2, 3]:
@@ -1563,7 +1567,7 @@ def test_year_dot_month_and_skip_quarter() -> None:
         _fail("YY.MM full cell")
     if parse_month_cell("2026.03.01") is not None:
         _fail("date range is not a month")
-    got = html_to_ingest(WATAMI_HTML, "7522")
+    got = parse_7522(WATAMI_HTML)
     if got["months"] != [1, 2, 3]:
         _fail(f"watami months {got['months']}")
     sales = _row(got, "全店 (全業態) 売上高（%）")
@@ -1574,7 +1578,7 @@ def test_year_dot_month_and_skip_quarter() -> None:
 
 
 def test_watami_kyoten_count_is_number() -> None:
-    got = html_to_ingest(WATAMI_KYOTEN_HTML, "7522", table=None)
+    got = parse_7522(WATAMI_KYOTEN_HTML)
     meals = _row(got, "宅食 調理済み商品お届け数(※)（千食）", unit="number")
     if meals["unit"] != "number":
         _fail(f"お届け数 unit {meals}")
@@ -1616,7 +1620,7 @@ def test_watami_prefers_sales_over_kyoten() -> None:
     </table>
     </body></html>
     """
-    got = html_to_ingest(html, "7522", table=None)
+    got = parse_7522(html)
     sales = _row(got, "全店合計 売上高前年比（%）")
     if sales["unit"] != "yoy_index" or sales["values"].get("1") != 104:
         _fail(f"picked kyoten {got['rows']}")
@@ -1634,7 +1638,7 @@ def _watami_stored(element: str, unit: str, *, year: int = 2026) -> str:
 
 
 def test_watami_sections_prefix_and_count_units() -> None:
-    got = html_to_ingest(WATAMI_SECTIONS_HTML, "7522", table=None)
+    got = parse_7522(WATAMI_SECTIONS_HTML)
     if got["as_of"] != "2026-08-31":
         _fail(f"watami sections as_of {got['as_of']}")
     if got["months"] != [1, 4, 7, 8]:
@@ -1693,7 +1697,7 @@ def test_watami_sections_prefix_and_count_units() -> None:
 
 
 def test_watami_quarter_banner_keeps_sales_labels() -> None:
-    got = html_to_ingest(WATAMI_QUARTER_BANNER_HTML, "7522", table=None)
+    got = parse_7522(WATAMI_QUARTER_BANNER_HTML)
     sales = _row(got, "全店 (全業態) 売上高（%）")
     if sales["unit"] != "yoy_index" or sales["values"] != {"7": 110.4, "8": 104.9}:
         _fail(f"quarter banner dropped 全店 sales {sales}")
@@ -1712,7 +1716,7 @@ def test_watami_quarter_banner_keeps_sales_labels() -> None:
 
 
 def test_hurxley_dual_brand_prefixes_and_count_units() -> None:
-    got = html_to_ingest(HURXLEY_SECTIONS_HTML, "7561", table=None)
+    got = parse_7561(HURXLEY_SECTIONS_HTML)
     if got["as_of"] != "2026-08-31":
         _fail(f"hurxley as_of {got['as_of']}")
     if got["months"] != [4, 5, 6, 7, 8]:
@@ -1861,7 +1865,7 @@ def test_watami_canonicalize_aliases() -> None:
 
 
 def test_watami_nav_does_not_prefix_domestic_or_mix_years() -> None:
-    got = html_to_ingest(WATAMI_NAV_PERIOD_HTML, "7522", table=None)
+    got = parse_7522(WATAMI_NAV_PERIOD_HTML)
     if got["as_of"] != "2025-03-31":
         _fail(f"nav as_of {got['as_of']}")
     exist = _row(got, "既存店 売上高前年比（%）")
@@ -1884,7 +1888,7 @@ def test_watami_nav_does_not_prefix_domestic_or_mix_years() -> None:
 
 
 def test_watami_fy2024_bare_names_alias_to_subway_excluded() -> None:
-    got = html_to_ingest(WATAMI_FY2024_HTML, "7522", table=None)
+    got = parse_7522(WATAMI_FY2024_HTML)
     exist = _row(got, "既存店 売上高前年比（%）")
     if exist["values"] != {"1": 109.2, "2": 103.9, "3": 105.3}:
         _fail(f"fy2024 exist {exist}")
@@ -2800,6 +2804,51 @@ def test_nsd_monthly_keeps_current_fy_not_prior_complete() -> None:
         _fail(f"nsd as_of {got['as_of']}")
 
 
+def test_brand_issuers_reject_foreign_page_without_sidecar() -> None:
+    import tempfile
+
+    foreign = """
+    <html><body>
+    <h2>グループ合計</h2>
+    <table>
+    <tr><th>グループ合計</th><th>4月</th><th>5月</th><th>6月</th></tr>
+    <tr><td>全店 売上高</td><td>1.0%</td><td>2.0%</td><td>3.0%</td></tr>
+    </table>
+    <h2>ドラッグストア事業</h2>
+    <table>
+    <tr><th>ドラッグストア事業</th><th>4月</th><th>5月</th><th>6月</th></tr>
+    <tr><td>全店 売上高</td><td>4.0%</td><td>5.0%</td><td>6.0%</td></tr>
+    </table>
+    </body></html>
+    """
+    live = {i.code: i for i in load_html_registry(ROOT / "config" / "ir_monthly.json")}
+    with tempfile.TemporaryDirectory() as d:
+        tmp = Path(d)
+        for code in ("7522", "7561", "8179"):
+            fresh = tmp / f"{code}_fresh.html"
+            fresh.write_text(foreign, encoding="utf-8")
+            try:
+                write_ingest(fresh, foreign, live[code])
+            except ValueError:
+                pass
+            else:
+                _fail(f"{code} foreign page should raise")
+            if ingest_path(fresh).exists():
+                _fail(f"{code} wrote a sidecar")
+            kept = tmp / f"{code}_kept.html"
+            kept.write_text(foreign, encoding="utf-8")
+            prior = ingest_path(kept)
+            prior.write_text('{"kept": true}\n', encoding="utf-8")
+            try:
+                write_ingest(kept, foreign, live[code])
+            except ValueError:
+                pass
+            else:
+                _fail(f"{code} foreign page should raise")
+            if prior.read_text(encoding="utf-8") != '{"kept": true}\n':
+                _fail(f"{code} removed an existing sidecar")
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -2835,6 +2884,7 @@ def main() -> None:
     test_watami_canonicalize_aliases()
     test_watami_nav_does_not_prefix_domestic_or_mix_years()
     test_watami_fy2024_bare_names_alias_to_subway_excluded()
+    test_brand_issuers_reject_foreign_page_without_sidecar()
     test_nendo_and_fullwidth_fy_as_of()
     test_sagami_zougenhi_is_yoy_pct()
     test_skip_span_total_column()

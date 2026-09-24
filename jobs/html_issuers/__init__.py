@@ -1,0 +1,16 @@
+"""銘柄固定の HTML 月次パーサ。PARSERS にある code は html_to_ingest に回さない。"""
+from __future__ import annotations
+
+from collections.abc import Callable
+
+from html_issuers.i7522 import parse as parse_7522
+from html_issuers.i7561 import parse as parse_7561
+from html_issuers.i8179 import parse as parse_8179
+from html_issuers.i9989 import parse as parse_9989
+
+PARSERS: dict[str, Callable] = {
+    "7522": parse_7522,
+    "7561": parse_7561,
+    "8179": parse_8179,
+    "9989": parse_9989,
+}

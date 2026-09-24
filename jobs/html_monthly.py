@@ -1146,3 +1146,97 @@ def _apply_force_unit(rows: list[dict], force_unit: str | None) -> None:
 
 def dumps_ingest(payload: dict) -> str:
     return json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+
+
+_PRE_MERGER_REF_RE = re.compile(r"経営統合前|統合前")
+_NUMBERED_NOTE_RE = re.compile(r"\d+\.[^。]*。")
+_PAREN_NOTE_RE = re.compile(r"（注）[^。]*。?")
+_ALL_STORE_SALES_HEAD_RE = re.compile(
+    r"全店売上(?:（％）|\(%\)|％|%)?(?=※|この表|$)"
+)
+_SCOPED_STORE_UNIT_HEAD_RE = re.compile(
+    r"(既存店|全店)(?=(?:・卸計)?(?:\(単位|（単位|単位|$))"
+)
+
+
+def _section_heading_tail(section_text: str, n: int = 160) -> str:
+    s = unicodedata.normalize("NFKC", section_text or "")
+    s = re.sub(r"\s+", "", s)
+    s = _NUMBERED_NOTE_RE.sub("", s)
+    s = _PAREN_NOTE_RE.sub("", s)
+    return s[-n:] if len(s) > n else s
+
+
+def _is_pre_merger_reference_section(section_text: str) -> bool:
+    return _PRE_MERGER_REF_RE.search(_section_heading_tail(section_text)) is not None
+
+
+def _section_pick_rank(section_text: str) -> int:
+    tail = _section_heading_tail(section_text)
+    if "卸計" in tail:
+        return -1
+    if "（累計）" in tail or "(累計)" in tail:
+        return -1
+    if _is_pre_merger_reference_section(section_text):
+        return -1
+    if _ALL_STORE_SALES_HEAD_RE.search(tail):
+        return 3
+    m = _SCOPED_STORE_UNIT_HEAD_RE.search(tail)
+    if m and m.group(1) == "全店":
+        return 2
+    if "1店1日" in tail or "一店一日" in tail or "拠点数" in tail or "店舗数" in tail:
+        return 0
+    return 1
+
+
+def _sticky_section_fy(section_texts: list[str]) -> list[tuple[int, int] | None]:
+    """単月表は直前の `YYYY年M月期` を引き継ぐ。年セレクトに複数期があるときは新しい方。"""
+    out: list[tuple[int, int] | None] = []
+    prev: tuple[int, int] | None = None
+    for text in section_texts:
+        found = _fy_captions(text)
+        if not found:
+            out.append(prev)
+            continue
+        years = {y for y, _m in found}
+        cur = max(found) if len(years) > 1 else found[-1]
+        prev = cur
+        out.append(cur)
+    return out
+
+
+def _parsed_score(
+    html: str,
+    grid: list[list[str]],
+    parsed: dict,
+    *,
+    table_index: int = 0,
+    section_fy: tuple[int, int] | None = None,
+) -> tuple[int, int, int, int, int, int]:
+    """期が新しい表を優先。同点なら最終値の新しい表（期末まで埋まった表は除く）。"""
+    months = parsed.get("months")
+    last_m = last_filled_month(parsed["rows"], months)
+    derived = as_of_from_table(grid, html, parsed["rows"], months, section_fy)
+    # 見出しの無い表はページ全体の年度ナビを見ない（ワタミ後続表が翌年度になる）
+    if section_fy is not None:
+        fy = section_fy
+    elif derived:
+        d = date.fromisoformat(derived)
+        fy = (d.year, d.month)
+    else:
+        fy = pick_fy_end(grid, html, months)
+    fy_y, fy_m = fy if fy is not None else (0, 0)
+    filled_n = max(
+        (
+            sum(1 for v in (r.get("values") or {}).values() if v is not None)
+            for r in parsed["rows"]
+        ),
+        default=0,
+    )
+    complete = last_m is not None and fy_m != 0 and last_m == fy_m and filled_n >= 12
+    as_key = 0
+    if derived and not complete:
+        as_key = date.fromisoformat(derived).toordinal()
+    n_yoy = sum(1 for r in parsed["rows"] if r.get("unit") != "number")
+    n_val = sum(len(r.get("values") or {}) for r in parsed["rows"])
+    return (fy_y, fy_m, as_key, -table_index, n_yoy, n_val)
