@@ -106,6 +106,10 @@ def test_series_kind() -> None:
         _fail("unlabeled yoy 客単価 is all_store")
     if monthly_series_kind("取扱高(前年比)", "yoy_index") is not None:
         _fail("取扱高 yoy is not a series")
+    if monthly_series_kind("客室収入(前年比)", "yoy_index") is not None:
+        _fail("客室収入 yoy is not a series")
+    if monthly_series_kind("ホテル 客室収入(前年比)", "yoy_index") is not None:
+        _fail("ホテル 客室収入 yoy is not a series")
     if monthly_series_kind("全店 売上高 ドラッグ(前年比)", "yoy_index") is not None:
         _fail("売上高 内訳 is not all_store")
     if monthly_series_kind("MKG 全店 売上高 調剤(前年比)", "yoy_index") is not None:

@@ -398,6 +398,21 @@ def test_canonicalize_element_label() -> None:
         _fail(f"parse 取扱高 layers: {gmv!r}")
     if monthly_row_segment("CPAソリューション事業 取扱高") != "CPAソリューション事業":
         _fail("gate leftover peels 取扱高")
+    if canonicalize_element_label("ホテル 客室収入", "number") != "ホテル 客室収入":
+        _fail("客室収入 is a metric, no 全店 fill")
+    if canonicalize_element_label("ホテル客室収入", "number") != "ホテル 客室収入":
+        _fail("unglue 客室収入")
+    if canonicalize_element_label("ホテル 客室収入(前年比)", "yoy_index") != "ホテル 客室収入(前年比)":
+        _fail("客室収入 yoy keeps leftover")
+    if canonicalize_element_label("客室収入", "number") != "客室収入":
+        _fail("bare 客室収入 stays metric without 全店")
+    room = parse_element_layers("ホテル 客室収入")
+    if room["segment"] != "ホテル" or room["metric"] != "客室収入" or room["scope"]:
+        _fail(f"parse 客室収入 layers: {room!r}")
+    if monthly_row_segment("ホテル 客室収入") != "ホテル":
+        _fail("gate leftover peels 客室収入")
+    if monthly_row_segment("ホテル 客室収入(前年比)") != "ホテル":
+        _fail("gate leftover peels 客室収入 yoy")
     if canonicalize_element_label("ASKUL事業 購入お客様 客単価(前年比)", "yoy_index") != "ASKUL事業 客単価(前年比)":
         _fail("購入お客様 drops, 客単価 stays unlabeled")
     if canonicalize_element_label("ASKUL事業 購入お客様 全店 客単価(前年比)", "yoy_index") != "ASKUL事業 全店 客単価(前年比)":
@@ -2005,6 +2020,33 @@ def test_monthly_element_label() -> None:
     bare_gmv = monthly_element_label("取扱高", "number")
     if bare_gmv["group"] or bare_gmv["metric"] != "取扱高" or bare_gmv["scope"]:
         _fail(f"bare 取扱高 label: {bare_gmv!r}")
+    room = monthly_element_label("ホテル 客室収入", "number")
+    want_room = {
+        "display": "ホテル 客室収入",
+        "group": "ホテル",
+        "metric_kind": "other",
+        "series_kind": None,
+        "country": "",
+        "segment": "ホテル",
+        "time_axis": "",
+        "channel": "",
+        "scope": "",
+        "metric": "客室収入",
+        "breakdown": "",
+        "breakdown_depth": 0,
+    }
+    if room != want_room:
+        _fail(f"客室収入 label: {room!r}")
+    room_yoy = monthly_element_label("ホテル 客室収入(前年比)", "yoy_index")
+    if (
+        room_yoy["group"] != "ホテル"
+        or room_yoy["metric"] != "客室収入"
+        or room_yoy["scope"]
+        or room_yoy["metric_kind"] != "other"
+        or room_yoy["series_kind"] is not None
+        or room_yoy["display"] != "ホテル 客室収入(前年比)"
+    ):
+        _fail(f"客室収入 yoy label: {room_yoy!r}")
     kado_yoy = monthly_element_label("ASKUL事業 稼働日修正後(前年比)", "yoy_index")
     if (
         kado_yoy["group"] != "ASKUL事業"
