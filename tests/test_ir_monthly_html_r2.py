@@ -461,6 +461,43 @@ FORCE_UNIT_HTML = """
 """
 
 
+KOBEBUSSAN_HALF_HTML = """
+<html><body>
+<h4>単体月次業績<span>（単位：百万円）</span></h4>
+<p>2026年10月期</p>
+<table>
+<tr><td></td><td>11月</td><td>12月</td><td>1月</td><td>2月</td><td>3月</td><td>4月</td><td>上期</td></tr>
+<tr><td>売上高</td><td>47,188</td><td>52,864</td><td>43,146</td><td>44,805</td><td>49,071</td><td>52,403</td><td>289,480</td></tr>
+<tr><td>前年比</td><td>106.9</td><td>106.5</td><td>107.7</td><td>105.3</td><td>102.9</td><td>102.3</td><td>105.2</td></tr>
+<tr><td></td><td>5月</td><td>6月</td><td>7月</td><td>8月</td><td>9月</td><td>10月</td><td>下期</td></tr>
+<tr><td>売上高</td><td>49,860</td><td>47,520</td><td>50,636</td><td>48,242</td><td></td><td></td><td></td></tr>
+<tr><td>前年比</td><td>103.0</td><td>105.4</td><td>107.6</td><td>105.9</td><td></td><td></td><td></td></tr>
+</table>
+</body></html>
+"""
+
+
+def test_kobebussan_second_half_stays_on_sales() -> None:
+    """1表の下期見出しを別の月にする。全店は付けない。"""
+    got = html_to_ingest(KOBEBUSSAN_HALF_HTML, "3038", table=None)
+    if got["months"] != [11, 12, 1, 2, 3, 4, 5, 6, 7, 8]:
+        _fail(f"months {got['months']}")
+    if got["as_of"] != "2026-08-31":
+        _fail(f"as_of {got['as_of']}")
+    sales = _row(got, "売上高", unit="number")
+    yoy = _row(got, "売上高", unit="yoy_index")
+    if sales["values"].get("4") != 52403 or sales["values"].get("5") != 49860:
+        _fail(f"sales {sales}")
+    if sales["values"].get("8") != 48242 or "9" in sales["values"]:
+        _fail(f"aug/sep {sales}")
+    if yoy["values"].get("11") != 106.9 or yoy["values"].get("5") != 103.0:
+        _fail(f"yoy {yoy}")
+    if any("全店" in r["element"] for r in got["rows"]):
+        _fail(f"scoped {got['rows']}")
+    if sales["values"].get("11") == 49860:
+        _fail(f"second half overwrote Nov {sales}")
+
+
 def test_section_unit_percent_is_yoy_index() -> None:
     got = html_to_ingest(ROCKFIELD_SECTION_UNIT_HTML, "2910")
     row = _row(got, "RF1 売上高前年同月比")
@@ -2772,6 +2809,7 @@ def main() -> None:
     test_eir_jsonp_picks_latest_monthly()
     test_decode_shift_jis()
     test_dest_html_and_ingest_sidecar()
+    test_kobebussan_second_half_stays_on_sales()
     test_section_unit_percent_is_yoy_index()
     test_trailing_unit_percent_is_yoy_index()
     test_force_unit_overrides_yoy_keeps_number()

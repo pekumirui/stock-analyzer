@@ -1503,9 +1503,25 @@ def _label_band_end(header: list[str], month_start: int) -> int:
     return month_start
 
 
+def _month_header_cols(row: list[str]) -> list[tuple[int, int]] | None:
+    """月見出し行。上期/下期は無視し、ラベルや数値が混ざったら見出しではない。"""
+    month_cols: list[tuple[int, int]] = []
+    for c, cell in enumerate(row):
+        text = str(cell).strip()
+        if not text or _is_skip_axis(text):
+            continue
+        month = parse_month_cell(text)
+        if month is None:
+            return None
+        month_cols.append((c, month))
+    if len(month_cols) < 3:
+        return None
+    return month_cols
+
+
 def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dict | None:
     header = grid[header_i]
-    month_cols: list[tuple[int, int]] = []
+    month_cols = []
     for c, cell in enumerate(header):
         if _is_skip_axis(cell):
             continue
@@ -1514,12 +1530,25 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
             month_cols.append((c, m))
     if not month_cols:
         return None
-    months = [m for _c, m in month_cols]
+    months: list[int] = []
+    seen_months: set[int] = set()
+    for _c, month in month_cols:
+        if month not in seen_months:
+            seen_months.add(month)
+            months.append(month)
     month_start = min(c for c, _m in month_cols)
     label_end = _label_band_end(header, month_start)
     series: dict[tuple[str, str], dict[str, int | float]] = {}
     scope = ""
     for row in grid[header_i + 1 :]:
+        nxt = _month_header_cols(row)
+        if nxt is not None:
+            month_cols = nxt
+            for _c, month in month_cols:
+                if month not in seen_months:
+                    seen_months.add(month)
+                    months.append(month)
+            continue
         band = _repeated_scope_row(row)
         if band is not None:
             scope = band
