@@ -620,6 +620,57 @@ def _drop_all_store_sales_breakdowns(rows: list[dict], section_text: str) -> lis
     return totals or rows
 
 
+def _is_purchase_section(section_text: str) -> bool:
+    """表直前が見出し「…仕入れ前年対比」。脚注の商品出荷は見ない。"""
+    tail = _section_tail(section_text, 48)
+    return tail.endswith("仕入れ前年対比") or tail.endswith("仕入れ前年同月比")
+
+
+def _insert_purchase_label(element: str) -> str:
+    """エリアの直後、スコープの前に仕入れを置く。"""
+    el = str(element or "").strip()
+    if not el or "仕入れ" in el:
+        return el
+    parts = el.split()
+    for i, tok in enumerate(parts):
+        if "既存" in tok or "全店" in tok:
+            parts.insert(i, "仕入れ")
+            return " ".join(parts)
+    return f"{el} 仕入れ"
+
+
+def _merge_companion_purchases(
+    primary: dict,
+    candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
+    section_texts: list[str],
+    *,
+    primary_index: int,
+) -> None:
+    """仕入れ前年対比の表を足す。セグメントは仕入れ。"""
+    primary_months = list(primary.get("months") or [])
+    have = {
+        (str(r.get("element") or ""), r.get("unit"))
+        for r in primary.get("rows") or []
+    }
+    for idx, _grid, other, _fy in candidates:
+        if idx == primary_index or _is_store_event_parsed(other):
+            continue
+        if list(other.get("months") or []) != primary_months:
+            continue
+        text = section_texts[idx] if idx < len(section_texts) else ""
+        if not _is_purchase_section(text):
+            continue
+        for row in other.get("rows") or []:
+            merged = dict(row)
+            merged["element"] = _insert_purchase_label(str(merged.get("element") or ""))
+            el = str(merged.get("element") or "")
+            key = (el, merged.get("unit"))
+            if not el or key in have:
+                continue
+            primary.setdefault("rows", []).append(merged)
+            have.add(key)
+
+
 def _merge_companion_total_stores(
     primary: dict,
     candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
@@ -1801,6 +1852,9 @@ def html_to_ingest(
     if scope and _rows_need_store_scope(parsed["rows"]):
         _apply_store_scope(parsed["rows"], scope)
     _merge_companion_total_stores(parsed, candidates, primary_index=table_index)
+    _merge_companion_purchases(
+        parsed, candidates, section_texts, primary_index=table_index
+    )
     _merge_companion_store_scopes(
         parsed, candidates, sections, primary_index=table_index
     )
