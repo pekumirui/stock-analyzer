@@ -467,6 +467,8 @@ _SCOPED_STORE_UNIT_HEAD_RE = re.compile(
 _SCOPED_STORE_YOY_HEAD_RE = re.compile(
     r"[（(](既存店|全店)[^）)]*前年(?:同月)?比[）)]"
 )
+# ロック・フィールド: h3「既存店売上」「全店売上」。売上高 は列名なので除外。
+_SCOPED_SALES_HEAD_RE = re.compile(r"(既存店|全店)売上(?!高)")
 _SCOPE_METRICS = frozenset({"売上高", "来客数", "客数", "客単価"})
 
 
@@ -543,15 +545,27 @@ def _section_pick_rank(section_text: str, segment: str | None = None) -> int:
     return 1
 
 
+def _scope_word(raw: str) -> str:
+    return "既存店" if raw == "既存店" else "全店"
+
+
 def _store_scope_from_section(section_text: str) -> str | None:
-    """表直前の見出し帯だけ（やまやの「既存店 (単位:…)」、Royal の「（既存店前年比）」）。卸計は対象外。"""
+    """表直前の見出し帯だけ（やまやの「既存店 (単位:…)」、Royal の「（既存店前年比）」、ロックの「既存店売上」）。卸計は対象外。"""
     tail = _section_tail(section_text, 80)
     if "卸計" in tail:
         return None
-    m = _SCOPED_STORE_UNIT_HEAD_RE.search(tail) or _SCOPED_STORE_YOY_HEAD_RE.search(tail)
-    if not m:
+    found: list[tuple[int, str]] = []
+    for rx in (
+        _SCOPED_STORE_UNIT_HEAD_RE,
+        _SCOPED_STORE_YOY_HEAD_RE,
+        _SCOPED_SALES_HEAD_RE,
+    ):
+        for m in rx.finditer(tail):
+            found.append((m.start(), _scope_word(m.group(1))))
+    if not found:
         return None
-    return "既存店" if m.group(1) == "既存店" else "全店"
+    found.sort()
+    return found[-1][1]
 
 
 def _rows_need_store_scope(rows: list[dict]) -> bool:
@@ -577,6 +591,36 @@ def _apply_store_scope(rows: list[dict], scope: str) -> None:
         if scope in el or ("既存" in scope and "既存" in el) or (scope == "全店" and "全店" in el):
             continue
         row["element"] = f"{scope} {el}".strip()
+
+
+_BRAND_YOY_SUFFIX = "売上高前年同月比"
+
+
+def _brand_yoy_base(element: str) -> str | None:
+    """業態名 + ページ由来の売上高前年同月比。指標行そのものは対象外。"""
+    el = str(element or "").strip()
+    if not el.endswith(_BRAND_YOY_SUFFIX):
+        return None
+    base = el[: -len(_BRAND_YOY_SUFFIX)].strip()
+    if not base or "売上" in base or "既存" in base or "全店" in base:
+        return None
+    return base
+
+
+def _rows_need_brand_store_scope(rows: list[dict]) -> bool:
+    """ロック・フィールドのように業態名の行だけ。裸の売上高/来客数は別経路。"""
+    if not rows or _rows_need_store_scope(rows):
+        return False
+    return all(_brand_yoy_base(str(r.get("element") or "")) is not None for r in rows)
+
+
+def _apply_section_store_scope(rows: list[dict], scope: str | None) -> None:
+    if not scope:
+        return
+    if _rows_need_store_scope(rows):
+        _apply_store_scope(rows, scope)
+    elif _rows_need_brand_store_scope(rows):
+        _apply_store_scope(rows, scope)
 
 
 def _is_prior_year_absolute(text: str) -> bool:
@@ -663,11 +707,14 @@ def _merge_companion_store_scopes(
         if list(other.get("months") or []) != primary_months:
             continue
         scope = sections[idx].scope if idx < len(sections) else None
-        if scope is None or not _rows_need_store_scope(other.get("rows") or []):
+        other_rows = other.get("rows") or []
+        if scope is None or not (
+            _rows_need_store_scope(other_rows) or _rows_need_brand_store_scope(other_rows)
+        ):
             continue
-        for row in other.get("rows") or []:
+        for row in other_rows:
             merged = dict(row)
-            _apply_store_scope([merged], scope)
+            _apply_section_store_scope([merged], scope)
             el = str(merged.get("element") or "")
             key = (el, merged.get("unit"))
             if not el or key in have:
@@ -927,8 +974,7 @@ def _merge_other_section_companions(
                 dict(row, values=dict(row.get("values") or {}))
                 for row in other.get("rows") or []
             ]
-            if tag.scope and _rows_need_store_scope(rows):
-                _apply_store_scope(rows, tag.scope)
+            _apply_section_store_scope(rows, tag.scope)
             _apply_section_segment(rows, tag.segment)
             for merged in rows:
                 el = str(merged.get("element") or "")
@@ -1769,8 +1815,7 @@ def html_to_ingest(
     )
     section_text = section_texts[table_index] if table_index < len(section_texts) else ""
     scope = sections[table_index].scope if table_index < len(sections) else None
-    if scope and _rows_need_store_scope(parsed["rows"]):
-        _apply_store_scope(parsed["rows"], scope)
+    _apply_section_store_scope(parsed["rows"], scope)
     _merge_companion_total_stores(parsed, candidates, primary_index=table_index)
     _merge_companion_store_scopes(
         parsed, candidates, sections, primary_index=table_index

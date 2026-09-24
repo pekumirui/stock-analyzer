@@ -461,6 +461,56 @@ FORCE_UNIT_HTML = """
 """
 
 
+ROCKFIELD_DUAL_SCOPE_HTML = """
+<html><body>
+<select>
+<option value="/ir/library/monthly/">2027年4月期</option>
+<option value="/ir/library/monthly/2026.html">2026年4月期</option>
+</select>
+<h2>2027年4月期　 業態別売上推移（前年同月比）</h2>
+<h3>既存店売上</h3>
+<p>(単位：%)</p>
+<table>
+<tr><td></td><td>5月</td><td>6月</td><td>7月</td><td>8月</td><td>合計</td></tr>
+<tr><td>RF1</td><td>103.4</td><td>100.2</td><td>104.9</td><td>104.2</td><td></td></tr>
+<tr><td>グリーン・グルメ</td><td>99.4</td><td>98.8</td><td>102.5</td><td>101.9</td><td></td></tr>
+<tr><td>合計</td><td>102.0</td><td>99.1</td><td>104.0</td><td>103.2</td><td></td></tr>
+</table>
+<h3>全店売上</h3>
+<p>(単位：%)</p>
+<table>
+<tr><td></td><td>5月</td><td>6月</td><td>7月</td><td>8月</td><td>合計</td></tr>
+<tr><td>RF1</td><td>102.8</td><td>99.9</td><td>104.4</td><td>103.1</td><td></td></tr>
+<tr><td>グリーン・グルメ</td><td>99.5</td><td>99.2</td><td>102.9</td><td>102.1</td><td></td></tr>
+<tr><td>合計</td><td>101.4</td><td>99.4</td><td>103.9</td><td>103.0</td><td></td></tr>
+</table>
+</body></html>
+"""
+
+
+def test_rockfield_existing_and_all_store_stay_separate() -> None:
+    """既存店売上と全店売上は別行。既存の数値を裸の売上高(前年比)にしない。"""
+    got = html_to_ingest(ROCKFIELD_DUAL_SCOPE_HTML, "2910", table=None)
+    labels = [r["element"] for r in got["rows"]]
+    if any(el in ("RF1 売上高前年同月比", "グリーン・グルメ 売上高前年同月比") for el in labels):
+        _fail(f"unscoped duplicate {labels}")
+    if any(el.startswith("合計") or el == "合計" for el in labels):
+        _fail(f"total row leaked {labels}")
+    exist = _row(got, "既存店 RF1 売上高前年同月比")
+    all_store = _row(got, "全店 RF1 売上高前年同月比")
+    if exist["unit"] != "yoy_index" or exist["values"].get("5") != 103.4:
+        _fail(f"existing {exist}")
+    if exist["values"].get("8") != 104.2:
+        _fail(f"existing aug {exist}")
+    if all_store["unit"] != "yoy_index" or all_store["values"].get("5") != 102.8:
+        _fail(f"all store {all_store}")
+    if all_store["values"].get("8") != 103.1:
+        _fail(f"all store aug {all_store}")
+    gg = _row(got, "既存店 グリーン・グルメ 売上高前年同月比")
+    if gg["values"].get("6") != 98.8:
+        _fail(f"existing gourmet {gg}")
+
+
 def test_section_unit_percent_is_yoy_index() -> None:
     got = html_to_ingest(ROCKFIELD_SECTION_UNIT_HTML, "2910")
     row = _row(got, "RF1 売上高前年同月比")
@@ -2773,6 +2823,7 @@ def main() -> None:
     test_decode_shift_jis()
     test_dest_html_and_ingest_sidecar()
     test_section_unit_percent_is_yoy_index()
+    test_rockfield_existing_and_all_store_stay_separate()
     test_trailing_unit_percent_is_yoy_index()
     test_force_unit_overrides_yoy_keeps_number()
     test_create_sd_nobiritsu_force_yoy_index()
