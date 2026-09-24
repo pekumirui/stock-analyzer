@@ -10,6 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "jobs"))
 
 from html_monthly import (  # noqa: E402
+    _sticky_section_fy,
     decode_html_bytes,
     dumps_ingest,
     parse_as_of_text,
@@ -18,6 +19,7 @@ from html_monthly import (  # noqa: E402
     parse_number,
     parse_tables,
 )
+from html_issuers import parse_issuer  # noqa: E402
 from html_issuers.i3148 import parse as parse_3148  # noqa: E402
 from html_issuers.i7522 import parse as parse_7522  # noqa: E402
 from html_issuers.i7561 import parse as parse_7561  # noqa: E402
@@ -27,11 +29,9 @@ from html_issuers.i9946 import parse as parse_9946  # noqa: E402
 from html_issuers.i9994 import parse as parse_9994  # noqa: E402
 from ir_monthly_html_r2 import (  # noqa: E402
     HtmlIssuer,
-    _sticky_section_fy,
     eir_url,
     existing_html_hashes,
     fetch_issuer,
-    html_to_ingest,
     ingest_path,
     load_html_registry,
     parse_eir_jsonp,
@@ -228,7 +228,7 @@ def test_parse_number_and_month() -> None:
 
 
 def test_cawachi_col_months() -> None:
-    got = html_to_ingest(CAWACHI_HTML, "2664")
+    got = parse_issuer(CAWACHI_HTML, "2664")
     if got["code"] != "2664":
         _fail(f"code {got['code']}")
     if got["months"] != [4, 5, 6, 7, 8]:
@@ -251,7 +251,7 @@ def test_cawachi_col_months() -> None:
 
 
 def test_halows_rowspan() -> None:
-    got = html_to_ingest(HALOWS_HTML, "2742")
+    got = parse_issuer(HALOWS_HTML, "2742")
     if got["as_of"] != "2026-07-31":
         _fail(f"as_of from 2026/07 {got['as_of']}")
     if got["months"] != [3, 7]:
@@ -271,7 +271,7 @@ def test_halows_rowspan() -> None:
 
 
 def test_okuwa_reverse_months_and_store_count() -> None:
-    got = html_to_ingest(OKUWA_HTML, "8217")
+    got = parse_issuer(OKUWA_HTML, "8217")
     if got["as_of"] != "2026-08-31":
         _fail(f"as_of from 2026年8月度 {got['as_of']}")
     if got["months"] != [3, 7, 8]:
@@ -285,7 +285,7 @@ def test_okuwa_reverse_months_and_store_count() -> None:
 
 
 def test_colowide_grouped_header_skips_total() -> None:
-    got = html_to_ingest(COLOWIDE_HTML, "7616")
+    got = parse_issuer(COLOWIDE_HTML, "7616")
     if got["as_of"] != "2026-09-04":
         _fail(f"update date {got['as_of']}")
     if got["months"] != [4, 8]:
@@ -489,7 +489,7 @@ KOBEBUSSAN_HALF_HTML = """
 
 def test_kobebussan_second_half_stays_on_sales() -> None:
     """1表の下期見出しを別の月にする。全店は付けない。"""
-    got = html_to_ingest(KOBEBUSSAN_HALF_HTML, "3038", table=None)
+    got = parse_issuer(KOBEBUSSAN_HALF_HTML, "3038", table=None)
     if got["months"] != [11, 12, 1, 2, 3, 4, 5, 6, 7, 8]:
         _fail(f"months {got['months']}")
     if got["as_of"] != "2026-08-31":
@@ -509,7 +509,7 @@ def test_kobebussan_second_half_stays_on_sales() -> None:
 
 
 def test_section_unit_percent_is_yoy_index() -> None:
-    got = html_to_ingest(ROCKFIELD_SECTION_UNIT_HTML, "2910")
+    got = parse_issuer(ROCKFIELD_SECTION_UNIT_HTML, "2910")
     row = _row(got, "RF1 売上高前年同月比")
     if row["unit"] != "yoy_index":
         _fail(f"section unit:% must be yoy_index {row}")
@@ -527,7 +527,7 @@ def test_trailing_unit_percent_is_yoy_index() -> None:
 
 
 def test_force_unit_overrides_yoy_keeps_number() -> None:
-    got = html_to_ingest(FORCE_UNIT_HTML, "2769", force_unit="yoy_index")
+    got = parse_issuer(FORCE_UNIT_HTML, "2769", force_unit="yoy_index")
     yoy = _row(got, "全店 売上高前年同月比")
     if yoy["unit"] != "yoy_index":
         _fail(f"force_unit {yoy}")
@@ -552,11 +552,7 @@ CREATE_SD_NOBIRITSU_HTML = """
 
 
 def test_create_sd_nobiritsu_force_yoy_index() -> None:
-    """3148: 見出しは伸び率だがセルは100基準。force_unit で yoy_index のまま。"""
-    bare = html_to_ingest(CREATE_SD_NOBIRITSU_HTML, "3148")
-    bare_exist = _row(bare, "既存店 Existing stores 単月 Monthly")
-    if bare_exist["unit"] != "yoy_pct" or bare_exist["values"].get("7") != 103.7:
-        _fail(f"伸び率 heading must infer yoy_pct as-is {bare_exist}")
+    """3148: 見出しは伸び率だがセルは100基準。モジュールは yoy_index のまま出す。"""
     live = load_html_registry(ROOT / "config" / "ir_monthly.json")
     iss = next(i for i in live if i.code == "3148")
     if iss.force_unit != "yoy_index":
@@ -709,7 +705,7 @@ SAGAMI_HTML = """
 
 
 def test_nitori_direct_page_no_follow() -> None:
-    got = html_to_ingest(NITORI_HTML, "9843", table=None)
+    got = parse_issuer(NITORI_HTML, "9843", table=None)
     if got["as_of"] != "2026-08-31":
         _fail(f"nitori as_of {got['as_of']}")
     if got["months"] != [4, 5, 6, 7, 8]:
@@ -723,7 +719,7 @@ def test_nitori_direct_page_no_follow() -> None:
 
 
 def test_yamazawa_prefers_current_period() -> None:
-    got = html_to_ingest(YAMAZAWA_HTML, "9993", table=None)
+    got = parse_issuer(YAMAZAWA_HTML, "9993", table=None)
     if got["as_of"] != "2026-08-31":
         _fail(f"yamazawa as_of {got['as_of']}")
     if got["months"] != [3, 4, 5, 6, 7, 8]:
@@ -736,7 +732,7 @@ def test_yamazawa_prefers_current_period() -> None:
 
 
 def test_aeon_hokkaido_prefers_current_year_slide() -> None:
-    got = html_to_ingest(AEON_HOKKAIDO_HTML, "7512", table=None)
+    got = parse_issuer(AEON_HOKKAIDO_HTML, "7512", table=None)
     if got["as_of"] != "2026-08-31":
         _fail(f"aeon as_of {got['as_of']}")
     exist = _row(got, "企業計 既存計")
@@ -755,7 +751,7 @@ def test_village_nafco_sagami_as_of_not_future_fy() -> None:
         (SAGAMI_HTML, "9900", "全店", 24),
     )
     for html, code, element, august in cases:
-        got = html_to_ingest(html, code, table=None)
+        got = parse_issuer(html, code, table=None)
         if got["as_of"] != "2026-08-31":
             _fail(f"{code} as_of {got['as_of']}")
         row = _row(got, element)
@@ -842,7 +838,7 @@ def test_repeated_scope_row_prefixes_existing_and_all_store() -> None:
     </table>
     </body></html>
     """
-    got = html_to_ingest(html, "7494", table=None)
+    got = parse_issuer(html, "7494", table=None)
     labels = [r["element"] for r in got["rows"]]
     if "既存店 売上高" not in labels or "全店 売上高" not in labels:
         _fail(f"scope prefix missing {labels}")
@@ -873,7 +869,7 @@ def test_same_fy_prefers_later_filled_half() -> None:
     </table>
     </body></html>
     """
-    got = html_to_ingest(html, "7494", table=None)
+    got = parse_issuer(html, "7494", table=None)
     if got["as_of"] != "2026-08-31":
         _fail(f"same-fy as_of {got['as_of']}")
     if got["months"] != [4, 5, 8]:
@@ -920,7 +916,7 @@ def test_calendar_ytd_drops_trailing_empty_months() -> None:
     </table>
     </body></html>
     """
-    got = html_to_ingest(html, "6537", table=None)
+    got = parse_issuer(html, "6537", table=None)
     if got["months"] != [1, 2, 3, 4, 5, 6, 7, 8]:
         _fail(f"calendar YTD months {got['months']}")
     sales = _row(got, "全店")
@@ -941,7 +937,7 @@ def test_partial_apr_sep_ytd_drops_trailing_empty_months() -> None:
     </table>
     </body></html>
     """
-    got = html_to_ingest(html, "7494", table=None)
+    got = parse_issuer(html, "7494", table=None)
     if got["months"] != [4, 5, 6, 7, 8]:
         _fail(f"partial YTD months {got['months']}")
     exist = _row(got, "既存店 売上高")
@@ -961,7 +957,7 @@ def test_trailing_empty_months_keep_middle_gaps() -> None:
     </table>
     </body></html>
     """
-    got = html_to_ingest(html, "7494", table=None)
+    got = parse_issuer(html, "7494", table=None)
     if got["months"] != [4, 5, 6, 7, 8]:
         _fail(f"middle gaps months {got['months']}")
     sales = _row(got, "売上高")
@@ -1189,7 +1185,7 @@ def test_run_only_dry_run(tmp: Path) -> None:
 
 
 def test_dumps_matches_ingest_shape() -> None:
-    got = html_to_ingest(CAWACHI_HTML, "26640")
+    got = parse_issuer(CAWACHI_HTML, "26640")
     text = dumps_ingest(got)
     parsed = json.loads(text)
     if set(parsed) != {"code", "months", "rows", "as_of"}:
@@ -1550,7 +1546,7 @@ ARCS_HTML = """
 
 
 def test_mos_skips_half_year_total() -> None:
-    got = html_to_ingest(MOS_HTML, "8153")
+    got = parse_issuer(MOS_HTML, "8153")
     if got["as_of"] != "2026-08-31":
         _fail(f"mos as_of {got['as_of']}")
     sales = _row(got, "既存店売上高")
@@ -1907,7 +1903,7 @@ def test_watami_fy2024_bare_names_alias_to_subway_excluded() -> None:
 
 
 def test_nendo_and_fullwidth_fy_as_of() -> None:
-    got = html_to_ingest(KAPPA_HTML, "7421")
+    got = parse_issuer(KAPPA_HTML, "7421")
     if got["as_of"] != "2026-08-31":
         _fail(f"kappa 2026年度 + 8月 {got['as_of']}")
     exist = _row(got, "既存店舗 売上高")
@@ -1915,7 +1911,7 @@ def test_nendo_and_fullwidth_fy_as_of() -> None:
         _fail(f"kappa {exist}")
     if any("累計" in r["element"] for r in got["rows"]):
         _fail("累計 row leaked")
-    got2 = html_to_ingest(TSURUHA_HTML, "3391", table=None)
+    got2 = parse_issuer(TSURUHA_HTML, "3391", table=None)
     if got2["as_of"] != "2026-08-31":
         _fail(f"tsuruha fullwidth 月期 {got2['as_of']}")
     sales = _row(got2, "既存店 単月売上")
@@ -1965,7 +1961,7 @@ def test_sagami_zougenhi_is_yoy_pct() -> None:
     </table>
     </body></html>
     """
-    got = html_to_ingest(html, "9900", table=None)
+    got = parse_issuer(html, "9900", table=None)
     if got["as_of"] != "2026-08-31":
         _fail(f"sagami as_of {got['as_of']}")
     for el in ("全店 売上高", "全店 客数", "全店 客単価", "既存店 売上高", "既存店 客数", "既存店 客単価"):
@@ -1981,7 +1977,7 @@ def test_sagami_zougenhi_is_yoy_pct() -> None:
 
 
 def test_skip_span_total_column() -> None:
-    got = html_to_ingest(ARCS_HTML, "9948")
+    got = parse_issuer(ARCS_HTML, "9948")
     if got["as_of"] != "2026-07-31":
         _fail(f"arcs as_of {got['as_of']}")
     sales = _row(got, "売上高 全店")
@@ -2141,7 +2137,7 @@ def test_follow_re_picks_latest_month_not_year_folder() -> None:
 
 
 def test_sekisui_single_month_col_skips_cumulative() -> None:
-    got = html_to_ingest(SEKISUI_MONTH_HTML, "1928")
+    got = parse_issuer(SEKISUI_MONTH_HTML, "1928")
     if got["as_of"] != "2026-08-31":
         _fail(f"sekisui as_of {got['as_of']}")
     if got["months"] != [8]:
@@ -2229,7 +2225,7 @@ MINISTOP_HTML = """
 
 
 def test_sumitomo_snapshot_heading_month() -> None:
-    got = html_to_ingest(SUMITOMO_HTML, "1911", table=None)
+    got = parse_issuer(SUMITOMO_HTML, "1911", table=None)
     if got["as_of"] != "2026-08-31":
         _fail(f"sumitomo as_of {got['as_of']}")
     if 8 not in got["months"]:
@@ -2242,7 +2238,7 @@ def test_sumitomo_snapshot_heading_month() -> None:
 
 
 def test_himalaya_year_tab_as_of() -> None:
-    got = html_to_ingest(HIMALAYA_HTML, "7514", table=None)
+    got = parse_issuer(HIMALAYA_HTML, "7514", table=None)
     if got["as_of"] != "2026-08-31":
         _fail(f"himalaya as_of {got['as_of']}")
     exist = _row(got, "既存店")
@@ -2257,7 +2253,7 @@ def test_himalaya_year_tab_as_of() -> None:
 def test_drop_ytd_row_when_monthly_pair() -> None:
     html = """
     <html><body>
-    <h2>2027年5月期 月次 売上高前年同月比</h2>
+    <h2>2027年5月期 月次 売上伸び率</h2>
     <table>
     <tr><td></td><td>6月</td><td>7月</td><td>8月</td></tr>
     <tr><td>既存店 Existing stores 単月 Monthly</td><td>100</td><td>103.4</td><td>101.8</td></tr>
@@ -2265,7 +2261,7 @@ def test_drop_ytd_row_when_monthly_pair() -> None:
     </table>
     </body></html>
     """
-    got = html_to_ingest(html, "3148", table=None)
+    got = parse_issuer(html, "3148", table=None)
     labels = [r["element"] for r in got["rows"]]
     monthly = [el for el in labels if "単月" in el or "Monthly" in el]
     bare = [el for el in labels if "Existing stores" in el and "単月" not in el and "Monthly" not in el]
@@ -2321,7 +2317,7 @@ XEVO_HTML = """
 
 def test_xevo_prefers_current_fy_drops_ytd() -> None:
     """ゼビオ: 現行FYの単月のみ。月期キャプションと注記月度で年をずらさない。"""
-    got = html_to_ingest(XEVO_HTML, "8281", table=None, force_unit="yoy_index")
+    got = parse_issuer(XEVO_HTML, "8281", table=None, force_unit="yoy_index")
     if got["as_of"] != "2026-08-31":
         _fail(f"xevo as_of {got['as_of']}")
     if got["months"] != [4, 5, 6, 7, 8]:
@@ -2473,7 +2469,7 @@ DAIKOKUTEN_HTML = """
 
 def test_daikokuten_drops_nendo_keeps_newest_month() -> None:
     """年度帯は行名に入れず、同月の古い年で上書きしない。既存の空欄はソースどおり。"""
-    got = html_to_ingest(DAIKOKUTEN_HTML, "2791", table=None)
+    got = parse_issuer(DAIKOKUTEN_HTML, "2791", table=None)
     labels = [r["element"] for r in got["rows"]]
     if any("令和" in el or "年度" in el or "2026年" in el for el in labels):
         _fail(f"nendo leaked into labels {labels}")
@@ -2628,7 +2624,7 @@ def test_no_as_of_does_not_write_json(tmp: Path) -> None:
     </body></html>
     """
     try:
-        html_to_ingest(bare, "2664")
+        parse_issuer(bare, "2664")
     except ValueError as e:
         if "no as_of" not in str(e):
             _fail(f"expected no as_of, got {e}")
@@ -2681,7 +2677,7 @@ CANDO_YYMM_HTML = """
 
 
 def test_yy_mm_cando_table() -> None:
-    got = html_to_ingest(CANDO_YYMM_HTML, "2698")
+    got = parse_issuer(CANDO_YYMM_HTML, "2698")
     if got["months"] != [3, 4, 5, 6, 7, 8]:
         _fail(f"cando months {got['months']}")
     sales = _row(got, "全社売上高")
@@ -2706,7 +2702,7 @@ TRIAL_LETTERSPACING_HTML = """
 
 
 def test_letterspacing_trial_table() -> None:
-    got = html_to_ingest(TRIAL_LETTERSPACING_HTML, "141A")
+    got = parse_issuer(TRIAL_LETTERSPACING_HTML, "141A")
     labels = [r["element"] for r in got["rows"]]
     if "トライアル既存店 売上高" not in labels:
         _fail(f"letterspacing not collapsed {labels}")
@@ -2734,7 +2730,7 @@ FY_CAPTION_HTML = """
 
 
 def test_fy_caption_handling_keeps_metric_newer_wins() -> None:
-    got = html_to_ingest(FY_CAPTION_HTML, "6045")
+    got = parse_issuer(FY_CAPTION_HTML, "6045")
     labels = [r["element"] for r in got["rows"]]
     if any("2027年" in el or "2026年" in el or "月期" in el for el in labels):
         _fail(f"fy caption leaked {labels}")
@@ -2760,7 +2756,7 @@ VEGA_PERIOD_HTML = """
 
 
 def test_current_period_rewrites_skips_prior() -> None:
-    got = html_to_ingest(VEGA_PERIOD_HTML, "3542")
+    got = parse_issuer(VEGA_PERIOD_HTML, "3542")
     if got["as_of"] != "2026-08-31":
         _fail(f"vega as_of {got['as_of']}")
     labels = [r["element"] for r in got["rows"]]
@@ -2794,7 +2790,7 @@ def test_sticky_fy_inherits_caption_to_unheaded_monthly() -> None:
 
 def test_nsd_monthly_keeps_current_fy_not_prior_complete() -> None:
     path = ROOT / "tests" / "testdata" / "html_issue248" / "9759.html"
-    got = html_to_ingest(path.read_text(encoding="utf-8"), "9759", table=None)
+    got = parse_issuer(path.read_text(encoding="utf-8"), "9759", table=None)
     sales = _row(got, "売上高（百万円）")
     if sales["values"].get("4") != 9905:
         _fail(f"picked prior-year 単月 {sales}")
