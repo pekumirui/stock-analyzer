@@ -5,8 +5,8 @@ Issue #180 スタイルのウェーブで発生しやすい短いトラップ（
 | トラップ (Trap) | 発生する事象 (What happens) | 対応方法 (What to do) |
 |---|---|---|
 | パーサーの `as_of` 汚染 | かっぱ寿司 (Kappa): ナビゲーションの最大の `YYYY年度` により、年のマッピングが間違える | ライブ HTML / 決算期末 (FY end) から `as_of` を上書きする; 取り込みは続行する |
-| JSON 内のみのエイリアス | `html_to_ingest` はエイリアスを呼び出さない; DB には古い名前が残る | POST は引き続き `_canonical_element` を通過する; 既存の行を **運用マージ (ops merge)** する |
-| パースと手動投入のズレ | パーサ raw 名のまま POST、または alias 未デプロイでゴースト双子 | POST 前に alias 適用後の最終名を確認; 投入後は `html_to_ingest` ↔ `monthly_get` を突き合わせる（SKILL の一致チェック） |
+| JSON 内のみのエイリアス | `parse_issuer` はエイリアスを呼び出さない; DB には古い名前が残る | POST は引き続き `_canonical_element` を通過する; 既存の行を **運用マージ (ops merge)** する |
+| パースと手動投入のズレ | パーサ raw 名のまま POST、または alias 未デプロイでゴースト双子 | POST 前に alias 適用後の最終名を確認; 投入後は `parse_issuer` ↔ `monthly_get` を突き合わせる（SKILL の一致チェック） |
 | 最新のみの Cron | `follow_re` + 最新のサイドカー → 1年分のみ | 過去の暦年については、年次/アーカイブ URL を使用する |
 | 同一 URL の上書き | アーカイブなし → バックフィル不可 | ブロックされているものとしてリストアップする; 別の URL がないか質問する |
 | 2つのうち1つのテーブルのみ | ミニストップ 9946、コナカ 7494: 上期または下期のみになる | POST 前に 上期+下期 をマージする |
@@ -25,10 +25,10 @@ Issue #180 スタイルのウェーブで発生しやすい短いトラップ（
 
 ```python
 from datetime import date
-from scripts.ir_monthly_html_r2 import html_to_ingest
+from html_issuers import parse_issuer
 from app.monthly_ingest import plan_column_years
 
-p = html_to_ingest(html, "3222")
+p = parse_issuer(html, "3222")
 # optional: p["as_of"] = "2024-02-29"
 layout, mapping = plan_column_years(p["months"], fy_end_month, date.fromisoformat(p["as_of"]))
 print(layout, {y: [m for m, yy in mapping if yy == y] for y in sorted({yy for _, yy in mapping})})

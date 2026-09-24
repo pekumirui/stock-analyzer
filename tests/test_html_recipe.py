@@ -228,7 +228,7 @@ def test_config_9989_has_no_recipes() -> None:
     iss = next(i for i in raw["html"] if i["code"] == "9989")
     if "recipes" in iss or "drift" in iss:
         _fail(f"9989 still has recipe keys {iss.keys()}")
-    if "9989" not in PARSERS or "9993" in PARSERS:
+    if "9989" not in PARSERS or "9993" not in PARSERS:
         _fail(str(sorted(PARSERS)))
     live = load_html_registry(CONFIG)
     if any(getattr(i, "recipes", None) is not None for i in live):

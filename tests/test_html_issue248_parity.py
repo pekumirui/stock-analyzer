@@ -11,10 +11,8 @@ sys.path.insert(0, str(ROOT / "jobs"))
 sys.path.insert(0, str(ROOT))
 
 from html_monthly import decode_html_bytes  # noqa: E402
-from ir_monthly_html_r2 import (  # noqa: E402
-    html_to_ingest,
-    load_html_registry,
-)
+from html_issuers import parse_issuer  # noqa: E402
+from ir_monthly_html_r2 import load_html_registry  # noqa: E402
 
 from app.monthly_ingest import (  # noqa: E402
     apply_issuer_aliases,
@@ -116,7 +114,7 @@ def test_issue248_html_parity() -> dict[str, str]:
             continue
         html = decode_html_bytes(path.read_bytes())
         try:
-            got = html_to_ingest(
+            got = parse_issuer(
                 html, code, table=iss.table, force_unit=iss.force_unit
             )
         except Exception as e:

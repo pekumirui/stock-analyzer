@@ -7,7 +7,7 @@
   python jobs/ir_monthly_html_r2.py --reparse
 
 対象は config/ir_monthly.json の html。セレクタは json。
-9989 / 7522 / 7561 / 8179 / 3148 / 8278 / 9946 / 9994 は jobs/html_issuers。それ以外は html_to_ingest。
+parse: true は jobs/html_issuers。parse: false は HTML だけ残す。
 原本は .html、派生が .ingest.json。自動 POST しない。パーサーを直したら --reparse。
 ネットワークと app/ はテストから分離する。
 """
@@ -48,23 +48,9 @@ from tdnet_monthly_r2 import (  # noqa: E402
 from html_issuers import PARSERS  # noqa: E402
 from html_monthly import (  # noqa: E402
     _VALID_UNITS,
-    _apply_force_unit,
-    _drop_ytd_when_monthly_pair,
-    _is_count_header,
-    _parsed_score,
-    _section_pick_rank,
-    _sticky_section_fy,
     decode_html_bytes,
-    drop_trailing_empty_months,
     dumps_ingest,
     fy_end_from_text,
-    page_context,
-    parse_grid,
-    parse_tables,
-    resolve_as_of,
-    section_fy_end_from_text,
-    table_section_texts,
-    unit_mark_context,
 )
 
 EIR_URL = "https://ssl4.eir-parts.net/V4Public/eir/{code}/ja/announcement/announcement_{n}.js"
@@ -100,138 +86,6 @@ def parse_eir_date(raw: str) -> str | None:
         return date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
     except ValueError:
         return None
-
-
-def _is_store_event_parsed(parsed: dict) -> bool:
-    """開店/閉店/改装の店名×店舗面積リスト。月次速報ではない。"""
-    rows = parsed.get("rows") or []
-    if not rows:
-        return False
-    n_area = sum(1 for r in rows if "店舗面積" in str(r.get("element") or ""))
-    return n_area >= max(1, (len(rows) + 1) // 2)
-
-
-def _is_count_only_parsed(parsed: dict) -> bool:
-    rows = parsed.get("rows") or []
-    if not rows:
-        return False
-    return all(
-        r.get("unit") == "number" and _is_count_header(str(r.get("element") or ""))
-        for r in rows
-    )
-
-
-def _merge_companion_total_stores(
-    primary: dict,
-    candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
-    *,
-    primary_index: int,
-) -> None:
-    """営業速報表に、同月軸の店舗推移から総店舗数だけ足す。"""
-    primary_months = list(primary.get("months") or [])
-    have = {str(r.get("element") or "") for r in primary.get("rows") or []}
-    for idx, _grid, other, _fy in candidates:
-        if idx == primary_index or _is_store_event_parsed(other):
-            continue
-        if list(other.get("months") or []) != primary_months:
-            continue
-        for row in other.get("rows") or []:
-            el = str(row.get("element") or "")
-            if "総店舗数" not in el:
-                continue
-            if el in have:
-                continue
-            primary.setdefault("rows", []).append(row)
-            have.add(el)
-
-
-def _prefer_section_candidates(
-    candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]],
-    sections: list[str],
-) -> list[tuple[int, list[list[str]], dict, tuple[int, int] | None]]:
-    if not candidates:
-        return candidates
-    ranks = [
-        _section_pick_rank(sections[i] if i < len(sections) else "")
-        for i, _g, _p, _fy in candidates
-    ]
-    best = max(ranks)
-    return [c for c, r in zip(candidates, ranks) if r == best]
-
-
-def html_to_ingest(
-    html: str,
-    code: str,
-    *,
-    as_of: str | None = None,
-    table: int | None = 0,
-    context: str | None = None,
-    force_unit: str | None = None,
-) -> dict:
-    tables = parse_tables(html)
-    if not tables:
-        raise ValueError("no html table")
-    section_texts = table_section_texts(html)
-    base_ctx = context if context is not None else page_context(html)
-    unit_marks = unit_mark_context(html)
-    indices: list[int]
-    if table is None:
-        indices = list(range(len(tables)))
-    else:
-        if table < 0 or table >= len(tables):
-            raise ValueError(f"table index {table} out of range ({len(tables)})")
-        indices = [table]
-    last_err: str | None = None
-    sticky_fy = _sticky_section_fy(section_texts)
-    candidates: list[tuple[int, list[list[str]], dict, tuple[int, int] | None]] = []
-    for i in indices:
-        section_text = section_texts[i] if i < len(section_texts) else ""
-        ctx = " ".join(p for p in (base_ctx, section_text, unit_marks) if p)
-        try:
-            parsed = parse_grid(tables[i], ctx, html)
-        except Exception as e:
-            last_err = str(e)
-            parsed = None
-        if parsed and parsed.get("rows"):
-            section_fy = sticky_fy[i] if i < len(sticky_fy) else None
-            if section_fy is None:
-                section_fy = section_fy_end_from_text(
-                    section_text, parsed.get("months")
-                )
-            candidates.append((i, tables[i], parsed, section_fy))
-            if table is not None:
-                break
-    if not candidates:
-        raise ValueError(last_err or "no monthly rows")
-    monthly_cands = [c for c in candidates if not _is_store_event_parsed(c[2])]
-    sales_cands = [c for c in monthly_cands if not _is_count_only_parsed(c[2])]
-    pick_pool = _prefer_section_candidates(
-        sales_cands or monthly_cands or candidates, section_texts
-    )
-    table_index, grid_used, parsed, section_fy = max(
-        pick_pool,
-        key=lambda it: _parsed_score(
-            html, it[1], it[2], table_index=it[0], section_fy=it[3]
-        ),
-    )
-    _merge_companion_total_stores(parsed, candidates, primary_index=table_index)
-    as_of_s = resolve_as_of(
-        html,
-        grid_used,
-        parsed["rows"],
-        as_of,
-        parsed.get("months"),
-        section_fy,
-    )
-    _apply_force_unit(parsed["rows"], force_unit)
-    parsed["rows"] = _drop_ytd_when_monthly_pair(parsed["rows"])
-    months = drop_trailing_empty_months(list(parsed.get("months") or []), parsed["rows"])
-    return {
-        "code": display_code(code),
-        "months": months,
-        "rows": parsed["rows"],
-        "as_of": as_of_s,
-    }
 
 
 def parse_eir_jsonp(body: str) -> dict:
@@ -477,13 +331,11 @@ def fetch_html_bytes(iss: HtmlIssuer) -> tuple[bytes, str | None, str]:
 
 
 def ingest_payload(html: str, iss: HtmlIssuer, as_of: str | None = None) -> dict:
-    """PARSERS の code は銘柄パーサ。それ以外は html_to_ingest。"""
+    """parse: true は銘柄モジュール。宣言と違うページは ValueError で sidecar を書かない。"""
     parser = PARSERS.get(iss.code)
-    if parser is not None:
-        return parser(html, as_of=as_of)
-    return html_to_ingest(
-        html, iss.code, as_of=as_of, table=iss.table, force_unit=iss.force_unit
-    )
+    if parser is None:
+        raise ValueError(f"{iss.code} page does not match declaration")
+    return parser(html, as_of=as_of)
 
 
 def write_ingest(html_path: Path, html: str, iss: HtmlIssuer, as_of: str | None = None) -> None:
