@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "jobs"))
 sys.path.insert(0, str(ROOT))
 
+from html_monthly import decode_html_bytes  # noqa: E402
 from ir_monthly_html_r2 import (  # noqa: E402
-    decode_html_bytes,
     html_to_ingest,
     load_html_registry,
 )
