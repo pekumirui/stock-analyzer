@@ -5,8 +5,10 @@ import re
 import unicodedata
 
 from html_issuers._read import emit, pick_scored, read_page
-from html_monthly import _NUMBERED_NOTE_RE, _PAREN_NOTE_RE
+from html_monthly import _PAREN_NOTE_RE
 
+# 表セルの小数（95.3）を注番号と誤認して見出しまで消さない
+_NUMBERED_NOTE_RE = re.compile(r"(?<![\d.])\d{1,2}\.(?!\d)[^。]*。")
 _ALL_STORE_SALES_HEAD_RE = re.compile(
     r"全店売上(?:（％）|\(%\)|％|%)?(?=※|この表|$)"
 )
