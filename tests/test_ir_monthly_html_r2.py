@@ -3086,6 +3086,44 @@ def test_6045_prior_fy_rows_not_merged() -> None:
         for v in (row.get("values") or {}).values():
             if v in banned:
                 _fail(f"6045 prior FY value leaked {v} in {row}")
+    totals = {31966, 18216}
+    h2 = {"10", "11", "12", "1", "2", "3"}
+    for row in got["rows"]:
+        values = row.get("values") or {}
+        if h2 & values.keys():
+            _fail(f"6045 h2 key leaked {row}")
+        for v in values.values():
+            if v in totals:
+                _fail(f"6045 full-year total leaked {v} in {row}")
+
+
+def test_6045_second_half_band_read() -> None:
+    """6045.html（2026-09-25 取得の実ページ）から 2027年3月期の tr 4行だけ除いた実HTML。"""
+    path = ROOT / "tests" / "testdata" / "html_year_drift" / "6045_fy2026_only.html"
+    got = parse_issuer(decode_html_bytes(path.read_bytes()), "6045")
+    if got["as_of"] != "2026-03-31":
+        _fail(f"6045 fy2026 as_of {got['as_of']}")
+    if got["months"] != [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]:
+        _fail(f"6045 fy2026 months {got['months']}")
+    if [r["element"] for r in got["rows"]] != ["取扱高", "売上高"]:
+        _fail(f"6045 fy2026 rows {got['rows']}")
+    handling = _row(got, "取扱高", unit="number")
+    sales = _row(got, "売上高", unit="number")
+    if handling["values"] != {
+        "4": 2688, "5": 3013, "6": 2692, "7": 2673, "8": 2778, "9": 3044,
+        "10": 2897, "11": 2678, "12": 2530, "1": 2747, "2": 2944, "3": 3521,
+    }:
+        _fail(f"6045 fy2026 取扱高 {handling['values']}")
+    if sales["values"] != {
+        "4": 333, "5": 344, "6": 342, "7": 358, "8": 302, "9": 389,
+        "10": 376, "11": 392, "12": 386, "1": 339, "2": 389, "3": 408,
+    }:
+        _fail(f"6045 fy2026 売上高 {sales['values']}")
+    banned = {16889, 2138, 17328, 34217, 2301, 4440}
+    for row in got["rows"]:
+        for v in (row.get("values") or {}).values():
+            if v in banned:
+                _fail(f"6045 half total leaked {v} in {row}")
 
 
 def test_8163_note_year_month_not_as_of() -> None:
@@ -3316,6 +3354,7 @@ def main() -> None:
     test_sticky_fy_inherits_caption_to_unheaded_monthly()
     test_nsd_monthly_keeps_current_fy_not_prior_complete()
     test_6045_prior_fy_rows_not_merged()
+    test_6045_second_half_band_read()
     test_8163_note_year_month_not_as_of()
     test_p_fallback_takes_report_title_only()
     test_row_months_drops_prior_fy_columns()
