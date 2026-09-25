@@ -51,7 +51,7 @@ _YEAR_TAB_RE = re.compile(
 )
 _SKIP_AXIS_RE = re.compile(
     r"^(?:累計|通期計|通期|通期累計|年度累計|通年|合計|計|年月|"
-    r"上期計|下期計|上期累計|下期累計|上半期|下半期|上期|下期|半期|"
+    r"上期合計|下期合計|通期合計|上期計|下期計|上期累計|下期累計|上半期|下半期|上期|下期|半期|"
     r"[1-4]Q|[１-４]Q|[1-4]四半期|四半期|\d+\s*ヶ月|月計)$"
 )
 _SKIP_SPAN_RE = re.compile(r"\d+\s*月?\s*[～〜~\-－]\s*\d+\s*月")
@@ -641,6 +641,8 @@ def parse_tables(html: str) -> list[list[list[str]]]:
 def _is_skip_axis(text: str) -> bool:
     s = unicodedata.normalize("NFKC", text or "").strip()
     s = re.sub(r"\s+", "", s)
+    # 末尾の注記記号（※3）は軸名ではない
+    s = re.sub(r"(?:※\d*)+$", "", s)
     if not s:
         return False
     if s.startswith("累計"):
