@@ -16,6 +16,7 @@ from html_monthly import (  # noqa: E402
     decode_html_bytes,
     dumps_ingest,
     parse_as_of_text,
+    parse_grid,
     parse_month_cell,
     parse_month_year,
     parse_number,
@@ -2994,6 +2995,83 @@ def test_nsd_monthly_keeps_current_fy_not_prior_complete() -> None:
         _fail(f"nsd as_of {got['as_of']}")
 
 
+def test_6045_prior_fy_rows_not_merged() -> None:
+    path = ROOT / "tests" / "testdata" / "html_year_drift" / "6045.html"
+    got = parse_issuer(decode_html_bytes(path.read_bytes()), "6045")
+    if got["as_of"] != "2026-08-31":
+        _fail(f"6045 as_of {got['as_of']}")
+    if got["months"] != [4, 5, 6, 7, 8]:
+        _fail(f"6045 months {got['months']}")
+    handling = _row(got, "取扱高")
+    if handling["values"] != {"4": 7212, "5": 6589, "6": 6668, "7": 5706, "8": 5786}:
+        _fail(f"6045 取扱高 {handling['values']}")
+    sales = _row(got, "売上高")
+    if sales["values"] != {"4": 4187, "5": 3664, "6": 3960, "7": 3191, "8": 3210}:
+        _fail(f"6045 売上高 {sales['values']}")
+    banned = {3044, 389, 2688, 333}
+    for row in got["rows"]:
+        if "9" in (row.get("values") or {}):
+            _fail(f"6045 month 9 leaked {row}")
+        for v in (row.get("values") or {}).values():
+            if v in banned:
+                _fail(f"6045 prior FY value leaked {v} in {row}")
+
+
+def test_8163_note_year_month_not_as_of() -> None:
+    path = ROOT / "tests" / "testdata" / "html_year_drift" / "8163.html"
+    html = decode_html_bytes(path.read_bytes())
+    explicit = parse_as_of_text(html)
+    if explicit is not None:
+        _fail(f"8163 parse_as_of_text {explicit}")
+    got = parse_issuer(html, "8163")
+    if got["as_of"] != "2026-08-31":
+        _fail(f"8163 as_of {got['as_of']}")
+    if got["months"] != [4, 5, 6, 7, 8]:
+        _fail(f"8163 months {got['months']}")
+    all_store = _row(got, "全店 売上高(1)")
+    if all_store["values"].get("8") != 108.2:
+        _fail(f"8163 全店 売上高(1) {all_store}")
+
+
+def test_p_fallback_takes_report_title_only() -> None:
+    vega = parse_as_of_text(
+        "<p>JP EN 月次報告 トップ IR 月次報告 2026年8月の 月次業績に関するお知らせ</p>"
+    )
+    if vega != "2026-08-31":
+        _fail(f"vega p title {vega}")
+    paren = parse_as_of_text("<p>月次概況(2026年8月)</p>")
+    if paren != "2026-08-31":
+        _fail(f"paren p title {paren}")
+    note = parse_as_of_text(
+        "<p>*月次データは速報値です。 *売上高(2)は株式会社すし弁慶(2025年9月に子会社化)の売上高を考慮しない前年比較です。</p>"
+    )
+    if note is not None:
+        _fail(f"note year-month taken as as_of {note}")
+
+
+def test_row_months_drops_prior_fy_columns() -> None:
+    html = """
+    <table>
+    <tr><td></td><td>2027年3月期 売上高</td><td>2026年3月期 売上高</td></tr>
+    <tr><td>4月</td><td>4,187</td><td>333</td></tr>
+    <tr><td>5月</td><td>3,664</td><td>344</td></tr>
+    <tr><td>6月</td><td></td><td>342</td></tr>
+    </table>
+    """
+    tables = parse_tables(html)
+    parsed = parse_grid(tables[0])
+    if parsed is None:
+        _fail("row months fy filter: no parse")
+    sales = [r for r in parsed["rows"] if r["element"] == "売上高"]
+    if len(sales) != 1:
+        _fail(f"expected one 売上高 {parsed['rows']}")
+    vals = sales[0]["values"]
+    if "6" in vals:
+        _fail(f"prior FY 6月 leaked {vals}")
+    if vals.get("4") != 4187 or vals.get("5") != 3664:
+        _fail(f"2027 values {vals}")
+
+
 def test_brand_issuers_reject_foreign_page_without_sidecar() -> None:
     import tempfile
 
@@ -3066,6 +3144,10 @@ def main() -> None:
     test_current_period_rewrites_skips_prior()
     test_sticky_fy_inherits_caption_to_unheaded_monthly()
     test_nsd_monthly_keeps_current_fy_not_prior_complete()
+    test_6045_prior_fy_rows_not_merged()
+    test_8163_note_year_month_not_as_of()
+    test_p_fallback_takes_report_title_only()
+    test_row_months_drops_prior_fy_columns()
     test_watami_kyoten_count_is_number()
     test_watami_prefers_sales_over_kyoten()
     test_watami_sections_prefix_and_count_units()
