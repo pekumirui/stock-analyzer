@@ -487,6 +487,31 @@ KOBEBUSSAN_HALF_HTML = """
 """
 
 
+def test_kobebussan_purchase_segment_is_shiire() -> None:
+    """仕入れ前年対比を足す。脚注の出荷はセグメントにしない。"""
+    html = (ROOT / "tests" / "testdata" / "html_issue248" / "3038.html").read_text(
+        encoding="utf-8"
+    )
+    got = parse_issuer(html, "3038", table=None)
+    labels = [r["element"] for r in got["rows"]]
+    if any("出荷" in el for el in labels):
+        _fail(f"footnote 出荷 leaked {labels}")
+    exist = _row(got, "直轄エリア 仕入れ 既存店")
+    area_all = _row(got, "直轄エリア 仕入れ 全店")
+    national = _row(got, "全国※ 仕入れ 全店")
+    if exist["unit"] != "yoy_index" or exist["values"].get("8") != 102.8:
+        _fail(f"purchase existing {exist}")
+    if exist["values"].get("11") != 105.4 or exist["values"].get("5") != 101.7:
+        _fail(f"purchase existing halves {exist}")
+    if area_all["values"].get("8") != 104.7 or area_all["values"].get("4") != 102.4:
+        _fail(f"purchase area all {area_all}")
+    if national["values"].get("8") != 105.6 or national["values"].get("1") != 106.5:
+        _fail(f"purchase national {national}")
+    sales = _row(got, "売上高", unit="number")
+    if sales["values"].get("5") != 49860:
+        _fail(f"sales half dropped {sales}")
+
+
 def test_kobebussan_second_half_stays_on_sales() -> None:
     """1表の下期見出しを別の月にする。全店は付けない。"""
     got = parse_issuer(KOBEBUSSAN_HALF_HTML, "3038", table=None)
@@ -2858,6 +2883,7 @@ def main() -> None:
     test_eir_jsonp_picks_latest_monthly()
     test_decode_shift_jis()
     test_dest_html_and_ingest_sidecar()
+    test_kobebussan_purchase_segment_is_shiire()
     test_kobebussan_second_half_stays_on_sales()
     test_section_unit_percent_is_yoy_index()
     test_trailing_unit_percent_is_yoy_index()
