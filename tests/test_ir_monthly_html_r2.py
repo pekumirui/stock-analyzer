@@ -2697,6 +2697,24 @@ def test_ministop_genzai_as_of() -> None:
         _fail(f"breakdown leaked {labels}")
 
 
+def test_9946_all_store_sales_total() -> None:
+    """実ページ。直前セルの小数を注番号にして全店売上の見出しを消さない。"""
+    html = (ROOT / "tests" / "testdata" / "html_9946" / "2026.html").read_text(
+        encoding="utf-8"
+    )
+    got = parse_9946(html)
+    if got["as_of"] != "2026-08-31":
+        _fail(f"9946 as_of {got['as_of']}")
+    if len(got["rows"]) != 1:
+        _fail(f"9946 rows {got['rows']}")
+    sales = got["rows"][0]
+    if sales["element"] != "売上高合計前年比（％）":
+        _fail(f"9946 element {sales}")
+    want = {"3": 93.5, "4": 89.6, "5": 93.7, "6": 89.2, "7": 92.4, "8": 92.9}
+    if sales["values"] != want:
+        _fail(f"9946 values {sales['values']}")
+
+
 def test_follow_year_then_latest_month(tmp: Path) -> None:
     import ir_monthly_html_r2 as mod
 
@@ -3209,6 +3227,7 @@ def main() -> None:
     test_yamaya_scopes_skip_prior_and_wholesale()
     test_daikokuten_drops_nendo_keeps_newest_month()
     test_ministop_genzai_as_of()
+    test_9946_all_store_sales_total()
     test_nitori_direct_page_no_follow()
     test_yamazawa_prefers_current_period()
     test_aeon_hokkaido_prefers_current_year_slide()
