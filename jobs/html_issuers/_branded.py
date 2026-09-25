@@ -357,6 +357,43 @@ def untiled_series(
     return out
 
 
+def _cell_month_years(grids: list[list[list[str]]]) -> dict[int, int]:
+    """月→年。同じ月に別の年があるときはその月を捨てる。"""
+    found: dict[int, set[int]] = {}
+    for grid in grids:
+        for row in grid:
+            for cell in row:
+                year, month = parse_month_year(cell)
+                if year is None or month is None:
+                    continue
+                found.setdefault(month, set()).add(year)
+    return {month: next(iter(years)) for month, years in found.items() if len(years) == 1}
+
+
+def _order_merged_months(
+    months: list[int],
+    grids: list[list[list[str]]],
+    primary_as_of: str | None,
+) -> list[int]:
+    """連結月。年が揃えば (年, 月) 順、無ければ as_of で終わる窓順。"""
+    uniq: list[int] = []
+    for m in months:
+        if isinstance(m, int) and 1 <= m <= 12 and m not in uniq:
+            uniq.append(m)
+    years = _cell_month_years(grids)
+    if uniq and all(m in years for m in uniq):
+        return sorted(uniq, key=lambda m: (years[m], m))
+    end = 0
+    if primary_as_of and len(primary_as_of) >= 7:
+        try:
+            end = int(primary_as_of[5:7])
+        except ValueError:
+            end = 0
+    if 1 <= end <= 12:
+        return sorted(uniq, key=lambda m: (m - end - 1) % 12)
+    return _union_ingest_months(months)
+
+
 def _merge_other_section_companions(
     primary: dict,
     candidates: list[Candidate],
@@ -373,6 +410,10 @@ def _merge_other_section_companions(
     }
     extra_months: list[int] = []
     by_idx = {c[0]: c for c in candidates}
+    merged_grids: list[list[list[str]]] = []
+    primary_c = by_idx.get(primary_index)
+    if primary_c is not None:
+        merged_grids.append(primary_c[1])
     for series in series_fn(candidates, sections, html):
         if primary_as_of and series.as_of != primary_as_of:
             continue
@@ -382,9 +423,10 @@ def _merge_other_section_companions(
             other_c = by_idx.get(idx)
             if other_c is None:
                 continue
-            _i, _grid, other, _fy = other_c
+            _i, grid, other, _fy = other_c
             if _is_store_event_parsed(other):
                 continue
+            merged_grids.append(grid)
             tag = sections[idx] if idx < len(sections) else Section(None, None)
             rows = [
                 dict(row, values=dict(row.get("values") or {})) for row in other.get("rows") or []
@@ -407,8 +449,10 @@ def _merge_other_section_companions(
                 have[key] = merged
             extra_months.extend(_valued_months(other.get("rows") or []))
     if extra_months:
-        primary["months"] = _union_ingest_months(
-            [*_valued_months(primary.get("rows") or []), *extra_months]
+        primary["months"] = _order_merged_months(
+            [*_valued_months(primary.get("rows") or []), *extra_months],
+            merged_grids,
+            primary_as_of,
         )
 
 

@@ -3039,6 +3039,39 @@ def test_brand_issuers_reject_foreign_page_without_sidecar() -> None:
                 _fail(f"{code} removed an existing sidecar")
 
 
+def test_7522_fy2025_q4_months_map_to_2026() -> None:
+    """fy2025 の Q4 と宅食を連結しても 1〜3月は 2026、10〜12月は 2025。"""
+    path = ROOT / "tests" / "testdata" / "html_7522" / "fy2025.html"
+    got = parse_7522(decode_html_bytes(path.read_bytes()))
+    if got["as_of"] != "2026-03-31":
+        _fail(f"7522 fy2025 as_of {got['as_of']}")
+    if got["months"] != [10, 11, 12, 1, 2, 3]:
+        _fail(f"7522 fy2025 months {got['months']}")
+    sys.path.insert(0, str(ROOT))
+    from app.monthly_ingest import plan_column_years
+
+    _layout, mapping = plan_column_years(got["months"], 3, date(2026, 3, 31))
+    years = dict(mapping)
+    if any(years[m] != 2026 for m in (1, 2, 3)):
+        _fail(f"jan-mar not 2026 {mapping}")
+    if any(years[m] != 2025 for m in (10, 11, 12)):
+        _fail(f"oct-dec not 2025 {mapping}")
+    stores = _row(got, "国内外食 （サブウェイ事業除く） 全店 期末店舗数")
+    if stores["values"] != {"1": 289, "2": 288, "3": 288}:
+        _fail(f"subway-excluded stores {stores}")
+
+
+def test_7522_index_follows_js_location_to_fy2026() -> None:
+    """目次の最新年度は <a> ではなく location.href。"""
+    path = ROOT / "tests" / "testdata" / "html_7522" / "index-recent.html"
+    html = decode_html_bytes(path.read_bytes())
+    live = {i.code: i for i in load_html_registry(ROOT / "config" / "ir_monthly.json")}
+    iss = live["7522"]
+    url = pick_follow_url(html, iss.index_url, iss.follow_re)
+    if url != "https://www.watami.co.jp/ir/library/recent/fy2026/":
+        _fail(url)
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -3082,6 +3115,8 @@ def main() -> None:
     test_eir_same_date_picks_later_fy()
     test_eir_skips_empty_url_same_date()
     test_follow_re_picks_latest_year()
+    test_7522_fy2025_q4_months_map_to_2026()
+    test_7522_index_follows_js_location_to_fy2026()
     test_follow_re_picks_latest_month_not_year_folder()
     test_sekisui_single_month_col_skips_cumulative()
     test_sumitomo_snapshot_heading_month()
