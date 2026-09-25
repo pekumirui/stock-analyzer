@@ -246,6 +246,7 @@ def load_html_registry(path: Path) -> list[HtmlIssuer]:
 
 
 _FOLLOW_YM_RE = re.compile(r"(20\d{2})_(1[0-2]|0?[1-9])(?:/|$)")
+_LOCATION_HREF_RE = re.compile(r"""location\.href\s*=\s*(['"])([^'"]*)\1""")
 
 
 def _follow_key(url: str) -> tuple[int, int, int, str]:
@@ -279,7 +280,9 @@ def pick_follow_url(
     parser.close()
     found: list[str] = []
     seen: set[str] = set()
-    for href, _text in parser.links:
+    hrefs = [href for href, _text in parser.links]
+    hrefs.extend(m.group(2) for m in _LOCATION_HREF_RE.finditer(html or ""))
+    for href in hrefs:
         raw = (href or "").strip()
         if not raw or _SKIP_HREF_RE.match(raw):
             continue
