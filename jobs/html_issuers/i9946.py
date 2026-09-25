@@ -39,4 +39,7 @@ def parse(html: str, *, as_of: str | None = None) -> dict:
     chosen = pick_scored(html, matched)
     parsed = chosen[2]
     rows = [dict(r, values=dict(r.get("values") or {})) for r in _totals_only(parsed["rows"])]
+    # 表は「全店売上」見出しで選んでいるので、そのスコープを行名に残す
+    for r in rows:
+        r["element"] = "全店 " + str(r.get("element") or "")
     return emit(html, "9946", chosen, rows, as_of=as_of)

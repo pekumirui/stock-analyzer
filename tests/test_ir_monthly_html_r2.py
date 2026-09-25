@@ -2723,9 +2723,9 @@ def test_ministop_genzai_as_of() -> None:
     if got["months"] != [3, 4, 5, 6, 7, 8]:
         _fail(f"ministop months {got['months']}")
     labels = [r["element"] for r in got["rows"]]
-    if labels != ["売上高合計前年比（％）"]:
+    if labels != ["全店 売上高合計前年比（％）"]:
         _fail(f"want only 全店売上 total {labels}")
-    sales = _row(got, "売上高合計前年比（％）")
+    sales = _row(got, "全店 売上高合計前年比（％）")
     if sales["unit"] != "yoy_index" or sales["values"].get("8") != 92.9:
         _fail(f"ministop {sales}")
     if sales["values"].get("3") == 95.9:
@@ -2737,7 +2737,7 @@ def test_ministop_genzai_as_of() -> None:
 
 
 def test_9946_all_store_sales_total() -> None:
-    """実ページ。直前セルの小数を注番号にして全店売上の見出しを消さない。"""
+    """実ページの全店売上合計は行名に全店を付け、正規化後は全店 売上高(前年比)になる。"""
     html = (ROOT / "tests" / "testdata" / "html_9946" / "2026.html").read_text(
         encoding="utf-8"
     )
@@ -2747,11 +2747,25 @@ def test_9946_all_store_sales_total() -> None:
     if len(got["rows"]) != 1:
         _fail(f"9946 rows {got['rows']}")
     sales = got["rows"][0]
-    if sales["element"] != "売上高合計前年比（％）":
+    if sales["element"] != "全店 売上高合計前年比（％）":
         _fail(f"9946 element {sales}")
+    if sales["unit"] != "yoy_index":
+        _fail(f"9946 unit {sales}")
     want = {"3": 93.5, "4": 89.6, "5": 93.7, "6": 89.2, "7": 92.4, "8": 92.9}
     if sales["values"] != want:
         _fail(f"9946 values {sales['values']}")
+    sys.path.insert(0, str(ROOT))
+    from app.monthly_ingest import apply_issuer_aliases, canonicalize_element_label
+
+    as_of = date(2026, 8, 31)
+    name = apply_issuer_aliases(
+        "99460",
+        canonicalize_element_label(sales["element"], sales["unit"]),
+        as_of=as_of,
+    )
+    stored = canonicalize_element_label(name, sales["unit"])
+    if stored != "全店 売上高(前年比)":
+        _fail(f"9946 canonical {stored}")
 
 
 def test_follow_year_then_latest_month(tmp: Path) -> None:
