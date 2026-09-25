@@ -596,7 +596,9 @@ def parse_element_layers(element: str) -> dict[str, str]:
             continue
         mapped_scope = _SCOPE_CANON.get(tok)
         if mapped_scope:
-            scope = mapped_scope
+            # 既存店全店 など 既存 と 全店 が並ぶときは既存（既存店の全店計）。
+            if mapped_scope == "既存" or scope != "既存":
+                scope = mapped_scope
             continue
         leftover.append(tok)
     leftover, metric = _stitch_store_flow(leftover, metric)
