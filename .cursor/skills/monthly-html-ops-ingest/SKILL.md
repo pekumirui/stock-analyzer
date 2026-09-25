@@ -21,7 +21,7 @@ stock-analyzer MCP (`monthly_*`) を経由した本番環境へのループバ�
 
 ## パイプライン (正本) (Pipeline (truth))
 
-1. ライブ HTML (年次/アーカイブ URL) → ローカルで `scripts.ir_monthly_html_r2.html_to_ingest` を使ってパースする
+1. ライブ HTML (年次/アーカイブ URL) → ローカルで `html_issuers.parse_issuer` を使ってパースする
 2. 任意: ペイロードを手動で編集する (`as_of`、月、要素名、テーブルの結合)
 3. `plan_column_years(months, fy_end_month, as_of)` — POST 前に暦年を証明する
 4. 重複するセルについて `monthly_get` との競合チェックを行う
@@ -45,7 +45,7 @@ Cron のパスは異なります: `ir_monthly_html_r2` は `.ingest.json` のみ
 |---|---|
 | MCP `monthly_get` / `monthly_ingest` / `monthly_put_values` / `monthly_add_element` / `monthly_delete_element` | 本番ループバック |
 | `config/ir_monthly.json` | `index_url`, `follow_re`, html 発行体 |
-| `.venv/bin/python` + `html_to_ingest` / `plan_column_years` | ローカルパース + 年マッピング |
+| `.venv/bin/python` + `parse_issuer` / `plan_column_years` | ローカルパース + 年マッピング |
 | `config/issuer_aliases.json` + `docs/DESIGN_monthly_labels.md` | 新しいリネームルール (コードの PR) |
 | GitHub Issue | 作業前/作業後の進捗 |
 
@@ -60,7 +60,7 @@ VPS: `ssh stock-vps` + `curl http://127.0.0.1:8000/api/v1/tables/...` は MCP �
 - [ ] 本番の statements (または既知の情報) から fy_end を確認した; plan_column_years を出力した
 - [ ] as_of を意図的に選択した (パーサーのデフォルトまたは上書き) — うるう日も可 (2024-02-29)
 - [ ] 要素名が DB の最終形と一致している (エイリアスが VPS にまだない場合はゴーストのプレフィックスを付けない: クリーンな名前を送信する)
-- [ ] **HTML パース ↔ 手動投入の一致**: `html_to_ingest`（必要なら alias 適用後）の element / unit / 暦月値が、POST する JSON および投入後の `monthly_get` と一致する（ズレたらパース修正か alias、または POST 名の修正）
+- [ ] **HTML パース ↔ 手動投入の一致**: `parse_issuer`（必要なら alias 適用後）の element / unit / 暦月値が、POST する JSON および投入後の `monthly_get` と一致する（ズレたらパース修正か alias、または POST 名の修正）
 - [ ] monthly_get との重複: 競合する null でないセルがない (または一致を証明した後にのみ force を使用する)
 - [ ] 新しいセルに対して year-PUT を行っていない
 - [ ] Issue コメント: URL、as_of、マッピングする年、何を埋めるか
@@ -97,7 +97,7 @@ VPS: `ssh stock-vps` + `curl http://127.0.0.1:8000/api/v1/tables/...` は MCP �
 - 各サンプルについて: 同じ要素、同じ暦月 → DB の値 == ソース (`yoy`: 保存された形式; `yoy_pct` の取り込みは +100 されて `yoy_index` になる)
 - 不一致、ソースに数値があるのに無言で null になっている場合、または年のバケツが間違っている場合 (値が 2024 ではなく 2025 に入った場合) は不合格とする
 
-**HTML パース ↔ 手動投入の一致 (必須)。** ウェーブで触った銘柄について、ライブ/アーカイブ HTML を `html_to_ingest` し（銘柄固有は `canonicalize` → `apply_issuer_aliases` → `canonicalize`）、投入後の `monthly_get` と比較する。
+**HTML パース ↔ 手動投入の一致 (必須)。** ウェーブで触った銘柄について、ライブ/アーカイブ HTML を `parse_issuer` し（銘柄固有は `canonicalize` → `apply_issuer_aliases` → `canonicalize`）、投入後の `monthly_get` と比較する。
 
 - 同じ暦月・同じ最終 element 名・同じ unit で値が一致すること
 - パーサだけにある行 / DB だけにある双子・ゴースト行があれば不合格（意図的な運用マージ途中なら Issue に残件を書く）

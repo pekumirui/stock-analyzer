@@ -404,7 +404,7 @@ def main() -> None:
         cwd=ROOT,
     )
     if ir_html_recipe.returncode != 0:
-        raise SystemExit("html recipe tests failed")
+        raise SystemExit("html issuer tests failed")
     ir_html_parity = subprocess.run(
         [sys.executable, str(ROOT / "tests" / "test_html_issue248_parity.py")],
         cwd=ROOT,
