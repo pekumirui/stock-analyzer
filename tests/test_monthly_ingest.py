@@ -110,6 +110,23 @@ def test_canonicalize_element_label() -> None:
         _fail("合計 店舗数 drops 合計")
     if canonicalize_element_label("既存店 売上高(前年比)", "yoy_index") != "既存 売上高(前年比)":
         _fail("既存店 shortens")
+    if canonicalize_element_label("既存店全店 売上高(％)", "yoy_index") != "既存 売上高(前年比)":
+        _fail("既存店全店 売上高 stays 既存")
+    if canonicalize_element_label("既存店全店 客単価(％)", "yoy_index") != "既存 客単価(前年比)":
+        _fail("既存店全店 客単価 stays 既存")
+    if canonicalize_element_label("既存店全店 店舗数", "number") != "既存 店舗数":
+        _fail("既存店全店 店舗数 stays 既存")
+    if canonicalize_element_label("既存店全店舗 客数", "yoy_index") != "既存 客数(前年比)":
+        _fail("既存店全店舗 客数 stays 既存")
+    if canonicalize_element_label("全店 売上高(％)", "yoy_index") != "全店 売上高(前年比)":
+        _fail("全店 売上高 unchanged")
+    if canonicalize_element_label("全店 店舗数", "number") != "全店 店舗数":
+        _fail("全店 店舗数 unchanged")
+    glued_scope = canonicalize_element_label("全店既存店合算(前年比)", "yoy_index")
+    if "既存" not in glued_scope:
+        _fail(f"全店既存店合算 keeps 既存: {glued_scope!r}")
+    if parse_element_layers("全店既存店合算(前年比)")["scope"] != "既存":
+        _fail("全店既存店合算 scope is 既存")
     if canonicalize_element_label("全社 売上高(前年比)", "yoy_index") != "全社 売上高(前年比)":
         _fail("全社 stays 全社 (not 全店)")
     if canonicalize_element_label("既存店計 単月", "yoy_index") != "既存 売上高(前年比)":
@@ -639,38 +656,71 @@ def test_issuer_alias_cases() -> None:
         if reverse != stored:
             _fail(f"38170 year=2026 reverse {stored!r}: {reverse!r}")
 
-    # 30820: 短名→業態長名、中黒なしへ（Lane B / re-ingest）。canonicalize 後キー、year=2026。
-    # 店舗数 と 全店 店舗数 は canonicalize 後も別キー。裸プレフィックスも寄せる。
-    suffixes_30820 = (
-        (" 全店 売上高(前年比)", "yoy_index"),
-        (" 全店 客数(前年比)", "yoy_index"),
-        (" 全店 客単価(前年比)", "yoy_index"),
-        (" 店舗数", "number"),
-        (" 全店 店舗数", "number"),
-        (" 既存 売上高(前年比)", "yoy_index"),
-        (" 既存 客数(前年比)", "yoy_index"),
-        (" 既存 客単価(前年比)", "yoy_index"),
-        (" 既存 店舗数", "number"),
-        ("", "number"),
+    # 30820: 中黒+半角スペースの「モール・郊外型 レストラン業態」へ。HTML の業態行（既存店見出しなし）は既存へ、店舗数はスコープなし。
+    mall = "モール・郊外型 レストラン業態"
+    urban = "都市型ダイニング業態"
+    p_lines_30820 = (
+        (" 全店 売上高(前年比)", " 全店 売上高(前年比)"),
+        (" 全店 客数(前年比)", " 全店 客数(前年比)"),
+        (" 全店 客単価(前年比)", " 全店 客単価(前年比)"),
+        (" 全店 店舗数", " 全店 店舗数"),
+        (" 既存 売上高(前年比)", " 既存 売上高(前年比)"),
+        (" 既存 客数(前年比)", " 既存 客数(前年比)"),
+        (" 既存 客単価(前年比)", " 既存 客単価(前年比)"),
+        (" 売上高(前年比)", " 既存 売上高(前年比)"),
+        (" 客数(前年比)", " 既存 客数(前年比)"),
+        (" 客単価(前年比)", " 既存 客単価(前年比)"),
+        (" 店舗数", " 店舗数"),
+        (" 既存 店舗数", " 店舗数"),
+        ("", ""),
     )
-    for src_prefix, dst_prefix in (
-        ("都市型ダイニング", "都市型ダイニング業態"),
-        ("モール郊外型", "モール郊外型レストラン業態"),
-        ("モール・郊外型レストラン業態", "モール郊外型レストラン業態"),
+    pairs_30820 = []
+    for src_p, dst_p in (
+        ("モール郊外型", mall),
+        ("モール郊外型レストラン業態", mall),
+        ("モール・郊外型レストラン業態", mall),
+        ("都市型ダイニング", urban),
     ):
-        for suffix, unit in suffixes_30820:
-            incoming = src_prefix + suffix
-            stored = dst_prefix + suffix
-            got = apply_issuer_aliases(
-                "30820", canonicalize_element_label(incoming, unit), year=2026,
-            )
-            if got != stored:
-                _fail(f"30820 year=2026 {incoming!r}: {got!r}, want {stored!r}")
-            reverse = apply_issuer_aliases(
-                "30820", canonicalize_element_label(stored, unit), year=2026,
-            )
-            if reverse != stored:
-                _fail(f"30820 year=2026 reverse {stored!r}: {reverse!r}")
+        for src_suf, dst_suf in p_lines_30820:
+            pairs_30820.append((src_p + src_suf, dst_p + dst_suf if dst_suf else dst_p))
+    for prefix in (mall, urban):
+        pairs_30820.extend((
+            (f"{prefix} 売上高(前年比)", f"{prefix} 既存 売上高(前年比)"),
+            (f"{prefix} 客数(前年比)", f"{prefix} 既存 客数(前年比)"),
+            (f"{prefix} 客単価(前年比)", f"{prefix} 既存 客単価(前年比)"),
+            (f"{prefix} 既存 店舗数", f"{prefix} 店舗数"),
+        ))
+    for incoming, stored in pairs_30820:
+        unit = "yoy_index" if "(前年比)" in incoming else "number"
+        got = apply_issuer_aliases(
+            "30820", canonicalize_element_label(incoming, unit), year=2026,
+        )
+        got = canonicalize_element_label(got, unit)
+        if got != stored:
+            _fail(f"30820 year=2026 {incoming!r}: {got!r}, want {stored!r}")
+        dst_unit = "yoy_index" if "(前年比)" in stored else "number"
+        reverse = apply_issuer_aliases(
+            "30820", canonicalize_element_label(stored, dst_unit), year=2026,
+        )
+        reverse = canonicalize_element_label(reverse, dst_unit)
+        if reverse != stored:
+            _fail(f"30820 year=2026 reverse {stored!r}: {reverse!r}")
+    for incoming, unit, stored in (
+        ("既存店 モール・郊外型レストラン業態 売上高", "yoy_index", f"{mall} 既存 売上高(前年比)"),
+        ("モール・郊外型 レストラン業態 売上高(％)", "yoy_index", f"{mall} 既存 売上高(前年比)"),
+        ("既存店 モール・郊外型レストラン業態 店舗数", "number", f"{mall} 店舗数"),
+        ("都市型ダイニング業態 客数(％)", "yoy_index", f"{urban} 既存 客数(前年比)"),
+        ("都市型ダイニング業態 店舗数", "number", f"{urban} 店舗数"),
+        (f"{mall} 全店 店舗数", "number", f"{mall} 全店 店舗数"),
+        ("全店 売上高(前年比)", "yoy_index", "全店 売上高(前年比)"),
+        ("全店 店舗数", "number", "全店 店舗数"),
+    ):
+        got = apply_issuer_aliases(
+            "30820", canonicalize_element_label(incoming, unit), year=2026,
+        )
+        got = canonicalize_element_label(got, unit)
+        if got != stored:
+            _fail(f"30820 raw {incoming!r}: {got!r}, want {stored!r}")
 
 
 def test_mapping_examples() -> None:
