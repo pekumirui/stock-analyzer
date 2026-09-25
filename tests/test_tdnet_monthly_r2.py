@@ -144,6 +144,7 @@ def test_download_skip_reason() -> None:
     stock_map: dict[str, tuple[str | None, str | None]] = {
         "92820": ("013", "ジャパン・インフラファンド投資法人"),
         "89850": ("013", "ジャパン・ホテル・リート投資法人"),
+        "89520": ("013", "テストリート投資法人"),
         "72030": ("011", "トヨタ自動車"),
         "92790": ("010", "ギフト"),
     }
@@ -174,8 +175,11 @@ def test_download_skip_reason() -> None:
     got = download_skip_reason("9282", "○○インフラ投資法人", empty)
     if got != "infra-fund 9282 ○○インフラ投資法人":
         _fail(f"empty map infra fallback: {got!r}")
-    if download_skip_reason("8985", "ジャパン・ホテル・リート投資法人", empty) is not None:
-        _fail("empty map must keep 8985")
+    got = download_skip_reason("8985", "ジャパン・ホテル・リート投資法人", empty)
+    if got != "excluded-code 8985 ジャパン・ホテル・リート投資法人":
+        _fail(f"empty map 8985 excluded-code: {got!r}")
+    if download_skip_reason("8952", "テストリート投資法人", empty) is not None:
+        _fail("empty map must keep ordinary REIT 8952")
 
     # 3. code in stocks + infra fund → still infra skip
     got = download_skip_reason("9282", "ジャパン・インフラファンド投資法人", stock_map)
@@ -185,11 +189,17 @@ def test_download_skip_reason() -> None:
     if got != "infra-fund 9282 ジャパン・インフラファンド投資法人":
         _fail(f"92820 infra: {got!r}")
 
-    # 4. 8985 REIT in stocks, not infra → keep
-    if download_skip_reason("8985", "ジャパン・ホテル・リート投資法人", stock_map) is not None:
-        _fail("8985 should keep")
-    if download_skip_reason("89850", "ジャパン・ホテル・リート投資法人", stock_map) is not None:
-        _fail("89850 should keep")
+    # 4. 8985 is on MONTHLY_SKIP_CODES. Other ordinary REIT stays.
+    got = download_skip_reason("8985", "ジャパン・ホテル・リート投資法人", stock_map)
+    if got != "excluded-code 8985 ジャパン・ホテル・リート投資法人":
+        _fail(f"8985 excluded-code: {got!r}")
+    got = download_skip_reason("89850", "ジャパン・ホテル・リート投資法人", stock_map)
+    if got != "excluded-code 8985 ジャパン・ホテル・リート投資法人":
+        _fail(f"89850 excluded-code: {got!r}")
+    if download_skip_reason("8952", "テストリート投資法人", stock_map) is not None:
+        _fail("8952 ordinary REIT should keep")
+    if download_skip_reason("89520", "テストリート投資法人", stock_map) is not None:
+        _fail("89520 ordinary REIT should keep")
     if download_skip_reason("7203", "トヨタ自動車", stock_map) is not None:
         _fail("7203 should keep")
     if download_skip_reason("9279", "ギフト", stock_map) is not None:
