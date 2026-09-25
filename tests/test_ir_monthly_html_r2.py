@@ -29,6 +29,8 @@ from html_issuers.i7561 import parse as parse_7561  # noqa: E402
 from html_issuers.i8179 import parse as parse_8179  # noqa: E402
 from html_issuers.i8278 import parse as parse_8278  # noqa: E402
 from html_issuers.i9946 import parse as parse_9946  # noqa: E402
+from html_issuers.i9948 import parse as parse_9948  # noqa: E402
+from html_issuers.i9993 import parse as parse_9993  # noqa: E402
 from html_issuers.i9994 import parse as parse_9994  # noqa: E402
 from ir_monthly_html_r2 import (  # noqa: E402
     HtmlIssuer,
@@ -3168,6 +3170,72 @@ def test_7522_index_follows_js_location_to_fy2026() -> None:
         _fail(url)
 
 
+def test_9948_customers_are_yoy_index() -> None:
+    """客数・客単価は100基準の指数。値は変えず、店舗数は実数のまま。"""
+    path = ROOT / "tests" / "testdata" / "html_9948" / "2026.html"
+    got = parse_9948(decode_html_bytes(path.read_bytes()))
+    if got["as_of"] != "2026-08-31":
+        _fail(f"9948 as_of {got['as_of']}")
+    if got["months"] != [3, 4, 5, 6, 7, 8]:
+        _fail(f"9948 months {got['months']}")
+    want = {
+        "客数 全店": {
+            "3": 100.7, "4": 100.6, "5": 101.2, "6": 97.6, "7": 97.9, "8": 99,
+        },
+        "客数 既存店": {
+            "3": 100.7, "4": 100.8, "5": 101.3, "6": 97.4, "7": 97.6, "8": 98.9,
+        },
+        "客単価 全店": {
+            "3": 100, "4": 101.6, "5": 104, "6": 101.4, "7": 102.9, "8": 102.8,
+        },
+        "客単価 既存店": {
+            "3": 99.9, "4": 101.6, "5": 104, "6": 101.3, "7": 102.7, "8": 102.6,
+        },
+    }
+    for element, values in want.items():
+        row = _row(got, element)
+        if row["unit"] != "yoy_index" or row["values"] != values:
+            _fail(f"9948 {element} {row}")
+    sales = _row(got, "売上高 全店")
+    if sales["unit"] != "yoy_index":
+        _fail(f"9948 売上高 全店 {sales}")
+    stores = _row(got, "店舗数")
+    if stores["unit"] != "number" or stores["values"].get("8") != 374:
+        _fail(f"9948 店舗数 {stores}")
+
+
+def test_9993_customers_are_yoy_index() -> None:
+    """客数・客単価は売上と同じ前年比指数。値は変えない。"""
+    path = ROOT / "tests" / "testdata" / "html_9993" / "2026.html"
+    got = parse_9993(decode_html_bytes(path.read_bytes()))
+    if got["as_of"] != "2026-08-31":
+        _fail(f"9993 as_of {got['as_of']}")
+    if got["months"] != [3, 4, 5, 6, 7, 8]:
+        _fail(f"9993 months {got['months']}")
+    want = {
+        "全店 客数": {
+            "3": 93.2, "4": 92.3, "5": 94.7, "6": 92.1, "7": 91.1, "8": 91.5,
+        },
+        "全店 客単価": {
+            "3": 99.2, "4": 101.3, "5": 102.3, "6": 99.5, "7": 99.8, "8": 100.2,
+        },
+        "既存店 客数": {
+            "3": 102, "4": 101, "5": 103.7, "6": 101, "7": 99.7, "8": 100.2,
+        },
+        "既存店 客単価": {
+            "3": 98.2, "4": 100.4, "5": 101.5, "6": 98.6, "7": 99.1, "8": 99.7,
+        },
+    }
+    for element, values in want.items():
+        row = _row(got, element)
+        if row["unit"] != "yoy_index" or row["values"] != values:
+            _fail(f"9993 {element} {row}")
+    for element in ("全店 売上", "既存店 売上"):
+        row = _row(got, element)
+        if row["unit"] != "yoy_index":
+            _fail(f"9993 {element} {row}")
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -3212,6 +3280,7 @@ def main() -> None:
     test_nendo_and_fullwidth_fy_as_of()
     test_sagami_zougenhi_is_yoy_pct()
     test_skip_span_total_column()
+    test_9948_customers_are_yoy_index()
     test_eir_same_date_picks_later_fy()
     test_eir_skips_empty_url_same_date()
     test_follow_re_picks_latest_year()
@@ -3230,6 +3299,7 @@ def main() -> None:
     test_9946_all_store_sales_total()
     test_nitori_direct_page_no_follow()
     test_yamazawa_prefers_current_period()
+    test_9993_customers_are_yoy_index()
     test_aeon_hokkaido_prefers_current_year_slide()
     test_village_nafco_sagami_as_of_not_future_fy()
     test_yoy_context_does_not_rename_guest_metrics()
