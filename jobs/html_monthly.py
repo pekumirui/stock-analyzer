@@ -35,6 +35,11 @@ _YM_DO_RE = re.compile(r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月度(?!より|か�
 _YM_HEAD_RE = re.compile(
     r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月(?!\s*期)(?!\s*度)(?!\s*\d)"
 )
+# <p> は「YYYY年M月」が月次見出しに直結したものだけ（子会社化月などは除外）
+_YM_P_TITLE_RE = re.compile(
+    r"(?:(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月(?:度)?(?:の)?\s*月次"
+    r"|月次[^\s]{0,8}[（(](\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月[)）])"
+)
 # カレンダー日付・季節予定の「2027年」は期末に使わない（改装表 lookback 対策）。
 _CAL_DATE_YEAR_RE = re.compile(r"20\d{2}\s*年\s*(?:1[0-2]|0?[1-9])\s*月")
 _SEASON_YEAR_RE = re.compile(r"20\d{2}\s*年\s*[春夏秋冬]")
@@ -207,13 +212,14 @@ def parse_as_of_text(html: str) -> str | None:
     # Vega: `2026年8月の月次業績` is a <p>, not h1-h4
     for m in _P_RE.finditer(html or ""):
         t = _plain(m.group(1))
-        if "月次" not in t and "月度" not in t:
+        if "月次" not in t:
             continue
-        headed.extend(
-            (int(y), int(mo))
-            for y, mo in _YM_HEAD_RE.findall(unicodedata.normalize("NFKC", t))
-            if int(y) >= _MIN_AS_OF_YEAR
-        )
+        for mm in _YM_P_TITLE_RE.finditer(t):
+            y_raw = mm.group(1) or mm.group(3)
+            mo_raw = mm.group(2) or mm.group(4)
+            yi = int(y_raw)
+            if yi >= _MIN_AS_OF_YEAR:
+                headed.append((yi, int(mo_raw)))
     if headed:
         y, mo = max(headed)
         try:
@@ -675,6 +681,15 @@ def _label_from_cell(text: str) -> str:
     return raw
 
 
+def _cells_fy(cells: list[str]) -> tuple[int, int] | None:
+    """ラベルセルだけの期末。値セルの年月は見ない。"""
+    blob = " ".join(str(c) for c in cells)
+    found = _fy_captions(blob)
+    if found:
+        return max(found)
+    return fy_end_from_text(blob)
+
+
 def _header_label(header_rows: list[list[str]], col: int) -> str:
     parts: list[str] = []
     for row in header_rows:
@@ -977,6 +992,13 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
             months.append(month)
     month_start = min(c for c, _m in month_cols)
     label_end = _label_band_end(header, month_start)
+    current_fy: tuple[int, int] | None = None
+    for row in grid[header_i + 1 :]:
+        if _month_header_cols(row) is not None or _repeated_scope_row(row) is not None:
+            continue
+        fy = _cells_fy([row[c] if c < len(row) else "" for c in range(label_end)])
+        if fy is not None and (current_fy is None or fy > current_fy):
+            current_fy = fy
     series: dict[tuple[str, str], dict[str, int | float]] = {}
     scope = ""
     for row in grid[header_i + 1 :]:
@@ -991,6 +1013,10 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
         band = _repeated_scope_row(row)
         if band is not None:
             scope = band
+            continue
+        row_fy = _cells_fy([row[c] if c < len(row) else "" for c in range(label_end)])
+        # 古い期の行は同名指標の欠測埋めに使わない
+        if current_fy is not None and row_fy is not None and row_fy < current_fy:
             continue
         parts: list[str] = []
         for c in range(label_end):
@@ -1073,8 +1099,17 @@ def _parse_row_months(grid: list[list[str]], data_i: int, context: str) -> dict 
     metric_start = 1 + n_label
     if metric_start >= width:
         return None
+    col_fy_of = {
+        c: _cells_fy([row[c] if c < len(row) else "" for row in header_rows])
+        for c in range(metric_start, width)
+    }
+    captioned = [fy for fy in col_fy_of.values() if fy is not None]
+    current_fy = max(captioned) if captioned else None
     col_meta: list[tuple[int, str, str]] = []
     for c in range(metric_start, width):
+        fy = col_fy_of[c]
+        if current_fy is not None and fy is not None and fy < current_fy:
+            continue
         raw_header = _header_label(header_rows, c)
         if _is_skip_axis(raw_header) or _is_prior_year_absolute(raw_header):
             continue
