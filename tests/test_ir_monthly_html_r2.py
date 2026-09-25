@@ -587,14 +587,51 @@ def test_create_sd_nobiritsu_force_yoy_index() -> None:
     if iss.force_unit != "yoy_index":
         _fail(f"3148 force_unit {iss.force_unit}")
     got = parse_3148(CREATE_SD_NOBIRITSU_HTML)
-    exist = _row(got, "既存店 Existing stores 単月 Monthly")
+    exist = _row(got, "既存店 単月")
     if exist["unit"] != "yoy_index":
         _fail(f"3148 must emit yoy_index {exist}")
     if exist["values"].get("7") != 103.7:
         _fail(f"3148 value must stay 103.7 not +100 {exist}")
-    all_store = _row(got, "全店 All stores 単月 Monthly")
+    all_store = _row(got, "全店 単月")
     if all_store["unit"] != "yoy_index" or all_store["values"].get("7") != 107.1:
         _fail(f"3148 all store {all_store}")
+
+
+def test_3148_real_page_drops_english_label() -> None:
+    """実ページの日英併記を落とし、正規化後は既存の行名になる。"""
+    path = ROOT / "tests" / "testdata" / "html_3148" / "2026.html"
+    got = parse_3148(decode_html_bytes(path.read_bytes()))
+    if got["as_of"] != "2026-08-31":
+        _fail(f"3148 as_of {got['as_of']}")
+    if got["months"] != [6, 7, 8]:
+        _fail(f"3148 months {got['months']}")
+    labels = [r["element"] for r in got["rows"]]
+    if labels != ["既存店 単月", "全店 単月"]:
+        _fail(f"3148 elements {labels}")
+    if any(ch.isascii() and ch.isalpha() for el in labels for ch in el):
+        _fail(f"3148 english remains {labels}")
+    exist = _row(got, "既存店 単月")
+    all_store = _row(got, "全店 単月")
+    if exist["unit"] != "yoy_index" or all_store["unit"] != "yoy_index":
+        _fail(f"3148 units {exist['unit']} {all_store['unit']}")
+    if exist["values"] != {"6": 100, "7": 103.4, "8": 101.8}:
+        _fail(f"3148 existing {exist['values']}")
+    if all_store["values"] != {"6": 103.6, "7": 107.1, "8": 105.5}:
+        _fail(f"3148 all store {all_store['values']}")
+    sys.path.insert(0, str(ROOT))
+    from app.monthly_ingest import apply_issuer_aliases, canonicalize_element_label
+
+    as_of = date(2026, 8, 31)
+    stored = []
+    for row in (exist, all_store):
+        name = apply_issuer_aliases(
+            "31480",
+            canonicalize_element_label(row["element"], row["unit"]),
+            as_of=as_of,
+        )
+        stored.append(canonicalize_element_label(name, row["unit"]))
+    if stored != ["既存 売上高(前年比)", "全店 売上高(前年比)"]:
+        _fail(f"3148 canonical {stored}")
 
 
 NITORI_HTML = """
@@ -3185,6 +3222,7 @@ def main() -> None:
     test_trailing_unit_percent_is_yoy_index()
     test_force_unit_overrides_yoy_keeps_number()
     test_create_sd_nobiritsu_force_yoy_index()
+    test_3148_real_page_drops_english_label()
     test_load_html_registry()
     test_dumps_matches_ingest_shape()
     test_mos_skips_half_year_total()
