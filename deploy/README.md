@@ -197,6 +197,23 @@ ssh stock-vps 'cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_mont
 
 接続確認: `ssh stock-vps 'echo ok $(hostname)'`。失敗したら公開鍵が `stock` の `authorized_keys` にあるか、Actions の **Debug VPS** を見る。
 
+### IR 月次 HTML の強制再取得・再投入（--force）
+
+パーサーを直したあと、中身が同じ HTML を今日の日付で書き直し、sidecar を今のパーサーで作り直してから入れ直す。cron のコマンドは変えない。銘柄を指定して手元で走らせる。
+
+順番は fetch、その次に ingest。どちらも `--force` には `--only` が要る。`--only` は `3082` でも J-Quants の `30820` でもよい（4桁に切る）。
+
+ingest の `--months` は暦年の `YYYY-MM`（カンマ区切り、繰り返し可）。どの列が何年かはここでは決めない。`rows=[]` の probe POST が返す mapping に合わせる。`--months` の部分投入は ledger を更新しない。同じ sha の残りの月を、次の通常実行が飛ばさないため。`--force` だけで sidecar 全体を送ったときは、通常どおり ledger に書く。
+
+HTML に無いセル（行自体がページに無い、など）は消さない。値がキーとして sidecar に無いセルは送らないので、サーバは既存の値を触らない。消すときは API で別途削除する。
+
+ユーザ `stock` で:
+
+```bash
+cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_monthly_html_r2.py --force --only 3082
+cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json --force --only 3082 --months 2026-07,2026-08
+```
+
 ### Cursor Cloud Agent から読む
 
 Cloud Agent の VM には mount が無い。同じ bucket を S3 互換 API で読む。
