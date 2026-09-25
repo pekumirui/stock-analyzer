@@ -186,7 +186,7 @@ ingest / POST は `canonicalize_element_label` してから既存行を探す。
 TDnet 月次 PDF（`jobs/tdnet_monthly_r2.py`）:
 
 - ダウンロード時にインフラファンドを除外する。商品区分は REIT と同じ `013`/`022` しか無いので、名称に「インフラ」を含むものだけ落とす（マスタ欠落時は TDnet 社名の「インフラ投資法人」）
-- 通常の REIT（8985 ジャパン・ホテル・リート投資法人など）は残す。決算速報の REIT 全除外とは別
+- 通常の REIT は残す。決算速報の REIT 全除外とは別。`MONTHLY_SKIP_CODES`（display_code の4桁）に入った銘柄は保存しない。8985 ジャパン・ホテル・リート投資法人は取得対象外
 
 IR 月次 PDF/xlsx/xls（`jobs/ir_monthly_r2.py`）:
 

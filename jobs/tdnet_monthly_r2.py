@@ -55,6 +55,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 INFRA_FUND_PRODUCT_CATEGORIES = ("013", "022")
 INFRA_FUND_NAME_NEEDLE = "インフラ"
 INFRA_FUND_FALLBACK_NEEDLE = "インフラ投資法人"
+# display_code（4桁）。月次PDFを保存しない発行体。
+MONTHLY_SKIP_CODES = frozenset({"8985"})
 
 
 def is_monthly_title(title: str) -> bool:
@@ -119,6 +121,7 @@ def download_skip_reason(
 
     stock_map が空（DB 欠落・非 sqlite・読取失敗）なら unknown-stock 判定はしない。
     インフラ判定は従来どおり（空 map では company_name フォールバック）。
+    MONTHLY_SKIP_CODES は map の有無にかかわらず落とす。
     """
     jq = jq_lookup_code(company_code)
     disp = display_code(company_code)
@@ -129,6 +132,9 @@ def download_skip_reason(
     if should_skip_infra_fund(cat, stock_name, company_name):
         label = stock_name or company_name or ""
         return f"infra-fund {disp} {label}"
+    if disp in MONTHLY_SKIP_CODES:
+        label = stock_name or company_name or ""
+        return f"excluded-code {disp} {label}"
     return None
 
 
