@@ -5,6 +5,11 @@
   python jobs/ir_monthly_html_ingest.py --dest /tmp/r2/monthly --only 2664
   python jobs/ir_monthly_html_ingest.py --dest /tmp/r2/monthly --dry-run
   python jobs/ir_monthly_html_ingest.py --dest /tmp/r2/monthly --verify-mapping
+  python jobs/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json --force --only 3082 --months 2026-07,2026-08
+
+--only は 4桁 (3082) でも 5桁の J-Quants コード (30820) でもよい。
+--months は暦年の YYYY-MM。列の年はサーバの mapping（rows=[] の probe POST）に合わせる。
+--months の部分投入は ledger を更新しない。--force だけで sidecar 全体を送ったときは更新する。
 
 VPS cron (JST, after ir_monthly_html_r2.py): 10:30 / 16:30 with
   --ledger /var/log/app/html_ingest_ledger.json
@@ -18,7 +23,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -37,7 +42,9 @@ DEFAULT_BASE_URL = "http://127.0.0.1:8000"
 HTTP_TIMEOUT = 30.0
 _STEM_DATE_RE = re.compile(r"^(\d{8})_")
 _CODE_DIR_RE = re.compile(r"^[0-9][0-9A-Z]{3}$")
+_MONTH_TOKEN_RE = re.compile(r"^(\d{4})-(\d{2})$")
 _LOOPBACK = frozenset({"127.0.0.1", "localhost"})
+_DUP_VALUES_MSG = 'months に重複があるとき values は配列か列番号キー（"0"…）のオブジェクトです。'
 
 
 class AsOfUnusable(ValueError):
@@ -228,6 +235,216 @@ def ingest_body(s: Sidecar) -> dict[str, Any]:
     }
 
 
+def parse_month_filter(tokens: Sequence[str]) -> frozenset[tuple[int, int]]:
+    """'2026-07,2026-08' やその繰り返しを (year, month) にする。"""
+    raw_tokens: Sequence[str] = (tokens,) if isinstance(tokens, str) else tokens
+    found: set[tuple[int, int]] = set()
+    for token in raw_tokens:
+        if not isinstance(token, str):
+            raise ValueError(f"invalid month token: {token!r}")
+        for piece in token.split(","):
+            piece = piece.strip()
+            if not piece:
+                continue
+            m = _MONTH_TOKEN_RE.fullmatch(piece)
+            if not m:
+                raise ValueError(f"invalid month token: {piece!r}")
+            year = int(m.group(1))
+            month = int(m.group(2))
+            if month < 1 or month > 12:
+                raise ValueError(f"invalid month token: {piece!r}")
+            found.add((year, month))
+    if not found:
+        raise ValueError("invalid month token: empty")
+    return frozenset(found)
+
+
+def _fmt_ym(pairs: Iterable[tuple[int, int]]) -> str:
+    return ",".join(f"{year:04d}-{month:02d}" for year, month in sorted(set(pairs)))
+
+
+def _column_index_key(key: object) -> int | None:
+    if isinstance(key, bool):
+        return None
+    if isinstance(key, int):
+        return key
+    if isinstance(key, str) and key.isdigit():
+        return int(key)
+    return None
+
+
+def _month_number_key(key: object) -> int | None:
+    month = _column_index_key(key)
+    if month is None or month < 1 or month > 12:
+        return None
+    return month
+
+
+def _ambiguous_column_keys(keys: set[int], months: Sequence[int]) -> bool:
+    # 0 が無く、キーが全部「months に含まれる 1..12」だと月番号と列番号が区別できない。
+    return bool(
+        keys
+        and 0 not in keys
+        and set(keys) <= set(months)
+        and all(1 <= k <= 12 for k in keys)
+    )
+
+
+def column_values(row_values: Any, months: Sequence[int]) -> dict[int, Any]:
+    """列インデックス → 値。api._parse_ingest_values_by_column と同じキー規則。"""
+    month_list = [int(m) for m in months]
+    n = len(month_list)
+    has_dup = len(month_list) != len(set(month_list))
+    if isinstance(row_values, list):
+        if len(row_values) != n:
+            raise ValueError(f"values length {len(row_values)} != months {n}")
+        return {i: val for i, val in enumerate(row_values)}
+    if not isinstance(row_values, dict):
+        raise ValueError("values must be a list or object")
+    if has_dup:
+        by_col: dict[int, Any] = {}
+        for key, val in row_values.items():
+            idx = _column_index_key(key)
+            if idx is None or idx < 0 or idx >= n:
+                raise ValueError(f"invalid column key {key!r}")
+            by_col[idx] = val
+        if _ambiguous_column_keys(set(by_col), month_list):
+            raise ValueError(_DUP_VALUES_MSG)
+        return by_col
+    by_col = {}
+    month_set = set(month_list)
+    for key, val in row_values.items():
+        month = _month_number_key(key)
+        if month is None or month not in month_set:
+            raise ValueError(f"invalid month key {key!r}")
+        by_col[month_list.index(month)] = val
+    return by_col
+
+
+def filter_body(body: dict[str, Any], keep_cols: set[int]) -> dict[str, Any]:
+    """months と as_of はそのまま。keep 以外の値キーは落とす（null にはしない）。"""
+    months_raw = body.get("months")
+    if not isinstance(months_raw, list) or not months_raw:
+        raise ValueError("months must be a list")
+    months = [int(m) for m in months_raw]
+    has_dup = len(months) != len(set(months))
+    rows_out: list[dict[str, Any]] = []
+    for row in body.get("rows") or []:
+        if not isinstance(row, dict):
+            raise ValueError("row must be an object")
+        parsed = column_values(row.get("values"), months)
+        kept = {col: parsed[col] for col in sorted(parsed) if col in keep_cols}
+        if not kept:
+            continue
+        if has_dup and _ambiguous_column_keys(set(kept), months):
+            raise ValueError(_DUP_VALUES_MSG)
+        if has_dup:
+            serialized: dict[str, Any] = {str(col): kept[col] for col in sorted(kept)}
+        else:
+            serialized = {str(months[col]): kept[col] for col in sorted(kept)}
+        new_row = dict(row)
+        new_row["values"] = serialized
+        rows_out.append(new_row)
+    return {
+        "months": list(months_raw),
+        "rows": rows_out,
+        "as_of": body.get("as_of"),
+    }
+
+
+def columns_from_mapping(
+    mapping: dict[str, int] | list[dict[str, int]],
+    months: Sequence[int],
+) -> list[tuple[int, int]]:
+    """列順の (month, year)。sidecar months と長さか月が違えば MappingMismatch。"""
+    month_list = [int(m) for m in months]
+    if isinstance(mapping, dict):
+        if len(month_list) != len(set(month_list)) or len(mapping) != len(month_list):
+            raise MappingMismatch(
+                f"mapping length {len(mapping)} disagrees with months {month_list}"
+            )
+        cols: list[tuple[int, int]] = []
+        for month in month_list:
+            if str(month) not in mapping:
+                raise MappingMismatch(f"mapping missing month {month} for {month_list}")
+            year = mapping[str(month)]
+            if isinstance(year, bool) or not isinstance(year, int):
+                raise MappingMismatch(f"mapping year {year!r} for month {month}")
+            cols.append((month, year))
+        return cols
+    if isinstance(mapping, list):
+        if len(mapping) != len(month_list):
+            raise MappingMismatch(
+                f"mapping length {len(mapping)} disagrees with months {month_list}"
+            )
+        cols = []
+        for i, item in enumerate(mapping):
+            month = item.get("month") if isinstance(item, dict) else None
+            year = item.get("year") if isinstance(item, dict) else None
+            if isinstance(month, bool) or not isinstance(month, int) or month != month_list[i]:
+                raise MappingMismatch(
+                    f"mapping[{i}] month {month!r} disagrees with {month_list[i]}"
+                )
+            if isinstance(year, bool) or not isinstance(year, int):
+                raise MappingMismatch(f"mapping[{i}] year {year!r}")
+            cols.append((month, year))
+        return cols
+    raise MappingMismatch(f"mapping type {type(mapping).__name__}")
+
+
+def _updated_pairs(updated: Sequence[Mapping[str, Any]]) -> list[tuple[int, int]]:
+    pairs: list[tuple[int, int]] = []
+    for item in updated:
+        year = item.get("year")
+        raw = item.get("months")
+        if isinstance(year, bool) or not isinstance(year, int) or not isinstance(raw, list):
+            continue
+        for month in raw:
+            if isinstance(month, bool) or not isinstance(month, int):
+                continue
+            pairs.append((year, month))
+    return pairs
+
+
+def _as_month_filter(months: object) -> frozenset[tuple[int, int]] | None:
+    if months is None:
+        return None
+    if isinstance(months, frozenset):
+        return months
+    if isinstance(months, str):
+        return parse_month_filter(months)
+    if isinstance(months, (set, list, tuple)):
+        seq = list(months)
+        if seq and all(isinstance(item, tuple) for item in seq):
+            return frozenset(seq)
+        return parse_month_filter(seq)
+    raise ValueError(f"invalid month token: {months!r}")
+
+
+def _run_suffix(*, force: bool, months: frozenset[tuple[int, int]] | None) -> str:
+    extra = ""
+    if force:
+        extra += " force=1"
+    if months:
+        extra += " months=" + _fmt_ym(months)
+    return extra
+
+
+def _with_force(
+    row: dict[str, Any],
+    *,
+    force: bool,
+    months: frozenset[tuple[int, int]] | None,
+) -> dict[str, Any]:
+    if not force:
+        return row
+    out = dict(row)
+    out["force"] = True
+    if months:
+        out["months"] = [f"{year:04d}-{month:02d}" for year, month in sorted(months)]
+    return out
+
+
 def month_end(day: date) -> date:
     return date(day.year, day.month, calendar.monthrange(day.year, day.month)[1])
 
@@ -410,13 +627,69 @@ def _error_code(payload: Any) -> str:
     return "HTTP_ERROR"
 
 
-def post_ingest(client: HttpClient, origin: str, s: Sidecar) -> PostOk | PostErr:
-    status, payload = client.post_json(f"{origin}/api/v1/tables/{s.code}/ingest", ingest_body(s))
+def post_body(client: HttpClient, origin: str, code: str, body: Mapping[str, Any]) -> PostOk | PostErr:
+    status, payload = client.post_json(f"{origin}/api/v1/tables/{code}/ingest", body)
     if status == 200:
-        ok = _parse_post_ok(s.code, payload)
+        ok = _parse_post_ok(code, payload)
         if ok is not None:
             return ok
-    return PostErr(code=s.code, status=status, error=_error_code(payload), body=_body_text(payload))
+    return PostErr(code=code, status=status, error=_error_code(payload), body=_body_text(payload))
+
+
+def post_ingest(client: HttpClient, origin: str, s: Sidecar) -> PostOk | PostErr:
+    return post_body(client, origin, s.code, ingest_body(s))
+
+
+def post_months_filtered(
+    client: HttpClient,
+    origin: str,
+    s: Sidecar,
+    keep: frozenset[tuple[int, int]],
+) -> PostOk | PostErr | None:
+    """None は失敗をログ済み（値の POST はしていない、または probe 前に落ちた）。"""
+    want_nums = {month for _year, month in keep}
+    if want_nums.isdisjoint(s.months):
+        print(
+            f"fail months {s.code}: requested {_fmt_ym(keep)} not in sidecar months {list(s.months)}",
+            flush=True,
+        )
+        return None
+    probe = post_body(client, origin, s.code, {
+        "months": list(s.months),
+        "rows": [],
+        "as_of": s.as_of.isoformat(),
+    })
+    if isinstance(probe, PostErr):
+        return probe
+    cols = columns_from_mapping(probe.mapping, s.months)
+    keep_cols = {i for i, (month, year) in enumerate(cols) if (year, month) in keep}
+    found = {(year, month) for i, (month, year) in enumerate(cols) if i in keep_cols}
+    missing = keep - found
+    if missing:
+        print(f"warn months {s.code}: missing {_fmt_ym(missing)}", flush=True)
+    if not keep_cols:
+        print(f"fail months {s.code}: no column for {_fmt_ym(keep)}", flush=True)
+        return None
+    print(
+        f"months {s.code} keep={_fmt_ym(found)} cols={sorted(keep_cols)}",
+        flush=True,
+    )
+    try:
+        body = filter_body(ingest_body(s), keep_cols)
+    except ValueError as e:
+        print(f"fail months {s.code}: {e}", flush=True)
+        return None
+    result = post_body(client, origin, s.code, body)
+    if isinstance(result, PostErr):
+        return result
+    if result.mapping != probe.mapping:
+        raise MappingMismatch(
+            f"{s.code} filter mapping {result.mapping!r} != probe {probe.mapping!r}"
+        )
+    outside = [pair for pair in _updated_pairs(result.updated) if pair not in keep]
+    if outside:
+        raise MappingMismatch(f"{s.code} updated outside --months {outside}")
+    return result
 
 
 def _body_text(payload: Any) -> str:
@@ -553,10 +826,25 @@ def run(
     report_path: Path | None = None,
     config_path: Path | None = None,
     cases: Sequence[MappingCase] | None = None,
+    force: bool = False,
+    months: frozenset[tuple[int, int]] | None = None,
 ) -> int:
     if dry_run and verify_mapping:
         print("error: --dry-run and --verify-mapping cannot be combined", flush=True)
         return 2
+    if force and not only:
+        print("error: --force requires --only", flush=True)
+        return 2
+    if months and not force:
+        print("error: --months requires --force", flush=True)
+        return 2
+    try:
+        month_filter = _as_month_filter(months)
+    except ValueError as e:
+        print(f"error: {e}", flush=True)
+        return 2
+    if not month_filter:
+        month_filter = None
     if not dest.is_dir():
         print(f"ir_monthly_html_ingest dest missing {dest}", flush=True)
         return 2
@@ -588,7 +876,8 @@ def run(
     day = today or jst_today()
     print(
         f"ir_monthly_html_ingest start dest={dest} selected={len(chosen)} "
-        f"day={day.isoformat()} dry_run={int(dry_run)} verify_mapping={int(verify_mapping)}",
+        f"day={day.isoformat()} dry_run={int(dry_run)} verify_mapping={int(verify_mapping)}"
+        + _run_suffix(force=force, months=month_filter),
         flush=True,
     )
     as_of_failed = 0
@@ -611,13 +900,15 @@ def run(
     if dry_run:
         for s in ordered:
             print(f"plan {s.code} {s.path} as_of={s.as_of.isoformat()} sha256={s.sha256}", flush=True)
-            _append_report(report_path, {
+            if month_filter:
+                print(f"plan-months {s.code} {_fmt_ym(month_filter)}", flush=True)
+            _append_report(report_path, _with_force({
                 "code": s.code,
                 "as_of": s.as_of.isoformat(),
                 "status": "dry-run",
                 "sha256": s.sha256,
                 "path": str(s.path),
-            })
+            }, force=force, months=month_filter))
         print(
             f"ir_monthly_html_ingest dry-run selected={len(ordered)} failed={parse_failed}",
             flush=True,
@@ -634,27 +925,52 @@ def run(
     posted = skipped = failed = 0
     failed += parse_failed
     for s in ordered:
-        if ledger.has(s.sha256):
+        if not force and ledger.has(s.sha256):
             skipped += 1
             print(f"skip {s.code} {s.path.name} ledger", flush=True)
-            _append_report(report_path, {
+            _append_report(report_path, _with_force({
                 "code": s.code,
                 "as_of": s.as_of.isoformat(),
                 "status": "skipped",
                 "sha256": s.sha256,
-            })
+            }, force=force, months=month_filter))
             continue
-        result = post_ingest(http, origin, s)
+        if force and ledger.has(s.sha256):
+            print(f"force {s.code} {s.path.name} (ledger has sha)", flush=True)
+        try:
+            if month_filter is not None:
+                result = post_months_filtered(http, origin, s, month_filter)
+                if result is None:
+                    failed += 1
+                    _append_report(report_path, _with_force({
+                        "code": s.code,
+                        "as_of": s.as_of.isoformat(),
+                        "status": "failed",
+                        "error": "MONTHS",
+                    }, force=force, months=month_filter))
+                    continue
+            else:
+                result = post_ingest(http, origin, s)
+        except MappingMismatch as e:
+            failed += 1
+            print(f"fail mapping {s.code}: {e}", flush=True)
+            _append_report(report_path, _with_force({
+                "code": s.code,
+                "as_of": s.as_of.isoformat(),
+                "status": "failed",
+                "error": str(e),
+            }, force=force, months=month_filter))
+            continue
         if isinstance(result, PostErr):
             failed += 1
             print(f"fail POST {s.code} status={result.status} {result.error}", flush=True)
-            _append_report(report_path, {
+            _append_report(report_path, _with_force({
                 "code": s.code,
                 "as_of": s.as_of.isoformat(),
                 "status": "failed",
                 "http": result.status,
                 "error": result.error,
-            })
+            }, force=force, months=month_filter))
             continue
         ok = result
         status = 200
@@ -677,30 +993,32 @@ def run(
         except MappingMismatch as e:
             failed += 1
             print(f"fail mapping {s.code}: {e}", flush=True)
-            _append_report(report_path, {
+            _append_report(report_path, _with_force({
                 "code": s.code,
                 "as_of": s.as_of.isoformat(),
                 "status": "failed",
                 "http": status,
                 "mapping": ok.mapping,
                 "error": str(e),
-            })
+            }, force=force, months=month_filter))
             continue
-        rel = str(s.path.relative_to(dest)) if s.path.is_relative_to(dest) else s.path.name
-        ledger.record(LedgerEntry(
-            sha256=s.sha256,
-            code=s.code,
-            rel=rel,
-            as_of=s.as_of.isoformat(),
-            posted_at=_now_iso(),
-        ))
-        ledger.save()
+        partial = month_filter is not None
+        if not partial:
+            rel = str(s.path.relative_to(dest)) if s.path.is_relative_to(dest) else s.path.name
+            ledger.record(LedgerEntry(
+                sha256=s.sha256,
+                code=s.code,
+                rel=rel,
+                as_of=s.as_of.isoformat(),
+                posted_at=_now_iso(),
+            ))
+            ledger.save()
         posted += 1
-        print(
-            f"ok {s.code} as_of={s.as_of.isoformat()} layout={ok.layout} fy={ok.fy_end_month}",
-            flush=True,
-        )
-        _append_report(report_path, {
+        line = f"ok {s.code} as_of={s.as_of.isoformat()} layout={ok.layout} fy={ok.fy_end_month}"
+        if partial:
+            line += " partial (ledger not updated)"
+        print(line, flush=True)
+        _append_report(report_path, _with_force({
             "code": s.code,
             "as_of": s.as_of.isoformat(),
             "status": "posted",
@@ -708,7 +1026,7 @@ def run(
             "mapping": ok.mapping,
             "layout": ok.layout,
             "fy_end_month": ok.fy_end_month,
-        })
+        }, force=force, months=month_filter))
     print(
         f"ir_monthly_html_ingest done posted={posted} skipped={skipped} failed={failed}",
         flush=True,
@@ -730,7 +1048,31 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--ledger", default=str(DEFAULT_LEDGER), help="sha256 skip ledger (not under dest)")
     ap.add_argument("--base-url", default=DEFAULT_BASE_URL, help="loopback origin")
     ap.add_argument("--report", default="", help="optional JSONL report path")
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="POST even if the sidecar sha256 is in the ledger; requires --only",
+    )
+    ap.add_argument(
+        "--months",
+        action="append",
+        default=[],
+        help="comma separated calendar months YYYY-MM (e.g. 2026-07,2026-08); requires --force",
+    )
     args = ap.parse_args(argv)
+    if args.months and not args.force:
+        print("error: --months requires --force", flush=True)
+        return 2
+    if args.force and not args.only:
+        print("error: --force requires --only", flush=True)
+        return 2
+    month_filter = None
+    if args.months:
+        try:
+            month_filter = parse_month_filter(args.months)
+        except ValueError as e:
+            print(f"error: {e}", flush=True)
+            return 2
     report = Path(args.report) if args.report else None
     return run(
         Path(args.dest),
@@ -740,6 +1082,8 @@ def main(argv: list[str] | None = None) -> int:
         ledger_path=Path(args.ledger),
         base_url=args.base_url,
         report_path=report,
+        force=args.force,
+        months=month_filter,
     )
 
 

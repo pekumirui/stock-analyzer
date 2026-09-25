@@ -5,6 +5,10 @@
   python jobs/ir_monthly_html_r2.py --dest /tmp/monthly --only 2664
   python jobs/ir_monthly_html_r2.py --dry-run
   python jobs/ir_monthly_html_r2.py --reparse
+  python jobs/ir_monthly_html_r2.py --force --only 3082
+
+--only は 4桁 (3082) でも 5桁の J-Quants コード (30820) でもよい。
+display_code が先頭 4 桁に切る。--force は --only が必須。
 
 対象は config/ir_monthly.json の html。セレクタは json。
 parse: true は jobs/html_issuers。parse: false は HTML だけ残す。
@@ -370,6 +374,7 @@ def fetch_issuer(
     today: date,
     *,
     dry_run: bool,
+    force: bool = False,
 ) -> tuple[int, int, int, int]:
     """returns listed, saved, skipped, failed."""
     reason = download_skip_reason(iss.code, iss.name, stock_map)
@@ -398,7 +403,7 @@ def fetch_issuer(
     prev = hashes.get(digest)
     html = decode_html_bytes(data)
     as_of = eir_as_of
-    if prev is not None:
+    if prev is not None and not force:
         sidecar = ingest_path(prev)
         try:
             missing = (not sidecar.is_file()) or sidecar.stat().st_size <= 0
@@ -410,6 +415,9 @@ def fetch_issuer(
             return 1, 1, 0, 0
         print(f"skip hash {rel} == {prev.relative_to(dest)}", flush=True)
         return 1, 0, 1, 0
+    # 同じバイトでも今日のファイルを書く。ingest はファイル名日付の新しい sidecar を選ぶ。
+    if force and prev is not None:
+        print(f"force {rel} (unchanged == {prev.relative_to(dest)})", flush=True)
     try:
         if path.is_file() and path.stat().st_size > 0:
             hashes.pop(sha256_bytes(path.read_bytes()), None)
@@ -458,7 +466,14 @@ def run(
     dry_run: bool = False,
     reparse: bool = False,
     today: date | None = None,
+    force: bool = False,
 ) -> int:
+    if force and not only:
+        print("error: --force requires --only", flush=True)
+        return 2
+    if force and reparse:
+        print("error: --force and --reparse cannot be combined", flush=True)
+        return 2
     issuers = load_html_registry(config_path)
     if only:
         want = {display_code(c.strip().upper()) for c in only if c.strip()}
@@ -473,7 +488,8 @@ def run(
     dest.mkdir(parents=True, exist_ok=True)
     print(
         f"ir_monthly_html_r2 start dest={dest} issuers={len(issuers)} "
-        f"day={day.isoformat()} dry_run={int(dry_run)} reparse={int(reparse)}",
+        f"day={day.isoformat()} dry_run={int(dry_run)} reparse={int(reparse)}"
+        + (" force=1" if force else ""),
         flush=True,
     )
     if reparse:
@@ -496,7 +512,9 @@ def run(
     for iss in issuers:
         print(f"issuer {iss.code} {iss.name}", flush=True)
         try:
-            n, s, k, f = fetch_issuer(iss, dest, stock_map, day, dry_run=dry_run)
+            n, s, k, f = fetch_issuer(
+                iss, dest, stock_map, day, dry_run=dry_run, force=force,
+            )
         except Exception as e:
             failed += 1
             print(f"fail issuer {iss.code} {iss.index_url}: {e}", flush=True)
@@ -524,6 +542,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--dry-run", action="store_true", help="list URLs, do not download")
     ap.add_argument("--reparse", action="store_true", help="rebuild ingest JSON from saved HTML")
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="re-save HTML and rebuild ingest JSON even if unchanged; requires --only",
+    )
     args = ap.parse_args(argv)
     return run(
         Path(args.dest),
@@ -531,6 +554,7 @@ def main(argv: list[str] | None = None) -> int:
         only=args.only or None,
         dry_run=args.dry_run,
         reparse=args.reparse,
+        force=args.force,
     )
 
 

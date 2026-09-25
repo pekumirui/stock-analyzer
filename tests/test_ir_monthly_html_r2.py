@@ -1,8 +1,10 @@
 """ir_monthly_html_r2 の純関数。ネットワークには出ない。"""
 from __future__ import annotations
 
+import io
 import json
 import sys
+from contextlib import redirect_stdout
 from datetime import date
 from pathlib import Path
 
@@ -41,6 +43,7 @@ from ir_monthly_html_r2 import (  # noqa: E402
     run,
     write_ingest,
 )
+
 from ir_monthly_r2 import dest_filename, dest_path, looks_like_file  # noqa: E402
 
 CAWACHI_HTML = """
@@ -1079,6 +1082,170 @@ def test_hash_skip_and_reparse(tmp: Path) -> None:
             _fail(again)
     finally:
         mod.http_get = orig
+        mod.SLEEP_SEC = orig_sleep
+
+
+def _cawachi_issuer() -> HtmlIssuer:
+    return HtmlIssuer(
+        code="2664",
+        name="カワチ薬品",
+        index_url="https://example.test/ir/",
+        title="月次",
+        source="html",
+        table=0,
+        eir_code="2664",
+        eir_n=0,
+        eir_title_re="月次",
+    )
+
+
+def test_force_resaves_unchanged_html(tmp: Path) -> None:
+    import ir_monthly_html_r2 as mod
+
+    dest = tmp / "force_resave" / "monthly"
+    bodies = {"https://example.test/ir/": CAWACHI_HTML.encode("utf-8")}
+
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+        return bodies[url]
+
+    orig = mod.http_get
+    orig_sleep = mod.SLEEP_SEC
+    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.SLEEP_SEC = 0
+    try:
+        iss = _cawachi_issuer()
+        stock_map = {"26640": ("011", "カワチ薬品")}
+        n, s, k, f = fetch_issuer(iss, dest, stock_map, date(2026, 9, 14), dry_run=False)
+        if (n, s, k, f) != (1, 1, 0, 0):
+            _fail(f"first {n, s, k, f}")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            n, s, k, f = fetch_issuer(iss, dest, stock_map, date(2026, 9, 15), dry_run=False)
+        if (n, s, k, f) != (1, 0, 1, 0):
+            _fail(f"hash skip {n, s, k, f} {buf.getvalue()}")
+        if "skip hash" not in buf.getvalue():
+            _fail(buf.getvalue())
+        if len(list((dest / "2664").glob("*.html"))) != 1:
+            _fail("unchanged without force wrote html")
+        prev_side = dest / "2664" / "20260914_2664_カワチ薬品_月次.ingest.json"
+        prev_side.write_text("not-json", encoding="utf-8")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            n, s, k, f = fetch_issuer(
+                iss, dest, stock_map, date(2026, 9, 15), dry_run=False, force=True,
+            )
+        text = buf.getvalue()
+        if (n, s, k, f) != (1, 1, 0, 0):
+            _fail(f"force {n, s, k, f} {text}")
+        if "force " not in text or "unchanged ==" not in text:
+            _fail(text)
+        today_html = dest / "2664" / "20260915_2664_カワチ薬品_月次.html"
+        today_json = dest / "2664" / "20260915_2664_カワチ薬品_月次.ingest.json"
+        if not today_html.is_file() or today_html.read_bytes() != bodies["https://example.test/ir/"]:
+            _fail("today html missing")
+        if prev_side.read_text(encoding="utf-8") != "not-json":
+            _fail("force rewrote the previous sidecar in place")
+        payload = json.loads(today_json.read_text(encoding="utf-8"))
+        if payload["rows"][0]["values"]["7"] != -4.3 or payload["as_of"] != "2026-08-31":
+            _fail(payload)
+        if "year" in payload:
+            _fail("year must not be in ingest json")
+        today_json.write_text("garbage", encoding="utf-8")
+        n, s, k, f = fetch_issuer(
+            iss, dest, stock_map, date(2026, 9, 15), dry_run=False, force=True,
+        )
+        if (n, s, k, f) != (1, 1, 0, 0):
+            _fail(f"same-day force {n, s, k, f}")
+        if len(list((dest / "2664").glob("*.html"))) != 2:
+            _fail("same-day force added another html")
+        again = json.loads(today_json.read_text(encoding="utf-8"))
+        if again["rows"][0]["values"]["4"] != 1.9:
+            _fail(again)
+    finally:
+        mod.http_get = orig
+        mod.SLEEP_SEC = orig_sleep
+
+
+def test_run_force_requires_only_and_skips_reparse(tmp: Path) -> None:
+    import ir_monthly_html_r2 as mod
+
+    base = tmp / "force_usage"
+    base.mkdir()
+    calls: list[str] = []
+
+    def boom(*_a: object, **_k: object) -> bytes:
+        calls.append("called")
+        raise AssertionError("should not load")
+
+    orig_get = mod.http_get
+    orig_map = mod.load_stock_product_map
+    mod.http_get = boom  # type: ignore[assignment]
+    mod.load_stock_product_map = boom  # type: ignore[assignment]
+    try:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = run(base / "out", base / "missing.json", force=True)
+        if rc != 2 or buf.getvalue().strip() != "error: --force requires --only":
+            _fail(buf.getvalue() or str(rc))
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = run(
+                base / "out", base / "missing.json", force=True, reparse=True, only=["3082"],
+            )
+        if rc != 2 or "error:" not in buf.getvalue() or "reparse" not in buf.getvalue():
+            _fail(buf.getvalue() or str(rc))
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = mod.main(["--dest", str(base / "out"), "--force", "--config", str(base / "missing.json")])
+        if rc != 2 or "error: --force requires --only" not in buf.getvalue():
+            _fail(buf.getvalue() or str(rc))
+        if calls:
+            _fail(f"usage error touched network {calls}")
+    finally:
+        mod.http_get = orig_get
+        mod.load_stock_product_map = orig_map
+
+    cfg = base / "ir.json"
+    cfg.write_text(
+        json.dumps(
+            {"html": [{
+                "code": "2664",
+                "name": "カワチ薬品",
+                "index_url": "https://example.test/ir/",
+                "title": "月次",
+            }]},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    hits: list[str] = []
+
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+        hits.append(url)
+        return b"<html></html>"
+
+    orig_get = mod.http_get
+    orig_map = mod.load_stock_product_map
+    orig_sleep = mod.SLEEP_SEC
+    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.load_stock_product_map = lambda **_k: {"26640": ("011", "カワチ薬品")}  # type: ignore[assignment]
+    mod.SLEEP_SEC = 0
+    try:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = run(base / "out", cfg, only=["2664"], dry_run=True, force=True, today=date(2026, 9, 14))
+        text = buf.getvalue()
+        if rc != 0:
+            _fail(text or str(rc))
+        if hits:
+            _fail(f"dry-run force downloaded {hits}")
+        if " force=1" not in text or "dry-run 2664" not in text:
+            _fail(text)
+        if list((base / "out").rglob("*")):
+            _fail("dry-run force wrote files")
+    finally:
+        mod.http_get = orig_get
+        mod.load_stock_product_map = orig_map
         mod.SLEEP_SEC = orig_sleep
 
 
@@ -2940,6 +3107,8 @@ def main() -> None:
     with TemporaryDirectory() as d:
         p = Path(d)
         test_hash_skip_and_reparse(p)
+        test_force_resaves_unchanged_html(p)
+        test_run_force_requires_only_and_skips_reparse(p)
         test_eir_fetch_saves_item_html(p)
         test_unknown_stock_skip(p)
         test_run_only_dry_run(p)
