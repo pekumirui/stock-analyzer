@@ -15,9 +15,13 @@ let monthlyLayoutMode = (() => {
   }
 })();
 const MONTHLY_GATE_CODES_KEY = "monthly.gateCodes.debug";
+const MONTHLY_GATE_OK_KEY = "monthly.gateCodes.debug.ok";
+// 公開 GET は nginx zone=pub が 5req/s。間隔を空け、失敗は対象外にしない。
+const MONTHLY_GATE_GAP_MS = 220;
 let monthlyGateCodes = null;
 let monthlyGateIndexFp = "";
 let monthlyGateIndexPromise = null;
+let monthlyGateSlotAt = 0;
 let monthlyIrCodes = null;
 let _monthlyIrCodesReady = null;
 
@@ -463,24 +467,75 @@ function invalidateMonthlyGateIndex(){
   monthlyGateIndexPromise = null;
 }
 
+function clearMonthlyGateCache(){
+  try{
+    sessionStorage.removeItem(MONTHLY_GATE_CODES_KEY);
+    sessionStorage.removeItem(MONTHLY_GATE_CODES_KEY + ".fp");
+    sessionStorage.removeItem(MONTHLY_GATE_OK_KEY);
+  }catch(_){}
+}
+
+function readMonthlyGateCache(fp){
+  try{
+    const raw = sessionStorage.getItem(MONTHLY_GATE_CODES_KEY);
+    const savedFp = sessionStorage.getItem(MONTHLY_GATE_CODES_KEY + ".fp");
+    const ok = sessionStorage.getItem(MONTHLY_GATE_OK_KEY);
+    if(ok === "1" && savedFp === fp && raw){
+      const arr = JSON.parse(raw);
+      if(Array.isArray(arr)) return new Set(arr.map(String));
+    }
+    if(ok !== "1" && (raw || savedFp || ok)) clearMonthlyGateCache();
+  }catch(_){
+    clearMonthlyGateCache();
+  }
+  return null;
+}
+
+function monthlyGateWaitSlot(){
+  const now = Date.now();
+  const at = Math.max(now, monthlyGateSlotAt);
+  monthlyGateSlotAt = at + MONTHLY_GATE_GAP_MS;
+  const wait = at - now;
+  if(!wait) return Promise.resolve();
+  return new Promise(resolve => setTimeout(resolve, wait));
+}
+
+function monthlyGateRetryable(err){
+  const status = Number(err && err.message);
+  if(!Number.isFinite(status)) return true;
+  return status === 429 || status === 503 || status >= 500;
+}
+
+async function fetchMonthlyGateTable(code, year){
+  const backoff = [0, 1000, 2000, 4000];
+  let last = null;
+  for(let i = 0; i < backoff.length; i++){
+    if(backoff[i]) await new Promise(resolve => setTimeout(resolve, backoff[i]));
+    await monthlyGateWaitSlot();
+    try{
+      const table = await api(`/api/v1/tables/${code}/${year}`);
+      if(!table || !Array.isArray(table.elements)) throw new Error("gate");
+      return table;
+    }catch(err){
+      last = err;
+      if(!monthlyGateRetryable(err)) break;
+    }
+  }
+  throw last || new Error("gate");
+}
+
 async function ensureMonthlyGateIndex(){
   const issuers = uniqueMonthlyIssuers(monthlyRows);
   const fp = monthlyIssuerListFingerprint(issuers);
   if(monthlyGateCodes && monthlyGateIndexFp === fp) return monthlyGateCodes;
   if(monthlyGateIndexPromise) return monthlyGateIndexPromise;
   monthlyGateIndexPromise = (async () => {
-    try{
-      const raw = sessionStorage.getItem(MONTHLY_GATE_CODES_KEY);
-      const savedFp = sessionStorage.getItem(MONTHLY_GATE_CODES_KEY + ".fp");
-      if(raw && savedFp === fp){
-        const arr = JSON.parse(raw);
-        if(Array.isArray(arr)){
-          monthlyGateCodes = new Set(arr.map(String));
-          monthlyGateIndexFp = fp;
-          return monthlyGateCodes;
-        }
-      }
-    }catch(_){}
+    const cached = readMonthlyGateCache(fp);
+    if(cached){
+      monthlyGateCodes = cached;
+      monthlyGateIndexFp = fp;
+      return monthlyGateCodes;
+    }
     const gated = new Set();
     const jobs = [];
     for(const r of issuers){
@@ -488,21 +543,24 @@ async function ensureMonthlyGateIndex(){
       if(year == null) continue;
       jobs.push({code: r.code, year});
     }
-    let cursor = 0;
-    const workers = Array.from({length: Math.min(8, Math.max(jobs.length, 1))}, async () => {
-      while(cursor < jobs.length){
-        const job = jobs[cursor++];
-        const table = await api(`/api/v1/tables/${job.code}/${job.year}`).catch(() => null);
-        if(!table) continue;
-        if(monthlySegmentGate([table]).size) gated.add(job.code);
+    for(const job of jobs){
+      let table;
+      try{
+        table = await fetchMonthlyGateTable(job.code, job.year);
+      }catch(_){
+        clearMonthlyGateCache();
+        monthlyGateCodes = null;
+        monthlyGateIndexFp = "";
+        throw new Error("gate-incomplete");
       }
-    });
-    await Promise.all(workers);
+      if(monthlySegmentGate([table]).size) gated.add(job.code);
+    }
     monthlyGateCodes = gated;
     monthlyGateIndexFp = fp;
     try{
       sessionStorage.setItem(MONTHLY_GATE_CODES_KEY, JSON.stringify([...gated].sort()));
       sessionStorage.setItem(MONTHLY_GATE_CODES_KEY + ".fp", fp);
+      sessionStorage.setItem(MONTHLY_GATE_OK_KEY, "1");
     }catch(_){}
     return monthlyGateCodes;
   })();
@@ -575,7 +633,13 @@ async function setMonthlyGroup(g){
   if(g === "__gate__"){
     const list = $("#monthly-list");
     if(list) list.innerHTML = `<div class="sub">ゲート判定中…</div>`;
-    await ensureMonthlyGateIndex();
+    try{
+      await ensureMonthlyGateIndex();
+    }catch(_){
+      if(monthlyGroup !== "__gate__") return;
+      if(list) list.innerHTML = `<div class="sub">ゲート判定を完了できませんでした</div>`;
+      return;
+    }
     if(monthlyGroup !== "__gate__") return;
   }
   renderMonthlyList();
