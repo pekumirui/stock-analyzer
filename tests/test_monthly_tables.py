@@ -1275,6 +1275,19 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("TEMP gate list must build ensureMonthlyGateIndex")
     if "MONTHLY_GATE_CODES_KEY" not in html:
         _fail("TEMP gate list must cache codes under MONTHLY_GATE_CODES_KEY")
+    gate_fn = html.find("async function ensureMonthlyGateIndex")
+    gate_end = html.find("async function loadMonthlyList")
+    if gate_fn < 0 or gate_end <= gate_fn:
+        _fail("ensureMonthlyGateIndex / loadMonthlyList bounds")
+    gate_body = html[gate_fn:gate_end]
+    if "if(!table) continue" in gate_body or ".catch(() => null)" in gate_body:
+        _fail("gate index must not treat a failed GET as a non-match")
+    incomplete_at = gate_body.find("gate-incomplete")
+    ok_at = gate_body.find("MONTHLY_GATE_OK_KEY")
+    if incomplete_at < 0 or ok_at < 0 or incomplete_at > ok_at:
+        _fail("gate cache must be written only after every latest-year GET succeeds")
+    if "ゲート判定を完了できませんでした" not in html:
+        _fail("incomplete gate index must not render as an empty match list")
     if 'id="monthly-chart"' not in section:
         _fail("Detail must have #monthly-chart")
     if 'id="monthly-back"' not in section:
