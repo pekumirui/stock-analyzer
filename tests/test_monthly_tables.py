@@ -1819,6 +1819,19 @@ def _assert_monthly_layout_js() -> None:
                 _el("ホテル 客室収入(前年比)"),
             ],
         }],
+        "watamiTakushoku": [{
+            "year": 2026,
+            "code": "75220",
+            "elements": [
+                _el("国内外食 全店 売上高(前年比)"),
+                _el("国内外食 全店 店舗数", "number"),
+                _el("宅食 調理済み商品お届け数（千食）", "number"),
+                _el("宅食 営業所数", "number"),
+                _el("宅食 出店", "number"),
+                _el("宅食 退店", "number"),
+                _el("海外 店舗数", "number"),
+            ],
+        }],
         "renameYears": [
             {
                 "year": 2026,
@@ -2024,6 +2037,22 @@ console.log(JSON.stringify({
       leaf: r.leaf,
     };
   }),
+  watamiGate: [...sandbox.monthlySegmentGate(fixtures.watamiTakushoku)].sort(),
+  watamiGated: sandbox.monthlyTableLayout(
+    sandbox.monthlyRowOrder(fixtures.watamiTakushoku), fixtures.watamiTakushoku,
+  ).gated,
+  watamiSummary: sandbox.monthlyTableLayout(
+    sandbox.monthlyRowOrder(fixtures.watamiTakushoku), fixtures.watamiTakushoku,
+  ).rows.map((r) => {
+    if (r.kind === "section") return { kind: "section", label: r.label };
+    return {
+      kind: "data",
+      element: r.element,
+      group: r.group,
+      scope: r.scope,
+      leaf: r.leaf,
+    };
+  }),
   renameGate: [...sandbox.monthlySegmentGate(renameYears)].sort(),
   renameGated: renameLayout.gated,
   renameSummary: renameLayout.rows.map((r) => {
@@ -2153,6 +2182,23 @@ console.log(JSON.stringify({
     ]
     if got.get("kyoshitsuSummary") != want_room:
         _fail(f"客室収入 gated layout: {got.get('kyoshitsuSummary')!r}")
+    if got.get("watamiGate") != ["国内外食", "宅食"]:
+        _fail(f"ワタミ gate leftovers: {got.get('watamiGate')!r}")
+    if got.get("watamiGated") is not True:
+        _fail("ワタミ must gate 宅食 when お届け数 and 営業所数 peel")
+    want_watami = [
+        {"kind": "data", "element": "海外 店舗数", "group": "", "scope": "", "leaf": "海外 店舗数"},
+        {"kind": "section", "label": "国内外食"},
+        {"kind": "data", "element": "国内外食 全店 売上高(前年比)", "group": "国内外食", "scope": "全店", "leaf": "売上高(前年比)"},
+        {"kind": "data", "element": "国内外食 全店 店舗数", "group": "国内外食", "scope": "全店", "leaf": "店舗数"},
+        {"kind": "section", "label": "宅食"},
+        {"kind": "data", "element": "宅食 出店", "group": "宅食", "scope": "", "leaf": "出店"},
+        {"kind": "data", "element": "宅食 退店", "group": "宅食", "scope": "", "leaf": "退店"},
+        {"kind": "data", "element": "宅食 調理済み商品お届け数（千食）", "group": "宅食", "scope": "", "leaf": "調理済み商品お届け数（千食）"},
+        {"kind": "data", "element": "宅食 営業所数", "group": "宅食", "scope": "", "leaf": "営業所数"},
+    ]
+    if got.get("watamiSummary") != want_watami:
+        _fail(f"ワタミ 宅食 gated layout: {got.get('watamiSummary')!r}")
     if got.get("areaCols") != 3:
         _fail(f"area 小枝 must not add a stub column: {got.get('areaCols')!r}")
     want_area = [
