@@ -12,7 +12,8 @@ display_code が先頭 4 桁に切る。--force は --only が必須。
 
 対象は config/ir_monthly.json の html。セレクタは json。
 parse: true は jobs/html_issuers。parse: false は HTML だけ残す。
-原本は .html、派生が .ingest.json。自動 POST しない。パーサーを直したら --reparse。
+原本は .html、派生が .ingest.json。自動 POST しない。パーサーを直したら --reparse（過去 HTML）。
+同じ HTML の再取得でも、現行パーサの JSON が保存済みと違えば sidecar を書き直す。
 ネットワークと app/ はテストから分離する。
 """
 from __future__ import annotations
@@ -370,6 +371,38 @@ def _try_write_ingest(
     return 0
 
 
+def _refresh_ingest_if_changed(
+    html_path: Path,
+    html: str,
+    iss: HtmlIssuer,
+    as_of: str | None,
+    rel: object,
+) -> int:
+    """0 unchanged, 1 rewritten, 2 failed. parse=false は触らない。"""
+    if not iss.parse:
+        return 0
+    sidecar = ingest_path(html_path)
+    try:
+        new_bytes = dumps_ingest(ingest_payload(html, iss, as_of)).encode("utf-8")
+    except Exception as e:
+        print(f"fail ingest {rel}: {e}", flush=True)
+        return 2
+    try:
+        old = sidecar.read_bytes() if sidecar.is_file() else b""
+    except OSError:
+        old = b""
+    if old and sha256_bytes(old) == sha256_bytes(new_bytes):
+        return 0
+    try:
+        atomic_write(sidecar, new_bytes)
+    except Exception as e:
+        print(f"fail ingest {rel}: {e}", flush=True)
+        return 2
+    verb = "refresh ingest" if old else "saved"
+    print(f"{verb} {sidecar.name}", flush=True)
+    return 1
+
+
 def fetch_issuer(
     iss: HtmlIssuer,
     dest: Path,
@@ -408,13 +441,12 @@ def fetch_issuer(
     as_of = eir_as_of
     if prev is not None and not force:
         sidecar = ingest_path(prev)
-        try:
-            missing = (not sidecar.is_file()) or sidecar.stat().st_size <= 0
-        except OSError:
-            missing = True
-        if missing and iss.parse:
-            if _try_write_ingest(prev, html, iss, as_of, sidecar.relative_to(dest)):
-                return 1, 0, 0, 1
+        status = _refresh_ingest_if_changed(
+            prev, html, iss, as_of, sidecar.relative_to(dest),
+        )
+        if status == 2:
+            return 1, 0, 0, 1
+        if status == 1:
             return 1, 1, 0, 0
         print(f"skip hash {rel} == {prev.relative_to(dest)}", flush=True)
         return 1, 0, 1, 0
