@@ -399,6 +399,34 @@ ROCKFIELD_SECTION_UNIT_HTML = """
 </body></html>
 """
 
+ROCKFIELD_DUAL_SCOPE_HTML = """
+<html><body>
+<select>
+<option value="/ir/library/monthly/">2027年4月期</option>
+<option value="/ir/library/monthly/2026.html">2026年4月期</option>
+</select>
+<h2>2027年4月期　 業態別売上推移（前年同月比）</h2>
+<h3>既存店売上</h3>
+<p>(単位：%)</p>
+<table>
+<tr><td></td><td>5月</td><td>6月</td><td>7月</td><td>8月</td><td>合計</td></tr>
+<tr><td>RF1</td><td>103.4</td><td>100.2</td><td>104.9</td><td>104.2</td><td></td></tr>
+<tr><td>グリーン・グルメ</td><td>99.4</td><td>98.8</td><td>102.5</td><td>101.9</td><td></td></tr>
+<tr><td>神戸コロッケ</td><td>99.7</td><td>98.7</td><td>103.9</td><td>103.2</td><td></td></tr>
+<tr><td>合計</td><td>102.0</td><td>99.1</td><td>104.0</td><td>103.2</td><td></td></tr>
+</table>
+<h3>全店売上</h3>
+<p>(単位：%)</p>
+<table>
+<tr><td></td><td>5月</td><td>6月</td><td>7月</td><td>8月</td><td>合計</td></tr>
+<tr><td>RF1</td><td>102.8</td><td>99.9</td><td>104.4</td><td>103.1</td><td></td></tr>
+<tr><td>グリーン・グルメ</td><td>99.5</td><td>99.2</td><td>102.9</td><td>102.1</td><td></td></tr>
+<tr><td>神戸コロッケ</td><td>98.7</td><td>97.5</td><td>102.9</td><td>102.0</td><td></td></tr>
+<tr><td>合計</td><td>101.4</td><td>99.4</td><td>103.9</td><td>103.0</td><td></td></tr>
+</table>
+</body></html>
+"""
+
 ROYAL_TRAILING_UNIT_HTML = """
 <html><body>
 <h2>既存店売上（前年同月比）</h2>
@@ -546,6 +574,38 @@ def test_section_unit_percent_is_yoy_index() -> None:
         _fail(f"section unit:% must be yoy_index {row}")
     if row["values"].get("5") != 103.4:
         _fail(f"value must stay raw {row}")
+
+
+def test_rockfield_existing_and_all_store_stay_separate() -> None:
+    """既存店売上と全店売上は別行。既存の数値を裸の売上高(前年比)にしない。"""
+    from app.monthly_ingest import canonicalize_element_label
+
+    got = parse_issuer(ROCKFIELD_DUAL_SCOPE_HTML, "2910")
+    labels = [r["element"] for r in got["rows"]]
+    if any(el in ("RF1 売上高前年同月比", "グリーン・グルメ 売上高前年同月比") for el in labels):
+        _fail(f"unscoped duplicate {labels}")
+    if any(el.startswith("合計") or el == "合計" for el in labels):
+        _fail(f"total row leaked {labels}")
+    exist = _row(got, "既存店 RF1 売上高前年同月比")
+    all_store = _row(got, "全店 RF1 売上高前年同月比")
+    if exist["unit"] != "yoy_index" or exist["values"].get("5") != 103.4:
+        _fail(f"existing {exist}")
+    if exist["values"].get("8") != 104.2:
+        _fail(f"existing aug {exist}")
+    if all_store["unit"] != "yoy_index" or all_store["values"].get("5") != 102.8:
+        _fail(f"all store {all_store}")
+    if all_store["values"].get("8") != 103.1:
+        _fail(f"all store aug {all_store}")
+    gg = _row(got, "既存店 グリーン・グルメ 売上高前年同月比")
+    if gg["values"].get("6") != 98.8:
+        _fail(f"existing gourmet {gg}")
+    kobe_all = _row(got, "全店 神戸コロッケ 売上高前年同月比")
+    if kobe_all["values"].get("5") != 98.7:
+        _fail(f"all kobe {kobe_all}")
+    if canonicalize_element_label(exist["element"], exist["unit"]) != "RF1 既存 売上高(前年比)":
+        _fail(f"canon exist {exist['element']}")
+    if canonicalize_element_label(all_store["element"], all_store["unit"]) != "RF1 全店 売上高(前年比)":
+        _fail(f"canon all {all_store['element']}")
 
 
 def test_trailing_unit_percent_is_yoy_index() -> None:
@@ -3484,7 +3544,7 @@ def test_brand_issuers_reject_foreign_page_without_sidecar() -> None:
     live = {i.code: i for i in load_html_registry(ROOT / "config" / "ir_monthly.json")}
     with tempfile.TemporaryDirectory() as d:
         tmp = Path(d)
-        for code in ("3148", "7522", "7561", "8179", "8278", "9946", "9994"):
+        for code in ("2910", "3148", "7522", "7561", "8179", "8278", "9946", "9994"):
             fresh = tmp / f"{code}_fresh.html"
             fresh.write_text(foreign, encoding="utf-8")
             try:
@@ -3622,6 +3682,7 @@ def main() -> None:
     test_kobebussan_purchase_segment_is_shiire()
     test_kobebussan_second_half_stays_on_sales()
     test_section_unit_percent_is_yoy_index()
+    test_rockfield_existing_and_all_store_stay_separate()
     test_trailing_unit_percent_is_yoy_index()
     test_force_unit_overrides_yoy_keeps_number()
     test_create_sd_nobiritsu_force_yoy_index()
