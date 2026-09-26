@@ -182,7 +182,6 @@ EOF
 fi
 
 write_if_changed /etc/nginx/conf.d/stock-analyzer-limit.conf 644 <<'EOF'
-limit_req_zone $binary_remote_addr zone=pub:10m rate=5r/s;
 limit_conn_zone $binary_remote_addr zone=addr:10m;
 EOF
 
@@ -203,7 +202,6 @@ proxy_block=$(cat <<EOF
     }
     location = /robots.txt {
         auth_basic off;
-        limit_req zone=pub burst=20 nodelay;
         limit_conn addr 16;
 ${pub_headers}
         proxy_pass http://127.0.0.1:8000;
@@ -215,7 +213,6 @@ ${pub_headers}
     }
     location = /sitemap.xml {
         auth_basic off;
-        limit_req zone=pub burst=20 nodelay;
         limit_conn addr 16;
 ${pub_headers}
         proxy_pass http://127.0.0.1:8000;
@@ -227,7 +224,6 @@ ${pub_headers}
     }
     location = /favicon.ico {
         auth_basic off;
-        limit_req zone=pub burst=20 nodelay;
 ${pub_headers}
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host \$host;
@@ -238,7 +234,6 @@ ${pub_headers}
     }
     location ^~ /monthly {
         auth_basic off;
-        limit_req zone=pub burst=20 nodelay;
         limit_conn addr 16;
         limit_except GET { deny all; }
 ${pub_headers}
@@ -252,7 +247,6 @@ ${pub_headers}
     }
     location ^~ /static/ {
         auth_basic off;
-        limit_req zone=pub burst=40 nodelay;
 ${pub_headers}
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host \$host;
@@ -263,7 +257,6 @@ ${pub_headers}
     }
     location = /api/v1/tables {
         auth_basic off;
-        limit_req zone=pub burst=20 nodelay;
         limit_conn addr 16;
         limit_except GET { deny all; }
 ${pub_headers}
@@ -276,7 +269,6 @@ ${pub_headers}
     }
     location ~ "^/api/v1/tables/[0-9][0-9A-Z]{3}[0-9](?:/[0-9]{4})?\$" {
         auth_basic off;
-        limit_req zone=pub burst=20 nodelay;
         limit_conn addr 16;
         limit_except GET { deny all; }
 ${pub_headers}

@@ -25,12 +25,14 @@ def main() -> None:
         ):
             if needle not in text:
                 _fail(f"{src} missing {needle!r}")
-    if "limit_req_zone" not in provision:
-        _fail("provision.sh missing limit_req_zone")
+    if "limit_req" in provision or "limit_req" in sample:
+        _fail("nginx must not set limit_req")
     if "Content-Security-Policy" not in provision:
         _fail("provision.sh missing CSP")
     if "stock-analyzer-limit.conf" not in provision:
         _fail("provision.sh must write conf.d limit zone")
+    if "limit_conn_zone" not in provision:
+        _fail("provision.sh missing limit_conn_zone")
     if 'location ~ "^/api/v1/tables/' not in provision:
         _fail("provision.sh GET tables regex must be quoted for nginx")
     if 'location ~ "^/api/v1/tables/' not in sample:
