@@ -994,6 +994,215 @@ def test_calendar_ytd_drops_trailing_empty_months() -> None:
         _fail(f"trailing months leaked into values {sales['values']}")
 
 
+WASHHOUSE_PAIR_HTML = """
+<html><body>
+<h3>国内都道府県別店舗数</h3>
+<p>総店舗数 563店舗</p>
+<p>2026年8月31日現在</p>
+<h3>店舗数推移と売上高前年同月比</h3>
+<p>2026年12月期（26期 2026年1月1日～2026年12月31日）</p>
+<table>
+<tr><th rowspan="2">月</th><th colspan="4">店舗数</th></tr>
+<tr><th>新規出店数</th><th>一時閉店</th><th>退店</th><th>店舗数累計</th></tr>
+<tr><th>2026年1月</th><td>0</td><td>0</td><td>0</td><td>571</td></tr>
+<tr><th>2026年2月</th><td>1</td><td>0</td><td>0</td><td>572</td></tr>
+<tr><th>2026年3月</th><td>1</td><td>0</td><td>4</td><td>569</td></tr>
+<tr><th>2026年4月</th><td>0</td><td>0</td><td>0</td><td>569</td></tr>
+<tr><th>2026年5月</th><td>0</td><td>0</td><td>2</td><td>567</td></tr>
+<tr><th>2026年6月</th><td>0</td><td>0</td><td>1</td><td>566</td></tr>
+<tr><th>2026年7月</th><td>0</td><td>0</td><td>1</td><td>565</td></tr>
+<tr><th>2026年8月</th><td>0</td><td>0</td><td>2</td><td>563</td></tr>
+<tr><th>2026年9月</th><td></td><td></td><td></td><td></td></tr>
+<tr><th>2026年10月</th><td></td><td></td><td></td><td></td></tr>
+<tr><th>2026年11月</th><td></td><td></td><td></td><td></td></tr>
+<tr><th>2026年12月</th><td></td><td></td><td></td><td></td></tr>
+</table>
+<h3>売上高前年同月比</h3>
+<p>2026年12月期（26期 2026年1月1日～2026年12月31日）</p>
+<table>
+<tr><th rowspan="2">月</th><th colspan="2">売上高前年同月比（％）</th></tr>
+<tr><th>全店</th><th>既存店</th></tr>
+<tr><th>2026年1月</th><td>92.6%</td><td>93.5%</td></tr>
+<tr><th>2026年2月</th><td>90.0%</td><td>93.0%</td></tr>
+<tr><th>2026年3月</th><td>81.1%</td><td>81.8%</td></tr>
+<tr><th>2026年4月</th><td>104.2%</td><td>109.3%</td></tr>
+<tr><th>2026年5月</th><td>94.5%</td><td>99.4%</td></tr>
+<tr><th>2026年6月</th><td>85.0%</td><td>89.7%</td></tr>
+<tr><th>2026年7月</th><td>107.4%</td><td>114.0%</td></tr>
+<tr><th>2026年8月</th><td>80.5%</td><td>87.5%</td></tr>
+<tr><th>2026年9月</th><td></td><td></td></tr>
+<tr><th>2026年10月</th><td></td><td></td></tr>
+<tr><th>2026年11月</th><td></td><td></td></tr>
+<tr><th>2026年12月</th><td></td><td></td></tr>
+</table>
+<p>2024年12月期（24期 2024年1月1日～2024年12月31日）</p>
+<table>
+<tr><th rowspan="2">月</th><th colspan="4">店舗数</th></tr>
+<tr><th>新規出店数</th><th>一時閉店</th><th>退店</th><th>店舗数累計</th></tr>
+<tr><th>2024年1月</th><td>1</td><td>0</td><td>2</td><td>596</td></tr>
+<tr><th>2024年2月</th><td>0</td><td>0</td><td>1</td><td>595</td></tr>
+<tr><th>2024年3月</th><td>0</td><td>0</td><td>1</td><td>594</td></tr>
+<tr><th>2024年4月</th><td>2</td><td>0</td><td>4</td><td>592</td></tr>
+<tr><th>2024年5月</th><td>0</td><td>0</td><td>4</td><td>588</td></tr>
+<tr><th>2024年6月</th><td>1</td><td>0</td><td>1</td><td>588</td></tr>
+<tr><th>2024年7月</th><td>0</td><td>0</td><td>3</td><td>585</td></tr>
+<tr><th>2024年8月</th><td>1</td><td>0</td><td>2</td><td>584</td></tr>
+<tr><th>2024年9月</th><td>0</td><td>0</td><td>0</td><td>584</td></tr>
+<tr><th>2024年10月</th><td>0</td><td>0</td><td>3</td><td>581</td></tr>
+<tr><th>2024年11月</th><td>0</td><td>0</td><td>1</td><td>580</td></tr>
+<tr><th>2024年12月</th><td>4</td><td>0</td><td>1</td><td>583</td></tr>
+</table>
+<h3>売上高前年同月比</h3>
+<p>2024年12月期（24期 2024年1月1日～2024年12月31日）</p>
+<table>
+<tr><th rowspan="2">月</th><th colspan="2">売上高前年同月比（％）</th></tr>
+<tr><th>全店</th><th>既存店</th></tr>
+<tr><th>2024年1月</th><td>94.3%</td><td>96.0%</td></tr>
+<tr><th>2024年2月</th><td>118.5%</td><td>120.6%</td></tr>
+<tr><th>2024年3月</th><td>107.5%</td><td>109.3%</td></tr>
+<tr><th>2024年4月</th><td>111.4%</td><td>113.2%</td></tr>
+<tr><th>2024年5月</th><td>85.0%</td><td>86.1%</td></tr>
+<tr><th>2024年6月</th><td>101.7%</td><td>104.1%</td></tr>
+<tr><th>2024年7月</th><td>97.8%</td><td>99.9%</td></tr>
+<tr><th>2024年8月</th><td>84.9%</td><td>87.0%</td></tr>
+<tr><th>2024年9月</th><td>86.0%</td><td>88.3%</td></tr>
+<tr><th>2024年10月</th><td>102.9%</td><td>105.1%</td></tr>
+<tr><th>2024年11月</th><td>119.6%</td><td>121.9%</td></tr>
+<tr><th>2024年12月</th><td>91.8%</td><td>93.2%</td></tr>
+</table>
+</body></html>
+"""
+
+WASHHOUSE_FY2024_HTML = """
+<html><body>
+<p>2026年8月31日現在</p>
+<p>2024年12月期（24期 2024年1月1日～2024年12月31日）</p>
+<table>
+<tr><th rowspan="2">月</th><th colspan="4">店舗数</th></tr>
+<tr><th>新規出店数</th><th>一時閉店</th><th>退店</th><th>店舗数累計</th></tr>
+<tr><th>2024年1月</th><td>1</td><td>0</td><td>2</td><td>596</td></tr>
+<tr><th>2024年2月</th><td></td><td></td><td></td><td></td></tr>
+<tr><th>2024年3月</th><td></td><td></td><td></td><td></td></tr>
+<tr><th>2024年4月</th><td></td><td></td><td></td><td></td></tr>
+<tr><th>2024年5月</th><td></td><td></td><td></td><td></td></tr>
+<tr><th>2024年6月</th><td></td><td></td><td></td><td></td></tr>
+<tr><th>2024年7月</th><td></td><td></td><td></td><td></td></tr>
+<tr><th>2024年8月</th><td></td><td></td><td></td><td></td></tr>
+<tr><th>2024年9月</th><td></td><td></td><td></td><td></td></tr>
+<tr><th>2024年10月</th><td></td><td></td><td></td><td></td></tr>
+<tr><th>2024年11月</th><td></td><td></td><td></td><td></td></tr>
+<tr><th>2024年12月</th><td>4</td><td>0</td><td>1</td><td>583</td></tr>
+</table>
+<h3>売上高前年同月比</h3>
+<p>2024年12月期（24期 2024年1月1日～2024年12月31日）</p>
+<table>
+<tr><th rowspan="2">月</th><th colspan="2">売上高前年同月比（％）</th></tr>
+<tr><th>全店</th><th>既存店</th></tr>
+<tr><th>2024年1月</th><td>94.3%</td><td>96.0%</td></tr>
+<tr><th>2024年2月</th><td></td><td></td></tr>
+<tr><th>2024年3月</th><td></td><td></td></tr>
+<tr><th>2024年4月</th><td></td><td></td></tr>
+<tr><th>2024年5月</th><td></td><td></td></tr>
+<tr><th>2024年6月</th><td></td><td></td></tr>
+<tr><th>2024年7月</th><td></td><td></td></tr>
+<tr><th>2024年8月</th><td></td><td></td></tr>
+<tr><th>2024年9月</th><td></td><td></td></tr>
+<tr><th>2024年10月</th><td></td><td></td></tr>
+<tr><th>2024年11月</th><td></td><td></td></tr>
+<tr><th>2024年12月</th><td>91.8%</td><td>93.2%</td></tr>
+</table>
+</body></html>
+"""
+
+
+def _washhouse_stored(element: str, unit: str) -> str:
+    sys.path.insert(0, str(ROOT))
+    from app.monthly_ingest import canonicalize_element_label
+
+    return canonicalize_element_label(element, unit)
+
+
+def test_washhouse_merges_store_and_sales_latest_pair() -> None:
+    """6537: 最新の店舗数+売上ペアを同一 payload に。2024 は混ぜない。"""
+    got = parse_issuer(WASHHOUSE_PAIR_HTML, "6537")
+    if got["as_of"] != "2026-08-31":
+        _fail(f"6537 as_of {got['as_of']}")
+    if got["months"] != [1, 2, 3, 4, 5, 6, 7, 8]:
+        _fail(f"6537 months {got['months']}")
+    stored = {_washhouse_stored(r["element"], r["unit"]) for r in got["rows"]}
+    if stored != {
+        "出店",
+        "一時 退店",
+        "退店",
+        "店舗数",
+        "全店 売上高(前年比)",
+        "既存 売上高(前年比)",
+    }:
+        _fail(f"6537 stored labels {sorted(stored)}")
+    by_stored = {
+        _washhouse_stored(r["element"], r["unit"]): r for r in got["rows"]
+    }
+    all_store = by_stored["全店 売上高(前年比)"]
+    exist = by_stored["既存 売上高(前年比)"]
+    if all_store["unit"] != "yoy_index" or all_store["values"].get("1") != 92.6:
+        _fail(f"6537 all-store {all_store}")
+    if all_store["values"].get("8") != 80.5:
+        _fail(f"6537 all-store Aug {all_store}")
+    if exist["unit"] != "yoy_index" or exist["values"].get("1") != 93.5:
+        _fail(f"6537 existing {exist}")
+    if exist["values"].get("1") == 96 or exist["values"].get("1") == 96.0:
+        _fail(f"6537 mixed 2024 sales {exist}")
+    opens = by_stored["出店"]
+    stores = by_stored["店舗数"]
+    closes = by_stored["退店"]
+    if opens["unit"] != "number" or opens["values"].get("2") != 1:
+        _fail(f"6537 出店 {opens}")
+    if stores["unit"] != "number" or stores["values"].get("1") != 571:
+        _fail(f"6537 店舗数 {stores}")
+    if stores["values"].get("8") != 563:
+        _fail(f"6537 店舗数 Aug {stores}")
+    if stores["values"].get("12") == 583:
+        _fail(f"6537 mixed 2024 stores {stores}")
+    if closes["values"].get("3") != 4:
+        _fail(f"6537 退店 {closes}")
+
+
+def test_washhouse_past_year_as_of_from_row_dates() -> None:
+    """6537: 過去年ペアは行の YYYY年M月 から as_of。ページの 2026-08-31 現在で毒さない。"""
+    got = parse_issuer(WASHHOUSE_FY2024_HTML, "6537")
+    if got["as_of"] != "2024-12-31":
+        _fail(f"6537 fy2024 as_of {got['as_of']}")
+    if got["months"] != [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]:
+        _fail(f"6537 fy2024 months {got['months']}")
+    by_stored = {
+        _washhouse_stored(r["element"], r["unit"]): r for r in got["rows"]
+    }
+    if set(by_stored) != {
+        "出店",
+        "一時 退店",
+        "退店",
+        "店舗数",
+        "全店 売上高(前年比)",
+        "既存 売上高(前年比)",
+    }:
+        _fail(f"6537 fy2024 labels {sorted(by_stored)}")
+    all_store = by_stored["全店 売上高(前年比)"]
+    stores = by_stored["店舗数"]
+    if all_store["unit"] != "yoy_index" or all_store["values"].get("1") != 94.3:
+        _fail(f"6537 fy2024 sales {all_store}")
+    if all_store["values"].get("12") != 91.8:
+        _fail(f"6537 fy2024 Dec sales {all_store}")
+    if stores["unit"] != "number" or stores["values"].get("12") != 583:
+        _fail(f"6537 fy2024 stores {stores}")
+    sys.path.insert(0, str(ROOT))
+    from app.monthly_ingest import plan_column_years
+
+    _layout, mapping = plan_column_years(got["months"], 12, date(2024, 12, 31))
+    years = dict(mapping)
+    if years.get(1) != 2024 or years.get(12) != 2024:
+        _fail(f"6537 fy2024 calendar years {mapping}")
+
+
 def test_partial_apr_sep_ytd_drops_trailing_empty_months() -> None:
     html = """
     <html><body>
@@ -3399,6 +3608,8 @@ def main() -> None:
     test_same_fy_prefers_later_filled_half()
     test_same_fy_prefers_last_quarter_over_prior()
     test_calendar_ytd_drops_trailing_empty_months()
+    test_washhouse_merges_store_and_sales_latest_pair()
+    test_washhouse_past_year_as_of_from_row_dates()
     test_partial_apr_sep_ytd_drops_trailing_empty_months()
     test_trailing_empty_months_keep_middle_gaps()
     with TemporaryDirectory() as d:
