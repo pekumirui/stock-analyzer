@@ -1334,6 +1334,80 @@ def test_hash_skip_and_reparse(tmp: Path) -> None:
         mod.SLEEP_SEC = orig_sleep
 
 
+def test_hash_skip_refreshes_stale_sidecar(tmp: Path) -> None:
+    """同じ HTML でも古い sidecar（上期・ブランド無し）は現行パーサで書き直す。"""
+    import ir_monthly_html_r2 as mod
+
+    dest = tmp / "stale_sidecar" / "monthly"
+    bodies = {"https://example.test/royal/": ROYAL_DUAL_BRAND_HTML.encode("utf-8")}
+
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+        return bodies[url]
+
+    orig = mod.http_get
+    orig_sleep = mod.SLEEP_SEC
+    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.SLEEP_SEC = 0
+    try:
+        iss = HtmlIssuer(
+            code="8179",
+            name="ロイヤルホールディングス",
+            index_url="https://example.test/royal/",
+            title="月次",
+            source="html",
+            table=None,
+            eir_code="8179",
+            eir_n=0,
+            eir_title_re="月次",
+            force_unit="yoy_index",
+        )
+        stock_map = {"81790": ("011", "ロイヤルホールディングス")}
+        n, s, k, f = fetch_issuer(iss, dest, stock_map, date(2026, 9, 17), dry_run=False)
+        if (n, s, k, f) != (1, 1, 0, 0):
+            _fail(f"first {n, s, k, f}")
+        sidecar = dest / "8179" / "20260917_8179_ロイヤルホールディングス_月次.ingest.json"
+        stale = {
+            "code": "8179",
+            "months": [1, 2, 3, 4, 5, 6],
+            "rows": [
+                {
+                    "element": "売上高",
+                    "unit": "yoy_index",
+                    "values": {"1": 106.5, "6": 99.8},
+                },
+            ],
+            "as_of": "2026-08-31",
+        }
+        sidecar.write_text(
+            json.dumps(stale, ensure_ascii=False, indent=2) + "\n", encoding="utf-8",
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            n, s, k, f = fetch_issuer(iss, dest, stock_map, date(2026, 9, 26), dry_run=False)
+        text = buf.getvalue()
+        if (n, s, k, f) != (1, 1, 0, 0):
+            _fail(f"refresh {n, s, k, f} {text}")
+        if "refresh ingest" not in text:
+            _fail(text)
+        if len(list((dest / "8179").glob("*.html"))) != 1:
+            _fail("hash skip wrote html")
+        payload = json.loads(sidecar.read_text(encoding="utf-8"))
+        if payload["months"] != [1, 2, 3, 4, 5, 6, 7, 8]:
+            _fail(f"months {payload['months']}")
+        labels = [r["element"] for r in payload["rows"]]
+        host = next(r for r in payload["rows"] if r["element"] == "ロイヤルホスト 既存店 売上高")
+        if host["values"].get("8") != 108.1:
+            _fail(host)
+        if "売上高" in labels:
+            _fail(f"bare leaked {labels}")
+        n, s, k, f = fetch_issuer(iss, dest, stock_map, date(2026, 9, 27), dry_run=False)
+        if (n, s, k, f) != (1, 0, 1, 0):
+            _fail(f"second skip {n, s, k, f}")
+    finally:
+        mod.http_get = orig
+        mod.SLEEP_SEC = orig_sleep
+
+
 def _cawachi_issuer() -> HtmlIssuer:
     return HtmlIssuer(
         code="2664",
@@ -3615,6 +3689,7 @@ def main() -> None:
     with TemporaryDirectory() as d:
         p = Path(d)
         test_hash_skip_and_reparse(p)
+        test_hash_skip_refreshes_stale_sidecar(p)
         test_force_resaves_unchanged_html(p)
         test_run_force_requires_only_and_skips_reparse(p)
         test_eir_fetch_saves_item_html(p)
