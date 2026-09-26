@@ -578,6 +578,7 @@ def test_section_unit_percent_is_yoy_index() -> None:
 
 def test_rockfield_existing_and_all_store_stay_separate() -> None:
     """既存店売上と全店売上は別行。既存の数値を裸の売上高(前年比)にしない。"""
+    sys.path.insert(0, str(ROOT))
     from app.monthly_ingest import canonicalize_element_label
 
     got = parse_issuer(ROCKFIELD_DUAL_SCOPE_HTML, "2910")
