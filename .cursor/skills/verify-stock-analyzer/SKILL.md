@@ -113,7 +113,7 @@ HTTP capture:
 .venv/bin/python .cursor/skills/verify-stock-analyzer/helpers/capture.py screener
 ```
 
-Writes under `artifacts/<feature>/`. For a calendar day, pass `capture.py earnings --date YYYY-MM-DD`. For monthly Detail, pass `capture.py monthly --code CODE`.
+Writes under `artifacts/<feature>/`. For a calendar day, pass `capture.py earnings --date YYYY-MM-DD`. Across a month boundary, pass `--month YYYY-MM` (machine local month, same as `renderCal`). For monthly Detail, pass `capture.py monthly --code CODE`.
 
 **Browser (user path).** When `browser-use` / CDP works: open `{url}/app` from state.json (`new_tab(url + "/app")`), `wait_for_load()`, click `nav button[data-tab="..."]`, then the feature file. Bare `{url}/` is public `/monthly` (301), not the Basic SPA. Do not `goto_url` for the first navigation. Screenshots via `capture_screenshot()` saved into `artifacts/<feature>/`. If Chrome remote debugging is denied, record that and finish the proof with the HTTP captures of the same routes.
 
@@ -127,7 +127,7 @@ Proof standards:
 
 - Exercise the real SPA routes (`/app` + `/api/*` the UI calls). Do not hit TestClient, `ci_smoke.py` fixtures, or invent test-only endpoints.
 - Capture the **action** (request URL + status, or the click) and the **resulting state** (JSON body and/or screenshot), not only a final screen.
-- Screener / search / earnings lists must show real names and 5-digit codes that do not start with `0`.
+- Screener / search / earnings lists must show real names. API `code` is 5 characters and must not start with `0`. Table labels use the first 4 (`code.slice(0,4)`: 7203 / 262A), not the stored 5-digit string.
 - Chart proof needs `candles` length > 0 in `/api/chart/{code}`.
 - Side effects: this UI is read-only. Do not write `stock.db`. If a run did write, say so.
 - No mocks. J-Quants is not called by `serve`; empty tables mean the DB was never backfilled.
@@ -162,5 +162,5 @@ All run from the repo root with the venv interpreter (`.venv\Scripts\python.exe`
 |---|---|
 | `helpers/launch.py` | Adopt or start uvicorn on `VERIFY_PORT` (default 8000), wait for `GET /app`, write `.run/state.json` |
 | `helpers/doctor.py` | Read-only health JSON; exit 1 if not worth driving |
-| `helpers/capture.py <feature> [--date YYYY-MM-DD] [--code CODE]` | GET the SPA `/api/*` routes into `artifacts/<feature>/` |
+| `helpers/capture.py <feature> [--date YYYY-MM-DD] [--month YYYY-MM] [--code CODE]` | GET the SPA `/api/*` routes into `artifacts/<feature>/` |
 | `helpers/cleanup.py` | Stop a pid we started; leave adopted servers alone; keep artifacts |
