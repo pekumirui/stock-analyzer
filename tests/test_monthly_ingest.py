@@ -269,6 +269,28 @@ def test_canonicalize_element_label() -> None:
         _fail("撤退 folds to 退店")
     if canonicalize_element_label("拠点数 調理済み商品お届け数(※)（千食）", "number") != "調理済み商品お届け数（千食）":
         _fail("拠点数 heading and ※ drop")
+    if canonicalize_element_label("宅食 調理済み商品お届け数（千食）", "number") != "宅食 調理済み商品お届け数（千食）":
+        _fail("宅食 お届け数 stays leftover + metric")
+    if canonicalize_element_label("宅食調理済み商品お届け数（千食）", "number") != "宅食 調理済み商品お届け数（千食）":
+        _fail("unglue 宅食 お届け数")
+    meals = parse_element_layers("宅食 調理済み商品お届け数（千食）")
+    if meals["segment"] != "宅食" or meals["metric"] != "調理済み商品お届け数（千食）" or meals["scope"]:
+        _fail(f"parse お届け数 layers: {meals!r}")
+    if monthly_row_segment("宅食 調理済み商品お届け数（千食）") != "宅食":
+        _fail("gate leftover peels 調理済み商品お届け数")
+    if canonicalize_element_label("宅食 営業所数", "number") != "宅食 営業所数":
+        _fail("宅食 営業所数 stays leftover + metric")
+    if canonicalize_element_label("宅食営業所数", "number") != "宅食 営業所数":
+        _fail("unglue 宅食 営業所数")
+    if canonicalize_element_label("宅食 営業所数合計", "number") != "宅食 営業所数":
+        _fail("営業所数合計 drops 合計")
+    offices = parse_element_layers("宅食 営業所数")
+    if offices["segment"] != "宅食" or offices["metric"] != "営業所数" or offices["scope"]:
+        _fail(f"parse 営業所数 layers: {offices!r}")
+    if monthly_row_segment("宅食 営業所数") != "宅食":
+        _fail("gate leftover peels 営業所数")
+    if canonicalize_element_label("営業所数", "number") != "営業所数":
+        _fail("bare 営業所数 stays metric without 全店")
     if canonicalize_element_label("退 店舗数", "number") != "退店":
         _fail("退 店舗数 stitches to 退店")
     if canonicalize_element_label("開 店舗数", "number") != "出店":
@@ -2125,6 +2147,43 @@ def test_monthly_element_label() -> None:
         or spend["display"] != "ASKUL事業 客単価(前年比)"
     ):
         _fail(f"購入お客様 客単価 label: {spend!r}")
+    meals = monthly_element_label("宅食 調理済み商品お届け数（千食）", "number")
+    want_meals = {
+        "display": "宅食 調理済み商品お届け数（千食）",
+        "group": "宅食",
+        "metric_kind": "other",
+        "series_kind": None,
+        "country": "",
+        "segment": "宅食",
+        "time_axis": "",
+        "channel": "",
+        "scope": "",
+        "metric": "調理済み商品お届け数（千食）",
+        "breakdown": "",
+        "breakdown_depth": 0,
+    }
+    if meals != want_meals:
+        _fail(f"お届け数 label: {meals!r}")
+    offices = monthly_element_label("宅食 営業所数", "number")
+    want_offices = {
+        "display": "宅食 営業所数",
+        "group": "宅食",
+        "metric_kind": "other",
+        "series_kind": None,
+        "country": "",
+        "segment": "宅食",
+        "time_axis": "",
+        "channel": "",
+        "scope": "",
+        "metric": "営業所数",
+        "breakdown": "",
+        "breakdown_depth": 0,
+    }
+    if offices != want_offices:
+        _fail(f"営業所数 label: {offices!r}")
+    bare_offices = monthly_element_label("営業所数", "number")
+    if bare_offices["group"] or bare_offices["metric"] != "営業所数" or bare_offices["scope"]:
+        _fail(f"bare 営業所数 label: {bare_offices!r}")
 
 
 def main() -> None:
