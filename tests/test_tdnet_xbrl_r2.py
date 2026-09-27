@@ -454,6 +454,34 @@ def test_sha256_of_tiny_zip() -> None:
             _fail("tiny zip testzip failed")
 
 
+def test_http_get_uses_job_ua_then_browser() -> None:
+    from urllib.error import HTTPError
+    from unittest.mock import MagicMock, patch
+
+    from _r2common import BROWSER_UA
+
+    uas: list[str] = []
+
+    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+        ua = req.get_header("User-agent") or req.get_header("User-Agent")
+        uas.append(ua)
+        if ua == xbrl_mod.USER_AGENT:
+            raise HTTPError(req.full_url, 403, "Forbidden", hdrs=None, fp=None)
+        cm = MagicMock()
+        cm.__enter__.return_value.read.return_value = b"ok"
+        cm.__exit__.return_value = False
+        return cm
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        body = xbrl_mod.http_get("https://www.release.tdnet.info/inbs/x.zip")
+    if body != b"ok":
+        _fail(f"body {body!r}")
+    if uas != [xbrl_mod.USER_AGENT, BROWSER_UA]:
+        _fail(f"uas {uas}")
+    if xbrl_mod.USER_AGENT == BROWSER_UA:
+        _fail("job UA must stay distinct from the browser fallback")
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -465,6 +493,7 @@ def main() -> None:
     test_fetch_splits_per_day()
     test_fetch_warns_when_day_hits_list_limit()
     test_date_window()
+    test_http_get_uses_job_ua_then_browser()
     test_sha256_of_tiny_zip()
     with TemporaryDirectory() as d:
         tmp = Path(d)

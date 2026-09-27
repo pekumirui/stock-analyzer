@@ -15,27 +15,33 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import re
-import sqlite3
 import sys
 import time
-import unicodedata
 import zipfile
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import TypedDict
-from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlparse
-from urllib.request import Request, urlopen
+from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+SCRIPT_DIR = Path(__file__).resolve().parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
+from _r2common import (  # noqa: E402
+    date_window,
+    http_get as _http_get,
+    load_stock_product_map as _load_stock_product_map,
+    parse_list_body,
+    sanitize_filename_part,
+    yyyymmdd_from_pubdate,
+)
 from app.config import XBRL_DEST  # noqa: E402
 
 JST = ZoneInfo("Asia/Tokyo")
@@ -52,8 +58,8 @@ NOCODE_DIR = "_nocode"
 
 _INBS_ZIP_RE = re.compile(r"/inbs/([0-9A-Za-z]+)\.zip", re.I)
 _ZIP_NAME_RE = re.compile(r"([0-9A-Za-z]+)\.zip(?:\?|$)", re.I)
-_BAD_FILENAME_RE = re.compile(r'[\x00-\x1f\\/:*?"<>|]')
 _CODE4_HEAD_RE = re.compile(r"^[0-9][0-9A-Z]{3}$")
+_NON_SQLITE_UNMATCHED = "warn stocks db not sqlite; infra unmatched uses company_name only"
 
 # Infra funds share ProdCat 013/022 with REITs; J-Quants has no dedicated category.
 # Monthly skips these; XBRL still downloads them under _unmatched/.
@@ -170,121 +176,20 @@ def dest_route(
     )
 
 
-def _dotenv_setdefault(text: str, environ: dict[str, str]) -> None:
-    for line in text.splitlines():
-        s = line.strip()
-        if not s or s.startswith("#"):
-            continue
-        if s.startswith("export "):
-            s = s[7:].strip()
-        if "=" not in s:
-            continue
-        key, _, val = s.partition("=")
-        key = key.strip()
-        if not key:
-            continue
-        val = val.strip()
-        if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
-            val = val[1:-1]
-        environ.setdefault(key, val)
-
-
-def resolve_database_url(
-    environ: Mapping[str, str] | None = None,
-    dotenv_path: Path | None = None,
-    repo_root: Path | None = None,
-) -> str:
-    """DATABASE_URL env -> repo .env (setdefault) -> <repo>/stock.db. env is not overwritten."""
-    env = os.environ if environ is None else environ
-    root = REPO_ROOT if repo_root is None else repo_root
-    url = (env.get("DATABASE_URL") or "").strip()
-    if url:
-        return url
-    merged = dict(env)
-    src = root / ".env" if dotenv_path is None else dotenv_path
-    try:
-        _dotenv_setdefault(src.read_text(encoding="utf-8"), merged)
-    except OSError:
-        pass
-    url = (merged.get("DATABASE_URL") or "").strip()
-    if url:
-        return url
-    return f"sqlite:///{root / 'stock.db'}"
-
-
-def sqlite_path_from_url(url: str, repo_root: Path | None = None) -> Path | None:
-    raw = (url or "").strip()
-    if not raw.startswith("sqlite:///"):
-        return None
-    rest = raw[len("sqlite:///"):].split("?", 1)[0]
-    if not rest or rest == ":memory:":
-        return None
-    pth = Path(rest)
-    if not pth.is_absolute():
-        pth = (repo_root or REPO_ROOT) / pth
-    return pth
-
-
 def load_stock_product_map(
     environ: Mapping[str, str] | None = None,
     dotenv_path: Path | None = None,
     repo_root: Path | None = None,
     db_path: Path | None = None,
 ) -> dict[str, tuple[str | None, str | None]]:
-    """code -> (product_category, name). empty dict on missing/non-sqlite/failure."""
-    try:
-        root = REPO_ROOT if repo_root is None else repo_root
-        if db_path is None:
-            url = resolve_database_url(
-                environ=environ, dotenv_path=dotenv_path, repo_root=root
-            )
-            db_path = sqlite_path_from_url(url, repo_root=root)
-            if db_path is None:
-                print(
-                    "warn stocks db not sqlite; infra unmatched uses company_name only",
-                    flush=True,
-                )
-                return {}
-        if not db_path.is_file():
-            print(f"warn stocks db missing {db_path}", flush=True)
-            return {}
-        conn = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True, timeout=8)
-        try:
-            rows = conn.execute(
-                "SELECT code, product_category, name FROM stocks"
-            ).fetchall()
-        finally:
-            conn.close()
-        out: dict[str, tuple[str | None, str | None]] = {}
-        for code, cat, name in rows:
-            if not code:
-                continue
-            out[str(code)] = (
-                None if cat is None else str(cat),
-                None if name is None else str(name),
-            )
-        return out
-    except Exception as e:
-        print(f"warn stocks db unreadable: {e}", flush=True)
-        return {}
-
-
-def sanitize_filename_part(s: str) -> str:
-    # NFKC: 全角数字・英字を半角に（既存 R2 オブジェクト名と揃える）
-    s = unicodedata.normalize("NFKC", s or "")
-    s = _BAD_FILENAME_RE.sub("_", s)
-    s = re.sub(r"\s+", " ", s).strip(" .")
-    return s or "unknown"
-
-
-def yyyymmdd_from_pubdate(pubdate: str) -> str:
-    s = (pubdate or "").strip()
-    if len(s) >= 10 and s[4] == "-" and s[7] == "-":
-        return f"{s[0:4]}{s[5:7]}{s[8:10]}"
-    digits = re.sub(r"\D", "", s)[:8]
-    if len(digits) == 8:
-        return digits
-    raise ValueError(f"unusable pubdate: {pubdate!r}")
+    """XBRL の非 sqlite 警告だけ月次と違う。中身は _r2common。"""
+    return _load_stock_product_map(
+        environ=environ,
+        dotenv_path=dotenv_path,
+        repo_root=repo_root,
+        db_path=db_path,
+        non_sqlite_warn=_NON_SQLITE_UNMATCHED,
+    )
 
 
 def pubdate_iso_date(pubdate: str) -> str:
@@ -365,54 +270,6 @@ def xbrl_id_from_record(rec: Mapping[str, object]) -> str | None:
     return None
 
 
-def jst_today(now: datetime | None = None) -> date:
-    if now is None:
-        now = datetime.now(JST)
-    elif now.tzinfo is None:
-        now = now.replace(tzinfo=JST)
-    else:
-        now = now.astimezone(JST)
-    return now.date()
-
-
-def date_window(days: int, today: date | None = None) -> tuple[date, date]:
-    if days < 1:
-        raise ValueError("days must be a positive integer")
-    end = today or jst_today()
-    start = end - timedelta(days=days - 1)
-    return start, end
-
-
-def parse_list_body(text: str) -> list[dict]:
-    text = (text or "").strip()
-    if not text:
-        return []
-    if text[0] not in "{[":
-        left = text.find("(")
-        right = text.rfind(")")
-        if left != -1 and right > left:
-            text = text[left + 1 : right]
-    data = json.loads(text)
-    items = data.get("items") if isinstance(data, dict) else data
-    if not isinstance(items, list):
-        return []
-    out: list[dict] = []
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        inner = None
-        for key in ("Tdnet", "TDnet", "tdnet"):
-            cand = item.get(key)
-            if isinstance(cand, dict):
-                inner = cand
-                break
-        if inner is None and ("title" in item or "document_url" in item):
-            inner = item
-        if inner:
-            out.append(inner)
-    return out
-
-
 def list_url(start: date, end: date, by_id: int | None = None) -> str:
     span = f"{start:%Y%m%d}-{end:%Y%m%d}"
     q = {"hasXBRL": "1", "limit": str(LIST_LIMIT)}
@@ -422,25 +279,8 @@ def list_url(start: date, end: date, by_id: int | None = None) -> str:
 
 
 def http_get(url: str, timeout: float = HTTP_TIMEOUT) -> bytes:
-    scheme = urlparse(url).scheme.lower()
-    if scheme not in ("http", "https"):
-        raise ValueError(f"unsupported URL scheme: {scheme or 'missing'}")
-    req = Request(url, headers={"User-Agent": USER_AGENT, "Accept": "*/*"})
-    last: Exception | None = None
-    for attempt in range(2):
-        try:
-            with urlopen(req, timeout=timeout) as resp:  # nosec B310
-                return resp.read()
-        except HTTPError as e:
-            last = e
-            if e.code < 500 and e.code not in (408, 429):
-                raise
-        except (URLError, TimeoutError, OSError) as e:
-            last = e
-        if attempt == 0:
-            time.sleep(1.5)
-    assert last is not None
-    raise last
+    """このジョブの識別 UA。403 と AIA は _r2common.http_get。"""
+    return _http_get(url, timeout=timeout, user_agent=USER_AGENT)
 
 
 def fetch_xbrl_records(

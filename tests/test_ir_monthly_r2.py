@@ -9,12 +9,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "jobs"))
 
+from _r2common import BROWSER_UA, USER_AGENT, aia_ca_issuer_uris  # noqa: E402
 from ir_monthly_r2 import (  # noqa: E402
-    BROWSER_UA,
     FileLink,
     Issuer,
-    USER_AGENT,
-    aia_ca_issuer_uris,
     dest_filename,
     dest_path,
     dest_title,
@@ -398,6 +396,7 @@ def test_http_get_falls_back_on_403() -> None:
     from urllib.error import HTTPError
     from unittest.mock import MagicMock, patch
 
+    import _r2common
     import ir_monthly_r2 as mod
 
     uas: list[str] = []
@@ -418,8 +417,8 @@ def test_http_get_falls_back_on_403() -> None:
         _fail(f"fallback body: {body!r}")
     if uas != [USER_AGENT, BROWSER_UA]:
         _fail(f"uas: {uas}")
-    if mod.USER_AGENT != USER_AGENT or mod.BROWSER_UA != BROWSER_UA:
-        _fail("UA constants drifted")
+    if mod.http_get is not _r2common.http_get:
+        _fail("http_get drifted from _r2common")
 
 
 def _tlv(tag: int, body: bytes) -> bytes:
@@ -453,7 +452,7 @@ def test_http_get_aia_on_incomplete_chain() -> None:
     from unittest.mock import MagicMock, patch
     import ssl as sslmod
 
-    import ir_monthly_r2 as mod
+    import _r2common
 
     contexts: list[object] = []
 
@@ -473,7 +472,7 @@ def test_http_get_aia_on_incomplete_chain() -> None:
     dummy = sslmod.create_default_context()
     with (
         patch("urllib.request.urlopen", side_effect=fake_urlopen),
-        patch.object(mod, "ssl_context_with_aia", return_value=dummy) as aia,
+        patch.object(_r2common, "ssl_context_with_aia", return_value=dummy) as aia,
     ):
         body = http_get("https://www.three-f.co.jp/ir/recentFact.html")
     if body != b"<html>aia-ok</html>":

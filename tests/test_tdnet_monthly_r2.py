@@ -398,6 +398,35 @@ def test_date_window_and_skip(tmp: Path) -> None:
         _fail(f"skip path is not nested: {nested}")
 
 
+def test_http_get_uses_job_ua_then_browser() -> None:
+    from urllib.error import HTTPError
+    from unittest.mock import MagicMock, patch
+
+    import tdnet_monthly_r2 as mod
+    from _r2common import BROWSER_UA
+
+    uas: list[str] = []
+
+    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+        ua = req.get_header("User-agent") or req.get_header("User-Agent")
+        uas.append(ua)
+        if ua == mod.USER_AGENT:
+            raise HTTPError(req.full_url, 403, "Forbidden", hdrs=None, fp=None)
+        cm = MagicMock()
+        cm.__enter__.return_value.read.return_value = b"ok"
+        cm.__exit__.return_value = False
+        return cm
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        body = mod.http_get("https://webapi.yanoshin.jp/webapi/tdnet/list/x.json")
+    if body != b"ok":
+        _fail(f"body {body!r}")
+    if uas != [mod.USER_AGENT, BROWSER_UA]:
+        _fail(f"uas {uas}")
+    if mod.USER_AGENT == BROWSER_UA:
+        _fail("job UA must stay distinct from the browser fallback")
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -410,6 +439,7 @@ def main() -> None:
     test_dest_path_per_code_dir()
     test_is_monthly_title()
     test_parse_list_body_tdnet_key()
+    test_http_get_uses_job_ua_then_browser()
     with TemporaryDirectory() as d:
         test_date_window_and_skip(Path(d))
         test_stock_product_map_sqlite(Path(d))
