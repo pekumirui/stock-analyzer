@@ -91,6 +91,10 @@ def test_canonicalize_element_label() -> None:
         _fail("strip 前年同月比 + suffix")
     if canonicalize_element_label("売上高前年比", "yoy_pct") != "売上高(前年比)":
         _fail("strip 前年比 + suffix")
+    if canonicalize_element_label("売上高(前期比)", "yoy_pct") != "売上高(前年比)":
+        _fail("strip (前期比) + suffix")
+    if canonicalize_element_label("売上高（前期比）", "yoy_index") != "売上高(前年比)":
+        _fail("fullwidth (前期比) to ascii suffix")
     if canonicalize_element_label("既存売上高(前年比)", "yoy_index") != "既存 売上高(前年比)":
         _fail("no double suffix")
     if canonicalize_element_label("既存売上高（前年比）", "yoy_index") != "既存 売上高(前年比)":
