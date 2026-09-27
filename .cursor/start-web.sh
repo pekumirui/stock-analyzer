@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cloud Agent 起動時に :8000 で SPA を上げる。冪等。
+# エージェント起動時に :8000 で SPA を上げる。冪等。
 # install で焼いた stock.db を使い、毎回 backfill はしない。
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."

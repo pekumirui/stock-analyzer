@@ -186,19 +186,19 @@ cron（JST）。`run_batch.py` の 19:30 / 06:00 はそのまま。
 
 振る舞いは `DESIGN.md` §3 と `docs/DESIGN_xbrl.md`。`rclone.conf` と取得ファイルはリポジトリに置かない。
 
-### Cursor Cloud Agent から VPS を触る
+### クラウドのエージェントから VPS を触る
 
 経路は2つ。任意シェルは MCP に足さない（`AGENTS.md`）。
 
 | やりたいこと | 経路 |
 |---|---|
-| ログ・DB 件数・月次 ingest / 訂正 | Cursor の `stock-analyzer` MCP（`https://kabukpi.com/mcp`） |
-| `--reparse` や `ir_monthly_html_ingest.py` などシェル | Cloud Agent Secrets の `VPS_SSH_KEY` → `ssh stock-vps` |
+| ログ・DB 件数・月次 ingest / 訂正 | `stock-analyzer` MCP（`https://kabukpi.com/mcp`）。ベンダーごとにコネクタ / MCP 設定で足す |
+| `--reparse` や `ir_monthly_html_ingest.py` などシェル | Secrets / 環境変数の `VPS_SSH_KEY` → `ssh stock-vps`。無ければ人がローカル PC から SSH |
 
 `VPS_SSH_KEY` は GitHub Actions と同じデプロイ秘密鍵でよい（`stock` の `authorized_keys` に載っているもの）。チャットに貼らない。
 
-1. Cursor Dashboard → Cloud Agents → Secrets（このリポジトリ scope）に `VPS_SSH_KEY` を登録
-2. 新しい Cloud Agent を起動する（既存 VM には入らない。`.cursor/install.sh` が `.cursor/setup-vps-ssh.sh` を呼ぶ）
+1. エージェントの Secrets / 環境変数に `VPS_SSH_KEY` を登録する（Cursor は Dashboard → Cloud Agents → Secrets のリポジトリ scope。Claude Code on the web は環境設定の環境変数。他のベンダーも同じ名前で渡す）
+2. 新しいエージェントを起動する（既存 VM / コンテナには入らない）。`bash .cursor/install.sh` が `.cursor/setup-vps-ssh.sh` を呼ぶ。Cursor 以外で install を回さないときは `bash .cursor/setup-vps-ssh.sh` だけでよい
 3. エージェントから:
 
 ```bash
@@ -225,13 +225,13 @@ cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_monthly_html_r2.py 
 cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json --force --only 3082 --months 2026-07,2026-08
 ```
 
-### Cursor Cloud Agent から読む
+### クラウドのエージェントから読む
 
-Cloud Agent の VM には mount が無い。同じ bucket を S3 互換 API で読む。
+エージェントの VM / コンテナには mount が無い。同じ bucket を S3 互換 API で読む。
 
-1. Cursor Dashboard → Cloud Agents → Secrets に `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` を登録する（このリポジトリ scope。R2 側で **Object Read only** のトークンを別に発行する）。
-   Secrets は VM 起動時に環境変数として入る。登録後に始めたエージェントから有効
-2. `rclone` は `.cursor/install.sh`（環境ビルド）で入る。同じスクリプトが `.venv` / `pdftotext` と、Secrets に `JQUANTS_API_KEY` があれば `stock.db`（2 年分）も作る。`VPS_SSH_KEY` があれば続けて本番の `monthly_issuers` / `monthly_tables` / `monthly_elements` / `monthly_values` だけを載せ替える（DB 丸ごとコピーしない。SSH が無い・繋がらないときは skip）
+1. エージェントの Secrets / 環境変数に `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` を登録する（R2 側で **Object Read only** のトークンを別に発行する。登録先は上の `VPS_SSH_KEY` と同じ）。
+   起動時に環境変数として入る。登録後に始めたエージェントから有効
+2. `rclone` は `bash .cursor/install.sh`（環境ビルド。Cursor は自動）で入る。同じスクリプトが `.venv` / `pdftotext` と、Secrets に `JQUANTS_API_KEY` があれば `stock.db`（2 年分）も作る。`VPS_SSH_KEY` があれば続けて本番の `monthly_issuers` / `monthly_tables` / `monthly_elements` / `monthly_values` だけを載せ替える（DB 丸ごとコピーしない。SSH が無い・繋がらないときは skip）
 3. 設定ファイルは書かず、環境変数だけで remote `r2` を定義する
 
 ```bash

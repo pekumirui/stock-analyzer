@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cursor Cloud Agent から VPS へ SSH するための鍵配置。冪等。
+# クラウドのエージェントから VPS へ SSH するための鍵配置。冪等。
 # Secrets に VPS_SSH_KEY（GitHub Actions と同じデプロイ秘密鍵）があれば有効。
 # 値を echo しない。鍵ファイルは 600。
 set -euo pipefail
