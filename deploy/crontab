@@ -14,6 +14,12 @@ SHELL=/bin/bash
 0 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_r2.py 1 >> /var/log/app/batch.log 2>&1
 0 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_r2.py 1 >> /var/log/app/batch.log 2>&1
 
+# TDnet 月次PDF → ingest JSON（前回投入分と同じ書式だけ。自動 POST しない）→ DB（loopback POST。ledger は dest/R2 に置かない）
+20 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_pdf_sidecar.py >> /var/log/app/batch.log 2>&1
+20 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_pdf_sidecar.py >> /var/log/app/batch.log 2>&1
+30 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_pdf_ingest.py --ledger /var/log/app/pdf_ingest_ledger.json >> /var/log/app/batch.log 2>&1
+30 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_pdf_ingest.py --ledger /var/log/app/pdf_ingest_ledger.json >> /var/log/app/batch.log 2>&1
+
 # IR 月次 PDF/xlsx → R2 mount（TDnet に月次が無い発行体。config/ir_monthly.json issuers）
 0 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_r2.py >> /var/log/app/batch.log 2>&1
 0 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_r2.py >> /var/log/app/batch.log 2>&1

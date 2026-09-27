@@ -393,6 +393,12 @@ def main() -> None:
     )
     if tdnet_pending.returncode != 0:
         raise SystemExit("tdnet monthly pending report tests failed")
+    tdnet_pdf_sidecar = subprocess.run(
+        [sys.executable, str(ROOT / "tests" / "test_tdnet_monthly_pdf_sidecar.py")],
+        cwd=ROOT,
+    )
+    if tdnet_pdf_sidecar.returncode != 0:
+        raise SystemExit("tdnet monthly pdf sidecar tests failed")
     ir_monthly = subprocess.run(
         [sys.executable, str(ROOT / "tests" / "test_ir_monthly_r2.py")],
         cwd=ROOT,
