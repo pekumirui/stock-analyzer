@@ -1008,6 +1008,22 @@ def s256(verifier: str) -> str:
     return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
+# Claude.ai custom connectors POST https://claude.ai/api/mcp/auth_callback (and claude.com).
+REDIRECT_HTTPS_HOSTS = frozenset({
+    "grok.com",
+    "x.ai",
+    "cursor.com",
+    "claude.ai",
+    "claude.com",
+    "anthropic.com",
+})
+REDIRECT_CUSTOM_SCHEMES = frozenset({"grok", "x-grok", "grok-app", "cursor"})
+
+
+def _host_allowed(host: str, allowed: frozenset[str]) -> bool:
+    return any(host == name or host.endswith("." + name) for name in allowed)
+
+
 def redirect_ok(uri: str) -> bool:
     try:
         parsed = urlparse(uri)
@@ -1018,18 +1034,11 @@ def redirect_ok(uri: str) -> bool:
     host = (parsed.hostname or "").lower()
     if parsed.scheme in ("http", "https") and host in {"127.0.0.1", "localhost", "testserver"}:
         return True
-    if parsed.scheme in {"grok", "x-grok", "grok-app", "cursor"}:
+    if parsed.scheme in REDIRECT_CUSTOM_SCHEMES:
         return True
     if parsed.scheme != "https":
         return False
-    return (
-        host == "grok.com"
-        or host.endswith(".grok.com")
-        or host == "x.ai"
-        or host.endswith(".x.ai")
-        or host == "cursor.com"
-        or host.endswith(".cursor.com")
-    )
+    return _host_allowed(host, REDIRECT_HTTPS_HOSTS)
 
 
 def oauth_path(app_dir_path: Path) -> Path:
@@ -1148,7 +1157,7 @@ button{{background:#111;color:#fff;border:0;padding:.7rem 1.1rem;border-radius:6
 .err{{color:#b00020}}
 </style></head><body>
 <h1>ログ MCP の接続許可</h1>
-<p>Grok が stock-analyzer の読み取り専用ログに接続しようとしています。GitHub secret と同じ <code>MCP_TOKEN</code> を入れて許可してください。</p>
+<p>クライアントが stock-analyzer のログ MCP に接続しようとしています。GitHub secret と同じ <code>MCP_TOKEN</code> を入れて許可してください。</p>
 {err}
 <form method="post" action="/oauth/authorize" autocomplete="off">
 {fields}
@@ -1309,7 +1318,7 @@ def create_app(token: str) -> Starlette:
         with store.lock:
             store.data["clients"][client_id] = {
                 "redirect_uris": uris,
-                "name": str(body.get("client_name") or "grok")[:80],
+                "name": str(body.get("client_name") or "mcp")[:80],
                 "created": int(time.time()),
             }
             store._save()

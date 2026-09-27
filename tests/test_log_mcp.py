@@ -217,6 +217,10 @@ def _test_oauth_inner(token: str) -> None:
     if oidc["authorization_endpoint"] != meta["authorization_endpoint"]:
         raise SystemExit(f"openid authorize: {oidc['authorization_endpoint']}")
 
+    r = client.get("/.well-known/openid-configuration/mcp")
+    if r.status_code != 200 or r.json()["authorization_endpoint"] != meta["authorization_endpoint"]:
+        raise SystemExit(f"openid-configuration/mcp: {r.status_code} {r.text}")
+
     r = client.get("/.well-known/oauth-protected-resource")
     if r.status_code != 200 or "/mcp" not in r.json().get("resource", ""):
         raise SystemExit(f"pr metadata: {r.status_code} {r.text}")
@@ -312,6 +316,25 @@ def _test_oauth_inner(token: str) -> None:
     if r.status_code != 201 or not r.json().get("client_id"):
         raise SystemExit(f"dcr: {r.status_code} {r.text}")
 
+    r = client.post(
+        "/oauth/register",
+        json={"client_name": "Claude", "redirect_uris": ["https://claude.ai/api/mcp/auth_callback"], "token_endpoint_auth_method": "none"},
+    )
+    if r.status_code != 201 or not r.json().get("client_id"):
+        raise SystemExit(f"dcr claude.ai: {r.status_code} {r.text}")
+    r = client.post(
+        "/oauth/register",
+        json={"redirect_uris": ["https://claude.com/api/mcp/auth_callback"]},
+    )
+    if r.status_code != 201 or not r.json().get("client_id"):
+        raise SystemExit(f"dcr claude.com: {r.status_code} {r.text}")
+    r = client.post(
+        "/oauth/register",
+        json={"redirect_uris": ["https://evil.example/cb"]},
+    )
+    if r.status_code != 400 or r.json().get("error") != "invalid_redirect_uri":
+        raise SystemExit(f"dcr evil: {r.status_code} {r.text}")
+
     if m.redirect_ok("https://evil.example/cb"):
         raise SystemExit("redirect_ok allowed evil host")
     if not m.redirect_ok("https://grok.com/oauth/callback"):
@@ -324,6 +347,16 @@ def _test_oauth_inner(token: str) -> None:
         raise SystemExit("redirect_ok rejected cursor:// callback")
     if m.redirect_ok("https://cursor.evil.example/cb"):
         raise SystemExit("redirect_ok allowed cursor lookalike host")
+    if not m.redirect_ok("https://claude.ai/api/mcp/auth_callback"):
+        raise SystemExit("redirect_ok rejected claude.ai")
+    if not m.redirect_ok("https://claude.com/api/mcp/auth_callback"):
+        raise SystemExit("redirect_ok rejected claude.com")
+    if not m.redirect_ok("https://www.claude.ai/api/mcp/auth_callback"):
+        raise SystemExit("redirect_ok rejected www.claude.ai")
+    if m.redirect_ok("https://claude.ai.evil.example/cb"):
+        raise SystemExit("redirect_ok allowed claude lookalike host")
+    if m.redirect_ok("https://notclaude.ai/cb"):
+        raise SystemExit("redirect_ok allowed notclaude.ai")
 
 
 def test_db_tools() -> None:
