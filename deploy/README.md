@@ -212,7 +212,7 @@ ssh stock-vps 'cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_mont
 
 パーサーを直したあと、中身が同じ HTML を今日の日付で書き直し、sidecar を今のパーサーで作り直してから入れ直す。cron のコマンドは変えない。銘柄を指定して手元で走らせる。
 
-cron の ingest は行に `force` を付けない。正規化後に同じ行名で保存 unit が違う行（`UNIT_CONFLICT`）や、空白・大小だけ違う既存行（`ELEMENT_SIMILAR_EXISTS`）は 409 で止まり、ledger にも書かない。yoy と number の取り違えは行名が変わる（`(前年比)` の有無）ので 409 にならず別の行ができる。ログの existing / incoming を確かめてから、下の `--force --only` で入れる。ingest の `--force` は ledger を無視し、行にも `force` を付ける。
+cron の ingest は行に `force` を付けない。正規化後に同じ行名で保存 unit が違う行（`UNIT_CONFLICT`）、空白・大小だけ違う既存行（`ELEMENT_SIMILAR_EXISTS`）、`strip_yoy_fragments` 後の名前が同じで yoy と number だけ違う既存行が今回の rows に無いとき（`YOY_NUMBER_CONFLICT`）は 409 で止まり、ledger にも書かない。同じ POST に実数と前年比の両方があるときは `YOY_NUMBER_CONFLICT` にならない。ログの existing / incoming を確かめてから、下の `--force --only` で入れる。ingest の `--force` は ledger を無視し、行にも `force` を付ける。
 
 順番は fetch、その次に ingest。どちらも `--force` には `--only` が要る。`--only` は `3082` でも J-Quants の `30820` でもよい（4桁に切る）。
 

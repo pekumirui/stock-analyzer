@@ -841,7 +841,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_monthly_set_industry,
     ),
     "monthly_ingest": (
-        "PDF月次を暦年に割り当てて登録。localhost:8000 の POST /api/v1/tables/{code}/ingest。year は渡さない（決算の事業年度末から決める）。年付き put は訂正用で unit も +100 もしない。unit は PDF 見出しから number / yoy_index / yoy_pct（大きさから推測しない）。yoy_pct は符号付き変化率。ingest は yoy_index と value+100 で書く。yoy_index と number はそのまま。",
+        "PDF月次を暦年に割り当てて登録。localhost:8000 の POST /api/v1/tables/{code}/ingest。year は渡さない（決算の事業年度末から決める）。年付き put は訂正用で unit も +100 もしない。unit は PDF 見出しから number / yoy_index / yoy_pct（大きさから推測しない）。yoy_pct は符号付き変化率。ingest は yoy_index と value+100 で書く。yoy_index と number はそのまま。新規行で、strip 後の名前が同じ number と yoy の既存行が rows に無いときは 409 YOY_NUMBER_CONFLICT。同じ POST に両方あれば通る。force=true で作る。",
         {
             "type": "object",
             "properties": {
@@ -866,7 +866,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                                 "enum": ["number", "yoy_index", "yoy_pct"],
                                 "description": "From PDF heading, never from magnitude. 前年比 100基準 → yoy_index (as-is). ▲付き変化率 → yoy_pct input, ingest stores yoy_index and value+100. 店舗数 → number.",
                             },
-                            "force": {"type": "boolean", "description": "create even if a similar element exists"},
+                            "force": {"type": "boolean", "description": "create even if a similar element or a yoy/number twin exists"},
                         },
                         "required": ["element", "values", "unit"],
                     },

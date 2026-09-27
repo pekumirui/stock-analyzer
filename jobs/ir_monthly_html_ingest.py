@@ -9,7 +9,7 @@
 --only は 4桁 (3082) でも 5桁の J-Quants コード (30820) でもよい。
 --months は暦年の YYYY-MM。列の年はサーバの mapping（rows=[] の probe POST）に合わせる。
 --months の部分投入は ledger を更新しない。--force だけで sidecar 全体を送ったときは更新する。
-行の force（unit 上書き・類似名の登録）は --force のときだけ付ける。cron では付けない。
+行の force（unit 上書き・類似名・yoy/number の別行）は --force のときだけ付ける。cron では付けない。
 
 VPS cron (JST, after ir_monthly_html_r2.py): 10:30 / 16:30 with
   --ledger /var/log/app/html_ingest_ledger.json
@@ -44,7 +44,9 @@ _STEM_DATE_RE = re.compile(r"^(\d{8})_")
 _CODE_DIR_RE = re.compile(r"^[0-9][0-9A-Z]{3}$")
 _MONTH_TOKEN_RE = re.compile(r"^(\d{4})-(\d{2})$")
 _LOOPBACK = frozenset({"127.0.0.1", "localhost"})
-_FORCE_HINT_ERRORS = frozenset({"UNIT_CONFLICT", "ELEMENT_SIMILAR_EXISTS"})
+_FORCE_HINT_ERRORS = frozenset({
+    "UNIT_CONFLICT", "ELEMENT_SIMILAR_EXISTS", "YOY_NUMBER_CONFLICT",
+})
 _DUP_VALUES_MSG ='months に重複があるとき values は配列か列番号キー（"0"…）のオブジェクトです。'
 
 
@@ -177,7 +179,7 @@ def select_latest_per_code(sidecars: Sequence[Sidecar]) -> dict[str, Sidecar]:
 
 def ingest_body(s: Sidecar, *, force: bool = False) -> dict[str, Any]:
     # force は reparse 後の unit 訂正（伸び率→yoy_pct 等）を人が通すときだけ。
-    # cron で常に付けると UNIT_CONFLICT / ELEMENT_SIMILAR_EXISTS が効かない。
+    # cron で常に付けると UNIT_CONFLICT / ELEMENT_SIMILAR_EXISTS / YOY_NUMBER_CONFLICT が効かない。
     rows = []
     for r in s.rows:
         row = dict(r)
