@@ -3431,12 +3431,26 @@ def test_nsd_monthly_keeps_current_fy_not_prior_complete() -> None:
     path = ROOT / "tests" / "testdata" / "html_issue248" / "9759.html"
     got = parse_issuer(path.read_text(encoding="utf-8"), "9759", table=None)
     sales = _row(got, "売上高（百万円）")
+    if sales["unit"] != "number":
+        _fail(f"nsd sales unit {sales}")
     if sales["values"].get("4") != 9905:
         _fail(f"picked prior-year 単月 {sales}")
     if sales["values"].get("5") != 9786:
         _fail(f"current 単月 May {sales}")
     if sales["values"].get("3") is not None:
         _fail(f"prior March leaked {sales}")
+    yoy = _row(got, "売上高(前期比)")
+    if yoy["unit"] != "yoy_pct":
+        _fail(f"nsd yoy unit {yoy}")
+    if yoy["values"].get("4") != 8.7:
+        _fail(f"nsd Apr 増減率 {yoy}")
+    if yoy["values"].get("5") != 9.7:
+        _fail(f"nsd May 増減率 {yoy}")
+    names = [str(r.get("element") or "") for r in got["rows"]]
+    if any("前期比（" in n or n.startswith("前期比") for n in names):
+        _fail(f"nsd kept 前期比百万円 {got['rows']}")
+    if any("増減率" in n for n in names):
+        _fail(f"nsd left 増減率 unaliased {got['rows']}")
     if got["as_of"] != "2026-08-31":
         _fail(f"nsd as_of {got['as_of']}")
 
