@@ -473,16 +473,21 @@ def _get_element(db: Session, code: str, year: int, element: str) -> MonthlyElem
     return row
 
 
-def _upsert_value(db: Session, code: str, year: int, element: str, month: int, value: float | None) -> None:
+def _upsert_value(db: Session, code: str, year: int, element: str, month: int, value: float | None) -> bool:
+    """セルが変わったら True。"""
     row = db.get(MonthlyValue, (code, year, element, month))
     if value is None:
-        if row is not None:
-            db.delete(row)
-        return
+        if row is None:
+            return False
+        db.delete(row)
+        return True
     if row is None:
         db.add(MonthlyValue(code=code, year=year, element=element, month=month, value=value))
-    else:
-        row.value = value
+        return True
+    if row.value == value:
+        return False
+    row.value = value
+    return True
 
 
 def _element_unit(row: MonthlyElement) -> str:
@@ -758,18 +763,23 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
         raise _ingest_error(exc) from exc
 
     updated: list[dict] = []
+    changed = False
     try:
         for element, force, unit, values_by_col in rows:
             by_year: dict[int, list[int]] = defaultdict(list)
             for col, (month, year_i) in enumerate(mapping):
                 if col not in values_by_col:
                     continue
-                _ensure_element(db, code, year_i, element, force, unit)
-                _upsert_value(db, code, year_i, element, month, values_by_col[col])
+                if year_i not in by_year:
+                    _ensure_element(db, code, year_i, element, force, unit)
+                if _upsert_value(db, code, year_i, element, month, values_by_col[col]):
+                    changed = True
                 by_year[year_i].append(month)
             for year_i in sorted(by_year):
                 updated.append({"year": year_i, "element": element, "months": by_year[year_i]})
-        _touch_monthly_issuer(db, code)
+        # 新着はセルが変わったときだけ。同じ値の再送や rows=[] の年割当確認では動かさない
+        if changed:
+            _touch_monthly_issuer(db, code)
         db.commit()
     except MonthlyIngestError as exc:
         db.rollback()

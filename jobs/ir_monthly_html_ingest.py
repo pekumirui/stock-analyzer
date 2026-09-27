@@ -4,12 +4,12 @@
   python jobs/ir_monthly_html_ingest.py --dest /tmp/r2/monthly
   python jobs/ir_monthly_html_ingest.py --dest /tmp/r2/monthly --only 2664
   python jobs/ir_monthly_html_ingest.py --dest /tmp/r2/monthly --dry-run
-  python jobs/ir_monthly_html_ingest.py --dest /tmp/r2/monthly --verify-mapping
   python jobs/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json --force --only 3082 --months 2026-07,2026-08
 
 --only は 4桁 (3082) でも 5桁の J-Quants コード (30820) でもよい。
 --months は暦年の YYYY-MM。列の年はサーバの mapping（rows=[] の probe POST）に合わせる。
 --months の部分投入は ledger を更新しない。--force だけで sidecar 全体を送ったときは更新する。
+行の force（unit 上書き・類似名の登録）は --force のときだけ付ける。cron では付けない。
 
 VPS cron (JST, after ir_monthly_html_r2.py): 10:30 / 16:30 with
   --ledger /var/log/app/html_ingest_ledger.json
@@ -44,7 +44,8 @@ _STEM_DATE_RE = re.compile(r"^(\d{8})_")
 _CODE_DIR_RE = re.compile(r"^[0-9][0-9A-Z]{3}$")
 _MONTH_TOKEN_RE = re.compile(r"^(\d{4})-(\d{2})$")
 _LOOPBACK = frozenset({"127.0.0.1", "localhost"})
-_DUP_VALUES_MSG = 'months に重複があるとき values は配列か列番号キー（"0"…）のオブジェクトです。'
+_FORCE_HINT_ERRORS = frozenset({"UNIT_CONFLICT", "ELEMENT_SIMILAR_EXISTS"})
+_DUP_VALUES_MSG ='months に重複があるとき values は配列か列番号キー（"0"…）のオブジェクトです。'
 
 
 class AsOfUnusable(ValueError):
@@ -52,7 +53,7 @@ class AsOfUnusable(ValueError):
 
 
 class MappingMismatch(ValueError):
-    """POST mapping / fy_end_month / layout disagreed with MappingCase."""
+    """POST の mapping や GET years が sidecar・probe と食い違った。"""
 
 
 class HttpClient(Protocol):
@@ -132,18 +133,6 @@ class PostedLedger:
 
 
 @dataclass(frozen=True)
-class MappingCase:
-    """Hand-checked calendar years for one frozen (code, as_of, months)."""
-
-    code: str
-    as_of: date
-    months: tuple[int, ...]
-    fy_end_month: int
-    layout: str
-    mapping: dict[str, int] | tuple[dict[str, int], ...]
-
-
-@dataclass(frozen=True)
 class PostOk:
     code: str
     fy_end_month: int
@@ -159,41 +148,6 @@ class PostErr:
     status: int
     error: str
     body: str
-
-
-MARCH_FY_MONTHS = (4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3)
-HALOWS_MONTHS = (3, 4, 5, 6, 7, 8)
-
-MAPPING_CASES: tuple[MappingCase, ...] = (
-    MappingCase(
-        code="2664",
-        as_of=date(2026, 8, 31),
-        months=(4, 5, 6, 7, 8),
-        fy_end_month=3,
-        layout="fiscal",
-        mapping={
-            "4": 2026, "5": 2026, "6": 2026, "7": 2026, "8": 2026,
-        },
-    ),
-    MappingCase(
-        code="7512",
-        as_of=date(2026, 8, 31),
-        months=(3, 4, 5, 6, 7, 8),
-        fy_end_month=2,
-        layout="fiscal",
-        mapping={
-            "3": 2026, "4": 2026, "5": 2026, "6": 2026, "7": 2026, "8": 2026,
-        },
-    ),
-    MappingCase(
-        code="2742",
-        as_of=date(2026, 8, 31),
-        months=HALOWS_MONTHS,
-        fy_end_month=2,
-        layout="fiscal",
-        mapping={"3": 2026, "4": 2026, "5": 2026, "6": 2026, "7": 2026, "8": 2026},
-    ),
-)
 
 
 def filename_ymd(path: Path) -> date | None:
@@ -221,12 +175,14 @@ def select_latest_per_code(sidecars: Sequence[Sidecar]) -> dict[str, Sidecar]:
     return chosen
 
 
-def ingest_body(s: Sidecar) -> dict[str, Any]:
-    # HTML reparse で unit 訂正（伸び率→yoy_pct 等）を入れられるよう force
+def ingest_body(s: Sidecar, *, force: bool = False) -> dict[str, Any]:
+    # force は reparse 後の unit 訂正（伸び率→yoy_pct 等）を人が通すときだけ。
+    # cron で常に付けると UNIT_CONFLICT / ELEMENT_SIMILAR_EXISTS が効かない。
     rows = []
     for r in s.rows:
         row = dict(r)
-        row["force"] = True
+        if force:
+            row["force"] = True
         rows.append(row)
     return {
         "months": list(s.months),
@@ -574,32 +530,6 @@ def assert_loopback_base(base_url: str) -> str:
     return base_url.rstrip("/")
 
 
-def case_for(s: Sidecar, cases: Sequence[MappingCase]) -> MappingCase | None:
-    for case in cases:
-        if case.code == s.code and case.as_of == s.as_of and case.months == s.months:
-            return case
-    return None
-
-
-def _mapping_equal(
-    got: dict[str, int] | list[dict[str, int]],
-    expect: dict[str, int] | tuple[dict[str, int], ...],
-) -> bool:
-    if isinstance(expect, tuple):
-        if not isinstance(got, list) or len(got) != len(expect):
-            return False
-        return all(a == b for a, b in zip(got, expect))
-    return got == expect
-
-
-def assert_mapping(ok: PostOk, case: MappingCase) -> None:
-    if ok.fy_end_month != case.fy_end_month or ok.layout != case.layout or not _mapping_equal(ok.mapping, case.mapping):
-        raise MappingMismatch(
-            f"{case.code} mapping want fy={case.fy_end_month} layout={case.layout} "
-            f"{case.mapping!r} got fy={ok.fy_end_month} layout={ok.layout} {ok.mapping!r}"
-        )
-
-
 def written_years(updated: Sequence[Mapping[str, Any]]) -> set[int]:
     """Years the API actually wrote. Mapping still names empty future months."""
     out: set[int] = set()
@@ -636,8 +566,8 @@ def post_body(client: HttpClient, origin: str, code: str, body: Mapping[str, Any
     return PostErr(code=code, status=status, error=_error_code(payload), body=_body_text(payload))
 
 
-def post_ingest(client: HttpClient, origin: str, s: Sidecar) -> PostOk | PostErr:
-    return post_body(client, origin, s.code, ingest_body(s))
+def post_ingest(client: HttpClient, origin: str, s: Sidecar, *, force: bool = False) -> PostOk | PostErr:
+    return post_body(client, origin, s.code, ingest_body(s, force=force))
 
 
 def post_months_filtered(
@@ -675,7 +605,7 @@ def post_months_filtered(
         flush=True,
     )
     try:
-        body = filter_body(ingest_body(s), keep_cols)
+        body = filter_body(ingest_body(s, force=True), keep_cols)
     except ValueError as e:
         print(f"fail months {s.code}: {e}", flush=True)
         return None
@@ -806,32 +736,20 @@ def _append_report(path: Path | None, row: dict[str, Any]) -> None:
         fh.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-def _cases_by_code(cases: Sequence[MappingCase]) -> dict[str, list[MappingCase]]:
-    out: dict[str, list[MappingCase]] = {}
-    for case in cases:
-        out.setdefault(case.code, []).append(case)
-    return out
-
-
 def run(
     dest: Path,
     *,
     only: list[str] | None = None,
     dry_run: bool = False,
-    verify_mapping: bool = False,
     ledger_path: Path | None = None,
     base_url: str = DEFAULT_BASE_URL,
     client: HttpClient | None = None,
     today: date | None = None,
     report_path: Path | None = None,
     config_path: Path | None = None,
-    cases: Sequence[MappingCase] | None = None,
     force: bool = False,
-    months: frozenset[tuple[int, int]] | None = None,
+    months: frozenset[tuple[int, int]] | Sequence[str] | None = None,
 ) -> int:
-    if dry_run and verify_mapping:
-        print("error: --dry-run and --verify-mapping cannot be combined", flush=True)
-        return 2
     if force and not only:
         print("error: --force requires --only", flush=True)
         return 2
@@ -857,7 +775,6 @@ def run(
         missing_only = sorted(want - set(chosen))
         if missing_only:
             print(f"warn no sidecar for --only {missing_only}", flush=True)
-    mapping_cases = tuple(cases) if cases is not None else MAPPING_CASES
     if want is None and dest_is_monthly_root(dest):
         cfg = config_path or DEFAULT_CONFIG
         if cfg.is_file():
@@ -876,7 +793,7 @@ def run(
     day = today or jst_today()
     print(
         f"ir_monthly_html_ingest start dest={dest} selected={len(chosen)} "
-        f"day={day.isoformat()} dry_run={int(dry_run)} verify_mapping={int(verify_mapping)}"
+        f"day={day.isoformat()} dry_run={int(dry_run)}"
         + _run_suffix(force=force, months=month_filter),
         flush=True,
     )
@@ -921,7 +838,6 @@ def run(
         return 1
     http = client if client is not None else UrllibClient()
     ledger = PostedLedger.load(ledger_path or DEFAULT_LEDGER)
-    by_code = _cases_by_code(mapping_cases)
     posted = skipped = failed = 0
     failed += parse_failed
     for s in ordered:
@@ -950,7 +866,7 @@ def run(
                     }, force=force, months=month_filter))
                     continue
             else:
-                result = post_ingest(http, origin, s)
+                result = post_ingest(http, origin, s, force=force)
         except MappingMismatch as e:
             failed += 1
             print(f"fail mapping {s.code}: {e}", flush=True)
@@ -964,6 +880,8 @@ def run(
         if isinstance(result, PostErr):
             failed += 1
             print(f"fail POST {s.code} status={result.status} {result.error}", flush=True)
+            if result.error in _FORCE_HINT_ERRORS:
+                print(f"  {result.body} (確かめたら --force --only {s.code})", flush=True)
             _append_report(report_path, _with_force({
                 "code": s.code,
                 "as_of": s.as_of.isoformat(),
@@ -974,14 +892,7 @@ def run(
             continue
         ok = result
         status = 200
-        case = case_for(s, mapping_cases)
         try:
-            if case is not None:
-                assert_mapping(ok, case)
-            elif verify_mapping and s.code in by_code:
-                raise MappingMismatch(
-                    f"{s.code} STALE_EXPECTED as_of={s.as_of.isoformat()} months={list(s.months)}"
-                )
             years_url = f"{origin}/api/v1/tables/{s.code}"
             g_status, g_payload = http.get_json(years_url)
             if g_status != 200 or not isinstance(g_payload, dict):
@@ -1044,14 +955,13 @@ def main(argv: list[str] | None = None) -> int:
         help="limit to these codes (repeatable)",
     )
     ap.add_argument("--dry-run", action="store_true", help="print plan, do not POST")
-    ap.add_argument("--verify-mapping", action="store_true", help="require MappingCase hits for covered codes")
     ap.add_argument("--ledger", default=str(DEFAULT_LEDGER), help="sha256 skip ledger (not under dest)")
     ap.add_argument("--base-url", default=DEFAULT_BASE_URL, help="loopback origin")
     ap.add_argument("--report", default="", help="optional JSONL report path")
     ap.add_argument(
         "--force",
         action="store_true",
-        help="POST even if the sidecar sha256 is in the ledger; requires --only",
+        help="POST even if the sidecar sha256 is in the ledger, with row force; requires --only",
     )
     ap.add_argument(
         "--months",
@@ -1060,30 +970,16 @@ def main(argv: list[str] | None = None) -> int:
         help="comma separated calendar months YYYY-MM (e.g. 2026-07,2026-08); requires --force",
     )
     args = ap.parse_args(argv)
-    if args.months and not args.force:
-        print("error: --months requires --force", flush=True)
-        return 2
-    if args.force and not args.only:
-        print("error: --force requires --only", flush=True)
-        return 2
-    month_filter = None
-    if args.months:
-        try:
-            month_filter = parse_month_filter(args.months)
-        except ValueError as e:
-            print(f"error: {e}", flush=True)
-            return 2
     report = Path(args.report) if args.report else None
     return run(
         Path(args.dest),
         only=args.only or None,
         dry_run=args.dry_run,
-        verify_mapping=args.verify_mapping,
         ledger_path=Path(args.ledger),
         base_url=args.base_url,
         report_path=report,
         force=args.force,
-        months=month_filter,
+        months=args.months or None,
     )
 
 

@@ -205,6 +205,79 @@ def test_ingest_timestamp() -> None:
         _fail(f"second ingest must keep industry: {row!r}")
 
 
+def _set_ingested_at(code: str, when: datetime) -> None:
+    from app.db import SessionLocal
+    from app.models import MonthlyIssuer
+
+    db = SessionLocal()
+    try:
+        row = db.get(MonthlyIssuer, code)
+        if row is None:
+            _fail(f"{code} has no monthly_issuers row")
+        row.last_ingested_at = when
+        db.commit()
+    finally:
+        db.close()
+
+
+def _issuer_row(c: TestClient, code: str) -> dict:
+    r = c.get("/api/v1/tables")
+    _expect(r, 200, "GET tables")
+    return {x["code"]: x for x in r.json()}[code]
+
+
+def test_ingest_touch_only_on_change() -> None:
+    from app.db import SessionLocal
+    from app.models import MonthlyIssuer
+
+    c = TestClient(app)
+    code = "33910"
+    _add_fy_end(code, date(2026, 5, 8), date(2026, 3, 31), "iss-fy-touch")
+
+    def post(values: dict | None) -> None:
+        rows = [] if values is None else [
+            {"element": "全店売上高", "unit": "yoy_index", "values": values},
+        ]
+        r = c.post(f"/api/v1/tables/{code}/ingest", json={
+            "months": [4, 5], "rows": rows, "as_of": "2026-08-05",
+        })
+        _expect(r, 200, f"ingest {values!r}")
+
+    post(None)
+    db = SessionLocal()
+    try:
+        if db.get(MonthlyIssuer, code) is not None:
+            _fail("rows=[] probe must not create monthly_issuers")
+    finally:
+        db.close()
+
+    post({"4": 101.0})
+    if _issuer_row(c, code)["ingested_today"] is not True:
+        _fail("first values must be 新着")
+
+    old = datetime.now() - timedelta(days=MONTHLY_NEW_DAYS + 1)
+    _set_ingested_at(code, old)
+    post({"4": 101.0})
+    post(None)
+    row = _issuer_row(c, code)
+    if row["is_new"] is not False:
+        _fail(f"same values / probe must not be 新着: {row!r}")
+
+    post({"4": 101.0, "5": 99.5})
+    if _issuer_row(c, code)["ingested_today"] is not True:
+        _fail("new month must be 新着")
+
+    _set_ingested_at(code, old)
+    post({"5": 98.0})
+    if _issuer_row(c, code)["ingested_today"] is not True:
+        _fail("changed value must be 新着")
+
+    _set_ingested_at(code, old)
+    post({"5": None})
+    if _issuer_row(c, code)["ingested_today"] is not True:
+        _fail("deleted cell must be 新着")
+
+
 def test_new_window() -> None:
     from app.db import SessionLocal
     from app.models import MonthlyIssuer
@@ -322,6 +395,7 @@ def main() -> None:
     test_series_kind()
     test_put_and_list()
     test_ingest_timestamp()
+    test_ingest_touch_only_on_change()
     test_new_window()
     test_year_payload_unchanged()
     test_year_label_block()

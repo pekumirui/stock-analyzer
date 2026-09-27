@@ -212,9 +212,11 @@ ssh stock-vps 'cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_mont
 
 パーサーを直したあと、中身が同じ HTML を今日の日付で書き直し、sidecar を今のパーサーで作り直してから入れ直す。cron のコマンドは変えない。銘柄を指定して手元で走らせる。
 
+cron の ingest は行に `force` を付けない。正規化後に同じ行名で保存 unit が違う行（`UNIT_CONFLICT`）や、空白・大小だけ違う既存行（`ELEMENT_SIMILAR_EXISTS`）は 409 で止まり、ledger にも書かない。yoy と number の取り違えは行名が変わる（`(前年比)` の有無）ので 409 にならず別の行ができる。ログの existing / incoming を確かめてから、下の `--force --only` で入れる。ingest の `--force` は ledger を無視し、行にも `force` を付ける。
+
 順番は fetch、その次に ingest。どちらも `--force` には `--only` が要る。`--only` は `3082` でも J-Quants の `30820` でもよい（4桁に切る）。
 
-ingest の `--months` は暦年の `YYYY-MM`（カンマ区切り、繰り返し可）。どの列が何年かはここでは決めない。`rows=[]` の probe POST が返す mapping に合わせる。`--months` の部分投入は ledger を更新しない。同じ sha の残りの月を、次の通常実行が飛ばさないため。`--force` だけで sidecar 全体を送ったときは、通常どおり ledger に書く。
+ingest の `--months` は暦年の `YYYY-MM`（カンマ区切り、繰り返し可）。どの列が何年かはここでは決めない。`rows=[]` の probe POST が返す mapping に合わせる（値を書かないので新着にはならない）。`--months` の部分投入は ledger を更新しない。同じ sha の残りの月を、次の通常実行が飛ばさないため。`--force` だけで sidecar 全体を送ったときは、通常どおり ledger に書く。
 
 HTML に無いセル（行自体がページに無い、など）は消さない。値がキーとして sidecar に無いセルは送らないので、サーバは既存の値を触らない。消すときは API で別途削除する。
 

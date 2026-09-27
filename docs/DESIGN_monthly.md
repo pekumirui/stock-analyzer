@@ -24,7 +24,7 @@
 |---|---|---|
 | `code` | TEXT PK | `stocks.code` と同じ 5 桁。FK は付けない |
 | `industry` | TEXT NOT NULL | 月次業種。既定は `その他` |
-| `last_ingested_at` | datetime NULL | その code への ingest が成功するたびに更新 |
+| `last_ingested_at` | datetime NULL | その code への ingest でセルが追加・変更・削除されたときに更新 |
 
 書き込みは先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`。既存の `monthly_tables` / `monthly_elements` / `monthly_values` は変えない。
 ingest の列割り当てと暦年は `DESIGN.md` §3。
@@ -166,7 +166,7 @@ years が空なら「データなし」。選んだ系列に値が無い年は�
 
 `PUT /api/v1/tables/{code}/industry` の body は `{industry}`。stocks に無い code、月次表が無い code は 4xx。
 
-ingest は `monthly_issuers` を upsert し `last_ingested_at` を今にする。industry は既にあれば触らない。無ければ `その他`。
+ingest はセルが1つでも変わったとき `monthly_issuers` を upsert し `last_ingested_at` を今にする。同じ値の再送と `rows=[]` は触らない。industry は既にあれば触らない。無ければ `その他`。
 
 エラー包みは既存どおり `{"error": {"code": "...", "message": "..."}}`。
 
