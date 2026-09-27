@@ -15,46 +15,31 @@ import argparse
 import hashlib
 import json
 import re
-import socket
-import ssl
 import sys
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urljoin, urlparse
-from zoneinfo import ZoneInfo
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from tdnet_monthly_r2 import (  # noqa: E402
-    display_code,
-    download_skip_reason,
+from _r2common import (  # noqa: E402
+    http_get,
+    jst_today,
     load_stock_product_map,
     sanitize_filename_part,
     yyyymmdd_from_pubdate,
 )
+from tdnet_monthly_r2 import display_code, download_skip_reason  # noqa: E402
 
-JST = ZoneInfo("Asia/Tokyo")
 DEFAULT_DEST = "/home/stock/r2-share/monthly"
 DEFAULT_CONFIG = SCRIPT_DIR.parent / "config" / "ir_monthly.json"
-USER_AGENT = "stock-analyzer-ir-monthly/1.0"
-# AWS ELB が識別 UA を 403 する発行体（大東建託）向け。通常は USER_AGENT を先に使う。
-BROWSER_UA = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-)
 SLEEP_SEC = 0.4
-HTTP_TIMEOUT = 30.0
-_AIA_OID = bytes((0x2B, 0x06, 0x01, 0x05, 0x05, 0x07, 0x01, 0x01))
-_CA_ISSUERS_OID = bytes((0x2B, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x02))
-_AIA_MAX_CERT = 64 * 1024
-_AIA_CTX: dict[str, ssl.SSLContext | None] = {}
 _EXT_RE = re.compile(r"\.(pdf|xlsx|xls)(?:$|[?#])", re.I)
 _ALLOWED_EXT = frozenset({"pdf", "xlsx", "xls", "html"})
 _XLS_MAGIC = b"\xd0\xcf\x11\xe0"
@@ -107,16 +92,6 @@ class _AParser(HTMLParser):
             return
         self.links.append((self._href, "".join(self._text).strip()))
         self._href = None
-
-
-def jst_today(now: datetime | None = None) -> date:
-    if now is None:
-        now = datetime.now(JST)
-    elif now.tzinfo is None:
-        now = now.replace(tzinfo=JST)
-    else:
-        now = now.astimezone(JST)
-    return now.date()
 
 
 def normalize_ext(ext: str) -> str:
@@ -251,193 +226,6 @@ def looks_like_file(data: bytes, ext: str) -> bool:
         head = data.lstrip()[:200].lower()
         return head.startswith(b"<") or head.startswith(b"<!doctype")
     return False
-
-
-def _der_len(buf: bytes, i: int) -> tuple[int, int]:
-    if i >= len(buf):
-        raise ValueError("der truncated")
-    b = buf[i]
-    if b < 0x80:
-        return b, i + 1
-    n = b & 0x7F
-    if n == 0 or n > 4 or i + 1 + n > len(buf):
-        raise ValueError("der length")
-    return int.from_bytes(buf[i + 1 : i + 1 + n], "big"), i + 1 + n
-
-
-def _der_children(buf: bytes, start: int, end: int):
-    i = start
-    while i < end:
-        if i + 1 >= len(buf):
-            break
-        tag = buf[i]
-        try:
-            length, v = _der_len(buf, i + 1)
-        except ValueError:
-            break
-        e = v + length
-        if e > end or e > len(buf):
-            break
-        yield tag, v, e
-        i = e
-
-
-def aia_ca_issuer_uris(der: bytes) -> list[str]:
-    """Leaf DER から AIA CA Issuers URI を取る。無ければ空。"""
-    needle = bytes((0x06, len(_AIA_OID))) + _AIA_OID
-    idx = der.find(needle)
-    if idx < 0:
-        return []
-    i = idx + len(needle)
-    if i >= len(der):
-        return []
-    try:
-        if der[i] == 0x01:
-            length, v = _der_len(der, i + 1)
-            i = v + length
-        if i >= len(der) or der[i] != 0x04:
-            return []
-        length, v = _der_len(der, i + 1)
-        octet = der[v : v + length]
-        if not octet or octet[0] != 0x30:
-            return []
-        seq_len, seq_v = _der_len(octet, 1)
-        out: list[str] = []
-        for tag, vs, es in _der_children(octet, seq_v, seq_v + seq_len):
-            if tag != 0x30:
-                continue
-            kids = list(_der_children(octet, vs, es))
-            if len(kids) < 2:
-                continue
-            t0, a, b = kids[0]
-            t1, c, d = kids[1]
-            if t0 != 0x06 or octet[a:b] != _CA_ISSUERS_OID:
-                continue
-            if (t1 & 0x1F) != 6:
-                continue
-            try:
-                uri = octet[c:d].decode("ascii")
-            except UnicodeDecodeError:
-                continue
-            if uri.startswith(("http://", "https://")):
-                out.append(uri)
-        return out
-    except ValueError:
-        return []
-
-
-def _is_incomplete_chain(exc: BaseException) -> bool:
-    cur: BaseException | None = exc
-    for _ in range(6):
-        if cur is None:
-            return False
-        if isinstance(cur, ssl.SSLCertVerificationError):
-            return True
-        if "certificate verify failed" in str(cur).lower():
-            return True
-        nxt = cur.__cause__ or getattr(cur, "reason", None)
-        if not isinstance(nxt, BaseException):
-            nxt = cur.__context__
-        cur = nxt if isinstance(nxt, BaseException) else None
-    return False
-
-
-def _peer_leaf_der(host: str, timeout: float) -> bytes:
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    with socket.create_connection((host, 443), timeout=timeout) as sock:
-        with ctx.wrap_socket(sock, server_hostname=host) as ssock:
-            der = ssock.getpeercert(binary_form=True)
-    if not der:
-        raise OSError(f"no peer cert for {host}")
-    return der
-
-
-def _aia_cadata(blob: bytes) -> bytes | str:
-    if blob.lstrip().startswith(b"-----BEGIN"):
-        return blob.decode("ascii")
-    return blob
-
-
-def ssl_context_with_aia(url: str, timeout: float = HTTP_TIMEOUT) -> ssl.SSLContext | None:
-    """サーバーが中間を付けない／付け違えるとき、AIA の CA Issuers を足して検証する。"""
-    from urllib.request import Request, urlopen
-
-    host = urlparse(url).hostname
-    if not host:
-        return None
-    if host in _AIA_CTX:
-        return _AIA_CTX[host]
-    ctx: ssl.SSLContext | None = None
-    try:
-        der = _peer_leaf_der(host, timeout)
-        extras: list[bytes | str] = []
-        for uri in aia_ca_issuer_uris(der)[:3]:
-            if urlparse(uri).scheme.lower() not in ("http", "https"):
-                continue
-            try:
-                req = Request(uri, headers={"User-Agent": USER_AGENT, "Accept": "*/*"})
-                with urlopen(req, timeout=timeout) as resp:  # nosec B310
-                    blob = resp.read(_AIA_MAX_CERT + 1)
-                if not blob or len(blob) > _AIA_MAX_CERT:
-                    continue
-                extras.append(_aia_cadata(blob))
-            except (HTTPError, URLError, TimeoutError, OSError, UnicodeDecodeError, ssl.SSLError):
-                continue
-        if extras:
-            ctx = ssl.create_default_context()
-            loaded = False
-            for cadata in extras:
-                try:
-                    ctx.load_verify_locations(cadata=cadata)
-                    loaded = True
-                except ssl.SSLError:
-                    continue
-            if not loaded:
-                ctx = None
-    except (HTTPError, URLError, TimeoutError, OSError, ValueError, ssl.SSLError):
-        ctx = None
-    _AIA_CTX[host] = ctx
-    return ctx
-
-
-def http_get(url: str, timeout: float = HTTP_TIMEOUT) -> bytes:
-    from urllib.request import Request, urlopen
-
-    scheme = urlparse(url).scheme.lower()
-    if scheme not in ("http", "https"):
-        raise ValueError(f"unsupported URL scheme: {scheme or 'missing'}")
-    last: Exception | None = None
-    aia_tried = False
-    for ua in (USER_AGENT, BROWSER_UA):
-        req = Request(url, headers={"User-Agent": ua, "Accept": "*/*"})
-        for attempt in range(2):
-            try:
-                with urlopen(req, timeout=timeout) as resp:  # nosec B310
-                    return resp.read()
-            except HTTPError as e:
-                last = e
-                if e.code == 403 and ua == USER_AGENT:
-                    break
-                if e.code < 500 and e.code not in (408, 429):
-                    raise
-            except (URLError, TimeoutError, OSError) as e:
-                last = e
-                if not aia_tried and _is_incomplete_chain(e):
-                    aia_tried = True
-                    ctx = ssl_context_with_aia(url, timeout)
-                    if ctx is not None:
-                        try:
-                            with urlopen(req, timeout=timeout, context=ctx) as resp:  # nosec B310
-                                return resp.read()
-                        except (HTTPError, URLError, TimeoutError, OSError) as e2:
-                            last = e2
-                    raise last
-            if attempt == 0:
-                time.sleep(1.5)
-    assert last is not None
-    raise last
 
 
 def _parse_issuer(raw: object) -> Issuer:

@@ -34,7 +34,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from ir_monthly_r2 import DEFAULT_CONFIG, DEFAULT_DEST, atomic_write, jst_today, sha256_bytes  # noqa: E402
+from _r2common import jst_today  # noqa: E402
+from ir_monthly_r2 import DEFAULT_CONFIG, DEFAULT_DEST, atomic_write, sha256_bytes  # noqa: E402
 from tdnet_monthly_r2 import display_code  # noqa: E402
 
 DEFAULT_LEDGER = Path("/tmp/html_ingest_ledger.json")

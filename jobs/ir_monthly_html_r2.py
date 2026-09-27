@@ -33,23 +33,19 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from _r2common import jst_today, load_stock_product_map  # noqa: E402
 from ir_monthly_r2 import (  # noqa: E402
     DEFAULT_CONFIG,
     DEFAULT_DEST,
     SLEEP_SEC,
+    _AParser,
+    _SKIP_HREF_RE,
     atomic_write,
     dest_path,
     http_get,
-    jst_today,
     sha256_bytes,
-    _AParser,
-    _SKIP_HREF_RE,
 )
-from tdnet_monthly_r2 import (  # noqa: E402
-    display_code,
-    download_skip_reason,
-    load_stock_product_map,
-)
+from tdnet_monthly_r2 import display_code, download_skip_reason  # noqa: E402
 from html_issuers import PARSERS  # noqa: E402
 from html_monthly import (  # noqa: E402
     _VALID_UNITS,
