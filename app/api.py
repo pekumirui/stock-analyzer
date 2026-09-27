@@ -566,6 +566,34 @@ def _months_have_duplicates(months: list[int]) -> bool:
     return len(months) != len(set(months))
 
 
+_ONLY_MONTH_RE = re.compile(r"^(\d{4})-(\d{2})$")
+
+
+def _parse_dry_run(raw: Any) -> bool:
+    if not isinstance(raw, bool):
+        raise ApiError(400, "INVALID_PARAM", "dry_run は true / false です。")
+    return raw
+
+
+def _parse_only_months(raw: Any) -> frozenset[tuple[int, int]]:
+    """暦年の YYYY-MM。mapping のあと、この (year, month) の列だけ書く。"""
+    if not isinstance(raw, list) or not raw:
+        raise ApiError(400, "INVALID_PARAM", "only_months は YYYY-MM の配列です。")
+    found: set[tuple[int, int]] = set()
+    for item in raw:
+        if not isinstance(item, str):
+            raise ApiError(400, "INVALID_PARAM", "only_months の各要素は YYYY-MM です。")
+        match = _ONLY_MONTH_RE.fullmatch(item)
+        if match is None:
+            raise ApiError(400, "INVALID_PARAM", "only_months の各要素は YYYY-MM です。")
+        year = int(match.group(1))
+        month = int(match.group(2))
+        if month < 1 or month > 12:
+            raise ApiError(400, "INVALID_PARAM", "only_months の月は 1〜12 です。")
+        found.add((year, month))
+    return frozenset(found)
+
+
 def _parse_ingest_values_by_column(
     values_raw: Any, months: list[int],
 ) -> dict[int, float | None]:
@@ -739,7 +767,10 @@ def delete_element(code: str, year: str, payload: dict | None = Body(None),
 def ingest_monthly(code: str, payload: dict | None = Body(None),
                    db: Session = Depends(get_session),
                    _: None = Depends(forbid_proxied_monthly_write)):
-    """PDF列順 + as_of 時点の最新 statements.fiscal_year_end から暦年を割り当てる。year は受け取らない。"""
+    """PDF列順 + as_of 時点の最新 statements.fiscal_year_end から暦年を割り当てる。year は受け取らない。
+
+    dry_run は mapping と書くはずのセルだけ返す。only_months は mapping のあとで暦年の列を残す。
+    """
     code = _parse_code(code)
     body = _require_object(payload)
     _require_stock(db, code)
@@ -748,6 +779,8 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
         as_of = parse_as_of(body.get("as_of"))
     except MonthlyIngestError as exc:
         raise _ingest_error(exc) from exc
+    dry_run = _parse_dry_run(body["dry_run"]) if "dry_run" in body else False
+    only_months = _parse_only_months(body["only_months"]) if "only_months" in body else None
     rows = _parse_ingest_rows(body.get("rows"), months, code, as_of=as_of)
     fy_end_rows = [
         (disclosed, fy_end)
@@ -770,17 +803,23 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
             for col, (month, year_i) in enumerate(mapping):
                 if col not in values_by_col:
                     continue
-                if year_i not in by_year:
-                    _ensure_element(db, code, year_i, element, force, unit)
-                if _upsert_value(db, code, year_i, element, month, values_by_col[col]):
-                    changed = True
+                if only_months is not None and (year_i, month) not in only_months:
+                    continue
+                if not dry_run:
+                    if year_i not in by_year:
+                        _ensure_element(db, code, year_i, element, force, unit)
+                    if _upsert_value(db, code, year_i, element, month, values_by_col[col]):
+                        changed = True
                 by_year[year_i].append(month)
             for year_i in sorted(by_year):
                 updated.append({"year": year_i, "element": element, "months": by_year[year_i]})
-        # 新着はセルが変わったときだけ。同じ値の再送や rows=[] の年割当確認では動かさない
-        if changed:
-            _touch_monthly_issuer(db, code)
-        db.commit()
+        # 新着はセルが変わったときだけ。dry_run と rows=[] の年割当確認では動かさない
+        if dry_run:
+            db.rollback()
+        else:
+            if changed:
+                _touch_monthly_issuer(db, code)
+            db.commit()
     except MonthlyIngestError as exc:
         db.rollback()
         raise _ingest_error(exc) from exc
@@ -788,7 +827,7 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
         db.rollback()
         raise
 
-    return {
+    out = {
         "code": code,
         "fy_end_month": fy_end_month,
         "layout": layout,
@@ -796,6 +835,9 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
         "mapping": serialize_column_mapping(mapping),
         "updated": updated,
     }
+    if dry_run:
+        out["dry_run"] = True
+    return out
 
 
 @router_v1.put("/tables/{code}/industry")

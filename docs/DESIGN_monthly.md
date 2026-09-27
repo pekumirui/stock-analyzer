@@ -166,7 +166,7 @@ years が空なら「データなし」。選んだ系列に値が無い年は�
 
 `PUT /api/v1/tables/{code}/industry` の body は `{industry}`。stocks に無い code、月次表が無い code は 4xx。
 
-ingest はセルが1つでも変わったとき `monthly_issuers` を upsert し `last_ingested_at` を今にする。同じ値の再送と `rows=[]` は触らない。industry は既にあれば触らない。無ければ `その他`。
+ingest はセルが1つでも変わったとき `monthly_issuers` を upsert し `last_ingested_at` を今にする。同じ値の再送と `rows=[]` と `dry_run` は触らない。industry は既にあれば触らない。無ければ `その他`。
 
 エラー包みは既存どおり `{"error": {"code": "...", "message": "..."}}`。
 
