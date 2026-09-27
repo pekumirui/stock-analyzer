@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 import re
 import unicodedata
-from typing import Any
+from typing import Any, Sequence
 
 import pandas as pd
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
@@ -25,6 +25,7 @@ from .monthly_ingest import (
     coerce_monthly_storage, map_pdf_columns, monthly_element_label,
     monthly_series_kind, parse_as_of, parse_monthly_unit,
     reject_prior_period_element, same_yoy_element, serialize_column_mapping,
+    uncovered_yoy_number_twins,
 )
 
 router = APIRouter(prefix="/api")
@@ -260,6 +261,10 @@ router_v1 = APIRouter(prefix="/api/v1")
 
 _INVALID_VALUE_MSG = "value は数値のみ受け付けます。単位(%、円など)やカンマは除去してください。"
 _SIMILAR_MSG = "類似する要素が既に存在します。既存要素を使うか、force=true で強制登録してください。"
+_YOY_NUMBER_MSG = (
+    "同じ指標の number と前年比が別行になります。"
+    "既存行を同じ POST に含めるか、force=true で登録してください。"
+)
 _NOT_IN_MASTER_MSG = "銘柄マスタにありません。"
 _JST = timezone(timedelta(hours=9))
 _INDUSTRY_MSG = "industry は1〜50文字の文字列です。"
@@ -507,8 +512,10 @@ def _apply_incoming_unit(row: MonthlyElement, unit: str, force: bool) -> None:
     row.unit = unit
 
 
-def _ensure_element(db: Session, code: str, year_i: int, element: str, force: bool,
-                    unit: str) -> bool:
+def _ensure_element(
+    db: Session, code: str, year_i: int, element: str, force: bool, unit: str,
+    posted: Sequence[tuple[str, str]] | None = None,
+) -> bool:
     _require_stock(db, code)
     try:
         folded = fold_same_yoy_element(
@@ -535,6 +542,17 @@ def _ensure_element(db: Session, code: str, year_i: int, element: str, force: bo
     ]
     if similar and not force:
         raise ApiError(409, "ELEMENT_SIMILAR_EXISTS", _SIMILAR_MSG, extra={"similar": similar})
+    # ingest だけ。POST elements は posted=None。既存行の更新（fold 済み）はここまで来ない。
+    if posted is not None and not force:
+        twins = uncovered_yoy_number_twins(
+            [(row.element, row.unit) for row in existing],
+            element, unit, posted,
+        )
+        if twins:
+            raise ApiError(
+                409, "YOY_NUMBER_CONFLICT", _YOY_NUMBER_MSG,
+                extra={"existing": twins, "incoming": element},
+            )
     if db.get(MonthlyTable, (code, year_i)) is None:
         db.add(MonthlyTable(code=code, year=year_i))
         db.flush()
@@ -764,6 +782,7 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
 
     updated: list[dict] = []
     changed = False
+    posted = [(element, unit) for element, _force, unit, _values in rows]
     try:
         for element, force, unit, values_by_col in rows:
             by_year: dict[int, list[int]] = defaultdict(list)
@@ -771,7 +790,7 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
                 if col not in values_by_col:
                     continue
                 if year_i not in by_year:
-                    _ensure_element(db, code, year_i, element, force, unit)
+                    _ensure_element(db, code, year_i, element, force, unit, posted=posted)
                 if _upsert_value(db, code, year_i, element, month, values_by_col[col]):
                     changed = True
                 by_year[year_i].append(month)

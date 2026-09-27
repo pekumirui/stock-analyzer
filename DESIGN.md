@@ -176,6 +176,8 @@ number で表示単位がある指標は項目名の末尾に `（単位）` を
 **行名。** 正本は [`docs/DESIGN_monthly_labels.md`](docs/DESIGN_monthly_labels.md)。
 ingest / POST は `canonicalize_element_label` してから既存行を探す。GET は保存名。SPA は `fmtMonthlyElement`。
 
+ingest が新しい行を作るとき、同じ (code, year) に `strip_yoy_fragments` 後の名前が同じで unit が yoy と number で違う既存行があり、その既存行が今回の `rows` に無いなら 409 `YOY_NUMBER_CONFLICT`。`force=true` で作る。同じ POST に両方あるときは作る（実数と前年比の併存）。既にある行の更新は対象外。`POST .../elements` はこの検査をしない。
+
 **R2 への保存（`jobs/*_r2.py`）。** 保存先は `/home/stock/r2-share/monthly/{code}/`。cron と運用は `deploy/README.md`。共通の約束は次のとおり。
 
 - `{code}` は TDnet の発行体コードそのまま（9279 / 262A）。J-Quants 5 桁にしない。stocks 照合だけ display_code + 末尾 0（9282→92820, 262A→262A0）
@@ -313,7 +315,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
 | `GET /api/stocks/search?q=トヨタ` | 銘柄検索 |
 | `POST /api/v1/tables/{code}/{year}/elements` | 月次表の要素登録。`unit` 必須。表が無ければ作成。保存名をトークン正規化（yoy は末尾 `(前年比)`）してから既存行を探す。正規化後に同一なら同一行（短い保存名は正規名へリネーム）。完全一致は冪等。類似は 409 (force=true で強制)。fold の値衝突は 409 `FOLD_CONFLICT`。unit の食い違いは 409 `UNIT_CONFLICT` (force=true で上書き)。`stocks` に無ければ 4xx `NOT_IN_MASTER` |
-| `POST /api/v1/tables/{code}/ingest` | PDF 列順 + as_of 時点の最新 `fiscal_year_end` から暦年を割り当てて登録。year は受け取らない。`as_of` と各行の `unit` は必須。マスタ無しでは 4xx `NOT_IN_MASTER` |
+| `POST /api/v1/tables/{code}/ingest` | PDF 列順 + as_of 時点の最新 `fiscal_year_end` から暦年を割り当てて登録。year は受け取らない。`as_of` と各行の `unit` は必須。マスタ無しでは 4xx `NOT_IN_MASTER`。新規行で、`strip_yoy_fragments` 後の名前が同じ yoy と number の既存行が今回の `rows` に無いときは 409 `YOY_NUMBER_CONFLICT`（`force=true` で作成。両方を同じ POST に含めれば通る） |
 | `GET /api/v1/tables` | 月次表がある銘柄一覧 (code 順)。各要素は `{code, name, years, market, sector33, industry, last_ingested_at, is_new, ingested_today, all_store_yoy, existing_store_yoy}`。name/market/sector33 は stocks を LEFT JOIN (無ければ null)。industry は無ければ `その他`。years は昇順。表が無ければ `[]` |
 | `PUT /api/v1/tables/{code}/industry` | 月次業種。body `{industry}`。stocks 無ければ 4xx `NOT_IN_MASTER`。月次表が無ければ 4xx `TABLE_NOT_FOUND` |
 | `GET /api/v1/tables/{code}/{year}` | 月次表。要素は登録順。各行は `{element, unit, label, values}`。`element` は保存名。`label` は GET 派生（display / group / kinds / 7層）。`values` は 1〜12。無い月は null（0 は実ゼロ）。1年通して値のない行は出さない。表が無ければ 404 |

@@ -350,6 +350,37 @@ def test_unit_conflict_fails_without_ledger(tmp: Path) -> None:
         _fail("409 must not ledger")
 
 
+def test_yoy_number_conflict_fails_without_ledger(tmp: Path) -> None:
+    dest = tmp / "yoy-number-conflict"
+    path = _write_sidecar(
+        dest, "2664", "20260915_2664_カワチ薬品_月次.ingest.json",
+        as_of="2026-08-31", months=list(CAWACHI.months),
+    )
+    ledger_path = tmp / "yoy-number-conflict.json"
+    client = FakeClient(
+        post_status=409,
+        post_payload={"error": {
+            "code": "YOY_NUMBER_CONFLICT",
+            "message": "同じ指標の number と前年比が別行になります。",
+            "existing": ["全店 売上高(前年比)"],
+            "incoming": "全店 売上高",
+        }},
+    )
+    rc, out = _capture(lambda: run(
+        dest, ledger_path=ledger_path, client=client, today=date(2026, 9, 15),
+    ))
+    if rc != 1:
+        _fail(out or str(rc))
+    if "fail POST 2664 status=409 YOY_NUMBER_CONFLICT" not in out or "--force --only 2664" not in out:
+        _fail(out)
+    if '"existing": ["全店 売上高(前年比)"]' not in out:
+        _fail(out)
+    if client.gets:
+        _fail("409 must not GET years")
+    if PostedLedger.load(ledger_path).has(parse_sidecar(path, "2664").sha256):
+        _fail("409 must not ledger")
+
+
 def test_as_of_gate_blocks_post(tmp: Path) -> None:
     dest = tmp / "asof-gate"
     _write_sidecar(
@@ -825,6 +856,7 @@ def main_tests() -> None:
         test_ledger_skip_does_not_post(p)
         test_confirm_years_uses_updated_not_empty_months(p)
         test_unit_conflict_fails_without_ledger(p)
+        test_yoy_number_conflict_fails_without_ledger(p)
         test_as_of_gate_blocks_post(p)
         test_cli_repeatable_only(p)
         test_parse_month_filter_and_usage(p)
