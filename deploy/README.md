@@ -115,7 +115,9 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 
 fluent-bit は live ファイルだけを tail する（`/var/log/app/stock-analyzer.log` / `batch.log` / `mcp.log`、`/var/log/nginx/error.log`）。systemd は `stock-analyzer.service` と `stock-analyzer-mcp.service` の `Failed with result` / `Main process exited`。access.log と `html_ingest_ledger.json` と rotate 済みの `.1` / `.gz` は見ない。batch はジョブ単位の `fail cron` と非ゼロの `failed=` と `errors=` を page する。行単位の `fail ` と batch の Traceback は page しない。Webhook が無いときはユニットを enable するだけで start しない。Slack は公式 slack 出力ではなく http + `fluent-bit_slack.lua`（JST と `#E01E5A` の赤帯）。URI は `slack.env` の `SLACK_WEBHOOK_URI`。アプリにログ API は足さない。
 
-Grok への繋ぎ方（カスタムコネクタは OAuth 前提）:
+リモート MCP（Grok / Cursor / Claude）は OAuth 前提。`https://kabukpi.com/mcp` に Bearer なしで来ると 401 と resource metadata を返す。Claude.ai のカスタムコネクタは Client ID を空のままで Dynamic Client Registration（`POST /oauth/register`）する。許可画面で `MCP_TOKEN` を入れる。
+
+Grok:
 
 1. GitHub secret `MCP_TOKEN` を入れる（未設定ならデプロイが VPS の `.env` に生成する）
 2. [grok.com/connectors](https://grok.com/connectors) → New Connector → Custom
@@ -132,13 +134,22 @@ Grok への繋ぎ方（カスタムコネクタは OAuth 前提）:
 
 5. ブラウザに許可画面が出るので、`MCP_TOKEN` を入れて「許可する」
 
+Claude.ai（Customize → Connectors → Add custom connector）:
+
+1. Server URL: `https://kabukpi.com/mcp`
+2. Advanced の OAuth Client ID / Secret は空（DCR）。手で入れるなら Client ID は `stock-analyzer`、Secret は空
+3. Connect → 許可画面で `MCP_TOKEN`
+
+「kabukpi のサインインサービスに登録できませんでした」は DCR が `invalid_redirect_uri` のとき。Claude の callback（`https://claude.ai/api/mcp/auth_callback`）は許可リストに入っていること。Client ID を足しても authorize が同じ redirect を見るので、リスト外ならどちらも止まる。
+
 Cursor / Grok Bot も同じ OAuth（PKCE、クライアントシークレットなし）。許可する redirect は:
 
 - `https://www.cursor.com/agents/mcp/oauth/callback`
 - デスクトップ: `http://localhost:8787/callback`（localhost で許可済）
 - フォールバック: `cursor://anysphere.cursor-mcp/oauth/callback`
+- Claude: `https://claude.ai/api/mcp/auth_callback` と `https://claude.com/api/mcp/auth_callback`
 
-well-known は Basic 認証の外。`/.well-known/oauth-authorization-server` と `/.well-known/openid-configuration`（同じ AS メタデータ）と `/oauth/` は MCP プロセスへプロキシする。
+well-known は Basic 認証の外。`/.well-known/oauth-authorization-server` と `/.well-known/openid-configuration`（同じ AS メタデータ。`/mcp` 付きも含む）と `/oauth/` は MCP プロセスへプロキシする。
 `/.well-known/` 全体は外さない（acme-challenge は従来どおり）。
 
 MCP 自体が死んだときの退避路は Actions の **Debug VPS**。

@@ -37,6 +37,11 @@ def main() -> None:
         _fail("provision.sh GET tables regex must be quoted for nginx")
     if 'location ~ "^/api/v1/tables/' not in sample:
         _fail("nginx.conf GET tables regex must be quoted for nginx")
+    for src, text in (("provision.sh", provision), ("nginx.conf", sample)):
+        if "location ^~ /.well-known/openid-configuration" not in text:
+            _fail(f"{src} must prefix-match openid-configuration (including /mcp)")
+        if "location = /.well-known/openid-configuration" in text:
+            _fail(f"{src} exact openid-configuration misses /mcp")
     print("ok: nginx public locations")
 
 
