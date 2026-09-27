@@ -130,7 +130,7 @@ earnings_events   -- 決算発表イベントと発表後パフォーマンス
 monthly_issuers   -- 発行体ごとの月次属性。月次業種は stocks.sector33 とは別
   code PK                 -- stocks.code と同じ 5桁。FK は付けない
   industry                -- 月次業種。既定は その他
-  last_ingested_at        -- ingest 成功のたびに更新。NULL は新着ではない
+  last_ingested_at        -- ingest でセルが変わったときだけ更新。NULL は新着ではない
 
 monthly_tables    -- 銘柄×年度の月次表 (暦月1〜12。会計月ではない)
   code, year PK           -- code は J-Quants 5桁 (9279→92790, 262A→262A0)。year は西暦4桁
@@ -199,8 +199,8 @@ IR 月次 PDF/xlsx/xls（`jobs/ir_monthly_r2.py`）:
 IR 月次 HTML（`jobs/ir_monthly_html_r2.py`）:
 
 - `.html`（原本）と `.ingest.json`（派生。`POST /api/v1/tables/{code}/ingest` と同じ形）を隣に置く。自動 POST しない
-- DB 投入は別スクリプト `jobs/ir_monthly_html_ingest.py`。code ごとにファイル名日付が最新の `.ingest.json` を loopback へ POST する。year は送らない。sha256 が前回成功分と同じなら POST しない。cron は producer（10:20 / 16:20）の後（10:30 / 16:30）。ledger は dest/R2 ではなく `/var/log/app/html_ingest_ledger.json`
-- 対象は `config/ir_monthly.json` の html。セレクタは json（`follow_re` / `source=eir` / `parse`）。`parse: true` は `jobs/html_issuers` の `parse`（`PARSERS`）。各モジュールが表・行・単位を宣言する。`table` と `force_unit` は json に残るが、読むのはモジュール側。`parse: false` はモジュールを作らない
+- DB 投入は別スクリプト `jobs/ir_monthly_html_ingest.py`。code ごとにファイル名日付が最新の `.ingest.json` を loopback へ POST する。year は送らない。sha256 が前回成功分と同じなら POST しない。行に `force` は付けない（同名で unit が違う行・類似名は 409 で止め、人が `--force --only` で入れる）。cron は producer（10:20 / 16:20）の後（10:30 / 16:30）。ledger は dest/R2 ではなく `/var/log/app/html_ingest_ledger.json`
+- 対象は `config/ir_monthly.json` の html。セレクタは json（`follow_re` / `source=eir` / `parse`）。`parse: true` は `jobs/html_issuers` の `parse`（`PARSERS`。`i<code>.py` を置けば載る）。各モジュールが表・行・単位を宣言する。`table` と `force_unit` は json に残るが、読むのはモジュール側。`parse: false` はモジュールを作らない
 - unit 判定の context は page 見出しに加え、当該 table 直上の section とページ内の `(単位：%)` / `単位:%` を含む。ページに単位表示が無く指数な銘柄だけ `force_unit: "yoy_index"` を json に書く。見出しに 増減比/伸び率 があれば `単位:%` より `yoy_pct` を優先（ツルハ・サガミ）。見出しが伸び率でもセルが符号なし100基準なら `force_unit`（3148 クリエイトSD）
 - 年度別ページは `follow_re` で最新年を辿る。画像・本文のみは `parse: false`（HTML は残し JSON は書かない）
 - E-IR は Pronexus JSONP の月次 item `text` を `.html` として保存する（sha256 はその HTML）

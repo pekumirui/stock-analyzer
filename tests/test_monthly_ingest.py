@@ -831,6 +831,12 @@ def test_mapping_examples() -> None:
     if _map_dict(mapping) != expect_july_mid:
         _fail(f"july mid-fy mapping: {mapping}")
 
+    # HTML の当期途中（期首から as_of 月まで）。3月期 4〜8月、2月期 3〜8月はどちらも当年
+    for months, fy_end in (([4, 5, 6, 7, 8], 3), ([3, 4, 5, 6, 7, 8], 2)):
+        layout, mapping = plan_column_years(months, fy_end, date(2026, 8, 31))
+        if layout != "fiscal" or _map_dict(mapping) != {m: 2026 for m in months}:
+            _fail(f"in-progress fy={fy_end} {layout} {mapping}")
+
     # 27360 型: 8月期末・as_of が新FY先頭月（9月）→ 完了直後の FY（9/2025…8/2026）
     aug_months = [9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8]
     layout, mapping = plan_column_years(aug_months, 8, date(2026, 9, 14))

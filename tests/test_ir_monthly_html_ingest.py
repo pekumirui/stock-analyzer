@@ -16,10 +16,7 @@ sys.path.insert(0, str(ROOT / "jobs"))
 from html_monthly import decode_html_bytes, dumps_ingest  # noqa: E402
 from ir_monthly_html_ingest import (  # noqa: E402
     DEFAULT_LEDGER,
-    MARCH_FY_MONTHS,
-    MAPPING_CASES,
     LedgerEntry,
-    MappingCase,
     PostedLedger,
     Sidecar,
     assert_as_of_usable,
@@ -35,7 +32,29 @@ from ir_monthly_html_ingest import (  # noqa: E402
 )
 from ir_monthly_html_r2 import ingest_payload, load_html_registry  # noqa: E402
 
-CAWACHI = next(c for c in MAPPING_CASES if c.code == "2664")
+MARCH_FY_MONTHS = (4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3)
+
+
+@dataclass(frozen=True)
+class MappingCase:
+    """FakeClient が返す POST 応答の元。年の割当そのものは test_monthly_ingest で見る。"""
+
+    code: str
+    as_of: date
+    months: tuple[int, ...]
+    fy_end_month: int
+    layout: str
+    mapping: dict[str, int]
+
+
+CAWACHI = MappingCase(
+    code="2664",
+    as_of=date(2026, 8, 31),
+    months=(4, 5, 6, 7, 8),
+    fy_end_month=3,
+    layout="fiscal",
+    mapping={str(m): 2026 for m in (4, 5, 6, 7, 8)},
+)
 
 
 def _fail(msg: str) -> None:
@@ -204,8 +223,13 @@ def test_ingest_body_keys_only() -> None:
         _fail(f"body leaked {body}")
     if body["as_of"] != "2026-08-31" or body["months"] != [4, 5, 8]:
         _fail(f"body {body}")
-    if not body["rows"] or not all(r.get("force") is True for r in body["rows"]):
-        _fail(f"html ingest rows must force unit/label fixes {body['rows']}")
+    if not body["rows"] or any("force" in r for r in body["rows"]):
+        _fail(f"cron rows must not force past UNIT_CONFLICT {body['rows']}")
+    forced = ingest_body(s, force=True)
+    if not all(r.get("force") is True for r in forced["rows"]):
+        _fail(f"--force rows must force unit/label fixes {forced['rows']}")
+    if "force" in s.rows[0]:
+        _fail("ingest_body mutated the sidecar row")
 
 
 def test_as_of_gate_month_end_hi() -> None:
@@ -249,7 +273,6 @@ def test_ledger_skip_does_not_post(tmp: Path) -> None:
         ledger_path=ledger_path,
         client=client,
         today=date(2026, 9, 15),
-        cases=(CAWACHI,),
     )
     if rc != 0:
         _fail(f"first run rc {rc}")
@@ -257,6 +280,8 @@ def test_ledger_skip_does_not_post(tmp: Path) -> None:
         _fail(f"first run posts {client.posts}")
     if client.posts[0][1].get("year") is not None:
         _fail(f"POST body has year {client.posts[0][1]}")
+    if any("force" in r for r in client.posts[0][1]["rows"]):
+        _fail(f"cron POST must not force rows {client.posts[0][1]}")
     if not PostedLedger.load(ledger_path).has(digest):
         _fail("ledger missing hash")
     client2 = FakeClient(post_payload=_ok_payload(CAWACHI), get_payload=_years_payload(CAWACHI))
@@ -265,7 +290,6 @@ def test_ledger_skip_does_not_post(tmp: Path) -> None:
         ledger_path=ledger_path,
         client=client2,
         today=date(2026, 9, 15),
-        cases=(CAWACHI,),
     )
     if rc != 0:
         _fail(f"second run rc {rc}")
@@ -273,37 +297,6 @@ def test_ledger_skip_does_not_post(tmp: Path) -> None:
         _fail(f"ledger skip still POSTed {client2.posts}")
     if client2.gets:
         _fail(f"ledger skip still GET {client2.gets}")
-
-
-def test_mapping_case_mismatch_fails(tmp: Path) -> None:
-    dest = tmp / "mismatch"
-    _write_sidecar(
-        dest,
-        "2664",
-        "20260915_2664_カワチ薬品_月次.ingest.json",
-        as_of="2026-08-31",
-        months=list(CAWACHI.months),
-    )
-    wrong = _ok_payload(CAWACHI)
-    wrong["mapping"] = {str(m): 1999 for m in CAWACHI.months}
-    client = FakeClient(post_payload=wrong, get_payload=_years_payload(CAWACHI))
-    ledger_path = tmp / "mismatch-ledger.json"
-    rc = run(
-        dest,
-        ledger_path=ledger_path,
-        client=client,
-        today=date(2026, 9, 15),
-        cases=(CAWACHI,),
-        verify_mapping=True,
-    )
-    if rc != 1:
-        _fail(f"mismatch rc {rc}")
-    if not client.posts:
-        _fail("mismatch must still POST")
-    if PostedLedger.load(ledger_path).has(parse_sidecar(next(dest.glob("**/*.ingest.json")), "2664").sha256):
-        _fail("mismatch must not ledger")
-    if client.gets:
-        _fail("mismatch must not GET years")
 
 
 def test_confirm_years_uses_updated_not_empty_months(tmp: Path) -> None:
@@ -321,13 +314,40 @@ def test_confirm_years_uses_updated_not_empty_months(tmp: Path) -> None:
         ledger_path=tmp / "confirm-ledger.json",
         client=client,
         today=date(2026, 9, 15),
-        cases=(CAWACHI,),
-        verify_mapping=True,
     )
     if rc != 0:
         _fail(f"empty 2027 month must not fail GET confirm rc={rc}")
     if not client.gets:
         _fail("confirm must GET years")
+
+
+def test_unit_conflict_fails_without_ledger(tmp: Path) -> None:
+    dest = tmp / "unit-conflict"
+    path = _write_sidecar(
+        dest, "2664", "20260915_2664_カワチ薬品_月次.ingest.json",
+        as_of="2026-08-31", months=list(CAWACHI.months),
+    )
+    ledger_path = tmp / "unit-conflict.json"
+    client = FakeClient(
+        post_status=409,
+        post_payload={"error": {
+            "code": "UNIT_CONFLICT", "message": "既存の unit と異なります。",
+            "existing": "number", "incoming": "yoy_index",
+        }},
+    )
+    rc, out = _capture(lambda: run(
+        dest, ledger_path=ledger_path, client=client, today=date(2026, 9, 15),
+    ))
+    if rc != 1:
+        _fail(out or str(rc))
+    if "fail POST 2664 status=409 UNIT_CONFLICT" not in out or "--force --only 2664" not in out:
+        _fail(out)
+    if '"existing": "number"' not in out:
+        _fail(out)
+    if client.gets:
+        _fail("409 must not GET years")
+    if PostedLedger.load(ledger_path).has(parse_sidecar(path, "2664").sha256):
+        _fail("409 must not ledger")
 
 
 def test_as_of_gate_blocks_post(tmp: Path) -> None:
@@ -345,7 +365,6 @@ def test_as_of_gate_blocks_post(tmp: Path) -> None:
         ledger_path=tmp / "asof-ledger.json",
         client=client,
         today=date(2026, 9, 15),
-        cases=(CAWACHI,),
         dry_run=True,
     )
     if rc != 1:
@@ -357,18 +376,9 @@ def test_as_of_gate_blocks_post(tmp: Path) -> None:
         ledger_path=tmp / "asof-ledger.json",
         client=client,
         today=date(2026, 9, 15),
-        cases=(CAWACHI,),
     )
     if rc != 1 or client.posts:
         _fail(f"as_of gate still posted rc={rc} posts={client.posts}")
-
-
-def test_dry_run_verify_mapping_usage_error(tmp: Path) -> None:
-    dest = tmp / "usage"
-    dest.mkdir()
-    rc = run(dest, dry_run=True, verify_mapping=True, ledger_path=tmp / "usage-ledger.json")
-    if rc != 2:
-        _fail(f"usage rc {rc}")
 
 
 def test_loopback_and_default_ledger() -> None:
@@ -449,8 +459,7 @@ def test_default_ledger_skip_is_unchanged(tmp: Path) -> None:
     client = FakeClient(post_payload=_ok_payload(CAWACHI), get_payload=_years_payload(CAWACHI))
     report = tmp / "default-skip.jsonl"
     rc, out = _capture(lambda: run(
-        dest, ledger_path=ledger_path, client=client, today=date(2026, 9, 15),
-        cases=(CAWACHI,), report_path=report,
+        dest, ledger_path=ledger_path, client=client, today=date(2026, 9, 15), report_path=report,
     ))
     if rc != 0:
         _fail(out or str(rc))
@@ -479,12 +488,14 @@ def test_force_bypasses_ledger(tmp: Path) -> None:
     report = tmp / "force-ledger.jsonl"
     rc, out = _capture(lambda: run(
         dest, only=["26640"], force=True, ledger_path=ledger_path, client=client,
-        today=date(2026, 9, 15), cases=(CAWACHI,), report_path=report,
+        today=date(2026, 9, 15), report_path=report,
     ))
     if rc != 0:
         _fail(out or str(rc))
     if len(client.posts) != 1 or not client.posts[0][1]["rows"]:
         _fail(f"force posts {client.posts}")
+    if not all(r.get("force") is True for r in client.posts[0][1]["rows"]):
+        _fail(f"--force must force rows {client.posts[0][1]}")
     if not PostedLedger.load(ledger_path).has(digest):
         _fail("force full post dropped ledger")
     if "force 2664 20260915_2664_カワチ薬品_月次.ingest.json (ledger has sha)" not in out:
@@ -525,8 +536,7 @@ def test_month_filter_posts_kept_columns_only(tmp: Path) -> None:
     report = tmp / "months-filter.jsonl"
     rc, out = _capture(lambda: run(
         dest, only=["2664"], force=True, months=parse_month_filter("2026-07,2026-08"),
-        ledger_path=ledger_path, client=client, today=date(2026, 9, 15),
-        cases=(CAWACHI,), report_path=report,
+        ledger_path=ledger_path, client=client, today=date(2026, 9, 15), report_path=report,
     ))
     if rc != 0:
         _fail(out or str(rc))
@@ -578,7 +588,7 @@ def test_month_filter_uses_server_years(tmp: Path) -> None:
     client = FakeClient(post_payload=payload, get_payload={"code": "74160", "years": [2025, 2026]})
     rc, out = _capture(lambda: run(
         dest, only=["7416"], force=True, months=frozenset({(2026, 1)}),
-        ledger_path=tmp / "server-years.json", client=client, today=date(2026, 9, 15), cases=(),
+        ledger_path=tmp / "server-years.json", client=client, today=date(2026, 9, 15),
     ))
     if rc != 0:
         _fail(out or str(rc))
@@ -591,7 +601,7 @@ def test_month_filter_uses_server_years(tmp: Path) -> None:
     client2 = FakeClient(post_payload=payload, get_payload={"code": "74160", "years": [2025, 2026]})
     rc, out = _capture(lambda: run(
         dest, only=["7416"], force=True, months=frozenset({(2025, 1)}),
-        ledger_path=tmp / "server-years-miss.json", client=client2, today=date(2026, 9, 15), cases=(),
+        ledger_path=tmp / "server-years-miss.json", client=client2, today=date(2026, 9, 15),
     ))
     if rc != 1:
         _fail(out or str(rc))
@@ -623,7 +633,7 @@ def test_duplicate_months_column_index_or_refuse(tmp: Path) -> None:
     client = FakeClient(post_payload=payload, get_payload={"years": [2026, 2027]})
     rc, out = _capture(lambda: run(
         dest, only=["1301"], force=True, months=frozenset({(2026, 3)}),
-        ledger_path=tmp / "dup-ok.json", client=client, today=date(2026, 9, 15), cases=(),
+        ledger_path=tmp / "dup-ok.json", client=client, today=date(2026, 9, 15),
     ))
     if rc != 0:
         _fail(out or str(rc))
@@ -636,7 +646,7 @@ def test_duplicate_months_column_index_or_refuse(tmp: Path) -> None:
     client2 = FakeClient(post_payload=payload, get_payload={"years": [2026]})
     rc, out = _capture(lambda: run(
         dest, only=["1301"], force=True, months=frozenset({(2026, 6)}),
-        ledger_path=tmp / "dup-bad.json", client=client2, today=date(2026, 9, 15), cases=(),
+        ledger_path=tmp / "dup-bad.json", client=client2, today=date(2026, 9, 15),
     ))
     if rc != 1:
         _fail(out or str(rc))
@@ -745,7 +755,6 @@ def test_months_missing_from_sidecar_does_not_post(tmp: Path) -> None:
     rc, out = _capture(lambda: run(
         dest, only=["2664"], force=True, months=frozenset({(2026, 9)}),
         ledger_path=tmp / "missing-month.json", client=client, today=date(2026, 9, 15),
-        cases=(CAWACHI,),
     ))
     if rc != 1 or client.posts:
         _fail(f"rc={rc} posts={client.posts} {out}")
@@ -776,7 +785,7 @@ def test_fixture_3082_force_months(tmp: Path) -> None:
     }
     client = FakeClient(post_payload=posted, get_payload={"code": "30820", "years": [2026]})
     rc, out = _capture(lambda: run(
-        dest, ledger_path=ledger_path, client=client, today=date(2026, 9, 25), cases=(),
+        dest, ledger_path=ledger_path, client=client, today=date(2026, 9, 25),
     ))
     if rc != 0 or client.posts:
         _fail(f"ledger skip rc={rc} posts={client.posts} {out}")
@@ -785,7 +794,7 @@ def test_fixture_3082_force_months(tmp: Path) -> None:
     client2 = FakeClient(post_payload=posted, get_payload={"code": "30820", "years": [2026]})
     rc, out = _capture(lambda: run(
         dest, only=["30820"], force=True, months=frozenset({(2026, 7), (2026, 8)}),
-        ledger_path=ledger_path, client=client2, today=date(2026, 9, 25), cases=(),
+        ledger_path=ledger_path, client=client2, today=date(2026, 9, 25),
     ))
     if rc != 0:
         _fail(out or str(rc))
@@ -814,10 +823,9 @@ def main_tests() -> None:
     with TemporaryDirectory() as d:
         p = Path(d)
         test_ledger_skip_does_not_post(p)
-        test_mapping_case_mismatch_fails(p)
         test_confirm_years_uses_updated_not_empty_months(p)
+        test_unit_conflict_fails_without_ledger(p)
         test_as_of_gate_blocks_post(p)
-        test_dry_run_verify_mapping_usage_error(p)
         test_cli_repeatable_only(p)
         test_parse_month_filter_and_usage(p)
         test_default_ledger_skip_is_unchanged(p)
