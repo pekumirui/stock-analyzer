@@ -186,6 +186,35 @@ cron（JST）。`run_batch.py` の 19:30 / 06:00 はそのまま。
 
 振る舞いは `DESIGN.md` §3 と `docs/DESIGN_xbrl.md`。`rclone.conf` と取得ファイルはリポジトリに置かない。
 
+### TDnet 月次 PDF の未投入レポート（読み取り専用）
+
+DB 投入は MCP `monthly_ingest` の手作業。R2 の PDF と `monthly_values` の差は、VPS 上のスクリプトで見る（MCP ツールは足さない。cron にも載せない）。
+
+ユーザ `stock` で。SQLite は `mode=ro`。R2 mount にも DB にも書かない。
+
+```bash
+cd /home/stock/stock-analyzer
+.venv/bin/python tools/tdnet_monthly_pending.py
+.venv/bin/python tools/tdnet_monthly_pending.py --only-stale
+.venv/bin/python tools/tdnet_monthly_pending.py --code 9279 --json
+```
+
+既定の dest は `jobs/tdnet_monthly_r2.py` と同じ `/home/stock/r2-share/monthly`。DB は `DATABASE_URL`（無ければリポジトリの `stock.db`）。上書きは `--dest` と `--db`。
+
+列:
+
+| 列 | 意味 |
+|---|---|
+| `code` | TDnet 発行体コード（4桁。9279 / 262A） |
+| `pdf_date` | その発行体で一番新しい PDF ファイル名の `YYYYMMDD` 接頭辞（TDnet pubdate / ingest の `as_of`） |
+| `expected` | その開示日がカバーするとみなす暦月 |
+| `db_latest` | `monthly_values` に値がある最大の `(year, month)`。行が無ければ `-` |
+| `gap` | `expected - db_latest` の月数。正なら DB が遅れている。行が無ければ `-` |
+| `status` | `ok` / `STALE` / `MISSING`。`STALE` と `MISSING` の行頭は `*` |
+| `pdf` | 最新 PDF のファイル名 |
+
+ヒューリスティック: ファイル名の日付は開示日。本文を開かず `fiscal_year_end` も見ないので、ingest の列→暦年と完全には一致しない。通常の月次売上は翌月開示（`2026-08-05` → 7月度）なので、**expected は開示日の前暦月**。これは ingest の `_anchor_year(last_month, as_of)` に「右端列 = 前暦月」を渡した値と同じ。21:00 の TDnet バッチ分は古くても残る（新しさでは落とさない）。`--only-stale` は `STALE` と `MISSING` だけ。HTML / xlsx / xls は見ない（同じ `monthly/{code}/` の PDF だけ）。
+
 ### クラウドのエージェントから VPS を触る
 
 経路は2つ。任意シェルは MCP に足さない（`AGENTS.md`）。
