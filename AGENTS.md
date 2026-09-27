@@ -53,7 +53,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `config/` | `ir_monthly.json`、`issuer_aliases.json`、`monthly_row_order.json`、XBRL YAML、Ruff/Bandit は `pyproject.toml` |
 | `tests/` | `test_*.py` と `ci_smoke.py` |
 | `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ） |
-| `tools/` | オフライン検証と手元ヘルパー。月次 PDF 指紋は `fmtdiff.py`（pdfplumber。ingest は従来どおり pdftotext）。XBRL 一致率は `xbrl_match_rate.py`。`check_api.py` と `read_xls.py` |
+| `tools/` | オフライン検証と手元ヘルパー。月次 PDF 指紋は `fmtdiff.py`（pdfplumber。ingest は従来どおり pdftotext）。TDnet 月次の未投入一覧は `tdnet_monthly_pending.py`（読み取り専用。使い方は `deploy/README.md`）。XBRL 一致率は `xbrl_match_rate.py`。`check_api.py` と `read_xls.py` |
 
 ## J-Quants（必須）
 
