@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import tempfile
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -105,6 +106,154 @@ def _ensure_stock(code: str, name: str | None = None) -> None:
         if db.get(Stock, code) is None:
             db.add(Stock(code=code, name=name))
             db.commit()
+    finally:
+        db.close()
+
+
+def _add_fy_end(code: str, disclosed: date, fy_end: date, disclosure_no: str) -> None:
+    from app.db import SessionLocal
+    from app.models import Statement
+
+    _ensure_stock(code)
+    db = SessionLocal()
+    try:
+        db.add(Statement(
+            disclosure_no=disclosure_no,
+            code=code,
+            disclosed_date=disclosed,
+            fiscal_year_end=fy_end,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+
+def _assert_ingest_dry_run_only_months(c) -> None:
+    """dry_run は書かない。only_months は mapping 後の暦年だけ書く。"""
+    from app.db import SessionLocal
+    from app.models import MonthlyIssuer, MonthlyTable, MonthlyValue
+
+    code = "31800"
+    _add_fy_end(code, date(2026, 5, 8), date(2026, 3, 31), "dry-31800")
+    months = [4, 5, 6, 7, 8]
+    values = {str(m): float(m) for m in months}
+    body = {
+        "months": months,
+        "rows": [{"element": "売上高", "unit": "number", "values": values}],
+        "as_of": "2026-08-05",
+    }
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={**body, "dry_run": True})
+    _expect(r, 200, "dry_run")
+    got = r.json()
+    if got.get("dry_run") is not True or got.get("fy_end_month") != 3 or got.get("layout") != "fiscal":
+        _fail(f"dry_run header: {got!r}")
+    if got.get("mapping") != {str(m): 2026 for m in months}:
+        _fail(f"dry_run mapping: {got.get('mapping')!r}")
+    if got.get("updated") != [{"year": 2026, "element": "売上高", "months": months}]:
+        _fail(f"dry_run updated: {got.get('updated')!r}")
+    r = c.get(f"/api/v1/tables/{code}/2026")
+    _expect(r, 404, "dry_run writes nothing")
+    db = SessionLocal()
+    try:
+        if db.get(MonthlyIssuer, code) is not None or db.get(MonthlyTable, (code, 2026)) is not None:
+            _fail("dry_run created monthly rows")
+    finally:
+        db.close()
+
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        **body, "only_months": ["2026-07", "2026-08"],
+    })
+    _expect(r, 200, "only_months")
+    got = r.json()
+    if "dry_run" in got:
+        _fail(f"write must not set dry_run: {got!r}")
+    if got.get("updated") != [{"year": 2026, "element": "売上高", "months": [7, 8]}]:
+        _fail(f"only_months updated: {got.get('updated')!r}")
+    if got.get("mapping") != {str(m): 2026 for m in months}:
+        _fail("only_months must keep the full mapping")
+    r = c.get(f"/api/v1/tables/{code}/2026")
+    _expect(r, 200, "GET after only_months")
+    vals = r.json()["elements"][0]["values"]
+    _assert_calendar_values(vals, {"7": 7.0, "8": 8.0}, "only_months")
+
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        **body,
+        "dry_run": True,
+        "only_months": ["2026-04"],
+        "rows": [{"element": "売上高", "unit": "number", "values": {"4": 99.0, "7": 70.0}}],
+    })
+    _expect(r, 200, "dry_run only_months")
+    if r.json().get("updated") != [{"year": 2026, "element": "売上高", "months": [4]}]:
+        _fail(f"dry_run only_months updated: {r.json()!r}")
+    r = c.get(f"/api/v1/tables/{code}/2026")
+    vals = r.json()["elements"][0]["values"]
+    if float(vals["7"]) != 7.0 or vals["4"] is not None:
+        _fail(f"dry_run changed cells: {vals!r}")
+
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={**body, "only_months": ["2025-07"]})
+    _expect(r, 200, "only_months miss")
+    if r.json().get("updated") != []:
+        _fail(f"miss updated: {r.json()!r}")
+    r = c.get(f"/api/v1/tables/{code}/2025")
+    _expect(r, 404, "miss year")
+
+    for bad, label in (
+        ({"dry_run": "yes"}, "dry_run type"),
+        ({"dry_run": 1}, "dry_run int"),
+        ({"only_months": []}, "empty only_months"),
+        ({"only_months": "2026-07"}, "only_months string"),
+        ({"only_months": ["2026-13"]}, "only_months month"),
+        ({"only_months": ["2026-7"]}, "only_months pad"),
+    ):
+        r = c.post(f"/api/v1/tables/{code}/ingest", json={**body, **bad})
+        _expect(r, 400, label)
+        if _err(r)["code"] != "INVALID_PARAM":
+            _fail(f"{label}: {r.json()!r}")
+
+    wrap = "31820"
+    _add_fy_end(wrap, date(2026, 5, 1), date(2026, 2, 28), "dry-31820")
+    r = c.post(f"/api/v1/tables/{wrap}/ingest", json={
+        "months": [11, 12, 1, 2],
+        "rows": [{"element": "売上高", "unit": "number", "values": {"11": 11, "12": 12, "1": 1, "2": 2}}],
+        "as_of": "2026-08-31",
+        "only_months": ["2026-01"],
+    })
+    _expect(r, 200, "year wrap only_months")
+    if r.json().get("layout") != "partial":
+        _fail(f"wrap layout: {r.json()!r}")
+    if r.json().get("updated") != [{"year": 2026, "element": "売上高", "months": [1]}]:
+        _fail(f"wrap updated: {r.json()!r}")
+    r = c.get(f"/api/v1/tables/{wrap}/2025")
+    _expect(r, 404, "wrap must not write 2025")
+    r = c.get(f"/api/v1/tables/{wrap}/2026")
+    _expect(r, 200, "wrap 2026")
+    _assert_calendar_values(r.json()["elements"][0]["values"], {"1": 1.0}, "wrap january")
+
+    dup = "31830"
+    _add_fy_end(dup, date(2026, 5, 1), date(2026, 2, 28), "dry-31830")
+    dup_months = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]
+    r = c.post(f"/api/v1/tables/{dup}/ingest", json={
+        "months": dup_months,
+        "rows": [{"element": "売上高", "unit": "number", "values": [float(i) for i in range(13)]}],
+        "as_of": "2026-08-31",
+        "only_months": ["2026-03", "2026-01"],
+    })
+    _expect(r, 200, "duplicate months only_months")
+    updated = r.json().get("updated")
+    if updated != [{"year": 2026, "element": "売上高", "months": [1, 3]}]:
+        _fail(f"dup updated: {updated!r}")
+    if not isinstance(r.json().get("mapping"), list) or len(r.json()["mapping"]) != 13:
+        _fail(f"dup mapping: {r.json().get('mapping')!r}")
+    r = c.get(f"/api/v1/tables/{dup}/2026")
+    _expect(r, 200, "dup 2026")
+    _assert_calendar_values(r.json()["elements"][0]["values"], {"1": 10.0, "3": 12.0}, "dup kept")
+    r = c.get(f"/api/v1/tables/{dup}/2025")
+    _expect(r, 404, "dup must not write the earlier March")
+    db = SessionLocal()
+    try:
+        early = db.get(MonthlyValue, (dup, 2025, "売上高", 3))
+        if early is not None:
+            _fail(f"earlier March written: {early.value}")
     finally:
         db.close()
 
@@ -737,6 +886,7 @@ def main() -> None:
         by_name["営業利益"], {"2": 98.7, "3": 1.5}, "7203 numeric")
     _assert_monthly_row_order(c)
     _assert_known_prod_units(c)
+    _assert_ingest_dry_run_only_months(c)
 
     print("ok: monthly tables api")
 

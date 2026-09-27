@@ -681,6 +681,20 @@ def tool_monthly_set_industry(args: dict[str, Any]) -> str:
     return call_monthly_api("PUT", monthly_industry_url(code), body)
 
 
+_ONLY_MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+
+
+def _parse_only_months(raw: Any) -> list[str]:
+    if not isinstance(raw, list) or not raw:
+        raise ValueError("only_months must be a non-empty array of YYYY-MM")
+    out: list[str] = []
+    for item in raw:
+        if not isinstance(item, str) or _ONLY_MONTH_RE.fullmatch(item) is None:
+            raise ValueError("only_months must be YYYY-MM")
+        out.append(item)
+    return out
+
+
 def tool_monthly_ingest(args: dict[str, Any]) -> str:
     code = parse_monthly_code(args.get("code"))
     body: dict[str, Any] = {
@@ -693,6 +707,12 @@ def tool_monthly_ingest(args: dict[str, Any]) -> str:
     if not isinstance(as_of, str):
         raise ValueError("as_of must be YYYY-MM-DD")
     body["as_of"] = as_of
+    if "dry_run" in args:
+        if not isinstance(args["dry_run"], bool):
+            raise ValueError("dry_run must be a boolean")
+        body["dry_run"] = args["dry_run"]
+    if "only_months" in args:
+        body["only_months"] = _parse_only_months(args["only_months"])
     return call_monthly_api("POST", monthly_ingest_url(code), body)
 
 
@@ -841,7 +861,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_monthly_set_industry,
     ),
     "monthly_ingest": (
-        "PDF月次を暦年に割り当てて登録。localhost:8000 の POST /api/v1/tables/{code}/ingest。year は渡さない（決算の事業年度末から決める）。年付き put は訂正用で unit も +100 もしない。unit は PDF 見出しから number / yoy_index / yoy_pct（大きさから推測しない）。yoy_pct は符号付き変化率。ingest は yoy_index と value+100 で書く。yoy_index と number はそのまま。新規行で、strip 後の名前が同じ number と yoy の既存行が rows に無いときは 409 YOY_NUMBER_CONFLICT。同じ POST に両方あれば通る。force=true で作る。",
+        "PDF月次を暦年に割り当てて登録。localhost:8000 の POST /api/v1/tables/{code}/ingest。year は渡さない（決算の事業年度末から決める）。dry_run=true は fy_end_month / layout / mapping と書くはずのセルを返し、DB には書かない。only_months は YYYY-MM で、mapping のあと該当列だけ書く。年付き put は訂正用で unit も +100 もしない。unit は PDF 見出しから number / yoy_index / yoy_pct（大きさから推測しない）。yoy_pct は符号付き変化率。ingest は yoy_index と value+100 で書く。yoy_index と number はそのまま。新規行で、strip 後の名前が同じ number と yoy の既存行が rows に無いときは 409 YOY_NUMBER_CONFLICT。同じ POST に両方あれば通る。force=true で作る。",
         {
             "type": "object",
             "properties": {
@@ -872,6 +892,15 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                     },
                 },
                 "as_of": {"type": "string", "description": "disclosure date YYYY-MM-DD"},
+                "dry_run": {
+                    "type": "boolean",
+                    "description": "true: return fy_end_month, layout, mapping, and cells that would be written. Do not write the DB.",
+                },
+                "only_months": {
+                    "type": "array",
+                    "description": "Calendar YYYY-MM. After mapping, write only those columns.",
+                    "items": {"type": "string"},
+                },
             },
             "required": ["code", "months", "rows", "as_of"],
         },

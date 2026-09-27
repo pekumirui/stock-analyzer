@@ -1150,6 +1150,8 @@ def test_monthly_ingest_tool() -> None:
                 payload = json.loads(rec["body"].decode("utf-8")) if rec["body"] else {}
                 if "year" in payload:
                     raise SystemExit(f"ingest body must not include year: {payload}")
+                if "dry_run" in payload or "only_months" in payload:
+                    raise SystemExit(f"omit dry_run/only_months must not send them: {payload}")
                 if "months" not in payload or "rows" not in payload:
                     raise SystemExit(f"ingest body missing months/rows: {payload}")
                 if rec["path"] == "/api/v1/tables/92790/ingest":
@@ -1204,6 +1206,43 @@ def test_monthly_ingest_tool() -> None:
                 raise SystemExit(f"ingest invalid unit should isError: {text}")
             if len(recorded) != before_bad:
                 raise SystemExit(f"ingest invalid unit must not hit HTTP: {recorded[before_bad:]}")
+
+            before_dry = len(recorded)
+            text, is_error = m.call_tool(
+                "monthly_ingest",
+                {
+                    "code": "92790",
+                    "months": [7, 8],
+                    "rows": [{"element": "全店", "values": {"7": 1.0}, "unit": "number"}],
+                    "as_of": "2026-08-05",
+                    "dry_run": True,
+                    "only_months": ["2026-07"],
+                },
+            )
+            if is_error:
+                raise SystemExit(f"dry_run ingest: {text}")
+            if len(recorded) != before_dry + 1:
+                raise SystemExit(f"dry_run posts: {recorded[before_dry:]}")
+            dry_body = json.loads(recorded[-1]["body"].decode("utf-8"))
+            if dry_body.get("dry_run") is not True or dry_body.get("only_months") != ["2026-07"]:
+                raise SystemExit(f"dry_run body: {dry_body}")
+            if "year" in dry_body:
+                raise SystemExit(f"dry_run must not send year: {dry_body}")
+
+            text, is_error = m.call_tool(
+                "monthly_ingest",
+                {
+                    "code": "92790",
+                    "months": [7, 8],
+                    "rows": [{"element": "全店", "values": {"7": 1.0}, "unit": "number"}],
+                    "as_of": "2026-08-05",
+                    "dry_run": "yes",
+                },
+            )
+            if not is_error or "dry_run must be a boolean" not in text:
+                raise SystemExit(f"bad dry_run: {text}")
+            if len(recorded) != before_dry + 1:
+                raise SystemExit("bad dry_run must not hit HTTP")
     finally:
         if prev_http is None:
             os.environ.pop("MCP_APP_HTTP", None)

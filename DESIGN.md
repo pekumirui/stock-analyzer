@@ -155,6 +155,8 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
 - 応答 `mapping` も一意月は `{月: 年}`、重複時は列順 `[{month, year}, …]`
 - クライアントは year を渡さない。年付き PUT は訂正用。決算期変更があっても as_of 時点の1か月だけを使う
 - `as_of` は YYYY-MM-DD 必須。省略・null は 400 `AS_OF_REQUIRED`。サーバ日付は使わない
+- `dry_run: true` は `fy_end_month` / `layout` / `mapping` と、書くはずのセル（`updated`）を返す。DB には書かない。新着にもならない
+- `only_months` は `YYYY-MM` の配列。mapping を決めたあと、その暦年の列だけ書く。省略時は全列。当たらない月は書かない
 
 **銘柄マスタとの関係。**
 
@@ -202,7 +204,7 @@ IR 月次 PDF/xlsx/xls（`jobs/ir_monthly_r2.py`）:
 IR 月次 HTML（`jobs/ir_monthly_html_r2.py`）:
 
 - `.html`（原本）と `.ingest.json`（派生。`POST /api/v1/tables/{code}/ingest` と同じ形）を隣に置く。自動 POST しない
-- DB 投入は別スクリプト `jobs/ir_monthly_html_ingest.py`。code ごとにファイル名日付が最新の `.ingest.json` を loopback へ POST する。year は送らない。sha256 が前回成功分と同じなら POST しない。行に `force` は付けない（同名で unit が違う行・類似名は 409 で止め、人が `--force --only` で入れる）。cron は producer（10:20 / 16:20）の後（10:30 / 16:30）。ledger は dest/R2 ではなく `/var/log/app/html_ingest_ledger.json`
+- DB 投入は別スクリプト `jobs/ir_monthly_html_ingest.py`。code ごとにファイル名日付が最新の `.ingest.json` を loopback へ POST する。year は送らない。sha256 が前回成功分と同じなら POST しない。行に `force` は付けない（同名で unit が違う行・類似名は 409 で止め、人が `--force --only` で入れる）。`--months` は暦年の `YYYY-MM` を `only_months` として 1 回 POST する（年はサーバの mapping。部分投入は ledger を更新しない）。cron は producer（10:20 / 16:20）の後（10:30 / 16:30）。ledger は dest/R2 ではなく `/var/log/app/html_ingest_ledger.json`
 - 対象は `config/ir_monthly.json` の html。セレクタは json（`follow_re` / `source=eir` / `parse`）。`parse: true` は `jobs/html_issuers` の `parse`（`PARSERS`。`i<code>.py` を置けば載る）。各モジュールが表・行・単位を宣言する。`parse: false` はモジュールを作らない
 - unit 判定の context は page 見出しに加え、当該 table 直上の section とページ内の `(単位：%)` / `単位:%` を含む。ページに単位表示が無く指数な銘柄、および見出しが伸び率でもセルが符号なし100基準の銘柄（3148 クリエイトSD）は、モジュールで `yoy_index` を宣言する。見出しに 増減比/伸び率 があれば `単位:%` より `yoy_pct` を優先（ツルハ・サガミ）
 - 年度別ページは `follow_re` で最新年を辿る。画像・本文のみは `parse: false`（HTML は残し JSON は書かない）
@@ -316,7 +318,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
 | `GET /api/stocks/search?q=トヨタ` | 銘柄検索 |
 | `POST /api/v1/tables/{code}/{year}/elements` | 月次表の要素登録。`unit` 必須。表が無ければ作成。保存名をトークン正規化（yoy は末尾 `(前年比)`）してから既存行を探す。正規化後に同一なら同一行（短い保存名は正規名へリネーム）。完全一致は冪等。類似は 409 (force=true で強制)。fold の値衝突は 409 `FOLD_CONFLICT`。unit の食い違いは 409 `UNIT_CONFLICT` (force=true で上書き)。`stocks` に無ければ 4xx `NOT_IN_MASTER` |
-| `POST /api/v1/tables/{code}/ingest` | PDF 列順 + as_of 時点の最新 `fiscal_year_end` から暦年を割り当てて登録。year は受け取らない。`as_of` と各行の `unit` は必須。マスタ無しでは 4xx `NOT_IN_MASTER`。新規行で、`strip_yoy_fragments` 後の名前が同じ yoy と number の既存行が今回の `rows` に無いときは 409 `YOY_NUMBER_CONFLICT`（`force=true` で作成。両方を同じ POST に含めれば通る） |
+| `POST /api/v1/tables/{code}/ingest` | PDF 列順 + as_of 時点の最新 `fiscal_year_end` から暦年を割り当てて登録。year は受け取らない。`as_of` と各行の `unit` は必須。`dry_run: true` は書かずに mapping と書くはずのセルを返す。`only_months` は `YYYY-MM` で列を絞る。マスタ無しでは 4xx `NOT_IN_MASTER`。新規行で、`strip_yoy_fragments` 後の名前が同じ yoy と number の既存行が今回の `rows` に無いときは 409 `YOY_NUMBER_CONFLICT`（`force=true` で作成。両方を同じ POST に含めれば通る） |
 | `GET /api/v1/tables` | 月次表がある銘柄一覧 (code 順)。各要素は `{code, name, years, market, sector33, industry, last_ingested_at, is_new, ingested_today, all_store_yoy, existing_store_yoy}`。name/market/sector33 は stocks を LEFT JOIN (無ければ null)。industry は無ければ `その他`。years は昇順。表が無ければ `[]` |
 | `PUT /api/v1/tables/{code}/industry` | 月次業種。body `{industry}`。stocks 無ければ 4xx `NOT_IN_MASTER`。月次表が無ければ 4xx `TABLE_NOT_FOUND` |
 | `GET /api/v1/tables/{code}/{year}` | 月次表。要素は登録順。各行は `{element, unit, label, values}`。`element` は保存名。`label` は GET 派生（display / group / kinds / 7層）。`values` は 1〜12。無い月は null（0 は実ゼロ）。1年通して値のない行は出さない。表が無ければ 404 |

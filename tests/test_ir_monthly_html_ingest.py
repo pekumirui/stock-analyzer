@@ -21,8 +21,6 @@ from ir_monthly_html_ingest import (  # noqa: E402
     Sidecar,
     assert_as_of_usable,
     assert_loopback_base,
-    column_values,
-    filter_body,
     ingest_body,
     main,
     parse_month_filter,
@@ -571,25 +569,23 @@ def test_month_filter_posts_kept_columns_only(tmp: Path) -> None:
     ))
     if rc != 0:
         _fail(out or str(rc))
-    if len(client.posts) != 2:
+    if len(client.posts) != 1:
         _fail(f"posts {len(client.posts)} {out}")
-    probe, real = client.posts
-    if probe[1]["rows"] != [] or probe[1]["months"] != months or probe[1]["as_of"] != "2026-08-31":
-        _fail(probe[1])
-    if real[1]["months"] != months or real[1]["as_of"] != "2026-08-31":
-        _fail(real[1])
-    if len(real[1]["rows"]) != 2:
-        _fail(real[1]["rows"])
-    for row in real[1]["rows"]:
-        if set(row["values"]) != {"7", "8"} or row.get("force") is not True:
-            _fail(row)
-        if None in row["values"].values():
+    real = client.posts[0][1]
+    if real["months"] != months or real["as_of"] != "2026-08-31":
+        _fail(real)
+    if real.get("only_months") != ["2026-07", "2026-08"]:
+        _fail(real.get("only_months"))
+    if len(real["rows"]) != 2:
+        _fail(real["rows"])
+    for row in real["rows"]:
+        if set(row["values"]) != {str(m) for m in months} or row.get("force") is not True:
             _fail(row)
     if PostedLedger.load(ledger_path).has(digest):
         _fail("partial post updated ledger")
     if "partial (ledger not updated)" not in out:
         _fail(out)
-    if "months 2664 keep=2026-07,2026-08" not in out:
+    if "months 2664 only=2026-07,2026-08" not in out:
         _fail(out)
     row = json.loads(report.read_text(encoding="utf-8").splitlines()[-1])
     if row.get("force") is not True or row.get("months") != ["2026-07", "2026-08"]:
@@ -623,26 +619,37 @@ def test_month_filter_uses_server_years(tmp: Path) -> None:
     ))
     if rc != 0:
         _fail(out or str(rc))
-    if len(client.posts) != 2:
+    if len(client.posts) != 1:
         _fail(f"2026-01 posts {client.posts} {out}")
-    if client.posts[0][1]["rows"] != []:
-        _fail(client.posts[0][1])
-    if client.posts[1][1]["rows"][0]["values"] != {"1": 1.0}:
-        _fail(client.posts[1][1])
-    client2 = FakeClient(post_payload=payload, get_payload={"code": "74160", "years": [2025, 2026]})
+    posted = client.posts[0][1]
+    if posted.get("only_months") != ["2026-01"]:
+        _fail(posted.get("only_months"))
+    if posted["rows"][0]["values"] != {str(m): float(m) for m in months}:
+        _fail(posted["rows"])
+    missed = {
+        "code": "74160",
+        "fy_end_month": 2,
+        "layout": "fiscal",
+        "as_of": "2026-08-31",
+        "mapping": mapping,
+        "updated": [],
+    }
+    client2 = FakeClient(post_payload=missed, get_payload={"code": "74160", "years": [2025, 2026]})
     rc, out = _capture(lambda: run(
         dest, only=["7416"], force=True, months=frozenset({(2025, 1)}),
         ledger_path=tmp / "server-years-miss.json", client=client2, today=date(2026, 9, 15),
     ))
     if rc != 1:
         _fail(out or str(rc))
-    if len(client2.posts) != 1 or client2.posts[0][1]["rows"] != []:
-        _fail(f"2025-01 should probe only {client2.posts} {out}")
+    if len(client2.posts) != 1 or client2.posts[0][1].get("only_months") != ["2025-01"]:
+        _fail(f"2025-01 should POST only_months once {client2.posts} {out}")
+    if not client2.posts[0][1]["rows"]:
+        _fail(client2.posts[0][1])
     if "no column" not in out:
         _fail(out)
 
 
-def test_duplicate_months_column_index_or_refuse(tmp: Path) -> None:
+def test_duplicate_months_sends_only_months(tmp: Path) -> None:
     dest = tmp / "dup-months"
     months = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]
     years = [2026] * 10 + [2027, 2027, 2027]
@@ -668,90 +675,26 @@ def test_duplicate_months_column_index_or_refuse(tmp: Path) -> None:
     ))
     if rc != 0:
         _fail(out or str(rc))
-    if len(client.posts) != 2:
+    if len(client.posts) != 1:
         _fail(f"dup posts {len(client.posts)} {out}")
-    if client.posts[1][1]["rows"][0]["values"] != {"0": 0.0}:
-        _fail(client.posts[1][1]["rows"])
-    if client.posts[1][1]["months"] != months:
-        _fail("months changed")
-    client2 = FakeClient(post_payload=payload, get_payload={"years": [2026]})
+    body = client.posts[0][1]
+    if body["rows"][0]["values"] != values:
+        _fail(body["rows"])
+    if body["months"] != months or body.get("only_months") != ["2026-03"]:
+        _fail(body)
+    outside = dict(payload)
+    outside["updated"] = [{"year": 2027, "element": "全店", "months": [3]}]
+    client2 = FakeClient(post_payload=outside, get_payload={"years": [2026, 2027]})
     rc, out = _capture(lambda: run(
-        dest, only=["1301"], force=True, months=frozenset({(2026, 6)}),
+        dest, only=["1301"], force=True, months=frozenset({(2026, 3)}),
         ledger_path=tmp / "dup-bad.json", client=client2, today=date(2026, 9, 15),
     ))
     if rc != 1:
         _fail(out or str(rc))
-    if len(client2.posts) != 1 or client2.posts[0][1]["rows"] != []:
-        _fail(f"ambiguous selection must not real-POST {client2.posts} {out}")
-
-
-def test_filter_body_drops_nulls_and_empty_rows() -> None:
-    indexed = column_values({"7": 1, "8": None}, [4, 5, 6, 7, 8])
-    if indexed != {3: 1, 4: None}:
-        _fail(indexed)
-    if column_values([1, 2, 3, 4, 5], [4, 5, 6, 7, 8])[3] != 4:
-        _fail("list values")
-    for bad in ({"9": 1}, [1, 2], "nope", {"x": 1}):
-        try:
-            column_values(bad, [4, 5, 6, 7, 8])
-        except ValueError:
-            pass
-        else:
-            _fail(f"accepted {bad!r}")
-    body = {
-        "months": [4, 5, 6, 7, 8],
-        "as_of": "2026-08-31",
-        "rows": [
-            {
-                "element": "全店",
-                "unit": "yoy_pct",
-                "force": True,
-                "values": {"4": 1.0, "5": None, "6": 3.0, "7": 4.0, "8": None},
-            },
-            {
-                "element": "客数",
-                "unit": "yoy_pct",
-                "force": True,
-                "values": {"4": None, "5": 1.0},
-            },
-            {
-                "element": "客単価",
-                "unit": "number",
-                "force": True,
-                "note": "keep-me",
-                "values": [None, None, 3.0, 9.0, None],
-            },
-        ],
-    }
-    out = filter_body(body, {2, 3})
-    if out["months"] != [4, 5, 6, 7, 8] or out["as_of"] != "2026-08-31":
+    if len(client2.posts) != 1 or client2.posts[0][1]["rows"][0]["values"] != values:
+        _fail(f"outside update must still send the sidecar {client2.posts} {out}")
+    if "updated outside --months" not in out:
         _fail(out)
-    if [r["element"] for r in out["rows"]] != ["全店", "客単価"]:
-        _fail(out["rows"])
-    if out["rows"][0]["values"] != {"6": 3.0, "7": 4.0}:
-        _fail(out["rows"][0])
-    if out["rows"][0]["force"] is not True or out["rows"][0]["unit"] != "yoy_pct":
-        _fail(out["rows"][0])
-    price = out["rows"][1]
-    if price["values"] != {"6": 3.0, "7": 9.0} or price.get("note") != "keep-me" or price["force"] is not True:
-        _fail(price)
-    if any(v is None for row in out["rows"] for v in row["values"].values()):
-        _fail(out)
-    dup_months = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]
-    dup = {
-        "months": dup_months,
-        "as_of": "2026-08-31",
-        "rows": [{"element": "全店", "unit": "yoy_pct", "force": True, "values": list(range(13))}],
-    }
-    kept0 = filter_body(dup, {0})
-    if kept0["rows"][0]["values"] != {"0": 0}:
-        _fail(kept0)
-    try:
-        filter_body(dup, {3})
-    except ValueError:
-        pass
-    else:
-        _fail("ambiguous column keys must raise")
 
 
 def test_dry_run_force_months_does_not_post(tmp: Path) -> None:
@@ -829,9 +772,11 @@ def test_fixture_3082_force_months(tmp: Path) -> None:
     ))
     if rc != 0:
         _fail(out or str(rc))
-    if len(client2.posts) != 2 or client2.posts[0][1]["rows"] != []:
+    if len(client2.posts) != 1 or not client2.posts[0][1]["rows"]:
         _fail(f"3082 posts {client2.posts} {out}")
-    body = client2.posts[1][1]
+    body = client2.posts[0][1]
+    if body.get("only_months") != ["2026-07", "2026-08"]:
+        _fail(body.get("only_months"))
     if body["months"] != [7, 8] or body["as_of"] != "2026-08-31":
         _fail(body)
     by_el = {r["element"]: r["values"] for r in body["rows"]}
@@ -864,11 +809,10 @@ def main_tests() -> None:
         test_force_bypasses_ledger(p)
         test_month_filter_posts_kept_columns_only(p)
         test_month_filter_uses_server_years(p)
-        test_duplicate_months_column_index_or_refuse(p)
+        test_duplicate_months_sends_only_months(p)
         test_dry_run_force_months_does_not_post(p)
         test_months_missing_from_sidecar_does_not_post(p)
         test_fixture_3082_force_months(p)
-    test_filter_body_drops_nulls_and_empty_rows()
     print("ok: ir monthly html ingest")
 
 

@@ -102,7 +102,7 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 - `monthly_delete_element` — 値の無い行を消す。値が残っていれば 409。表は残す
 - `monthly_set_industry` — 月次業種。PUT /api/v1/tables/{code}/industry。銘柄マスタの業種とは別
 - `monthly_ingest` — PDF 月次の新規登録。POST /api/v1/tables/{code}/ingest。year は渡さない。
-  列順 + as_of 時点の最新 `fiscal_year_end` から暦年を決める。月が重複する year-wrap は列順配列の `values`
+  列順 + as_of 時点の最新 `fiscal_year_end` から暦年を決める。月が重複する year-wrap は列順配列の `values`。`dry_run: true` は書かずに年割当と書くはずのセルを返す。`only_months` は `YYYY-MM` で列を絞る
 
 任意コマンドも restart も任意 SQL もない。月次ツールは FastAPI の `http://127.0.0.1:8000` だけを叩く（nginx Basic は使わない）。行数は最大 500。`.env` の値は伏せる。
 `monthly_get` の `values` は 1〜12。無い月は null。0 は実ゼロ。1年通して値のない行は出さない。
@@ -216,7 +216,7 @@ cron の ingest は行に `force` を付けない。正規化後に同じ行名�
 
 順番は fetch、その次に ingest。どちらも `--force` には `--only` が要る。`--only` は `3082` でも J-Quants の `30820` でもよい（4桁に切る）。
 
-ingest の `--months` は暦年の `YYYY-MM`（カンマ区切り、繰り返し可）。どの列が何年かはここでは決めない。`rows=[]` の probe POST が返す mapping に合わせる（値を書かないので新着にはならない）。`--months` の部分投入は ledger を更新しない。同じ sha の残りの月を、次の通常実行が飛ばさないため。`--force` だけで sidecar 全体を送ったときは、通常どおり ledger に書く。
+ingest の `--months` は暦年の `YYYY-MM`（カンマ区切り、繰り返し可）。sidecar の months と rows はそのまま送り、`only_months` でサーバに絞らせる。年割当は ingest の mapping。probe はしない。`--months` の部分投入は ledger を更新しない。同じ sha の残りの月を、次の通常実行が飛ばさないため。`--force` だけで sidecar 全体を送ったときは、通常どおり ledger に書く。
 
 HTML に無いセル（行自体がページに無い、など）は消さない。値がキーとして sidecar に無いセルは送らないので、サーバは既存の値を触らない。消すときは API で別途削除する。
 
