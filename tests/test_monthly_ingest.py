@@ -234,8 +234,30 @@ def test_canonicalize_element_label() -> None:
         _fail("LOWYA 売上高 stays unlabeled")
     if canonicalize_element_label("100円ショップ 直営 全店(前年比)", "yoy_index") != "100円ショップ 直営 全店(前年比)":
         _fail("empty-metric 直営 全店 yoy stays")
+    if canonicalize_element_label("直営店舗 全店 売上高", "number") != "直営 全店 売上高":
+        _fail("直営店舗 全店 売上高 (9251)")
+    if "舗" in canonicalize_element_label("直営店舗 全店 売上高", "number"):
+        _fail("直営店舗 must not leave 舗")
+    if canonicalize_element_label("直営店舗 売上高", "number") != "直営 売上高":
+        _fail("直営店舗 売上高")
+    if canonicalize_element_label("既存直営店舗 売上高", "number") != "直営 既存 売上高":
+        _fail("既存直営店舗 売上高")
+    if "舗" in canonicalize_element_label("既存直営店舗 売上高", "number"):
+        _fail("既存直営店舗 must not leave 舗")
+    if canonicalize_element_label("直営店 全店 売上高", "number") != "直営 全店 売上高":
+        _fail("直営店 全店 売上高")
+    if canonicalize_element_label("直営店 売上高", "number") != "直営 売上高":
+        _fail("直営店 売上高")
+    if canonicalize_element_label("既存直営店 売上高", "number") != "直営 既存 売上高":
+        _fail("既存直営店 売上高")
     if canonicalize_element_label("直営店数", "number") != "直営 店舗数":
         _fail("直営店数")
+    if canonicalize_element_label("焼肉 直営店舗数", "number") != "焼肉 直営 店舗数":
+        _fail("直営店舗数 stays 直営 店舗数")
+    if canonicalize_element_label("FC店舗 全店 売上高", "number") != "FC 全店 売上高":
+        _fail("FC店舗 全店 売上高")
+    if canonicalize_element_label("ＦＣ店舗 全店 売上高", "number") != "FC 全店 売上高":
+        _fail("ＦＣ店舗 全店 売上高")
     if canonicalize_element_label("新規出店数", "number") != "出店":
         _fail("出店数 is 出店 metric, not 店舗数")
     if canonicalize_element_label("全店 新規出店数", "number") != "全店 出店":
