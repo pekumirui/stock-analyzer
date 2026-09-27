@@ -18,8 +18,17 @@
 - DB はローカル SQLite (`stock.db`)。本番切替は `DATABASE_URL` のみ
 - 仮想環境は `.venv`。Windows は `.\setup.ps1` / `.\run.ps1`、Linux は `./setup.sh` / `./run.sh`
 - Python は `.venv\Scripts\python.exe`（Windows）/ `.venv/bin/python`（Linux）。システムの python で依存を入れない
-- Cursor Cloud Agent は `.cursor/install.sh` が `.venv` / `pdftotext` / `rclone` と `stock.db`（2 年分 + 本番の `monthly_*`）を用意し、`start`（`.cursor/start-web.sh`）が 8000 で SPA を配信する。UI 検証も 8000（`.cursor/skills/verify-stock-analyzer/`）。8000 を止めない・`reset` しない
-- Cloud Agent から VPS シェルが要るときは Secrets に `VPS_SSH_KEY`（デプロイ秘密鍵）。`install.sh` → `.cursor/setup-vps-ssh.sh` が `ssh stock-vps` を用意する。ログ・月次 API は MCP。任意シェルを MCP に足さない。手順は `deploy/README.md`「Cursor Cloud Agent から VPS を触る」
+
+## クラウドのエージェント
+
+Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘密情報の入れ方だけで、中身は環境変数とこのリポジトリのスクリプト。詳細は `deploy/README.md`「クラウドのエージェントから VPS を触る」「クラウドのエージェントから読む」。
+
+- 環境構築は `bash .cursor/install.sh`（冪等）。`.venv` / `pdftotext` / `rclone` と、`JQUANTS_API_KEY` があれば `stock.db`（2 年分 + 本番の `monthly_*`）を用意する。SPA は `bash .cursor/start-web.sh` が 8000 で配信する。Cursor は `.cursor/environment.json` が両方を自動で呼ぶ。他のベンダーは必要なときに自分で呼ぶ
+- 8000 を止めない・`reset` しない。UI 検証も 8000
+- `.cursor/` 配下のスクリプトと `.cursor/skills/*/SKILL.md` は Cursor 専用ではない。普通のシェルと手順書として使う
+- 秘密情報は各ベンダーの Secrets / 環境変数で渡す: `JQUANTS_API_KEY` / `VPS_SSH_KEY` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`。無い変数の機能は使えないものとして進める。チャットで鍵を求めない
+- VPS のログ・DB 件数・月次 API は MCP（`https://kabukpi.com/mcp`、OAuth）。どのベンダーからでも同じ。任意シェルを MCP に足さない
+- VPS シェルは `VPS_SSH_KEY` があるときだけ `ssh stock-vps`（`install.sh` → `.cursor/setup-vps-ssh.sh`）。無ければ SSH は人がローカル PC から行う。R2 も `R2_*` が無ければ読めない
 
 ## モジュール分担
 
@@ -107,7 +116,7 @@
 - `monthly_delete_element` は値の無い行だけ（残っていれば 409）。表は残す
 - アプリ本体 (`app/*`) にログ API を足さない。MCP が死んだときの退避路は Actions の **Debug VPS**
 - R2 bucket `share` は VPS で `/home/stock/r2-share` に rclone mount。`rclone.conf` はリポジトリに置かない
-- Cloud Agent から R2 を読むときは `deploy/README.md` の「Cursor Cloud Agent から読む」。読み取りのみ。取得先は `/tmp`
+- クラウドのエージェントから R2 を読むときは `deploy/README.md` の「クラウドのエージェントから読む」。読み取りのみ。取得先は `/tmp`
 
 ### R2 バッチ
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cursor Cloud Agent の環境ビルド。冪等。
+# クラウドのエージェントの環境ビルド（ベンダー共通。Cursor は environment.json から呼ぶ）。冪等。
 # apt → .venv → tools 依存 → JQUANTS_API_KEY があれば stock.db を用意。
 # 初回だけ backfill 2（MA200 + RS 252日 + 1か月傾きに要る約 14 か月を満たす）。
 # 既に stock.db がある Recurring Build は日次 batch だけ（毎回 2 年は取らない）。
@@ -13,7 +13,7 @@ sudo apt-get install -y -qq --no-install-recommends python3-venv poppler-utils r
 ./setup.sh
 .venv/bin/python -m pip install -q -r tools/requirements.txt
 
-# 任意: Cursor Secrets の VPS_SSH_KEY があれば stock-vps へ SSH 可能にする
+# 任意: Secrets / 環境変数の VPS_SSH_KEY があれば stock-vps へ SSH 可能にする
 bash .cursor/setup-vps-ssh.sh || echo "setup-vps-ssh skipped"
 
 if [[ -z "${JQUANTS_API_KEY:-}" ]]; then
