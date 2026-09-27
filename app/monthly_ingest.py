@@ -97,8 +97,10 @@ def canonicalize_element_label(element: str, unit: str | None) -> str:
     return f"{base}{_YOY_SUFFIX}"
 
 
+# 長い語を先に（直営店 ⊂ 直営店舗）。店舗数 系はチャネル+店舗 より先（直営店舗数 → 直営 店舗数）。
 _UNGLUE: tuple[tuple[str, str], ...] = (
     ("単月Monthly", "単月 Monthly"),
+    ("既存直営店舗", "直営 既存"),
     ("既存直営店", "直営 既存"),
     ("全店舗数", "店舗数"),
     ("総店舗数", "店舗数"),
@@ -123,6 +125,7 @@ _UNGLUE: tuple[tuple[str, str], ...] = (
     ("FC店", "FC"),
     ("ＦＣ店舗", "FC"),
     ("ＦＣ店", "FC"),
+    ("直営店舗", "直営"),
     ("直営店", "直営"),
     ("直営", "直営"),
     ("既存", "既存"),
