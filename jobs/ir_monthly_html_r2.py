@@ -52,7 +52,6 @@ from tdnet_monthly_r2 import (  # noqa: E402
 )
 from html_issuers import PARSERS  # noqa: E402
 from html_monthly import (  # noqa: E402
-    _VALID_UNITS,
     decode_html_bytes,
     dumps_ingest,
     fy_end_from_text,
@@ -69,13 +68,11 @@ class HtmlIssuer:
     index_url: str
     title: str
     source: str
-    table: int | None
     eir_code: str
     eir_n: int
     eir_title_re: str
     follow_re: str = ""
     parse: bool = True
-    force_unit: str | None = None
 
 
 def ingest_path(html_path: Path) -> Path:
@@ -177,14 +174,6 @@ def _parse_html_issuer(raw: object) -> HtmlIssuer:
     parsed = urlparse(index_url)
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
         raise ValueError(f"invalid index_url for {code}: {index_url!r}")
-    table_raw = raw.get("table", 0)
-    table: int | None
-    if table_raw is None:
-        table = None
-    elif isinstance(table_raw, bool) or not isinstance(table_raw, int):
-        raise ValueError(f"issuer {code} invalid table")
-    else:
-        table = table_raw
     eir_code = display_code(str(raw.get("eir_code") or code).strip().upper())
     eir_n_raw = raw.get("eir_n", 0)
     if isinstance(eir_n_raw, bool) or not isinstance(eir_n_raw, int) or eir_n_raw < 0:
@@ -203,27 +192,17 @@ def _parse_html_issuer(raw: object) -> HtmlIssuer:
     parse_raw = raw.get("parse", True)
     if not isinstance(parse_raw, bool):
         raise ValueError(f"issuer {code} invalid parse")
-    force_raw = raw.get("force_unit")
-    force_unit: str | None
-    if force_raw is None:
-        force_unit = None
-    elif isinstance(force_raw, str) and force_raw in _VALID_UNITS:
-        force_unit = force_raw
-    else:
-        raise ValueError(f"issuer {code} invalid force_unit: {force_raw!r}")
     return HtmlIssuer(
         code=code,
         name=name,
         index_url=index_url,
         title=title,
         source=source,
-        table=table,
         eir_code=eir_code,
         eir_n=eir_n_raw,
         eir_title_re=eir_title_re,
         follow_re=follow_re,
         parse=parse_raw,
-        force_unit=force_unit,
     )
 
 

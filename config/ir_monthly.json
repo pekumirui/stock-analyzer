@@ -47,16 +47,14 @@
       "code": "1911",
       "name": "住友林業",
       "index_url": "https://sfc.jp/information/ir/zaimu/order/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "1928",
       "name": "積水ハウス",
       "index_url": "https://www.sekisuihouse.co.jp/company/financial/order/",
       "title": "月次",
-      "follow_re": "orders_20\\d{2}",
-      "table": null
+      "follow_re": "orders_20\\d{2}"
     },
     {
       "code": "2664",
@@ -69,8 +67,7 @@
       "name": "アンドエスティＨＤ",
       "index_url": "https://www.andst-hd.co.jp/ir/highlights/sales/fy2027/",
       "title": "月次",
-      "follow_re": "fy20\\d{2}",
-      "table": null
+      "follow_re": "fy20\\d{2}"
     },
     {
       "code": "2698",
@@ -82,8 +79,7 @@
       "code": "2702",
       "name": "日本マクドナルドホールディングス",
       "index_url": "https://www.mcd-holdings.co.jp/ir/sales_report/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "2742",
@@ -95,23 +91,19 @@
       "code": "2769",
       "name": "ヴィレッジヴァンガードコーポレーション",
       "index_url": "https://www.village-v.co.jp/company/ir/sales_trend",
-      "title": "月次",
-      "table": null,
-      "force_unit": "yoy_index"
+      "title": "月次"
     },
     {
       "code": "2790",
       "name": "ナフコ",
       "index_url": "https://www.nafco.tv/ir/financial/monthly.html",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "2791",
       "name": "大黒天物産",
       "index_url": "https://www.e-dkt.co.jp/ir/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "2792",
@@ -124,22 +116,19 @@
       "code": "2910",
       "name": "ロック・フィールド",
       "index_url": "https://www.rockfield.co.jp/ir/library/monthly/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "3028",
       "name": "アルペン",
       "index_url": "https://www.alpen-group.jp/corporate/ir/finance/monthly/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "3038",
       "name": "神戸物産",
       "index_url": "https://www.kobebussan.co.jp/ir/monthly.php",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "3080",
@@ -153,15 +142,13 @@
       "code": "3082",
       "name": "きちりホールディングス",
       "index_url": "https://www.kichiri.co.jp/ir/monthly.php",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "3148",
       "name": "クリエイトＳＤホールディングス",
       "index_url": "https://www.createsdhd.co.jp/ir/monthly/",
-      "title": "月次",
-      "force_unit": "yoy_index"
+      "title": "月次"
     },
     {
       "code": "3196",
@@ -174,94 +161,81 @@
       "code": "3222",
       "name": "ユナイテッド・スーパーマーケット・ホールディングス",
       "index_url": "https://www.usmh.co.jp/ir/monthly_reports",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "3391",
       "name": "ツルハホールディングス",
       "index_url": "https://www.tsuruha-hd.co.jp/ir/report/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "3542",
       "name": "ベガコーポレーション",
       "index_url": "https://www.vega-c.com/ir/library/monthly-report/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "3549",
       "name": "クスリのアオキホールディングス",
       "index_url": "https://kusuri-aoki-hd.co.jp/ir/finance/monthry/",
-      "title": "月次",
-      "table": 0
+      "title": "月次"
     },
     {
       "code": "3733",
       "name": "ソフトウェア・サービス",
       "index_url": "https://www.softs.co.jp/ir/financial/monthly.html",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "6045",
       "name": "レントラックス",
       "index_url": "https://www.rentracks.co.jp/ir/finance/others.html",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "6537",
       "name": "ＷＡＳＨハウス",
       "index_url": "https://corporate.wash-house.jp/ir/achievement.php",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "7416",
       "name": "はるやまホールディングス",
       "index_url": "https://www.haruyama.co.jp/ir/ir_monthly_data.php",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "7421",
       "name": "カッパ・クリエイト",
       "index_url": "https://www.kappa-create.co.jp/",
       "title": "月次",
-      "follow_re": "monthly20\\d{2}",
-      "table": null
+      "follow_re": "monthly20\\d{2}"
     },
     {
       "code": "7494",
       "name": "コナカ",
       "index_url": "https://www.konaka.co.jp/ir/getsuji.php",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "7512",
       "name": "イオン北海道",
       "index_url": "https://www.aeon-hokkaido.jp/corporation/month/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "7514",
       "name": "ヒマラヤ",
       "index_url": "https://www.hmry.jp/ir/library/monthly/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "7522",
       "name": "ワタミ",
       "index_url": "https://www.watami.co.jp/ir/library/recent",
       "title": "月次",
-      "follow_re": "fy20\\d{2}",
-      "table": null
+      "follow_re": "fy20\\d{2}"
     },
     {
       "code": "7544",
@@ -274,15 +248,13 @@
       "code": "7561",
       "name": "ハークスレイホールディングス",
       "index_url": "https://www.hurxley.co.jp/ir_information/month/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "7564",
       "name": "ワークマン",
       "index_url": "https://www.workman.co.jp/ir%E6%83%85%E5%A0%B1/%E6%9C%88%E6%AC%A1%E5%A0%B1%E5%91%8A",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "7616",
@@ -297,22 +269,19 @@
       "code": "7679",
       "name": "薬王堂ホールディングス",
       "index_url": "https://www.yakuodo-hd.co.jp/ir/results/monthly/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "8011",
       "name": "三陽商会",
       "index_url": "https://www.sanyo-shokai.co.jp/ir/library/monthly/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "8016",
       "name": "オンワードホールディングス",
       "index_url": "https://www.onward-hd.co.jp/ir/finance/monthly.html",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "8153",
@@ -327,23 +296,19 @@
       "code": "8163",
       "name": "ＳＲＳホールディングス",
       "index_url": "https://srsholdings.com/pages/ir-library-monthly/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "8179",
       "name": "ロイヤルホールディングス",
       "index_url": "https://www.royal-holdings.co.jp/ir/finance/sales/",
-      "title": "月次",
-      "table": null,
-      "force_unit": "yoy_index"
+      "title": "月次"
     },
     {
       "code": "8194",
       "name": "ライフコーポレーション",
       "index_url": "https://www.lifecorp.jp/company/ir/financial/monthly/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "8217",
@@ -355,59 +320,50 @@
       "code": "8255",
       "name": "アクシアル　リテイリング",
       "index_url": "https://www.axial-r.com/ir/monthlysalestrends",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "8278",
       "name": "フジ",
       "index_url": "https://www.the-fuji.com/company/ir/monthly/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "8281",
       "name": "ゼビオホールディングス",
       "index_url": "https://www.xebio.co.jp/ja/ir/monthly.html",
-      "title": "月次",
-      "table": null,
-      "force_unit": "yoy_index"
+      "title": "月次"
     },
     {
       "code": "9759",
       "name": "ＮＳＤ",
       "index_url": "https://www.nsd.co.jp/ir/irmaterial/sokuhou.html",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "9843",
       "name": "ニトリホールディングス",
       "index_url": "https://www.nitorihd.co.jp/ir/performance/sales_2027.html",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "9900",
       "name": "サガミホールディングス",
       "index_url": "https://www.sagami-holdings.co.jp/ir/month/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "9946",
       "name": "ミニストップ",
       "index_url": "https://www.ministop.co.jp/corporate/ir/finance/results/2026.html",
       "title": "月次",
-      "follow_re": "results/20\\d{2}",
-      "table": null
+      "follow_re": "results/20\\d{2}"
     },
     {
       "code": "9948",
       "name": "アークス",
       "index_url": "https://www.arcs-g.co.jp/ir/monthly-performance/",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "9989",
@@ -419,16 +375,13 @@
       "code": "9993",
       "name": "ヤマザワ",
       "index_url": "https://yamazawa.co.jp/ir/term-month.html",
-      "title": "月次",
-      "table": null
+      "title": "月次"
     },
     {
       "code": "9994",
       "name": "やまや",
       "index_url": "https://www.yamaya.jp/ynhp/contents/company/getuji.php",
-      "title": "月次",
-      "table": null,
-      "force_unit": "yoy_index"
+      "title": "月次"
     }
   ]
 }
