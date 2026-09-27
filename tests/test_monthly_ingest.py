@@ -36,6 +36,7 @@ from app.monthly_ingest import (  # noqa: E402
     reject_prior_period_element,
     resolve_fy_end_month,
     same_yoy_element,
+    uncovered_yoy_number_twins,
     union_monthly_elements,
 )
 
@@ -1329,6 +1330,145 @@ def test_ingest_yoy_label_and_number_separate() -> None:
         _fail(f"number token-normalize: {r.json()!r}")
 
 
+def test_uncovered_yoy_number_twins() -> None:
+    lone = uncovered_yoy_number_twins(
+        [("売上高(前年比)", "yoy_index")],
+        "売上高", "number",
+        [("売上高", "number")],
+    )
+    if lone != ["売上高(前年比)"]:
+        _fail(f"missing counterpart: {lone!r}")
+    both = uncovered_yoy_number_twins(
+        [("全店 売上高(前年比)", "yoy_index"), ("全店 売上高", "number")],
+        "全店 売上高", "number",
+        [("全店 売上高", "number"), ("全店 売上高(前年比)", "yoy_index")],
+    )
+    if both:
+        _fail(f"both rows in the post must pass: {both!r}")
+    same = uncovered_yoy_number_twins(
+        [("売上高(前年比)", "yoy_index")],
+        "売上高(前年比)", "yoy_index",
+        [("売上高(前年比)", "yoy_index")],
+    )
+    if same:
+        _fail(f"same kind is not a twin: {same!r}")
+    other = uncovered_yoy_number_twins(
+        [("店舗数(前年比)", "yoy_index")],
+        "売上高", "number",
+        [("売上高", "number")],
+    )
+    if other:
+        _fail(f"different metric: {other!r}")
+    blank = uncovered_yoy_number_twins(
+        [("前年比", "yoy_index")],
+        "", "number",
+        [],
+    )
+    if blank:
+        _fail(f"empty base: {blank!r}")
+    reverse = uncovered_yoy_number_twins(
+        [("客数", "number")],
+        "客数(前年比)", "yoy_index",
+        [("客数(前年比)", "yoy_index")],
+    )
+    if reverse != ["客数"]:
+        _fail(f"number existing vs yoy incoming: {reverse!r}")
+
+
+def test_ingest_yoy_number_conflict() -> None:
+    """unit を取り違えると行名が変わり、既存の反対側が rows に無いと 409。"""
+    c = TestClient(app)
+    code = "31710"
+    _add_fy_end(code, date(2026, 5, 8), date(2025, 10, 31), "twin-fy-1")
+    body = {
+        "months": [11],
+        "rows": [{"element": "全店 売上高", "values": {"11": 125.8}, "unit": "yoy_index"}],
+        "as_of": "2026-08-05",
+    }
+    r = c.post(f"/api/v1/tables/{code}/ingest", json=body)
+    _expect(r, 200, "seed yoy")
+
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [11],
+        "rows": [
+            {"element": "店舗数", "values": {"11": 10}, "unit": "number"},
+            {"element": "全店 売上高", "values": {"11": 1000}, "unit": "number"},
+        ],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 409, "number without existing yoy row")
+    err = _err(r)
+    if err["code"] != "YOY_NUMBER_CONFLICT" or err.get("existing") != ["全店 売上高(前年比)"]:
+        _fail(f"twin conflict: {r.json()!r}")
+    if err.get("incoming") != "全店 売上高":
+        _fail(f"incoming: {r.json()!r}")
+    r = c.get(f"/api/v1/tables/{code}/2025")
+    _expect(r, 200, "GET after conflict")
+    els = r.json()["elements"]
+    if [e["element"] for e in els] != ["全店 売上高(前年比)"]:
+        _fail(f"409 must roll back the sibling row: {[e['element'] for e in els]!r}")
+    if float(els[0]["values"]["11"]) != 125.8:
+        _fail(f"yoy value changed: {els[0]!r}")
+
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [11],
+        "rows": [
+            {"element": "全店 売上高", "values": {"11": 1000}, "unit": "number"},
+            {"element": "全店 売上高", "values": {"11": 125.8}, "unit": "yoy_index"},
+        ],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 200, "both rows in one post")
+    r = c.get(f"/api/v1/tables/{code}/2025")
+    by = {e["element"]: e for e in r.json()["elements"]}
+    if set(by) != {"全店 売上高(前年比)", "全店 売上高"}:
+        _fail(f"coexist: {list(by)!r}")
+    if by["全店 売上高"]["unit"] != "number" or float(by["全店 売上高"]["values"]["11"]) != 1000:
+        _fail(f"number stored: {by['全店 売上高']!r}")
+    if float(by["全店 売上高(前年比)"]["values"]["11"]) != 125.8:
+        _fail(f"yoy kept: {by['全店 売上高(前年比)']!r}")
+
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [11],
+        "rows": [{"element": "全店 売上高", "values": {"11": 126.0}, "unit": "yoy_index"}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 200, "update existing yoy while number exists")
+    r = c.get(f"/api/v1/tables/{code}/2025")
+    by = {e["element"]: e for e in r.json()["elements"]}
+    if float(by["全店 売上高(前年比)"]["values"]["11"]) != 126.0:
+        _fail(f"yoy update: {by['全店 売上高(前年比)']!r}")
+
+    code2 = "31720"
+    _add_fy_end(code2, date(2026, 5, 8), date(2025, 10, 31), "twin-fy-2")
+    r = c.post(f"/api/v1/tables/{code2}/ingest", json={
+        "months": [11],
+        "rows": [{"element": "客数", "values": {"11": 50}, "unit": "number"}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 200, "seed number")
+    r = c.post(f"/api/v1/tables/{code2}/ingest", json={
+        "months": [11],
+        "rows": [{"element": "客数", "values": {"11": 110.0}, "unit": "yoy_index"}],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 409, "yoy without existing number row")
+    if _err(r)["code"] != "YOY_NUMBER_CONFLICT" or _err(r).get("existing") != ["客数"]:
+        _fail(f"reverse twin: {r.json()!r}")
+    r = c.post(f"/api/v1/tables/{code2}/ingest", json={
+        "months": [11],
+        "rows": [{
+            "element": "客数", "values": {"11": 110.0}, "unit": "yoy_index", "force": True,
+        }],
+        "as_of": "2026-08-05",
+    })
+    _expect(r, 200, "force creates the yoy twin")
+    r = c.get(f"/api/v1/tables/{code2}/2025")
+    names = [e["element"] for e in r.json()["elements"]]
+    if names != ["客数", "客数(前年比)"]:
+        _fail(f"force both: {names!r}")
+
+
 def test_ingest_yoy_short_and_canonical_same_row() -> None:
     c = TestClient(app)
     # 88880 は test_api_errors で 3月期末の売上高を ingest 済み（現行 FY は 2026 年列）と衝突するため別コード。
@@ -2206,6 +2346,8 @@ def main() -> None:
     test_api_alnum_code()
     test_unit_display_and_ingest()
     test_ingest_yoy_label_and_number_separate()
+    test_uncovered_yoy_number_twins()
+    test_ingest_yoy_number_conflict()
     test_ingest_yoy_short_and_canonical_same_row()
     test_existing_short_yoy_renamed_on_canonical()
     test_number_stores_not_yoy_suffix()

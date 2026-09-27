@@ -833,6 +833,37 @@ def same_yoy_element(
     return canonicalize_element_label(stored_name, stored_u) == incoming_name
 
 
+def uncovered_yoy_number_twins(
+    existing: Sequence[tuple[str, str | None]],
+    incoming_name: str,
+    incoming_unit: str | None,
+    posted: Sequence[tuple[str, str | None]],
+) -> list[str]:
+    """strip 後の名前が同じで yoy と number だけ違う既存行のうち、posted に無いもの。
+
+    incoming_name と posted の名前は canonicalize 済み。空に潰れた名前は比べない。
+    同じ POST に反対側があるときは空（実数と前年比の併存）。
+    """
+    incoming_yoy = (incoming_unit or "number") in _YOY_UNITS
+    base = strip_yoy_fragments(incoming_name)
+    if not base:
+        return []
+    out: list[str] = []
+    for name, unit in existing:
+        stored = unit or "number"
+        if (stored in _YOY_UNITS) == incoming_yoy:
+            continue
+        if strip_yoy_fragments(name) != base:
+            continue
+        if any(
+            same_yoy_element(name, stored, posted_name, posted_unit)
+            for posted_name, posted_unit in posted
+        ):
+            continue
+        out.append(name)
+    return out
+
+
 def plan_yoy_duplicate_merges(
     rows: Sequence[tuple[str, int, str, str | None]],
 ) -> list[tuple[str, int, str, list[str]]]:
