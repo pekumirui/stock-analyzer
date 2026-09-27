@@ -114,9 +114,7 @@ def test_issue248_html_parity() -> dict[str, str]:
             continue
         html = decode_html_bytes(path.read_bytes())
         try:
-            got = parse_issuer(
-                html, code, table=iss.table, force_unit=iss.force_unit
-            )
+            got = parse_issuer(html, code)
         except Exception as e:
             mismatches.append(f"{code} parse failed: {e}")
             results[code] = f"parse-fail:{e}"

@@ -350,7 +350,47 @@ def test_dest_html_and_ingest_sidecar() -> None:
         _fail("pdf is not html")
 
 
+def _module_force_units() -> dict[str, str]:
+    """i<code>.py の単位宣言。Page.unit、または force_unit / _apply_force_unit。"""
+    import importlib
+    import inspect
+    import pkgutil
+    import re
+
+    import html_issuers
+
+    decl = re.compile(
+        r"""(?:force_unit\s*=\s*|_apply_force_unit\(\s*\w+\s*,\s*)"""
+        r"""["'](number|yoy_index|yoy_pct)["']"""
+    )
+    out: dict[str, str] = {}
+    for info in pkgutil.iter_modules(html_issuers.__path__):
+        if not info.name.startswith("i"):
+            continue
+        mod = importlib.import_module(f"html_issuers.{info.name}")
+        page = getattr(mod, "PAGE", None)
+        if page is not None:
+            if page.unit:
+                out[str(page.code)] = str(page.unit)
+            continue
+        found = decl.findall(inspect.getsource(mod))
+        if not found:
+            continue
+        if len(set(found)) != 1:
+            _fail(f"{info.name} mixed units {found}")
+        out[info.name[1:]] = found[0]
+    return out
+
+
 def test_load_html_registry() -> None:
+    raw_items = json.loads((ROOT / "config" / "ir_monthly.json").read_text(encoding="utf-8"))["html"]
+    leaked = [
+        str(item.get("code"))
+        for item in raw_items
+        if "table" in item or "force_unit" in item
+    ]
+    if leaked:
+        _fail(f"json still has table/force_unit {leaked}")
     live = load_html_registry(ROOT / "config" / "ir_monthly.json")
     codes = [i.code for i in live]
     if len(codes) != 55:
@@ -373,10 +413,11 @@ def test_load_html_registry() -> None:
         _fail(f"follow_re {follows}")
     if "9843" in follows:
         _fail(f"9843 must not follow_re {follows}")
-    nitori = next(i for i in live if i.code == "9843")
-    if nitori.table is not None:
-        _fail(f"9843 table {nitori.table}")
-    forced = {i.code: i.force_unit for i in live if i.force_unit}
+    import html_issuers.i9843 as nitori_mod
+
+    if nitori_mod.PAGE.table is not None:
+        _fail(f"9843 table {nitori_mod.PAGE.table}")
+    forced = _module_force_units()
     if forced != {
         "2769": "yoy_index",
         "3148": "yoy_index",
@@ -645,10 +686,9 @@ CREATE_SD_NOBIRITSU_HTML = """
 
 def test_create_sd_nobiritsu_force_yoy_index() -> None:
     """3148: 見出しは伸び率だがセルは100基準。モジュールは yoy_index のまま出す。"""
-    live = load_html_registry(ROOT / "config" / "ir_monthly.json")
-    iss = next(i for i in live if i.code == "3148")
-    if iss.force_unit != "yoy_index":
-        _fail(f"3148 force_unit {iss.force_unit}")
+    declared = _module_force_units().get("3148")
+    if declared != "yoy_index":
+        _fail(f"3148 force_unit {declared}")
     got = parse_3148(CREATE_SD_NOBIRITSU_HTML)
     exist = _row(got, "既存店 単月")
     if exist["unit"] != "yoy_index":
@@ -1326,7 +1366,6 @@ def test_hash_skip_and_reparse(tmp: Path) -> None:
             index_url="https://example.test/ir/",
             title="月次",
             source="html",
-            table=0,
             eir_code="2664",
             eir_n=0,
             eir_title_re="月次",
@@ -1416,11 +1455,9 @@ def test_hash_skip_refreshes_stale_sidecar(tmp: Path) -> None:
             index_url="https://example.test/royal/",
             title="月次",
             source="html",
-            table=None,
             eir_code="8179",
             eir_n=0,
             eir_title_re="月次",
-            force_unit="yoy_index",
         )
         stock_map = {"81790": ("011", "ロイヤルホールディングス")}
         n, s, k, f = fetch_issuer(iss, dest, stock_map, date(2026, 9, 17), dry_run=False)
@@ -1476,7 +1513,6 @@ def _cawachi_issuer() -> HtmlIssuer:
         index_url="https://example.test/ir/",
         title="月次",
         source="html",
-        table=0,
         eir_code="2664",
         eir_n=0,
         eir_title_re="月次",
@@ -1655,7 +1691,6 @@ def test_eir_fetch_saves_item_html(tmp: Path) -> None:
             index_url="https://www.colowide.co.jp/ir/sale/",
             title="月次",
             source="eir",
-            table=0,
             eir_code="7616",
             eir_n=0,
             eir_title_re="月次",
@@ -1694,7 +1729,6 @@ def test_unknown_stock_skip(tmp: Path) -> None:
             index_url="https://example.test/ir/",
             title="月次",
             source="html",
-            table=0,
             eir_code="2664",
             eir_n=0,
             eir_title_re="月次",
@@ -3153,7 +3187,6 @@ def test_follow_year_then_latest_month(tmp: Path) -> None:
             index_url=index,
             title="月次",
             source="html",
-            table=None,
             eir_code="1928",
             eir_n=0,
             eir_title_re="月次",
@@ -3197,7 +3230,6 @@ def test_parse_false_saves_html_without_json(tmp: Path) -> None:
             index_url="https://example.test/kentaku/",
             title="月次",
             source="html",
-            table=0,
             eir_code="1878",
             eir_n=0,
             eir_title_re="月次",
@@ -3251,7 +3283,6 @@ def test_no_as_of_does_not_write_json(tmp: Path) -> None:
             index_url="https://example.test/bare/",
             title="月次",
             source="html",
-            table=0,
             eir_code="2664",
             eir_n=0,
             eir_title_re="月次",

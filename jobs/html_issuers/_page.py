@@ -140,7 +140,7 @@ def _prefer_section(candidates: list[Candidate], sections: list[str]) -> list[Ca
 
 @dataclass(frozen=True)
 class Page:
-    """table は json と同じ（None は全表）。rows のいずれかが行名に含まれること。unit は force_unit。"""
+    """table は None なら全表。rows のいずれかが行名に含まれること。unit で yoy を上書きする。"""
 
     code: str
     table: int | None
