@@ -435,24 +435,39 @@ def _touch_monthly_issuer(db: Session, code: str) -> None:
         row.last_ingested_at = now
 
 
+def _headline_yoy_tier(el: MonthlyElement) -> int:
+    """0=会社計の売上高/連結売上高。1=客数・客単価やセグメント付き。"""
+    label = monthly_element_label(el.element, el.unit)
+    company_wide = not (
+        label["group"] or label["segment"] or label["country"]
+        or label["channel"] or label["breakdown"]
+    )
+    sales = label["metric"] in {"売上高", "連結売上高"}
+    return 0 if company_wide and sales else 1
+
+
 def _latest_yoy_for_kind(
     elems: list[MonthlyElement], vals: list[MonthlyValue], kind: str,
 ) -> float | None:
-    matched = {
-        (e.year, e.element): e
-        for e in elems
-        if monthly_series_kind(e.element, e.unit) == kind
-    }
-    best: tuple[int, int, float] | None = None
+    matched: dict[tuple[int, str], MonthlyElement] = {}
+    tier_of: dict[tuple[int, str], int] = {}
+    for e in elems:
+        if monthly_series_kind(e.element, e.unit) != kind:
+            continue
+        key = (e.year, e.element)
+        matched[key] = e
+        tier_of[key] = _headline_yoy_tier(e)
+    best: tuple[tuple[int, int, int, int, str], float] | None = None
     for v in vals:
         el = matched.get((v.year, v.element))
         if el is None:
             continue
-        if best is None or (v.year, v.month) > (best[0], best[1]):
-            best = (v.year, v.month, float(v.value))
+        rank = (tier_of[(v.year, v.element)], -v.year, -v.month, el.sort_order, el.element)
+        if best is None or rank < best[0]:
+            best = (rank, float(v.value))
     if best is None:
         return None
-    return best[2]
+    return best[1]
 
 
 def _new_flags(last_ingested_at: datetime | None) -> tuple[bool, bool]:
