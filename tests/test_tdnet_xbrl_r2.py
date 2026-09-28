@@ -482,6 +482,82 @@ def test_http_get_uses_job_ua_then_browser() -> None:
         _fail("job UA must stay distinct from the browser fallback")
 
 
+def test_non_sqlite_stock_map_warns_unmatched(tmp: Path) -> None:
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        got = xbrl_mod.load_stock_product_map(environ={"DATABASE_URL": "postgresql://u@h/db"}, repo_root=tmp)
+    if got != {}:
+        _fail(f"non-sqlite map {got}")
+    if "infra unmatched uses company_name only" not in buf.getvalue():
+        _fail(f"xbrl warning text: {buf.getvalue()!r}")
+
+
+def test_run_routes_manifest_and_seen(tmp: Path) -> None:
+    from unittest.mock import patch
+
+    def rec(xid: str, code: str, name: str) -> dict:
+        return {"_xbrl_id": xid, "company_code": code, "company_name": name,
+                "title": "2026年3月期 第1四半期決算短信", "pubdate": "2026-08-05 15:00:00"}
+
+    toyota = rec("081220260805000001", "72030", "トヨタ")
+    unknown = rec("081220260805000002", "99990", "未上場")
+    broken = rec("081220260805000003", "26640", "カワチ薬品")
+    seen = rec("081220260805000004", "72030", "トヨタ")
+    dest = tmp / "run-xbrl"
+    append_manifest(dest, build_manifest_row(
+        xbrl_id=seen["_xbrl_id"], code="72030", code4="7203", pubdate=seen["pubdate"],
+        title=seen["title"], rel_path="7203/old.zip", n_bytes=1, sha256="0" * 64,
+        fetched_at="2026-08-05T15:10:00+09:00",
+    ))
+    gets: list[str] = []
+    bad_ids = {broken["_xbrl_id"]}
+
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:
+        xid = url.rsplit("/", 1)[1].removesuffix(".zip")
+        gets.append(xid)
+        return b"not a zip" if xid in bad_ids else _tiny_zip(xid.encode())
+
+    stocks = {"72030": ("011", "トヨタ"), "26640": ("011", "カワチ薬品")}
+
+    def run_once() -> tuple[int, str]:
+        buf = io.StringIO()
+        with patch.object(xbrl_mod, "fetch_xbrl_records", lambda s, e: [toyota, unknown, broken, seen]), \
+                patch.object(xbrl_mod, "http_get", fake_get), \
+                patch.object(xbrl_mod, "load_stock_product_map", lambda: stocks), \
+                patch.object(xbrl_mod, "date_window", lambda days: (date(2026, 8, 5), date(2026, 8, 5))), \
+                patch.object(xbrl_mod.time, "sleep", lambda s: None), \
+                redirect_stdout(buf):
+            rc = xbrl_mod.run(1, dest)
+        return rc, buf.getvalue()
+
+    rc, out = run_once()
+    if rc != 1 or "saved=2 skipped=1 failed=1" not in out:
+        _fail(f"first run rc={rc}\n{out}")
+    if seen["_xbrl_id"] in gets:
+        _fail("manifest xbrl_id must skip download")
+    want = {
+        toyota["_xbrl_id"]: Path("7203") / dest_filename(toyota["pubdate"], "7203", toyota["title"], toyota["_xbrl_id"]),
+        unknown["_xbrl_id"]: Path(UNMATCHED_DIR) / "9999" / dest_filename(unknown["pubdate"], "9999", unknown["title"], unknown["_xbrl_id"]),
+    }
+    manifest = dest / "manifest" / "2026-08-05.jsonl"
+    rows = {r["xbrl_id"]: r for r in map(json.loads, manifest.read_text(encoding="utf-8").splitlines())}
+    for xid, rel in want.items():
+        data = (dest / rel).read_bytes() if (dest / rel).is_file() else b""
+        if data != _tiny_zip(xid.encode()):
+            _fail(f"missing zip {rel}\n{out}")
+        row = rows.get(xid) or {}
+        if row.get("path") != rel.as_posix() or row.get("sha256") != hashlib.sha256(data).hexdigest():
+            _fail(f"manifest row {row}")
+    if broken["_xbrl_id"] in rows:
+        _fail("failed zip must not enter the manifest")
+
+    bad_ids.clear()
+    gets.clear()
+    rc, out = run_once()
+    if rc != 0 or gets != [broken["_xbrl_id"]] or "saved=1 skipped=3 failed=0" not in out:
+        _fail(f"second run must fetch only the failed id rc={rc} gets={gets}\n{out}")
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -501,6 +577,8 @@ def main() -> None:
         test_valid_zip_promoted(tmp)
         test_resume_leftover_part(tmp)
         test_manifest_skip_by_xbrl_id(tmp)
+        test_non_sqlite_stock_map_warns_unmatched(tmp)
+        test_run_routes_manifest_and_seen(tmp)
     print("ok: tdnet xbrl r2")
 
 

@@ -1,6 +1,7 @@
 """tdnet_monthly_r2 の純関数。ネットワークには出ない。"""
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -427,6 +428,109 @@ def test_http_get_uses_job_ua_then_browser() -> None:
         _fail("job UA must stay distinct from the browser fallback")
 
 
+def test_resolve_database_url(tmp: Path) -> None:
+    from _r2common import resolve_database_url, sqlite_path_from_url
+
+    root = tmp / "repo"
+    root.mkdir()
+    (root / ".env").write_text(
+        '# c\nexport DATABASE_URL="sqlite:///data/from_env_file.db"\nJQUANTS_API_KEY=x\n',
+        encoding="utf-8",
+    )
+    got = resolve_database_url(environ={"DATABASE_URL": "sqlite:////abs/env.db"}, repo_root=root)
+    if got != "sqlite:////abs/env.db":
+        _fail(f"env must win over .env: {got}")
+    got = resolve_database_url(environ={}, repo_root=root)
+    if got != "sqlite:///data/from_env_file.db":
+        _fail(f".env DATABASE_URL: {got}")
+    got = resolve_database_url(environ={}, repo_root=tmp / "no-env")
+    if got != f"sqlite:///{tmp / 'no-env' / 'stock.db'}":
+        _fail(f"fallback stock.db: {got}")
+
+    cases = {
+        "sqlite:///data/x.db?mode=ro": root / "data" / "x.db",
+        f"sqlite:///{tmp / 'abs.db'}": tmp / "abs.db",
+        "sqlite:///:memory:": None,
+        "postgresql://u@h/db": None,
+    }
+    for url, want in cases.items():
+        got_path = sqlite_path_from_url(url, repo_root=root)
+        if got_path != want:
+            _fail(f"sqlite_path_from_url({url!r}) → {got_path} != {want}")
+    if load_stock_product_map(environ={"DATABASE_URL": "postgresql://u@h/db"}, repo_root=root) != {}:
+        _fail("non-sqlite DATABASE_URL must give an empty map")
+
+
+def test_run_pages_dedups_and_saves(tmp: Path) -> None:
+    import io
+    from contextlib import redirect_stdout
+    from datetime import date
+    from unittest.mock import patch
+    from urllib.parse import parse_qs, urlparse
+
+    import tdnet_monthly_r2 as mod
+
+    def rec(yid: str, code: str, name: str, title: str, pdf: str) -> dict:
+        return {
+            "id": yid, "pubdate": "2026-08-05 15:00:00", "company_code": code,
+            "company_name": name, "title": title,
+            "document_url": f"https://www.release.tdnet.info/inbs/{pdf}.pdf",
+        }
+
+    gift = rec("1005", "92790", "ギフトHD", "8月度 月次売上高のお知らせ", "140120260805000001")
+    kichiri = rec("1001", "30820", "きちり", "8月度 月次報告", "140120260805000002")
+    tanshin = rec("1003", "72030", "トヨタ", "決算短信", "140120260805000003")
+    no_id = rec("n/a", "72030", "トヨタ", "人事異動", "140120260805000004")
+    unknown = rec("2001", "99990", "未上場", "8月度 月次売上高", "140120260805000005")
+    broken = rec("2002", "26640", "カワチ薬品", "8月度 月次営業概況", "140120260805000006")
+    lists = {
+        (mod.LIST_KEYWORDS[0], None): [gift, tanshin, no_id],
+        (mod.LIST_KEYWORDS[0], "1003"): [kichiri],
+        (mod.LIST_KEYWORDS[1], None): [gift, unknown, broken],
+    }
+    pdf_gets: list[str] = []
+    list_urls: list[str] = []
+
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:
+        if url.startswith(mod.LIST_BASE):
+            list_urls.append(url)
+            q = parse_qs(urlparse(url).query)
+            if q["limit"] != ["3"] or "20260805-20260805" not in url:
+                _fail(f"list url {url}")
+            items = lists.get((q["keyword"][0], q.get("by_id", [None])[0]), [])
+            return json.dumps({"items": [{"Tdnet": r} for r in items]}).encode("utf-8")
+        pdf_id = url.rsplit("/", 1)[1].removesuffix(".pdf")
+        pdf_gets.append(pdf_id)
+        return b"<html>" if pdf_id.endswith("6") else b"%PDF-1.4 " + pdf_id.encode()
+
+    stocks = {c: ("011", n) for c, n in (("92790", "ギフトHD"), ("30820", "きちり"),
+                                         ("72030", "トヨタ"), ("26640", "カワチ薬品"))}
+    dest = tmp / "run-monthly"
+    buf = io.StringIO()
+    with patch.object(mod, "http_get", fake_get), \
+            patch.object(mod, "LIST_LIMIT", 3), \
+            patch.object(mod, "load_stock_product_map", lambda: stocks), \
+            patch.object(mod, "date_window", lambda days: (date(2026, 8, 5), date(2026, 8, 5))), \
+            patch.object(mod.time, "sleep", lambda s: None), \
+            redirect_stdout(buf):
+        rc = mod.run(1, dest)
+    out = buf.getvalue()
+    if rc != 1:
+        _fail(f"broken PDF must fail the run rc={rc}\n{out}")
+    if sorted(pdf_gets) != ["140120260805000001", "140120260805000002", "140120260805000006"]:
+        _fail(f"downloads {pdf_gets}\n{out}")
+    if not any("by_id=1003" in u for u in list_urls):
+        _fail(f"second page must use the smallest yanoshin id: {list_urls}")
+    for r, pdf in ((gift, "140120260805000001"), (kichiri, "140120260805000002")):
+        path = dest_path(dest, r["pubdate"], r["company_code"], r["company_name"], r["title"])
+        if not path.is_file() or path.read_bytes() != b"%PDF-1.4 " + pdf.encode():
+            _fail(f"missing saved PDF {path}\n{out}")
+    if list(dest.rglob("*.part")) or list((dest / "2664").glob("*.pdf")):
+        _fail(f"non-PDF body must not be saved: {list(dest.rglob('*'))}")
+    if "skip unknown-stock 9999" not in out or "listed=4 saved=2 skipped=1 failed=1" not in out:
+        _fail(out)
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -443,6 +547,8 @@ def main() -> None:
     with TemporaryDirectory() as d:
         test_date_window_and_skip(Path(d))
         test_stock_product_map_sqlite(Path(d))
+        test_resolve_database_url(Path(d))
+        test_run_pages_dedups_and_saves(Path(d))
     print("ok: tdnet monthly r2")
 
 

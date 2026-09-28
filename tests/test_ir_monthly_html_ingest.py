@@ -19,12 +19,14 @@ from ir_monthly_html_ingest import (  # noqa: E402
     LedgerEntry,
     PostedLedger,
     Sidecar,
+    UrllibClient,
     assert_as_of_usable,
     assert_loopback_base,
     ingest_body,
     main,
     parse_month_filter,
     parse_sidecar,
+    parse_true_codes,
     run,
     select_latest_per_code,
 )
@@ -317,6 +319,144 @@ def test_confirm_years_uses_updated_not_empty_months(tmp: Path) -> None:
         _fail(f"empty 2027 month must not fail GET confirm rc={rc}")
     if not client.gets:
         _fail("confirm must GET years")
+
+
+def test_confirm_years_missing_written_year_fails(tmp: Path) -> None:
+    dest = tmp / "confirm-missing"
+    path = _write_sidecar(
+        dest,
+        "2664",
+        "20260915_2664_カワチ薬品_月次.ingest.json",
+        as_of="2026-08-31",
+        months=list(CAWACHI.months),
+    )
+    ledger_path = tmp / "confirm-missing.json"
+    client = FakeClient(post_payload=_ok_payload(CAWACHI), get_payload=_years_payload(CAWACHI, [2025]))
+    rc, out = _capture(lambda: run(
+        dest,
+        ledger_path=ledger_path,
+        client=client,
+        today=date(2026, 9, 15),
+    ))
+    if rc != 1:
+        _fail(f"written 2026 missing from GET years must fail rc={rc}\n{out}")
+    if "GET years missing [2026]" not in out:
+        _fail(out)
+    if PostedLedger.load(ledger_path).has(parse_sidecar(path, "2664").sha256):
+        _fail("unconfirmed POST must not enter the ledger")
+
+
+def test_filename_date_from_sidecar_name(tmp: Path) -> None:
+    dest = tmp / "filename-date"
+    cases = {
+        "20260915_2664_x.ingest.json": date(2026, 9, 15),
+        "20261399_2664_x.ingest.json": date.min,
+        "2664_x.ingest.json": date.min,
+    }
+    for name, want in cases.items():
+        path = _write_sidecar(dest, "2664", name, as_of="2026-08-31", months=[8])
+        got = parse_sidecar(path, "2664").filename_date
+        if got != want:
+            _fail(f"{name} filename_date {got} != {want}")
+
+
+def test_monthly_root_requires_parse_true_sidecars(tmp: Path) -> None:
+    cfg = tmp / "ir_monthly.json"
+    cfg.write_text(json.dumps({"html": [
+        {"code": "2664"},
+        {"code": "9948", "parse": True},
+        {"code": "3082", "parse": False},
+        {"code": "2664"},
+        {"code": "bad"},
+    ]}), encoding="utf-8")
+    if parse_true_codes(cfg) != ["2664", "9948"]:
+        _fail(f"parse_true_codes {parse_true_codes(cfg)}")
+
+    def run_in(name: str) -> tuple[int, str, FakeClient]:
+        dest = tmp / "registry" / name
+        _write_sidecar(dest, "2664", "20260915_2664_x.ingest.json", as_of="2026-08-31", months=list(CAWACHI.months))
+        client = FakeClient(post_payload=_ok_payload(CAWACHI), get_payload=_years_payload(CAWACHI))
+        rc, out = _capture(lambda: run(
+            dest,
+            ledger_path=tmp / f"registry-{name}.json",
+            client=client,
+            today=date(2026, 9, 15),
+            config_path=cfg,
+        ))
+        return rc, out, client
+
+    rc, out, client = run_in("monthly")
+    if rc != 1 or client.posts or "missing sidecar for parse:true ['9948']" not in out:
+        _fail(f"monthly root must require 9948 rc={rc} posts={client.posts}\n{out}")
+    rc, out, client = run_in("not-root")
+    if rc != 0 or len(client.posts) != 1:
+        _fail(f"non-root dest must skip registry check rc={rc}\n{out}")
+
+
+def test_urllib_client_loopback(tmp: Path) -> None:
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    hits: list[str] = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *args: Any) -> None:
+            pass
+
+        def _send(self, status: int, body: bytes, headers: dict[str, str] | None = None) -> None:
+            self.send_response(status)
+            for k, v in (headers or {}).items():
+                self.send_header(k, v)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_GET(self) -> None:
+            hits.append(self.path)
+            routes = {
+                "/json": (200, b'{"years": [2026]}', None),
+                "/text": (200, b"not json", None),
+                "/empty": (200, b"", None),
+                "/conflict": (409, json.dumps({"error": {"code": "UNIT_CONFLICT"}}).encode(), None),
+                "/redirect": (302, b"", {"Location": "/json"}),
+            }
+            status, body, headers = routes[self.path]
+            self._send(status, body, headers)
+
+        def do_POST(self) -> None:
+            raw = self.rfile.read(int(self.headers["Content-Length"]))
+            echo = {"body": json.loads(raw.decode("utf-8")), "ctype": self.headers["Content-Type"]}
+            self._send(200, json.dumps(echo, ensure_ascii=False).encode("utf-8"))
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    origin = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        client = UrllibClient(timeout=5)
+        if client.get_json(f"{origin}/json") != (200, {"years": [2026]}):
+            _fail("GET json")
+        if client.get_json(f"{origin}/text") != (200, "not json"):
+            _fail("non-JSON body must come back as text")
+        if client.get_json(f"{origin}/empty") != (200, {}):
+            _fail("empty body must be {}")
+        if client.get_json(f"{origin}/conflict") != (409, {"error": {"code": "UNIT_CONFLICT"}}):
+            _fail("HTTP error body must be decoded")
+        hits.clear()
+        status, _ = client.get_json(f"{origin}/redirect")
+        if status != 302 or hits != ["/redirect"]:
+            _fail(f"redirect must not be followed status={status} hits={hits}")
+        status, payload = client.post_json(f"{origin}/ingest", {"as_of": "2026-08-31", "rows": ["全店"]})
+        if status != 200 or payload["body"] != {"as_of": "2026-08-31", "rows": ["全店"]}:
+            _fail(f"POST echo {status} {payload}")
+        if not str(payload["ctype"]).startswith("application/json"):
+            _fail(f"POST content-type {payload['ctype']}")
+    finally:
+        server.shutdown()
+        server.server_close()
+    status, payload = UrllibClient(timeout=2).get_json(f"{origin}/json")
+    if status != 0 or payload["error"]["code"] != "CLIENT_ERROR":
+        _fail(f"closed port must be CLIENT_ERROR: {status} {payload}")
 
 
 def test_unit_conflict_fails_without_ledger(tmp: Path) -> None:
@@ -800,6 +940,10 @@ def main_tests() -> None:
         p = Path(d)
         test_ledger_skip_does_not_post(p)
         test_confirm_years_uses_updated_not_empty_months(p)
+        test_confirm_years_missing_written_year_fails(p)
+        test_filename_date_from_sidecar_name(p)
+        test_monthly_root_requires_parse_true_sidecars(p)
+        test_urllib_client_loopback(p)
         test_unit_conflict_fails_without_ledger(p)
         test_yoy_number_conflict_fails_without_ledger(p)
         test_as_of_gate_blocks_post(p)
