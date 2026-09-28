@@ -357,6 +357,12 @@ def main() -> None:
     )
     if github_ssh.returncode != 0:
         raise SystemExit("github ssh tests failed")
+    sqlite_deploy = subprocess.run(
+        [sys.executable, str(ROOT / "tests" / "test_sqlite_deploy.py")],
+        cwd=ROOT,
+    )
+    if sqlite_deploy.returncode != 0:
+        raise SystemExit("sqlite deploy tests failed")
     ingest = subprocess.run(
         [sys.executable, str(ROOT / "tests" / "test_monthly_ingest.py")],
         cwd=ROOT,
