@@ -313,6 +313,86 @@ def test_year_payload_unchanged() -> None:
         _fail(f"year keys: {body!r}")
 
 
+def _seed_yoy_rows(
+    code: str, name: str, year: int, month: int,
+    rows: list[tuple[str, int, float]],
+) -> None:
+    """rows: (element, sort_order, value). sort_order を明示するため DB 直書き。"""
+    from app.db import SessionLocal
+    from app.models import MonthlyElement, MonthlyTable, MonthlyValue
+
+    _ensure_stock(code, name)
+    db = SessionLocal()
+    try:
+        if db.get(MonthlyTable, (code, year)) is None:
+            db.add(MonthlyTable(code=code, year=year))
+        for element, sort_order, value in rows:
+            db.add(MonthlyElement(
+                code=code, year=year, element=element,
+                sort_order=sort_order, unit="yoy_index",
+            ))
+            db.add(MonthlyValue(
+                code=code, year=year, element=element, month=month, value=value,
+            ))
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_headline_yoy_prefers_company_wide() -> None:
+    """一覧はセグメントなしの売上高を優先。同条件なら sort_order。#336"""
+    c = TestClient(app)
+
+    # (a) シュッピン相当: 同じ月の EC より全社の全店売上高
+    _seed_yoy_rows("31790", "シュッピン", 2026, 8, [
+        ("EC 全店 売上高(前年比)", 1, 85.9),
+        ("全店 売上高(前年比)", 2, 94.5),
+    ])
+    row = _issuer_row(c, "31790")
+    if row["all_store_yoy"] != 94.5:
+        _fail(f"(a) company-wide all_store: {row!r}")
+
+    # (b) TSI 相当: セグメント行の sort_order が先でも全社を選ぶ
+    _seed_yoy_rows("36080", "TSIホールディングス", 2026, 8, [
+        ("小売店 全店 売上高(前年比)", 1, 210.9),
+        ("全店 売上高(前年比)", 2, 143.1),
+    ])
+    row = _issuer_row(c, "36080")
+    if row["all_store_yoy"] != 143.1:
+        _fail(f"(b) sort_order must not beat company-wide: {row!r}")
+
+    # (c) 大黒天相当: 一品 客単価より全店売上高
+    _seed_yoy_rows("27910", "大黒天物産", 2026, 8, [
+        ("一品 全店 客単価(前年比)", 1, 100.5),
+        ("全店 売上高(前年比)", 2, 108.9),
+    ])
+    row = _issuer_row(c, "27910")
+    if row["all_store_yoy"] != 108.9:
+        _fail(f"(c) sales over 客単価: {row!r}")
+
+    # (d) セグメントなしが無いときは sort_order 最小（文字コード順に頼らない）
+    _seed_yoy_rows("141A0", "トライアル", 2026, 8, [
+        ("EC 全店 売上高(前年比)", 2, 85.9),
+        ("オンラインショップ 全店 売上高(前年比)", 1, 210.9),
+    ])
+    row = _issuer_row(c, "141A0")
+    if row["all_store_yoy"] != 210.9:
+        _fail(f"(d) segmented min sort_order: {row!r}")
+
+    # (e) 既存店欄も同じ。サンドラッグ相当
+    _seed_yoy_rows("99890", "サンドラッグ", 2026, 8, [
+        ("ディスカウントストア事業 既存 売上高(前年比)", 1, 102.6),
+        ("既存 売上高(前年比)", 2, 100.3),
+        ("ディスカウントストア事業 全店 売上高(前年比)", 3, 105.3),
+        ("全店 売上高(前年比)", 4, 102.7),
+    ])
+    row = _issuer_row(c, "99890")
+    if row["all_store_yoy"] != 102.7:
+        _fail(f"(e) existing-col all_store: {row!r}")
+    if row["existing_store_yoy"] != 100.3:
+        _fail(f"(e) existing-col existing: {row!r}")
+
+
 def test_year_label_block() -> None:
     from app.db import SessionLocal
     from app.models import MonthlyElement, MonthlyTable, MonthlyValue
@@ -399,6 +479,7 @@ def main() -> None:
     test_new_window()
     test_year_payload_unchanged()
     test_year_label_block()
+    test_headline_yoy_prefers_company_wide()
     print("ok: monthly issuers")
 
 

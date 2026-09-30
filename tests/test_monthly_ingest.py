@@ -1,6 +1,7 @@
 """月次 ingest: PDF列順→暦年の純関数と API。手元の stock.db は触らない。"""
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -21,6 +22,7 @@ from app.monthly_ingest import (  # noqa: E402
     apply_issuer_aliases,
     canonicalize_element_label,
     format_monthly_cell,
+    load_issuer_aliases,
     map_pdf_columns,
     monthly_breakdown_depth,
     monthly_element_label,
@@ -52,8 +54,8 @@ def _map_dict(mapping: list[tuple[int, int]]) -> dict[int, int]:
     return {month: year for month, year in mapping}
 
 
-def _fail(msg: str) -> None:
-    raise SystemExit(msg)
+def _fail(msg: object) -> None:
+    raise SystemExit(str(msg))
 
 
 def _present_months(vals: dict) -> dict[str, float]:
@@ -86,11 +88,43 @@ def _expect_ingest_error(fn, code: str, needle: str | None = None) -> MonthlyIng
     raise AssertionError  # unreachable
 
 
+def test_alias_rename_takes_unit_from_names(tmp: Path) -> None:
+    path = tmp / "issuer_aliases.json"
+    path.write_text(json.dumps({"99990": [{
+        "until": "2027-01-01",
+        "rename": {"売上高前年比": "全店 売上高", "客数": "全店 客数"},
+    }]}, ensure_ascii=False), encoding="utf-8")
+    rule = load_issuer_aliases(path)["99990"][0]
+    if rule.until != date(2027, 1, 1):
+        _fail(f"until {rule.until}")
+    # 片方だけ前年比でも両側を yoy の表示名にそろえる。実数行は接尾辞を付けない
+    if rule.rename != {"売上高(前年比)": "全店 売上高(前年比)", "客数": "全店 客数"}:
+        _fail(f"alias rename {rule.rename}")
+
+
+def test_union_orders_country_then_channel() -> None:
+    def order(names: list[str]) -> list[str]:
+        table = {"code": "99990", "year": 2026,
+                 "elements": [{"element": n, "unit": "yoy_index"} for n in names]}
+        return [row["element"] for row in union_monthly_elements([table])]
+
+    got = order(["海外 全店 売上高(前年比)", "国内 全店 売上高(前年比)", "全店 売上高(前年比)"])
+    if got != ["全店 売上高(前年比)", "日本 全店 売上高(前年比)", "海外 全店 売上高(前年比)"]:
+        _fail(f"country order (none → 日本 → 海外): {got}")
+    got = order(["FC 売上高(前年比)", "直営 売上高(前年比)", "直営+FC 売上高(前年比)"])
+    if got != ["直営+FC 売上高(前年比)", "直営 売上高(前年比)", "FC 売上高(前年比)"]:
+        _fail(f"channel order (直営+FC → 直営 → FC): {got}")
+
+
 def test_canonicalize_element_label() -> None:
     if canonicalize_element_label("売上高前年同月比", "yoy_index") != "売上高(前年比)":
         _fail("strip 前年同月比 + suffix")
     if canonicalize_element_label("売上高前年比", "yoy_pct") != "売上高(前年比)":
         _fail("strip 前年比 + suffix")
+    if canonicalize_element_label("売上高(前期比)", "yoy_pct") != "売上高(前年比)":
+        _fail("strip (前期比) + suffix")
+    if canonicalize_element_label("売上高（前期比）", "yoy_index") != "売上高(前年比)":
+        _fail("fullwidth (前期比) to ascii suffix")
     if canonicalize_element_label("既存売上高(前年比)", "yoy_index") != "既存 売上高(前年比)":
         _fail("no double suffix")
     if canonicalize_element_label("既存売上高（前年比）", "yoy_index") != "既存 売上高(前年比)":
@@ -234,8 +268,30 @@ def test_canonicalize_element_label() -> None:
         _fail("LOWYA 売上高 stays unlabeled")
     if canonicalize_element_label("100円ショップ 直営 全店(前年比)", "yoy_index") != "100円ショップ 直営 全店(前年比)":
         _fail("empty-metric 直営 全店 yoy stays")
+    if canonicalize_element_label("直営店舗 全店 売上高", "number") != "直営 全店 売上高":
+        _fail("直営店舗 全店 売上高 (9251)")
+    if "舗" in canonicalize_element_label("直営店舗 全店 売上高", "number"):
+        _fail("直営店舗 must not leave 舗")
+    if canonicalize_element_label("直営店舗 売上高", "number") != "直営 売上高":
+        _fail("直営店舗 売上高")
+    if canonicalize_element_label("既存直営店舗 売上高", "number") != "直営 既存 売上高":
+        _fail("既存直営店舗 売上高")
+    if "舗" in canonicalize_element_label("既存直営店舗 売上高", "number"):
+        _fail("既存直営店舗 must not leave 舗")
+    if canonicalize_element_label("直営店 全店 売上高", "number") != "直営 全店 売上高":
+        _fail("直営店 全店 売上高")
+    if canonicalize_element_label("直営店 売上高", "number") != "直営 売上高":
+        _fail("直営店 売上高")
+    if canonicalize_element_label("既存直営店 売上高", "number") != "直営 既存 売上高":
+        _fail("既存直営店 売上高")
     if canonicalize_element_label("直営店数", "number") != "直営 店舗数":
         _fail("直営店数")
+    if canonicalize_element_label("焼肉 直営店舗数", "number") != "焼肉 直営 店舗数":
+        _fail("直営店舗数 stays 直営 店舗数")
+    if canonicalize_element_label("FC店舗 全店 売上高", "number") != "FC 全店 売上高":
+        _fail("FC店舗 全店 売上高")
+    if canonicalize_element_label("ＦＣ店舗 全店 売上高", "number") != "FC 全店 売上高":
+        _fail("ＦＣ店舗 全店 売上高")
     if canonicalize_element_label("新規出店数", "number") != "出店":
         _fail("出店数 is 出店 metric, not 店舗数")
     if canonicalize_element_label("全店 新規出店数", "number") != "全店 出店":
@@ -2334,6 +2390,9 @@ def test_monthly_element_label() -> None:
 
 def main() -> None:
     test_canonicalize_element_label()
+    test_union_orders_country_then_channel()
+    with tempfile.TemporaryDirectory() as d:
+        test_alias_rename_takes_unit_from_names(Path(d))
     test_monthly_element_label()
     test_issuer_alias_cases()
     test_mapping_examples()

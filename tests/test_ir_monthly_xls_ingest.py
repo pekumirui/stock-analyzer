@@ -212,11 +212,54 @@ def test_latest_xls(tmp: Path) -> None:
     folder.mkdir(parents=True)
     older = folder / "20260901_1878_大東建託_history_1.xls"
     newer = folder / "20260918_1878_大東建託_history_1.xls"
+    bad_date = folder / "20269999_1878_大東建託_history_1.xls"
     older.write_bytes(b"old")
     newer.write_bytes(b"new")
+    bad_date.write_bytes(b"bad")
     got = latest_xls(tmp)
     if got != newer:
-        _fail(f"latest {got}")
+        _fail(f"latest {got} (an invalid filename date must not win)")
+
+
+def test_post_sends_ingest_body(tmp: Path) -> None:
+    import io
+    from contextlib import redirect_stdout
+
+    from ir_monthly_xls_ingest import run
+
+    class Client:
+        def __init__(self, status: int) -> None:
+            self.status = status
+            self.posts: list[tuple[str, dict[str, Any]]] = []
+
+        def post_json(self, url: str, body: dict[str, Any]) -> tuple[int, Any]:
+            self.posts.append((url, body))
+            return self.status, {"ok": self.status == 200}
+
+    for status, want_rc in ((200, 0), (409, 1)):
+        client = Client(status)
+        with redirect_stdout(io.StringIO()):
+            rc = run(
+                xls=FIXTURE, dest=tmp, as_of=date(2026, 9, 2), source_url=None, from_year=2024,
+                dry_run=False, post=True, base_url="http://127.0.0.1:8000/", client=client,
+            )
+        if rc != want_rc:
+            _fail(f"POST status {status} rc {rc}")
+        if len(client.posts) != 1:
+            _fail(f"posts {client.posts}")
+        url, body = client.posts[0]
+        if url != "http://127.0.0.1:8000/api/v1/tables/1878/ingest":
+            _fail(f"POST url {url}")
+        if set(body) != {"months", "rows", "as_of"} or body["as_of"] != "2026-09-02" or not body["rows"]:
+            _fail(f"POST body keys {sorted(body)} as_of={body.get('as_of')}")
+    client = Client(200)
+    with redirect_stdout(io.StringIO()):
+        rc = run(
+            xls=FIXTURE, dest=tmp, as_of=date(2026, 9, 2), source_url=None, from_year=2024,
+            dry_run=False, post=True, base_url="https://example.test", client=client,
+        )
+    if rc != 1 or client.posts:
+        _fail(f"remote base_url must not POST rc={rc}")
 
 
 def test_fixture_spots() -> None:
@@ -316,6 +359,7 @@ def main() -> None:
         tmp = Path(raw)
         test_latest_xls(tmp / "a")
         test_cli_dry_run(tmp / "b")
+        test_post_sends_ingest_body(tmp / "c")
     print("ok")
 
 

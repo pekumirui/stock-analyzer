@@ -51,7 +51,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `jobs/_r2common.py` | R2 バッチの共通処理（日付・HTTP・銘柄マスタ・ファイル名）。`app` は import しない |
 | `jobs/html_issuers/` | `parse: true` の HTML 月次。各 `i<code>.py` が表・行・単位を宣言する。`parse: false` はモジュールを作らない |
 | `config/` | `ir_monthly.json`、`issuer_aliases.json`、`monthly_row_order.json`、XBRL YAML、Ruff/Bandit は `pyproject.toml` |
-| `tests/` | `test_*.py` と `ci_smoke.py` |
+| `tests/` | `test_*.py` と `ci_smoke.py`。新しい `test_*.py` は `ci_smoke.SUITES` に登録する（漏れは ci_smoke が落とす） |
 | `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ） |
 | `tools/` | オフライン検証と手元ヘルパー。月次 PDF 指紋は `fmtdiff.py`（pdfplumber。ingest は従来どおり pdftotext）。TDnet 月次の未投入一覧は `tdnet_monthly_pending.py`（読み取り専用。使い方は `deploy/README.md`）。XBRL 一致率は `xbrl_match_rate.py`。`check_api.py` と `read_xls.py` |
 
@@ -87,7 +87,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 - 行名は `canonicalize_element_label`。銘柄固有は `config/issuer_aliases.json`。新しい例外は `docs/DESIGN_monthly_labels.md` に箇条書きで足す
 - `tests/test_monthly_ingest.py` に銘柄分岐は足さない
 - 月次業種は `monthly_issuers.industry`（既定 `その他`）。`stocks.sector33` とは別。ingest は `last_ingested_at` だけ更新し industry を触らない
-- HTML 月次の穴埋め・archive 投入は `.cursor/skills/monthly-html-ops-ingest/SKILL.md`
+- HTML 月次の穴埋め・archive 投入は `.cursor/skills/monthly-html-ops-ingest/SKILL.md`。ウェーブ完了後のペアレビューは `.cursor/skills/monthly-html-pair-review/SKILL.md`（親が Task で起動。自己証明しない）
 
 ## 検証の目安
 

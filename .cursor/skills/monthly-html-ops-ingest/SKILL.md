@@ -2,7 +2,7 @@
 name: monthly-html-ops-ingest
 description: >
   stock-analyzer 用の運用向け IR HTML 月次データ取り込み: アーカイブ/年次 URL を用いた暦年のギャップ埋め、複数テーブルページの結合、ライブ HTML で会計年度が証明できる場合のパーサーの as_of の上書き、issuer_aliases と運用マージによるラベルのゴースト（不要な表記揺れ）のクリーンアップ。
-  銘柄ごとの 2024/2025/2026 年の monthly_get を用いたペアレビュー、DB の数値がソース HTML と一致することの抜き打ちチェック、およびウェーブ（一連の作業）を閉じる前の表記揺れ（重複/ゴーストラベル）チェックが必要です。
+  ウェーブ終了時は Cursor Task で別エージェントを起動し `.cursor/skills/monthly-html-pair-review/SKILL.md` を読ませる。親は自己証明しない。
   HTML 月次データのバックフィル、Issue #180 スタイルの運用、monthly_ingest MCP の POST、2024年1〜2月や上期/下期の欠損、または DB の行を書き換えないエイリアスを追加した後の対応時に使用します。
 ---
 
@@ -15,9 +15,8 @@ stock-analyzer MCP (`monthly_*`) を経由した本番環境へのループバ�
 - `config/ir_monthly.json` にある HTML 発行体の欠損している暦月を埋める場合
 - GitHub Issue (#180 のパターン) での一連の作業（ウェーブ）を追跡する場合
 - エイリアス/正規化 (canonicalize) をリリースした後に、古い行ラベルをクリーンアップする場合
-- ウェーブのペアレビュー: **2024 / 2025 / 2026** の網羅性の確認、サンプルの数値がソース HTML と一致することの確認、およびクローズ前の **表記揺れがないこと** の確認
 
-対象外: パーサーのコード変更 (別の PR で対応)、TDnet の PDF、XBRL、SPA の検証 (`verify-stock-analyzer` を使用)。
+対象外: パーサーのコード変更 (別の PR で対応)、TDnet の PDF、XBRL、SPA の検証 (`verify-stock-analyzer` を使用)。ペアレビューのチェック項目は `.cursor/skills/monthly-html-pair-review/SKILL.md`（親はこのファイルで判定しない）。
 
 ## パイプライン (正本) (Pipeline (truth))
 
@@ -27,6 +26,7 @@ stock-analyzer MCP (`monthly_*`) を経由した本番環境へのループバ�
 4. 重複するセルについて `monthly_get` との競合チェックを行う
 5. `monthly_ingest` (MCP) — **`year` は指定しない**。UPSERT は可能
 6. `monthly_get` で検証する
+7. ウェーブ終了 → **ペアレビュー起動**（下の節。自分でマトリックスを埋めない）
 
 Cron のパスは異なります: `ir_monthly_html_r2` は `.ingest.json` のみを書き出します。`ir_monthly_html_ingest` は **銘柄ごとに最新のもの (latest-per-code)** を POST します。過去の年については、運用作業とアーカイブ URL が必要です。
 
@@ -38,6 +38,7 @@ Cron のパスは異なります: `ir_monthly_html_r2` は `.ingest.json` のみ
 - ブランド名の変更をマージし**ない**でください (例: マックスバリュ関東 ↔ イオンフードスタイル)。
 - ワタミ (Watami) クラスの誤った単位（実数なのに `yoy_pct` タグが付いている）を POST し**ない**でください。
 - 不明な点（as_of/年のマッピング、アルペン (Alpen) のような二重スコープ、単位の曖昧さ）がある場合は質問してください。
+- **取り込んだエージェントはウェーブ完了を証明してはならない。** 網羅性マトリックス・数値抜き打ち・表記揺れ判定を自分で書かない。自己証明は不合格。
 
 ## ツール (Tools)
 
@@ -48,6 +49,7 @@ Cron のパスは異なります: `ir_monthly_html_r2` は `.ingest.json` のみ
 | `.venv/bin/python` + `parse_issuer` / `plan_column_years` | ローカルパース + 年マッピング |
 | `config/issuer_aliases.json` + `docs/DESIGN_monthly_labels.md` | 新しいリネームルール (コードの PR) |
 | GitHub Issue | 作業前/作業後の進捗 |
+| Cursor `Task` (`subagent_type: generalPurpose`) | ウェーブ完了後、ペアレビュー子を起動する |
 
 VPS: `ssh stock-vps` + `curl http://127.0.0.1:8000/api/v1/tables/...` は MCP と同じ API です。
 
@@ -64,7 +66,7 @@ VPS: `ssh stock-vps` + `curl http://127.0.0.1:8000/api/v1/tables/...` は MCP �
 - [ ] monthly_get との重複: 競合する null でないセルがない (または一致を証明した後にのみ force を使用する)
 - [ ] 新しいセルに対して year-PUT を行っていない
 - [ ] Issue コメント: URL、as_of、マッピングする年、何を埋めるか
-- [ ] ウェーブ完了後: ペアレビューをスケジュールする (2024/2025/2026 マトリックス)
+- [ ] ウェーブ完了後: Task でペアレビュー子を起動した（自分でマトリックスを書いていない）
 ```
 
 ## ギャップ埋めプレイブック (Fill-gap playbook)
@@ -75,47 +77,33 @@ VPS: `ssh stock-vps` + `curl http://127.0.0.1:8000/api/v1/tables/...` は MCP �
 4. 複数テーブル (上期+下期): POST 前にマージする — パーサーは 1 つのテーブルしか保持しない
 5. `monthly_ingest` を POST する; `monthly_get` で検証する
 6. "2024" ページのウェーブの後: **2024 年の 1〜12 月**を体系的に再スキャンする (最初のウェーブでは 1〜2 月や下期が空のまま残ることが多い)
-7. ウェーブの終了 → 以下の **ペアレビュー** を行う (これなしで Issue をクローズしないこと)
+7. ウェーブの終了 → **ペアレビューを起動する**（次節。これなしで Issue をクローズしないこと）
 
-## ペアレビュー (必須) (Pair review (required))
+## ペアレビュー起動 (必須) (Spawn pair review)
 
-別のアージェントまたは人間による 2 回目の確認。実行したエージェントは、自分でウェーブの完了を証明してはならない。
+親（このスキルを実行しているエージェント）はレビュー本体をやらない。チェック項目をこのファイルから実行してはならない。`monthly-html-pair-review` を自分で読んで埋めるのも自己証明であり不合格。
 
-**網羅性マトリックス (必須)。** ウェーブで触れたすべての銘柄コードについて、`monthly_get` で **2024、2025、および 2026** を確認する。年ごとに記録する:
+ユーザーが「自分がレビューする」と明示したときだけ Task を省略できる。そのときは Issue に「ペアレビュー未実施」を残し、クローズしない。
 
-| year | 何らかの非 null がある月 | 欠損 (gaps) | 空で想定通りか? (未開示 / アーカイブなし) |
-|---|---|---|---|
-| 2024 | … | … | … |
-| 2025 | … | … | … |
-| 2026 | … | … | … |
+ギャップ埋め・ラベルクリーンアップのどちらでも、POST / 投入後 `monthly_get` が終わったら:
 
-2024〜2026 のいずれかがチェックされなかった場合はレビューを不合格とする。最初のウェーブの後、2024 は不完全であることが多い — Issue に証明済みのブロッカー (404、アーカイブなし) が記載されていない限り、2024/1〜2 の欠損や 2024 全体の欠損は欠陥として扱う。
+1. Cursor **`Task`** を呼ぶ。`subagent_type`: `generalPurpose`。`run_in_background`: 使わない（子の pass/fail を待つ）。`environment`: `cloud` にしない。
+2. `description`: `Pair-review monthly HTML`（銘柄が少なければ code を足してよい）。
+3. `prompt` の **最初の行** を次にする: `Read .cursor/skills/monthly-html-pair-review/SKILL.md then follow it. Do not ingest, POST, PUT, or DELETE.`
+4. 同じ `prompt` に次をすべて渡す（子は親の会話を見ない）:
 
-**数値の一致 (必須)。** 月が存在することだけでなく、DB の数値をソース HTML (または実際に POST された JSON) と抜き打ちで照合する。
+```
+codes: …
+urls: …
+as_of: …
+fy_end / plan_column_years: …
+posted JSON (or path / equivalent cells): …
+years to check: 2024, 2025, 2026
+known blockers: …
+```
 
-- 少なくとも以下を選ぶこと: 序盤の月 1 つ、中盤の月 1 つ、終盤の月 1 つ (および隣接する年度のページから埋められた場合は暦年の 1〜2 月)
-- 各サンプルについて: 同じ要素、同じ暦月 → DB の値 == ソース (`yoy`: 保存された形式; `yoy_pct` の取り込みは +100 されて `yoy_index` になる)
-- 不一致、ソースに数値があるのに無言で null になっている場合、または年のバケツが間違っている場合 (値が 2024 ではなく 2025 に入った場合) は不合格とする
-
-**HTML パース ↔ 手動投入の一致 (必須)。** ウェーブで触った銘柄について、ライブ/アーカイブ HTML を `parse_issuer` し（銘柄固有は `canonicalize` → `apply_issuer_aliases` → `canonicalize`）、投入後の `monthly_get` と比較する。
-
-- 同じ暦月・同じ最終 element 名・同じ unit で値が一致すること
-- パーサだけにある行 / DB だけにある双子・ゴースト行があれば不合格（意図的な運用マージ途中なら Issue に残件を書く）
-- Cron の `.ingest.json` を再パースした場合は、その JSON の element が alias 後に DB 最終形と一致することも確認する
-
-**表記揺れなし (必須)。** 触れた銘柄コード × 年 (2024〜2026) のすべてについて、`monthly_get` からすべての `element` 名をリストアップする。同じ指標が 2 つのラベルの下に表示されている場合、または既知のゴーストのプレフィックス/サフィックスが残っている場合は不合格とする。
-
-以下の点をチェックする:
-
-- 1 つの行になるべきスコープの双子 (例: HTML が全社のみの場合の `全店` vs `全社` — USMH)。HTML に本当に両方がある場合 (アルペン)、不合格にしては**ならない**
-- プレフィックスの残りカス: `売上（%）`、`U.S.M.H`、丸囲みの `①`/`②`、正規化で削除されるべきだった古い `(1)` の脚注
-- 1 つの年の中で、月をまたいでブランド名が変更された場合の 2 つの名前 (例: マックスバリュ関東 vs イオンフードスタイル) — 報告するが、自動マージは**しない**; 質問すること
-- 同じ指標に対して、双子の行にまたがって月が分割されている (名前 A に 3〜8 月、名前 B に 1〜2 月)
-
-以下の点も再確認する:
-
-- [ ] 単位がまともであるか (カウント行が `yoy_pct` になっていないか)
-- [ ] Issue コメント: マトリックス + 数値サンプル + ラベルリスト / 表記揺れの発見事項 + ブロッカー
+5. 子が **pass / fail** と報告テンプレートを返すまで、Issue をクローズしない。不合格なら追加 POST やクローズをしない（残件を Issue に書く）。
+6. 子の報告を Issue コメントにする（マトリックス + 数値サンプル + ラベル一覧 + ブロッカー）。
 
 ## ラベルクリーンアッププレイブック (Label cleanup playbook)
 
@@ -126,6 +114,7 @@ VPS: `ssh stock-vps` + `curl http://127.0.0.1:8000/api/v1/tables/...` は MCP �
    - 必要に応じて dst を `monthly_add_element` する (類似している場合は `force`)
    - `monthly_put_values` でコピー → src を null クリア → 空になった src を `monthly_delete_element` する
 4. 全店↔全社の統合をでっち上げないこと。グローバルにおいて **全社 ≠ 全店** である。アルペンは両方を保持する。USMH のゴースト `全店` → `全社` は、HTML が全社のみの場合にのみ行う。
+5. マージが終わったら **ペアレビュー起動**（前節）。
 
 ## 停止条件 (Stop conditions)
 
@@ -139,5 +128,6 @@ VPS: `ssh stock-vps` + `curl http://127.0.0.1:8000/api/v1/tables/...` は MCP �
 
 ## 関連 (Related)
 
+- ペアレビュー（子）: `.cursor/skills/monthly-html-pair-review/SKILL.md`
 - トラップテーブル: [gotchas.md](gotchas.md)
 - データ着信後の UI 証明: `.cursor/skills/verify-stock-analyzer/SKILL.md`

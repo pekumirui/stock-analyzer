@@ -14,7 +14,10 @@ from app.config import ISSUER_ALIASES_PATH, MONTHLY_ROW_ORDER_PATH
 MONTHLY_UNITS = ("number", "yoy_index", "yoy_pct")
 _YOY_UNITS = frozenset({"yoy_index", "yoy_pct"})
 # 長い語を先に。前年同月比 を 前年同月 より先、括弧付きを 前年比 より先。
-_YOY_FRAGMENTS = ("前年同月比", "前年同月", "(前年比)", "（前年比）", "前年比")
+_YOY_FRAGMENTS = (
+    "前年同月比", "前年同月", "(前年比)", "（前年比）", "前年比",
+    "(前期比)", "（前期比）", "前期比",
+)
 _YOY_SUFFIX = "(前年比)"
 _UNIT_MSG = "unit は number / yoy_index / yoy_pct です。"
 # 表示だけ。保存 unit は number|yoy_index。長い token を先に（受注高 ⊂ 新規受注高）。
@@ -97,8 +100,10 @@ def canonicalize_element_label(element: str, unit: str | None) -> str:
     return f"{base}{_YOY_SUFFIX}"
 
 
+# 長い語を先に（直営店 ⊂ 直営店舗）。店舗数 系はチャネル+店舗 より先（直営店舗数 → 直営 店舗数）。
 _UNGLUE: tuple[tuple[str, str], ...] = (
     ("単月Monthly", "単月 Monthly"),
+    ("既存直営店舗", "直営 既存"),
     ("既存直営店", "直営 既存"),
     ("全店舗数", "店舗数"),
     ("総店舗数", "店舗数"),
@@ -123,6 +128,7 @@ _UNGLUE: tuple[tuple[str, str], ...] = (
     ("FC店", "FC"),
     ("ＦＣ店舗", "FC"),
     ("ＦＣ店", "FC"),
+    ("直営店舗", "直営"),
     ("直営店", "直営"),
     ("直営", "直営"),
     ("既存", "既存"),
@@ -203,7 +209,7 @@ _DROP_TOKS = frozenset({
     "昨対", "昨年比",
     "累計", "店舗状況", "拠点数", "購入お客様", "（％）", "（%）", "(％)", "(%)", "%", "※",
     "（百万円）", "(百万円)", "売上（％）", "売上（%）",
-    "（", "）", "(", ")", "(前年比)", "（前年比）",
+    "（", "）", "(", ")", "(前年比)", "（前年比）", "(前期比)", "（前期比）",
 })
 # 表の注番号（SRS の 売上高(1) / 売上高① / (2) ＊M&A除く）。(前年比) は数字だけではないので残る。
 _FOOTNOTE_NUM_RE = re.compile(r"[（(]\d+[）)]")
