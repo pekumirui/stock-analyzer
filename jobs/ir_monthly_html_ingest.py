@@ -23,7 +23,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -72,6 +72,8 @@ class Sidecar:
     months: tuple[int, ...]
     rows: tuple[Mapping[str, Any], ...]
     sha256: str
+    # 各列の暦年月（TDnet PDF の sidecar だけが持つ。dry_run の mapping と突き合わせる）
+    columns: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -334,6 +336,12 @@ def parse_sidecar(path: Path, code_dir: str) -> Sidecar:
         raise ValueError(f"{path} as_of is not YYYY-MM-DD")
     ymd = filename_ymd(path) or date.min
     digest = sha256_bytes(path.read_bytes())
+    columns_raw = raw.get("columns")
+    columns: tuple[str, ...] = ()
+    if columns_raw is not None:
+        if not isinstance(columns_raw, list) or not all(isinstance(c, str) for c in columns_raw):
+            raise ValueError(f"{path} columns must be YYYY-MM strings")
+        columns = tuple(columns_raw)
     return Sidecar(
         code=want,
         path=path,
@@ -342,6 +350,7 @@ def parse_sidecar(path: Path, code_dir: str) -> Sidecar:
         months=tuple(months),
         rows=rows,
         sha256=digest,
+        columns=columns,
     )
 
 
@@ -349,6 +358,7 @@ def discover_sidecars(
     dest: Path,
     *,
     only: frozenset[str] | None,
+    pattern: str = "*.ingest.json",
 ) -> tuple[list[Sidecar], int]:
     found: list[Sidecar] = []
     failed = 0
@@ -357,9 +367,9 @@ def discover_sidecars(
         for code in sorted(only):
             d = dest / code
             if d.is_dir():
-                paths.extend(sorted(d.glob("*.ingest.json")))
+                paths.extend(sorted(d.glob(pattern)))
     else:
-        paths = sorted(dest.glob("**/*.ingest.json"))
+        paths = sorted(dest.glob(f"**/{pattern}"))
     for path in paths:
         if not path.is_file():
             continue
@@ -601,7 +611,14 @@ def run(
     config_path: Path | None = None,
     force: bool = False,
     months: frozenset[tuple[int, int]] | Sequence[str] | None = None,
+    pattern: str = "*.ingest.json",
+    label: str = "ir_monthly_html_ingest",
+    registry: bool = True,
+    empty_ok: bool = False,
+    precheck: Callable[[HttpClient, str, Sidecar], str | None] | None = None,
 ) -> int:
+    """pattern / label / registry / empty_ok / precheck は TDnet PDF の sidecar 用
+    （jobs/tdnet_monthly_pdf_ingest.py）。precheck が文字列を返したら POST しない。"""
     if force and not only:
         print("error: --force requires --only", flush=True)
         return 2
@@ -616,18 +633,18 @@ def run(
     if not month_filter:
         month_filter = None
     if not dest.is_dir():
-        print(f"ir_monthly_html_ingest dest missing {dest}", flush=True)
+        print(f"{label} dest missing {dest}", flush=True)
         return 2
     want = None
     if only:
         want = frozenset(display_code(c.strip().upper()) for c in only if c.strip())
-    sidecars, parse_failed = discover_sidecars(dest, only=want)
+    sidecars, parse_failed = discover_sidecars(dest, only=want, pattern=pattern)
     chosen = select_latest_per_code(sidecars)
     if want is not None:
         missing_only = sorted(want - set(chosen))
         if missing_only:
             print(f"warn no sidecar for --only {missing_only}", flush=True)
-    if want is None and dest_is_monthly_root(dest):
+    if registry and want is None and dest_is_monthly_root(dest):
         cfg = config_path or DEFAULT_CONFIG
         if cfg.is_file():
             try:
@@ -640,11 +657,11 @@ def run(
                 print(f"fail missing sidecar for parse:true {missing_reg}", flush=True)
                 return 1
     if not chosen:
-        print("ir_monthly_html_ingest no sidecars", flush=True)
-        return 2
+        print(f"{label} no sidecars", flush=True)
+        return 0 if empty_ok and not parse_failed else 2
     day = today or jst_today()
     print(
-        f"ir_monthly_html_ingest start dest={dest} selected={len(chosen)} "
+        f"{label} start dest={dest} selected={len(chosen)} "
         f"day={day.isoformat()} dry_run={int(dry_run)}"
         + _run_suffix(force=force, months=month_filter),
         flush=True,
@@ -659,7 +676,7 @@ def run(
             print(f"fail as_of {s.code} {s.path.name}: {e}", flush=True)
     if as_of_failed:
         print(
-            f"ir_monthly_html_ingest done posted=0 skipped=0 failed={as_of_failed + parse_failed}",
+            f"{label} done posted=0 skipped=0 failed={as_of_failed + parse_failed}",
             flush=True,
         )
         return 1
@@ -679,7 +696,7 @@ def run(
                 "path": str(s.path),
             }, force=force, months=month_filter))
         print(
-            f"ir_monthly_html_ingest dry-run selected={len(ordered)} failed={parse_failed}",
+            f"{label} dry-run selected={len(ordered)} failed={parse_failed}",
             flush=True,
         )
         return 1 if parse_failed else 0
@@ -719,6 +736,18 @@ def run(
                     "as_of": s.as_of.isoformat(),
                     "status": "failed",
                     "error": "MONTHS",
+                }, force=force, months=month_filter))
+                continue
+        if precheck is not None:
+            problem = precheck(http, origin, s)
+            if problem:
+                failed += 1
+                print(f"fail precheck {s.code} {s.path.name}: {problem}", flush=True)
+                _append_report(report_path, _with_force({
+                    "code": s.code,
+                    "as_of": s.as_of.isoformat(),
+                    "status": "failed",
+                    "error": problem,
                 }, force=force, months=month_filter))
                 continue
         try:
@@ -819,7 +848,7 @@ def run(
             "fy_end_month": ok.fy_end_month,
         }, force=force, months=month_filter))
     print(
-        f"ir_monthly_html_ingest done posted={posted} skipped={skipped} failed={failed}",
+        f"{label} done posted={posted} skipped={skipped} failed={failed}",
         flush=True,
     )
     return 1 if failed else 0

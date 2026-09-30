@@ -58,7 +58,7 @@ apt_retry() {
 apt_retry \
   python3-venv python3-pip git curl gnupg ca-certificates \
   nginx apache2-utils certbot \
-  ufw tzdata fuse3 unzip
+  ufw tzdata fuse3 unzip poppler-utils
 
 timedatectl set-timezone Asia/Tokyo
 
