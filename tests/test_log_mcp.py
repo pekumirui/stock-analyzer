@@ -1,9 +1,11 @@
 """MCP サーバの認証・JSON-RPC・入力バリデーション。systemd は不要。"""
 from __future__ import annotations
 
+import gzip
 import json
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -137,6 +139,126 @@ def test_batch_logs_job_file(tmp_path: Path) -> None:
             os.environ.pop("MCP_LOG_DIR", None)
         else:
             os.environ["MCP_LOG_DIR"] = prev_log
+
+
+def _with_log_dir(tmp_path: Path) -> tuple[str | None, str | None]:
+    prev_app = os.environ.get("MCP_APP_DIR")
+    prev_log = os.environ.get("MCP_LOG_DIR")
+    os.environ["MCP_APP_DIR"] = str(tmp_path / "app")
+    os.environ["MCP_LOG_DIR"] = str(tmp_path)
+    return prev_app, prev_log
+
+
+def _restore_log_dir(prev_app: str | None, prev_log: str | None) -> None:
+    if prev_app is None:
+        os.environ.pop("MCP_APP_DIR", None)
+    else:
+        os.environ["MCP_APP_DIR"] = prev_app
+    if prev_log is None:
+        os.environ.pop("MCP_LOG_DIR", None)
+    else:
+        os.environ["MCP_LOG_DIR"] = prev_log
+
+
+def test_batch_logs_window(tmp_path: Path) -> None:
+    logs = tmp_path / "logs"
+    logs.mkdir(parents=True)
+    yesterday_gz = (
+        "2026-09-28 09:00:00 fail too old\n"
+        "2026-09-29 08:00:00 fail early\n"
+        "2026-09-29 08:30:00 fail JQUANTS_API_KEY=secret-value\n"
+        "2026-09-29 09:00:00 ok kept\n"
+    )
+    (logs / "xbrl_parse.log.2.gz").write_bytes(gzip.compress(yesterday_gz.encode("utf-8")))
+    (logs / "xbrl_parse.log.1").write_text(
+        "2026-09-29 00:00:00 fail start\n"
+        "2026-09-29 18:00:01 fail cron jobs/xbrl_parse.py exit=1\n"
+        "2026-09-30 00:00:00 fail boundary\n",
+        encoding="utf-8",
+    )
+    (logs / "xbrl_parse.log").write_text(
+        "2026-09-29 23:30:00 fail late\n"
+        "2026-09-30 10:00:02 fail today\n"
+        "2026-09-30 14:30:00 fail recent\n",
+        encoding="utf-8",
+    )
+    (logs / "tdnet_xbrl_r2.log").write_text(
+        "2026-09-29 12:00:00 fail other\n",
+        encoding="utf-8",
+    )
+    (logs / "not_a_job.log").write_text("2026-09-29 12:00:00 fail stranger\n", encoding="utf-8")
+    prev = _with_log_dir(logs)
+    orig_now = m._jst_now
+
+    def _frozen_now() -> datetime:
+        return datetime(2026, 9, 30, 15, 0, 0, tzinfo=m.JST).replace(tzinfo=None)
+
+    m._jst_now = _frozen_now
+    try:
+        desc = m.TOOLS["batch_logs"][0]
+        props = m.TOOLS["batch_logs"][1]["properties"]
+        for name in ("since", "until", "job", "lines", "grep"):
+            if name not in props:
+                raise SystemExit(f"batch_logs schema missing {name}")
+        for job_name in sorted(m.BATCH_JOBS):
+            if job_name not in desc:
+                raise SystemExit(f"batch_logs description missing {job_name}")
+        plain = m.tool_batch_logs({"job": "xbrl_parse", "grep": "fail early"})
+        if "fail early" in plain:
+            raise SystemExit(f"live tail must not read rotated logs: {plain!r}")
+        text, is_error = m.call_tool(
+            "batch_logs",
+            {"job": "xbrl_parse", "since": "yesterday", "until": "today", "grep": "fail"},
+        )
+        if is_error:
+            raise SystemExit(f"yesterday xbrl_parse: {text!r}")
+        expect = [
+            "2026-09-29 00:00:00 fail start",
+            "2026-09-29 08:00:00 fail early",
+            "2026-09-29 08:30:00 fail JQUANTS_API_KEY=<redacted>",
+            "2026-09-29 18:00:01 fail cron jobs/xbrl_parse.py exit=1",
+            "2026-09-29 23:30:00 fail late",
+        ]
+        if text != "\n".join(expect):
+            raise SystemExit(f"yesterday window: {text!r}")
+        if "secret-value" in text or "fail other" in text or "fail today" in text or "ok kept" in text:
+            raise SystemExit(f"window leaked: {text!r}")
+        if "fail too old" in text or "fail boundary" in text or "fail stranger" in text:
+            raise SystemExit(f"window leaked outside: {text!r}")
+        dated, dated_err = m.call_tool(
+            "batch_logs",
+            {"job": "xbrl_parse", "since": "2026-09-29", "until": "2026-09-30", "grep": "fail"},
+        )
+        if dated_err or dated != text:
+            raise SystemExit(f"date window != yesterday: {dated!r}")
+        recent, recent_err = m.call_tool("batch_logs", {"job": "xbrl_parse", "since": "1h", "grep": "fail"})
+        if recent_err or recent != "2026-09-30 14:30:00 fail recent":
+            raise SystemExit(f"since 1h: {recent!r}")
+        older, older_err = m.call_tool("batch_logs", {"job": "xbrl_parse", "until": "1h", "grep": "fail today"})
+        if older_err or older != "2026-09-30 10:00:02 fail today":
+            raise SystemExit(f"until 1h: {older!r}")
+        short, short_err = m.call_tool(
+            "batch_logs",
+            {"job": "xbrl_parse", "since": "yesterday", "until": "today", "grep": "fail", "lines": 1},
+        )
+        if short_err or short != "(truncated; narrow since/until)\n2026-09-29 23:30:00 fail late":
+            raise SystemExit(f"truncated: {short!r}")
+        for bad in ("../.env", "xbrl_parse.log", "/var/log/app/xbrl_parse", "batch", "not_a_job"):
+            rejected, bad_err = m.call_tool("batch_logs", {"job": bad})
+            if not bad_err:
+                raise SystemExit(f"job must reject {bad!r}: {rejected!r}")
+        empty, empty_err = m.call_tool(
+            "batch_logs",
+            {"job": "xbrl_parse", "since": "yesterday", "until": "yesterday"},
+        )
+        if not empty_err or "until must be after since" not in empty:
+            raise SystemExit(f"empty window: {empty!r} err={empty_err}")
+        bad_since, since_err = m.call_tool("batch_logs", {"job": "xbrl_parse", "since": "../etc"})
+        if not since_err:
+            raise SystemExit(f"since must reject path: {bad_since!r}")
+    finally:
+        m._jst_now = orig_now
+        _restore_log_dir(*prev)
 
 
 def test_http_auth_and_tools() -> None:
@@ -1458,6 +1580,7 @@ def main() -> None:
         test_tail_grep(Path(d))
         test_pick_log(Path(d) / "pick")
         test_batch_logs_job_file(Path(d) / "jobs")
+        test_batch_logs_window(Path(d) / "window")
     test_http_auth_and_tools()
     test_oauth()
     test_oauth_store_persists_and_purges()

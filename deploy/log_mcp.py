@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sqlite3
 import base64
+import gzip
 import hashlib
 import html
 import json
@@ -21,6 +22,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
@@ -78,6 +80,36 @@ SHORT_SINCE_RE = re.compile(r"^(\d+)([smhd])$", re.I)
 CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
 JOB_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 BATCH_LOG_SKIP = frozenset({"stock-analyzer.log", "mcp.log"})
+# cron-run.sh の行頭。JST の "YYYY-MM-DD HH:MM:SS "。別の形は読まない。
+LINE_STAMP_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) ")
+JST = timezone(timedelta(hours=9))
+_BOUND_HINT = "1h, 30m, today, yesterday, or YYYY-MM-DD"
+
+
+def crontab_job_names() -> tuple[str, ...]:
+    """Stems of jobs/*.py scheduled in deploy/crontab. Comments are not jobs."""
+    path = Path(__file__).resolve().parent / "crontab"
+    found: list[str] = []
+    job_re = re.compile(r"jobs/([A-Za-z0-9_-]+)\.py")
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return ()
+    for line in lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        for match in job_re.finditer(stripped):
+            name = match.group(1)
+            if name in found or name in {"stock-analyzer", "mcp"}:
+                continue
+            if JOB_NAME_RE.fullmatch(name) is None:
+                continue
+            found.append(name)
+    return tuple(found)
+
+
+BATCH_JOBS = frozenset(crontab_job_names())
 YEAR_RE = re.compile(r"^\d{4}$")
 DB_TABLES = ("stocks", "daily_prices", "topix", "statements", "indicators", "earnings_events")
 DEFAULT_APP_HTTP = "http://127.0.0.1:8000"
@@ -268,17 +300,73 @@ def tool_app_logs(args: dict[str, Any]) -> str:
     return f"=== {path} ===\n{file_out}\n\n=== journal stock-analyzer since {since} ===\n{journal_out}"
 
 
+def _job_error() -> str:
+    names = ", ".join(sorted(BATCH_JOBS))
+    return f"job must be a crontab script stem ({names})"
+
+
 def parse_batch_job(raw: Any) -> str | None:
     if raw is None:
         return None
     if not isinstance(raw, str):
-        raise ValueError("job must be a script stem (e.g. tdnet_monthly_r2)")
+        raise ValueError(_job_error())
     name = raw.strip()
     if not name:
         return None
-    if name in {"stock-analyzer", "mcp"} or JOB_NAME_RE.fullmatch(name) is None:
-        raise ValueError("job must be a script stem (e.g. tdnet_monthly_r2)")
+    if JOB_NAME_RE.fullmatch(name) is None or name not in BATCH_JOBS:
+        raise ValueError(_job_error())
     return name
+
+
+def _jst_now() -> datetime:
+    return datetime.now(JST).replace(tzinfo=None)
+
+
+def parse_batch_bound(raw: str, label: str) -> datetime:
+    """JST instant. today / yesterday / YYYY-MM-DD are that day's 00:00."""
+    s = raw.strip()
+    low = s.lower()
+    now = _jst_now()
+    if low == "today":
+        return now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if low == "yesterday":
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return start - timedelta(days=1)
+    match = SHORT_SINCE_RE.fullmatch(s)
+    if match:
+        n = int(match.group(1))
+        unit = match.group(2).lower()
+        return now - timedelta(**{SINCE_UNITS[unit]: n})
+    if ISO_RE.fullmatch(s):
+        norm = s.replace("T", " ")
+        try:
+            if len(norm) == 10:
+                return datetime.strptime(norm, "%Y-%m-%d")
+            if len(norm) == 16:
+                return datetime.strptime(norm, "%Y-%m-%d %H:%M")
+            return datetime.strptime(norm, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            raise ValueError(f"invalid {label}. use {_BOUND_HINT}") from None
+    raise ValueError(f"invalid {label}. use {_BOUND_HINT}")
+
+
+def _optional_bound(raw: Any, label: str) -> datetime | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, str):
+        raise ValueError(f"invalid {label}. use {_BOUND_HINT}")
+    if not raw.strip():
+        return None
+    return parse_batch_bound(raw, label)
+
+
+def parse_batch_window(args: dict[str, Any]) -> tuple[datetime | None, datetime | None]:
+    # until is exclusive, same tokens as journalctl. yesterday's lines: since=yesterday, until=today.
+    start = _optional_bound(args.get("since"), "since")
+    end = _optional_bound(args.get("until"), "until")
+    if start is not None and end is not None and start >= end:
+        raise ValueError("until must be after since")
+    return start, end
 
 
 def batch_log_files() -> list[Path]:
@@ -296,16 +384,119 @@ def batch_log_files() -> list[Path]:
     return found or [primary]
 
 
-def tool_batch_logs(args: dict[str, Any]) -> str:
-    lines = clamp_lines(args.get("lines"))
-    grep = parse_grep(args.get("grep"))
-    job = parse_batch_job(args.get("job"))
+def rotated_log_paths(directory: Path, stem: str) -> list[Path]:
+    """Oldest logrotate sibling first, then the live stem.log. .1 is plain, later ones .gz."""
+    if JOB_NAME_RE.fullmatch(stem) is None:
+        return []
+    live = directory / f"{stem}.log"
+    rx = re.compile(rf"^{re.escape(stem)}\.log\.([1-9][0-9]*)(?:\.gz)?$")
+    numbered: list[tuple[int, str, Path]] = []
+    if directory.is_dir():
+        for path in directory.iterdir():
+            if not path.is_file():
+                continue
+            match = rx.fullmatch(path.name)
+            if match is None:
+                continue
+            numbered.append((int(match.group(1)), path.name, path))
+    numbered.sort(key=lambda item: (-item[0], item[1]))
+    paths = [item[2] for item in numbered]
+    if live.is_file():
+        paths.append(live)
+    return paths
+
+
+def job_log_dir(stem: str) -> Path:
+    directory = log_dir()
+    if directory.is_dir() and rotated_log_paths(directory, stem):
+        return directory
+    return pick_log(f"{stem}.log").parent
+
+
+def _read_log_text(path: Path) -> str:
+    if path.name.endswith(".gz"):
+        with gzip.open(path, "rt", errors="replace") as handle:
+            return handle.read()
+    return path.read_text(errors="replace")
+
+
+def _filter_grep(rows: list[str], grep: str | None) -> list[str]:
+    if not grep:
+        return rows
+    try:
+        rx = re.compile(grep)
+    except re.error:
+        return [ln for ln in rows if grep in ln]
+    return [ln for ln in rows if rx.search(ln)]
+
+
+def _format_tail(rows: list[str], lines: int) -> str:
+    truncated = len(rows) > lines
+    kept = rows[-lines:]
+    if not kept:
+        return "(no matching lines)"
+    body = "\n".join(kept)
+    if truncated:
+        return "(truncated; narrow since/until)\n" + body
+    return body
+
+
+def _windowed_text(
+    directory: Path,
+    stem: str,
+    start: datetime | None,
+    end: datetime | None,
+    lines: int,
+    grep: str | None,
+) -> str:
+    paths = rotated_log_paths(directory, stem)
+    if not paths:
+        return f"(missing {directory / f'{stem}.log'})"
+    collected: list[tuple[datetime, int, str]] = []
+    for path in paths:
+        try:
+            text = _read_log_text(path)
+        except OSError as exc:
+            return f"(cannot read {path}: {exc})"
+        for line in text.splitlines():
+            match = LINE_STAMP_RE.match(line)
+            if match is None:
+                continue
+            stamp = datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S")
+            if start is not None and stamp < start:
+                continue
+            if end is not None and stamp >= end:
+                continue
+            collected.append((stamp, len(collected), line))
+    collected.sort()
+    rows = _filter_grep([line for _, _, line in collected], grep)
+    return _format_tail(rows, lines)
+
+
+def _live_batch_logs(job: str | None, lines: int, grep: str | None) -> str:
     if job is not None:
         return tail_grep(pick_log(f"{job}.log"), lines, grep)
     paths = batch_log_files()
     if len(paths) == 1 and paths[0].name == "batch.log":
         return tail_grep(paths[0], lines, grep)
     return "\n\n".join(f"=== {path.name} ===\n{tail_grep(path, lines, grep)}" for path in paths)
+
+
+def tool_batch_logs(args: dict[str, Any]) -> str:
+    lines = clamp_lines(args.get("lines"))
+    grep = parse_grep(args.get("grep"))
+    job = parse_batch_job(args.get("job"))
+    start, end = parse_batch_window(args)
+    if start is None and end is None:
+        return _live_batch_logs(job, lines, grep)
+    if job is not None:
+        return _windowed_text(job_log_dir(job), job, start, end, lines, grep)
+    paths = batch_log_files()
+    parts = [
+        f"=== {path.name} ===\n{_windowed_text(path.parent, path.stem, start, end, lines, grep)}"
+        for path in paths
+    ]
+    return "\n\n".join(parts)
 
 
 def tool_nginx_logs(args: dict[str, Any]) -> str:
@@ -771,13 +962,27 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_app_logs,
     ),
     "batch_logs": (
-        "cron の /var/log/app/<ジョブ>.log 末尾。job はスクリプト名（例: tdnet_monthly_r2）。省略時は stock-analyzer.log と mcp.log 以外（古い batch.log を含む）。",
+        (
+            "cron の /var/log/app/<ジョブ>.log。"
+            f"job は crontab のスクリプト名（{', '.join(sorted(BATCH_JOBS))}）。"
+            "一覧に無い名前とパスは拒否。"
+            "省略時は stock-analyzer.log と mcp.log 以外の live ファイル（古い batch.log を含む）。"
+            "since / until は 1h / 30m / today / yesterday / YYYY-MM-DD。"
+            "until はその時刻を含まない。昨日は since=yesterday と until=today。"
+            "指定時は .1 と .gz も読み、行頭の JST YYYY-MM-DD HH:MM:SS で絞る。"
+            "lines は 1-500。超えた分は末尾だけ返すので since / until を狭める。"
+        ),
         {
             "type": "object",
             "properties": {
-                "job": {"type": "string", "description": "script stem without .py, e.g. tdnet_monthly_r2"},
+                "job": {"type": "string", "description": "crontab script stem without .py, e.g. xbrl_parse"},
+                "since": {"type": "string", "description": "1h, 30m, today, yesterday, or YYYY-MM-DD. Inclusive."},
+                "until": {
+                    "type": "string",
+                    "description": "Same forms as since. Exclusive. Yesterday is since=yesterday until=today.",
+                },
                 "grep": {"type": "string", "description": "regex or substring, max 120 chars"},
-                "lines": {"type": "integer", "description": "1-500, default 200"},
+                "lines": {"type": "integer", "description": "1-500, default 200. Narrow since/until past 500."},
             },
         },
         tool_batch_logs,
