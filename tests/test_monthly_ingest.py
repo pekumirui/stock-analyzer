@@ -38,6 +38,9 @@ from app.monthly_ingest import (  # noqa: E402
     same_yoy_element,
     uncovered_yoy_number_twins,
     union_monthly_elements,
+    _alias_unit,
+    _row_channel_rank,
+    _row_country_rank,
 )
 
 GIFT_MONTHS = [11, 12, 1, 2, 3, 4, 5, 6, 7]
@@ -84,6 +87,33 @@ def _expect_ingest_error(fn, code: str, needle: str | None = None) -> MonthlyIng
         return exc
     _fail(f"expected {code}")
     raise AssertionError  # unreachable
+
+
+def test_alias_unit_and_row_ranks() -> None:
+    if _alias_unit("全店 売上高(前年比)") != "yoy_index":
+        _fail("ascii 前年比 unit")
+    if _alias_unit("全店 売上高（前年比）") != "yoy_index":
+        _fail("fullwidth 前年比 unit")
+    if _alias_unit("売上高前年比") != "yoy_index":
+        _fail("suffix-less 前年比 unit")
+    if _alias_unit("店舗数") != "number":
+        _fail("count row stays number")
+    if _row_country_rank("売上高") != 0:
+        _fail(f"no country: {_row_country_rank('売上高')}")
+    if _row_country_rank("日本 売上高") != 1:
+        _fail(f"日本: {_row_country_rank('日本 売上高')}")
+    if _row_country_rank("海外 売上高") != 2:
+        _fail(f"海外: {_row_country_rank('海外 売上高')}")
+    if _row_country_rank("国内 売上高") != 1:
+        _fail("国内 maps to 日本")
+    if _row_channel_rank("直営+FC 売上高") != 0:
+        _fail("直営+FC channel")
+    if _row_channel_rank("直営 売上高") != 1:
+        _fail("直営 channel")
+    if _row_channel_rank("FC 売上高") != 2:
+        _fail("FC channel")
+    if _row_channel_rank("売上高") != 3:
+        _fail("empty channel")
 
 
 def test_canonicalize_element_label() -> None:
@@ -2360,6 +2390,7 @@ def test_monthly_element_label() -> None:
 
 def main() -> None:
     test_canonicalize_element_label()
+    test_alias_unit_and_row_ranks()
     test_monthly_element_label()
     test_issuer_alias_cases()
     test_mapping_examples()

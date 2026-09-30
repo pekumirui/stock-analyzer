@@ -16,7 +16,7 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app.api import ApiError, _parse_code  # noqa: E402
+from app.api import ApiError, _apply_incoming_unit, _parse_code  # noqa: E402
 from app.main import app  # noqa: E402
 from app.monthly_ingest import (  # noqa: E402
     MONTHLY_DISPLAY_UNITS,
@@ -52,6 +52,85 @@ def _spa_source() -> str:
 
 def _fail(msg: str) -> None:
     raise SystemExit(msg)
+
+
+def test_apply_incoming_unit_conflict_and_force() -> None:
+    from app.models import MonthlyElement
+
+    row = MonthlyElement(code="72030", year=2026, element="売上高", sort_order=1, unit="number")
+    _apply_incoming_unit(row, "number", False)
+    if row.unit != "number":
+        _fail(f"same unit must no-op: {row.unit!r}")
+    try:
+        _apply_incoming_unit(row, "yoy_index", False)
+    except ApiError as exc:
+        if exc.status != 409 or exc.payload["error"]["code"] != "UNIT_CONFLICT":
+            _fail(f"conflict: {exc.status} {exc.payload!r}")
+        extra = exc.payload["error"]
+        if extra.get("existing") != "number" or extra.get("incoming") != "yoy_index":
+            _fail(f"conflict extra: {extra!r}")
+    else:
+        _fail("unit mismatch without force must 409")
+    _apply_incoming_unit(row, "yoy_index", True)
+    if row.unit != "yoy_index":
+        _fail(f"force must overwrite unit: {row.unit!r}")
+
+
+def test_fold_same_yoy_element_renames_short_name() -> None:
+    from app.db import SessionLocal, fold_same_yoy_element, init_db
+    from app.models import MonthlyElement, MonthlyTable, MonthlyValue
+
+    # Isolated year so later 72030/2026 API cases keep their own rows.
+    code, year = "69810", 1991
+    init_db()
+    db = SessionLocal()
+    try:
+        if db.get(MonthlyTable, (code, year)) is None:
+            db.add(MonthlyTable(code=code, year=year))
+        db.add(MonthlyElement(
+            code=code, year=year, element="売上高前年比",
+            sort_order=1, unit="yoy_index",
+        ))
+        db.add(MonthlyValue(
+            code=code, year=year, element="売上高前年比", month=4, value=105.0,
+        ))
+        db.commit()
+        if fold_same_yoy_element(db, code, year, "店舗数", "number") is not None:
+            _fail("unrelated number row must not fold")
+        got = fold_same_yoy_element(db, code, year, "売上高(前年比)", "yoy_index")
+        if got is None or got.element != "売上高(前年比)" or got.unit != "yoy_index":
+            _fail(f"fold target: {got!r}")
+        db.commit()
+        if db.get(MonthlyElement, (code, year, "売上高前年比")) is not None:
+            _fail("short yoy name must be folded away")
+        val = db.get(MonthlyValue, (code, year, "売上高(前年比)", 4))
+        if val is None or float(val.value) != 105.0:
+            _fail(f"folded value: {val!r}")
+        db.query(MonthlyValue).filter_by(code=code, year=year).delete()
+        db.query(MonthlyElement).filter_by(code=code, year=year).delete()
+        tbl = db.get(MonthlyTable, (code, year))
+        if tbl is not None:
+            db.delete(tbl)
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_missing_columns_reports_dropped_stock_col() -> None:
+    from sqlalchemy import text
+
+    from app.db import engine, init_db, missing_columns
+
+    init_db()
+    if missing_columns():
+        _fail(f"fresh db must have no missing columns: {missing_columns()}")
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE stocks DROP COLUMN product_category"))
+    got = missing_columns()
+    if got.get("stocks") != ["product_category"]:
+        _fail(f"missing_columns after drop: {got}")
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE stocks ADD COLUMN product_category VARCHAR(64)"))
 
 
 def _assert_calendar_values(vals: dict, present: dict[str, float], label: str) -> None:
@@ -317,6 +396,9 @@ def main() -> None:
             _fail(f"invalid unit: {exc.status} {exc.code}")
     else:
         _fail("invalid unit should 400")
+    test_apply_incoming_unit_conflict_and_force()
+    test_fold_same_yoy_element_renames_short_name()
+    test_missing_columns_reports_dropped_stock_col()
     _assert_monthly_year_window()
     _assert_monthly_year_color_stable()
     _assert_union_collapses_yoy_display_names()
