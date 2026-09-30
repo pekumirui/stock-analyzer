@@ -663,23 +663,16 @@ def _strip_fy_caption(text: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
-def _is_caption_cell(text: str) -> bool:
-    s = unicodedata.normalize("NFKC", text or "").strip()
-    s = re.sub(r"^※\s*", "", s)
-    if not (_FY_CAPTION_RE.search(s) or _FY_YEAR_RE.search(s) or "月期" in s):
-        return False
-    return _strip_fy_caption(s) == ""
-
-
 def _label_from_cell(text: str) -> str:
     """FY キャプションを剥がしたラベル。キャプション以外は原文のまま（NFKC しない）。"""
     raw = (text or "").strip()
-    if not raw or _is_caption_cell(raw):
+    if not raw:
         return ""
     nfkc = unicodedata.normalize("NFKC", raw)
     nfkc_bare = re.sub(r"^※\s*", "", nfkc).strip()
     if _FY_CAPTION_RE.search(nfkc_bare) or _FY_YEAR_RE.search(nfkc_bare):
-        return _strip_fy_caption(raw)
+        # `※※2026年3月期` のように ※ が重なるキャプションも空にする
+        return _strip_fy_caption(raw) if _strip_fy_caption(nfkc_bare) else ""
     return raw
 
 
