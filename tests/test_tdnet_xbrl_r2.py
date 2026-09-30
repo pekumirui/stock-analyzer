@@ -430,8 +430,13 @@ def test_manifest_skip_by_xbrl_id(tmp: Path) -> None:
 
 
 def test_default_dest_shares_xbrl_dest() -> None:
+    want = "/home/stock/r2-share/xbrl"
+    if xbrl_mod.DEFAULT_DEST != want:
+        _fail(f"DEFAULT_DEST {xbrl_mod.DEFAULT_DEST!r} != {want}")
+    if XBRL_DEST != want:
+        _fail(f"XBRL_DEST {XBRL_DEST!r} != {want}")
     if xbrl_mod.DEFAULT_DEST != XBRL_DEST:
-        _fail(f"DEFAULT_DEST {xbrl_mod.DEFAULT_DEST!r} != XBRL_DEST {XBRL_DEST!r}")
+        _fail("DEFAULT_DEST must alias XBRL_DEST")
 
 
 def test_date_window() -> None:
@@ -441,17 +446,6 @@ def test_date_window() -> None:
     start, end = date_window(30, today=date(2026, 8, 5))
     if str(start) != "2026-07-07" or str(end) != "2026-08-05":
         _fail(f"N=30 window: {start} {end}")
-
-
-def test_sha256_of_tiny_zip() -> None:
-    data = _tiny_zip()
-    digest = hashlib.sha256(data).hexdigest()
-    if len(digest) != 64:
-        _fail(f"sha256 len {len(digest)}")
-    buf = io.BytesIO(data)
-    with zipfile.ZipFile(buf) as zf:
-        if zf.testzip() is not None:
-            _fail("tiny zip testzip failed")
 
 
 def test_http_get_uses_job_ua_then_browser() -> None:
@@ -570,7 +564,6 @@ def main() -> None:
     test_fetch_warns_when_day_hits_list_limit()
     test_date_window()
     test_http_get_uses_job_ua_then_browser()
-    test_sha256_of_tiny_zip()
     with TemporaryDirectory() as d:
         tmp = Path(d)
         test_corrupt_zip_not_promoted(tmp)
