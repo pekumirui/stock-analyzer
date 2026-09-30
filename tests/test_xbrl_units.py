@@ -13,13 +13,13 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "jobs"))
 sys.path.insert(0, str(ROOT / "tools"))
 
-os.environ.setdefault("DATABASE_URL", f"sqlite:///{tempfile.mkdtemp(prefix='xbrl-units-')}/stock.db")
+# ci_smoke から呼ばれても自分の空 DB を使う（setdefault だと test_xbrl_parse の行が残った DB を共有する）
+os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.mkdtemp(prefix='xbrl-units-')}/stock.db"
 
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.models import XbrlFiling, XbrlJobRun  # noqa: E402
 from app.xbrl.context import (  # noqa: E402
     ParsedContext,
-    _parse_iso_date_text,
     fiscal_year_end_from_dei,
     fiscal_year_end_from_duration_contexts,
     fiscal_year_end_from_pl_contexts,
@@ -27,11 +27,10 @@ from app.xbrl.context import (  # noqa: E402
 )
 from app.xbrl.jobs import finish_run, report_unmapped, start_run  # noqa: E402
 from app.xbrl.normalize import _dims, rebuild_all  # noqa: E402
-from app.xbrl.parser import _scale_int, find_manifest, namespace_is_standard, package_meta  # noqa: E402
+from app.xbrl.parser import find_manifest, namespace_is_standard, package_meta  # noqa: E402
 from app.xbrl.store import mark_failed  # noqa: E402
 import fetch_xbrl_golden as fetch_mod  # noqa: E402
 import xbrl_match_rate as mr  # noqa: E402
-import xbrl_parse as parse_job  # noqa: E402
 
 
 def _fail(msg: object) -> None:
@@ -76,17 +75,15 @@ def test_parsed_context_dimensions() -> None:
 
 
 def test_fy_end_fallback_order() -> None:
-    if _parse_iso_date_text("2026-03-31") != date(2026, 3, 31):
-        _fail("iso date")
-    if _parse_iso_date_text("2026年3月31日") is not None:
-        _fail("japanese date")
-    if _parse_iso_date_text(None) is not None or _parse_iso_date_text("") is not None:
-        _fail("empty date")
-    dei = SimpleNamespace(
-        local_name="CurrentPeriodEndDateDEI", value_text="2026-06-30", value_num=None,
-    )
+    def dei_fact(text: str | None) -> SimpleNamespace:
+        return SimpleNamespace(local_name="CurrentPeriodEndDateDEI", value_text=text, value_num=None)
+
+    dei = dei_fact("2026-06-30")
     if fiscal_year_end_from_dei([dei]) != date(2026, 6, 30):
         _fail("dei")
+    for bad in ("2026年6月30日", "", None):
+        if fiscal_year_end_from_dei([dei_fact(bad)]) is not None:
+            _fail(f"DEI {bad!r} is not an ISO date")
     if fiscal_year_end_from_dei([]) is not None:
         _fail("dei empty")
     duration = _ctx("dur", end=date(2026, 9, 30))
@@ -122,8 +119,6 @@ def test_fy_end_fallback_order() -> None:
 
 
 def test_parser_helpers(tmp: Path) -> None:
-    if _scale_int("6") != 6 or _scale_int("") is not None or _scale_int("x") is not None:
-        _fail("scale")
     if not namespace_is_standard("jppfs_cor") or namespace_is_standard("custom"):
         _fail("namespace")
     if find_manifest(tmp) is not None:
@@ -170,8 +165,6 @@ def test_jobs_store_and_normalize() -> None:
             _fail("bad dims")
         if _dims('{"a": "b"}') != {"a": "b"}:
             _fail(_dims('{"a": "b"}'))
-        if parse_job._d("2026-09-01") != date(2026, 9, 1) or parse_job._d(None) is not None:
-            _fail("job _d")
     finally:
         db.close()
 

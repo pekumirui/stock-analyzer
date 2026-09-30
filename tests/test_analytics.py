@@ -34,8 +34,6 @@ from app.analytics import (  # noqa: E402
     single_from,
     single_metrics,
     statement_history,
-    _month_end,
-    _row,
 )
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.ingest import upsert  # noqa: E402
@@ -115,13 +113,11 @@ def test_shift_year_and_labels() -> None:
         _fail("FY label")
     if period_label(FY26, "FY", quarterly=True) != "FY26.3_4Q":
         _fail("FY quarterly label")
-    if _month_end(2026, 2) != date(2026, 2, 28):
-        _fail("feb")
-    if _month_end(2026, 12) != date(2026, 12, 31):
-        _fail("dec")
     span = calendar_span(FY26, "1Q")
     if span != (date(2025, 4, 1), date(2025, 6, 30)):
         _fail(f"1Q span {span}")
+    if calendar_span(date(2026, 5, 31), "3Q") != (date(2025, 12, 1), date(2026, 2, 28)):
+        _fail(f"span ending in February: {calendar_span(date(2026, 5, 31), '3Q')}")
     if calendar_span(FY26, "5Q") is not None:
         _fail("5Q span")
     if calendar_label(FY26, "2Q", quarterly=True) != "25.07-09":
@@ -203,9 +199,6 @@ def test_disclosure_and_rows() -> None:
         _fail("restated")
     if disclosure_state(hist2, dup) != "duplicate":
         _fail("duplicate")
-    row = _row(FY26, "2Q", "actual", {"net_sales": 250}, None, disclosed=date(2025, 11, 1))
-    if row["kind"] != "actual" or row["label"] != "FY26.3_2Q":
-        _fail(row)
     cum = cumulative_rows(hist, q2, 2, TOL)
     kinds = [r["kind"] for r in cum]
     if "actual_current" not in kinds:
@@ -216,9 +209,15 @@ def test_disclosure_and_rows() -> None:
     if cur["growth"]["net_sales"]["pct"] != 38.9:
         _fail(cur["growth"])
     qtr = quarterly_rows(hist, q2, 4, TOL)
-    sales = [r["values"]["net_sales"] for r in qtr]
-    if 150 not in sales or 100 not in sales:
-        _fail(f"quarterly singles {sales}")
+    got = [(r["label"], r["values"]["net_sales"], (r["growth"] or {}).get("net_sales")) for r in qtr]
+    # 直近 4 四半期の単独値。前年同期がある 1Q / 2Q だけ前年比が付く
+    if got != [
+        ("FY25.3_3Q", 90, None),
+        ("FY25.3_4Q", 90, None),
+        ("FY26.3_1Q", 100, {"pct": 25.0, "state": "up"}),
+        ("FY26.3_2Q", 150, {"pct": 50.0, "state": "up"}),
+    ]:
+        _fail(f"quarterly singles {got}")
 
 
 def _seed() -> None:
@@ -296,11 +295,15 @@ def test_earnings_api() -> None:
     q2 = next(row for row in body["quarterly"] if row["label"] == "FY26.3_2Q")
     if q2["values"]["net_sales"] != 150:
         _fail(q2)
-    r = c.get(f"/api/earnings/detail/{CODE}", params={"disclosure_no": "missing"})
-    if r.status_code != 404:
-        # missing no falls back to latest actual
-        if r.status_code != 200:
-            _fail(f"missing no {r.status_code}")
+    # 無い disclosure_no と指定なしは最新の実績、date はその日の開示
+    for params, want in (
+        ({"disclosure_no": "missing"}, "cfy"),
+        ({}, "cfy"),
+        ({"date": "2025-11-01"}, "c2q"),
+    ):
+        r = c.get(f"/api/earnings/detail/{CODE}", params=params)
+        if r.status_code != 200 or r.json()["disclosure_no"] != want:
+            _fail(f"detail {params}: {r.status_code} {r.text[:200]}")
     r = c.get("/api/earnings/detail/99990")
     if r.status_code != 404:
         _fail(f"unknown code {r.status_code}")
@@ -309,8 +312,12 @@ def test_earnings_api() -> None:
         _fail(f"perf {r.status_code} {r.text}")
     perf = r.json()
     hit = next((e for e in perf if e["disclosed_date"] == "2025-11-01"), None)
-    if hit is None or hit["return_1d"] is None:
-        _fail(perf)
+    want = round((1003 / 1002 - 1) * 100, 2)
+    # TOPIX は横ばいなので alpha はリターンと同じ
+    if hit is None or hit["return_1d"] != want or hit["alpha_1d"] != want:
+        _fail(f"perf 2025-11-01: {hit}")
+    if [e["disclosed_date"] for e in perf] != sorted((e["disclosed_date"] for e in perf), reverse=True):
+        _fail("performance must be newest first")
 
 
 def main() -> None:

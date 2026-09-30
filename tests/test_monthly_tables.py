@@ -116,21 +116,34 @@ def test_fold_same_yoy_element_renames_short_name() -> None:
         db.close()
 
 
-def test_missing_columns_reports_dropped_stock_col() -> None:
+def test_migrate_restores_dropped_columns() -> None:
     from sqlalchemy import text
 
-    from app.db import engine, init_db, missing_columns
+    from app.db import engine, init_db, migrate_add_columns, missing_columns
 
     init_db()
     if missing_columns():
         _fail(f"fresh db must have no missing columns: {missing_columns()}")
     with engine.begin() as conn:
         conn.execute(text("ALTER TABLE stocks DROP COLUMN product_category"))
+        conn.execute(text("ALTER TABLE monthly_elements DROP COLUMN unit"))
     got = missing_columns()
-    if got.get("stocks") != ["product_category"]:
+    if got != {"stocks": ["product_category"], "monthly_elements": ["unit"]}:
         _fail(f"missing_columns after drop: {got}")
+    if migrate_add_columns(verbose=False) != 2 or missing_columns():
+        _fail(f"migrate must add both columns back: {missing_columns()}")
+    # NOT NULL 列は server_default ごと戻らないと INSERT できない
     with engine.begin() as conn:
-        conn.execute(text("ALTER TABLE stocks ADD COLUMN product_category VARCHAR(64)"))
+        conn.execute(text(
+            "INSERT INTO monthly_elements (code, year, element, sort_order) "
+            "VALUES ('69810', 1990, 'migrate-probe', 1)"
+        ))
+        unit = conn.execute(text(
+            "SELECT unit FROM monthly_elements WHERE element = 'migrate-probe'"
+        )).scalar()
+        conn.execute(text("DELETE FROM monthly_elements WHERE element = 'migrate-probe'"))
+    if unit != "number":
+        _fail(f"restored unit column default: {unit!r}")
 
 
 def _assert_calendar_values(vals: dict, present: dict[str, float], label: str) -> None:
@@ -398,7 +411,7 @@ def main() -> None:
         _fail("invalid unit should 400")
     test_apply_incoming_unit_conflict_and_force()
     test_fold_same_yoy_element_renames_short_name()
-    test_missing_columns_reports_dropped_stock_col()
+    test_migrate_restores_dropped_columns()
     _assert_monthly_year_window()
     _assert_monthly_year_color_stable()
     _assert_union_collapses_yoy_display_names()

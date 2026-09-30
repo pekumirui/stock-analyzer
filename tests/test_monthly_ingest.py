@@ -1,6 +1,7 @@
 """月次 ingest: PDF列順→暦年の純関数と API。手元の stock.db は触らない。"""
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -21,6 +22,7 @@ from app.monthly_ingest import (  # noqa: E402
     apply_issuer_aliases,
     canonicalize_element_label,
     format_monthly_cell,
+    load_issuer_aliases,
     map_pdf_columns,
     monthly_breakdown_depth,
     monthly_element_label,
@@ -38,9 +40,6 @@ from app.monthly_ingest import (  # noqa: E402
     same_yoy_element,
     uncovered_yoy_number_twins,
     union_monthly_elements,
-    _alias_unit,
-    _row_channel_rank,
-    _row_country_rank,
 )
 
 GIFT_MONTHS = [11, 12, 1, 2, 3, 4, 5, 6, 7]
@@ -89,31 +88,32 @@ def _expect_ingest_error(fn, code: str, needle: str | None = None) -> MonthlyIng
     raise AssertionError  # unreachable
 
 
-def test_alias_unit_and_row_ranks() -> None:
-    if _alias_unit("全店 売上高(前年比)") != "yoy_index":
-        _fail("ascii 前年比 unit")
-    if _alias_unit("全店 売上高（前年比）") != "yoy_index":
-        _fail("fullwidth 前年比 unit")
-    if _alias_unit("売上高前年比") != "yoy_index":
-        _fail("suffix-less 前年比 unit")
-    if _alias_unit("店舗数") != "number":
-        _fail("count row stays number")
-    if _row_country_rank("売上高") != 0:
-        _fail(f"no country: {_row_country_rank('売上高')}")
-    if _row_country_rank("日本 売上高") != 1:
-        _fail(f"日本: {_row_country_rank('日本 売上高')}")
-    if _row_country_rank("海外 売上高") != 2:
-        _fail(f"海外: {_row_country_rank('海外 売上高')}")
-    if _row_country_rank("国内 売上高") != 1:
-        _fail("国内 maps to 日本")
-    if _row_channel_rank("直営+FC 売上高") != 0:
-        _fail("直営+FC channel")
-    if _row_channel_rank("直営 売上高") != 1:
-        _fail("直営 channel")
-    if _row_channel_rank("FC 売上高") != 2:
-        _fail("FC channel")
-    if _row_channel_rank("売上高") != 3:
-        _fail("empty channel")
+def test_alias_rename_takes_unit_from_names(tmp: Path) -> None:
+    path = tmp / "issuer_aliases.json"
+    path.write_text(json.dumps({"99990": [{
+        "until": "2027-01-01",
+        "rename": {"売上高前年比": "全店 売上高", "客数": "全店 客数"},
+    }]}, ensure_ascii=False), encoding="utf-8")
+    rule = load_issuer_aliases(path)["99990"][0]
+    if rule.until != date(2027, 1, 1):
+        _fail(f"until {rule.until}")
+    # 片方だけ前年比でも両側を yoy の表示名にそろえる。実数行は接尾辞を付けない
+    if rule.rename != {"売上高(前年比)": "全店 売上高(前年比)", "客数": "全店 客数"}:
+        _fail(f"alias rename {rule.rename}")
+
+
+def test_union_orders_country_then_channel() -> None:
+    def order(names: list[str]) -> list[str]:
+        table = {"code": "99990", "year": 2026,
+                 "elements": [{"element": n, "unit": "yoy_index"} for n in names]}
+        return [row["element"] for row in union_monthly_elements([table])]
+
+    got = order(["海外 全店 売上高(前年比)", "国内 全店 売上高(前年比)", "全店 売上高(前年比)"])
+    if got != ["全店 売上高(前年比)", "日本 全店 売上高(前年比)", "海外 全店 売上高(前年比)"]:
+        _fail(f"country order (none → 日本 → 海外): {got}")
+    got = order(["FC 売上高(前年比)", "直営 売上高(前年比)", "直営+FC 売上高(前年比)"])
+    if got != ["直営+FC 売上高(前年比)", "直営 売上高(前年比)", "FC 売上高(前年比)"]:
+        _fail(f"channel order (直営+FC → 直営 → FC): {got}")
 
 
 def test_canonicalize_element_label() -> None:
@@ -2390,7 +2390,9 @@ def test_monthly_element_label() -> None:
 
 def main() -> None:
     test_canonicalize_element_label()
-    test_alias_unit_and_row_ranks()
+    test_union_orders_country_then_channel()
+    with tempfile.TemporaryDirectory() as d:
+        test_alias_rename_takes_unit_from_names(Path(d))
     test_monthly_element_label()
     test_issuer_alias_cases()
     test_mapping_examples()

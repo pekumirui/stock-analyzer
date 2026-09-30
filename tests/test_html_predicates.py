@@ -1,4 +1,4 @@
-"""HTML 月次の判定関数。True 側と否定側をリテラルで検査する。"""
+"""HTML 月次の判定分岐。parse の結果で見る。実ページが要る表選択・結合だけ内部関数を直接呼ぶ。"""
 from __future__ import annotations
 
 import sys
@@ -21,19 +21,14 @@ from html_issuers._page import _store_event as page_store_event  # noqa: E402
 from html_issuers.i8278 import _count_only as fuji_count_only  # noqa: E402
 from html_issuers.i8278 import _store_event as fuji_store_event  # noqa: E402
 from html_issuers.i9989 import _CaptionParser, _plain, _table_captions  # noqa: E402
-from html_monthly import (  # noqa: E402
-    _is_caption_cell,
-    _is_count_metric,
-    _is_pre_merger_reference_section,
-    unit_mark_context,
-)
+from html_monthly import parse_grid, unit_mark_context  # noqa: E402
 
 SALES_HTML = """
-<p>2026年5月度 月次</p>
+<p>2026年5月度 月次売上高（前年同月比）</p>
 <table>
 <tr><th></th><th>4月</th><th>5月</th><th>6月</th></tr>
-<tr><td>全店 売上高</td><td>1.2%</td><td>2.3%</td><td>3.4%</td></tr>
-<tr><td>既存店 売上高</td><td>0.5%</td><td>1.1%</td><td>1.8%</td></tr>
+<tr><td>全店 売上高</td><td>101.2%</td><td>102.3%</td><td>103.4%</td></tr>
+<tr><td>既存店 売上高</td><td>100.5%</td><td>101.1%</td><td>101.8%</td></tr>
 </table>
 """
 
@@ -42,25 +37,61 @@ def _fail(msg: object) -> None:
     raise SystemExit(str(msg))
 
 
-def test_caption_and_count_and_merger() -> None:
-    if not _is_caption_cell("2026年3月期"):
-        _fail("fy caption")
-    if not _is_caption_cell("2026年度"):
-        _fail("fy year caption")
-    if _is_caption_cell("売上高"):
-        _fail("metric is not a caption")
-    if _is_caption_cell("2026年3月期 売上高"):
-        _fail("caption plus leftover label")
-    if not _is_count_metric("店舗数"):
-        _fail("店舗数 is a count")
-    if not _is_count_metric("増加(店)"):
-        _fail("store delta is a count")
-    if _is_count_metric("売上高"):
-        _fail("売上高 is not a count")
-    if not _is_pre_merger_reference_section("経営統合前の参考"):
-        _fail("pre-merger heading")
-    if _is_pre_merger_reference_section("月次営業速報"):
-        _fail("normal heading")
+def test_fy_caption_cells_are_not_labels() -> None:
+    head = ["", "", "4月", "5月", "6月"]
+    beside = parse_grid([
+        head,
+        ["2026年3月期", "全店 売上高", "101.2%", "99.8%", "100.0%"],
+        ["2026年3月期", "既存店 売上高", "100.1%", "98.7%", "99.0%"],
+    ])
+    own_row = parse_grid([
+        head[1:],
+        ["2026年度", "", "", ""],
+        ["全店 売上高", "101.2%", "99.8%", "100.0%"],
+    ])
+    for name, got, want in (
+        ("caption column", beside, ["全店 売上高", "既存店 売上高"]),
+        ("caption row", own_row, ["全店 売上高"]),
+    ):
+        els = [r["element"] for r in (got or {}).get("rows") or []]
+        if els != want:
+            _fail(f"{name}: {els}")
+    if beside["rows"][0]["values"] != {"4": 101.2, "5": 99.8, "6": 100}:
+        _fail(f"caption column values: {beside['rows'][0]}")
+
+
+def test_count_rows_ignore_page_yoy_context() -> None:
+    got = parse_grid(
+        [
+            ["", "4月", "5月", "6月"],
+            ["全店", "101.2", "99.8", "100.0"],
+            ["店舗数", "120", "121", "122"],
+            ["営業所", "30", "30", "31"],
+            ["店数", "120", "121", "122"],
+        ],
+        context="月次売上高 前年同月比",
+    )
+    rows = {r["element"]: r["unit"] for r in (got or {}).get("rows") or []}
+    if rows != {"全店 売上高前年同月比": "yoy_index", "店舗数": "number", "営業所": "number", "店数": "number"}:
+        _fail(f"count rows must keep their name and stay number: {rows}")
+
+
+def test_pre_merger_reference_table_is_not_picked() -> None:
+    def table(a: str, b: str, c: str) -> str:
+        return (
+            "<table><tr><th></th><th>4月</th><th>5月</th><th>6月</th></tr>"
+            f"<tr><td>全店 売上高</td><td>{a}%</td><td>{b}%</td><td>{c}%</td></tr></table>"
+        )
+
+    # 見出しは表の直前 160 字で見る。前の表の見出しが混ざらないよう間を空ける。
+    pad = "<p>" + "月次の数値は速報値です。" * 20 + "</p>"
+    html = (
+        f"<h3>経営統合前の参考</h3>{table('555.5', '666.6', '777.7')}{pad}"
+        f"<h3>月次売上高</h3>{table('101.2', '99.8', '100.0')}"
+    )
+    got = i3028.parse(html, as_of="2026-06-30")
+    if [r["values"] for r in got["rows"]] != [{"4": 101.2, "5": 99.8, "6": 100}]:
+        _fail(f"pre-merger reference table was picked: {got['rows']}")
 
 
 def test_unit_mark_context() -> None:
@@ -160,14 +191,14 @@ def test_caption_parser_and_plain() -> None:
 
 
 def test_page_parsers_read_sales_table() -> None:
+    want = [
+        {"element": "全店 売上高", "unit": "yoy_index", "values": {"4": 101.2, "5": 102.3, "6": 103.4}},
+        {"element": "既存店 売上高", "unit": "yoy_index", "values": {"4": 100.5, "5": 101.1, "6": 101.8}},
+    ]
     for mod in (i3028, i3222, i7416, i8011, i8194):
         got = mod.parse(SALES_HTML, as_of="2026-05-31")
-        els = [r["element"] for r in got.get("rows") or []]
-        blob = "\n".join(els)
-        if "売上高" not in blob:
-            _fail(f"{mod.__name__} rows: {els}")
-        if not got.get("months"):
-            _fail(f"{mod.__name__} months: {got}")
+        if got.get("months") != [4, 5, 6] or got.get("rows") != want:
+            _fail(f"{mod.__name__}: {got}")
         try:
             mod.parse("<p>no table</p>")
         except ValueError:
@@ -177,7 +208,9 @@ def test_page_parsers_read_sales_table() -> None:
 
 
 def main() -> None:
-    test_caption_and_count_and_merger()
+    test_fy_caption_cells_are_not_labels()
+    test_count_rows_ignore_page_yoy_context()
+    test_pre_merger_reference_table_is_not_picked()
     test_unit_mark_context()
     test_store_event_and_count_only()
     test_merge_companion_rows()
