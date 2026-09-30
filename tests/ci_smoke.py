@@ -99,6 +99,7 @@ SUITES = (
     "test_alert_patterns.py",
     "test_html_predicates.py",
     "test_analytics.py",
+    "test_jquants.py",
 )
 
 
