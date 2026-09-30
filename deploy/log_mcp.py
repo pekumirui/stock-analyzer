@@ -76,6 +76,8 @@ ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$")
 SHORT_SINCE_RE = re.compile(r"^(\d+)([smhd])$", re.I)
 # 先頭・末尾は数字、途中は 0-9A-Z。4桁は末尾0で 5桁正規形 (9279→92790, 262A→262A0)。
 CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
+JOB_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+BATCH_LOG_SKIP = frozenset({"stock-analyzer.log", "mcp.log"})
 YEAR_RE = re.compile(r"^\d{4}$")
 DB_TABLES = ("stocks", "daily_prices", "topix", "statements", "indicators", "earnings_events")
 DEFAULT_APP_HTTP = "http://127.0.0.1:8000"
@@ -266,10 +268,44 @@ def tool_app_logs(args: dict[str, Any]) -> str:
     return f"=== {path} ===\n{file_out}\n\n=== journal stock-analyzer since {since} ===\n{journal_out}"
 
 
+def parse_batch_job(raw: Any) -> str | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, str):
+        raise ValueError("job must be a script stem (e.g. tdnet_monthly_r2)")
+    name = raw.strip()
+    if not name:
+        return None
+    if name in {"stock-analyzer", "mcp"} or JOB_NAME_RE.fullmatch(name) is None:
+        raise ValueError("job must be a script stem (e.g. tdnet_monthly_r2)")
+    return name
+
+
+def batch_log_files() -> list[Path]:
+    """Job logs next to batch.log. App and MCP logs stay on their own tools."""
+    primary = pick_log("batch.log")
+    directory = primary.parent
+    found: list[Path] = []
+    if directory.is_dir():
+        for path in sorted(directory.glob("*.log")):
+            if not path.is_file() or path.name in BATCH_LOG_SKIP:
+                continue
+            if JOB_NAME_RE.fullmatch(path.stem) is None:
+                continue
+            found.append(path)
+    return found or [primary]
+
+
 def tool_batch_logs(args: dict[str, Any]) -> str:
     lines = clamp_lines(args.get("lines"))
     grep = parse_grep(args.get("grep"))
-    return tail_grep(pick_log("batch.log"), lines, grep)
+    job = parse_batch_job(args.get("job"))
+    if job is not None:
+        return tail_grep(pick_log(f"{job}.log"), lines, grep)
+    paths = batch_log_files()
+    if len(paths) == 1 and paths[0].name == "batch.log":
+        return tail_grep(paths[0], lines, grep)
+    return "\n\n".join(f"=== {path.name} ===\n{tail_grep(path, lines, grep)}" for path in paths)
 
 
 def tool_nginx_logs(args: dict[str, Any]) -> str:
@@ -735,10 +771,11 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_app_logs,
     ),
     "batch_logs": (
-        "日次バッチの /var/log/app/batch.log 末尾。無ければアプリディレクトリの batch.log。",
+        "cron の /var/log/app/<ジョブ>.log 末尾。job はスクリプト名（例: tdnet_monthly_r2）。省略時は stock-analyzer.log と mcp.log 以外（古い batch.log を含む）。",
         {
             "type": "object",
             "properties": {
+                "job": {"type": "string", "description": "script stem without .py, e.g. tdnet_monthly_r2"},
                 "grep": {"type": "string", "description": "regex or substring, max 120 chars"},
                 "lines": {"type": "integer", "description": "1-500, default 200"},
             },

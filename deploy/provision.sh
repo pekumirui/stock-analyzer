@@ -136,6 +136,22 @@ for f in stock-analyzer.log mcp.log batch.log; do
     chmod 640 "$LOG_DIR/$f"
   fi
 done
+# cron-run.sh の出力先。先に空ファイルを作ると fluent-bit が末尾から追える。
+if [[ -f "$APP_DIR/deploy/crontab" ]]; then
+  scripts="$(grep -oE 'jobs/[A-Za-z0-9_]+\.py' "$APP_DIR/deploy/crontab" | sort -u || true)"
+  while IFS= read -r script; do
+    [[ -z "$script" ]] && continue
+    stem="${script##*/}"
+    stem="${stem%.py}"
+    f="$LOG_DIR/$stem.log"
+    if [[ ! -f "$f" ]]; then
+      install -m 640 -o "$STOCK_USER" -g "$STOCK_USER" /dev/null "$f"
+    else
+      chown "$STOCK_USER:$STOCK_USER" "$f"
+      chmod 640 "$f"
+    fi
+  done <<< "$scripts"
+fi
 if [[ -s "$APP_DIR/batch.log" && ! -s "$LOG_DIR/batch.log" ]]; then
   cp "$APP_DIR/batch.log" "$LOG_DIR/batch.log"
   chown "$STOCK_USER:$STOCK_USER" "$LOG_DIR/batch.log"

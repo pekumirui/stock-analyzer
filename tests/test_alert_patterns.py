@@ -1,8 +1,11 @@
 """AlertPattern fixtures: page / do not page. fluent-bit.conf must list each regex."""
 from __future__ import annotations
 
+import os
+import re
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -26,8 +29,9 @@ PAGE: tuple[tuple[str, str], ...] = (
     ("app", 'INFO:     127.0.0.1:43721 - "GET /api/screener HTTP/1.1" 500 Internal Server Error'),
     ("app", "ERROR: Error loading ASGI app. Could not import module \"app.main\"."),
     ("app", "SchemaMismatch: stocks missing column"),
-    ("batch", "fail cron jobs/run_batch.py exit=1"),
-    ("batch", "fail cron cwd exit=1"),
+    ("batch", "2026-09-30 18:00:01 fail cron jobs/run_batch.py exit=1"),
+    ("batch", "2026-09-30 18:00:01 fail cron cwd exit=1"),
+    ("batch", "2026-09-30 18:00:01 tdnet_monthly_r2 done listed=10 saved=1 skipped=0 failed=3"),
     ("batch", "tdnet_monthly_r2 done listed=10 saved=1 skipped=0 failed=3"),
     ("batch", "tdnet_monthly_r2 done listed=10 saved=1 skipped=0 failed=10"),
     ("batch", "parse processed=3 errors=2 skipped=0"),
@@ -64,6 +68,7 @@ NOT_PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "saved xbrl/3032/foo.zip (12 bytes) unknown-stock"),
     ("batch", "tdnet_monthly_r2 done listed=10 saved=1 skipped=9 failed=0"),
     ("batch", "parse processed=3 errors=0 skipped=1"),
+    ("batch", "fail cron jobs/run_batch.py exit=1"),
     ("batch", "fail POST 7203 status=500 boom"),
     ("batch", "fail issuer 1878 fetch: HTTP Error 403: Forbidden"),
     ("batch", "Traceback (most recent call last):"),
@@ -89,6 +94,14 @@ def test_fixtures() -> None:
     for source, line in NOT_PAGE:
         if should_page(source, line):
             _fail(f"must not page {source}: {line!r}")
+
+
+def _section_body(conf: str, header: str, needle: str) -> str:
+    for part in conf.split(header)[1:]:
+        body = part.split("[", 1)[0]
+        if needle in body:
+            return body
+    return ""
 
 
 def _grep_blocks(conf: str) -> list[dict[str, object]]:
@@ -199,10 +212,22 @@ def test_conf_has_registry_regexes() -> None:
             _fail("fluent-bit.conf must not tail nginx access.log")
         if "html_ingest_ledger" in path_val:
             _fail("fluent-bit.conf must not tail html_ingest_ledger.json")
-        if path_val.endswith(".1") or path_val.endswith(".gz") or "*" in path_val:
+        if path_val.endswith(".1") or path_val.endswith(".gz"):
+            _fail(f"fluent-bit.conf must tail live files only: {path_val}")
+        if "*" in path_val and path_val != "/var/log/app/*.log":
             _fail(f"fluent-bit.conf must tail live files only: {path_val}")
     if "/home/stock/stock-analyzer/.env" in conf:
         _fail("fluent-bit.conf must not EnvironmentFile the app .env")
+    batch_in = _section_body(conf, "[INPUT]", "/var/log/app/*.log")
+    if "Path_Key" not in batch_in:
+        _fail("batch tail must record the file path")
+    if "/var/log/app/stock-analyzer.log" not in batch_in or "/var/log/app/mcp.log" not in batch_in:
+        _fail("batch tail must exclude stock-analyzer.log and mcp.log")
+    if "call    source_from_file" not in conf:
+        _fail("fluent-bit.conf must set batch source from the log file name")
+    lua = (ROOT / "deploy" / "fluent-bit_slack.lua").read_text(encoding="utf-8")
+    if "function source_from_file" not in lua or 'record["file"]' not in lua:
+        _fail("fluent-bit_slack.lua must set source from the log file name")
 
 
 def test_no_committed_webhook_url() -> None:
@@ -275,6 +300,12 @@ def test_secret_contract() -> None:
     )
     if not listed.startswith("100755"):
         _fail(f"deploy/cron-run.sh must be executable in git: {listed!r}")
+    for line in crontab.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if ">>" in stripped or "batch.log" in stripped:
+            _fail(f"crontab must not redirect logs: {stripped}")
 
 
 def test_slack_payload_jst_danger() -> None:
@@ -329,12 +360,103 @@ def test_slack_payload_jst_danger() -> None:
         _fail("lua attachment must not mix fallback with blocks")
 
 
+def test_cron_run_splits_and_stamps(tmp_path: Path) -> None:
+    app = tmp_path / "app"
+    logs = tmp_path / "logs"
+    bindir = app / ".venv" / "bin"
+    bindir.mkdir(parents=True)
+    py = bindir / "python"
+    py.write_text(
+        "#!/usr/bin/env python3\n"
+        "import sys\n"
+        "script = next(a for a in sys.argv[1:] if a.endswith('.py'))\n"
+        "print('out ' + script, flush=True)\n"
+        "print('err ' + script, file=sys.stderr, flush=True)\n"
+        "raise SystemExit(3 if '--fail' in sys.argv else 0)\n",
+        encoding="utf-8",
+    )
+    py.chmod(0o755)
+    env = os.environ.copy()
+    env["CRON_APP_DIR"] = str(app)
+    env["CRON_LOG_DIR"] = str(logs)
+    env["TZ"] = "UTC"
+    wrapper = str(ROOT / "deploy" / "cron-run.sh")
+    first = subprocess.Popen(
+        ["bash", wrapper, "jobs/tdnet_monthly_r2.py", "1"],
+        cwd=app,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    second = subprocess.Popen(
+        ["bash", wrapper, "jobs/tdnet_xbrl_r2.py", "1", "--fail"],
+        cwd=app,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    out1, err1 = first.communicate(timeout=30)
+    out2, err2 = second.communicate(timeout=30)
+    if first.returncode != 0:
+        _fail(f"monthly cron-run exit {first.returncode}: {out1!r} {err1!r}")
+    if second.returncode != 3:
+        _fail(f"xbrl cron-run exit {second.returncode}: {out2!r} {err2!r}")
+    if out1 or err1 or out2 or err2:
+        _fail(f"cron-run leaked stdio: {out1!r} {err1!r} {out2!r} {err2!r}")
+    monthly = (logs / "tdnet_monthly_r2.log").read_text(encoding="utf-8")
+    xbrl = (logs / "tdnet_xbrl_r2.log").read_text(encoding="utf-8")
+    if "tdnet_xbrl_r2.py" in monthly or "tdnet_monthly_r2.py" in xbrl:
+        _fail(f"job logs mixed: {monthly!r} {xbrl!r}")
+    jst = timezone(timedelta(hours=9))
+    now = datetime.now(jst)
+    stamp = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ")
+    for text, needle in (
+        (monthly, "out jobs/tdnet_monthly_r2.py"),
+        (monthly, "err jobs/tdnet_monthly_r2.py"),
+        (xbrl, "out jobs/tdnet_xbrl_r2.py"),
+        (xbrl, "err jobs/tdnet_xbrl_r2.py"),
+        (xbrl, "fail cron jobs/tdnet_xbrl_r2.py 1 --fail exit=3"),
+    ):
+        if needle not in text:
+            _fail(f"missing {needle!r} in {text!r}")
+    if "fail cron" in monthly:
+        _fail(f"success log has fail cron: {monthly!r}")
+    for text in (monthly, xbrl):
+        for line in text.splitlines():
+            if stamp.match(line) is None:
+                _fail(f"line missing JST stamp: {line!r}")
+            logged = datetime.strptime(line[:19], "%Y-%m-%d %H:%M:%S").replace(tzinfo=jst)
+            if abs((now - logged).total_seconds()) > 120:
+                _fail(f"stamp is not JST now: {line!r} now={now.isoformat()}")
+    missing = tmp_path / "missing-app"
+    env["CRON_APP_DIR"] = str(missing)
+    bad = subprocess.run(
+        ["bash", wrapper, "jobs/run_batch.py"],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if bad.returncode != 1:
+        _fail(f"missing cwd should exit 1, got {bad.returncode}")
+    cwd_log = (logs / "run_batch.log").read_text(encoding="utf-8")
+    if "fail cron cwd exit=1" not in cwd_log:
+        _fail(f"cwd failure not logged: {cwd_log!r}")
+
+
 def main() -> None:
+    from tempfile import TemporaryDirectory
+
     test_fixtures()
     test_conf_has_registry_regexes()
     test_no_committed_webhook_url()
     test_secret_contract()
     test_slack_payload_jst_danger()
+    with TemporaryDirectory() as d:
+        test_cron_run_splits_and_stamps(Path(d))
     print("ok: alert patterns")
 
 
