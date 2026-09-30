@@ -96,6 +96,7 @@ SUITES = (
     "test_tdnet_xbrl_r2.py",
     "test_backfill.py",
     "test_alert_patterns.py",
+    "test_html_predicates.py",
 )
 
 
