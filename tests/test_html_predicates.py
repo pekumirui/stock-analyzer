@@ -38,8 +38,8 @@ SALES_HTML = """
 """
 
 
-def _fail(msg: str) -> None:
-    raise SystemExit(msg)
+def _fail(msg: object) -> None:
+    raise SystemExit(str(msg))
 
 
 def test_caption_and_count_and_merger() -> None:

@@ -41,8 +41,8 @@ from app.models import DailyPrice, MonthlyElement, Statement, Stock, Topix  # no
 from sqlalchemy import text  # noqa: E402
 
 
-def _fail(msg: str) -> None:
-    raise SystemExit(msg)
+def _fail(msg: object) -> None:
+    raise SystemExit(str(msg))
 
 
 class _Resp:

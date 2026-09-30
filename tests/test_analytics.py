@@ -49,8 +49,8 @@ FY25 = date(2025, 3, 31)
 TOL = 45
 
 
-def _fail(msg: str) -> None:
-    raise SystemExit(msg)
+def _fail(msg: object) -> None:
+    raise SystemExit(str(msg))
 
 
 def _stmt(

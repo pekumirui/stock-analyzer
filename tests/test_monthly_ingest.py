@@ -55,8 +55,8 @@ def _map_dict(mapping: list[tuple[int, int]]) -> dict[int, int]:
     return {month: year for month, year in mapping}
 
 
-def _fail(msg: str) -> None:
-    raise SystemExit(msg)
+def _fail(msg: object) -> None:
+    raise SystemExit(str(msg))
 
 
 def _present_months(vals: dict) -> dict[str, float]:

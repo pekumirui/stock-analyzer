@@ -34,8 +34,8 @@ import xbrl_match_rate as mr  # noqa: E402
 import xbrl_parse as parse_job  # noqa: E402
 
 
-def _fail(msg: str) -> None:
-    raise SystemExit(msg)
+def _fail(msg: object) -> None:
+    raise SystemExit(str(msg))
 
 
 def _ctx(

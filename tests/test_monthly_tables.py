@@ -50,8 +50,8 @@ def _spa_source() -> str:
     return "\n".join(p.read_text(encoding="utf-8") for p in files)
 
 
-def _fail(msg: str) -> None:
-    raise SystemExit(msg)
+def _fail(msg: object) -> None:
+    raise SystemExit(str(msg))
 
 
 def test_apply_incoming_unit_conflict_and_force() -> None:
