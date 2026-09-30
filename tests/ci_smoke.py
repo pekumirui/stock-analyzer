@@ -98,6 +98,7 @@ SUITES = (
     "test_backfill.py",
     "test_alert_patterns.py",
     "test_html_predicates.py",
+    "test_analytics.py",
 )
 
 
