@@ -91,7 +91,7 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 
 - `service_status` — プロセスと localhost の HTTP コード
 - `app_logs` — `/var/log/app/stock-analyzer.log` と journalctl
-- `batch_logs` — `/var/log/app/batch.log`
+- `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` は crontab の stem（`run_batch` / `tdnet_monthly_r2` / `tdnet_monthly_pdf_sidecar` / `tdnet_monthly_pdf_ingest` / `ir_monthly_r2` / `ir_monthly_html_r2` / `ir_monthly_html_ingest` / `tdnet_xbrl_r2` / `xbrl_parse` / `xbrl_normalize`）。一覧に無い名前とパスは拒否。省略時は `stock-analyzer.log` と `mcp.log` 以外の live ファイル（古い `batch.log` を含む）。`since` / `until` は `1h` / `30m` / `today` / `yesterday` / `YYYY-MM-DD`。`until` はその時刻を含まない。昨日は `since=yesterday` と `until=today`。日時を指定したときは `.1` と `.gz` も読み、行頭の JST `YYYY-MM-DD HH:MM:SS` で絞る。`lines` は 1-500。超えた分は末尾だけ返すので範囲を狭める
 - `nginx_logs` — nginx journal と error.log
 - `db_stats` — stock.db の件数・日付範囲・デモ混在
 - `db_lookup` — 1銘柄のマスタ・直近株価・決算・指標
@@ -110,10 +110,12 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 
 認証は `MCP_TOKEN`（Bearer または OAuth で発行した access token）。GitHub secret と同値。値をログに出さない。
 
-アプリ・バッチ・MCP のファイルログは `/var/log/app/`（`stock-analyzer.log` / `batch.log` / `mcp.log`）。journal も残る。
-14 日で logrotate（copytruncate）。nginx は従来どおり `/var/log/nginx/`。ローカルのバッチはアプリディレクトリの `batch.log`。
+アプリと MCP のファイルログは `/var/log/app/`（`stock-analyzer.log` / `mcp.log`）。cron はジョブごと `/var/log/app/<stem>.log`（例: `tdnet_monthly_r2.log`、日次は `run_batch.log`）。`deploy/cron-run.sh` が標準出力と標準エラーをそこへ書き、各行の行頭に JST の `YYYY-MM-DD HH:MM:SS` を付ける。ジョブプロセスの TZ は変えない。crontab はリダイレクトしない。古い `batch.log` には新しい行を書かず、logrotate で消えるまで残す。journal も残る。
+14 日で logrotate（`/var/log/app/*.log`、copytruncate）。nginx は従来どおり `/var/log/nginx/`。
 
-fluent-bit は live ファイルだけを tail する（`/var/log/app/stock-analyzer.log` / `batch.log` / `mcp.log`、`/var/log/nginx/error.log`）。systemd は `stock-analyzer.service` と `stock-analyzer-mcp.service` の `Failed with result` / `Main process exited`。access.log と `html_ingest_ledger.json` と rotate 済みの `.1` / `.gz` は見ない。batch はジョブ単位の `fail cron` と非ゼロの `failed=` と `errors=` を page する。行単位の `fail ` と batch の Traceback は page しない。Webhook が無いときはユニットを enable するだけで start しない。Slack は公式 slack 出力ではなく http + `fluent-bit_slack.lua`（JST と `#E01E5A` の赤帯）。URI は `slack.env` の `SLACK_WEBHOOK_URI`。アプリにログ API は足さない。
+fluent-bit は live ファイルだけを tail する（`stock-analyzer.log` / `mcp.log` / ジョブの `/var/log/app/*.log`、`/var/log/nginx/error.log`）。ジョブログの Slack 見出しの source はファイル名。`stock-analyzer.log` と `mcp.log` はジョブ側の tail から外す。systemd は `stock-analyzer.service` と `stock-analyzer-mcp.service` の `Failed with result` / `Main process exited`。access.log と `html_ingest_ledger.json` と rotate 済みの `.1` / `.gz` は見ない。batch は行頭の時刻のあとの `fail cron` と非ゼロの `failed=` と `errors=` を page する。行単位の `fail ` と batch の Traceback は page しない。Webhook が無いときはユニットを enable するだけで start しない。Slack は公式 slack 出力ではなく http + `fluent-bit_slack.lua`（JST と `#E01E5A` の赤帯）。URI は `slack.env` の `SLACK_WEBHOOK_URI`。アプリにログ API は足さない。
+
+Actions の backfill は `cron-run.sh` を通さず、ワークフローのログに出す。VPS のジョブファイルには混ぜない。`cron-run.sh` を手で叩いたときだけ、cron と同じファイルに追記する。
 
 リモート MCP（Grok / Cursor / Claude）は OAuth 前提。`https://kabukpi.com/mcp` に Bearer なしで来ると 401 と resource metadata を返す。Claude.ai のカスタムコネクタは Client ID を空のままで Dynamic Client Registration（`POST /oauth/register`）する。許可画面で `MCP_TOKEN` を入れる。
 
@@ -178,6 +180,8 @@ cron（JST）。`run_batch.py` の 19:30 / 06:00 はそのまま。
 | スクリプト | cron |
 |---|---|
 | `jobs/tdnet_monthly_r2.py 1` | 18:00 / 21:00 |
+| `jobs/tdnet_monthly_pdf_sidecar.py` | 18:20 / 21:20（TDnet PDF 取得の後） |
+| `jobs/tdnet_monthly_pdf_ingest.py` | 18:30 / 21:30（sidecar の後。ledger は `/var/log/app/pdf_ingest_ledger.json`） |
 | `jobs/ir_monthly_r2.py` | 10:00 / 16:00 |
 | `jobs/ir_monthly_html_r2.py` | 10:20 / 16:20 |
 | `jobs/ir_monthly_html_ingest.py` | 10:30 / 16:30（HTML 取得の後。ledger は `/var/log/app/html_ingest_ledger.json`） |
@@ -188,7 +192,7 @@ cron（JST）。`run_batch.py` の 19:30 / 06:00 はそのまま。
 
 ### TDnet 月次 PDF の未投入レポート（読み取り専用）
 
-DB 投入は MCP `monthly_ingest` の手作業。R2 の PDF と `monthly_values` の差は、VPS 上のスクリプトで見る（MCP ツールは足さない。cron にも載せない）。
+前回と同じ書式の PDF は次の節の cron が入れる。残りは MCP `monthly_ingest` の手作業。R2 の PDF と `monthly_values` の差は、VPS 上のスクリプトで見る（MCP ツールは足さない。cron にも載せない）。
 
 ユーザ `stock` で。SQLite は `mode=ro`。R2 mount にも DB にも書かない。
 
@@ -214,6 +218,35 @@ cd /home/stock/stock-analyzer
 | `pdf` | 最新 PDF のファイル名 |
 
 ヒューリスティック: ファイル名の日付は開示日。本文を開かず `fiscal_year_end` も見ないので、ingest の列→暦年と完全には一致しない。通常の月次売上は翌月開示（`2026-08-05` → 7月度）なので、**expected は開示日の前暦月**。これは ingest の `_anchor_year(last_month, as_of)` に「右端列 = 前暦月」を渡した値と同じ。21:00 の TDnet バッチ分は古くても残る（新しさでは落とさない）。`--only-stale` は `STALE` と `MISSING` だけ。HTML / xlsx / xls は見ない（同じ `monthly/{code}/` の PDF だけ）。
+
+### TDnet 月次 PDF の自動投入（前回と同じ書式だけ）
+
+2 段。どちらも cron（上の表）。振る舞いの正本は `DESIGN.md` §3。
+
+1. `jobs/tdnet_monthly_pdf_sidecar.py` が、DB の最新月より新しい PDF を持つ銘柄だけ、DB に入った前回の PDF から「どの行が DB のどの行か」を学び、同じ書式なら PDF の隣に `….pdf-ingest.json` を書く。POST しない
+2. `jobs/tdnet_monthly_pdf_ingest.py` が code ごとに最新の `.pdf-ingest.json` を loopback へ POST する。先に `dry_run` して、サーバが決めた列の暦年が sidecar の `columns` と違えば POST しない。sha256 ledger で同じ sidecar は二度送らない
+
+書けなかった銘柄は `/var/log/app/tdnet_monthly_pdf_sidecar.log` に `manual <code> <pdf>: <理由>` が出る（page しない）。理由は次のどれか。今までどおり MCP `monthly_ingest` で入れる。
+
+| 理由 | 意味 |
+|---|---|
+| `表N の見出し …` / `表の数 …` / `表N の行 …` | 前回と書式が違う（列・表・行名が変わった） |
+| `新しい行 […]` | 前回無かった行・表に今月の値がある（新業態・新セグメント） |
+| `再現できない行: …` | 前回の PDF から DB の行を読み直せない（表でない本文、画像 PDF、DB に手で足した行など） |
+| `…: DB と N か月食い違う` / `… が直近と桁違い` | 読んだ値が DB の既存月や直近の桁と合わない |
+| `DB に入った前回の PDF が無い` | 初回、または前回分も未投入 |
+
+手で回すとき（ユーザ `stock`）:
+
+```bash
+cd /home/stock/stock-analyzer
+.venv/bin/python -u jobs/tdnet_monthly_pdf_sidecar.py --dry-run
+.venv/bin/python -u jobs/tdnet_monthly_pdf_sidecar.py --only 428A
+.venv/bin/python -u jobs/tdnet_monthly_pdf_ingest.py --ledger /var/log/app/pdf_ingest_ledger.json --dry-run
+.venv/bin/python -u jobs/tdnet_monthly_pdf_ingest.py --ledger /var/log/app/pdf_ingest_ledger.json
+```
+
+`--force --only` / `--months` は `ir_monthly_html_ingest.py` と同じ。409（`UNIT_CONFLICT` など）で止まったら確かめてから `--force --only <code>`。自動で入ったものを直すときは MCP の `monthly_put_values`（暦年）。
 
 ### クラウドのエージェントから VPS を触る
 

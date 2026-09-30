@@ -1,9 +1,11 @@
 """MCP サーバの認証・JSON-RPC・入力バリデーション。systemd は不要。"""
 from __future__ import annotations
 
+import gzip
 import json
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -97,6 +99,166 @@ def test_pick_log(tmp_path: Path) -> None:
             os.environ.pop("MCP_LOG_DIR", None)
         else:
             os.environ["MCP_LOG_DIR"] = prev_log
+
+
+def test_batch_logs_job_file(tmp_path: Path) -> None:
+    logs = tmp_path / "logs"
+    logs.mkdir(parents=True)
+    (logs / "batch.log").write_text("old batch\n", encoding="utf-8")
+    (logs / "tdnet_monthly_r2.log").write_text("monthly line\nfail cron hidden\n", encoding="utf-8")
+    (logs / "tdnet_xbrl_r2.log").write_text("xbrl line\n", encoding="utf-8")
+    (logs / "stock-analyzer.log").write_text("app secret\n", encoding="utf-8")
+    (logs / "mcp.log").write_text("mcp secret\n", encoding="utf-8")
+    prev_app = os.environ.get("MCP_APP_DIR")
+    prev_log = os.environ.get("MCP_LOG_DIR")
+    os.environ["MCP_APP_DIR"] = str(tmp_path / "app")
+    os.environ["MCP_LOG_DIR"] = str(logs)
+    try:
+        text = m.tool_batch_logs({})
+        if "monthly line" not in text or "xbrl line" not in text or "old batch" not in text:
+            raise SystemExit(f"batch_logs should read job files: {text!r}")
+        if "app secret" in text or "mcp secret" in text:
+            raise SystemExit(f"batch_logs leaked app/mcp: {text!r}")
+        one = m.tool_batch_logs({"job": "tdnet_monthly_r2"})
+        if one != "monthly line\nfail cron hidden":
+            raise SystemExit(f"job filter: {one!r}")
+        if "xbrl line" in one:
+            raise SystemExit(f"job filter leaked another file: {one!r}")
+        for bad in ("../.env", "stock-analyzer", "mcp", "tdnet/monthly"):
+            try:
+                m.tool_batch_logs({"job": bad})
+            except ValueError:
+                continue
+            raise SystemExit(f"job must reject {bad!r}")
+    finally:
+        if prev_app is None:
+            os.environ.pop("MCP_APP_DIR", None)
+        else:
+            os.environ["MCP_APP_DIR"] = prev_app
+        if prev_log is None:
+            os.environ.pop("MCP_LOG_DIR", None)
+        else:
+            os.environ["MCP_LOG_DIR"] = prev_log
+
+
+def _with_log_dir(tmp_path: Path) -> tuple[str | None, str | None]:
+    prev_app = os.environ.get("MCP_APP_DIR")
+    prev_log = os.environ.get("MCP_LOG_DIR")
+    os.environ["MCP_APP_DIR"] = str(tmp_path / "app")
+    os.environ["MCP_LOG_DIR"] = str(tmp_path)
+    return prev_app, prev_log
+
+
+def _restore_log_dir(prev_app: str | None, prev_log: str | None) -> None:
+    if prev_app is None:
+        os.environ.pop("MCP_APP_DIR", None)
+    else:
+        os.environ["MCP_APP_DIR"] = prev_app
+    if prev_log is None:
+        os.environ.pop("MCP_LOG_DIR", None)
+    else:
+        os.environ["MCP_LOG_DIR"] = prev_log
+
+
+def test_batch_logs_window(tmp_path: Path) -> None:
+    logs = tmp_path / "logs"
+    logs.mkdir(parents=True)
+    yesterday_gz = (
+        "2026-09-28 09:00:00 fail too old\n"
+        "2026-09-29 08:00:00 fail early\n"
+        "2026-09-29 08:30:00 fail JQUANTS_API_KEY=secret-value\n"
+        "2026-09-29 09:00:00 ok kept\n"
+    )
+    (logs / "xbrl_parse.log.2.gz").write_bytes(gzip.compress(yesterday_gz.encode("utf-8")))
+    (logs / "xbrl_parse.log.1").write_text(
+        "2026-09-29 00:00:00 fail start\n"
+        "2026-09-29 18:00:01 fail cron jobs/xbrl_parse.py exit=1\n"
+        "2026-09-30 00:00:00 fail boundary\n",
+        encoding="utf-8",
+    )
+    (logs / "xbrl_parse.log").write_text(
+        "2026-09-29 23:30:00 fail late\n"
+        "2026-09-30 10:00:02 fail today\n"
+        "2026-09-30 14:30:00 fail recent\n",
+        encoding="utf-8",
+    )
+    (logs / "tdnet_xbrl_r2.log").write_text(
+        "2026-09-29 12:00:00 fail other\n",
+        encoding="utf-8",
+    )
+    (logs / "not_a_job.log").write_text("2026-09-29 12:00:00 fail stranger\n", encoding="utf-8")
+    prev = _with_log_dir(logs)
+    orig_now = m._jst_now
+
+    def _frozen_now() -> datetime:
+        return datetime(2026, 9, 30, 15, 0, 0, tzinfo=m.JST).replace(tzinfo=None)
+
+    m._jst_now = _frozen_now
+    try:
+        desc = m.TOOLS["batch_logs"][0]
+        props = m.TOOLS["batch_logs"][1]["properties"]
+        for name in ("since", "until", "job", "lines", "grep"):
+            if name not in props:
+                raise SystemExit(f"batch_logs schema missing {name}")
+        for job_name in sorted(m.BATCH_JOBS):
+            if job_name not in desc:
+                raise SystemExit(f"batch_logs description missing {job_name}")
+        plain = m.tool_batch_logs({"job": "xbrl_parse", "grep": "fail early"})
+        if "fail early" in plain:
+            raise SystemExit(f"live tail must not read rotated logs: {plain!r}")
+        text, is_error = m.call_tool(
+            "batch_logs",
+            {"job": "xbrl_parse", "since": "yesterday", "until": "today", "grep": "fail"},
+        )
+        if is_error:
+            raise SystemExit(f"yesterday xbrl_parse: {text!r}")
+        expect = [
+            "2026-09-29 00:00:00 fail start",
+            "2026-09-29 08:00:00 fail early",
+            "2026-09-29 08:30:00 fail JQUANTS_API_KEY=<redacted>",
+            "2026-09-29 18:00:01 fail cron jobs/xbrl_parse.py exit=1",
+            "2026-09-29 23:30:00 fail late",
+        ]
+        if text != "\n".join(expect):
+            raise SystemExit(f"yesterday window: {text!r}")
+        if "secret-value" in text or "fail other" in text or "fail today" in text or "ok kept" in text:
+            raise SystemExit(f"window leaked: {text!r}")
+        if "fail too old" in text or "fail boundary" in text or "fail stranger" in text:
+            raise SystemExit(f"window leaked outside: {text!r}")
+        dated, dated_err = m.call_tool(
+            "batch_logs",
+            {"job": "xbrl_parse", "since": "2026-09-29", "until": "2026-09-30", "grep": "fail"},
+        )
+        if dated_err or dated != text:
+            raise SystemExit(f"date window != yesterday: {dated!r}")
+        recent, recent_err = m.call_tool("batch_logs", {"job": "xbrl_parse", "since": "1h", "grep": "fail"})
+        if recent_err or recent != "2026-09-30 14:30:00 fail recent":
+            raise SystemExit(f"since 1h: {recent!r}")
+        older, older_err = m.call_tool("batch_logs", {"job": "xbrl_parse", "until": "1h", "grep": "fail today"})
+        if older_err or older != "2026-09-30 10:00:02 fail today":
+            raise SystemExit(f"until 1h: {older!r}")
+        short, short_err = m.call_tool(
+            "batch_logs",
+            {"job": "xbrl_parse", "since": "yesterday", "until": "today", "grep": "fail", "lines": 1},
+        )
+        if short_err or short != "(truncated; narrow since/until)\n2026-09-29 23:30:00 fail late":
+            raise SystemExit(f"truncated: {short!r}")
+        for bad in ("../.env", "xbrl_parse.log", "/var/log/app/xbrl_parse", "batch", "not_a_job"):
+            rejected, bad_err = m.call_tool("batch_logs", {"job": bad})
+            if not bad_err:
+                raise SystemExit(f"job must reject {bad!r}: {rejected!r}")
+        empty, empty_err = m.call_tool(
+            "batch_logs",
+            {"job": "xbrl_parse", "since": "yesterday", "until": "yesterday"},
+        )
+        if not empty_err or "until must be after since" not in empty:
+            raise SystemExit(f"empty window: {empty!r} err={empty_err}")
+        bad_since, since_err = m.call_tool("batch_logs", {"job": "xbrl_parse", "since": "../etc"})
+        if not since_err:
+            raise SystemExit(f"since must reject path: {bad_since!r}")
+    finally:
+        m._jst_now = orig_now
+        _restore_log_dir(*prev)
 
 
 def test_http_auth_and_tools() -> None:
@@ -1250,6 +1412,165 @@ def test_monthly_ingest_tool() -> None:
             os.environ["MCP_APP_HTTP"] = prev_http
 
 
+def test_oauth_store_persists_and_purges() -> None:
+    import json
+    import time
+    from tempfile import TemporaryDirectory
+
+    with TemporaryDirectory() as d:
+        path = Path(d) / ".mcp-oauth.json"
+        store = m.OAuthStore(path)
+        now = time.time()
+        store.data["access"]["live"] = {"exp": now + 3600, "client_id": "c1"}
+        store.data["access"]["dead"] = {"exp": now - 10, "client_id": "c1"}
+        store.data["refresh"]["r-live"] = {"exp": now + 3600, "client_id": "c1"}
+        store.codes["used"] = {"exp": now - 1}
+        store._save()
+        if not path.is_file():
+            raise SystemExit("oauth store file was not written")
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if raw["access"]["live"]["client_id"] != "c1":
+            raise SystemExit(f"saved access: {raw}")
+        if oct(path.stat().st_mode & 0o777) != "0o600":
+            raise SystemExit(f"oauth file mode {oct(path.stat().st_mode)}")
+        reloaded = m.OAuthStore(path)
+        if "live" not in reloaded.data["access"] or "r-live" not in reloaded.data["refresh"]:
+            raise SystemExit(f"reload missed tokens: {reloaded.data}")
+        if "dead" not in reloaded.data["access"]:
+            raise SystemExit("expired rows must still load before purge")
+        reloaded.purge()
+        if "dead" in reloaded.data["access"] or "used" in reloaded.codes:
+            raise SystemExit(f"purge left expired: {reloaded.data} {reloaded.codes}")
+        if "live" not in reloaded.data["access"] or "r-live" not in reloaded.data["refresh"]:
+            raise SystemExit("purge must keep unexpired tokens")
+        missing = m.OAuthStore(Path(d) / "absent.json")
+        if missing.data != {"access": {}, "refresh": {}, "clients": {}}:
+            raise SystemExit(f"missing file: {missing.data}")
+        path.write_text("{not json", encoding="utf-8")
+        broken = m.OAuthStore(path)
+        if broken.data["access"]:
+            raise SystemExit("bad json must start empty")
+
+
+def test_configured_token_strips_env() -> None:
+    prev = os.environ.get("MCP_TOKEN")
+    try:
+        os.environ["MCP_TOKEN"] = "  abc  "
+        if m.configured_token() != "abc":
+            raise SystemExit(f"strip: {m.configured_token()!r}")
+        os.environ["MCP_TOKEN"] = ""
+        if m.configured_token() != "":
+            raise SystemExit("empty token")
+        del os.environ["MCP_TOKEN"]
+        if m.configured_token() != "":
+            raise SystemExit("unset token")
+    finally:
+        if prev is None:
+            os.environ.pop("MCP_TOKEN", None)
+        else:
+            os.environ["MCP_TOKEN"] = prev
+
+
+def test_parse_ingest_months_and_industry() -> None:
+    if m._parse_ingest_months([1, 12, 1]) != [1, 12, 1]:
+        raise SystemExit("duplicate month wrap")
+    try:
+        m._parse_ingest_months([])
+    except ValueError as exc:
+        if "non-empty" not in str(exc):
+            raise SystemExit(exc)
+    else:
+        raise SystemExit("empty months")
+    try:
+        m._parse_ingest_months("1-12")
+    except ValueError:
+        pass
+    else:
+        raise SystemExit("string months")
+    if m.parse_monthly_industry(" 小売 ") != "小売":
+        raise SystemExit("industry trim")
+    try:
+        m.parse_monthly_industry("")
+    except ValueError:
+        pass
+    else:
+        raise SystemExit("empty industry")
+    try:
+        m.parse_monthly_industry("x" * 51)
+    except ValueError:
+        pass
+    else:
+        raise SystemExit("industry too long")
+    try:
+        m.parse_monthly_industry(1)
+    except ValueError:
+        pass
+    else:
+        raise SystemExit("industry type")
+
+
+def test_rpc_error_and_env_flag(tmp_path: Path) -> None:
+    err = m.rpc_error(7, -32600, "invalid jsonrpc")
+    if err != {"jsonrpc": "2.0", "id": 7, "error": {"code": -32600, "message": "invalid jsonrpc"}}:
+        raise SystemExit(f"rpc_error: {err}")
+    prev = os.environ.get("MCP_APP_DIR")
+    prev_key = os.environ.get("JQUANTS_API_KEY")
+    os.environ.pop("JQUANTS_API_KEY", None)
+    os.environ["MCP_APP_DIR"] = str(tmp_path)
+    try:
+        if m.env_flag("JQUANTS_API_KEY") != "missing (.env unreadable)":
+            raise SystemExit(f"missing env: {m.env_flag('JQUANTS_API_KEY')!r}")
+        (tmp_path / ".env").write_text('JQUANTS_API_KEY="secret"\n', encoding="utf-8")
+        if m.env_flag("JQUANTS_API_KEY") != "set":
+            raise SystemExit("dotenv set")
+        os.environ["JQUANTS_API_KEY"] = "live"
+        if m.env_flag("JQUANTS_API_KEY") != "set":
+            raise SystemExit("env set beats dotenv")
+        os.environ.pop("JQUANTS_API_KEY", None)
+        (tmp_path / ".env").write_text("JQUANTS_API_KEY=\n", encoding="utf-8")
+        if m.env_flag("JQUANTS_API_KEY") != "empty":
+            raise SystemExit("empty dotenv value")
+    finally:
+        if prev is None:
+            os.environ.pop("MCP_APP_DIR", None)
+        else:
+            os.environ["MCP_APP_DIR"] = prev
+        if prev_key is None:
+            os.environ.pop("JQUANTS_API_KEY", None)
+        else:
+            os.environ["JQUANTS_API_KEY"] = prev_key
+
+
+def test_tool_app_logs_joins_file_and_journal(tmp_path: Path) -> None:
+    log = tmp_path / "stock-analyzer.log"
+    log.write_text("keep\nERROR boom\n", encoding="utf-8")
+    prev = os.environ.get("MCP_APP_DIR")
+    os.environ["MCP_APP_DIR"] = str(tmp_path)
+    try:
+        orig_journal = m.journal
+        orig_pick = m.pick_log
+        m.journal = lambda unit, since, lines, grep: f"journal-{unit}-{since}-{grep}"  # type: ignore[assignment]
+        m.pick_log = lambda name: log  # type: ignore[assignment]
+        out = m.tool_app_logs({"since": "1h", "lines": 20, "grep": "ERROR"})
+        if "ERROR boom" not in out or "keep" in out:
+            raise SystemExit(f"file filter: {out!r}")
+        if "journal-stock-analyzer-1 hours ago-ERROR" not in out:
+            raise SystemExit(f"journal: {out!r}")
+        try:
+            m.tool_app_logs({"since": "--user=root"})
+        except ValueError:
+            pass
+        else:
+            raise SystemExit("bad since")
+    finally:
+        m.journal = orig_journal  # type: ignore[assignment]
+        m.pick_log = orig_pick  # type: ignore[assignment]
+        if prev is None:
+            os.environ.pop("MCP_APP_DIR", None)
+        else:
+            os.environ["MCP_APP_DIR"] = prev
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -1258,8 +1579,19 @@ def main() -> None:
     with TemporaryDirectory() as d:
         test_tail_grep(Path(d))
         test_pick_log(Path(d) / "pick")
+        test_batch_logs_job_file(Path(d) / "jobs")
+        test_batch_logs_window(Path(d) / "window")
     test_http_auth_and_tools()
     test_oauth()
+    test_oauth_store_persists_and_purges()
+    test_configured_token_strips_env()
+    test_parse_ingest_months_and_industry()
+    with TemporaryDirectory() as d:
+        base = Path(d)
+        test_rpc_error_and_env_flag(base)
+        logs = base / "applog"
+        logs.mkdir()
+        test_tool_app_logs_joins_file_and_journal(logs)
     test_db_tools()
     test_monthly_tools()
     test_monthly_ingest_tool()

@@ -193,6 +193,15 @@ TDnet 月次 PDF（`jobs/tdnet_monthly_r2.py`）:
 - ダウンロード時にインフラファンドを除外する。商品区分は REIT と同じ `013`/`022` しか無いので、名称に「インフラ」を含むものだけ落とす（マスタ欠落時は TDnet 社名の「インフラ投資法人」）
 - 通常の REIT は残す。決算速報の REIT 全除外とは別。`MONTHLY_SKIP_CODES`（display_code の4桁）に入った銘柄は保存しない。8985 ジャパン・ホテル・リート投資法人は取得対象外
 
+TDnet 月次 PDF の自動投入（`jobs/tdnet_monthly_pdf_sidecar.py` → `jobs/tdnet_monthly_pdf_ingest.py`）:
+
+- 銘柄ごとの書式は宣言しない。DB に開示月（ファイル名日付の前暦月）の値がある前回の PDF（最大 3 本さかのぼる）から、DB の各行を再現する PDF の行を探して学ぶ。unit は DB から。DB が指数で PDF が増減率なら `yoy_pct`（+100 で一致）
+- PDF は `pdftotext -tsv` の語の座標で読む。月見出しの行と列がそろう数値の行（横組み）と、月が行ラベルの表（縦組み）。上期計・累計などの列は捨てる。見出しに年（`25年4月`）があれば使い、無ければ行ごとに値のある右端の月から左へ暦年を振る
+- 書くのは各 code の最新 PDF だけで、DB の最新月がその開示月より古いときだけ。次のどれかなら書かない（`manual`）: 開示月に値のある DB の行を全部は再現できない／使う表までの見出しの骨格（数値・日付を伏せる）か使う行の並びが前回と違う／前回無かった行・表に今月の値がある／DB に既にある月と 5 か月に 1 つより多く食い違う／件数・金額が直近 12 か月の中央値から 5 倍以上外れる／前回同じ値だった候補行が今回は違う
+- sidecar は PDF の隣の `….pdf-ingest.json`（HTML の `.ingest.json` と別の名前。HTML の ingest は拾わない）。形は ingest と同じで year は無い。values は値のある月だけ（null はセルを消すので送らない。月が重複すれば列番号キー）。`columns` に列ごとの暦年月、`learned_from` に学んだ PDF を残す
+- DB 投入は `jobs/tdnet_monthly_pdf_ingest.py`。latest-per-code・sha256 ledger・行に `force` を付けない点は HTML の ingest と同じ。POST の前に `dry_run` し、mapping が `columns` と違えば POST しない。ledger は `/var/log/app/pdf_ingest_ledger.json`
+- 前回の DB の値を正とするので、過去に人が入れ違えた行はそのまま引き継ぐ。速報の訂正は翌月の sidecar が全列を書き直すので追いつく
+
 IR 月次 PDF/xlsx/xls（`jobs/ir_monthly_r2.py`）:
 
 - TDnet に月次が無い発行体が対象。`config/ir_monthly.json` の issuers（URL 確認済みだけ載せる）

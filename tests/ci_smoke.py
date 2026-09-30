@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -71,8 +72,54 @@ def _check_demo_exit() -> int:
     return mod.main()
 
 
+# API スモークの後に subprocess で走らせる。test_layout.py は API より前に走らせるので別枠。
+SUITES = (
+    "test_monthly_tables.py",
+    "test_public_monthly.py",
+    "test_nginx_public.py",
+    "test_github_ssh.py",
+    "test_sqlite_deploy.py",
+    "test_monthly_ingest.py",
+    "test_monthly_stock_master.py",
+    "test_monthly_issuers.py",
+    "test_sync_monthly_from_vps.py",
+    "test_tdnet_monthly_r2.py",
+    "test_tdnet_monthly_pending.py",
+    "test_tdnet_monthly_pdf_sidecar.py",
+    "test_ir_monthly_r2.py",
+    "test_ir_monthly_html_r2.py",
+    "test_html_recipe.py",
+    "test_html_issue248_parity.py",
+    "test_html_3082_scope.py",
+    "test_ir_monthly_html_ingest.py",
+    "test_ir_monthly_xls_ingest.py",
+    "test_xbrl_parse.py",
+    "test_xbrl_match_rate.py",
+    "test_xbrl_units.py",
+    "test_tdnet_xbrl_r2.py",
+    "test_backfill.py",
+    "test_alert_patterns.py",
+    "test_html_predicates.py",
+    "test_analytics.py",
+    "test_jquants.py",
+)
+
+
+def unregistered_tests(tests_dir: Path, workflow: str) -> tuple[list[str], list[str]]:
+    """(どこからも走らない test_*.py, 実在しない登録名)。workflow は cicd.yml の本文。"""
+    direct = set(re.findall(r"python tests/(test_\w+\.py)", workflow))
+    registered = {"test_layout.py", *SUITES} | direct
+    present = {p.name for p in tests_dir.glob("test_*.py")}
+    return sorted(present - registered), sorted(set(SUITES) - present)
+
+
 def main() -> None:
     from app.config import apply_dotenv
+
+    workflow = (ROOT / ".github" / "workflows" / "cicd.yml").read_text(encoding="utf-8")
+    missing, stale = unregistered_tests(ROOT / "tests", workflow)
+    if missing or stale:
+        raise SystemExit(f"register tests in ci_smoke.SUITES: missing={missing} stale={stale}")
 
     got: dict[str, str] = {"FOO": "keep"}
     apply_dotenv(
@@ -333,126 +380,10 @@ def main() -> None:
         f"screener {len(results)}, chart {len(candles)} candles"
     )
 
-    monthly = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_monthly_tables.py")],
-        cwd=ROOT,
-    )
-    if monthly.returncode != 0:
-        raise SystemExit("monthly tables tests failed")
-    public = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_public_monthly.py")],
-        cwd=ROOT,
-    )
-    if public.returncode != 0:
-        raise SystemExit("public monthly tests failed")
-    nginx = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_nginx_public.py")],
-        cwd=ROOT,
-    )
-    if nginx.returncode != 0:
-        raise SystemExit("nginx public tests failed")
-    github_ssh = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_github_ssh.py")],
-        cwd=ROOT,
-    )
-    if github_ssh.returncode != 0:
-        raise SystemExit("github ssh tests failed")
-    sqlite_deploy = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_sqlite_deploy.py")],
-        cwd=ROOT,
-    )
-    if sqlite_deploy.returncode != 0:
-        raise SystemExit("sqlite deploy tests failed")
-    ingest = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_monthly_ingest.py")],
-        cwd=ROOT,
-    )
-    if ingest.returncode != 0:
-        raise SystemExit("monthly ingest tests failed")
-    master = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_monthly_stock_master.py")],
-        cwd=ROOT,
-    )
-    if master.returncode != 0:
-        raise SystemExit("monthly stock master tests failed")
-    issuers = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_monthly_issuers.py")],
-        cwd=ROOT,
-    )
-    if issuers.returncode != 0:
-        raise SystemExit("monthly issuers tests failed")
-    monthly_sync = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_sync_monthly_from_vps.py")],
-        cwd=ROOT,
-    )
-    if monthly_sync.returncode != 0:
-        raise SystemExit("monthly vps sync tests failed")
-    tdnet = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_tdnet_monthly_r2.py")],
-        cwd=ROOT,
-    )
-    if tdnet.returncode != 0:
-        raise SystemExit("tdnet monthly r2 tests failed")
-    tdnet_pending = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_tdnet_monthly_pending.py")],
-        cwd=ROOT,
-    )
-    if tdnet_pending.returncode != 0:
-        raise SystemExit("tdnet monthly pending report tests failed")
-    ir_monthly = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_ir_monthly_r2.py")],
-        cwd=ROOT,
-    )
-    if ir_monthly.returncode != 0:
-        raise SystemExit("ir monthly r2 tests failed")
-    ir_html = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_ir_monthly_html_r2.py")],
-        cwd=ROOT,
-    )
-    if ir_html.returncode != 0:
-        raise SystemExit("ir monthly html r2 tests failed")
-    ir_html_recipe = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_html_recipe.py")],
-        cwd=ROOT,
-    )
-    if ir_html_recipe.returncode != 0:
-        raise SystemExit("html issuer tests failed")
-    ir_html_parity = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_html_issue248_parity.py")],
-        cwd=ROOT,
-    )
-    if ir_html_parity.returncode != 0:
-        raise SystemExit("ir monthly html issue248 parity tests failed")
-    ir_html_ingest = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_ir_monthly_html_ingest.py")],
-        cwd=ROOT,
-    )
-    if ir_html_ingest.returncode != 0:
-        raise SystemExit("ir monthly html ingest tests failed")
-    ir_xls_ingest = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_ir_monthly_xls_ingest.py")],
-        cwd=ROOT,
-    )
-    if ir_xls_ingest.returncode != 0:
-        raise SystemExit("ir monthly xls ingest tests failed")
-    xbrl = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_xbrl_parse.py")],
-        cwd=ROOT,
-    )
-    if xbrl.returncode != 0:
-        raise SystemExit("xbrl parse tests failed")
-    xbrl_match = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_xbrl_match_rate.py")],
-        cwd=ROOT,
-    )
-    if xbrl_match.returncode != 0:
-        raise SystemExit("xbrl match rate tests failed")
-    alerts = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_alert_patterns.py")],
-        cwd=ROOT,
-    )
-    if alerts.returncode != 0:
-        raise SystemExit("alert pattern tests failed")
+    for name in SUITES:
+        proc = subprocess.run([sys.executable, str(ROOT / "tests" / name)], cwd=ROOT)
+        if proc.returncode != 0:
+            raise SystemExit(f"{name} failed")
 
 
 if __name__ == "__main__":

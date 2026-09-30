@@ -96,8 +96,17 @@ jobs:
           ls -l /var/log/app 2>/dev/null || echo "(no /var/log/app)"
           echo "=== stock-analyzer.log ==="
           tail -n 80 /var/log/app/stock-analyzer.log 2>/dev/null || echo "(missing)"
-          echo "=== batch.log ==="
-          tail -n 80 /var/log/app/batch.log 2>/dev/null || tail -n 80 /home/stock/stock-analyzer/batch.log 2>/dev/null || echo "(no batch.log)"
+          echo "=== job logs ==="
+          shopt -s nullglob
+          for f in /var/log/app/*.log; do
+            base=$(basename "$f")
+            case "$base" in
+              stock-analyzer.log|mcp.log) continue ;;
+            esac
+            echo "--- $base ---"
+            tail -n 20 "$f" 2>/dev/null || true
+          done
+          shopt -u nullglob
           echo "=== mcp.log ==="
           tail -n 40 /var/log/app/mcp.log 2>/dev/null || echo "(missing)"
           echo "=== which nginx ==="

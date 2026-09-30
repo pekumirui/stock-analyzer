@@ -102,6 +102,9 @@ def test_parse_seven_skips_html_comment() -> None:
         _fail(f"commented xlsx leaked: {urls}")
     if len([ln for ln in links if ln.ext == "xlsx"]) != 2:
         _fail(f"seven xlsx count: {links}")
+    texts = [ln.text for ln in links if ln.ext == "xlsx"]
+    if texts != ["2027年2月期[XLSX:42KB]", "2026年2月期[XLSX:44KB]"]:
+        _fail(f"seven link text (nested span kept): {texts}")
     pdfs = [ln for ln in links if ln.ext == "pdf"]
     if len(pdfs) != 1:
         _fail(f"seven pdf: {pdfs}")

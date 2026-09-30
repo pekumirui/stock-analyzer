@@ -51,7 +51,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `jobs/_r2common.py` | R2 バッチの共通処理（日付・HTTP・銘柄マスタ・ファイル名）。`app` は import しない |
 | `jobs/html_issuers/` | `parse: true` の HTML 月次。各 `i<code>.py` が表・行・単位を宣言する。`parse: false` はモジュールを作らない |
 | `config/` | `ir_monthly.json`、`issuer_aliases.json`、`monthly_row_order.json`、XBRL YAML、Ruff/Bandit は `pyproject.toml` |
-| `tests/` | `test_*.py` と `ci_smoke.py` |
+| `tests/` | `test_*.py` と `ci_smoke.py`。新しい `test_*.py` は `ci_smoke.SUITES` に登録する（漏れは ci_smoke が落とす） |
 | `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ） |
 | `tools/` | オフライン検証と手元ヘルパー。月次 PDF 指紋は `fmtdiff.py`（pdfplumber。ingest は従来どおり pdftotext）。TDnet 月次の未投入一覧は `tdnet_monthly_pending.py`（読み取り専用。使い方は `deploy/README.md`）。XBRL 一致率は `xbrl_match_rate.py`。`check_api.py` と `read_xls.py` |
 
@@ -126,6 +126,8 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | スクリプト | 保存先 | cron | 振る舞いの正本 |
 |---|---|---|---|
 | `jobs/tdnet_monthly_r2.py N` | `monthly/{code}/YYYYMMDD_CODE_….pdf` | 18:00 / 21:00（N=1）。初回は Actions の **TDnet monthly backfill** | `DESIGN.md` §3 |
+| `jobs/tdnet_monthly_pdf_sidecar.py` | `monthly/{code}/….pdf-ingest.json`（前回投入分と同じ書式の PDF だけ） | 18:20 / 21:20 | `DESIGN.md` §3。自動 POST しない |
+| `jobs/tdnet_monthly_pdf_ingest.py` | （R2 は読まない。loopback POST） | 18:30 / 21:30 | `DESIGN.md` §3。`--ledger` は `/var/log/app/pdf_ingest_ledger.json` |
 | `jobs/ir_monthly_r2.py` | `monthly/{code}/….pdf` / `.xlsx` / `.xls` | 10:00 / 16:00 | `DESIGN.md` §3、対象は `config/ir_monthly.json` の issuers |
 | `jobs/ir_monthly_html_r2.py` | `monthly/{code}/…_月次.html` + `.ingest.json` | 10:20 / 16:20 | `DESIGN.md` §3、対象は `config/ir_monthly.json` の html。自動 POST しない |
 | `jobs/ir_monthly_html_ingest.py` | （R2 は読まない。loopback POST） | 10:30 / 16:30 | `DESIGN.md` §3。`--ledger` は `/var/log/app/html_ingest_ledger.json` |
@@ -137,6 +139,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 - 既存ファイルは消さない。IR は同じ URL の上書きを日付付きで残し、中身の sha256 が同じなら skip
 - HTML 月次は `.ingest.json` を書くだけ。自動 POST しない。パーサー修正後は `--reparse`。DB 投入は別 cron の `jobs/ir_monthly_html_ingest.py`（loopback、latest-per-code、sha256 ledger）
 - 各バッチの cron は分ける。1 本にまとめない
+- cron の出力は `deploy/cron-run.sh` が `/var/log/app/<stem>.log` に書く。行頭は JST。crontab にリダイレクトは書かない。古い `batch.log` は rotate まで残す。Actions の backfill はワークフローのログ（`cron-run.sh` を通さない）
 - XBRL は決算 UI / `statements` を触らない。マッピングは `config/xbrl/` だけ。エージェントが独断で足さない
 - XBRL 検証は別 DB。本番 `stock.db` に書かない（`docs/XBRL_VERIFY.md`）
 

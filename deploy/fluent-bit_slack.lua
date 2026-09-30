@@ -33,6 +33,20 @@ local function format_jst(sec)
   return os.date("!%Y-%m-%d %H:%M:%S JST", sec + JST_OFFSET)
 end
 
+function source_from_file(tag, timestamp, record)
+  local path = record["file"]
+  local name = nil
+  if type(path) == "string" then
+    name = string.match(path, "([^/]+)$")
+  end
+  if type(name) == "string" and name ~= "" then
+    record["source"] = name
+  elseif type(record["source"]) ~= "string" or record["source"] == "" then
+    record["source"] = "batch"
+  end
+  return 1, timestamp, record
+end
+
 function format_slack(tag, timestamp, record)
   local source = record["source"]
   if type(source) ~= "string" or source == "" then
