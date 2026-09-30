@@ -91,7 +91,7 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 
 - `service_status` — プロセスと localhost の HTTP コード
 - `app_logs` — `/var/log/app/stock-analyzer.log` と journalctl
-- `batch_logs` — `/var/log/app/batch.log`
+- `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` はスクリプト名（例: `tdnet_monthly_r2`）。省略時は `stock-analyzer.log` と `mcp.log` 以外（古い `batch.log` を含む）
 - `nginx_logs` — nginx journal と error.log
 - `db_stats` — stock.db の件数・日付範囲・デモ混在
 - `db_lookup` — 1銘柄のマスタ・直近株価・決算・指標
@@ -110,10 +110,12 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 
 認証は `MCP_TOKEN`（Bearer または OAuth で発行した access token）。GitHub secret と同値。値をログに出さない。
 
-アプリ・バッチ・MCP のファイルログは `/var/log/app/`（`stock-analyzer.log` / `batch.log` / `mcp.log`）。journal も残る。
-14 日で logrotate（copytruncate）。nginx は従来どおり `/var/log/nginx/`。ローカルのバッチはアプリディレクトリの `batch.log`。
+アプリと MCP のファイルログは `/var/log/app/`（`stock-analyzer.log` / `mcp.log`）。cron はジョブごと `/var/log/app/<stem>.log`（例: `tdnet_monthly_r2.log`、日次は `run_batch.log`）。`deploy/cron-run.sh` が標準出力と標準エラーをそこへ書き、各行の行頭に JST の `YYYY-MM-DD HH:MM:SS` を付ける。ジョブプロセスの TZ は変えない。crontab はリダイレクトしない。古い `batch.log` には新しい行を書かず、logrotate で消えるまで残す。journal も残る。
+14 日で logrotate（`/var/log/app/*.log`、copytruncate）。nginx は従来どおり `/var/log/nginx/`。
 
-fluent-bit は live ファイルだけを tail する（`/var/log/app/stock-analyzer.log` / `batch.log` / `mcp.log`、`/var/log/nginx/error.log`）。systemd は `stock-analyzer.service` と `stock-analyzer-mcp.service` の `Failed with result` / `Main process exited`。access.log と `html_ingest_ledger.json` と rotate 済みの `.1` / `.gz` は見ない。batch はジョブ単位の `fail cron` と非ゼロの `failed=` と `errors=` を page する。行単位の `fail ` と batch の Traceback は page しない。Webhook が無いときはユニットを enable するだけで start しない。Slack は公式 slack 出力ではなく http + `fluent-bit_slack.lua`（JST と `#E01E5A` の赤帯）。URI は `slack.env` の `SLACK_WEBHOOK_URI`。アプリにログ API は足さない。
+fluent-bit は live ファイルだけを tail する（`stock-analyzer.log` / `mcp.log` / ジョブの `/var/log/app/*.log`、`/var/log/nginx/error.log`）。ジョブログの Slack 見出しの source はファイル名。`stock-analyzer.log` と `mcp.log` はジョブ側の tail から外す。systemd は `stock-analyzer.service` と `stock-analyzer-mcp.service` の `Failed with result` / `Main process exited`。access.log と `html_ingest_ledger.json` と rotate 済みの `.1` / `.gz` は見ない。batch は行頭の時刻のあとの `fail cron` と非ゼロの `failed=` と `errors=` を page する。行単位の `fail ` と batch の Traceback は page しない。Webhook が無いときはユニットを enable するだけで start しない。Slack は公式 slack 出力ではなく http + `fluent-bit_slack.lua`（JST と `#E01E5A` の赤帯）。URI は `slack.env` の `SLACK_WEBHOOK_URI`。アプリにログ API は足さない。
+
+Actions の backfill は `cron-run.sh` を通さず、ワークフローのログに出す。VPS のジョブファイルには混ぜない。`cron-run.sh` を手で叩いたときだけ、cron と同じファイルに追記する。
 
 リモート MCP（Grok / Cursor / Claude）は OAuth 前提。`https://kabukpi.com/mcp` に Bearer なしで来ると 401 と resource metadata を返す。Claude.ai のカスタムコネクタは Client ID を空のままで Dynamic Client Registration（`POST /oauth/register`）する。許可画面で `MCP_TOKEN` を入れる。
 
@@ -224,7 +226,7 @@ cd /home/stock/stock-analyzer
 1. `jobs/tdnet_monthly_pdf_sidecar.py` が、DB の最新月より新しい PDF を持つ銘柄だけ、DB に入った前回の PDF から「どの行が DB のどの行か」を学び、同じ書式なら PDF の隣に `….pdf-ingest.json` を書く。POST しない
 2. `jobs/tdnet_monthly_pdf_ingest.py` が code ごとに最新の `.pdf-ingest.json` を loopback へ POST する。先に `dry_run` して、サーバが決めた列の暦年が sidecar の `columns` と違えば POST しない。sha256 ledger で同じ sidecar は二度送らない
 
-書けなかった銘柄は `batch.log` に `manual <code> <pdf>: <理由>` が出る（page しない）。理由は次のどれか。今までどおり MCP `monthly_ingest` で入れる。
+書けなかった銘柄は `/var/log/app/tdnet_monthly_pdf_sidecar.log` に `manual <code> <pdf>: <理由>` が出る（page しない）。理由は次のどれか。今までどおり MCP `monthly_ingest` で入れる。
 
 | 理由 | 意味 |
 |---|---|

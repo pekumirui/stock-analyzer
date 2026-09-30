@@ -139,6 +139,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 - 既存ファイルは消さない。IR は同じ URL の上書きを日付付きで残し、中身の sha256 が同じなら skip
 - HTML 月次は `.ingest.json` を書くだけ。自動 POST しない。パーサー修正後は `--reparse`。DB 投入は別 cron の `jobs/ir_monthly_html_ingest.py`（loopback、latest-per-code、sha256 ledger）
 - 各バッチの cron は分ける。1 本にまとめない
+- cron の出力は `deploy/cron-run.sh` が `/var/log/app/<stem>.log` に書く。行頭は JST。crontab にリダイレクトは書かない。古い `batch.log` は rotate まで残す。Actions の backfill はワークフローのログ（`cron-run.sh` を通さない）
 - XBRL は決算 UI / `statements` を触らない。マッピングは `config/xbrl/` だけ。エージェントが独断で足さない
 - XBRL 検証は別 DB。本番 `stock.db` に書かない（`docs/XBRL_VERIFY.md`）
 

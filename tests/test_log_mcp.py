@@ -99,6 +99,46 @@ def test_pick_log(tmp_path: Path) -> None:
             os.environ["MCP_LOG_DIR"] = prev_log
 
 
+def test_batch_logs_job_file(tmp_path: Path) -> None:
+    logs = tmp_path / "logs"
+    logs.mkdir(parents=True)
+    (logs / "batch.log").write_text("old batch\n", encoding="utf-8")
+    (logs / "tdnet_monthly_r2.log").write_text("monthly line\nfail cron hidden\n", encoding="utf-8")
+    (logs / "tdnet_xbrl_r2.log").write_text("xbrl line\n", encoding="utf-8")
+    (logs / "stock-analyzer.log").write_text("app secret\n", encoding="utf-8")
+    (logs / "mcp.log").write_text("mcp secret\n", encoding="utf-8")
+    prev_app = os.environ.get("MCP_APP_DIR")
+    prev_log = os.environ.get("MCP_LOG_DIR")
+    os.environ["MCP_APP_DIR"] = str(tmp_path / "app")
+    os.environ["MCP_LOG_DIR"] = str(logs)
+    try:
+        text = m.tool_batch_logs({})
+        if "monthly line" not in text or "xbrl line" not in text or "old batch" not in text:
+            raise SystemExit(f"batch_logs should read job files: {text!r}")
+        if "app secret" in text or "mcp secret" in text:
+            raise SystemExit(f"batch_logs leaked app/mcp: {text!r}")
+        one = m.tool_batch_logs({"job": "tdnet_monthly_r2"})
+        if one != "monthly line\nfail cron hidden":
+            raise SystemExit(f"job filter: {one!r}")
+        if "xbrl line" in one:
+            raise SystemExit(f"job filter leaked another file: {one!r}")
+        for bad in ("../.env", "stock-analyzer", "mcp", "tdnet/monthly"):
+            try:
+                m.tool_batch_logs({"job": bad})
+            except ValueError:
+                continue
+            raise SystemExit(f"job must reject {bad!r}")
+    finally:
+        if prev_app is None:
+            os.environ.pop("MCP_APP_DIR", None)
+        else:
+            os.environ["MCP_APP_DIR"] = prev_app
+        if prev_log is None:
+            os.environ.pop("MCP_LOG_DIR", None)
+        else:
+            os.environ["MCP_LOG_DIR"] = prev_log
+
+
 def test_http_auth_and_tools() -> None:
     token = "test-token-for-ci-only"
     client = TestClient(m.create_app(token))
@@ -1417,6 +1457,7 @@ def main() -> None:
     with TemporaryDirectory() as d:
         test_tail_grep(Path(d))
         test_pick_log(Path(d) / "pick")
+        test_batch_logs_job_file(Path(d) / "jobs")
     test_http_auth_and_tools()
     test_oauth()
     test_oauth_store_persists_and_purges()
