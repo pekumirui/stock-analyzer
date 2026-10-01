@@ -38,7 +38,7 @@ LIST_LIMIT = 300
 SLEEP_SEC = 0.4
 HTTP_TIMEOUT = 30.0
 
-# 月次を取りこぼさないよう、タイトルに「月次」が無い売上速報なども列挙して union する
+# やのしん list の keyword union。「月次」が無い開示は ○月度・売上推移などで取る。
 LIST_KEYWORDS = (
     "月次",
     "売上速報",
@@ -46,9 +46,53 @@ LIST_KEYWORDS = (
     "営業概況",
     "Monthly Report",
     "店舗売上",
+    "月度",
+    "売上推移",
+    "売上高推移",
+    "業績速報",
+    "前年同月比",
+    "売上の状況",
 )
-INCLUDE_EXTRA = ("売上速報", "前年比", "営業概況", "店舗売上")
-EXCLUDE_UNLESS_MONTHLY = ("決算短信", "有報", "人事", "自己株式")
+INCLUDE_EXTRA = (
+    "売上速報",
+    "売上高速報",
+    "前年比",
+    "前年同月比",
+    "営業概況",
+    "店舗売上",
+    "販売状況",
+    "売上推移",
+    "売上高推移",
+    "受注速報",
+    "業績速報",
+    "売上の状況",
+    "売上高についてのお知らせ",
+    "売上高のお知らせ",
+)
+# 月度 単体は人事・新株予約権まで拾う。売上/受注などの月次らしい語が要る。
+_MONTHLY_HINTS = (
+    "売上",
+    "受注",
+    "販売",
+    "営業",
+    "業績",
+    "速報",
+    "概況",
+    "推移",
+    "IRレポート",
+    "前年",
+    "店舗",
+)
+EXCLUDE_UNLESS_MONTHLY = (
+    "決算短信",
+    "有報",
+    "人事",
+    "自己株式",
+    "新株予約権",
+    "月間行使",
+    "四半期短信",
+    "業績予想",
+)
 _INBS_PDF_RE = re.compile(r"/inbs/([0-9A-Za-z]+)\.pdf", re.I)
 
 # Infra funds share ProdCat 013/022 with REITs; J-Quants has no dedicated category.
@@ -65,6 +109,8 @@ def is_monthly_title(title: str) -> bool:
     if "月次" in t:
         return True
     extra = any(k in t for k in INCLUDE_EXTRA) or ("monthly report" in t.lower())
+    if not extra and "月度" in t:
+        extra = any(h in t for h in _MONTHLY_HINTS)
     if not extra:
         return False
     if any(k in t for k in EXCLUDE_UNLESS_MONTHLY):
