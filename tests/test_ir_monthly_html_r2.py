@@ -770,6 +770,36 @@ def test_3549_sticky_metric_on_bare_kizon() -> None:
         _fail(f"3549 canonical {stored}")
 
 
+def test_3549_store_status_prefix_strips_to_open_close() -> None:
+    """［出退店］出店数 は接頭辞を落とし、サーバ正規化後は 出店 / 退店。"""
+    path = ROOT / "tests" / "testdata" / "html_3549" / "2026.html"
+    got = parse_issuer(decode_html_bytes(path.read_bytes()), "3549")
+    if got["as_of"] != "2026-09-30":
+        _fail(f"3549 as_of {got['as_of']}")
+    if got["months"] != [6, 7, 8, 9]:
+        _fail(f"3549 months {got['months']}")
+    opened = _row(got, "出店数", unit="number")
+    closed = _row(got, "退店数", unit="number")
+    if opened["values"] != {"6": 10, "7": 1, "8": 10, "9": 13}:
+        _fail(f"3549 出店数 {opened}")
+    if closed["values"] != {"6": 0, "7": 4, "8": 1, "9": 1}:
+        _fail(f"3549 退店数 {closed}")
+    sys.path.insert(0, str(ROOT))
+    from app.monthly_ingest import apply_issuer_aliases, canonicalize_element_label
+
+    as_of = date(2026, 9, 30)
+    stored = []
+    for row in (opened, closed):
+        name = apply_issuer_aliases(
+            "35490",
+            canonicalize_element_label(row["element"], row["unit"]),
+            as_of=as_of,
+        )
+        stored.append(canonicalize_element_label(name, row["unit"]))
+    if stored != ["出店", "退店"]:
+        _fail(f"3549 store-status canonical {stored}")
+
+
 NITORI_HTML = """
 <html><body>
 <h1>2027年3月期 月次売上概況</h1>
@@ -3767,6 +3797,7 @@ def main() -> None:
     test_create_sd_nobiritsu_force_yoy_index()
     test_3148_real_page_drops_english_label()
     test_3549_sticky_metric_on_bare_kizon()
+    test_3549_store_status_prefix_strips_to_open_close()
     test_load_html_registry()
     test_dumps_matches_ingest_shape()
     test_mos_skips_half_year_total()
