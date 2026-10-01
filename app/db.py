@@ -1,7 +1,7 @@
 import re
 import unicodedata
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.orm import sessionmaker
 
 from .config import DATABASE_URL
@@ -14,8 +14,32 @@ from .monthly_ingest import (
     same_yoy_element,
 )
 
-engine = create_engine(DATABASE_URL, future=True)
+
+def sqlite_connect_args(url: str) -> dict[str, float]:
+    """sqlite3 の busy timeout（秒）。未設定だと 5s で database is locked になる。"""
+    if not str(url).startswith("sqlite"):
+        return {}
+    return {"timeout": 30.0}
+
+
+def apply_sqlite_pragmas(dbapi_connection, connection_record=None) -> None:  # noqa: ARG001
+    """本番は app + cron が同じ stock.db を触る。WAL が無いと読取も locked になる。"""
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+    finally:
+        cursor.close()
+
+
+engine = create_engine(
+    DATABASE_URL, future=True, connect_args=sqlite_connect_args(DATABASE_URL),
+)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, future=True)
+
+if str(DATABASE_URL).startswith("sqlite"):
+    event.listens_for(engine, "connect")(apply_sqlite_pragmas)
 
 
 class SchemaMismatch(RuntimeError):

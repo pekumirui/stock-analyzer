@@ -382,7 +382,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 データ量: 4,000銘柄×5年×250日 ≈ 500万行。SQLite 実ファイルは 1〜2GB になり得る（本番は約 1.1GB）。VPS ディスクなら余裕。
 ローカル backfill 完了後に `stock.db` を scp する（サーバで取り直さない）。
 
-見本は `deploy/`（systemd / nginx / crontab）。SQLite は複数ライターに弱いので uvicorn はワーカー1。日次バッチは 4 リクエストで短い。
+見本は `deploy/`（systemd / nginx / crontab）。SQLite は複数ライターに弱いので uvicorn はワーカー1。日次バッチは 4 リクエストで短い。接続は WAL + `busy_timeout=30s`。`jobs/migrate.py`（deploy 含む）は `database is locked` を指数バックオフで再試行する。
 
 Postgres 切替は将来オプション。今は使わない。`DATABASE_URL` だけ変えれば SQLAlchemy は両対応のまま。
 
