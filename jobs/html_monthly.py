@@ -975,6 +975,16 @@ def _month_header_cols(row: list[str]) -> list[tuple[int, int]] | None:
     return month_cols
 
 
+def _apply_sticky_metric(label: str, sticky: str | None) -> tuple[str, str | None]:
+    """指標セクションの裸 既存店/全店 に直前の指標を付ける。"""
+    for metric in ("売上高", "客数", "客単価"):
+        if label == metric or label.startswith(metric + " "):
+            return label, metric
+    if sticky and label in ("既存店", "全店", "既存"):
+        return f"{sticky} {label}", sticky
+    return label, sticky
+
+
 def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dict | None:
     header = grid[header_i]
     month_cols = []
@@ -1003,6 +1013,7 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
             current_fy = fy
     series: dict[tuple[str, str], dict[str, int | float]] = {}
     scope = ""
+    sticky_metric: str | None = None
     for row in grid[header_i + 1 :]:
         nxt = _month_header_cols(row)
         if nxt is not None:
@@ -1040,6 +1051,7 @@ def _parse_col_months(grid: list[list[str]], header_i: int, context: str) -> dic
         samples = [row[c] if c < len(row) else "" for c, _m in month_cols]
         unit = infer_unit(raw_label, samples, context)
         label = _rewrite_period_header(raw_label)
+        label, sticky_metric = _apply_sticky_metric(label, sticky_metric)
         values: dict[str, int | float] = {}
         for c, month in month_cols:
             if c >= len(row):
