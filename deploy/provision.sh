@@ -592,30 +592,81 @@ write_if_changed /etc/systemd/system/fluent-bit.service.d/slack.conf 644 <<'EOF'
 [Service]
 EnvironmentFile=-/etc/fluent-bit/slack.env
 EOF
-write_slack_env() {
+slack_env_value() {
+  local key="$1"
+  local file="/etc/fluent-bit/slack.env"
+  [[ -f "$file" ]] || return 0
+  awk -v k="$key" 'index($0, k "=")==1 {print substr($0, length(k)+2); exit}' "$file"
+}
+
+slack_uri_from_url() {
   local url="$1"
+  local label="${2:-SLACK_WEBHOOK_URL}"
   if [[ "$url" == *$'\n'* || "$url" == *$'\r'* ]]; then
-    echo "SLACK_WEBHOOK_URL rejected (newline)" >&2
+    echo "${label} rejected (newline)" >&2
     return 1
   fi
   local rest="${url#https://}"
   local host="${rest%%/*}"
   local uri="/${rest#*/}"
   if [[ "$host" != "hooks.slack.com" ]]; then
-    echo "SLACK_WEBHOOK_URL rejected (host)" >&2
+    echo "${label} rejected (host)" >&2
     return 1
   fi
   if [[ "$uri" != /services/* ]]; then
-    echo "SLACK_WEBHOOK_URL rejected (path)" >&2
+    echo "${label} rejected (path)" >&2
     return 1
   fi
-  printf 'SLACK_WEBHOOK_URL=%s\nSLACK_WEBHOOK_URI=%s\n' "$url" "$uri" | write_if_changed /etc/fluent-bit/slack.env 600
+  printf '%s' "$uri"
+}
+
+# Empty/invalid extras reuse the default URI so fluent-bit.conf variables are always set.
+slack_channel_uri() {
+  local extra_url="$1"
+  local label="$2"
+  local default_uri="$3"
+  if [[ -z "$extra_url" ]]; then
+    printf '%s' "$default_uri"
+    return 0
+  fi
+  local extra_uri
+  extra_uri="$(slack_uri_from_url "$extra_url" "$label")" || extra_uri="$default_uri"
+  printf '%s' "$extra_uri"
+}
+
+write_slack_env() {
+  local url="$1"
+  local uri
+  uri="$(slack_uri_from_url "$url")" || return 1
+  local app_uri batch_uri infra_uri
+  app_uri="$(slack_channel_uri "${SLACK_WEBHOOK_URL_APP:-}" SLACK_WEBHOOK_URL_APP "$uri")"
+  batch_uri="$(slack_channel_uri "${SLACK_WEBHOOK_URL_BATCH:-}" SLACK_WEBHOOK_URL_BATCH "$uri")"
+  infra_uri="$(slack_channel_uri "${SLACK_WEBHOOK_URL_INFRA:-}" SLACK_WEBHOOK_URL_INFRA "$uri")"
+  printf 'SLACK_WEBHOOK_URL=%s\nSLACK_WEBHOOK_URI=%s\nSLACK_WEBHOOK_URI_APP=%s\nSLACK_WEBHOOK_URI_BATCH=%s\nSLACK_WEBHOOK_URI_INFRA=%s\n' \
+    "$url" "$uri" "$app_uri" "$batch_uri" "$infra_uri" | write_if_changed /etc/fluent-bit/slack.env 600
   chmod 600 /etc/fluent-bit/slack.env
 }
+
+slack_restore_channel_url() {
+  local env_name="$1"
+  local uri_key="$2"
+  if [[ -n "${!env_name:-}" ]]; then
+    return 0
+  fi
+  local existing_uri
+  existing_uri="$(slack_env_value "$uri_key")"
+  if [[ -n "$existing_uri" ]]; then
+    printf -v "$env_name" '%s' "https://hooks.slack.com${existing_uri}"
+  fi
+}
+
 if [[ -n "${SLACK_WEBHOOK_URL:-}" ]]; then
   write_slack_env "$SLACK_WEBHOOK_URL" || true
 elif [[ -f /etc/fluent-bit/slack.env ]]; then
-  existing_url="$(awk -F= '/^SLACK_WEBHOOK_URL=/{print substr($0,19); exit}' /etc/fluent-bit/slack.env || true)"
+  existing_url="$(slack_env_value SLACK_WEBHOOK_URL)"
+  slack_restore_channel_url SLACK_WEBHOOK_URL_APP SLACK_WEBHOOK_URI_APP
+  slack_restore_channel_url SLACK_WEBHOOK_URL_BATCH SLACK_WEBHOOK_URI_BATCH
+  slack_restore_channel_url SLACK_WEBHOOK_URL_INFRA SLACK_WEBHOOK_URI_INFRA
   if [[ -n "$existing_url" ]]; then
     write_slack_env "$existing_url" || true
   fi

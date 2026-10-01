@@ -188,6 +188,9 @@ jobs:
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      SLACK_WEBHOOK_URL_APP: ${{ secrets.SLACK_WEBHOOK_URL_APP }}
+      SLACK_WEBHOOK_URL_BATCH: ${{ secrets.SLACK_WEBHOOK_URL_BATCH }}
+      SLACK_WEBHOOK_URL_INFRA: ${{ secrets.SLACK_WEBHOOK_URL_INFRA }}
       VPS_DOMAIN: ${{ secrets.VPS_DOMAIN }}
       CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
     steps:
@@ -251,6 +254,9 @@ jobs:
               "R2_ACCESS_KEY_ID",
               "R2_SECRET_ACCESS_KEY",
               "SLACK_WEBHOOK_URL",
+              "SLACK_WEBHOOK_URL_APP",
+              "SLACK_WEBHOOK_URL_BATCH",
+              "SLACK_WEBHOOK_URL_INFRA",
           ]
           print("set -euo pipefail")
           for k in keys:
