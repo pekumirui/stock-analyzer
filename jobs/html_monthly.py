@@ -754,6 +754,8 @@ def _compact_store_status_label(label: str) -> str:
         s = s[len("店舗状況 ") :].strip()
     if s.startswith("拠点数 "):
         s = s[len("拠点数 ") :].strip()
+    if s.startswith("出退店 "):
+        s = s[len("出退店 ") :].strip()
     if re.search(r"（内\s*開店", s) or s.startswith("（内 出店"):
         return "出店"
     if re.search(r"（内\s*閉店", s) or s.startswith("（内 退店"):
