@@ -144,6 +144,16 @@ def test_canonicalize_element_label() -> None:
         _fail("omitted unit is number: tokens only")
     if canonicalize_element_label("合計 店舗数", "number") != "店舗数":
         _fail("合計 店舗数 drops 合計")
+    if canonicalize_element_label("対象店舗数", "number") != "店舗数":
+        _fail("対象店舗数 is 店舗数")
+    if canonicalize_element_label("全業態 対象 店舗数", "number") != "全業態 店舗数":
+        _fail("対象 leftover drops from 全業態 店舗数")
+    if canonicalize_element_label("全業態 対象 既存 店舗数", "number") != "全業態 既存 店舗数":
+        _fail("対象 leftover drops from 全業態 既存 店舗数")
+    if monthly_row_segment("全業態 対象 店舗数") != "全業態":
+        _fail("全業態 対象 stores group is 全業態")
+    if monthly_element_label("てけてけ 対象 店舗数", "number")["group"] != "てけてけ":
+        _fail("てけてけ 対象 stores group is てけてけ")
     if canonicalize_element_label("既存店 売上高(前年比)", "yoy_index") != "既存 売上高(前年比)":
         _fail("既存店 shortens")
     if canonicalize_element_label("既存店全店 売上高(％)", "yoy_index") != "既存 売上高(前年比)":
@@ -776,6 +786,20 @@ def test_issuer_alias_cases() -> None:
     sample_76830 = canonicalize_element_label(sample_76830, "number")
     if sample_76830 != "内アパレル 全店 売上高":
         _fail(f"76830 内 MM 全店 売上高: {sample_76830!r}")
+    sample_35570 = apply_issuer_aliases(
+        "35570",
+        canonicalize_element_label("てけてけ業態 既存 売上高(前年比)", "yoy_index"),
+        year=2099,
+    )
+    if sample_35570 != "てけてけ 既存 売上高(前年比)":
+        _fail(f"35570 てけてけ業態: {sample_35570!r}")
+    sample_35570_stores = apply_issuer_aliases(
+        "35570",
+        canonicalize_element_label("the 3rd Burger業態 対象 既存 店舗数", "number"),
+        year=2099,
+    )
+    if sample_35570_stores != "the 3rd Burger 既存 店舗数":
+        _fail(f"35570 対象店舗数: {sample_35570_stores!r}")
     sample_76830_yoy = apply_issuer_aliases(
         "76830", canonicalize_element_label("内 MM 全店 売上高(前年比)", "yoy_index"), year=2026,
     )
