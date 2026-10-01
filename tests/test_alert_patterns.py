@@ -545,9 +545,11 @@ def test_stub_sudo_channel_env_after_sudoers_refresh(tmp_path: Path) -> None:
     old = subprocess.run(
         [
             "sudo",
-            "--preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,"
-            "CERTBOT_EMAIL,SLACK_WEBHOOK_URL,SLACK_WEBHOOK_URL_APP,"
-            "SLACK_WEBHOOK_URL_BATCH,SLACK_WEBHOOK_URL_INFRA",
+            (
+                "--preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,"
+                "CERTBOT_EMAIL,SLACK_WEBHOOK_URL,SLACK_WEBHOOK_URL_APP,"
+                "SLACK_WEBHOOK_URL_BATCH,SLACK_WEBHOOK_URL_INFRA"
+            ),
             "provision.sh",
         ],
         env=env,
