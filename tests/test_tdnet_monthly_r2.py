@@ -148,6 +148,8 @@ def test_download_skip_reason() -> None:
         "89520": ("013", "テストリート投資法人"),
         "72030": ("011", "トヨタ自動車"),
         "92790": ("010", "ギフト"),
+        "87980": ("011", "アドバンスクリエイト"),
+        "87390": ("011", "スパークス・グループ"),
     }
     # 1. non-empty map + absent code (名古屋単独など) → skip, do not download
     got = download_skip_reason("3032", "ゴルフ・ドゥ", stock_map)
@@ -179,6 +181,12 @@ def test_download_skip_reason() -> None:
     got = download_skip_reason("8985", "ジャパン・ホテル・リート投資法人", empty)
     if got != "excluded-code 8985 ジャパン・ホテル・リート投資法人":
         _fail(f"empty map 8985 excluded-code: {got!r}")
+    got = download_skip_reason("8798", "アドバンスクリエイト", empty)
+    if got != "excluded-code 8798 アドバンスクリエイト":
+        _fail(f"empty map 8798 excluded-code: {got!r}")
+    got = download_skip_reason("8739", "スパークス・グループ", empty)
+    if got != "excluded-code 8739 スパークス・グループ":
+        _fail(f"empty map 8739 excluded-code: {got!r}")
     if download_skip_reason("8952", "テストリート投資法人", empty) is not None:
         _fail("empty map must keep ordinary REIT 8952")
 
@@ -190,13 +198,25 @@ def test_download_skip_reason() -> None:
     if got != "infra-fund 9282 ジャパン・インフラファンド投資法人":
         _fail(f"92820 infra: {got!r}")
 
-    # 4. 8985 is on MONTHLY_SKIP_CODES. Other ordinary REIT stays.
+    # 4. MONTHLY_SKIP_CODES (map の有無にかかわらず excluded-code)。普通の REIT は残す。
     got = download_skip_reason("8985", "ジャパン・ホテル・リート投資法人", stock_map)
     if got != "excluded-code 8985 ジャパン・ホテル・リート投資法人":
         _fail(f"8985 excluded-code: {got!r}")
     got = download_skip_reason("89850", "ジャパン・ホテル・リート投資法人", stock_map)
     if got != "excluded-code 8985 ジャパン・ホテル・リート投資法人":
         _fail(f"89850 excluded-code: {got!r}")
+    got = download_skip_reason("8798", "アドバンスクリエイト", stock_map)
+    if got != "excluded-code 8798 アドバンスクリエイト":
+        _fail(f"8798 excluded-code: {got!r}")
+    got = download_skip_reason("87980", "アドバンスクリエイト", stock_map)
+    if got != "excluded-code 8798 アドバンスクリエイト":
+        _fail(f"87980 excluded-code: {got!r}")
+    got = download_skip_reason("8739", "スパークス・グループ", stock_map)
+    if got != "excluded-code 8739 スパークス・グループ":
+        _fail(f"8739 excluded-code: {got!r}")
+    got = download_skip_reason("87390", "スパークス・グループ", stock_map)
+    if got != "excluded-code 8739 スパークス・グループ":
+        _fail(f"87390 excluded-code: {got!r}")
     if download_skip_reason("8952", "テストリート投資法人", stock_map) is not None:
         _fail("8952 ordinary REIT should keep")
     if download_skip_reason("89520", "テストリート投資法人", stock_map) is not None:
