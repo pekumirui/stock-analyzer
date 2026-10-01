@@ -175,6 +175,11 @@ umask 077
 write_rclone_conf
 
 chmod +x "$APP_DIR/deploy/provision.sh"
+# --preserve-env names not yet in live env_keep are rejected before provision
+# can install sudoers. Refresh /etc/sudoers.d with APP_DIR only (kept since
+# enable-cicd), then pass channel webhooks on the full run.
+sudo --preserve-env=APP_DIR \
+  "$APP_DIR/deploy/provision.sh" --sudoers-only
 sudo --preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,CERTBOT_EMAIL,SLACK_WEBHOOK_URL,SLACK_WEBHOOK_URL_APP,SLACK_WEBHOOK_URL_BATCH,SLACK_WEBHOOK_URL_INFRA \
   "$APP_DIR/deploy/provision.sh"
 
