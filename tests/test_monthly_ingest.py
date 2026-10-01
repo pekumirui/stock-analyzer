@@ -356,6 +356,45 @@ def test_canonicalize_element_label() -> None:
         _fail("閉 店舗数 stitches to 退店")
     if canonicalize_element_label("店舗 閉店", "number") != "退店":
         _fail("dummy 店舗 on 閉店 drops")
+    if canonicalize_element_label("閉店数", "number") != "退店":
+        _fail("閉店数 stays 退店 flow")
+    if canonicalize_element_label("出店", "number") != "出店":
+        _fail("出店 stays flow")
+    status_store_cases = (
+        ("転換準備による一時閉店中の店舗数", "転換準備による一時閉店中 店舗数"),
+        ("転換準備による一時閉店中 店舗数", "転換準備による一時閉店中 店舗数"),
+        ("閉店中店舗数", "閉店中 店舗数"),
+        ("閉店予定店舗数", "閉店予定 店舗数"),
+        ("一時閉店店舗数", "一時閉店 店舗数"),
+        ("改装閉店中店舗数", "改装閉店中 店舗数"),
+        ("開店準備中店舗数", "開店準備中 店舗数"),
+        ("出店予定店舗数", "出店予定 店舗数"),
+        ("閉鎖店舗数", "閉鎖店舗数"),
+        ("休業中店舗数", "休業中 店舗数"),
+    )
+    for src, want in status_store_cases:
+        got = canonicalize_element_label(src, "number")
+        if got != want:
+            _fail(f"status+店舗数 {src!r} → {got!r}, want {want!r}")
+        if canonicalize_element_label(got, "number") != got:
+            _fail(f"status+店舗数 not idempotent {src!r} → {got!r}")
+        layers = parse_element_layers(src)
+        if layers["metric"] != "店舗数":
+            _fail(f"status+店舗数 metric {src!r}: {layers}")
+    closed_mid = monthly_element_label("転換準備による一時閉店中の店舗数", "number")
+    if (
+        closed_mid["segment"] != "転換準備による一時閉店中"
+        or closed_mid["metric"] != "店舗数"
+        or closed_mid["metric_kind"] != "stores"
+    ):
+        _fail(f"一時閉店中の店舗数 stays stores: {closed_mid}")
+    closed_stem = monthly_element_label("閉鎖店舗数", "number")
+    if (
+        closed_stem["segment"] != "閉鎖"
+        or closed_stem["metric"] != "店舗数"
+        or closed_stem["metric_kind"] != "stores"
+    ):
+        _fail(f"閉鎖店舗数 stays stores: {closed_stem}")
     if canonicalize_element_label("純増 店舗数", "number") != "純増 店舗数":
         _fail("純増 stays")
     if canonicalize_element_label("新設店舗", "number") != "新設店舗":
