@@ -101,7 +101,9 @@ INFRA_FUND_PRODUCT_CATEGORIES = ("013", "022")
 INFRA_FUND_NAME_NEEDLE = "インフラ"
 INFRA_FUND_FALLBACK_NEEDLE = "インフラ投資法人"
 # display_code（4桁）。月次PDFを保存しない発行体。
-MONTHLY_SKIP_CODES = frozenset({"8985"})
+# 8798 アドバンスクリエイト: 月次推移がグラフ画像のみでテキスト不可
+# 8739 スパークス: 売上ではなく運用資産残高のストック表
+MONTHLY_SKIP_CODES = frozenset({"8739", "8798", "8985"})
 
 
 def is_monthly_title(title: str) -> bool:
