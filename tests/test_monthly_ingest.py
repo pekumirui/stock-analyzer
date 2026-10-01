@@ -1783,7 +1783,7 @@ def test_rename_29260_style_cross_year_yoy() -> None:
     _expect(r, 200, "GET 29260 2025")
     y2025 = r.json()
     order = [row["element"] for row in union_monthly_elements([y2026, y2025])]
-    if order != [canon, "売上高", "店舗数"]:
+    if order != ["売上高", canon, "店舗数"]:
         _fail(f"29260 union must be one yoy row: {order!r}")
     by = {e["element"]: e for e in y2026["elements"]}
     if canon not in by or float(by[canon]["values"]["1"]) != 110.0:
@@ -1806,7 +1806,7 @@ def test_rename_29260_style_cross_year_yoy() -> None:
         ]},
     ]
     leftover_order = [row["element"] for row in union_monthly_elements(leftover)]
-    if leftover_order != [canon, "売上高", "店舗数"]:
+    if leftover_order != ["売上高", canon, "店舗数"]:
         _fail(f"leftover short names must collapse by display: {leftover_order!r}")
 
     again = merge_yoy_duplicate_elements()

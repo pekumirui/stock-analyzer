@@ -1062,7 +1062,7 @@ def _assert_union_collapses_yoy_display_names() -> None:
     ]
     rows = union_monthly_elements(leftover)
     order = [row["element"] for row in rows]
-    if order != [canon, "売上高", "店舗数"]:
+    if order != ["売上高", canon, "店舗数"]:
         _fail(f"cross-year yoy short/canonical must be one row: {order!r}")
     if monthly_row_slot(rows[0]["element"], rows[0]["unit"]) != 1:
         _fail("collapsed yoy 全店売上 stays slot 1")
