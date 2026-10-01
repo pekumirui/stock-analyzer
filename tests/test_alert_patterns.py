@@ -104,6 +104,22 @@ def _section_body(conf: str, header: str, needle: str) -> str:
     return ""
 
 
+OUTPUT_URI_BY_MATCH = {
+    "app": "${SLACK_WEBHOOK_URI_APP}",
+    "batch": "${SLACK_WEBHOOK_URI_BATCH}",
+    "nginx": "${SLACK_WEBHOOK_URI_INFRA}",
+    "mcp": "${SLACK_WEBHOOK_URI_INFRA}",
+    "systemd": "${SLACK_WEBHOOK_URI_INFRA}",
+}
+DEFAULT_SLACK_URI = "${SLACK_WEBHOOK_URI}"
+CATCHALL_TAG_RE = r"^(?!(app|batch|nginx|mcp|systemd)$).+$"
+CHANNEL_WEBHOOK_SECRETS = (
+    "SLACK_WEBHOOK_URL_APP",
+    "SLACK_WEBHOOK_URL_BATCH",
+    "SLACK_WEBHOOK_URL_INFRA",
+)
+
+
 def _grep_blocks(conf: str) -> list[dict[str, object]]:
     blocks: list[dict[str, object]] = []
     current: dict[str, object] | None = None
@@ -133,6 +149,32 @@ def _grep_blocks(conf: str) -> list[dict[str, object]]:
     if current is not None:
         blocks.append(current)
     return [b for b in blocks if b["name"] == "grep"]
+
+
+def _output_blocks(conf: str) -> list[dict[str, str]]:
+    blocks: list[dict[str, str]] = []
+    current: dict[str, str] | None = None
+    for raw in conf.splitlines():
+        stripped = raw.strip()
+        if stripped == "[OUTPUT]":
+            if current is not None:
+                blocks.append(current)
+            current = {"name": "", "match": "", "match_regex": "", "uri": "", "host": ""}
+            continue
+        if stripped.startswith("[") and current is not None:
+            blocks.append(current)
+            current = None
+        if current is None:
+            continue
+        parts = stripped.split(None, 1)
+        if len(parts) != 2:
+            continue
+        key, val = parts[0].lower(), parts[1]
+        if key in current:
+            current[key] = val
+    if current is not None:
+        blocks.append(current)
+    return blocks
 
 
 def test_conf_has_registry_regexes() -> None:
@@ -186,8 +228,54 @@ def test_conf_has_registry_regexes() -> None:
         _fail("fluent-bit.conf must POST via http")
     if "Host         hooks.slack.com" not in conf:
         _fail("fluent-bit.conf must POST to hooks.slack.com")
-    if "URI          ${SLACK_WEBHOOK_URI}" not in conf:
-        _fail("fluent-bit.conf must use URI ${SLACK_WEBHOOK_URI}")
+    outputs = _output_blocks(conf)
+    if not outputs:
+        _fail("fluent-bit.conf must have [OUTPUT] blocks")
+    matched: dict[str, str] = {}
+    catchall: dict[str, str] | None = None
+    for block in outputs:
+        if block["name"] != "http":
+            _fail(f"fluent-bit.conf OUTPUT must be http: {block}")
+        if block["host"] != "hooks.slack.com":
+            _fail(f"fluent-bit.conf OUTPUT must POST to hooks.slack.com: {block}")
+        if block["match"] == "*":
+            _fail("fluent-bit.conf OUTPUT must not Match * (would duplicate tagged alerts)")
+        if block["match"] and block["match_regex"]:
+            _fail(f"fluent-bit.conf OUTPUT must not set both Match and Match_Regex: {block}")
+        if block["match"]:
+            if block["match"] in matched:
+                _fail(f"fluent-bit.conf duplicate OUTPUT Match {block['match']}")
+            expected = OUTPUT_URI_BY_MATCH.get(block["match"])
+            if expected is None:
+                _fail(f"fluent-bit.conf OUTPUT Match {block['match']!r} is not a known tag")
+            if block["uri"] != expected:
+                _fail(
+                    f"fluent-bit.conf OUTPUT Match {block['match']} must use URI {expected}, "
+                    f"got {block['uri']!r}"
+                )
+            matched[block["match"]] = block["uri"]
+            continue
+        if block["match_regex"] != CATCHALL_TAG_RE:
+            _fail(
+                "fluent-bit.conf catch-all OUTPUT Match_Regex must exclude "
+                f"app/batch/nginx/mcp/systemd, got {block['match_regex']!r}"
+            )
+        if block["uri"] != DEFAULT_SLACK_URI:
+            _fail(f"fluent-bit.conf catch-all OUTPUT must use URI {DEFAULT_SLACK_URI}")
+        if catchall is not None:
+            _fail("fluent-bit.conf duplicate catch-all OUTPUT")
+        catchall = block
+    missing = sorted(set(OUTPUT_URI_BY_MATCH) - set(matched))
+    if missing:
+        _fail(f"fluent-bit.conf missing tagged OUTPUT Match: {missing}")
+    if catchall is None:
+        _fail("fluent-bit.conf must have a catch-all OUTPUT for unclassified tags")
+    catch_re = re.compile(CATCHALL_TAG_RE)
+    for tag in OUTPUT_URI_BY_MATCH:
+        if catch_re.search(tag):
+            _fail(f"catch-all Match_Regex must not match tagged source {tag}")
+    if catch_re.search("other") is None:
+        _fail("catch-all Match_Regex must match unclassified tags")
     if "body_key     $body" not in conf or "headers_key  $headers" not in conf:
         _fail("fluent-bit.conf must send the Lua webhook body as-is")
     if "call    format_slack" not in conf:
@@ -257,25 +345,41 @@ def test_no_committed_webhook_url() -> None:
 
 def test_secret_contract() -> None:
     cicd = (ROOT / ".github" / "workflows" / "cicd.yml").read_text(encoding="utf-8")
-    if "SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}" not in cicd:
-        _fail("cicd.yml deploy env must include SLACK_WEBHOOK_URL")
-    if '"SLACK_WEBHOOK_URL"' not in cicd:
-        _fail("cicd.yml export keys must include SLACK_WEBHOOK_URL")
+    webhook_secrets = ("SLACK_WEBHOOK_URL", *CHANNEL_WEBHOOK_SECRETS)
+    for name in webhook_secrets:
+        if f"{name}: ${{{{ secrets.{name} }}}}" not in cicd:
+            _fail(f"cicd.yml deploy env must include {name}")
+        if f'"{name}"' not in cicd:
+            _fail(f"cicd.yml export keys must include {name}")
     update = (ROOT / "deploy" / "update.sh").read_text(encoding="utf-8")
     if "upsert_env SLACK_WEBHOOK_URL" in update:
         _fail("update.sh must not upsert SLACK_WEBHOOK_URL into the app .env")
     if "SLACK_WEBHOOK_URL" not in update or "--preserve-env=" not in update:
         _fail("update.sh must pass SLACK_WEBHOOK_URL via sudo --preserve-env")
-    if "SLACK_WEBHOOK_URL" not in update.split("--preserve-env=", 1)[-1].split("\n", 1)[0]:
-        _fail("update.sh --preserve-env must list SLACK_WEBHOOK_URL")
+    preserve = update.split("--preserve-env=", 1)[-1].split("\n", 1)[0]
+    for name in webhook_secrets:
+        if name not in preserve:
+            _fail(f"update.sh --preserve-env must list {name}")
     sudoers = (ROOT / "deploy" / "sudoers").read_text(encoding="utf-8")
-    if "SLACK_WEBHOOK_URL" not in sudoers or "env_keep" not in sudoers:
-        _fail("deploy/sudoers must env_keep SLACK_WEBHOOK_URL")
+    if "env_keep" not in sudoers:
+        _fail("deploy/sudoers must env_keep Slack webhook URLs")
+    for name in webhook_secrets:
+        if name not in sudoers:
+            _fail(f"deploy/sudoers must env_keep {name}")
     provision = (ROOT / "deploy" / "provision.sh").read_text(encoding="utf-8")
     if "/etc/fluent-bit/slack.env" not in provision:
         _fail("provision.sh must write /etc/fluent-bit/slack.env")
     if "SLACK_WEBHOOK_URI=%s" not in provision:
         _fail("provision.sh must write SLACK_WEBHOOK_URI into slack.env")
+    for uri_name in (
+        "SLACK_WEBHOOK_URI_APP=%s",
+        "SLACK_WEBHOOK_URI_BATCH=%s",
+        "SLACK_WEBHOOK_URI_INFRA=%s",
+    ):
+        if uri_name not in provision:
+            _fail(f"provision.sh must write {uri_name} into slack.env")
+    if "slack_channel_uri" not in provision:
+        _fail("provision.sh must fall back empty channel webhooks to SLACK_WEBHOOK_URI")
     if "fluent-bit_slack.lua" not in provision or "/etc/fluent-bit/slack.lua" not in provision:
         _fail("provision.sh must install fluent-bit_slack.lua")
     if "EnvironmentFile=-/etc/fluent-bit/slack.env" not in provision:
