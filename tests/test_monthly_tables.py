@@ -1062,7 +1062,7 @@ def _assert_union_collapses_yoy_display_names() -> None:
     ]
     rows = union_monthly_elements(leftover)
     order = [row["element"] for row in rows]
-    if order != [canon, "売上高", "店舗数"]:
+    if order != ["売上高", canon, "店舗数"]:
         _fail(f"cross-year yoy short/canonical must be one row: {order!r}")
     if monthly_row_slot(rows[0]["element"], rows[0]["unit"]) != 1:
         _fail("collapsed yoy 全店売上 stays slot 1")
@@ -1687,6 +1687,8 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("monthlyRowOrder must not key by raw stored element name")
     if "MONTHLY_BREAKDOWN_RANK[L.breakdown]" not in row_body:
         _fail("monthlyRowOrder must sort 売上高 内訳 after the parent")
+    if "unitRank" not in row_body:
+        _fail("monthlyRowOrder must sort number before yoy within a metric")
     if "function monthlySeriesKind" in html:
         _fail("SPA must not keep monthlySeriesKind string parser")
     if "function monthlySeriesChoices" not in html:
@@ -1943,6 +1945,11 @@ def _assert_monthly_spa(html: str) -> None:
     scope_at = reorder_body.find("scopeRank")
     if chan_at < 0 or scope_at < 0 or chan_at > scope_at:
         _fail("gated blocks must reorder by channel before scope")
+    slot_at = reorder_body.find("a.slot")
+    unit_at = reorder_body.find("unitRank")
+    bd_at = reorder_body.find("bdRank")
+    if slot_at < 0 or unit_at < 0 or bd_at < 0 or not (slot_at < unit_at < bd_at):
+        _fail("gated blocks must reorder by metric then number before yoy then 内訳")
     if "既存店" not in html:
         _fail("scope stub text must map 既存 to 既存店")
 
@@ -2030,12 +2037,16 @@ def _assert_monthly_layout_js() -> None:
             "code": "99970",
             "elements": [
                 _el("グロース領域 全店 売上高 ホテル", "number"),
+                _el("グロース領域 全店 売上高 ホテル(前年比)"),
                 _el("グロース領域 全店 売上高 専門通販", "number"),
                 _el("グロース領域 全店 売上高 化粧品健康食品", "number"),
                 _el("グロース領域 全店 売上高", "number"),
+                _el("グロース領域 全店 売上高(前年比)"),
                 _el("グロース領域 全店 売上高 インカム太陽光", "number"),
                 _el("グロース領域 全店 売上高 プロパティ", "number"),
+                _el("グロース領域 全店 売上高 プロパティ(前年比)"),
                 _el("全店 連結売上高", "number"),
+                _el("全店 連結売上高(前年比)"),
             ],
         }],
         "gmvTables": [{
@@ -2448,6 +2459,7 @@ console.log(JSON.stringify({
         _fail(f"area 小枝 must not add a stub column: {got.get('areaCols')!r}")
     want_area = [
         {"kind": "data", "element": "全店 連結売上高", "group": "", "leaf": "連結売上高", "breakdown": "", "breakdownDepth": 0},
+        {"kind": "data", "element": "全店 連結売上高(前年比)", "group": "", "leaf": "連結売上高(前年比)", "breakdown": "", "breakdownDepth": 0},
         {"kind": "section", "label": "グロース領域"},
         {"kind": "data", "element": "グロース領域 全店 売上高", "group": "グロース領域", "leaf": "売上高", "breakdown": "", "breakdownDepth": 0},
         {"kind": "data", "element": "グロース領域 全店 売上高 プロパティ", "group": "グロース領域", "leaf": "└ プロパティ", "breakdown": "プロパティ", "breakdownDepth": 1},
@@ -2455,6 +2467,9 @@ console.log(JSON.stringify({
         {"kind": "data", "element": "グロース領域 全店 売上高 インカム太陽光", "group": "グロース領域", "leaf": "└ インカム太陽光", "breakdown": "インカム太陽光", "breakdownDepth": 2},
         {"kind": "data", "element": "グロース領域 全店 売上高 専門通販", "group": "グロース領域", "leaf": "└ 専門通販", "breakdown": "専門通販", "breakdownDepth": 1},
         {"kind": "data", "element": "グロース領域 全店 売上高 化粧品健康食品", "group": "グロース領域", "leaf": "└ 化粧品健康食品", "breakdown": "化粧品健康食品", "breakdownDepth": 2},
+        {"kind": "data", "element": "グロース領域 全店 売上高(前年比)", "group": "グロース領域", "leaf": "売上高(前年比)", "breakdown": "", "breakdownDepth": 0},
+        {"kind": "data", "element": "グロース領域 全店 売上高 プロパティ(前年比)", "group": "グロース領域", "leaf": "└ プロパティ(前年比)", "breakdown": "プロパティ", "breakdownDepth": 1},
+        {"kind": "data", "element": "グロース領域 全店 売上高 ホテル(前年比)", "group": "グロース領域", "leaf": "└ ホテル(前年比)", "breakdown": "ホテル", "breakdownDepth": 2},
     ]
     if got.get("areaSummary") != want_area:
         _fail(f"99970 小枝 layout: {got.get('areaSummary')!r}")
