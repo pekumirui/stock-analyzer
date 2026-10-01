@@ -412,6 +412,16 @@ def test_canonicalize_element_label() -> None:
         _fail("bare 既存 yoy fills 売上高")
     if canonicalize_element_label("直営 全店(前年比)", "yoy_index") != "直営 全店(前年比)":
         _fail("channel+scope empty metric stays")
+    if canonicalize_element_label("客数 既存(前年比)", "yoy_index") != "既存 客数(前年比)":
+        _fail("客数 既存 yoy stays 客数 metric")
+    if canonicalize_element_label("会員数 既存(前年比)", "yoy_index") != "会員数 既存(前年比)":
+        _fail("会員数 既存 yoy does not fill 売上高")
+    if canonicalize_element_label("会員数(前年比)", "yoy_index") != "会員数(前年比)":
+        _fail("bare 会員数 yoy stays")
+    if canonicalize_element_label("会員数 既存", "number") != "会員数 既存":
+        _fail("会員数 既存 number stays")
+    if canonicalize_element_label("既存店会員数前年同月比", "yoy_index") != "会員数 既存(前年比)":
+        _fail("既存店会員数 yoy is 会員数 既存, not 売上高")
     twice = canonicalize_element_label("焼肉 直営+FC 既存 売上高(前年比)", "yoy_index")
     if twice != "焼肉 直営+FC 既存 売上高(前年比)":
         _fail("canonicalize idempotent")
@@ -2417,6 +2427,42 @@ def test_monthly_element_label() -> None:
     bare_offices = monthly_element_label("営業所数", "number")
     if bare_offices["group"] or bare_offices["metric"] != "営業所数" or bare_offices["scope"]:
         _fail(f"bare 営業所数 label: {bare_offices!r}")
+    members = monthly_element_label("会員数 既存(前年比)", "yoy_index")
+    want_members = {
+        "display": "会員数 既存(前年比)",
+        "group": "会員数",
+        "metric_kind": "other",
+        "series_kind": None,
+        "country": "",
+        "segment": "会員数",
+        "time_axis": "",
+        "channel": "",
+        "scope": "既存",
+        "metric": "",
+        "breakdown": "",
+        "breakdown_depth": 0,
+    }
+    if members != want_members:
+        _fail(f"会員数 既存 yoy label: {members!r}")
+    bare_members = monthly_element_label("会員数(前年比)", "yoy_index")
+    if (
+        bare_members["display"] != "会員数(前年比)"
+        or bare_members["group"] != "会員数"
+        or bare_members["metric"]
+        or bare_members["scope"]
+        or bare_members["metric_kind"] != "other"
+        or bare_members["series_kind"] is not None
+    ):
+        _fail(f"会員数 yoy label: {bare_members!r}")
+    guests = monthly_element_label("客数 既存(前年比)", "yoy_index")
+    if (
+        guests["display"] != "既存 客数(前年比)"
+        or guests["metric"] != "客数"
+        or guests["scope"] != "既存"
+        or guests["metric_kind"] != "customers"
+        or guests["series_kind"] != "existing"
+    ):
+        _fail(f"客数 既存 yoy label: {guests!r}")
 
 
 def main() -> None:

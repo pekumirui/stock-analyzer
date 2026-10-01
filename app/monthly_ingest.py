@@ -646,11 +646,13 @@ def normalize_element_tokens(element: str, *, fill_default_metric: bool = False)
     if not trimmed:
         return trimmed
     parts = parse_element_layers(trimmed)
+    # leftover に会員数がある yoy は売上高を補わない（#366）。
     if (
         fill_default_metric
         and not parts["metric"]
         and parts["scope"]
         and not parts["channel"]
+        and "会員数" not in parts["segment"]
     ):
         parts["metric"] = "売上高"
         parts["time_axis"] = ""
@@ -939,6 +941,9 @@ def monthly_series_kind(element: str, unit: str | None) -> str | None:
         return None
     layers = _layers_of(element)
     if layers["breakdown"]:
+        return None
+    # 会員数の前年比は既存/全店があっても売上高系列にしない (#366)。
+    if "会員数" in key:
         return None
     if "既存" in key:
         return "existing"
