@@ -1025,6 +1025,11 @@ def monthly_row_slot(element: str, unit: str | None) -> int:
     return _METRIC_RANK[_row_metric(element)]
 
 
+def monthly_row_unit_rank(unit: str | None) -> int:
+    """0=number 1=yoy。同じ指標の実数を先、前年比を後。"""
+    return 1 if (unit or "number") in _YOY_UNITS else 0
+
+
 def monthly_row_breakdown_rank(element: str) -> int:
     """売上高の親が先。内訳は ドラッグ → 調剤 → 物販。領域は木の先行順。"""
     bd = _layers_of(element)["breakdown"]
@@ -1079,7 +1084,8 @@ def union_monthly_elements(
     国なし → 日本 → 海外。セグメント無しが先、名前付きは新しい年の初出順。
     segment_tail（monthly_row_order.json）は非 tail の後。
     各塊は 全店 → 既存 → チャネル（直営+FC → 直営 → FC）→
-    売上高 → 客数 → 客単価 → 出店 → 退店 → 純増/新設/改装/業態転換 → 店舗数 → その他。
+    売上高（実数の親→内訳、そのあと前年比の親→内訳）→ 客数 → 客単価 →
+    出店 → 退店 → 純増/新設/改装/業態転換 → 店舗数 → その他。
     スコープ無しの店舗数は既存の後。保存名は変えない。
     """
     resolved = code
@@ -1127,6 +1133,7 @@ def union_monthly_elements(
                 "scope": monthly_row_scope_rank(display),
                 "channel": _row_channel_rank(display),
                 "slot": monthly_row_slot(display, unit),
+                "unit_rank": monthly_row_unit_rank(unit),
                 "bd": monthly_row_breakdown_rank(display),
                 "idx": len(items),
             })
@@ -1145,6 +1152,7 @@ def union_monthly_elements(
         it["scope"],
         it["channel"],
         it["slot"],
+        it["unit_rank"],
         it["bd"],
         it["idx"],
     ))

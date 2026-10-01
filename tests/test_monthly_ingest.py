@@ -28,6 +28,7 @@ from app.monthly_ingest import (  # noqa: E402
     monthly_element_label,
     monthly_row_breakdown_rank,
     monthly_row_segment,
+    monthly_row_unit_rank,
     monthly_series_kind,
     parse_as_of,
     parse_element_layers,
@@ -547,6 +548,12 @@ def test_canonicalize_element_label() -> None:
         _fail("調剤 bd rank 2")
     if monthly_row_breakdown_rank("既存 売上高 物販(前年比)") != 3:
         _fail("物販 bd rank 3")
+    if monthly_row_unit_rank("number") != 0:
+        _fail("number unit rank 0")
+    if monthly_row_unit_rank("yoy_index") != 1:
+        _fail("yoy unit rank 1")
+    if monthly_row_unit_rank("yoy_pct") != 1:
+        _fail("yoy_pct unit rank 1")
     if monthly_row_breakdown_rank("グロース領域 全店 売上高") != 0:
         _fail("area parent bd rank 0")
     if monthly_row_breakdown_rank("グロース領域 全店 売上高 プロパティ") != 1:
@@ -609,6 +616,30 @@ def test_canonicalize_element_label() -> None:
         "グロース領域 全店 売上高 化粧品健康食品",
     ]:
         _fail(f"area 小枝 order: {area_order!r}")
+    mixed_area = [row["element"] for row in union_monthly_elements([{
+        "year": 2026,
+        "elements": [
+            {"element": "グロース領域 全店 売上高 ホテル", "unit": "number"},
+            {"element": "グロース領域 全店 売上高 ホテル(前年比)", "unit": "yoy_index"},
+            {"element": "グロース領域 全店 売上高 プロパティ", "unit": "number"},
+            {"element": "グロース領域 全店 売上高 プロパティ(前年比)", "unit": "yoy_index"},
+            {"element": "グロース領域 全店 売上高", "unit": "number"},
+            {"element": "グロース領域 全店 売上高(前年比)", "unit": "yoy_index"},
+            {"element": "グロース領域 全店 売上高 インカム太陽光(前年比)", "unit": "yoy_index"},
+            {"element": "グロース領域 全店 売上高 インカム太陽光", "unit": "number"},
+        ],
+    }])]
+    if mixed_area != [
+        "グロース領域 全店 売上高",
+        "グロース領域 全店 売上高 プロパティ",
+        "グロース領域 全店 売上高 ホテル",
+        "グロース領域 全店 売上高 インカム太陽光",
+        "グロース領域 全店 売上高(前年比)",
+        "グロース領域 全店 売上高 プロパティ(前年比)",
+        "グロース領域 全店 売上高 ホテル(前年比)",
+        "グロース領域 全店 売上高 インカム太陽光(前年比)",
+    ]:
+        _fail(f"area number then yoy: {mixed_area!r}")
     if same_yoy_element("売上高", "yoy_index", "全店 売上高(前年比)", "yoy_index"):
         _fail("売上高 yoy does not fold into 全店 売上高")
     if not same_yoy_element("売上高", "yoy_index", "売上高(前年比)", "yoy_index"):
