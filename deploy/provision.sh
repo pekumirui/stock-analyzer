@@ -9,6 +9,41 @@ if [[ ${EUID} -ne 0 ]]; then
 fi
 
 APP_DIR="${APP_DIR:-/home/stock/stock-analyzer}"
+
+write_if_changed() {
+  local dest="$1" mode="${2:-644}"
+  local tmp
+  tmp="$(mktemp)"
+  cat > "$tmp"
+  if [[ ! -f "$dest" ]] || ! cmp -s "$tmp" "$dest"; then
+    install -m "$mode" "$tmp" "$dest"
+    echo "updated $dest"
+    rm -f "$tmp"
+    return 0
+  fi
+  rm -f "$tmp"
+  return 0
+}
+
+install_sudoers() {
+  if [[ -f "$APP_DIR/deploy/sudoers" ]]; then
+    if visudo -cf "$APP_DIR/deploy/sudoers" >/dev/null; then
+      write_if_changed /etc/sudoers.d/stock-analyzer 440 < "$APP_DIR/deploy/sudoers" || true
+    else
+      echo "sudoers の visudo 検証に失敗したので更新しません" >&2
+      exit 1
+    fi
+  fi
+}
+
+# Live /etc/sudoers.d lags the repo. update.sh installs this copy before
+# --preserve-env names that the previous sudoers did not env_keep.
+if [[ "${1:-}" == "--sudoers-only" ]]; then
+  install_sudoers
+  echo "sudoers ok"
+  exit 0
+fi
+
 STOCK_USER="${STOCK_USER:-stock}"
 DOMAIN="${VPS_DOMAIN:-160.251.179.50.sslip.io}"
 DOMAIN="${DOMAIN#"${DOMAIN%%[![:space:]]*}"}"
@@ -28,21 +63,6 @@ CERT_LIVE="/etc/letsencrypt/live/${DOMAIN}"
 HTPASSWD="/etc/nginx/stock-analyzer.htpasswd"
 ACME_ROOT="/var/www/letsencrypt"
 export DEBIAN_FRONTEND=noninteractive
-
-write_if_changed() {
-  local dest="$1" mode="${2:-644}"
-  local tmp
-  tmp="$(mktemp)"
-  cat > "$tmp"
-  if [[ ! -f "$dest" ]] || ! cmp -s "$tmp" "$dest"; then
-    install -m "$mode" "$tmp" "$dest"
-    echo "updated $dest"
-    rm -f "$tmp"
-    return 0
-  fi
-  rm -f "$tmp"
-  return 0
-}
 
 apt_retry() {
   # security.ubuntu.com の IPv6 ミラーが古い .deb を指して 404 になることがある。
@@ -172,14 +192,7 @@ if write_if_changed /etc/systemd/system/stock-analyzer-mcp.service 644 < "$APP_D
 fi
 systemctl enable stock-analyzer-mcp >/dev/null
 
-if [[ -f "$APP_DIR/deploy/sudoers" ]]; then
-  if visudo -cf "$APP_DIR/deploy/sudoers" >/dev/null; then
-    write_if_changed /etc/sudoers.d/stock-analyzer 440 < "$APP_DIR/deploy/sudoers" || true
-  else
-    echo "sudoers の visudo 検証に失敗したので更新しません" >&2
-    exit 1
-  fi
-fi
+install_sudoers
 
 if [[ -n "${BASIC_AUTH_USER:-}" && -n "${BASIC_AUTH_PASSWORD:-}" ]]; then
   touch "$HTPASSWD"

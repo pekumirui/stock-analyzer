@@ -24,7 +24,7 @@ ssh -t root@YOUR_HOST "bash -s '$(cat stock-analyzer-deploy.pub)'" < deploy/enab
 `setup-github-ssh.sh` が鍵を作り公開鍵を出すので、GitHub → Settings → Deploy keys に一度だけ登録する。
 clone が鍵未登録で落ちたら、出した公開鍵を入れてから `enable-cicd.sh` を再実行。
 
-sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd.sh` を実行する**。ただし `provision.sh` も sudoers を冪等に入れるので、通常の再デプロイだけでも足りる。
+sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd.sh` を実行する**。通常の再デプロイでも足りる。`update.sh` はフルの `sudo provision.sh` の前に `provision.sh --sudoers-only` で `/etc/sudoers.d` を入れ、新しい `env_keep` を同じデプロイの `--preserve-env` で渡せる。
 
 ## GitHub Secrets
 
@@ -51,7 +51,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 
 1. GitHub SSH（deploy key）を冪等に揃えてから `git pull --ff-only origin main`
 2. `JQUANTS_API_KEY` / `MCP_TOKEN` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` があれば `.env` のその行だけ upsert。R2 の両方が揃っていれば `~/.config/rclone/rclone.conf` も書く。`SLACK_WEBHOOK_URL` と `SLACK_WEBHOOK_URL_{APP,BATCH,INFRA}` は `.env` に書かない
-3. `sudo provision.sh`（パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers、R2 user mount、fluent-bit）。Webhook が空なら fluent-bit は enable のみで start しない
+3. `sudo provision.sh --sudoers-only`（`APP_DIR` だけ preserve。live sudoers を repo に合わせる）→ `sudo provision.sh`（パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers、R2 user mount、fluent-bit。Slack webhook は `--preserve-env`）。Webhook が空なら fluent-bit は enable のみで start しない
 4. venv / `pip install` / `migrate.py`（`database is locked` は最大約 6 分まで再試行。19:30 の日次バッチや毎時 `xbrl_normalize` と重なるため）
 5. `systemctl restart stock-analyzer` と `stock-analyzer-mcp`、localhost:8000 / :8010 のヘルスチェック
 
