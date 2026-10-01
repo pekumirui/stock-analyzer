@@ -550,8 +550,9 @@ class Template:
     as_of: date
     rules: tuple[RowRule, ...]
     fingerprint: tuple[tuple[str, tuple[tuple[str, int], ...] | None], ...]
-    # 前回の PDF にあった (表の見出しの骨格, 行名)。値のある新しい行・表が増えたら書かない
-    known: frozenset[tuple[str, str]] = frozenset()
+    # 前回の PDF にあった (表の序数, 見出しの骨格, 行名)。値のある新しい行・表が増えたら書かない。
+    # 序数を含めないと、同じ見出し・同じ行名の新ブロック（3557 の業態表など）を既知扱いする
+    known: frozenset[tuple[int, str, str]] = frozenset()
 
 
 class NoTemplate(ValueError):
@@ -608,22 +609,23 @@ def _score(
     return hit, miss, anchored
 
 
-def _row_names(grids: Sequence[Grid]) -> frozenset[tuple[str, str]]:
-    return frozenset((g.skeleton, s.key[0]) for g in grids for s in g.series)
+def _row_names(grids: Sequence[Grid]) -> frozenset[tuple[int, str, str]]:
+    return frozenset((g.ordinal, g.skeleton, s.key[0]) for g in grids for s in g.series)
 
 
 def _new_rows(template: Template, grids: Sequence[Grid], as_of: date) -> list[str]:
-    """前回無かった表・行で、開示月（または2か月以上）に値があるもの。新しい業態・セグメント。"""
+    """前回無かった表・行で、開示月（または2か月以上）に値があるもの。新しい業態・セグメント。
+    表の序数込み。同じ見出し・同じ行名のブロックが増えても素通りしない。"""
     anchor = expected_month(as_of)
-    out = []
+    by_grid: dict[int, list[str]] = {}
     for g in grids:
         for s in g.series:
-            if (g.skeleton, s.key[0]) in template.known:
+            if (g.ordinal, g.skeleton, s.key[0]) in template.known:
                 continue
             cells = _series_cells(g, s, as_of)
             if anchor in cells or len(cells) >= 2:
-                out.append(f"表{g.ordinal + 1} {s.label or '(無名)'}")
-    return out
+                by_grid.setdefault(g.ordinal, []).append(s.label or "(無名)")
+    return [f"表{ordinal + 1} {'/'.join(labels)}" for ordinal, labels in sorted(by_grid.items())]
 
 
 def _series_cells(grid: Grid, series: Series, as_of: date) -> dict[tuple[int, int], float]:

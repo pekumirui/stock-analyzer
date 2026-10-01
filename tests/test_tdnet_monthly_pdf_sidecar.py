@@ -270,6 +270,100 @@ def test_new_row_is_manual() -> None:
         _fail("a new row with this month's value must raise FormatChanged")
 
 
+UC_MONTHS = ["3月", "4月", "5月", "6月", "7月", "8月", "9月"]
+
+
+def _brand_block(title: str, sales: list[str], guests: list[str], prices: list[str], stores: list[str]) -> str:
+    """3557 型: 業態見出し + 同じ月見出し + 売上高/客数/客単価/対象店舗数。"""
+    return "\n".join([
+        title,
+        _row("", UC_MONTHS),
+        _row("売上高", sales),
+        _row("客数", guests),
+        _row("客単価", prices),
+        _row("対象店舗数", stores),
+        "",
+    ])
+
+
+def _brand_filled(n_filled: int, make) -> list[str]:
+    return [make(i) if i < n_filled else "-" for i in range(len(UC_MONTHS))]
+
+
+def _brand_pdf(*, filled: int, extra: bool) -> str:
+    first = _brand_block(
+        "（3）the 3rd Burger業態",
+        _brand_filled(filled, lambda i: f"{100.0 + i:.1f}"),
+        _brand_filled(filled, lambda i: "100.0"),
+        _brand_filled(filled, lambda i: f"{100.0 + i * 0.1:.1f}"),
+        _brand_filled(filled, lambda i: "10"),
+    )
+    if not extra:
+        return first
+    blank = ["-"] * (len(UC_MONTHS) - 1)
+    return first + _brand_block(
+        "（5）もつ焼てけ八業態",
+        blank + ["104.9"],
+        blank + ["104.6"],
+        blank + ["100.3"],
+        blank + ["1"],
+    )
+
+
+def _brand_db_rows(last_month: int = 8) -> list[tuple[str, int, str, int, float]]:
+    rows = []
+    for i, m in enumerate(range(3, last_month + 1)):
+        rows.append(("428A0", 2026, "既存 売上高(前年比)", m, 100.0 + i))
+        rows.append(("428A0", 2026, "既存 客数(前年比)", m, 100.0))
+        rows.append(("428A0", 2026, "既存 客単価(前年比)", m, round(100.0 + i * 0.1, 1)))
+        rows.append(("428A0", 2026, "既存 店舗数", m, 10.0))
+    return rows
+
+
+def test_same_skeleton_new_block_is_manual() -> None:
+    """3557: 前月と同じ見出し・行名の業態ブロックに今月の値があっても、黙って落とさず FormatChanged。"""
+    prev = _brand_pdf(filled=6, extra=False)
+    new = _brand_pdf(filled=7, extra=True)
+    db = _db(_brand_db_rows())
+    template = sc.learn(_grids(prev), date(2026, 9, 1), db)
+    prev_grids, new_grids = _grids(prev), _grids(new)
+    if len(prev_grids) != 1 or len(new_grids) != 2:
+        _fail(f"fixture grids prev={len(prev_grids)} new={len(new_grids)}")
+    if prev_grids[0].skeleton != new_grids[1].skeleton:
+        _fail("fixture blocks must share a skeleton")
+    got_fp = sc.fingerprint(new_grids, sc._used(template.rules))
+    if got_fp != template.fingerprint:
+        _fail(f"fingerprint must stay the same so only known-keys catch the block: {got_fp}")
+    extracted = sc.apply(template, _grids(_brand_pdf(filled=7, extra=False)), date(2026, 10, 1))
+    sc.verify(extracted, db, (2026, 9))
+    try:
+        sc.apply(template, new_grids, date(2026, 10, 1))
+    except sc.FormatChanged as e:
+        msg = str(e)
+        if "新しい行" not in msg or "表2" not in msg or "売上高" not in msg:
+            _fail(f"same-skeleton new block reason {e}")
+    else:
+        _fail("a new block with the same headings must raise FormatChanged")
+
+
+def test_blank_same_skeleton_block_stays_ready() -> None:
+    """新ブロックが全部 ー ならグリッドにならず、既存ブロックだけ投入する。"""
+    n = len(UC_MONTHS)
+    blank = _brand_pdf(filled=7, extra=False) + _brand_block(
+        "（5）もつ焼てけ八業態",
+        ["-"] * n,
+        ["-"] * n,
+        ["-"] * n,
+        ["-"] * n,
+    )
+    db = _db(_brand_db_rows())
+    template = sc.learn(_grids(_brand_pdf(filled=6, extra=False)), date(2026, 9, 1), db)
+    if len(_grids(blank)) != 1:
+        _fail(f"all-blank extra block must not parse as a grid: {len(_grids(blank))}")
+    extracted = sc.apply(template, _grids(blank), date(2026, 10, 1))
+    sc.verify(extracted, db, (2026, 9))
+
+
 def test_verify_rejects_mismatch_and_jump() -> None:
     db = _db(_db_rows())
     template = sc.learn(_grids(PREV), date(2026, 7, 6), db)
@@ -389,6 +483,27 @@ def test_run_reports_manual() -> None:
             _fail("manual must not write a sidecar")
 
 
+def test_run_reports_same_skeleton_new_block() -> None:
+    """3557 型: 同じ見出しの新ブロックは sidecar を書かず manual に理由を残す。"""
+    with tempfile.TemporaryDirectory() as raw:
+        tmp = Path(raw)
+        prev_name = "20260901_428A_テスト_8月度.pdf"
+        new_name = "20261001_428A_テスト_9月度.pdf"
+        dest = _dest(
+            tmp,
+            {
+                prev_name: _brand_pdf(filled=6, extra=False),
+                new_name: _brand_pdf(filled=7, extra=True),
+            },
+        )
+        db_path = _seed_db(tmp / "m.db", _brand_db_rows())
+        rc, out = _capture(lambda: sc.run(dest, db_path, read_lines=_read_layout))
+        if rc != 0 or "manual 428A" not in out or "新しい行" not in out or "表2" not in out:
+            _fail(f"same-skeleton new block must be manual: {out}")
+        if list(dest.glob(f"**/*{sc.SIDECAR_SUFFIX}")):
+            _fail("unlearned block must not write a sidecar")
+
+
 @dataclass
 class FakeClient:
     mapping: dict[str, int]
@@ -447,12 +562,15 @@ def main_tests() -> None:
     test_learn_apply_payload()
     test_format_change_is_manual()
     test_new_row_is_manual()
+    test_same_skeleton_new_block_is_manual()
+    test_blank_same_skeleton_block_stays_ready()
     test_verify_rejects_mismatch_and_jump()
     test_learn_needs_every_element()
     test_duplicate_months_use_column_keys()
     test_ambiguous_rows_must_agree()
     test_run_writes_once()
     test_run_reports_manual()
+    test_run_reports_same_skeleton_new_block()
     test_ingest_checks_mapping_before_post()
     print("ok: tdnet monthly pdf sidecar")
 
