@@ -152,10 +152,11 @@ if [[ -f "$APP_DIR/deploy/crontab" ]]; then
     fi
   done <<< "$scripts"
 fi
-if [[ -s "$APP_DIR/batch.log" && ! -s "$LOG_DIR/batch.log" ]]; then
-  cp "$APP_DIR/batch.log" "$LOG_DIR/batch.log"
-  chown "$STOCK_USER:$STOCK_USER" "$LOG_DIR/batch.log"
-  echo "migrated batch.log → $LOG_DIR"
+# ジョブ分割前の APP_DIR/batch.log。rotate で LOG_DIR 側が空になると
+# 再コピーして fluent-bit が古い traceback を page するので、移さず消す。
+if [[ -e "$APP_DIR/batch.log" ]]; then
+  rm -f "$APP_DIR/batch.log"
+  echo "removed leftover $APP_DIR/batch.log"
 fi
 if [[ -f "$APP_DIR/deploy/logrotate" ]]; then
   write_if_changed /etc/logrotate.d/stock-analyzer 644 < "$APP_DIR/deploy/logrotate"

@@ -223,6 +223,8 @@ def test_conf_has_registry_regexes() -> None:
         _fail("batch tail must record the file path")
     if "/var/log/app/stock-analyzer.log" not in batch_in or "/var/log/app/mcp.log" not in batch_in:
         _fail("batch tail must exclude stock-analyzer.log and mcp.log")
+    if "/var/log/app/batch.log" not in batch_in:
+        _fail("batch tail must exclude leftover batch.log")
     if "call    source_from_file" not in conf:
         _fail("fluent-bit.conf must set batch source from the log file name")
     lua = (ROOT / "deploy" / "fluent-bit_slack.lua").read_text(encoding="utf-8")
@@ -306,6 +308,10 @@ def test_secret_contract() -> None:
             continue
         if ">>" in stripped or "batch.log" in stripped:
             _fail(f"crontab must not redirect logs: {stripped}")
+    if "migrated batch.log" in provision:
+        _fail("provision.sh must not re-copy leftover APP_DIR batch.log")
+    if 'rm -f "$APP_DIR/batch.log"' not in provision:
+        _fail("provision.sh must remove leftover APP_DIR batch.log")
 
 
 def test_slack_payload_jst_danger() -> None:
