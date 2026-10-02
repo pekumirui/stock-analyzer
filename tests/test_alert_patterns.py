@@ -26,8 +26,10 @@ FORBIDDEN_WEBHOOK_PREFIX = "hooks.slack.com" + "/services/"
 
 PAGE: tuple[tuple[str, str], ...] = (
     ("app", "ERROR: Exception in ASGI application"),
+    ("app", "ERROR:    Exception in ASGI application"),
     ("app", 'INFO:     127.0.0.1:43721 - "GET /api/screener HTTP/1.1" 500 Internal Server Error'),
     ("app", "ERROR: Error loading ASGI app. Could not import module \"app.main\"."),
+    ("app", "ERROR:    Error loading ASGI app. Could not import module \"app.main\"."),
     ("app", "SchemaMismatch: stocks missing column"),
     ("batch", "2026-09-30 18:00:01 fail cron jobs/run_batch.py exit=1"),
     ("batch", "2026-09-30 18:00:01 fail cron cwd exit=1"),
