@@ -110,8 +110,8 @@ case "$cmd" in
     ;;
   lint)
     "$python" -m pip install -r requirements-dev.txt
-    "$python" -m ruff check --config config/pyproject.toml app jobs tests tools deploy
-    "$python" -m bandit -c config/pyproject.toml -r app jobs tests tools deploy -x app/xbrlp,.cursor,tmp,.venv
+    "$python" -m ruff check --config config/pyproject.toml app jobs tests tools analyzer deploy
+    "$python" -m bandit -c config/pyproject.toml -r app jobs tests tools analyzer deploy -x app/xbrlp,.cursor,tmp,.venv
     ;;
   *)
     echo "使い方: ./run.sh [serve|check|reset|migrate|batch|backfill|lint] [引数]"
