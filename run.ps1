@@ -78,9 +78,9 @@ switch ($cmd) {
 
     "lint" {
         & $python -m pip install -r requirements-dev.txt --quiet
-        & $python -m ruff check --config config/pyproject.toml app jobs tests tools deploy
+        & $python -m ruff check --config config/pyproject.toml app jobs tests tools analyzer deploy
         if ($LASTEXITCODE -ne 0) { break }
-        & $python -m bandit -c config/pyproject.toml -r app jobs tests tools deploy -x app/xbrlp,.cursor,tmp,.venv
+        & $python -m bandit -c config/pyproject.toml -r app jobs tests tools analyzer deploy -x app/xbrlp,.cursor,tmp,.venv
     }
 
     default { Write-Host "使い方: .\run.ps1 [serve|check|reset|migrate|batch|backfill|lint] [引数]" }

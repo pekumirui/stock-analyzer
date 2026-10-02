@@ -2,7 +2,8 @@
 
 読み取り専用。stock.db（daily_prices / topix / stocks / statements）だけを使う。
 
-    .venv/bin/python tools/momentum_backtest.py --db stock.db --out /tmp/momentum
+    .venv/bin/python analyzer/momentum/backtest.py --db stock.db --out /tmp/momentum
+    .venv/bin/python analyzer/momentum/backtest.py --form-months 12 --skip-months 1 --out /tmp/momentum_12_1
 
 定義
 - 判定日: 各月の最終営業日（topix の日付で決める）

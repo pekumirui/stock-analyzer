@@ -144,6 +144,7 @@ tests/
   ci_smoke.py   CI 起動スモーク
 tools/
   check_api.py  J-Quants 疎通確認
+analyzer/       stock.db を読むだけの分析（一覧は analyzer/README.md）
 deploy/
   stock-analyzer.service  systemd（uvicorn ワーカー1）
   nginx.conf              リバースプロキシ。月次閲覧は公開、/app は Basic 認証
