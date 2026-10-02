@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import re
 import socket
 import sqlite3
@@ -14,7 +15,8 @@ import ssl
 import time
 import unicodedata
 from collections.abc import Mapping
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -24,6 +26,10 @@ JST = ZoneInfo("Asia/Tokyo")
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HTTP_TIMEOUT = 30.0
 USER_AGENT = "stock-analyzer-ir-monthly/1.0"
+HTTP_RETRY_ATTEMPTS = 6
+HTTP_RETRY_BASE_SEC = 5.0
+HTTP_RETRY_CAP_SEC = 60.0
+HTTP_RETRYABLE = frozenset({408, 429})
 # AWS ELB が識別 UA を 403 する発行体（大東建託）向け。通常は USER_AGENT を先に使う。
 BROWSER_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -354,13 +360,66 @@ def ssl_context_with_aia(
     return ctx
 
 
+def is_retryable_http(code: int) -> bool:
+    return code >= 500 or code in HTTP_RETRYABLE
+
+
+def retry_after_seconds(err: BaseException, now: float | None = None) -> float | None:
+    """HTTPError の Retry-After（秒または HTTP-date）。無ければ None。"""
+    headers = getattr(err, "headers", None) or getattr(err, "hdrs", None)
+    if headers is None:
+        return None
+    try:
+        raw = headers.get("Retry-After")
+    except Exception:
+        return None
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    try:
+        return max(0.0, float(int(text)))
+    except (TypeError, ValueError):
+        pass
+    try:
+        dt = parsedate_to_datetime(text)
+    except (TypeError, ValueError, OverflowError, IndexError):
+        return None
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    base = time.time() if now is None else now
+    return max(0.0, dt.timestamp() - base)
+
+
+def backoff_delay(
+    attempt: int,
+    retry_after: float | None = None,
+    *,
+    rng: random.Random | None = None,
+) -> float:
+    """attempt は 0始まりの失敗回数。Retry-After があればそれを優先（上限あり）。"""
+    if retry_after is not None:
+        return min(HTTP_RETRY_CAP_SEC, max(0.0, retry_after))
+    n = max(0, attempt)
+    base = min(HTTP_RETRY_CAP_SEC, HTTP_RETRY_BASE_SEC * (2 ** n))
+    roll = rng.random() if rng is not None else random.random()  # noqa: S311  # nosec B311
+    return base * (0.75 + 0.5 * roll)
+
+
 def http_get(
     url: str,
     timeout: float = HTTP_TIMEOUT,
     *,
     user_agent: str | None = None,
 ) -> bytes:
-    """識別 UA で取り、403 のときだけブラウザ UA に切り替える。検証は切らない。"""
+    """識別 UA で取り、403 のときだけブラウザ UA に切り替える。検証は切らない。
+
+    429 / 408 / 5xx は Retry-After があればそれに従い、無ければ指数バックオフ＋jitter。
+    同一 UA で最大 HTTP_RETRY_ATTEMPTS 回。打ち切ったら例外を上げる（UA は変えない）。
+    """
     from urllib.request import Request, urlopen
 
     primary = USER_AGENT if user_agent is None else user_agent
@@ -371,7 +430,9 @@ def http_get(
     aia_tried = False
     for ua in (primary, BROWSER_UA):
         req = Request(url, headers={"User-Agent": ua, "Accept": "*/*"})
-        for attempt in range(2):
+        http_tries = 0
+        net_tries = 0
+        while True:
             try:
                 with urlopen(req, timeout=timeout) as resp:  # nosec B310
                     return resp.read()
@@ -379,8 +440,14 @@ def http_get(
                 last = e
                 if e.code == 403 and ua == primary:
                     break
-                if e.code < 500 and e.code not in (408, 429):
+                if not is_retryable_http(e.code):
                     raise
+                http_tries += 1
+                if http_tries >= HTTP_RETRY_ATTEMPTS:
+                    raise
+                wait = backoff_delay(http_tries - 1, retry_after_seconds(e))
+                print(f"retry {e.code} wait={wait:.1f}s {url}", flush=True)
+                time.sleep(wait)
             except (URLError, TimeoutError, OSError) as e:
                 last = e
                 if not aia_tried and _is_incomplete_chain(e):
@@ -393,7 +460,9 @@ def http_get(
                         except (HTTPError, URLError, TimeoutError, OSError) as e2:
                             last = e2
                     raise last
-            if attempt == 0:
+                net_tries += 1
+                if net_tries >= 2:
+                    break
                 time.sleep(1.5)
     assert last is not None
     raise last

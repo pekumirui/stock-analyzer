@@ -9,7 +9,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "jobs"))
 
-from _r2common import BROWSER_UA, USER_AGENT, aia_ca_issuer_uris  # noqa: E402
+from _r2common import (  # noqa: E402
+    BROWSER_UA,
+    HTTP_RETRY_ATTEMPTS,
+    USER_AGENT,
+    aia_ca_issuer_uris,
+    backoff_delay,
+    retry_after_seconds,
+)
 from ir_monthly_r2 import (  # noqa: E402
     FileLink,
     Issuer,
@@ -489,6 +496,171 @@ def test_http_get_aia_on_incomplete_chain() -> None:
         _fail(f"should not fall back to second UA: {len(contexts)}")
 
 
+def _http_err(url: str, code: int, msg: str, retry_after: str | None = None):
+    from email.message import EmailMessage
+    from urllib.error import HTTPError
+
+    hdrs = None
+    if retry_after is not None:
+        hdrs = EmailMessage()
+        hdrs["Retry-After"] = retry_after
+    return HTTPError(url, code, msg, hdrs=hdrs, fp=None)
+
+
+def test_retry_after_seconds_and_backoff() -> None:
+    from urllib.error import HTTPError
+
+    err = _http_err("https://example.test/", 429, "Too Many Requests", "7")
+    if retry_after_seconds(err) != 7.0:
+        _fail(f"retry-after seconds: {retry_after_seconds(err)}")
+    http_date = _http_err(
+        "https://example.test/",
+        429,
+        "Too Many Requests",
+        "Wed, 21 Oct 2015 07:28:07 GMT",
+    )
+    got = retry_after_seconds(http_date, now=1445412480.0)  # 07:28:00 GMT
+    if got != 7.0:
+        _fail(f"retry-after http-date: {got}")
+    bare = HTTPError("https://example.test/", 429, "Too Many Requests", hdrs=None, fp=None)
+    if retry_after_seconds(bare) is not None:
+        _fail("missing header must be None")
+    rng = __import__("random").Random(0)
+    if backoff_delay(0, rng=rng) <= 0:
+        _fail("backoff must be positive")
+    if backoff_delay(0, retry_after=7.0) != 7.0:
+        _fail("retry-after wins")
+    if backoff_delay(0, retry_after=120.0) != 60.0:
+        _fail("retry-after cap")
+    if backoff_delay(5, retry_after=None, rng=__import__("random").Random(1)) > 60.0:
+        _fail("exp cap")
+
+
+def test_http_get_retries_429_then_succeeds() -> None:
+    from unittest.mock import MagicMock, patch
+
+    import _r2common
+
+    url = "https://srsholdings.com/pages/ir-library-monthly/"
+    uas: list[str] = []
+    calls = {"n": 0}
+
+    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+        uas.append(req.get_header("User-agent") or req.get_header("User-Agent"))
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise _http_err(req.full_url, 429, "Too Many Requests")
+        cm = MagicMock()
+        cm.__enter__.return_value.read.return_value = b"<html>ok</html>"
+        cm.__exit__.return_value = False
+        return cm
+
+    slept: list[float] = []
+    with (
+        patch("urllib.request.urlopen", side_effect=fake_urlopen),
+        patch.object(_r2common.time, "sleep", slept.append),
+        patch.object(_r2common.random, "random", return_value=0.5),
+    ):
+        body = http_get(url)
+    if body != b"<html>ok</html>":
+        _fail(f"429 then success body: {body!r}")
+    if calls["n"] != 2:
+        _fail(f"429 then success calls: {calls['n']}")
+    if slept != [5.0]:
+        _fail(f"429 then success wait: {slept}")
+    if uas != [USER_AGENT, USER_AGENT]:
+        _fail(f"429 must not switch UA: {uas}")
+
+
+def test_http_get_honors_retry_after() -> None:
+    from unittest.mock import MagicMock, patch
+
+    import _r2common
+
+    url = "https://srsholdings.com/pages/ir-library-monthly/"
+    calls = {"n": 0}
+
+    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise _http_err(req.full_url, 503, "Service Unavailable", "3")
+        cm = MagicMock()
+        cm.__enter__.return_value.read.return_value = b"ok"
+        cm.__exit__.return_value = False
+        return cm
+
+    slept: list[float] = []
+    with (
+        patch("urllib.request.urlopen", side_effect=fake_urlopen),
+        patch.object(_r2common.time, "sleep", slept.append),
+    ):
+        body = http_get(url)
+    if body != b"ok" or slept != [3.0]:
+        _fail(f"retry-after: body={body!r} slept={slept}")
+
+
+def test_http_get_429_exhausted_raises() -> None:
+    from urllib.error import HTTPError
+    from unittest.mock import patch
+
+    import _r2common
+
+    url = "https://srsholdings.com/pages/ir-library-monthly/"
+    uas: list[str] = []
+
+    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+        uas.append(req.get_header("User-agent") or req.get_header("User-Agent"))
+        raise _http_err(req.full_url, 429, "Too Many Requests")
+
+    slept: list[float] = []
+    with (
+        patch("urllib.request.urlopen", side_effect=fake_urlopen),
+        patch.object(_r2common.time, "sleep", slept.append),
+        patch.object(_r2common.random, "random", return_value=0.5),
+    ):
+        try:
+            http_get(url)
+        except HTTPError as e:
+            if e.code != 429:
+                _fail(e)
+        else:
+            _fail("exhausted 429 must raise")
+    if len(uas) != HTTP_RETRY_ATTEMPTS:
+        _fail(f"exhausted calls: {len(uas)}")
+    if any(ua != USER_AGENT for ua in uas):
+        _fail(f"exhausted must stay on job UA: {uas}")
+    if slept != [5.0, 10.0, 20.0, 40.0, 60.0]:
+        _fail(f"exhausted backoff: {slept}")
+
+
+def test_http_get_404_does_not_retry() -> None:
+    from urllib.error import HTTPError
+    from unittest.mock import patch
+
+    import _r2common
+
+    calls = {"n": 0}
+
+    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+        calls["n"] += 1
+        raise _http_err(req.full_url, 404, "Not Found")
+
+    slept: list[float] = []
+    with (
+        patch("urllib.request.urlopen", side_effect=fake_urlopen),
+        patch.object(_r2common.time, "sleep", slept.append),
+    ):
+        try:
+            http_get("https://example.test/missing")
+        except HTTPError as e:
+            if e.code != 404:
+                _fail(e)
+        else:
+            _fail("404 must raise")
+    if calls["n"] != 1 or slept:
+        _fail(f"404 retried: calls={calls['n']} slept={slept}")
+
+
 def test_unknown_stock_skip(tmp: Path) -> None:
     import ir_monthly_r2 as mod
 
@@ -594,6 +766,11 @@ def main() -> None:
     test_http_get_falls_back_on_403()
     test_aia_ca_issuer_uris()
     test_http_get_aia_on_incomplete_chain()
+    test_retry_after_seconds_and_backoff()
+    test_http_get_retries_429_then_succeeds()
+    test_http_get_honors_retry_after()
+    test_http_get_429_exhausted_raises()
+    test_http_get_404_does_not_retry()
     print("ok: ir monthly r2")
 
 

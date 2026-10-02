@@ -65,6 +65,7 @@ NOT_PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "warn stocks db missing /home/stock/stock-analyzer/stock.db"),
     ("batch", "warn stocks map empty; unknown-stock skip disabled"),
     ("batch", "  429 Too Many Requests → 5秒待機して再試行 (/v2/equities/bars/daily)"),
+    ("batch", "retry 429 wait=5.0s https://srsholdings.com/pages/ir-library-monthly/"),
     ("batch", "2026-08-05: 銘柄10 / 株価0 / TOPIX0 / 決算0"),
     ("batch", "完了"),
     ("batch", "normalize missing-required doc_id=S100ABC code=72030 items=NetSales"),
