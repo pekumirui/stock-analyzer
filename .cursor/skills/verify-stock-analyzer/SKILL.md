@@ -70,7 +70,7 @@ Harness: HTTP against the same routes the SPA uses, plus the browser when CDP is
 | チャート tab | `nav button[data-tab="chart"]` |
 | スクリーナー tab | `nav button[data-tab="screener"]` |
 | Earnings calendar | `#cal-btn` opens `#cal-pop`; `#cal-title` + ◀/▶ (`calMove(±1)`) change month and refetch `/api/earnings/calendar?month=YYYY-MM&today=YYYY-MM-DD` (`today` is `todayISO()`). Day cells are `#cal .d` with `onclick="selectDate('YYYY-MM-DD')"`. A day with filings or a schedule shows `.cnt` (`cell.n` plus `件`). Future schedules add `.cnt.sched`. Today with names still scheduled adds `.cnt.pend` as `+N`. Esc / `#cal-backdrop` / a day click close the popover. |
-| Earnings row | `#earn-tbl tr[data-no]` for a filing. `#earn-sched tr[data-code]` for a scheduled issuer. The first row of the day is auto-selected |
+| Earnings row | `#earn-tbl tr[data-no]` for a filing. `#earn-tbl tr[data-code]` for a scheduled issuer (QoQ/YoY and time are `–`). The first row of the day is auto-selected |
 | 累計 / 3か月 | `.ftab[data-fin="cum"]` (default on) / `.ftab[data-fin="q"]` |
 | Earnings period chips | `#q-chips` (display only) |
 | Earnings embedded chart | `#e-chart` / `.a-chart` (same `/api/chart` as chart tab) |

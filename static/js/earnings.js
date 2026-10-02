@@ -128,25 +128,20 @@ function renderList(){
     $("#earn-list").innerHTML = `<div class="sub">${emptyCopy(earnDay, earnToday, earnBoard)}</div>`;
     return;
   }
-  let h = "";
-  if(actuals.length) h += tableHtml();
-  if(scheduled.length){
-    if(actuals.length) h += `<h3>未発表</h3>`;
-    h += scheduleHtml(scheduled);
-  }
-  $("#earn-list").innerHTML = h;
+  $("#earn-list").innerHTML = tableHtml(actuals, scheduled);
   markSel();
 }
 
-function tableHtml(){
+function tableHtml(actuals, scheduled){
   // 2段ヘッダにして列幅を詰める (1段だと「売上QoQ」等で8列が横に収まらない)
   const sub = () => MET.map(([k,l],i) => `<th class="${i?'':'grp'}">${l}</th>`).join("");
+  const dash = MET.map((_,i)=>`<td class="num ${i?'':'grp'}">–</td>`).join("");
   let h = `<table id="earn-tbl"><thead>`
         + `<tr><th rowspan="2">時刻</th><th rowspan="2" class="l name">銘柄</th>`
         + `<th rowspan="2" class="l fy">期</th><th rowspan="2">Q</th>`
         + `<th colspan="4" class="grp">QoQ (3か月)</th><th colspan="4" class="grp">YoY (累計)</th></tr>`
         + `<tr>${sub()}${sub()}</tr></thead><tbody>`;
-  for(const r of (earnBoard.actuals||[])){
+  for(const r of actuals){
     // 1QのQoQは前事業年度の4Q単独が相手になる (季節性が断絶するため注記する)
     const tip = r.period==="1Q" ? ' title="前期4Q単独比"' : "";
     h += `<tr data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">`
@@ -157,17 +152,15 @@ function tableHtml(){
        + MET.map(([k],i)=>`<td class="num ${i?'':'grp'}">${gc((r.yoy||{})[k])}</td>`).join("")
        + `</tr>`;
   }
-  return h + `</tbody></table>`;
-}
-
-function scheduleHtml(rows){
-  let h = `<table id="earn-sched"><thead><tr><th class="l">銘柄</th><th>区分</th><th class="l">決算期</th></tr></thead><tbody>`;
-  for(const r of rows){
-    const fq = r.periods.map(p => p.fq).join("<br>");
-    const label = r.periods.map(p => p.label).join("<br>");
+  for(const r of scheduled){
+    const fq = (r.periods||[]).map(p => p.fq).join(" / ");
+    const label = (r.periods||[]).map(p => p.label).join(" / ");
     h += `<tr data-code="${r.code}" onclick="selectSched('${r.code}')">`
+       + `<td>–</td>`
        + `<td class="l name" title="${r.name}">${shortName(r.name)} <small class="sub">${r.code.slice(0,4)}</small></td>`
-       + `<td>${fq}</td><td class="l">${label}</td></tr>`;
+       + `<td class="l fy">${label}</td><td>${fq}</td>`
+       + dash + dash
+       + `</tr>`;
   }
   return h + `</tbody></table>`;
 }

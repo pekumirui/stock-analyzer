@@ -515,6 +515,10 @@ def test_routes_and_screen_copy() -> None:
     ):
         if text not in js:
             _fail(text)
+    if "earn-sched" in js:
+        _fail("scheduled rows belong in #earn-tbl")
+    if 'data-code="${r.code}"' not in js or "<td>–</td>" not in js:
+        _fail("scheduled rows reuse #earn-tbl with dashes")
 
 
 def main() -> None:
