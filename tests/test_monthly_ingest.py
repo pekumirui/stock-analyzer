@@ -122,6 +122,16 @@ def test_canonicalize_element_label() -> None:
         _fail("strip 前年同月比 + suffix")
     if canonicalize_element_label("売上高前年比", "yoy_pct") != "売上高(前年比)":
         _fail("strip 前年比 + suffix")
+    if canonicalize_element_label("国内全店 売上高前年対比", "yoy_pct") != "日本 全店 売上高(前年比)":
+        _fail("strip 前年対比 from 国内全店 売上高")
+    if canonicalize_element_label("那須パラダイスヴィレッジ 前年対比", "yoy_pct") != "那須パラダイスヴィレッジ(前年比)":
+        _fail("strip leftover 前年対比; do not invent 全店 売上高")
+    if canonicalize_element_label("米国子会社 前年対比", "yoy_index") != "米国子会社(前年比)":
+        _fail("strip leftover 前年対比 from 米国子会社")
+    if canonicalize_element_label("売上高前期対比", "yoy_pct") != "売上高(前年比)":
+        _fail("strip 前期対比 + suffix")
+    if canonicalize_element_label("売上高前年同期対比", "yoy_index") != "売上高(前年比)":
+        _fail("strip 前年同期対比 + suffix")
     if canonicalize_element_label("売上高(前期比)", "yoy_pct") != "売上高(前年比)":
         _fail("strip (前期比) + suffix")
     if canonicalize_element_label("売上高（前期比）", "yoy_index") != "売上高(前年比)":
@@ -138,6 +148,8 @@ def test_canonicalize_element_label() -> None:
         _fail("number 売上高 stays unlabeled")
     if canonicalize_element_label("売上高前年同月比", "number") != "売上高":
         _fail("number token-normalize still skips yoy suffix")
+    if canonicalize_element_label("売上高前年対比", "number") != "売上高":
+        _fail("number drops leftover 前年対比 without yoy suffix")
     if canonicalize_element_label("店舗数", "number") != "店舗数":
         _fail("number 店舗数")
     if canonicalize_element_label("売上高前年同月比", None) != "売上高":
@@ -2090,6 +2102,9 @@ def test_reject_prior_period_element() -> None:
         "全店 売上高(前年比)",
         "売上高前年同月比",
         "前期比",
+        "売上高前期対比",
+        "売上高前年同期対比",
+        "前期対比",
         "既存店 店舗数",
     )
     for name in blocked:
