@@ -183,17 +183,11 @@ sudo --preserve-env=APP_DIR \
 sudo --preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,CERTBOT_EMAIL,SLACK_WEBHOOK_URL,SLACK_WEBHOOK_URL_APP,SLACK_WEBHOOK_URL_BATCH,SLACK_WEBHOOK_URL_INFRA \
   "$APP_DIR/deploy/provision.sh"
 
-# python が動けば venv は作り直さない（動いているサービスが使っている）。
-# pip だけ欠けたときは ensurepip で戻す。
-if ! "$APP_DIR/.venv/bin/python" -c "" 2>/dev/null; then
+if [ ! -x "$APP_DIR/.venv/bin/pip" ]; then
   echo "venv が無いので作ります"
   python3 -m venv "$APP_DIR/.venv"
 fi
-if ! "$APP_DIR/.venv/bin/python" -m pip --version >/dev/null 2>&1; then
-  echo "venv に pip が無いので入れ直します"
-  "$APP_DIR/.venv/bin/python" -m ensurepip --upgrade
-fi
-"$APP_DIR/.venv/bin/python" -m pip install -r requirements.txt -q
+"$APP_DIR/.venv/bin/pip" install -r requirements.txt -q
 "$APP_DIR/.venv/bin/python" jobs/migrate.py
 
 sudo systemctl restart stock-analyzer
