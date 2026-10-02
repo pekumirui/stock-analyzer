@@ -16,9 +16,9 @@ class AlertPattern:
 
 # failed=0 / errors=0 must not match; 10+ must (0* then a non-zero digit).
 ALERT_PATTERNS: tuple[AlertPattern, ...] = (
-    AlertPattern("app", "asgi", r"ERROR: Exception in ASGI application"),
+    AlertPattern("app", "asgi", r"ERROR:\s+Exception in ASGI application"),
     AlertPattern("app", "access_5xx", r" 5[0-9][0-9] "),
-    AlertPattern("app", "startup", r"ERROR: Error loading ASGI app"),
+    AlertPattern("app", "startup", r"ERROR:\s+Error loading ASGI app"),
     AlertPattern("app", "fail", r"SchemaMismatch"),
     # cron-run.sh prefixes JST "YYYY-MM-DD HH:MM:SS ". Per-item "fail …" stays unpaged.
     AlertPattern(
