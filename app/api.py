@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
+from functools import lru_cache
 import re
 import unicodedata
 from typing import Any, Sequence
@@ -472,9 +473,18 @@ def _touch_monthly_issuer(db: Session, code: str) -> None:
         row.last_ingested_at = now
 
 
+# 行名の解析は重く、同じ行名が年・銘柄をまたいで何度も出る。結果は (element, unit) だけで決まる
+_series_kind = lru_cache(maxsize=16384)(monthly_series_kind)
+
+
 def _headline_yoy_tier(el: MonthlyElement) -> int:
     """0=会社計の売上高/連結売上高。1=客数・客単価やセグメント付き。"""
-    label = monthly_element_label(el.element, el.unit)
+    return _headline_tier_of(el.element, el.unit)
+
+
+@lru_cache(maxsize=16384)
+def _headline_tier_of(element: str, unit: str | None) -> int:
+    label = monthly_element_label(element, unit)
     company_wide = not (
         label["group"] or label["segment"] or label["country"]
         or label["channel"] or label["breakdown"]
@@ -489,7 +499,7 @@ def _latest_yoy_for_kind(
     matched: dict[tuple[int, str], MonthlyElement] = {}
     tier_of: dict[tuple[int, str], int] = {}
     for e in elems:
-        if monthly_series_kind(e.element, e.unit) != kind:
+        if _series_kind(e.element, e.unit) != kind:
             continue
         key = (e.year, e.element)
         matched[key] = e
@@ -952,15 +962,30 @@ def list_tables_payload(db: Session) -> list[dict]:
 
     codes = list(by_code)
     issuers: dict[str, MonthlyIssuer] = {}
-    elems_by: dict[str, list[MonthlyElement]] = defaultdict(list)
-    vals_by: dict[str, list[MonthlyValue]] = defaultdict(list)
+    elems_by: dict[str, list[Any]] = defaultdict(list)
+    vals_by: dict[str, list[Any]] = defaultdict(list)
     if codes:
         issuers = {
             r.code: r for r in db.query(MonthlyIssuer).filter(MonthlyIssuer.code.in_(codes))
         }
-        for e in db.query(MonthlyElement).filter(MonthlyElement.code.in_(codes)):
+        # 読むだけなので Row で受ける。値は行ごとの最新月しか順位に効かないのでそれだけ引く
+        for e in db.execute(select(
+                MonthlyElement.code, MonthlyElement.year, MonthlyElement.element,
+                MonthlyElement.unit, MonthlyElement.sort_order)
+                .where(MonthlyElement.code.in_(codes))):
             elems_by[e.code].append(e)
-        for v in db.query(MonthlyValue).filter(MonthlyValue.code.in_(codes)):
+        last = (select(MonthlyValue.code, MonthlyValue.year, MonthlyValue.element,
+                       func.max(MonthlyValue.month).label("month"))
+                .where(MonthlyValue.code.in_(codes))
+                .group_by(MonthlyValue.code, MonthlyValue.year, MonthlyValue.element)
+                .subquery())
+        for v in db.execute(select(
+                MonthlyValue.code, MonthlyValue.year, MonthlyValue.element,
+                MonthlyValue.month, MonthlyValue.value)
+                .join(last, and_(last.c.code == MonthlyValue.code,
+                                 last.c.year == MonthlyValue.year,
+                                 last.c.element == MonthlyValue.element,
+                                 last.c.month == MonthlyValue.month))):
             vals_by[v.code].append(v)
 
     out = []
