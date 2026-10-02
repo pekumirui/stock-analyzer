@@ -38,11 +38,17 @@ def _write(feature: str, name: str, method: str, url: str, status: int, body: ob
     return path
 
 
-def _pick_earnings_date(base: str, month: str) -> str | None:
-    status, counts = _get(f"{base}/api/earnings/calendar?month={month}")
+def _cell_n(cell: object) -> int:
+    if isinstance(cell, dict):
+        return int(cell.get("n") or 0)
+    return int(cell or 0)
+
+
+def _pick_earnings_date(base: str, month: str, today: str) -> str | None:
+    status, counts = _get(f"{base}/api/earnings/calendar?month={month}&today={today}")
     if status != 200 or not isinstance(counts, dict) or not counts:
         return None
-    return max(counts, key=lambda d: counts[d])
+    return max(counts, key=lambda d: _cell_n(counts[d]))
 
 
 def main() -> None:
@@ -77,16 +83,19 @@ def main() -> None:
         return
 
     if args.feature == "earnings":
-        cal_url = f"{base}/api/earnings/calendar?month={month}"
+        today = date.today().isoformat()
+        cal_url = f"{base}/api/earnings/calendar?month={month}&today={today}"
         st, counts = _get(cal_url)
         _write("earnings", "calendar.json", "GET", cal_url, st, counts)
-        day = args.date or _pick_earnings_date(base, month)
+        day = args.date or _pick_earnings_date(base, month, today)
         if not day:
             raise SystemExit(f"no earnings days in {month}")
-        url = f"{base}/api/earnings?date={day}"
+        url = f"{base}/api/earnings?date={day}&today={today}"
         status, body = _get(url)
         path = _write("earnings", "body.json", "GET", url, status, body)
-        if status != 200 or not body:
+        rows = body.get("actuals") if isinstance(body, dict) else None
+        scheduled = body.get("scheduled") if isinstance(body, dict) else None
+        if status != 200 or not (rows or scheduled):
             raise SystemExit(f"earnings {day} empty")
         print(path)
         return

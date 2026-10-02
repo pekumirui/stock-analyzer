@@ -41,6 +41,7 @@ APIキー方式。ダッシュボードで発行したキーを `x-api-key` ヘ�
 | 株価四本値 | `/v2/equities/bars/daily` | **調整済OHLCV(AdjO/H/L/C/Vo)と時価総額を直接取得可** |
 | TOPIX四本値 | `/v2/indices/bars/daily/topix` | from/to指定 |
 | 財務情報 | `/v2/fins/summary` | 決算短信サマリ |
+| 決算発表予定日 | `/v2/fins/earnings-date` | 発表日 (`date` = PubDate) の全銘柄。`SchDate` が空なら未定 |
 | 取引カレンダー | `/v2/markets/calendar` | 営業日判定 (HolDiv=="1") |
 
 レスポンスは全て `{"data": [...], "pagination_key": "..."}` 形式。
@@ -58,7 +59,7 @@ APIキー方式。ダッシュボードで発行したキーを `x-api-key` ヘ�
 | Standard | 120 req/分 |
 | Premium | 500 req/分 |
 
-加えて `/v2/fins/summary` と `/v2/fins/details` はプランと別枠で60 req/分。
+加えて `/v2/fins/summary`、`/v2/fins/details`、`/v2/fins/earnings-date` はプランと別枠で60 req/分。`jquants.py` はパスが `/fins/` で始まるものを同じ枠にする。
 超過すると429、大幅超過だと5分間の全遮断。
 
 → `jquants.py` でエンドポイント群ごとにスライディングウィンドウのトークンバケットを持ち、
@@ -126,6 +127,17 @@ earnings_events   -- 決算発表イベントと発表後パフォーマンス
   base_price              -- 発表当日(場中発表)or翌営業日始値
   return_1d, return_5d, return_20d, return_60d, return_to_date
   alpha_1d, ... alpha_to_date   -- 対TOPIX超過リターン
+
+earnings_date_pubs -- 決算発表予定の発表履歴。現在の予定は (code, fq_name) の最新 pub_date
+  code, fq_name, pub_date PK
+  sch_date                -- NULL は未定。欠測ではない
+  fye                     -- MMDD の4文字。0299 は 2月末
+  co_name
+  -- FK は付けない。sch_date の索引は付けない。日付で先に絞ると移動前の日が戻る
+
+earnings_date_fetches -- 取り終えた発表日。空の応答も n=0 で残す。pubs の写しではない
+  pub_date PK
+  n
 
 monthly_issuers   -- 発行体ごとの月次属性。月次業種は stocks.sector33 とは別
   code PK                 -- stocks.code と同じ 5桁。FK は付けない
@@ -322,9 +334,9 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 
 | Method/Path | 内容 |
 |---|---|
-| `GET /api/earnings?date=2026-08-14` | その日の決算速報一覧。1行 = 1開示で QoQ(Q単独の前四半期比) と YoY(累計の前年同期比) を4指標ずつ返す。決算短信本体のみ (予想修正のみの開示、および損益が初回と同一の再提出は除外。損益が変わった再提出は `restated` を立てて残す)。`product_category` が REIT (`013`/`022`) の銘柄は出さない |
+| `GET /api/earnings?date=2026-08-14&today=2026-10-02` | `{kind, actuals, scheduled}`。`actuals` は開示1件が1行で、QoQ(Q単独の前四半期比) と YoY(累計の前年同期比) を4指標ずつ返す。決算短信本体のみ (予想修正のみの開示、および損益が初回と同一の再提出は除外。損益が変わった再提出は `restated` を立てて残す)。`scheduled` は `{code, name, periods:[{fq, fye, label}]}` で銘柄1行。`kind` は `actual` / `scheduled` / `mixed`。過去は `actual` で `scheduled` は空。今日は開示と、そのコードが今日の開示に無い未発表。未来は予定だけ。`today` を省略するとサーバの今日。台帳が lookback を埋める前の未来には `ready: false`（空なら画面は 予定未取得）。`product_category` が REIT (`013`/`022`) の銘柄は出さない |
 | `GET /api/earnings/detail/{code}?disclosure_no=…` | 選択銘柄の累計テーブル (過去4期+当期の同一四半期 + 中間予想 + 通期予想 + 前期通期実績) と3か月決算テーブル (直近12四半期のQ単独)。各行にカレンダー範囲 (`26.04-06`) と発表日を付ける。同一銘柄が同日に複数開示する日があるため `disclosure_no` で一意に引く (`?date=` でも可) |
-| `GET /api/earnings/calendar?month=2026-08` | 日別の決算件数 (カレンダー表示用。一覧と同じく本体のみを数え、REIT も除外する) |
+| `GET /api/earnings/calendar?month=2026-08&today=2026-10-02` | 日付 → `{kind, n}`。`pending` は今日かつ未発表がいるときだけ。件数は銘柄の distinct。疎。一覧と同じく本体のみを数え、REIT も除外する。`today` を省略するとサーバの今日 |
 | `GET /api/chart/{code}?tf=D|W|M&ma=50,150,200&rel=topix` | 株価チャートデータ。W/M は日足を ISO週 / 暦月で集約 (足の日付は期間の最終営業日)。MA 期間は営業日換算 (週=÷5、月=÷20) |
 | `GET /api/earnings-performance/{code}` | 決算日からの対TOPIXリターン |
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
@@ -340,14 +352,9 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 
 月次 API のエラーは `{"error": {"code": "...", "message": "..."}}`。閲覧 GET は公開。書き込みは loopback のみ（nginx 経由は 403）。本番の個人ツールは `/app` と Basic 認証。
 
-### 決算表の表示
-- タブは **累計が先**、3か月が後。既定は累計
-- **累計**: 同一四半期の年次比較の下に、通期予想・中間予想・前期通期を行として足す
-  - 2Q/3Q の期は期首〜当期末 (`26.04-09`) で、Q単独の3か月 (`26.07-09`) と区別する。年をまたぐ累計は `25.10-26.06`
-  - 通期行に 4Q バッジは付けない。5Q は通期に潰さず `27.3期 5Q`
-- **3か月**: Q単独を時系列。決算期は当該3か月 (`26.07-09`)。FY単独だけ 4Q と書く
-- 最新実績行を強調。増減率は各セル下に出す (前年同期比の重複行は置かない)
-- 営利率 = 営業利益 / 売上。IFRS・米国基準は経常利益列を淡色
+### 決算速報の画面
+
+画面は `docs/DESIGN_earnings.md`。書き方は `docs/SCREEN_SPEC.md`。
 
 ### 月次タブの画面
 
@@ -360,8 +367,9 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 3. `/fins/summary?date=当日` と `/fins/summary?date=前営業日` 取込。前営業日は DB の株価で当日より前の最終日
 4. indicators 再計算 (MA/52週/RS/ステージ。RSユニバースは内国株券のみ) → earnings_events 更新。
    2〜3 が 0 件（前営業日は新しく増えた件数）で indicators が株価の最終日まで済んでいれば飛ばす
+5. `/fins/earnings-date?date=当日` と `date=昨日`。昨日は暦日。4 の後。株価が 0 件でも行う。失敗しても 4 の結果は残し、プロセスは非ゼロで終わる
 
-日次は **計5リクエスト** で完了する。決算開示は15時以降が多いため、当日夜(19:30)に1回実行する。
+定常の夜は **計7リクエスト**。内訳はマスタ、株価、TOPIX、財務の当日、財務の前営業日、発表予定の当日、発表予定の昨日。発表予定の2本は `/fins/` の枠。台帳が空の初回は指標のあと PubDate を `EARNINGS_DATE_LOOKBACK_DAYS` 日さかのぼる。この歩きは 7 に入らない。決算開示は15時以降が多いため、当日夜(19:30)に1回実行する。
 19:30 より後の開示（全体の 0.3% 程度）は、翌営業日の回が前営業日の決算を取り直して拾う。
 
 冪等設計 (UPSERT) のため何度実行しても安全。バックフィルは株価と決算を同じ日に commit できた日付を
@@ -384,7 +392,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 データ量: 4,000銘柄×5年×250日 ≈ 500万行。SQLite 実ファイルは 1〜2GB になり得る（本番は約 1.1GB）。VPS ディスクなら余裕。
 ローカル backfill 完了後に `stock.db` を scp する（サーバで取り直さない）。
 
-見本は `deploy/`（systemd / nginx / crontab）。SQLite は複数ライターに弱いので uvicorn はワーカー1。日次バッチは 4 リクエストで短い。接続は WAL + `busy_timeout=30s`。`jobs/migrate.py`（deploy 含む）は `database is locked` を指数バックオフで再試行する。
+見本は `deploy/`（systemd / nginx / crontab）。SQLite は複数ライターに弱いので uvicorn はワーカー1。日次バッチは定常で 7 リクエスト。接続は WAL + `busy_timeout=30s`。`jobs/migrate.py`（deploy 含む）は `database is locked` を指数バックオフで再試行する。
 
 Postgres 切替は将来オプション。今は使わない。`DATABASE_URL` だけ変えれば SQLAlchemy は両対応のまま。
 

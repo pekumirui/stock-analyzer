@@ -60,7 +60,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 
 - **V2 のみ**。V1（メール/パスワード → idToken）は使わない
 - 認証は `JQUANTS_API_KEY` を `x-api-key` に載せるだけ。トークン更新は不要
-- エンドポイントは `/v2/equities/master`, `/v2/equities/bars/daily`, `/v2/indices/bars/daily/topix`, `/v2/fins/summary`, `/v2/markets/calendar`
+- エンドポイントは `/v2/equities/master`, `/v2/equities/bars/daily`, `/v2/indices/bars/daily/topix`, `/v2/fins/summary`, `/v2/fins/earnings-date`, `/v2/markets/calendar`
 - レスポンスは `{"data": [...], "pagination_key": "..."}`。カラムは短縮形 (`O`/`C`/`AdjC` 等)
 - 取込は **日付指定で全銘柄を1リクエスト**。銘柄ループで全日を取りに行かない
 - Light は 60 req/分。`/fins/*` は別枠 60 req/分。`jquants.py` のトークンバケットを通す。直叩きしない

@@ -482,6 +482,41 @@ def test_batch_syncs_after_indicators() -> None:
         _fail(order)
 
 
+def test_routes_and_screen_copy() -> None:
+    db = _db()
+    try:
+        ingest_pub_date(db, _JQ([_wire(SchDate="2026-11-06")]), date(2026, 9, 20))  # type: ignore[arg-type]
+        upsert(db, Stock, [{"code": "72030", "name": "トヨタ自動車", "product_category": "011"}])
+    finally:
+        db.close()
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    client = TestClient(app)
+    cal = client.get("/api/earnings/calendar", params={"month": "2026-11", "today": "2026-10-02"})
+    if cal.status_code != 200 or cal.json().get("2026-11-06") != {"kind": "scheduled", "n": 1}:
+        _fail(cal.text)
+    day = client.get("/api/earnings", params={"date": "2026-11-06", "today": "2026-10-02"})
+    body = day.json()
+    if body.get("kind") != "scheduled" or body.get("scheduled") != [{
+        "code": "72030",
+        "name": "トヨタ自動車",
+        "periods": [{"fq": "2Q", "fye": "0331", "label": "3月期"}],
+    }]:
+        _fail(body)
+    if body.get("ready") is not False or body.get("actuals") != []:
+        _fail(body)
+    js = (ROOT / "static/js/earnings.js").read_text(encoding="utf-8")
+    for text in (
+        "予定未取得", "予定なし", "開示なし", "取得できませんでした",
+        "まだ開示されていません", "決算発表予定", "未発表", "today=${today}",
+        "cnt pend", " sched",
+    ):
+        if text not in js:
+            _fail(text)
+
+
 def main() -> None:
     test_fye_labels()
     test_parse_rejects_unknown_and_keeps_tombstone()
@@ -493,6 +528,7 @@ def main() -> None:
     test_payloads_mixed_past_and_unfetched()
     test_sync_idempotent_with_tiny_lookback()
     test_batch_syncs_after_indicators()
+    test_routes_and_screen_copy()
     print("ok: earnings schedule")
 
 

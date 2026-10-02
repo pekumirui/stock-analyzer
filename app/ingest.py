@@ -176,9 +176,10 @@ def _prev_trading_day(db: Session, day: str) -> date | None:
 
 
 def run_daily(db: Session, day: str | None = None) -> int:
-    """日次バッチ: 当日の全銘柄株価・財務・TOPIXと前営業日の財務を取得 (計5リクエスト)。
+    """当日の全銘柄株価・財務・TOPIXと前営業日の財務を取得。マスタを入れて 5 リクエスト。
 
     前営業日の財務は 19:30 より後の開示を拾うための取り直し。
+    発表予定はここではなく jobs/run_batch.py が指標の後に取る。
     返り値は株価・TOPIX・当日決算の件数と、前営業日に新しく増えた決算の件数の和。
     """
     day = day or date.today().strftime("%Y-%m-%d")

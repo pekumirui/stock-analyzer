@@ -34,6 +34,8 @@
   .cal .d .n { font-size:12px; color:var(--text); }
   .cal .d.sel .n { font-weight:600; color:var(--accent); }
   .cal .d .cnt { position:absolute; right:2px; bottom:1px; font-size:9px; line-height:1; color:var(--accent); }
+  .cal .d .cnt.sched { color:var(--sub); }
+  .cal .d .cnt.pend { left:2px; right:auto; color:var(--warn); }
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
   input,select { background:var(--panel); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:14px; }
   button.btn { background:var(--accent); border:none; color:#fff; border-radius:6px; padding:6px 12px; cursor:pointer; }
@@ -94,12 +96,12 @@
   .grp { border-left:1px solid var(--border); }
   #earn-list:focus { outline:none; }
   /* 2段ヘッダは thead ごと固定。th 単体 + top:29px だと段の実高さとズレて本文が透ける */
-  #earn-tbl thead { position:sticky; top:0; z-index:2; }
-  #earn-tbl thead th { position:static; top:auto; z-index:auto; background:var(--panel); }
-  #earn-tbl tbody tr { cursor:pointer; }
-  #earn-tbl tbody tr:hover td { background:var(--row); }
-  #earn-tbl tbody tr.sel td { background:var(--row-sel); }
-  #earn-tbl tbody tr.sel td:first-child { box-shadow:inset 3px 0 0 var(--accent); }
+  #earn-tbl thead, #earn-sched thead { position:sticky; top:0; z-index:2; }
+  #earn-tbl thead th, #earn-sched thead th { position:static; top:auto; z-index:auto; background:var(--panel); }
+  #earn-tbl tbody tr, #earn-sched tbody tr { cursor:pointer; }
+  #earn-tbl tbody tr:hover td, #earn-sched tbody tr:hover td { background:var(--row); }
+  #earn-tbl tbody tr.sel td, #earn-sched tbody tr.sel td { background:var(--row-sel); }
+  #earn-tbl tbody tr.sel td:first-child, #earn-sched tbody tr.sel td:first-child { box-shadow:inset 3px 0 0 var(--accent); }
   table.fin td:first-child, table.fin th:first-child { position:sticky; left:0; z-index:2; background:var(--panel); }
   table.fin { font-variant-numeric:tabular-nums; }
   table.fin th { font-size:11px; letter-spacing:.02em; }
