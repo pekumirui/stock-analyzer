@@ -20,6 +20,7 @@ from .models import (
 )
 from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
+from .earnings_schedule import ActualMonth, day_payload, month_payload
 from .monthly_ingest import (
     MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label,
     coerce_monthly_storage, map_pdf_columns, monthly_element_label,
@@ -59,9 +60,15 @@ def _not_excluded_product(code_col):
     )
 
 
-@router.get("/earnings/calendar")
-def earnings_calendar(month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
-                      db: Session = Depends(get_session)):
+def resolve_today(today: str | None) -> date:
+    """SPA が送った今日。省略時は date.today()。"""
+    if today is None:
+        return date.today()
+    return _pd(today)
+
+
+def actual_month_facts(db: Session, month: str, today: date) -> ActualMonth:
+    """カレンダーの開示件数。今日が月の外なら codes_on_today は空。"""
     a = aliased(Statement)
     rows = (db.query(a.disclosed_date, func.count(func.distinct(a.code)))
             .filter(func.strftime("%Y-%m", a.disclosed_date) == month,
@@ -69,13 +76,20 @@ def earnings_calendar(month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
                     _not_duplicate(a),          # 一覧の行数と件数を一致させる
                     _not_excluded_product(a.code))
             .group_by(a.disclosed_date).all())
-    return {d.isoformat(): n for d, n in rows}
+    codes: frozenset[str] = frozenset()
+    if today.strftime("%Y-%m") == month:
+        code_rows = (db.query(a.code)
+                     .filter(a.disclosed_date == today,
+                             a.type_of_document.contains("FinancialStatements"),
+                             _not_duplicate(a),
+                             _not_excluded_product(a.code))
+                     .distinct().all())
+        codes = frozenset(code for (code,) in code_rows)
+    return ActualMonth({d: int(n) for d, n in rows}, codes)
 
 
-@router.get("/earnings")
-def earnings_by_date(date_: str = Query(..., alias="date"), db: Session = Depends(get_session)):
+def earnings_rows(db: Session, day: date) -> list[dict]:
     """その日の決算速報一覧 (QoQ=Q単独の前四半期比 / YoY=累計の前年同期比)。"""
-    day = _pd(date_)
     codes = select(Statement.code).where(
         Statement.disclosed_date == day, _ACTUAL_DOC, _not_excluded_product(Statement.code))
     # 開示1件ごとに履歴を引くとピーク日(約1,000件)で数千クエリになるため、まとめて取って配る
@@ -110,6 +124,22 @@ def earnings_by_date(date_: str = Query(..., alias="date"), db: Session = Depend
             })
     out.sort(key=lambda r: (r["disclosed_time"] or "", r["code"]))
     return out
+
+
+@router.get("/earnings/calendar")
+def earnings_calendar(month: str = Query(..., pattern=r"^\d{4}-\d{2}$"),
+                      today: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+                      db: Session = Depends(get_session)):
+    today_d = resolve_today(today)
+    return month_payload(db, month, today_d, actual_month_facts(db, month, today_d))
+
+
+@router.get("/earnings")
+def earnings_by_date(date_: str = Query(..., alias="date"),
+                     today: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+                     db: Session = Depends(get_session)):
+    day = _pd(date_)
+    return day_payload(db, day, resolve_today(today), earnings_rows(db, day))
 
 
 @router.get("/earnings/detail/{code}")

@@ -69,8 +69,8 @@ Harness: HTTP against the same routes the SPA uses, plus the browser when CDP is
 | 月次 tab | `nav button[data-tab="monthly"]` |
 | チャート tab | `nav button[data-tab="chart"]` |
 | スクリーナー tab | `nav button[data-tab="screener"]` |
-| Earnings calendar | `#cal-btn` opens `#cal-pop`; `#cal-title` + ◀/▶ (`calMove(±1)`) change month and refetch `/api/earnings/calendar?month=YYYY-MM`; day cells are `#cal .d` with `onclick="selectDate('YYYY-MM-DD')"`. Days with disclosures show `.cnt`. Esc / `#cal-backdrop` / a day click close the popover. |
-| Earnings row | `#earn-tbl tr[data-no]` (first row auto-selected on day load) |
+| Earnings calendar | `#cal-btn` opens `#cal-pop`; `#cal-title` + ◀/▶ (`calMove(±1)`) change month and refetch `/api/earnings/calendar?month=YYYY-MM&today=YYYY-MM-DD` (`today` is `todayISO()`). Day cells are `#cal .d` with `onclick="selectDate('YYYY-MM-DD')"`. A day with filings or a schedule shows `.cnt` (`cell.n` plus `件`). Future schedules add `.cnt.sched`. Today with names still scheduled adds `.cnt.pend` as `+N`. Esc / `#cal-backdrop` / a day click close the popover. |
+| Earnings row | `#earn-tbl tr[data-no]` for a filing. `#earn-sched tr[data-code]` for a scheduled issuer. The first row of the day is auto-selected |
 | 累計 / 3か月 | `.ftab[data-fin="cum"]` (default on) / `.ftab[data-fin="q"]` |
 | Earnings period chips | `#q-chips` (display only) |
 | Earnings embedded chart | `#e-chart` / `.a-chart` (same `/api/chart` as chart tab) |
@@ -91,9 +91,10 @@ Harness: HTTP against the same routes the SPA uses, plus the browser when CDP is
 
 | UI action | Request |
 |---|---|
-| Open 決算速報 calendar | `GET /api/earnings/calendar?month=YYYY-MM` |
-| Click a day | `GET /api/earnings?date=YYYY-MM-DD` |
-| Select a row | `GET /api/earnings/detail/{code}?disclosure_no=...` and `GET /api/chart/{code}?tf=D&ma=50,150,200` into `#e-chart` |
+| Open 決算速報 calendar | `GET /api/earnings/calendar?month=YYYY-MM&today=YYYY-MM-DD` |
+| Click a day | `GET /api/earnings?date=YYYY-MM-DD&today=YYYY-MM-DD` |
+| Select a filing row | `GET /api/earnings/detail/{code}?disclosure_no=...` and `GET /api/chart/{code}?tf=D&ma=50,150,200` into `#e-chart` |
+| Select a scheduled row | `GET /api/chart/{code}?tf=D&ma=50,150,200` only. `#cum-tbl` and `#q-tbl` read `まだ開示されていません` |
 | Chart search typeahead | `GET /api/stocks/search?q=...` |
 | Chart 表示 (UI defaults) | `GET /api/chart/{code}?tf=D&ma=50,150,200&rel=false` (may include `earnings_dates`) and `GET /api/earnings-performance/{code}` |
 | Screener 検索 (UI defaults) | `GET /api/screener?stage=2&rs_min=70` |

@@ -57,8 +57,10 @@ JQUANTS_BASE = os.getenv("JQUANTS_BASE", "https://api.jquants.com/v2")
 
 # レートリミット (プラン別: Free=5 / Light=60 / Standard=120 / Premium=500)
 RATE_LIMIT_PER_MIN = int(os.getenv("JQUANTS_RATE_LIMIT", "60"))
-# /fins/summary は全プラン共通で60req/分の別枠
+# /fins/summary は全プラン共通で60req/分の別枠。earnings-date も /fins/ なので同じ枠
 RATE_LIMIT_FINS_PER_MIN = 60
+# Light は PubDate の 5 年窓。端の日が 400 にならないよう 1 週間内側
+EARNINGS_DATE_LOOKBACK_DAYS = 5 * 365 - 7
 
 # J-Quants ProdCat (商品区分)。011 内国株券 / 012 優先出資 / 013 REIT / 014 ETF /
 # 021 外国株券 / 022 外国REIT / 023 外国ETF / 024 外国株預託証券

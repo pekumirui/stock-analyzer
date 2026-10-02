@@ -3,7 +3,7 @@
 V1 (token/auth_user → idToken) は閉鎖予定のため V2 (APIキー方式) を使用。
 - 認証: x-api-key ヘッダーにダッシュボード発行のAPIキー。有効期限なし。
 - レスポンス: 一律 {"data": [...], "pagination_key": "..."}
-- レートリミット: Light=60req/分。/fins/summary は全プラン共通で別枠60req/分。
+- レートリミット: Light=60req/分。/fins/ は全プラン共通で別枠60req/分。
   → エンドポイント群ごとにトークンバケットで自主規制し、429は指数バックオフで再試行。
 """
 import time
@@ -45,7 +45,7 @@ class JQuantsClient:
                 "JQUANTS_API_KEY が未設定です。\n"
                 "https://jpx-jquants.com のダッシュボードでAPIキーを発行し .env に記入してください。"
             )
-        # /fins/summary はプラン枠とは別枠のため独立したバケットを持つ
+        # /fins/ はプラン枠とは別枠のため独立したバケットを持つ
         self._limiters = {
             "default": RateLimiter(config.RATE_LIMIT_PER_MIN),
             "fins": RateLimiter(config.RATE_LIMIT_FINS_PER_MIN),
@@ -132,6 +132,10 @@ class JQuantsClient:
         if date: p["date"] = date
         if code: p["code"] = code
         return self.get_all("/fins/summary", p)
+
+    def fins_earnings_date(self, pub_date: str) -> list[dict]:
+        """決算発表予定日 /v2/fins/earnings-date。date は公表日 (PubDate)。"""
+        return self.get_all("/fins/earnings-date", {"date": pub_date})
 
     def calendar(self, from_: str, to: str) -> list[dict]:
         """取引カレンダー /v2/markets/calendar"""

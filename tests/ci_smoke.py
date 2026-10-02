@@ -102,6 +102,7 @@ SUITES = (
     "test_html_predicates.py",
     "test_analytics.py",
     "test_jquants.py",
+    "test_earnings_schedule.py",
 )
 
 
@@ -197,7 +198,7 @@ def main() -> None:
     if r.json() != []:
         raise SystemExit(f"search should be empty before fixture, got {r.json()!r}")
 
-    r = client.get("/api/earnings/calendar", params={"month": "2026-08"})
+    r = client.get("/api/earnings/calendar", params={"month": "2026-08", "today": "2026-10-02"})
     _expect(r, 200, "GET /api/earnings/calendar")
     if r.json() != {}:
         raise SystemExit(f"calendar should be empty, got {r.json()!r}")
@@ -328,15 +329,18 @@ def main() -> None:
     if code not in sc_codes:
         raise SystemExit("screener dropped common stock after REIT fixture")
 
-    r = client.get("/api/earnings/calendar", params={"month": "2026-08"})
+    r = client.get("/api/earnings/calendar", params={"month": "2026-08", "today": "2026-10-02"})
     _expect(r, 200, "GET /api/earnings/calendar (with REIT)")
     cal = r.json()
-    if cal.get("2026-08-21") != 1:
+    if cal.get("2026-08-21") != {"kind": "actual", "n": 1}:
         raise SystemExit(f"calendar should count only the stock, got {cal!r}")
 
-    r = client.get("/api/earnings", params={"date": "2026-08-21"})
+    r = client.get("/api/earnings", params={"date": "2026-08-21", "today": "2026-10-02"})
     _expect(r, 200, "GET /api/earnings (with REIT)")
-    earn_codes = {x["code"] for x in r.json()}
+    listed = r.json()
+    if not isinstance(listed, dict) or not isinstance(listed.get("actuals"), list):
+        raise SystemExit(f"earnings list should be {{kind, actuals, scheduled}}, got {listed!r}")
+    earn_codes = {x["code"] for x in listed["actuals"]}
     if "89510" in earn_codes:
         raise SystemExit("earnings list should exclude REIT")
     if code not in earn_codes:

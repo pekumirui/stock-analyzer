@@ -31,7 +31,7 @@ notepad .env                    # JQUANTS_API_KEY を記入
 .\run.ps1 check                 # 疎通確認 + 項目マッピング検証 (DBは触らない)
 .\run.ps1 backfill              # 初回: 5年分 (約45分)
 .\run.ps1 serve                 # → http://localhost:8000
-.\run.ps1 batch                 # 以降の日次 (5リクエストで完了)
+.\run.ps1 batch                 # 以降の日次 (定常 7 リクエスト。発表予定の台帳が空の初回だけ長い)
 ```
 
 スクリプト実行がブロックされる場合は一度だけ:
@@ -101,7 +101,7 @@ cp .env.example .env            # 既存 .env がある場合は上書きしな�
 初期設定（nginx / ufw / certbot / systemd / crontab）はパイプラインが冪等にやる。root でやるのはデプロイ用 SSH 鍵と sudoers だけ。
 手順は [deploy/README.md](deploy/README.md)。
 
-uvicorn はワーカー 1。SQLite は複数ライターに弱い。日次バッチは 4 リクエストで短い。
+uvicorn はワーカー 1。SQLite は複数ライターに弱い。日次バッチは定常で 7 リクエスト。
 
 ```bash
 # 開発PC → VPS（backfill 完了後。journal が残っていないことを確認）
