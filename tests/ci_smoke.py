@@ -78,6 +78,7 @@ SUITES = (
     "test_public_monthly.py",
     "test_nginx_public.py",
     "test_github_ssh.py",
+    "test_sqlite_deploy.py",
     "test_monthly_ingest.py",
     "test_monthly_stock_master.py",
     "test_monthly_issuers.py",

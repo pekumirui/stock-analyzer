@@ -2,7 +2,7 @@
 # GitHub Actions から stdin で流して実行する。
 # git pull → 冪等な初期設定 (provision.sh) → venv → migrate → 再起動
 # stock.db は触らない。.env は JQUANTS_API_KEY / MCP_TOKEN / R2_* が渡されたときだけ当該行を更新する。
-# SLACK_WEBHOOK_URL は .env に書かない。provision が /etc/fluent-bit/slack.env へ書く。
+# SLACK_WEBHOOK_URL / SLACK_WEBHOOK_URL_{APP,BATCH,INFRA} は .env に書かない。provision が /etc/fluent-bit/slack.env へ書く。
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/home/stock/stock-analyzer}"
@@ -175,7 +175,12 @@ umask 077
 write_rclone_conf
 
 chmod +x "$APP_DIR/deploy/provision.sh"
-sudo --preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,CERTBOT_EMAIL,SLACK_WEBHOOK_URL \
+# --preserve-env names not yet in live env_keep are rejected before provision
+# can install sudoers. Refresh /etc/sudoers.d with APP_DIR only (kept since
+# enable-cicd), then pass channel webhooks on the full run.
+sudo --preserve-env=APP_DIR \
+  "$APP_DIR/deploy/provision.sh" --sudoers-only
+sudo --preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,CERTBOT_EMAIL,SLACK_WEBHOOK_URL,SLACK_WEBHOOK_URL_APP,SLACK_WEBHOOK_URL_BATCH,SLACK_WEBHOOK_URL_INFRA \
   "$APP_DIR/deploy/provision.sh"
 
 if [ ! -x "$APP_DIR/.venv/bin/pip" ]; then

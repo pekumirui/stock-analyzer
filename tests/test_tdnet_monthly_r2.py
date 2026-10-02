@@ -148,6 +148,8 @@ def test_download_skip_reason() -> None:
         "89520": ("013", "テストリート投資法人"),
         "72030": ("011", "トヨタ自動車"),
         "92790": ("010", "ギフト"),
+        "87980": ("011", "アドバンスクリエイト"),
+        "87390": ("011", "スパークス・グループ"),
     }
     # 1. non-empty map + absent code (名古屋単独など) → skip, do not download
     got = download_skip_reason("3032", "ゴルフ・ドゥ", stock_map)
@@ -179,6 +181,12 @@ def test_download_skip_reason() -> None:
     got = download_skip_reason("8985", "ジャパン・ホテル・リート投資法人", empty)
     if got != "excluded-code 8985 ジャパン・ホテル・リート投資法人":
         _fail(f"empty map 8985 excluded-code: {got!r}")
+    got = download_skip_reason("8798", "アドバンスクリエイト", empty)
+    if got != "excluded-code 8798 アドバンスクリエイト":
+        _fail(f"empty map 8798 excluded-code: {got!r}")
+    got = download_skip_reason("8739", "スパークス・グループ", empty)
+    if got != "excluded-code 8739 スパークス・グループ":
+        _fail(f"empty map 8739 excluded-code: {got!r}")
     if download_skip_reason("8952", "テストリート投資法人", empty) is not None:
         _fail("empty map must keep ordinary REIT 8952")
 
@@ -190,13 +198,25 @@ def test_download_skip_reason() -> None:
     if got != "infra-fund 9282 ジャパン・インフラファンド投資法人":
         _fail(f"92820 infra: {got!r}")
 
-    # 4. 8985 is on MONTHLY_SKIP_CODES. Other ordinary REIT stays.
+    # 4. MONTHLY_SKIP_CODES (map の有無にかかわらず excluded-code)。普通の REIT は残す。
     got = download_skip_reason("8985", "ジャパン・ホテル・リート投資法人", stock_map)
     if got != "excluded-code 8985 ジャパン・ホテル・リート投資法人":
         _fail(f"8985 excluded-code: {got!r}")
     got = download_skip_reason("89850", "ジャパン・ホテル・リート投資法人", stock_map)
     if got != "excluded-code 8985 ジャパン・ホテル・リート投資法人":
         _fail(f"89850 excluded-code: {got!r}")
+    got = download_skip_reason("8798", "アドバンスクリエイト", stock_map)
+    if got != "excluded-code 8798 アドバンスクリエイト":
+        _fail(f"8798 excluded-code: {got!r}")
+    got = download_skip_reason("87980", "アドバンスクリエイト", stock_map)
+    if got != "excluded-code 8798 アドバンスクリエイト":
+        _fail(f"87980 excluded-code: {got!r}")
+    got = download_skip_reason("8739", "スパークス・グループ", stock_map)
+    if got != "excluded-code 8739 スパークス・グループ":
+        _fail(f"8739 excluded-code: {got!r}")
+    got = download_skip_reason("87390", "スパークス・グループ", stock_map)
+    if got != "excluded-code 8739 スパークス・グループ":
+        _fail(f"87390 excluded-code: {got!r}")
     if download_skip_reason("8952", "テストリート投資法人", stock_map) is not None:
         _fail("8952 ordinary REIT should keep")
     if download_skip_reason("89520", "テストリート投資法人", stock_map) is not None:
@@ -318,6 +338,34 @@ def test_is_monthly_title() -> None:
         "月次 人事異動のお知らせ",
         "自己株式の状況（月次）",
         "有報提出に伴う月次補足",
+        # #126 TDnet 27 社の直近タイトル（grep漏れ 25 + 月次ヒット未ingest 2）
+        "2026年８月度 受注速報",
+        "2026年7月度 受注速報",
+        "2027年4月期8月度の売上高についてのお知らせ",
+        "2026年８月期８月度 直営店売上高速報、店舗数推移について",
+        "2027年1月期8月度販売状況のお知らせ",
+        "2026年９月期売上高推移報告について",
+        "2026年８月度の売上高のお知らせ",
+        "2027年2月期　8月度概況について　[国内]",
+        "(第55期）　2026年８月の売上推移速報に関するお知らせ",
+        "２０２６年７月度　Ｊ．フロントリテイリング　連結売上収益報告（ＩＦＲＳ）",
+        "2026年8月度　すかいらーくグループIRレポート",
+        "2026年8月度売上高速報（前期対比）",
+        "2027年1月期8月度売上高速報及び概況等について",
+        "2027年２月期 ７月度の売上概況",
+        "2026年10月期　速報数値　7月度",
+        "第47期（2027年３月期）８月の売上の状況に関するお知らせ（速報）",
+        "2026年8月の業績速報",
+        "2027年3月期8月度売上高推移速報についてのお知らせ（個別）",
+        "2027年3月期8月度売上高に関するお知らせ(単体)",
+        "2027年３月期８月度売上推移速報に関するお知らせ",
+        "2027年２月期８月度売上高速報についてのお知らせ",
+        "2026年8月度 売上高の状況（2026年7月1日～2026年8月31日）",
+        "2027年１月期 ８月度売上高前年対比等のお知らせ",
+        "2026年7月度 高島屋営業報告",
+        "売上高前年同月比推移に関するお知らせ",
+        "2026年7月 月次業績報告",
+        "2027年３月期７月度月次売上（速報）に関するお知らせ",
     ]
     for t in include:
         if not is_monthly_title(t):
@@ -331,6 +379,11 @@ def test_is_monthly_title() -> None:
         "業績予想の修正に関するお知らせ",
         "売上速報および人事異動のお知らせ",
         "前年比を含む決算短信",
+        "新株予約権の月間行使状況に関するお知らせ",
+        "2026年8月度 新株予約権発行のお知らせ",
+        "2026年8月度 取締役選任のお知らせ",
+        "四半期短信〔日本基準〕（連結）",
+        "2026年8月度 業績予想の修正に関するお知らせ",
     ]
     for t in exclude:
         if is_monthly_title(t):

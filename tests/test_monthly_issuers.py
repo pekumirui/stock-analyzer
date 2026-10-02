@@ -114,6 +114,14 @@ def test_series_kind() -> None:
         _fail("売上高 内訳 is not all_store")
     if monthly_series_kind("MKG 全店 売上高 調剤(前年比)", "yoy_index") is not None:
         _fail("brand 内訳 is not a series")
+    if monthly_series_kind("会員数 既存(前年比)", "yoy_index") is not None:
+        _fail("会員数 既存 yoy is not existing")
+    if monthly_series_kind("会員数(前年比)", "yoy_index") is not None:
+        _fail("会員数 yoy is not a series")
+    if monthly_series_kind("会員数 既存 売上高(前年比)", "yoy_index") is not None:
+        _fail("old 会員数 既存 売上高 yoy is not existing")
+    if monthly_series_kind("客数 既存(前年比)", "yoy_index") != "existing":
+        _fail("客数 既存 yoy stays existing")
 
 
 def test_put_and_list() -> None:
@@ -393,6 +401,44 @@ def test_headline_yoy_prefers_company_wide() -> None:
         _fail(f"(e) existing-col existing: {row!r}")
 
 
+def test_member_count_yoy_not_headline() -> None:
+    """212A: 会員数の前年比は existing_store_yoy に混ざらない。#366"""
+    c = TestClient(app)
+    _add_fy_end("212A0", date(2026, 5, 8), date(2026, 3, 31), "iss-212a-fy")
+    r = c.post("/api/v1/tables/212A0/ingest", json={
+        "months": [9],
+        "rows": [
+            {"element": "会員数 既存(前年比)", "unit": "yoy_index", "values": {"9": 109.0}},
+            {"element": "会員数(前年比)", "unit": "yoy_index", "values": {"9": 108.0}},
+        ],
+        "as_of": "2026-09-30",
+    })
+    _expect(r, 200, "ingest 会員数")
+    updated = r.json().get("updated")
+    if not isinstance(updated, list) or not updated:
+        _fail(f"ingest updated: {r.json()!r}")
+    stored = {u["element"] for u in updated}
+    if "会員数 既存 売上高(前年比)" in stored:
+        _fail(f"stored 会員数 must not become 売上高: {stored!r}")
+    if stored != {"会員数 既存(前年比)", "会員数(前年比)"}:
+        _fail(f"stored 会員数 names: {stored!r}")
+    row = _issuer_row(c, "212A0")
+    if row["existing_store_yoy"] is not None:
+        _fail(f"会員数 must not fill existing_store_yoy: {row!r}")
+    if row["all_store_yoy"] is not None:
+        _fail(f"会員数 must not fill all_store_yoy: {row!r}")
+    year = updated[0]["year"]
+    r = c.get(f"/api/v1/tables/212A0/{year}")
+    _expect(r, 200, "GET 212A0 year")
+    by = {el["element"]: el for el in r.json()["elements"]}
+    existing = by["会員数 既存(前年比)"]["label"]
+    if existing["metric_kind"] == "sales" or existing["series_kind"] is not None:
+        _fail(f"会員数 既存 label: {existing!r}")
+    bare = by["会員数(前年比)"]["label"]
+    if bare["metric_kind"] == "sales" or bare["series_kind"] is not None:
+        _fail(f"会員数 label: {bare!r}")
+
+
 def test_year_label_block() -> None:
     from app.db import SessionLocal
     from app.models import MonthlyElement, MonthlyTable, MonthlyValue
@@ -480,6 +526,7 @@ def main() -> None:
     test_year_payload_unchanged()
     test_year_label_block()
     test_headline_yoy_prefers_company_wide()
+    test_member_count_yoy_not_headline()
     print("ok: monthly issuers")
 
 

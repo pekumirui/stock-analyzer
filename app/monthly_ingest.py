@@ -161,6 +161,22 @@ _TETTAI_CNT_MARK = "\x00TETTAICNT\x00"
 _TETTAI_MARK = "\x00TETTAI\x00"
 _KADO_STORES_MARK = "\x00KADOSTORES\x00"
 _TRADE_STORES_MARK = "\x00TRADESTORES\x00"
+_STATUS_STORES_MARK = "\x00STATUSSTORES\x00"
+# 閉店中店舗数など。閉店/出店のフロー保護より先に1語にする（稼働店舗数と同じ）。
+# 閉鎖店舗数は空白なしだけ（`閉鎖 店舗数` は従来の退店フロー）。
+_STATUS_STORE_RE = re.compile(
+    r"(?:"
+    r"一時閉店(?:中|予定|準備中)?"
+    r"|開店準備(?:中|予定|準備中)?"
+    r"|出店予定"
+    r"|閉店(?:中|予定|準備中)"
+    r"|閉鎖(?:中|予定|準備中)"
+    r"|休業(?:中|予定|準備中)?"
+    r")[の 　]*"
+    r"(?:店舗数|店数)"
+    r"|"
+    r"閉鎖(?:店舗数|店数)"
+)
 _FLOW_PROTECT: tuple[tuple[str, str], ...] = (
     ("転換出店数", _TENKAN_CNT_MARK),
     ("転換出店", _TENKAN_MARK),
@@ -207,7 +223,7 @@ _DROP_TOKS = frozenset({
     "合計", "総計", "小計", "計", "月末", "期末", "うち", "内数", "部門", "店",
     "前期比", "同期比", "増減率", "前年比", "前年同月比", "前年同月", "全",
     "昨対", "昨年比",
-    "累計", "店舗状況", "拠点数", "購入お客様", "（％）", "（%）", "(％)", "(%)", "%", "※",
+    "累計", "店舗状況", "拠点数", "対象", "購入お客様", "（％）", "（%）", "(％)", "(%)", "%", "※",
     "（百万円）", "(百万円)", "売上（％）", "売上（%）",
     "（", "）", "(", ")", "(前年比)", "（前年比）", "(前期比)", "（前期比）",
 })
@@ -294,6 +310,8 @@ _STORE_FLOW_CANON = {
     "閉鎖": "退店", "閉鎖数": "退店",
     "撤退": "退店", "撤退数": "退店",
 }
+# 閉鎖店舗数など。peel の残りがフロー語でも、状態＋店舗数なら退店にしない。
+_STATUS_STORE_STEMS = frozenset({"閉鎖", "休業"})
 _STORE_FLOW_METRICS = frozenset({"出店", "退店", "転換出店"})
 _OPEN_SHARDS = frozenset({"開"})
 _CLOSE_SHARDS = frozenset({"退", "閉"})
@@ -344,6 +362,27 @@ def _stitch_metric_shards(tokens: list[str]) -> list[str]:
     return out
 
 
+def _compact_status_store(raw: str) -> str:
+    """状態語＋店舗数を1語にする。の と空白は落とす。店数は店舗数。"""
+    s = re.sub(r"[の 　]+", "", raw)
+    if s.endswith("店数") and not s.endswith("店舗数"):
+        s = f"{s[:-2]}店舗数"
+    return s
+
+
+def _glue_status_store_metric(segment: str, metric: str) -> tuple[str, str]:
+    """閉鎖 店舗数 は再パースで退店になるので、フロー語ステムは店舗数に接着する。"""
+    if metric != "店舗数" or not segment:
+        return segment, metric
+    parts = segment.split()
+    stem = parts[-1]
+    if stem not in _STATUS_STORE_STEMS or stem not in _STORE_FLOW_CANON:
+        return segment, metric
+    glued = f"{stem}{metric}"
+    head = " ".join(parts[:-1])
+    return (f"{head} {glued}".strip() if head else glued), ""
+
+
 def _unglue_element(text: str) -> str:
     s = _FOOTNOTE_NUM_RE.sub(" ", text)
     s = _FOOTNOTE_CIRCLED_RE.sub(" ", s)
@@ -355,6 +394,13 @@ def _unglue_element(text: str) -> str:
     s = s.replace("直営+FC", f" {_CHAN_BOTH_MARK} ").replace(
         "直営＋FC", f" {_CHAN_BOTH_MARK} ",
     )
+    held: list[str] = []
+
+    def _hold_status_store(m: re.Match[str]) -> str:
+        held.append(_compact_status_store(m.group(0)))
+        return f"{_STATUS_STORES_MARK}{len(held) - 1}{_STATUS_STORES_MARK}"
+
+    s = _STATUS_STORE_RE.sub(_hold_status_store, s)
     for src, mark in _FLOW_PROTECT:
         s = s.replace(src, f" {mark} ")
     for src, dst in _UNGLUE:
@@ -364,6 +410,8 @@ def _unglue_element(text: str) -> str:
     for mark, dst in _FLOW_RESTORE:
         s = s.replace(mark, dst)
     s = s.replace(_CHAN_BOTH_MARK, "直営+FC")
+    for i in range(len(held) - 1, -1, -1):
+        s = s.replace(f"{_STATUS_STORES_MARK}{i}{_STATUS_STORES_MARK}", held[i])
     return re.sub(r"\s+", " ", s).strip()
 
 
@@ -588,7 +636,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
         peeled, rest = _peel_metric(tok)
         if peeled:
             rest_flow = _STORE_FLOW_CANON.get(rest) if rest else None
-            if rest_flow:
+            if rest_flow and rest not in _STATUS_STORE_STEMS:
                 if metric in ("", "店舗数"):
                     metric = rest_flow
             elif not (peeled == "店舗数" and _is_flow_metric(metric)):
@@ -646,11 +694,13 @@ def normalize_element_tokens(element: str, *, fill_default_metric: bool = False)
     if not trimmed:
         return trimmed
     parts = parse_element_layers(trimmed)
+    # leftover に会員数がある yoy は売上高を補わない（#366）。
     if (
         fill_default_metric
         and not parts["metric"]
         and parts["scope"]
         and not parts["channel"]
+        and "会員数" not in parts["segment"]
     ):
         parts["metric"] = "売上高"
         parts["time_axis"] = ""
@@ -660,6 +710,9 @@ def normalize_element_tokens(element: str, *, fill_default_metric: bool = False)
         parts["segment"] = " ".join(leftover)
         parts["metric"] = metric
         parts["breakdown"] = breakdown
+    parts["segment"], parts["metric"] = _glue_status_store_metric(
+        parts["segment"], parts["metric"],
+    )
     ordered = [
         parts["country"], parts["segment"], parts["time_axis"], parts["channel"],
         parts["scope"], parts["metric"], parts["breakdown"],
@@ -940,6 +993,9 @@ def monthly_series_kind(element: str, unit: str | None) -> str | None:
     layers = _layers_of(element)
     if layers["breakdown"]:
         return None
+    # 会員数の前年比は既存/全店があっても売上高系列にしない (#366)。
+    if "会員数" in key:
+        return None
     if "既存" in key:
         return "existing"
     if "全店" in key or "全社" in key:
@@ -1025,6 +1081,11 @@ def monthly_row_slot(element: str, unit: str | None) -> int:
     return _METRIC_RANK[_row_metric(element)]
 
 
+def monthly_row_unit_rank(unit: str | None) -> int:
+    """0=number 1=yoy。同じ指標の実数を先、前年比を後。"""
+    return 1 if (unit or "number") in _YOY_UNITS else 0
+
+
 def monthly_row_breakdown_rank(element: str) -> int:
     """売上高の親が先。内訳は ドラッグ → 調剤 → 物販。領域は木の先行順。"""
     bd = _layers_of(element)["breakdown"]
@@ -1079,7 +1140,8 @@ def union_monthly_elements(
     国なし → 日本 → 海外。セグメント無しが先、名前付きは新しい年の初出順。
     segment_tail（monthly_row_order.json）は非 tail の後。
     各塊は 全店 → 既存 → チャネル（直営+FC → 直営 → FC）→
-    売上高 → 客数 → 客単価 → 出店 → 退店 → 純増/新設/改装/業態転換 → 店舗数 → その他。
+    売上高（実数の親→内訳、そのあと前年比の親→内訳）→ 客数 → 客単価 →
+    出店 → 退店 → 純増/新設/改装/業態転換 → 店舗数 → その他。
     スコープ無しの店舗数は既存の後。保存名は変えない。
     """
     resolved = code
@@ -1127,6 +1189,7 @@ def union_monthly_elements(
                 "scope": monthly_row_scope_rank(display),
                 "channel": _row_channel_rank(display),
                 "slot": monthly_row_slot(display, unit),
+                "unit_rank": monthly_row_unit_rank(unit),
                 "bd": monthly_row_breakdown_rank(display),
                 "idx": len(items),
             })
@@ -1145,6 +1208,7 @@ def union_monthly_elements(
         it["scope"],
         it["channel"],
         it["slot"],
+        it["unit_rank"],
         it["bd"],
         it["idx"],
     ))

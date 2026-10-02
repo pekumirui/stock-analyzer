@@ -152,6 +152,11 @@ function monthlyRowScopeRank(label){
   return 3;
 }
 
+function monthlyRowUnitRank(unit){
+  const u = unit || "number";
+  return (u === "yoy_index" || u === "yoy_pct") ? 1 : 0;
+}
+
 function isAllStoreSalesYoy(label, unit){
   const u = unit || "number";
   return (u === "yoy_index" || u === "yoy_pct")
@@ -187,6 +192,7 @@ function monthlyRowOrder(tables, code){
         scope: monthlyRowScopeRank(L),
         channel: MONTHLY_CHANNEL_RANK[L.channel] ?? 3,
         slot: MONTHLY_METRIC_RANK[L.metric_kind],
+        unitRank: monthlyRowUnitRank(e.unit),
         bd: MONTHLY_BREAKDOWN_RANK[L.breakdown] ?? 4,
         idx: items.length,
       });
@@ -208,6 +214,7 @@ function monthlyRowOrder(tables, code){
     if(a.scope!==b.scope) return a.scope - b.scope;
     if(a.channel!==b.channel) return a.channel - b.channel;
     if(a.slot!==b.slot) return a.slot - b.slot;
+    if(a.unitRank!==b.unitRank) return a.unitRank - b.unitRank;
     if(a.bd!==b.bd) return a.bd - b.bd;
     return a.idx - b.idx;
   });
@@ -280,6 +287,7 @@ function monthlyLayoutDataRow(item, gatedSegment, idx){
     channelRank: MONTHLY_CHANNEL_RANK[L.channel] ?? 3,
     scopeRank: monthlyRowScopeRank(L),
     slot: MONTHLY_METRIC_RANK[L.metric_kind],
+    unitRank: monthlyRowUnitRank(item.unit),
     bdRank: MONTHLY_BREAKDOWN_RANK[L.breakdown] ?? 4,
     idx
   };
@@ -290,6 +298,7 @@ function monthlyReorderBlock(block){
     if(a.channelRank !== b.channelRank) return a.channelRank - b.channelRank;
     if(a.scopeRank !== b.scopeRank) return a.scopeRank - b.scopeRank;
     if(a.slot !== b.slot) return a.slot - b.slot;
+    if((a.unitRank || 0) !== (b.unitRank || 0)) return (a.unitRank || 0) - (b.unitRank || 0);
     if((a.bdRank || 0) !== (b.bdRank || 0)) return (a.bdRank || 0) - (b.bdRank || 0);
     return a.idx - b.idx;
   });

@@ -104,6 +104,22 @@ def _section_body(conf: str, header: str, needle: str) -> str:
     return ""
 
 
+OUTPUT_URI_BY_MATCH = {
+    "app": "${SLACK_WEBHOOK_URI_APP}",
+    "batch": "${SLACK_WEBHOOK_URI_BATCH}",
+    "nginx": "${SLACK_WEBHOOK_URI_INFRA}",
+    "mcp": "${SLACK_WEBHOOK_URI_INFRA}",
+    "systemd": "${SLACK_WEBHOOK_URI_INFRA}",
+}
+DEFAULT_SLACK_URI = "${SLACK_WEBHOOK_URI}"
+CATCHALL_TAG_RE = r"^(?!(app|batch|nginx|mcp|systemd)$).+$"
+CHANNEL_WEBHOOK_SECRETS = (
+    "SLACK_WEBHOOK_URL_APP",
+    "SLACK_WEBHOOK_URL_BATCH",
+    "SLACK_WEBHOOK_URL_INFRA",
+)
+
+
 def _grep_blocks(conf: str) -> list[dict[str, object]]:
     blocks: list[dict[str, object]] = []
     current: dict[str, object] | None = None
@@ -133,6 +149,32 @@ def _grep_blocks(conf: str) -> list[dict[str, object]]:
     if current is not None:
         blocks.append(current)
     return [b for b in blocks if b["name"] == "grep"]
+
+
+def _output_blocks(conf: str) -> list[dict[str, str]]:
+    blocks: list[dict[str, str]] = []
+    current: dict[str, str] | None = None
+    for raw in conf.splitlines():
+        stripped = raw.strip()
+        if stripped == "[OUTPUT]":
+            if current is not None:
+                blocks.append(current)
+            current = {"name": "", "match": "", "match_regex": "", "uri": "", "host": ""}
+            continue
+        if stripped.startswith("[") and current is not None:
+            blocks.append(current)
+            current = None
+        if current is None:
+            continue
+        parts = stripped.split(None, 1)
+        if len(parts) != 2:
+            continue
+        key, val = parts[0].lower(), parts[1]
+        if key in current:
+            current[key] = val
+    if current is not None:
+        blocks.append(current)
+    return blocks
 
 
 def test_conf_has_registry_regexes() -> None:
@@ -186,8 +228,54 @@ def test_conf_has_registry_regexes() -> None:
         _fail("fluent-bit.conf must POST via http")
     if "Host         hooks.slack.com" not in conf:
         _fail("fluent-bit.conf must POST to hooks.slack.com")
-    if "URI          ${SLACK_WEBHOOK_URI}" not in conf:
-        _fail("fluent-bit.conf must use URI ${SLACK_WEBHOOK_URI}")
+    outputs = _output_blocks(conf)
+    if not outputs:
+        _fail("fluent-bit.conf must have [OUTPUT] blocks")
+    matched: dict[str, str] = {}
+    catchall: dict[str, str] | None = None
+    for block in outputs:
+        if block["name"] != "http":
+            _fail(f"fluent-bit.conf OUTPUT must be http: {block}")
+        if block["host"] != "hooks.slack.com":
+            _fail(f"fluent-bit.conf OUTPUT must POST to hooks.slack.com: {block}")
+        if block["match"] == "*":
+            _fail("fluent-bit.conf OUTPUT must not Match * (would duplicate tagged alerts)")
+        if block["match"] and block["match_regex"]:
+            _fail(f"fluent-bit.conf OUTPUT must not set both Match and Match_Regex: {block}")
+        if block["match"]:
+            if block["match"] in matched:
+                _fail(f"fluent-bit.conf duplicate OUTPUT Match {block['match']}")
+            expected = OUTPUT_URI_BY_MATCH.get(block["match"])
+            if expected is None:
+                _fail(f"fluent-bit.conf OUTPUT Match {block['match']!r} is not a known tag")
+            if block["uri"] != expected:
+                _fail(
+                    f"fluent-bit.conf OUTPUT Match {block['match']} must use URI {expected}, "
+                    f"got {block['uri']!r}"
+                )
+            matched[block["match"]] = block["uri"]
+            continue
+        if block["match_regex"] != CATCHALL_TAG_RE:
+            _fail(
+                "fluent-bit.conf catch-all OUTPUT Match_Regex must exclude "
+                f"app/batch/nginx/mcp/systemd, got {block['match_regex']!r}"
+            )
+        if block["uri"] != DEFAULT_SLACK_URI:
+            _fail(f"fluent-bit.conf catch-all OUTPUT must use URI {DEFAULT_SLACK_URI}")
+        if catchall is not None:
+            _fail("fluent-bit.conf duplicate catch-all OUTPUT")
+        catchall = block
+    missing = sorted(set(OUTPUT_URI_BY_MATCH) - set(matched))
+    if missing:
+        _fail(f"fluent-bit.conf missing tagged OUTPUT Match: {missing}")
+    if catchall is None:
+        _fail("fluent-bit.conf must have a catch-all OUTPUT for unclassified tags")
+    catch_re = re.compile(CATCHALL_TAG_RE)
+    for tag in OUTPUT_URI_BY_MATCH:
+        if catch_re.search(tag):
+            _fail(f"catch-all Match_Regex must not match tagged source {tag}")
+    if catch_re.search("other") is None:
+        _fail("catch-all Match_Regex must match unclassified tags")
     if "body_key     $body" not in conf or "headers_key  $headers" not in conf:
         _fail("fluent-bit.conf must send the Lua webhook body as-is")
     if "call    format_slack" not in conf:
@@ -223,6 +311,8 @@ def test_conf_has_registry_regexes() -> None:
         _fail("batch tail must record the file path")
     if "/var/log/app/stock-analyzer.log" not in batch_in or "/var/log/app/mcp.log" not in batch_in:
         _fail("batch tail must exclude stock-analyzer.log and mcp.log")
+    if "/var/log/app/batch.log" not in batch_in:
+        _fail("batch tail must exclude leftover batch.log")
     if "call    source_from_file" not in conf:
         _fail("fluent-bit.conf must set batch source from the log file name")
     lua = (ROOT / "deploy" / "fluent-bit_slack.lua").read_text(encoding="utf-8")
@@ -253,27 +343,117 @@ def test_no_committed_webhook_url() -> None:
                 _fail(f"{path} contains a Slack webhook path")
 
 
+def _sudo_preserve_calls(script: str) -> list[dict[str, str]]:
+    calls: list[dict[str, str]] = []
+    lines = script.splitlines()
+    i = 0
+    while i < len(lines):
+        stripped = lines[i].strip()
+        if stripped.startswith("sudo ") and "--preserve-env=" in stripped:
+            buf = stripped
+            while buf.endswith("\\"):
+                i += 1
+                if i >= len(lines):
+                    _fail("update.sh --preserve-env line continuation is truncated")
+                buf = buf[:-1].rstrip() + " " + lines[i].strip()
+            after = buf.split("--preserve-env=", 1)[1]
+            env, _, rest = after.partition(" ")
+            calls.append({"env": env, "cmd": rest})
+        i += 1
+    return calls
+
+
 def test_secret_contract() -> None:
     cicd = (ROOT / ".github" / "workflows" / "cicd.yml").read_text(encoding="utf-8")
-    if "SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}" not in cicd:
-        _fail("cicd.yml deploy env must include SLACK_WEBHOOK_URL")
-    if '"SLACK_WEBHOOK_URL"' not in cicd:
-        _fail("cicd.yml export keys must include SLACK_WEBHOOK_URL")
+    webhook_secrets = ("SLACK_WEBHOOK_URL", *CHANNEL_WEBHOOK_SECRETS)
+    for name in webhook_secrets:
+        if f"{name}: ${{{{ secrets.{name} }}}}" not in cicd:
+            _fail(f"cicd.yml deploy env must include {name}")
+        if f'"{name}"' not in cicd:
+            _fail(f"cicd.yml export keys must include {name}")
     update = (ROOT / "deploy" / "update.sh").read_text(encoding="utf-8")
     if "upsert_env SLACK_WEBHOOK_URL" in update:
         _fail("update.sh must not upsert SLACK_WEBHOOK_URL into the app .env")
     if "SLACK_WEBHOOK_URL" not in update or "--preserve-env=" not in update:
         _fail("update.sh must pass SLACK_WEBHOOK_URL via sudo --preserve-env")
-    if "SLACK_WEBHOOK_URL" not in update.split("--preserve-env=", 1)[-1].split("\n", 1)[0]:
-        _fail("update.sh --preserve-env must list SLACK_WEBHOOK_URL")
+    calls = _sudo_preserve_calls(update)
+    if len(calls) < 2:
+        _fail("update.sh must sudo --sudoers-only before the full preserve-env provision")
+    refresh = calls[0]
+    if "--sudoers-only" not in refresh["cmd"] or "provision.sh" not in refresh["cmd"]:
+        _fail("first sudo --preserve-env must run provision.sh --sudoers-only")
+    refresh_env = [p for p in refresh["env"].split(",") if p]
+    if refresh_env != ["APP_DIR"]:
+        _fail(
+            "sudoers-only --preserve-env must list only APP_DIR "
+            f"(live sudoers may not env_keep new names yet): {refresh['env']!r}"
+        )
+    for name in CHANNEL_WEBHOOK_SECRETS:
+        if name in refresh["env"].split(","):
+            _fail(f"sudoers-only --preserve-env must not list {name}")
+    full = next((c for c in calls if "--sudoers-only" not in c["cmd"] and "provision.sh" in c["cmd"]), None)
+    if full is None:
+        _fail("update.sh must sudo provision.sh with Slack --preserve-env after --sudoers-only")
+    for name in webhook_secrets:
+        if name not in full["env"].split(","):
+            _fail(f"update.sh full --preserve-env must list {name}")
+    # Pre-#373 live sudoers. First preserve-env must work before /etc/sudoers.d is replaced.
+    old_keep = {
+        "APP_DIR",
+        "VPS_DOMAIN",
+        "BASIC_AUTH_USER",
+        "BASIC_AUTH_PASSWORD",
+        "CERTBOT_EMAIL",
+        "SLACK_WEBHOOK_URL",
+    }
+    rejected = [n for n in refresh_env if n not in old_keep]
+    if rejected:
+        _fail(f"sudoers-only --preserve-env would fail on pre-#373 sudoers: {rejected}")
     sudoers = (ROOT / "deploy" / "sudoers").read_text(encoding="utf-8")
-    if "SLACK_WEBHOOK_URL" not in sudoers or "env_keep" not in sudoers:
-        _fail("deploy/sudoers must env_keep SLACK_WEBHOOK_URL")
+    if "env_keep" not in sudoers:
+        _fail("deploy/sudoers must env_keep Slack webhook URLs")
+    for name in webhook_secrets:
+        if name not in sudoers:
+            _fail(f"deploy/sudoers must env_keep {name}")
+    visudo = subprocess.run(
+        ["visudo", "-cf", str(ROOT / "deploy" / "sudoers")],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if visudo.returncode != 0:
+        _fail(f"deploy/sudoers failed visudo -cf: {visudo.stderr or visudo.stdout}")
     provision = (ROOT / "deploy" / "provision.sh").read_text(encoding="utf-8")
+    if '"${1:-}" == "--sudoers-only"' not in provision:
+        _fail("provision.sh must handle --sudoers-only")
+    flag_at = provision.find('"${1:-}" == "--sudoers-only"')
+    apt_at = provision.find("apt_retry")
+    if flag_at < 0 or apt_at < 0 or flag_at > apt_at:
+        _fail("provision.sh --sudoers-only must return before apt_retry")
+    if "install_sudoers" not in provision:
+        _fail("provision.sh must install sudoers via install_sudoers")
+    for rel in ("deploy/update.sh", "deploy/provision.sh"):
+        chk = subprocess.run(
+            ["bash", "-n", str(ROOT / rel)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if chk.returncode != 0:
+            _fail(f"bash -n {rel} failed: {chk.stderr or chk.stdout}")
     if "/etc/fluent-bit/slack.env" not in provision:
         _fail("provision.sh must write /etc/fluent-bit/slack.env")
     if "SLACK_WEBHOOK_URI=%s" not in provision:
         _fail("provision.sh must write SLACK_WEBHOOK_URI into slack.env")
+    for uri_name in (
+        "SLACK_WEBHOOK_URI_APP=%s",
+        "SLACK_WEBHOOK_URI_BATCH=%s",
+        "SLACK_WEBHOOK_URI_INFRA=%s",
+    ):
+        if uri_name not in provision:
+            _fail(f"provision.sh must write {uri_name} into slack.env")
+    if "slack_channel_uri" not in provision:
+        _fail("provision.sh must fall back empty channel webhooks to SLACK_WEBHOOK_URI")
     if "fluent-bit_slack.lua" not in provision or "/etc/fluent-bit/slack.lua" not in provision:
         _fail("provision.sh must install fluent-bit_slack.lua")
     if "EnvironmentFile=-/etc/fluent-bit/slack.env" not in provision:
@@ -306,6 +486,95 @@ def test_secret_contract() -> None:
             continue
         if ">>" in stripped or "batch.log" in stripped:
             _fail(f"crontab must not redirect logs: {stripped}")
+    if "migrated batch.log" in provision:
+        _fail("provision.sh must not re-copy leftover APP_DIR batch.log")
+    if 'rm -f "$APP_DIR/batch.log"' not in provision:
+        _fail("provision.sh must remove leftover APP_DIR batch.log")
+
+
+def test_stub_sudo_channel_env_after_sudoers_refresh(tmp_path: Path) -> None:
+    """Live sudoers rejects new --preserve-env names until --sudoers-only installs them."""
+    update = (ROOT / "deploy" / "update.sh").read_text(encoding="utf-8")
+    calls = _sudo_preserve_calls(update)
+    if len(calls) < 2:
+        _fail("update.sh missing sudoers refresh + full provision")
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    log = tmp_path / "sudo.log"
+    keep = tmp_path / "keep.txt"
+    old_keep = (
+        "APP_DIR VPS_DOMAIN BASIC_AUTH_USER BASIC_AUTH_PASSWORD "
+        "CERTBOT_EMAIL SLACK_WEBHOOK_URL"
+    )
+    keep.write_text(old_keep + "\n", encoding="utf-8")
+    sudo = fake_bin / "sudo"
+    sudo.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        f"printf '%s\\n' \"$*\" >> {log.as_posix()!r}\n"
+        f"keep=$(tr '\\n' ' ' < {keep.as_posix()!r})\n"
+        "preserve=\n"
+        'for arg in "$@"; do\n'
+        '  case "$arg" in\n'
+        '    --preserve-env=*) preserve="${arg#--preserve-env=}" ;;\n'
+        "  esac\n"
+        "done\n"
+        "bad=\n"
+        "IFS=',' read -r -a names <<< \"$preserve\"\n"
+        'for n in "${names[@]}"; do\n'
+        '  [[ -z "$n" ]] && continue\n'
+        '  if [[ " $keep " != *" $n "* ]]; then\n'
+        '    bad="${bad:+$bad, }$n"\n'
+        "  fi\n"
+        "done\n"
+        'if [[ -n "$bad" ]]; then\n'
+        '  echo "sudo: sorry, you are not allowed to set the following environment variables: $bad" >&2\n'
+        "  exit 1\n"
+        "fi\n"
+        'if [[ " $* " == *" --sudoers-only "* ]]; then\n'
+        f"  printf '%s %s\\n' \"$keep\" "
+        "'SLACK_WEBHOOK_URL_APP SLACK_WEBHOOK_URL_BATCH SLACK_WEBHOOK_URL_INFRA' "
+        f"> {keep.as_posix()!r}\n"
+        "fi\n"
+        "exit 0\n",
+        encoding="utf-8",
+    )
+    sudo.chmod(0o755)
+    env = os.environ.copy()
+    env["PATH"] = f"{fake_bin}{os.pathsep}{env.get('PATH', '')}"
+    old = subprocess.run(
+        [
+            "sudo",
+            (
+                "--preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,"
+                "CERTBOT_EMAIL,SLACK_WEBHOOK_URL,SLACK_WEBHOOK_URL_APP,"
+                "SLACK_WEBHOOK_URL_BATCH,SLACK_WEBHOOK_URL_INFRA"
+            ),
+            "provision.sh",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if old.returncode == 0:
+        _fail("pre-#373 sudoers must reject channel webhook --preserve-env")
+    if "SLACK_WEBHOOK_URL_APP" not in old.stderr or "not allowed" not in old.stderr:
+        _fail(f"expected sudo env rejection, got {old.stderr!r}")
+    keep.write_text(old_keep + "\n", encoding="utf-8")
+    for call in calls:
+        cmd = call["cmd"].replace('"', "").split()
+        proc = subprocess.run(
+            ["sudo", f"--preserve-env={call['env']}", *cmd],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            _fail(f"stub sudo {call} failed: {proc.stderr!r}")
+    if "--sudoers-only" not in log.read_text(encoding="utf-8"):
+        _fail("stub sudo did not run --sudoers-only")
 
 
 def test_slack_payload_jst_danger() -> None:
@@ -454,6 +723,8 @@ def main() -> None:
     test_conf_has_registry_regexes()
     test_no_committed_webhook_url()
     test_secret_contract()
+    with TemporaryDirectory() as d:
+        test_stub_sudo_channel_env_after_sudoers_refresh(Path(d))
     test_slack_payload_jst_danger()
     with TemporaryDirectory() as d:
         test_cron_run_splits_and_stamps(Path(d))

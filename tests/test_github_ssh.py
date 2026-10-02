@@ -88,6 +88,18 @@ def test_static_contracts() -> None:
             _fail(f"update.sh must embed official host key for {host}")
     if GITHUB_ED25519 not in update:
         _fail("update.sh must embed official GitHub host keys before fetch, not only alias known_hosts")
+    if '"$APP_DIR/.venv/bin/python" jobs/migrate.py' not in update:
+        _fail("update.sh must run jobs/migrate.py")
+    migrate_py = (ROOT / "jobs" / "migrate.py").read_text(encoding="utf-8")
+    if "migrate locked" not in migrate_py or "LOCK_ATTEMPTS" not in migrate_py:
+        _fail("jobs/migrate.py must retry on SQLite database is locked")
+    db_py = (ROOT / "app" / "db.py").read_text(encoding="utf-8")
+    if "PRAGMA journal_mode=WAL" not in db_py:
+        _fail("app/db.py must enable SQLite WAL")
+    if "PRAGMA busy_timeout=30000" not in db_py:
+        _fail("app/db.py must set SQLite busy_timeout")
+    if '"timeout": 30.0' not in db_py:
+        _fail("app/db.py sqlite connect_args must set timeout=30")
 
 
 def test_rewrites_existing_github_host() -> None:
