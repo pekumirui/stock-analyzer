@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 import pandas as pd
 import numpy as np
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, defer
 
 from .config import STAGE_PARAMS as P, EARNINGS_PARAMS as EP, RS_PRODUCT_CATEGORIES
@@ -21,13 +21,34 @@ def rs_universe_codes(db: Session) -> set[str] | None:
 
 
 def price_frame(db: Session) -> pd.DataFrame:
-    q = db.query(DailyPrice.code, DailyPrice.date, DailyPrice.adj_close,
-                 DailyPrice.close, DailyPrice.adj_volume, DailyPrice.volume)
-    df = pd.DataFrame(q.all(), columns=["code", "date", "adj_close", "close", "adj_volume", "volume"])
+    """全銘柄の株価を code, date 順で返す。
+
+    全行を Row で受けてから DataFrame にすると、518 万行で一時的に 3GB を超える。
+    カーソルから区切って読み、同じ code / date は 1 つのオブジェクトを共有させる。
+    """
+    q = select(DailyPrice.code, DailyPrice.date, DailyPrice.adj_close,
+               DailyPrice.close, DailyPrice.adj_volume, DailyPrice.volume) \
+        .order_by(DailyPrice.code, DailyPrice.date)
+    shared: dict = {}
+    parts = []
+    for rows in db.execute(q).yield_per(200_000).partitions():
+        code, d, adj_close, close, adj_volume, volume = zip(*rows)
+        parts.append(pd.DataFrame({
+            "code": [shared.setdefault(x, x) for x in code],
+            "date": [shared.setdefault(x, x) for x in d],
+            "adj_close": np.array(adj_close, dtype=float),
+            "close": np.array(close, dtype=float),
+            "adj_volume": np.array(adj_volume, dtype=float),
+            "volume": np.array(volume, dtype=float),
+        }))
+        del rows, code, d, adj_close, close, adj_volume, volume
+    if not parts:
+        return pd.DataFrame(columns=["code", "date", "adj_close", "close", "adj_volume", "volume"])
+    df = pd.concat(parts, ignore_index=True)
+    del parts
     df["adj_close"] = df["adj_close"].fillna(df["close"])
     df["volume"] = df["adj_volume"].fillna(df["volume"])
-    df = df.dropna(subset=["adj_close"])
-    return df.sort_values(["code", "date"])
+    return df.dropna(subset=["adj_close"])
 
 
 def compute_indicators(db: Session, keep_days: int = 400, px: pd.DataFrame | None = None):
