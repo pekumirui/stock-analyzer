@@ -355,7 +355,8 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 1. `/equities/master` で銘柄マスタ更新 (ProdCat 含む)
 2. `/equities/bars/daily?date=当日` + `/indices/bars/daily/topix` 取込
 3. `/fins/summary?date=当日` 取込
-4. indicators 再計算 (MA/52週/RS/ステージ。RSユニバースは内国株券のみ) → earnings_events 更新
+4. indicators 再計算 (MA/52週/RS/ステージ。RSユニバースは内国株券のみ) → earnings_events 更新。
+   2〜3 が 0 件で indicators が株価の最終日まで済んでいれば飛ばす
 
 日次は **計4リクエスト** で完了する。決算開示は15時以降が多いため、
 当日夜(19:30)と翌朝6:00の2回実行して取りこぼしを防ぐ。

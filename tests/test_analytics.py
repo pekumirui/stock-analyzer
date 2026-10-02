@@ -25,6 +25,7 @@ from app.analytics import (  # noqa: E402
     find_statement,
     growth_cell,
     growth_map,
+    indicators_current,
     metrics,
     period_label,
     prev_quarter,
@@ -38,7 +39,7 @@ from app.analytics import (  # noqa: E402
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.ingest import upsert  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import DailyPrice, EarningsEvent, Statement, Stock, Topix  # noqa: E402
+from app.models import DailyPrice, EarningsEvent, Indicator, Statement, Stock, Topix  # noqa: E402
 
 DOC = "FYFinancialStatements_Consolidated_JP"
 CODE = "72030"
@@ -320,12 +321,42 @@ def test_earnings_api() -> None:
         _fail("performance must be newest first")
 
 
+def test_upsert_mixed_columns_and_freshness() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        d1, d2 = date(2030, 1, 6), date(2030, 1, 7)
+        upsert(db, Topix, [
+            {"date": d1, "open": 1, "close": 10},
+            {"date": d2, "close": 20},
+            {"close": 11, "date": d1},  # 列の組が違う区間をまたいでも後勝ち
+            {"date": d2},                # 主キーだけは既存行を変えない
+        ])
+        a, b = db.get(Topix, d1), db.get(Topix, d2)
+        if (a.open, a.close, b.open, b.close) != (1, 11, None, 20):
+            _fail(f"upsert {a.open} {a.close} {b.open} {b.close}")
+        db.query(Topix).filter(Topix.date >= d1).delete()
+        db.commit()
+
+        last = db.query(DailyPrice.date).order_by(DailyPrice.date.desc()).first()[0]
+        db.query(Indicator).delete()
+        db.commit()
+        if indicators_current(db):
+            _fail("indicators empty but reported current")
+        upsert(db, Indicator, [{"code": CODE, "date": last, "close": 1.0}])
+        if not indicators_current(db):
+            _fail("indicators at last price date but reported stale")
+    finally:
+        db.close()
+
+
 def main() -> None:
     test_shift_year_and_labels()
     test_growth_and_metrics()
     test_single_quarter_from_cumulative()
     test_disclosure_and_rows()
     test_earnings_api()
+    test_upsert_mixed_columns_and_freshness()
     print("ok: analytics")
 
 
