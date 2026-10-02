@@ -70,8 +70,10 @@ def resolve_today(today: str | None) -> date:
 def actual_month_facts(db: Session, month: str, today: date) -> ActualMonth:
     """カレンダーの開示件数。今日が月の外なら codes_on_today は空。"""
     a = aliased(Statement)
+    first = _pd(f"{month}-01")
+    after = date(first.year + first.month // 12, first.month % 12 + 1, 1)
     rows = (db.query(a.disclosed_date, func.count(func.distinct(a.code)))
-            .filter(func.strftime("%Y-%m", a.disclosed_date) == month,
+            .filter(a.disclosed_date >= first, a.disclosed_date < after,  # strftime だと索引が効かない
                     a.type_of_document.contains("FinancialStatements"),
                     _not_duplicate(a),          # 一覧の行数と件数を一致させる
                     _not_excluded_product(a.code))

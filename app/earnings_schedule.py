@@ -12,8 +12,8 @@ from datetime import date, timedelta
 from enum import Enum
 from typing import Literal, Mapping, Sequence
 
-from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, aliased
 
 from . import config
 from .ingest import upsert
@@ -369,13 +369,25 @@ def sync(db: Session, today: date, *, lookback_days: int | None = None) -> int:
 
 
 def load_current(db: Session, sch_from: date, sch_to: date) -> list[Schedule]:
-    """全発表を畳んでから sch_date の範囲を残す。先に日付で絞ると移動前の日が戻る。
+    """(code, fq) で最新の発表だけを取り、その sch_date が範囲内のものを残す。
 
+    移動前の日が戻らないよう、範囲内の行でも最新の発表でなければ捨てる。
+    発表ログは 5 年分あるので畳むのは SQL 側。全件を Python に載せない。
     REIT は読むときに落とす。stocks に無いコードは残す。
     名前はマスタにあれば stocks.name。
     """
+    newer = aliased(EarningsDatePub)
+    latest = ~(select(1).where(
+        newer.code == EarningsDatePub.code,
+        newer.fq_name == EarningsDatePub.fq_name,
+        newer.pub_date > EarningsDatePub.pub_date,
+    ).exists())
     pubs: list[Pub] = []
-    for row in db.query(EarningsDatePub).all():
+    for row in db.query(EarningsDatePub).filter(
+        EarningsDatePub.sch_date >= sch_from,
+        EarningsDatePub.sch_date <= sch_to,
+        latest,
+    ):
         try:
             fq = FQName(row.fq_name)
         except ValueError:
