@@ -33,7 +33,7 @@ Preconditions:
 - **Scheduled row.** Click `#earn-sched tr[data-code]`. The SPA calls `GET /api/chart/{code}?tf=D&ma=50,150,200` and does not call `/api/earnings/detail`. `#cum-tbl` and `#q-tbl` read `まだ開示されていません`. On a mixed today the QoQ table comes first, then a `未発表` heading, then `#earn-sched`. Arrow keys walk filing rows, then schedule rows.
 - **3か月.** Click `.ftab[data-fin="q"]`. `#q-wrap` is not `hidden`; `#cum-wrap` is.
 - **イベント.** `.evt-toggles` under `#e-chart` is in the markup and filled at boot (`fillEventToggles`). After a row loads `#e-chart`, one 「決」 mark is already on the selected `disclosed_date`. Checking 決算発表 adds the rest from `earnings_dates` (same layer as the chart tab; chart tab has no selected-filing `mark`).
-- **Proof.** Keep `calendar.json`, `body.json`, and (if CDP) `artifacts/earnings/ui.png` showing `#earn-tbl` (or a chosen day's list) plus header `h1` `株式分析`. Prefer a calendar day with `.cnt` — today's empty `開示なし` is not a list proof. The month grid must not occupy the first row; the list is at the top of `#tab-earnings`.
+- **Proof.** Keep `calendar.json`, `body.json`, and (if CDP) `artifacts/earnings/ui.png` showing `#earn-tbl` (or a chosen day's list) plus header `h1` `株式分析`. Prefer a calendar day with `.cnt` — today's empty `予定なし` is not a list proof. The month grid must not occupy the first row; the list is at the top of `#tab-earnings`.
 
 ## Gotchas
 

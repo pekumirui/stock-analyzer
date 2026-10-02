@@ -134,7 +134,7 @@ class JQuantsClient:
         return self.get_all("/fins/summary", p)
 
     def fins_earnings_date(self, pub_date: str) -> list[dict]:
-        """決算発表予定日 /v2/fins/earnings-date。date は発表日。"""
+        """決算発表予定日 /v2/fins/earnings-date。date は公表日 (PubDate)。"""
         return self.get_all("/fins/earnings-date", {"date": pub_date})
 
     def calendar(self, from_: str, to: str) -> list[dict]:
