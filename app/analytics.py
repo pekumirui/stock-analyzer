@@ -32,7 +32,7 @@ def price_frame(db: Session) -> pd.DataFrame:
 
 def compute_indicators(db: Session, keep_days: int = 400, px: pd.DataFrame | None = None):
     """全銘柄のMA/52週/RS/ステージを計算し indicators に保存。px は price_frame の結果を使い回すとき。"""
-    df = price_frame(db) if px is None else px.copy()
+    df = price_frame(db) if px is None else px
     if df.empty:
         return
     universe = rs_universe_codes(db)
@@ -40,6 +40,8 @@ def compute_indicators(db: Session, keep_days: int = 400, px: pd.DataFrame | Non
         df = df[df["code"].isin(universe)]
         if df.empty:
             return
+    elif px is not None:
+        df = df.copy()  # 呼び出し元の px に列を足さない
 
     g = df.groupby("code", group_keys=False)
     df["ma50"] = g["adj_close"].transform(lambda s: s.rolling(50).mean())
@@ -98,13 +100,16 @@ def compute_indicators(db: Session, keep_days: int = 400, px: pd.DataFrame | Non
     out = df[df["date"] >= cutoff]
     cols = ["code", "date", "adj_close", "ma50", "ma150", "ma200", "ma200_slope_1m",
             "high_52w", "low_52w", "rs_raw", "rs_rank", "stage", "avg_volume_50"]
-    rows = out[cols].rename(columns={"adj_close": "close"}) \
-        .replace({np.nan: None}).to_dict("records")
-    for r in rows:
-        r["rs_rank"] = int(r["rs_rank"]) if r["rs_rank"] is not None else None
-        r["stage"] = int(r["stage"]) if r["stage"] is not None else None
+    out = out[cols].rename(columns={"adj_close": "close"})
     db.query(Indicator).delete()
-    upsert(db, Indicator, rows)
+    # 全行を一度に dict にすると 1GB 超になるので区切る。commit は最後に 1 回
+    for i in range(0, len(out), 50_000):
+        rows = out.iloc[i:i + 50_000].replace({np.nan: None}).to_dict("records")
+        for r in rows:
+            r["rs_rank"] = int(r["rs_rank"]) if r["rs_rank"] is not None else None
+            r["stage"] = int(r["stage"]) if r["stage"] is not None else None
+        upsert(db, Indicator, rows, commit=False)
+    db.commit()
 
 
 def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):

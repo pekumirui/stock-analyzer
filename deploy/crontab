@@ -8,9 +8,6 @@ SHELL=/bin/bash
 # 日次（引け後の開示を夜に取る）
 30 19 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/run_batch.py
 
-# 取りこぼし（翌朝）
-0 6 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/run_batch.py
-
 # TDnet 月次PDF → R2 mount（当日分）
 0 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_r2.py 1
 0 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_r2.py 1

@@ -69,7 +69,7 @@ notepad .env                    # JQUANTS_API_KEY を記入
 > `batch` / `backfill` は実行前に `jobs/check_demo.py` で止まります。
 > その場合は `.\run.ps1 reset` または `./run.sh reset` してから取り直してください。
 
-決算開示は引け後15時以降が多いため、当日夜(19:30頃)と翌朝6時の2回実行を推奨。
+決算開示は引け後15時以降が多いため、当日夜(19:30頃)に1回実行する。
 タスクスケジューラに登録する場合の操作:
 
 - プログラム: `E:\project\stock-analyzer\.venv\Scripts\python.exe`
@@ -147,7 +147,7 @@ tools/
 deploy/
   stock-analyzer.service  systemd（uvicorn ワーカー1）
   nginx.conf              リバースプロキシ。月次閲覧は公開、/app は Basic 認証
-  crontab                 19:30 / 06:00 JST
+  crontab                 19:30 JST
   update.sh               VPS 側デプロイ（Actions から実行）
   enable-cicd.sh          デプロイ用 SSH 鍵と sudoers を一度だけ入れる
 ```
