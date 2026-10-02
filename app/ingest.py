@@ -8,6 +8,7 @@ import json
 from datetime import date, datetime, timedelta
 from itertools import groupby
 
+from sqlalchemy import func
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
@@ -169,16 +170,32 @@ def ingest_statements_for_code(db: Session, jq: JQuantsClient, code: str) -> int
     return len(rows)
 
 
+def _prev_trading_day(db: Session, day: str) -> date | None:
+    """day より前で株価がある最後の日。カレンダーを引かずに前営業日とみなす。"""
+    return db.query(func.max(DailyPrice.date)).filter(DailyPrice.date < _d(day)).scalar()
+
+
 def run_daily(db: Session, day: str | None = None) -> int:
-    """日次バッチ: 当日の全銘柄株価・財務・TOPIXを取得 (計4リクエスト)。株価・TOPIX・決算の件数計を返す。"""
+    """日次バッチ: 当日の全銘柄株価・財務・TOPIXと前営業日の財務を取得 (計5リクエスト)。
+
+    前営業日の財務は 19:30 より後の開示を拾うための取り直し。
+    返り値は株価・TOPIX・当日決算の件数と、前営業日に新しく増えた決算の件数の和。
+    """
     day = day or date.today().strftime("%Y-%m-%d")
+    prev = _prev_trading_day(db, day)
     with JQuantsClient() as jq:
         n_m = ingest_master(db, jq)
         n_p = ingest_prices_for_date(db, jq, day)
         n_t = ingest_topix(db, jq, from_=day, to=day)
         n_s = ingest_statements_for_date(db, jq, day)
-    print(f"{day}: 銘柄{n_m} / 株価{n_p} / TOPIX{n_t} / 決算{n_s}")
-    return n_p + n_t + n_s
+        n_late = 0
+        if prev is not None:
+            before = db.query(func.count()).filter(Statement.disclosed_date == prev).scalar()
+            ingest_statements_for_date(db, jq, prev.isoformat())
+            n_late = db.query(func.count()).filter(Statement.disclosed_date == prev).scalar() - before
+    late = f" / {prev}の追加決算{n_late}" if prev is not None else ""
+    print(f"{day}: 銘柄{n_m} / 株価{n_p} / TOPIX{n_t} / 決算{n_s}{late}")
+    return n_p + n_t + n_s + n_late
 
 
 class BackfillError(RuntimeError):

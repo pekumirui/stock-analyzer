@@ -270,13 +270,32 @@ def test_run_daily_uses_injected_client() -> None:
 
         def fins_summary(self, date: str | None = None, **kwargs) -> list[dict]:
             calls.append(f"fins:{date}")
-            return []
+            if date != "2026-09-01":
+                return []
+            # 前回の取込後 (19:30 より後) に出た開示
+            return [{"DiscNo": "L1", "Code": "72030", "DiscDate": "2026-09-01",
+                     "DiscTime": "20:00", "DocType": "EarnForecastRevision", "CurPerType": "FY"}]
 
     try:
         with patch("app.ingest.JQuantsClient", JQ):
+            # 2026-09-01 より前の株価は無いので前営業日の取り直しは無い
+            db.query(Statement).filter(Statement.disclosure_no == "L1").delete()
+            db.commit()
             run_daily(db, "2026-09-01")
-        if calls != ["master", "bars:2026-09-01", "topix:2026-09-01", "fins:2026-09-01"]:
-            _fail(calls)
+            if calls != ["master", "bars:2026-09-01", "topix:2026-09-01", "fins:2026-09-01"]:
+                _fail(calls)
+            # 09-01 の株価がある (前のテスト) ので、09-03 の回は 09-01 の決算も取り直す
+            db.query(Statement).filter(Statement.disclosure_no == "L1").delete()
+            db.commit()
+            calls.clear()
+            n = run_daily(db, "2026-09-03")
+            if calls[-2:] != ["fins:2026-09-03", "fins:2026-09-01"]:
+                _fail(calls)
+            if n != 1 or db.get(Statement, "L1") is None:
+                _fail(f"late disclosure must count as new: n={n}")
+            # 2 回目は増えないので 0 (再計算のスキップを妨げない)
+            if run_daily(db, "2026-09-03") != 0:
+                _fail("re-fetching the same late disclosure must not count")
     finally:
         db.close()
 
