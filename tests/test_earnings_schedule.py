@@ -1,9 +1,11 @@
 """決算発表予定。発表ログの畳み込みと、カレンダーに出す日。"""
 from __future__ import annotations
 
+import io
 import os
 import sys
 import tempfile
+from contextlib import redirect_stdout
 from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -395,6 +397,91 @@ def test_sync_idempotent_with_tiny_lookback() -> None:
         db.close()
 
 
+def test_batch_syncs_after_indicators() -> None:
+    order: list[str] = []
+
+    def run_daily(db, day=None):
+        order.append(f"daily:{day}")
+        return 0
+
+    def run_backfill(db, years=5):
+        order.append(f"backfill:{years}")
+
+    def indicators_current(db):
+        order.append("current")
+        return True
+
+    def price_frame(db):
+        order.append("px")
+
+    def compute_indicators(db, px=None):
+        order.append("ind")
+
+    def compute_earnings_events(db, px=None):
+        order.append("evt")
+
+    def sync_fn(db, today):
+        order.append(f"sync:{today.isoformat()}")
+        return 2
+
+    from jobs.run_batch import main as batch_main
+
+    buf = io.StringIO()
+    with patch("jobs.run_batch.ingest.run_daily", run_daily), \
+            patch("jobs.run_batch.ingest.run_backfill", run_backfill), \
+            patch("jobs.run_batch.analytics.indicators_current", indicators_current), \
+            patch("jobs.run_batch.analytics.price_frame", price_frame), \
+            patch("jobs.run_batch.analytics.compute_indicators", compute_indicators), \
+            patch("jobs.run_batch.analytics.compute_earnings_events", compute_earnings_events), \
+            patch("jobs.run_batch.sync", sync_fn), \
+            patch("sys.argv", ["run_batch.py", "--date", "2026-10-02"]), \
+            redirect_stdout(buf):
+        batch_main()
+    if order != ["daily:2026-10-02", "current", "sync:2026-10-02"]:
+        _fail(order)
+    if "決算発表予定 2" not in buf.getvalue() or "完了" not in buf.getvalue():
+        _fail(buf.getvalue())
+
+    order.clear()
+    buf = io.StringIO()
+
+    def sync_boom(db, today):
+        order.append("sync")
+        raise RuntimeError("boom")
+
+    with patch("jobs.run_batch.ingest.run_daily", lambda db, day=None: order.append("daily") or 1), \
+            patch("jobs.run_batch.analytics.price_frame", price_frame), \
+            patch("jobs.run_batch.analytics.compute_indicators", compute_indicators), \
+            patch("jobs.run_batch.analytics.compute_earnings_events", compute_earnings_events), \
+            patch("jobs.run_batch.sync", sync_boom), \
+            patch("sys.argv", ["run_batch.py", "--date", "2026-10-02"]), \
+            redirect_stdout(buf):
+        try:
+            batch_main()
+        except RuntimeError as exc:
+            if str(exc) != "boom":
+                _fail(exc)
+        else:
+            _fail("schedule failure must fail the process")
+    if order != ["daily", "px", "ind", "evt", "sync"]:
+        _fail(order)
+    text = buf.getvalue()
+    if "決算発表予定の更新に失敗" not in text or "完了" in text:
+        _fail(text)
+
+    order.clear()
+    with patch("jobs.run_batch.ingest.run_backfill", run_backfill), \
+            patch("jobs.run_batch.analytics.price_frame", price_frame), \
+            patch("jobs.run_batch.analytics.compute_indicators", compute_indicators), \
+            patch("jobs.run_batch.analytics.compute_earnings_events", compute_earnings_events), \
+            patch("jobs.run_batch.sync", sync_fn), \
+            patch("sys.argv", ["run_batch.py", "--backfill", "1", "--date", "2026-10-03"]), \
+            redirect_stdout(io.StringIO()):
+        batch_main()
+    if order != ["backfill:1", "px", "ind", "evt", "sync:2026-10-03"]:
+        _fail(order)
+
+
 def main() -> None:
     test_fye_labels()
     test_parse_rejects_unknown_and_keeps_tombstone()
@@ -405,6 +492,7 @@ def main() -> None:
     test_older_ingest_does_not_resurrect()
     test_payloads_mixed_past_and_unfetched()
     test_sync_idempotent_with_tiny_lookback()
+    test_batch_syncs_after_indicators()
     print("ok: earnings schedule")
 
 

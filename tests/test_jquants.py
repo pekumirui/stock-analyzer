@@ -143,7 +143,7 @@ def test_fins_uses_its_own_bucket() -> None:
 
 
 def test_endpoints_and_params() -> None:
-    fake = _FakeHTTP([_Resp(200, {"data": [{"Date": "2026-09-01", "HolDiv": "1"}]})] * 5)
+    fake = _FakeHTTP([_Resp(200, {"data": [{"Date": "2026-09-01", "HolDiv": "1"}]})] * 6)
     with JQuantsClient(api_key="x") as jq:
         jq._client = fake  # type: ignore[assignment]
         for lim in jq._limiters.values():
@@ -154,6 +154,8 @@ def test_endpoints_and_params() -> None:
         jq.fins_summary(date="2026-09-01")
         if jq.calendar("2026-09-01", "2026-09-01") != [{"Date": "2026-09-01", "HolDiv": "1"}]:
             _fail("calendar rows")
+        if jq.fins_earnings_date("2026-10-02") != [{"Date": "2026-09-01", "HolDiv": "1"}]:
+            _fail("earnings-date rows")
     if not fake.closed:
         _fail("context exit must close the HTTP client")
     if fake.calls != [
@@ -162,6 +164,7 @@ def test_endpoints_and_params() -> None:
         ("/indices/bars/daily/topix", {"from": "2026-01-01", "to": "2026-01-31"}),
         ("/fins/summary", {"date": "2026-09-01"}),
         ("/markets/calendar", {"from": "2026-09-01", "to": "2026-09-01"}),
+        ("/fins/earnings-date", {"date": "2026-10-02"}),
     ]:
         _fail(fake.calls)
 

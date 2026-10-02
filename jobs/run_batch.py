@@ -7,12 +7,14 @@
 """
 import argparse
 import sys
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.db import SessionLocal, init_db
 from app import ingest, analytics
+from app.earnings_schedule import sync
 
 
 def main():
@@ -41,6 +43,13 @@ def main():
             analytics.compute_indicators(db, px=px)
             print("決算後パフォーマンスを計算中...")
             analytics.compute_earnings_events(db, px=px)
+        as_of = date.fromisoformat(args.date) if args.date else date.today()
+        try:
+            n_ed = sync(db, as_of)
+        except Exception:
+            print("決算発表予定の更新に失敗")
+            raise
+        print(f"決算発表予定 {n_ed}")
         print("完了")
     finally:
         db.close()
