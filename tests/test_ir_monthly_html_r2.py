@@ -1805,6 +1805,125 @@ def test_unknown_stock_skip(tmp: Path) -> None:
         mod.http_get = orig
 
 
+def _http_err(url: str, code: int, msg: str, retry_after: str | None = None):
+    from email.message import EmailMessage
+    from urllib.error import HTTPError
+
+    hdrs = None
+    if retry_after is not None:
+        hdrs = EmailMessage()
+        hdrs["Retry-After"] = retry_after
+    return HTTPError(url, code, msg, hdrs=hdrs, fp=None)
+
+
+def _srs_issuer() -> HtmlIssuer:
+    return HtmlIssuer(
+        code="8163",
+        name="ＳＲＳホールディングス",
+        index_url="https://srsholdings.com/pages/ir-library-monthly/",
+        title="月次",
+        source="html",
+        eir_code="8163",
+        eir_n=0,
+        eir_title_re="月次",
+        parse=False,
+    )
+
+
+def test_fetch_issuer_retries_429_then_saves(tmp: Path) -> None:
+    from unittest.mock import MagicMock, patch
+
+    import _r2common
+    import ir_monthly_html_r2 as mod
+
+    url = "https://srsholdings.com/pages/ir-library-monthly/"
+    calls = {"n": 0}
+
+    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise _http_err(req.full_url, 429, "Too Many Requests")
+        cm = MagicMock()
+        cm.__enter__.return_value.read.return_value = b"<html>srs-ok</html>"
+        cm.__exit__.return_value = False
+        return cm
+
+    orig_sleep = mod.SLEEP_SEC
+    mod.SLEEP_SEC = 0
+    slept: list[float] = []
+    buf = io.StringIO()
+    try:
+        with (
+            patch("urllib.request.urlopen", side_effect=fake_urlopen),
+            patch.object(_r2common.time, "sleep", slept.append),
+            patch.object(_r2common.random, "random", return_value=0.5),
+            redirect_stdout(buf),
+        ):
+            n, s, k, f = fetch_issuer(
+                _srs_issuer(),
+                tmp / "srs_ok",
+                {"81630": ("011", "ＳＲＳホールディングス")},
+                date(2026, 10, 2),
+                dry_run=False,
+            )
+    finally:
+        mod.SLEEP_SEC = orig_sleep
+    out = buf.getvalue()
+    if (n, s, k, f) != (1, 1, 0, 0):
+        _fail(f"429 then save {n, s, k, f} {out}")
+    if calls["n"] != 2:
+        _fail(f"429 then save calls {calls['n']}")
+    if slept[:1] != [5.0]:
+        _fail(f"429 then save wait {slept}")
+    if "retry 429 wait=5.0s" not in out or url not in out:
+        _fail(out)
+    if "fail issuer 8163" in out:
+        _fail(out)
+    htmls = list((tmp / "srs_ok" / "8163").glob("*.html"))
+    if len(htmls) != 1 or htmls[0].read_bytes() != b"<html>srs-ok</html>":
+        _fail(f"saved html {htmls}")
+
+
+def test_fetch_issuer_exhausted_429_stays_failed(tmp: Path) -> None:
+    from unittest.mock import patch
+
+    import _r2common
+    import ir_monthly_html_r2 as mod
+
+    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+        raise _http_err(req.full_url, 429, "Too Many Requests")
+
+    orig_sleep = mod.SLEEP_SEC
+    mod.SLEEP_SEC = 0
+    slept: list[float] = []
+    buf = io.StringIO()
+    try:
+        with (
+            patch("urllib.request.urlopen", side_effect=fake_urlopen),
+            patch.object(_r2common.time, "sleep", slept.append),
+            patch.object(_r2common.random, "random", return_value=0.5),
+            redirect_stdout(buf),
+        ):
+            n, s, k, f = fetch_issuer(
+                _srs_issuer(),
+                tmp / "srs_fail",
+                {"81630": ("011", "ＳＲＳホールディングス")},
+                date(2026, 10, 2),
+                dry_run=False,
+            )
+    finally:
+        mod.SLEEP_SEC = orig_sleep
+    out = buf.getvalue()
+    if (n, s, k, f) != (1, 0, 0, 1):
+        _fail(f"exhausted 429 {n, s, k, f} {out}")
+    if out.count("retry 429 ") != 5:
+        _fail(out)
+    if "fail issuer 8163 fetch: HTTP Error 429: Too Many Requests" not in out:
+        _fail(out)
+    if list((tmp / "srs_fail").rglob("*.html")):
+        _fail("exhausted 429 must not write html")
+
+
 def test_run_only_dry_run(tmp: Path) -> None:
     import ir_monthly_html_r2 as mod
 
@@ -3866,6 +3985,8 @@ def main() -> None:
         test_run_force_requires_only_and_skips_reparse(p)
         test_eir_fetch_saves_item_html(p)
         test_unknown_stock_skip(p)
+        test_fetch_issuer_retries_429_then_saves(p)
+        test_fetch_issuer_exhausted_429_stays_failed(p)
         test_run_only_dry_run(p)
         test_no_as_of_does_not_write_json(p)
         test_parse_false_saves_html_without_json(p)
