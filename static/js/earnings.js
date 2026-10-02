@@ -154,7 +154,7 @@ function tableHtml(actuals, scheduled){
   }
   for(const r of scheduled){
     const fq = (r.periods||[]).map(p => p.fq).join(" / ");
-    const label = (r.periods||[]).map(p => p.label).join(" / ");
+    const label = (r.periods||[]).map(p => fyShort(p.label)).join(" / ");
     h += `<tr data-code="${r.code}" onclick="selectSched('${r.code}')">`
        + `<td>–</td>`
        + `<td class="l name" title="${r.name}">${shortName(r.name)} <small class="sub">${r.code.slice(0,4)}</small></td>`
