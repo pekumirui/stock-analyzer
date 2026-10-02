@@ -7,7 +7,7 @@ from typing import Any, Sequence
 import pandas as pd
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import Session, aliased, defer
+from sqlalchemy.orm import Session, aliased
 
 from .config import (
     EARNINGS_PARAMS as EP, EARNINGS_EXCLUDE_PRODUCT_CATEGORIES, MONTHLY_NEW_DAYS,
@@ -90,17 +90,22 @@ def actual_month_facts(db: Session, month: str, today: date) -> ActualMonth:
     return ActualMonth({d: int(n) for d, n in rows}, codes)
 
 
+_HIST_COLS = tuple(c for c in Statement.__table__.columns if c.key != "raw_json")
+
+
 def earnings_rows(db: Session, day: date) -> list[dict]:
     """その日の決算速報一覧 (QoQ=Q単独の前四半期比 / YoY=累計の前年同期比)。"""
     codes = select(Statement.code).where(
         Statement.disclosed_date == day, _ACTUAL_DOC, _not_excluded_product(Statement.code))
     # 開示1件ごとに履歴を引くとピーク日(約1,000件)で数千クエリになるため、まとめて取って配る
     hist_by_code: dict[str, list[Statement]] = defaultdict(list)
-    for s in (db.query(Statement).options(defer(Statement.raw_json))
-              .filter(Statement.code.in_(codes),
-                      Statement.disclosed_date <= day,
-                      Statement.disclosed_date >= day - timedelta(days=EP["list_history_days"]))
-              .order_by(Statement.code, Statement.disclosed_date).all()):
+    # 読むだけなので ORM の実体ではなく Row で受ける (ピーク日は数万行あり、実体化と属性アクセスが支配的)
+    for s in db.execute(
+            select(*_HIST_COLS)
+            .where(Statement.code.in_(codes),
+                   Statement.disclosed_date <= day,
+                   Statement.disclosed_date >= day - timedelta(days=EP["list_history_days"]))
+            .order_by(Statement.code, Statement.disclosed_date)):
         hist_by_code[s.code].append(s)
     names = dict(db.query(Stock.code, Stock.name).filter(Stock.code.in_(codes)).all())
 
