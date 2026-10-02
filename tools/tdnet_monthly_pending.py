@@ -32,6 +32,10 @@ from tdnet_monthly_r2 import DEFAULT_DEST, display_code, jq_lookup_code  # noqa:
 _ISSUER_DIR_RE = re.compile(r"^[0-9][0-9A-Z]{3}$")
 _PDF_NAME_RE = re.compile(r"^(\d{8})_.*\.pdf$", re.I)
 
+# display_code（4桁）。PDF があっても MISSING に出さない。MONTHLY_SKIP_CODES とは別。
+# 7062 G-フレアス: 2026-08-20 に月次開示終了。表がなく NO_TABLE のため投入できない。
+PENDING_IGNORE_CODES = frozenset({"7062"})
+
 HEURISTIC_LINES = (
     "heuristic: filename YYYYMMDD prefix = TDnet pubdate (ingest as_of).",
     (
@@ -46,7 +50,8 @@ HEURISTIC_LINES = (
     (
         "stale = expected_month > DB latest (year, month). "
         "missing = PDF on R2 but no monthly_values. Age is not a filter "
-        "(21:00 TDnet batch PDFs may never have been ingested)."
+        "(21:00 TDnet batch PDFs may never have been ingested). "
+        "PENDING_IGNORE_CODES (7062 only) are omitted from the report."
     ),
     (
         "Scan is monthly/{code}/*.pdf with a date prefix. HTML/xlsx/xls are ignored. "
@@ -225,6 +230,8 @@ def build_rows(
 ) -> list[ReportRow]:
     rows: list[ReportRow] = []
     for code, hit in pdfs.items():
+        if code in PENDING_IGNORE_CODES:
+            continue
         if only_codes is not None and code not in only_codes:
             continue
         expected = expected_covered_month(hit.pdf_date)

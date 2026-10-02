@@ -287,6 +287,44 @@ def test_default_dest_reuses_tdnet_job() -> None:
         _fail(f"unexpected dest {pending.DEFAULT_DEST}")
 
 
+def test_pending_ignore_codes_not_missing(tmp: Path) -> None:
+    from tdnet_monthly_r2 import MONTHLY_SKIP_CODES
+
+    if pending.PENDING_IGNORE_CODES != frozenset({"7062"}):
+        _fail(f"7062 only: {pending.PENDING_IGNORE_CODES}")
+    if pending.PENDING_IGNORE_CODES & MONTHLY_SKIP_CODES:
+        _fail("must not reuse MONTHLY_SKIP_CODES")
+    dest = tmp / "monthly"
+    db = tmp / "stock.db"
+    # PDF あり・monthly_values なし → 通常は MISSING。7062 だけ落とす。
+    _touch_pdf(dest, "7062", "20260901_7062_Gフレアス_月次.pdf")
+    _touch_pdf(dest, "262A", "20260901_262A_テスト_月次.pdf")
+    _touch_pdf(dest, "8739", "20260901_8739_スパークス_月次.pdf")
+    _seed_db(db, [])
+    pdfs = pending.scan_latest_pdfs(dest)
+    if set(pdfs) != {"7062", "262A", "8739"}:
+        _fail(f"scan still sees ignored PDFs {sorted(pdfs)}")
+    payload = json.loads(pending.run_report(dest=dest, db_path=db, as_json=True))
+    codes = [r["code"] for r in payload["rows"]]
+    if "7062" in codes:
+        _fail(f"7062 must not appear as MISSING: {payload['rows']}")
+    if set(codes) != {"262A", "8739"}:
+        _fail(f"other missing must remain {codes}")
+    if payload["summary"] != {"scanned": 2, "ok": 0, "stale": 0, "missing": 2}:
+        _fail(f"summary {payload['summary']}")
+    by_code = {r["code"]: r for r in payload["rows"]}
+    if by_code["262A"]["status"] != "missing" or by_code["8739"]["status"] != "missing":
+        _fail(f"statuses {by_code}")
+    # --code 7062 でも出さない
+    only = json.loads(
+        pending.run_report(
+            dest=dest, db_path=db, only_codes={"7062"}, as_json=True
+        )
+    )
+    if only["rows"] or only["summary"]["scanned"] != 0:
+        _fail(f"--code 7062 leaked {only}")
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -302,6 +340,7 @@ def main() -> None:
         test_cli_json_and_filters(tmp / "cli")
         test_sqlite_is_read_only(tmp / "ro")
         test_missing_paths(tmp / "missing")
+        test_pending_ignore_codes_not_missing(tmp / "ignore")
     print("ok: tdnet monthly pending report")
 
 

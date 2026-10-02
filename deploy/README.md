@@ -220,7 +220,7 @@ cd /home/stock/stock-analyzer
 | `status` | `ok` / `STALE` / `MISSING`。`STALE` と `MISSING` の行頭は `*` |
 | `pdf` | 最新 PDF のファイル名 |
 
-ヒューリスティック: ファイル名の日付は開示日。本文を開かず `fiscal_year_end` も見ないので、ingest の列→暦年と完全には一致しない。通常の月次売上は翌月開示（`2026-08-05` → 7月度）なので、**expected は開示日の前暦月**。これは ingest の `_anchor_year(last_month, as_of)` に「右端列 = 前暦月」を渡した値と同じ。21:00 の TDnet バッチ分は古くても残る（新しさでは落とさない）。`--only-stale` は `STALE` と `MISSING` だけ。HTML / xlsx / xls は見ない（同じ `monthly/{code}/` の PDF だけ）。
+ヒューリスティック: ファイル名の日付は開示日。本文を開かず `fiscal_year_end` も見ないので、ingest の列→暦年と完全には一致しない。通常の月次売上は翌月開示（`2026-08-05` → 7月度）なので、**expected は開示日の前暦月**。これは ingest の `_anchor_year(last_month, as_of)` に「右端列 = 前暦月」を渡した値と同じ。21:00 の TDnet バッチ分は古くても残る（新しさでは落とさない）。`--only-stale` は `STALE` と `MISSING` だけ。HTML / xlsx / xls は見ない（同じ `monthly/{code}/` の PDF だけ）。`PENDING_IGNORE_CODES`（いまは 7062 のみ。月次開示終了・表なし）は MISSING に出さない。`MONTHLY_SKIP_CODES` とは別。
 
 ### TDnet 月次 PDF の自動投入（前回と同じ書式だけ）
 
