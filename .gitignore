@@ -28,8 +28,8 @@ data/xbrl_golden/*
 *.csv.gz
 
 # --- Python ---
-.venv/
-venv/
+.venv
+venv
 env/
 __pycache__/
 *.py[cod]
