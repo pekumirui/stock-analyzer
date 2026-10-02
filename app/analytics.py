@@ -264,7 +264,7 @@ def find_statement(hist: list[Statement], fy_end: date | None, period: str | Non
     cands = [s for s in hist
              if s.fiscal_year_end is not None and s.type_of_period in periods
              and abs((s.fiscal_year_end - fy_end).days) <= tol_days
-             and any(v is not None for v in metrics(s).values())]
+             and any(getattr(s, k) is not None for k in METRIC_KEYS)]
     if not cands:
         return None
     cands = [s for s in cands if not s.is_revision] or cands

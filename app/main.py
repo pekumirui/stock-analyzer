@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -19,6 +20,8 @@ from .public_monthly import (
 app = FastAPI(title="株式分析ツール")
 # 古いスキーマのDBのまま起動すると個々のAPIが実行時エラーになるため、起動時に検査する
 init_db(strict=True)
+# nginx は JSON を圧縮しない。決算速報のピーク日は一覧が数百 KB になる
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.include_router(router)
 app.include_router(router_v1)
 

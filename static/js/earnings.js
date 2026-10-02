@@ -90,8 +90,8 @@ function flatRows(){
 }
 
 async function selectDate(ds){
-  selDate = ds; renderCal();
-  calClose();
+  selDate = ds;
+  calClose();                                  // 格子は calOpen が描く。閉じたまま月の件数を引かない
   const today = todayISO();
   earnDay = ds;
   earnToday = today;
