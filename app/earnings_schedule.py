@@ -87,13 +87,32 @@ class Schedule:
     name: str
 
 
+def fiscal_year_end(fq: FQName, fye: FiscalMonthDay, sch_date: date) -> date:
+    """発表対象の四半期を含む事業年度の期末。
+
+    予定の FYE は月日だけなので、sch_date より前で最後に終わった当該四半期から年を決める。
+    """
+    month = int(fye.raw[:2])
+    day = 31 if fye.raw == "0299" else int(fye.raw[2:])
+    back = (3 - _FQ_ORDER[fq]) * 3
+    q_month = (month - back - 1) % 12 + 1
+    year = sch_date.year
+    while date(year, q_month, min(day, calendar.monthrange(year, q_month)[1])) >= sch_date:
+        year -= 1
+    fy_year = year if q_month <= month else year + 1
+    return date(fy_year, month, min(day, calendar.monthrange(fy_year, month)[1]))
+
+
 @dataclass(frozen=True)
 class PeriodView:
     fq: FQName
     fye: FiscalMonthDay
+    sch_date: date
 
     def json(self) -> dict:
-        return {"fq": self.fq.value, "fye": self.fye.raw, "label": self.fye.label}
+        # 実績の fy_label と同じ FY27.3 形式。年は sch_date から決める
+        end = fiscal_year_end(self.fq, self.fye, self.sch_date)
+        return {"fq": self.fq.value, "fye": self.fye.raw, "label": f"FY{end.year % 100:02d}.{end.month}"}
 
 
 @dataclass(frozen=True)
@@ -237,7 +256,7 @@ def group_issuers(rows: Sequence[Schedule]) -> tuple[ScheduledIssuer, ...]:
     out: list[ScheduledIssuer] = []
     for code in sorted(by):
         ordered = sorted(by[code], key=lambda s: _FQ_ORDER[s.fq])
-        periods = tuple(PeriodView(s.fq, s.fye) for s in ordered)
+        periods = tuple(PeriodView(s.fq, s.fye, s.sch_date) for s in ordered)
         out.append(ScheduledIssuer(code, ordered[0].name, periods))
     return tuple(out)
 

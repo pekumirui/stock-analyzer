@@ -29,6 +29,7 @@ from app.earnings_schedule import (  # noqa: E402
     cells_for_month,
     day_payload,
     days_to_fetch,
+    fiscal_year_end,
     fold_current,
     ingest_pub_date,
     kind_of,
@@ -107,6 +108,29 @@ def test_fye_labels() -> None:
         _fail("bad MMDD must be None")
     if FiscalMonthDay.parse("331") is not None or FiscalMonthDay.parse("") is not None:
         _fail("short FYE")
+
+
+def test_fiscal_year_end() -> None:
+    def fy(fq: FQName, raw: str, sch: date) -> date:
+        fye = FiscalMonthDay.parse(raw)
+        if fye is None:
+            _fail(raw)
+        return fiscal_year_end(fq, fye, sch)
+    cases = [
+        (FQName.Q2, "0331", date(2026, 11, 6), date(2027, 3, 31)),
+        (FQName.FY, "0331", date(2026, 5, 12), date(2026, 3, 31)),
+        (FQName.Q1, "0331", date(2026, 8, 5), date(2027, 3, 31)),
+        (FQName.Q3, "0331", date(2027, 2, 10), date(2027, 3, 31)),
+        (FQName.FY, "1231", date(2027, 2, 12), date(2026, 12, 31)),
+        (FQName.Q3, "1231", date(2026, 11, 10), date(2026, 12, 31)),
+        (FQName.Q2, "0299", date(2026, 10, 9), date(2027, 2, 28)),
+        (FQName.FY, "0299", date(2026, 4, 10), date(2026, 2, 28)),
+        (FQName.Q1, "0220", date(2026, 6, 30), date(2027, 2, 20)),
+        (FQName.Q3, "0630", date(2026, 5, 13), date(2026, 6, 30)),
+    ]
+    for fq, raw, sch, want in cases:
+        if fy(fq, raw, sch) != want:
+            _fail((fq, raw, sch, fy(fq, raw, sch), want))
 
 
 def test_parse_rejects_unknown_and_keeps_tombstone() -> None:
@@ -314,7 +338,7 @@ def test_payloads_mixed_past_and_unfetched() -> None:
             _fail(mixed["scheduled"])
         if mixed["scheduled"][0]["name"] != "トヨタ自動車":
             _fail(mixed["scheduled"][0])
-        if mixed["scheduled"][0]["periods"] != [{"fq": "2Q", "fye": "0331", "label": "3月期"}]:
+        if mixed["scheduled"][0]["periods"] != [{"fq": "2Q", "fye": "0331", "label": "FY27.3"}]:
             _fail(mixed["scheduled"][0]["periods"])
         past = day_payload(db, date(2026, 10, 1), TODAY, [{"code": "72030"}])
         if past["kind"] != "actual" or past["scheduled"] != []:
@@ -502,7 +526,7 @@ def test_routes_and_screen_copy() -> None:
     if body.get("kind") != "scheduled" or body.get("scheduled") != [{
         "code": "72030",
         "name": "トヨタ自動車",
-        "periods": [{"fq": "2Q", "fye": "0331", "label": "3月期"}],
+        "periods": [{"fq": "2Q", "fye": "0331", "label": "FY27.3"}],
     }]:
         _fail(body)
     if body.get("ready") is not False or body.get("actuals") != []:
@@ -523,6 +547,7 @@ def test_routes_and_screen_copy() -> None:
 
 def main() -> None:
     test_fye_labels()
+    test_fiscal_year_end()
     test_parse_rejects_unknown_and_keeps_tombstone()
     test_date_move_and_tombstone()
     test_same_pub_date_last_in_sequence_wins()
