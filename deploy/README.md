@@ -37,6 +37,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 | `SLACK_WEBHOOK_URL_APP` | 任意 | Incoming Webhook（#alerts-app、fluent-bit タグ `app`）。未設定・空なら `SLACK_WEBHOOK_URL`（#alerts）にフォールバック。`.env` には入れない |
 | `SLACK_WEBHOOK_URL_BATCH` | 任意 | Incoming Webhook（#alerts-batch、タグ `batch`）。未設定・空なら #alerts にフォールバック |
 | `SLACK_WEBHOOK_URL_INFRA` | 任意 | Incoming Webhook（#alerts-infra、タグ `nginx` / `mcp` / `systemd`）。未設定・空なら #alerts にフォールバック |
+| `SLACK_WEBHOOK_URL_QUIET` | 任意 | Incoming Webhook（#alerts-quiet、タグ `quiet`。nginx の `limiting connections by zone` と再起動中の `connect() failed (111: Connection refused)`）。未設定・空なら `SLACK_WEBHOOK_URI_INFRA`（#alerts-infra）にフォールバック。`.env` には入れない |
 | `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | 推奨 | nginx Basic 認証。無ければ既存 `htpasswd` を残す |
 | `MCP_TOKEN` | 推奨 | ログ MCP の Bearer トークン。`openssl rand -hex 32`。無ければ VPS 上で生成（値は CI に出ない） |
 | `VPS_DOMAIN` | 任意 | 未設定なら `160.251.179.50.sslip.io` |
@@ -50,7 +51,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 `update.sh`:
 
 1. GitHub SSH（deploy key）を冪等に揃えてから `git pull --ff-only origin main`
-2. `JQUANTS_API_KEY` / `MCP_TOKEN` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` があれば `.env` のその行だけ upsert。R2 の両方が揃っていれば `~/.config/rclone/rclone.conf` も書く。`SLACK_WEBHOOK_URL` と `SLACK_WEBHOOK_URL_{APP,BATCH,INFRA}` は `.env` に書かない
+2. `JQUANTS_API_KEY` / `MCP_TOKEN` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` があれば `.env` のその行だけ upsert。R2 の両方が揃っていれば `~/.config/rclone/rclone.conf` も書く。`SLACK_WEBHOOK_URL` と `SLACK_WEBHOOK_URL_{APP,BATCH,INFRA,QUIET}` は `.env` に書かない
 3. `sudo provision.sh --sudoers-only`（`APP_DIR` だけ preserve。live sudoers を repo に合わせる）→ `sudo provision.sh`（パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers、R2 user mount、fluent-bit。Slack webhook は `--preserve-env`）。Webhook が空なら fluent-bit は enable のみで start しない
 4. venv / `pip install` / `migrate.py`（`database is locked` は最大約 6 分まで再試行。19:30 の日次バッチや毎時 `xbrl_normalize` と重なるため）
 5. `systemctl restart stock-analyzer` と `stock-analyzer-mcp`、localhost:8000 / :8010 のヘルスチェック
@@ -116,7 +117,7 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 アプリと MCP のファイルログは `/var/log/app/`（`stock-analyzer.log` / `mcp.log`）。cron はジョブごと `/var/log/app/<stem>.log`（例: `tdnet_monthly_r2.log`、日次は `run_batch.log`）。`deploy/cron-run.sh` が標準出力と標準エラーをそこへ書き、各行の行頭に JST の `YYYY-MM-DD HH:MM:SS` を付ける。インタプリタは `.venv/bin/python3` を優先し、無ければ `.venv/bin/python`。どちらも無ければ `fail cron … exit=127` で終わる。ジョブプロセスの TZ は変えない。crontab はリダイレクトしない。古い `/var/log/app/batch.log` には新しい行を書かず、logrotate で消えるまで残す。アプリ直下の古い `batch.log` は provision が消す（rotate 後の再コピーはしない）。journal も残る。
 14 日で logrotate（`/var/log/app/*.log`、copytruncate）。nginx は従来どおり `/var/log/nginx/`。
 
-fluent-bit は live ファイルだけを tail する（`stock-analyzer.log` / `mcp.log` / ジョブの `/var/log/app/*.log`、`/var/log/nginx/error.log`）。ジョブログの Slack 見出しの source はファイル名。`stock-analyzer.log` と `mcp.log` と古い `batch.log` はジョブ側の tail から外す。systemd は `stock-analyzer.service` と `stock-analyzer-mcp.service` の `Failed with result` / `Main process exited`。access.log と `html_ingest_ledger.json` と rotate 済みの `.1` / `.gz` は見ない。batch は行頭の時刻のあとの `fail cron` と非ゼロの `failed=` と `errors=` を page する。行単位の `fail ` と batch の Traceback は page しない。Webhook が無いときはユニットを enable するだけで start しない。Slack は公式 slack 出力ではなく http + `fluent-bit_slack.lua`（JST と `#E01E5A` の赤帯）。`[OUTPUT]` はタグ別（`app` → #alerts-app、`batch` → #alerts-batch、`nginx` / `mcp` / `systemd` → #alerts-infra、未分類 → #alerts）。URI は `slack.env` の `SLACK_WEBHOOK_URI` と `SLACK_WEBHOOK_URI_{APP,BATCH,INFRA}`。新しい Webhook が未設定・空なら provision が従来の URI をコピーするので、secret 未登録のままデプロイしても #alerts に届く。アプリにログ API は足さない。
+fluent-bit は live ファイルだけを tail する（`stock-analyzer.log` / `mcp.log` / ジョブの `/var/log/app/*.log`、`/var/log/nginx/error.log`）。ジョブログの Slack 見出しの source はファイル名。`stock-analyzer.log` と `mcp.log` と古い `batch.log` はジョブ側の tail から外す。systemd は `stock-analyzer.service` と `stock-analyzer-mcp.service` の `Failed with result` / `Main process exited`。access.log と `html_ingest_ledger.json` と rotate 済みの `.1` / `.gz` は見ない。batch は行頭の時刻のあとの `fail cron` と非ゼロの `failed=` と `errors=` を page する。行単位の `fail ` と batch の Traceback は page しない。Webhook が無いときはユニットを enable するだけで start しない。Slack は公式 slack 出力ではなく http + `fluent-bit_slack.lua`（JST と `#E01E5A` の赤帯）。`[OUTPUT]` はタグ別（`app` → #alerts-app、`batch` → #alerts-batch、`nginx` / `mcp` / `systemd` → #alerts-infra、`quiet` → #alerts-quiet、未分類 → #alerts）。nginx の `limiting connections by zone` と `connect() failed (111: Connection refused)` は rewrite_tag で `quiet` にする。URI は `slack.env` の `SLACK_WEBHOOK_URI` と `SLACK_WEBHOOK_URI_{APP,BATCH,INFRA,QUIET}`。新しい Webhook が未設定・空なら provision が従来の URI をコピーする（QUIET だけ INFRA へ）。secret 未登録のままデプロイしても #alerts / #alerts-infra に届く。アプリにログ API は足さない。
 
 Actions の backfill は `cron-run.sh` を通さず、ワークフローのログに出す。VPS のジョブファイルには混ぜない。`cron-run.sh` を手で叩いたときだけ、cron と同じファイルに追記する。
 

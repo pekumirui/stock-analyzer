@@ -14,9 +14,13 @@ sys.path.insert(0, str(ROOT / "deploy"))
 from alert_patterns import (  # noqa: E402
     ALERT_PATTERNS,
     GREP_FIELD,
+    QUIET_NGINX_REGEXES,
+    QUIET_OUTPUT_TAG,
     SECRET_LINE_MARKERS,
     SLACK_COLOR_DANGER,
+    alert_output_tag,
     format_jst,
+    is_quiet_alert,
     should_page,
     slack_payload,
     slack_payload_json,
@@ -46,6 +50,14 @@ PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "failed doc_id=S100ABC code=72030 err=boom"),
     ("batch", "normalize failed doc_id=S100ABC code=72030 err=boom"),
     ("nginx", "2026/08/05 12:00:00 [error] 12#12: *1 connect() failed (111: Connection refused)"),
+    (
+        "nginx",
+        (
+            '2026/10/02 20:30:06 [error] 123#123: *456 limiting connections by zone "addr", '
+            'client: 88.216.183.179, server: kabukpi.com, request: "GET /monthly/3542 HTTP/1.1"'
+        ),
+    ),
+    ("nginx", "2026/08/05 12:00:00 [error] 12#12: *1 upstream timed out (110: Connection timed out)"),
     ("nginx", "2026/08/05 12:00:00 [crit] 12#12: *1 emerg-adjacent"),
     ("nginx", "2026/08/05 12:00:00 [emerg] 12#12: bind() failed"),
     ("nginx", "2026/08/05 12:00:00 [alert] 12#12: 768 worker_connections are not enough"),
@@ -87,6 +99,31 @@ NOT_PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "failed=3 SLACK_WEBHOOK_URL=not-a-real-webhook"),
 )
 
+QUIET_PAGE: tuple[tuple[str, str], ...] = (
+    (
+        "nginx",
+        (
+            "2026/08/05 12:00:00 [error] 12#12: *1 connect() failed (111: Connection refused) "
+            "while connecting to upstream"
+        ),
+    ),
+    (
+        "nginx",
+        (
+            '2026/10/02 20:30:06 [error] 123#123: *456 limiting connections by zone "addr", '
+            'client: 88.216.183.179, server: kabukpi.com, request: "GET /monthly/3542 HTTP/1.1"'
+        ),
+    ),
+)
+
+INFRA_NGINX_PAGE: tuple[tuple[str, str], ...] = (
+    ("nginx", "2026/08/05 12:00:00 [error] 12#12: *1 upstream timed out (110: Connection timed out)"),
+    ("nginx", "2026/08/05 12:00:00 [error] 12#12: *1 connect() failed (113: No route to host)"),
+    ("nginx", "2026/08/05 12:00:00 [emerg] 12#12: bind() failed"),
+    ("nginx", "2026/08/05 12:00:00 [crit] 12#12: *1 emerg-adjacent"),
+    ("nginx", "2026/08/05 12:00:00 [alert] 12#12: 768 worker_connections are not enough"),
+)
+
 
 def _fail(msg: str) -> None:
     raise SystemExit(msg)
@@ -99,6 +136,22 @@ def test_fixtures() -> None:
     for source, line in NOT_PAGE:
         if should_page(source, line):
             _fail(f"must not page {source}: {line!r}")
+    for source, line in QUIET_PAGE:
+        if not should_page(source, line):
+            _fail(f"quiet line must still page {source}: {line!r}")
+        if alert_output_tag(source, line) != QUIET_OUTPUT_TAG:
+            _fail(f"quiet line must route to {QUIET_OUTPUT_TAG}: {line!r}")
+        if not is_quiet_alert(source, line):
+            _fail(f"is_quiet_alert missed {line!r}")
+    for source, line in INFRA_NGINX_PAGE:
+        if not should_page(source, line):
+            _fail(f"infra nginx must page: {line!r}")
+        if alert_output_tag(source, line) != "nginx":
+            _fail(f"real nginx error must stay on nginx tag: {line!r}")
+        if is_quiet_alert(source, line):
+            _fail(f"real nginx error must not be quiet: {line!r}")
+    if QUIET_OUTPUT_TAG.startswith("nginx"):
+        _fail("quiet tag must not start with nginx (Match nginx is prefix)")
 
 
 def _section_body(conf: str, header: str, needle: str) -> str:
@@ -115,13 +168,15 @@ OUTPUT_URI_BY_MATCH = {
     "nginx": "${SLACK_WEBHOOK_URI_INFRA}",
     "mcp": "${SLACK_WEBHOOK_URI_INFRA}",
     "systemd": "${SLACK_WEBHOOK_URI_INFRA}",
+    "quiet": "${SLACK_WEBHOOK_URI_QUIET}",
 }
 DEFAULT_SLACK_URI = "${SLACK_WEBHOOK_URI}"
-CATCHALL_TAG_RE = r"^(?!(app|batch|nginx|mcp|systemd)$).+$"
+CATCHALL_TAG_RE = r"^(?!(app|batch|nginx|mcp|systemd|quiet)$).+$"
 CHANNEL_WEBHOOK_SECRETS = (
     "SLACK_WEBHOOK_URL_APP",
     "SLACK_WEBHOOK_URL_BATCH",
     "SLACK_WEBHOOK_URL_INFRA",
+    "SLACK_WEBHOOK_URL_QUIET",
 )
 
 
@@ -154,6 +209,46 @@ def _grep_blocks(conf: str) -> list[dict[str, object]]:
     if current is not None:
         blocks.append(current)
     return [b for b in blocks if b["name"] == "grep"]
+
+
+def _rewrite_tag_rules(conf: str) -> list[dict[str, str]]:
+    rules: list[dict[str, str]] = []
+    in_block = False
+    match = ""
+    name = ""
+    for raw in conf.splitlines():
+        stripped = raw.strip()
+        if stripped == "[FILTER]":
+            in_block = True
+            match = ""
+            name = ""
+            continue
+        if stripped.startswith("[") and in_block:
+            in_block = False
+            continue
+        if not in_block:
+            continue
+        parts = stripped.split()
+        if len(parts) < 2:
+            continue
+        key, val = parts[0].lower(), parts[1]
+        if key == "name":
+            name = val
+        elif key == "match":
+            match = val
+        elif key == "rule" and name == "rewrite_tag":
+            if len(parts) != 5:
+                _fail(f"rewrite_tag Rule must be field regex tag keep (no spaces in regex): {stripped!r}")
+            rules.append(
+                {
+                    "match": match,
+                    "field": parts[1],
+                    "regex": parts[2],
+                    "tag": parts[3],
+                    "keep": parts[4],
+                }
+            )
+    return rules
 
 
 def _output_blocks(conf: str) -> list[dict[str, str]]:
@@ -263,7 +358,7 @@ def test_conf_has_registry_regexes() -> None:
         if block["match_regex"] != CATCHALL_TAG_RE:
             _fail(
                 "fluent-bit.conf catch-all OUTPUT Match_Regex must exclude "
-                f"app/batch/nginx/mcp/systemd, got {block['match_regex']!r}"
+                f"app/batch/nginx/mcp/systemd/quiet, got {block['match_regex']!r}"
             )
         if block["uri"] != DEFAULT_SLACK_URI:
             _fail(f"fluent-bit.conf catch-all OUTPUT must use URI {DEFAULT_SLACK_URI}")
@@ -281,6 +376,33 @@ def test_conf_has_registry_regexes() -> None:
             _fail(f"catch-all Match_Regex must not match tagged source {tag}")
     if catch_re.search("other") is None:
         _fail("catch-all Match_Regex must match unclassified tags")
+    if catch_re.search(QUIET_OUTPUT_TAG):
+        _fail("catch-all Match_Regex must not match quiet (would duplicate #alerts-quiet)")
+    rewrite_rules = _rewrite_tag_rules(conf)
+    if not rewrite_rules:
+        _fail("fluent-bit.conf must rewrite_tag quiet nginx lines")
+    listed = [r["regex"] for r in rewrite_rules]
+    for regex in QUIET_NGINX_REGEXES:
+        if regex not in listed:
+            _fail(f"fluent-bit.conf rewrite_tag missing quiet regex {regex!r}")
+    for rule in rewrite_rules:
+        if rule["match"] != "nginx":
+            _fail(f"quiet rewrite_tag must Match nginx: {rule}")
+        if rule["field"] != "$log":
+            _fail(f"quiet rewrite_tag must use $log: {rule}")
+        if rule["tag"] != QUIET_OUTPUT_TAG:
+            _fail(f"quiet rewrite_tag must emit {QUIET_OUTPUT_TAG}: {rule}")
+        if rule["keep"] != "false":
+            _fail(f"quiet rewrite_tag must drop the nginx copy (keep false): {rule}")
+        if rule["tag"].startswith("nginx"):
+            _fail("quiet tag must not start with nginx (Match nginx is prefix)")
+    compiled = [re.compile(rule["regex"]) for rule in rewrite_rules]
+    for _source, line in QUIET_PAGE:
+        if not any(rx.search(line) for rx in compiled):
+            _fail(f"rewrite_tag regexes must match quiet line: {line!r}")
+    for _source, line in INFRA_NGINX_PAGE:
+        if any(rx.search(line) for rx in compiled):
+            _fail(f"rewrite_tag must not steal real nginx errors: {line!r}")
     if "body_key     $body" not in conf or "headers_key  $headers" not in conf:
         _fail("fluent-bit.conf must send the Lua webhook body as-is")
     if "call    format_slack" not in conf:
@@ -454,11 +576,19 @@ def test_secret_contract() -> None:
         "SLACK_WEBHOOK_URI_APP=%s",
         "SLACK_WEBHOOK_URI_BATCH=%s",
         "SLACK_WEBHOOK_URI_INFRA=%s",
+        "SLACK_WEBHOOK_URI_QUIET=%s",
     ):
         if uri_name not in provision:
             _fail(f"provision.sh must write {uri_name} into slack.env")
     if "slack_channel_uri" not in provision:
         _fail("provision.sh must fall back empty channel webhooks to SLACK_WEBHOOK_URI")
+    quiet_fallback = (
+        'slack_channel_uri "${SLACK_WEBHOOK_URL_QUIET:-}" SLACK_WEBHOOK_URL_QUIET "$infra_uri"'
+    )
+    if quiet_fallback not in provision:
+        _fail("QUIET webhook must fall back to INFRA URI, not the default #alerts URI")
+    if "slack_restore_channel_url SLACK_WEBHOOK_URL_QUIET SLACK_WEBHOOK_URI_QUIET" not in provision:
+        _fail("provision.sh must restore SLACK_WEBHOOK_URL_QUIET from slack.env")
     if "fluent-bit_slack.lua" not in provision or "/etc/fluent-bit/slack.lua" not in provision:
         _fail("provision.sh must install fluent-bit_slack.lua")
     if "EnvironmentFile=-/etc/fluent-bit/slack.env" not in provision:
@@ -538,7 +668,7 @@ def test_stub_sudo_channel_env_after_sudoers_refresh(tmp_path: Path) -> None:
         "fi\n"
         'if [[ " $* " == *" --sudoers-only "* ]]; then\n'
         f"  printf '%s %s\\n' \"$keep\" "
-        "'SLACK_WEBHOOK_URL_APP SLACK_WEBHOOK_URL_BATCH SLACK_WEBHOOK_URL_INFRA' "
+        f"{' '.join(CHANNEL_WEBHOOK_SECRETS)!r} "
         f"> {keep.as_posix()!r}\n"
         "fi\n"
         "exit 0\n",
@@ -566,6 +696,29 @@ def test_stub_sudo_channel_env_after_sudoers_refresh(tmp_path: Path) -> None:
         _fail("pre-#373 sudoers must reject channel webhook --preserve-env")
     if "SLACK_WEBHOOK_URL_APP" not in old.stderr or "not allowed" not in old.stderr:
         _fail(f"expected sudo env rejection, got {old.stderr!r}")
+    keep.write_text(
+        old_keep + " SLACK_WEBHOOK_URL_APP SLACK_WEBHOOK_URL_BATCH SLACK_WEBHOOK_URL_INFRA\n",
+        encoding="utf-8",
+    )
+    post374 = subprocess.run(
+        [
+            "sudo",
+            (
+                "--preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,"
+                "CERTBOT_EMAIL,SLACK_WEBHOOK_URL,SLACK_WEBHOOK_URL_APP,"
+                "SLACK_WEBHOOK_URL_BATCH,SLACK_WEBHOOK_URL_INFRA,SLACK_WEBHOOK_URL_QUIET"
+            ),
+            "provision.sh",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if post374.returncode == 0:
+        _fail("post-#374 sudoers must reject SLACK_WEBHOOK_URL_QUIET until sudoers-only")
+    if "SLACK_WEBHOOK_URL_QUIET" not in post374.stderr or "not allowed" not in post374.stderr:
+        _fail(f"expected QUIET sudo env rejection, got {post374.stderr!r}")
     keep.write_text(old_keep + "\n", encoding="utf-8")
     for call in calls:
         cmd = call["cmd"].replace('"', "").split()

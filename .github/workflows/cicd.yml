@@ -191,6 +191,7 @@ jobs:
       SLACK_WEBHOOK_URL_APP: ${{ secrets.SLACK_WEBHOOK_URL_APP }}
       SLACK_WEBHOOK_URL_BATCH: ${{ secrets.SLACK_WEBHOOK_URL_BATCH }}
       SLACK_WEBHOOK_URL_INFRA: ${{ secrets.SLACK_WEBHOOK_URL_INFRA }}
+      SLACK_WEBHOOK_URL_QUIET: ${{ secrets.SLACK_WEBHOOK_URL_QUIET }}
       VPS_DOMAIN: ${{ secrets.VPS_DOMAIN }}
       CERTBOT_EMAIL: ${{ secrets.CERTBOT_EMAIL }}
     steps:
@@ -257,6 +258,7 @@ jobs:
               "SLACK_WEBHOOK_URL_APP",
               "SLACK_WEBHOOK_URL_BATCH",
               "SLACK_WEBHOOK_URL_INFRA",
+              "SLACK_WEBHOOK_URL_QUIET",
           ]
           print("set -euo pipefail")
           for k in keys:

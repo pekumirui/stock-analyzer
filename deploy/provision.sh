@@ -651,12 +651,13 @@ write_slack_env() {
   local url="$1"
   local uri
   uri="$(slack_uri_from_url "$url")" || return 1
-  local app_uri batch_uri infra_uri
+  local app_uri batch_uri infra_uri quiet_uri
   app_uri="$(slack_channel_uri "${SLACK_WEBHOOK_URL_APP:-}" SLACK_WEBHOOK_URL_APP "$uri")"
   batch_uri="$(slack_channel_uri "${SLACK_WEBHOOK_URL_BATCH:-}" SLACK_WEBHOOK_URL_BATCH "$uri")"
   infra_uri="$(slack_channel_uri "${SLACK_WEBHOOK_URL_INFRA:-}" SLACK_WEBHOOK_URL_INFRA "$uri")"
-  printf 'SLACK_WEBHOOK_URL=%s\nSLACK_WEBHOOK_URI=%s\nSLACK_WEBHOOK_URI_APP=%s\nSLACK_WEBHOOK_URI_BATCH=%s\nSLACK_WEBHOOK_URI_INFRA=%s\n' \
-    "$url" "$uri" "$app_uri" "$batch_uri" "$infra_uri" | write_if_changed /etc/fluent-bit/slack.env 600
+  quiet_uri="$(slack_channel_uri "${SLACK_WEBHOOK_URL_QUIET:-}" SLACK_WEBHOOK_URL_QUIET "$infra_uri")"
+  printf 'SLACK_WEBHOOK_URL=%s\nSLACK_WEBHOOK_URI=%s\nSLACK_WEBHOOK_URI_APP=%s\nSLACK_WEBHOOK_URI_BATCH=%s\nSLACK_WEBHOOK_URI_INFRA=%s\nSLACK_WEBHOOK_URI_QUIET=%s\n' \
+    "$url" "$uri" "$app_uri" "$batch_uri" "$infra_uri" "$quiet_uri" | write_if_changed /etc/fluent-bit/slack.env 600
   chmod 600 /etc/fluent-bit/slack.env
 }
 
@@ -680,6 +681,7 @@ elif [[ -f /etc/fluent-bit/slack.env ]]; then
   slack_restore_channel_url SLACK_WEBHOOK_URL_APP SLACK_WEBHOOK_URI_APP
   slack_restore_channel_url SLACK_WEBHOOK_URL_BATCH SLACK_WEBHOOK_URI_BATCH
   slack_restore_channel_url SLACK_WEBHOOK_URL_INFRA SLACK_WEBHOOK_URI_INFRA
+  slack_restore_channel_url SLACK_WEBHOOK_URL_QUIET SLACK_WEBHOOK_URI_QUIET
   if [[ -n "$existing_url" ]]; then
     write_slack_env "$existing_url" || true
   fi
