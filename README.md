@@ -31,7 +31,7 @@ notepad .env                    # JQUANTS_API_KEY を記入
 .\run.ps1 check                 # 疎通確認 + 項目マッピング検証 (DBは触らない)
 .\run.ps1 backfill              # 初回: 5年分 (約45分)
 .\run.ps1 serve                 # → http://localhost:8000
-.\run.ps1 batch                 # 以降の日次 (4リクエストで完了)
+.\run.ps1 batch                 # 以降の日次 (5リクエストで完了)
 ```
 
 スクリプト実行がブロックされる場合は一度だけ:
