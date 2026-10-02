@@ -7,6 +7,7 @@
 定義
 - 判定日: 各月の最終営業日（topix の日付で決める）
 - 形成期間: 3 か月前の判定日の終値 → 判定日の終値。銘柄リターン − TOPIX リターン
+  --form-months / --skip-months で変えられる（例: 12 と 1 で 12-1 モメンタム。直近 1 か月を飛ばす）
 - 保有期間: 判定日の終値 → 3 か月後の判定日の終値（= 翌営業日から 3 か月）。同じく超過
 - 価格は close と adj_factor から自前で遡及調整する。DB の adj_close は直近の分割が
   過去日へ反映されていないことがある（2026-08-28 効力の 5 件で確認）ため使わない
@@ -24,7 +25,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-MONTHS = 3
+MONTHS = 3  # 保有期間
 TURNOVER_WINDOW = 20  # 営業日
 STALE_LIMIT = 5  # 形成開始日の価格をこの営業日数まで前方埋めする
 NW_LAGS = MONTHS - 1  # 保有期間が 3 か月重なるので Newey-West のラグは 2
@@ -116,7 +117,14 @@ def check_adjustment(con: sqlite3.Connection, adj: pd.DataFrame) -> str:
     )
 
 
-def build_panel(adj: pd.DataFrame, turnover: pd.DataFrame, topix: pd.Series, min_turnover: float) -> pd.DataFrame:
+def build_panel(
+    adj: pd.DataFrame,
+    turnover: pd.DataFrame,
+    topix: pd.Series,
+    min_turnover: float,
+    form_months: int = MONTHS,
+    skip_months: int = 0,
+) -> pd.DataFrame:
     dates = adj.index
     me = list(pd.Series(dates, index=dates).groupby(dates.to_period("M")).max())
     # 最終月は月末まで揃っていなければ判定日に使わない（翌営業日が同じ月なら途中）
@@ -128,12 +136,13 @@ def build_panel(adj: pd.DataFrame, turnover: pd.DataFrame, topix: pd.Series, min
     liq = turnover.rolling(TURNOVER_WINDOW, min_periods=TURNOVER_WINDOW).mean()
 
     rows = []
-    for i in range(MONTHS, len(me) - MONTHS):
-        d0, d, d1 = me[i - MONTHS], me[i], me[i + MONTHS]
+    for i in range(form_months, len(me) - MONTHS):
+        d0, de, d, d1 = me[i - form_months], me[i - skip_months], me[i], me[i + MONTHS]
         p0, p, p1 = fresh.loc[d0], adj.loc[d], last_px.loc[d1]
-        ok = p0.notna() & p.notna() & (liq.loc[d] >= min_turnover)
+        pe = p if skip_months == 0 else fresh.loc[de]
+        ok = p0.notna() & pe.notna() & p.notna() & (liq.loc[d] >= min_turnover)
         codes = ok[ok].index
-        tx_form = topix.loc[d] / topix.loc[d0] - 1
+        tx_form = topix.loc[de] / topix.loc[d0] - 1
         tx_hold = topix.loc[d1] / topix.loc[d] - 1
         delisted = adj.loc[d1:, codes].isna().all()  # d1 以降に価格が一度も無い
         rows.append(
@@ -141,7 +150,7 @@ def build_panel(adj: pd.DataFrame, turnover: pd.DataFrame, topix: pd.Series, min
                 {
                     "date": d,
                     "code": codes,
-                    "form_ex": p[codes] / p0[codes] - 1 - tx_form,
+                    "form_ex": pe[codes] / p0[codes] - 1 - tx_form,
                     "hold_ex": p1[codes] / p[codes] - 1 - tx_hold,
                     "turnover20": liq.loc[d, codes],
                     "delisted_in_hold": delisted.to_numpy(),
@@ -276,6 +285,8 @@ def main() -> None:
         help="判定日までの 20 営業日平均売買代金の下限（円）。既定 1 億円",
     )
     ap.add_argument("--split", default="2024-01-01", help="この日以降の判定日を確認期間にする")
+    ap.add_argument("--form-months", type=int, default=MONTHS, help="形成期間の月数。既定 3")
+    ap.add_argument("--skip-months", type=int, default=0, help="形成期間の終わりを判定日から何か月前にするか。既定 0")
     args = ap.parse_args()
 
     out_dir = Path(args.out)
@@ -286,10 +297,11 @@ def main() -> None:
     lines = data_report(con)
     adj, turnover, topix = load_prices(con)
     lines.append(check_adjustment(con, adj))
+    lines.append(f"形成期間: 判定日の {args.form_months} か月前 → {args.skip_months} か月前。保有期間: {MONTHS} か月")
     lines.append(f"売買代金フィルタ: 判定日までの {TURNOVER_WINDOW} 営業日平均売買代金 ≥ {args.min_turnover / 1e8:g} 億円")
     lines.append("")
 
-    panel = build_panel(adj, turnover, topix, args.min_turnover)
+    panel = build_panel(adj, turnover, topix, args.min_turnover, args.form_months, args.skip_months)
     lines.append(
         f"判定日: {panel['date'].min():%Y-%m-%d} 〜 {panel['date'].max():%Y-%m-%d}（{panel['date'].nunique()} 回）、"
         f"保有中に上場廃止 {int(panel['delisted_in_hold'].sum())} 件（最終終値で現金化扱い）"
