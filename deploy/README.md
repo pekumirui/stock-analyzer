@@ -178,7 +178,7 @@ VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount �
 3. 月次 PDF の初回バックフィルは Actions → **TDnet monthly backfill** → Run workflow、`days=30`。
    SSH で `jobs/tdnet_monthly_r2.py 30` が走る（通常デプロイでは走らない）
 
-cron（JST）。`run_batch.py` の 19:30 / 06:00 はそのまま。
+cron（JST）。`run_batch.py` は 19:30 の 1 回。
 
 | スクリプト | cron |
 |---|---|

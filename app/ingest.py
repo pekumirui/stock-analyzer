@@ -6,6 +6,7 @@
 """
 import json
 from datetime import date, datetime, timedelta
+from itertools import groupby
 
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
@@ -46,12 +47,16 @@ def _f(v):
 def upsert(db: Session, model, rows: list[dict], *, commit: bool = True) -> None:
     if not rows:
         return
-    keys = [c.name for c in model.__table__.primary_key.columns]
-    for i in range(0, len(rows), 500):
-        chunk = rows[i:i + 500]
-        stmt = sqlite_insert(model).values(chunk)
-        upd = {c: stmt.excluded[c] for c in chunk[0] if c not in keys}
-        db.execute(stmt.on_conflict_do_update(index_elements=keys, set_=upd))
+    table = model.__table__
+    keys = [c.name for c in table.primary_key.columns]
+    # 行ごとに VALUES を埋めた文はコンパイルが重い (indicators 146万行で約7分)。
+    # 列の組が同じ連続区間ごとに 1 文を executemany する。順序は入力どおり。
+    for cols, grp in groupby(rows, key=lambda r: tuple(sorted(r))):
+        ins = sqlite_insert(table)
+        upd = {c: ins.excluded[c] for c in cols if c not in keys}
+        stmt = (ins.on_conflict_do_update(index_elements=keys, set_=upd) if upd
+                else ins.on_conflict_do_nothing(index_elements=keys))
+        db.execute(stmt, list(grp))
     if commit:
         db.commit()
 
@@ -164,8 +169,8 @@ def ingest_statements_for_code(db: Session, jq: JQuantsClient, code: str) -> int
     return len(rows)
 
 
-def run_daily(db: Session, day: str | None = None):
-    """日次バッチ: 当日の全銘柄株価・財務・TOPIXを取得 (計4リクエスト)。"""
+def run_daily(db: Session, day: str | None = None) -> int:
+    """日次バッチ: 当日の全銘柄株価・財務・TOPIXを取得 (計4リクエスト)。株価・TOPIX・決算の件数計を返す。"""
     day = day or date.today().strftime("%Y-%m-%d")
     with JQuantsClient() as jq:
         n_m = ingest_master(db, jq)
@@ -173,6 +178,7 @@ def run_daily(db: Session, day: str | None = None):
         n_t = ingest_topix(db, jq, from_=day, to=day)
         n_s = ingest_statements_for_date(db, jq, day)
     print(f"{day}: 銘柄{n_m} / 株価{n_p} / TOPIX{n_t} / 決算{n_s}")
+    return n_p + n_t + n_s
 
 
 class BackfillError(RuntimeError):

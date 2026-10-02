@@ -3,6 +3,7 @@ from datetime import date, timedelta
 
 import pandas as pd
 import numpy as np
+from sqlalchemy import func
 from sqlalchemy.orm import Session, defer
 
 from .config import STAGE_PARAMS as P, EARNINGS_PARAMS as EP, RS_PRODUCT_CATEGORIES
@@ -19,7 +20,7 @@ def rs_universe_codes(db: Session) -> set[str] | None:
         Stock.product_category.in_(RS_PRODUCT_CATEGORIES)).all()}
 
 
-def _price_frame(db: Session) -> pd.DataFrame:
+def price_frame(db: Session) -> pd.DataFrame:
     q = db.query(DailyPrice.code, DailyPrice.date, DailyPrice.adj_close,
                  DailyPrice.close, DailyPrice.adj_volume, DailyPrice.volume)
     df = pd.DataFrame(q.all(), columns=["code", "date", "adj_close", "close", "adj_volume", "volume"])
@@ -29,9 +30,9 @@ def _price_frame(db: Session) -> pd.DataFrame:
     return df.sort_values(["code", "date"])
 
 
-def compute_indicators(db: Session, keep_days: int = 400):
-    """全銘柄のMA/52週/RS/ステージを計算し indicators に保存。"""
-    df = _price_frame(db)
+def compute_indicators(db: Session, keep_days: int = 400, px: pd.DataFrame | None = None):
+    """全銘柄のMA/52週/RS/ステージを計算し indicators に保存。px は price_frame の結果を使い回すとき。"""
+    df = price_frame(db) if px is None else px
     if df.empty:
         return
     universe = rs_universe_codes(db)
@@ -39,6 +40,8 @@ def compute_indicators(db: Session, keep_days: int = 400):
         df = df[df["code"].isin(universe)]
         if df.empty:
             return
+    elif px is not None:
+        df = df.copy()  # 呼び出し元の px に列を足さない
 
     g = df.groupby("code", group_keys=False)
     df["ma50"] = g["adj_close"].transform(lambda s: s.rolling(50).mean())
@@ -97,61 +100,71 @@ def compute_indicators(db: Session, keep_days: int = 400):
     out = df[df["date"] >= cutoff]
     cols = ["code", "date", "adj_close", "ma50", "ma150", "ma200", "ma200_slope_1m",
             "high_52w", "low_52w", "rs_raw", "rs_rank", "stage", "avg_volume_50"]
-    rows = out[cols].rename(columns={"adj_close": "close"}) \
-        .replace({np.nan: None}).to_dict("records")
-    for r in rows:
-        r["rs_rank"] = int(r["rs_rank"]) if r["rs_rank"] is not None else None
-        r["stage"] = int(r["stage"]) if r["stage"] is not None else None
+    out = out[cols].rename(columns={"adj_close": "close"})
     db.query(Indicator).delete()
-    upsert(db, Indicator, rows)
+    # 全行を一度に dict にすると 1GB 超になるので区切る。commit は最後に 1 回
+    for i in range(0, len(out), 50_000):
+        rows = out.iloc[i:i + 50_000].replace({np.nan: None}).to_dict("records")
+        for r in rows:
+            r["rs_rank"] = int(r["rs_rank"]) if r["rs_rank"] is not None else None
+            r["stage"] = int(r["stage"]) if r["stage"] is not None else None
+        upsert(db, Indicator, rows, commit=False)
+    db.commit()
 
 
-def compute_earnings_events(db: Session):
+def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
     """決算発表日からの対TOPIXリターンを earnings_events に保存。"""
-    px = _price_frame(db)
+    px = price_frame(db) if px is None else px
     tp = pd.DataFrame(db.query(Topix.date, Topix.close).all(), columns=["date", "tclose"]).sort_values("date")
     if px.empty or tp.empty:
         return
     tclose = dict(zip(tp["date"], tp["tclose"]))
     stmts = db.query(Statement.code, Statement.disclosed_date, Statement.disclosed_time).all()
 
-    px_by_code = {c: g.set_index("date")["adj_close"] for c, g in px.groupby("code")}
+    # px は code, date 順なので各銘柄の日付列は昇順
+    px_by_code = {c: (g["date"].to_numpy(), g["adj_close"].to_numpy()) for c, g in px.groupby("code")}
+    horizon = {"1d": 1, "5d": 5, "20d": 20, "60d": 60}
     rows = []
     for code, ddate, dtime in stmts:
-        s = px_by_code.get(code)
-        if s is None:
+        arr = px_by_code.get(code)
+        if arr is None:
             continue
+        dates, closes = arr
         # 引け後(15時以降)発表なら基準は翌営業日、場中なら当日
         after_close = (dtime or "16:00")[:2] >= "15"
-        future = [d for d in s.index if d > ddate] if after_close else [d for d in s.index if d >= ddate]
-        if not future:
+        i0 = int(np.searchsorted(dates, ddate, side="right" if after_close else "left"))
+        if i0 >= len(dates):
             continue
-        base_date = future[0]
-        base = s.get(base_date)
+        base_date = dates[i0]
+        base = closes[i0]
         tbase = tclose.get(base_date)
         if not base or not tbase:
             continue
         rec = {"code": code, "disclosed_date": ddate, "base_date": base_date, "base_price": base}
-        horizon = {"1d": 1, "5d": 5, "20d": 20, "60d": 60}
-        sdates = list(s.index)
-        i0 = sdates.index(base_date)
         for label, n in horizon.items():
-            if i0 + n < len(sdates):
-                d2 = sdates[i0 + n]
-                r = s.iloc[i0 + n] / base - 1
+            if i0 + n < len(dates):
+                d2 = dates[i0 + n]
+                r = closes[i0 + n] / base - 1
                 tr = (tclose.get(d2, tbase) / tbase - 1)
                 rec[f"return_{label}"] = round(r * 100, 2)
                 rec[f"alpha_{label}"] = round((r - tr) * 100, 2)
             else:
                 rec[f"return_{label}"] = None
                 rec[f"alpha_{label}"] = None
-        r = s.iloc[-1] / base - 1
-        tr = tclose.get(sdates[-1], tbase) / tbase - 1
+        r = closes[-1] / base - 1
+        tr = tclose.get(dates[-1], tbase) / tbase - 1
         rec["return_to_date"] = round(r * 100, 2)
         rec["alpha_to_date"] = round((r - tr) * 100, 2)
         rows.append(rec)
     if rows:
         upsert(db, EarningsEvent, rows)
+
+
+def indicators_current(db: Session) -> bool:
+    """indicators が株価の最終日まで計算済みか。"""
+    last_px = db.query(func.max(DailyPrice.date)).scalar()
+    last_ind = db.query(func.max(Indicator.date)).scalar()
+    return last_px is None or (last_ind is not None and last_ind >= last_px)
 
 
 METRIC_KEYS = ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps")

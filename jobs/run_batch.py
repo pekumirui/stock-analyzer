@@ -25,15 +25,22 @@ def main():
     init_db()
     db = SessionLocal()
     try:
+        n_new = None
         if args.backfill:
             ingest.run_backfill(db, years=args.backfill)
         else:
-            ingest.run_daily(db, day=args.date)
-        if not args.no_recompute:
+            n_new = ingest.run_daily(db, day=args.date)
+        if args.no_recompute:
+            pass
+        elif n_new == 0 and analytics.indicators_current(db):
+            # 早朝の回など、取り込むものが無く前回の再計算も済んでいるとき
+            print("新しい株価・決算が無いので再計算をスキップ")
+        else:
+            px = analytics.price_frame(db)
             print("指標を再計算中 (MA/RS/ステージ)...")
-            analytics.compute_indicators(db)
+            analytics.compute_indicators(db, px=px)
             print("決算後パフォーマンスを計算中...")
-            analytics.compute_earnings_events(db)
+            analytics.compute_earnings_events(db, px=px)
         print("完了")
     finally:
         db.close()
