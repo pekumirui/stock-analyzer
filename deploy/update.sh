@@ -183,12 +183,42 @@ sudo --preserve-env=APP_DIR \
 sudo --preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,CERTBOT_EMAIL,SLACK_WEBHOOK_URL,SLACK_WEBHOOK_URL_APP,SLACK_WEBHOOK_URL_BATCH,SLACK_WEBHOOK_URL_INFRA \
   "$APP_DIR/deploy/provision.sh"
 
-if [ ! -x "$APP_DIR/.venv/bin/pip" ]; then
-  echo "venv が無いので作ります"
-  python3 -m venv "$APP_DIR/.venv"
+# python3 を優先（cron-run.sh / uvicorn shebang と同じ）。リンクの .venv は
+# worktree 残骸なので作り直す。新規作成は staging → mv で、cron が半完成の
+# bin/ を踏まないようにする。python が動けば pip だけ欠けていても作り直さない。
+venv_bin="$APP_DIR/.venv/bin"
+venv_py=""
+if [ -x "$venv_bin/python3" ]; then
+  venv_py="$venv_bin/python3"
+elif [ -x "$venv_bin/python" ]; then
+  venv_py="$venv_bin/python"
 fi
-"$APP_DIR/.venv/bin/pip" install -r requirements.txt -q
-"$APP_DIR/.venv/bin/python" jobs/migrate.py
+if [ -L "$APP_DIR/.venv" ] || [ -z "$venv_py" ] || ! "$venv_py" -c "" 2>/dev/null; then
+  echo "venv が無いので作ります"
+  staging="$(mktemp -d "$APP_DIR/.venv.building.XXXXXX")"
+  python3 -m venv "$staging"
+  if [ -e "$APP_DIR/.venv" ] || [ -L "$APP_DIR/.venv" ]; then
+    rm -rf "$APP_DIR/.venv.old"
+    mv "$APP_DIR/.venv" "$APP_DIR/.venv.old"
+  fi
+  mv "$staging" "$APP_DIR/.venv"
+  rm -rf "$APP_DIR/.venv.old"
+  venv_bin="$APP_DIR/.venv/bin"
+  if [ -x "$venv_bin/python3" ]; then
+    venv_py="$venv_bin/python3"
+  else
+    venv_py="$venv_bin/python"
+  fi
+fi
+if [ -x "$venv_bin/python3" ] && [ ! -x "$venv_bin/python" ]; then
+  ln -sfn python3 "$venv_bin/python"
+fi
+if ! "$venv_py" -m pip --version >/dev/null 2>&1; then
+  echo "venv に pip が無いので入れ直します"
+  "$venv_py" -m ensurepip --upgrade
+fi
+"$venv_py" -m pip install -r requirements.txt -q
+"$venv_py" jobs/migrate.py
 
 sudo systemctl restart stock-analyzer
 sudo systemctl restart stock-analyzer-mcp
