@@ -2,7 +2,7 @@
 # 入れ方: sudo bash deploy/enable-cicd.sh '<public key>'
 # provision.sh は stock が書き換えられるので、この VPS を使うのはデプロイ鍵の持ち主だけ。
 
-Defaults:stock env_keep += "APP_DIR VPS_DOMAIN BASIC_AUTH_USER BASIC_AUTH_PASSWORD CERTBOT_EMAIL SLACK_WEBHOOK_URL SLACK_WEBHOOK_URL_APP SLACK_WEBHOOK_URL_BATCH SLACK_WEBHOOK_URL_INFRA"
+Defaults:stock env_keep += "APP_DIR VPS_DOMAIN BASIC_AUTH_USER BASIC_AUTH_PASSWORD CERTBOT_EMAIL SLACK_WEBHOOK_URL SLACK_WEBHOOK_URL_APP SLACK_WEBHOOK_URL_BATCH SLACK_WEBHOOK_URL_INFRA SLACK_WEBHOOK_URL_QUIET"
 
 stock ALL=(root) NOPASSWD: /home/stock/stock-analyzer/deploy/provision.sh
 stock ALL=(root) NOPASSWD: /usr/bin/systemctl restart stock-analyzer, /usr/bin/systemctl is-active stock-analyzer, /usr/bin/systemctl status stock-analyzer, /usr/bin/systemctl enable stock-analyzer

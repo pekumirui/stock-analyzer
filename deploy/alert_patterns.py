@@ -45,6 +45,14 @@ ALERT_PATTERNS: tuple[AlertPattern, ...] = (
     AlertPattern("systemd", "unit", r"Main process exited"),
 )
 
+# rewrite_tag Rule splits on spaces, so these must stay space-free.
+# Tag `quiet` (#alerts-quiet). Do not prefix with nginx — Match nginx is prefix.
+QUIET_NGINX_REGEXES: tuple[str, ...] = (
+    r"limiting.connections.by.zone",
+    r"connect\(\).failed.\(111:.Connection.refused\)",
+)
+QUIET_OUTPUT_TAG = "quiet"
+
 SECRET_LINE_MARKERS: tuple[str, ...] = (
     "hooks.slack.com",
     "?token=",
@@ -116,6 +124,19 @@ def slack_payload(source: str, line: str, epoch: float) -> dict[str, object]:
 
 def slack_payload_json(source: str, line: str, epoch: float) -> str:
     return json.dumps(slack_payload(source, line, epoch), ensure_ascii=False, separators=(",", ":"))
+
+
+def is_quiet_alert(source: str, line: str) -> bool:
+    if source != "nginx":
+        return False
+    return any(re.search(regex, line) for regex in QUIET_NGINX_REGEXES)
+
+
+def alert_output_tag(source: str, line: str) -> str:
+    """fluent-bit OUTPUT Match after quiet rewrite_tag."""
+    if is_quiet_alert(source, line):
+        return QUIET_OUTPUT_TAG
+    return source
 
 
 def should_page(source: str, line: str) -> bool:
