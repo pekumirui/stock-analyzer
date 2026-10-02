@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import stat
 import subprocess
 import tempfile
@@ -88,8 +89,27 @@ def test_static_contracts() -> None:
             _fail(f"update.sh must embed official host key for {host}")
     if GITHUB_ED25519 not in update:
         _fail("update.sh must embed official GitHub host keys before fetch, not only alias known_hosts")
-    if '"$APP_DIR/.venv/bin/python" jobs/migrate.py' not in update:
+    if "jobs/migrate.py" not in update:
         _fail("update.sh must run jobs/migrate.py")
+    if ".venv.building" not in update:
+        _fail("update.sh must create a missing venv in a staging directory")
+    if '[ -L "$APP_DIR/.venv" ]' not in update:
+        _fail("update.sh must treat a symlink .venv as broken")
+    if "ln -sfn python3" not in update:
+        _fail("update.sh must link .venv/bin/python to python3 when missing")
+    if "ensurepip" not in update:
+        _fail("update.sh must restore pip with ensurepip when missing")
+    gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+    if re.search(r"^\.venv/", gitignore, flags=re.M):
+        _fail(".gitignore .venv/ does not ignore a symlink .venv")
+    if not re.search(r"^\.venv$", gitignore, flags=re.M):
+        _fail(".gitignore must ignore .venv as a file or directory")
+    tracked_venv = subprocess.check_output(
+        ["git", "ls-files", "-z", "--", ".venv"],
+        cwd=ROOT,
+    )
+    if tracked_venv:
+        _fail(f".venv must not be tracked: {tracked_venv!r}")
     migrate_py = (ROOT / "jobs" / "migrate.py").read_text(encoding="utf-8")
     if "migrate locked" not in migrate_py or "LOCK_ATTEMPTS" not in migrate_py:
         _fail("jobs/migrate.py must retry on SQLite database is locked")

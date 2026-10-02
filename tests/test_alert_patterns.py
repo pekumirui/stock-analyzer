@@ -31,6 +31,7 @@ PAGE: tuple[tuple[str, str], ...] = (
     ("app", "SchemaMismatch: stocks missing column"),
     ("batch", "2026-09-30 18:00:01 fail cron jobs/run_batch.py exit=1"),
     ("batch", "2026-09-30 18:00:01 fail cron cwd exit=1"),
+    ("batch", "2026-10-02 10:20:01 fail cron jobs/ir_monthly_html_r2.py exit=127"),
     ("batch", "2026-09-30 18:00:01 tdnet_monthly_r2 done listed=10 saved=1 skipped=0 failed=3"),
     ("batch", "tdnet_monthly_r2 done listed=10 saved=1 skipped=0 failed=3"),
     ("batch", "tdnet_monthly_r2 done listed=10 saved=1 skipped=0 failed=10"),
@@ -69,6 +70,7 @@ NOT_PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "tdnet_monthly_r2 done listed=10 saved=1 skipped=9 failed=0"),
     ("batch", "parse processed=3 errors=0 skipped=1"),
     ("batch", "fail cron jobs/run_batch.py exit=1"),
+    ("batch", "2026-10-02 10:20:01 missing interpreter /home/stock/stock-analyzer/.venv/bin/python3 /home/stock/stock-analyzer/.venv/bin/python"),
     ("batch", "fail POST 7203 status=500 boom"),
     ("batch", "fail issuer 1878 fetch: HTTP Error 403: Forbidden"),
     ("batch", "Traceback (most recent call last):"),
@@ -716,6 +718,87 @@ def test_cron_run_splits_and_stamps(tmp_path: Path) -> None:
         _fail(f"cwd failure not logged: {cwd_log!r}")
 
 
+def _write_cron_python(path: Path, marker: str) -> None:
+    path.write_text(
+        "#!/usr/bin/env python3\n"
+        "import sys\n"
+        f"print({marker!r}, flush=True)\n"
+        "script = next(a for a in sys.argv[1:] if a.endswith('.py'))\n"
+        "print('out ' + script, flush=True)\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+
+
+def test_cron_run_picks_venv_python(tmp_path: Path) -> None:
+    wrapper = str(ROOT / "deploy" / "cron-run.sh")
+
+    def run_job(app: Path, logs: Path) -> subprocess.CompletedProcess[str]:
+        env = os.environ.copy()
+        env["CRON_APP_DIR"] = str(app)
+        env["CRON_LOG_DIR"] = str(logs)
+        env["TZ"] = "UTC"
+        return subprocess.run(
+            ["bash", wrapper, "jobs/ir_monthly_html_r2.py"],
+            cwd=app,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    py3_only = tmp_path / "py3-only"
+    py3_logs = tmp_path / "py3-only-logs"
+    py3_bin = py3_only / ".venv" / "bin"
+    py3_bin.mkdir(parents=True)
+    _write_cron_python(py3_bin / "python3", "interp-py3")
+    py3 = run_job(py3_only, py3_logs)
+    if py3.returncode != 0:
+        _fail(f"python3-only cron-run exit {py3.returncode}: {py3.stdout!r} {py3.stderr!r}")
+    if py3.stdout or py3.stderr:
+        _fail(f"python3-only cron-run leaked stdio: {py3.stdout!r} {py3.stderr!r}")
+    py3_log = (py3_logs / "ir_monthly_html_r2.log").read_text(encoding="utf-8")
+    if "interp-py3" not in py3_log or "out jobs/ir_monthly_html_r2.py" not in py3_log:
+        _fail(f"python3-only log missing job output: {py3_log!r}")
+    if "fail cron" in py3_log:
+        _fail(f"python3-only success log has fail cron: {py3_log!r}")
+
+    both = tmp_path / "both"
+    both_logs = tmp_path / "both-logs"
+    both_bin = both / ".venv" / "bin"
+    both_bin.mkdir(parents=True)
+    _write_cron_python(both_bin / "python3", "interp-py3")
+    _write_cron_python(both_bin / "python", "interp-py")
+    both_run = run_job(both, both_logs)
+    if both_run.returncode != 0:
+        _fail(
+            f"both-interpreters cron-run exit {both_run.returncode}: "
+            f"{both_run.stdout!r} {both_run.stderr!r}"
+        )
+    both_log = (both_logs / "ir_monthly_html_r2.log").read_text(encoding="utf-8")
+    if "interp-py3" not in both_log:
+        _fail(f"cron-run must prefer python3: {both_log!r}")
+    if re.search(r"interp-py(?:\s|$)", both_log):
+        _fail(f"cron-run used python while python3 exists: {both_log!r}")
+
+    missing = tmp_path / "missing-venv"
+    missing_logs = tmp_path / "missing-venv-logs"
+    (missing / ".venv" / "bin").mkdir(parents=True)
+    missing_run = run_job(missing, missing_logs)
+    if missing_run.returncode != 127:
+        _fail(f"missing interpreter should exit 127, got {missing_run.returncode}")
+    if missing_run.stdout or missing_run.stderr:
+        _fail(
+            "missing interpreter leaked stdio: "
+            f"{missing_run.stdout!r} {missing_run.stderr!r}"
+        )
+    missing_log = (missing_logs / "ir_monthly_html_r2.log").read_text(encoding="utf-8")
+    if "missing interpreter" not in missing_log:
+        _fail(f"missing interpreter not logged: {missing_log!r}")
+    if "fail cron jobs/ir_monthly_html_r2.py exit=127" not in missing_log:
+        _fail(f"missing interpreter must page fail cron: {missing_log!r}")
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -728,6 +811,8 @@ def main() -> None:
     test_slack_payload_jst_danger()
     with TemporaryDirectory() as d:
         test_cron_run_splits_and_stamps(Path(d))
+    with TemporaryDirectory() as d:
+        test_cron_run_picks_venv_python(Path(d))
     print("ok: alert patterns")
 
 

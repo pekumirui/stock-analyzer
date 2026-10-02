@@ -32,7 +32,19 @@ fi
 
 cd "$APP_DIR" || { log_line "fail cron cwd exit=1"; exit 1; }
 
-"$APP_DIR/.venv/bin/python" -u "$@" 2>&1 | while IFS= read -r line || [[ -n "${line-}" ]]; do
+# uvicorn の shebang は python3。デプロイ中に python だけ消える／無いことがある。
+py=""
+if [[ -x "$APP_DIR/.venv/bin/python3" ]]; then
+  py="$APP_DIR/.venv/bin/python3"
+elif [[ -x "$APP_DIR/.venv/bin/python" ]]; then
+  py="$APP_DIR/.venv/bin/python"
+else
+  log_line "missing interpreter $APP_DIR/.venv/bin/python3 $APP_DIR/.venv/bin/python"
+  log_line "fail cron $* exit=127"
+  exit 127
+fi
+
+"$py" -u "$@" 2>&1 | while IFS= read -r line || [[ -n "${line-}" ]]; do
   printf '%s %s\n' "$(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M:%S')" "$line"
 done >> "$log"
 ec=${PIPESTATUS[0]}
