@@ -28,6 +28,8 @@ data/xbrl_golden/*
 *.csv.gz
 
 # --- Python ---
+# `.venv/` だけだとディレクトリ以外（誤って作ったシンボリックリンク）を無視しない
+.venv
 .venv/
 venv/
 env/

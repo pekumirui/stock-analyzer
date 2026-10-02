@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import subprocess
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -41,6 +43,41 @@ def main() -> None:
     leftover = list(ROOT.rglob("seed_demo.py"))
     if leftover:
         raise SystemExit(f"seed_demo.py should have been removed: {leftover}")
+    tracked_venv = subprocess.check_output(
+        ["git", "ls-files", "-z", "--", ".venv"],
+        cwd=ROOT,
+        text=True,
+    )
+    if tracked_venv:
+        raise SystemExit(f".venv must not be tracked: {tracked_venv!r}")
+    gi_lines = {
+        line.strip()
+        for line in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    }
+    if ".venv" not in gi_lines:
+        raise SystemExit(
+            ".gitignore must list .venv without a trailing slash so a symlink is ignored"
+        )
+    with tempfile.TemporaryDirectory(prefix="gitignore-venv-") as raw:
+        repo = Path(raw)
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        (repo / ".gitignore").write_text(
+            (ROOT / ".gitignore").read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+        (repo / ".venv").symlink_to("/nonexistent-venv")
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        listed = subprocess.check_output(
+            ["git", "ls-files", "--", ".venv"],
+            cwd=repo,
+            text=True,
+        )
+        if listed.strip():
+            raise SystemExit(
+                ".gitignore must ignore a .venv symlink, not only a directory: "
+                f"{listed!r}"
+            )
     for src in CALLERS:
         text = src.read_text(encoding="utf-8")
         rel_src = src.relative_to(ROOT).as_posix()

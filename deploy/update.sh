@@ -183,7 +183,13 @@ sudo --preserve-env=APP_DIR \
 sudo --preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,CERTBOT_EMAIL,SLACK_WEBHOOK_URL,SLACK_WEBHOOK_URL_APP,SLACK_WEBHOOK_URL_BATCH,SLACK_WEBHOOK_URL_INFRA \
   "$APP_DIR/deploy/provision.sh"
 
+# pip が無いのに .venv が残っていると python -m venv が File exists で落ちる。
+# シンボリックリンクや非ディレクトリだけ外す。実ディレクトリは rm -rf しない。
 if [ ! -x "$APP_DIR/.venv/bin/pip" ]; then
+  if [ -L "$APP_DIR/.venv" ] || { [ -e "$APP_DIR/.venv" ] && [ ! -d "$APP_DIR/.venv" ]; }; then
+    echo "blocking .venv path を外します"
+    rm -f "$APP_DIR/.venv"
+  fi
   echo "venv が無いので作ります"
   python3 -m venv "$APP_DIR/.venv"
 fi

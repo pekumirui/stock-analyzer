@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import stat
 import subprocess
 import tempfile
@@ -90,6 +91,17 @@ def test_static_contracts() -> None:
         _fail("update.sh must embed official GitHub host keys before fetch, not only alias known_hosts")
     if '"$APP_DIR/.venv/bin/python" jobs/migrate.py' not in update:
         _fail("update.sh must run jobs/migrate.py")
+    if 'if [ ! -x "$APP_DIR/.venv/bin/pip" ]; then' not in update:
+        _fail("update.sh must create venv only when .venv/bin/pip is missing")
+    if 'if [ -L "$APP_DIR/.venv" ]' not in update:
+        _fail("update.sh must detect a blocking .venv symlink")
+    if 'rm -f "$APP_DIR/.venv"' not in update:
+        _fail("update.sh must unlink a blocking .venv path")
+    ensure = _venv_ensure_block(update)
+    if "rm -rf" in ensure:
+        _fail("venv ensure must not rm -rf")
+    if 'python3 -m venv "$APP_DIR/.venv"' not in ensure:
+        _fail("venv ensure must call python3 -m venv")
     migrate_py = (ROOT / "jobs" / "migrate.py").read_text(encoding="utf-8")
     if "migrate locked" not in migrate_py or "LOCK_ATTEMPTS" not in migrate_py:
         _fail("jobs/migrate.py must retry on SQLite database is locked")
@@ -165,6 +177,28 @@ def _git(app: Path, env: dict[str, str], *args: str) -> None:
             f"git {' '.join(args)} failed: rc={proc.returncode} "
             f"stderr={proc.stderr!r} stdout={proc.stdout!r}"
         )
+
+
+def _venv_ensure_block(update: str) -> str:
+    start = update.find('if [ ! -x "$APP_DIR/.venv/bin/pip" ]; then')
+    if start < 0:
+        _fail("update.sh missing venv ensure block")
+    end = update.find('"$APP_DIR/.venv/bin/pip" install', start)
+    if end < 0:
+        _fail("update.sh venv ensure block has no pip install after it")
+    return update[start:end]
+
+
+def _run_ensure_venv(app: Path, block: str) -> subprocess.CompletedProcess[str]:
+    script = f"set -euo pipefail\nAPP_DIR={shlex.quote(app.as_posix())}\n{block}"
+    return subprocess.run(
+        ["bash", "-c", script],
+        cwd=str(app),
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
 
 
 def _run_update(app: Path, env: dict[str, str]) -> subprocess.CompletedProcess[str]:
@@ -283,10 +317,64 @@ def test_tracked_dirty_stops_deploy() -> None:
             _fail(f"untracked tree hit the dirty policy: {proc.stderr!r}")
 
 
+def test_ensure_venv_unlinks_blocking_symlink() -> None:
+    update = (ROOT / "deploy" / "update.sh").read_text(encoding="utf-8")
+    block = _venv_ensure_block(update)
+    with tempfile.TemporaryDirectory(prefix="deploy-venv-") as raw:
+        root = Path(raw)
+        app = root / "app"
+        keep = root / "keep-venv"
+        app.mkdir()
+        keep.mkdir()
+        marker = keep / "KEEP_ME"
+        marker.write_text("safe\n", encoding="utf-8")
+        venv = app / ".venv"
+        venv.symlink_to(keep)
+        if not venv.is_symlink():
+            _fail("setup did not create a .venv symlink")
+        proc = _run_ensure_venv(app, block)
+        if proc.returncode != 0:
+            _fail(
+                "blocking .venv symlink must be replaced with a real venv: "
+                f"rc={proc.returncode} stderr={proc.stderr!r} stdout={proc.stdout!r}"
+            )
+        if venv.is_symlink():
+            _fail("blocking .venv symlink was left in place")
+        if not (venv / "bin" / "pip").exists():
+            _fail("python -m venv did not create .venv/bin/pip")
+        if not marker.is_file() or marker.read_text(encoding="utf-8") != "safe\n":
+            _fail("ensure venv followed a symlink and damaged the target")
+        if "venv が無いので作ります" not in proc.stdout:
+            _fail(f"missing venv create message: {proc.stdout!r}")
+
+
+def test_ensure_venv_keeps_real_directory() -> None:
+    update = (ROOT / "deploy" / "update.sh").read_text(encoding="utf-8")
+    block = _venv_ensure_block(update)
+    with tempfile.TemporaryDirectory(prefix="deploy-venv-dir-") as raw:
+        app = Path(raw) / "app"
+        venv = app / ".venv"
+        venv.mkdir(parents=True)
+        marker = venv / "KEEP_DIR"
+        marker.write_text("dir\n", encoding="utf-8")
+        proc = _run_ensure_venv(app, block)
+        if proc.returncode != 0:
+            _fail(
+                "existing .venv directory must be reused by python -m venv: "
+                f"rc={proc.returncode} stderr={proc.stderr!r} stdout={proc.stdout!r}"
+            )
+        if not marker.is_file():
+            _fail("ensure venv deleted a real .venv directory")
+        if not (venv / "bin" / "pip").exists():
+            _fail("python -m venv did not populate existing .venv")
+
+
 def main() -> None:
     test_static_contracts()
     test_rewrites_existing_github_host()
     test_tracked_dirty_stops_deploy()
+    test_ensure_venv_unlinks_blocking_symlink()
+    test_ensure_venv_keeps_real_directory()
     print("ok: github ssh port 443")
 
 
