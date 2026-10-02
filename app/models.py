@@ -109,6 +109,27 @@ class Indicator(Base):
     __table_args__ = (Index("ix_ind_date_stage", "date", "stage"),)
 
 
+class EarningsDatePub(Base):
+    """発表のたびに 1 行。現在の予定は (code, fq_name) で pub_date が最新の行。
+
+    sch_date だけで引かない。移動前の日が残っている。
+    """
+    __tablename__ = "earnings_date_pubs"
+    code = Column(String(5), primary_key=True)
+    fq_name = Column(String(8), primary_key=True)  # 1Q | 2Q | 3Q | FY
+    pub_date = Column(Date, primary_key=True)
+    sch_date = Column(Date, nullable=True)  # NULL は未定。欠測ではない
+    fye = Column(String(4), nullable=False)  # MMDD。0299 は 2月末
+    co_name = Column(String, nullable=False)
+
+
+class EarningsDateFetch(Base):
+    """取り終えた発表日。空の応答も n=0 で残す。pubs の写しではない。"""
+    __tablename__ = "earnings_date_fetches"
+    pub_date = Column(Date, primary_key=True)
+    n = Column(Integer, nullable=False)
+
+
 class EarningsEvent(Base):
     __tablename__ = "earnings_events"
     code = Column(String(5), primary_key=True)
