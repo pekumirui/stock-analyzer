@@ -22,6 +22,18 @@ app = FastAPI(title="株式分析ツール")
 init_db(strict=True)
 # nginx は JSON を圧縮しない。決算速報のピーク日は一覧が数百 KB になる
 app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+
+@app.middleware("http")
+async def revalidate_spa_assets(request: Request, call_next):
+    # Cache-Control が無いと Safari は Last-Modified から推測して古い JS を使い続け、
+    # API の形が変わったときに画面が壊れる。毎回 ETag で確かめさせる (変わらなければ 304)
+    response = await call_next(request)
+    path = request.url.path
+    if (path.startswith("/static/") or path.rstrip("/") == "/app") \
+            and "cache-control" not in response.headers:
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 app.include_router(router)
 app.include_router(router_v1)
 
