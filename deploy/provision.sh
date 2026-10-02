@@ -215,6 +215,14 @@ write_if_changed /etc/nginx/conf.d/stock-analyzer-limit.conf 644 <<'EOF'
 limit_conn_zone $binary_remote_addr zone=addr:10m;
 EOF
 
+# 処理時間を残すアクセスログ。rt=nginx 全体 / urt=uvicorn（秒）。MCP の nginx_logs が読む。
+# 既定の access.log と書式が混ざらないよう、アプリの server だけ別ファイルへ書く
+ACCESS_LOG=/var/log/nginx/stock-analyzer.access.log
+write_if_changed /etc/nginx/conf.d/stock-analyzer-log.conf 644 <<'EOF'
+log_format timed '$remote_addr [$time_local] "$request" $status $body_bytes_sent '
+                 'rt=$request_time urt=$upstream_response_time "$http_user_agent"';
+EOF
+
 pub_headers=$(cat <<'EOF'
         add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
         add_header X-Content-Type-Options "nosniff" always;
@@ -430,6 +438,7 @@ server {
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name ${SERVER_NAMES};
+    access_log ${ACCESS_LOG} timed;
 
     ${acme_block}
 
@@ -477,6 +486,7 @@ server {
     listen 443 ssl;
     listen [::]:443 ssl;
     server_name ${DOMAIN} _;
+    access_log ${ACCESS_LOG} timed;
 
     ssl_certificate ${CERT_LIVE}/fullchain.pem;
     ssl_certificate_key ${CERT_LIVE}/privkey.pem;

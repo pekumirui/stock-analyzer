@@ -1571,6 +1571,31 @@ def test_tool_app_logs_joins_file_and_journal(tmp_path: Path) -> None:
             os.environ["MCP_APP_DIR"] = prev
 
 
+def test_tool_nginx_logs_access_timed_and_redacted(tmp_path: Path) -> None:
+    access = tmp_path / "stock-analyzer.access.log"
+    access.write_text(
+        '1.2.3.4 [02/Oct/2026:12:00:00 +0900] "GET /api/v1/tables HTTP/1.1" 200 9 rt=4.282 urt=4.281 "ua"\n'
+        '1.2.3.4 [02/Oct/2026:12:00:01 +0900] "GET /app HTTP/1.1" 200 9 rt=0.003 urt=0.002 "ua"\n'
+        '1.2.3.4 [02/Oct/2026:12:00:02 +0900] "GET /oauth/callback?code=abc123&state=s1&x=1 HTTP/1.1" '
+        '302 0 rt=1.500 urt=1.499 "ua"\n',
+        encoding="utf-8",
+    )
+    orig = (m.journal, m.NGINX_ACCESS_LOG, m.NGINX_ERROR_LOG)
+    try:
+        m.journal = lambda unit, since, lines, grep: "journal"  # type: ignore[assignment]
+        m.NGINX_ACCESS_LOG = access
+        m.NGINX_ERROR_LOG = tmp_path / "missing-error.log"
+        out = m.tool_nginx_logs({"grep": "rt=[1-9]"})
+        if "/api/v1/tables" not in out or "GET /app " in out:
+            raise SystemExit(f"slow filter: {out!r}")
+        if "abc123" in out or "s1&" in out:
+            raise SystemExit(f"oauth query leaked: {out!r}")
+        if "code=<redacted>&state=<redacted>&x=1" not in out:
+            raise SystemExit(f"redact_url: {out!r}")
+    finally:
+        m.journal, m.NGINX_ACCESS_LOG, m.NGINX_ERROR_LOG = orig  # type: ignore[assignment]
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -1592,6 +1617,7 @@ def main() -> None:
         logs = base / "applog"
         logs.mkdir()
         test_tool_app_logs_joins_file_and_journal(logs)
+        test_tool_nginx_logs_access_timed_and_redacted(logs)
     test_db_tools()
     test_monthly_tools()
     test_monthly_ingest_tool()

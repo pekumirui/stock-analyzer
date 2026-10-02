@@ -48,6 +48,7 @@ def pick_log(name: str) -> Path:
 
 
 NGINX_ERROR_LOG = Path("/var/log/nginx/error.log")
+NGINX_ACCESS_LOG = Path("/var/log/nginx/stock-analyzer.access.log")
 DEFAULT_LOG_DIR = Path("/var/log/app")
 HOST = os.environ.get("MCP_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MCP_PORT", "8010"))
@@ -127,8 +128,19 @@ MONTHLY_URL_PATH_RE = re.compile(
 _CODE_ERR = "code must be 4-5 characters (e.g. 7203, 72030, 262A0)"
 
 
+# アクセスログの URL に載る OAuth の一時値。MCP の応答に出さない
+URL_SECRET_RE = re.compile(
+    r"([?&](?:code|state|token|access_token|refresh_token|client_secret|code_verifier)=)[^&\s\"]+",
+    re.I,
+)
+
+
 def redact(text: str) -> str:
     return SECRET_RE.sub(lambda m: m.group(1) + "=<redacted>", text)
+
+
+def redact_url(text: str) -> str:
+    return URL_SECRET_RE.sub(lambda m: m.group(1) + "<redacted>", redact(text))
 
 
 def parse_since(raw: str | None) -> str:
@@ -505,7 +517,9 @@ def tool_nginx_logs(args: dict[str, Any]) -> str:
     grep = parse_grep(args.get("grep"))
     journal_out = journal("nginx", since, lines, grep)
     file_out = tail_grep(NGINX_ERROR_LOG, lines, grep)
-    return f"=== journal nginx since {since} ===\n{journal_out}\n\n=== {NGINX_ERROR_LOG} ===\n{file_out}"
+    access_out = redact_url(tail_grep(NGINX_ACCESS_LOG, lines, grep))
+    return (f"=== journal nginx since {since} ===\n{journal_out}\n\n=== {NGINX_ERROR_LOG} ===\n{file_out}"
+            f"\n\n=== {NGINX_ACCESS_LOG} (rt=nginx 全体 / urt=uvicorn、秒) ===\n{access_out}")
 
 
 def db_file() -> Path:
@@ -988,7 +1002,8 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_batch_logs,
     ),
     "nginx_logs": (
-        "nginx の journal と /var/log/nginx/error.log。",
+        ("nginx の journal・/var/log/nginx/error.log・アクセスログ（rt/urt に処理秒）。"
+         "遅いリクエストは grep に 'rt=[1-9]' などを渡す。"),
         {
             "type": "object",
             "properties": {
