@@ -1371,24 +1371,59 @@ def _anchor_year(last_month: int, as_of: date) -> int:
 def _current_fy_end_year(fy_end_month: int, as_of: date) -> int:
     """as_of が属する会計年度の期末年。
 
-    新FYの先頭月（期末月の翌月）は、完了直後の期末速報とみなし直前FYの期末年を返す。
-    それ以外は期末月より後なら翌年期末、そうでなければ当年期末。
+    期末月の翌月以降（新FY先頭月に限らない）は、完了した FY の期末年を返す。
+    12月期末の1月は直前FY。期末月以前は当年期末。
     """
     if as_of.month == _fiscal_start_month(fy_end_month):
         if fy_end_month < as_of.month:
             return as_of.year
         return as_of.year - 1
-    if as_of.month > fy_end_month:
-        return as_of.year + 1
     return as_of.year
 
 
 def _anchor_year_for_fy(last_month: int, fy_end_month: int, as_of: date) -> int:
-    """fiscal: 現行 FY の期末年から右端列の暦年を決める。"""
+    """fiscal: 現行 / 完了 FY の期末年から右端列の暦年を決める。"""
     fy_end_year = _current_fy_end_year(fy_end_month, as_of)
     if last_month <= fy_end_month:
         return fy_end_year
+    # 期末より後の暦月は FY の期首側。as_of が期末後なら完了FY年＝当年。
+    if as_of.month > fy_end_month:
+        return fy_end_year
     return fy_end_year - 1
+
+
+def _future_column(
+    mapping: Sequence[tuple[int, int]],
+    as_of: date,
+) -> tuple[int, int] | None:
+    """mapping のうち as_of の年月より後の最後の列。(month, year)。"""
+    future: tuple[int, int] | None = None
+    for month, year in mapping:
+        if (year, month) > (as_of.year, as_of.month):
+            future = (month, year)
+    return future
+
+
+def _reject_future_columns(
+    mapping: Sequence[tuple[int, int]],
+    as_of: date,
+    *,
+    layout: str,
+    fy_end_month: int,
+) -> None:
+    """as_of より未来の年月の列は書かない。当期FYの期末前は残月を許す。"""
+    future = _future_column(mapping, as_of)
+    if future is None:
+        return
+    if layout == "fiscal" and as_of.month <= fy_end_month:
+        return
+    month, year = future
+    raise MonthlyIngestError(
+        400,
+        "FUTURE_COLUMN",
+        f"{year}年{month}月の列は as_of {as_of.isoformat()} より未来です。",
+        extra={"month": month, "year": year, "as_of": as_of.isoformat()},
+    )
 
 
 def _assign_years(
@@ -1419,7 +1454,8 @@ def plan_column_years(
 ) -> tuple[str, list[tuple[int, int]]]:
     """列順 → 暦年。layout は calendar | fiscal | partial。並びでは拒否しない。
     戻り mapping は列順の (month, year)。Genky 型の月重複（13列）も列インデックス単位。
-    calendar/partial は右端月+as_of。fiscal は fy_end+as_of で現行 FY を決める。"""
+    calendar/partial は右端月+as_of。fiscal は fy_end+as_of で現行/完了 FY を決める。
+    mapping の年月が as_of より後なら FUTURE_COLUMN（当期FYの期末前は除く）。"""
     if not months:
         raise MonthlyIngestError(400, "INVALID_PARAM", "months は1〜12の整数の配列です。")
     start = months[0]
@@ -1428,12 +1464,15 @@ def plan_column_years(
         mapping = _assign_years(months, as_of)
     elif start == _fiscal_start_month(fy_end_month):
         layout = "fiscal"
-        # 期末月+as_of で現行 FY を決める（as_of が期末月より後なら期末は翌年）
+        # 期末月+as_of で現行/完了 FY を決める（as_of が期末月より後なら完了した FY）
         mapping = _assign_years(months, as_of, fy_end_month=fy_end_month)
     else:
         layout = "partial"
         # 部分列は右端月+as_of（暦年アンカー）。FY 全体を仮定しない。
         mapping = _assign_years(months, as_of)
+    _reject_future_columns(
+        mapping, as_of, layout=layout, fy_end_month=fy_end_month,
+    )
     return layout, mapping
 
 

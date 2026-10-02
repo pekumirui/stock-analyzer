@@ -973,13 +973,13 @@ def test_mapping_examples() -> None:
     if mapping[0] != (6, 2024) or mapping[-1] != (6, 2025):
         _fail(f"genky June split: {mapping[0]} {mapping[-1]}")
 
-    # 60400 型: 7月期末・as_of が期末月より後（9月）→ 現行 FY は翌年7月期末
+    # 60400 型: 7月期末・as_of が期末月より後（9月）→ 完了した FY（8/2025…7/2026）
     july_months = [8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7]
     layout, mapping = plan_column_years(july_months, 7, date(2026, 9, 11))
     if layout != "fiscal":
         _fail(f"july post-end layout: {layout}")
-    expect_july = {m: 2026 for m in (8, 9, 10, 11, 12)}
-    expect_july.update({m: 2027 for m in (1, 2, 3, 4, 5, 6, 7)})
+    expect_july = {m: 2025 for m in (8, 9, 10, 11, 12)}
+    expect_july.update({m: 2026 for m in (1, 2, 3, 4, 5, 6, 7)})
     if _map_dict(mapping) != expect_july:
         _fail(f"july post-end mapping: {mapping}")
 
@@ -998,15 +998,16 @@ def test_mapping_examples() -> None:
         if layout != "fiscal" or _map_dict(mapping) != {m: 2026 for m in months}:
             _fail(f"in-progress fy={fy_end} {layout} {mapping}")
 
-    # 27360 型: 8月期末・as_of が新FY先頭月（9月）→ 完了直後の FY（9/2025…8/2026）
+    # 27360 / 99790 型: 8月期末・12列(9〜8月)。新FY先頭月だけでなく翌々月以降も完了FY
     aug_months = [9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8]
-    layout, mapping = plan_column_years(aug_months, 8, date(2026, 9, 14))
-    if layout != "fiscal":
-        _fail(f"aug post-end layout: {layout}")
     expect_aug = {m: 2025 for m in (9, 10, 11, 12)}
     expect_aug.update({m: 2026 for m in (1, 2, 3, 4, 5, 6, 7, 8)})
-    if _map_dict(mapping) != expect_aug:
-        _fail(f"aug post-end mapping: {mapping}")
+    for as_of in (date(2026, 9, 14), date(2026, 9, 15), date(2026, 10, 1)):
+        layout, mapping = plan_column_years(aug_months, 8, as_of)
+        if layout != "fiscal":
+            _fail(f"aug post-end layout as_of={as_of}: {layout}")
+        if _map_dict(mapping) != expect_aug:
+            _fail(f"aug post-end mapping as_of={as_of}: {mapping}")
 
     # 同 FY・as_of が期末月内（8月）→ まだ当期 FY（9/2025…7/2026）
     layout, mapping = plan_column_years(aug_months[:-1], 8, date(2026, 8, 10))
@@ -1078,6 +1079,17 @@ def test_fy_end_and_layout_errors() -> None:
     expect_wrap[1] = 2026
     if _map_dict(mapping) != expect_wrap:
         _fail(f"wrap mid-start mapping: {mapping}")
+
+    # 期末後の as_of で、右端列が as_of より未来なら書かない
+    exc = _expect_ingest_error(
+        lambda: plan_column_years([9, 10, 11], 8, date(2026, 10, 1)),
+        "FUTURE_COLUMN",
+        "未来",
+    )
+    if exc.extra.get("month") != 11 or exc.extra.get("year") != 2026:
+        _fail(f"FUTURE_COLUMN extra {exc.extra}")
+    if exc.status != 400:
+        _fail(f"FUTURE_COLUMN status {exc.status}")
 
 
 def _ensure_stock(code: str, name: str | None = None) -> None:
