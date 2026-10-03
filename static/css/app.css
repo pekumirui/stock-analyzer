@@ -293,7 +293,6 @@
     width:15em; min-width:15em; max-width:15em; white-space:normal; border-left-width:1px;
   }
   table.monthly-tl .tl-corner { z-index:3; vertical-align:bottom; background:#eceff2; }
-  table.monthly-tl td.tl-name.tl-bd { padding-left:1.25em; font-size:12px; font-weight:600; }
   table.monthly-tl .tl-yb { border-left:2px solid #9aa5b1; }
   table.monthly-tl tbody tr[data-series] { cursor:pointer; }
   table.monthly-tl tbody tr[data-series]:hover td.tl-name,
@@ -303,6 +302,10 @@
   table.monthly-tl tr.tl-sec td { background:#f0f3f6; font-size:12px; padding:7px 10px; }
   table.monthly-tl tr.tl-sec:hover td { background:#e4e9ee; }
   table.monthly-tl .tl-cnt { margin-left:6px; font-weight:400; color:var(--sub); }
+  table.monthly-tl .tl-tw { display:inline-block; width:1.1em; color:var(--sub); }
+  table.monthly-tl td.tl-tog { cursor:pointer; }
+  table.monthly-tl tr.tl-sec-total td.num { background:#fff; font-size:13px; padding:5px 6px; }
+  table.monthly-tl tr.tl-sec-total td.tl-yr { background:#fff; font-size:13px; padding:5px 6px; }
   .monthly-value-tabs { display:inline-flex; margin:0 0 8px; }
   .monthly-value-tabs[hidden] { display:none; }
   /* .ftab は earnings.js が全ボタンの onclick を上書きするので使わない */

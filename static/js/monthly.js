@@ -978,7 +978,91 @@ function monthlyTimelineSections(layout, tables){
     main.push(rec);
     more.rows.splice(more.rows.indexOf(rec), 1);
   }
-  return {main, sections: [more, ...brands].filter(s => s.rows.length)};
+  // 主要行を親に持つ内訳は「その他」から主要行の側へ寄せる（開閉は親の ▸）。
+  const pm = monthlyTlParents([...main, ...more.rows]);
+  for(const rec of more.rows.slice()){
+    let p = pm.get(rec);
+    while(p && pm.get(p)) p = pm.get(p);
+    if(p && main.includes(p)){
+      main.push(rec);
+      more.rows.splice(more.rows.indexOf(rec), 1);
+    }
+  }
+  // 内訳の親になっている合計行（ベルーナの各領域の売上高）は節の見出しに数字ごと載せる。
+  for(const sec of brands){
+    const parents = new Set(monthlyTlParents(sec.rows).values());
+    const total = sec.rows.find(r => !r.label.breakdown && parents.has(r))
+      || (sec.rows.length === 1 && !sec.rows[0].label.breakdown ? sec.rows[0] : null);
+    if(total){
+      sec.total = total;
+      sec.rows = sec.rows.filter(r => r !== total);
+    }
+  }
+  return {main, sections: [more, ...brands].filter(s => s.rows.length || s.total)};
+}
+
+function monthlyBreakdownParents(){
+  const cfg = MONTHLY_ROW_ORDER[String(selMonthlyCode || "")];
+  const m = cfg && cfg.breakdown_parent;
+  return (m && typeof m === "object") ? m : {};
+}
+
+// 内訳の親。1 段目は同じ group・指標・スコープ・チャネル・国で内訳の無い行。
+// 2 段目以降は monthly_row_order.json の breakdown_parent（内訳名 → 親の内訳名）。範囲は rows の中だけ。
+function monthlyTlParents(rows){
+  const cfg = monthlyBreakdownParents();
+  const sig = L => [L.group, L.metric, L.scope, L.channel, L.country].map(x => x || "").join("\u0000");
+  const parent = new Map();
+  for(const r of rows){
+    const L = r.label;
+    if(!L.breakdown) continue;
+    const want = cfg[L.breakdown] || "";
+    const cands = rows.filter(q => q !== r && sig(q.label) === sig(L) && (q.label.breakdown || "") === want);
+    const p = cands.find(q => monthlyIsYoyUnit(q.unit) === monthlyIsYoyUnit(r.unit)) || cands[0];
+    if(p) parent.set(r, p);
+  }
+  return parent;
+}
+
+// rows を木の先行順に並べ、閉じた親の子孫は落とす。親の無い行は rows の順のまま根になる。
+function monthlyTlVisible(rows, parent, under){
+  const kids = new Map();
+  for(const r of rows){
+    const p = parent.get(r);
+    if(!p) continue;
+    if(!kids.has(p)) kids.set(p, []);
+    kids.get(p).push(r);
+  }
+  const out = [];
+  const walk = (r, depth) => {
+    const ks = kids.get(r) || [];
+    const key = ks.length ? "node:" + r.element : "";
+    const open = !!key && monthlyTlOpen.has(key);
+    out.push({rec: r, depth, key, open, child: parent.has(r), under: !!under});
+    if(open) for(const k of ks) walk(k, depth + 1);
+  };
+  // 合計を見出しに載せた節の中身は、見出しの子として 1 段下げる。
+  for(const r of rows) if(!parent.has(r)) walk(r, under ? 1 : 0);
+  return out;
+}
+
+function monthlyTlLabel(e, gated){
+  const L = e.rec.label;
+  if((e.child || e.under) && L.breakdown){
+    const yoyOnly = !e.rec.yoy && monthlyIsYoyUnit(e.rec.unit);
+    return L.breakdown + (yoyOnly ? "(前年比)" : "");
+  }
+  return monthlyTimelineRowName(e.rec, gated);
+}
+
+// 名前セル。子を持つ行と合計つきの節は ▸/▾ で開閉する（行のクリックは系列の選択なので親へ伝えない）。
+function monthlyTlNameCell(o){
+  const pad = o.depth ? ` style="padding-left:${(0.5 + o.depth * 1.25).toFixed(2)}em"` : "";
+  const tw = o.key ? `<span class="tl-tw">${o.open ? "▾" : "▸"}</span>` : (o.tree ? `<span class="tl-tw"></span>` : "");
+  const act = o.key ? ` data-key="${escHtml(o.key)}" onclick="event.stopPropagation();toggleMonthlyTimelineSection(this.dataset.key)"` : "";
+  const span = (o.rowspan ? ` rowspan="${o.rowspan}"` : "") + (o.colspan ? ` colspan="${o.colspan}"` : "");
+  const cnt = o.count ? `<span class="tl-cnt">${o.count}行</span>` : "";
+  return `<td class="tl-name${o.cls || ""}${o.key ? " tl-tog" : ""}"${span}${pad}${act} title="${escHtml(o.title || "")}">${tw}${escHtml(o.text)}${cnt}</td>`;
 }
 
 function monthlyTimelineRowName(rec, gated){
@@ -1002,14 +1086,30 @@ function monthlyTimelineReveal(id){
   if(!id || id === monthlyTlRevealed) return false;
   monthlyTlRevealed = id;
   const layout = monthlyTableLayout(monthlyRowOrder(monthlyYearTables), monthlyYearTables);
-  const {sections} = monthlyTimelineSections(layout, monthlyYearTables);
+  const {main, sections} = monthlyTimelineSections(layout, monthlyYearTables);
+  const hit = r => r.element === id || r.yoy === id;
+  let changed = false;
+  const open = key => {
+    if(monthlyTlOpen.has(key)) return;
+    monthlyTlOpen.add(key);
+    changed = true;
+  };
+  const openAncestors = rows => {
+    const r = rows.find(hit);
+    if(!r) return false;
+    const parent = monthlyTlParents(rows);
+    for(let p = parent.get(r); p; p = parent.get(p)) open("node:" + p.element);
+    return true;
+  };
+  if(openAncestors(main)) return changed;
   for(const sec of sections){
-    if(sec.rows.some(r => r.element === id || r.yoy === id) && !monthlyTlOpen.has(sec.key)){
-      monthlyTlOpen.add(sec.key);
-      return true;
+    if(sec.total && hit(sec.total)) return changed;
+    if(openAncestors(sec.rows)){
+      open(sec.key);
+      return changed;
     }
   }
-  return false;
+  return changed;
 }
 
 function toggleMonthlyTimelineSection(key){
@@ -1071,7 +1171,7 @@ function renderMonthlyTimeline(tables, layout, opts){
     const yb = c === cols[0] || c.m === 1 ? ` class="tl-yb"` : "";
     head2 += `<th${yb}>${c.m}月</th>`;
   }
-  const rowHtml = rec => {
+  const cellsFor = rec => {
     let cells = "";
     for(const c of cols){
       const {txt, st} = monthlyTlCell(byYear.get(c.y), rec, c.m);
@@ -1079,16 +1179,23 @@ function renderMonthlyTimeline(tables, layout, opts){
       const cls = c === cols[0] || c.m === 1 ? "num tl-yb" : "num";
       cells += `<td class="${cls}"${st ? ` style="${st}"` : ""}>${txt}</td>`;
     }
-    const bd = rec.breakdown ? " tl-bd" : "";
-    return `<tr${monthlyTlRowAttrs(rec)}><td class="tl-name${bd}" title="${escHtml(rec.element)}">${escHtml(monthlyTimelineRowName(rec, layout.gated))}</td>${cells}</tr>`;
+    return cells;
   };
-  let body = main.map(rowHtml).join("");
+  const scopeHtml = (rows, under) => {
+    const parent = monthlyTlParents(rows);
+    const tree = parent.size > 0 || !!under;
+    return monthlyTlVisible(rows, parent, under).map(e =>
+      `<tr${monthlyTlRowAttrs(e.rec)}>${monthlyTlNameCell({text: monthlyTlLabel(e, layout.gated), title: e.rec.element, depth: e.depth, key: e.key, open: e.open, tree})}${cellsFor(e.rec)}</tr>`
+    ).join("");
+  };
+  let body = scopeHtml(main);
   for(const sec of sections){
     const open = monthlyTlOpen.has(sec.key);
-    body += `<tr class="tl-sec" data-key="${escHtml(sec.key)}" onclick="toggleMonthlyTimelineSection(this.dataset.key)">`
-      + `<td class="tl-name">${open ? "▾" : "▸"} ${escHtml(sec.label)}<span class="tl-cnt">${sec.rows.length}行</span></td>`
-      + `<td class="tl-sec-fill" colspan="${cols.length}"></td></tr>`;
-    if(open) body += sec.rows.map(rowHtml).join("");
+    const canOpen = sec.rows.length > 0;
+    const name = monthlyTlNameCell({text: sec.label, title: sec.total ? sec.total.element : sec.label, key: canOpen ? sec.key : "", open, tree: true, count: canOpen ? sec.rows.length : 0});
+    if(sec.total) body += `<tr class="tl-sec tl-sec-total"${monthlyTlRowAttrs(sec.total)}>${name}${cellsFor(sec.total)}</tr>`;
+    else body += `<tr class="tl-sec">${name}<td class="tl-sec-fill" colspan="${cols.length}"></td></tr>`;
+    if(open) body += scopeHtml(sec.rows, !!sec.total);
   }
   wrap.style.setProperty("--monthly-m-w", `calc(${Math.max(maxNumLen, 3)}ch + 14px)`);
   wrap.innerHTML = `<table class="monthly-tl"><thead><tr>${head1}</tr><tr>${head2}</tr></thead><tbody>${body}</tbody></table>`;
@@ -1122,12 +1229,11 @@ function renderMonthlyMetricYear(tables, layout, opts){
   let maxNumLen = 0;
   let head = `<th class="tl-corner"></th><th class="tl-yr"></th>`;
   for(let m = 1; m <= 12; m++) head += `<th>${m}月</th>`;
-  const groupHtml = rec => {
+  const groupHtml = (rec, nameOpts, trCls) => {
     const ys = years.filter(y => {
       const src = byYear.get(y)[monthlyTlShown(rec)];
       return src && Object.keys(src.values || {}).length;
     });
-    const bd = rec.breakdown ? " tl-bd" : "";
     const ds = monthlyTlRowAttrs(rec);
     return ys.map((y, i) => {
       let cells = "";
@@ -1136,20 +1242,26 @@ function renderMonthlyMetricYear(tables, layout, opts){
         if(txt) maxNumLen = Math.max(maxNumLen, txt.length);
         cells += `<td class="num"${st ? ` style="${st}"` : ""}>${txt}</td>`;
       }
-      const name = i === 0
-        ? `<td class="tl-name${bd}" rowspan="${ys.length}" title="${escHtml(rec.element)}">${escHtml(monthlyTimelineRowName(rec, layout.gated))}</td>`
-        : "";
+      const name = i === 0 ? monthlyTlNameCell({...nameOpts, rowspan: ys.length}) : "";
       const yr = `<td class="tl-yr"><span class="tl-sw" style="background:${monthlyYearColor(y)}"></span>${y}</td>`;
-      return `<tr class="${i === 0 ? "tl-grp" : ""}"${ds}>${name}${yr}${cells}</tr>`;
+      return `<tr class="${i === 0 ? "tl-grp" : ""}${trCls || ""}"${ds}>${name}${yr}${cells}</tr>`;
     }).join("");
   };
-  let body = main.map(groupHtml).join("");
+  const scopeHtml = (rows, under) => {
+    const parent = monthlyTlParents(rows);
+    const tree = parent.size > 0 || !!under;
+    return monthlyTlVisible(rows, parent, under).map(e =>
+      groupHtml(e.rec, {text: monthlyTlLabel(e, layout.gated), title: e.rec.element, depth: e.depth, key: e.key, open: e.open, tree})
+    ).join("");
+  };
+  let body = scopeHtml(main);
   for(const sec of sections){
     const open = monthlyTlOpen.has(sec.key);
-    body += `<tr class="tl-sec" data-key="${escHtml(sec.key)}" onclick="toggleMonthlyTimelineSection(this.dataset.key)">`
-      + `<td class="tl-name" colspan="2">${open ? "▾" : "▸"} ${escHtml(sec.label)}<span class="tl-cnt">${sec.rows.length}行</span></td>`
-      + `<td class="tl-sec-fill" colspan="12"></td></tr>`;
-    if(open) body += sec.rows.map(groupHtml).join("");
+    const canOpen = sec.rows.length > 0;
+    const nameOpts = {text: sec.label, title: sec.total ? sec.total.element : sec.label, key: canOpen ? sec.key : "", open, tree: true, count: canOpen ? sec.rows.length : 0};
+    const head = sec.total ? groupHtml(sec.total, nameOpts) : "";
+    body += head || `<tr class="tl-sec">${monthlyTlNameCell({...nameOpts, colspan: 2})}<td class="tl-sec-fill" colspan="12"></td></tr>`;
+    if(open) body += scopeHtml(sec.rows, !!sec.total);
   }
   wrap.style.setProperty("--monthly-m-w", `calc(${Math.max(maxNumLen, 3)}ch + 14px)`);
   wrap.innerHTML = `<table class="monthly-tl monthly-my"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;

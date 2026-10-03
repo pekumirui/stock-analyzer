@@ -1,6 +1,7 @@
 """月次データ登録 API (/api/v1/tables) の仕様テスト。手元の stock.db は触らない。"""
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
@@ -1895,6 +1896,17 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("#monthly-value-tabs must call setMonthlyValueMode")
     if re.search(r'class="[^"]*\bftab\b', vt.group(0)):
         _fail("#monthly-value-tabs must not use .ftab (earnings.js overwrites every .ftab onclick)")
+    if "breakdown_parent" not in html or "function monthlyTlParents" not in html:
+        _fail("SPA must build the breakdown tree from monthly_row_order.json breakdown_parent")
+    row_order = json.loads((ROOT / "config" / "monthly_row_order.json").read_text(encoding="utf-8"))
+    for code, cfg in row_order.items():
+        bp = cfg.get("breakdown_parent") if isinstance(cfg, dict) else None
+        if bp is None:
+            continue
+        if not isinstance(bp, dict) or not all(isinstance(k, str) and isinstance(v, str) and k and v for k, v in bp.items()):
+            _fail(f"monthly_row_order.json {code} breakdown_parent must map breakdown name -> parent breakdown name")
+        if any(k == v for k, v in bp.items()):
+            _fail(f"monthly_row_order.json {code} breakdown_parent must not point a breakdown at itself")
     if "<optgroup" not in html:
         _fail("#monthly-series must support optgroup for gated brands")
     if "monthly-gated" not in html:
