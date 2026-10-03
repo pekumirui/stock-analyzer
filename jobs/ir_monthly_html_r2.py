@@ -15,6 +15,7 @@ parse: true は jobs/html_issuers。parse: false は HTML だけ残す。
 原本は .html、派生が .ingest.json。自動 POST しない。パーサーを直したら --reparse（過去 HTML）。
 同じ HTML の再取得でも、現行パーサの JSON が保存済みと違えば sidecar を書き直す。
 ネットワークと app/ はテストから分離する。
+持続 429 は skip（failed にしない）。他銘柄が完了していれば exit=0。再試行は次 cron か --only CODE。
 """
 from __future__ import annotations
 
@@ -27,6 +28,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.parse import urljoin, urlparse
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -403,6 +405,13 @@ def fetch_issuer(
     try:
         data, eir_as_of, url = fetch_html_bytes(iss)
     except Exception as e:
+        if isinstance(e, HTTPError) and e.code == 429:
+            # 再試行済みの持続 429。ジョブ全体を落とさず次 cron / --only に回す。
+            print(
+                f"skip 429 issuer {iss.code} fetch: {e}; retry --only {iss.code}",
+                flush=True,
+            )
+            return 1, 0, 1, 0
         print(f"fail issuer {iss.code} fetch: {e}", flush=True)
         return 1, 0, 0, 1
     digest = sha256_bytes(data)

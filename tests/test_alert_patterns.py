@@ -88,6 +88,8 @@ NOT_PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "2026-10-02 10:20:01 missing interpreter /home/stock/stock-analyzer/.venv/bin/python3 /home/stock/stock-analyzer/.venv/bin/python"),
     ("batch", "fail POST 7203 status=500 boom"),
     ("batch", "fail issuer 1878 fetch: HTTP Error 403: Forbidden"),
+    ("batch", "skip 429 issuer 8163 fetch: HTTP Error 429: Too Many Requests; retry --only 8163"),
+    ("batch", "ir_monthly_html_r2 done listed=55 saved=11 skipped=44 failed=0"),
     ("batch", "Traceback (most recent call last):"),
     ("app", 'INFO:     127.0.0.1:43721 - "GET / HTTP/1.1" 200 OK'),
     ("app", 'INFO:     127.0.0.1:43721 - "GET /api/v1/tables/7203/2024 HTTP/1.1" 404 Not Found'),

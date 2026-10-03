@@ -1884,7 +1884,7 @@ def test_fetch_issuer_retries_429_then_saves(tmp: Path) -> None:
         _fail(f"saved html {htmls}")
 
 
-def test_fetch_issuer_exhausted_429_stays_failed(tmp: Path) -> None:
+def test_fetch_issuer_exhausted_429_skips(tmp: Path) -> None:
     from unittest.mock import patch
 
     import _r2common
@@ -1914,14 +1914,176 @@ def test_fetch_issuer_exhausted_429_stays_failed(tmp: Path) -> None:
     finally:
         mod.SLEEP_SEC = orig_sleep
     out = buf.getvalue()
-    if (n, s, k, f) != (1, 0, 0, 1):
+    if (n, s, k, f) != (1, 0, 1, 0):
         _fail(f"exhausted 429 {n, s, k, f} {out}")
     if out.count("retry 429 ") != 5:
         _fail(out)
-    if "fail issuer 8163 fetch: HTTP Error 429: Too Many Requests" not in out:
+    if "skip 429 issuer 8163 fetch: HTTP Error 429: Too Many Requests; retry --only 8163" not in out:
+        _fail(out)
+    if "fail issuer 8163" in out:
         _fail(out)
     if list((tmp / "srs_fail").rglob("*.html")):
         _fail("exhausted 429 must not write html")
+
+
+def _write_html_cfg(path: Path, rows: list[dict]) -> Path:
+    path.write_text(json.dumps({"html": rows}, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def test_run_sustained_429_partial_success_exits_0(tmp: Path) -> None:
+    from urllib.error import HTTPError
+
+    import ir_monthly_html_r2 as mod
+
+    cfg = _write_html_cfg(
+        tmp / "ir.json",
+        [
+            {
+                "code": "8163",
+                "name": "ＳＲＳホールディングス",
+                "index_url": "https://srsholdings.com/pages/ir-library-monthly/",
+                "title": "月次",
+                "parse": False,
+            },
+            {
+                "code": "2664",
+                "name": "カワチ薬品",
+                "index_url": "https://example.test/cawachi/",
+                "title": "月次",
+                "parse": False,
+            },
+        ],
+    )
+    hits: list[str] = []
+
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+        hits.append(url)
+        if "srsholdings.com" in url:
+            raise HTTPError(url, 429, "Too Many Requests", hdrs=None, fp=None)
+        return b"<html>ok</html>"
+
+    orig = mod.http_get
+    orig_map = mod.load_stock_product_map
+    orig_sleep = mod.SLEEP_SEC
+    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.load_stock_product_map = lambda **_k: {  # type: ignore[assignment]
+        "81630": ("011", "ＳＲＳホールディングス"),
+        "26640": ("011", "カワチ薬品"),
+    }
+    mod.SLEEP_SEC = 0
+    dest = tmp / "out"
+    buf = io.StringIO()
+    try:
+        with redirect_stdout(buf):
+            rc = run(dest, cfg, today=date(2026, 10, 3))
+    finally:
+        mod.http_get = orig
+        mod.load_stock_product_map = orig_map
+        mod.SLEEP_SEC = orig_sleep
+    out = buf.getvalue()
+    if rc != 0:
+        _fail(f"partial 429 rc {rc} {out}")
+    if "skip 429 issuer 8163" not in out or "retry --only 8163" not in out:
+        _fail(out)
+    if "fail issuer 8163" in out or "failed=1" in out:
+        _fail(out)
+    if "listed=2 saved=1 skipped=1 failed=0" not in out:
+        _fail(out)
+    if list((dest / "8163").glob("*.html")):
+        _fail("429 issuer must not write html")
+    saved = list((dest / "2664").glob("*.html"))
+    if len(saved) != 1 or saved[0].read_bytes() != b"<html>ok</html>":
+        _fail(f"other issuer html {saved}")
+    if hits != [
+        "https://srsholdings.com/pages/ir-library-monthly/",
+        "https://example.test/cawachi/",
+    ]:
+        _fail(hits)
+
+    buf = io.StringIO()
+    orig = mod.http_get
+    orig_map = mod.load_stock_product_map
+    orig_sleep = mod.SLEEP_SEC
+    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.load_stock_product_map = lambda **_k: {"81630": ("011", "ＳＲＳホールディングス")}  # type: ignore[assignment]
+    mod.SLEEP_SEC = 0
+    hits.clear()
+    try:
+        with redirect_stdout(buf):
+            rc = run(tmp / "only", cfg, only=["8163"], today=date(2026, 10, 3))
+    finally:
+        mod.http_get = orig
+        mod.load_stock_product_map = orig_map
+        mod.SLEEP_SEC = orig_sleep
+    only_out = buf.getvalue()
+    if rc != 0:
+        _fail(f"--only 429 rc {rc} {only_out}")
+    if "listed=1 saved=0 skipped=1 failed=0" not in only_out:
+        _fail(only_out)
+    if hits != ["https://srsholdings.com/pages/ir-library-monthly/"]:
+        _fail(hits)
+
+
+def test_run_partial_403_still_exits_1(tmp: Path) -> None:
+    from urllib.error import HTTPError
+
+    import ir_monthly_html_r2 as mod
+
+    cfg = _write_html_cfg(
+        tmp / "ir.json",
+        [
+            {
+                "code": "8163",
+                "name": "ＳＲＳホールディングス",
+                "index_url": "https://srsholdings.com/pages/ir-library-monthly/",
+                "title": "月次",
+                "parse": False,
+            },
+            {
+                "code": "2664",
+                "name": "カワチ薬品",
+                "index_url": "https://example.test/cawachi/",
+                "title": "月次",
+                "parse": False,
+            },
+        ],
+    )
+
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+        if "srsholdings.com" in url:
+            raise HTTPError(url, 403, "Forbidden", hdrs=None, fp=None)
+        return b"<html>ok</html>"
+
+    orig = mod.http_get
+    orig_map = mod.load_stock_product_map
+    orig_sleep = mod.SLEEP_SEC
+    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.load_stock_product_map = lambda **_k: {  # type: ignore[assignment]
+        "81630": ("011", "ＳＲＳホールディングス"),
+        "26640": ("011", "カワチ薬品"),
+    }
+    mod.SLEEP_SEC = 0
+    dest = tmp / "out403"
+    buf = io.StringIO()
+    try:
+        with redirect_stdout(buf):
+            rc = run(dest, cfg, today=date(2026, 10, 3))
+    finally:
+        mod.http_get = orig
+        mod.load_stock_product_map = orig_map
+        mod.SLEEP_SEC = orig_sleep
+    out = buf.getvalue()
+    if rc != 1:
+        _fail(f"partial 403 rc {rc} {out}")
+    if "fail issuer 8163 fetch: HTTP Error 403: Forbidden" not in out:
+        _fail(out)
+    if "skip 429" in out:
+        _fail(out)
+    if "listed=2 saved=1 skipped=0 failed=1" not in out:
+        _fail(out)
+    if list((dest / "2664").glob("*.html")) == []:
+        _fail("other issuer must still save on 403")
 
 
 def test_run_only_dry_run(tmp: Path) -> None:
@@ -3986,7 +4148,9 @@ def main() -> None:
         test_eir_fetch_saves_item_html(p)
         test_unknown_stock_skip(p)
         test_fetch_issuer_retries_429_then_saves(p)
-        test_fetch_issuer_exhausted_429_stays_failed(p)
+        test_fetch_issuer_exhausted_429_skips(p)
+        test_run_sustained_429_partial_success_exits_0(p)
+        test_run_partial_403_still_exits_1(p)
         test_run_only_dry_run(p)
         test_no_as_of_does_not_write_json(p)
         test_parse_false_saves_html_without_json(p)
