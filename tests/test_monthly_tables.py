@@ -1890,6 +1890,11 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("TEMP layout mode must use a named sessionStorage key")
     if "forceFlat" not in html:
         _fail("monthlyTableLayout must accept forceFlat / flat mode for TEMP debug")
+    vt = re.search(r'<div id="monthly-value-tabs".*?</div>', html, re.S)
+    if not vt or 'onclick="setMonthlyValueMode(' not in vt.group(0):
+        _fail("#monthly-value-tabs must call setMonthlyValueMode")
+    if re.search(r'class="[^"]*\bftab\b', vt.group(0)):
+        _fail("#monthly-value-tabs must not use .ftab (earnings.js overwrites every .ftab onclick)")
     if "<optgroup" not in html:
         _fail("#monthly-series must support optgroup for gated brands")
     if "monthly-gated" not in html:
