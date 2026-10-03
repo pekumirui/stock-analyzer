@@ -19,11 +19,13 @@ let monthlyGateCodes = null;
 let monthlyGateIndexFp = "";
 let monthlyGateIndexPromise = null;
 let monthlyIrCodes = null;
-// 試作: 年を横に並べた 1 枚表。個人 /app だけ。
+// 試作: 年を横に並べた 1 枚表（timeline）と、指標ごとに暦年を縦に並べる表（metric）。個人 /app だけ。
 const MONTHLY_VIEW_MODE_KEY = "monthly.viewMode.proto";
+const MONTHLY_VIEW_MODES = ["timeline", "metric", "years"];
 let monthlyViewMode = (() => {
   try{
-    return localStorage.getItem(MONTHLY_VIEW_MODE_KEY) === "years" ? "years" : "timeline";
+    const v = localStorage.getItem(MONTHLY_VIEW_MODE_KEY);
+    return MONTHLY_VIEW_MODES.includes(v) ? v : "timeline";
   }catch(_){
     return "timeline";
   }
@@ -828,7 +830,7 @@ function setMonthlyLayoutMode(mode){
 }
 
 function monthlyTimelineOn(){
-  return !monthlyPublic() && monthlyViewMode === "timeline";
+  return !monthlyPublic() && monthlyViewMode !== "years";
 }
 
 function syncMonthlyViewDebugUi(){
@@ -840,7 +842,7 @@ function syncMonthlyViewDebugUi(){
 }
 
 function setMonthlyViewMode(mode){
-  monthlyViewMode = mode === "years" ? "years" : "timeline";
+  monthlyViewMode = MONTHLY_VIEW_MODES.includes(mode) ? mode : "timeline";
   try{ localStorage.setItem(MONTHLY_VIEW_MODE_KEY, monthlyViewMode); }catch(_){}
   syncMonthlyViewDebugUi();
   if(monthlyYearTables.length) renderMonthlyYearTables(monthlyYearTables);
@@ -928,13 +930,7 @@ function monthlyYoyHeat(v){
 
 function renderMonthlyTimeline(tables, layout, opts){
   const wrap = $("#monthly-table-wrap");
-  const byYear = new Map();
-  for(const d of tables){
-    if(!d) continue;
-    const byName = {};
-    for(const src of d.elements || []) byName[src.label.display] = src;
-    byYear.set(Number(d.year), byName);
-  }
+  const byYear = monthlyTablesByYear(tables);
   const years = [...byYear.keys()].sort((a, b) => a - b);
   const {main, sections} = monthlyTimelineSections(layout, monthlyTimelineHasValues(tables));
   const all = [...main, ...sections.flatMap(s => s.rows)];
@@ -1008,6 +1004,69 @@ function renderMonthlyTimeline(tables, layout, opts){
   }
 }
 
+function monthlyTablesByYear(tables){
+  const byYear = new Map();
+  for(const d of tables){
+    if(!d) continue;
+    const byName = {};
+    for(const src of d.elements || []) byName[src.label.display] = src;
+    byYear.set(Number(d.year), byName);
+  }
+  return byYear;
+}
+
+// 列は 1〜12 月。指標ごとに値のある暦年を新しい順に並べ、指標名は先頭行だけ（rowspan）。
+function renderMonthlyMetricYear(tables, layout, opts){
+  const wrap = $("#monthly-table-wrap");
+  const byYear = monthlyTablesByYear(tables);
+  const years = [...byYear.keys()].sort((a, b) => b - a);
+  const {main, sections} = monthlyTimelineSections(layout, monthlyTimelineHasValues(tables));
+  if(!main.length && !sections.length){
+    wrap.innerHTML = `<div class="sub">データなし</div>`;
+    return;
+  }
+  let maxNumLen = 0;
+  let head = `<th class="tl-corner"></th><th class="tl-yr"></th>`;
+  for(let m = 1; m <= 12; m++) head += `<th>${m}月</th>`;
+  const groupHtml = rec => {
+    const ys = years.filter(y => {
+      const src = byYear.get(y)[rec.element];
+      return src && Object.keys(src.values || {}).length;
+    });
+    const bd = rec.breakdown ? " tl-bd" : "";
+    const ds = ` data-series="${escHtml(rec.element)}" onclick="setMonthlySeries(this.dataset.series)"`;
+    return ys.map((y, i) => {
+      const src = byYear.get(y)[rec.element];
+      const unit = src.unit || rec.unit || "number";
+      const yoy = unit === "yoy_index" || unit === "yoy_pct";
+      let cells = "";
+      for(let m = 1; m <= 12; m++){
+        const v = (src.values || {})[String(m)];
+        const txt = (v == null || v === "") ? "" : fmtMonthlyCell(v, unit, rec.element);
+        if(txt) maxNumLen = Math.max(maxNumLen, txt.length);
+        const st = yoy ? monthlyYoyHeat(v) : "";
+        cells += `<td class="num"${st ? ` style="${st}"` : ""}>${txt}</td>`;
+      }
+      const name = i === 0
+        ? `<td class="tl-name${bd}" rowspan="${ys.length}" title="${escHtml(rec.element)}">${escHtml(monthlyTimelineRowName(rec, layout.gated))}</td>`
+        : "";
+      const yr = `<td class="tl-yr"><span class="tl-sw" style="background:${monthlyYearColor(y)}"></span>${y}</td>`;
+      return `<tr class="${i === 0 ? "tl-grp" : ""}"${ds}>${name}${yr}${cells}</tr>`;
+    }).join("");
+  };
+  let body = main.map(groupHtml).join("");
+  for(const sec of sections){
+    const open = monthlyTlOpen.has(sec.key);
+    body += `<tr class="tl-sec" data-key="${escHtml(sec.key)}" onclick="toggleMonthlyTimelineSection(this.dataset.key)">`
+      + `<td class="tl-name" colspan="2">${open ? "▾" : "▸"} ${escHtml(sec.label)}<span class="tl-cnt">${sec.rows.length}行</span></td>`
+      + `<td class="tl-sec-fill" colspan="12"></td></tr>`;
+    if(open) body += sec.rows.map(groupHtml).join("");
+  }
+  wrap.style.setProperty("--monthly-m-w", `calc(${Math.max(maxNumLen, 3)}ch + 14px)`);
+  wrap.innerHTML = `<table class="monthly-tl monthly-my"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  if(!(opts && opts.keepScroll)) wrap.scrollLeft = 0;
+}
+
 function renderMonthlyYearTables(tables, opts){
   const wrap = $("#monthly-table-wrap");
   if(!wrap) return;
@@ -1019,7 +1078,8 @@ function renderMonthlyYearTables(tables, opts){
   renderMonthlySeriesSelect();
   if(monthlyTimelineOn()){
     monthlyTimelineReveal(monthlySeries);
-    renderMonthlyTimeline(tables, layout, opts);
+    if(monthlyViewMode === "metric") renderMonthlyMetricYear(tables, layout, opts);
+    else renderMonthlyTimeline(tables, layout, opts);
     drawMonthlyChart(tables, monthlySeries);
     markMonthlySeriesRows();
     return;
