@@ -303,6 +303,8 @@
   table.monthly-tl tr.tl-sec td { background:#f0f3f6; font-size:12px; padding:7px 10px; }
   table.monthly-tl tr.tl-sec:hover td { background:#e4e9ee; }
   table.monthly-tl .tl-cnt { margin-left:6px; font-weight:400; color:var(--sub); }
+  .monthly-value-tabs { display:inline-flex; margin:0 0 8px; }
+  .monthly-value-tabs[hidden] { display:none; }
   table.monthly-my { --tl-name-w:15em; }
   table.monthly-my td.tl-name { vertical-align:top; }
   table.monthly-my th.tl-yr { z-index:3; background:#eceff2; }
