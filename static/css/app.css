@@ -343,3 +343,57 @@
       position:static; left:auto; right:auto;
     }
   }
+
+  /* ---- 月次: 試作（モダン化）。採用時は上の規則へ畳む ---- */
+  body.public-monthly header { border-top:none; border-bottom-color:#eef0f3; padding:14px 16px; }
+  body.public-monthly header a.brand { letter-spacing:.02em; }
+  #tab-monthly h1 { font-size:20px !important; font-weight:700; letter-spacing:.01em; }
+  #tab-monthly input#monthly-sym { background:#f3f5f7; border:1px solid transparent; border-radius:10px; padding:8px 12px; width:260px !important; }
+  #tab-monthly input#monthly-sym:focus { outline:none; background:#fff; border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,119,182,.15); }
+  #monthly-groups { gap:6px; margin:4px 0 16px; }
+  .mchip { border:1px solid transparent; background:#f3f5f7; color:#4b5563; padding:5px 12px; font-size:13px; transition:background .12s,color .12s; }
+  .mchip:hover { background:#e9edf1; color:var(--text); }
+  .mchip.on { background:#1f2937; border-color:#1f2937; color:#fff; }
+
+  /* 表: 縦罫線をやめ、横の細線だけ。ヘッダは塗らず小さい灰色 */
+  #monthly-tbl, #monthly-tbl th, #monthly-tbl td,
+  table.monthly, table.monthly th, table.monthly td { background:#fff; }
+  #monthly-tbl th, #monthly-tbl td,
+  table.monthly th, table.monthly td { border:none; border-bottom:1px solid #eef0f3; }
+  #monthly-tbl td { padding:9px 14px; }
+  #monthly-tbl th { padding:8px 14px; font-size:12px; color:#6b7280; border-bottom:1px solid #d9dee4; }
+  #monthly-tbl td.name { color:var(--text); font-weight:500; }
+  #monthly-tbl td.name a { color:inherit; text-decoration:none; }
+  #monthly-tbl tbody tr:hover td { background:#f7f9fb; }
+  #monthly-tbl tbody tr:hover td.name, #monthly-tbl tbody tr:hover td.name a { color:var(--accent); }
+  #monthly-tbl td.name:hover { text-decoration:none; }
+  .badge.new { background:#fff4d6; color:#9a6b00; font-weight:600; }
+
+  #monthly-back, a#monthly-back { background:transparent; color:var(--sub); border:none; padding:6px 8px 6px 0; font-size:13px; }
+  #monthly-back::before { content:'← '; }
+  #monthly-back:hover { color:var(--accent); }
+  body.public-monthly #monthly-detail .phead { flex-direction:column; align-items:flex-start; gap:2px; margin-bottom:14px; }
+  #monthly-series { appearance:none; -webkit-appearance:none; background:#f3f5f7 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2366707a' fill='none' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 12px center;
+                    border:1px solid transparent; border-radius:10px; padding:8px 34px 8px 12px; font-weight:600; margin-bottom:14px; }
+  #monthly-series:focus { outline:none; border-color:var(--accent); }
+  #monthly-chart .monthly-year-lab { font-size:13px; color:#374151; }
+  #monthly-chart .monthly-year-swatch { border-radius:2px; }
+
+  table.monthly thead th:not(:first-child) { background:#fff; color:#6b7280; font-weight:500; text-align:right; font-size:12px; border-bottom:1px solid #d9dee4; }
+  table.monthly thead th.l, table.monthly thead th:first-child, table.monthly thead th.year {
+    background:#fff; color:var(--text); font-size:16px; font-weight:700; border-bottom:1px solid #d9dee4; }
+  table.monthly td:first-child, table.monthly.monthly-gated td.monthly-stub { font-weight:500; color:#374151; }
+  table.monthly td.num { font-weight:400; }
+  table.monthly tbody tr:hover td, table.monthly tbody tr:hover td:first-child, table.monthly tbody tr:hover td.monthly-stub { background:#f7f9fb; }
+  table.monthly tbody tr[data-series].on td, table.monthly tbody tr[data-series].on td:first-child,
+  table.monthly tbody tr[data-series].on td.monthly-stub { background:#eef6fc; }
+  table.monthly tbody tr[data-series].on td:first-child { box-shadow:inset 3px 0 0 var(--accent); font-weight:700; color:var(--text); }
+  table.monthly tbody tr.monthly-sec td.monthly-sec-label,
+  table.monthly tbody tr.monthly-sec:hover td.monthly-sec-label { background:#f3f5f7; color:#111827; }
+  table.monthly tbody tr.monthly-sec td.monthly-sec-month,
+  table.monthly tbody tr.monthly-sec:hover td.monthly-sec-month { background:#fff; color:#9ca3af; font-weight:500; }
+  #monthly-table-wrap { gap:2.25rem; }
+  @media (max-width:640px){
+    table.monthly thead th:first-child, table.monthly thead th.year { background:#fff; color:var(--text); }
+    table.monthly td:first-child { background:#fff; }
+  }

@@ -1,7 +1,7 @@
 let monthlyRows=[], monthlyGroup="", selMonthlyCode=null;
 let monthlySearchApplied="";
 let monthlySeries="", monthlyYearTables=[];
-const MONTHLY_YEAR_COLORS = ["#0077b6","#2e8b57","#b8860b","#8e4ec6"];
+const MONTHLY_YEAR_COLORS = ["#2a78d6","#1baf7a","#eb6834","#4a3aa7"];
 let MONTHLY_ROW_ORDER = {};
 let _monthlyRowOrderReady = null;
 const MONTHLY_SEGMENT_TAIL_BASE = 10000;
@@ -1010,7 +1010,7 @@ function drawMonthlyChart(tables, seriesId){
   const plotW=W-L-R, plotH=H-T-B;
   const yx = v => T + (1 - (v-chart.ymin)/((chart.ymax-chart.ymin)||1)) * plotH;
   const slot = plotW/12;
-  const barW = Math.max(3, slot*0.5);
+  const barW = Math.max(3, Math.min(28, slot*0.42));
   const fsBar = slot < 32 ? 9 : 11;
   const monthY = T + plotH + (phone ? 16 : 14);
   const monthLabel = slot < 28 ? (m => String(m)) : (m => `${m}月`);
@@ -1020,25 +1020,25 @@ function drawMonthlyChart(tables, seriesId){
     let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escHtml(chart.spec.label)}">`;
     for(const tick of monthlyYTicks(chart.ymin, chart.ymax, chart.spec.yoy)){
       const y = yx(tick);
-      svg += `<line x1="${L}" x2="${W-R}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e8ecf0"/>`;
-      svg += `<text x="${L-6}" y="${y.toFixed(1)}" font-size="${fsAxis}" text-anchor="end" dominant-baseline="middle" fill="#66707a">${fmtMonthlyTick(tick)}</text>`;
+      svg += `<line x1="${L}" x2="${W-R}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#f0f2f5"/>`;
+      svg += `<text x="${L-6}" y="${y.toFixed(1)}" font-size="${fsAxis}" text-anchor="end" dominant-baseline="middle" fill="#9ca3af">${fmtMonthlyTick(tick)}</text>`;
     }
     if(chart.spec.yoy){
       const y100 = yx(100);
-      svg += `<line x1="${L}" x2="${W-R}" y1="${y100}" y2="${y100}" stroke="#e6a100" stroke-dasharray="4 3"/>`;
+      svg += `<line x1="${L}" x2="${W-R}" y1="${y100}" y2="${y100}" stroke="#9ca3af" stroke-dasharray="3 3"/>`;
     }
     p.values.forEach((v, mi) => {
       if(v==null) return;
       const x = L + slot*mi + (slot-barW)/2;
       const y = yx(Math.max(v, chart.ymin));
       const hgt = Math.max(1, yx(chart.ymin) - y);
-      svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${hgt.toFixed(1)}" fill="${p.color}"/>`;
+      svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${hgt.toFixed(1)}" rx="${Math.min(4, barW/4).toFixed(1)}" fill="${p.color}"/>`;
       const lx = x + barW/2;
-      svg += `<text class="monthly-bar-v" x="${lx.toFixed(1)}" y="${(y-3).toFixed(1)}" font-size="${fsBar}" text-anchor="middle" fill="#333">${fmtMonthlyBarV(v)}</text>`;
+      svg += `<text class="monthly-bar-v" x="${lx.toFixed(1)}" y="${(y-3).toFixed(1)}" font-size="${fsBar}" text-anchor="middle" fill="#4b5563">${fmtMonthlyBarV(v)}</text>`;
     });
     for(let m=1;m<=12;m++){
       const x = L + slot*(m-1) + slot/2;
-      svg += `<text x="${x.toFixed(1)}" y="${monthY}" font-size="${fsAxis}" text-anchor="middle" fill="#66707a">${monthLabel(m)}</text>`;
+      svg += `<text x="${x.toFixed(1)}" y="${monthY}" font-size="${fsAxis}" text-anchor="middle" fill="#9ca3af">${monthLabel(m)}</text>`;
     }
     svg += `</svg>`;
     html += `<div class="monthly-year-chart"><div class="monthly-year-lab"><span class="monthly-year-swatch" style="background:${p.color}"></span>${p.year}年</div>${svg}</div>`;
