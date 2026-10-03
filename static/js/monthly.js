@@ -19,9 +19,9 @@ let monthlyGateCodes = null;
 let monthlyGateIndexFp = "";
 let monthlyGateIndexPromise = null;
 let monthlyIrCodes = null;
-// 試作: 年を横に並べた 1 枚表（timeline）と、指標ごとに暦年を縦に並べる表（metric）。個人 /app だけ。
+// 試作: 年を横に並べた 1 枚表（timeline）。years は従来の年表。個人 /app だけ。
 const MONTHLY_VIEW_MODE_KEY = "monthly.viewMode.proto";
-const MONTHLY_VIEW_MODES = ["timeline", "metric", "years"];
+const MONTHLY_VIEW_MODES = ["timeline", "years"];
 let monthlyViewMode = (() => {
   try{
     const v = localStorage.getItem(MONTHLY_VIEW_MODE_KEY);
@@ -41,6 +41,11 @@ let monthlyValueMode = (() => {
   }
 })();
 let monthlyTlOpen = new Set();
+// セルのポップアップで同じ月を並べる最初の暦年（それより前は取込済みと未取込が混ざる）。
+const MONTHLY_POPUP_MIN_YEAR = 2024;
+let monthlyAllYears = [];
+let monthlyExtraTables = new Map();
+let monthlyTlRecs = new Map();
 let monthlyTlRevealed = "";
 let _monthlyIrCodesReady = null;
 
@@ -1186,14 +1191,15 @@ function renderMonthlyTimeline(tables, layout, opts){
       const {txt, len, st} = monthlyTlCell(byYear.get(c.y), rec, c.m);
       if(len) maxNumLen = Math.max(maxNumLen, len);
       const cls = c === cols[0] || c.m === 1 ? "num tl-yb" : "num";
-      cells += `<td class="${cls}"${st ? ` style="${st}"` : ""}>${txt}</td>`;
+      cells += `<td class="${cls}" data-y="${c.y}" data-m="${c.m}"${st ? ` style="${st}"` : ""}>${txt}</td>`;
     }
     return cells;
   };
+  monthlyTlRecs = new Map();
   const scopeHtml = (rows, under) => {
     const parent = monthlyTlParents(rows);
     const tree = parent.size > 0 || !!under;
-    return monthlyTlVisible(rows, parent, under).map(e =>
+    return monthlyTlVisible(rows, parent, under).map(e => monthlyTlRemember(e.rec, monthlyTlLabel(e, layout.gated)) +
       `<tr${monthlyTlRowAttrs(e.rec)}>${monthlyTlNameCell({text: monthlyTlLabel(e, layout.gated), title: e.rec.element, depth: e.depth, key: e.key, open: e.open, tree})}${cellsFor(e.rec)}</tr>`
     ).join("");
   };
@@ -1202,7 +1208,7 @@ function renderMonthlyTimeline(tables, layout, opts){
     const open = monthlyTlOpen.has(sec.key);
     const canOpen = sec.rows.length > 0;
     const name = monthlyTlNameCell({text: sec.label, title: sec.total ? sec.total.element : sec.label, key: canOpen ? sec.key : "", open, tree: true, count: canOpen ? sec.rows.length : 0});
-    if(sec.total) body += `<tr class="tl-sec tl-sec-total"${monthlyTlRowAttrs(sec.total)}>${name}${cellsFor(sec.total)}</tr>`;
+    if(sec.total) body += monthlyTlRemember(sec.total, sec.label) + `<tr class="tl-sec tl-sec-total"${monthlyTlRowAttrs(sec.total)}>${name}${cellsFor(sec.total)}</tr>`;
     else body += `<tr class="tl-sec">${name}<td class="tl-sec-fill" colspan="${cols.length}"></td></tr>`;
     if(open) body += scopeHtml(sec.rows, !!sec.total);
   }
@@ -1225,56 +1231,71 @@ function monthlyTablesByYear(tables){
   return byYear;
 }
 
-// 列は 1〜12 月。指標ごとに値のある暦年を新しい順に並べ、指標名は先頭行だけ（rowspan）。
-function renderMonthlyMetricYear(tables, layout, opts){
-  const wrap = $("#monthly-table-wrap");
-  const byYear = monthlyTablesByYear(tables);
-  const years = [...byYear.keys()].sort((a, b) => b - a);
-  const {main, sections} = monthlyTimelineSections(layout, tables);
-  if(!main.length && !sections.length){
-    wrap.innerHTML = `<div class="sub">データなし</div>`;
-    return;
-  }
-  let maxNumLen = 0;
-  let head = `<th class="tl-corner"></th><th class="tl-yr"></th>`;
-  for(let m = 1; m <= 12; m++) head += `<th>${m}月</th>`;
-  const groupHtml = (rec, nameOpts, trCls) => {
-    const ys = years.filter(y => {
-      const src = byYear.get(y)[monthlyTlShown(rec)];
-      return src && Object.keys(src.values || {}).length;
-    });
-    const ds = monthlyTlRowAttrs(rec);
-    return ys.map((y, i) => {
-      let cells = "";
-      for(let m = 1; m <= 12; m++){
-        const {txt, len, st} = monthlyTlCell(byYear.get(y), rec, m);
-        if(len) maxNumLen = Math.max(maxNumLen, len);
-        cells += `<td class="num"${st ? ` style="${st}"` : ""}>${txt}</td>`;
-      }
-      const name = i === 0 ? monthlyTlNameCell({...nameOpts, rowspan: ys.length}) : "";
-      const yr = `<td class="tl-yr"><span class="tl-sw" style="background:${monthlyYearColor(y)}"></span>${y}</td>`;
-      return `<tr class="${i === 0 ? "tl-grp" : ""}${trCls || ""}"${ds}>${name}${yr}${cells}</tr>`;
-    }).join("");
+function monthlyTlRemember(rec, name){
+  monthlyTlRecs.set(monthlyTlShown(rec), {rec, name});
+  return "";
+}
+
+function closeMonthlyPopup(){
+  const pop = $("#monthly-pop");
+  if(pop) pop.remove();
+}
+
+// 押したセルの月を、MONTHLY_POPUP_MIN_YEAR 以降の各暦年で並べる。読み込んでいない年はここで取りに行く。
+async function openMonthlyPopup(td){
+  const tr = td.closest("tr[data-series]");
+  const hit = tr && monthlyTlRecs.get(tr.dataset.series);
+  if(!hit) return;
+  const m = Number(td.dataset.m);
+  const code = selMonthlyCode;
+  const years = monthlyAllYears.filter(y => y >= MONTHLY_POPUP_MIN_YEAR).sort((a, b) => b - a);
+  const loaded = new Map(monthlyYearTables.map(d => [Number(d.year), d]));
+  const missing = years.filter(y => !loaded.has(y) && !monthlyExtraTables.has(y));
+  closeMonthlyPopup();
+  const pop = document.createElement("div");
+  pop.id = "monthly-pop";
+  pop.className = "monthly-pop";
+  document.body.appendChild(pop);
+  const draw = () => {
+    const {rec, name} = hit;
+    const paired = !!rec.yoy;
+    let rows = "";
+    for(const y of years){
+      const d = loaded.get(y) || monthlyExtraTables.get(y);
+      const byName = {};
+      for(const e of (d && d.elements) || []) byName[e.label.display] = e;
+      const val = id => {
+        const e = id && byName[id];
+        const v = e ? (e.values || {})[String(m)] : null;
+        return (v == null || v === "") ? null : {v, unit: e.unit};
+      };
+      const a = val(rec.element), b = paired ? val(rec.yoy) : null;
+      const yoyV = paired ? b : (a && monthlyIsYoyUnit(a.unit) ? a : null);
+      const heat = yoyV ? monthlyYoyHeat(yoyV.v) : "";
+      const fa = a ? fmtMonthlyCell(a.v, a.unit, rec.element) : (d ? "-" : "…");
+      const cells = paired
+        ? `<td class="num">${fa}</td><td class="num"${heat ? ` style="${heat}"` : ""}>${b ? fmtMonthlyCell(b.v, "yoy_index", rec.yoy) : (d ? "-" : "…")}</td>`
+        : `<td class="num"${a && heat ? ` style="${heat}"` : ""}>${fa}</td>`;
+      rows += `<tr><td class="yr"><span class="sw" style="background:${monthlyYearColor(y)}"></span>${y}</td>${cells}</tr>`;
+    }
+    const head = paired ? `<tr><th></th><th>金額</th><th>前年比</th></tr>` : "";
+    pop.innerHTML = `<div class="mpop-head"><span class="mpop-title">${escHtml(name)}</span><span class="mpop-m">${m}月</span>`
+      + `<button type="button" class="mpop-x" aria-label="閉じる" onclick="closeMonthlyPopup()">×</button></div>`
+      + `<table>${head}${rows}</table>`;
+    if(!monthlyIsPhone()){
+      const r = td.getBoundingClientRect();
+      const w = pop.offsetWidth, h = pop.offsetHeight;
+      const left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), innerWidth - w - 8);
+      const below = r.bottom + 6 + h < innerHeight;
+      pop.style.left = `${left + scrollX}px`;
+      pop.style.top = `${(below ? r.bottom + 6 : r.top - h - 6) + scrollY}px`;
+    }
   };
-  const scopeHtml = (rows, under) => {
-    const parent = monthlyTlParents(rows);
-    const tree = parent.size > 0 || !!under;
-    return monthlyTlVisible(rows, parent, under).map(e =>
-      groupHtml(e.rec, {text: monthlyTlLabel(e, layout.gated), title: e.rec.element, depth: e.depth, key: e.key, open: e.open, tree})
-    ).join("");
-  };
-  let body = scopeHtml(main);
-  for(const sec of sections){
-    const open = monthlyTlOpen.has(sec.key);
-    const canOpen = sec.rows.length > 0;
-    const nameOpts = {text: sec.label, title: sec.total ? sec.total.element : sec.label, key: canOpen ? sec.key : "", open, tree: true, count: canOpen ? sec.rows.length : 0};
-    const head = sec.total ? groupHtml(sec.total, nameOpts) : "";
-    body += head || `<tr class="tl-sec">${monthlyTlNameCell({...nameOpts, colspan: 2})}<td class="tl-sec-fill" colspan="12"></td></tr>`;
-    if(open) body += scopeHtml(sec.rows, !!sec.total);
-  }
-  wrap.style.setProperty("--monthly-m-w", `calc(${Math.max(maxNumLen, 3)}ch + 14px)`);
-  wrap.innerHTML = `<table class="monthly-tl monthly-my"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
-  if(!(opts && opts.keepScroll)) wrap.scrollLeft = 0;
+  draw();
+  if(!missing.length) return;
+  await Promise.all(missing.map(y => api(`/api/v1/tables/${code}/${y}`)
+    .then(d => { if(d) monthlyExtraTables.set(y, d); }).catch(() => {})));
+  if(selMonthlyCode === code && $("#monthly-pop") === pop) draw();
 }
 
 function renderMonthlyYearTables(tables, opts){
@@ -1290,8 +1311,7 @@ function renderMonthlyYearTables(tables, opts){
   if(monthlyTimelineOn()){
     monthlyTimelineReveal(monthlySeries);
     syncMonthlyValueUi(monthlyPairYoyRows(layout.rows).some(r => r.yoy));
-    if(monthlyViewMode === "metric") renderMonthlyMetricYear(tables, layout, opts);
-    else renderMonthlyTimeline(tables, layout, opts);
+    renderMonthlyTimeline(tables, layout, opts);
     drawMonthlyChart(tables, monthlySeries);
     markMonthlySeriesRows();
     return;
@@ -1373,6 +1393,9 @@ async function loadMonthlyTables(){
   const wrap = $("#monthly-table-wrap");
   await loadMonthlyRowOrderConfig();
   const info = await api(`/api/v1/tables/${selMonthlyCode}`).catch(()=>null);
+  monthlyAllYears = [...new Set(((info && info.years) || []).map(Number).filter(Number.isFinite))];
+  monthlyExtraTables = new Map();
+  closeMonthlyPopup();
   const years = monthlyDisplayYears((info && info.years) || []);
   if(!years.length){
     monthlyYearTables = [];
@@ -1579,5 +1602,17 @@ window.toggleMonthlyTimelineSection = toggleMonthlyTimelineSection;
 window.loadMonthlyList = loadMonthlyList;
 window.findMonthlyIssuer = findMonthlyIssuer;
 bindMonthlyIssuerSearch();
+window.closeMonthlyPopup = closeMonthlyPopup;
+if(typeof document.addEventListener === "function"){
+  document.addEventListener("click", ev => {
+    const td = ev.target.closest && ev.target.closest("#monthly-table-wrap table.monthly-tl td.num[data-m]");
+    if(td){
+      openMonthlyPopup(td);
+      return;
+    }
+    if(!(ev.target.closest && ev.target.closest("#monthly-pop"))) closeMonthlyPopup();
+  });
+  document.addEventListener("keydown", ev => { if(ev.key === "Escape") closeMonthlyPopup(); });
+}
 const monthlyBack = $("#monthly-back");
 if(monthlyBack) monthlyBack.addEventListener("click", backMonthly);
