@@ -317,7 +317,8 @@ def test_year_payload_unchanged() -> None:
     r = c.get("/api/v1/tables/72030/2026")
     _expect(r, 200, "GET year")
     body = r.json()
-    if set(body) != {"code", "year", "elements"}:
+    # tree / tree_metrics / tree_auto は全発行体に付く（config の木が無ければ自動の木。#434）
+    if set(body) != {"code", "year", "elements", "tree", "tree_metrics", "tree_auto"}:
         _fail(f"year keys: {body!r}")
 
 
@@ -466,13 +467,13 @@ def test_year_label_block() -> None:
     r = c.get(f"/api/v1/tables/{code}/{year}")
     _expect(r, 200, "GET leftover label")
     body = r.json()
-    if set(body) != {"code", "year", "elements"}:
+    if set(body) != {"code", "year", "elements", "tree", "tree_metrics", "tree_auto"}:
         _fail(f"year keys: {body!r}")
     els = body["elements"]
     if [e["element"] for e in els] != [leftover_name, mkg_name]:
         _fail(f"GET order must follow sort_order: {[e['element'] for e in els]!r}")
     for e in els:
-        if set(e) != {"element", "unit", "label", "values"}:
+        if set(e) != {"element", "unit", "label", "values", "tree"}:
             _fail(f"element keys: {e!r}")
     leftover = els[0]
     if leftover["element"] != leftover_name or leftover["unit"] != "yoy_index":

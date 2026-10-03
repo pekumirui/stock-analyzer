@@ -280,6 +280,60 @@ def test_monthly_tree_assign() -> None:
         _fail("issuer without tree must be untouched")
 
 
+def test_monthly_auto_tree() -> None:
+    """config に tree の無い発行体。ゲートした group は根の子、内訳はその節の子、指標は節 2 つ以上に出る葉。"""
+    from app.monthly_tree import auto_tree_payload, build_auto_tree
+
+    y26 = [
+        ("直営+FC 全店 売上高(前年比)", "yoy_index"),
+        ("全店 売上高 ドラッグ(前年比)", "yoy_index"),
+        ("焼肉 直営+FC 既存 売上高(前年比)", "yoy_index"),
+        ("焼肉 直営+FC 既存 店舗数", "number"),
+        ("焼肉 全店 売上高 調剤(前年比)", "yoy_index"),
+        ("ラーメン 直営+FC 既存 売上高(前年比)", "yoy_index"),
+        ("単独 全店 売上高(前年比)", "yoy_index"),
+        ("店舗数", "number"),
+    ]
+    # ラーメンは 2026 年に 1 行だけ。2025 年に 2 行あるのでゲートする（年ごとに数える）。単独は 1+1 にしない
+    y25 = [
+        ("ラーメン 直営+FC 既存 売上高(前年比)", "yoy_index"),
+        ("ラーメン 直営+FC 既存 店舗数", "number"),
+        ("単独 既存 売上高(前年比)", "yoy_index"),
+    ]
+    auto = build_auto_tree("99991", {2026: y26, 2025: y25})
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in auto.rows.items()}
+    want = {
+        "直営+FC 全店 売上高(前年比)": (["全体"], "直営+FC 全店 売上高(前年比)", None),
+        "全店 売上高 ドラッグ(前年比)": (["全体", "ドラッグ"], "全店 売上高(前年比)", "全店 売上高"),
+        "焼肉 直営+FC 既存 売上高(前年比)": (["全体", "焼肉"], "直営+FC 既存 売上高(前年比)", "直営+FC 既存 売上高"),
+        "焼肉 直営+FC 既存 店舗数": (["全体", "焼肉"], "直営+FC 既存 店舗数", "直営+FC 既存 店舗数"),
+        "焼肉 全店 売上高 調剤(前年比)": (["全体", "焼肉", "調剤"], "全店 売上高(前年比)", "全店 売上高"),
+        "ラーメン 直営+FC 既存 売上高(前年比)": (["全体", "ラーメン"], "直営+FC 既存 売上高(前年比)", "直営+FC 既存 売上高"),
+        "ラーメン 直営+FC 既存 店舗数": (["全体", "ラーメン"], "直営+FC 既存 店舗数", "直営+FC 既存 店舗数"),
+        "単独 全店 売上高(前年比)": (["全体"], "単独 全店 売上高(前年比)", None),
+        "単独 既存 売上高(前年比)": (["全体"], "単独 既存 売上高(前年比)", None),
+        "店舗数": (["全体"], "店舗数", None),
+    }
+    if got != want:
+        _fail(f"auto tree rows: {got!r}")
+    if auto.metrics != ["直営+FC 既存 売上高", "直営+FC 既存 店舗数", "全店 売上高"]:
+        _fail(f"auto tree metrics: {auto.metrics!r}")
+    t25 = auto_tree_payload(auto, [e for e, _ in y25])
+    root = t25["tree"][0]
+    if [n["name"] for n in root["children"]] != ["ドラッグ", "焼肉", "ラーメン"]:
+        _fail(f"auto tree shape must not change by year: {root!r}")
+    if root["children"][1]["children"][0]["name"] != "調剤" or root["children"][1]["elements"]:
+        _fail(f"焼肉 node in 2025: {root['children'][1]!r}")
+    if not t25["tree_auto"] or t25["tree_metrics"] != auto.metrics:
+        _fail(f"auto payload keys: {t25!r}")
+    orders = [auto.rows[e]["order"] for e in root["children"][2]["elements"]]
+    if orders != sorted(orders):
+        _fail("node elements follow order")
+    lone = build_auto_tree("99992", {2026: [("全店 売上高(前年比)", "yoy_index"), ("既存 売上高(前年比)", "yoy_index")]})
+    if lone.metrics or [n for n, _ in lone.nodes] != ["全体"] or lone.nodes[0][1]:
+        _fail("会社だけの発行体は根 1 つで指標なし（タブを出さない）")
+
+
 def _assert_jfront_tree_and_merge(c) -> None:
     """J.フロント: 表1と表2の同じ数字は 1 行に寄る。食い違いは 409。GET は木を返す。"""
     code = "30860"
@@ -327,8 +381,13 @@ def _assert_jfront_tree_and_merge(c) -> None:
     if dept["name"] != "百貨店事業" or dept["elements"][0] != "百貨店事業 総額 売上高(前年比)":
         _fail(f"百貨店事業 node: {dept!r}")
     r = c.get("/api/v1/tables/31800/2026")
-    if {"tree", "tree_metrics"} & set(r.json()) or any("tree" in e for e in r.json()["elements"]):
-        _fail("issuer without tree must not get tree keys")
+    d = r.json()
+    if not d.get("tree_auto") or [n["name"] for n in d.get("tree") or []] != ["全体"]:
+        _fail(f"issuer without config tree must get the auto tree: {d.get('tree')!r}")
+    if not all(e.get("tree", {}).get("path", [None])[0] == "全体" for e in d["elements"]):
+        _fail("auto tree must place every row")
+    if "tree_auto" in by["百貨店事業 総額 売上高(前年比)"] or "tree_auto" in d["elements"][0]:
+        _fail("tree_auto is a table key")
 
 
 def _assert_ingest_dry_run_only_months(c) -> None:
@@ -522,6 +581,7 @@ def main() -> None:
         _fail("invalid unit should 400")
     test_apply_incoming_unit_conflict_and_force()
     test_monthly_tree_assign()
+    test_monthly_auto_tree()
     test_fold_same_yoy_element_renames_short_name()
     test_migrate_restores_dropped_columns()
     _assert_monthly_year_window()
@@ -2013,17 +2073,14 @@ def _assert_monthly_spa(html: str) -> None:
     for u in ("/static/monthly_row_order.json", "/static/ir_monthly_codes.json"):
         if f'fetch("{u}", {{cache: "no-store"}})' not in html:
             _fail(f"SPA must fetch {u} with cache: no-store (iOS Safari reuses stale JSON)")
-    if "breakdown_parent" not in html or "function monthlyTlParents" not in html:
-        _fail("SPA must build the breakdown tree from monthly_row_order.json breakdown_parent")
+    # 横持ちは API の tree だけを描く（#434）。親子の推測を JS に戻さない。
+    for gone in ("breakdown_parent", "function monthlyTlParents", "function monthlyTimelineSections"):
+        if gone in html:
+            _fail(f"SPA must draw the timeline from the API tree only, found {gone!r}")
     row_order = json.loads((ROOT / "config" / "monthly_row_order.json").read_text(encoding="utf-8"))
     for code, cfg in row_order.items():
-        bp = cfg.get("breakdown_parent") if isinstance(cfg, dict) else None
-        if bp is None:
-            continue
-        if not isinstance(bp, dict) or not all(isinstance(k, str) and isinstance(v, str) and k and v for k, v in bp.items()):
-            _fail(f"monthly_row_order.json {code} breakdown_parent must map breakdown name -> parent breakdown name")
-        if any(k == v for k, v in bp.items()):
-            _fail(f"monthly_row_order.json {code} breakdown_parent must not point a breakdown at itself")
+        if isinstance(cfg, dict) and "breakdown_parent" in cfg:
+            _fail(f"monthly_row_order.json {code}: breakdown_parent is gone, write the nesting in tree")
     if "<optgroup" not in html:
         _fail("#monthly-series must support optgroup for gated brands")
     if "monthly-gated" not in html:

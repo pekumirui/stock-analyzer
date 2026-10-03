@@ -42,7 +42,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `app/analytics.py` | MA / RS / ステージ / Q単独 / 決算後リターン |
 | `app/api.py` | REST (`/api/*`) |
 | `app/monthly_ingest.py` | PDF 月次列 → 暦年。行名正規化と aliases |
-| `app/monthly_tree.py` | 月次の親子関係（`monthly_row_order.json` の `tree`）を行に割り当てる。year GET の `tree` |
+| `app/monthly_tree.py` | 月次の親子関係。`monthly_row_order.json` の `tree`、無ければゲートと内訳から作る自動の木を行に割り当てる。year GET の `tree` |
 | `app/main.py` | FastAPI エントリ + SPA 配信 |
 | `app/assets.py` | 配信する HTML の `/static` URL に中身のハッシュ（`?v=`）を付ける |
 | `app/xbrl/` | TDnet 短信 iXBRL の parse / YAML マッピング / normalize。UI には出さない |
