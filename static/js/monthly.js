@@ -1282,14 +1282,17 @@ async function openMonthlyPopup(td){
     pop.innerHTML = `<div class="mpop-head"><span class="mpop-title">${escHtml(name)}</span><span class="mpop-m">${m}月</span>`
       + `<button type="button" class="mpop-x" aria-label="閉じる" onclick="closeMonthlyPopup()">×</button></div>`
       + `<table>${head}${rows}</table>`;
-    if(!monthlyIsPhone()){
-      const r = td.getBoundingClientRect();
-      const w = pop.offsetWidth, h = pop.offsetHeight;
-      const left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), innerWidth - w - 8);
-      const below = r.bottom + 6 + h < innerHeight;
-      pop.style.left = `${left + scrollX}px`;
-      pop.style.top = `${(below ? r.bottom + 6 : r.top - h - 6) + scrollY}px`;
-    }
+    // PC もスマホも押したセルの近くに出す。iOS は表が横にはみ出すと layout viewport が見える幅より
+    // 広くなるので、見えている範囲（visualViewport）に収める。
+    const vv = window.visualViewport;
+    const vx = vv ? vv.offsetLeft : 0, vy = vv ? vv.offsetTop : 0;
+    const vw = vv ? vv.width : innerWidth, vh = vv ? vv.height : innerHeight;
+    const r = td.getBoundingClientRect();
+    const w = pop.offsetWidth, h = pop.offsetHeight;
+    const left = Math.min(Math.max(vx + 8, r.left + r.width / 2 - w / 2), vx + vw - w - 8);
+    const below = r.bottom + 6 + h < vy + vh;
+    pop.style.left = `${left + scrollX}px`;
+    pop.style.top = `${(below ? r.bottom + 6 : r.top - h - 6) + scrollY}px`;
   };
   draw();
   if(!missing.length) return;
