@@ -221,6 +221,99 @@ def _add_fy_end(code: str, disclosed: date, fy_end: date, disclosure_no: str) ->
         db.close()
 
 
+def test_monthly_tree_assign() -> None:
+    """rows の完全一致 → 最長 prefix。見出しは行を取らない。文字列の子は親の prefix を前置する。"""
+    from app.monthly_tree import _parse_node, assign_tree_paths, tree_leaf, tree_payload
+
+    trees = {"99990": tuple(n for n in (_parse_node(r, "") for r in [
+        {"name": "連結", "rows": ["総額 連結売上高(前年比)"], "children": [
+            {"name": "百貨店", "prefix": "百貨店事業", "rows": ["百貨店事業 総額 売上高(前年比)"], "children": [
+                {"name": "店計", "prefix": "大丸松坂屋 店計", "children": [
+                    {"name": "大丸", "heading": True, "prefix": "大丸", "children": ["心斎橋店"]},
+                ]},
+            ]},
+        ]},
+    ]) if n is not None)}
+    els = [
+        "百貨店事業 売上収益(IFRS)(前年比)",
+        "百貨店事業 総額 売上高(前年比)",
+        "大丸 心斎橋店 売上高(前年比)",
+        "大丸松坂屋 店計 売上高(前年比)",
+        "大丸松坂屋百貨店 売上高(前年比)",
+        "総額 連結売上高(前年比)",
+    ]
+    paths = assign_tree_paths("99990", els, trees)
+    want = {
+        "百貨店事業 売上収益(IFRS)(前年比)": ("連結", "百貨店"),
+        "百貨店事業 総額 売上高(前年比)": ("連結", "百貨店"),
+        "大丸 心斎橋店 売上高(前年比)": ("連結", "百貨店", "店計", "大丸", "心斎橋店"),
+        "大丸松坂屋 店計 売上高(前年比)": ("連結", "百貨店", "店計"),
+        "総額 連結売上高(前年比)": ("連結",),
+    }
+    if paths != want:
+        _fail(f"tree paths: {paths!r}")
+    if tree_leaf("99990", "大丸 心斎橋店 売上高(前年比)", want["大丸 心斎橋店 売上高(前年比)"], trees) != "売上高(前年比)":
+        _fail("leaf must drop the node prefix")
+    if tree_leaf("99990", "総額 連結売上高(前年比)", ("連結",), trees) != "総額 連結売上高(前年比)":
+        _fail("rows-only node keeps the full name")
+    t = tree_payload("99990", els, trees)
+    dept = t[0]["children"][0]
+    # rows に書いた総額が先頭（代表行）
+    if dept["elements"] != ["百貨店事業 総額 売上高(前年比)", "百貨店事業 売上収益(IFRS)(前年比)"]:
+        _fail(f"rows order first: {dept['elements']!r}")
+    daimaru = dept["children"][0]["children"][0]
+    if not daimaru["heading"] or daimaru["elements"] or daimaru["children"][0]["name"] != "心斎橋店":
+        _fail(f"heading node: {daimaru!r}")
+    if tree_payload("72030", els, trees) is not None or assign_tree_paths("72030", els, trees):
+        _fail("issuer without tree must be untouched")
+
+
+def _assert_jfront_tree_and_merge(c) -> None:
+    """J.フロント: 表1と表2の同じ数字は 1 行に寄る。食い違いは 409。GET は木を返す。"""
+    code = "30860"
+    _add_fy_end(code, date(2026, 4, 10), date(2026, 2, 28), "tree-30860")
+    rows = [
+        {"element": "百貨店事業 売上収益(IFRS)", "unit": "yoy_pct", "values": [-0.3]},
+        {"element": "百貨店事業 総額 売上高", "unit": "yoy_pct", "values": [-0.8]},
+        {"element": "大丸 心斎橋店 売上高", "unit": "yoy_pct", "values": [2.1]},
+        {"element": "大丸 心斎橋店 入店 客数", "unit": "yoy_pct", "values": [-7.1]},
+        {"element": "百貨店事業合計 売上高", "unit": "yoy_pct", "values": [-0.8]},
+        {"element": "百貨店事業合計 入店 客数", "unit": "yoy_pct", "values": [-4.4]},
+    ]
+    body = {"months": [8], "as_of": "2026-09-15", "rows": rows}
+    bad = {**body, "rows": [*rows[:-2], {**rows[-2], "values": [-0.9]}]}
+    r = c.post(f"/api/v1/tables/{code}/ingest", json=bad)
+    _expect(r, 409, "merge conflict")
+    if r.json()["error"]["code"] != "ROW_MERGE_CONFLICT":
+        _fail(f"merge conflict code: {r.text}")
+    r = c.post(f"/api/v1/tables/{code}/ingest", json=body)
+    _expect(r, 200, "jfront ingest")
+    got = r.json()
+    names = [u["element"] for u in got["updated"]]
+    if names.count("百貨店事業 総額 売上高(前年比)") != 1 or any("百貨店事業合計" in n for n in names):
+        _fail(f"merged rows: {names!r}")
+    r = c.get(f"/api/v1/tables/{code}/2026")
+    _expect(r, 200, "jfront GET")
+    d = r.json()
+    by = {e["element"]: e for e in d["elements"]}
+    if len(by) != 5 or by["百貨店事業 総額 売上高(前年比)"]["values"]["8"] != 99.2:
+        _fail(f"jfront rows: {sorted(by)!r}")
+    if by["百貨店事業 入店 客数(前年比)"]["values"]["8"] != 95.6:
+        _fail("百貨店事業合計 入店 客数 must land on 百貨店事業 入店 客数")
+    shin = by["大丸 心斎橋店 入店 客数(前年比)"]["tree"]
+    if shin != {"path": ["連結", "百貨店事業", "大丸松坂屋百貨店", "店計", "大丸", "心斎橋店"], "leaf": "入店 客数(前年比)"}:
+        _fail(f"心斎橋店 tree: {shin!r}")
+    tree = d.get("tree") or []
+    if [n["name"] for n in tree] != ["連結"]:
+        _fail(f"tree roots: {tree!r}")
+    dept = tree[0]["children"][0]
+    if dept["name"] != "百貨店事業" or dept["elements"][0] != "百貨店事業 総額 売上高(前年比)":
+        _fail(f"百貨店事業 node: {dept!r}")
+    r = c.get("/api/v1/tables/31800/2026")
+    if "tree" in r.json() or any("tree" in e for e in r.json()["elements"]):
+        _fail("issuer without tree must not get tree keys")
+
+
 def _assert_ingest_dry_run_only_months(c) -> None:
     """dry_run は書かない。only_months は mapping 後の暦年だけ書く。"""
     from app.db import SessionLocal
@@ -411,6 +504,7 @@ def main() -> None:
     else:
         _fail("invalid unit should 400")
     test_apply_incoming_unit_conflict_and_force()
+    test_monthly_tree_assign()
     test_fold_same_yoy_element_renames_short_name()
     test_migrate_restores_dropped_columns()
     _assert_monthly_year_window()
@@ -983,6 +1077,7 @@ def main() -> None:
     _assert_monthly_row_order(c)
     _assert_known_prod_units(c)
     _assert_ingest_dry_run_only_months(c)
+    _assert_jfront_tree_and_merge(c)
 
     print("ok: monthly tables api")
 
