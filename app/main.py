@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from .api import (
     ApiError, _parse_code, list_tables_payload, router, router_v1, table_year_payload,
 )
+from .assets import html_etag, version_static_urls
 from .config import MONTHLY_ROW_ORDER_PATH
 from .db import get_session, init_db
 from .ir_monthly_codes import load_ir_monthly_codes
@@ -74,7 +75,8 @@ def root():
 @app.get("/app")
 @app.get("/app/")
 def app_spa():
-    return FileResponse(STATIC / "index.html")
+    html = version_static_urls((STATIC / "index.html").read_text(encoding="utf-8"))
+    return HTMLResponse(html, headers={"ETag": html_etag(html)})
 
 
 @app.get("/robots.txt")
@@ -97,7 +99,7 @@ def favicon():
 
 @app.get("/monthly")
 def public_monthly_top(request: Request, db: Session = Depends(get_session)):
-    return HTMLResponse(top_html(request, list_tables_payload(db)))
+    return HTMLResponse(version_static_urls(top_html(request, list_tables_payload(db))))
 
 
 @app.get("/monthly/{code}")
@@ -105,17 +107,17 @@ def public_monthly_detail(code: str, request: Request, db: Session = Depends(get
     raw = code.strip().upper()
     parsed = _parse_public_code(raw)
     if parsed is None:
-        return HTMLResponse(not_found_html(request), status_code=404)
+        return HTMLResponse(version_static_urls(not_found_html(request)), status_code=404)
     if len(raw) == 5:
         return RedirectResponse(f"/monthly/{code4(parsed)}", status_code=301)
     issuers = list_tables_payload(db)
     issuer = next((row for row in issuers if row["code"] == parsed), None)
     if issuer is None:
-        return HTMLResponse(not_found_html(request), status_code=404)
+        return HTMLResponse(version_static_urls(not_found_html(request)), status_code=404)
     tables = []
     for year in display_years(issuer.get("years") or []):
         try:
             tables.append(table_year_payload(db, parsed, year))
         except ApiError:
             continue
-    return HTMLResponse(detail_html(request, issuer, tables))
+    return HTMLResponse(version_static_urls(detail_html(request, issuer, tables)))
