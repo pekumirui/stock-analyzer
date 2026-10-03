@@ -13,9 +13,10 @@ from app.config import ISSUER_ALIASES_PATH, MONTHLY_ROW_ORDER_PATH
 
 MONTHLY_UNITS = ("number", "yoy_index", "yoy_pct")
 _YOY_UNITS = frozenset({"yoy_index", "yoy_pct"})
-# 長い語を先に。前年同月比 を 前年同月 より先、括弧付きを 前年比 より先。
+# 長い語を先に。前年同月比 を 前年同月 より先、前年対比 を 前年比 より先、括弧付きを 前年比 より先。
 _YOY_FRAGMENTS = (
-    "前年同月比", "前年同月", "(前年比)", "（前年比）", "前年比",
+    "前年同期対比", "前年同月比", "前年対比", "前期対比", "前年同月",
+    "(前年比)", "（前年比）", "前年比",
     "(前期比)", "（前期比）", "前期比",
 )
 _YOY_SUFFIX = "(前年比)"
@@ -221,7 +222,8 @@ _FC_EMBED_RE = re.compile(r"(?<![A-Za-z])FC(?![A-Za-z])")
 _FCW_EMBED_RE = re.compile(r"ＦＣ")
 _DROP_TOKS = frozenset({
     "合計", "総計", "小計", "計", "月末", "期末", "うち", "内数", "部門", "店",
-    "前期比", "同期比", "増減率", "前年比", "前年同月比", "前年同月", "全",
+    "前期比", "同期比", "増減率", "前年比", "前年同月比", "前年同月",
+    "前年同期対比", "前年対比", "前期対比", "全",
     "昨対", "昨年比",
     "累計", "店舗状況", "拠点数", "対象", "購入お客様", "（％）", "（%）", "(％)", "(%)", "%", "※",
     "（百万円）", "(百万円)", "売上（％）", "売上（%）",
@@ -952,7 +954,7 @@ def monthly_element_key(name: str) -> str:
     return re.sub(r"\s+", "", s)
 
 
-_PRIOR_PERIOD_RE = re.compile(r"(前期|前年同月|前年同期)(?!比)")
+_PRIOR_PERIOD_RE = re.compile(r"(前期|前年同月|前年同期)(?!(?:比|対比))")
 
 
 def reject_prior_period_element(element: str) -> None:
