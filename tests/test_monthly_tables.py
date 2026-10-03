@@ -1898,6 +1898,9 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("#monthly-value-tabs must call setMonthlyValueMode")
     if re.search(r'class="[^"]*\bftab\b', vt.group(0)):
         _fail("#monthly-value-tabs must not use .ftab (earnings.js overwrites every .ftab onclick)")
+    for u in ("/static/monthly_row_order.json", "/static/ir_monthly_codes.json"):
+        if f'fetch("{u}", {{cache: "no-store"}})' not in html:
+            _fail(f"SPA must fetch {u} with cache: no-store (iOS Safari reuses stale JSON)")
     if "breakdown_parent" not in html or "function monthlyTlParents" not in html:
         _fail("SPA must build the breakdown tree from monthly_row_order.json breakdown_parent")
     row_order = json.loads((ROOT / "config" / "monthly_row_order.json").read_text(encoding="utf-8"))
