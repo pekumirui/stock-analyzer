@@ -1488,8 +1488,8 @@ def _assert_monthly_spa(html: str) -> None:
     for chunk in _select_tags(section):
         if "monthly-year" in chunk:
             _fail("monthly tab still has a year select")
-        if 'id="monthly-series"' not in chunk and 'id="monthly-layout-mode"' not in chunk:
-            _fail("monthly tab select must be #monthly-series or TEMP #monthly-layout-mode")
+        if not any(f'id="{i}"' in chunk for i in ("monthly-series", "monthly-layout-mode", "monthly-view-mode")):
+            _fail("monthly tab select must be #monthly-series or TEMP #monthly-layout-mode / #monthly-view-mode")
     if 'id="monthly-layout-debug"' not in section or 'id="monthly-layout-mode"' not in section:
         _fail("TEMP flat/gated compare control #monthly-layout-debug must be in Detail")
     if ">項目<" in html:

@@ -131,6 +131,13 @@
           <option value="flat">元表（マージ前）</option>
         </select>
       </label>
+      <label id="monthly-view-debug" class="monthly-layout-debug" hidden>
+        表の形（試作）
+        <select id="monthly-view-mode" onchange="setMonthlyViewMode(this.value)">
+          <option value="timeline">横持ち（1枚）</option>
+          <option value="years">年別</option>
+        </select>
+      </label>
       <div id="monthly-chart"></div>
       <div class="tbl-wrap" id="monthly-table-wrap"></div>
   </div>

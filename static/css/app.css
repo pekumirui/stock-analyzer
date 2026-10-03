@@ -278,6 +278,31 @@
   .monthly-layout-debug[hidden] { display:none; }
   .monthly-layout-debug select { font-size:12px; max-width:100%; }
   table.monthly tbody tr[data-series] { cursor:pointer; }
+  table.monthly-tl {
+    width:max-content; table-layout:fixed; border-collapse:separate; border-spacing:0;
+    font-size:13px; font-variant-numeric:tabular-nums; background:#fff;
+  }
+  table.monthly-tl th,
+  table.monthly-tl td { border:0 solid var(--border); border-width:0 1px 1px 0; padding:5px 6px; }
+  table.monthly-tl thead th { position:static; text-align:center; font-weight:700; color:var(--text); background:#eceff2; width:var(--monthly-m-w); min-width:var(--monthly-m-w); }
+  table.monthly-tl thead tr:first-child th { border-top-width:1px; }
+  table.monthly-tl thead th.tl-year { background:var(--up); color:#fff; font-size:12px; }
+  table.monthly-tl .tl-corner,
+  table.monthly-tl td.tl-name {
+    position:sticky; left:0; z-index:2; background:#fff; text-align:left; font-weight:700;
+    width:15em; min-width:15em; max-width:15em; white-space:normal; border-left-width:1px;
+  }
+  table.monthly-tl .tl-corner { z-index:3; vertical-align:bottom; background:#eceff2; }
+  table.monthly-tl td.tl-name.tl-bd { padding-left:1.25em; font-size:12px; font-weight:600; }
+  table.monthly-tl .tl-yb { border-left:2px solid #9aa5b1; }
+  table.monthly-tl tbody tr[data-series] { cursor:pointer; }
+  table.monthly-tl tbody tr[data-series]:hover td.tl-name,
+  table.monthly-tl tbody tr[data-series].on td.tl-name { background:var(--row-sel); }
+  table.monthly-tl tbody tr[data-series].on td { box-shadow:inset 0 2px 0 var(--accent), inset 0 -2px 0 var(--accent); }
+  table.monthly-tl tr.tl-sec { cursor:pointer; }
+  table.monthly-tl tr.tl-sec td { background:#f0f3f6; font-size:12px; padding:7px 10px; }
+  table.monthly-tl tr.tl-sec:hover td { background:#e4e9ee; }
+  table.monthly-tl .tl-cnt { margin-left:6px; font-weight:400; color:var(--sub); }
   header a.brand { font-size:16px; font-weight:700; color:var(--text); text-decoration:none; margin-right:8px; }
   a#monthly-back { display:inline-block; background:var(--accent); border:none; color:#fff; border-radius:6px; padding:6px 12px; cursor:pointer; text-decoration:none; font-size:14px; }
   .site-foot { padding:16px 14px 24px; font-size:12px; color:var(--sub); border-top:1px solid var(--border); line-height:1.6; }
@@ -329,6 +354,8 @@
     table.monthly tbody tr[data-series].on td.monthly-stub { background:var(--row-sel); }
     table.monthly tbody tr.monthly-sec td.monthly-sec-label { position:static; background:#f0f3f6; }
     table.monthly.monthly-gated { --stub-ch:2em; --stub-sc:4.25em; --stub-leaf:8.5em; }
+    table.monthly-tl .tl-corner,
+    table.monthly-tl td.tl-name { width:9em; min-width:9em; max-width:9em; font-size:12px; }
     table.monthly.monthly-gated thead th:first-child { min-width:14.75em; width:14.75em; }
     table.monthly.monthly-gated td.monthly-stub,
     table.monthly.monthly-gated td.monthly-stub-ch,
