@@ -22,6 +22,7 @@ from .models import (
 from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
 from .earnings_schedule import ActualMonth, day_payload, month_payload
+from .monthly_tree import assign_tree_paths, tree_leaf, tree_payload
 from .monthly_ingest import (
     MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label,
     coerce_monthly_storage, map_pdf_columns, monthly_element_label,
@@ -757,7 +758,37 @@ def _parse_ingest_rows(
             _, stored_val = coerce_monthly_storage(unit, val)
             stored[col] = stored_val
         parsed.append((element, force, stored_unit, stored))
-    return parsed
+    return _merge_same_ingest_rows(parsed)
+
+
+def _merge_same_ingest_rows(
+    parsed: list[tuple[str, bool, str, dict[int, float | None]]],
+) -> list[tuple[str, bool, str, dict[int, float | None]]]:
+    """銘柄エイリアスで同じ保存名になった行（別表の同じ数字）を 1 行に寄せる。
+
+    同じ列に違う値があれば 409。後勝ちで黙って上書きしない。
+    """
+    merged: dict[str, tuple[str, bool, str, dict[int, float | None]]] = {}
+    for element, force, unit, values in parsed:
+        prev = merged.get(element)
+        if prev is None:
+            merged[element] = (element, force, unit, dict(values))
+            continue
+        if prev[2] != unit:
+            raise ApiError(409, "ROW_MERGE_CONFLICT",
+                           f"{element}: 同じ行名に寄る行の unit が違います。")
+        vals = prev[3]
+        for col, v in values.items():
+            old = vals.get(col)
+            if v is None:
+                vals.setdefault(col, None)
+            elif old is None:
+                vals[col] = v
+            elif abs(old - v) > 1e-9:
+                raise ApiError(409, "ROW_MERGE_CONFLICT",
+                               f"{element}: 同じ行名に寄る行の値が食い違います（列 {col}: {old} / {v}）。")
+        merged[element] = (element, prev[1] or force, unit, vals)
+    return list(merged.values())
 
 
 def _ingest_error(exc: MonthlyIngestError) -> ApiError:
@@ -1028,20 +1059,26 @@ def table_year_payload(db: Session, code: str, year_i: int) -> dict:
     by_el: dict[str, dict[str, float]] = defaultdict(dict)
     for v in vals:
         by_el[v.element][str(v.month)] = v.value
-    return {
-        "code": code,
-        "year": year_i,
-        "elements": [
-            {
-                "element": e.element,
-                "unit": _element_unit(e),
-                "label": monthly_element_label(e.element, _element_unit(e)),
-                "values": _calendar_month_values(by_el[e.element]),
-            }
-            for e in elems
-            if e.element in by_el
-        ],
-    }
+    shown = [e for e in elems if e.element in by_el]
+    names = [e.element for e in shown]
+    paths = assign_tree_paths(code, names)
+    out_elements = []
+    for e in shown:
+        row = {
+            "element": e.element,
+            "unit": _element_unit(e),
+            "label": monthly_element_label(e.element, _element_unit(e)),
+            "values": _calendar_month_values(by_el[e.element]),
+        }
+        path = paths.get(e.element)
+        if path is not None:
+            row["tree"] = {"path": list(path), "leaf": tree_leaf(code, e.element, path)}
+        out_elements.append(row)
+    out = {"code": code, "year": year_i, "elements": out_elements}
+    tree = tree_payload(code, names)
+    if tree is not None:
+        out["tree"] = tree
+    return out
 
 
 @router_v1.get("/tables/{code}/{year}")

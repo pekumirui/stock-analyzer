@@ -47,6 +47,7 @@ let monthlyAllYears = [];
 let monthlyExtraTables = new Map();
 let monthlyTlRecs = new Map();
 let monthlyTlRevealed = "";
+let monthlyTlTreeSeeded = false;
 let _monthlyIrCodesReady = null;
 
 function monthlyPublic(){
@@ -770,6 +771,7 @@ function showMonthlyDetail(code, opts){
   monthlySeries = "";
   monthlyTlOpen = new Set();
   monthlyTlRevealed = "";
+  monthlyTlTreeSeeded = false;
   $("#monthly-top").style.display = "none";
   $("#monthly-detail").style.display = "";
   if(monthlyPublic()){
@@ -1026,6 +1028,138 @@ function monthlyTimelineSections(layout, tables){
   return {main, sections: [more, ...brands].filter(s => s.rows.length || s.total)};
 }
 
+// 既定で開く木の深さ（根とその子。J.フロントなら 連結 と各事業）。
+const MONTHLY_TREE_OPEN_DEPTH = 2;
+
+// API の tree（config/monthly_row_order.json の親子関係）を表示する年で 1 本にする。節の形は年で同じなので
+// 新しい年の tree を使い、各節の行は年の和集合。値の無い行は落とす。tree の無い発行体は null。
+function monthlyTreeModel(tables){
+  const ts = (tables || []).filter(Boolean).slice().sort((a, b) => Number(b.year) - Number(a.year));
+  const src = ts.find(d => Array.isArray(d.tree) && d.tree.length);
+  if(!src) return null;
+  const hasValues = monthlyTimelineHasValues(ts);
+  const byPath = new Map();
+  const seen = new Set();
+  const loose = [];
+  for(const d of ts){
+    for(const e of d.elements || []){
+      const id = e.label.display;
+      if(seen.has(id)) continue;
+      seen.add(id);
+      if(!Object.keys(e.values || {}).length) continue;
+      const rec = {element: id, unit: e.unit, label: e.label, leaf: e.tree ? e.tree.leaf : id, saved: e.element};
+      if(!e.tree){ loose.push(rec); continue; }
+      const key = e.tree.path.join("\u203a");
+      if(!byPath.has(key)) byPath.set(key, []);
+      byPath.get(key).push(rec);
+    }
+  }
+  const all = [];
+  const build = (nodes, path) => (nodes || []).map(n => {
+    const p = [...path, n.name];
+    // 節のキーは名前を › でつなぐ（data-key 属性に載るので NUL は使えない）
+    const key = p.join("\u203a");
+    const pool = byPath.get(key) || [];
+    // 節の行は API の並び（rows の順 → 登録順）。先頭が節の行に数字を出す代表行。
+    const order = [];
+    for(const d of ts){
+      const node = monthlyTreeFind(d.tree, p);
+      for(const el of (node && node.elements) || []) if(!order.includes(el)) order.push(el);
+    }
+    pool.sort((a, b) => order.indexOf(a.saved) - order.indexOf(b.saved));
+    const recs = n.heading ? [] : monthlyPairYoyRows(pool.filter(r => hasValues(r.element)));
+    all.push(...recs);
+    const children = build(n.children, p);
+    const live = recs.length > 0 || children.some(c => c.live);
+    return {name: n.name, heading: !!n.heading, key: "tree:" + key, depth: path.length, recs, children, live};
+  });
+  const roots = build(src.tree, []);
+  const rest = monthlyPairYoyRows(loose.filter(r => hasValues(r.element)));
+  all.push(...rest);
+  return {roots, rest, all};
+}
+
+function monthlyTreeFind(nodes, path){
+  let cur = null, list = nodes || [];
+  for(const name of path){
+    cur = list.find(n => n.name === name);
+    if(!cur) return null;
+    list = cur.children || [];
+  }
+  return cur;
+}
+
+function monthlyTreeSeedOpen(tm){
+  if(monthlyTlTreeSeeded) return;
+  monthlyTlTreeSeeded = true;
+  const walk = nodes => {
+    for(const n of nodes){
+      if(n.depth < MONTHLY_TREE_OPEN_DEPTH) monthlyTlOpen.add(n.key);
+      walk(n.children);
+    }
+  };
+  walk(tm.roots);
+}
+
+// 選んだ系列が閉じた節の中にあれば、根からその節までを開く（代表行でなければその節も開く）。
+function monthlyTreeReveal(tm, id){
+  const hit = r => r.element === id || r.yoy === id;
+  let changed = false;
+  const open = key => {
+    if(monthlyTlOpen.has(key)) return;
+    monthlyTlOpen.add(key);
+    changed = true;
+  };
+  const walk = (nodes, trail) => {
+    for(const n of nodes){
+      const i = n.recs.findIndex(hit);
+      if(i >= 0){
+        trail.forEach(open);
+        if(i > 0) open(n.key);
+        return true;
+      }
+      if(walk(n.children, [...trail, n.key])) return true;
+    }
+    return false;
+  };
+  if(!walk(tm.roots, []) && tm.rest.some(hit)) open("__more__");
+  return changed;
+}
+
+// 木の行。見出し節（大丸・松坂屋）は数字の無いグレー帯。数字のある節は代表行の数字を節の行に載せ、
+// 残りの行（入店 客数 など）と子の節を 1 段下げて続ける。子のある節は ▸/▾ で開閉する。
+function monthlyTreeHtml(tm, cellsFor, cols){
+  let body = "";
+  // 木は 6 段まで下がる。スマホの名前列（9em）では 1 段 1.25em だと店名が 1 文字ずつ折り返す。
+  const step = monthlyIsPhone() ? 0.6 : 1.25;
+  const walk = (n, depth) => {
+    if(!n.live) return;
+    const extra = n.recs.slice(1);
+    const kids = n.children.filter(c => c.live);
+    const canOpen = extra.length > 0 || kids.length > 0;
+    const open = canOpen && monthlyTlOpen.has(n.key);
+    const head = n.recs[0];
+    const name = monthlyTlNameCell({text: n.name, title: head ? head.saved : n.name, depth, key: canOpen ? n.key : "", open, tree: true, step});
+    if(head) body += monthlyTlRemember(head, n.name) + `<tr${monthlyTlRowAttrs(head)}>${name}${cellsFor(head)}</tr>`;
+    else body += `<tr class="tl-sec">${name}<td class="tl-sec-fill" colspan="${cols.length}"></td></tr>`;
+    if(!open) return;
+    for(const r of extra){
+      const leaf = r.leaf || r.element;
+      body += monthlyTlRemember(r, `${n.name} ${leaf}`) + `<tr${monthlyTlRowAttrs(r)}>${monthlyTlNameCell({text: leaf, title: r.saved, depth: depth + 1, tree: true, step})}${cellsFor(r)}</tr>`;
+    }
+    for(const c of kids) walk(c, depth + 1);
+  };
+  for(const n of tm.roots) walk(n, 0);
+  if(tm.rest.length){
+    const open = monthlyTlOpen.has("__more__");
+    body += `<tr class="tl-sec">${monthlyTlNameCell({text: "その他の項目", key: "__more__", open, tree: true, count: tm.rest.length, step})}<td class="tl-sec-fill" colspan="${cols.length}"></td></tr>`;
+    if(open) for(const r of tm.rest){
+      body += monthlyTlRemember(r, r.element) + `<tr${monthlyTlRowAttrs(r)}>${monthlyTlNameCell({text: r.element, title: r.saved, depth: 1, tree: true, step})}${cellsFor(r)}</tr>`;
+    }
+  }
+  return body;
+}
+
 function monthlyBreakdownParents(){
   const cfg = MONTHLY_ROW_ORDER[String(selMonthlyCode || "")];
   const m = cfg && cfg.breakdown_parent;
@@ -1082,7 +1216,7 @@ function monthlyTlLabel(e, gated){
 
 // 名前セル。子を持つ行と合計つきの節は ▸/▾ で開閉する（行のクリックは系列の選択なので親へ伝えない）。
 function monthlyTlNameCell(o){
-  const pad = o.depth ? ` style="padding-left:${(0.5 + o.depth * 1.25).toFixed(2)}em"` : "";
+  const pad = o.depth ? ` style="padding-left:${(0.5 + o.depth * (o.step || 1.25)).toFixed(2)}em"` : "";
   const tw = o.key ? `<span class="tl-tw">${o.open ? "▾" : "▸"}</span>` : (o.tree ? `<span class="tl-tw"></span>` : "");
   const act = o.key ? ` data-key="${escHtml(o.key)}" onclick="event.stopPropagation();toggleMonthlyTimelineSection(this.dataset.key)"` : "";
   const span = (o.rowspan ? ` rowspan="${o.rowspan}"` : "") + (o.colspan ? ` colspan="${o.colspan}"` : "");
@@ -1110,6 +1244,11 @@ function monthlyTimelineHasValues(tables){
 function monthlyTimelineReveal(id){
   if(!id || id === monthlyTlRevealed) return false;
   monthlyTlRevealed = id;
+  const tm = monthlyTreeModel(monthlyYearTables);
+  if(tm){
+    monthlyTreeSeedOpen(tm);
+    return monthlyTreeReveal(tm, id);
+  }
   const layout = monthlyTableLayout(monthlyRowOrder(monthlyYearTables), monthlyYearTables);
   const {main, sections} = monthlyTimelineSections(layout, monthlyYearTables);
   const hit = r => r.element === id || r.yoy === id;
@@ -1158,8 +1297,10 @@ function renderMonthlyTimeline(tables, layout, opts){
   const wrap = $("#monthly-table-wrap");
   const byYear = monthlyTablesByYear(tables);
   const years = [...byYear.keys()].sort((a, b) => a - b);
-  const {main, sections} = monthlyTimelineSections(layout, tables);
-  const all = [...main, ...sections.flatMap(s => s.rows)];
+  const tm = monthlyTreeModel(tables);
+  if(tm) monthlyTreeSeedOpen(tm);
+  const {main, sections} = tm ? {main: [], sections: []} : monthlyTimelineSections(layout, tables);
+  const all = tm ? tm.all : [...main, ...sections.flatMap(s => s.rows)];
   let first = null, last = null;
   for(const y of years){
     for(let m = 1; m <= 12; m++){
@@ -1210,7 +1351,7 @@ function renderMonthlyTimeline(tables, layout, opts){
       `<tr${monthlyTlRowAttrs(e.rec)}>${monthlyTlNameCell({text: monthlyTlLabel(e, layout.gated), title: e.rec.element, depth: e.depth, key: e.key, open: e.open, tree})}${cellsFor(e.rec)}</tr>`
     ).join("");
   };
-  let body = scopeHtml(main);
+  let body = tm ? monthlyTreeHtml(tm, cellsFor, cols) : scopeHtml(main);
   for(const sec of sections){
     const open = monthlyTlOpen.has(sec.key);
     const canOpen = sec.rows.length > 0;
