@@ -311,6 +311,7 @@
   /* .ftab は earnings.js が全ボタンの onclick を上書きするので使わない */
   .monthly-vtab { background:transparent; border:none; color:var(--sub); padding:5px 14px; cursor:pointer; font-size:13px; }
   .monthly-vtab.on { background:var(--accent); color:#fff; }
+  table.monthly-tl .tl-sub { display:block; font-size:11px; color:var(--sub); line-height:1.2; }
   table.monthly-my { --tl-name-w:15em; }
   table.monthly-my td.tl-name { vertical-align:top; }
   table.monthly-my th.tl-yr { z-index:3; background:#eceff2; }

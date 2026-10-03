@@ -34,7 +34,8 @@ let monthlyViewMode = (() => {
 const MONTHLY_VALUE_MODE_KEY = "monthly.valueMode.proto";
 let monthlyValueMode = (() => {
   try{
-    return localStorage.getItem(MONTHLY_VALUE_MODE_KEY) === "amount" ? "amount" : "yoy";
+    const v = localStorage.getItem(MONTHLY_VALUE_MODE_KEY);
+    return (v === "amount" || v === "both") ? v : "yoy";
   }catch(_){
     return "yoy";
   }
@@ -909,16 +910,24 @@ function monthlyTlAlt(rec){
   return monthlyTlShown(rec) === rec.yoy ? rec.element : rec.yoy;
 }
 
+// txt はセルの中身（HTML）、len は幅の根拠にする最長行の文字数。数字を出さないセルは塗らない。
 function monthlyTlCell(byName, rec, m){
   const id = monthlyTlShown(rec);
   const src = byName[id];
   const unit = (src && src.unit) || (id === rec.yoy ? "yoy_index" : rec.unit) || "number";
   const v = src ? (src.values || {})[String(m)] : null;
-  const txt = (v == null || v === "") ? "" : fmtMonthlyCell(v, unit, id);
+  let txt = (v == null || v === "") ? "" : fmtMonthlyCell(v, unit, id);
+  let len = txt.length;
   const heatId = rec.yoy || (monthlyIsYoyUnit(unit) ? id : "");
   const hs = heatId ? byName[heatId] : null;
-  const st = hs ? monthlyYoyHeat((hs.values || {})[String(m)]) : "";
-  return {txt, st};
+  const hv = hs ? (hs.values || {})[String(m)] : null;
+  if(rec.yoy && monthlyValueMode === "both" && hv != null && hv !== ""){
+    const sub = `(${fmtMonthlyCell(hv, "yoy_index", rec.yoy)})`;
+    len = Math.max(len, sub.length);
+    txt = `${txt}<span class="tl-sub">${sub}</span>`;
+  }
+  const st = txt ? monthlyYoyHeat(hv) : "";
+  return {txt, len, st};
 }
 
 function monthlyTlRowAttrs(rec){
@@ -934,7 +943,7 @@ function syncMonthlyValueUi(show){
 }
 
 function setMonthlyValueMode(mode){
-  monthlyValueMode = mode === "amount" ? "amount" : "yoy";
+  monthlyValueMode = (mode === "amount" || mode === "both") ? mode : "yoy";
   try{ localStorage.setItem(MONTHLY_VALUE_MODE_KEY, monthlyValueMode); }catch(_){}
   const base = monthlyYoyBase(monthlySeries);
   const want = monthlyValueMode === "yoy" ? base + "(前年比)" : base;
@@ -1174,8 +1183,8 @@ function renderMonthlyTimeline(tables, layout, opts){
   const cellsFor = rec => {
     let cells = "";
     for(const c of cols){
-      const {txt, st} = monthlyTlCell(byYear.get(c.y), rec, c.m);
-      if(txt) maxNumLen = Math.max(maxNumLen, txt.length);
+      const {txt, len, st} = monthlyTlCell(byYear.get(c.y), rec, c.m);
+      if(len) maxNumLen = Math.max(maxNumLen, len);
       const cls = c === cols[0] || c.m === 1 ? "num tl-yb" : "num";
       cells += `<td class="${cls}"${st ? ` style="${st}"` : ""}>${txt}</td>`;
     }
@@ -1238,8 +1247,8 @@ function renderMonthlyMetricYear(tables, layout, opts){
     return ys.map((y, i) => {
       let cells = "";
       for(let m = 1; m <= 12; m++){
-        const {txt, st} = monthlyTlCell(byYear.get(y), rec, m);
-        if(txt) maxNumLen = Math.max(maxNumLen, txt.length);
+        const {txt, len, st} = monthlyTlCell(byYear.get(y), rec, m);
+        if(len) maxNumLen = Math.max(maxNumLen, len);
         cells += `<td class="num"${st ? ` style="${st}"` : ""}>${txt}</td>`;
       }
       const name = i === 0 ? monthlyTlNameCell({...nameOpts, rowspan: ys.length}) : "";
