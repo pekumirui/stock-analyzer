@@ -22,7 +22,7 @@ from .models import (
 from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
 from .earnings_schedule import ActualMonth, day_payload, month_payload
-from .monthly_tree import assign_tree_paths, tree_leaf, tree_payload
+from .monthly_tree import assign_tree_rows, tree_payload
 from .monthly_ingest import (
     MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label,
     coerce_monthly_storage, map_pdf_columns, monthly_element_label,
@@ -1061,7 +1061,7 @@ def table_year_payload(db: Session, code: str, year_i: int) -> dict:
         by_el[v.element][str(v.month)] = v.value
     shown = [e for e in elems if e.element in by_el]
     names = [e.element for e in shown]
-    paths = assign_tree_paths(code, names)
+    tree_rows = assign_tree_rows(code, names)
     out_elements = []
     for e in shown:
         row = {
@@ -1070,14 +1070,11 @@ def table_year_payload(db: Session, code: str, year_i: int) -> dict:
             "label": monthly_element_label(e.element, _element_unit(e)),
             "values": _calendar_month_values(by_el[e.element]),
         }
-        path = paths.get(e.element)
-        if path is not None:
-            row["tree"] = {"path": list(path), "leaf": tree_leaf(code, e.element, path)}
+        if e.element in tree_rows:
+            row["tree"] = tree_rows[e.element]
         out_elements.append(row)
     out = {"code": code, "year": year_i, "elements": out_elements}
-    tree = tree_payload(code, names)
-    if tree is not None:
-        out["tree"] = tree
+    out.update(tree_payload(code, names) or {})
     return out
 
 

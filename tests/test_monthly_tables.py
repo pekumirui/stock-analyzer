@@ -222,49 +222,61 @@ def _add_fy_end(code: str, disclosed: date, fy_end: date, disclosure_no: str) ->
 
 
 def test_monthly_tree_assign() -> None:
-    """rows の完全一致 → 最長 prefix。見出しは行を取らない。文字列の子は親の prefix を前置する。"""
-    from app.monthly_tree import _parse_node, assign_tree_paths, tree_leaf, tree_payload
+    """rows の完全一致 → 最長 prefix。見出しは行を取らない。文字列の子は親の prefix を前置する。指標は葉で振り分ける。"""
+    from app.monthly_tree import assign_tree_rows, parse_issuer_tree, tree_payload
 
-    trees = {"99990": tuple(n for n in (_parse_node(r, "") for r in [
-        {"name": "連結", "rows": ["総額 連結売上高(前年比)"], "children": [
-            {"name": "百貨店", "prefix": "百貨店事業", "rows": ["百貨店事業 総額 売上高(前年比)"], "children": [
-                {"name": "店計", "prefix": "大丸松坂屋 店計", "children": [
-                    {"name": "大丸", "heading": True, "prefix": "大丸", "children": ["心斎橋店"]},
+    tree = parse_issuer_tree({
+        "tree": [
+            {"name": "連結", "rows": ["総額 連結売上高(前年比)"], "children": [
+                {"name": "百貨店", "prefix": "百貨店事業", "children": [
+                    {"name": "店計", "prefix": "大丸松坂屋 店計", "children": [
+                        {"name": "大丸", "heading": True, "prefix": "大丸", "children": ["心斎橋店"]},
+                    ]},
+                    {"name": "うち商品", "prefix": "大丸松坂屋百貨店 商品", "part": True},
                 ]},
             ]},
-        ]},
-    ]) if n is not None)}
+        ],
+        "metrics": [
+            {"name": "総額", "leaves": ["総額 連結売上高(前年比)", "総額 売上高(前年比)", "売上高(前年比)"]},
+            {"name": "IFRS", "leaves": ["売上収益(IFRS)(前年比)"]},
+        ],
+    })
+    if tree is None:
+        _fail("tree must parse")
+    trees = {"99990": tree}
     els = [
         "百貨店事業 売上収益(IFRS)(前年比)",
         "百貨店事業 総額 売上高(前年比)",
         "大丸 心斎橋店 売上高(前年比)",
+        "大丸 心斎橋店 入店 客数(前年比)",
         "大丸松坂屋 店計 売上高(前年比)",
         "大丸松坂屋百貨店 売上高(前年比)",
+        "大丸松坂屋百貨店 商品 売上高(前年比)",
         "総額 連結売上高(前年比)",
     ]
-    paths = assign_tree_paths("99990", els, trees)
+    rows = assign_tree_rows("99990", els, trees)
     want = {
-        "百貨店事業 売上収益(IFRS)(前年比)": ("連結", "百貨店"),
-        "百貨店事業 総額 売上高(前年比)": ("連結", "百貨店"),
-        "大丸 心斎橋店 売上高(前年比)": ("連結", "百貨店", "店計", "大丸", "心斎橋店"),
-        "大丸松坂屋 店計 売上高(前年比)": ("連結", "百貨店", "店計"),
-        "総額 連結売上高(前年比)": ("連結",),
+        "百貨店事業 売上収益(IFRS)(前年比)": (["連結", "百貨店"], "売上収益(IFRS)(前年比)", "IFRS"),
+        "百貨店事業 総額 売上高(前年比)": (["連結", "百貨店"], "総額 売上高(前年比)", "総額"),
+        "大丸 心斎橋店 売上高(前年比)": (["連結", "百貨店", "店計", "大丸", "心斎橋店"], "売上高(前年比)", "総額"),
+        "大丸 心斎橋店 入店 客数(前年比)": (["連結", "百貨店", "店計", "大丸", "心斎橋店"], "入店 客数(前年比)", None),
+        "大丸松坂屋 店計 売上高(前年比)": (["連結", "百貨店", "店計"], "売上高(前年比)", "総額"),
+        "大丸松坂屋百貨店 商品 売上高(前年比)": (["連結", "百貨店", "うち商品"], "売上高(前年比)", "総額"),
+        "総額 連結売上高(前年比)": (["連結"], "総額 連結売上高(前年比)", "総額"),
     }
-    if paths != want:
-        _fail(f"tree paths: {paths!r}")
-    if tree_leaf("99990", "大丸 心斎橋店 売上高(前年比)", want["大丸 心斎橋店 売上高(前年比)"], trees) != "売上高(前年比)":
-        _fail("leaf must drop the node prefix")
-    if tree_leaf("99990", "総額 連結売上高(前年比)", ("連結",), trees) != "総額 連結売上高(前年比)":
-        _fail("rows-only node keeps the full name")
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got != want:
+        _fail(f"tree rows: {got!r}")
     t = tree_payload("99990", els, trees)
-    dept = t[0]["children"][0]
-    # rows に書いた総額が先頭（代表行）
-    if dept["elements"] != ["百貨店事業 総額 売上高(前年比)", "百貨店事業 売上収益(IFRS)(前年比)"]:
-        _fail(f"rows order first: {dept['elements']!r}")
+    if t["tree_metrics"] != ["総額", "IFRS"]:
+        _fail(f"tree_metrics: {t['tree_metrics']!r}")
+    dept = t["tree"][0]["children"][0]
     daimaru = dept["children"][0]["children"][0]
     if not daimaru["heading"] or daimaru["elements"] or daimaru["children"][0]["name"] != "心斎橋店":
         _fail(f"heading node: {daimaru!r}")
-    if tree_payload("72030", els, trees) is not None or assign_tree_paths("72030", els, trees):
+    if not dept["children"][1]["part"] or dept["children"][0]["part"]:
+        _fail("part flag")
+    if tree_payload("72030", els, trees) is not None or assign_tree_rows("72030", els, trees):
         _fail("issuer without tree must be untouched")
 
 
@@ -301,8 +313,13 @@ def _assert_jfront_tree_and_merge(c) -> None:
     if by["百貨店事業 入店 客数(前年比)"]["values"]["8"] != 95.6:
         _fail("百貨店事業合計 入店 客数 must land on 百貨店事業 入店 客数")
     shin = by["大丸 心斎橋店 入店 客数(前年比)"]["tree"]
-    if shin != {"path": ["連結", "百貨店事業", "大丸松坂屋百貨店", "店計", "大丸", "心斎橋店"], "leaf": "入店 客数(前年比)"}:
+    if shin != {"path": ["連結", "百貨店事業", "大丸松坂屋百貨店", "店計", "大丸", "心斎橋店"],
+                "leaf": "入店 客数(前年比)", "metric": "入店客数"}:
         _fail(f"心斎橋店 tree: {shin!r}")
+    if by["百貨店事業 売上収益(IFRS)(前年比)"]["tree"]["metric"] != "売上収益(IFRS)":
+        _fail("IFRS は百貨店事業の子ではなく同じ節の別の指標")
+    if d.get("tree_metrics") != ["総額売上高", "売上収益(IFRS)", "入店客数"]:
+        _fail(f"tree_metrics: {d.get('tree_metrics')!r}")
     tree = d.get("tree") or []
     if [n["name"] for n in tree] != ["連結"]:
         _fail(f"tree roots: {tree!r}")
@@ -310,7 +327,7 @@ def _assert_jfront_tree_and_merge(c) -> None:
     if dept["name"] != "百貨店事業" or dept["elements"][0] != "百貨店事業 総額 売上高(前年比)":
         _fail(f"百貨店事業 node: {dept!r}")
     r = c.get("/api/v1/tables/31800/2026")
-    if "tree" in r.json() or any("tree" in e for e in r.json()["elements"]):
+    if {"tree", "tree_metrics"} & set(r.json()) or any("tree" in e for e in r.json()["elements"]):
         _fail("issuer without tree must not get tree keys")
 
 
