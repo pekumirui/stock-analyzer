@@ -281,8 +281,18 @@ function monthlyStubScopeText(scope){
   return scope || "—";
 }
 
+function monthlyGatedLeftover(segment, dropSegment){
+  const leftover = segment || "";
+  const drop = dropSegment || "";
+  if(!drop) return leftover;
+  if(leftover === drop) return "";
+  const prefix = drop + " ";
+  if(leftover.startsWith(prefix)) return leftover.slice(prefix.length);
+  return leftover;
+}
+
 function monthlyLayoutLeaf(label, unit, dropSegment){
-  const leftover = (dropSegment && label.segment === dropSegment) ? "" : label.segment;
+  const leftover = monthlyGatedLeftover(label.segment, dropSegment);
   const u = unit || "number";
   const isYoy = u === "yoy_index" || u === "yoy_pct";
   if(label.breakdown){

@@ -1665,6 +1665,8 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("index.html missing monthlyRowOrder")
     if "function monthlyLayoutLeaf" not in html:
         _fail("index.html missing monthlyLayoutLeaf")
+    if "function monthlyGatedLeftover" not in html:
+        _fail("index.html missing monthlyGatedLeftover")
     if "function monthlyRowScopeRank" not in html:
         _fail("index.html missing monthlyRowScopeRank")
     scope_fn = html.find("function monthlyRowScopeRank")
@@ -2166,6 +2168,25 @@ def _assert_monthly_layout_js() -> None:
                 ],
             },
         ],
+        "jfront": [{
+            "year": 2026,
+            "code": "30860",
+            "elements": [
+                _el("百貨店事業 売上収益(IFRS)(前年比)"),
+                _el("百貨店事業 総額 売上高(前年比)"),
+                _el("SC事業 売上収益(IFRS)(前年比)"),
+                _el("SC事業 総額 売上高(前年比)"),
+                _el("連結売上収益(IFRS)(前年比)"),
+                _el("総額 連結売上高(前年比)"),
+                _el("大丸 心斎橋店 売上高(前年比)"),
+                _el("大丸 心斎橋店 入店 客数(前年比)"),
+                _el("百貨店事業合計 売上高(前年比)"),
+                _el("百貨店事業合計 入店 客数(前年比)"),
+                _el("パルコ 札幌PARCO テナント 取扱高(前年比)"),
+                _el("パルコ テナント 全店 取扱高(前年比)"),
+                _el("パルコ テナント 既存 取扱高(前年比)"),
+            ],
+        }],
     }
     harness = r"""
 const fs = require("fs");
@@ -2334,6 +2355,19 @@ console.log(JSON.stringify({
   }),
   lonePriorGate: [...sandbox.monthlySegmentGate(fixtures.lonePrior)].sort(),
   tooOldGate: [...sandbox.monthlySegmentGate(fixtures.tooOld)].sort(),
+  jfrontGate: [...sandbox.monthlySegmentGate(fixtures.jfront)].sort(),
+  jfrontSummary: sandbox.monthlyTableLayout(
+    sandbox.monthlyRowOrder(fixtures.jfront), fixtures.jfront,
+  ).rows.map((r) => {
+    if (r.kind === "section") return { kind: "section", label: r.label };
+    return {
+      kind: "data",
+      element: r.element,
+      group: r.group,
+      scope: r.scope,
+      leaf: r.leaf,
+    };
+  }),
 }));
 """
     with tempfile.NamedTemporaryFile(
@@ -2512,7 +2546,36 @@ console.log(JSON.stringify({
         _fail(f"one prior-year row must not gate: {got.get('lonePriorGate')!r}")
     if got.get("tooOldGate") != ["CPAソリューション事業"]:
         _fail(f"year outside display window must not gate: {got.get('tooOldGate')!r}")
-
+    want_jfront_gate = [
+        "SC事業", "パルコ テナント", "大丸 心斎橋店", "百貨店事業", "百貨店事業合計",
+    ]
+    if got.get("jfrontGate") != want_jfront_gate:
+        _fail(f"3086-shaped gate leftovers: {got.get('jfrontGate')!r}")
+    jfront_summary = got.get("jfrontSummary") or []
+    jfront_sections = [r["label"] for r in jfront_summary if r.get("kind") == "section"]
+    if jfront_sections != ["百貨店事業", "SC事業", "大丸 心斎橋店", "百貨店事業合計", "パルコ テナント"]:
+        _fail(f"3086-shaped section order: {jfront_sections!r}")
+    if any(r.get("label") == "パルコ 札幌PARCO テナント" for r in jfront_summary):
+        _fail("single PARCO store must not grow a section")
+    by_el = {r["element"]: r for r in jfront_summary if r.get("kind") == "data"}
+    if by_el.get("大丸 心斎橋店 売上高(前年比)", {}).get("leaf") != "売上高(前年比)":
+        _fail(f"store sales leaf: {by_el.get('大丸 心斎橋店 売上高(前年比)')!r}")
+    if by_el.get("大丸 心斎橋店 入店 客数(前年比)", {}).get("leaf") != "入店 客数(前年比)":
+        _fail(f"store 入店 leaf: {by_el.get('大丸 心斎橋店 入店 客数(前年比)')!r}")
+    if by_el.get("百貨店事業 売上収益(IFRS)(前年比)", {}).get("leaf") != "売上収益(IFRS)(前年比)":
+        _fail(f"IFRS leaf: {by_el.get('百貨店事業 売上収益(IFRS)(前年比)')!r}")
+    if by_el.get("百貨店事業 総額 売上高(前年比)", {}).get("leaf") != "総額 売上高(前年比)":
+        _fail(f"総額 leaf: {by_el.get('百貨店事業 総額 売上高(前年比)')!r}")
+    if by_el.get("百貨店事業合計 売上高(前年比)", {}).get("leaf") != "売上高(前年比)":
+        _fail(f"百貨店事業合計 sales leaf: {by_el.get('百貨店事業合計 売上高(前年比)')!r}")
+    if by_el.get("百貨店事業合計 入店 客数(前年比)", {}).get("leaf") != "入店 客数(前年比)":
+        _fail(f"百貨店事業合計 入店 leaf: {by_el.get('百貨店事業合計 入店 客数(前年比)')!r}")
+    if by_el.get("連結売上収益(IFRS)(前年比)", {}).get("group"):
+        _fail("連結売上収益(IFRS) must stay in the company block")
+    if by_el.get("総額 連結売上高(前年比)", {}).get("group"):
+        _fail("総額 連結売上高 must stay in the company block")
+    if by_el.get("パルコ 札幌PARCO テナント 取扱高(前年比)", {}).get("group"):
+        _fail("single PARCO store stays in the company block")
 
 
 def _assert_known_prod_units(c) -> None:

@@ -156,6 +156,14 @@ def test_canonicalize_element_label() -> None:
         _fail("omitted unit is number: tokens only")
     if canonicalize_element_label("合計 店舗数", "number") != "店舗数":
         _fail("合計 店舗数 drops 合計")
+    if canonicalize_element_label("百貨店事業合計 売上高(前年比)", "yoy_index") != "百貨店事業合計 売上高(前年比)":
+        _fail("百貨店事業合計 売上高 keeps compound 合計")
+    if canonicalize_element_label("百貨店事業合計売上高(前年比)", "yoy_index") != "百貨店事業合計 売上高(前年比)":
+        _fail("glued 百貨店事業合計売上高 keeps compound")
+    if canonicalize_element_label("百貨店事業合計 入店 客数(前年比)", "yoy_index") != "百貨店事業合計 入店 客数(前年比)":
+        _fail("百貨店事業合計 入店 客数 keeps 合計 and 入店")
+    if canonicalize_element_label("全社合計 売上高(前年比)", "yoy_index") != "全社 売上高(前年比)":
+        _fail("全社合計 still drops 合計")
     if canonicalize_element_label("対象店舗数", "number") != "店舗数":
         _fail("対象店舗数 is 店舗数")
     if canonicalize_element_label("全業態 対象 店舗数", "number") != "全業態 店舗数":
@@ -2555,12 +2563,103 @@ def test_monthly_element_label() -> None:
         _fail(f"客数 既存 yoy label: {guests!r}")
 
 
+def test_department_store_layers() -> None:
+    """3086 形の行。表示名は変えず、店舗/区分の group だけ揃える。銘柄分岐は置かない。"""
+    ifrs = monthly_element_label("百貨店事業 売上収益(IFRS)(前年比)", "yoy_index")
+    if (
+        ifrs["display"] != "百貨店事業 売上収益(IFRS)(前年比)"
+        or ifrs["group"] != "百貨店事業"
+        or ifrs["segment"] != "百貨店事業"
+        or ifrs["metric"] != "売上収益(IFRS)"
+        or ifrs["metric_kind"] != "sales"
+    ):
+        _fail(f"売上収益(IFRS) label: {ifrs!r}")
+    gross = monthly_element_label("百貨店事業 総額 売上高(前年比)", "yoy_index")
+    if (
+        gross["display"] != "百貨店事業 総額 売上高(前年比)"
+        or gross["group"] != "百貨店事業"
+        or gross["segment"] != "百貨店事業 総額"
+        or gross["metric"] != "売上高"
+        or gross["metric_kind"] != "sales"
+    ):
+        _fail(f"総額 売上高 label: {gross!r}")
+    if monthly_row_segment("SC事業 売上収益(IFRS)(前年比)") != "SC事業":
+        _fail("SC事業 IFRS group")
+    if monthly_row_segment("SC事業 総額 売上高(前年比)") != "SC事業":
+        _fail("SC事業 総額 group")
+    store_sales = monthly_element_label("大丸 心斎橋店 売上高(前年比)", "yoy_index")
+    store_in = monthly_element_label("大丸 心斎橋店 入店 客数(前年比)", "yoy_index")
+    if store_sales["display"] != "大丸 心斎橋店 売上高(前年比)":
+        _fail(f"store sales display: {store_sales!r}")
+    if (
+        store_in["display"] != "大丸 心斎橋店 入店 客数(前年比)"
+        or store_in["group"] != "大丸 心斎橋店"
+        or store_in["segment"] != "大丸 心斎橋店 入店"
+        or store_in["metric"] != "客数"
+        or store_in["metric_kind"] != "customers"
+        or store_sales["group"] != store_in["group"]
+    ):
+        _fail(f"store 入店 group: sales={store_sales!r} in={store_in!r}")
+    total_sales = monthly_element_label("百貨店事業合計 売上高(前年比)", "yoy_index")
+    total_in = monthly_element_label("百貨店事業合計 入店 客数(前年比)", "yoy_index")
+    if total_sales["display"] != "百貨店事業合計 売上高(前年比)":
+        _fail(f"百貨店事業合計 display: {total_sales!r}")
+    if total_sales["group"] != "百貨店事業合計" or total_in["group"] != "百貨店事業合計":
+        _fail(f"百貨店事業合計 group: {total_sales['group']!r} {total_in['group']!r}")
+    if total_sales["group"] == gross["group"]:
+        _fail("百貨店事業合計 must not collapse onto 百貨店事業 総額")
+    if canonicalize_element_label("百貨店事業 総額 売上高(前年比)", "yoy_index") == canonicalize_element_label(
+        "百貨店事業合計 売上高(前年比)", "yoy_index",
+    ):
+        _fail("表て1 総額 and 表て2 合計 must stay distinct names")
+    consol_ifrs = monthly_element_label("連結売上収益(IFRS)(前年比)", "yoy_index")
+    consol_gross = monthly_element_label("総額 連結売上高(前年比)", "yoy_index")
+    if consol_ifrs["display"] != "連結売上収益(IFRS)(前年比)" or consol_ifrs["group"]:
+        _fail(f"連結売上収益(IFRS): {consol_ifrs!r}")
+    if (
+        consol_gross["display"] != "総額 連結売上高(前年比)"
+        or consol_gross["group"]
+        or consol_gross["segment"] != "総額"
+        or consol_gross["metric"] != "連結売上高"
+    ):
+        _fail(f"総額 連結売上高: {consol_gross!r}")
+    parco = monthly_element_label("パルコ テナント 全店 取扱高(前年比)", "yoy_index")
+    parco_ex = monthly_element_label("パルコ テナント 既存 取扱高(前年比)", "yoy_index")
+    if parco["group"] != "パルコ テナント" or parco_ex["group"] != "パルコ テナント":
+        _fail(f"パルコ テナント group: {parco!r} {parco_ex!r}")
+    if monthly_row_segment("パルコ 札幌PARCO テナント 取扱高(前年比)") != "パルコ 札幌PARCO テナント":
+        _fail("PARCO store leftover stays store-level")
+    other_canon = (
+        ("大阪店 売上高(前年比)", "yoy_index", "大阪店 売上高(前年比)"),
+        ("大阪店 入店 客数(前年比)", "yoy_index", "大阪店 入店 客数(前年比)"),
+        ("髙島屋各店 既存 売上高(前年比)", "yoy_index", "髙島屋各店 既存 売上高(前年比)"),
+        ("髙島屋各店 入店 既存 客数(前年比)", "yoy_index", "髙島屋各店 入店 既存 客数(前年比)"),
+        ("日本 合計 売上高(前年比)", "yoy_index", "日本 売上高(前年比)"),
+        ("合計 店舗数", "number", "店舗数"),
+        ("全社合計 売上高(前年比)", "yoy_index", "全社 売上高(前年比)"),
+        ("売上高合計(直営・FC)", "number", "直営+FC 売上高"),
+        ("宅食 営業所数合計", "number", "宅食 営業所数"),
+    )
+    for src, unit, want in other_canon:
+        got = canonicalize_element_label(src, unit)
+        if got != want:
+            _fail(f"other-issuer canon {src!r} -> {got!r} want {want!r}")
+    if monthly_row_segment("大阪店 入店 客数(前年比)") != "大阪店":
+        _fail("大阪店 入店 groups with 大阪店")
+    if monthly_row_segment("髙島屋各店 入店 既存 客数(前年比)") != "髙島屋各店":
+        _fail("髙島屋各店 入店 groups with 髙島屋各店")
+    layers = parse_element_layers("髙島屋各店 入店 既存 客数")
+    if layers["segment"] != "髙島屋各店 入店" or layers["scope"] != "既存" or layers["metric"] != "客数":
+        _fail(f"髙島屋各店 入店 既存 layers must keep 入店 before 既存: {layers!r}")
+
+
 def main() -> None:
     test_canonicalize_element_label()
     test_union_orders_country_then_channel()
     with tempfile.TemporaryDirectory() as d:
         test_alias_rename_takes_unit_from_names(Path(d))
     test_monthly_element_label()
+    test_department_store_layers()
     test_issuer_alias_cases()
     test_mapping_examples()
     test_fy_end_and_layout_errors()

@@ -118,6 +118,7 @@ _UNGLUE: tuple[tuple[str, str], ...] = (
     ("売上高", "売上高"),
     ("取扱高", "取扱高"),
     ("客室収入", "客室収入"),
+    ("売上収益(IFRS)", "売上収益(IFRS)"),
     ("営業所数", "営業所数"),
     ("既存店舗", "既存"),
     ("既存店", "既存"),
@@ -163,6 +164,7 @@ _TETTAI_MARK = "\x00TETTAI\x00"
 _KADO_STORES_MARK = "\x00KADOSTORES\x00"
 _TRADE_STORES_MARK = "\x00TRADESTORES\x00"
 _STATUS_STORES_MARK = "\x00STATUSSTORES\x00"
+_DEPT_TOTAL_MARK = "\x00DEPTTOTAL\x00"  # 百貨店事業合計。_UNGLUE の 合計 で切らない。
 # 閉店中店舗数など。閉店/出店のフロー保護より先に1語にする（稼働店舗数と同じ）。
 # 閉鎖店舗数は空白なしだけ（`閉鎖 店舗数` は従来の退店フロー）。
 _STATUS_STORE_RE = re.compile(
@@ -179,6 +181,7 @@ _STATUS_STORE_RE = re.compile(
     r"閉鎖(?:店舗数|店数)"
 )
 _FLOW_PROTECT: tuple[tuple[str, str], ...] = (
+    ("百貨店事業合計", _DEPT_TOTAL_MARK),
     ("転換出店数", _TENKAN_CNT_MARK),
     ("転換出店", _TENKAN_MARK),
     ("開店数", _LAUNCH_CNT_MARK),
@@ -199,6 +202,7 @@ _FLOW_PROTECT: tuple[tuple[str, str], ...] = (
     ("撤退", _TETTAI_MARK),
 )
 _FLOW_RESTORE: tuple[tuple[str, str], ...] = (
+    (_DEPT_TOTAL_MARK, "百貨店事業合計"),
     (_TENKAN_CNT_MARK, "転換出店数"),
     (_TENKAN_MARK, "転換出店"),
     (_LAUNCH_CNT_MARK, "開店数"),
@@ -320,6 +324,8 @@ _CLOSE_SHARDS = frozenset({"退", "閉"})
 _DUMMY_STORE_TOKS = frozenset({"店舗"})
 _OPEN_QUALIFIERS = frozenset({"新規"})
 _STORE_ADJ_MARKS = ("純増", "新設", "改装", "業態転換")
+# leftover に残して表示名は変えない。group だけ除く（入店客数 / 総額売上高）。
+_GROUP_MODIFIER_TOKS = frozenset({"入店", "総額"})
 _METRIC_PREFIX: tuple[tuple[str, str], ...] = (
     ("購入お客様数", "購入お客様数"),
     ("稼働日修正後", "稼働日修正後"),
@@ -330,6 +336,7 @@ _METRIC_PREFIX: tuple[tuple[str, str], ...] = (
     ("売上高", "売上高"),
     ("取扱高", "取扱高"),
     ("客室収入", "客室収入"),
+    ("売上収益(IFRS)", "売上収益(IFRS)"),
     ("調理済み商品お届け数（千食）", "調理済み商品お届け数（千食）"),
     ("調理済み商品お届け数", "調理済み商品お届け数"),
     ("営業所数", "営業所数"),
@@ -340,7 +347,7 @@ _METRIC_PREFIX: tuple[tuple[str, str], ...] = (
 )
 _METRIC_STARTSWITH = frozenset({
     "購入お客様数", "稼働日修正後", "稼働店舗数", "店舗数", "来客数", "客単価", "売上高",
-    "取扱高", "客室収入", "調理済み商品お届け数（千食）", "調理済み商品お届け数", "営業所数", "客数",
+    "取扱高", "客室収入", "売上収益(IFRS)", "調理済み商品お届け数（千食）", "調理済み商品お届け数", "営業所数", "客数",
 })
 _COUNTRY_RANK = {"": 0, "日本": 1, "海外": 2}
 _CHANNEL_RANK = {"直営+FC": 0, "直営": 1, "FC": 2, "": 3}
@@ -1047,7 +1054,7 @@ def _row_metric(key: str) -> str:
         return "spend"
     if metric == "客数" or metric == "購入お客様数":
         return "customers"
-    if metric == "売上高" or metric == "稼働日修正後":
+    if metric == "売上高" or metric == "稼働日修正後" or "売上収益" in metric:
         return "sales"
     if any(mark in key for mark in _STORE_ADJ_MARKS):
         return "adj"
@@ -1067,6 +1074,8 @@ def _row_segment(key: str) -> str:
     toks = []
     for tok in _layers_of(key)["segment"].split():
         if tok in _OPEN_QUALIFIERS or any(mark in tok for mark in _STORE_ADJ_MARKS):
+            continue
+        if tok in _GROUP_MODIFIER_TOKS:
             continue
         toks.append(tok)
     return " ".join(toks)
