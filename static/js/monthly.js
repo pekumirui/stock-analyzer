@@ -19,6 +19,17 @@ let monthlyGateCodes = null;
 let monthlyGateIndexFp = "";
 let monthlyGateIndexPromise = null;
 let monthlyIrCodes = null;
+// 試作: 年を横に並べた 1 枚表。個人 /app だけ。
+const MONTHLY_VIEW_MODE_KEY = "monthly.viewMode.proto";
+let monthlyViewMode = (() => {
+  try{
+    return localStorage.getItem(MONTHLY_VIEW_MODE_KEY) === "years" ? "years" : "timeline";
+  }catch(_){
+    return "timeline";
+  }
+})();
+let monthlyTlOpen = new Set();
+let monthlyTlRevealed = "";
 let _monthlyIrCodesReady = null;
 
 function monthlyPublic(){
@@ -729,6 +740,8 @@ function showMonthlyDetail(code, opts){
   const el = $("#monthly-title");
   if(el) el.textContent = title;
   monthlySeries = "";
+  monthlyTlOpen = new Set();
+  monthlyTlRevealed = "";
   $("#monthly-top").style.display = "none";
   $("#monthly-detail").style.display = "";
   if(monthlyPublic()){
@@ -781,6 +794,10 @@ function setMonthlySeries(id){
   monthlySeries = id;
   const sel = $("#monthly-series");
   if(sel && sel.value !== id) sel.value = id;
+  if(monthlyTimelineOn() && monthlyTimelineReveal(id)){
+    renderMonthlyYearTables(monthlyYearTables);
+    return;
+  }
   drawMonthlyChart(monthlyYearTables, monthlySeries);
   markMonthlySeriesRows();
 }
@@ -810,14 +827,203 @@ function setMonthlyLayoutMode(mode){
   renderMonthlyYearTables(monthlyYearTables);
 }
 
-function renderMonthlyYearTables(tables){
+function monthlyTimelineOn(){
+  return !monthlyPublic() && monthlyViewMode === "timeline";
+}
+
+function syncMonthlyViewDebugUi(){
+  const host = $("#monthly-view-debug");
+  const sel = $("#monthly-view-mode");
+  if(!host || !sel) return;
+  host.hidden = monthlyPublic();
+  sel.value = monthlyViewMode;
+}
+
+function setMonthlyViewMode(mode){
+  monthlyViewMode = mode === "years" ? "years" : "timeline";
+  try{ localStorage.setItem(MONTHLY_VIEW_MODE_KEY, monthlyViewMode); }catch(_){}
+  syncMonthlyViewDebugUi();
+  if(monthlyYearTables.length) renderMonthlyYearTables(monthlyYearTables);
+}
+
+const MONTHLY_TL_MAIN_KINDS = new Set(["sales", "customers", "spend", "stores"]);
+// 主要行がこれより少ない発行体（セグメント別しかない J.フロント等）は、行順の先頭から足す。
+const MONTHLY_TL_MIN_MAIN = 8;
+
+function monthlyTimelineIsMain(L){
+  return !L.group && !L.breakdown && !L.country && !L.channel
+    && MONTHLY_TL_MAIN_KINDS.has(L.metric_kind);
+}
+
+// layout の行を「常に出す主要行」と「畳める節」に分ける。値の無い行は落とす。
+function monthlyTimelineSections(layout, hasValues){
+  const main = [];
+  const more = {key: "__more__", label: "その他の項目", rows: []};
+  const brands = [];
+  let cur = null;
+  for(const rec of layout.rows){
+    if(rec.kind === "section"){
+      cur = {key: rec.label, label: rec.label, rows: []};
+      brands.push(cur);
+      continue;
+    }
+    if(!hasValues(rec.element)) continue;
+    if(cur) cur.rows.push(rec);
+    else if(monthlyTimelineIsMain(rec.label)) main.push(rec);
+    else more.rows.push(rec);
+  }
+  if(main.length < MONTHLY_TL_MIN_MAIN){
+    main.push(...more.rows.splice(0, MONTHLY_TL_MIN_MAIN - main.length));
+  }
+  return {main, sections: [more, ...brands].filter(s => s.rows.length)};
+}
+
+function monthlyTimelineRowName(rec, gated){
+  if(!gated) return rec.element;
+  if(rec.breakdown) return rec.leaf;
+  const sc = rec.scope ? monthlyStubScopeText(rec.scope) : "";
+  return [rec.channel, sc, rec.leaf].filter(Boolean).join(" ");
+}
+
+function monthlyTimelineHasValues(tables){
+  const ids = new Set();
+  for(const d of tables || []){
+    for(const e of (d && d.elements) || []){
+      if(Object.keys(e.values || {}).length) ids.add(e.label.display);
+    }
+  }
+  return id => ids.has(id);
+}
+
+function monthlyTimelineReveal(id){
+  if(!id || id === monthlyTlRevealed) return false;
+  monthlyTlRevealed = id;
+  const layout = monthlyTableLayout(monthlyRowOrder(monthlyYearTables), monthlyYearTables);
+  const {sections} = monthlyTimelineSections(layout, monthlyTimelineHasValues(monthlyYearTables));
+  for(const sec of sections){
+    if(sec.rows.some(r => r.element === id) && !monthlyTlOpen.has(sec.key)){
+      monthlyTlOpen.add(sec.key);
+      return true;
+    }
+  }
+  return false;
+}
+
+function toggleMonthlyTimelineSection(key){
+  if(monthlyTlOpen.has(key)) monthlyTlOpen.delete(key);
+  else monthlyTlOpen.add(key);
+  const wrap = $("#monthly-table-wrap");
+  const left = wrap ? wrap.scrollLeft : 0;
+  renderMonthlyYearTables(monthlyYearTables, {keepScroll: true});
+  if(wrap) wrap.scrollLeft = left;
+}
+
+// 前年比は 100 を境に色を付ける（上げは --up、下げは --down の薄塗り。±20 で最も濃い）。
+function monthlyYoyHeat(v){
+  const n = Number(v);
+  if(v == null || v === "" || !Number.isFinite(n) || n === 100) return "";
+  const a = (Math.min(Math.abs(n - 100), 20) / 20 * 0.32 + 0.04).toFixed(3);
+  return n > 100 ? `background:rgba(211,47,47,${a})` : `background:rgba(27,138,90,${a})`;
+}
+
+function renderMonthlyTimeline(tables, layout, opts){
+  const wrap = $("#monthly-table-wrap");
+  const byYear = new Map();
+  for(const d of tables){
+    if(!d) continue;
+    const byName = {};
+    for(const src of d.elements || []) byName[src.label.display] = src;
+    byYear.set(Number(d.year), byName);
+  }
+  const years = [...byYear.keys()].sort((a, b) => a - b);
+  const {main, sections} = monthlyTimelineSections(layout, monthlyTimelineHasValues(tables));
+  const all = [...main, ...sections.flatMap(s => s.rows)];
+  let first = null, last = null;
+  for(const y of years){
+    for(let m = 1; m <= 12; m++){
+      const any = all.some(r => {
+        const src = byYear.get(y)[r.element];
+        const v = src && (src.values || {})[String(m)];
+        return v != null && v !== "";
+      });
+      if(!any) continue;
+      if(!first) first = {y, m};
+      last = {y, m};
+    }
+  }
+  if(!first){
+    wrap.innerHTML = `<div class="sub">データなし</div>`;
+    return;
+  }
+  const cols = [];
+  for(const y of years){
+    for(let m = 1; m <= 12; m++){
+      if(y === first.y && m < first.m) continue;
+      if(y === last.y && m > last.m) continue;
+      cols.push({y, m});
+    }
+  }
+  let maxNumLen = 0;
+  let head1 = `<th class="tl-corner" rowspan="2"></th>`;
+  let head2 = "";
+  for(const y of years){
+    const n = cols.filter(c => c.y === y).length;
+    if(n) head1 += `<th class="tl-year" colspan="${n}">${y}</th>`;
+  }
+  for(const c of cols){
+    const yb = c === cols[0] || c.m === 1 ? ` class="tl-yb"` : "";
+    head2 += `<th${yb}>${c.m}月</th>`;
+  }
+  const rowHtml = rec => {
+    let unit = rec.unit || "number";
+    let cells = "";
+    for(const c of cols){
+      const src = byYear.get(c.y)[rec.element];
+      if(src && src.unit) unit = src.unit;
+      const v = src ? (src.values || {})[String(c.m)] : null;
+      const txt = (v == null || v === "") ? "" : fmtMonthlyCell(v, unit, rec.element);
+      if(txt) maxNumLen = Math.max(maxNumLen, txt.length);
+      const yoy = unit === "yoy_index" || unit === "yoy_pct";
+      const st = yoy ? monthlyYoyHeat(v) : "";
+      const cls = c === cols[0] || c.m === 1 ? "num tl-yb" : "num";
+      cells += `<td class="${cls}"${st ? ` style="${st}"` : ""}>${txt}</td>`;
+    }
+    const bd = rec.breakdown ? " tl-bd" : "";
+    const ds = ` data-series="${escHtml(rec.element)}" onclick="setMonthlySeries(this.dataset.series)"`;
+    return `<tr${ds}><td class="tl-name${bd}" title="${escHtml(rec.element)}">${escHtml(monthlyTimelineRowName(rec, layout.gated))}</td>${cells}</tr>`;
+  };
+  let body = main.map(rowHtml).join("");
+  for(const sec of sections){
+    const open = monthlyTlOpen.has(sec.key);
+    body += `<tr class="tl-sec" data-key="${escHtml(sec.key)}" onclick="toggleMonthlyTimelineSection(this.dataset.key)">`
+      + `<td class="tl-name">${open ? "▾" : "▸"} ${escHtml(sec.label)}<span class="tl-cnt">${sec.rows.length}行</span></td>`
+      + `<td class="tl-sec-fill" colspan="${cols.length}"></td></tr>`;
+    if(open) body += sec.rows.map(rowHtml).join("");
+  }
+  wrap.style.setProperty("--monthly-m-w", `calc(${Math.max(maxNumLen, 3)}ch + 14px)`);
+  wrap.innerHTML = `<table class="monthly-tl"><thead><tr>${head1}</tr><tr>${head2}</tr></thead><tbody>${body}</tbody></table>`;
+  if(!(opts && opts.keepScroll)){
+    wrap.scrollLeft = wrap.scrollWidth;
+    requestAnimationFrame(() => { wrap.scrollLeft = wrap.scrollWidth; });
+  }
+}
+
+function renderMonthlyYearTables(tables, opts){
   const wrap = $("#monthly-table-wrap");
   if(!wrap) return;
   const rowOrder = monthlyRowOrder(tables);
   const canGate = monthlySegmentGate(tables).size > 0;
   const layout = monthlyTableLayout(rowOrder, tables);
   syncMonthlyLayoutDebugUi(canGate);
+  syncMonthlyViewDebugUi();
   renderMonthlySeriesSelect();
+  if(monthlyTimelineOn()){
+    monthlyTimelineReveal(monthlySeries);
+    renderMonthlyTimeline(tables, layout, opts);
+    drawMonthlyChart(tables, monthlySeries);
+    markMonthlySeriesRows();
+    return;
+  }
   let h = "";
   let maxNumLen = 0;
   for(const d of tables){
@@ -1095,6 +1301,8 @@ window.showMonthlyDetail = showMonthlyDetail;
 window.pickMonthlyIssuer = pickMonthlyIssuer;
 window.backMonthly = backMonthly;
 window.setMonthlySeries = setMonthlySeries;
+window.setMonthlyViewMode = setMonthlyViewMode;
+window.toggleMonthlyTimelineSection = toggleMonthlyTimelineSection;
 window.loadMonthlyList = loadMonthlyList;
 window.findMonthlyIssuer = findMonthlyIssuer;
 bindMonthlyIssuerSearch();
