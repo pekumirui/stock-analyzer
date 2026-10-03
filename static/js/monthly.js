@@ -30,6 +30,15 @@ let monthlyViewMode = (() => {
     return "timeline";
   }
 })();
+// 試作: 金額と前年比が両方ある項目は 1 行にまとめ、表示する方を切り替える。色はどちらでも前年比。
+const MONTHLY_VALUE_MODE_KEY = "monthly.valueMode.proto";
+let monthlyValueMode = (() => {
+  try{
+    return localStorage.getItem(MONTHLY_VALUE_MODE_KEY) === "amount" ? "amount" : "yoy";
+  }catch(_){
+    return "yoy";
+  }
+})();
 let monthlyTlOpen = new Set();
 let monthlyTlRevealed = "";
 let _monthlyIrCodesReady = null;
@@ -857,25 +866,117 @@ function monthlyTimelineIsMain(L){
     && MONTHLY_TL_MAIN_KINDS.has(L.metric_kind);
 }
 
+function monthlyIsYoyUnit(unit){
+  return unit === "yoy_index" || unit === "yoy_pct";
+}
+
+function monthlyYoyBase(id){
+  return String(id || "").replace(/\(前年比\)$/, "");
+}
+
+// 同じ節で「X」と「X(前年比)」が両方あれば、金額行の位置と名前に前年比の element（yoy）を持たせて 1 行にする。表示だけ。
+function monthlyPairYoyRows(rows){
+  const yoyByKey = new Map();
+  const numKeys = new Set();
+  let sec = "";
+  for(const r of rows){
+    if(r.kind === "section"){ sec = r.label; continue; }
+    const key = sec + "\u0000" + monthlyYoyBase(r.element);
+    if(!monthlyIsYoyUnit(r.unit)) numKeys.add(sec + "\u0000" + r.element);
+    else if(monthlyYoyBase(r.element) !== r.element) yoyByKey.set(key, r.element);
+  }
+  const out = [];
+  sec = "";
+  for(const r of rows){
+    if(r.kind === "section"){ sec = r.label; out.push(r); continue; }
+    const key = sec + "\u0000" + monthlyYoyBase(r.element);
+    if(monthlyIsYoyUnit(r.unit)){
+      if(!(numKeys.has(key) && yoyByKey.get(key) === r.element)) out.push(r);
+      continue;
+    }
+    const yoy = numKeys.has(key) ? yoyByKey.get(key) : "";
+    out.push(yoy ? {...r, yoy} : r);
+  }
+  return out;
+}
+
+function monthlyTlShown(rec){
+  return rec.yoy && monthlyValueMode === "yoy" ? rec.yoy : rec.element;
+}
+
+function monthlyTlAlt(rec){
+  if(!rec.yoy) return "";
+  return monthlyTlShown(rec) === rec.yoy ? rec.element : rec.yoy;
+}
+
+function monthlyTlCell(byName, rec, m){
+  const id = monthlyTlShown(rec);
+  const src = byName[id];
+  const unit = (src && src.unit) || (id === rec.yoy ? "yoy_index" : rec.unit) || "number";
+  const v = src ? (src.values || {})[String(m)] : null;
+  const txt = (v == null || v === "") ? "" : fmtMonthlyCell(v, unit, id);
+  const heatId = rec.yoy || (monthlyIsYoyUnit(unit) ? id : "");
+  const hs = heatId ? byName[heatId] : null;
+  const st = hs ? monthlyYoyHeat((hs.values || {})[String(m)]) : "";
+  return {txt, st};
+}
+
+function monthlyTlRowAttrs(rec){
+  const alt = monthlyTlAlt(rec);
+  return ` data-series="${escHtml(monthlyTlShown(rec))}"${alt ? ` data-alt="${escHtml(alt)}"` : ""} onclick="setMonthlySeries(this.dataset.series)"`;
+}
+
+function syncMonthlyValueUi(show){
+  const host = $("#monthly-value-tabs");
+  if(!host) return;
+  host.hidden = !show;
+  host.querySelectorAll("button[data-v]").forEach(b => b.classList.toggle("on", b.dataset.v === monthlyValueMode));
+}
+
+function setMonthlyValueMode(mode){
+  monthlyValueMode = mode === "amount" ? "amount" : "yoy";
+  try{ localStorage.setItem(MONTHLY_VALUE_MODE_KEY, monthlyValueMode); }catch(_){}
+  const base = monthlyYoyBase(monthlySeries);
+  const want = monthlyValueMode === "yoy" ? base + "(前年比)" : base;
+  const ids = new Set(monthlyYearTables.flatMap(d => (d.elements || []).map(e => e.label.display)));
+  if(want !== monthlySeries && ids.has(base) && ids.has(base + "(前年比)")){
+    monthlySeries = want;
+    const sel = $("#monthly-series");
+    if(sel) sel.value = want;
+  }
+  if(!monthlyYearTables.length) return;
+  const wrap = $("#monthly-table-wrap");
+  const left = wrap ? wrap.scrollLeft : 0;
+  renderMonthlyYearTables(monthlyYearTables, {keepScroll: true});
+  if(wrap) wrap.scrollLeft = left;
+}
+
 // layout の行を「常に出す主要行」と「畳める節」に分ける。値の無い行は落とす。
-function monthlyTimelineSections(layout, hasValues){
+function monthlyTimelineSections(layout, tables){
+  const hasValues = monthlyTimelineHasValues(tables);
+  const newest = (tables || []).filter(Boolean).reduce((a, d) => (!a || Number(d.year) > Number(a.year)) ? d : a, null);
+  const inNewest = monthlyTimelineHasValues(newest ? [newest] : []);
   const main = [];
   const more = {key: "__more__", label: "その他の項目", rows: []};
   const brands = [];
   let cur = null;
-  for(const rec of layout.rows){
+  for(const rec of monthlyPairYoyRows(layout.rows)){
     if(rec.kind === "section"){
       cur = {key: rec.label, label: rec.label, rows: []};
       brands.push(cur);
       continue;
     }
-    if(!hasValues(rec.element)) continue;
+    if(!hasValues(rec.element) && !(rec.yoy && hasValues(rec.yoy))) continue;
     if(cur) cur.rows.push(rec);
     else if(monthlyTimelineIsMain(rec.label)) main.push(rec);
     else more.rows.push(rec);
   }
-  if(main.length < MONTHLY_TL_MIN_MAIN){
-    main.push(...more.rows.splice(0, MONTHLY_TL_MIN_MAIN - main.length));
+  // 足すのは最新の年に値がある行だけ（旧い年にしか無い行名を上げない）。
+  for(const rec of more.rows.slice()){
+    if(main.length >= MONTHLY_TL_MIN_MAIN) break;
+    if(!inNewest(rec.element) && !(rec.yoy && inNewest(rec.yoy))) continue;
+    main.push(rec);
+    more.rows.splice(more.rows.indexOf(rec), 1);
   }
   return {main, sections: [more, ...brands].filter(s => s.rows.length)};
 }
@@ -901,9 +1002,9 @@ function monthlyTimelineReveal(id){
   if(!id || id === monthlyTlRevealed) return false;
   monthlyTlRevealed = id;
   const layout = monthlyTableLayout(monthlyRowOrder(monthlyYearTables), monthlyYearTables);
-  const {sections} = monthlyTimelineSections(layout, monthlyTimelineHasValues(monthlyYearTables));
+  const {sections} = monthlyTimelineSections(layout, monthlyYearTables);
   for(const sec of sections){
-    if(sec.rows.some(r => r.element === id) && !monthlyTlOpen.has(sec.key)){
+    if(sec.rows.some(r => r.element === id || r.yoy === id) && !monthlyTlOpen.has(sec.key)){
       monthlyTlOpen.add(sec.key);
       return true;
     }
@@ -932,13 +1033,13 @@ function renderMonthlyTimeline(tables, layout, opts){
   const wrap = $("#monthly-table-wrap");
   const byYear = monthlyTablesByYear(tables);
   const years = [...byYear.keys()].sort((a, b) => a - b);
-  const {main, sections} = monthlyTimelineSections(layout, monthlyTimelineHasValues(tables));
+  const {main, sections} = monthlyTimelineSections(layout, tables);
   const all = [...main, ...sections.flatMap(s => s.rows)];
   let first = null, last = null;
   for(const y of years){
     for(let m = 1; m <= 12; m++){
       const any = all.some(r => {
-        const src = byYear.get(y)[r.element];
+        const src = byYear.get(y)[monthlyTlShown(r)];
         const v = src && (src.values || {})[String(m)];
         return v != null && v !== "";
       });
@@ -971,22 +1072,15 @@ function renderMonthlyTimeline(tables, layout, opts){
     head2 += `<th${yb}>${c.m}月</th>`;
   }
   const rowHtml = rec => {
-    let unit = rec.unit || "number";
     let cells = "";
     for(const c of cols){
-      const src = byYear.get(c.y)[rec.element];
-      if(src && src.unit) unit = src.unit;
-      const v = src ? (src.values || {})[String(c.m)] : null;
-      const txt = (v == null || v === "") ? "" : fmtMonthlyCell(v, unit, rec.element);
+      const {txt, st} = monthlyTlCell(byYear.get(c.y), rec, c.m);
       if(txt) maxNumLen = Math.max(maxNumLen, txt.length);
-      const yoy = unit === "yoy_index" || unit === "yoy_pct";
-      const st = yoy ? monthlyYoyHeat(v) : "";
       const cls = c === cols[0] || c.m === 1 ? "num tl-yb" : "num";
       cells += `<td class="${cls}"${st ? ` style="${st}"` : ""}>${txt}</td>`;
     }
     const bd = rec.breakdown ? " tl-bd" : "";
-    const ds = ` data-series="${escHtml(rec.element)}" onclick="setMonthlySeries(this.dataset.series)"`;
-    return `<tr${ds}><td class="tl-name${bd}" title="${escHtml(rec.element)}">${escHtml(monthlyTimelineRowName(rec, layout.gated))}</td>${cells}</tr>`;
+    return `<tr${monthlyTlRowAttrs(rec)}><td class="tl-name${bd}" title="${escHtml(rec.element)}">${escHtml(monthlyTimelineRowName(rec, layout.gated))}</td>${cells}</tr>`;
   };
   let body = main.map(rowHtml).join("");
   for(const sec of sections){
@@ -1020,7 +1114,7 @@ function renderMonthlyMetricYear(tables, layout, opts){
   const wrap = $("#monthly-table-wrap");
   const byYear = monthlyTablesByYear(tables);
   const years = [...byYear.keys()].sort((a, b) => b - a);
-  const {main, sections} = monthlyTimelineSections(layout, monthlyTimelineHasValues(tables));
+  const {main, sections} = monthlyTimelineSections(layout, tables);
   if(!main.length && !sections.length){
     wrap.innerHTML = `<div class="sub">データなし</div>`;
     return;
@@ -1030,21 +1124,16 @@ function renderMonthlyMetricYear(tables, layout, opts){
   for(let m = 1; m <= 12; m++) head += `<th>${m}月</th>`;
   const groupHtml = rec => {
     const ys = years.filter(y => {
-      const src = byYear.get(y)[rec.element];
+      const src = byYear.get(y)[monthlyTlShown(rec)];
       return src && Object.keys(src.values || {}).length;
     });
     const bd = rec.breakdown ? " tl-bd" : "";
-    const ds = ` data-series="${escHtml(rec.element)}" onclick="setMonthlySeries(this.dataset.series)"`;
+    const ds = monthlyTlRowAttrs(rec);
     return ys.map((y, i) => {
-      const src = byYear.get(y)[rec.element];
-      const unit = src.unit || rec.unit || "number";
-      const yoy = unit === "yoy_index" || unit === "yoy_pct";
       let cells = "";
       for(let m = 1; m <= 12; m++){
-        const v = (src.values || {})[String(m)];
-        const txt = (v == null || v === "") ? "" : fmtMonthlyCell(v, unit, rec.element);
+        const {txt, st} = monthlyTlCell(byYear.get(y), rec, m);
         if(txt) maxNumLen = Math.max(maxNumLen, txt.length);
-        const st = yoy ? monthlyYoyHeat(v) : "";
         cells += `<td class="num"${st ? ` style="${st}"` : ""}>${txt}</td>`;
       }
       const name = i === 0
@@ -1075,9 +1164,11 @@ function renderMonthlyYearTables(tables, opts){
   const layout = monthlyTableLayout(rowOrder, tables);
   syncMonthlyLayoutDebugUi(canGate);
   syncMonthlyViewDebugUi();
+  syncMonthlyValueUi(false);
   renderMonthlySeriesSelect();
   if(monthlyTimelineOn()){
     monthlyTimelineReveal(monthlySeries);
+    syncMonthlyValueUi(monthlyPairYoyRows(layout.rows).some(r => r.yoy));
     if(monthlyViewMode === "metric") renderMonthlyMetricYear(tables, layout, opts);
     else renderMonthlyTimeline(tables, layout, opts);
     drawMonthlyChart(tables, monthlySeries);
@@ -1153,7 +1244,7 @@ function renderMonthlyYearTables(tables, opts){
 
 function markMonthlySeriesRows(){
   document.querySelectorAll("#monthly-table-wrap tr[data-series]").forEach(tr =>
-    tr.classList.toggle("on", tr.dataset.series === monthlySeries));
+    tr.classList.toggle("on", tr.dataset.series === monthlySeries || tr.dataset.alt === monthlySeries));
 }
 
 async function loadMonthlyTables(){
@@ -1362,6 +1453,7 @@ window.pickMonthlyIssuer = pickMonthlyIssuer;
 window.backMonthly = backMonthly;
 window.setMonthlySeries = setMonthlySeries;
 window.setMonthlyViewMode = setMonthlyViewMode;
+window.setMonthlyValueMode = setMonthlyValueMode;
 window.toggleMonthlyTimelineSection = toggleMonthlyTimelineSection;
 window.loadMonthlyList = loadMonthlyList;
 window.findMonthlyIssuer = findMonthlyIssuer;
