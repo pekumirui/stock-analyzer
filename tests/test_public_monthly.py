@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -64,6 +65,14 @@ def main() -> None:
         _fail("GET /app is not the private SPA")
     if 'id="monthly-layout-debug"' not in r.text:
         _fail("private SPA must keep TEMP layout debug")
+    # iOS Safari はメモリの古い CSS を確かめずに使うので、/static は中身のハッシュ付き URL で出す
+    m = re.search(r'href="/static/css/app\.css\?v=([0-9a-f]{12})"', r.text)
+    if not m or not re.search(r'src="/static/js/monthly\.js\?v=[0-9a-f]{12}"', r.text):
+        _fail("GET /app must version /static URLs with ?v=<hash>")
+    if not r.headers.get("etag"):
+        _fail("GET /app must send an ETag (boot.js compares it)")
+    if c.get(f"/static/css/app.css?v={m.group(1)}").status_code != 200:
+        _fail("versioned /static URL must still be served")
     spa_js = (ROOT / "static" / "js" / "monthly.js").read_text(encoding="utf-8")
     if "ゲート（一時）" not in spa_js:
         _fail("private SPA JS must keep TEMP gate chip")
@@ -86,6 +95,8 @@ def main() -> None:
         _fail("public TOP must not show TEMP debug UI")
     if "data-public-monthly" not in r.text:
         _fail("public body flag missing")
+    if not re.search(r'href="/static/css/app\.css\?v=[0-9a-f]{12}"', r.text):
+        _fail("public /monthly must version /static URLs with ?v=<hash>")
 
     r = c.get("/monthly/72030", follow_redirects=False)
     _expect(r, 301, "GET /monthly/72030")
