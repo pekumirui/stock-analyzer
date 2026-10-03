@@ -1175,15 +1175,11 @@ function renderMonthlyTimeline(tables, layout, opts){
     }
   }
   let maxNumLen = 0;
-  let head1 = `<th class="tl-corner" rowspan="2"></th>`;
-  let head2 = "";
-  for(const y of years){
-    const n = cols.filter(c => c.y === y).length;
-    if(n) head1 += `<th class="tl-year" colspan="${n}">${y}</th>`;
-  }
+  // 見出しは 1 段。各列に暦年を小さく薄く載せ、横にスクロールしてもどの年かが分かるようにする。
+  let head = `<th class="tl-corner"></th>`;
   for(const c of cols){
     const yb = c === cols[0] || c.m === 1 ? ` class="tl-yb"` : "";
-    head2 += `<th${yb}>${c.m}月</th>`;
+    head += `<th${yb}><span class="tl-hy">${c.y}年</span>${c.m}月</th>`;
   }
   const cellsFor = rec => {
     let cells = "";
@@ -1213,7 +1209,7 @@ function renderMonthlyTimeline(tables, layout, opts){
     if(open) body += scopeHtml(sec.rows, !!sec.total);
   }
   wrap.style.setProperty("--monthly-m-w", `calc(${Math.max(maxNumLen, 3)}ch + 14px)`);
-  wrap.innerHTML = `<table class="monthly-tl"><thead><tr>${head1}</tr><tr>${head2}</tr></thead><tbody>${body}</tbody></table>`;
+  wrap.innerHTML = `<table class="monthly-tl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
   if(!(opts && opts.keepScroll)){
     wrap.scrollLeft = wrap.scrollWidth;
     requestAnimationFrame(() => { wrap.scrollLeft = wrap.scrollWidth; });
