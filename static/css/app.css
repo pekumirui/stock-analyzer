@@ -286,7 +286,7 @@
   table.monthly-tl td { border:0 solid var(--border); border-width:0 1px 1px 0; padding:5px 6px; }
   table.monthly-tl thead th { position:static; text-align:center; font-weight:700; color:var(--text); background:#eceff2; width:var(--monthly-m-w); min-width:var(--monthly-m-w); }
   table.monthly-tl thead tr:first-child th { border-top-width:1px; }
-  table.monthly-tl thead th.tl-year { background:var(--up); color:#fff; font-size:12px; }
+  table.monthly-tl thead th .tl-hy { display:block; font-size:10px; font-weight:400; color:var(--sub); line-height:1.2; }
   table.monthly-tl .tl-corner,
   table.monthly-tl td.tl-name {
     position:sticky; left:0; z-index:2; background:#fff; text-align:left; font-weight:700;
