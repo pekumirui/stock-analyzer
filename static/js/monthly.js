@@ -57,9 +57,10 @@ function monthlyCode4(code){
   return String(code || "").slice(0, 4);
 }
 
+// 設定 JSON は no-store で取る。iOS Safari はメモリに残った古い中身を確かめずに使う（ベルーナの内訳の親子が消えた）。
 function loadMonthlyRowOrderConfig(){
   if(_monthlyRowOrderReady) return _monthlyRowOrderReady;
-  _monthlyRowOrderReady = fetch("/static/monthly_row_order.json")
+  _monthlyRowOrderReady = fetch("/static/monthly_row_order.json", {cache: "no-store"})
     .then(r => r.ok ? r.json() : {})
     .then(j => { MONTHLY_ROW_ORDER = (j && typeof j === "object") ? j : {}; return MONTHLY_ROW_ORDER; })
     .catch(() => { MONTHLY_ROW_ORDER = {}; return MONTHLY_ROW_ORDER; });
@@ -69,7 +70,7 @@ function loadMonthlyRowOrderConfig(){
 function loadMonthlyIrCodes(){
   if(monthlyPublic()) return Promise.resolve(new Set());
   if(_monthlyIrCodesReady) return _monthlyIrCodesReady;
-  _monthlyIrCodesReady = fetch("/static/ir_monthly_codes.json")
+  _monthlyIrCodesReady = fetch("/static/ir_monthly_codes.json", {cache: "no-store"})
     .then(r => r.ok ? r.json() : {codes:[]})
     .then(j => {
       const codes = new Set();
