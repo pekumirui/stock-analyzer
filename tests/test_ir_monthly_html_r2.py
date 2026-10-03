@@ -38,6 +38,7 @@ from ir_monthly_html_r2 import (  # noqa: E402
     existing_html_hashes,
     fetch_issuer,
     ingest_path,
+    is_rate_limited,
     load_html_registry,
     parse_eir_jsonp,
     pick_eir_monthly,
@@ -1884,7 +1885,7 @@ def test_fetch_issuer_retries_429_then_saves(tmp: Path) -> None:
         _fail(f"saved html {htmls}")
 
 
-def test_fetch_issuer_exhausted_429_stays_failed(tmp: Path) -> None:
+def test_fetch_issuer_exhausted_429_is_skipped(tmp: Path) -> None:
     from unittest.mock import patch
 
     import _r2common
@@ -1914,14 +1915,242 @@ def test_fetch_issuer_exhausted_429_stays_failed(tmp: Path) -> None:
     finally:
         mod.SLEEP_SEC = orig_sleep
     out = buf.getvalue()
-    if (n, s, k, f) != (1, 0, 0, 1):
+    if (n, s, k, f) != (1, 0, 1, 0):
         _fail(f"exhausted 429 {n, s, k, f} {out}")
     if out.count("retry 429 ") != 5:
         _fail(out)
-    if "fail issuer 8163 fetch: HTTP Error 429: Too Many Requests" not in out:
+    if "skip issuer 8163 rate-limited: HTTP Error 429: Too Many Requests" not in out:
+        _fail(out)
+    if "fail issuer 8163" in out:
         _fail(out)
     if list((tmp / "srs_fail").rglob("*.html")):
         _fail("exhausted 429 must not write html")
+
+
+def test_fetch_issuer_exhausted_404_stays_failed(tmp: Path) -> None:
+    from unittest.mock import patch
+
+    import ir_monthly_html_r2 as mod
+
+    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+        raise _http_err(req.full_url, 404, "Not Found")
+
+    orig_sleep = mod.SLEEP_SEC
+    mod.SLEEP_SEC = 0
+    buf = io.StringIO()
+    try:
+        with patch("urllib.request.urlopen", side_effect=fake_urlopen), redirect_stdout(buf):
+            n, s, k, f = fetch_issuer(
+                _srs_issuer(),
+                tmp / "srs_404",
+                {"81630": ("011", "ＳＲＳホールディングス")},
+                date(2026, 10, 3),
+                dry_run=False,
+            )
+    finally:
+        mod.SLEEP_SEC = orig_sleep
+    out = buf.getvalue()
+    if (n, s, k, f) != (1, 0, 0, 1):
+        _fail(f"404 {n, s, k, f} {out}")
+    if "fail issuer 8163 fetch: HTTP Error 404: Not Found" not in out:
+        _fail(out)
+    if "rate-limited" in out:
+        _fail(out)
+
+
+def test_run_persistent_429_does_not_fail_job(tmp: Path) -> None:
+    """1 社の永続 429 は skip。他社は保存し、failed=0 / exit=0。"""
+    import ir_monthly_html_r2 as mod
+
+    dest = tmp / "partial429"
+    cfg = tmp / "ir.json"
+    srs_url = "https://srsholdings.com/pages/ir-library-monthly/"
+    kawa_url = "https://example.test/cawachi/"
+    cfg.write_text(
+        json.dumps(
+            {
+                "html": [
+                    {
+                        "code": "8163",
+                        "name": "ＳＲＳホールディングス",
+                        "index_url": srs_url,
+                        "title": "月次",
+                        "parse": False,
+                    },
+                    {
+                        "code": "2664",
+                        "name": "カワチ薬品",
+                        "index_url": kawa_url,
+                        "title": "月次",
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    calls: list[str] = []
+
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+        calls.append(url)
+        if url == srs_url:
+            raise _http_err(url, 429, "Too Many Requests")
+        if url == kawa_url:
+            return CAWACHI_HTML.encode("utf-8")
+        raise RuntimeError(url)
+
+    orig = mod.http_get
+    orig_map = mod.load_stock_product_map
+    orig_sleep = mod.SLEEP_SEC
+    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.load_stock_product_map = lambda **_k: {  # type: ignore[assignment]
+        "81630": ("011", "ＳＲＳホールディングス"),
+        "26640": ("011", "カワチ薬品"),
+    }
+    mod.SLEEP_SEC = 0
+    buf = io.StringIO()
+    try:
+        with redirect_stdout(buf):
+            rc = run(dest, cfg, today=date(2026, 10, 3))
+    finally:
+        mod.http_get = orig
+        mod.load_stock_product_map = orig_map
+        mod.SLEEP_SEC = orig_sleep
+    out = buf.getvalue()
+    if rc != 0:
+        _fail(f"partial 429 rc {rc} {out}")
+    if "skip issuer 8163 rate-limited:" not in out:
+        _fail(out)
+    if "fail issuer 8163" in out:
+        _fail(out)
+    if "ir_monthly_html_r2 done listed=2 saved=1 skipped=1 failed=0" not in out:
+        _fail(out)
+    if srs_url not in calls or kawa_url not in calls:
+        _fail(f"calls {calls}")
+    if list((dest / "8163").rglob("*.html")):
+        _fail("429 must not write html")
+    if not list((dest / "2664").glob("*.html")):
+        _fail("other issuer must save")
+    err = _http_err(srs_url, 429, "Too Many Requests")
+    if not is_rate_limited(err):
+        _fail("is_rate_limited 429")
+    if is_rate_limited(_http_err(srs_url, 404, "Not Found")):
+        _fail("is_rate_limited 404")
+
+
+def test_run_host_cooldown_skips_same_host(tmp: Path) -> None:
+    import ir_monthly_html_r2 as mod
+
+    dest = tmp / "cooldown"
+    cfg = tmp / "ir.json"
+    host = "https://srsholdings.com"
+    first = f"{host}/pages/ir-library-monthly/"
+    second = f"{host}/pages/other-monthly/"
+    cfg.write_text(
+        json.dumps(
+            {
+                "html": [
+                    {
+                        "code": "8163",
+                        "name": "ＳＲＳホールディングス",
+                        "index_url": first,
+                        "title": "月次",
+                        "parse": False,
+                    },
+                    {
+                        "code": "8164",
+                        "name": "同一ホスト",
+                        "index_url": second,
+                        "title": "月次",
+                        "parse": False,
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    calls: list[str] = []
+
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+        calls.append(url)
+        raise _http_err(url, 429, "Too Many Requests")
+
+    orig = mod.http_get
+    orig_map = mod.load_stock_product_map
+    orig_sleep = mod.SLEEP_SEC
+    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.load_stock_product_map = lambda **_k: {  # type: ignore[assignment]
+        "81630": ("011", "ＳＲＳホールディングス"),
+        "81640": ("011", "同一ホスト"),
+    }
+    mod.SLEEP_SEC = 0
+    buf = io.StringIO()
+    try:
+        with redirect_stdout(buf):
+            rc = run(dest, cfg, today=date(2026, 10, 3))
+    finally:
+        mod.http_get = orig
+        mod.load_stock_product_map = orig_map
+        mod.SLEEP_SEC = orig_sleep
+    out = buf.getvalue()
+    if rc != 0:
+        _fail(f"host-cooled rc {rc} {out}")
+    if calls != [first]:
+        _fail(f"second issuer must not fetch {calls}")
+    if "skip issuer 8163 rate-limited:" not in out:
+        _fail(out)
+    if "skip issuer 8164 host-cooled srsholdings.com" not in out:
+        _fail(out)
+    if "ir_monthly_html_r2 done listed=2 saved=0 skipped=2 failed=0" not in out:
+        _fail(out)
+
+
+def test_run_404_still_exits_1(tmp: Path) -> None:
+    import ir_monthly_html_r2 as mod
+
+    dest = tmp / "hardfail"
+    cfg = tmp / "ir.json"
+    cfg.write_text(
+        json.dumps(
+            {
+                "html": [{
+                    "code": "8163",
+                    "name": "ＳＲＳホールディングス",
+                    "index_url": "https://srsholdings.com/pages/ir-library-monthly/",
+                    "title": "月次",
+                    "parse": False,
+                }]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+        raise _http_err(url, 404, "Not Found")
+
+    orig = mod.http_get
+    orig_map = mod.load_stock_product_map
+    orig_sleep = mod.SLEEP_SEC
+    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.load_stock_product_map = lambda **_k: {"81630": ("011", "ＳＲＳホールディングス")}  # type: ignore[assignment]
+    mod.SLEEP_SEC = 0
+    buf = io.StringIO()
+    try:
+        with redirect_stdout(buf):
+            rc = run(dest, cfg, today=date(2026, 10, 3))
+    finally:
+        mod.http_get = orig
+        mod.load_stock_product_map = orig_map
+        mod.SLEEP_SEC = orig_sleep
+    out = buf.getvalue()
+    if rc != 1:
+        _fail(f"404 rc {rc} {out}")
+    if "ir_monthly_html_r2 done listed=1 saved=0 skipped=0 failed=1" not in out:
+        _fail(out)
+    if "fail issuer 8163 fetch: HTTP Error 404: Not Found" not in out:
+        _fail(out)
 
 
 def test_run_only_dry_run(tmp: Path) -> None:
@@ -3986,7 +4215,11 @@ def main() -> None:
         test_eir_fetch_saves_item_html(p)
         test_unknown_stock_skip(p)
         test_fetch_issuer_retries_429_then_saves(p)
-        test_fetch_issuer_exhausted_429_stays_failed(p)
+        test_fetch_issuer_exhausted_429_is_skipped(p)
+        test_fetch_issuer_exhausted_404_stays_failed(p)
+        test_run_persistent_429_does_not_fail_job(p)
+        test_run_host_cooldown_skips_same_host(p)
+        test_run_404_still_exits_1(p)
         test_run_only_dry_run(p)
         test_no_as_of_does_not_write_json(p)
         test_parse_false_saves_html_without_json(p)

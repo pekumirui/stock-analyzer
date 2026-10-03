@@ -27,6 +27,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.parse import urljoin, urlparse
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -225,6 +226,26 @@ _FOLLOW_YM_RE = re.compile(r"(20\d{2})_(1[0-2]|0?[1-9])(?:/|$)")
 _LOCATION_HREF_RE = re.compile(r"""location\.href\s*=\s*(['"])([^'"]*)\1""")
 
 
+def _url_host(url: str) -> str:
+    return urlparse(url).netloc.lower()
+
+
+def _issuer_fetch_host(iss: HtmlIssuer) -> str:
+    if iss.source == "eir":
+        return _url_host(eir_url(iss.eir_code, iss.eir_n))
+    return _url_host(iss.index_url)
+
+
+def _rate_limited_host(exc: BaseException, fallback_url: str) -> str:
+    """HTTPError 429 の URL ホスト。判定できなければ fallback。"""
+    url = str(getattr(exc, "filename", "") or "")
+    return _url_host(url) or _url_host(fallback_url)
+
+
+def is_rate_limited(exc: BaseException) -> bool:
+    return isinstance(exc, HTTPError) and exc.code == 429
+
+
 def _follow_key(url: str) -> tuple[int, int, int, str]:
     """年 → 月 → パス深さ。`orders_2026/2026_8` は年ページより後。`2026_10` は `2026_9` より後。"""
     path = urlparse(url).path.rstrip("/")
@@ -386,8 +407,12 @@ def fetch_issuer(
     *,
     dry_run: bool,
     force: bool = False,
+    cooled_hosts: set[str] | None = None,
 ) -> tuple[int, int, int, int]:
-    """returns listed, saved, skipped, failed."""
+    """returns listed, saved, skipped, failed.
+
+    打ち切った 429 は failed にせず skip。cooled_hosts があれば同一ホストを残りスキップする。
+    """
     reason = download_skip_reason(iss.code, iss.name, stock_map)
     if reason:
         print(f"skip {reason}", flush=True)
@@ -400,9 +425,19 @@ def fetch_issuer(
         else:
             print(f"dry-run {iss.code} html {iss.index_url}", flush=True)
         return 1, 0, 1, 0
+    host = _issuer_fetch_host(iss)
+    if cooled_hosts is not None and host and host in cooled_hosts:
+        print(f"skip issuer {iss.code} host-cooled {host}", flush=True)
+        return 1, 0, 1, 0
     try:
         data, eir_as_of, url = fetch_html_bytes(iss)
     except Exception as e:
+        if is_rate_limited(e):
+            cooled = _rate_limited_host(e, iss.index_url) or host
+            print(f"skip issuer {iss.code} rate-limited: {e}", flush=True)
+            if cooled_hosts is not None and cooled:
+                cooled_hosts.add(cooled)
+            return 1, 0, 1, 0
         print(f"fail issuer {iss.code} fetch: {e}", flush=True)
         return 1, 0, 0, 1
     digest = sha256_bytes(data)
@@ -519,11 +554,18 @@ def run(
     if not stock_map:
         print("warn stocks map empty; unknown-stock skip disabled", flush=True)
     listed = saved = skipped = failed = 0
+    cooled_hosts: set[str] = set()
     for iss in issuers:
         print(f"issuer {iss.code} {iss.name}", flush=True)
         try:
             n, s, k, f = fetch_issuer(
-                iss, dest, stock_map, day, dry_run=dry_run, force=force,
+                iss,
+                dest,
+                stock_map,
+                day,
+                dry_run=dry_run,
+                force=force,
+                cooled_hosts=cooled_hosts,
             )
         except Exception as e:
             failed += 1
