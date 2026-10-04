@@ -1031,7 +1031,10 @@ function monthlyTreeModel(tables){
   const present = new Set(all.filter(r => !rest.includes(r)).map(r => r.mkey));
   const keys = (src.tree_metrics || []).filter(m => present.has(m));
   for(const r of all) if(present.has(r.mkey) && !keys.includes(r.mkey)) keys.push(r.mkey);
-  return {roots, rest, all, keys, auto: !!src.tree_auto};
+  // 指標どうしの親子（直営 全店 店舗数 → 国内 直営+FC 全店 店舗数 → 合計店舗数）。親も子も出ている指標だけ
+  const parent = {};
+  for(const [c, p] of Object.entries(src.tree_metric_parent || {})) if(keys.includes(c) && keys.includes(p)) parent[c] = p;
+  return {roots, rest, all, keys, parent, auto: !!src.tree_auto};
 }
 
 function monthlyTreeFind(nodes, path){
@@ -1073,7 +1076,12 @@ function monthlyTreeOtherName(n, r){
 function monthlyTreeSeedOpen(tm){
   if(monthlyTlTreeSeeded) return;
   monthlyTlTreeSeeded = true;
-  if(tm.keys.length) monthlyTlOpen.add("m:" + tm.keys[0]);
+  const first = tm.keys.find(k => !tm.parent[k]);
+  if(first) monthlyTlOpen.add("m:" + first);
+}
+
+function monthlyTreeOpenMetric(tm, k, open){
+  for(let m = k; m; m = tm.parent[m]) open("m:" + m);
 }
 
 // 選んだ系列が閉じた指標や節の中にあれば、指標の行からその節の親までを開く。
@@ -1086,14 +1094,19 @@ function monthlyTreeReveal(tm, id){
     changed = true;
   };
   const {single, top} = monthlyTreeTop(tm);
-  if(single && single.recs.some(hit)) return false;
+  const own = single && single.recs.find(hit);
+  if(own){
+    // 会社の行は親の指標の行を開けば見える
+    if(tm.parent[own.mkey]) monthlyTreeOpenMetric(tm, tm.parent[own.mkey], open);
+    return changed;
+  }
   const walk = (nodes, trail) => {
     for(const n of nodes){
       const r = n.recs.find(hit);
       if(r){
         // 節の外に 1 行しか無い指標は指標の行としてそのまま出ている
-        if(!(single && single.recs.some(q => q.mkey === r.mkey)) && monthlyTreeCount(top, r.mkey) === 1) return true;
-        open("m:" + r.mkey);
+        if(!(single && single.recs.some(q => q.mkey === r.mkey)) && monthlyTreeCount(top, r.mkey) === 1 && !tm.parent[r.mkey]) return true;
+        monthlyTreeOpenMetric(tm, r.mkey, open);
         trail.forEach(k => open("m:" + r.mkey + "\u203a" + k));
         return true;
       }
@@ -1105,7 +1118,7 @@ function monthlyTreeReveal(tm, id){
   return changed;
 }
 
-// 指標の行（会社全体の数字）と、その下の節の木。節の行にはその指標の数字を出す（無ければ空欄）。
+// 指標の行（会社全体の数字）と、その下の子の指標と節の木。節の行にはその指標の数字を出す（無ければ空欄）。
 // 会社の行が無い指標は数字の無い見出し。節の外にも 1 行しか無い指標（グループ 出店 など）は木にせずその行を出す。
 // 見出し節（大丸・松坂屋）は数字の無いグレー帯。内数の節（うち商品売上高）は tl-part で薄く出す。
 function monthlyTreeHtml(tm, cellsFor, cols){
@@ -1130,24 +1143,31 @@ function monthlyTreeHtml(tm, cellsFor, cols){
     if(open) for(const c of kids) walk(c, k, depth + 1);
   };
   const {single, top} = monthlyTreeTop(tm);
-  for(const k of tm.keys){
+  // 指標の行。子は先に子の指標（国内 / 海外、直営 / FC）、次に節の木
+  const subs = k => tm.keys.filter(c => tm.parent[c] === k);
+  const metric = (k, depth) => {
     const mine = single ? single.recs.filter(r => r.mkey === k) : [];
     const kids = top.filter(n => monthlyTreeHas(n, k));
-    if(!mine.length && monthlyTreeCount(top, k) === 1){
+    const ms = subs(k);
+    if(!mine.length && !ms.length && monthlyTreeCount(top, k) === 1){
       const r = monthlyTreeFirst(top, k);
-      body += row(r, r.element, 0);
-      continue;
+      body += row(r, r.element, depth);
+      return;
     }
     const key = "m:" + k;
-    const open = kids.length > 0 && monthlyTlOpen.has(key);
-    const tog = kids.length ? {key, open} : {};
+    const has = kids.length > 0 || ms.length > 0;
+    const open = has && monthlyTlOpen.has(key);
+    const tog = has ? {key, open} : {};
     // 自動の木は会社の行の名前（既存 売上高(前年比)）、config の木は指標名（総額売上高）
     const text = mine.length && tm.auto ? mine[0].element : k;
-    if(mine.length) body += row(mine[0], text, 0, tog);
-    else body += `<tr>${monthlyTlNameCell({text, title: k, depth: 0, tree: true, step, ...tog})}${blank}</tr>`;
-    for(const r of mine.slice(1)) body += row(r, r.element, 0);
-    if(open) for(const n of kids) walk(n, k, 1);
-  }
+    if(mine.length) body += row(mine[0], text, depth, tog);
+    else body += `<tr>${monthlyTlNameCell({text, title: k, depth, tree: true, step, ...tog})}${blank}</tr>`;
+    for(const r of mine.slice(1)) body += row(r, r.element, depth);
+    if(!open) return;
+    for(const c of ms) metric(c, depth + 1);
+    for(const n of kids) walk(n, k, depth + 1);
+  };
+  for(const k of tm.keys) if(!tm.parent[k]) metric(k, 0);
   if(tm.rest.length){
     const open = monthlyTlOpen.has("__more__");
     body += `<tr class="tl-sec">${monthlyTlNameCell({text: "その他の項目", key: "__more__", open, tree: true, count: tm.rest.length, step})}<td class="tl-sec-fill" colspan="${cols.length}"></td></tr>`;

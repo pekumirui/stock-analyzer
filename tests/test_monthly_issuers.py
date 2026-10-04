@@ -318,7 +318,7 @@ def test_year_payload_unchanged() -> None:
     _expect(r, 200, "GET year")
     body = r.json()
     # tree / tree_metrics / tree_auto は全発行体に付く（config の木が無ければ自動の木。#434）
-    if set(body) != {"code", "year", "elements", "tree", "tree_metrics", "tree_auto"}:
+    if set(body) != {"code", "year", "elements", "tree", "tree_metrics", "tree_metric_parent", "tree_auto"}:
         _fail(f"year keys: {body!r}")
 
 
@@ -467,7 +467,7 @@ def test_year_label_block() -> None:
     r = c.get(f"/api/v1/tables/{code}/{year}")
     _expect(r, 200, "GET leftover label")
     body = r.json()
-    if set(body) != {"code", "year", "elements", "tree", "tree_metrics", "tree_auto"}:
+    if set(body) != {"code", "year", "elements", "tree", "tree_metrics", "tree_metric_parent", "tree_auto"}:
         _fail(f"year keys: {body!r}")
     els = body["elements"]
     if [e["element"] for e in els] != [leftover_name, mkg_name]:
