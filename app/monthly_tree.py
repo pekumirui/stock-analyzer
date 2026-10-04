@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
 
 from app.config import MONTHLY_ROW_ORDER_PATH
 from app.monthly_ingest import (
@@ -191,6 +191,7 @@ def tree_payload(code: str, elements: Sequence[str],
 # 根は会社全体。行名の group（ブランド・事業）を根の子の節、売上高の内訳をその行の節の子の節にする。
 # 横持ちは指標が一番上の行で、その下に節の木を出す（既存 売上高 ▸ 焼肉 / ラーメン …）。
 # 指標は葉（group と内訳を剥がした表示名）から (前年比) を外したもの。会社の行も節の行も同じ葉なら同じ指標。
+# 指標どうしもチャネルと国で親子にする（合計店舗数 ▸ 国内 ▸ 直営 / FC、海外）。
 # `日本+海外` と `グループ` は行名の解析では group になるが、会社全体の数字なので根に置き、葉からは剥がす（物語 合計店舗数 932）。
 
 AUTO_ROOT = "全体"
@@ -200,6 +201,9 @@ _COMPANY_GROUPS = frozenset({"日本+海外", "グループ"})
 _AUTO_CHANNEL_RANK = {"": 0, "直営+FC": 0, "直営": 1, "FC": 2}
 _AUTO_COUNTRY_RANK = {"": 0, "日本+海外": 0, "日本": 1, "海外": 2}
 _AUTO_SCOPE_RANK = {"既存": 0, "全店": 1, "全社": 1, "": 1}
+# 指標どうしの親子（チャネルと国）。直営 / FC は 直営+FC（無ければ無印）の子、日本 / 海外 は国なしの子
+_AUTO_COUNTRIES = frozenset({"日本", "海外", "日本+海外"})
+_AUTO_PART_CHANNELS = frozenset({"直営", "FC"})
 
 
 def monthly_display_years(years: Sequence[int]) -> list[int]:
@@ -231,13 +235,49 @@ def _auto_leaf(label: Mapping[str, Any], group: str) -> str:
 
 
 class AutoTree:
-    __slots__ = ("metrics", "nodes", "rows")
+    __slots__ = ("metric_parent", "metrics", "nodes", "rows")
 
-    def __init__(self, nodes: list[tuple[str, list]], rows: dict[str, dict[str, Any]], metrics: list[str]) -> None:
+    def __init__(self, nodes: list[tuple[str, list]], rows: dict[str, dict[str, Any]], metrics: list[str],
+                 metric_parent: dict[str, str] | None = None) -> None:
         # nodes は (名前, 子) の入れ子。rows は保存名 → {path, leaf, metric, order}。metrics は見る順の指標
+        # metric_parent は 指標 → 親の指標（直営 全店 店舗数 → 直営+FC 全店 店舗数）
         self.nodes = nodes
         self.rows = rows
         self.metrics = metrics
+        self.metric_parent = metric_parent or {}
+
+
+def _metric_parts(metric: str) -> tuple[str, str, tuple[str, ...]]:
+    """指標を (国, チャネル, 残り) に分ける。行名は 国 → チャネル → スコープ → 指標 の順"""
+    toks = metric.split(" ")
+    country = toks[0] if toks and toks[0] in _AUTO_COUNTRIES else ""
+    rest = toks[1:] if country else toks
+    channel = rest[0] if rest and rest[0] in (_AUTO_PART_CHANNELS | {"直営+FC"}) else ""
+    return country, channel, tuple(rest[1:] if channel else rest)
+
+
+def auto_metric_parents(metrics: Sequence[str], domestic: Iterable[str] = ()) -> dict[str, str]:
+    """直営 / FC の指標は 直営+FC（無ければ無印）の子、日本 / 海外 の指標は国なしの子。
+    domestic は会社の `日本 ` 付きの行を代表にした指標（物語 直営 全店 店舗数 = 国内直営 553）。国内の 直営+FC を先に探す。
+    """
+    have = set(metrics)
+    dom = set(domestic)
+    join = lambda *parts: " ".join(p for p in parts if p)  # noqa: E731
+    out: dict[str, str] = {}
+    for m in metrics:
+        country, channel, rest = _metric_parts(m)
+        r = " ".join(rest)
+        if channel in _AUTO_PART_CHANNELS:
+            cands = [join("日本", "直営+FC", r)] if m in dom else []
+            cands += [join(country, "直営+FC", r), join(country, r)]
+        elif country in ("日本", "海外"):
+            cands = [join(channel, r), join("直営+FC", r), r]
+        else:
+            continue
+        parent = next((c for c in cands if c != m and c in have), None)
+        if parent:
+            out[m] = parent
+    return out
 
 
 def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]]) -> AutoTree:
@@ -283,6 +323,7 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]]) -
     # 節にしか無い指標は、会社の `日本 ` 付きの行を親にする（物語: 直営 全店 店舗数 の親は 日本 直営 全店 店舗数 553）。
     # 会社に同じ指標の行があるとき（直営+FC 全店 店舗数 は 日本+海外 の 932）は寄せない。
     company = {r["metric"] for r in rows.values() if len(r["path"]) == 1}
+    folded: list[str] = []
     for m in {r["metric"] for r in rows.values() if len(r["path"]) > 1} - company:
         domestic = "日本 " + m
         if domestic not in company:
@@ -291,6 +332,7 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]]) -
             if len(r["path"]) == 1 and r["metric"] == domestic:
                 r["metric"] = m
         metric_key[m] = metric_key.pop(domestic)
+        folded.append(m)
     metrics = sorted(metric_key, key=lambda m: metric_key[m][1])
 
     def bd_nodes(group: str) -> list[tuple[str, list]]:
@@ -299,7 +341,7 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]]) -
 
     groups = sorted(group_first, key=lambda g: (g in tail, tail.get(g, 0), group_first[g]))
     root_kids = bd_nodes("") + [(g, bd_nodes(g)) for g in groups]
-    return AutoTree([(AUTO_ROOT, root_kids)], rows, metrics)
+    return AutoTree([(AUTO_ROOT, root_kids)], rows, metrics, auto_metric_parents(metrics, folded))
 
 
 def auto_tree_payload(auto: AutoTree, elements: Sequence[str]) -> dict[str, Any]:
@@ -323,4 +365,5 @@ def auto_tree_payload(auto: AutoTree, elements: Sequence[str]) -> dict[str, Any]
             })
         return out
 
-    return {"tree": dump(auto.nodes, ()), "tree_metrics": list(auto.metrics), "tree_auto": True}
+    return {"tree": dump(auto.nodes, ()), "tree_metrics": list(auto.metrics),
+            "tree_metric_parent": dict(auto.metric_parent), "tree_auto": True}

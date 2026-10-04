@@ -319,13 +319,32 @@ def test_monthly_auto_tree() -> None:
     want_metrics = ["直営+FC 既存 売上高", "直営+FC 全店 売上高", "全店 売上高", "直営+FC 全店 店舗数", "店舗数", "直営 全店 店舗数"]
     if auto.metrics != want_metrics:
         _fail(f"auto tree metrics: {auto.metrics!r}")
+    # 指標どうしの親子: 直営 は 直営+FC の子。直営 全店 店舗数 は会社の 日本 の行が代表なので 日本 直営+FC を先に探す（ここには無いので合計）
+    if auto.metric_parent != {"直営 全店 店舗数": "直営+FC 全店 店舗数"}:
+        _fail(f"auto metric parents: {auto.metric_parent!r}")
+    from app.monthly_tree import auto_metric_parents
+    got_parent = auto_metric_parents(
+        ["直営+FC 既存 売上高", "直営 既存 売上高", "直営+FC 全店 店舗数", "日本 直営+FC 全店 店舗数",
+         "海外 全店 店舗数", "直営 全店 店舗数", "FC 全店 店舗数", "店舗数", "直営 店舗数"],
+        ["直営 全店 店舗数", "FC 全店 店舗数"],
+    )
+    want_parent = {
+        "直営 既存 売上高": "直営+FC 既存 売上高",
+        "日本 直営+FC 全店 店舗数": "直営+FC 全店 店舗数",
+        "海外 全店 店舗数": "直営+FC 全店 店舗数",
+        "直営 全店 店舗数": "日本 直営+FC 全店 店舗数",
+        "FC 全店 店舗数": "日本 直営+FC 全店 店舗数",
+        "直営 店舗数": "店舗数",
+    }
+    if got_parent != want_parent:
+        _fail(f"metric parents (物語 / 9979): {got_parent!r}")
     t25 = auto_tree_payload(auto, [e for e, _ in y25])
     root = t25["tree"][0]
     if [n["name"] for n in root["children"]] != ["ドラッグ", "焼肉", "庄や", "ラーメン"]:
         _fail(f"auto tree shape must not change by year: {root!r}")
     if root["children"][3]["elements"] != ["ラーメン 直営+FC 既存 売上高(前年比)"] or root["elements"]:
         _fail(f"2025 elements: {root!r}")
-    if not t25["tree_auto"] or t25["tree_metrics"] != auto.metrics:
+    if not t25["tree_auto"] or t25["tree_metrics"] != auto.metrics or t25["tree_metric_parent"] != auto.metric_parent:
         _fail(f"auto payload keys: {t25!r}")
     lone = build_auto_tree("99992", {2026: [("全店 売上高(前年比)", "yoy_index"), ("既存 売上高(前年比)", "yoy_index")]})
     if [n for n, _ in lone.nodes] != ["全体"] or lone.nodes[0][1] or lone.metrics != ["既存 売上高", "全店 売上高"]:
