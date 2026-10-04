@@ -8,9 +8,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 from app.config import MONTHLY_ROW_ORDER_PATH
+from app.monthly_ingest import (
+    canonicalize_element_label, issuer_segment_tail, monthly_element_label,
+    monthly_row_breakdown_rank, monthly_row_slot, monthly_row_unit_rank, strip_yoy_fragments, union_monthly_elements,
+)
 
 
 class TreeNode:
@@ -181,3 +185,142 @@ def tree_payload(code: str, elements: Sequence[str],
         return out
 
     return {"tree": dump(tree.roots, ()), "tree_metrics": [name for name, _ in tree.metrics]}
+
+
+# ---- 自動の木（config に tree の無い発行体） ----
+# 根は会社全体。行名の group（ブランド・事業）を根の子の節、売上高の内訳をその行の節の子の節にする。
+# 横持ちは指標が一番上の行で、その下に節の木を出す（既存 売上高 ▸ 焼肉 / ラーメン …）。
+# 指標は葉（group と内訳を剥がした表示名）から (前年比) を外したもの。会社の行も節の行も同じ葉なら同じ指標。
+# `日本+海外` と `グループ` は行名の解析では group になるが、会社全体の数字なので根に置き、葉からは剥がす（物語 合計店舗数 932）。
+
+AUTO_ROOT = "全体"
+# 会社全体を指す group。マツキヨココカラの `グループ 店舗数` はグループ全体の店舗数
+_COMPANY_GROUPS = frozenset({"日本+海外", "グループ"})
+# 指標の並びは見る順: チャネル（無印・直営+FC → 直営 → FC）→ 国（無印 → 日本 → 海外）→ 既存 → 全店 → 売上高 → 客数 → 客単価 → 店舗 …
+_AUTO_CHANNEL_RANK = {"": 0, "直営+FC": 0, "直営": 1, "FC": 2}
+_AUTO_COUNTRY_RANK = {"": 0, "日本+海外": 0, "日本": 1, "海外": 2}
+_AUTO_SCOPE_RANK = {"既存": 0, "全店": 1, "全社": 1, "": 1}
+
+
+def monthly_display_years(years: Sequence[int]) -> list[int]:
+    """最新とその前 2 年（データのある年）。SPA の monthlyDisplayYears と同じ。"""
+    ys = sorted({int(y) for y in years}, reverse=True)
+    return [y for y in ys if y >= ys[0] - 2] if ys else []
+
+
+def _auto_group(label: Mapping[str, Any]) -> str:
+    """節にする group。行名全体が group（指標の無い行）と会社全体の合計は節にしない。"""
+    g = str(label["group"] or "")
+    if not g or g in _COMPANY_GROUPS or not str(label["display"]).startswith(g + " "):
+        return ""
+    return g
+
+
+def _auto_leaf(label: Mapping[str, Any], group: str) -> str:
+    s = str(label["display"])
+    for g in (group, *(_COMPANY_GROUPS if not group else ())):
+        if g and s.startswith(g + " "):
+            s = s[len(g) + 1:]
+            break
+    bd = str(label["breakdown"] or "")
+    if bd:
+        i = s.rfind(" " + bd)
+        if i >= 0:
+            s = s[:i] + s[i + 1 + len(bd):]
+    return s or str(label["display"])
+
+
+class AutoTree:
+    __slots__ = ("metrics", "nodes", "rows")
+
+    def __init__(self, nodes: list[tuple[str, list]], rows: dict[str, dict[str, Any]], metrics: list[str]) -> None:
+        # nodes は (名前, 子) の入れ子。rows は保存名 → {path, leaf, metric, order}。metrics は見る順の指標
+        self.nodes = nodes
+        self.rows = rows
+        self.metrics = metrics
+
+
+def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]]) -> AutoTree:
+    """years は 暦年 → [(保存名, unit)]（値のある行だけ、sort_order 順）。節の形と並びは渡した年すべてで決める。"""
+    newest = sorted(years, reverse=True)
+    union = union_monthly_elements(
+        [{"year": y, "elements": [{"element": e, "unit": u} for e, u in years[y]]} for y in newest], code=code)
+    union_idx = {it["element"]: i for i, it in enumerate(union)}
+    tail = {name: i for i, name in enumerate(issuer_segment_tail(code))}
+    group_first: dict[str, int] = {}
+    bd_first: dict[tuple[str, str], tuple[int, int]] = {}
+    rows: dict[str, dict[str, Any]] = {}
+    metric_key: dict[str, tuple] = {}
+    seen = 0
+    for y in newest:
+        for element, unit in years[y]:
+            if element in rows:
+                continue
+            L = monthly_element_label(element, unit)
+            canon = canonicalize_element_label(element, unit)
+            group = _auto_group(L)
+            bd = str(L["breakdown"] or "")
+            if group:
+                group_first.setdefault(group, seen)
+            if bd:
+                bd_first.setdefault((group, bd), (monthly_row_breakdown_rank(canon), seen))
+            seen += 1
+            path = (AUTO_ROOT, *((group,) if group else ()), *((bd,) if bd else ()))
+            leaf = _auto_leaf(L, group)
+            metric = strip_yoy_fragments(leaf) if monthly_row_unit_rank(unit) else leaf
+            idx = union_idx.get(canon, len(union_idx) + seen)
+            rows[element] = {"path": list(path), "leaf": leaf, "metric": metric, "order": idx}
+            # 指標の並びは会社の行を代表にする（無ければ最初に見た節の行）
+            key = (
+                _AUTO_CHANNEL_RANK.get(str(L["channel"]), 3),
+                _AUTO_COUNTRY_RANK.get(str(L["country"]), 3),
+                _AUTO_SCOPE_RANK.get(str(L["scope"]), 2),
+                monthly_row_slot(canon, unit),
+                idx,
+            )
+            if metric not in metric_key or (len(path) == 1 and metric_key[metric][0]):
+                metric_key[metric] = (len(path) > 1, key)
+    # 節にしか無い指標は、会社の `日本 ` 付きの行を親にする（物語: 直営 全店 店舗数 の親は 日本 直営 全店 店舗数 553）。
+    # 会社に同じ指標の行があるとき（直営+FC 全店 店舗数 は 日本+海外 の 932）は寄せない。
+    company = {r["metric"] for r in rows.values() if len(r["path"]) == 1}
+    for m in {r["metric"] for r in rows.values() if len(r["path"]) > 1} - company:
+        domestic = "日本 " + m
+        if domestic not in company:
+            continue
+        for r in rows.values():
+            if len(r["path"]) == 1 and r["metric"] == domestic:
+                r["metric"] = m
+        metric_key[m] = metric_key.pop(domestic)
+    metrics = sorted(metric_key, key=lambda m: metric_key[m][1])
+
+    def bd_nodes(group: str) -> list[tuple[str, list]]:
+        names = sorted((bd for (g, bd) in bd_first if g == group), key=lambda bd: bd_first[(group, bd)])
+        return [(bd, []) for bd in names]
+
+    groups = sorted(group_first, key=lambda g: (g in tail, tail.get(g, 0), group_first[g]))
+    root_kids = bd_nodes("") + [(g, bd_nodes(g)) for g in groups]
+    return AutoTree([(AUTO_ROOT, root_kids)], rows, metrics)
+
+
+def auto_tree_payload(auto: AutoTree, elements: Sequence[str]) -> dict[str, Any]:
+    """year GET に足す `{tree, tree_metrics, tree_auto}`。節の形は表示する 3 年で同じ、`elements` はその年の行だけ。"""
+    by_path: dict[tuple[str, ...], list[str]] = {}
+    for el in elements:
+        r = auto.rows.get(el)
+        if r is not None:
+            by_path.setdefault(tuple(r["path"]), []).append(el)
+
+    def dump(nodes: Sequence[tuple[str, list]], path: tuple[str, ...]) -> list[dict]:
+        out = []
+        for name, kids in nodes:
+            p = (*path, name)
+            out.append({
+                "name": name,
+                "heading": False,
+                "part": False,
+                "elements": sorted(by_path.get(p, []), key=lambda e: auto.rows[e]["order"]),
+                "children": dump(kids, p),
+            })
+        return out
+
+    return {"tree": dump(auto.nodes, ()), "tree_metrics": list(auto.metrics), "tree_auto": True}

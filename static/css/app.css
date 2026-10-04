@@ -304,8 +304,6 @@
   table.monthly-tl .tl-cnt { margin-left:6px; font-weight:400; color:var(--sub); }
   table.monthly-tl .tl-tw { display:inline-block; width:1.1em; color:var(--sub); }
   table.monthly-tl td.tl-tog { cursor:pointer; }
-  table.monthly-tl tr.tl-sec-total td.num { background:#fff; font-size:13px; padding:5px 6px; }
-  table.monthly-tl tr.tl-sec-total td.tl-yr { background:#fff; font-size:13px; padding:5px 6px; }
   .monthly-value-tabs { display:inline-flex; margin:0 0 8px; }
   .monthly-value-tabs[hidden] { display:none; }
   .monthly-value-tabs + .monthly-value-tabs { margin-left:8px; }

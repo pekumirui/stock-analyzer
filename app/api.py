@@ -22,7 +22,9 @@ from .models import (
 from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
 from .earnings_schedule import ActualMonth, day_payload, month_payload
-from .monthly_tree import assign_tree_rows, tree_payload
+from .monthly_tree import (
+    MONTHLY_TREES, assign_tree_rows, auto_tree_payload, build_auto_tree, monthly_display_years, tree_payload,
+)
 from .monthly_ingest import (
     MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label,
     coerce_monthly_storage, map_pdf_columns, monthly_element_label,
@@ -1047,6 +1049,26 @@ def _calendar_month_values(stored: dict[str, float]) -> dict[str, float | None]:
     return {str(m): stored.get(str(m)) for m in range(1, 13)}
 
 
+def _auto_tree_years(db: Session, code: str, year_i: int,
+                     current: list[tuple[str, str]]) -> dict[int, list[tuple[str, str]]]:
+    """自動の木に使う年: 表示する 3 年と要求の年。各年は値のある行の (保存名, unit) を sort_order 順。"""
+    all_years = [y for (y,) in db.query(MonthlyTable.year).filter(MonthlyTable.code == code).all()]
+    want = set(monthly_display_years(all_years)) - {year_i}
+    out: dict[int, list[tuple[str, str]]] = {year_i: current}
+    if not want:
+        return out
+    with_values = set(db.query(MonthlyValue.year, MonthlyValue.element)
+                      .filter(MonthlyValue.code == code, MonthlyValue.year.in_(want))
+                      .distinct().all())
+    for e in (db.query(MonthlyElement)
+              .filter(MonthlyElement.code == code, MonthlyElement.year.in_(want))
+              .order_by(MonthlyElement.year, MonthlyElement.sort_order)
+              .all()):
+        if (e.year, e.element) in with_values:
+            out.setdefault(e.year, []).append((e.element, _element_unit(e)))
+    return out
+
+
 def table_year_payload(db: Session, code: str, year_i: int) -> dict:
     _get_table(db, code, year_i)
     elems = (db.query(MonthlyElement)
@@ -1061,7 +1083,13 @@ def table_year_payload(db: Session, code: str, year_i: int) -> dict:
         by_el[v.element][str(v.month)] = v.value
     shown = [e for e in elems if e.element in by_el]
     names = [e.element for e in shown]
-    tree_rows = assign_tree_rows(code, names)
+    if code in MONTHLY_TREES:
+        tree_rows = assign_tree_rows(code, names)
+        tree_out = tree_payload(code, names) or {}
+    else:
+        auto = build_auto_tree(code, _auto_tree_years(db, code, year_i, [(e.element, _element_unit(e)) for e in shown]))
+        tree_rows = {n: auto.rows[n] for n in names}
+        tree_out = auto_tree_payload(auto, names)
     out_elements = []
     for e in shown:
         row = {
@@ -1074,7 +1102,7 @@ def table_year_payload(db: Session, code: str, year_i: int) -> dict:
             row["tree"] = tree_rows[e.element]
         out_elements.append(row)
     out = {"code": code, "year": year_i, "elements": out_elements}
-    out.update(tree_payload(code, names) or {})
+    out.update(tree_out)
     return out
 
 
