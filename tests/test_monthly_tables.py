@@ -281,57 +281,55 @@ def test_monthly_tree_assign() -> None:
 
 
 def test_monthly_auto_tree() -> None:
-    """config に tree の無い発行体。ゲートした group は根の子、内訳はその節の子、指標は節 2 つ以上に出る葉。"""
+    """config に tree の無い発行体。group は根の子の節（ゲートしない）、内訳はその節の子、指標は葉から (前年比) を外したもの。"""
     from app.monthly_tree import auto_tree_payload, build_auto_tree
 
     y26 = [
         ("直営+FC 全店 売上高(前年比)", "yoy_index"),
+        ("直営+FC 既存 売上高(前年比)", "yoy_index"),
         ("全店 売上高 ドラッグ(前年比)", "yoy_index"),
         ("焼肉 直営+FC 既存 売上高(前年比)", "yoy_index"),
-        ("焼肉 直営+FC 既存 店舗数", "number"),
-        ("焼肉 全店 売上高 調剤(前年比)", "yoy_index"),
-        ("ラーメン 直営+FC 既存 売上高(前年比)", "yoy_index"),
-        ("単独 全店 売上高(前年比)", "yoy_index"),
-        ("店舗数", "number"),
+        ("焼肉 直営 全店 店舗数", "number"),
+        ("日本 直営 全店 店舗数", "number"),
+        ("日本+海外 直営+FC 全店 店舗数", "number"),
+        ("焼肉 直営+FC 全店 店舗数", "number"),
+        ("庄や 店舗数", "number"),
     ]
-    # ラーメンは 2026 年に 1 行だけ。2025 年に 2 行あるのでゲートする（年ごとに数える）。単独は 1+1 にしない
-    y25 = [
-        ("ラーメン 直営+FC 既存 売上高(前年比)", "yoy_index"),
-        ("ラーメン 直営+FC 既存 店舗数", "number"),
-        ("単独 既存 売上高(前年比)", "yoy_index"),
-    ]
+    # ラーメンは 2025 年だけ。1 行でも節にする（9979 の 庄や 店舗数 と同じ）
+    y25 = [("ラーメン 直営+FC 既存 売上高(前年比)", "yoy_index")]
     auto = build_auto_tree("99991", {2026: y26, 2025: y25})
     got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in auto.rows.items()}
     want = {
-        "直営+FC 全店 売上高(前年比)": (["全体"], "直営+FC 全店 売上高(前年比)", None),
+        "直営+FC 全店 売上高(前年比)": (["全体"], "直営+FC 全店 売上高(前年比)", "直営+FC 全店 売上高"),
+        "直営+FC 既存 売上高(前年比)": (["全体"], "直営+FC 既存 売上高(前年比)", "直営+FC 既存 売上高"),
         "全店 売上高 ドラッグ(前年比)": (["全体", "ドラッグ"], "全店 売上高(前年比)", "全店 売上高"),
         "焼肉 直営+FC 既存 売上高(前年比)": (["全体", "焼肉"], "直営+FC 既存 売上高(前年比)", "直営+FC 既存 売上高"),
-        "焼肉 直営+FC 既存 店舗数": (["全体", "焼肉"], "直営+FC 既存 店舗数", "直営+FC 既存 店舗数"),
-        "焼肉 全店 売上高 調剤(前年比)": (["全体", "焼肉", "調剤"], "全店 売上高(前年比)", "全店 売上高"),
+        "焼肉 直営 全店 店舗数": (["全体", "焼肉"], "直営 全店 店舗数", "直営 全店 店舗数"),
+        # 節にしか無い指標は 日本 付きの会社の行を親にする
+        "日本 直営 全店 店舗数": (["全体"], "日本 直営 全店 店舗数", "直営 全店 店舗数"),
+        # 日本+海外 は会社全体の合計。根に置いて葉から剥がす
+        "日本+海外 直営+FC 全店 店舗数": (["全体"], "直営+FC 全店 店舗数", "直営+FC 全店 店舗数"),
+        "焼肉 直営+FC 全店 店舗数": (["全体", "焼肉"], "直営+FC 全店 店舗数", "直営+FC 全店 店舗数"),
+        "庄や 店舗数": (["全体", "庄や"], "店舗数", "店舗数"),
         "ラーメン 直営+FC 既存 売上高(前年比)": (["全体", "ラーメン"], "直営+FC 既存 売上高(前年比)", "直営+FC 既存 売上高"),
-        "ラーメン 直営+FC 既存 店舗数": (["全体", "ラーメン"], "直営+FC 既存 店舗数", "直営+FC 既存 店舗数"),
-        "単独 全店 売上高(前年比)": (["全体"], "単独 全店 売上高(前年比)", None),
-        "単独 既存 売上高(前年比)": (["全体"], "単独 既存 売上高(前年比)", None),
-        "店舗数": (["全体"], "店舗数", None),
     }
     if got != want:
         _fail(f"auto tree rows: {got!r}")
-    if auto.metrics != ["直営+FC 既存 売上高", "直営+FC 既存 店舗数", "全店 売上高"]:
+    # 見る順: チャネル → 既存 → 全店 → 売上高 → 店舗
+    want_metrics = ["直営+FC 既存 売上高", "直営+FC 全店 売上高", "全店 売上高", "直営+FC 全店 店舗数", "店舗数", "直営 全店 店舗数"]
+    if auto.metrics != want_metrics:
         _fail(f"auto tree metrics: {auto.metrics!r}")
     t25 = auto_tree_payload(auto, [e for e, _ in y25])
     root = t25["tree"][0]
-    if [n["name"] for n in root["children"]] != ["ドラッグ", "焼肉", "ラーメン"]:
+    if [n["name"] for n in root["children"]] != ["ドラッグ", "焼肉", "庄や", "ラーメン"]:
         _fail(f"auto tree shape must not change by year: {root!r}")
-    if root["children"][1]["children"][0]["name"] != "調剤" or root["children"][1]["elements"]:
-        _fail(f"焼肉 node in 2025: {root['children'][1]!r}")
+    if root["children"][3]["elements"] != ["ラーメン 直営+FC 既存 売上高(前年比)"] or root["elements"]:
+        _fail(f"2025 elements: {root!r}")
     if not t25["tree_auto"] or t25["tree_metrics"] != auto.metrics:
         _fail(f"auto payload keys: {t25!r}")
-    orders = [auto.rows[e]["order"] for e in root["children"][2]["elements"]]
-    if orders != sorted(orders):
-        _fail("node elements follow order")
     lone = build_auto_tree("99992", {2026: [("全店 売上高(前年比)", "yoy_index"), ("既存 売上高(前年比)", "yoy_index")]})
-    if lone.metrics or [n for n, _ in lone.nodes] != ["全体"] or lone.nodes[0][1]:
-        _fail("会社だけの発行体は根 1 つで指標なし（タブを出さない）")
+    if [n for n, _ in lone.nodes] != ["全体"] or lone.nodes[0][1] or lone.metrics != ["既存 売上高", "全店 売上高"]:
+        _fail(f"会社だけの発行体は根 1 つ、既存が先: {lone.metrics!r}")
 
 
 def _assert_jfront_tree_and_merge(c) -> None:

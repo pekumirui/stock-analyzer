@@ -310,9 +310,7 @@
   /* 内数の節（うち商品売上高）。店計・法人・本社等と足し合わせる関係ではないので薄くする */
   table.monthly-tl tr.tl-part td.tl-name { color:var(--sub); font-weight:400; }
   /* .ftab は earnings.js が全ボタンの onclick を上書きするので使わない */
-  .monthly-vtab { background:transparent; border:none; color:var(--sub); padding:5px 14px; cursor:pointer; font-size:13px; white-space:nowrap; }
-  /* 自動の木は指標が 10 を超える（物語: 直営+FC / 直営 / FC × 全店 / 既存 × 売上高 / 客数 / 店舗数）。ボタンを潰さず折り返す */
-  #monthly-metric-tabs { flex-wrap:wrap; }
+  .monthly-vtab { background:transparent; border:none; color:var(--sub); padding:5px 14px; cursor:pointer; font-size:13px; }
   .monthly-vtab.on { background:var(--accent); color:#fff; }
   table.monthly-tl td.num[data-m] { cursor:pointer; }
   .monthly-pop {

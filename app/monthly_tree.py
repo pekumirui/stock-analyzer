@@ -8,13 +8,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 from app.config import MONTHLY_ROW_ORDER_PATH
 from app.monthly_ingest import (
     canonicalize_element_label, issuer_segment_tail, monthly_element_label,
-    monthly_row_breakdown_rank, monthly_row_channel_rank, monthly_row_scope_rank, monthly_row_slot,
-    monthly_row_unit_rank, strip_yoy_fragments, union_monthly_elements,
+    monthly_row_breakdown_rank, monthly_row_slot, monthly_row_unit_rank, strip_yoy_fragments, union_monthly_elements,
 )
 
 
@@ -189,13 +188,18 @@ def tree_payload(code: str, elements: Sequence[str],
 
 
 # ---- 自動の木（config に tree の無い発行体） ----
-# 根は会社全体。ゲートした group を根の子の節、売上高の内訳をその行の節の子の節にする。
-# ゲートは表示する 3 年（最新とその前 2 年）で年ごとに数え、`label.group` があり metric / channel / scope のどれかを持つ行が
-# 同じ group で 2 本以上ある年があればその group を節にする（年をまたいで 1+1 にはしない）。
-# 指標は葉（group と内訳を剥がした表示名）から (前年比) を外したもの。節 2 つ以上に出る指標だけ tree_metrics に載せる。
-# tree_metrics は並び順、ただし先頭（既定のタブ）だけはいちばん多くの節に出る指標。
+# 根は会社全体。行名の group（ブランド・事業）を根の子の節、売上高の内訳をその行の節の子の節にする。
+# 横持ちは指標が一番上の行で、その下に節の木を出す（既存 売上高 ▸ 焼肉 / ラーメン …）。
+# 指標は葉（group と内訳を剥がした表示名）から (前年比) を外したもの。会社の行も節の行も同じ葉なら同じ指標。
+# `日本+海外` と `グループ` は行名の解析では group になるが、会社全体の数字なので根に置き、葉からは剥がす（物語 合計店舗数 932）。
 
 AUTO_ROOT = "全体"
+# 会社全体を指す group。マツキヨココカラの `グループ 店舗数` はグループ全体の店舗数
+_COMPANY_GROUPS = frozenset({"日本+海外", "グループ"})
+# 指標の並びは見る順: チャネル（無印・直営+FC → 直営 → FC）→ 国（無印 → 日本 → 海外）→ 既存 → 全店 → 売上高 → 客数 → 客単価 → 店舗 …
+_AUTO_CHANNEL_RANK = {"": 0, "直営+FC": 0, "直営": 1, "FC": 2}
+_AUTO_COUNTRY_RANK = {"": 0, "日本+海外": 0, "日本": 1, "海外": 2}
+_AUTO_SCOPE_RANK = {"既存": 0, "全店": 1, "全社": 1, "": 1}
 
 
 def monthly_display_years(years: Sequence[int]) -> list[int]:
@@ -204,22 +208,20 @@ def monthly_display_years(years: Sequence[int]) -> list[int]:
     return [y for y in ys if y >= ys[0] - 2] if ys else []
 
 
-def auto_gate_groups(years: Mapping[int, Sequence[tuple[str, str]]]) -> set[str]:
-    gated: set[str] = set()
-    for rows in years.values():
-        counts: dict[str, int] = {}
-        for element, unit in rows:
-            L = monthly_element_label(element, unit)
-            if L["group"] and (L["metric"] or L["channel"] or L["scope"]):
-                counts[L["group"]] = counts.get(L["group"], 0) + 1
-        gated.update(g for g, n in counts.items() if n >= 2)
-    return gated
+def _auto_group(label: Mapping[str, Any]) -> str:
+    """節にする group。行名全体が group（指標の無い行）と会社全体の合計は節にしない。"""
+    g = str(label["group"] or "")
+    if not g or g in _COMPANY_GROUPS or not str(label["display"]).startswith(g + " "):
+        return ""
+    return g
 
 
 def _auto_leaf(label: Mapping[str, Any], group: str) -> str:
     s = str(label["display"])
-    if group and s.startswith(group + " "):
-        s = s[len(group) + 1:]
+    for g in (group, *(_COMPANY_GROUPS if not group else ())):
+        if g and s.startswith(g + " "):
+            s = s[len(g) + 1:]
+            break
     bd = str(label["breakdown"] or "")
     if bd:
         i = s.rfind(" " + bd)
@@ -229,84 +231,67 @@ def _auto_leaf(label: Mapping[str, Any], group: str) -> str:
 
 
 class AutoTree:
-    __slots__ = ("metrics", "nodes", "rank", "rows")
+    __slots__ = ("metrics", "nodes", "rows")
 
-    def __init__(self, nodes: list[tuple[str, list]], rows: dict[str, dict[str, Any]],
-                 rank: dict[str, tuple], metrics: list[str]) -> None:
-        # nodes は (名前, 子) の入れ子。rows は保存名 → {path, leaf, metric, order}。rank は節の中の並び。
+    def __init__(self, nodes: list[tuple[str, list]], rows: dict[str, dict[str, Any]], metrics: list[str]) -> None:
+        # nodes は (名前, 子) の入れ子。rows は保存名 → {path, leaf, metric, order}。metrics は見る順の指標
         self.nodes = nodes
         self.rows = rows
-        self.rank = rank
         self.metrics = metrics
 
 
-def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
-                    gate_years: Iterable[int] | None = None) -> AutoTree:
-    """years は 暦年 → [(保存名, unit)]（値のある行だけ、sort_order 順）。gate_years はゲートを数える年（既定は表示する 3 年）。"""
-    gy = set(gate_years) if gate_years is not None else set(monthly_display_years(list(years)))
-    gated = auto_gate_groups({y: r for y, r in years.items() if y in gy})
+def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]]) -> AutoTree:
+    """years は 暦年 → [(保存名, unit)]（値のある行だけ、sort_order 順）。節の形と並びは渡した年すべてで決める。"""
     newest = sorted(years, reverse=True)
     union = union_monthly_elements(
-        [{"year": y, "elements": [{"element": e, "unit": u} for e, u in years[y]]} for y in newest if y in gy] or
-        [{"year": y, "elements": [{"element": e, "unit": u} for e, u in years[y]]} for y in newest],
-        code=code,
-    )
+        [{"year": y, "elements": [{"element": e, "unit": u} for e, u in years[y]]} for y in newest], code=code)
     union_idx = {it["element"]: i for i, it in enumerate(union)}
     tail = {name: i for i, name in enumerate(issuer_segment_tail(code))}
     group_first: dict[str, int] = {}
     bd_first: dict[tuple[str, str], tuple[int, int]] = {}
     rows: dict[str, dict[str, Any]] = {}
-    rank: dict[str, tuple] = {}
-    node_metrics: dict[tuple[str, ...], set[str]] = {}
-    sales_metrics: set[str] = set()
+    metric_key: dict[str, tuple] = {}
     seen = 0
     for y in newest:
         for element, unit in years[y]:
             if element in rows:
                 continue
             L = monthly_element_label(element, unit)
-            group = L["group"] if L["group"] in gated else ""
+            canon = canonicalize_element_label(element, unit)
+            group = _auto_group(L)
             bd = str(L["breakdown"] or "")
             if group:
                 group_first.setdefault(group, seen)
-            canon = canonicalize_element_label(element, unit)
             if bd:
                 bd_first.setdefault((group, bd), (monthly_row_breakdown_rank(canon), seen))
             seen += 1
             path = (AUTO_ROOT, *((group,) if group else ()), *((bd,) if bd else ()))
             leaf = _auto_leaf(L, group)
             metric = strip_yoy_fragments(leaf) if monthly_row_unit_rank(unit) else leaf
-            if L["metric_kind"] == "sales":
-                sales_metrics.add(metric)
-            rows[element] = {"path": list(path), "leaf": leaf, "metric": metric}
-            node_metrics.setdefault(path, set()).add(metric)
             idx = union_idx.get(canon, len(union_idx) + seen)
-            # ゲートした節と、ゲートがあるときの会社全体は チャネル → スコープ → 指標 → 実数/前年比 → 内訳。国では並べない。
-            rank[element] = (
-                (monthly_row_channel_rank(canon), monthly_row_scope_rank(canon), monthly_row_slot(canon, unit),
-                 monthly_row_unit_rank(unit), monthly_row_breakdown_rank(canon), idx)
-                if gated else (idx,)
+            rows[element] = {"path": list(path), "leaf": leaf, "metric": metric, "order": idx}
+            # 指標の並びは会社の行を代表にする（無ければ最初に見た節の行）
+            key = (
+                _AUTO_CHANNEL_RANK.get(str(L["channel"]), 3),
+                _AUTO_COUNTRY_RANK.get(str(L["country"]), 3),
+                _AUTO_SCOPE_RANK.get(str(L["scope"]), 2),
+                monthly_row_slot(canon, unit),
+                idx,
             )
-    counts: dict[str, int] = {}
-    for ms in node_metrics.values():
-        for m in ms:
-            counts[m] = counts.get(m, 0) + 1
-    shared = {m for m, n in counts.items() if n >= 2}
-    for r in rows.values():
-        if r["metric"] not in shared:
-            r["metric"] = None
-    metric_order: list[str] = []
-    for i, element in enumerate(sorted(rows, key=lambda e: rank[e])):
-        # order は表示する 3 年を通した並び。年ごとの elements だけでは片方の年にしか無い行どうしの前後が決まらない。
-        rows[element]["order"] = i
-        m = rows[element]["metric"]
-        if m and m not in metric_order:
-            metric_order.append(m)
-    # 既定（先頭）のタブは、いちばん多くの節に出る指標（同数なら売上高、次に並び順）。全店が会社にしか無い銘柄でも各節が数字で並ぶ
-    if metric_order:
-        best = min(metric_order, key=lambda m: (-counts[m], m not in sales_metrics, metric_order.index(m)))
-        metric_order.remove(best)
-        metric_order.insert(0, best)
+            if metric not in metric_key or (len(path) == 1 and metric_key[metric][0]):
+                metric_key[metric] = (len(path) > 1, key)
+    # 節にしか無い指標は、会社の `日本 ` 付きの行を親にする（物語: 直営 全店 店舗数 の親は 日本 直営 全店 店舗数 553）。
+    # 会社に同じ指標の行があるとき（直営+FC 全店 店舗数 は 日本+海外 の 932）は寄せない。
+    company = {r["metric"] for r in rows.values() if len(r["path"]) == 1}
+    for m in {r["metric"] for r in rows.values() if len(r["path"]) > 1} - company:
+        domestic = "日本 " + m
+        if domestic not in company:
+            continue
+        for r in rows.values():
+            if len(r["path"]) == 1 and r["metric"] == domestic:
+                r["metric"] = m
+        metric_key[m] = metric_key.pop(domestic)
+    metrics = sorted(metric_key, key=lambda m: metric_key[m][1])
 
     def bd_nodes(group: str) -> list[tuple[str, list]]:
         names = sorted((bd for (g, bd) in bd_first if g == group), key=lambda bd: bd_first[(group, bd)])
@@ -314,7 +299,7 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
 
     groups = sorted(group_first, key=lambda g: (g in tail, tail.get(g, 0), group_first[g]))
     root_kids = bd_nodes("") + [(g, bd_nodes(g)) for g in groups]
-    return AutoTree([(AUTO_ROOT, root_kids)], rows, rank, metric_order)
+    return AutoTree([(AUTO_ROOT, root_kids)], rows, metrics)
 
 
 def auto_tree_payload(auto: AutoTree, elements: Sequence[str]) -> dict[str, Any]:
@@ -333,7 +318,7 @@ def auto_tree_payload(auto: AutoTree, elements: Sequence[str]) -> dict[str, Any]
                 "name": name,
                 "heading": False,
                 "part": False,
-                "elements": sorted(by_path.get(p, []), key=lambda e: auto.rank[e]),
+                "elements": sorted(by_path.get(p, []), key=lambda e: auto.rows[e]["order"]),
                 "children": dump(kids, p),
             })
         return out

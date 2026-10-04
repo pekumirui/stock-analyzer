@@ -1136,7 +1136,7 @@ def _row_country_rank(element: str) -> int:
     return _COUNTRY_RANK.get(country, 3)
 
 
-def monthly_row_channel_rank(element: str) -> int:
+def _row_channel_rank(element: str) -> int:
     channel = _layers_of(element)["channel"]
     return _CHANNEL_RANK.get(channel, 3)
 
@@ -1198,7 +1198,7 @@ def union_monthly_elements(
                 "segment": segment,
                 "country": _row_country_rank(display),
                 "scope": monthly_row_scope_rank(display),
-                "channel": monthly_row_channel_rank(display),
+                "channel": _row_channel_rank(display),
                 "slot": monthly_row_slot(display, unit),
                 "unit_rank": monthly_row_unit_rank(unit),
                 "bd": monthly_row_breakdown_rank(display),
