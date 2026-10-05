@@ -1549,9 +1549,9 @@ def test_tool_app_logs_joins_file_and_journal(tmp_path: Path) -> None:
     try:
         orig_journal = m.journal
         orig_pick = m.pick_log
-        m.journal = lambda unit, since, lines, grep: f"journal-{unit}-{since}-{grep}"  # type: ignore[assignment]
+        m.journal = lambda unit, since, lines, grep, until=None: f"journal-{unit}-{since}-{grep}"  # type: ignore[assignment]
         m.pick_log = lambda name: log  # type: ignore[assignment]
-        out = m.tool_app_logs({"since": "1h", "lines": 20, "grep": "ERROR"})
+        out = m.tool_app_logs({"lines": 20, "grep": "ERROR"})
         if "ERROR boom" not in out or "keep" in out:
             raise SystemExit(f"file filter: {out!r}")
         if "journal-stock-analyzer-1 hours ago-ERROR" not in out:
@@ -1569,6 +1569,58 @@ def test_tool_app_logs_joins_file_and_journal(tmp_path: Path) -> None:
             os.environ.pop("MCP_APP_DIR", None)
         else:
             os.environ["MCP_APP_DIR"] = prev
+
+
+def test_tool_app_logs_window_reads_rotated(tmp_path: Path) -> None:
+    log = tmp_path / "stock-analyzer.log"
+    (tmp_path / "stock-analyzer.log.2.gz").write_bytes(gzip.compress(
+        b'INFO:     1.1.1.1:0 - "GET /before-log-config HTTP/1.0" 200 OK\n'
+        b'2026-10-03 23:59:59 INFO:     1.1.1.1:0 - "GET /too-old HTTP/1.0" 200 OK\n'
+    ))
+    (tmp_path / "stock-analyzer.log.1").write_text(
+        "2026-10-04 09:00:00 ERROR:    Exception in ASGI application\n"
+        "Traceback (most recent call last):\n"
+        '  File "app/api.py", line 1, in boom\n'
+        "ValueError: boom\n"
+        '2026-10-04 09:00:01 INFO:     1.1.1.1:0 - "GET /api/screener HTTP/1.0" 500 Internal Server Error\n',
+        encoding="utf-8",
+    )
+    log.write_text('2026-10-05 00:00:00 INFO:     1.1.1.1:0 - "GET /today HTTP/1.0" 200 OK\n', encoding="utf-8")
+    orig = (m.journal, m.pick_log, m._jst_now)
+    calls: list[tuple[str, str | None]] = []
+
+    def _journal(unit, since, lines, grep, until=None):  # noqa: ANN001, ANN202
+        calls.append((since, until))
+        return "journal"
+
+    try:
+        m.journal = _journal  # type: ignore[assignment]
+        m.pick_log = lambda name: tmp_path / name  # type: ignore[assignment]
+        m._jst_now = lambda: datetime(2026, 10, 5, 12, 0, 0, tzinfo=m.JST).replace(tzinfo=None)  # type: ignore[assignment]
+        if "until" not in m.TOOLS["app_logs"][1]["properties"]:
+            raise SystemExit("app_logs schema missing until")
+        text, is_error = m.call_tool("app_logs", {"since": "yesterday", "until": "today"})
+        if is_error:
+            raise SystemExit(f"yesterday app: {text!r}")
+        body = text.split("===", 2)[2].split("=== journal", 1)[0]
+        expect = [
+            "2026-10-04 09:00:00 ERROR:    Exception in ASGI application",
+            "Traceback (most recent call last):",
+            '  File "app/api.py", line 1, in boom',
+            "ValueError: boom",
+            '2026-10-04 09:00:01 INFO:     1.1.1.1:0 - "GET /api/screener HTTP/1.0" 500 Internal Server Error',
+        ]
+        if body.strip() != "\n".join(expect):
+            raise SystemExit(f"app window: {body!r}")
+        if calls[-1] != ("2026-10-04 00:00:00", "2026-10-05 00:00:00"):
+            raise SystemExit(f"journal window: {calls[-1]!r}")
+        if "until 2026-10-05 00:00:00" not in text:
+            raise SystemExit(f"journal label: {text!r}")
+        tb, _ = m.call_tool("app_logs", {"since": "yesterday", "grep": "ValueError"})
+        if "ValueError: boom" not in tb or "/today" in tb:
+            raise SystemExit(f"grep on continuation: {tb!r}")
+    finally:
+        m.journal, m.pick_log, m._jst_now = orig  # type: ignore[assignment]
 
 
 def test_tool_nginx_logs_access_timed_and_redacted(tmp_path: Path) -> None:
@@ -1652,7 +1704,7 @@ def test_tool_nginx_logs_window_reads_rotated(tmp_path: Path) -> None:
             if leak in acc:
                 raise SystemExit(f"window leaked {leak}: {acc!r}")
         err = text.split("error.log ===", 1)[1].split("===", 1)[0]
-        if "9.9.9.6" not in err or "today" in err or "continuation" in err or "stranger" in err:
+        if "9.9.9.6" not in err or "continuation" not in err or "today" in err or "stranger" in err:
             raise SystemExit(f"error window: {err!r}")
         if calls[-1] != ("2026-10-04 00:00:00", "2026-10-05 00:00:00"):
             raise SystemExit(f"journal window: {calls[-1]!r}")
@@ -1691,6 +1743,9 @@ def main() -> None:
         logs = base / "applog"
         logs.mkdir()
         test_tool_app_logs_joins_file_and_journal(logs)
+        app_window = base / "appwindow"
+        app_window.mkdir()
+        test_tool_app_logs_window_reads_rotated(app_window)
         test_tool_nginx_logs_access_timed_and_redacted(logs)
         test_tool_nginx_logs_window_reads_rotated(logs)
     test_db_tools()

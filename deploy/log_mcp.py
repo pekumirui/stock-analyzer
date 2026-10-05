@@ -307,14 +307,29 @@ def tool_service_status(_args: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+def _journal_window(start: datetime | None, end: datetime | None) -> tuple[str, str | None, str]:
+    """journalctl の --since / --until と見出し。journalctl は VPS ローカル（JST）で解釈する。"""
+    fmt = "%Y-%m-%d %H:%M:%S"
+    since = start.strftime(fmt) if start is not None else "1970-01-01 00:00:00"
+    until = end.strftime(fmt) if end is not None else None
+    return since, until, f"since {since}" + (f" until {until}" if until else "")
+
+
 def tool_app_logs(args: dict[str, Any]) -> str:
-    since = parse_since(args.get("since"))
     lines = clamp_lines(args.get("lines"))
     grep = parse_grep(args.get("grep"))
+    start, end = parse_batch_window(args)
     path = pick_log("stock-analyzer.log")
-    file_out = tail_grep(path, lines, grep)
-    journal_out = journal("stock-analyzer", since, lines, grep)
-    return f"=== {path} ===\n{file_out}\n\n=== journal stock-analyzer since {since} ===\n{journal_out}"
+    if start is None and end is None:
+        since = parse_since(args.get("since"))
+        file_out = tail_grep(path, lines, grep)
+        journal_out = journal("stock-analyzer", since, lines, grep)
+        label = f"since {since}"
+    else:
+        since, until, label = _journal_window(start, end)
+        file_out = _rotated_window(path, _cron_stamp, start, end, lines, grep)
+        journal_out = journal("stock-analyzer", since, lines, grep, until)
+    return f"=== {path} ===\n{file_out}\n\n=== journal stock-analyzer {label} ===\n{journal_out}"
 
 
 def _job_error() -> str:
@@ -510,7 +525,7 @@ def _window_paths(
     lines: int,
     grep: str | None,
 ) -> str:
-    """JST の [start, end) に入る行。時刻の無い行は捨てる。"""
+    """JST の [start, end) に入る行。"""
     collected: list[tuple[datetime, int, str]] = []
     for path in paths:
         if start is not None:
@@ -525,8 +540,10 @@ def _window_paths(
             text = _read_log_text(path)
         except OSError as exc:
             return f"(cannot read {path}: {exc})"
+        stamp: datetime | None = None
         for line in text.splitlines():
-            stamp = stamp_of(line)
+            # 時刻の無い行（Traceback の続きなど）は直前の行に属する。ファイル先頭のものは捨てる
+            stamp = stamp_of(line) or stamp
             if stamp is None:
                 continue
             if start is not None and stamp < start:
@@ -539,8 +556,8 @@ def _window_paths(
     return _format_tail(rows, lines)
 
 
-def _nginx_window(live: Path, stamp_of: Callable[[str], datetime | None], start: datetime | None,
-                  end: datetime | None, lines: int, grep: str | None) -> str:
+def _rotated_window(live: Path, stamp_of: Callable[[str], datetime | None], start: datetime | None,
+                    end: datetime | None, lines: int, grep: str | None) -> str:
     paths = rotated_siblings(live)
     if not paths:
         return f"(missing {live})"
@@ -584,14 +601,10 @@ def tool_nginx_logs(args: dict[str, Any]) -> str:
         access_out = tail_grep(NGINX_ACCESS_LOG, lines, grep)
         label = f"since {since}"
     else:
-        # journalctl は VPS ローカル（JST）で解釈する
-        fmt = "%Y-%m-%d %H:%M:%S"
-        since = start.strftime(fmt) if start is not None else "1970-01-01 00:00:00"
-        until = end.strftime(fmt) if end is not None else None
+        since, until, label = _journal_window(start, end)
         journal_out = journal("nginx", since, lines, grep, until)
-        file_out = _nginx_window(NGINX_ERROR_LOG, _error_stamp, start, end, lines, grep)
-        access_out = _nginx_window(NGINX_ACCESS_LOG, _access_stamp, start, end, lines, grep)
-        label = f"since {since}" + (f" until {until}" if until else "")
+        file_out = _rotated_window(NGINX_ERROR_LOG, _error_stamp, start, end, lines, grep)
+        access_out = _rotated_window(NGINX_ACCESS_LOG, _access_stamp, start, end, lines, grep)
     return (f"=== journal nginx {label} ===\n{journal_out}\n\n=== {NGINX_ERROR_LOG} ===\n{file_out}"
             f"\n\n=== {NGINX_ACCESS_LOG} (rt=nginx 全体 / urt=uvicorn、秒) ===\n{redact_url(access_out)}")
 
@@ -1038,11 +1051,18 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_service_status,
     ),
     "app_logs": (
-        "uvicorn (stock-analyzer) の /var/log/app/stock-analyzer.log と journalctl。since は 1h / 30m / today / YYYY-MM-DD。",
+        ("uvicorn (stock-analyzer) の /var/log/app/stock-analyzer.log と journalctl。"
+         "since / until 省略時は journal が直近 1h、ファイルは live の末尾だけ。"
+         "どちらかを指定すると .1 と .gz も読み、行頭の JST YYYY-MM-DD HH:MM:SS で絞る（時刻の無い行は直前の行に付く）。"
+         "until はその時刻を含まない。昨日は since=yesterday と until=today。lines は 1-500。超えた分は末尾だけ返す。"),
         {
             "type": "object",
             "properties": {
-                "since": {"type": "string", "description": "1h, 30m, today, yesterday, or YYYY-MM-DD"},
+                "since": {"type": "string", "description": "1h, 30m, today, yesterday, or YYYY-MM-DD. Inclusive."},
+                "until": {
+                    "type": "string",
+                    "description": "Same forms as since. Exclusive. Yesterday is since=yesterday until=today.",
+                },
                 "grep": {"type": "string", "description": "regex or substring, max 120 chars"},
                 "lines": {"type": "integer", "description": "1-500, default 200"},
             },
