@@ -116,6 +116,11 @@ def _shell(
       </div>
       <select id="monthly-series" onchange="setMonthlySeries(this.value)"></select>
       <div id="monthly-chart"></div>
+      <div id="monthly-value-tabs" class="fin-tabs monthly-value-tabs" hidden>
+        <button type="button" class="monthly-vtab" data-v="amount" onclick="setMonthlyValueMode('amount')">金額</button>
+        <button type="button" class="monthly-vtab" data-v="yoy" onclick="setMonthlyValueMode('yoy')">前年比</button>
+        <button type="button" class="monthly-vtab" data-v="both" onclick="setMonthlyValueMode('both')">両方</button>
+      </div>
       <div class="tbl-wrap" id="monthly-table-wrap">{main if not detail_hidden else ""}</div>
   </div>
 </section>

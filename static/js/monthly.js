@@ -5,31 +5,7 @@ const MONTHLY_YEAR_COLORS = ["#0077b6","#2e8b57","#b8860b","#8e4ec6"];
 let MONTHLY_ROW_ORDER = {};
 let _monthlyRowOrderReady = null;
 const MONTHLY_SEGMENT_TAIL_BASE = 10000;
-const MONTHLY_LAYOUT_MODE_KEY = "monthly.layoutMode.debug";
-let monthlyLayoutMode = (() => {
-  try{
-    const v = sessionStorage.getItem(MONTHLY_LAYOUT_MODE_KEY);
-    return v === "flat" ? "flat" : "gated";
-  }catch(_){
-    return "gated";
-  }
-})();
-const MONTHLY_GATE_CODES_KEY = "monthly.gateCodes.debug";
-let monthlyGateCodes = null;
-let monthlyGateIndexFp = "";
-let monthlyGateIndexPromise = null;
 let monthlyIrCodes = null;
-// 試作: 年を横に並べた 1 枚表（timeline）。years は従来の年表。個人 /app だけ。
-const MONTHLY_VIEW_MODE_KEY = "monthly.viewMode.proto";
-const MONTHLY_VIEW_MODES = ["timeline", "years"];
-let monthlyViewMode = (() => {
-  try{
-    const v = localStorage.getItem(MONTHLY_VIEW_MODE_KEY);
-    return MONTHLY_VIEW_MODES.includes(v) ? v : "timeline";
-  }catch(_){
-    return "timeline";
-  }
-})();
 // 試作: 金額と前年比が両方ある項目は 1 行にまとめ、表示する方を切り替える。色はどちらでも前年比。
 const MONTHLY_VALUE_MODE_KEY = "monthly.valueMode.proto";
 let monthlyValueMode = (() => {
@@ -255,185 +231,12 @@ function escHtml(s){
   return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 }
 
-function monthlySegmentGate(tables){
-  const keep = new Set(monthlyDisplayYears((tables || []).map(t => t && t.year)));
-  const gated = new Set();
-  for(const t of tables || []){
-    if(!t || !keep.has(Number(t.year))) continue;
-    const counts = {};
-    for(const e of t.elements || []){
-      const L = e.label;
-      if(!L || !L.group) continue;
-      if(!L.metric && !L.channel && !L.scope) continue;
-      counts[L.group] = (counts[L.group] || 0) + 1;
-    }
-    for(const [seg, n] of Object.entries(counts)){
-      if(n >= 2) gated.add(seg);
-    }
-  }
-  return gated;
-}
-
-function monthlyStubChannelText(channel){
-  return channel || "—";
-}
-
-function monthlyStubScopeText(scope){
-  if(scope === "既存") return "既存店";
-  return scope || "—";
-}
-
-function monthlyGatedLeftover(segment, dropSegment){
-  const leftover = segment || "";
-  const drop = dropSegment || "";
-  if(!drop) return leftover;
-  if(leftover === drop) return "";
-  const prefix = drop + " ";
-  if(leftover.startsWith(prefix)) return leftover.slice(prefix.length);
-  return leftover;
-}
-
-function monthlyLayoutLeaf(label, unit, dropSegment){
-  const leftover = monthlyGatedLeftover(label.segment, dropSegment);
-  const u = unit || "number";
-  const isYoy = u === "yoy_index" || u === "yoy_pct";
-  if(label.breakdown){
-    let bd = label.breakdown;
-    if(isYoy && !bd.endsWith("(前年比)")) bd += "(前年比)";
-    return "└ " + bd;
-  }
-  let metric = label.metric || "";
-  if(isYoy && metric && !metric.endsWith("(前年比)")) metric += "(前年比)";
-  if(!isYoy && metric){
-    const spec = monthlyDisplayUnit(label.display, u);
-    if(spec && !metric.includes("（" + spec.suffix + "）")) metric += "（" + spec.suffix + "）";
-  }
-  return [label.country, leftover, metric].filter(Boolean).join(" ") || String(label.display || "");
-}
-
-function monthlyLayoutDataRow(item, gatedSegment, idx){
-  const L = item.label;
-  return {
-    kind: "data",
-    element: item.element,
-    unit: item.unit,
-    label: L,
-    group: gatedSegment || "",
-    channel: L.channel,
-    scope: L.scope,
-    breakdown: L.breakdown || "",
-    breakdownDepth: L.breakdown_depth ?? (L.breakdown ? 1 : 0),
-    leaf: monthlyLayoutLeaf(L, item.unit, gatedSegment || ""),
-    channelRank: MONTHLY_CHANNEL_RANK[L.channel] ?? 3,
-    scopeRank: monthlyRowScopeRank(L),
-    slot: MONTHLY_METRIC_RANK[L.metric_kind],
-    unitRank: monthlyRowUnitRank(item.unit),
-    bdRank: MONTHLY_BREAKDOWN_RANK[L.breakdown] ?? 4,
-    idx
-  };
-}
-
-function monthlyReorderBlock(block){
-  return block.slice().sort((a, b) => {
-    if(a.channelRank !== b.channelRank) return a.channelRank - b.channelRank;
-    if(a.scopeRank !== b.scopeRank) return a.scopeRank - b.scopeRank;
-    if(a.slot !== b.slot) return a.slot - b.slot;
-    if((a.unitRank || 0) !== (b.unitRank || 0)) return (a.unitRank || 0) - (b.unitRank || 0);
-    if((a.bdRank || 0) !== (b.bdRank || 0)) return (a.bdRank || 0) - (b.bdRank || 0);
-    return a.idx - b.idx;
-  });
-}
-
-function monthlyTableLayout(rowOrder, tables, opts){
-  const forceFlat = (opts && opts.forceFlat) || monthlyLayoutMode === "flat";
-  const gated = forceFlat ? new Set() : monthlySegmentGate(tables);
-  if(!gated.size){
-    return {
-      gated: false,
-      rows: (rowOrder || []).map((e, idx) => monthlyLayoutDataRow(e, "", idx))
-    };
-  }
-  const company = [];
-  const brands = new Map();
-  (rowOrder || []).forEach((e, idx) => {
-    const seg = e.label.group;
-    if(seg && gated.has(seg)){
-      if(!brands.has(seg)) brands.set(seg, []);
-      brands.get(seg).push(monthlyLayoutDataRow(e, seg, idx));
-    }else{
-      company.push(monthlyLayoutDataRow(e, "", idx));
-    }
-  });
-  const rows = monthlyReorderBlock(company);
-  for(const [label, items] of brands){
-    rows.push({kind: "section", label});
-    rows.push(...monthlyReorderBlock(items));
-  }
-  return {gated: true, rows};
-}
-
-function monthlyAssignStubSpans(rows){
-  const n = rows.length;
-  let i = 0;
-  while(i < n){
-    if(rows[i].kind !== "data"){
-      i++;
-      continue;
-    }
-    let j = i + 1;
-    while(j < n && rows[j].kind === "data" && rows[j].channel === rows[i].channel) j++;
-    const chanSpan = j - i;
-    let k = i;
-    while(k < j){
-      let m = k + 1;
-      while(m < j && rows[m].scope === rows[k].scope) m++;
-      const scSpan = m - k;
-      for(let t = k; t < m; t++){
-        rows[t].channelSpan = (t === i) ? chanSpan : 0;
-        rows[t].scopeSpan = (t === k) ? scSpan : 0;
-      }
-      k = m;
-    }
-    i = j;
-  }
-  return rows;
-}
-
-function monthlyVisibleLayoutRows(layout, byName){
-  const out = [];
-  let section = null;
-  for(const rec of (layout && layout.rows) || []){
-    if(rec.kind === "section"){
-      section = rec;
-      continue;
-    }
-    const src = byName[rec.element];
-    const vals = (src && src.values) || {};
-    if(!src || !Object.keys(vals).length) continue;
-    if(section){
-      out.push(section);
-      section = null;
-    }
-    out.push(rec);
-  }
-  return monthlyAssignStubSpans(out);
-}
-
 function monthlySeriesChoices(tables){
-  const rowOrder = monthlyRowOrder(tables);
-  const layout = monthlyTableLayout(rowOrder, tables);
-  const out = [];
-  for(const e of layout.rows){
-    if(e.kind === "section") continue;
-    const id = e.label.display;
-    out.push({
-      id,
-      label: layout.gated ? (e.leaf || id) : id,
-      yoy: e.unit==="yoy_index" || e.unit==="yoy_pct",
-      group: layout.gated ? (e.group || "全体") : "",
-    });
-  }
-  return out;
+  return monthlyRowOrder(tables).map(e => ({
+    id: e.label.display,
+    label: e.label.display,
+    yoy: e.unit==="yoy_index" || e.unit==="yoy_pct",
+  }));
 }
 
 function pickDefaultMonthlySeries(tables){
@@ -481,85 +284,11 @@ function filteredMonthlyIssuers(){
   if(q) return issuers.filter(r => matchMonthlyIssuerQuery(r, q));
   if(monthlyGroup==="__all__") return issuers;
   if(monthlyGroup==="__new__") return issuers.filter(r => r.is_new);
-  if(monthlyGroup==="__gate__"){
-    const gated = monthlyGateCodes || new Set();
-    return issuers.filter(r => gated.has(r.code));
-  }
   if(monthlyGroup==="__ir__"){
     const want = monthlyIrCodes || new Set();
     return issuers.filter(r => want.has(monthlyCode4(r.code).toUpperCase()));
   }
   return issuers.filter(r => (r.industry || "その他") === monthlyGroup);
-}
-
-function monthlyIssuerListFingerprint(issuers){
-  return (issuers || []).map(r => String(r.code || "")).filter(Boolean).sort().join(",");
-}
-
-function monthlyLatestYearFromList(row){
-  let best = null;
-  for(const y of (row && row.years) || []){
-    const n = Number(y);
-    if(!Number.isFinite(n)) continue;
-    if(best == null || n > best) best = n;
-  }
-  return best;
-}
-
-function invalidateMonthlyGateIndex(){
-  monthlyGateCodes = null;
-  monthlyGateIndexFp = "";
-  monthlyGateIndexPromise = null;
-}
-
-async function ensureMonthlyGateIndex(){
-  const issuers = uniqueMonthlyIssuers(monthlyRows);
-  const fp = monthlyIssuerListFingerprint(issuers);
-  if(monthlyGateCodes && monthlyGateIndexFp === fp) return monthlyGateCodes;
-  if(monthlyGateIndexPromise) return monthlyGateIndexPromise;
-  monthlyGateIndexPromise = (async () => {
-    try{
-      const raw = sessionStorage.getItem(MONTHLY_GATE_CODES_KEY);
-      const savedFp = sessionStorage.getItem(MONTHLY_GATE_CODES_KEY + ".fp");
-      if(raw && savedFp === fp){
-        const arr = JSON.parse(raw);
-        if(Array.isArray(arr)){
-          monthlyGateCodes = new Set(arr.map(String));
-          monthlyGateIndexFp = fp;
-          return monthlyGateCodes;
-        }
-      }
-    }catch(_){}
-    const gated = new Set();
-    const jobs = [];
-    for(const r of issuers){
-      const year = monthlyLatestYearFromList(r);
-      if(year == null) continue;
-      jobs.push({code: r.code, year});
-    }
-    let cursor = 0;
-    const workers = Array.from({length: Math.min(8, Math.max(jobs.length, 1))}, async () => {
-      while(cursor < jobs.length){
-        const job = jobs[cursor++];
-        const table = await api(`/api/v1/tables/${job.code}/${job.year}`).catch(() => null);
-        if(!table) continue;
-        if(monthlySegmentGate([table]).size) gated.add(job.code);
-      }
-    });
-    await Promise.all(workers);
-    monthlyGateCodes = gated;
-    monthlyGateIndexFp = fp;
-    try{
-      sessionStorage.setItem(MONTHLY_GATE_CODES_KEY, JSON.stringify([...gated].sort()));
-      sessionStorage.setItem(MONTHLY_GATE_CODES_KEY + ".fp", fp);
-    }catch(_){}
-    return monthlyGateCodes;
-  })();
-  try{
-    return await monthlyGateIndexPromise;
-  }finally{
-    monthlyGateIndexPromise = null;
-  }
 }
 
 async function loadMonthlyList(opts){
@@ -574,8 +303,6 @@ async function loadMonthlyList(opts){
   monthlyRows = rows;
   if(!monthlyPublic()) await loadMonthlyIrCodes();
   const issuers = uniqueMonthlyIssuers(monthlyRows);
-  const fp = monthlyIssuerListFingerprint(issuers);
-  if(fp !== monthlyGateIndexFp) invalidateMonthlyGateIndex();
   if(!monthlyGroup) monthlyGroup = monthlyPublic() ? "__all__" : "__new__";
   if(!issuers.length){
     $("#monthly-groups").innerHTML = "";
@@ -584,7 +311,7 @@ async function loadMonthlyList(opts){
     return;
   }
   const groups = monthlyIndustries(issuers);
-  if(monthlyGroup!=="__new__" && monthlyGroup!=="__all__" && monthlyGroup!=="__gate__" && monthlyGroup!=="__ir__" && !groups.includes(monthlyGroup)){
+  if(monthlyGroup!=="__new__" && monthlyGroup!=="__all__" && monthlyGroup!=="__ir__" && !groups.includes(monthlyGroup)){
     monthlyGroup = monthlyPublic() ? "__all__" : defaultMonthlyGroup(issuers);
   }else if(monthlyGroup==="__new__" && !issuers.some(r => r.is_new) && groups.length){
     monthlyGroup = groups[0];
@@ -600,7 +327,6 @@ function renderMonthlyGroups(groups){
   }
   h += `<button type="button" class="mchip${monthlyGroup==="__new__"?" on":""}" data-group="__new__" onclick="setMonthlyGroup('__new__')">新着</button>`;
   if(!monthlyPublic()){
-    h += `<button type="button" class="mchip${monthlyGroup==="__gate__"?" on":""}" data-group="__gate__" onclick="setMonthlyGroup('__gate__')">ゲート（一時）</button>`;
     h += `<button type="button" class="mchip${monthlyGroup==="__ir__"?" on":""}" data-group="__ir__" onclick="setMonthlyGroup('__ir__')">IR（一時）</button>`;
   }
   for(const g of groups){
@@ -620,12 +346,6 @@ async function setMonthlyGroup(g){
   if(g === "__ir__"){
     await loadMonthlyIrCodes();
     if(monthlyGroup !== "__ir__") return;
-  }
-  if(g === "__gate__"){
-    const list = $("#monthly-list");
-    if(list) list.innerHTML = `<div class="sub">ゲート判定中…</div>`;
-    await ensureMonthlyGateIndex();
-    if(monthlyGroup !== "__gate__") return;
   }
   renderMonthlyList();
 }
@@ -653,8 +373,7 @@ function renderMonthlyList(){
   if(!issuers.length){
     const empty = String(monthlySearchApplied || "").trim()
       ? "該当する発行体はありません"
-      : (monthlyGroup === "__gate__" ? "ゲート対象はありません"
-        : (monthlyGroup === "__ir__" ? "IR対象はありません" : "登録された月次データはありません"));
+      : (monthlyGroup === "__ir__" ? "IR対象はありません" : "登録された月次データはありません");
     $("#monthly-list").innerHTML = `<div class="sub">${empty}</div>`;
     return;
   }
@@ -799,24 +518,8 @@ function renderMonthlySeriesSelect(){
     return;
   }
   if(!choices.some(s => s.id === monthlySeries)) monthlySeries = pickDefaultMonthlySeries(monthlyYearTables);
-  const grouped = choices.some(s => s.group);
-  if(!grouped){
-    sel.innerHTML = choices.map(s =>
-      `<option value="${escHtml(s.id)}">${escHtml(s.label)}</option>`).join("");
-  }else{
-    let h = "";
-    let cur = null;
-    for(const s of choices){
-      if(s.group !== cur){
-        if(cur !== null) h += `</optgroup>`;
-        h += `<optgroup label="${escHtml(s.group)}">`;
-        cur = s.group;
-      }
-      h += `<option value="${escHtml(s.id)}">${escHtml(s.label)}</option>`;
-    }
-    if(cur !== null) h += `</optgroup>`;
-    sel.innerHTML = h;
-  }
+  sel.innerHTML = choices.map(s =>
+    `<option value="${escHtml(s.id)}">${escHtml(s.label)}</option>`).join("");
   sel.value = monthlySeries;
 }
 
@@ -824,56 +527,12 @@ function setMonthlySeries(id){
   monthlySeries = id;
   const sel = $("#monthly-series");
   if(sel && sel.value !== id) sel.value = id;
-  if(monthlyTimelineOn() && monthlyTimelineReveal(id)){
+  if(monthlyTimelineReveal(id)){
     renderMonthlyYearTables(monthlyYearTables);
     return;
   }
   drawMonthlyChart(monthlyYearTables, monthlySeries);
   markMonthlySeriesRows();
-}
-
-function syncMonthlyLayoutDebugUi(canGate){
-  const host = $("#monthly-layout-debug");
-  const sel = $("#monthly-layout-mode");
-  if(!host || !sel) return;
-  if(monthlyPublic()){
-    host.hidden = true;
-    return;
-  }
-  if(canGate){
-    host.hidden = false;
-    sel.value = monthlyLayoutMode === "flat" ? "flat" : "gated";
-  }else{
-    host.hidden = true;
-  }
-}
-
-function setMonthlyLayoutMode(mode){
-  monthlyLayoutMode = mode === "flat" ? "flat" : "gated";
-  try{ sessionStorage.setItem(MONTHLY_LAYOUT_MODE_KEY, monthlyLayoutMode); }catch(_){}
-  const sel = $("#monthly-layout-mode");
-  if(sel && sel.value !== monthlyLayoutMode) sel.value = monthlyLayoutMode;
-  if(!monthlyYearTables.length) return;
-  renderMonthlyYearTables(monthlyYearTables);
-}
-
-function monthlyTimelineOn(){
-  return !monthlyPublic() && monthlyViewMode !== "years";
-}
-
-function syncMonthlyViewDebugUi(){
-  const host = $("#monthly-view-debug");
-  const sel = $("#monthly-view-mode");
-  if(!host || !sel) return;
-  host.hidden = monthlyPublic();
-  sel.value = monthlyViewMode;
-}
-
-function setMonthlyViewMode(mode){
-  monthlyViewMode = MONTHLY_VIEW_MODES.includes(mode) ? mode : "timeline";
-  try{ localStorage.setItem(MONTHLY_VIEW_MODE_KEY, monthlyViewMode); }catch(_){}
-  syncMonthlyViewDebugUi();
-  if(monthlyYearTables.length) renderMonthlyYearTables(monthlyYearTables);
 }
 
 function monthlyIsYoyUnit(unit){
@@ -1100,15 +759,15 @@ function monthlyTreeReveal(tm, id){
     if(tm.parent[own.mkey]) monthlyTreeOpenMetric(tm, tm.parent[own.mkey], open);
     return changed;
   }
-  const walk = (nodes, trail) => {
+  const walk = (nodes, trail, topNode) => {
     for(const n of nodes){
       const r = n.recs.find(hit);
       if(r){
         // 節の外に 1 行しか無い指標は指標の行としてそのまま出ている
         if(!(single && single.recs.some(q => q.mkey === r.mkey)) && monthlyTreeCount(top, r.mkey) === 1 && !tm.parent[r.mkey]) return true;
         // 節の行は一番上の指標の下に 1 回だけ出る。子の指標の行（焼肉 ▸ 直営）はその節の行の下
-        const root = monthlyTreeRootMetric(tm, r.mkey);
-        open("m:" + root);
+        const root = monthlyTreeHome(tm, topNode || n, monthlyTreeRootMetric(tm, r.mkey)) || r.mkey;
+        monthlyTreeOpenMetric(tm, root, open);
         trail.forEach(k => open("m:" + root + "\u203a" + k));
         if(r.mkey !== root){
           const base = "m:" + root + "\u203a" + n.key;
@@ -1124,7 +783,7 @@ function monthlyTreeReveal(tm, id){
         }
         return true;
       }
-      if(walk(n.children, [...trail, n.key])) return true;
+      if(walk(n.children, [...trail, n.key], topNode || n)) return true;
     }
     return false;
   };
@@ -1181,11 +840,24 @@ function monthlyTreeHtml(tm, cellsFor, cols){
     chanRows(n, ch, k, depth + 1, key, cls);
     for(const c of kids) walk(c, k, depth + 1);
   };
-  // 指標の行。子は先に会社の子の指標（直営 / FC、国内 / 海外）、次に節の木（ブランドは一番上の指標の下に 1 回だけ）
+  // 指標の行。子は先に会社の子の指標（直営 / FC、国内 / 海外）、次に節の木。
+  // 節（ブランド）はその節の行がある一番浅い指標の下に 1 回だけ出す（物語の合計店舗数は国内 816 の下）
+  const homes = new Map();
+  const home = n => {
+    if(!homes.has(n)) homes.set(n, new Map());
+    const per = homes.get(n);
+    return k => {
+      const root = monthlyTreeRootMetric(tm, k);
+      if(!per.has(root)) per.set(root, monthlyTreeHome(tm, n, root));
+      return per.get(root);
+    };
+  };
+  const content = c => (single && single.recs.some(r => r.mkey === c))
+    || top.some(n => home(n)(c) === c) || monthlyTreeSubs(tm, c).some(content);
   const metric = (k, depth, pk) => {
     const mine = single ? single.recs.filter(r => r.mkey === k) : [];
-    const kids = pk ? [] : top.filter(n => monthlyTreeHasDeep(tm, n, k));
-    const ms = monthlyTreeSubs(tm, k).filter(c => (single && single.recs.some(r => r.mkey === c)) || monthlyTreeSubs(tm, c).length);
+    const kids = top.filter(n => home(n)(k) === k);
+    const ms = monthlyTreeSubs(tm, k).filter(content);
     if(!pk && !mine.length && !ms.length && !monthlyTreeSubs(tm, k).length && monthlyTreeCount(top, k) === 1){
       const r = monthlyTreeFirst(top, k);
       body += row(r, r.element, depth);
@@ -1220,6 +892,17 @@ function monthlyTreeSubs(tm, k){
 // 節にその指標か子孫の指標の行があるか（直営の店舗数しか無いブランドも合計の下に出す）
 function monthlyTreeHasDeep(tm, n, k){
   return monthlyTreeHas(n, k) || monthlyTreeSubs(tm, k).some(c => monthlyTreeHasDeep(tm, n, c));
+}
+
+// 節を出す指標。根の指標から幅優先で、節（子の節を含む）に行がある最初の指標
+function monthlyTreeHome(tm, n, root){
+  const queue = [root];
+  while(queue.length){
+    const m = queue.shift();
+    if(monthlyTreeHas(n, m)) return m;
+    queue.push(...monthlyTreeSubs(tm, m));
+  }
+  return null;
 }
 
 function monthlyTreeRootMetric(tm, k){
@@ -1434,85 +1117,11 @@ async function openMonthlyPopup(td){
 function renderMonthlyYearTables(tables, opts){
   const wrap = $("#monthly-table-wrap");
   if(!wrap) return;
-  const rowOrder = monthlyRowOrder(tables);
-  const canGate = monthlySegmentGate(tables).size > 0;
-  const layout = monthlyTableLayout(rowOrder, tables);
-  syncMonthlyLayoutDebugUi(canGate);
-  syncMonthlyViewDebugUi();
-  syncMonthlyValueUi(false);
   renderMonthlySeriesSelect();
-  if(monthlyTimelineOn()){
-    monthlyTimelineReveal(monthlySeries);
-    const tm = monthlyTreeModel(tables);
-    syncMonthlyValueUi(!!tm && tm.all.some(r => r.yoy));
-    renderMonthlyTimeline(tables, opts);
-    drawMonthlyChart(tables, monthlySeries);
-    markMonthlySeriesRows();
-    return;
-  }
-  let h = "";
-  let maxNumLen = 0;
-  for(const d of tables){
-    if(!d) continue;
-    if(layout.gated){
-      h += `<table class="fin monthly monthly-gated"><colgroup><col class="monthly-stub-ch"><col class="monthly-stub-sc"><col class="monthly-stub-leaf"><col class="monthly-m" span="12"></colgroup><thead><tr><th class="l year" colspan="3">${d.year}</th>`;
-    }else{
-      h += `<table class="fin monthly"><colgroup><col class="monthly-name"><col class="monthly-m" span="12"></colgroup><thead><tr><th class="l year">${d.year}</th>`;
-    }
-    for(let m=1;m<=12;m++) h += `<th>${m}月</th>`;
-    h += `</tr></thead><tbody>`;
-    const byName = {};
-    for(const src of d.elements || []) byName[src.label.display] = src;
-    for(const e of rowOrder){
-      if(layout.gated) break;
-      const src = byName[e.element];
-      const vals = (src && src.values) || {};
-      if(!Object.keys(vals).length) continue;
-      const unit = (src && src.unit) || e.unit || "number";
-      const ds = ` data-series="${escHtml(e.element)}" onclick="setMonthlySeries(this.dataset.series)"`;
-      h += `<tr${ds}><td class="l">${escHtml(e.element)}</td>`;
-      for(let m=1;m<=12;m++){
-        const v = vals[String(m)];
-        const txt = fmtMonthlyCell(v, unit, e.element);
-        if(txt) maxNumLen = Math.max(maxNumLen, txt.length);
-        h += `<td class="num">${txt}</td>`;
-      }
-      h += `</tr>`;
-    }
-    if(layout.gated){
-      for(const e of monthlyVisibleLayoutRows(layout, byName)){
-        if(e.kind === "section"){
-          let months = "";
-          for(let m=1;m<=12;m++) months += `<td class="num monthly-sec-month">${m}月</td>`;
-          h += `<tr class="monthly-sec"><td class="monthly-sec-label" colspan="3">${escHtml(e.label)}</td>${months}</tr>`;
-          continue;
-        }
-        const src = byName[e.element];
-        const vals = (src && src.values) || {};
-        if(!Object.keys(vals).length) continue;
-        const unit = (src && src.unit) || e.unit || "number";
-        const ds = ` data-series="${escHtml(e.element)}" onclick="setMonthlySeries(this.dataset.series)"`;
-        let stubs = "";
-        if(e.channelSpan) stubs += `<td class="monthly-stub monthly-stub-ch" rowspan="${e.channelSpan}">${escHtml(monthlyStubChannelText(e.channel))}</td>`;
-        if(e.scopeSpan) stubs += `<td class="monthly-stub monthly-stub-sc" rowspan="${e.scopeSpan}">${escHtml(monthlyStubScopeText(e.scope))}</td>`;
-        const bdClass = e.breakdown
-          ? (Number(e.breakdownDepth) === 2 ? " monthly-bd monthly-bd-2" : " monthly-bd")
-          : "";
-        stubs += `<td class="l monthly-stub monthly-stub-leaf${bdClass}">${escHtml(e.leaf)}</td>`;
-        h += `<tr${ds}>${stubs}`;
-        for(let m=1;m<=12;m++){
-          const v = vals[String(m)];
-          const txt = fmtMonthlyCell(v, unit, e.element);
-          if(txt) maxNumLen = Math.max(maxNumLen, txt.length);
-          h += `<td class="num">${txt}</td>`;
-        }
-        h += `</tr>`;
-      }
-    }
-    h += `</tbody></table>`;
-  }
-  wrap.style.setProperty("--monthly-m-w", `calc(${Math.max(maxNumLen, 3)}ch + 16px)`);
-  wrap.innerHTML = h || `<div class="sub">データなし</div>`;
+  monthlyTimelineReveal(monthlySeries);
+  const tm = monthlyTreeModel(tables);
+  syncMonthlyValueUi(!!tm && tm.all.some(r => r.yoy));
+  renderMonthlyTimeline(tables, opts);
   drawMonthlyChart(tables, monthlySeries);
   markMonthlySeriesRows();
 }
@@ -1535,7 +1144,6 @@ async function loadMonthlyTables(){
     monthlyYearTables = [];
     wrap.style.removeProperty("--monthly-m-w");
     wrap.innerHTML = `<div class="sub">データなし</div>`;
-    syncMonthlyLayoutDebugUi(false);
     renderMonthlySeriesSelect();
     drawMonthlyChart([], monthlySeries);
     return;
@@ -1730,7 +1338,6 @@ window.showMonthlyDetail = showMonthlyDetail;
 window.pickMonthlyIssuer = pickMonthlyIssuer;
 window.backMonthly = backMonthly;
 window.setMonthlySeries = setMonthlySeries;
-window.setMonthlyViewMode = setMonthlyViewMode;
 window.setMonthlyValueMode = setMonthlyValueMode;
 window.toggleMonthlyTimelineSection = toggleMonthlyTimelineSection;
 window.loadMonthlyList = loadMonthlyList;

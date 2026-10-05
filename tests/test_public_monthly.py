@@ -63,8 +63,8 @@ def main() -> None:
     _expect(r, 200, "GET /app")
     if "週足" not in r.text or "<title>株式分析ツール</title>" not in r.text:
         _fail("GET /app is not the private SPA")
-    if 'id="monthly-layout-debug"' not in r.text:
-        _fail("private SPA must keep TEMP layout debug")
+    if 'id="monthly-layout-debug"' in r.text or 'id="monthly-view-debug"' in r.text:
+        _fail("private SPA must not keep the years-view / gate debug selects (timeline only)")
     # iOS Safari はメモリの古い CSS を確かめずに使うので、/static は中身のハッシュ付き URL で出す
     m = re.search(r'href="/static/css/app\.css\?v=([0-9a-f]{12})"', r.text)
     if not m or not re.search(r'src="/static/js/monthly\.js\?v=[0-9a-f]{12}"', r.text):
@@ -74,8 +74,8 @@ def main() -> None:
     if c.get(f"/static/css/app.css?v={m.group(1)}").status_code != 200:
         _fail("versioned /static URL must still be served")
     spa_js = (ROOT / "static" / "js" / "monthly.js").read_text(encoding="utf-8")
-    if "ゲート（一時）" not in spa_js:
-        _fail("private SPA JS must keep TEMP gate chip")
+    if "ゲート（一時）" in spa_js:
+        _fail("gate chip is gone (timeline only)")
 
     r = c.get("/monthly")
     _expect(r, 200, "GET /monthly")
@@ -95,6 +95,9 @@ def main() -> None:
         _fail("public TOP must not show TEMP debug UI")
     if "data-public-monthly" not in r.text:
         _fail("public body flag missing")
+    # 公開も横持ち。金額 / 前年比 / 両方 のタブを Detail に置く
+    if 'id="monthly-value-tabs"' not in r.text or "setMonthlyValueMode('both')" not in r.text:
+        _fail("public Detail must carry #monthly-value-tabs for the timeline")
     if not re.search(r'href="/static/css/app\.css\?v=[0-9a-f]{12}"', r.text):
         _fail("public /monthly must version /static URLs with ?v=<hash>")
 
