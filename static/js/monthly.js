@@ -737,6 +737,11 @@ function monthlyTreeSeedOpen(tm){
   monthlyTlTreeSeeded = true;
   const first = tm.keys.find(k => !tm.parent[k]);
   if(first) monthlyTlOpen.add("m:" + first);
+  // 会社の行が無い指標（トライアル: ブランド別だけ）は閉じると数字の無い行だけになるので開いておく
+  const {single} = monthlyTreeTop(tm);
+  for(const k of tm.keys){
+    if(!tm.parent[k] && !(single && single.recs.some(r => r.mkey === k))) monthlyTlOpen.add("m:" + k);
+  }
 }
 
 function monthlyTreeOpenMetric(tm, k, open){
