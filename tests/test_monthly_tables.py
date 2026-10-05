@@ -2257,6 +2257,20 @@ def _assert_monthly_layout_js() -> None:
         "elements": [{**_el(e, u), "tree": brand_auto.rows[e]} for e, u in brand_rows],
         **auto_tree_payload(brand_auto, [e for e, _ in brand_rows]),
     }]
+    # ハードオフ: 業態が 直営 と FC の両方を持ち、業態合計の 店舗数 は無い。庄やは店舗数だけの節
+    hardoff_rows = [
+        ("店舗数", "number"), ("直営 店舗数", "number"), ("海外 直営 店舗数", "number"),
+        ("FC 店舗数", "number"), ("海外 FC 店舗数", "number"),
+        ("ハードオフ 直営 店舗数", "number"), ("ハードオフ FC 店舗数", "number"),
+        ("オフハウス 直営 店舗数", "number"), ("オフハウス FC 店舗数", "number"),
+        ("ブックオフ 直営 店舗数", "number"), ("庄や 店舗数", "number"),
+    ]
+    hardoff_auto = build_auto_tree("26740", {2026: hardoff_rows})
+    fixtures["hardoffTree"] = [{
+        "year": 2026, "code": "26740",
+        "elements": [{**_el(e, u), "tree": hardoff_auto.rows[e]} for e, u in hardoff_rows],
+        **auto_tree_payload(hardoff_auto, [e for e, _ in hardoff_rows]),
+    }]
     harness = r"""
 const fs = require("fs");
 const vm = require("vm");
@@ -2308,6 +2322,17 @@ const btm = sandbox.monthlyTreeModel(fixtures.brandTree);
 sandbox.monthlyTreeSeedOpen(btm);
 const brandHtml = sandbox.monthlyTreeHtml(btm, () => "<td></td>", [{y: 2026, m: 1}]);
 const brandNames = [...brandHtml.matchAll(/<td class="tl-name[^"]*"[^>]*>(?:<span class="tl-tw">[^<]*<\/span>)?([^<]*)/g)].map((m) => m[1]);
+const nameRe = /<td class="tl-name[^"]*"[^>]*>(?:<span class="tl-tw">[^<]*<\/span>)?([^<]*)/g;
+const namesOf = (html) => [...html.matchAll(nameRe)].map((m) => m[1]);
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const htm = sandbox.monthlyTreeModel(fixtures.hardoffTree);
+sandbox.monthlyTreeSeedOpen(htm);
+vm.runInContext('monthlyTlOpen.add("m:直営 店舗数"); monthlyTlOpen.add("m:FC 店舗数");', sandbox);
+const hardoffNames = namesOf(sandbox.monthlyTreeHtml(htm, () => "<td></td>", [{y: 2026, m: 1}]));
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+sandbox.monthlyTreeSeedOpen(htm);
+sandbox.monthlyTreeReveal(htm, "ハードオフ FC 店舗数");
+const hardoffReveal = namesOf(sandbox.monthlyTreeHtml(htm, () => "<td></td>", [{y: 2026, m: 1}]));
 console.log(JSON.stringify({
   brandNames,
   bdCanon: fixtures.leftoverMkg.label.display,
@@ -2316,6 +2341,8 @@ console.log(JSON.stringify({
   chartHtml,
   treeNames,
   treeParent: tm.parent,
+  hardoffNames,
+  hardoffReveal,
 }));
 """
     with tempfile.NamedTemporaryFile(
@@ -2361,6 +2388,16 @@ console.log(JSON.stringify({
     want_brand = ["既存 売上高", "トライアル", "西友", "全店 売上高", "トライアル", "西友"]
     if got.get("brandNames") != want_brand:
         _fail(f"トライアル: 会社の行が無い指標は開く: {got.get('brandNames')!r}")
+    # 直営と FC の両方に業態行があるときは両方の下に出す。FC の無い業態は直営だけ。店舗数だけの節は合計の下
+    want_hardoff = [
+        "店舗数", "直営", "海外", "ハードオフ", "オフハウス", "ブックオフ",
+        "FC", "海外", "ハードオフ", "オフハウス", "庄や",
+    ]
+    if got.get("hardoffNames") != want_hardoff:
+        _fail(f"ハードオフ store tree rows: {got.get('hardoffNames')!r}")
+    want_reveal = ["店舗数", "直営", "FC", "海外", "ハードオフ", "オフハウス", "庄や"]
+    if got.get("hardoffReveal") != want_reveal:
+        _fail(f"ハードオフ FC reveal: {got.get('hardoffReveal')!r}")
 
 def _assert_known_prod_units(c) -> None:
     from app.db import SessionLocal, apply_known_monthly_element_units

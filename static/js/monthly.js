@@ -770,8 +770,8 @@ function monthlyTreeReveal(tm, id){
       if(r){
         // 節の外に 1 行しか無い指標は指標の行としてそのまま出ている
         if(!(single && single.recs.some(q => q.mkey === r.mkey)) && monthlyTreeCount(top, r.mkey) === 1 && !tm.parent[r.mkey]) return true;
-        // 節の行は一番上の指標の下に 1 回だけ出る。子の指標の行（焼肉 ▸ 直営）はその節の行の下
-        const root = monthlyTreeHome(tm, topNode || n, monthlyTreeRootMetric(tm, r.mkey)) || r.mkey;
+        // 節の行は一番浅い指標の下。兄弟枝（直営 vs FC）にだけ行があるときはその枝
+        const root = monthlyTreeDisplayMetric(tm, topNode || n, r.mkey);
         monthlyTreeOpenMetric(tm, root, open);
         trail.forEach(k => open("m:" + root + "\u203a" + k));
         if(r.mkey !== root){
@@ -846,7 +846,8 @@ function monthlyTreeHtml(tm, cellsFor, cols){
     for(const c of kids) walk(c, k, depth + 1);
   };
   // 指標の行。子は先に会社の子の指標（直営 / FC、国内 / 海外）、次に節の木。
-  // 節（ブランド）はその節の行がある一番浅い指標の下に 1 回だけ出す（物語の合計店舗数は国内 816 の下）
+  // 節（ブランド）はその節の行がある一番浅い指標の下（物語の合計店舗数は国内 816 の下）。
+  // 一番浅い指標が兄弟枝の一方（直営）だけで、もう一方（FC）にも行があるときは両方に出す。
   const homes = new Map();
   const home = n => {
     if(!homes.has(n)) homes.set(n, new Map());
@@ -858,10 +859,10 @@ function monthlyTreeHtml(tm, cellsFor, cols){
     };
   };
   const content = c => (single && single.recs.some(r => r.mkey === c))
-    || top.some(n => home(n)(c) === c) || monthlyTreeSubs(tm, c).some(content);
+    || top.some(n => monthlyTreePlaceUnder(tm, n, c, home(n)(c))) || monthlyTreeSubs(tm, c).some(content);
   const metric = (k, depth, pk) => {
     const mine = single ? single.recs.filter(r => r.mkey === k) : [];
-    const kids = top.filter(n => home(n)(k) === k);
+    const kids = top.filter(n => monthlyTreePlaceUnder(tm, n, k, home(n)(k)));
     const ms = monthlyTreeSubs(tm, k).filter(content);
     if(!pk && !mine.length && !ms.length && !monthlyTreeSubs(tm, k).length && monthlyTreeCount(top, k) === 1){
       const r = monthlyTreeFirst(top, k);
@@ -908,6 +909,27 @@ function monthlyTreeHome(tm, n, root){
     queue.push(...monthlyTreeSubs(tm, m));
   }
   return null;
+}
+
+function monthlyTreeIsAncestor(tm, anc, k){
+  for(let m = tm.parent[k]; m; m = tm.parent[m]) if(m === anc) return true;
+  return false;
+}
+
+// 節 n を指標 k の下に出すか。home が k なら出す。home が k の祖先なら出さない
+//（焼肉は 直営+FC の下に 1 回、直営の下には並べ直さない）。home が兄弟枝
+//（直営 vs FC）なら、k の行があるときだけ出す（ハードオフの業態別 FC）。
+function monthlyTreePlaceUnder(tm, n, k, homeK){
+  if(homeK === k) return true;
+  if(!n.recs.some(r => r.mkey === k)) return false;
+  return !homeK || !monthlyTreeIsAncestor(tm, homeK, k);
+}
+
+// 選んだ系列を出す指標。親の指標の行がある節は親、兄弟枝にだけ行があるときはその枝
+function monthlyTreeDisplayMetric(tm, n, k){
+  const homeM = monthlyTreeHome(tm, n, monthlyTreeRootMetric(tm, k)) || k;
+  if(homeM === k || monthlyTreeIsAncestor(tm, homeM, k)) return homeM;
+  return k;
 }
 
 function monthlyTreeRootMetric(tm, k){
