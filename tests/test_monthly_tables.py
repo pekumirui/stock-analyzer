@@ -388,6 +388,34 @@ def test_monthly_auto_tree() -> None:
     }
     if got != want:
         _fail(f"auto tree total/metric tokens: {got!r}")
+    # 指標の語の無い前年比は、その節の金額の売上高が 1 つに決まればその前年比（アスモ）。国付きの 直営 / FC は
+    # 国の合計が無ければ国なしの同じチャネルの子（ハードオフ）
+    bare = build_auto_tree("99993", {2026: [
+        ("全店 売上高", "number"),
+        ("合計(前年比)", "yoy_index"),
+        ("アスモトレーディング 全店 売上高", "number"),
+        ("アスモトレーディング(前年比)", "yoy_index"),
+        ("アスモフード 受託施設数", "number"),
+        ("100円ショップ 直営 既存(前年比)", "yoy_index"),
+        ("直営 店舗数", "number"),
+        ("海外 直営 店舗数", "number"),
+    ]})
+    got = {k: (v["path"], v["metric"]) for k, v in bare.rows.items()}
+    want = {
+        "全店 売上高": (["全体"], "全店 売上高"),
+        "合計(前年比)": (["全体"], "全店 売上高"),
+        "アスモトレーディング 全店 売上高": (["全体", "アスモトレーディング"], "全店 売上高"),
+        "アスモトレーディング(前年比)": (["全体", "アスモトレーディング"], "全店 売上高"),
+        "アスモフード 受託施設数": (["全体"], "アスモフード 受託施設数"),
+        # チャネル・スコープのある行はそのまま
+        "100円ショップ 直営 既存(前年比)": (["全体", "100円ショップ"], "直営 既存"),
+        "直営 店舗数": (["全体"], "直営 店舗数"),
+        "海外 直営 店舗数": (["全体"], "海外 直営 店舗数"),
+    }
+    if got != want:
+        _fail(f"auto tree bare yoy: {got!r}")
+    if bare.metric_parent.get("海外 直営 店舗数") != "直営 店舗数":
+        _fail(f"auto tree overseas channel parent: {bare.metric_parent!r}")
     if auto.metric_parent != {"直営 全店 店舗数": "直営+FC 全店 店舗数"}:
         _fail(f"auto metric parents: {auto.metric_parent!r}")
     from app.monthly_tree import auto_metric_parents
