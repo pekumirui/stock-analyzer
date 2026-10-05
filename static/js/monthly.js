@@ -796,7 +796,7 @@ function monthlyTreeReveal(tm, id){
 // 見出し節（大丸・松坂屋）は数字の無いグレー帯。内数の節（うち商品売上高）は tl-part で薄く出す。
 function monthlyTreeHtml(tm, cellsFor, cols){
   let body = "";
-  // 木は 7 段まで下がる。スマホの名前列（9em）では 1 段 1.25em だと店名が 1 文字ずつ折り返す。
+  // 木は 7 段まで下がる。スマホの名前列（12em）では 1 段 1.25em だと店名が 1 文字ずつ折り返す。
   const step = monthlyIsPhone() ? 0.6 : 1.25;
   const blank = cols.map(() => `<td class="num"></td>`).join("");
   const row = (rec, text, depth, tog, rowCls) => monthlyTlRemember(rec, text)
@@ -867,7 +867,7 @@ function monthlyTreeHtml(tm, cellsFor, cols){
     const has = kids.length > 0 || ms.length > 0;
     const open = has && monthlyTlOpen.has(key);
     const tog = has ? {key, open} : {};
-    // 自動の木は会社の行の名前から 直営+FC / 日本+海外 を外す（既存 売上高(前年比)）。子の指標は親との差だけ（直営 / 海外）。config の木は指標名
+    // 自動の木は会社の行の名前から 日本+海外 を外す（直営+FC 全店 店舗数）。子の指標は親との差だけ（直営 / 海外）。config の木は指標名
     const text = pk ? monthlyTreeShortName(k, pk) : (mine.length && tm.auto ? monthlyTreeTopName(mine[0].element) : k);
     if(mine.length) body += row(mine[0], text, depth, tog);
     else body += empty(text, depth, tog);
@@ -918,9 +918,9 @@ function monthlyTreeShortName(k, pk){
   return d.length ? d.join(" ") : k;
 }
 
-// 一番上の行の名前。全チャネル・全地域を表す 直営+FC / 日本+海外 は外す（子の行が 直営 / FC を出す）
+// 一番上の行の名前。全地域を表す 日本+海外 は外す（子の行が 日本 / 海外 を出す）。直営+FC は残す（直営の行と見分ける）
 function monthlyTreeTopName(name){
-  const t = String(name).split(" ").filter(x => x !== "直営+FC" && x !== "日本+海外");
+  const t = String(name).split(" ").filter(x => x !== "日本+海外");
   return t.length ? t.join(" ") : name;
 }
 
