@@ -278,7 +278,7 @@ def test_monthly_tree_assign() -> None:
         _fail("part flag")
     if tree_payload("72030", els, trees) is not None or assign_tree_rows("72030", els, trees):
         _fail("issuer without tree must be untouched")
-    # PPIH: 国内リテール ▸ ディスカウント / UNY ▸ 既存店売上高の商品別（PDF の表）。参考のロビン・フッド / Olympic は木の外
+    # PPIH: 国内リテール ▸ ディスカウント / UNY ▸ 既存店売上高の商品別（PDF の表）。ロビン・フッドは UNY の内数、Olympic は木の外
     from app.monthly_tree import load_monthly_trees
 
     ppih = assign_tree_rows("75320", [
@@ -286,6 +286,7 @@ def test_monthly_tree_assign() -> None:
         "ディスカウント 既存 売上高(前年比)",
         "ディスカウント 家電製品 既存 売上高(前年比)",
         "UNY 衣料品 既存 売上高(前年比)",
+        "ロビンフッド 店舗数",
         "Olympic 店舗数",
     ], load_monthly_trees())
     got = {k: (v["path"], v["metric"]) for k, v in ppih.items()}
@@ -294,6 +295,7 @@ def test_monthly_tree_assign() -> None:
         "ディスカウント 既存 売上高(前年比)": (["国内リテール", "ディスカウント"], "既存 売上高"),
         "ディスカウント 家電製品 既存 売上高(前年比)": (["国内リテール", "ディスカウント", "家電製品"], "既存 売上高"),
         "UNY 衣料品 既存 売上高(前年比)": (["国内リテール", "UNY", "衣料品"], "既存 売上高"),
+        "ロビンフッド 店舗数": (["国内リテール", "UNY", "ロビン・フッド"], "全店 店舗数"),
     }
     if got != want:
         _fail(f"PPIH tree rows: {got!r}")
