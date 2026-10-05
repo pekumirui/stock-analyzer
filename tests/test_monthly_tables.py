@@ -363,6 +363,31 @@ def test_monthly_auto_tree() -> None:
     if auto.metrics != want_metrics:
         _fail(f"auto tree metrics: {auto.metrics!r}")
     # 指標どうしの親子: 直営 は 直営+FC の子。直営 全店 店舗数 は会社の 日本 の行が代表なので 日本 直営+FC を先に探す（ここには無いので合計）
+    # group の中の 合計の語（企業計 / 総 …）は節にも葉にも残さない。指標の語（増減 / 同規模 / 一品 …）は葉に残す
+    tok = build_auto_tree("99992", {2026: [
+        ("企業計 全店 売上高(前年比)", "yoy_index"),
+        ("衣料 企業計 全店 売上高(前年比)", "yoy_index"),
+        ("総 全店 売上高(前年比)", "yoy_index"),
+        ("チェーン 店舗数", "number"),
+        ("ピラティスK 増減 店舗数", "number"),
+        ("増減 店舗数", "number"),
+        ("同規模 一品 全店 客単価(前年比)", "yoy_index"),
+        ("グループ 稼働率", "number"),
+    ]})
+    got = {k: (v["path"], v["metric"]) for k, v in tok.rows.items()}
+    want = {
+        "企業計 全店 売上高(前年比)": (["全体"], "全店 売上高"),
+        "衣料 企業計 全店 売上高(前年比)": (["全体", "衣料"], "全店 売上高"),
+        "総 全店 売上高(前年比)": (["全体"], "全店 売上高"),
+        "チェーン 店舗数": (["全体"], "店舗数"),
+        "ピラティスK 増減 店舗数": (["全体", "ピラティスK"], "増減 店舗数"),
+        "増減 店舗数": (["全体"], "増減 店舗数"),
+        "同規模 一品 全店 客単価(前年比)": (["全体"], "同規模 一品 全店 客単価"),
+        # 指標の無い行も会社全体の語は剥がす
+        "グループ 稼働率": (["全体"], "稼働率"),
+    }
+    if got != want:
+        _fail(f"auto tree total/metric tokens: {got!r}")
     if auto.metric_parent != {"直営 全店 店舗数": "直営+FC 全店 店舗数"}:
         _fail(f"auto metric parents: {auto.metric_parent!r}")
     from app.monthly_tree import auto_metric_parents
