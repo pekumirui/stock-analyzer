@@ -42,4 +42,4 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [決算速報](./earnings.md) calendar day list, row detail, 累計 / 3か月 tabs.
 - [チャート](./chart.md) symbol search, daily/weekly/monthly candles, 対TOPIX, 決算発表後リターン.
 - [スクリーナー](./screener.md) Stage + RS filter table (UI defaults Stage 2, RS≥70).
-- [月次](./monthly.md) issuer list + industry chips + TOP search via `/api/v1/tables`, Detail with series select, year-panel bar charts, gated section stubs / year-stacked tables.
+- [月次](./monthly.md) issuer list + industry chips + TOP search via `/api/v1/tables`, Detail with series select, year-panel bar charts, default 横持ち `table.monthly-tl` (metric ▸ section tree, 金額/前年比/両方, month-cell popup), TEMP 年別 view (gated stubs / year-stacked tables).
