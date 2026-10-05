@@ -83,6 +83,9 @@ JOB_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 BATCH_LOG_SKIP = frozenset({"stock-analyzer.log", "mcp.log"})
 # cron-run.sh の行頭。JST の "YYYY-MM-DD HH:MM:SS "。別の形は読まない。
 LINE_STAMP_RE = re.compile(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) ")
+# nginx の行時刻。access は log_format timed の [$time_local]、error は VPS ローカル（JST）
+ACCESS_STAMP_RE = re.compile(r"\[(\d{2}/[A-Z][a-z]{2}/\d{4}:\d{2}:\d{2}:\d{2} [+-]\d{4})\]")
+ERROR_STAMP_RE = re.compile(r"^(\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}) ")
 JST = timezone(timedelta(hours=9))
 _BOUND_HINT = "1h, 30m, today, yesterday, or YYYY-MM-DD"
 
@@ -237,7 +240,7 @@ def tail_grep(path: Path, lines: int, grep: str | None) -> str:
     return "\n".join(rows) if rows else "(no matching lines)"
 
 
-def journal(unit: str, since: str, lines: int, grep: str | None) -> str:
+def journal(unit: str, since: str, lines: int, grep: str | None, until: str | None = None) -> str:
     if unit not in ("stock-analyzer", "nginx"):
         return f"(unit not allowed: {unit})"
     argv = [
@@ -252,6 +255,8 @@ def journal(unit: str, since: str, lines: int, grep: str | None) -> str:
         "-o",
         "short-iso",
     ]
+    if until:
+        argv.extend(["--until", until])
     if grep:
         argv.extend(["--grep", grep])
     return run_cmd(argv)
@@ -302,14 +307,29 @@ def tool_service_status(_args: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+def _journal_window(start: datetime | None, end: datetime | None) -> tuple[str, str | None, str]:
+    """journalctl の --since / --until と見出し。journalctl は VPS ローカル（JST）で解釈する。"""
+    fmt = "%Y-%m-%d %H:%M:%S"
+    since = start.strftime(fmt) if start is not None else "1970-01-01 00:00:00"
+    until = end.strftime(fmt) if end is not None else None
+    return since, until, f"since {since}" + (f" until {until}" if until else "")
+
+
 def tool_app_logs(args: dict[str, Any]) -> str:
-    since = parse_since(args.get("since"))
     lines = clamp_lines(args.get("lines"))
     grep = parse_grep(args.get("grep"))
+    start, end = parse_batch_window(args)
     path = pick_log("stock-analyzer.log")
-    file_out = tail_grep(path, lines, grep)
-    journal_out = journal("stock-analyzer", since, lines, grep)
-    return f"=== {path} ===\n{file_out}\n\n=== journal stock-analyzer since {since} ===\n{journal_out}"
+    if start is None and end is None:
+        since = parse_since(args.get("since"))
+        file_out = tail_grep(path, lines, grep)
+        journal_out = journal("stock-analyzer", since, lines, grep)
+        label = f"since {since}"
+    else:
+        since, until, label = _journal_window(start, end)
+        file_out = _rotated_window(path, _cron_stamp, start, end, lines, grep)
+        journal_out = journal("stock-analyzer", since, lines, grep, until)
+    return f"=== {path} ===\n{file_out}\n\n=== journal stock-analyzer {label} ===\n{journal_out}"
 
 
 def _job_error() -> str:
@@ -400,8 +420,13 @@ def rotated_log_paths(directory: Path, stem: str) -> list[Path]:
     """Oldest logrotate sibling first, then the live stem.log. .1 is plain, later ones .gz."""
     if JOB_NAME_RE.fullmatch(stem) is None:
         return []
-    live = directory / f"{stem}.log"
-    rx = re.compile(rf"^{re.escape(stem)}\.log\.([1-9][0-9]*)(?:\.gz)?$")
+    return rotated_siblings(directory / f"{stem}.log")
+
+
+def rotated_siblings(live: Path) -> list[Path]:
+    """live とその logrotate 済み (.1 / .N.gz)。古い順。live は呼び出し側が固定したパスだけ。"""
+    directory = live.parent
+    rx = re.compile(rf"^{re.escape(live.name)}\.([1-9][0-9]*)(?:\.gz)?$")
     numbered: list[tuple[int, str, Path]] = []
     if directory.is_dir():
         for path in directory.iterdir():
@@ -464,17 +489,63 @@ def _windowed_text(
     paths = rotated_log_paths(directory, stem)
     if not paths:
         return f"(missing {directory / f'{stem}.log'})"
+    return _window_paths(paths, _cron_stamp, start, end, lines, grep)
+
+
+def _cron_stamp(line: str) -> datetime | None:
+    match = LINE_STAMP_RE.match(line)
+    if match is None:
+        return None
+    return datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S")
+
+
+def _access_stamp(line: str) -> datetime | None:
+    match = ACCESS_STAMP_RE.search(line)
+    if match is None:
+        return None
+    try:
+        stamp = datetime.strptime(match.group(1), "%d/%b/%Y:%H:%M:%S %z")
+    except ValueError:
+        return None
+    return stamp.astimezone(JST).replace(tzinfo=None)
+
+
+def _error_stamp(line: str) -> datetime | None:
+    match = ERROR_STAMP_RE.match(line)
+    if match is None:
+        return None
+    return datetime.strptime(match.group(1), "%Y/%m/%d %H:%M:%S")
+
+
+def _window_paths(
+    paths: list[Path],
+    stamp_of: Callable[[str], datetime | None],
+    start: datetime | None,
+    end: datetime | None,
+    lines: int,
+    grep: str | None,
+) -> str:
+    """JST の [start, end) に入る行。"""
     collected: list[tuple[datetime, int, str]] = []
     for path in paths:
+        if start is not None:
+            try:
+                mtime = datetime.fromtimestamp(path.stat().st_mtime, JST).replace(tzinfo=None)
+            except OSError:
+                mtime = None
+            # 最後の書き込みが start より前なら中身も全部 start より前
+            if mtime is not None and mtime < start:
+                continue
         try:
             text = _read_log_text(path)
         except OSError as exc:
             return f"(cannot read {path}: {exc})"
+        stamp: datetime | None = None
         for line in text.splitlines():
-            match = LINE_STAMP_RE.match(line)
-            if match is None:
+            # 時刻の無い行（Traceback の続きなど）は直前の行に属する。ファイル先頭のものは捨てる
+            stamp = stamp_of(line) or stamp
+            if stamp is None:
                 continue
-            stamp = datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S")
             if start is not None and stamp < start:
                 continue
             if end is not None and stamp >= end:
@@ -483,6 +554,14 @@ def _windowed_text(
     collected.sort()
     rows = _filter_grep([line for _, _, line in collected], grep)
     return _format_tail(rows, lines)
+
+
+def _rotated_window(live: Path, stamp_of: Callable[[str], datetime | None], start: datetime | None,
+                    end: datetime | None, lines: int, grep: str | None) -> str:
+    paths = rotated_siblings(live)
+    if not paths:
+        return f"(missing {live})"
+    return _window_paths(paths, stamp_of, start, end, lines, grep)
 
 
 def _live_batch_logs(job: str | None, lines: int, grep: str | None) -> str:
@@ -512,14 +591,22 @@ def tool_batch_logs(args: dict[str, Any]) -> str:
 
 
 def tool_nginx_logs(args: dict[str, Any]) -> str:
-    since = parse_since(args.get("since"))
     lines = clamp_lines(args.get("lines"))
     grep = parse_grep(args.get("grep"))
-    journal_out = journal("nginx", since, lines, grep)
-    file_out = tail_grep(NGINX_ERROR_LOG, lines, grep)
-    access_out = redact_url(tail_grep(NGINX_ACCESS_LOG, lines, grep))
-    return (f"=== journal nginx since {since} ===\n{journal_out}\n\n=== {NGINX_ERROR_LOG} ===\n{file_out}"
-            f"\n\n=== {NGINX_ACCESS_LOG} (rt=nginx 全体 / urt=uvicorn、秒) ===\n{access_out}")
+    start, end = parse_batch_window(args)
+    if start is None and end is None:
+        since = parse_since(args.get("since"))
+        journal_out = journal("nginx", since, lines, grep)
+        file_out = tail_grep(NGINX_ERROR_LOG, lines, grep)
+        access_out = tail_grep(NGINX_ACCESS_LOG, lines, grep)
+        label = f"since {since}"
+    else:
+        since, until, label = _journal_window(start, end)
+        journal_out = journal("nginx", since, lines, grep, until)
+        file_out = _rotated_window(NGINX_ERROR_LOG, _error_stamp, start, end, lines, grep)
+        access_out = _rotated_window(NGINX_ACCESS_LOG, _access_stamp, start, end, lines, grep)
+    return (f"=== journal nginx {label} ===\n{journal_out}\n\n=== {NGINX_ERROR_LOG} ===\n{file_out}"
+            f"\n\n=== {NGINX_ACCESS_LOG} (rt=nginx 全体 / urt=uvicorn、秒) ===\n{redact_url(access_out)}")
 
 
 def db_file() -> Path:
@@ -964,11 +1051,18 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_service_status,
     ),
     "app_logs": (
-        "uvicorn (stock-analyzer) の /var/log/app/stock-analyzer.log と journalctl。since は 1h / 30m / today / YYYY-MM-DD。",
+        ("uvicorn (stock-analyzer) の /var/log/app/stock-analyzer.log と journalctl。"
+         "since / until 省略時は journal が直近 1h、ファイルは live の末尾だけ。"
+         "どちらかを指定すると .1 と .gz も読み、行頭の JST YYYY-MM-DD HH:MM:SS で絞る（時刻の無い行は直前の行に付く）。"
+         "until はその時刻を含まない。昨日は since=yesterday と until=today。lines は 1-500。超えた分は末尾だけ返す。"),
         {
             "type": "object",
             "properties": {
-                "since": {"type": "string", "description": "1h, 30m, today, yesterday, or YYYY-MM-DD"},
+                "since": {"type": "string", "description": "1h, 30m, today, yesterday, or YYYY-MM-DD. Inclusive."},
+                "until": {
+                    "type": "string",
+                    "description": "Same forms as since. Exclusive. Yesterday is since=yesterday until=today.",
+                },
                 "grep": {"type": "string", "description": "regex or substring, max 120 chars"},
                 "lines": {"type": "integer", "description": "1-500, default 200"},
             },
@@ -1003,13 +1097,20 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
     ),
     "nginx_logs": (
         ("nginx の journal・/var/log/nginx/error.log・アクセスログ（rt/urt に処理秒）。"
-         "遅いリクエストは grep に 'rt=[1-9]' などを渡す。"),
+         "遅いリクエストは grep に 'rt=[1-9]' などを渡す。"
+         "since / until 省略時は journal が直近 1h、ファイルは live の末尾だけ。"
+         "どちらかを指定すると .1 と .gz も読み、行の時刻（JST）で絞る。until はその時刻を含まない。"
+         "昨日は since=yesterday と until=today。lines は 1-500。超えた分は末尾だけ返すので範囲を狭める。"),
         {
             "type": "object",
             "properties": {
-                "since": {"type": "string", "description": "1h, 30m, today, yesterday, or YYYY-MM-DD"},
+                "since": {"type": "string", "description": "1h, 30m, today, yesterday, or YYYY-MM-DD. Inclusive."},
+                "until": {
+                    "type": "string",
+                    "description": "Same forms as since. Exclusive. Yesterday is since=yesterday until=today.",
+                },
                 "grep": {"type": "string", "description": "regex or substring, max 120 chars"},
-                "lines": {"type": "integer", "description": "1-500, default 200"},
+                "lines": {"type": "integer", "description": "1-500, default 200. Narrow since/until past 500."},
             },
         },
         tool_nginx_logs,
