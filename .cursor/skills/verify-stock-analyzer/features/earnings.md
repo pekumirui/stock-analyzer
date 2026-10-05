@@ -25,6 +25,7 @@ Preconditions:
 - Doctor reports `ok`.
 - `{url}/app` is loaded.
 - `#cal-pop` starts `hidden`. Open it with `#cal-btn`. Close with Esc, `#cal-backdrop`, or a day click.
+- Schedule paths (`.cnt.sched`, `.cnt.pend`, `tr[data-code]`, `予定なし` on a future day) need the ledger tables `earnings_date_pubs` / `earnings_date_fetches`. `jobs/run_batch.py` fills them through `app/earnings_schedule.py` `sync` (J-Quants earnings-date). With an empty ledger, every future day is `ready: false` / `予定未取得` and `scheduled` stays `[]`. Report those paths as `verified-unreachable` with that prerequisite.
 
 - **Tab.** Click `nav button[data-tab="earnings"]`. `#tab-earnings` is displayed; `#tab-screener` is not.
 - **Month payload.** Run `helpers/capture.py earnings`. `artifacts/earnings/calendar.json` is a `{YYYY-MM-DD: {kind, n, pending?}}` object with at least one key. `_pick_earnings_date` ranks `cell.n`.
@@ -40,6 +41,8 @@ Preconditions:
 - The API query param is `date`, not `date_`. Calendar query is `month=YYYY-MM`.
 - Days without `.cnt` still call `selectDate`. Past empty is `開示なし`. Future empty is `予定なし` once the publication ledger covers the lookback, and `予定未取得` before that. A quiet today is `予定なし`. None of those is a list proof.
 - A thrown day fetch shows `取得できませんでした` and does not use the empty copies.
+- `#earn-count` reads `N件` for one kind. A mixed today reads `N件・未発表 M`.
+- `selectDate` does not refetch the month. `/api/earnings/calendar` runs only from `calOpen` / `calMove` (`renderCal`).
 - REIT (`product_category` 013/022) are excluded from this tab; an empty day can be real.
 - Narrow viewports keep `#earn-tbl` and scroll horizontally. Do not look for `.card`.
 - `renderCal` uses the machine local month, not JST. Capture `--month` if today is a month boundary.

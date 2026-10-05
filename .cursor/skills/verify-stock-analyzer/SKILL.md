@@ -86,6 +86,8 @@ Harness: HTTP against the same routes the SPA uses, plus the browser when CDP is
 | Monthly list | `#monthly-groups`, `#monthly-list` (host), `#monthly-tbl` |
 | Monthly issuer search | `#monthly-sym` (placeholder `銘柄名 or コード`), suggestions `#monthly-suggest` from loaded monthly issuers (not `/api/stocks/search`). Enter or suggestion pick filters `#monthly-tbl`; company-name click opens Detail |
 | Monthly detail | `#monthly-detail`, `#monthly-series`, `#monthly-chart`, `#monthly-table-wrap`, `#monthly-back` |
+| Monthly timeline | `#monthly-table-wrap table.monthly-tl` (default on `/app`). Tree toggles are `td.tl-name.tl-tog`. Month cells are `td.num[data-m]` and open `#monthly-pop` |
+| Monthly value / view | `#monthly-value-tabs button[data-v]` (`amount` / `yoy` / `both`). TEMP `#monthly-view-mode` (`timeline` / `years`) |
 
 **SPA → API (prove the same payloads the UI renders):**
 
@@ -100,7 +102,8 @@ Harness: HTTP against the same routes the SPA uses, plus the browser when CDP is
 | Screener 検索 (UI defaults) | `GET /api/screener?stage=2&rs_min=70` |
 | 月次 TOP list | `GET /api/v1/tables` |
 | 月次 Detail years | `GET /api/v1/tables/{code}` |
-| 月次 Detail year table | `GET /api/v1/tables/{code}/{year}` |
+| 月次 Detail year table | `GET /api/v1/tables/{code}/{year}` (includes `tree` / `tree_metrics`) |
+| 月次 month-cell popup | `GET /api/v1/tables/{code}/{year}` for each year ≥ 2024 not loaded yet |
 
 HTTP capture:
 
@@ -117,6 +120,8 @@ HTTP capture:
 Writes under `artifacts/<feature>/`. For a calendar day, pass `capture.py earnings --date YYYY-MM-DD`. Across a month boundary, pass `--month YYYY-MM` (machine local month, same as `renderCal`). For monthly Detail, pass `capture.py monthly --code CODE`.
 
 **Browser (user path).** When `browser-use` / CDP works: open `{url}/app` from state.json (`new_tab(url + "/app")`), `wait_for_load()`, click `nav button[data-tab="..."]`, then the feature file. Bare `{url}/` is public `/monthly` (301), not the Basic SPA. Do not `goto_url` for the first navigation. Screenshots via `capture_screenshot()` saved into `artifacts/<feature>/`. If Chrome remote debugging is denied, record that and finish the proof with the HTTP captures of the same routes.
+
+`GET /app` rewrites `/static/...` URLs to `?v=<content hash>` and sends `ETag`. `/static/*` gets `Cache-Control: no-cache`. `boot.js` reloads on a bfcache restore. After 60 s hidden it also reloads when the page or asset ETags changed. Expect a reload when you edit `static/` while a tab is open.
 
 Read `features/README.md` and the matching feature file before driving. Cover every entry point the file lists, or report the skipped one with the unmet precondition.
 
