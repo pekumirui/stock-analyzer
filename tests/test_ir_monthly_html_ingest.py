@@ -232,6 +232,28 @@ def test_ingest_body_keys_only() -> None:
         _fail("ingest_body mutated the sidecar row")
 
 
+def test_ingest_body_drops_prior_period_rows() -> None:
+    s = Sidecar(
+        code="3547",
+        path=Path("x.ingest.json"),
+        filename_date=date(2026, 9, 15),
+        as_of=date(2026, 8, 31),
+        months=(7, 8),
+        rows=(
+            {"element": "当年 全店 店舗数", "unit": "number", "values": {"7": 184}},
+            {"element": "前年 全店 店舗数", "unit": "number", "values": {"7": 168}},
+            {"element": "全店 売上高(前年比)", "unit": "yoy_index", "values": {"7": 121}},
+        ),
+        sha256="x",
+    )
+    body = ingest_body(s)
+    names = [r["element"] for r in body["rows"]]
+    if names != ["当年 全店 店舗数", "全店 売上高(前年比)"]:
+        _fail(f"sidecar POST must drop 前年 value rows: {names!r}")
+    if len(s.rows) != 3:
+        _fail("ingest_body mutated sidecar rows")
+
+
 def test_as_of_gate_month_end_hi() -> None:
     assert_as_of_usable(date(2026, 9, 30), date(2026, 9, 15))
     try:
@@ -934,6 +956,7 @@ def main_tests() -> None:
     test_select_latest_filename_beats_future_as_of()
     test_select_latest_as_of_tiebreak()
     test_ingest_body_keys_only()
+    test_ingest_body_drops_prior_period_rows()
     test_as_of_gate_month_end_hi()
     test_loopback_and_default_ledger()
     with TemporaryDirectory() as d:

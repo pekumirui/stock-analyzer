@@ -228,7 +228,7 @@ _DROP_TOKS = frozenset({
     "合計", "総計", "小計", "計", "月末", "期末", "うち", "内数", "部門", "店",
     "前期比", "同期比", "増減率", "前年比", "前年同月比", "前年同月",
     "前年同期対比", "前年対比", "前期対比", "全",
-    "昨対", "昨年比",
+    "昨対", "昨年比", "当年",
     "累計", "店舗状況", "拠点数", "対象", "購入お客様", "（％）", "（%）", "(％)", "(%)", "%", "※",
     "（百万円）", "(百万円)", "売上（％）", "売上（%）",
     "（", "）", "(", ")", "(前年比)", "（前年比）", "(前期比)", "（前期比）",
@@ -961,20 +961,24 @@ def monthly_element_key(name: str) -> str:
     return re.sub(r"\s+", "", s)
 
 
-_PRIOR_PERIOD_RE = re.compile(r"(前期|前年同月|前年同期)(?!(?:比|対比))")
+# 長い語を先に。比/対比/差/増減は今期の比率。同月/同期は 前年同月比 が 前年 に食われないため。
+_PRIOR_PERIOD_RE = re.compile(
+    r"(前期|前年同月|前年同期|前年)(?!(?:比|対比|差|増減|同月|同期))"
+)
+
+
+def is_prior_period_element(element: str) -> bool:
+    """前期・前年の実数行。前年比 / 前年差 / 前年増減率は False。"""
+    key = monthly_element_key(element.strip())
+    if not key:
+        return False
+    return bool(_PRIOR_PERIOD_RE.search(key))
 
 
 def reject_prior_period_element(element: str) -> None:
     """前期・前年同月の実数行は入れない。比（前期比など）は今期の比率なので通す。"""
     label = element.strip()
-    key = monthly_element_key(label)
-    if key in ("前年", "前期", "前年同月", "前年同期"):
-        raise MonthlyIngestError(
-            400,
-            "PRIOR_PERIOD_ELEMENT",
-            f"「{label}」は前期の実数です。前年の同じ項目に既にあるので、この行は投入しないでください。",
-        )
-    if not _PRIOR_PERIOD_RE.search(key):
+    if not is_prior_period_element(label):
         return
     raise MonthlyIngestError(
         400,

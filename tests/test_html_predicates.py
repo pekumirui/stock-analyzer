@@ -21,7 +21,7 @@ from html_issuers._page import _store_event as page_store_event  # noqa: E402
 from html_issuers.i8278 import _count_only as fuji_count_only  # noqa: E402
 from html_issuers.i8278 import _store_event as fuji_store_event  # noqa: E402
 from html_issuers.i9989 import _CaptionParser, _plain, _table_captions  # noqa: E402
-from html_monthly import parse_grid, unit_mark_context  # noqa: E402
+from html_monthly import _is_prior_year_absolute, parse_grid, unit_mark_context  # noqa: E402
 
 SALES_HTML = """
 <p>2026年5月度 月次売上高（前年同月比）</p>
@@ -207,6 +207,21 @@ def test_page_parsers_read_sales_table() -> None:
             _fail(f"{mod.__name__} empty page")
 
 
+def test_prior_year_absolute_store_rows() -> None:
+    if not _is_prior_year_absolute("前年店舗数(店)"):
+        _fail("前年店舗数 is a prior-year value row")
+    if not _is_prior_year_absolute("前年 全店 店舗数"):
+        _fail("前年 全店 店舗数 is a prior-year value row")
+    if _is_prior_year_absolute("当年 全店 店舗数"):
+        _fail("当年 is current-month, not prior")
+    if _is_prior_year_absolute("全店 売上高(前年比)"):
+        _fail("前年比 is a ratio")
+    if _is_prior_year_absolute("前年差"):
+        _fail("前年差 is a delta")
+    if _is_prior_year_absolute("MRR前年増減率"):
+        _fail("前年増減率 is a ratio")
+
+
 def main() -> None:
     test_fy_caption_cells_are_not_labels()
     test_count_rows_ignore_page_yoy_context()
@@ -217,6 +232,7 @@ def main() -> None:
     test_grid_self_dated()
     test_caption_parser_and_plain()
     test_page_parsers_read_sales_table()
+    test_prior_year_absolute_store_rows()
     print("ok: html predicates")
 
 
