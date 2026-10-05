@@ -2221,8 +2221,8 @@ console.log(JSON.stringify({
         _fail("year panels must label bars with monthly-bar-v")
     if "110" not in chart_html or "100" not in chart_html:
         _fail(f"bar labels must include 110 and 100: {chart_html[:400]!r}")
-    # ブランドは 1 回だけ。直営 / FC はブランドの行の子。名前は 直営+FC / 日本+海外 を外し、子は親との差だけ
-    want_names = ["既存 店舗数", "直営", "焼肉", "全店 店舗数", "日本", "直営", "FC", "焼肉", "直営", "FC", "海外"]
+    # ブランドは 1 回だけ。直営 / FC はブランドの行の子。名前は 日本+海外 だけ外し（直営+FC は残す）、子は親との差だけ
+    want_names = ["直営+FC 既存 店舗数", "直営", "焼肉", "直営+FC 全店 店舗数", "日本", "直営", "FC", "焼肉", "直営", "FC", "海外"]
     if got.get("treeNames") != want_names:
         _fail(f"物語 store tree rows: {got.get('treeNames')!r}")
 
