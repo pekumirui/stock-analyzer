@@ -213,6 +213,13 @@ def tree_payload(code: str, elements: Sequence[str],
 AUTO_ROOT = "全体"
 # 会社全体を指す group。マツキヨココカラの `グループ 店舗数` はグループ全体の店舗数
 _COMPANY_GROUPS = frozenset({"日本+海外", "グループ"})
+# group の中の「その節の合計」を表す語。節にも葉にも残さない（イオン北海道 `衣料 企業計 全店 売上高` は 衣料 の全店、
+# `企業計 …` だけなら会社全体。バロー グループ総計、ブックオフ チェーン合計、アートネイチャー 総売上高、ラクス 全社（連結）、
+# TABAYA 既存店カウント店舗数）
+_TOTAL_TOKENS = frozenset({"企業計", "グループ総", "チェーン", "総", "全社（連結）", "カウント"})
+# group の中の指標の語。節にせず葉に残す（LOIVE `ピラティスK 増減 店舗数` は ピラティスK の 増減 店舗数、
+# スズデン 増減額、MV東海 / 大黒天 の 同規模・一品（単価）・買上点数）
+_METRIC_TOKENS = frozenset({"増減", "増減額", "同規模", "一品", "買上点数"})
 # 指標の並びは見る順: チャネル（無印・直営+FC → 直営 → FC）→ 国（無印 → 日本 → 海外）→ 既存 → 全店 → 売上高 → 客数 → 客単価 → 店舗 …
 _AUTO_CHANNEL_RANK = {"": 0, "直営+FC": 0, "直営": 1, "FC": 2}
 _AUTO_COUNTRY_RANK = {"": 0, "日本+海外": 0, "日本": 1, "海外": 2}
@@ -228,20 +235,27 @@ def monthly_display_years(years: Sequence[int]) -> list[int]:
     return [y for y in ys if y >= ys[0] - 2] if ys else []
 
 
-def _auto_group(label: Mapping[str, Any]) -> str:
-    """節にする group。行名全体が group（指標の無い行）と会社全体の合計は節にしない。"""
-    g = str(label["group"] or "")
-    if not g or g in _COMPANY_GROUPS or not str(label["display"]).startswith(g + " "):
-        return ""
-    return g
-
-
-def _auto_leaf(label: Mapping[str, Any], group: str) -> str:
+def _auto_split(label: Mapping[str, Any]) -> tuple[str, str]:
+    """(節にする group, 葉)。行名全体が group（指標の無い行）と会社全体の合計は節にしない。
+    group の中の合計の語は節からも葉からも外し、指標の語は節から外して葉の頭に残す。内訳はこのあと葉から外す。
+    """
     s = str(label["display"])
-    for g in (group, *(_COMPANY_GROUPS if not group else ())):
-        if g and s.startswith(g + " "):
-            s = s[len(g) + 1:]
-            break
+    g = str(label["group"] or "")
+    if not g or not s.startswith(g + " "):
+        # 指標の無い行（`グループ 稼働率`）も会社全体の語は葉から剥がす
+        head = next((c for c in _COMPANY_GROUPS if s.startswith(c + " ")), "")
+        return "", s[len(head) + 1:] if head else s
+    rest = s[len(g) + 1:]
+    if g in _COMPANY_GROUPS:
+        return "", rest
+    toks = g.split(" ")
+    group = " ".join(t for t in toks if t not in _TOTAL_TOKENS and t not in _METRIC_TOKENS)
+    leaf = " ".join([*(t for t in toks if t in _METRIC_TOKENS), rest])
+    return group, leaf
+
+
+def _auto_strip_breakdown(label: Mapping[str, Any], leaf: str) -> str:
+    s = leaf
     bd = str(label["breakdown"] or "")
     if bd:
         i = s.rfind(" " + bd)
@@ -320,7 +334,7 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
                 continue
             L = monthly_element_label(element, unit)
             canon = canonicalize_element_label(element, unit)
-            group = _auto_group(L)
+            group, leaf = _auto_split(L)
             bd = str(L["breakdown"] or "")
             if group:
                 group_first.setdefault(group, seen)
@@ -328,7 +342,7 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
                 bd_first.setdefault((group, bd), (monthly_row_breakdown_rank(canon), seen))
             seen += 1
             path = (AUTO_ROOT, *((group,) if group else ()), *((bd,) if bd else ()))
-            leaf = _auto_leaf(L, group)
+            leaf = _auto_strip_breakdown(L, leaf)
             metric = strip_yoy_fragments(leaf) if monthly_row_unit_rank(unit) else leaf
             if len(path) > 1:
                 metric = gmap.get(metric, metric)
