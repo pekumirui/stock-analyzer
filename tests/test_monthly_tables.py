@@ -2131,6 +2131,16 @@ def _assert_monthly_layout_js() -> None:
         "elements": [{**_el(e, u), "tree": auto.rows[e]} for e, u in store_rows],
         **auto_tree_payload(auto, [e for e, _ in store_rows]),
     }]
+    brand_rows = [
+        ("トライアル 既存 売上高(前年比)", "yoy_index"), ("トライアル 全店 売上高(前年比)", "yoy_index"),
+        ("西友 既存 売上高(前年比)", "yoy_index"), ("西友 全店 売上高(前年比)", "yoy_index"),
+    ]
+    brand_auto = build_auto_tree("141A0", {2026: brand_rows})
+    fixtures["brandTree"] = [{
+        "year": 2026, "code": "141A0",
+        "elements": [{**_el(e, u), "tree": brand_auto.rows[e]} for e, u in brand_rows],
+        **auto_tree_payload(brand_auto, [e for e, _ in brand_rows]),
+    }]
     harness = r"""
 const fs = require("fs");
 const vm = require("vm");
@@ -2176,7 +2186,14 @@ sandbox.monthlyTreeSeedOpen(tm);
 sandbox.monthlyTreeReveal(tm, "焼肉 直営 全店 店舗数");
 const treeHtml = sandbox.monthlyTreeHtml(tm, () => "<td></td>", [{y: 2026, m: 1}]);
 const treeNames = [...treeHtml.matchAll(/<td class="tl-name[^"]*"[^>]*>(?:<span class="tl-tw">[^<]*<\/span>)?([^<]*)/g)].map((m) => m[1]);
+// トライアル: 会社の行が無い指標は最初から開いて、ブランドの行が見える
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const btm = sandbox.monthlyTreeModel(fixtures.brandTree);
+sandbox.monthlyTreeSeedOpen(btm);
+const brandHtml = sandbox.monthlyTreeHtml(btm, () => "<td></td>", [{y: 2026, m: 1}]);
+const brandNames = [...brandHtml.matchAll(/<td class="tl-name[^"]*"[^>]*>(?:<span class="tl-tw">[^<]*<\/span>)?([^<]*)/g)].map((m) => m[1]);
 console.log(JSON.stringify({
+  brandNames,
   bdCanon: fixtures.leftoverMkg.label.display,
   bdDefault: sandbox.pickDefaultMonthlySeries(matsukiyo),
   bdCompanyKind: drugRow && drugRow.label.series_kind,
@@ -2225,6 +2242,9 @@ console.log(JSON.stringify({
     want_names = ["直営+FC 既存 店舗数", "直営", "焼肉", "直営+FC 全店 店舗数", "日本", "直営", "FC", "焼肉", "直営", "FC", "海外"]
     if got.get("treeNames") != want_names:
         _fail(f"物語 store tree rows: {got.get('treeNames')!r}")
+    want_brand = ["既存 売上高", "トライアル", "西友", "全店 売上高", "トライアル", "西友"]
+    if got.get("brandNames") != want_brand:
+        _fail(f"トライアル: 会社の行が無い指標は開く: {got.get('brandNames')!r}")
 
 def _assert_known_prod_units(c) -> None:
     from app.db import SessionLocal, apply_known_monthly_element_units
