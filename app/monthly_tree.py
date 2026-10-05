@@ -104,6 +104,22 @@ def load_monthly_trees(path: Path | None = None) -> dict[str, IssuerTree]:
 MONTHLY_TREES = load_monthly_trees()
 
 
+def load_group_metrics(path: Path | None = None) -> dict[str, dict[str, str]]:
+    """issuer code → `group_metric`（自動の木で節の行の指標を寄せる。指標 → 寄せ先の指標）。"""
+    raw = json.loads((path or MONTHLY_ROW_ORDER_PATH).read_text(encoding="utf-8"))
+    out: dict[str, dict[str, str]] = {}
+    if not isinstance(raw, dict):
+        return out
+    for code, cfg in raw.items():
+        gm = cfg.get("group_metric") if isinstance(cfg, dict) else None
+        if isinstance(gm, dict):
+            out[str(code)] = {str(k).strip(): str(v).strip() for k, v in gm.items() if str(k).strip() and str(v).strip()}
+    return out
+
+
+MONTHLY_GROUP_METRICS = load_group_metrics()
+
+
 def _walk(nodes: Sequence[TreeNode], path: tuple[str, ...]):
     for n in nodes:
         p = (*path, n.name)
@@ -280,8 +296,14 @@ def auto_metric_parents(metrics: Sequence[str], domestic: Iterable[str] = ()) ->
     return out
 
 
-def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]]) -> AutoTree:
-    """years は 暦年 → [(保存名, unit)]（値のある行だけ、sort_order 順）。節の形と並びは渡した年すべてで決める。"""
+def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
+                    group_metric: Mapping[str, str] | None = None) -> AutoTree:
+    """years は 暦年 → [(保存名, unit)]（値のある行だけ、sort_order 順）。節の形と並びは渡した年すべてで決める。
+
+    group_metric は節の行の指標を寄せる（既定は config の `group_metric`）。物語のブランド別の合計店舗数は国内の数字なので
+    `直営+FC 全店 店舗数`（合計 932）ではなく `日本 直営+FC 全店 店舗数`（国内 816）の下に出す。
+    """
+    gmap = MONTHLY_GROUP_METRICS.get(str(code), {}) if group_metric is None else dict(group_metric)
     newest = sorted(years, reverse=True)
     union = union_monthly_elements(
         [{"year": y, "elements": [{"element": e, "unit": u} for e, u in years[y]]} for y in newest], code=code)
@@ -308,6 +330,8 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]]) -
             path = (AUTO_ROOT, *((group,) if group else ()), *((bd,) if bd else ()))
             leaf = _auto_leaf(L, group)
             metric = strip_yoy_fragments(leaf) if monthly_row_unit_rank(unit) else leaf
+            if len(path) > 1:
+                metric = gmap.get(metric, metric)
             idx = union_idx.get(canon, len(union_idx) + seen)
             rows[element] = {"path": list(path), "leaf": leaf, "metric": metric, "order": idx}
             # 指標の並びは会社の行を代表にする（無ければ最初に見た節の行）

@@ -614,8 +614,8 @@ def main() -> None:
         _fail("index.html missing monthlyDisplayUnit")
     if "const MONTHLY_DISPLAY_UNITS" not in html:
         _fail("index.html missing MONTHLY_DISPLAY_UNITS")
-    if "fmtMonthlyCell(v, unit, e.element)" not in html:
-        _fail("year table cells must pass element into fmtMonthlyCell")
+    if "fmtMonthlyCell(v, unit, id)" not in html:
+        _fail("table cells must pass element into fmtMonthlyCell")
     js_fn = html.find("const MONTHLY_DISPLAY_UNITS")
     js_end = html.find("function monthlyDisplayUnit")
     if js_fn < 0 or js_end <= js_fn:
@@ -1663,7 +1663,7 @@ def _assert_segment_tail_row_order() -> None:
 
 
 def _assert_monthly_spa(html: str) -> None:
-    """月次 SPA: TOP はチップ+6列。Detail はグラフと暦年表。年ドロップダウン無し。"""
+    """月次 SPA: TOP はチップ+6列。Detail はグラフと横持ちの 1 枚表（木）。年ドロップダウン無し。"""
     start = html.find('id="tab-monthly"')
     if start < 0:
         _fail("index.html missing monthly tab")
@@ -1678,18 +1678,18 @@ def _assert_monthly_spa(html: str) -> None:
     for chunk in _select_tags(section):
         if "monthly-year" in chunk:
             _fail("monthly tab still has a year select")
-        if not any(f'id="{i}"' in chunk for i in ("monthly-series", "monthly-layout-mode", "monthly-view-mode")):
-            _fail("monthly tab select must be #monthly-series or TEMP #monthly-layout-mode / #monthly-view-mode")
-    if 'id="monthly-layout-debug"' not in section or 'id="monthly-layout-mode"' not in section:
-        _fail("TEMP flat/gated compare control #monthly-layout-debug must be in Detail")
+        if 'id="monthly-series"' not in chunk:
+            _fail("monthly tab select must be #monthly-series only")
+    # 年別の表とゲート（節 + stub）はやめた。表は横持ちの 1 枚だけ（#434 の続き）
+    for gone in ('id="monthly-layout-debug"', 'id="monthly-view-debug"', "function monthlySegmentGate",
+                 "function monthlyTableLayout", "monthly.layoutMode.debug", "monthly.viewMode.proto",
+                 "__gate__", "ゲート（一時）", "MONTHLY_GATE_CODES_KEY"):
+        if gone in html:
+            _fail(f"years view / gate must be gone from the SPA: {gone!r}")
     if ">項目<" in html:
         _fail("monthly thead still uses 項目")
     if 'id="monthly-groups"' not in section:
         _fail("TOP must have #monthly-groups")
-    if 'data-group="__gate__"' not in html and "setMonthlyGroup('__gate__')" not in html:
-        _fail("TEMP gate list chip __gate__ must exist on TOP")
-    if "ゲート（一時）" not in html:
-        _fail("TEMP gate list chip label ゲート（一時） missing")
     if 'data-group="__ir__"' not in html and "setMonthlyGroup('__ir__')" not in html:
         _fail("TEMP IR list chip __ir__ must exist on TOP")
     if "IR（一時）" not in html:
@@ -1704,12 +1704,8 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("renderMonthlyGroups / setMonthlyGroup bounds")
     grp_body = html[grp_fn:grp_end]
     priv = grp_body.find("if(!monthlyPublic())")
-    if priv < 0 or grp_body.find("IR（一時）") < priv or grp_body.find("ゲート（一時）") < priv:
-        _fail("TEMP IR and gate chips must stay inside the private branch")
-    if "function ensureMonthlyGateIndex" not in html:
-        _fail("TEMP gate list must build ensureMonthlyGateIndex")
-    if "MONTHLY_GATE_CODES_KEY" not in html:
-        _fail("TEMP gate list must cache codes under MONTHLY_GATE_CODES_KEY")
+    if priv < 0 or grp_body.find("IR（一時）") < priv:
+        _fail("TEMP IR chip must stay inside the private branch")
     if 'id="monthly-chart"' not in section:
         _fail("Detail must have #monthly-chart")
     if 'id="monthly-back"' not in section:
@@ -1822,14 +1818,8 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("calendar-year tables must stack newest first")
     if "monthlyDisplayYears((info && info.years) || [])" not in html:
         _fail("stacked year tables must use the last-3-year window")
-    if '<th class="l year">${d.year}</th>' not in html:
-        _fail("thead top-left cell must be the calendar year")
     if "table-layout:fixed" not in html.replace(" ", ""):
         _fail("monthly tables must use table-layout:fixed")
-    if "<colgroup>" not in html:
-        _fail("monthly tables must emit colgroup")
-    if 'col class="monthly-m"' not in html:
-        _fail("month cols must share col.monthly-m")
     if "--monthly-m-w" not in html:
         _fail("one shared --monthly-m-w for all month cols")
     wrap_rule = html.find("#monthly-table-wrap")
@@ -1852,10 +1842,6 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("sticky first cells need opaque panel background")
     if "function monthlyRowOrder" not in html:
         _fail("index.html missing monthlyRowOrder")
-    if "function monthlyLayoutLeaf" not in html:
-        _fail("index.html missing monthlyLayoutLeaf")
-    if "function monthlyGatedLeftover" not in html:
-        _fail("index.html missing monthlyGatedLeftover")
     if "function monthlyRowScopeRank" not in html:
         _fail("index.html missing monthlyRowScopeRank")
     scope_fn = html.find("function monthlyRowScopeRank")
@@ -1917,19 +1903,13 @@ def _assert_monthly_spa(html: str) -> None:
     render_fn = html.find("function renderMonthlyYearTables")
     if render_fn < 0:
         _fail("renderMonthlyYearTables missing")
-    render_body = html[render_fn:render_fn + 4500]
-    if "monthlyRowOrder(" not in render_body:
-        _fail("year tables must share one union row order")
-    if "for(const e of rowOrder)" not in render_body:
-        _fail("each year table must iterate the shared row order")
-    if "Object.keys(vals).length" not in render_body:
-        _fail("year table must skip rows with no values that year")
-    if "byName[src.element]" in render_body:
-        _fail("year table cells must map stored names through label.display")
-    if "src.label.display" not in render_body:
-        _fail("year table cells must look up rows by label.display")
-    if "monthlyTableLayout(rowOrder" not in render_body:
-        _fail("renderMonthlyYearTables must apply monthlyTableLayout after monthlyRowOrder")
+    render_body = html[render_fn:render_fn + 900]
+    if "renderMonthlyTimeline(" not in render_body or "monthlyTreeModel(" not in render_body:
+        _fail("renderMonthlyYearTables must draw the timeline from the API tree")
+    if "byName[src.element]" in html:
+        _fail("table cells must map stored names through label.display")
+    if "byName[src.label.display]" not in html:
+        _fail("table cells must look up rows by label.display")
     pick_fn = html.find("function pickDefaultMonthlySeries")
     pick_end = html.find("function monthlySeriesElement")
     if pick_fn < 0 or pick_end <= pick_fn:
@@ -1952,7 +1932,7 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("monthlySeriesElement must not require stored name == series id")
     if "renderMonthlySeriesSelect" not in html:
         _fail("series <select> must be filled from actual table elements")
-    if 'data-series="${escHtml(e.element)}"' not in html:
+    if 'data-series="${escHtml(monthlyTlShown(rec))}"' not in html:
         _fail("every table row must be selectable by element name")
     if "onclick=\"setMonthlySeries(this.dataset.series)\"" not in html:
         _fail("table row click must still switch the chart series")
@@ -2051,13 +2031,6 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("phone must turn off first-column sticky (or equivalent static position)")
     if "min-width:8em" not in mq_compact and "width:8em" not in mq_compact:
         _fail("phone name column must be much shorter than 16em so months are visible")
-    phone_stub = html[mq:mq + 2800].replace(" ", "").replace("\n", "")
-    if "--stub-sc:4.25em" not in phone_stub:
-        _fail("phone scope stub must be 4.25em so 既存店 fits on one line")
-    if "--stub-leaf:8.5em" not in phone_stub:
-        _fail("phone leaf stub must be 8.5em so 売上高(前年比) fits on one line")
-    if "td.monthly-stub-sc{white-space:nowrap" not in phone_stub:
-        _fail("phone scope stub must nowrap so 既存店 does not stack vertically")
     if "right:0" in mq_compact:
         _fail("do not sticky-fix the rightmost month column on phone")
     monthly_css_start = html.find("table.monthly")
@@ -2066,22 +2039,6 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("do not sticky-fix the rightmost month column")
     if "right:auto" not in monthly_css.replace(" ", ""):
         _fail("month columns must not be right-pinned (right:auto)")
-    if "function monthlySegmentGate" not in html:
-        _fail("index.html missing monthlySegmentGate")
-    if "function monthlyTableLayout" not in html:
-        _fail("index.html missing monthlyTableLayout")
-    if "monthly-sec" not in html:
-        _fail("SPA missing monthly-sec section row class")
-    if "monthlyTableLayout(rowOrder" not in html:
-        _fail("SPA must apply monthlyTableLayout after monthlyRowOrder")
-    if 'id="monthly-layout-debug"' not in html:
-        _fail("TEMP debug control #monthly-layout-debug must exist for flat vs gated compare")
-    if "setMonthlyLayoutMode" not in html:
-        _fail("SPA missing setMonthlyLayoutMode for TEMP flat layout toggle")
-    if "MONTHLY_LAYOUT_MODE_KEY" not in html:
-        _fail("TEMP layout mode must use a named sessionStorage key")
-    if "forceFlat" not in html:
-        _fail("monthlyTableLayout must accept forceFlat / flat mode for TEMP debug")
     vt = re.search(r'<div id="monthly-value-tabs".*?</div>', html, re.S)
     if not vt or 'onclick="setMonthlyValueMode(' not in vt.group(0):
         _fail("#monthly-value-tabs must call setMonthlyValueMode")
@@ -2098,72 +2055,10 @@ def _assert_monthly_spa(html: str) -> None:
     for code, cfg in row_order.items():
         if isinstance(cfg, dict) and "breakdown_parent" in cfg:
             _fail(f"monthly_row_order.json {code}: breakdown_parent is gone, write the nesting in tree")
-    if "<optgroup" not in html:
-        _fail("#monthly-series must support optgroup for gated brands")
-    if "monthly-gated" not in html:
-        _fail("gated year tables must use a monthly-gated class")
-    if "monthly-stub-ch" not in html or "monthly-stub-sc" not in html or "monthly-stub-leaf" not in html:
-        _fail("gated tables must emit channel/scope/leaf stub columns")
-    if "monthly-bd" not in html:
-        _fail("売上高 内訳 leaf must use monthly-bd")
-    if "td.monthly-stub-leaf.monthly-bd" not in html:
-        _fail("内訳 leaf CSS must stay on the existing stub-leaf column")
-    if "└" not in html:
-        _fail("内訳 leaf must indent with └")
-    if "font-size:12px" not in html[html.find("td.monthly-stub-leaf.monthly-bd"):html.find("td.monthly-stub-leaf.monthly-bd") + 180]:
-        _fail("内訳 leaf must be 12px")
-    if "monthly-bd-2" not in html:
-        _fail("area 小枝 leaf must use monthly-bd-2")
-    bd2_at = html.find("td.monthly-stub-leaf.monthly-bd-2")
-    if bd2_at < 0 or "2.25em" not in html[bd2_at:bd2_at + 120]:
-        _fail("小枝 leaf must indent further with 2.25em")
-    if "breakdownDepth" not in html:
-        _fail("gated leaf must read label.breakdown_depth")
-    if "colspan=\"3\"" not in html and "colspan='3'" not in html:
-        _fail("gated year header must span the three stub columns")
-    if '<tr class="monthly-sec"><td class="monthly-sec-label" colspan="3">' not in html:
-        _fail("section row label must span only the three stub columns so the month grid continues")
-    if "monthly-sec-label" not in html:
-        _fail("section label cell must use monthly-sec-label (not bare :first-child)")
-    if "monthly-sec-month" not in html:
-        _fail("section row must emit monthly-sec-month cells with 1月…12月")
-    if 'colspan="15"' in html:
-        _fail("section row must not be one full-width cell (it cannot stick and it breaks the month grid)")
-    gate_fn = html.find("function monthlySegmentGate")
-    gate_end = html.find("function monthlyStubChannelText")
-    if gate_fn < 0 or gate_end <= gate_fn:
-        _fail("monthlySegmentGate / monthlyStubChannelText bounds")
-    gate_body = html[gate_fn:gate_end]
-    if "monthlyDisplayYears" not in gate_body:
-        _fail("monthlySegmentGate must look at displayed years")
-    if ">= 2" not in gate_body and ">=2" not in gate_body.replace(" ", ""):
-        _fail("monthlySegmentGate must require the leftover on at least 2 rows")
-    layout_fn = html.find("function monthlyTableLayout")
-    layout_end = html.find("function monthlyAssignStubSpans")
-    if layout_fn < 0 or layout_end <= layout_fn:
-        _fail("monthlyTableLayout / monthlyAssignStubSpans bounds")
-    layout_body = html[layout_fn:layout_end]
-    if "monthlyReorderBlock" not in layout_body:
-        _fail("gated sections must share one channel-first reorder")
-    reorder_fn = html.find("function monthlyReorderBlock")
-    if reorder_fn < 0 or reorder_fn > layout_fn:
-        _fail("monthlyReorderBlock missing")
-    reorder_body = html[reorder_fn:layout_fn]
-    chan_at = reorder_body.find("channelRank")
-    scope_at = reorder_body.find("scopeRank")
-    if chan_at < 0 or scope_at < 0 or chan_at > scope_at:
-        _fail("gated blocks must reorder by channel before scope")
-    slot_at = reorder_body.find("a.slot")
-    unit_at = reorder_body.find("unitRank")
-    bd_at = reorder_body.find("bdRank")
-    if slot_at < 0 or unit_at < 0 or bd_at < 0 or not (slot_at < unit_at < bd_at):
-        _fail("gated blocks must reorder by metric then number before yoy then 内訳")
-    if "既存店" not in html:
-        _fail("scope stub text must map 既存 to 既存店")
 
 
 def _assert_monthly_layout_js() -> None:
-    """Gate + second layout pass. Calls the SPA functions, not a Python reimplementation."""
+    """横持ちの木・既定の系列・グラフ。Python で書き直さず SPA の関数を node で呼ぶ。"""
     import json
     import subprocess
     import tempfile
@@ -2184,26 +2079,6 @@ def _assert_monthly_layout_js() -> None:
         }
 
     fixtures = {
-        "gatedTables": [{
-            "year": 2026,
-            "code": "30970",
-            "elements": [
-                _el("直営+FC 全店 売上高(前年比)"),
-                _el("焼肉 直営+FC 既存 売上高(前年比)"),
-                _el("焼肉 直営 既存 売上高(前年比)"),
-                _el("日本+海外 直営+FC 全店 店舗数", "number"),
-                _el("ラーメン 直営+FC 既存 売上高(前年比)"),
-                _el("ラーメン 直営 既存 店舗数", "number"),
-            ],
-        }],
-        "flatTables": [{
-            "year": 2026,
-            "code": "72030",
-            "elements": [
-                _el("全店 売上高(前年比)"),
-                _el("既存 売上高(前年比)"),
-            ],
-        }],
         "matsukiyo": [{
             "year": 2026,
             "code": "30880",
@@ -2240,143 +2115,22 @@ def _assert_monthly_layout_js() -> None:
                 }],
             },
         ],
-        "belluna": [{
-            "year": 2026,
-            "code": "99970",
-            "elements": [
-                _el("グロース領域 全店 売上高 ホテル", "number"),
-                _el("グロース領域 全店 売上高 ホテル(前年比)"),
-                _el("グロース領域 全店 売上高 専門通販", "number"),
-                _el("グロース領域 全店 売上高 化粧品健康食品", "number"),
-                _el("グロース領域 全店 売上高", "number"),
-                _el("グロース領域 全店 売上高(前年比)"),
-                _el("グロース領域 全店 売上高 インカム太陽光", "number"),
-                _el("グロース領域 全店 売上高 プロパティ", "number"),
-                _el("グロース領域 全店 売上高 プロパティ(前年比)"),
-                _el("全店 連結売上高", "number"),
-                _el("全店 連結売上高(前年比)"),
-            ],
-        }],
-        "gmvTables": [{
-            "year": 2026,
-            "code": "24610",
-            "elements": [
-                _el("全店 売上高", "number"),
-                _el("全店 売上高(前年比)"),
-                _el("取扱高", "number"),
-                _el("取扱高(前年比)"),
-                _el("CPAソリューション事業 全店 売上高", "number"),
-                _el("CPAソリューション事業 全店 売上高(前年比)"),
-                _el("CPAソリューション事業 取扱高", "number"),
-                _el("CPAソリューション事業 取扱高(前年比)"),
-                _el("戦略事業 全店 売上高", "number"),
-                _el("戦略事業 全店 売上高(前年比)"),
-                _el("戦略事業 取扱高", "number"),
-                _el("戦略事業 取扱高(前年比)"),
-            ],
-        }],
-        "kyoshitsuTables": [{
-            "year": 2026,
-            "code": "65610",
-            "elements": [
-                _el("ホテル 客室収入", "number"),
-                _el("ホテル 客室収入(前年比)"),
-            ],
-        }],
-        "watamiTakushoku": [{
-            "year": 2026,
-            "code": "75220",
-            "elements": [
-                _el("国内外食 全店 売上高(前年比)"),
-                _el("国内外食 全店 店舗数", "number"),
-                _el("宅食 調理済み商品お届け数（千食）", "number"),
-                _el("宅食 営業所数", "number"),
-                _el("宅食 出店", "number"),
-                _el("宅食 退店", "number"),
-                _el("海外 店舗数", "number"),
-            ],
-        }],
-        "renameYears": [
-            {
-                "year": 2026,
-                "code": "24610",
-                "elements": [
-                    _el("全店 売上高", "number"),
-                    _el("CPAソリューション事業 全店 売上高", "number"),
-                    _el("CPAソリューション事業 全店 売上高(前年比)"),
-                    _el("戦略事業 全店 売上高", "number"),
-                    _el("戦略事業 全店 売上高(前年比)"),
-                ],
-            },
-            {
-                "year": 2024,
-                "code": "24610",
-                "elements": [
-                    _el("全店 売上高", "number"),
-                    _el("CPAソリューション事業 全店 売上高", "number"),
-                    _el("CPAソリューション事業 全店 売上高(前年比)"),
-                    _el("ADコミュニケーション事業 全店 売上高", "number"),
-                    _el("ADコミュニケーション事業 全店 売上高(前年比)"),
-                ],
-            },
-        ],
-        "lonePrior": [
-            {
-                "year": 2026,
-                "code": "24610",
-                "elements": [
-                    _el("全店 売上高", "number"),
-                    _el("CPAソリューション事業 全店 売上高", "number"),
-                    _el("CPAソリューション事業 全店 売上高(前年比)"),
-                ],
-            },
-            {
-                "year": 2024,
-                "code": "24610",
-                "elements": [
-                    _el("ADコミュニケーション事業 全店 売上高", "number"),
-                ],
-            },
-        ],
-        "tooOld": [
-            {
-                "year": 2026,
-                "code": "24610",
-                "elements": [
-                    _el("全店 売上高", "number"),
-                    _el("CPAソリューション事業 全店 売上高", "number"),
-                    _el("CPAソリューション事業 全店 売上高(前年比)"),
-                ],
-            },
-            {
-                "year": 2022,
-                "code": "24610",
-                "elements": [
-                    _el("ADコミュニケーション事業 全店 売上高", "number"),
-                    _el("ADコミュニケーション事業 全店 売上高(前年比)"),
-                ],
-            },
-        ],
-        "jfront": [{
-            "year": 2026,
-            "code": "30860",
-            "elements": [
-                _el("百貨店事業 売上収益(IFRS)(前年比)"),
-                _el("百貨店事業 総額 売上高(前年比)"),
-                _el("SC事業 売上収益(IFRS)(前年比)"),
-                _el("SC事業 総額 売上高(前年比)"),
-                _el("連結売上収益(IFRS)(前年比)"),
-                _el("総額 連結売上高(前年比)"),
-                _el("大丸 心斎橋店 売上高(前年比)"),
-                _el("大丸 心斎橋店 入店 客数(前年比)"),
-                _el("百貨店事業合計 売上高(前年比)"),
-                _el("百貨店事業合計 入店 客数(前年比)"),
-                _el("パルコ 札幌PARCO テナント 取扱高(前年比)"),
-                _el("パルコ テナント 全店 取扱高(前年比)"),
-                _el("パルコ テナント 既存 取扱高(前年比)"),
-            ],
-        }],
     }
+    from app.monthly_tree import auto_tree_payload, build_auto_tree
+
+    store_rows = [
+        ("直営+FC 既存 店舗数", "number"), ("直営 既存 店舗数", "number"),
+        ("焼肉 直営+FC 既存 店舗数", "number"), ("焼肉 直営 既存 店舗数", "number"),
+        ("日本+海外 直営+FC 全店 店舗数", "number"), ("日本 直営+FC 全店 店舗数", "number"),
+        ("日本 直営 全店 店舗数", "number"), ("日本 FC 全店 店舗数", "number"), ("海外 全店 店舗数", "number"),
+        ("焼肉 直営+FC 全店 店舗数", "number"), ("焼肉 直営 全店 店舗数", "number"), ("焼肉 FC 全店 店舗数", "number"),
+    ]
+    auto = build_auto_tree("30970", {2026: store_rows}, group_metric={"直営+FC 全店 店舗数": "日本 直営+FC 全店 店舗数"})
+    fixtures["storeTree"] = [{
+        "year": 2026, "code": "30970",
+        "elements": [{**_el(e, u), "tree": auto.rows[e]} for e, u in store_rows],
+        **auto_tree_payload(auto, [e for e, _ in store_rows]),
+    }]
     harness = r"""
 const fs = require("fs");
 const vm = require("vm");
@@ -2412,151 +2166,23 @@ sandbox.globalThis = sandbox;
 vm.createContext(sandbox);
 vm.runInContext(code, sandbox);
 
-const gatedTables = fixtures.gatedTables;
-const flatTables = fixtures.flatTables;
 const matsukiyo = fixtures.matsukiyo;
-const rowOrder = sandbox.monthlyRowOrder(gatedTables);
-const layout = sandbox.monthlyTableLayout(rowOrder, gatedTables);
-const gated = [...sandbox.monthlySegmentGate(gatedTables)].sort();
-const summary = layout.rows.map((r) => {
-  if (r.kind === "section") return { kind: "section", label: r.label };
-  return {
-    kind: "data",
-    element: r.element,
-    group: r.group,
-    channel: r.channel,
-    scope: r.scope,
-    leaf: r.leaf,
-  };
-});
-const flatForce = sandbox.monthlyTableLayout(rowOrder, gatedTables, {forceFlat: true});
-sandbox.setMonthlyLayoutMode("flat");
-const flatMode = sandbox.monthlyTableLayout(rowOrder, gatedTables);
-sandbox.setMonthlyLayoutMode("gated");
-const flatOrder = sandbox.monthlyRowOrder(flatTables);
-const flat = sandbox.monthlyTableLayout(flatOrder, flatTables);
-const bdOrder = sandbox.monthlyRowOrder(matsukiyo);
-const bdLayout = sandbox.monthlyTableLayout(bdOrder, matsukiyo);
-const gmvTables = fixtures.gmvTables;
-const gmvOrder = sandbox.monthlyRowOrder(gmvTables);
-const gmvLayout = sandbox.monthlyTableLayout(gmvOrder, gmvTables);
 const drugRow = matsukiyo[0].elements.find((e) => e.element === "全店 売上高 ドラッグ(前年比)");
 sandbox.drawMonthlyChart(fixtures.chartTables, "全店 売上高(前年比)");
 const chartHtml = el.innerHTML;
-const belluna = fixtures.belluna;
-const areaOrder = sandbox.monthlyRowOrder(belluna);
-const areaLayout = sandbox.monthlyTableLayout(areaOrder, belluna);
-const renameYears = fixtures.renameYears;
-const renameOrder = sandbox.monthlyRowOrder(renameYears);
-const renameLayout = sandbox.monthlyTableLayout(renameOrder, renameYears);
+// 物語の店舗数: 焼肉 の直営を選ぶと 全店 店舗数 ▸ 日本 ▸ 焼肉 ▸ 直営 まで開く
+const tm = sandbox.monthlyTreeModel(fixtures.storeTree);
+sandbox.monthlyTreeSeedOpen(tm);
+sandbox.monthlyTreeReveal(tm, "焼肉 直営 全店 店舗数");
+const treeHtml = sandbox.monthlyTreeHtml(tm, () => "<td></td>", [{y: 2026, m: 1}]);
+const treeNames = [...treeHtml.matchAll(/<td class="tl-name[^"]*"[^>]*>(?:<span class="tl-tw">[^<]*<\/span>)?([^<]*)/g)].map((m) => m[1]);
 console.log(JSON.stringify({
-  gated,
-  gatedFlag: layout.gated,
-  summary,
-  rowOrderIds: rowOrder.map((r) => r.element),
-  flatForceGated: flatForce.gated,
-  flatForceKinds: flatForce.rows.map((r) => r.kind),
-  flatForceIds: flatForce.rows.map((r) => r.element),
-  flatModeGated: flatMode.gated,
-  flatModeIds: flatMode.rows.map((r) => r.element),
-  flatGated: flat.gated,
-  flatIds: flat.rows.map((r) => r.element),
-  flatKinds: flat.rows.map((r) => r.kind),
   bdCanon: fixtures.leftoverMkg.label.display,
-  bdGate: [...sandbox.monthlySegmentGate(matsukiyo)].sort(),
   bdDefault: sandbox.pickDefaultMonthlySeries(matsukiyo),
   bdCompanyKind: drugRow && drugRow.label.series_kind,
-  bdCols: bdLayout.rows.some((r) => r.rail || r.col4 || r.stub4) ? 4 : 3,
-  bdSummary: bdLayout.rows.map((r) => {
-    if (r.kind === "section") return { kind: "section", label: r.label };
-    return {
-      kind: "data",
-      element: r.element,
-      group: r.group,
-      channel: r.channel,
-      scope: r.scope,
-      leaf: r.leaf,
-      breakdown: r.breakdown || "",
-    };
-  }),
   chartHtml,
-  areaCols: areaLayout.rows.some((r) => r.rail || r.col4 || r.stub4) ? 4 : 3,
-  areaSummary: areaLayout.rows.map((r) => {
-    if (r.kind === "section") return { kind: "section", label: r.label };
-    return {
-      kind: "data",
-      element: r.element,
-      group: r.group,
-      leaf: r.leaf,
-      breakdown: r.breakdown || "",
-      breakdownDepth: r.breakdownDepth ?? 0,
-    };
-  }),
-  gmvGate: [...sandbox.monthlySegmentGate(gmvTables)].sort(),
-  gmvGated: gmvLayout.gated,
-  gmvSummary: gmvLayout.rows.map((r) => {
-    if (r.kind === "section") return { kind: "section", label: r.label };
-    return {
-      kind: "data",
-      element: r.element,
-      group: r.group,
-      scope: r.scope,
-      leaf: r.leaf,
-    };
-  }),
-  kyoshitsuGate: [...sandbox.monthlySegmentGate(fixtures.kyoshitsuTables)].sort(),
-  kyoshitsuGated: sandbox.monthlyTableLayout(
-    sandbox.monthlyRowOrder(fixtures.kyoshitsuTables), fixtures.kyoshitsuTables,
-  ).gated,
-  kyoshitsuSummary: sandbox.monthlyTableLayout(
-    sandbox.monthlyRowOrder(fixtures.kyoshitsuTables), fixtures.kyoshitsuTables,
-  ).rows.map((r) => {
-    if (r.kind === "section") return { kind: "section", label: r.label };
-    return {
-      kind: "data",
-      element: r.element,
-      group: r.group,
-      scope: r.scope,
-      leaf: r.leaf,
-    };
-  }),
-  watamiGate: [...sandbox.monthlySegmentGate(fixtures.watamiTakushoku)].sort(),
-  watamiGated: sandbox.monthlyTableLayout(
-    sandbox.monthlyRowOrder(fixtures.watamiTakushoku), fixtures.watamiTakushoku,
-  ).gated,
-  watamiSummary: sandbox.monthlyTableLayout(
-    sandbox.monthlyRowOrder(fixtures.watamiTakushoku), fixtures.watamiTakushoku,
-  ).rows.map((r) => {
-    if (r.kind === "section") return { kind: "section", label: r.label };
-    return {
-      kind: "data",
-      element: r.element,
-      group: r.group,
-      scope: r.scope,
-      leaf: r.leaf,
-    };
-  }),
-  renameGate: [...sandbox.monthlySegmentGate(renameYears)].sort(),
-  renameGated: renameLayout.gated,
-  renameSummary: renameLayout.rows.map((r) => {
-    if (r.kind === "section") return { kind: "section", label: r.label };
-    return { kind: "data", element: r.element, group: r.group, leaf: r.leaf };
-  }),
-  lonePriorGate: [...sandbox.monthlySegmentGate(fixtures.lonePrior)].sort(),
-  tooOldGate: [...sandbox.monthlySegmentGate(fixtures.tooOld)].sort(),
-  jfrontGate: [...sandbox.monthlySegmentGate(fixtures.jfront)].sort(),
-  jfrontSummary: sandbox.monthlyTableLayout(
-    sandbox.monthlyRowOrder(fixtures.jfront), fixtures.jfront,
-  ).rows.map((r) => {
-    if (r.kind === "section") return { kind: "section", label: r.label };
-    return {
-      kind: "data",
-      element: r.element,
-      group: r.group,
-      scope: r.scope,
-      leaf: r.leaf,
-    };
-  }),
+  treeNames,
+  treeParent: tm.parent,
 }));
 """
     with tempfile.NamedTemporaryFile(
@@ -2580,62 +2206,12 @@ console.log(JSON.stringify({
         got = json.loads(proc.stdout.strip().splitlines()[-1])
     except json.JSONDecodeError:
         _fail(f"monthly layout js stdout: {proc.stdout[:400]!r}")
-    if got.get("gated") != ["ラーメン", "焼肉"]:
-        _fail(f"gate leftovers: {got.get('gated')!r}")
-    if got.get("gatedFlag") is not True:
-        _fail("30970 fixture must be gated")
-    want = [
-        {"kind": "data", "element": "直営+FC 全店 売上高(前年比)", "group": "", "channel": "直営+FC", "scope": "全店", "leaf": "売上高(前年比)"},
-        {"kind": "data", "element": "日本+海外 直営+FC 全店 店舗数", "group": "", "channel": "直営+FC", "scope": "全店", "leaf": "日本+海外 店舗数"},
-        {"kind": "section", "label": "焼肉"},
-        {"kind": "data", "element": "焼肉 直営+FC 既存 売上高(前年比)", "group": "焼肉", "channel": "直営+FC", "scope": "既存", "leaf": "売上高(前年比)"},
-        {"kind": "data", "element": "焼肉 直営 既存 売上高(前年比)", "group": "焼肉", "channel": "直営", "scope": "既存", "leaf": "売上高(前年比)"},
-        {"kind": "section", "label": "ラーメン"},
-        {"kind": "data", "element": "ラーメン 直営+FC 既存 売上高(前年比)", "group": "ラーメン", "channel": "直営+FC", "scope": "既存", "leaf": "売上高(前年比)"},
-        {"kind": "data", "element": "ラーメン 直営 既存 店舗数", "group": "ラーメン", "channel": "直営", "scope": "既存", "leaf": "店舗数"},
-    ]
-    if got.get("summary") != want:
-        _fail(f"gated layout: {got.get('summary')!r}")
-    if got.get("flatForceGated") is not False:
-        _fail("forceFlat must disable gate layout")
-    if "section" in (got.get("flatForceKinds") or []):
-        _fail("forceFlat must not emit section rows")
-    if got.get("flatForceIds") != got.get("rowOrderIds"):
-        _fail(f"forceFlat must keep monthlyRowOrder ids: {got.get('flatForceIds')!r}")
-    if got.get("flatModeGated") is not False:
-        _fail("monthlyLayoutMode=flat must disable gate layout")
-    if got.get("flatModeIds") != got.get("rowOrderIds"):
-        _fail(f"monthlyLayoutMode=flat must keep monthlyRowOrder ids: {got.get('flatModeIds')!r}")
-    if got.get("flatGated") is not False:
-        _fail("simple issuer must stay ungated")
-    if got.get("flatKinds") != ["data", "data"]:
-        _fail(f"ungated kinds: {got.get('flatKinds')!r}")
-    if "section" in (got.get("flatKinds") or []):
-        _fail("ungated issuer must not grow section rows")
-    if got.get("flatIds") != ["全店 売上高(前年比)", "既存 売上高(前年比)"]:
-        _fail(f"ungated ids stay full names: {got.get('flatIds')!r}")
     if got.get("bdCanon") != "MKG 全店 売上高 ドラッグ(前年比)":
         _fail(f"old leftover ドラッグ must display-canonicalize: {got.get('bdCanon')!r}")
-    if got.get("bdGate") != ["MKG"]:
-        _fail(f"30880 gate leftover must stay MKG: {got.get('bdGate')!r}")
     if got.get("bdDefault") != "全店 売上高(前年比)":
         _fail(f"TOP series must ignore 内訳: {got.get('bdDefault')!r}")
     if got.get("bdCompanyKind") is not None:
         _fail(f"会社 ドラッグ must not be all_store: {got.get('bdCompanyKind')!r}")
-    if got.get("bdCols") != 3:
-        _fail(f"内訳 must not add a stub column: {got.get('bdCols')!r}")
-    want_bd = [
-        {"kind": "data", "element": "全店 売上高(前年比)", "group": "", "channel": "", "scope": "全店", "leaf": "売上高(前年比)", "breakdown": ""},
-        {"kind": "data", "element": "全店 売上高 ドラッグ(前年比)", "group": "", "channel": "", "scope": "全店", "leaf": "└ ドラッグ(前年比)", "breakdown": "ドラッグ"},
-        {"kind": "data", "element": "既存 売上高(前年比)", "group": "", "channel": "", "scope": "既存", "leaf": "売上高(前年比)", "breakdown": ""},
-        {"kind": "section", "label": "MKG"},
-        {"kind": "data", "element": "MKG 全店 売上高(前年比)", "group": "MKG", "channel": "", "scope": "全店", "leaf": "売上高(前年比)", "breakdown": ""},
-        {"kind": "data", "element": "MKG 全店 売上高 ドラッグ(前年比)", "group": "MKG", "channel": "", "scope": "全店", "leaf": "└ ドラッグ(前年比)", "breakdown": "ドラッグ"},
-        {"kind": "data", "element": "MKG 全店 売上高 調剤(前年比)", "group": "MKG", "channel": "", "scope": "全店", "leaf": "└ 調剤(前年比)", "breakdown": "調剤"},
-        {"kind": "data", "element": "MKG 全店 客数(前年比)", "group": "MKG", "channel": "", "scope": "全店", "leaf": "客数(前年比)", "breakdown": ""},
-    ]
-    if got.get("bdSummary") != want_bd:
-        _fail(f"30880 内訳 layout: {got.get('bdSummary')!r}")
     chart_html = got.get("chartHtml") or ""
     if chart_html.count("<svg") != 2:
         _fail(f"year panels must draw two svgs: {chart_html[:400]!r}")
@@ -2645,127 +2221,10 @@ console.log(JSON.stringify({
         _fail("year panels must label bars with monthly-bar-v")
     if "110" not in chart_html or "100" not in chart_html:
         _fail(f"bar labels must include 110 and 100: {chart_html[:400]!r}")
-    if got.get("gmvGate") != ["CPAソリューション事業", "戦略事業"]:
-        _fail(f"取扱高 gate leftovers: {got.get('gmvGate')!r}")
-    if got.get("gmvGated") is not True:
-        _fail("取扱高 issuer must stay gated via 売上高")
-    want_gmv = [
-        {"kind": "data", "element": "全店 売上高", "group": "", "scope": "全店", "leaf": "売上高"},
-        {"kind": "data", "element": "全店 売上高(前年比)", "group": "", "scope": "全店", "leaf": "売上高(前年比)"},
-        {"kind": "data", "element": "取扱高", "group": "", "scope": "", "leaf": "取扱高"},
-        {"kind": "data", "element": "取扱高(前年比)", "group": "", "scope": "", "leaf": "取扱高(前年比)"},
-        {"kind": "section", "label": "CPAソリューション事業"},
-        {"kind": "data", "element": "CPAソリューション事業 全店 売上高", "group": "CPAソリューション事業", "scope": "全店", "leaf": "売上高"},
-        {"kind": "data", "element": "CPAソリューション事業 全店 売上高(前年比)", "group": "CPAソリューション事業", "scope": "全店", "leaf": "売上高(前年比)"},
-        {"kind": "data", "element": "CPAソリューション事業 取扱高", "group": "CPAソリューション事業", "scope": "", "leaf": "取扱高"},
-        {"kind": "data", "element": "CPAソリューション事業 取扱高(前年比)", "group": "CPAソリューション事業", "scope": "", "leaf": "取扱高(前年比)"},
-        {"kind": "section", "label": "戦略事業"},
-        {"kind": "data", "element": "戦略事業 全店 売上高", "group": "戦略事業", "scope": "全店", "leaf": "売上高"},
-        {"kind": "data", "element": "戦略事業 全店 売上高(前年比)", "group": "戦略事業", "scope": "全店", "leaf": "売上高(前年比)"},
-        {"kind": "data", "element": "戦略事業 取扱高", "group": "戦略事業", "scope": "", "leaf": "取扱高"},
-        {"kind": "data", "element": "戦略事業 取扱高(前年比)", "group": "戦略事業", "scope": "", "leaf": "取扱高(前年比)"},
-    ]
-    if got.get("gmvSummary") != want_gmv:
-        _fail(f"取扱高 gated layout: {got.get('gmvSummary')!r}")
-    if got.get("kyoshitsuGate") != ["ホテル"]:
-        _fail(f"客室収入 gate leftovers: {got.get('kyoshitsuGate')!r}")
-    if got.get("kyoshitsuGated") is not True:
-        _fail("客室収入 issuer must gate ホテル when metric is non-empty")
-    want_room = [
-        {"kind": "section", "label": "ホテル"},
-        {"kind": "data", "element": "ホテル 客室収入", "group": "ホテル", "scope": "", "leaf": "客室収入"},
-        {"kind": "data", "element": "ホテル 客室収入(前年比)", "group": "ホテル", "scope": "", "leaf": "客室収入(前年比)"},
-    ]
-    if got.get("kyoshitsuSummary") != want_room:
-        _fail(f"客室収入 gated layout: {got.get('kyoshitsuSummary')!r}")
-    if got.get("watamiGate") != ["国内外食", "宅食"]:
-        _fail(f"ワタミ gate leftovers: {got.get('watamiGate')!r}")
-    if got.get("watamiGated") is not True:
-        _fail("ワタミ must gate 宅食 when お届け数 and 営業所数 peel")
-    want_watami = [
-        {"kind": "data", "element": "海外 店舗数", "group": "", "scope": "", "leaf": "海外 店舗数"},
-        {"kind": "section", "label": "国内外食"},
-        {"kind": "data", "element": "国内外食 全店 売上高(前年比)", "group": "国内外食", "scope": "全店", "leaf": "売上高(前年比)"},
-        {"kind": "data", "element": "国内外食 全店 店舗数", "group": "国内外食", "scope": "全店", "leaf": "店舗数"},
-        {"kind": "section", "label": "宅食"},
-        {"kind": "data", "element": "宅食 出店", "group": "宅食", "scope": "", "leaf": "出店"},
-        {"kind": "data", "element": "宅食 退店", "group": "宅食", "scope": "", "leaf": "退店"},
-        {"kind": "data", "element": "宅食 調理済み商品お届け数（千食）", "group": "宅食", "scope": "", "leaf": "調理済み商品お届け数（千食）"},
-        {"kind": "data", "element": "宅食 営業所数", "group": "宅食", "scope": "", "leaf": "営業所数"},
-    ]
-    if got.get("watamiSummary") != want_watami:
-        _fail(f"ワタミ 宅食 gated layout: {got.get('watamiSummary')!r}")
-    if got.get("areaCols") != 3:
-        _fail(f"area 小枝 must not add a stub column: {got.get('areaCols')!r}")
-    want_area = [
-        {"kind": "data", "element": "全店 連結売上高", "group": "", "leaf": "連結売上高", "breakdown": "", "breakdownDepth": 0},
-        {"kind": "data", "element": "全店 連結売上高(前年比)", "group": "", "leaf": "連結売上高(前年比)", "breakdown": "", "breakdownDepth": 0},
-        {"kind": "section", "label": "グロース領域"},
-        {"kind": "data", "element": "グロース領域 全店 売上高", "group": "グロース領域", "leaf": "売上高", "breakdown": "", "breakdownDepth": 0},
-        {"kind": "data", "element": "グロース領域 全店 売上高 プロパティ", "group": "グロース領域", "leaf": "└ プロパティ", "breakdown": "プロパティ", "breakdownDepth": 1},
-        {"kind": "data", "element": "グロース領域 全店 売上高 ホテル", "group": "グロース領域", "leaf": "└ ホテル", "breakdown": "ホテル", "breakdownDepth": 2},
-        {"kind": "data", "element": "グロース領域 全店 売上高 インカム太陽光", "group": "グロース領域", "leaf": "└ インカム太陽光", "breakdown": "インカム太陽光", "breakdownDepth": 2},
-        {"kind": "data", "element": "グロース領域 全店 売上高 専門通販", "group": "グロース領域", "leaf": "└ 専門通販", "breakdown": "専門通販", "breakdownDepth": 1},
-        {"kind": "data", "element": "グロース領域 全店 売上高 化粧品健康食品", "group": "グロース領域", "leaf": "└ 化粧品健康食品", "breakdown": "化粧品健康食品", "breakdownDepth": 2},
-        {"kind": "data", "element": "グロース領域 全店 売上高(前年比)", "group": "グロース領域", "leaf": "売上高(前年比)", "breakdown": "", "breakdownDepth": 0},
-        {"kind": "data", "element": "グロース領域 全店 売上高 プロパティ(前年比)", "group": "グロース領域", "leaf": "└ プロパティ(前年比)", "breakdown": "プロパティ", "breakdownDepth": 1},
-        {"kind": "data", "element": "グロース領域 全店 売上高 ホテル(前年比)", "group": "グロース領域", "leaf": "└ ホテル(前年比)", "breakdown": "ホテル", "breakdownDepth": 2},
-    ]
-    if got.get("areaSummary") != want_area:
-        _fail(f"99970 小枝 layout: {got.get('areaSummary')!r}")
-    if got.get("renameGate") != ["ADコミュニケーション事業", "CPAソリューション事業", "戦略事業"]:
-        _fail(f"prior-year leftover must gate: {got.get('renameGate')!r}")
-    if got.get("renameGated") is not True:
-        _fail("rename years must stay gated")
-    want_rename = [
-        {"kind": "data", "element": "全店 売上高", "group": "", "leaf": "売上高"},
-        {"kind": "section", "label": "CPAソリューション事業"},
-        {"kind": "data", "element": "CPAソリューション事業 全店 売上高", "group": "CPAソリューション事業", "leaf": "売上高"},
-        {"kind": "data", "element": "CPAソリューション事業 全店 売上高(前年比)", "group": "CPAソリューション事業", "leaf": "売上高(前年比)"},
-        {"kind": "section", "label": "戦略事業"},
-        {"kind": "data", "element": "戦略事業 全店 売上高", "group": "戦略事業", "leaf": "売上高"},
-        {"kind": "data", "element": "戦略事業 全店 売上高(前年比)", "group": "戦略事業", "leaf": "売上高(前年比)"},
-        {"kind": "section", "label": "ADコミュニケーション事業"},
-        {"kind": "data", "element": "ADコミュニケーション事業 全店 売上高", "group": "ADコミュニケーション事業", "leaf": "売上高"},
-        {"kind": "data", "element": "ADコミュニケーション事業 全店 売上高(前年比)", "group": "ADコミュニケーション事業", "leaf": "売上高(前年比)"},
-    ]
-    if got.get("renameSummary") != want_rename:
-        _fail(f"prior-year leftover layout: {got.get('renameSummary')!r}")
-    if got.get("lonePriorGate") != ["CPAソリューション事業"]:
-        _fail(f"one prior-year row must not gate: {got.get('lonePriorGate')!r}")
-    if got.get("tooOldGate") != ["CPAソリューション事業"]:
-        _fail(f"year outside display window must not gate: {got.get('tooOldGate')!r}")
-    want_jfront_gate = [
-        "SC事業", "パルコ テナント", "大丸 心斎橋店", "百貨店事業", "百貨店事業合計",
-    ]
-    if got.get("jfrontGate") != want_jfront_gate:
-        _fail(f"3086-shaped gate leftovers: {got.get('jfrontGate')!r}")
-    jfront_summary = got.get("jfrontSummary") or []
-    jfront_sections = [r["label"] for r in jfront_summary if r.get("kind") == "section"]
-    if jfront_sections != ["百貨店事業", "SC事業", "大丸 心斎橋店", "百貨店事業合計", "パルコ テナント"]:
-        _fail(f"3086-shaped section order: {jfront_sections!r}")
-    if any(r.get("label") == "パルコ 札幌PARCO テナント" for r in jfront_summary):
-        _fail("single PARCO store must not grow a section")
-    by_el = {r["element"]: r for r in jfront_summary if r.get("kind") == "data"}
-    if by_el.get("大丸 心斎橋店 売上高(前年比)", {}).get("leaf") != "売上高(前年比)":
-        _fail(f"store sales leaf: {by_el.get('大丸 心斎橋店 売上高(前年比)')!r}")
-    if by_el.get("大丸 心斎橋店 入店 客数(前年比)", {}).get("leaf") != "入店 客数(前年比)":
-        _fail(f"store 入店 leaf: {by_el.get('大丸 心斎橋店 入店 客数(前年比)')!r}")
-    if by_el.get("百貨店事業 売上収益(IFRS)(前年比)", {}).get("leaf") != "売上収益(IFRS)(前年比)":
-        _fail(f"IFRS leaf: {by_el.get('百貨店事業 売上収益(IFRS)(前年比)')!r}")
-    if by_el.get("百貨店事業 総額 売上高(前年比)", {}).get("leaf") != "総額 売上高(前年比)":
-        _fail(f"総額 leaf: {by_el.get('百貨店事業 総額 売上高(前年比)')!r}")
-    if by_el.get("百貨店事業合計 売上高(前年比)", {}).get("leaf") != "売上高(前年比)":
-        _fail(f"百貨店事業合計 sales leaf: {by_el.get('百貨店事業合計 売上高(前年比)')!r}")
-    if by_el.get("百貨店事業合計 入店 客数(前年比)", {}).get("leaf") != "入店 客数(前年比)":
-        _fail(f"百貨店事業合計 入店 leaf: {by_el.get('百貨店事業合計 入店 客数(前年比)')!r}")
-    if by_el.get("連結売上収益(IFRS)(前年比)", {}).get("group"):
-        _fail("連結売上収益(IFRS) must stay in the company block")
-    if by_el.get("総額 連結売上高(前年比)", {}).get("group"):
-        _fail("総額 連結売上高 must stay in the company block")
-    if by_el.get("パルコ 札幌PARCO テナント 取扱高(前年比)", {}).get("group"):
-        _fail("single PARCO store stays in the company block")
-
+    # ブランドは 1 回だけ。直営 / FC はブランドの行の子。名前は 直営+FC / 日本+海外 を外し、子は親との差だけ
+    want_names = ["既存 店舗数", "直営", "焼肉", "全店 店舗数", "日本", "直営", "FC", "焼肉", "直営", "FC", "海外"]
+    if got.get("treeNames") != want_names:
+        _fail(f"物語 store tree rows: {got.get('treeNames')!r}")
 
 def _assert_known_prod_units(c) -> None:
     from app.db import SessionLocal, apply_known_monthly_element_units
