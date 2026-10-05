@@ -1596,6 +1596,80 @@ def test_tool_nginx_logs_access_timed_and_redacted(tmp_path: Path) -> None:
         m.journal, m.NGINX_ACCESS_LOG, m.NGINX_ERROR_LOG = orig  # type: ignore[assignment]
 
 
+def test_tool_nginx_logs_window_reads_rotated(tmp_path: Path) -> None:
+    nginx = tmp_path / "nginx"
+    nginx.mkdir()
+    access = nginx / "stock-analyzer.access.log"
+    error = nginx / "error.log"
+    (nginx / "stock-analyzer.access.log.2.gz").write_bytes(gzip.compress(
+        b'9.9.9.1 [03/Oct/2026:23:59:59 +0900] "GET /.env HTTP/1.1" 401 0 rt=0.000 urt=- "ua"\n'
+        b'9.9.9.2 [04/Oct/2026:00:00:00 +0900] "GET /.git/config HTTP/1.1" 401 0 rt=0.000 urt=- "ua"\n'
+    ))
+    (nginx / "stock-analyzer.access.log.1").write_text(
+        '9.9.9.3 [04/Oct/2026:12:00:00 +0900] "GET /oauth/callback?code=abc123 HTTP/1.1" 302 0 rt=0.001 urt=0.001 "ua"\n'
+        '9.9.9.4 [04/Oct/2026:06:00:00 +0000] "GET /wp-login.php HTTP/1.1" 401 0 rt=0.000 urt=- "ua"\n',
+        encoding="utf-8",
+    )
+    access.write_text(
+        '9.9.9.5 [05/Oct/2026:00:00:00 +0900] "GET /today HTTP/1.1" 401 0 rt=0.000 urt=- "ua"\n',
+        encoding="utf-8",
+    )
+    (nginx / "error.log.1").write_text(
+        "2026/10/04 09:00:00 [error] 1#1: *1 access forbidden by rule, client: 9.9.9.6\n"
+        "  continuation without stamp\n",
+        encoding="utf-8",
+    )
+    error.write_text("2026/10/05 01:00:00 [error] 1#1: *2 today\n", encoding="utf-8")
+    (nginx / "unrelated.log.1").write_text("2026/10/04 10:00:00 [error] stranger\n", encoding="utf-8")
+    orig = (m.journal, m.NGINX_ACCESS_LOG, m.NGINX_ERROR_LOG, m._jst_now)
+    calls: list[tuple[str, str | None]] = []
+
+    def _journal(unit, since, lines, grep, until=None):  # noqa: ANN001, ANN202
+        calls.append((since, until))
+        return "journal"
+
+    try:
+        m.journal = _journal  # type: ignore[assignment]
+        m.NGINX_ACCESS_LOG = access
+        m.NGINX_ERROR_LOG = error
+        m._jst_now = lambda: datetime(2026, 10, 5, 12, 0, 0, tzinfo=m.JST).replace(tzinfo=None)  # type: ignore[assignment]
+        props = m.TOOLS["nginx_logs"][1]["properties"]
+        if "until" not in props:
+            raise SystemExit("nginx_logs schema missing until")
+        live = m.tool_nginx_logs({})
+        if "9.9.9.3" in live or "/today" not in live:
+            raise SystemExit(f"no window reads live only: {live!r}")
+        text, is_error = m.call_tool("nginx_logs", {"since": "yesterday", "until": "today"})
+        if is_error:
+            raise SystemExit(f"yesterday nginx: {text!r}")
+        acc = text.split("stock-analyzer.access.log", 1)[1]
+        for want in ("9.9.9.2", "code=<redacted>", "9.9.9.4"):
+            if want not in acc:
+                raise SystemExit(f"window missing {want}: {acc!r}")
+        if not acc.index("9.9.9.2") < acc.index("9.9.9.3") < acc.index("9.9.9.4"):
+            raise SystemExit(f"window not sorted by JST: {acc!r}")
+        for leak in ("9.9.9.1", "/today", "abc123"):
+            if leak in acc:
+                raise SystemExit(f"window leaked {leak}: {acc!r}")
+        err = text.split("error.log ===", 1)[1].split("===", 1)[0]
+        if "9.9.9.6" not in err or "today" in err or "continuation" in err or "stranger" in err:
+            raise SystemExit(f"error window: {err!r}")
+        if calls[-1] != ("2026-10-04 00:00:00", "2026-10-05 00:00:00"):
+            raise SystemExit(f"journal window: {calls[-1]!r}")
+        older = m.tool_nginx_logs({"until": "today", "grep": "wp-login"})
+        if "9.9.9.4" not in older:
+            raise SystemExit(f"until only: {older!r}")
+        os.utime(nginx / "stock-analyzer.access.log.2.gz", (0, 0))
+        skipped = m.tool_nginx_logs({"since": "2026-10-04", "grep": "git"})
+        if "9.9.9.2" in skipped:
+            raise SystemExit(f"stale mtime must skip file: {skipped!r}")
+        bad, bad_err = m.call_tool("nginx_logs", {"since": "today", "until": "yesterday"})
+        if not bad_err or "until must be after since" not in bad:
+            raise SystemExit(f"bad window: {bad!r}")
+    finally:
+        m.journal, m.NGINX_ACCESS_LOG, m.NGINX_ERROR_LOG, m._jst_now = orig  # type: ignore[assignment]
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -1618,6 +1692,7 @@ def main() -> None:
         logs.mkdir()
         test_tool_app_logs_joins_file_and_journal(logs)
         test_tool_nginx_logs_access_timed_and_redacted(logs)
+        test_tool_nginx_logs_window_reads_rotated(logs)
     test_db_tools()
     test_monthly_tools()
     test_monthly_ingest_tool()
