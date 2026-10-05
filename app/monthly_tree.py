@@ -288,6 +288,7 @@ def _metric_parts(metric: str) -> tuple[str, str, tuple[str, ...]]:
 
 def auto_metric_parents(metrics: Sequence[str], domestic: Iterable[str] = ()) -> dict[str, str]:
     """直営 / FC の指標は 直営+FC（無ければ無印）の子、日本 / 海外 の指標は国なしの子。
+    国付きの 直営 / FC は、同じ国の合計が無ければ国なしの同じチャネルの子。
     domestic は会社の `日本 ` 付きの行を代表にした指標（物語 直営 全店 店舗数 = 国内直営 553）。国内の 直営+FC を先に探す。
     """
     have = set(metrics)
@@ -299,7 +300,8 @@ def auto_metric_parents(metrics: Sequence[str], domestic: Iterable[str] = ()) ->
         r = " ".join(rest)
         if channel in _AUTO_PART_CHANNELS:
             cands = [join("日本", "直営+FC", r)] if m in dom else []
-            cands += [join(country, "直営+FC", r), join(country, r)]
+            # 国の合計が無ければ国なしの同じチャネル（ハードオフ 海外 直営 店舗数 14 は 直営 店舗数 568 の内訳）
+            cands += [join(country, "直営+FC", r), join(country, r), join(channel, r)]
         elif country in ("日本", "海外"):
             cands = [join(channel, r), join("直営+FC", r), r]
         else:
@@ -327,37 +329,64 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
     bd_first: dict[tuple[str, str], tuple[int, int]] = {}
     rows: dict[str, dict[str, Any]] = {}
     metric_key: dict[str, tuple] = {}
+    sales: dict[tuple[str, ...], set[str]] = {}
     seen = 0
+
+    def place(element: str, unit: str, L: Mapping[str, Any], canon: str, group: str, leaf: str,
+              metric: str | None = None) -> None:
+        nonlocal seen
+        bd = str(L["breakdown"] or "")
+        if group:
+            group_first.setdefault(group, seen)
+        if bd:
+            bd_first.setdefault((group, bd), (monthly_row_breakdown_rank(canon), seen))
+        seen += 1
+        path = (AUTO_ROOT, *((group,) if group else ()), *((bd,) if bd else ()))
+        leaf = _auto_strip_breakdown(L, leaf)
+        if metric is None:
+            metric = strip_yoy_fragments(leaf) if monthly_row_unit_rank(unit) else leaf
+            if len(path) > 1:
+                metric = gmap.get(metric, metric)
+        idx = union_idx.get(canon, len(union_idx) + seen)
+        rows[element] = {"path": list(path), "leaf": leaf, "metric": metric, "order": idx}
+        if L["metric_kind"] == "sales" and not monthly_row_unit_rank(unit):
+            sales.setdefault(path, set()).add(metric)
+        # 指標の並びは会社の行を代表にする（無ければ最初に見た節の行）
+        key = (
+            _AUTO_CHANNEL_RANK.get(str(L["channel"]), 3),
+            _AUTO_COUNTRY_RANK.get(str(L["country"]), 3),
+            _AUTO_SCOPE_RANK.get(str(L["scope"]), 2),
+            monthly_row_slot(canon, unit),
+            idx,
+        )
+        if metric not in metric_key or (len(path) == 1 and metric_key[metric][0]):
+            metric_key[metric] = (len(path) > 1, key)
+
+    # 指標の語の無い前年比（アスモ `アスモトレーディング(前年比)`、`合計(前年比)`）は、その節の金額の売上高の行が
+    # 1 つに決まればその指標の前年比にする（決まらなければ行名のまま根）。節の金額の行を先に見てから置く。
+    bare: list[tuple[str, str, Mapping[str, Any], str, str, str, str]] = []
+    deferred: set[str] = set()
     for y in newest:
         for element, unit in years[y]:
-            if element in rows:
+            if element in rows or element in deferred:
                 continue
             L = monthly_element_label(element, unit)
             canon = canonicalize_element_label(element, unit)
             group, leaf = _auto_split(L)
-            bd = str(L["breakdown"] or "")
-            if group:
-                group_first.setdefault(group, seen)
-            if bd:
-                bd_first.setdefault((group, bd), (monthly_row_breakdown_rank(canon), seen))
-            seen += 1
-            path = (AUTO_ROOT, *((group,) if group else ()), *((bd,) if bd else ()))
-            leaf = _auto_strip_breakdown(L, leaf)
-            metric = strip_yoy_fragments(leaf) if monthly_row_unit_rank(unit) else leaf
-            if len(path) > 1:
-                metric = gmap.get(metric, metric)
-            idx = union_idx.get(canon, len(union_idx) + seen)
-            rows[element] = {"path": list(path), "leaf": leaf, "metric": metric, "order": idx}
-            # 指標の並びは会社の行を代表にする（無ければ最初に見た節の行）
-            key = (
-                _AUTO_CHANNEL_RANK.get(str(L["channel"]), 3),
-                _AUTO_COUNTRY_RANK.get(str(L["country"]), 3),
-                _AUTO_SCOPE_RANK.get(str(L["scope"]), 2),
-                monthly_row_slot(canon, unit),
-                idx,
-            )
-            if metric not in metric_key or (len(path) == 1 and metric_key[metric][0]):
-                metric_key[metric] = (len(path) > 1, key)
+            if monthly_row_unit_rank(unit) and not any(L[k] for k in ("metric", "breakdown", "scope", "channel")):
+                g = str(L["group"] or "")
+                own = g if g and strip_yoy_fragments(str(L["display"])) == g else ""
+                bare.append((element, unit, L, canon, own, group, leaf))
+                deferred.add(element)
+                continue
+            place(element, unit, L, canon, group, leaf)
+    for element, unit, L, canon, own, group, leaf in bare:
+        cands = sales.get((AUTO_ROOT, *((own,) if own else ())), set())
+        if len(cands) == 1:
+            m = next(iter(cands))
+            place(element, unit, L, canon, own, m + str(L["display"])[len(strip_yoy_fragments(str(L["display"]))):], m)
+        else:
+            place(element, unit, L, canon, group, leaf)
     # 節にしか無い指標は、会社の `日本 ` 付きの行を親にする（物語: 直営 全店 店舗数 の親は 日本 直営 全店 店舗数 553）。
     # 会社に同じ指標の行があるとき（直営+FC 全店 店舗数 は 日本+海外 の 932）は寄せない。
     company = {r["metric"] for r in rows.values() if len(r["path"]) == 1}
