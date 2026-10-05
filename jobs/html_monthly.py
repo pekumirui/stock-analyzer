@@ -369,12 +369,18 @@ def _is_count_header(header: str) -> bool:
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 
 
+# 長い語を先に。比/対比/差/増減は今期の比率。同月/同期は 前年同月比 が 前年 に食われないため。
+_PRIOR_ABS_RE = re.compile(
+    r"(前期|前年同月|前年同期|前年)(?!(?:比|対比|差|増減|同月|同期))"
+)
+
+
 def _is_prior_year_absolute(text: str) -> bool:
-    """前年/前期の実数列。前年比は除外。"""
+    """前年/前期の実数列。前年比・前年差・前年増減率は除外。"""
     compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", text or ""))
-    if not compact or "比" in compact:
+    if not compact:
         return False
-    return compact in ("前年", "前期", "前年同月", "前年同期")
+    return bool(_PRIOR_ABS_RE.search(compact))
 
 
 def _rewrite_period_header(text: str) -> str:

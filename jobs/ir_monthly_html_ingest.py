@@ -35,6 +35,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from _r2common import jst_today  # noqa: E402
+from html_monthly import _is_prior_year_absolute  # noqa: E402
 from ir_monthly_r2 import DEFAULT_CONFIG, DEFAULT_DEST, atomic_write, sha256_bytes  # noqa: E402
 from tdnet_monthly_r2 import display_code  # noqa: E402
 
@@ -189,6 +190,8 @@ def ingest_body(
     # cron で常に付けると UNIT_CONFLICT / ELEMENT_SIMILAR_EXISTS / YOY_NUMBER_CONFLICT が効かない。
     rows = []
     for r in s.rows:
+        if _is_prior_year_absolute(str(r.get("element") or "")):
+            continue
         row = dict(r)
         if force:
             row["force"] = True

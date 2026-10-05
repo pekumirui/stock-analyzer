@@ -166,6 +166,14 @@ def test_canonicalize_element_label() -> None:
         _fail("全社合計 still drops 合計")
     if canonicalize_element_label("対象店舗数", "number") != "店舗数":
         _fail("対象店舗数 is 店舗数")
+    if canonicalize_element_label("当年 全店 店舗数", "number") != "全店 店舗数":
+        _fail("当年 全店 店舗数 drops 当年")
+    if canonicalize_element_label("当年店舗数", "number") != "店舗数":
+        _fail("当年店舗数 drops 当年")
+    if monthly_element_label("当年 全店 店舗数", "number")["group"] != "":
+        _fail("当年 is not a group")
+    if monthly_element_label("当年 全店 店舗数", "number")["display"] != "全店 店舗数":
+        _fail("当年 全店 店舗数 display")
     if canonicalize_element_label("全業態 対象 店舗数", "number") != "全業態 店舗数":
         _fail("対象 leftover drops from 全業態 店舗数")
     if canonicalize_element_label("全業態 対象 既存 店舗数", "number") != "全業態 既存 店舗数":
@@ -2104,6 +2112,9 @@ def test_reject_prior_period_element() -> None:
         "前年同期 店舗数",
         "前 年",
         "前年",
+        "前年店舗数",
+        "前年 全店 店舗数",
+        "店舗数 前年",
     )
     allowed = (
         "当期計店舗数",
@@ -2114,6 +2125,11 @@ def test_reject_prior_period_element() -> None:
         "売上高前年同期対比",
         "前期対比",
         "既存店 店舗数",
+        "当年 全店 店舗数",
+        "当年店舗数",
+        "前年差",
+        "MRR前年増減率",
+        "NJSS MRR前年同期比(前年比)",
     )
     for name in blocked:
         _expect_ingest_error(
@@ -2154,6 +2170,39 @@ def test_reject_prior_period_element() -> None:
     _expect(r, 400, "POST prior period")
     if _err(r)["code"] != "PRIOR_PERIOD_ELEMENT":
         _fail(f"POST prior: {r.json()!r}")
+
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [7],
+        "rows": [
+            {"element": "当年 全店 店舗数", "values": {"7": 85}, "unit": "number"},
+            {"element": "前年 全店 店舗数", "values": {"7": 77}, "unit": "number"},
+        ],
+        "as_of": "2026-08-14",
+    })
+    _expect(r, 400, "ingest prior 前年店舗数")
+    if _err(r)["code"] != "PRIOR_PERIOD_ELEMENT":
+        _fail(f"ingest 前年 全店 店舗数: {r.json()!r}")
+
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [7],
+        "rows": [
+            {"element": "当年 全店 店舗数", "values": {"7": 85}, "unit": "number"},
+        ],
+        "as_of": "2026-08-14",
+    })
+    _expect(r, 200, "ingest 当年")
+    r = c.get(f"/api/v1/tables/{code}/2026")
+    _expect(r, 200, "GET after 当年 ingest")
+    names = [e["element"] for e in r.json()["elements"]]
+    if "全店 店舗数" not in names:
+        _fail(f"当年 must save as 全店 店舗数: {names!r}")
+    if any("当年" in n for n in names):
+        _fail(f"当年 leftover: {names!r}")
+    by = {e["element"]: e for e in r.json()["elements"]}
+    if float(by["全店 店舗数"]["values"]["7"]) != 85.0:
+        _fail(f"当年 values: {by['全店 店舗数']!r}")
+    if by["全店 店舗数"]["label"]["group"] != "":
+        _fail(f"当年 group: {by['全店 店舗数']['label']!r}")
 
 
 def test_api_genky_year_wrap_ingest() -> None:
