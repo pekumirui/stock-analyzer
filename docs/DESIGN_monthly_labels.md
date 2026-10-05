@@ -127,7 +127,7 @@ year GET の各行は保存 `element` に加え、派生の `label`（display / 
 - Vega (35420): HTML の `当期` は売上高。canonicalize 後の `全店 売上高` / `全店 売上高(前年比)` に `LOWYA` を付ける（until 2099-12-31）
 - ソフトウエア・サービス (37330): 見出しの単位 `(百万円)` / `(%)` が残る行を `全店 売上高` / `全店 売上高(前年比)` へ
 - NSD (97590): HTML 単月の `売上高（百万円）` はそのまま（canonicalize 後の保存名は `売上高`）。`増減率（%）` は `売上高(前期比)`（保存は `売上高(前年比)`）。`前期比（百万円）` は入れない。旧 `全店 連結売上高` は alias で `売上高` へ
-- PPIH (75320): HTML の `対象 既存 店舗数` は canonicalize で `既存 店舗数`。alias で `国内リテール 既存 店舗数` へ。親子は `config/monthly_row_order.json` の `tree`: 国内リテール（PDF ※1 = ディスカウント ※2 + UNY ※3）▸ ディスカウント / UNY ▸ 既存店売上高の商品別（家電製品・日用雑貨品・食品 …）。ロビン・フッド / Olympic は（参考）で国内リテールの外なので木に入れない（その他の項目）
+- PPIH (75320): HTML の `対象 既存 店舗数` は canonicalize で `既存 店舗数`。alias で `国内リテール 既存 店舗数` へ。親子は `config/monthly_row_order.json` の `tree`: 国内リテール（月次ページの「国内リテール主要5社合計」。Factbook の店舗表で ディスカウント事業 + UNY事業 = 国内合計）▸ ディスカウント / UNY ▸ 既存店売上高の商品別（家電製品・日用雑貨品・食品 …）。ロビン・フッドは UNY事業の内数（Factbook ※3）なので UNY の `part`。Olympic は国内合計の外なので木に入れない（その他の項目）
 - 単位ノイズ: `(％)` / `(%)` / `（百万円）` / `(百万円)` / `売上（％）` / `売上（%）` は落とす。`［売上高］全店` の括弧はパーサ側で中身を出す
 - サンドラッグ (9989): HTML が `既存店Existing store` / `全店All stores` / `新規出店数Number of new store openings` / `退店店舗数Number of store closings` / `総店舗数Total number of stores` と日英連結。canonicalize 後に残る英語は `99890` alias で落とす。売上表（グループ/DG/DS）の unit は `jobs/html_issuers/i9989.py` の `yoy_pct`（セルに `%` が無くても）。店舗は `number`
 
