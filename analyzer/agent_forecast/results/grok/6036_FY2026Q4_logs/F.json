@@ -1,0 +1,123 @@
+{
+ "condition": "F",
+ "claude_code_version": null,
+ "tools": [
+  "Read",
+  "Glob",
+  "Grep",
+  "monthly_list",
+  "monthly_get"
+ ],
+ "num_turns": 14,
+ "duration_s": 0,
+ "cost_usd": 0,
+ "usage": {
+  "input_tokens": 241545,
+  "cache_creation_input_tokens": 0,
+  "cache_read_input_tokens": 0,
+  "output_tokens": 865
+ },
+ "permission_denials": [
+  "Glob が workspace を検索した。ヒットは開いていない。ファイル名を渡して briefing を Read した"
+ ],
+ "steps": [
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_F/README.md"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_F/data/financials.json"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_F/data/briefing_pdf/20260529_2026年6月期 第3四半期 決算説明会資料.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_F/data/briefing_pdf/20260319_中期経営計画（2031年6月期）.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_F/data/briefing_pdf/20260217_（訂正）2026年6月期 第2四半期 決算説明会資料の一部訂正.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_F/data/briefing_pdf/20260216_2026年6月期 第2四半期 決算説明会資料.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_F/data/briefing_pdf/20251117_2026年6月期 第1四半期 決算説明会資料.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_F/data/briefing_pdf/20250821_2025年6月期 決算説明会資料.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_F/data/briefing_pdf/20250815_2025年6月期 決算補足資料.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "mcp__monthly__monthly_list",
+   "input": {
+    "code": "6036"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "mcp__monthly__monthly_get",
+   "input": {
+    "code": "6036",
+    "year": 2026
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "mcp__monthly__monthly_get",
+   "input": {
+    "code": "6036",
+    "year": 2025
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "mcp__monthly__monthly_get",
+   "input": {
+    "code": "6036",
+    "year": 2024
+   }
+  },
+  {
+   "kind": "text",
+   "text": "（Cursor Grok 4.6 隔離ラン。条件 F）\n\n```json\n{\n \"target\": \"2026年6月期 4Q単独（2026/4/1〜6/30）\",\n \"unit\": \"百万円\",\n \"forecast\": {\n  \"net_sales\": 7350,\n  \"gross_profit\": 3600,\n  \"sga\": 1460,\n  \"operating_income\": 2140\n },\n \"rationale\": {\n  \"net_sales\": \"monthly_get 2026の全社売上 4月2,452,607,006+5月2,530,629,289+6月2,341,950,783=7,325,187,078円。前年4–6月月次5,822,348,067円に対し、financials.jsonの2025年4Q売上5,851.3との比1.005を掛けると7,362。短信/月次の振れを見て7,350。3Q説明会の通期売上26,300の残り8,047は月次と整合せず未達。\",\n  \"gross_profit\": \"新区分。2025年4Q粗利率52.0%。2026年上期原価率は前年同期から+3.62pt。機械適用なら4Q粗利率48.4%。3Qの35.0%は閑散期固定費に加え特別賞与470が原価に入った可能性。4Qに賞与は載らない。売上+26%のレバレッジ、料金値上げ、6月既存客単価前年比140を見て49.0%。7,350×49.0%=3,600。\",\n  \"sga\": \"特別利益原資費用は2Q説明会で上期453・下期578（うち賞与470、4月CM18）。3Q説明会で賞与470を含む640が1–3月に計上済み。4Qに残る開示分は4月スポットTVCM 18。一過性のない1Q販管費1,325.9。前年4Q/1Q=1.09を掛け1,326×1.09=1,445、+18で1,460。\",\n  \"operating_income\": \"3,600−1,460=2,140（率29.1%、前年4Q 29.5%）。3Q累計4,279+2,140=通期約6,420で会社7,287は未達。\"\n },\n \"key_assumptions\": [\n  \"4–6月月次は確定。短信への変換誤差は±1%\",\n  \"特別賞与470と3Q成長投資640は4Qに再計上されない\",\n  \"4Q粗利率は上期の前年差をベースに繁忙と値上げで49%\"\n ],\n \"risks\": [\n  \"上振れ: 値上げ定着で粗利率51〜52%\",\n  \"下振れ: 3Q原価悪化が構造増\"\n ],\n \"confidence\": \"中\",\n \"files_used\": [\n  \"README.md\",\n  \"data/financials.json\",\n  \"data/briefing_pdf/20260529_2026年6月期 第3四半期 決算説明会資料.pdf\",\n  \"data/briefing_pdf/20260319_中期経営計画（2031年6月期）.pdf\",\n  \"data/briefing_pdf/20260217_（訂正）2026年6月期 第2四半期 決算説明会資料の一部訂正.pdf\",\n  \"data/briefing_pdf/20260216_2026年6月期 第2四半期 決算説明会資料.pdf\",\n  \"data/briefing_pdf/20251117_2026年6月期 第1四半期 決算説明会資料.pdf\",\n  \"data/briefing_pdf/20250821_2025年6月期 決算説明会資料.pdf\",\n  \"data/briefing_pdf/20250815_2025年6月期 決算補足資料.pdf\",\n  \"monthly_list(code=6036)\",\n  \"monthly_get(code=6036, year=2026)\",\n  \"monthly_get(code=6036, year=2025)\",\n  \"monthly_get(code=6036, year=2024)\"\n ]\n}\n```\n"
+  }
+ ]
+}

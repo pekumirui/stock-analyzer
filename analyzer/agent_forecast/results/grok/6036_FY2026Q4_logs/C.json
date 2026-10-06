@@ -1,0 +1,82 @@
+{
+ "condition": "C",
+ "claude_code_version": null,
+ "tools": [
+  "Read",
+  "Glob",
+  "Grep",
+  "monthly_list",
+  "monthly_get"
+ ],
+ "num_turns": 8,
+ "duration_s": 0,
+ "cost_usd": 0,
+ "usage": {
+  "input_tokens": 75524,
+  "cache_creation_input_tokens": 0,
+  "cache_read_input_tokens": 0,
+  "output_tokens": 717
+ },
+ "permission_denials": [
+  "Glob **/* leaked workspace paths; ignored hits outside allowed folders"
+ ],
+ "steps": [
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_C/README.md"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_C/data/financials.json"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "mcp__monthly__monthly_list",
+   "input": {
+    "code": "6036"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "mcp__monthly__monthly_get",
+   "input": {
+    "code": "6036",
+    "year": 2026
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "mcp__monthly__monthly_get",
+   "input": {
+    "code": "6036",
+    "year": 2025
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "mcp__monthly__monthly_get",
+   "input": {
+    "code": "6036",
+    "year": 2024
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "mcp__monthly__monthly_get",
+   "input": {
+    "code": "6036",
+    "year": 2023
+   }
+  },
+  {
+   "kind": "text",
+   "text": "（Cursor Grok 4.6 隔離ラン。条件 C）\n\n```json\n{\n \"target\": \"2026年6月期 4Q単独（2026/4/1〜6/30）\",\n \"unit\": \"百万円\",\n \"forecast\": {\n  \"net_sales\": 7362,\n  \"gross_profit\": 3510,\n  \"sga\": 1530,\n  \"operating_income\": 1980\n },\n \"rationale\": {\n  \"net_sales\": \"monthly_get(6036,2026)の全社売上高（円）4月2452607006＋5月2530629289＋6月2341950783＝7325187078円＝7325.2百万円。前年4-6月はmonthly_get(6036,2025)で5822.3百万円。financials.jsonの2025年6月期4Q単独NetSalesは5851.3で、月次比5851.3/5822.3＝1.0050。同じ比率を適用し7325.2×1.0050＝7362。会社予想残り26300−18253.2＝8047は月次実績と約700乖離するため不採用。\",\n  \"gross_profit\": \"新区分の前年4Q粗利率は3040.4/5851.3＝52.0%。今期1Qは46.9%（▲3.0pt）、2Qは54.4%（▲4.1pt）。3Qの35.0%はLABO営業利益▲196の閑散期＋出店負担で異常値とし、4Qにはスライドしない。繁忙期に近い2Qの構造差▲4.1ptを前年4Qに載せ、4月賃上げと6月直営+5店で▲0.7pt、5月既存売上前年比142.5%のレバレッジで+0.5pt。粗利率47.7%。7362×0.477＝3510。\",\n  \"sga\": \"新区分の販管費YoYは今期1Q +10.1%、2Q +15.6%、3Q +16.6%。前年4Q 1311.8×1.165＝1529。季節比は前年4Q/3Q＝1.206で、1267.8×1.206＝1529。丸めて1530。\",\n  \"operating_income\": \"定義どおり3510−1530＝1980。営業利益率26.9%（前年4Q 29.5%、▲2.6pt）。会社予想残りOP 7287−4279.1＝3008は利益率37%を要求するため不採用。\"\n },\n \"key_assumptions\": [\n  \"4-6月の月次全社売上は短信NetSalesと約0.5%の差で対応\",\n  \"3Q粗利率35%は一過性\",\n  \"直営店は3月末141→6月末149\"\n ],\n \"risks\": [\n  \"上振れ: 粗利率が49%近くまで戻る\",\n  \"下振れ: 出店コストが4Qも残る\"\n ],\n \"confidence\": \"中\",\n \"files_used\": [\n  \"README.md\",\n  \"data/financials.json\",\n  \"monthly_list(code=6036)\",\n  \"monthly_get(code=6036, year=2026)\",\n  \"monthly_get(code=6036, year=2025)\",\n  \"monthly_get(code=6036, year=2024)\",\n  \"monthly_get(code=6036, year=2023)\"\n ]\n}\n```\n"
+  }
+ ]
+}

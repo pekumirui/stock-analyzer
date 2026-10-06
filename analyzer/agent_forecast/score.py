@@ -64,7 +64,12 @@ def parse_run(path: Path) -> dict:
     result = next((e for e in events if e.get("type") == "result"), {})
     text = result.get("result") or ""
     blocks = re.findall(r"```json\s*(\{.*?\})\s*```", text, re.S)
-    forecast = json.loads(blocks[-1]) if blocks else {}
+    forecast: dict = {}
+    for raw in reversed(blocks):
+        obj = json.loads(raw)
+        if isinstance(obj, dict) and isinstance(obj.get("forecast"), dict):
+            forecast = obj
+            break
     tool_uses = [
         c
         for e in events

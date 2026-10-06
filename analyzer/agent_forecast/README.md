@@ -72,7 +72,9 @@ python3 build_conditions.py --target $T        # cond_A〜F と mcp/
 
 ### 3. 回して採点する
 
-実行ログと結果はベンダーごとに分ける（`$R/results/<vendor>/`、`results/<vendor>/`）。`run.py` は Claude（`claude -p`）用。他のベンダーのエージェントで回すときは、同じ条件フォルダ・同じプロンプト（`$R/results/prompt.md`）・同じ隔離（作業フォルダの外を読めない、シェルと Web なし）で起動し、ログを `$R/results/<vendor>/` に置く。`score.py` が読めるのは今は claude の stream-json だけ。
+実行ログと結果はベンダーごとに分ける（`$R/results/<vendor>/`、`results/<vendor>/`）。`run.py` は Claude（`claude -p`）用。他のベンダーのエージェントで回すときは、同じ条件フォルダ・同じプロンプト（`$R/results/prompt.md`）・同じ隔離（作業フォルダの外を読めない、シェルと Web なし）で起動し、ログを `$R/results/<vendor>/` に置く。
+
+Cursor の Grok は `claude -p` が無いので、条件フォルダを `/tmp` にコピーして Task サブエージェント（`cursor-grok-4.6-high`）を 1 条件ずつ起動する。C・F の月次 MCP はスナップショット JSON の Read で代用する。返ってきた予想は `pack_cursor_log.py` で score.py が読める JSONL にする（トークンは読んだファイルの文字数からの推定）。
 
 使ったモデルは、ログの init と `modelUsage` から `score.py` が取って表に出す。
 
@@ -82,6 +84,10 @@ python3 run.py --target $T B C D E F
 python3 run.py --target $T --tag _2 E F       # 同じ条件をもう一度（ぶれを見る）
 python3 score.py --target $T --vendor claude --markdown results/claude/<id>.md   # 画面にはモデル名も出る
 python3 slim_logs.py --target $T --vendor claude   # 軽量版の実行ログ → results/claude/<id>_logs/
+# Cursor Grok 4.6: 条件フォルダを隔離して Task で回し、返ってきた予想を JSONL にする
+python3 pack_cursor_log.py --target $T --cond A --text-file out.txt --meta-file meta.json
+python3 score.py --target $T --vendor grok --markdown results/grok/<id>.md
+python3 slim_logs.py --target $T --vendor grok
 ```
 
 `results/<vendor>/<id>.md` に結論を書き足し、軽量版の実行ログ（文章・ツール呼び出し・トークン。読んだ中身は除く）と一緒に、`$R/raw/financials.json` を `results/<id>_financials.json` に写してコミットする（材料のうち作り直しに MCP が要るのはこれだけ）。
@@ -91,3 +97,4 @@ python3 slim_logs.py --target $T --vendor claude   # 軽量版の実行ログ �
 | 対象 | 実行日 | 結論 |
 |---|---|---|
 | [ＫｅｅＰｅｒ技研 2026/6 期 4Q（Claude）](results/claude/6036_FY2026Q4.md) | 2026-10-07 | 売上は月次で決まり（誤差 −20%→−5%）、営業利益は月次＋説明資料で −52%→−11〜13%。月次は API の方が PDF より少ないトークン（E・F 3 回平均で −23%）で同じ精度、結果も安定。E・F 以外は 1 回 |
+| [ＫｅｅＰｅｒ技研 2026/6 期 4Q（Grok 4.6）](results/grok/6036_FY2026Q4.md) | 2026-10-07 | 売上は月次で決まり（A −21%→B/C/E/F −5%）。営業利益は月次で −47%→−19〜25% まで改善し、説明資料の上乗せは小さい（E/F −18〜19%）。月次 API は PDF より推定トークンが少ない。各条件 1 回 |
