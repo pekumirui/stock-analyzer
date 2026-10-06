@@ -1,10 +1,12 @@
 """実績（<root>/answer/ の短信 zip）と各条件の予想を比べ、誤差とトークンを表にする。
 
+実行ログは <root>/results/<vendor>/<条件>.jsonl（claude の stream-json）。使ったモデルはログの init と modelUsage から取る。
+
 実績の nQ 単独 = n Q 累計（短信 iXBRL）− (n-1)Q 累計（raw/financials.json）。4Q は通期 − 3Q 累計。
 会社予想からの逆算（4Q のみ）= 締切時点の最新の通期予想 − 3Q 累計。
 エージェントが cond_<X>/ の外を読もうとした形跡（permission_denials）も数える。
 
-  .venv/bin/python analyzer/agent_forecast/score.py --target targets/6036_FY2026Q4.json [--markdown out.md]
+  .venv/bin/python analyzer/agent_forecast/score.py --target targets/6036_FY2026Q4.json [--vendor claude] [--markdown out.md]
 """
 
 from __future__ import annotations
@@ -71,7 +73,10 @@ def parse_run(path: Path) -> dict:
         if c.get("type") == "tool_use"
     ]
     u = result.get("usage") or {}
+    init = next((e for e in events if e.get("type") == "system" and e.get("subtype") == "init"), {})
+    models = sorted(result.get("modelUsage") or {}) or [init.get("model") or "?"]
     return {
+        "model": ",".join(models),
         "forecast": forecast,
         "usage": {k: u.get(k) for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")},
         "total_tokens": sum(u.get(k) or 0 for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")),
@@ -92,7 +97,9 @@ def _pct(pred: float | None, actual: float) -> float | None:
 def main() -> None:
     ap = argparse.ArgumentParser()
     target_args(ap)
+    ap.add_argument("--vendor", default=None, help="results/<vendor>/ だけ採点する（省略で全部）")
     ap.add_argument("--markdown", type=Path, default=None, help="結果を Markdown で書き出す")
+    ap.add_argument("--no-model", action="store_true", help="Markdown にモデル名を書かない")
     args = ap.parse_args()
     t = load_target(args.target)
     root = root_of(t, args.root)
@@ -112,40 +119,51 @@ def main() -> None:
             guidance = {k: round(latest[label] - prev[ITEMS[k][0]], 1) for k, label in GUIDANCE_KEYS.items() if label in latest}
 
     rows = []
-    for path in sorted((root / "results").glob("*.jsonl")):
+    for path in sorted((root / "results").glob(f"{args.vendor or '*'}/*.jsonl")):
         r = parse_run(path)
         fc = r["forecast"].get("forecast", {})
-        rows.append({"cond": path.stem, **r, "error_pct": {k: _pct(fc.get(k), actual[k]) for k in actual}})
+        rows.append({"vendor": path.parent.name, "cond": path.stem, **r, "error_pct": {k: _pct(fc.get(k), actual[k]) for k in actual}})
 
-    lines = [
+    def table(with_model: bool) -> list[str]:
+        head = ["ベンダー", "条件"] + (["モデル"] if with_model else [])
+        tail = ["総トークン", "出力", "費用$", "ターン", "読んだファイル", "MCP", "拒否"]
+        blank = " |" * (len(head) - 1)
+        out = [
+            "| " + " | ".join(head + [ITEMS[k][1] for k in actual] + tail) + " |",
+            "|" + "---|" * (len(head) + len(actual) + len(tail)),
+            "| 実績 |" + blank + " " + " | ".join(f"{v:,.1f}" for v in actual.values()) + " |" * (len(tail) + 1),
+        ]
+        if guidance:
+            out.append(
+                "| 会社予想から逆算 |" + blank + " "
+                + " | ".join((f"{guidance[k]:,.1f} ({_pct(guidance[k], actual[k])}%)" if k in guidance else "−") for k in actual)
+                + " |" * (len(tail) + 1)
+            )
+        for r in rows:
+            fc = r["forecast"].get("forecast", {})
+            cells = [r["vendor"], r["cond"]] + ([r["model"]] if with_model else [])
+            cells += [(f"{fc[k]:,} ({r['error_pct'][k]}%)" if k in fc else "−") for k in actual]
+            cells += [
+                f"{r['total_tokens']:,}", f"{r['usage']['output_tokens'] or 0:,}", str(r["cost"]), str(r["turns"]),
+                str(len(r["reads"])), str(r["mcp_calls"]), str(len(r["denials"])),
+            ]
+            out.append("| " + " | ".join(cells) + " |")
+        return out
+
+    head_lines = [
         f"## {t['name']} {target_label(t)}",
         "",
         f"締切 {t['cutoff']} / 発表 {t['announce']}。単位は百万円、括弧内は実績との誤差。",
         "",
-        "| 条件 | " + " | ".join(ITEMS[k][1] for k in actual) + " | 総トークン | 出力 | 費用$ | ターン | 読んだファイル | MCP | 拒否 |",
-        "|" + "---|" * (len(actual) + 8),
-        "| 実績 | " + " | ".join(f"{v:,.1f}" for v in actual.values()) + " | | | | | | | |",
     ]
-    if guidance:
-        lines.append(
-            "| 会社予想から逆算 | "
-            + " | ".join((f"{guidance[k]:,.1f} ({_pct(guidance[k], actual[k])}%)" if k in guidance else "−") for k in actual)
-            + " | | | | | | | |"
-        )
-    for r in rows:
-        fc = r["forecast"].get("forecast", {})
-        cells = [(f"{fc[k]:,} ({r['error_pct'][k]}%)" if k in fc else "−") for k in actual]
-        lines.append(
-            f"| {r['cond']} | " + " | ".join(cells)
-            + f" | {r['total_tokens']:,} | {r['usage']['output_tokens'] or 0:,} | {r['cost']} | {r['turns']} | {len(r['reads'])} | {r['mcp_calls']} | {len(r['denials'])} |"
-        )
-    print("\n".join(lines))
+    lines = head_lines + table(with_model=not args.no_model)
+    print("\n".join(head_lines + table(with_model=True)))
 
     if args.markdown:
         detail = ["", "## 各条件の出力", ""]
         for r in rows:
             detail += [
-                f"### {r['cond']}",
+                f"### {r['vendor']} / {r['cond']}" + ("" if args.no_model else f"（{r['model']}）"),
                 "",
                 f"読んだファイル: {', '.join(r['reads']) or 'なし'}",
                 "",

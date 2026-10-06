@@ -1,4 +1,6 @@
-"""条件ごとに claude -p を 1 回起動し、stream-json の全イベントを <root>/results/<X>.jsonl に保存する。
+"""条件ごとに claude -p を 1 回起動し、stream-json の全イベントを <root>/results/claude/<X>.jsonl に保存する。
+
+結果はベンダーごとのフォルダに置く（他のベンダーのエージェントは別の起動スクリプトで results/<vendor>/ に置く）。
 
 読めるのは cond_<X>/ の中だけ（Read の許可ルール）。道具は Read / Glob / Grep と、条件によって月次 MCP。
 全許可モードは使わない。-p では許可していない操作は自動で拒否される。
@@ -18,12 +20,15 @@ from build_conditions import CONDITIONS
 from common import load_target, render_prompt, root_of, target_args
 
 
+VENDOR = "claude"
+
+
 def run(root: Path, name: str, prompt: str, model: str | None, timeout: int, tag: str) -> Path:
     cond = root / f"cond_{name}"
     if not cond.exists():
         raise SystemExit(f"{cond} が無い。build_conditions.py を先に")
-    out = root / "results" / f"{name}{tag}.jsonl"
-    out.parent.mkdir(exist_ok=True)
+    out = root / "results" / VENDOR / f"{name}{tag}.jsonl"
+    out.parent.mkdir(parents=True, exist_ok=True)
     allowed = [f"Read(/{cond}/**)"]
     if CONDITIONS[name]["monthly_api"]:
         allowed += ["mcp__monthly__monthly_list", "mcp__monthly__monthly_get"]
@@ -54,8 +59,9 @@ def run(root: Path, name: str, prompt: str, model: str | None, timeout: int, tag
         (e for e in map(json.loads, filter(str.strip, out.read_text().splitlines())) if e.get("type") == "result"),
         {},
     )
+    used = ",".join(result.get("modelUsage") or {}) or "?"
     print(
-        f"cond_{name}{tag}: {time.time() - t0:.0f}s turns={result.get('num_turns')} "
+        f"{VENDOR}/cond_{name}{tag} ({used}): {time.time() - t0:.0f}s turns={result.get('num_turns')} "
         f"cost=${result.get('total_cost_usd')} denials={len(result.get('permission_denials') or [])}"
     )
     return out
