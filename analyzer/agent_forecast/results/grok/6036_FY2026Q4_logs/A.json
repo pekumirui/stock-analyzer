@@ -1,0 +1,42 @@
+{
+ "condition": "A",
+ "claude_code_version": null,
+ "tools": [
+  "Read",
+  "Glob",
+  "Grep"
+ ],
+ "num_turns": 3,
+ "duration_s": 0,
+ "cost_usd": 0,
+ "usage": {
+  "input_tokens": 44275,
+  "cache_creation_input_tokens": 0,
+  "cache_read_input_tokens": 0,
+  "output_tokens": 856
+ },
+ "permission_denials": [
+  "Glob(target_directory=/tmp/grok-forecast/A) returned workspace paths; those hits were not read",
+  "Grep also listed /workspace/forecast-exp copies; those paths were not opened"
+ ],
+ "steps": [
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_A/README.md"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_A/data/financials.json"
+   }
+  },
+  {
+   "kind": "text",
+   "text": "（Cursor Grok 4.6 隔離ラン。条件 A）\n\n```json\n{\n \"target\": \"2026年6月期 4Q単独（2026/4/1〜6/30）\",\n \"unit\": \"百万円\",\n \"forecast\": {\n  \"net_sales\": 6120,\n  \"gross_profit\": 2910,\n  \"sga\": 1500,\n  \"operating_income\": 1410\n },\n \"rationale\": {\n  \"net_sales\": \"data/financials.json の quarterly_standalone。前年4Q売上 5851.3。今期前年比は1Q +6.7%（5774.3/5411.8）、2Q +7.1%（7164.0/6686.7）、3Q +3.3%（5314.9/5143.5）と減速。4Qは春需要でやや持ち直し +4.6% とし 5851.3×1.046≒6120。検算① LABO 3335.2×1.055≒3519、製品外部売上 2516.0×1.033≒2599、合計6118。検算② 前年4Q/3Q倍率 5851.3/5143.5=1.138 を今期3Qに掛けると 5314.9×1.138≒6046（下限）。会社通期26300−3Q累計18253.2=残り8046.8は、前年も3Q時点残り7258に対し4Q実績5851と過大だったため不採用。\",\n  \"gross_profit\": \"新区分の粗利率。前年4Qは 3040.4/5851.3=52.0%。今期差は1Q −3.0pt（46.9%）、2Q −4.1pt（54.4%）、3Q −12.2pt（35.0%、原価3453.4）。3QはLABO営利 −196.2（前年+371.7）で、冬場の数量減に店コスト（新区分では売上原価）が残ったレバレッジ悪化と解釈。4Q売上は3Qより約15%多く上期ギャップに戻るとし、52.0%−4.5pt=47.5%。6120×0.475≒2910（原価3210）。1Q粗利率46.9%と2Q 54.4%の間に位置する。\",\n  \"sga\": \"前年4Q販管費1311.8。今期前年比は1Q +10.1%（1325.9）、2Q +15.6%（1592.3）、3Q +16.6%（1267.8）。金額の季節は前年3Q→4Qで +224.4（1087.4→1311.8）。今期3Q 1267.8+224≒1492。前年4Q×1.14≒1495。丸めて1500（売上比24.5%。今期3Qは23.9%）。\",\n  \"operating_income\": \"定義どおり 2910−1500=1410（率23.0%、前年4Q 1728.5/5851.3=29.5%から−6.5pt）。セグメント検算: LABO売上約3520×営利率約13%（前年4Q 663.8/3335.2=19.9%−上期ギャップ約7pt）≒460、製品セグメント約2760×約34.5%（前年4Q 1064.7/2658.5=40.1%−約6pt）≒950、合計約1410。会社予想の残り営利3008（7287−4279.1）は直近ランレートと整合しないため不採用。\"\n },\n \"key_assumptions\": [\n  \"4Qの季節性は例年どおり\",\n  \"売上前年比は3Qの+3.3%から春需要で+4.6%へやや持ち直す\",\n  \"3Qの粗利率急落は数量減によるレバレッジ悪化が主因で、4Qは上期並みの−4.5pt悪化に戻る\",\n  \"販管費は3Qまでの+10〜17%増が続く\",\n  \"会社通期の残りは達成前提にしない\",\n  \"原価・販管費は2025年2月以降の新区分\"\n ],\n \"risks\": [\n  \"上振れ: 4月以降のLABO既存店回復\",\n  \"下振れ: 3QのLABOコスト増が構造的\"\n ],\n \"confidence\": \"中\",\n \"files_used\": [\n  \"README.md\",\n  \"data/financials.json\"\n ]\n}\n```\n"
+  }
+ ]
+}

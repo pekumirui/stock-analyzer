@@ -50,6 +50,9 @@ $RECYCLE.BIN/
 .cursor/skills/verify-stock-analyzer/.run/
 .cursor/skills/verify-stock-analyzer/artifacts/
 
+# --- agent_forecast の作業フォルダ（PDF・条件コピー。結果の要約だけリポジトリへ） ---
+forecast-exp/
+
 # --- ログ・一時ファイル ---
 *.log
 tmp/

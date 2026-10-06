@@ -1,0 +1,76 @@
+{
+ "condition": "D",
+ "claude_code_version": null,
+ "tools": [
+  "Read",
+  "Glob",
+  "Grep"
+ ],
+ "num_turns": 8,
+ "duration_s": 0,
+ "cost_usd": 0,
+ "usage": {
+  "input_tokens": 169278,
+  "cache_creation_input_tokens": 0,
+  "cache_read_input_tokens": 0,
+  "output_tokens": 757
+ },
+ "permission_denials": [
+  "初回 Glob が /workspace を返し briefing PDF のファイル名が取れなかった。ファイル名を渡して再開。workspace のヒットは開いていない"
+ ],
+ "steps": [
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_D/README.md"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_D/data/financials.json"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_D/data/briefing_pdf/20260529_2026年6月期 第3四半期 決算説明会資料.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_D/data/briefing_pdf/20260217_（訂正）2026年6月期 第2四半期 決算説明会資料の一部訂正.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_D/data/briefing_pdf/20260319_中期経営計画（2031年6月期）.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_D/data/briefing_pdf/20251117_2026年6月期 第1四半期 決算説明会資料.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_D/data/briefing_pdf/20250821_2025年6月期 決算説明会資料.pdf"
+   }
+  },
+  {
+   "kind": "text",
+   "text": "（Cursor Grok 4.6 隔離ラン。条件 D）\n\n```json\n{\n \"target\": \"2026年6月期 4Q単独（2026/4/1〜6/30）\",\n \"unit\": \"百万円\",\n \"forecast\": {\n  \"net_sales\": 6500,\n  \"gross_profit\": 3020,\n  \"sga\": 1220,\n  \"operating_income\": 1800\n },\n \"rationale\": {\n  \"net_sales\": \"financials.jsonの9M売上18253.2、会社予想26300の残り8047は不使用。2025/6期は計画24500に対し実績23093（達成率94.2%、通期説明会p.2）。同じ達成率なら26300×0.942−18253≒6522。内訳: LABOは3Q説明会の来店+9.8%・店舗171・前年4Q/3Q=3335/2742=1.216を2,889へ → 約3513、出店・FCで3630。製品は9Mアフター4971(+2.6%)・新車2950(+24.1%)・車以外245(-58.6%)。4/1環境性能割廃止による2-3月納車ズレの4Q戻りと車以外の挽回（3Q p.13-14）で2870。合計6500。\",\n  \"gross_profit\": \"新区分。3Q報告粗利率35.0%は店舗原価のレバレッジ。増減益分析では粗利率ほぼ横ばい（3Q p.4）。9M粗利率8465/18253=46.4%。前年4Qは52.0%で9M52.4%と一致。4Qも9M並み46.5%。6500×0.465=3022.5≒3020。\",\n  \"sga\": \"3Q販管1268のうち成長投資640（特別賞与470、TV番組90等、3Q p.2）。2Qは453。9M販管4186−1093=コア3093。前年4Q/9M=1312/3669=35.8%をコアに乗せると1107。4月スポットCM18（2Q訂正p.13）と4Q販促で1220。賞与470は4Qに再発させない。\",\n  \"operating_income\": \"3020-1220=1800。会社の残り3008（7287-4279）は使わない。\"\n },\n \"key_assumptions\": [\n  \"特別利益原資の費用1,093百万円は販管費。特別賞与470は3Q計上済みで4Qは再発しない\",\n  \"通期売上26300は達成率約94%\",\n  \"4月の環境性能割廃止に伴う新車納車ズレは4Qに戻る\"\n ],\n \"risks\": [\n  \"上振れ: 値上げと新車納車の4月以降集中\",\n  \"下振れ: 新店の原価負担が4Qも続く\"\n ],\n \"confidence\": \"中\",\n \"files_used\": [\n  \"README.md\",\n  \"data/financials.json\",\n  \"data/briefing_pdf/20260529_2026年6月期 第3四半期 決算説明会資料.pdf\",\n  \"data/briefing_pdf/20260217_（訂正）2026年6月期 第2四半期 決算説明会資料の一部訂正.pdf\",\n  \"data/briefing_pdf/20260319_中期経営計画（2031年6月期）.pdf\",\n  \"data/briefing_pdf/20251117_2026年6月期 第1四半期 決算説明会資料.pdf\",\n  \"data/briefing_pdf/20250821_2025年6月期 決算説明会資料.pdf\"\n ]\n}\n```\n"
+  }
+ ]
+}

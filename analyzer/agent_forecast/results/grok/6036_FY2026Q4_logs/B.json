@@ -1,0 +1,104 @@
+{
+ "condition": "B",
+ "claude_code_version": null,
+ "tools": [
+  "Read",
+  "Glob",
+  "Grep"
+ ],
+ "num_turns": 12,
+ "duration_s": 0,
+ "cost_usd": 0,
+ "usage": {
+  "input_tokens": 159674,
+  "cache_creation_input_tokens": 0,
+  "cache_read_input_tokens": 0,
+  "output_tokens": 938
+ },
+ "permission_denials": [
+  "初回 Glob/Grep が /workspace を返したため月次PDFを読めず、ファイル名を渡して再開した。workspace のヒットは開いていない"
+ ],
+ "steps": [
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_B/README.md"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_B/data/financials.json"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_B/data/monthly_pdf/20260508_月次速報（2026年4月）.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_B/data/monthly_pdf/20260603_月次速報（2026年5月）.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_B/data/monthly_pdf/20260703_月次速報（2026年6月）.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_B/data/monthly_pdf/20260805_月次速報（2026年7月）.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_B/data/monthly_pdf/20250507_月次速報（2025年4月度）.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_B/data/monthly_pdf/20250604_月次速報（2025年5月度）.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_B/data/monthly_pdf/20250703_月次速報（2025年6月度）.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_B/data/monthly_pdf/20260403_月次速報（2026年3月）.pdf"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "/cond_B/data/monthly_pdf/20250805_月次速報（2025年7月）.pdf"
+   }
+  },
+  {
+   "kind": "text",
+   "text": "（Cursor Grok 4.6 隔離ラン。条件 B）\n\n```json\n{\n \"target\": \"2026年6月期 4Q単独（2026/4/1〜6/30）\",\n \"unit\": \"百万円\",\n \"forecast\": {\n  \"net_sales\": 7346,\n  \"gross_profit\": 3783,\n  \"sga\": 1640,\n  \"operating_income\": 2143\n },\n \"rationale\": {\n  \"net_sales\": \"月次速報の全社合計（千円）を最新表で合算。2026/4=2,452,607（20260508）、5=2,530,629（20260603）、6=2,341,950（20260703）。計 7,325,186千円=7,325.2百万円。前年4Q月次は2026年6月度で改定後の 2025/4=2,300,757、5=1,669,280、6=1,864,610、計 5,834.6。短信FY25 4Q売上 5,851.3（financials.json）との比 5,851.3/5,834.6=1.00285 を今期月次に適用: 7,325.2×1.00285=7,346。7月 2,396（+14.9%）は翌期のため加算しない。\",\n  \"gross_profit\": \"新区分。FY25 4Q 粗利率 3,040.4/5,851.3=51.96%。FY26上期は 6,603.5/12,938.3=51.04% で前年上期54.66%から▲3.6pt。3Qの35.03%は月次どおり3月▲4.9%（納車ずれ・冬）の操業度悪化。4Q月次は5月全社+51.6%・6月客単価+40%で売上規模が2Q（7,164、粗利率54.40%）に近い。51.96−3.6＋増収レバレッジ−新店（4Q直営8店）を差し引き51.5%。7,346×0.515=3,783。\",\n  \"sga\": \"FY26 2Q販管費 1,592.3（売上比22.23%）を今期4Q売上にスライド: 1,592.3×7,346/7,164=1,632.7。4Qは直営8店開業を+7程度見て1,640（売上比22.3%）。前年4Q 1,311.8の+25%で、月次の3〜4月100名超増員・売上増に伴う変動費と整合。\",\n  \"operating_income\": \"新区分の定義どおり 3,783−1,640=2,143。営利率29.2%はFY25 4Qの29.5%並み、FY26 2Qの32.2%は下回る（新店・増員）。会社予想残 7,287−4,279.1=3,008 は営利率41%相当で不採用。\"\n },\n \"key_assumptions\": [\n  \"4Q売上は月次4〜6月の速報合計を前年同四半期の短信/月次倍率で換算\",\n  \"5月の新車供給回復と6月の値上げ前予約が4Qの本体\",\n  \"粗利率は前年4Qから構造差▲3.6ptを残しつつ増収で51.5%\",\n  \"販管費率は2Q並み\",\n  \"7月月次は翌期\"\n ],\n \"risks\": [\n  \"上振れ: 短信/月次倍率が1.01\",\n  \"下振れ: 3Qの原価率が4Qに残る\"\n ],\n \"confidence\": \"中\",\n \"files_used\": [\n  \"README.md\",\n  \"data/financials.json\",\n  \"data/monthly_pdf/20260508_月次速報（2026年4月）.pdf\",\n  \"data/monthly_pdf/20260603_月次速報（2026年5月）.pdf\",\n  \"data/monthly_pdf/20260703_月次速報（2026年6月）.pdf\",\n  \"data/monthly_pdf/20260805_月次速報（2026年7月）.pdf\",\n  \"data/monthly_pdf/20250507_月次速報（2025年4月度）.pdf\",\n  \"data/monthly_pdf/20250604_月次速報（2025年5月度）.pdf\",\n  \"data/monthly_pdf/20250703_月次速報（2025年6月度）.pdf\",\n  \"data/monthly_pdf/20260403_月次速報（2026年3月）.pdf\",\n  \"data/monthly_pdf/20250805_月次速報（2025年7月）.pdf\"\n ]\n}\n```\n"
+  }
+ ]
+}
