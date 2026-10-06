@@ -79,7 +79,7 @@ python3 run.py --target $T --tag _2 E F       # 同じ条件をもう一度（�
 python3 score.py --target $T --markdown results/<id>.md
 ```
 
-`results/<id>.md` に結論を書き足してコミットする。
+`results/<id>.md` に結論を書き足し、`$R/raw/financials.json` を `results/<id>_financials.json` に写してコミットする（材料のうち作り直しに MCP が要るのはこれだけ）。
 
 ## 結果
 
