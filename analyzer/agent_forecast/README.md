@@ -81,9 +81,10 @@ python3 run.py --target $T A                  # まず 1 条件で確かめる�
 python3 run.py --target $T B C D E F
 python3 run.py --target $T --tag _2 E F       # 同じ条件をもう一度（ぶれを見る）
 python3 score.py --target $T --vendor claude --markdown results/claude/<id>.md   # 画面にはモデル名も出る
+python3 slim_logs.py --target $T --vendor claude   # 軽量版の実行ログ → results/claude/<id>_logs/
 ```
 
-`results/<vendor>/<id>.md` に結論を書き足し、`$R/raw/financials.json` を `results/<id>_financials.json` に写してコミットする（材料のうち作り直しに MCP が要るのはこれだけ）。
+`results/<vendor>/<id>.md` に結論を書き足し、軽量版の実行ログ（文章・ツール呼び出し・トークン。読んだ中身は除く）と一緒に、`$R/raw/financials.json` を `results/<id>_financials.json` に写してコミットする（材料のうち作り直しに MCP が要るのはこれだけ）。
 
 ## 結果
 
