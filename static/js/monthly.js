@@ -719,10 +719,13 @@ function monthlyTreeCount(nodes, k){
   return nodes.reduce((a, n) => a + n.recs.filter(r => r.mkey === k).length + monthlyTreeCount(n.children, k), 0);
 }
 
+// 指標 k の最初の行とその節（{n, r}）
 function monthlyTreeFirst(nodes, k){
   for(const n of nodes){
-    const r = n.recs.find(q => q.mkey === k) || monthlyTreeFirst(n.children, k);
-    if(r) return r;
+    const r = n.recs.find(q => q.mkey === k);
+    if(r) return {n, r};
+    const hit = monthlyTreeFirst(n.children, k);
+    if(hit) return hit;
   }
   return null;
 }
@@ -865,8 +868,10 @@ function monthlyTreeHtml(tm, cellsFor, cols){
     const kids = top.filter(n => monthlyTreePlaceUnder(tm, n, k, home(n)(k)));
     const ms = monthlyTreeSubs(tm, k).filter(content);
     if(!pk && !mine.length && !ms.length && !monthlyTreeSubs(tm, k).length && monthlyTreeCount(top, k) === 1){
-      const r = monthlyTreeFirst(top, k);
-      body += row(r, r.element, depth);
+      // config の木は「節名 葉」（直営 既存 売上高）。保存名の頭の事業名（キーパーLABO運営事業）を 1 段目に出すと、
+      // 同じ事業が他の指標では 2 段目の節に出ていて深さが食い違う。自動の木は保存名のまま
+      const {n, r} = monthlyTreeFirst(top, k);
+      body += row(r, tm.auto ? r.element : monthlyTreeOtherName(n, r), depth);
       return;
     }
     const key = "m:" + k;
