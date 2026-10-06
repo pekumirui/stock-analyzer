@@ -232,6 +232,8 @@ cd /home/stock/stock-analyzer
 
 書けなかった銘柄は `/var/log/app/tdnet_monthly_pdf_sidecar.log` に `manual <code> <pdf>: <理由>` が出る（page しない）。理由は次のどれか。今までどおり MCP `monthly_ingest` で入れる。
 
+ＫｅｅＰｅｒ技研（6036）は表の形が複雑で毎月 manual になる。行名を考えずに `tools/keeper_monthly.py <PDF>` の出力（`code` / `as_of` / `months` / `rows`）をそのまま MCP `monthly_ingest` に渡す。先に `dry_run=true` で暦年と行名（新しい行ができないこと）を確かめる。足し算（全社 = LABO + 製品 など）が合わなければスクリプトが止まる。行名の決め方は `docs/DESIGN_monthly_labels.md`。
+
 | 理由 | 意味 |
 |---|---|
 | `表N の見出し …` / `表の数 …` / `表N の行 …` | 前回と書式が違う（列・表・行名が変わった） |
