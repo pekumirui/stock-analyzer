@@ -40,6 +40,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `app/jquants.py` | J-Quants API V2 クライアント（認証・ページング・レート制限） |
 | `app/ingest.py` | API → DB 取込（UPSERT・冪等） |
 | `app/analytics.py` | MA / RS / ステージ / Q単独 / 決算後リターン |
+| `app/fx.py` | Frankfurter ECB 対EUR レートとクロス換算 |
 | `app/api.py` | REST (`/api/*`) |
 | `app/monthly_ingest.py` | PDF 月次列 → 暦年。行名正規化と aliases |
 | `app/monthly_tree.py` | 月次の親子関係。`monthly_row_order.json` の `tree`、無ければゲートと内訳から作る自動の木を行に割り当てる。year GET の `tree` |
@@ -48,6 +49,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `app/xbrl/` | TDnet 短信 iXBRL の parse / YAML マッピング / normalize。UI には出さない |
 | `app/xbrlp/` | kawasin73 gist の vendor。改変しない |
 | `jobs/run_batch.py` | 日次バッチ / バックフィル |
+| `jobs/fx_rates.py` | Frankfurter 為替の日次差分 / `--backfill`（1999-01-04〜） |
 | `jobs/check_demo.py` | スキーマ検査 + 旧デモ取り残しガード。`batch` / `backfill` の前に走る |
 | `jobs/*_r2.py` | TDnet / IR → R2 mount。下の「R2 バッチ」 |
 | `jobs/_r2common.py` | R2 バッチの共通処理（日付・HTTP・銘柄マスタ・ファイル名）。`app` は import しない |

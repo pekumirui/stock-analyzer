@@ -1,13 +1,15 @@
-"""Streamable HTTP MCP for VPS logs, SQLite stats, and monthly tables.
+"""Streamable HTTP MCP for VPS logs, SQLite stats, monthly tables, and FX rates.
 
 No extra deps: Starlette ships with FastAPI. Listens on 127.0.0.1:8010/mcp.
 Arbitrary shell/SQL is not exposed. journalctl units, log paths, and SELECT shapes are allowlisted.
 Monthly table tools call http://127.0.0.1:8000/api/v1/tables only (not nginx, not user URLs).
 monthly_ingest POSTs /api/v1/tables/{code}/ingest and does not send year.
+FX tools read fx_rates (EUR base) and compute cross rates. They do not call Frankfurter.
 """
 from __future__ import annotations
 
 import sqlite3
+import sys
 import base64
 import gzip
 import hashlib
@@ -22,7 +24,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable
 from urllib.parse import parse_qsl, quote, urlencode, urlparse, urlunparse
@@ -31,6 +33,11 @@ from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
 from starlette.routing import Route
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 
 def app_dir() -> Path:
     return Path(os.environ.get("MCP_APP_DIR") or Path(__file__).resolve().parent.parent)
@@ -115,7 +122,12 @@ def crontab_job_names() -> tuple[str, ...]:
 
 BATCH_JOBS = frozenset(crontab_job_names())
 YEAR_RE = re.compile(r"^\d{4}$")
-DB_TABLES = ("stocks", "daily_prices", "topix", "statements", "indicators", "earnings_events")
+DB_TABLES = (
+    "stocks", "daily_prices", "topix", "statements", "indicators",
+    "earnings_events", "fx_rates",
+)
+DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+FX_MAX_OBS = 500
 DEFAULT_APP_HTTP = "http://127.0.0.1:8000"
 APP_HTTP_TIMEOUT = 10
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
@@ -848,6 +860,11 @@ def tool_db_stats(_args: dict[str, Any]) -> str:
             elif table == "indicators":
                 mn, mx = conn.execute("SELECT MIN(date), MAX(date) FROM indicators").fetchone()
                 extra = f"  {mn}..{mx}"
+            elif table == "fx_rates":
+                mn, mx, quotes, days = conn.execute(
+                    "SELECT MIN(date), MAX(date), COUNT(DISTINCT quote), COUNT(DISTINCT date) FROM fx_rates"
+                ).fetchone()
+                extra = f"  {mn}..{mx}  quotes={quotes} days={days}"
             parts.append(f"{table}: {n}{extra}")
     finally:
         conn.close()
@@ -908,6 +925,184 @@ def tool_db_lookup(args: dict[str, Any]) -> str:
     finally:
         conn.close()
     return "\n".join(parts)
+
+
+def parse_iso_date(raw: Any, label: str) -> date:
+    s = str(raw or "").strip()
+    if not DATE_ONLY_RE.fullmatch(s):
+        raise ValueError(f"{label} must be YYYY-MM-DD")
+    try:
+        return date.fromisoformat(s)
+    except ValueError as exc:
+        raise ValueError(f"invalid {label}") from exc
+
+
+def _fx_mod():
+    from app.fx import (  # noqa: PLC0415
+        FX_EARLIEST,
+        HOLIDAY_NOTE,
+        FxLookupError,
+        cross_rate,
+        needed_quotes,
+        parse_pair,
+    )
+
+    return FX_EARLIEST, HOLIDAY_NOTE, FxLookupError, cross_rate, needed_quotes, parse_pair
+
+
+def _fx_open(conn: sqlite3.Connection) -> None:
+    names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    if "fx_rates" not in names:
+        raise ValueError("fx_rates table is missing; run python jobs/fx_rates.py --backfill")
+
+
+def _fx_as_of(conn: sqlite3.Connection, requested: str, quotes: tuple[str, ...]) -> str | None:
+    if not quotes:
+        row = conn.execute(
+            "SELECT MAX(date) FROM fx_rates WHERE date <= ?", (requested,),
+        ).fetchone()
+        return str(row[0]) if row and row[0] else None
+    placeholders = ",".join("?" * len(quotes))
+    row = conn.execute(
+        "SELECT date FROM fx_rates "
+        f"WHERE date <= ? AND quote IN ({placeholders}) "
+        "GROUP BY date HAVING COUNT(DISTINCT quote) >= ? "
+        "ORDER BY date DESC LIMIT 1",
+        (requested, *quotes, len(quotes)),
+    ).fetchone()
+    return str(row[0]) if row and row[0] else None
+
+
+def _fx_eur_rates(conn: sqlite3.Connection, as_of: str, quotes: tuple[str, ...]) -> dict[str, float]:
+    if not quotes:
+        return {"EUR": 1.0}
+    placeholders = ",".join("?" * len(quotes))
+    rows = conn.execute(
+        f"SELECT quote, rate FROM fx_rates WHERE date = ? AND quote IN ({placeholders})",
+        (as_of, *quotes),
+    ).fetchall()
+    rates = {"EUR": 1.0}
+    for row in rows:
+        rates[str(row["quote"])] = float(row["rate"])
+    return rates
+
+
+def _fx_pair_args(args: dict[str, Any]) -> tuple[str, str]:
+    _earliest, _note, err, _cross, _need, parse_pair = _fx_mod()
+    try:
+        return parse_pair(args.get("pair"), args.get("base"), args.get("quote"))
+    except err as exc:
+        raise ValueError(str(exc)) from exc
+
+
+def tool_fx_rate(args: dict[str, Any]) -> str:
+    fx = _fx_mod()
+    earliest, note, err, cross_rate, needed_quotes, _parse = fx
+    requested = parse_iso_date(args.get("date"), "date")
+    if requested < earliest:
+        raise ValueError(f"date must be on or after {earliest.isoformat()}")
+    base, quote = _fx_pair_args(args)
+    conn = open_db()
+    try:
+        _fx_open(conn)
+        need = needed_quotes(base, quote)
+        as_of = _fx_as_of(conn, requested.isoformat(), need)
+        if as_of is None:
+            raise ValueError(
+                f"no FX rate on or before {requested.isoformat()} for {base}/{quote}"
+            )
+        rates = _fx_eur_rates(conn, as_of, need)
+        try:
+            rate = cross_rate(rates, base, quote)
+        except err as exc:
+            raise ValueError(str(exc)) from exc
+        body = {
+            "pair": f"{base}/{quote}",
+            "base": base,
+            "quote": quote,
+            "requested_date": requested.isoformat(),
+            "as_of": as_of,
+            "holiday_fallback": as_of != requested.isoformat(),
+            "rate": rate,
+            "holiday_policy": note,
+        }
+    finally:
+        conn.close()
+    return json.dumps(body, ensure_ascii=False, indent=2)
+
+
+def tool_fx_rates(args: dict[str, Any]) -> str:
+    fx = _fx_mod()
+    earliest, note, err, cross_rate, needed_quotes, _parse = fx
+    start = parse_iso_date(args.get("from") or args.get("start"), "from")
+    end = parse_iso_date(args.get("to") or args.get("end"), "to")
+    if end < start:
+        raise ValueError("to must be on or after from")
+    if start < earliest:
+        raise ValueError(f"from must be on or after {earliest.isoformat()}")
+    base, quote = _fx_pair_args(args)
+    limit = clamp_lines(args.get("lines") or FX_MAX_OBS)
+    conn = open_db()
+    try:
+        _fx_open(conn)
+        need = needed_quotes(base, quote)
+        observations: list[dict[str, Any]] = []
+        truncated = False
+        if not need:
+            rows = conn.execute(
+                "SELECT DISTINCT date FROM fx_rates "
+                "WHERE date >= ? AND date <= ? ORDER BY date LIMIT ?",
+                (start.isoformat(), end.isoformat(), limit + 1),
+            ).fetchall()
+            truncated = len(rows) > limit
+            for row in rows[:limit]:
+                day = str(row["date"])
+                observations.append({
+                    "date": day, "as_of": day, "holiday_fallback": False, "rate": 1.0,
+                })
+        else:
+            placeholders = ",".join("?" * len(need))
+            rows = conn.execute(
+                "SELECT date, quote, rate FROM fx_rates "
+                f"WHERE date >= ? AND date <= ? AND quote IN ({placeholders}) "
+                "ORDER BY date, quote",
+                (start.isoformat(), end.isoformat(), *need),
+            ).fetchall()
+            by_day: dict[str, dict[str, float]] = {}
+            for row in rows:
+                by_day.setdefault(str(row["date"]), {})[str(row["quote"])] = float(row["rate"])
+            for day in sorted(by_day):
+                rates = dict(by_day[day])
+                if any(c not in rates for c in need):
+                    continue
+                rates["EUR"] = 1.0
+                try:
+                    rate = cross_rate(rates, base, quote)
+                except err as exc:
+                    raise ValueError(str(exc)) from exc
+                observations.append({
+                    "date": day, "as_of": day, "holiday_fallback": False, "rate": rate,
+                })
+                if len(observations) >= limit:
+                    truncated = True
+                    break
+        body = {
+            "pair": f"{base}/{quote}",
+            "base": base,
+            "quote": quote,
+            "from": start.isoformat(),
+            "to": end.isoformat(),
+            "count": len(observations),
+            "truncated": truncated,
+            "holiday_policy": (
+                note
+                + " 期間指定では公表日だけを返す。休日を直近営業日で埋めたいときは fx_rate にその日を渡す。"
+            ),
+            "observations": observations,
+        }
+    finally:
+        conn.close()
+    return json.dumps(body, ensure_ascii=False, indent=2)
 
 
 def tool_monthly_list(_args: dict[str, Any]) -> str:
@@ -1131,6 +1326,47 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
             "required": ["code"],
         },
         tool_db_lookup,
+    ),
+    "fx_rate": (
+        (
+            "指定日の為替レート。保存は EUR ベース（ECB / Frankfurter）。"
+            "任意ペアは EUR クロス（例: USD/JPY = EURJPY / EURUSD）。"
+            "休日・ECB非公表日は指定日以前の直近営業日（as_of）を使う。"
+            "requested_date と as_of が違うときは holiday_fallback=true。"
+            "pair（USD/JPY）または base と quote。読み取り専用。"
+        ),
+        {
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "YYYY-MM-DD. Weekends/holidays use the previous ECB business day."},
+                "pair": {"type": "string", "description": "USD/JPY. Alternative to base+quote."},
+                "base": {"type": "string", "description": "ISO 4217, e.g. USD. Ignored if pair is set."},
+                "quote": {"type": "string", "description": "ISO 4217, e.g. JPY. Ignored if pair is set."},
+            },
+            "required": ["date"],
+        },
+        tool_fx_rate,
+    ),
+    "fx_rates": (
+        (
+            "期間の為替レート（公表日のみ）。保存は EUR ベースのクロス計算。"
+            "休日は系列に含めない。特定日を直近営業日で埋めたいときは fx_rate。"
+            "pair（USD/JPY）または base と quote。lines は 1-500。"
+            "読み取り専用。"
+        ),
+        {
+            "type": "object",
+            "properties": {
+                "from": {"type": "string", "description": "YYYY-MM-DD inclusive"},
+                "to": {"type": "string", "description": "YYYY-MM-DD inclusive"},
+                "pair": {"type": "string", "description": "USD/JPY. Alternative to base+quote."},
+                "base": {"type": "string", "description": "ISO 4217, e.g. USD. Ignored if pair is set."},
+                "quote": {"type": "string", "description": "ISO 4217, e.g. JPY. Ignored if pair is set."},
+                "lines": {"type": "integer", "description": "max observations, 1-500, default 500"},
+            },
+            "required": ["from", "to"],
+        },
+        tool_fx_rates,
     ),
     "monthly_list": (
         "月次表がある銘柄一覧。localhost:8000 の GET /api/v1/tables（nginx Basic は使わない）。",

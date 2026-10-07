@@ -95,10 +95,12 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 
 - `service_status` — プロセスと localhost の HTTP コード
 - `app_logs` — `/var/log/app/stock-analyzer.log` と journalctl。uvicorn は `deploy/uvicorn-log.json` で行頭に JST `YYYY-MM-DD HH:MM:SS` を付ける。`since` / `until` は `batch_logs` と同じ形。省略時は journal が直近 1h、ファイルは live の末尾だけ。指定すると `.1` / `.gz` も読み、行頭の時刻で絞る。時刻の無い行（Traceback の続き）は直前の行に付く
-- `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` は crontab の stem（`run_batch` / `tdnet_monthly_r2` / `tdnet_monthly_pdf_sidecar` / `tdnet_monthly_pdf_ingest` / `ir_monthly_r2` / `ir_monthly_html_r2` / `ir_monthly_html_ingest` / `tdnet_xbrl_r2` / `xbrl_parse` / `xbrl_normalize`）。一覧に無い名前とパスは拒否。省略時は `stock-analyzer.log` と `mcp.log` 以外の live ファイル（古い `batch.log` を含む）。`since` / `until` は `1h` / `30m` / `today` / `yesterday` / `YYYY-MM-DD`。`until` はその時刻を含まない。昨日は `since=yesterday` と `until=today`。日時を指定したときは `.1` と `.gz` も読み、行頭の JST `YYYY-MM-DD HH:MM:SS` で絞る。`lines` は 1-500。超えた分は末尾だけ返すので範囲を狭める
+- `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` は crontab の stem（`run_batch` / `fx_rates` / `tdnet_monthly_r2` / `tdnet_monthly_pdf_sidecar` / `tdnet_monthly_pdf_ingest` / `ir_monthly_r2` / `ir_monthly_html_r2` / `ir_monthly_html_ingest` / `tdnet_xbrl_r2` / `xbrl_parse` / `xbrl_normalize`）。一覧に無い名前とパスは拒否。省略時は `stock-analyzer.log` と `mcp.log` 以外の live ファイル（古い `batch.log` を含む）。`since` / `until` は `1h` / `30m` / `today` / `yesterday` / `YYYY-MM-DD`。`until` はその時刻を含まない。昨日は `since=yesterday` と `until=today`。日時を指定したときは `.1` と `.gz` も読み、行頭の JST `YYYY-MM-DD HH:MM:SS` で絞る。`lines` は 1-500。超えた分は末尾だけ返すので範囲を狭める
 - `nginx_logs` — nginx journal と error.log と `/var/log/nginx/stock-analyzer.access.log`。アクセスログの `rt=` は nginx 全体、`urt=` は uvicorn の処理秒。遅いリクエストは `grep` に `rt=[1-9]` などを渡す。`since` / `until` は `batch_logs` と同じ形。省略時は journal が直近 1h、ファイルは live の末尾だけ。指定すると logrotate 済みの `.1` / `.gz`（既定で 14 日分）も読み、行の時刻（JST）で絞る。URL の OAuth 一時値（`code` / `state` など）は伏せる
 - `db_stats` — stock.db の件数・日付範囲・デモ混在
 - `db_lookup` — 1銘柄のマスタ・直近株価・決算・指標
+- `fx_rate` — 指定日の為替。EUR ベースのクロス（例 USD/JPY）。休日・ECB非公表日は直近営業日（`as_of`）。`holiday_fallback` で明示
+- `fx_rates` — 期間の為替（公表日のみ）。休日を直近営業日で埋めたいときは `fx_rate`
 - `monthly_list` — 月次表一覧。localhost:8000 の GET /api/v1/tables
 - `monthly_get` — 銘柄×年度の月次表。values は 1〜12。無い月は null
 - `monthly_add_element` — 要素登録

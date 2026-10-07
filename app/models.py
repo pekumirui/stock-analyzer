@@ -338,3 +338,15 @@ class XbrlJobRun(Base):
     message = Column(Text)
     started_at = Column(DateTime, nullable=False)
     finished_at = Column(DateTime)
+
+
+class FxRate(Base):
+    """ECB 対EUR 日次レート。1 EUR = rate 単位の quote。EUR 自身は持たない。
+
+    任意ペアは EUR クロスで算出する（app.fx.cross_rate）。
+    """
+    __tablename__ = "fx_rates"
+    date = Column(Date, primary_key=True)
+    quote = Column(String(3), primary_key=True)
+    rate = Column(Float, nullable=False)
+    __table_args__ = (Index("ix_fx_rates_quote_date", "quote", "date"),)

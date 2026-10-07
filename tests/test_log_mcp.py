@@ -285,6 +285,8 @@ def test_http_auth_and_tools() -> None:
         "nginx_logs",
         "db_stats",
         "db_lookup",
+        "fx_rate",
+        "fx_rates",
         "monthly_list",
         "monthly_get",
         "monthly_add_element",
@@ -594,6 +596,88 @@ def test_db_tools() -> None:
             r = _rpc(client, "tools/call", {"name": "db_stats", "arguments": {}}, req_id=90)
             if r.status_code != 200 or "stocks: 2" not in r.json()["result"]["content"][0]["text"]:
                 raise SystemExit(f"rpc db_stats: {r.text}")
+        finally:
+            if prev is None:
+                os.environ.pop("MCP_APP_DIR", None)
+            else:
+                os.environ["MCP_APP_DIR"] = prev
+            if prev_url is None:
+                os.environ.pop("DATABASE_URL", None)
+            else:
+                os.environ["DATABASE_URL"] = prev_url
+
+
+def test_fx_tools() -> None:
+    from tempfile import TemporaryDirectory
+
+    prev = os.environ.get("MCP_APP_DIR")
+    prev_url = os.environ.get("DATABASE_URL")
+    with TemporaryDirectory() as d:
+        os.environ["MCP_APP_DIR"] = d
+        os.environ.pop("DATABASE_URL", None)
+        dbp = Path(d) / "stock.db"
+        import sqlite3
+
+        conn = sqlite3.connect(dbp)
+        conn.executescript(
+            """
+            CREATE TABLE fx_rates (
+                date TEXT NOT NULL,
+                quote TEXT NOT NULL,
+                rate REAL NOT NULL,
+                PRIMARY KEY (date, quote)
+            );
+            INSERT INTO fx_rates VALUES ('2024-01-04', 'USD', 1.10);
+            INSERT INTO fx_rates VALUES ('2024-01-04', 'JPY', 165.0);
+            INSERT INTO fx_rates VALUES ('2024-01-05', 'USD', 1.09);
+            INSERT INTO fx_rates VALUES ('2024-01-05', 'JPY', 159.14);
+            """
+        )
+        conn.commit()
+        conn.close()
+        try:
+            text, is_error = m.call_tool(
+                "fx_rate", {"date": "2024-01-05", "pair": "USD/JPY"},
+            )
+            if is_error:
+                raise SystemExit(f"fx_rate friday: {text}")
+            body = json.loads(text)
+            expect = 159.14 / 1.09
+            if abs(body["rate"] - expect) > 1e-12:
+                raise SystemExit(f"fx_rate rate: {body}")
+            if body["holiday_fallback"] or body["as_of"] != "2024-01-05":
+                raise SystemExit(f"friday fallback: {body}")
+            sat, sat_err = m.call_tool(
+                "fx_rate", {"date": "2024-01-06", "base": "USD", "quote": "JPY"},
+            )
+            if sat_err:
+                raise SystemExit(f"fx_rate saturday: {sat}")
+            sat_body = json.loads(sat)
+            if not sat_body["holiday_fallback"] or sat_body["as_of"] != "2024-01-05":
+                raise SystemExit(f"saturday must use friday: {sat_body}")
+            if "直近営業日" not in sat_body["holiday_policy"]:
+                raise SystemExit(f"holiday policy missing: {sat_body}")
+            series, series_err = m.call_tool(
+                "fx_rates",
+                {"from": "2024-01-04", "to": "2024-01-07", "pair": "USD/JPY"},
+            )
+            if series_err:
+                raise SystemExit(f"fx_rates: {series}")
+            sbody = json.loads(series)
+            if sbody["count"] != 2:
+                raise SystemExit(f"series count: {sbody}")
+            if [o["date"] for o in sbody["observations"]] != ["2024-01-04", "2024-01-05"]:
+                raise SystemExit(f"series days: {sbody}")
+            if "公表日だけ" not in sbody["holiday_policy"]:
+                raise SystemExit(f"series policy: {sbody}")
+            bad, bad_err = m.call_tool("fx_rate", {"date": "2024-01-05"})
+            if not bad_err or "pair" not in bad:
+                raise SystemExit(f"missing pair: {bad!r}")
+            early, early_err = m.call_tool(
+                "fx_rate", {"date": "1999-01-03", "pair": "USD/JPY"},
+            )
+            if not early_err or "1999-01-04" not in early:
+                raise SystemExit(f"before earliest: {early!r}")
         finally:
             if prev is None:
                 os.environ.pop("MCP_APP_DIR", None)
@@ -1749,6 +1833,7 @@ def main() -> None:
         test_tool_nginx_logs_access_timed_and_redacted(logs)
         test_tool_nginx_logs_window_reads_rotated(logs)
     test_db_tools()
+    test_fx_tools()
     test_monthly_tools()
     test_monthly_ingest_tool()
     print("ok: log mcp")
