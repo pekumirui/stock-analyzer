@@ -11,12 +11,15 @@ $name（$profile）は、$announce に $fy の$kindを発表します。
 
 $today より後の出来事は、仮に知っていても使わないでください。作業フォルダの外は読めません。まず `./README.md` を読んで、何があるかを確認してください。
 
-## 予想する項目（単位: 百万円、$q Q 単独）
+## 予想する項目（単位: 百万円、EPS は円。$q Q 単独）
 
 - 売上高
 - 売上総利益（粗利）
 - 販売費及び一般管理費（販管費）
 - 営業利益
+- 経常利益
+- 親会社株主に帰属する四半期純利益（非連結なら四半期純利益。以下 純利益）
+- 1 株当たり四半期純利益（EPS、円）
 
 $notes
 
@@ -32,13 +35,19 @@ $notes
     "net_sales": 0,
     "gross_profit": 0,
     "sga": 0,
-    "operating_income": 0
+    "operating_income": 0,
+    "ordinary_income": 0,
+    "net_income": 0,
+    "eps": 0
   },
   "rationale": {
     "net_sales": "根拠。使ったファイル（またはツール）・数字・計算式を具体的に",
     "gross_profit": "同上",
     "sga": "同上",
-    "operating_income": "同上"
+    "operating_income": "同上",
+    "ordinary_income": "同上",
+    "net_income": "同上",
+    "eps": "同上"
   },
   "key_assumptions": ["予想を左右する前提を箇条書きで"],
   "risks": ["上振れ・下振れの要因"],
