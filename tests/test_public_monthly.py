@@ -95,9 +95,9 @@ def main() -> None:
         _fail("public TOP must not show TEMP debug UI")
     if "data-public-monthly" not in r.text:
         _fail("public body flag missing")
-    # 公開も横持ち。金額 / 前年比 / 両方 のタブを Detail に置く
-    if 'id="monthly-value-tabs"' not in r.text or "setMonthlyValueMode('both')" not in r.text:
-        _fail("public Detail must carry #monthly-value-tabs for the timeline")
+    # 公開も横持ち。金額と前年比は 1 行にまとめて両方出す（切替タブは無い）
+    if 'id="monthly-value-tabs"' in r.text or "setMonthlyValueMode" in r.text:
+        _fail("public HTML must not carry value tabs")
     if not re.search(r'href="/static/css/app\.css\?v=[0-9a-f]{12}"', r.text):
         _fail("public /monthly must version /static URLs with ?v=<hash>")
 
