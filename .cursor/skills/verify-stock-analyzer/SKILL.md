@@ -5,7 +5,7 @@ description: "Drive the stock-analyzer SPA (FastAPI + static/index.html + static
 
 # verify-stock-analyzer
 
-Personal Japan-equity viewer. Primary surface is the Basic SPA at `/app` (`static/index.html` + `static/css/` + `static/js/`). `GET /` 301s to public `/monthly`. REST under `/api/*` is what the SPA fetches; batch scripts are ingest, not the user surface.
+Personal Japan-equity viewer. The Basic SPA is `/app` (`static/index.html` + `static/css/` + `static/js/`). `GET /` 301s to public `/monthly`. REST under `/api/*` is what the SPA fetches. Batch scripts ingest data. They are not the user UI.
 
 Do not invent selectors or ports.
 
@@ -25,9 +25,9 @@ Prefer a helper that picks the right interpreter (`.venv\Scripts\python.exe` on 
 .venv/bin/python .cursor/skills/verify-stock-analyzer/helpers/launch.py
 ```
 
-Default URL: `http://127.0.0.1:8000`. Override with env `VERIFY_PORT`. Ready when stdout JSON appears and `GET /app` returns 200 whose HTML contains `<title>株式分析ツール</title>`. Visible header `h1` is `📈 株式分析`. `GET /` は `/monthly` へ 301。 State is `.cursor/skills/verify-stock-analyzer/.run/state.json` (`pid`, `port`, `url`, `adopted`). Adopted servers have `"adopted": true` and `pid: null` — do not kill them. Set `VERIFY_WAIT=0` only if you confirmed the child survives after launch.py exits.
+Default URL: `http://127.0.0.1:8000`. Override with env `VERIFY_PORT`. Ready when stdout JSON appears and `GET /app` returns 200 whose HTML contains `<title>株式分析ツール</title>`. Visible header `h1` is `📈 株式分析`. `GET /` は `/monthly` へ 301。 State is `.cursor/skills/verify-stock-analyzer/.run/state.json` (`pid`, `port`, `url`, `adopted`). Adopted servers have `"adopted": true` and `pid: null`. Do not kill them. Set `VERIFY_WAIT=0` only if you confirmed the child survives after launch.py exits.
 
-Uses the repo's `stock.db` (read-only for UI proofs). Do not `.\run.ps1 reset` / `./run.sh reset`. Do not point `DATABASE_URL` at the user's DB from a second writer. If the port is taken by a non-SPA process, launch exits non-zero — free the port or pick another `VERIFY_PORT`.
+Uses the repo's `stock.db` (read-only for UI proofs). Do not `.\run.ps1 reset` / `./run.sh reset`. Do not point `DATABASE_URL` at the user's DB from a second writer. If the port is taken by a non-SPA process, launch exits non-zero. Free the port or pick another `VERIFY_PORT`.
 
 If `stock.db` is missing, launch still starts (empty UI). Doctor then fails until backfill exists.
 
@@ -53,11 +53,11 @@ Exit 0 only when:
 - `GET /api/screener?stage=2&rs_min=70` returns JSON `{date, results}` and `results` is a non-empty list (this DB has been backfilled)
 - `GET /api/stocks/search?q=トヨタ` returns at least one hit whose `code` does not start with `0`
 
-Stdout is JSON. If screener is empty, the instance is up but not worth driving as a populated app — say so and stop.
+Stdout is JSON. If screener is empty, the instance is up but the DB was not backfilled. Say so and stop.
 
 ## Drive
 
-Harness: HTTP against the same routes the SPA uses, plus the browser when CDP is available.
+HTTP against the same routes the SPA uses, plus the browser when CDP is available.
 
 **Route memory (#130):** `boot.js` calls `restoreRoute()` after priming today's earnings list. Hash / `localStorage` `ui.route` forms are `earnings` | `screener` | `chart` | `monthly` | `chart/{code}` | `monthly/{code}`. Clear them when proving the cold default tab.
 
@@ -76,7 +76,7 @@ Harness: HTTP against the same routes the SPA uses, plus the browser when CDP is
 | Earnings embedded chart | `#e-chart` / `.a-chart` (same `/api/chart` as chart tab) |
 | Event overlays | `.evt-toggles` on earnings + chart (`input[data-evt="earnings"]`, label 決算発表) |
 | Chart search | `#sym` (placeholder `銘柄名 or コード`), suggestions `#suggest` |
-| Chart 表示 | `#tab-chart button.btn` (label 表示) — required after changing `#tf` / `#mas` / `#rel` |
+| Chart 表示 | `#tab-chart button.btn` (label 表示). Required after changing `#tf` / `#mas` / `#rel` |
 | Timeframe | `#tf` (`D` / `W` / `M`) |
 | MA list | `#mas` (default `50,150,200`) |
 | 対TOPIX | `#rel` checkbox |
@@ -140,9 +140,9 @@ Proof standards:
 
 Minimum files per feature:
 
-- `request.txt` — method, URL, status
-- `body.json` — response (truncate lists to 20 rows if huge, keep `date` / counts)
-- `ui.png` — only when the browser path ran. The visible brand is header `h1` `株式分析` (document title is `株式分析ツール`)
+- `request.txt`: method, URL, status
+- `body.json`: response (truncate lists to 20 rows if huge, keep `date` / counts)
+- `ui.png`: only when the browser path ran. The visible brand is header `h1` `株式分析` (document title is `株式分析ツール`)
 
 ## Cleanup
 
@@ -167,6 +167,6 @@ All run from the repo root with the venv interpreter (`.venv\Scripts\python.exe`
 | Script | What |
 |---|---|
 | `helpers/launch.py` | Adopt or start uvicorn on `VERIFY_PORT` (default 8000), wait for `GET /app`, write `.run/state.json` |
-| `helpers/doctor.py` | Read-only health JSON; exit 1 if not worth driving |
+| `helpers/doctor.py` | Read-only health JSON. Exit 1 if screener is empty or the SPA is not up |
 | `helpers/capture.py <feature> [--date YYYY-MM-DD] [--month YYYY-MM] [--code CODE]` | GET the SPA `/api/*` routes into `artifacts/<feature>/` |
 | `helpers/cleanup.py` | Stop a pid we started; leave adopted servers alone; keep artifacts |

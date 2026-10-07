@@ -52,7 +52,7 @@ disable-model-invocation: true
 - [ ] results の要約・軽量ログ・financials.json だけコミット（PDF 禁止）
 ```
 
-## フェーズ 1 — 設定
+## フェーズ 1 設定
 
 `targets/6036_FY2026Q4.json` を写して `targets/<code4>_FY<YYYY>Q<n>.json` を書く。キーの意味は README の表。
 
@@ -66,7 +66,7 @@ IR Bank MCP（名前空間 `IRBANK Connect`。呼ぶ前に `GetDynamicTools`）:
 6. 月次が本番 API にあるときだけ `monthly_api_range`（終わりは締切までに公表された月）。無ければキーごと消す
 7. `profile` はプロンプト用（連結/非連結、決算月）。`readme` は条件フォルダの説明文
 
-## フェーズ 2 — 材料
+## フェーズ 2 材料
 
 ```bash
 T=targets/<id>.json; R=/workspace/forecast-exp/<id>; cd analyzer/agent_forecast
@@ -88,7 +88,7 @@ python3 build_conditions.py --target $T
 
 `build_financials` が組替を警告したら `cost_reclass.from` に境目の短信日と `note` を書いて再実行。プロンプトは `common.render_prompt`（`prompt.md`）。自分でプロンプト文面を変えない。
 
-## フェーズ 3 — 回す
+## フェーズ 3 回す
 
 プロンプトを `$R/results/prompt.md` に出す（Claude の `run.py` も同じファイルを書く）:
 
@@ -169,7 +169,7 @@ python3 pack_cursor_log.py --target $T --cond $C --text-file $R/results/grok/${C
 
 `--tag _2` のときは `--tag _2` を足す。`--cond-dir` を省略すると `/tmp/grok-forecast/<条件>`。
 
-## フェーズ 4 — 採点とコミット
+## フェーズ 4 採点とコミット
 
 ```bash
 python3 score.py --target $T --vendor <claude|grok> --markdown results/<vendor>/<id>.md
