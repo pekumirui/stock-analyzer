@@ -719,10 +719,13 @@ function monthlyTreeCount(nodes, k){
   return nodes.reduce((a, n) => a + n.recs.filter(r => r.mkey === k).length + monthlyTreeCount(n.children, k), 0);
 }
 
+// 指標 k の最初の行とその節（{n, r}）
 function monthlyTreeFirst(nodes, k){
   for(const n of nodes){
-    const r = n.recs.find(q => q.mkey === k) || monthlyTreeFirst(n.children, k);
-    if(r) return r;
+    const r = n.recs.find(q => q.mkey === k);
+    if(r) return {n, r};
+    const hit = monthlyTreeFirst(n.children, k);
+    if(hit) return hit;
   }
   return null;
 }
@@ -865,16 +868,20 @@ function monthlyTreeHtml(tm, cellsFor, cols){
     const kids = top.filter(n => monthlyTreePlaceUnder(tm, n, k, home(n)(k)));
     const ms = monthlyTreeSubs(tm, k).filter(content);
     if(!pk && !mine.length && !ms.length && !monthlyTreeSubs(tm, k).length && monthlyTreeCount(top, k) === 1){
-      const r = monthlyTreeFirst(top, k);
-      body += row(r, r.element, depth);
+      // config の木は「節名 葉」（直営 既存 売上高）。保存名の頭の事業名（キーパーLABO運営事業）を 1 段目に出すと、
+      // 同じ事業が他の指標では 2 段目の節に出ていて深さが食い違う。自動の木は保存名のまま
+      const {n, r} = monthlyTreeFirst(top, k);
+      body += row(r, tm.auto ? r.element : monthlyTreeOtherName(n, r), depth);
       return;
     }
     const key = "m:" + k;
     const has = kids.length > 0 || ms.length > 0;
     const open = has && monthlyTlOpen.has(key);
     const tog = has ? {key, open} : {};
-    // 自動の木は会社の行の名前から 日本+海外 を外す（直営+FC 全店 店舗数）。子の指標は親との差だけ（直営 / 海外）。config の木は指標名
-    const text = pk ? monthlyTreeShortName(k, pk) : (mine.length && tm.auto ? monthlyTreeTopName(mine[0].element) : k);
+    // 会社の行があればその行の名前（指標名 売上高 のままだと全社の数字と読めない）。自動の木は 日本+海外 を外す（直営+FC 全店 店舗数）。
+    // config の木は節で剥がした葉から (前年比) を外す（全社 売上高）。会社の行が無ければ指標名。子の指標は親との差だけ（直営 / 海外）
+    const text = pk ? monthlyTreeShortName(k, pk)
+      : !mine.length ? k : tm.auto ? monthlyTreeTopName(mine[0].element) : monthlyYoyBase(mine[0].leaf || mine[0].element);
     if(mine.length) body += row(mine[0], text, depth, tog);
     else body += empty(text, depth, tog);
     for(const r of mine.slice(1)) body += row(r, r.element, depth);
