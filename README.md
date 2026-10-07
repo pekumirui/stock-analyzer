@@ -5,10 +5,10 @@
 
 ## 機能
 
-1. **決算速報サマリ** — カレンダーから日付選択 → その日の開示一覧 (累計/Q単独、YoY成長率、半期・通期予想、上方修正バッジ)
-2. **チャート** — 日足/週足/月足、移動平均線カスタム、対TOPIX相対パフォーマンス、イベント重ね合わせ（決算発表日マーカー、既定オフ）
-3. **決算発表後リターン** — +1d/+5d/+20d/+60d/現在までの対TOPIX超過リターン(α)
-4. **ミネルヴィニ・スクリーナー** — Stage1〜4判定 + RSランク(1-99)でフィルタ
+1. **決算速報サマリ.** 日付を選ぶとその日の開示一覧（累計/Q単独、YoY、半期・通期予想、上方修正バッジ）
+2. **チャート.** 日足/週足/月足、移動平均、対TOPIX、決算発表日マーカー（既定オフ）
+3. **決算発表後リターン.** +1d/+5d/+20d/+60d/現在までの対TOPIX超過リターン (α)
+4. **ミネルヴィニ・スクリーナー.** Stage1〜4 と RS ランク (1-99) でフィルタ
 
 ## 免責事項
 
@@ -114,9 +114,9 @@ DB のバックアップは ConoHa の自動バックアップか、日次で別
 
 `main` にマージすると GitHub Actions がテスト → GitHub Release（タグ）→ ConoHa VPS へデプロイする。
 
-1. **PR** — `tests/ci_smoke.py`（起動・検索/スクリーナー/チャート）と Ruff / Bandit（`app` `jobs` `tests` `tools` `deploy`。`app/xbrlp` は除外）
-2. **main マージ** — コミットメッセージでバージョンを自動バンプ（`feat:` は minor、`BREAKING CHANGE` / `feat!:` は major、それ以外は patch）。初回は `v0.1.0`
-3. **VPS** — SSH で `git pull` → `provision.sh`（nginx/ufw/certbot/systemd）→ `pip install` → `migrate.py` → `systemctl restart`。
+1. **PR.** `tests/ci_smoke.py`（起動・検索/スクリーナー/チャート）と Ruff / Bandit（`app` `jobs` `tests` `tools` `deploy`。`app/xbrlp` は除外）
+2. **main マージ.** コミットメッセージでバージョンを自動バンプ（`feat:` は minor、`BREAKING CHANGE` / `feat!:` は major、それ以外は patch）。初回は `v0.1.0`
+3. **VPS.** SSH で `git pull` → `provision.sh`（nginx/ufw/certbot/systemd）→ `pip install` → `migrate.py` → `systemctl restart`。
    `stock.db` は触らない
 
 VPS へ自動デプロイするには、一度だけデプロイ用 SSH 鍵を入れる。手順と Secrets 一覧は [deploy/README.md](deploy/README.md)。
