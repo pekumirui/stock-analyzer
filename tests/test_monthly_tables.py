@@ -493,6 +493,16 @@ def test_monthly_auto_tree() -> None:
     lone = build_auto_tree("99992", {2026: [("全店 売上高(前年比)", "yoy_index"), ("既存 売上高(前年比)", "yoy_index")]})
     if [n for n, _ in lone.nodes] != ["全体"] or lone.nodes[0][1] or lone.metrics != ["既存 売上高", "全店 売上高"]:
         _fail(f"会社だけの発行体は根 1 つ、既存が先: {lone.metrics!r}")
+    # 柿安: 会社は `全社 売上高`、事業は `売上高`。1 つの指標 売上高 にまとまり、会社の行が代表
+    kakiyasu = build_auto_tree("22940", {2026: [
+        ("精肉事業 売上高", "number"), ("精肉事業 既存 売上高", "number"), ("惣菜事業 売上高", "number"),
+        ("全社 売上高", "number"), ("全社 売上高(前年比)", "yoy_index"), ("既存 売上高", "number"),
+    ]})
+    if kakiyasu.metrics != ["既存 売上高", "売上高"]:
+        _fail(f"全社 売上高 と 売上高 は 1 つの指標: {kakiyasu.metrics!r}")
+    if {e: kakiyasu.rows[e]["metric"] for e in ("全社 売上高", "全社 売上高(前年比)", "精肉事業 売上高")} != {
+            "全社 売上高": "売上高", "全社 売上高(前年比)": "売上高", "精肉事業 売上高": "売上高"}:
+        _fail(f"全社 の会社の行は 売上高 に寄る: {kakiyasu.rows!r}")
 
 
 def _assert_jfront_tree_and_merge(c) -> None:

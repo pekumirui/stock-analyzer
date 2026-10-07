@@ -400,6 +400,16 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
                 r["metric"] = m
         metric_key[m] = metric_key.pop(domestic)
         folded.append(m)
+    # 会社の行だけ `全社 ` が付く発行体（柿安 `全社 売上高` と各事業の `売上高`）も節の指標に寄せる。
+    # 寄せないと 全社 売上高（会社だけ）と 売上高（会社の数字が無い）の 2 つの指標に割れる
+    for m in {r["metric"] for r in rows.values() if len(r["path"]) > 1} - company:
+        whole = "全社 " + m
+        if whole not in company:
+            continue
+        for r in rows.values():
+            if len(r["path"]) == 1 and r["metric"] == whole:
+                r["metric"] = m
+        metric_key[m] = metric_key.pop(whole)
     metrics = sorted(metric_key, key=lambda m: metric_key[m][1])
 
     def bd_nodes(group: str) -> list[tuple[str, list]]:
