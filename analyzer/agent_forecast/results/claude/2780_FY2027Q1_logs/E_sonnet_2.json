@@ -1,0 +1,111 @@
+{
+ "condition": "E_sonnet_2",
+ "claude_code_version": "2.1.288",
+ "tools": [
+  "Glob",
+  "Grep",
+  "Read"
+ ],
+ "num_turns": 8,
+ "duration_s": 39,
+ "cost_usd": 0.237396,
+ "usage": {
+  "input_tokens": 10,
+  "cache_creation_input_tokens": 44185,
+  "cache_read_input_tokens": 97280,
+  "output_tokens": 4118
+ },
+ "permission_denials": [],
+ "steps": [
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "README.md"
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 683
+  },
+  {
+   "kind": "tool_use",
+   "name": "Glob",
+   "input": {
+    "pattern": "**/*",
+    "path": "<root>/cond_E"
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 4590
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "data/financials.json"
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 48270
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "data/monthly_pdf/20260721_ブランド・ファッション事業の2027年3月期6月度月次に関するお知らせ.pdf"
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 315582
+  },
+  {
+   "kind": "tool_use",
+   "name": "Grep",
+   "input": {
+    "pattern": "\"quarterly_standalone\"|\"fiscal_year\": \"2026|\"period\": \"Q4|\"company_forecasts\"",
+    "path": "data/financials.json",
+    "output_mode": "content"
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 546
+  },
+  {
+   "kind": "tool_use",
+   "name": "Grep",
+   "input": {
+    "pattern": "\"(period|fiscal_year)\"|\"(NetSales|GrossProfit|SellingGeneralAndAdministrativeExpenses|OperatingIncome)\"",
+    "path": "data/financials.json",
+    "output_mode": "content",
+    "offset": 0,
+    "head_limit": 0
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 12963
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "data/financials.json",
+    "offset": 2988,
+    "limit": 50
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 1452
+  },
+  {
+   "kind": "text",
+   "text": "2027年3月期1Q単独は、売上高65,700百万円、営業利益3,500百万円と予想します。月次の売上高が開示済みで、これを軸に利益を組み立てました。\n\n**売上高**\n- `monthly_pdf/20260721_…6月度` のブランド・ファッション事業の月次売上高は、4月21,409、5月21,545、6月21,255で、合計64,210百万円（前年同期比143.6%）です。\n- 前年1Qの月次合計は64,210÷1.436≒44,714です。決算短信のセグメント売上44,751.4（`financials.json`）とほぼ一致し、月次と決算の差は0.1%程度でした。\n- 他の事業の売上を足します。\n  - タイヤ・ホイール事業は、FY26の1Qが1,359、Q4が1,373なので1,450程度と置きました。\n  - 不動産賃貸の外部売上は約10です。\n- 連結売上高は64,210＋1,450＋10≒65,700百万円（前年同期46,120の+42%）です。\n\n**売上総利益**\n- FY26の四半期単独の粗利率は、1Qが21.3%、2Qが19.9%、3Qが22.2%、4Qが21.3%です。\n- 今回は小売比率が45.4%で、前年1Qの41.8%より高く、粗利率には追い風です。一方、法人販売の増加分は低粗利なので、これは相殺されます。\n- 粗利率は21.5%と置き、65,700×21.5%≒14,150百万円としました。\n\n**販管費**\n- FY26の販管費は、1Qが8,958、2Qが8,972、3Qが9,790、4Qが10,142です。\n- 直近の4Qの水準に、新店3店舗の分と売上増に連動する費用（手数料や物流）を加えて10,650百万円としました。販管費率は16.2%です。\n\n**営業利益**\n- 14,150−10,650＝3,500百万円（営業利益率5.3%）です。\n- 参考として、会社の通期予想（`company_forecasts`）は売上高252,000、営業利益10,800で、営業利益率は4.3%です。1Qは売上の伸びが大きいため、これを上回る前提にしました。\n\n```json\n{\n  \"target\": \"2027年3月期 1Q単独（2026/4/1〜6/30）\",\n  \"unit\": \"百万円\",\n  \"forecast\": {\n    \"net_sales\": 65700,\n    \"gross_profit\": 14150,\n    \"sga\": 10650,\n    \"operating_income\": 3500\n  },\n  \"rationale\": {\n    \"net_sales\": \"monthly_pdf/20260721 6月度月次: ブランド・ファッション事業 4月21,409+5月21,545+6月21,255=64,210(前年比143.6%)。前年月次合計64,210/1.436=44,714は短信セグメント売上44,751.4とほぼ一致し、月次と決算の差は約0.1%。これにタイヤ・ホイール約1,450(FY26 1Q 1,359、4Q 1,373から)と不動産外部売上約10を加算し約65,700。\",\n    \"gross_profit\": \"financials.json quarterly_standalone のFY26粗利率: 1Q 9,841.9/46,120.1=21.3%、2Q 19.9%、3Q 13,759.1/61,859.7=22.2%、4Q 13,701.9/64,200.9=21.3%。小売比率が45.4%(前年1Qは41.8%)と上昇する一方、法人販売の増加は粗利率を押し下げるため21.5%と置き、65,700×21.5%≒14,150。\",\n    \"sga\": \"FY26単独の販管費は1Q 8,958、2Q 8,972、3Q 9,790、4Q 10,142。直近4Qの水準に、新店3店舗の分と売上増に連動する費用を加えて10,650(販管費率16.2%)と置いた。\",\n    \"operating_income\": \"売上総利益14,150−販管費10,650=3,500(営業利益率5.3%)。会社の通期予想(2026-05-14発表、売上高252,000、営業利益10,800、営業利益率4.3%)より1Qの利益率は高めとした。\"\n  },\n  \"key_assumptions\": [\n    \"決算の売上高は月次速報とほぼ一致する(前年1Qの差は約0.1%)\",\n    \"タイヤ・ホイール事業の売上は約1,450、不動産賃貸の外部売上は約10\",\n    \"粗利率は21.5%(直近4四半期の19.9〜22.2%の範囲内)\",\n    \"販管費はFY26 4Qの10,142に新店と売上連動費用を加えた水準\"\n  ],\n  \"risks\": [\n    \"上振れ: 小売比率の上昇や免税売上で粗利率が22%台に乗る。販管費の伸びが売上の伸びより小さくなる(営業利益4,000超もあり得る)\",\n    \"下振れ: 法人販売や海外の構成比が高く粗利率が20%台前半にとどまる。人件費・出店費・手数料で販管費が11,000超になる\",\n    \"下振れ: 在庫評価の変動や為替(海外子会社の換算)、特別な費用の計上\",\n    \"月次は速報値で、連結処理や海外子会社の決算期のずれ(12月決算)により、決算値と差が出る\"\n  ],\n  \"confidence\": \"中\",\n  \"files_used\": [\n    \"data/financials.json (quarterly_standalone, cumulative, company_forecasts)\",\n    \"data/monthly_pdf/20260721_ブランド・ファッション事業の2027年3月期6月度月次に関するお知らせ.pdf\",\n    \"README.md\"\n  ]\n}\n```"
+  }
+ ]
+}

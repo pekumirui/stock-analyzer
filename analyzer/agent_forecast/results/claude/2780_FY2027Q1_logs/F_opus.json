@@ -1,0 +1,153 @@
+{
+ "condition": "F_opus",
+ "claude_code_version": "2.1.288",
+ "tools": [
+  "Glob",
+  "Grep",
+  "Read",
+  "mcp__monthly__monthly_get",
+  "mcp__monthly__monthly_list"
+ ],
+ "num_turns": 11,
+ "duration_s": 61,
+ "cost_usd": 0.8479928000000001,
+ "usage": {
+  "input_tokens": 16,
+  "cache_creation_input_tokens": 86950,
+  "cache_read_input_tokens": 242144,
+  "output_tokens": 5195
+ },
+ "permission_denials": [],
+ "steps": [
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "README.md"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "Glob",
+   "input": {
+    "pattern": "data/**/*"
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 664
+  },
+  {
+   "kind": "tool_result",
+   "chars": 1053
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "data/financials.json"
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 48270
+  },
+  {
+   "kind": "tool_use",
+   "name": "Grep",
+   "input": {
+    "pattern": "\"quarterly_standalone\"|\"company_forecasts\"|\"balance_sheet\"",
+    "path": "data/financials.json",
+    "output_mode": "content"
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 95
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "data/financials.json",
+    "offset": 2915,
+    "limit": 125
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 3616
+  },
+  {
+   "kind": "tool_use",
+   "name": "Grep",
+   "input": {
+    "pattern": "\"(period|fiscal_year|NetSales|GrossProfit|SellingGeneralAndAdministrativeExpenses|OperatingIncome)\":",
+    "path": "data/financials.json",
+    "output_mode": "content",
+    "offset": 0,
+    "head_limit": 0
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 12963
+  },
+  {
+   "kind": "tool_use",
+   "name": "mcp__monthly__monthly_get",
+   "input": {
+    "code": "2780",
+    "year": 2026
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 4028
+  },
+  {
+   "kind": "tool_use",
+   "name": "mcp__monthly__monthly_get",
+   "input": {
+    "code": "2780",
+    "year": 2025
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 4063
+  },
+  {
+   "kind": "thinking",
+   "text": "4〜6月の月次売上は合計642億円、前年比+44%と大きく伸びていることを確認しました。次に決算説明資料で粗利率と販管費の見通しを確認します。\n\n"
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "data/briefing_pdf/20260514_2026年3月期 決算説明資料.pdf",
+    "pages": "1-20"
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 2469894
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "data/briefing_pdf/20260514_2026年3月期 決算説明資料.pdf",
+    "pages": "43-52"
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 1453892
+  },
+  {
+   "kind": "text",
+   "text": "## 2780 コメ兵HD 2027年3月期 1Q単独（2026/4〜6）の業績予想\n\n**予想は売上高65,670百万円、営業利益3,100百万円です。** 売上は月次データでほぼ固まっていますが、粗利率と販管費は推定なので、営業利益の振れ幅は大きめに見ています。\n\n### 1. 売上高：65,670百万円（前年同期比+42%）\n- **月次売上はブランド・ファッション事業の売上とほぼ同じ数字です。** 前期の実績で確かめると、\n  - 1Q：月次44,725 / セグメント44,751\n  - 2Q：月次48,250 / セグメント48,250\n- **2026年4〜6月の月次売上**（`monthly_get 2780 2026`）は 21,409 + 21,545 + 21,255 = **64,209**。前年同期は44,725なので、前年比は+43.6%です。\n- これに残り2事業を足しました。\n  - タイヤ・ホイール事業：前年1Q 1,359 × 約1.07 ≒ 1,450\n  - 不動産賃貸事業（グループ外向け）：約10\n- 合計 64,209 + 1,450 + 10 ≒ **65,670**。\n- 会社計画との比較：上期計画は122,000で、決算説明資料p.46のグラフでは1Q計画は約63,000に見えます。実績はこれを上回るペースです。\n\n### 2. 売上総利益：14,250百万円（粗利率21.7%）\n- 前期の四半期ごとの粗利率は 21.3% / 19.9% / 22.2% / 21.3%。\n- 会社は通期で1.1pt改善の22.4%を計画しています（p.47）。\n- 月次の小売比率は4〜6月平均45.4%で、前年1Qの42.8%より高く、粗利率にはプラスです。\n- 一方、利益率の低い金地金・時計の比率が高いままである可能性を考え、21.7%と控えめに置きました。\n- 計算：65,670 × 21.7% ≒ 14,250。\n\n### 3. 販管費：11,150百万円（前年同期比+24%）\n- 前期の四半期の販管費は 8,958 / 8,972 / 9,790 / 10,142。\n- 会社計画の通期販管費は 37,862 + 9,900 = 47,762（+26%）で、四半期平均は約11,940です。\n- 1Qは出店の時期のずれを考え、平均より少なめに置きました。それでも次の費用が乗ります。\n  - 国内：渋谷2店（5月）、セルビー御徒町駅前店（5月末）の出店\n  - 海外：香港・台湾・シンガポールの出店\n  - ベースアップ・採用増による人件費、売上増に伴うカード手数料など\n\n### 4. 営業利益：3,100百万円（前年同期は884）\n- 14,250 − 11,150 = 3,100。\n- p.46のグラフから読み取れる1Q計画は約2,600で、売上の上振れぶんだけ上に置いています。\n\n```json\n{\n  \"target\": \"2027年3月期 1Q単独（2026/4/1〜6/30）\",\n  \"unit\": \"百万円\",\n  \"forecast\": {\n    \"net_sales\": 65670,\n    \"gross_profit\": 14250,\n    \"sga\": 11150,\n    \"operating_income\": 3100\n  },\n  \"rationale\": {\n    \"net_sales\": \"月次売上はブランド・ファッション（BF）セグメント売上とほぼ一致（FY26 1Q：月次44,725 vs セグメント44,751、2Q：48,250 vs 48,250）。2026年4〜6月の月次売上 21,409+21,545+21,255=64,209（前年比+43.6%）。これにタイヤ・ホイール事業約1,450（前年1Q 1,359×1.07）と不動産賃貸事業のグループ外向け売上約10を加えて65,670。\",\n    \"gross_profit\": \"FY26の四半期粗利率は21.3/19.9/22.2/21.3%。会社の通期計画は22.4%（+1.1pt、説明資料p.47）。4〜6月の小売比率は平均45.4%で前年1Q（42.8%）より高い一方、低粗利の金地金・時計の比率が高いままと見て21.7%を採用。65,670×21.7%≒14,250。\",\n    \"sga\": \"FY26の四半期販管費は8,958/8,972/9,790/10,142。FY27通期計画の販管費は37,862+9,900=47,762（四半期平均約11,940）。1Qは平均を下回るが、出店（渋谷2店・御徒町・海外3店）、人件費、売上連動費が増えると見て11,150（前年同期比+24%）。\",\n    \"operating_income\": \"14,250−11,150=3,100。説明資料p.46のグラフから読む1Q計画（約2,600、上期計画4,500）を、売上の上振れぶん上回ると想定。\"\n  },\n  \"key_assumptions\": [\n    \"月次売上（64,209）がBFセグメント売上とほぼ等しい\",\n    \"粗利率21.7%（小売比率の上昇でプラス、金地金・時計の比率が高いことでマイナス）\",\n    \"販管費は通期計画47,762と同じペースより少し下（出店の時期のずれ）\",\n    \"タイヤ・ホイール事業は前年比+7%程度\"\n  ],\n  \"risks\": [\n    \"上振れ：粗利率が会社計画並みの22.4%なら営業利益は+450程度上振れる\",\n    \"下振れ：金地金の法人販売が多く粗利率が21%を割る場合、円高・金相場の下落による評価損\",\n    \"下振れ：出店・人件費が先に膨らみ販管費が11,500を超える場合\",\n    \"月次売上と連結売上の差（為替換算など）\"\n  ],\n  \"confidence\": \"中\",\n  \"files_used\": [\n    \"data/financials.json（quarterly_standalone, cumulative segments, company_forecasts）\",\n    \"monthly_get 2780 2025 / 2026\",\n    \"data/briefing_pdf/20260514_2026年3月期 決算説明資料.pdf（p.3-20, 43-52）\"\n  ]\n}\n```"
+  }
+ ]
+}

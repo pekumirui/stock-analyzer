@@ -37,8 +37,9 @@ def answer_cum(zip_path: Path, quarter: int) -> dict[str, float]:
             if n.endswith("-ixbrl.htm"):
                 texts.append(z.read(n).decode("utf-8"))
     joined = "".join(texts)
-    fs = "_NonConsolidatedMember" if "NonConsolidatedMember" in joined else ""
     ctxs = ["CurrentYearDuration"] if quarter == 4 else ["CurrentYTDDuration", "InterimDuration"]
+    # 連結でもサマリー（配当など）に NonConsolidatedMember が出るので、財務諸表の context で判定する
+    fs = "_NonConsolidatedMember" if any(f'contextRef="{c}_NonConsolidatedMember"' in joined for c in ctxs) else ""
     out: dict[str, float] = {}
     for tag in re.finditer(r"<ix:nonFraction\b([^>]*)>([^<]*)</ix:nonFraction>", joined):
         attrs = dict(re.findall(r'(\w+)="([^"]*)"', tag.group(1)))
