@@ -141,6 +141,7 @@ static/
 jobs/
   run_batch.py  日次バッチ / バックフィル
   fx_rates.py   Frankfurter 為替（EUR ベース。cron は 08:00 JST）
+  vps_packages_r2.py  VPS パッケージ一覧 → R2（cron は 06:40 JST）
   check_demo.py スキーマ + 旧デモ取り残しガード
 tests/
   ci_smoke.py   CI 起動スモーク
@@ -150,7 +151,7 @@ analyzer/       stock.db を読むだけの分析（一覧は analyzer/README.md
 deploy/
   stock-analyzer.service  systemd（uvicorn ワーカー1）
   nginx.conf              リバースプロキシ。月次閲覧は公開、/app は Basic 認証
-  crontab                 J-Quants 19:30 JST、為替 08:00 JST
+  crontab                 J-Quants 19:30 JST、為替 08:00 JST、パッケージ一覧 06:40 JST
   update.sh               VPS 側デプロイ（Actions から実行）
   enable-cicd.sh          デプロイ用 SSH 鍵と sudoers を一度だけ入れる
 ```
