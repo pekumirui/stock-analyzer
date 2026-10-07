@@ -2048,8 +2048,14 @@ def _assert_monthly_spa(html: str) -> None:
     if render_fn < 0:
         _fail("renderMonthlyYearTables missing")
     render_body = html[render_fn:render_fn + 900]
-    if "renderMonthlyTimeline(" not in render_body or "monthlyTreeModel(" not in render_body:
-        _fail("renderMonthlyYearTables must draw the timeline from the API tree")
+    if "renderMonthlyTimeline(" not in render_body:
+        _fail("renderMonthlyYearTables must draw the timeline")
+    tl_fn = html.find("function renderMonthlyTimeline")
+    if tl_fn < 0:
+        _fail("renderMonthlyTimeline missing")
+    tl_body = html[tl_fn:tl_fn + 900]
+    if "monthlyTreeModel(" not in tl_body:
+        _fail("timeline must draw from the API tree")
     if "byName[src.element]" in html:
         _fail("table cells must map stored names through label.display")
     if "byName[src.label.display]" not in html:
