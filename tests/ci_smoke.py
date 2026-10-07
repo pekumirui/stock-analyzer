@@ -97,6 +97,7 @@ SUITES = (
     "test_xbrl_match_rate.py",
     "test_xbrl_units.py",
     "test_tdnet_xbrl_r2.py",
+    "test_vps_packages_r2.py",
     "test_backfill.py",
     "test_alert_patterns.py",
     "test_html_predicates.py",

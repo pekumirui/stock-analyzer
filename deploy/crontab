@@ -5,6 +5,9 @@
 CRON_TZ=Asia/Tokyo
 SHELL=/bin/bash
 
+# VPS パッケージ一覧 → R2 mount（読み取り専用。セキュリティ照合用。07:00 より前）
+40 6 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/vps_packages_r2.py
+
 # 日次（引け後の開示を夜に取る）
 30 19 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/run_batch.py
 
