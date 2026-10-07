@@ -1,0 +1,138 @@
+{
+ "condition": "F_sonnet_2",
+ "claude_code_version": "2.1.288",
+ "tools": [
+  "Glob",
+  "Grep",
+  "Read",
+  "mcp__monthly__monthly_get",
+  "mcp__monthly__monthly_list"
+ ],
+ "num_turns": 10,
+ "duration_s": 36,
+ "cost_usd": 0.2282924,
+ "usage": {
+  "input_tokens": 10,
+  "cache_creation_input_tokens": 42930,
+  "cache_read_input_tokens": 90562,
+  "output_tokens": 3844
+ },
+ "permission_denials": [],
+ "steps": [
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "README.md"
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 664
+  },
+  {
+   "kind": "tool_use",
+   "name": "Glob",
+   "input": {
+    "pattern": "**/*",
+    "path": "<root>/cond_F"
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 1064
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "data/financials.json"
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "mcp__monthly__monthly_get",
+   "input": {
+    "code": "2780",
+    "year": 2026
+   }
+  },
+  {
+   "kind": "tool_use",
+   "name": "mcp__monthly__monthly_get",
+   "input": {
+    "code": "2780",
+    "year": 2025
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 48270
+  },
+  {
+   "kind": "tool_result",
+   "chars": 4028
+  },
+  {
+   "kind": "tool_result",
+   "chars": 4063
+  },
+  {
+   "kind": "tool_use",
+   "name": "Grep",
+   "input": {
+    "pattern": "quarterly_standalone",
+    "path": "data/financials.json",
+    "output_mode": "count"
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 67
+  },
+  {
+   "kind": "tool_use",
+   "name": "Grep",
+   "input": {
+    "pattern": "\"(fiscal_year|period)\"|\"(NetSales|GrossProfit|SellingGeneralAndAdministrativeExpenses|OperatingIncome)\"",
+    "path": "data/financials.json",
+    "output_mode": "content",
+    "offset": 230,
+    "head_limit": 200
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 4273
+  },
+  {
+   "kind": "tool_use",
+   "name": "Read",
+   "input": {
+    "file_path": "data/financials.json",
+    "offset": 2985,
+    "limit": 53
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 1516
+  },
+  {
+   "kind": "tool_use",
+   "name": "mcp__monthly__monthly_get",
+   "input": {
+    "code": "2780",
+    "year": 2025
+   }
+  },
+  {
+   "kind": "tool_result",
+   "chars": 4063
+  },
+  {
+   "kind": "text",
+   "text": "予想は、売上高 65,800、売上総利益 14,015、販管費 10,500、営業利益 3,515（単位は百万円）です。月次売上の前年比と、直近4四半期の利益率から組み立てました。\n\n**売上高**\n- 月次データの2026年4〜6月の合計は 21,409 + 21,545 + 21,255 = 64,209 です。前年同期（14,127 + 14,315 + 16,283 = 44,725）の約1.44倍にあたります。\n- 月次の売上高は決算の売上高より小さく出ます。前期の1Qは決算 46,120 に対して月次合計 44,725 で、比は 1.031 でした。前期の4Qは決算 64,201 に対して月次合計 63,224（1〜3月）で、比は 1.015 でした。\n- 今回は比を約1.025として、64,209 × 1.025 ≒ 65,800 としました。\n\n**売上総利益**\n- 粗利率は、前期の1Qが 21.3%（9,842 ÷ 46,120）、2Qが 19.9%、3Qが 22.2%、4Qが 21.3%（13,702 ÷ 64,201）でした。\n- 今回は21.3%で置き、65,800 × 21.3% ≒ 14,015 としました。\n\n**販管費**\n- 前期の販管費は、1Qが 8,958、2Qが 8,972、3Qが 9,790、4Qが 10,142 と増えてきました。\n- 1Qは前年4Qと比べて販管費が増える傾向があります。前期1Qは前年4Q（8,469）より約6%増えていました。\n- 今回は4Qの 10,142 に約3.5%を上乗せして 10,500 としました。比率は売上の16.0%です。\n\n**営業利益**\n- 14,015 − 10,500 = 3,515 で、営業利益率は5.3%になります。\n- 会社の通期予想は売上高 252,000、営業利益 10,800（4.3%）です。1Qの月次売上が通期予想の四半期平均（63,000）を上回っていることから、この水準は妥当と見ています。\n\n```json\n{\n  \"target\": \"2027年3月期 1Q単独（2026/4/1〜6/30）\",\n  \"unit\": \"百万円\",\n  \"forecast\": {\n    \"net_sales\": 65800,\n    \"gross_profit\": 14015,\n    \"sga\": 10500,\n    \"operating_income\": 3515\n  },\n  \"rationale\": {\n    \"net_sales\": \"月次ツール(27800, 2026年)の売上高 4月21,409+5月21,545+6月21,255=64,209。前期1Qは決算46,120÷月次合計44,725(2025年4〜6月: 14,127+14,315+16,283)=1.031、前期4Qは決算64,201÷月次合計63,224(2026年1〜3月: 20,850+19,817+22,557)=1.015。比を約1.025として64,209×1.025≒65,800。前年同期比で約+43%。\",\n    \"gross_profit\": \"financials.jsonの26/3期の粗利率は 1Q 21.3%(9,842/46,120)、2Q 19.9%、3Q 22.2%、4Q 21.3%(13,702/64,201)。21.3%を採用し 65,800×0.213≒14,015。\",\n    \"sga\": \"financials.jsonの26/3期の単独販管費は 1Q 8,958、2Q 8,972、3Q 9,790、4Q 10,142 と増加傾向。1Qは前年4Qより増える傾向(26/3期1Qは25/3期4Qの8,469から約+6%)があるため、4Qの10,142に約3.5%を上乗せして10,500(売上比16.0%)。\",\n    \"operating_income\": \"14,015−10,500=3,515(営業利益率5.3%)。会社の27/3期通期予想(売上252,000、営業利益10,800、率4.3%)と比べ、1Qの月次売上が通期予想の四半期平均63,000を上回るため妥当と判断。\"\n  },\n  \"key_assumptions\": [\n    \"月次売上と決算売上の乖離比は約1.025(過去2期の1.015〜1.031の範囲)\",\n    \"粗利率は26/3期1Q・4Qと同じ21.3%\",\n    \"販管費は26/3期4Q比で約+3.5%(出店・人員・広告費の増加を織り込み)\",\n    \"為替・のれん償却・一過性の特別な費用などは大きく動かない\"\n  ],\n  \"risks\": [\n    \"上振れ: 免税売上や高額品の販売が強く、粗利率が上がる。販管費の伸びが想定より小さい\",\n    \"下振れ: 月次と決算の売上差が拡大する。粗利率が19.9%（2Qの水準）近くまで低下する。買取強化や出店、人件費で販管費が11,000超になる\",\n    \"26/3期1Qは営業利益率が1.9%と低く、Q1が季節的に弱い可能性を十分に織り込めていない可能性がある\"\n  ],\n  \"confidence\": \"中\",\n  \"files_used\": [\n    \"data/financials.json(cumulative・quarterly_standalone・company_forecasts)\",\n    \"月次データのツール monthly_get(2780, 2025年・2026年)\",\n    \"README.md\"\n  ]\n}\n```"
+  }
+ ]
+}
