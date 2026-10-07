@@ -274,8 +274,6 @@ def test_source_stays_readonly_and_secret_free() -> None:
 
 
 def test_main_write_failure_is_nonzero(tmp_path: Path) -> None:
-    dest = tmp_path / "missing-parent-is-ok"
-    # dest itself can be created; force failure via a file where a dir is needed
     blocker = tmp_path / "blocker"
     blocker.write_text("x", encoding="utf-8")
     rc = main(["--dest", str(blocker / "inventory")])
