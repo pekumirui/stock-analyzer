@@ -55,6 +55,12 @@ XBRL_TEXT_MAX_CHARS = int(os.getenv("XBRL_TEXT_MAX_CHARS", "1000"))
 JQUANTS_API_KEY = os.getenv("JQUANTS_API_KEY", "")
 JQUANTS_BASE = os.getenv("JQUANTS_BASE", "https://api.jquants.com/v2")
 
+# Frankfurter v1（ECB、基準通貨 EUR）。キー不要。
+# api.frankfurter.app は api.frankfurter.dev/v1 へ 301 する。
+FRANKFURTER_BASE = os.getenv("FRANKFURTER_BASE", "https://api.frankfurter.dev/v1")
+FX_SERIES_START = os.getenv("FX_SERIES_START", "1999-01-04")
+FX_CHUNK_DAYS = int(os.getenv("FX_CHUNK_DAYS", "366"))
+
 # レートリミット (プラン別: Free=5 / Light=60 / Standard=120 / Premium=500)
 RATE_LIMIT_PER_MIN = int(os.getenv("JQUANTS_RATE_LIMIT", "60"))
 # /fins/summary は全プラン共通で60req/分の別枠。earnings-date も /fins/ なので同じ枠

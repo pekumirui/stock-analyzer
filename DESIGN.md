@@ -156,6 +156,10 @@ monthly_elements  -- 表の行。element は登録時の正規名、sort_order �
 monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字列は拒否)
   code, year, element, month PK
   value
+
+fx_rates          -- ECB 対EUR 日次レート (Frankfurter api.frankfurter.dev/v1)
+  date, quote PK  -- quote は ISO 4217（USD / JPY 等）。EUR 自身は持たない
+  rate            -- 1 EUR = rate quote。任意ペアは EUR クロス（quote/base）
 ```
 
 月次の year は暦年。PDF 取込は `POST /api/v1/tables/{code}/ingest`。
@@ -253,6 +257,15 @@ IR 月次 HTML（`jobs/ir_monthly_html_r2.py`）:
 
 TDnet 短信 XBRL は取得済み ZIP（`jobs/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。
 スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。決算速報 UI の正本は当面 `statements` のまま。XBRL 層で上書きしない。
+
+**為替（`fx_rates`）。** Frankfurter v1（`https://api.frankfurter.dev/v1`、ECB、基準通貨 EUR、キー不要。旧 `api.frankfurter.app` は 301）。UI は出さない。
+
+- 保存は対 EUR だけ。USD/JPY などは `EURJPY / EURUSD`。ヘルパーは `app.fx.cross_rate`
+- 時系列エンドポイント `/{from}..{to}` を約 1 年チャンクで取る。UPSERT で冪等
+- 初回は `python jobs/fx_rates.py --backfill`（1999-01-04〜）。以後は最終保存日以降の差分（その日を含めて取り直す）
+- 日次 cron は 08:00 JST（ECB 公表 16:00 CET の翌朝）。`deploy/crontab` → provision が反映
+- 休日・非公表日は指定日以前の直近営業日（`as_of`）。期間 MCP は公表日だけ返す
+- MCP: `fx_rate`（指定日）/ `fx_rates`（期間）
 
 
 ### Q単独値の算出 (保存せずAPI側で導出)
@@ -384,7 +397,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 |---|---|
 | API + SPA | 同一 VPS の uvicorn（systemd、ワーカー1） |
 | DB | `stock.db`（VPS の SSD）。`DATABASE_URL` は今の SQLite のまま |
-| バッチ | crontab（19:30 JST） |
+| バッチ | crontab（19:30 JST の J-Quants 日次。為替は 08:00 JST） |
 | 公開 | nginx + Let's Encrypt。月次閲覧は `/monthly`（Basic なし）。個人ツールは `/app` + Basic 認証 |
 | 開発 | 今どおり Windows + `.\run.ps1` |
 

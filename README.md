@@ -47,6 +47,7 @@ notepad .env                    # JQUANTS_API_KEY を記入
 | `.\run.ps1 batch` / `./run.sh batch` / `batch 2026-08-14` | 日次取込 (日付指定可) |
 | `.\run.ps1 backfill` / `./run.sh backfill` / `backfill 2` | バックフィル (既定5年、年数指定可) |
 | `.\run.ps1 lint` / `./run.sh lint` | Ruff + Bandit（`requirements-dev.txt`） |
+| `python jobs/fx_rates.py --backfill` | 為替（ECB/EUR）を 1999-01-04 から取得。以後は引数なしで差分 |
 
 > **バックフィル年数の目安**
 > 指標の計算にはRSが252営業日、MA200が200営業日の履歴を必要とするため、
@@ -139,6 +140,7 @@ static/
   js/           タブ別 vanilla JS
 jobs/
   run_batch.py  日次バッチ / バックフィル
+  fx_rates.py   Frankfurter 為替（EUR ベース。cron は 08:00 JST）
   check_demo.py スキーマ + 旧デモ取り残しガード
 tests/
   ci_smoke.py   CI 起動スモーク
@@ -148,7 +150,7 @@ analyzer/       stock.db を読むだけの分析（一覧は analyzer/README.md
 deploy/
   stock-analyzer.service  systemd（uvicorn ワーカー1）
   nginx.conf              リバースプロキシ。月次閲覧は公開、/app は Basic 認証
-  crontab                 19:30 JST
+  crontab                 J-Quants 19:30 JST、為替 08:00 JST
   update.sh               VPS 側デプロイ（Actions から実行）
   enable-cicd.sh          デプロイ用 SSH 鍵と sudoers を一度だけ入れる
 ```
