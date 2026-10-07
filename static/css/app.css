@@ -304,14 +304,8 @@
   table.monthly-tl .tl-cnt { margin-left:6px; font-weight:400; color:var(--sub); }
   table.monthly-tl .tl-tw { display:inline-block; width:1.1em; color:var(--sub); }
   table.monthly-tl td.tl-tog { cursor:pointer; }
-  .monthly-value-tabs { display:inline-flex; margin:0 0 8px; }
-  .monthly-value-tabs[hidden] { display:none; }
-  .monthly-value-tabs + .monthly-value-tabs { margin-left:8px; }
   /* 内数の節（うち商品売上高）。店計・法人・本社等と足し合わせる関係ではないので薄くする */
   table.monthly-tl tr.tl-part td.tl-name { color:var(--sub); font-weight:400; }
-  /* .ftab は earnings.js が全ボタンの onclick を上書きするので使わない */
-  .monthly-vtab { background:transparent; border:none; color:var(--sub); padding:5px 14px; cursor:pointer; font-size:13px; }
-  .monthly-vtab.on { background:var(--accent); color:#fff; }
   table.monthly-tl td.num[data-m] { cursor:pointer; }
   .monthly-pop {
     position:absolute; z-index:50; background:#fff; border:1px solid var(--border); border-radius:8px;

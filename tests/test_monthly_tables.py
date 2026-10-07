@@ -2183,11 +2183,12 @@ def _assert_monthly_spa(html: str) -> None:
         _fail("do not sticky-fix the rightmost month column")
     if "right:auto" not in monthly_css.replace(" ", ""):
         _fail("month columns must not be right-pinned (right:auto)")
-    vt = re.search(r'<div id="monthly-value-tabs".*?</div>', html, re.S)
-    if not vt or 'onclick="setMonthlyValueMode(' not in vt.group(0):
-        _fail("#monthly-value-tabs must call setMonthlyValueMode")
-    if re.search(r'class="[^"]*\bftab\b', vt.group(0)):
-        _fail("#monthly-value-tabs must not use .ftab (earnings.js overwrites every .ftab onclick)")
+    if 'id="monthly-value-tabs"' in html or "setMonthlyValueMode" in html:
+        _fail("value tabs are gone; paired rows always show amount + yoy")
+    if "MONTHLY_VALUE_MODE_KEY" in html or "monthlyValueMode" in html:
+        _fail("value mode localStorage is gone")
+    if 'class="tl-sub"' not in html:
+        _fail("paired cells must still render yoy under amount as .tl-sub")
     for u in ("/static/monthly_row_order.json", "/static/ir_monthly_codes.json"):
         if f'fetch("{u}", {{cache: "no-store"}})' not in html:
             _fail(f"SPA must fetch {u} with cache: no-store (iOS Safari reuses stale JSON)")
@@ -2361,6 +2362,22 @@ vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandb
 sandbox.monthlyTreeSeedOpen(htm);
 sandbox.monthlyTreeReveal(htm, "ハードオフ FC 店舗数");
 const hardoffReveal = namesOf(sandbox.monthlyTreeHtml(htm, () => "<td></td>", [{y: 2026, m: 1}]));
+const pairRec = {element: "売上高", unit: "number", yoy: "売上高(前年比)"};
+const pairCell = sandbox.monthlyTlCell({
+  "売上高": {unit: "number", values: {"8": 99}},
+  "売上高(前年比)": {unit: "yoy_index", values: {"8": 108}},
+}, pairRec, 8);
+const pairYoyOnly = sandbox.monthlyTlCell({
+  "売上高": {unit: "number", values: {}},
+  "売上高(前年比)": {unit: "yoy_index", values: {"8": 108}},
+}, pairRec, 8);
+const unpairedCell = sandbox.monthlyTlCell({
+  "店舗数": {unit: "number", values: {"8": 12}},
+}, {element: "店舗数", unit: "number"}, 8);
+const pairedRows = sandbox.monthlyPairYoyRows([
+  {element: "売上高", unit: "number"},
+  {element: "売上高(前年比)", unit: "yoy_index"},
+]);
 console.log(JSON.stringify({
   brandNames,
   bdCanon: fixtures.leftoverMkg.label.display,
@@ -2371,6 +2388,10 @@ console.log(JSON.stringify({
   treeParent: tm.parent,
   hardoffNames,
   hardoffReveal,
+  pairTxt: pairCell.txt,
+  pairYoyOnlyTxt: pairYoyOnly.txt,
+  unpairedTxt: unpairedCell.txt,
+  pairedIds: pairedRows.map((r) => [r.element, r.yoy || ""]),
 }));
 """
     with tempfile.NamedTemporaryFile(
@@ -2426,6 +2447,16 @@ console.log(JSON.stringify({
     want_reveal = ["店舗数", "直営", "FC", "海外", "ハードオフ", "オフハウス", "庄や"]
     if got.get("hardoffReveal") != want_reveal:
         _fail(f"ハードオフ FC reveal: {got.get('hardoffReveal')!r}")
+    pair_txt = got.get("pairTxt") or ""
+    if "99" not in pair_txt or 'class="tl-sub"' not in pair_txt or "(108)" not in pair_txt:
+        _fail(f"paired cell must show amount and yoy: {pair_txt!r}")
+    yoy_only = got.get("pairYoyOnlyTxt") or ""
+    if 'class="tl-sub"' not in yoy_only or "(108)" not in yoy_only or "99" in yoy_only:
+        _fail(f"amount-missing month must show yoy only: {yoy_only!r}")
+    if got.get("unpairedTxt") != "12":
+        _fail(f"unpaired number cell: {got.get('unpairedTxt')!r}")
+    if got.get("pairedIds") != [["売上高", "売上高(前年比)"]]:
+        _fail(f"pair yoy rows: {got.get('pairedIds')!r}")
 
 def _assert_known_prod_units(c) -> None:
     from app.db import SessionLocal, apply_known_monthly_element_units

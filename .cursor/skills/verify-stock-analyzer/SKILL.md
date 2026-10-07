@@ -86,8 +86,7 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 | Monthly list | `#monthly-groups`, `#monthly-list` (host), `#monthly-tbl` |
 | Monthly issuer search | `#monthly-sym` (placeholder `銘柄名 or コード`), suggestions `#monthly-suggest` from loaded monthly issuers (not `/api/stocks/search`). Enter or suggestion pick filters `#monthly-tbl`; company-name click opens Detail |
 | Monthly detail | `#monthly-detail`, `#monthly-series`, `#monthly-chart`, `#monthly-table-wrap`, `#monthly-back` |
-| Monthly timeline | `#monthly-table-wrap table.monthly-tl` (the only Detail table on `/app` and public `/monthly`). Tree toggles are `td.tl-name.tl-tog`. Month cells are `td.num[data-m]` and open `#monthly-pop` |
-| Monthly value tabs | `#monthly-value-tabs button[data-v]` (`amount` / `yoy` / `both`) |
+| Monthly timeline | `#monthly-table-wrap table.monthly-tl` (the only Detail table on `/app` and public `/monthly`). Tree toggles are `td.tl-name.tl-tog`. Month cells are `td.num[data-m]` and open `#monthly-pop`. Paired amount/yoy rows show both in the cell (`.tl-sub`) |
 
 **SPA → API (prove the same payloads the UI renders):**
 

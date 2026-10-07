@@ -6,16 +6,7 @@ let MONTHLY_ROW_ORDER = {};
 let _monthlyRowOrderReady = null;
 const MONTHLY_SEGMENT_TAIL_BASE = 10000;
 let monthlyIrCodes = null;
-// 試作: 金額と前年比が両方ある項目は 1 行にまとめ、表示する方を切り替える。色はどちらでも前年比。
-const MONTHLY_VALUE_MODE_KEY = "monthly.valueMode.proto";
-let monthlyValueMode = (() => {
-  try{
-    const v = localStorage.getItem(MONTHLY_VALUE_MODE_KEY);
-    return (v === "amount" || v === "both") ? v : "yoy";
-  }catch(_){
-    return "yoy";
-  }
-})();
+// 同じ節に金額と前年比があれば 1 行にまとめ、金額の下に前年比を出す。色は前年比。
 let monthlyTlOpen = new Set();
 // セルのポップアップで同じ月を並べる最初の暦年（それより前は取込済みと未取込が混ざる）。
 const MONTHLY_POPUP_MIN_YEAR = 2024;
@@ -570,26 +561,25 @@ function monthlyPairYoyRows(rows){
 }
 
 function monthlyTlShown(rec){
-  return rec.yoy && monthlyValueMode === "yoy" ? rec.yoy : rec.element;
+  return rec.element;
 }
 
 function monthlyTlAlt(rec){
-  if(!rec.yoy) return "";
-  return monthlyTlShown(rec) === rec.yoy ? rec.element : rec.yoy;
+  return rec.yoy || "";
 }
 
 // txt はセルの中身（HTML）、len は幅の根拠にする最長行の文字数。数字を出さないセルは塗らない。
 function monthlyTlCell(byName, rec, m){
   const id = monthlyTlShown(rec);
   const src = byName[id];
-  const unit = (src && src.unit) || (id === rec.yoy ? "yoy_index" : rec.unit) || "number";
+  const unit = (src && src.unit) || rec.unit || "number";
   const v = src ? (src.values || {})[String(m)] : null;
   let txt = (v == null || v === "") ? "" : fmtMonthlyCell(v, unit, id);
   let len = txt.length;
   const heatId = rec.yoy || (monthlyIsYoyUnit(unit) ? id : "");
   const hs = heatId ? byName[heatId] : null;
   const hv = hs ? (hs.values || {})[String(m)] : null;
-  if(rec.yoy && monthlyValueMode === "both" && hv != null && hv !== ""){
+  if(rec.yoy && hv != null && hv !== ""){
     const sub = `(${fmtMonthlyCell(hv, "yoy_index", rec.yoy)})`;
     len = Math.max(len, sub.length);
     txt = `${txt}<span class="tl-sub">${sub}</span>`;
@@ -601,31 +591,6 @@ function monthlyTlCell(byName, rec, m){
 function monthlyTlRowAttrs(rec){
   const alt = monthlyTlAlt(rec);
   return ` data-series="${escHtml(monthlyTlShown(rec))}"${alt ? ` data-alt="${escHtml(alt)}"` : ""} onclick="setMonthlySeries(this.dataset.series)"`;
-}
-
-function syncMonthlyValueUi(show){
-  const host = $("#monthly-value-tabs");
-  if(!host) return;
-  host.hidden = !show;
-  host.querySelectorAll("button[data-v]").forEach(b => b.classList.toggle("on", b.dataset.v === monthlyValueMode));
-}
-
-function setMonthlyValueMode(mode){
-  monthlyValueMode = (mode === "amount" || mode === "both") ? mode : "yoy";
-  try{ localStorage.setItem(MONTHLY_VALUE_MODE_KEY, monthlyValueMode); }catch(_){}
-  const base = monthlyYoyBase(monthlySeries);
-  const want = monthlyValueMode === "yoy" ? base + "(前年比)" : base;
-  const ids = new Set(monthlyYearTables.flatMap(d => (d.elements || []).map(e => e.label.display)));
-  if(want !== monthlySeries && ids.has(base) && ids.has(base + "(前年比)")){
-    monthlySeries = want;
-    const sel = $("#monthly-series");
-    if(sel) sel.value = want;
-  }
-  if(!monthlyYearTables.length) return;
-  const wrap = $("#monthly-table-wrap");
-  const left = wrap ? wrap.scrollLeft : 0;
-  renderMonthlyYearTables(monthlyYearTables, {keepScroll: true});
-  if(wrap) wrap.scrollLeft = left;
 }
 
 // 指標 ▸ 節の木。分析は「指標を 1 つ決め、その中を組織で降りる」（既存 売上高 → 焼肉 / ラーメン …、総額売上高 → 百貨店事業 → 各店）。
@@ -1153,8 +1118,6 @@ function renderMonthlyYearTables(tables, opts){
   if(!wrap) return;
   renderMonthlySeriesSelect();
   monthlyTimelineReveal(monthlySeries);
-  const tm = monthlyTreeModel(tables);
-  syncMonthlyValueUi(!!tm && tm.all.some(r => r.yoy));
   renderMonthlyTimeline(tables, opts);
   drawMonthlyChart(tables, monthlySeries);
   markMonthlySeriesRows();
@@ -1372,7 +1335,6 @@ window.showMonthlyDetail = showMonthlyDetail;
 window.pickMonthlyIssuer = pickMonthlyIssuer;
 window.backMonthly = backMonthly;
 window.setMonthlySeries = setMonthlySeries;
-window.setMonthlyValueMode = setMonthlyValueMode;
 window.toggleMonthlyTimelineSection = toggleMonthlyTimelineSection;
 window.loadMonthlyList = loadMonthlyList;
 window.findMonthlyIssuer = findMonthlyIssuer;
