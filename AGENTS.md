@@ -91,6 +91,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 - `tests/test_monthly_ingest.py` に銘柄分岐は足さない
 - 月次業種は `monthly_issuers.industry`（既定 `その他`）。`stocks.sector33` とは別。ingest は `last_ingested_at` だけ更新し industry を触らない
 - HTML 月次の穴埋め・archive 投入は `.cursor/skills/monthly-html-ops-ingest/SKILL.md`。ウェーブ完了後のペアレビューは `.cursor/skills/monthly-html-pair-review/SKILL.md`（親が Task で起動。自己証明しない）
+- 決算予想エージェント実験は `.cursor/skills/agent-forecast/SKILL.md`（`/agent-forecast`）。手順の正本は `analyzer/agent_forecast/README.md`
 
 ## 検証の目安
 

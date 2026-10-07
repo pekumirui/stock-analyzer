@@ -1,5 +1,7 @@
 # agent_forecast
 
+Cursor では `/agent-forecast`（`.cursor/skills/agent-forecast/SKILL.md`）でこの手順を回す。
+
 ## 問い
 
 決算予想をエージェントにさせるとき、どの情報を渡せば精度が上がるか。月次（PDF そのもの / stock-analyzer の月次 API）は役に立つか。精度と消費トークンを比べる。
