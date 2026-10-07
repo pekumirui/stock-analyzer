@@ -166,8 +166,9 @@ function monthlyRowUnitRank(unit){
 function isAllStoreSalesYoy(label, unit){
   const u = unit || "number";
   return (u === "yoy_index" || u === "yoy_pct")
-    && label.metric === "売上高" && (label.scope === "全店" || !label.scope)
-    && !label.segment && !label.breakdown;
+    && label.metric === "売上高"
+    && (label.scope === "全店" || label.scope === "全社" || !label.scope)
+    && !label.segment && !label.breakdown && !label.country;
 }
 
 function monthlyRowOrder(tables, code){
