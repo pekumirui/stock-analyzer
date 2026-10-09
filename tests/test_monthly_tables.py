@@ -2077,6 +2077,16 @@ def _assert_monthly_spa(html: str) -> None:
     pick_body = html[pick_fn:pick_end]
     if "isAllStoreSalesYoy" not in pick_body:
         _fail("default series must prefer 全店/全社 売上 yoy")
+    yoy_pick = html.find("function isAllStoreSalesYoy")
+    yoy_pick_end = html.find("function monthlyRowOrder")
+    if yoy_pick < 0 or yoy_pick_end <= yoy_pick:
+        _fail("isAllStoreSalesYoy / monthlyRowOrder bounds")
+    yoy_pick_body = html[yoy_pick:yoy_pick_end]
+    yoy_pick_compact = yoy_pick_body.replace(" ", "")
+    if 'label.scope==="全社"' not in yoy_pick_compact:
+        _fail("isAllStoreSalesYoy must treat scope 全社 as company-wide")
+    if "!label.country" not in yoy_pick_compact:
+        _fail("isAllStoreSalesYoy must skip country-only 売上高 yoy")
     if "series_kind" not in pick_body:
         _fail("default series must still fall back to all_store")
     if "function monthlySeriesElement" not in html:
@@ -2254,6 +2264,52 @@ def _assert_monthly_layout_js() -> None:
             ],
         }],
         "leftoverMkg": _el("MKG ドラッグ 全店 売上高(前年比)"),
+        # 60360: 海外 is unsegmented (country only, empty scope) and used to beat 全社.
+        "keeper": [{
+            "year": 2026,
+            "code": "60360",
+            "elements": [
+                _el("海外 売上高(前年比)"),
+                _el("キーパー製品等関連事業 売上高(前年比)"),
+                _el("キーパーLABO運営事業 直営 全店 売上高(前年比)"),
+                _el("全社 売上高(前年比)"),
+            ],
+        }],
+        "spot138A": [{
+            "year": 2026,
+            "code": "138A0",
+            "elements": [
+                _el("既存 売上高(前年比)"),
+                _el("全店 客数(前年比)"),
+                _el("全店 売上高(前年比)"),
+                _el("店舗数", "number"),
+            ],
+        }],
+        "spot3086": [{
+            "year": 2026,
+            "code": "30860",
+            "elements": [
+                _el("百貨店事業 総額 売上高(前年比)"),
+                _el("大丸 心斎橋店 売上高(前年比)"),
+                _el("総額 連結売上高(前年比)"),
+            ],
+        }],
+        "spot9997": [{
+            "year": 2026,
+            "code": "99970",
+            "elements": [
+                _el("グロース領域 全店 売上高(前年比)"),
+                _el("全店 連結売上高(前年比)"),
+            ],
+        }],
+        "alpenBoth": [{
+            "year": 2026,
+            "code": "30280",
+            "elements": [
+                _el("全社 売上高(前年比)"),
+                _el("全店 売上高(前年比)"),
+            ],
+        }],
         "chartTables": [
             {
                 "year": 2026,
@@ -2398,6 +2454,11 @@ console.log(JSON.stringify({
   brandNames,
   bdCanon: fixtures.leftoverMkg.label.display,
   bdDefault: sandbox.pickDefaultMonthlySeries(matsukiyo),
+  keeperDefault: sandbox.pickDefaultMonthlySeries(fixtures.keeper),
+  spot138A: sandbox.pickDefaultMonthlySeries(fixtures.spot138A),
+  spot3086: sandbox.pickDefaultMonthlySeries(fixtures.spot3086),
+  spot9997: sandbox.pickDefaultMonthlySeries(fixtures.spot9997),
+  alpenBoth: sandbox.pickDefaultMonthlySeries(fixtures.alpenBoth),
   bdCompanyKind: drugRow && drugRow.label.series_kind,
   chartHtml,
   treeNames,
@@ -2435,6 +2496,16 @@ console.log(JSON.stringify({
         _fail(f"old leftover ドラッグ must display-canonicalize: {got.get('bdCanon')!r}")
     if got.get("bdDefault") != "全店 売上高(前年比)":
         _fail(f"TOP series must ignore 内訳: {got.get('bdDefault')!r}")
+    if got.get("keeperDefault") != "全社 売上高(前年比)":
+        _fail(f"60360 default must be 全社, not 海外: {got.get('keeperDefault')!r}")
+    if got.get("spot138A") != "全店 売上高(前年比)":
+        _fail(f"138A0 default must stay 全店 売上高(前年比): {got.get('spot138A')!r}")
+    if got.get("spot3086") != "総額 連結売上高(前年比)":
+        _fail(f"30860 default must stay 総額 連結売上高(前年比): {got.get('spot3086')!r}")
+    if got.get("spot9997") != "全店 連結売上高(前年比)":
+        _fail(f"99970 default must stay 全店 連結売上高(前年比): {got.get('spot9997')!r}")
+    if got.get("alpenBoth") != "全店 売上高(前年比)":
+        _fail(f"全店+全社 must still prefer 全店: {got.get('alpenBoth')!r}")
     if got.get("bdCompanyKind") is not None:
         _fail(f"会社 ドラッグ must not be all_store: {got.get('bdCompanyKind')!r}")
     chart_html = got.get("chartHtml") or ""
