@@ -39,6 +39,7 @@ def main():
             print("新しい株価・決算が無いので再計算をスキップ")
         else:
             px = analytics.price_frame(db)
+            db.commit()
             print("指標を再計算中 (MA/RS/ステージ)...")
             analytics.compute_indicators(db, px=px)
             print("決算後パフォーマンスを計算中...")

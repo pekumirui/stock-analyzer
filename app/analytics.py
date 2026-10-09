@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, defer
 
 from .config import STAGE_PARAMS as P, EARNINGS_PARAMS as EP, RS_PRODUCT_CATEGORIES
 from .models import DailyPrice, Topix, Indicator, Statement, EarningsEvent, Stock
-from .ingest import upsert
+from .ingest import WRITE_CHUNK_SIZE, delete_all_chunked, upsert
 
 
 def rs_universe_codes(db: Session) -> set[str] | None:
@@ -51,7 +51,12 @@ def price_frame(db: Session) -> pd.DataFrame:
     return df.dropna(subset=["adj_close"])
 
 
-def compute_indicators(db: Session, keep_days: int = 400, px: pd.DataFrame | None = None):
+def compute_indicators(
+    db: Session,
+    keep_days: int = 400,
+    px: pd.DataFrame | None = None,
+    chunk_size: int = WRITE_CHUNK_SIZE,
+):
     """全銘柄のMA/52週/RS/ステージを計算し indicators に保存。px は price_frame の結果を使い回すとき。"""
     df = price_frame(db) if px is None else px
     if df.empty:
@@ -122,15 +127,17 @@ def compute_indicators(db: Session, keep_days: int = 400, px: pd.DataFrame | Non
     cols = ["code", "date", "adj_close", "ma50", "ma150", "ma200", "ma200_slope_1m",
             "high_52w", "low_52w", "rs_raw", "rs_rank", "stage", "avg_volume_50"]
     out = out[cols].rename(columns={"adj_close": "close"})
-    db.query(Indicator).delete()
-    # 全行を一度に dict にすると 1GB 超になるので区切る。commit は最後に 1 回
-    for i in range(0, len(out), 50_000):
-        rows = out.iloc[i:i + 50_000].replace({np.nan: None}).to_dict("records")
+    # 読取スナップショットを解放してから書く。全置換を 1 トランザクションにすると
+    # 本番規模で busy_timeout(30s) を超え、月次 PUT が locked になる (#522)。
+    db.commit()
+    delete_all_chunked(db, Indicator, chunk_size=chunk_size)
+    # 全行を一度に dict にすると 1GB 超になるので区切る。チャンクごとに commit。
+    for i in range(0, len(out), chunk_size):
+        rows = out.iloc[i:i + chunk_size].replace({np.nan: None}).to_dict("records")
         for r in rows:
             r["rs_rank"] = int(r["rs_rank"]) if r["rs_rank"] is not None else None
             r["stage"] = int(r["stage"]) if r["stage"] is not None else None
-        upsert(db, Indicator, rows, commit=False)
-    db.commit()
+        upsert(db, Indicator, rows, commit=True)
 
 
 def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
@@ -178,7 +185,8 @@ def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
         rec["alpha_to_date"] = round((r - tr) * 100, 2)
         rows.append(rec)
     if rows:
-        upsert(db, EarningsEvent, rows)
+        for i in range(0, len(rows), WRITE_CHUNK_SIZE):
+            upsert(db, EarningsEvent, rows[i:i + WRITE_CHUNK_SIZE], commit=True)
 
 
 def indicators_current(db: Session) -> bool:
