@@ -5,10 +5,11 @@
 5年バックフィル = 営業日約1,220日 × (株価1 + 財務1) ≒ 2,450リクエスト。
 """
 import json
+import re
 from datetime import date, datetime, timedelta
 from itertools import groupby
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
@@ -45,6 +46,10 @@ def _f(v):
         return None
 
 
+WRITE_CHUNK_SIZE = 50_000
+_TABLE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
 def upsert(db: Session, model, rows: list[dict], *, commit: bool = True) -> None:
     if not rows:
         return
@@ -60,6 +65,33 @@ def upsert(db: Session, model, rows: list[dict], *, commit: bool = True) -> None
         db.execute(stmt, list(grp))
     if commit:
         db.commit()
+
+
+def delete_all_chunked(
+    db: Session, model, *, chunk_size: int = WRITE_CHUNK_SIZE,
+) -> int:
+    """全行を短いトランザクションで消す。SQLite は DB 全体でライター 1 本。
+
+    indicators の 1 トランザクション全削除は busy_timeout(30s) を超えて
+    月次 PUT が database is locked になる (#522)。
+    """
+    if chunk_size < 1:
+        raise ValueError("chunk_size must be >= 1")
+    name = model.__table__.name
+    if not _TABLE_NAME_RE.fullmatch(name):
+        raise ValueError(f"unsafe table name: {name!r}")
+    sql = text(
+        f"DELETE FROM {name} WHERE rowid IN (SELECT rowid FROM {name} LIMIT :n)"
+    )
+    deleted = 0
+    while True:
+        n = db.execute(sql, {"n": chunk_size}).rowcount or 0
+        db.commit()
+        db.expire_all()
+        if n <= 0:
+            break
+        deleted += n
+    return deleted
 
 
 def ingest_master(db: Session, jq: JQuantsClient, day: str | None = None):

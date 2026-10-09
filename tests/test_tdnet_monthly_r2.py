@@ -9,6 +9,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "jobs"))
 
 from tdnet_monthly_r2 import (  # noqa: E402
+    INCLUDE_EXTRA,
     already_have,
     date_window,
     dest_filename,
@@ -327,6 +328,8 @@ def test_dest_path_per_code_dir() -> None:
 
 
 def test_is_monthly_title() -> None:
+    if "月次IRニュース" not in INCLUDE_EXTRA:
+        _fail("INCLUDE_EXTRA must list 月次IRニュース")
     include = [
         "2026年10月期 7月度 月次売上のお知らせ",
         "2026年10月期7月度_直営店売上速報についてのお知らせ",
@@ -366,6 +369,10 @@ def test_is_monthly_title() -> None:
         "売上高前年同月比推移に関するお知らせ",
         "2026年7月 月次業績報告",
         "2027年３月期７月度月次売上（速報）に関するお知らせ",
+        # 神戸物産 3038。日次 / backfill とも同じ is_monthly_title。
+        "月次IRニュース（2024年10月）",
+        "2026年8月度 月次IRニュース",
+        "2024年10月度 IRニュース",
     ]
     for t in include:
         if not is_monthly_title(t):
@@ -384,6 +391,7 @@ def test_is_monthly_title() -> None:
         "2026年8月度 取締役選任のお知らせ",
         "四半期短信〔日本基準〕（連結）",
         "2026年8月度 業績予想の修正に関するお知らせ",
+        "IRニュースのお知らせ",
     ]
     for t in exclude:
         if is_monthly_title(t):

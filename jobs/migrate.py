@@ -13,20 +13,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy.exc import OperationalError
 
-from app.db import init_db, migrate_add_columns, missing_columns
+from app.db import init_db, is_sqlite_lock, migrate_add_columns, missing_columns
 
-LOCK_MARKERS = ("database is locked", "database is busy")
 LOCK_ATTEMPTS = 10
 LOCK_SLEEP_S = 5.0
 LOCK_SLEEP_CAP_S = 60.0
-
-
-def is_sqlite_lock(exc: BaseException) -> bool:
-    text = str(exc).lower()
-    orig = getattr(exc, "orig", None)
-    if orig is not None:
-        text = f"{text} {orig}".lower()
-    return any(marker in text for marker in LOCK_MARKERS)
 
 
 def migrate_once() -> None:

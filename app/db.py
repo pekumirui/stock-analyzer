@@ -1,7 +1,9 @@
 import re
+import time
 import unicodedata
 
 from sqlalchemy import create_engine, event, inspect, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
 from .config import DATABASE_URL
@@ -40,6 +42,44 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, future=True)
 
 if str(DATABASE_URL).startswith("sqlite"):
     event.listens_for(engine, "connect")(apply_sqlite_pragmas)
+
+
+LOCK_MARKERS = ("database is locked", "database is busy")
+WRITE_LOCK_ATTEMPTS = 6
+WRITE_LOCK_SLEEP_S = 0.05
+WRITE_LOCK_SLEEP_CAP_S = 2.0
+
+
+def is_sqlite_lock(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    orig = getattr(exc, "orig", None)
+    if orig is not None:
+        msg = f"{msg} {orig}".lower()
+    return any(marker in msg for marker in LOCK_MARKERS)
+
+
+def run_sqlite_write(db, fn, *, attempts: int = WRITE_LOCK_ATTEMPTS):
+    """短いライターロックの隙間を待つ。fn のあと commit。失敗時は rollback して再実行。
+
+    busy_timeout は接続あたり最大 30s。それを超えるロック（旧 compute_indicators の
+    全置換 1 トランザクションなど）はチャンク commit 側で短くするのが本筋。
+    ここはチャンクとチャンクの間に入れなかったとき用。
+    """
+    delay = WRITE_LOCK_SLEEP_S
+    for attempt in range(1, attempts + 1):
+        try:
+            result = fn()
+            db.commit()
+            return result
+        except OperationalError as exc:
+            db.rollback()
+            if not is_sqlite_lock(exc) or attempt >= attempts:
+                raise
+            time.sleep(delay)
+            delay = min(delay * 2, WRITE_LOCK_SLEEP_CAP_S)
+        except Exception:
+            db.rollback()
+            raise
 
 
 class SchemaMismatch(RuntimeError):

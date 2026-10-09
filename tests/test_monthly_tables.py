@@ -341,6 +341,168 @@ def test_monthly_tree_assign() -> None:
     }
     if got != want:
         _fail(f"96160 tree rows: {got!r}")
+    # アスモ: 会社別の前年比と拠点数は各社の節。資料に範囲の語が無いので 全店 は付けない
+    am = assign_tree_rows("26540", [
+        "売上高",
+        "売上高(前年比)",
+        "アスモフードサービス 売上高",
+        "アスモフードサービス 売上高(前年比)",
+        "アスモフードサービス 受託施設数",
+        "アスモ介護サービス 訪問介護事業所数",
+        "アスモ介護サービス 有料老人ホーム数",
+        "TrustGrowth 売上高",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in am.items()}
+    want = {
+        "売上高": (["全体"], "売上高", "売上高"),
+        "売上高(前年比)": (["全体"], "売上高(前年比)", "売上高"),
+        "アスモフードサービス 売上高": (["全体", "アスモフードサービス"], "売上高", "売上高"),
+        "アスモフードサービス 売上高(前年比)": (["全体", "アスモフードサービス"], "売上高(前年比)", "売上高"),
+        "アスモフードサービス 受託施設数": (["全体", "アスモフードサービス"], "受託施設数", "受託施設数"),
+        "アスモ介護サービス 訪問介護事業所数": (["全体", "アスモ介護サービス"], "訪問介護事業所数", "訪問介護事業所数"),
+        "アスモ介護サービス 有料老人ホーム数": (["全体", "アスモ介護サービス"], "有料老人ホーム数", "有料老人ホーム数"),
+        "TrustGrowth 売上高": (["全体", "TrustGrowth"], "売上高", "売上高"),
+    }
+    if got != want:
+        _fail(f"26540 tree rows: {got!r}")
+    # ＨＡＮＡＴＯＵＲ ＪＡＰＡＮ: ホテル ▸ 札幌 / その他3棟（表の字下げ）。バス事業の指標は 運行 売上高
+    ht = assign_tree_rows("65610", [
+        "旅行事業 取扱高",
+        "ホテル 客室収入",
+        "ホテル 札幌 客室収入",
+        "ホテル その他3棟 客室収入",
+        "ホテル 客室収入(前年比)",
+        "バス事業 運行 売上高(前年比)",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in ht.items()}
+    want = {
+        "旅行事業 取扱高": (["全体", "旅行事業"], "取扱高", "取扱高"),
+        "ホテル 客室収入": (["全体", "ホテル"], "客室収入", "客室収入"),
+        "ホテル 札幌 客室収入": (["全体", "ホテル", "札幌"], "客室収入", "客室収入"),
+        "ホテル その他3棟 客室収入": (["全体", "ホテル", "その他3棟"], "客室収入", "客室収入"),
+        "ホテル 客室収入(前年比)": (["全体", "ホテル"], "客室収入(前年比)", "客室収入"),
+        "バス事業 運行 売上高(前年比)": (["全体", "バス事業"], "運行 売上高(前年比)", "運行 売上高"),
+    }
+    if got != want:
+        _fail(f"65610 tree rows: {got!r}")
+    # Ｅｎｊｉｎ: 成約高は PR事業 の指標（見出し「PR 事業成約高」）。2026年5月までの旧セグメントも根の子
+    ej = assign_tree_rows("73700", [
+        "グループ 売上高",
+        "PR事業 売上高",
+        "PR事業 成約高",
+        "PR事業 成約高(前年比)",
+        "PRコンサルティングサービス 売上高",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in ej.items()}
+    want = {
+        "グループ 売上高": (["全体"], "売上高", "売上高"),
+        "PR事業 売上高": (["全体", "PR事業"], "売上高", "売上高"),
+        "PR事業 成約高": (["全体", "PR事業"], "成約高", "成約高"),
+        "PR事業 成約高(前年比)": (["全体", "PR事業"], "成約高(前年比)", "成約高"),
+        "PRコンサルティングサービス 売上高": (["全体", "PRコンサルティングサービス"], "売上高", "売上高"),
+    }
+    if got != want:
+        _fail(f"73700 tree rows: {got!r}")
+    # 光フード: 店舗数は 大黒・魚椿 ▸ 直営 / 業務委託 / FC とその他。売上高・客数・客単価は 大黒・魚椿（直営店）
+    hikari = assign_tree_rows("138A0", [
+        "店舗数",
+        "大黒・魚椿 店舗数",
+        "大黒・魚椿 直営 店舗数",
+        "大黒・魚椿 業務委託店 店舗数",
+        "大黒・魚椿 FC 店舗数",
+        "その他 店舗数",
+        "全店 売上高(前年比)",
+        "既存 売上高(前年比)",
+        "全店 客数(前年比)",
+        "既存 客単価(前年比)",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in hikari.items()}
+    want = {
+        "店舗数": (["全体"], "店舗数", "店舗数"),
+        "大黒・魚椿 店舗数": (["全体", "大黒・魚椿"], "店舗数", "店舗数"),
+        "大黒・魚椿 直営 店舗数": (["全体", "大黒・魚椿", "直営"], "店舗数", "店舗数"),
+        "大黒・魚椿 業務委託店 店舗数": (["全体", "大黒・魚椿", "業務委託"], "店舗数", "店舗数"),
+        "大黒・魚椿 FC 店舗数": (["全体", "大黒・魚椿", "FC"], "店舗数", "店舗数"),
+        "その他 店舗数": (["全体", "その他"], "店舗数", "店舗数"),
+        "全店 売上高(前年比)": (["全体", "大黒・魚椿"], "全店 売上高(前年比)", "全店 売上高"),
+        "既存 売上高(前年比)": (["全体", "大黒・魚椿"], "既存 売上高(前年比)", "既存 売上高"),
+        "全店 客数(前年比)": (["全体", "大黒・魚椿"], "全店 客数(前年比)", "全店 客数"),
+        "既存 客単価(前年比)": (["全体", "大黒・魚椿"], "既存 客単価(前年比)", "既存 客単価"),
+    }
+    if got != want:
+        _fail(f"138A0 tree rows: {got!r}")
+    # 太洋物産: 食料部 ▸ 品目、農産部 ▸ 農産品、中国開拓部 ▸ 中国関連 / 化学品、生活産業部 ▸ 豚肉
+    taiyo = assign_tree_rows("99410", [
+        "全店 売上高",
+        "売上高(前年比)",
+        "食料部計 全店 売上高",
+        "食料部 全店 売上高",
+        "牛肉 全店 売上高",
+        "牛肉 売上高(前年比)",
+        "加工食品",
+        "農産品 全店 売上高",
+        "中国開拓部計 全店 売上高",
+        "中国関連 全店 売上高",
+        "化学品 全店 売上高",
+        "生活産業部 全店 売上高",
+        "豚肉 全店 売上高",
+        "その他畜産",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in taiyo.items()}
+    want = {
+        "全店 売上高": (["全体"], "全店 売上高", "売上高"),
+        "売上高(前年比)": (["全体"], "売上高(前年比)", "売上高"),
+        "食料部計 全店 売上高": (["全体", "食料部"], "全店 売上高", "売上高"),
+        "食料部 全店 売上高": (["全体", "食料部"], "食料部 全店 売上高", "売上高"),
+        "牛肉 全店 売上高": (["全体", "食料部", "牛肉"], "全店 売上高", "売上高"),
+        "牛肉 売上高(前年比)": (["全体", "食料部", "牛肉"], "売上高(前年比)", "売上高"),
+        "加工食品": (["全体", "食料部", "加工食品"], "加工食品", "売上高"),
+        "農産品 全店 売上高": (["全体", "農産部", "農産品"], "全店 売上高", "売上高"),
+        "中国開拓部計 全店 売上高": (["全体", "中国開拓部"], "全店 売上高", "売上高"),
+        "中国関連 全店 売上高": (["全体", "中国開拓部", "中国関連"], "全店 売上高", "売上高"),
+        "化学品 全店 売上高": (["全体", "中国開拓部", "化学品"], "全店 売上高", "売上高"),
+        "生活産業部 全店 売上高": (["全体", "生活産業部"], "全店 売上高", "売上高"),
+        "豚肉 全店 売上高": (["全体", "生活産業部", "豚肉"], "全店 売上高", "売上高"),
+        "その他畜産": (["全体", "食料部", "その他畜産"], "その他畜産", "売上高"),
+    }
+    if got != want:
+        _fail(f"99410 tree rows: {got!r}")
+    taiyo_tree = tree_payload("99410", [
+        "全店 売上高", "農産品 全店 売上高", "食料部計 全店 売上高",
+    ], load_monthly_trees())
+    if taiyo_tree is None:
+        _fail("99410 tree payload")
+    if [n["name"] for n in taiyo_tree["tree"][0]["children"]] != [
+        "食料部", "農産部", "中国開拓部", "生活産業部",
+    ]:
+        _fail(f"99410 dept order: {taiyo_tree['tree'][0]['children']!r}")
+    if not taiyo_tree["tree"][0]["children"][1]["heading"]:
+        _fail("99410 農産部 must be a heading")
+    # 神戸物産: 総店舗数 ▸ 直営 / FC ▸ 直轄 / 地方エリア。出荷実績は直轄エリアの節、全国は根
+    kb = assign_tree_rows("30380", [
+        "店舗数",
+        "FC 店舗数",
+        "直営 店舗数",
+        "直轄エリア 店舗数",
+        "地方エリア 出店",
+        "直轄エリア 仕入れ 既存 売上高(前年比)",
+        "全国 仕入れ 全店 売上高(前年比)",
+        "経常利益(前年比)",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in kb.items()}
+    want = {
+        "店舗数": (["全体"], "店舗数", "店舗数"),
+        "FC 店舗数": (["全体", "FC"], "店舗数", "店舗数"),
+        "直営 店舗数": (["全体", "直営"], "店舗数", "店舗数"),
+        "直轄エリア 店舗数": (["全体", "FC", "直轄"], "店舗数", "店舗数"),
+        "地方エリア 出店": (["全体", "FC", "地方エリア"], "出店", "出店"),
+        "直轄エリア 仕入れ 既存 売上高(前年比)": (
+            ["全体", "FC", "直轄"], "仕入れ 既存 売上高(前年比)", "仕入れ 既存 売上高"),
+        "全国 仕入れ 全店 売上高(前年比)": (["全体"], "全国 仕入れ 全店 売上高(前年比)", "仕入れ 全店 売上高"),
+        "経常利益(前年比)": (["全体"], "経常利益(前年比)", "経常利益"),
+    }
+    if got != want:
+        _fail(f"30380 tree rows: {got!r}")
     # ＫｅｅＰｅｒ技研: 決算のセグメント キーパーLABO運営事業（直営+FC の店舗数）▸ 直営 / FC、キーパー製品等関連事業 ▸ マーケット・海外
     kp = assign_tree_rows("60360", [
         "全社 売上高",
@@ -2077,6 +2239,16 @@ def _assert_monthly_spa(html: str) -> None:
     pick_body = html[pick_fn:pick_end]
     if "isAllStoreSalesYoy" not in pick_body:
         _fail("default series must prefer 全店/全社 売上 yoy")
+    yoy_pick = html.find("function isAllStoreSalesYoy")
+    yoy_pick_end = html.find("function monthlyRowOrder")
+    if yoy_pick < 0 or yoy_pick_end <= yoy_pick:
+        _fail("isAllStoreSalesYoy / monthlyRowOrder bounds")
+    yoy_pick_body = html[yoy_pick:yoy_pick_end]
+    yoy_pick_compact = yoy_pick_body.replace(" ", "")
+    if 'label.scope==="全社"' not in yoy_pick_compact:
+        _fail("isAllStoreSalesYoy must treat scope 全社 as company-wide")
+    if "!label.country" not in yoy_pick_compact:
+        _fail("isAllStoreSalesYoy must skip country-only 売上高 yoy")
     if "series_kind" not in pick_body:
         _fail("default series must still fall back to all_store")
     if "function monthlySeriesElement" not in html:
@@ -2254,6 +2426,52 @@ def _assert_monthly_layout_js() -> None:
             ],
         }],
         "leftoverMkg": _el("MKG ドラッグ 全店 売上高(前年比)"),
+        # 60360: 海外 is unsegmented (country only, empty scope) and used to beat 全社.
+        "keeper": [{
+            "year": 2026,
+            "code": "60360",
+            "elements": [
+                _el("海外 売上高(前年比)"),
+                _el("キーパー製品等関連事業 売上高(前年比)"),
+                _el("キーパーLABO運営事業 直営 全店 売上高(前年比)"),
+                _el("全社 売上高(前年比)"),
+            ],
+        }],
+        "spot138A": [{
+            "year": 2026,
+            "code": "138A0",
+            "elements": [
+                _el("既存 売上高(前年比)"),
+                _el("全店 客数(前年比)"),
+                _el("全店 売上高(前年比)"),
+                _el("店舗数", "number"),
+            ],
+        }],
+        "spot3086": [{
+            "year": 2026,
+            "code": "30860",
+            "elements": [
+                _el("百貨店事業 総額 売上高(前年比)"),
+                _el("大丸 心斎橋店 売上高(前年比)"),
+                _el("総額 連結売上高(前年比)"),
+            ],
+        }],
+        "spot9997": [{
+            "year": 2026,
+            "code": "99970",
+            "elements": [
+                _el("グロース領域 全店 売上高(前年比)"),
+                _el("全店 連結売上高(前年比)"),
+            ],
+        }],
+        "alpenBoth": [{
+            "year": 2026,
+            "code": "30280",
+            "elements": [
+                _el("全社 売上高(前年比)"),
+                _el("全店 売上高(前年比)"),
+            ],
+        }],
         "chartTables": [
             {
                 "year": 2026,
@@ -2277,7 +2495,21 @@ def _assert_monthly_layout_js() -> None:
             },
         ],
     }
-    from app.monthly_tree import auto_tree_payload, build_auto_tree
+    from app.monthly_tree import assign_tree_rows, auto_tree_payload, build_auto_tree, load_monthly_trees, tree_payload
+
+    # 神戸物産（config の木）: 前年比だけの会社の行は (前年比) を残す。単独の指標は「節名 葉」
+    kobe_rows = [
+        ("売上高", "number"), ("売上高(前年比)", "yoy_index"), ("店舗数", "number"), ("FC 店舗数", "number"),
+        ("直轄エリア 店舗数", "number"), ("直轄エリア 仕入れ 既存 売上高(前年比)", "yoy_index"),
+        ("直轄エリア 仕入れ 全店 売上高(前年比)", "yoy_index"), ("全国 仕入れ 全店 売上高(前年比)", "yoy_index"),
+    ]
+    kobe_trees = load_monthly_trees()
+    kobe_assign = assign_tree_rows("30380", [e for e, _ in kobe_rows], kobe_trees)
+    fixtures["kobeTree"] = [{
+        "year": 2026, "code": "30380",
+        "elements": [{**_el(e, u), "tree": kobe_assign[e]} for e, u in kobe_rows],
+        **tree_payload("30380", [e for e, _ in kobe_rows], kobe_trees),
+    }]
 
     store_rows = [
         ("直営+FC 既存 店舗数", "number"), ("直営 既存 店舗数", "number"),
@@ -2378,6 +2610,11 @@ vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandb
 sandbox.monthlyTreeSeedOpen(htm);
 sandbox.monthlyTreeReveal(htm, "ハードオフ FC 店舗数");
 const hardoffReveal = namesOf(sandbox.monthlyTreeHtml(htm, () => "<td></td>", [{y: 2026, m: 1}]));
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const ktm = sandbox.monthlyTreeModel(fixtures.kobeTree);
+sandbox.monthlyTreeSeedOpen(ktm);
+vm.runInContext('for(const k of ["店舗数", "仕入れ 全店 売上高"]){ monthlyTlOpen.add("m:" + k); monthlyTlOpen.add("m:" + k + "\\u203atree:全体\\u203aFC"); }', sandbox);
+const kobeNames = namesOf(sandbox.monthlyTreeHtml(ktm, () => "<td></td>", [{y: 2026, m: 1}]));
 const pairRec = {element: "売上高", unit: "number", yoy: "売上高(前年比)"};
 const pairCell = sandbox.monthlyTlCell({
   "売上高": {unit: "number", values: {"8": 99}},
@@ -2398,12 +2635,18 @@ console.log(JSON.stringify({
   brandNames,
   bdCanon: fixtures.leftoverMkg.label.display,
   bdDefault: sandbox.pickDefaultMonthlySeries(matsukiyo),
+  keeperDefault: sandbox.pickDefaultMonthlySeries(fixtures.keeper),
+  spot138A: sandbox.pickDefaultMonthlySeries(fixtures.spot138A),
+  spot3086: sandbox.pickDefaultMonthlySeries(fixtures.spot3086),
+  spot9997: sandbox.pickDefaultMonthlySeries(fixtures.spot9997),
+  alpenBoth: sandbox.pickDefaultMonthlySeries(fixtures.alpenBoth),
   bdCompanyKind: drugRow && drugRow.label.series_kind,
   chartHtml,
   treeNames,
   treeParent: tm.parent,
   hardoffNames,
   hardoffReveal,
+  kobeNames,
   pairTxt: pairCell.txt,
   pairYoyOnlyTxt: pairYoyOnly.txt,
   unpairedTxt: unpairedCell.txt,
@@ -2435,6 +2678,16 @@ console.log(JSON.stringify({
         _fail(f"old leftover ドラッグ must display-canonicalize: {got.get('bdCanon')!r}")
     if got.get("bdDefault") != "全店 売上高(前年比)":
         _fail(f"TOP series must ignore 内訳: {got.get('bdDefault')!r}")
+    if got.get("keeperDefault") != "全社 売上高(前年比)":
+        _fail(f"60360 default must be 全社, not 海外: {got.get('keeperDefault')!r}")
+    if got.get("spot138A") != "全店 売上高(前年比)":
+        _fail(f"138A0 default must stay 全店 売上高(前年比): {got.get('spot138A')!r}")
+    if got.get("spot3086") != "総額 連結売上高(前年比)":
+        _fail(f"30860 default must stay 総額 連結売上高(前年比): {got.get('spot3086')!r}")
+    if got.get("spot9997") != "全店 連結売上高(前年比)":
+        _fail(f"99970 default must stay 全店 連結売上高(前年比): {got.get('spot9997')!r}")
+    if got.get("alpenBoth") != "全店 売上高(前年比)":
+        _fail(f"全店+全社 must still prefer 全店: {got.get('alpenBoth')!r}")
     if got.get("bdCompanyKind") is not None:
         _fail(f"会社 ドラッグ must not be all_store: {got.get('bdCompanyKind')!r}")
     chart_html = got.get("chartHtml") or ""
@@ -2453,6 +2706,10 @@ console.log(JSON.stringify({
     want_brand = ["既存 売上高", "トライアル", "西友", "全店 売上高", "トライアル", "西友"]
     if got.get("brandNames") != want_brand:
         _fail(f"トライアル: 会社の行が無い指標は開く: {got.get('brandNames')!r}")
+    want_kobe = ["売上高", "店舗数", "FC", "直轄", "直轄 仕入れ 既存 売上高(前年比)",
+                 "全国 仕入れ 全店 売上高(前年比)", "FC", "直轄"]
+    if got.get("kobeNames") != want_kobe:
+        _fail(f"30380 config tree rows: {got.get('kobeNames')!r}")
     # 直営と FC の両方に業態行があるときは両方の下に出す。FC の無い業態は直営だけ。店舗数だけの節は合計の下
     want_hardoff = [
         "店舗数", "直営", "海外", "ハードオフ", "オフハウス", "ブックオフ",
