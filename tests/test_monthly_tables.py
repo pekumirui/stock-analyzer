@@ -385,7 +385,7 @@ def test_monthly_tree_assign() -> None:
     }
     if got != want:
         _fail(f"65610 tree rows: {got!r}")
-    # 神戸物産: 総店舗数 ▸ 直営 / FC ▸ 直轄エリア / 地方エリア。出荷実績は直轄エリアの節、全国は根
+    # 神戸物産: 総店舗数 ▸ 直営 / FC ▸ 直轄 / 地方エリア。出荷実績は直轄エリアの節、全国は根
     kb = assign_tree_rows("30380", [
         "店舗数",
         "FC 店舗数",
@@ -401,10 +401,10 @@ def test_monthly_tree_assign() -> None:
         "店舗数": (["全体"], "店舗数", "店舗数"),
         "FC 店舗数": (["全体", "FC"], "店舗数", "店舗数"),
         "直営 店舗数": (["全体", "直営"], "店舗数", "店舗数"),
-        "直轄エリア 店舗数": (["全体", "FC", "直轄エリア"], "店舗数", "店舗数"),
+        "直轄エリア 店舗数": (["全体", "FC", "直轄"], "店舗数", "店舗数"),
         "地方エリア 出店": (["全体", "FC", "地方エリア"], "出店", "出店"),
         "直轄エリア 仕入れ 既存 売上高(前年比)": (
-            ["全体", "FC", "直轄エリア"], "仕入れ 既存 売上高(前年比)", "仕入れ 既存 売上高"),
+            ["全体", "FC", "直轄"], "仕入れ 既存 売上高(前年比)", "仕入れ 既存 売上高"),
         "全国 仕入れ 全店 売上高(前年比)": (["全体"], "全国 仕入れ 全店 売上高(前年比)", "仕入れ 全店 売上高"),
         "経常利益(前年比)": (["全体"], "経常利益(前年比)", "経常利益"),
     }
@@ -2402,7 +2402,21 @@ def _assert_monthly_layout_js() -> None:
             },
         ],
     }
-    from app.monthly_tree import auto_tree_payload, build_auto_tree
+    from app.monthly_tree import assign_tree_rows, auto_tree_payload, build_auto_tree, load_monthly_trees, tree_payload
+
+    # 神戸物産（config の木）: 前年比だけの会社の行は (前年比) を残す。単独の指標は「節名 葉」
+    kobe_rows = [
+        ("売上高", "number"), ("売上高(前年比)", "yoy_index"), ("店舗数", "number"), ("FC 店舗数", "number"),
+        ("直轄エリア 店舗数", "number"), ("直轄エリア 仕入れ 既存 売上高(前年比)", "yoy_index"),
+        ("直轄エリア 仕入れ 全店 売上高(前年比)", "yoy_index"), ("全国 仕入れ 全店 売上高(前年比)", "yoy_index"),
+    ]
+    kobe_trees = load_monthly_trees()
+    kobe_assign = assign_tree_rows("30380", [e for e, _ in kobe_rows], kobe_trees)
+    fixtures["kobeTree"] = [{
+        "year": 2026, "code": "30380",
+        "elements": [{**_el(e, u), "tree": kobe_assign[e]} for e, u in kobe_rows],
+        **tree_payload("30380", [e for e, _ in kobe_rows], kobe_trees),
+    }]
 
     store_rows = [
         ("直営+FC 既存 店舗数", "number"), ("直営 既存 店舗数", "number"),
@@ -2503,6 +2517,11 @@ vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandb
 sandbox.monthlyTreeSeedOpen(htm);
 sandbox.monthlyTreeReveal(htm, "ハードオフ FC 店舗数");
 const hardoffReveal = namesOf(sandbox.monthlyTreeHtml(htm, () => "<td></td>", [{y: 2026, m: 1}]));
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const ktm = sandbox.monthlyTreeModel(fixtures.kobeTree);
+sandbox.monthlyTreeSeedOpen(ktm);
+vm.runInContext('for(const k of ["店舗数", "仕入れ 全店 売上高"]){ monthlyTlOpen.add("m:" + k); monthlyTlOpen.add("m:" + k + "\\u203atree:全体\\u203aFC"); }', sandbox);
+const kobeNames = namesOf(sandbox.monthlyTreeHtml(ktm, () => "<td></td>", [{y: 2026, m: 1}]));
 const pairRec = {element: "売上高", unit: "number", yoy: "売上高(前年比)"};
 const pairCell = sandbox.monthlyTlCell({
   "売上高": {unit: "number", values: {"8": 99}},
@@ -2534,6 +2553,7 @@ console.log(JSON.stringify({
   treeParent: tm.parent,
   hardoffNames,
   hardoffReveal,
+  kobeNames,
   pairTxt: pairCell.txt,
   pairYoyOnlyTxt: pairYoyOnly.txt,
   unpairedTxt: unpairedCell.txt,
@@ -2593,6 +2613,10 @@ console.log(JSON.stringify({
     want_brand = ["既存 売上高", "トライアル", "西友", "全店 売上高", "トライアル", "西友"]
     if got.get("brandNames") != want_brand:
         _fail(f"トライアル: 会社の行が無い指標は開く: {got.get('brandNames')!r}")
+    want_kobe = ["売上高", "店舗数", "FC", "直轄", "直轄 仕入れ 既存 売上高(前年比)",
+                 "全国 仕入れ 全店 売上高(前年比)", "FC", "直轄"]
+    if got.get("kobeNames") != want_kobe:
+        _fail(f"30380 config tree rows: {got.get('kobeNames')!r}")
     # 直営と FC の両方に業態行があるときは両方の下に出す。FC の無い業態は直営だけ。店舗数だけの節は合計の下
     want_hardoff = [
         "店舗数", "直営", "海外", "ハードオフ", "オフハウス", "ブックオフ",

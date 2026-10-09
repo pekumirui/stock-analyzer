@@ -845,9 +845,12 @@ function monthlyTreeHtml(tm, cellsFor, cols){
     const open = has && monthlyTlOpen.has(key);
     const tog = has ? {key, open} : {};
     // 会社の行があればその行の名前（指標名 売上高 のままだと全社の数字と読めない）。自動の木は 日本+海外 を外す（直営+FC 全店 店舗数）。
-    // config の木は節で剥がした葉から (前年比) を外す（全社 売上高）。会社の行が無ければ指標名。子の指標は親との差だけ（直営 / 海外）
+    // config の木は節で剥がした葉から (前年比) を外す（全社 売上高）。金額の無い前年比だけの行は外さない（神戸物産 全国 仕入れ）。
+    // 会社の行が無ければ指標名。子の指標は親との差だけ（直営 / 海外）
+    const leaf0 = mine.length ? (mine[0].leaf || mine[0].element) : "";
     const text = pk ? monthlyTreeShortName(k, pk)
-      : !mine.length ? k : tm.auto ? monthlyTreeTopName(mine[0].element) : monthlyYoyBase(mine[0].leaf || mine[0].element);
+      : !mine.length ? k : tm.auto ? monthlyTreeTopName(mine[0].element)
+      : monthlyIsYoyUnit(mine[0].unit) ? leaf0 : monthlyYoyBase(leaf0);
     if(mine.length) body += row(mine[0], text, depth, tog);
     else body += empty(text, depth, tog);
     for(const r of mine.slice(1)) body += row(r, r.element, depth);
