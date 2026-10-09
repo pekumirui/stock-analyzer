@@ -2702,12 +2702,154 @@ def test_department_store_layers() -> None:
         _fail(f"髙島屋各店 入店 既存 layers must keep 入店 before 既存: {layers!r}")
 
 
+def test_generic_count_metric_peel() -> None:
+    """#533: 末尾が 数 の件数は metric。保存名は並べ替えない。既存語は従来どおり。"""
+    cases = (
+        (
+            "アスモフードサービス 受託施設数",
+            {"segment": "アスモフードサービス", "channel": "", "scope": "",
+             "metric": "受託施設数"},
+            "count",
+        ),
+        (
+            "アスモ介護サービス 訪問介護事業所数",
+            {"segment": "アスモ介護サービス", "channel": "", "scope": "",
+             "metric": "訪問介護事業所数"},
+            "count",
+        ),
+        (
+            "アスモ介護サービス 居宅介護支援事業所数",
+            {"segment": "アスモ介護サービス", "channel": "", "scope": "",
+             "metric": "居宅介護支援事業所数"},
+            "count",
+        ),
+        (
+            "アスモ介護サービス 有料老人ホーム数",
+            {"segment": "アスモ介護サービス", "channel": "", "scope": "",
+             "metric": "有料老人ホーム数"},
+            "count",
+        ),
+        (
+            "マッサージ事業 総レセプト数(鍼灸込み) 直営",
+            {"segment": "マッサージ事業", "channel": "直営", "scope": "",
+             "metric": "総レセプト数(鍼灸込み)"},
+            "count",
+        ),
+        (
+            "メディカルケア事業 拠点数",
+            {"segment": "メディカルケア事業", "channel": "", "scope": "",
+             "metric": "拠点数"},
+            "count",
+        ),
+        (
+            "数 出店",
+            {"segment": "数", "channel": "", "scope": "", "metric": "出店"},
+            "open",
+        ),
+        (
+            "数 退店",
+            {"segment": "数", "channel": "", "scope": "", "metric": "退店"},
+            "close",
+        ),
+    )
+    for src, want_layers, kind in cases:
+        if canonicalize_element_label(src, "number") != src:
+            _fail(f"count metric must not rename {src!r} -> {canonicalize_element_label(src, 'number')!r}")
+        layers = parse_element_layers(src)
+        for key, want in want_layers.items():
+            if layers[key] != want:
+                _fail(f"count peel {src!r} {key}: {layers[key]!r} want {want!r} in {layers!r}")
+        lab = monthly_element_label(src, "number")
+        if lab["display"] != src:
+            _fail(f"count peel display {src!r}: {lab['display']!r}")
+        if lab["metric"] != want_layers["metric"] or lab["segment"] != want_layers["segment"]:
+            _fail(f"count peel label layers {src!r}: {lab!r}")
+        if lab["channel"] != want_layers["channel"] or lab["scope"] != want_layers["scope"]:
+            _fail(f"count peel label channel/scope {src!r}: {lab!r}")
+        if lab["metric_kind"] != kind:
+            _fail(f"count peel metric_kind {src!r}: {lab['metric_kind']!r} want {kind!r}")
+        if lab["series_kind"] is not None:
+            _fail(f"count peel series_kind {src!r}: {lab!r}")
+        if lab["group"] != want_layers["segment"]:
+            _fail(f"count peel group {src!r}: {lab['group']!r}")
+
+    regressions = (
+        ("店舗数", {"segment": "", "scope": "", "metric": "店舗数"}, "stores"),
+        ("既存 店舗数", {"segment": "", "scope": "既存", "metric": "店舗数"}, "stores"),
+        ("全店 店舗数", {"segment": "", "scope": "全店", "metric": "店舗数"}, "stores"),
+        ("休業中 店舗数", {"segment": "休業中", "scope": "", "metric": "店舗数"}, "stores"),
+        ("稼働店舗数", {"segment": "", "scope": "", "metric": "稼働店舗数"}, "stores"),
+        ("出店", {"segment": "", "scope": "", "metric": "出店"}, "open"),
+        ("退店", {"segment": "", "scope": "", "metric": "退店"}, "close"),
+        ("転換出店", {"segment": "", "scope": "", "metric": "転換出店"}, "open"),
+        ("売上高", {"segment": "", "scope": "", "metric": "売上高"}, "sales"),
+        ("全店 売上高", {"segment": "", "scope": "全店", "metric": "売上高"}, "sales"),
+        ("既存 売上高", {"segment": "", "scope": "既存", "metric": "売上高"}, "sales"),
+        ("全社 売上高", {"segment": "", "scope": "全社", "metric": "売上高"}, "sales"),
+        ("客数", {"segment": "", "scope": "", "metric": "客数"}, "customers"),
+        ("既存 客数", {"segment": "", "scope": "既存", "metric": "客数"}, "customers"),
+        ("全店 客数", {"segment": "", "scope": "全店", "metric": "客数"}, "customers"),
+        ("客単価", {"segment": "", "scope": "", "metric": "客単価"}, "spend"),
+        ("既存 客単価", {"segment": "", "scope": "既存", "metric": "客単価"}, "spend"),
+        ("宅食 営業所数", {"segment": "宅食", "scope": "", "metric": "営業所数"}, "other"),
+        ("会員数 既存", {"segment": "会員数", "scope": "既存", "metric": ""}, "other"),
+    )
+    for src, want_layers, kind in regressions:
+        layers = parse_element_layers(src)
+        for key, want in want_layers.items():
+            if layers[key] != want:
+                _fail(f"count regression {src!r} {key}: {layers[key]!r} want {want!r} in {layers!r}")
+        lab = monthly_element_label(src, "number")
+        if lab["metric_kind"] != kind:
+            _fail(f"count regression metric_kind {src!r}: {lab['metric_kind']!r} want {kind!r}")
+        if lab["scope"] != want_layers["scope"] or lab["metric"] != want_layers["metric"]:
+            _fail(f"count regression label {src!r}: {lab!r}")
+
+    yoy_reg = (
+        ("全店 売上高(前年比)", "yoy_index", "売上高", "全店", "sales"),
+        ("既存 客数(前年比)", "yoy_index", "客数", "既存", "customers"),
+        ("会員数 既存(前年比)", "yoy_index", "", "既存", "other"),
+        ("会員数(前年比)", "yoy_index", "", "", "other"),
+    )
+    for src, unit, metric, scope, kind in yoy_reg:
+        lab = monthly_element_label(src, unit)
+        if lab["metric"] != metric or lab["scope"] != scope or lab["metric_kind"] != kind:
+            _fail(f"count yoy regression {src!r}: {lab!r}")
+
+    flow_canon = (
+        ("出店数", "出店"),
+        ("新規出店数", "出店"),
+        ("転換出店数", "転換出店"),
+        ("退店数", "退店"),
+        ("閉鎖 店舗数", "退店"),
+    )
+    for src, want in flow_canon:
+        got = canonicalize_element_label(src, "number")
+        if got != want:
+            _fail(f"count flow regression {src!r} -> {got!r} want {want!r}")
+        if parse_element_layers(src)["metric"] != want:
+            _fail(f"count flow metric {src!r}: {parse_element_layers(src)!r}")
+
+    if canonicalize_element_label("拠点数 調理済み商品お届け数(※)（千食）", "number") != "調理済み商品お届け数（千食）":
+        _fail("拠点数 heading still yields お届け数")
+    if monthly_element_label("会員数 既存(前年比)", "yoy_index")["display"] != "会員数 既存(前年比)":
+        _fail("会員数 yoy display must stay leftover + scope")
+    shop_var = parse_element_layers("店舗流通ネット 店舖リースの 取引店舖数")
+    if shop_var["metric"] == "取引店舖数":
+        _fail(f"店舖数 variant must not peel as count: {shop_var!r}")
+    if canonicalize_element_label("西友 業態転換数 全店", "number") != "西友 全店 業態転換数":
+        _fail("業態転換数 still reorders as adj metric")
+    if canonicalize_element_label("既存 空室数", "number") != "空室数 既存":
+        _fail("空室数 stays leftover so 既存 reorders after it")
+
+
 def main() -> None:
     test_canonicalize_element_label()
     test_union_orders_country_then_channel()
     with tempfile.TemporaryDirectory() as d:
         test_alias_rename_takes_unit_from_names(Path(d))
     test_monthly_element_label()
+    test_generic_count_metric_peel()
     test_department_store_layers()
     test_issuer_alias_cases()
     test_mapping_examples()

@@ -229,7 +229,7 @@ _DROP_TOKS = frozenset({
     "前期比", "同期比", "増減率", "前年比", "前年同月比", "前年同月",
     "前年同期対比", "前年対比", "前期対比", "全",
     "昨対", "昨年比", "当年",
-    "累計", "店舗状況", "拠点数", "対象", "購入お客様", "（％）", "（%）", "(％)", "(%)", "%", "※",
+    "累計", "店舗状況", "対象", "購入お客様", "（％）", "（%）", "(％)", "(%)", "%", "※",
     "（百万円）", "(百万円)", "売上（％）", "売上（%）",
     "（", "）", "(", ")", "(前年比)", "（前年比）", "(前期比)", "（前期比）",
 })
@@ -349,6 +349,14 @@ _METRIC_STARTSWITH = frozenset({
     "購入お客様数", "稼働日修正後", "稼働店舗数", "店舗数", "来客数", "客単価", "売上高",
     "取扱高", "客室収入", "売上収益(IFRS)", "調理済み商品お届け数（千食）", "調理済み商品お届け数", "営業所数", "客数",
 })
+# 末尾の （注） / (注) を除いた核が 数 で終わる件数。ホワイトリスト済みは従来どおり。
+_METRIC_NOTE_RE = re.compile(r"[（(][^）)]*[）)]$")
+_COUNT_METRIC_EXCLUDE = frozenset({"数", "会員数", "空室数"})
+_KNOWN_COUNT_METRIC_TOKS = frozenset(
+    tok for src, canon in _METRIC_PREFIX
+    for tok in (src, canon)
+    if _METRIC_NOTE_RE.sub("", tok).endswith("数")
+)
 _COUNTRY_RANK = {"": 0, "日本": 1, "海外": 2}
 _CHANNEL_RANK = {"直営+FC": 0, "直営": 1, "FC": 2, "": 3}
 _FC_TOKEN_RE = re.compile(r"^(?:FC|ＦＣ)$")
@@ -424,10 +432,34 @@ def _unglue_element(text: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
+def _count_metric_core(tok: str) -> str:
+    return _METRIC_NOTE_RE.sub("", tok)
+
+
+def _is_generic_count_metric(tok: str) -> bool:
+    """ホワイトリストに無い、末尾が 数 の件数指標。単独の 数 と 会員数 は除く。
+
+    業態転換数などは `_peel_adj_metric` の対象なのでここでは拾わない。
+    空室数は leftover のまま（`既存 空室数` → `空室数 既存`）。
+    """
+    if not tok or tok in _KNOWN_COUNT_METRIC_TOKS:
+        return False
+    if any(mark in tok for mark in _STORE_ADJ_MARKS):
+        return False
+    core = _count_metric_core(tok)
+    if core in _KNOWN_COUNT_METRIC_TOKS or core in _COUNT_METRIC_EXCLUDE:
+        return False
+    # 舖 は 店舗 の異体。店舗数の既存ルールと alias に任せる。
+    if core.endswith("店舖数"):
+        return False
+    return bool(core) and core.endswith("数")
+
+
 def _peel_metric(tok: str) -> tuple[str | None, str | None]:
     """指標語をトークンの前後から剥がす。残りはセグメント候補。
 
     短い接頭辞（売上/来客/単価）は前方一致しない（売上変化を売上高にしない）。
+    既存語に当たらないトークンが …数（任意で末尾の注記付き）なら件数指標にする。
     """
     if tok in _ACTIVE_STORE_BREAKDOWN_RANK:
         return None, tok
@@ -438,6 +470,8 @@ def _peel_metric(tok: str) -> tuple[str | None, str | None]:
             return canon, tok[:-len(src)]
         if src in _METRIC_STARTSWITH and len(tok) > len(src) and tok.startswith(src):
             return canon, tok[len(src):]
+    if _is_generic_count_metric(tok):
+        return tok, None
     return None, tok
 
 
@@ -727,6 +761,13 @@ def normalize_element_tokens(element: str, *, fill_default_metric: bool = False)
         parts["scope"], parts["metric"], parts["breakdown"],
     ]
     built = " ".join(p for p in ordered if p)
+    # 件数指標の層分解でチャネルだけが動く行は、保存名・表示名を並べ替えない。
+    if (
+        _is_generic_count_metric(parts["metric"])
+        and built
+        and sorted(trimmed.split()) == sorted(built.split())
+    ):
+        return trimmed
     return built or trimmed
 
 
@@ -1021,7 +1062,7 @@ def monthly_series_kind(element: str, unit: str | None) -> str | None:
 _SCOPE_RANK = {"all": 0, "company": 1, "existing": 2, "other": 3}
 _METRIC_RANK = {
     "sales": 1, "customers": 2, "spend": 3,
-    "open": 4, "close": 5, "adj": 6, "stores": 7, "other": 8,
+    "open": 4, "close": 5, "adj": 6, "stores": 7, "count": 8, "other": 9,
 }
 
 
@@ -1070,6 +1111,8 @@ def _row_metric(key: str) -> str:
         return "customers"
     if "売上" in key:
         return "sales"
+    if _is_generic_count_metric(metric):
+        return "count"
     return "other"
 
 
@@ -1091,7 +1134,7 @@ def monthly_row_segment(element: str) -> str:
 
 
 def monthly_row_slot(element: str, unit: str | None) -> int:
-    """指標枠。1売上高 2客数 3客単価 4出店 5退店 6純増/新設/改装/業態転換 7店舗数 8その他。"""
+    """指標枠。1売上高 2客数 3客単価 4出店 5退店 6純増/新設/改装/業態転換 7店舗数 8件数 9その他。"""
     _ = unit
     return _METRIC_RANK[_row_metric(element)]
 
@@ -1128,7 +1171,7 @@ def monthly_row_scope_rank(element: str) -> int:
         return _SCOPE_RANK["all"]
     if _is_flow_metric(layers["metric"]) or layers["metric"] in ("店舗数", "稼働店舗数"):
         return _SCOPE_RANK["other"]
-    if _row_metric(element) in {"stores", "open", "close", "adj"}:
+    if _row_metric(element) in {"stores", "open", "close", "adj", "count"}:
         return _SCOPE_RANK["other"]
     if not layers["segment"]:
         return _SCOPE_RANK["all"]
@@ -1156,7 +1199,7 @@ def union_monthly_elements(
     segment_tail（monthly_row_order.json）は非 tail の後。
     各塊は 全店 → 既存 → チャネル（直営+FC → 直営 → FC）→
     売上高（実数の親→内訳、そのあと前年比の親→内訳）→ 客数 → 客単価 →
-    出店 → 退店 → 純増/新設/改装/業態転換 → 店舗数 → その他。
+    出店 → 退店 → 純増/新設/改装/業態転換 → 店舗数 → 件数 → その他。
     スコープ無しの店舗数は既存の後。保存名は変えない。
     """
     resolved = code
@@ -1259,7 +1302,9 @@ def monthly_display_label(element: str | None, unit: str | None = None) -> str:
     return name + f"（{suffix}）"
 
 
-MetricKind = Literal["sales", "customers", "spend", "open", "close", "adj", "stores", "other"]
+MetricKind = Literal[
+    "sales", "customers", "spend", "open", "close", "adj", "stores", "count", "other",
+]
 SeriesKind = Literal["all_store", "existing", "stores"]
 
 
