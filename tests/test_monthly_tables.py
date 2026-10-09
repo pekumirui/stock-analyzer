@@ -616,7 +616,7 @@ def test_monthly_auto_tree() -> None:
         "合計(前年比)": (["全体"], "全店 売上高"),
         "アスモトレーディング 全店 売上高": (["全体", "アスモトレーディング"], "全店 売上高"),
         "アスモトレーディング(前年比)": (["全体", "アスモトレーディング"], "全店 売上高"),
-        "アスモフード 受託施設数": (["全体"], "アスモフード 受託施設数"),
+        "アスモフード 受託施設数": (["全体", "アスモフード"], "受託施設数"),
         # チャネル・スコープのある行はそのまま
         "100円ショップ 直営 既存(前年比)": (["全体", "100円ショップ"], "直営 既存"),
         "直営 店舗数": (["全体"], "直営 店舗数"),
@@ -626,6 +626,24 @@ def test_monthly_auto_tree() -> None:
         _fail(f"auto tree bare yoy: {got!r}")
     if bare.metric_parent.get("海外 直営 店舗数") != "直営 店舗数":
         _fail(f"auto tree overseas channel parent: {bare.metric_parent!r}")
+    counts = build_auto_tree("99994", {2026: [
+        ("アスモフードサービス 受託施設数", "number"),
+        ("マッサージ事業 総レセプト数(鍼灸込み) 直営", "number"),
+        ("数 出店", "number"),
+    ]})
+    got_counts = {k: (v["path"], v["leaf"], v["metric"]) for k, v in counts.rows.items()}
+    want_counts = {
+        "アスモフードサービス 受託施設数": (
+            ["全体", "アスモフードサービス"], "受託施設数", "受託施設数",
+        ),
+        "マッサージ事業 総レセプト数(鍼灸込み) 直営": (
+            ["全体", "マッサージ事業"], "総レセプト数(鍼灸込み) 直営",
+            "総レセプト数(鍼灸込み) 直営",
+        ),
+        "数 出店": (["全体", "数"], "出店", "出店"),
+    }
+    if got_counts != want_counts:
+        _fail(f"auto tree count metrics: {got_counts!r}")
     if auto.metric_parent != {"直営 全店 店舗数": "直営+FC 全店 店舗数"}:
         _fail(f"auto metric parents: {auto.metric_parent!r}")
     from app.monthly_tree import auto_metric_parents
