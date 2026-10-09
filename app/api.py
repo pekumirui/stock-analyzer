@@ -14,7 +14,10 @@ from .config import (
     EARNINGS_PARAMS as EP, EARNINGS_EXCLUDE_PRODUCT_CATEGORIES, MONTHLY_NEW_DAYS,
     RS_PRODUCT_CATEGORIES,
 )
-from .db import delete_monthly_element, fold_aliased_element, fold_same_yoy_element, get_session
+from .db import (
+    delete_monthly_element, fold_aliased_element, fold_same_yoy_element, get_session,
+    run_sqlite_write,
+)
 from .models import (
     Stock, DailyPrice, Topix, Statement, Indicator, EarningsEvent,
     MonthlyIssuer, MonthlyTable, MonthlyElement, MonthlyValue,
@@ -815,9 +818,14 @@ def post_element(code: str, year: str, response: Response,
     element = _canonical_element(body.get("element"), unit, code, year=year_i)
     unit = coerce_monthly_storage(unit, None)[0]
     _require_stock(db, code)
-    created = _ensure_element(db, code, year_i, element, force, unit)
+    created = False
+
+    def _write() -> None:
+        nonlocal created
+        created = _ensure_element(db, code, year_i, element, force, unit)
+
+    run_sqlite_write(db, _write)
     row = _get_element(db, code, year_i, element)
-    db.commit()
     payload_out = {
         "code": code, "year": year_i, "element": element,
         "unit": _element_unit(row), "created": created,
@@ -846,9 +854,12 @@ def put_element(code: str, year: str, payload: dict | None = Body(None),
     unit = coerce_monthly_storage(incoming, None)[0]
     _require_stock(db, code)
     _get_table(db, code, year_i)
-    row = _get_element(db, code, year_i, element)
-    row.unit = unit
-    db.commit()
+
+    def _write() -> None:
+        row = _get_element(db, code, year_i, element)
+        row.unit = unit
+
+    run_sqlite_write(db, _write)
     return {"code": code, "year": year_i, "element": element, "unit": unit}
 
 
@@ -871,8 +882,11 @@ def delete_element(code: str, year: str, payload: dict | None = Body(None),
     )
     if leftover:
         raise ApiError(409, "ELEMENT_HAS_VALUES", "値が残っている行は消せません。先にセルを空にしてください。")
-    delete_monthly_element(db, code, year_i, element)
-    db.commit()
+
+    def _write() -> None:
+        delete_monthly_element(db, code, year_i, element)
+
+    run_sqlite_write(db, _write)
     return {"code": code, "year": year_i, "element": element, "deleted": True}
 
 
@@ -911,7 +925,11 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
     updated: list[dict] = []
     changed = False
     posted = [(element, unit) for element, _force, unit, _values in rows]
-    try:
+
+    def _apply() -> None:
+        nonlocal updated, changed
+        updated = []
+        changed = False
         for element, force, unit, values_by_col in rows:
             by_year: dict[int, list[int]] = defaultdict(list)
             for col, (month, year_i) in enumerate(mapping):
@@ -927,19 +945,19 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
                 by_year[year_i].append(month)
             for year_i in sorted(by_year):
                 updated.append({"year": year_i, "element": element, "months": by_year[year_i]})
+        if not dry_run and changed:
+            _touch_monthly_issuer(db, code)
+
+    try:
         # 新着はセルが変わったときだけ。dry_run と rows=[] の年割当確認では動かさない
         if dry_run:
+            _apply()
             db.rollback()
         else:
-            if changed:
-                _touch_monthly_issuer(db, code)
-            db.commit()
+            run_sqlite_write(db, _apply)
     except MonthlyIngestError as exc:
         db.rollback()
         raise _ingest_error(exc) from exc
-    except Exception:
-        db.rollback()
-        raise
 
     out = {
         "code": code,
@@ -962,12 +980,15 @@ def put_industry(code: str, payload: dict | None = Body(None),
     industry = _parse_industry(_require_object(payload).get("industry"))
     _require_stock(db, code)
     _require_any_monthly_table(db, code)
-    row = db.get(MonthlyIssuer, code)
-    if row is None:
-        db.add(MonthlyIssuer(code=code, industry=industry))
-    else:
-        row.industry = industry
-    db.commit()
+
+    def _write() -> None:
+        row = db.get(MonthlyIssuer, code)
+        if row is None:
+            db.add(MonthlyIssuer(code=code, industry=industry))
+        else:
+            row.industry = industry
+
+    run_sqlite_write(db, _write)
     return {"code": code, "industry": industry}
 
 
@@ -1146,8 +1167,11 @@ def put_value(code: str, year: str, payload: dict | None = Body(None),
     _require_stock(db, code)
     _get_table(db, code, year_i)
     _get_element(db, code, year_i, element)
-    _upsert_value(db, code, year_i, element, month, value)
-    db.commit()
+
+    def _write() -> None:
+        _upsert_value(db, code, year_i, element, month, value)
+
+    run_sqlite_write(db, _write)
     return {"code": code, "year": year_i, "element": element, "updated": [month]}
 
 
@@ -1178,11 +1202,10 @@ def put_values_batch(code: str, year: str, payload: dict | None = Body(None),
     _require_stock(db, code)
     _get_table(db, code, year_i)
     _get_element(db, code, year_i, element)
-    try:
+
+    def _write() -> None:
         for month, value in ops.items():
             _upsert_value(db, code, year_i, element, month, value)
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
+
+    run_sqlite_write(db, _write)
     return {"code": code, "year": year_i, "element": element, "updated": list(ops.keys())}
