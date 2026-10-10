@@ -41,5 +41,6 @@ SHELL=/bin/bash
 10 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl_parse.py
 20 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl_normalize.py
 
-# 任意: DB を日付付きで残す（直近だけ手元で間引く）
-# 15 20 * * * cp -a /home/stock/stock-analyzer/stock.db /home/stock/backups/stock-$(date +\%F).db
+# SQLite 整合バックアップ（WAL 中の cp は不可。手順は docs/DESIGN_backup.md）
+# 05:00 は run_batch（19:30）と XBRL（12–23 時）と重ならない。
+0 5 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/backup_db.py

@@ -95,7 +95,7 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 
 - `service_status` — プロセスと localhost の HTTP コード
 - `app_logs` — `/var/log/app/stock-analyzer.log` と journalctl。uvicorn は `deploy/uvicorn-log.json` で行頭に JST `YYYY-MM-DD HH:MM:SS` を付ける。`since` / `until` は `batch_logs` と同じ形。省略時は journal が直近 1h、ファイルは live の末尾だけ。指定すると `.1` / `.gz` も読み、行頭の時刻で絞る。時刻の無い行（Traceback の続き）は直前の行に付く
-- `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` は crontab の stem（`run_batch` / `fx_rates` / `tdnet_monthly_r2` / `tdnet_monthly_pdf_sidecar` / `tdnet_monthly_pdf_ingest` / `ir_monthly_r2` / `ir_monthly_html_r2` / `ir_monthly_html_ingest` / `tdnet_xbrl_r2` / `xbrl_parse` / `xbrl_normalize` / `vps_packages_r2`）。一覧に無い名前とパスは拒否。省略時は `stock-analyzer.log` と `mcp.log` 以外の live ファイル（古い `batch.log` を含む）。`since` / `until` は `1h` / `30m` / `today` / `yesterday` / `YYYY-MM-DD`。`until` はその時刻を含まない。昨日は `since=yesterday` と `until=today`。日時を指定したときは `.1` と `.gz` も読み、行頭の JST `YYYY-MM-DD HH:MM:SS` で絞る。`lines` は 1-500。超えた分は末尾だけ返すので範囲を狭める
+- `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` は crontab の stem（`run_batch` / `fx_rates` / `tdnet_monthly_r2` / `tdnet_monthly_pdf_sidecar` / `tdnet_monthly_pdf_ingest` / `ir_monthly_r2` / `ir_monthly_html_r2` / `ir_monthly_html_ingest` / `tdnet_xbrl_r2` / `xbrl_parse` / `xbrl_normalize` / `vps_packages_r2` / `backup_db`）。一覧に無い名前とパスは拒否。省略時は `stock-analyzer.log` と `mcp.log` 以外の live ファイル（古い `batch.log` を含む）。`since` / `until` は `1h` / `30m` / `today` / `yesterday` / `YYYY-MM-DD`。`until` はその時刻を含まない。昨日は `since=yesterday` と `until=today`。日時を指定したときは `.1` と `.gz` も読み、行頭の JST `YYYY-MM-DD HH:MM:SS` で絞る。`lines` は 1-500。超えた分は末尾だけ返すので範囲を狭める
 - `nginx_logs` — nginx journal と error.log と `/var/log/nginx/stock-analyzer.access.log`。アクセスログの `rt=` は nginx 全体、`urt=` は uvicorn の処理秒。遅いリクエストは `grep` に `rt=[1-9]` などを渡す。`since` / `until` は `batch_logs` と同じ形。省略時は journal が直近 1h、ファイルは live の末尾だけ。指定すると logrotate 済みの `.1` / `.gz`（既定で 14 日分）も読み、行の時刻（JST）で絞る。URL の OAuth 一時値（`code` / `state` など）は伏せる
 - `db_stats` — stock.db の件数・日付範囲・デモ混在
 - `db_lookup` — 1銘柄のマスタ・直近株価・決算・指標
@@ -195,6 +195,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 | `jobs/tdnet_xbrl_r2.py 1` | 12–23 時の毎時 00 分 |
 | `jobs/xbrl_parse.py` / `jobs/xbrl_normalize.py` | 12–23 時の毎時 10 分 / 20 分 |
 | `jobs/vps_packages_r2.py` | 06:40 |
+| `jobs/backup_db.py` | 05:00（SQLite 整合バックアップ。R2 には出ない。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
 
 振る舞いは `DESIGN.md` §3 と `docs/DESIGN_xbrl.md`。`rclone.conf` と取得ファイルはリポジトリに置かない。
 
@@ -213,6 +214,18 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 
 ```bash
 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/vps_packages_r2.py
+```
+
+### SQLite 日次バックアップ
+
+WAL 中の `cp` は使わない。`jobs/backup_db.py` が sqlite3 backup API → `PRAGMA quick_check` → gzip 圧縮レベル 1。保存は `/home/stock/backups/daily/`（7 世代）と日曜の `/home/stock/backups/weekly/`（4 世代）。R2 には出さない。失敗時は既存世代を消さず、`fail cron` が `#alerts-batch` に page する。復元は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)。
+
+`deploy/crontab` は `provision.sh` が `crontab -u stock` で入れる。デプロイ後に一度だけ手で走らせる（ユーザ `stock`）:
+
+```bash
+cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/backup_db.py
+ls -lh /home/stock/backups/daily
+tail /var/log/app/backup_db.log
 ```
 
 ### TDnet 月次 PDF の未投入レポート（読み取り専用）
