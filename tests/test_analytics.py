@@ -124,6 +124,10 @@ def test_shift_year_and_labels() -> None:
         _fail("5Q span")
     if calendar_label(FY26, "2Q", quarterly=True) != "25.07-09":
         _fail(calendar_label(FY26, "2Q", quarterly=True))
+    if calendar_label(FY26, "2Q") != "26.3":
+        _fail(calendar_label(FY26, "2Q"))
+    if calendar_label(FY26, "3Q") != "26.3":
+        _fail(calendar_label(FY26, "3Q"))
     if calendar_label(FY26, "FY") != "26.3":
         _fail(calendar_label(FY26, "FY"))
     if calendar_label(FY26) != "26.3":
@@ -214,7 +218,7 @@ def test_disclosure_and_rows() -> None:
         _fail(cur)
     if cur["growth"]["net_sales"]["pct"] != 38.9:
         _fail(cur["growth"])
-    if cur["range"] != "25.04-09":
+    if cur["range"] != "26.3":
         _fail(cur["range"])
     h = next(r for r in cum if r["kind"] == "forecast_h")
     if h["range"] != "26.3":
