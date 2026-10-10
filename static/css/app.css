@@ -110,6 +110,8 @@
   table.fin th { font-size:11px; letter-spacing:.02em; }
   table.fin td { padding:7px 8px; vertical-align:top; }
   table.fin td.num { font-size:13px; font-weight:500; }
+  table.fin .opm { font-size:11px; font-weight:400; color:var(--sub); }
+  table.fin .opm.loss { color:var(--up); }
   table.fin .g { display:block; font-size:11px; font-weight:400; line-height:1.35; min-height:1.35em; }
   table.fin tbody tr:nth-child(even) td { background:var(--row); }
   table.fin tbody tr:hover td { background:var(--row-sel); }

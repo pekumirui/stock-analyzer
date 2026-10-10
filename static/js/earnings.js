@@ -275,6 +275,12 @@ function amt(v){
   if(v == null) return "–";
   return `<span class="${v<0?"loss":""}">${mil(v)}</span>`;
 }
+function opAmt(r){
+  const v = r.values && r.values.operating_profit;
+  const m = opm(r.values);
+  const rate = m==null ? "" : `<span class="opm${m<0?" loss":""}">(${fmt(m,1)}%)</span>`;
+  return `${amt(v)}${rate}`;
+}
 function epsTxt(v){
   if(v == null) return "–";
   return `<span class="${v<0?"loss":""}">${fmt(v,1)}</span>`;
@@ -311,7 +317,7 @@ function renderFin(el, rows, d){
   const dc = k => k==="ordinary_profit" && dim ? " dim" : "";
   let h = `<thead><tr><th class="l">決算期</th>`
         + FIN_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
-        + `<th>EPS</th><th>営利率</th><th class="disc">発表日</th></tr></thead><tbody>`;
+        + `<th>EPS</th><th class="disc">発表日</th></tr></thead><tbody>`;
   let hi = -1;
   rows.forEach((r,i) => { if(r.kind==="actual_current" || r.kind==="single") hi = i; });
   const extra = r => r.kind==="actual_fy_prev" || String(r.kind||"").startsWith("forecast");
@@ -325,12 +331,9 @@ function renderFin(el, rows, d){
       const g = r.growth && r.growth[k];
       return `<td class="num${dc(k)}">${txt}<span class="g">${g ? gc(g) : " "}</span></td>`;
     };
-    const m = opm(r.values);
-    const mTxt = m==null ? "–" : `<span class="${m<0?"loss":""}">${fmt(m,1)}%</span>`;
     h += `<tr class="${cls}"><td class="l" title="${finTitle(r)}">${finLabel(r)}<span class="g">${finBadge(r) || " "}</span></td>`
-       + FIN_MET.map(([k])=>cell(k, amt(r.values[k]))).join("")
+       + FIN_MET.map(([k])=>cell(k, k==="operating_profit" ? opAmt(r) : amt(r.values[k]))).join("")
        + cell("eps", epsTxt(r.values.eps))
-       + `<td class="num">${mTxt}<span class="g"> </span></td>`
        + `<td class="num disc sub">${disc(r.disclosed_date)}</td></tr>`;
   });
   el.innerHTML = h + `</tbody>`;
