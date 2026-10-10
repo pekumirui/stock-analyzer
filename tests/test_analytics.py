@@ -127,7 +127,7 @@ def test_shift_year_and_labels() -> None:
         _fail(calendar_label(FY26, "FY"))
     if calendar_label(FY26) != "26.3":
         _fail(calendar_label(FY26))
-    if calendar_label(FY26, "5Q") != "26.3 5Q":
+    if calendar_label(FY26, "5Q") != "26.3":
         _fail(calendar_label(FY26, "5Q"))
     if prev_quarter(FY26, "2Q") != (FY26, "1Q"):
         _fail("prev 2Q")

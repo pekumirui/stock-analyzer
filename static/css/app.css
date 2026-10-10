@@ -333,7 +333,9 @@
   .qchips { display:flex; gap:6px; margin:0 0 8px; }
   .qchip { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); color:var(--sub); }
   .qchip.on { border-color:var(--warn); color:var(--warn); background:rgba(240,160,32,.12); }
-  .qb { display:inline-block; margin-left:6px; font-size:10px; padding:0 5px; border-radius:3px; background:var(--row); color:var(--sub); vertical-align:middle; }
+  /* 決算期の下。増減率と同じ2段にして列幅を食わない */
+  .qb { display:block; width:fit-content; margin-top:2px; font-size:10px; font-weight:400; line-height:1.35;
+        padding:0 5px; border-radius:3px; background:var(--row); color:var(--sub); }
   .qb-1Q { color:#c48a00; }
   .qb-2Q { color:#1b8a5a; }
   .qb-3Q { color:#0077b6; }

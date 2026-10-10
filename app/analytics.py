@@ -395,8 +395,9 @@ def calendar_label(fy_end: date | None, period: str | None = None,
     if not period or (n == 4 and not quarterly):
         return f"{fy_end.year % 100:02d}.{fy_end.month}"
     if not n:
-        # 5Q など ORDER に無い変則期。通期に潰すと累計が本決算に見える
-        return f"{fy_end.year % 100:02d}.{fy_end.month} {period}"
+        # 5Q など ORDER に無い変則期。通期に潰すと累計が本決算に見える。
+        # Q は UI が下に出すのでここでは年度末だけ。
+        return f"{fy_end.year % 100:02d}.{fy_end.month}"
     if quarterly:
         span = calendar_span(fy_end, period)
     else:
