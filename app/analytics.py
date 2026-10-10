@@ -384,10 +384,9 @@ def calendar_span(fy_end: date | None, period: str | None) -> tuple[date, date] 
 
 def calendar_label(fy_end: date | None, period: str | None = None,
                    quarterly: bool = False) -> str:
-    """UI向け。累計は会計期末 (`26.11`)。Q単独だけ当該3か月 (`26.07-09`)。
+    """UI向け。累計は会計期末 (`26.11`)。Q単独は当該3か月の末 (`25.08`)。
 
-    列見出しが決算期なので「期」は付けない。累計の 1Q〜3Q も期末だけ書き、
-    Q は下のバッジで 3か月タブと区別する。
+    列見出しが決算期なので「期」は付けない。Q は下のバッジ。
     """
     if fy_end is None:
         return "–"
@@ -395,14 +394,12 @@ def calendar_label(fy_end: date | None, period: str | None = None,
     if not quarterly:
         return f"{fy_end.year % 100:02d}.{fy_end.month}"
     if not n:
-        return f"{fy_end.year % 100:02d}.{fy_end.month}"
+        return f"{fy_end.year % 100:02d}.{fy_end.month:02d}"
     span = calendar_span(fy_end, period)
     if span is None:
         return period_label(fy_end, period, quarterly)
-    a, b = span
-    if a.year != b.year:
-        return f"{a.year % 100:02d}.{a.month:02d}-{b.year % 100:02d}.{b.month:02d}"
-    return f"{a.year % 100:02d}.{a.month:02d}-{b.month:02d}"
+    _, b = span
+    return f"{b.year % 100:02d}.{b.month:02d}"
 
 
 def _row(fy_end: date | None, period: str | None, kind: str,

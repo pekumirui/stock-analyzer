@@ -122,8 +122,12 @@ def test_shift_year_and_labels() -> None:
         _fail(f"span ending in February: {calendar_span(date(2026, 5, 31), '3Q')}")
     if calendar_span(FY26, "5Q") is not None:
         _fail("5Q span")
-    if calendar_label(FY26, "2Q", quarterly=True) != "25.07-09":
+    if calendar_label(FY26, "2Q", quarterly=True) != "25.09":
         _fail(calendar_label(FY26, "2Q", quarterly=True))
+    if calendar_label(date(2026, 8, 31), "2Q", quarterly=True) != "26.02":
+        _fail(calendar_label(date(2026, 8, 31), "2Q", quarterly=True))
+    if calendar_label(date(2026, 8, 31), "4Q", quarterly=True) != "26.08":
+        _fail(calendar_label(date(2026, 8, 31), "4Q", quarterly=True))
     if calendar_label(FY26, "2Q") != "26.3":
         _fail(calendar_label(FY26, "2Q"))
     if calendar_label(FY26, "3Q") != "26.3":
