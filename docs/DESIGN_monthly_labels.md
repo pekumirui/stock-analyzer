@@ -79,12 +79,15 @@ year GET の各行は保存 `element` に加え、派生の `label`（display / 
 | `空室数` | 戸 | 0 |
 | `受注高` | 百万円 | 0 |
 
-## 同一行・migrate
+## 同一行・保存名の凍結
 
-- ingest / POST は正規化してから既存行を探す。正規化後に同じなら同一行
-- 短い保存名（`売上高` / `カラオケ全店 売上高`）に正規名が当たれば値を UPSERT し、保存名を正規名へリネームする
-- `init_db` / migrate は number / yoy とも正規名へ（同一年の重複がなくても。例: `全店 売上高前期比` → `全店 売上高(前年比)`）
-- 正規名が既にあれば正規名を残し、値は非NULL優先で短い行を消す。同じ月が両方非NULLで不一致なら正規名を残して記録する
+保存名は凍結したデータとして扱う（#545）。正規化と銘柄エイリアスは **入ってくる名前にだけ** 掛け、既存行を規則から作り直さない。
+
+- ingest / POST は入ってくる名前を正規化し、銘柄エイリアス（ingest は as_of、続けて列の暦年。POST は year）を掛けてから、保存名と **完全一致** する行を探す。無ければ新しい行。既存行の改名・統合はしない
+- PUT elements（unit の変更）は、その行を新しい unit の正規名へ付け替える（`売上高` を yoy にすると `売上高(前年比)`）。正規名が既にあれば値を寄せ、同じ月が両方非NULLで不一致なら 409 `FOLD_CONFLICT`
+- `init_db` / migrate（アプリ起動・バッチ毎回）は書き換えない。今の規則と alias で作り直すと名前が変わる行（ドリフト）を数え、1 件以上ならログに 1 行出す（`月次の保存名ドリフト: N 行 / M 銘柄 (…)`。MCP `app_logs` / バッチのログ）
+- 付け替えは `jobs/monthly_names.py`（`plan` は書かずに表示、`apply` で付け替え）。本番は Actions の **Monthly names**（`workflow_dispatch`。既定 plan）。正規化の規則や `config/issuer_aliases.json` を変えた PR は、デプロイ後に plan → apply で既存行をそろえる。apply は正規名へ（例: `全店 売上高前期比` → `全店 売上高(前年比)`）。正規名が既にあれば正規名を残し、値は非NULL優先で短い行を消す。同じ月が両方非NULLで不一致なら正規名を残して記録する
+- 規則を変えて apply しないと、次の取り込みで新しい名前の行ができる（行が割れる）。値は消えないので、apply で寄せれば直る
 - GET は保存名のまま。派生の `label` だけを足す。DB は書き換えない
 - SPA の年表・系列・チャートの行キーは `label.display`。年ごとの保存名が違っても表示名が同じなら1行。取り残した短い名も畳む。その年の値は、その年の保存 element のうち表示名が一致するものから取る
 
@@ -93,7 +96,7 @@ year GET の各行は保存 `element` に加え、派生の `label`（display / 
 `config/issuer_aliases.json`。キーも canonicalize してから載せる。マップに無い名前はそのまま。
 
 - ingest は `as_of < until`
-- POST / PUT / 新規行 / migrate は `year <= until.year`
+- POST / PUT / 新規行 / `jobs/monthly_names.py` は `year <= until.year`。ingest も as_of のあとに列の暦年で掛ける
 - rename のみ。DELETE は載せない
 - 旧 PDF 名の再 ingest でも寄せ続けたい場合は `until` を遠くする（例: 138A0 / KPI の `2099-12-31`）
 - 例: 141A0 は 2025-08-01 未満の旧名をトライアル付きへ

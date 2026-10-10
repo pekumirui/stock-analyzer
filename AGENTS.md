@@ -93,6 +93,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 - FK は付けない。`PRAGMA foreign_keys` も有効化しない
 - `MonthlyElement.unit` は保存 `number` / `yoy_index`。入力タグは `yoy_pct` も可（見出し。値の大きさから推測しない）。ingest は `yoy_pct` を `yoy_index` と `value+100` にして書く。PUT values は保存形の訂正で `+100` しない
 - 行名は `canonicalize_element_label`。銘柄固有は `config/issuer_aliases.json`（改名）と `config/issuer_metrics.json`（件数指標。層だけで保存名は変えない）。新しい例外は `docs/DESIGN_monthly_labels.md` に箇条書きで足す
+- 保存名は起動時・取り込み時に作り直さない（凍結）。正規化や alias を変えたら Actions の **Monthly names** で plan → apply
 - `tests/test_monthly_ingest.py` に銘柄分岐は足さない
 - 月次業種は `monthly_issuers.industry`（既定 `その他`）。`stocks.sector33` とは別。ingest は `last_ingested_at` だけ更新し industry を触らない
 - HTML 月次の穴埋め・archive 投入は `.cursor/skills/monthly-html-ops-ingest/SKILL.md`。ウェーブ完了後のペアレビューは `.cursor/skills/monthly-html-pair-review/SKILL.md`（親が Task で起動。自己証明しない）

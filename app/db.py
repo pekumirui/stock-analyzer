@@ -13,7 +13,6 @@ from .monthly_ingest import (
     apply_issuer_aliases,
     canonicalize_element_label,
     plan_yoy_duplicate_merges,
-    same_yoy_element,
 )
 
 
@@ -113,8 +112,7 @@ def migrate_add_columns(verbose: bool = True) -> int:
     """
     lacks = missing_columns()
     if not lacks:
-        merge_yoy_duplicate_elements(verbose=verbose)
-        apply_issuer_element_aliases(verbose=verbose)
+        report_monthly_name_drift(verbose=verbose)
         delete_orphan_monthly_rows(verbose=verbose)
         return 0
     n = 0
@@ -132,8 +130,7 @@ def migrate_add_columns(verbose: bool = True) -> int:
                     print(f"  列を追加: {tname}.{cname} ({ddl})")
                 n += 1
     apply_known_monthly_element_units()
-    merge_yoy_duplicate_elements(verbose=verbose)
-    apply_issuer_element_aliases(verbose=verbose)
+    report_monthly_name_drift(verbose=verbose)
     delete_orphan_monthly_rows(verbose=verbose)
     return n
 
@@ -238,105 +235,11 @@ def merge_monthly_element_into(
     return conflicts
 
 
-def fold_same_yoy_element(
-    db, code: str, year: int, incoming_name: str, incoming_unit: str | None,
-    *,
-    strict: bool = False,
-) -> MonthlyElement | None:
-    """正規化後に同一の既存行を1行にまとめる。無ければ None（新規作成へ）。"""
-    existing = (
-        db.query(MonthlyElement)
-        .filter(MonthlyElement.code == code, MonthlyElement.year == year)
-        .all()
-    )
-    matches = [
-        row for row in existing
-        if same_yoy_element(row.element, row.unit, incoming_name, incoming_unit)
-    ]
-    if not matches:
-        return None
-    exact = next((row for row in matches if row.element == incoming_name), None)
-    if exact is None:
-        src = min(matches, key=lambda row: row.sort_order)
-        rename_monthly_element(
-            db, code, year, src.element, incoming_name, strict=strict,
-        )
-    target = db.get(MonthlyElement, (code, year, incoming_name))
-    if target is None:
-        return None
-    leftovers = (
-        db.query(MonthlyElement)
-        .filter(MonthlyElement.code == code, MonthlyElement.year == year)
-        .all()
-    )
-    for row in leftovers:
-        if row.element == incoming_name:
-            continue
-        if not same_yoy_element(row.element, row.unit, incoming_name, incoming_unit):
-            continue
-        src = db.get(MonthlyElement, (code, year, row.element))
-        dst = db.get(MonthlyElement, (code, year, incoming_name))
-        if src is not None and dst is not None:
-            merge_monthly_element_into(db, src, dst, strict=strict)
-    return db.get(MonthlyElement, (code, year, incoming_name))
+def apply_issuer_element_aliases(verbose: bool = True, *, dry_run: bool = False) -> list[dict]:
+    """銘柄エイリアスで保存名が変わる行をリネーム。先に正規名があれば値を寄せる。冪等。
 
-
-def fold_aliased_element(
-    db, code: str, year: int, incoming_name: str, incoming_unit: str | None,
-    *,
-    strict: bool = False,
-) -> MonthlyElement | None:
-    """銘柄エイリアス後に同一になる既存行を寄せる。無ければ None。"""
-    incoming = canonicalize_element_label(
-        apply_issuer_aliases(code, incoming_name, year=year), incoming_unit,
-    )
-    existing = (
-        db.query(MonthlyElement)
-        .filter(MonthlyElement.code == code, MonthlyElement.year == year)
-        .all()
-    )
-    matches = [
-        row for row in existing
-        if canonicalize_element_label(
-            apply_issuer_aliases(
-                code, canonicalize_element_label(row.element, row.unit), year=year,
-            ),
-            row.unit,
-        ) == incoming
-    ]
-    if not matches:
-        return None
-    exact = next((row for row in matches if row.element == incoming), None)
-    if exact is None:
-        src = min(matches, key=lambda row: row.sort_order)
-        rename_monthly_element(db, code, year, src.element, incoming, strict=strict)
-    target = db.get(MonthlyElement, (code, year, incoming))
-    if target is None:
-        return None
-    leftovers = (
-        db.query(MonthlyElement)
-        .filter(MonthlyElement.code == code, MonthlyElement.year == year)
-        .all()
-    )
-    for row in leftovers:
-        if row.element == incoming:
-            continue
-        if canonicalize_element_label(
-            apply_issuer_aliases(
-                code, canonicalize_element_label(row.element, row.unit), year=year,
-            ),
-            row.unit,
-        ) != incoming:
-            continue
-        src = db.get(MonthlyElement, (code, year, row.element))
-        dst = db.get(MonthlyElement, (code, year, incoming))
-        if src is not None and dst is not None:
-            merge_monthly_element_into(db, src, dst, strict=strict)
-    return db.get(MonthlyElement, (code, year, incoming))
-
-
-def apply_issuer_element_aliases(verbose: bool = True) -> list[dict]:
-    """銘柄エイリアスで保存名が変わる行をリネーム。先に正規名があれば値を寄せる。冪等。"""
+    起動時には呼ばない（保存名は凍結）。jobs/monthly_names.py だけが呼ぶ。dry_run は書かずに報告だけ。
+    """
     insp = inspect(engine)
     if "monthly_elements" not in insp.get_table_names():
         return []
@@ -375,8 +278,10 @@ def apply_issuer_element_aliases(verbose: bool = True) -> list[dict]:
             reports.append(report)
             if verbose:
                 print(f"月次エイリアス: {row.code} {row.year} {old!r} → {new!r}")
-        if reports:
+        if reports and not dry_run:
             db.commit()
+        else:
+            db.rollback()
         return reports
     except Exception:
         db.rollback()
@@ -385,8 +290,11 @@ def apply_issuer_element_aliases(verbose: bool = True) -> list[dict]:
         db.close()
 
 
-def merge_yoy_duplicate_elements(verbose: bool = True) -> list[dict]:
-    """保存名を canonicalize へ。同一年に両方あれば正規名へ寄せて短い行を消す。冪等。"""
+def merge_yoy_duplicate_elements(verbose: bool = True, *, dry_run: bool = False) -> list[dict]:
+    """保存名を canonicalize へ。同一年に両方あれば正規名へ寄せて短い行を消す。冪等。
+
+    起動時には呼ばない（保存名は凍結）。jobs/monthly_names.py だけが呼ぶ。dry_run は書かずに報告だけ。
+    """
     insp = inspect(engine)
     if "monthly_elements" not in insp.get_table_names():
         return []
@@ -449,14 +357,52 @@ def merge_yoy_duplicate_elements(verbose: bool = True) -> list[dict]:
                         f"正規名={item['kept']} 短い名={item['dropped']} "
                         f"({item['dropped_from']!r}、正規名を残す)"
                     )
-        if reports:
+        if reports and not dry_run:
             db.commit()
+        else:
+            db.rollback()
         return reports
     except Exception:
         db.rollback()
         raise
     finally:
         db.close()
+
+
+def monthly_name_drift() -> list[tuple[str, int, str, str]]:
+    """今の正規化と alias で作り直すと名前が変わる保存行。(code, year, 保存名, 作り直した名前)。読むだけ。"""
+    insp = inspect(engine)
+    if "monthly_elements" not in insp.get_table_names():
+        return []
+    db = SessionLocal()
+    try:
+        rows = db.query(
+            MonthlyElement.code, MonthlyElement.year, MonthlyElement.element, MonthlyElement.unit,
+        ).all()
+    finally:
+        db.close()
+    out: list[tuple[str, int, str, str]] = []
+    for code, year, element, unit in rows:
+        want = canonicalize_element_label(
+            apply_issuer_aliases(code, canonicalize_element_label(element, unit), year=year), unit,
+        )
+        if want and want != element:
+            out.append((code, year, element, want))
+    out.sort()
+    return out
+
+
+def report_monthly_name_drift(verbose: bool = True) -> int:
+    """保存名は起動時に書き換えない。ずれた行の数だけログに出す。付け替えは jobs/monthly_names.py。"""
+    drift = monthly_name_drift()
+    if drift and verbose:
+        codes = sorted({code for code, *_ in drift})
+        head = ", ".join(codes[:10]) + (" …" if len(codes) > 10 else "")
+        print(
+            f"月次の保存名ドリフト: {len(drift)} 行 / {len(codes)} 銘柄 ({head})。"
+            "jobs/monthly_names.py plan で確認、apply で付け替え"
+        )
+    return len(drift)
 
 
 def apply_known_monthly_element_units() -> int:
@@ -524,8 +470,7 @@ def init_db(strict: bool = False):
                 "  B) .\\run.ps1 migrate    列だけ追加して既存データを残す (追加列は空のまま)\n"
             )
     apply_known_monthly_element_units()
-    merge_yoy_duplicate_elements()
-    apply_issuer_element_aliases()
+    report_monthly_name_drift()
     delete_orphan_monthly_rows()
 
 

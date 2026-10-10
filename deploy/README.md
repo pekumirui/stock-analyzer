@@ -112,7 +112,8 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 
 任意コマンドも restart も任意 SQL もない。月次ツールは FastAPI の `http://127.0.0.1:8000` だけを叩く（nginx Basic は使わない）。行数は最大 500。`.env` の値は伏せる。
 `monthly_get` の `values` は 1〜12。無い月は null。0 は実ゼロ。1年通して値のない行は出さない。
-月次の unit は PDF 見出しから付ける（`DESIGN.md` §3 の表）。既存行の unit 変更は `PUT /api/v1/tables/{code}/{year}/elements`（`{element, unit}`）。
+月次の unit は PDF 見出しから付ける（`DESIGN.md` §3 の表）。既存行の unit 変更は `PUT /api/v1/tables/{code}/{year}/elements`（`{element, unit}`）。行はその unit の正規名へ付け替わる。
+月次の保存名は起動時に書き換えない（`docs/DESIGN_monthly_labels.md`「同一行・保存名の凍結」）。ずれた行があると `stock-analyzer.log` とバッチのログに `月次の保存名ドリフト: N 行` が出る。正規化や `config/issuer_aliases.json` を変えたあとは Actions の **Monthly names** を `plan`（既定、書かない）で流してログを見てから `apply`。中身は `jobs/monthly_names.py`。
 
 認証は `MCP_TOKEN`（Bearer または OAuth で発行した access token）。GitHub secret と同値。値をログに出さない。
 

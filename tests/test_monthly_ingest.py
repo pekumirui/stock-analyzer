@@ -1740,20 +1740,23 @@ def test_existing_short_yoy_renamed_on_canonical() -> None:
     r = c.put(f"/api/v1/tables/{code}/2026/elements",
               json={"element": "カラオケ全店 売上高", "unit": "yoy_index"})
     _expect(r, 200, "PUT unit yoy on short")
+    # unit を変えた行はその場で新しい unit の正規名へ（起動時には作り直さない。#545）
+    if r.json()["element"] != "カラオケ 全店 売上高(前年比)":
+        _fail(f"PUT unit must rename to yoy canonical: {r.json()!r}")
     r = c.put(f"/api/v1/tables/{code}/2026/values",
-              json={"element": "カラオケ全店 売上高", "month": 1, "value": 110.0})
-    _expect(r, 200, "PUT value on short")
+              json={"element": "カラオケ全店 売上高(前年比)", "month": 1, "value": 110.0})
+    _expect(r, 200, "PUT value on renamed")
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": [1],
         "rows": [{"element": "カラオケ全店 売上高(前年比)", "values": {"1": 111.0}, "unit": "yoy_index"}],
         "as_of": "2026-08-05",
     })
-    _expect(r, 200, "ingest canonical onto short")
+    _expect(r, 200, "ingest canonical onto renamed")
     r = c.get(f"/api/v1/tables/{code}/2026")
     els = r.json()["elements"]
     names = [e["element"] for e in els]
     if names != ["カラオケ 全店 売上高(前年比)"]:
-        _fail(f"short must rename to canonical: {names!r}")
+        _fail(f"one canonical row: {names!r}")
     if els[0]["unit"] != "yoy_index" or float(els[0]["values"]["1"]) != 111.0:
         _fail(f"rename+upsert: {els[0]!r}")
 
@@ -2403,13 +2406,8 @@ def test_fail_loud_required_and_conflicts() -> None:
         "rows": [{"element": "全店 売上高(前年比)", "values": {"1": 100.0}, "unit": "yoy_index"}],
         "as_of": "2026-08-05",
     })
-    _expect(r, 409, "FOLD_CONFLICT")
-    err = _err(r)
-    if err["code"] != "FOLD_CONFLICT":
-        _fail(f"FOLD_CONFLICT: {r.json()!r}")
-    conflicts = err.get("conflicts")
-    if not isinstance(conflicts, list) or not conflicts:
-        _fail(f"FOLD_CONFLICT conflicts: {r.json()!r}")
+    # 保存名は凍結（#545）。ingest は完全一致の行にだけ書き、ずれた既存行は寄せない（付け替えは jobs/monthly_names.py）
+    _expect(r, 200, "ingest leaves drifted row alone")
     db = SessionLocal()
     try:
         names = sorted(
