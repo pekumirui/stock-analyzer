@@ -1983,6 +1983,58 @@
       "内アパレル"
     ]
   },
+  "80110": {
+    "tree": [
+      {
+        "name": "全体",
+        "rows": [
+          "全社 売上高",
+          "全社 売上高(前年比)"
+        ],
+        "children": [
+          {
+            "name": "ブランド別",
+            "heading": true,
+            "prefix": "ブランド別",
+            "children": [
+              "MACKINTOSH LONDON",
+              "MACKINTOSH PHILOSOPHY",
+              "Paul Stuart",
+              "EPOCA",
+              "婦人服*1",
+              "コーポレート*2",
+              "LOVELESS"
+            ]
+          },
+          {
+            "name": "販路別",
+            "heading": true,
+            "prefix": "販路別",
+            "children": [
+              "百貨店",
+              {
+                "name": "直営店",
+                "prefix": "販路別 直営"
+              },
+              "EC・通販",
+              "アウトレット"
+            ]
+          }
+        ]
+      }
+    ],
+    "metrics": [
+      {
+        "name": "売上高",
+        "leaves": [
+          "全社 売上高",
+          "全社 売上高(前年比)",
+          "売上高",
+          "売上高(前年比)"
+        ]
+      }
+    ]
+  },
   "82330": {
     "tree": [
       {

@@ -830,6 +830,60 @@ def test_monthly_tree_assign() -> None:
     }
     if got != want:
         _fail(f"60360 tree rows: {got!r}")
+    # 三陽商会: 全社を根の売上高。ブランド別・販路別は見出し。直営店はチャネルにしない（#470）
+    sanyo_rows = [
+        "全社 売上高(前年比)",
+        "ブランド別 MACKINTOSH LONDON 売上高(前年比)",
+        "ブランド別 MACKINTOSH PHILOSOPHY 売上高(前年比)",
+        "ブランド別 Paul Stuart 売上高(前年比)",
+        "ブランド別 EPOCA 売上高(前年比)",
+        "ブランド別 婦人服*1 売上高(前年比)",
+        "ブランド別 コーポレート*2 売上高(前年比)",
+        "ブランド別 LOVELESS 売上高(前年比)",
+        "販路別 百貨店 売上高(前年比)",
+        "販路別 直営 売上高(前年比)",
+        "販路別 EC・通販 売上高(前年比)",
+        "販路別 アウトレット 売上高(前年比)",
+    ]
+    sy = assign_tree_rows("80110", sanyo_rows, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in sy.items()}
+    want = {
+        "全社 売上高(前年比)": (["全体"], "全社 売上高(前年比)", "売上高"),
+        "ブランド別 MACKINTOSH LONDON 売上高(前年比)": (
+            ["全体", "ブランド別", "MACKINTOSH LONDON"], "売上高(前年比)", "売上高"),
+        "ブランド別 MACKINTOSH PHILOSOPHY 売上高(前年比)": (
+            ["全体", "ブランド別", "MACKINTOSH PHILOSOPHY"], "売上高(前年比)", "売上高"),
+        "ブランド別 Paul Stuart 売上高(前年比)": (
+            ["全体", "ブランド別", "Paul Stuart"], "売上高(前年比)", "売上高"),
+        "ブランド別 EPOCA 売上高(前年比)": (
+            ["全体", "ブランド別", "EPOCA"], "売上高(前年比)", "売上高"),
+        "ブランド別 婦人服*1 売上高(前年比)": (
+            ["全体", "ブランド別", "婦人服*1"], "売上高(前年比)", "売上高"),
+        "ブランド別 コーポレート*2 売上高(前年比)": (
+            ["全体", "ブランド別", "コーポレート*2"], "売上高(前年比)", "売上高"),
+        "ブランド別 LOVELESS 売上高(前年比)": (
+            ["全体", "ブランド別", "LOVELESS"], "売上高(前年比)", "売上高"),
+        "販路別 百貨店 売上高(前年比)": (["全体", "販路別", "百貨店"], "売上高(前年比)", "売上高"),
+        "販路別 直営 売上高(前年比)": (["全体", "販路別", "直営店"], "売上高(前年比)", "売上高"),
+        "販路別 EC・通販 売上高(前年比)": (["全体", "販路別", "EC・通販"], "売上高(前年比)", "売上高"),
+        "販路別 アウトレット 売上高(前年比)": (["全体", "販路別", "アウトレット"], "売上高(前年比)", "売上高"),
+    }
+    if got != want:
+        _fail(f"80110 tree rows: {got!r}")
+    sy_tree = tree_payload("80110", sanyo_rows, load_monthly_trees())
+    if sy_tree is None or sy_tree.get("tree_metrics") != ["売上高"] or "tree_auto" in sy_tree:
+        _fail(f"80110 tree payload: {sy_tree!r}")
+    root = sy_tree["tree"][0]
+    brands = root["children"][0]
+    channels = root["children"][1]
+    if (root["elements"] != ["全社 売上高(前年比)"]
+            or [c["name"] for c in root["children"]] != ["ブランド別", "販路別"]
+            or not brands["heading"] or not channels["heading"]
+            or [c["name"] for c in brands["children"]] != [
+                "MACKINTOSH LONDON", "MACKINTOSH PHILOSOPHY", "Paul Stuart", "EPOCA",
+                "婦人服*1", "コーポレート*2", "LOVELESS"]
+            or [c["name"] for c in channels["children"]] != ["百貨店", "直営店", "EC・通販", "アウトレット"]):
+        _fail(f"80110 tree shape: {sy_tree['tree']!r}")
 
 
 def test_monthly_auto_tree() -> None:
@@ -2873,6 +2927,27 @@ def _assert_monthly_layout_js() -> None:
         "elements": [{**_el(e, u), "tree": hardoff_auto.rows[e]} for e, u in hardoff_rows],
         **auto_tree_payload(hardoff_auto, [e for e, _ in hardoff_rows]),
     }]
+    sanyo_rows = [
+        "全社 売上高(前年比)",
+        "ブランド別 MACKINTOSH LONDON 売上高(前年比)",
+        "ブランド別 MACKINTOSH PHILOSOPHY 売上高(前年比)",
+        "ブランド別 Paul Stuart 売上高(前年比)",
+        "ブランド別 EPOCA 売上高(前年比)",
+        "ブランド別 婦人服*1 売上高(前年比)",
+        "ブランド別 コーポレート*2 売上高(前年比)",
+        "ブランド別 LOVELESS 売上高(前年比)",
+        "販路別 百貨店 売上高(前年比)",
+        "販路別 直営 売上高(前年比)",
+        "販路別 EC・通販 売上高(前年比)",
+        "販路別 アウトレット 売上高(前年比)",
+    ]
+    sanyo_trees = load_monthly_trees()
+    sanyo_assign = assign_tree_rows("80110", sanyo_rows, sanyo_trees)
+    fixtures["sanyoTree"] = [{
+        "year": 2026, "code": "80110",
+        "elements": [{**_el(e), "tree": sanyo_assign[e]} for e in sanyo_rows],
+        **tree_payload("80110", sanyo_rows, sanyo_trees),
+    }]
     harness = r"""
 const fs = require("fs");
 const vm = require("vm");
@@ -2940,6 +3015,11 @@ const ktm = sandbox.monthlyTreeModel(fixtures.kobeTree);
 sandbox.monthlyTreeSeedOpen(ktm);
 vm.runInContext('for(const k of ["店舗数", "仕入れ 全店 売上高"]){ monthlyTlOpen.add("m:" + k); monthlyTlOpen.add("m:" + k + "\\u203atree:全体\\u203aFC"); }', sandbox);
 const kobeNames = namesOf(sandbox.monthlyTreeHtml(ktm, () => "<td></td>", [{y: 2026, m: 1}]));
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const stm = sandbox.monthlyTreeModel(fixtures.sanyoTree);
+sandbox.monthlyTreeSeedOpen(stm);
+vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203aブランド別"); monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a販路別");', sandbox);
+const sanyoNames = namesOf(sandbox.monthlyTreeHtml(stm, () => "<td></td>", [{y: 2026, m: 1}]));
 const pairRec = {element: "売上高", unit: "number", yoy: "売上高(前年比)"};
 const pairCell = sandbox.monthlyTlCell({
   "売上高": {unit: "number", values: {"8": 99}},
@@ -2972,6 +3052,7 @@ console.log(JSON.stringify({
   hardoffNames,
   hardoffReveal,
   kobeNames,
+  sanyoNames,
   pairTxt: pairCell.txt,
   pairYoyOnlyTxt: pairYoyOnly.txt,
   unpairedTxt: unpairedCell.txt,
@@ -3035,6 +3116,14 @@ console.log(JSON.stringify({
                  "全国 仕入れ 全店 売上高(前年比)", "FC", "直轄"]
     if got.get("kobeNames") != want_kobe:
         _fail(f"30380 config tree rows: {got.get('kobeNames')!r}")
+    want_sanyo = [
+        "全社 売上高(前年比)", "ブランド別",
+        "MACKINTOSH LONDON", "MACKINTOSH PHILOSOPHY", "Paul Stuart", "EPOCA",
+        "婦人服*1", "コーポレート*2", "LOVELESS",
+        "販路別", "百貨店", "直営店", "EC・通販", "アウトレット",
+    ]
+    if got.get("sanyoNames") != want_sanyo:
+        _fail(f"80110 config tree rows: {got.get('sanyoNames')!r}")
     # 直営と FC の両方に業態行があるときは両方の下に出す。FC の無い業態は直営だけ。店舗数だけの節は合計の下
     want_hardoff = [
         "店舗数", "直営", "海外", "ハードオフ", "オフハウス", "ブックオフ",
