@@ -234,7 +234,6 @@ function selectSched(code){
 function clearDetail(msg){
   $("#e-chart-title").textContent = msg;
   $("#e-chart").innerHTML = ""; $("#cum-tbl").innerHTML = ""; $("#q-tbl").innerHTML = "";
-  $("#q-chips").innerHTML = "";
 }
 
 async function loadSched(row){
@@ -245,7 +244,6 @@ async function loadSched(row){
   if(my !== detailReq) return;
   if(ch) eChartObj = renderPriceChart($("#e-chart"), ch, {height:320, prev:eChartObj});
   else { $("#e-chart").innerHTML = `<div class="sub">株価データなし</div>`; }
-  $("#q-chips").innerHTML = "";
   const pending = `<tr><td class="l sub">まだ開示されていません</td></tr>`;
   $("#cum-tbl").innerHTML = pending;
   $("#q-tbl").innerHTML = pending;
@@ -261,7 +259,6 @@ async function loadDetail(row){
   if(my !== detailReq) return;
   if(ch) eChartObj = renderPriceChart($("#e-chart"), ch, {height:320, prev:eChartObj, mark:d && d.disclosed_date});
   else { $("#e-chart").innerHTML = `<div class="sub">株価データなし</div>`; }
-  renderQchips(d && d.period);
   renderFin($("#cum-tbl"), d && d.cumulative, d);
   renderFin($("#q-tbl"),   d && d.quarterly,  d);
 }
@@ -296,11 +293,6 @@ function qBadge(r){
   if(r.kind!=="single" && (q==="4Q" || q==="FY")) return "";
   if(q==="5Q") return `<span class="qb">5Q</span>`;
   return /^[1-4]Q$/.test(q) ? `<span class="qb qb-${q}">${q}</span>` : "";
-}
-function renderQchips(period){
-  const cur = (period==="FY" || period==="4Q") ? "" : (period || "");
-  $("#q-chips").innerHTML = ["1Q","2Q","3Q","4Q"]
-    .map(q => `<span class="qchip${q===cur?" on":""}">${q}</span>`).join("");
 }
 function renderFin(el, rows, d){
   if(!rows || !rows.length){

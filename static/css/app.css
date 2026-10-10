@@ -333,9 +333,6 @@
   .fin-tabs { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
   .ftab { background:transparent; border:none; color:var(--sub); padding:5px 14px; cursor:pointer; font-size:13px; }
   .ftab.on { background:var(--accent); color:#fff; }
-  .qchips { display:flex; gap:6px; margin:0 0 8px; }
-  .qchip { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); color:var(--sub); }
-  .qchip.on { border-color:var(--warn); color:var(--warn); background:rgba(240,160,32,.12); }
   .qb { display:inline-block; margin-left:6px; font-size:10px; padding:0 5px; border-radius:3px; background:var(--row); color:var(--sub); vertical-align:middle; }
   table.fin .g .qb { margin-left:0; }
   .qb-1Q { color:#c48a00; }
