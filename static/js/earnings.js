@@ -327,7 +327,8 @@ function renderFin(el, rows, d){
     };
     const m = opm(r.values);
     const mTxt = m==null ? "–" : `<span class="${m<0?"loss":""}">${fmt(m,1)}%</span>`;
-    h += `<tr class="${cls}"><td class="l" title="${r.label||""}">${finLabel(r)}${qBadge(r)}</td>`
+    // Q バッジは決算期の下の段 (数値列の増減率と同じ 2 段目) に置いて列幅を詰める
+    h += `<tr class="${cls}"><td class="l" title="${r.label||""}">${finLabel(r)}<span class="g">${qBadge(r) || " "}</span></td>`
        + FIN_MET.map(([k])=>cell(k, amt(r.values[k]))).join("")
        + cell("eps", epsTxt(r.values.eps))
        + `<td class="num">${mTxt}<span class="g"> </span></td>`
