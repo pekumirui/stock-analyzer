@@ -4,13 +4,17 @@ After=network-online.target
 Wants=network-online.target
 # Conf is written by update.sh from GitHub secrets; skip start if missing.
 AssertPathExists=/home/stock/.config/rclone/rclone.conf
+# FUSE abort can leave rclone running; r2-share-watch.timer restarts if unlistable.
+StartLimitIntervalSec=120
+StartLimitBurst=8
 
 [Service]
 Type=notify
 ExecStartPre=-/usr/bin/fusermount3 -uz /home/stock/r2-share
 ExecStart=/usr/bin/rclone mount r2:share /home/stock/r2-share --config /home/stock/.config/rclone/rclone.conf --vfs-cache-mode writes --dir-cache-time 10s --umask 022 --cache-dir /home/stock/.cache/rclone
 ExecStop=/usr/bin/fusermount3 -uz /home/stock/r2-share
-Restart=on-failure
+# always: crash / unclean FUSE exit. systemctl stop still stays down.
+Restart=always
 RestartSec=5
 TimeoutStartSec=60
 TimeoutStopSec=20

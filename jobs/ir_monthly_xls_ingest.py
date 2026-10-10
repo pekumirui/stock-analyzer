@@ -28,6 +28,7 @@ for _p in (str(ROOT), str(SCRIPT_DIR)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+from _r2common import MountDisconnected, check_r2_mount  # noqa: E402
 from ir_monthly_html_ingest import UrllibClient, assert_loopback_base  # noqa: E402
 from ir_monthly_r2 import DEFAULT_DEST  # noqa: E402
 from tdnet_monthly_r2 import display_code  # noqa: E402
@@ -340,6 +341,14 @@ def run(
     base_url: str,
     client: UrllibClient | None = None,
 ) -> int:
+    if xls is None:
+        try:
+            check_r2_mount(dest)
+        except MountDisconnected as e:
+            print(f"ir_monthly_xls_ingest {e}", flush=True)
+            return 1
+        except OSError:
+            pass
     path = xls if xls is not None else latest_xls(dest)
     payload = ingest_from_xls(path, as_of=as_of, source_url=source_url, from_year=from_year)
     print(json.dumps(payload, ensure_ascii=False, indent=2))

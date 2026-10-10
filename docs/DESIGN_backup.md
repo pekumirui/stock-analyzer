@@ -19,7 +19,10 @@
 ```
 /home/stock/backups/daily/stock-YYYY-MM-DD.db.gz
 /home/stock/backups/weekly/stock-YYYY-MM-DD.db.gz   # 日曜のみ。日次と hardlink
+/home/stock/backups/.tmp/                          # 作業用。実行の前後で空（-wal / -shm 含む）
 ```
+
+一時コピーはソースの WAL を引き継がない（`journal_mode=DELETE`）。本体を消すときは `-wal` / `-shm` も消す。
 
 ## 復元
 

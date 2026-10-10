@@ -34,7 +34,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from _r2common import jst_today, load_stock_product_map  # noqa: E402
+from _r2common import (  # noqa: E402
+    abort_if_disconnected,
+    fail_if_mount_down,
+    is_mount_disconnect_error,
+    jst_today,
+    load_stock_product_map,
+)
 from ir_monthly_r2 import (  # noqa: E402
     DEFAULT_CONFIG,
     DEFAULT_DEST,
@@ -148,7 +154,9 @@ def existing_html_hashes(code_dir: Path) -> dict[str, Path]:
             if p.stat().st_size <= 0:
                 continue
             out[sha256_bytes(p.read_bytes())] = p
-        except OSError:
+        except OSError as e:
+            if is_mount_disconnect_error(e):
+                raise
             continue
     return out
 
@@ -468,6 +476,8 @@ def fetch_issuer(
             hashes.pop(sha256_bytes(path.read_bytes()), None)
         atomic_write(path, data)
     except Exception as e:
+        if is_mount_disconnect_error(e):
+            raise
         print(f"fail {rel} url={url}: {e}", flush=True)
         return 1, 0, 0, 1
     print(f"saved {rel} ({len(data)} bytes)", flush=True)
@@ -498,6 +508,8 @@ def reparse_issuer(iss: HtmlIssuer, dest: Path) -> tuple[int, int, int]:
             parsed += 1
             print(f"reparse {rel} -> {ingest_path(path).name}", flush=True)
         except Exception as e:
+            if is_mount_disconnect_error(e):
+                raise
             failed += 1
             print(f"fail reparse {rel}: {e}", flush=True)
     return parsed, skipped, failed
@@ -529,6 +541,9 @@ def run(
     if not issuers:
         print("ir_monthly_html_r2 no issuers", flush=True)
         return 2
+    rc = fail_if_mount_down("ir_monthly_html_r2", dest, require_existing=False)
+    if rc is not None:
+        return rc
     day = today or jst_today()
     dest.mkdir(parents=True, exist_ok=True)
     print(
@@ -541,7 +556,13 @@ def run(
         parsed = skipped = failed = 0
         for iss in issuers:
             print(f"issuer {iss.code} {iss.name}", flush=True)
-            p, k, f = reparse_issuer(iss, dest)
+            try:
+                p, k, f = reparse_issuer(iss, dest)
+            except Exception as e:
+                down = abort_if_disconnected("ir_monthly_html_r2", dest, e)
+                if down is not None:
+                    return down
+                raise
             parsed += p
             skipped += k
             failed += f
@@ -568,6 +589,9 @@ def run(
                 cooled_hosts=cooled_hosts,
             )
         except Exception as e:
+            down = abort_if_disconnected("ir_monthly_html_r2", dest, e)
+            if down is not None:
+                return down
             failed += 1
             print(f"fail issuer {iss.code} {iss.index_url}: {e}", flush=True)
             continue

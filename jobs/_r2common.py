@@ -5,6 +5,7 @@ http_get は IR 側の実装（識別 UA が 403 ならブラウザ UA に一度
 """
 from __future__ import annotations
 
+import errno
 import json
 import os
 import random
@@ -14,10 +15,11 @@ import sqlite3
 import ssl
 import time
 import unicodedata
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import date, datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+from typing import TypeVar
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
@@ -41,6 +43,217 @@ _AIA_MAX_CERT = 64 * 1024
 _AIA_CTX: dict[str, ssl.SSLContext | None] = {}
 _BAD_FILENAME_RE = re.compile(r'[\x00-\x1f\\/:*?"<>|]')
 _NON_SQLITE_SKIP = "warn stocks db not sqlite; infra skip uses company_name only"
+R2_SHARE_ROOT_DEFAULT = "/home/stock/r2-share"
+R2_SHARE_ROOT_ENV = "R2_SHARE_ROOT"
+PROC_MOUNTS = Path("/proc/mounts")
+# deploy/r2-share.service RestartSec. Two waits after the first probe.
+MOUNT_RETRY_WAIT_SEC = 5.0
+MOUNT_RETRIES = 2
+_DISCONNECT_ERRNOS = frozenset(
+    n
+    for n in (
+        errno.ECONNABORTED,
+        errno.ENOTCONN,
+        getattr(errno, "ESTALE", None),
+    )
+    if isinstance(n, int)
+)
+T = TypeVar("T")
+
+
+class MountDisconnected(Exception):
+    """R2 FUSE mount is down after retries. Jobs abort with this one line."""
+
+    def __init__(self, detail: str = "") -> None:
+        self.detail = (detail or "").strip()
+        super().__init__(
+            f"R2 マウント切断: {self.detail}" if self.detail else "R2 マウント切断"
+        )
+
+
+def r2_share_root(root: Path | str | None = None) -> Path:
+    if root is not None:
+        return Path(root)
+    env = (os.environ.get(R2_SHARE_ROOT_ENV) or "").strip()
+    return Path(env or R2_SHARE_ROOT_DEFAULT)
+
+
+def path_on_r2_share(path: Path | str, root: Path | str | None = None) -> bool:
+    path_s = os.path.normpath(os.fspath(path))
+    root_s = os.path.normpath(os.fspath(r2_share_root(root)))
+    return path_s == root_s or path_s.startswith(root_s + os.sep)
+
+
+def is_mount_disconnect_error(exc: BaseException) -> bool:
+    if isinstance(exc, MountDisconnected):
+        return True
+    err = getattr(exc, "errno", None)
+    return isinstance(err, int) and err in _DISCONNECT_ERRNOS
+
+
+def r2_mount_in_proc(root: Path | str | None = None, text: str | None = None) -> bool | None:
+    """True if root is in /proc/mounts. None if /proc/mounts is unreadable."""
+    if text is None:
+        try:
+            text = PROC_MOUNTS.read_text(encoding="utf-8")
+        except OSError:
+            return None
+    needle = f" {os.path.normpath(os.fspath(r2_share_root(root)))} "
+    return needle in text
+
+
+def check_r2_mount(
+    path: Path | str,
+    *,
+    require_existing: bool = True,
+    retries: int = MOUNT_RETRIES,
+    wait_sec: float = MOUNT_RETRY_WAIT_SEC,
+    sleep: Callable[[float], None] = time.sleep,
+    listdir: Callable[[str], list[str]] | None = None,
+    proc_mounts: Callable[[], str] | None = None,
+    r2_root: Path | str | None = None,
+) -> None:
+    """List path. On FUSE disconnect or R2-share dest gone, wait and retry.
+
+    Raise MountDisconnected after retries. Other OSError (local dest missing)
+    propagate. require_existing=False lets writers mkdir dest on a live mount.
+    """
+    dest_s = os.fspath(path)
+    list_fn = os.listdir if listdir is None else listdir
+    last_detail = ""
+    attempts = max(0, retries) + 1
+    for i in range(attempts):
+        if path_on_r2_share(path, r2_root):
+            mounted: bool | None
+            if proc_mounts is None:
+                mounted = r2_mount_in_proc(r2_root)
+            else:
+                try:
+                    mounted = r2_mount_in_proc(r2_root, proc_mounts())
+                except OSError:
+                    mounted = None
+            if mounted is False:
+                last_detail = f"{r2_share_root(r2_root)} is not mounted"
+                if i < attempts - 1:
+                    sleep(wait_sec)
+                    continue
+                raise MountDisconnected(last_detail)
+        try:
+            list_fn(dest_s)
+            return
+        except OSError as e:
+            last_detail = str(e)
+            missing = e.errno in (errno.ENOENT, errno.ENOTDIR)
+            if missing and not require_existing and not is_mount_disconnect_error(e):
+                return
+            disconnected = is_mount_disconnect_error(e) or (
+                missing and path_on_r2_share(path, r2_root)
+            )
+            if not disconnected:
+                raise
+            if i < attempts - 1:
+                sleep(wait_sec)
+                continue
+            raise MountDisconnected(last_detail) from e
+    raise MountDisconnected(last_detail)
+
+
+def with_mount_retry(
+    fn: Callable[[], T],
+    dest: Path | str,
+    *,
+    require_existing: bool = True,
+    retries: int = MOUNT_RETRIES,
+    wait_sec: float = MOUNT_RETRY_WAIT_SEC,
+    sleep: Callable[[float], None] = time.sleep,
+    listdir: Callable[[str], list[str]] | None = None,
+    proc_mounts: Callable[[], str] | None = None,
+    r2_root: Path | str | None = None,
+) -> T:
+    """Call fn. On FUSE abort or dest ENOENT, re-probe dest then call fn once more."""
+    kwargs = {
+        "require_existing": require_existing,
+        "retries": retries,
+        "wait_sec": wait_sec,
+        "sleep": sleep,
+        "listdir": listdir,
+        "proc_mounts": proc_mounts,
+        "r2_root": r2_root,
+    }
+    try:
+        return fn()
+    except OSError as e:
+        if not (is_mount_disconnect_error(e) or e.errno == errno.ENOENT):
+            raise
+        try:
+            check_r2_mount(dest, **kwargs)
+        except OSError as probe:
+            raise MountDisconnected(str(probe)) from e
+        return fn()
+
+
+def fail_if_mount_down(
+    label: str,
+    dest: Path | str,
+    *,
+    require_existing: bool = True,
+    retries: int = MOUNT_RETRIES,
+    wait_sec: float = MOUNT_RETRY_WAIT_SEC,
+    sleep: Callable[[float], None] = time.sleep,
+    listdir: Callable[[str], list[str]] | None = None,
+    proc_mounts: Callable[[], str] | None = None,
+    r2_root: Path | str | None = None,
+) -> int | None:
+    """Probe dest. Print `{label} R2 マウント切断…` and return 1 if down."""
+    try:
+        check_r2_mount(
+            dest,
+            require_existing=require_existing,
+            retries=retries,
+            wait_sec=wait_sec,
+            sleep=sleep,
+            listdir=listdir,
+            proc_mounts=proc_mounts,
+            r2_root=r2_root,
+        )
+    except MountDisconnected as e:
+        print(f"{label} {e}", flush=True)
+        return 1
+    except OSError:
+        return None
+    return None
+
+
+def abort_if_disconnected(
+    label: str,
+    dest: Path | str,
+    exc: BaseException,
+    *,
+    require_existing: bool = False,
+    retries: int = MOUNT_RETRIES,
+    wait_sec: float = MOUNT_RETRY_WAIT_SEC,
+    sleep: Callable[[float], None] = time.sleep,
+    listdir: Callable[[str], list[str]] | None = None,
+    proc_mounts: Callable[[], str] | None = None,
+    r2_root: Path | str | None = None,
+) -> int | None:
+    """If exc is a FUSE disconnect, re-probe dest and return 1 when still down."""
+    if isinstance(exc, MountDisconnected):
+        print(f"{label} {exc}", flush=True)
+        return 1
+    if not is_mount_disconnect_error(exc):
+        return None
+    return fail_if_mount_down(
+        label,
+        dest,
+        require_existing=require_existing,
+        retries=retries,
+        wait_sec=wait_sec,
+        sleep=sleep,
+        listdir=listdir,
+        proc_mounts=proc_mounts,
+        r2_root=r2_root,
+    )
 
 
 def jst_today(now: datetime | None = None) -> date:
