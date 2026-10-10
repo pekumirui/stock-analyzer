@@ -340,6 +340,9 @@
   .qb-2Q { color:#1b8a5a; }
   .qb-3Q { color:#0077b6; }
   .qb-4Q { color:#8e4ec6; }
+  .qb-h { color:#0e7490; }
+  .qb-fy { color:#1d4ed8; }
+  .qb-prev { color:var(--sub); }
   .a-fin .tbl-wrap { max-height:min(52vh, 560px); }
 
   @media (max-width:640px){
