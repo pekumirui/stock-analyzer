@@ -26,6 +26,8 @@ from backup_db import (  # noqa: E402
     quick_check,
     run,
     sqlite_backup,
+    sqlite_sidecar_paths,
+    tmp_dir,
 )
 
 JST = ZoneInfo("Asia/Tokyo")
@@ -33,6 +35,19 @@ JST = ZoneInfo("Asia/Tokyo")
 
 def _fail(msg: object) -> None:
     raise SystemExit(str(msg))
+
+
+def _tmp_leftovers(dest: Path) -> list[str]:
+    folder = tmp_dir(dest)
+    if not folder.exists():
+        return []
+    return sorted(p.name for p in folder.iterdir())
+
+
+def _assert_tmp_empty(dest: Path) -> None:
+    leftover = _tmp_leftovers(dest)
+    if leftover:
+        _fail(f".tmp leftover {leftover}")
 
 
 def _gz_names(folder: Path) -> list[str]:
@@ -69,6 +84,8 @@ def _gunzip_names(path: Path) -> list[str]:
             conn.close()
     finally:
         tmp.unlink(missing_ok=True)
+        for sidecar in sqlite_sidecar_paths(tmp)[1:]:
+            sidecar.unlink(missing_ok=True)
 
 
 def test_constants() -> None:
@@ -138,6 +155,7 @@ def test_wal_backup_roundtrip(tmp_path: Path) -> None:
         rc = run(db, dest, now=friday)
         if rc != 0:
             _fail("roundtrip rc")
+        _assert_tmp_empty(dest)
     finally:
         live.close()
     daily = dest / "daily" / backup_name("2026-10-09")
@@ -152,6 +170,10 @@ def test_wal_backup_roundtrip(tmp_path: Path) -> None:
     ok, msg = quick_check(raw)
     if not ok:
         _fail(f"quick_check {msg}")
+    for sidecar in sqlite_sidecar_paths(raw)[1:]:
+        if sidecar.exists():
+            _fail(f"backup dest sidecar {sidecar.name}")
+    raw.unlink()
 
 
 def test_sunday_keeps_weekly_and_prunes(tmp_path: Path) -> None:
@@ -187,6 +209,7 @@ def test_sunday_keeps_weekly_and_prunes(tmp_path: Path) -> None:
     weekly = dest / "weekly" / backup_name("2026-10-04")
     if daily.stat().st_ino != weekly.stat().st_ino:
         _fail("sunday weekly should hardlink daily")
+    _assert_tmp_empty(dest)
 
 
 def test_failure_keeps_old_generations(tmp_path: Path) -> None:
@@ -219,9 +242,7 @@ def test_failure_keeps_old_generations(tmp_path: Path) -> None:
         _fail("noise removed on fail")
     if (dest / "daily" / backup_name("2026-10-09")).exists():
         _fail("failed run installed today's file")
-    leftover = list((dest / ".tmp").glob("*")) if (dest / ".tmp").exists() else []
-    if leftover:
-        _fail(f"tmp leftover {leftover}")
+    _assert_tmp_empty(dest)
 
 
 def test_corrupt_backup_does_not_install(tmp_path: Path) -> None:
@@ -246,6 +267,7 @@ def test_corrupt_backup_does_not_install(tmp_path: Path) -> None:
         _fail(f"corrupt installed {_gz_names(dest / 'daily')}")
     if (dest / "daily" / backup_name("2026-10-08")).read_bytes() != b"good":
         _fail("old generation clobbered")
+    _assert_tmp_empty(dest)
 
 
 def test_insufficient_disk_skips(tmp_path: Path) -> None:
@@ -265,6 +287,7 @@ def test_insufficient_disk_skips(tmp_path: Path) -> None:
         _fail(f"disk short pruned {_gz_names(dest / 'daily')}")
     if (dest / "daily" / backup_name("2026-10-09")).exists():
         _fail("disk short still wrote today")
+    _assert_tmp_empty(dest)
 
 
 def test_missing_db_keeps_generations(tmp_path: Path) -> None:
@@ -275,12 +298,31 @@ def test_missing_db_keeps_generations(tmp_path: Path) -> None:
         _fail("missing db must fail")
     if _gz_names(dest / "daily") != [backup_name("2026-10-08")]:
         _fail("missing db pruned")
+    _assert_tmp_empty(dest)
 
 
 def test_main_missing_is_nonzero(tmp_path: Path) -> None:
-    rc = main(["--db", str(tmp_path / "no.db"), "--dest", str(tmp_path / "backups")])
+    dest = tmp_path / "backups"
+    rc = main(["--db", str(tmp_path / "no.db"), "--dest", str(dest)])
     if rc == 0:
         _fail("main missing db must be non-zero")
+    _assert_tmp_empty(dest)
+
+
+def test_cleans_stale_tmp_sidecars(tmp_path: Path) -> None:
+    """本番初回で残った stock-*.db-wal / .db-shm を次の実行で消す。"""
+    db = tmp_path / "stock.db"
+    dest = tmp_path / "backups"
+    _make_db(db, ["ok"])
+    stale = dest / ".tmp"
+    stale.mkdir(parents=True)
+    (stale / "stock-2026-10-10.875585.db-wal").write_bytes(b"")
+    (stale / "stock-2026-10-10.875585.db-shm").write_bytes(b"\0" * 32768)
+    (stale / "stock-2026-10-10.875585.db-journal").write_bytes(b"x")
+    rc = run(db, dest, now=datetime(2026, 10, 10, 5, 0, tzinfo=JST))
+    if rc != 0:
+        _fail("stale sidecar run rc")
+    _assert_tmp_empty(dest)
 
 
 def test_crontab_and_docs() -> None:
@@ -328,6 +370,8 @@ def main_tests() -> None:
         test_missing_db_keeps_generations(Path(d))
     with TemporaryDirectory() as d:
         test_main_missing_is_nonzero(Path(d))
+    with TemporaryDirectory() as d:
+        test_cleans_stale_tmp_sidecars(Path(d))
     print("ok: backup_db")
 
 

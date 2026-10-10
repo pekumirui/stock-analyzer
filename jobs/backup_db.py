@@ -133,20 +133,43 @@ def prune_generations(folder: Path, keep: int) -> list[Path]:
     return removed
 
 
+def sqlite_sidecar_paths(path: Path) -> tuple[Path, ...]:
+    """本体と SQLite が横に置く -wal / -shm / -journal。"""
+    text = str(path)
+    return (path, Path(text + "-wal"), Path(text + "-shm"), Path(text + "-journal"))
+
+
+def unlink_sqlite(path: Path) -> None:
+    """接続を閉じたあとに本体と添えファイルを消す。欠ファイルは無視。"""
+    for candidate in sqlite_sidecar_paths(path):
+        try:
+            candidate.unlink()
+        except FileNotFoundError:
+            continue
+
+
 def sqlite_backup(src: Path, dest: Path) -> None:
-    """WAL 込みの整合コピー。pages を区切ってライターを長く止めない。"""
-    if dest.exists():
-        dest.unlink()
+    """WAL 込みの整合コピー。pages を区切ってライターを長く止めない。
+
+    コピー先は journal_mode=DELETE にして単一ファイルにする。ソースの WAL は触らない。
+    """
+    unlink_sqlite(dest)
     src_conn = sqlite3.connect(str(src), timeout=BUSY_TIMEOUT_MS / 1000)
     try:
         src_conn.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
         dest_conn = sqlite3.connect(str(dest), timeout=BUSY_TIMEOUT_MS / 1000)
         try:
+            dest_conn.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
             src_conn.backup(dest_conn, pages=BACKUP_PAGES, sleep=BACKUP_SLEEP_S)
+            # backup はソースの WAL フラグをヘッダにコピーする。gzip 前に単一ファイルへ戻す。
+            dest_conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            dest_conn.execute("PRAGMA journal_mode=DELETE")
         finally:
             dest_conn.close()
     finally:
         src_conn.close()
+    for leftover in sqlite_sidecar_paths(dest)[1:]:
+        leftover.unlink(missing_ok=True)
 
 
 def quick_check(path: Path) -> tuple[bool, str]:
@@ -192,16 +215,15 @@ def ensure_dest(dest: Path) -> None:
 
 
 def clean_tmp(dest: Path) -> None:
+    """`.tmp` は作業用。前回の -wal / -shm 残骸も含めて空にする。"""
     folder = tmp_dir(dest)
-    if not folder.is_dir():
-        return
-    for path in folder.iterdir():
-        name = path.name
-        if name.endswith(".db") or name.endswith(".part") or name.endswith(".gz"):
-            try:
-                path.unlink()
-            except OSError:
-                pass
+    if folder.is_dir():
+        for path in folder.iterdir():
+            if path.is_file() or path.is_symlink():
+                try:
+                    path.unlink()
+                except OSError:
+                    pass
     for folder in (daily_dir(dest), weekly_dir(dest)):
         if not folder.is_dir():
             continue
@@ -252,10 +274,10 @@ def _run(
     backup: BackupFn,
     check: CheckFn,
 ) -> None:
-    if not db.is_file():
-        raise BackupError(f"db missing {db}")
     ensure_dest(dest)
     clean_tmp(dest)
+    if not db.is_file():
+        raise BackupError(f"db missing {db}")
     src_size = source_bytes(db)
     need = required_bytes(src_size)
     free = free_bytes(dest)
@@ -286,8 +308,7 @@ def _run(
     except Exception as exc:
         raise BackupError(str(exc)) from exc
     finally:
-        if raw.exists():
-            raw.unlink()
+        unlink_sqlite(raw)
 
 
 def main(argv: list[str] | None = None) -> int:
