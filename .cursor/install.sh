@@ -16,6 +16,16 @@ sudo apt-get install -y -qq --no-install-recommends python3-venv poppler-utils r
 # 任意: Secrets / 環境変数の VPS_SSH_KEY があれば stock-vps へ SSH 可能にする
 bash .cursor/setup-vps-ssh.sh || echo "setup-vps-ssh skipped"
 
+# Claude Code の自動メモリをリポジトリの .claude/memory/ に向ける（環境が消えても残す）。
+# autoMemoryDirectory はコミットする .claude/settings.json では無視されるので settings.local.json に書く
+python3 - <<'PY'
+import json, pathlib
+p = pathlib.Path(".claude/settings.local.json")
+s = json.loads(p.read_text()) if p.exists() else {}
+s["autoMemoryDirectory"] = str(pathlib.Path(".claude/memory").resolve())
+p.write_text(json.dumps(s, ensure_ascii=False, indent=2) + "\n")
+PY
+
 if [[ -z "${JQUANTS_API_KEY:-}" ]]; then
   echo "JQUANTS_API_KEY が無いので stock.db は触らない"
   exit 0
