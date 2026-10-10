@@ -384,35 +384,22 @@ def calendar_span(fy_end: date | None, period: str | None) -> tuple[date, date] 
 
 def calendar_label(fy_end: date | None, period: str | None = None,
                    quarterly: bool = False) -> str:
-    """UI向け。Q単独は当該3か月 (`26.07-09`)、累計は期首〜当期末 (`26.04-09`)。
+    """UI向け。累計は会計期末 (`26.11`)。Q単独は当該3か月の末 (`25.08`)。
 
-    通期累計は `27.3`。列見出しが決算期なので「期」は付けない。
-    2Q/3Qの累計を3か月と同じラベルにすると YTD を四半期と誤読する。
+    列見出しが決算期なので「期」は付けない。Q は下のバッジ。
     """
     if fy_end is None:
         return "–"
     n = ORDER.get(period or "")
-    # 通期累計は年度末ラベル。Q単独の4Qだけカレンダー範囲にする
-    if not period or (n == 4 and not quarterly):
+    if not quarterly:
         return f"{fy_end.year % 100:02d}.{fy_end.month}"
     if not n:
-        # 5Q など ORDER に無い変則期。通期に潰すと累計が本決算に見える。
-        # Q は UI が下に出すのでここでは年度末だけ。
-        return f"{fy_end.year % 100:02d}.{fy_end.month}"
-    if quarterly:
-        span = calendar_span(fy_end, period)
-    else:
-        # 累計: 事業年度開始〜当該四半期末 (3月期2Q → 26.04-09)
-        q1 = calendar_span(fy_end, "1Q")
-        qn = calendar_span(fy_end, period)
-        span = (q1[0], qn[1]) if q1 and qn else None
+        return f"{fy_end.year % 100:02d}.{fy_end.month:02d}"
+    span = calendar_span(fy_end, period)
     if span is None:
         return period_label(fy_end, period, quarterly)
-    a, b = span
-    # 9月期3Qなど年をまたぐ累計は 25.10-06 だと同年に読めるので年を残す
-    if a.year != b.year:
-        return f"{a.year % 100:02d}.{a.month:02d}-{b.year % 100:02d}.{b.month:02d}"
-    return f"{a.year % 100:02d}.{a.month:02d}-{b.month:02d}"
+    _, b = span
+    return f"{b.year % 100:02d}.{b.month:02d}"
 
 
 def _row(fy_end: date | None, period: str | None, kind: str,
