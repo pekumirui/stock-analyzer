@@ -57,7 +57,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `jobs/*_r2.py` | TDnet / IR → R2 mount。下の「R2 バッチ」 |
 | `jobs/_r2common.py` | R2 バッチの共通処理（日付・HTTP・銘柄マスタ・ファイル名）。`app` は import しない |
 | `jobs/html_issuers/` | `parse: true` の HTML 月次。各 `i<code>.py` が表・行・単位を宣言する。`parse: false` はモジュールを作らない |
-| `config/` | `ir_monthly.json`、`issuer_aliases.json`、`issuer_metrics.json`、`monthly_row_order.json`、XBRL YAML、Ruff/Bandit は `pyproject.toml` |
+| `config/` | `ir_monthly.json`、`issuer_aliases.json`、`issuer_metrics.json`、`monthly_vocab.json`（行名の共通語彙）、`monthly_row_order.json`、XBRL YAML、Ruff/Bandit は `pyproject.toml` |
 | `tests/` | `test_*.py` と `ci_smoke.py`。新しい `test_*.py` は `ci_smoke.SUITES` に登録する（漏れは ci_smoke が落とす） |
 | `analyzer/` | `stock.db` を読むだけのオフライン分析（1 問 1 フォルダ、結果は各 `README.md`）。約束と一覧は `analyzer/README.md`。`app` からは使わない |
 | `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ） |

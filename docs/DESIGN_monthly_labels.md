@@ -2,6 +2,7 @@
 
 正本。保存名は `canonicalize_element_label`（書き込み時）。GET の表示名と層は `monthly_element_label`。実装は `app/monthly_ingest.py`。
 year GET の各行は保存 `element` に加え、派生の `label`（display / group / metric_kind / series_kind / 7層 / breakdown_depth）を返す。SPA は再パースしない。
+全銘柄に共通の語彙（前年比の語・合成語の割り方・国・チャネル・範囲・落とす語・出店/退店・内訳・指標と指標の種類）は `config/monthly_vocab.json`。手順（語の保護と復元、`_stitch_*` の順番、状態語＋店舗数の正規表現、領域の木）はコードに置く。`split` / `yoy_words` / `metrics` は書いた順に当てるので長い語を先に書く。語彙を変えても既存の保存名は変わらない（凍結。下の「同一行・保存名の凍結」）。新しく入る名前だけが変わり、ずれた行は起動ログのドリフトに出る。
 銘柄固有の残りは `config/issuer_aliases.json`（改名）と `config/issuer_metrics.json`（件数指標の語）。画面の並びは `docs/DESIGN_monthly.md`。
 取込と unit は `DESIGN.md`。
 

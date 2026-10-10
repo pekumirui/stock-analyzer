@@ -9,18 +9,30 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Literal, Sequence, TypedDict
 
-from app.config import ISSUER_ALIASES_PATH, ISSUER_METRICS_PATH, MONTHLY_ROW_ORDER_PATH
+from app.config import ISSUER_ALIASES_PATH, ISSUER_METRICS_PATH, MONTHLY_ROW_ORDER_PATH, MONTHLY_VOCAB_PATH
 
 MONTHLY_UNITS = ("number", "yoy_index", "yoy_pct")
 _YOY_UNITS = frozenset({"yoy_index", "yoy_pct"})
-# 長い語を先に。前年同月比 を 前年同月 より先、前年対比 を 前年比 より先、括弧付きを 前年比 より先。
-_YOY_FRAGMENTS = (
-    "前年同期対比", "前年同月比", "前年対比", "前期対比", "前年同月",
-    "(前年比)", "（前年比）", "前年比",
-    "(前期比)", "（前期比）", "前期比",
-)
 _YOY_SUFFIX = "(前年比)"
 _UNIT_MSG = "unit は number / yoy_index / yoy_pct です。"
+
+
+def load_monthly_vocab(path: Path | None = None) -> dict[str, Any]:
+    """全銘柄に共通の行名の語彙（国・チャネル・範囲・落とす語・出退店・内訳・指標）。手順はコードに置く。"""
+    raw = json.loads((path or MONTHLY_VOCAB_PATH).read_text(encoding="utf-8"))
+    keys = (
+        "yoy_words", "split", "country", "channel", "scope", "time_axis", "drop",
+        "store_flow", "breakdown", "metrics", "metric_kind",
+    )
+    missing = [k for k in keys if k not in raw]
+    if missing:
+        raise ValueError(f"monthly_vocab.json に {missing} がありません")
+    return raw
+
+
+_VOCAB = load_monthly_vocab()
+# 長い語を先に。前年同月比 を 前年同月 より先、前年対比 を 前年比 より先、括弧付きを 前年比 より先。
+_YOY_FRAGMENTS: tuple[str, ...] = tuple(_VOCAB["yoy_words"])
 # 表示だけ。保存 unit は number|yoy_index。長い token を先に（受注高 ⊂ 新規受注高）。
 MONTHLY_DISPLAY_UNITS: tuple[tuple[str, str, int], ...] = (
     ("1人当たり受注高", "万円", 0),
@@ -101,49 +113,8 @@ def canonicalize_element_label(element: str, unit: str | None) -> str:
     return f"{base}{_YOY_SUFFIX}"
 
 
-# 長い語を先に（直営店 ⊂ 直営店舗）。店舗数 系はチャネル+店舗 より先（直営店舗数 → 直営 店舗数）。
-_UNGLUE: tuple[tuple[str, str], ...] = (
-    ("単月Monthly", "単月 Monthly"),
-    ("既存直営店舗", "直営 既存"),
-    ("既存直営店", "直営 既存"),
-    ("全店舗数", "店舗数"),
-    ("総店舗数", "店舗数"),
-    ("実店舗数", "実店舗 店舗数"),
-    ("購入お客様数", "購入お客様数"),
-    ("稼働日修正後", "稼働日修正後"),
-    ("店舗数", "店舗数"),
-    ("店数", "店舗数"),
-    ("来客数", "来客数"),
-    ("客単価", "客単価"),
-    ("売上高", "売上高"),
-    ("取扱高", "取扱高"),
-    ("客室収入", "客室収入"),
-    ("売上収益(IFRS)", "売上収益(IFRS)"),
-    ("営業所数", "営業所数"),
-    ("既存店舗", "既存"),
-    ("既存店", "既存"),
-    ("全店舗", "全店"),
-    ("全店", "全店"),
-    ("全社計", "全社"),
-    ("フランチャイズ", "FC"),
-    ("FC店舗", "FC"),
-    ("FC店", "FC"),
-    ("ＦＣ店舗", "FC"),
-    ("ＦＣ店", "FC"),
-    ("直営店舗", "直営"),
-    ("直営店", "直営"),
-    ("直営", "直営"),
-    ("既存", "既存"),
-    ("月末", "月末"),
-    ("期末", "期末"),
-    ("合計", "合計"),
-    ("総計", "総計"),
-    ("小計", "小計"),
-    ("部門", "部門"),
-    ("うち", "うち"),
-    ("昨対増減率", "昨対 増減率"),
-    ("昨年比増減率", "昨年比 増減率"),
-)
+# 合成語を空白で割る。長い語を先に（直営店 ⊂ 直営店舗）。店舗数 系はチャネル+店舗 より先（直営店舗数 → 直営 店舗数）。
+_UNGLUE: tuple[tuple[str, str], ...] = tuple((str(src), str(dst)) for src, dst in _VOCAB["split"])
 _CHAN_BOTH_MARK = "\x00CHANBOTH\x00"
 _OPEN_CNT_MARK = "\x00OPENCNT\x00"
 _OPEN_MARK = "\x00OPEN\x00"
@@ -224,38 +195,17 @@ _FLOW_RESTORE: tuple[tuple[str, str], ...] = (
 )
 _FC_EMBED_RE = re.compile(r"(?<![A-Za-z])FC(?![A-Za-z])")
 _FCW_EMBED_RE = re.compile(r"ＦＣ")
-_DROP_TOKS = frozenset({
-    "合計", "総計", "小計", "計", "月末", "期末", "うち", "内数", "部門", "店",
-    "前期比", "同期比", "増減率", "前年比", "前年同月比", "前年同月",
-    "前年同期対比", "前年対比", "前期対比", "全",
-    "昨対", "昨年比", "当年",
-    "累計", "店舗状況", "対象", "購入お客様", "（％）", "（%）", "(％)", "(%)", "%", "※",
-    "（百万円）", "(百万円)", "売上（％）", "売上（%）",
-    "（", "）", "(", ")", "(前年比)", "（前年比）", "(前期比)", "（前期比）",
-})
+_DROP_TOKS = frozenset(_VOCAB["drop"])
 # 表の注番号（SRS の 売上高(1) / 売上高① / (2) ＊M&A除く）。(前年比) は数字だけではないので残る。
 _FOOTNOTE_NUM_RE = re.compile(r"[（(]\d+[）)]")
 _FOOTNOTE_CIRCLED_RE = re.compile(r"[①-⑳]")
 # 大黒天物産などの `2026年（令和8年）度` / `2026年度` 年度帯
 _FY_NENDO_RE = re.compile(r"\d{4}\s*年(?:\s*[（(][^）)]*[）)])?\s*度")
-_TIME_AXIS_TOKS = frozenset({"単月", "Monthly", "monthly"})
-_COUNTRY_CANON = {"日本": "日本", "国内": "日本", "海外": "海外"}
-_CHANNEL_CANON = {
-    "直営+FC": "直営+FC", "直営＋FC": "直営+FC", "直営": "直営",
-    "FC": "FC", "ＦＣ": "FC", "フランチャイズ": "FC",
-}
-_SCOPE_CANON = {
-    "既存": "既存",
-    "全店": "全店",
-    "全社": "全社",
-}
-_BREAKDOWN_CANON = {
-    "ドラッグ": "ドラッグ",
-    "ドラッグ店舗": "ドラッグ",
-    "調剤": "調剤",
-    "調剤店舗": "調剤",
-    "物販": "物販",
-}
+_TIME_AXIS_TOKS = frozenset(_VOCAB["time_axis"])
+_COUNTRY_CANON: dict[str, str] = dict(_VOCAB["country"])
+_CHANNEL_CANON: dict[str, str] = dict(_VOCAB["channel"])
+_SCOPE_CANON: dict[str, str] = dict(_VOCAB["scope"])
+_BREAKDOWN_CANON: dict[str, str] = dict(_VOCAB["breakdown"])
 _BREAKDOWN_MARKS = frozenset({"内)", "（内", "うち"})
 _BREAKDOWN_RANK = {"": 0, "ドラッグ": 1, "調剤": 2, "物販": 3}
 # 稼働店舗数の内訳（ハークスレイ店舗流通ネットなど）。保存は1語。
@@ -305,17 +255,7 @@ def _area_child_maps() -> tuple[dict[str, dict[str, int]], dict[str, int]]:
 _AREA_CHILDREN, _AREA_BREAKDOWN_DEPTH = _area_child_maps()
 for _area_children in _AREA_CHILDREN.values():
     _BREAKDOWN_RANK.update(_area_children)
-_STORE_FLOW_CANON = {
-    "出店": "出店", "出店数": "出店",
-    "開店": "出店", "開店数": "出店",
-    "新規": "出店",
-    "開設": "出店", "開設数": "出店",
-    "転換出店": "転換出店", "転換出店数": "転換出店",
-    "退店": "退店", "退店数": "退店",
-    "閉店": "退店", "閉店数": "退店",
-    "閉鎖": "退店", "閉鎖数": "退店",
-    "撤退": "退店", "撤退数": "退店",
-}
+_STORE_FLOW_CANON: dict[str, str] = dict(_VOCAB["store_flow"])
 # 閉鎖店舗数など。peel の残りがフロー語でも、状態＋店舗数なら退店にしない。
 _STATUS_STORE_STEMS = frozenset({"閉鎖", "休業"})
 _STORE_FLOW_METRICS = frozenset({"出店", "退店", "転換出店"})
@@ -326,29 +266,14 @@ _OPEN_QUALIFIERS = frozenset({"新規"})
 _STORE_ADJ_MARKS = ("純増", "新設", "改装", "業態転換")
 # leftover に残して表示名は変えない。group だけ除く（入店客数 / 総額売上高）。
 _GROUP_MODIFIER_TOKS = frozenset({"入店", "総額"})
-_METRIC_PREFIX: tuple[tuple[str, str], ...] = (
-    ("購入お客様数", "購入お客様数"),
-    ("稼働日修正後", "稼働日修正後"),
-    ("稼働店舗数", "稼働店舗数"),
-    ("店舗数", "店舗数"),
-    ("来客数", "客数"),
-    ("客単価", "客単価"),
-    ("売上高", "売上高"),
-    ("取扱高", "取扱高"),
-    ("客室収入", "客室収入"),
-    ("売上収益(IFRS)", "売上収益(IFRS)"),
-    ("調理済み商品お届け数（千食）", "調理済み商品お届け数（千食）"),
-    ("調理済み商品お届け数", "調理済み商品お届け数"),
-    ("営業所数", "営業所数"),
-    ("客数", "客数"),
-    ("来客", "客数"),
-    ("単価", "客単価"),
-    ("売上", "売上高"),
+# 並び順どおりに当てる（長い語を先に）。prefix は前方一致も見る（短い 売上/来客/単価 は見ない）。
+_METRIC_PREFIX: tuple[tuple[str, str], ...] = tuple(
+    (str(item["word"]), str(item["metric"])) for item in _VOCAB["metrics"]
 )
-_METRIC_STARTSWITH = frozenset({
-    "購入お客様数", "稼働日修正後", "稼働店舗数", "店舗数", "来客数", "客単価", "売上高",
-    "取扱高", "客室収入", "売上収益(IFRS)", "調理済み商品お届け数（千食）", "調理済み商品お届け数", "営業所数", "客数",
-})
+_METRIC_STARTSWITH = frozenset(
+    str(item["word"]) for item in _VOCAB["metrics"] if item.get("prefix")
+)
+_METRIC_KIND: dict[str, str] = dict(_VOCAB["metric_kind"])
 _COUNTRY_RANK = {"": 0, "日本": 1, "海外": 2}
 _CHANNEL_RANK = {"直営+FC": 0, "直営": 1, "FC": 2, "": 3}
 _FC_TOKEN_RE = re.compile(r"^(?:FC|ＦＣ)$")
@@ -1091,13 +1016,9 @@ def _row_metric(key: str, code: str | None = None) -> str:
         return "close"
     if _is_store_adj(key, layers["segment"]):
         return "adj"
-    if metric == "店舗数" or metric == "稼働店舗数":
-        return "stores"
-    if metric == "客単価":
-        return "spend"
-    if metric == "客数" or metric == "購入お客様数":
-        return "customers"
-    if metric == "売上高" or metric == "稼働日修正後" or "売上収益" in metric:
+    if metric in _METRIC_KIND:
+        return _METRIC_KIND[metric]
+    if "売上収益" in metric:
         return "sales"
     if any(mark in key for mark in _STORE_ADJ_MARKS):
         return "adj"
