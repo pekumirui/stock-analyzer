@@ -54,6 +54,9 @@
   .suggest div:hover { background:var(--row); }
   #monthly-top .row { z-index:2; }
   #monthly-suggest { left:0; top:100%; }
+  .a-list > .row { z-index:5; }  /* 一覧の sticky 見出し (z-index:2) より上に候補を出す */
+  #earn-suggest { left:0; top:100%; }
+  .mchip .n { margin-left:4px; opacity:.75; }
   .sub { color:var(--sub); }
   .dim { opacity:.4; }
 
@@ -116,7 +119,7 @@
   table.fin tr.prevfy td { opacity:.78; }
   table.fin tr.sep td { border-top:1px solid var(--border); }
   table.fin .loss { color:var(--up); }
-  #monthly-groups { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
+  #monthly-groups, #earn-groups { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
   .mchip { background:transparent; border:1px solid var(--border); color:var(--sub); border-radius:999px; padding:4px 12px; cursor:pointer; font-size:13px; }
   .mchip.on { background:var(--accent); color:#fff; border-color:var(--accent); }
   #monthly-detail { min-height:calc(100vh - 52px); max-width:1080px; margin:0 auto; }
@@ -330,12 +333,8 @@
   .fin-tabs { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
   .ftab { background:transparent; border:none; color:var(--sub); padding:5px 14px; cursor:pointer; font-size:13px; }
   .ftab.on { background:var(--accent); color:#fff; }
-  .qchips { display:flex; gap:6px; margin:0 0 8px; }
-  .qchip { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--border); color:var(--sub); }
-  .qchip.on { border-color:var(--warn); color:var(--warn); background:rgba(240,160,32,.12); }
-  /* 決算期の下。増減率と同じ2段にして列幅を食わない */
-  .qb { display:block; width:fit-content; margin-top:2px; font-size:10px; font-weight:400; line-height:1.35;
-        padding:0 5px; border-radius:3px; background:var(--row); color:var(--sub); }
+  .qb { display:inline-block; font-size:10px; padding:0 5px; border-radius:3px; background:var(--row); color:var(--sub); vertical-align:middle; }
+  table.fin .g .qb { margin-left:0; }
   .qb-1Q { color:#c48a00; }
   .qb-2Q { color:#1b8a5a; }
   .qb-3Q { color:#0077b6; }
@@ -393,4 +392,7 @@
     table.monthly td:last-child {
       position:static; left:auto; right:auto;
     }
+    /* 決算集中日は 30 業種を超える。折り返さず横に流して一覧を押し下げない */
+    #earn-groups { flex-wrap:nowrap; overflow-x:auto; }
+    #earn-groups .mchip { flex-shrink:0; }
   }

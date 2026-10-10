@@ -1,6 +1,7 @@
 """Q単独・決算 analytics と /api/earnings。合成デモは使わず、小さな Statement フィクスチャだけ。"""
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -221,6 +222,22 @@ def test_disclosure_and_rows() -> None:
     fyf = next(r for r in cum if r["kind"] == "forecast_fy")
     if fyf["range"] != "26.3":
         _fail(fyf["range"])
+    # 本決算は raw_json の来期予想 (NxF*) を出し、前期通期 (= 上の実績行) は出さない
+    fy = next(s for s in hist if s.disclosure_no == "cfy")
+    fy.raw_json = json.dumps({"NxtFYEn": "2027-03-31", "NxFSales2Q": "350", "NxFSales": "700",
+                              "NxFOP": "", "NxFNp": "50"})
+    got = [(r["kind"], r["label"], r["values"]["net_sales"], (r["growth"] or {}).get("net_sales"))
+           for r in cumulative_rows(hist, fy, 2, TOL)]
+    if got != [
+        ("actual", "FY25.3", 360, None),
+        ("actual_current", "FY26.3", 600, {"pct": 66.7, "state": "up"}),
+        ("forecast_h", "FY27.3", 350, {"pct": 40.0, "state": "up"}),
+        ("forecast_fy", "FY27.3", 700, {"pct": 16.7, "state": "up"}),
+    ]:
+        _fail(f"fy forecast rows {got}")
+    fy.raw_json = None
+    if [r["kind"] for r in cumulative_rows(hist, fy, 2, TOL)] != ["actual", "actual_current"]:
+        _fail("fy without raw_json must not invent forecasts")
     qtr = quarterly_rows(hist, q2, 4, TOL)
     got = [(r["label"], r["values"]["net_sales"], (r["growth"] or {}).get("net_sales")) for r in qtr]
     # 直近 4 四半期の単独値。前年同期がある 1Q / 2Q だけ前年比が付く
@@ -317,6 +334,13 @@ def test_earnings_api() -> None:
         r = c.get(f"/api/earnings/detail/{CODE}", params=params)
         if r.status_code != 200 or r.json()["disclosure_no"] != want:
             _fail(f"detail {params}: {r.status_code} {r.text[:200]}")
+    # 決算速報の検索: ひらがな・全角コードでも引ける
+    for q in ("とよた", "トヨタ", CODE[:4], "７２０３"):
+        hits = c.get("/api/stocks/search", params={"q": q}).json()
+        if [h["code"] for h in hits] != [CODE]:
+            _fail(f"search {q}: {hits}")
+    if c.get("/api/stocks/search", params={"q": " "}).json() != []:
+        _fail("blank search must be empty")
     r = c.get("/api/earnings/detail/99990")
     if r.status_code != 404:
         _fail(f"unknown code {r.status_code}")

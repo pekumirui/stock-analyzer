@@ -1,4 +1,5 @@
 """テクニカル指標・RS・ステージ判定・決算後リターンの一括計算。"""
+import json
 from datetime import date, timedelta
 
 import pandas as pd
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session, defer
 
 from .config import STAGE_PARAMS as P, EARNINGS_PARAMS as EP, RS_PRODUCT_CATEGORIES
 from .models import DailyPrice, Topix, Indicator, Statement, EarningsEvent, Stock
-from .ingest import WRITE_CHUNK_SIZE, delete_all_chunked, upsert
+from .ingest import WRITE_CHUNK_SIZE, _f, delete_all_chunked, upsert
 
 
 def rs_universe_codes(db: Session) -> set[str] | None:
@@ -425,9 +426,30 @@ def _row(fy_end: date | None, period: str | None, kind: str,
             "values": values, "growth": growth}
 
 
+# 本決算の開示は当期予想 (FSales 等) が空で、来期予想は NxF* にだけ入る。列には保存していない
+_NEXT_FC_KEYS = {"net_sales": "NxFSales", "operating_profit": "NxFOP",
+                 "ordinary_profit": "NxFOdP", "profit": "NxFNp", "eps": "NxFEPS"}
+
+
+def next_year_forecast(stmt: Statement) -> tuple[date | None, dict, dict]:
+    """本決算の raw_json から (来期の年度末, 来期中間予想, 来期通期予想)。"""
+    try:
+        raw = json.loads(stmt.raw_json or "{}")
+    except ValueError:
+        raw = {}
+    try:
+        fy_end = date.fromisoformat(raw.get("NxtFYEn") or "")
+    except ValueError:
+        fy_end = shift_year(stmt.fiscal_year_end, 1) if stmt.fiscal_year_end else None
+    half = {k: _f(raw.get(v + "2Q")) for k, v in _NEXT_FC_KEYS.items()}
+    full = {k: _f(raw.get(v)) for k, v in _NEXT_FC_KEYS.items()}
+    return fy_end, half, full
+
+
 def cumulative_rows(hist: list[Statement], stmt: Statement, years: int, tol_days: int) -> list[dict]:
     """累計テーブル: 過去(years-1)期の同一四半期 → 当期実績 → 中間予想 → 通期予想 → 前期通期実績。
 
+    本決算 (FY/4Q) は予想が来期のもの。前期通期は上の実績行と同じなので出さない。
     データの無い期は行ごと省略する (バックフィル年数によって行数が変わる)。
     """
     fy_end, period = stmt.fiscal_year_end, stmt.type_of_period
@@ -447,6 +469,18 @@ def cumulative_rows(hist: list[Statement], stmt: Statement, years: int, tol_days
     rows.append(_row(fy_end, period, "actual_current", metrics(stmt),
                      growth_map(metrics(stmt), metrics(ly) if ly else None),
                      disclosed=stmt.disclosed_date))
+
+    if period in ("FY", "4Q"):
+        nx_end, f2, fyf = next_year_forecast(stmt)
+        if any(v is not None for v in f2.values()):
+            h1 = find_statement(hist, fy_end, "2Q", tol_days)
+            rows.append(_row(nx_end, None, "forecast_h", f2,
+                             growth_map(f2, metrics(h1) if h1 else None),
+                             disclosed=stmt.disclosed_date))
+        if any(v is not None for v in fyf.values()):
+            rows.append(_row(nx_end, None, "forecast_fy", fyf, growth_map(fyf, metrics(stmt)),
+                             disclosed=stmt.disclosed_date))
+        return rows
 
     prev_fy = find_statement(hist, prev_fy_end, "FY", tol_days)
     f2 = {k: getattr(stmt, "f2_" + k) for k in METRIC_KEYS}
