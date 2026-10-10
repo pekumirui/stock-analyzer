@@ -864,6 +864,19 @@ def test_issuer_alias_cases() -> None:
         if got != stored:
             _fail(f"30880 {incoming!r}: {got!r}, want {stored!r}")
 
+    # 46660: PDF の生ラベル「直営 タイムズパーキング 件数/台数」は 直営 なしの保存名へ寄せる。
+    # ■タイムズパーキング数 の「累計」も同じ保存名のまま
+    for incoming, stored in (
+        ("直営 タイムズパーキング 件数", "タイムズパーキング 件数"),
+        ("直営 タイムズパーキング 台数", "タイムズパーキング 台数"),
+        ("タイムズパーキング 累計 件数", "タイムズパーキング 件数"),
+    ):
+        got = canonicalize_element_label(
+            apply_issuer_aliases("46660", canonicalize_element_label(incoming, "number"), year=2026), "number",
+        )
+        if got != stored:
+            _fail(f"46660 {incoming!r}: {got!r}, want {stored!r}")
+
     # 38170: 株式会社SRA/AIT → 短名（year=2026）。短名からは戻さない。
     for incoming, stored in (
         ("株式会社SRA 全店 売上高", "SRA 全店 売上高"),
