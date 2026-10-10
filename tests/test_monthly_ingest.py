@@ -848,6 +848,22 @@ def test_issuer_alias_cases() -> None:
         if got != stored:
             _fail(f"71340 year=2099 {incoming!r}: {got!r}, want {stored!r}")
 
+    # 30880: FC は別表（FC 単月売上高）で 全店 を付けない。合計表の FC も同じ数字なので寄せる。子会社化等は空白入り
+    for incoming, stored, unit in (
+        ("MKG FC 売上高前年比", "マツモトキヨシグループ FC 売上高(前年比)", "yoy_pct"),
+        ("合計 FC 売上高前年比", "マツモトキヨシグループ FC 売上高(前年比)", "yoy_pct"),
+        ("MKG FC 全店 売上高(前年比)", "マツモトキヨシグループ FC 売上高(前年比)", "yoy_index"),
+        ("マツモトキヨシグループ FC 全店 売上高(前年比)", "マツモトキヨシグループ FC 売上高(前年比)", "yoy_index"),
+        ("マツモトキヨシグループ FC 売上高(前年比)", "マツモトキヨシグループ FC 売上高(前年比)", "yoy_index"),
+        ("グループ子会社化等", "グループ 子会社化等", "number"),
+        ("グループ 子会社化等", "グループ 子会社化等", "number"),
+    ):
+        got = canonicalize_element_label(
+            apply_issuer_aliases("30880", canonicalize_element_label(incoming, unit), year=2026), unit,
+        )
+        if got != stored:
+            _fail(f"30880 {incoming!r}: {got!r}, want {stored!r}")
+
     # 38170: 株式会社SRA/AIT → 短名（year=2026）。短名からは戻さない。
     for incoming, stored in (
         ("株式会社SRA 全店 売上高", "SRA 全店 売上高"),
