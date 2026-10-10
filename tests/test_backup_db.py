@@ -121,14 +121,25 @@ def test_prune_keeps_newest_and_ignores_noise(tmp_path: Path) -> None:
 def test_wal_backup_roundtrip(tmp_path: Path) -> None:
     db = tmp_path / "stock.db"
     dest = tmp_path / "backups"
-    _make_db(db, ["alpha", "beta"])
-    wal = Path(str(db) + "-wal")
-    if not wal.exists() or wal.stat().st_size == 0:
-        _fail("expected WAL sidecar for backup coverage")
-    friday = datetime(2026, 10, 9, 5, 0, tzinfo=JST)
-    rc = run(db, dest, now=friday)
-    if rc != 0:
-        _fail("roundtrip rc")
+    # 最後の接続を閉じると SQLite が WAL を checkpoint するので、開きっぱなしで取る。
+    live = sqlite3.connect(db)
+    try:
+        live.execute("PRAGMA journal_mode=WAL")
+        live.execute("PRAGMA wal_autocheckpoint=0")
+        live.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)")
+        live.execute("INSERT INTO items (name) VALUES ('alpha')")
+        live.commit()
+        live.execute("INSERT INTO items (name) VALUES ('beta')")
+        live.commit()
+        wal = Path(str(db) + "-wal")
+        if not wal.exists() or wal.stat().st_size == 0:
+            _fail("expected WAL sidecar for backup coverage")
+        friday = datetime(2026, 10, 9, 5, 0, tzinfo=JST)
+        rc = run(db, dest, now=friday)
+        if rc != 0:
+            _fail("roundtrip rc")
+    finally:
+        live.close()
     daily = dest / "daily" / backup_name("2026-10-09")
     if not daily.is_file():
         _fail("daily missing")
