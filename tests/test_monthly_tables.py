@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.api import ApiError, _apply_incoming_unit, _parse_code  # noqa: E402
 from app.main import app  # noqa: E402
+import app.monthly_ingest as monthly_ingest_mod  # noqa: E402
 from app.monthly_ingest import (  # noqa: E402
     MONTHLY_DISPLAY_UNITS,
     MonthlyIngestError,
@@ -77,13 +78,18 @@ def test_apply_incoming_unit_conflict_and_force() -> None:
         _fail(f"force must overwrite unit: {row.unit!r}")
 
 
-def test_fold_same_yoy_element_renames_short_name() -> None:
-    from app.db import SessionLocal, fold_same_yoy_element, init_db
+def test_startup_keeps_names_and_job_renames() -> None:
+    """保存名は凍結（#545）。起動時は書き換えずドリフトを数えるだけ。付け替えは jobs/monthly_names.py。"""
+    from app.db import (
+        SessionLocal, init_db, merge_yoy_duplicate_elements, monthly_name_drift,
+        report_monthly_name_drift,
+    )
     from app.models import MonthlyElement, MonthlyTable, MonthlyValue
 
     # Isolated year so later 72030/2026 API cases keep their own rows.
     code, year = "69810", 1991
     init_db()
+    _ensure_stock(code, "村田製作所")
     db = SessionLocal()
     try:
         if db.get(MonthlyTable, (code, year)) is None:
@@ -96,26 +102,42 @@ def test_fold_same_yoy_element_renames_short_name() -> None:
             code=code, year=year, element="売上高前年比", month=4, value=105.0,
         ))
         db.commit()
-        if fold_same_yoy_element(db, code, year, "店舗数", "number") is not None:
-            _fail("unrelated number row must not fold")
-        got = fold_same_yoy_element(db, code, year, "売上高(前年比)", "yoy_index")
-        if got is None or got.element != "売上高(前年比)" or got.unit != "yoy_index":
-            _fail(f"fold target: {got!r}")
-        db.commit()
-        if db.get(MonthlyElement, (code, year, "売上高前年比")) is not None:
-            _fail("short yoy name must be folded away")
-        val = db.get(MonthlyValue, (code, year, "売上高(前年比)", 4))
-        if val is None or float(val.value) != 105.0:
-            _fail(f"folded value: {val!r}")
-        db.query(MonthlyValue).filter_by(code=code, year=year).delete()
-        db.query(MonthlyElement).filter_by(code=code, year=year).delete()
-        tbl = db.get(MonthlyTable, (code, year))
-        if tbl is not None:
-            db.delete(tbl)
-        db.commit()
     finally:
         db.close()
-
+    try:
+        init_db()
+        if (code, year, "売上高前年比", "売上高(前年比)") not in monthly_name_drift():
+            _fail(f"drift must list the short name: {monthly_name_drift()!r}")
+        if report_monthly_name_drift(verbose=False) < 1:
+            _fail("drift report must count the short name")
+        merge_yoy_duplicate_elements(verbose=False, dry_run=True)
+        db = SessionLocal()
+        try:
+            if db.get(MonthlyElement, (code, year, "売上高前年比")) is None:
+                _fail("startup / dry_run must not rename stored names")
+        finally:
+            db.close()
+        merge_yoy_duplicate_elements(verbose=False)
+        db = SessionLocal()
+        try:
+            if db.get(MonthlyElement, (code, year, "売上高前年比")) is not None:
+                _fail("job must rename the short yoy name")
+            val = db.get(MonthlyValue, (code, year, "売上高(前年比)", 4))
+            if val is None or float(val.value) != 105.0:
+                _fail(f"renamed value: {val!r}")
+        finally:
+            db.close()
+    finally:
+        db = SessionLocal()
+        try:
+            db.query(MonthlyValue).filter_by(code=code, year=year).delete()
+            db.query(MonthlyElement).filter_by(code=code, year=year).delete()
+            tbl = db.get(MonthlyTable, (code, year))
+            if tbl is not None:
+                db.delete(tbl)
+            db.commit()
+        finally:
+            db.close()
 
 def test_migrate_restores_dropped_columns() -> None:
     from sqlalchemy import text
@@ -876,17 +898,21 @@ def test_monthly_auto_tree() -> None:
     if got != want:
         _fail(f"auto tree total/metric tokens: {got!r}")
     # 指標の語の無い前年比は、その節の金額の売上高が 1 つに決まればその前年比（アスモ）。国付きの 直営 / FC は
-    # 国の合計が無ければ国なしの同じチャネルの子（ハードオフ）
-    bare = build_auto_tree("99993", {2026: [
-        ("全店 売上高", "number"),
-        ("合計(前年比)", "yoy_index"),
-        ("アスモトレーディング 全店 売上高", "number"),
-        ("アスモトレーディング(前年比)", "yoy_index"),
-        ("アスモフード 受託施設数", "number"),
-        ("100円ショップ 直営 既存(前年比)", "yoy_index"),
-        ("直営 店舗数", "number"),
-        ("海外 直営 店舗数", "number"),
-    ]})
+    # 国の合計が無ければ国なしの同じチャネルの子（ハードオフ）。件数指標は config/issuer_metrics.json の語だけ
+    monthly_ingest_mod.ISSUER_METRICS["99993"] = frozenset({"受託施設数"})
+    try:
+        bare = build_auto_tree("99993", {2026: [
+            ("全店 売上高", "number"),
+            ("合計(前年比)", "yoy_index"),
+            ("アスモトレーディング 全店 売上高", "number"),
+            ("アスモトレーディング(前年比)", "yoy_index"),
+            ("アスモフード 受託施設数", "number"),
+            ("100円ショップ 直営 既存(前年比)", "yoy_index"),
+            ("直営 店舗数", "number"),
+            ("海外 直営 店舗数", "number"),
+        ]})
+    finally:
+        monthly_ingest_mod.ISSUER_METRICS.pop("99993", None)
     got = {k: (v["path"], v["metric"]) for k, v in bare.rows.items()}
     want = {
         "全店 売上高": (["全体"], "全店 売上高"),
@@ -903,11 +929,15 @@ def test_monthly_auto_tree() -> None:
         _fail(f"auto tree bare yoy: {got!r}")
     if bare.metric_parent.get("海外 直営 店舗数") != "直営 店舗数":
         _fail(f"auto tree overseas channel parent: {bare.metric_parent!r}")
-    counts = build_auto_tree("99994", {2026: [
-        ("アスモフードサービス 受託施設数", "number"),
-        ("マッサージ事業 総レセプト数(鍼灸込み) 直営", "number"),
-        ("数 出店", "number"),
-    ]})
+    monthly_ingest_mod.ISSUER_METRICS["99994"] = frozenset({"受託施設数", "総レセプト数(鍼灸込み)"})
+    try:
+        counts = build_auto_tree("99994", {2026: [
+            ("アスモフードサービス 受託施設数", "number"),
+            ("マッサージ事業 総レセプト数(鍼灸込み) 直営", "number"),
+            ("数 出店", "number"),
+        ]})
+    finally:
+        monthly_ingest_mod.ISSUER_METRICS.pop("99994", None)
     got_counts = {k: (v["path"], v["leaf"], v["metric"]) for k, v in counts.rows.items()}
     want_counts = {
         "アスモフードサービス 受託施設数": (
@@ -1210,7 +1240,7 @@ def main() -> None:
     test_apply_incoming_unit_conflict_and_force()
     test_monthly_tree_assign()
     test_monthly_auto_tree()
-    test_fold_same_yoy_element_renames_short_name()
+    test_startup_keeps_names_and_job_renames()
     test_migrate_restores_dropped_columns()
     _assert_monthly_year_window()
     _assert_monthly_year_color_stable()

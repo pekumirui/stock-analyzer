@@ -15,7 +15,7 @@ from .config import (
     RS_PRODUCT_CATEGORIES,
 )
 from .db import (
-    delete_monthly_element, fold_aliased_element, fold_same_yoy_element, get_session,
+    delete_monthly_element, get_session, rename_monthly_element,
     run_sqlite_write,
 )
 from .models import (
@@ -398,6 +398,11 @@ def _canonical_element(
     return s
 
 
+def _year_alias(code: str, element: str, unit: str | None, year: int) -> str:
+    """正規化済みの入ってくる名前に、列の暦年の銘柄エイリアスを掛ける。"""
+    return canonicalize_element_label(apply_issuer_aliases(code, element, year=year), unit)
+
+
 def _lookup_element(raw: Any, code: str, *, year: int | None = None) -> str:
     """PUT は保存名に合わせる。トークン正規化と銘柄エイリアスを掛ける。"""
     raw_name = _parse_element(raw)
@@ -492,12 +497,12 @@ _series_kind = lru_cache(maxsize=16384)(monthly_series_kind)
 
 def _headline_yoy_tier(el: MonthlyElement) -> int:
     """0=会社計の売上高/連結売上高。1=客数・客単価やセグメント付き。"""
-    return _headline_tier_of(el.element, el.unit)
+    return _headline_tier_of(el.code, el.element, el.unit)
 
 
 @lru_cache(maxsize=16384)
-def _headline_tier_of(element: str, unit: str | None) -> int:
-    label = monthly_element_label(element, unit)
+def _headline_tier_of(code: str, element: str, unit: str | None) -> int:
+    label = monthly_element_label(element, unit, code)
     company_wide = not (
         label["group"] or label["segment"] or label["country"]
         or label["channel"] or label["breakdown"]
@@ -592,21 +597,11 @@ def _ensure_element(
     posted: Sequence[tuple[str, str]] | None = None,
 ) -> bool:
     _require_stock(db, code)
-    try:
-        folded = fold_same_yoy_element(
-            db, code, year_i, element, unit, strict=True,
-        )
-        if folded is not None:
-            _apply_incoming_unit(folded, unit, force)
-            return False
-        folded = fold_aliased_element(
-            db, code, year_i, element, unit, strict=True,
-        )
-        if folded is not None:
-            _apply_incoming_unit(folded, unit, force)
-            return False
-    except MonthlyIngestError as exc:
-        raise _ingest_error(exc) from exc
+    # 保存名は凍結。正規化した名前と完全一致する行だけを同じ行とみなし、既存行は作り直さない（#545）
+    same = db.get(MonthlyElement, (code, year_i, element))
+    if same is not None:
+        _apply_incoming_unit(same, unit, force)
+        return False
     existing = (db.query(MonthlyElement)
                 .filter(MonthlyElement.code == code, MonthlyElement.year == year_i)
                 .all())
@@ -862,12 +857,22 @@ def put_element(code: str, year: str, payload: dict | None = Body(None),
     _require_stock(db, code)
     _get_table(db, code, year_i)
 
+    # 保存名は起動時に作り直さないので、unit を変えた行はここで新しい unit の正規名へ付け替える
+    renamed = canonicalize_element_label(
+        apply_issuer_aliases(code, canonicalize_element_label(element, unit), year=year_i), unit,
+    )
+
     def _write() -> None:
         row = _get_element(db, code, year_i, element)
         row.unit = unit
+        db.flush()
+        try:
+            rename_monthly_element(db, code, year_i, element, renamed, strict=True)
+        except MonthlyIngestError as exc:
+            raise _ingest_error(exc) from exc
 
     run_sqlite_write(db, _write)
-    return {"code": code, "year": year_i, "element": element, "unit": unit}
+    return {"code": code, "year": year_i, "element": renamed, "unit": unit}
 
 
 @router_v1.delete("/tables/{code}/{year}/elements")
@@ -939,19 +944,22 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
         changed = False
         for element, force, unit, values_by_col in rows:
             by_year: dict[int, list[int]] = defaultdict(list)
+            names: dict[int, str] = {}
             for col, (month, year_i) in enumerate(mapping):
                 if col not in values_by_col:
                     continue
                 if only_months is not None and (year_i, month) not in only_months:
                     continue
+                # as_of の alias のあと、列の暦年の alias も入ってくる名前に掛ける（既存行は作り直さない）
+                name = names.setdefault(year_i, _year_alias(code, element, unit, year_i))
                 if not dry_run:
                     if year_i not in by_year:
-                        _ensure_element(db, code, year_i, element, force, unit, posted=posted)
-                    if _upsert_value(db, code, year_i, element, month, values_by_col[col]):
+                        _ensure_element(db, code, year_i, name, force, unit, posted=posted)
+                    if _upsert_value(db, code, year_i, name, month, values_by_col[col]):
                         changed = True
                 by_year[year_i].append(month)
             for year_i in sorted(by_year):
-                updated.append({"year": year_i, "element": element, "months": by_year[year_i]})
+                updated.append({"year": year_i, "element": names[year_i], "months": by_year[year_i]})
         if not dry_run and changed:
             _touch_monthly_issuer(db, code)
 
@@ -1123,7 +1131,7 @@ def table_year_payload(db: Session, code: str, year_i: int) -> dict:
         row = {
             "element": e.element,
             "unit": _element_unit(e),
-            "label": monthly_element_label(e.element, _element_unit(e)),
+            "label": monthly_element_label(e.element, _element_unit(e), code),
             "values": _calendar_month_values(by_el[e.element]),
         }
         if e.element in tree_rows:
