@@ -124,7 +124,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 - 月次の新規登録は `monthly_ingest`。year は渡さない。`monthly_put_values` の year は暦年で訂正専用
 - `monthly_delete_element` は値の無い行だけ（残っていれば 409）。表は残す
 - アプリ本体 (`app/*`) にログ API を足さない。MCP が死んだときの退避路は Actions の **Debug VPS**
-- R2 bucket `share` は VPS で `/home/stock/r2-share` に rclone mount。`rclone.conf` はリポジトリに置かない
+- R2 bucket `share` は VPS で `/home/stock/r2-share` に rclone mount。`rclone.conf` はリポジトリに置かない。マウント切断時のジョブ打ち切りと watch timer は `DESIGN.md` §3 / `deploy/README.md`
 - クラウドのエージェントから R2 を読むときは `deploy/README.md` の「クラウドのエージェントから読む」。読み取りのみ。取得先は `/tmp`
 
 ### R2 バッチ

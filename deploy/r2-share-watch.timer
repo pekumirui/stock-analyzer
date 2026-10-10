@@ -1,0 +1,12 @@
+[Unit]
+Description=Check rclone R2 mount every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=1min
+Persistent=true
+Unit=r2-share-watch.service
+
+[Install]
+WantedBy=timers.target

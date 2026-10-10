@@ -26,7 +26,7 @@ JOBS = Path(__file__).resolve().parent.parent / "jobs"
 if str(JOBS) not in sys.path:
     sys.path.insert(0, str(JOBS))
 
-from _r2common import resolve_database_url, sqlite_path_from_url  # noqa: E402
+from _r2common import MountDisconnected, check_r2_mount, resolve_database_url, sqlite_path_from_url  # noqa: E402
 from tdnet_monthly_r2 import DEFAULT_DEST, display_code, jq_lookup_code  # noqa: E402
 
 _ISSUER_DIR_RE = re.compile(r"^[0-9][0-9A-Z]{3}$")
@@ -405,6 +405,13 @@ def main(argv: list[str] | None = None, out: TextIO | None = None) -> int:
     except ValueError as e:
         print(str(e), file=sys.stderr)
         return 2
+    try:
+        check_r2_mount(dest)
+    except MountDisconnected as e:
+        print(str(e), file=sys.stderr)
+        return 1
+    except OSError:
+        pass
     if not dest.is_dir():
         print(f"dest not found: {dest}", file=sys.stderr)
         return 2

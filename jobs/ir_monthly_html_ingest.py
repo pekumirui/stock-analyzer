@@ -21,6 +21,7 @@ import calendar
 import json
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -34,7 +35,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from _r2common import jst_today  # noqa: E402
+from _r2common import (  # noqa: E402
+    MountDisconnected,
+    fail_if_mount_down,
+    is_mount_disconnect_error,
+    jst_today,
+    with_mount_retry,
+)
 from html_monthly import _is_prior_year_absolute  # noqa: E402
 from ir_monthly_r2 import DEFAULT_CONFIG, DEFAULT_DEST, atomic_write, sha256_bytes  # noqa: E402
 from tdnet_monthly_r2 import display_code  # noqa: E402
@@ -384,7 +391,12 @@ def discover_sidecars(
             continue
         try:
             found.append(parse_sidecar(path, code_dir))
-        except (OSError, ValueError, json.JSONDecodeError) as e:
+        except OSError as e:
+            if is_mount_disconnect_error(e):
+                raise
+            failed += 1
+            print(f"fail sidecar {path}: {e}", flush=True)
+        except (ValueError, json.JSONDecodeError) as e:
             failed += 1
             print(f"fail sidecar {path}: {e}", flush=True)
     return found, failed
@@ -619,6 +631,8 @@ def run(
     registry: bool = True,
     empty_ok: bool = False,
     precheck: Callable[[HttpClient, str, Sidecar], str | None] | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+    listdir: Callable[[str], list[str]] | None = None,
 ) -> int:
     """pattern / label / registry / empty_ok / precheck は TDnet PDF の sidecar 用
     （jobs/tdnet_monthly_pdf_ingest.py）。precheck が文字列を返したら POST しない。"""
@@ -635,13 +649,25 @@ def run(
         return 2
     if not month_filter:
         month_filter = None
+    rc = fail_if_mount_down(label, dest, sleep=sleep, listdir=listdir)
+    if rc is not None:
+        return rc
     if not dest.is_dir():
         print(f"{label} dest missing {dest}", flush=True)
         return 2
     want = None
     if only:
         want = frozenset(display_code(c.strip().upper()) for c in only if c.strip())
-    sidecars, parse_failed = discover_sidecars(dest, only=want, pattern=pattern)
+    try:
+        sidecars, parse_failed = with_mount_retry(
+            lambda: discover_sidecars(dest, only=want, pattern=pattern),
+            dest,
+            sleep=sleep,
+            listdir=listdir,
+        )
+    except MountDisconnected as e:
+        print(f"{label} {e}", flush=True)
+        return 1
     chosen = select_latest_per_code(sidecars)
     if want is not None:
         missing_only = sorted(want - set(chosen))

@@ -581,27 +581,12 @@ else
     if ! command -v rclone >/dev/null 2>&1; then
       echo "rclone missing; skip r2-share.service"
     else
-      write_if_changed "$STOCK_HOME/.config/systemd/user/r2-share.service" 644 < "$APP_DIR/deploy/r2-share.service" || true
-      chown "$STOCK_USER:$STOCK_USER" "$STOCK_HOME/.config/systemd/user/r2-share.service"
-      user_sys_ok=0
-      for _ in $(seq 1 15); do
-        if systemctl --user -M "${STOCK_USER}@" daemon-reload >/dev/null 2>&1; then
-          user_sys_ok=1
-          break
-        fi
-        sleep 1
-      done
-      if [[ "$user_sys_ok" -eq 1 ]]; then
-        systemctl --user -M "${STOCK_USER}@" enable r2-share.service >/dev/null 2>&1 || true
-        if [[ -f "$STOCK_HOME/.config/rclone/rclone.conf" ]]; then
-          systemctl --user -M "${STOCK_USER}@" restart r2-share.service >/dev/null 2>&1 \
-            || echo "r2-share.service start skipped or failed (conf present)" >&2
-        else
-          echo "r2-share.service enabled but not started (rclone.conf missing; set R2_* secrets and redeploy)"
-        fi
-      else
-        echo "user systemd for ${STOCK_USER} not ready; r2-share.service not enabled" >&2
-      fi
+      # Restart only when unit/rclone.conf hashes change. Every-deploy restart
+      # unmounts FUSE under running jobs (#549).
+      # shellcheck source=r2-share-apply.sh
+      # shellcheck disable=SC1091
+      source "$APP_DIR/deploy/r2-share-apply.sh"
+      r2_share_apply
     fi
   fi
 fi

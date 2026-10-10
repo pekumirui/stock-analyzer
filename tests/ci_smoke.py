@@ -86,6 +86,7 @@ SUITES = (
     "test_tdnet_monthly_r2.py",
     "test_tdnet_monthly_pending.py",
     "test_tdnet_monthly_pdf_sidecar.py",
+    "test_r2_mount.py",
     "test_ir_monthly_r2.py",
     "test_ir_monthly_html_r2.py",
     "test_html_recipe.py",
