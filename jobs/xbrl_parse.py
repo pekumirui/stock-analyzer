@@ -17,7 +17,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "jobs"))
 
+from _r2common import fail_if_mount_down  # noqa: E402
 from app.config import XBRL_DEST  # noqa: E402
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.xbrl.jobs import report_unmapped, run_parse  # noqa: E402
@@ -57,9 +59,13 @@ def main() -> int:
                 )
             print(f"unmapped monetary elements: {len(rows)}")
             return 0
+        dest = Path(args.dest)
+        rc = fail_if_mount_down("xbrl_parse", dest)
+        if rc is not None:
+            return rc
         stats = run_parse(
             db,
-            dest=Path(args.dest),
+            dest=dest,
             start=_d(args.date_from),
             end=_d(args.date_to),
             doc_id=args.doc_id,

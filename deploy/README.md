@@ -165,7 +165,7 @@ MCP 自体が死んだときの退避路は Actions の **Debug VPS**。
 ## Cloudflare R2 mount と月次 / XBRL バッチ
 
 VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount する。
-ユーザ `stock`、`loginctl enable-linger stock` でログアウト・再起動後も残る。systemd ユニットは `deploy/r2-share.service`（秘密情報は含まない）。
+ユーザ `stock`、`loginctl enable-linger stock` でログアウト・再起動後も残る。systemd ユニットは `deploy/r2-share.service`（秘密情報は含まない）。`Restart=always` / `RestartSec=5` で rclone プロセスが落ちたら付け直す。プロセスが残ったまま FUSE だけ切れる場合は `r2-share-watch.timer`（5 分ごと）が `/proc/mounts` と `ls` を見て `r2-share.service` を restart する。ジョブ側の打ち切りは `DESIGN.md` §3。
 
 見える場所:
 

@@ -35,7 +35,9 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from _r2common import (  # noqa: E402
+    abort_if_disconnected,
     date_window,
+    fail_if_mount_down,
     http_get as _http_get,
     load_stock_product_map as _load_stock_product_map,
     parse_list_body,
@@ -433,6 +435,9 @@ def sha256_bytes(data: bytes) -> str:
 
 
 def run(days: int, dest: Path) -> int:
+    rc = fail_if_mount_down("tdnet_xbrl_r2", dest, require_existing=False)
+    if rc is not None:
+        return rc
     start, end = date_window(days)
     dest.mkdir(parents=True, exist_ok=True)
     print(
@@ -485,6 +490,9 @@ def run(days: int, dest: Path) -> int:
             tag = f" {route.reason}" if route.reason else ""
             print(f"saved {rel} ({n} bytes){tag}", flush=True)
         except Exception as e:
+            down = abort_if_disconnected("tdnet_xbrl_r2", dest, e)
+            if down is not None:
+                return down
             failed += 1
             print(f"fail {rel} id={xid}: {e}", flush=True)
         time.sleep(SLEEP_SEC)

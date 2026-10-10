@@ -27,6 +27,7 @@ import shutil
 import sqlite3
 import subprocess  # nosec B404
 import sys
+import time
 import unicodedata
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -38,7 +39,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from _r2common import resolve_database_url, sqlite_path_from_url  # noqa: E402
+from _r2common import (  # noqa: E402
+    MountDisconnected,
+    fail_if_mount_down,
+    resolve_database_url,
+    sqlite_path_from_url,
+    with_mount_retry,
+)
 from ir_monthly_r2 import atomic_write  # noqa: E402
 from tdnet_monthly_r2 import DEFAULT_DEST, display_code, jq_lookup_code  # noqa: E402
 
@@ -929,7 +936,12 @@ def run(
     only: Sequence[str] | None = None,
     dry_run: bool = False,
     read_lines: Callable[[Path], list[Line]] | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+    listdir: Callable[[str], list[str]] | None = None,
 ) -> int:
+    rc = fail_if_mount_down("tdnet_monthly_pdf_sidecar", dest, sleep=sleep, listdir=listdir)
+    if rc is not None:
+        return rc
     if not dest.is_dir():
         print(f"tdnet_monthly_pdf_sidecar dest missing {dest}", flush=True)
         return 2
@@ -947,10 +959,23 @@ def run(
     want = frozenset(display_code(c.strip().upper()) for c in only if c.strip()) if only else None
     conn = sqlite3.connect(f"file:{db_path.resolve().as_posix()}?mode=ro", uri=True, timeout=8)
     counts = {"written": 0, "same": 0, "current": 0, "manual": 0, "skip": 0, "failed": 0}
+    mount_kw = {"sleep": sleep, "listdir": listdir}
+
+    def _plan(code: str, code_dir: Path) -> Plan:
+        return plan_code(code, code_dir, load_db_issuer(conn, jq_lookup_code(code)), read_lines=read_lines)
+
     try:
-        for code, code_dir in _code_dirs(dest, want):
+        try:
+            codes = with_mount_retry(lambda: _code_dirs(dest, want), dest, **mount_kw)
+        except MountDisconnected as e:
+            print(f"tdnet_monthly_pdf_sidecar {e}", flush=True)
+            return 1
+        for code, code_dir in codes:
             try:
-                plan = plan_code(code, code_dir, load_db_issuer(conn, jq_lookup_code(code)), read_lines=read_lines)
+                plan = with_mount_retry(lambda c=code, d=code_dir: _plan(c, d), dest, **mount_kw)
+            except MountDisconnected as e:
+                print(f"tdnet_monthly_pdf_sidecar {e}", flush=True)
+                return 1
             except (OSError, subprocess.SubprocessError, sqlite3.Error) as e:
                 counts["failed"] += 1
                 print(f"fail {code}: {e}", flush=True)
@@ -963,16 +988,30 @@ def run(
                 continue
             path = sidecar_path(plan.pdf)
             data = (json.dumps(plan.payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
-            if path.is_file() and path.read_bytes() == data:
-                counts["same"] += 1
-                continue
-            if dry_run:
-                counts["written"] += 1
-                print(f"plan {code} {path.name} {plan.detail}", flush=True)
-                continue
-            atomic_write(path, data)
-            counts["written"] += 1
-            print(f"ok {code} {path.name} {plan.detail}", flush=True)
+
+            def _write(
+                target: Path = path,
+                payload: bytes = data,
+                issuer: str = code,
+                detail: str = plan.detail,
+            ) -> str:
+                if target.is_file() and target.read_bytes() == payload:
+                    return "same"
+                if dry_run:
+                    print(f"plan {issuer} {target.name} {detail}", flush=True)
+                    return "written"
+                atomic_write(target, payload)
+                print(f"ok {issuer} {target.name} {detail}", flush=True)
+                return "written"
+
+            try:
+                counts[with_mount_retry(_write, dest, **mount_kw)] += 1
+            except MountDisconnected as e:
+                print(f"tdnet_monthly_pdf_sidecar {e}", flush=True)
+                return 1
+            except OSError as e:
+                counts["failed"] += 1
+                print(f"fail {code}: {e}", flush=True)
     finally:
         conn.close()
     summary = " ".join(f"{k}={v}" for k, v in counts.items())

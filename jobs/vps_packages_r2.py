@@ -19,6 +19,8 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from _r2common import MountDisconnected, fail_if_mount_down
+
 JST = ZoneInfo("Asia/Tokyo")
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DEST = "/home/stock/r2-share/inventory"
@@ -253,6 +255,9 @@ def run(
     run_cmd_fn: RunCmdFn | None = None,
     which: WhichFn | None = None,
 ) -> int:
+    rc = fail_if_mount_down("vps_packages_r2", dest, require_existing=False)
+    if rc is not None:
+        return rc
     when = now or datetime.now(JST)
     host = socket.gethostname() if hostname is None else hostname
     print(f"vps_packages_r2 start dest={dest}", flush=True)
@@ -279,6 +284,9 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     try:
         return run(Path(args.dest))
+    except MountDisconnected as e:
+        print(f"vps_packages_r2 {e}", flush=True)
+        return 1
     except Exception as e:
         print(f"fail vps_packages_r2: {e}", flush=True)
         return 1

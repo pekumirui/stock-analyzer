@@ -1,0 +1,7 @@
+[Unit]
+Description=Restart rclone R2 mount if it is not listed or unlistable
+After=r2-share.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/stock/stock-analyzer/deploy/r2-share-watch.sh

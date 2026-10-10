@@ -29,7 +29,10 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from _r2common import (  # noqa: E402
+    abort_if_disconnected,
+    fail_if_mount_down,
     http_get,
+    is_mount_disconnect_error,
     jst_today,
     load_stock_product_map,
     sanitize_filename_part,
@@ -208,7 +211,9 @@ def existing_hashes(code_dir: Path) -> dict[str, Path]:
             if p.stat().st_size <= 0:
                 continue
             out[sha256_bytes(p.read_bytes())] = p
-        except OSError:
+        except OSError as e:
+            if is_mount_disconnect_error(e):
+                raise
             continue
     return out
 
@@ -332,6 +337,8 @@ def fetch_issuer(
             saved += 1
             print(f"saved {rel} ({len(data)} bytes)", flush=True)
         except Exception as e:
+            if is_mount_disconnect_error(e):
+                raise
             failed += 1
             print(f"fail {rel} url={ln.url}: {e}", flush=True)
     return listed, saved, skipped, failed
@@ -355,6 +362,9 @@ def run(
     if not issuers:
         print("ir_monthly_r2 no issuers", flush=True)
         return 2
+    rc = fail_if_mount_down("ir_monthly_r2", dest, require_existing=False)
+    if rc is not None:
+        return rc
     day = today or jst_today()
     dest.mkdir(parents=True, exist_ok=True)
     print(
@@ -371,6 +381,9 @@ def run(
         try:
             n, s, k, f = fetch_issuer(iss, dest, stock_map, day, dry_run=dry_run)
         except Exception as e:
+            down = abort_if_disconnected("ir_monthly_r2", dest, e)
+            if down is not None:
+                return down
             failed += 1
             print(f"fail issuer {iss.code} {iss.index_url}: {e}", flush=True)
             continue

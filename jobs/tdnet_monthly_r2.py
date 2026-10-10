@@ -22,8 +22,11 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from _r2common import (  # noqa: E402
+    abort_if_disconnected,
     date_window,
+    fail_if_mount_down,
     http_get as _http_get,
+    is_mount_disconnect_error,
     load_stock_product_map,
     parse_list_body,
     sanitize_filename_part,
@@ -212,7 +215,9 @@ def dest_path(
 def already_have(path: Path) -> bool:
     try:
         return path.is_file() and path.stat().st_size > 0
-    except OSError:
+    except OSError as e:
+        if is_mount_disconnect_error(e):
+            raise
         return False
 
 
@@ -292,6 +297,9 @@ def download_pdf(pdf_id: str, dest: Path) -> int:
 
 
 def run(days: int, dest: Path) -> int:
+    rc = fail_if_mount_down("tdnet_monthly_r2", dest, require_existing=False)
+    if rc is not None:
+        return rc
     start, end = date_window(days)
     dest.mkdir(parents=True, exist_ok=True)
     print(
@@ -330,6 +338,9 @@ def run(days: int, dest: Path) -> int:
             saved += 1
             print(f"saved {rel} ({n} bytes)", flush=True)
         except Exception as e:
+            down = abort_if_disconnected("tdnet_monthly_r2", dest, e)
+            if down is not None:
+                return down
             failed += 1
             print(f"fail {rel} id={pdf_id}: {e}", flush=True)
         time.sleep(SLEEP_SEC)
