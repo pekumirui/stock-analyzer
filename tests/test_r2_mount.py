@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import errno
+import getpass
 import io
 import os
+import stat
+import subprocess
 import sys
 import tempfile
 from contextlib import redirect_stdout
@@ -378,6 +381,191 @@ def test_ingest_aborts_on_discover_disconnect() -> None:
             _fail(f"must not per-sidecar fail: {out}")
 
 
+_FAKE_SYSTEMCTL = r"""#!/bin/bash
+log="${R2_SYSTEMCTL_LOG:?}"
+printf '%s\n' "$*" >> "$log"
+filtered=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --user) shift ;;
+    -M) shift 2 ;;
+    --quiet) shift ;;
+    *) filtered+=("$1"); shift ;;
+  esac
+done
+cmd="${filtered[0]:-}"
+unit="${filtered[1]:-}"
+flag="${R2_ACTIVE_FLAG:?}"
+case "$cmd" in
+  list-unit-files|enable) exit 0 ;;
+  daemon-reload) echo "DAEMON_RELOAD" >> "$log"; exit 0 ;;
+  is-active)
+    if [[ -f "$flag" ]]; then exit 0; fi
+    exit 3
+    ;;
+  restart)
+    echo "RESTART ${unit}" >> "$log"
+    touch "$flag"
+    exit 0
+    ;;
+  start)
+    echo "START ${unit}" >> "$log"
+    if [[ "$unit" == r2-share.service ]]; then
+      touch "$flag"
+    fi
+    exit 0
+    ;;
+  stop)
+    echo "STOP ${unit}" >> "$log"
+    rm -f "$flag"
+    exit 0
+    ;;
+  *) exit 0 ;;
+esac
+"""
+
+
+def _plan(mount_changed: str, active: str) -> str:
+    script = ROOT / "deploy" / "r2-share-apply.sh"
+    proc = subprocess.run(
+        ["bash", "-c", f"source {script.as_posix()!r} && r2_share_plan {mount_changed} {active}"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if proc.returncode != 0:
+        _fail(f"r2_share_plan failed: {proc.stderr or proc.stdout}")
+    return proc.stdout.strip()
+
+
+def test_r2_share_plan_branches() -> None:
+    if _plan("0", "1") != "keep":
+        _fail("unchanged + active must keep")
+    if _plan("1", "1") != "restart":
+        _fail("changed + active must restart")
+    if _plan("0", "0") != "start":
+        _fail("unchanged + inactive must start")
+    if _plan("1", "0") != "start":
+        _fail("changed + inactive must start")
+
+
+def _write_fake_systemctl(tmp: Path) -> Path:
+    exe = tmp / "systemctl"
+    exe.write_text(_FAKE_SYSTEMCTL, encoding="utf-8")
+    exe.chmod(exe.stat().st_mode | stat.S_IXUSR)
+    return exe
+
+
+def _apply_env(home: Path, fake: Path, log: Path, flag: Path) -> dict[str, str]:
+    env = os.environ.copy()
+    env["STOCK_USER"] = getpass.getuser()
+    env["STOCK_HOME"] = str(home)
+    env["APP_DIR"] = str(ROOT)
+    env["R2_SYSTEMCTL"] = str(fake)
+    env["R2_SYSTEMCTL_LOG"] = str(log)
+    env["R2_ACTIVE_FLAG"] = str(flag)
+    env["R2_SYSTEMD_READY_TRIES"] = "1"
+    env["R2_SYSTEMD_READY_SLEEP"] = "0"
+    return env
+
+
+def _run_apply(env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bash", str(ROOT / "deploy" / "r2-share-apply.sh")],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+
+def _assert_apply_ok(proc: subprocess.CompletedProcess[str], label: str) -> None:
+    if proc.returncode != 0:
+        _fail(f"{label} rc={proc.returncode} stdout={proc.stdout!r} stderr={proc.stderr!r}")
+
+
+def test_apply_restart_when_mount_unit_changes() -> None:
+    with tempfile.TemporaryDirectory() as raw:
+        tmp = Path(raw)
+        home = tmp / "home"
+        (home / ".config" / "rclone").mkdir(parents=True)
+        (home / ".config" / "rclone" / "rclone.conf").write_text("[r2]\ntype = s3\n", encoding="utf-8")
+        fake = _write_fake_systemctl(tmp)
+        log = tmp / "systemctl.log"
+        flag = tmp / "active"
+        env = _apply_env(home, fake, log, flag)
+        first = _run_apply(env)
+        _assert_apply_ok(first, "first apply")
+        if "START r2-share.service" not in log.read_text(encoding="utf-8"):
+            _fail(f"first apply must start: {first.stdout!r} {log.read_text()}")
+        log.write_text("", encoding="utf-8")
+        second = _run_apply(env)
+        _assert_apply_ok(second, "unchanged apply")
+        text = log.read_text(encoding="utf-8")
+        if "RESTART r2-share.service" in text or "STOP r2-share.service" in text:
+            _fail(f"unchanged must not restart/stop mount: {text!r} {second.stdout!r}")
+        if "DAEMON_RELOAD" in text:
+            _fail(f"unchanged must not daemon-reload: {text!r}")
+        if "leave mount running" not in second.stdout:
+            _fail(f"unchanged should say leave mount running: {second.stdout!r}")
+        installed = home / ".config" / "systemd" / "user" / "r2-share.service"
+        installed.write_text(installed.read_text(encoding="utf-8") + "# bumped\n", encoding="utf-8")
+        log.write_text("", encoding="utf-8")
+        third = _run_apply(env)
+        _assert_apply_ok(third, "changed apply")
+        text = log.read_text(encoding="utf-8")
+        if "RESTART r2-share.service" not in text:
+            _fail(f"unit change must restart: {text!r} {third.stdout!r}")
+        if "STOP r2-share.service" in text:
+            _fail(f"must not stop: {text!r}")
+
+
+def test_apply_rclone_conf_change_restarts() -> None:
+    with tempfile.TemporaryDirectory() as raw:
+        tmp = Path(raw)
+        home = tmp / "home"
+        conf = home / ".config" / "rclone" / "rclone.conf"
+        conf.parent.mkdir(parents=True)
+        conf.write_text("[r2]\ntype = s3\nendpoint = a\n", encoding="utf-8")
+        fake = _write_fake_systemctl(tmp)
+        log = tmp / "systemctl.log"
+        flag = tmp / "active"
+        env = _apply_env(home, fake, log, flag)
+        _assert_apply_ok(_run_apply(env), "seed")
+        log.write_text("", encoding="utf-8")
+        conf.write_text("[r2]\ntype = s3\nendpoint = b\n", encoding="utf-8")
+        proc = _run_apply(env)
+        _assert_apply_ok(proc, "rclone.conf change")
+        text = log.read_text(encoding="utf-8")
+        if "RESTART r2-share.service" not in text:
+            _fail(f"rclone.conf change must restart: {text!r} {proc.stdout!r}")
+
+
+def test_apply_watch_only_change_does_not_restart_mount() -> None:
+    with tempfile.TemporaryDirectory() as raw:
+        tmp = Path(raw)
+        home = tmp / "home"
+        (home / ".config" / "rclone").mkdir(parents=True)
+        (home / ".config" / "rclone" / "rclone.conf").write_text("[r2]\n", encoding="utf-8")
+        fake = _write_fake_systemctl(tmp)
+        log = tmp / "systemctl.log"
+        flag = tmp / "active"
+        env = _apply_env(home, fake, log, flag)
+        _assert_apply_ok(_run_apply(env), "seed")
+        timer = home / ".config" / "systemd" / "user" / "r2-share-watch.timer"
+        timer.write_text(timer.read_text(encoding="utf-8") + "# watch bump\n", encoding="utf-8")
+        log.write_text("", encoding="utf-8")
+        proc = _run_apply(env)
+        _assert_apply_ok(proc, "watch change")
+        text = log.read_text(encoding="utf-8")
+        if "RESTART r2-share.service" in text or "STOP r2-share.service" in text:
+            _fail(f"watch-only change must not restart mount: {text!r} {proc.stdout!r}")
+        if "DAEMON_RELOAD" not in text:
+            _fail(f"watch unit change should daemon-reload: {text!r}")
+        if "leave mount running" not in proc.stdout:
+            _fail(f"watch-only should leave mount: {proc.stdout!r}")
+
+
 def test_systemd_watch_contracts() -> None:
     unit = (ROOT / "deploy" / "r2-share.service").read_text(encoding="utf-8")
     if "Restart=always" not in unit:
@@ -390,8 +578,21 @@ def test_systemd_watch_contracts() -> None:
     if "/proc/mounts" not in watch or "timeout 10 ls" not in watch:
         _fail("watch must probe /proc/mounts and ls")
     provision = (ROOT / "deploy" / "provision.sh").read_text(encoding="utf-8")
-    if "r2-share-watch.timer" not in provision:
-        _fail("provision must enable the watch timer")
+    if "r2-share-apply.sh" not in provision:
+        _fail("provision must source r2-share-apply.sh")
+    if 'restart r2-share.service' in provision:
+        _fail("provision.sh must not restart r2-share.service itself")
+    apply = (ROOT / "deploy" / "r2-share-apply.sh").read_text(encoding="utf-8")
+    if "r2_share_plan" not in apply or "leave mount running" not in apply:
+        _fail("r2-share-apply.sh must keep a running mount when unchanged")
+    chk = subprocess.run(
+        ["bash", "-n", str(ROOT / "deploy" / "r2-share-apply.sh")],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if chk.returncode != 0:
+        _fail(f"bash -n r2-share-apply.sh failed: {chk.stderr or chk.stdout}")
     if MOUNT_RETRY_WAIT_SEC != 5.0:
         _fail("job wait must match RestartSec")
 
@@ -414,6 +615,10 @@ def main() -> None:
     test_sidecar_local_dest_missing_unchanged()
     test_sidecar_recovers_and_keeps_normal_output()
     test_ingest_aborts_on_discover_disconnect()
+    test_r2_share_plan_branches()
+    test_apply_restart_when_mount_unit_changes()
+    test_apply_rclone_conf_change_restarts()
+    test_apply_watch_only_change_does_not_restart_mount()
     test_systemd_watch_contracts()
     print("ok: r2 mount")
 

@@ -165,6 +165,9 @@ text = (
     "v2_auth = false\n"
 )
 path = conf_dir / "rclone.conf"
+old = path.read_text(encoding="utf-8") if path.is_file() else None
+if old == text:
+    raise SystemExit(0)
 path.write_text(text, encoding="utf-8")
 path.chmod(0o600)
 print("updated rclone.conf (keys not printed)")
