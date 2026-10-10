@@ -35,11 +35,26 @@ function calClose(){
 }
 function calToggle(){ $("#cal-pop").hidden ? calOpen() : calClose(); }
 function calMove(d){ calM+=d; if(calM>12){calM=1;calY++} if(calM<1){calM=12;calY--} renderCal(); }
+// 初回の open が API を待って空の枠を見せないよう、月の件数を覚えておき先に描く。open のたびに取り直す
+const calCells = {}, calReq = {};
+function fetchCal(mm){
+  calReq[mm] ??= api(`/api/earnings/calendar?month=${mm}&today=${todayISO()}`)
+    .then(c => calCells[mm] = c)
+    .finally(() => { delete calReq[mm]; });
+  return calReq[mm];
+}
+const calMonth = () => `${calY}-${String(calM).padStart(2,"0")}`;
+// 今月の件数を先に引く。boot が最初の一覧の後に呼ぶ
+function calPrefetch(){ fetchCal(calMonth()).catch(()=>{}); }
 async function renderCal(){
-  const mm = `${calY}-${String(calM).padStart(2,"0")}`;
+  const mm = calMonth();
   $("#cal-title").textContent = `${calY}年${calM}月`;
+  if(calCells[mm]) drawCal(mm, calCells[mm]);
+  const cells = await fetchCal(mm).catch(()=>({}));
+  if(mm === calMonth()) drawCal(mm, cells);
+}
+function drawCal(mm, cells){
   const today = todayISO();
-  const cells = await api(`/api/earnings/calendar?month=${mm}&today=${today}`).catch(()=>({}));
   const first = new Date(calY, calM-1, 1), days = new Date(calY, calM, 0).getDate();
   let html = ["日","月","火","水","木","金","土"].map(d=>`<div class="h">${d}</div>`).join("");
   for(let i=0;i<first.getDay();i++) html += "<div></div>";
