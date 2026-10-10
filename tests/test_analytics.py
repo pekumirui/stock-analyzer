@@ -123,8 +123,12 @@ def test_shift_year_and_labels() -> None:
         _fail("5Q span")
     if calendar_label(FY26, "2Q", quarterly=True) != "25.07-09":
         _fail(calendar_label(FY26, "2Q", quarterly=True))
-    if calendar_label(FY26, "FY") != "26.3期":
+    if calendar_label(FY26, "FY") != "26.3":
         _fail(calendar_label(FY26, "FY"))
+    if calendar_label(FY26) != "26.3":
+        _fail(calendar_label(FY26))
+    if calendar_label(FY26, "5Q") != "26.3 5Q":
+        _fail(calendar_label(FY26, "5Q"))
     if prev_quarter(FY26, "2Q") != (FY26, "1Q"):
         _fail("prev 2Q")
     if prev_quarter(FY26, "1Q") != (FY25, "FY"):
@@ -209,6 +213,14 @@ def test_disclosure_and_rows() -> None:
         _fail(cur)
     if cur["growth"]["net_sales"]["pct"] != 38.9:
         _fail(cur["growth"])
+    if cur["range"] != "25.04-09":
+        _fail(cur["range"])
+    h = next(r for r in cum if r["kind"] == "forecast_h")
+    if h["range"] != "26.3":
+        _fail(h["range"])
+    fyf = next(r for r in cum if r["kind"] == "forecast_fy")
+    if fyf["range"] != "26.3":
+        _fail(fyf["range"])
     qtr = quarterly_rows(hist, q2, 4, TOL)
     got = [(r["label"], r["values"]["net_sales"], (r["growth"] or {}).get("net_sales")) for r in qtr]
     # 直近 4 四半期の単独値。前年同期がある 1Q / 2Q だけ前年比が付く

@@ -385,17 +385,18 @@ def calendar_label(fy_end: date | None, period: str | None = None,
                    quarterly: bool = False) -> str:
     """UI向け。Q単独は当該3か月 (`26.07-09`)、累計は期首〜当期末 (`26.04-09`)。
 
-    通期累計は `27.3期`。2Q/3Qの累計を3か月と同じラベルにすると YTD を四半期と誤読する。
+    通期累計は `27.3`。列見出しが決算期なので「期」は付けない。
+    2Q/3Qの累計を3か月と同じラベルにすると YTD を四半期と誤読する。
     """
     if fy_end is None:
         return "–"
     n = ORDER.get(period or "")
     # 通期累計は年度末ラベル。Q単独の4Qだけカレンダー範囲にする
     if not period or (n == 4 and not quarterly):
-        return f"{fy_end.year % 100:02d}.{fy_end.month}期"
+        return f"{fy_end.year % 100:02d}.{fy_end.month}"
     if not n:
         # 5Q など ORDER に無い変則期。通期に潰すと累計が本決算に見える
-        return f"{fy_end.year % 100:02d}.{fy_end.month}期 {period}"
+        return f"{fy_end.year % 100:02d}.{fy_end.month} {period}"
     if quarterly:
         span = calendar_span(fy_end, period)
     else:

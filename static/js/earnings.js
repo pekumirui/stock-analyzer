@@ -244,10 +244,16 @@ function epsTxt(v){
 }
 function finLabel(r){
   const base = r.range || r.label;
-  if(r.kind==="forecast_fy") return `${base} 通期予想`;
-  if(r.kind==="forecast_h") return `${base} 中間予想`;
+  if(r.kind==="forecast_fy") return `${base} 通予`;
+  if(r.kind==="forecast_h") return `${base} 中予`;
   if(r.kind==="actual_fy_prev") return `${base} 通期`;
   return base;
+}
+function finTitle(r){
+  if(r.kind==="forecast_fy") return `${r.label||""} 通期予想`;
+  if(r.kind==="forecast_h") return `${r.label||""} 中間予想`;
+  if(r.kind==="actual_fy_prev") return `${r.label||""} 通期`;
+  return r.label||"";
 }
 function qBadge(r){
   // 4Q も FY と同じ通期累計。バッジは Q単独行だけ (累計の通期に 4Q を付けない)
@@ -287,7 +293,7 @@ function renderFin(el, rows, d){
     };
     const m = opm(r.values);
     const mTxt = m==null ? "–" : `<span class="${m<0?"loss":""}">${fmt(m,1)}%</span>`;
-    h += `<tr class="${cls}"><td class="l" title="${r.label||""}">${finLabel(r)}${qBadge(r)}</td>`
+    h += `<tr class="${cls}"><td class="l" title="${finTitle(r)}">${finLabel(r)}${qBadge(r)}</td>`
        + FIN_MET.map(([k])=>cell(k, amt(r.values[k]))).join("")
        + cell("eps", epsTxt(r.values.eps))
        + `<td class="num">${mTxt}<span class="g"> </span></td>`

@@ -102,7 +102,7 @@
   #earn-tbl tbody tr:hover td { background:var(--row); }
   #earn-tbl tbody tr.sel td { background:var(--row-sel); }
   #earn-tbl tbody tr.sel td:first-child { box-shadow:inset 3px 0 0 var(--accent); }
-  table.fin td:first-child, table.fin th:first-child { position:sticky; left:0; z-index:2; background:var(--panel); }
+  table.fin td:first-child, table.fin th:first-child { position:sticky; left:0; z-index:2; background:var(--panel); width:1%; }
   table.fin { font-variant-numeric:tabular-nums; }
   table.fin th { font-size:11px; letter-spacing:.02em; }
   table.fin td { padding:7px 8px; vertical-align:top; }
