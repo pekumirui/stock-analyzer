@@ -328,7 +328,8 @@ def test_payloads_mixed_past_and_unfetched() -> None:
             _wire(Code="67580", SchDate="2026-10-02", CoName="ソニー"),
             _wire(Code="72030", FQName="FY", SchDate="2026-10-01"),
         ]), date(2026, 9, 20))
-        upsert(db, Stock, [{"code": "72030", "name": "トヨタ自動車", "product_category": "011"}])
+        upsert(db, Stock, [{"code": "72030", "name": "トヨタ自動車", "product_category": "011",
+                            "sector33": "輸送用機器"}])
         mixed = day_payload(db, TODAY, TODAY, [{"code": "67580", "disclosure_no": "D1"}])
         if mixed["kind"] != "mixed":
             _fail(mixed)
@@ -338,6 +339,9 @@ def test_payloads_mixed_past_and_unfetched() -> None:
             _fail(mixed["scheduled"])
         if mixed["scheduled"][0]["name"] != "トヨタ自動車":
             _fail(mixed["scheduled"][0])
+        # 業種チップ用。マスタに無い銘柄は null
+        if mixed["scheduled"][0]["sector33"] != "輸送用機器" or mixed["actuals"][0]["sector33"] is not None:
+            _fail(mixed)
         if mixed["scheduled"][0]["periods"] != [{"fq": "2Q", "fye": "0331", "label": "FY27.3"}]:
             _fail(mixed["scheduled"][0]["periods"])
         past = day_payload(db, date(2026, 10, 1), TODAY, [{"code": "72030"}])
@@ -527,6 +531,7 @@ def test_routes_and_screen_copy() -> None:
         "code": "72030",
         "name": "トヨタ自動車",
         "periods": [{"fq": "2Q", "fye": "0331", "label": "FY27.3"}],
+        "sector33": None,
     }]:
         _fail(body)
     if body.get("ready") is not False or body.get("actuals") != []:

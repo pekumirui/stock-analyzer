@@ -305,6 +305,13 @@ def test_earnings_api() -> None:
         r = c.get(f"/api/earnings/detail/{CODE}", params=params)
         if r.status_code != 200 or r.json()["disclosure_no"] != want:
             _fail(f"detail {params}: {r.status_code} {r.text[:200]}")
+    # 決算速報の検索: ひらがな・全角コードでも引ける
+    for q in ("とよた", "トヨタ", CODE[:4], "７２０３"):
+        hits = c.get("/api/stocks/search", params={"q": q}).json()
+        if [h["code"] for h in hits] != [CODE]:
+            _fail(f"search {q}: {hits}")
+    if c.get("/api/stocks/search", params={"q": " "}).json() != []:
+        _fail("blank search must be empty")
     r = c.get("/api/earnings/detail/99990")
     if r.status_code != 404:
         _fail(f"unknown code {r.status_code}")

@@ -76,6 +76,10 @@ const shortName = n => { const s = String(n||""); return s.length>5 ? s.slice(0,
 const fyShort = s => String(s||"").replace(/^FY/, "");
 let earnBoard={kind:"scheduled", actuals:[], scheduled:[]}, selKey=null, detailReq=0;
 let earnDay="", earnToday="";
+// 業種チップの選択。"" はすべて。日を変えたら戻す
+let earnSector="";
+const sectorOf = r => r.sector33 || "未分類";
+const inSector = r => !earnSector || sectorOf(r) === earnSector;
 
 function emptyCopy(ds, today, board){
   if(ds > today && board.ready === false) return "予定未取得";
@@ -84,13 +88,15 @@ function emptyCopy(ds, today, board){
 }
 
 function flatRows(){
-  const actuals = (earnBoard.actuals||[]).map(r => ({side:"a", id:r.disclosure_no, row:r}));
-  const scheduled = (earnBoard.scheduled||[]).map(r => ({side:"s", id:r.code, row:r}));
+  const actuals = (earnBoard.actuals||[]).filter(inSector).map(r => ({side:"a", id:r.disclosure_no, row:r}));
+  const scheduled = (earnBoard.scheduled||[]).filter(inSector).map(r => ({side:"s", id:r.code, row:r}));
   return actuals.concat(scheduled);
 }
 
-async function selectDate(ds){
+// want: 検索から来たとき、その開示 (なければその銘柄) の行を選ぶ
+async function selectDate(ds, want){
   selDate = ds;
+  earnSector = "";
   calClose();                                  // 格子は calOpen が描く。閉じたまま月の件数を引かない
   const today = todayISO();
   earnDay = ds;
@@ -103,6 +109,7 @@ async function selectDate(ds){
     selKey = null;
     $("#earn-title").textContent = `${ds}の決算発表`;
     $("#earn-count").textContent = "";
+    $("#earn-groups").innerHTML = "";
     $("#earn-list").innerHTML = `<div class="sub">取得できませんでした</div>`;
     clearDetail("取得できませんでした");
     return;
@@ -116,20 +123,53 @@ async function selectDate(ds){
   else if(nS) $("#earn-count").textContent = `${nS}件`;
   else $("#earn-count").textContent = "";
   selKey = null;
+  renderGroups();
   renderList();
   const rows = flatRows();
-  if(rows.length) selectFlat(rows[0]);
+  const hit = want && (rows.find(r => r.side==="a" && r.id===want.no)
+                    || rows.find(r => r.row.code===want.code));
+  if(hit){ selectFlat(hit); scrollToSel(); }
+  else if(want) loadDetail({code:want.code, name:want.name, disclosure_no:want.no, fy_label:"", period:want.period});
+  else if(rows.length) selectFlat(rows[0]);
   else clearDetail(emptyCopy(ds, today, board));
 }
 
+// 件数の多い業種から並べる。件数は銘柄単位 (同じ銘柄の複数期は 1)
+function renderGroups(){
+  const codes = {};
+  for(const r of (earnBoard.actuals||[]).concat(earnBoard.scheduled||[]))
+    (codes[sectorOf(r)] ||= new Set()).add(r.code);
+  const groups = Object.entries(codes).map(([g, set]) => [g, set.size])
+    .sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0], "ja"));
+  if(!groups.length){ $("#earn-groups").innerHTML = ""; return; }
+  const chip = (g, label, n) =>
+    `<button type="button" class="mchip${earnSector===g?" on":""}" data-sector="${escHtml(g)}">`
+    + `${escHtml(label)}${n==null ? "" : `<span class="n">${n}</span>`}</button>`;
+  $("#earn-groups").innerHTML = chip("", "すべて", null)
+    + groups.map(([g, n]) => chip(g, g.replace(/業$/, ""), n)).join("");
+}
+
+function setSector(g){
+  earnSector = g;
+  renderGroups();
+  renderList();
+  const rows = flatRows();
+  if(rows.length && !rows.some(r => (r.side==="a" ? "a:" : "s:")+r.id === selKey)) selectFlat(rows[0]);
+}
+
 function renderList(){
-  const actuals = earnBoard.actuals||[], scheduled = earnBoard.scheduled||[];
+  const actuals = (earnBoard.actuals||[]).filter(inSector), scheduled = (earnBoard.scheduled||[]).filter(inSector);
   if(!actuals.length && !scheduled.length){
     $("#earn-list").innerHTML = `<div class="sub">${emptyCopy(earnDay, earnToday, earnBoard)}</div>`;
     return;
   }
   $("#earn-list").innerHTML = tableHtml(actuals, scheduled);
   markSel();
+}
+
+function scrollToSel(){
+  const el = document.querySelector("#earn-list tr.sel");
+  if(el) el.scrollIntoView({block:"nearest"});
 }
 
 function tableHtml(actuals, scheduled){
@@ -315,6 +355,55 @@ $("#earn-list").addEventListener("keydown", e => {
     ? document.querySelector(`#earn-list [data-no="${nxt.id}"]`)
     : document.querySelector(`#earn-list [data-code="${nxt.id}"]`);
   if(el) el.scrollIntoView({block:"nearest"});
+});
+
+$("#earn-groups").addEventListener("click", e => {
+  const b = e.target.closest(".mchip");
+  if(b) setSector(b.dataset.sector);
+});
+
+// 銘柄検索: 直近の実績開示の日へ一覧を移し、その行を開く。実績が無ければ株価だけ
+let earnSearchReq = 0;
+function hideEarnSuggest(){ $("#earn-suggest").style.display = "none"; $("#earn-suggest").innerHTML = ""; }
+async function refreshEarnSuggest(){
+  const q = $("#earn-sym").value.trim();
+  const my = ++earnSearchReq;
+  if(!q){ hideEarnSuggest(); return []; }
+  const hits = await api(`/api/stocks/search?q=${encodeURIComponent(q)}`).catch(()=>[]);
+  if(my !== earnSearchReq) return null;
+  const box = $("#earn-suggest");
+  box.innerHTML = hits.map(s =>
+    `<div data-code="${escHtml(s.code)}" data-name="${escHtml(s.name)}">${escHtml(s.code.slice(0,4))} ${escHtml(s.name)}</div>`).join("");
+  box.style.display = hits.length ? "block" : "none";
+  return hits;
+}
+async function pickEarnStock(code, name){
+  $("#earn-sym").value = name;
+  hideEarnSuggest();
+  const d = await api(`/api/earnings/detail/${code}`).catch(()=>null);
+  if(!d){
+    selKey = null; markSel();
+    loadSched({code, name});
+    return;
+  }
+  const [y, m] = d.disclosed_date.split("-").map(Number);
+  calY = y; calM = m;
+  await selectDate(d.disclosed_date, {no:d.disclosure_no, code, name:d.name, period:d.period});
+}
+$("#earn-sym").addEventListener("input", refreshEarnSuggest);
+$("#earn-sym").addEventListener("compositionend", refreshEarnSuggest);
+$("#earn-sym").addEventListener("keydown", async e => {
+  if(e.key === "Escape"){ hideEarnSuggest(); return; }
+  if(e.key !== "Enter" || e.isComposing || e.keyCode === 229) return;
+  const hits = await refreshEarnSuggest();
+  if(hits && hits.length) pickEarnStock(hits[0].code, hits[0].name);
+});
+$("#earn-suggest").addEventListener("click", e => {
+  const el = e.target.closest("[data-code]");
+  if(el) pickEarnStock(el.dataset.code, el.dataset.name);
+});
+document.addEventListener("click", e => {
+  if(!e.target.closest("#earn-suggest") && e.target !== $("#earn-sym")) hideEarnSuggest();
 });
 
 window.calMove = calMove;

@@ -486,10 +486,13 @@ def day_payload(db: Session, day: date, today: date, actual_rows: list[dict]) ->
     """
     schedules = load_current(db, day, day) if day >= today else []
     board = board_for_day(day, today, actual_rows, schedules)
+    codes = {row["code"] for row in board.actuals} | {issuer.code for issuer in board.scheduled}
+    sectors = dict(db.query(Stock.code, Stock.sector33).filter(Stock.code.in_(codes)).all())
     out: dict = {
         "kind": board.kind,
-        "actuals": list(board.actuals),
-        "scheduled": [_issuer_json(issuer) for issuer in board.scheduled],
+        "actuals": [{**row, "sector33": sectors.get(row["code"])} for row in board.actuals],
+        "scheduled": [{**_issuer_json(issuer), "sector33": sectors.get(issuer.code)}
+                      for issuer in board.scheduled],
     }
     if day > today and not _ledger_ready(db, today):
         out["ready"] = False
