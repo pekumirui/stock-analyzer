@@ -492,12 +492,12 @@ _series_kind = lru_cache(maxsize=16384)(monthly_series_kind)
 
 def _headline_yoy_tier(el: MonthlyElement) -> int:
     """0=会社計の売上高/連結売上高。1=客数・客単価やセグメント付き。"""
-    return _headline_tier_of(el.element, el.unit)
+    return _headline_tier_of(el.code, el.element, el.unit)
 
 
 @lru_cache(maxsize=16384)
-def _headline_tier_of(element: str, unit: str | None) -> int:
-    label = monthly_element_label(element, unit)
+def _headline_tier_of(code: str, element: str, unit: str | None) -> int:
+    label = monthly_element_label(element, unit, code)
     company_wide = not (
         label["group"] or label["segment"] or label["country"]
         or label["channel"] or label["breakdown"]
@@ -1123,7 +1123,7 @@ def table_year_payload(db: Session, code: str, year_i: int) -> dict:
         row = {
             "element": e.element,
             "unit": _element_unit(e),
-            "label": monthly_element_label(e.element, _element_unit(e)),
+            "label": monthly_element_label(e.element, _element_unit(e), code),
             "values": _calendar_month_values(by_el[e.element]),
         }
         if e.element in tree_rows:

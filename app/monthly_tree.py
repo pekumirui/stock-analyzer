@@ -356,7 +356,7 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
             _AUTO_CHANNEL_RANK.get(str(L["channel"]), 3),
             _AUTO_COUNTRY_RANK.get(str(L["country"]), 3),
             _AUTO_SCOPE_RANK.get(str(L["scope"]), 2),
-            monthly_row_slot(canon, unit),
+            monthly_row_slot(canon, unit, code),
             idx,
         )
         if metric not in metric_key or (len(path) == 1 and metric_key[metric][0]):
@@ -370,7 +370,7 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
         for element, unit in years[y]:
             if element in rows or element in deferred:
                 continue
-            L = monthly_element_label(element, unit)
+            L = monthly_element_label(element, unit, code)
             canon = canonicalize_element_label(element, unit)
             group, leaf = _auto_split(L)
             if monthly_row_unit_rank(unit) and not any(L[k] for k in ("metric", "breakdown", "scope", "channel")):

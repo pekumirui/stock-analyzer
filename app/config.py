@@ -5,6 +5,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = BASE_DIR / "config"
 ISSUER_ALIASES_PATH = CONFIG_DIR / "issuer_aliases.json"
+ISSUER_METRICS_PATH = CONFIG_DIR / "issuer_metrics.json"
 MONTHLY_ROW_ORDER_PATH = CONFIG_DIR / "monthly_row_order.json"
 IR_MONTHLY_PATH = CONFIG_DIR / "ir_monthly.json"
 

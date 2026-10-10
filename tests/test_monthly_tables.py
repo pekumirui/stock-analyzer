@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.api import ApiError, _apply_incoming_unit, _parse_code  # noqa: E402
 from app.main import app  # noqa: E402
+import app.monthly_ingest as monthly_ingest_mod  # noqa: E402
 from app.monthly_ingest import (  # noqa: E402
     MONTHLY_DISPLAY_UNITS,
     MonthlyIngestError,
@@ -876,17 +877,21 @@ def test_monthly_auto_tree() -> None:
     if got != want:
         _fail(f"auto tree total/metric tokens: {got!r}")
     # 指標の語の無い前年比は、その節の金額の売上高が 1 つに決まればその前年比（アスモ）。国付きの 直営 / FC は
-    # 国の合計が無ければ国なしの同じチャネルの子（ハードオフ）
-    bare = build_auto_tree("99993", {2026: [
-        ("全店 売上高", "number"),
-        ("合計(前年比)", "yoy_index"),
-        ("アスモトレーディング 全店 売上高", "number"),
-        ("アスモトレーディング(前年比)", "yoy_index"),
-        ("アスモフード 受託施設数", "number"),
-        ("100円ショップ 直営 既存(前年比)", "yoy_index"),
-        ("直営 店舗数", "number"),
-        ("海外 直営 店舗数", "number"),
-    ]})
+    # 国の合計が無ければ国なしの同じチャネルの子（ハードオフ）。件数指標は config/issuer_metrics.json の語だけ
+    monthly_ingest_mod.ISSUER_METRICS["99993"] = frozenset({"受託施設数"})
+    try:
+        bare = build_auto_tree("99993", {2026: [
+            ("全店 売上高", "number"),
+            ("合計(前年比)", "yoy_index"),
+            ("アスモトレーディング 全店 売上高", "number"),
+            ("アスモトレーディング(前年比)", "yoy_index"),
+            ("アスモフード 受託施設数", "number"),
+            ("100円ショップ 直営 既存(前年比)", "yoy_index"),
+            ("直営 店舗数", "number"),
+            ("海外 直営 店舗数", "number"),
+        ]})
+    finally:
+        monthly_ingest_mod.ISSUER_METRICS.pop("99993", None)
     got = {k: (v["path"], v["metric"]) for k, v in bare.rows.items()}
     want = {
         "全店 売上高": (["全体"], "全店 売上高"),
@@ -903,11 +908,15 @@ def test_monthly_auto_tree() -> None:
         _fail(f"auto tree bare yoy: {got!r}")
     if bare.metric_parent.get("海外 直営 店舗数") != "直営 店舗数":
         _fail(f"auto tree overseas channel parent: {bare.metric_parent!r}")
-    counts = build_auto_tree("99994", {2026: [
-        ("アスモフードサービス 受託施設数", "number"),
-        ("マッサージ事業 総レセプト数(鍼灸込み) 直営", "number"),
-        ("数 出店", "number"),
-    ]})
+    monthly_ingest_mod.ISSUER_METRICS["99994"] = frozenset({"受託施設数", "総レセプト数(鍼灸込み)"})
+    try:
+        counts = build_auto_tree("99994", {2026: [
+            ("アスモフードサービス 受託施設数", "number"),
+            ("マッサージ事業 総レセプト数(鍼灸込み) 直営", "number"),
+            ("数 出店", "number"),
+        ]})
+    finally:
+        monthly_ingest_mod.ISSUER_METRICS.pop("99994", None)
     got_counts = {k: (v["path"], v["leaf"], v["metric"]) for k, v in counts.rows.items()}
     want_counts = {
         "アスモフードサービス 受託施設数": (

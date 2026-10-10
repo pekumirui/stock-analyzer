@@ -9,7 +9,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any, Literal, Sequence, TypedDict
 
-from app.config import ISSUER_ALIASES_PATH, MONTHLY_ROW_ORDER_PATH
+from app.config import ISSUER_ALIASES_PATH, ISSUER_METRICS_PATH, MONTHLY_ROW_ORDER_PATH
 
 MONTHLY_UNITS = ("number", "yoy_index", "yoy_pct")
 _YOY_UNITS = frozenset({"yoy_index", "yoy_pct"})
@@ -349,14 +349,6 @@ _METRIC_STARTSWITH = frozenset({
     "購入お客様数", "稼働日修正後", "稼働店舗数", "店舗数", "来客数", "客単価", "売上高",
     "取扱高", "客室収入", "売上収益(IFRS)", "調理済み商品お届け数（千食）", "調理済み商品お届け数", "営業所数", "客数",
 })
-# 末尾の （注） / (注) を除いた核が 数 で終わる件数。ホワイトリスト済みは従来どおり。
-_METRIC_NOTE_RE = re.compile(r"[（(][^）)]*[）)]$")
-_COUNT_METRIC_EXCLUDE = frozenset({"数", "会員数", "空室数"})
-_KNOWN_COUNT_METRIC_TOKS = frozenset(
-    tok for src, canon in _METRIC_PREFIX
-    for tok in (src, canon)
-    if _METRIC_NOTE_RE.sub("", tok).endswith("数")
-)
 _COUNTRY_RANK = {"": 0, "日本": 1, "海外": 2}
 _CHANNEL_RANK = {"直営+FC": 0, "直営": 1, "FC": 2, "": 3}
 _FC_TOKEN_RE = re.compile(r"^(?:FC|ＦＣ)$")
@@ -432,37 +424,37 @@ def _unglue_element(text: str) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
-def _count_metric_core(tok: str) -> str:
-    return _METRIC_NOTE_RE.sub("", tok)
+def load_issuer_metrics(path: Path | None = None) -> dict[str, frozenset[str]]:
+    """issuer code → 件数指標の語。その銘柄の層の分解だけで指標にする。保存名には使わない。"""
+    raw = json.loads((path or ISSUER_METRICS_PATH).read_text(encoding="utf-8"))
+    out: dict[str, frozenset[str]] = {}
+    if not isinstance(raw, dict):
+        return out
+    for code, words in raw.items():
+        if not isinstance(words, list):
+            continue
+        toks = frozenset(str(w).strip() for w in words if str(w).strip())
+        if toks:
+            out[str(code)] = toks
+    return out
 
 
-def _is_generic_count_metric(tok: str) -> bool:
-    """ホワイトリストに無い、末尾が 数 の件数指標。単独の 数 と 会員数 は除く。
+ISSUER_METRICS = load_issuer_metrics()
 
-    業態転換数などは `_peel_adj_metric` の対象なのでここでは拾わない。
-    空室数は leftover のまま（`既存 空室数` → `空室数 既存`）。
-    """
-    if not tok or tok in _KNOWN_COUNT_METRIC_TOKS:
-        return False
-    if any(mark in tok for mark in _STORE_ADJ_MARKS):
-        return False
-    core = _count_metric_core(tok)
-    if core in _KNOWN_COUNT_METRIC_TOKS or core in _COUNT_METRIC_EXCLUDE:
-        return False
-    # 舖 は 店舗 の異体。店舗数の既存ルールと alias に任せる。
-    if core.endswith("店舖数"):
-        return False
-    return bool(core) and core.endswith("数")
+
+def issuer_count_metrics(code: str | None) -> frozenset[str]:
+    if not code:
+        return frozenset()
+    return ISSUER_METRICS.get(str(code), frozenset())
 
 
 def _peel_metric(
-    tok: str, *, peel_generic_count: bool = True,
+    tok: str, *, count_metrics: frozenset[str] = frozenset(),
 ) -> tuple[str | None, str | None]:
     """指標語をトークンの前後から剥がす。残りはセグメント候補。
 
     短い接頭辞（売上/来客/単価）は前方一致しない（売上変化を売上高にしない）。
-    層分解では、既存語に当たらない …数（任意で末尾の注記付き）を件数指標にする。
-    保存名の組み立てでは peel_generic_count=False（件数語は leftover のまま）。
+    count_metrics は銘柄別の件数指標（`config/issuer_metrics.json`）。完全一致だけ。
     """
     if tok in _ACTIVE_STORE_BREAKDOWN_RANK:
         return None, tok
@@ -473,7 +465,7 @@ def _peel_metric(
             return canon, tok[:-len(src)]
         if src in _METRIC_STARTSWITH and len(tok) > len(src) and tok.startswith(src):
             return canon, tok[len(src):]
-    if peel_generic_count and _is_generic_count_metric(tok):
+    if tok in count_metrics:
         return tok, None
     return None, tok
 
@@ -660,10 +652,12 @@ def _peel_active_store_breakdown(
     return leftover, breakdown
 
 
-def parse_element_layers(
-    element: str, *, peel_generic_count: bool = True,
-) -> dict[str, str]:
-    """国 / セグメント / 時間軸 / チャネル / スコープ / 指標 / 内訳。正規化前の名前でも読む。"""
+def parse_element_layers(element: str, *, code: str | None = None) -> dict[str, str]:
+    """国 / セグメント / 時間軸 / チャネル / スコープ / 指標 / 内訳。正規化前の名前でも読む。
+
+    code があれば、その銘柄の件数指標の語も指標にする。保存名（normalize_element_tokens）は code を渡さない。
+    """
+    count_metrics = issuer_count_metrics(code)
     country = ""
     channel = ""
     scope = ""
@@ -681,7 +675,7 @@ def parse_element_layers(
             if metric in ("", "店舗数"):
                 metric = flow
             continue
-        peeled, rest = _peel_metric(tok, peel_generic_count=peel_generic_count)
+        peeled, rest = _peel_metric(tok, count_metrics=count_metrics)
         if peeled:
             rest_flow = _STORE_FLOW_CANON.get(rest) if rest else None
             if rest_flow and rest not in _STATUS_STORE_STEMS:
@@ -741,8 +735,8 @@ def normalize_element_tokens(element: str, *, fill_default_metric: bool = False)
     trimmed = re.sub(r"\s+", " ", element.strip())
     if not trimmed:
         return trimmed
-    # 件数の …数 は層では指標だが、保存名の並べ替えには使わない（#534 前と同じ語順）。
-    parts = parse_element_layers(trimmed, peel_generic_count=False)
+    # 銘柄別の件数指標は層だけ。保存名の並べ替えには使わない（#534 前と同じ語順）。
+    parts = parse_element_layers(trimmed)
     # leftover に会員数がある yoy は売上高を補わない（#366）。
     if (
         fill_default_metric
@@ -1070,26 +1064,26 @@ _METRIC_RANK = {
 }
 
 
-def _layers_of(element: str) -> dict[str, str]:
-    return parse_element_layers(strip_yoy_fragments(element))
+def _layers_of(element: str, code: str | None = None) -> dict[str, str]:
+    return parse_element_layers(strip_yoy_fragments(element), code=code)
 
 
-def _row_scope(key: str) -> str:
+def _row_scope(key: str, code: str | None = None) -> str:
     """既存 / 全店 / 全社。空スコープの売上高/客数/客単価は全店枠。"""
-    scope = _layers_of(key)["scope"]
+    scope = _layers_of(key, code)["scope"]
     if scope == "既存":
         return "existing"
     if scope == "全店":
         return "all"
     if scope == "全社":
         return "company"
-    if _row_metric(key) in {"sales", "customers", "spend"}:
+    if _row_metric(key, code) in {"sales", "customers", "spend"}:
         return "all"
     return "other"
 
 
-def _row_metric(key: str) -> str:
-    layers = _layers_of(key)
+def _row_metric(key: str, code: str | None = None) -> str:
+    layers = _layers_of(key, code)
     metric = layers["metric"]
     if metric.endswith("出店"):
         return "open"
@@ -1115,15 +1109,15 @@ def _row_metric(key: str) -> str:
         return "customers"
     if "売上" in key:
         return "sales"
-    if _is_generic_count_metric(metric):
+    if metric in issuer_count_metrics(code):
         return "count"
     return "other"
 
 
-def _row_segment(key: str) -> str:
+def _row_segment(key: str, code: str | None = None) -> str:
     """ブランド。国・チャネル・スコープ・指標を除いた残り。純増・新規は塊にしない。"""
     toks = []
-    for tok in _layers_of(key)["segment"].split():
+    for tok in _layers_of(key, code)["segment"].split():
         if tok in _OPEN_QUALIFIERS or any(mark in tok for mark in _STORE_ADJ_MARKS):
             continue
         if tok in _GROUP_MODIFIER_TOKS:
@@ -1132,15 +1126,15 @@ def _row_segment(key: str) -> str:
     return " ".join(toks)
 
 
-def monthly_row_segment(element: str) -> str:
+def monthly_row_segment(element: str, code: str | None = None) -> str:
     """ブランド。`カラオケ 全店 売上高(前年比)` → カラオケ。全社/全店のみなら空。"""
-    return _row_segment(element)
+    return _row_segment(element, code)
 
 
-def monthly_row_slot(element: str, unit: str | None) -> int:
+def monthly_row_slot(element: str, unit: str | None, code: str | None = None) -> int:
     """指標枠。1売上高 2客数 3客単価 4出店 5退店 6純増/新設/改装/業態転換 7店舗数 8件数 9その他。"""
     _ = unit
-    return _METRIC_RANK[_row_metric(element)]
+    return _METRIC_RANK[_row_metric(element, code)]
 
 
 def monthly_row_unit_rank(unit: str | None) -> int:
@@ -1164,9 +1158,9 @@ def monthly_breakdown_depth(element: str) -> int:
     return _AREA_BREAKDOWN_DEPTH.get(bd, 1)
 
 
-def monthly_row_scope_rank(element: str) -> int:
+def monthly_row_scope_rank(element: str, code: str | None = None) -> int:
     """0全店 1全社 2既存 3その他。スコープ無しの店舗数は 3（既存の後）。"""
-    layers = _layers_of(element)
+    layers = _layers_of(element, code)
     if layers["scope"] == "既存":
         return _SCOPE_RANK["existing"]
     if layers["scope"] == "全社":
@@ -1175,11 +1169,11 @@ def monthly_row_scope_rank(element: str) -> int:
         return _SCOPE_RANK["all"]
     if _is_flow_metric(layers["metric"]) or layers["metric"] in ("店舗数", "稼働店舗数"):
         return _SCOPE_RANK["other"]
-    if _row_metric(element) in {"stores", "open", "close", "adj", "count"}:
+    if _row_metric(element, code) in {"stores", "open", "close", "adj", "count"}:
         return _SCOPE_RANK["other"]
     if not layers["segment"]:
         return _SCOPE_RANK["all"]
-    return _SCOPE_RANK[_row_scope(element)]
+    return _SCOPE_RANK[_row_scope(element, code)]
 
 
 def _row_country_rank(element: str) -> int:
@@ -1240,7 +1234,7 @@ def union_monthly_elements(
             if display in seen:
                 continue
             seen.add(display)
-            segment = monthly_row_segment(display)
+            segment = monthly_row_segment(display, resolved)
             if segment and segment not in tail_rank and segment not in seg_index:
                 seg_index[segment] = len(seg_index)
             items.append({
@@ -1248,9 +1242,9 @@ def union_monthly_elements(
                 "unit": unit,
                 "segment": segment,
                 "country": _row_country_rank(display),
-                "scope": monthly_row_scope_rank(display),
+                "scope": monthly_row_scope_rank(display, resolved),
                 "channel": _row_channel_rank(display),
-                "slot": monthly_row_slot(display, unit),
+                "slot": monthly_row_slot(display, unit, resolved),
                 "unit_rank": monthly_row_unit_rank(unit),
                 "bd": monthly_row_breakdown_rank(display),
                 "idx": len(items),
@@ -1327,15 +1321,18 @@ class MonthlyElementLabel(TypedDict):
     breakdown_depth: int
 
 
-def monthly_element_label(element: str, unit: str | None) -> MonthlyElementLabel:
+def monthly_element_label(
+    element: str, unit: str | None, code: str | None = None,
+) -> MonthlyElementLabel:
+    """code は銘柄別の件数指標（`config/issuer_metrics.json`）を層に効かせる。表示名は code で変わらない。"""
     u = unit or "number"
     canon = canonicalize_element_label(strip_monthly_display_unit(element, u), u)
     display = monthly_display_label(canon, u)
-    layers = _layers_of(canon)
+    layers = _layers_of(canon, code)
     return {
         "display": display,
-        "group": monthly_row_segment(canon),
-        "metric_kind": _row_metric(canon),
+        "group": monthly_row_segment(canon, code),
+        "metric_kind": _row_metric(canon, code),
         "series_kind": monthly_series_kind(canon, u),
         **layers,
         "breakdown_depth": monthly_breakdown_depth(canon),

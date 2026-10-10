@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import tempfile
+from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 
@@ -17,12 +19,14 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.main import app  # noqa: E402
+import app.monthly_ingest as monthly_ingest_mod  # noqa: E402
 from app.monthly_ingest import (  # noqa: E402
     MonthlyIngestError,
     apply_issuer_aliases,
     canonicalize_element_label,
     format_monthly_cell,
     load_issuer_aliases,
+    load_issuer_metrics,
     map_pdf_columns,
     monthly_breakdown_depth,
     monthly_element_label,
@@ -2731,8 +2735,26 @@ def test_department_store_layers() -> None:
         _fail(f"髙島屋各店 入店 既存 layers must keep 入店 before 既存: {layers!r}")
 
 
-def test_generic_count_metric_peel() -> None:
-    """#533: 末尾が 数 の件数は metric。保存名は並べ替えない。既存語は従来どおり。"""
+_COUNT_CODE = "90000"  # 架空の銘柄。辞書の仕組みだけを見る（銘柄の分岐は書かない）
+_COUNT_WORDS = frozenset({
+    "受託施設数", "訪問介護事業所数", "居宅介護支援事業所数", "有料老人ホーム数",
+    "総レセプト数(鍼灸込み)", "拠点数", "件数",
+})
+
+
+@contextmanager
+def _issuer_count_words(code: str, words: frozenset[str]):
+    saved = dict(monthly_ingest_mod.ISSUER_METRICS)
+    monthly_ingest_mod.ISSUER_METRICS[code] = words
+    try:
+        yield
+    finally:
+        monthly_ingest_mod.ISSUER_METRICS.clear()
+        monthly_ingest_mod.ISSUER_METRICS.update(saved)
+
+
+def test_issuer_count_metrics() -> None:
+    """件数指標は config/issuer_metrics.json の銘柄だけ。層だけに効き、保存名は並べ替えない。"""
     cases = (
         (
             "アスモフードサービス 受託施設数",
@@ -2781,26 +2803,29 @@ def test_generic_count_metric_peel() -> None:
             "close",
         ),
     )
-    for src, want_layers, kind in cases:
-        if canonicalize_element_label(src, "number") != src:
-            _fail(f"count metric must not rename {src!r} -> {canonicalize_element_label(src, 'number')!r}")
-        layers = parse_element_layers(src)
-        for key, want in want_layers.items():
-            if layers[key] != want:
-                _fail(f"count peel {src!r} {key}: {layers[key]!r} want {want!r} in {layers!r}")
-        lab = monthly_element_label(src, "number")
-        if lab["display"] != src:
-            _fail(f"count peel display {src!r}: {lab['display']!r}")
-        if lab["metric"] != want_layers["metric"] or lab["segment"] != want_layers["segment"]:
-            _fail(f"count peel label layers {src!r}: {lab!r}")
-        if lab["channel"] != want_layers["channel"] or lab["scope"] != want_layers["scope"]:
-            _fail(f"count peel label channel/scope {src!r}: {lab!r}")
-        if lab["metric_kind"] != kind:
-            _fail(f"count peel metric_kind {src!r}: {lab['metric_kind']!r} want {kind!r}")
-        if lab["series_kind"] is not None:
-            _fail(f"count peel series_kind {src!r}: {lab!r}")
-        if lab["group"] != want_layers["segment"]:
-            _fail(f"count peel group {src!r}: {lab['group']!r}")
+    code_re = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]$")
+    for code, words in load_issuer_metrics().items():
+        if not code_re.fullmatch(code):
+            _fail(f"issuer_metrics.json key must be a 5-char code: {code!r}")
+        for word in words:
+            # 共通の語彙（_METRIC_PREFIX）が先に剥がす語は辞書に置いても効かない
+            if word.split() != [word] or monthly_ingest_mod._peel_metric(word)[0]:
+                _fail(f"issuer_metrics.json {code} {word!r}: one token, not a common metric")
+
+    with _issuer_count_words(_COUNT_CODE, _COUNT_WORDS):
+        _check_count_cases(cases)
+        # 辞書に無い銘柄では件数語は指標にならない（ほかの銘柄に波及しない）
+        for src in ("アスモフードサービス 受託施設数", "メディカルケア事業 拠点数"):
+            for other in (None, "90010"):
+                lab = monthly_element_label(src, "number", other)
+                if lab["metric"] or lab["metric_kind"] != "other" or lab["group"] != src:
+                    _fail(f"count word leaked to code={other!r} {src!r}: {lab!r}")
+        # 保存名は辞書を読まない
+        if canonicalize_element_label("直営 タイムズパーキング 件数", "number") != "タイムズパーキング 件数 直営":
+            _fail("issuer count words must not reorder stored names")
+        # 完全一致だけ（売上個数 は 個数 に当たらない。辞書に無い …数 も拾わない）
+        if parse_element_layers("ZAC 追加ライセンス数", code=_COUNT_CODE)["metric"]:
+            _fail("count words must match whole tokens listed in the dictionary only")
 
     regressions = (
         ("店舗数", {"segment": "", "scope": "", "metric": "店舗数"}, "stores"),
@@ -2870,6 +2895,29 @@ def test_generic_count_metric_peel() -> None:
         _fail("業態転換数 still reorders as adj metric")
     if canonicalize_element_label("既存 空室数", "number") != "空室数 既存":
         _fail("空室数 stays leftover so 既存 reorders after it")
+
+
+def _check_count_cases(cases) -> None:
+    for src, want_layers, kind in cases:
+        if canonicalize_element_label(src, "number") != src:
+            _fail(f"count metric must not rename {src!r} -> {canonicalize_element_label(src, 'number')!r}")
+        layers = parse_element_layers(src, code=_COUNT_CODE)
+        for key, want in want_layers.items():
+            if layers[key] != want:
+                _fail(f"count peel {src!r} {key}: {layers[key]!r} want {want!r} in {layers!r}")
+        lab = monthly_element_label(src, "number", _COUNT_CODE)
+        if lab["display"] != src:
+            _fail(f"count peel display {src!r}: {lab['display']!r}")
+        if lab["metric"] != want_layers["metric"] or lab["segment"] != want_layers["segment"]:
+            _fail(f"count peel label layers {src!r}: {lab!r}")
+        if lab["channel"] != want_layers["channel"] or lab["scope"] != want_layers["scope"]:
+            _fail(f"count peel label channel/scope {src!r}: {lab!r}")
+        if lab["metric_kind"] != kind:
+            _fail(f"count peel metric_kind {src!r}: {lab['metric_kind']!r} want {kind!r}")
+        if lab["series_kind"] is not None:
+            _fail(f"count peel series_kind {src!r}: {lab!r}")
+        if lab["group"] != want_layers["segment"]:
+            _fail(f"count peel group {src!r}: {lab['group']!r}")
 
 
 def test_count_metric_keeps_pre534_stored_names() -> None:
@@ -2982,7 +3030,9 @@ def test_count_metric_keeps_pre534_stored_names() -> None:
     finally:
         db.close()
 
-    asumo = monthly_element_label("アスモフードサービス 受託施設数", "number")
+    with _issuer_count_words(_COUNT_CODE, _COUNT_WORDS):
+        asumo = monthly_element_label("アスモフードサービス 受託施設数", "number", _COUNT_CODE)
+        park = monthly_element_label("直営 タイムズパーキング 件数", "number", _COUNT_CODE)
     if (
         asumo["metric"] != "受託施設数"
         or asumo["segment"] != "アスモフードサービス"
@@ -2990,7 +3040,6 @@ def test_count_metric_keeps_pre534_stored_names() -> None:
         or asumo["display"] != "アスモフードサービス 受託施設数"
     ):
         _fail(f"asmo count layers: {asumo!r}")
-    park = monthly_element_label("直営 タイムズパーキング 件数", "number")
     if (
         park["display"] != "タイムズパーキング 件数 直営"
         or park["metric"] != "件数"
@@ -3007,7 +3056,7 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as d:
         test_alias_rename_takes_unit_from_names(Path(d))
     test_monthly_element_label()
-    test_generic_count_metric_peel()
+    test_issuer_count_metrics()
     test_count_metric_keeps_pre534_stored_names()
     test_department_store_layers()
     test_issuer_alias_cases()
