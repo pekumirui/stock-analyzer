@@ -333,6 +333,8 @@ def test_monthly_tree_assign() -> None:
         "全店 売上高 ドラッグ(前年比)",
         "マツモトキヨシグループ 全店 売上高 ドラッグ(前年比)",
         "グループ 出店",
+        "グループ 子会社化等",
+        "マツモトキヨシグループ FC 売上高(前年比)",
     ], load_monthly_trees())
     got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in mk.items()}
     want = {
@@ -348,10 +350,21 @@ def test_monthly_tree_assign() -> None:
             ["全体", "マツモトキヨシグループ", "ドラッグ"], "全店 売上高 ドラッグ(前年比)", "全店 売上高",
         ),
         "グループ 出店": (["全体"], "グループ 出店", "出店"),
+        "グループ 子会社化等": (["全体"], "グループ 子会社化等", "子会社化等"),
+        # FC は全店の内訳ではない別表（FC 単月売上高）。全店 を付けない
+        "マツモトキヨシグループ FC 売上高(前年比)": (
+            ["全体", "マツモトキヨシグループ"], "FC 売上高(前年比)", "FC 売上高",
+        ),
     }
     if got != want:
         _fail(f"30880 tree rows: {got!r}")
     mk_tree = tree_payload("30880", list(want), load_monthly_trees())
+    # 資料の並び: 既存 → FC → 全店、出店 → 退店 → 子会社化等 → 店舗数
+    mk_metrics = mk_tree["tree_metrics"]
+    if mk_metrics[mk_metrics.index("既存 客単価") + 1] != "FC 売上高" or mk_metrics[-4:] != [
+        "出店", "退店", "子会社化等", "店舗数",
+    ]:
+        _fail(f"30880 tree_metrics: {mk_metrics!r}")
     mk_kids = {c["name"]: c for c in mk_tree["tree"][0]["children"]}
     if not mk_kids["グループ調剤"]["part"] or mk_kids["マツモトキヨシグループ"]["part"] or mk_kids["アンドカンパニー"]["part"]:
         _fail(f"30880 part: {mk_kids!r}")
