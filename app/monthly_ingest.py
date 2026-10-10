@@ -455,11 +455,14 @@ def _is_generic_count_metric(tok: str) -> bool:
     return bool(core) and core.endswith("数")
 
 
-def _peel_metric(tok: str) -> tuple[str | None, str | None]:
+def _peel_metric(
+    tok: str, *, peel_generic_count: bool = True,
+) -> tuple[str | None, str | None]:
     """指標語をトークンの前後から剥がす。残りはセグメント候補。
 
     短い接頭辞（売上/来客/単価）は前方一致しない（売上変化を売上高にしない）。
-    既存語に当たらないトークンが …数（任意で末尾の注記付き）なら件数指標にする。
+    層分解では、既存語に当たらない …数（任意で末尾の注記付き）を件数指標にする。
+    保存名の組み立てでは peel_generic_count=False（件数語は leftover のまま）。
     """
     if tok in _ACTIVE_STORE_BREAKDOWN_RANK:
         return None, tok
@@ -470,7 +473,7 @@ def _peel_metric(tok: str) -> tuple[str | None, str | None]:
             return canon, tok[:-len(src)]
         if src in _METRIC_STARTSWITH and len(tok) > len(src) and tok.startswith(src):
             return canon, tok[len(src):]
-    if _is_generic_count_metric(tok):
+    if peel_generic_count and _is_generic_count_metric(tok):
         return tok, None
     return None, tok
 
@@ -657,7 +660,9 @@ def _peel_active_store_breakdown(
     return leftover, breakdown
 
 
-def parse_element_layers(element: str) -> dict[str, str]:
+def parse_element_layers(
+    element: str, *, peel_generic_count: bool = True,
+) -> dict[str, str]:
     """国 / セグメント / 時間軸 / チャネル / スコープ / 指標 / 内訳。正規化前の名前でも読む。"""
     country = ""
     channel = ""
@@ -676,7 +681,7 @@ def parse_element_layers(element: str) -> dict[str, str]:
             if metric in ("", "店舗数"):
                 metric = flow
             continue
-        peeled, rest = _peel_metric(tok)
+        peeled, rest = _peel_metric(tok, peel_generic_count=peel_generic_count)
         if peeled:
             rest_flow = _STORE_FLOW_CANON.get(rest) if rest else None
             if rest_flow and rest not in _STATUS_STORE_STEMS:
@@ -736,7 +741,8 @@ def normalize_element_tokens(element: str, *, fill_default_metric: bool = False)
     trimmed = re.sub(r"\s+", " ", element.strip())
     if not trimmed:
         return trimmed
-    parts = parse_element_layers(trimmed)
+    # 件数の …数 は層では指標だが、保存名の並べ替えには使わない（#534 前と同じ語順）。
+    parts = parse_element_layers(trimmed, peel_generic_count=False)
     # leftover に会員数がある yoy は売上高を補わない（#366）。
     if (
         fill_default_metric
@@ -756,18 +762,16 @@ def normalize_element_tokens(element: str, *, fill_default_metric: bool = False)
     parts["segment"], parts["metric"] = _glue_status_store_metric(
         parts["segment"], parts["metric"],
     )
+    # 拠点数は件数指標。別指標があるときの表見出しだけ落とす（#534 前の _DROP_TOKS）。
+    if parts["metric"]:
+        parts["segment"] = " ".join(
+            tok for tok in parts["segment"].split() if tok != "拠点数"
+        )
     ordered = [
         parts["country"], parts["segment"], parts["time_axis"], parts["channel"],
         parts["scope"], parts["metric"], parts["breakdown"],
     ]
     built = " ".join(p for p in ordered if p)
-    # 件数指標の層分解でチャネルだけが動く行は、保存名・表示名を並べ替えない。
-    if (
-        _is_generic_count_metric(parts["metric"])
-        and built
-        and sorted(trimmed.split()) == sorted(built.split())
-    ):
-        return trimmed
     return built or trimmed
 
 

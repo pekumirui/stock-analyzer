@@ -2859,6 +2859,135 @@ def test_generic_count_metric_peel() -> None:
         _fail("空室数 stays leftover so 既存 reorders after it")
 
 
+def test_count_metric_keeps_pre534_stored_names() -> None:
+    """#534 の件数 peel は層だけ。保存名と起動時の寄せは #534 前と同じ。"""
+    stored = (
+        ("直営 タイムズパーキング 件数", "number", "タイムズパーキング 件数 直営"),
+        ("直営 タイムズパーキング 台数", "number", "タイムズパーキング 台数 直営"),
+        ("直営 タイムズパーキング 累計 件数", "number", "タイムズパーキング 件数 直営"),
+        ("ZAC 既存追加ライセンス数", "number", "ZAC 追加ライセンス数 既存"),
+        ("ZAC 既存 追加ライセンス数", "number", "ZAC 追加ライセンス数 既存"),
+        ("売上個数 既存 売上高(前年比)", "yoy_index", "売上個数 既存 売上高(前年比)"),
+        ("買上点数 全店 売上高(前年比)", "yoy_index", "買上点数 全店 売上高(前年比)"),
+        ("撮影件数 既存 売上高(前年比)", "yoy_index", "撮影件数 既存 売上高(前年比)"),
+        ("撮影件数 全店 売上高(前年比)", "yoy_index", "撮影件数 全店 売上高(前年比)"),
+        ("全店 撮影件数", "yoy_index", "撮影件数 全店 売上高(前年比)"),
+        ("直営 受託施設数", "number", "受託施設数 直営"),
+        ("拠点数 調理済み商品お届け数(※)（千食）", "number", "調理済み商品お届け数（千食）"),
+        ("拠点数 出店", "number", "出店"),
+        ("メディカルケア事業 拠点数", "number", "メディカルケア事業 拠点数"),
+    )
+    for src, unit, want in stored:
+        got = canonicalize_element_label(src, unit)
+        if got != want:
+            _fail(f"pre534 stored {src!r} {unit} -> {got!r} want {want!r}")
+
+    already = (
+        ("タイムズパーキング 件数 直営", "number"),
+        ("ZAC 追加ライセンス数 既存", "number"),
+        ("売上個数 既存 売上高(前年比)", "yoy_index"),
+        ("買上点数 全店 売上高(前年比)", "yoy_index"),
+        ("撮影件数 既存 売上高(前年比)", "yoy_index"),
+        ("撮影件数 全店 売上高(前年比)", "yoy_index"),
+        ("既存 売上高(前年比)", "yoy_index"),
+        ("全店 売上高(前年比)", "yoy_index"),
+        ("アスモフードサービス 受託施設数", "number"),
+        ("マッサージ事業 総レセプト数(鍼灸込み) 直営", "number"),
+    )
+    for src, unit in already:
+        got = canonicalize_element_label(src, unit)
+        if got != src:
+            _fail(f"saved name must stay {src!r} -> {got!r}")
+
+    if canonicalize_element_label("買上点数 全店 売上高(前年比)", "yoy_index") == (
+        canonicalize_element_label("全店 売上高(前年比)", "yoy_index")
+    ):
+        _fail("81980 買上点数 must not collide with 全店 売上高(前年比)")
+    if canonicalize_element_label("売上個数 既存 売上高(前年比)", "yoy_index") == (
+        canonicalize_element_label("既存 売上高(前年比)", "yoy_index")
+    ):
+        _fail("31740 売上個数 must not collide with 既存 売上高(前年比)")
+
+    rows = [
+        ("23050", 2026, "撮影件数 既存 売上高(前年比)", "yoy_index"),
+        ("23050", 2026, "既存 売上高(前年比)", "yoy_index"),
+        ("23050", 2026, "撮影件数 全店 売上高(前年比)", "yoy_index"),
+        ("23050", 2026, "全店 売上高(前年比)", "yoy_index"),
+        ("31740", 2026, "売上個数 既存 売上高(前年比)", "yoy_index"),
+        ("31740", 2026, "既存 売上高(前年比)", "yoy_index"),
+        ("81980", 2026, "買上点数 全店 売上高(前年比)", "yoy_index"),
+        ("81980", 2026, "全店 売上高(前年比)", "yoy_index"),
+        ("46660", 2026, "タイムズパーキング 件数 直営", "number"),
+        ("39830", 2026, "ZAC 追加ライセンス数 既存", "number"),
+    ]
+    plans = plan_yoy_duplicate_merges(rows)
+    if plans:
+        _fail(f"startup merge must not fold count/sales rows: {plans!r}")
+
+    from app.db import SessionLocal, merge_yoy_duplicate_elements
+    from app.models import MonthlyElement, MonthlyTable, MonthlyValue
+
+    code, year = "23050", 2026
+    count_el = "撮影件数 既存 売上高(前年比)"
+    sales_el = "既存 売上高(前年比)"
+    _ensure_stock(code, "スタジオアリス")
+    db = SessionLocal()
+    try:
+        db.add(MonthlyTable(code=code, year=year))
+        db.add(MonthlyElement(
+            code=code, year=year, element=count_el, sort_order=1, unit="yoy_index",
+        ))
+        db.add(MonthlyElement(
+            code=code, year=year, element=sales_el, sort_order=2, unit="yoy_index",
+        ))
+        db.add(MonthlyValue(code=code, year=year, element=count_el, month=7, value=93.9))
+        db.add(MonthlyValue(code=code, year=year, element=sales_el, month=7, value=101.2))
+        db.commit()
+    finally:
+        db.close()
+
+    reports = merge_yoy_duplicate_elements()
+    if any(r.get("code") == code and r.get("year") == year for r in reports):
+        _fail(f"23050 startup merge must not rewrite count yoy: {reports!r}")
+    db = SessionLocal()
+    try:
+        names = {
+            e.element for e in db.query(MonthlyElement).filter(
+                MonthlyElement.code == code, MonthlyElement.year == year,
+            )
+        }
+        if names != {sales_el, count_el}:
+            _fail(f"23050 rows after merge: {names!r}")
+        vals = {
+            (v.element, v.month): float(v.value)
+            for v in db.query(MonthlyValue).filter(
+                MonthlyValue.code == code, MonthlyValue.year == year,
+            )
+        }
+        if vals != {(count_el, 7): 93.9, (sales_el, 7): 101.2}:
+            _fail(f"23050 values after merge: {vals!r}")
+    finally:
+        db.close()
+
+    asumo = monthly_element_label("アスモフードサービス 受託施設数", "number")
+    if (
+        asumo["metric"] != "受託施設数"
+        or asumo["segment"] != "アスモフードサービス"
+        or asumo["metric_kind"] != "count"
+        or asumo["display"] != "アスモフードサービス 受託施設数"
+    ):
+        _fail(f"asmo count layers: {asumo!r}")
+    park = monthly_element_label("直営 タイムズパーキング 件数", "number")
+    if (
+        park["display"] != "タイムズパーキング 件数 直営"
+        or park["metric"] != "件数"
+        or park["channel"] != "直営"
+        or park["segment"] != "タイムズパーキング"
+        or park["metric_kind"] != "count"
+    ):
+        _fail(f"park24 layers from raw: {park!r}")
+
+
 def main() -> None:
     test_canonicalize_element_label()
     test_union_orders_country_then_channel()
@@ -2866,6 +2995,7 @@ def main() -> None:
         test_alias_rename_takes_unit_from_names(Path(d))
     test_monthly_element_label()
     test_generic_count_metric_peel()
+    test_count_metric_keeps_pre534_stored_names()
     test_department_store_layers()
     test_issuer_alias_cases()
     test_mapping_examples()
