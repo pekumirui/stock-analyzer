@@ -26,6 +26,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 
 - 環境構築は `bash .cursor/install.sh`（冪等）。`.venv` / `pdftotext` / `rclone` と、`JQUANTS_API_KEY` があれば `stock.db`（2 年分 + 本番の `monthly_*`）を用意する。SPA は `bash .cursor/start-web.sh` が 8000 で配信する。Cursor は `.cursor/environment.json` が両方を自動で呼ぶ。他のベンダーは必要なときに自分で呼ぶ
 - 8000 を止めない・`reset` しない。UI 検証も 8000
+- Claude Code の自動メモリは `.claude/memory/`（`install.sh` が `.claude/settings.local.json` の `autoMemoryDirectory` で向ける）。環境は消えるので、メモリを足したら作業ブランチに一緒にコミットする
 - `.cursor/` 配下のスクリプトと `.cursor/skills/*/SKILL.md` は Cursor 専用ではない。普通のシェルと手順書として使う
 - 秘密情報は各ベンダーの Secrets / 環境変数で渡す: `JQUANTS_API_KEY` / `VPS_SSH_KEY` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`。無い変数の機能は使えないものとして進める。チャットで鍵を求めない
 - VPS のログ・DB 件数・月次 API は MCP（`https://kabukpi.com/mcp`、OAuth）。どのベンダーからでも同じ。任意シェルを MCP に足さない
