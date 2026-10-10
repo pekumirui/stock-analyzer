@@ -551,6 +551,11 @@ fi
 if [[ -f "$APP_DIR/deploy/cron-run.sh" ]]; then
   chmod +x "$APP_DIR/deploy/cron-run.sh"
 fi
+# 日次 SQLite バックアップ先。ジョブも mkdir する。デプロイで所有者を揃える。
+STOCK_HOME="$(getent passwd "$STOCK_USER" | cut -d: -f6)"
+if [[ -n "$STOCK_HOME" ]]; then
+  install -d -m 750 -o "$STOCK_USER" -g "$STOCK_USER" "$STOCK_HOME/backups"
+fi
 crontab -u "$STOCK_USER" "$APP_DIR/deploy/crontab"
 
 # Cloudflare R2: stock の user systemd で rclone mount（linger で再起動後も残す）

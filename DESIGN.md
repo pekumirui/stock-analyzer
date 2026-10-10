@@ -400,7 +400,8 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 |---|---|
 | API + SPA | 同一 VPS の uvicorn（systemd、ワーカー1） |
 | DB | `stock.db`（VPS の SSD）。`DATABASE_URL` は今の SQLite のまま |
-| バッチ | crontab（19:30 JST の J-Quants 日次。為替は 08:00 JST。パッケージ一覧は 06:40 JST） |
+| バッチ | crontab（19:30 JST の J-Quants 日次。為替は 08:00 JST。パッケージ一覧は 06:40 JST。SQLite バックアップは 05:00 JST） |
+| バックアップ | VPS ローカル gzip（`/home/stock/backups`）。手順は [`docs/DESIGN_backup.md`](docs/DESIGN_backup.md) |
 | 公開 | nginx + Let's Encrypt。月次閲覧は `/monthly`（Basic なし）。個人ツールは `/app` + Basic 認証 |
 | 開発 | 今どおり Windows + `.\run.ps1` |
 

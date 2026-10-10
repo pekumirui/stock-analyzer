@@ -8,6 +8,7 @@
 | 画面（タブ別） | `docs/DESIGN_<tab>.md`。書き方と共通見た目は `docs/SCREEN_SPEC.md` |
 | 月次の行名 | `docs/DESIGN_monthly_labels.md` |
 | XBRL の設計と検証 | `docs/DESIGN_xbrl.md` / `docs/XBRL_VERIFY.md` |
+| SQLite バックアップ | `docs/DESIGN_backup.md` |
 | VPS・MCP・R2 の運用 | `deploy/README.md` |
 | 利用者向け手順・コマンド | `README.md` |
 
@@ -49,6 +50,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `app/xbrl/` | TDnet 短信 iXBRL の parse / YAML マッピング / normalize。UI には出さない |
 | `app/xbrlp/` | kawasin73 gist の vendor。改変しない |
 | `jobs/run_batch.py` | 日次バッチ / バックフィル |
+| `jobs/backup_db.py` | 本番 SQLite の日次 gzip バックアップ（ローカルのみ。手順は `docs/DESIGN_backup.md`） |
 | `jobs/fx_rates.py` | Frankfurter 為替の日次差分 / `--backfill`（1999-01-04〜） |
 | `jobs/check_demo.py` | スキーマ検査 + 旧デモ取り残しガード。`batch` / `backfill` の前に走る |
 | `jobs/*_r2.py` | TDnet / IR → R2 mount。下の「R2 バッチ」 |
