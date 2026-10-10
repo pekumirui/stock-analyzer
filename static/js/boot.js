@@ -1,5 +1,5 @@
 fillEventToggles();
-selectDate(todayISO());
+selectDate(todayISO()).then(calPrefetch);
 restoreRoute();
 
 // iOS Safari はタブに戻るとページをメモリから復元し、デプロイ後も古い HTML / CSS / JS のまま動く。
