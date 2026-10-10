@@ -124,8 +124,12 @@ def test_shift_year_and_labels() -> None:
         _fail("5Q span")
     if calendar_label(FY26, "2Q", quarterly=True) != "25.07-09":
         _fail(calendar_label(FY26, "2Q", quarterly=True))
-    if calendar_label(FY26, "FY") != "26.3期":
+    if calendar_label(FY26, "FY") != "26.3":
         _fail(calendar_label(FY26, "FY"))
+    if calendar_label(FY26) != "26.3":
+        _fail(calendar_label(FY26))
+    if calendar_label(FY26, "5Q") != "26.3":
+        _fail(calendar_label(FY26, "5Q"))
     if prev_quarter(FY26, "2Q") != (FY26, "1Q"):
         _fail("prev 2Q")
     if prev_quarter(FY26, "1Q") != (FY25, "FY"):
@@ -210,6 +214,14 @@ def test_disclosure_and_rows() -> None:
         _fail(cur)
     if cur["growth"]["net_sales"]["pct"] != 38.9:
         _fail(cur["growth"])
+    if cur["range"] != "25.04-09":
+        _fail(cur["range"])
+    h = next(r for r in cum if r["kind"] == "forecast_h")
+    if h["range"] != "26.3":
+        _fail(h["range"])
+    fyf = next(r for r in cum if r["kind"] == "forecast_fy")
+    if fyf["range"] != "26.3":
+        _fail(fyf["range"])
     # 本決算は raw_json の来期予想 (NxF*) を出し、前期通期 (= 上の実績行) は出さない
     fy = next(s for s in hist if s.disclosure_no == "cfy")
     fy.raw_json = json.dumps({"NxtFYEn": "2027-03-31", "NxFSales2Q": "350", "NxFSales": "700",
