@@ -1528,6 +1528,109 @@ def test_monthly_tree_assign() -> None:
         _fail(f"92520 fuel must be a part of 電気: {fuel!r}")
     if fuel[0]["elements"] != ["電気 燃料調整費"]:
         _fail(f"92520 fuel row: {fuel[0]['elements']!r}")
+    # 小田急: 鉄道は 定期+定期外 ▸ 定期計 ▸ 通勤/通学 と 定期外。百貨店の店は子。箱根のホテルは箱根（#482）
+    oda_rows = [
+        "鉄道 定期+定期外 輸送人員",
+        "鉄道 定期+定期外 輸送人員(前年比)",
+        "鉄道 定期計 輸送人員",
+        "鉄道 通勤定期 輸送人員",
+        "鉄道 通学定期 輸送人員",
+        "鉄道 定期外 輸送人員",
+        "鉄道 定期+定期外 運輸収入",
+        "鉄道 定期計 運輸収入",
+        "鉄道 通勤定期 運輸収入",
+        "鉄道 通学定期 運輸収入",
+        "鉄道 定期外 運輸収入",
+        "百貨店 取扱高",
+        "百貨店 取扱高(前年比)",
+        "百貨店 新宿店 取扱高",
+        "百貨店 町田店 取扱高",
+        "百貨店 ふじさわ 取扱高",
+        "ストア 既存 取扱高",
+        "ストア 既存 売上高(前年比)",
+        "ストア 全店 取扱高",
+        "ストア 全店 売上高(前年比)",
+        "ホテル センチュリー 客室稼働率",
+        "ホテル センチュリー 稼働率前年差",
+        "ホテル センチュリー 稼働率前年差(前年比)",
+        "ホテル 山のホテル 客室稼働率",
+        "ホテル はつはな 客室稼働率",
+        "ホテル 箱根ゆとわ 客室稼働率",
+        "ホテル RETONA 客室稼働率",
+        "ホテル CLAD 客室稼働率",
+        "ホテル CLAD 稼働率前年差",
+        "ホテル 箱根ハイランド 客室稼働率",
+        "ホテル 箱根ハイランド 稼働率前年差",
+    ]
+    oda = assign_tree_rows("90070", oda_rows, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in oda.items()}
+    want = {
+        "鉄道 定期+定期外 輸送人員": (["全体", "鉄道", "定期+定期外"], "輸送人員", "輸送人員"),
+        "鉄道 定期+定期外 輸送人員(前年比)": (["全体", "鉄道", "定期+定期外"], "輸送人員(前年比)", "輸送人員"),
+        "鉄道 定期計 輸送人員": (["全体", "鉄道", "定期+定期外", "定期計"], "輸送人員", "輸送人員"),
+        "鉄道 通勤定期 輸送人員": (["全体", "鉄道", "定期+定期外", "定期計", "通勤"], "輸送人員", "輸送人員"),
+        "鉄道 通学定期 輸送人員": (["全体", "鉄道", "定期+定期外", "定期計", "通学"], "輸送人員", "輸送人員"),
+        "鉄道 定期外 輸送人員": (["全体", "鉄道", "定期+定期外", "定期外"], "輸送人員", "輸送人員"),
+        "鉄道 定期+定期外 運輸収入": (["全体", "鉄道", "定期+定期外"], "運輸収入", "運輸収入"),
+        "鉄道 定期計 運輸収入": (["全体", "鉄道", "定期+定期外", "定期計"], "運輸収入", "運輸収入"),
+        "鉄道 通勤定期 運輸収入": (["全体", "鉄道", "定期+定期外", "定期計", "通勤"], "運輸収入", "運輸収入"),
+        "鉄道 通学定期 運輸収入": (["全体", "鉄道", "定期+定期外", "定期計", "通学"], "運輸収入", "運輸収入"),
+        "鉄道 定期外 運輸収入": (["全体", "鉄道", "定期+定期外", "定期外"], "運輸収入", "運輸収入"),
+        "百貨店 取扱高": (["全体", "百貨店"], "取扱高", "取扱高"),
+        "百貨店 取扱高(前年比)": (["全体", "百貨店"], "取扱高(前年比)", "取扱高"),
+        "百貨店 新宿店 取扱高": (["全体", "百貨店", "新宿店"], "取扱高", "取扱高"),
+        "百貨店 町田店 取扱高": (["全体", "百貨店", "町田店"], "取扱高", "取扱高"),
+        "百貨店 ふじさわ 取扱高": (["全体", "百貨店", "ふじさわ"], "取扱高", "取扱高"),
+        "ストア 既存 取扱高": (["全体", "ストア"], "既存 取扱高", "既存 取扱高"),
+        "ストア 既存 売上高(前年比)": (["全体", "ストア"], "既存 売上高(前年比)", "既存 売上高(前年比)"),
+        "ストア 全店 取扱高": (["全体", "ストア"], "全店 取扱高", "全店 取扱高"),
+        "ストア 全店 売上高(前年比)": (["全体", "ストア"], "全店 売上高(前年比)", "全店 売上高(前年比)"),
+        "ホテル センチュリー 客室稼働率": (["全体", "ホテル", "センチュリー"], "客室稼働率", "客室稼働率"),
+        "ホテル センチュリー 稼働率前年差": (["全体", "ホテル", "センチュリー"], "稼働率前年差", "稼働率前年差"),
+        "ホテル センチュリー 稼働率前年差(前年比)": (
+            ["全体", "ホテル", "センチュリー"], "稼働率前年差(前年比)", "稼働率前年差"),
+        "ホテル 山のホテル 客室稼働率": (["全体", "ホテル", "箱根", "山のホテル"], "客室稼働率", "客室稼働率"),
+        "ホテル はつはな 客室稼働率": (["全体", "ホテル", "箱根", "はつはな"], "客室稼働率", "客室稼働率"),
+        "ホテル 箱根ゆとわ 客室稼働率": (["全体", "ホテル", "箱根", "箱根ゆとわ"], "客室稼働率", "客室稼働率"),
+        "ホテル RETONA 客室稼働率": (["全体", "ホテル", "箱根", "RETONA"], "客室稼働率", "客室稼働率"),
+        "ホテル CLAD 客室稼働率": (["全体", "ホテル", "箱根", "CLAD"], "客室稼働率", "客室稼働率"),
+        "ホテル CLAD 稼働率前年差": (["全体", "ホテル", "箱根", "CLAD"], "稼働率前年差", "稼働率前年差"),
+        "ホテル 箱根ハイランド 客室稼働率": (["全体", "ホテル", "箱根", "箱根ハイランド"], "客室稼働率", "客室稼働率"),
+        "ホテル 箱根ハイランド 稼働率前年差": (
+            ["全体", "ホテル", "箱根", "箱根ハイランド"], "稼働率前年差", "稼働率前年差"),
+    }
+    if got != want:
+        _fail(f"90070 tree rows: {got!r}")
+    oda_tree = tree_payload("90070", oda_rows, load_monthly_trees())
+    if oda_tree is None or oda_tree.get("tree_auto"):
+        _fail("90070 must use the config tree")
+    if oda_tree["tree_metrics"] != [
+        "輸送人員", "運輸収入", "取扱高", "既存 取扱高", "既存 売上高(前年比)",
+        "全店 取扱高", "全店 売上高(前年比)", "客室稼働率", "稼働率前年差",
+    ]:
+        _fail(f"90070 metrics: {oda_tree['tree_metrics']!r}")
+    oda_kids = oda_tree["tree"][0]["children"]
+    if [n["name"] for n in oda_kids] != ["鉄道", "百貨店", "ストア", "ホテル"]:
+        _fail(f"90070 section order: {oda_kids!r}")
+    rail, dept, store, hotel = oda_kids
+    if not rail["heading"] or [n["name"] for n in rail["children"]] != ["定期+定期外"]:
+        _fail(f"90070 鉄道 must be a heading over 定期+定期外: {rail!r}")
+    total = rail["children"][0]
+    if [n["name"] for n in total["children"]] != ["定期計", "定期外"]:
+        _fail(f"90070 定期外 must sit beside 定期計: {total['children']!r}")
+    if [n["name"] for n in total["children"][0]["children"]] != ["通勤", "通学"]:
+        _fail(f"90070 通勤/通学 must be under 定期計: {total['children'][0]!r}")
+    if [n["name"] for n in dept["children"]] != ["新宿店", "町田店", "ふじさわ"] or dept["heading"]:
+        _fail(f"90070 stores must be under 百貨店: {dept!r}")
+    if store["children"] or store["heading"]:
+        _fail(f"90070 ストア is one section: {store!r}")
+    if not hotel["heading"] or [n["name"] for n in hotel["children"]] != ["センチュリー", "箱根"]:
+        _fail(f"90070 ホテル sections: {hotel!r}")
+    hakone = hotel["children"][1]
+    if not hakone["heading"] or [n["name"] for n in hakone["children"]] != [
+        "山のホテル", "はつはな", "箱根ゆとわ", "RETONA", "CLAD", "箱根ハイランド",
+    ]:
+        _fail(f"90070 箱根 hotels: {hakone!r}")
     # マックスバリュ東海: 同規模・一品単価・買上点数は会社全体の根。都市型小型店の新設は新設店舗の内数（#481）
     mv_rows = [
         "全店 売上高(前年比)",
@@ -3928,6 +4031,42 @@ def _assert_monthly_layout_js() -> None:
         "elements": [{**_el(e, "number"), "tree": lom_assign[e]} for e in lom_canon],
         **tree_payload("92520", lom_canon, sanyo_trees),
     }]
+    # 小田急: 見出しの鉄道・箱根を開いたときの横持ち（#482）
+    oda_rows = [
+        ("鉄道 定期+定期外 輸送人員", "number"),
+        ("鉄道 定期計 輸送人員", "number"),
+        ("鉄道 通勤定期 輸送人員", "number"),
+        ("鉄道 通学定期 輸送人員", "number"),
+        ("鉄道 定期外 輸送人員", "number"),
+        ("鉄道 定期+定期外 運輸収入", "number"),
+        ("鉄道 定期計 運輸収入", "number"),
+        ("鉄道 通勤定期 運輸収入", "number"),
+        ("鉄道 通学定期 運輸収入", "number"),
+        ("鉄道 定期外 運輸収入", "number"),
+        ("百貨店 取扱高", "number"),
+        ("百貨店 新宿店 取扱高", "number"),
+        ("百貨店 町田店 取扱高", "number"),
+        ("百貨店 ふじさわ 取扱高", "number"),
+        ("ストア 既存 取扱高", "number"),
+        ("ストア 既存 売上高(前年比)", "yoy_index"),
+        ("ストア 全店 取扱高", "number"),
+        ("ストア 全店 売上高(前年比)", "yoy_index"),
+        ("ホテル センチュリー 客室稼働率", "number"),
+        ("ホテル 山のホテル 客室稼働率", "number"),
+        ("ホテル はつはな 客室稼働率", "number"),
+        ("ホテル 箱根ゆとわ 客室稼働率", "number"),
+        ("ホテル RETONA 客室稼働率", "number"),
+        ("ホテル CLAD 客室稼働率", "number"),
+        ("ホテル 箱根ハイランド 客室稼働率", "number"),
+        ("ホテル センチュリー 稼働率前年差", "number"),
+        ("ホテル 山のホテル 稼働率前年差", "number"),
+    ]
+    oda_assign = assign_tree_rows("90070", [e for e, _ in oda_rows], sanyo_trees)
+    fixtures["odakyuTree"] = [{
+        "year": 2026, "code": "90070",
+        "elements": [{**_el(e, u), "tree": oda_assign[e]} for e, u in oda_rows],
+        **tree_payload("90070", [e for e, _ in oda_rows], sanyo_trees),
+    }]
     # ピープル: 裸の前年比は国内カテゴリの節。旧名は同じ節（#480）
     people_rows = [
         ("全店 売上高", "number"),
@@ -4116,6 +4255,18 @@ vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a電気")
 const lomHtml = sandbox.monthlyTreeHtml(ltm, () => "<td></td>", [{y: 2026, m: 1}]);
 const lomNames = namesOf(lomHtml);
 vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const otm = sandbox.monthlyTreeModel(fixtures.odakyuTree);
+sandbox.monthlyTreeSeedOpen(otm);
+vm.runInContext(
+  'monthlyTlOpen.add("m:輸送人員\\u203atree:全体\\u203a鉄道");'
+  + 'monthlyTlOpen.add("m:輸送人員\\u203atree:全体\\u203a鉄道\\u203a定期+定期外");'
+  + 'monthlyTlOpen.add("m:輸送人員\\u203atree:全体\\u203a鉄道\\u203a定期+定期外\\u203a定期計");'
+  + 'monthlyTlOpen.add("m:取扱高\\u203atree:全体\\u203a百貨店");'
+  + 'monthlyTlOpen.add("m:客室稼働率\\u203atree:全体\\u203aホテル");'
+  + 'monthlyTlOpen.add("m:客室稼働率\\u203atree:全体\\u203aホテル\\u203a箱根");',
+  sandbox);
+const odakyuNames = namesOf(sandbox.monthlyTreeHtml(otm, () => "<td></td>", [{y: 2026, m: 1}]));
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
 const ptm = sandbox.monthlyTreeModel(fixtures.peopleTree);
 sandbox.monthlyTreeSeedOpen(ptm);
 vm.runInContext('monthlyTlOpen.add("m:全店 売上高\\u203atree:全体\\u203a国内販売");', sandbox);
@@ -4191,6 +4342,7 @@ console.log(JSON.stringify({
   tabayaNames,
   lomNames,
   lomPart: lomHtml.includes("tl-part"),
+  odakyuNames,
   peopleNames,
   rakusNames,
   rakusPart: rakusHtml.includes('class="tl-part"'),
@@ -4305,6 +4457,17 @@ console.log(JSON.stringify({
     want_lom = ["ストック型 売上高", "電気", "内燃料調整費", "宅配水", "インターネット", "その他"]
     if got.get("lomNames") != want_lom:
         _fail(f"92520 config tree rows: {got.get('lomNames')!r}")
+    want_oda = [
+        "輸送人員", "鉄道", "定期+定期外", "定期計", "通勤", "通学", "定期外",
+        "運輸収入", "鉄道",
+        "取扱高", "百貨店", "新宿店", "町田店", "ふじさわ",
+        "ストア 既存 取扱高", "ストア 既存 売上高(前年比)", "ストア 全店 取扱高", "ストア 全店 売上高(前年比)",
+        "客室稼働率", "ホテル", "センチュリー", "箱根",
+        "山のホテル", "はつはな", "箱根ゆとわ", "RETONA", "CLAD", "箱根ハイランド",
+        "稼働率前年差", "ホテル",
+    ]
+    if got.get("odakyuNames") != want_oda:
+        _fail(f"90070 config tree rows: {got.get('odakyuNames')!r}")
     want_people = [
         "全店 売上高", "国内販売", "乳児・知育玩具", "乳児・知育玩具(前年比)",
         "乳児・知育・構成玩具 全店 売上高", "メイキングトイ", "メイキングトイ(前年比)",
