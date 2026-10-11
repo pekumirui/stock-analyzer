@@ -999,6 +999,61 @@ def test_monthly_tree_assign() -> None:
         _fail(f"75220 subway must be under 国内外食: {kids[0]['children']!r}")
     if kids[1]["elements"] != ["海外 出店", "海外 転換出店", "海外 退店", "海外 店舗数"]:
         _fail(f"75220 overseas rows: {kids[1]['elements']!r}")
+    # オートバックスセブン: 商品群は既存売上高の内訳。車検・整備はサービスの子（#473）
+    ab_rows = [
+        "日本 全店 売上高(前年比)",
+        "日本 既存 売上高(前年比)",
+        "日本 全店 客数(前年比)",
+        "日本 既存 客数(前年比)",
+        "既存 客単価(前年比)",
+        "土日祝日前年差異",
+        "タイヤ 既存 売上高(前年比)",
+        "カーエレクトロニクス 既存 売上高(前年比)",
+        "オイル 既存 売上高(前年比)",
+        "バッテリー 既存 売上高(前年比)",
+        "アクセサリー 既存 売上高(前年比)",
+        "サービス 既存 売上高(前年比)",
+        "車検・整備 既存 売上高(前年比)",
+        "車販売 既存 売上高(前年比)",
+    ]
+    ab = assign_tree_rows("98320", ab_rows, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in ab.items()}
+    want = {
+        "日本 全店 売上高(前年比)": (["全体"], "日本 全店 売上高(前年比)", "日本 全店 売上高"),
+        "日本 既存 売上高(前年比)": (["全体"], "日本 既存 売上高(前年比)", "既存 売上高"),
+        "日本 全店 客数(前年比)": (["全体"], "日本 全店 客数(前年比)", "日本 全店 客数"),
+        "日本 既存 客数(前年比)": (["全体"], "日本 既存 客数(前年比)", "日本 既存 客数"),
+        "既存 客単価(前年比)": (["全体"], "既存 客単価(前年比)", "既存 客単価"),
+        "土日祝日前年差異": (["全体"], "土日祝日前年差異", "土日祝日前年差異"),
+        "タイヤ 既存 売上高(前年比)": (["全体", "タイヤ"], "既存 売上高(前年比)", "既存 売上高"),
+        "カーエレクトロニクス 既存 売上高(前年比)": (
+            ["全体", "カーエレクトロニクス"], "既存 売上高(前年比)", "既存 売上高"),
+        "オイル 既存 売上高(前年比)": (["全体", "オイル"], "既存 売上高(前年比)", "既存 売上高"),
+        "バッテリー 既存 売上高(前年比)": (["全体", "バッテリー"], "既存 売上高(前年比)", "既存 売上高"),
+        "アクセサリー 既存 売上高(前年比)": (["全体", "アクセサリー"], "既存 売上高(前年比)", "既存 売上高"),
+        "サービス 既存 売上高(前年比)": (["全体", "サービス"], "既存 売上高(前年比)", "既存 売上高"),
+        "車検・整備 既存 売上高(前年比)": (
+            ["全体", "サービス", "車検・整備"], "既存 売上高(前年比)", "既存 売上高"),
+        "車販売 既存 売上高(前年比)": (["全体", "車販売"], "既存 売上高(前年比)", "既存 売上高"),
+    }
+    if got != want:
+        _fail(f"98320 tree rows: {got!r}")
+    ab_tree = tree_payload("98320", ab_rows, load_monthly_trees())
+    if ab_tree is None or ab_tree.get("tree_auto"):
+        _fail("98320 must use the config tree")
+    if ab_tree["tree_metrics"] != [
+        "既存 売上高", "日本 既存 客数", "既存 客単価",
+        "日本 全店 売上高", "日本 全店 客数", "土日祝日前年差異",
+    ]:
+        _fail(f"98320 metrics: {ab_tree!r}")
+    ab_kids = ab_tree["tree"][0]["children"]
+    if [n["name"] for n in ab_kids] != [
+        "タイヤ", "カーエレクトロニクス", "オイル", "バッテリー", "アクセサリー", "サービス", "車販売",
+    ]:
+        _fail(f"98320 section order: {ab_kids!r}")
+    ab_svc = ab_kids[5]
+    if ab_svc["part"] or [n["name"] for n in ab_svc["children"]] != ["車検・整備"] or ab_svc["children"][0]["part"]:
+        _fail(f"98320 車検・整備 must be a child of サービス: {ab_svc!r}")
     # ラストワンマイル: ストック型合計が根。旧「X ストック型」は同じ節。内燃料調整費は電気の内数（#472）
     lom_rows = [
         "ストック型 売上高",
@@ -3137,6 +3192,25 @@ def _assert_monthly_layout_js() -> None:
         "elements": [{**_el(e, u), "tree": watami_assign[e]} for e, u in watami_rows],
         **tree_payload("75220", [e for e, _ in watami_rows], sanyo_trees),
     }]
+    # オートバックスセブン: 車検・整備はサービスの子。商品群は既存売上高の下
+    ab_rows = [
+        ("日本 全店 売上高(前年比)", "yoy_index"),
+        ("日本 既存 売上高(前年比)", "yoy_index"),
+        ("日本 全店 客数(前年比)", "yoy_index"),
+        ("日本 既存 客数(前年比)", "yoy_index"),
+        ("既存 客単価(前年比)", "yoy_index"),
+        ("土日祝日前年差異", "number"),
+        ("タイヤ 既存 売上高(前年比)", "yoy_index"),
+        ("サービス 既存 売上高(前年比)", "yoy_index"),
+        ("車検・整備 既存 売上高(前年比)", "yoy_index"),
+        ("車販売 既存 売上高(前年比)", "yoy_index"),
+    ]
+    ab_assign = assign_tree_rows("98320", [e for e, _ in ab_rows], sanyo_trees)
+    fixtures["autobacsTree"] = [{
+        "year": 2026, "code": "98320",
+        "elements": [{**_el(e, u), "tree": ab_assign[e]} for e, u in ab_rows],
+        **tree_payload("98320", [e for e, _ in ab_rows], sanyo_trees),
+    }]
     lom_canon = [
         "ストック型 売上高",
         "電気 売上高",
@@ -3228,6 +3302,11 @@ const wtm = sandbox.monthlyTreeModel(fixtures.watamiTree);
 sandbox.monthlyTreeSeedOpen(wtm);
 const watamiNames = namesOf(sandbox.monthlyTreeHtml(wtm, () => "<td></td>", [{y: 2026, m: 1}]));
 vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const abtm = sandbox.monthlyTreeModel(fixtures.autobacsTree);
+sandbox.monthlyTreeSeedOpen(abtm);
+vm.runInContext('monthlyTlOpen.add("m:既存 売上高\\u203atree:全体\\u203aサービス");', sandbox);
+const autobacsNames = namesOf(sandbox.monthlyTreeHtml(abtm, () => "<td></td>", [{y: 2026, m: 1}]));
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
 const ltm = sandbox.monthlyTreeModel(fixtures.lomTree);
 sandbox.monthlyTreeSeedOpen(ltm);
 vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a電気");', sandbox);
@@ -3267,6 +3346,7 @@ console.log(JSON.stringify({
   kobeNames,
   sanyoNames,
   watamiNames,
+  autobacsNames,
   lomNames,
   lomPart: lomHtml.includes("tl-part"),
   pairTxt: pairCell.txt,
@@ -3346,6 +3426,14 @@ console.log(JSON.stringify({
                    "国内外食 全店 売上高(前年比)", "全店 店舗数", "国内外食"]
     if got.get("watamiNames") != want_watami:
         _fail(f"75220 config tree rows: {got.get('watamiNames')!r}")
+    # 車検・整備はサービスを開いた下。既存売上高が先頭なので商品群が見える
+    want_ab = [
+        "日本 既存 売上高(前年比)", "タイヤ", "サービス", "車検・整備", "車販売",
+        "日本 既存 客数(前年比)", "既存 客単価(前年比)", "日本 全店 売上高(前年比)",
+        "日本 全店 客数(前年比)", "土日祝日前年差異",
+    ]
+    if got.get("autobacsNames") != want_ab:
+        _fail(f"98320 config tree rows: {got.get('autobacsNames')!r}")
     want_lom = ["ストック型 売上高", "電気", "内燃料調整費", "宅配水", "インターネット", "その他"]
     if got.get("lomNames") != want_lom:
         _fail(f"92520 config tree rows: {got.get('lomNames')!r}")
