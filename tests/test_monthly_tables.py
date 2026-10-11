@@ -590,6 +590,81 @@ def test_monthly_tree_assign() -> None:
         _fail("74760 単体 must be a company row")
     if any(c["part"] for c in ao_kids["主要3分野"]["children"]):
         _fail("74760 3分野 must sum to 主要3分野")
+    # ピープル: 全体 ▸ 国内販売 ▸ 旧カテゴリ、海外販売。裸の前年比は各カテゴリの節（#480）
+    people_rows = [
+        "全店 売上高",
+        "全店 売上高(前年比)",
+        "国内販売 全店 売上高",
+        "国内販売 全店 売上高(前年比)",
+        "海外販売 全店 売上高",
+        "海外販売 全店 売上高(前年比)",
+        "乳児・知育玩具 全店 売上高",
+        "乳児・知育玩具(前年比)",
+        "乳児・知育・構成玩具 全店 売上高",
+        "乳児・知育・構成玩具 全店 売上高(前年比)",
+        "メイキングトイ 全店 売上高",
+        "メイキングトイ 全店 売上高(前年比)",
+        "メイキングトイ(前年比)",
+        "屋内遊具・乗り物 全店 売上高",
+        "屋内遊具・乗り物(前年比)",
+        "その他 全店 売上高",
+        "その他 全店 売上高(前年比)",
+        "その他(前年比)",
+        "海外販売・ロイヤリティ 全店 売上高",
+        "海外販売・ロイヤリティ 全店 売上高(前年比)",
+    ]
+    people = assign_tree_rows("78650", people_rows, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in people.items()}
+    want = {
+        "全店 売上高": (["全体"], "全店 売上高", "全店 売上高"),
+        "全店 売上高(前年比)": (["全体"], "全店 売上高(前年比)", "全店 売上高"),
+        "国内販売 全店 売上高": (["全体", "国内販売"], "全店 売上高", "全店 売上高"),
+        "国内販売 全店 売上高(前年比)": (["全体", "国内販売"], "全店 売上高(前年比)", "全店 売上高"),
+        "海外販売 全店 売上高": (["全体", "海外販売"], "全店 売上高", "全店 売上高"),
+        "海外販売 全店 売上高(前年比)": (["全体", "海外販売"], "全店 売上高(前年比)", "全店 売上高"),
+        "乳児・知育玩具 全店 売上高": (["全体", "国内販売", "乳児・知育玩具"], "全店 売上高", "全店 売上高"),
+        "乳児・知育玩具(前年比)": (
+            ["全体", "国内販売", "乳児・知育玩具"], "乳児・知育玩具(前年比)", "全店 売上高"),
+        "乳児・知育・構成玩具 全店 売上高": (
+            ["全体", "国内販売", "乳児・知育玩具"], "乳児・知育・構成玩具 全店 売上高", "全店 売上高"),
+        "乳児・知育・構成玩具 全店 売上高(前年比)": (
+            ["全体", "国内販売", "乳児・知育玩具"], "乳児・知育・構成玩具 全店 売上高(前年比)", "全店 売上高"),
+        "メイキングトイ 全店 売上高": (["全体", "国内販売", "メイキングトイ"], "全店 売上高", "全店 売上高"),
+        "メイキングトイ 全店 売上高(前年比)": (
+            ["全体", "国内販売", "メイキングトイ"], "全店 売上高(前年比)", "全店 売上高"),
+        "メイキングトイ(前年比)": (
+            ["全体", "国内販売", "メイキングトイ"], "メイキングトイ(前年比)", "全店 売上高"),
+        "屋内遊具・乗り物 全店 売上高": (
+            ["全体", "国内販売", "屋内遊具・乗り物"], "全店 売上高", "全店 売上高"),
+        "屋内遊具・乗り物(前年比)": (
+            ["全体", "国内販売", "屋内遊具・乗り物"], "屋内遊具・乗り物(前年比)", "全店 売上高"),
+        "その他 全店 売上高": (["全体", "国内販売", "その他"], "全店 売上高", "全店 売上高"),
+        "その他 全店 売上高(前年比)": (["全体", "国内販売", "その他"], "全店 売上高(前年比)", "全店 売上高"),
+        "その他(前年比)": (["全体", "国内販売", "その他"], "その他(前年比)", "全店 売上高"),
+        "海外販売・ロイヤリティ 全店 売上高": (
+            ["全体", "海外販売"], "海外販売・ロイヤリティ 全店 売上高", "全店 売上高"),
+        "海外販売・ロイヤリティ 全店 売上高(前年比)": (
+            ["全体", "海外販売"], "海外販売・ロイヤリティ 全店 売上高(前年比)", "全店 売上高"),
+    }
+    if got != want:
+        _fail(f"78650 tree rows: {got!r}")
+    people_tree = tree_payload("78650", people_rows, load_monthly_trees())
+    if people_tree is None or people_tree.get("tree_auto"):
+        _fail("78650 must use the config tree")
+    if people_tree["tree_metrics"] != ["全店 売上高"]:
+        _fail(f"78650 metrics: {people_tree!r}")
+    people_root = people_tree["tree"][0]
+    if people_root["elements"] != ["全店 売上高", "全店 売上高(前年比)"]:
+        _fail(f"78650 company rows: {people_root!r}")
+    if [n["name"] for n in people_root["children"]] != ["国内販売", "海外販売"]:
+        _fail(f"78650 section order: {people_root['children']!r}")
+    people_dom = people_root["children"][0]
+    if [n["name"] for n in people_dom["children"]] != [
+        "乳児・知育玩具", "メイキングトイ", "屋内遊具・乗り物", "その他",
+    ]:
+        _fail(f"78650 国内販売 children: {people_dom!r}")
+    if people_dom["part"] or any(c["part"] for c in people_dom["children"]):
+        _fail("78650 old categories sum to 国内販売")
     # 共立メンテナンス: 寮事業 ▸ 学生寮 / 社員寮 / ドミール / 受託寮、ホテル事業 ▸ ドーミーイン / リゾート
     km = assign_tree_rows("96160", [
         "売上高",
@@ -3308,6 +3383,33 @@ def _assert_monthly_layout_js() -> None:
         "elements": [{**_el(e, "number"), "tree": lom_assign[e]} for e in lom_canon],
         **tree_payload("92520", lom_canon, sanyo_trees),
     }]
+    # ピープル: 裸の前年比は国内カテゴリの節。旧名は同じ節（#480）
+    people_rows = [
+        ("全店 売上高", "number"),
+        ("全店 売上高(前年比)", "yoy_index"),
+        ("国内販売 全店 売上高", "number"),
+        ("国内販売 全店 売上高(前年比)", "yoy_index"),
+        ("海外販売 全店 売上高", "number"),
+        ("海外販売 全店 売上高(前年比)", "yoy_index"),
+        ("乳児・知育玩具 全店 売上高", "number"),
+        ("乳児・知育玩具(前年比)", "yoy_index"),
+        ("乳児・知育・構成玩具 全店 売上高", "number"),
+        ("乳児・知育・構成玩具 全店 売上高(前年比)", "yoy_index"),
+        ("メイキングトイ 全店 売上高", "number"),
+        ("メイキングトイ(前年比)", "yoy_index"),
+        ("屋内遊具・乗り物 全店 売上高", "number"),
+        ("屋内遊具・乗り物(前年比)", "yoy_index"),
+        ("その他 全店 売上高", "number"),
+        ("その他(前年比)", "yoy_index"),
+        ("海外販売・ロイヤリティ 全店 売上高", "number"),
+        ("海外販売・ロイヤリティ 全店 売上高(前年比)", "yoy_index"),
+    ]
+    people_assign = assign_tree_rows("78650", [e for e, _ in people_rows], sanyo_trees)
+    fixtures["peopleTree"] = [{
+        "year": 2026, "code": "78650",
+        "elements": [{**_el(e, u), "tree": people_assign[e]} for e, u in people_rows],
+        **tree_payload("78650", [e for e, _ in people_rows], sanyo_trees),
+    }]
     harness = r"""
 const fs = require("fs");
 const vm = require("vm");
@@ -3399,6 +3501,11 @@ sandbox.monthlyTreeSeedOpen(ltm);
 vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a電気");', sandbox);
 const lomHtml = sandbox.monthlyTreeHtml(ltm, () => "<td></td>", [{y: 2026, m: 1}]);
 const lomNames = namesOf(lomHtml);
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const ptm = sandbox.monthlyTreeModel(fixtures.peopleTree);
+sandbox.monthlyTreeSeedOpen(ptm);
+vm.runInContext('monthlyTlOpen.add("m:全店 売上高\\u203atree:全体\\u203a国内販売");', sandbox);
+const peopleNames = namesOf(sandbox.monthlyTreeHtml(ptm, () => "<td></td>", [{y: 2026, m: 1}]));
 const pairRec = {element: "売上高", unit: "number", yoy: "売上高(前年比)"};
 const pairCell = sandbox.monthlyTlCell({
   "売上高": {unit: "number", values: {"8": 99}},
@@ -3437,6 +3544,7 @@ console.log(JSON.stringify({
   autobacsNames,
   lomNames,
   lomPart: lomHtml.includes("tl-part"),
+  peopleNames,
   pairTxt: pairCell.txt,
   pairYoyOnlyTxt: pairYoyOnly.txt,
   unpairedTxt: unpairedCell.txt,
@@ -3534,6 +3642,14 @@ console.log(JSON.stringify({
     want_lom = ["ストック型 売上高", "電気", "内燃料調整費", "宅配水", "インターネット", "その他"]
     if got.get("lomNames") != want_lom:
         _fail(f"92520 config tree rows: {got.get('lomNames')!r}")
+    want_people = [
+        "全店 売上高", "国内販売", "乳児・知育玩具", "乳児・知育玩具(前年比)",
+        "乳児・知育・構成玩具 全店 売上高", "メイキングトイ", "メイキングトイ(前年比)",
+        "屋内遊具・乗り物", "屋内遊具・乗り物(前年比)", "その他", "その他(前年比)",
+        "海外販売", "海外販売・ロイヤリティ 全店 売上高",
+    ]
+    if got.get("peopleNames") != want_people:
+        _fail(f"78650 config tree rows: {got.get('peopleNames')!r}")
     if not got.get("lomPart"):
         _fail("92520 内燃料調整費 must render as tl-part")
     # 直営と FC の両方に業態行があるときは両方の下に出す。FC の無い業態は直営だけ。店舗数だけの節は合計の下
