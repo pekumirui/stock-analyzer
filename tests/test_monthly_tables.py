@@ -1054,6 +1054,65 @@ def test_monthly_tree_assign() -> None:
     ab_svc = ab_kids[5]
     if ab_svc["part"] or [n["name"] for n in ab_svc["children"]] != ["車検・整備"] or ab_svc["children"][0]["part"]:
         _fail(f"98320 車検・整備 must be a child of サービス: {ab_svc!r}")
+    # ラストワンマイル: ストック型合計が根。旧「X ストック型」は同じ節。内燃料調整費は電気の内数（#472）
+    lom_rows = [
+        "ストック型 売上高",
+        "売上高",
+        "電気 売上高",
+        "宅配水 売上高",
+        "インターネット 売上高",
+        "その他 売上高",
+        "電気 ストック型 売上高",
+        "宅配水 ストック型 売上高",
+        "インターネット ストック型 売上高",
+        "その他 ストック型 売上高",
+        "電気 燃料調整費",
+    ]
+    lom = assign_tree_rows("92520", lom_rows, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in lom.items()}
+    want = {
+        "ストック型 売上高": (["全体"], "ストック型 売上高", "売上高"),
+        "売上高": (["全体"], "売上高", "売上高"),
+        "電気 売上高": (["全体", "電気"], "売上高", "売上高"),
+        "宅配水 売上高": (["全体", "宅配水"], "売上高", "売上高"),
+        "インターネット 売上高": (["全体", "インターネット"], "売上高", "売上高"),
+        "その他 売上高": (["全体", "その他"], "売上高", "売上高"),
+        "電気 ストック型 売上高": (["全体", "電気"], "ストック型 売上高", "売上高"),
+        "宅配水 ストック型 売上高": (["全体", "宅配水"], "ストック型 売上高", "売上高"),
+        "インターネット ストック型 売上高": (["全体", "インターネット"], "ストック型 売上高", "売上高"),
+        "その他 ストック型 売上高": (["全体", "その他"], "ストック型 売上高", "売上高"),
+        "電気 燃料調整費": (["全体", "電気", "内燃料調整費"], "電気 燃料調整費", "売上高"),
+    }
+    if got != want:
+        _fail(f"92520 tree rows: {got!r}")
+    if apply_issuer_aliases("92520", "電気 ストック型 売上高", year=2026) != "電気 売上高":
+        _fail("92520 電気 ストック型 must alias to 電気 売上高")
+    if apply_issuer_aliases("92520", "宅配水 ストック型 売上高", year=2025) != "宅配水 売上高":
+        _fail("92520 宅配水 ストック型 must alias to 宅配水 売上高")
+    if apply_issuer_aliases("92520", "インターネット ストック型 売上高", year=2024) != "インターネット 売上高":
+        _fail("92520 インターネット ストック型 must alias to インターネット 売上高")
+    if apply_issuer_aliases("92520", "その他 ストック型 売上高", year=2024) != "その他 売上高":
+        _fail("92520 その他 ストック型 must alias to その他 売上高")
+    if apply_issuer_aliases("92520", "売上高", year=2026) != "ストック型 売上高":
+        _fail("92520 bare 売上高 must alias to ストック型 売上高")
+    if apply_issuer_aliases("92520", "ストック型 売上高", year=2026) != "ストック型 売上高":
+        _fail("92520 ストック型 売上高 is already the stored total")
+    if apply_issuer_aliases("92520", "電気 燃料調整費", year=2026) != "電気 燃料調整費":
+        _fail("92520 燃料調整費 must keep its stored name")
+    lom_tree = tree_payload("92520", lom_rows, load_monthly_trees())
+    if lom_tree is None or lom_tree.get("tree_metrics") != ["売上高"] or lom_tree.get("tree_auto"):
+        _fail(f"92520 tree payload: {lom_tree!r}")
+    lom_root = lom_tree["tree"][0]
+    lom_kids = lom_root["children"]
+    if [n["name"] for n in lom_kids] != ["電気", "宅配水", "インターネット", "その他"]:
+        _fail(f"92520 section order: {lom_kids!r}")
+    if lom_root["elements"] != ["ストック型 売上高", "売上高"]:
+        _fail(f"92520 root rows: {lom_root['elements']!r}")
+    fuel = lom_kids[0]["children"]
+    if len(fuel) != 1 or fuel[0]["name"] != "内燃料調整費" or fuel[0]["part"] is not True:
+        _fail(f"92520 fuel must be a part of 電気: {fuel!r}")
+    if fuel[0]["elements"] != ["電気 燃料調整費"]:
+        _fail(f"92520 fuel row: {fuel[0]['elements']!r}")
 
 
 def test_monthly_auto_tree() -> None:
@@ -3152,6 +3211,20 @@ def _assert_monthly_layout_js() -> None:
         "elements": [{**_el(e, u), "tree": ab_assign[e]} for e, u in ab_rows],
         **tree_payload("98320", [e for e, _ in ab_rows], sanyo_trees),
     }]
+    lom_canon = [
+        "ストック型 売上高",
+        "電気 売上高",
+        "宅配水 売上高",
+        "インターネット 売上高",
+        "その他 売上高",
+        "電気 燃料調整費",
+    ]
+    lom_assign = assign_tree_rows("92520", lom_canon, sanyo_trees)
+    fixtures["lomTree"] = [{
+        "year": 2026, "code": "92520",
+        "elements": [{**_el(e, "number"), "tree": lom_assign[e]} for e in lom_canon],
+        **tree_payload("92520", lom_canon, sanyo_trees),
+    }]
     harness = r"""
 const fs = require("fs");
 const vm = require("vm");
@@ -3233,6 +3306,12 @@ const abtm = sandbox.monthlyTreeModel(fixtures.autobacsTree);
 sandbox.monthlyTreeSeedOpen(abtm);
 vm.runInContext('monthlyTlOpen.add("m:既存 売上高\\u203atree:全体\\u203aサービス");', sandbox);
 const autobacsNames = namesOf(sandbox.monthlyTreeHtml(abtm, () => "<td></td>", [{y: 2026, m: 1}]));
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const ltm = sandbox.monthlyTreeModel(fixtures.lomTree);
+sandbox.monthlyTreeSeedOpen(ltm);
+vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a電気");', sandbox);
+const lomHtml = sandbox.monthlyTreeHtml(ltm, () => "<td></td>", [{y: 2026, m: 1}]);
+const lomNames = namesOf(lomHtml);
 const pairRec = {element: "売上高", unit: "number", yoy: "売上高(前年比)"};
 const pairCell = sandbox.monthlyTlCell({
   "売上高": {unit: "number", values: {"8": 99}},
@@ -3268,6 +3347,8 @@ console.log(JSON.stringify({
   sanyoNames,
   watamiNames,
   autobacsNames,
+  lomNames,
+  lomPart: lomHtml.includes("tl-part"),
   pairTxt: pairCell.txt,
   pairYoyOnlyTxt: pairYoyOnly.txt,
   unpairedTxt: unpairedCell.txt,
@@ -3353,6 +3434,11 @@ console.log(JSON.stringify({
     ]
     if got.get("autobacsNames") != want_ab:
         _fail(f"98320 config tree rows: {got.get('autobacsNames')!r}")
+    want_lom = ["ストック型 売上高", "電気", "内燃料調整費", "宅配水", "インターネット", "その他"]
+    if got.get("lomNames") != want_lom:
+        _fail(f"92520 config tree rows: {got.get('lomNames')!r}")
+    if not got.get("lomPart"):
+        _fail("92520 内燃料調整費 must render as tl-part")
     # 直営と FC の両方に業態行があるときは両方の下に出す。FC の無い業態は直営だけ。店舗数だけの節は合計の下
     want_hardoff = [
         "店舗数", "直営", "海外", "ハードオフ", "オフハウス", "ブックオフ",
