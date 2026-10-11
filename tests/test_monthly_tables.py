@@ -730,6 +730,61 @@ def test_monthly_tree_assign() -> None:
     }
     if got != want:
         _fail(f"138A0 tree rows: {got!r}")
+    # フィットイージー: 地域別は全店 店舗数の内訳。会員数 既存は会員数の内数。増減は別指標
+    fit_rows = [
+        "会員数",
+        "会員数(前年比)",
+        "会員数 既存",
+        "会員数 既存(前年比)",
+        "全店 店舗数",
+        "増減 全店 店舗数",
+        "北海道 店舗数",
+        "東北 店舗数",
+        "関東 店舗数",
+        "甲信越 店舗数",
+        "北陸 店舗数",
+        "東海 店舗数",
+        "関西 店舗数",
+        "中国 店舗数",
+        "四国 店舗数",
+        "九州沖縄 店舗数",
+    ]
+    fit = assign_tree_rows("212A0", fit_rows, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in fit.items()}
+    want = {
+        "会員数": (["全体"], "会員数", "会員数"),
+        "会員数(前年比)": (["全体"], "会員数(前年比)", "会員数"),
+        "会員数 既存": (["全体", "既存"], "既存", "会員数"),
+        "会員数 既存(前年比)": (["全体", "既存"], "既存(前年比)", "会員数"),
+        "全店 店舗数": (["全体"], "全店 店舗数", "全店 店舗数"),
+        "増減 全店 店舗数": (["全体"], "増減 全店 店舗数", "増減 全店 店舗数"),
+        "北海道 店舗数": (["全体", "北海道"], "店舗数", "全店 店舗数"),
+        "東北 店舗数": (["全体", "東北"], "店舗数", "全店 店舗数"),
+        "関東 店舗数": (["全体", "関東"], "店舗数", "全店 店舗数"),
+        "甲信越 店舗数": (["全体", "甲信越"], "店舗数", "全店 店舗数"),
+        "北陸 店舗数": (["全体", "北陸"], "店舗数", "全店 店舗数"),
+        "東海 店舗数": (["全体", "東海"], "店舗数", "全店 店舗数"),
+        "関西 店舗数": (["全体", "関西"], "店舗数", "全店 店舗数"),
+        "中国 店舗数": (["全体", "中国"], "店舗数", "全店 店舗数"),
+        "四国 店舗数": (["全体", "四国"], "店舗数", "全店 店舗数"),
+        "九州沖縄 店舗数": (["全体", "九州沖縄"], "店舗数", "全店 店舗数"),
+    }
+    if got != want:
+        _fail(f"212A0 tree rows: {got!r}")
+    fit_tree = tree_payload("212A0", fit_rows, load_monthly_trees())
+    if fit_tree is None or fit_tree.get("tree_auto") or fit_tree["tree_metrics"] != [
+        "会員数", "全店 店舗数", "増減 全店 店舗数",
+    ]:
+        _fail(f"212A0 metrics: {fit_tree!r}")
+    fit_kids = {c["name"]: c for c in fit_tree["tree"][0]["children"]}
+    if [c["name"] for c in fit_tree["tree"][0]["children"]] != [
+        "北海道", "東北", "関東", "甲信越", "北陸", "東海", "関西", "中国", "四国", "九州沖縄", "既存",
+    ]:
+        _fail(f"212A0 section order: {fit_tree['tree'][0]['children']!r}")
+    if not fit_kids["既存"]["part"] or any(fit_kids[n]["part"] for n in ("北海道", "東海", "九州沖縄")):
+        _fail(f"212A0 part: {fit_kids!r}")
+    if "増減" in fit_kids:
+        _fail("212A0 増減 must stay a company metric, not a group")
     # 太洋物産: 食料部 ▸ 品目、農産部 ▸ 農産品、中国開拓部 ▸ 中国関連 / 化学品、生活産業部 ▸ 豚肉
     taiyo = assign_tree_rows("99410", [
         "全店 売上高",
@@ -3496,6 +3551,18 @@ def _assert_monthly_layout_js() -> None:
         "elements": [{**_el(e, "number"), "tree": lom_assign[e]} for e in lom_canon],
         **tree_payload("92520", lom_canon, sanyo_trees),
     }]
+    fit_rows = [
+        ("会員数", "number"), ("会員数(前年比)", "yoy_index"),
+        ("会員数 既存", "number"), ("会員数 既存(前年比)", "yoy_index"),
+        ("全店 店舗数", "number"), ("増減 全店 店舗数", "number"),
+        ("北海道 店舗数", "number"), ("九州沖縄 店舗数", "number"),
+    ]
+    fit_assign = assign_tree_rows("212A0", [e for e, _ in fit_rows], sanyo_trees)
+    fixtures["fitTree"] = [{
+        "year": 2026, "code": "212A0",
+        "elements": [{**_el(e, u), "tree": fit_assign[e]} for e, u in fit_rows],
+        **tree_payload("212A0", [e for e, _ in fit_rows], sanyo_trees),
+    }]
     harness = r"""
 const fs = require("fs");
 const vm = require("vm");
@@ -3588,6 +3655,13 @@ vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a電気")
 const lomHtml = sandbox.monthlyTreeHtml(ltm, () => "<td></td>", [{y: 2026, m: 1}]);
 const lomNames = namesOf(lomHtml);
 vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const ftm = sandbox.monthlyTreeModel(fixtures.fitTree);
+sandbox.monthlyTreeSeedOpen(ftm);
+const fitClosed = namesOf(sandbox.monthlyTreeHtml(ftm, () => "<td></td>", [{y: 2026, m: 1}]));
+vm.runInContext('monthlyTlOpen.add("m:全店 店舗数");', sandbox);
+const fitHtml = sandbox.monthlyTreeHtml(ftm, () => "<td></td>", [{y: 2026, m: 1}]);
+const fitNames = namesOf(fitHtml);
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
 const atm = sandbox.monthlyTreeModel(fixtures.aeonTree);
 sandbox.monthlyTreeSeedOpen(atm);
 vm.runInContext(
@@ -3635,6 +3709,9 @@ console.log(JSON.stringify({
   autobacsNames,
   lomNames,
   lomPart: lomHtml.includes("tl-part"),
+  fitClosed,
+  fitNames,
+  fitPart: fitHtml.includes('class="tl-part"'),
   aeonNames,
   pairTxt: pairCell.txt,
   pairYoyOnlyTxt: pairYoyOnly.txt,
@@ -3735,6 +3812,14 @@ console.log(JSON.stringify({
         _fail(f"92520 config tree rows: {got.get('lomNames')!r}")
     if not got.get("lomPart"):
         _fail("92520 内燃料調整費 must render as tl-part")
+    if got.get("fitClosed") != ["会員数", "既存", "全店 店舗数", "増減 全店 店舗数"]:
+        _fail(f"212A0 closed tree rows: {got.get('fitClosed')!r}")
+    if got.get("fitNames") != [
+        "会員数", "既存", "全店 店舗数", "北海道", "九州沖縄", "増減 全店 店舗数",
+    ]:
+        _fail(f"212A0 config tree rows: {got.get('fitNames')!r}")
+    if not got.get("fitPart"):
+        _fail("212A0 既存 must render as tl-part")
     want_aeon = [
         "既存 売上高", "GMS事業", "イオンリテール", "イオン北海道", "イオン九州",
         "スーパーマーケット事業", "マックスバリュ東海", "フジ", "いなげや",
