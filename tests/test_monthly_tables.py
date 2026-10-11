@@ -3063,6 +3063,21 @@ def _assert_monthly_layout_js() -> None:
         "elements": [{**_el(e), "tree": sanyo_assign[e]} for e in sanyo_rows],
         **tree_payload("80110", sanyo_rows, sanyo_trees),
     }]
+    # ワタミ: 既存店は 国内外食 の行が無く サブウェイ除く / サブウェイ だけ
+    watami_rows = [
+        ("国内外食 全店 売上高(前年比)", "yoy_index"),
+        ("国内外食 全店 店舗数", "number"),
+        ("国内外食 サブウェイ除く 全店 店舗数", "number"),
+        ("国内外食 サブウェイ除く 既存 売上高(前年比)", "yoy_index"),
+        ("国内外食 サブウェイ 全店 店舗数", "number"),
+        ("国内外食 サブウェイ 既存 売上高(前年比)", "yoy_index"),
+    ]
+    watami_assign = assign_tree_rows("75220", [e for e, _ in watami_rows], sanyo_trees)
+    fixtures["watamiTree"] = [{
+        "year": 2026, "code": "75220",
+        "elements": [{**_el(e, u), "tree": watami_assign[e]} for e, u in watami_rows],
+        **tree_payload("75220", [e for e, _ in watami_rows], sanyo_trees),
+    }]
     harness = r"""
 const fs = require("fs");
 const vm = require("vm");
@@ -3135,6 +3150,10 @@ const stm = sandbox.monthlyTreeModel(fixtures.sanyoTree);
 sandbox.monthlyTreeSeedOpen(stm);
 vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203aブランド別"); monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a販路別");', sandbox);
 const sanyoNames = namesOf(sandbox.monthlyTreeHtml(stm, () => "<td></td>", [{y: 2026, m: 1}]));
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const wtm = sandbox.monthlyTreeModel(fixtures.watamiTree);
+sandbox.monthlyTreeSeedOpen(wtm);
+const watamiNames = namesOf(sandbox.monthlyTreeHtml(wtm, () => "<td></td>", [{y: 2026, m: 1}]));
 const pairRec = {element: "売上高", unit: "number", yoy: "売上高(前年比)"};
 const pairCell = sandbox.monthlyTlCell({
   "売上高": {unit: "number", values: {"8": 99}},
@@ -3168,6 +3187,7 @@ console.log(JSON.stringify({
   hardoffReveal,
   kobeNames,
   sanyoNames,
+  watamiNames,
   pairTxt: pairCell.txt,
   pairYoyOnlyTxt: pairYoyOnly.txt,
   unpairedTxt: unpairedCell.txt,
@@ -3227,8 +3247,9 @@ console.log(JSON.stringify({
     want_brand = ["既存 売上高", "トライアル", "西友", "全店 売上高", "トライアル", "西友"]
     if got.get("brandNames") != want_brand:
         _fail(f"トライアル: 会社の行が無い指標は開く: {got.get('brandNames')!r}")
+    # 仕入れ 全店 の FC には行が無いので節を出さず 直轄 を同じ深さに
     want_kobe = ["売上高", "店舗数", "FC", "直轄", "直轄 仕入れ 既存 売上高(前年比)",
-                 "全国 仕入れ 全店 売上高(前年比)", "FC", "直轄"]
+                 "全国 仕入れ 全店 売上高(前年比)", "直轄"]
     if got.get("kobeNames") != want_kobe:
         _fail(f"30380 config tree rows: {got.get('kobeNames')!r}")
     want_sanyo = [
@@ -3239,6 +3260,11 @@ console.log(JSON.stringify({
     ]
     if got.get("sanyoNames") != want_sanyo:
         _fail(f"80110 config tree rows: {got.get('sanyoNames')!r}")
+    # 既存 売上高 は 国内外食 の行が無いので、数字の無い 国内外食 は出さず子を指標の直下に
+    want_watami = ["既存 売上高", "サブウェイ除く", "サブウェイ",
+                   "国内外食 全店 売上高(前年比)", "全店 店舗数", "国内外食"]
+    if got.get("watamiNames") != want_watami:
+        _fail(f"75220 config tree rows: {got.get('watamiNames')!r}")
     # 直営と FC の両方に業態行があるときは両方の下に出す。FC の無い業態は直営だけ。店舗数だけの節は合計の下
     want_hardoff = [
         "店舗数", "直営", "海外", "ハードオフ", "オフハウス", "ブックオフ",
