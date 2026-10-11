@@ -730,6 +730,61 @@ def test_monthly_tree_assign() -> None:
     }
     if got != want:
         _fail(f"138A0 tree rows: {got!r}")
+    # フィットイージー: 地域別は全店 店舗数の内訳。会員数 既存は会員数の内数。増減は別指標
+    fit_rows = [
+        "会員数",
+        "会員数(前年比)",
+        "会員数 既存",
+        "会員数 既存(前年比)",
+        "全店 店舗数",
+        "増減 全店 店舗数",
+        "北海道 店舗数",
+        "東北 店舗数",
+        "関東 店舗数",
+        "甲信越 店舗数",
+        "北陸 店舗数",
+        "東海 店舗数",
+        "関西 店舗数",
+        "中国 店舗数",
+        "四国 店舗数",
+        "九州沖縄 店舗数",
+    ]
+    fit = assign_tree_rows("212A0", fit_rows, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in fit.items()}
+    want = {
+        "会員数": (["全体"], "会員数", "会員数"),
+        "会員数(前年比)": (["全体"], "会員数(前年比)", "会員数"),
+        "会員数 既存": (["全体", "既存"], "既存", "会員数"),
+        "会員数 既存(前年比)": (["全体", "既存"], "既存(前年比)", "会員数"),
+        "全店 店舗数": (["全体"], "全店 店舗数", "全店 店舗数"),
+        "増減 全店 店舗数": (["全体"], "増減 全店 店舗数", "増減 全店 店舗数"),
+        "北海道 店舗数": (["全体", "北海道"], "店舗数", "全店 店舗数"),
+        "東北 店舗数": (["全体", "東北"], "店舗数", "全店 店舗数"),
+        "関東 店舗数": (["全体", "関東"], "店舗数", "全店 店舗数"),
+        "甲信越 店舗数": (["全体", "甲信越"], "店舗数", "全店 店舗数"),
+        "北陸 店舗数": (["全体", "北陸"], "店舗数", "全店 店舗数"),
+        "東海 店舗数": (["全体", "東海"], "店舗数", "全店 店舗数"),
+        "関西 店舗数": (["全体", "関西"], "店舗数", "全店 店舗数"),
+        "中国 店舗数": (["全体", "中国"], "店舗数", "全店 店舗数"),
+        "四国 店舗数": (["全体", "四国"], "店舗数", "全店 店舗数"),
+        "九州沖縄 店舗数": (["全体", "九州沖縄"], "店舗数", "全店 店舗数"),
+    }
+    if got != want:
+        _fail(f"212A0 tree rows: {got!r}")
+    fit_tree = tree_payload("212A0", fit_rows, load_monthly_trees())
+    if fit_tree is None or fit_tree.get("tree_auto") or fit_tree["tree_metrics"] != [
+        "会員数", "全店 店舗数", "増減 全店 店舗数",
+    ]:
+        _fail(f"212A0 metrics: {fit_tree!r}")
+    fit_kids = {c["name"]: c for c in fit_tree["tree"][0]["children"]}
+    if [c["name"] for c in fit_tree["tree"][0]["children"]] != [
+        "北海道", "東北", "関東", "甲信越", "北陸", "東海", "関西", "中国", "四国", "九州沖縄", "既存",
+    ]:
+        _fail(f"212A0 section order: {fit_tree['tree'][0]['children']!r}")
+    if not fit_kids["既存"]["part"] or any(fit_kids[n]["part"] for n in ("北海道", "東海", "九州沖縄")):
+        _fail(f"212A0 part: {fit_kids!r}")
+    if "増減" in fit_kids:
+        _fail("212A0 増減 must stay a company metric, not a group")
     # 太洋物産: 食料部 ▸ 品目、農産部 ▸ 農産品、中国開拓部 ▸ 中国関連 / 化学品、生活産業部 ▸ 豚肉
     taiyo = assign_tree_rows("99410", [
         "全店 売上高",
@@ -1058,6 +1113,146 @@ def test_monthly_tree_assign() -> None:
         _fail(f"99560 グループ総 must be the root: {root!r}")
     if [n["name"] for n in root["children"]] != ["スーパーマーケット", "ドラッグストア", "ホームセンター"]:
         _fail(f"99560 section order: {root['children']!r}")
+    # イオン: 注記の会社を事業の下へ。キャンドゥ・ミニストップは所属未確認で木の外（#471）
+    aeon_rows = [
+        "イオンリテール 全店 売上高(前年比)",
+        "イオンリテール 既存 売上高(前年比)",
+        "イオン北海道 全店 売上高(前年比)",
+        "イオン北海道 既存 売上高(前年比)",
+        "イオン九州 全店 売上高(前年比)",
+        "イオン九州 既存 売上高(前年比)",
+        "マックスバリュ東海 全店 売上高(前年比)",
+        "マックスバリュ東海 既存 売上高(前年比)",
+        "フジ 全店 売上高(前年比)",
+        "フジ 既存 売上高(前年比)",
+        "いなげや 全店 売上高(前年比)",
+        "いなげや 既存 売上高(前年比)",
+        "イオンモール 全店 売上高(前年比)",
+        "イオンモール 既存 売上高(前年比)",
+        "コックス 全店 売上高(前年比)",
+        "コックス 既存 売上高(前年比)",
+        "ジーフット 全店 売上高(前年比)",
+        "ジーフット 既存 売上高(前年比)",
+        "GMS事業 既存 売上高(前年比)",
+        "GMS事業 既存 客数(前年比)",
+        "スーパーマーケット事業 既存 売上高(前年比)",
+        "スーパーマーケット事業 既存 客数(前年比)",
+        "ディスカウントストア事業 既存 売上高(前年比)",
+        "ディスカウントストア事業 既存 客数(前年比)",
+        "ヘルス＆ウエルネス事業 既存 売上高(前年比)",
+        "ヘルス＆ウエルネス事業 既存 客数(前年比)",
+        "ディベロッパー事業 既存 売上高(前年比)",
+        "ディベロッパー事業 既存 客数(前年比)",
+        "エンターテイメント事業 既存 売上高(前年比)",
+        "エンターテイメント事業 既存 客数(前年比)",
+        "サービス・専門店事業 既存 売上高(前年比)",
+        "サービス・専門店事業 既存 客数(前年比)",
+        "サービス事業 既存 売上高(前年比)",
+        "サービス事業 既存 客数(前年比)",
+        "専門店事業 既存 売上高(前年比)",
+        "専門店事業 既存 客数(前年比)",
+        "キャンドゥ 全店 売上高(前年比)",
+        "キャンドゥ 既存 売上高(前年比)",
+        "ミニストップ 全店 売上高(前年比)",
+        "ミニストップ 既存 売上高(前年比)",
+    ]
+    aeon = assign_tree_rows("82670", aeon_rows, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in aeon.items()}
+    want = {
+        "イオンリテール 全店 売上高(前年比)": (
+            ["全体", "GMS事業", "イオンリテール"], "全店 売上高(前年比)", "全店 売上高"),
+        "イオンリテール 既存 売上高(前年比)": (
+            ["全体", "GMS事業", "イオンリテール"], "既存 売上高(前年比)", "既存 売上高"),
+        "イオン北海道 全店 売上高(前年比)": (
+            ["全体", "GMS事業", "イオン北海道"], "全店 売上高(前年比)", "全店 売上高"),
+        "イオン北海道 既存 売上高(前年比)": (
+            ["全体", "GMS事業", "イオン北海道"], "既存 売上高(前年比)", "既存 売上高"),
+        "イオン九州 全店 売上高(前年比)": (
+            ["全体", "GMS事業", "イオン九州"], "全店 売上高(前年比)", "全店 売上高"),
+        "イオン九州 既存 売上高(前年比)": (
+            ["全体", "GMS事業", "イオン九州"], "既存 売上高(前年比)", "既存 売上高"),
+        "マックスバリュ東海 全店 売上高(前年比)": (
+            ["全体", "スーパーマーケット事業", "マックスバリュ東海"], "全店 売上高(前年比)", "全店 売上高"),
+        "マックスバリュ東海 既存 売上高(前年比)": (
+            ["全体", "スーパーマーケット事業", "マックスバリュ東海"], "既存 売上高(前年比)", "既存 売上高"),
+        "フジ 全店 売上高(前年比)": (
+            ["全体", "スーパーマーケット事業", "フジ"], "全店 売上高(前年比)", "全店 売上高"),
+        "フジ 既存 売上高(前年比)": (
+            ["全体", "スーパーマーケット事業", "フジ"], "既存 売上高(前年比)", "既存 売上高"),
+        "いなげや 全店 売上高(前年比)": (
+            ["全体", "スーパーマーケット事業", "いなげや"], "全店 売上高(前年比)", "全店 売上高"),
+        "いなげや 既存 売上高(前年比)": (
+            ["全体", "スーパーマーケット事業", "いなげや"], "既存 売上高(前年比)", "既存 売上高"),
+        "イオンモール 全店 売上高(前年比)": (
+            ["全体", "ディベロッパー事業", "イオンモール"], "全店 売上高(前年比)", "全店 売上高"),
+        "イオンモール 既存 売上高(前年比)": (
+            ["全体", "ディベロッパー事業", "イオンモール"], "既存 売上高(前年比)", "既存 売上高"),
+        "コックス 全店 売上高(前年比)": (
+            ["全体", "サービス・専門店事業", "コックス"], "全店 売上高(前年比)", "全店 売上高"),
+        "コックス 既存 売上高(前年比)": (
+            ["全体", "サービス・専門店事業", "コックス"], "既存 売上高(前年比)", "既存 売上高"),
+        "ジーフット 全店 売上高(前年比)": (
+            ["全体", "サービス・専門店事業", "ジーフット"], "全店 売上高(前年比)", "全店 売上高"),
+        "ジーフット 既存 売上高(前年比)": (
+            ["全体", "サービス・専門店事業", "ジーフット"], "既存 売上高(前年比)", "既存 売上高"),
+        "GMS事業 既存 売上高(前年比)": (["全体", "GMS事業"], "既存 売上高(前年比)", "既存 売上高"),
+        "GMS事業 既存 客数(前年比)": (["全体", "GMS事業"], "既存 客数(前年比)", "既存 客数"),
+        "スーパーマーケット事業 既存 売上高(前年比)": (
+            ["全体", "スーパーマーケット事業"], "既存 売上高(前年比)", "既存 売上高"),
+        "スーパーマーケット事業 既存 客数(前年比)": (
+            ["全体", "スーパーマーケット事業"], "既存 客数(前年比)", "既存 客数"),
+        "ディスカウントストア事業 既存 売上高(前年比)": (
+            ["全体", "ディスカウントストア事業"], "既存 売上高(前年比)", "既存 売上高"),
+        "ディスカウントストア事業 既存 客数(前年比)": (
+            ["全体", "ディスカウントストア事業"], "既存 客数(前年比)", "既存 客数"),
+        "ヘルス＆ウエルネス事業 既存 売上高(前年比)": (
+            ["全体", "ヘルス＆ウエルネス事業"], "既存 売上高(前年比)", "既存 売上高"),
+        "ヘルス＆ウエルネス事業 既存 客数(前年比)": (
+            ["全体", "ヘルス＆ウエルネス事業"], "既存 客数(前年比)", "既存 客数"),
+        "ディベロッパー事業 既存 売上高(前年比)": (
+            ["全体", "ディベロッパー事業"], "既存 売上高(前年比)", "既存 売上高"),
+        "ディベロッパー事業 既存 客数(前年比)": (
+            ["全体", "ディベロッパー事業"], "既存 客数(前年比)", "既存 客数"),
+        "エンターテイメント事業 既存 売上高(前年比)": (
+            ["全体", "エンターテイメント事業"], "既存 売上高(前年比)", "既存 売上高"),
+        "エンターテイメント事業 既存 客数(前年比)": (
+            ["全体", "エンターテイメント事業"], "既存 客数(前年比)", "既存 客数"),
+        "サービス・専門店事業 既存 売上高(前年比)": (
+            ["全体", "サービス・専門店事業"], "既存 売上高(前年比)", "既存 売上高"),
+        "サービス・専門店事業 既存 客数(前年比)": (
+            ["全体", "サービス・専門店事業"], "既存 客数(前年比)", "既存 客数"),
+        "サービス事業 既存 売上高(前年比)": (["全体", "サービス事業"], "既存 売上高(前年比)", "既存 売上高"),
+        "サービス事業 既存 客数(前年比)": (["全体", "サービス事業"], "既存 客数(前年比)", "既存 客数"),
+        "専門店事業 既存 売上高(前年比)": (["全体", "専門店事業"], "既存 売上高(前年比)", "既存 売上高"),
+        "専門店事業 既存 客数(前年比)": (["全体", "専門店事業"], "既存 客数(前年比)", "既存 客数"),
+    }
+    if got != want:
+        _fail(f"82670 tree rows: {got!r}")
+    for outside in (
+        "キャンドゥ 全店 売上高(前年比)", "キャンドゥ 既存 売上高(前年比)",
+        "ミニストップ 全店 売上高(前年比)", "ミニストップ 既存 売上高(前年比)",
+    ):
+        if outside in aeon:
+            _fail(f"82670 {outside} must stay outside the tree")
+    aeon_tree = tree_payload("82670", aeon_rows, load_monthly_trees())
+    if aeon_tree is None or aeon_tree.get("tree_auto"):
+        _fail("82670 must use the config tree")
+    if aeon_tree["tree_metrics"] != ["既存 売上高", "既存 客数", "全店 売上高"]:
+        _fail(f"82670 metrics: {aeon_tree!r}")
+    aeon_kids = aeon_tree["tree"][0]["children"]
+    if [n["name"] for n in aeon_kids] != [
+        "GMS事業", "スーパーマーケット事業", "ディスカウントストア事業", "ヘルス＆ウエルネス事業",
+        "ディベロッパー事業", "エンターテイメント事業", "サービス・専門店事業", "サービス事業", "専門店事業",
+    ]:
+        _fail(f"82670 section order: {aeon_kids!r}")
+    if [n["name"] for n in aeon_kids[0]["children"]] != ["イオンリテール", "イオン北海道", "イオン九州"]:
+        _fail(f"82670 GMS children: {aeon_kids[0]['children']!r}")
+    if [n["name"] for n in aeon_kids[1]["children"]] != ["マックスバリュ東海", "フジ", "いなげや"]:
+        _fail(f"82670 supermarket children: {aeon_kids[1]['children']!r}")
+    if [n["name"] for n in aeon_kids[4]["children"]] != ["イオンモール"]:
+        _fail(f"82670 developer children: {aeon_kids[4]['children']!r}")
+    if [n["name"] for n in aeon_kids[6]["children"]] != ["コックス", "ジーフット"]:
+        _fail(f"82670 specialty children: {aeon_kids[6]['children']!r}")
     # オートバックスセブン: 商品群は既存売上高の内訳。車検・整備はサービスの子（#473）
     ab_rows = [
         "日本 全店 売上高(前年比)",
@@ -1222,6 +1417,93 @@ def test_monthly_tree_assign() -> None:
         _fail(f"39230 stock must be the only part: {rakus_cloud!r}")
     if rakus_cloud[0]["elements"] != ["クラウド事業 ストック 売上高", "クラウド事業 ストック 売上高(前年比)"]:
         _fail(f"39230 stock rows: {rakus_cloud[0]['elements']!r}")
+    # Trailhead: 子会社は連結の見出しの下。業態の店舗数は全店店舗数の内訳（#476）
+    th_rows = [
+        "全店 連結売上高",
+        "全店 連結売上高(前年比)",
+        "全店 売上高",
+        "全店 売上高(前年比)",
+        "全店 客数(前年比)",
+        "全店 客単価(前年比)",
+        "全店 店舗数",
+        "店舗数",
+        "ワイエスフード 全店 売上高",
+        "Yappa 全店 売上高",
+        "KINKA FAMILY JAPAN 全店 売上高",
+        "バーガーレボリューション 全店 売上高",
+        "食べる 全店 売上高",
+        "SBWorks 全店 売上高",
+        "ラーメン 全店 売上高",
+        "ラーメン 全店 売上高(前年比)",
+        "ラーメン 全店 客数(前年比)",
+        "ラーメン 全店 客単価(前年比)",
+        "ラーメン 店舗数",
+        "焼肉 全店 売上高",
+        "焼肉 店舗数",
+        "その他専門店 全店 売上高",
+        "その他専門店 店舗数",
+    ]
+    th = assign_tree_rows("33580", th_rows, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in th.items()}
+    want = {
+        "全店 連結売上高": (["全体"], "全店 連結売上高", "全店 連結売上高"),
+        "全店 連結売上高(前年比)": (["全体"], "全店 連結売上高(前年比)", "全店 連結売上高"),
+        "全店 売上高": (["全体"], "全店 売上高", "全店 売上高"),
+        "全店 売上高(前年比)": (["全体"], "全店 売上高(前年比)", "全店 売上高"),
+        "全店 客数(前年比)": (["全体"], "全店 客数(前年比)", "全店 客数"),
+        "全店 客単価(前年比)": (["全体"], "全店 客単価(前年比)", "全店 客単価"),
+        "全店 店舗数": (["全体"], "全店 店舗数", "全店 店舗数"),
+        "店舗数": (["全体"], "店舗数", "店舗数"),
+        "ワイエスフード 全店 売上高": (
+            ["全体", "主要子会社別売上高", "ワイエスフード"], "ワイエスフード 全店 売上高", "全店 連結売上高"),
+        "Yappa 全店 売上高": (
+            ["全体", "主要子会社別売上高", "Yappa"], "Yappa 全店 売上高", "全店 連結売上高"),
+        "KINKA FAMILY JAPAN 全店 売上高": (
+            ["全体", "主要子会社別売上高", "KINKA FAMILY JAPAN"],
+            "KINKA FAMILY JAPAN 全店 売上高", "全店 連結売上高"),
+        "バーガーレボリューション 全店 売上高": (
+            ["全体", "主要子会社別売上高", "バーガーレボリューション"],
+            "バーガーレボリューション 全店 売上高", "全店 連結売上高"),
+        "食べる 全店 売上高": (
+            ["全体", "主要子会社別売上高", "食べる"], "食べる 全店 売上高", "全店 連結売上高"),
+        "SBWorks 全店 売上高": (
+            ["全体", "主要子会社別売上高", "SBWorks"], "SBWorks 全店 売上高", "全店 連結売上高"),
+        "ラーメン 全店 売上高": (["全体", "ラーメン"], "ラーメン 全店 売上高", "全店 売上高"),
+        "ラーメン 全店 売上高(前年比)": (["全体", "ラーメン"], "ラーメン 全店 売上高(前年比)", "全店 売上高"),
+        "ラーメン 全店 客数(前年比)": (["全体", "ラーメン"], "ラーメン 全店 客数(前年比)", "全店 客数"),
+        "ラーメン 全店 客単価(前年比)": (["全体", "ラーメン"], "ラーメン 全店 客単価(前年比)", "全店 客単価"),
+        "ラーメン 店舗数": (["全体", "ラーメン"], "ラーメン 店舗数", "全店 店舗数"),
+        "焼肉 全店 売上高": (["全体", "焼肉"], "焼肉 全店 売上高", "全店 売上高"),
+        "焼肉 店舗数": (["全体", "焼肉"], "焼肉 店舗数", "全店 店舗数"),
+        "その他専門店 全店 売上高": (["全体", "その他専門店"], "その他専門店 全店 売上高", "全店 売上高"),
+        "その他専門店 店舗数": (["全体", "その他専門店"], "その他専門店 店舗数", "全店 店舗数"),
+    }
+    if got != want:
+        _fail(f"33580 tree rows: {got!r}")
+    th_tree = tree_payload("33580", th_rows, load_monthly_trees())
+    if th_tree is None or th_tree.get("tree_auto"):
+        _fail("33580 must use the config tree")
+    if th_tree["tree_metrics"] != [
+        "全店 連結売上高", "全店 売上高", "全店 客数", "全店 客単価", "全店 店舗数", "店舗数",
+    ]:
+        _fail(f"33580 metrics: {th_tree!r}")
+    th_root = th_tree["tree"][0]
+    if [n["name"] for n in th_root["children"]] != [
+        "主要子会社別売上高", "ラーメン", "焼肉", "その他専門店",
+    ]:
+        _fail(f"33580 section order: {th_root['children']!r}")
+    th_sub = th_root["children"][0]
+    if not th_sub["heading"] or th_sub["part"] or th_sub["elements"]:
+        _fail(f"33580 subsidiaries must be a heading: {th_sub!r}")
+    if [n["name"] for n in th_sub["children"]] != [
+        "ワイエスフード", "Yappa", "KINKA FAMILY JAPAN", "バーガーレボリューション", "食べる", "SBWorks",
+    ]:
+        _fail(f"33580 subsidiary order: {th_sub['children']!r}")
+    if th_root["children"][1]["elements"] != [
+        "ラーメン 全店 売上高", "ラーメン 全店 売上高(前年比)", "ラーメン 全店 客数(前年比)",
+        "ラーメン 全店 客単価(前年比)", "ラーメン 店舗数",
+    ]:
+        _fail(f"33580 ramen rows: {th_root['children'][1]!r}")
 
 
 def test_monthly_auto_tree() -> None:
@@ -3353,6 +3635,54 @@ def _assert_monthly_layout_js() -> None:
         "電気 燃料調整費",
     ]
     lom_assign = assign_tree_rows("92520", lom_canon, sanyo_trees)
+    aeon_rows = [
+        "GMS事業 既存 売上高(前年比)",
+        "GMS事業 既存 客数(前年比)",
+        "イオンリテール 既存 売上高(前年比)",
+        "イオンリテール 全店 売上高(前年比)",
+        "イオン北海道 既存 売上高(前年比)",
+        "イオン北海道 全店 売上高(前年比)",
+        "イオン九州 既存 売上高(前年比)",
+        "イオン九州 全店 売上高(前年比)",
+        "スーパーマーケット事業 既存 売上高(前年比)",
+        "スーパーマーケット事業 既存 客数(前年比)",
+        "マックスバリュ東海 既存 売上高(前年比)",
+        "マックスバリュ東海 全店 売上高(前年比)",
+        "フジ 既存 売上高(前年比)",
+        "フジ 全店 売上高(前年比)",
+        "いなげや 既存 売上高(前年比)",
+        "いなげや 全店 売上高(前年比)",
+        "ディスカウントストア事業 既存 売上高(前年比)",
+        "ディスカウントストア事業 既存 客数(前年比)",
+        "ヘルス＆ウエルネス事業 既存 売上高(前年比)",
+        "ヘルス＆ウエルネス事業 既存 客数(前年比)",
+        "ディベロッパー事業 既存 売上高(前年比)",
+        "ディベロッパー事業 既存 客数(前年比)",
+        "イオンモール 既存 売上高(前年比)",
+        "イオンモール 全店 売上高(前年比)",
+        "エンターテイメント事業 既存 売上高(前年比)",
+        "エンターテイメント事業 既存 客数(前年比)",
+        "サービス・専門店事業 既存 売上高(前年比)",
+        "サービス・専門店事業 既存 客数(前年比)",
+        "コックス 既存 売上高(前年比)",
+        "コックス 全店 売上高(前年比)",
+        "ジーフット 既存 売上高(前年比)",
+        "ジーフット 全店 売上高(前年比)",
+        "サービス事業 既存 売上高(前年比)",
+        "サービス事業 既存 客数(前年比)",
+        "専門店事業 既存 売上高(前年比)",
+        "専門店事業 既存 客数(前年比)",
+        "キャンドゥ 全店 売上高(前年比)",
+        "キャンドゥ 既存 売上高(前年比)",
+        "ミニストップ 全店 売上高(前年比)",
+        "ミニストップ 既存 売上高(前年比)",
+    ]
+    aeon_assign = assign_tree_rows("82670", aeon_rows, sanyo_trees)
+    fixtures["aeonTree"] = [{
+        "year": 2026, "code": "82670",
+        "elements": [{**_el(e), "tree": aeon_assign.get(e)} for e in aeon_rows],
+        **tree_payload("82670", aeon_rows, sanyo_trees),
+    }]
     fixtures["lomTree"] = [{
         "year": 2026, "code": "92520",
         "elements": [{**_el(e, "number"), "tree": lom_assign[e]} for e in lom_canon],
@@ -3377,6 +3707,50 @@ def _assert_monthly_layout_js() -> None:
         "year": 2026, "code": "39230",
         "elements": [{**_el(e, u), "tree": rakus_assign[e]} for e, u in rakus_rows],
         **tree_payload("39230", [e for e, _ in rakus_rows], sanyo_trees),
+    }]
+    # Trailhead: 子会社は連結の見出しの下。業態の店舗数は全店店舗数（#476）
+    th_rows = [
+        ("全店 連結売上高", "number"),
+        ("全店 連結売上高(前年比)", "yoy_index"),
+        ("全店 売上高", "number"),
+        ("全店 売上高(前年比)", "yoy_index"),
+        ("全店 客数(前年比)", "yoy_index"),
+        ("全店 客単価(前年比)", "yoy_index"),
+        ("全店 店舗数", "number"),
+        ("店舗数", "number"),
+        ("ワイエスフード 全店 売上高", "number"),
+        ("Yappa 全店 売上高", "number"),
+        ("KINKA FAMILY JAPAN 全店 売上高", "number"),
+        ("バーガーレボリューション 全店 売上高", "number"),
+        ("食べる 全店 売上高", "number"),
+        ("SBWorks 全店 売上高", "number"),
+        ("ラーメン 全店 売上高", "number"),
+        ("ラーメン 全店 売上高(前年比)", "yoy_index"),
+        ("ラーメン 全店 客数(前年比)", "yoy_index"),
+        ("ラーメン 全店 客単価(前年比)", "yoy_index"),
+        ("ラーメン 店舗数", "number"),
+        ("焼肉 全店 売上高", "number"),
+        ("焼肉 店舗数", "number"),
+        ("その他専門店 全店 売上高", "number"),
+        ("その他専門店 店舗数", "number"),
+    ]
+    th_assign = assign_tree_rows("33580", [e for e, _ in th_rows], sanyo_trees)
+    fixtures["trailheadTree"] = [{
+        "year": 2026, "code": "33580",
+        "elements": [{**_el(e, u), "tree": th_assign[e]} for e, u in th_rows],
+        **tree_payload("33580", [e for e, _ in th_rows], sanyo_trees),
+    }]
+    fit_rows = [
+        ("会員数", "number"), ("会員数(前年比)", "yoy_index"),
+        ("会員数 既存", "number"), ("会員数 既存(前年比)", "yoy_index"),
+        ("全店 店舗数", "number"), ("増減 全店 店舗数", "number"),
+        ("北海道 店舗数", "number"), ("九州沖縄 店舗数", "number"),
+    ]
+    fit_assign = assign_tree_rows("212A0", [e for e, _ in fit_rows], sanyo_trees)
+    fixtures["fitTree"] = [{
+        "year": 2026, "code": "212A0",
+        "elements": [{**_el(e, u), "tree": fit_assign[e]} for e, u in fit_rows],
+        **tree_payload("212A0", [e for e, _ in fit_rows], sanyo_trees),
     }]
     harness = r"""
 const fs = require("fs");
@@ -3475,6 +3849,32 @@ sandbox.monthlyTreeSeedOpen(rktm);
 vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203aクラウド事業");', sandbox);
 const rakusHtml = sandbox.monthlyTreeHtml(rktm, () => "<td></td>", [{y: 2026, m: 1}]);
 const rakusNames = namesOf(rakusHtml);
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const thtm = sandbox.monthlyTreeModel(fixtures.trailheadTree);
+sandbox.monthlyTreeSeedOpen(thtm);
+vm.runInContext([
+  'monthlyTlOpen.add("m:全店 連結売上高\\u203atree:全体\\u203a主要子会社別売上高");',
+  'monthlyTlOpen.add("m:全店 売上高");',
+  'monthlyTlOpen.add("m:全店 店舗数");',
+].join(""), sandbox);
+const trailheadNames = namesOf(sandbox.monthlyTreeHtml(thtm, () => "<td></td>", [{y: 2026, m: 1}]));
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const ftm = sandbox.monthlyTreeModel(fixtures.fitTree);
+sandbox.monthlyTreeSeedOpen(ftm);
+const fitClosed = namesOf(sandbox.monthlyTreeHtml(ftm, () => "<td></td>", [{y: 2026, m: 1}]));
+vm.runInContext('monthlyTlOpen.add("m:全店 店舗数");', sandbox);
+const fitHtml = sandbox.monthlyTreeHtml(ftm, () => "<td></td>", [{y: 2026, m: 1}]);
+const fitNames = namesOf(fitHtml);
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const atm = sandbox.monthlyTreeModel(fixtures.aeonTree);
+sandbox.monthlyTreeSeedOpen(atm);
+vm.runInContext(
+  'for (const name of ["GMS事業", "スーパーマーケット事業", "ディベロッパー事業", "サービス・専門店事業"]) {'
+  + ' monthlyTlOpen.add("m:既存 売上高\\u203atree:全体\\u203a" + name); }'
+  + ' monthlyTlOpen.add("__more__");',
+  sandbox,
+);
+const aeonNames = namesOf(sandbox.monthlyTreeHtml(atm, () => "<td></td>", [{y: 2026, m: 1}]));
 const pairRec = {element: "売上高", unit: "number", yoy: "売上高(前年比)"};
 const pairCell = sandbox.monthlyTlCell({
   "売上高": {unit: "number", values: {"8": 99}},
@@ -3515,6 +3915,11 @@ console.log(JSON.stringify({
   lomPart: lomHtml.includes("tl-part"),
   rakusNames,
   rakusPart: rakusHtml.includes('class="tl-part"'),
+  trailheadNames,
+  fitClosed,
+  fitNames,
+  fitPart: fitHtml.includes('class="tl-part"'),
+  aeonNames,
   pairTxt: pairCell.txt,
   pairYoyOnlyTxt: pairYoyOnly.txt,
   unpairedTxt: unpairedCell.txt,
@@ -3619,6 +4024,40 @@ console.log(JSON.stringify({
         _fail(f"39230 config tree rows: {got.get('rakusNames')!r}")
     if not got.get("rakusPart"):
         _fail("39230 ストック must render as tl-part")
+    want_th = [
+        "全店 連結売上高", "主要子会社別売上高",
+        "ワイエスフード", "Yappa", "KINKA FAMILY JAPAN", "バーガーレボリューション", "食べる", "SBWorks",
+        "全店 売上高", "ラーメン", "焼肉", "その他専門店",
+        "全店 客数(前年比)", "全店 客単価(前年比)",
+        "全店 店舗数", "ラーメン", "焼肉", "その他専門店",
+        "店舗数",
+    ]
+    if got.get("trailheadNames") != want_th:
+        _fail(f"33580 config tree rows: {got.get('trailheadNames')!r}")
+    if got.get("fitClosed") != ["会員数", "既存", "全店 店舗数", "増減 全店 店舗数"]:
+        _fail(f"212A0 closed tree rows: {got.get('fitClosed')!r}")
+    if got.get("fitNames") != [
+        "会員数", "既存", "全店 店舗数", "北海道", "九州沖縄", "増減 全店 店舗数",
+    ]:
+        _fail(f"212A0 config tree rows: {got.get('fitNames')!r}")
+    if not got.get("fitPart"):
+        _fail("212A0 既存 must render as tl-part")
+    want_aeon = [
+        "既存 売上高", "GMS事業", "イオンリテール", "イオン北海道", "イオン九州",
+        "スーパーマーケット事業", "マックスバリュ東海", "フジ", "いなげや",
+        "ディスカウントストア事業", "ヘルス＆ウエルネス事業",
+        "ディベロッパー事業", "イオンモール", "エンターテイメント事業",
+        "サービス・専門店事業", "コックス", "ジーフット", "サービス事業", "専門店事業",
+        "既存 客数", "GMS事業", "スーパーマーケット事業", "ディスカウントストア事業",
+        "ヘルス＆ウエルネス事業", "ディベロッパー事業", "エンターテイメント事業",
+        "サービス・専門店事業", "サービス事業", "専門店事業",
+        "全店 売上高", "GMS事業", "スーパーマーケット事業", "ディベロッパー事業", "サービス・専門店事業",
+        "その他の項目",
+        "キャンドゥ 全店 売上高(前年比)", "キャンドゥ 既存 売上高(前年比)",
+        "ミニストップ 全店 売上高(前年比)", "ミニストップ 既存 売上高(前年比)",
+    ]
+    if got.get("aeonNames") != want_aeon:
+        _fail(f"82670 config tree rows: {got.get('aeonNames')!r}")
     # 直営と FC の両方に業態行があるときは両方の下に出す。FC の無い業態は直営だけ。店舗数だけの節は合計の下
     want_hardoff = [
         "店舗数", "直営", "海外", "ハードオフ", "オフハウス", "ブックオフ",
