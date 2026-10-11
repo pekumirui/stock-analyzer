@@ -797,7 +797,7 @@ function monthlyTreeHtml(tm, cellsFor, cols){
       if(open) chanRows(n, e.kids, e.c, depth + 1, key, cls);
     }
   };
-  const walk = (n, k, depth) => {
+  const walk = (n, k, depth, alone) => {
     const mine = n.recs.filter(r => r.mkey === k);
     const main = mine[0] || null;
     const kids = n.children.filter(c => monthlyTreeHasDeep(tm, c, k));
@@ -807,13 +807,20 @@ function monthlyTreeHtml(tm, cellsFor, cols){
     const open = has && monthlyTlOpen.has(key);
     const tog = has ? {key, open} : {};
     const cls = n.part ? "tl-part" : "";
+    // 節にその指標の行が無く、子の節にだけある（ワタミの既存店は サブウェイ除く / サブウェイ だけ）なら、
+    // 数字の無い節の行は出さず子を同じ深さに並べる。兄弟の節があるときは節名が子の所属を表すので残す
+    //（フレアスの施設数は事業ごとに同じ施設名が出る）。見出し節（大丸・松坂屋）は帯として残す
+    if(alone && !n.heading && !mine.length && !ch.length && kids.length){
+      for(const c of kids) walk(c, k, depth, kids.length === 1);
+      return;
+    }
     if(n.heading) body += `<tr class="tl-sec">${monthlyTlNameCell({text: n.name, title: n.name, depth, tree: true, step, ...tog})}<td class="tl-sec-fill" colspan="${cols.length}"></td></tr>`;
     else if(main) body += row(main, n.name, depth, tog, cls);
     else body += empty(n.name, depth, tog, cls);
     for(const r of mine.slice(1)) body += row(r, monthlyTreeOtherName(n, r), depth, null, cls);
     if(!open) return;
     chanRows(n, ch, k, depth + 1, key, cls);
-    for(const c of kids) walk(c, k, depth + 1);
+    for(const c of kids) walk(c, k, depth + 1, kids.length === 1);
   };
   // 指標の行。子は先に会社の子の指標（直営 / FC、国内 / 海外）、次に節の木。
   // 節（ブランド）はその節の行がある一番浅い指標の下（物語の合計店舗数は国内 816 の下）。
@@ -857,7 +864,7 @@ function monthlyTreeHtml(tm, cellsFor, cols){
     for(const r of mine.slice(1)) body += row(r, r.element, depth);
     if(!open) return;
     for(const c of ms) metric(c, depth + 1, k);
-    for(const n of kids) walk(n, k, depth + 1);
+    for(const n of kids) walk(n, k, depth + 1, kids.length === 1);
   };
   for(const k of tm.keys) if(!tm.parent[k]) metric(k, 0, "");
   if(tm.rest.length){
