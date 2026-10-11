@@ -999,6 +999,65 @@ def test_monthly_tree_assign() -> None:
         _fail(f"75220 subway must be under 国内外食: {kids[0]['children']!r}")
     if kids[1]["elements"] != ["海外 出店", "海外 転換出店", "海外 退店", "海外 店舗数"]:
         _fail(f"75220 overseas rows: {kids[1]['elements']!r}")
+    # バローHD: グループ総店舗数は根。事業は資料の a→c（SM / ドラッグストア / HC）
+    valor_rows = [
+        "グループ総 店舗数",
+        "スーパーマーケット 全店 売上高(前年比)",
+        "スーパーマーケット 既存 売上高(前年比)",
+        "スーパーマーケット 既存 客数(前年比)",
+        "スーパーマーケット 既存 客単価(前年比)",
+        "ドラッグストア 全店 売上高(前年比)",
+        "ドラッグストア 既存 売上高(前年比)",
+        "ドラッグストア 既存 客数(前年比)",
+        "ドラッグストア 既存 客単価(前年比)",
+        "ホームセンター 全店 売上高(前年比)",
+        "ホームセンター 既存 売上高(前年比)",
+        "ホームセンター 既存 客数(前年比)",
+        "ホームセンター 既存 客単価(前年比)",
+    ]
+    valor = assign_tree_rows("99560", valor_rows, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in valor.items()}
+    want = {
+        "グループ総 店舗数": (["全体"], "グループ総 店舗数", "店舗数"),
+        "スーパーマーケット 全店 売上高(前年比)": (
+            ["全体", "スーパーマーケット"], "全店 売上高(前年比)", "全店 売上高"),
+        "スーパーマーケット 既存 売上高(前年比)": (
+            ["全体", "スーパーマーケット"], "既存 売上高(前年比)", "既存 売上高"),
+        "スーパーマーケット 既存 客数(前年比)": (
+            ["全体", "スーパーマーケット"], "既存 客数(前年比)", "既存 客数"),
+        "スーパーマーケット 既存 客単価(前年比)": (
+            ["全体", "スーパーマーケット"], "既存 客単価(前年比)", "既存 客単価"),
+        "ドラッグストア 全店 売上高(前年比)": (
+            ["全体", "ドラッグストア"], "全店 売上高(前年比)", "全店 売上高"),
+        "ドラッグストア 既存 売上高(前年比)": (
+            ["全体", "ドラッグストア"], "既存 売上高(前年比)", "既存 売上高"),
+        "ドラッグストア 既存 客数(前年比)": (
+            ["全体", "ドラッグストア"], "既存 客数(前年比)", "既存 客数"),
+        "ドラッグストア 既存 客単価(前年比)": (
+            ["全体", "ドラッグストア"], "既存 客単価(前年比)", "既存 客単価"),
+        "ホームセンター 全店 売上高(前年比)": (
+            ["全体", "ホームセンター"], "全店 売上高(前年比)", "全店 売上高"),
+        "ホームセンター 既存 売上高(前年比)": (
+            ["全体", "ホームセンター"], "既存 売上高(前年比)", "既存 売上高"),
+        "ホームセンター 既存 客数(前年比)": (
+            ["全体", "ホームセンター"], "既存 客数(前年比)", "既存 客数"),
+        "ホームセンター 既存 客単価(前年比)": (
+            ["全体", "ホームセンター"], "既存 客単価(前年比)", "既存 客単価"),
+    }
+    if got != want:
+        _fail(f"99560 tree rows: {got!r}")
+    valor_tree = tree_payload("99560", valor_rows, load_monthly_trees())
+    if valor_tree is None or valor_tree.get("tree_auto"):
+        _fail("99560 must use the config tree")
+    if valor_tree["tree_metrics"] != [
+        "既存 売上高", "既存 客数", "既存 客単価", "全店 売上高", "店舗数",
+    ]:
+        _fail(f"99560 metrics: {valor_tree!r}")
+    root = valor_tree["tree"][0]
+    if root["elements"] != ["グループ総 店舗数"]:
+        _fail(f"99560 グループ総 must be the root: {root!r}")
+    if [n["name"] for n in root["children"]] != ["スーパーマーケット", "ドラッグストア", "ホームセンター"]:
+        _fail(f"99560 section order: {root['children']!r}")
     # オートバックスセブン: 商品群は既存売上高の内訳。車検・整備はサービスの子（#473）
     ab_rows = [
         "日本 全店 売上高(前年比)",
@@ -3177,6 +3236,30 @@ def _assert_monthly_layout_js() -> None:
         "elements": [{**_el(e), "tree": sanyo_assign[e]} for e in sanyo_rows],
         **tree_payload("80110", sanyo_rows, sanyo_trees),
     }]
+    valor_rows = [
+        "グループ総 店舗数",
+        "スーパーマーケット 既存 売上高(前年比)",
+        "スーパーマーケット 既存 客数(前年比)",
+        "スーパーマーケット 既存 客単価(前年比)",
+        "スーパーマーケット 全店 売上高(前年比)",
+        "ドラッグストア 既存 売上高(前年比)",
+        "ドラッグストア 既存 客数(前年比)",
+        "ドラッグストア 既存 客単価(前年比)",
+        "ドラッグストア 全店 売上高(前年比)",
+        "ホームセンター 既存 売上高(前年比)",
+        "ホームセンター 既存 客数(前年比)",
+        "ホームセンター 既存 客単価(前年比)",
+        "ホームセンター 全店 売上高(前年比)",
+    ]
+    valor_assign = assign_tree_rows("99560", valor_rows, sanyo_trees)
+    fixtures["valorTree"] = [{
+        "year": 2026, "code": "99560",
+        "elements": [
+            {**_el(e, "number" if e == "グループ総 店舗数" else "yoy_index"), "tree": valor_assign[e]}
+            for e in valor_rows
+        ],
+        **tree_payload("99560", valor_rows, sanyo_trees),
+    }]
     # ワタミ: 既存店は 国内外食 の行が無く サブウェイ除く / サブウェイ だけ
     watami_rows = [
         ("国内外食 全店 売上高(前年比)", "yoy_index"),
@@ -3298,6 +3381,10 @@ sandbox.monthlyTreeSeedOpen(stm);
 vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203aブランド別"); monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a販路別");', sandbox);
 const sanyoNames = namesOf(sandbox.monthlyTreeHtml(stm, () => "<td></td>", [{y: 2026, m: 1}]));
 vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const vtm = sandbox.monthlyTreeModel(fixtures.valorTree);
+sandbox.monthlyTreeSeedOpen(vtm);
+const valorNames = namesOf(sandbox.monthlyTreeHtml(vtm, () => "<td></td>", [{y: 2026, m: 1}]));
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
 const wtm = sandbox.monthlyTreeModel(fixtures.watamiTree);
 sandbox.monthlyTreeSeedOpen(wtm);
 const watamiNames = namesOf(sandbox.monthlyTreeHtml(wtm, () => "<td></td>", [{y: 2026, m: 1}]));
@@ -3345,6 +3432,7 @@ console.log(JSON.stringify({
   hardoffReveal,
   kobeNames,
   sanyoNames,
+  valorNames,
   watamiNames,
   autobacsNames,
   lomNames,
@@ -3421,6 +3509,15 @@ console.log(JSON.stringify({
     ]
     if got.get("sanyoNames") != want_sanyo:
         _fail(f"80110 config tree rows: {got.get('sanyoNames')!r}")
+    want_valor = [
+        "既存 売上高", "スーパーマーケット", "ドラッグストア", "ホームセンター",
+        "既存 客数", "スーパーマーケット", "ドラッグストア", "ホームセンター",
+        "既存 客単価", "スーパーマーケット", "ドラッグストア", "ホームセンター",
+        "全店 売上高", "スーパーマーケット", "ドラッグストア", "ホームセンター",
+        "グループ総 店舗数",
+    ]
+    if got.get("valorNames") != want_valor:
+        _fail(f"99560 config tree rows: {got.get('valorNames')!r}")
     # 既存 売上高 は 国内外食 の行が無いので、数字の無い 国内外食 は出さず子を指標の直下に
     want_watami = ["既存 売上高", "サブウェイ除く", "サブウェイ",
                    "国内外食 全店 売上高(前年比)", "全店 店舗数", "国内外食"]
