@@ -1054,6 +1054,92 @@ def test_monthly_tree_assign() -> None:
         _fail(f"75220 subway must be under 国内外食: {kids[0]['children']!r}")
     if kids[1]["elements"] != ["海外 出店", "海外 転換出店", "海外 退店", "海外 店舗数"]:
         _fail(f"75220 overseas rows: {kids[1]['elements']!r}")
+    # TABAYA: 小売 / ネット通販は小売＋ネット通販の子。既存店カウントは根の既存店舗数（#479）
+    tabaya_rows = [
+        "全社 売上高(前年比)",
+        "ビジネスユニット計 売上高(前年比)",
+        "小売＋ネット通販 売上高(前年比)",
+        "小売 売上高(前年比)",
+        "ネット通販 売上高(前年比)",
+        "アウトレット その他 売上高(前年比)",
+        "小売＋ネット通販 既存 売上高(前年比)",
+        "小売 既存 売上高(前年比)",
+        "ネット通販 既存 売上高(前年比)",
+        "小売＋ネット通販 既存 客数(前年比)",
+        "小売 既存 客数(前年比)",
+        "ネット通販 既存 客数(前年比)",
+        "小売＋ネット通販 既存 客単価(前年比)",
+        "小売 既存 客単価(前年比)",
+        "ネット通販 既存 客単価(前年比)",
+        "小売＋ネット通販 客数(前年比)",
+        "小売 客数(前年比)",
+        "ネット通販 客数(前年比)",
+        "小売＋ネット通販 客単価(前年比)",
+        "小売 客単価(前年比)",
+        "ネット通販 客単価(前年比)",
+        "カウント 既存 店舗数",
+        "小売 既存 店舗数",
+        "ネット通販 既存 店舗数",
+        "店舗数",
+        "小売 店舗数",
+        "ネット通販 店舗数",
+        "アウトレット 店舗数",
+    ]
+    tabaya = assign_tree_rows("76060", tabaya_rows, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in tabaya.items()}
+    retail = ["全体", "小売＋ネット通販", "小売"]
+    web = ["全体", "小売＋ネット通販", "ネット通販"]
+    both = ["全体", "小売＋ネット通販"]
+    want = {
+        "全社 売上高(前年比)": (["全体"], "全社 売上高(前年比)", "売上高"),
+        "ビジネスユニット計 売上高(前年比)": (["全体", "ビジネスユニット計"], "売上高(前年比)", "売上高"),
+        "小売＋ネット通販 売上高(前年比)": (both, "売上高(前年比)", "売上高"),
+        "小売 売上高(前年比)": (retail, "売上高(前年比)", "売上高"),
+        "ネット通販 売上高(前年比)": (web, "売上高(前年比)", "売上高"),
+        "アウトレット その他 売上高(前年比)": (["全体", "アウトレット その他"], "売上高(前年比)", "売上高"),
+        "小売＋ネット通販 既存 売上高(前年比)": (both, "既存 売上高(前年比)", "既存 売上高"),
+        "小売 既存 売上高(前年比)": (retail, "既存 売上高(前年比)", "既存 売上高"),
+        "ネット通販 既存 売上高(前年比)": (web, "既存 売上高(前年比)", "既存 売上高"),
+        "小売＋ネット通販 既存 客数(前年比)": (both, "既存 客数(前年比)", "既存 客数"),
+        "小売 既存 客数(前年比)": (retail, "既存 客数(前年比)", "既存 客数"),
+        "ネット通販 既存 客数(前年比)": (web, "既存 客数(前年比)", "既存 客数"),
+        "小売＋ネット通販 既存 客単価(前年比)": (both, "既存 客単価(前年比)", "既存 客単価"),
+        "小売 既存 客単価(前年比)": (retail, "既存 客単価(前年比)", "既存 客単価"),
+        "ネット通販 既存 客単価(前年比)": (web, "既存 客単価(前年比)", "既存 客単価"),
+        "小売＋ネット通販 客数(前年比)": (both, "客数(前年比)", "客数"),
+        "小売 客数(前年比)": (retail, "客数(前年比)", "客数"),
+        "ネット通販 客数(前年比)": (web, "客数(前年比)", "客数"),
+        "小売＋ネット通販 客単価(前年比)": (both, "客単価(前年比)", "客単価"),
+        "小売 客単価(前年比)": (retail, "客単価(前年比)", "客単価"),
+        "ネット通販 客単価(前年比)": (web, "客単価(前年比)", "客単価"),
+        "カウント 既存 店舗数": (["全体"], "既存 店舗数", "既存 店舗数"),
+        "小売 既存 店舗数": (retail, "既存 店舗数", "既存 店舗数"),
+        "ネット通販 既存 店舗数": (web, "既存 店舗数", "既存 店舗数"),
+        "店舗数": (["全体"], "店舗数", "店舗数"),
+        "小売 店舗数": (retail, "店舗数", "店舗数"),
+        "ネット通販 店舗数": (web, "店舗数", "店舗数"),
+        "アウトレット 店舗数": (["全体", "アウトレット"], "店舗数", "店舗数"),
+    }
+    if got != want:
+        _fail(f"76060 tree rows: {got!r}")
+    tabaya_tree = tree_payload("76060", tabaya_rows, load_monthly_trees())
+    if tabaya_tree is None or tabaya_tree.get("tree_auto"):
+        _fail("76060 must use the config tree")
+    if tabaya_tree["tree_metrics"] != [
+        "既存 売上高", "既存 客数", "既存 客単価", "既存 店舗数",
+        "売上高", "客数", "客単価", "店舗数",
+    ]:
+        _fail(f"76060 metrics: {tabaya_tree!r}")
+    tabaya_kids = tabaya_tree["tree"][0]["children"]
+    if [n["name"] for n in tabaya_kids] != [
+        "ビジネスユニット計", "小売＋ネット通販", "アウトレット その他", "アウトレット",
+    ]:
+        _fail(f"76060 section order: {tabaya_kids!r}")
+    tabaya_both = tabaya_kids[1]
+    if [n["name"] for n in tabaya_both["children"]] != ["小売", "ネット通販"]:
+        _fail(f"76060 小売 / ネット通販 must be under 小売＋ネット通販: {tabaya_both!r}")
+    if "カウント 既存 店舗数" not in tabaya_tree["tree"][0]["elements"]:
+        _fail(f"76060 既存店カウント must sit on the root: {tabaya_tree['tree'][0]!r}")
     # バローHD: グループ総店舗数は根。事業は資料の a→c（SM / ドラッグストア / HC）
     valor_rows = [
         "グループ総 店舗数",
@@ -3626,6 +3712,31 @@ def _assert_monthly_layout_js() -> None:
         "elements": [{**_el(e, u), "tree": ab_assign[e]} for e, u in ab_rows],
         **tree_payload("98320", [e for e, _ in ab_rows], sanyo_trees),
     }]
+    # TABAYA: 小売は小売＋ネット通販の下。既存店カウントは根で、開くと小売 / ネット通販が直下
+    tabaya_rows = [
+        ("全社 売上高(前年比)", "yoy_index"),
+        ("ビジネスユニット計 売上高(前年比)", "yoy_index"),
+        ("小売＋ネット通販 売上高(前年比)", "yoy_index"),
+        ("小売 売上高(前年比)", "yoy_index"),
+        ("ネット通販 売上高(前年比)", "yoy_index"),
+        ("アウトレット その他 売上高(前年比)", "yoy_index"),
+        ("小売＋ネット通販 既存 売上高(前年比)", "yoy_index"),
+        ("小売 既存 売上高(前年比)", "yoy_index"),
+        ("ネット通販 既存 売上高(前年比)", "yoy_index"),
+        ("カウント 既存 店舗数", "number"),
+        ("小売 既存 店舗数", "number"),
+        ("ネット通販 既存 店舗数", "number"),
+        ("店舗数", "number"),
+        ("小売 店舗数", "number"),
+        ("ネット通販 店舗数", "number"),
+        ("アウトレット 店舗数", "number"),
+    ]
+    tabaya_assign = assign_tree_rows("76060", [e for e, _ in tabaya_rows], sanyo_trees)
+    fixtures["tabayaTree"] = [{
+        "year": 2026, "code": "76060",
+        "elements": [{**_el(e, u), "tree": tabaya_assign[e]} for e, u in tabaya_rows],
+        **tree_payload("76060", [e for e, _ in tabaya_rows], sanyo_trees),
+    }]
     lom_canon = [
         "ストック型 売上高",
         "電気 売上高",
@@ -3838,6 +3949,11 @@ sandbox.monthlyTreeSeedOpen(abtm);
 vm.runInContext('monthlyTlOpen.add("m:既存 売上高\\u203atree:全体\\u203aサービス");', sandbox);
 const autobacsNames = namesOf(sandbox.monthlyTreeHtml(abtm, () => "<td></td>", [{y: 2026, m: 1}]));
 vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const tbtm = sandbox.monthlyTreeModel(fixtures.tabayaTree);
+sandbox.monthlyTreeSeedOpen(tbtm);
+vm.runInContext('monthlyTlOpen.add("m:既存 売上高\\u203atree:全体\\u203a小売＋ネット通販"); monthlyTlOpen.add("m:既存 店舗数"); monthlyTlOpen.add("m:売上高"); monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a小売＋ネット通販"); monthlyTlOpen.add("m:店舗数");', sandbox);
+const tabayaNames = namesOf(sandbox.monthlyTreeHtml(tbtm, () => "<td></td>", [{y: 2026, m: 1}]));
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
 const ltm = sandbox.monthlyTreeModel(fixtures.lomTree);
 sandbox.monthlyTreeSeedOpen(ltm);
 vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a電気");', sandbox);
@@ -3911,6 +4027,7 @@ console.log(JSON.stringify({
   valorNames,
   watamiNames,
   autobacsNames,
+  tabayaNames,
   lomNames,
   lomPart: lomHtml.includes("tl-part"),
   rakusNames,
@@ -4014,6 +4131,15 @@ console.log(JSON.stringify({
     ]
     if got.get("autobacsNames") != want_ab:
         _fail(f"98320 config tree rows: {got.get('autobacsNames')!r}")
+    # 既存売上は小売＋ネット通販の下に小売 / ネット通販。既存店舗数は根の直下（空の親は出さない）
+    want_tabaya = [
+        "既存 売上高", "小売＋ネット通販", "小売", "ネット通販",
+        "既存 店舗数", "小売", "ネット通販",
+        "全社 売上高(前年比)", "ビジネスユニット計", "小売＋ネット通販", "小売", "ネット通販", "アウトレット その他",
+        "店舗数", "小売＋ネット通販", "アウトレット",
+    ]
+    if got.get("tabayaNames") != want_tabaya:
+        _fail(f"76060 config tree rows: {got.get('tabayaNames')!r}")
     want_lom = ["ストック型 売上高", "電気", "内燃料調整費", "宅配水", "インターネット", "その他"]
     if got.get("lomNames") != want_lom:
         _fail(f"92520 config tree rows: {got.get('lomNames')!r}")
