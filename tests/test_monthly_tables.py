@@ -1528,6 +1528,73 @@ def test_monthly_tree_assign() -> None:
         _fail(f"92520 fuel must be a part of 電気: {fuel!r}")
     if fuel[0]["elements"] != ["電気 燃料調整費"]:
         _fail(f"92520 fuel row: {fuel[0]['elements']!r}")
+    # ブックオフ: チェーン合計は根。国内・海外は事業計を節の店舗数にし、直営 / 加盟店を子にする（#483）
+    bookoff_rows = [
+        "チェーン 店舗数",
+        "国内ブックオフ事業計 店舗数",
+        "国内ブックオフ 直営 店舗数",
+        "国内ブックオフ 加盟店 店舗数",
+        "国内ブックオフ 直営 既存 売上高(前年比)",
+        "国内ブックオフ 直営 全店 売上高(前年比)",
+        "プレミアムサービス事業 店舗数",
+        "海外事業計 店舗数",
+        "海外事業 直営 店舗数",
+        "海外事業 加盟店 店舗数",
+        "その他 店舗数",
+    ]
+    bookoff = assign_tree_rows("92780", bookoff_rows, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in bookoff.items()}
+    want = {
+        "チェーン 店舗数": (["全体"], "チェーン 店舗数", "店舗数"),
+        "国内ブックオフ事業計 店舗数": (["全体", "国内ブックオフ"], "国内ブックオフ事業計 店舗数", "店舗数"),
+        "国内ブックオフ 直営 店舗数": (
+            ["全体", "国内ブックオフ", "直営"], "国内ブックオフ 直営 店舗数", "店舗数"),
+        "国内ブックオフ 加盟店 店舗数": (
+            ["全体", "国内ブックオフ", "加盟店"], "国内ブックオフ 加盟店 店舗数", "店舗数"),
+        "国内ブックオフ 直営 既存 売上高(前年比)": (
+            ["全体", "国内ブックオフ", "直営"],
+            "国内ブックオフ 直営 既存 売上高(前年比)", "既存 売上高"),
+        "国内ブックオフ 直営 全店 売上高(前年比)": (
+            ["全体", "国内ブックオフ", "直営"],
+            "国内ブックオフ 直営 全店 売上高(前年比)", "全店 売上高"),
+        "プレミアムサービス事業 店舗数": (
+            ["全体", "プレミアムサービス事業"], "プレミアムサービス事業 店舗数", "店舗数"),
+        "海外事業計 店舗数": (["全体", "海外事業"], "海外事業計 店舗数", "店舗数"),
+        "海外事業 直営 店舗数": (["全体", "海外事業", "直営"], "海外事業 直営 店舗数", "店舗数"),
+        "海外事業 加盟店 店舗数": (["全体", "海外事業", "加盟店"], "海外事業 加盟店 店舗数", "店舗数"),
+        "その他 店舗数": (["全体", "その他"], "その他 店舗数", "店舗数"),
+    }
+    if got != want:
+        _fail(f"92780 tree rows: {got!r}")
+    if apply_issuer_aliases("92780", "国内ブックオフ 加盟 店舗数", year=2024) != "国内ブックオフ 加盟店 店舗数":
+        _fail("92780 国内ブックオフ 加盟 must alias to 加盟店")
+    if apply_issuer_aliases("92780", "国内ブックオフ事業 店舗数", year=2024) != "国内ブックオフ事業計 店舗数":
+        _fail("92780 国内ブックオフ事業 must alias to 事業計")
+    if apply_issuer_aliases("92780", "海外事業 加盟 店舗数", year=2024) != "海外事業 加盟店 店舗数":
+        _fail("92780 海外事業 加盟 must alias to 加盟店")
+    if apply_issuer_aliases("92780", "海外事業 店舗数", year=2024) != "海外事業計 店舗数":
+        _fail("92780 海外事業 店舗数 must alias to 海外事業計")
+    if apply_issuer_aliases("92780", "国内ブックオフ 加盟店 店舗数", year=2026) != "国内ブックオフ 加盟店 店舗数":
+        _fail("92780 stored 加盟店 name must stay")
+    bookoff_tree = tree_payload("92780", bookoff_rows, load_monthly_trees())
+    if bookoff_tree is None or bookoff_tree.get("tree_auto"):
+        _fail("92780 must use the config tree")
+    if bookoff_tree["tree_metrics"] != ["既存 売上高", "全店 売上高", "店舗数"]:
+        _fail(f"92780 metrics: {bookoff_tree!r}")
+    bo_root = bookoff_tree["tree"][0]
+    if bo_root["elements"] != ["チェーン 店舗数"]:
+        _fail(f"92780 チェーン must be the root: {bo_root!r}")
+    bo_kids = bo_root["children"]
+    if [n["name"] for n in bo_kids] != ["国内ブックオフ", "プレミアムサービス事業", "海外事業", "その他"]:
+        _fail(f"92780 section order: {bo_kids!r}")
+    if bo_kids[0]["elements"] != ["国内ブックオフ事業計 店舗数"]:
+        _fail(f"92780 国内 must use 事業計 as the section count: {bo_kids[0]!r}")
+    if [n["name"] for n in bo_kids[0]["children"]] != ["直営", "加盟店"]:
+        _fail(f"92780 国内 children: {bo_kids[0]['children']!r}")
+    if bo_kids[2]["elements"] != ["海外事業計 店舗数"]:
+        _fail(f"92780 海外 must use 事業計 as the section count: {bo_kids[2]!r}")
+    if [n["name"] for n in bo_kids[2]["children"]] != ["直営", "加盟店"]:
+        _fail(f"92780 海外 children: {bo_kids[2]['children']!r}")
     # 小田急: 鉄道は 定期+定期外 ▸ 定期計 ▸ 通勤/通学 と 定期外。百貨店の店は子。箱根のホテルは箱根（#482）
     oda_rows = [
         "鉄道 定期+定期外 輸送人員",
@@ -4031,6 +4098,29 @@ def _assert_monthly_layout_js() -> None:
         "elements": [{**_el(e, "number"), "tree": lom_assign[e]} for e in lom_canon],
         **tree_payload("92520", lom_canon, sanyo_trees),
     }]
+    bookoff_rows = [
+        "国内ブックオフ 直営 既存 売上高(前年比)",
+        "国内ブックオフ 直営 全店 売上高(前年比)",
+        "国内ブックオフ 直営 店舗数",
+        "国内ブックオフ 加盟店 店舗数",
+        "国内ブックオフ事業計 店舗数",
+        "プレミアムサービス事業 店舗数",
+        "海外事業 直営 店舗数",
+        "海外事業 加盟店 店舗数",
+        "海外事業計 店舗数",
+        "その他 店舗数",
+        "チェーン 店舗数",
+    ]
+    bookoff_assign = assign_tree_rows("92780", bookoff_rows, sanyo_trees)
+    fixtures["bookoffTree"] = [{
+        "year": 2026, "code": "92780",
+        "elements": [
+            {**_el(e, "number" if e.endswith("店舗数") else "yoy_index"), "tree": bookoff_assign[e]}
+            for e in bookoff_rows
+        ],
+        **tree_payload("92780", bookoff_rows, sanyo_trees),
+    }]
+
     # 小田急: 見出しの鉄道・箱根を開いたときの横持ち（#482）
     oda_rows = [
         ("鉄道 定期+定期外 輸送人員", "number"),
@@ -4255,6 +4345,11 @@ vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a電気")
 const lomHtml = sandbox.monthlyTreeHtml(ltm, () => "<td></td>", [{y: 2026, m: 1}]);
 const lomNames = namesOf(lomHtml);
 vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const boftm = sandbox.monthlyTreeModel(fixtures.bookoffTree);
+sandbox.monthlyTreeSeedOpen(boftm);
+vm.runInContext('monthlyTlOpen.add("m:店舗数"); monthlyTlOpen.add("m:店舗数\\u203atree:全体\\u203a国内ブックオフ"); monthlyTlOpen.add("m:店舗数\\u203atree:全体\\u203a海外事業");', sandbox);
+const bookoffNames = namesOf(sandbox.monthlyTreeHtml(boftm, () => "<td></td>", [{y: 2026, m: 1}]));
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
 const otm = sandbox.monthlyTreeModel(fixtures.odakyuTree);
 sandbox.monthlyTreeSeedOpen(otm);
 vm.runInContext(
@@ -4342,6 +4437,7 @@ console.log(JSON.stringify({
   tabayaNames,
   lomNames,
   lomPart: lomHtml.includes("tl-part"),
+  bookoffNames,
   odakyuNames,
   peopleNames,
   rakusNames,
@@ -4478,6 +4574,17 @@ console.log(JSON.stringify({
         _fail(f"78650 config tree rows: {got.get('peopleNames')!r}")
     if not got.get("lomPart"):
         _fail("92520 内燃料調整費 must render as tl-part")
+    want_bookoff = [
+        "国内ブックオフ 直営 既存 売上高(前年比)",
+        "国内ブックオフ 直営 全店 売上高(前年比)",
+        "チェーン 店舗数",
+        "国内ブックオフ", "直営", "加盟店",
+        "プレミアムサービス事業",
+        "海外事業", "直営", "加盟店",
+        "その他",
+    ]
+    if got.get("bookoffNames") != want_bookoff:
+        _fail(f"92780 config tree rows: {got.get('bookoffNames')!r}")
     want_rakus = ["全社（連結） 売上高", "クラウド事業", "ストック", "楽楽精算", "楽楽明細", "IT人材事業"]
     if got.get("rakusNames") != want_rakus:
         _fail(f"39230 config tree rows: {got.get('rakusNames')!r}")
