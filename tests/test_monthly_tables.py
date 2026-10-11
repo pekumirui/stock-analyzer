@@ -1172,6 +1172,56 @@ def test_monthly_tree_assign() -> None:
         _fail(f"92520 fuel must be a part of 電気: {fuel!r}")
     if fuel[0]["elements"] != ["電気 燃料調整費"]:
         _fail(f"92520 fuel row: {fuel[0]['elements']!r}")
+    # ラクス: 全社は根。ストックはクラウドの内数。楽楽精算 / 楽楽明細はクラウドの子（#477）
+    rakus_rows = [
+        "全社（連結） 売上高",
+        "全社（連結） 売上高(前年比)",
+        "クラウド事業 売上高",
+        "クラウド事業 売上高(前年比)",
+        "クラウド事業 ストック 売上高",
+        "クラウド事業 ストック 売上高(前年比)",
+        "楽楽精算 売上高",
+        "楽楽精算 売上高(前年比)",
+        "楽楽明細 売上高",
+        "楽楽明細 売上高(前年比)",
+        "IT人材事業 売上高",
+        "IT人材事業 売上高(前年比)",
+    ]
+    rakus = assign_tree_rows("39230", rakus_rows, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rakus.items()}
+    want = {
+        "全社（連結） 売上高": (["全体"], "全社（連結） 売上高", "売上高"),
+        "全社（連結） 売上高(前年比)": (["全体"], "全社（連結） 売上高(前年比)", "売上高"),
+        "クラウド事業 売上高": (["全体", "クラウド事業"], "売上高", "売上高"),
+        "クラウド事業 売上高(前年比)": (["全体", "クラウド事業"], "売上高(前年比)", "売上高"),
+        "クラウド事業 ストック 売上高": (["全体", "クラウド事業", "ストック"], "売上高", "売上高"),
+        "クラウド事業 ストック 売上高(前年比)": (
+            ["全体", "クラウド事業", "ストック"], "売上高(前年比)", "売上高"),
+        "楽楽精算 売上高": (["全体", "クラウド事業", "楽楽精算"], "売上高", "売上高"),
+        "楽楽精算 売上高(前年比)": (["全体", "クラウド事業", "楽楽精算"], "売上高(前年比)", "売上高"),
+        "楽楽明細 売上高": (["全体", "クラウド事業", "楽楽明細"], "売上高", "売上高"),
+        "楽楽明細 売上高(前年比)": (["全体", "クラウド事業", "楽楽明細"], "売上高(前年比)", "売上高"),
+        "IT人材事業 売上高": (["全体", "IT人材事業"], "売上高", "売上高"),
+        "IT人材事業 売上高(前年比)": (["全体", "IT人材事業"], "売上高(前年比)", "売上高"),
+    }
+    if got != want:
+        _fail(f"39230 tree rows: {got!r}")
+    rakus_tree = tree_payload("39230", rakus_rows, load_monthly_trees())
+    if rakus_tree is None or rakus_tree.get("tree_metrics") != ["売上高"] or rakus_tree.get("tree_auto"):
+        _fail(f"39230 tree payload: {rakus_tree!r}")
+    rakus_root = rakus_tree["tree"][0]
+    if rakus_root["elements"] != ["全社（連結） 売上高", "全社（連結） 売上高(前年比)"]:
+        _fail(f"39230 root rows: {rakus_root['elements']!r}")
+    rakus_kids = rakus_root["children"]
+    if [n["name"] for n in rakus_kids] != ["クラウド事業", "IT人材事業"]:
+        _fail(f"39230 section order: {rakus_kids!r}")
+    rakus_cloud = rakus_kids[0]["children"]
+    if [n["name"] for n in rakus_cloud] != ["ストック", "楽楽精算", "楽楽明細"]:
+        _fail(f"39230 cloud children: {rakus_cloud!r}")
+    if rakus_cloud[0]["part"] is not True or rakus_cloud[1]["part"] or rakus_cloud[2]["part"]:
+        _fail(f"39230 stock must be the only part: {rakus_cloud!r}")
+    if rakus_cloud[0]["elements"] != ["クラウド事業 ストック 売上高", "クラウド事業 ストック 売上高(前年比)"]:
+        _fail(f"39230 stock rows: {rakus_cloud[0]['elements']!r}")
 
 
 def test_monthly_auto_tree() -> None:
@@ -3308,6 +3358,26 @@ def _assert_monthly_layout_js() -> None:
         "elements": [{**_el(e, "number"), "tree": lom_assign[e]} for e in lom_canon],
         **tree_payload("92520", lom_canon, sanyo_trees),
     }]
+    rakus_rows = [
+        ("全社（連結） 売上高", "number"),
+        ("全社（連結） 売上高(前年比)", "yoy_index"),
+        ("クラウド事業 売上高", "number"),
+        ("クラウド事業 売上高(前年比)", "yoy_index"),
+        ("クラウド事業 ストック 売上高", "number"),
+        ("クラウド事業 ストック 売上高(前年比)", "yoy_index"),
+        ("楽楽精算 売上高", "number"),
+        ("楽楽精算 売上高(前年比)", "yoy_index"),
+        ("楽楽明細 売上高", "number"),
+        ("楽楽明細 売上高(前年比)", "yoy_index"),
+        ("IT人材事業 売上高", "number"),
+        ("IT人材事業 売上高(前年比)", "yoy_index"),
+    ]
+    rakus_assign = assign_tree_rows("39230", [e for e, _ in rakus_rows], sanyo_trees)
+    fixtures["rakusTree"] = [{
+        "year": 2026, "code": "39230",
+        "elements": [{**_el(e, u), "tree": rakus_assign[e]} for e, u in rakus_rows],
+        **tree_payload("39230", [e for e, _ in rakus_rows], sanyo_trees),
+    }]
     harness = r"""
 const fs = require("fs");
 const vm = require("vm");
@@ -3399,6 +3469,12 @@ sandbox.monthlyTreeSeedOpen(ltm);
 vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a電気");', sandbox);
 const lomHtml = sandbox.monthlyTreeHtml(ltm, () => "<td></td>", [{y: 2026, m: 1}]);
 const lomNames = namesOf(lomHtml);
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const rktm = sandbox.monthlyTreeModel(fixtures.rakusTree);
+sandbox.monthlyTreeSeedOpen(rktm);
+vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203aクラウド事業");', sandbox);
+const rakusHtml = sandbox.monthlyTreeHtml(rktm, () => "<td></td>", [{y: 2026, m: 1}]);
+const rakusNames = namesOf(rakusHtml);
 const pairRec = {element: "売上高", unit: "number", yoy: "売上高(前年比)"};
 const pairCell = sandbox.monthlyTlCell({
   "売上高": {unit: "number", values: {"8": 99}},
@@ -3437,6 +3513,8 @@ console.log(JSON.stringify({
   autobacsNames,
   lomNames,
   lomPart: lomHtml.includes("tl-part"),
+  rakusNames,
+  rakusPart: rakusHtml.includes('class="tl-part"'),
   pairTxt: pairCell.txt,
   pairYoyOnlyTxt: pairYoyOnly.txt,
   unpairedTxt: unpairedCell.txt,
@@ -3536,6 +3614,11 @@ console.log(JSON.stringify({
         _fail(f"92520 config tree rows: {got.get('lomNames')!r}")
     if not got.get("lomPart"):
         _fail("92520 内燃料調整費 must render as tl-part")
+    want_rakus = ["全社（連結） 売上高", "クラウド事業", "ストック", "楽楽精算", "楽楽明細", "IT人材事業"]
+    if got.get("rakusNames") != want_rakus:
+        _fail(f"39230 config tree rows: {got.get('rakusNames')!r}")
+    if not got.get("rakusPart"):
+        _fail("39230 ストック must render as tl-part")
     # 直営と FC の両方に業態行があるときは両方の下に出す。FC の無い業態は直営だけ。店舗数だけの節は合計の下
     want_hardoff = [
         "店舗数", "直営", "海外", "ハードオフ", "オフハウス", "ブックオフ",
