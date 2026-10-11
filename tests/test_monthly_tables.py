@@ -1172,6 +1172,93 @@ def test_monthly_tree_assign() -> None:
         _fail(f"92520 fuel must be a part of 電気: {fuel!r}")
     if fuel[0]["elements"] != ["電気 燃料調整費"]:
         _fail(f"92520 fuel row: {fuel[0]['elements']!r}")
+    # Trailhead: 子会社は連結の見出しの下。業態の店舗数は全店店舗数の内訳（#476）
+    th_rows = [
+        "全店 連結売上高",
+        "全店 連結売上高(前年比)",
+        "全店 売上高",
+        "全店 売上高(前年比)",
+        "全店 客数(前年比)",
+        "全店 客単価(前年比)",
+        "全店 店舗数",
+        "店舗数",
+        "ワイエスフード 全店 売上高",
+        "Yappa 全店 売上高",
+        "KINKA FAMILY JAPAN 全店 売上高",
+        "バーガーレボリューション 全店 売上高",
+        "食べる 全店 売上高",
+        "SBWorks 全店 売上高",
+        "ラーメン 全店 売上高",
+        "ラーメン 全店 売上高(前年比)",
+        "ラーメン 全店 客数(前年比)",
+        "ラーメン 全店 客単価(前年比)",
+        "ラーメン 店舗数",
+        "焼肉 全店 売上高",
+        "焼肉 店舗数",
+        "その他専門店 全店 売上高",
+        "その他専門店 店舗数",
+    ]
+    th = assign_tree_rows("33580", th_rows, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in th.items()}
+    want = {
+        "全店 連結売上高": (["全体"], "全店 連結売上高", "全店 連結売上高"),
+        "全店 連結売上高(前年比)": (["全体"], "全店 連結売上高(前年比)", "全店 連結売上高"),
+        "全店 売上高": (["全体"], "全店 売上高", "全店 売上高"),
+        "全店 売上高(前年比)": (["全体"], "全店 売上高(前年比)", "全店 売上高"),
+        "全店 客数(前年比)": (["全体"], "全店 客数(前年比)", "全店 客数"),
+        "全店 客単価(前年比)": (["全体"], "全店 客単価(前年比)", "全店 客単価"),
+        "全店 店舗数": (["全体"], "全店 店舗数", "全店 店舗数"),
+        "店舗数": (["全体"], "店舗数", "店舗数"),
+        "ワイエスフード 全店 売上高": (
+            ["全体", "主要子会社別売上高", "ワイエスフード"], "ワイエスフード 全店 売上高", "全店 連結売上高"),
+        "Yappa 全店 売上高": (
+            ["全体", "主要子会社別売上高", "Yappa"], "Yappa 全店 売上高", "全店 連結売上高"),
+        "KINKA FAMILY JAPAN 全店 売上高": (
+            ["全体", "主要子会社別売上高", "KINKA FAMILY JAPAN"],
+            "KINKA FAMILY JAPAN 全店 売上高", "全店 連結売上高"),
+        "バーガーレボリューション 全店 売上高": (
+            ["全体", "主要子会社別売上高", "バーガーレボリューション"],
+            "バーガーレボリューション 全店 売上高", "全店 連結売上高"),
+        "食べる 全店 売上高": (
+            ["全体", "主要子会社別売上高", "食べる"], "食べる 全店 売上高", "全店 連結売上高"),
+        "SBWorks 全店 売上高": (
+            ["全体", "主要子会社別売上高", "SBWorks"], "SBWorks 全店 売上高", "全店 連結売上高"),
+        "ラーメン 全店 売上高": (["全体", "ラーメン"], "ラーメン 全店 売上高", "全店 売上高"),
+        "ラーメン 全店 売上高(前年比)": (["全体", "ラーメン"], "ラーメン 全店 売上高(前年比)", "全店 売上高"),
+        "ラーメン 全店 客数(前年比)": (["全体", "ラーメン"], "ラーメン 全店 客数(前年比)", "全店 客数"),
+        "ラーメン 全店 客単価(前年比)": (["全体", "ラーメン"], "ラーメン 全店 客単価(前年比)", "全店 客単価"),
+        "ラーメン 店舗数": (["全体", "ラーメン"], "ラーメン 店舗数", "全店 店舗数"),
+        "焼肉 全店 売上高": (["全体", "焼肉"], "焼肉 全店 売上高", "全店 売上高"),
+        "焼肉 店舗数": (["全体", "焼肉"], "焼肉 店舗数", "全店 店舗数"),
+        "その他専門店 全店 売上高": (["全体", "その他専門店"], "その他専門店 全店 売上高", "全店 売上高"),
+        "その他専門店 店舗数": (["全体", "その他専門店"], "その他専門店 店舗数", "全店 店舗数"),
+    }
+    if got != want:
+        _fail(f"33580 tree rows: {got!r}")
+    th_tree = tree_payload("33580", th_rows, load_monthly_trees())
+    if th_tree is None or th_tree.get("tree_auto"):
+        _fail("33580 must use the config tree")
+    if th_tree["tree_metrics"] != [
+        "全店 連結売上高", "全店 売上高", "全店 客数", "全店 客単価", "全店 店舗数", "店舗数",
+    ]:
+        _fail(f"33580 metrics: {th_tree!r}")
+    th_root = th_tree["tree"][0]
+    if [n["name"] for n in th_root["children"]] != [
+        "主要子会社別売上高", "ラーメン", "焼肉", "その他専門店",
+    ]:
+        _fail(f"33580 section order: {th_root['children']!r}")
+    th_sub = th_root["children"][0]
+    if not th_sub["heading"] or th_sub["part"] or th_sub["elements"]:
+        _fail(f"33580 subsidiaries must be a heading: {th_sub!r}")
+    if [n["name"] for n in th_sub["children"]] != [
+        "ワイエスフード", "Yappa", "KINKA FAMILY JAPAN", "バーガーレボリューション", "食べる", "SBWorks",
+    ]:
+        _fail(f"33580 subsidiary order: {th_sub['children']!r}")
+    if th_root["children"][1]["elements"] != [
+        "ラーメン 全店 売上高", "ラーメン 全店 売上高(前年比)", "ラーメン 全店 客数(前年比)",
+        "ラーメン 全店 客単価(前年比)", "ラーメン 店舗数",
+    ]:
+        _fail(f"33580 ramen rows: {th_root['children'][1]!r}")
 
 
 def test_monthly_auto_tree() -> None:
@@ -3308,6 +3395,38 @@ def _assert_monthly_layout_js() -> None:
         "elements": [{**_el(e, "number"), "tree": lom_assign[e]} for e in lom_canon],
         **tree_payload("92520", lom_canon, sanyo_trees),
     }]
+    # Trailhead: 子会社は連結の見出しの下。業態の店舗数は全店店舗数（#476）
+    th_rows = [
+        ("全店 連結売上高", "number"),
+        ("全店 連結売上高(前年比)", "yoy_index"),
+        ("全店 売上高", "number"),
+        ("全店 売上高(前年比)", "yoy_index"),
+        ("全店 客数(前年比)", "yoy_index"),
+        ("全店 客単価(前年比)", "yoy_index"),
+        ("全店 店舗数", "number"),
+        ("店舗数", "number"),
+        ("ワイエスフード 全店 売上高", "number"),
+        ("Yappa 全店 売上高", "number"),
+        ("KINKA FAMILY JAPAN 全店 売上高", "number"),
+        ("バーガーレボリューション 全店 売上高", "number"),
+        ("食べる 全店 売上高", "number"),
+        ("SBWorks 全店 売上高", "number"),
+        ("ラーメン 全店 売上高", "number"),
+        ("ラーメン 全店 売上高(前年比)", "yoy_index"),
+        ("ラーメン 全店 客数(前年比)", "yoy_index"),
+        ("ラーメン 全店 客単価(前年比)", "yoy_index"),
+        ("ラーメン 店舗数", "number"),
+        ("焼肉 全店 売上高", "number"),
+        ("焼肉 店舗数", "number"),
+        ("その他専門店 全店 売上高", "number"),
+        ("その他専門店 店舗数", "number"),
+    ]
+    th_assign = assign_tree_rows("33580", [e for e, _ in th_rows], sanyo_trees)
+    fixtures["trailheadTree"] = [{
+        "year": 2026, "code": "33580",
+        "elements": [{**_el(e, u), "tree": th_assign[e]} for e, u in th_rows],
+        **tree_payload("33580", [e for e, _ in th_rows], sanyo_trees),
+    }]
     harness = r"""
 const fs = require("fs");
 const vm = require("vm");
@@ -3399,6 +3518,15 @@ sandbox.monthlyTreeSeedOpen(ltm);
 vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a電気");', sandbox);
 const lomHtml = sandbox.monthlyTreeHtml(ltm, () => "<td></td>", [{y: 2026, m: 1}]);
 const lomNames = namesOf(lomHtml);
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const thtm = sandbox.monthlyTreeModel(fixtures.trailheadTree);
+sandbox.monthlyTreeSeedOpen(thtm);
+vm.runInContext([
+  'monthlyTlOpen.add("m:全店 連結売上高\\u203atree:全体\\u203a主要子会社別売上高");',
+  'monthlyTlOpen.add("m:全店 売上高");',
+  'monthlyTlOpen.add("m:全店 店舗数");',
+].join(""), sandbox);
+const trailheadNames = namesOf(sandbox.monthlyTreeHtml(thtm, () => "<td></td>", [{y: 2026, m: 1}]));
 const pairRec = {element: "売上高", unit: "number", yoy: "売上高(前年比)"};
 const pairCell = sandbox.monthlyTlCell({
   "売上高": {unit: "number", values: {"8": 99}},
@@ -3437,6 +3565,7 @@ console.log(JSON.stringify({
   autobacsNames,
   lomNames,
   lomPart: lomHtml.includes("tl-part"),
+  trailheadNames,
   pairTxt: pairCell.txt,
   pairYoyOnlyTxt: pairYoyOnly.txt,
   unpairedTxt: unpairedCell.txt,
@@ -3536,6 +3665,16 @@ console.log(JSON.stringify({
         _fail(f"92520 config tree rows: {got.get('lomNames')!r}")
     if not got.get("lomPart"):
         _fail("92520 内燃料調整費 must render as tl-part")
+    want_th = [
+        "全店 連結売上高", "主要子会社別売上高",
+        "ワイエスフード", "Yappa", "KINKA FAMILY JAPAN", "バーガーレボリューション", "食べる", "SBWorks",
+        "全店 売上高", "ラーメン", "焼肉", "その他専門店",
+        "全店 客数(前年比)", "全店 客単価(前年比)",
+        "全店 店舗数", "ラーメン", "焼肉", "その他専門店",
+        "店舗数",
+    ]
+    if got.get("trailheadNames") != want_th:
+        _fail(f"33580 config tree rows: {got.get('trailheadNames')!r}")
     # 直営と FC の両方に業態行があるときは両方の下に出す。FC の無い業態は直営だけ。店舗数だけの節は合計の下
     want_hardoff = [
         "店舗数", "直営", "海外", "ハードオフ", "オフハウス", "ブックオフ",
