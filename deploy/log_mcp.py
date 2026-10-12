@@ -135,10 +135,10 @@ MONTHLY_PATH_PREFIX = "/api/v1/tables"
 MONTHLY_INGEST_TAIL = "/ingest"
 MONTHLY_INDUSTRY_TAIL = "/industry"
 MONTHLY_TAILS = frozenset({
-    "", "/elements", "/values/batch", MONTHLY_INGEST_TAIL, MONTHLY_INDUSTRY_TAIL,
+    "", "/elements", "/values/batch", "/doc", MONTHLY_INGEST_TAIL, MONTHLY_INDUSTRY_TAIL,
 })
 MONTHLY_URL_PATH_RE = re.compile(
-    r"^/api/v1/tables(?:/[0-9][0-9A-Z]{3}[0-9]?(?:/\d{4}(?:/elements|/values/batch)?|/ingest|/industry))?$"
+    r"^/api/v1/tables(?:/[0-9][0-9A-Z]{3}[0-9]?(?:/\d{4}(?:/elements|/values/batch|/doc)?|/ingest|/industry))?$"
 )
 _CODE_ERR = "code must be 4-5 characters (e.g. 7203, 72030, 262A0)"
 
@@ -1154,6 +1154,30 @@ def tool_monthly_delete_element(args: dict[str, Any]) -> str:
     return call_monthly_api("DELETE", monthly_api_url(code, year, "/elements"), body)
 
 
+def tool_monthly_get_doc(args: dict[str, Any]) -> str:
+    code = parse_monthly_code(args.get("code"))
+    year = parse_monthly_year(args.get("year"))
+    return call_monthly_api("GET", monthly_api_url(code, year, "/doc"))
+
+
+def tool_monthly_put_doc(args: dict[str, Any]) -> str:
+    code = parse_monthly_code(args.get("code"))
+    year = parse_monthly_year(args.get("year"))
+    version = args.get("version")
+    if not isinstance(version, str) or not version:
+        raise ValueError("version is required (from monthly_get_doc)")
+    elements = args.get("elements")
+    if not isinstance(elements, list):
+        raise ValueError("elements must be an array")
+    body: dict[str, Any] = {"version": version, "elements": elements}
+    for flag in ("allow_structure_change", "dry_run"):
+        if flag in args:
+            if not isinstance(args[flag], bool):
+                raise ValueError(f"{flag} must be a boolean")
+            body[flag] = args[flag]
+    return call_monthly_api("PUT", monthly_api_url(code, year, "/doc"), body)
+
+
 def _parse_ingest_months(raw: Any) -> list[int]:
     # Genky-style year-wrap may repeat a month (e.g. 13 cols with June twice).
     if not isinstance(raw, list) or len(raw) < 1:
@@ -1441,6 +1465,50 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
             "required": ["code", "year", "element"],
         },
         tool_monthly_delete_element,
+    ),
+    "monthly_get_doc": (
+        "銘柄×年度の月次表を 1 枚の文書で返す。localhost:8000 の GET /api/v1/tables/{code}/{year}/doc。空の行も含む。行ごとに element / unit（保存形）/ values（\"1\"〜\"12\"）/ tree（木の位置）。version は monthly_put_doc にそのまま渡す。",
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
+                "year": {"type": "integer", "description": "4-digit calendar year"},
+            },
+            "required": ["code", "year"],
+        },
+        tool_monthly_get_doc,
+    ),
+    "monthly_put_doc": (
+        "monthly_get_doc の文書を直して丸ごと返す。localhost:8000 の PUT /api/v1/tables/{code}/{year}/doc。1 トランザクション。行名は渡したまま（正規化・エイリアスを掛けない）。行の改名は was に元の名前、element に新しい名前（値はサーバーが移す）。文書に無い行は削除。was の無い新しい名前は作成（unit 必須）。values を省いた行は値をそのまま、渡した行は 12 か月を丸ごと置き換え（無い月・null は削除）。values は保存形（+100 しない）。version が GET 後に変わっていれば 409 VERSION_MISMATCH（GET からやり直す）。改名・作成・削除・unit 変更は allow_structure_change=true のときだけ（無ければ 409 STRUCTURE_CHANGED）。dry_run=true は書かずに差分（changes）を返す。木に入らない行は warnings。",
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
+                "year": {"type": "integer", "description": "4-digit calendar year"},
+                "version": {"type": "string", "description": "version from monthly_get_doc"},
+                "elements": {
+                    "type": "array",
+                    "description": "all rows of the table after the edit; rows left out are deleted",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "element": {"type": "string", "description": "row label after the edit, 1-50 chars, stored as given"},
+                            "was": {"type": "string", "description": "current label when renaming; omit when unchanged"},
+                            "unit": {"type": "string", "enum": ["number", "yoy_index"], "description": "stored unit; required for new rows"},
+                            "values": {
+                                "type": "object",
+                                "description": "{\"1\": value, ..., \"12\": value}; replaces all 12 months; null or missing deletes; omit to keep values",
+                            },
+                        },
+                        "required": ["element"],
+                    },
+                },
+                "allow_structure_change": {"type": "boolean", "description": "allow rename / create / delete / unit change"},
+                "dry_run": {"type": "boolean", "description": "return changes without writing"},
+            },
+            "required": ["code", "year", "version", "elements"],
+        },
+        tool_monthly_put_doc,
     ),
     "monthly_set_industry": (
         "月次業種を付ける。localhost:8000 の PUT /api/v1/tables/{code}/industry。銘柄マスタの業種とは別。",

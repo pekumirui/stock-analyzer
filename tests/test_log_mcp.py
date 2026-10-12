@@ -292,6 +292,8 @@ def test_http_auth_and_tools() -> None:
         "monthly_add_element",
         "monthly_put_values",
         "monthly_delete_element",
+        "monthly_get_doc",
+        "monthly_put_doc",
         "monthly_set_industry",
         "monthly_ingest",
     }

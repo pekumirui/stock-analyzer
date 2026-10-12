@@ -366,6 +366,8 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `GET /api/v1/tables/{code}` | その銘柄の年度一覧 |
 | `DELETE /api/v1/tables/{code}/{year}/elements` | 空の月次行を消す。body `{element}`。値が残っていれば 409 `ELEMENT_HAS_VALUES`。表は残す。未登録は 404。マスタ無しは 4xx `NOT_IN_MASTER` |
 | `PUT /api/v1/tables/{code}/{year}/values/batch` | 複数月を検証してから一括 commit。マスタ無しは 4xx `NOT_IN_MASTER` |
+| `GET /api/v1/tables/{code}/{year}/doc` | `PUT /doc` の元になる文書。`{code, year, version, elements}`。行は `sort_order` 順で、値の無い行も出す。各行 `{element, unit, values, tree?}`（`values` は `"1"`〜`"12"`、`tree` は木の path）。`version` は行名・unit・並び・値のハッシュ。公開の nginx の口には載せない（Basic の後ろ） |
+| `PUT /api/v1/tables/{code}/{year}/doc` | 文書を丸ごと返して 1 トランザクションで書く。body `{version, elements, allow_structure_change?, dry_run?}`。行名は渡したまま（正規化・エイリアスを掛けない）。`was` で改名（値はサーバーが移す）、文書に無い行は削除、`was` の無い新しい名前は作成（`unit` 必須、末尾に並ぶ）。`values` を渡した行は 12 か月を置き換え（無い月・null は削除）、省いた行は値をそのまま。`version` が違えば 409 `VERSION_MISMATCH`。改名・作成・削除・unit 変更は `allow_structure_change=true` のときだけ（無ければ 409 `STRUCTURE_CHANGED`）。`dry_run=true` は書かずに `changes` を返す。config の木に入らない行は `warnings` の `NOT_IN_TREE` |
 
 月次 API のエラーは `{"error": {"code": "...", "message": "..."}}`。閲覧 GET は公開。書き込みは loopback のみ（nginx 経由は 403）。本番の個人ツールは `/app` と Basic 認証。
 
