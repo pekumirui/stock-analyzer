@@ -3893,8 +3893,8 @@ def _assert_monthly_layout_js() -> None:
             "year": 2026,
             "code": "99970",
             "elements": [
-                _el("グロース領域 全店 売上高(前年比)"),
-                _el("全店 連結売上高(前年比)"),
+                _el("グロース領域 売上高(前年比)"),
+                _el("連結売上高(前年比)"),
             ],
         }],
         "alpenBoth": [{
@@ -4555,8 +4555,8 @@ console.log(JSON.stringify({
         _fail(f"138A0 default must stay 全店 売上高(前年比): {got.get('spot138A')!r}")
     if got.get("spot3086") != "総額 連結売上高(前年比)":
         _fail(f"30860 default must stay 総額 連結売上高(前年比): {got.get('spot3086')!r}")
-    if got.get("spot9997") != "全店 連結売上高(前年比)":
-        _fail(f"99970 default must stay 全店 連結売上高(前年比): {got.get('spot9997')!r}")
+    if got.get("spot9997") != "連結売上高(前年比)":
+        _fail(f"99970 default must stay 連結売上高(前年比): {got.get('spot9997')!r}")
     if got.get("alpenBoth") != "全店 売上高(前年比)":
         _fail(f"全店+全社 must still prefer 全店: {got.get('alpenBoth')!r}")
     if got.get("bdCompanyKind") is not None:
