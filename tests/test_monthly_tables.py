@@ -1469,6 +1469,55 @@ def test_monthly_tree_assign() -> None:
     ab_svc = ab_kids[5]
     if ab_svc["part"] or [n["name"] for n in ab_svc["children"]] != ["車検・整備"] or ab_svc["children"][0]["part"]:
         _fail(f"98320 車検・整備 must be a child of サービス: {ab_svc!r}")
+    # アークランズ: かつや / その他は外食事業の子。国内総店舗数は外食の店舗数（#484）
+    arc_rows = [
+        "小売事業 既存 売上高(前年比)",
+        "小売事業 既存 客数(前年比)",
+        "小売事業 既存 客単価(前年比)",
+        "小売事業 全店 売上高(前年比)",
+        "外食事業 かつや 既存 売上高(前年比)",
+        "外食事業 かつや 既存 客数(前年比)",
+        "外食事業 かつや 既存 客単価(前年比)",
+        "外食事業 全店 売上高(前年比)",
+        "外食事業 かつや 店舗数",
+        "外食事業 その他 店舗数",
+        "日本 外食事業 店舗数",
+    ]
+    arc = assign_tree_rows("98420", arc_rows, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in arc.items()}
+    want = {
+        "小売事業 既存 売上高(前年比)": (["全体", "小売事業"], "既存 売上高(前年比)", "既存 売上高"),
+        "小売事業 既存 客数(前年比)": (["全体", "小売事業"], "既存 客数(前年比)", "既存 客数"),
+        "小売事業 既存 客単価(前年比)": (["全体", "小売事業"], "既存 客単価(前年比)", "既存 客単価"),
+        "小売事業 全店 売上高(前年比)": (["全体", "小売事業"], "全店 売上高(前年比)", "全店 売上高"),
+        "外食事業 かつや 既存 売上高(前年比)": (
+            ["全体", "外食事業", "かつや"], "既存 売上高(前年比)", "既存 売上高"),
+        "外食事業 かつや 既存 客数(前年比)": (
+            ["全体", "外食事業", "かつや"], "既存 客数(前年比)", "既存 客数"),
+        "外食事業 かつや 既存 客単価(前年比)": (
+            ["全体", "外食事業", "かつや"], "既存 客単価(前年比)", "既存 客単価"),
+        "外食事業 全店 売上高(前年比)": (["全体", "外食事業"], "全店 売上高(前年比)", "全店 売上高"),
+        "外食事業 かつや 店舗数": (["全体", "外食事業", "かつや"], "店舗数", "店舗数"),
+        "外食事業 その他 店舗数": (["全体", "外食事業", "その他"], "店舗数", "店舗数"),
+        "日本 外食事業 店舗数": (["全体", "外食事業"], "日本 外食事業 店舗数", "店舗数"),
+    }
+    if got != want:
+        _fail(f"98420 tree rows: {got!r}")
+    arc_tree = tree_payload("98420", arc_rows, load_monthly_trees())
+    if arc_tree is None or arc_tree.get("tree_auto"):
+        _fail("98420 must use the config tree")
+    if arc_tree["tree_metrics"] != [
+        "既存 売上高", "既存 客数", "既存 客単価", "全店 売上高", "店舗数",
+    ]:
+        _fail(f"98420 metrics: {arc_tree!r}")
+    arc_kids = arc_tree["tree"][0]["children"]
+    if [n["name"] for n in arc_kids] != ["小売事業", "外食事業"]:
+        _fail(f"98420 section order: {arc_kids!r}")
+    arc_food = arc_kids[1]
+    if arc_food["elements"] != ["日本 外食事業 店舗数", "外食事業 全店 売上高(前年比)"]:
+        _fail(f"98420 国内総店舗数 must sit on 外食事業: {arc_food!r}")
+    if [n["name"] for n in arc_food["children"]] != ["かつや", "その他"]:
+        _fail(f"98420 かつや / その他 must be children of 外食事業: {arc_food['children']!r}")
     # ラストワンマイル: ストック型合計が根。旧「X ストック型」は同じ節。内燃料調整費は電気の内数（#472）
     lom_rows = [
         "ストック型 売上高",
@@ -4098,6 +4147,22 @@ def _assert_monthly_layout_js() -> None:
         "elements": [{**_el(e, "number"), "tree": lom_assign[e]} for e in lom_canon],
         **tree_payload("92520", lom_canon, sanyo_trees),
     }]
+    # アークランズ: 国内総店舗数は外食事業の店舗数。かつや / その他はその子（#484）
+    arc_rows = [
+        ("小売事業 既存 売上高(前年比)", "yoy_index"),
+        ("小売事業 全店 売上高(前年比)", "yoy_index"),
+        ("外食事業 かつや 既存 売上高(前年比)", "yoy_index"),
+        ("外食事業 全店 売上高(前年比)", "yoy_index"),
+        ("外食事業 かつや 店舗数", "number"),
+        ("外食事業 その他 店舗数", "number"),
+        ("日本 外食事業 店舗数", "number"),
+    ]
+    arc_assign = assign_tree_rows("98420", [e for e, _ in arc_rows], sanyo_trees)
+    fixtures["arclandsTree"] = [{
+        "year": 2026, "code": "98420",
+        "elements": [{**_el(e, u), "tree": arc_assign[e]} for e, u in arc_rows],
+        **tree_payload("98420", [e for e, _ in arc_rows], sanyo_trees),
+    }]
     bookoff_rows = [
         "国内ブックオフ 直営 既存 売上高(前年比)",
         "国内ブックオフ 直営 全店 売上高(前年比)",
@@ -4345,6 +4410,11 @@ vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a電気")
 const lomHtml = sandbox.monthlyTreeHtml(ltm, () => "<td></td>", [{y: 2026, m: 1}]);
 const lomNames = namesOf(lomHtml);
 vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const artm = sandbox.monthlyTreeModel(fixtures.arclandsTree);
+sandbox.monthlyTreeSeedOpen(artm);
+vm.runInContext('monthlyTlOpen.add("m:店舗数\\u203atree:全体\\u203a外食事業");', sandbox);
+const arclandsNames = namesOf(sandbox.monthlyTreeHtml(artm, () => "<td></td>", [{y: 2026, m: 1}]));
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
 const boftm = sandbox.monthlyTreeModel(fixtures.bookoffTree);
 sandbox.monthlyTreeSeedOpen(boftm);
 vm.runInContext('monthlyTlOpen.add("m:店舗数"); monthlyTlOpen.add("m:店舗数\\u203atree:全体\\u203a国内ブックオフ"); monthlyTlOpen.add("m:店舗数\\u203atree:全体\\u203a海外事業");', sandbox);
@@ -4436,6 +4506,7 @@ console.log(JSON.stringify({
   autobacsNames,
   tabayaNames,
   lomNames,
+  arclandsNames,
   lomPart: lomHtml.includes("tl-part"),
   bookoffNames,
   odakyuNames,
@@ -4574,6 +4645,14 @@ console.log(JSON.stringify({
         _fail(f"78650 config tree rows: {got.get('peopleNames')!r}")
     if not got.get("lomPart"):
         _fail("92520 内燃料調整費 must render as tl-part")
+    # 店舗数は会社の行が無いので開く。かつや / その他は外食事業を開いた下。国内総は指標名に出ない
+    want_arc = [
+        "既存 売上高", "小売事業", "外食事業",
+        "全店 売上高", "小売事業", "外食事業",
+        "店舗数", "外食事業", "かつや", "その他",
+    ]
+    if got.get("arclandsNames") != want_arc:
+        _fail(f"98420 config tree rows: {got.get('arclandsNames')!r}")
     want_bookoff = [
         "国内ブックオフ 直営 既存 売上高(前年比)",
         "国内ブックオフ 直営 全店 売上高(前年比)",
