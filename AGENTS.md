@@ -125,6 +125,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 - 月次 GET は公開（`/monthly`）。書き込みは loopback。nginx 経由の POST/PUT/DELETE は 403。個人 SPA は `/app` + Basic
 - 月次の新規登録は `monthly_ingest`。year は渡さない。`monthly_put_values` の year は暦年で訂正専用
 - `monthly_delete_element` は値の無い行だけ（残っていれば 409）。表は残す
+- 行名の付け替え・まとめての訂正は `monthly_get_doc` → `monthly_put_doc`。先に `dry_run` で `changes` を見る
 - アプリ本体 (`app/*`) にログ API を足さない。MCP が死んだときの退避路は Actions の **Debug VPS**
 - R2 bucket `share` は VPS で `/home/stock/r2-share` に rclone mount。`rclone.conf` はリポジトリに置かない。マウント切断時のジョブ打ち切りと watch timer は `DESIGN.md` §3 / `deploy/README.md`
 - クラウドのエージェントから R2 を読むときは `deploy/README.md` の「クラウドのエージェントから読む」。読み取りのみ。取得先は `/tmp`

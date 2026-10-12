@@ -106,6 +106,7 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 - `monthly_add_element` — 要素登録
 - `monthly_put_values` — セル一括 upsert（null で削除）。year は暦年。訂正用
 - `monthly_delete_element` — 値の無い行を消す。値が残っていれば 409。表は残す
+- `monthly_get_doc` / `monthly_put_doc` — 年の表を 1 枚の文書で読んで、直して丸ごと返す。行名はそのまま（正規化・エイリアスなし）。改名は `was`、文書に無い行は削除。構造の変更は `allow_structure_change`、`dry_run` で差分だけ。仕様は `DESIGN.md` の API 表
 - `monthly_set_industry` — 月次業種。PUT /api/v1/tables/{code}/industry。銘柄マスタの業種とは別
 - `monthly_ingest` — PDF 月次の新規登録。POST /api/v1/tables/{code}/ingest。year は渡さない。
   列順 + as_of 時点の最新 `fiscal_year_end` から暦年を決める。月が重複する year-wrap は列順配列の `values`。`dry_run: true` は書かずに年割当と書くはずのセルを返す。`only_months` は `YYYY-MM` で列を絞る
