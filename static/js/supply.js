@@ -252,7 +252,12 @@ const SUPPLY_METRIC = {
 };
 const SUPPLY_CHART_METRICS = ["production", "import", "export", "processing", "domestic_sales", "apparent"];
 let supplyChart = null;
-let supplyMonthlyData = null;  // {id, series, picked}。picked は表で選んだ系列の番号（null なら既定の系列）
+let supplySeries = [];  // いま描いている lightweight-charts の系列
+let supplyMonthlyData = null;  // {id, series, picked}。picked は表で選んだ系列の番号の Set（空なら既定の系列）
+
+// 時刻は "YYYY-MM-DD" か {year, month, day} で来る
+const supplyYm = t => typeof t === "string" ? t.slice(0, 7)
+  : t && typeof t === "object" ? `${t.year}-${String(t.month).padStart(2, "0")}` : null;
 
 async function supplyMonthly(id){
   let d;
@@ -260,9 +265,9 @@ async function supplyMonthly(id){
   catch(e){ if(supply.selected === id) $("#supply-monthly").textContent = `読み込めませんでした (${e.message})`; return; }
   if(supply.selected !== id) return;
   const box = $("#supply-monthly");
-  if(supplyChart){ supplyChart.remove(); supplyChart = null; }
+  if(supplyChart){ supplyChart.remove(); supplyChart = null; supplySeries = []; }
   if(!d.series.length){ box.textContent = "統計の対応がまだありません。"; return; }
-  supplyMonthlyData = {id, series: d.series, picked: null};
+  supplyMonthlyData = {id, series: d.series, picked: new Set()};
   box.className = "";
   box.innerHTML = `<div class="sub supply-unit" id="supply-unit"></div>
     <div id="supply-legend" class="supply-legend-v"></div><div id="supply-chart"></div>
@@ -272,10 +277,10 @@ async function supplyMonthly(id){
       return `<tr class="supply-row" data-i="${i}"><td class="l"><i style="background:${SUPPLY_METRIC[x.metric].color}"></i>${SUPPLY_METRIC[x.metric].label}</td>
         <td>${rev === 1 ? '<span class="supply-rev">速報</span>' : ""}${m}</td><td>${fmt(v)}</td><td class="l">${x.unit}</td></tr>`;
     }).join("")}</table>
-    <div class="sub supply-hint">指標を押すとその指標だけ。もう一度押すと戻る</div>`;
+    <div class="sub supply-hint">指標を押すと選んだ指標だけ（複数可）。もう一度押すと外す</div>`;
   box.querySelectorAll(".supply-row").forEach(tr => tr.onclick = () => {
-    const i = Number(tr.dataset.i);
-    supplyMonthlyData.picked = supplyMonthlyData.picked === i ? null : i;
+    const i = Number(tr.dataset.i), picked = supplyMonthlyData.picked;
+    picked.has(i) ? picked.delete(i) : picked.add(i);
     supplyDrawChart();
   });
   supplyDrawChart();
@@ -283,7 +288,7 @@ async function supplyMonthly(id){
 
 function supplyChartLines(){
   const {series, picked} = supplyMonthlyData;
-  if(picked !== null) return [series[picked]];
+  if(picked.size) return series.filter((_, i) => picked.has(i));
   // 既定は生産の単位（無ければ最初の系列の単位）にそろう系列だけ
   const unit = (series.find(x => x.metric === "production") || series[0]).unit;
   return series.filter(x => x.unit === unit && SUPPLY_CHART_METRICS.includes(x.metric));
@@ -297,42 +302,50 @@ function supplyLegend(lines, month){
   }).join("")}`;
 }
 
-function supplyDrawChart(){
-  const {picked} = supplyMonthlyData;
-  document.querySelectorAll(".supply-row").forEach(tr =>
-    tr.classList.toggle("sel", Number(tr.dataset.i) === picked));
-  if(supplyChart){ supplyChart.remove(); supplyChart = null; }
-  const lines = supplyChartLines();
-  $("#supply-unit").textContent = lines.length ? `単位 ${lines[0].unit}` : "";
-  if(!lines.length || !window.LightweightCharts){ $("#supply-legend").innerHTML = ""; return; }
-  supplyLegend(lines, null);
-  const el = $("#supply-chart");
-  // 時刻は "YYYY-MM-DD" か {year, month, day} で来る
-  const ym = t => typeof t === "string" ? t.slice(0, 7)
-    : t && typeof t === "object" ? `${t.year}-${String(t.month).padStart(2, "0")}` : null;
-  supplyChart = LightweightCharts.createChart(el, {
-    height: 180, width: el.clientWidth,
+function supplyEnsureChart(){
+  if(supplyChart) return supplyChart;
+  supplyChart = LightweightCharts.createChart($("#supply-chart"), {
+    height: 180, autoSize: true,
     layout: {background: {color: "#fff"}, textColor: "#66707a", fontSize: 11, attributionLogo: false},
     grid: {vertLines: {visible: false}, horzLines: {color: "#e8ecf0"}},
-    rightPriceScale: {borderVisible: false},
+    rightPriceScale: {borderVisible: false}, leftPriceScale: {borderVisible: false},
     timeScale: {borderVisible: false, tickMarkFormatter: (t, type) => {
-      const s = ym(t) || "";
+      const s = supplyYm(t) || "";
       return type === 0 ? `${s.slice(0, 4)}年` : `${Number(s.slice(5))}月`;  // 0 = 年の目盛り
     }},
     // 値は凡例に全系列ぶん出すので、横線の値ラベルは出さない
     crosshair: {horzLine: {visible: false, labelVisible: false}},
     handleScroll: false, handleScale: false,
-    localization: {priceFormatter: v => fmt(v), timeFormatter: t => ym(t) || ""},
+    localization: {priceFormatter: v => fmt(v), timeFormatter: t => supplyYm(t) || ""},
   });
-  lines.forEach(x => {
-    const s = supplyChart.addLineSeries({color: SUPPLY_METRIC[x.metric].color, lineWidth: 2,
-      priceLineVisible: false, lastValueVisible: false});
+  supplyChart.subscribeCrosshairMove(param => supplyLegend(supplyChartLines(), supplyYm(param.time)));
+  return supplyChart;
+}
+
+function supplyDrawChart(){
+  const {picked} = supplyMonthlyData;
+  document.querySelectorAll(".supply-row").forEach(tr =>
+    tr.classList.toggle("sel", picked.has(Number(tr.dataset.i))));
+  const lines = supplyChartLines();
+  // 単位ごとに縦軸を分ける。1 つ目は右、2 つ目は左、3 つ目からは目盛りを出さない
+  const units = [...new Set(lines.map(x => x.unit))];
+  const scaleOf = u => ["right", "left"][units.indexOf(u)] || `u${units.indexOf(u)}`;
+  $("#supply-unit").textContent = !units.length ? ""
+    : units.length === 1 ? `単位 ${units[0]}`
+    : `単位 ${units.map((u, i) => `${u}（${["右", "左"][i] || "目盛りなし"}）`).join(" / ")}`;
+  supplyLegend(lines, null);
+  if(!window.LightweightCharts) return;
+  // グラフを作り直すと一瞬高さが 0 になり、スマホでページが上へ跳ぶ。系列だけ差し替える
+  const chart = supplyEnsureChart();
+  supplySeries.forEach(s => chart.removeSeries(s));
+  supplySeries = lines.map(x => {
+    const s = chart.addLineSeries({color: SUPPLY_METRIC[x.metric].color, lineWidth: 2,
+      priceLineVisible: false, lastValueVisible: false, priceScaleId: scaleOf(x.unit)});
     s.setData(x.points.map(([m, v]) => ({time: `${m}-01`, value: v})));
+    return s;
   });
-  supplyChart.subscribeCrosshairMove(param => {
-    supplyLegend(lines, ym(param.time));
-  });
-  supplyChart.timeScale().fitContent();
+  chart.applyOptions({leftPriceScale: {visible: units.length > 1}});
+  chart.timeScale().fitContent();
 }
 
 window.loadSupply = loadSupply;
