@@ -21,14 +21,18 @@ from app.estat import (  # noqa: E402
 )
 from app.material_stats import (  # noqa: E402
     REVISION_KAKUHO, REVISION_NENPO, REVISION_SOKUHO, MappingError, Row, SeidouRecord,
-    load_mapping, sekiyu_rows, seidou_rows, validate_mapping, write_rows,
+    load_mapping, prune_unmapped, sekiyu_rows, seidou_rows, validate_mapping, write_rows,
 )
 from app.meti import (  # noqa: E402
-    MetiChallenged, MetiClient, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_sokuho_cells, seidou_files,
+    MetiChallenged, MetiClient, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_nenpo_inventory_cells,
+    sekiyu_sokuho_cells, seidou_files,
 )
 from app.meti import seidou_records as meti_records  # noqa: E402
 from app.models import MaterialMonthly  # noqa: E402
 from app.supply_chain import apparent_consumption, load_supply_chain, monthly_payload  # noqa: E402
+
+sys.path.insert(0, str(ROOT / "jobs"))
+from material_stats import meti_targets, stale_sekiyu  # noqa: E402
 
 
 def _fail(msg: object) -> None:
@@ -47,6 +51,8 @@ def test_config_mapping() -> None:
         {"seidou": {"items": [{"material": "nope", "report": "6100", "products": ["エチレン"]}]}},
         {"seidou": {"items": [{"material": "abs", "report": "6100", "products": [["AS樹脂"], "ABS樹脂"]}]}},
         {"trade": {"items": [{"material": "crude", "import": ["27x9"]}]}},
+        {"sekiyu": {"items": [{"material": "lpg", "metric": "import", "kakuho": {"blocks": ["LPG"], "column": "輸入"}}]},
+         "trade": {"items": [{"material": "lpg", "import": ["271112"]}]}},
     ):
         try:
             validate_mapping(bad, ids)
@@ -246,6 +252,25 @@ def test_sekiyu_sokuho_and_nenpo() -> None:
     _eq(got[("B・C重油", "2025-01")], (50, "kl"), "Japanese line only")
     _eq(got[("アスファルト", "2025-01")], (7, "t"), "unit switches at アスファルト")
     _eq(got[("液化石油ガス", "2025-02")], (10, "t"), "unit after switch")
+
+    inv = _book({"２（５）石油製品月別業態別在庫": [
+        [None, "（５）石油製品月別業態別在庫", None, None, "(単位：kl、アスファルト以降:t)"],
+        [None, None, None, "ナフサ", "アスファルト"],
+        [None, "区分", None, None, None],
+        [None, None, None, "Naphtha", "Asphalt"],
+        [None, "令和7年", None, None, None],
+        [None, "計", None, 100, 7],
+        [None, "  1月", "製油所", 60, 4],
+        [None, None, "製造・輸入業者", 40, 3],
+        [None, "計", None, 110, 9],
+        [None, "  2月", "製油所", 70, 5],
+        [None, None, "製造・輸入業者", 40, 4],
+    ]})
+    _eq(sorted((c.block, c.column, c.month, c.raw, c.unit) for c in sekiyu_nenpo_inventory_cells(inv)),
+        [("アスファルト", "石油製品月別業態別在庫", "2025-01", 7, "t"),
+         ("アスファルト", "石油製品月別業態別在庫", "2025-02", 9, "t"),
+         ("ナフサ", "石油製品月別業態別在庫", "2025-01", 100, "kl"),
+         ("ナフサ", "石油製品月別業態別在庫", "2025-02", 110, "kl")], "nenpo inventory: 計 rows")
     items = [{"material": "heavy", "metric": "domestic_sales",
               "nenpo": {"blocks": ["B・C重油"], "column": ["石油製品月別国内向販売", "石油製品国内向月別販売"]}}]
     rows, _ = sekiyu_rows(sekiyu_nenpo_cells(nenpo), items=items, kind="nenpo", revision=REVISION_NENPO, origin="n")
@@ -256,8 +281,31 @@ def test_sekiyu_sokuho_and_nenpo() -> None:
     html_s = '<a href="result/xls/h2j581011j.xlsx"><a href="result/xls/h2j581011e.xlsx">'
     files = sekiyu_files(html_k, html_s, "https://www.meti.go.jp/statistics/tyo/sekiyuka/index.html",
                          "https://www.meti.go.jp/statistics/tyo/sekiyuso/result.html")
-    _eq([(f.name, f.revision) for f in files],
-        [("h2dhhpe2021k.xlsx", 3), ("se202607kakji.xlsx", 2), ("h2j581011j.xlsx", 1)], "sekiyu files")
+    _eq([(f.name, f.revision, f.final) for f in files],
+        [("h2dhhpe2021k.xlsx", 3, True), ("se202112kakji.xlsx", 2, True), ("se202607kakji.xlsx", 2, False),
+         ("h2j581011j.xlsx", 1, False)], "sekiyu files: December kakuho of each nenpo year")
+    _eq(files[1].url, "https://www.meti.go.jp/statistics/tyo/sekiyuka/xls/se202112kakji.xlsx", "december url")
+    done = {"h2dhhpe2021k.xlsx", "se202112kakji.xlsx", "se202607kakji.xlsx"}
+    _eq([f.name for f in meti_targets(files, done, False)], ["se202607kakji.xlsx", "h2j581011j.xlsx"],
+        "final files are skipped once ingested")
+    _eq([f.name for f in meti_targets(files, done, False, frozenset({REVISION_NENPO}))],
+        ["h2dhhpe2021k.xlsx", "se202607kakji.xlsx", "h2j581011j.xlsx"], "stale revision is refetched")
+
+    # 令和より前に平成の行がある年報（2021 年版）。平成の行は見出しではない
+    old = _book({"２（４）①石油製品月別輸入": [
+        [None, "   ①月別輸入 / Import by Month"],
+        [None, "年・期・月", None, None, None, "燃料油計", "ナフサ"],
+        [None, None, None, None, None, "Total", "Naphtha"],
+        [None, None, None, None, None, 1100596, None],
+        [None, "平成", "29年", None, None, 33510425, 28277414],
+        [None, "令和", " 3年", " 1月", None, 3, 2],
+        [None, None, None, None, None, 9, None],
+        [None, None, None, "2", None, 5, 4],
+        [],
+    ]})
+    _eq(sorted((c.block, c.column, c.month, c.raw) for c in sekiyu_nenpo_cells(old)),
+        [("ナフサ", "月別輸入", "2021-01", 2), ("ナフサ", "月別輸入", "2021-02", 4),
+         ("燃料油計", "月別輸入", "2021-01", 3), ("燃料油計", "月別輸入", "2021-02", 5)], "heisei rows")
 
 
 class _FakeResp:
@@ -336,6 +384,37 @@ def test_revision_guard() -> None:
         db.close()
 
 
+def test_prune_and_stale() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        db.query(MaterialMonthly).delete()
+        write_rows(db, [
+            Row("lpg", "2025-01", "import", "trade", 1.0, "t", 2, "t"),
+            Row("lpg", "2025-01", "import", "sekiyu", 2.0, "t", 3, "n"),
+            Row("lpg", "2025-01", "production", "seidou:8061", 3.0, "kl", 2, "k"),
+            Row("ethylene", "2025-01", "production", "seidou:6100", 4.0, "t", 2, "k"),
+        ])
+        mapping = {
+            "seidou": {"metrics": {"生産": "production"},
+                       "items": [{"material": "ethylene", "report": "6100", "products": ["エチレン"]}]},
+            "sekiyu": {"items": [
+                {"material": "lpg", "metric": "import", "nenpo": {"blocks": ["液化石油ガス"], "column": "月別輸入"}},
+                {"material": "lpg", "metric": "export", "nenpo": {"blocks": ["液化石油ガス"], "column": "月別輸出"},
+                 "kakuho": {"blocks": ["液化石油ガス"], "column": "輸出"}},
+            ]},
+        }
+        _eq(prune_unmapped(db, mapping), 2, "pruned rows")
+        _eq(sorted((r.material_id, r.metric, r.source) for r in db.query(MaterialMonthly)),
+            [("ethylene", "production", "seidou:6100"), ("lpg", "import", "sekiyu")], "kept rows")
+        _eq(stale_sekiyu(db, mapping["sekiyu"]["items"]), frozenset({REVISION_NENPO, REVISION_KAKUHO}),
+            "export has no row yet")
+        write_rows(db, [Row("lpg", "2025-01", "export", "sekiyu", 1.0, "t", 3, "n")])
+        _eq(stale_sekiyu(db, mapping["sekiyu"]["items"]), frozenset(), "nenpo rows also cover kakuho")
+    finally:
+        db.close()
+
+
 def test_apparent_and_payload() -> None:
     series = {
         "production": {"2025-01": 100.0, "2025-02": 110.0},
@@ -366,6 +445,7 @@ def main() -> None:
     test_meti_waf_challenge()
     test_trade()
     test_revision_guard()
+    test_prune_and_stale()
     test_apparent_and_payload()
     print("ok: material_stats")
 

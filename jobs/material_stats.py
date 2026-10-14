@@ -28,11 +28,12 @@ from app.estat import (  # noqa: E402
     published_through, seidou_records, sokuho_month, table_title, trade_rows, trade_table,
 )
 from app.material_stats import (  # noqa: E402
-    REVISION_KAKUHO, REVISION_NENPO, REVISION_SOKUHO, load_mapping, product_groups, sekiyu_rows, seidou_rows,
-    summarize_warnings, write_rows,
+    REVISION_KAKUHO, REVISION_NENPO, REVISION_SOKUHO, SEKIYU_SOURCE, load_mapping, product_groups, prune_unmapped, sekiyu_rows,
+    seidou_rows, summarize_warnings, write_rows,
 )
 from app.meti import (  # noqa: E402
-    MetiChallenged, MetiClient, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_sokuho_cells, seidou_files,
+    MetiChallenged, MetiClient, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_nenpo_inventory_cells,
+    sekiyu_sokuho_cells, seidou_files,
 )
 from app.meti import seidou_records as meti_seidou_records  # noqa: E402
 from app.models import MaterialMonthly  # noqa: E402
@@ -56,14 +57,30 @@ def _report_warnings(prefix: str, warnings: list[str]) -> None:
         print(f"  warn {prefix} {line}")
 
 
-def ingested_nenpo(db) -> set[str]:
-    """取り込み済みの年報・年間補正号のファイル名。年に 1 度しか変わらないので毎回は落とさない"""
-    q = db.query(MaterialMonthly.origin).filter(MaterialMonthly.revision == REVISION_NENPO).distinct()
-    return {o for (o,) in q if o}
+def ingested_origins(db) -> set[str]:
+    """取り込み済みのファイル名。年報など final のファイルは変わらないので毎回は落とさない"""
+    return {o for (o,) in db.query(MaterialMonthly.origin).distinct() if o}
 
 
-def meti_targets(files: list, done: set[str], refetch: bool) -> list:
-    return [f for f in files if refetch or f.revision != REVISION_NENPO or f.name not in done]
+def meti_targets(files: list, done: set[str], refetch: bool, stale: frozenset[int] = frozenset()) -> list:
+    """final のファイルは取り込み済みなら飛ばす。stale の revision（対応表に足した項目がまだ無い）は落とし直す"""
+    return [f for f in files if refetch or not f.final or f.name not in done or f.revision in stale]
+
+
+def stale_sekiyu(db, items: list[dict]) -> frozenset[int]:
+    """対応表の項目のうち、その revision の行が 1 つも無いものがある revision。項目を足した後の初回に年報を落とし直す"""
+    have = {(m, metric, rev) for m, metric, rev in db.query(
+        MaterialMonthly.material_id, MaterialMonthly.metric, MaterialMonthly.revision,
+    ).filter(MaterialMonthly.source == SEKIYU_SOURCE).distinct()}
+    kinds = {REVISION_NENPO: "nenpo", REVISION_KAKUHO: "kakuho"}
+    return frozenset(rev for rev, kind in kinds.items()
+                     if any(it.get(kind) and not any((it["material"], it["metric"], r) in have
+                                                     for r in range(rev, REVISION_NENPO + 1))
+                            for it in items))
+
+
+def _nenpo_cells(data: bytes) -> list:
+    return sekiyu_nenpo_cells(data) + sekiyu_nenpo_inventory_cells(data)
 
 
 def ingest_meti_seidou(db, mapping: dict, refetch: bool = False) -> int:
@@ -75,7 +92,7 @@ def ingest_meti_seidou(db, mapping: dict, refetch: bool = False) -> int:
         print("meti seidou: no Excel link on the list page")
         return 0
     total = 0
-    for f in meti_targets(files, ingested_nenpo(db), refetch):
+    for f in meti_targets(files, ingested_origins(db), refetch):
         try:
             records = meti_seidou_records(client.get(f.url), reports)
         except MetiChallenged as e:
@@ -105,9 +122,9 @@ def ingest_meti_sekiyu(db, mapping: dict, refetch: bool = False) -> int:
         print("meti sekiyu: no Excel link on the list pages")
         return 0
     total = 0
-    parsers = {REVISION_NENPO: ("nenpo", sekiyu_nenpo_cells), REVISION_KAKUHO: ("kakuho", sekiyu_kakuho_cells),
+    parsers = {REVISION_NENPO: ("nenpo", _nenpo_cells), REVISION_KAKUHO: ("kakuho", sekiyu_kakuho_cells),
                REVISION_SOKUHO: ("sokuho", sekiyu_sokuho_cells)}
-    for f in meti_targets(files, ingested_nenpo(db), refetch):
+    for f in meti_targets(files, ingested_origins(db), refetch, stale_sekiyu(db, items)):
         kind, parse = parsers[f.revision]
         try:
             cells = parse(client.get(f.url))
@@ -195,7 +212,7 @@ def main() -> int:
     ap.add_argument("--years", help="e-Stat の年。2025 または 2021-2026。省略時は前年と今年")
     ap.add_argument("--source", choices=("meti", "estat"))
     ap.add_argument("--only", choices=("seidou", "sekiyu", "trade"))
-    ap.add_argument("--refetch", action="store_true", help="取り込み済みの年報・年間補正号も落とし直す")
+    ap.add_argument("--refetch", action="store_true", help="取り込み済みの年報・年間補正号・過去年の 12 月の確報も落とし直す")
     args = ap.parse_args()
     years = parse_years(args.years, date.today())
     material_ids = [m["id"] for m in load_supply_chain()["materials"]]
@@ -204,6 +221,9 @@ def main() -> int:
     init_db()
     db = SessionLocal()
     try:
+        pruned = prune_unmapped(db, mapping)
+        if pruned:
+            print(f"material_stats pruned={pruned} (no longer in config/material_stats.json)")
         n = 0
         if args.source in (None, "estat"):
             if not ESTAT_APP_ID:

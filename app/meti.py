@@ -42,6 +42,7 @@ class MetiChallenged(MetiError):
 class MetiFile(NamedTuple):
     url: str
     revision: int
+    final: bool = False  # もう変わらないファイル（年報・年間補正号・過去年の 12 月の確報）。取り込み済みなら落とさない
 
     @property
     def name(self) -> str:
@@ -53,7 +54,7 @@ def seidou_files(html: str, base: str = METI_SEIDOU_URL) -> list[MetiFile]:
     out: list[MetiFile] = []
     for pattern, revision in _LINKS:
         for href in dict.fromkeys(pattern.findall(html)):
-            out.append(MetiFile(urljoin(base, href), revision))
+            out.append(MetiFile(urljoin(base, href), revision, revision == REVISION_NENPO))
     return out
 
 
@@ -160,12 +161,22 @@ def _reiwa(year: str) -> int:
 
 
 def sekiyu_files(kakuho_html: str, sokuho_html: str, kakuho_base: str, sokuho_base: str) -> list[MetiFile]:
-    """年報（各年の 12 か月、revision 3）、確報は一覧の最新 1 本（時系列なので過去月も入っている）、速報は当月の 1 本"""
-    out: list[MetiFile] = [MetiFile(urljoin(kakuho_base, h), REVISION_NENPO)
-                           for h in sorted(set(_SEKIYU_NENPO.findall(kakuho_html)))]
+    """年報（各年の 1 月〜翌年 3 月、revision 3）、年報のある年の 12 月の確報、一覧の最新の確報、当月の速報。
+
+    確報は前年 10 月からの 15 か月の時系列。年報に製品の月別生産が無いので、年報のある年は 12 月の確報で埋める。
+    一覧には今年の確報しか載らないが、過去の 12 月の確報も同じ名前の規則で置いてある。
+    """
+    nenpo = sorted(set(_SEKIYU_NENPO.findall(kakuho_html)))
+    out: list[MetiFile] = [MetiFile(urljoin(kakuho_base, h), REVISION_NENPO, True) for h in nenpo]
     kakuho = sorted(set(_SEKIYU_KAKUHO.findall(kakuho_html)))
-    if kakuho:
-        out.append(MetiFile(urljoin(kakuho_base, kakuho[-1]), REVISION_KAKUHO))
+    latest = urljoin(kakuho_base, kakuho[-1]) if kakuho else None
+    for h in nenpo:
+        year = re.search(r"h2dhhpe(\d{4})k", h).group(1)
+        url = urljoin(kakuho_base, re.sub(r"h2dhhpe\d{4}k\.xlsx$", f"se{year}12kakji.xlsx", h))
+        if url != latest:
+            out.append(MetiFile(url, REVISION_KAKUHO, True))
+    if latest:
+        out.append(MetiFile(latest, REVISION_KAKUHO))
     for href in dict.fromkeys(_SEKIYU_SOKUHO.findall(sokuho_html)):
         out.append(MetiFile(urljoin(sokuho_base, href), REVISION_SOKUHO))
     return out
@@ -252,10 +263,15 @@ def sekiyu_sokuho_cells(data: bytes) -> list[SekiyuCell]:
             c, m = next((c, mm) for c, v in enumerate(rows[h]) if (mm := re.fullmatch(r"(\d+)年(\d+)月", _norm(v))))
             month = f"{_reiwa(m.group(1))}-{int(m.group(2)):02d}"
             unit_col = c - 1
+            parent = ""
             for r in rows[h + 1:]:
-                label = _norm(r[0])
-                if label.startswith(("2.", "3.")) or "原油出荷内訳" in label:
+                head = _norm(r[0])
+                if head.startswith(("2.", "3.")) or "原油出荷内訳" in head:
                     break
+                # 内訳の行は 1 列目が空で 2 列目に名前（受入 → 輸入 は「受入輸入」）
+                sub = _norm(r[1]) if len(r) > 1 else ""
+                parent = head or parent
+                label = head or (parent + sub if sub else "")
                 if label and c < len(r) and r[c] not in (None, ""):
                     out.append(SekiyuCell("原油", label, _norm(r[unit_col]), month, r[c]))
     return out
@@ -288,9 +304,14 @@ def sekiyu_nenpo_cells(data: bytes) -> list[SekiyuCell]:
             unit = next((m.group(1) for v in rows[title_row]
                          if (m := re.search(r"単位[:：]\s*([^/）)]+)", _norm(v)))), "")
             first = next((r for r in range(h + 1, len(rows))
-                          if re.match(r"令和", "".join(_norm(v) for v in rows[r][:4]))), len(rows))
+                          if re.match(r"平成|令和", _norm(rows[r][0]) + _norm(rows[r][1] if len(rows[r]) > 1 else ""))),
+                         len(rows))
+            # 数値が始まる列。見出しのある最初の列（原油の国別輸入は「合計」が 2 列目から、他の表は 5 列目から）
+            width = max(len(r) for r in rows[h:first] or [row])
+            start = min((c for c in range(1, width) for r in range(h, first)
+                         if c < len(rows[r]) and _norm(rows[r][c]) not in ("", "年・期・月")), default=4)
             heads = {}
-            for c in range(4, max(len(r) for r in rows[h:first] or [row])):
+            for c in range(start, width):
                 name = "".join(_cjk(rows[r][c]) for r in range(h, first) if c < len(rows[r]))
                 if name and not name.startswith(("年・期・月", "Year")):
                     heads[c] = name
@@ -301,9 +322,10 @@ def sekiyu_nenpo_cells(data: bytes) -> list[SekiyuCell]:
                 units = {c: m.group(3) if switch is not None and c >= switch else m.group(1) for c in heads}
             year, monthly = None, False
             for r in range(first, len(rows)):
-                label = "".join(_norm(v) for v in rows[r][:4])
+                label = "".join(_norm(v) for v in rows[r][:start])
                 if not label:
-                    if monthly:
+                    # 輸入の表は期ごとに見出しの無い内訳の行が挟まる。全部空の行で表が終わる
+                    if monthly and not any(_norm(v) for v in rows[r]):
                         break
                     continue
                 m = re.match(r"令和(\d+)年(\d{1,2})(月?)$", label)
@@ -318,4 +340,48 @@ def sekiyu_nenpo_cells(data: bytes) -> list[SekiyuCell]:
                 for c, head in heads.items():
                     if c < len(rows[r]) and rows[r][c] not in (None, ""):
                         out.append(SekiyuCell(head, table, units[c], f"{year}-{month:02d}", rows[r][c]))
+    return out
+
+
+def sekiyu_nenpo_inventory_cells(data: bytes) -> list[SekiyuCell]:
+    """年報の「石油製品月別業態別在庫」。月ごとに 計 / 製油所 / 製造・輸入業者 の 3 行で、月は 製油所 の行にある。計 だけ取る"""
+    from openpyxl import load_workbook
+
+    wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    out: list[SekiyuCell] = []
+    for ws in wb.worksheets:
+        if "月別業態別在庫" not in _norm(ws.title):
+            continue
+        rows = [list(r) for r in ws.iter_rows(values_only=True)]
+        h = next((i for i, r in enumerate(rows) if any(_norm(v) == "区分" for v in r[:3])), None)
+        if h is None:
+            raise MetiError(f"{ws.title}: header not found")
+        width = max(len(r) for r in rows)
+        heads = {}
+        for c in range(3, width):
+            name = "".join(_cjk(rows[r][c]) for r in range(h - 1, h + 3) if c < len(rows[r]))
+            if name:
+                heads[c] = name
+        unit = next((m.group(1) for r in rows[:h] for v in r
+                     if (m := re.search(r"単位[:：]\s*([^/）)]+)", _norm(v)))), "kl、アスファルト以降:t")
+        units = {c: unit for c in heads}
+        if (m := re.fullmatch(r"(\w+)、(.+)以降[:：](\w+)", unit)):
+            switch = next((c for c, name in sorted(heads.items()) if name == m.group(2)), None)
+            units = {c: m.group(3) if switch is not None and c >= switch else m.group(1) for c in heads}
+        year = None
+        for i in range(h + 1, len(rows)):
+            row = rows[i]
+            label = "".join(_norm(v) for v in row[:3])
+            if (m := re.match(r"令和(\d+)年", label)):
+                year = _reiwa(m.group(1))
+            if year is None or "計" not in [_norm(v) for v in row[:3]]:
+                continue
+            nxt = rows[i + 1] if i + 1 < len(rows) else []
+            mm = next((m for v in nxt[:3] if (m := re.fullmatch(r"(\d{1,2})月", _norm(v)))), None)
+            if not mm:
+                continue
+            for c, head in heads.items():
+                if c < len(row) and row[c] not in (None, ""):
+                    out.append(SekiyuCell(head, "石油製品月別業態別在庫", units[c],
+                                          f"{year}-{int(mm.group(1)):02d}", row[c]))
     return out
