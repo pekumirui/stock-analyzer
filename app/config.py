@@ -10,6 +10,7 @@ MONTHLY_VOCAB_PATH = CONFIG_DIR / "monthly_vocab.json"
 MONTHLY_ROW_ORDER_PATH = CONFIG_DIR / "monthly_row_order.json"
 IR_MONTHLY_PATH = CONFIG_DIR / "ir_monthly.json"
 SUPPLY_CHAIN_PATH = CONFIG_DIR / "supply_chain.json"
+SUPPLY_COMPANIES_PATH = CONFIG_DIR / "supply_companies.json"
 MATERIAL_STATS_PATH = CONFIG_DIR / "material_stats.json"
 
 

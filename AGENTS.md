@@ -46,7 +46,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `app/api.py` | REST (`/api/*`) |
 | `app/monthly_ingest.py` | PDF 月次列 → 暦年。行名正規化と aliases |
 | `app/monthly_tree.py` | 月次の親子関係。`monthly_row_order.json` の `tree`、無ければゲートと内訳から作る自動の木を行に割り当てる。year GET の `tree` |
-| `app/supply_chain.py` | サプライタブの素材マスタ（`config/supply_chain.json`）の読込と検査。月次量の API 形と見掛け消費 |
+| `app/supply_chain.py` | サプライタブの素材マスタ（`config/supply_chain.json`）と企業マスタ（`config/supply_companies.json`）の読込と検査。月次量の API 形と見掛け消費 |
 | `app/material_stats.py` | 素材の月次量（`material_monthly`）の共通部分。対応表 `config/material_stats.json`、品名 → 素材の合計、revision（速報 < 確報 < 年報）を下げない UPSERT |
 | `app/estat.py` | e-Stat API クライアント。生産動態統計の年報と貿易統計 |
 | `app/meti.py` | 経産省の統計 Excel。生産動態統計（速報・確報・年間補正号）と資源・エネルギー統計の石油（速報・確報・年報） |
@@ -62,7 +62,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `jobs/*_r2.py` | TDnet / IR → R2 mount。下の「R2 バッチ」 |
 | `jobs/_r2common.py` | R2 バッチの共通処理（日付・HTTP・銘柄マスタ・ファイル名）。`app` は import しない |
 | `jobs/html_issuers/` | `parse: true` の HTML 月次。各 `i<code>.py` が表・行・単位を宣言する。`parse: false` はモジュールを作らない |
-| `config/` | `ir_monthly.json`、`issuer_aliases.json`、`issuer_metrics.json`、`monthly_vocab.json`（行名の共通語彙）、`monthly_row_order.json`、`supply_chain.json`（サプライタブの素材と流れ）、`material_stats.json`（統計の品目 → 素材）、XBRL YAML、Ruff/Bandit は `pyproject.toml` |
+| `config/` | `ir_monthly.json`、`issuer_aliases.json`、`issuer_metrics.json`、`monthly_vocab.json`（行名の共通語彙）、`monthly_row_order.json`、`supply_chain.json`（サプライタブの素材と流れ）、`supply_companies.json`（サプライタブの企業・生産能力）、`material_stats.json`（統計の品目 → 素材）、XBRL YAML、Ruff/Bandit は `pyproject.toml` |
 | `tests/` | `test_*.py` と `ci_smoke.py`。新しい `test_*.py` は `ci_smoke.SUITES` に登録する（漏れは ci_smoke が落とす） |
 | `analyzer/` | `stock.db` を読むだけのオフライン分析（1 問 1 フォルダ、結果は各 `README.md`）。約束と一覧は `analyzer/README.md`。`app` からは使わない |
 | `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ） |
