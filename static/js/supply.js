@@ -340,21 +340,22 @@ async function supplyCountries(id, fly){
   const labels = items.map(c => `${c.name} ${pct(c.share)}`);
   const w = Math.max(...labels.map(measure));
   const gap = SUPPLY_NODE_H + 8, h = (items.length - 1) * gap + SUPPLY_NODE_H;
-  // 国の列は素材の左。強調中の素材の箱と重なるなら、重ならなくなるまでその箱の左へずらす
-  let x = p.x - target.width() / 2 - 56 - w / 2;
-  const boxes = cy.nodes().not(".dim").not(target).map(n => n.boundingBox());
-  for(let moved = true; moved;){
-    moved = false;
-    for(const b of boxes){
-      if(x - w / 2 < b.x2 + 8 && x + w / 2 > b.x1 - 8 && p.y - h / 2 < b.y2 + 4 && p.y + h / 2 > b.y1 - 4){
-        x = b.x1 - 24 - w / 2;
-        moved = true;
-      }
-    }
-  }
+  // 国の列は素材のすぐ左。箱と重なるなら上下に空きを探す（左へ押し出すと上流の多い素材で画面の外まで行く）。
+  // 先に薄い箱も避け、無ければ強調中の箱だけ避ける。上下にも空きが無いときだけ、重ならなくなるまで左へずらす
+  let x = p.x - target.width() / 2 - 56 - w / 2, y = p.y;
+  const lit = cy.nodes().not(".dim").not(target).map(n => n.boundingBox());
+  const all = cy.nodes().not(target).map(n => n.boundingBox());
+  const hit = (bx, by, boxes) => boxes.find(b =>
+    bx - w / 2 < b.x2 + 8 && bx + w / 2 > b.x1 - 8 && by - h / 2 < b.y2 + 4 && by + h / 2 > b.y1 - 4);
+  const reach = h + 4 * gap;
+  const dys = [0];
+  for(let d = gap / 2; d <= reach; d += gap / 2) dys.push(-d, d);
+  const dy = [all, lit].map(boxes => dys.find(d => !hit(x, p.y + d, boxes))).find(d => d !== undefined);
+  if(dy !== undefined) y = p.y + dy;
+  else for(let b = hit(x, y, lit); b; b = hit(x, y, lit)) x = b.x1 - 24 - w / 2;
   cy.add(items.flatMap((c, i) => [
     {group: "nodes", classes: "ctry", data: {id: `ctry_${c.key}`, label: labels[i], kind: "mid", w},
-     position: {x, y: p.y + (i - (items.length - 1) / 2) * gap}},
+     position: {x, y: y + (i - (items.length - 1) / 2) * gap}},
     {group: "edges", classes: "ctry", data: {id: `ctry_${c.key}>${id}`, source: `ctry_${c.key}`, target: id,
      lw: 1 + c.share * 9}},
   ]));
