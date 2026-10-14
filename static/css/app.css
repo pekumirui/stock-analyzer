@@ -426,3 +426,8 @@
     #supply-map { height:60vh; }
     .supply-chip { padding:5px 10px; font-size:13px; }
   }
+  .supply-unit { font-size:11px; margin-bottom:2px; }
+  #supply-chart { width:100%; }
+  .supply-tbl { width:auto; margin-top:6px; font-size:12px; }
+  .supply-tbl th, .supply-tbl td { padding:3px 6px; }
+  .supply-tbl i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; }

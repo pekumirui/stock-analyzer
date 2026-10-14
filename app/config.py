@@ -10,6 +10,7 @@ MONTHLY_VOCAB_PATH = CONFIG_DIR / "monthly_vocab.json"
 MONTHLY_ROW_ORDER_PATH = CONFIG_DIR / "monthly_row_order.json"
 IR_MONTHLY_PATH = CONFIG_DIR / "ir_monthly.json"
 SUPPLY_CHAIN_PATH = CONFIG_DIR / "supply_chain.json"
+ESTAT_MAPPING_PATH = CONFIG_DIR / "estat_mapping.json"
 
 
 def apply_dotenv(text: str, environ: MutableMapping[str, str]) -> None:
@@ -63,6 +64,10 @@ JQUANTS_BASE = os.getenv("JQUANTS_BASE", "https://api.jquants.com/v2")
 FRANKFURTER_BASE = os.getenv("FRANKFURTER_BASE", "https://api.frankfurter.dev/v1")
 FX_SERIES_START = os.getenv("FX_SERIES_START", "1999-01-04")
 FX_CHUNK_DAYS = int(os.getenv("FX_CHUNK_DAYS", "366"))
+
+# e-Stat API（サプライタブの月次量）。アプリケーション ID はコミットしない
+ESTAT_APP_ID = os.getenv("ESTAT_APP_ID", "")
+ESTAT_BASE = os.getenv("ESTAT_BASE", "https://api.e-stat.go.jp/rest/3.0/app/json")
 
 # レートリミット (プラン別: Free=5 / Light=60 / Standard=120 / Premium=500)
 RATE_LIMIT_PER_MIN = int(os.getenv("JQUANTS_RATE_LIMIT", "60"))

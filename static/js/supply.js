@@ -226,8 +226,58 @@ function supplyPanel(up, down){
     <h3>直接の原料</h3>${supplyChips(supply.parents[id])}
     <h3>これから作られるもの</h3>${supplyChips(supply.kids[id])}
     ${m.kind !== "raw" ? `<h3>元をたどった原料</h3>${supplyChips(raws)}` : ""}
-    ${down.size ? `<h3>行き着く最終製品</h3>${supplyChips(prods)}` : ""}`;
+    ${down.size ? `<h3>行き着く最終製品</h3>${supplyChips(prods)}` : ""}
+    <h3>月次の量</h3><div id="supply-monthly" class="sub">読み込み中…</div>`;
   p.querySelectorAll(".supply-chip").forEach(b => b.onclick = () => supplySelect(b.dataset.id, true));
+  supplyMonthly(id);
+}
+
+const SUPPLY_METRIC = {
+  production: {label: "生産", color: "#2f7489"},
+  shipment:   {label: "出荷", color: "#9aa3ab"},
+  inventory:  {label: "月末在庫", color: "#c4cad0"},
+  import:     {label: "輸入", color: "#b37314"},
+  export:     {label: "輸出", color: "#4a8a37"},
+  apparent:   {label: "見掛け消費", color: "#0077b6"},
+};
+const SUPPLY_CHART_METRICS = ["production", "import", "export", "apparent"];
+let supplyChart = null;
+
+async function supplyMonthly(id){
+  let d;
+  try { d = await api(`/api/supply/monthly/${id}`); }
+  catch(e){ if(supply.selected === id) $("#supply-monthly").textContent = `読み込めませんでした (${e.message})`; return; }
+  if(supply.selected !== id) return;
+  const box = $("#supply-monthly");
+  if(supplyChart){ supplyChart.remove(); supplyChart = null; }
+  if(!d.series.length){ box.textContent = "統計の対応がまだありません。"; return; }
+  // グラフは生産の単位（無ければ最初の系列の単位）にそろう系列だけ
+  const unit = (d.series.find(x => x.metric === "production") || d.series[0]).unit;
+  const lines = d.series.filter(x => x.unit === unit && SUPPLY_CHART_METRICS.includes(x.metric));
+  box.className = "";
+  box.innerHTML = `<div class="sub supply-unit">単位 ${unit}</div><div id="supply-chart"></div>
+    <table class="supply-tbl"><tr><th class="l">指標</th><th>最新月</th><th>値</th><th class="l">単位</th></tr>
+    ${d.series.map(x => {
+      const [m, v] = x.points[x.points.length - 1];
+      return `<tr><td class="l"><i style="background:${SUPPLY_METRIC[x.metric].color}"></i>${SUPPLY_METRIC[x.metric].label}</td>
+        <td>${m}</td><td>${fmt(v)}</td><td class="l">${x.unit}</td></tr>`;
+    }).join("")}</table>`;
+  if(!lines.length || !window.LightweightCharts) return;
+  const el = $("#supply-chart");
+  supplyChart = LightweightCharts.createChart(el, {
+    height: 180, width: el.clientWidth,
+    layout: {background: {color: "#fff"}, textColor: "#66707a", fontSize: 11, attributionLogo: false},
+    grid: {vertLines: {visible: false}, horzLines: {color: "#e8ecf0"}},
+    rightPriceScale: {borderVisible: false}, timeScale: {borderVisible: false},
+    handleScroll: false, handleScale: false,
+    localization: {priceFormatter: v => fmt(v)},
+  });
+  lines.forEach(x => {
+    const s = supplyChart.addLineSeries({color: SUPPLY_METRIC[x.metric].color, lineWidth: 2,
+      priceLineVisible: false, lastValueVisible: false});
+    s.setData(x.points.map(([m, v]) => ({time: `${m}-01`, value: v})));
+  });
+  supplyChart.timeScale().fitContent();
 }
 
 window.loadSupply = loadSupply;

@@ -83,6 +83,12 @@ def test_api() -> None:
     body = r.json()
     if body != load_supply_chain():
         _fail("api payload differs from config")
+    client = TestClient(app)
+    r = client.get("/api/supply/monthly/crude")
+    if r.status_code != 200 or r.json() != {"material_id": "crude", "series": []}:
+        _fail(f"monthly empty: {r.status_code} {r.text[:200]}")
+    if client.get("/api/supply/monthly/nope").status_code != 404:
+        _fail("unknown material must be 404")
 
 
 def main() -> None:

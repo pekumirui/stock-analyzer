@@ -112,3 +112,48 @@ def load_supply_chain(path: Path = SUPPLY_CHAIN_PATH) -> dict[str, list]:
 def supply_graph() -> dict[str, list]:
     """API 用。マスタは git 管理でデプロイ時に再起動するため、プロセス内で一度だけ読む。"""
     return load_supply_chain()
+
+
+METRIC_ORDER = ("production", "shipment", "inventory", "import", "export", "apparent")
+
+
+def apparent_consumption(series: dict[str, dict[str, float]]) -> dict[str, float]:
+    """見掛け消費 = 生産 + 輸入 − 輸出 − 在庫の増加分。4 つと前月在庫が揃う月だけ（保存しない）"""
+    need = ("production", "import", "export", "inventory")
+    if not all(k in series for k in need):
+        return {}
+    inv = series["inventory"]
+    out: dict[str, float] = {}
+    for month in sorted(series["production"]):
+        y, m = int(month[:4]), int(month[5:])
+        prev = f"{y - 1}-12" if m == 1 else f"{y}-{m - 1:02d}"
+        if prev not in inv or not all(month in series[k] for k in need):
+            continue
+        out[month] = (series["production"][month] + series["import"][month]
+                      - series["export"][month] - (inv[month] - inv[prev]))
+    return out
+
+
+def monthly_payload(rows: list[Any], material_id: str) -> dict[str, Any]:
+    """material_monthly の行 → {material_id, series: [{metric, unit, sources, points}]}。
+
+    同じ指標に単位の違う行があれば（統計の取り方が違う）別の系列にする。
+    """
+    by: dict[tuple[str, str], dict[str, float]] = {}
+    sources: dict[tuple[str, str], set[str]] = {}
+    for r in rows:
+        key = (r.metric, r.unit)
+        by.setdefault(key, {})[r.month] = r.value
+        sources.setdefault(key, set()).add(r.source)
+    units = {u for _, u in by}
+    for unit in sorted(units):
+        app = apparent_consumption({m: pts for (m, u), pts in by.items() if u == unit})
+        if app:
+            by[("apparent", unit)] = app
+            sources[("apparent", unit)] = set()
+    series = [
+        {"metric": metric, "unit": unit, "sources": sorted(sources[(metric, unit)]),
+         "points": sorted(pts.items())}
+        for (metric, unit), pts in sorted(by.items(), key=lambda kv: (METRIC_ORDER.index(kv[0][0]), kv[0][1]))
+    ]
+    return {"material_id": material_id, "series": series}
