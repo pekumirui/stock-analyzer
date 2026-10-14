@@ -24,7 +24,7 @@ from app.material_stats import (  # noqa: E402
     load_mapping, prune_unmapped, sekiyu_rows, seidou_rows, validate_mapping, write_rows,
 )
 from app.meti import (  # noqa: E402
-    MetiChallenged, MetiClient, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_nenpo_inventory_cells,
+    MetiChallenged, MetiClient, MetiFile, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_nenpo_inventory_cells,
     sekiyu_sokuho_cells, seidou_files,
 )
 from app.meti import seidou_records as meti_records  # noqa: E402
@@ -32,7 +32,7 @@ from app.models import MaterialMonthly  # noqa: E402
 from app.supply_chain import apparent_consumption, load_supply_chain, monthly_payload  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "jobs"))
-from material_stats import meti_targets, stale_sekiyu  # noqa: E402
+from material_stats import meti_targets, sekiyu_done  # noqa: E402
 
 
 def _fail(msg: object) -> None:
@@ -288,8 +288,6 @@ def test_sekiyu_sokuho_and_nenpo() -> None:
     done = {"h2dhhpe2021k.xlsx", "se202112kakji.xlsx", "se202607kakji.xlsx"}
     _eq([f.name for f in meti_targets(files, done, False)], ["se202607kakji.xlsx", "h2j581011j.xlsx"],
         "final files are skipped once ingested")
-    _eq([f.name for f in meti_targets(files, done, False, frozenset({REVISION_NENPO}))],
-        ["h2dhhpe2021k.xlsx", "se202607kakji.xlsx", "h2j581011j.xlsx"], "stale revision is refetched")
 
     # 令和より前に平成の行がある年報（2021 年版）。平成の行は見出しではない
     old = _book({"２（４）①石油製品月別輸入": [
@@ -384,7 +382,7 @@ def test_revision_guard() -> None:
         db.close()
 
 
-def test_prune_and_stale() -> None:
+def test_prune_and_done() -> None:
     init_db()
     db = SessionLocal()
     try:
@@ -407,10 +405,18 @@ def test_prune_and_stale() -> None:
         _eq(prune_unmapped(db, mapping), 2, "pruned rows")
         _eq(sorted((r.material_id, r.metric, r.source) for r in db.query(MaterialMonthly)),
             [("ethylene", "production", "seidou:6100"), ("lpg", "import", "sekiyu")], "kept rows")
-        _eq(stale_sekiyu(db, mapping["sekiyu"]["items"]), frozenset({REVISION_NENPO, REVISION_KAKUHO}),
-            "export has no row yet")
-        write_rows(db, [Row("lpg", "2025-01", "export", "sekiyu", 1.0, "t", 3, "n")])
-        _eq(stale_sekiyu(db, mapping["sekiyu"]["items"]), frozenset(), "nenpo rows also cover kakuho")
+        items = mapping["sekiyu"]["items"] + [
+            {"material": "lpg", "metric": "production", "kakuho": {"blocks": ["液化石油ガス"], "column": "生産"}}]
+        files = [MetiFile("https://x/n2024.xlsx", REVISION_NENPO, True), MetiFile("https://x/n2025.xlsx", REVISION_NENPO, True),
+                 MetiFile("https://x/k2024.xlsx", REVISION_KAKUHO, True), MetiFile("https://x/latest.xlsx", REVISION_KAKUHO)]
+        write_rows(db, [
+            Row("lpg", "2024-01", "import", "sekiyu", 1.0, "t", 3, "n2024.xlsx"),
+            Row("lpg", "2024-01", "export", "sekiyu", 1.0, "t", 3, "n2024.xlsx"),
+            Row("lpg", "2025-01", "import", "sekiyu", 1.0, "t", 3, "n2025.xlsx"),  # 項目を足す前に取り込んだ年
+            Row("lpg", "2024-01", "production", "sekiyu", 1.0, "t", 2, "k2024.xlsx"),
+        ])
+        _eq(sekiyu_done(db, items, files), {"n2024.xlsx", "k2024.xlsx"},
+            "a file missing a mapped item is refetched even if another year has it; kakuho checks production only")
     finally:
         db.close()
 
@@ -445,7 +451,7 @@ def main() -> None:
     test_meti_waf_challenge()
     test_trade()
     test_revision_guard()
-    test_prune_and_stale()
+    test_prune_and_done()
     test_apparent_and_payload()
     print("ok: material_stats")
 
