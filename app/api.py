@@ -27,6 +27,7 @@ from .models import (
 from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
 from .earnings_schedule import ActualMonth, day_payload, month_payload
+from .supply_chain import supply_graph
 from .monthly_tree import (
     MONTHLY_TREES, assign_tree_rows, auto_tree_payload, build_auto_tree, monthly_display_years, tree_payload,
 )
@@ -308,6 +309,11 @@ def search(q: str, db: Session = Depends(get_session)):
         Stock.name.contains(q) | Stock.name.contains(folded) | Stock.name.contains(kata)
         | Stock.code.startswith(folded.upper())).order_by(Stock.code).limit(20).all())
     return [{"code": s.code, "name": s.name, "market": s.market} for s in rows]
+
+
+@router.get("/supply/graph")
+def supply_graph_api():
+    return supply_graph()
 
 
 router_v1 = APIRouter(prefix="/api/v1")
