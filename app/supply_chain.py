@@ -137,23 +137,27 @@ def apparent_consumption(series: dict[str, dict[str, float]]) -> dict[str, float
 def monthly_payload(rows: list[Any], material_id: str) -> dict[str, Any]:
     """material_monthly の行 → {material_id, series: [{metric, unit, sources, points}]}。
 
+    points は [YYYY-MM, 値, revision]（1 速報 / 2 確報 / 3 年報）。見掛け消費の revision は材料の最小。
     同じ指標に単位の違う行があれば（統計の取り方が違う）別の系列にする。
     """
     by: dict[tuple[str, str], dict[str, float]] = {}
+    revs: dict[tuple[str, str], dict[str, int]] = {}
     sources: dict[tuple[str, str], set[str]] = {}
     for r in rows:
         key = (r.metric, r.unit)
         by.setdefault(key, {})[r.month] = r.value
+        revs.setdefault(key, {})[r.month] = r.revision
         sources.setdefault(key, set()).add(r.source)
-    units = {u for _, u in by}
-    for unit in sorted(units):
+    for unit in sorted({u for _, u in by}):
         app = apparent_consumption({m: pts for (m, u), pts in by.items() if u == unit})
         if app:
+            parts = [revs[(m, unit)] for m in ("production", "import", "export", "inventory")]
             by[("apparent", unit)] = app
+            revs[("apparent", unit)] = {month: min(p.get(month, 3) for p in parts) for month in app}
             sources[("apparent", unit)] = set()
     series = [
         {"metric": metric, "unit": unit, "sources": sorted(sources[(metric, unit)]),
-         "points": sorted(pts.items())}
+         "points": [[m, v, revs[(metric, unit)][m]] for m, v in sorted(pts.items())]}
         for (metric, unit), pts in sorted(by.items(), key=lambda kv: (METRIC_ORDER.index(kv[0][0]), kv[0][1]))
     ]
     return {"material_id": material_id, "series": series}

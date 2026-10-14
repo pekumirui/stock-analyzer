@@ -1,6 +1,6 @@
 {
-  "production": {
-    "stats_code": "00550200",
+  "seidou": {
+    "estat_stats_code": "00550200",
     "metrics": {"生産": "production", "生産数量": "production", "販売数量": "shipment", "出荷販売": "shipment", "出荷販売部門": "shipment", "月末在庫": "inventory"},
     "items": [
       {"material": "gasoline", "report": "8061", "products": ["自動車用高級ガソリン", "自動車用並級ガソリン", "その他用ガソリン"]},
@@ -24,7 +24,7 @@
       {"material": "pe", "report": "6100", "products": ["ポリエチレン(低密度のもの(密度0.94未満のもの))", "ポリエチレン(高密度のもの(密度0.94以上のもの))"], "note": "低密度 + 高密度"},
       {"material": "pp", "report": "6100", "products": ["ポリプロピレン"]},
       {"material": "ps", "report": "6100", "products": ["ポリスチレン(成形材料(GP・HI))"], "note": "成形材料のみ。発泡用は秘匿 (X) の年がある"},
-      {"material": "abs", "report": "6100", "products": ["AS樹脂・ABS樹脂", "AS樹脂", "ABS樹脂"], "note": "AS 樹脂を含む。2023 年までは AS と ABS が別品目"},
+      {"material": "abs", "report": "6100", "products": [["AS樹脂・ABS樹脂"], ["AS樹脂", "ABS樹脂"]], "note": "AS 樹脂を含む。2023 年までは AS と ABS が別品目"},
       {"material": "sbr", "report": "6100", "products": ["スチレンブタジエンラバー(クラム(油入りを除く))", "スチレンブタジエンラバー(クラム(油入り))", "スチレンブタジエンラバー(ラテックス)", "ポリクロロプレン", "ポリブタジエン", "その他の合成ゴム"], "note": "NBR と EPDM は秘匿 (X) の年があるため除く"},
       {"material": "pvc", "report": "6160", "products": ["塩化ビニル樹脂(ポリマー)", "塩化ビニル樹脂(コポリマー)", "塩化ビニル樹脂(ペースト)"]},
       {"material": "pet", "report": "6160", "products": ["ポリエチレンテレフタレート(繊維用)"], "note": "繊維用のみ。容器用とその他は秘匿 (X)"},
@@ -38,7 +38,7 @@
     ]
   },
   "trade": {
-    "stats_code": "00350300",
+    "estat_stats_code": "00350300",
     "items": [
       {"material": "crude", "import": ["2709"]},
       {"material": "natgas", "import": ["271111", "271121"], "export": ["271111", "271121"]},

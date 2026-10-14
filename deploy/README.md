@@ -32,7 +32,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 |---|---|---|
 | `VPS_SSH_KEY` | はい | デプロイ用秘密鍵 |
 | `JQUANTS_API_KEY` | 推奨 | あるときだけ `.env` の当該行を更新。無ければ既存 `.env` を触らない |
-| `ESTAT_APP_ID` | 任意 | e-Stat API のアプリケーション ID（サプライタブの月次量）。あるときだけ `.env` の当該行を更新。無ければ `jobs/estat_monthly.py` は何もしない |
+| `ESTAT_APP_ID` | 任意 | e-Stat API のアプリケーション ID（サプライタブの月次量）。あるときだけ `.env` の当該行を更新。無ければ `jobs/material_stats.py --source estat` は何もしない（経産省 Excel はキー不要） |
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | 推奨 | Cloudflare R2 (bucket `share`) の rclone 認証。あるときだけ `.env` と `~/.config/rclone/rclone.conf` を更新。無ければ既存を触らない |
 | `SLACK_WEBHOOK_URL` | 推奨 | Slack Incoming Webhook（#alerts）。コミットしない。漏れたら rotate。provision が `/etc/fluent-bit/slack.env` に URL と `SLACK_WEBHOOK_URI` を書く。`.env` には入れない |
 | `SLACK_WEBHOOK_URL_APP` | 任意 | Incoming Webhook（#alerts-app、fluent-bit タグ `app`）。未設定・空なら `SLACK_WEBHOOK_URL`（#alerts）にフォールバック。`.env` には入れない |

@@ -1,4 +1,4 @@
-"""e-Stat の表を探して中身の分類を見る。config/estat_mapping.json に素材を足すときの下調べ用。
+"""e-Stat の表を探して中身の分類を見る。config/material_stats.json に素材を足すときの下調べ用。
 
 使い方（ESTAT_APP_ID が要る）:
   python tools/estat_fetch.py names 生産動態                 # 統計名 → 統計コード

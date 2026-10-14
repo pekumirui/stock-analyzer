@@ -47,20 +47,22 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `app/monthly_ingest.py` | PDF 月次列 → 暦年。行名正規化と aliases |
 | `app/monthly_tree.py` | 月次の親子関係。`monthly_row_order.json` の `tree`、無ければゲートと内訳から作る自動の木を行に割り当てる。year GET の `tree` |
 | `app/supply_chain.py` | サプライタブの素材マスタ（`config/supply_chain.json`）の読込と検査。月次量の API 形と見掛け消費 |
-| `app/estat.py` | e-Stat API クライアントと、生産動態統計・貿易統計の表 → `material_monthly` の解析 |
+| `app/material_stats.py` | 素材の月次量（`material_monthly`）の共通部分。対応表 `config/material_stats.json`、品名 → 素材の合計、revision（速報 < 確報 < 年報）を下げない UPSERT |
+| `app/estat.py` | e-Stat API クライアント。生産動態統計の年報と貿易統計 |
+| `app/meti.py` | 経産省 生産動態統計の Excel（速報・確報・年間補正号） |
 | `app/main.py` | FastAPI エントリ + SPA 配信 |
 | `app/assets.py` | 配信する HTML の `/static` URL に中身のハッシュ（`?v=`）を付ける |
 | `app/xbrl/` | TDnet 短信 iXBRL の parse / YAML マッピング / normalize。UI には出さない |
 | `app/xbrlp/` | kawasin73 gist の vendor。改変しない |
 | `jobs/run_batch.py` | 日次バッチ / バックフィル |
 | `jobs/backup_db.py` | 本番 SQLite の日次 gzip バックアップ（ローカルのみ。手順は `docs/DESIGN_backup.md`） |
-| `jobs/estat_monthly.py` | e-Stat → `material_monthly`（前年と今年 / `--years`）。対応表は `config/estat_mapping.json` |
+| `jobs/material_stats.py` | 統計 → `material_monthly`。`--source meti`（毎日）/ `--source estat`（毎週。前年と今年、`--years`） |
 | `jobs/fx_rates.py` | Frankfurter 為替の日次差分 / `--backfill`（1999-01-04〜） |
 | `jobs/check_demo.py` | スキーマ検査 + 旧デモ取り残しガード。`batch` / `backfill` の前に走る |
 | `jobs/*_r2.py` | TDnet / IR → R2 mount。下の「R2 バッチ」 |
 | `jobs/_r2common.py` | R2 バッチの共通処理（日付・HTTP・銘柄マスタ・ファイル名）。`app` は import しない |
 | `jobs/html_issuers/` | `parse: true` の HTML 月次。各 `i<code>.py` が表・行・単位を宣言する。`parse: false` はモジュールを作らない |
-| `config/` | `ir_monthly.json`、`issuer_aliases.json`、`issuer_metrics.json`、`monthly_vocab.json`（行名の共通語彙）、`monthly_row_order.json`、`supply_chain.json`（サプライタブの素材と流れ）、`estat_mapping.json`（統計の品目 → 素材）、XBRL YAML、Ruff/Bandit は `pyproject.toml` |
+| `config/` | `ir_monthly.json`、`issuer_aliases.json`、`issuer_metrics.json`、`monthly_vocab.json`（行名の共通語彙）、`monthly_row_order.json`、`supply_chain.json`（サプライタブの素材と流れ）、`material_stats.json`（統計の品目 → 素材）、XBRL YAML、Ruff/Bandit は `pyproject.toml` |
 | `tests/` | `test_*.py` と `ci_smoke.py`。新しい `test_*.py` は `ci_smoke.SUITES` に登録する（漏れは ci_smoke が落とす） |
 | `analyzer/` | `stock.db` を読むだけのオフライン分析（1 問 1 フォルダ、結果は各 `README.md`）。約束と一覧は `analyzer/README.md`。`app` からは使わない |
 | `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ） |

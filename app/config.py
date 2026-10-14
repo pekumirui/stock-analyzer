@@ -10,7 +10,7 @@ MONTHLY_VOCAB_PATH = CONFIG_DIR / "monthly_vocab.json"
 MONTHLY_ROW_ORDER_PATH = CONFIG_DIR / "monthly_row_order.json"
 IR_MONTHLY_PATH = CONFIG_DIR / "ir_monthly.json"
 SUPPLY_CHAIN_PATH = CONFIG_DIR / "supply_chain.json"
-ESTAT_MAPPING_PATH = CONFIG_DIR / "estat_mapping.json"
+MATERIAL_STATS_PATH = CONFIG_DIR / "material_stats.json"
 
 
 def apply_dotenv(text: str, environ: MutableMapping[str, str]) -> None:
@@ -68,6 +68,10 @@ FX_CHUNK_DAYS = int(os.getenv("FX_CHUNK_DAYS", "366"))
 # e-Stat API（サプライタブの月次量）。アプリケーション ID はコミットしない
 ESTAT_APP_ID = os.getenv("ESTAT_APP_ID", "")
 ESTAT_BASE = os.getenv("ESTAT_BASE", "https://api.e-stat.go.jp/rest/3.0/app/json")
+# 経産省 生産動態統計の統計表一覧（速報・確報の Excel）。既定の User-Agent は 403 になる
+METI_SEIDOU_URL = os.getenv(
+    "METI_SEIDOU_URL", "https://www.meti.go.jp/statistics/tyo/seidou/result/ichiran/08_seidou.html")
+METI_USER_AGENT = "Mozilla/5.0 (compatible; stock-analyzer; +https://kabukpi.com/)"
 
 # レートリミット (プラン別: Free=5 / Light=60 / Standard=120 / Premium=500)
 RATE_LIMIT_PER_MIN = int(os.getenv("JQUANTS_RATE_LIMIT", "60"))

@@ -1,39 +1,30 @@
-"""e-Stat API → material_monthly。統計の品目と素材の対応は config/estat_mapping.json。
+"""e-Stat API。素材の月次量（app/material_stats.py）のうち e-Stat から取る部分。
 
-- 生産: 経済産業省生産動態統計（00550200）の年ごとの「時系列表(<報告番号>_…)」。表側は `製品_<品目>_<品名>_<記号>_<指標>_<単位>`
-- 輸出入: 普通貿易統計（00350300）の「品別国別表」。統計品目番号 9 桁 × 国 × 月。国は合計する
-設計は docs/DESIGN_supply.md。
+- 生産動態統計（00550200）の年ごとの「時系列表(<報告番号>_…)」。年間補正後の年報（revision 3）。
+  表側は `製品_<品目>_<品名>_<記号>_<指標>_<単位>`
+- 普通貿易統計（00350300）の「品別国別表」。統計品目番号 9 桁 × 国 × 月。国は合計する
 """
 from __future__ import annotations
 
-import json
 import re
 import time
 import unicodedata
 from collections import defaultdict
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Iterable
 
 import httpx
 
-from .config import ESTAT_APP_ID, ESTAT_BASE, ESTAT_MAPPING_PATH
+from .config import ESTAT_APP_ID, ESTAT_BASE
+from .material_stats import (
+    REVISION_KAKUHO, REVISION_SOKUHO, TRADE_SOURCE, MappingError, Row, SeidouRecord, parse_num, product_name,
+)
 
-METRICS = ("production", "shipment", "inventory", "import", "export")
-_CODE_RE = re.compile(r"^[0-9]{4,9}$")
 _PRODUCT_RE = re.compile(r"^[0-9]{4}$")
 # 輸出入の数量単位。KG は t に寄せる。それ以外の単位はそのまま
 _TRADE_UNITS = {"KG": ("t", 0.001), "MT": ("t", 1.0), "KL": ("kl", 1.0), "NO": ("本", 1.0)}
-# 生産動態の単位。同じ素材の品目で 本 と 千本 が混ざる（タイヤ）
-_PRODUCTION_UNITS = {"千本": ("本", 1000.0)}
 
 
 class EstatError(RuntimeError):
-    pass
-
-
-class EstatMappingError(ValueError):
     pass
 
 
@@ -46,53 +37,6 @@ def _list(x: Any) -> list:
 def _text(x: Any) -> str:
     return x.get("$", "") if isinstance(x, dict) else (x or "")
 
-
-# ---------- 対応表 ----------
-
-def load_mapping(path: Path = ESTAT_MAPPING_PATH, material_ids: Iterable[str] | None = None) -> dict:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    validate_mapping(data, material_ids)
-    return data
-
-
-def validate_mapping(data: dict, material_ids: Iterable[str] | None = None) -> None:
-    known = set(material_ids) if material_ids is not None else None
-    prod = data.get("production") or {}
-    metrics = prod.get("metrics") or {}
-    for name, metric in metrics.items():
-        if metric not in METRICS:
-            raise EstatMappingError(f"production.metrics[{name}]: unknown metric {metric}")
-    seen: set[tuple[str, str]] = set()
-    for it in prod.get("items") or []:
-        m = it.get("material")
-        if known is not None and m not in known:
-            raise EstatMappingError(f"production: unknown material {m}")
-        if not re.fullmatch(r"[0-9]{4}", str(it.get("report", ""))):
-            raise EstatMappingError(f"production {m}: report must be 4 digits")
-        products = it.get("products") or []
-        if not products or not all(isinstance(p, str) and p.strip() for p in products):
-            raise EstatMappingError(f"production {m}: products must be product names")
-        key = (m, it["report"])
-        if key in seen:
-            raise EstatMappingError(f"production: duplicate {m} in report {it['report']}")
-        seen.add(key)
-    seen_trade: set[str] = set()
-    for it in (data.get("trade") or {}).get("items") or []:
-        m = it.get("material")
-        if known is not None and m not in known:
-            raise EstatMappingError(f"trade: unknown material {m}")
-        if m in seen_trade:
-            raise EstatMappingError(f"trade: duplicate material {m}")
-        seen_trade.add(m)
-        if not it.get("import") and not it.get("export"):
-            raise EstatMappingError(f"trade {m}: import or export is required")
-        for flow in ("import", "export"):
-            for code in it.get(flow) or []:
-                if not isinstance(code, str) or not _CODE_RE.match(code):
-                    raise EstatMappingError(f"trade {m}.{flow}: bad code {code!r}")
-
-
-# ---------- API ----------
 
 class EstatClient:
     def __init__(self, app_id: str = ESTAT_APP_ID, base: str = ESTAT_BASE,
@@ -174,6 +118,12 @@ def trade_table(tables: list[dict], flow: str) -> dict | None:
     return hits[0] if hits else None
 
 
+def sokuho_month(title: str) -> int | None:
+    """貿易統計の表題で速報の月。「(1-7月：確報、8月：輸入9桁速報)」なら 8"""
+    m = re.search(r"(\d{1,2})月[:：][^、)]*速報", unicodedata.normalize("NFKC", title))
+    return int(m.group(1)) if m else None
+
+
 def published_through(title: str) -> int:
     """貿易統計の表題に書かれた最後の月。「(1-7月：確報、8月：輸入9桁速報)」なら 8。未公表の月は 0 で入っている"""
     months = [int(m) for m in re.findall(r"(\d{1,2})月", unicodedata.normalize("NFKC", title))]
@@ -181,42 +131,6 @@ def published_through(title: str) -> int:
 
 
 # ---------- 解析 ----------
-
-@dataclass(frozen=True)
-class Row:
-    material_id: str
-    month: str
-    metric: str
-    source: str
-    value: float
-    unit: str
-    stats_data_id: str
-
-    def as_dict(self, now: datetime) -> dict:
-        return {
-            "material_id": self.material_id, "month": self.month, "metric": self.metric,
-            "source": self.source, "value": self.value, "unit": self.unit,
-            "stats_data_id": self.stats_data_id, "is_estimate": False, "updated_at": now,
-        }
-
-
-_ZERO = {"-", "(-)", "*-", "* -"}  # 皆無または該当なし
-
-
-def _num(raw: Any) -> float | None:
-    """数値。"-" 系は 0。秘匿 "X"、不詳 "…"、得られない "***" は None"""
-    s = unicodedata.normalize("NFKC", str(raw)).strip()
-    if s in _ZERO:
-        return 0.0
-    try:
-        return float(s.replace(",", ""))
-    except ValueError:
-        return None
-
-
-def product_name(name: str) -> str:
-    return unicodedata.normalize("NFKC", name).strip()
-
 
 def parse_production_label(name: str) -> tuple[str, str, str] | None:
     """`製品_0101_ポリエチレン（…）_A_生産_t` → (品名, 指標, 単位)。品名は NFKC。製品以外の区分は None
@@ -246,57 +160,17 @@ def production_dims(meta: dict[str, dict[str, str]]) -> tuple[str, str]:
     return item, month
 
 
-def production_rows(*, report: str, items: list[dict], metrics: dict[str, str],
-                    labels: dict[str, str], months: dict[str, str], item_dim: str, month_dim: str,
-                    values: list[dict], stats_code: str,
-                    stats_data_id: str) -> tuple[list[Row], list[str]]:
-    """品名の値を素材ごとに足す。表にある品名が 1 つでも欠けた月は出さない（過小に足さない）。(行, 警告)
-
-    labels は品目の分類（コード → 表側名）、months は月の分類（コード → 名前）。
-    対応表の品名のうちその年の表に無いものは数えない（AS 樹脂・ABS 樹脂は 2024 年に 1 品目へまとまった）。
-    """
-    present = {lab[0] for n in labels.values() if (lab := parse_production_label(n))}
-    want: dict[str, str] = {}
-    need: dict[str, set[str]] = {}
-    warnings: list[str] = []
-    for it in items:
-        if it["report"] != report:
-            continue
-        names = {product_name(p) for p in it["products"]} & present
-        if not names:
-            warnings.append(f"{it['material']} -: no product in table ({it['products']})")
-            continue
-        need[it["material"]] = names
-        want.update({n: it["material"] for n in names})
-    cells: dict[tuple[str, str, str], dict[str, tuple[float, str]]] = defaultdict(dict)
+def seidou_records(report: str, meta: dict[str, dict[str, str]], values: list[dict]) -> list[SeidouRecord]:
+    """時系列表の値 → 表の形によらないセル"""
+    item_dim, month_dim = production_dims(meta)
+    labels, months = meta[item_dim], meta[month_dim]
+    out: list[SeidouRecord] = []
     for v in values:
         label = parse_production_label(labels.get(v.get("@" + item_dim, ""), ""))
-        if not label:
-            continue
-        product, metric_name, unit = label
-        metric = metrics.get(metric_name)
-        if product not in want or not metric:
-            continue
         month = month_of(months.get(v.get("@" + month_dim, ""), ""))
-        if not month:
-            continue
-        num = _num(v.get("$"))
-        if num is None:
-            continue
-        unit, scale = _PRODUCTION_UNITS.get(unit, (unit, 1.0))
-        cells[(want[product], month, metric)][product] = (num * scale, unit)
-    rows: list[Row] = []
-    source = f"estat:{stats_code}:{report}"
-    for (material, month, metric), got in sorted(cells.items()):
-        if set(got) != need[material]:
-            warnings.append(f"{material} {month} {metric}: missing {sorted(need[material] - set(got))}")
-            continue
-        units = {u for _, u in got.values()}
-        if len(units) != 1:
-            raise EstatMappingError(f"{material} {metric}: mixed units {sorted(units)} in report {report}")
-        rows.append(Row(material, month, metric, source, sum(n for n, _ in got.values()),
-                        units.pop(), stats_data_id))
-    return rows, warnings
+        if label and month:
+            out.append(SeidouRecord(report, label[0], label[1], label[2], month, v.get("$")))
+    return out
 
 
 def match_codes(prefixes: list[str], codes: Iterable[str]) -> list[str]:
@@ -304,11 +178,12 @@ def match_codes(prefixes: list[str], codes: Iterable[str]) -> list[str]:
 
 
 def trade_rows(*, flow: str, items: list[dict], cat02: dict[str, str], times: dict[str, str],
-               values: list[dict], last_month: int, stats_code: str,
-               stats_data_id: str) -> list[Row]:
+               values: list[dict], last_month: int, stats_data_id: str,
+               sokuho: int | None = None) -> list[Row]:
     """品別国別表の数量を国と品目で足す。最新年の last_month より後（未公表で 0）は捨てる。
 
     数量は 単位1 があれば 数量1、無ければ 数量2（化学品の多くは 数量2 の KG だけ）。
+    最新年の sokuho の月は revision 1（速報）、それ以外は 2。
 
     items の各要素は `codes` に表の統計品目番号（前方一致を解決済み）を持つ。
     """
@@ -340,7 +215,7 @@ def trade_rows(*, flow: str, items: list[dict], cat02: dict[str, str], times: di
         month = int(m.group(1))
         if year == latest and month > last_month:
             continue
-        num = _num(v.get("$"))
+        num = parse_num(v.get("$"))
         if not num:
             continue
         unit = cell_unit.get((code, area, year, qty))
@@ -350,13 +225,11 @@ def trade_rows(*, flow: str, items: list[dict], cat02: dict[str, str], times: di
         for material in material_of[code]:
             key = (material, f"{year}-{month:02d}")
             if unit_of.setdefault(key, unit) != unit:
-                raise EstatMappingError(f"{material} {flow}: mixed units ({unit_of[key]}, {unit})")
+                raise MappingError(f"{material} {flow}: mixed units ({unit_of[key]}, {unit})")
             sums[key] += num * scale
     rows: list[Row] = []
     for (material, month), total in sorted(sums.items()):
-        rows.append(Row(material, month, flow, f"estat:{stats_code}", total, unit_of[(material, month)], stats_data_id))
+        revision = REVISION_SOKUHO if sokuho and month == f"{latest}-{sokuho:02d}" else REVISION_KAKUHO
+        rows.append(Row(material, month, flow, TRADE_SOURCE, total, unit_of[(material, month)],
+                        revision, stats_data_id))
     return rows
-
-
-def now_utc() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)

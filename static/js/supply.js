@@ -258,9 +258,9 @@ async function supplyMonthly(id){
   box.innerHTML = `<div class="sub supply-unit">単位 ${unit}</div><div id="supply-chart"></div>
     <table class="supply-tbl"><tr><th class="l">指標</th><th>最新月</th><th>値</th><th class="l">単位</th></tr>
     ${d.series.map(x => {
-      const [m, v] = x.points[x.points.length - 1];
+      const [m, v, rev] = x.points[x.points.length - 1];
       return `<tr><td class="l"><i style="background:${SUPPLY_METRIC[x.metric].color}"></i>${SUPPLY_METRIC[x.metric].label}</td>
-        <td>${m}</td><td>${fmt(v)}</td><td class="l">${x.unit}</td></tr>`;
+        <td>${m}${rev === 1 ? '<span class="supply-rev">速報</span>' : ""}</td><td>${fmt(v)}</td><td class="l">${x.unit}</td></tr>`;
     }).join("")}</table>`;
   if(!lines.length || !window.LightweightCharts) return;
   const el = $("#supply-chart");

@@ -355,15 +355,16 @@ class FxRate(Base):
 class MaterialMonthly(Base):
     """サプライタブの素材ごとの月次量。素材は config/supply_chain.json の id（FK なし）。
 
-    統計の品目との対応は config/estat_mapping.json。設計は docs/DESIGN_supply.md。
+    統計の品目との対応は config/material_stats.json。取込は DESIGN.md §3「素材の月次量」。
     """
     __tablename__ = "material_monthly"
     material_id = Column(String, primary_key=True)
     month = Column(String(7), primary_key=True)  # YYYY-MM
     metric = Column(String, primary_key=True)     # production / import / export / inventory / shipment
-    source = Column(String, primary_key=True)     # estat:<統計コード>:<報告名>
+    source = Column(String, primary_key=True)     # seidou:<報告番号> / trade
     value = Column(Float, nullable=False)
     unit = Column(String, nullable=False)          # t / kl / 本 など。換算しない
-    stats_data_id = Column(String)                 # 取り込んだ e-Stat 表 ID
+    revision = Column(Integer, nullable=False)     # 1 速報 / 2 確報 / 3 年報（年間補正後）。下がる上書きはしない
+    origin = Column(String)                        # e-Stat の表 ID か Excel のファイル名
     is_estimate = Column(Boolean, nullable=False, default=False)
     updated_at = Column(DateTime)
