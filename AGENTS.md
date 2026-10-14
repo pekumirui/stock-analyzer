@@ -1,6 +1,8 @@
 # stock-analyzer
 
-| 概要 | 正本 |
+個人用の日本株分析ツール。ここには実装時の約束だけ書く。詳細は正本へ。同じ文を二箇所に置かない。
+
+| 何 | 正本 |
 |---|---|
 | 設計・スキーマ・取込・API | `DESIGN.md` |
 | 画面（タブ別） | `docs/DESIGN_<tab>.md`。書き方と共通見た目は `docs/SCREEN_SPEC.md` |
@@ -18,10 +20,15 @@
 - 仮想環境は `.venv`。Windows は `.\setup.ps1` / `.\run.ps1`、Linux は `./setup.sh` / `./run.sh`
 - Python は `.venv\Scripts\python.exe`（Windows）/ `.venv/bin/python`（Linux）。システムの python で依存を入れない
 
-## 検証環境構築方法
--`bash .cursor/install.sh`を実行する。
-- SPA は `bash .cursor/start-web.sh` が 8000 で配信する。
-- 秘密情報は各ベンダーの Secrets / 環境変数で渡す: `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `VPS_SSH_KEY` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`。
+## クラウドのエージェント
+
+Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘密情報の入れ方だけで、中身は環境変数とこのリポジトリのスクリプト。詳細は `deploy/README.md`「クラウドのエージェントから VPS を触る」「クラウドのエージェントから読む」。
+
+- 環境構築は `bash .cursor/install.sh`（冪等）。`.venv` / `pdftotext` / `rclone` と、`JQUANTS_API_KEY` があれば `stock.db`（2 年分 + 本番の `monthly_*`）を用意する。SPA は `bash .cursor/start-web.sh` が 8000 で配信する。Cursor は `.cursor/environment.json` が両方を自動で呼ぶ。他のベンダーは必要なときに自分で呼ぶ
+- 8000 を止めない・`reset` しない。UI 検証も 8000
+- Claude Code の自動メモリは `.claude/memory/`（`install.sh` が `.claude/settings.local.json` の `autoMemoryDirectory` で向ける）。環境は消えるので、メモリを足したら作業ブランチに一緒にコミットする
+- `.cursor/` 配下のスクリプトと `.cursor/skills/*/SKILL.md` は Cursor 専用ではない。普通のシェルと手順書として使う
+- 秘密情報は各ベンダーの Secrets / 環境変数で渡す: `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `VPS_SSH_KEY` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`。無い変数の機能は使えないものとして進める。チャットで鍵を求めない
 - VPS のログ・DB 件数・月次 API は MCP（`https://kabukpi.com/mcp`、OAuth）。どのベンダーからでも同じ。任意シェルを MCP に足さない
 - VPS シェルは `VPS_SSH_KEY` があるときだけ `ssh stock-vps`（`install.sh` → `.cursor/setup-vps-ssh.sh`）。無ければ SSH は人がローカル PC から行う。R2 も `R2_*` が無ければ読めない
 
@@ -61,6 +68,17 @@
 | `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ） |
 | `tools/` | オフライン検証と手元ヘルパー。月次 PDF 指紋は `fmtdiff.py`（pdfplumber。ingest は従来どおり pdftotext）。TDnet 月次の未投入一覧は `tdnet_monthly_pending.py`（読み取り専用。使い方は `deploy/README.md`）。XBRL 一致率は `xbrl_match_rate.py`。e-Stat の表探しは `estat_fetch.py`。`check_api.py` と `read_xls.py` |
 
+## J-Quants（必須）
+
+- **V2 のみ**。V1（メール/パスワード → idToken）は使わない
+- 認証は `JQUANTS_API_KEY` を `x-api-key` に載せるだけ。トークン更新は不要
+- エンドポイントは `/v2/equities/master`, `/v2/equities/bars/daily`, `/v2/indices/bars/daily/topix`, `/v2/fins/summary`, `/v2/fins/earnings-date`, `/v2/markets/calendar`
+- レスポンスは `{"data": [...], "pagination_key": "..."}`。カラムは短縮形 (`O`/`C`/`AdjC` 等)
+- 取込は **日付指定で全銘柄を1リクエスト**。銘柄ループで全日を取りに行かない
+- Light は 60 req/分。`/fins/*` は別枠 60 req/分。`jquants.py` のトークンバケットを通す。直叩きしない
+- 429 は既存の指数バックオフ（5→10→20→40→60秒、最大6回）に乗せる
+- 仕様確認は `j-quants-doc-mcp`
+
 ## データルール
 
 - 分析・チャート・RS・ステージは **調整済価格** (`adj_*`)。生値は表示・保存用
@@ -94,6 +112,14 @@
 - UI を実際に動かして確かめるなら `.cursor/skills/verify-stock-analyzer/SKILL.md`
 - 画面録画は作らない
 
+## Git
+
+- `main` 上では実装しない。最初のファイル編集の前に `git checkout -b <type>/<短い名前>`（`feat` / `fix` / `chore`）
+- `.env` / `stock.db` / `.venv` / `rclone.conf` / `*.pdf` はコミットしない。既存の `.env` は上書きしない
+- 秘密情報（API キー、`MCP_TOKEN`）をコミットしない・ログに出さない
+- `main` へマージすると GitHub Actions がテスト → タグ/Release → VPS デプロイする。手元で `main` に直接 push しない
+- コミット先頭が `feat:` なら minor、`BREAKING CHANGE` / `type!:` なら major、それ以外は patch
+- VPS 初期設定は `deploy/provision.sh`（冪等）
 
 ## 本番（VPS / MCP / R2）
 
@@ -134,3 +160,12 @@
 - cron の出力は `deploy/cron-run.sh` が `/var/log/app/<stem>.log` に書く。行頭は JST。crontab にリダイレクトは書かない。古い `batch.log` は rotate まで残す。Actions の backfill はワークフローのログ（`cron-run.sh` を通さない）
 - XBRL は決算 UI / `statements` を触らない。マッピングは `config/xbrl/` だけ。エージェントが独断で足さない
 - XBRL 検証は別 DB。本番 `stock.db` に書かない（`docs/XBRL_VERIFY.md`）
+
+## 実装方針
+
+- 既存スタイルに合わせる。型ヒントは付ける。コメントは非自明な制約だけ
+- UI はスマホでも使えること。共通見た目は `docs/SCREEN_SPEC.md`
+- 新規タブは `static/js/<tab>.js` を追加し、`index.html` に section と script を 1 行足す。画面仕様は `docs/DESIGN_<tab>.md`
+- 再読込は直近タブを復元する（`static/js/tabs.js`）。新しい例外は `docs/SCREEN_SPEC.md` へ
+- 設計と実装が食い違うときは、実装を直すか正本を更新する。放置しない
+- 米国株・IRBank・通知は将来拡張。今は日本株 + J-Quants に閉じる
