@@ -56,7 +56,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `app/xbrlp/` | kawasin73 gist の vendor。改変しない |
 | `jobs/run_batch.py` | 日次バッチ / バックフィル |
 | `jobs/backup_db.py` | 本番 SQLite の日次 gzip バックアップ（ローカルのみ。手順は `docs/DESIGN_backup.md`） |
-| `jobs/material_stats.py` | 統計 → `material_monthly`。`--source meti`（毎日）/ `--source estat`（毎週。前年と今年、`--years`） |
+| `jobs/material_stats.py` | 統計 → `material_monthly`。`--source meti --only seidou|sekiyu`（毎日、時刻をずらす）/ `--source estat`（毎週。前年と今年、`--years`） |
 | `jobs/fx_rates.py` | Frankfurter 為替の日次差分 / `--backfill`（1999-01-04〜） |
 | `jobs/check_demo.py` | スキーマ検査 + 旧デモ取り残しガード。`batch` / `backfill` の前に走る |
 | `jobs/*_r2.py` | TDnet / IR → R2 mount。下の「R2 バッチ」 |

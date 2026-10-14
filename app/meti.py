@@ -34,6 +34,11 @@ class MetiError(RuntimeError):
     pass
 
 
+class MetiChallenged(MetiError):
+    """CloudFront の AWS WAF が bot 確認（202 と x-amzn-waf-action: challenge、本文は空）を返した。
+    続けて取ると長引くので、その回の取得はやめて次の cron に回す"""
+
+
 class MetiFile(NamedTuple):
     url: str
     revision: int
@@ -53,26 +58,35 @@ def seidou_files(html: str, base: str = METI_SEIDOU_URL) -> list[MetiFile]:
 
 
 class MetiClient:
-    def __init__(self, http: httpx.Client | None = None, pause: float = 2.0) -> None:
+    def __init__(self, http: httpx.Client | None = None, pause: float = 2.0,
+                 challenge_wait: float = 60.0) -> None:
         self.http = http or httpx.Client(timeout=120, follow_redirects=True,
                                          headers={"User-Agent": METI_USER_AGENT})
-        self.pause = pause  # 続けて取ると空の 200 が返ることがある
+        self.pause = pause
+        self.challenge_wait = challenge_wait
 
     def get(self, url: str) -> bytes:
-        for attempt in range(4):
+        challenged = False
+        for attempt in range(3):
             time.sleep(self.pause)
             try:
                 r = self.http.get(url)
-                r.raise_for_status()
-                # 混んでいると 200 で空や HTML が返ることがある
-                if not r.content or (url.endswith(".xlsx") and not r.content.startswith(b"PK")):
-                    raise httpx.HTTPError(f"empty or not an xlsx: {url}")
-                return r.content
             except httpx.HTTPError:
-                if attempt == 3:
+                if attempt == 2:
                     raise
                 time.sleep(10 * (attempt + 1))
-        raise MetiError(url)  # 到達しない
+                continue
+            if r.status_code == 202 or r.headers.get("x-amzn-waf-action"):
+                if challenged:
+                    raise MetiChallenged(f"WAF {r.headers.get('x-amzn-waf-action', r.status_code)}: {url}")
+                challenged = True  # 1 回だけ待って取り直す
+                time.sleep(self.challenge_wait)
+                continue
+            r.raise_for_status()
+            if not r.content or (url.endswith(".xlsx") and not r.content.startswith(b"PK")):
+                raise MetiError(f"empty or not an xlsx ({r.status_code}, {len(r.content)} bytes): {url}")
+            return r.content
+        raise MetiError(f"gave up: {url}")
 
 
 def seidou_records(data: bytes, reports: set[str]) -> list[SeidouRecord]:
