@@ -58,25 +58,33 @@ def _report_warnings(prefix: str, warnings: list[str]) -> None:
 
 
 def ingested_origins(db) -> set[str]:
-    """取り込み済みのファイル名。年報など final のファイルは変わらないので毎回は落とさない"""
+    """取り込み済みのファイル名（生産動態の年間補正号）。変わらないので毎回は落とさない"""
     return {o for (o,) in db.query(MaterialMonthly.origin).distinct() if o}
 
 
-def meti_targets(files: list, done: set[str], refetch: bool, stale: frozenset[int] = frozenset()) -> list:
-    """final のファイルは取り込み済みなら飛ばす。stale の revision（対応表に足した項目がまだ無い）は落とし直す"""
-    return [f for f in files if refetch or not f.final or f.name not in done or f.revision in stale]
+def meti_targets(files: list, done: set[str], refetch: bool) -> list:
+    """final のファイルは done（取り込み済み）なら飛ばす"""
+    return [f for f in files if refetch or not f.final or f.name not in done]
 
 
-def stale_sekiyu(db, items: list[dict]) -> frozenset[int]:
-    """対応表の項目のうち、その revision の行が 1 つも無いものがある revision。項目を足した後の初回に年報を落とし直す"""
-    have = {(m, metric, rev) for m, metric, rev in db.query(
-        MaterialMonthly.material_id, MaterialMonthly.metric, MaterialMonthly.revision,
+def sekiyu_done(db, items: list[dict], files: list) -> set[str]:
+    """石油統計の final のファイルのうち、対応表の項目がそのファイル名の行で全部そろっているもの。
+    項目を足した後は、そのファイルを落とし直す。12 月の確報は年報に無い項目（製品の生産）だけ見る
+    （ほかの項目は年報の行で上書きされ、確報のファイル名では残らない）"""
+    have = {(o, m, metric) for o, m, metric in db.query(
+        MaterialMonthly.origin, MaterialMonthly.material_id, MaterialMonthly.metric,
     ).filter(MaterialMonthly.source == SEKIYU_SOURCE).distinct()}
-    kinds = {REVISION_NENPO: "nenpo", REVISION_KAKUHO: "kakuho"}
-    return frozenset(rev for rev, kind in kinds.items()
-                     if any(it.get(kind) and not any((it["material"], it["metric"], r) in have
-                                                     for r in range(rev, REVISION_NENPO + 1))
-                            for it in items))
+    done = set()
+    for f in files:
+        if not f.final:
+            continue
+        if f.revision == REVISION_NENPO:
+            need = [it for it in items if it.get("nenpo")]
+        else:
+            need = [it for it in items if it.get("kakuho") and not it.get("nenpo")]
+        if all((f.name, it["material"], it["metric"]) in have for it in need):
+            done.add(f.name)
+    return done
 
 
 def _nenpo_cells(data: bytes) -> list:
@@ -124,7 +132,7 @@ def ingest_meti_sekiyu(db, mapping: dict, refetch: bool = False) -> int:
     total = 0
     parsers = {REVISION_NENPO: ("nenpo", _nenpo_cells), REVISION_KAKUHO: ("kakuho", sekiyu_kakuho_cells),
                REVISION_SOKUHO: ("sokuho", sekiyu_sokuho_cells)}
-    for f in meti_targets(files, ingested_origins(db), refetch, stale_sekiyu(db, items)):
+    for f in meti_targets(files, sekiyu_done(db, items, files), refetch):
         kind, parse = parsers[f.revision]
         try:
             cells = parse(client.get(f.url))
