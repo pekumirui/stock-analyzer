@@ -175,6 +175,7 @@ VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount �
 - `monthly/{code}/YYYYMMDD_CODE_….pdf|xlsx|xls|html`（`{code}` は TDnet の発行体コードそのまま。9279 / 262A。J-Quants 5桁にはしない）
 - `xbrl/{code4}/…zip` と `xbrl/_unmatched/`
 - `inventory/vps-packages.txt`（上書き）と `inventory/history/vps-packages-YYYYMMDD.txt`
+- `stats/meti/{seidou,sekiyu}/<経産省のファイル名>`（素材の月次量の Excel の控え。中身が変わった版は `_YYYYMMDD` つき。`DESIGN.md` §3）
 
 初回設定:
 
@@ -350,6 +351,7 @@ rclone lsd r2:share/monthly/
 rclone ls r2:share/monthly/9279/
 rclone copy r2:share/monthly/9279/ /tmp/r2/monthly/9279/   # 必要な分だけ /tmp へ
 rclone copy r2:share/inventory/vps-packages.txt /tmp/r2/inventory/
+rclone copy r2:share/stats/meti/seidou/ /tmp/r2/stats/meti/seidou/
 ```
 
 - 取得先は `/tmp` 配下。リポジトリに置かない（`*.pdf` は commit 禁止）

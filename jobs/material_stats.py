@@ -4,20 +4,27 @@
   python jobs/material_stats.py                    # 経産省 Excel（生産動態・石油統計の速報・確報）+ e-Stat（前年と今年）
   python jobs/material_stats.py --years 2021-2026  # e-Stat の年を指定（初回）
   python jobs/material_stats.py --source meti      # meti / estat の片方だけ
-  python jobs/material_stats.py --source meti --refetch  # 取り込み済みの年報も落とし直す（正誤訂正のとき）
+  python jobs/material_stats.py --source meti --refetch  # 取り込み済みの年報も経産省から落とし直す（正誤訂正のとき）
+  python jobs/material_stats.py --source meti --reread   # 取り込み済みの年報も R2 の控えから読み直す（対応表を変えたとき）
   python jobs/material_stats.py --only trade       # seidou（生産動態）/ sekiyu（石油統計）/ trade（貿易）のどれかだけ
+
+経産省の Excel は R2（/home/stock/r2-share/stats/meti/{seidou,sekiyu}/）に控えを残し、変わらないファイルは控えから読む。
 
 e-Stat は ESTAT_APP_ID が無ければ飛ばす。経産省 Excel はキー不要。設計は DESIGN.md §3「素材の月次量」。
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import re
 import sys
 from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(1, str(Path(__file__).resolve().parent))
+
+from _r2common import check_r2_mount, r2_share_root  # noqa: E402
 
 from app.config import (  # noqa: E402
     ESTAT_APP_ID, METI_SEIDOU_URL, METI_SEKIYU_KAKUHO_URL, METI_SEKIYU_SOKUHO_URL,
@@ -87,23 +94,104 @@ def sekiyu_done(db, items: list[dict], files: list) -> set[str]:
     return done
 
 
+class MetiArchive:
+    """経産省 Excel の控え（R2 の stats/meti/<kind>/<ファイル名>）。検証と再投入に使い、変わらないファイルは落とし直さない。
+
+    中身が同じなら書かない。同じ名前で中身が変わったら（正誤訂正）<名前>_YYYYMMDD で別に残し、前のものは消さない。
+    R2 が使えなければ控えなしで取り込む（取り込みは止めない）。
+    """
+
+    def __init__(self, root: Path | None) -> None:
+        self.root = root
+
+    @classmethod
+    def open(cls) -> MetiArchive:
+        root = r2_share_root() / "stats" / "meti"
+        try:
+            check_r2_mount(root, require_existing=False, retries=0)
+            root.mkdir(parents=True, exist_ok=True)
+        except Exception as e:  # noqa: BLE001  R2 マウント切断（MountDisconnected）や権限。控えなしで続ける
+            print(f"warn meti archive off: {e}")
+            return cls(None)
+        return cls(root)
+
+    def _versions(self, kind: str, name: str) -> list[Path]:
+        """控えの版。元の名前が先、日付つきは古い順"""
+        if self.root is None:
+            return []
+        stem, suffix = name.rsplit(".", 1)
+        plain = self.root / kind / name
+        dated = sorted(p for p in (self.root / kind).glob(f"{stem}_*.{suffix}")
+                       if re.fullmatch(rf"{re.escape(stem)}_\d{{8}}\.{re.escape(suffix)}", p.name))
+        return ([plain] if plain.exists() else []) + dated
+
+    def missing(self, kind: str, names: set[str]) -> set[str]:
+        """控えの無いファイル名。R2 が使えなければ空（控えのために落とし直さない）"""
+        if self.root is None:
+            return set()
+        try:
+            return {n for n in names if not self._versions(kind, n)}
+        except OSError:
+            return set()
+
+    def get(self, client: MetiClient, f, kind: str, refetch: bool) -> tuple[bytes, str]:
+        """(中身, 取得元 meti / r2)。final は控えがあれば最新の版を読む。--refetch は必ず落とす"""
+        if f.final and not refetch:
+            try:
+                versions = self._versions(kind, f.name)
+                if versions:
+                    return versions[-1].read_bytes(), "r2"
+            except OSError as e:
+                print(f"warn meti archive read {kind}/{f.name}: {e}")
+        data = client.get(f.url)
+        self.save(kind, f.name, data)
+        return data, "meti"
+
+    def save(self, kind: str, name: str, data: bytes) -> None:
+        if self.root is None:
+            return
+        try:
+            versions = self._versions(kind, name)
+            digest = hashlib.sha256(data).hexdigest()
+            if any(hashlib.sha256(p.read_bytes()).hexdigest() == digest for p in versions):
+                return
+            stem, suffix = name.rsplit(".", 1)
+            path = self.root / kind / (f"{stem}_{date.today():%Y%m%d}.{suffix}" if versions else name)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_name(path.name + ".part")
+            tmp.write_bytes(data)
+            tmp.replace(path)
+            print(f"meti archive saved {kind}/{path.name}")
+        except OSError as e:
+            print(f"warn meti archive save {kind}/{name}: {e}")
+
+
 def _nenpo_cells(data: bytes) -> list:
     return sekiyu_nenpo_cells(data) + sekiyu_nenpo_inventory_cells(data)
 
 
-def ingest_meti_seidou(db, mapping: dict, refetch: bool = False, december: list[int] | None = None) -> int:
+def ingest_meti_seidou(db, mapping: dict, refetch: bool = False, december: list[int] | None = None,
+                       archive: MetiArchive | None = None, reread: bool = False) -> int:
     conf = mapping["seidou"]
     reports = {it["report"] for it in conf["items"]}
     client = MetiClient()
-    files = seidou_files(client.get(METI_SEIDOU_URL).decode("utf-8", "replace"))
+    archive = archive or MetiArchive(None)
+    try:
+        files = seidou_files(client.get(METI_SEIDOU_URL).decode("utf-8", "replace"))
+    except MetiChallenged as e:
+        print(f"fail meti seidou list: {e}. stop and retry next run")
+        return 0
     files[:0] = [seidou_december_kakuho(y) for y in december or []]  # 確報なので年間補正号より前に書く
     if not files:
         print("meti seidou: no Excel link on the list page")
         return 0
     total = 0
-    for f in meti_targets(files, ingested_origins(db), refetch):
+    done = ingested_origins(db)
+    done -= archive.missing("seidou", done & {f.name for f in files})  # 控えの無い年報は一度落として残す
+    for f in meti_targets(files, done, refetch or reread):
         try:
-            records = meti_seidou_records(client.get(f.url), reports)
+            data, got = archive.get(client, f, "seidou", refetch)
+            records = meti_seidou_records(data, reports)
         except MetiChallenged as e:
             print(f"fail meti seidou {f.name}: {e}. stop and retry next run")
             break
@@ -117,26 +205,35 @@ def ingest_meti_seidou(db, mapping: dict, refetch: bool = False, december: list[
         total += n
         months = sorted({r.month for r in rows})
         span = f"{months[0]}..{months[-1]}" if months else "-"
-        print(f"meti seidou {f.name} revision={f.revision} rows={len(rows)} written={n} months={span}")
+        print(f"meti seidou {f.name} revision={f.revision} rows={len(rows)} written={n} months={span} from={got}")
     return total
 
 
-def ingest_meti_sekiyu(db, mapping: dict, refetch: bool = False) -> int:
+def ingest_meti_sekiyu(db, mapping: dict, refetch: bool = False, archive: MetiArchive | None = None,
+                       reread: bool = False) -> int:
     items = mapping["sekiyu"]["items"]
     client = MetiClient()
-    files = sekiyu_files(client.get(METI_SEKIYU_KAKUHO_URL).decode("utf-8", "replace"),
-                         client.get(METI_SEKIYU_SOKUHO_URL).decode("utf-8", "replace"),
-                         METI_SEKIYU_KAKUHO_URL, METI_SEKIYU_SOKUHO_URL)
+    archive = archive or MetiArchive(None)
+    try:
+        files = sekiyu_files(client.get(METI_SEKIYU_KAKUHO_URL).decode("utf-8", "replace"),
+                             client.get(METI_SEKIYU_SOKUHO_URL).decode("utf-8", "replace"),
+                             METI_SEKIYU_KAKUHO_URL, METI_SEKIYU_SOKUHO_URL)
+    except MetiChallenged as e:
+        print(f"fail meti sekiyu list: {e}. stop and retry next run")
+        return 0
     if not files:
         print("meti sekiyu: no Excel link on the list pages")
         return 0
     total = 0
     parsers = {REVISION_NENPO: ("nenpo", _nenpo_cells), REVISION_KAKUHO: ("kakuho", sekiyu_kakuho_cells),
                REVISION_SOKUHO: ("sokuho", sekiyu_sokuho_cells)}
-    for f in meti_targets(files, sekiyu_done(db, items, files), refetch):
+    done = sekiyu_done(db, items, files)
+    done -= archive.missing("sekiyu", done)  # 控えの無い年報は一度落として残す
+    for f in meti_targets(files, done, refetch or reread):
         kind, parse = parsers[f.revision]
         try:
-            cells = parse(client.get(f.url))
+            data, got = archive.get(client, f, "sekiyu", refetch)
+            cells = parse(data)
         except MetiChallenged as e:
             print(f"fail meti sekiyu {f.name}: {e}. stop and retry next run")
             break
@@ -149,7 +246,7 @@ def ingest_meti_sekiyu(db, mapping: dict, refetch: bool = False) -> int:
         total += n
         months = sorted({r.month for r in rows})
         span = f"{months[0]}..{months[-1]}" if months else "-"
-        print(f"meti sekiyu {f.name} revision={f.revision} rows={len(rows)} written={n} months={span}")
+        print(f"meti sekiyu {f.name} revision={f.revision} rows={len(rows)} written={n} months={span} from={got}")
     return total
 
 
@@ -228,7 +325,8 @@ def main() -> int:
     ap.add_argument("--years", help="e-Stat の年。2025 または 2021-2026。省略時は前年と今年")
     ap.add_argument("--source", choices=("meti", "estat"))
     ap.add_argument("--only", choices=("seidou", "sekiyu", "trade"))
-    ap.add_argument("--refetch", action="store_true", help="取り込み済みの年報・年間補正号・過去年の 12 月の確報も落とし直す")
+    ap.add_argument("--refetch", action="store_true", help="取り込み済みの年報・年間補正号・過去年の 12 月の確報も経産省から落とし直す")
+    ap.add_argument("--reread", action="store_true", help="取り込み済みの年報なども読み直す。控えがあれば経産省には行かない")
     ap.add_argument("--december", help="生産動態の過去年の 12 月の確報も読む（一覧ページに無い年）。2024 または 2023-2024。手で一度だけ")
     args = ap.parse_args()
     years = parse_years(args.years, date.today())
@@ -252,11 +350,13 @@ def main() -> int:
                 if args.only in (None, "trade"):
                     n += ingest_estat_trade(client, db, mapping, years)
         # Excel は e-Stat の後。同じ revision なら後から書いたほうが残る
+        archive = MetiArchive.open() if args.source in (None, "meti") and args.only != "trade" else None
         if args.source in (None, "meti") and args.only in (None, "seidou"):
             n += ingest_meti_seidou(db, mapping, args.refetch,
-                                     parse_years(args.december, date.today()) if args.december else None)
+                                     parse_years(args.december, date.today()) if args.december else None, archive,
+                                     args.reread)
         if args.source in (None, "meti") and args.only in (None, "sekiyu"):
-            n += ingest_meti_sekiyu(db, mapping, args.refetch)
+            n += ingest_meti_sekiyu(db, mapping, args.refetch, archive, args.reread)
         print(f"material_stats done written={n}")
         return 0
     finally:

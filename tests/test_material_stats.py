@@ -32,7 +32,7 @@ from app.models import MaterialMonthly, MaterialTradeCountry  # noqa: E402
 from app.supply_chain import apparent_consumption, load_supply_chain, monthly_payload  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "jobs"))
-from material_stats import meti_targets, sekiyu_done  # noqa: E402
+from material_stats import MetiArchive, meti_targets, sekiyu_done  # noqa: E402
 
 
 def _fail(msg: object) -> None:
@@ -472,6 +472,38 @@ def test_apparent_and_payload() -> None:
     _eq(got[("import", "kl")], [["2025-01", 5.0, 2]], "non-trade series is not filled")
 
 
+def test_meti_archive() -> None:
+
+    class Client:
+        def __init__(self, body: bytes) -> None:
+            self.body, self.calls = body, 0
+
+        def get(self, url: str) -> bytes:
+            self.calls += 1
+            return self.body
+
+    with tempfile.TemporaryDirectory() as tmp:
+        arc = MetiArchive(Path(tmp))
+        final = MetiFile("https://x/kakuho/2025/h2daa2025_hosei_jikei.xlsx", 3, True)
+        live = MetiFile("https://x/sokuho/h2daa202608s.xlsx", 1)
+        _eq(arc.missing("seidou", {final.name}), {final.name}, "archive missing")
+        c = Client(b"v1")
+        _eq(arc.get(c, final, "seidou", False), (b"v1", "meti"), "archive first download")
+        _eq(arc.get(c, final, "seidou", False), (b"v1", "r2"), "archive read final")
+        _eq((c.calls, arc.missing("seidou", {final.name})), (1, set()), "archive no second download")
+        _eq(arc.get(Client(b"v2"), final, "seidou", True), (b"v2", "meti"), "archive refetch")
+        names = sorted(p.name for p in (Path(tmp) / "seidou").iterdir())
+        _eq((len(names), names[0]), (2, "h2daa2025_hosei_jikei.xlsx"), "archive keeps old version")
+        _eq(arc.get(Client(b"v9"), final, "seidou", False), (b"v2", "r2"), "archive reads latest version")
+        c = Client(b"s")
+        arc.get(c, live, "seidou", False)
+        arc.get(c, live, "seidou", False)
+        _eq((c.calls, len(list((Path(tmp) / "seidou").glob("h2daa202608s*")))), (2, 1), "archive same body once")
+    off = MetiArchive(None)
+    _eq((off.get(Client(b"z"), final, "seidou", False), off.missing("seidou", {"a"})), ((b"z", "meti"), set()),
+        "archive off")
+
+
 def main() -> None:
     test_config_mapping()
     test_labels()
@@ -481,6 +513,7 @@ def main() -> None:
     test_sekiyu_kakuho()
     test_sekiyu_sokuho_and_nenpo()
     test_meti_waf_challenge()
+    test_meti_archive()
     test_trade()
     test_revision_guard()
     test_prune_and_done()
