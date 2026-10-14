@@ -4,6 +4,7 @@
   python jobs/material_stats.py                    # 経産省 Excel（生産動態・石油統計の速報・確報）+ e-Stat（前年と今年）
   python jobs/material_stats.py --years 2021-2026  # e-Stat の年を指定（初回）
   python jobs/material_stats.py --source meti      # meti / estat の片方だけ
+  python jobs/material_stats.py --source meti --refetch  # 取り込み済みの年報も落とし直す（正誤訂正のとき）
   python jobs/material_stats.py --only trade       # seidou（生産動態）/ sekiyu（石油統計）/ trade（貿易）のどれかだけ
 
 e-Stat は ESTAT_APP_ID が無ければ飛ばす。経産省 Excel はキー不要。設計は DESIGN.md §3「素材の月次量」。
@@ -31,9 +32,10 @@ from app.material_stats import (  # noqa: E402
     summarize_warnings, write_rows,
 )
 from app.meti import (  # noqa: E402
-    MetiClient, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_sokuho_cells, seidou_files,
+    MetiChallenged, MetiClient, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_sokuho_cells, seidou_files,
 )
 from app.meti import seidou_records as meti_seidou_records  # noqa: E402
+from app.models import MaterialMonthly  # noqa: E402
 from app.supply_chain import load_supply_chain  # noqa: E402
 
 
@@ -54,7 +56,17 @@ def _report_warnings(prefix: str, warnings: list[str]) -> None:
         print(f"  warn {prefix} {line}")
 
 
-def ingest_meti_seidou(db, mapping: dict) -> int:
+def ingested_nenpo(db) -> set[str]:
+    """取り込み済みの年報・年間補正号のファイル名。年に 1 度しか変わらないので毎回は落とさない"""
+    q = db.query(MaterialMonthly.origin).filter(MaterialMonthly.revision == REVISION_NENPO).distinct()
+    return {o for (o,) in q if o}
+
+
+def meti_targets(files: list, done: set[str], refetch: bool) -> list:
+    return [f for f in files if refetch or f.revision != REVISION_NENPO or f.name not in done]
+
+
+def ingest_meti_seidou(db, mapping: dict, refetch: bool = False) -> int:
     conf = mapping["seidou"]
     reports = {it["report"] for it in conf["items"]}
     client = MetiClient()
@@ -63,9 +75,12 @@ def ingest_meti_seidou(db, mapping: dict) -> int:
         print("meti seidou: no Excel link on the list page")
         return 0
     total = 0
-    for f in files:
+    for f in meti_targets(files, ingested_nenpo(db), refetch):
         try:
             records = meti_seidou_records(client.get(f.url), reports)
+        except MetiChallenged as e:
+            print(f"fail meti seidou {f.name}: {e}. stop and retry next run")
+            break
         except Exception as e:  # noqa: BLE001  1 本壊れていても他の Excel は取り込む
             print(f"fail meti seidou {f.name}: {e}")
             continue
@@ -80,7 +95,7 @@ def ingest_meti_seidou(db, mapping: dict) -> int:
     return total
 
 
-def ingest_meti_sekiyu(db, mapping: dict) -> int:
+def ingest_meti_sekiyu(db, mapping: dict, refetch: bool = False) -> int:
     items = mapping["sekiyu"]["items"]
     client = MetiClient()
     files = sekiyu_files(client.get(METI_SEKIYU_KAKUHO_URL).decode("utf-8", "replace"),
@@ -92,10 +107,13 @@ def ingest_meti_sekiyu(db, mapping: dict) -> int:
     total = 0
     parsers = {REVISION_NENPO: ("nenpo", sekiyu_nenpo_cells), REVISION_KAKUHO: ("kakuho", sekiyu_kakuho_cells),
                REVISION_SOKUHO: ("sokuho", sekiyu_sokuho_cells)}
-    for f in files:
+    for f in meti_targets(files, ingested_nenpo(db), refetch):
         kind, parse = parsers[f.revision]
         try:
             cells = parse(client.get(f.url))
+        except MetiChallenged as e:
+            print(f"fail meti sekiyu {f.name}: {e}. stop and retry next run")
+            break
         except Exception as e:  # noqa: BLE001  1 本壊れていても他の Excel は取り込む
             print(f"fail meti sekiyu {f.name}: {e}")
             continue
@@ -177,6 +195,7 @@ def main() -> int:
     ap.add_argument("--years", help="e-Stat の年。2025 または 2021-2026。省略時は前年と今年")
     ap.add_argument("--source", choices=("meti", "estat"))
     ap.add_argument("--only", choices=("seidou", "sekiyu", "trade"))
+    ap.add_argument("--refetch", action="store_true", help="取り込み済みの年報・年間補正号も落とし直す")
     args = ap.parse_args()
     years = parse_years(args.years, date.today())
     material_ids = [m["id"] for m in load_supply_chain()["materials"]]
@@ -197,9 +216,9 @@ def main() -> int:
                     n += ingest_estat_trade(client, db, mapping, years)
         # Excel は e-Stat の後。同じ revision なら後から書いたほうが残る
         if args.source in (None, "meti") and args.only in (None, "seidou"):
-            n += ingest_meti_seidou(db, mapping)
+            n += ingest_meti_seidou(db, mapping, args.refetch)
         if args.source in (None, "meti") and args.only in (None, "sekiyu"):
-            n += ingest_meti_sekiyu(db, mapping)
+            n += ingest_meti_sekiyu(db, mapping, args.refetch)
         print(f"material_stats done written={n}")
         return 0
     finally:

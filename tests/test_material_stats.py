@@ -24,7 +24,7 @@ from app.material_stats import (  # noqa: E402
     load_mapping, sekiyu_rows, seidou_rows, validate_mapping, write_rows,
 )
 from app.meti import (  # noqa: E402
-    sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_sokuho_cells, seidou_files,
+    MetiChallenged, MetiClient, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_sokuho_cells, seidou_files,
 )
 from app.meti import seidou_records as meti_records  # noqa: E402
 from app.models import MaterialMonthly  # noqa: E402
@@ -260,6 +260,38 @@ def test_sekiyu_sokuho_and_nenpo() -> None:
         [("h2dhhpe2021k.xlsx", 3), ("se202607kakji.xlsx", 2), ("h2j581011j.xlsx", 1)], "sekiyu files")
 
 
+class _FakeResp:
+    def __init__(self, status: int, content: bytes = b"", headers: dict | None = None) -> None:
+        self.status_code, self.content, self.headers = status, content, headers or {}
+
+    def raise_for_status(self) -> None:
+        if self.status_code >= 400:
+            raise RuntimeError(self.status_code)
+
+
+class _FakeHttp:
+    def __init__(self, replies: list[_FakeResp]) -> None:
+        self.replies, self.calls = list(replies), 0
+
+    def get(self, url: str) -> _FakeResp:
+        self.calls += 1
+        return self.replies.pop(0)
+
+
+def test_meti_waf_challenge() -> None:
+    challenge = _FakeResp(202, b"", {"x-amzn-waf-action": "challenge"})
+    ok = _FakeResp(200, b"PK\x03\x04data")
+    http = _FakeHttp([challenge, ok])
+    _eq(MetiClient(http=http, pause=0, challenge_wait=0).get("https://x/a.xlsx"), b"PK\x03\x04data", "retry once")
+    http = _FakeHttp([challenge, challenge, ok])
+    try:
+        MetiClient(http=http, pause=0, challenge_wait=0).get("https://x/a.xlsx")
+    except MetiChallenged:
+        _eq(http.calls, 2, "stop after the second challenge")
+    else:
+        _fail("second challenge must raise MetiChallenged")
+
+
 def test_trade() -> None:
     cat02 = {"100": "単位1", "110": "単位2", "150": "1月_数量1", "160": "1月_数量2",
              "180": "2月_数量1", "190": "2月_数量2", "270": "9月_数量1", "280": "9月_数量2"}
@@ -331,6 +363,7 @@ def main() -> None:
     test_meti()
     test_sekiyu_kakuho()
     test_sekiyu_sokuho_and_nenpo()
+    test_meti_waf_challenge()
     test_trade()
     test_revision_guard()
     test_apparent_and_payload()
