@@ -66,6 +66,19 @@ async function supplySetup(){
   await supplyLayout();
   cy.fit(undefined, 16);
 
+  // ページがピンチで拡大されているとマップが画面を埋め、2 本指をマップが取ってページを縮小できなくなる。
+  // 拡大中はマップの拡大・移動を止め、ピンチとスクロールをブラウザに渡す
+  const vv = window.visualViewport;
+  if(vv){
+    const sync = () => {
+      const free = vv.scale <= 1.01;
+      cy.userZoomingEnabled(free);
+      cy.userPanningEnabled(free);
+    };
+    vv.addEventListener("resize", sync);
+    sync();
+  }
+
   cy.on("tap", "node", e => supplySelect(e.target.id(), false));
   cy.on("tap", e => { if(e.target === cy) supplyClear(); });
   $("#supply-reset").onclick = () => { supplyClear(); $("#supply-q").value = ""; cy.animate({fit: {padding: 16}}, {duration: 300}); };
