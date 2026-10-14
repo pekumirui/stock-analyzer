@@ -107,6 +107,8 @@ SUITES = (
     "test_jquants.py",
     "test_earnings_schedule.py",
     "test_fx.py",
+    "test_supply_chain.py",
+    "test_material_stats.py",
 )
 
 

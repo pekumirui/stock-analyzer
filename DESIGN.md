@@ -160,6 +160,17 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
 fx_rates          -- ECB 対EUR 日次レート (Frankfurter api.frankfurter.dev/v1)
   date, quote PK  -- quote は ISO 4217（USD / JPY 等）。EUR 自身は持たない
   rate            -- 1 EUR = rate quote。任意ペアは EUR クロス（quote/base）
+
+material_monthly  -- サプライタブの素材ごとの月次量 (e-Stat)
+  material_id, month, metric, source PK  -- material_id は config/supply_chain.json の id (FK なし)
+                                          -- month は YYYY-MM、metric は production / shipment / inventory / import / export
+                                          --   / processing (原油処理) / domestic_sales (国内向販売)
+                                          -- source は seidou:<報告番号> (生産動態) / sekiyu (石油統計) / trade (貿易)
+  value, unit     -- 単位は統計のまま (t / kl / 本)。kl と t は換算しない
+  revision        -- 1 速報 / 2 確報 / 3 年報 (年間補正後)。下がる上書きはしない
+  origin          -- 取り込んだ e-Stat の表 ID か Excel のファイル名
+  is_estimate     -- 按分の推計値 (いまは常に false)
+  updated_at
 ```
 
 月次の year は暦年。PDF 取込は `POST /api/v1/tables/{code}/ingest`。
@@ -270,6 +281,24 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/tdnet_xbrl_r2.py`）を `xbrl_fili
 - 休日・非公表日は指定日以前の直近営業日（`as_of`）。期間 MCP は公表日だけ返す
 - MCP: `fx_rate`（指定日）/ `fx_rates`（期間）
 
+**素材の月次量（`material_monthly`）。** 統計の品目と素材の対応は `config/material_stats.json`。共通部分は `app/material_stats.py`、取得は `app/estat.py`（e-Stat API、`ESTAT_APP_ID`。無ければ飛ばす）と `app/meti.py`（経産省 Excel。生産動態統計と資源・エネルギー統計（石油）。キー不要）。ジョブは `jobs/material_stats.py`。画面は `docs/DESIGN_supply.md`。
+
+- 生産・出荷・月末在庫は経済産業省生産動態統計。同じ `source`（`seidou:<報告番号>`）に 2 か所から書き、`revision` が下がる上書きはしない（同じなら後勝ち）
+  - 経産省「統計表一覧」の Excel（シート `実数表` は縦持ち）: 速報 `h2daaYYYYMMs.xlsx`（revision 1、翌月末。品目と指標が少ない）、確報 `h2daaYYYYMM_jikei.xlsx`（2、翌々月中旬。その年の 1 月から）、年間補正号 `h2daaYYYY_hosei_jikei.xlsx`（3、前年分）。既定の User-Agent は 403 になるので名乗った User-Agent を付ける
+  - e-Stat（00550200）の「YYYY年 時系列表(<報告番号>_…)」（revision 3）。年報だけで当年は無い。2021〜2024 年の表は品目が `cat02`、月が `cat01`、2025 年は `cat01` と `time`。月は `202501` と `2022年1月` のどちらも読む
+- 品目は品名で引く（NFKC）。品目番号は年で振り直される（化学繊維は 2023 年、AS・ABS 樹脂は 2024 年に 1 品目へ）。年や速報で品目の分け方が違うものは候補の並びで書き、品名が全部その表にある最初の並びを使う。揃う並びが無い表（速報に無い二輪タイヤや硫安など）ではその素材を書かない
+- 素材に足す品目が 1 つでも秘匿（`X`）や不詳の月は、その月・指標を書かない（過小な合計で系列が跳ねるのを避ける）。`-` は 0、空欄（未公表）は無し。秘匿の年がある品目は対応表から外し、`note` に書く（ポリスチレン発泡用、NBR・EPDM、PET 容器用）。単位 `千本` は `本` に直す
+- 資源・エネルギー統計（石油）: 原油処理・原油在庫・石油製品の国内向販売・天然ガス生産（`source` は `sekiyu`）。製品の生産・在庫・輸出入は生産動態と貿易統計で取るのでここからは取らない（在庫は定義が違う）
+  - 年報 `sekiyuka/xls/h2dhhpeYYYYk.xlsx`（revision 3、その年の 1 月から翌年 3 月）。横持ちの表（①原油処理 / ②原油在庫 / 石油製品月別国内向販売。2021 年は表題が「国内向月別販売」）。単位「kl、アスファルト以降:t」はアスファルトの列から右が t
+  - 確報 `sekiyuka/xls/seYYYYMMkakji.xlsx`（revision 2、一覧の最新 1 本だけ。直近 15 か月の時系列）。品目ごとのブロック（（４）ガソリン …）を見出し行「年・期・月」で切る。見出しの無い左ブロックは上の続き（原油の在庫）
+  - 速報 `sekiyuso/result/xls/h2j*j.xlsx`（revision 1、当月だけ）。シート「需給概要」（列が品目、行が指標）と 1 行目が「原油受払」のシート
+  - 品目名は空白を除いた NFKC。ジェット燃料油 + 灯油、A重油 + B・C重油 のように足すものは 1 つでも欠けた月を書かない。`―` は 0
+  - METI は続けて取ると 200 で空の本文を返すことがある。2 秒あけて取り、空や xlsx でない本文は取り直す。それでも駄目な Excel は `fail` を出して飛ばし、次の日に取り直す
+- 輸入・輸出: 普通貿易統計（00350300）の「全国分 品別国別表 輸入 / 輸出」（`source` は `trade`。表題で速報の月は revision 1、ほかは 2）。統計品目番号 9 桁の前方一致で素材に寄せ、国は合計する。輸入と輸出で番号体系が違う（ナフサは輸入 `2710.12-181` だけ。輸出統計はナフサを分けない）
+- 数量は 単位1 があれば 数量1、無ければ 数量2（化学品の多くは KG）。KG と MT は t に、KL は kl に、NO は 本 に寄せる。未公表の月は 0 で入っているので、表題の「(1-7月：確報、8月：速報)」の最後の月より後は捨てる。前年の表は 2021 年からの 5 年分を持つ
+- 冪等。初回は `python jobs/material_stats.py --years 2021-<今年>`。cron は経産省 Excel（生産動態と石油統計）が毎日 07:15、e-Stat が月曜 07:10（前年と今年）
+- 見掛け消費（生産 + 輸入 − 輸出 − 在庫の増加分）は保存せず API で出す。4 つと前月在庫が同じ単位で揃う月だけ。revision は材料の最小
+
 
 ### Q単独値の算出 (保存せずAPI側で導出)
 `Q単独 = 当期累計 − 前四半期累計`(1Qはそのまま)。前年同期のQ単独と比較しYoY成長率を計算。EPSも同様。
@@ -358,6 +387,8 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `GET /api/earnings-performance/{code}` | 決算日からの対TOPIXリターン |
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
 | `GET /api/stocks/search?q=トヨタ` | 銘柄検索。名前の部分一致（q を NFKC とひらがな→カタカナに寄せたものでも引く）とコードの前方一致。最大 20 件 |
+| `GET /api/supply/graph` | サプライタブの素材と流れ（`config/supply_chain.json`）。形は `docs/DESIGN_supply.md` |
+| `GET /api/supply/monthly/{material_id}` | 素材の月次量（`material_monthly`）と見掛け消費。形は `docs/DESIGN_supply.md`。素材が無ければ 404 |
 | `POST /api/v1/tables/{code}/{year}/elements` | 月次表の要素登録。`unit` 必須。表が無ければ作成。保存名をトークン正規化（yoy は末尾 `(前年比)`）と銘柄エイリアスのあと、保存名と完全一致する行を探す（既存行は作り直さない。`docs/DESIGN_monthly_labels.md`「同一行・保存名の凍結」）。完全一致は冪等。類似は 409 (force=true で強制)。unit の食い違いは 409 `UNIT_CONFLICT` (force=true で上書き)。`stocks` に無ければ 4xx `NOT_IN_MASTER` |
 | `POST /api/v1/tables/{code}/ingest` | PDF 列順 + as_of 時点の最新 `fiscal_year_end` から暦年を割り当てて登録。year は受け取らない。`as_of` と各行の `unit` は必須。`dry_run: true` は書かずに mapping と書くはずのセルを返す。`only_months` は `YYYY-MM` で列を絞る。マスタ無しでは 4xx `NOT_IN_MASTER`。mapping の年月が as_of より後なら 400 `FUTURE_COLUMN`。新規行で、`strip_yoy_fragments` 後の名前が同じ yoy と number の既存行が今回の `rows` に無いときは 409 `YOY_NUMBER_CONFLICT`（`force=true` で作成。両方を同じ POST に含めれば通る）。銘柄エイリアスで同じ保存名に寄る行（別表の同じ数字）は 1 行にまとめる。同じ列で値か unit が食い違えば 409 `ROW_MERGE_CONFLICT`（後勝ちで上書きしない） |
 | `GET /api/v1/tables` | 月次表がある銘柄一覧 (code 順)。各要素は `{code, name, years, market, sector33, industry, last_ingested_at, is_new, ingested_today, all_store_yoy, existing_store_yoy}`。name/market/sector33 は stocks を LEFT JOIN (無ければ null)。industry は無ければ `その他`。years は昇順。表が無ければ `[]` |
@@ -378,6 +409,10 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 ### 月次タブの画面
 
 画面は `docs/DESIGN_monthly.md`。書き方は `docs/SCREEN_SPEC.md`。
+
+### サプライタブの画面
+
+画面とマスタの形は `docs/DESIGN_supply.md`。書き方は `docs/SCREEN_SPEC.md`。
 
 ## 6. 日次バッチ (19:30 JST)
 

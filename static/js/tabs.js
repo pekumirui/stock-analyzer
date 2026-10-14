@@ -1,14 +1,20 @@
-const TABS = ["earnings", "chart", "screener", "monthly"];
+const TABS = ["earnings", "chart", "screener", "monthly", "supply"];
 const UI_ROUTE_KEY = "ui.route";
 const CODE_RE = /^[0-9][0-9A-Z]{3}[0-9]$/;
+const SUPPLY_ID_RE = /^[a-z][a-z0-9_]*$/;
+
+// 2 段目: chart / monthly は銘柄コード、supply は素材 id
+function routeArg(tab, raw){
+  if(tab === "chart" || tab === "monthly") return CODE_RE.test(raw || "") ? raw : "";
+  if(tab === "supply") return SUPPLY_ID_RE.test(raw || "") ? raw : "";
+  return "";
+}
 
 function parseRoute(raw){
   const s = String(raw || "").replace(/^#/, "").trim();
   const [tab, rest] = s.split("/");
-  const code = CODE_RE.test(rest || "") ? rest : "";
   if(!TABS.includes(tab)) return {tab: "earnings", code: ""};
-  if(tab !== "chart" && tab !== "monthly") return {tab, code: ""};
-  return {tab, code};
+  return {tab, code: routeArg(tab, rest)};
 }
 
 function currentRoute(){
@@ -19,7 +25,7 @@ function currentRoute(){
 
 function writeRoute(tab, code){
   if(!TABS.includes(tab)) tab = "earnings";
-  const useCode = (tab === "chart" || tab === "monthly") && CODE_RE.test(code || "") ? code : "";
+  const useCode = routeArg(tab, code);
   const path = useCode ? `${tab}/${useCode}` : tab;
   const hash = "#" + path;
   if(location.hash !== hash) history.replaceState(null, "", hash);
@@ -39,6 +45,10 @@ function selectTab(tab){
   writeRoute(tab, tab === "chart" ? (curCode || "") : "");
   if(tab === "screener" && !$("#sc-tbl").innerHTML) loadScreener();
   if(tab === "monthly") loadMonthlyList();
+  if(tab === "supply"){
+    writeRoute("supply", supplySelectedId());
+    loadSupply();
+  }
 }
 
 async function restoreRoute(){
@@ -55,6 +65,11 @@ async function restoreRoute(){
       if($("#sym")) $("#sym").value = code;
       loadChart();
     } else writeRoute("chart");
+    return;
+  }
+  if(tab === "supply"){
+    writeRoute("supply", code);
+    loadSupply(code);
     return;
   }
   if(tab === "monthly"){

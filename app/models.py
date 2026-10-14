@@ -350,3 +350,21 @@ class FxRate(Base):
     quote = Column(String(3), primary_key=True)
     rate = Column(Float, nullable=False)
     __table_args__ = (Index("ix_fx_rates_quote_date", "quote", "date"),)
+
+
+class MaterialMonthly(Base):
+    """サプライタブの素材ごとの月次量。素材は config/supply_chain.json の id（FK なし）。
+
+    統計の品目との対応は config/material_stats.json。取込は DESIGN.md §3「素材の月次量」。
+    """
+    __tablename__ = "material_monthly"
+    material_id = Column(String, primary_key=True)
+    month = Column(String(7), primary_key=True)  # YYYY-MM
+    metric = Column(String, primary_key=True)     # production / import / export / inventory / shipment
+    source = Column(String, primary_key=True)     # seidou:<報告番号> / trade
+    value = Column(Float, nullable=False)
+    unit = Column(String, nullable=False)          # t / kl / 本 など。換算しない
+    revision = Column(Integer, nullable=False)     # 1 速報 / 2 確報 / 3 年報（年間補正後）。下がる上書きはしない
+    origin = Column(String)                        # e-Stat の表 ID か Excel のファイル名
+    is_estimate = Column(Boolean, nullable=False, default=False)
+    updated_at = Column(DateTime)

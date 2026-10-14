@@ -28,7 +28,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 - 8000 を止めない・`reset` しない。UI 検証も 8000
 - Claude Code の自動メモリは `.claude/memory/`（`install.sh` が `.claude/settings.local.json` の `autoMemoryDirectory` で向ける）。環境は消えるので、メモリを足したら作業ブランチに一緒にコミットする
 - `.cursor/` 配下のスクリプトと `.cursor/skills/*/SKILL.md` は Cursor 専用ではない。普通のシェルと手順書として使う
-- 秘密情報は各ベンダーの Secrets / 環境変数で渡す: `JQUANTS_API_KEY` / `VPS_SSH_KEY` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`。無い変数の機能は使えないものとして進める。チャットで鍵を求めない
+- 秘密情報は各ベンダーの Secrets / 環境変数で渡す: `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `VPS_SSH_KEY` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`。無い変数の機能は使えないものとして進める。チャットで鍵を求めない
 - VPS のログ・DB 件数・月次 API は MCP（`https://kabukpi.com/mcp`、OAuth）。どのベンダーからでも同じ。任意シェルを MCP に足さない
 - VPS シェルは `VPS_SSH_KEY` があるときだけ `ssh stock-vps`（`install.sh` → `.cursor/setup-vps-ssh.sh`）。無ければ SSH は人がローカル PC から行う。R2 も `R2_*` が無ければ読めない
 
@@ -46,22 +46,27 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `app/api.py` | REST (`/api/*`) |
 | `app/monthly_ingest.py` | PDF 月次列 → 暦年。行名正規化と aliases |
 | `app/monthly_tree.py` | 月次の親子関係。`monthly_row_order.json` の `tree`、無ければゲートと内訳から作る自動の木を行に割り当てる。year GET の `tree` |
+| `app/supply_chain.py` | サプライタブの素材マスタ（`config/supply_chain.json`）の読込と検査。月次量の API 形と見掛け消費 |
+| `app/material_stats.py` | 素材の月次量（`material_monthly`）の共通部分。対応表 `config/material_stats.json`、品名 → 素材の合計、revision（速報 < 確報 < 年報）を下げない UPSERT |
+| `app/estat.py` | e-Stat API クライアント。生産動態統計の年報と貿易統計 |
+| `app/meti.py` | 経産省の統計 Excel。生産動態統計（速報・確報・年間補正号）と資源・エネルギー統計の石油（速報・確報・年報） |
 | `app/main.py` | FastAPI エントリ + SPA 配信 |
 | `app/assets.py` | 配信する HTML の `/static` URL に中身のハッシュ（`?v=`）を付ける |
 | `app/xbrl/` | TDnet 短信 iXBRL の parse / YAML マッピング / normalize。UI には出さない |
 | `app/xbrlp/` | kawasin73 gist の vendor。改変しない |
 | `jobs/run_batch.py` | 日次バッチ / バックフィル |
 | `jobs/backup_db.py` | 本番 SQLite の日次 gzip バックアップ（ローカルのみ。手順は `docs/DESIGN_backup.md`） |
+| `jobs/material_stats.py` | 統計 → `material_monthly`。`--source meti`（毎日）/ `--source estat`（毎週。前年と今年、`--years`） |
 | `jobs/fx_rates.py` | Frankfurter 為替の日次差分 / `--backfill`（1999-01-04〜） |
 | `jobs/check_demo.py` | スキーマ検査 + 旧デモ取り残しガード。`batch` / `backfill` の前に走る |
 | `jobs/*_r2.py` | TDnet / IR → R2 mount。下の「R2 バッチ」 |
 | `jobs/_r2common.py` | R2 バッチの共通処理（日付・HTTP・銘柄マスタ・ファイル名）。`app` は import しない |
 | `jobs/html_issuers/` | `parse: true` の HTML 月次。各 `i<code>.py` が表・行・単位を宣言する。`parse: false` はモジュールを作らない |
-| `config/` | `ir_monthly.json`、`issuer_aliases.json`、`issuer_metrics.json`、`monthly_vocab.json`（行名の共通語彙）、`monthly_row_order.json`、XBRL YAML、Ruff/Bandit は `pyproject.toml` |
+| `config/` | `ir_monthly.json`、`issuer_aliases.json`、`issuer_metrics.json`、`monthly_vocab.json`（行名の共通語彙）、`monthly_row_order.json`、`supply_chain.json`（サプライタブの素材と流れ）、`material_stats.json`（統計の品目 → 素材）、XBRL YAML、Ruff/Bandit は `pyproject.toml` |
 | `tests/` | `test_*.py` と `ci_smoke.py`。新しい `test_*.py` は `ci_smoke.SUITES` に登録する（漏れは ci_smoke が落とす） |
 | `analyzer/` | `stock.db` を読むだけのオフライン分析（1 問 1 フォルダ、結果は各 `README.md`）。約束と一覧は `analyzer/README.md`。`app` からは使わない |
 | `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ） |
-| `tools/` | オフライン検証と手元ヘルパー。月次 PDF 指紋は `fmtdiff.py`（pdfplumber。ingest は従来どおり pdftotext）。TDnet 月次の未投入一覧は `tdnet_monthly_pending.py`（読み取り専用。使い方は `deploy/README.md`）。XBRL 一致率は `xbrl_match_rate.py`。`check_api.py` と `read_xls.py` |
+| `tools/` | オフライン検証と手元ヘルパー。月次 PDF 指紋は `fmtdiff.py`（pdfplumber。ingest は従来どおり pdftotext）。TDnet 月次の未投入一覧は `tdnet_monthly_pending.py`（読み取り専用。使い方は `deploy/README.md`）。XBRL 一致率は `xbrl_match_rate.py`。e-Stat の表探しは `estat_fetch.py`。`check_api.py` と `read_xls.py` |
 
 ## J-Quants（必須）
 

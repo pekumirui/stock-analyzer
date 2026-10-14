@@ -398,3 +398,37 @@
     #earn-groups { flex-wrap:nowrap; overflow-x:auto; }
     #earn-groups .mchip { flex-shrink:0; }
   }
+
+  /* サプライ (docs/DESIGN_supply.md) */
+  #supply-q { flex:1 1 200px; min-width:0; max-width:320px; }
+  .supply-btn { background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 10px; cursor:pointer; font-size:13px; }
+  .supply-tg { display:inline-flex; align-items:center; gap:4px; font-size:13px; }
+  .supply-legend { display:inline-flex; align-items:center; gap:4px; font-size:12px; }
+  .supply-legend i, .supply-chip i { display:inline-block; width:10px; height:10px; border-radius:2px; border:1.5px solid; }
+  .supply-legend i:not(:first-child) { margin-left:8px; }
+  .k-raw { --k-fill:#fdf1de; --k-line:#b37314; }
+  .k-mid { --k-fill:#e3f0f4; --k-line:#2f7489; }
+  .k-prod { --k-fill:#e6f2e0; --k-line:#4a8a37; }
+  .supply-legend i, .supply-chip i { background:var(--k-fill); border-color:var(--k-line); }
+  .supply-grid { display:grid; grid-template-columns:1fr; gap:12px; }
+  @media (min-width:900px){ .supply-grid { grid-template-columns:minmax(0,1fr) 300px; } }
+  #supply-map { height:calc(100vh - 150px); min-height:360px; border:1px solid var(--border); position:relative; min-width:0; }
+  #supply-msg { position:absolute; left:10px; top:8px; font-size:13px; }
+  #supply-panel h2 { font-size:16px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  #supply-panel h3 { font-size:12px; margin:12px 0 4px; }
+  .supply-meta { font-size:12px; margin-top:2px; font-variant-numeric:tabular-nums; }
+  .supply-note { font-size:13px; margin-top:6px; }
+  .supply-kind { font-size:11px; font-weight:600; padding:1px 6px; border-radius:3px; background:var(--k-fill); color:var(--k-line); }
+  .supply-chips { display:flex; flex-wrap:wrap; gap:4px; }
+  .supply-chip { display:inline-flex; align-items:center; gap:5px; font-size:12px; border:1px solid var(--border); border-radius:999px; padding:2px 9px; background:var(--panel); color:var(--text); cursor:pointer; }
+  .supply-chip:hover { border-color:var(--accent); }
+  @media (max-width:640px){
+    #supply-map { height:60vh; }
+    .supply-chip { padding:5px 10px; font-size:13px; }
+  }
+  .supply-unit { font-size:11px; margin-bottom:2px; }
+  #supply-chart { width:100%; }
+  .supply-tbl { width:auto; margin-top:6px; font-size:12px; }
+  .supply-tbl th, .supply-tbl td { padding:3px 6px; }
+  .supply-tbl i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; }
+  .supply-rev { font-size:10px; color:var(--warn); margin-left:4px; }
