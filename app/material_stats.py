@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from .config import MATERIAL_STATS_PATH
 from .ingest import upsert
-from .models import MaterialMonthly
+from .models import MaterialMonthly, MaterialTradeCountry
 
 METRICS = ("production", "shipment", "inventory", "import", "export", "processing", "domestic_sales")
 REVISION_SOKUHO, REVISION_KAKUHO, REVISION_NENPO = 1, 2, 3
@@ -127,6 +127,21 @@ def validate_mapping(data: dict, material_ids: Iterable[str] | None = None) -> N
             for code in it.get(flow) or []:
                 if not isinstance(code, str) or not _CODE_RE.match(code):
                     raise MappingError(f"trade {m}.{flow}: bad code {code!r}")
+    seen_country: set[str] = set()
+    for it in (data.get("trade") or {}).get("country_items") or []:
+        # 国合計は書かず国別だけ取る品目（原油など、国合計は石油統計が正）
+        m = it.get("material")
+        if known is not None and m not in known:
+            raise MappingError(f"trade.country_items: unknown material {m}")
+        if m in seen_trade or m in seen_country:
+            raise MappingError(f"trade.country_items: duplicate material {m}")
+        seen_country.add(m)
+        if not it.get("import") and not it.get("export"):
+            raise MappingError(f"trade.country_items {m}: import or export is required")
+        for flow in ("import", "export"):
+            for code in it.get(flow) or []:
+                if not isinstance(code, str) or not _CODE_RE.match(code):
+                    raise MappingError(f"trade.country_items {m}.{flow}: bad code {code!r}")
     owner: dict[tuple[str, str], str] = {}
     for section, material, metric in mapped_metrics(data):
         if owner.setdefault((material, metric), section) != section:
@@ -162,6 +177,26 @@ class Row:
             "material_id": self.material_id, "month": self.month, "metric": self.metric,
             "source": self.source, "value": self.value, "unit": self.unit,
             "revision": self.revision, "origin": self.origin, "is_estimate": False, "updated_at": now,
+        }
+
+
+@dataclass(frozen=True)
+class CountryRow:
+    material_id: str
+    month: str
+    flow: str
+    country: str
+    country_name: str
+    value: float
+    unit: str
+    revision: int
+    origin: str
+
+    def as_dict(self, now: datetime) -> dict:
+        return {
+            "material_id": self.material_id, "month": self.month, "flow": self.flow,
+            "country": self.country, "country_name": self.country_name, "value": self.value,
+            "unit": self.unit, "revision": self.revision, "origin": self.origin, "updated_at": now,
         }
 
 
@@ -283,6 +318,13 @@ def prune_unmapped(db: Session, data: dict) -> int:
     for m, metric, src in gone:
         n += db.query(MaterialMonthly).filter(MaterialMonthly.material_id == m, MaterialMonthly.metric == metric,
                                               MaterialMonthly.source == src).delete(synchronize_session=False)
+    trade = data.get("trade") or {}
+    keep_country = {(it["material"], flow) for it in (trade.get("items") or []) + (trade.get("country_items") or [])
+                    for flow in ("import", "export") if it.get(flow)}
+    cpk = (MaterialTradeCountry.material_id, MaterialTradeCountry.flow)
+    for m, flow in [k for k in db.query(*cpk).distinct() if tuple(k) not in keep_country]:
+        n += db.query(MaterialTradeCountry).filter(MaterialTradeCountry.material_id == m,
+                                                   MaterialTradeCountry.flow == flow).delete(synchronize_session=False)
     db.commit()
     return n
 
@@ -300,4 +342,21 @@ def write_rows(db: Session, rows: list[Row]) -> int:
     keep = [r for r, k in zip(rows, keys) if r.revision >= have.get(k, 0)]
     now = now_utc()
     upsert(db, MaterialMonthly, [r.as_dict(now) for r in keep])
+    return len(keep)
+
+
+def write_country_rows(db: Session, rows: list[CountryRow]) -> int:
+    """国別の UPSERT。write_rows と同じく revision が下がる上書きはしない。書いた行数"""
+    if not rows:
+        return 0
+    pk = (MaterialTradeCountry.material_id, MaterialTradeCountry.month,
+          MaterialTradeCountry.flow, MaterialTradeCountry.country)
+    keys = [(r.material_id, r.month, r.flow, r.country) for r in rows]
+    have: dict[tuple, int] = {}
+    for i in range(0, len(keys), 500):
+        q = db.query(*pk, MaterialTradeCountry.revision).filter(tuple_(*pk).in_(keys[i:i + 500]))
+        have.update({(a, b, c, d): rev for a, b, c, d, rev in q})
+    keep = [r for r, k in zip(rows, keys) if r.revision >= have.get(k, 0)]
+    now = now_utc()
+    upsert(db, MaterialTradeCountry, [r.as_dict(now) for r in keep])
     return len(keep)

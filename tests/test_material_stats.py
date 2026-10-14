@@ -17,18 +17,18 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.estat import (  # noqa: E402
     match_codes, month_of, parse_production_label, production_dims, published_through,
-    seidou_records, sokuho_month, trade_rows,
+    seidou_records, sokuho_month, trade_country_rows, trade_rows,
 )
 from app.material_stats import (  # noqa: E402
-    REVISION_KAKUHO, REVISION_NENPO, REVISION_SOKUHO, MappingError, Row, SeidouRecord,
-    load_mapping, prune_unmapped, sekiyu_rows, seidou_rows, validate_mapping, write_rows,
+    REVISION_KAKUHO, REVISION_NENPO, REVISION_SOKUHO, CountryRow, MappingError, Row, SeidouRecord,
+    load_mapping, prune_unmapped, sekiyu_rows, seidou_rows, validate_mapping, write_country_rows, write_rows,
 )
 from app.meti import (  # noqa: E402
     MetiChallenged, MetiClient, MetiFile, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_nenpo_inventory_cells,
     sekiyu_sokuho_cells, seidou_files,
 )
 from app.meti import seidou_records as meti_records  # noqa: E402
-from app.models import MaterialMonthly  # noqa: E402
+from app.models import MaterialMonthly, MaterialTradeCountry  # noqa: E402
 from app.supply_chain import apparent_consumption, load_supply_chain, monthly_payload  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "jobs"))
@@ -53,6 +53,9 @@ def test_config_mapping() -> None:
         {"trade": {"items": [{"material": "crude", "import": ["27x9"]}]}},
         {"sekiyu": {"items": [{"material": "lpg", "metric": "import", "kakuho": {"blocks": ["LPG"], "column": "輸入"}}]},
          "trade": {"items": [{"material": "lpg", "import": ["271112"]}]}},
+        {"trade": {"items": [{"material": "pe", "import": ["390110"]}],
+                   "country_items": [{"material": "pe", "import": ["390120"]}]}},
+        {"trade": {"country_items": [{"material": "crude"}]}},
     ):
         try:
             validate_mapping(bad, ids)
@@ -363,6 +366,15 @@ def test_trade() -> None:
     _eq([(r.material_id, r.month, r.value, r.unit, r.source, r.revision) for r in rows],
         [("crude", "2026-01", 15.0, "kl", "trade", 1), ("ethylene", "2025-02", 4.0, "t", "trade", 2),
          ("ethylene", "2026-01", 5.0, "t", "trade", 1)], "trade rows")
+    # 国別: 国を足さず、国コードと国名に分ける
+    crows = trade_country_rows(
+        flow="import", cat02=cat02, times=times, values=v, last_month=8,
+        areas={"a": "137_サウジアラビア", "b": "147_アラブ首長国連邦"},
+        items=[{"material": "crude", "codes": ["270900900"]}], stats_data_id="t", sokuho=1,
+    )
+    _eq([(r.material_id, r.month, r.country, r.country_name, r.value, r.unit, r.revision) for r in crows],
+        [("crude", "2026-01", "137", "サウジアラビア", 10.0, "kl", 1),
+         ("crude", "2026-01", "147", "アラブ首長国連邦", 5.0, "kl", 1)], "trade country rows")
 
 
 def test_revision_guard() -> None:
@@ -402,7 +414,12 @@ def test_prune_and_done() -> None:
                  "kakuho": {"blocks": ["液化石油ガス"], "column": "輸出"}},
             ]},
         }
-        _eq(prune_unmapped(db, mapping), 2, "pruned rows")
+        db.query(MaterialTradeCountry).delete()
+        write_country_rows(db, [CountryRow("crude", "2025-01", "import", "137", "サウジアラビア", 1.0, "kl", 2, "t"),
+                                CountryRow("pe", "2025-01", "import", "105", "中華人民共和国", 1.0, "t", 2, "t")])
+        mapping["trade"] = {"country_items": [{"material": "crude", "import": ["2709"]}]}
+        _eq(prune_unmapped(db, mapping), 3, "pruned rows (2 monthly + 1 country)")
+        _eq([r.material_id for r in db.query(MaterialTradeCountry)], ["crude"], "kept country rows")
         _eq(sorted((r.material_id, r.metric, r.source) for r in db.query(MaterialMonthly)),
             [("ethylene", "production", "seidou:6100"), ("lpg", "import", "sekiyu")], "kept rows")
         items = mapping["sekiyu"]["items"] + [

@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
 from app.supply_chain import (  # noqa: E402
     SupplyChainError,
+    country_payload,
     load_companies,
     load_supply_chain,
     validate_companies,
@@ -181,6 +182,32 @@ def test_companies_api() -> None:
         _fail(f"companies api: {r.status_code} {r.text[:200]}")
 
 
+def test_country_payload() -> None:
+    from types import SimpleNamespace as R
+
+    def row(month: str, code: str, name: str, value: float, rev: int = 2, unit: str = "kl") -> R:
+        return R(month=month, country=code, country_name=name, value=value, unit=unit, revision=rev)
+
+    rows = [row("2024-07", "137", "サウジアラビア", 999.0),  # 13 か月前は外れる
+            row("2024-08", "137", "サウジアラビア", 30.0), row("2025-07", "147", "アラブ首長国連邦", 60.0),
+            row("2025-07", "137", "サウジアラビア", 10.0, rev=1)]
+    d = country_payload(rows, "crude", "import")
+    if (d["from"], d["to"], d["unit"], d["total"], d["sokuho"]) != ("2024-08", "2025-07", "kl", 100.0, True):
+        _fail(d)
+    if [(c["code"], c["value"], round(c["share"], 2)) for c in d["countries"]] != [("147", 60.0, 0.6), ("137", 40.0, 0.4)]:
+        _fail(d["countries"])
+    if country_payload([], "crude", "import")["countries"] != []:
+        _fail("empty")
+    client = TestClient(app)
+    r = client.get("/api/supply/countries/crude")
+    if r.status_code != 200 or r.json()["countries"] != []:
+        _fail(f"countries api: {r.status_code} {r.text[:200]}")
+    if client.get("/api/supply/countries/nope").status_code != 404:
+        _fail("unknown material must be 404")
+    if client.get("/api/supply/countries/crude?flow=x").status_code != 400:
+        _fail("bad flow must be 400")
+
+
 def main() -> None:
     test_config_is_valid()
     test_valid_minimal()
@@ -190,6 +217,7 @@ def main() -> None:
     test_companies_valid_minimal()
     test_companies_rejects()
     test_companies_api()
+    test_country_payload()
     print("ok: supply_chain")
 
 

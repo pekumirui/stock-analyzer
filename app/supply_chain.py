@@ -360,3 +360,38 @@ def monthly_payload(rows: list[Any], material_id: str,
         for (metric, unit), pts in sorted(by.items(), key=lambda kv: (METRIC_ORDER.index(kv[0][0]), kv[0][1]))
     ]
     return {"material_id": material_id, "series": series}
+
+
+def _month_add(month: str, n: int) -> str:
+    y, m = int(month[:4]), int(month[5:]) + n
+    y, m = y + (m - 1) // 12, (m - 1) % 12 + 1
+    return f"{y}-{m:02d}"
+
+
+def country_payload(rows: list[Any], material_id: str, flow: str, months: int = 12) -> dict[str, Any]:
+    """material_trade_country の行 → 直近 months か月の相手国別の合計と割合。
+
+    期間は保存済みの最新月から遡る。単位が混ざれば最新月の単位の行だけ足す。
+    """
+    out: dict[str, Any] = {"material_id": material_id, "flow": flow, "unit": None, "from": None, "to": None,
+                           "sokuho": False, "total": 0.0, "countries": []}
+    if not rows:
+        return out
+    latest = max(r.month for r in rows)
+    unit = next(r.unit for r in rows if r.month == latest)
+    start = _month_add(latest, 1 - months)
+    sums: dict[str, float] = {}
+    names: dict[str, str] = {}
+    for r in rows:
+        if r.unit != unit or not (start <= r.month <= latest):
+            continue
+        sums[r.country] = sums.get(r.country, 0.0) + r.value
+        names[r.country] = r.country_name
+    total = sum(sums.values())
+    out.update({
+        "unit": unit, "from": start, "to": latest, "total": total,
+        "sokuho": any(r.revision == 1 for r in rows if r.month == latest),
+        "countries": [{"code": c, "name": names[c], "value": v, "share": v / total if total else 0.0}
+                      for c, v in sorted(sums.items(), key=lambda kv: -kv[1])],
+    })
+    return out

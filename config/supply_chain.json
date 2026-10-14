@@ -1,10 +1,10 @@
 {
   "materials": [
-    {"id": "crude", "name": "原油", "kind": "raw", "note": "日本は輸入の9割超が中東産"},
+    {"id": "crude", "name": "原油", "kind": "raw", "note": "日本はほぼ全量を輸入し、大半が中東産"},
     {"id": "natgas", "name": "天然ガス", "kind": "raw"},
     {"id": "natrubber", "name": "天然ゴム", "kind": "raw"},
-    {"id": "salt", "name": "塩", "kind": "raw", "note": "日本はソーダ工業用の塩をほぼ輸入に頼る（豪州・メキシコ）"},
-    {"id": "lpg", "name": "LPG", "kind": "mid", "note": "日本は大半を輸入し、輸入の6割超が米国産（シェールガス由来）。製油所でも出る"},
+    {"id": "salt", "name": "塩", "kind": "raw", "note": "日本はソーダ工業用の塩をほぼ輸入に頼る"},
+    {"id": "lpg", "name": "LPG", "kind": "mid", "note": "日本は大半を輸入し、主に米国産（シェールガス由来）。製油所でも出る"},
     {"id": "naphtha", "name": "ナフサ", "kind": "mid", "note": "石油化学の出発点"},
     {"id": "gasoline", "name": "ガソリン", "kind": "prod"},
     {"id": "kerosene", "name": "灯油・ジェット燃料", "kind": "prod"},

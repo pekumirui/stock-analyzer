@@ -2,7 +2,8 @@
 
 - 生産動態統計（00550200）の年ごとの「時系列表(<報告番号>_…)」。年間補正後の年報（revision 3）。
   表側は `製品_<品目>_<品名>_<記号>_<指標>_<単位>`
-- 普通貿易統計（00350300）の「品別国別表」。統計品目番号 9 桁 × 国 × 月。国は合計する
+- 普通貿易統計（00350300）の「品別国別表」。統計品目番号 9 桁 × 国 × 月。国を合計して material_monthly、
+  国別のまま material_trade_country
 """
 from __future__ import annotations
 
@@ -16,7 +17,8 @@ import httpx
 
 from .config import ESTAT_APP_ID, ESTAT_BASE
 from .material_stats import (
-    REVISION_KAKUHO, REVISION_SOKUHO, TRADE_SOURCE, MappingError, Row, SeidouRecord, parse_num, product_name,
+    REVISION_KAKUHO, REVISION_SOKUHO, TRADE_SOURCE, CountryRow, MappingError, Row, SeidouRecord, parse_num,
+    product_name,
 )
 
 _PRODUCT_RE = re.compile(r"^[0-9]{4}$")
@@ -177,15 +179,11 @@ def match_codes(prefixes: list[str], codes: Iterable[str]) -> list[str]:
     return sorted(c for c in codes if any(c.startswith(p) for p in prefixes))
 
 
-def trade_rows(*, flow: str, items: list[dict], cat02: dict[str, str], times: dict[str, str],
-               values: list[dict], last_month: int, stats_data_id: str,
-               sokuho: int | None = None) -> list[Row]:
-    """品別国別表の数量を国と品目で足す。最新年の last_month より後（未公表で 0）は捨てる。
+def _trade_cells(*, flow: str, items: list[dict], cat02: dict[str, str], times: dict[str, str],
+                 values: list[dict], last_month: int) -> Iterable[tuple[str, str, str, float, str]]:
+    """品別国別表の数量 → (素材, YYYY-MM, 国の分類コード, 数量, 単位)。最新年の last_month より後（未公表で 0）は捨てる。
 
     数量は 単位1 があれば 数量1、無ければ 数量2（化学品の多くは 数量2 の KG だけ）。
-    最新年の sokuho の月は revision 1（速報）、それ以外は 2。
-
-    items の各要素は `codes` に表の統計品目番号（前方一致を解決済み）を持つ。
     """
     material_of: dict[str, list[str]] = defaultdict(list)
     for it in items:
@@ -200,8 +198,6 @@ def trade_rows(*, flow: str, items: list[dict], cat02: dict[str, str], times: di
         if m and unit and v.get("@cat01") in material_of:
             key = (v["@cat01"], v.get("@area", ""), years.get(v.get("@time", ""), ""), m.group(1))
             cell_unit[key] = unit
-    sums: dict[tuple[str, str], float] = defaultdict(float)
-    unit_of: dict[tuple[str, str], str] = {}
     for v in values:
         code = v.get("@cat01", "")
         year = years.get(v.get("@time", ""))
@@ -223,13 +219,53 @@ def trade_rows(*, flow: str, items: list[dict], cat02: dict[str, str], times: di
             raise EstatError(f"{code} {year}: quantity without unit")
         unit, scale = _TRADE_UNITS.get(unit, (unit, 1.0))
         for material in material_of[code]:
-            key = (material, f"{year}-{month:02d}")
-            if unit_of.setdefault(key, unit) != unit:
-                raise MappingError(f"{material} {flow}: mixed units ({unit_of[key]}, {unit})")
-            sums[key] += num * scale
-    rows: list[Row] = []
-    for (material, month), total in sorted(sums.items()):
-        revision = REVISION_SOKUHO if sokuho and month == f"{latest}-{sokuho:02d}" else REVISION_KAKUHO
-        rows.append(Row(material, month, flow, TRADE_SOURCE, total, unit_of[(material, month)],
-                        revision, stats_data_id))
-    return rows
+            yield material, f"{year}-{month:02d}", area, num * scale, unit
+
+
+def _latest_year(times: dict[str, str]) -> str:
+    return max((name[:4] for name in times.values() if re.match(r"\d{4}年", name)), default="")
+
+
+def _trade_revision(month: str, times: dict[str, str], sokuho: int | None) -> int:
+    return REVISION_SOKUHO if sokuho and month == f"{_latest_year(times)}-{sokuho:02d}" else REVISION_KAKUHO
+
+
+def trade_rows(*, flow: str, items: list[dict], cat02: dict[str, str], times: dict[str, str],
+               values: list[dict], last_month: int, stats_data_id: str,
+               sokuho: int | None = None) -> list[Row]:
+    """品別国別表の数量を国と品目で足す。最新年の sokuho の月は revision 1（速報）、それ以外は 2。
+
+    items の各要素は `codes` に表の統計品目番号（前方一致を解決済み）を持つ。
+    """
+    sums: dict[tuple[str, str], float] = defaultdict(float)
+    unit_of: dict[tuple[str, str], str] = {}
+    for material, month, _, value, unit in _trade_cells(flow=flow, items=items, cat02=cat02, times=times,
+                                                        values=values, last_month=last_month):
+        key = (material, month)
+        if unit_of.setdefault(key, unit) != unit:
+            raise MappingError(f"{material} {flow}: mixed units ({unit_of[key]}, {unit})")
+        sums[key] += value
+    return [Row(material, month, flow, TRADE_SOURCE, total, unit_of[(material, month)],
+                _trade_revision(month, times, sokuho), stats_data_id)
+            for (material, month), total in sorted(sums.items())]
+
+
+def trade_country_rows(*, flow: str, items: list[dict], cat02: dict[str, str], times: dict[str, str],
+                       areas: dict[str, str], values: list[dict], last_month: int, stats_data_id: str,
+                       sokuho: int | None = None) -> list[CountryRow]:
+    """品別国別表の数量を国ごとに品目で足す。areas は国の分類 {コード: "137_サウジアラビア"}"""
+    sums: dict[tuple[str, str, str], float] = defaultdict(float)
+    unit_of: dict[tuple[str, str], str] = {}
+    for material, month, area, value, unit in _trade_cells(flow=flow, items=items, cat02=cat02, times=times,
+                                                           values=values, last_month=last_month):
+        if unit_of.setdefault((material, month), unit) != unit:
+            raise MappingError(f"{material} {flow}: mixed units ({unit_of[(material, month)]}, {unit})")
+        sums[(material, month, area)] += value
+    out: list[CountryRow] = []
+    for (material, month, area), total in sorted(sums.items()):
+        m = re.fullmatch(r"(\d{3})_(.+)", areas.get(area, ""))
+        if not m:
+            raise EstatError(f"unknown area {area!r}")
+        out.append(CountryRow(material, month, flow, m.group(1), m.group(2), total, unit_of[(material, month)],
+                              _trade_revision(month, times, sokuho), stats_data_id))
+    return out

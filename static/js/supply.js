@@ -10,6 +10,7 @@ const SUPPLY_COLOR = {
   prod: {fill: "#e6f2e0", line: "#4a8a37"},
 };
 const SUPPLY_NODE_H = 28;
+const SUPPLY_MAX_ZOOM = 3;
 let supplyInit = null;  // Promise。ライブラリとグラフの読込は一度だけ
 let supply = null;      // {cy, byId, parents, kids, selected, co}
 // 企業: 能力シェアの色。上位 5 社に固定順で振り、6 位から下はその他の灰色
@@ -56,6 +57,7 @@ async function supplySetup(){
   const ctx = document.createElement("canvas").getContext("2d");
   ctx.font = font;
   graph.materials.forEach(m => { m.w = Math.ceil(ctx.measureText(m.name).width) + 20; });
+  const measure = s => Math.ceil(ctx.measureText(s).width) + 20;
 
   const cy = cytoscape({
     container: $("#supply-map"),
@@ -65,11 +67,11 @@ async function supplySetup(){
     ],
     style: supplyStyle(font),
     layout: {name: "preset"},
-    minZoom: 0.2, maxZoom: 3,
+    minZoom: 0.2, maxZoom: SUPPLY_MAX_ZOOM,
     boxSelectionEnabled: false, autoungrabify: true,
   });
   $("#supply-msg").remove();
-  supply = {cy, byId, parents, kids, selected: "", co: supplyCompanyIndex(companies)};
+  supply = {cy, byId, parents, kids, selected: "", co: supplyCompanyIndex(companies), measure, countries: {}};
   await supplyLayout();
   cy.fit(undefined, 16);
 
@@ -86,7 +88,7 @@ async function supplySetup(){
     sync();
   }
 
-  cy.on("tap", "node", e => supplySelect(e.target.id(), false));
+  cy.on("tap", "node", e => { if(!e.target.hasClass("ctry")) supplySelect(e.target.id(), false); });
   cy.on("tap", e => { if(e.target === cy) supplyClear(); });
   $("#supply-reset").onclick = () => { supplyClear(); $("#supply-q").value = ""; cy.animate({fit: {padding: 16}}, {duration: 300}); };
   $("#supply-merge").onchange = async () => { await supplyLayout(); cy.fit(undefined, 16); };
@@ -149,6 +151,16 @@ function supplyStyle(font){
       width: 2.6, "line-color": "#0077b6", "target-arrow-color": "#0077b6", "z-index": 20,
     }},
     {selector: "node.sel", style: {"border-width": 3, "border-color": "#0077b6"}},
+    // 輸入元の国。選んだ素材の左に一時的に置く
+    {selector: "node.ctry", style: {
+      "background-color": "#fff", "border-color": "#7a8794", "border-style": "dashed", "border-width": 1.2,
+      "font-size": 11, "font-weight": 500, color: "#333", "z-index": 30,
+    }},
+    {selector: "edge.ctry", style: {
+      width: "data(lw)", "line-color": "#b37314", "target-arrow-color": "#b37314", opacity: 0.75, "z-index": 25,
+      // 国の箱の右端から素材の箱の左端へ。中心から引くと隣の国の箱の下をくぐる
+      "curve-style": "straight", "source-endpoint": "90deg", "target-endpoint": "270deg",
+    }},
   ];
 }
 
@@ -208,6 +220,7 @@ function supplyWalk(start, next){
 function supplySelect(id, fly){
   const {cy, parents, kids} = supply;
   supply.selected = id;
+  cy.remove(".ctry");
   const up = supplyWalk(id, parents), down = supplyWalk(id, kids);
   const onUp = n => n === id || up.has(n), onDown = n => n === id || down.has(n);
   cy.batch(() => {
@@ -228,11 +241,13 @@ function supplySelect(id, fly){
   }
   supplyPanel(up, down);
   writeRoute("supply", id);
+  supplyCountries(id, fly);
 }
 
 function supplySelectCompany(id, fly){
   const {cy} = supply, made = new Set((supply.co.makesByCo[id] || []).map(x => x.material));
   supply.selected = id;
+  cy.remove(".ctry");
   cy.batch(() => {
     cy.elements().removeClass("dim hl sel");
     cy.nodes().forEach(n => n.addClass(made.has(n.id()) ? "sel" : "dim"));
@@ -251,6 +266,7 @@ function supplySelectCompany(id, fly){
 function supplyClear(){
   if(!supply) return;
   supply.selected = "";
+  supply.cy.remove(".ctry");
   supply.cy.elements().removeClass("dim hl sel");
   supplyPanel();
   writeRoute("supply", "");
@@ -283,6 +299,7 @@ function supplyPanel(up, down){
     ${down.size ? `<h3>行き着く最終製品</h3>${supplyChips(prods)}` : ""}
     <h3>作っている企業</h3>${supplyMakers(id)}
     ${(supply.co.capsByMat[id] || []).map(supplyShare).join("")}
+    <div id="supply-countries"></div>
     <h3>月次の量</h3><div id="supply-monthly" class="sub">読み込み中…</div>`;
   supplyBindPanel(p);
   supplyMonthly(id);
@@ -300,6 +317,63 @@ function supplyBindPanel(p){
     });
     supplyBindPanel(p);
   });
+}
+
+// ---- 輸入元の国 ----
+
+const SUPPLY_COUNTRY_TOP = 5;
+
+async function supplyCountries(id, fly){
+  let d = supply.countries[id];
+  if(!d){
+    try { d = supply.countries[id] = await api(`/api/supply/countries/${id}`); }
+    catch(e){ return; }  // 国別は補助。失敗しても素材の表示は続ける
+  }
+  if(supply.selected !== id || !d.countries.length || !d.total) return;
+  // 上位 5 か国（0.1% 未満は出さない）+ その他。その他も 0.1% 未満なら出さない
+  const top = d.countries.slice(0, SUPPLY_COUNTRY_TOP).filter(c => c.share >= 0.001);
+  const rest = d.countries.slice(top.length), restShare = rest.reduce((a, c) => a + c.share, 0);
+  const items = top.map(c => ({key: c.code, name: c.name, share: c.share}));
+  if(restShare >= 0.001) items.push({key: "etc", name: `その他 ${rest.length} か国`, share: restShare});
+  const pct = s => `${(s * 100).toFixed(s < 0.1 ? 1 : 0)}%`;
+  const {cy, measure} = supply, target = cy.getElementById(id), p = target.position();
+  const labels = items.map(c => `${c.name} ${pct(c.share)}`);
+  const w = Math.max(...labels.map(measure));
+  const gap = SUPPLY_NODE_H + 8, h = (items.length - 1) * gap + SUPPLY_NODE_H;
+  // 国の列は素材の左。強調中の素材の箱と重なるなら、重ならなくなるまでその箱の左へずらす
+  let x = p.x - target.width() / 2 - 56 - w / 2;
+  const boxes = cy.nodes().not(".dim").not(target).map(n => n.boundingBox());
+  for(let moved = true; moved;){
+    moved = false;
+    for(const b of boxes){
+      if(x - w / 2 < b.x2 + 8 && x + w / 2 > b.x1 - 8 && p.y - h / 2 < b.y2 + 4 && p.y + h / 2 > b.y1 - 4){
+        x = b.x1 - 24 - w / 2;
+        moved = true;
+      }
+    }
+  }
+  cy.add(items.flatMap((c, i) => [
+    {group: "nodes", classes: "ctry", data: {id: `ctry_${c.key}`, label: labels[i], kind: "mid", w},
+     position: {x, y: p.y + (i - (items.length - 1) / 2) * gap}},
+    {group: "edges", classes: "ctry", data: {id: `ctry_${c.key}>${id}`, source: `ctry_${c.key}`, target: id,
+     lw: 1 + c.share * 9}},
+  ]));
+  if(fly){
+    // 国と素材と直接の前後に寄せる（原油のように下流がマップ全体だと国が読めない大きさになる）
+    const near = cy.nodes(".ctry").union(target).union(target.incomers("node")).union(target.outgoers("node"));
+    // 素材を選んだときの寄せが途中なら止める。止めると上限を戻す complete が走らないので初期値に戻す
+    cy.stop();
+    cy.maxZoom(1.2);
+    cy.animate({fit: {eles: near, padding: 24}}, {duration: 300, complete: () => cy.maxZoom(SUPPLY_MAX_ZOOM)});
+  }
+  const box = $("#supply-countries");
+  if(!box) return;
+  box.innerHTML = `<h3>輸入元の国（${d.from}〜${d.to}${d.sokuho ? "、最新月は速報" : ""}）</h3>
+    <table class="supply-tbl supply-share-tbl"><tr><th class="l">国</th><th>輸入量</th><th>シェア</th></tr>
+    ${d.countries.slice(0, 10).map(c => `<tr><td class="l">${c.name}</td><td>${fmt(c.value)}</td><td>${(c.share * 100).toFixed(1)}%</td></tr>`).join("")}
+    ${d.countries.length > 10 ? `<tr><td class="l sub">ほか ${d.countries.length - 10} か国</td><td>${fmt(d.countries.slice(10).reduce((a, c) => a + c.value, 0))}</td><td>${(d.countries.slice(10).reduce((a, c) => a + c.share, 0) * 100).toFixed(1)}%</td></tr>` : ""}
+    </table>
+    <div class="sub supply-src">${d.unit}・普通貿易統計（品別国別表）の直近 12 か月の合計</div>`;
 }
 
 // ---- 企業 ----
