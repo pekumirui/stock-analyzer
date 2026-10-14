@@ -419,7 +419,8 @@ function supplyCompanyPanel(id){
   const children = [...kids[id].map(k => [k, ""]), ...stakes[id].map(([k, pct]) => [k, `${pct}%`])];
   const sellTo = trade.filter(t => t.seller === id).map(t => [t.buyer, ""]);
   const buyFrom = trade.filter(t => t.buyer === id).map(t => [t.seller, ""]);
-  const srcKeys = [...new Set([c.source, ...made.map(m => m.source)].filter(Boolean))];
+  const srcKeys = [...new Set([c.source, ...made.map(m => m.source),
+    ...trade.filter(t => t.seller === id || t.buyer === id).map(t => t.source)].filter(Boolean))];
   const code = c.code ? c.code.slice(0, 4) : "";
   p.innerHTML = `<h2>${c.name} <span class="supply-kind k-co">${SUPPLY_STATUS[c.status]}${code ? ` ${code}` : ""}</span></h2>
     ${code ? `<div class="sub supply-meta"><a href="#chart/${c.code}" id="supply-chart-link">チャートを開く</a></div>` : ""}

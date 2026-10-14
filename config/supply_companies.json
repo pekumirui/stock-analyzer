@@ -2,6 +2,9 @@
   "sources": {
     "meti_cap_2024": {"title": "経済産業省「我が国の主要石油化学製品生産能力調査」2024年12月末時点（knak.jp の転載表で確認）", "url": "https://knak.jp/japan/ethylene.htm#capa", "checked": "2026-10-14"},
     "knak_owners_202507": {"title": "knak.jp（個人の業界データベース）の能力表の備考欄にある出資比率（2025年7月時点）。有報での確認はまだ", "url": "https://knak.jp/japan/ethylene.htm#capa", "checked": "2026-10-14"},
+    "edinet_idemitsu_2026": {"title": "出光興産 有価証券報告書 第111期（2026年3月期）関係会社の状況", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YCS3", "checked": "2026-10-14"},
+    "edinet_cosmo_2026": {"title": "コスモエネルギーHD 有価証券報告書 第11期（2026年3月期）関係会社の状況", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YI3A", "checked": "2026-10-14"},
+    "edinet_denso_2026": {"title": "デンソー 有価証券報告書 第103期（2026年3月期）主な相手先別の販売実績", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100Y9T1", "checked": "2026-10-14"},
     "paj_refining_202604": {"title": "石油連盟「製油所の所在地と原油処理能力」2026年4月末現在", "url": "https://www.paj.gr.jp/sites/default/files/2026-06/paj-04_refining%20capacities_202604r.pdf", "checked": "2026-10-14"}
   },
   "companies": [
@@ -11,7 +14,7 @@
     {"id": "eneos", "name": "ENEOSホールディングス", "code": "50200", "status": "listed", "note": "能力表の「ENEOS」（ENEOS株式会社）はここにまとめる"},
     {"id": "idemitsu", "name": "出光興産", "code": "50190", "status": "listed"},
     {"id": "cosmo", "name": "コスモエネルギーHD", "code": "50210", "status": "listed", "note": "能力表の「コスモ石油」はここにまとめる"},
-    {"id": "astomos", "name": "アストモスエネルギー", "status": "private", "parent_id": "idemitsu"},
+    {"id": "astomos", "name": "アストモスエネルギー", "status": "private", "owners": [["idemitsu", 51]], "source": "edinet_idemitsu_2026", "note": "出光の持分法適用会社（51%）"},
     {"id": "mcg", "name": "三菱ケミカルグループ", "code": "41880", "status": "listed", "note": "能力表の「三菱ケミカル」はここにまとめる"},
     {"id": "mitsuichem", "name": "三井化学", "code": "41830", "status": "listed"},
     {"id": "sumichem", "name": "住友化学", "code": "40050", "status": "listed"},
@@ -24,7 +27,7 @@
     {"id": "kaneka", "name": "カネカ", "code": "41180", "status": "listed"},
     {"id": "resonac", "name": "レゾナック・ホールディングス", "code": "40040", "status": "listed"},
     {"id": "crasus", "name": "クラサスケミカル", "status": "private", "parent_id": "resonac", "note": "レゾナックの石油化学事業"},
-    {"id": "keiyo", "name": "京葉エチレン", "status": "private", "owners": [["maruzen", 55], ["sumichem", 45]], "source": "knak_owners_202507"},
+    {"id": "keiyo", "name": "京葉エチレン", "status": "private", "owners": [["maruzen", 55], ["sumichem", 45]], "source": "edinet_cosmo_2026", "note": "コスモの有報で議決権 55%（丸善石油化学経由の間接所有）。住友化学 45% は knak.jp"},
     {"id": "mcae", "name": "三菱ケミカル旭化成エチレン", "status": "private", "owners": [["asahikasei", 50], ["mcg", 50]], "source": "knak_owners_202507"},
     {"id": "osakapc", "name": "大阪石油化学", "status": "private", "parent_id": "mitsuichem", "source": "knak_owners_202507"},
     {"id": "jpo", "name": "日本ポリオレフィン", "status": "private", "owners": [["crasus", 65], ["eneos", 35]], "source": "knak_owners_202507"},
@@ -60,10 +63,10 @@
     {"id": "cmaroma", "name": "CMアロマ", "status": "private"},
     {"id": "jfe", "name": "JFEホールディングス", "code": "54110", "status": "listed"},
     {"id": "jfechem", "name": "JFEケミカル", "status": "private", "parent_id": "jfe"},
-    {"id": "showayokkaichi", "name": "昭和四日市石油", "status": "private", "parent_id": "idemitsu"},
+    {"id": "showayokkaichi", "name": "昭和四日市石油", "status": "private", "owners": [["idemitsu", 75]], "source": "edinet_idemitsu_2026"},
     {"id": "taiyooil", "name": "太陽石油", "status": "private"},
-    {"id": "toaoil", "name": "東亜石油", "status": "private", "parent_id": "idemitsu"},
-    {"id": "fujioil", "name": "富士石油", "code": "50170", "status": "listed"},
+    {"id": "toaoil", "name": "東亜石油", "status": "private", "owners": [["idemitsu", 100]], "source": "edinet_idemitsu_2026"},
+    {"id": "fujioil", "name": "富士石油", "code": "50170", "status": "listed", "owners": [["idemitsu", 92.5]], "source": "edinet_idemitsu_2026", "note": "2026年3月に出光が議決権 92.49% を取得"},
     {"id": "mizushimapx", "name": "水島パラキシレン", "status": "private"},
     {"id": "toray", "name": "東レ", "code": "34020", "status": "listed"},
     {"id": "teijin", "name": "帝人", "code": "34010", "status": "listed"},
@@ -137,5 +140,5 @@
      "note": "製油所の原油処理能力。製品ごとの能力ではない",
      "rows": [["idemitsu", 503000], ["cosmo", 400000], ["showayokkaichi", 225000], ["eneos", 1302300], ["kashimaoil", 210100], ["osakaintl", 129000], ["fujioil", 143000], ["toaoil", 60000], ["taiyooil", 138000]]}
   ],
-  "trade": []
+  "trade": [["denso", "toyota", "edinet_denso_2026"]]
 }
