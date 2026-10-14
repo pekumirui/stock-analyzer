@@ -49,7 +49,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `app/supply_chain.py` | サプライタブの素材マスタ（`config/supply_chain.json`）の読込と検査。月次量の API 形と見掛け消費 |
 | `app/material_stats.py` | 素材の月次量（`material_monthly`）の共通部分。対応表 `config/material_stats.json`、品名 → 素材の合計、revision（速報 < 確報 < 年報）を下げない UPSERT |
 | `app/estat.py` | e-Stat API クライアント。生産動態統計の年報と貿易統計 |
-| `app/meti.py` | 経産省 生産動態統計の Excel（速報・確報・年間補正号） |
+| `app/meti.py` | 経産省の統計 Excel。生産動態統計（速報・確報・年間補正号）と資源・エネルギー統計の石油（速報・確報・年報） |
 | `app/main.py` | FastAPI エントリ + SPA 配信 |
 | `app/assets.py` | 配信する HTML の `/static` URL に中身のハッシュ（`?v=`）を付ける |
 | `app/xbrl/` | TDnet 短信 iXBRL の parse / YAML マッピング / normalize。UI には出さない |

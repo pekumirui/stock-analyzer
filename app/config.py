@@ -71,6 +71,9 @@ ESTAT_BASE = os.getenv("ESTAT_BASE", "https://api.e-stat.go.jp/rest/3.0/app/json
 # 経産省 生産動態統計の統計表一覧（速報・確報の Excel）。既定の User-Agent は 403 になる
 METI_SEIDOU_URL = os.getenv(
     "METI_SEIDOU_URL", "https://www.meti.go.jp/statistics/tyo/seidou/result/ichiran/08_seidou.html")
+# 資源・エネルギー統計（石油）の確報一覧と速報ページ
+METI_SEKIYU_KAKUHO_URL = os.getenv("METI_SEKIYU_KAKUHO_URL", "https://www.meti.go.jp/statistics/tyo/sekiyuka/index.html")
+METI_SEKIYU_SOKUHO_URL = os.getenv("METI_SEKIYU_SOKUHO_URL", "https://www.meti.go.jp/statistics/tyo/sekiyuso/result.html")
 METI_USER_AGENT = "Mozilla/5.0 (compatible; stock-analyzer; +https://kabukpi.com/)"
 
 # レートリミット (プラン別: Free=5 / Light=60 / Standard=120 / Premium=500)

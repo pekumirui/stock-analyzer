@@ -114,7 +114,7 @@ def supply_graph() -> dict[str, list]:
     return load_supply_chain()
 
 
-METRIC_ORDER = ("production", "shipment", "inventory", "import", "export", "apparent")
+METRIC_ORDER = ("production", "shipment", "inventory", "import", "export", "processing", "domestic_sales", "apparent")
 
 
 def apparent_consumption(series: dict[str, dict[str, float]]) -> dict[str, float]:

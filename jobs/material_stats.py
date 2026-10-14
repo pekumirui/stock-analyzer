@@ -1,10 +1,10 @@
 """素材の月次量（material_monthly）を統計から UPSERT。対応表は config/material_stats.json。
 
 使い方:
-  python jobs/material_stats.py                    # 経産省 Excel（生産動態の速報・確報）+ e-Stat（前年と今年）
+  python jobs/material_stats.py                    # 経産省 Excel（生産動態・石油統計の速報・確報）+ e-Stat（前年と今年）
   python jobs/material_stats.py --years 2021-2026  # e-Stat の年を指定（初回）
   python jobs/material_stats.py --source meti      # meti / estat の片方だけ
-  python jobs/material_stats.py --only trade       # seidou（生産動態）/ trade（貿易）の片方だけ
+  python jobs/material_stats.py --only trade       # seidou（生産動態）/ sekiyu（石油統計）/ trade（貿易）のどれかだけ
 
 e-Stat は ESTAT_APP_ID が無ければ飛ばす。経産省 Excel はキー不要。設計は DESIGN.md §3「素材の月次量」。
 """
@@ -18,16 +18,21 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.config import ESTAT_APP_ID, METI_SEIDOU_URL  # noqa: E402
+from app.config import (  # noqa: E402
+    ESTAT_APP_ID, METI_SEIDOU_URL, METI_SEKIYU_KAKUHO_URL, METI_SEKIYU_SOKUHO_URL,
+)
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.estat import (  # noqa: E402
     EstatClient, match_codes, month_of, parse_production_label, production_dims, production_table,
     published_through, seidou_records, sokuho_month, table_title, trade_rows, trade_table,
 )
 from app.material_stats import (  # noqa: E402
-    REVISION_NENPO, load_mapping, product_groups, seidou_rows, summarize_warnings, write_rows,
+    REVISION_KAKUHO, REVISION_NENPO, REVISION_SOKUHO, load_mapping, product_groups, sekiyu_rows, seidou_rows,
+    summarize_warnings, write_rows,
 )
-from app.meti import MetiClient, seidou_files  # noqa: E402
+from app.meti import (  # noqa: E402
+    MetiClient, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_sokuho_cells, seidou_files,
+)
 from app.meti import seidou_records as meti_seidou_records  # noqa: E402
 from app.supply_chain import load_supply_chain  # noqa: E402
 
@@ -59,7 +64,11 @@ def ingest_meti_seidou(db, mapping: dict) -> int:
         return 0
     total = 0
     for f in files:
-        records = meti_seidou_records(client.get(f.url), reports)
+        try:
+            records = meti_seidou_records(client.get(f.url), reports)
+        except Exception as e:  # noqa: BLE001  1 本壊れていても他の Excel は取り込む
+            print(f"fail meti seidou {f.name}: {e}")
+            continue
         rows, warnings = seidou_rows(records, items=conf["items"], metrics=conf["metrics"],
                                      revision=f.revision, origin=f.name)
         _report_warnings(f.name, warnings)
@@ -68,6 +77,35 @@ def ingest_meti_seidou(db, mapping: dict) -> int:
         months = sorted({r.month for r in rows})
         span = f"{months[0]}..{months[-1]}" if months else "-"
         print(f"meti seidou {f.name} revision={f.revision} rows={len(rows)} written={n} months={span}")
+    return total
+
+
+def ingest_meti_sekiyu(db, mapping: dict) -> int:
+    items = mapping["sekiyu"]["items"]
+    client = MetiClient()
+    files = sekiyu_files(client.get(METI_SEKIYU_KAKUHO_URL).decode("utf-8", "replace"),
+                         client.get(METI_SEKIYU_SOKUHO_URL).decode("utf-8", "replace"),
+                         METI_SEKIYU_KAKUHO_URL, METI_SEKIYU_SOKUHO_URL)
+    if not files:
+        print("meti sekiyu: no Excel link on the list pages")
+        return 0
+    total = 0
+    parsers = {REVISION_NENPO: ("nenpo", sekiyu_nenpo_cells), REVISION_KAKUHO: ("kakuho", sekiyu_kakuho_cells),
+               REVISION_SOKUHO: ("sokuho", sekiyu_sokuho_cells)}
+    for f in files:
+        kind, parse = parsers[f.revision]
+        try:
+            cells = parse(client.get(f.url))
+        except Exception as e:  # noqa: BLE001  1 本壊れていても他の Excel は取り込む
+            print(f"fail meti sekiyu {f.name}: {e}")
+            continue
+        rows, warnings = sekiyu_rows(cells, items=items, kind=kind, revision=f.revision, origin=f.name)
+        _report_warnings(f.name, warnings)
+        n = write_rows(db, rows)
+        total += n
+        months = sorted({r.month for r in rows})
+        span = f"{months[0]}..{months[-1]}" if months else "-"
+        print(f"meti sekiyu {f.name} revision={f.revision} rows={len(rows)} written={n} months={span}")
     return total
 
 
@@ -138,7 +176,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--years", help="e-Stat の年。2025 または 2021-2026。省略時は前年と今年")
     ap.add_argument("--source", choices=("meti", "estat"))
-    ap.add_argument("--only", choices=("seidou", "trade"))
+    ap.add_argument("--only", choices=("seidou", "sekiyu", "trade"))
     args = ap.parse_args()
     years = parse_years(args.years, date.today())
     material_ids = [m["id"] for m in load_supply_chain()["materials"]]
@@ -160,6 +198,8 @@ def main() -> int:
         # Excel は e-Stat の後。同じ revision なら後から書いたほうが残る
         if args.source in (None, "meti") and args.only in (None, "seidou"):
             n += ingest_meti_seidou(db, mapping)
+        if args.source in (None, "meti") and args.only in (None, "sekiyu"):
+            n += ingest_meti_sekiyu(db, mapping)
         print(f"material_stats done written={n}")
         return 0
     finally:

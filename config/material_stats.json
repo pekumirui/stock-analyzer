@@ -37,6 +37,21 @@
       {"material": "tire", "report": "6201", "products": ["トラック・バス用タイヤ", "乗用車用タイヤ", "小型トラック用タイヤ", "二輪自動車用タイヤ", "特殊車両用タイヤ"]}
     ]
   },
+  "sekiyu": {
+    "note": "資源・エネルギー統計（石油）。生産・輸出入は生産動態と貿易統計で取るので、ここは原油処理・原油在庫・国内向販売・天然ガス生産だけ",
+    "items": [
+      {"material": "crude", "metric": "processing", "nenpo": {"blocks": ["合計"], "column": "原油処理"}, "kakuho": {"blocks": ["原油"], "column": "消費"}, "sokuho": {"blocks": ["原油"], "column": "処理"}},
+      {"material": "crude", "metric": "inventory", "nenpo": {"blocks": ["合計"], "column": "原油在庫"}, "kakuho": {"blocks": ["原油"], "column": "在庫"}, "sokuho": {"blocks": ["原油"], "column": "月末在庫"}},
+      {"material": "natgas", "metric": "production", "kakuho": {"blocks": ["天然ガス"], "column": "生産"}},
+      {"material": "gasoline", "metric": "domestic_sales", "nenpo": {"blocks": ["ガソリン"], "column": ["石油製品月別国内向販売", "石油製品国内向月別販売"]}, "kakuho": {"blocks": ["ガソリン"], "column": "国内向販売"}, "sokuho": {"blocks": ["ガソリン"], "column": "国内向販売"}},
+      {"material": "naphtha", "metric": "domestic_sales", "nenpo": {"blocks": ["ナフサ"], "column": ["石油製品月別国内向販売", "石油製品国内向月別販売"]}, "kakuho": {"blocks": ["ナフサ"], "column": "国内向販売"}, "sokuho": {"blocks": ["ナフサ"], "column": "国内向販売"}},
+      {"material": "kerosene", "metric": "domestic_sales", "nenpo": {"blocks": ["ジェット燃料油", "灯油"], "column": ["石油製品月別国内向販売", "石油製品国内向月別販売"]}, "kakuho": {"blocks": ["ジェット燃料油", "灯油"], "column": "国内向販売"}, "sokuho": {"blocks": ["ジェット燃料油", "灯油"], "column": "国内向販売"}},
+      {"material": "diesel", "metric": "domestic_sales", "nenpo": {"blocks": ["軽油"], "column": ["石油製品月別国内向販売", "石油製品国内向月別販売"]}, "kakuho": {"blocks": ["軽油"], "column": "国内向販売"}, "sokuho": {"blocks": ["軽油"], "column": "国内向販売"}},
+      {"material": "heavy", "metric": "domestic_sales", "nenpo": {"blocks": ["A重油", "B・C重油"], "column": ["石油製品月別国内向販売", "石油製品国内向月別販売"]}, "kakuho": {"blocks": ["A重油", "B・C重油"], "column": "国内向販売"}, "sokuho": {"blocks": ["A重油", "B・C重油"], "column": "国内向販売"}},
+      {"material": "asphalt", "metric": "domestic_sales", "nenpo": {"blocks": ["アスファルト"], "column": ["石油製品月別国内向販売", "石油製品国内向月別販売"]}, "kakuho": {"blocks": ["アスファルト"], "column": "国内向販売"}, "sokuho": {"blocks": ["アスファルト"], "column": "国内向販売"}},
+      {"material": "lpg", "metric": "domestic_sales", "nenpo": {"blocks": ["液化石油ガス"], "column": ["石油製品月別国内向販売", "石油製品国内向月別販売"]}, "kakuho": {"blocks": ["液化石油ガス"], "column": "国内向販売"}, "sokuho": {"blocks": ["LPG"], "column": "国内向販売"}}
+    ]
+  },
   "trade": {
     "estat_stats_code": "00350300",
     "items": [

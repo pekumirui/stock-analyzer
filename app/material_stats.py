@@ -23,14 +23,15 @@ from .config import MATERIAL_STATS_PATH
 from .ingest import upsert
 from .models import MaterialMonthly
 
-METRICS = ("production", "shipment", "inventory", "import", "export")
+METRICS = ("production", "shipment", "inventory", "import", "export", "processing", "domestic_sales")
 REVISION_SOKUHO, REVISION_KAKUHO, REVISION_NENPO = 1, 2, 3
 SEIDOU_SOURCE = "seidou:{report}"
 TRADE_SOURCE = "trade"
+SEKIYU_SOURCE = "sekiyu"
 _CODE_RE = re.compile(r"^[0-9]{4,9}$")
 # 生産動態の単位。同じ素材の品目で 本 と 千本 が混ざる（タイヤ）
 _SEIDOU_UNITS = {"千本": ("本", 1000.0)}
-_ZERO = {"-", "(-)", "*-", "* -"}  # 皆無または該当なし
+_ZERO = {"-", "(-)", "*-", "* -", "―", "－", "‐"}  # 皆無または該当なし
 
 
 class MappingError(ValueError):
@@ -96,6 +97,22 @@ def validate_mapping(data: dict, material_ids: Iterable[str] | None = None) -> N
         if key in seen:
             raise MappingError(f"seidou: duplicate {m} in report {it['report']}")
         seen.add(key)
+    seen_sekiyu: set[tuple[str, str]] = set()
+    for it in (data.get("sekiyu") or {}).get("items") or []:
+        m, metric = it.get("material"), it.get("metric")
+        if known is not None and m not in known:
+            raise MappingError(f"sekiyu: unknown material {m}")
+        if metric not in METRICS:
+            raise MappingError(f"sekiyu {m}: unknown metric {metric}")
+        if (m, metric) in seen_sekiyu:
+            raise MappingError(f"sekiyu: duplicate {m} {metric}")
+        seen_sekiyu.add((m, metric))
+        for kind in ("nenpo", "kakuho", "sokuho"):
+            spec = it.get(kind)
+            if spec is not None and (not spec.get("blocks") or not spec.get("column")):
+                raise MappingError(f"sekiyu {m}.{kind}: blocks and column are required")
+        if not any(it.get(k) for k in ("nenpo", "kakuho", "sokuho")):
+            raise MappingError(f"sekiyu {m}: nenpo, kakuho or sokuho is required")
     seen_trade: set[str] = set()
     for it in (data.get("trade") or {}).get("items") or []:
         m = it.get("material")
@@ -187,6 +204,46 @@ def seidou_rows(records: Iterable[SeidouRecord], *, items: list[dict], metrics: 
             raise MappingError(f"{material} {metric}: mixed units {sorted(units)} in report {report}")
         rows.append(Row(material, month, metric, SEIDOU_SOURCE.format(report=report),
                         sum(n for n, _ in got.values()), units.pop(), revision, origin))
+    return rows, warnings
+
+
+def sekiyu_rows(cells: Iterable[Any], *, items: list[dict], kind: str, revision: int,
+                origin: str) -> tuple[list[Row], list[str]]:
+    """石油統計のセル（block, column, unit, month, raw）→ 行。kind は nenpo / kakuho / sokuho。
+
+    blocks を足す（ジェット燃料油 + 灯油 など）。1 つでも欠けた月は書かない。
+    column は候補の並びでもよい（年報の表題は年で語順が違う）。月ごとに値のある最初の候補を使う。
+    """
+    index: dict[tuple[str, str, str], tuple[Any, str]] = {}
+    for c in cells:
+        index.setdefault((product_name(c.block), product_name(c.column), c.month), (c.raw, c.unit))
+    months = sorted({c.month for c in cells}) if cells else []
+    rows: list[Row] = []
+    warnings: list[str] = []
+    for it in items:
+        spec = it.get(kind)
+        if not spec:
+            continue
+        blocks = [product_name(b) for b in spec["blocks"]]
+        columns = [product_name(c) for c in (spec["column"] if isinstance(spec["column"], list) else [spec["column"]])]
+        for month in months:
+            got = next((g for col in columns
+                        if any(g := [index.get((b, col, month)) for b in blocks])), None)
+            if got is None:
+                continue
+            nums = [parse_num(g[0]) if g else None for g in got]
+            if any(n is None for n in nums):
+                warnings.append(f"{it['material']} {month} {it['metric']}: missing in {spec['blocks']}")
+                continue
+            units = {g[1] for g in got if g}
+            if len(units) != 1:
+                raise MappingError(f"{it['material']} {it['metric']}: mixed units {sorted(units)}")
+            rows.append(Row(it["material"], month, it["metric"], SEKIYU_SOURCE, sum(nums), units.pop(),
+                            revision, origin))
+    for it in items:
+        spec = it.get(kind)
+        if spec and not any(r.material_id == it["material"] and r.metric == it["metric"] for r in rows):
+            warnings.append(f"{it['material']} -: {it['metric']} not in table {spec}")
     return rows, warnings
 
 

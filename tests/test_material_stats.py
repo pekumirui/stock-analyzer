@@ -21,9 +21,11 @@ from app.estat import (  # noqa: E402
 )
 from app.material_stats import (  # noqa: E402
     REVISION_KAKUHO, REVISION_NENPO, REVISION_SOKUHO, MappingError, Row, SeidouRecord,
-    load_mapping, seidou_rows, validate_mapping, write_rows,
+    load_mapping, sekiyu_rows, seidou_rows, validate_mapping, write_rows,
 )
-from app.meti import seidou_files  # noqa: E402
+from app.meti import (  # noqa: E402
+    sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_sokuho_cells, seidou_files,
+)
 from app.meti import seidou_records as meti_records  # noqa: E402
 from app.models import MaterialMonthly  # noqa: E402
 from app.supply_chain import apparent_consumption, load_supply_chain, monthly_payload  # noqa: E402
@@ -153,6 +155,111 @@ def test_meti() -> None:
         "excel records")
 
 
+def _book(sheets: dict[str, list[list]]) -> bytes:
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    wb.remove(wb.active)
+    for name, rows in sheets.items():
+        ws = wb.create_sheet(name)
+        for r in rows:
+            ws.append(r)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def test_sekiyu_kakuho() -> None:
+    # 確報の時系列表: 左右 2 ブロック。下の左ブロックは見出しが無く上（原油）の続き
+    n = None
+    data = _book({"(1)～(3)": [
+        [None, "　（１）原油　Crude Oil", None, None, None, "　（単位：kl）", None, "　（２）天然ガス　Natural Gas", None, "（単位：千m3）"],
+        [None, None, None, None, "消費"],
+        [None, "年・期・月", "生産", "輸入", "Consumption", n, n, "生産", "出荷"],
+        [None, "令和７年", 1, 2, 3, n, n, 4, 5],
+        [None, "令和７年　４～６　月", 9, 9, 9, n, n, 9, 9],
+        [None, "令和７年　１２月", 10, 20, 30, n, n, 40, 50],
+        [None, "令和８年　１　", 11, 21, "X", n, n, 41, 51],
+        [None, "　　２　", 12, 22, 32, n, n, 42, 52],
+        [None, "前年同月比（％）", 1, 1, 1, n, n, 1, 1],
+        [],
+        [None, None, None, None, None, "　（単位：kl）", None, "　（３）ガソリン　Gasoline", None, "　（単位：kl）"],
+        [None, "年・期・月", "出荷", "在庫", n, n, n, "生産", "国内向販売"],
+        [None, "令和８年　２　", 1, 700, n, n, n, 2, 900],
+        [None, "前年同月比（％）"],
+    ]})
+    cells = sekiyu_kakuho_cells(data)
+    got = {(c.block, c.column, c.month): (c.raw, c.unit) for c in cells}
+    _eq(got[("原油", "消費", "2025-12")], (30, "kl"), "crude consumption")
+    _eq(got[("原油", "消費", "2026-02")], (32, "kl"), "bare month after 令和8年1")
+    _eq(got[("天然ガス", "生産", "2026-01")], (41, "千m3"), "right block unit")
+    _eq(got[("原油", "在庫", "2026-02")], (700, "kl"), "continuation block inherits 原油")
+    _eq(got[("ガソリン", "国内向販売", "2026-02")], (900, "kl"), "gasoline sales")
+    if any(c.month.startswith("2025-0") for c in cells):
+        _fail("year and quarter rows must not become months")
+    items = [{"material": "crude", "metric": "processing", "kakuho": {"blocks": ["原油"], "column": "消費"}}]
+    rows, warnings = sekiyu_rows(cells, items=items, kind="kakuho", revision=REVISION_KAKUHO, origin="k")
+    _eq([(r.month, r.value, r.source) for r in rows], [("2025-12", 30.0, "sekiyu"), ("2026-02", 32.0, "sekiyu")],
+        "secret month skipped")
+    if not any("2026-01" in w for w in warnings):
+        _fail(f"secret month must warn: {warnings}")
+
+
+def test_sekiyu_sokuho_and_nenpo() -> None:
+    data = _book({
+        "原油受払～石油製品生産在庫（3頁目）": [
+            ["2．原油受払"],
+            ["区　分", None, None, None, "単 位", "8年8月", None, None, "8年7月"],
+            ["処理", None, None, None, "kl", 11573650, 97.7, 98.2, 11843023],
+            ["月末在庫", None, None, None, "kl", 12374741, 107.7, 119.6, 11491917],
+            ["3．原油出荷内訳(非精製用)"],
+            ["計", None, None, None, "kl", 1164],
+        ],
+        "原油受払～石油製品生産在庫（4頁目）": [["4．石油製品"], ["潤滑油", None, None, None, "kl", 5]],
+        "需給概要（5頁目）": [
+            [None, "5． 需　給　概　要", "(8年8月)"],
+            ["区 　　　分", None, "燃料油計", "ジェット", "灯　　油", "Ａ 重 油", "Ｌ Ｐ Ｇ"],
+            [None, None, None, "燃 料 油", None, None, None],
+            ["単 　　　位", None, "kl", "kl", "kl", "kl", "ｔ"],
+            [" 国 内 向 販 売", None, 100, 10, 20, 30, 40],
+            [None, "前　月　比（%）", 1, 1, 1, 1, 1],
+        ],
+    })
+    got = {(c.block, c.column, c.month): (c.raw, c.unit) for c in sekiyu_sokuho_cells(data)}
+    _eq(got[("原油", "処理", "2026-08")], (11573650, "kl"), "sokuho crude")
+    _eq(got[("ジェット燃料油", "国内向販売", "2026-08")], (10, "kl"), "two-row product header")
+    _eq(got[("LPG", "国内向販売", "2026-08")], (40, "t"), "LPG unit")
+    if ("原油", "潤滑油", "2026-08") in got or ("原油", "計", "2026-08") in got:
+        _fail("rows outside 原油受払 must be ignored")
+
+    nenpo = _book({"２（３）石油製品月別国内向販売": [
+        [None, "（３）石油製品月別国内向販売", None, None, None, None, None, "(単位：kl、アスファルト以降:t)"],
+        [None, "年・期・月", None, None, "ガソリン", "Ｂ・Ｃ重油\nFuel Oil B・C", "アスファルト", "液化石油ガス"],
+        [None, None, None, None, "Gasoline", None, "Asphalt", "LPG"],
+        [None, "令和", "7 年", None, 1, 1, 1, 1],
+        [None, "令和", "7 年", "  1 月", 100, 50, 7, 8],
+        [None, None, None, "  2", 110, "―", 9, 10],
+        [],
+    ]})
+    got = {(c.block, c.month): (c.raw, c.unit) for c in sekiyu_nenpo_cells(nenpo)}
+    _eq(got[("ガソリン", "2025-02")], (110, "kl"), "nenpo month")
+    _eq(got[("B・C重油", "2025-01")], (50, "kl"), "Japanese line only")
+    _eq(got[("アスファルト", "2025-01")], (7, "t"), "unit switches at アスファルト")
+    _eq(got[("液化石油ガス", "2025-02")], (10, "t"), "unit after switch")
+    items = [{"material": "heavy", "metric": "domestic_sales",
+              "nenpo": {"blocks": ["B・C重油"], "column": ["石油製品月別国内向販売", "石油製品国内向月別販売"]}}]
+    rows, _ = sekiyu_rows(sekiyu_nenpo_cells(nenpo), items=items, kind="nenpo", revision=REVISION_NENPO, origin="n")
+    _eq([(r.month, r.value) for r in rows], [("2025-01", 50.0), ("2025-02", 0.0)], "― is zero")
+
+    html_k = ('<a href="xls/h2dhhpe2021k.xlsx"><a href="xls/se202606kakji.xlsx"><a href="xls/se202607kakji.xlsx">'
+              '<a href="xls/se202607kakse.xlsx">')
+    html_s = '<a href="result/xls/h2j581011j.xlsx"><a href="result/xls/h2j581011e.xlsx">'
+    files = sekiyu_files(html_k, html_s, "https://www.meti.go.jp/statistics/tyo/sekiyuka/index.html",
+                         "https://www.meti.go.jp/statistics/tyo/sekiyuso/result.html")
+    _eq([(f.name, f.revision) for f in files],
+        [("h2dhhpe2021k.xlsx", 3), ("se202607kakji.xlsx", 2), ("h2j581011j.xlsx", 1)], "sekiyu files")
+
+
 def test_trade() -> None:
     cat02 = {"100": "単位1", "110": "単位2", "150": "1月_数量1", "160": "1月_数量2",
              "180": "2月_数量1", "190": "2月_数量2", "270": "9月_数量1", "280": "9月_数量2"}
@@ -222,6 +329,8 @@ def main() -> None:
     test_estat_old_layout()
     test_alternatives_and_units()
     test_meti()
+    test_sekiyu_kakuho()
+    test_sekiyu_sokuho_and_nenpo()
     test_trade()
     test_revision_guard()
     test_apparent_and_payload()

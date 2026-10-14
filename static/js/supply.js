@@ -189,7 +189,13 @@ function supplySelect(id, fly){
     });
     cy.getElementById(id).addClass("sel");
   });
-  if(fly) cy.animate({fit: {eles: cy.nodes().not(".dim"), padding: 24}}, {duration: 350});
+  if(fly){
+    // 経路が短いと寄りすぎるので、寄せる間だけ拡大の上限を下げる
+    const max = cy.maxZoom();
+    cy.maxZoom(1.2);
+    cy.animate({fit: {eles: cy.nodes().not(".dim"), padding: 24}},
+               {duration: 350, complete: () => cy.maxZoom(max)});
+  }
   supplyPanel(up, down);
   writeRoute("supply", id);
 }
@@ -238,9 +244,11 @@ const SUPPLY_METRIC = {
   inventory:  {label: "月末在庫", color: "#c4cad0"},
   import:     {label: "輸入", color: "#b37314"},
   export:     {label: "輸出", color: "#4a8a37"},
+  processing: {label: "原油処理", color: "#7a5195"},
+  domestic_sales: {label: "国内向販売", color: "#c2185b"},
   apparent:   {label: "見掛け消費", color: "#0077b6"},
 };
-const SUPPLY_CHART_METRICS = ["production", "import", "export", "apparent"];
+const SUPPLY_CHART_METRICS = ["production", "import", "export", "processing", "domestic_sales", "apparent"];
 let supplyChart = null;
 
 async function supplyMonthly(id){
