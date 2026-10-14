@@ -439,6 +439,17 @@ def test_apparent_and_payload() -> None:
          ("export", "t"), ("apparent", "t")], "series order")
     _eq(p["series"][-1]["points"], [["2025-01", 105.0, 2], ["2025-02", 135.0, 1]], "apparent revision is the minimum")
 
+    # 貿易統計は 0 の月を保存しない。公表済みの月は 0 で埋め、未公表の月と石油統計の系列は埋めない
+    rows = [SimpleNamespace(metric="export", unit="t", month="2023-10", value=1.0, source="trade", revision=2),
+            SimpleNamespace(metric="import", unit="t", month="2025-01", value=9.0, source="trade", revision=2),
+            SimpleNamespace(metric="import", unit="kl", month="2025-01", value=5.0, source="sekiyu", revision=2)]
+    trade = {"export": {"2023-10": 2, "2025-01": 2, "2025-02": 1}, "import": {"2025-01": 2, "2025-02": 1}}
+    p = monthly_payload(rows, "x", trade)
+    got = {(s["metric"], s["unit"]): s["points"] for s in p["series"]}
+    _eq(got[("export", "t")], [["2023-10", 1.0, 2], ["2025-01", 0.0, 2], ["2025-02", 0.0, 1]], "trade zero fill")
+    _eq(got[("import", "t")], [["2025-01", 9.0, 2], ["2025-02", 0.0, 1]], "trade import zero fill")
+    _eq(got[("import", "kl")], [["2025-01", 5.0, 2]], "non-trade series is not filled")
+
 
 def main() -> None:
     test_config_mapping()

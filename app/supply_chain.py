@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .config import SUPPLY_CHAIN_PATH
+from .material_stats import TRADE_SOURCE
 
 KINDS = ("raw", "mid", "prod")
 _ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
@@ -134,11 +135,14 @@ def apparent_consumption(series: dict[str, dict[str, float]]) -> dict[str, float
     return out
 
 
-def monthly_payload(rows: list[Any], material_id: str) -> dict[str, Any]:
+def monthly_payload(rows: list[Any], material_id: str,
+                    trade_months: dict[str, dict[str, int]] | None = None) -> dict[str, Any]:
     """material_monthly の行 → {material_id, series: [{metric, unit, sources, points}]}。
 
     points は [YYYY-MM, 値, revision]（1 速報 / 2 確報 / 3 年報）。見掛け消費の revision は材料の最小。
     同じ指標に単位の違う行があれば（統計の取り方が違う）別の系列にする。
+    trade_months は {指標: {公表済みの月: revision}}。貿易統計は 0 の月を保存しないので、
+    貿易だけの系列はその月を 0 で埋める（埋めないと 0 と未公表が区別できない）。
     """
     by: dict[tuple[str, str], dict[str, float]] = {}
     revs: dict[tuple[str, str], dict[str, int]] = {}
@@ -148,6 +152,13 @@ def monthly_payload(rows: list[Any], material_id: str) -> dict[str, Any]:
         by.setdefault(key, {})[r.month] = r.value
         revs.setdefault(key, {})[r.month] = r.revision
         sources.setdefault(key, set()).add(r.source)
+    for key, pts in by.items():
+        if sources[key] != {TRADE_SOURCE}:
+            continue
+        for month, rev in (trade_months or {}).get(key[0], {}).items():
+            if month not in pts:
+                pts[month] = 0.0
+                revs[key][month] = rev
     for unit in sorted({u for _, u in by}):
         app = apparent_consumption({m: pts for (m, u), pts in by.items() if u == unit})
         if app:

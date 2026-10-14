@@ -27,6 +27,7 @@ from .models import (
 from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
 from .earnings_schedule import ActualMonth, day_payload, month_payload
+from .material_stats import TRADE_SOURCE
 from .supply_chain import monthly_payload, supply_graph
 from .monthly_tree import (
     MONTHLY_TREES, assign_tree_rows, auto_tree_payload, build_auto_tree, monthly_display_years, tree_payload,
@@ -321,7 +322,18 @@ def supply_monthly_api(material_id: str, db: Session = Depends(get_session)):
     if material_id not in {m["id"] for m in supply_graph()["materials"]}:
         raise HTTPException(404, "unknown material")
     rows = db.query(MaterialMonthly).filter(MaterialMonthly.material_id == material_id).all()
-    return monthly_payload(rows, material_id)
+    return monthly_payload(rows, material_id, _trade_months(db))
+
+
+def _trade_months(db: Session) -> dict[str, dict[str, int]]:
+    """貿易統計の公表済みの月。どれかの素材に行がある月を公表済みとみなす"""
+    out: dict[str, dict[str, int]] = {}
+    for metric, month, rev in (db.query(MaterialMonthly.metric, MaterialMonthly.month,
+                                        func.min(MaterialMonthly.revision))
+                               .filter(MaterialMonthly.source == TRADE_SOURCE)
+                               .group_by(MaterialMonthly.metric, MaterialMonthly.month)):
+        out.setdefault(metric, {})[month] = rev
+    return out
 
 
 router_v1 = APIRouter(prefix="/api/v1")
