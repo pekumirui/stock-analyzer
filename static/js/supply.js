@@ -104,6 +104,8 @@ function supplyStyle(font){
       "target-arrow-shape": "triangle", "arrow-scale": 0.8,
       "curve-style": "straight",
       "z-index-compare": "manual", "z-index": 1,
+      // 強調した線は箱より手前に描くので、端のタップを線が取ってしまう。線は押させない
+      events: "no",
     }},
     // ELK の曲がり角をそのまま使う。始点と終点も ELK が決めた位置
     {selector: "edge[?routed]", style: {
