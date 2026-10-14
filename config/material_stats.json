@@ -104,6 +104,10 @@
       {"material": "natrubber", "import": ["4001"], "export": ["4001"]},
       {"material": "sbr", "import": ["4002"], "export": ["4002"], "note": "合成ゴム全品種"},
       {"material": "tire", "import": ["4011"], "export": ["4011"]}
+    ],
+    "country_items": [
+      {"material": "crude", "import": ["2709"], "note": "国合計は石油統計が正。輸入国の内訳だけ取る"},
+      {"material": "lpg", "import": ["271112", "271113"], "note": "プロパンとブタン。国合計は石油統計が正"}
     ]
   }
 }

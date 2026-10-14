@@ -25,11 +25,11 @@ from app.config import (  # noqa: E402
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.estat import (  # noqa: E402
     EstatClient, match_codes, month_of, parse_production_label, production_dims, production_table,
-    published_through, seidou_records, sokuho_month, table_title, trade_rows, trade_table,
+    published_through, seidou_records, sokuho_month, table_title, trade_country_rows, trade_rows, trade_table,
 )
 from app.material_stats import (  # noqa: E402
     REVISION_KAKUHO, REVISION_NENPO, REVISION_SOKUHO, SEKIYU_SOURCE, load_mapping, product_groups, prune_unmapped, sekiyu_rows,
-    seidou_rows, summarize_warnings, write_rows,
+    seidou_rows, summarize_warnings, write_country_rows, write_rows,
 )
 from app.meti import (  # noqa: E402
     MetiChallenged, MetiClient, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_nenpo_inventory_cells,
@@ -193,14 +193,14 @@ def ingest_estat_trade(client: EstatClient, db, mapping: dict, years: list[int])
                 continue
             sid, title = table["@id"], table_title(table)
             meta = client.meta(sid)
-            items = []
-            for it in conf["items"]:
+            items, country_only = [], []
+            for it in conf["items"] + (conf.get("country_items") or []):
                 codes = match_codes(it.get(flow) or [], meta.get("cat01", {}))
                 if it.get(flow) and not codes:
                     print(f"  warn trade {flow} {it['material']}: no code matches {it[flow]}")
                 if codes:
-                    items.append({"material": it["material"], "codes": codes})
-            want = sorted({c for it in items for c in it["codes"]})
+                    (items if it in conf["items"] else country_only).append({"material": it["material"], "codes": codes})
+            want = sorted({c for it in items + country_only for c in it["codes"]})
             kinds = [c for c, n in meta.get("cat02", {}).items() if re.fullmatch(r"単位[12]|\d{1,2}月_数量[12]", n)]
             values: list[dict] = []
             for i in range(0, len(want), 50):  # URL を長くしすぎない
@@ -210,8 +210,15 @@ def ingest_estat_trade(client: EstatClient, db, mapping: dict, years: list[int])
                 last_month=published_through(title), stats_data_id=sid, sokuho=sokuho_month(title),
             )
             n = write_rows(db, rows)
-            total += n
-            print(f"estat trade {year} {flow} {sid} rows={len(rows)} written={n} 「{title}」")
+            crows = trade_country_rows(
+                flow=flow, items=items + country_only, cat02=meta["cat02"], times=meta.get("time", {}),
+                areas=meta.get("area", {}), values=values, last_month=published_through(title),
+                stats_data_id=sid, sokuho=sokuho_month(title),
+            )
+            nc = write_country_rows(db, crows)
+            total += n + nc
+            print(f"estat trade {year} {flow} {sid} rows={len(rows)} written={n} "
+                  f"country_rows={len(crows)} written={nc} 「{title}」")
     return total
 
 

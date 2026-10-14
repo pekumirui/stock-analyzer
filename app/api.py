@@ -21,14 +21,14 @@ from .db import (
     run_sqlite_write,
 )
 from .models import (
-    Stock, DailyPrice, Topix, Statement, Indicator, EarningsEvent, MaterialMonthly,
+    Stock, DailyPrice, Topix, Statement, Indicator, EarningsEvent, MaterialMonthly, MaterialTradeCountry,
     MonthlyIssuer, MonthlyTable, MonthlyElement, MonthlyValue,
 )
 from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
 from .earnings_schedule import ActualMonth, day_payload, month_payload
 from .material_stats import TRADE_SOURCE
-from .supply_chain import monthly_payload, supply_companies, supply_graph
+from .supply_chain import country_payload, monthly_payload, supply_companies, supply_graph
 from .monthly_tree import (
     MONTHLY_TREES, assign_tree_rows, auto_tree_payload, build_auto_tree, monthly_display_years, tree_payload,
 )
@@ -328,6 +328,17 @@ def supply_monthly_api(material_id: str, db: Session = Depends(get_session)):
         raise HTTPException(404, "unknown material")
     rows = db.query(MaterialMonthly).filter(MaterialMonthly.material_id == material_id).all()
     return monthly_payload(rows, material_id, _trade_months(db))
+
+
+@router.get("/supply/countries/{material_id}")
+def supply_countries_api(material_id: str, flow: str = "import", db: Session = Depends(get_session)):
+    if material_id not in {m["id"] for m in supply_graph()["materials"]}:
+        raise HTTPException(404, "unknown material")
+    if flow not in ("import", "export"):
+        raise HTTPException(400, "flow must be import or export")
+    rows = (db.query(MaterialTradeCountry)
+            .filter(MaterialTradeCountry.material_id == material_id, MaterialTradeCountry.flow == flow).all())
+    return country_payload(rows, material_id, flow)
 
 
 def _trade_months(db: Session) -> dict[str, dict[str, int]]:

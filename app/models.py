@@ -368,3 +368,21 @@ class MaterialMonthly(Base):
     origin = Column(String)                        # e-Stat の表 ID か Excel のファイル名
     is_estimate = Column(Boolean, nullable=False, default=False)
     updated_at = Column(DateTime)
+
+
+class MaterialTradeCountry(Base):
+    """素材の輸出入の相手国別の月次量（普通貿易統計の品別国別表）。material_monthly の trade の国別内訳。
+
+    国合計を material_monthly に書かない素材（原油・LPG は石油統計が正）も国別だけはここに持つ。
+    """
+    __tablename__ = "material_trade_country"
+    material_id = Column(String, primary_key=True)
+    month = Column(String(7), primary_key=True)    # YYYY-MM
+    flow = Column(String, primary_key=True)        # import / export
+    country = Column(String(3), primary_key=True)  # 貿易統計の国コード（137 = サウジアラビア）
+    country_name = Column(String, nullable=False)
+    value = Column(Float, nullable=False)
+    unit = Column(String, nullable=False)
+    revision = Column(Integer, nullable=False)     # 1 速報 / 2 確報。下がる上書きはしない
+    origin = Column(String)                        # e-Stat の表 ID
+    updated_at = Column(DateTime)
