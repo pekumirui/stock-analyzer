@@ -16,7 +16,7 @@
     {"id": "sulfuric", "name": "硫酸", "kind": "mid", "note": "日本では主に非鉄製錬の排ガスから作る"},
     {"id": "ammonia", "name": "アンモニア", "kind": "mid", "note": "肥料とアクリロニトリルの原料"},
     {"id": "fertilizer", "name": "化学肥料", "kind": "prod"},
-    {"id": "propanefuel", "name": "家庭用ガス", "kind": "prod"},
+    {"id": "propanefuel", "name": "家庭用LPガス", "kind": "prod", "note": "プロパンガス。都市ガスは天然ガス（LNG）由来で別物"},
     {"id": "ethane", "name": "エタン", "kind": "mid", "note": "米国ではエチレンの主原料"},
     {"id": "ethylene", "name": "エチレン", "kind": "mid"},
     {"id": "propylene", "name": "プロピレン", "kind": "mid"},
