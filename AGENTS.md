@@ -149,6 +149,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `jobs/ir_monthly_html_ingest.py` | （R2 は読まない。loopback POST） | 10:30 / 16:30 | `DESIGN.md` §3。`--ledger` は `/var/log/app/html_ingest_ledger.json` |
 | `jobs/tdnet_xbrl_r2.py N` | `xbrl/{code4}/` | 12–23 時 毎時 00 分（N=1） | `docs/DESIGN_xbrl.md` |
 | `jobs/xbrl_parse.py` → `jobs/xbrl_normalize.py` | `xbrl_*` テーブル | 毎時 10 分 / 20 分 | `docs/DESIGN_xbrl.md` |
+| `jobs/material_stats.py --source meti` | `stats/meti/{seidou,sekiyu}/…xlsx`（経産省 Excel の控え） | 07:15 / 07:45（取込のついで） | `DESIGN.md` §3 |
 | `jobs/vps_packages_r2.py` | `inventory/vps-packages.txt` と `inventory/history/vps-packages-YYYYMMDD.txt` | 06:40 | `deploy/README.md` |
 
 - 月次の `{code}` は TDnet の発行体コードそのまま（9279, 262A）。J-Quants の 5 桁にしない。stocks 照合だけ末尾 0 を足す
