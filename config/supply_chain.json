@@ -4,6 +4,8 @@
     {"id": "natgas", "name": "天然ガス", "kind": "raw"},
     {"id": "natrubber", "name": "天然ゴム", "kind": "raw"},
     {"id": "salt", "name": "塩", "kind": "raw", "note": "日本はソーダ工業用の塩をほぼ輸入に頼る"},
+    {"id": "iron_ore", "name": "鉄鉱石", "kind": "raw", "note": "日本は全量を輸入し、豪州とブラジルが大半"},
+    {"id": "coking_coal", "name": "原料炭", "kind": "raw", "note": "コークスにする製鉄用の石炭（強粘結炭など）。発電用の一般炭は別"},
     {"id": "lpg", "name": "LPG", "kind": "mid", "note": "日本は大半を輸入し、主に米国産（シェールガス由来）。製油所でも出る"},
     {"id": "naphtha", "name": "ナフサ", "kind": "mid", "note": "石油化学の出発点"},
     {"id": "gasoline", "name": "ガソリン", "kind": "prod"},
@@ -50,7 +52,13 @@
     {"id": "tire", "name": "タイヤ", "kind": "prod"},
     {"id": "appliance", "name": "家電", "kind": "prod"},
     {"id": "airbag", "name": "エアバッグ", "kind": "prod"},
-    {"id": "car", "name": "自動車", "kind": "prod"}
+    {"id": "car", "name": "自動車", "kind": "prod"},
+    {"id": "coke", "name": "コークス", "kind": "mid", "note": "原料炭を蒸し焼きにしたもの。高炉で鉄鉱石を還元する"},
+    {"id": "pig_iron", "name": "銑鉄", "kind": "mid", "note": "高炉で鉄鉱石を溶かして還元した鉄。炭素が多く硬くてもろい"},
+    {"id": "crude_steel", "name": "粗鋼", "kind": "mid", "note": "転炉で銑鉄の炭素を抜いたもの。電炉（約 25%）は鉄スクラップから作るが、スクラップはマップに置かない"},
+    {"id": "steel", "name": "普通鋼鋼材", "kind": "mid", "note": "熱間圧延の鋼板・形鋼・棒鋼など。冷延鋼板やめっき鋼板はここから作る"},
+    {"id": "special_steel", "name": "特殊鋼鋼材", "kind": "mid", "note": "合金を加えた鋼。歯車・軸受・ばねなどの自動車部品向けが多い"},
+    {"id": "construction", "name": "建設（建物・橋）", "kind": "prod", "note": "鋼材の最大の用途"}
   ],
   "flows": [
     ["crude", "lpg"],
@@ -121,6 +129,16 @@
     ["nylon", "clothes"],
     ["carpart", "car"],
     ["tire", "car"],
-    ["airbag", "car"]
+    ["airbag", "car"],
+    ["iron_ore", "pig_iron"],
+    ["coking_coal", "coke"],
+    ["coke", "pig_iron"],
+    ["pig_iron", "crude_steel"],
+    ["crude_steel", "steel"],
+    ["crude_steel", "special_steel"],
+    ["steel", "car"],
+    ["steel", "appliance"],
+    ["steel", "construction"],
+    ["special_steel", "carpart"]
   ]
 }
