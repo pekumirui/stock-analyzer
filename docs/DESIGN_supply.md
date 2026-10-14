@@ -51,7 +51,7 @@
 
 `GET /api/supply/graph` → `{materials: [{id, name, kind, note}], flows: [[from, to]]}`。`note` が無ければ null。プロセス内で一度だけ読む（json を変えたら再起動。デプロイは再起動する）。Basic の後ろ。
 
-`GET /api/supply/monthly/{material_id}` → `{material_id, series: [{metric, unit, sources, points: [[YYYY-MM, value, revision]]}]}`。revision は 1 速報 / 2 確報 / 3 年報。系列は 生産 → 出荷 → 月末在庫 → 輸入 → 輸出 → 原油処理 → 国内向販売 → 見掛け消費 の順。同じ指標でも単位が違えば別の系列。`apparent`（見掛け消費）は保存せずここで計算し、`sources` は空、revision は材料の最小。素材が無ければ 404。取込は `DESIGN.md` §3「素材の月次量」
+`GET /api/supply/monthly/{material_id}` → `{material_id, series: [{metric, unit, sources, points: [[YYYY-MM, value, revision]]}]}`。revision は 1 速報 / 2 確報 / 3 年報。系列は 生産 → 出荷 → 月末在庫 → 輸入 → 輸出 → 原油処理 → 国内向販売 → 見掛け消費 の順。同じ指標でも単位が違えば別の系列。`apparent`（見掛け消費）は保存せずここで計算し、`sources` は空、revision は材料の最小。貿易統計（`sources` が `trade` だけ）の系列は、0 の月が保存されないので、どれかの素材に貿易統計の行がある月を 0 で埋める（revision はその月の最小）。埋めないと 0 と未公表が区別できず、輸出がまれな素材（天然ガスなど）が 1 点だけの系列になる。素材が無ければ 404。取込は `DESIGN.md` §3「素材の月次量」
 
 ## 対象外
 
