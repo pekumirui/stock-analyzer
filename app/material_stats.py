@@ -127,6 +127,21 @@ def validate_mapping(data: dict, material_ids: Iterable[str] | None = None) -> N
             for code in it.get(flow) or []:
                 if not isinstance(code, str) or not _CODE_RE.match(code):
                     raise MappingError(f"trade {m}.{flow}: bad code {code!r}")
+    owner: dict[tuple[str, str], str] = {}
+    for section, material, metric in mapped_metrics(data):
+        if owner.setdefault((material, metric), section) != section:
+            raise MappingError(f"{material} {metric}: both {owner[(material, metric)]} and {section}")
+
+
+def mapped_metrics(data: dict) -> list[tuple[str, str, str]]:
+    """対応表が書く (統計, 素材, 指標)。統計は seidou / sekiyu / trade"""
+    seidou = data.get("seidou") or {}
+    out = [("seidou", it.get("material"), metric)
+           for it in seidou.get("items") or [] for metric in sorted(set((seidou.get("metrics") or {}).values()))]
+    out += [("sekiyu", it.get("material"), it.get("metric")) for it in (data.get("sekiyu") or {}).get("items") or []]
+    out += [("trade", it.get("material"), flow)
+            for it in (data.get("trade") or {}).get("items") or [] for flow in ("import", "export") if it.get(flow)]
+    return list(dict.fromkeys(out))
 
 
 # ---------- 行 ----------
@@ -253,6 +268,23 @@ def summarize_warnings(warnings: list[str]) -> list[str]:
     for w in warnings:
         by[w.split()[0]].append(w)
     return [f"{m}: {len(ws)} skipped (e.g. {ws[0]})" for m, ws in sorted(by.items())]
+
+
+def prune_unmapped(db: Session, data: dict) -> int:
+    """対応表から外れた (素材, 指標, 統計) の行を消す。素材の統計を付け替えたとき古い統計の行が残らないように"""
+    keep = {(m, metric, section) for section, m, metric in mapped_metrics(data)}
+
+    def section(source: str) -> str:
+        return "seidou" if source.startswith("seidou:") else source
+
+    pk = (MaterialMonthly.material_id, MaterialMonthly.metric, MaterialMonthly.source)
+    gone = [(m, metric, src) for m, metric, src in db.query(*pk).distinct() if (m, metric, section(src)) not in keep]
+    n = 0
+    for m, metric, src in gone:
+        n += db.query(MaterialMonthly).filter(MaterialMonthly.material_id == m, MaterialMonthly.metric == metric,
+                                              MaterialMonthly.source == src).delete(synchronize_session=False)
+    db.commit()
+    return n
 
 
 def write_rows(db: Session, rows: list[Row]) -> int:
