@@ -270,7 +270,8 @@ async function supplyMonthly(id){
   supplyMonthlyData = {id, series: d.series, picked: new Set()};
   box.className = "";
   box.innerHTML = `<div class="sub supply-unit" id="supply-unit"></div>
-    <div id="supply-legend" class="supply-legend-v"></div><div id="supply-chart"></div>
+    <div id="supply-legend" class="supply-legend-v"></div>
+    <div class="supply-chart-wrap"><div id="supply-chart"></div><div id="supply-tip" hidden></div></div>
     <table class="supply-tbl"><tr><th class="l">指標</th><th>最新月</th><th>値</th><th class="l">単位</th></tr>
     ${d.series.map((x, i) => {
       const [m, v, rev] = x.points[x.points.length - 1];
@@ -294,12 +295,24 @@ function supplyChartLines(){
   return series.filter(x => x.unit === unit && SUPPLY_CHART_METRICS.includes(x.metric));
 }
 
-function supplyLegend(lines, month){
-  // 指定の月（無ければ各系列の最新月）の値を全系列ぶん並べる
-  $("#supply-legend").innerHTML = `${month ? `<b>${month}</b>` : ""}${lines.map(x => {
-    const p = month ? x.points.find(q => q[0] === month) : x.points[x.points.length - 1];
-    return `<span><i style="background:${SUPPLY_METRIC[x.metric].color}"></i>${SUPPLY_METRIC[x.metric].label} ${p ? fmt(p[1]) : "–"}</span>`;
+function supplyLegend(lines){
+  // 凡例は色と指標名だけ。値は触れた月の吹き出しに出す（指標ごとに最新月が違うので並べない）
+  $("#supply-legend").innerHTML = lines.map(x =>
+    `<span><i style="background:${SUPPLY_METRIC[x.metric].color}"></i>${SUPPLY_METRIC[x.metric].label}</span>`).join("");
+}
+
+function supplyTip(lines, param){
+  const tip = $("#supply-tip"), month = supplyYm(param.time);
+  if(!month || !param.point){ tip.hidden = true; return; }
+  tip.innerHTML = `<b>${month}</b>${lines.map(x => {
+    const p = x.points.find(q => q[0] === month);
+    return `<div><i style="background:${SUPPLY_METRIC[x.metric].color}"></i>${SUPPLY_METRIC[x.metric].label}<span>${p ? fmt(p[1]) : "–"}</span></div>`;
   }).join("")}`;
+  tip.hidden = false;
+  // 触れた位置の横に出す。右半分なら左側へ
+  const w = tip.parentElement.clientWidth, {x, y} = param.point;
+  tip.style.left = `${x < w / 2 ? x + 12 : Math.max(0, x - 12 - tip.offsetWidth)}px`;
+  tip.style.top = `${Math.max(0, Math.min(y - tip.offsetHeight / 2, 180 - tip.offsetHeight))}px`;
 }
 
 function supplyEnsureChart(){
@@ -313,12 +326,12 @@ function supplyEnsureChart(){
       const s = supplyYm(t) || "";
       return type === 0 ? `${s.slice(0, 4)}年` : `${Number(s.slice(5))}月`;  // 0 = 年の目盛り
     }},
-    // 値は凡例に全系列ぶん出すので、横線の値ラベルは出さない
+    // 値は吹き出しに全系列ぶん出すので、横線の値ラベルは出さない
     crosshair: {horzLine: {visible: false, labelVisible: false}},
     handleScroll: false, handleScale: false,
     localization: {priceFormatter: v => fmt(v), timeFormatter: t => supplyYm(t) || ""},
   });
-  supplyChart.subscribeCrosshairMove(param => supplyLegend(supplyChartLines(), supplyYm(param.time)));
+  supplyChart.subscribeCrosshairMove(param => supplyTip(supplyChartLines(), param));
   return supplyChart;
 }
 
@@ -333,7 +346,8 @@ function supplyDrawChart(){
   $("#supply-unit").textContent = !units.length ? ""
     : units.length === 1 ? `単位 ${units[0]}`
     : `単位 ${units.map((u, i) => `${u}（${["右", "左"][i] || "目盛りなし"}）`).join(" / ")}`;
-  supplyLegend(lines, null);
+  supplyLegend(lines);
+  $("#supply-tip").hidden = true;
   if(!window.LightweightCharts) return;
   // グラフを作り直すと一瞬高さが 0 になり、スマホでページが上へ跳ぶ。系列だけ差し替える
   const chart = supplyEnsureChart();
