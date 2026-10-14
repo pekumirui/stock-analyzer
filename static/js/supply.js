@@ -252,6 +252,7 @@ const SUPPLY_METRIC = {
 };
 const SUPPLY_CHART_METRICS = ["production", "import", "export", "processing", "domestic_sales", "apparent"];
 let supplyChart = null;
+let supplyMonthlyData = null;  // {id, series, picked}。picked は表で選んだ系列の番号（null なら既定の系列）
 
 async function supplyMonthly(id){
   let d;
@@ -261,31 +262,75 @@ async function supplyMonthly(id){
   const box = $("#supply-monthly");
   if(supplyChart){ supplyChart.remove(); supplyChart = null; }
   if(!d.series.length){ box.textContent = "統計の対応がまだありません。"; return; }
-  // グラフは生産の単位（無ければ最初の系列の単位）にそろう系列だけ
-  const unit = (d.series.find(x => x.metric === "production") || d.series[0]).unit;
-  const lines = d.series.filter(x => x.unit === unit && SUPPLY_CHART_METRICS.includes(x.metric));
+  supplyMonthlyData = {id, series: d.series, picked: null};
   box.className = "";
-  box.innerHTML = `<div class="sub supply-unit">単位 ${unit}</div><div id="supply-chart"></div>
+  box.innerHTML = `<div class="sub supply-unit" id="supply-unit"></div>
+    <div id="supply-legend" class="supply-legend-v"></div><div id="supply-chart"></div>
     <table class="supply-tbl"><tr><th class="l">指標</th><th>最新月</th><th>値</th><th class="l">単位</th></tr>
-    ${d.series.map(x => {
+    ${d.series.map((x, i) => {
       const [m, v, rev] = x.points[x.points.length - 1];
-      return `<tr><td class="l"><i style="background:${SUPPLY_METRIC[x.metric].color}"></i>${SUPPLY_METRIC[x.metric].label}</td>
-        <td>${m}${rev === 1 ? '<span class="supply-rev">速報</span>' : ""}</td><td>${fmt(v)}</td><td class="l">${x.unit}</td></tr>`;
-    }).join("")}</table>`;
-  if(!lines.length || !window.LightweightCharts) return;
+      return `<tr class="supply-row" data-i="${i}"><td class="l"><i style="background:${SUPPLY_METRIC[x.metric].color}"></i>${SUPPLY_METRIC[x.metric].label}</td>
+        <td>${rev === 1 ? '<span class="supply-rev">速報</span>' : ""}${m}</td><td>${fmt(v)}</td><td class="l">${x.unit}</td></tr>`;
+    }).join("")}</table>
+    <div class="sub supply-hint">指標を押すとその指標だけ。もう一度押すと戻る</div>`;
+  box.querySelectorAll(".supply-row").forEach(tr => tr.onclick = () => {
+    const i = Number(tr.dataset.i);
+    supplyMonthlyData.picked = supplyMonthlyData.picked === i ? null : i;
+    supplyDrawChart();
+  });
+  supplyDrawChart();
+}
+
+function supplyChartLines(){
+  const {series, picked} = supplyMonthlyData;
+  if(picked !== null) return [series[picked]];
+  // 既定は生産の単位（無ければ最初の系列の単位）にそろう系列だけ
+  const unit = (series.find(x => x.metric === "production") || series[0]).unit;
+  return series.filter(x => x.unit === unit && SUPPLY_CHART_METRICS.includes(x.metric));
+}
+
+function supplyLegend(lines, month){
+  // 指定の月（無ければ各系列の最新月）の値を全系列ぶん並べる
+  $("#supply-legend").innerHTML = `${month ? `<b>${month}</b>` : ""}${lines.map(x => {
+    const p = month ? x.points.find(q => q[0] === month) : x.points[x.points.length - 1];
+    return `<span><i style="background:${SUPPLY_METRIC[x.metric].color}"></i>${SUPPLY_METRIC[x.metric].label} ${p ? fmt(p[1]) : "–"}</span>`;
+  }).join("")}`;
+}
+
+function supplyDrawChart(){
+  const {picked} = supplyMonthlyData;
+  document.querySelectorAll(".supply-row").forEach(tr =>
+    tr.classList.toggle("sel", Number(tr.dataset.i) === picked));
+  if(supplyChart){ supplyChart.remove(); supplyChart = null; }
+  const lines = supplyChartLines();
+  $("#supply-unit").textContent = lines.length ? `単位 ${lines[0].unit}` : "";
+  if(!lines.length || !window.LightweightCharts){ $("#supply-legend").innerHTML = ""; return; }
+  supplyLegend(lines, null);
   const el = $("#supply-chart");
+  // 時刻は "YYYY-MM-DD" か {year, month, day} で来る
+  const ym = t => typeof t === "string" ? t.slice(0, 7)
+    : t && typeof t === "object" ? `${t.year}-${String(t.month).padStart(2, "0")}` : null;
   supplyChart = LightweightCharts.createChart(el, {
     height: 180, width: el.clientWidth,
     layout: {background: {color: "#fff"}, textColor: "#66707a", fontSize: 11, attributionLogo: false},
     grid: {vertLines: {visible: false}, horzLines: {color: "#e8ecf0"}},
-    rightPriceScale: {borderVisible: false}, timeScale: {borderVisible: false},
+    rightPriceScale: {borderVisible: false},
+    timeScale: {borderVisible: false, tickMarkFormatter: (t, type) => {
+      const s = ym(t) || "";
+      return type === 0 ? `${s.slice(0, 4)}年` : `${Number(s.slice(5))}月`;  // 0 = 年の目盛り
+    }},
+    // 値は凡例に全系列ぶん出すので、横線の値ラベルは出さない
+    crosshair: {horzLine: {visible: false, labelVisible: false}},
     handleScroll: false, handleScale: false,
-    localization: {priceFormatter: v => fmt(v)},
+    localization: {priceFormatter: v => fmt(v), timeFormatter: t => ym(t) || ""},
   });
   lines.forEach(x => {
     const s = supplyChart.addLineSeries({color: SUPPLY_METRIC[x.metric].color, lineWidth: 2,
       priceLineVisible: false, lastValueVisible: false});
     s.setData(x.points.map(([m, v]) => ({time: `${m}-01`, value: v})));
+  });
+  supplyChart.subscribeCrosshairMove(param => {
+    supplyLegend(lines, ym(param.time));
   });
   supplyChart.timeScale().fitContent();
 }
