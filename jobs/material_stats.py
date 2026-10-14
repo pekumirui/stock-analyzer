@@ -33,7 +33,7 @@ from app.material_stats import (  # noqa: E402
 )
 from app.meti import (  # noqa: E402
     MetiChallenged, MetiClient, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_nenpo_inventory_cells,
-    sekiyu_sokuho_cells, seidou_files,
+    sekiyu_sokuho_cells, seidou_december_kakuho, seidou_files,
 )
 from app.meti import seidou_records as meti_seidou_records  # noqa: E402
 from app.models import MaterialMonthly  # noqa: E402
@@ -91,11 +91,12 @@ def _nenpo_cells(data: bytes) -> list:
     return sekiyu_nenpo_cells(data) + sekiyu_nenpo_inventory_cells(data)
 
 
-def ingest_meti_seidou(db, mapping: dict, refetch: bool = False) -> int:
+def ingest_meti_seidou(db, mapping: dict, refetch: bool = False, december: list[int] | None = None) -> int:
     conf = mapping["seidou"]
     reports = {it["report"] for it in conf["items"]}
     client = MetiClient()
     files = seidou_files(client.get(METI_SEIDOU_URL).decode("utf-8", "replace"))
+    files[:0] = [seidou_december_kakuho(y) for y in december or []]  # 確報なので年間補正号より前に書く
     if not files:
         print("meti seidou: no Excel link on the list page")
         return 0
@@ -228,6 +229,7 @@ def main() -> int:
     ap.add_argument("--source", choices=("meti", "estat"))
     ap.add_argument("--only", choices=("seidou", "sekiyu", "trade"))
     ap.add_argument("--refetch", action="store_true", help="取り込み済みの年報・年間補正号・過去年の 12 月の確報も落とし直す")
+    ap.add_argument("--december", help="生産動態の過去年の 12 月の確報も読む（一覧ページに無い年）。2024 または 2023-2024。手で一度だけ")
     args = ap.parse_args()
     years = parse_years(args.years, date.today())
     material_ids = [m["id"] for m in load_supply_chain()["materials"]]
@@ -251,7 +253,8 @@ def main() -> int:
                     n += ingest_estat_trade(client, db, mapping, years)
         # Excel は e-Stat の後。同じ revision なら後から書いたほうが残る
         if args.source in (None, "meti") and args.only in (None, "seidou"):
-            n += ingest_meti_seidou(db, mapping, args.refetch)
+            n += ingest_meti_seidou(db, mapping, args.refetch,
+                                     parse_years(args.december, date.today()) if args.december else None)
         if args.source in (None, "meti") and args.only in (None, "sekiyu"):
             n += ingest_meti_sekiyu(db, mapping, args.refetch)
         print(f"material_stats done written={n}")

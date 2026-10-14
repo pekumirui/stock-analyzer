@@ -25,7 +25,7 @@ from app.material_stats import (  # noqa: E402
 )
 from app.meti import (  # noqa: E402
     MetiChallenged, MetiClient, MetiFile, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_nenpo_inventory_cells,
-    sekiyu_sokuho_cells, seidou_files,
+    sekiyu_sokuho_cells, seidou_december_kakuho, seidou_files,
 )
 from app.meti import seidou_records as meti_records  # noqa: E402
 from app.models import MaterialMonthly, MaterialTradeCountry  # noqa: E402
@@ -151,6 +151,10 @@ def test_meti() -> None:
     _eq([(f.name, f.revision) for f in files],
         [("h2daa202608s.xlsx", 1), ("h2daa202607_jikei.xlsx", 2), ("h2daa2025_hosei_jikei.xlsx", 3)], "links")
     _eq(files[0].url, "https://www.meti.go.jp/statistics/tyo/seidou/result/ichiran/resourceData/08_seidou/sokuho/h2daa202608s.xlsx", "url")
+    dec = seidou_december_kakuho(2024, "https://www.meti.go.jp/statistics/tyo/seidou/result/ichiran/08_seidou.html")
+    _eq((dec.url, dec.revision, dec.final),
+        ("https://www.meti.go.jp/statistics/tyo/seidou/result/ichiran/resourceData/08_seidou/kakuho/202412/h2daa202412_jikei.xlsx",
+         2, True), "december kakuho")
     data = _xlsx("速報_実数表", [
         ["6100", "0106", "A", "石油化学製品月報", "製品", "ＡＳ樹脂・ＡＢＳ樹脂", "生産", "t", 300, "X", None, "x"],
         ["6100", "0106", "D", "石油化学製品月報", "製品", "ＡＳ樹脂・ＡＢＳ樹脂", "販売数量", "t", 200, 210, "", "x"],

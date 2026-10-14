@@ -58,6 +58,13 @@ def seidou_files(html: str, base: str = METI_SEIDOU_URL) -> list[MetiFile]:
     return out
 
 
+def seidou_december_kakuho(year: int, base: str = METI_SEIDOU_URL) -> MetiFile:
+    """過去年の 12 月の確報（その年の 1〜12 月と前年 12 月の時系列）。一覧ページには載らないが kakuho/YYYY12/ に残る。
+    年間補正号が取れなかった年の、e-Stat の年報に無い品目（銑鉄計など）を埋める"""
+    return MetiFile(urljoin(base, f"resourceData/08_seidou/kakuho/{year}12/h2daa{year}12_jikei.xlsx"),
+                    REVISION_KAKUHO, True)
+
+
 class MetiClient:
     def __init__(self, http: httpx.Client | None = None, pause: float = 2.0,
                  challenge_wait: float = 60.0) -> None:
