@@ -28,7 +28,7 @@ from .analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period
                         disclosure_state, earnings_detail as build_earnings_detail)
 from .earnings_schedule import ActualMonth, day_payload, month_payload
 from .material_stats import TRADE_SOURCE
-from .supply_chain import monthly_payload, supply_graph
+from .supply_chain import monthly_payload, supply_companies, supply_graph
 from .monthly_tree import (
     MONTHLY_TREES, assign_tree_rows, auto_tree_payload, build_auto_tree, monthly_display_years, tree_payload,
 )
@@ -315,6 +315,11 @@ def search(q: str, db: Session = Depends(get_session)):
 @router.get("/supply/graph")
 def supply_graph_api():
     return supply_graph()
+
+
+@router.get("/supply/companies")
+def supply_companies_api():
+    return supply_companies()
 
 
 @router.get("/supply/monthly/{material_id}")

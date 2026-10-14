@@ -11,7 +11,12 @@ const SUPPLY_COLOR = {
 };
 const SUPPLY_NODE_H = 28;
 let supplyInit = null;  // Promise。ライブラリとグラフの読込は一度だけ
-let supply = null;      // {cy, byId, parents, kids, selected}
+let supply = null;      // {cy, byId, parents, kids, selected, co}
+// 企業: 能力シェアの色。上位 5 社に固定順で振り、6 位から下はその他の灰色
+const SUPPLY_SHARE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"];
+const SUPPLY_SHARE_OTHER = "#b7c0bd";
+const SUPPLY_STATUS = {listed: "上場", private: "非上場", foreign: "海外"};
+let supplyGroup = false;  // 能力シェアを親会社でまとめる
 
 function supplySelectedId(){ return supply?.selected || ""; }
 
@@ -35,10 +40,12 @@ async function loadSupply(sel){
   // 他タブにいる間は display:none で大きさ 0。戻ったときに測り直す
   supply.cy.resize();
   if(sel && supply.byId[sel]) supplySelect(sel, true);
+  else if(sel && supply.co.byId[sel]) supplySelectCompany(sel, true);
 }
 
 async function supplySetup(){
-  const [graph] = await Promise.all([api("/api/supply/graph"), ...SUPPLY_LIBS.map(supplyLoadScript)]);
+  const [graph, companies] = await Promise.all([
+    api("/api/supply/graph"), api("/api/supply/companies"), ...SUPPLY_LIBS.map(supplyLoadScript)]);
   const byId = {}, parents = {}, kids = {};
   graph.materials.forEach(m => { byId[m.id] = m; parents[m.id] = []; kids[m.id] = []; });
   graph.flows.forEach(([a, b]) => { kids[a].push(b); parents[b].push(a); });
@@ -62,7 +69,7 @@ async function supplySetup(){
     boxSelectionEnabled: false, autoungrabify: true,
   });
   $("#supply-msg").remove();
-  supply = {cy, byId, parents, kids, selected: ""};
+  supply = {cy, byId, parents, kids, selected: "", co: supplyCompanyIndex(companies)};
   await supplyLayout();
   cy.fit(undefined, 16);
 
@@ -83,18 +90,26 @@ async function supplySetup(){
   cy.on("tap", e => { if(e.target === cy) supplyClear(); });
   $("#supply-reset").onclick = () => { supplyClear(); $("#supply-q").value = ""; cy.animate({fit: {padding: 16}}, {duration: 300}); };
   $("#supply-merge").onchange = async () => { await supplyLayout(); cy.fit(undefined, 16); };
-  const names = $("#supply-names"), index = {};
-  graph.materials.forEach(m => {
-    index[m.name] = m.id;
+  // 候補は素材名、社名（上場は「社名 4 桁コード」）。証券コードだけでも引ける
+  const names = $("#supply-names"), index = {}, cos = companies.companies;
+  const addName = (label, id) => {
+    index[label] = id;
     const o = document.createElement("option");
-    o.value = m.name;
+    o.value = label;
     names.appendChild(o);
-  });
+  };
+  graph.materials.forEach(m => addName(m.name, m.id));
+  cos.forEach(c => addName(c.code ? `${c.name} ${c.code.slice(0, 4)}` : c.name, c.id));
   $("#supply-q").onchange = e => {
-    const v = e.target.value.trim();
+    const v = e.target.value.trim(), up = v.toUpperCase();
     if(!v) return;
-    const id = index[v] || graph.materials.find(m => m.name.includes(v))?.id;
-    if(id) supplySelect(id, true);
+    const id = index[v]
+      || cos.find(c => c.code && /^[0-9][0-9A-Z]{3}$/.test(up) && c.code.slice(0, 4) === up)?.id
+      || graph.materials.find(m => m.name.includes(v))?.id
+      || cos.find(c => c.name.includes(v))?.id;
+    if(!id) return;
+    if(supply.byId[id]) supplySelect(id, true);
+    else supplySelectCompany(id, true);
   };
   supplyPanel();
 }
@@ -215,6 +230,24 @@ function supplySelect(id, fly){
   writeRoute("supply", id);
 }
 
+function supplySelectCompany(id, fly){
+  const {cy} = supply, made = new Set((supply.co.makesByCo[id] || []).map(x => x.material));
+  supply.selected = id;
+  cy.batch(() => {
+    cy.elements().removeClass("dim hl sel");
+    cy.nodes().forEach(n => n.addClass(made.has(n.id()) ? "sel" : "dim"));
+    cy.edges().addClass("dim");
+  });
+  if(fly && made.size){
+    const max = cy.maxZoom();
+    cy.maxZoom(1.2);
+    cy.animate({fit: {eles: cy.nodes().not(".dim"), padding: 24}},
+               {duration: 350, complete: () => cy.maxZoom(max)});
+  }
+  supplyCompanyPanel(id);
+  writeRoute("supply", id);
+}
+
 function supplyClear(){
   if(!supply) return;
   supply.selected = "";
@@ -248,9 +281,162 @@ function supplyPanel(up, down){
     <h3>これから作られるもの</h3>${supplyChips(supply.kids[id])}
     ${m.kind !== "raw" ? `<h3>元をたどった原料</h3>${supplyChips(raws)}` : ""}
     ${down.size ? `<h3>行き着く最終製品</h3>${supplyChips(prods)}` : ""}
+    <h3>作っている企業</h3>${supplyMakers(id)}
+    ${(supply.co.capsByMat[id] || []).map(supplyShare).join("")}
     <h3>月次の量</h3><div id="supply-monthly" class="sub">読み込み中…</div>`;
-  p.querySelectorAll(".supply-chip").forEach(b => b.onclick = () => supplySelect(b.dataset.id, true));
+  supplyBindPanel(p);
   supplyMonthly(id);
+}
+
+function supplyBindPanel(p){
+  p.querySelectorAll("[data-id]").forEach(b => b.onclick = () => supplySelect(b.dataset.id, true));
+  p.querySelectorAll("[data-co]").forEach(b => b.onclick = () => supplySelectCompany(b.dataset.co, true));
+  p.querySelectorAll(".supply-group").forEach(b => b.onchange = () => {
+    supplyGroup = b.checked;
+    // 開いている表だけ描き直す（月次のグラフは作り直さない）
+    p.querySelectorAll(".supply-share").forEach(el => {
+      const t = supply.co.caps[el.dataset.cap];
+      el.outerHTML = supplyShare(t);
+    });
+    supplyBindPanel(p);
+  });
+}
+
+// ---- 企業 ----
+
+function supplyCompanyIndex(d){
+  const byId = {}, makesByMat = {}, makesByCo = {}, capsByMat = {}, caps = {}, kids = {}, stakes = {};
+  d.companies.forEach(c => { byId[c.id] = c; kids[c.id] = []; stakes[c.id] = []; });
+  d.companies.forEach(c => {
+    if(c.parent_id && !c.owners.length) kids[c.parent_id].push(c.id);
+    c.owners.forEach(([o, pct]) => stakes[o].push([c.id, pct]));
+  });
+  d.makes.forEach(m => {
+    (makesByMat[m.material] ||= []).push(m);
+    (makesByCo[m.company] ||= []).push(m);
+  });
+  d.capacities.forEach(t => { caps[t.id] = t; t.materials.forEach(m => (capsByMat[m] ||= []).push(t)); });
+  return {byId, makesByMat, makesByCo, capsByMat, caps, kids, stakes,
+          sources: d.sources, trade: d.trade, capacities: d.capacities};
+}
+
+// 親をたどった一番上の会社。グループでまとめるときの単位
+function supplyTop(id){
+  const {byId} = supply.co;
+  let cur = id;
+  while(byId[cur].parent_id) cur = byId[cur].parent_id;
+  return cur;
+}
+
+function supplyCoChip(id, extra){
+  const c = supply.co.byId[id];
+  const code = c.code ? `<span class="supply-code">${c.code.slice(0, 4)}</span>` : "";
+  return `<button type="button" class="supply-chip co" data-co="${id}">${c.name}${code}${extra ? `<span class="sub">${extra}</span>` : ""}</button>`;
+}
+
+function supplyCoChips(items){
+  if(!items.length) return '<span class="sub">なし</span>';
+  return `<div class="supply-chips">${items.map(([id, extra]) => supplyCoChip(id, extra)).join("")}</div>`;
+}
+
+function supplyMakers(mat){
+  const list = supply.co.makesByMat[mat] || [];
+  if(!list.length) return '<span class="sub">まだありません</span>';
+  // 出典つき（能力表など）を先に、出典未確認を後に。どちらも json の企業順
+  const order = Object.keys(supply.co.byId);
+  const rank = m => (m.source ? 0 : 1e6) + order.indexOf(m.company);
+  const sorted = [...list].sort((a, b) => rank(a) - rank(b));
+  const unverified = sorted.filter(m => !m.source).length;
+  return `<div class="supply-chips">${sorted.map(m =>
+    supplyCoChip(m.company).replace('class="supply-chip co"', `class="supply-chip co${m.source ? "" : " unverified"}"`)).join("")}</div>
+    ${unverified ? `<div class="sub supply-hint">点線は出典未確認（${unverified} 社）</div>` : ""}`;
+}
+
+function supplyShareRows(t){
+  const sums = new Map();
+  t.rows.forEach(([id, v]) => {
+    const k = supplyGroup ? supplyTop(id) : id;
+    sums.set(k, (sums.get(k) || 0) + v);
+  });
+  const total = [...sums.values()].reduce((a, b) => a + b, 0);
+  return {total, rows: [...sums].sort((a, b) => b[1] - a[1])
+    .map(([id, v], i) => ({id, v, share: v / total, color: SUPPLY_SHARE_COLORS[i] || SUPPLY_SHARE_OTHER}))};
+}
+
+function supplyDonut(rows, total, unit){
+  // 上位 5 社 + その他。区切りは 2px の白
+  const segs = rows.slice(0, SUPPLY_SHARE_COLORS.length).map(r => ({...r, name: supply.co.byId[r.id].name}));
+  const rest = rows.slice(SUPPLY_SHARE_COLORS.length);
+  if(rest.length) segs.push({v: rest.reduce((a, r) => a + r.v, 0), color: SUPPLY_SHARE_OTHER,
+                             name: `その他 ${rest.length} 社`, share: rest.reduce((a, r) => a + r.share, 0)});
+  const R = 56, r0 = 34, C = 64;
+  let a0 = -Math.PI / 2;
+  const pt = (rad, a) => `${(C + rad * Math.cos(a)).toFixed(2)} ${(C + rad * Math.sin(a)).toFixed(2)}`;
+  const paths = segs.map(s => {
+    const a1 = a0 + s.share * 2 * Math.PI, big = a1 - a0 > Math.PI ? 1 : 0;
+    const d = s.share >= 0.9999
+      ? `M${pt(R, 0)}A${R} ${R} 0 1 1 ${pt(R, Math.PI)}A${R} ${R} 0 1 1 ${pt(R, 0)}M${pt(r0, 0)}A${r0} ${r0} 0 1 0 ${pt(r0, Math.PI)}A${r0} ${r0} 0 1 0 ${pt(r0, 0)}Z`
+      : `M${pt(R, a0)}A${R} ${R} 0 ${big} 1 ${pt(R, a1)}L${pt(r0, a1)}A${r0} ${r0} 0 ${big} 0 ${pt(r0, a0)}Z`;
+    const co = s.id ? ` data-co="${s.id}"` : "";
+    a0 = a1;
+    return `<path d="${d}" fill="${s.color}"${co}><title>${s.name} ${fmt(s.v)} ${unit}（${(s.share * 100).toFixed(1)}%）</title></path>`;
+  }).join("");
+  return `<svg class="supply-donut" viewBox="0 0 128 128" role="img" aria-label="会社別シェア">${paths}
+    <text x="64" y="62" text-anchor="middle" class="t1">${fmt(total)}</text>
+    <text x="64" y="76" text-anchor="middle" class="t2">${unit}</text></svg>`;
+}
+
+function supplyShare(t){
+  const {total, rows} = supplyShareRows(t), src = supply.co.sources[t.source];
+  const link = t.url || src.url;
+  return `<div class="supply-share" data-cap="${t.id}">
+    <h3>${t.label}のシェア</h3>
+    ${t.note ? `<div class="sub supply-hint">${t.note}</div>` : ""}
+    <div class="supply-share-body">${supplyDonut(rows, total, t.unit)}
+      <table class="supply-tbl supply-share-tbl"><tr><th class="l">${supplyGroup ? "グループ" : "会社"}</th><th>能力</th><th>シェア</th></tr>
+      ${rows.map(r => `<tr class="supply-row" data-co="${r.id}"><td class="l"><i style="background:${r.color}"></i>${supply.co.byId[r.id].name}</td>
+        <td>${fmt(r.v)}</td><td>${(r.share * 100).toFixed(1)}%</td></tr>`).join("")}</table></div>
+    <div class="sub supply-src">${t.unit}・${t.as_of.slice(0, 4)}年${Number(t.as_of.slice(5))}月末・${link ? `<a href="${link}" target="_blank" rel="noopener">${src.title}</a>` : src.title}</div>
+    <label class="sub supply-tg"><input type="checkbox" class="supply-group"${supplyGroup ? " checked" : ""}>親会社でまとめる</label>
+  </div>`;
+}
+
+function supplyCompanyPanel(id){
+  const {byId, makesByCo, kids, stakes, trade, capacities} = supply.co, c = byId[id];
+  const p = $("#supply-panel");
+  if(supplyChart){ supplyChart.remove(); supplyChart = null; supplySeries = []; }
+  const made = makesByCo[id] || [];
+  const order = Object.keys(supply.byId);
+  const mats = order.filter(m => made.some(x => x.material === m));
+  // 能力表に載っている行。シェアは表の合計に対する割合（まとめない）
+  const caps = capacities.filter(t => t.rows.some(r => r[0] === id)).map(t => {
+    const v = t.rows.find(r => r[0] === id)[1], tot = t.rows.reduce((a, r) => a + r[1], 0);
+    return `<tr class="supply-row" data-id="${t.materials[0]}"><td class="l">${t.label.replace(/生産能力$/, "")}</td>
+      <td>${fmt(v)}</td><td class="l">${t.unit}</td><td>${(v / tot * 100).toFixed(1)}%</td></tr>`;
+  });
+  const parents = c.owners.length ? c.owners.map(([o, pct]) => [o, `${pct}%`])
+    : c.parent_id ? [[c.parent_id, ""]] : [];
+  const children = [...kids[id].map(k => [k, ""]), ...stakes[id].map(([k, pct]) => [k, `${pct}%`])];
+  const sellTo = trade.filter(t => t.seller === id).map(t => [t.buyer, ""]);
+  const buyFrom = trade.filter(t => t.buyer === id).map(t => [t.seller, ""]);
+  const srcKeys = [...new Set([c.source, ...made.map(m => m.source)].filter(Boolean))];
+  const code = c.code ? c.code.slice(0, 4) : "";
+  p.innerHTML = `<h2>${c.name} <span class="supply-kind k-co">${SUPPLY_STATUS[c.status]}${code ? ` ${code}` : ""}</span></h2>
+    ${code ? `<div class="sub supply-meta"><a href="#chart/${c.code}" id="supply-chart-link">チャートを開く</a></div>` : ""}
+    ${c.note ? `<p class="supply-note">${c.note}</p>` : ""}
+    <h3>作っている素材</h3>${mats.length ? `<div class="supply-chips">${mats.map(m => {
+      const x = supply.byId[m], ok = made.find(y => y.material === m).source;
+      return `<button type="button" class="supply-chip${ok ? "" : " unverified"}" data-id="${m}"><i class="k-${x.kind}"></i>${x.name}</button>`;
+    }).join("")}</div>` : '<span class="sub">なし</span>'}
+    ${caps.length ? `<h3>生産能力</h3><table class="supply-tbl"><tr><th class="l">品目</th><th>能力</th><th class="l">単位</th><th>シェア</th></tr>${caps.join("")}</table>` : ""}
+    <h3>${c.owners.length ? "出資者" : "親会社"}</h3>${supplyCoChips(parents)}
+    <h3>子会社・出資先</h3>${supplyCoChips(children)}
+    <h3>販売先</h3>${supplyCoChips(sellTo)}
+    <h3>仕入先</h3>${supplyCoChips(buyFrom)}
+    <div class="sub supply-src">${srcKeys.length ? `出典: ${srcKeys.map(k => supply.co.sources[k].title).join(" / ")}（確認 ${srcKeys.map(k => supply.co.sources[k].checked).join(" / ")}）` : "出典未確認"}</div>`;
+  supplyBindPanel(p);
+  const a = $("#supply-chart-link");
+  if(a) a.onclick = e => { e.preventDefault(); gotoChart(c.code); };
 }
 
 const SUPPLY_METRIC = {

@@ -444,3 +444,16 @@
   #supply-tip span { margin-left:10px; float:right; }
   .supply-legend-v i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; }
   .supply-hint { font-size:11px; margin-top:4px; }
+  .k-co { --k-fill:#eef1f4; --k-line:#4d5763; }
+  .supply-chip.unverified { border-style:dashed; }
+  .supply-code { font-size:11px; color:var(--sub); font-variant-numeric:tabular-nums; }
+  .supply-chip .sub { font-size:11px; }
+  .supply-share-body { display:flex; flex-direction:column; align-items:flex-start; }
+  .supply-donut { width:128px; height:128px; margin-top:4px; }
+  .supply-donut path { stroke:#fff; stroke-width:2; cursor:pointer; }
+  .supply-donut .t1 { font-size:13px; font-weight:600; fill:var(--text); }
+  .supply-donut .t2 { font-size:9px; fill:var(--sub); }
+  .supply-share-tbl td:nth-child(n+2), .supply-share-tbl th:nth-child(n+2) { text-align:right; font-variant-numeric:tabular-nums; }
+  .supply-share-tbl td.l { white-space:nowrap; }
+  .supply-src { font-size:11px; margin-top:4px; }
+  .supply-share .supply-tg { font-size:12px; margin-top:2px; }
