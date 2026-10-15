@@ -10,7 +10,6 @@ from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "jobs"))
 sys.path.insert(0, str(ROOT / "tools" / "xbrl"))
 
 # ci_smoke から呼ばれても自分の空 DB を使う（setdefault だと test_xbrl_parse の行が残った DB を共有する）

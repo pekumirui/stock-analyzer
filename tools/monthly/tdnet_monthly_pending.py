@@ -23,11 +23,11 @@ from pathlib import Path
 from typing import TextIO
 
 JOBS = Path(__file__).resolve().parents[2] / "jobs"
-if str(JOBS) not in sys.path:
-    sys.path.insert(0, str(JOBS))
+if str(JOBS.parent) not in sys.path:
+    sys.path.insert(0, str(JOBS.parent))
 
-from _r2common import MountDisconnected, check_r2_mount, resolve_database_url, sqlite_path_from_url  # noqa: E402
-from tdnet_monthly_r2 import DEFAULT_DEST, display_code, jq_lookup_code  # noqa: E402
+from jobs._r2common import MountDisconnected, check_r2_mount, resolve_database_url, sqlite_path_from_url  # noqa: E402
+from jobs.monthly.tdnet_monthly_r2 import DEFAULT_DEST, display_code, jq_lookup_code  # noqa: E402
 
 _ISSUER_DIR_RE = re.compile(r"^[0-9][0-9A-Z]{3}$")
 _PDF_NAME_RE = re.compile(r"^(\d{8})_.*\.pdf$", re.I)

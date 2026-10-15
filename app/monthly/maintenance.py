@@ -1,7 +1,7 @@
 """月次の後始末。デプロイごとに jobs/migrate.py が run_deploy_maintenance を呼ぶ。
 
 保存名の付け替え（apply_issuer_element_aliases / merge_yoy_duplicate_elements）は
-jobs/monthly_names.py だけが呼ぶ。
+jobs/monthly/monthly_names.py だけが呼ぶ。
 """
 from sqlalchemy import inspect, text
 
@@ -14,7 +14,7 @@ from .store import _norm_element_name, merge_monthly_element_into, rename_monthl
 def apply_issuer_element_aliases(verbose: bool = True, *, dry_run: bool = False) -> list[dict]:
     """銘柄エイリアスで保存名が変わる行をリネーム。先に正規名があれば値を寄せる。冪等。
 
-    起動時には呼ばない（保存名は凍結）。jobs/monthly_names.py だけが呼ぶ。dry_run は書かずに報告だけ。
+    起動時には呼ばない（保存名は凍結）。jobs/monthly/monthly_names.py だけが呼ぶ。dry_run は書かずに報告だけ。
     """
     insp = inspect(engine)
     if "monthly_elements" not in insp.get_table_names():
@@ -69,7 +69,7 @@ def apply_issuer_element_aliases(verbose: bool = True, *, dry_run: bool = False)
 def merge_yoy_duplicate_elements(verbose: bool = True, *, dry_run: bool = False) -> list[dict]:
     """保存名を canonicalize へ。同一年に両方あれば正規名へ寄せて短い行を消す。冪等。
 
-    起動時には呼ばない（保存名は凍結）。jobs/monthly_names.py だけが呼ぶ。dry_run は書かずに報告だけ。
+    起動時には呼ばない（保存名は凍結）。jobs/monthly/monthly_names.py だけが呼ぶ。dry_run は書かずに報告だけ。
     """
     insp = inspect(engine)
     if "monthly_elements" not in insp.get_table_names():
@@ -169,14 +169,14 @@ def monthly_name_drift() -> list[tuple[str, int, str, str]]:
 
 
 def report_monthly_name_drift(verbose: bool = True) -> int:
-    """保存名は起動時に書き換えない。ずれた行の数だけログに出す。付け替えは jobs/monthly_names.py。"""
+    """保存名は起動時に書き換えない。ずれた行の数だけログに出す。付け替えは jobs/monthly/monthly_names.py。"""
     drift = monthly_name_drift()
     if drift and verbose:
         codes = sorted({code for code, *_ in drift})
         head = ", ".join(codes[:10]) + (" …" if len(codes) > 10 else "")
         print(
             f"月次の保存名ドリフト: {len(drift)} 行 / {len(codes)} 銘柄 ({head})。"
-            "jobs/monthly_names.py plan で確認、apply で付け替え"
+            "jobs/monthly/monthly_names.py plan で確認、apply で付け替え"
         )
     return len(drift)
 

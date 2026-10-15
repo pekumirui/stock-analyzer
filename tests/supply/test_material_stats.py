@@ -31,8 +31,7 @@ from app.supply.meti import seidou_records as meti_records  # noqa: E402
 from app.models import MaterialMonthly, MaterialTradeCountry  # noqa: E402
 from app.supply.chain import apparent_consumption, load_supply_chain, monthly_payload  # noqa: E402
 
-sys.path.insert(0, str(ROOT / "jobs"))
-from material_stats import MetiArchive, meti_targets, sekiyu_done  # noqa: E402
+from jobs.supply.material_stats import MetiArchive, meti_targets, sekiyu_done  # noqa: E402
 
 
 def _fail(msg: object) -> None:

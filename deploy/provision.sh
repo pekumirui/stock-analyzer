@@ -158,7 +158,7 @@ for f in stock-analyzer.log mcp.log batch.log; do
 done
 # cron-run.sh の出力先。先に空ファイルを作ると fluent-bit が末尾から追える。
 if [[ -f "$APP_DIR/deploy/crontab" ]]; then
-  scripts="$(grep -oE 'jobs/[A-Za-z0-9_]+\.py' "$APP_DIR/deploy/crontab" | sort -u || true)"
+  scripts="$(grep -oE 'jobs/([A-Za-z0-9_]+/)*[A-Za-z0-9_]+\.py' "$APP_DIR/deploy/crontab" | sort -u || true)"
   while IFS= read -r script; do
     [[ -z "$script" ]] && continue
     stem="${script##*/}"

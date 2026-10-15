@@ -51,9 +51,9 @@ switch ($cmd) {
     }
 
     "batch" {
-        & $python jobs\check_demo.py
+        & $python jobs\market\check_demo.py
         if ($LASTEXITCODE -ne 0) { break }
-        if ($arg) { & $python jobs\run_batch.py --date $arg } else { & $python jobs\run_batch.py }
+        if ($arg) { & $python jobs\market\run_batch.py --date $arg } else { & $python jobs\market\run_batch.py }
     }
 
     "backfill" {
@@ -70,10 +70,10 @@ switch ($cmd) {
             Write-Host "年数は1〜20の範囲で指定してください" -ForegroundColor Red
             break
         }
-        & $python jobs\check_demo.py
+        & $python jobs\market\check_demo.py
         if ($LASTEXITCODE -ne 0) { break }
         Write-Host "過去 $years 年分を取得します" -ForegroundColor Cyan
-        & $python jobs\run_batch.py --backfill $years
+        & $python jobs\market\run_batch.py --backfill $years
     }
 
     "lint" {

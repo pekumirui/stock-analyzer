@@ -2409,7 +2409,7 @@ def test_fail_loud_required_and_conflicts() -> None:
         "rows": [{"element": "全店 売上高(前年比)", "values": {"1": 100.0}, "unit": "yoy_index"}],
         "as_of": "2026-08-05",
     })
-    # 保存名は凍結（#545）。ingest は完全一致の行にだけ書き、ずれた既存行は寄せない（付け替えは jobs/monthly_names.py）
+    # 保存名は凍結（#545）。ingest は完全一致の行にだけ書き、ずれた既存行は寄せない（付け替えは jobs/monthly/monthly_names.py）
     _expect(r, 200, "ingest leaves drifted row alone")
     db = SessionLocal()
     try:

@@ -10,7 +10,6 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "jobs"))
 sys.path.insert(0, str(ROOT / "tools" / "monthly"))
 
 import tdnet_monthly_pending as pending  # noqa: E402
@@ -279,7 +278,7 @@ def test_missing_paths(tmp: Path) -> None:
 
 
 def test_default_dest_reuses_tdnet_job() -> None:
-    from tdnet_monthly_r2 import DEFAULT_DEST
+    from jobs.monthly.tdnet_monthly_r2 import DEFAULT_DEST
 
     if pending.DEFAULT_DEST != DEFAULT_DEST:
         _fail("must reuse tdnet_monthly_r2.DEFAULT_DEST")
@@ -288,7 +287,7 @@ def test_default_dest_reuses_tdnet_job() -> None:
 
 
 def test_pending_ignore_codes_not_missing(tmp: Path) -> None:
-    from tdnet_monthly_r2 import MONTHLY_SKIP_CODES
+    from jobs.monthly.tdnet_monthly_r2 import MONTHLY_SKIP_CODES
 
     if pending.PENDING_IGNORE_CODES != frozenset({"7062"}):
         _fail(f"7062 only: {pending.PENDING_IGNORE_CODES}")

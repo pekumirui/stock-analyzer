@@ -11,7 +11,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "jobs"))
 
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{tempfile.mkdtemp(prefix='xbrl-test-')}/stock.db")
 
@@ -29,7 +28,7 @@ from app.xbrl.jobs import run_normalize  # noqa: E402
 from app.xbrl.mappings import apply_mappings  # noqa: E402
 from app.xbrl.parser import find_ixbrl_files, parse_package  # noqa: E402
 from app.xbrl.store import parse_zip_into_filing  # noqa: E402
-from tdnet_xbrl_r2 import append_manifest, build_manifest_row  # noqa: E402
+from jobs.xbrl.tdnet_xbrl_r2 import append_manifest, build_manifest_row  # noqa: E402
 
 
 def _fail(msg: str) -> None:

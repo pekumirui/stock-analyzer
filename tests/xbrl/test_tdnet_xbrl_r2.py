@@ -14,11 +14,10 @@ from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "jobs"))
 
 from app.config import XBRL_DEST  # noqa: E402
-import tdnet_xbrl_r2 as xbrl_mod  # noqa: E402
-from tdnet_xbrl_r2 import (  # noqa: E402
+import jobs.xbrl.tdnet_xbrl_r2 as xbrl_mod  # noqa: E402
+from jobs.xbrl.tdnet_xbrl_r2 import (  # noqa: E402
     LIST_LIMIT,
     NOCODE_DIR,
     UNMATCHED_DIR,
@@ -452,7 +451,7 @@ def test_http_get_uses_job_ua_then_browser() -> None:
     from urllib.error import HTTPError
     from unittest.mock import MagicMock, patch
 
-    from _r2common import BROWSER_UA
+    from jobs._r2common import BROWSER_UA
 
     uas: list[str] = []
 

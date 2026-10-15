@@ -23,6 +23,12 @@ GONE = (
     ROOT / "app" / "api.py",
     ROOT / "tests" / "testdata",
     ROOT / "tools" / "fixtures",
+    ROOT / "jobs" / "html_issuers" / "__init__.py",
+    *(ROOT / "jobs" / f"{m}.py" for m in (
+        "run_batch", "check_demo", "html_monthly", "ir_monthly_html_ingest", "ir_monthly_html_r2",
+        "ir_monthly_r2", "ir_monthly_xls_ingest", "monthly_names", "tdnet_monthly_pdf_ingest",
+        "tdnet_monthly_pdf_sidecar", "tdnet_monthly_r2", "material_stats", "tdnet_xbrl_r2",
+        "xbrl_normalize", "xbrl_parse", "backup_db", "vps_packages_r2")),
     *(ROOT / "app" / f"{m}.py" for m in (
         "jquants", "ingest", "analytics", "earnings_schedule", "monthly_ingest", "monthly_tree",
         "public_monthly", "ir_monthly_codes", "supply_chain", "material_stats", "estat", "meti")),
@@ -33,8 +39,8 @@ GONE = (
 REQUIRED = (
     ROOT / "config" / "monthly" / "issuer_aliases.json",
     ROOT / "config" / "monthly" / "monthly_row_order.json",
-    ROOT / "jobs" / "run_batch.py",
-    ROOT / "jobs" / "check_demo.py",
+    ROOT / "jobs" / "market" / "run_batch.py",
+    ROOT / "jobs" / "market" / "check_demo.py",
     ROOT / "tools" / "market" / "check_api.py",
     ROOT / "tools" / "monthly" / "read_xls.py",
     ROOT / "tests" / "ci_smoke.py",

@@ -13,11 +13,11 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "jobs"))
+sys.path.insert(0, str(ROOT))
 # 月次 sidecar の切断テストは tests/monthly の fixture を使う
 sys.path.insert(0, str(ROOT / "tests" / "monthly"))
 
-from _r2common import (  # noqa: E402
+from jobs._r2common import (  # noqa: E402
     MOUNT_RETRIES,
     MOUNT_RETRY_WAIT_SEC,
     MountDisconnected,
@@ -254,7 +254,7 @@ def test_abort_if_disconnected() -> None:
 
 
 def test_sidecar_aborts_without_per_issuer_fail() -> None:
-    import tdnet_monthly_pdf_sidecar as sc
+    import jobs.monthly.tdnet_monthly_pdf_sidecar as sc
     from test_tdnet_monthly_pdf_sidecar import (  # noqa: E402
         NEW,
         NEW_NAME,
@@ -298,7 +298,7 @@ def test_sidecar_aborts_without_per_issuer_fail() -> None:
 
 def test_sidecar_local_dest_missing_unchanged() -> None:
     import sqlite3
-    import tdnet_monthly_pdf_sidecar as sc
+    import jobs.monthly.tdnet_monthly_pdf_sidecar as sc
 
     with tempfile.TemporaryDirectory() as raw:
         tmp = Path(raw)
@@ -314,7 +314,7 @@ def test_sidecar_local_dest_missing_unchanged() -> None:
 
 
 def test_sidecar_recovers_and_keeps_normal_output() -> None:
-    import tdnet_monthly_pdf_sidecar as sc
+    import jobs.monthly.tdnet_monthly_pdf_sidecar as sc
     from test_tdnet_monthly_pdf_sidecar import (  # noqa: E402
         NEW,
         NEW_NAME,
@@ -346,7 +346,7 @@ def test_sidecar_recovers_and_keeps_normal_output() -> None:
 
 
 def test_ingest_aborts_on_discover_disconnect() -> None:
-    import ir_monthly_html_ingest as ing
+    import jobs.monthly.ir_monthly_html_ingest as ing
 
     with tempfile.TemporaryDirectory() as raw:
         dest = Path(raw) / "monthly"

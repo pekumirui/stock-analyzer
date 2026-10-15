@@ -8,9 +8,9 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "jobs"))
+sys.path.insert(0, str(ROOT))
 
-from vps_packages_r2 import (  # noqa: E402
+from jobs.ops.vps_packages_r2 import (  # noqa: E402
     DEFAULT_DEST,
     LATEST_NAME,
     NOT_INSTALLED,
@@ -252,7 +252,7 @@ def test_write_inventory_bytes() -> None:
 
 
 def test_source_stays_readonly_and_secret_free() -> None:
-    src = (ROOT / "jobs" / "vps_packages_r2.py").read_text(encoding="utf-8")
+    src = (ROOT / "jobs" / "ops" / "vps_packages_r2.py").read_text(encoding="utf-8")
     for needle in (
         "os.environ",
         "getenv",
@@ -266,7 +266,7 @@ def test_source_stays_readonly_and_secret_free() -> None:
         if needle in src:
             _fail(f"inventory job must not reference {needle}")
     crontab = (ROOT / "deploy" / "crontab").read_text(encoding="utf-8")
-    want = "40 6 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/vps_packages_r2.py"
+    want = "40 6 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/vps_packages_r2.py"
     if want not in crontab:
         _fail("crontab missing 06:40 JST vps_packages_r2 entry")
     if ">>" in want:

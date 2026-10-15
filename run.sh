@@ -63,11 +63,11 @@ case "$cmd" in
     "$python" jobs/migrate.py
     ;;
   batch)
-    "$python" jobs/check_demo.py
+    "$python" jobs/market/check_demo.py
     if [[ -n "$arg" ]]; then
-      "$python" jobs/run_batch.py --date "$arg"
+      "$python" jobs/market/run_batch.py --date "$arg"
     else
-      "$python" jobs/run_batch.py
+      "$python" jobs/market/run_batch.py
     fi
     ;;
   backfill)
@@ -83,9 +83,9 @@ case "$cmd" in
       echo "年数は1〜20の範囲で指定してください"
       exit 1
     fi
-    "$python" jobs/check_demo.py
+    "$python" jobs/market/check_demo.py
     echo "過去 $years 年分を取得します"
-    "$python" jobs/run_batch.py --backfill "$years"
+    "$python" jobs/market/run_batch.py --backfill "$years"
     ;;
   reset)
     if [[ ! -f stock.db ]]; then

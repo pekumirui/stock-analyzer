@@ -13,7 +13,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools" / "xbrl"))
-sys.path.insert(0, str(ROOT / "jobs"))
 
 import copy_stocks_for_verify as copy_mod  # noqa: E402
 import fetch_xbrl_golden as fetch_mod  # noqa: E402
