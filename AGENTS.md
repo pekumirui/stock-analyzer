@@ -72,7 +72,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `config/` | 機能ごとのフォルダ。`monthly/`（`ir_monthly.json`、`issuer_aliases.json`、`issuer_metrics.json`、`monthly_vocab.json`（行名の共通語彙）、`monthly_row_order.json`）、`supply/`（`supply_chain.json`（素材と流れ）、`supply_companies.json`（企業・生産能力）、`material_stats.json`（統計の品目 → 素材））、`xbrl/`（YAML）。Ruff/Bandit は `pyproject.toml` |
 | `tests/` | 機能ごとのフォルダ（`market/` / `monthly/` / `supply/` / `xbrl/` / `ops/`（VPS・R2・MCP・nginx・バックアップ））。直下は共通部分（`ci_smoke.py`・`test_layout.py`・`test_fx.py`・`test_sqlite_deploy.py`）。fixture は各フォルダの `testdata/`。新しい `test_*.py` は `ci_smoke.SUITES` に `tests/` からの相対パスで登録する（漏れは ci_smoke が落とす） |
 | `analyzer/` | `stock.db` を読むだけのオフライン分析（1 問 1 フォルダ、結果は各 `README.md`）。約束と一覧は `analyzer/README.md`。`app` からは使わない |
-| `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ） |
+| `mcp/log_mcp.py` | VPS 上のログ MCP（本番のみ。`stock-analyzer-mcp.service`）。アプリとは別プロセス。`mcp/` に `__init__.py` は置かない（公式 SDK の `mcp` パッケージと名前がぶつかる） |
 | `tools/` | オフライン検証と手元ヘルパー。機能ごとのフォルダ。`market/check_api.py`（J-Quants 疎通）。`monthly/`: PDF 指紋 `fmtdiff.py`（pdfplumber。ingest は従来どおり pdftotext）、TDnet 月次の未投入一覧 `tdnet_monthly_pending.py`（読み取り専用。使い方は `deploy/README.md`）、`read_xls.py`。`supply/estat_fetch.py`（e-Stat の表探し）。`xbrl/`: 一致率 `xbrl_match_rate.py`、`fetch_xbrl_golden.py`、`copy_stocks_for_verify.py` |
 
 ## J-Quants（必須）

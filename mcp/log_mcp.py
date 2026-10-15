@@ -99,7 +99,7 @@ _BOUND_HINT = "1h, 30m, today, yesterday, or YYYY-MM-DD"
 
 def crontab_job_names() -> tuple[str, ...]:
     """Stems of jobs/**/*.py scheduled in deploy/crontab. Comments are not jobs."""
-    path = Path(__file__).resolve().parent / "crontab"
+    path = _REPO_ROOT / "deploy" / "crontab"
     found: list[str] = []
     job_re = re.compile(r"jobs/(?:[A-Za-z0-9_-]+/)*([A-Za-z0-9_-]+)\.py")
     try:
