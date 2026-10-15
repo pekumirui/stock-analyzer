@@ -12,7 +12,7 @@ description: >
 
 ## いつ使うか
 
-- `config/ir_monthly.json` の HTML 発行体で、欠けている暦月を埋める
+- `config/monthly/ir_monthly.json` の HTML 発行体で、欠けている暦月を埋める
 - GitHub Issue（#180 の型）でウェーブを追う
 - エイリアスや正規化を出したあと、古い行ラベルを消す
 
@@ -45,10 +45,10 @@ Cron は別: `ir_monthly_html_r2` は `.ingest.json` だけ書く。`ir_monthly_
 | ツール | 用途 |
 |---|---|
 | MCP `monthly_get` / `monthly_ingest` / `monthly_put_values` / `monthly_add_element` / `monthly_delete_element` | 本番ループバック |
-| `config/ir_monthly.json` | `index_url`, `follow_re`, html 発行体 |
+| `config/monthly/ir_monthly.json` | `index_url`, `follow_re`, html 発行体 |
 | `.venv/bin/python` + `parse_issuer` / `plan_column_years` | ローカルパース + 年マッピング |
-| `config/issuer_aliases.json` + `docs/DESIGN_monthly_labels.md` | 新しいリネームルール（コードの PR） |
-| `config/issuer_metrics.json` | 件数指標の語（`受託施設数` など）。件数の行を入れたら足す（コードの PR。DB は変わらない） |
+| `config/monthly/issuer_aliases.json` + `docs/DESIGN_monthly_labels.md` | 新しいリネームルール（コードの PR） |
+| `config/monthly/issuer_metrics.json` | 件数指標の語（`受託施設数` など）。件数の行を入れたら足す（コードの PR。DB は変わらない） |
 | GitHub Issue | 作業前/作業後の進捗 |
 | Cursor `Task` (`subagent_type: generalPurpose`) | ウェーブ完了後、ペアレビュー子を起動する |
 

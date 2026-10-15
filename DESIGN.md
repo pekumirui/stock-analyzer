@@ -162,7 +162,7 @@ fx_rates          -- ECB 対EUR 日次レート (Frankfurter api.frankfurter.dev
   rate            -- 1 EUR = rate quote。任意ペアは EUR クロス（quote/base）
 
 material_monthly  -- サプライタブの素材ごとの月次量 (e-Stat)
-  material_id, month, metric, source PK  -- material_id は config/supply_chain.json の id (FK なし)
+  material_id, month, metric, source PK  -- material_id は config/supply/supply_chain.json の id (FK なし)
                                           -- month は YYYY-MM、metric は production / shipment / inventory / import / export
                                           --   / processing (原油処理) / domestic_sales (国内向販売)
                                           -- source は seidou:<報告番号> (生産動態) / sekiyu (石油統計) / trade (貿易)
@@ -235,7 +235,7 @@ TDnet 月次 PDF の自動投入（`jobs/tdnet_monthly_pdf_sidecar.py` → `jobs
 
 IR 月次 PDF/xlsx/xls（`jobs/ir_monthly_r2.py`）:
 
-- TDnet に月次が無い発行体が対象。`config/ir_monthly.json` の issuers（URL 確認済みだけ載せる）
+- TDnet に月次が無い発行体が対象。`config/monthly/ir_monthly.json` の issuers（URL 確認済みだけ載せる）
 - 表計算と pdf が両方あるページは表計算だけ取る。xlsx があれば xlsx、なければ xls（大東建託 `history_*.xls`）
 - AWS ELB が識別 UA を 403 する発行体は、同じ `http_get` がブラウザ UA に一度だけフォールバックする
 - 中間証明書が欠ける／付け違う発行体は、同じ `http_get` がリーフの AIA (CA Issuers) から中間を補って検証し直す。検証は切らない（7544 スリーエフ）
@@ -246,7 +246,7 @@ IR 月次 HTML（`jobs/ir_monthly_html_r2.py`）:
 - `http_get` が打ち切った 429 は `failed` にせず `skip issuer {code} rate-limited:`。同一ホストは残りを `skip issuer {code} host-cooled {host}`。summary の `failed=` と exit=1 は 404・パース・I/O などだけ（`failed>0`）。再試行回数は増やさない
 - `.html`（原本）と `.ingest.json`（派生。`POST /api/v1/tables/{code}/ingest` と同じ形）を隣に置く。自動 POST しない
 - DB 投入は別スクリプト `jobs/ir_monthly_html_ingest.py`。code ごとにファイル名日付が最新の `.ingest.json` を loopback へ POST する。year は送らない。sha256 が前回成功分と同じなら POST しない。行に `force` は付けない（同名で unit が違う行・類似名は 409 で止め、人が `--force --only` で入れる）。`--months` は暦年の `YYYY-MM` を `only_months` として 1 回 POST する（年はサーバの mapping。部分投入は ledger を更新しない）。cron は producer（10:20 / 16:20）の後（10:30 / 16:30）。ledger は dest/R2 ではなく `/var/log/app/html_ingest_ledger.json`
-- 対象は `config/ir_monthly.json` の html。セレクタは json（`follow_re` / `source=eir` / `parse`）。`parse: true` は `jobs/html_issuers` の `parse`（`PARSERS`。`i<code>.py` を置けば載る）。各モジュールが表・行・単位を宣言する。`parse: false` はモジュールを作らない
+- 対象は `config/monthly/ir_monthly.json` の html。セレクタは json（`follow_re` / `source=eir` / `parse`）。`parse: true` は `jobs/html_issuers` の `parse`（`PARSERS`。`i<code>.py` を置けば載る）。各モジュールが表・行・単位を宣言する。`parse: false` はモジュールを作らない
 - unit 判定の context は page 見出しに加え、当該 table 直上の section とページ内の `(単位：%)` / `単位:%` を含む。ページに単位表示が無く指数な銘柄、および見出しが伸び率でもセルが符号なし100基準の銘柄（3148 クリエイトSD）は、モジュールで `yoy_index` を宣言する。見出しに 増減比/伸び率 があれば `単位:%` より `yoy_pct` を優先（ツルハ・サガミ）
 - 年度別ページは `follow_re` で最新年を辿る。画像・本文のみは `parse: false`（HTML は残し JSON は書かない）
 - E-IR は Pronexus JSONP の月次 item `text` を `.html` として保存する（sha256 はその HTML）
@@ -281,7 +281,7 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/tdnet_xbrl_r2.py`）を `xbrl_fili
 - 休日・非公表日は指定日以前の直近営業日（`as_of`）。期間 MCP は公表日だけ返す
 - MCP: `fx_rate`（指定日）/ `fx_rates`（期間）
 
-**素材の月次量（`material_monthly`）。** 統計の品目と素材の対応は `config/material_stats.json`。共通部分は `app/material_stats.py`、取得は `app/estat.py`（e-Stat API、`ESTAT_APP_ID`。無ければ飛ばす）と `app/meti.py`（経産省 Excel。生産動態統計と資源・エネルギー統計（石油）。キー不要）。ジョブは `jobs/material_stats.py`。画面は `docs/DESIGN_supply.md`。
+**素材の月次量（`material_monthly`）。** 統計の品目と素材の対応は `config/supply/material_stats.json`。共通部分は `app/supply/material_stats.py`、取得は `app/supply/estat.py`（e-Stat API、`ESTAT_APP_ID`。無ければ飛ばす）と `app/supply/meti.py`（経産省 Excel。生産動態統計と資源・エネルギー統計（石油）。キー不要）。ジョブは `jobs/material_stats.py`。画面は `docs/DESIGN_supply.md`。
 
 - 素材ごとに統計を 1 つ決め、指標ごとに付け替えない。需給をまとめて出す統計がある素材はその統計から全指標を取る（原油と石油製品 7 素材は資源・エネルギー統計（石油））。それ以外は生産動態統計 + 貿易統計。対応表の検査は 1 つの (素材, 指標) を 2 つの統計に載せると落とす。対応表から外した (素材, 指標, 統計) の行はジョブの最初に消す
 - 生産・出荷・月末在庫は経済産業省生産動態統計。同じ `source`（`seidou:<報告番号>`）に 2 か所から書き、`revision` が下がる上書きはしない（同じなら後勝ち）
@@ -392,13 +392,13 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `GET /api/earnings-performance/{code}` | 決算日からの対TOPIXリターン |
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
 | `GET /api/stocks/search?q=トヨタ` | 銘柄検索。名前の部分一致（q を NFKC とひらがな→カタカナに寄せたものでも引く）とコードの前方一致。最大 20 件 |
-| `GET /api/supply/graph` | サプライタブの素材と流れ（`config/supply_chain.json`）。形は `docs/DESIGN_supply.md` |
+| `GET /api/supply/graph` | サプライタブの素材と流れ（`config/supply/supply_chain.json`）。形は `docs/DESIGN_supply.md` |
 | `GET /api/supply/monthly/{material_id}` | 素材の月次量（`material_monthly`）と見掛け消費。形は `docs/DESIGN_supply.md`。素材が無ければ 404 |
 | `POST /api/v1/tables/{code}/{year}/elements` | 月次表の要素登録。`unit` 必須。表が無ければ作成。保存名をトークン正規化（yoy は末尾 `(前年比)`）と銘柄エイリアスのあと、保存名と完全一致する行を探す（既存行は作り直さない。`docs/DESIGN_monthly_labels.md`「同一行・保存名の凍結」）。完全一致は冪等。類似は 409 (force=true で強制)。unit の食い違いは 409 `UNIT_CONFLICT` (force=true で上書き)。`stocks` に無ければ 4xx `NOT_IN_MASTER` |
 | `POST /api/v1/tables/{code}/ingest` | PDF 列順 + as_of 時点の最新 `fiscal_year_end` から暦年を割り当てて登録。year は受け取らない。`as_of` と各行の `unit` は必須。`dry_run: true` は書かずに mapping と書くはずのセルを返す。`only_months` は `YYYY-MM` で列を絞る。マスタ無しでは 4xx `NOT_IN_MASTER`。mapping の年月が as_of より後なら 400 `FUTURE_COLUMN`。新規行で、`strip_yoy_fragments` 後の名前が同じ yoy と number の既存行が今回の `rows` に無いときは 409 `YOY_NUMBER_CONFLICT`（`force=true` で作成。両方を同じ POST に含めれば通る）。銘柄エイリアスで同じ保存名に寄る行（別表の同じ数字）は 1 行にまとめる。同じ列で値か unit が食い違えば 409 `ROW_MERGE_CONFLICT`（後勝ちで上書きしない） |
 | `GET /api/v1/tables` | 月次表がある銘柄一覧 (code 順)。各要素は `{code, name, years, market, sector33, industry, last_ingested_at, is_new, ingested_today, all_store_yoy, existing_store_yoy}`。name/market/sector33 は stocks を LEFT JOIN (無ければ null)。industry は無ければ `その他`。years は昇順。表が無ければ `[]` |
 | `PUT /api/v1/tables/{code}/industry` | 月次業種。body `{industry}`。stocks 無ければ 4xx `NOT_IN_MASTER`。月次表が無ければ 4xx `TABLE_NOT_FOUND` |
-| `GET /api/v1/tables/{code}/{year}` | 月次表。要素は登録順。各行は `{element, unit, label, values}`。`element` は保存名。`label` は GET 派生（display / group / kinds / 7層）。`values` は 1〜12。無い月は null（0 は実ゼロ）。1年通して値のない行は出さない。全銘柄で親子関係を足す。`config/monthly_row_order.json` に `tree` があればそれ、無ければ自動の木（`tree_auto: true`）。各行に `tree: {path, leaf, metric}`（根から自分の節までの名前の列、節の中での行名、指標名。指標に振り分けていなければ null。自動の木は全行に指標が付き、3 年を通した並び `order` も付く）、表に `tree`（節 `{name, heading, part, elements, children}` の木。形は config、自動なら表示する 3 年で決まり年で変えない。`elements` はその年の保存名）と `tree_metrics`（指標名の並び。横持ちの一番上の行の順。自動の木は既存 → 全店 → 店舗 の見る順。自動の木は指標どうしの親子 `tree_metric_parent` も付く）を足す。config の木でどの節にも当たらない行に `tree` は付かない（自動の木は全行に付く）。書式は `docs/DESIGN_monthly.md`「親子関係」。表が無ければ 404 |
+| `GET /api/v1/tables/{code}/{year}` | 月次表。要素は登録順。各行は `{element, unit, label, values}`。`element` は保存名。`label` は GET 派生（display / group / kinds / 7層）。`values` は 1〜12。無い月は null（0 は実ゼロ）。1年通して値のない行は出さない。全銘柄で親子関係を足す。`config/monthly/monthly_row_order.json` に `tree` があればそれ、無ければ自動の木（`tree_auto: true`）。各行に `tree: {path, leaf, metric}`（根から自分の節までの名前の列、節の中での行名、指標名。指標に振り分けていなければ null。自動の木は全行に指標が付き、3 年を通した並び `order` も付く）、表に `tree`（節 `{name, heading, part, elements, children}` の木。形は config、自動なら表示する 3 年で決まり年で変えない。`elements` はその年の保存名）と `tree_metrics`（指標名の並び。横持ちの一番上の行の順。自動の木は既存 → 全店 → 店舗 の見る順。自動の木は指標どうしの親子 `tree_metric_parent` も付く）を足す。config の木でどの節にも当たらない行に `tree` は付かない（自動の木は全行に付く）。書式は `docs/DESIGN_monthly.md`「親子関係」。表が無ければ 404 |
 | `GET /api/v1/tables/{code}` | その銘柄の年度一覧 |
 | `DELETE /api/v1/tables/{code}/{year}/elements` | 空の月次行を消す。body `{element}`。値が残っていれば 409 `ELEMENT_HAS_VALUES`。表は残す。未登録は 404。マスタ無しは 4xx `NOT_IN_MASTER` |
 | `PUT /api/v1/tables/{code}/{year}/values/batch` | 複数月を検証してから一括 commit。マスタ無しは 4xx `NOT_IN_MASTER` |

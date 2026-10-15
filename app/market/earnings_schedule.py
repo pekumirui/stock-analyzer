@@ -15,10 +15,10 @@ from typing import Literal, Mapping, Sequence
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, aliased
 
-from . import config
+from .. import config
 from .ingest import upsert
 from .jquants import JQuantsClient
-from .models import EarningsDateFetch, EarningsDatePub, Stock
+from ..models import EarningsDateFetch, EarningsDatePub, Stock
 
 _CODE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]$")
 # 2月は 0299 だけが月末。他の月は暦の最終日を月期にする。うるう年は関係ない。

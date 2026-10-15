@@ -15,21 +15,21 @@ _tmp = tempfile.mkdtemp(prefix="stock-analyzer-material-stats-")
 os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
 
 from app.db import SessionLocal, init_db  # noqa: E402
-from app.estat import (  # noqa: E402
+from app.supply.estat import (  # noqa: E402
     match_codes, month_of, parse_production_label, production_dims, published_through,
     seidou_records, sokuho_month, trade_country_rows, trade_rows,
 )
-from app.material_stats import (  # noqa: E402
+from app.supply.material_stats import (  # noqa: E402
     REVISION_KAKUHO, REVISION_NENPO, REVISION_SOKUHO, CountryRow, MappingError, Row, SeidouRecord,
     load_mapping, prune_unmapped, sekiyu_rows, seidou_rows, validate_mapping, write_country_rows, write_rows,
 )
-from app.meti import (  # noqa: E402
+from app.supply.meti import (  # noqa: E402
     MetiChallenged, MetiClient, MetiFile, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_nenpo_inventory_cells,
     sekiyu_sokuho_cells, seidou_december_kakuho, seidou_files,
 )
-from app.meti import seidou_records as meti_records  # noqa: E402
+from app.supply.meti import seidou_records as meti_records  # noqa: E402
 from app.models import MaterialMonthly, MaterialTradeCountry  # noqa: E402
-from app.supply_chain import apparent_consumption, load_supply_chain, monthly_payload  # noqa: E402
+from app.supply.chain import apparent_consumption, load_supply_chain, monthly_payload  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "jobs"))
 from material_stats import MetiArchive, meti_targets, sekiyu_done  # noqa: E402

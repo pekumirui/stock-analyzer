@@ -1,4 +1,4 @@
-"""e-Stat の表を探して中身の分類を見る。config/material_stats.json に素材を足すときの下調べ用。
+"""e-Stat の表を探して中身の分類を見る。config/supply/material_stats.json に素材を足すときの下調べ用。
 
 使い方（ESTAT_APP_ID が要る）:
   python tools/estat_fetch.py names 生産動態                 # 統計名 → 統計コード
@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.estat import EstatClient, table_title  # noqa: E402
+from app.supply.estat import EstatClient, table_title  # noqa: E402
 
 
 def _text(x: object) -> str:

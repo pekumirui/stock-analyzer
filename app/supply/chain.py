@@ -1,4 +1,4 @@
-"""サプライチェーンの素材マスタ（`config/supply_chain.json`）の読込と検査。
+"""サプライチェーンの素材マスタ（`config/supply/supply_chain.json`）の読込と検査。
 
 素材は有向グラフ。1 つの素材が複数の原料から合流する（PET 樹脂 ← エチレングリコール・テレフタル酸）。
 画面仕様は `docs/DESIGN_supply.md`。
@@ -11,7 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from .config import SUPPLY_CHAIN_PATH, SUPPLY_COMPANIES_PATH
+from ..config import SUPPLY_CHAIN_PATH, SUPPLY_COMPANIES_PATH
 from .material_stats import TRADE_SOURCE
 
 KINDS = ("raw", "mid", "prod")

@@ -29,7 +29,7 @@ def _expect(resp, status: int, label: str) -> None:
 
 def _fixture() -> str:
     from app.db import SessionLocal, init_db
-    from app.ingest import upsert
+    from app.market.ingest import upsert
     from app.models import DailyPrice, Indicator, Stock, Topix
 
     init_db()
@@ -163,7 +163,7 @@ def main() -> None:
         raise SystemExit("IR codes must list issuers before html")
     if "index_url" in r.text or "http" in r.text.lower():
         raise SystemExit("IR codes JSON must not include crawl URLs")
-    from app.ir_monthly_codes import load_ir_monthly_codes
+    from app.monthly.ir_codes import load_ir_monthly_codes
 
     sample = Path(_tmp) / "ir.json"
     sample.write_text(json.dumps({
@@ -239,9 +239,9 @@ def main() -> None:
         raise SystemExit("chart had no candles")
 
     # 週足は日足を ISO 週で集約。2週にまたがる日足を足して本数と OHLC を確認する
-    from app.analytics import compute_indicators, rs_universe_codes
+    from app.market.analytics import compute_indicators, rs_universe_codes
     from app.db import SessionLocal
-    from app.ingest import upsert
+    from app.market.ingest import upsert
     from app.models import DailyPrice, Indicator, Statement, Stock
 
     db = SessionLocal()

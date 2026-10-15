@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "jobs"))
 sys.path.insert(0, str(ROOT))
 
-from app.monthly_ingest import (  # noqa: E402
+from app.monthly.ingest import (  # noqa: E402
     canonicalize_element_label,
     format_monthly_cell,
     monthly_display_label,

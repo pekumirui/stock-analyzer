@@ -16,7 +16,7 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app.analytics import (  # noqa: E402
+from app.market.analytics import (  # noqa: E402
     calendar_label,
     calendar_span,
     compute_earnings_events,
@@ -38,7 +38,7 @@ from app.analytics import (  # noqa: E402
     statement_history,
 )
 from app.db import SessionLocal, init_db  # noqa: E402
-from app.ingest import upsert  # noqa: E402
+from app.market.ingest import upsert  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import DailyPrice, EarningsEvent, Indicator, Statement, Stock, Topix  # noqa: E402
 

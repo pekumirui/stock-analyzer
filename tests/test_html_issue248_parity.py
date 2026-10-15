@@ -14,7 +14,7 @@ from html_monthly import decode_html_bytes  # noqa: E402
 from html_issuers import parse_issuer  # noqa: E402
 from ir_monthly_html_r2 import load_html_registry  # noqa: E402
 
-from app.monthly_ingest import (  # noqa: E402
+from app.monthly.ingest import (  # noqa: E402
     apply_issuer_aliases,
     canonicalize_element_label,
     coerce_monthly_storage,
@@ -97,7 +97,7 @@ def test_issue248_html_parity() -> dict[str, str]:
         print("skip: testdata/html_issue248/prod_monthly.json missing")
         return {}
     prod = json.loads(PROD_PATH.read_text(encoding="utf-8"))
-    live = {i.code: i for i in load_html_registry(ROOT / "config" / "ir_monthly.json")}
+    live = {i.code: i for i in load_html_registry(ROOT / "config" / "monthly" / "ir_monthly.json")}
     results: dict[str, str] = {}
     mismatches: list[str] = []
     for code in ISSUE248_CODES:

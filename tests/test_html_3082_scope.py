@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 from html_monthly import decode_html_bytes  # noqa: E402
 from html_issuers import parse_issuer  # noqa: E402
 
-from app.monthly_ingest import (  # noqa: E402
+from app.monthly.ingest import (  # noqa: E402
     apply_issuer_aliases,
     canonicalize_element_label,
 )

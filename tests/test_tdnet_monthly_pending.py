@@ -78,7 +78,7 @@ def test_heuristic_matches_ingest_anchor() -> None:
         "DATABASE_URL", f"sqlite:///{ROOT / 'stock.db'}"
     )
     sys.path.insert(0, str(ROOT))
-    from app.monthly_ingest import _anchor_year
+    from app.monthly.ingest import _anchor_year
 
     for as_of in (
         date(2026, 8, 5),

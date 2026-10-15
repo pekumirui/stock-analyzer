@@ -32,7 +32,7 @@ from app.fx import (  # noqa: E402
     resolve_start,
     rows_from_series,
 )
-from app.ingest import upsert  # noqa: E402
+from app.market.ingest import upsert  # noqa: E402
 from app.models import FxRate  # noqa: E402
 
 

@@ -19,7 +19,7 @@ os.environ.setdefault("JQUANTS_API_KEY", "test-key")
 
 from app.config import EARNINGS_DATE_LOOKBACK_DAYS  # noqa: E402
 from app.db import SessionLocal, init_db  # noqa: E402
-from app.earnings_schedule import (  # noqa: E402
+from app.market.earnings_schedule import (  # noqa: E402
     ActualMonth,
     Cell,
     FQName,
@@ -38,7 +38,7 @@ from app.earnings_schedule import (  # noqa: E402
     parse_pub,
     sync,
 )
-from app.ingest import upsert  # noqa: E402
+from app.market.ingest import upsert  # noqa: E402
 from app.models import EarningsDateFetch, EarningsDatePub, Stock  # noqa: E402
 
 TODAY = date(2026, 10, 2)
@@ -399,7 +399,7 @@ def test_sync_idempotent_with_tiny_lookback() -> None:
             return [_wire(PubDate=pub_date, SchDate="2026-11-06")]
 
     try:
-        with patch("app.earnings_schedule.JQuantsClient", Client):
+        with patch("app.market.earnings_schedule.JQuantsClient", Client):
             first = sync(db, TODAY, lookback_days=2)
             after_first = list(calls)
             second = sync(db, TODAY, lookback_days=2)

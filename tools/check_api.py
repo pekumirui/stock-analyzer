@@ -10,8 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.jquants import JQuantsClient
-from app.ingest import _price_row, _statement_row
+from app.market.jquants import JQuantsClient
+from app.market.ingest import _price_row, _statement_row
 
 
 def show(title, obj, keys):

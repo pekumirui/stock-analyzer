@@ -1,4 +1,4 @@
-"""e-Stat API。素材の月次量（app/material_stats.py）のうち e-Stat から取る部分。
+"""e-Stat API。素材の月次量（app/supply/material_stats.py）のうち e-Stat から取る部分。
 
 - 生産動態統計（00550200）の年ごとの「時系列表(<報告番号>_…)」。年間補正後の年報（revision 3）。
   表側は `製品_<品目>_<品名>_<記号>_<指標>_<単位>`
@@ -15,7 +15,7 @@ from typing import Any, Iterable
 
 import httpx
 
-from .config import ESTAT_APP_ID, ESTAT_BASE
+from ..config import ESTAT_APP_ID, ESTAT_BASE
 from .material_stats import (
     REVISION_KAKUHO, REVISION_SOKUHO, TRADE_SOURCE, CountryRow, MappingError, Row, SeidouRecord, parse_num,
     product_name,

@@ -19,10 +19,18 @@ GONE = (
     ROOT / "app" / "issuer_aliases.json",
     ROOT / "app" / "monthly_row_order.json",
     ROOT / "static" / "monthly_row_order.json",
+    # 機能別フォルダへ移した。元の場所に戻さない
+    ROOT / "app" / "api.py",
+    *(ROOT / "app" / f"{m}.py" for m in (
+        "jquants", "ingest", "analytics", "earnings_schedule", "monthly_ingest", "monthly_tree",
+        "public_monthly", "ir_monthly_codes", "supply_chain", "material_stats", "estat", "meti")),
+    *(ROOT / "config" / f"{n}.json" for n in (
+        "ir_monthly", "issuer_aliases", "issuer_metrics", "monthly_vocab", "monthly_row_order",
+        "supply_chain", "supply_companies", "material_stats")),
 )
 REQUIRED = (
-    ROOT / "config" / "issuer_aliases.json",
-    ROOT / "config" / "monthly_row_order.json",
+    ROOT / "config" / "monthly" / "issuer_aliases.json",
+    ROOT / "config" / "monthly" / "monthly_row_order.json",
     ROOT / "jobs" / "run_batch.py",
     ROOT / "jobs" / "check_demo.py",
     ROOT / "tools" / "check_api.py",

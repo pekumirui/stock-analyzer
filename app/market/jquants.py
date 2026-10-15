@@ -12,7 +12,7 @@ from collections import deque
 
 import httpx
 
-from . import config
+from .. import config
 
 
 class RateLimiter:

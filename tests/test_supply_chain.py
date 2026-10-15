@@ -1,4 +1,4 @@
-"""サプライチェーンの素材マスタ (config/supply_chain.json)・企業マスタ (config/supply_companies.json) の検査と /api/supply/*。"""
+"""サプライチェーンの素材マスタ (config/supply/supply_chain.json)・企業マスタ (config/supply/supply_companies.json) の検査と /api/supply/*。"""
 from __future__ import annotations
 
 import os
@@ -15,7 +15,7 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.main import app  # noqa: E402
-from app.supply_chain import (  # noqa: E402
+from app.supply.chain import (  # noqa: E402
     SupplyChainError,
     country_payload,
     load_companies,

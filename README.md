@@ -129,11 +129,15 @@ VPS へ自動デプロイするには、一度だけデプロイ用 SSH 鍵を�
 app/
   config.py     設定・ステージ判定閾値
   models.py     DBスキーマ (SQLAlchemy)
-  jquants.py    J-Quants APIクライアント
-  ingest.py     取込バッチ (UPSERT・冪等)
-  analytics.py  MA/RS/ステージ/Q単独/決算後リターン
+  market/       株価・決算 (チャート・スクリーナー・決算タブ)
+    jquants.py    J-Quants APIクライアント
+    ingest.py     取込バッチ (UPSERT・冪等)
+    analytics.py  MA/RS/ステージ/Q単独/決算後リターン
+  monthly/      月次 (行名の正規化・親子・公開ページ)
+  supply/       サプライ (素材マスタ・e-Stat・経産省)
   api/          REST API (機能ごとに 1 ファイル。月次は api/monthly/)
   main.py       FastAPIエントリ
+config/         機能ごとの JSON (monthly/ supply/ xbrl/)
 static/
   index.html    SPA マークアップ
   css/app.css   スタイル

@@ -24,11 +24,11 @@ SHELL=/bin/bash
 30 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_pdf_ingest.py --ledger /var/log/app/pdf_ingest_ledger.json
 30 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_pdf_ingest.py --ledger /var/log/app/pdf_ingest_ledger.json
 
-# IR 月次 PDF/xlsx → R2 mount（TDnet に月次が無い発行体。config/ir_monthly.json issuers）
+# IR 月次 PDF/xlsx → R2 mount（TDnet に月次が無い発行体。config/monthly/ir_monthly.json issuers）
 0 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_r2.py
 0 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_r2.py
 
-# IR 月次 HTML → R2 mount + ingest JSON（自動 POST しない。config/ir_monthly.json html）
+# IR 月次 HTML → R2 mount + ingest JSON（自動 POST しない。config/monthly/ir_monthly.json html）
 20 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_html_r2.py
 20 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_html_r2.py
 

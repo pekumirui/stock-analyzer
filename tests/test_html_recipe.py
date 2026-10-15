@@ -14,7 +14,7 @@ from html_issuers import PARSERS  # noqa: E402
 from html_issuers.i9989 import parse as parse_9989  # noqa: E402
 from ir_monthly_html_r2 import ingest_path, load_html_registry, write_ingest  # noqa: E402
 
-CONFIG = ROOT / "config" / "ir_monthly.json"
+CONFIG = ROOT / "config" / "monthly" / "ir_monthly.json"
 
 
 def _fail(msg: str) -> None:

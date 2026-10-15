@@ -6,8 +6,8 @@ from html import escape
 
 from fastapi import Request
 
-from .config import PUBLIC_ORIGIN, PUBLIC_SITE_NAME
-from .monthly_ingest import format_monthly_cell
+from ..config import PUBLIC_ORIGIN, PUBLIC_SITE_NAME
+from .ingest import format_monthly_cell
 
 DISCLAIMER = (
     "個人の学習・分析用です。投資判断は自己責任で行ってください。"

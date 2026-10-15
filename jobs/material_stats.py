@@ -1,4 +1,4 @@
-"""素材の月次量（material_monthly）を統計から UPSERT。対応表は config/material_stats.json。
+"""素材の月次量（material_monthly）を統計から UPSERT。対応表は config/supply/material_stats.json。
 
 使い方:
   python jobs/material_stats.py                    # 経産省 Excel（生産動態・石油統計の速報・確報）+ e-Stat（前年と今年）
@@ -30,21 +30,21 @@ from app.config import (  # noqa: E402
     ESTAT_APP_ID, METI_SEIDOU_URL, METI_SEKIYU_KAKUHO_URL, METI_SEKIYU_SOKUHO_URL,
 )
 from app.db import SessionLocal, init_db  # noqa: E402
-from app.estat import (  # noqa: E402
+from app.supply.estat import (  # noqa: E402
     EstatClient, match_codes, month_of, parse_production_label, production_dims, production_table,
     published_through, seidou_records, sokuho_month, table_title, trade_country_rows, trade_rows, trade_table,
 )
-from app.material_stats import (  # noqa: E402
+from app.supply.material_stats import (  # noqa: E402
     REVISION_KAKUHO, REVISION_NENPO, REVISION_SOKUHO, SEKIYU_SOURCE, load_mapping, product_groups, prune_unmapped, sekiyu_rows,
     seidou_rows, summarize_warnings, write_country_rows, write_rows,
 )
-from app.meti import (  # noqa: E402
+from app.supply.meti import (  # noqa: E402
     MetiChallenged, MetiClient, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_nenpo_inventory_cells,
     sekiyu_sokuho_cells, seidou_december_kakuho, seidou_files,
 )
-from app.meti import seidou_records as meti_seidou_records  # noqa: E402
+from app.supply.meti import seidou_records as meti_seidou_records  # noqa: E402
 from app.models import MaterialMonthly  # noqa: E402
-from app.supply_chain import load_supply_chain  # noqa: E402
+from app.supply.chain import load_supply_chain  # noqa: E402
 
 
 def parse_years(raw: str | None, today: date) -> list[int]:
@@ -338,7 +338,7 @@ def main() -> int:
     try:
         pruned = prune_unmapped(db, mapping)
         if pruned:
-            print(f"material_stats pruned={pruned} (no longer in config/material_stats.json)")
+            print(f"material_stats pruned={pruned} (no longer in config/supply/material_stats.json)")
         n = 0
         if args.source in (None, "estat"):
             if not ESTAT_APP_ID:

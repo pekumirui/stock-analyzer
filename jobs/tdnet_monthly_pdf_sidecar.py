@@ -446,7 +446,7 @@ def parse_grids(lines: Sequence[Line]) -> list[Grid]:
 
 
 def _anchor_year(last_month: int, as_of: date) -> int:
-    # app.monthly_ingest._anchor_year と同じ（jobs は app を import しない）
+    # app.monthly.ingest._anchor_year と同じ（jobs は app を import しない）
     if date(as_of.year, last_month, 1) <= as_of:
         return as_of.year
     return as_of.year - 1

@@ -1,4 +1,4 @@
-"""経済産業省の統計 Excel。素材の月次量（app/material_stats.py）のうち e-Stat API に無い最新月を取る。
+"""経済産業省の統計 Excel。素材の月次量（app/supply/material_stats.py）のうち e-Stat API に無い最新月を取る。
 
 生産動態統計の「統計表一覧」ページから 3 種類の Excel を拾う（シート「実数表」は縦持ちで形が同じ）:
 - 速報   sokuho/h2daaYYYYMMs.xlsx              revision 1。品目と指標が確報より少ない
@@ -17,7 +17,7 @@ from urllib.parse import urljoin
 
 import httpx
 
-from .config import METI_SEIDOU_URL, METI_USER_AGENT
+from ..config import METI_SEIDOU_URL, METI_USER_AGENT
 from .material_stats import (
     REVISION_KAKUHO, REVISION_NENPO, REVISION_SOKUHO, SeidouRecord, product_name,
 )

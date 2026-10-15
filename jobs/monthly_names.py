@@ -3,7 +3,7 @@
   plan   書かずに、付け替える行・消す行・値の衝突を出す（既定）
   apply  付け替える。終わったら残りのずれを数える
 
-正規化の規則や config/issuer_aliases.json を変えたあとに、plan で中身を見てから apply する。
+正規化の規則や config/monthly/issuer_aliases.json を変えたあとに、plan で中身を見てから apply する。
 本番は Actions の Monthly names（workflow_dispatch）から動かす。
 """
 from __future__ import annotations

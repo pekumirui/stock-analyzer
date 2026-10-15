@@ -19,8 +19,8 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.api.monthly._common import ApiError, _apply_incoming_unit, _parse_code  # noqa: E402
 from app.main import app  # noqa: E402
-import app.monthly_ingest as monthly_ingest_mod  # noqa: E402
-from app.monthly_ingest import (  # noqa: E402
+import app.monthly.ingest as monthly_ingest_mod  # noqa: E402
+from app.monthly.ingest import (  # noqa: E402
     MONTHLY_DISPLAY_UNITS,
     MonthlyIngestError,
     apply_issuer_aliases,
@@ -245,7 +245,7 @@ def _add_fy_end(code: str, disclosed: date, fy_end: date, disclosure_no: str) ->
 
 def test_monthly_tree_assign() -> None:
     """rows の完全一致 → 最長 prefix。見出しは行を取らない。文字列の子は親の prefix を前置する。指標は葉で振り分ける。"""
-    from app.monthly_tree import assign_tree_rows, parse_issuer_tree, tree_payload
+    from app.monthly.tree import assign_tree_rows, parse_issuer_tree, tree_payload
 
     tree = parse_issuer_tree({
         "tree": [
@@ -301,7 +301,7 @@ def test_monthly_tree_assign() -> None:
     if tree_payload("72030", els, trees) is not None or assign_tree_rows("72030", els, trees):
         _fail("issuer without tree must be untouched")
     # PPIH: 国内リテール ▸ ディスカウント / UNY ▸ 既存店売上高の商品別（PDF の表）。ロビン・フッドは UNY の内数、Olympic は木の外
-    from app.monthly_tree import load_monthly_trees
+    from app.monthly.tree import load_monthly_trees
 
     ppih = assign_tree_rows("75320", [
         "国内リテール 既存 売上高(前年比)",
@@ -1942,7 +1942,7 @@ def test_monthly_tree_assign() -> None:
 
 def test_monthly_auto_tree() -> None:
     """config に tree の無い発行体。group は根の子の節（ゲートしない）、内訳はその節の子、指標は葉から (前年比) を外したもの。"""
-    from app.monthly_tree import auto_tree_payload, build_auto_tree
+    from app.monthly.tree import auto_tree_payload, build_auto_tree
 
     y26 = [
         ("直営+FC 全店 売上高(前年比)", "yoy_index"),
@@ -2006,7 +2006,7 @@ def test_monthly_auto_tree() -> None:
     if got != want:
         _fail(f"auto tree total/metric tokens: {got!r}")
     # 指標の語の無い前年比は、その節の金額の売上高が 1 つに決まればその前年比（アスモ）。国付きの 直営 / FC は
-    # 国の合計が無ければ国なしの同じチャネルの子（ハードオフ）。件数指標は config/issuer_metrics.json の語だけ
+    # 国の合計が無ければ国なしの同じチャネルの子（ハードオフ）。件数指標は config/monthly/issuer_metrics.json の語だけ
     monthly_ingest_mod.ISSUER_METRICS["99993"] = frozenset({"受託施設数"})
     try:
         bare = build_auto_tree("99993", {2026: [
@@ -2061,7 +2061,7 @@ def test_monthly_auto_tree() -> None:
         _fail(f"auto tree count metrics: {got_counts!r}")
     if auto.metric_parent != {"直営 全店 店舗数": "直営+FC 全店 店舗数"}:
         _fail(f"auto metric parents: {auto.metric_parent!r}")
-    from app.monthly_tree import auto_metric_parents
+    from app.monthly.tree import auto_metric_parents
     got_parent = auto_metric_parents(
         ["直営+FC 既存 売上高", "直営 既存 売上高", "直営+FC 全店 店舗数", "日本 直営+FC 全店 店舗数",
          "海外 全店 店舗数", "直営 全店 店舗数", "FC 全店 店舗数", "店舗数", "直営 店舗数"],
@@ -3351,7 +3351,7 @@ def _assert_monthly_row_order(c) -> None:
 
 def _assert_segment_tail_row_order() -> None:
     """76830: 内アパレルは segment_tail で非 tail の後。他銘柄は初出順のまま。"""
-    cfg = ROOT / "config" / "monthly_row_order.json"
+    cfg = ROOT / "config" / "monthly" / "monthly_row_order.json"
     if not cfg.is_file():
         _fail("monthly_row_order.json missing under config/")
 
@@ -3817,7 +3817,7 @@ def _assert_monthly_spa(html: str) -> None:
     for gone in ("breakdown_parent", "function monthlyTlParents", "function monthlyTimelineSections"):
         if gone in html:
             _fail(f"SPA must draw the timeline from the API tree only, found {gone!r}")
-    row_order = json.loads((ROOT / "config" / "monthly_row_order.json").read_text(encoding="utf-8"))
+    row_order = json.loads((ROOT / "config" / "monthly" / "monthly_row_order.json").read_text(encoding="utf-8"))
     for code, cfg in row_order.items():
         if isinstance(cfg, dict) and "breakdown_parent" in cfg:
             _fail(f"monthly_row_order.json {code}: breakdown_parent is gone, write the nesting in tree")
@@ -3928,7 +3928,7 @@ def _assert_monthly_layout_js() -> None:
             },
         ],
     }
-    from app.monthly_tree import assign_tree_rows, auto_tree_payload, build_auto_tree, load_monthly_trees, tree_payload
+    from app.monthly.tree import assign_tree_rows, auto_tree_payload, build_auto_tree, load_monthly_trees, tree_payload
 
     # 神戸物産（config の木）: 前年比だけの会社の行は (前年比) を残す。単独の指標は「節名 葉」
     kobe_rows = [

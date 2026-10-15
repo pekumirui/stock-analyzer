@@ -384,7 +384,7 @@ def _module_force_units() -> dict[str, str]:
 
 
 def test_load_html_registry() -> None:
-    raw_items = json.loads((ROOT / "config" / "ir_monthly.json").read_text(encoding="utf-8"))["html"]
+    raw_items = json.loads((ROOT / "config" / "monthly" / "ir_monthly.json").read_text(encoding="utf-8"))["html"]
     leaked = [
         str(item.get("code"))
         for item in raw_items
@@ -392,7 +392,7 @@ def test_load_html_registry() -> None:
     ]
     if leaked:
         _fail(f"json still has table/force_unit {leaked}")
-    live = load_html_registry(ROOT / "config" / "ir_monthly.json")
+    live = load_html_registry(ROOT / "config" / "monthly" / "ir_monthly.json")
     codes = [i.code for i in live]
     if len(codes) != 55:
         _fail(f"repo html issuers count {len(codes)}: {codes}")
@@ -621,7 +621,7 @@ def test_section_unit_percent_is_yoy_index() -> None:
 def test_rockfield_existing_and_all_store_stay_separate() -> None:
     """既存店売上と全店売上は別行。既存の数値を裸の売上高(前年比)にしない。"""
     sys.path.insert(0, str(ROOT))
-    from app.monthly_ingest import canonicalize_element_label
+    from app.monthly.ingest import canonicalize_element_label
 
     got = parse_issuer(ROCKFIELD_DUAL_SCOPE_HTML, "2910")
     labels = [r["element"] for r in got["rows"]]
@@ -723,7 +723,7 @@ def test_3148_real_page_drops_english_label() -> None:
     if all_store["values"] != {"6": 103.6, "7": 107.1, "8": 105.5}:
         _fail(f"3148 all store {all_store['values']}")
     sys.path.insert(0, str(ROOT))
-    from app.monthly_ingest import apply_issuer_aliases, canonicalize_element_label
+    from app.monthly.ingest import apply_issuer_aliases, canonicalize_element_label
 
     as_of = date(2026, 8, 31)
     stored = []
@@ -756,7 +756,7 @@ def test_3549_sticky_metric_on_bare_kizon() -> None:
     if spend["values"].get("9") != 104.4:
         _fail(f"3549 客単価 既存店 {spend}")
     sys.path.insert(0, str(ROOT))
-    from app.monthly_ingest import apply_issuer_aliases, canonicalize_element_label
+    from app.monthly.ingest import apply_issuer_aliases, canonicalize_element_label
 
     as_of = date(2026, 9, 30)
     stored = []
@@ -786,7 +786,7 @@ def test_3549_store_status_prefix_strips_to_open_close() -> None:
     if closed["values"] != {"6": 0, "7": 4, "8": 1, "9": 1}:
         _fail(f"3549 退店数 {closed}")
     sys.path.insert(0, str(ROOT))
-    from app.monthly_ingest import apply_issuer_aliases, canonicalize_element_label
+    from app.monthly.ingest import apply_issuer_aliases, canonicalize_element_label
 
     as_of = date(2026, 9, 30)
     stored = []
@@ -1049,7 +1049,7 @@ def test_royal_two_brands_union_halves_and_keep_existing_scope() -> None:
     if any(not el.startswith(("ロイヤルホスト ", "てんや ")) for el in labels):
         _fail(f"unbranded {labels}")
     sys.path.insert(0, str(ROOT))
-    from app.monthly_ingest import canonicalize_element_label
+    from app.monthly.ingest import canonicalize_element_label
 
     stored = canonicalize_element_label(tenya_guest["element"], tenya_guest["unit"])
     if stored != "てんや 既存 客数(前年比)":
@@ -1282,7 +1282,7 @@ WASHHOUSE_FY2024_HTML = """
 
 def _washhouse_stored(element: str, unit: str) -> str:
     sys.path.insert(0, str(ROOT))
-    from app.monthly_ingest import canonicalize_element_label
+    from app.monthly.ingest import canonicalize_element_label
 
     return canonicalize_element_label(element, unit)
 
@@ -1360,7 +1360,7 @@ def test_washhouse_past_year_as_of_from_row_dates() -> None:
     if stores["unit"] != "number" or stores["values"].get("12") != 583:
         _fail(f"6537 fy2024 stores {stores}")
     sys.path.insert(0, str(ROOT))
-    from app.monthly_ingest import plan_column_years
+    from app.monthly.ingest import plan_column_years
 
     _layout, mapping = plan_column_years(got["months"], 12, date(2024, 12, 31))
     years = dict(mapping)
@@ -2649,7 +2649,7 @@ def test_watami_prefers_sales_over_kyoten() -> None:
 
 def _watami_stored(element: str, unit: str, *, year: int = 2026) -> str:
     sys.path.insert(0, str(ROOT))
-    from app.monthly_ingest import apply_issuer_aliases, canonicalize_element_label
+    from app.monthly.ingest import apply_issuer_aliases, canonicalize_element_label
 
     name = canonicalize_element_label(element, unit)
     name = apply_issuer_aliases("75220", name, year=year)
@@ -2802,7 +2802,7 @@ def test_hurxley_dual_brand_prefixes_and_count_units() -> None:
 
 def _hurxley_stored(element: str, unit: str, *, year: int = 2026) -> str:
     sys.path.insert(0, str(ROOT))
-    from app.monthly_ingest import apply_issuer_aliases, canonicalize_element_label
+    from app.monthly.ingest import apply_issuer_aliases, canonicalize_element_label
 
     name = canonicalize_element_label(element, unit)
     name = apply_issuer_aliases("75610", name, year=year)
@@ -2834,7 +2834,7 @@ def test_hurxley_canonicalize_aliases() -> None:
         if got != want:
             _fail(f"hurxley alias {src!r} → {got!r}, want {want!r}")
     parent = _hurxley_stored("店舗流通ネット 稼働店舖数(①+②) (店)", "number")
-    from app.monthly_ingest import monthly_element_label
+    from app.monthly.ingest import monthly_element_label
 
     lab = monthly_element_label(parent, "number")
     if lab["group"] != "店舗流通ネット" or lab["metric"] != "稼働店舗数" or lab["breakdown"]:
@@ -3544,7 +3544,7 @@ def test_9946_all_store_sales_total() -> None:
     if sales["values"] != want:
         _fail(f"9946 values {sales['values']}")
     sys.path.insert(0, str(ROOT))
-    from app.monthly_ingest import apply_issuer_aliases, canonicalize_element_label
+    from app.monthly.ingest import apply_issuer_aliases, canonicalize_element_label
 
     as_of = date(2026, 8, 31)
     name = apply_issuer_aliases(
@@ -3998,7 +3998,7 @@ def test_brand_issuers_reject_foreign_page_without_sidecar() -> None:
     </table>
     </body></html>
     """
-    live = {i.code: i for i in load_html_registry(ROOT / "config" / "ir_monthly.json")}
+    live = {i.code: i for i in load_html_registry(ROOT / "config" / "monthly" / "ir_monthly.json")}
     with tempfile.TemporaryDirectory() as d:
         tmp = Path(d)
         for code in ("2910", "3148", "7522", "7561", "8179", "8278", "9946", "9994"):
@@ -4035,7 +4035,7 @@ def test_7522_fy2025_q4_months_map_to_2026() -> None:
     if got["months"] != [10, 11, 12, 1, 2, 3]:
         _fail(f"7522 fy2025 months {got['months']}")
     sys.path.insert(0, str(ROOT))
-    from app.monthly_ingest import plan_column_years
+    from app.monthly.ingest import plan_column_years
 
     _layout, mapping = plan_column_years(got["months"], 3, date(2026, 3, 31))
     years = dict(mapping)
@@ -4052,7 +4052,7 @@ def test_7522_index_follows_js_location_to_fy2026() -> None:
     """目次の最新年度は <a> ではなく location.href。"""
     path = ROOT / "tests" / "testdata" / "html_7522" / "index-recent.html"
     html = decode_html_bytes(path.read_bytes())
-    live = {i.code: i for i in load_html_registry(ROOT / "config" / "ir_monthly.json")}
+    live = {i.code: i for i in load_html_registry(ROOT / "config" / "monthly" / "ir_monthly.json")}
     iss = live["7522"]
     url = pick_follow_url(html, iss.index_url, iss.follow_re)
     if url != "https://www.watami.co.jp/ir/library/recent/fy2026/":

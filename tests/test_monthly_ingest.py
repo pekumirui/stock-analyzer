@@ -19,8 +19,8 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.main import app  # noqa: E402
-import app.monthly_ingest as monthly_ingest_mod  # noqa: E402
-from app.monthly_ingest import (  # noqa: E402
+import app.monthly.ingest as monthly_ingest_mod  # noqa: E402
+from app.monthly.ingest import (  # noqa: E402
     MonthlyIngestError,
     apply_issuer_aliases,
     canonicalize_element_label,
@@ -767,7 +767,7 @@ def test_issuer_alias_cases() -> None:
     cases = plan_issuer_alias_cases()
     if not cases:
         _fail("issuer_aliases.json の rename が空")
-    from app.monthly_ingest import ISSUER_ELEMENT_ALIASES
+    from app.monthly.ingest import ISSUER_ELEMENT_ALIASES
     codes = {code for code, _, _, _ in cases}
     missing = sorted(set(ISSUER_ELEMENT_ALIASES) - codes)
     if missing:
@@ -1855,7 +1855,7 @@ def test_rename_29260_style_cross_year_yoy() -> None:
     """年Aは短い yoy 名、年Bは正規名。migrate で短い名を正規名へ。number は触らない。"""
     from app.db import SessionLocal, merge_yoy_duplicate_elements
     from app.models import MonthlyElement, MonthlyTable, MonthlyValue
-    from app.monthly_ingest import union_monthly_elements
+    from app.monthly.ingest import union_monthly_elements
 
     c = TestClient(app)
     code = "29260"
@@ -2752,7 +2752,7 @@ def _issuer_count_words(code: str, words: frozenset[str]):
 
 
 def test_issuer_count_metrics() -> None:
-    """件数指標は config/issuer_metrics.json の銘柄だけ。層だけに効き、保存名は並べ替えない。"""
+    """件数指標は config/monthly/issuer_metrics.json の銘柄だけ。層だけに効き、保存名は並べ替えない。"""
     cases = (
         (
             "アスモフードサービス 受託施設数",

@@ -193,7 +193,7 @@ def test_put_values_batch_retries_sqlite_lock() -> None:
 
 
 def test_indicators_are_written_in_chunks() -> None:
-    src = (ROOT / "app" / "analytics.py").read_text(encoding="utf-8")
+    src = (ROOT / "app" / "market" / "analytics.py").read_text(encoding="utf-8")
     if "delete_all_chunked" not in src:
         _fail("compute_indicators must delete indicators in chunks")
     if "commit=False" in src:
@@ -319,9 +319,9 @@ def test_chunked_commits_let_other_writer_in() -> None:
 
 
 def test_delete_all_chunked_and_compute_indicators_commit() -> None:
-    from app.analytics import compute_indicators
+    from app.market.analytics import compute_indicators
     from app.db import SessionLocal, init_db
-    from app.ingest import delete_all_chunked, upsert
+    from app.market.ingest import delete_all_chunked, upsert
     from app.models import DailyPrice, Indicator, Stock
 
     init_db()
@@ -374,7 +374,7 @@ def test_put_values_batch_during_writer_lock() -> None:
     from fastapi.testclient import TestClient
 
     from app.db import SessionLocal, init_db
-    from app.ingest import upsert
+    from app.market.ingest import upsert
     from app.main import app
     from app.models import MonthlyElement, MonthlyTable, Stock
 

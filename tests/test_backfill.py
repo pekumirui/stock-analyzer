@@ -14,8 +14,8 @@ _tmp = tempfile.mkdtemp(prefix="stock-analyzer-backfill-")
 os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
 
 from app.db import SessionLocal, init_db  # noqa: E402
-from app.ingest import BackfillError, run_backfill  # noqa: E402
-from app.jquants import JQuantsClient  # noqa: E402
+from app.market.ingest import BackfillError, run_backfill  # noqa: E402
+from app.market.jquants import JQuantsClient  # noqa: E402
 from app.models import DailyPrice  # noqa: E402
 
 
@@ -90,7 +90,7 @@ def test_backfill_calendar_empty() -> None:
     init_db()
     db = SessionLocal()
     try:
-        with patch("app.ingest.JQuantsClient", _EmptyCalJQ):
+        with patch("app.market.ingest.JQuantsClient", _EmptyCalJQ):
             try:
                 run_backfill(db, years=1)
             except BackfillError as exc:
@@ -108,7 +108,7 @@ def test_backfill_day_rollback() -> None:
     init_db()
     db = SessionLocal()
     try:
-        with patch("app.ingest.JQuantsClient", _FakeJQ):
+        with patch("app.market.ingest.JQuantsClient", _FakeJQ):
             try:
                 run_backfill(db, years=1)
             except BackfillError as exc:

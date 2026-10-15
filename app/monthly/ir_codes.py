@@ -1,11 +1,11 @@
-"""config/ir_monthly.json の銘柄コード。デバッグ用グループの正本。URL は出さない。"""
+"""config/monthly/ir_monthly.json の銘柄コード。デバッグ用グループの正本。URL は出さない。"""
 from __future__ import annotations
 
 import json
 import re
 from pathlib import Path
 
-from .config import IR_MONTHLY_PATH
+from ..config import IR_MONTHLY_PATH
 
 _CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}$")
 

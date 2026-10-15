@@ -899,7 +899,7 @@ def test_months_missing_from_sidecar_does_not_post(tmp: Path) -> None:
 
 
 def test_fixture_3082_force_months(tmp: Path) -> None:
-    iss = next(i for i in load_html_registry(ROOT / "config" / "ir_monthly.json") if i.code == "3082")
+    iss = next(i for i in load_html_registry(ROOT / "config" / "monthly" / "ir_monthly.json") if i.code == "3082")
     html = decode_html_bytes((ROOT / "tests" / "testdata" / "html_issue248" / "3082.html").read_bytes())
     payload = ingest_payload(html, iss)
     text = dumps_ingest(payload)

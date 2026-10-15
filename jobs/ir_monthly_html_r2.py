@@ -10,7 +10,7 @@
 --only は 4桁 (3082) でも 5桁の J-Quants コード (30820) でもよい。
 display_code が先頭 4 桁に切る。--force は --only が必須。
 
-対象は config/ir_monthly.json の html。セレクタは json。
+対象は config/monthly/ir_monthly.json の html。セレクタは json。
 parse: true は jobs/html_issuers。parse: false は HTML だけ残す。
 原本は .html、派生が .ingest.json。自動 POST しない。パーサーを直したら --reparse（過去 HTML）。
 同じ HTML の再取得でも、現行パーサの JSON が保存済みと違えば sidecar を書き直す。

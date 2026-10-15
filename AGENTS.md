@@ -36,20 +36,24 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 
 | 場所 | 役割 |
 |---|---|
+| `app/` 直下 | 機能をまたぐ共通部分（`config` / `models` / `db` / `main` / `assets` / `fx`）。機能ごとのコードは `market/`（株価・決算: チャート・スクリーナー・決算タブ）/ `monthly/` / `supply/` / `xbrl/` と `api/` |
 | `app/config.py` | 環境変数・閾値・プラン上限・ベース URL。ハードコードせずここに集約 |
 | `app/models.py` | SQLAlchemy スキーマ |
 | `app/db.py` | セッションと migrate |
-| `app/jquants.py` | J-Quants API V2 クライアント（認証・ページング・レート制限） |
-| `app/ingest.py` | API → DB 取込（UPSERT・冪等） |
-| `app/analytics.py` | MA / RS / ステージ / Q単独 / 決算後リターン |
+| `app/market/jquants.py` | J-Quants API V2 クライアント（認証・ページング・レート制限） |
+| `app/market/ingest.py` | API → DB 取込（UPSERT・冪等） |
+| `app/market/analytics.py` | MA / RS / ステージ / Q単独 / 決算後リターン |
+| `app/market/earnings_schedule.py` | 決算カレンダー（発表予定と開示件数） |
 | `app/fx.py` | Frankfurter ECB 対EUR レートとクロス換算 |
 | `app/api/` | REST。`/api/*` は機能ごとに 1 ファイル（`earnings` / `chart` / `screener` / `stocks` / `supply`）。月次 `/api/v1/tables` は `monthly/`（`_common` に検査と書き込み、`elements` / `ingest` / `tables` / `doc`） |
-| `app/monthly_ingest.py` | PDF 月次列 → 暦年。行名正規化と aliases |
-| `app/monthly_tree.py` | 月次の親子関係。`monthly_row_order.json` の `tree`、無ければゲートと内訳から作る自動の木を行に割り当てる。year GET の `tree` |
-| `app/supply_chain.py` | サプライタブの素材マスタ（`config/supply_chain.json`）と企業マスタ（`config/supply_companies.json`）の読込と検査。月次量の API 形と見掛け消費 |
-| `app/material_stats.py` | 素材の月次量（`material_monthly`）の共通部分。対応表 `config/material_stats.json`、品名 → 素材の合計、revision（速報 < 確報 < 年報）を下げない UPSERT |
-| `app/estat.py` | e-Stat API クライアント。生産動態統計の年報と貿易統計 |
-| `app/meti.py` | 経産省の統計 Excel。生産動態統計（速報・確報・年間補正号）と資源・エネルギー統計の石油（速報・確報・年報） |
+| `app/monthly/ingest.py` | PDF 月次列 → 暦年。行名正規化と aliases |
+| `app/monthly/public.py` | 公開ページ `/monthly` の HTML・sitemap・robots |
+| `app/monthly/ir_codes.py` | `config/monthly/ir_monthly.json` の銘柄コード（デバッグ用グループ） |
+| `app/monthly/tree.py` | 月次の親子関係。`monthly_row_order.json` の `tree`、無ければゲートと内訳から作る自動の木を行に割り当てる。year GET の `tree` |
+| `app/supply/chain.py` | サプライタブの素材マスタ（`config/supply/supply_chain.json`）と企業マスタ（`config/supply/supply_companies.json`）の読込と検査。月次量の API 形と見掛け消費 |
+| `app/supply/material_stats.py` | 素材の月次量（`material_monthly`）の共通部分。対応表 `config/supply/material_stats.json`、品名 → 素材の合計、revision（速報 < 確報 < 年報）を下げない UPSERT |
+| `app/supply/estat.py` | e-Stat API クライアント。生産動態統計の年報と貿易統計 |
+| `app/supply/meti.py` | 経産省の統計 Excel。生産動態統計（速報・確報・年間補正号）と資源・エネルギー統計の石油（速報・確報・年報） |
 | `app/main.py` | FastAPI エントリ + SPA 配信 |
 | `app/assets.py` | 配信する HTML の `/static` URL に中身のハッシュ（`?v=`）を付ける |
 | `app/xbrl/` | TDnet 短信 iXBRL の parse / YAML マッピング / normalize。UI には出さない |
@@ -62,7 +66,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `jobs/*_r2.py` | TDnet / IR → R2 mount。下の「R2 バッチ」 |
 | `jobs/_r2common.py` | R2 バッチの共通処理（日付・HTTP・銘柄マスタ・ファイル名）。`app` は import しない |
 | `jobs/html_issuers/` | `parse: true` の HTML 月次。各 `i<code>.py` が表・行・単位を宣言する。`parse: false` はモジュールを作らない |
-| `config/` | `ir_monthly.json`、`issuer_aliases.json`、`issuer_metrics.json`、`monthly_vocab.json`（行名の共通語彙）、`monthly_row_order.json`、`supply_chain.json`（サプライタブの素材と流れ）、`supply_companies.json`（サプライタブの企業・生産能力）、`material_stats.json`（統計の品目 → 素材）、XBRL YAML、Ruff/Bandit は `pyproject.toml` |
+| `config/` | 機能ごとのフォルダ。`monthly/`（`ir_monthly.json`、`issuer_aliases.json`、`issuer_metrics.json`、`monthly_vocab.json`（行名の共通語彙）、`monthly_row_order.json`）、`supply/`（`supply_chain.json`（素材と流れ）、`supply_companies.json`（企業・生産能力）、`material_stats.json`（統計の品目 → 素材））、`xbrl/`（YAML）。Ruff/Bandit は `pyproject.toml` |
 | `tests/` | `test_*.py` と `ci_smoke.py`。新しい `test_*.py` は `ci_smoke.SUITES` に登録する（漏れは ci_smoke が落とす） |
 | `analyzer/` | `stock.db` を読むだけのオフライン分析（1 問 1 フォルダ、結果は各 `README.md`）。約束と一覧は `analyzer/README.md`。`app` からは使わない |
 | `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ） |
@@ -97,7 +101,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 - `stocks` に無い code は書かない。ingest / POST / PUT は先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`
 - FK は付けない。`PRAGMA foreign_keys` も有効化しない
 - `MonthlyElement.unit` は保存 `number` / `yoy_index`。入力タグは `yoy_pct` も可（見出し。値の大きさから推測しない）。ingest は `yoy_pct` を `yoy_index` と `value+100` にして書く。PUT values は保存形の訂正で `+100` しない
-- 行名は `canonicalize_element_label`。銘柄固有は `config/issuer_aliases.json`（改名）と `config/issuer_metrics.json`（件数指標。層だけで保存名は変えない）。新しい例外は `docs/DESIGN_monthly_labels.md` に箇条書きで足す
+- 行名は `canonicalize_element_label`。銘柄固有は `config/monthly/issuer_aliases.json`（改名）と `config/monthly/issuer_metrics.json`（件数指標。層だけで保存名は変えない）。新しい例外は `docs/DESIGN_monthly_labels.md` に箇条書きで足す
 - 保存名は起動時・取り込み時に作り直さない（凍結）。正規化や alias を変えたら Actions の **Monthly names** で plan → apply
 - `tests/test_monthly_ingest.py` に銘柄分岐は足さない
 - 月次業種は `monthly_issuers.industry`（既定 `その他`）。`stocks.sector33` とは別。ingest は `last_ingested_at` だけ更新し industry を触らない
@@ -144,8 +148,8 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `jobs/tdnet_monthly_r2.py N` | `monthly/{code}/YYYYMMDD_CODE_….pdf` | 18:00 / 21:00（N=1）。初回は Actions の **TDnet monthly backfill** | `DESIGN.md` §3 |
 | `jobs/tdnet_monthly_pdf_sidecar.py` | `monthly/{code}/….pdf-ingest.json`（前回投入分と同じ書式の PDF だけ） | 18:20 / 21:20 | `DESIGN.md` §3。自動 POST しない |
 | `jobs/tdnet_monthly_pdf_ingest.py` | （R2 は読まない。loopback POST） | 18:30 / 21:30 | `DESIGN.md` §3。`--ledger` は `/var/log/app/pdf_ingest_ledger.json` |
-| `jobs/ir_monthly_r2.py` | `monthly/{code}/….pdf` / `.xlsx` / `.xls` | 10:00 / 16:00 | `DESIGN.md` §3、対象は `config/ir_monthly.json` の issuers |
-| `jobs/ir_monthly_html_r2.py` | `monthly/{code}/…_月次.html` + `.ingest.json` | 10:20 / 16:20 | `DESIGN.md` §3、対象は `config/ir_monthly.json` の html。自動 POST しない |
+| `jobs/ir_monthly_r2.py` | `monthly/{code}/….pdf` / `.xlsx` / `.xls` | 10:00 / 16:00 | `DESIGN.md` §3、対象は `config/monthly/ir_monthly.json` の issuers |
+| `jobs/ir_monthly_html_r2.py` | `monthly/{code}/…_月次.html` + `.ingest.json` | 10:20 / 16:20 | `DESIGN.md` §3、対象は `config/monthly/ir_monthly.json` の html。自動 POST しない |
 | `jobs/ir_monthly_html_ingest.py` | （R2 は読まない。loopback POST） | 10:30 / 16:30 | `DESIGN.md` §3。`--ledger` は `/var/log/app/html_ingest_ledger.json` |
 | `jobs/tdnet_xbrl_r2.py N` | `xbrl/{code4}/` | 12–23 時 毎時 00 分（N=1） | `docs/DESIGN_xbrl.md` |
 | `jobs/xbrl_parse.py` → `jobs/xbrl_normalize.py` | `xbrl_*` テーブル | 毎時 10 分 / 20 分 | `docs/DESIGN_xbrl.md` |

@@ -258,7 +258,7 @@ def test_load_registry(tmp: Path) -> None:
         _fail(f"codes: {[r.code for r in rows]}")
     if display_code(rows[1].code) != "2695":
         _fail("26950 should normalize")
-    repo_cfg = ROOT / "config" / "ir_monthly.json"
+    repo_cfg = ROOT / "config" / "monthly" / "ir_monthly.json"
     live = load_registry(repo_cfg)
     codes = {i.code for i in live}
     if codes != {"1878", "2695", "3088", "3382", "3397"}:

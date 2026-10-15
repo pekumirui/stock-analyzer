@@ -212,7 +212,7 @@ def ingest_range(
     commit: bool = True,
 ) -> dict[str, int]:
     """期間を chunk して UPSERT。冪等。EUR 自身は書かない。"""
-    from .ingest import upsert
+    from .market.ingest import upsert
 
     if end < start:
         return {"days": 0, "rows": 0, "chunks": 0}

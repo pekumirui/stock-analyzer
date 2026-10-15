@@ -7,8 +7,8 @@ import numpy as np
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, defer
 
-from .config import STAGE_PARAMS as P, EARNINGS_PARAMS as EP, RS_PRODUCT_CATEGORIES
-from .models import DailyPrice, Topix, Indicator, Statement, EarningsEvent, Stock
+from ..config import STAGE_PARAMS as P, EARNINGS_PARAMS as EP, RS_PRODUCT_CATEGORIES
+from ..models import DailyPrice, Topix, Indicator, Statement, EarningsEvent, Stock
 from .ingest import WRITE_CHUNK_SIZE, _f, delete_all_chunked, upsert
 
 

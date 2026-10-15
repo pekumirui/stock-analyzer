@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 
 from .config import DATABASE_URL
 from .models import Base, MonthlyElement, MonthlyValue
-from .monthly_ingest import (
+from .monthly.ingest import (
     MonthlyIngestError,
     apply_issuer_aliases,
     canonicalize_element_label,

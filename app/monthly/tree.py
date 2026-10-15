@@ -1,4 +1,4 @@
-"""月次表の親子関係（発行体ごと）。正本は config/monthly_row_order.json の `tree` と `metrics`。
+"""月次表の親子関係（発行体ごと）。正本は config/monthly/monthly_row_order.json の `tree` と `metrics`。
 
 木の節は事業・会社・店・品目。指標（総額売上高 / 売上収益(IFRS) / 入店客数 …）は節の子にしない。
 同じ節を別の物差しで測った行は、葉の名前で `metrics` のどれかに振り分ける。
@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
 from app.config import MONTHLY_ROW_ORDER_PATH
-from app.monthly_ingest import (
+from app.monthly.ingest import (
     canonicalize_element_label, issuer_segment_tail, monthly_element_label,
     monthly_row_breakdown_rank, monthly_row_slot, monthly_row_unit_rank, strip_yoy_fragments, union_monthly_elements,
 )

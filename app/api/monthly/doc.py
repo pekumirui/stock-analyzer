@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from ...db import delete_monthly_element, get_session, rename_monthly_element, run_sqlite_write
 from ...models import MonthlyElement, MonthlyValue
-from ...monthly_tree import MONTHLY_TREES, assign_tree_rows
+from ...monthly.tree import MONTHLY_TREES, assign_tree_rows
 from ._common import (
     ApiError, _element_unit, _get_element, _get_table, _parse_code, _parse_value, _parse_year,
     _require_object, _require_stock, _upsert_value, forbid_proxied_monthly_write,
@@ -177,7 +177,7 @@ def _doc_plan(db: Session, code: str, year_i: int, body: dict) -> dict:
         missing = [n for n in final if n not in assigned]
         if missing:
             warnings.append({"code": "NOT_IN_TREE", "elements": missing,
-                             "message": "config/monthly_row_order.json の木に入らない行があります。"})
+                             "message": "config/monthly/monthly_row_order.json の木に入らない行があります。"})
     return {"rows": rows, "deleted": deleted, "changes": changes,
             "structural": structural, "warnings": warnings}
 

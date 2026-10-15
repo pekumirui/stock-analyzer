@@ -5,7 +5,7 @@
   python jobs/ir_monthly_r2.py --dest /tmp/monthly --only 3382
   python jobs/ir_monthly_r2.py --dry-run
 
-対象は config/ir_monthly.json。表計算と pdf が両方あるページは表計算だけ取る。
+対象は config/monthly/ir_monthly.json。表計算と pdf が両方あるページは表計算だけ取る。
 xlsx があれば xlsx、なければ xls。ingest / パーサーはまだ。
 ネットワークと app/ はテストから分離する。
 """
@@ -41,7 +41,7 @@ from _r2common import (  # noqa: E402
 from tdnet_monthly_r2 import display_code, download_skip_reason  # noqa: E402
 
 DEFAULT_DEST = "/home/stock/r2-share/monthly"
-DEFAULT_CONFIG = SCRIPT_DIR.parent / "config" / "ir_monthly.json"
+DEFAULT_CONFIG = SCRIPT_DIR.parent / "config" / "monthly" / "ir_monthly.json"
 SLEEP_SEC = 0.4
 _EXT_RE = re.compile(r"\.(pdf|xlsx|xls)(?:$|[?#])", re.I)
 _ALLOWED_EXT = frozenset({"pdf", "xlsx", "xls", "html"})

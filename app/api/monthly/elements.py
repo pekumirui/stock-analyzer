@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from ...db import delete_monthly_element, get_session, rename_monthly_element, run_sqlite_write
 from ...models import MonthlyValue
-from ...monthly_ingest import (
+from ...monthly.ingest import (
     MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label, coerce_monthly_storage,
 )
 from ._common import (

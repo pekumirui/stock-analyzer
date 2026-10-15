@@ -353,9 +353,9 @@ class FxRate(Base):
 
 
 class MaterialMonthly(Base):
-    """サプライタブの素材ごとの月次量。素材は config/supply_chain.json の id（FK なし）。
+    """サプライタブの素材ごとの月次量。素材は config/supply/supply_chain.json の id（FK なし）。
 
-    統計の品目との対応は config/material_stats.json。取込は DESIGN.md §3「素材の月次量」。
+    統計の品目との対応は config/supply/material_stats.json。取込は DESIGN.md §3「素材の月次量」。
     """
     __tablename__ = "material_monthly"
     material_id = Column(String, primary_key=True)

@@ -14,7 +14,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from .jquants import JQuantsClient
-from .models import Stock, DailyPrice, Topix, Statement
+from ..models import Stock, DailyPrice, Topix, Statement
 
 
 def _d(s):

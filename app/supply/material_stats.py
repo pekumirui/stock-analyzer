@@ -1,6 +1,6 @@
-"""素材の月次量（material_monthly）の共通部分。統計ごとの取得は app/estat.py（e-Stat API）と app/meti.py（経産省 Excel）。
+"""素材の月次量（material_monthly）の共通部分。統計ごとの取得は app/supply/estat.py（e-Stat API）と app/supply/meti.py（経産省 Excel）。
 
-- 対応表 config/material_stats.json: 統計の品名・統計品目番号 → 素材 id
+- 対応表 config/supply/material_stats.json: 統計の品名・統計品目番号 → 素材 id
 - 生産動態統計は e-Stat（年報）と経産省 Excel（速報・確報）の両方から同じ source に書く。
   revision（速報 1 < 確報 2 < 年報 3）が下がる上書きはしない
 設計は DESIGN.md §3「素材の月次量」。
@@ -19,9 +19,9 @@ from typing import Any, Iterable, NamedTuple
 from sqlalchemy import tuple_
 from sqlalchemy.orm import Session
 
-from .config import MATERIAL_STATS_PATH
-from .ingest import upsert
-from .models import MaterialMonthly, MaterialTradeCountry
+from ..config import MATERIAL_STATS_PATH
+from ..market.ingest import upsert
+from ..models import MaterialMonthly, MaterialTradeCountry
 
 METRICS = ("production", "shipment", "inventory", "import", "export", "processing", "domestic_sales")
 REVISION_SOKUHO, REVISION_KAKUHO, REVISION_NENPO = 1, 2, 3

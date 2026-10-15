@@ -18,7 +18,7 @@ os.environ.setdefault("JQUANTS_API_KEY", "test-key")
 
 from app.config import load_dotenv  # noqa: E402
 from app.db import SessionLocal, init_db  # noqa: E402
-from app.ingest import (  # noqa: E402
+from app.market.ingest import (  # noqa: E402
     ingest_master,
     ingest_prices_for_code,
     ingest_prices_for_date,
@@ -26,7 +26,7 @@ from app.ingest import (  # noqa: E402
     ingest_topix,
     run_daily,
 )
-from app.jquants import JQuantsClient, RateLimiter  # noqa: E402
+from app.market.jquants import JQuantsClient, RateLimiter  # noqa: E402
 from app.models import DailyPrice, Statement, Stock, Topix  # noqa: E402
 
 
@@ -75,7 +75,7 @@ def test_rate_limiter_sleeps_when_full() -> None:
         clock["t"] += sec
 
     lim = RateLimiter(2)
-    with patch("app.jquants.time.monotonic", mono), patch("app.jquants.time.sleep", sleep):
+    with patch("app.market.jquants.time.monotonic", mono), patch("app.market.jquants.time.sleep", sleep):
         lim.acquire()
         lim.acquire()
         if slept:
@@ -96,7 +96,7 @@ def test_get_all_pages_and_429() -> None:
     ])
     jq._client = fake  # type: ignore[assignment]
     slept: list[float] = []
-    with patch("app.jquants.time.sleep", slept.append), patch.object(jq._limiters["default"], "acquire", lambda: None):
+    with patch("app.market.jquants.time.sleep", slept.append), patch.object(jq._limiters["default"], "acquire", lambda: None):
         rows = jq.get_all("/equities/master", {"date": "2026-09-01"})
     if rows != [{"Code": "72030"}, {"Code": "99840"}]:
         _fail(f"pages {rows}")
@@ -118,7 +118,7 @@ def test_429_backoff_gives_up_after_six() -> None:
     fake = _FakeHTTP([_Resp(429)] * 6)
     jq._client = fake  # type: ignore[assignment]
     slept: list[float] = []
-    with patch("app.jquants.time.sleep", slept.append), patch.object(jq._limiters["fins"], "acquire", lambda: None):
+    with patch("app.market.jquants.time.sleep", slept.append), patch.object(jq._limiters["fins"], "acquire", lambda: None):
         try:
             jq.get_all("/fins/summary", {"date": "2026-09-01"})
         except RuntimeError as exc:
@@ -280,7 +280,7 @@ def test_run_daily_uses_injected_client() -> None:
                      "DiscTime": "20:00", "DocType": "EarnForecastRevision", "CurPerType": "FY"}]
 
     try:
-        with patch("app.ingest.JQuantsClient", JQ):
+        with patch("app.market.ingest.JQuantsClient", JQ):
             # 2026-09-01 より前の株価は無いので前営業日の取り直しは無い
             db.query(Statement).filter(Statement.disclosure_no == "L1").delete()
             db.commit()

@@ -1,6 +1,6 @@
 # サプライ
 
-The supply tab draws a material graph (原料 → 中間財 → 最終製品, upstream left to downstream right) from `config/supply_chain.json`, and a side panel for the picked material or company: up/downstream chips, makers, capacity share donuts, import countries, and a monthly volume chart. Spec is `docs/DESIGN_supply.md`; code is `static/js/supply.js` + `app/supply_chain.py`.
+The supply tab draws a material graph (原料 → 中間財 → 最終製品, upstream left to downstream right) from `config/supply/supply_chain.json`, and a side panel for the picked material or company: up/downstream chips, makers, capacity share donuts, import countries, and a monthly volume chart. Spec is `docs/DESIGN_supply.md`; code is `static/js/supply.js` + `app/supply/chain.py`.
 
 ## Sub-features
 
@@ -41,7 +41,7 @@ Preconditions:
 - **Select company.** Search `4042` (or reload `#supply/tosoh`) → hash `#supply/tosoh`, `h2` 東ソー 上場 4042, `.sel` on ethylene / benzene / xylene / pe / pvc. `#supply-chart-link` href is `#chart/40420`; click → チャート tab active, hash `#chart/40420`.
 - **Search order.** `トヨタ自動車 7203` → `toyota`. `ポリ` (no exact label) → first material containing it (`pe`). `zzzz` → selection unchanged.
 - **Clear.** `#supply-reset` → hash `#supply`, `#supply-q` empty, no `.dim`, no-pick copy.
-- **Monthly / countries.** With prod-like data, pick a material with stats (e.g. `crude`; country rows come from `trade.country_items` 2709 in `config/material_stats.json`): `#supply-monthly` has the table and `#supply-chart`; `node.ctry` boxes appear. On an empty DB the panel reads 「統計の対応がまだありません。」 and `#supply-countries` stays empty.
+- **Monthly / countries.** With prod-like data, pick a material with stats (e.g. `crude`; country rows come from `trade.country_items` 2709 in `config/supply/material_stats.json`): `#supply-monthly` has the table and `#supply-chart`; `node.ctry` boxes appear. On an empty DB the panel reads 「統計の対応がまだありません。」 and `#supply-countries` stays empty.
 - **Proof.** Keep `artifacts/supply/*.json`. If CDP: `ui.png` of `/app#supply/ethylene` with header `h1` `株式分析`.
 
 ## Gotchas

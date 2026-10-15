@@ -154,7 +154,7 @@ def main() -> None:
     if r.status_code not in (200, 201):
         _fail(f"loopback POST should work: {r.status_code} {r.text[:200]}")
 
-    pub = (ROOT / "app" / "public_monthly.py").read_text(encoding="utf-8")
+    pub = (ROOT / "app" / "monthly" / "public.py").read_text(encoding="utf-8")
     if "ゲート（一時）" in pub or "IR（一時）" in pub or "monthly-layout-debug" in pub:
         _fail("public HTML builder must not emit TEMP debug UI")
 

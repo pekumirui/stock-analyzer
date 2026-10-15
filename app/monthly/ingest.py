@@ -379,7 +379,7 @@ def _peel_metric(
     """指標語をトークンの前後から剥がす。残りはセグメント候補。
 
     短い接頭辞（売上/来客/単価）は前方一致しない（売上変化を売上高にしない）。
-    count_metrics は銘柄別の件数指標（`config/issuer_metrics.json`）。完全一致だけ。
+    count_metrics は銘柄別の件数指標（`config/monthly/issuer_metrics.json`）。完全一致だけ。
     """
     if tok in _ACTIVE_STORE_BREAKDOWN_RANK:
         return None, tok
@@ -1245,7 +1245,7 @@ class MonthlyElementLabel(TypedDict):
 def monthly_element_label(
     element: str, unit: str | None, code: str | None = None,
 ) -> MonthlyElementLabel:
-    """code は銘柄別の件数指標（`config/issuer_metrics.json`）を層に効かせる。表示名は code で変わらない。"""
+    """code は銘柄別の件数指標（`config/monthly/issuer_metrics.json`）を層に効かせる。表示名は code で変わらない。"""
     u = unit or "number"
     canon = canonicalize_element_label(strip_monthly_display_unit(element, u), u)
     display = monthly_display_label(canon, u)

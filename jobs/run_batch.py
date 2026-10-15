@@ -13,8 +13,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.db import SessionLocal, init_db
-from app import ingest, analytics
-from app.earnings_schedule import sync
+from app.market import ingest, analytics
+from app.market.earnings_schedule import sync
 
 
 def main():
