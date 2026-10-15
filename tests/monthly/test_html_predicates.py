@@ -5,10 +5,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "jobs"))
+sys.path.insert(0, str(ROOT))
 
-from html_issuers import i3028, i3222, i7416, i8011, i8194  # noqa: E402
-from html_issuers._branded import (  # noqa: E402
+from jobs.monthly.html_issuers import i3028, i3222, i7416, i8011, i8194  # noqa: E402
+from jobs.monthly.html_issuers._branded import (  # noqa: E402
     Section,
     _grid_self_dated,
     _is_count_only_parsed,
@@ -16,12 +16,12 @@ from html_issuers._branded import (  # noqa: E402
     _merge_companion_store_scopes,
     _merge_companion_total_stores,
 )
-from html_issuers._page import _count_only as page_count_only  # noqa: E402
-from html_issuers._page import _store_event as page_store_event  # noqa: E402
-from html_issuers.i8278 import _count_only as fuji_count_only  # noqa: E402
-from html_issuers.i8278 import _store_event as fuji_store_event  # noqa: E402
-from html_issuers.i9989 import _CaptionParser, _plain, _table_captions  # noqa: E402
-from html_monthly import _is_prior_year_absolute, parse_grid, unit_mark_context  # noqa: E402
+from jobs.monthly.html_issuers._page import _count_only as page_count_only  # noqa: E402
+from jobs.monthly.html_issuers._page import _store_event as page_store_event  # noqa: E402
+from jobs.monthly.html_issuers.i8278 import _count_only as fuji_count_only  # noqa: E402
+from jobs.monthly.html_issuers.i8278 import _store_event as fuji_store_event  # noqa: E402
+from jobs.monthly.html_issuers.i9989 import _CaptionParser, _plain, _table_captions  # noqa: E402
+from jobs.monthly.html_monthly import _is_prior_year_absolute, parse_grid, unit_mark_context  # noqa: E402
 
 SALES_HTML = """
 <p>2026年5月度 月次売上高（前年同月比）</p>

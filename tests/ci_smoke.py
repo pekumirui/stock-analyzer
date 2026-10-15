@@ -65,7 +65,7 @@ def _fixture() -> str:
 def _check_demo_exit() -> int:
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("check_demo", ROOT / "jobs" / "check_demo.py")
+    spec = importlib.util.spec_from_file_location("check_demo", ROOT / "jobs" / "market" / "check_demo.py")
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

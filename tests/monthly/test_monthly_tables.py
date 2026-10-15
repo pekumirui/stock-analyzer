@@ -79,7 +79,7 @@ def test_apply_incoming_unit_conflict_and_force() -> None:
 
 
 def test_startup_keeps_names_and_job_renames() -> None:
-    """保存名は凍結（#545）。起動時は書き換えずドリフトを数えるだけ。付け替えは jobs/monthly_names.py。"""
+    """保存名は凍結（#545）。起動時は書き換えずドリフトを数えるだけ。付け替えは jobs/monthly/monthly_names.py。"""
     from app.db import SessionLocal, init_db
     from app.monthly.maintenance import merge_yoy_duplicate_elements, monthly_name_drift, report_monthly_name_drift
     from app.models import MonthlyElement, MonthlyTable, MonthlyValue

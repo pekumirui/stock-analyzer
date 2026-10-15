@@ -168,7 +168,7 @@ class MonthlyElement(Base):
 
     yoy の element は前年比語を剥がして末尾 (前年比)。number はトリムのみ。
     正規化後に同一なら同一行。短い保存名は正規名へリネームする。
-    保存名は凍結。揃えるのは jobs/monthly_names.py だけ。
+    保存名は凍結。揃えるのは jobs/monthly/monthly_names.py だけ。
     """
     __tablename__ = "monthly_elements"
     code = Column(String(5), primary_key=True)

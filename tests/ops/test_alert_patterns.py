@@ -35,9 +35,9 @@ PAGE: tuple[tuple[str, str], ...] = (
     ("app", "ERROR: Error loading ASGI app. Could not import module \"app.main\"."),
     ("app", "ERROR:    Error loading ASGI app. Could not import module \"app.main\"."),
     ("app", "SchemaMismatch: stocks missing column"),
-    ("batch", "2026-09-30 18:00:01 fail cron jobs/run_batch.py exit=1"),
+    ("batch", "2026-09-30 18:00:01 fail cron jobs/market/run_batch.py exit=1"),
     ("batch", "2026-09-30 18:00:01 fail cron cwd exit=1"),
-    ("batch", "2026-10-02 10:20:01 fail cron jobs/ir_monthly_html_r2.py exit=127"),
+    ("batch", "2026-10-02 10:20:01 fail cron jobs/monthly/ir_monthly_html_r2.py exit=127"),
     ("batch", "2026-09-30 18:00:01 tdnet_monthly_r2 done listed=10 saved=1 skipped=0 failed=3"),
     ("batch", "tdnet_monthly_r2 done listed=10 saved=1 skipped=0 failed=3"),
     ("batch", "tdnet_monthly_r2 done listed=10 saved=1 skipped=0 failed=10"),
@@ -84,7 +84,7 @@ NOT_PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "saved xbrl/3032/foo.zip (12 bytes) unknown-stock"),
     ("batch", "tdnet_monthly_r2 done listed=10 saved=1 skipped=9 failed=0"),
     ("batch", "parse processed=3 errors=0 skipped=1"),
-    ("batch", "fail cron jobs/run_batch.py exit=1"),
+    ("batch", "fail cron jobs/market/run_batch.py exit=1"),
     ("batch", "2026-10-02 10:20:01 missing interpreter /home/stock/stock-analyzer/.venv/bin/python3 /home/stock/stock-analyzer/.venv/bin/python"),
     ("batch", "fail POST 7203 status=500 boom"),
     ("batch", "fail issuer 1878 fetch: HTTP Error 403: Forbidden"),
@@ -453,6 +453,7 @@ def test_conf_has_registry_regexes() -> None:
 def test_no_committed_webhook_url() -> None:
     roots = (
         ROOT / "deploy",
+        ROOT / "mcp",
         ROOT / "jobs",
         ROOT / "tests",
         ROOT / "tools",
@@ -812,7 +813,7 @@ def test_cron_run_splits_and_stamps(tmp_path: Path) -> None:
     env["TZ"] = "UTC"
     wrapper = str(ROOT / "deploy" / "cron-run.sh")
     first = subprocess.Popen(
-        ["bash", wrapper, "jobs/tdnet_monthly_r2.py", "1"],
+        ["bash", wrapper, "jobs/monthly/tdnet_monthly_r2.py", "1"],
         cwd=app,
         env=env,
         stdout=subprocess.PIPE,
@@ -820,7 +821,7 @@ def test_cron_run_splits_and_stamps(tmp_path: Path) -> None:
         text=True,
     )
     second = subprocess.Popen(
-        ["bash", wrapper, "jobs/tdnet_xbrl_r2.py", "1", "--fail"],
+        ["bash", wrapper, "jobs/xbrl/tdnet_xbrl_r2.py", "1", "--fail"],
         cwd=app,
         env=env,
         stdout=subprocess.PIPE,
@@ -843,11 +844,11 @@ def test_cron_run_splits_and_stamps(tmp_path: Path) -> None:
     now = datetime.now(jst)
     stamp = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} ")
     for text, needle in (
-        (monthly, "out jobs/tdnet_monthly_r2.py"),
-        (monthly, "err jobs/tdnet_monthly_r2.py"),
-        (xbrl, "out jobs/tdnet_xbrl_r2.py"),
-        (xbrl, "err jobs/tdnet_xbrl_r2.py"),
-        (xbrl, "fail cron jobs/tdnet_xbrl_r2.py 1 --fail exit=3"),
+        (monthly, "out jobs/monthly/tdnet_monthly_r2.py"),
+        (monthly, "err jobs/monthly/tdnet_monthly_r2.py"),
+        (xbrl, "out jobs/xbrl/tdnet_xbrl_r2.py"),
+        (xbrl, "err jobs/xbrl/tdnet_xbrl_r2.py"),
+        (xbrl, "fail cron jobs/xbrl/tdnet_xbrl_r2.py 1 --fail exit=3"),
     ):
         if needle not in text:
             _fail(f"missing {needle!r} in {text!r}")
@@ -863,7 +864,7 @@ def test_cron_run_splits_and_stamps(tmp_path: Path) -> None:
     missing = tmp_path / "missing-app"
     env["CRON_APP_DIR"] = str(missing)
     bad = subprocess.run(
-        ["bash", wrapper, "jobs/run_batch.py"],
+        ["bash", wrapper, "jobs/market/run_batch.py"],
         cwd=tmp_path,
         env=env,
         capture_output=True,
@@ -898,7 +899,7 @@ def test_cron_run_picks_venv_python(tmp_path: Path) -> None:
         env["CRON_LOG_DIR"] = str(logs)
         env["TZ"] = "UTC"
         return subprocess.run(
-            ["bash", wrapper, "jobs/ir_monthly_html_r2.py"],
+            ["bash", wrapper, "jobs/monthly/ir_monthly_html_r2.py"],
             cwd=app,
             env=env,
             capture_output=True,
@@ -917,7 +918,7 @@ def test_cron_run_picks_venv_python(tmp_path: Path) -> None:
     if py3.stdout or py3.stderr:
         _fail(f"python3-only cron-run leaked stdio: {py3.stdout!r} {py3.stderr!r}")
     py3_log = (py3_logs / "ir_monthly_html_r2.log").read_text(encoding="utf-8")
-    if "interp-py3" not in py3_log or "out jobs/ir_monthly_html_r2.py" not in py3_log:
+    if "interp-py3" not in py3_log or "out jobs/monthly/ir_monthly_html_r2.py" not in py3_log:
         _fail(f"python3-only log missing job output: {py3_log!r}")
     if "fail cron" in py3_log:
         _fail(f"python3-only success log has fail cron: {py3_log!r}")
@@ -954,7 +955,7 @@ def test_cron_run_picks_venv_python(tmp_path: Path) -> None:
     missing_log = (missing_logs / "ir_monthly_html_r2.log").read_text(encoding="utf-8")
     if "missing interpreter" not in missing_log:
         _fail(f"missing interpreter not logged: {missing_log!r}")
-    if "fail cron jobs/ir_monthly_html_r2.py exit=127" not in missing_log:
+    if "fail cron jobs/monthly/ir_monthly_html_r2.py exit=127" not in missing_log:
         _fail(f"missing interpreter must page fail cron: {missing_log!r}")
 
 

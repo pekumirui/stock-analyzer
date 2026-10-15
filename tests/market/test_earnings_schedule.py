@@ -452,16 +452,16 @@ def test_batch_syncs_after_indicators() -> None:
         order.append(f"sync:{today.isoformat()}")
         return 2
 
-    from jobs.run_batch import main as batch_main
+    from jobs.market.run_batch import main as batch_main
 
     buf = io.StringIO()
-    with patch("jobs.run_batch.ingest.run_daily", run_daily), \
-            patch("jobs.run_batch.ingest.run_backfill", run_backfill), \
-            patch("jobs.run_batch.analytics.indicators_current", indicators_current), \
-            patch("jobs.run_batch.analytics.price_frame", price_frame), \
-            patch("jobs.run_batch.analytics.compute_indicators", compute_indicators), \
-            patch("jobs.run_batch.analytics.compute_earnings_events", compute_earnings_events), \
-            patch("jobs.run_batch.sync", sync_fn), \
+    with patch("jobs.market.run_batch.ingest.run_daily", run_daily), \
+            patch("jobs.market.run_batch.ingest.run_backfill", run_backfill), \
+            patch("jobs.market.run_batch.analytics.indicators_current", indicators_current), \
+            patch("jobs.market.run_batch.analytics.price_frame", price_frame), \
+            patch("jobs.market.run_batch.analytics.compute_indicators", compute_indicators), \
+            patch("jobs.market.run_batch.analytics.compute_earnings_events", compute_earnings_events), \
+            patch("jobs.market.run_batch.sync", sync_fn), \
             patch("sys.argv", ["run_batch.py", "--date", "2026-10-02"]), \
             redirect_stdout(buf):
         batch_main()
@@ -477,11 +477,11 @@ def test_batch_syncs_after_indicators() -> None:
         order.append("sync")
         raise RuntimeError("boom")
 
-    with patch("jobs.run_batch.ingest.run_daily", lambda db, day=None: order.append("daily") or 1), \
-            patch("jobs.run_batch.analytics.price_frame", price_frame), \
-            patch("jobs.run_batch.analytics.compute_indicators", compute_indicators), \
-            patch("jobs.run_batch.analytics.compute_earnings_events", compute_earnings_events), \
-            patch("jobs.run_batch.sync", sync_boom), \
+    with patch("jobs.market.run_batch.ingest.run_daily", lambda db, day=None: order.append("daily") or 1), \
+            patch("jobs.market.run_batch.analytics.price_frame", price_frame), \
+            patch("jobs.market.run_batch.analytics.compute_indicators", compute_indicators), \
+            patch("jobs.market.run_batch.analytics.compute_earnings_events", compute_earnings_events), \
+            patch("jobs.market.run_batch.sync", sync_boom), \
             patch("sys.argv", ["run_batch.py", "--date", "2026-10-02"]), \
             redirect_stdout(buf):
         try:
@@ -498,11 +498,11 @@ def test_batch_syncs_after_indicators() -> None:
         _fail(text)
 
     order.clear()
-    with patch("jobs.run_batch.ingest.run_backfill", run_backfill), \
-            patch("jobs.run_batch.analytics.price_frame", price_frame), \
-            patch("jobs.run_batch.analytics.compute_indicators", compute_indicators), \
-            patch("jobs.run_batch.analytics.compute_earnings_events", compute_earnings_events), \
-            patch("jobs.run_batch.sync", sync_fn), \
+    with patch("jobs.market.run_batch.ingest.run_backfill", run_backfill), \
+            patch("jobs.market.run_batch.analytics.price_frame", price_frame), \
+            patch("jobs.market.run_batch.analytics.compute_indicators", compute_indicators), \
+            patch("jobs.market.run_batch.analytics.compute_earnings_events", compute_earnings_events), \
+            patch("jobs.market.run_batch.sync", sync_fn), \
             patch("sys.argv", ["run_batch.py", "--backfill", "1", "--date", "2026-10-03"]), \
             redirect_stdout(io.StringIO()):
         batch_main()

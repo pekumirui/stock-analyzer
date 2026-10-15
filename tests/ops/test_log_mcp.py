@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "deploy"))
+sys.path.insert(0, str(ROOT / "mcp"))
 
 os.environ.setdefault("MCP_TOKEN", "test-token-for-ci-only")
 os.environ["MCP_APP_DIR"] = str(ROOT)
@@ -172,7 +172,7 @@ def test_batch_logs_window(tmp_path: Path) -> None:
     (logs / "xbrl_parse.log.2.gz").write_bytes(gzip.compress(yesterday_gz.encode("utf-8")))
     (logs / "xbrl_parse.log.1").write_text(
         "2026-09-29 00:00:00 fail start\n"
-        "2026-09-29 18:00:01 fail cron jobs/xbrl_parse.py exit=1\n"
+        "2026-09-29 18:00:01 fail cron jobs/xbrl/xbrl_parse.py exit=1\n"
         "2026-09-30 00:00:00 fail boundary\n",
         encoding="utf-8",
     )
@@ -216,7 +216,7 @@ def test_batch_logs_window(tmp_path: Path) -> None:
             "2026-09-29 00:00:00 fail start",
             "2026-09-29 08:00:00 fail early",
             "2026-09-29 08:30:00 fail JQUANTS_API_KEY=<redacted>",
-            "2026-09-29 18:00:01 fail cron jobs/xbrl_parse.py exit=1",
+            "2026-09-29 18:00:01 fail cron jobs/xbrl/xbrl_parse.py exit=1",
             "2026-09-29 23:30:00 fail late",
         ]
         if text != "\n".join(expect):

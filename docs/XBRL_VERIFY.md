@@ -24,7 +24,7 @@ python tools/xbrl/copy_stocks_for_verify.py --from /path/to/stock.db --to /absol
 
 ## dest は R2 のコピー
 
-`jobs/xbrl_parse.py --dest` は ZIP ツリーを読む。共有 R2 マウント（`/home/stock/r2-share/xbrl`）を直接指さず、手元へコピーした verify dest を渡す。
+`jobs/xbrl/xbrl_parse.py --dest` は ZIP ツリーを読む。共有 R2 マウント（`/home/stock/r2-share/xbrl`）を直接指さず、手元へコピーした verify dest を渡す。
 
 ```
 # 例: rsync -a /home/stock/r2-share/xbrl/ /tmp/xbrl-verify-dest/
@@ -45,9 +45,9 @@ python tools/xbrl/copy_stocks_for_verify.py --from /path/to/stock.db --to "$VERI
 DATABASE_URL="sqlite:///$VERIFY_DB" python jobs/migrate.py
 
 DATABASE_URL="sqlite:///$VERIFY_DB" XBRL_DEST="$DEST" \
-  python jobs/xbrl_parse.py --dest "$DEST"
+  python jobs/xbrl/xbrl_parse.py --dest "$DEST"
 
-DATABASE_URL="sqlite:///$VERIFY_DB" python jobs/xbrl_normalize.py
+DATABASE_URL="sqlite:///$VERIFY_DB" python jobs/xbrl/xbrl_normalize.py
 
 # ゴールデン: 既定はファイル入力（ネットワーク無し）
 python tools/xbrl/fetch_xbrl_golden.py --input /path/to/irbank_or_mcp.json --out-dir "$GOLDEN"

@@ -6,9 +6,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "jobs"))
+sys.path.insert(0, str(ROOT))
 
-from tdnet_monthly_r2 import (  # noqa: E402
+from jobs.monthly.tdnet_monthly_r2 import (  # noqa: E402
     INCLUDE_EXTRA,
     already_have,
     date_window,
@@ -464,8 +464,8 @@ def test_http_get_uses_job_ua_then_browser() -> None:
     from urllib.error import HTTPError
     from unittest.mock import MagicMock, patch
 
-    import tdnet_monthly_r2 as mod
-    from _r2common import BROWSER_UA
+    import jobs.monthly.tdnet_monthly_r2 as mod
+    from jobs._r2common import BROWSER_UA
 
     uas: list[str] = []
 
@@ -490,7 +490,7 @@ def test_http_get_uses_job_ua_then_browser() -> None:
 
 
 def test_resolve_database_url(tmp: Path) -> None:
-    from _r2common import resolve_database_url, sqlite_path_from_url
+    from jobs._r2common import resolve_database_url, sqlite_path_from_url
 
     root = tmp / "repo"
     root.mkdir()
@@ -529,7 +529,7 @@ def test_run_pages_dedups_and_saves(tmp: Path) -> None:
     from unittest.mock import patch
     from urllib.parse import parse_qs, urlparse
 
-    import tdnet_monthly_r2 as mod
+    import jobs.monthly.tdnet_monthly_r2 as mod
 
     def rec(yid: str, code: str, name: str, title: str, pdf: str) -> dict:
         return {

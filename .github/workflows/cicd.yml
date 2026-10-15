@@ -48,7 +48,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Compile
-        run: python -m compileall -q -f app jobs tests tools deploy .cursor
+        run: python -m compileall -q -f app jobs tests tools deploy mcp .cursor
 
       - name: Smoke
         run: python tests/ci_smoke.py
@@ -77,10 +77,10 @@ jobs:
         run: pip install -r requirements.txt -r requirements-dev.txt
 
       - name: Ruff
-        run: python -m ruff check --config config/pyproject.toml app jobs tests tools deploy
+        run: python -m ruff check --config config/pyproject.toml app jobs tests tools deploy mcp
 
       - name: Bandit
-        run: python -m bandit -c config/pyproject.toml -r app jobs tests tools deploy -x app/xbrlp,.cursor,tmp,.venv
+        run: python -m bandit -c config/pyproject.toml -r app jobs tests tools deploy mcp -x app/xbrlp,.cursor,tmp,.venv
 
   release:
     name: Release

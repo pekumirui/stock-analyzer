@@ -9,9 +9,9 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "jobs"))
+sys.path.insert(0, str(ROOT))
 
-from html_monthly import (  # noqa: E402
+from jobs.monthly.html_monthly import (  # noqa: E402
     _sticky_section_fy,
     decode_html_bytes,
     dumps_ingest,
@@ -22,17 +22,17 @@ from html_monthly import (  # noqa: E402
     parse_number,
     parse_tables,
 )
-from html_issuers import parse_issuer  # noqa: E402
-from html_issuers.i3148 import parse as parse_3148  # noqa: E402
-from html_issuers.i7522 import parse as parse_7522  # noqa: E402
-from html_issuers.i7561 import parse as parse_7561  # noqa: E402
-from html_issuers.i8179 import parse as parse_8179  # noqa: E402
-from html_issuers.i8278 import parse as parse_8278  # noqa: E402
-from html_issuers.i9946 import parse as parse_9946  # noqa: E402
-from html_issuers.i9948 import parse as parse_9948  # noqa: E402
-from html_issuers.i9993 import parse as parse_9993  # noqa: E402
-from html_issuers.i9994 import parse as parse_9994  # noqa: E402
-from ir_monthly_html_r2 import (  # noqa: E402
+from jobs.monthly.html_issuers import parse_issuer  # noqa: E402
+from jobs.monthly.html_issuers.i3148 import parse as parse_3148  # noqa: E402
+from jobs.monthly.html_issuers.i7522 import parse as parse_7522  # noqa: E402
+from jobs.monthly.html_issuers.i7561 import parse as parse_7561  # noqa: E402
+from jobs.monthly.html_issuers.i8179 import parse as parse_8179  # noqa: E402
+from jobs.monthly.html_issuers.i8278 import parse as parse_8278  # noqa: E402
+from jobs.monthly.html_issuers.i9946 import parse as parse_9946  # noqa: E402
+from jobs.monthly.html_issuers.i9948 import parse as parse_9948  # noqa: E402
+from jobs.monthly.html_issuers.i9993 import parse as parse_9993  # noqa: E402
+from jobs.monthly.html_issuers.i9994 import parse as parse_9994  # noqa: E402
+from jobs.monthly.ir_monthly_html_r2 import (  # noqa: E402
     HtmlIssuer,
     eir_url,
     existing_html_hashes,
@@ -48,7 +48,7 @@ from ir_monthly_html_r2 import (  # noqa: E402
     write_ingest,
 )
 
-from ir_monthly_r2 import dest_filename, dest_path, looks_like_file  # noqa: E402
+from jobs.monthly.ir_monthly_r2 import dest_filename, dest_path, looks_like_file  # noqa: E402
 
 CAWACHI_HTML = """
 <html><body>
@@ -358,7 +358,7 @@ def _module_force_units() -> dict[str, str]:
     import pkgutil
     import re
 
-    import html_issuers
+    from jobs.monthly import html_issuers
 
     decl = re.compile(
         r"""(?:force_unit\s*=\s*|_apply_force_unit\(\s*\w+\s*,\s*)"""
@@ -368,7 +368,7 @@ def _module_force_units() -> dict[str, str]:
     for info in pkgutil.iter_modules(html_issuers.__path__):
         if not info.name.startswith("i"):
             continue
-        mod = importlib.import_module(f"html_issuers.{info.name}")
+        mod = importlib.import_module(f"jobs.monthly.html_issuers.{info.name}")
         page = getattr(mod, "PAGE", None)
         if page is not None:
             if page.unit:
@@ -414,7 +414,7 @@ def test_load_html_registry() -> None:
         _fail(f"follow_re {follows}")
     if "9843" in follows:
         _fail(f"9843 must not follow_re {follows}")
-    import html_issuers.i9843 as nitori_mod
+    import jobs.monthly.html_issuers.i9843 as nitori_mod
 
     if nitori_mod.PAGE.table is not None:
         _fail(f"9843 table {nitori_mod.PAGE.table}")
@@ -1408,7 +1408,7 @@ def test_trailing_empty_months_keep_middle_gaps() -> None:
 
 
 def test_hash_skip_and_reparse(tmp: Path) -> None:
-    import ir_monthly_html_r2 as mod
+    import jobs.monthly.ir_monthly_html_r2 as mod
 
     dest = tmp / "monthly"
     html = CAWACHI_HTML.encode("utf-8")
@@ -1500,7 +1500,7 @@ def test_hash_skip_and_reparse(tmp: Path) -> None:
 
 def test_hash_skip_refreshes_stale_sidecar(tmp: Path) -> None:
     """同じ HTML でも古い sidecar（上期・ブランド無し）は現行パーサで書き直す。"""
-    import ir_monthly_html_r2 as mod
+    import jobs.monthly.ir_monthly_html_r2 as mod
 
     dest = tmp / "stale_sidecar" / "monthly"
     bodies = {"https://example.test/royal/": ROYAL_DUAL_BRAND_HTML.encode("utf-8")}
@@ -1584,7 +1584,7 @@ def _cawachi_issuer() -> HtmlIssuer:
 
 
 def test_force_resaves_unchanged_html(tmp: Path) -> None:
-    import ir_monthly_html_r2 as mod
+    import jobs.monthly.ir_monthly_html_r2 as mod
 
     dest = tmp / "force_resave" / "monthly"
     bodies = {"https://example.test/ir/": CAWACHI_HTML.encode("utf-8")}
@@ -1651,7 +1651,7 @@ def test_force_resaves_unchanged_html(tmp: Path) -> None:
 
 
 def test_run_force_requires_only_and_skips_reparse(tmp: Path) -> None:
-    import ir_monthly_html_r2 as mod
+    import jobs.monthly.ir_monthly_html_r2 as mod
 
     base = tmp / "force_usage"
     base.mkdir()
@@ -1734,7 +1734,7 @@ def test_run_force_requires_only_and_skips_reparse(tmp: Path) -> None:
 
 
 def test_eir_fetch_saves_item_html(tmp: Path) -> None:
-    import ir_monthly_html_r2 as mod
+    import jobs.monthly.ir_monthly_html_r2 as mod
 
     dest = tmp / "monthly"
     url = eir_url("7616", 0)
@@ -1779,7 +1779,7 @@ def test_eir_fetch_saves_item_html(tmp: Path) -> None:
 
 
 def test_unknown_stock_skip(tmp: Path) -> None:
-    import ir_monthly_html_r2 as mod
+    import jobs.monthly.ir_monthly_html_r2 as mod
 
     def boom(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
         raise RuntimeError(f"network {url}")
@@ -1834,8 +1834,8 @@ def _srs_issuer() -> HtmlIssuer:
 def test_fetch_issuer_retries_429_then_saves(tmp: Path) -> None:
     from unittest.mock import MagicMock, patch
 
-    import _r2common
-    import ir_monthly_html_r2 as mod
+    from jobs import _r2common
+    import jobs.monthly.ir_monthly_html_r2 as mod
 
     url = "https://srsholdings.com/pages/ir-library-monthly/"
     calls = {"n": 0}
@@ -1888,8 +1888,8 @@ def test_fetch_issuer_retries_429_then_saves(tmp: Path) -> None:
 def test_fetch_issuer_exhausted_429_is_skipped(tmp: Path) -> None:
     from unittest.mock import patch
 
-    import _r2common
-    import ir_monthly_html_r2 as mod
+    from jobs import _r2common
+    import jobs.monthly.ir_monthly_html_r2 as mod
 
     def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
         raise _http_err(req.full_url, 429, "Too Many Requests")
@@ -1930,7 +1930,7 @@ def test_fetch_issuer_exhausted_429_is_skipped(tmp: Path) -> None:
 def test_fetch_issuer_exhausted_404_stays_failed(tmp: Path) -> None:
     from unittest.mock import patch
 
-    import ir_monthly_html_r2 as mod
+    import jobs.monthly.ir_monthly_html_r2 as mod
 
     def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
         raise _http_err(req.full_url, 404, "Not Found")
@@ -1960,7 +1960,7 @@ def test_fetch_issuer_exhausted_404_stays_failed(tmp: Path) -> None:
 
 def test_run_persistent_429_does_not_fail_job(tmp: Path) -> None:
     """1 社の永続 429 は skip。他社は保存し、failed=0 / exit=0。"""
-    import ir_monthly_html_r2 as mod
+    import jobs.monthly.ir_monthly_html_r2 as mod
 
     dest = tmp / "partial429"
     cfg = tmp / "ir.json"
@@ -2039,7 +2039,7 @@ def test_run_persistent_429_does_not_fail_job(tmp: Path) -> None:
 
 
 def test_run_host_cooldown_skips_same_host(tmp: Path) -> None:
-    import ir_monthly_html_r2 as mod
+    import jobs.monthly.ir_monthly_html_r2 as mod
 
     dest = tmp / "cooldown"
     cfg = tmp / "ir.json"
@@ -2107,7 +2107,7 @@ def test_run_host_cooldown_skips_same_host(tmp: Path) -> None:
 
 
 def test_run_404_still_exits_1(tmp: Path) -> None:
-    import ir_monthly_html_r2 as mod
+    import jobs.monthly.ir_monthly_html_r2 as mod
 
     dest = tmp / "hardfail"
     cfg = tmp / "ir.json"
@@ -2154,7 +2154,7 @@ def test_run_404_still_exits_1(tmp: Path) -> None:
 
 
 def test_run_only_dry_run(tmp: Path) -> None:
-    import ir_monthly_html_r2 as mod
+    import jobs.monthly.ir_monthly_html_r2 as mod
 
     cfg = tmp / "ir.json"
     cfg.write_text(
@@ -3558,7 +3558,7 @@ def test_9946_all_store_sales_total() -> None:
 
 
 def test_follow_year_then_latest_month(tmp: Path) -> None:
-    import ir_monthly_html_r2 as mod
+    import jobs.monthly.ir_monthly_html_r2 as mod
 
     dest = tmp / "sekisui"
     index = "https://www.sekisuihouse.co.jp/company/financial/order/"
@@ -3627,7 +3627,7 @@ def test_follow_year_then_latest_month(tmp: Path) -> None:
 
 
 def test_parse_false_saves_html_without_json(tmp: Path) -> None:
-    import ir_monthly_html_r2 as mod
+    import jobs.monthly.ir_monthly_html_r2 as mod
 
     dest = tmp / "monthly"
     orig = mod.http_get
@@ -3664,7 +3664,7 @@ def test_parse_false_saves_html_without_json(tmp: Path) -> None:
 
 
 def test_no_as_of_does_not_write_json(tmp: Path) -> None:
-    import ir_monthly_html_r2 as mod
+    import jobs.monthly.ir_monthly_html_r2 as mod
 
     bare = """
     <html><body>

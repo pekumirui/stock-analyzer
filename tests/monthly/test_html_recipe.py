@@ -8,11 +8,11 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "jobs"))
+sys.path.insert(0, str(ROOT))
 
-from html_issuers import PARSERS  # noqa: E402
-from html_issuers.i9989 import parse as parse_9989  # noqa: E402
-from ir_monthly_html_r2 import ingest_path, load_html_registry, write_ingest  # noqa: E402
+from jobs.monthly.html_issuers import PARSERS  # noqa: E402
+from jobs.monthly.html_issuers.i9989 import parse as parse_9989  # noqa: E402
+from jobs.monthly.ir_monthly_html_r2 import ingest_path, load_html_registry, write_ingest  # noqa: E402
 
 CONFIG = ROOT / "config" / "monthly" / "ir_monthly.json"
 
@@ -201,7 +201,7 @@ def test_explain_and_html_recipe_are_gone() -> None:
         pass
     else:
         _fail("html_recipe remains")
-    if hasattr(importlib.import_module("html_issuers.i9989"), "explain"):
+    if hasattr(importlib.import_module("jobs.monthly.html_issuers.i9989"), "explain"):
         _fail("explain remains")
 
 

@@ -11,10 +11,10 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "jobs"))
+sys.path.insert(0, str(ROOT))
 
-from html_monthly import decode_html_bytes, dumps_ingest  # noqa: E402
-from ir_monthly_html_ingest import (  # noqa: E402
+from jobs.monthly.html_monthly import decode_html_bytes, dumps_ingest  # noqa: E402
+from jobs.monthly.ir_monthly_html_ingest import (  # noqa: E402
     DEFAULT_LEDGER,
     LedgerEntry,
     PostedLedger,
@@ -30,7 +30,7 @@ from ir_monthly_html_ingest import (  # noqa: E402
     run,
     select_latest_per_code,
 )
-from ir_monthly_html_r2 import ingest_payload, load_html_registry  # noqa: E402
+from jobs.monthly.ir_monthly_html_r2 import ingest_payload, load_html_registry  # noqa: E402
 
 MARCH_FY_MONTHS = (4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3)
 

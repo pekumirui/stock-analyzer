@@ -7,9 +7,9 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "jobs"))
+sys.path.insert(0, str(ROOT))
 
-from _r2common import (  # noqa: E402
+from jobs._r2common import (  # noqa: E402
     BROWSER_UA,
     HTTP_RETRY_ATTEMPTS,
     USER_AGENT,
@@ -17,7 +17,7 @@ from _r2common import (  # noqa: E402
     backoff_delay,
     retry_after_seconds,
 )
-from ir_monthly_r2 import (  # noqa: E402
+from jobs.monthly.ir_monthly_r2 import (  # noqa: E402
     FileLink,
     Issuer,
     dest_filename,
@@ -34,7 +34,7 @@ from ir_monthly_r2 import (  # noqa: E402
     sha256_bytes,
     url_stem,
 )
-from tdnet_monthly_r2 import display_code  # noqa: E402
+from jobs.monthly.tdnet_monthly_r2 import display_code  # noqa: E402
 
 KURA_HTML = """
 <html><body>
@@ -276,7 +276,7 @@ def test_load_registry(tmp: Path) -> None:
 
 
 def test_hash_skip_and_xlsx_priority_fetch(tmp: Path) -> None:
-    import ir_monthly_r2 as mod
+    import jobs.monthly.ir_monthly_r2 as mod
 
     dest = tmp / "monthly"
     pdf = b"%PDF-1.4 old"
@@ -350,7 +350,7 @@ def test_hash_skip_and_xlsx_priority_fetch(tmp: Path) -> None:
 
 
 def test_xls_hash_skip_fetch(tmp: Path) -> None:
-    import ir_monthly_r2 as mod
+    import jobs.monthly.ir_monthly_r2 as mod
 
     dest = tmp / "monthly"
     xls = b"\xd0\xcf\x11\xe0sheet"
@@ -406,8 +406,8 @@ def test_http_get_falls_back_on_403() -> None:
     from urllib.error import HTTPError
     from unittest.mock import MagicMock, patch
 
-    import _r2common
-    import ir_monthly_r2 as mod
+    from jobs import _r2common
+    import jobs.monthly.ir_monthly_r2 as mod
 
     uas: list[str] = []
 
@@ -462,7 +462,7 @@ def test_http_get_aia_on_incomplete_chain() -> None:
     from unittest.mock import MagicMock, patch
     import ssl as sslmod
 
-    import _r2common
+    from jobs import _r2common
 
     contexts: list[object] = []
 
@@ -539,7 +539,7 @@ def test_retry_after_seconds_and_backoff() -> None:
 def test_http_get_retries_429_then_succeeds() -> None:
     from unittest.mock import MagicMock, patch
 
-    import _r2common
+    from jobs import _r2common
 
     url = "https://srsholdings.com/pages/ir-library-monthly/"
     uas: list[str] = []
@@ -575,7 +575,7 @@ def test_http_get_retries_429_then_succeeds() -> None:
 def test_http_get_honors_retry_after() -> None:
     from unittest.mock import MagicMock, patch
 
-    import _r2common
+    from jobs import _r2common
 
     url = "https://srsholdings.com/pages/ir-library-monthly/"
     calls = {"n": 0}
@@ -603,7 +603,7 @@ def test_http_get_429_exhausted_raises() -> None:
     from urllib.error import HTTPError
     from unittest.mock import patch
 
-    import _r2common
+    from jobs import _r2common
 
     url = "https://srsholdings.com/pages/ir-library-monthly/"
     uas: list[str] = []
@@ -637,7 +637,7 @@ def test_http_get_404_does_not_retry() -> None:
     from urllib.error import HTTPError
     from unittest.mock import patch
 
-    import _r2common
+    from jobs import _r2common
 
     calls = {"n": 0}
 
@@ -662,7 +662,7 @@ def test_http_get_404_does_not_retry() -> None:
 
 
 def test_unknown_stock_skip(tmp: Path) -> None:
-    import ir_monthly_r2 as mod
+    import jobs.monthly.ir_monthly_r2 as mod
 
     def boom(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
         raise RuntimeError(f"network {url}")
@@ -690,7 +690,7 @@ def test_unknown_stock_skip(tmp: Path) -> None:
 
 
 def test_run_only_and_dry_run(tmp: Path) -> None:
-    import ir_monthly_r2 as mod
+    import jobs.monthly.ir_monthly_r2 as mod
 
     cfg = tmp / "ir.json"
     cfg.write_text(

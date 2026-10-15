@@ -87,7 +87,7 @@ year GET の各行は保存 `element` に加え、派生の `label`（display / 
 - ingest / POST は入ってくる名前を正規化し、銘柄エイリアス（ingest は as_of、続けて列の暦年。POST は year）を掛けてから、保存名と **完全一致** する行を探す。無ければ新しい行。既存行の改名・統合はしない
 - PUT elements（unit の変更）は、その行を新しい unit の正規名へ付け替える（`売上高` を yoy にすると `売上高(前年比)`）。正規名が既にあれば値を寄せ、同じ月が両方非NULLで不一致なら 409 `FOLD_CONFLICT`
 - アプリ起動・バッチ・デプロイは書き換えない。デプロイごとの `jobs/migrate.py` が、今の規則と alias で作り直すと名前が変わる行（ドリフト）を数え、1 件以上ならログに 1 行出す（`月次の保存名ドリフト: N 行 / M 銘柄 (…)`。Actions のデプロイのログ）。いつでも見たいときは **Monthly names** の `plan`
-- 付け替えは `jobs/monthly_names.py`（`plan` は書かずに表示、`apply` で付け替え）。本番は Actions の **Monthly names**（`workflow_dispatch`。既定 plan）。正規化の規則や `config/monthly/issuer_aliases.json` を変えた PR は、デプロイ後に plan → apply で既存行をそろえる。apply は正規名へ（例: `全店 売上高前期比` → `全店 売上高(前年比)`）。正規名が既にあれば正規名を残し、値は非NULL優先で短い行を消す。同じ月が両方非NULLで不一致なら正規名を残して記録する
+- 付け替えは `jobs/monthly/monthly_names.py`（`plan` は書かずに表示、`apply` で付け替え）。本番は Actions の **Monthly names**（`workflow_dispatch`。既定 plan）。正規化の規則や `config/monthly/issuer_aliases.json` を変えた PR は、デプロイ後に plan → apply で既存行をそろえる。apply は正規名へ（例: `全店 売上高前期比` → `全店 売上高(前年比)`）。正規名が既にあれば正規名を残し、値は非NULL優先で短い行を消す。同じ月が両方非NULLで不一致なら正規名を残して記録する
 - 規則を変えて apply しないと、次の取り込みで新しい名前の行ができる（行が割れる）。値は消えないので、apply で寄せれば直る
 - GET は保存名のまま。派生の `label` だけを足す。DB は書き換えない
 - SPA の年表・系列・チャートの行キーは `label.display`。年ごとの保存名が違っても表示名が同じなら1行。取り残した短い名も畳む。その年の値は、その年の保存 element のうち表示名が一致するものから取る
@@ -97,7 +97,7 @@ year GET の各行は保存 `element` に加え、派生の `label`（display / 
 `config/monthly/issuer_aliases.json`。キーも canonicalize してから載せる。マップに無い名前はそのまま。
 
 - ingest は `as_of < until`
-- POST / PUT / 新規行 / `jobs/monthly_names.py` は `year <= until.year`。ingest も as_of のあとに列の暦年で掛ける
+- POST / PUT / 新規行 / `jobs/monthly/monthly_names.py` は `year <= until.year`。ingest も as_of のあとに列の暦年で掛ける
 - rename のみ。DELETE は載せない
 - 旧 PDF 名の再 ingest でも寄せ続けたい場合は `until` を遠くする（例: 138A0 / KPI の `2099-12-31`）
 - 例: 141A0 は 2025-08-01 未満の旧名をトライアル付きへ
@@ -175,7 +175,7 @@ year GET の各行は保存 `element` に加え、派生の `label`（display / 
 - Trailhead Global Holdings (33580): 親子は `config/monthly/monthly_row_order.json` の `tree`（#476。2026年7月度 `20260810_3358_Trailhead_2026年7月の月次売上高(速報)に関するお知らせ.pdf`。9月度が7月の全店舗売上を訂正）。連結売上高が会社の行。主要子会社別売上高は見出しで、ワイエスフード / Yappa / KINKA FAMILY JAPAN / バーガーレボリューション / 食べる / SBWorks をその下に置く（2026年7月 113+35+30+19+25+39 = 261。連結 276 の主要部分。飲食業態の全店舗とは別。7月度の 184 は9月度で 210 に訂正され、99+27+83 = 209 ≒ 210）。節は `rows` の完全一致（prefix で剥がすと葉が `全店 売上高` になり飲食業態の側に入る）。飲食業態は 全店 売上高 ▸ ラーメン / 焼肉 / その他専門店。店舗数は 全店 店舗数 = ラーメン + 焼肉 + その他専門店（2026年7月 103+5+7 = 115）。業態の `店舗数` も完全一致（prefix で剥がすと葉が `店舗数` になり、2025年8月までの裸の `店舗数` と同じ指標になる。裸の行は全店舗と一致しなくなって切れているので別指標のまま）。客数・客単価はラーメンだけ。指標の並びは 全店 連結売上高 → 全店 売上高 → 全店 客数 → 全店 客単価 → 全店 店舗数 → 店舗数
 - イオン (82670): 親子は `config/monthly/monthly_row_order.json` の `tree`（#471。8月度 https://www.release.tdnet.info/inbs/140120260910534294.pdf）。自動の木は会社と事業セグメントを全部根の兄弟にする。注記の所属どおり GMS事業 ▸ イオンリテール / イオン北海道 / イオン九州（※7。12社のうち月次の行がある3社）、スーパーマーケット事業 ▸ マックスバリュ東海 / フジ / いなげや（※8。マルエツ・カスミなどは行が無い）、ディベロッパー事業 ▸ イオンモール（※11。イオンリテールとイオン東北のDVモール型専門店売上は別の行が無い。会社の売上高であるイオンリテールは GMS のまま）、サービス・専門店事業 ▸ コックス / ジーフット（※13）。ディスカウントストア事業・ヘルス＆ウエルネス事業・エンターテイメント事業は会社の行が無いので根の子のまま。2024–2025 と 2026年1月の `サービス事業` / `専門店事業` は当時のセグメント計なので根に残す（※12 は 2026年3月からサービス・専門店とエンターテイメントを分けたと書く。旧行の付け替えはしない）。キャンドゥ・ミニストップは注記に所属が無いので木に入れない。会社全体の行は無く、指標は 既存 売上高 → 既存 客数 → 全店 売上高。前年比だけなので一番上は `既存 売上高`。2026年8月はイオンリテール既存 100.0、イオンモール既存 102.7（営業見合わせの2SCを除く）。セグメント表の8月は ※14 で後日掲載（GMS の8月は空）
 - 単位ノイズ: `(％)` / `(%)` / `（百万円）` / `(百万円)` / `売上（％）` / `売上（%）` は落とす。`［売上高］全店` の括弧はパーサ側で中身を出す
-- サンドラッグ (9989): HTML が `既存店Existing store` / `全店All stores` / `新規出店数Number of new store openings` / `退店店舗数Number of store closings` / `総店舗数Total number of stores` と日英連結。canonicalize 後に残る英語は `99890` alias で落とす。売上表（グループ/DG/DS）の unit は `jobs/html_issuers/i9989.py` の `yoy_pct`（セルに `%` が無くても）。店舗は `number`
+- サンドラッグ (9989): HTML が `既存店Existing store` / `全店All stores` / `新規出店数Number of new store openings` / `退店店舗数Number of store closings` / `総店舗数Total number of stores` と日英連結。canonicalize 後に残る英語は `99890` alias で落とす。売上表（グループ/DG/DS）の unit は `jobs/monthly/html_issuers/i9989.py` の `yoy_pct`（セルに `%` が無くても）。店舗は `number`
 
 ## xls 銘柄メモ
 

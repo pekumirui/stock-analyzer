@@ -10,9 +10,9 @@ from tempfile import TemporaryDirectory
 from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "jobs"))
+sys.path.insert(0, str(ROOT))
 
-from backup_db import (  # noqa: E402
+from jobs.ops.backup_db import (  # noqa: E402
     BACKUP_NAME_RE,
     COMPRESSLEVEL,
     DAILY_KEEP,
@@ -327,7 +327,7 @@ def test_cleans_stale_tmp_sidecars(tmp_path: Path) -> None:
 
 def test_crontab_and_docs() -> None:
     crontab = (ROOT / "deploy" / "crontab").read_text(encoding="utf-8")
-    want = "0 5 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/backup_db.py"
+    want = "0 5 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/backup_db.py"
     if want not in crontab:
         _fail("crontab missing 05:00 JST backup_db entry")
     if "cp -a" in crontab:
@@ -339,7 +339,7 @@ def test_crontab_and_docs() -> None:
         _fail("provision.sh must install deploy/crontab")
     if '"$STOCK_HOME/backups"' not in provision:
         _fail("provision.sh must create /home/stock/backups")
-    src = (ROOT / "jobs" / "backup_db.py").read_text(encoding="utf-8")
+    src = (ROOT / "jobs" / "ops" / "backup_db.py").read_text(encoding="utf-8")
     for needle in ("from app", "import app", "rclone", "r2-share"):
         if needle in src:
             _fail(f"backup job must not reference {needle}")

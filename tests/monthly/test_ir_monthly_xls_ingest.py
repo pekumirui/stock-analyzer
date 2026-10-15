@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "jobs"))
 sys.path.insert(0, str(ROOT))
 
 from app.monthly.ingest import (  # noqa: E402
@@ -16,7 +15,7 @@ from app.monthly.ingest import (  # noqa: E402
     monthly_display_label,
     plan_column_years,
 )
-from ir_monthly_xls_ingest import (  # noqa: E402
+from jobs.monthly.ir_monthly_xls_ingest import (  # noqa: E402
     as_of_from_url,
     ingest_from_grid,
     ingest_from_xls,
@@ -225,7 +224,7 @@ def test_post_sends_ingest_body(tmp: Path) -> None:
     import io
     from contextlib import redirect_stdout
 
-    from ir_monthly_xls_ingest import run
+    from jobs.monthly.ir_monthly_xls_ingest import run
 
     class Client:
         def __init__(self, status: int) -> None:
@@ -319,7 +318,7 @@ def test_fixture_spots() -> None:
 
 def test_cli_dry_run(tmp: Path) -> None:
     from io import StringIO
-    from ir_monthly_xls_ingest import main
+    from jobs.monthly.ir_monthly_xls_ingest import main
 
     dest = tmp / "monthly"
     folder = dest / "1878"

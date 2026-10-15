@@ -5,7 +5,7 @@
 ## 何をするか
 
 - 対象は本番の `stock.db`（既定 `/home/stock/stock-analyzer/stock.db`）。WAL モードなので `cp` は使わない。
-- `jobs/backup_db.py` が Python の sqlite3 backup API で整合コピーし、`PRAGMA quick_check` のあと `gzip` 圧縮レベル 1 で保存する。
+- `jobs/ops/backup_db.py` が Python の sqlite3 backup API で整合コピーし、`PRAGMA quick_check` のあと `gzip` 圧縮レベル 1 で保存する。
 - 保存先は VPS ローカルだけ（`/home/stock/backups`）。R2 には出さない。
 - 日次は 7 世代、週次（日曜の分）は 4 世代。成功したときだけ古い世代を消す。失敗・容量不足・quick_check 失敗では既存の正常ファイルを触らない。
 - 容量が足りないときは取得せず非ゼロ終了する。Slack は他ジョブと同じく `deploy/cron-run.sh` の `fail cron` → fluent-bit → `#alerts-batch`。
