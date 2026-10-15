@@ -15,7 +15,7 @@ The chart tab searches an issuer and draws adjusted daily, weekly, or monthly ca
 
 - Click `nav button[data-tab="chart"]`.
 - Type a name or 5-digit code into `#sym` and pick `#suggest`.
-- From 決算速報 (issuer title) or スクリーナー (name cell), use `gotoChart(code)`. There is no chart button on 月次; 型の調査 / census is not in the SPA.
+- From 決算速報 (issuer title), スクリーナー (name cell), or サプライ (listed company panel `#supply-chart-link` 「チャートを開く」), use `gotoChart(code)`. `#sym` is not filled on that path; `#chart-title` shows the issuer. There is no chart button on 月次; 型の調査 / census is not in the SPA.
 - Change `#tf` (`D` / `W` / `M` — 日足/週足/月足), `#mas`, or `#rel`, then click `表示` (changing those controls alone does not redraw).
 - Optionally tick `.evt-toggles` 決算発表 for earnings markers.
 - Reload with `#chart/{code}` to reopen that issuer without searching.
