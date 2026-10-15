@@ -86,7 +86,7 @@ year GET の各行は保存 `element` に加え、派生の `label`（display / 
 
 - ingest / POST は入ってくる名前を正規化し、銘柄エイリアス（ingest は as_of、続けて列の暦年。POST は year）を掛けてから、保存名と **完全一致** する行を探す。無ければ新しい行。既存行の改名・統合はしない
 - PUT elements（unit の変更）は、その行を新しい unit の正規名へ付け替える（`売上高` を yoy にすると `売上高(前年比)`）。正規名が既にあれば値を寄せ、同じ月が両方非NULLで不一致なら 409 `FOLD_CONFLICT`
-- `init_db` / migrate（アプリ起動・バッチ毎回）は書き換えない。今の規則と alias で作り直すと名前が変わる行（ドリフト）を数え、1 件以上ならログに 1 行出す（`月次の保存名ドリフト: N 行 / M 銘柄 (…)`。MCP `app_logs` / バッチのログ）
+- アプリ起動・バッチ・デプロイは書き換えない。デプロイごとの `jobs/migrate.py` が、今の規則と alias で作り直すと名前が変わる行（ドリフト）を数え、1 件以上ならログに 1 行出す（`月次の保存名ドリフト: N 行 / M 銘柄 (…)`。Actions のデプロイのログ）。いつでも見たいときは **Monthly names** の `plan`
 - 付け替えは `jobs/monthly_names.py`（`plan` は書かずに表示、`apply` で付け替え）。本番は Actions の **Monthly names**（`workflow_dispatch`。既定 plan）。正規化の規則や `config/monthly/issuer_aliases.json` を変えた PR は、デプロイ後に plan → apply で既存行をそろえる。apply は正規名へ（例: `全店 売上高前期比` → `全店 売上高(前年比)`）。正規名が既にあれば正規名を残し、値は非NULL優先で短い行を消す。同じ月が両方非NULLで不一致なら正規名を残して記録する
 - 規則を変えて apply しないと、次の取り込みで新しい名前の行ができる（行が割れる）。値は消えないので、apply で寄せれば直る
 - GET は保存名のまま。派生の `label` だけを足す。DB は書き換えない

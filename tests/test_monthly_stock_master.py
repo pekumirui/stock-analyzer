@@ -160,7 +160,8 @@ def test_put_rejects_when_master_missing() -> None:
 
 
 def test_orphan_delete() -> None:
-    from app.db import SessionLocal, delete_orphan_monthly_rows, init_db
+    from app.db import SessionLocal, init_db
+    from app.monthly.maintenance import delete_orphan_monthly_rows, run_deploy_maintenance
     from app.models import MonthlyElement, MonthlyIssuer, MonthlyTable, MonthlyValue, Stock
 
     _ensure_stock("72030")
@@ -208,14 +209,22 @@ def test_orphan_delete() -> None:
     )):
         _fail(f"orphan delete must be idempotent: {again!r}")
 
+    # init_db はスキーマだけ。孤立行はデプロイごとの jobs/migrate.py（run_deploy_maintenance）が消す
     _add_orphan_monthly("30320", 2024)
     init_db()
     db = SessionLocal()
     try:
+        if db.get(MonthlyTable, ("30320", 2024)) is None:
+            _fail("init_db must not touch monthly rows")
+    finally:
+        db.close()
+    run_deploy_maintenance(verbose=False)
+    db = SessionLocal()
+    try:
         if db.get(MonthlyTable, ("30320", 2024)) is not None:
-            _fail("init_db must delete 30320-like orphans")
+            _fail("run_deploy_maintenance must delete 30320-like orphans")
         if db.get(MonthlyTable, ("72030", 2025)) is None:
-            _fail("init_db must keep rows with stocks")
+            _fail("run_deploy_maintenance must keep rows with stocks")
     finally:
         db.close()
 

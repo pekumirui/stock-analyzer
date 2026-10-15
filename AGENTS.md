@@ -39,7 +39,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `app/` 直下 | 機能をまたぐ共通部分（`config` / `models` / `db` / `main` / `assets` / `fx`）。機能ごとのコードは `market/`（株価・決算: チャート・スクリーナー・決算タブ）/ `monthly/` / `supply/` / `xbrl/` と `api/` |
 | `app/config.py` | 環境変数・閾値・プラン上限・ベース URL。ハードコードせずここに集約 |
 | `app/models.py` | SQLAlchemy スキーマ |
-| `app/db.py` | セッションと migrate。共通の UPSERT（`upsert`）と分割削除（`delete_all_chunked`） |
+| `app/db.py` | セッションとスキーマ（`init_db` / migrate）。共通の UPSERT（`upsert`）と分割削除（`delete_all_chunked`）。機能のコードは置かない |
 | `app/market/jquants.py` | J-Quants API V2 クライアント（認証・ページング・レート制限） |
 | `app/market/ingest.py` | API → DB 取込（UPSERT・冪等） |
 | `app/market/analytics.py` | MA / RS / ステージ / Q単独 / 決算後リターン |
@@ -47,6 +47,8 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `app/fx.py` | Frankfurter ECB 対EUR レートとクロス換算 |
 | `app/api/` | REST。`/api/*` は機能ごとに 1 ファイル（`earnings` / `chart` / `screener` / `stocks` / `supply`）。月次 `/api/v1/tables` は `monthly/`（`_common` に検査と書き込み、`elements` / `ingest` / `tables` / `doc`） |
 | `app/monthly/ingest.py` | PDF 月次列 → 暦年。行名正規化と aliases |
+| `app/monthly/store.py` | 月次の行の付け替え・削除・統合（API の書き込みと `jobs/monthly_names.py`） |
+| `app/monthly/maintenance.py` | 保存名の付け替え・ドリフト検出と、デプロイごとの後始末 `run_deploy_maintenance`（`jobs/migrate.py` だけが呼ぶ） |
 | `app/monthly/public.py` | 公開ページ `/monthly` の HTML・sitemap・robots |
 | `app/monthly/ir_codes.py` | `config/monthly/ir_monthly.json` の銘柄コード（デバッグ用グループ） |
 | `app/monthly/tree.py` | 月次の親子関係。`monthly_row_order.json` の `tree`、無ければゲートと内訳から作る自動の木を行に割り当てる。year GET の `tree` |
@@ -90,6 +92,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 - 合成デモデータは投入しない。`seed_demo.py` は置かない
 - 旧デモの `0` 始まりコードが残っていると RS ランクが狂う。`check_demo.py` のガードを外さない。残っていたら `reset`
 - 取込は UPSERT で冪等。何度走らせても壊れないこと
+- テーブルを作る `init_db()` を呼ぶのは `app/main.py`・`jobs/migrate.py`（デプロイごと）・`jobs/run_batch.py`（手元の初回 backfill）だけ。他のジョブは足さない。手元でテーブルが無ければ `./run.sh migrate`
 - Q単独は保存しない。`analytics.quarter_summary` で累計差から都度算出
 - `Statement.raw_json` は元レスポンス全項目を残す
 - `indicators` のステージは 1/2/3/4。判定不能は `NULL`

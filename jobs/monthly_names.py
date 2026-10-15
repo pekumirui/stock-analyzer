@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.db import (  # noqa: E402
+from app.monthly.maintenance import (  # noqa: E402
     apply_issuer_element_aliases, merge_yoy_duplicate_elements, monthly_name_drift,
 )
 

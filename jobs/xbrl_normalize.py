@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from app.db import SessionLocal, init_db  # noqa: E402
+from app.db import SessionLocal  # noqa: E402
 from app.xbrl.jobs import run_normalize  # noqa: E402
 from app.xbrl.mappings import apply_mappings  # noqa: E402
 
@@ -22,7 +22,6 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--rebuild", action="store_true")
     args = ap.parse_args()
-    init_db()
     db = SessionLocal()
     try:
         apply_mappings(db)

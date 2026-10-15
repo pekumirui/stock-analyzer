@@ -1786,7 +1786,8 @@ def test_number_stores_not_yoy_suffix() -> None:
 
 
 def test_merge_uchiyama_like_yoy_duplicates() -> None:
-    from app.db import SessionLocal, merge_yoy_duplicate_elements
+    from app.db import SessionLocal
+    from app.monthly.maintenance import merge_yoy_duplicate_elements
     from app.models import MonthlyElement, MonthlyTable, MonthlyValue
 
     code, year = "60590", 2026
@@ -1853,7 +1854,8 @@ def test_merge_uchiyama_like_yoy_duplicates() -> None:
 
 def test_rename_29260_style_cross_year_yoy() -> None:
     """年Aは短い yoy 名、年Bは正規名。migrate で短い名を正規名へ。number は触らない。"""
-    from app.db import SessionLocal, merge_yoy_duplicate_elements
+    from app.db import SessionLocal
+    from app.monthly.maintenance import merge_yoy_duplicate_elements
     from app.models import MonthlyElement, MonthlyTable, MonthlyValue
     from app.monthly.ingest import union_monthly_elements
 
@@ -1964,7 +1966,8 @@ def test_rename_29260_style_cross_year_yoy() -> None:
 
 
 def test_issuer_alias_ingest_and_migrate() -> None:
-    from app.db import SessionLocal, apply_issuer_element_aliases
+    from app.db import SessionLocal
+    from app.monthly.maintenance import apply_issuer_element_aliases
     from app.models import MonthlyElement, MonthlyTable, MonthlyValue
 
     cases = plan_issuer_alias_cases()
@@ -2983,7 +2986,8 @@ def test_count_metric_keeps_pre534_stored_names() -> None:
     if plans:
         _fail(f"startup merge must not fold count/sales rows: {plans!r}")
 
-    from app.db import SessionLocal, merge_yoy_duplicate_elements
+    from app.db import SessionLocal
+    from app.monthly.maintenance import merge_yoy_duplicate_elements
     from app.models import MonthlyElement, MonthlyTable, MonthlyValue
 
     code, year = "23050", 2026

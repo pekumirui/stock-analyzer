@@ -80,10 +80,8 @@ def test_apply_incoming_unit_conflict_and_force() -> None:
 
 def test_startup_keeps_names_and_job_renames() -> None:
     """保存名は凍結（#545）。起動時は書き換えずドリフトを数えるだけ。付け替えは jobs/monthly_names.py。"""
-    from app.db import (
-        SessionLocal, init_db, merge_yoy_duplicate_elements, monthly_name_drift,
-        report_monthly_name_drift,
-    )
+    from app.db import SessionLocal, init_db
+    from app.monthly.maintenance import merge_yoy_duplicate_elements, monthly_name_drift, report_monthly_name_drift
     from app.models import MonthlyElement, MonthlyTable, MonthlyValue
 
     # Isolated year so later 72030/2026 API cases keep their own rows.
@@ -4726,7 +4724,8 @@ console.log(JSON.stringify({
         _fail(f"pair yoy rows: {got.get('pairedIds')!r}")
 
 def _assert_known_prod_units(c) -> None:
-    from app.db import SessionLocal, apply_known_monthly_element_units
+    from app.db import SessionLocal
+    from app.monthly.maintenance import apply_known_monthly_element_units
     from app.models import MonthlyElement, MonthlyValue
 
     _ensure_stock("92790")

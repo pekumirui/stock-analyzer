@@ -29,7 +29,7 @@ from _r2common import check_r2_mount, r2_share_root  # noqa: E402
 from app.config import (  # noqa: E402
     ESTAT_APP_ID, METI_SEIDOU_URL, METI_SEKIYU_KAKUHO_URL, METI_SEKIYU_SOKUHO_URL,
 )
-from app.db import SessionLocal, init_db  # noqa: E402
+from app.db import SessionLocal  # noqa: E402
 from app.supply.estat import (  # noqa: E402
     EstatClient, match_codes, month_of, parse_production_label, production_dims, production_table,
     published_through, seidou_records, sokuho_month, table_title, trade_country_rows, trade_rows, trade_table,
@@ -333,7 +333,6 @@ def main() -> int:
     material_ids = [m["id"] for m in load_supply_chain()["materials"]]
     mapping = load_mapping(material_ids=material_ids)
 
-    init_db()
     db = SessionLocal()
     try:
         pruned = prune_unmapped(db, mapping)
