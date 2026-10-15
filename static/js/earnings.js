@@ -85,9 +85,12 @@ document.addEventListener("click", e => {
 
 const MET = [["net_sales","売上"],["operating_profit","営利"],["ordinary_profit","経利"],["profit","純利"]];
 // 既出期間の再提出で損益が変わったもの (値がそのままの再提出はAPI側で除外済み)
-const revBadge = r => r.restated ? `<span class="badge rev" title="既出期間の訂正">訂正</span>` : "";
+const revBadge = r => r.restated ? `<span class="qb qb-rev" title="既出期間の訂正">訂正</span>` : "";
+// 決算表の 3か月と同じく Q は決算期の下段のチップ。FY は 4Q と書く
+const listQ = q => q ? qBadge({kind:"single", period:q}) : "";
+const under = html => `<span class="g">${html || " "}</span>`;
 const shortName = n => { const s = String(n||""); return s.length>5 ? s.slice(0,5) : s; };
-// 列見出しが「期」なので FY 接頭辞は幅の無駄
+// 列見出しが「決算期」なので FY 接頭辞は幅の無駄
 const fyShort = s => String(s||"").replace(/^FY/, "");
 let earnBoard={kind:"scheduled", actuals:[], scheduled:[]}, selKey=null, detailReq=0;
 let earnDay="", earnToday="";
@@ -193,27 +196,27 @@ function tableHtml(actuals, scheduled){
   const dash = MET.map((_,i)=>`<td class="num ${i?'':'grp'}">–</td>`).join("");
   let h = `<table id="earn-tbl"><thead>`
         + `<tr><th rowspan="2">時刻</th><th rowspan="2" class="l name">銘柄</th>`
-        + `<th rowspan="2" class="l fy">期</th><th rowspan="2">Q</th>`
+        + `<th rowspan="2" class="l fy">決算期</th>`
         + `<th colspan="4" class="grp">QoQ (3か月)</th><th colspan="4" class="grp">YoY (累計)</th></tr>`
         + `<tr>${sub()}${sub()}</tr></thead><tbody>`;
   for(const r of actuals){
     // 1QのQoQは前事業年度の4Q単独が相手になる (季節性が断絶するため注記する)
     const tip = r.period==="1Q" ? ' title="前期4Q単独比"' : "";
     h += `<tr data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">`
-       + `<td>${(r.disclosed_time||"").slice(0,5)}</td>`
-       + `<td class="l name" title="${r.name}">${shortName(r.name)} <small class="sub">${r.code.slice(0,4)}</small>${revBadge(r)}</td>`
-       + `<td class="l fy">${fyShort(r.fy_label)}</td><td>${r.period||""}</td>`
+       + `<td>${(r.disclosed_time||"").slice(0,5)}${under(revBadge(r))}</td>`
+       + `<td class="l name" title="${r.name}">${shortName(r.name)} <small class="sub">${r.code.slice(0,4)}</small></td>`
+       + `<td class="l fy">${fyShort(r.fy_label)}${under(listQ(r.period))}</td>`
        + MET.map(([k],i)=>`<td class="num ${i?'':'grp'}"${tip}>${gc((r.qoq||{})[k])}</td>`).join("")
        + MET.map(([k],i)=>`<td class="num ${i?'':'grp'}">${gc((r.yoy||{})[k])}</td>`).join("")
        + `</tr>`;
   }
   for(const r of scheduled){
-    const fq = (r.periods||[]).map(p => p.fq).join(" / ");
+    const fq = (r.periods||[]).map(p => listQ(p.fq)).join("");
     const label = (r.periods||[]).map(p => fyShort(p.label)).join(" / ");
     h += `<tr data-code="${r.code}" onclick="selectSched('${r.code}')">`
        + `<td>–</td>`
        + `<td class="l name" title="${r.name}">${shortName(r.name)} <small class="sub">${r.code.slice(0,4)}</small></td>`
-       + `<td class="l fy">${label}</td><td>${fq}</td>`
+       + `<td class="l fy">${label}${under(fq)}</td>`
        + dash + dash
        + `</tr>`;
   }
