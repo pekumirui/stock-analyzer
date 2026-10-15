@@ -20,7 +20,7 @@ from sqlalchemy import tuple_
 from sqlalchemy.orm import Session
 
 from ..config import MATERIAL_STATS_PATH
-from ..market.ingest import upsert
+from ..db import upsert
 from ..models import MaterialMonthly, MaterialTradeCountry
 
 METRICS = ("production", "shipment", "inventory", "import", "export", "processing", "domestic_sales")

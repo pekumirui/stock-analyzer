@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, aliased
 
 from .. import config
-from .ingest import upsert
+from ..db import upsert
 from .jquants import JQuantsClient
 from ..models import EarningsDateFetch, EarningsDatePub, Stock
 

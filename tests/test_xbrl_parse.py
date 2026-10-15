@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT / "jobs"))
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{tempfile.mkdtemp(prefix='xbrl-test-')}/stock.db")
 
 from app.db import SessionLocal, init_db  # noqa: E402
-from app.market.ingest import upsert  # noqa: E402
+from app.db import upsert  # noqa: E402
 from app.models import Stock, XbrlFact, XbrlFiling, XbrlFinancial, XbrlStdItem  # noqa: E402
 from app.xbrl.context import (  # noqa: E402
     classify_title,

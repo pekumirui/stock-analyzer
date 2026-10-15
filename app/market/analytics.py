@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session, defer
 
 from ..config import STAGE_PARAMS as P, EARNINGS_PARAMS as EP, RS_PRODUCT_CATEGORIES
 from ..models import DailyPrice, Topix, Indicator, Statement, EarningsEvent, Stock
-from .ingest import WRITE_CHUNK_SIZE, _f, delete_all_chunked, upsert
+from ..db import WRITE_CHUNK_SIZE, delete_all_chunked, upsert
+from .ingest import _f
 
 
 def rs_universe_codes(db: Session) -> set[str] | None:

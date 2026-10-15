@@ -29,7 +29,7 @@ def _expect(resp, status: int, label: str) -> None:
 
 def _fixture() -> str:
     from app.db import SessionLocal, init_db
-    from app.market.ingest import upsert
+    from app.db import upsert
     from app.models import DailyPrice, Indicator, Stock, Topix
 
     init_db()
@@ -241,7 +241,7 @@ def main() -> None:
     # 週足は日足を ISO 週で集約。2週にまたがる日足を足して本数と OHLC を確認する
     from app.market.analytics import compute_indicators, rs_universe_codes
     from app.db import SessionLocal
-    from app.market.ingest import upsert
+    from app.db import upsert
     from app.models import DailyPrice, Indicator, Statement, Stock
 
     db = SessionLocal()

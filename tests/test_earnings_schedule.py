@@ -38,7 +38,7 @@ from app.market.earnings_schedule import (  # noqa: E402
     parse_pub,
     sync,
 )
-from app.market.ingest import upsert  # noqa: E402
+from app.db import upsert  # noqa: E402
 from app.models import EarningsDateFetch, EarningsDatePub, Stock  # noqa: E402
 
 TODAY = date(2026, 10, 2)

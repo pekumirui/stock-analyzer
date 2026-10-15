@@ -1,10 +1,12 @@
+from itertools import groupby
 import re
 import time
 import unicodedata
 
 from sqlalchemy import create_engine, event, inspect, text
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from .config import DATABASE_URL
 from .models import Base, MonthlyElement, MonthlyValue
@@ -83,6 +85,54 @@ def run_sqlite_write(db, fn, *, attempts: int = WRITE_LOCK_ATTEMPTS):
 
 class SchemaMismatch(RuntimeError):
     """既存DBのテーブル定義がモデル定義と食い違っている。"""
+
+
+WRITE_CHUNK_SIZE = 50_000
+_TABLE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def upsert(db: Session, model, rows: list[dict], *, commit: bool = True) -> None:
+    if not rows:
+        return
+    table = model.__table__
+    keys = [c.name for c in table.primary_key.columns]
+    # 行ごとに VALUES を埋めた文はコンパイルが重い (indicators 146万行で約7分)。
+    # 列の組が同じ連続区間ごとに 1 文を executemany する。順序は入力どおり。
+    for cols, grp in groupby(rows, key=lambda r: tuple(sorted(r))):
+        ins = sqlite_insert(table)
+        upd = {c: ins.excluded[c] for c in cols if c not in keys}
+        stmt = (ins.on_conflict_do_update(index_elements=keys, set_=upd) if upd
+                else ins.on_conflict_do_nothing(index_elements=keys))
+        db.execute(stmt, list(grp))
+    if commit:
+        db.commit()
+
+
+def delete_all_chunked(
+    db: Session, model, *, chunk_size: int = WRITE_CHUNK_SIZE,
+) -> int:
+    """全行を短いトランザクションで消す。SQLite は DB 全体でライター 1 本。
+
+    indicators の 1 トランザクション全削除は busy_timeout(30s) を超えて
+    月次 PUT が database is locked になる (#522)。
+    """
+    if chunk_size < 1:
+        raise ValueError("chunk_size must be >= 1")
+    name = model.__table__.name
+    if not _TABLE_NAME_RE.fullmatch(name):
+        raise ValueError(f"unsafe table name: {name!r}")
+    sql = text(
+        f"DELETE FROM {name} WHERE rowid IN (SELECT rowid FROM {name} LIMIT :n)"
+    )
+    deleted = 0
+    while True:
+        n = db.execute(sql, {"n": chunk_size}).rowcount or 0
+        db.commit()
+        db.expire_all()
+        if n <= 0:
+            break
+        deleted += n
+    return deleted
 
 
 def missing_columns() -> dict[str, list[str]]:

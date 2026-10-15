@@ -321,7 +321,7 @@ def test_chunked_commits_let_other_writer_in() -> None:
 def test_delete_all_chunked_and_compute_indicators_commit() -> None:
     from app.market.analytics import compute_indicators
     from app.db import SessionLocal, init_db
-    from app.market.ingest import delete_all_chunked, upsert
+    from app.db import delete_all_chunked, upsert
     from app.models import DailyPrice, Indicator, Stock
 
     init_db()
@@ -374,7 +374,7 @@ def test_put_values_batch_during_writer_lock() -> None:
     from fastapi.testclient import TestClient
 
     from app.db import SessionLocal, init_db
-    from app.market.ingest import upsert
+    from app.db import upsert
     from app.main import app
     from app.models import MonthlyElement, MonthlyTable, Stock
 

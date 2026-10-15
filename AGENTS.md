@@ -39,7 +39,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `app/` 直下 | 機能をまたぐ共通部分（`config` / `models` / `db` / `main` / `assets` / `fx`）。機能ごとのコードは `market/`（株価・決算: チャート・スクリーナー・決算タブ）/ `monthly/` / `supply/` / `xbrl/` と `api/` |
 | `app/config.py` | 環境変数・閾値・プラン上限・ベース URL。ハードコードせずここに集約 |
 | `app/models.py` | SQLAlchemy スキーマ |
-| `app/db.py` | セッションと migrate |
+| `app/db.py` | セッションと migrate。共通の UPSERT（`upsert`）と分割削除（`delete_all_chunked`） |
 | `app/market/jquants.py` | J-Quants API V2 クライアント（認証・ページング・レート制限） |
 | `app/market/ingest.py` | API → DB 取込（UPSERT・冪等） |
 | `app/market/analytics.py` | MA / RS / ステージ / Q単独 / 決算後リターン |
