@@ -33,7 +33,7 @@ switch ($cmd) {
     "migrate" { & $python jobs\migrate.py }
 
     "check" {
-        if ($arg) { & $python tools\check_api.py $arg } else { & $python tools\check_api.py }
+        if ($arg) { & $python tools\market\check_api.py $arg } else { & $python tools\market\check_api.py }
     }
 
     "serve" {

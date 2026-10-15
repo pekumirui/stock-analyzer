@@ -69,10 +69,10 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `jobs/_r2common.py` | R2 バッチの共通処理（日付・HTTP・銘柄マスタ・ファイル名）。`app` は import しない |
 | `jobs/html_issuers/` | `parse: true` の HTML 月次。各 `i<code>.py` が表・行・単位を宣言する。`parse: false` はモジュールを作らない |
 | `config/` | 機能ごとのフォルダ。`monthly/`（`ir_monthly.json`、`issuer_aliases.json`、`issuer_metrics.json`、`monthly_vocab.json`（行名の共通語彙）、`monthly_row_order.json`）、`supply/`（`supply_chain.json`（素材と流れ）、`supply_companies.json`（企業・生産能力）、`material_stats.json`（統計の品目 → 素材））、`xbrl/`（YAML）。Ruff/Bandit は `pyproject.toml` |
-| `tests/` | `test_*.py` と `ci_smoke.py`。新しい `test_*.py` は `ci_smoke.SUITES` に登録する（漏れは ci_smoke が落とす） |
+| `tests/` | 機能ごとのフォルダ（`market/` / `monthly/` / `supply/` / `xbrl/` / `ops/`（VPS・R2・MCP・nginx・バックアップ））。直下は共通部分（`ci_smoke.py`・`test_layout.py`・`test_fx.py`・`test_sqlite_deploy.py`）。fixture は各フォルダの `testdata/`。新しい `test_*.py` は `ci_smoke.SUITES` に `tests/` からの相対パスで登録する（漏れは ci_smoke が落とす） |
 | `analyzer/` | `stock.db` を読むだけのオフライン分析（1 問 1 フォルダ、結果は各 `README.md`）。約束と一覧は `analyzer/README.md`。`app` からは使わない |
 | `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ） |
-| `tools/` | オフライン検証と手元ヘルパー。月次 PDF 指紋は `fmtdiff.py`（pdfplumber。ingest は従来どおり pdftotext）。TDnet 月次の未投入一覧は `tdnet_monthly_pending.py`（読み取り専用。使い方は `deploy/README.md`）。XBRL 一致率は `xbrl_match_rate.py`。e-Stat の表探しは `estat_fetch.py`。`check_api.py` と `read_xls.py` |
+| `tools/` | オフライン検証と手元ヘルパー。機能ごとのフォルダ。`market/check_api.py`（J-Quants 疎通）。`monthly/`: PDF 指紋 `fmtdiff.py`（pdfplumber。ingest は従来どおり pdftotext）、TDnet 月次の未投入一覧 `tdnet_monthly_pending.py`（読み取り専用。使い方は `deploy/README.md`）、`read_xls.py`。`supply/estat_fetch.py`（e-Stat の表探し）。`xbrl/`: 一致率 `xbrl_match_rate.py`、`fetch_xbrl_golden.py`、`copy_stocks_for_verify.py` |
 
 ## J-Quants（必須）
 
@@ -106,7 +106,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 - `MonthlyElement.unit` は保存 `number` / `yoy_index`。入力タグは `yoy_pct` も可（見出し。値の大きさから推測しない）。ingest は `yoy_pct` を `yoy_index` と `value+100` にして書く。PUT values は保存形の訂正で `+100` しない
 - 行名は `canonicalize_element_label`。銘柄固有は `config/monthly/issuer_aliases.json`（改名）と `config/monthly/issuer_metrics.json`（件数指標。層だけで保存名は変えない）。新しい例外は `docs/DESIGN_monthly_labels.md` に箇条書きで足す
 - 保存名は起動時・取り込み時に作り直さない（凍結）。正規化や alias を変えたら Actions の **Monthly names** で plan → apply
-- `tests/test_monthly_ingest.py` に銘柄分岐は足さない
+- `tests/monthly/test_monthly_ingest.py` に銘柄分岐は足さない
 - 月次業種は `monthly_issuers.industry`（既定 `その他`）。`stocks.sector33` とは別。ingest は `last_ingested_at` だけ更新し industry を触らない
 - HTML 月次の穴埋め・archive 投入は `.cursor/skills/monthly-html-ops-ingest/SKILL.md`。ウェーブ完了後のペアレビューは `.cursor/skills/monthly-html-pair-review/SKILL.md`（親が Task で起動。自己証明しない）
 - 決算予想エージェント実験は `.cursor/skills/agent-forecast/SKILL.md`（`/agent-forecast`）。手順の正本は `analyzer/agent_forecast/README.md`

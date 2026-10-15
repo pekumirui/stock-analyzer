@@ -54,10 +54,10 @@ jobs:
         run: python tests/ci_smoke.py
 
       - name: Log MCP
-        run: python tests/test_log_mcp.py
+        run: python tests/ops/test_log_mcp.py
 
       - name: Alert patterns
-        run: python tests/test_alert_patterns.py
+        run: python tests/ops/test_alert_patterns.py
 
   lint:
     name: Lint

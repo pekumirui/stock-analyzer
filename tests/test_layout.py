@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-ENTRY_RE = re.compile(r"(?:jobs|tools|tests)[/\\][A-Za-z0-9_.-]+\.py")
+ENTRY_RE = re.compile(r"(?:jobs|tools|tests)(?:[/\\][A-Za-z0-9_-]+)*[/\\][A-Za-z0-9_.-]+\.py")
 CALLERS = (
     ROOT / "deploy" / "crontab",
     ROOT / "deploy" / "update.sh",
@@ -21,6 +21,8 @@ GONE = (
     ROOT / "static" / "monthly_row_order.json",
     # 機能別フォルダへ移した。元の場所に戻さない
     ROOT / "app" / "api.py",
+    ROOT / "tests" / "testdata",
+    ROOT / "tools" / "fixtures",
     *(ROOT / "app" / f"{m}.py" for m in (
         "jquants", "ingest", "analytics", "earnings_schedule", "monthly_ingest", "monthly_tree",
         "public_monthly", "ir_monthly_codes", "supply_chain", "material_stats", "estat", "meti")),
@@ -33,8 +35,8 @@ REQUIRED = (
     ROOT / "config" / "monthly" / "monthly_row_order.json",
     ROOT / "jobs" / "run_batch.py",
     ROOT / "jobs" / "check_demo.py",
-    ROOT / "tools" / "check_api.py",
-    ROOT / "tools" / "read_xls.py",
+    ROOT / "tools" / "market" / "check_api.py",
+    ROOT / "tools" / "monthly" / "read_xls.py",
     ROOT / "tests" / "ci_smoke.py",
 )
 

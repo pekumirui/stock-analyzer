@@ -148,10 +148,10 @@ jobs/
   fx_rates.py   Frankfurter 為替（EUR ベース。cron は 08:00 JST）
   vps_packages_r2.py  VPS パッケージ一覧 → R2（cron は 06:40 JST）
   check_demo.py スキーマ + 旧デモ取り残しガード
-tests/
-  ci_smoke.py   CI 起動スモーク
-tools/
-  check_api.py  J-Quants 疎通確認
+tests/          機能ごと (market/ monthly/ supply/ xbrl/ ops/)
+  ci_smoke.py   CI 起動スモーク (各テストもここから走る)
+tools/          機能ごと (market/ monthly/ supply/ xbrl/)
+  market/check_api.py  J-Quants 疎通確認
 analyzer/       stock.db を読むだけの分析（一覧は analyzer/README.md）
 deploy/
   stock-analyzer.service  systemd（uvicorn ワーカー1）

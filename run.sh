@@ -54,9 +54,9 @@ case "$cmd" in
     ;;
   check)
     if [[ -n "$arg" ]]; then
-      "$python" tools/check_api.py "$arg"
+      "$python" tools/market/check_api.py "$arg"
     else
-      "$python" tools/check_api.py
+      "$python" tools/market/check_api.py
     fi
     ;;
   migrate)

@@ -240,9 +240,9 @@ tail /var/log/app/backup_db.log
 
 ```bash
 cd /home/stock/stock-analyzer
-.venv/bin/python tools/tdnet_monthly_pending.py
-.venv/bin/python tools/tdnet_monthly_pending.py --only-stale
-.venv/bin/python tools/tdnet_monthly_pending.py --code 9279 --json
+.venv/bin/python tools/monthly/tdnet_monthly_pending.py
+.venv/bin/python tools/monthly/tdnet_monthly_pending.py --only-stale
+.venv/bin/python tools/monthly/tdnet_monthly_pending.py --code 9279 --json
 ```
 
 既定の dest は `jobs/tdnet_monthly_r2.py` と同じ `/home/stock/r2-share/monthly`。DB は `DATABASE_URL`（無ければリポジトリの `stock.db`）。上書きは `--dest` と `--db`。

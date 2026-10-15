@@ -32,7 +32,7 @@ from _r2common import MountDisconnected, check_r2_mount  # noqa: E402
 from ir_monthly_html_ingest import UrllibClient, assert_loopback_base  # noqa: E402
 from ir_monthly_r2 import DEFAULT_DEST  # noqa: E402
 from tdnet_monthly_r2 import display_code  # noqa: E402
-from tools.read_xls import read_sheet  # noqa: E402
+from tools.monthly.read_xls import read_sheet  # noqa: E402
 
 CODE = "1878"
 DEFAULT_FROM_YEAR = 2024

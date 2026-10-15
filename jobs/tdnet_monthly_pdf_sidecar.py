@@ -81,7 +81,7 @@ _UNIT_SUFFIX = (
 _NUM_TOKEN_RE = re.compile(r"^([▲△\-−]?)([0-9][0-9,]*(?:\.[0-9]+)?)" + _UNIT_SUFFIX + "?$")
 _UNIT_TOKEN_RE = re.compile("^" + _UNIT_SUFFIX + "$")
 _BLANK_TOKENS = frozenset({"-", "−", "―", "—", "–", "ー", "‐", "*", "…", "n/a", "N/A"})
-# tools/fmtdiff.py の norm と同じ伏せ方（pdfplumber は VPS に無いので import しない）
+# tools/monthly/fmtdiff.py の norm と同じ伏せ方（pdfplumber は VPS に無いので import しない）
 _RE_DATE = re.compile(r"\d+\s*年\s*\d+\s*月(\s*\d+\s*日)?|\d{4}[/-]\d{1,2}([/-]\d{1,2})?")
 _RE_QUARTER = re.compile(r"第\s*\d+\s*(四半期|Q)")
 _RE_NUM = re.compile(r"[△▲\-−+]?\d[\d,]*(\.\d+)?")
@@ -502,7 +502,7 @@ def pdf_date_from_name(name: str) -> date | None:
 
 
 def expected_month(as_of: date) -> tuple[int, int]:
-    """開示日の前の暦月（tools/tdnet_monthly_pending.py と同じ見立て）。"""
+    """開示日の前の暦月（tools/monthly/tdnet_monthly_pending.py と同じ見立て）。"""
     if as_of.month == 1:
         return as_of.year - 1, 12
     return as_of.year, as_of.month - 1

@@ -315,7 +315,7 @@ config/xbrl/
     ifrs.yaml
 jobs/xbrl_parse.py
 jobs/xbrl_normalize.py
-tests/test_xbrl_parse.py
+tests/xbrl/test_xbrl_parse.py
 ```
 
 ### 5.3 xbrlp が提供するもの / しないもの
@@ -585,7 +585,7 @@ XBRL_TEXT_MAX_CHARS=1000
 
 ## 10. テスト
 
-`tests/test_xbrl_parse.py`。実 ZIP は `tests/fixtures/xbrl/` に最低 5 件。git に大きな ZIP を載せたくなければテストは「ファイルが無いとき skip」でもよいが、CI で 1 件は欲しい。
+`tests/xbrl/test_xbrl_parse.py`。実 ZIP は `tests/fixtures/xbrl/` に最低 5 件。git に大きな ZIP を載せたくなければテストは「ファイルが無いとき skip」でもよいが、CI で 1 件は欲しい。
 
 必ず含める種類:
 
