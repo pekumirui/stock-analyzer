@@ -6,49 +6,49 @@ CRON_TZ=Asia/Tokyo
 SHELL=/bin/bash
 
 # VPS パッケージ一覧 → R2 mount（読み取り専用。セキュリティ照合用。07:00 より前）
-40 6 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/vps_packages_r2.py
+40 6 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/vps_packages_r2.py
 
 # 日次（引け後の開示を夜に取る）
-30 19 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/run_batch.py
+30 19 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/run_batch.py
 
 # Frankfurter / ECB 対EUR 日次レート。公表は 16:00 CET 前後なので翌朝 JST。空なら 1999-01-04〜。
 0 8 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/fx_rates.py
 
 # TDnet 月次PDF → R2 mount（当日分）
-0 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_r2.py 1
-0 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_r2.py 1
+0 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_r2.py 1
+0 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_r2.py 1
 
 # TDnet 月次PDF → ingest JSON（前回投入分と同じ書式だけ。自動 POST しない）→ DB（loopback POST。ledger は dest/R2 に置かない）
-20 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_pdf_sidecar.py
-20 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_pdf_sidecar.py
-30 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_pdf_ingest.py --ledger /var/log/app/pdf_ingest_ledger.json
-30 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_monthly_pdf_ingest.py --ledger /var/log/app/pdf_ingest_ledger.json
+20 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_pdf_sidecar.py
+20 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_pdf_sidecar.py
+30 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_pdf_ingest.py --ledger /var/log/app/pdf_ingest_ledger.json
+30 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_pdf_ingest.py --ledger /var/log/app/pdf_ingest_ledger.json
 
-# IR 月次 PDF/xlsx → R2 mount（TDnet に月次が無い発行体。config/ir_monthly.json issuers）
-0 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_r2.py
-0 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_r2.py
+# IR 月次 PDF/xlsx → R2 mount（TDnet に月次が無い発行体。config/monthly/ir_monthly.json issuers）
+0 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/ir_monthly_r2.py
+0 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/ir_monthly_r2.py
 
-# IR 月次 HTML → R2 mount + ingest JSON（自動 POST しない。config/ir_monthly.json html）
-20 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_html_r2.py
-20 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_html_r2.py
+# IR 月次 HTML → R2 mount + ingest JSON（自動 POST しない。config/monthly/ir_monthly.json html）
+20 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/ir_monthly_html_r2.py
+20 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/ir_monthly_html_r2.py
 
 # IR 月次 HTML → DB（loopback POST。取得の後。ledger は dest/R2 に置かない）
-30 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json
-30 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json
+30 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json
+30 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json
 
 # TDnet XBRL ZIP → R2 mount（当日分・毎時 12–23）
-0 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/tdnet_xbrl_r2.py 1
-10 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl_parse.py
-20 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl_normalize.py
+0 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/tdnet_xbrl_r2.py 1
+10 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/xbrl_parse.py
+20 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/xbrl_normalize.py
 
 # 素材の月次量 → material_monthly（サプライタブ）
 # 経産省 Excel（生産動態と石油統計。速報は翌月末、確報は翌々月中旬）。毎日見て、変わっていなければ同じ値の UPSERT
 # 生産動態と石油統計は時刻をずらす（METI の WAF は続けて取ると bot 確認を返す）。取り込み済みの年報は落とさない
-15 7 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/material_stats.py --source meti --only seidou
-45 7 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/material_stats.py --source meti --only sekiyu
+15 7 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/supply/material_stats.py --source meti --only seidou
+45 7 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/supply/material_stats.py --source meti --only sekiyu
 # e-Stat（生産動態の年報、貿易統計）。ESTAT_APP_ID が無ければ何もしない
-10 7 * * 1 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/material_stats.py --source estat
+10 7 * * 1 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/supply/material_stats.py --source estat
 
 # SQLite 整合バックアップ（WAL 中の cp は不可。手順は docs/DESIGN_backup.md）
 # 05:00 は run_batch（19:30）と XBRL（12–23 時）と重ならない。
-0 5 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/backup_db.py
+0 5 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/backup_db.py

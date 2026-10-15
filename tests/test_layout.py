@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-ENTRY_RE = re.compile(r"(?:jobs|tools|tests)[/\\][A-Za-z0-9_.-]+\.py")
+ENTRY_RE = re.compile(r"(?:jobs|tools|tests)(?:[/\\][A-Za-z0-9_-]+)*[/\\][A-Za-z0-9_.-]+\.py")
 CALLERS = (
     ROOT / "deploy" / "crontab",
     ROOT / "deploy" / "update.sh",
@@ -19,15 +19,35 @@ GONE = (
     ROOT / "app" / "issuer_aliases.json",
     ROOT / "app" / "monthly_row_order.json",
     ROOT / "static" / "monthly_row_order.json",
+    # 機能別フォルダへ移した。元の場所に戻さない
+    ROOT / "app" / "api.py",
+    ROOT / "deploy" / "log_mcp.py",
+    # mcp/ はスクリプトを置くだけ。__init__.py を置くと公式 SDK の `import mcp` を横取りする
+    ROOT / "mcp" / "__init__.py",
+    ROOT / "tests" / "testdata",
+    ROOT / "tools" / "fixtures",
+    ROOT / "jobs" / "html_issuers" / "__init__.py",
+    *(ROOT / "jobs" / f"{m}.py" for m in (
+        "run_batch", "check_demo", "html_monthly", "ir_monthly_html_ingest", "ir_monthly_html_r2",
+        "ir_monthly_r2", "ir_monthly_xls_ingest", "monthly_names", "tdnet_monthly_pdf_ingest",
+        "tdnet_monthly_pdf_sidecar", "tdnet_monthly_r2", "material_stats", "tdnet_xbrl_r2",
+        "xbrl_normalize", "xbrl_parse", "backup_db", "vps_packages_r2")),
+    *(ROOT / "app" / f"{m}.py" for m in (
+        "jquants", "ingest", "analytics", "earnings_schedule", "monthly_ingest", "monthly_tree",
+        "public_monthly", "ir_monthly_codes", "supply_chain", "material_stats", "estat", "meti")),
+    *(ROOT / "config" / f"{n}.json" for n in (
+        "ir_monthly", "issuer_aliases", "issuer_metrics", "monthly_vocab", "monthly_row_order",
+        "supply_chain", "supply_companies", "material_stats")),
 )
 REQUIRED = (
-    ROOT / "config" / "issuer_aliases.json",
-    ROOT / "config" / "monthly_row_order.json",
-    ROOT / "jobs" / "run_batch.py",
-    ROOT / "jobs" / "check_demo.py",
-    ROOT / "tools" / "check_api.py",
-    ROOT / "tools" / "read_xls.py",
+    ROOT / "config" / "monthly" / "issuer_aliases.json",
+    ROOT / "config" / "monthly" / "monthly_row_order.json",
+    ROOT / "jobs" / "market" / "run_batch.py",
+    ROOT / "jobs" / "market" / "check_demo.py",
+    ROOT / "tools" / "market" / "check_api.py",
+    ROOT / "tools" / "monthly" / "read_xls.py",
     ROOT / "tests" / "ci_smoke.py",
+    ROOT / "mcp" / "log_mcp.py",
 )
 
 

@@ -66,10 +66,10 @@ jobs:
           PY
 
           if [ -n "$ONLY" ]; then
-            REMOTE="cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_monthly_html_r2.py --only $(printf %q "$ONLY")"
+            REMOTE="cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/monthly/ir_monthly_html_r2.py --only $(printf %q "$ONLY")"
             echo "Run ir_monthly_html_r2.py --only ${ONLY} on ${USER}@${HOST}"
           else
-            REMOTE="cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_monthly_html_r2.py"
+            REMOTE="cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/monthly/ir_monthly_html_r2.py"
             echo "Run ir_monthly_html_r2.py (all) on ${USER}@${HOST}"
           fi
 

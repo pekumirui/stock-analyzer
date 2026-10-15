@@ -4,14 +4,14 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = BASE_DIR / "config"
-ISSUER_ALIASES_PATH = CONFIG_DIR / "issuer_aliases.json"
-ISSUER_METRICS_PATH = CONFIG_DIR / "issuer_metrics.json"
-MONTHLY_VOCAB_PATH = CONFIG_DIR / "monthly_vocab.json"
-MONTHLY_ROW_ORDER_PATH = CONFIG_DIR / "monthly_row_order.json"
-IR_MONTHLY_PATH = CONFIG_DIR / "ir_monthly.json"
-SUPPLY_CHAIN_PATH = CONFIG_DIR / "supply_chain.json"
-SUPPLY_COMPANIES_PATH = CONFIG_DIR / "supply_companies.json"
-MATERIAL_STATS_PATH = CONFIG_DIR / "material_stats.json"
+ISSUER_ALIASES_PATH = CONFIG_DIR / "monthly" / "issuer_aliases.json"
+ISSUER_METRICS_PATH = CONFIG_DIR / "monthly" / "issuer_metrics.json"
+MONTHLY_VOCAB_PATH = CONFIG_DIR / "monthly" / "monthly_vocab.json"
+MONTHLY_ROW_ORDER_PATH = CONFIG_DIR / "monthly" / "monthly_row_order.json"
+IR_MONTHLY_PATH = CONFIG_DIR / "monthly" / "ir_monthly.json"
+SUPPLY_CHAIN_PATH = CONFIG_DIR / "supply" / "supply_chain.json"
+SUPPLY_COMPANIES_PATH = CONFIG_DIR / "supply" / "supply_companies.json"
+MATERIAL_STATS_PATH = CONFIG_DIR / "supply" / "material_stats.json"
 
 
 def apply_dotenv(text: str, environ: MutableMapping[str, str]) -> None:

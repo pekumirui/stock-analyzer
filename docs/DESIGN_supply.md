@@ -1,6 +1,6 @@
 # サプライタブ
 
-書き方は `docs/SCREEN_SPEC.md`。素材マスタと企業マスタの検査は `app/supply_chain.py`。
+書き方は `docs/SCREEN_SPEC.md`。素材マスタと企業マスタの検査は `app/supply/chain.py`。
 
 ## 誰のための画面か
 
@@ -18,7 +18,7 @@
 
 ## データ形
 
-`config/supply_chain.json`。git で管理し、手で直す。
+`config/supply/supply_chain.json`。git で管理し、手で直す。
 
 ```json
 {
@@ -32,7 +32,7 @@
 - `flows` は `[原料, それから作られる素材]`。ツリーでなく有向グラフで、1 つの素材が複数の原料を持てる（PET 樹脂 ← エチレングリコール・テレフタル酸、エチレン ← ナフサ・エタン）。`prod` から先へも流れてよい（自動車部品 → 自動車、重油 → カーボンブラック）
 - 検査（違反は起動後の初回 API で 500、テストで落ちる）: id と name の重複なし、知らないキーなし、flows の両端が存在、自己ループ・重複・循環なし、`raw` は入力を持たない、`raw` 以外は入力を 1 本以上持つ
 
-企業は `config/supply_companies.json`。これも git で管理し、手で直す。数百社までは json、EDINET から全上場企業へ広げるときに DB へ移す。
+企業は `config/supply/supply_companies.json`。これも git で管理し、手で直す。数百社までは json、EDINET から全上場企業へ広げるときに DB へ移す。
 
 ```json
 {

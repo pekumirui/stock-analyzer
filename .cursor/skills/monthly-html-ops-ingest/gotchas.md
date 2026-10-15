@@ -27,7 +27,7 @@ Issue #180 型のウェーブでよく踏む点。銘柄コードは例。
 ```python
 from datetime import date
 from html_issuers import parse_issuer
-from app.monthly_ingest import plan_column_years
+from app.monthly.ingest import plan_column_years
 
 p = parse_issuer(html, "3222")
 # optional: p["as_of"] = "2024-02-29"

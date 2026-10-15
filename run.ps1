@@ -33,7 +33,7 @@ switch ($cmd) {
     "migrate" { & $python jobs\migrate.py }
 
     "check" {
-        if ($arg) { & $python tools\check_api.py $arg } else { & $python tools\check_api.py }
+        if ($arg) { & $python tools\market\check_api.py $arg } else { & $python tools\market\check_api.py }
     }
 
     "serve" {
@@ -51,9 +51,9 @@ switch ($cmd) {
     }
 
     "batch" {
-        & $python jobs\check_demo.py
+        & $python jobs\market\check_demo.py
         if ($LASTEXITCODE -ne 0) { break }
-        if ($arg) { & $python jobs\run_batch.py --date $arg } else { & $python jobs\run_batch.py }
+        if ($arg) { & $python jobs\market\run_batch.py --date $arg } else { & $python jobs\market\run_batch.py }
     }
 
     "backfill" {
@@ -70,17 +70,17 @@ switch ($cmd) {
             Write-Host "年数は1〜20の範囲で指定してください" -ForegroundColor Red
             break
         }
-        & $python jobs\check_demo.py
+        & $python jobs\market\check_demo.py
         if ($LASTEXITCODE -ne 0) { break }
         Write-Host "過去 $years 年分を取得します" -ForegroundColor Cyan
-        & $python jobs\run_batch.py --backfill $years
+        & $python jobs\market\run_batch.py --backfill $years
     }
 
     "lint" {
         & $python -m pip install -r requirements-dev.txt --quiet
-        & $python -m ruff check --config config/pyproject.toml app jobs tests tools analyzer deploy
+        & $python -m ruff check --config config/pyproject.toml app jobs tests tools analyzer deploy mcp
         if ($LASTEXITCODE -ne 0) { break }
-        & $python -m bandit -c config/pyproject.toml -r app jobs tests tools analyzer deploy -x app/xbrlp,.cursor,tmp,.venv
+        & $python -m bandit -c config/pyproject.toml -r app jobs tests tools analyzer deploy mcp -x app/xbrlp,.cursor,tmp,.venv
     }
 
     default { Write-Host "使い方: .\run.ps1 [serve|check|reset|migrate|batch|backfill|lint] [引数]" }
