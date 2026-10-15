@@ -185,7 +185,7 @@ def test_run_sqlite_write_gives_up() -> None:
 
 
 def test_put_values_batch_retries_sqlite_lock() -> None:
-    from app.api import put_values_batch
+    from app.api.monthly.elements import put_values_batch
 
     src = inspect.getsource(put_values_batch)
     if "run_sqlite_write" not in src:

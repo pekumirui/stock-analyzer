@@ -132,7 +132,7 @@ app/
   jquants.py    J-Quants APIクライアント
   ingest.py     取込バッチ (UPSERT・冪等)
   analytics.py  MA/RS/ステージ/Q単独/決算後リターン
-  api.py        REST API
+  api/          REST API (機能ごとに 1 ファイル。月次は api/monthly/)
   main.py       FastAPIエントリ
 static/
   index.html    SPA マークアップ

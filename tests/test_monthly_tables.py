@@ -17,7 +17,7 @@ os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app.api import ApiError, _apply_incoming_unit, _parse_code  # noqa: E402
+from app.api.monthly._common import ApiError, _apply_incoming_unit, _parse_code  # noqa: E402
 from app.main import app  # noqa: E402
 import app.monthly_ingest as monthly_ingest_mod  # noqa: E402
 from app.monthly_ingest import (  # noqa: E402

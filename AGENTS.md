@@ -43,7 +43,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `app/ingest.py` | API → DB 取込（UPSERT・冪等） |
 | `app/analytics.py` | MA / RS / ステージ / Q単独 / 決算後リターン |
 | `app/fx.py` | Frankfurter ECB 対EUR レートとクロス換算 |
-| `app/api.py` | REST (`/api/*`) |
+| `app/api/` | REST。`/api/*` は機能ごとに 1 ファイル（`earnings` / `chart` / `screener` / `stocks` / `supply`）。月次 `/api/v1/tables` は `monthly/`（`_common` に検査と書き込み、`elements` / `ingest` / `tables` / `doc`） |
 | `app/monthly_ingest.py` | PDF 月次列 → 暦年。行名正規化と aliases |
 | `app/monthly_tree.py` | 月次の親子関係。`monthly_row_order.json` の `tree`、無ければゲートと内訳から作る自動の木を行に割り当てる。year GET の `tree` |
 | `app/supply_chain.py` | サプライタブの素材マスタ（`config/supply_chain.json`）と企業マスタ（`config/supply_companies.json`）の読込と検査。月次量の API 形と見掛け消費 |
