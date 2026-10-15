@@ -53,10 +53,11 @@ def _pick_earnings_date(base: str, month: str, today: str) -> str | None:
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("feature", choices=["screener", "earnings", "chart", "monthly", "search"])
+    p.add_argument("feature", choices=["screener", "earnings", "chart", "monthly", "search", "supply"])
     p.add_argument("--date", default="")
     p.add_argument("--code", default="")
     p.add_argument("--month", default="")
+    p.add_argument("--id", default="")
     args = p.parse_args()
     base = _url()
     from datetime import date
@@ -135,6 +136,28 @@ def main() -> None:
             if dst != 200:
                 raise SystemExit(f"monthly {code}/{year} failed status={dst}")
         print(path)
+        return
+
+    if args.feature == "supply":
+        mat = args.id or "ethylene"
+        reqs = []
+
+        def grab(name: str, path: str) -> object:
+            url = base + path
+            st, body = _get(url)
+            _write("supply", f"{name}.json", "GET", url, st, body)
+            reqs.append(f"GET {url}\nstatus {st}\n")
+            (ART / "supply" / "request.txt").write_text("".join(reqs), encoding="utf-8")
+            return body
+
+        graph = grab("graph", "/api/supply/graph")
+        ids = {m["id"] for m in graph.get("materials") or []} if isinstance(graph, dict) else set()
+        if mat not in ids:
+            raise SystemExit(f"supply graph has no material {mat!r} (n={len(ids)})")
+        grab("companies", "/api/supply/companies")
+        grab("monthly", f"/api/supply/monthly/{mat}")
+        grab("countries", f"/api/supply/countries/{mat}")
+        print(ART / "supply" / "graph.json")
         return
 
 
