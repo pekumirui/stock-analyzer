@@ -8,7 +8,8 @@ from fastapi import APIRouter, Body, Depends
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ...db import delete_monthly_element, get_session, rename_monthly_element, run_sqlite_write
+from ...db import get_session, run_sqlite_write
+from ...monthly.store import delete_monthly_element, rename_monthly_element
 from ...models import MonthlyElement, MonthlyValue
 from ...monthly.tree import MONTHLY_TREES, assign_tree_rows
 from ._common import (

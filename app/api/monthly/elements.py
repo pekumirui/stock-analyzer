@@ -3,7 +3,8 @@
 from fastapi import APIRouter, Body, Depends, Response
 from sqlalchemy.orm import Session
 
-from ...db import delete_monthly_element, get_session, rename_monthly_element, run_sqlite_write
+from ...db import get_session, run_sqlite_write
+from ...monthly.store import delete_monthly_element, rename_monthly_element
 from ...models import MonthlyValue
 from ...monthly.ingest import (
     MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label, coerce_monthly_storage,

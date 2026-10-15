@@ -32,7 +32,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 |---|---|---|
 | `VPS_SSH_KEY` | はい | デプロイ用秘密鍵 |
 | `JQUANTS_API_KEY` | 推奨 | あるときだけ `.env` の当該行を更新。無ければ既存 `.env` を触らない |
-| `ESTAT_APP_ID` | 任意 | e-Stat API のアプリケーション ID（サプライタブの月次量）。あるときだけ `.env` の当該行を更新。無ければ `jobs/material_stats.py --source estat` は何もしない（経産省 Excel はキー不要） |
+| `ESTAT_APP_ID` | 任意 | e-Stat API のアプリケーション ID（サプライタブの月次量）。あるときだけ `.env` の当該行を更新。無ければ `jobs/supply/material_stats.py --source estat` は何もしない（経産省 Excel はキー不要） |
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | 推奨 | Cloudflare R2 (bucket `share`) の rclone 認証。あるときだけ `.env` と `~/.config/rclone/rclone.conf` を更新。無ければ既存を触らない |
 | `SLACK_WEBHOOK_URL` | 推奨 | Slack Incoming Webhook（#alerts）。コミットしない。漏れたら rotate。provision が `/etc/fluent-bit/slack.env` に URL と `SLACK_WEBHOOK_URI` を書く。`.env` には入れない |
 | `SLACK_WEBHOOK_URL_APP` | 任意 | Incoming Webhook（#alerts-app、fluent-bit タグ `app`）。未設定・空なら `SLACK_WEBHOOK_URL`（#alerts）にフォールバック。`.env` には入れない |
@@ -45,7 +45,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 | `VPS_HOST` / `VPS_USER` / `VPS_PORT` | 任意 | 未設定なら `160.251.179.50` / `stock` / `22` |
 | `CERTBOT_EMAIL` | 任意 | 無いと certbot は `--register-unsafely-without-email` |
 
-`stock.db` はパイプラインが触らない。初回データは手元で backfill して scp するか、VPS 上で `jobs/run_batch.py`。
+`stock.db` はパイプラインが触らない。初回データは手元で backfill して scp するか、VPS 上で `jobs/market/run_batch.py`。
 
 ## パイプラインが毎回やること
 
@@ -90,7 +90,7 @@ Host stock-vps-root
 
 ## ログ MCP（Grok）
 
-VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 認証なしで `/mcp` だけプロキシする。ポート 8010 は外に開けない。
+VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 認証なしで `/mcp` だけプロキシする。ポート 8010 は外に開けない。
 
 ツール:
 
@@ -115,7 +115,7 @@ VPS 上で `deploy/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 
 任意コマンドも restart も任意 SQL もない。月次ツールは FastAPI の `http://127.0.0.1:8000` だけを叩く（nginx Basic は使わない）。行数は最大 500。`.env` の値は伏せる。
 `monthly_get` の `values` は 1〜12。無い月は null。0 は実ゼロ。1年通して値のない行は出さない。
 月次の unit は PDF 見出しから付ける（`DESIGN.md` §3 の表）。既存行の unit 変更は `PUT /api/v1/tables/{code}/{year}/elements`（`{element, unit}`）。行はその unit の正規名へ付け替わる。
-月次の保存名は起動時に書き換えない（`docs/DESIGN_monthly_labels.md`「同一行・保存名の凍結」）。ずれた行があると `stock-analyzer.log` とバッチのログに `月次の保存名ドリフト: N 行` が出る。正規化や `config/monthly/issuer_aliases.json` を変えたあとは Actions の **Monthly names** を `plan`（既定、書かない）で流してログを見てから `apply`。中身は `jobs/monthly_names.py`。
+月次の保存名は起動時に書き換えない（`docs/DESIGN_monthly_labels.md`「同一行・保存名の凍結」）。ずれた行があるとデプロイ（`jobs/migrate.py`）のログに `月次の保存名ドリフト: N 行` が出る。正規化や `config/monthly/issuer_aliases.json` を変えたあとは Actions の **Monthly names** を `plan`（既定、書かない）で流してログを見てから `apply`。中身は `jobs/monthly/monthly_names.py`。
 
 認証は `MCP_TOKEN`（Bearer または OAuth で発行した access token）。GitHub secret と同値。値をログに出さない。
 
@@ -184,22 +184,22 @@ VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount �
    `.env` の当該行と `/home/stock/.config/rclone/rclone.conf`（chmod 600）が書かれ、user unit `r2-share.service` が mount する。
    secrets が無いときは provision は落とさず、ユニットは enable のみ
 3. 月次 PDF の初回バックフィルは Actions → **TDnet monthly backfill** → Run workflow、`days=30`。
-   SSH で `jobs/tdnet_monthly_r2.py 30` が走る（通常デプロイでは走らない）
+   SSH で `jobs/monthly/tdnet_monthly_r2.py 30` が走る（通常デプロイでは走らない）
 
 cron（JST）。`run_batch.py` は 19:30 の 1 回。
 
 | スクリプト | cron |
 |---|---|
-| `jobs/tdnet_monthly_r2.py 1` | 18:00 / 21:00 |
-| `jobs/tdnet_monthly_pdf_sidecar.py` | 18:20 / 21:20（TDnet PDF 取得の後） |
-| `jobs/tdnet_monthly_pdf_ingest.py` | 18:30 / 21:30（sidecar の後。ledger は `/var/log/app/pdf_ingest_ledger.json`） |
-| `jobs/ir_monthly_r2.py` | 10:00 / 16:00 |
-| `jobs/ir_monthly_html_r2.py` | 10:20 / 16:20 |
-| `jobs/ir_monthly_html_ingest.py` | 10:30 / 16:30（HTML 取得の後。ledger は `/var/log/app/html_ingest_ledger.json`） |
-| `jobs/tdnet_xbrl_r2.py 1` | 12–23 時の毎時 00 分 |
-| `jobs/xbrl_parse.py` / `jobs/xbrl_normalize.py` | 12–23 時の毎時 10 分 / 20 分 |
-| `jobs/vps_packages_r2.py` | 06:40 |
-| `jobs/backup_db.py` | 05:00（SQLite 整合バックアップ。R2 には出ない。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
+| `jobs/monthly/tdnet_monthly_r2.py 1` | 18:00 / 21:00 |
+| `jobs/monthly/tdnet_monthly_pdf_sidecar.py` | 18:20 / 21:20（TDnet PDF 取得の後） |
+| `jobs/monthly/tdnet_monthly_pdf_ingest.py` | 18:30 / 21:30（sidecar の後。ledger は `/var/log/app/pdf_ingest_ledger.json`） |
+| `jobs/monthly/ir_monthly_r2.py` | 10:00 / 16:00 |
+| `jobs/monthly/ir_monthly_html_r2.py` | 10:20 / 16:20 |
+| `jobs/monthly/ir_monthly_html_ingest.py` | 10:30 / 16:30（HTML 取得の後。ledger は `/var/log/app/html_ingest_ledger.json`） |
+| `jobs/xbrl/tdnet_xbrl_r2.py 1` | 12–23 時の毎時 00 分 |
+| `jobs/xbrl/xbrl_parse.py` / `jobs/xbrl/xbrl_normalize.py` | 12–23 時の毎時 10 分 / 20 分 |
+| `jobs/ops/vps_packages_r2.py` | 06:40 |
+| `jobs/ops/backup_db.py` | 05:00（SQLite 整合バックアップ。R2 には出ない。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
 
 振る舞いは `DESIGN.md` §3 と `docs/DESIGN_xbrl.md`。`rclone.conf` と取得ファイルはリポジトリに置かない。
 
@@ -217,17 +217,17 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 デプロイ後に一度だけ手で走らせる（ユーザ `stock`）:
 
 ```bash
-cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/vps_packages_r2.py
+cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/vps_packages_r2.py
 ```
 
 ### SQLite 日次バックアップ
 
-WAL 中の `cp` は使わない。`jobs/backup_db.py` が sqlite3 backup API → `PRAGMA quick_check` → gzip 圧縮レベル 1。保存は `/home/stock/backups/daily/`（7 世代）と日曜の `/home/stock/backups/weekly/`（4 世代）。R2 には出さない。失敗時は既存世代を消さず、`fail cron` が `#alerts-batch` に page する。復元は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)。
+WAL 中の `cp` は使わない。`jobs/ops/backup_db.py` が sqlite3 backup API → `PRAGMA quick_check` → gzip 圧縮レベル 1。保存は `/home/stock/backups/daily/`（7 世代）と日曜の `/home/stock/backups/weekly/`（4 世代）。R2 には出さない。失敗時は既存世代を消さず、`fail cron` が `#alerts-batch` に page する。復元は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)。
 
 `deploy/crontab` は `provision.sh` が `crontab -u stock` で入れる。デプロイ後に一度だけ手で走らせる（ユーザ `stock`）:
 
 ```bash
-cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/backup_db.py
+cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/backup_db.py
 ls -lh /home/stock/backups/daily
 tail /var/log/app/backup_db.log
 ```
@@ -240,12 +240,12 @@ tail /var/log/app/backup_db.log
 
 ```bash
 cd /home/stock/stock-analyzer
-.venv/bin/python tools/tdnet_monthly_pending.py
-.venv/bin/python tools/tdnet_monthly_pending.py --only-stale
-.venv/bin/python tools/tdnet_monthly_pending.py --code 9279 --json
+.venv/bin/python tools/monthly/tdnet_monthly_pending.py
+.venv/bin/python tools/monthly/tdnet_monthly_pending.py --only-stale
+.venv/bin/python tools/monthly/tdnet_monthly_pending.py --code 9279 --json
 ```
 
-既定の dest は `jobs/tdnet_monthly_r2.py` と同じ `/home/stock/r2-share/monthly`。DB は `DATABASE_URL`（無ければリポジトリの `stock.db`）。上書きは `--dest` と `--db`。
+既定の dest は `jobs/monthly/tdnet_monthly_r2.py` と同じ `/home/stock/r2-share/monthly`。DB は `DATABASE_URL`（無ければリポジトリの `stock.db`）。上書きは `--dest` と `--db`。
 
 列:
 
@@ -265,8 +265,8 @@ cd /home/stock/stock-analyzer
 
 2 段。どちらも cron（上の表）。振る舞いの正本は `DESIGN.md` §3。
 
-1. `jobs/tdnet_monthly_pdf_sidecar.py` が、DB の最新月より新しい PDF を持つ銘柄だけ、DB に入った前回の PDF から「どの行が DB のどの行か」を学び、同じ書式なら PDF の隣に `….pdf-ingest.json` を書く。POST しない
-2. `jobs/tdnet_monthly_pdf_ingest.py` が code ごとに最新の `.pdf-ingest.json` を loopback へ POST する。先に `dry_run` して、サーバが決めた列の暦年が sidecar の `columns` と違えば POST しない。sha256 ledger で同じ sidecar は二度送らない
+1. `jobs/monthly/tdnet_monthly_pdf_sidecar.py` が、DB の最新月より新しい PDF を持つ銘柄だけ、DB に入った前回の PDF から「どの行が DB のどの行か」を学び、同じ書式なら PDF の隣に `….pdf-ingest.json` を書く。POST しない
+2. `jobs/monthly/tdnet_monthly_pdf_ingest.py` が code ごとに最新の `.pdf-ingest.json` を loopback へ POST する。先に `dry_run` して、サーバが決めた列の暦年が sidecar の `columns` と違えば POST しない。sha256 ledger で同じ sidecar は二度送らない
 
 書けなかった銘柄は `/var/log/app/tdnet_monthly_pdf_sidecar.log` に `manual <code> <pdf>: <理由>` が出る（page しない）。理由は次のどれか。今までどおり MCP `monthly_ingest` で入れる。
 
@@ -282,10 +282,10 @@ cd /home/stock/stock-analyzer
 
 ```bash
 cd /home/stock/stock-analyzer
-.venv/bin/python -u jobs/tdnet_monthly_pdf_sidecar.py --dry-run
-.venv/bin/python -u jobs/tdnet_monthly_pdf_sidecar.py --only 428A
-.venv/bin/python -u jobs/tdnet_monthly_pdf_ingest.py --ledger /var/log/app/pdf_ingest_ledger.json --dry-run
-.venv/bin/python -u jobs/tdnet_monthly_pdf_ingest.py --ledger /var/log/app/pdf_ingest_ledger.json
+.venv/bin/python -u jobs/monthly/tdnet_monthly_pdf_sidecar.py --dry-run
+.venv/bin/python -u jobs/monthly/tdnet_monthly_pdf_sidecar.py --only 428A
+.venv/bin/python -u jobs/monthly/tdnet_monthly_pdf_ingest.py --ledger /var/log/app/pdf_ingest_ledger.json --dry-run
+.venv/bin/python -u jobs/monthly/tdnet_monthly_pdf_ingest.py --ledger /var/log/app/pdf_ingest_ledger.json
 ```
 
 `--force --only` / `--months` は `ir_monthly_html_ingest.py` と同じ。409（`UNIT_CONFLICT` など）で止まったら確かめてから `--force --only <code>`。自動で入ったものを直すときは MCP の `monthly_put_values`（暦年）。
@@ -306,8 +306,8 @@ cd /home/stock/stock-analyzer
 3. エージェントから:
 
 ```bash
-ssh stock-vps 'cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_monthly_html_r2.py --reparse'
-ssh stock-vps 'cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json'
+ssh stock-vps 'cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/monthly/ir_monthly_html_r2.py --reparse'
+ssh stock-vps 'cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/monthly/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json'
 ```
 
 接続確認: `ssh stock-vps 'echo ok $(hostname)'`。失敗したら公開鍵が `stock` の `authorized_keys` にあるか、Actions の **Debug VPS** を見る。
@@ -327,8 +327,8 @@ HTML に無いセル（行自体がページに無い、など）は消さない
 ユーザ `stock` で:
 
 ```bash
-cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_monthly_html_r2.py --force --only 3082
-cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json --force --only 3082 --months 2026-07,2026-08
+cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/monthly/ir_monthly_html_r2.py --force --only 3082
+cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/monthly/ir_monthly_html_ingest.py --ledger /var/log/app/html_ingest_ledger.json --force --only 3082 --months 2026-07,2026-08
 ```
 
 ### クラウドのエージェントから読む

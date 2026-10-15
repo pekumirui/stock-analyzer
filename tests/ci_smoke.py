@@ -65,7 +65,7 @@ def _fixture() -> str:
 def _check_demo_exit() -> int:
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location("check_demo", ROOT / "jobs" / "check_demo.py")
+    spec = importlib.util.spec_from_file_location("check_demo", ROOT / "jobs" / "market" / "check_demo.py")
     assert spec and spec.loader
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -74,49 +74,49 @@ def _check_demo_exit() -> int:
 
 # API スモークの後に subprocess で走らせる。test_layout.py は API より前に走らせるので別枠。
 SUITES = (
-    "test_monthly_tables.py",
-    "test_public_monthly.py",
-    "test_nginx_public.py",
-    "test_github_ssh.py",
+    "monthly/test_monthly_tables.py",
+    "monthly/test_public_monthly.py",
+    "ops/test_nginx_public.py",
+    "ops/test_github_ssh.py",
     "test_sqlite_deploy.py",
-    "test_monthly_ingest.py",
-    "test_monthly_stock_master.py",
-    "test_monthly_issuers.py",
-    "test_sync_monthly_from_vps.py",
-    "test_tdnet_monthly_r2.py",
-    "test_tdnet_monthly_pending.py",
-    "test_tdnet_monthly_pdf_sidecar.py",
-    "test_r2_mount.py",
-    "test_ir_monthly_r2.py",
-    "test_ir_monthly_html_r2.py",
-    "test_html_recipe.py",
-    "test_html_issue248_parity.py",
-    "test_html_3082_scope.py",
-    "test_ir_monthly_html_ingest.py",
-    "test_ir_monthly_xls_ingest.py",
-    "test_xbrl_parse.py",
-    "test_xbrl_match_rate.py",
-    "test_xbrl_units.py",
-    "test_tdnet_xbrl_r2.py",
-    "test_vps_packages_r2.py",
-    "test_backup_db.py",
-    "test_backfill.py",
-    "test_alert_patterns.py",
-    "test_html_predicates.py",
-    "test_analytics.py",
-    "test_jquants.py",
-    "test_earnings_schedule.py",
+    "monthly/test_monthly_ingest.py",
+    "monthly/test_monthly_stock_master.py",
+    "monthly/test_monthly_issuers.py",
+    "monthly/test_sync_monthly_from_vps.py",
+    "monthly/test_tdnet_monthly_r2.py",
+    "monthly/test_tdnet_monthly_pending.py",
+    "monthly/test_tdnet_monthly_pdf_sidecar.py",
+    "ops/test_r2_mount.py",
+    "monthly/test_ir_monthly_r2.py",
+    "monthly/test_ir_monthly_html_r2.py",
+    "monthly/test_html_recipe.py",
+    "monthly/test_html_issue248_parity.py",
+    "monthly/test_html_3082_scope.py",
+    "monthly/test_ir_monthly_html_ingest.py",
+    "monthly/test_ir_monthly_xls_ingest.py",
+    "xbrl/test_xbrl_parse.py",
+    "xbrl/test_xbrl_match_rate.py",
+    "xbrl/test_xbrl_units.py",
+    "xbrl/test_tdnet_xbrl_r2.py",
+    "ops/test_vps_packages_r2.py",
+    "ops/test_backup_db.py",
+    "market/test_backfill.py",
+    "ops/test_alert_patterns.py",
+    "monthly/test_html_predicates.py",
+    "market/test_analytics.py",
+    "market/test_jquants.py",
+    "market/test_earnings_schedule.py",
     "test_fx.py",
-    "test_supply_chain.py",
-    "test_material_stats.py",
+    "supply/test_supply_chain.py",
+    "supply/test_material_stats.py",
 )
 
 
 def unregistered_tests(tests_dir: Path, workflow: str) -> tuple[list[str], list[str]]:
     """(どこからも走らない test_*.py, 実在しない登録名)。workflow は cicd.yml の本文。"""
-    direct = set(re.findall(r"python tests/(test_\w+\.py)", workflow))
+    direct = set(re.findall(r"python tests/((?:\w+/)*test_\w+\.py)", workflow))
     registered = {"test_layout.py", *SUITES} | direct
-    present = {p.name for p in tests_dir.glob("test_*.py")}
+    present = {p.relative_to(tests_dir).as_posix() for p in tests_dir.rglob("test_*.py")}
     return sorted(present - registered), sorted(set(SUITES) - present)
 
 

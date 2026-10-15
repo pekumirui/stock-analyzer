@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.db import SessionLocal, init_db  # noqa: E402
+from app.db import SessionLocal  # noqa: E402
 from app.fx import FX_EARLIEST, ingest_range, resolve_start  # noqa: E402
 
 
@@ -41,7 +41,6 @@ def main() -> int:
     if end > today:
         end = today
 
-    init_db()
     db = SessionLocal()
     try:
         start = resolve_start(

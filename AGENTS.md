@@ -39,7 +39,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `app/` 直下 | 機能をまたぐ共通部分（`config` / `models` / `db` / `main` / `assets` / `fx`）。機能ごとのコードは `market/`（株価・決算: チャート・スクリーナー・決算タブ）/ `monthly/` / `supply/` / `xbrl/` と `api/` |
 | `app/config.py` | 環境変数・閾値・プラン上限・ベース URL。ハードコードせずここに集約 |
 | `app/models.py` | SQLAlchemy スキーマ |
-| `app/db.py` | セッションと migrate。共通の UPSERT（`upsert`）と分割削除（`delete_all_chunked`） |
+| `app/db.py` | セッションとスキーマ（`init_db` / migrate）。共通の UPSERT（`upsert`）と分割削除（`delete_all_chunked`）。機能のコードは置かない |
 | `app/market/jquants.py` | J-Quants API V2 クライアント（認証・ページング・レート制限） |
 | `app/market/ingest.py` | API → DB 取込（UPSERT・冪等） |
 | `app/market/analytics.py` | MA / RS / ステージ / Q単独 / 決算後リターン |
@@ -47,6 +47,8 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `app/fx.py` | Frankfurter ECB 対EUR レートとクロス換算 |
 | `app/api/` | REST。`/api/*` は機能ごとに 1 ファイル（`earnings` / `chart` / `screener` / `stocks` / `supply`）。月次 `/api/v1/tables` は `monthly/`（`_common` に検査と書き込み、`elements` / `ingest` / `tables` / `doc`） |
 | `app/monthly/ingest.py` | PDF 月次列 → 暦年。行名正規化と aliases |
+| `app/monthly/store.py` | 月次の行の付け替え・削除・統合（API の書き込みと `jobs/monthly/monthly_names.py`） |
+| `app/monthly/maintenance.py` | 保存名の付け替え・ドリフト検出と、デプロイごとの後始末 `run_deploy_maintenance`（`jobs/migrate.py` だけが呼ぶ） |
 | `app/monthly/public.py` | 公開ページ `/monthly` の HTML・sitemap・robots |
 | `app/monthly/ir_codes.py` | `config/monthly/ir_monthly.json` の銘柄コード（デバッグ用グループ） |
 | `app/monthly/tree.py` | 月次の親子関係。`monthly_row_order.json` の `tree`、無ければゲートと内訳から作る自動の木を行に割り当てる。year GET の `tree` |
@@ -58,19 +60,20 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 | `app/assets.py` | 配信する HTML の `/static` URL に中身のハッシュ（`?v=`）を付ける |
 | `app/xbrl/` | TDnet 短信 iXBRL の parse / YAML マッピング / normalize。UI には出さない |
 | `app/xbrlp/` | kawasin73 gist の vendor。改変しない |
-| `jobs/run_batch.py` | 日次バッチ / バックフィル |
-| `jobs/backup_db.py` | 本番 SQLite の日次 gzip バックアップ（ローカルのみ。手順は `docs/DESIGN_backup.md`） |
-| `jobs/material_stats.py` | 統計 → `material_monthly`。`--source meti --only seidou|sekiyu`（毎日、時刻をずらす）/ `--source estat`（毎週。前年と今年、`--years`） |
+| `jobs/` | 機能ごとのフォルダ（`market/` / `monthly/` / `supply/` / `xbrl/` / `ops/`（バックアップ・VPS 在庫））。直下は共通（`_r2common` / `migrate` / `fx_rates`）。ジョブ同士は `from jobs.<機能>.<名前> import` で読む（`jobs/` を `sys.path` に足して名前だけで読まない）。ログ名はファイル名なので、移すときもファイル名は変えない |
+| `jobs/market/run_batch.py` | 日次バッチ / バックフィル |
+| `jobs/ops/backup_db.py` | 本番 SQLite の日次 gzip バックアップ（ローカルのみ。手順は `docs/DESIGN_backup.md`） |
+| `jobs/supply/material_stats.py` | 統計 → `material_monthly`。`--source meti --only seidou|sekiyu`（毎日、時刻をずらす）/ `--source estat`（毎週。前年と今年、`--years`） |
 | `jobs/fx_rates.py` | Frankfurter 為替の日次差分 / `--backfill`（1999-01-04〜） |
-| `jobs/check_demo.py` | スキーマ検査 + 旧デモ取り残しガード。`batch` / `backfill` の前に走る |
-| `jobs/*_r2.py` | TDnet / IR → R2 mount。下の「R2 バッチ」 |
+| `jobs/market/check_demo.py` | スキーマ検査 + 旧デモ取り残しガード。`batch` / `backfill` の前に走る |
+| `jobs/**/*_r2.py` | TDnet / IR → R2 mount。下の「R2 バッチ」 |
 | `jobs/_r2common.py` | R2 バッチの共通処理（日付・HTTP・銘柄マスタ・ファイル名）。`app` は import しない |
-| `jobs/html_issuers/` | `parse: true` の HTML 月次。各 `i<code>.py` が表・行・単位を宣言する。`parse: false` はモジュールを作らない |
+| `jobs/monthly/html_issuers/` | `parse: true` の HTML 月次。各 `i<code>.py` が表・行・単位を宣言する。`parse: false` はモジュールを作らない |
 | `config/` | 機能ごとのフォルダ。`monthly/`（`ir_monthly.json`、`issuer_aliases.json`、`issuer_metrics.json`、`monthly_vocab.json`（行名の共通語彙）、`monthly_row_order.json`）、`supply/`（`supply_chain.json`（素材と流れ）、`supply_companies.json`（企業・生産能力）、`material_stats.json`（統計の品目 → 素材））、`xbrl/`（YAML）。Ruff/Bandit は `pyproject.toml` |
-| `tests/` | `test_*.py` と `ci_smoke.py`。新しい `test_*.py` は `ci_smoke.SUITES` に登録する（漏れは ci_smoke が落とす） |
+| `tests/` | 機能ごとのフォルダ（`market/` / `monthly/` / `supply/` / `xbrl/` / `ops/`（VPS・R2・MCP・nginx・バックアップ））。直下は共通部分（`ci_smoke.py`・`test_layout.py`・`test_fx.py`・`test_sqlite_deploy.py`）。fixture は各フォルダの `testdata/`。新しい `test_*.py` は `ci_smoke.SUITES` に `tests/` からの相対パスで登録する（漏れは ci_smoke が落とす） |
 | `analyzer/` | `stock.db` を読むだけのオフライン分析（1 問 1 フォルダ、結果は各 `README.md`）。約束と一覧は `analyzer/README.md`。`app` からは使わない |
-| `deploy/log_mcp.py` | VPS 上のログ MCP（本番のみ） |
-| `tools/` | オフライン検証と手元ヘルパー。月次 PDF 指紋は `fmtdiff.py`（pdfplumber。ingest は従来どおり pdftotext）。TDnet 月次の未投入一覧は `tdnet_monthly_pending.py`（読み取り専用。使い方は `deploy/README.md`）。XBRL 一致率は `xbrl_match_rate.py`。e-Stat の表探しは `estat_fetch.py`。`check_api.py` と `read_xls.py` |
+| `mcp/log_mcp.py` | VPS 上のログ MCP（本番のみ。`stock-analyzer-mcp.service`）。アプリとは別プロセス。`mcp/` に `__init__.py` は置かない（公式 SDK の `mcp` パッケージと名前がぶつかる） |
+| `tools/` | オフライン検証と手元ヘルパー。機能ごとのフォルダ。`market/check_api.py`（J-Quants 疎通）。`monthly/`: PDF 指紋 `fmtdiff.py`（pdfplumber。ingest は従来どおり pdftotext）、TDnet 月次の未投入一覧 `tdnet_monthly_pending.py`（読み取り専用。使い方は `deploy/README.md`）、`read_xls.py`。`supply/estat_fetch.py`（e-Stat の表探し）。`xbrl/`: 一致率 `xbrl_match_rate.py`、`fetch_xbrl_golden.py`、`copy_stocks_for_verify.py` |
 
 ## J-Quants（必須）
 
@@ -90,6 +93,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 - 合成デモデータは投入しない。`seed_demo.py` は置かない
 - 旧デモの `0` 始まりコードが残っていると RS ランクが狂う。`check_demo.py` のガードを外さない。残っていたら `reset`
 - 取込は UPSERT で冪等。何度走らせても壊れないこと
+- テーブルを作る `init_db()` を呼ぶのは `app/main.py`・`jobs/migrate.py`（デプロイごと）・`jobs/market/run_batch.py`（手元の初回 backfill）だけ。他のジョブは足さない。手元でテーブルが無ければ `./run.sh migrate`
 - Q単独は保存しない。`analytics.quarter_summary` で累計差から都度算出
 - `Statement.raw_json` は元レスポンス全項目を残す
 - `indicators` のステージは 1/2/3/4。判定不能は `NULL`
@@ -103,7 +107,7 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 - `MonthlyElement.unit` は保存 `number` / `yoy_index`。入力タグは `yoy_pct` も可（見出し。値の大きさから推測しない）。ingest は `yoy_pct` を `yoy_index` と `value+100` にして書く。PUT values は保存形の訂正で `+100` しない
 - 行名は `canonicalize_element_label`。銘柄固有は `config/monthly/issuer_aliases.json`（改名）と `config/monthly/issuer_metrics.json`（件数指標。層だけで保存名は変えない）。新しい例外は `docs/DESIGN_monthly_labels.md` に箇条書きで足す
 - 保存名は起動時・取り込み時に作り直さない（凍結）。正規化や alias を変えたら Actions の **Monthly names** で plan → apply
-- `tests/test_monthly_ingest.py` に銘柄分岐は足さない
+- `tests/monthly/test_monthly_ingest.py` に銘柄分岐は足さない
 - 月次業種は `monthly_issuers.industry`（既定 `その他`）。`stocks.sector33` とは別。ingest は `last_ingested_at` だけ更新し industry を触らない
 - HTML 月次の穴埋め・archive 投入は `.cursor/skills/monthly-html-ops-ingest/SKILL.md`。ウェーブ完了後のペアレビューは `.cursor/skills/monthly-html-pair-review/SKILL.md`（親が Task で起動。自己証明しない）
 - 決算予想エージェント実験は `.cursor/skills/agent-forecast/SKILL.md`（`/agent-forecast`）。手順の正本は `analyzer/agent_forecast/README.md`
@@ -145,21 +149,21 @@ Cursor / Claude Code / Codex など、ベンダーは問わない。違いは秘
 
 | スクリプト | 保存先 | cron | 振る舞いの正本 |
 |---|---|---|---|
-| `jobs/tdnet_monthly_r2.py N` | `monthly/{code}/YYYYMMDD_CODE_….pdf` | 18:00 / 21:00（N=1）。初回は Actions の **TDnet monthly backfill** | `DESIGN.md` §3 |
-| `jobs/tdnet_monthly_pdf_sidecar.py` | `monthly/{code}/….pdf-ingest.json`（前回投入分と同じ書式の PDF だけ） | 18:20 / 21:20 | `DESIGN.md` §3。自動 POST しない |
-| `jobs/tdnet_monthly_pdf_ingest.py` | （R2 は読まない。loopback POST） | 18:30 / 21:30 | `DESIGN.md` §3。`--ledger` は `/var/log/app/pdf_ingest_ledger.json` |
-| `jobs/ir_monthly_r2.py` | `monthly/{code}/….pdf` / `.xlsx` / `.xls` | 10:00 / 16:00 | `DESIGN.md` §3、対象は `config/monthly/ir_monthly.json` の issuers |
-| `jobs/ir_monthly_html_r2.py` | `monthly/{code}/…_月次.html` + `.ingest.json` | 10:20 / 16:20 | `DESIGN.md` §3、対象は `config/monthly/ir_monthly.json` の html。自動 POST しない |
-| `jobs/ir_monthly_html_ingest.py` | （R2 は読まない。loopback POST） | 10:30 / 16:30 | `DESIGN.md` §3。`--ledger` は `/var/log/app/html_ingest_ledger.json` |
-| `jobs/tdnet_xbrl_r2.py N` | `xbrl/{code4}/` | 12–23 時 毎時 00 分（N=1） | `docs/DESIGN_xbrl.md` |
-| `jobs/xbrl_parse.py` → `jobs/xbrl_normalize.py` | `xbrl_*` テーブル | 毎時 10 分 / 20 分 | `docs/DESIGN_xbrl.md` |
-| `jobs/material_stats.py --source meti` | `stats/meti/{seidou,sekiyu}/…xlsx`（経産省 Excel の控え） | 07:15 / 07:45（取込のついで） | `DESIGN.md` §3 |
-| `jobs/vps_packages_r2.py` | `inventory/vps-packages.txt` と `inventory/history/vps-packages-YYYYMMDD.txt` | 06:40 | `deploy/README.md` |
+| `jobs/monthly/tdnet_monthly_r2.py N` | `monthly/{code}/YYYYMMDD_CODE_….pdf` | 18:00 / 21:00（N=1）。初回は Actions の **TDnet monthly backfill** | `DESIGN.md` §3 |
+| `jobs/monthly/tdnet_monthly_pdf_sidecar.py` | `monthly/{code}/….pdf-ingest.json`（前回投入分と同じ書式の PDF だけ） | 18:20 / 21:20 | `DESIGN.md` §3。自動 POST しない |
+| `jobs/monthly/tdnet_monthly_pdf_ingest.py` | （R2 は読まない。loopback POST） | 18:30 / 21:30 | `DESIGN.md` §3。`--ledger` は `/var/log/app/pdf_ingest_ledger.json` |
+| `jobs/monthly/ir_monthly_r2.py` | `monthly/{code}/….pdf` / `.xlsx` / `.xls` | 10:00 / 16:00 | `DESIGN.md` §3、対象は `config/monthly/ir_monthly.json` の issuers |
+| `jobs/monthly/ir_monthly_html_r2.py` | `monthly/{code}/…_月次.html` + `.ingest.json` | 10:20 / 16:20 | `DESIGN.md` §3、対象は `config/monthly/ir_monthly.json` の html。自動 POST しない |
+| `jobs/monthly/ir_monthly_html_ingest.py` | （R2 は読まない。loopback POST） | 10:30 / 16:30 | `DESIGN.md` §3。`--ledger` は `/var/log/app/html_ingest_ledger.json` |
+| `jobs/xbrl/tdnet_xbrl_r2.py N` | `xbrl/{code4}/` | 12–23 時 毎時 00 分（N=1） | `docs/DESIGN_xbrl.md` |
+| `jobs/xbrl/xbrl_parse.py` → `jobs/xbrl/xbrl_normalize.py` | `xbrl_*` テーブル | 毎時 10 分 / 20 分 | `docs/DESIGN_xbrl.md` |
+| `jobs/supply/material_stats.py --source meti` | `stats/meti/{seidou,sekiyu}/…xlsx`（経産省 Excel の控え） | 07:15 / 07:45（取込のついで） | `DESIGN.md` §3 |
+| `jobs/ops/vps_packages_r2.py` | `inventory/vps-packages.txt` と `inventory/history/vps-packages-YYYYMMDD.txt` | 06:40 | `deploy/README.md` |
 
 - 月次の `{code}` は TDnet の発行体コードそのまま（9279, 262A）。J-Quants の 5 桁にしない。stocks 照合だけ末尾 0 を足す
 - `stocks` に無いコードは取らない。XBRL だけは `_unmatched/` へ置く
 - 既存ファイルは消さない。IR は同じ URL の上書きを日付付きで残し、中身の sha256 が同じなら skip
-- HTML 月次は `.ingest.json` を書くだけ。自動 POST しない。パーサー修正後は `--reparse`。DB 投入は別 cron の `jobs/ir_monthly_html_ingest.py`（loopback、latest-per-code、sha256 ledger）
+- HTML 月次は `.ingest.json` を書くだけ。自動 POST しない。パーサー修正後は `--reparse`。DB 投入は別 cron の `jobs/monthly/ir_monthly_html_ingest.py`（loopback、latest-per-code、sha256 ledger）
 - 各バッチの cron は分ける。1 本にまとめない
 - cron の出力は `deploy/cron-run.sh` が `/var/log/app/<stem>.log` に書く。行頭は JST。crontab にリダイレクトは書かない。古い `batch.log` は rotate まで残す。Actions の backfill はワークフローのログ（`cron-run.sh` を通さない）
 - XBRL は決算 UI / `statements` を触らない。マッピングは `config/xbrl/` だけ。エージェントが独断で足さない
