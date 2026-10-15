@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "deploy"))
+sys.path.insert(0, str(ROOT / "mcp"))
 
 os.environ.setdefault("MCP_TOKEN", "test-token-for-ci-only")
 os.environ["MCP_APP_DIR"] = str(ROOT)

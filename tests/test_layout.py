@@ -21,6 +21,9 @@ GONE = (
     ROOT / "static" / "monthly_row_order.json",
     # 機能別フォルダへ移した。元の場所に戻さない
     ROOT / "app" / "api.py",
+    ROOT / "deploy" / "log_mcp.py",
+    # mcp/ はスクリプトを置くだけ。__init__.py を置くと公式 SDK の `import mcp` を横取りする
+    ROOT / "mcp" / "__init__.py",
     ROOT / "tests" / "testdata",
     ROOT / "tools" / "fixtures",
     ROOT / "jobs" / "html_issuers" / "__init__.py",
@@ -44,6 +47,7 @@ REQUIRED = (
     ROOT / "tools" / "market" / "check_api.py",
     ROOT / "tools" / "monthly" / "read_xls.py",
     ROOT / "tests" / "ci_smoke.py",
+    ROOT / "mcp" / "log_mcp.py",
 )
 
 

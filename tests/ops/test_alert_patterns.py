@@ -453,6 +453,7 @@ def test_conf_has_registry_regexes() -> None:
 def test_no_committed_webhook_url() -> None:
     roots = (
         ROOT / "deploy",
+        ROOT / "mcp",
         ROOT / "jobs",
         ROOT / "tests",
         ROOT / "tools",
