@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ...db import get_session, run_sqlite_write
 from ...models import Statement
-from ...monthly_ingest import (
+from ...monthly.ingest import (
     MonthlyIngestError, map_pdf_columns, parse_as_of, serialize_column_mapping,
 )
 from ._common import (

@@ -67,14 +67,14 @@ notepad .env                    # JQUANTS_API_KEY を記入
 - 取得済みの日付はスキップするため、中断しても再実行すれば続きから埋まる
 
 > 旧デモ由来の `0` 始まりコードが DB に残っていると RS ランクが狂うため、
-> `batch` / `backfill` は実行前に `jobs/check_demo.py` で止まります。
+> `batch` / `backfill` は実行前に `jobs/market/check_demo.py` で止まります。
 > その場合は `.\run.ps1 reset` または `./run.sh reset` してから取り直してください。
 
 決算開示は引け後15時以降が多いため、当日夜(19:30頃)に1回実行する。
 タスクスケジューラに登録する場合の操作:
 
 - プログラム: `E:\project\stock-analyzer\.venv\Scripts\python.exe`
-- 引数: `jobs\run_batch.py`
+- 引数: `jobs\market\run_batch.py`
 - 開始場所: `E:\project\stock-analyzer`
 
 （この場合 `.env` は読み込まれないため、認証情報はシステム環境変数に設定するか
@@ -129,25 +129,30 @@ VPS へ自動デプロイするには、一度だけデプロイ用 SSH 鍵を�
 app/
   config.py     設定・ステージ判定閾値
   models.py     DBスキーマ (SQLAlchemy)
-  jquants.py    J-Quants APIクライアント
-  ingest.py     取込バッチ (UPSERT・冪等)
-  analytics.py  MA/RS/ステージ/Q単独/決算後リターン
+  market/       株価・決算 (チャート・スクリーナー・決算タブ)
+    jquants.py    J-Quants APIクライアント
+    ingest.py     取込バッチ (UPSERT・冪等)
+    analytics.py  MA/RS/ステージ/Q単独/決算後リターン
+  monthly/      月次 (行名の正規化・親子・公開ページ)
+  supply/       サプライ (素材マスタ・e-Stat・経産省)
   api/          REST API (機能ごとに 1 ファイル。月次は api/monthly/)
   main.py       FastAPIエントリ
+config/         機能ごとの JSON (monthly/ supply/ xbrl/)
 static/
   index.html    SPA マークアップ
   css/app.css   スタイル
   js/           タブ別 vanilla JS
-jobs/
-  run_batch.py  日次バッチ / バックフィル
-  backup_db.py  本番 SQLite の日次バックアップ（cron は 05:00 JST。手順は docs/DESIGN_backup.md）
-  fx_rates.py   Frankfurter 為替（EUR ベース。cron は 08:00 JST）
-  vps_packages_r2.py  VPS パッケージ一覧 → R2（cron は 06:40 JST）
-  check_demo.py スキーマ + 旧デモ取り残しガード
-tests/
-  ci_smoke.py   CI 起動スモーク
-tools/
-  check_api.py  J-Quants 疎通確認
+jobs/           機能ごと (market/ monthly/ supply/ xbrl/ ops/)。cron は deploy/crontab
+  market/run_batch.py   日次バッチ / バックフィル
+  market/check_demo.py  スキーマ + 旧デモ取り残しガード
+  ops/backup_db.py      本番 SQLite の日次バックアップ（cron は 05:00 JST。手順は docs/DESIGN_backup.md）
+  ops/vps_packages_r2.py  VPS パッケージ一覧 → R2（cron は 06:40 JST）
+  fx_rates.py           Frankfurter 為替（EUR ベース。cron は 08:00 JST）
+  migrate.py            デプロイごとのスキーマ追随と月次の後始末
+tests/          機能ごと (market/ monthly/ supply/ xbrl/ ops/)
+  ci_smoke.py   CI 起動スモーク (各テストもここから走る)
+tools/          機能ごと (market/ monthly/ supply/ xbrl/)
+  market/check_api.py  J-Quants 疎通確認
 analyzer/       stock.db を読むだけの分析（一覧は analyzer/README.md）
 deploy/
   stock-analyzer.service  systemd（uvicorn ワーカー1）

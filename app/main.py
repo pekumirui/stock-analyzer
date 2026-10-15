@@ -11,8 +11,8 @@ from .api.monthly import ApiError, _parse_code, list_tables_payload, table_year_
 from .assets import html_etag, version_static_urls
 from .config import MONTHLY_ROW_ORDER_PATH
 from .db import get_session, init_db
-from .ir_monthly_codes import load_ir_monthly_codes
-from .public_monthly import (
+from .monthly.ir_codes import load_ir_monthly_codes
+from .monthly.public import (
     code4, detail_html, display_years, not_found_html, public_origin, robots_txt,
     sitemap_xml, top_html,
 )

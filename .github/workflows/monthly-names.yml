@@ -72,4 +72,4 @@ jobs:
             -o ConnectTimeout=15 \
             -o ServerAliveInterval=15 \
             "${USER}@${HOST}" \
-            "cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/monthly_names.py ${MODE}"
+            "cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/monthly/monthly_names.py ${MODE}"

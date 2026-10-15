@@ -168,7 +168,7 @@ class MonthlyElement(Base):
 
     yoy の element は前年比語を剥がして末尾 (前年比)。number はトリムのみ。
     正規化後に同一なら同一行。短い保存名は正規名へリネームする。
-    init_db / migrate は同一年の重複がなくても yoy を正規名へ揃える。
+    保存名は凍結。揃えるのは jobs/monthly/monthly_names.py だけ。
     """
     __tablename__ = "monthly_elements"
     code = Column(String(5), primary_key=True)
@@ -353,9 +353,9 @@ class FxRate(Base):
 
 
 class MaterialMonthly(Base):
-    """サプライタブの素材ごとの月次量。素材は config/supply_chain.json の id（FK なし）。
+    """サプライタブの素材ごとの月次量。素材は config/supply/supply_chain.json の id（FK なし）。
 
-    統計の品目との対応は config/material_stats.json。取込は DESIGN.md §3「素材の月次量」。
+    統計の品目との対応は config/supply/material_stats.json。取込は DESIGN.md §3「素材の月次量」。
     """
     __tablename__ = "material_monthly"
     material_id = Column(String, primary_key=True)

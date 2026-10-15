@@ -16,7 +16,7 @@ LogsDirectory=app
 LogsDirectoryMode=0755
 StandardOutput=append:/var/log/app/mcp.log
 StandardError=append:/var/log/app/mcp.log
-ExecStart=/home/stock/stock-analyzer/.venv/bin/python deploy/log_mcp.py
+ExecStart=/home/stock/stock-analyzer/.venv/bin/python mcp/log_mcp.py
 Restart=on-failure
 RestartSec=5
 

@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 
 from ..db import get_session
 from ..models import MaterialMonthly, MaterialTradeCountry
-from ..material_stats import TRADE_SOURCE
-from ..supply_chain import country_payload, monthly_payload, supply_companies, supply_graph
+from ..supply.material_stats import TRADE_SOURCE
+from ..supply.chain import country_payload, monthly_payload, supply_companies, supply_graph
 
 
 router = APIRouter()

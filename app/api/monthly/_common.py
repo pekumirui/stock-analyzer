@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from ...config import MONTHLY_NEW_DAYS
 from ...models import Stock, MonthlyIssuer, MonthlyTable, MonthlyElement, MonthlyValue
-from ...monthly_ingest import (
+from ...monthly.ingest import (
     MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label, coerce_monthly_storage,
     monthly_element_label, monthly_series_kind, parse_monthly_unit, reject_prior_period_element,
     same_yoy_element, uncovered_yoy_number_twins,
