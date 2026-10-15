@@ -22,7 +22,7 @@
 
 - **言語**: Python 3.10+ / FastAPI / SQLAlchemy / pandas
 - **フロント**: `static/index.html` + `static/css/` + `static/js/` の vanilla JS SPA (lightweight-charts)。スマホ対応。フレームワークを足さない
-- **バッチ**: `jobs/run_batch.py` を cron / スケジューラで日次実行
+- **バッチ**: `jobs/market/run_batch.py` を cron / スケジューラで日次実行
 
 ## 2. J-Quants API V2 / Light プランの前提
 
@@ -217,60 +217,60 @@ ingest が新しい行を作るとき、同じ (code, year) に `strip_yoy_fragm
 - 日付・HTTP・銘柄マスタ・ファイル名の共通処理は `jobs/_r2common.py`（`app` は import しない）。`http_get` は TDnet も IR も同じ。識別 UA はジョブごとで、403 のときだけブラウザ UA に一度切り替え、中間証明書の欠落は AIA で補う。429 / 408 / 5xx は Retry-After があればそれに従い（最大 60 秒）、無ければ指数バックオフ＋jitter（5→10→20→40→60 秒、最大 6 回）。打ち切ったら例外を上げる。発行体ログは原則 `fail issuer {code} fetch:`（IR HTML の 429 だけ下の例外）
 - rclone FUSE（`/home/stock/r2-share`）が切れたら各社 `fail` を並べない。開始時と処理中に dest を probe し、ECONNABORTED / ENOTCONN / ESTALE / ルート消失なら `RestartSec` と同じ 5 秒を挟んで再試行し、駄目なら `R2 マウント切断` の 1 行で exit≠0。正常時の行は変えない。マウントの再起動は `deploy/r2-share.service` と `r2-share-watch.timer`。デプロイはハッシュが変わったときだけ `r2-share.service` を restart する（`deploy/README.md`）
 
-TDnet 月次 PDF（`jobs/tdnet_monthly_r2.py`）:
+TDnet 月次 PDF（`jobs/monthly/tdnet_monthly_r2.py`）:
 
 - やのしん list をキーワード union。`月次` が無い売上速報・○月度・受注速報・売上推移・業績速報なども取る。`is_monthly_title` が四半期短信・自己株式・新株予約権の月間行使・業績予想を落とす。`月度` 単体では取らず、売上/受注/IRニュースなどのヒントが要る。日次 cron と backfill は同じ判定
 - ダウンロード時にインフラファンドを除外する。商品区分は REIT と同じ `013`/`022` しか無いので、名称に「インフラ」を含むものだけ落とす（マスタ欠落時は TDnet 社名の「インフラ投資法人」）
 - 通常の REIT は残す。決算速報の REIT 全除外とは別。`MONTHLY_SKIP_CODES`（display_code の4桁）に入った銘柄は保存しない。8985 ジャパン・ホテル・リート投資法人、8798 アドバンスクリエイト（グラフ画像のみ）、8739 スパークス（運用資産残高のストック表）は取得対象外
 - stocks に無いコード（名証単独の 3032 / 3066 など）は `unknown-stock` で skip。東証マスタには載せない
 
-TDnet 月次 PDF の自動投入（`jobs/tdnet_monthly_pdf_sidecar.py` → `jobs/tdnet_monthly_pdf_ingest.py`）:
+TDnet 月次 PDF の自動投入（`jobs/monthly/tdnet_monthly_pdf_sidecar.py` → `jobs/monthly/tdnet_monthly_pdf_ingest.py`）:
 
 - 銘柄ごとの書式は宣言しない。DB に開示月（ファイル名日付の前暦月）の値がある前回の PDF（最大 3 本さかのぼる）から、DB の各行を再現する PDF の行を探して学ぶ。unit は DB から。DB が指数で PDF が増減率なら `yoy_pct`（+100 で一致）
 - PDF は `pdftotext -tsv` の語の座標で読む。月見出しの行と列がそろう数値の行（横組み）と、月が行ラベルの表（縦組み）。上期計・累計などの列は捨てる。見出しに年（`25年4月`）があれば使い、無ければ行ごとに値のある右端の月から左へ暦年を振る
 - 書くのは各 code の最新 PDF だけで、DB の最新月がその開示月より古いときだけ。次のどれかなら書かない（`manual`）: 開示月に値のある DB の行を全部は再現できない／使う表までの見出しの骨格（数値・日付を伏せる）か使う行の並びが前回と違う／前回無かった行・表に今月の値がある（表の序数込み。見出しと行名が既存と同じ新ブロックも含む）／DB に既にある月と 5 か月に 1 つより多く食い違う／件数・金額が直近 12 か月の中央値から 5 倍以上外れる／前回同じ値だった候補行が今回は違う
 - sidecar は PDF の隣の `….pdf-ingest.json`（HTML の `.ingest.json` と別の名前。HTML の ingest は拾わない）。形は ingest と同じで year は無い。values は値のある月だけ（null はセルを消すので送らない。月が重複すれば列番号キー）。`columns` に列ごとの暦年月、`learned_from` に学んだ PDF を残す
-- DB 投入は `jobs/tdnet_monthly_pdf_ingest.py`。latest-per-code・sha256 ledger・行に `force` を付けない点は HTML の ingest と同じ。POST の前に `dry_run` し、mapping が `columns` と違えば POST しない。ledger は `/var/log/app/pdf_ingest_ledger.json`
+- DB 投入は `jobs/monthly/tdnet_monthly_pdf_ingest.py`。latest-per-code・sha256 ledger・行に `force` を付けない点は HTML の ingest と同じ。POST の前に `dry_run` し、mapping が `columns` と違えば POST しない。ledger は `/var/log/app/pdf_ingest_ledger.json`
 - 前回の DB の値を正とするので、過去に人が入れ違えた行はそのまま引き継ぐ。速報の訂正は翌月の sidecar が全列を書き直すので追いつく
 
-IR 月次 PDF/xlsx/xls（`jobs/ir_monthly_r2.py`）:
+IR 月次 PDF/xlsx/xls（`jobs/monthly/ir_monthly_r2.py`）:
 
 - TDnet に月次が無い発行体が対象。`config/monthly/ir_monthly.json` の issuers（URL 確認済みだけ載せる）
 - 表計算と pdf が両方あるページは表計算だけ取る。xlsx があれば xlsx、なければ xls（大東建託 `history_*.xls`）
 - AWS ELB が識別 UA を 403 する発行体は、同じ `http_get` がブラウザ UA に一度だけフォールバックする
 - 中間証明書が欠ける／付け違う発行体は、同じ `http_get` がリーフの AIA (CA Issuers) から中間を補って検証し直す。検証は切らない（7544 スリーエフ）
-- 大東建託 (1878) の `history.xls` は `jobs/ir_monthly_xls_ingest.py` が ingest JSON を作り loopback POST する。year は送らない。汎用 xlsx パーサは無い。HTML ingest の cron には混ぜない
+- 大東建託 (1878) の `history.xls` は `jobs/monthly/ir_monthly_xls_ingest.py` が ingest JSON を作り loopback POST する。year は送らない。汎用 xlsx パーサは無い。HTML ingest の cron には混ぜない
 
-IR 月次 HTML（`jobs/ir_monthly_html_r2.py`）:
+IR 月次 HTML（`jobs/monthly/ir_monthly_html_r2.py`）:
 
 - `http_get` が打ち切った 429 は `failed` にせず `skip issuer {code} rate-limited:`。同一ホストは残りを `skip issuer {code} host-cooled {host}`。summary の `failed=` と exit=1 は 404・パース・I/O などだけ（`failed>0`）。再試行回数は増やさない
 - `.html`（原本）と `.ingest.json`（派生。`POST /api/v1/tables/{code}/ingest` と同じ形）を隣に置く。自動 POST しない
-- DB 投入は別スクリプト `jobs/ir_monthly_html_ingest.py`。code ごとにファイル名日付が最新の `.ingest.json` を loopback へ POST する。year は送らない。sha256 が前回成功分と同じなら POST しない。行に `force` は付けない（同名で unit が違う行・類似名は 409 で止め、人が `--force --only` で入れる）。`--months` は暦年の `YYYY-MM` を `only_months` として 1 回 POST する（年はサーバの mapping。部分投入は ledger を更新しない）。cron は producer（10:20 / 16:20）の後（10:30 / 16:30）。ledger は dest/R2 ではなく `/var/log/app/html_ingest_ledger.json`
-- 対象は `config/monthly/ir_monthly.json` の html。セレクタは json（`follow_re` / `source=eir` / `parse`）。`parse: true` は `jobs/html_issuers` の `parse`（`PARSERS`。`i<code>.py` を置けば載る）。各モジュールが表・行・単位を宣言する。`parse: false` はモジュールを作らない
+- DB 投入は別スクリプト `jobs/monthly/ir_monthly_html_ingest.py`。code ごとにファイル名日付が最新の `.ingest.json` を loopback へ POST する。year は送らない。sha256 が前回成功分と同じなら POST しない。行に `force` は付けない（同名で unit が違う行・類似名は 409 で止め、人が `--force --only` で入れる）。`--months` は暦年の `YYYY-MM` を `only_months` として 1 回 POST する（年はサーバの mapping。部分投入は ledger を更新しない）。cron は producer（10:20 / 16:20）の後（10:30 / 16:30）。ledger は dest/R2 ではなく `/var/log/app/html_ingest_ledger.json`
+- 対象は `config/monthly/ir_monthly.json` の html。セレクタは json（`follow_re` / `source=eir` / `parse`）。`parse: true` は `jobs/monthly/html_issuers` の `parse`（`PARSERS`。`i<code>.py` を置けば載る）。各モジュールが表・行・単位を宣言する。`parse: false` はモジュールを作らない
 - unit 判定の context は page 見出しに加え、当該 table 直上の section とページ内の `(単位：%)` / `単位:%` を含む。ページに単位表示が無く指数な銘柄、および見出しが伸び率でもセルが符号なし100基準の銘柄（3148 クリエイトSD）は、モジュールで `yoy_index` を宣言する。見出しに 増減比/伸び率 があれば `単位:%` より `yoy_pct` を優先（ツルハ・サガミ）
 - 年度別ページは `follow_re` で最新年を辿る。画像・本文のみは `parse: false`（HTML は残し JSON は書かない）
 - E-IR は Pronexus JSONP の月次 item `text` を `.html` として保存する（sha256 はその HTML）
 - `as_of` は開示日。なければ表の最終値の年月（セルの年 or 表直前の期見出し / `YYYY年M月期` / `YYYY年度` / `YYYY年M月～YYYY年M月`）。取れなければ JSON は書かない
 - 複数年度のアーカイブは期が新しい表を優先。同じ期末なら最終値の新しい表を優先。12か月埋まっている表は最終値では選ばない
-- ミニストップ (9946) は `jobs/html_issuers/i9946.py`。`全店売上` を選び、`売上高合計` だけ残す。`1店1日当り` と CVS / 店内加工FF は採らない
-- やまや (9994) は `jobs/html_issuers/i9994.py`。既存店と全店をマージし、卸計は選ばない。`当 年`→`売上高`、`前 年` は落とす。unit は `yoy_index`
-- ロック・フィールド (2910) は `jobs/html_issuers/i2910.py`。`既存店売上` / `全店売上` をマージし、業態名の行に見出しのスコープを付ける（付けないと既存店の数値が裸の `売上高(前年比)` になる）
-- フジ (8278) は `jobs/html_issuers/i8278.py`。改装の店舗面積リストは選ばず、営業速報に総店舗数だけ足す
+- ミニストップ (9946) は `jobs/monthly/html_issuers/i9946.py`。`全店売上` を選び、`売上高合計` だけ残す。`1店1日当り` と CVS / 店内加工FF は採らない
+- やまや (9994) は `jobs/monthly/html_issuers/i9994.py`。既存店と全店をマージし、卸計は選ばない。`当 年`→`売上高`、`前 年` は落とす。unit は `yoy_index`
+- ロック・フィールド (2910) は `jobs/monthly/html_issuers/i2910.py`。`既存店売上` / `全店売上` をマージし、業態名の行に見出しのスコープを付ける（付けないと既存店の数値が裸の `売上高(前年比)` になる）
+- フジ (8278) は `jobs/monthly/html_issuers/i8278.py`。改装の店舗面積リストは選ばず、営業速報に総店舗数だけ足す
 - 同ページの店舗数表と売上表は、月軸と表のセル年が同じとき同一 payload に足す。行に `YYYY年M月` がある表の as_of はページ全体の「現在」よりセルの年を優先（6537）
-- クリエイトSD (3148) は `jobs/html_issuers/i3148.py`。見出しが伸び率でもモジュールが `yoy_index` を宣言する
+- クリエイトSD (3148) は `jobs/monthly/html_issuers/i3148.py`。見出しが伸び率でもモジュールが `yoy_index` を宣言する
 - 1表に複数年が並ぶアーカイブ（大黒天物産）は同月の先勝ち（新しい方）。`YYYY年（令和N年）度` 年度帯は見出しに入れない
 - ページ見出しが売上の前年比でも、客数・客単価・店舗数・拠点数・営業所数・開店/閉店/出店/退店/開設/撤退の行には `売上高前年同月比` を足さない。店舗数・拠点数・出退店は件数なので unit も `number`
 - 数値の無い 既存店/全店 の帯行は、直後の指標行に付ける
 - 1表に上期と下期の月見出しが続くとき（神戸物産の単体月次）は後半の月も同じ行に足す。行名に全店は付けない
-- 神戸物産 (3038) は `jobs/html_issuers/i3038.py`。同じページの「店舗仕入れ前年対比」は月が揃うとき足す。セグメントは仕入れ。脚注の商品出荷は行名にしない
+- 神戸物産 (3038) は `jobs/monthly/html_issuers/i3038.py`。同じページの「店舗仕入れ前年対比」は月が揃うとき足す。セグメントは仕入れ。脚注の商品出荷は行名にしない
 - year は書かない。`△1.9` は `-1.9`。unit は見出しから（上の表）。`累計` / `通期計` / `上期計` は months に入れない
 - HTML ingest JSON の `months` は末尾の空列を落とす（値のある最終月で終わる）。途中の欠月は残す
 - パーサーを直したら保存済み HTML を `--reparse`。HTML が同じでも、現行パーサの `.ingest.json` が保存済みと違えば hash skip 時に書き直す（古い sidecar を latest-per-code に残さない）
 
-TDnet 短信 XBRL は取得済み ZIP（`jobs/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。
+TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。
 スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。決算速報 UI の正本は当面 `statements` のまま。XBRL 層で上書きしない。
 
-**VPS パッケージ一覧（`jobs/vps_packages_r2.py`）。** 読み取り専用。R2 の `inventory/` へ書く。中身と cron は [`deploy/README.md`](deploy/README.md)。
+**VPS パッケージ一覧（`jobs/ops/vps_packages_r2.py`）。** 読み取り専用。R2 の `inventory/` へ書く。中身と cron は [`deploy/README.md`](deploy/README.md)。
 
 **為替（`fx_rates`）。** Frankfurter v1（`https://api.frankfurter.dev/v1`、ECB、基準通貨 EUR、キー不要。旧 `api.frankfurter.app` は 301）。UI は出さない。
 
@@ -281,7 +281,7 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/tdnet_xbrl_r2.py`）を `xbrl_fili
 - 休日・非公表日は指定日以前の直近営業日（`as_of`）。期間 MCP は公表日だけ返す
 - MCP: `fx_rate`（指定日）/ `fx_rates`（期間）
 
-**素材の月次量（`material_monthly`）。** 統計の品目と素材の対応は `config/supply/material_stats.json`。共通部分は `app/supply/material_stats.py`、取得は `app/supply/estat.py`（e-Stat API、`ESTAT_APP_ID`。無ければ飛ばす）と `app/supply/meti.py`（経産省 Excel。生産動態統計と資源・エネルギー統計（石油）。キー不要）。ジョブは `jobs/material_stats.py`。画面は `docs/DESIGN_supply.md`。
+**素材の月次量（`material_monthly`）。** 統計の品目と素材の対応は `config/supply/material_stats.json`。共通部分は `app/supply/material_stats.py`、取得は `app/supply/estat.py`（e-Stat API、`ESTAT_APP_ID`。無ければ飛ばす）と `app/supply/meti.py`（経産省 Excel。生産動態統計と資源・エネルギー統計（石油）。キー不要）。ジョブは `jobs/supply/material_stats.py`。画面は `docs/DESIGN_supply.md`。
 
 - 素材ごとに統計を 1 つ決め、指標ごとに付け替えない。需給をまとめて出す統計がある素材はその統計から全指標を取る（原油と石油製品 7 素材は資源・エネルギー統計（石油））。それ以外は生産動態統計 + 貿易統計。対応表の検査は 1 つの (素材, 指標) を 2 つの統計に載せると落とす。対応表から外した (素材, 指標, 統計) の行はジョブの最初に消す
 - 生産・出荷・月末在庫は経済産業省生産動態統計。同じ `source`（`seidou:<報告番号>`）に 2 か所から書き、`revision` が下がる上書きはしない（同じなら後勝ち）
@@ -301,7 +301,7 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/tdnet_xbrl_r2.py`）を `xbrl_fili
 - 輸入・輸出: 普通貿易統計（00350300）の「全国分 品別国別表 輸入 / 輸出」（`source` は `trade`。表題で速報の月は revision 1、ほかは 2）。石油統計で取る素材は載せない。統計品目番号 9 桁の前方一致で素材に寄せ、国は合計する。輸入と輸出で番号体系が違う
 - 輸出入の相手国別（`material_trade_country`。素材 × 月 × 輸出入 × 国）: 同じ表の値を国ごとに足して別に持つ。国は貿易統計の国コード 3 桁（`137_サウジアラビア` の `137`）と国名。revision は `trade` と同じで、下がる上書きはしない。`trade.items` の素材に加え、国合計は石油統計が正の素材も `trade.country_items` に書けば国別だけ取る（原油 2709、LPG 271112・271113）。対応表から外した (素材, 輸出入) の行はジョブの最初に消す
 - 数量は 単位1 があれば 数量1、無ければ 数量2（化学品の多くは KG）。KG と MT は t に、KL は kl に、NO は 本 に寄せる。0 の月は書かない（API が埋める。`docs/DESIGN_supply.md`）。未公表の月は 0 で入っているので、表題の「(1-7月：確報、8月：速報)」の最後の月より後は捨てる。前年の表は 2021 年からの 5 年分を持つ
-- 冪等。初回は `python jobs/material_stats.py --years 2021-<今年>`。cron は経産省 Excel が毎日（生産動態 07:15、石油統計 07:45）、e-Stat が月曜 07:10（前年と今年）
+- 冪等。初回は `python jobs/supply/material_stats.py --years 2021-<今年>`。cron は経産省 Excel が毎日（生産動態 07:15、石油統計 07:45）、e-Stat が月曜 07:10（前年と今年）
 - 見掛け消費（生産 + 輸入 − 輸出 − 在庫の増加分）は保存せず API で出す。4 つと前月在庫が同じ単位で揃う月だけ。revision は材料の最小
 
 

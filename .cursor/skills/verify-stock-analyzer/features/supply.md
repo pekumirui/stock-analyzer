@@ -32,7 +32,7 @@ Preconditions:
 
 - Doctor reports `ok`.
 - `helpers/capture.py supply [--id MATERIAL_ID]` exits 0 (default `ethylene`; a company id is rejected). Graph and companies come from `config/`, so they never need DB data.
-- Monthly and countries need `material_monthly` / `material_trade_country` rows (`jobs/material_stats.py`, prod cron). `.cursor/install.sh` copies only `monthly_*`, so a Cloud Agent or box DB usually has none: then `series: []` and `countries: []` and those two sub-features are `verified-unreachable` (record the empty `monthly.json` / `countries.json`). Do not run the ingest job against the shared DB to fill them.
+- Monthly and countries need `material_monthly` / `material_trade_country` rows (`jobs/supply/material_stats.py`, prod cron). `.cursor/install.sh` copies only `monthly_*`, so a Cloud Agent or box DB usually has none: then `series: []` and `countries: []` and those two sub-features are `verified-unreachable` (record the empty `monthly.json` / `countries.json`). Do not run the ingest job against the shared DB to fill them.
 - The map needs network to unpkg. Offline, `#supply-map` shows 「読み込めませんでした (load https://unpkg.com/…)」 — that is not a code bug.
 
 - **Tab.** Click `nav button[data-tab="supply"]` → `#tab-supply` shown, hash `#supply`, `#supply-panel` filled (set after layout), `supply.cy.nodes().length` equals `graph.json` `materials` length (2026-10-15: 59 materials / 79 flows), panel shows the no-pick copy, `#supply-merge` checked.

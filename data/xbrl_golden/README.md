@@ -2,9 +2,9 @@
 
 IRBANK の財務値を、XBRL 正規化層との突合用に置けるディレクトリ。
 
-- 実データ JSON は git に入れない（`.gitignore`）。手元で `tools/fetch_xbrl_golden.py --input` が書く。
+- 実データ JSON は git に入れない（`.gitignore`）。手元で `tools/xbrl/fetch_xbrl_golden.py --input` が書く。
 - この README と `schema.example.json` だけ追跡する。
-- テスト用の小さな JSON は `tools/fixtures/xbrl_match/`。
+- テスト用の小さな JSON は `tests/xbrl/testdata/xbrl_match/`。
 
 ## 期間の前提（累計どうし）
 
@@ -19,12 +19,12 @@ KPI は既存 `statements` と同じく **累計 YTD のみ**。
 
 TDnet 短信の PL も CurrentYTD（期首〜当期末）の累計。**IRBANK `period_type=quarterly` の Q2/Q3 単独を短信累計と生比較しない。**
 
-`tools/fetch_xbrl_golden.py` は出力に必ず `period_basis: "cumulative"` を付ける。単独のままでは書かない（変換できない行は skip）。
+`tools/xbrl/fetch_xbrl_golden.py` は出力に必ず `period_basis: "cumulative"` を付ける。単独のままでは書かない（変換できない行は skip）。
 
 ## 単位
 
 `metrics` の値は **百万円**（`unit` は `million_jpy`）。円ではない。
-`tools/xbrl_match_rate.py` は `xbrl_financials.unit` が円なら 1e6 で割ってから比較する（`docs/XBRL_VERIFY.md`）。
+`tools/xbrl/xbrl_match_rate.py` は `xbrl_financials.unit` が円なら 1e6 で割ってから比較する（`docs/XBRL_VERIFY.md`）。
 
 ## ファイル名
 
