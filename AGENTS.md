@@ -38,10 +38,24 @@
 | `.cursor/` | 環境構築スクリプトと手順書（`skills/*/SKILL.md`）。Cursor 専用ではない |
 | `.github/` | CI/CD とメンテ用 Actions |
 
-## Git
+## 作業の進め方
 
-- `main` 上では実装しない。最初のファイル編集の前に `git checkout -b <type>/<短い名前>`（`feat` / `fix` / `chore`）
-- `.env` / `stock.db` / `.venv` / `rclone.conf` / `*.pdf` はコミットしない。既存の `.env` は上書きしない
-- 秘密情報（API キー、`MCP_TOKEN`）をコミットしない・ログに出さない
-- `main` へマージすると GitHub Actions がテスト → タグ/Release → VPS デプロイする。手元で `main` に直接 push しない
-- コミット先頭が `feat:` なら minor、`BREAKING CHANGE` / `type!:` なら major、それ以外は patch
+1. 作業前に Linear（チーム `Kabukpi` / キー `KAB`）で issue を起票する。依頼に既存の issue ID があればそれを使う
+2. 採番された ID でブランチを切る
+
+| プレフィックス | 用途 |
+|---|---|
+| `feature/<ID>` | 新規機能開発 |
+| `improve/<ID>` | 既存機能拡張 |
+| `bug/<ID>` | バグ修正 |
+| `chore/<ID>` | ドキュメント修正などの雑務 |
+
+例: `feature/KAB-1`
+
+- issue にはエージェント自身のベンダーのラベル（`agent:claude` / `agent:cursor` / `agent:codex`）を付ける。無いベンダーなら `agent:<ベンダー名>` を作って付ける
+- Linear につながらない環境では起票せず、止まって人に確認する
+
+## 禁止事項
+
+1. `main` 上で実装しない
+2. `.env` / `stock.db` / `.venv` / `rclone.conf` / `*.pdf` をコミットしない
