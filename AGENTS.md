@@ -52,7 +52,8 @@
 
 例: `feature/KAB-1`
 
-Linear につながらない環境では起票せず、止まって人に確認する。
+- issue にはエージェント自身のベンダーのラベル（`agent:claude` / `agent:cursor` / `agent:codex`）を付ける。無いベンダーなら `agent:<ベンダー名>` を作って付ける
+- Linear につながらない環境では起票せず、止まって人に確認する
 
 ## 禁止事項
 
