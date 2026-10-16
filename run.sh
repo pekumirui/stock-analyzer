@@ -7,7 +7,7 @@
 #   ./run.sh reset          DBを完全削除
 #   ./run.sh reset y        非対話で削除
 #   ./run.sh migrate        スキーマ変更後、既存DBに不足列を追加
-#   ./run.sh seed           シード DB を作る (data/seed の実データの切り出し。数秒。.env 不要)
+#   ./run.sh golden         ゴールデンデータで DB を作る (tests/golden/db の実データの切り出し。数秒。.env 不要)
 #   ./run.sh batch          日次バッチ (要 .env)
 #   ./run.sh batch 2026-08-14   特定日を取り込み
 #   ./run.sh backfill       初回バックフィル (既定5年分, 要 .env)
@@ -63,8 +63,8 @@ case "$cmd" in
   migrate)
     "$python" jobs/migrate.py
     ;;
-  seed)
-    "$python" jobs/seed_db.py
+  golden)
+    "$python" jobs/golden_db.py
     ;;
   batch)
     "$python" jobs/market/check_demo.py
@@ -93,7 +93,7 @@ case "$cmd" in
     ;;
   reset)
     if [[ ! -f stock.db ]]; then
-      echo "DBはありません。そのまま seed / backfill できます。"
+      echo "DBはありません。そのまま golden / backfill できます。"
       exit 0
     fi
     ans=""
@@ -110,7 +110,7 @@ case "$cmd" in
       exit 0
     fi
     rm -f stock.db stock.db-journal stock.db-wal stock.db-shm
-    echo "削除しました。次: ./run.sh seed（数秒）か ./run.sh backfill"
+    echo "削除しました。次: ./run.sh golden（数秒）か ./run.sh backfill"
     ;;
   lint)
     "$python" -m pip install -r requirements-dev.txt
@@ -118,7 +118,7 @@ case "$cmd" in
     "$python" -m bandit -c config/pyproject.toml -r app jobs tests tools analyzer deploy mcp -x app/xbrlp,.cursor,tmp,.venv
     ;;
   *)
-    echo "使い方: ./run.sh [serve|check|reset|migrate|seed|batch|backfill|lint] [引数]"
+    echo "使い方: ./run.sh [serve|check|reset|migrate|golden|batch|backfill|lint] [引数]"
     exit 1
     ;;
 esac

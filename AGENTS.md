@@ -16,7 +16,7 @@
 
 - Python 3.10+ / FastAPI / SQLAlchemy 2 / pandas。フロントは `static/` の vanilla JS。DB はローカル SQLite (`stock.db`)
 - 仮想環境は `.venv`。Windows は `.\setup.ps1` / `.\run.ps1`、Linux は `./setup.sh` / `./run.sh`。システムの python で依存を入れない
-- クラウドのエージェント（ベンダー問わず）は `bash .cursor/install.sh`（冪等）で `.venv` / `pdftotext` / `rclone` と `stock.db` を用意する。`stock.db` は既定でシード DB（`data/seed/` の実データの切り出し。数秒）。全銘柄の実データが要るときだけ `STOCK_DB=full`（backfill 2。約40分。`JQUANTS_API_KEY` が要る）SPA は `bash .cursor/start-web.sh` が 8000 で配信する。8000 を止めない・`reset` しない
+- クラウドのエージェント（ベンダー問わず）は `bash .cursor/install.sh`（冪等）で `.venv` / `pdftotext` / `rclone` と `stock.db` を用意する。`stock.db` は既定でゴールデンデータ（`tests/golden/db/` の実データの切り出し）から作る（数秒）。全銘柄の実データが要るときだけ `STOCK_DB=full`（backfill 2。約40分。`JQUANTS_API_KEY` が要る）SPA は `bash .cursor/start-web.sh` が 8000 で配信する。8000 を止めない・`reset` しない
 - 秘密情報は各ベンダーの Secrets / 環境変数で渡す: `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `VPS_SSH_KEY` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`。無い変数の機能は使えないものとして進める。チャットで鍵を求めない
 - Claude Code の自動メモリは `.claude/memory/`。環境は消えるので、メモリを足したら作業ブランチに一緒にコミットする
 

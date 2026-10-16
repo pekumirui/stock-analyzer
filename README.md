@@ -17,8 +17,8 @@
 本ツールの利用によって生じたいかなる損害についても作者は責任を負いません。
 
 株価・財務データは [J-Quants API](https://jpx-jquants.com/) (JPX総研) を利用しています。
-データの再配布は行っていません。リポジトリは非公開で、開発用のシード DB の元として
-`data/seed/` に実データの一部（約45銘柄の株価・決算、全月次、為替、素材）を置いています。
+データの再配布は行っていません。リポジトリは非公開で、開発・テスト用のゴールデンデータとして
+`tests/golden/db/` に実データの一部（約45銘柄の株価・決算、全月次、為替、素材）を置いています。
 
 ## クイックスタート (Windows / PowerShell)
 
@@ -30,7 +30,7 @@ V2はAPIキー方式（`x-api-key`ヘッダー）で、V1のようなトーク�
 Copy-Item .env.example .env
 notepad .env                    # JQUANTS_API_KEY を記入
 .\run.ps1 check                 # 疎通確認 + 項目マッピング検証 (DBは触らない)
-.\run.ps1 seed                  # 開発用: シード DB（数秒。.env 不要）。全銘柄が要るなら次の backfill
+.\run.ps1 golden                # 開発用: ゴールデンデータで DB を作る（数秒。.env 不要）。全銘柄が要るなら次の backfill
 .\run.ps1 backfill              # 初回: 5年分 (約45分)
 .\run.ps1 serve                 # → http://localhost:8000
 .\run.ps1 batch                 # 以降の日次 (定常 7 リクエスト。発表予定の台帳が空の初回だけ長い)
@@ -46,7 +46,7 @@ notepad .env                    # JQUANTS_API_KEY を記入
 | `.\run.ps1 serve` / `./run.sh serve` / `serve 8080` | サーバー起動 (ポート指定可) |
 | `.\run.ps1 check` / `./run.sh check` / `check 2026-08-14` | API疎通・項目マッピング確認 |
 | `.\run.ps1 reset` / `./run.sh reset` | DB削除。非対話は `./run.sh reset y` |
-| `.\run.ps1 seed` / `./run.sh seed` | シード DB を作る（`data/seed/` の実データの切り出し。数秒。`.env` 不要）。作り直しは `python tools/seed/build_seed.py` |
+| `.\run.ps1 golden` / `./run.sh golden` | ゴールデンデータで DB を作る（`tests/golden/db/` の実データの切り出し。数秒。`.env` 不要）。データの作り直しは `python tools/golden/build_golden_db.py` |
 | `.\run.ps1 batch` / `./run.sh batch` / `batch 2026-08-14` | 日次取込 (日付指定可) |
 | `.\run.ps1 backfill` / `./run.sh backfill` / `backfill 2` | バックフィル (既定5年、年数指定可) |
 | `.\run.ps1 lint` / `./run.sh lint` | Ruff + Bandit（`requirements-dev.txt`） |
@@ -90,7 +90,7 @@ notepad .env                    # JQUANTS_API_KEY を記入
 cp .env.example .env            # 既存 .env がある場合は上書きしない
 # .env に JQUANTS_API_KEY を記入
 ./run.sh check                  # 疎通確認
-./run.sh seed                   # 開発用: シード DB（数秒。.env 不要）。全銘柄が要るなら次の backfill
+./run.sh golden                 # 開発用: ゴールデンデータで DB を作る（数秒。.env 不要）。全銘柄が要るなら次の backfill
 ./run.sh backfill               # 初回: 5年分 (約45分)
 ./run.sh serve                  # → http://localhost:8000
 ./run.sh batch                  # 以降の日次

@@ -1,4 +1,4 @@
-"""シード DB（data/seed → jobs/seed_db.py）。手元の stock.db は触らない。"""
+"""ゴールデンデータの DB（tests/golden/db → jobs/golden_db.py）。手元の stock.db は触らない。"""
 from __future__ import annotations
 
 import csv
@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-_tmp = tempfile.mkdtemp(prefix="stock-analyzer-seed-")
+_tmp = tempfile.mkdtemp(prefix="stock-analyzer-golden-")
 os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -20,10 +20,10 @@ from sqlalchemy import text  # noqa: E402
 from app.db import engine  # noqa: E402
 from app.main import app  # noqa: E402
 from app.models import Base  # noqa: E402
-from jobs import seed_db  # noqa: E402
-from tools.seed.build_seed import load_codes  # noqa: E402
+from jobs import golden_db  # noqa: E402
+from tools.golden.build_golden_db import load_codes  # noqa: E402
 
-SEED = ROOT / "data" / "seed"
+GOLDEN = ROOT / "tests" / "golden" / "db"
 
 
 def _fail(msg: object) -> None:
@@ -31,8 +31,8 @@ def _fail(msg: object) -> None:
 
 
 def test_csv_columns_match_models() -> None:
-    """スキーマを変えたらシードも作り直す（python tools/seed/build_seed.py）。"""
-    for path in sorted(SEED.glob("*.csv")):
+    """スキーマを変えたらゴールデンデータも作り直す（python tools/golden/build_golden_db.py）。"""
+    for path in sorted(GOLDEN.glob("*.csv")):
         table = Base.metadata.tables.get(path.stem)
         if table is None:
             _fail(f"{path.name}: モデルに無い表")
@@ -40,11 +40,11 @@ def test_csv_columns_match_models() -> None:
             header = next(csv.reader(f))
         want = [c.name for c in table.columns]
         if header != want:
-            _fail(f"{path.name}: 列がモデルと違う（build_seed.py で作り直す）\n  csv={header}\n  model={want}")
+            _fail(f"{path.name}: 列がモデルと違う（build_golden_db.py で作り直す）\n  csv={header}\n  model={want}")
 
 
 def test_codes_are_in_master() -> None:
-    with (SEED / "stocks.csv").open(encoding="utf-8", newline="") as f:
+    with (GOLDEN / "stocks.csv").open(encoding="utf-8", newline="") as f:
         master = {r["code"] for r in csv.DictReader(f)}
     missing = [c for c in load_codes() if c not in master]
     if missing:
@@ -52,11 +52,11 @@ def test_codes_are_in_master() -> None:
 
 
 def test_load_and_serve() -> None:
-    if seed_db.main() != 0:
-        _fail("seed_db failed")
-    if not seed_db.is_seed_db():
-        _fail("seed DB must set PRAGMA user_version")
-    manifest = json.loads((SEED / "manifest.json").read_text(encoding="utf-8"))
+    if golden_db.main() != 0:
+        _fail("golden_db failed")
+    if not golden_db.is_golden_db():
+        _fail("golden DB must set PRAGMA user_version")
+    manifest = json.loads((GOLDEN / "manifest.json").read_text(encoding="utf-8"))
     with engine.connect() as conn:
         for table, n in manifest["counts"].items():
             got = conn.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar()  # nosec B608 (manifest の表名)
@@ -66,8 +66,8 @@ def test_load_and_serve() -> None:
             _fail("indicators must be recomputed")
         if conn.execute(text("SELECT COUNT(*) FROM indicators WHERE code = '89510'")).scalar():
             _fail("REIT must not get indicators")
-    if seed_db.main() != 1:
-        _fail("seed into a non-empty DB must refuse")
+    if golden_db.main() != 1:
+        _fail("loading into a non-empty DB must refuse")
 
     c = TestClient(app)
     # verify skill の doctor と同じ条件
@@ -92,7 +92,7 @@ def main() -> None:
     test_csv_columns_match_models()
     test_codes_are_in_master()
     test_load_and_serve()
-    print("ok: seed db")
+    print("ok: golden db")
 
 
 if __name__ == "__main__":

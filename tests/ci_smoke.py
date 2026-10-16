@@ -79,7 +79,7 @@ SUITES = (
     "ops/test_nginx_public.py",
     "ops/test_github_ssh.py",
     "test_sqlite_deploy.py",
-    "test_seed_db.py",
+    "test_golden_db.py",
     "monthly/test_monthly_ingest.py",
     "monthly/test_monthly_stock_master.py",
     "monthly/test_monthly_issuers.py",

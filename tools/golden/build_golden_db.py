@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""シード DB の元（data/seed/*.csv）を実データから作る。読み込みは jobs/seed_db.py（./run.sh seed）。
+"""DB のゴールデンデータ（tests/golden/db/*.csv）を実データから作る。読み込みは jobs/golden_db.py（./run.sh golden）。
 
-  python tools/seed/build_seed.py --db stock.db --api https://kabukpi.com
+  python tools/golden/build_golden_db.py --db stock.db --api https://kabukpi.com
 
-- 株価・決算・決算予定: --db（backfill 済みの stock.db）から data/seed/codes.txt の銘柄だけ。
+- 株価・決算・決算予定: --db（backfill 済みの stock.db）から tests/golden/db/codes.txt の銘柄だけ。
   銘柄マスタと TOPIX は全件。indicators は持たない（読み込み時に計算し直す）
 - 月次: --api の公開 GET から全銘柄・全年
 - 為替: jobs/fx_rates.py を一時 DB に向けて、株価と同じ期間
@@ -34,7 +34,7 @@ from sqlalchemy import create_engine  # noqa: E402
 
 from app.models import Base  # noqa: E402
 
-OUT = ROOT / "data" / "seed"
+OUT = ROOT / "tests" / "golden" / "db"
 CODES = OUT / "codes.txt"
 # 銘柄で絞る表。それ以外の市場の表は全件
 BY_CODE = ("daily_prices", "statements", "earnings_events", "earnings_date_pubs")
@@ -105,7 +105,7 @@ def build_market(db: Path, out: Path, codes: list[str]) -> dict[str, int]:
 def _get_json(url: str) -> object:
     if not url.startswith("https://"):
         raise ValueError(f"https only: {url!r}")
-    req = urllib.request.Request(url, headers={"User-Agent": "stock-analyzer build_seed"})
+    req = urllib.request.Request(url, headers={"User-Agent": "stock-analyzer build_golden_db"})
     with urllib.request.urlopen(req, timeout=60) as resp:  # nosec B310 (https に限る)
         return json.load(resp)
 
@@ -142,7 +142,7 @@ def _run_job(db: Path, argv: list[str]) -> None:
 
 
 def build_job_tables(out: Path, argv: list[str], tables: tuple[str, ...]) -> dict[str, int]:
-    tmp = Path(tempfile.mkdtemp(prefix="build-seed-")) / "stock.db"
+    tmp = Path(tempfile.mkdtemp(prefix="build-golden-db-")) / "stock.db"
     # ジョブは表がある DB を前提にする
     engine = create_engine(f"sqlite:///{tmp}")
     Base.metadata.create_all(engine)
