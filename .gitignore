@@ -25,6 +25,8 @@ data/*
 data/xbrl_golden/*
 !data/xbrl_golden/README.md
 !data/xbrl_golden/schema.example.json
+# シード DB の元（実データの切り出し）。リポジトリは非公開なので追跡する（KAB-16）
+!data/seed/
 *.csv.gz
 
 # --- Python ---

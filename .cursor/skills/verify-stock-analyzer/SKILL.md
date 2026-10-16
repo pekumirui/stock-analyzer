@@ -29,7 +29,7 @@ Default URL: `http://127.0.0.1:8000`. Override with env `VERIFY_PORT`. Ready whe
 
 Uses the repo's `stock.db` (read-only for UI proofs). Do not `.\run.ps1 reset` / `./run.sh reset`. Do not point `DATABASE_URL` at the user's DB from a second writer. If the port is taken by a non-SPA process, launch exits non-zero. Free the port or pick another `VERIFY_PORT`.
 
-If `stock.db` is missing, launch still starts (empty UI). Doctor then fails until backfill exists.
+If `stock.db` is missing, launch still starts (empty UI). Doctor then fails until a DB exists: `./run.sh seed` (seconds; real data for ~45 codes, all monthly) or `./run.sh backfill 2` (all codes, ~40 min).
 
 Teardown: see Cleanup. Keep the server up for the whole drive.
 

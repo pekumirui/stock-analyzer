@@ -5,6 +5,7 @@
 #   .\run.ps1 check 2026-08-14   日付を指定して確認
 #   .\run.ps1 reset          DBを完全削除
 #   .\run.ps1 migrate        スキーマ変更後、既存DBに不足列を追加
+#   .\run.ps1 seed           シード DB を作る (data/seed の実データの切り出し。数秒。.env 不要)
 #   .\run.ps1 batch          日次バッチ (要 .env)
 #   .\run.ps1 batch 2026-08-14   特定日を取り込み
 #   .\run.ps1 backfill       初回バックフィル (既定5年分, 要 .env)
@@ -32,6 +33,8 @@ if (Test-Path ".env") {
 switch ($cmd) {
     "migrate" { & $python jobs\migrate.py }
 
+    "seed" { & $python jobs\seed_db.py }
+
     "check" {
         if ($arg) { & $python tools\market\check_api.py $arg } else { & $python tools\market\check_api.py }
     }
@@ -43,11 +46,11 @@ switch ($cmd) {
     }
 
     "reset" {
-        if (-not (Test-Path "stock.db")) { Write-Host "DBはありません。そのまま backfill できます。" -ForegroundColor Green; break }
+        if (-not (Test-Path "stock.db")) { Write-Host "DBはありません。そのまま seed / backfill できます。" -ForegroundColor Green; break }
         $ans = Read-Host "stock.db を削除します。よろしいですか? (y/N)"
         if ($ans -ne "y") { Write-Host "中止しました"; break }
         Remove-Item "stock.db", "stock.db-journal", "stock.db-wal", "stock.db-shm" -ErrorAction SilentlyContinue
-        Write-Host "削除しました。次: .\run.ps1 backfill" -ForegroundColor Green
+        Write-Host "削除しました。次: .\run.ps1 seed（数秒）か .\run.ps1 backfill" -ForegroundColor Green
     }
 
     "batch" {
@@ -83,5 +86,5 @@ switch ($cmd) {
         & $python -m bandit -c config/pyproject.toml -r app jobs tests tools analyzer deploy mcp -x app/xbrlp,.cursor,tmp,.venv
     }
 
-    default { Write-Host "使い方: .\run.ps1 [serve|check|reset|migrate|batch|backfill|lint] [引数]" }
+    default { Write-Host "使い方: .\run.ps1 [serve|check|reset|migrate|seed|batch|backfill|lint] [引数]" }
 }

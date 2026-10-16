@@ -483,3 +483,14 @@ stock_kpis  PK(code, metric, period)
 ## 9. ローカル実行手順
 
 [README.md](README.md) のクイックスタートとコマンド一覧。
+
+### シード DB（開発・クラウドのエージェント・テスト）
+
+`./run.sh seed`（`jobs/seed_db.py`）が `data/seed/*.csv` を空の DB に入れる。数秒。`.env` は要らない。クラウドのエージェントの `install.sh` は `stock.db` が無ければこれを作る（`STOCK_DB=full` なら代わりに backfill 2）。
+
+- 中身は実データの切り出し。株価・決算・決算予定は `data/seed/codes.txt` の約45銘柄（ステージ2・RS 上位、時価総額上位、REIT 1、月次の主要銘柄）。銘柄マスタ・TOPIX・決算予定の取得記録は全件。月次は本番の全銘柄・全年。為替は株価と同じ期間。素材は e-Stat / 経産省の直近の年。期間と件数は `data/seed/manifest.json`
+- `indicators` は持たず、読み込みのあとに `compute_indicators` で計算し直す（RS ランクは約45銘柄の中の順位になる）
+- XBRL は持たない（R2 のマウントが要る）。`monthly_element_sources` は読み込みのあとに `legacy` で埋める
+- 作った DB は `PRAGMA user_version = 1`。`install.sh` はこれを見て、シード DB には日次 batch を回さない（全銘柄の当日分が混ざるため）
+- 既に行がある DB には入れない。作り直しは `./run.sh reset y` → `./run.sh seed`
+- 元の作り直しは `python tools/seed/build_seed.py --db stock.db --api https://kabukpi.com`（backfill 済みの `stock.db` と月次の公開 GET から。`--skip market|monthly|fx|material` で表の組を飛ばす）。スキーマを変えたら作り直す。`tests/test_seed_db.py` は CSV の列がモデルと違えば落ちる

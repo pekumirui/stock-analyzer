@@ -1,0 +1,21 @@
+{
+  "price_range": "2024-10-16..2026-10-16",
+  "market_built": "2026-10-16",
+  "counts": {
+    "daily_prices": 21384,
+    "earnings_date_fetches": 512,
+    "earnings_date_pubs": 232,
+    "earnings_events": 392,
+    "fx_rates": 15127,
+    "monthly_elements": 8363,
+    "monthly_issuers": 229,
+    "monthly_tables": 790,
+    "monthly_values": 77602,
+    "statements": 404,
+    "stocks": 4443,
+    "topix": 487
+  },
+  "codes": 44,
+  "generated_at": "2026-10-16T23:25:08",
+  "fx_built": "2026-10-16"
+}
