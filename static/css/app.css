@@ -76,12 +76,14 @@
   #earn-tbl td.num { font-size:13px; font-weight:500; }
   #earn-tbl th.l { text-align:left; }
   #earn-tbl thead tr:first-child th[colspan] { text-align:center; }
+  /* 2段目の先頭 (3か月の売上) が th:first-child の左寄せを拾わないよう、指標の見出しは右に揃える */
+  #earn-tbl thead tr + tr th { text-align:right; }
   #earn-tbl td.name, #earn-tbl th.name { width:1%; white-space:nowrap; }
   #earn-tbl td.fy, #earn-tbl th.fy { width:1%; }
   #earn-tbl .g { display:block; font-size:11px; font-weight:400; line-height:1.35; min-height:1.35em; }
   #earn-tbl .g .qb + .qb { margin-left:3px; }
   #earn-tbl .loss { color:var(--up); }
-  /* 時刻・銘柄・決算期は横スクロールで残す。left は pinCols が実測で入れる */
+  /* 時刻・決算期・銘柄は横スクロールで残す。left は pinCols が実測で入れる */
   #earn-tbl .pin0, #earn-tbl .pin1, #earn-tbl .pin2 { position:sticky; z-index:1; }
   #earn-tbl .pin0 { left:var(--pin0, 0); }
   #earn-tbl .pin1 { left:var(--pin1, 0); }

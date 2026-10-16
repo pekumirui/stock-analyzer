@@ -91,7 +91,7 @@ const listQ = q => q ? qBadge({kind:"single", period:q}) : "";
 const under = html => `<span class="g">${html || " "}</span>`;
 const shortName = n => { const s = String(n||""); return s.length>5 ? s.slice(0,5) : s; };
 // 銘柄名の下にコード。横幅を金額に回す
-const nameCell = r => `<td class="l name pin1" title="${r.name}">${shortName(r.name)}${under(`<span class="sub">${r.code.slice(0,4)}</span>`)}</td>`;
+const nameCell = r => `<td class="l name pin2" title="${r.name}">${shortName(r.name)}${under(`<span class="sub">${r.code.slice(0,4)}</span>`)}</td>`;
 // 上段に金額、下段に増減率 (決算表と同じ)
 const valCell = (vals, g, k, i) => `<td class="num ${i?'':'grp'}">${amt((vals||{})[k])}${under(gc(g && g[k]))}</td>`;
 // 列見出しが「決算期」なので FY 接頭辞は幅の無駄
@@ -190,7 +190,7 @@ function renderList(){
   markSel();
 }
 
-// 時刻・銘柄・決算期は横スクロールでも残す。左端は列幅の実測で決める
+// 時刻・決算期・銘柄は横スクロールでも残す。左端は列幅の実測で決める
 function pinCols(){
   const t = $("#earn-tbl");
   const ths = t ? t.querySelectorAll("thead tr:first-child th") : [];
@@ -211,8 +211,8 @@ function tableHtml(actuals, scheduled){
   const sub = () => MET.map(([k,l],i) => `<th class="${i?'':'grp'}">${l}</th>`).join("");
   const dash = MET.map((_,i)=>`<td class="num ${i?'':'grp'}">–</td>`).join("");
   let h = `<table id="earn-tbl"><thead>`
-        + `<tr><th rowspan="2" class="pin0">時刻</th><th rowspan="2" class="l name pin1">銘柄</th>`
-        + `<th rowspan="2" class="l fy pin2">決算期</th>`
+        + `<tr><th rowspan="2" class="pin0">時刻</th><th rowspan="2" class="l fy pin1">決算期</th>`
+        + `<th rowspan="2" class="l name pin2">銘柄</th>`
         + `<th colspan="4" class="grp">3か月 / QoQ</th><th colspan="4" class="grp">累計 / YoY</th></tr>`
         + `<tr>${sub()}${sub()}</tr></thead><tbody>`;
   for(const r of actuals){
@@ -220,8 +220,8 @@ function tableHtml(actuals, scheduled){
     const tip = r.period==="1Q" ? ' title="前期4Q単独比"' : "";
     h += `<tr data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">`
        + `<td class="pin0">${(r.disclosed_time||"").slice(0,5)}${under(revBadge(r))}</td>`
+       + `<td class="l fy pin1">${fyShort(r.fy_label)}${under(listQ(r.period))}</td>`
        + nameCell(r)
-       + `<td class="l fy pin2">${fyShort(r.fy_label)}${under(listQ(r.period))}</td>`
        + MET.map(([k],i)=>valCell(r.single, r.qoq, k, i).replace("<td ", `<td${tip} `)).join("")
        + MET.map(([k],i)=>valCell(r.cumulative, r.yoy, k, i)).join("")
        + `</tr>`;
@@ -231,8 +231,8 @@ function tableHtml(actuals, scheduled){
     const label = (r.periods||[]).map(p => fyShort(p.label)).join(" / ");
     h += `<tr data-code="${r.code}" onclick="selectSched('${r.code}')">`
        + `<td class="pin0">–</td>`
+       + `<td class="l fy pin1">${label}${under(fq)}</td>`
        + nameCell(r)
-       + `<td class="l fy pin2">${label}${under(fq)}</td>`
        + dash + dash
        + `</tr>`;
   }
