@@ -21,7 +21,6 @@
   .badge { display:inline-block; padding:1px 6px; border-radius:4px; font-size:11px; margin-left:4px; }
   .badge.up { background:var(--up); color:#fff; }
   .badge.dn { background:var(--down); color:#fff; }
-  .badge.rev { background:var(--warn); color:#fff; }
   .badge.st1 { background:#5b6470; } .badge.st2 { background:#2e8b57; }
   .badge.st3 { background:#b8860b; } .badge.st4 { background:#a04050; }
   .cal { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; }
@@ -70,19 +69,17 @@
     .a-chart { grid-column:span 1; } .a-fin { grid-column:span 1; }
     .a-list .scroll { max-height:46vh; }
   }
+  /* 決算表 (table.fin) と同じ見た目: 縦罫なし・横罫だけ・縞・上揃え・バッジは値の下段 */
   #earn-tbl { width:100%; border-collapse:separate; border-spacing:0; }
-  #earn-tbl th, #earn-tbl td {
-    padding:4px 5px;
-    border:0 solid var(--border);
-    border-right-width:1px;
-    border-bottom-width:1px;
-    background:var(--panel);
-    text-align:left;
-  }
-  #earn-tbl tr > :first-child { border-left-width:1px; }
-  #earn-tbl thead tr:first-child th { border-top-width:1px; }
+  #earn-tbl th { font-size:11px; letter-spacing:.02em; padding:6px 8px; }
+  #earn-tbl td { padding:7px 8px; vertical-align:top; background:var(--panel); }
+  #earn-tbl td.num { font-size:13px; font-weight:500; }
+  #earn-tbl th.l { text-align:left; }
+  #earn-tbl thead tr:first-child th[colspan] { text-align:center; }
   #earn-tbl td.name, #earn-tbl th.name { width:1%; white-space:nowrap; }
   #earn-tbl td.fy, #earn-tbl th.fy { width:1%; }
+  #earn-tbl .g { display:block; font-size:11px; font-weight:400; line-height:1.35; min-height:1.35em; }
+  #earn-tbl .g .qb + .qb { margin-left:3px; }
   .phead { display:flex; align-items:center; gap:8px; justify-content:space-between; margin-bottom:8px; }
   .phead h3 { margin:0; }
   .phead-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
@@ -102,7 +99,8 @@
   #earn-tbl thead { position:sticky; top:0; z-index:2; }
   #earn-tbl thead th { position:static; top:auto; z-index:auto; background:var(--panel); }
   #earn-tbl tbody tr { cursor:pointer; }
-  #earn-tbl tbody tr:hover td { background:var(--row); }
+  #earn-tbl tbody tr:nth-child(even) td { background:var(--row); }
+  #earn-tbl tbody tr:hover td { background:var(--row-sel); }
   #earn-tbl tbody tr.sel td { background:var(--row-sel); }
   #earn-tbl tbody tr.sel td:first-child { box-shadow:inset 3px 0 0 var(--accent); }
   table.fin td:first-child, table.fin th:first-child { position:sticky; left:0; z-index:2; background:var(--panel); width:1%; }
@@ -344,6 +342,7 @@
   .qb-h { color:#0e7490; }
   .qb-fy { color:#1d4ed8; }
   .qb-prev { color:var(--sub); }
+  .qb-rev { color:#fff; background:var(--warn); }
   .a-fin .tbl-wrap { max-height:min(52vh, 560px); }
 
   @media (max-width:640px){
