@@ -7,6 +7,8 @@
     "earnings_date_pubs": 232,
     "earnings_events": 392,
     "fx_rates": 15127,
+    "material_monthly": 8327,
+    "material_trade_country": 57644,
     "monthly_elements": 8363,
     "monthly_issuers": 229,
     "monthly_tables": 790,
@@ -16,6 +18,7 @@
     "topix": 487
   },
   "codes": 44,
-  "generated_at": "2026-10-16T23:25:08",
-  "fx_built": "2026-10-16"
+  "generated_at": "2026-10-16T23:29:40",
+  "fx_built": "2026-10-16",
+  "material_built": "2026-10-16"
 }
