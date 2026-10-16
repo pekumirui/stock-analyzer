@@ -3,12 +3,17 @@ name: CI/CD
 # PR: テストのみ
 # main へマージ: テスト → タグと GitHub Release → ConoHa VPS へデプロイ
 # 手動: Actions → CI/CD → Run workflow（再デプロイやバンプ指定）
+# main への push で変更が .md / docs/ / .claude/memory/ だけなら走らない
 
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".claude/memory/**"
   workflow_dispatch:
     inputs:
       bump:
