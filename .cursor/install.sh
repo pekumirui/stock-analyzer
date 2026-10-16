@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # クラウドのエージェントの環境ビルド（ベンダー共通。Cursor は environment.json から呼ぶ）。冪等。
-# apt → .venv → tools 依存 → JQUANTS_API_KEY があれば stock.db を用意。
-# 初回だけ backfill 2（MA200 + RS 252日 + 1か月傾きに要る約 14 か月を満たす）。
-# 既に stock.db がある Recurring Build は日次 batch だけ（毎回 2 年は取らない）。
+# apt → .venv → tools 依存 → stock.db を用意。
+# stock.db が無ければゴールデンデータで作る（tests/golden/db の実データの切り出し。数秒。./run.sh golden）。
+# STOCK_DB=full なら代わりに backfill 2（JQUANTS_API_KEY が要る。約 40 分）。
+# 既にある stock.db は、ゴールデンデータの DB なら触らない。backfill した DB なら日次 batch だけ回す。
 # VPS_SSH_KEY があれば本番の monthly_* だけ載せ替える（DB 丸ごとコピーしない）。
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -26,17 +27,29 @@ s["autoMemoryDirectory"] = str(pathlib.Path(".claude/memory").resolve())
 p.write_text(json.dumps(s, ensure_ascii=False, indent=2) + "\n")
 PY
 
-if [[ -z "${JQUANTS_API_KEY:-}" ]]; then
-  echo "JQUANTS_API_KEY が無いので stock.db は触らない"
-  exit 0
-fi
+is_golden_db() {
+  [[ "$(.venv/bin/python -c 'import sqlite3; print(sqlite3.connect("stock.db").execute("PRAGMA user_version").fetchone()[0])')" == "1" ]]
+}
 
-if [[ -f stock.db ]]; then
+if [[ ! -f stock.db ]]; then
+  if [[ "${STOCK_DB:-golden}" == "full" ]]; then
+    if [[ -z "${JQUANTS_API_KEY:-}" ]]; then
+      echo "STOCK_DB=full には JQUANTS_API_KEY が要る" >&2
+      exit 1
+    fi
+    echo "STOCK_DB=full なので backfill 2"
+    ./run.sh backfill 2
+  else
+    echo "stock.db が無いのでゴールデンデータで作る（STOCK_DB=full で backfill）"
+    ./run.sh golden
+  fi
+elif is_golden_db; then
+  echo "ゴールデンデータの DB なので日次 batch は回さない"
+elif [[ -n "${JQUANTS_API_KEY:-}" ]]; then
   echo "stock.db があるので日次 batch だけ回す"
   ./run.sh batch || echo "batch skipped"
 else
-  echo "stock.db が無いので初回 backfill 2"
-  ./run.sh backfill 2
+  echo "JQUANTS_API_KEY が無いので stock.db は触らない"
 fi
 
 if [[ -f stock.db ]]; then
