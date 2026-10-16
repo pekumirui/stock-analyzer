@@ -113,6 +113,9 @@ def earnings_rows(db: Session, day: date) -> list[dict]:
                 "fy_label": period_label(s.fiscal_year_end),
                 "qoq": summary["qoq"],
                 "yoy": summary["yoy"],
+                # 一覧に金額も出す。QoQ の相手は Q単独、YoY の相手は累計
+                "single": summary["single"],
+                "cumulative": summary["cumulative"],
             })
     out.sort(key=lambda r: (r["disclosed_time"] or "", r["code"]))
     return out
