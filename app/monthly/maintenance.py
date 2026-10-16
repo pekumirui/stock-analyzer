@@ -6,9 +6,11 @@ jobs/monthly/monthly_names.py だけが呼ぶ。
 from sqlalchemy import inspect, text
 
 from ..db import SessionLocal, engine
-from ..models import MonthlyElement
+from ..models import MonthlyElement, MonthlyElementSource
 from .ingest import apply_issuer_aliases, canonicalize_element_label, plan_yoy_duplicate_merges
-from .store import _norm_element_name, merge_monthly_element_into, rename_monthly_element
+from .store import (
+    _norm_element_name, merge_monthly_element_into, record_element_source, rename_monthly_element,
+)
 
 
 def apply_issuer_element_aliases(verbose: bool = True, *, dry_run: bool = False) -> list[dict]:
@@ -216,7 +218,10 @@ def delete_orphan_monthly_rows(verbose: bool = True) -> dict[str, int]:
     deleted: dict[str, int] = {}
     if "stocks" not in names:
         return deleted
-    tables = ("monthly_values", "monthly_elements", "monthly_tables", "monthly_issuers")
+    tables = (
+        "monthly_values", "monthly_element_sources", "monthly_elements", "monthly_tables",
+        "monthly_issuers",
+    )
     with engine.begin() as conn:
         for tname in tables:
             if tname not in names:
@@ -232,8 +237,39 @@ def delete_orphan_monthly_rows(verbose: bool = True) -> dict[str, int]:
     return deleted
 
 
+def backfill_legacy_element_sources(verbose: bool = True) -> int:
+    """元の行名が残っていない行に、保存名そのものを via=legacy で入れる。冪等。
+
+    元の行名を記録する前（KAB-17）に入った行。スナップショットの入力を欠かさないため。
+    """
+    db = SessionLocal()
+    try:
+        have = {
+            (c, y, e) for c, y, e in
+            db.query(MonthlyElementSource.code, MonthlyElementSource.year,
+                     MonthlyElementSource.element)
+        }
+        added = 0
+        for row in db.query(MonthlyElement).all():
+            if (row.code, row.year, row.element) in have:
+                continue
+            if db.get(MonthlyElementSource, (row.code, row.year, row.element, row.unit)):
+                continue
+            record_element_source(
+                db, row.code, row.year, row.element, row.unit, row.element, "legacy",
+            )
+            added += 1
+        db.commit()
+    finally:
+        db.close()
+    if verbose and added:
+        print(f"元の行名の無い行を legacy で記録: {added} 行")
+    return added
+
+
 def run_deploy_maintenance(verbose: bool = True) -> None:
-    """unit の補正、保存名ドリフトのログ、マスタに無い銘柄の行の削除。冪等。"""
+    """unit の補正、保存名ドリフトのログ、マスタに無い銘柄の行の削除、legacy の記録。冪等。"""
     apply_known_monthly_element_units()
     report_monthly_name_drift(verbose)
     delete_orphan_monthly_rows(verbose)
+    backfill_legacy_element_sources(verbose)

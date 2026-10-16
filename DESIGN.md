@@ -157,6 +157,13 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
   code, year, element, month PK
   value
 
+monthly_element_sources  -- 送られてきたままの行名 → 今の保存名。正規化の差分スナップショットの入力 (KAB-17)
+  code, year, source_label, unit PK  -- source_label は前後の空白だけ落とした受信のまま。unit も受信のまま (yoy_pct 可)
+  element                 -- 今の保存名。付け替え・統合 (rename_monthly_element) に付いていく。行を消すと一緒に消える
+  via                     -- api (POST elements・ingest の既定) / ir_html / ir_xls (ingest の via) / doc (PUT doc の新規行) / legacy
+  first_seen_at, last_seen_at
+  -- source_label は一度入れたら書き換えない。記録前からある行はデプロイ時に保存名そのものを legacy で入れる
+
 fx_rates          -- ECB 対EUR 日次レート (Frankfurter api.frankfurter.dev/v1)
   date, quote PK  -- quote は ISO 4217（USD / JPY 等）。EUR 自身は持たない
   rate            -- 1 EUR = rate quote。任意ペアは EUR クロス（quote/base）
@@ -185,12 +192,13 @@ material_monthly  -- サプライタブの素材ごとの月次量 (e-Stat)
 - `as_of` は YYYY-MM-DD 必須。省略・null は 400 `AS_OF_REQUIRED`。サーバ日付は使わない
 - `dry_run: true` は `fy_end_month` / `layout` / `mapping` と、書くはずのセル（`updated`）を返す。DB には書かない。新着にもならない
 - `only_months` は `YYYY-MM` の配列。mapping を決めたあと、その暦年の列だけ書く。省略時は全列。当たらない月は書かない
+- `via` は経路（`api` / `ir_html` / `ir_xls`）。省略は `api`。それ以外は 400。書いた行ごとに元の行名を `monthly_element_sources` に残す（dry_run では残さない）
 
 **銘柄マスタとの関係。**
 
 - 書き込みは `stocks` に行がある code だけ。ingest / POST elements / 訂正 PUT / industry PUT は先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`
 - FK は付けない（既存テーブルへ ADD できない）。`PRAGMA foreign_keys` も有効化しない
-- デプロイごとの `jobs/migrate.py`（`app/monthly/maintenance.run_deploy_maintenance`）が `stocks` に無い月次行を DELETE する。アプリ起動・各ジョブの `init_db` は触らない（本番の名証単独 30320 / 30660 など。冪等）。順は `monthly_values` → `monthly_elements` → `monthly_tables` → `monthly_issuers`
+- デプロイごとの `jobs/migrate.py`（`app/monthly/maintenance.run_deploy_maintenance`）が `stocks` に無い月次行を DELETE する。アプリ起動・各ジョブの `init_db` は触らない（本番の名証単独 30320 / 30660 など。冪等）。順は `monthly_values` → `monthly_element_sources` → `monthly_elements` → `monthly_tables` → `monthly_issuers`
 
 **unit。** PDF 見出しが入力タグを決める。値の大きさから推測しない。入力は `number` / `yoy_index` / `yoy_pct`。保存は `number` / `yoy_index`。`yoy_pct` は書かない。ingest の各行と `POST .../elements` は `unit` 必須。省略・null は 400 `UNIT_REQUIRED`。GET の NULL は number として出す。PUT values は訂正で、保存形（指数）を送る。unit も `+100` もしない。
 
