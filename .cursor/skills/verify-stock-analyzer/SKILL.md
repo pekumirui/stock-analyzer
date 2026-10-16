@@ -71,7 +71,7 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 | スクリーナー tab | `nav button[data-tab="screener"]` |
 | サプライ tab | `nav button[data-tab="supply"]` |
 | Earnings calendar | `#cal-btn` opens `#cal-pop`; `#cal-title` + ◀/▶ (`calMove(±1)`) change month and refetch `/api/earnings/calendar?month=YYYY-MM&today=YYYY-MM-DD` (`today` is `todayISO()`). A month already fetched is drawn from `calCells` first, then refetched; boot prefetches this month after the first list (`calPrefetch`). Day cells are `#cal .d` with `onclick="selectDate('YYYY-MM-DD')"`. A day with filings or a schedule shows `.cnt` (`cell.n` plus `件`). Future schedules add `.cnt.sched`. Today with names still scheduled adds `.cnt.pend` as `+N`. Esc / `#cal-backdrop` / a day click close the popover. |
-| Earnings row | `#earn-tbl tr[data-no]` for a filing. `#earn-tbl tr[data-code]` for a scheduled issuer (QoQ/YoY and time are `–`). The first row of the day is auto-selected |
+| Earnings row | `#earn-tbl tr[data-no]` for a filing. `#earn-tbl tr[data-code]` for a scheduled issuer (QoQ/YoY and time are `–`). The first row of the day is auto-selected. Columns 時刻 / 銘柄 / 決算期 / QoQ / YoY; the Q chip and `訂正` sit under 決算期 and 時刻 in `.g` (no Q column) |
 | Earnings search | `#earn-sym` (placeholder `銘柄名 or コード`), suggestions `#earn-suggest` from `/api/stocks/search`. A pick jumps the list to that issuer's latest filing day |
 | Earnings sector chips | `#earn-groups .mchip[data-sector]` (すべて = `""`, then `sector33` by issuer count, count in `.n`). Filters `#earn-tbl`; reset on every `selectDate` |
 | 累計 / 3か月 | `.ftab[data-fin="cum"]` (default on) / `.ftab[data-fin="q"]` |

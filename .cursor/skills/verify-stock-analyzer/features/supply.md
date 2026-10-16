@@ -53,4 +53,4 @@ Preconditions:
 - While the page itself is pinch-zoomed (`visualViewport.scale` > 1) map pan/zoom is off (#636). Map zoom is capped at 3 (1.2 while flying to a pick).
 - Layout: ≥900px the panel is a 300px right column; below that it is under the map. ≤640px the map is `60vh` (390×844 → 506px).
 - Prod nginx keeps `/api/supply/*` behind Basic (`deploy/nginx.conf`; only `/api/v1/tables*` is public), and public `/monthly` has no supply surface. Local uvicorn has no auth. `GET /api/supply/countries/{id}?flow=export` exists but the UI never requests it.
-- `graph` / `companies` are read once per process; editing `config/supply_*.json` needs a server restart to show.
+- `graph` / `companies` are read once per process; editing `config/supply/supply_*.json` needs a server restart to show.
