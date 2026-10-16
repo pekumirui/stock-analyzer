@@ -351,6 +351,10 @@ def main() -> None:
         raise SystemExit("earnings list should exclude REIT")
     if code not in earn_codes:
         raise SystemExit("earnings list dropped common stock")
+    # 一覧は金額も返す (Q単独は算出できなければ null)
+    for x in listed["actuals"]:
+        if "single" not in x or "net_sales" not in (x.get("cumulative") or {}):
+            raise SystemExit(f"earnings list should carry single/cumulative amounts, got {x!r}")
 
     r = client.get("/api/stocks/search", params={"q": "ビルファンド"})
     _expect(r, 200, "GET /api/stocks/search (REIT)")
