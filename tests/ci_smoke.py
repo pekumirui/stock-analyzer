@@ -82,6 +82,7 @@ SUITES = (
     "monthly/test_monthly_ingest.py",
     "monthly/test_monthly_stock_master.py",
     "monthly/test_monthly_issuers.py",
+    "monthly/test_monthly_element_sources.py",
     "monthly/test_sync_monthly_from_vps.py",
     "monthly/test_tdnet_monthly_r2.py",
     "monthly/test_tdnet_monthly_pending.py",

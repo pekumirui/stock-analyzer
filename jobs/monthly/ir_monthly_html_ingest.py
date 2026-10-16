@@ -207,6 +207,7 @@ def ingest_body(
         "months": list(s.months),
         "rows": rows,
         "as_of": s.as_of.isoformat(),
+        "via": "ir_html",
     }
     if months:
         body["only_months"] = [f"{year:04d}-{month:02d}" for year, month in sorted(months)]

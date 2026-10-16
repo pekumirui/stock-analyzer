@@ -313,6 +313,7 @@ def ingest_body(payload: Mapping[str, Any]) -> dict[str, Any]:
         "months": list(payload["months"]),
         "rows": list(payload["rows"]),
         "as_of": payload["as_of"],
+        "via": "ir_xls",
     }
 
 

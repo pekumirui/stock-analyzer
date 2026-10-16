@@ -249,7 +249,8 @@ def test_post_sends_ingest_body(tmp: Path) -> None:
         url, body = client.posts[0]
         if url != "http://127.0.0.1:8000/api/v1/tables/1878/ingest":
             _fail(f"POST url {url}")
-        if set(body) != {"months", "rows", "as_of"} or body["as_of"] != "2026-09-02" or not body["rows"]:
+        if (set(body) != {"months", "rows", "as_of", "via"} or body["via"] != "ir_xls"
+                or body["as_of"] != "2026-09-02" or not body["rows"]):
             _fail(f"POST body keys {sorted(body)} as_of={body.get('as_of')}")
     client = Client(200)
     with redirect_stdout(io.StringIO()):

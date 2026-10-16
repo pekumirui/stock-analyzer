@@ -4,15 +4,16 @@ from fastapi import APIRouter, Body, Depends, Response
 from sqlalchemy.orm import Session
 
 from ...db import get_session, run_sqlite_write
-from ...monthly.store import delete_monthly_element, rename_monthly_element
+from ...monthly.store import delete_monthly_element, record_element_source, rename_monthly_element
 from ...models import MonthlyValue
 from ...monthly.ingest import (
     MonthlyIngestError, apply_issuer_aliases, canonicalize_element_label, coerce_monthly_storage,
 )
 from ._common import (
     ApiError, _canonical_element, _element_unit, _ensure_element, _get_element, _get_table,
-    _ingest_error, _lookup_element, _parse_code, _parse_month, _parse_unit, _parse_value,
-    _parse_year, _require_object, _require_stock, _upsert_value, forbid_proxied_monthly_write,
+    _ingest_error, _lookup_element, _parse_code, _parse_element, _parse_month, _parse_unit,
+    _parse_value, _parse_year, _require_object, _require_stock, _upsert_value,
+    forbid_proxied_monthly_write,
 )
 
 router = APIRouter()
@@ -33,6 +34,7 @@ def post_element(code: str, year: str, response: Response,
             "unit は number / yoy_index / yoy_pct です。省略できません。",
         )
     element = _canonical_element(body.get("element"), unit, code, year=year_i)
+    source_label, source_unit = _parse_element(body.get("element")), unit
     unit = coerce_monthly_storage(unit, None)[0]
     _require_stock(db, code)
     created = False
@@ -40,6 +42,7 @@ def post_element(code: str, year: str, response: Response,
     def _write() -> None:
         nonlocal created
         created = _ensure_element(db, code, year_i, element, force, unit)
+        record_element_source(db, code, year_i, source_label, source_unit, element, "api")
 
     run_sqlite_write(db, _write)
     row = _get_element(db, code, year_i, element)
