@@ -95,6 +95,7 @@ SUITES = (
     "monthly/test_html_recipe.py",
     "monthly/test_html_issue248_parity.py",
     "monthly/test_html_3082_scope.py",
+    "monthly/test_html_9946.py",
     "monthly/test_ir_monthly_html_ingest.py",
     "monthly/test_ir_monthly_xls_ingest.py",
     "xbrl/test_xbrl_parse.py",
