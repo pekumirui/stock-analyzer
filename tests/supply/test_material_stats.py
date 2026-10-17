@@ -6,8 +6,10 @@ import os
 import re
 import sys
 import tempfile
+from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -25,14 +27,17 @@ from app.supply.material_stats import (  # noqa: E402
     load_mapping, prune_unmapped, sekiyu_rows, seidou_rows, validate_mapping, write_country_rows, write_rows,
 )
 from app.supply.meti import (  # noqa: E402
-    MetiChallenged, MetiClient, MetiFile, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_nenpo_inventory_cells,
-    sekiyu_sokuho_cells, seidou_december_kakuho, seidou_files,
+    MetiChallenged, MetiClient, MetiError, MetiFile, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells,
+    sekiyu_nenpo_inventory_cells, sekiyu_sokuho_cells, seidou_december_kakuho, seidou_files,
 )
 from app.supply.meti import seidou_records as meti_records  # noqa: E402
 from app.models import MaterialMonthly, MaterialTradeCountry  # noqa: E402
 from app.supply.chain import apparent_consumption, load_supply_chain, monthly_payload  # noqa: E402
 
-from jobs.supply.material_stats import MetiArchive, MetiLedger, meti_targets, sekiyu_done  # noqa: E402
+from jobs._r2common import MountDisconnected  # noqa: E402
+from jobs.supply.material_stats import (  # noqa: E402
+    MetiArchive, MetiLedger, ingest_meti_seidou, ingest_meti_sekiyu, meti_targets, sekiyu_done,
+)
 import jobs.supply.material_stats as material_stats_job  # noqa: E402
 
 
@@ -505,6 +510,144 @@ def test_meti_archive() -> None:
         "archive off")
 
 
+def test_meti_archive_open_expected_errors() -> None:
+    root = Path("/tmp/stock-analyzer-r2-share")
+
+    def _open(exc: BaseException) -> tuple[MetiArchive, str]:
+        buf = io.StringIO()
+        with patch("jobs.supply.material_stats.check_r2_mount", side_effect=exc), \
+             patch("jobs.supply.material_stats.r2_share_root", return_value=root), \
+             redirect_stdout(buf):
+            return MetiArchive.open(), buf.getvalue()
+
+    for exc in (MountDisconnected("down"), PermissionError("denied"), OSError("io")):
+        arc, out = _open(exc)
+        _eq(arc.root, None, f"archive off on {type(exc).__name__}")
+        if "warn meti archive off:" not in out:
+            _fail(f"expected warn for {type(exc).__name__}: {out!r}")
+
+    try:
+        _open(RuntimeError("bug"))
+    except RuntimeError as e:
+        _eq(str(e), "bug", "unexpected error propagates from open")
+    else:
+        _fail("RuntimeError must propagate from MetiArchive.open")
+
+
+class _ErrArchive:
+    def __init__(self, errors: list[BaseException | None]) -> None:
+        self.errors = list(errors)
+        self.calls: list[str] = []
+
+    def missing(self, kind: str, names: set[str]) -> set[str]:
+        return set()
+
+    def get(self, client, f, kind: str, refetch: bool) -> tuple[bytes, str]:
+        self.calls.append(f.name)
+        err = self.errors.pop(0)
+        if err is not None:
+            raise err
+        return b"data", "meti"
+
+
+def _ingest_mapping() -> dict:
+    return {
+        "seidou": {"items": ITEMS, "metrics": METRICS},
+        "sekiyu": {"items": [{"material": "lpg", "metric": "import",
+                              "kakuho": {"blocks": ["液化石油ガス"], "column": "輸入"}}]},
+    }
+
+
+def test_ingest_meti_skips_io_only() -> None:
+    mapping = _ingest_mapping()
+    f1 = MetiFile("https://x/a.xlsx", REVISION_SOKUHO)
+    f2 = MetiFile("https://x/b.xlsx", REVISION_SOKUHO)
+    client = SimpleNamespace(get=lambda url: b"<html>")
+    init_db()
+    db = SessionLocal()
+    try:
+        arc = _ErrArchive([OSError("disk"), None])
+        with patch("jobs.supply.material_stats.MetiClient", return_value=client), \
+             patch("jobs.supply.material_stats.seidou_files", return_value=[f1, f2]), \
+             patch("jobs.supply.material_stats.meti_seidou_records", return_value=[]), \
+             redirect_stdout(io.StringIO()):
+            fails: list[str] = []
+            ingest_meti_seidou(db, mapping, archive=arc, fails=fails)
+        _eq(fails, [f1.name], "seidou skips IO on one file")
+        _eq(arc.calls, [f1.name, f2.name], "seidou continues after IO")
+
+        arc = _ErrArchive([RuntimeError("parse bug")])
+        with patch("jobs.supply.material_stats.MetiClient", return_value=client), \
+             patch("jobs.supply.material_stats.seidou_files", return_value=[f1]), \
+             redirect_stdout(io.StringIO()):
+            try:
+                ingest_meti_seidou(db, mapping, archive=arc, fails=[])
+            except RuntimeError as e:
+                _eq(str(e), "parse bug", "seidou unexpected error propagates")
+            else:
+                _fail("seidou RuntimeError must propagate")
+
+        arc = _ErrArchive([OSError("disk"), None])
+        with patch("jobs.supply.material_stats.MetiClient", return_value=client), \
+             patch("jobs.supply.material_stats.sekiyu_files", return_value=[f1, f2]), \
+             patch("jobs.supply.material_stats.sekiyu_sokuho_cells", return_value=[]), \
+             redirect_stdout(io.StringIO()):
+            fails = []
+            ingest_meti_sekiyu(db, mapping, archive=arc, fails=fails)
+        _eq(fails, [f1.name], "sekiyu skips IO on one file")
+        _eq(arc.calls, [f1.name, f2.name], "sekiyu continues after IO")
+
+        arc = _ErrArchive([RuntimeError("parse bug")])
+        with patch("jobs.supply.material_stats.MetiClient", return_value=client), \
+             patch("jobs.supply.material_stats.sekiyu_files", return_value=[f1]), \
+             redirect_stdout(io.StringIO()):
+            try:
+                ingest_meti_sekiyu(db, mapping, archive=arc, fails=[])
+            except RuntimeError as e:
+                _eq(str(e), "parse bug", "sekiyu unexpected error propagates")
+            else:
+                _fail("sekiyu RuntimeError must propagate")
+    finally:
+        db.close()
+
+
+def test_ingest_meti_skips_broken_excel() -> None:
+    mapping = _ingest_mapping()
+    f1 = MetiFile("https://x/a.xlsx", REVISION_SOKUHO)
+    f2 = MetiFile("https://x/b.xlsx", REVISION_SOKUHO)
+    client = SimpleNamespace(get=lambda url: b"<html>")
+    init_db()
+    db = SessionLocal()
+    try:
+        arc = _ErrArchive([MetiError("no sheet 実数表"), None])
+        buf = io.StringIO()
+        with patch("jobs.supply.material_stats.MetiClient", return_value=client), \
+             patch("jobs.supply.material_stats.seidou_files", return_value=[f1, f2]), \
+             patch("jobs.supply.material_stats.meti_seidou_records", return_value=[]), \
+             redirect_stdout(buf):
+            fails: list[str] = []
+            ingest_meti_seidou(db, mapping, archive=arc, fails=fails)
+        _eq(fails, [f1.name], "seidou skips MetiError on one file")
+        _eq(arc.calls, [f1.name, f2.name], "seidou continues after MetiError")
+        if f"fail meti seidou {f1.name}:" not in buf.getvalue():
+            _fail(f"seidou must log the skipped file: {buf.getvalue()!r}")
+
+        arc = _ErrArchive([MetiError("empty or not an xlsx"), None])
+        buf = io.StringIO()
+        with patch("jobs.supply.material_stats.MetiClient", return_value=client), \
+             patch("jobs.supply.material_stats.sekiyu_files", return_value=[f1, f2]), \
+             patch("jobs.supply.material_stats.sekiyu_sokuho_cells", return_value=[]), \
+             redirect_stdout(buf):
+            fails = []
+            ingest_meti_sekiyu(db, mapping, archive=arc, fails=fails)
+        _eq(fails, [f1.name], "sekiyu skips MetiError on one file")
+        _eq(arc.calls, [f1.name, f2.name], "sekiyu continues after MetiError")
+        if f"fail meti sekiyu {f1.name}:" not in buf.getvalue():
+            _fail(f"sekiyu must log the skipped file: {buf.getvalue()!r}")
+    finally:
+        db.close()
+
+
 def test_meti_ledger() -> None:
     from datetime import date
     sys.path.insert(0, str(ROOT / "deploy"))
@@ -638,6 +781,9 @@ def main() -> None:
     test_sekiyu_sokuho_and_nenpo()
     test_meti_waf_challenge()
     test_meti_archive()
+    test_meti_archive_open_expected_errors()
+    test_ingest_meti_skips_io_only()
+    test_ingest_meti_skips_broken_excel()
     test_meti_ledger()
     test_material_stats_waf_summary_pages_once()
     test_material_stats_waf_file_stop()
