@@ -16,6 +16,10 @@ os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
+from sqlalchemy import select  # noqa: E402
+
+from app.api.earnings import prefetch_list_history  # noqa: E402
+from app.config import EARNINGS_PARAMS as EP  # noqa: E402
 from app.market.analytics import (  # noqa: E402
     calendar_label,
     calendar_span,
@@ -356,6 +360,30 @@ def test_earnings_api() -> None:
         _fail(f"perf 2025-11-01: {hit}")
     if [e["disclosed_date"] for e in perf] != sorted((e["disclosed_date"] for e in perf), reverse=True):
         _fail("performance must be newest first")
+
+    day = date(2025, 11, 1)
+    r = c.get("/api/earnings", params={"date": day.isoformat(), "today": "2026-05-02"})
+    if r.status_code != 200:
+        _fail(f"list {r.status_code} {r.text}")
+    actuals = r.json()["actuals"]
+    if len(actuals) != 1 or actuals[0]["disclosure_no"] != "c2q":
+        _fail(f"list actuals: {actuals!r}")
+    qoq = (actuals[0].get("qoq") or {}).get("net_sales") or {}
+    yoy = (actuals[0].get("yoy") or {}).get("net_sales") or {}
+    if qoq.get("pct") != 50.0 or yoy.get("pct") != 38.9:
+        _fail(f"list qoq/yoy: {actuals[0]!r}")
+
+    db = SessionLocal()
+    try:
+        codes = select(Statement.code).where(Statement.disclosed_date == day)
+        batched = prefetch_list_history(db, codes, day)
+        if list(batched) != [CODE]:
+            _fail(f"prefetch codes: {list(batched)!r}")
+        per = statement_history(db, CODE, day, EP["list_history_days"])
+        if [s.disclosure_no for s in batched[CODE]] != [s.disclosure_no for s in per]:
+            _fail(f"prefetch { [s.disclosure_no for s in batched[CODE]] } != {[s.disclosure_no for s in per]}")
+    finally:
+        db.close()
 
 
 def test_upsert_mixed_columns_and_freshness() -> None:

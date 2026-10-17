@@ -9,7 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ...db import get_session, run_sqlite_write
-from ...monthly.store import delete_monthly_element, record_element_source, rename_monthly_element
+from ...monthly.store import delete_monthly_element, record_element_source, remap_monthly_elements
 from ...models import MonthlyElement, MonthlyValue
 from ...monthly.tree import MONTHLY_TREES, assign_tree_rows
 from ._common import (
@@ -186,12 +186,11 @@ def _doc_plan(db: Session, code: str, year_i: int, body: dict) -> dict:
 def _doc_apply(db: Session, code: str, year_i: int, plan: dict) -> None:
     for name in plan["deleted"]:
         delete_monthly_element(db, code, year_i, name)
-    moving = [r for r in plan["rows"] if r["was"] is not None and r["was"] != r["element"]]
-    # 入れ替え（A→B, B→A）でも主キーがぶつからないように、いったん仮の名前へ逃がす
-    for i, r in enumerate(moving):
-        rename_monthly_element(db, code, year_i, r["was"], f"\x00doc{i}")
-    for i, r in enumerate(moving):
-        rename_monthly_element(db, code, year_i, f"\x00doc{i}", r["element"])
+    remap_monthly_elements(db, code, year_i, {
+        r["was"]: r["element"]
+        for r in plan["rows"]
+        if r["was"] is not None and r["was"] != r["element"]
+    })
     next_order = (db.query(func.max(MonthlyElement.sort_order))
                   .filter(MonthlyElement.code == code, MonthlyElement.year == year_i)
                   .scalar() or 0) + 1
