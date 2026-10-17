@@ -160,7 +160,7 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
 monthly_element_sources  -- 送られてきたままの行名 → 今の保存名。正規化の差分スナップショットの入力 (KAB-17)
   code, year, source_label, unit PK  -- source_label は前後の空白だけ落とした受信のまま。unit も受信のまま (yoy_pct 可)
   element                 -- 今の保存名。付け替え・統合 (rename_monthly_element) に付いていく。行を消すと一緒に消える
-  via                     -- api (POST elements・ingest の既定) / ir_html / ir_xls (ingest の via) / doc (PUT doc の新規行) / legacy
+  via                     -- api (POST elements・ingest の既定) / ir_html / ir_xls / ir_json (ingest の via) / doc (PUT doc の新規行) / legacy
   first_seen_at, last_seen_at
   -- source_label は一度入れたら書き換えない。記録前からある行はデプロイ時に保存名そのものを legacy で入れる
 
@@ -199,7 +199,7 @@ material_monthly  -- サプライタブの素材ごとの月次量 (e-Stat)
 - `as_of` は YYYY-MM-DD 必須。省略・null は 400 `AS_OF_REQUIRED`。サーバ日付は使わない
 - `dry_run: true` は `fy_end_month` / `layout` / `mapping` と、書くはずのセル（`updated`）を返す。DB には書かない。新着にもならない
 - `only_months` は `YYYY-MM` の配列。mapping を決めたあと、その暦年の列だけ書く。省略時は全列。当たらない月は書かない
-- `via` は経路（`api` / `ir_html` / `ir_xls`）。省略は `api`。それ以外は 400。書いた行ごとに元の行名を `monthly_element_sources` に残す（dry_run では残さない）
+- `via` は経路（`api` / `ir_html` / `ir_xls` / `ir_json`）。省略は `api`。それ以外は 400。書いた行ごとに元の行名を `monthly_element_sources` に残す（dry_run では残さない）
 
 **銘柄マスタとの関係。**
 
@@ -258,9 +258,10 @@ IR 月次 PDF/xlsx/xls（`jobs/monthly/ir_monthly_r2.py`）:
 
 IR 月次 JSON（`jobs/monthly/ir_monthly_json_ingest.py`）:
 
-- スギHD (7649) の公開 CloudFront JSON。E-IR と同じく GET して ingest JSON を書く。自動 POST しない。crontab に載せない。銘柄クラスは作らない。HTML ingest の cron には混ぜない
+- スギHD (7649) の公開 CloudFront JSON。E-IR と同じく GET して ingest JSON を書き、loopback `POST /api/v1/tables/{code}/ingest` する（`via=ir_json`。year は送らない）。crontab は HTML ingest と同じ 10:30 / 16:30（`deploy/cron-run.sh`）。銘柄クラスは作らない。HTML ingest のレジストリには混ぜない
 - JSON の `year` は HTML `data-year`（暦年。2027年2月期の3月は year=2026 month=3）。今年度だけ。過去年度の表は入れない
 - 伸び率は +100 して `yoy_index`、`digits` で小数1桁。フィールドと行名は `config/monthly/ir_monthly_json.json`
+- `values` は値のある月だけ（`{月: 値}`。null は既存セルを消すので送らない）。同じ値のセルはサーバが書き換えない。失敗時は最終行 `failed=K` で exit≠0
 
 IR 月次 HTML（`jobs/monthly/ir_monthly_html_r2.py`）:
 
