@@ -5,6 +5,7 @@ import gzip
 import json
 import os
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -1595,6 +1596,127 @@ def test_parse_ingest_months_and_industry() -> None:
         raise SystemExit("industry type")
 
 
+def _mcp_status_line(text: str) -> str:
+    prefix = f"{m.PORT} "
+    for line in text.splitlines():
+        if line.startswith(prefix):
+            return line
+    raise SystemExit(f"missing {m.PORT} line: {text!r}")
+
+
+def test_service_status_skips_self_mcp_curl() -> None:
+    calls: list[list[str]] = []
+    orig = m.run_cmd
+
+    def fake(argv, timeout=15):  # noqa: ANN001, ARG001, ANN202
+        calls.append(list(argv))
+        if argv and argv[0] == "curl":
+            return "200"
+        return "active"
+
+    m.run_cmd = fake  # type: ignore[assignment]
+    try:
+        t0 = time.perf_counter()
+        text, is_error = m.call_tool("service_status", {})
+        elapsed = time.perf_counter() - t0
+        if is_error:
+            raise SystemExit(f"service_status isError: {text!r}")
+        if elapsed >= 1.0:
+            raise SystemExit(f"service_status too slow: {elapsed:.3f}s")
+        mcp_line = _mcp_status_line(text)
+        if mcp_line.split()[1] == "000":
+            raise SystemExit(f"MCP still 000: {mcp_line!r}")
+        if not mcp_line.startswith(f"{m.PORT} ok"):
+            raise SystemExit(f"expected ok, got {mcp_line!r}")
+        curl_urls = [a for argv in calls if argv and argv[0] == "curl" for a in argv if str(a).startswith("http")]
+        if any("/mcp" in url or f":{m.PORT}" in url for url in curl_urls):
+            raise SystemExit(f"must not curl MCP itself: {curl_urls!r}")
+        if "http://127.0.0.1/" not in curl_urls or "http://127.0.0.1:8000/" not in curl_urls:
+            raise SystemExit(f"still curl 80/8000: {curl_urls!r}")
+    finally:
+        m.run_cmd = orig
+
+
+def test_service_status_live_server_does_not_timeout() -> None:
+    """uvicorn workers=1 で tools/call しても自分への curl 待ちで 3 秒止まらないこと。"""
+    import socket
+    import threading
+    import urllib.error
+    import urllib.request
+
+    import uvicorn
+
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+
+    orig = m.run_cmd
+
+    def fake(argv, timeout=15):  # noqa: ANN001, ARG001, ANN202
+        if argv and argv[0] == "curl":
+            url = next((a for a in argv if isinstance(a, str) and a.startswith("http")), "")
+            if "/mcp" in url or f":{m.PORT}/mcp" in url:
+                # 回帰すると同一ワーカーへ同期 GET してデッドロックする
+                try:
+                    urllib.request.urlopen(f"http://127.0.0.1:{port}/mcp", timeout=3)  # nosec B310
+                except Exception:
+                    return "000"
+                return "200"
+            return "200"
+        return "active"
+
+    m.run_cmd = fake  # type: ignore[assignment]
+    config = uvicorn.Config(
+        m.create_app("test-token-for-ci-only"),
+        host="127.0.0.1",
+        port=port,
+        log_level="warning",
+    )
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    try:
+        deadline = time.time() + 8
+        while not getattr(server, "started", False):
+            if time.time() > deadline:
+                raise SystemExit("uvicorn did not start")
+            time.sleep(0.05)
+        body = json.dumps({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {"name": "service_status", "arguments": {}},
+        }).encode()
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/mcp",
+            data=body,
+            headers={
+                "Authorization": "Bearer test-token-for-ci-only",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        t0 = time.perf_counter()
+        try:
+            with urllib.request.urlopen(req, timeout=2) as resp:  # nosec B310
+                payload = json.loads(resp.read())
+        except (TimeoutError, urllib.error.URLError) as exc:
+            raise SystemExit(f"service_status blocked on self-curl: {exc}") from exc
+        elapsed = time.perf_counter() - t0
+        if elapsed >= 1.5:
+            raise SystemExit(f"service_status still slow: {elapsed:.3f}s")
+        text = payload["result"]["content"][0]["text"]
+        mcp_line = _mcp_status_line(text)
+        if "000" in mcp_line.split(" ", 1)[1]:
+            raise SystemExit(f"MCP still 000: {mcp_line!r}")
+        if not mcp_line.startswith(f"{m.PORT} ok"):
+            raise SystemExit(f"expected ok, got {mcp_line!r}")
+    finally:
+        server.should_exit = True
+        m.run_cmd = orig
+
+
 def test_rpc_error_and_env_flag(tmp_path: Path) -> None:
     err = m.rpc_error(7, -32600, "invalid jsonrpc")
     if err != {"jsonrpc": "2.0", "id": 7, "error": {"code": -32600, "message": "invalid jsonrpc"}}:
@@ -1819,6 +1941,8 @@ def main() -> None:
         test_batch_logs_job_file(Path(d) / "jobs")
         test_batch_logs_window(Path(d) / "window")
     test_http_auth_and_tools()
+    test_service_status_skips_self_mcp_curl()
+    test_service_status_live_server_does_not_timeout()
     test_oauth()
     test_oauth_store_persists_and_purges()
     test_configured_token_strips_env()

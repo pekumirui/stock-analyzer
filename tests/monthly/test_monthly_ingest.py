@@ -341,6 +341,27 @@ def test_canonicalize_element_label() -> None:
         _fail("出店 keeps 全店")
     if canonicalize_element_label("トライアル 新規 全店 出店", "number") != "トライアル 全店 出店":
         _fail("出店 keeps 全店")
+    if canonicalize_element_label("新規 店舗数", "number") != "出店":
+        _fail("新規 店舗数 is store-flow 出店")
+    if canonicalize_element_label("新規 店舗", "number") != "出店":
+        _fail("新規 店舗 is store-flow 出店")
+    if canonicalize_element_label("主要商品 合計新規", "yoy_index") != "主要商品 新規(前年比)":
+        _fail("主要商品 合計新規 keeps 新規 (not 出店)")
+    if canonicalize_element_label("主要商品 合計 新規", "yoy_index") != "主要商品 新規(前年比)":
+        _fail("主要商品 合計 新規 keeps 新規")
+    if canonicalize_element_label("主要商品 新規", "yoy_index") != "主要商品 新規(前年比)":
+        _fail("主要商品 新規 stays leftover")
+    if canonicalize_element_label("新規 会員数", "number") != "新規 会員数":
+        _fail("新規 会員数 must not become 会員数 出店")
+    if canonicalize_element_label("新規 会員数", "yoy_index") != "新規 会員数(前年比)":
+        _fail("新規 会員数 yoy must not fill 出店")
+    if canonicalize_element_label("新規 売上高", "number") != "新規 売上高":
+        _fail("新規 売上高 must keep 新規")
+    if canonicalize_element_label("既存 新規 売上高", "number") != "新規 既存 売上高":
+        _fail("既存 新規 売上高 must keep 新規")
+    new_cust = canonicalize_element_label("新規 顧客数", "number")
+    if new_cust == "顧 客数" or "出店" in new_cust or not new_cust.startswith("新規"):
+        _fail(f"新規 顧客数 must keep 新規 (not 顧 客数 / 出店): {new_cust!r}")
     if canonicalize_element_label("西友 全店 出店", "number") != "西友 全店 出店":
         _fail("西友 全店 出店 stays")
     if canonicalize_element_label("西友 業態転換数 全店", "number") != "西友 全店 業態転換数":
@@ -781,6 +802,17 @@ def test_issuer_alias_cases() -> None:
         if apply_issuer_aliases("72030", incoming, year=ctx.get("year"), as_of=ctx.get("as_of")) != incoming:  # type: ignore[arg-type]
             _fail(f"other issuer must not alias {incoming!r}")
 
+    sample_78230 = apply_issuer_aliases(
+        "78230", canonicalize_element_label("主要商品 出店(前年比)", "yoy_index"), year=2026,
+    )
+    if sample_78230 != "主要商品 新規(前年比)":
+        _fail(f"78230 出店 alias: {sample_78230!r}")
+    sample_78230_src = canonicalize_element_label("主要商品 合計新規", "yoy_index")
+    if sample_78230_src != "主要商品 新規(前年比)":
+        _fail(f"78230 合計新規: {sample_78230_src!r}")
+    sample_78230_twice = canonicalize_element_label(sample_78230, "yoy_index")
+    if sample_78230_twice != "主要商品 新規(前年比)":
+        _fail(f"78230 dest must not fold back to 出店: {sample_78230_twice!r}")
     sample_34150 = apply_issuer_aliases(
         "34150", canonicalize_element_label("全社 国内 合計 売上高(前年比)", "yoy_index"), year=2099,
     )
@@ -2930,6 +2962,68 @@ def _check_count_cases(cases) -> None:
             _fail(f"count peel group {src!r}: {lab['group']!r}")
 
 
+def test_issuer_rate_metrics_14350() -> None:
+    """14350 の入居率は件数辞書と同じく層だけ指標。保存名は並べ替えない（KAB-11 / #662）。"""
+    code = "14350"
+    cases = (
+        ("入居率 全体", "全体", "入居率"),
+        ("入居率 自社施工", "自社施工", "入居率"),
+        ("入居率 管理受託", "管理受託", "入居率"),
+    )
+    for src, segment, metric in cases:
+        got = canonicalize_element_label(src, "number")
+        if got != src:
+            _fail(f"occupancy stored name must not reorder {src!r} -> {got!r}")
+        layers = parse_element_layers(src, code=code)
+        if layers["metric"] != metric or layers["segment"] != segment:
+            _fail(f"14350 occupancy layers {src!r}: {layers!r}")
+        lab = monthly_element_label(src, "number", code)
+        if (
+            lab["metric"] != metric
+            or lab["segment"] != segment
+            or lab["metric_kind"] != "count"
+            or lab["display"] != src
+        ):
+            _fail(f"14350 occupancy label {src!r}: {lab!r}")
+        for other in (None, "18780", "29910"):
+            leaked = monthly_element_label(src, "number", other)
+            if leaked["metric"] or leaked["segment"] != src:
+                _fail(f"occupancy leaked to code={other!r} {src!r}: {leaked!r}")
+
+    units = parse_element_layers("管理戸数 全体", code=code)
+    if units["metric"] != "管理戸数" or units["segment"] != "全体":
+        _fail(f"14350 管理戸数 still peels: {units!r}")
+
+    side = (
+        ("18780", "家賃ベース入居率"),
+        ("18780", "家賃ベース入居率 事業用"),
+        ("18780", "家賃ベース入居率 居住用"),
+        ("29910", "入居率"),
+        ("90070", "ホテル センチュリー 客室稼働率"),
+        ("31740", "粗利率 既存"),
+        ("89140", "稼働率 既存"),
+        ("21540", "エンジニア 稼働率"),
+    )
+    for other, src in side:
+        if canonicalize_element_label(src, "number") != src:
+            _fail(
+                f"rate side stored {other} {src!r} -> "
+                f"{canonicalize_element_label(src, 'number')!r}"
+            )
+        lab = monthly_element_label(src, "number", other)
+        if lab["metric"]:
+            _fail(f"rate side must not peel metric {other} {src!r}: {lab!r}")
+
+    if canonicalize_element_label("既存 空室数", "number") != "空室数 既存":
+        _fail("空室数 stays leftover so 既存 reorders after it")
+    vacant = monthly_element_label("空室数 既存", "number", "18780")
+    if vacant["metric"]:
+        _fail(f"空室数 must stay leftover: {vacant!r}")
+    members = monthly_element_label("会員数 既存", "number")
+    if members["metric"] or members["metric_kind"] != "other":
+        _fail(f"会員数 must stay leftover: {members!r}")
+
+
 def test_count_metric_keeps_pre534_stored_names() -> None:
     """#534 の件数 peel は層だけ。保存名と起動時の寄せは #534 前と同じ。"""
     stored = (
@@ -3068,6 +3162,7 @@ def main() -> None:
         test_alias_rename_takes_unit_from_names(Path(d))
     test_monthly_element_label()
     test_issuer_count_metrics()
+    test_issuer_rate_metrics_14350()
     test_count_metric_keeps_pre534_stored_names()
     test_department_store_layers()
     test_issuer_alias_cases()
