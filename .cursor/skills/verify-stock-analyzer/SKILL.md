@@ -29,7 +29,7 @@ Default URL: `http://127.0.0.1:8000`. Override with env `VERIFY_PORT`. Ready whe
 
 Uses the repo's `stock.db` (read-only for UI proofs). Do not `.\run.ps1 reset` / `./run.sh reset`. Do not point `DATABASE_URL` at the user's DB from a second writer. If the port is taken by a non-SPA process, launch exits non-zero. Free the port or pick another `VERIFY_PORT`.
 
-If `stock.db` is missing, launch still starts (empty UI). Doctor then fails until backfill exists.
+If `stock.db` is missing, launch still starts (empty UI). Doctor then fails until a DB exists: `./run.sh golden` (seconds; golden real data for ~45 codes, all monthly) or `./run.sh backfill 2` (all codes, ~40 min).
 
 Teardown: see Cleanup. Keep the server up for the whole drive.
 
@@ -137,7 +137,7 @@ Directory: `.cursor/skills/verify-stock-analyzer/artifacts/<feature>/`. Cleanup 
 
 Proof standards:
 
-- Exercise the real SPA routes (`/app` + `/api/*` the UI calls). Do not hit TestClient, `ci_smoke.py` fixtures, or invent test-only endpoints.
+- Exercise the real SPA routes (`/app` + `/api/*` the UI calls). Do not hit TestClient, `tests/test_smoke.py` fixtures, or invent test-only endpoints.
 - Capture the **action** (request URL + status, or the click) and the **resulting state** (JSON body and/or screenshot), not only a final screen.
 - Screener / search / earnings lists must show real names. API `code` is 5 characters and must not start with `0`. Table labels use the first 4 (`code.slice(0,4)`: 7203 / 262A), not the stored 5-digit string.
 - Chart proof needs `candles` length > 0 in `/api/chart/{code}`.

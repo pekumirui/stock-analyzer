@@ -64,7 +64,7 @@ def _stored_name(element: str, unit: str) -> str:
     return canonicalize_element_label(s, unit)
 
 
-def main() -> None:
+def test_3082_scope() -> None:
     if not FIXTURE.is_file():
         _fail(f"missing fixture {FIXTURE}")
     parsed = parse_issuer(decode_html_bytes(FIXTURE.read_bytes()), "3082")
@@ -97,4 +97,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    test_3082_scope()

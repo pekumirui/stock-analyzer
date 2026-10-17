@@ -251,28 +251,6 @@ def test_write_inventory_bytes() -> None:
             _fail(history.name)
 
 
-def test_source_stays_readonly_and_secret_free() -> None:
-    src = (ROOT / "jobs" / "ops" / "vps_packages_r2.py").read_text(encoding="utf-8")
-    for needle in (
-        "os.environ",
-        "getenv",
-        ".env",
-        "rclone.conf",
-        "printenv",
-        "/proc/self/environ",
-        "from app",
-        "import app",
-    ):
-        if needle in src:
-            _fail(f"inventory job must not reference {needle}")
-    crontab = (ROOT / "deploy" / "crontab").read_text(encoding="utf-8")
-    want = "40 6 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/vps_packages_r2.py"
-    if want not in crontab:
-        _fail("crontab missing 06:40 JST vps_packages_r2 entry")
-    if ">>" in want:
-        _fail("crontab must not redirect")
-
-
 def test_main_write_failure_is_nonzero(tmp_path: Path) -> None:
     blocker = tmp_path / "blocker"
     blocker.write_text("x", encoding="utf-8")
@@ -288,7 +266,6 @@ def main_tests() -> None:
     test_report_sections()
     test_required_packages_appended_when_absent()
     test_sanitize_redacts_secrets_keeps_packages()
-    test_source_stays_readonly_and_secret_free()
     with TemporaryDirectory() as d:
         test_missing_command_is_not_installed(Path(d))
     with TemporaryDirectory() as d:

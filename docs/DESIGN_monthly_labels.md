@@ -92,6 +92,16 @@ year GET の各行は保存 `element` に加え、派生の `label`（display / 
 - GET は保存名のまま。派生の `label` だけを足す。DB は書き換えない
 - SPA の年表・系列・チャートの行キーは `label.display`。年ごとの保存名が違っても表示名が同じなら1行。取り残した短い名も畳む。その年の値は、その年の保存 element のうち表示名が一致するものから取る
 
+## 行名スナップショット
+
+規則を 1 つ足したときに「想定外の行まで変わった」ことを、本番の全行で見る（KAB-10 / KAB-17）。手で書いたケースは思いついた行しか守れないので、こちらを正本の確認にする。
+
+- `tests/monthly/golden/labels.tsv` は本番の全銘柄・全年・全行。入力は 銘柄 / 年 / 並び / 経路（via）/ unit / 送られてきたままの行名。出力は今のコードで通した 保存名・unit・label（display / metric_kind / segment / scope / metric）・ツリー（path / metric）
+- 出力は一時 DB を組み立てて API と同じ `table_year_payload` で作る。名前の通し方は POST elements と同じ（ingest の as_of のエイリアスは暦年で代える）。PUT doc の行は名前をそのまま使う
+- `tests/monthly/test_monthly_label_snapshot.py`（CI）は出力がずれた行を全部並べて落ちる。意図した変更なら `python tools/monthly/label_snapshot.py update` で書き直し、TSV の差分を PR に載せる。差分に想定外の行があれば、それが事故
+- 入力の取り直しは `collect`。`--api https://kabukpi.com` は公開 GET の保存名を `legacy` で入れる。`--db stock.db` は `monthly_element_sources`（元の行名）から入れる。どちらも保存名と今の正規化がずれている行を表示する
+- 本番に元の行名が残っていないもの（記録を始める前に API で送られた分）は `tests/monthly/golden/labels_known.tsv` に手で足す。`collect` が `known` として入れる
+
 ## 銘柄固有
 
 `config/monthly/issuer_aliases.json`。キーも canonicalize してから載せる。マップに無い名前はそのまま。

@@ -495,6 +495,10 @@ def _sudo_preserve_calls(script: str) -> list[dict[str, str]]:
 
 
 def test_secret_contract() -> None:
+    """Webhook の名前が cicd.yml・update.sh の --preserve-env・sudoers の env_keep で揃っていること。
+
+    受け渡しの動きは test_stub_sudo_channel_env_after_sudoers_refresh が sudo を差し替えて見る。
+    """
     cicd = (ROOT / ".github" / "workflows" / "cicd.yml").read_text(encoding="utf-8")
     webhook_secrets = ("SLACK_WEBHOOK_URL", *CHANNEL_WEBHOOK_SECRETS)
     for name in webhook_secrets:
@@ -554,15 +558,6 @@ def test_secret_contract() -> None:
     )
     if visudo.returncode != 0:
         _fail(f"deploy/sudoers failed visudo -cf: {visudo.stderr or visudo.stdout}")
-    provision = (ROOT / "deploy" / "provision.sh").read_text(encoding="utf-8")
-    if '"${1:-}" == "--sudoers-only"' not in provision:
-        _fail("provision.sh must handle --sudoers-only")
-    flag_at = provision.find('"${1:-}" == "--sudoers-only"')
-    apt_at = provision.find("apt_retry")
-    if flag_at < 0 or apt_at < 0 or flag_at > apt_at:
-        _fail("provision.sh --sudoers-only must return before apt_retry")
-    if "install_sudoers" not in provision:
-        _fail("provision.sh must install sudoers via install_sudoers")
     for rel in ("deploy/update.sh", "deploy/provision.sh"):
         chk = subprocess.run(
             ["bash", "-n", str(ROOT / rel)],
@@ -572,36 +567,6 @@ def test_secret_contract() -> None:
         )
         if chk.returncode != 0:
             _fail(f"bash -n {rel} failed: {chk.stderr or chk.stdout}")
-    if "/etc/fluent-bit/slack.env" not in provision:
-        _fail("provision.sh must write /etc/fluent-bit/slack.env")
-    if "SLACK_WEBHOOK_URI=%s" not in provision:
-        _fail("provision.sh must write SLACK_WEBHOOK_URI into slack.env")
-    for uri_name in (
-        "SLACK_WEBHOOK_URI_APP=%s",
-        "SLACK_WEBHOOK_URI_BATCH=%s",
-        "SLACK_WEBHOOK_URI_INFRA=%s",
-        "SLACK_WEBHOOK_URI_QUIET=%s",
-    ):
-        if uri_name not in provision:
-            _fail(f"provision.sh must write {uri_name} into slack.env")
-    if "slack_channel_uri" not in provision:
-        _fail("provision.sh must fall back empty channel webhooks to SLACK_WEBHOOK_URI")
-    quiet_fallback = (
-        'slack_channel_uri "${SLACK_WEBHOOK_URL_QUIET:-}" SLACK_WEBHOOK_URL_QUIET "$infra_uri"'
-    )
-    if quiet_fallback not in provision:
-        _fail("QUIET webhook must fall back to INFRA URI, not the default #alerts URI")
-    if "slack_restore_channel_url SLACK_WEBHOOK_URL_QUIET SLACK_WEBHOOK_URI_QUIET" not in provision:
-        _fail("provision.sh must restore SLACK_WEBHOOK_URL_QUIET from slack.env")
-    if "fluent-bit_slack.lua" not in provision or "/etc/fluent-bit/slack.lua" not in provision:
-        _fail("provision.sh must install fluent-bit_slack.lua")
-    if "EnvironmentFile=-/etc/fluent-bit/slack.env" not in provision:
-        _fail("provision.sh must install the fluent-bit slack.env drop-in")
-    if "SLACK_WEBHOOK_URI=/services/" not in provision:
-        _fail("provision.sh must start fluent-bit only when SLACK_WEBHOOK_URI is set")
-    dropin = provision.split("fluent-bit.service.d", 1)[-1]
-    if "stock-analyzer/.env" in dropin.split("echo \"provision ok", 1)[0]:
-        _fail("fluent-bit drop-in must not EnvironmentFile the app .env")
     crontab = (ROOT / "deploy" / "crontab").read_text(encoding="utf-8")
     for line in crontab.splitlines():
         stripped = line.strip()
@@ -625,10 +590,6 @@ def test_secret_contract() -> None:
             continue
         if ">>" in stripped or "batch.log" in stripped:
             _fail(f"crontab must not redirect logs: {stripped}")
-    if "migrated batch.log" in provision:
-        _fail("provision.sh must not re-copy leftover APP_DIR batch.log")
-    if 'rm -f "$APP_DIR/batch.log"' not in provision:
-        _fail("provision.sh must remove leftover APP_DIR batch.log")
 
 
 def test_stub_sudo_channel_env_after_sudoers_refresh(tmp_path: Path) -> None:

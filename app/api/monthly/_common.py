@@ -448,13 +448,19 @@ def _parse_ingest_values_by_column(
     return by_col
 
 
+IngestRow = tuple[str, bool, str, dict[int, float | None], list[tuple[str, str]]]
+
+
 def _parse_ingest_rows(
     raw: Any, months: list[int], code: str, *, as_of: date | None = None,
-) -> list[tuple[str, bool, str, dict[int, float | None]]]:
-    """各行の values は列インデックス → 値（null 可）。unit は必須。"""
+) -> list[IngestRow]:
+    """各行の values は列インデックス → 値（null 可）。unit は必須。
+
+    末尾は送られてきたままの (行名, unit)。同じ保存名に寄った行の分を全部持つ。
+    """
     if not isinstance(raw, list):
         raise ApiError(400, "INVALID_PARAM", "rows は {element, values} の配列です。")
-    parsed: list[tuple[str, bool, str, dict[int, float | None]]] = []
+    parsed: list[IngestRow] = []
     for item in raw:
         if not isinstance(item, dict):
             raise ApiError(400, "INVALID_PARAM", "rows の各要素は {element, values} です。")
@@ -472,22 +478,21 @@ def _parse_ingest_rows(
         for col, val in values.items():
             _, stored_val = coerce_monthly_storage(unit, val)
             stored[col] = stored_val
-        parsed.append((element, force, stored_unit, stored))
+        parsed.append((element, force, stored_unit, stored,
+                       [(_parse_element(item.get("element")), unit)]))
     return _merge_same_ingest_rows(parsed)
 
 
-def _merge_same_ingest_rows(
-    parsed: list[tuple[str, bool, str, dict[int, float | None]]],
-) -> list[tuple[str, bool, str, dict[int, float | None]]]:
+def _merge_same_ingest_rows(parsed: list[IngestRow]) -> list[IngestRow]:
     """銘柄エイリアスで同じ保存名になった行（別表の同じ数字）を 1 行に寄せる。
 
     同じ列に違う値があれば 409。後勝ちで黙って上書きしない。
     """
-    merged: dict[str, tuple[str, bool, str, dict[int, float | None]]] = {}
-    for element, force, unit, values in parsed:
+    merged: dict[str, IngestRow] = {}
+    for element, force, unit, values, sources in parsed:
         prev = merged.get(element)
         if prev is None:
-            merged[element] = (element, force, unit, dict(values))
+            merged[element] = (element, force, unit, dict(values), list(sources))
             continue
         if prev[2] != unit:
             raise ApiError(409, "ROW_MERGE_CONFLICT",
@@ -502,7 +507,8 @@ def _merge_same_ingest_rows(
             elif abs(old - v) > 1e-9:
                 raise ApiError(409, "ROW_MERGE_CONFLICT",
                                f"{element}: 同じ行名に寄る行の値が食い違います（列 {col}: {old} / {v}）。")
-        merged[element] = (element, prev[1] or force, unit, vals)
+        srcs = prev[4] + [x for x in sources if x not in prev[4]]
+        merged[element] = (element, prev[1] or force, unit, vals, srcs)
     return list(merged.values())
 
 

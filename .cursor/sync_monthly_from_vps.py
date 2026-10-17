@@ -12,7 +12,10 @@ MONTHLY_TABLES = (
     "monthly_elements",
     "monthly_values",
 )
+# 本番に無いこともある（作られる前のデプロイ）。両方にあるときだけ写す
+OPTIONAL_TABLES = ("monthly_element_sources",)
 DELETE_ORDER = (
+    "monthly_element_sources",
     "monthly_values",
     "monthly_elements",
     "monthly_tables",
@@ -22,6 +25,12 @@ DELETE_ORDER = (
 
 def _cols(con: sqlite3.Connection, table: str) -> list[str]:
     return [r[1] for r in con.execute(f"PRAGMA table_info({table})")]
+
+
+def _has(con: sqlite3.Connection, table: str) -> bool:
+    return con.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,),
+    ).fetchone() is not None
 
 
 def _table_sql(con: sqlite3.Connection, table: str) -> str:
@@ -41,7 +50,7 @@ def dump_monthly_slice(src_path: Path, slice_path: Path) -> dict[str, int]:
     counts: dict[str, int] = {}
     try:
         src.execute("BEGIN")
-        for table in MONTHLY_TABLES:
+        for table in MONTHLY_TABLES + tuple(t for t in OPTIONAL_TABLES if _has(src, t)):
             dst.execute(_table_sql(src, table))
             cols = _cols(src, table)
             colsql = ",".join(cols)
@@ -84,8 +93,9 @@ def replace_monthly(dest_path: Path, slice_path: Path) -> dict[str, int]:
     dst = sqlite3.connect(dest_path, timeout=30)
     dst.execute("PRAGMA busy_timeout=30000")
     counts: dict[str, int] = {}
+    tables = MONTHLY_TABLES + tuple(t for t in OPTIONAL_TABLES if _has(src, t) and _has(dst, t))
     try:
-        for table in MONTHLY_TABLES:
+        for table in tables:
             if _cols(src, table) != _cols(dst, table):
                 raise SystemExit(
                     f"schema mismatch {table}: "
@@ -94,7 +104,9 @@ def replace_monthly(dest_path: Path, slice_path: Path) -> dict[str, int]:
         stock_common = [c for c in _cols(dst, "stocks") if c in _cols(src, "stocks")]
         dst.execute("BEGIN IMMEDIATE")
         for table in DELETE_ORDER:
-            dst.execute(f"DELETE FROM {table}")
+            # 本番に無い表でも手元の古い分は消す（行と食い違わないように）
+            if table in tables or (table in OPTIONAL_TABLES and _has(dst, table)):
+                dst.execute(f"DELETE FROM {table}")
         if stock_common:
             colsql = ",".join(stock_common)
             q = ",".join("?" * len(stock_common))
@@ -103,7 +115,7 @@ def replace_monthly(dest_path: Path, slice_path: Path) -> dict[str, int]:
                 f"INSERT OR IGNORE INTO stocks ({colsql}) VALUES ({q})", rows,
             )
             counts["stocks_inserted"] = dst.execute("SELECT changes()").fetchone()[0]
-        for table in MONTHLY_TABLES:
+        for table in tables:
             cols = _cols(src, table)
             colsql = ",".join(cols)
             q = ",".join("?" * len(cols))

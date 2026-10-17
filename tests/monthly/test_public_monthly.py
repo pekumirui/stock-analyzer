@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-public-")
-os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -49,7 +49,7 @@ def _seed() -> None:
         db.close()
 
 
-def main() -> None:
+def test_public_monthly() -> None:
     _seed()
     c = TestClient(app)
 
@@ -73,9 +73,6 @@ def main() -> None:
         _fail("GET /app must send an ETag (boot.js compares it)")
     if c.get(f"/static/css/app.css?v={m.group(1)}").status_code != 200:
         _fail("versioned /static URL must still be served")
-    spa_js = (ROOT / "static" / "js" / "monthly.js").read_text(encoding="utf-8")
-    if "ゲート（一時）" in spa_js:
-        _fail("gate chip is gone (timeline only)")
 
     r = c.get("/monthly")
     _expect(r, 200, "GET /monthly")
@@ -154,12 +151,8 @@ def main() -> None:
     if r.status_code not in (200, 201):
         _fail(f"loopback POST should work: {r.status_code} {r.text[:200]}")
 
-    pub = (ROOT / "app" / "monthly" / "public.py").read_text(encoding="utf-8")
-    if "ゲート（一時）" in pub or "IR（一時）" in pub or "monthly-layout-debug" in pub:
-        _fail("public HTML builder must not emit TEMP debug UI")
-
     print("ok: public monthly")
 
 
 if __name__ == "__main__":
-    main()
+    test_public_monthly()

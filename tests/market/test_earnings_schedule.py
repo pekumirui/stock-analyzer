@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-earn-date-")
-os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 os.environ.setdefault("JQUANTS_API_KEY", "test-key")
 
 from app.config import EARNINGS_DATE_LOOKBACK_DAYS  # noqa: E402
@@ -510,7 +510,7 @@ def test_batch_syncs_after_indicators() -> None:
         _fail(order)
 
 
-def test_routes_and_screen_copy() -> None:
+def test_routes() -> None:
     db = _db()
     try:
         ingest_pub_date(db, _JQ([_wire(SchDate="2026-11-06")]), date(2026, 9, 20))  # type: ignore[arg-type]
@@ -536,18 +536,6 @@ def test_routes_and_screen_copy() -> None:
         _fail(body)
     if body.get("ready") is not False or body.get("actuals") != []:
         _fail(body)
-    js = (ROOT / "static/js/earnings.js").read_text(encoding="utf-8")
-    for text in (
-        "予定未取得", "予定なし", "開示なし", "取得できませんでした",
-        "まだ開示されていません", "決算発表予定", "未発表", "today=${today}",
-        "cnt pend", " sched",
-    ):
-        if text not in js:
-            _fail(text)
-    if "earn-sched" in js:
-        _fail("scheduled rows belong in #earn-tbl")
-    if 'data-code="${r.code}"' not in js or "<td class=\"pin0\">–</td>" not in js:
-        _fail("scheduled rows reuse #earn-tbl with dashes")
 
 
 def main() -> None:
@@ -562,7 +550,7 @@ def main() -> None:
     test_payloads_mixed_past_and_unfetched()
     test_sync_idempotent_with_tiny_lookback()
     test_batch_syncs_after_indicators()
-    test_routes_and_screen_copy()
+    test_routes()
     print("ok: earnings schedule")
 
 

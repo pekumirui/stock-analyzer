@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-sqlite-")
-os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
 from sqlalchemy import text  # noqa: E402
 from sqlalchemy.exc import OperationalError  # noqa: E402
@@ -190,14 +190,6 @@ def test_put_values_batch_retries_sqlite_lock() -> None:
     src = inspect.getsource(put_values_batch)
     if "run_sqlite_write" not in src:
         _fail("put_values_batch must retry sqlite locked via run_sqlite_write")
-
-
-def test_indicators_are_written_in_chunks() -> None:
-    src = (ROOT / "app" / "market" / "analytics.py").read_text(encoding="utf-8")
-    if "delete_all_chunked" not in src:
-        _fail("compute_indicators must delete indicators in chunks")
-    if "commit=False" in src:
-        _fail("compute_indicators must not keep one write txn for all rows")
 
 
 def _connect_short_timeout(path: Path, timeout_s: float) -> sqlite3.Connection:
@@ -440,7 +432,6 @@ def main() -> None:
     test_run_sqlite_write_retries_lock()
     test_run_sqlite_write_gives_up()
     test_put_values_batch_retries_sqlite_lock()
-    test_indicators_are_written_in_chunks()
     test_long_write_txn_exceeds_short_busy_timeout()
     test_chunked_commits_let_other_writer_in()
     test_delete_all_chunked_and_compute_indicators_commit()

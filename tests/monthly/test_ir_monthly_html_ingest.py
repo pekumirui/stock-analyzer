@@ -217,7 +217,7 @@ def test_ingest_body_keys_only() -> None:
         sha256="x",
     )
     body = ingest_body(s)
-    if set(body) != {"months", "rows", "as_of"}:
+    if set(body) != {"months", "rows", "as_of", "via"} or body["via"] != "ir_html":
         _fail(f"body keys {body.keys()}")
     if "year" in body or "code" in body:
         _fail(f"body leaked {body}")

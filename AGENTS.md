@@ -16,7 +16,7 @@
 
 - Python 3.10+ / FastAPI / SQLAlchemy 2 / pandas。フロントは `static/` の vanilla JS。DB はローカル SQLite (`stock.db`)
 - 仮想環境は `.venv`。Windows は `.\setup.ps1` / `.\run.ps1`、Linux は `./setup.sh` / `./run.sh`。システムの python で依存を入れない
-- クラウドのエージェント（ベンダー問わず）は `bash .cursor/install.sh`（冪等）で `.venv` / `pdftotext` / `rclone` と、`JQUANTS_API_KEY` があれば `stock.db` を用意する。SPA は `bash .cursor/start-web.sh` が 8000 で配信する。8000 を止めない・`reset` しない
+- クラウドのエージェント（ベンダー問わず）は `bash .cursor/install.sh`（冪等）で `.venv` / `pdftotext` / `rclone` と `stock.db` を用意する。`stock.db` は既定でゴールデンデータ（`tests/golden/db/` の実データの切り出し）から作る（数秒）。全銘柄の実データが要るときだけ `STOCK_DB=full`（backfill 2。約40分。`JQUANTS_API_KEY` が要る）SPA は `bash .cursor/start-web.sh` が 8000 で配信する。8000 を止めない・`reset` しない
 - 秘密情報は各ベンダーの Secrets / 環境変数で渡す: `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `VPS_SSH_KEY` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`。無い変数の機能は使えないものとして進める。チャットで鍵を求めない
 - Claude Code の自動メモリは `.claude/memory/`。環境は消えるので、メモリを足したら作業ブランチに一緒にコミットする
 
@@ -28,7 +28,7 @@
 | `static/` | SPA（`index.html` + `css/` + `js/<tab>.js`） |
 | `jobs/` | バッチ・cron。機能ごとのフォルダ、直下は共通 |
 | `config/` | 機能ごとの JSON / YAML 設定と `pyproject.toml`（Ruff / Bandit） |
-| `tests/` | 機能ごとのフォルダ。新しい `test_*.py` は `tests/ci_smoke.py` の `SUITES` に登録する |
+| `tests/` | 機能ごとのフォルダ。`python -m pytest tests` が `test_*.py` を全部集める（登録は要らない）。DB はファイルごとに空から（`tests/conftest.py`） |
 | `tools/` | オフライン検証と手元ヘルパー |
 | `analyzer/` | `stock.db` を読むだけのオフライン分析。約束は `analyzer/README.md` |
 | `mcp/` | VPS 上のログ MCP（別プロセス）。`__init__.py` は置かない（公式 SDK の `mcp` と衝突） |
@@ -38,10 +38,24 @@
 | `.cursor/` | 環境構築スクリプトと手順書（`skills/*/SKILL.md`）。Cursor 専用ではない |
 | `.github/` | CI/CD とメンテ用 Actions |
 
-## Git
+## 作業の進め方
 
-- `main` 上では実装しない。最初のファイル編集の前に `git checkout -b <type>/<短い名前>`（`feat` / `fix` / `chore`）
-- `.env` / `stock.db` / `.venv` / `rclone.conf` / `*.pdf` はコミットしない。既存の `.env` は上書きしない
-- 秘密情報（API キー、`MCP_TOKEN`）をコミットしない・ログに出さない
-- `main` へマージすると GitHub Actions がテスト → タグ/Release → VPS デプロイする。手元で `main` に直接 push しない
-- コミット先頭が `feat:` なら minor、`BREAKING CHANGE` / `type!:` なら major、それ以外は patch
+1. 作業前に Linear（チーム `Kabukpi` / キー `KAB`）で issue を起票する。依頼に既存の issue ID があればそれを使う
+2. 採番された ID でブランチを切る
+
+| プレフィックス | 用途 |
+|---|---|
+| `feature/<ID>` | 新規機能開発 |
+| `improve/<ID>` | 既存機能拡張 |
+| `bug/<ID>` | バグ修正 |
+| `chore/<ID>` | ドキュメント修正などの雑務 |
+
+例: `feature/KAB-1`
+
+- issue にはエージェント自身のベンダーのラベル（`agent:claude` / `agent:cursor` / `agent:codex`）を付ける。無いベンダーなら `agent:<ベンダー名>` を作って付ける
+- Linear につながらない環境では起票せず、止まって人に確認する
+
+## 禁止事項
+
+1. `main` 上で実装しない
+2. `.env` / `stock.db` / `.venv` / `rclone.conf` / `*.pdf` をコミットしない

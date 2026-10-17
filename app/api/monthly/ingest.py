@@ -9,13 +9,17 @@ from ...models import Statement
 from ...monthly.ingest import (
     MonthlyIngestError, map_pdf_columns, parse_as_of, serialize_column_mapping,
 )
+from ...monthly.store import record_element_source
 from ._common import (
-    _ensure_element, _ingest_error, _parse_code, _parse_dry_run, _parse_ingest_rows, _parse_months,
-    _parse_only_months, _require_object, _require_stock, _touch_monthly_issuer, _upsert_value,
-    _year_alias, forbid_proxied_monthly_write,
+    ApiError, _ensure_element, _ingest_error, _parse_code, _parse_dry_run, _parse_ingest_rows,
+    _parse_months, _parse_only_months, _require_object, _require_stock, _touch_monthly_issuer,
+    _upsert_value, _year_alias, forbid_proxied_monthly_write,
 )
 
 router = APIRouter()
+
+# 取り込みの経路。行名の元の形を monthly_element_sources に残すときの via
+INGEST_VIAS = frozenset({"api", "ir_html", "ir_xls"})
 
 
 @router.post("/tables/{code}/ingest")
@@ -36,6 +40,9 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
         raise _ingest_error(exc) from exc
     dry_run = _parse_dry_run(body["dry_run"]) if "dry_run" in body else False
     only_months = _parse_only_months(body["only_months"]) if "only_months" in body else None
+    via = body.get("via", "api")
+    if not isinstance(via, str) or via not in INGEST_VIAS:
+        raise ApiError(400, "INVALID_PARAM", f"via は {' / '.join(sorted(INGEST_VIAS))} です。")
     rows = _parse_ingest_rows(body.get("rows"), months, code, as_of=as_of)
     fy_end_rows = [
         (disclosed, fy_end)
@@ -52,13 +59,13 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
 
     updated: list[dict] = []
     changed = False
-    posted = [(element, unit) for element, _force, unit, _values in rows]
+    posted = [(element, unit) for element, _force, unit, _values, _sources in rows]
 
     def _apply() -> None:
         nonlocal updated, changed
         updated = []
         changed = False
-        for element, force, unit, values_by_col in rows:
+        for element, force, unit, values_by_col, sources in rows:
             by_year: dict[int, list[int]] = defaultdict(list)
             names: dict[int, str] = {}
             for col, (month, year_i) in enumerate(mapping):
@@ -71,6 +78,8 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
                 if not dry_run:
                     if year_i not in by_year:
                         _ensure_element(db, code, year_i, name, force, unit, posted=posted)
+                        for label, label_unit in sources:
+                            record_element_source(db, code, year_i, label, label_unit, name, via)
                     if _upsert_value(db, code, year_i, name, month, values_by_col[col]):
                         changed = True
                 by_year[year_i].append(month)

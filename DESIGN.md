@@ -157,6 +157,13 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
   code, year, element, month PK
   value
 
+monthly_element_sources  -- 送られてきたままの行名 → 今の保存名。正規化の差分スナップショットの入力 (KAB-17)
+  code, year, source_label, unit PK  -- source_label は前後の空白だけ落とした受信のまま。unit も受信のまま (yoy_pct 可)
+  element                 -- 今の保存名。付け替え・統合 (rename_monthly_element) に付いていく。行を消すと一緒に消える
+  via                     -- api (POST elements・ingest の既定) / ir_html / ir_xls (ingest の via) / doc (PUT doc の新規行) / legacy
+  first_seen_at, last_seen_at
+  -- source_label は一度入れたら書き換えない。記録前からある行はデプロイ時に保存名そのものを legacy で入れる
+
 fx_rates          -- ECB 対EUR 日次レート (Frankfurter api.frankfurter.dev/v1)
   date, quote PK  -- quote は ISO 4217（USD / JPY 等）。EUR 自身は持たない
   rate            -- 1 EUR = rate quote。任意ペアは EUR クロス（quote/base）
@@ -185,12 +192,13 @@ material_monthly  -- サプライタブの素材ごとの月次量 (e-Stat)
 - `as_of` は YYYY-MM-DD 必須。省略・null は 400 `AS_OF_REQUIRED`。サーバ日付は使わない
 - `dry_run: true` は `fy_end_month` / `layout` / `mapping` と、書くはずのセル（`updated`）を返す。DB には書かない。新着にもならない
 - `only_months` は `YYYY-MM` の配列。mapping を決めたあと、その暦年の列だけ書く。省略時は全列。当たらない月は書かない
+- `via` は経路（`api` / `ir_html` / `ir_xls`）。省略は `api`。それ以外は 400。書いた行ごとに元の行名を `monthly_element_sources` に残す（dry_run では残さない）
 
 **銘柄マスタとの関係。**
 
 - 書き込みは `stocks` に行がある code だけ。ingest / POST elements / 訂正 PUT / industry PUT は先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`
 - FK は付けない（既存テーブルへ ADD できない）。`PRAGMA foreign_keys` も有効化しない
-- デプロイごとの `jobs/migrate.py`（`app/monthly/maintenance.run_deploy_maintenance`）が `stocks` に無い月次行を DELETE する。アプリ起動・各ジョブの `init_db` は触らない（本番の名証単独 30320 / 30660 など。冪等）。順は `monthly_values` → `monthly_elements` → `monthly_tables` → `monthly_issuers`
+- デプロイごとの `jobs/migrate.py`（`app/monthly/maintenance.run_deploy_maintenance`）が `stocks` に無い月次行を DELETE する。アプリ起動・各ジョブの `init_db` は触らない（本番の名証単独 30320 / 30660 など。冪等）。順は `monthly_values` → `monthly_element_sources` → `monthly_elements` → `monthly_tables` → `monthly_issuers`
 
 **unit。** PDF 見出しが入力タグを決める。値の大きさから推測しない。入力は `number` / `yoy_index` / `yoy_pct`。保存は `number` / `yoy_index`。`yoy_pct` は書かない。ingest の各行と `POST .../elements` は `unit` 必須。省略・null は 400 `UNIT_REQUIRED`。GET の NULL は number として出す。PUT values は訂正で、保存形（指数）を送る。unit も `+100` もしない。
 
@@ -252,7 +260,7 @@ IR 月次 HTML（`jobs/monthly/ir_monthly_html_r2.py`）:
 - E-IR は Pronexus JSONP の月次 item `text` を `.html` として保存する（sha256 はその HTML）
 - `as_of` は開示日。なければ表の最終値の年月（セルの年 or 表直前の期見出し / `YYYY年M月期` / `YYYY年度` / `YYYY年M月～YYYY年M月`）。取れなければ JSON は書かない
 - 複数年度のアーカイブは期が新しい表を優先。同じ期末なら最終値の新しい表を優先。12か月埋まっている表は最終値では選ばない
-- ミニストップ (9946) は `jobs/monthly/html_issuers/i9946.py`。`全店売上` を選び、`売上高合計` だけ残す。`1店1日当り` と CVS / 店内加工FF は採らない
+- ミニストップ (9946) は `jobs/monthly/html_issuers/i9946.py`。`全店売上` を選び、`売上高合計` だけ残す。選んだ表の次の表が同じ行（売上高合計前年比 / CVS前年比 / 店内加工FF前年比）で月が続く（3〜8 → 9〜2）ときは同じ行に足す。`1店1日当り` と CVS / 店内加工FF は採らない
 - やまや (9994) は `jobs/monthly/html_issuers/i9994.py`。既存店と全店をマージし、卸計は選ばない。`当 年`→`売上高`、`前 年` は落とす。unit は `yoy_index`
 - ロック・フィールド (2910) は `jobs/monthly/html_issuers/i2910.py`。`既存店売上` / `全店売上` をマージし、業態名の行に見出しのスコープを付ける（付けないと既存店の数値が裸の `売上高(前年比)` になる）
 - フジ (8278) は `jobs/monthly/html_issuers/i8278.py`。改装の店舗面積リストは選ばず、営業速報に総店舗数だけ足す
@@ -475,3 +483,14 @@ stock_kpis  PK(code, metric, period)
 ## 9. ローカル実行手順
 
 [README.md](README.md) のクイックスタートとコマンド一覧。
+
+### ゴールデンデータの DB（開発・クラウドのエージェント・テスト）
+
+`./run.sh golden`（`jobs/golden_db.py`）が空の `stock.db` を作り（スキーマは `init_db`）、`tests/golden/db/<table>.csv` を表ごとに入れる。数秒。`.env` は要らない。クラウドのエージェントの `install.sh` は `stock.db` が無ければこれで作る（`STOCK_DB=full` なら代わりに backfill 2）。
+
+- 中身は実データの切り出し。株価・決算・決算予定は `tests/golden/db/codes.txt` の約45銘柄（ステージ2・RS 上位、時価総額上位、REIT 1、月次の主要銘柄）。銘柄マスタ・TOPIX・決算予定の取得記録は全件。月次は本番の全銘柄・全年。為替は株価と同じ期間。素材は e-Stat / 経産省の直近の年。期間と件数は `tests/golden/db/manifest.json`
+- `indicators` は持たず、読み込みのあとに `compute_indicators` で計算し直す（RS ランクは約45銘柄の中の順位になる）
+- XBRL は持たない（R2 のマウントが要る）。`monthly_element_sources` は読み込みのあとに `legacy` で埋める
+- 作った DB は `PRAGMA user_version = 1`。`install.sh` はこれを見て、ゴールデンデータの DB には日次 batch を回さない（全銘柄の当日分が混ざるため）
+- 既に行がある DB には入れない。作り直しは `./run.sh reset y` → `./run.sh golden`
+- データの作り直しは `python tools/golden/build_golden_db.py --db stock.db --api https://kabukpi.com`（backfill 済みの `stock.db` と月次の公開 GET から。`--skip market|monthly|fx|material` で表の組を飛ばす）。スキーマを変えたら作り直す。`tests/test_golden_db.py` は CSV の列がモデルと違えば落ちる

@@ -178,6 +178,24 @@ class MonthlyElement(Base):
     unit = Column(String(16), nullable=False, default="number", server_default="number")
 
 
+class MonthlyElementSource(Base):
+    """送られてきたままの行名 → 今の保存名。正規化の差分スナップショットの入力。
+
+    source_label と unit は受け取ったまま（正規化前）。一度入れたら書き換えない。
+    element は保存名の付け替え・統合に付いていく。行を消すと一緒に消える。
+    via は経路（api / doc / ir_html / ir_xls / legacy）。
+    """
+    __tablename__ = "monthly_element_sources"
+    code = Column(String(5), primary_key=True)
+    year = Column(Integer, primary_key=True)
+    source_label = Column(String(50), primary_key=True)
+    unit = Column(String(16), primary_key=True)
+    element = Column(String(50), nullable=False, index=True)
+    via = Column(String(16), nullable=False)
+    first_seen_at = Column(DateTime, nullable=False)
+    last_seen_at = Column(DateTime, nullable=False)
+
+
 class MonthlyValue(Base):
     """月次セル。(code, year, element, month) 一意。value は数値のみ。"""
     __tablename__ = "monthly_values"
