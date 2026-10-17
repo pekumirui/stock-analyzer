@@ -355,17 +355,24 @@ def monthly_payload(rows: list[Any], material_id: str,
 
     points は [YYYY-MM, 値, revision]（1 速報 / 2 確報 / 3 年報）。見掛け消費の revision は材料の最小。
     同じ指標に単位の違う行があれば（統計の取り方が違う）別の系列にする。
+    同じ指標・単位を複数の出典が持てば足す（ダイカスト 2560 + 鋳物 2550）。全部の出典がそろう月だけ。
     trade_months は {指標: {公表済みの月: revision}}。貿易統計は 0 の月を保存しないので、
     貿易だけの系列はその月を 0 で埋める（埋めないと 0 と未公表が区別できない）。
     """
-    by: dict[tuple[str, str], dict[str, float]] = {}
-    revs: dict[tuple[str, str], dict[str, int]] = {}
+    cells: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
     sources: dict[tuple[str, str], set[str]] = {}
     for r in rows:
         key = (r.metric, r.unit)
-        by.setdefault(key, {})[r.month] = r.value
-        revs.setdefault(key, {})[r.month] = r.revision
+        cells.setdefault(key, {}).setdefault(r.month, {})[r.source] = r
         sources.setdefault(key, set()).add(r.source)
+    by: dict[tuple[str, str], dict[str, float]] = {}
+    revs: dict[tuple[str, str], dict[str, int]] = {}
+    for key, months in cells.items():
+        for month, got in months.items():
+            if set(got) != sources[key]:
+                continue
+            by.setdefault(key, {})[month] = sum(r.value for r in got.values())
+            revs.setdefault(key, {})[month] = min(r.revision for r in got.values())
     for key, pts in by.items():
         if sources[key] != {TRADE_SOURCE}:
             continue
