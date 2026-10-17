@@ -5,6 +5,7 @@
 #   .\run.ps1 check 2026-08-14   日付を指定して確認
 #   .\run.ps1 reset          DBを完全削除
 #   .\run.ps1 migrate        スキーマ変更後、既存DBに不足列を追加
+#   .\run.ps1 golden         ゴールデンデータで DB を作る (tests/golden/db の実データの切り出し。数秒。.env 不要)
 #   .\run.ps1 batch          日次バッチ (要 .env)
 #   .\run.ps1 batch 2026-08-14   特定日を取り込み
 #   .\run.ps1 backfill       初回バックフィル (既定5年分, 要 .env)
@@ -32,8 +33,10 @@ if (Test-Path ".env") {
 switch ($cmd) {
     "migrate" { & $python jobs\migrate.py }
 
+    "golden" { & $python jobs\golden_db.py }
+
     "check" {
-        if ($arg) { & $python tools\check_api.py $arg } else { & $python tools\check_api.py }
+        if ($arg) { & $python tools\market\check_api.py $arg } else { & $python tools\market\check_api.py }
     }
 
     "serve" {
@@ -43,17 +46,17 @@ switch ($cmd) {
     }
 
     "reset" {
-        if (-not (Test-Path "stock.db")) { Write-Host "DBはありません。そのまま backfill できます。" -ForegroundColor Green; break }
+        if (-not (Test-Path "stock.db")) { Write-Host "DBはありません。そのまま golden / backfill できます。" -ForegroundColor Green; break }
         $ans = Read-Host "stock.db を削除します。よろしいですか? (y/N)"
         if ($ans -ne "y") { Write-Host "中止しました"; break }
         Remove-Item "stock.db", "stock.db-journal", "stock.db-wal", "stock.db-shm" -ErrorAction SilentlyContinue
-        Write-Host "削除しました。次: .\run.ps1 backfill" -ForegroundColor Green
+        Write-Host "削除しました。次: .\run.ps1 golden（数秒）か .\run.ps1 backfill" -ForegroundColor Green
     }
 
     "batch" {
-        & $python jobs\check_demo.py
+        & $python jobs\market\check_demo.py
         if ($LASTEXITCODE -ne 0) { break }
-        if ($arg) { & $python jobs\run_batch.py --date $arg } else { & $python jobs\run_batch.py }
+        if ($arg) { & $python jobs\market\run_batch.py --date $arg } else { & $python jobs\market\run_batch.py }
     }
 
     "backfill" {
@@ -70,18 +73,18 @@ switch ($cmd) {
             Write-Host "年数は1〜20の範囲で指定してください" -ForegroundColor Red
             break
         }
-        & $python jobs\check_demo.py
+        & $python jobs\market\check_demo.py
         if ($LASTEXITCODE -ne 0) { break }
         Write-Host "過去 $years 年分を取得します" -ForegroundColor Cyan
-        & $python jobs\run_batch.py --backfill $years
+        & $python jobs\market\run_batch.py --backfill $years
     }
 
     "lint" {
         & $python -m pip install -r requirements-dev.txt --quiet
-        & $python -m ruff check --config config/pyproject.toml app jobs tests tools analyzer deploy
+        & $python -m ruff check --config config/pyproject.toml app jobs tests tools analyzer deploy mcp
         if ($LASTEXITCODE -ne 0) { break }
-        & $python -m bandit -c config/pyproject.toml -r app jobs tests tools analyzer deploy -x app/xbrlp,.cursor,tmp,.venv
+        & $python -m bandit -c config/pyproject.toml -r app jobs tests tools analyzer deploy mcp -x app/xbrlp,.cursor,tmp,.venv
     }
 
-    default { Write-Host "使い方: .\run.ps1 [serve|check|reset|migrate|batch|backfill|lint] [引数]" }
+    default { Write-Host "使い方: .\run.ps1 [serve|check|reset|migrate|golden|batch|backfill|lint] [引数]" }
 }

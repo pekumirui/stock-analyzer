@@ -10,7 +10,7 @@ Issue #180 型のウェーブでよく踏む点。銘柄コードは例。
 | 最新のみの Cron | `follow_re` + 最新のサイドカー → 1年分のみ | 過去の暦年については、年次/アーカイブ URL を使用する |
 | 同一 URL の上書き | アーカイブなし → バックフィル不可 | ブロックされているものとしてリストアップする; 別の URL がないか質問する |
 | 古い sidecar の再 POST | パーサ修正後に `--reparse` しないと、HTML hash skip でも latest `.ingest.json` が上期だけ・ブランド無しのまま。ledger 未登録なら cron が裸の `売上高(前年比)` を作り、H2 の 7–8 月が空に見える（8179） | 現行パーサで sidecar を書き直す。ゴースト行は null クリアして `monthly_delete_element` |
-| 2つのうち1つのテーブルのみ | ミニストップ 9946、コナカ 7494: 上期または下期のみになる | POST 前に 上期+下期 をマージする |
+| 2つのうち1つのテーブルのみ | コナカ 7494: 上期または下期のみになる。ミニストップ 9946 の全店売上はパーサが上期+下期を足す（KAB-5） | 7494 は POST 前に 上期+下期 をマージする |
 | "2024" ページ ≠ 2024年全体 | 2月期末（3月〜翌2月）: ページの 1〜2 月 → 翌暦年になる | 暦年の 1〜2 月は前年度のページを使う（USMH `y2023`→2024/1–2; Fuji `year2023` 404 = ブロック） |
 | 最初のウェーブが不完全 | "2024" とラベル付けされたページを取り込んだ後、1〜2 月や下期がまだ空である | 各ウェーブごとに、銘柄ごとに 2024/1–12 をスキャンする |
 | ペアレビューなし | エージェントが自己証明する; 抜け穴、間違った数値、または表記揺れが見逃される | 親は Cursor `Task` (`generalPurpose`) で `.cursor/skills/monthly-html-pair-review/SKILL.md` を別エージェントに読ませる。チェック項目の正本はそちら。自己証明・「後でスケジュール」は不合格 |
@@ -27,7 +27,7 @@ Issue #180 型のウェーブでよく踏む点。銘柄コードは例。
 ```python
 from datetime import date
 from html_issuers import parse_issuer
-from app.monthly_ingest import plan_column_years
+from app.monthly.ingest import plan_column_years
 
 p = parse_issuer(html, "3222")
 # optional: p["as_of"] = "2024-02-29"

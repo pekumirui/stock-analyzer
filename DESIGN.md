@@ -22,7 +22,7 @@
 
 - **言語**: Python 3.10+ / FastAPI / SQLAlchemy / pandas
 - **フロント**: `static/index.html` + `static/css/` + `static/js/` の vanilla JS SPA (lightweight-charts)。スマホ対応。フレームワークを足さない
-- **バッチ**: `jobs/run_batch.py` を cron / スケジューラで日次実行
+- **バッチ**: `jobs/market/run_batch.py` を cron / スケジューラで日次実行
 
 ## 2. J-Quants API V2 / Light プランの前提
 
@@ -157,12 +157,26 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
   code, year, element, month PK
   value
 
+monthly_element_sources  -- 送られてきたままの行名 → 今の保存名。正規化の差分スナップショットの入力 (KAB-17)
+  code, year, source_label, unit PK  -- source_label は前後の空白だけ落とした受信のまま。unit も受信のまま (yoy_pct 可)
+  element                 -- 今の保存名。付け替え・統合 (rename_monthly_element) に付いていく。行を消すと一緒に消える
+  via                     -- api (POST elements・ingest の既定) / ir_html / ir_xls (ingest の via) / doc (PUT doc の新規行) / legacy
+  first_seen_at, last_seen_at
+  -- source_label は一度入れたら書き換えない。記録前からある行はデプロイ時に保存名そのものを legacy で入れる
+
+pts_snapshots     -- 株探の PTS ナイトタイムセッション ランキング。取得 1 回ごとにランキング全行
+  fetched_at, ranking, code PK  -- 取得時刻 JST / night_up・night_down・night_volume / 5桁コード (FK なし)
+  session_date            -- 比べている通常取引の終値の日（株探の見出し「D日終値」から。取得日ではない）
+  as_of                   -- 株探の「HH:MM現在」。同じ session_date・ranking・as_of は書かない
+  rank, name, market, base_close, pts_price, pts_chg_pct, volume
+  -- 索引 (session_date, ranking)
+
 fx_rates          -- ECB 対EUR 日次レート (Frankfurter api.frankfurter.dev/v1)
   date, quote PK  -- quote は ISO 4217（USD / JPY 等）。EUR 自身は持たない
   rate            -- 1 EUR = rate quote。任意ペアは EUR クロス（quote/base）
 
 material_monthly  -- サプライタブの素材ごとの月次量 (e-Stat)
-  material_id, month, metric, source PK  -- material_id は config/supply_chain.json の id (FK なし)
+  material_id, month, metric, source PK  -- material_id は config/supply/supply_chain.json の id (FK なし)
                                           -- month は YYYY-MM、metric は production / shipment / inventory / import / export
                                           --   / processing (原油処理) / domestic_sales (国内向販売)
                                           -- source は seidou:<報告番号> (生産動態) / sekiyu (石油統計) / trade (貿易)
@@ -185,12 +199,13 @@ material_monthly  -- サプライタブの素材ごとの月次量 (e-Stat)
 - `as_of` は YYYY-MM-DD 必須。省略・null は 400 `AS_OF_REQUIRED`。サーバ日付は使わない
 - `dry_run: true` は `fy_end_month` / `layout` / `mapping` と、書くはずのセル（`updated`）を返す。DB には書かない。新着にもならない
 - `only_months` は `YYYY-MM` の配列。mapping を決めたあと、その暦年の列だけ書く。省略時は全列。当たらない月は書かない
+- `via` は経路（`api` / `ir_html` / `ir_xls`）。省略は `api`。それ以外は 400。書いた行ごとに元の行名を `monthly_element_sources` に残す（dry_run では残さない）
 
 **銘柄マスタとの関係。**
 
 - 書き込みは `stocks` に行がある code だけ。ingest / POST elements / 訂正 PUT / industry PUT は先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`
 - FK は付けない（既存テーブルへ ADD できない）。`PRAGMA foreign_keys` も有効化しない
-- `init_db` / migrate は `stocks` に無い月次行を DELETE する（本番の名証単独 30320 / 30660 など。冪等）。順は `monthly_values` → `monthly_elements` → `monthly_tables` → `monthly_issuers`
+- デプロイごとの `jobs/migrate.py`（`app/monthly/maintenance.run_deploy_maintenance`）が `stocks` に無い月次行を DELETE する。アプリ起動・各ジョブの `init_db` は触らない（本番の名証単独 30320 / 30660 など。冪等）。順は `monthly_values` → `monthly_element_sources` → `monthly_elements` → `monthly_tables` → `monthly_issuers`
 
 **unit。** PDF 見出しが入力タグを決める。値の大きさから推測しない。入力は `number` / `yoy_index` / `yoy_pct`。保存は `number` / `yoy_index`。`yoy_pct` は書かない。ingest の各行と `POST .../elements` は `unit` 必須。省略・null は 400 `UNIT_REQUIRED`。GET の NULL は number として出す。PUT values は訂正で、保存形（指数）を送る。unit も `+100` もしない。
 
@@ -217,60 +232,68 @@ ingest が新しい行を作るとき、同じ (code, year) に `strip_yoy_fragm
 - 日付・HTTP・銘柄マスタ・ファイル名の共通処理は `jobs/_r2common.py`（`app` は import しない）。`http_get` は TDnet も IR も同じ。識別 UA はジョブごとで、403 のときだけブラウザ UA に一度切り替え、中間証明書の欠落は AIA で補う。429 / 408 / 5xx は Retry-After があればそれに従い（最大 60 秒）、無ければ指数バックオフ＋jitter（5→10→20→40→60 秒、最大 6 回）。打ち切ったら例外を上げる。発行体ログは原則 `fail issuer {code} fetch:`（IR HTML の 429 だけ下の例外）
 - rclone FUSE（`/home/stock/r2-share`）が切れたら各社 `fail` を並べない。開始時と処理中に dest を probe し、ECONNABORTED / ENOTCONN / ESTALE / ルート消失なら `RestartSec` と同じ 5 秒を挟んで再試行し、駄目なら `R2 マウント切断` の 1 行で exit≠0。正常時の行は変えない。マウントの再起動は `deploy/r2-share.service` と `r2-share-watch.timer`。デプロイはハッシュが変わったときだけ `r2-share.service` を restart する（`deploy/README.md`）
 
-TDnet 月次 PDF（`jobs/tdnet_monthly_r2.py`）:
+TDnet 月次 PDF（`jobs/monthly/tdnet_monthly_r2.py`）:
 
 - やのしん list をキーワード union。`月次` が無い売上速報・○月度・受注速報・売上推移・業績速報なども取る。`is_monthly_title` が四半期短信・自己株式・新株予約権の月間行使・業績予想を落とす。`月度` 単体では取らず、売上/受注/IRニュースなどのヒントが要る。日次 cron と backfill は同じ判定
 - ダウンロード時にインフラファンドを除外する。商品区分は REIT と同じ `013`/`022` しか無いので、名称に「インフラ」を含むものだけ落とす（マスタ欠落時は TDnet 社名の「インフラ投資法人」）
 - 通常の REIT は残す。決算速報の REIT 全除外とは別。`MONTHLY_SKIP_CODES`（display_code の4桁）に入った銘柄は保存しない。8985 ジャパン・ホテル・リート投資法人、8798 アドバンスクリエイト（グラフ画像のみ）、8739 スパークス（運用資産残高のストック表）は取得対象外
 - stocks に無いコード（名証単独の 3032 / 3066 など）は `unknown-stock` で skip。東証マスタには載せない
 
-TDnet 月次 PDF の自動投入（`jobs/tdnet_monthly_pdf_sidecar.py` → `jobs/tdnet_monthly_pdf_ingest.py`）:
+TDnet 月次 PDF の自動投入（`jobs/monthly/tdnet_monthly_pdf_sidecar.py` → `jobs/monthly/tdnet_monthly_pdf_ingest.py`）:
 
 - 銘柄ごとの書式は宣言しない。DB に開示月（ファイル名日付の前暦月）の値がある前回の PDF（最大 3 本さかのぼる）から、DB の各行を再現する PDF の行を探して学ぶ。unit は DB から。DB が指数で PDF が増減率なら `yoy_pct`（+100 で一致）
 - PDF は `pdftotext -tsv` の語の座標で読む。月見出しの行と列がそろう数値の行（横組み）と、月が行ラベルの表（縦組み）。上期計・累計などの列は捨てる。見出しに年（`25年4月`）があれば使い、無ければ行ごとに値のある右端の月から左へ暦年を振る
 - 書くのは各 code の最新 PDF だけで、DB の最新月がその開示月より古いときだけ。次のどれかなら書かない（`manual`）: 開示月に値のある DB の行を全部は再現できない／使う表までの見出しの骨格（数値・日付を伏せる）か使う行の並びが前回と違う／前回無かった行・表に今月の値がある（表の序数込み。見出しと行名が既存と同じ新ブロックも含む）／DB に既にある月と 5 か月に 1 つより多く食い違う／件数・金額が直近 12 か月の中央値から 5 倍以上外れる／前回同じ値だった候補行が今回は違う
 - sidecar は PDF の隣の `….pdf-ingest.json`（HTML の `.ingest.json` と別の名前。HTML の ingest は拾わない）。形は ingest と同じで year は無い。values は値のある月だけ（null はセルを消すので送らない。月が重複すれば列番号キー）。`columns` に列ごとの暦年月、`learned_from` に学んだ PDF を残す
-- DB 投入は `jobs/tdnet_monthly_pdf_ingest.py`。latest-per-code・sha256 ledger・行に `force` を付けない点は HTML の ingest と同じ。POST の前に `dry_run` し、mapping が `columns` と違えば POST しない。ledger は `/var/log/app/pdf_ingest_ledger.json`
+- DB 投入は `jobs/monthly/tdnet_monthly_pdf_ingest.py`。latest-per-code・sha256 ledger・行に `force` を付けない点は HTML の ingest と同じ。POST の前に `dry_run` し、mapping が `columns` と違えば POST しない。ledger は `/var/log/app/pdf_ingest_ledger.json`
 - 前回の DB の値を正とするので、過去に人が入れ違えた行はそのまま引き継ぐ。速報の訂正は翌月の sidecar が全列を書き直すので追いつく
 
-IR 月次 PDF/xlsx/xls（`jobs/ir_monthly_r2.py`）:
+IR 月次 PDF/xlsx/xls（`jobs/monthly/ir_monthly_r2.py`）:
 
-- TDnet に月次が無い発行体が対象。`config/ir_monthly.json` の issuers（URL 確認済みだけ載せる）
+- TDnet に月次が無い発行体が対象。`config/monthly/ir_monthly.json` の issuers（URL 確認済みだけ載せる）
 - 表計算と pdf が両方あるページは表計算だけ取る。xlsx があれば xlsx、なければ xls（大東建託 `history_*.xls`）
 - AWS ELB が識別 UA を 403 する発行体は、同じ `http_get` がブラウザ UA に一度だけフォールバックする
 - 中間証明書が欠ける／付け違う発行体は、同じ `http_get` がリーフの AIA (CA Issuers) から中間を補って検証し直す。検証は切らない（7544 スリーエフ）
-- 大東建託 (1878) の `history.xls` は `jobs/ir_monthly_xls_ingest.py` が ingest JSON を作り loopback POST する。year は送らない。汎用 xlsx パーサは無い。HTML ingest の cron には混ぜない
+- 大東建託 (1878) の `history.xls` は `jobs/monthly/ir_monthly_xls_ingest.py` が ingest JSON を作り loopback POST する。year は送らない。汎用 xlsx パーサは無い。HTML ingest の cron には混ぜない
 
-IR 月次 HTML（`jobs/ir_monthly_html_r2.py`）:
+IR 月次 HTML（`jobs/monthly/ir_monthly_html_r2.py`）:
 
 - `http_get` が打ち切った 429 は `failed` にせず `skip issuer {code} rate-limited:`。同一ホストは残りを `skip issuer {code} host-cooled {host}`。summary の `failed=` と exit=1 は 404・パース・I/O などだけ（`failed>0`）。再試行回数は増やさない
 - `.html`（原本）と `.ingest.json`（派生。`POST /api/v1/tables/{code}/ingest` と同じ形）を隣に置く。自動 POST しない
-- DB 投入は別スクリプト `jobs/ir_monthly_html_ingest.py`。code ごとにファイル名日付が最新の `.ingest.json` を loopback へ POST する。year は送らない。sha256 が前回成功分と同じなら POST しない。行に `force` は付けない（同名で unit が違う行・類似名は 409 で止め、人が `--force --only` で入れる）。`--months` は暦年の `YYYY-MM` を `only_months` として 1 回 POST する（年はサーバの mapping。部分投入は ledger を更新しない）。cron は producer（10:20 / 16:20）の後（10:30 / 16:30）。ledger は dest/R2 ではなく `/var/log/app/html_ingest_ledger.json`
-- 対象は `config/ir_monthly.json` の html。セレクタは json（`follow_re` / `source=eir` / `parse`）。`parse: true` は `jobs/html_issuers` の `parse`（`PARSERS`。`i<code>.py` を置けば載る）。各モジュールが表・行・単位を宣言する。`parse: false` はモジュールを作らない
+- DB 投入は別スクリプト `jobs/monthly/ir_monthly_html_ingest.py`。code ごとにファイル名日付が最新の `.ingest.json` を loopback へ POST する。year は送らない。sha256 が前回成功分と同じなら POST しない。行に `force` は付けない（同名で unit が違う行・類似名は 409 で止め、人が `--force --only` で入れる）。`--months` は暦年の `YYYY-MM` を `only_months` として 1 回 POST する（年はサーバの mapping。部分投入は ledger を更新しない）。cron は producer（10:20 / 16:20）の後（10:30 / 16:30）。ledger は dest/R2 ではなく `/var/log/app/html_ingest_ledger.json`
+- 対象は `config/monthly/ir_monthly.json` の html。セレクタは json（`follow_re` / `source=eir` / `parse`）。`parse: true` は `jobs/monthly/html_issuers` の `parse`（`PARSERS`。`i<code>.py` を置けば載る）。各モジュールが表・行・単位を宣言する。`parse: false` はモジュールを作らない
 - unit 判定の context は page 見出しに加え、当該 table 直上の section とページ内の `(単位：%)` / `単位:%` を含む。ページに単位表示が無く指数な銘柄、および見出しが伸び率でもセルが符号なし100基準の銘柄（3148 クリエイトSD）は、モジュールで `yoy_index` を宣言する。見出しに 増減比/伸び率 があれば `単位:%` より `yoy_pct` を優先（ツルハ・サガミ）
 - 年度別ページは `follow_re` で最新年を辿る。画像・本文のみは `parse: false`（HTML は残し JSON は書かない）
 - E-IR は Pronexus JSONP の月次 item `text` を `.html` として保存する（sha256 はその HTML）
 - `as_of` は開示日。なければ表の最終値の年月（セルの年 or 表直前の期見出し / `YYYY年M月期` / `YYYY年度` / `YYYY年M月～YYYY年M月`）。取れなければ JSON は書かない
 - 複数年度のアーカイブは期が新しい表を優先。同じ期末なら最終値の新しい表を優先。12か月埋まっている表は最終値では選ばない
-- ミニストップ (9946) は `jobs/html_issuers/i9946.py`。`全店売上` を選び、`売上高合計` だけ残す。`1店1日当り` と CVS / 店内加工FF は採らない
-- やまや (9994) は `jobs/html_issuers/i9994.py`。既存店と全店をマージし、卸計は選ばない。`当 年`→`売上高`、`前 年` は落とす。unit は `yoy_index`
-- ロック・フィールド (2910) は `jobs/html_issuers/i2910.py`。`既存店売上` / `全店売上` をマージし、業態名の行に見出しのスコープを付ける（付けないと既存店の数値が裸の `売上高(前年比)` になる）
-- フジ (8278) は `jobs/html_issuers/i8278.py`。改装の店舗面積リストは選ばず、営業速報に総店舗数だけ足す
+- ミニストップ (9946) は `jobs/monthly/html_issuers/i9946.py`。`全店売上` を選び、`売上高合計` だけ残す。選んだ表の次の表が同じ行（売上高合計前年比 / CVS前年比 / 店内加工FF前年比）で月が続く（3〜8 → 9〜2）ときは同じ行に足す。`1店1日当り` と CVS / 店内加工FF は採らない
+- やまや (9994) は `jobs/monthly/html_issuers/i9994.py`。既存店と全店をマージし、卸計は選ばない。`当 年`→`売上高`、`前 年` は落とす。unit は `yoy_index`
+- ロック・フィールド (2910) は `jobs/monthly/html_issuers/i2910.py`。`既存店売上` / `全店売上` をマージし、業態名の行に見出しのスコープを付ける（付けないと既存店の数値が裸の `売上高(前年比)` になる）
+- フジ (8278) は `jobs/monthly/html_issuers/i8278.py`。改装の店舗面積リストは選ばず、営業速報に総店舗数だけ足す
 - 同ページの店舗数表と売上表は、月軸と表のセル年が同じとき同一 payload に足す。行に `YYYY年M月` がある表の as_of はページ全体の「現在」よりセルの年を優先（6537）
-- クリエイトSD (3148) は `jobs/html_issuers/i3148.py`。見出しが伸び率でもモジュールが `yoy_index` を宣言する
+- クリエイトSD (3148) は `jobs/monthly/html_issuers/i3148.py`。見出しが伸び率でもモジュールが `yoy_index` を宣言する
 - 1表に複数年が並ぶアーカイブ（大黒天物産）は同月の先勝ち（新しい方）。`YYYY年（令和N年）度` 年度帯は見出しに入れない
 - ページ見出しが売上の前年比でも、客数・客単価・店舗数・拠点数・営業所数・開店/閉店/出店/退店/開設/撤退の行には `売上高前年同月比` を足さない。店舗数・拠点数・出退店は件数なので unit も `number`
 - 数値の無い 既存店/全店 の帯行は、直後の指標行に付ける
 - 1表に上期と下期の月見出しが続くとき（神戸物産の単体月次）は後半の月も同じ行に足す。行名に全店は付けない
-- 神戸物産 (3038) は `jobs/html_issuers/i3038.py`。同じページの「店舗仕入れ前年対比」は月が揃うとき足す。セグメントは仕入れ。脚注の商品出荷は行名にしない
+- 神戸物産 (3038) は `jobs/monthly/html_issuers/i3038.py`。同じページの「店舗仕入れ前年対比」は月が揃うとき足す。セグメントは仕入れ。脚注の商品出荷は行名にしない
 - year は書かない。`△1.9` は `-1.9`。unit は見出しから（上の表）。`累計` / `通期計` / `上期計` は months に入れない
 - HTML ingest JSON の `months` は末尾の空列を落とす（値のある最終月で終わる）。途中の欠月は残す
 - パーサーを直したら保存済み HTML を `--reparse`。HTML が同じでも、現行パーサの `.ingest.json` が保存済みと違えば hash skip 時に書き直す（古い sidecar を latest-per-code に残さない）
 
-TDnet 短信 XBRL は取得済み ZIP（`jobs/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。
+TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。
 スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。決算速報 UI の正本は当面 `statements` のまま。XBRL 層で上書きしない。
 
-**VPS パッケージ一覧（`jobs/vps_packages_r2.py`）。** 読み取り専用。R2 の `inventory/` へ書く。中身と cron は [`deploy/README.md`](deploy/README.md)。
+**PTS ランキング（`pts_snapshots`）。** 株探 `https://kabutan.jp/warning/` の `pts_night_price_increase` / `pts_night_price_decrease` / `pts_night_volume_ranking`（夜間 PTS。株価は 15 分ディレイ）。取得は `app/market/pts.py`、ジョブは `jobs/market/pts_snapshot.py`。キー不要。画面は `docs/DESIGN_pts.md`。
+
+- 1 ページ 15 銘柄。各ランキング 5 ページ（75 銘柄）まで。リクエストの間は 3 秒
+- 1 ページ目の見出し「通常取引 D日終値」の D を、今日以前で一番近いその日にして `session_date` にする。夕方の開始前や休日は前のセッションのまま出るため。前夜の最終（株探のナイトタイムは 06:00 まで）は翌日 15:30 の回が拾う
+- 1 ページ目の「HH:MM現在」が同じセッション・ランキングで保存済みなら、残りのページを取らずに飛ばす
+- 3 本とも取得に失敗したら非ゼロ終了。cron は平日 15:30〜24:00 の 30 分ごと（`deploy/crontab`）
+- 翌営業日の始値は `daily_prices` の `session_date` より後の最初の日足の `open`（調整前）。19:30 の日次バッチの後に埋まる
+
+**VPS パッケージ一覧（`jobs/ops/vps_packages_r2.py`）。** 読み取り専用。R2 の `inventory/` へ書く。中身と cron は [`deploy/README.md`](deploy/README.md)。
 
 **為替（`fx_rates`）。** Frankfurter v1（`https://api.frankfurter.dev/v1`、ECB、基準通貨 EUR、キー不要。旧 `api.frankfurter.app` は 301）。UI は出さない。
 
@@ -281,7 +304,7 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/tdnet_xbrl_r2.py`）を `xbrl_fili
 - 休日・非公表日は指定日以前の直近営業日（`as_of`）。期間 MCP は公表日だけ返す
 - MCP: `fx_rate`（指定日）/ `fx_rates`（期間）
 
-**素材の月次量（`material_monthly`）。** 統計の品目と素材の対応は `config/material_stats.json`。共通部分は `app/material_stats.py`、取得は `app/estat.py`（e-Stat API、`ESTAT_APP_ID`。無ければ飛ばす）と `app/meti.py`（経産省 Excel。生産動態統計と資源・エネルギー統計（石油）。キー不要）。ジョブは `jobs/material_stats.py`。画面は `docs/DESIGN_supply.md`。
+**素材の月次量（`material_monthly`）。** 統計の品目と素材の対応は `config/supply/material_stats.json`。共通部分は `app/supply/material_stats.py`、取得は `app/supply/estat.py`（e-Stat API、`ESTAT_APP_ID`。無ければ飛ばす）と `app/supply/meti.py`（経産省 Excel。生産動態統計と資源・エネルギー統計（石油）。キー不要）。ジョブは `jobs/supply/material_stats.py`。画面は `docs/DESIGN_supply.md`。
 
 - 素材ごとに統計を 1 つ決め、指標ごとに付け替えない。需給をまとめて出す統計がある素材はその統計から全指標を取る（原油と石油製品 7 素材は資源・エネルギー統計（石油））。それ以外は生産動態統計 + 貿易統計。対応表の検査は 1 つの (素材, 指標) を 2 つの統計に載せると落とす。対応表から外した (素材, 指標, 統計) の行はジョブの最初に消す
 - 生産・出荷・月末在庫は経済産業省生産動態統計。同じ `source`（`seidou:<報告番号>`）に 2 か所から書き、`revision` が下がる上書きはしない（同じなら後勝ち）
@@ -302,7 +325,7 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/tdnet_xbrl_r2.py`）を `xbrl_fili
 - 輸入・輸出: 普通貿易統計（00350300）の「全国分 品別国別表 輸入 / 輸出」（`source` は `trade`。表題で速報の月は revision 1、ほかは 2）。石油統計で取る素材は載せない。統計品目番号 9 桁の前方一致で素材に寄せ、国は合計する。輸入と輸出で番号体系が違う
 - 輸出入の相手国別（`material_trade_country`。素材 × 月 × 輸出入 × 国）: 同じ表の値を国ごとに足して別に持つ。国は貿易統計の国コード 3 桁（`137_サウジアラビア` の `137`）と国名。revision は `trade` と同じで、下がる上書きはしない。`trade.items` の素材に加え、国合計は石油統計が正の素材も `trade.country_items` に書けば国別だけ取る（原油 2709、LPG 271112・271113）。対応表から外した (素材, 輸出入) の行はジョブの最初に消す
 - 数量は 単位1 があれば 数量1、無ければ 数量2（化学品の多くは KG）。KG と MT は t に、KL は kl に、NO は 本 に寄せる。0 の月は書かない（API が埋める。`docs/DESIGN_supply.md`）。未公表の月は 0 で入っているので、表題の「(1-7月：確報、8月：速報)」の最後の月より後は捨てる。前年の表は 2021 年からの 5 年分を持つ
-- 冪等。初回は `python jobs/material_stats.py --years 2021-<今年>`。cron は経産省 Excel が毎日（生産動態 07:15、石油統計 07:45）、e-Stat が月曜 07:10（前年と今年）
+- 冪等。初回は `python jobs/supply/material_stats.py --years 2021-<今年>`。cron は経産省 Excel が毎日（生産動態 07:15、石油統計 07:45）、e-Stat が月曜 07:10（前年と今年）
 - 見掛け消費（生産 + 輸入 − 輸出 − 在庫の増加分）は保存せず API で出す。4 つと前月在庫が同じ単位で揃う月だけ。revision は材料の最小
 
 
@@ -386,20 +409,21 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 
 | Method/Path | 内容 |
 |---|---|
-| `GET /api/earnings?date=2026-08-14&today=2026-10-02` | `{kind, actuals, scheduled}`。`actuals` は開示1件が1行で、QoQ(Q単独の前四半期比) と YoY(累計の前年同期比) を4指標ずつ返す。決算短信本体のみ (予想修正のみの開示、および損益が初回と同一の再提出は除外。損益が変わった再提出は `restated` を立てて残す)。`scheduled` は `{code, name, periods:[{fq, fye, label}]}` で銘柄1行。どちらの行にも `sector33`（マスタに無ければ null）。`kind` は `actual` / `scheduled` / `mixed`。過去は `actual` で `scheduled` は空。今日は開示と、そのコードが今日の開示に無い未発表。未来は予定だけ。`today` を省略するとサーバの今日。台帳が lookback を埋める前の未来には `ready: false`（空なら画面は 予定未取得）。`product_category` が REIT (`013`/`022`) の銘柄は出さない |
+| `GET /api/earnings?date=2026-08-14&today=2026-10-02` | `{kind, actuals, scheduled}`。`actuals` は開示1件が1行で、QoQ(Q単独の前四半期比) と YoY(累計の前年同期比) を4指標ずつ返す。金額は `single`（Q単独。算出できなければ null）と `cumulative`（累計）で、円。決算短信本体のみ (予想修正のみの開示、および損益が初回と同一の再提出は除外。損益が変わった再提出は `restated` を立てて残す)。`scheduled` は `{code, name, periods:[{fq, fye, label}]}` で銘柄1行。どちらの行にも `sector33`（マスタに無ければ null）。`kind` は `actual` / `scheduled` / `mixed`。過去は `actual` で `scheduled` は空。今日は開示と、そのコードが今日の開示に無い未発表。未来は予定だけ。`today` を省略するとサーバの今日。台帳が lookback を埋める前の未来には `ready: false`（空なら画面は 予定未取得）。`product_category` が REIT (`013`/`022`) の銘柄は出さない |
 | `GET /api/earnings/detail/{code}?disclosure_no=…` | 選択銘柄の累計テーブル (過去4期+当期の同一四半期 + 中間予想 + 通期予想 + 前期通期実績。本決算は予想が `raw_json` の来期予想 `NxF*` で、前期通期は出さない) と3か月決算テーブル (直近12四半期のQ単独)。各行に会計期末 (`26.11`) または Q単独の四半期末 (`25.08`) と発表日を付ける。同一銘柄が同日に複数開示する日があるため `disclosure_no` で一意に引く (`?date=` でも可)。どちらも無ければ最新の実績開示（決算速報の銘柄検索が使う）。実績が無ければ 404 |
 | `GET /api/earnings/calendar?month=2026-08&today=2026-10-02` | 日付 → `{kind, n}`。`pending` は今日かつ未発表がいるときだけ。件数は銘柄の distinct。疎。一覧と同じく本体のみを数え、REIT も除外する。`today` を省略するとサーバの今日 |
 | `GET /api/chart/{code}?tf=D|W|M&ma=50,150,200&rel=topix` | 株価チャートデータ。W/M は日足を ISO週 / 暦月で集約 (足の日付は期間の最終営業日)。MA 期間は営業日換算 (週=÷5、月=÷20) |
 | `GET /api/earnings-performance/{code}` | 決算日からの対TOPIXリターン |
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
+| `GET /api/pts?date=2026-10-16&ranking=night_up&at=2026-10-16 23:30:00` | PTS ランキング 1 回分と翌営業日の始値とのギャップ。`ranking` は `night_up` / `night_down` / `night_volume`（ほかは 400）。`date` 省略で最新のセッション、`at`（`fetched_at`）省略かつ不一致で最新の取得。形は `docs/DESIGN_pts.md` |
 | `GET /api/stocks/search?q=トヨタ` | 銘柄検索。名前の部分一致（q を NFKC とひらがな→カタカナに寄せたものでも引く）とコードの前方一致。最大 20 件 |
-| `GET /api/supply/graph` | サプライタブの素材と流れ（`config/supply_chain.json`）。形は `docs/DESIGN_supply.md` |
+| `GET /api/supply/graph` | サプライタブの素材と流れ（`config/supply/supply_chain.json`）。形は `docs/DESIGN_supply.md` |
 | `GET /api/supply/monthly/{material_id}` | 素材の月次量（`material_monthly`）と見掛け消費。形は `docs/DESIGN_supply.md`。素材が無ければ 404 |
 | `POST /api/v1/tables/{code}/{year}/elements` | 月次表の要素登録。`unit` 必須。表が無ければ作成。保存名をトークン正規化（yoy は末尾 `(前年比)`）と銘柄エイリアスのあと、保存名と完全一致する行を探す（既存行は作り直さない。`docs/DESIGN_monthly_labels.md`「同一行・保存名の凍結」）。完全一致は冪等。類似は 409 (force=true で強制)。unit の食い違いは 409 `UNIT_CONFLICT` (force=true で上書き)。`stocks` に無ければ 4xx `NOT_IN_MASTER` |
 | `POST /api/v1/tables/{code}/ingest` | PDF 列順 + as_of 時点の最新 `fiscal_year_end` から暦年を割り当てて登録。year は受け取らない。`as_of` と各行の `unit` は必須。`dry_run: true` は書かずに mapping と書くはずのセルを返す。`only_months` は `YYYY-MM` で列を絞る。マスタ無しでは 4xx `NOT_IN_MASTER`。mapping の年月が as_of より後なら 400 `FUTURE_COLUMN`。新規行で、`strip_yoy_fragments` 後の名前が同じ yoy と number の既存行が今回の `rows` に無いときは 409 `YOY_NUMBER_CONFLICT`（`force=true` で作成。両方を同じ POST に含めれば通る）。銘柄エイリアスで同じ保存名に寄る行（別表の同じ数字）は 1 行にまとめる。同じ列で値か unit が食い違えば 409 `ROW_MERGE_CONFLICT`（後勝ちで上書きしない） |
 | `GET /api/v1/tables` | 月次表がある銘柄一覧 (code 順)。各要素は `{code, name, years, market, sector33, industry, last_ingested_at, is_new, ingested_today, all_store_yoy, existing_store_yoy}`。name/market/sector33 は stocks を LEFT JOIN (無ければ null)。industry は無ければ `その他`。years は昇順。表が無ければ `[]` |
 | `PUT /api/v1/tables/{code}/industry` | 月次業種。body `{industry}`。stocks 無ければ 4xx `NOT_IN_MASTER`。月次表が無ければ 4xx `TABLE_NOT_FOUND` |
-| `GET /api/v1/tables/{code}/{year}` | 月次表。要素は登録順。各行は `{element, unit, label, values}`。`element` は保存名。`label` は GET 派生（display / group / kinds / 7層）。`values` は 1〜12。無い月は null（0 は実ゼロ）。1年通して値のない行は出さない。全銘柄で親子関係を足す。`config/monthly_row_order.json` に `tree` があればそれ、無ければ自動の木（`tree_auto: true`）。各行に `tree: {path, leaf, metric}`（根から自分の節までの名前の列、節の中での行名、指標名。指標に振り分けていなければ null。自動の木は全行に指標が付き、3 年を通した並び `order` も付く）、表に `tree`（節 `{name, heading, part, elements, children}` の木。形は config、自動なら表示する 3 年で決まり年で変えない。`elements` はその年の保存名）と `tree_metrics`（指標名の並び。横持ちの一番上の行の順。自動の木は既存 → 全店 → 店舗 の見る順。自動の木は指標どうしの親子 `tree_metric_parent` も付く）を足す。config の木でどの節にも当たらない行に `tree` は付かない（自動の木は全行に付く）。書式は `docs/DESIGN_monthly.md`「親子関係」。表が無ければ 404 |
+| `GET /api/v1/tables/{code}/{year}` | 月次表。要素は登録順。各行は `{element, unit, label, values}`。`element` は保存名。`label` は GET 派生（display / group / kinds / 7層）。`values` は 1〜12。無い月は null（0 は実ゼロ）。1年通して値のない行は出さない。全銘柄で親子関係を足す。`config/monthly/monthly_row_order.json` に `tree` があればそれ、無ければ自動の木（`tree_auto: true`）。各行に `tree: {path, leaf, metric}`（根から自分の節までの名前の列、節の中での行名、指標名。指標に振り分けていなければ null。自動の木は全行に指標が付き、3 年を通した並び `order` も付く）、表に `tree`（節 `{name, heading, part, elements, children}` の木。形は config、自動なら表示する 3 年で決まり年で変えない。`elements` はその年の保存名）と `tree_metrics`（指標名の並び。横持ちの一番上の行の順。自動の木は既存 → 全店 → 店舗 の見る順。自動の木は指標どうしの親子 `tree_metric_parent` も付く）を足す。config の木でどの節にも当たらない行に `tree` は付かない（自動の木は全行に付く）。書式は `docs/DESIGN_monthly.md`「親子関係」。表が無ければ 404 |
 | `GET /api/v1/tables/{code}` | その銘柄の年度一覧 |
 | `DELETE /api/v1/tables/{code}/{year}/elements` | 空の月次行を消す。body `{element}`。値が残っていれば 409 `ELEMENT_HAS_VALUES`。表は残す。未登録は 404。マスタ無しは 4xx `NOT_IN_MASTER` |
 | `PUT /api/v1/tables/{code}/{year}/values/batch` | 複数月を検証してから一括 commit。マスタ無しは 4xx `NOT_IN_MASTER` |
@@ -411,6 +435,10 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 ### 決算速報の画面
 
 画面は `docs/DESIGN_earnings.md`。書き方は `docs/SCREEN_SPEC.md`。
+
+### PTS タブの画面
+
+画面は `docs/DESIGN_pts.md`。書き方は `docs/SCREEN_SPEC.md`。
 
 ### 月次タブの画面
 
@@ -444,7 +472,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 |---|---|
 | API + SPA | 同一 VPS の uvicorn（systemd、ワーカー1） |
 | DB | `stock.db`（VPS の SSD）。`DATABASE_URL` は今の SQLite のまま |
-| バッチ | crontab（19:30 JST の J-Quants 日次。為替は 08:00 JST。パッケージ一覧は 06:40 JST。SQLite バックアップは 05:00 JST） |
+| バッチ | crontab（19:30 JST の J-Quants 日次。株探 PTS は平日 15:30〜24:00 の 30 分ごと。為替は 08:00 JST。パッケージ一覧は 06:40 JST。SQLite バックアップは 05:00 JST） |
 | バックアップ | VPS ローカル gzip（`/home/stock/backups`）。手順は [`docs/DESIGN_backup.md`](docs/DESIGN_backup.md) |
 | 公開 | nginx + Let's Encrypt。月次閲覧は `/monthly`（Basic なし）。個人ツールは `/app` + Basic 認証 |
 | 開発 | 今どおり Windows + `.\run.ps1` |
@@ -476,3 +504,14 @@ stock_kpis  PK(code, metric, period)
 ## 9. ローカル実行手順
 
 [README.md](README.md) のクイックスタートとコマンド一覧。
+
+### ゴールデンデータの DB（開発・クラウドのエージェント・テスト）
+
+`./run.sh golden`（`jobs/golden_db.py`）が空の `stock.db` を作り（スキーマは `init_db`）、`tests/golden/db/<table>.csv` を表ごとに入れる。数秒。`.env` は要らない。クラウドのエージェントの `install.sh` は `stock.db` が無ければこれで作る（`STOCK_DB=full` なら代わりに backfill 2）。
+
+- 中身は実データの切り出し。株価・決算・決算予定は `tests/golden/db/codes.txt` の約45銘柄（ステージ2・RS 上位、時価総額上位、REIT 1、月次の主要銘柄）。銘柄マスタ・TOPIX・決算予定の取得記録は全件。月次は本番の全銘柄・全年。為替は株価と同じ期間。素材は e-Stat / 経産省の直近の年。期間と件数は `tests/golden/db/manifest.json`
+- `indicators` は持たず、読み込みのあとに `compute_indicators` で計算し直す（RS ランクは約45銘柄の中の順位になる）
+- XBRL は持たない（R2 のマウントが要る）。`monthly_element_sources` は読み込みのあとに `legacy` で埋める
+- 作った DB は `PRAGMA user_version = 1`。`install.sh` はこれを見て、ゴールデンデータの DB には日次 batch を回さない（全銘柄の当日分が混ざるため）
+- 既に行がある DB には入れない。作り直しは `./run.sh reset y` → `./run.sh golden`
+- データの作り直しは `python tools/golden/build_golden_db.py --db stock.db --api https://kabukpi.com`（backfill 済みの `stock.db` と月次の公開 GET から。`--skip market|monthly|fx|material` で表の組を飛ばす）。スキーマを変えたら作り直す。`tests/test_golden_db.py` は CSV の列がモデルと違えば落ちる

@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-fx-")
-os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.fx import (  # noqa: E402
@@ -32,7 +32,7 @@ from app.fx import (  # noqa: E402
     resolve_start,
     rows_from_series,
 )
-from app.ingest import upsert  # noqa: E402
+from app.db import upsert  # noqa: E402
 from app.models import FxRate  # noqa: E402
 
 

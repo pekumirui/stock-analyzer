@@ -9,6 +9,7 @@ Read this index, then the matching feature file, before driving the app.
 - Run `helpers/doctor.py` and require `ok: true`, non-empty screener, and a トヨタ search hit.
 - Drive the instance recorded in `.run/state.json` (adopted or launched).
 - 月次 Detail needs a non-empty `GET /api/v1/tables`. Cloud Agent builds copy production `monthly_*` when `VPS_SSH_KEY` is set; empty monthly is `verified-unreachable` (see `features/monthly.md`).
+- サプライ monthly / countries need `material_monthly` / `material_trade_country`, which that copy does not include; empty is `verified-unreachable` (see `features/supply.md`).
 
 ## Driving conventions
 
@@ -43,3 +44,4 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [チャート](./chart.md) symbol search, daily/weekly/monthly candles, 対TOPIX, 決算発表後リターン.
 - [スクリーナー](./screener.md) Stage + RS filter table (UI defaults Stage 2, RS≥70).
 - [月次](./monthly.md) issuer list + industry chips + TOP search via `/api/v1/tables`, Detail with series select, year-panel bar charts, one 横持ち `table.monthly-tl` (metric ▸ section tree, paired cells show 金額 with (前年比) under it, month-cell popup).
+- [サプライ](./supply.md) material graph (原料 → 中間財 → 最終製品), material / company panel, capacity share donuts, import countries, monthly volume chart, `#supply/{id}` route.

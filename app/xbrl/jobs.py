@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import sys
 from datetime import date, datetime
 from pathlib import Path
 
@@ -14,11 +13,7 @@ from app.models import Stock, XbrlElement, XbrlElementMapping, XbrlFact, XbrlFil
 from app.xbrl.normalize import normalize_filing, rebuild_all
 from app.xbrl.store import mark_failed, parse_zip_into_filing
 
-SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
-if str(SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS))
-
-from tdnet_xbrl_r2 import jq_lookup_code  # noqa: E402
+from jobs.xbrl.tdnet_xbrl_r2 import jq_lookup_code
 
 SKIP_PREFIXES = ("_unmatched/", "_nocode/", "_cache/")
 

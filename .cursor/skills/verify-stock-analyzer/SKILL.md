@@ -1,6 +1,6 @@
 ---
 name: verify-stock-analyzer
-description: "Drive the stock-analyzer SPA (FastAPI + static/index.html + static/css/ + static/js/) the way a user does: launch uvicorn, open tabs, call the same /api/* the UI uses, capture evidence. Reach for this when proving 決算速報 / チャート / スクリーナー / 月次 after a UI or API change."
+description: "Drive the stock-analyzer SPA (FastAPI + static/index.html + static/css/ + static/js/) the way a user does: launch uvicorn, open tabs, call the same /api/* the UI uses, capture evidence. Reach for this when proving 決算速報 / チャート / スクリーナー / 月次 / サプライ after a UI or API change."
 ---
 
 # verify-stock-analyzer
@@ -29,7 +29,7 @@ Default URL: `http://127.0.0.1:8000`. Override with env `VERIFY_PORT`. Ready whe
 
 Uses the repo's `stock.db` (read-only for UI proofs). Do not `.\run.ps1 reset` / `./run.sh reset`. Do not point `DATABASE_URL` at the user's DB from a second writer. If the port is taken by a non-SPA process, launch exits non-zero. Free the port or pick another `VERIFY_PORT`.
 
-If `stock.db` is missing, launch still starts (empty UI). Doctor then fails until backfill exists.
+If `stock.db` is missing, launch still starts (empty UI). Doctor then fails until a DB exists: `./run.sh golden` (seconds; golden real data for ~45 codes, all monthly) or `./run.sh backfill 2` (all codes, ~40 min).
 
 Teardown: see Cleanup. Keep the server up for the whole drive.
 
@@ -59,7 +59,7 @@ Stdout is JSON. If screener is empty, the instance is up but the DB was not back
 
 HTTP against the same routes the SPA uses, plus the browser when CDP is available.
 
-**Route memory (#130):** `boot.js` calls `restoreRoute()` after priming today's earnings list. Hash / `localStorage` `ui.route` forms are `earnings` | `screener` | `chart` | `monthly` | `chart/{code}` | `monthly/{code}`. Clear them when proving the cold default tab.
+**Route memory (#130):** `boot.js` calls `restoreRoute()` after priming today's earnings list. Hash / `localStorage` `ui.route` forms are `earnings` | `screener` | `chart` | `monthly` | `supply` | `chart/{code}` | `monthly/{code}` | `supply/{id}` (material or company id, `^[a-z][a-z0-9_]*$`). Clear them when proving the cold default tab.
 
 **SPA handles (do not use coordinates):**
 
@@ -69,6 +69,7 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 | 月次 tab | `nav button[data-tab="monthly"]` |
 | チャート tab | `nav button[data-tab="chart"]` |
 | スクリーナー tab | `nav button[data-tab="screener"]` |
+| サプライ tab | `nav button[data-tab="supply"]` |
 | Earnings calendar | `#cal-btn` opens `#cal-pop`; `#cal-title` + ◀/▶ (`calMove(±1)`) change month and refetch `/api/earnings/calendar?month=YYYY-MM&today=YYYY-MM-DD` (`today` is `todayISO()`). A month already fetched is drawn from `calCells` first, then refetched; boot prefetches this month after the first list (`calPrefetch`). Day cells are `#cal .d` with `onclick="selectDate('YYYY-MM-DD')"`. A day with filings or a schedule shows `.cnt` (`cell.n` plus `件`). Future schedules add `.cnt.sched`. Today with names still scheduled adds `.cnt.pend` as `+N`. Esc / `#cal-backdrop` / a day click close the popover. |
 | Earnings row | `#earn-tbl tr[data-no]` for a filing. `#earn-tbl tr[data-code]` for a scheduled issuer (QoQ/YoY and time are `–`). The first row of the day is auto-selected |
 | Earnings search | `#earn-sym` (placeholder `銘柄名 or コード`), suggestions `#earn-suggest` from `/api/stocks/search`. A pick jumps the list to that issuer's latest filing day |
@@ -88,6 +89,9 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 | Monthly issuer search | `#monthly-sym` (placeholder `銘柄名 or コード`), suggestions `#monthly-suggest` from loaded monthly issuers (not `/api/stocks/search`). Enter or suggestion pick filters `#monthly-tbl`; company-name click opens Detail |
 | Monthly detail | `#monthly-detail`, `#monthly-series`, `#monthly-chart`, `#monthly-table-wrap`, `#monthly-back` |
 | Monthly timeline | `#monthly-table-wrap table.monthly-tl` (the only Detail table on `/app` and public `/monthly`). Tree toggles are `td.tl-name.tl-tog`. Month cells are `td.num[data-m]` and open `#monthly-pop`. Paired amount/yoy rows show both in the cell (`.tl-sub`) |
+| Supply map | `#supply-map` (Cytoscape; nodes are material ids, `.sel` / `.dim` / `.ctry`). Tap a box to pick; empty map or `#supply-reset` (全体表示) clears. `#supply-merge` (線をまとめる) re-lays out |
+| Supply search | `#supply-q` + `datalist#supply-names`; commits on `change` (exact label → 4-digit code → material name part → company name part) |
+| Supply panel | `#supply-panel`: material chips `.supply-chip[data-id]`, company chips `.supply-chip.co[data-co]`, `.supply-share` donut + rows, `.supply-group`, `#supply-countries`, `#supply-monthly` (`tr.supply-row[data-i]`, `#supply-chart`), company `#supply-chart-link` |
 
 **SPA → API (prove the same payloads the UI renders):**
 
@@ -104,6 +108,8 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 | 月次 Detail years | `GET /api/v1/tables/{code}` |
 | 月次 Detail year table | `GET /api/v1/tables/{code}/{year}` (includes `tree` / `tree_metrics`) |
 | 月次 month-cell popup | `GET /api/v1/tables/{code}/{year}` for each year ≥ 2024 not loaded yet |
+| Open サプライ (first time per page) | `GET /api/supply/graph` + `GET /api/supply/companies` (+ cytoscape / elkjs from unpkg) |
+| Pick a material | `GET /api/supply/monthly/{id}` (every pick) and `GET /api/supply/countries/{id}` (once per id per page). Picking a company calls nothing |
 
 HTTP capture:
 
@@ -117,7 +123,7 @@ HTTP capture:
 .venv/bin/python .cursor/skills/verify-stock-analyzer/helpers/capture.py screener
 ```
 
-Writes under `artifacts/<feature>/`. For a calendar day, pass `capture.py earnings --date YYYY-MM-DD`. Across a month boundary, pass `--month YYYY-MM` (machine local month, same as `renderCal`). For monthly Detail, pass `capture.py monthly --code CODE`.
+Writes under `artifacts/<feature>/`. For a calendar day, pass `capture.py earnings --date YYYY-MM-DD`. Across a month boundary, pass `--month YYYY-MM` (machine local month, same as `renderCal`). For monthly Detail, pass `capture.py monthly --code CODE`. For サプライ, pass `capture.py supply --id MATERIAL_ID` (default `ethylene`).
 
 **Browser (user path).** When `browser-use` / CDP works: open `{url}/app` from state.json (`new_tab(url + "/app")`), `wait_for_load()`, click `nav button[data-tab="..."]`, then the feature file. Bare `{url}/` is public `/monthly` (301), not the Basic SPA. Do not `goto_url` for the first navigation. Screenshots via `capture_screenshot()` saved into `artifacts/<feature>/`. If Chrome remote debugging is denied, record that and finish the proof with the HTTP captures of the same routes.
 
@@ -131,7 +137,7 @@ Directory: `.cursor/skills/verify-stock-analyzer/artifacts/<feature>/`. Cleanup 
 
 Proof standards:
 
-- Exercise the real SPA routes (`/app` + `/api/*` the UI calls). Do not hit TestClient, `ci_smoke.py` fixtures, or invent test-only endpoints.
+- Exercise the real SPA routes (`/app` + `/api/*` the UI calls). Do not hit TestClient, `tests/test_smoke.py` fixtures, or invent test-only endpoints.
 - Capture the **action** (request URL + status, or the click) and the **resulting state** (JSON body and/or screenshot), not only a final screen.
 - Screener / search / earnings lists must show real names. API `code` is 5 characters and must not start with `0`. Table labels use the first 4 (`code.slice(0,4)`: 7203 / 262A), not the stored 5-digit string.
 - Chart proof needs `candles` length > 0 in `/api/chart/{code}`.
@@ -168,5 +174,5 @@ All run from the repo root with the venv interpreter (`.venv\Scripts\python.exe`
 |---|---|
 | `helpers/launch.py` | Adopt or start uvicorn on `VERIFY_PORT` (default 8000), wait for `GET /app`, write `.run/state.json` |
 | `helpers/doctor.py` | Read-only health JSON. Exit 1 if screener is empty or the SPA is not up |
-| `helpers/capture.py <feature> [--date YYYY-MM-DD] [--month YYYY-MM] [--code CODE]` | GET the SPA `/api/*` routes into `artifacts/<feature>/` |
+| `helpers/capture.py <feature> [--date YYYY-MM-DD] [--month YYYY-MM] [--code CODE] [--id MATERIAL_ID]` | GET the SPA `/api/*` routes into `artifacts/<feature>/` |
 | `helpers/cleanup.py` | Stop a pid we started; leave adopted servers alone; keep artifacts |

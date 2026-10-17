@@ -17,7 +17,8 @@
 本ツールの利用によって生じたいかなる損害についても作者は責任を負いません。
 
 株価・財務データは [J-Quants API](https://jpx-jquants.com/) (JPX総研) を利用しています。
-データの再配布は行っていません（本リポジトリにデータファイルは含まれません）。
+データの再配布は行っていません。リポジトリは非公開で、開発・テスト用のゴールデンデータとして
+`tests/golden/db/` に実データの一部（約45銘柄の株価・決算、全月次、為替、素材）を置いています。
 
 ## クイックスタート (Windows / PowerShell)
 
@@ -29,6 +30,7 @@ V2はAPIキー方式（`x-api-key`ヘッダー）で、V1のようなトーク�
 Copy-Item .env.example .env
 notepad .env                    # JQUANTS_API_KEY を記入
 .\run.ps1 check                 # 疎通確認 + 項目マッピング検証 (DBは触らない)
+.\run.ps1 golden                # 開発用: ゴールデンデータで DB を作る（数秒。.env 不要）。全銘柄が要るなら次の backfill
 .\run.ps1 backfill              # 初回: 5年分 (約45分)
 .\run.ps1 serve                 # → http://localhost:8000
 .\run.ps1 batch                 # 以降の日次 (定常 7 リクエスト。発表予定の台帳が空の初回だけ長い)
@@ -44,9 +46,11 @@ notepad .env                    # JQUANTS_API_KEY を記入
 | `.\run.ps1 serve` / `./run.sh serve` / `serve 8080` | サーバー起動 (ポート指定可) |
 | `.\run.ps1 check` / `./run.sh check` / `check 2026-08-14` | API疎通・項目マッピング確認 |
 | `.\run.ps1 reset` / `./run.sh reset` | DB削除。非対話は `./run.sh reset y` |
+| `.\run.ps1 golden` / `./run.sh golden` | ゴールデンデータで DB を作る（`tests/golden/db/` の実データの切り出し。数秒。`.env` 不要）。データの作り直しは `python tools/golden/build_golden_db.py` |
 | `.\run.ps1 batch` / `./run.sh batch` / `batch 2026-08-14` | 日次取込 (日付指定可) |
 | `.\run.ps1 backfill` / `./run.sh backfill` / `backfill 2` | バックフィル (既定5年、年数指定可) |
 | `.\run.ps1 lint` / `./run.sh lint` | Ruff + Bandit（`requirements-dev.txt`） |
+| `python jobs/market/pts_snapshot.py` | 株探の PTS ナイトタイム ランキングを今の分だけ取る（cron は平日 15:30〜24:00） |
 | `python jobs/fx_rates.py --backfill` | 為替（ECB/EUR）を 1999-01-04 から取得。以後は引数なしで差分 |
 
 > **バックフィル年数の目安**
@@ -67,14 +71,14 @@ notepad .env                    # JQUANTS_API_KEY を記入
 - 取得済みの日付はスキップするため、中断しても再実行すれば続きから埋まる
 
 > 旧デモ由来の `0` 始まりコードが DB に残っていると RS ランクが狂うため、
-> `batch` / `backfill` は実行前に `jobs/check_demo.py` で止まります。
+> `batch` / `backfill` は実行前に `jobs/market/check_demo.py` で止まります。
 > その場合は `.\run.ps1 reset` または `./run.sh reset` してから取り直してください。
 
 決算開示は引け後15時以降が多いため、当日夜(19:30頃)に1回実行する。
 タスクスケジューラに登録する場合の操作:
 
 - プログラム: `E:\project\stock-analyzer\.venv\Scripts\python.exe`
-- 引数: `jobs\run_batch.py`
+- 引数: `jobs\market\run_batch.py`
 - 開始場所: `E:\project\stock-analyzer`
 
 （この場合 `.env` は読み込まれないため、認証情報はシステム環境変数に設定するか
@@ -87,6 +91,7 @@ notepad .env                    # JQUANTS_API_KEY を記入
 cp .env.example .env            # 既存 .env がある場合は上書きしない
 # .env に JQUANTS_API_KEY を記入
 ./run.sh check                  # 疎通確認
+./run.sh golden                 # 開発用: ゴールデンデータで DB を作る（数秒。.env 不要）。全銘柄が要るなら次の backfill
 ./run.sh backfill               # 初回: 5年分 (約45分)
 ./run.sh serve                  # → http://localhost:8000
 ./run.sh batch                  # 以降の日次
@@ -113,9 +118,9 @@ DB のバックアップは ConoHa の自動バックアップか、日次で別
 
 ## CI/CD
 
-`main` にマージすると GitHub Actions がテスト → GitHub Release（タグ）→ ConoHa VPS へデプロイする。
+`main` にマージすると GitHub Actions がテスト → GitHub Release（タグ）→ ConoHa VPS へデプロイする。変更が `.md` / `docs/` / `.claude/memory/` だけのときは走らない。
 
-1. **PR.** `tests/ci_smoke.py`（起動・検索/スクリーナー/チャート）と Ruff / Bandit（`app` `jobs` `tests` `tools` `deploy`。`app/xbrlp` は除外）
+1. **PR.** `python -m pytest tests`（`tests/` 以下の `test_*.py` を全部。API スモークは `tests/test_smoke.py`）と Ruff / Bandit（`app` `jobs` `tests` `tools` `deploy`。`app/xbrlp` は除外）
 2. **main マージ.** コミットメッセージでバージョンを自動バンプ（`feat:` は minor、`BREAKING CHANGE` / `feat!:` は major、それ以外は patch）。初回は `v0.1.0`
 3. **VPS.** SSH で `git pull` → `provision.sh`（nginx/ufw/certbot/systemd）→ `pip install` → `migrate.py` → `systemctl restart`。
    `stock.db` は触らない
@@ -129,29 +134,35 @@ VPS へ自動デプロイするには、一度だけデプロイ用 SSH 鍵を�
 app/
   config.py     設定・ステージ判定閾値
   models.py     DBスキーマ (SQLAlchemy)
-  jquants.py    J-Quants APIクライアント
-  ingest.py     取込バッチ (UPSERT・冪等)
-  analytics.py  MA/RS/ステージ/Q単独/決算後リターン
-  api.py        REST API
+  market/       株価・決算 (チャート・スクリーナー・決算タブ)
+    jquants.py    J-Quants APIクライアント
+    ingest.py     取込バッチ (UPSERT・冪等)
+    analytics.py  MA/RS/ステージ/Q単独/決算後リターン
+  monthly/      月次 (行名の正規化・親子・公開ページ)
+  supply/       サプライ (素材マスタ・e-Stat・経産省)
+  api/          REST API (機能ごとに 1 ファイル。月次は api/monthly/)
   main.py       FastAPIエントリ
+config/         機能ごとの JSON (monthly/ supply/ xbrl/)
 static/
   index.html    SPA マークアップ
   css/app.css   スタイル
   js/           タブ別 vanilla JS
-jobs/
-  run_batch.py  日次バッチ / バックフィル
-  backup_db.py  本番 SQLite の日次バックアップ（cron は 05:00 JST。手順は docs/DESIGN_backup.md）
-  fx_rates.py   Frankfurter 為替（EUR ベース。cron は 08:00 JST）
-  vps_packages_r2.py  VPS パッケージ一覧 → R2（cron は 06:40 JST）
-  check_demo.py スキーマ + 旧デモ取り残しガード
-tests/
-  ci_smoke.py   CI 起動スモーク
-tools/
-  check_api.py  J-Quants 疎通確認
+jobs/           機能ごと (market/ monthly/ supply/ xbrl/ ops/)。cron は deploy/crontab
+  market/run_batch.py   日次バッチ / バックフィル
+  market/check_demo.py  スキーマ + 旧デモ取り残しガード
+  market/pts_snapshot.py  株探 PTS ランキング → pts_snapshots（cron は平日 15:30〜24:00）
+  ops/backup_db.py      本番 SQLite の日次バックアップ（cron は 05:00 JST。手順は docs/DESIGN_backup.md）
+  ops/vps_packages_r2.py  VPS パッケージ一覧 → R2（cron は 06:40 JST）
+  fx_rates.py           Frankfurter 為替（EUR ベース。cron は 08:00 JST）
+  migrate.py            デプロイごとのスキーマ追随と月次の後始末
+tests/          機能ごと (market/ monthly/ supply/ xbrl/ ops/)
+  conftest.py   pytest の共通設定（DB はファイルごとに空から）。`python -m pytest tests` で全部走る
+tools/          機能ごと (market/ monthly/ supply/ xbrl/)
+  market/check_api.py  J-Quants 疎通確認
 analyzer/       stock.db を読むだけの分析（一覧は analyzer/README.md）
 deploy/
   stock-analyzer.service  systemd（uvicorn ワーカー1）
-  nginx.conf              リバースプロキシ。月次閲覧は公開、/app は Basic 認証
+  nginx-site.sh           nginx の設定の正本（provision.sh が書く）。月次閲覧は公開、/app は Basic 認証
   crontab                 J-Quants 19:30 JST、為替 08:00 JST、パッケージ一覧 06:40 JST、SQLite バックアップ 05:00 JST
   update.sh               VPS 側デプロイ（Actions から実行）
   enable-cicd.sh          デプロイ用 SSH 鍵と sudoers を一度だけ入れる

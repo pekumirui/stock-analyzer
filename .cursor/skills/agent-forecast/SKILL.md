@@ -34,7 +34,7 @@ disable-model-invocation: true
 - 作業フォルダはリポジトリの外（既定 `/workspace/forecast-exp/<id>/`）。PDF・zip・jsonl 全文はコミットしない
 - スクリプトは標準ライブラリだけ。`cd analyzer/agent_forecast` して `python3 <script>.py --target $T`
 - 全許可モードは使わない。予想子に Bash / Web / 書き込みを渡さない
-- `tests/test_monthly_ingest.py` に銘柄分岐を足さない。この実験は `app/` を触らない
+- `tests/monthly/test_monthly_ingest.py` に銘柄分岐を足さない。この実験は `app/` を触らない
 - チャットやログに API キーを出さない
 
 ## チェックリスト

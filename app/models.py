@@ -168,7 +168,7 @@ class MonthlyElement(Base):
 
     yoy の element は前年比語を剥がして末尾 (前年比)。number はトリムのみ。
     正規化後に同一なら同一行。短い保存名は正規名へリネームする。
-    init_db / migrate は同一年の重複がなくても yoy を正規名へ揃える。
+    保存名は凍結。揃えるのは jobs/monthly/monthly_names.py だけ。
     """
     __tablename__ = "monthly_elements"
     code = Column(String(5), primary_key=True)
@@ -176,6 +176,24 @@ class MonthlyElement(Base):
     element = Column(String(50), primary_key=True)
     sort_order = Column(Integer, nullable=False)
     unit = Column(String(16), nullable=False, default="number", server_default="number")
+
+
+class MonthlyElementSource(Base):
+    """送られてきたままの行名 → 今の保存名。正規化の差分スナップショットの入力。
+
+    source_label と unit は受け取ったまま（正規化前）。一度入れたら書き換えない。
+    element は保存名の付け替え・統合に付いていく。行を消すと一緒に消える。
+    via は経路（api / doc / ir_html / ir_xls / legacy）。
+    """
+    __tablename__ = "monthly_element_sources"
+    code = Column(String(5), primary_key=True)
+    year = Column(Integer, primary_key=True)
+    source_label = Column(String(50), primary_key=True)
+    unit = Column(String(16), primary_key=True)
+    element = Column(String(50), nullable=False, index=True)
+    via = Column(String(16), nullable=False)
+    first_seen_at = Column(DateTime, nullable=False)
+    last_seen_at = Column(DateTime, nullable=False)
 
 
 class MonthlyValue(Base):
@@ -353,9 +371,9 @@ class FxRate(Base):
 
 
 class MaterialMonthly(Base):
-    """サプライタブの素材ごとの月次量。素材は config/supply_chain.json の id（FK なし）。
+    """サプライタブの素材ごとの月次量。素材は config/supply/supply_chain.json の id（FK なし）。
 
-    統計の品目との対応は config/material_stats.json。取込は DESIGN.md §3「素材の月次量」。
+    統計の品目との対応は config/supply/material_stats.json。取込は DESIGN.md §3「素材の月次量」。
     """
     __tablename__ = "material_monthly"
     material_id = Column(String, primary_key=True)
@@ -386,3 +404,21 @@ class MaterialTradeCountry(Base):
     revision = Column(Integer, nullable=False)     # 1 速報 / 2 確報。下がる上書きはしない
     origin = Column(String)                        # e-Stat の表 ID
     updated_at = Column(DateTime)
+
+
+class PtsSnapshot(Base):
+    """株探の PTS ナイトタイムセッションのランキング。取得 1 回ごとにランキング全行を残す。"""
+    __tablename__ = "pts_snapshots"
+    fetched_at = Column(DateTime, primary_key=True)  # 取得時刻 JST
+    ranking = Column(String, primary_key=True)       # night_up / night_down / night_volume
+    code = Column(String(5), primary_key=True)       # stocks.code と同じ 5 桁。FK は付けない
+    session_date = Column(Date, nullable=False)      # 比べている通常取引の終値の日
+    as_of = Column(String(5))                        # 株探の「HH:MM現在」（15 分ディレイ）
+    rank = Column(Integer, nullable=False)
+    name = Column(String)
+    market = Column(String)
+    base_close = Column(Float)                       # 通常取引の終値
+    pts_price = Column(Float)
+    pts_chg_pct = Column(Float)                      # 終値比 %
+    volume = Column(Integer)
+    __table_args__ = (Index("ix_pts_session_ranking", "session_date", "ranking"),)

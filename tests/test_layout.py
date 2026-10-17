@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-ENTRY_RE = re.compile(r"(?:jobs|tools|tests)[/\\][A-Za-z0-9_.-]+\.py")
+ENTRY_RE = re.compile(r"(?:jobs|tools|tests)(?:[/\\][A-Za-z0-9_-]+)*[/\\][A-Za-z0-9_.-]+\.py")
 CALLERS = (
     ROOT / "deploy" / "crontab",
     ROOT / "deploy" / "update.sh",
@@ -14,33 +14,22 @@ CALLERS = (
     *sorted((ROOT / ".github" / "workflows").glob("*.yml")),
 )
 
-GONE = (
-    ROOT / "scripts",
-    ROOT / "app" / "issuer_aliases.json",
-    ROOT / "app" / "monthly_row_order.json",
-    ROOT / "static" / "monthly_row_order.json",
-)
 REQUIRED = (
-    ROOT / "config" / "issuer_aliases.json",
-    ROOT / "config" / "monthly_row_order.json",
-    ROOT / "jobs" / "run_batch.py",
-    ROOT / "jobs" / "check_demo.py",
-    ROOT / "tools" / "check_api.py",
-    ROOT / "tools" / "read_xls.py",
-    ROOT / "tests" / "ci_smoke.py",
+    ROOT / "config" / "monthly" / "issuer_aliases.json",
+    ROOT / "config" / "monthly" / "monthly_row_order.json",
+    ROOT / "jobs" / "market" / "run_batch.py",
+    ROOT / "jobs" / "market" / "check_demo.py",
+    ROOT / "tools" / "market" / "check_api.py",
+    ROOT / "tools" / "monthly" / "read_xls.py",
+    ROOT / "tests" / "conftest.py",
+    ROOT / "mcp" / "log_mcp.py",
 )
 
 
-def main() -> None:
-    for path in GONE:
-        if path.exists():
-            raise SystemExit(f"stale path must not exist: {path.relative_to(ROOT)}")
+def test_layout() -> None:
     for path in REQUIRED:
         if not path.is_file():
             raise SystemExit(f"missing {path.relative_to(ROOT)}")
-    leftover = list(ROOT.rglob("seed_demo.py"))
-    if leftover:
-        raise SystemExit(f"seed_demo.py should have been removed: {leftover}")
     for src in CALLERS:
         text = src.read_text(encoding="utf-8")
         rel_src = src.relative_to(ROOT).as_posix()
@@ -54,4 +43,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    test_layout()

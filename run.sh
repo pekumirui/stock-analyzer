@@ -7,6 +7,7 @@
 #   ./run.sh reset          DBを完全削除
 #   ./run.sh reset y        非対話で削除
 #   ./run.sh migrate        スキーマ変更後、既存DBに不足列を追加
+#   ./run.sh golden         ゴールデンデータで DB を作る (tests/golden/db の実データの切り出し。数秒。.env 不要)
 #   ./run.sh batch          日次バッチ (要 .env)
 #   ./run.sh batch 2026-08-14   特定日を取り込み
 #   ./run.sh backfill       初回バックフィル (既定5年分, 要 .env)
@@ -54,20 +55,23 @@ case "$cmd" in
     ;;
   check)
     if [[ -n "$arg" ]]; then
-      "$python" tools/check_api.py "$arg"
+      "$python" tools/market/check_api.py "$arg"
     else
-      "$python" tools/check_api.py
+      "$python" tools/market/check_api.py
     fi
     ;;
   migrate)
     "$python" jobs/migrate.py
     ;;
+  golden)
+    "$python" jobs/golden_db.py
+    ;;
   batch)
-    "$python" jobs/check_demo.py
+    "$python" jobs/market/check_demo.py
     if [[ -n "$arg" ]]; then
-      "$python" jobs/run_batch.py --date "$arg"
+      "$python" jobs/market/run_batch.py --date "$arg"
     else
-      "$python" jobs/run_batch.py
+      "$python" jobs/market/run_batch.py
     fi
     ;;
   backfill)
@@ -83,13 +87,13 @@ case "$cmd" in
       echo "年数は1〜20の範囲で指定してください"
       exit 1
     fi
-    "$python" jobs/check_demo.py
+    "$python" jobs/market/check_demo.py
     echo "過去 $years 年分を取得します"
-    "$python" jobs/run_batch.py --backfill "$years"
+    "$python" jobs/market/run_batch.py --backfill "$years"
     ;;
   reset)
     if [[ ! -f stock.db ]]; then
-      echo "DBはありません。そのまま backfill できます。"
+      echo "DBはありません。そのまま golden / backfill できます。"
       exit 0
     fi
     ans=""
@@ -106,15 +110,15 @@ case "$cmd" in
       exit 0
     fi
     rm -f stock.db stock.db-journal stock.db-wal stock.db-shm
-    echo "削除しました。次: ./run.sh backfill"
+    echo "削除しました。次: ./run.sh golden（数秒）か ./run.sh backfill"
     ;;
   lint)
     "$python" -m pip install -r requirements-dev.txt
-    "$python" -m ruff check --config config/pyproject.toml app jobs tests tools analyzer deploy
-    "$python" -m bandit -c config/pyproject.toml -r app jobs tests tools analyzer deploy -x app/xbrlp,.cursor,tmp,.venv
+    "$python" -m ruff check --config config/pyproject.toml app jobs tests tools analyzer deploy mcp
+    "$python" -m bandit -c config/pyproject.toml -r app jobs tests tools analyzer deploy mcp -x app/xbrlp,.cursor,tmp,.venv
     ;;
   *)
-    echo "使い方: ./run.sh [serve|check|reset|migrate|batch|backfill|lint] [引数]"
+    echo "使い方: ./run.sh [serve|check|reset|migrate|golden|batch|backfill|lint] [引数]"
     exit 1
     ;;
 esac

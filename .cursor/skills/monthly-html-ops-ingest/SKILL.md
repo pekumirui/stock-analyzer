@@ -12,7 +12,7 @@ description: >
 
 ## いつ使うか
 
-- `config/ir_monthly.json` の HTML 発行体で、欠けている暦月を埋める
+- `config/monthly/ir_monthly.json` の HTML 発行体で、欠けている暦月を埋める
 - GitHub Issue（#180 の型）でウェーブを追う
 - エイリアスや正規化を出したあと、古い行ラベルを消す
 
@@ -33,7 +33,7 @@ Cron は別: `ir_monthly_html_r2` は `.ingest.json` だけ書く。`ir_monthly_
 ## 厳守
 
 - エージェントが作った ingest JSON は使ってよい。パーサーの `as_of` を絶対視**しない**。ライブ HTML で会計年度が証明できるなら `as_of` / ラベルを上書きする（例: かっぱ寿司のナビにある最大の `YYYY年度` が as_of を汚染する）。パーサーのバグがあっても取り込みを止めない。
-- HTML パーサーは `issuer_aliases` を適用**しない**。エイリアスは `POST …/ingest`（`app/api.py` の `_canonical_element`: 正規化 → `apply_issuer_aliases` → 正規化）の中だけ走る。エイリアスを足しても既存の DB 行は書き換わらない（起動時も。保存名は凍結）。マージ後に Actions の **Monthly names** を plan → apply で流して既存行を付け替える。
+- HTML パーサーは `issuer_aliases` を適用**しない**。エイリアスは `POST …/ingest`（`app/api/monthly/_common.py` の `_canonical_element`: 正規化 → `apply_issuer_aliases` → 正規化）の中だけ走る。エイリアスを足しても既存の DB 行は書き換わらない（起動時も。保存名は凍結）。マージ後に Actions の **Monthly names** を plan → apply で流して既存行を付け替える。
 - 新しいデータに year 付き PUT をしない（`monthly_put_values` は訂正専用）。
 - ブランド名の変更をマージしない（例: マックスバリュ関東 ↔ イオンフードスタイル）。
 - ワタミ型の誤単位（実数なのに `yoy_pct` タグ）を POST しない。
@@ -45,10 +45,10 @@ Cron は別: `ir_monthly_html_r2` は `.ingest.json` だけ書く。`ir_monthly_
 | ツール | 用途 |
 |---|---|
 | MCP `monthly_get` / `monthly_ingest` / `monthly_put_values` / `monthly_add_element` / `monthly_delete_element` | 本番ループバック |
-| `config/ir_monthly.json` | `index_url`, `follow_re`, html 発行体 |
+| `config/monthly/ir_monthly.json` | `index_url`, `follow_re`, html 発行体 |
 | `.venv/bin/python` + `parse_issuer` / `plan_column_years` | ローカルパース + 年マッピング |
-| `config/issuer_aliases.json` + `docs/DESIGN_monthly_labels.md` | 新しいリネームルール（コードの PR） |
-| `config/issuer_metrics.json` | 件数指標の語（`受託施設数` など）。件数の行を入れたら足す（コードの PR。DB は変わらない） |
+| `config/monthly/issuer_aliases.json` + `docs/DESIGN_monthly_labels.md` | 新しいリネームルール（コードの PR） |
+| `config/monthly/issuer_metrics.json` | 件数指標の語（`受託施設数` など）。件数の行を入れたら足す（コードの PR。DB は変わらない） |
 | GitHub Issue | 作業前/作業後の進捗 |
 | Cursor `Task` (`subagent_type: generalPurpose`) | ウェーブ完了後、ペアレビュー子を起動する |
 
