@@ -62,6 +62,16 @@ def _fail(msg: object) -> None:
     raise SystemExit(str(msg))
 
 
+_synth = 89210
+
+
+def _unique_code() -> str:
+    global _synth
+    code = f"{_synth:05d}"
+    _synth += 10
+    return code
+
+
 def _present_months(vals: dict) -> dict[str, float]:
     return {str(k): float(v) for k, v in vals.items() if v is not None}
 
@@ -1204,7 +1214,7 @@ def _add_fy_end(code: str, disclosed: date, fy_end: date, disclosure_no: str) ->
 
 def test_api_gift_ingest() -> None:
     c = TestClient(app)
-    code = "92790"
+    code = _unique_code()
     _add_fy_end(code, date(2026, 5, 8), date(2025, 10, 31), "gift-fy-1")
     _add_fy_end(code, date(2025, 5, 9), date(2024, 10, 31), "gift-fy-2")
 
@@ -1246,8 +1256,15 @@ def test_api_gift_ingest() -> None:
 
 def test_api_errors() -> None:
     c = TestClient(app)
+    missing = _unique_code()
+    need_fy = _unique_code()
+    fy_change = _unique_code()
+    two_ends = _unique_code()
+    same_day = _unique_code()
+    mid_start = _unique_code()
+    single_jul = _unique_code()
 
-    r = c.post("/api/v1/tables/30320/ingest", json={
+    r = c.post(f"/api/v1/tables/{missing}/ingest", json={
         "months": GIFT_MONTHS,
         "rows": [{"element": "売上高", "unit": "number", "values": {"11": 1}}],
         "as_of": "2026-08-05",
@@ -1256,8 +1273,8 @@ def test_api_errors() -> None:
     if _err(r)["code"] != "NOT_IN_MASTER":
         _fail(f"NOT_IN_MASTER: {r.json()!r}")
 
-    _ensure_stock("99990")
-    r = c.post("/api/v1/tables/99990/ingest", json={
+    _ensure_stock(need_fy)
+    r = c.post(f"/api/v1/tables/{need_fy}/ingest", json={
         "months": GIFT_MONTHS,
         "rows": [{"element": "売上高", "unit": "number", "values": {"11": 1}}],
         "as_of": "2026-08-05",
@@ -1266,9 +1283,9 @@ def test_api_errors() -> None:
     if _err(r)["code"] != "NEED_FY_END":
         _fail(f"NEED_FY_END: {r.json()!r}")
 
-    _add_fy_end("88880", date(2026, 6, 1), date(2026, 3, 31), "chg-1")
-    _add_fy_end("88880", date(2026, 5, 1), date(2025, 10, 31), "chg-2")
-    r = c.post("/api/v1/tables/88880/ingest", json={
+    _add_fy_end(fy_change, date(2026, 6, 1), date(2026, 3, 31), f"{fy_change}-chg-1")
+    _add_fy_end(fy_change, date(2026, 5, 1), date(2025, 10, 31), f"{fy_change}-chg-2")
+    r = c.post(f"/api/v1/tables/{fy_change}/ingest", json={
         "months": MARCH_MONTHS,
         "rows": [{"element": "売上高", "unit": "number", "values": {"4": 1}}],
         "as_of": "2026-08-05",
@@ -1278,7 +1295,7 @@ def test_api_errors() -> None:
     if body.get("fy_end_month") != 3 or body.get("layout") != "fiscal":
         _fail(f"as-of after fy change: {body!r}")
 
-    r = c.post("/api/v1/tables/88880/ingest", json={
+    r = c.post(f"/api/v1/tables/{fy_change}/ingest", json={
         "months": MARCH_MONTHS,
         "rows": [{"element": "売上高", "unit": "number", "values": {"4": 1}}],
         "as_of": "2026-04-30",
@@ -1287,9 +1304,9 @@ def test_api_errors() -> None:
     if _err(r)["code"] != "NEED_FY_END":
         _fail(f"as_of before fy_end rows: {r.json()!r}")
 
-    _add_fy_end("26980", date(2020, 4, 10), date(2020, 2, 29), "candu-feb")
-    _add_fy_end("26980", date(2020, 12, 15), date(2020, 11, 30), "candu-nov")
-    r = c.post("/api/v1/tables/26980/ingest", json={
+    _add_fy_end(two_ends, date(2020, 4, 10), date(2020, 2, 29), f"{two_ends}-feb")
+    _add_fy_end(two_ends, date(2020, 12, 15), date(2020, 11, 30), f"{two_ends}-nov")
+    r = c.post(f"/api/v1/tables/{two_ends}/ingest", json={
         "months": CAL_MONTHS,
         "rows": [{"element": "売上高", "unit": "number", "values": {"1": 1}}],
         "as_of": "2021-06-01",
@@ -1298,9 +1315,9 @@ def test_api_errors() -> None:
     if r.json().get("fy_end_month") != 11 or r.json().get("layout") != "calendar":
         _fail(f"2/11 as-of: {r.json()!r}")
 
-    _add_fy_end("36120", date(2021, 6, 1), date(2021, 2, 28), "world-feb")
-    _add_fy_end("36120", date(2021, 6, 1), date(2021, 3, 31), "world-mar")
-    r = c.post("/api/v1/tables/36120/ingest", json={
+    _add_fy_end(same_day, date(2021, 6, 1), date(2021, 2, 28), f"{same_day}-feb")
+    _add_fy_end(same_day, date(2021, 6, 1), date(2021, 3, 31), f"{same_day}-mar")
+    r = c.post(f"/api/v1/tables/{same_day}/ingest", json={
         "months": MARCH_MONTHS,
         "rows": [{"element": "売上高", "unit": "number", "values": {"4": 1}}],
         "as_of": "2021-06-01",
@@ -1309,8 +1326,8 @@ def test_api_errors() -> None:
     if r.json().get("fy_end_month") != 3:
         _fail(f"same-day later fy_end: {r.json()!r}")
 
-    _add_fy_end("77770", date(2026, 5, 1), date(2025, 10, 31), "amb-1")
-    r = c.post("/api/v1/tables/77770/ingest", json={
+    _add_fy_end(mid_start, date(2026, 5, 1), date(2025, 10, 31), f"{mid_start}-amb-1")
+    r = c.post(f"/api/v1/tables/{mid_start}/ingest", json={
         "months": [7, 8],
         "rows": [{"element": "売上高", "unit": "number", "values": {"7": 1, "8": 2}}],
         "as_of": "2026-08-05",
@@ -1321,18 +1338,18 @@ def test_api_errors() -> None:
         _fail(f"mid-start ingest header: {body!r}")
     if body.get("mapping") != {"7": 2026, "8": 2026}:
         _fail(f"mid-start ingest mapping: {body.get('mapping')!r}")
-    r = c.get("/api/v1/tables/77770/2026")
+    r = c.get(f"/api/v1/tables/{mid_start}/2026")
     _expect(r, 200, "GET 2026 mid-start")
     v2026 = _present_months(r.json()["elements"][0]["values"])
     if set(v2026) != {"7", "8"}:
         _fail(f"GET 2026 mid-start months: {v2026!r}")
-    r = c.get("/api/v1/tables/77770/2025")
+    r = c.get(f"/api/v1/tables/{mid_start}/2025")
     _expect(r, 404, "GET 2025 mid-start")
     if _err(r)["code"] != "TABLE_NOT_FOUND":
         _fail(f"2025 should not exist: {r.json()!r}")
 
-    _add_fy_end("33330", date(2026, 5, 1), date(2026, 3, 31), "single-jul-1")
-    r = c.post("/api/v1/tables/33330/ingest", json={
+    _add_fy_end(single_jul, date(2026, 5, 1), date(2026, 3, 31), f"{single_jul}-jul-1")
+    r = c.post(f"/api/v1/tables/{single_jul}/ingest", json={
         "months": [7],
         "rows": [{"element": "売上高", "unit": "number", "values": {"7": 1}}],
         "as_of": "2026-08-05",
@@ -1342,7 +1359,7 @@ def test_api_errors() -> None:
     if body.get("layout") != "partial" or body.get("mapping") != {"7": 2026}:
         _fail(f"single July ingest: {body!r}")
 
-    r = c.post("/api/v1/tables/77770/ingest", json={
+    r = c.post(f"/api/v1/tables/{mid_start}/ingest", json={
         "months": GIFT_MONTHS,
         "rows": [{"element": "売上高", "unit": "number", "values": {"8": 1.0}}],
         "as_of": "2026-08-05",
@@ -1354,7 +1371,7 @@ def test_api_errors() -> None:
 
 def test_all_or_nothing_similar() -> None:
     c = TestClient(app)
-    code = "66660"
+    code = _unique_code()
     _add_fy_end(code, date(2026, 5, 1), date(2025, 10, 31), "sim-1")
     r = c.post(f"/api/v1/tables/{code}/2025/elements", json={"element": "世界観ビジネス", "unit": "number"})
     _expect(r, 201, "seed similar")
@@ -1390,21 +1407,23 @@ def test_all_or_nothing_similar() -> None:
 def test_tdnet_4digit_fy_end_lookup() -> None:
     """TDnet 4桁パスは J-Quants 5桁の fiscal_year_end を使い、保存キーも 5桁。"""
     c = TestClient(app)
-    _add_fy_end("92790", date(2026, 5, 8), date(2025, 10, 31), "tdnet-pad-fy-1")
+    code = _unique_code()
+    short = code[:-1]
+    _add_fy_end(code, date(2026, 5, 8), date(2025, 10, 31), f"{code}-tdnet-pad-fy-1")
     months = GIFT_MONTHS
     values = {str(m): 100.0 + m for m in months}
-    r = c.post("/api/v1/tables/9279/ingest", json={
+    r = c.post(f"/api/v1/tables/{short}/ingest", json={
         "months": months,
         "rows": [{"element": "全店 売上高", "values": values, "unit": "number"}],
         "as_of": "2026-08-05",
     })
-    _expect(r, 200, "9279 ingest with 92790 fy_end")
-    if r.json().get("code") != "92790":
-        _fail(f"9279 ingest code: {r.json()!r}")
-    r = c.get("/api/v1/tables/92790/2025")
-    _expect(r, 200, "GET 92790 after 9279 ingest")
-    if r.json()["code"] != "92790":
-        _fail(f"9279 save key: {r.json()!r}")
+    _expect(r, 200, f"{short} ingest with {code} fy_end")
+    if r.json().get("code") != code:
+        _fail(f"{short} ingest code: {r.json()!r}")
+    r = c.get(f"/api/v1/tables/{code}/2025")
+    _expect(r, 200, f"GET {code} after {short} ingest")
+    if r.json()["code"] != code:
+        _fail(f"{short} save key: {r.json()!r}")
 
 
 def test_api_alnum_code() -> None:
@@ -1462,8 +1481,8 @@ def test_unit_display_and_ingest() -> None:
         _fail("parse_as_of default")
 
     c = TestClient(app)
-    code = "55550"
-    _add_fy_end(code, date(2026, 5, 8), date(2025, 10, 31), "unit-fy-1")
+    code = _unique_code()
+    _add_fy_end(code, date(2026, 5, 8), date(2025, 10, 31), f"{code}-unit-fy-1")
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": [11, 12, 1],
         "rows": [
@@ -1535,8 +1554,8 @@ def test_unit_display_and_ingest() -> None:
 
 def test_ingest_yoy_label_and_number_separate() -> None:
     c = TestClient(app)
-    code = "44440"
-    _add_fy_end(code, date(2026, 5, 8), date(2025, 10, 31), "label-fy-1")
+    code = _unique_code()
+    _add_fy_end(code, date(2026, 5, 8), date(2025, 10, 31), f"{code}-label-fy-1")
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": [11],
         "rows": [{"element": "売上高前年同月比", "values": {"11": 125.8}, "unit": "yoy_index"}],
@@ -1627,8 +1646,8 @@ def test_uncovered_yoy_number_twins() -> None:
 def test_ingest_yoy_number_conflict() -> None:
     """unit を取り違えると行名が変わり、既存の反対側が rows に無いと 409。"""
     c = TestClient(app)
-    code = "31710"
-    _add_fy_end(code, date(2026, 5, 8), date(2025, 10, 31), "twin-fy-1")
+    code = _unique_code()
+    _add_fy_end(code, date(2026, 5, 8), date(2025, 10, 31), f"{code}-twin-fy-1")
     body = {
         "months": [11],
         "rows": [{"element": "全店 売上高", "values": {"11": 125.8}, "unit": "yoy_index"}],
@@ -1688,8 +1707,8 @@ def test_ingest_yoy_number_conflict() -> None:
     if float(by["全店 売上高(前年比)"]["values"]["11"]) != 126.0:
         _fail(f"yoy update: {by['全店 売上高(前年比)']!r}")
 
-    code2 = "31720"
-    _add_fy_end(code2, date(2026, 5, 8), date(2025, 10, 31), "twin-fy-2")
+    code2 = _unique_code()
+    _add_fy_end(code2, date(2026, 5, 8), date(2025, 10, 31), f"{code2}-twin-fy-2")
     r = c.post(f"/api/v1/tables/{code2}/ingest", json={
         "months": [11],
         "rows": [{"element": "客数", "values": {"11": 50}, "unit": "number"}],
@@ -1720,9 +1739,8 @@ def test_ingest_yoy_number_conflict() -> None:
 
 def test_ingest_yoy_short_and_canonical_same_row() -> None:
     c = TestClient(app)
-    # 88880 は test_api_errors で 3月期末の売上高を ingest 済み（現行 FY は 2026 年列）と衝突するため別コード。
-    code = "88770"
-    _add_fy_end(code, date(2026, 5, 8), date(2025, 12, 31), "yoy-same-1")
+    code = _unique_code()
+    _add_fy_end(code, date(2026, 5, 8), date(2025, 12, 31), f"{code}-yoy-same-1")
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": [1],
         "rows": [{"element": "売上高", "values": {"1": 101.0}, "unit": "yoy_index"}],
@@ -1747,8 +1765,8 @@ def test_ingest_yoy_short_and_canonical_same_row() -> None:
 
 def test_existing_short_yoy_renamed_on_canonical() -> None:
     c = TestClient(app)
-    code = "88890"
-    _add_fy_end(code, date(2026, 5, 8), date(2025, 12, 31), "yoy-rename-1")
+    code = _unique_code()
+    _add_fy_end(code, date(2026, 5, 8), date(2025, 12, 31), f"{code}-yoy-rename-1")
     r = c.post(f"/api/v1/tables/{code}/2026/elements", json={"element": "カラオケ全店 売上高", "unit": "number"})
     _expect(r, 201, "seed short name")
     if r.json()["element"] != "カラオケ 全店 売上高":
@@ -1785,8 +1803,8 @@ def test_existing_short_yoy_renamed_on_canonical() -> None:
 
 def test_number_stores_not_yoy_suffix() -> None:
     c = TestClient(app)
-    code = "88900"
-    _add_fy_end(code, date(2026, 5, 8), date(2025, 12, 31), "stores-1")
+    code = _unique_code()
+    _add_fy_end(code, date(2026, 5, 8), date(2025, 12, 31), f"{code}-stores-1")
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": [1],
         "rows": [{"element": "店舗数", "values": {"1": 42}, "unit": "number"}],
@@ -1806,10 +1824,12 @@ def test_merge_uchiyama_like_yoy_duplicates() -> None:
     from app.monthly.maintenance import merge_yoy_duplicate_elements
     from app.models import MonthlyElement, MonthlyTable, MonthlyValue
 
-    code, year = "60590", 2026
+    code, year = _unique_code(), 2026
+    twin_code, twin_year = _unique_code(), 2026
     short = "カラオケ全店 売上高"
     canon = "カラオケ 全店 売上高(前年比)"
     _ensure_stock(code, "ウチヤマ")
+    _ensure_stock(twin_code)
     db = SessionLocal()
     try:
         db.add(MonthlyTable(code=code, year=year))
@@ -1821,24 +1841,39 @@ def test_merge_uchiyama_like_yoy_duplicates() -> None:
         db.add(MonthlyValue(code=code, year=year, element=canon, month=3, value=103.0))
         db.add(MonthlyValue(code=code, year=year, element=short, month=4, value=104.0))
         db.add(MonthlyValue(code=code, year=year, element=canon, month=4, value=105.0))
+        db.add(MonthlyTable(code=twin_code, year=twin_year))
+        db.add(MonthlyElement(
+            code=twin_code, year=twin_year, element="売上高(前年比)",
+            sort_order=1, unit="yoy_index",
+        ))
+        db.add(MonthlyElement(
+            code=twin_code, year=twin_year, element="売上高",
+            sort_order=2, unit="number",
+        ))
+        db.add(MonthlyValue(
+            code=twin_code, year=twin_year, element="売上高(前年比)", month=1, value=125.8,
+        ))
+        db.add(MonthlyValue(
+            code=twin_code, year=twin_year, element="売上高", month=1, value=1000.0,
+        ))
         db.commit()
     finally:
         db.close()
 
     reports = merge_yoy_duplicate_elements()
-    print(f"merge 60590 reports: {reports!r}")
-    if any(r.get("code") == "44440" for r in reports):
+    print(f"merge {code} reports: {reports!r}")
+    if any(r.get("code") == twin_code for r in reports):
         _fail(f"must not merge number 売上高 into yoy: {reports!r}")
     hit = [r for r in reports if r.get("code") == code and r.get("year") == year]
     if not hit:
-        _fail(f"60590 2026 merge missing: {reports!r}")
+        _fail(f"{code} {year} merge missing: {reports!r}")
     one = hit[0]
     if one.get("canonical") != canon or short not in (one.get("deleted") or []):
-        _fail(f"60590 merge target: {one!r}")
+        _fail(f"{code} merge target: {one!r}")
     conflicts = one.get("conflicts") or []
     if not any(c.get("month") == 4 and c.get("kept") == 105.0 and c.get("dropped") == 104.0
                for c in conflicts):
-        _fail(f"60590 month 4 conflict not reported: {conflicts!r}")
+        _fail(f"{code} month 4 conflict not reported: {conflicts!r}")
 
     db = SessionLocal()
     try:
@@ -1847,9 +1882,9 @@ def test_merge_uchiyama_like_yoy_duplicates() -> None:
                .all())
         names = sorted(e.element for e in els)
         if names != [canon]:
-            _fail(f"60590 after merge names: {names!r}")
+            _fail(f"{code} after merge names: {names!r}")
         if els[0].unit != "yoy_index":
-            _fail(f"60590 unit: {els[0].unit!r}")
+            _fail(f"{code} unit: {els[0].unit!r}")
         vals = {
             v.month: float(v.value)
             for v in db.query(MonthlyValue).filter(
@@ -1857,7 +1892,7 @@ def test_merge_uchiyama_like_yoy_duplicates() -> None:
             )
         }
         if vals != {1: 101.0, 2: 102.0, 3: 103.0, 4: 105.0}:
-            _fail(f"60590 after merge values: {vals!r}")
+            _fail(f"{code} after merge values: {vals!r}")
         if db.get(MonthlyElement, (code, year, short)) is not None:
             _fail("short row must be deleted")
     finally:
@@ -1876,7 +1911,7 @@ def test_rename_29260_style_cross_year_yoy() -> None:
     from app.monthly.ingest import union_monthly_elements
 
     c = TestClient(app)
-    code = "29260"
+    code = _unique_code()
     short = "全店 売上高前期比"
     canon = "全店 売上高(前年比)"
     _ensure_stock(code, "Action")
@@ -1901,15 +1936,15 @@ def test_rename_29260_style_cross_year_yoy() -> None:
         db.close()
 
     reports = merge_yoy_duplicate_elements()
-    print(f"rename 29260 reports: {reports!r}")
+    print(f"rename {code} reports: {reports!r}")
     hit = [r for r in reports if r.get("code") == code and r.get("year") == 2026
            and r.get("canonical") == canon]
     if not hit:
-        _fail(f"29260 2026 rename missing: {reports!r}")
+        _fail(f"{code} 2026 rename missing: {reports!r}")
     one = hit[0]
     moved = (one.get("renamed") or []) + (one.get("deleted") or [])
     if short not in moved:
-        _fail(f"29260 short not moved: {one!r}")
+        _fail(f"{code} short not moved: {one!r}")
     if any(r.get("canonical") == "店舗数" for r in reports if r.get("code") == code):
         _fail(f"must not rename 店舗数: {reports!r}")
 
@@ -1920,9 +1955,9 @@ def test_rename_29260_style_cross_year_yoy() -> None:
                .all())
         names = sorted(e.element for e in els)
         if short in names:
-            _fail(f"29260 2026 short still present: {names!r}")
+            _fail(f"{code} 2026 short still present: {names!r}")
         if canon not in names:
-            _fail(f"29260 2026 missing canonical: {names!r}")
+            _fail(f"{code} 2026 missing canonical: {names!r}")
         if "店舗数" not in names or "売上高" not in names:
             _fail(f"number rows must stay: {names!r}")
         if "売上高(前年比)" in names:
@@ -1944,14 +1979,14 @@ def test_rename_29260_style_cross_year_yoy() -> None:
         db.close()
 
     r = c.get(f"/api/v1/tables/{code}/2026")
-    _expect(r, 200, "GET 29260 2026")
+    _expect(r, 200, f"GET {code} 2026")
     y2026 = r.json()
     r = c.get(f"/api/v1/tables/{code}/2025")
-    _expect(r, 200, "GET 29260 2025")
+    _expect(r, 200, f"GET {code} 2025")
     y2025 = r.json()
     order = [row["element"] for row in union_monthly_elements([y2026, y2025])]
     if order != ["売上高", canon, "店舗数"]:
-        _fail(f"29260 union must be one yoy row: {order!r}")
+        _fail(f"{code} union must be one yoy row: {order!r}")
     by = {e["element"]: e for e in y2026["elements"]}
     if canon not in by or float(by[canon]["values"]["1"]) != 110.0:
         _fail(f"GET 2026 values from renamed short: {by!r}")
@@ -1978,7 +2013,7 @@ def test_rename_29260_style_cross_year_yoy() -> None:
 
     again = merge_yoy_duplicate_elements()
     if any(r.get("code") == code for r in again):
-        _fail(f"29260 rename must be idempotent: {again!r}")
+        _fail(f"{code} rename must be idempotent: {again!r}")
 
 
 def test_issuer_alias_ingest_and_migrate() -> None:
@@ -2191,8 +2226,8 @@ def test_reject_prior_period_element() -> None:
         reject_prior_period_element(name)
 
     c = TestClient(app)
-    code = "88880"
-    _add_fy_end(code, date(2026, 5, 1), date(2026, 3, 31), "prior-fy-1")
+    code = _unique_code()
+    _add_fy_end(code, date(2026, 5, 1), date(2026, 3, 31), f"{code}-prior-fy-1")
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": [7],
         "rows": [
@@ -2258,9 +2293,9 @@ def test_reject_prior_period_element() -> None:
 def test_api_genky_year_wrap_ingest() -> None:
     """Genky 20250630 型: 13列で月6が2回。配列 values で暦年分割して両年に残る。"""
     c = TestClient(app)
-    code = "92670"
-    _add_fy_end(code, date(2025, 5, 1), date(2025, 6, 30), "genky-fy-1")
-    _add_fy_end(code, date(2024, 5, 1), date(2024, 6, 30), "genky-fy-2")
+    code = _unique_code()
+    _add_fy_end(code, date(2025, 5, 1), date(2025, 6, 30), f"{code}-genky-fy-1")
+    _add_fy_end(code, date(2024, 5, 1), date(2024, 6, 30), f"{code}-genky-fy-2")
 
     values = [
         104.6, 107.5, 106.7, 106.2, 110.4, 104.5, 109.4,
@@ -2328,7 +2363,7 @@ def test_api_genky_year_wrap_ingest() -> None:
 
 def test_fail_loud_required_and_conflicts() -> None:
     c = TestClient(app)
-    code = "81110"
+    code = _unique_code()
     _ensure_stock(code)
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": [1],
@@ -2384,8 +2419,8 @@ def test_fail_loud_required_and_conflicts() -> None:
     if r.json().get("unit") != "yoy_index":
         _fail(f"force yoy_pct must return yoy_index: {r.json()!r}")
 
-    fold_code = "81120"
-    _add_fy_end(fold_code, date(2026, 5, 8), date(2025, 12, 31), "fold-fy-1")
+    fold_code = _unique_code()
+    _add_fy_end(fold_code, date(2026, 5, 8), date(2025, 12, 31), f"{fold_code}-fold-fy-1")
     from app.db import SessionLocal
     from app.models import MonthlyElement, MonthlyTable, MonthlyValue
 
@@ -3056,7 +3091,7 @@ def test_count_metric_keeps_pre534_stored_names() -> None:
     from app.monthly.maintenance import merge_yoy_duplicate_elements
     from app.models import MonthlyElement, MonthlyTable, MonthlyValue
 
-    code, year = "23050", 2026
+    code, year = "23050", 1994
     count_el = "撮影件数 既存 売上高(前年比)"
     sales_el = "既存 売上高(前年比)"
     _ensure_stock(code, "スタジオアリス")

@@ -6,6 +6,7 @@ nginx が無い手元では飛ばす。CI（CI=true）では nginx が無けれ�
 from __future__ import annotations
 
 import base64
+import http.client
 import os
 import shutil
 import socket
@@ -13,10 +14,10 @@ import subprocess
 import tempfile
 import threading
 import time
-import urllib.error
-import urllib.request
+from collections.abc import Sequence
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 SITE = ROOT / "deploy" / "nginx-site.sh"
@@ -31,6 +32,30 @@ def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
+
+
+def _resolved_bin(name: str) -> str | None:
+    found = shutil.which(name)
+    if found:
+        return found
+    fallback = Path("/usr/sbin") / name
+    if fallback.is_file():
+        return str(fallback)
+    return None
+
+
+def _run_resolved(
+    exe: str, args: Sequence[str], **kwargs: Any,
+) -> subprocess.CompletedProcess[Any]:
+    if not os.path.isabs(exe):
+        raise ValueError(exe)
+    return subprocess.run([exe, *args], **kwargs)
+
+
+def _popen_resolved(exe: str, args: Sequence[str], **kwargs: Any) -> subprocess.Popen[Any]:
+    if not os.path.isabs(exe):
+        raise ValueError(exe)
+    return subprocess.Popen([exe, *args], **kwargs)
 
 
 def _stub(name: str) -> tuple[ThreadingHTTPServer, int]:
@@ -55,14 +80,19 @@ def _stub(name: str) -> tuple[ThreadingHTTPServer, int]:
 
 
 def _render(tmp: Path, env: dict[str, str]) -> dict[str, str]:
-    script = (
+    bash = _resolved_bin("bash")
+    if bash is None:
+        _fail("bash が無い")
+    script = tmp / "render.sh"
+    script.write_text(
         f'source "{SITE}"\n'
         f'render_limit_conf > "{tmp}/limit.conf"\n'
         f'render_log_conf > "{tmp}/log.conf"\n'
         f'render_http_only > "{tmp}/http_only.conf"\n'
-        f'render_https > "{tmp}/https.conf"\n'
+        f'render_https > "{tmp}/https.conf"\n',
+        encoding="utf-8",
     )
-    subprocess.run(["bash", "-euo", "pipefail", "-c", script], env={**os.environ, **env}, check=True)  # noqa: S603,S607
+    _run_resolved(bash, ["-euo", "pipefail", str(script)], env={**os.environ, **env}, check=True)
     return {n: (tmp / f"{n}.conf").read_text(encoding="utf-8") for n in ("limit", "log", "http_only", "https")}
 
 
@@ -104,52 +134,65 @@ def _main_conf(tmp: Path, site: Path) -> Path:
 
 
 def _nginx_test(nginx: str, tmp: Path, conf: Path) -> None:
-    r = subprocess.run([nginx, "-t", "-p", str(tmp), "-c", str(conf)],  # noqa: S603
-                       capture_output=True, text=True, check=False)
+    r = _run_resolved(nginx, ["-t", "-p", str(tmp), "-c", str(conf)],
+                      capture_output=True, text=True, check=False)
     if r.returncode != 0:
         _fail(f"nginx -t failed for {conf.name}:\n{r.stderr}")
 
 
 def _self_signed(tmp: Path) -> Path:
+    openssl = _resolved_bin("openssl")
+    if openssl is None:
+        _fail("openssl が無い")
     live = tmp / "live"
     live.mkdir()
-    subprocess.run(  # noqa: S603,S607
-        ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", "/CN=localhost",
+    _run_resolved(
+        openssl,
+        ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", "/CN=localhost",
          "-keyout", str(live / "privkey.pem"), "-out", str(live / "fullchain.pem")],
         check=True, capture_output=True,
     )
     return live
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, *args, **kwargs):  # noqa: ARG002
-        return None
-
-
-def _request(base: str, path: str, method: str = "GET", auth: bool = False) -> tuple[int, str, dict[str, str]]:
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect)
-    req = urllib.request.Request(base + path, method=method, data=b"{}" if method == "POST" else None)
+def _request(port: int, path: str, method: str = "GET", auth: bool = False) -> tuple[int, str, dict[str, str]]:
+    headers: dict[str, str] = {}
+    body = b"{}" if method == "POST" else None
     if auth:
-        req.add_header("Authorization", "Basic " + base64.b64encode(f"{USER}:{PASSWORD}".encode()).decode())
+        headers["Authorization"] = "Basic " + base64.b64encode(f"{USER}:{PASSWORD}".encode()).decode()
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+        headers["Content-Length"] = str(len(body))
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
     try:
-        with opener.open(req, timeout=5) as resp:  # noqa: S310 (127.0.0.1 のテスト用 nginx)
-            return resp.status, resp.read().decode(), dict(resp.headers)
-    except urllib.error.HTTPError as e:
-        return e.code, e.read().decode(errors="replace"), dict(e.headers)
+        conn.request(method, path, body=body, headers=headers)
+        resp = conn.getresponse()
+        raw = {k: v for k, v in resp.getheaders()}
+        return resp.status, resp.read().decode(errors="replace"), raw
+    finally:
+        conn.close()
 
 
-def check_routes(base: str) -> None:
+def _header(headers: dict[str, str], name: str) -> str:
+    want = name.lower()
+    for key, value in headers.items():
+        if key.lower() == want:
+            return value
+    return ""
+
+
+def check_routes(port: int) -> None:
     def want(path, status, body_prefix=None, method="GET", auth=False):
-        code, body, headers = _request(base, path, method, auth)
+        code, body, headers = _request(port, path, method, auth)
         if code != status or (body_prefix and not body.startswith(body_prefix)):
             _fail(f"{method} {path}{' (auth)' if auth else ''}: want {status} {body_prefix or ''}, got {code} {body[:80]!r}")
         return headers
 
     h = want("/", 301)
-    if h.get("Location", "").rstrip("/").split("/")[-1] != "monthly":
-        _fail(f"GET / must redirect to /monthly: {h.get('Location')!r}")
+    if _header(h, "Location").rstrip("/").split("/")[-1] != "monthly":
+        _fail(f"GET / must redirect to /monthly: {_header(h, 'Location')!r}")
     h = want("/monthly", 200, "app:GET:/monthly")
-    if "frame-ancestors 'none'" not in h.get("Content-Security-Policy", ""):
+    if "frame-ancestors 'none'" not in _header(h, "Content-Security-Policy"):
         _fail("public /monthly must send CSP")
     want("/monthly/7203", 200, "app:GET:/monthly/7203")
     want("/monthly", 403, method="POST")
@@ -170,7 +213,7 @@ def check_routes(base: str) -> None:
 
 
 def test_nginx_public_routes() -> None:
-    nginx = shutil.which("nginx") or ("/usr/sbin/nginx" if Path("/usr/sbin/nginx").exists() else None)
+    nginx = _resolved_bin("nginx")
     if nginx is None:
         if os.environ.get("CI"):
             _fail("CI では nginx が要る（apt-get install nginx-light）")
@@ -203,17 +246,18 @@ def test_nginx_public_routes() -> None:
         _nginx_test(nginx, tmp, _main_conf(tmp, site))
 
     conf = _main_conf(tmp, tmp / "site-http_only.conf")
-    proc = subprocess.Popen([nginx, "-p", str(tmp), "-c", str(conf), "-g", "daemon off;"],  # noqa: S603
-                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    proc = _popen_resolved(
+        nginx, ["-p", str(tmp), "-c", str(conf), "-g", "daemon off;"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+    )
     try:
-        base = f"http://127.0.0.1:{port}"
         for _ in range(50):
             try:
-                _request(base, "/robots.txt")
+                _request(port, "/robots.txt")
                 break
             except OSError:
                 time.sleep(0.1)
-        check_routes(base)
+        check_routes(port)
     finally:
         proc.terminate()
         proc.wait(timeout=10)
