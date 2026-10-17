@@ -418,6 +418,8 @@
   .k-raw { --k-fill:#fdf1de; --k-line:#b37314; }
   .k-mid { --k-fill:#e3f0f4; --k-line:#2f7489; }
   .k-prod { --k-fill:#e6f2e0; --k-line:#4a8a37; }
+  .k-recycled { --k-fill:#efe9f8; --k-line:#6f4fb0; }
+  .supply-legend i.k-ret { width:16px; height:0; border-width:1.5px 0 0; border-style:dashed; border-color:#6f4fb0; border-radius:0; background:none; }
   .supply-legend i, .supply-chip i { background:var(--k-fill); border-color:var(--k-line); }
   .supply-grid { display:grid; grid-template-columns:1fr; gap:12px; }
   @media (min-width:900px){ .supply-grid { grid-template-columns:minmax(0,1fr) 300px; } }

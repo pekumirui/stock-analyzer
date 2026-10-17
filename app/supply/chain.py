@@ -1,6 +1,8 @@
 """サプライチェーンの素材マスタ（`config/supply/supply_chain.json`）の読込と検査。
 
 素材は有向グラフ。1 つの素材が複数の原料から合流する（PET 樹脂 ← エチレングリコール・テレフタル酸）。
+リサイクル資源（recycled）は flows の入力を持たず、使い終わった製品からの回収（returns）を別に持つ。
+returns は循環を作るので、flows の検査（循環なし）と画面の配置・祖先と子孫には使わない。
 画面仕様は `docs/DESIGN_supply.md`。
 """
 from __future__ import annotations
@@ -14,7 +16,8 @@ from typing import Any
 from ..config import SUPPLY_CHAIN_PATH, SUPPLY_COMPANIES_PATH
 from .material_stats import TRADE_SOURCE
 
-KINDS = ("raw", "mid", "prod")
+KINDS = ("raw", "mid", "prod", "recycled")
+SOURCE_KINDS = ("raw", "recycled")  # flows の入力を持たない
 _ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
@@ -23,13 +26,17 @@ class SupplyChainError(ValueError):
 
 
 def validate_supply_chain(data: Any) -> dict[str, list]:
-    """素材と流れを検査し、`{materials, flows}` を返す。違反は SupplyChainError。"""
+    """素材と流れと回収を検査し、`{materials, flows, returns}` を返す。違反は SupplyChainError。"""
     if not isinstance(data, dict):
         raise SupplyChainError("top level must be an object")
     materials = data.get("materials")
     flows = data.get("flows")
-    if not isinstance(materials, list) or not isinstance(flows, list):
-        raise SupplyChainError("materials and flows must be lists")
+    returns = data.get("returns", [])
+    if not isinstance(materials, list) or not isinstance(flows, list) or not isinstance(returns, list):
+        raise SupplyChainError("materials, flows and returns must be lists")
+    unknown_top = set(data) - {"materials", "flows", "returns"}
+    if unknown_top:
+        raise SupplyChainError(f"unknown top-level keys {sorted(unknown_top)}")
 
     ids: dict[str, str] = {}
     names: set[str] = set()
@@ -76,15 +83,36 @@ def validate_supply_chain(data: Any) -> dict[str, list]:
         parents[dst].append(src)
         children[src].append(dst)
 
+    returned: dict[str, list[str]] = {mid: [] for mid in ids}
+    seen_ret: set[tuple[str, str]] = set()
+    for r in returns:
+        if not (isinstance(r, list) and len(r) == 2 and all(isinstance(x, str) for x in r)):
+            raise SupplyChainError(f"return must be [from, to]: {r!r}")
+        src, dst = r
+        for x in (src, dst):
+            if x not in ids:
+                raise SupplyChainError(f"return {src}->{dst}: unknown material {x}")
+        if ids[dst] != "recycled":
+            raise SupplyChainError(f"return {src}->{dst}: {dst} must be recycled")
+        if ids[src] in SOURCE_KINDS:
+            raise SupplyChainError(f"return {src}->{dst}: {src} is {ids[src]}")
+        if (src, dst) in seen_ret:
+            raise SupplyChainError(f"duplicate return: {src}->{dst}")
+        seen_ret.add((src, dst))
+        returned[dst].append(src)
+
     for mid, kind in ids.items():
-        # 原料は地球から直接採るもの。他の素材から作られるなら中間財か製品
-        if kind == "raw" and parents[mid]:
-            raise SupplyChainError(f"{mid}: raw material must not have inputs ({parents[mid]})")
-        if kind != "raw" and not parents[mid]:
+        # 原料は地球から直接採るもの、リサイクル資源は使い終わった製品から回収するもの。どちらも flows の入力は持たない
+        if kind in SOURCE_KINDS and parents[mid]:
+            raise SupplyChainError(f"{mid}: {kind} material must not have inputs ({parents[mid]})")
+        if kind not in SOURCE_KINDS and not parents[mid]:
             raise SupplyChainError(f"{mid}: {kind} needs at least one input")
+        if kind == "recycled" and not returned[mid]:
+            raise SupplyChainError(f"{mid}: recycled needs at least one return")
 
     _reject_cycles(children)
-    return {"materials": out_materials, "flows": [[f[0], f[1]] for f in flows]}
+    return {"materials": out_materials, "flows": [[f[0], f[1]] for f in flows],
+            "returns": [[r[0], r[1]] for r in returns]}
 
 
 def _reject_cycles(children: dict[str, list[str]]) -> None:
