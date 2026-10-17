@@ -123,6 +123,7 @@ async function supplySetup(){
     else supplySelectCompany(id, true);
   };
   supplyPanel();
+  supplySheetSetup();
 }
 
 function supplyStyle(font){
@@ -251,13 +252,9 @@ function supplySelect(id, fly){
     [...retFrom[id], ...retTo[id]].forEach(n => cy.getElementById(n).removeClass("dim").addClass("ret"));
     cy.getElementById(id).addClass("sel");
   });
-  if(fly){
-    // 経路が短いと寄りすぎるので、寄せる間だけ拡大の上限を下げる
-    const max = cy.maxZoom();
-    cy.maxZoom(1.2);
-    cy.animate({fit: {eles: cy.nodes().not(".dim"), padding: 24}},
-               {duration: 350, complete: () => cy.maxZoom(max)});
-  }
+  supplySheet("peek");
+  if(fly) supplyFly(cy.nodes().not(".dim"), 350);
+  else supplyReveal(cy.getElementById(id));
   supplyPanel(up, down);
   writeRoute("supply", id);
   supplyCountries(id, fly);
@@ -272,12 +269,8 @@ function supplySelectCompany(id, fly){
     cy.nodes().forEach(n => n.addClass(made.has(n.id()) ? "sel" : "dim"));
     cy.edges().addClass("dim");
   });
-  if(fly && made.size){
-    const max = cy.maxZoom();
-    cy.maxZoom(1.2);
-    cy.animate({fit: {eles: cy.nodes().not(".dim"), padding: 24}},
-               {duration: 350, complete: () => cy.maxZoom(max)});
-  }
+  supplySheet("peek");
+  if(fly && made.size) supplyFly(cy.nodes().not(".dim"), 350);
   supplyCompanyPanel(id);
   writeRoute("supply", id);
 }
@@ -287,8 +280,78 @@ function supplyClear(){
   supply.selected = "";
   supply.cy.remove(".ctry");
   supply.cy.elements().removeClass("dim hl sel ret");
+  supplySheet("");
   supplyPanel();
   writeRoute("supply", "");
+}
+
+// ---- スマホの詳細シート ----
+// 900px 未満は詳細パネルを下から出すシートにする。"" 閉じる / "peek" 下 40% / "full" ほぼ全画面
+const SUPPLY_SHEET_MQ = matchMedia("(max-width:899px)");
+const SUPPLY_PEEK = 0.4;  // app.css の --supply-peek と同じ
+
+function supplySheet(state){
+  const p = $("#supply-panel");
+  p.classList.toggle("peek", state === "peek");
+  p.classList.toggle("full", state === "full");
+}
+
+function supplySheetSetup(){
+  const p = $("#supply-panel"), body = $("#supply-body"), grip = $("#supply-grip");
+  // 縦のスワイプで開け閉めする。つまみはどこからでも、中身は下がり切っていない（peek）か一番上にいるときだけ
+  let drag = null;
+  p.addEventListener("touchstart", e => {
+    if(!SUPPLY_SHEET_MQ.matches || e.touches.length !== 1) return;
+    const full = p.classList.contains("full");
+    if(!grip.contains(e.target) && full && body.scrollTop > 0) return;
+    drag = {y0: e.touches[0].clientY, dy: 0, full, base: new DOMMatrix(getComputedStyle(p).transform).m42};
+  }, {passive: true});
+  p.addEventListener("touchmove", e => {
+    if(!drag) return;
+    drag.dy = e.touches[0].clientY - drag.y0;
+    // 全画面で中身の上へ指を動かすのはスクロール
+    if(drag.full && drag.dy < 0 && !grip.contains(e.target)){ drag = null; p.style.transform = ""; return; }
+    e.preventDefault();
+    p.style.transition = "none";
+    p.style.transform = `translateY(${Math.max(0, drag.base + drag.dy)}px)`;
+  }, {passive: false});
+  p.addEventListener("touchcancel", () => { drag = null; p.style.transition = p.style.transform = ""; });
+  p.addEventListener("touchend", () => {
+    if(!drag) return;
+    const {dy, full} = drag;
+    drag = null;
+    p.style.transition = p.style.transform = "";
+    if(dy < -40) supplySheet("full");
+    else if(dy > 40) supplySheet(full ? "peek" : "");
+  });
+  grip.onclick = () => supplySheet(p.classList.contains("full") ? "peek" : "full");
+  SUPPLY_SHEET_MQ.addEventListener("change", () => supply.cy.resize());
+}
+
+// マップのうちシートに覆われていない縦の範囲（マップ内の座標）。シートは peek の高さで見積もる
+function supplyMapView(){
+  const {cy} = supply, h = cy.height();
+  if(!SUPPLY_SHEET_MQ.matches || !$("#supply-panel").matches(".peek, .full")) return [0, h];
+  const top = cy.container().getBoundingClientRect().top;
+  const y1 = Math.min(h, window.innerHeight * (1 - SUPPLY_PEEK) - top);
+  return y1 - Math.max(0, -top) < 120 ? [0, h] : [Math.max(0, -top), y1];
+}
+
+// eles が見える範囲に収まるよう寄る。経路が短いと寄りすぎるので拡大は 1.2 まで
+function supplyFly(eles, duration){
+  const {cy} = supply, [y0, y1] = supplyMapView(), pad = 24, bb = eles.boundingBox();
+  const zoom = Math.max(cy.minZoom(), Math.min(1.2,
+    (cy.width() - 2 * pad) / Math.max(bb.w, 1), (y1 - y0 - 2 * pad) / Math.max(bb.h, 1)));
+  cy.stop();
+  cy.animate({zoom, pan: {x: cy.width() / 2 - zoom * (bb.x1 + bb.w / 2), y: (y0 + y1) / 2 - zoom * (bb.y1 + bb.h / 2)}},
+             {duration});
+}
+
+// 押した箱がシートの下に隠れるなら、見える範囲へ上げる
+function supplyReveal(node){
+  const [y0, y1] = supplyMapView(), y = node.renderedPosition().y, half = node.renderedHeight() / 2 + 12;
+  const dy = y + half > y1 ? y1 - half - y : y - half < y0 ? y0 + half - y : 0;
+  if(dy) supply.cy.animate({panBy: {x: 0, y: dy}}, {duration: 250});
 }
 
 function supplyChips(ids){
@@ -300,7 +363,8 @@ function supplyChips(ids){
 }
 
 function supplyPanel(up, down){
-  const p = $("#supply-panel"), id = supply.selected;
+  const p = $("#supply-body"), id = supply.selected;
+  p.scrollTop = 0;
   if(!id){
     p.innerHTML = '<p class="sub">素材を選ぶと、原料と行き先が出ます。</p>';
     return;
@@ -380,21 +444,18 @@ async function supplyCountries(id, fly){
     {group: "edges", classes: "ctry", data: {id: `ctry_${c.key}>${id}`, source: `ctry_${c.key}`, target: id,
      lw: 1 + c.share * 9}},
   ]));
-  if(fly){
-    // 国と素材と直接の前後に寄せる（原油のように下流がマップ全体だと国が読めない大きさになる）
-    const near = cy.nodes(".ctry").union(target).union(target.incomers("node")).union(target.outgoers("node"));
-    // 素材を選んだときの寄せが途中なら止める。止めると上限を戻す complete が走らないので初期値に戻す
-    cy.stop();
-    cy.maxZoom(1.2);
-    cy.animate({fit: {eles: near, padding: 24}}, {duration: 300, complete: () => cy.maxZoom(SUPPLY_MAX_ZOOM)});
-  }
+  // 国と素材と直接の前後に寄せる（原油のように下流がマップ全体だと国が読めない大きさになる）
+  if(fly) supplyFly(cy.nodes(".ctry").union(target).union(target.incomers("node")).union(target.outgoers("node")), 300);
   const box = $("#supply-countries");
   if(!box) return;
+  // マップの国の箱と同じ区切り（上位 5 か国 + その他）でドーナツにする
+  const segs = top.map((c, i) => ({name: c.name, v: c.value, share: c.share, color: SUPPLY_SHARE_COLORS[i]}));
+  if(rest.length) segs.push({name: `その他 ${rest.length} か国`, v: rest.reduce((a, c) => a + c.value, 0),
+                             share: restShare, color: SUPPLY_SHARE_OTHER});
   box.innerHTML = `<h3>輸入元の国（${d.from}〜${d.to}${d.sokuho ? "、最新月は速報" : ""}）</h3>
-    <table class="supply-tbl supply-share-tbl"><tr><th class="l">国</th><th>輸入量</th><th>シェア</th></tr>
-    ${d.countries.slice(0, 10).map(c => `<tr><td class="l">${c.name}</td><td>${fmt(c.value)}</td><td>${(c.share * 100).toFixed(1)}%</td></tr>`).join("")}
-    ${d.countries.length > 10 ? `<tr><td class="l sub">ほか ${d.countries.length - 10} か国</td><td>${fmt(d.countries.slice(10).reduce((a, c) => a + c.value, 0))}</td><td>${(d.countries.slice(10).reduce((a, c) => a + c.share, 0) * 100).toFixed(1)}%</td></tr>` : ""}
-    </table>
+    <div class="supply-pie">${supplyDonut(segs, d.total, d.unit, "国別の輸入シェア")}
+      <table class="supply-tbl supply-share-tbl">${segs.map(s => `<tr title="${fmt(s.v)} ${d.unit}">
+        <td class="l"><i style="background:${s.color}"></i>${s.name}</td><td>${(s.share * 100).toFixed(1)}%</td></tr>`).join("")}</table></div>
     <div class="sub supply-src">${d.unit}・普通貿易統計（品別国別表）の直近 12 か月の合計</div>`;
 }
 
@@ -459,12 +520,8 @@ function supplyShareRows(t){
     .map(([id, v], i) => ({id, v, share: v / total, color: SUPPLY_SHARE_COLORS[i] || SUPPLY_SHARE_OTHER}))};
 }
 
-function supplyDonut(rows, total, unit){
-  // 上位 5 社 + その他。区切りは 2px の白
-  const segs = rows.slice(0, SUPPLY_SHARE_COLORS.length).map(r => ({...r, name: supply.co.byId[r.id].name}));
-  const rest = rows.slice(SUPPLY_SHARE_COLORS.length);
-  if(rest.length) segs.push({v: rest.reduce((a, r) => a + r.v, 0), color: SUPPLY_SHARE_OTHER,
-                             name: `その他 ${rest.length} 社`, share: rest.reduce((a, r) => a + r.share, 0)});
+// 区画は [{name, v, share, color, id?}]。id があれば押すとその企業。区切りは 2px の白
+function supplyDonut(segs, total, unit, aria){
   const R = 56, r0 = 34, C = 64;
   let a0 = -Math.PI / 2;
   const pt = (rad, a) => `${(C + rad * Math.cos(a)).toFixed(2)} ${(C + rad * Math.sin(a)).toFixed(2)}`;
@@ -477,9 +534,20 @@ function supplyDonut(rows, total, unit){
     a0 = a1;
     return `<path d="${d}" fill="${s.color}"${co}><title>${s.name} ${fmt(s.v)} ${unit}（${(s.share * 100).toFixed(1)}%）</title></path>`;
   }).join("");
-  return `<svg class="supply-donut" viewBox="0 0 128 128" role="img" aria-label="会社別シェア">${paths}
-    <text x="64" y="62" text-anchor="middle" class="t1">${fmt(total)}</text>
+  // 中央の合計は穴（直径 68）に収まる桁で。100 万から万、1 億から億
+  const sum = total >= 1e8 ? `${fmt(total / 1e8, 1)}億` : total >= 1e6 ? `${fmt(total / 1e4)}万` : fmt(total);
+  return `<svg class="supply-donut" viewBox="0 0 128 128" role="img" aria-label="${aria}">${paths}
+    <text x="64" y="62" text-anchor="middle" class="t1">${sum}</text>
     <text x="64" y="76" text-anchor="middle" class="t2">${unit}</text></svg>`;
+}
+
+// 上位 5 社 + その他
+function supplyShareSegs(rows){
+  const segs = rows.slice(0, SUPPLY_SHARE_COLORS.length).map(r => ({...r, name: supply.co.byId[r.id].name}));
+  const rest = rows.slice(SUPPLY_SHARE_COLORS.length);
+  if(rest.length) segs.push({v: rest.reduce((a, r) => a + r.v, 0), color: SUPPLY_SHARE_OTHER,
+                             name: `その他 ${rest.length} 社`, share: rest.reduce((a, r) => a + r.share, 0)});
+  return segs;
 }
 
 function supplyShare(t){
@@ -488,7 +556,7 @@ function supplyShare(t){
   return `<div class="supply-share" data-cap="${t.id}">
     <h3>${t.label}のシェア</h3>
     ${t.note ? `<div class="sub supply-hint">${t.note}</div>` : ""}
-    <div class="supply-share-body">${supplyDonut(rows, total, t.unit)}
+    <div class="supply-share-body">${supplyDonut(supplyShareSegs(rows), total, t.unit, "会社別シェア")}
       <table class="supply-tbl supply-share-tbl"><tr><th class="l">${supplyGroup ? "グループ" : "会社"}</th><th>能力</th><th>シェア</th></tr>
       ${rows.map(r => `<tr class="supply-row" data-co="${r.id}"><td class="l"><i style="background:${r.color}"></i>${supply.co.byId[r.id].name}</td>
         <td>${fmt(r.v)}</td><td>${(r.share * 100).toFixed(1)}%</td></tr>`).join("")}</table></div>
@@ -499,7 +567,8 @@ function supplyShare(t){
 
 function supplyCompanyPanel(id){
   const {byId, makesByCo, kids, stakes, trade, capacities} = supply.co, c = byId[id];
-  const p = $("#supply-panel");
+  const p = $("#supply-body");
+  p.scrollTop = 0;
   if(supplyChart){ supplyChart.remove(); supplyChart = null; supplySeries = []; }
   const made = makesByCo[id] || [];
   const order = Object.keys(supply.byId);
