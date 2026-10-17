@@ -519,7 +519,6 @@ def test_http_get_aia_on_incomplete_chain() -> None:
         _fail(f"aia calls: {aia.call_count}")
     if contexts != [None, dummy]:
         _fail(f"contexts: {contexts}")
-    # chain 欠落は UA を変えても直らないので 1 UA で打ち切る
     if len(contexts) != 2:
         _fail(f"should not fall back to second UA: {len(contexts)}")
 
@@ -547,7 +546,7 @@ def test_retry_after_seconds_and_backoff() -> None:
         "Too Many Requests",
         "Wed, 21 Oct 2015 07:28:07 GMT",
     )
-    got = retry_after_seconds(http_date, now=1445412480.0)  # 07:28:00 GMT
+    got = retry_after_seconds(http_date, now=1445412480.0)
     if got != 7.0:
         _fail(f"retry-after http-date: {got}")
     bare = HTTPError("https://example.test/", 429, "Too Many Requests", hdrs=None, fp=None)

@@ -339,7 +339,6 @@ def test_payloads_mixed_past_and_unfetched() -> None:
             _fail(mixed["scheduled"])
         if mixed["scheduled"][0]["name"] != "トヨタ自動車":
             _fail(mixed["scheduled"][0])
-        # 業種チップ用。マスタに無い銘柄は null
         if mixed["scheduled"][0]["sector33"] != "輸送用機器" or mixed["actuals"][0]["sector33"] is not None:
             _fail(mixed)
         if mixed["scheduled"][0]["periods"] != [{"fq": "2Q", "fye": "0331", "label": "FY27.3"}]:

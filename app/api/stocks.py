@@ -16,7 +16,6 @@ def search(q: str, db: Session = Depends(get_session)):
     q = q.strip()
     if not q:
         return []
-    # 社名はカタカナ表記が多いので、ひらがな入力もカタカナに寄せて引く。社名自体のひらがなは q のままで当たる
     folded = unicodedata.normalize("NFKC", q)
     kata = "".join(chr(ord(ch) + 0x60) if "\u3041" <= ch <= "\u3096" else ch for ch in folded)
     rows = (db.query(Stock).filter(

@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# GitHub Actions から stdin で流して実行する。
-# git pull → 冪等な初期設定 (provision.sh) → venv → migrate → 再起動
-# stock.db は触らない。.env は JQUANTS_API_KEY / ESTAT_APP_ID / MCP_TOKEN / R2_* が渡されたときだけ当該行を更新する。
-# SLACK_WEBHOOK_URL / SLACK_WEBHOOK_URL_{APP,BATCH,INFRA,QUIET} は .env に書かない。provision が /etc/fluent-bit/slack.env へ書く。
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/home/stock/stock-analyzer}"
@@ -138,7 +134,6 @@ if ! grep -qE '^MCP_TOKEN=.+' "$APP_DIR/.env" 2>/dev/null; then
 fi
 
 write_rclone_conf() {
-  # 値はファイルにだけ書く。stdout に出さない。
   if [ -z "${R2_ACCESS_KEY_ID:-}" ] || [ -z "${R2_SECRET_ACCESS_KEY:-}" ]; then
     return 0
   fi

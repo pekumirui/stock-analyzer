@@ -92,7 +92,6 @@ METRICS = {"生産": "production", "生産数量": "production", "月末在庫":
 
 
 def test_estat_old_layout() -> None:
-    # 2021〜2023 年: AS と ABS が別品目。品目が cat02、月が cat01
     meta = {
         "cat01": {"m1": "2022000101_2022年1月(Jan.)", "m2": "2022000202_2022年2月(Feb.)", "y": "2022000000_2022年(CY)"},
         "cat02": {"a": "製品_0106_ＡＳ樹脂_A_生産_t", "b": "製品_0107_ＡＢＳ樹脂_A_生産_t",
@@ -124,7 +123,6 @@ def test_alternatives_and_units() -> None:
     _eq({(r.material_id, r.metric, r.value, r.unit) for r in rows},
         {("abs", "production", 300.0, "t"), ("tire", "production", 10500.0, "本"),
          ("tire", "inventory", 2000.0, "本")}, "combined ABS, 千本 and '-' as zero")
-    # 速報は二輪が無い: 候補が揃わないので書かない（乗用車だけの過小な合計にしない）
     rows, warnings = seidou_rows(rec[1:2], items=ITEMS, metrics=METRICS, revision=REVISION_SOKUHO, origin="s")
     _eq(rows, [], "incomplete group")
     if not any(w.startswith("tire -") for w in warnings):
@@ -189,7 +187,6 @@ def _book(sheets: dict[str, list[list]]) -> bytes:
 
 
 def test_sekiyu_kakuho() -> None:
-    # 確報の時系列表: 左右 2 ブロック。下の左ブロックは見出しが無く上（原油）の続き
     n = None
     data = _book({"(1)～(3)": [
         [None, "　（１）原油　Crude Oil", None, None, None, "　（単位：kl）", None, "　（２）天然ガス　Natural Gas", None, "（単位：千m3）"],
@@ -302,7 +299,6 @@ def test_sekiyu_sokuho_and_nenpo() -> None:
     _eq([f.name for f in meti_targets(files, done, False)], ["se202607kakji.xlsx", "h2j581011j.xlsx"],
         "final files are skipped once ingested")
 
-    # 令和より前に平成の行がある年報（2021 年版）。平成の行は見出しではない
     old = _book({"２（４）①石油製品月別輸入": [
         [None, "   ①月別輸入 / Import by Month"],
         [None, "年・期・月", None, None, None, "燃料油計", "ナフサ"],
@@ -360,11 +356,9 @@ def test_trade() -> None:
     def cell(code: str, area: str, kind: str, val: str, t: str = "2026000000") -> None:
         v.append({"@cat01": code, "@cat02": kind, "@area": area, "@time": t, "$": val})
 
-    # 原油: 単位1 KL、国を足す
     cell("270900900", "a", "100", "ＫＬ"); cell("270900900", "b", "100", "ＫＬ")
     cell("270900900", "a", "150", "10"); cell("270900900", "b", "150", "5")
-    cell("270900900", "a", "270", "0")  # 未公表月の 0
-    # エチレン: 単位1 が無く 数量2 の KG。国ごとに MT のこともある
+    cell("270900900", "a", "270", "0")
     cell("290121000", "a", "110", "ＫＧ"); cell("290121000", "a", "160", "2000")
     cell("290121000", "b", "100", "ＭＴ"); cell("290121000", "b", "150", "3")
     cell("290121000", "a", "110", "ＫＧ", "2025000000"); cell("290121000", "a", "190", "4000", "2025000000")
@@ -376,7 +370,6 @@ def test_trade() -> None:
     _eq([(r.material_id, r.month, r.value, r.unit, r.source, r.revision) for r in rows],
         [("crude", "2026-01", 15.0, "kl", "trade", 1), ("ethylene", "2025-02", 4.0, "t", "trade", 2),
          ("ethylene", "2026-01", 5.0, "t", "trade", 1)], "trade rows")
-    # 国別: 国を足さず、国コードと国名に分ける
     crows = trade_country_rows(
         flow="import", cat02=cat02, times=times, values=v, last_month=8,
         areas={"a": "137_サウジアラビア", "b": "147_アラブ首長国連邦"},
@@ -439,7 +432,7 @@ def test_prune_and_done() -> None:
         write_rows(db, [
             Row("lpg", "2024-01", "import", "sekiyu", 1.0, "t", 3, "n2024.xlsx"),
             Row("lpg", "2024-01", "export", "sekiyu", 1.0, "t", 3, "n2024.xlsx"),
-            Row("lpg", "2025-01", "import", "sekiyu", 1.0, "t", 3, "n2025.xlsx"),  # 項目を足す前に取り込んだ年
+            Row("lpg", "2025-01", "import", "sekiyu", 1.0, "t", 3, "n2025.xlsx"),
             Row("lpg", "2024-01", "production", "sekiyu", 1.0, "t", 2, "k2024.xlsx"),
         ])
         _eq(sekiyu_done(db, items, files), {"n2024.xlsx", "k2024.xlsx"},
@@ -466,7 +459,6 @@ def test_apparent_and_payload() -> None:
          ("export", "t"), ("apparent", "t")], "series order")
     _eq(p["series"][-1]["points"], [["2025-01", 105.0, 2], ["2025-02", 135.0, 1]], "apparent revision is the minimum")
 
-    # 貿易統計は 0 の月を保存しない。公表済みの月は 0 で埋め、未公表の月と石油統計の系列は埋めない
     rows = [SimpleNamespace(metric="export", unit="t", month="2023-10", value=1.0, source="trade", revision=2),
             SimpleNamespace(metric="import", unit="t", month="2025-01", value=9.0, source="trade", revision=2),
             SimpleNamespace(metric="import", unit="kl", month="2025-01", value=5.0, source="sekiyu", revision=2)]

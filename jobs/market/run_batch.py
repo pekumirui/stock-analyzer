@@ -35,7 +35,6 @@ def main():
         if args.no_recompute:
             pass
         elif n_new == 0 and analytics.indicators_current(db):
-            # 早朝の回など、取り込むものが無く前回の再計算も済んでいるとき
             print("新しい株価・決算が無いので再計算をスキップ")
         else:
             px = analytics.price_frame(db)

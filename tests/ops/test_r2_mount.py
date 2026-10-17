@@ -14,7 +14,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-# 月次 sidecar の切断テストは tests/monthly の fixture を使う
 sys.path.insert(0, str(ROOT / "tests" / "monthly"))
 
 from jobs._r2common import (  # noqa: E402

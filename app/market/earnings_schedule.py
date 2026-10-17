@@ -110,7 +110,6 @@ class PeriodView:
     sch_date: date
 
     def json(self) -> dict:
-        # 実績の fy_label と同じ FY27.3 形式。年は sch_date から決める
         end = fiscal_year_end(self.fq, self.fye, self.sch_date)
         return {"fq": self.fq.value, "fye": self.fye.raw, "label": f"FY{end.year % 100:02d}.{end.month}"}
 

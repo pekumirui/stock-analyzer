@@ -47,7 +47,6 @@ SECTION_UNAME = "uname -r"
 SECTION_OS_RELEASE = "/etc/os-release"
 SECTION_RCLONE = "rclone version"
 
-# pip freeze の VCS URL に混ざる認証と、出力に紛れた秘密らしい行だけ落とす。
 _CRED_URL_RE = re.compile(r"(://[^/\s:@]+):([^/\s@]+)@")
 _SECRET_LINE_RE = re.compile(
     r"(?i)\b("

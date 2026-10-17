@@ -53,7 +53,6 @@ def test_config_is_valid() -> None:
     by_id = {m["id"]: m for m in g["materials"]}
     if "crude" not in by_id or by_id["crude"]["kind"] != "raw":
         _fail("crude oil must be a raw material")
-    # 合流: PET 樹脂はエチレン系 (EG) とキシレン系 (PTA) の 2 本から作られる
     pet_inputs = {a for a, b in g["flows"] if b == "pet"}
     if pet_inputs != {"eg", "pta"}:
         _fail(f"pet inputs: {pet_inputs}")
@@ -89,7 +88,6 @@ SCRAP = {"id": "scrap", "name": "スクラップ", "kind": "recycled"}
 def test_recycled_and_returns() -> None:
     base = [RAW, MID, PROD, SCRAP]
     flows = [["crude", "naphtha"], ["naphtha", "bag"], ["scrap", "naphtha"]]
-    # 回収（bag → scrap）は flows と別なので naphtha → bag → scrap → naphtha でも循環にしない
     g = validate_supply_chain({"materials": base, "flows": flows, "returns": [["bag", "scrap"]]})
     if g["returns"] != [["bag", "scrap"]]:
         _fail(g["returns"])
@@ -146,7 +144,6 @@ def _rejects_co(data: object, needle: str) -> None:
 def test_companies_config_is_valid() -> None:
     d = load_companies()
     by_id = {c["id"]: c for c in d["companies"]}
-    # 50% を超える出資者が親になる（PS ジャパンは旭化成 62%）
     if by_id["psj"]["parent_id"] != "asahikasei" or by_id["mcae"]["parent_id"] is not None:
         _fail(f"parent from owners: {by_id['psj']} {by_id['mcae']}")
     eth = next(t for t in d["capacities"] if t["id"] == "ethylene")
@@ -211,7 +208,7 @@ def test_country_payload() -> None:
     def row(month: str, code: str, name: str, value: float, rev: int = 2, unit: str = "kl") -> R:
         return R(month=month, country=code, country_name=name, value=value, unit=unit, revision=rev)
 
-    rows = [row("2024-07", "137", "サウジアラビア", 999.0),  # 13 か月前は外れる
+    rows = [row("2024-07", "137", "サウジアラビア", 999.0),
             row("2024-08", "137", "サウジアラビア", 30.0), row("2025-07", "147", "アラブ首長国連邦", 60.0),
             row("2025-07", "137", "サウジアラビア", 10.0, rev=1)]
     d = country_payload(rows, "crude", "import")

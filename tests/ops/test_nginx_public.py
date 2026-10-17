@@ -156,7 +156,6 @@ def check_routes(base: str) -> None:
     want("/api/v1/tables", 200, "app:GET:")
     want("/api/v1/tables", 403, method="POST")
     want("/api/v1/tables/72030/2026", 200, "app:GET:")
-    # 書き込みの経路は公開の location に当たらず、認証の内側
     want("/api/v1/tables/72030/2026/elements", 401, method="POST")
     want("/static/js/monthly.js", 200, "app:GET:")
     want("/robots.txt", 200, "app:GET:")

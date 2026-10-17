@@ -1,11 +1,8 @@
-// APIは円で返す。決算表の金額表示だけ百万円に換算する
 const mil = v => v==null ? "–" : fmt(v/1e6, 0);
-// 増減率セル: 前期が赤字/ゼロだと比率に意味がないので状態バッジで出す
 const GST = {turn_profit:["黒転","up"], turn_loss:["赤転","dn"], loss:["赤継",null]};
 function gc(c){
   if(!c || c.state==="na") return "–";
   if(c.state==="up" || c.state==="down"){
-    // 2倍以上は株たんと同じく倍数表記 (420% → 5.2倍)
     if(c.pct != null && c.pct >= 100) return `<span class="pos">${fmt(c.pct/100+1,1)}倍</span>`;
     return pct(c.pct);
   }
@@ -35,7 +32,6 @@ function calClose(){
 }
 function calToggle(){ $("#cal-pop").hidden ? calOpen() : calClose(); }
 function calMove(d){ calM+=d; if(calM>12){calM=1;calY++} if(calM<1){calM=12;calY--} renderCal(); }
-// 初回の open が API を待って空の枠を見せないよう、月の件数を覚えておき先に描く。open のたびに取り直す
 const calCells = {}, calReq = {};
 function fetchCal(mm){
   calReq[mm] ??= api(`/api/earnings/calendar?month=${mm}&today=${todayISO()}`)
@@ -44,7 +40,6 @@ function fetchCal(mm){
   return calReq[mm];
 }
 const calMonth = () => `${calY}-${String(calM).padStart(2,"0")}`;
-// 今月の件数を先に引く。boot が最初の一覧の後に呼ぶ
 function calPrefetch(){ fetchCal(calMonth()).catch(()=>{}); }
 async function renderCal(){
   const mm = calMonth();
@@ -84,21 +79,15 @@ document.addEventListener("click", e => {
 });
 
 const MET = [["net_sales","売上"],["operating_profit","営利"],["ordinary_profit","経利"],["profit","純利"]];
-// 既出期間の再提出で損益が変わったもの (値がそのままの再提出はAPI側で除外済み)
 const revBadge = r => r.restated ? `<span class="qb qb-rev" title="既出期間の訂正">訂正</span>` : "";
-// 決算表の 3か月と同じく Q は決算期の下段のチップ。FY は 4Q と書く
 const listQ = q => q ? qBadge({kind:"single", period:q}) : "";
 const under = html => `<span class="g">${html || " "}</span>`;
 const shortName = n => { const s = String(n||""); return s.length>5 ? s.slice(0,5) : s; };
-// 銘柄名の下にコード。横幅を金額に回す
 const nameCell = r => `<td class="l name pin2" title="${r.name}">${shortName(r.name)}${under(`<span class="sub">${r.code.slice(0,4)}</span>`)}</td>`;
-// 上段に金額、下段に増減率 (決算表と同じ)
 const valCell = (vals, g, k, i) => `<td class="num ${i?'':'grp'}">${amt((vals||{})[k])}${under(gc(g && g[k]))}</td>`;
-// 列見出しが「決算期」なので FY 接頭辞は幅の無駄
 const fyShort = s => String(s||"").replace(/^FY/, "");
 let earnBoard={kind:"scheduled", actuals:[], scheduled:[]}, selKey=null, detailReq=0;
 let earnDay="", earnToday="";
-// 業種チップの選択。"" はすべて。日を変えたら戻す
 let earnSector="";
 const sectorOf = r => r.sector33 || "未分類";
 const inSector = r => !earnSector || sectorOf(r) === earnSector;
@@ -115,11 +104,10 @@ function flatRows(){
   return actuals.concat(scheduled);
 }
 
-// want: 検索から来たとき、その開示 (なければその銘柄) の行を選ぶ
 async function selectDate(ds, want){
   selDate = ds;
   earnSector = "";
-  calClose();                                  // 格子は calOpen が描く。閉じたまま月の件数を引かない
+  calClose();
   const today = todayISO();
   earnDay = ds;
   earnToday = today;
@@ -156,7 +144,6 @@ async function selectDate(ds, want){
   else clearDetail(emptyCopy(ds, today, board));
 }
 
-// 件数の多い業種から並べる。件数は銘柄単位 (同じ銘柄の複数期は 1)
 function renderGroups(){
   const codes = {};
   for(const r of (earnBoard.actuals||[]).concat(earnBoard.scheduled||[]))
@@ -190,7 +177,6 @@ function renderList(){
   markSel();
 }
 
-// 時刻・決算期・銘柄は横スクロールでも残す。左端は列幅の実測で決める
 function pinCols(){
   const t = $("#earn-tbl");
   const ths = t ? t.querySelectorAll("thead tr:first-child th") : [];
@@ -207,7 +193,6 @@ function scrollToSel(){
 }
 
 function tableHtml(actuals, scheduled){
-  // 2段ヘッダにして列幅を詰める (1段だと「売上QoQ」等で8列が横に収まらない)
   const sub = () => MET.map(([k,l],i) => `<th class="${i?'':'grp'}">${l}</th>`).join("");
   const dash = MET.map((_,i)=>`<td class="num ${i?'':'grp'}">–</td>`).join("");
   let h = `<table id="earn-tbl"><thead>`
@@ -216,7 +201,6 @@ function tableHtml(actuals, scheduled){
         + `<th colspan="4" class="grp">3か月 / QoQ</th><th colspan="4" class="grp">累計 / YoY</th></tr>`
         + `<tr>${sub()}${sub()}</tr></thead><tbody>`;
   for(const r of actuals){
-    // 1QのQoQは前事業年度の4Q単独が相手になる (季節性が断絶するため注記する)
     const tip = r.period==="1Q" ? ' title="前期4Q単独比"' : "";
     h += `<tr data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">`
        + `<td class="pin0">${(r.disclosed_time||"").slice(0,5)}${under(revBadge(r))}</td>`
@@ -335,7 +319,6 @@ function finBadge(r){
   return qBadge(r);
 }
 function qBadge(r){
-  // 4Q も FY と同じ通期累計。バッジは Q単独行だけ (累計の通期に 4Q を付けない)
   let q = r.period || "";
   if(r.kind==="single" && q==="FY") q = "4Q";
   if(r.kind!=="single" && (q==="4Q" || q==="FY")) return "";
@@ -347,7 +330,7 @@ function renderFin(el, rows, d){
     el.innerHTML = `<tr><td class="l sub">${d && d.notes && d.notes.single_unavailable ? "算出不能 (決算期変更など)" : "データなし"}</td></tr>`;
     return;
   }
-  const dim = d && d.notes && d.notes.no_ordinary;          // IFRS/米国基準は経常利益が無い
+  const dim = d && d.notes && d.notes.no_ordinary;
   const dc = k => k==="ordinary_profit" && dim ? " dim" : "";
   let h = `<thead><tr><th class="l">決算期</th>`
         + FIN_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
@@ -399,7 +382,6 @@ $("#earn-groups").addEventListener("click", e => {
   if(b) setSector(b.dataset.sector);
 });
 
-// 銘柄検索: 直近の実績開示の日へ一覧を移し、その行を開く。実績が無ければ株価だけ
 let earnSearchReq = 0;
 function hideEarnSuggest(){ $("#earn-suggest").style.display = "none"; $("#earn-suggest").innerHTML = ""; }
 async function refreshEarnSuggest(){

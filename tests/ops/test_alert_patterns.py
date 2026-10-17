@@ -705,7 +705,6 @@ def test_stub_sudo_channel_env_after_sudoers_refresh(tmp_path: Path) -> None:
 
 
 def test_slack_payload_jst_danger() -> None:
-    # 2026-09-18 00:02:41 UTC == 09:02:41 JST
     epoch = 1789689761
     if format_jst(epoch) != "2026-09-18 09:02:41 JST":
         _fail(f"JST clock: {format_jst(epoch)!r}")

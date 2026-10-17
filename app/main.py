@@ -18,7 +18,6 @@ from .monthly.public import (
 )
 
 app = FastAPI(title="株式分析ツール")
-# 古いスキーマのDBのまま起動すると個々のAPIが実行時エラーになるため、起動時に検査する
 init_db(strict=True)
 # nginx は JSON を圧縮しない。決算速報のピーク日は一覧が数百 KB になる
 app.add_middleware(GZipMiddleware, minimum_size=1024)

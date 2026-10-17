@@ -33,7 +33,6 @@ class DailyPrice(Base):
     __tablename__ = "daily_prices"
     code = Column(String(5), primary_key=True)
     date = Column(Date, primary_key=True)
-    # 調整前 (報告時生値)
     open = Column(Float)
     high = Column(Float)
     low = Column(Float)
@@ -41,7 +40,6 @@ class DailyPrice(Base):
     volume = Column(Float)
     turnover = Column(Float)
     adj_factor = Column(Float, default=1.0)
-    # 調整済 (分割・併合・ライツイシュー遡及調整済。分析は必ずこちらを使う)
     adj_open = Column(Float)
     adj_high = Column(Float)
     adj_low = Column(Float)
@@ -377,13 +375,13 @@ class MaterialMonthly(Base):
     """
     __tablename__ = "material_monthly"
     material_id = Column(String, primary_key=True)
-    month = Column(String(7), primary_key=True)  # YYYY-MM
+    month = Column(String(7), primary_key=True)
     metric = Column(String, primary_key=True)     # production / import / export / inventory / shipment
     source = Column(String, primary_key=True)     # seidou:<報告番号> / trade
     value = Column(Float, nullable=False)
     unit = Column(String, nullable=False)          # t / kl / 本 など。換算しない
     revision = Column(Integer, nullable=False)     # 1 速報 / 2 確報 / 3 年報（年間補正後）。下がる上書きはしない
-    origin = Column(String)                        # e-Stat の表 ID か Excel のファイル名
+    origin = Column(String)
     is_estimate = Column(Boolean, nullable=False, default=False)
     updated_at = Column(DateTime)
 
@@ -395,14 +393,14 @@ class MaterialTradeCountry(Base):
     """
     __tablename__ = "material_trade_country"
     material_id = Column(String, primary_key=True)
-    month = Column(String(7), primary_key=True)    # YYYY-MM
+    month = Column(String(7), primary_key=True)
     flow = Column(String, primary_key=True)        # import / export
     country = Column(String(3), primary_key=True)  # 貿易統計の国コード（137 = サウジアラビア）
     country_name = Column(String, nullable=False)
     value = Column(Float, nullable=False)
     unit = Column(String, nullable=False)
     revision = Column(Integer, nullable=False)     # 1 速報 / 2 確報。下がる上書きはしない
-    origin = Column(String)                        # e-Stat の表 ID
+    origin = Column(String)
     updated_at = Column(DateTime)
 
 
@@ -417,8 +415,8 @@ class PtsSnapshot(Base):
     rank = Column(Integer, nullable=False)
     name = Column(String)
     market = Column(String)
-    base_close = Column(Float)                       # 通常取引の終値
+    base_close = Column(Float)
     pts_price = Column(Float)
-    pts_chg_pct = Column(Float)                      # 終値比 %
+    pts_chg_pct = Column(Float)
     volume = Column(Integer)
     __table_args__ = (Index("ix_pts_session_ranking", "session_date", "ranking"),)

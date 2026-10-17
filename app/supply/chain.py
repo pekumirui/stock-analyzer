@@ -17,7 +17,7 @@ from ..config import SUPPLY_CHAIN_PATH, SUPPLY_COMPANIES_PATH
 from .material_stats import TRADE_SOURCE
 
 KINDS = ("raw", "mid", "prod", "recycled")
-SOURCE_KINDS = ("raw", "recycled")  # flows の入力を持たない
+SOURCE_KINDS = ("raw", "recycled")
 _ID_RE = re.compile(r"^[a-z][a-z0-9_]*$")
 
 
@@ -102,7 +102,6 @@ def validate_supply_chain(data: Any) -> dict[str, list]:
         returned[dst].append(src)
 
     for mid, kind in ids.items():
-        # 原料は地球から直接採るもの、リサイクル資源は使い終わった製品から回収するもの。どちらも flows の入力は持たない
         if kind in SOURCE_KINDS and parents[mid]:
             raise SupplyChainError(f"{mid}: {kind} material must not have inputs ({parents[mid]})")
         if kind not in SOURCE_KINDS and not parents[mid]:
@@ -297,7 +296,6 @@ def validate_companies(data: Any, material_ids: set[str]) -> dict[str, Any]:
     for t in out_caps:
         for cid, _ in t["rows"]:
             for mat in t["materials"]:
-                # 能力表に載っていれば出典つきの makes。明示の組が出典なしなら能力表の出典で埋める
                 if makes.get((cid, mat)) is None:
                     makes[(cid, mat)] = t["source"]
 

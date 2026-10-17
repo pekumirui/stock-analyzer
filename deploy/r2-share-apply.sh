@@ -1,6 +1,4 @@
 #!/bin/bash
-# rclone R2 user mount: copy units, then restart only when mount-related files changed.
-# Sourced from provision.sh (root). Safe to source in tests (no EUID check).
 # Restart/stop of r2-share.service unmounts FUSE and kills in-flight jobs (#549).
 
 r2_file_hash() {
@@ -21,7 +19,6 @@ r2_fingerprint() {
   } | sha256sum | awk '{print $1}'
 }
 
-# $1 mount_changed 0|1  $2 active 0|1  → keep | start | restart
 r2_share_plan() {
   local mount_changed="${1:-0}"
   local active="${2:-0}"

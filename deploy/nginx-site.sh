@@ -1,15 +1,4 @@
 # shellcheck shell=bash
-# nginx のサイト設定の正本。deploy/provision.sh が source して /etc/nginx に書く。
-# tests/ops/test_nginx_public.py も同じものを組み立て、nginx -t と振る舞いを見る。
-#
-# 入力（source する前に決める）:
-#   HTPASSWD      Basic 認証のファイル。あれば /app などに認証を付ける
-#   DOMAIN / WWW / SERVER_NAMES / CERT_LIVE / ACME_ROOT
-# 任意（テストが差し替える）:
-#   ACCESS_LOG    既定 /var/log/nginx/stock-analyzer.access.log
-#   APP_UPSTREAM  既定 127.0.0.1:8000（uvicorn）
-#   MCP_UPSTREAM  既定 127.0.0.1:8010（ログ MCP）
-# 出力: render_limit_conf / render_log_conf（conf.d 用）、render_http_only / render_https（サイト）
 
 ACCESS_LOG="${ACCESS_LOG:-/var/log/nginx/stock-analyzer.access.log}"
 APP_UPSTREAM="${APP_UPSTREAM:-127.0.0.1:8000}"
@@ -30,8 +19,6 @@ limit_conn_zone $binary_remote_addr zone=addr:10m;
 EOF
 }
 
-# 処理時間を残すアクセスログ。rt=nginx 全体 / urt=uvicorn（秒）。MCP の nginx_logs が読む。
-# 既定の access.log と書式が混ざらないよう、アプリの server だけ別ファイルへ書く
 render_log_conf() {
   cat <<'EOF'
 log_format timed '$remote_addr [$time_local] "$request" $status $body_bytes_sent '

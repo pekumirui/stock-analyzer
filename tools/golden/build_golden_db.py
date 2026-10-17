@@ -36,7 +36,6 @@ from app.models import Base  # noqa: E402
 
 OUT = ROOT / "tests" / "golden" / "db"
 CODES = OUT / "codes.txt"
-# 銘柄で絞る表。それ以外の市場の表は全件
 BY_CODE = ("daily_prices", "statements", "earnings_events", "earnings_date_pubs")
 MARKET = ("stocks", "topix", "earnings_date_fetches", *BY_CODE)
 MONTHLY = ("monthly_issuers", "monthly_tables", "monthly_elements", "monthly_values")

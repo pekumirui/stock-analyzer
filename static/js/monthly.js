@@ -6,7 +6,6 @@ let MONTHLY_ROW_ORDER = {};
 let _monthlyRowOrderReady = null;
 const MONTHLY_SEGMENT_TAIL_BASE = 10000;
 let monthlyIrCodes = null;
-// 同じ節に金額と前年比があれば 1 行にまとめ、金額の下に前年比を出す。色は前年比。
 let monthlyTlOpen = new Set();
 // セルのポップアップで同じ月を並べる最初の暦年（それより前は取込済みと未取込が混ざる）。
 const MONTHLY_POPUP_MIN_YEAR = 2024;

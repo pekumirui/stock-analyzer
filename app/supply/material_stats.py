@@ -59,8 +59,6 @@ def parse_num(raw: Any) -> float | None:
         return None
 
 
-# ---------- 対応表 ----------
-
 def product_groups(item: dict) -> list[list[str]]:
     """`products` は品名の並び、または候補の並び（年や速報で品目の分け方が違うとき）。正規化した候補の並びで返す"""
     products = item.get("products") or []
@@ -159,8 +157,6 @@ def mapped_metrics(data: dict) -> list[tuple[str, str, str]]:
     return list(dict.fromkeys(out))
 
 
-# ---------- 行 ----------
-
 @dataclass(frozen=True)
 class Row:
     material_id: str
@@ -170,7 +166,7 @@ class Row:
     value: float
     unit: str
     revision: int
-    origin: str  # e-Stat の表 ID や Excel のファイル名
+    origin: str
 
     def as_dict(self, now: datetime) -> dict:
         return {
@@ -203,10 +199,10 @@ class CountryRow:
 class SeidouRecord(NamedTuple):
     """生産動態統計の 1 セル。表の形（e-Stat / Excel）によらない"""
     report: str
-    product: str  # NFKC の品名
-    metric: str   # 統計の指標名（生産 / 月末在庫 …）
+    product: str
+    metric: str
     unit: str
-    month: str    # YYYY-MM
+    month: str
     raw: Any
 
 

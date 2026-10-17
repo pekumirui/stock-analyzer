@@ -1,4 +1,3 @@
-// PTS タブ。株探の夜間 PTS ランキング（取得時刻ごと）と翌営業日の始値とのギャップ
 const ptsEsc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 const ptsMd = iso => iso ? `${+iso.slice(5,7)}/${+iso.slice(8,10)}` : "–";
 const ptsFollow = v => v==null ? "–" : fmt(v,2);

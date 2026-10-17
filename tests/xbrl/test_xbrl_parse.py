@@ -255,7 +255,6 @@ def test_infer_accounting_standard_from_namespaces() -> None:
     got = infer_accounting_standard_from_namespaces([ifrs_fact], title_standard=None)
     if got != "IFRS":
         _fail(f"jpigp namespace → IFRS: {got}")
-    # Title wins over namespace
     got2 = infer_accounting_standard_from_namespaces([ifrs_fact], title_standard="JPGAAP")
     if got2 != "JPGAAP":
         _fail(f"title should win: {got2}")
@@ -624,7 +623,6 @@ def test_fy_end_from_pl_when_dei_missing(tmp: Path) -> None:
             current_end="2026-06-30",
             current_start="2026-04-01",
             filing_instant="2026-08-10",
-            # no dei_period_end
         )
         zpath = write_zip(tmp, "7203/flash_pl.zip", data)
         filing = parse_zip_into_filing(

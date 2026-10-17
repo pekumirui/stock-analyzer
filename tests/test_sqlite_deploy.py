@@ -63,7 +63,6 @@ def test_engine_pragmas() -> None:
         _fail(f"journal_mode={mode!r}")
     if int(timeout) < 30000:
         _fail(f"busy_timeout={timeout!r}")
-    # NORMAL == 1
     if int(sync) != 1:
         _fail(f"synchronous={sync!r}")
 

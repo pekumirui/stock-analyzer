@@ -1,6 +1,4 @@
 #!/bin/bash
-# stdout/stderr を /var/log/app/<stem>.log へ。行頭は JST。ジョブの TZ は変えない。
-# CRON_APP_DIR / CRON_LOG_DIR はテスト用。本番 cron は未設定。
 set -u
 APP_DIR=${CRON_APP_DIR:-/home/stock/stock-analyzer}
 LOG_DIR=${CRON_LOG_DIR:-/var/log/app}

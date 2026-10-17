@@ -47,7 +47,6 @@ OUTPUT_COLS = (
     "tree_path", "tree_metric",
 )
 COLS = INPUT_COLS + OUTPUT_COLS
-# 1 か所の差分の表示上限。全件は --all
 SHOW = 200
 
 

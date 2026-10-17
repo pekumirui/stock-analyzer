@@ -255,8 +255,6 @@ def disclosure_state(hist: list[Statement], stmt: Statement) -> str:
     if not cands:
         return "first"
     prev = max(cands, key=lambda s: (s.disclosed_date, s.disclosure_no))
-    # 予想値は比べない: 予想のみの変更は EarnForecastRevision として一覧から除外済みで、
-    # 修正率は quarter_summary.revision_pct が別途拾う
     same = all(getattr(prev, k) == getattr(stmt, k) for k in PL_KEYS)
     return "duplicate" if same else "restated"
 
@@ -549,7 +547,6 @@ def quarter_summary(db: Session, stmt: Statement, hist: list[Statement] | None =
             yoy_single = growth_map(single, single_metrics(hist, prev_fy_end,
                                                            stmt.type_of_period, tol))
 
-    # 予想修正: 同一事業年度の直前開示の通期営業利益予想と比較
     revised_up = False
     revision_pct = None
     prev_fc = None

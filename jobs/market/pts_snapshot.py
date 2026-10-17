@@ -24,7 +24,6 @@ def main() -> int:
             stats = snapshot_all(db, http)
     finally:
         db.close()
-    # 3 本とも取れなければ非ゼロ（cron-run.sh が fail を残す）
     return 1 if stats and all(n < 0 for n in stats.values()) else 0
 
 

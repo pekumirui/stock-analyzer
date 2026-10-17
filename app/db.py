@@ -139,7 +139,7 @@ def missing_columns() -> dict[str, list[str]]:
     out: dict[str, list[str]] = {}
     for table in Base.metadata.sorted_tables:
         if table.name not in existing:
-            continue  # 未作成なら create_all が正しく作る
+            continue
         have = {c["name"] for c in insp.get_columns(table.name)}
         lack = [c.name for c in table.columns if c.name not in have]
         if lack:

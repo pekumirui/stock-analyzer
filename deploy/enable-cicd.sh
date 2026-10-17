@@ -1,15 +1,7 @@
 #!/usr/bin/env bash
-# 一度だけ root で実行する。あとは GitHub Actions が provision.sh で初期設定する。
-#
-# 手元:
-#   ssh-keygen -t ed25519 -C "github-actions@stock-analyzer" -f stock-analyzer-deploy -N ""
-#   # 秘密鍵 → GitHub Actions secret VPS_SSH_KEY
-#   ssh -t root@YOUR_HOST 'bash -s' < deploy/enable-cicd.sh   # 公開鍵は引数でも可
-#   ssh -t root@YOUR_HOST "bash /home/stock/stock-analyzer/deploy/enable-cicd.sh '$(cat stock-analyzer-deploy.pub)'"
 set -euo pipefail
 
 STOCK_USER="${STOCK_USER:-stock}"
-# プライベートリポジトリなので HTTPS では clone / pull できない
 REPO_URL="${REPO_URL:-git@github.com:pekumirui/stock-analyzer.git}"
 export DEBIAN_FRONTEND=noninteractive
 

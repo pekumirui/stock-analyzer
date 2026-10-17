@@ -12,7 +12,6 @@ MONTHLY_TABLES = (
     "monthly_elements",
     "monthly_values",
 )
-# 本番に無いこともある（作られる前のデプロイ）。両方にあるときだけ写す
 OPTIONAL_TABLES = ("monthly_element_sources",)
 DELETE_ORDER = (
     "monthly_element_sources",

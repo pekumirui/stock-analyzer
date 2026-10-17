@@ -219,7 +219,6 @@ def test_write_latest_and_history(tmp_path: Path) -> None:
             _fail(f"{name} missing from written file")
     if list(dest.rglob("*.part")):
         _fail("leftover .part files")
-    # overwrite latest; same-day history is replaced
     rc2 = run(
         dest,
         now=WHEN.replace(minute=41),
