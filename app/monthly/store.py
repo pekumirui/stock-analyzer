@@ -9,7 +9,7 @@ from .ingest import MonthlyIngestError
 
 
 _JST = ZoneInfo("Asia/Tokyo")
-SOURCE_VIAS = frozenset({"api", "doc", "ir_html", "ir_xls", "legacy"})
+SOURCE_VIAS = frozenset({"api", "doc", "ir_html", "ir_json", "ir_xls", "legacy"})
 
 
 def record_element_source(

@@ -1,12 +1,15 @@
-"""IR の公開 JSON を monthly ingest JSON にする。
+"""IR の公開 JSON を monthly ingest して loopback POST する。
 
 使い方:
   python jobs/monthly/ir_monthly_json_ingest.py --json tests/monthly/testdata/7649_monthlyreport.json --dry-run
   python jobs/monthly/ir_monthly_json_ingest.py --code 7649 --dry-run
+  python jobs/monthly/ir_monthly_json_ingest.py --code 7649
 
 対象とフィールドの正本は config/monthly/ir_monthly_json.json。
-JSON を GET して ingest 形を書くだけ。loopback POST しない。crontab に載せない。
-銘柄クラスは作らない。HTML ingest の cron には混ぜない。
+year は送らない。値の無い月は送らない（null で既存セルを消さない）。
+銘柄クラスは作らない。HTML ingest のレジストリには混ぜない。
+
+VPS cron (JST, with ir_monthly_html_ingest.py): 10:30 / 16:30
 """
 from __future__ import annotations
 
@@ -26,11 +29,14 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from jobs.monthly.ir_monthly_html_ingest import UrllibClient, assert_loopback_base  # noqa: E402
 from jobs.monthly.ir_monthly_r2 import http_get  # noqa: E402
 from jobs.monthly.tdnet_monthly_r2 import display_code  # noqa: E402
 
 CODE = "7649"
+DEFAULT_BASE_URL = "http://127.0.0.1:8000"
 DEFAULT_JSON_CONFIG = ROOT / "config" / "monthly" / "ir_monthly_json.json"
+SUMMARY_LABEL = "ir_monthly_json_ingest"
 _AS_OF_RE = re.compile(r"(19\d{2}|20\d{2})-(\d{2})-(\d{2})")
 _FW = str.maketrans("０１２３４５６７８９", "0123456789")
 
@@ -355,22 +361,109 @@ def fetch_payload(url: str, *, getter: Callable[[str], bytes] = http_get) -> dic
     return data
 
 
+def _row_values_without_nulls(months: Sequence[int], values_raw: Any) -> dict[str, float]:
+    """null は既存セルを消すので送らない。months に重複が無いとき {月: 値}。"""
+    if isinstance(values_raw, dict):
+        out: dict[str, float] = {}
+        for key, val in values_raw.items():
+            if val is None:
+                continue
+            out[str(int(key) if str(key).isdigit() else key)] = val
+        return out
+    if not isinstance(values_raw, list):
+        raise ValueError("values must be a list or object")
+    if len(values_raw) != len(months):
+        raise ValueError("values length must match months")
+    return {
+        str(month): val
+        for month, val in zip(months, values_raw)
+        if val is not None
+    }
+
+
+def ingest_body(payload: Mapping[str, Any]) -> dict[str, Any]:
+    months = list(payload["months"])
+    rows: list[dict[str, Any]] = []
+    for row in payload["rows"]:
+        values = _row_values_without_nulls(months, row.get("values"))
+        if not values:
+            continue
+        item: dict[str, Any] = {
+            "element": row["element"],
+            "unit": row["unit"],
+            "values": values,
+        }
+        if row.get("force") is True:
+            item["force"] = True
+        rows.append(item)
+    return {
+        "months": months,
+        "rows": rows,
+        "as_of": payload["as_of"],
+        "via": "ir_json",
+    }
+
+
+def post_ingest(
+    origin: str,
+    payload: Mapping[str, Any],
+    *,
+    code: str = CODE,
+    client: UrllibClient | None = None,
+) -> tuple[int, Any]:
+    http = client if client is not None else UrllibClient()
+    return http.post_json(
+        f"{origin}/api/v1/tables/{display_code(code)}/ingest",
+        ingest_body(payload),
+    )
+
+
+def _print_done(posted: int, skipped: int, failed: int) -> None:
+    print(
+        f"{SUMMARY_LABEL} done posted={posted} skipped={skipped} failed={failed}",
+        flush=True,
+    )
+
+
 def run(
     *,
     json_path: Path | None,
     as_of: date | None,
     code: str = CODE,
     getter: Callable[[str], bytes] = http_get,
+    dry_run: bool = False,
+    base_url: str = DEFAULT_BASE_URL,
+    client: UrllibClient | None = None,
 ) -> int:
-    spec = spec_for(code)
-    if json_path is not None:
-        payload = ingest_from_json(json_path, as_of=as_of, spec=spec)
-    else:
-        payload = ingest_from_payload(
-            fetch_payload(spec.url, getter=getter), as_of=as_of, spec=spec,
-        )
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
-    return 0
+    posted = skipped = failed = 0
+    try:
+        spec = spec_for(code)
+        if json_path is not None:
+            payload = ingest_from_json(json_path, as_of=as_of, spec=spec)
+        else:
+            payload = ingest_from_payload(
+                fetch_payload(spec.url, getter=getter), as_of=as_of, spec=spec,
+            )
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
+        if dry_run:
+            skipped = 1
+            _print_done(posted, skipped, failed)
+            return 0
+        origin = assert_loopback_base(base_url)
+        status, body = post_ingest(origin, payload, code=spec.code, client=client)
+        print(json.dumps(body, ensure_ascii=False, indent=2) if not isinstance(body, str) else body)
+        if status == 200:
+            posted = 1
+            _print_done(posted, skipped, failed)
+            return 0
+        failed = 1
+        print(f"fail {spec.code} http={status}", flush=True)
+        _print_done(posted, skipped, failed)
+        return 1
+    except (OSError, ValueError, json.JSONDecodeError, KeyError) as e:
+        print(f"fail {e}", flush=True)
+        _print_done(0, 0, 1)
+        return 1
 
 
 def _parse_as_of_flag(raw: str) -> date:
@@ -381,11 +474,12 @@ def _parse_as_of_flag(raw: str) -> date:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Build monthly ingest JSON from IR CloudFront JSON")
+    ap = argparse.ArgumentParser(description="GET IR CloudFront JSON and POST monthly ingest")
     ap.add_argument("--json", default="", help="path to fixture JSON; omit to GET the spec URL")
     ap.add_argument("--code", default=CODE, help="issuer code (default 7649)")
     ap.add_argument("--as-of", default="", type=str, help="disclosure date YYYY-MM-DD")
-    ap.add_argument("--dry-run", action="store_true", help="print JSON (default; no POST)")
+    ap.add_argument("--dry-run", action="store_true", help="print JSON, do not POST")
+    ap.add_argument("--base-url", default=DEFAULT_BASE_URL, help="loopback origin")
     args = ap.parse_args(argv)
     as_of = _parse_as_of_flag(args.as_of) if args.as_of else None
     json_path = Path(args.json) if args.json else None
@@ -397,11 +491,13 @@ def main(argv: list[str] | None = None) -> int:
     if json_path is not None and not json_path.is_file():
         print(f"error: json not found: {json_path}", flush=True)
         return 2
-    try:
-        return run(json_path=json_path, as_of=as_of, code=args.code)
-    except (OSError, ValueError, json.JSONDecodeError) as e:
-        print(f"fail {e}", flush=True)
-        return 1
+    return run(
+        json_path=json_path,
+        as_of=as_of,
+        code=args.code,
+        dry_run=args.dry_run,
+        base_url=args.base_url,
+    )
 
 
 if __name__ == "__main__":
