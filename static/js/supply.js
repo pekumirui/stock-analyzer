@@ -15,9 +15,10 @@ const SUPPLY_REC_ICON = "data:image/svg+xml;utf8," + encodeURIComponent(
   "<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='#6f4fb0' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'>"
   + "<path d='M10 6a4 4 0 0 1-6.8 2.8'/><path d='M2 6a4 4 0 0 1 6.8-2.8'/><path d='M8.8 1.2v2h-2'/><path d='M3.2 10.8v-2h2'/></svg>");
 const SUPPLY_REC_W = 14;  // 印のぶん箱を広げる
-const SUPPLY_MAX_ZOOM = 3;
+const SUPPLY_FIT_PAD = 16;
 let supplyInit = null;
 let supply = null;
+let supplyFitted = false;
 const SUPPLY_SHARE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"];
 const SUPPLY_SHARE_OTHER = "#b7c0bd";
 const SUPPLY_STATUS = {listed: "上場", private: "非上場", foreign: "海外"};
@@ -42,10 +43,28 @@ async function loadSupply(sel){
     throw e;
   });
   try { await supplyInit; } catch(e){ return; }
-  // 他タブにいる間は display:none で大きさ 0。戻ったときに測り直す
-  supply.cy.resize();
+  supplySyncMap();
   if(sel && supply.byId[sel]) supplySelect(sel, true);
   else if(sel && supply.co.byId[sel]) supplySelectCompany(sel, true);
+}
+
+function supplyMapBox(){
+  const el = $("#supply-map");
+  return !!(el && el.clientWidth && el.clientHeight);
+}
+
+function supplyFitMap(){
+  if(!supply?.cy || !supplyMapBox()) return false;
+  supply.cy.resize();
+  supply.cy.fit(undefined, SUPPLY_FIT_PAD);
+  supplyFitted = true;
+  return true;
+}
+
+function supplySyncMap(){
+  if(!supply?.cy || !supplyMapBox()) return;
+  supply.cy.resize();
+  if(!supplyFitted) supplyFitMap();
 }
 
 async function supplySetup(){
@@ -74,13 +93,14 @@ async function supplySetup(){
     ],
     style: supplyStyle(font),
     layout: {name: "preset"},
-    minZoom: 0.2, maxZoom: SUPPLY_MAX_ZOOM,
+    minZoom: 0.2,
     boxSelectionEnabled: false, autoungrabify: true,
   });
   $("#supply-msg").remove();
   supply = {cy, byId, parents, kids, retFrom, retTo, selected: "", co: supplyCompanyIndex(companies), countries: {}};
   await supplyLayout();
-  cy.fit(undefined, 16);
+  new ResizeObserver(supplySyncMap).observe($("#supply-map"));
+  supplySyncMap();
 
   // ページがピンチで拡大されているとマップが画面を埋め、2 本指をマップが取ってページを縮小できなくなる。
   // 拡大中はマップの拡大・移動を止め、ピンチとスクロールをブラウザに渡す
@@ -97,8 +117,8 @@ async function supplySetup(){
 
   cy.on("tap", "node", e => supplySelect(e.target.id(), false));
   cy.on("tap", e => { if(e.target === cy) supplyClear(); });
-  $("#supply-reset").onclick = () => { supplyClear(); $("#supply-q").value = ""; cy.animate({fit: {padding: 16}}, {duration: 300}); };
-  $("#supply-merge").onchange = async () => { await supplyLayout(); cy.fit(undefined, 16); };
+  $("#supply-reset").onclick = () => { supplyClear(); $("#supply-q").value = ""; cy.animate({fit: {padding: SUPPLY_FIT_PAD}}, {duration: 300}); };
+  $("#supply-merge").onchange = async () => { await supplyLayout(); supplyFitMap(); };
   const names = $("#supply-names"), index = {}, cos = companies.companies;
   const addName = (label, id) => {
     index[label] = id;
@@ -305,7 +325,7 @@ function supplySheetSetup(){
   p.addEventListener("touchend", end);
   p.addEventListener("touchcancel", end);
   grip.onclick = () => supplySheet(false);
-  SUPPLY_SHEET_MQ.addEventListener("change", () => supply.cy.resize());
+  SUPPLY_SHEET_MQ.addEventListener("change", supplySyncMap);
 }
 
 // マップのうちシートに覆われていない縦の範囲（マップ内の座標）
@@ -396,8 +416,7 @@ function supplyShowTab(name){
   else supplyTab = name;
   p.querySelectorAll(".supply-tabs button").forEach(b => b.classList.toggle("on", b.dataset.tab === name));
   p.querySelectorAll(".supply-pane").forEach(el => { el.hidden = el.dataset.pane !== name; });
-  // 隠れている間に描いたグラフは幅 0 で合わせているので、出したときに合わせ直す
-  if(name === "monthly" && supplyChart) requestAnimationFrame(() => supplyChart?.timeScale().fitContent());
+  if(name === "monthly") supplyFitChart();
 }
 
 function supplyBindPanel(p){
@@ -547,7 +566,7 @@ function supplyCompanyPanel(id){
   const {byId, makesByCo, kids, stakes, trade, capacities} = supply.co, c = byId[id];
   const p = $("#supply-body");
   p.scrollTop = 0;
-  if(supplyChart){ supplyChart.remove(); supplyChart = null; supplySeries = []; }
+  supplyDropChart();
   const made = makesByCo[id] || [];
   const order = Object.keys(supply.byId);
   const mats = order.filter(m => made.some(x => x.material === m));
@@ -594,8 +613,24 @@ const SUPPLY_METRIC = {
 };
 const SUPPLY_CHART_METRICS = ["production", "import", "export", "processing", "domestic_sales", "apparent"];
 let supplyChart = null;
+let supplyChartRO = null;
 let supplySeries = [];
 let supplyMonthlyData = null;
+
+function supplyChartBox(){
+  const el = $("#supply-chart");
+  return !!(el && el.clientWidth);
+}
+
+function supplyFitChart(){
+  if(!supplyChart || !supplyChartBox()) return;
+  supplyChart.timeScale().fitContent();
+}
+
+function supplyDropChart(){
+  if(supplyChartRO){ supplyChartRO.disconnect(); supplyChartRO = null; }
+  if(supplyChart){ supplyChart.remove(); supplyChart = null; supplySeries = []; }
+}
 
 // 時刻は "YYYY-MM-DD" か {year, month, day} で来る
 const supplyYm = t => typeof t === "string" ? t.slice(0, 7)
@@ -607,7 +642,7 @@ async function supplyMonthly(id){
   catch(e){ if(supply.selected === id) $("#supply-monthly").textContent = `読み込めませんでした (${e.message})`; return; }
   if(supply.selected !== id) return;
   const box = $("#supply-monthly");
-  if(supplyChart){ supplyChart.remove(); supplyChart = null; supplySeries = []; }
+  supplyDropChart();
   if(!d.series.length){ box.textContent = "統計の対応がまだありません。"; return; }
   supplyMonthlyData = {id, series: d.series, picked: new Set()};
   box.className = "";
@@ -656,7 +691,8 @@ function supplyTip(lines, param){
 
 function supplyEnsureChart(){
   if(supplyChart) return supplyChart;
-  supplyChart = LightweightCharts.createChart($("#supply-chart"), {
+  const el = $("#supply-chart");
+  supplyChart = LightweightCharts.createChart(el, {
     height: 180, autoSize: true,
     layout: {background: {color: "#fff"}, textColor: "#66707a", fontSize: 11, attributionLogo: false},
     grid: {vertLines: {visible: false}, horzLines: {color: "#e8ecf0"}},
@@ -670,6 +706,9 @@ function supplyEnsureChart(){
     localization: {priceFormatter: v => fmt(v), timeFormatter: t => supplyYm(t) || ""},
   });
   supplyChart.subscribeCrosshairMove(param => supplyTip(supplyChartLines(), param));
+  if(supplyChartRO) supplyChartRO.disconnect();
+  supplyChartRO = new ResizeObserver(supplyFitChart);
+  supplyChartRO.observe(el);
   return supplyChart;
 }
 
@@ -696,7 +735,7 @@ function supplyDrawChart(){
     return s;
   });
   chart.applyOptions({leftPriceScale: {visible: units.length > 1}});
-  chart.timeScale().fitContent();
+  supplyFitChart();
 }
 
 window.loadSupply = loadSupply;
