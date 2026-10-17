@@ -11,6 +11,11 @@ const SUPPLY_COLOR = {
   recycled: {fill: "#efe9f8", line: "#6f4fb0"},
 };
 const SUPPLY_NODE_H = 28;
+// 回収される素材の印（循環の矢印）。箱の右端に描く。凡例も同じ形（app.css の .k-ret）
+const SUPPLY_REC_ICON = "data:image/svg+xml;utf8," + encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='#6f4fb0' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'>"
+  + "<path d='M10 6a4 4 0 0 1-6.8 2.8'/><path d='M2 6a4 4 0 0 1 6.8-2.8'/><path d='M8.8 1.2v2h-2'/><path d='M3.2 10.8v-2h2'/></svg>");
+const SUPPLY_REC_W = 14;  // 印のぶん箱を広げる
 const SUPPLY_MAX_ZOOM = 3;
 let supplyInit = null;  // Promise。ライブラリとグラフの読込は一度だけ
 let supply = null;      // {cy, byId, parents, kids, retFrom, retTo, selected, co}
@@ -51,24 +56,23 @@ async function supplySetup(){
   const byId = {}, parents = {}, kids = {}, retFrom = {}, retTo = {};
   graph.materials.forEach(m => { byId[m.id] = m; parents[m.id] = []; kids[m.id] = []; retFrom[m.id] = []; retTo[m.id] = []; });
   graph.flows.forEach(([a, b]) => { kids[a].push(b); parents[b].push(a); });
-  // 回収（使い終わった製品 → リサイクル資源）。循環になるので配置と祖先・子孫には使わない
-  const returns = graph.returns || [];
-  returns.forEach(([a, b]) => { retTo[a].push(b); retFrom[b].push(a); });
+  // 回収（使い終わった製品 → リサイクル資源）。循環になるので線にせず、配置と祖先・子孫にも使わない。
+  // 回収される素材の箱に印を付け、選んだときに相手の箱を紫の枠で示す
+  (graph.returns || []).forEach(([a, b]) => { retTo[a].push(b); retFrom[b].push(a); });
 
   // 箱の幅はラベルの文字幅で決めてから ELK に渡す
   const font = `600 12px ${getComputedStyle(document.body).fontFamily}`;
   if(document.fonts?.ready) await document.fonts.ready;
   const ctx = document.createElement("canvas").getContext("2d");
   ctx.font = font;
-  graph.materials.forEach(m => { m.w = Math.ceil(ctx.measureText(m.name).width) + 20; });
+  graph.materials.forEach(m => { m.w = Math.ceil(ctx.measureText(m.name).width) + 20 + (retTo[m.id].length ? SUPPLY_REC_W : 0); });
   const measure = s => Math.ceil(ctx.measureText(s).width) + 20;
 
   const cy = cytoscape({
     container: $("#supply-map"),
     elements: [
-      ...graph.materials.map(m => ({data: {id: m.id, label: m.name, kind: m.kind, w: m.w}})),
+      ...graph.materials.map(m => ({data: {id: m.id, label: m.name, kind: m.kind, w: m.w, rec: retTo[m.id].length > 0}})),
       ...graph.flows.map(([a, b]) => ({data: {id: `${a}>${b}`, source: a, target: b}})),
-      ...returns.map(([a, b]) => ({classes: "ret", data: {id: `${a}~${b}`, source: a, target: b, sw: [0.5], sd: [0], se: "0px 0px", te: "0px 0px"}})),
     ],
     style: supplyStyle(font),
     layout: {name: "preset"},
@@ -156,17 +160,14 @@ function supplyStyle(font){
       width: 2.6, "line-color": "#0077b6", "target-arrow-color": "#0077b6", "z-index": 20,
     }},
     {selector: "node.sel", style: {"border-width": 3, "border-color": "#0077b6"}},
-    // 回収の線。右の製品から左のリサイクル資源へ、配置の下を回って戻る（配置が済んでから曲げ具合を決める）
-    // 箱より奥に描く（ほかの箱の下をくぐるときに文字を隠さない）
-    {selector: "edge.ret", style: {
-      width: 1.6, "line-color": "#6f4fb0", "target-arrow-color": "#6f4fb0", "line-style": "dashed",
-      "line-dash-pattern": [6, 4], "curve-style": "round-segments", "segment-radius": 10,
-      "segment-weights": "data(sw)", "segment-distances": "data(sd)", "edge-distances": "endpoints",
-      "source-endpoint": "data(se)", "target-endpoint": "data(te)",
-      opacity: 0.7, "z-index": 5,
+    // 回収される素材: 右端に印、文字は印のぶん左へ
+    {selector: "node[?rec]", style: {
+      "background-image": SUPPLY_REC_ICON, "background-width": 11, "background-height": 11,
+      "background-position-x": "100%", "background-offset-x": -6, "background-clip": "none",
+      "text-margin-x": -SUPPLY_REC_W / 2,
     }},
-    {selector: "edge.ret.dim", style: {opacity: 0.12}},
-    {selector: "edge.ret.hl", style: {width: 2.4, opacity: 1, "z-index": 6}},
+    // 選んだ素材の回収の相手（回収元か、使い終わったときの行き先）
+    {selector: "node.ret", style: {"border-width": 3, "border-color": "#6f4fb0", opacity: 1}},
     // 輸入元の国。選んだ素材の左に一時的に置く
     {selector: "node.ctry", style: {
       "background-color": "#fff", "border-color": "#7a8794", "border-style": "dashed", "border-width": 1.2,
@@ -196,7 +197,7 @@ async function supplyLayout(){
       "elk.layered.spacing.edgeNodeBetweenLayers": "12",
     },
     children: cy.nodes().map(n => ({id: n.id(), width: n.data("w"), height: SUPPLY_NODE_H})),
-    edges: cy.edges().not(".ret").map(e => ({id: e.id(), sources: [e.source().id()], targets: [e.target().id()]})),
+    edges: cy.edges().map(e => ({id: e.id(), sources: [e.source().id()], targets: [e.target().id()]})),
   });
   const center = {};
   cy.batch(() => {
@@ -224,53 +225,6 @@ async function supplyLayout(){
         te: `${t.x - tc.x}px ${t.y - tc.y}px`,
       });
     });
-    supplyBendReturns(center);
-  });
-}
-
-// 回収の線は右（製品）から左（リサイクル資源）へ戻る。配置の外を回る直角の線にする:
-// 製品の真下へ降りて配置の下端の外を左へ進み、リサイクル資源の真下から入る。真下に箱があれば
-// 右へ出て配置の右端の外を降りる（どちらも箱にぶつかるなら、ぶつかる数の少ないほう）。
-// 資源の真下に箱があれば、資源の列の左の隙間を上って左から入る（列の隙間には箱が無い）。
-// 回収の線は 8px ずつ外へずらして重ねない（資源が違う線も）。曲がり角は segments と同じ (比率, 垂直距離) で持つ
-function supplyBendReturns(center){
-  const {cy} = supply, H = SUPPLY_NODE_H;
-  const box = id => { const c = center[id], w = cy.getElementById(id).data("w"); return {x1: c.x - w / 2, x2: c.x + w / 2, y1: c.y - H / 2, y2: c.y + H / 2}; };
-  const boxes = Object.keys(center).map(id => ({id, ...box(id)}));
-  const bottom = Math.max(...boxes.map(b => b.y2)), right = Math.max(...boxes.map(b => b.x2));
-  const hits = (x1, y1, x2, y2, skip) => boxes.filter(b => !skip.includes(b.id)
-    && Math.min(x1, x2) < b.x2 && Math.max(x1, x2) > b.x1 && Math.min(y1, y2) < b.y2 && Math.max(y1, y2) > b.y1).length;
-  // 資源の列（横に重なる箱）の左端。左から入る線はその 8px 左を上る
-  const colLeft = tb => Math.min(...boxes.filter(o => o.x1 < tb.x2 && o.x2 > tb.x1).map(o => o.x1));
-  const lane = {};
-  cy.edges(".ret").forEach((e, k) => {
-    const a = e.source().id(), b = e.target().id();
-    if(!center[a] || !center[b]) return;
-    const j = lane[b] = (lane[b] ?? -1) + 1;
-    const sb = box(a), tb = box(b), Y = bottom + 16 + k * 8, X = right + 16 + k * 8;
-    const sc = center[a], tc = center[b], skip = [a, b];
-    const down = hits(sc.x, sb.y2, sc.x + 1, Y, skip);
-    const side = hits(sb.x2, sc.y, X, sc.y + 1, skip);
-    // 始点と終点（箱の縁）と曲がり角
-    const [s, bends] = down <= side
-      ? [{x: sc.x, y: sb.y2}, [[sc.x, Y]]]
-      : [{x: sb.x2, y: sc.y}, [[X, sc.y], [X, Y]]];
-    let t = {x: tc.x, y: tb.y2};
-    if(hits(tc.x, tb.y2, tc.x + 1, Y, skip)){
-      const L = colLeft(tb) - 8 - j * 4;
-      bends.push([L, Y], [L, tc.y]);
-      t = {x: tb.x1, y: tc.y};
-    } else {
-      bends.push([tc.x, Y]);
-    }
-    const dx = t.x - s.x, dy = t.y - s.y, len2 = dx * dx + dy * dy || 1, len = Math.sqrt(len2);
-    const sw = [], sd = [];
-    bends.forEach(([x, y]) => {
-      const px = x - s.x, py = y - s.y;
-      sw.push((px * dx + py * dy) / len2);
-      sd.push((py * dx - px * dy) / len);
-    });
-    e.data({sw, sd, se: `${s.x - sc.x}px ${s.y - sc.y}px`, te: `${t.x - tc.x}px ${t.y - tc.y}px`});
   });
 }
 
@@ -281,20 +235,20 @@ function supplyWalk(start, next){
 }
 
 function supplySelect(id, fly){
-  const {cy, parents, kids} = supply;
+  const {cy, parents, kids, retFrom, retTo} = supply;
   supply.selected = id;
   cy.remove(".ctry");
   const up = supplyWalk(id, parents), down = supplyWalk(id, kids);
   const onUp = n => n === id || up.has(n), onDown = n => n === id || down.has(n);
   cy.batch(() => {
-    cy.elements().removeClass("dim hl sel");
+    cy.elements().removeClass("dim hl sel ret");
     cy.nodes().forEach(n => { if(!onUp(n.id()) && !onDown(n.id())) n.addClass("dim"); });
-    cy.edges().not(".ret").forEach(e => {
+    cy.edges().forEach(e => {
       const a = e.source().id(), b = e.target().id();
       e.addClass((up.has(a) && onUp(b)) || (onDown(a) && down.has(b)) ? "hl" : "dim");
     });
-    // 回収の線は選んだ素材が端にあるときだけ強調する
-    cy.edges(".ret").forEach(e => e.addClass(e.source().id() === id || e.target().id() === id ? "hl" : "dim"));
+    // 回収の相手は経路の外でも薄くせず紫の枠で残す（回収をたどって広げない。たどると輪を一周して系統全部が残る）
+    [...retFrom[id], ...retTo[id]].forEach(n => cy.getElementById(n).removeClass("dim").addClass("ret"));
     cy.getElementById(id).addClass("sel");
   });
   if(fly){
@@ -314,7 +268,7 @@ function supplySelectCompany(id, fly){
   supply.selected = id;
   cy.remove(".ctry");
   cy.batch(() => {
-    cy.elements().removeClass("dim hl sel");
+    cy.elements().removeClass("dim hl sel ret");
     cy.nodes().forEach(n => n.addClass(made.has(n.id()) ? "sel" : "dim"));
     cy.edges().addClass("dim");
   });
@@ -332,7 +286,7 @@ function supplyClear(){
   if(!supply) return;
   supply.selected = "";
   supply.cy.remove(".ctry");
-  supply.cy.elements().removeClass("dim hl sel");
+  supply.cy.elements().removeClass("dim hl sel ret");
   supplyPanel();
   writeRoute("supply", "");
 }

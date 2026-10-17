@@ -419,7 +419,7 @@
   .k-mid { --k-fill:#e3f0f4; --k-line:#2f7489; }
   .k-prod { --k-fill:#e6f2e0; --k-line:#4a8a37; }
   .k-recycled { --k-fill:#efe9f8; --k-line:#6f4fb0; }
-  .supply-legend i.k-ret { width:16px; height:0; border-width:1.5px 0 0; border-style:dashed; border-color:#6f4fb0; border-radius:0; background:none; }
+  .supply-legend i.k-ret { width:11px; height:11px; border:0; border-radius:0; background:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12' fill='none' stroke='%236f4fb0' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10 6a4 4 0 0 1-6.8 2.8'/%3E%3Cpath d='M2 6a4 4 0 0 1 6.8-2.8'/%3E%3Cpath d='M8.8 1.2v2h-2'/%3E%3Cpath d='M3.2 10.8v-2h2'/%3E%3C/svg%3E") center/contain no-repeat; }
   .supply-legend i, .supply-chip i { background:var(--k-fill); border-color:var(--k-line); }
   .supply-grid { display:grid; grid-template-columns:1fr; gap:12px; }
   @media (min-width:900px){ .supply-grid { grid-template-columns:minmax(0,1fr) 300px; } }
