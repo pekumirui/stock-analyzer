@@ -1,4 +1,5 @@
 """月次表の親子関係（発行体ごと）。正本は config/monthly/monthly_row_order.json の `tree` と `metrics`。
+自動の木の寄せは同じファイルの `group_metric` / `company_metric`。
 
 木の節は事業・会社・店・品目。指標（総額売上高 / 売上収益(IFRS) / 入店客数 …）は節の子にしない。
 同じ節を別の物差しで測った行は、葉の名前で `metrics` のどれかに振り分ける。
@@ -103,20 +104,31 @@ def load_monthly_trees(path: Path | None = None) -> dict[str, IssuerTree]:
 MONTHLY_TREES = load_monthly_trees()
 
 
-def load_group_metrics(path: Path | None = None) -> dict[str, dict[str, str]]:
-    """issuer code → `group_metric`（自動の木で節の行の指標を寄せる。指標 → 寄せ先の指標）。"""
+def _issuer_str_map(key: str, path: Path | None = None) -> dict[str, dict[str, str]]:
     raw = json.loads((path or MONTHLY_ROW_ORDER_PATH).read_text(encoding="utf-8"))
     out: dict[str, dict[str, str]] = {}
     if not isinstance(raw, dict):
         return out
     for code, cfg in raw.items():
-        gm = cfg.get("group_metric") if isinstance(cfg, dict) else None
-        if isinstance(gm, dict):
-            out[str(code)] = {str(k).strip(): str(v).strip() for k, v in gm.items() if str(k).strip() and str(v).strip()}
+        raw_map = cfg.get(key) if isinstance(cfg, dict) else None
+        if isinstance(raw_map, dict):
+            out[str(code)] = {str(k).strip(): str(v).strip()
+                              for k, v in raw_map.items() if str(k).strip() and str(v).strip()}
     return out
 
 
+def load_group_metrics(path: Path | None = None) -> dict[str, dict[str, str]]:
+    """issuer code → `group_metric`（自動の木で節の行の指標を寄せる。指標 → 寄せ先の指標）。"""
+    return _issuer_str_map("group_metric", path)
+
+
+def load_company_metrics(path: Path | None = None) -> dict[str, dict[str, str]]:
+    """issuer code → `company_metric`（自動の木で会社の行の指標を寄せる。指標 → 寄せ先の指標）。"""
+    return _issuer_str_map("company_metric", path)
+
+
 MONTHLY_GROUP_METRICS = load_group_metrics()
+MONTHLY_COMPANY_METRICS = load_company_metrics()
 
 
 def _walk(nodes: Sequence[TreeNode], path: tuple[str, ...]):
@@ -280,7 +292,7 @@ def _metric_parts(metric: str) -> tuple[str, str, tuple[str, ...]]:
 def auto_metric_parents(metrics: Sequence[str], domestic: Iterable[str] = ()) -> dict[str, str]:
     """直営 / FC の指標は 直営+FC（無ければ無印）の子、日本 / 海外 の指標は国なしの子。
     国付きの 直営 / FC は、同じ国の合計が無ければ国なしの同じチャネルの子。
-    domestic は会社の `日本 ` 付きの行を代表にした指標（物語 直営 全店 店舗数 = 国内直営 553）。国内の 直営+FC を先に探す。
+    domestic は国内の 直営+FC を先に探す指標。
     """
     have = set(metrics)
     dom = set(domestic)
@@ -318,13 +330,15 @@ def _yoy_sales_parent(L: Mapping[str, Any], cands: Sequence[tuple[str, str, str,
 
 
 def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
-                    group_metric: Mapping[str, str] | None = None) -> AutoTree:
+                    group_metric: Mapping[str, str] | None = None,
+                    company_metric: Mapping[str, str] | None = None) -> AutoTree:
     """years は 暦年 → [(保存名, unit)]（値のある行だけ、sort_order 順）。節の形と並びは渡した年すべてで決める。
 
-    group_metric は節の行の指標を寄せる（既定は config の `group_metric`）。物語のブランド別の合計店舗数は国内の数字なので
-    `直営+FC 全店 店舗数`（合計 932）ではなく `日本 直営+FC 全店 店舗数`（国内 816）の下に出す。
+    group_metric は節の行の指標を寄せる（既定は config の `group_metric`）。
+    company_metric は会社の行の指標を寄せる（既定は config の `company_metric`）。
     """
     gmap = MONTHLY_GROUP_METRICS.get(str(code), {}) if group_metric is None else dict(group_metric)
+    cmap = MONTHLY_COMPANY_METRICS.get(str(code), {}) if company_metric is None else dict(company_metric)
     newest = sorted(years, reverse=True)
     union = union_monthly_elements(
         [{"year": y, "elements": [{"element": e, "unit": u} for e, u in years[y]]} for y in newest], code=code)
@@ -407,31 +421,22 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
             place(element, unit, L, canon, own, m + str(L["display"])[len(strip_yoy_fragments(str(L["display"]))):], m)
         else:
             place(element, unit, L, canon, group, leaf)
-    # 節にしか無い指標は、会社の `日本 ` 付きの行を親にする（物語: 直営 全店 店舗数 の親は 日本 直営 全店 店舗数 553）。
-    # 会社に同じ指標の行があるとき（直営+FC 全店 店舗数 は 日本+海外 の 932）は寄せない。
-    # 節の行が `日本 ` 付きの指標を使っているとき（46800 `日本 ボウリング 売上高`）も寄せない（`日本 総 売上高` は 日本 のまま）
     company = {r["metric"] for r in rows.values() if len(r["path"]) == 1}
-    node_metrics = {r["metric"] for r in rows.values() if len(r["path"]) > 1}
+    node_only = {r["metric"] for r in rows.values() if len(r["path"]) > 1} - company
     folded: list[str] = []
-    for m in node_metrics - company:
-        domestic = "日本 " + m
-        if domestic not in company or domestic in node_metrics:
+    for src, dst in cmap.items():
+        if dst not in node_only:
             continue
+        hit = False
         for r in rows.values():
-            if len(r["path"]) == 1 and r["metric"] == domestic:
-                r["metric"] = m
-        metric_key[m] = metric_key.pop(domestic)
-        folded.append(m)
-    # 会社の行だけ `全社 ` が付く発行体（柿安 `全社 売上高` と各事業の `売上高`）も節の指標に寄せる。
-    # 寄せないと 全社 売上高（会社だけ）と 売上高（会社の数字が無い）の 2 つの指標に割れる
-    for m in {r["metric"] for r in rows.values() if len(r["path"]) > 1} - company:
-        whole = "全社 " + m
-        if whole not in company:
+            if len(r["path"]) == 1 and r["metric"] == src:
+                r["metric"] = dst
+                hit = True
+        if not hit or src not in metric_key:
             continue
-        for r in rows.values():
-            if len(r["path"]) == 1 and r["metric"] == whole:
-                r["metric"] = m
-        metric_key[m] = metric_key.pop(whole)
+        metric_key[dst] = metric_key.pop(src)
+        if src == "日本 " + dst:
+            folded.append(dst)
     metrics = sorted(metric_key, key=lambda m: metric_key[m][1])
 
     def bd_nodes(group: str) -> list[tuple[str, list]]:

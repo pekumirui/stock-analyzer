@@ -1232,7 +1232,10 @@ def test_monthly_auto_tree() -> None:
         ("庄や 店舗数", "number"),
     ]
     y25 = [("ラーメン 直営+FC 既存 売上高(前年比)", "yoy_index")]
-    auto = build_auto_tree("99991", {2026: y26, 2025: y25})
+    auto = build_auto_tree(
+        "99991", {2026: y26, 2025: y25},
+        company_metric={"日本 直営 全店 店舗数": "直営 全店 店舗数"},
+    )
     got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in auto.rows.items()}
     want = {
         "直営+FC 全店 売上高(前年比)": (["全体"], "直営+FC 全店 売上高(前年比)", "直営+FC 全店 売上高"),
