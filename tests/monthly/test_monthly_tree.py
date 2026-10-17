@@ -20,6 +20,7 @@ import app.monthly.ingest as monthly_ingest_mod  # noqa: E402
 from app.monthly.ingest import (  # noqa: E402
     apply_issuer_aliases,
     canonicalize_element_label,
+    monthly_element_label,
     monthly_row_segment,
     monthly_row_slot,
     union_monthly_elements,
@@ -1371,6 +1372,106 @@ def test_monthly_auto_tree() -> None:
     if {e: kakiyasu.rows[e]["metric"] for e in ("全社 売上高", "全社 売上高(前年比)", "精肉事業 売上高")} != {
             "全社 売上高": "売上高", "全社 売上高(前年比)": "売上高", "精肉事業 売上高": "売上高"}:
         _fail(f"全社 の会社の行は 売上高 に寄る: {kakiyasu.rows!r}")
+
+
+def test_auto_tree_71340() -> None:
+    """7134 アップガレージグループ（#580）。国の語のあとのブランドは節にする（#590）、
+    指標語の無い前年比は同じ チャネル + 範囲 の 売上高 の行に寄せる（#578）。
+    """
+    from app.monthly.tree import _auto_split, auto_tree_payload, build_auto_tree
+
+    months = {
+        2024: [
+            ("直営 全店 売上高", "number"), ("直営 全店(前年比)", "yoy_index"),
+            ("直営 既存 売上高", "number"), ("直営 既存(前年比)", "yoy_index"),
+            ("FC 全店 売上高", "number"), ("FC 全店(前年比)", "yoy_index"),
+            ("FC 既存 売上高", "number"), ("FC 既存(前年比)", "yoy_index"),
+            ("全店 売上高", "number"), ("全店 売上高(前年比)", "yoy_index"),
+            ("直営+FC 全店(前年比)", "yoy_index"),
+            ("アップガレージ 直営 店舗数", "number"), ("アップガレージ FC 店舗数", "number"),
+            ("海外 アップガレージ 店舗数", "number"),
+            ("ライダース 直営 店舗数", "number"), ("ライダース FC 店舗数", "number"),
+            ("ホイールズ 直営 店舗数", "number"), ("ホイールズ FC 店舗数", "number"),
+            ("専門店ブランド 直営 店舗数", "number"), ("専門店ブランド FC 店舗数", "number"),
+            ("直営 店舗数", "number"), ("FC 店舗数", "number"), ("店舗数", "number"),
+        ],
+    }
+    auto = build_auto_tree("71340", months)
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in auto.rows.items()}
+    # 5 つの指標語の無い前年比は各 売上高 の前年比に寄る
+    want_yoy = {
+        "直営 全店(前年比)": (["全体"], "直営 全店 売上高(前年比)", "直営 全店 売上高"),
+        "直営 既存(前年比)": (["全体"], "直営 既存 売上高(前年比)", "直営 既存 売上高"),
+        "FC 全店(前年比)": (["全体"], "FC 全店 売上高(前年比)", "FC 全店 売上高"),
+        "FC 既存(前年比)": (["全体"], "FC 既存 売上高(前年比)", "FC 既存 売上高"),
+        # 会社の 直営+FC の行は無いのでチャネル無しの 全店 売上高 に寄る
+        "直営+FC 全店(前年比)": (["全体"], "全店 売上高(前年比)", "全店 売上高"),
+    }
+    for e, w in want_yoy.items():
+        if got.get(e) != w:
+            _fail(f"71340 bare yoy {e}: {got.get(e)!r} want {w!r}")
+    # 海外 アップガレージ 店舗数 は アップガレージ の節の 海外 店舗数。指標は 店舗数 ▸ 海外
+    if got["海外 アップガレージ 店舗数"] != (["全体", "アップガレージ"], "海外 店舗数", "海外 店舗数"):
+        _fail(f"71340 海外 brand: {got['海外 アップガレージ 店舗数']!r}")
+    if got["アップガレージ 直営 店舗数"][0] != ["全体", "アップガレージ"]:
+        _fail(f"71340 brand node: {got['アップガレージ 直営 店舗数']!r}")
+    if auto.metric_parent.get("海外 店舗数") != "店舗数":
+        _fail(f"71340 metric parent (海外 店舗数): {auto.metric_parent!r}")
+    # 前年比の行はその 売上高 の隣に来る
+    pay = auto_tree_payload(auto, [e for es in months.values() for e, _ in es])
+    root = pay["tree"][0]
+    els = root["elements"]
+    for n, y in (("直営 全店", "直営 全店(前年比)"), ("直営 既存", "直営 既存(前年比)"),
+                 ("FC 全店", "FC 全店(前年比)"), ("FC 既存", "FC 既存(前年比)")):
+        want = [f"{n} 売上高", y]
+        if want not in (els[i:i + 2] for i in range(len(els) - 1)):
+            _fail(f"71340 yoy must sit next to its 売上高: want {want} in {els!r}")
+    if [n["name"] for n in root["children"]] != ["アップガレージ", "ライダース", "ホイールズ", "専門店ブランド"]:
+        _fail(f"71340 children: {root['children']!r}")
+    # 日本 / 海外 の語のあとにブランドが続く行は、brand を節・国を葉に残す（#590 31930 / 76250）
+    m = monthly_element_label("海外 米国 店舗数", "number", "99990")
+    if _auto_split(m) != ("米国", "海外 店舗数"):
+        _fail(f"country 海外 米国: {_auto_split(m)!r}")
+    m = monthly_element_label("日本 鳥貴族 店舗数", "number", "99990")
+    if _auto_split(m) != ("鳥貴族", "日本 店舗数"):
+        _fail(f"country 日本 鳥貴族: {_auto_split(m)!r}")
+    m = monthly_element_label("日本 ラ・ボエム 既存 売上高(前年比)", "yoy_index", "99990")
+    if _auto_split(m) != ("ラ・ボエム", "日本 既存 売上高(前年比)"):
+        _fail(f"country 日本 ラ・ボエム: {_auto_split(m)!r}")
+    # group の中のチャネルの語（TCC）は節にせず葉に残す（31930 鳥貴族 直営 425 + TCC 272 = 鳥貴族 697）
+    m = monthly_element_label("日本 鳥貴族 TCC 店舗数", "number", "99990")
+    if _auto_split(m) != ("鳥貴族", "日本 TCC 店舗数"):
+        _fail(f"country 日本 鳥貴族 TCC: {_auto_split(m)!r}")
+    # 括弧で始まる group（43430 曜日調整）は節にしない
+    m = monthly_element_label("日本 (曜日調整前) 既存 売上高(前年比)", "yoy_index", "99990")
+    if _auto_split(m) != ("", "日本 (曜日調整前) 既存 売上高(前年比)"):
+        _fail(f"country 日本 (曜日調整前): {_auto_split(m)!r}")
+    # 国の語と group が噛み合わないときは根のまま（噛み合う group だけ節にする）
+    if _auto_split({"display": "海外 アップガレージ 店舗数", "group": "アップガレージグループ"}) \
+            != ("", "海外 アップガレージ 店舗数"):
+        _fail("country no-match must not split")
+    # 日本+海外 は会社全体の語。group は剥がさない（test_monthly_auto_tree と同じ）
+    m = monthly_element_label("日本+海外 直営+FC 全店 店舗数", "number", "99991")
+    if _auto_split(m) != ("", "直営+FC 全店 店舗数"):
+        _fail(f"company country group must strip whole: {_auto_split(m)!r}")
+
+
+def test_auto_tree_country_total_keeps_country() -> None:
+    """46800 ラウンドワン: `日本 総 売上高` は `日本 売上高`。節（ボウリング …）も `日本 売上高` なので
+    会社の `日本 ` 付きの行を国なしに寄せない（寄せると国の語の無い 米国 の節の `売上高` の親になる）。
+    """
+    from app.monthly.tree import build_auto_tree
+
+    months = {2025: [
+        ("日本 ボウリング 売上高", "number"), ("日本 カラオケ 売上高", "number"), ("日本 総 売上高", "number"),
+        ("米国 ボウリング 売上高", "number"), ("米国 総 売上高", "number"),
+    ]}
+    rows = build_auto_tree("46800", months).rows
+    if (rows["日本 総 売上高"]["path"], rows["日本 総 売上高"]["metric"]) != (["全体"], "日本 売上高"):
+        _fail(f"46800 日本 総: {rows['日本 総 売上高']!r}")
+    if (rows["日本 ボウリング 売上高"]["path"], rows["日本 ボウリング 売上高"]["metric"]) \
+            != (["全体", "ボウリング"], "日本 売上高"):
+        _fail(f"46800 日本 ボウリング: {rows['日本 ボウリング 売上高']!r}")
 
 
 def test_union_collapses_yoy_display_names() -> None:

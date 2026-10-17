@@ -2389,12 +2389,12 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 31810	2026	10	legacy	number	買取王国 店舗数	買取王国 店舗数	number	買取王国 店舗数	stores	買取王国		店舗数	全体 > 買取王国	店舗数
 31810	2026	11	legacy	number	工具買取王国 店舗数	工具買取王国 店舗数	number	工具買取王国 店舗数	stores	工具買取王国		店舗数	全体 > 工具買取王国	店舗数
 31810	2026	12	legacy	number	良品買館 店舗数	良品買館 店舗数	number	良品買館 店舗数	stores	良品買館		店舗数	全体 > 良品買館	店舗数
-31930	2023	1	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体	日本 鳥貴族 直営 店舗数
-31930	2023	2	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体	日本 鳥貴族 TCC 店舗数
-31930	2023	3	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体	日本 鳥貴族 店舗数
+31930	2023	1	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体 > 鳥貴族	日本 直営 店舗数
+31930	2023	2	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体 > 鳥貴族	日本 TCC 店舗数
+31930	2023	3	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体 > 鳥貴族	日本 店舗数
 31930	2023	4	legacy	number	鳥貴族パートナーズ	鳥貴族パートナーズ	number	鳥貴族パートナーズ	other	鳥貴族パートナーズ			全体	鳥貴族パートナーズ
 31930	2023	5	legacy	number	TORIKI BURGER	TORIKI BURGER	number	TORIKI BURGER	other	TORIKI BURGER			全体	TORIKI BURGER
-31930	2023	6	legacy	number	日本 やきとり大吉 店舗数	日本 やきとり大吉 店舗数	number	日本 やきとり大吉 店舗数	stores	やきとり大吉		店舗数	全体	日本 やきとり大吉 店舗数
+31930	2023	6	legacy	number	日本 やきとり大吉 店舗数	日本 やきとり大吉 店舗数	number	日本 やきとり大吉 店舗数	stores	やきとり大吉		店舗数	全体 > やきとり大吉	日本 店舗数
 31930	2023	7	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
 31930	2023	8	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 31930	2023	9	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
@@ -2405,26 +2405,26 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 31930	2024	2	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31930	2024	3	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
 31930	2024	4	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
-31930	2024	5	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体	日本 鳥貴族 直営 店舗数
-31930	2024	6	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体	日本 鳥貴族 TCC 店舗数
-31930	2024	7	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体	日本 鳥貴族 店舗数
-31930	2024	8	legacy	number	日本 やきとり大吉 店舗数	日本 やきとり大吉 店舗数	number	日本 やきとり大吉 店舗数	stores	やきとり大吉		店舗数	全体	日本 やきとり大吉 店舗数
-31930	2024	9	legacy	number	日本 その他 店舗数	日本 その他 店舗数	number	日本 その他 店舗数	stores	その他		店舗数	全体	日本 その他 店舗数
+31930	2024	5	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体 > 鳥貴族	日本 直営 店舗数
+31930	2024	6	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体 > 鳥貴族	日本 TCC 店舗数
+31930	2024	7	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体 > 鳥貴族	日本 店舗数
+31930	2024	8	legacy	number	日本 やきとり大吉 店舗数	日本 やきとり大吉 店舗数	number	日本 やきとり大吉 店舗数	stores	やきとり大吉		店舗数	全体 > やきとり大吉	日本 店舗数
+31930	2024	9	legacy	number	日本 その他 店舗数	日本 その他 店舗数	number	日本 その他 店舗数	stores	その他		店舗数	全体 > その他	日本 店舗数
 31930	2024	10	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
-31930	2024	11	legacy	number	海外 米国 店舗数	海外 米国 店舗数	number	海外 米国 店舗数	stores	米国		店舗数	全体	海外 米国 店舗数
-31930	2024	12	legacy	number	海外 韓国 店舗数	海外 韓国 店舗数	number	海外 韓国 店舗数	stores	韓国		店舗数	全体	海外 韓国 店舗数
-31930	2024	13	legacy	number	海外 台湾 店舗数	海外 台湾 店舗数	number	海外 台湾 店舗数	stores	台湾		店舗数	全体	海外 台湾 店舗数
-31930	2024	14	legacy	number	海外 中国 店舗数	海外 中国 店舗数	number	海外 中国 店舗数	stores	中国		店舗数	全体	海外 中国 店舗数
-31930	2024	15	legacy	number	海外 香港 店舗数	海外 香港 店舗数	number	海外 香港 店舗数	stores	香港		店舗数	全体	海外 香港 店舗数
+31930	2024	11	legacy	number	海外 米国 店舗数	海外 米国 店舗数	number	海外 米国 店舗数	stores	米国		店舗数	全体 > 米国	海外 店舗数
+31930	2024	12	legacy	number	海外 韓国 店舗数	海外 韓国 店舗数	number	海外 韓国 店舗数	stores	韓国		店舗数	全体 > 韓国	海外 店舗数
+31930	2024	13	legacy	number	海外 台湾 店舗数	海外 台湾 店舗数	number	海外 台湾 店舗数	stores	台湾		店舗数	全体 > 台湾	海外 店舗数
+31930	2024	14	legacy	number	海外 中国 店舗数	海外 中国 店舗数	number	海外 中国 店舗数	stores	中国		店舗数	全体 > 中国	海外 店舗数
+31930	2024	15	legacy	number	海外 香港 店舗数	海外 香港 店舗数	number	海外 香港 店舗数	stores	香港		店舗数	全体 > 香港	海外 店舗数
 31930	2024	16	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体	海外 店舗数
 31930	2024	17	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 31930	2024	18	legacy	number	鳥貴族パートナーズ	鳥貴族パートナーズ	number	鳥貴族パートナーズ	other	鳥貴族パートナーズ			全体	鳥貴族パートナーズ
 31930	2024	19	legacy	number	TORIKI BURGER	TORIKI BURGER	number	TORIKI BURGER	other	TORIKI BURGER			全体	TORIKI BURGER
-31930	2025	1	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体	日本 鳥貴族 直営 店舗数
-31930	2025	2	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体	日本 鳥貴族 TCC 店舗数
-31930	2025	3	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体	日本 鳥貴族 店舗数
-31930	2025	4	legacy	number	日本 やきとり大吉 店舗数	日本 やきとり大吉 店舗数	number	日本 やきとり大吉 店舗数	stores	やきとり大吉		店舗数	全体	日本 やきとり大吉 店舗数
-31930	2025	5	legacy	number	日本 その他 店舗数	日本 その他 店舗数	number	日本 その他 店舗数	stores	その他		店舗数	全体	日本 その他 店舗数
+31930	2025	1	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体 > 鳥貴族	日本 直営 店舗数
+31930	2025	2	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体 > 鳥貴族	日本 TCC 店舗数
+31930	2025	3	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体 > 鳥貴族	日本 店舗数
+31930	2025	4	legacy	number	日本 やきとり大吉 店舗数	日本 やきとり大吉 店舗数	number	日本 やきとり大吉 店舗数	stores	やきとり大吉		店舗数	全体 > やきとり大吉	日本 店舗数
+31930	2025	5	legacy	number	日本 その他 店舗数	日本 その他 店舗数	number	日本 その他 店舗数	stores	その他		店舗数	全体 > その他	日本 店舗数
 31930	2025	6	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
 31930	2025	7	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体	海外 店舗数
 31930	2025	8	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
@@ -2432,32 +2432,32 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 31930	2025	10	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31930	2025	11	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
 31930	2025	12	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
-31930	2025	13	legacy	number	海外 米国 店舗数	海外 米国 店舗数	number	海外 米国 店舗数	stores	米国		店舗数	全体	海外 米国 店舗数
-31930	2025	14	legacy	number	海外 韓国 店舗数	海外 韓国 店舗数	number	海外 韓国 店舗数	stores	韓国		店舗数	全体	海外 韓国 店舗数
-31930	2025	15	legacy	number	海外 台湾 店舗数	海外 台湾 店舗数	number	海外 台湾 店舗数	stores	台湾		店舗数	全体	海外 台湾 店舗数
-31930	2025	16	legacy	number	海外 中国 店舗数	海外 中国 店舗数	number	海外 中国 店舗数	stores	中国		店舗数	全体	海外 中国 店舗数
-31930	2025	17	legacy	number	海外 香港 店舗数	海外 香港 店舗数	number	海外 香港 店舗数	stores	香港		店舗数	全体	海外 香港 店舗数
-31930	2025	18	legacy	number	海外 ベトナム 店舗数	海外 ベトナム 店舗数	number	海外 ベトナム 店舗数	stores	ベトナム		店舗数	全体	海外 ベトナム 店舗数
-31930	2025	19	legacy	number	海外 シンガポール 店舗数	海外 シンガポール 店舗数	number	海外 シンガポール 店舗数	stores	シンガポール		店舗数	全体	海外 シンガポール 店舗数
+31930	2025	13	legacy	number	海外 米国 店舗数	海外 米国 店舗数	number	海外 米国 店舗数	stores	米国		店舗数	全体 > 米国	海外 店舗数
+31930	2025	14	legacy	number	海外 韓国 店舗数	海外 韓国 店舗数	number	海外 韓国 店舗数	stores	韓国		店舗数	全体 > 韓国	海外 店舗数
+31930	2025	15	legacy	number	海外 台湾 店舗数	海外 台湾 店舗数	number	海外 台湾 店舗数	stores	台湾		店舗数	全体 > 台湾	海外 店舗数
+31930	2025	16	legacy	number	海外 中国 店舗数	海外 中国 店舗数	number	海外 中国 店舗数	stores	中国		店舗数	全体 > 中国	海外 店舗数
+31930	2025	17	legacy	number	海外 香港 店舗数	海外 香港 店舗数	number	海外 香港 店舗数	stores	香港		店舗数	全体 > 香港	海外 店舗数
+31930	2025	18	legacy	number	海外 ベトナム 店舗数	海外 ベトナム 店舗数	number	海外 ベトナム 店舗数	stores	ベトナム		店舗数	全体 > ベトナム	海外 店舗数
+31930	2025	19	legacy	number	海外 シンガポール 店舗数	海外 シンガポール 店舗数	number	海外 シンガポール 店舗数	stores	シンガポール		店舗数	全体 > シンガポール	海外 店舗数
 31930	2026	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 31930	2026	2	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31930	2026	3	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
 31930	2026	4	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
-31930	2026	5	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体	日本 鳥貴族 直営 店舗数
-31930	2026	6	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体	日本 鳥貴族 TCC 店舗数
-31930	2026	7	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体	日本 鳥貴族 店舗数
-31930	2026	8	legacy	number	日本 やきとり大吉 店舗数	日本 やきとり大吉 店舗数	number	日本 やきとり大吉 店舗数	stores	やきとり大吉		店舗数	全体	日本 やきとり大吉 店舗数
-31930	2026	9	legacy	number	日本 その他 店舗数	日本 その他 店舗数	number	日本 その他 店舗数	stores	その他		店舗数	全体	日本 その他 店舗数
+31930	2026	5	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体 > 鳥貴族	日本 直営 店舗数
+31930	2026	6	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体 > 鳥貴族	日本 TCC 店舗数
+31930	2026	7	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体 > 鳥貴族	日本 店舗数
+31930	2026	8	legacy	number	日本 やきとり大吉 店舗数	日本 やきとり大吉 店舗数	number	日本 やきとり大吉 店舗数	stores	やきとり大吉		店舗数	全体 > やきとり大吉	日本 店舗数
+31930	2026	9	legacy	number	日本 その他 店舗数	日本 その他 店舗数	number	日本 その他 店舗数	stores	その他		店舗数	全体 > その他	日本 店舗数
 31930	2026	10	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
 31930	2026	11	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体	海外 店舗数
 31930	2026	12	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
-31930	2026	13	legacy	number	海外 中国 店舗数	海外 中国 店舗数	number	海外 中国 店舗数	stores	中国		店舗数	全体	海外 中国 店舗数
-31930	2026	14	legacy	number	海外 米国 店舗数	海外 米国 店舗数	number	海外 米国 店舗数	stores	米国		店舗数	全体	海外 米国 店舗数
-31930	2026	15	legacy	number	海外 台湾 店舗数	海外 台湾 店舗数	number	海外 台湾 店舗数	stores	台湾		店舗数	全体	海外 台湾 店舗数
-31930	2026	16	legacy	number	海外 香港 店舗数	海外 香港 店舗数	number	海外 香港 店舗数	stores	香港		店舗数	全体	海外 香港 店舗数
-31930	2026	17	legacy	number	海外 韓国 店舗数	海外 韓国 店舗数	number	海外 韓国 店舗数	stores	韓国		店舗数	全体	海外 韓国 店舗数
-31930	2026	18	legacy	number	海外 ベトナム 店舗数	海外 ベトナム 店舗数	number	海外 ベトナム 店舗数	stores	ベトナム		店舗数	全体	海外 ベトナム 店舗数
-31930	2026	19	legacy	number	海外 シンガポール 店舗数	海外 シンガポール 店舗数	number	海外 シンガポール 店舗数	stores	シンガポール		店舗数	全体	海外 シンガポール 店舗数
+31930	2026	13	legacy	number	海外 中国 店舗数	海外 中国 店舗数	number	海外 中国 店舗数	stores	中国		店舗数	全体 > 中国	海外 店舗数
+31930	2026	14	legacy	number	海外 米国 店舗数	海外 米国 店舗数	number	海外 米国 店舗数	stores	米国		店舗数	全体 > 米国	海外 店舗数
+31930	2026	15	legacy	number	海外 台湾 店舗数	海外 台湾 店舗数	number	海外 台湾 店舗数	stores	台湾		店舗数	全体 > 台湾	海外 店舗数
+31930	2026	16	legacy	number	海外 香港 店舗数	海外 香港 店舗数	number	海外 香港 店舗数	stores	香港		店舗数	全体 > 香港	海外 店舗数
+31930	2026	17	legacy	number	海外 韓国 店舗数	海外 韓国 店舗数	number	海外 韓国 店舗数	stores	韓国		店舗数	全体 > 韓国	海外 店舗数
+31930	2026	18	legacy	number	海外 ベトナム 店舗数	海外 ベトナム 店舗数	number	海外 ベトナム 店舗数	stores	ベトナム		店舗数	全体 > ベトナム	海外 店舗数
+31930	2026	19	legacy	number	海外 シンガポール 店舗数	海外 シンガポール 店舗数	number	海外 シンガポール 店舗数	stores	シンガポール		店舗数	全体 > シンガポール	海外 店舗数
 31950	2023	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
 31950	2023	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
 31950	2024	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
@@ -2807,31 +2807,31 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 34150	2023	2	legacy	yoy_index	実店舗 既存 売上高(前年比)	実店舗 既存 売上高(前年比)	yoy_index	実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体 > 実店舗	既存 売上高
 34150	2023	3	legacy	yoy_index	EC 既存 売上高(前年比)	EC 既存 売上高(前年比)	yoy_index	EC 既存 売上高(前年比)	sales	EC	既存	売上高	全体 > EC	既存 売上高
 34150	2023	4	legacy	yoy_index	日本 既存 売上高(前年比)	日本 既存 売上高(前年比)	yoy_index	日本 既存 売上高(前年比)	sales		既存	売上高	全体	日本 既存 売上高
-34150	2023	5	legacy	yoy_index	日本 実店舗 既存 売上高(前年比)	日本 実店舗 既存 売上高(前年比)	yoy_index	日本 実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体	日本 実店舗 既存 売上高
-34150	2023	6	legacy	yoy_index	日本 EC 既存 売上高(前年比)	日本 EC 既存 売上高(前年比)	yoy_index	日本 EC 既存 売上高(前年比)	sales	EC	既存	売上高	全体	日本 EC 既存 売上高
+34150	2023	5	legacy	yoy_index	日本 実店舗 既存 売上高(前年比)	日本 実店舗 既存 売上高(前年比)	yoy_index	日本 実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体 > 実店舗	日本 既存 売上高
+34150	2023	6	legacy	yoy_index	日本 EC 既存 売上高(前年比)	日本 EC 既存 売上高(前年比)	yoy_index	日本 EC 既存 売上高(前年比)	sales	EC	既存	売上高	全体 > EC	日本 既存 売上高
 34150	2023	7	legacy	yoy_index	海外 既存 売上高(前年比)	海外 既存 売上高(前年比)	yoy_index	海外 既存 売上高(前年比)	sales		既存	売上高	全体	海外 既存 売上高
-34150	2023	8	legacy	yoy_index	海外 実店舗 既存 売上高(前年比)	海外 実店舗 既存 売上高(前年比)	yoy_index	海外 実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体	海外 実店舗 既存 売上高
+34150	2023	8	legacy	yoy_index	海外 実店舗 既存 売上高(前年比)	海外 実店舗 既存 売上高(前年比)	yoy_index	海外 実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体 > 実店舗	海外 既存 売上高
 34150	2023	9	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
-34150	2023	10	legacy	number	日本 実店舗 店舗数	日本 実店舗 店舗数	number	日本 実店舗 店舗数	stores	実店舗		店舗数	全体	日本 実店舗 店舗数
-34150	2023	11	legacy	number	日本 EC 店舗数	日本 EC 店舗数	number	日本 EC 店舗数	stores	EC		店舗数	全体	日本 EC 店舗数
+34150	2023	10	legacy	number	日本 実店舗 店舗数	日本 実店舗 店舗数	number	日本 実店舗 店舗数	stores	実店舗		店舗数	全体 > 実店舗	日本 店舗数
+34150	2023	11	legacy	number	日本 EC 店舗数	日本 EC 店舗数	number	日本 EC 店舗数	stores	EC		店舗数	全体 > EC	日本 店舗数
 34150	2023	12	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体	海外 店舗数
-34150	2023	13	legacy	number	海外 実店舗 店舗数	海外 実店舗 店舗数	number	海外 実店舗 店舗数	stores	実店舗		店舗数	全体	海外 実店舗 店舗数
+34150	2023	13	legacy	number	海外 実店舗 店舗数	海外 実店舗 店舗数	number	海外 実店舗 店舗数	stores	実店舗		店舗数	全体 > 実店舗	海外 店舗数
 34150	2023	14	legacy	number	既存 店舗数	既存 店舗数	number	既存 店舗数	stores		既存	店舗数	全体	既存 店舗数
 34150	2023	15	legacy	number	実店舗 既存 店舗数	実店舗 既存 店舗数	number	実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体 > 実店舗	既存 店舗数
 34150	2023	16	legacy	number	EC 既存 店舗数	EC 既存 店舗数	number	EC 既存 店舗数	stores	EC	既存	店舗数	全体 > EC	既存 店舗数
 34150	2023	17	legacy	number	日本 既存 店舗数	日本 既存 店舗数	number	日本 既存 店舗数	stores		既存	店舗数	全体	日本 既存 店舗数
-34150	2023	18	legacy	number	日本 実店舗 既存 店舗数	日本 実店舗 既存 店舗数	number	日本 実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体	日本 実店舗 既存 店舗数
-34150	2023	19	legacy	number	日本 EC 既存 店舗数	日本 EC 既存 店舗数	number	日本 EC 既存 店舗数	stores	EC	既存	店舗数	全体	日本 EC 既存 店舗数
+34150	2023	18	legacy	number	日本 実店舗 既存 店舗数	日本 実店舗 既存 店舗数	number	日本 実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体 > 実店舗	日本 既存 店舗数
+34150	2023	19	legacy	number	日本 EC 既存 店舗数	日本 EC 既存 店舗数	number	日本 EC 既存 店舗数	stores	EC	既存	店舗数	全体 > EC	日本 既存 店舗数
 34150	2023	20	legacy	number	海外 既存 店舗数	海外 既存 店舗数	number	海外 既存 店舗数	stores		既存	店舗数	全体	海外 既存 店舗数
-34150	2023	21	legacy	number	海外 実店舗 既存 店舗数	海外 実店舗 既存 店舗数	number	海外 実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体	海外 実店舗 既存 店舗数
+34150	2023	21	legacy	number	海外 実店舗 既存 店舗数	海外 実店舗 既存 店舗数	number	海外 実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体 > 実店舗	海外 既存 店舗数
 34150	2023	22	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	全社 売上高
 34150	2023	23	legacy	yoy_index	実店舗 全社 売上高(前年比)	実店舗 全社 売上高(前年比)	yoy_index	実店舗 全社 売上高(前年比)	sales	実店舗	全社	売上高	全体 > 実店舗	全社 売上高
 34150	2023	24	legacy	yoy_index	EC 全社 売上高(前年比)	EC 全社 売上高(前年比)	yoy_index	EC 全社 売上高(前年比)	sales	EC	全社	売上高	全体 > EC	全社 売上高
 34150	2023	25	legacy	yoy_index	日本 売上高(前年比)	日本 売上高(前年比)	yoy_index	日本 売上高(前年比)	sales			売上高	全体	日本 売上高
-34150	2023	26	legacy	yoy_index	日本 実店舗 売上高(前年比)	日本 実店舗 売上高(前年比)	yoy_index	日本 実店舗 売上高(前年比)	sales	実店舗		売上高	全体	日本 実店舗 売上高
-34150	2023	27	legacy	yoy_index	日本 EC 売上高(前年比)	日本 EC 売上高(前年比)	yoy_index	日本 EC 売上高(前年比)	sales	EC		売上高	全体	日本 EC 売上高
+34150	2023	26	legacy	yoy_index	日本 実店舗 売上高(前年比)	日本 実店舗 売上高(前年比)	yoy_index	日本 実店舗 売上高(前年比)	sales	実店舗		売上高	全体 > 実店舗	日本 売上高
+34150	2023	27	legacy	yoy_index	日本 EC 売上高(前年比)	日本 EC 売上高(前年比)	yoy_index	日本 EC 売上高(前年比)	sales	EC		売上高	全体 > EC	日本 売上高
 34150	2023	28	legacy	yoy_index	海外 売上高(前年比)	海外 売上高(前年比)	yoy_index	海外 売上高(前年比)	sales			売上高	全体	海外 売上高
-34150	2023	29	legacy	yoy_index	海外 実店舗 売上高(前年比)	海外 実店舗 売上高(前年比)	yoy_index	海外 実店舗 売上高(前年比)	sales	実店舗		売上高	全体	海外 実店舗 売上高
+34150	2023	29	legacy	yoy_index	海外 実店舗 売上高(前年比)	海外 実店舗 売上高(前年比)	yoy_index	海外 実店舗 売上高(前年比)	sales	実店舗		売上高	全体 > 実店舗	海外 売上高
 34150	2023	30	legacy	number	全社 店舗数	全社 店舗数	number	全社 店舗数	stores		全社	店舗数	全体	全社 店舗数
 34150	2023	31	legacy	number	実店舗 全社 店舗数	実店舗 全社 店舗数	number	実店舗 全社 店舗数	stores	実店舗	全社	店舗数	全体 > 実店舗	全社 店舗数
 34150	2023	32	legacy	number	EC 全社 店舗数	EC 全社 店舗数	number	EC 全社 店舗数	stores	EC	全社	店舗数	全体 > EC	全社 店舗数
@@ -2839,31 +2839,31 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 34150	2024	2	legacy	yoy_index	実店舗 既存 売上高(前年比)	実店舗 既存 売上高(前年比)	yoy_index	実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体 > 実店舗	既存 売上高
 34150	2024	3	legacy	yoy_index	EC 既存 売上高(前年比)	EC 既存 売上高(前年比)	yoy_index	EC 既存 売上高(前年比)	sales	EC	既存	売上高	全体 > EC	既存 売上高
 34150	2024	4	legacy	yoy_index	日本 既存 売上高(前年比)	日本 既存 売上高(前年比)	yoy_index	日本 既存 売上高(前年比)	sales		既存	売上高	全体	日本 既存 売上高
-34150	2024	5	legacy	yoy_index	日本 実店舗 既存 売上高(前年比)	日本 実店舗 既存 売上高(前年比)	yoy_index	日本 実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体	日本 実店舗 既存 売上高
-34150	2024	6	legacy	yoy_index	日本 EC 既存 売上高(前年比)	日本 EC 既存 売上高(前年比)	yoy_index	日本 EC 既存 売上高(前年比)	sales	EC	既存	売上高	全体	日本 EC 既存 売上高
+34150	2024	5	legacy	yoy_index	日本 実店舗 既存 売上高(前年比)	日本 実店舗 既存 売上高(前年比)	yoy_index	日本 実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体 > 実店舗	日本 既存 売上高
+34150	2024	6	legacy	yoy_index	日本 EC 既存 売上高(前年比)	日本 EC 既存 売上高(前年比)	yoy_index	日本 EC 既存 売上高(前年比)	sales	EC	既存	売上高	全体 > EC	日本 既存 売上高
 34150	2024	7	legacy	yoy_index	海外 既存 売上高(前年比)	海外 既存 売上高(前年比)	yoy_index	海外 既存 売上高(前年比)	sales		既存	売上高	全体	海外 既存 売上高
-34150	2024	8	legacy	yoy_index	海外 実店舗 既存 売上高(前年比)	海外 実店舗 既存 売上高(前年比)	yoy_index	海外 実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体	海外 実店舗 既存 売上高
+34150	2024	8	legacy	yoy_index	海外 実店舗 既存 売上高(前年比)	海外 実店舗 既存 売上高(前年比)	yoy_index	海外 実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体 > 実店舗	海外 既存 売上高
 34150	2024	9	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
-34150	2024	10	legacy	number	日本 実店舗 店舗数	日本 実店舗 店舗数	number	日本 実店舗 店舗数	stores	実店舗		店舗数	全体	日本 実店舗 店舗数
-34150	2024	11	legacy	number	日本 EC 店舗数	日本 EC 店舗数	number	日本 EC 店舗数	stores	EC		店舗数	全体	日本 EC 店舗数
+34150	2024	10	legacy	number	日本 実店舗 店舗数	日本 実店舗 店舗数	number	日本 実店舗 店舗数	stores	実店舗		店舗数	全体 > 実店舗	日本 店舗数
+34150	2024	11	legacy	number	日本 EC 店舗数	日本 EC 店舗数	number	日本 EC 店舗数	stores	EC		店舗数	全体 > EC	日本 店舗数
 34150	2024	12	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体	海外 店舗数
-34150	2024	13	legacy	number	海外 実店舗 店舗数	海外 実店舗 店舗数	number	海外 実店舗 店舗数	stores	実店舗		店舗数	全体	海外 実店舗 店舗数
+34150	2024	13	legacy	number	海外 実店舗 店舗数	海外 実店舗 店舗数	number	海外 実店舗 店舗数	stores	実店舗		店舗数	全体 > 実店舗	海外 店舗数
 34150	2024	14	legacy	number	既存 店舗数	既存 店舗数	number	既存 店舗数	stores		既存	店舗数	全体	既存 店舗数
 34150	2024	15	legacy	number	実店舗 既存 店舗数	実店舗 既存 店舗数	number	実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体 > 実店舗	既存 店舗数
 34150	2024	16	legacy	number	EC 既存 店舗数	EC 既存 店舗数	number	EC 既存 店舗数	stores	EC	既存	店舗数	全体 > EC	既存 店舗数
 34150	2024	17	legacy	number	日本 既存 店舗数	日本 既存 店舗数	number	日本 既存 店舗数	stores		既存	店舗数	全体	日本 既存 店舗数
-34150	2024	18	legacy	number	日本 実店舗 既存 店舗数	日本 実店舗 既存 店舗数	number	日本 実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体	日本 実店舗 既存 店舗数
-34150	2024	19	legacy	number	日本 EC 既存 店舗数	日本 EC 既存 店舗数	number	日本 EC 既存 店舗数	stores	EC	既存	店舗数	全体	日本 EC 既存 店舗数
+34150	2024	18	legacy	number	日本 実店舗 既存 店舗数	日本 実店舗 既存 店舗数	number	日本 実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体 > 実店舗	日本 既存 店舗数
+34150	2024	19	legacy	number	日本 EC 既存 店舗数	日本 EC 既存 店舗数	number	日本 EC 既存 店舗数	stores	EC	既存	店舗数	全体 > EC	日本 既存 店舗数
 34150	2024	20	legacy	number	海外 既存 店舗数	海外 既存 店舗数	number	海外 既存 店舗数	stores		既存	店舗数	全体	海外 既存 店舗数
-34150	2024	21	legacy	number	海外 実店舗 既存 店舗数	海外 実店舗 既存 店舗数	number	海外 実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体	海外 実店舗 既存 店舗数
+34150	2024	21	legacy	number	海外 実店舗 既存 店舗数	海外 実店舗 既存 店舗数	number	海外 実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体 > 実店舗	海外 既存 店舗数
 34150	2024	22	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	全社 売上高
 34150	2024	23	legacy	yoy_index	実店舗 全社 売上高(前年比)	実店舗 全社 売上高(前年比)	yoy_index	実店舗 全社 売上高(前年比)	sales	実店舗	全社	売上高	全体 > 実店舗	全社 売上高
 34150	2024	24	legacy	yoy_index	EC 全社 売上高(前年比)	EC 全社 売上高(前年比)	yoy_index	EC 全社 売上高(前年比)	sales	EC	全社	売上高	全体 > EC	全社 売上高
 34150	2024	25	legacy	yoy_index	日本 売上高(前年比)	日本 売上高(前年比)	yoy_index	日本 売上高(前年比)	sales			売上高	全体	日本 売上高
-34150	2024	26	legacy	yoy_index	日本 実店舗 売上高(前年比)	日本 実店舗 売上高(前年比)	yoy_index	日本 実店舗 売上高(前年比)	sales	実店舗		売上高	全体	日本 実店舗 売上高
-34150	2024	27	legacy	yoy_index	日本 EC 売上高(前年比)	日本 EC 売上高(前年比)	yoy_index	日本 EC 売上高(前年比)	sales	EC		売上高	全体	日本 EC 売上高
+34150	2024	26	legacy	yoy_index	日本 実店舗 売上高(前年比)	日本 実店舗 売上高(前年比)	yoy_index	日本 実店舗 売上高(前年比)	sales	実店舗		売上高	全体 > 実店舗	日本 売上高
+34150	2024	27	legacy	yoy_index	日本 EC 売上高(前年比)	日本 EC 売上高(前年比)	yoy_index	日本 EC 売上高(前年比)	sales	EC		売上高	全体 > EC	日本 売上高
 34150	2024	28	legacy	yoy_index	海外 売上高(前年比)	海外 売上高(前年比)	yoy_index	海外 売上高(前年比)	sales			売上高	全体	海外 売上高
-34150	2024	29	legacy	yoy_index	海外 実店舗 売上高(前年比)	海外 実店舗 売上高(前年比)	yoy_index	海外 実店舗 売上高(前年比)	sales	実店舗		売上高	全体	海外 実店舗 売上高
+34150	2024	29	legacy	yoy_index	海外 実店舗 売上高(前年比)	海外 実店舗 売上高(前年比)	yoy_index	海外 実店舗 売上高(前年比)	sales	実店舗		売上高	全体 > 実店舗	海外 売上高
 34150	2024	30	legacy	number	全社 店舗数	全社 店舗数	number	全社 店舗数	stores		全社	店舗数	全体	全社 店舗数
 34150	2024	31	legacy	number	実店舗 全社 店舗数	実店舗 全社 店舗数	number	実店舗 全社 店舗数	stores	実店舗	全社	店舗数	全体 > 実店舗	全社 店舗数
 34150	2024	32	legacy	number	EC 全社 店舗数	EC 全社 店舗数	number	EC 全社 店舗数	stores	EC	全社	店舗数	全体 > EC	全社 店舗数
@@ -2871,31 +2871,31 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 34150	2025	2	legacy	yoy_index	実店舗 既存 売上高(前年比)	実店舗 既存 売上高(前年比)	yoy_index	実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体 > 実店舗	既存 売上高
 34150	2025	3	legacy	yoy_index	EC 既存 売上高(前年比)	EC 既存 売上高(前年比)	yoy_index	EC 既存 売上高(前年比)	sales	EC	既存	売上高	全体 > EC	既存 売上高
 34150	2025	4	legacy	yoy_index	日本 既存 売上高(前年比)	日本 既存 売上高(前年比)	yoy_index	日本 既存 売上高(前年比)	sales		既存	売上高	全体	日本 既存 売上高
-34150	2025	5	legacy	yoy_index	日本 実店舗 既存 売上高(前年比)	日本 実店舗 既存 売上高(前年比)	yoy_index	日本 実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体	日本 実店舗 既存 売上高
-34150	2025	6	legacy	yoy_index	日本 EC 既存 売上高(前年比)	日本 EC 既存 売上高(前年比)	yoy_index	日本 EC 既存 売上高(前年比)	sales	EC	既存	売上高	全体	日本 EC 既存 売上高
+34150	2025	5	legacy	yoy_index	日本 実店舗 既存 売上高(前年比)	日本 実店舗 既存 売上高(前年比)	yoy_index	日本 実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体 > 実店舗	日本 既存 売上高
+34150	2025	6	legacy	yoy_index	日本 EC 既存 売上高(前年比)	日本 EC 既存 売上高(前年比)	yoy_index	日本 EC 既存 売上高(前年比)	sales	EC	既存	売上高	全体 > EC	日本 既存 売上高
 34150	2025	7	legacy	yoy_index	海外 既存 売上高(前年比)	海外 既存 売上高(前年比)	yoy_index	海外 既存 売上高(前年比)	sales		既存	売上高	全体	海外 既存 売上高
-34150	2025	8	legacy	yoy_index	海外 実店舗 既存 売上高(前年比)	海外 実店舗 既存 売上高(前年比)	yoy_index	海外 実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体	海外 実店舗 既存 売上高
+34150	2025	8	legacy	yoy_index	海外 実店舗 既存 売上高(前年比)	海外 実店舗 既存 売上高(前年比)	yoy_index	海外 実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体 > 実店舗	海外 既存 売上高
 34150	2025	9	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
-34150	2025	10	legacy	number	日本 実店舗 店舗数	日本 実店舗 店舗数	number	日本 実店舗 店舗数	stores	実店舗		店舗数	全体	日本 実店舗 店舗数
-34150	2025	11	legacy	number	日本 EC 店舗数	日本 EC 店舗数	number	日本 EC 店舗数	stores	EC		店舗数	全体	日本 EC 店舗数
+34150	2025	10	legacy	number	日本 実店舗 店舗数	日本 実店舗 店舗数	number	日本 実店舗 店舗数	stores	実店舗		店舗数	全体 > 実店舗	日本 店舗数
+34150	2025	11	legacy	number	日本 EC 店舗数	日本 EC 店舗数	number	日本 EC 店舗数	stores	EC		店舗数	全体 > EC	日本 店舗数
 34150	2025	12	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体	海外 店舗数
-34150	2025	13	legacy	number	海外 実店舗 店舗数	海外 実店舗 店舗数	number	海外 実店舗 店舗数	stores	実店舗		店舗数	全体	海外 実店舗 店舗数
+34150	2025	13	legacy	number	海外 実店舗 店舗数	海外 実店舗 店舗数	number	海外 実店舗 店舗数	stores	実店舗		店舗数	全体 > 実店舗	海外 店舗数
 34150	2025	14	legacy	number	既存 店舗数	既存 店舗数	number	既存 店舗数	stores		既存	店舗数	全体	既存 店舗数
 34150	2025	15	legacy	number	実店舗 既存 店舗数	実店舗 既存 店舗数	number	実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体 > 実店舗	既存 店舗数
 34150	2025	16	legacy	number	EC 既存 店舗数	EC 既存 店舗数	number	EC 既存 店舗数	stores	EC	既存	店舗数	全体 > EC	既存 店舗数
 34150	2025	17	legacy	number	日本 既存 店舗数	日本 既存 店舗数	number	日本 既存 店舗数	stores		既存	店舗数	全体	日本 既存 店舗数
-34150	2025	18	legacy	number	日本 実店舗 既存 店舗数	日本 実店舗 既存 店舗数	number	日本 実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体	日本 実店舗 既存 店舗数
-34150	2025	19	legacy	number	日本 EC 既存 店舗数	日本 EC 既存 店舗数	number	日本 EC 既存 店舗数	stores	EC	既存	店舗数	全体	日本 EC 既存 店舗数
+34150	2025	18	legacy	number	日本 実店舗 既存 店舗数	日本 実店舗 既存 店舗数	number	日本 実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体 > 実店舗	日本 既存 店舗数
+34150	2025	19	legacy	number	日本 EC 既存 店舗数	日本 EC 既存 店舗数	number	日本 EC 既存 店舗数	stores	EC	既存	店舗数	全体 > EC	日本 既存 店舗数
 34150	2025	20	legacy	number	海外 既存 店舗数	海外 既存 店舗数	number	海外 既存 店舗数	stores		既存	店舗数	全体	海外 既存 店舗数
-34150	2025	21	legacy	number	海外 実店舗 既存 店舗数	海外 実店舗 既存 店舗数	number	海外 実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体	海外 実店舗 既存 店舗数
+34150	2025	21	legacy	number	海外 実店舗 既存 店舗数	海外 実店舗 既存 店舗数	number	海外 実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体 > 実店舗	海外 既存 店舗数
 34150	2025	22	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	全社 売上高
 34150	2025	23	legacy	yoy_index	実店舗 全社 売上高(前年比)	実店舗 全社 売上高(前年比)	yoy_index	実店舗 全社 売上高(前年比)	sales	実店舗	全社	売上高	全体 > 実店舗	全社 売上高
 34150	2025	24	legacy	yoy_index	EC 全社 売上高(前年比)	EC 全社 売上高(前年比)	yoy_index	EC 全社 売上高(前年比)	sales	EC	全社	売上高	全体 > EC	全社 売上高
 34150	2025	25	legacy	yoy_index	日本 売上高(前年比)	日本 売上高(前年比)	yoy_index	日本 売上高(前年比)	sales			売上高	全体	日本 売上高
-34150	2025	26	legacy	yoy_index	日本 実店舗 売上高(前年比)	日本 実店舗 売上高(前年比)	yoy_index	日本 実店舗 売上高(前年比)	sales	実店舗		売上高	全体	日本 実店舗 売上高
-34150	2025	27	legacy	yoy_index	日本 EC 売上高(前年比)	日本 EC 売上高(前年比)	yoy_index	日本 EC 売上高(前年比)	sales	EC		売上高	全体	日本 EC 売上高
+34150	2025	26	legacy	yoy_index	日本 実店舗 売上高(前年比)	日本 実店舗 売上高(前年比)	yoy_index	日本 実店舗 売上高(前年比)	sales	実店舗		売上高	全体 > 実店舗	日本 売上高
+34150	2025	27	legacy	yoy_index	日本 EC 売上高(前年比)	日本 EC 売上高(前年比)	yoy_index	日本 EC 売上高(前年比)	sales	EC		売上高	全体 > EC	日本 売上高
 34150	2025	28	legacy	yoy_index	海外 売上高(前年比)	海外 売上高(前年比)	yoy_index	海外 売上高(前年比)	sales			売上高	全体	海外 売上高
-34150	2025	29	legacy	yoy_index	海外 実店舗 売上高(前年比)	海外 実店舗 売上高(前年比)	yoy_index	海外 実店舗 売上高(前年比)	sales	実店舗		売上高	全体	海外 実店舗 売上高
+34150	2025	29	legacy	yoy_index	海外 実店舗 売上高(前年比)	海外 実店舗 売上高(前年比)	yoy_index	海外 実店舗 売上高(前年比)	sales	実店舗		売上高	全体 > 実店舗	海外 売上高
 34150	2025	30	legacy	number	全社 店舗数	全社 店舗数	number	全社 店舗数	stores		全社	店舗数	全体	全社 店舗数
 34150	2025	31	legacy	number	実店舗 全社 店舗数	実店舗 全社 店舗数	number	実店舗 全社 店舗数	stores	実店舗	全社	店舗数	全体 > 実店舗	全社 店舗数
 34150	2025	32	legacy	number	EC 全社 店舗数	EC 全社 店舗数	number	EC 全社 店舗数	stores	EC	全社	店舗数	全体 > EC	全社 店舗数
@@ -2903,31 +2903,31 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 34150	2026	2	legacy	yoy_index	実店舗 既存 売上高(前年比)	実店舗 既存 売上高(前年比)	yoy_index	実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体 > 実店舗	既存 売上高
 34150	2026	3	legacy	yoy_index	EC 既存 売上高(前年比)	EC 既存 売上高(前年比)	yoy_index	EC 既存 売上高(前年比)	sales	EC	既存	売上高	全体 > EC	既存 売上高
 34150	2026	4	legacy	yoy_index	日本 既存 売上高(前年比)	日本 既存 売上高(前年比)	yoy_index	日本 既存 売上高(前年比)	sales		既存	売上高	全体	日本 既存 売上高
-34150	2026	5	legacy	yoy_index	日本 実店舗 既存 売上高(前年比)	日本 実店舗 既存 売上高(前年比)	yoy_index	日本 実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体	日本 実店舗 既存 売上高
-34150	2026	6	legacy	yoy_index	日本 EC 既存 売上高(前年比)	日本 EC 既存 売上高(前年比)	yoy_index	日本 EC 既存 売上高(前年比)	sales	EC	既存	売上高	全体	日本 EC 既存 売上高
+34150	2026	5	legacy	yoy_index	日本 実店舗 既存 売上高(前年比)	日本 実店舗 既存 売上高(前年比)	yoy_index	日本 実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体 > 実店舗	日本 既存 売上高
+34150	2026	6	legacy	yoy_index	日本 EC 既存 売上高(前年比)	日本 EC 既存 売上高(前年比)	yoy_index	日本 EC 既存 売上高(前年比)	sales	EC	既存	売上高	全体 > EC	日本 既存 売上高
 34150	2026	7	legacy	yoy_index	海外 既存 売上高(前年比)	海外 既存 売上高(前年比)	yoy_index	海外 既存 売上高(前年比)	sales		既存	売上高	全体	海外 既存 売上高
-34150	2026	8	legacy	yoy_index	海外 実店舗 既存 売上高(前年比)	海外 実店舗 既存 売上高(前年比)	yoy_index	海外 実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体	海外 実店舗 既存 売上高
+34150	2026	8	legacy	yoy_index	海外 実店舗 既存 売上高(前年比)	海外 実店舗 既存 売上高(前年比)	yoy_index	海外 実店舗 既存 売上高(前年比)	sales	実店舗	既存	売上高	全体 > 実店舗	海外 既存 売上高
 34150	2026	9	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
-34150	2026	10	legacy	number	日本 実店舗 店舗数	日本 実店舗 店舗数	number	日本 実店舗 店舗数	stores	実店舗		店舗数	全体	日本 実店舗 店舗数
-34150	2026	11	legacy	number	日本 EC 店舗数	日本 EC 店舗数	number	日本 EC 店舗数	stores	EC		店舗数	全体	日本 EC 店舗数
+34150	2026	10	legacy	number	日本 実店舗 店舗数	日本 実店舗 店舗数	number	日本 実店舗 店舗数	stores	実店舗		店舗数	全体 > 実店舗	日本 店舗数
+34150	2026	11	legacy	number	日本 EC 店舗数	日本 EC 店舗数	number	日本 EC 店舗数	stores	EC		店舗数	全体 > EC	日本 店舗数
 34150	2026	12	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体	海外 店舗数
-34150	2026	13	legacy	number	海外 実店舗 店舗数	海外 実店舗 店舗数	number	海外 実店舗 店舗数	stores	実店舗		店舗数	全体	海外 実店舗 店舗数
+34150	2026	13	legacy	number	海外 実店舗 店舗数	海外 実店舗 店舗数	number	海外 実店舗 店舗数	stores	実店舗		店舗数	全体 > 実店舗	海外 店舗数
 34150	2026	14	legacy	number	既存 店舗数	既存 店舗数	number	既存 店舗数	stores		既存	店舗数	全体	既存 店舗数
 34150	2026	15	legacy	number	実店舗 既存 店舗数	実店舗 既存 店舗数	number	実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体 > 実店舗	既存 店舗数
 34150	2026	16	legacy	number	EC 既存 店舗数	EC 既存 店舗数	number	EC 既存 店舗数	stores	EC	既存	店舗数	全体 > EC	既存 店舗数
 34150	2026	17	legacy	number	日本 既存 店舗数	日本 既存 店舗数	number	日本 既存 店舗数	stores		既存	店舗数	全体	日本 既存 店舗数
-34150	2026	18	legacy	number	日本 実店舗 既存 店舗数	日本 実店舗 既存 店舗数	number	日本 実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体	日本 実店舗 既存 店舗数
-34150	2026	19	legacy	number	日本 EC 既存 店舗数	日本 EC 既存 店舗数	number	日本 EC 既存 店舗数	stores	EC	既存	店舗数	全体	日本 EC 既存 店舗数
+34150	2026	18	legacy	number	日本 実店舗 既存 店舗数	日本 実店舗 既存 店舗数	number	日本 実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体 > 実店舗	日本 既存 店舗数
+34150	2026	19	legacy	number	日本 EC 既存 店舗数	日本 EC 既存 店舗数	number	日本 EC 既存 店舗数	stores	EC	既存	店舗数	全体 > EC	日本 既存 店舗数
 34150	2026	20	legacy	number	海外 既存 店舗数	海外 既存 店舗数	number	海外 既存 店舗数	stores		既存	店舗数	全体	海外 既存 店舗数
-34150	2026	21	legacy	number	海外 実店舗 既存 店舗数	海外 実店舗 既存 店舗数	number	海外 実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体	海外 実店舗 既存 店舗数
+34150	2026	21	legacy	number	海外 実店舗 既存 店舗数	海外 実店舗 既存 店舗数	number	海外 実店舗 既存 店舗数	stores	実店舗	既存	店舗数	全体 > 実店舗	海外 既存 店舗数
 34150	2026	22	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	全社 売上高
 34150	2026	23	legacy	yoy_index	実店舗 全社 売上高(前年比)	実店舗 全社 売上高(前年比)	yoy_index	実店舗 全社 売上高(前年比)	sales	実店舗	全社	売上高	全体 > 実店舗	全社 売上高
 34150	2026	24	legacy	yoy_index	EC 全社 売上高(前年比)	EC 全社 売上高(前年比)	yoy_index	EC 全社 売上高(前年比)	sales	EC	全社	売上高	全体 > EC	全社 売上高
 34150	2026	25	legacy	yoy_index	日本 売上高(前年比)	日本 売上高(前年比)	yoy_index	日本 売上高(前年比)	sales			売上高	全体	日本 売上高
-34150	2026	26	legacy	yoy_index	日本 実店舗 売上高(前年比)	日本 実店舗 売上高(前年比)	yoy_index	日本 実店舗 売上高(前年比)	sales	実店舗		売上高	全体	日本 実店舗 売上高
-34150	2026	27	legacy	yoy_index	日本 EC 売上高(前年比)	日本 EC 売上高(前年比)	yoy_index	日本 EC 売上高(前年比)	sales	EC		売上高	全体	日本 EC 売上高
+34150	2026	26	legacy	yoy_index	日本 実店舗 売上高(前年比)	日本 実店舗 売上高(前年比)	yoy_index	日本 実店舗 売上高(前年比)	sales	実店舗		売上高	全体 > 実店舗	日本 売上高
+34150	2026	27	legacy	yoy_index	日本 EC 売上高(前年比)	日本 EC 売上高(前年比)	yoy_index	日本 EC 売上高(前年比)	sales	EC		売上高	全体 > EC	日本 売上高
 34150	2026	28	legacy	yoy_index	海外 売上高(前年比)	海外 売上高(前年比)	yoy_index	海外 売上高(前年比)	sales			売上高	全体	海外 売上高
-34150	2026	29	legacy	yoy_index	海外 実店舗 売上高(前年比)	海外 実店舗 売上高(前年比)	yoy_index	海外 実店舗 売上高(前年比)	sales	実店舗		売上高	全体	海外 実店舗 売上高
+34150	2026	29	legacy	yoy_index	海外 実店舗 売上高(前年比)	海外 実店舗 売上高(前年比)	yoy_index	海外 実店舗 売上高(前年比)	sales	実店舗		売上高	全体 > 実店舗	海外 売上高
 34150	2026	30	legacy	number	全社 店舗数	全社 店舗数	number	全社 店舗数	stores		全社	店舗数	全体	全社 店舗数
 34150	2026	31	legacy	number	実店舗 全社 店舗数	実店舗 全社 店舗数	number	実店舗 全社 店舗数	stores	実店舗	全社	店舗数	全体 > 実店舗	全社 店舗数
 34150	2026	32	legacy	number	EC 全社 店舗数	EC 全社 店舗数	number	EC 全社 店舗数	stores	EC	全社	店舗数	全体 > EC	全社 店舗数
@@ -3449,52 +3449,52 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 43430	2024	1	legacy	yoy_index	日本 売上高(前年比)	日本 売上高(前年比)	yoy_index	日本 売上高(前年比)	sales			売上高	全体	日本 売上高
 43430	2024	2	legacy	yoy_index	日本 (曜日調整前) 既存 売上高(前年比)	日本 (曜日調整前) 既存 売上高(前年比)	yoy_index	日本 (曜日調整前) 既存 売上高(前年比)	sales	(曜日調整前)	既存	売上高	全体	日本 (曜日調整前) 既存 売上高
 43430	2024	3	legacy	yoy_index	日本 (曜日調整後) 既存 売上高(前年比)	日本 (曜日調整後) 既存 売上高(前年比)	yoy_index	日本 (曜日調整後) 既存 売上高(前年比)	sales	(曜日調整後)	既存	売上高	全体	日本 (曜日調整後) 既存 売上高
-43430	2024	4	legacy	yoy_index	海外 中国 既存 売上高(前年比)	海外 中国 既存 売上高(前年比)	yoy_index	海外 中国 既存 売上高(前年比)	sales	中国	既存	売上高	全体	海外 中国 既存 売上高
-43430	2024	5	legacy	yoy_index	海外 マレーシア 既存 売上高(前年比)	海外 マレーシア 既存 売上高(前年比)	yoy_index	海外 マレーシア 既存 売上高(前年比)	sales	マレーシア	既存	売上高	全体	海外 マレーシア 既存 売上高
-43430	2024	6	legacy	yoy_index	海外 タイ 既存 売上高(前年比)	海外 タイ 既存 売上高(前年比)	yoy_index	海外 タイ 既存 売上高(前年比)	sales	タイ	既存	売上高	全体	海外 タイ 既存 売上高
-43430	2024	7	legacy	yoy_index	海外 フィリピン 既存 売上高(前年比)	海外 フィリピン 既存 売上高(前年比)	yoy_index	海外 フィリピン 既存 売上高(前年比)	sales	フィリピン	既存	売上高	全体	海外 フィリピン 既存 売上高
-43430	2024	8	legacy	yoy_index	海外 インドネシア 既存 売上高(前年比)	海外 インドネシア 既存 売上高(前年比)	yoy_index	海外 インドネシア 既存 売上高(前年比)	sales	インドネシア	既存	売上高	全体	海外 インドネシア 既存 売上高
-43430	2024	9	legacy	yoy_index	海外 ベトナム 既存 売上高(前年比)	海外 ベトナム 既存 売上高(前年比)	yoy_index	海外 ベトナム 既存 売上高(前年比)	sales	ベトナム	既存	売上高	全体	海外 ベトナム 既存 売上高
+43430	2024	4	legacy	yoy_index	海外 中国 既存 売上高(前年比)	海外 中国 既存 売上高(前年比)	yoy_index	海外 中国 既存 売上高(前年比)	sales	中国	既存	売上高	全体 > 中国	海外 既存 売上高
+43430	2024	5	legacy	yoy_index	海外 マレーシア 既存 売上高(前年比)	海外 マレーシア 既存 売上高(前年比)	yoy_index	海外 マレーシア 既存 売上高(前年比)	sales	マレーシア	既存	売上高	全体 > マレーシア	海外 既存 売上高
+43430	2024	6	legacy	yoy_index	海外 タイ 既存 売上高(前年比)	海外 タイ 既存 売上高(前年比)	yoy_index	海外 タイ 既存 売上高(前年比)	sales	タイ	既存	売上高	全体 > タイ	海外 既存 売上高
+43430	2024	7	legacy	yoy_index	海外 フィリピン 既存 売上高(前年比)	海外 フィリピン 既存 売上高(前年比)	yoy_index	海外 フィリピン 既存 売上高(前年比)	sales	フィリピン	既存	売上高	全体 > フィリピン	海外 既存 売上高
+43430	2024	8	legacy	yoy_index	海外 インドネシア 既存 売上高(前年比)	海外 インドネシア 既存 売上高(前年比)	yoy_index	海外 インドネシア 既存 売上高(前年比)	sales	インドネシア	既存	売上高	全体 > インドネシア	海外 既存 売上高
+43430	2024	9	legacy	yoy_index	海外 ベトナム 既存 売上高(前年比)	海外 ベトナム 既存 売上高(前年比)	yoy_index	海外 ベトナム 既存 売上高(前年比)	sales	ベトナム	既存	売上高	全体 > ベトナム	海外 既存 売上高
 43430	2024	10	legacy	yoy_index	海外 既存 売上高(前年比)	海外 既存 売上高(前年比)	yoy_index	海外 既存 売上高(前年比)	sales		既存	売上高	全体	海外 既存 売上高
 43430	2024	11	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
 43430	2025	1	legacy	yoy_index	日本 売上高(前年比)	日本 売上高(前年比)	yoy_index	日本 売上高(前年比)	sales			売上高	全体	日本 売上高
 43430	2025	2	legacy	yoy_index	日本 (曜日調整前) 既存 売上高(前年比)	日本 (曜日調整前) 既存 売上高(前年比)	yoy_index	日本 (曜日調整前) 既存 売上高(前年比)	sales	(曜日調整前)	既存	売上高	全体	日本 (曜日調整前) 既存 売上高
 43430	2025	3	legacy	yoy_index	日本 (曜日調整後) 既存 売上高(前年比)	日本 (曜日調整後) 既存 売上高(前年比)	yoy_index	日本 (曜日調整後) 既存 売上高(前年比)	sales	(曜日調整後)	既存	売上高	全体	日本 (曜日調整後) 既存 売上高
-43430	2025	4	legacy	yoy_index	海外 中国 既存 売上高(前年比)	海外 中国 既存 売上高(前年比)	yoy_index	海外 中国 既存 売上高(前年比)	sales	中国	既存	売上高	全体	海外 中国 既存 売上高
-43430	2025	5	legacy	yoy_index	海外 マレーシア 既存 売上高(前年比)	海外 マレーシア 既存 売上高(前年比)	yoy_index	海外 マレーシア 既存 売上高(前年比)	sales	マレーシア	既存	売上高	全体	海外 マレーシア 既存 売上高
-43430	2025	6	legacy	yoy_index	海外 タイ 既存 売上高(前年比)	海外 タイ 既存 売上高(前年比)	yoy_index	海外 タイ 既存 売上高(前年比)	sales	タイ	既存	売上高	全体	海外 タイ 既存 売上高
-43430	2025	7	legacy	yoy_index	海外 フィリピン 既存 売上高(前年比)	海外 フィリピン 既存 売上高(前年比)	yoy_index	海外 フィリピン 既存 売上高(前年比)	sales	フィリピン	既存	売上高	全体	海外 フィリピン 既存 売上高
-43430	2025	8	legacy	yoy_index	海外 インドネシア 既存 売上高(前年比)	海外 インドネシア 既存 売上高(前年比)	yoy_index	海外 インドネシア 既存 売上高(前年比)	sales	インドネシア	既存	売上高	全体	海外 インドネシア 既存 売上高
-43430	2025	9	legacy	yoy_index	海外 ベトナム 既存 売上高(前年比)	海外 ベトナム 既存 売上高(前年比)	yoy_index	海外 ベトナム 既存 売上高(前年比)	sales	ベトナム	既存	売上高	全体	海外 ベトナム 既存 売上高
+43430	2025	4	legacy	yoy_index	海外 中国 既存 売上高(前年比)	海外 中国 既存 売上高(前年比)	yoy_index	海外 中国 既存 売上高(前年比)	sales	中国	既存	売上高	全体 > 中国	海外 既存 売上高
+43430	2025	5	legacy	yoy_index	海外 マレーシア 既存 売上高(前年比)	海外 マレーシア 既存 売上高(前年比)	yoy_index	海外 マレーシア 既存 売上高(前年比)	sales	マレーシア	既存	売上高	全体 > マレーシア	海外 既存 売上高
+43430	2025	6	legacy	yoy_index	海外 タイ 既存 売上高(前年比)	海外 タイ 既存 売上高(前年比)	yoy_index	海外 タイ 既存 売上高(前年比)	sales	タイ	既存	売上高	全体 > タイ	海外 既存 売上高
+43430	2025	7	legacy	yoy_index	海外 フィリピン 既存 売上高(前年比)	海外 フィリピン 既存 売上高(前年比)	yoy_index	海外 フィリピン 既存 売上高(前年比)	sales	フィリピン	既存	売上高	全体 > フィリピン	海外 既存 売上高
+43430	2025	8	legacy	yoy_index	海外 インドネシア 既存 売上高(前年比)	海外 インドネシア 既存 売上高(前年比)	yoy_index	海外 インドネシア 既存 売上高(前年比)	sales	インドネシア	既存	売上高	全体 > インドネシア	海外 既存 売上高
+43430	2025	9	legacy	yoy_index	海外 ベトナム 既存 売上高(前年比)	海外 ベトナム 既存 売上高(前年比)	yoy_index	海外 ベトナム 既存 売上高(前年比)	sales	ベトナム	既存	売上高	全体 > ベトナム	海外 既存 売上高
 43430	2025	10	legacy	yoy_index	海外 既存 売上高(前年比)	海外 既存 売上高(前年比)	yoy_index	海外 既存 売上高(前年比)	sales		既存	売上高	全体	海外 既存 売上高
 43430	2025	11	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
 43430	2026	1	legacy	yoy_index	日本 (曜日調整前) 既存 売上高(前年比)	日本 (曜日調整前) 既存 売上高(前年比)	yoy_index	日本 (曜日調整前) 既存 売上高(前年比)	sales	(曜日調整前)	既存	売上高	全体	日本 (曜日調整前) 既存 売上高
 43430	2026	2	legacy	yoy_index	日本 (曜日調整後) 既存 売上高(前年比)	日本 (曜日調整後) 既存 売上高(前年比)	yoy_index	日本 (曜日調整後) 既存 売上高(前年比)	sales	(曜日調整後)	既存	売上高	全体	日本 (曜日調整後) 既存 売上高
-43430	2026	3	legacy	yoy_index	海外 中国 既存 売上高(前年比)	海外 中国 既存 売上高(前年比)	yoy_index	海外 中国 既存 売上高(前年比)	sales	中国	既存	売上高	全体	海外 中国 既存 売上高
-43430	2026	4	legacy	yoy_index	海外 マレーシア 既存 売上高(前年比)	海外 マレーシア 既存 売上高(前年比)	yoy_index	海外 マレーシア 既存 売上高(前年比)	sales	マレーシア	既存	売上高	全体	海外 マレーシア 既存 売上高
-43430	2026	5	legacy	yoy_index	海外 タイ 既存 売上高(前年比)	海外 タイ 既存 売上高(前年比)	yoy_index	海外 タイ 既存 売上高(前年比)	sales	タイ	既存	売上高	全体	海外 タイ 既存 売上高
-43430	2026	6	legacy	yoy_index	海外 フィリピン 既存 売上高(前年比)	海外 フィリピン 既存 売上高(前年比)	yoy_index	海外 フィリピン 既存 売上高(前年比)	sales	フィリピン	既存	売上高	全体	海外 フィリピン 既存 売上高
-43430	2026	7	legacy	yoy_index	海外 インドネシア 既存 売上高(前年比)	海外 インドネシア 既存 売上高(前年比)	yoy_index	海外 インドネシア 既存 売上高(前年比)	sales	インドネシア	既存	売上高	全体	海外 インドネシア 既存 売上高
-43430	2026	8	legacy	yoy_index	海外 ベトナム 既存 売上高(前年比)	海外 ベトナム 既存 売上高(前年比)	yoy_index	海外 ベトナム 既存 売上高(前年比)	sales	ベトナム	既存	売上高	全体	海外 ベトナム 既存 売上高
+43430	2026	3	legacy	yoy_index	海外 中国 既存 売上高(前年比)	海外 中国 既存 売上高(前年比)	yoy_index	海外 中国 既存 売上高(前年比)	sales	中国	既存	売上高	全体 > 中国	海外 既存 売上高
+43430	2026	4	legacy	yoy_index	海外 マレーシア 既存 売上高(前年比)	海外 マレーシア 既存 売上高(前年比)	yoy_index	海外 マレーシア 既存 売上高(前年比)	sales	マレーシア	既存	売上高	全体 > マレーシア	海外 既存 売上高
+43430	2026	5	legacy	yoy_index	海外 タイ 既存 売上高(前年比)	海外 タイ 既存 売上高(前年比)	yoy_index	海外 タイ 既存 売上高(前年比)	sales	タイ	既存	売上高	全体 > タイ	海外 既存 売上高
+43430	2026	6	legacy	yoy_index	海外 フィリピン 既存 売上高(前年比)	海外 フィリピン 既存 売上高(前年比)	yoy_index	海外 フィリピン 既存 売上高(前年比)	sales	フィリピン	既存	売上高	全体 > フィリピン	海外 既存 売上高
+43430	2026	7	legacy	yoy_index	海外 インドネシア 既存 売上高(前年比)	海外 インドネシア 既存 売上高(前年比)	yoy_index	海外 インドネシア 既存 売上高(前年比)	sales	インドネシア	既存	売上高	全体 > インドネシア	海外 既存 売上高
+43430	2026	8	legacy	yoy_index	海外 ベトナム 既存 売上高(前年比)	海外 ベトナム 既存 売上高(前年比)	yoy_index	海外 ベトナム 既存 売上高(前年比)	sales	ベトナム	既存	売上高	全体 > ベトナム	海外 既存 売上高
 43430	2026	9	legacy	yoy_index	海外 既存 売上高(前年比)	海外 既存 売上高(前年比)	yoy_index	海外 既存 売上高(前年比)	sales		既存	売上高	全体	海外 既存 売上高
-43430	2026	10	legacy	yoy_index	日本 アミューズメント事業 売上高(前年比)	日本 アミューズメント事業 売上高(前年比)	yoy_index	日本 アミューズメント事業 売上高(前年比)	sales	アミューズメント事業		売上高	全体	日本 アミューズメント事業 売上高
-43430	2026	11	legacy	yoy_index	日本 アミューズメント事業 既存 売上高(前年比)	日本 アミューズメント事業 既存 売上高(前年比)	yoy_index	日本 アミューズメント事業 既存 売上高(前年比)	sales	アミューズメント事業	既存	売上高	全体	日本 アミューズメント事業 既存 売上高
-43430	2026	12	legacy	number	日本 アミューズメント事業 店舗数	日本 アミューズメント事業 店舗数	number	日本 アミューズメント事業 店舗数	stores	アミューズメント事業		店舗数	全体	日本 アミューズメント事業 店舗数
-43430	2026	13	legacy	yoy_index	日本 アミューズメント事業 総合店 売上高(前年比)	日本 アミューズメント事業 総合店 売上高(前年比)	yoy_index	日本 アミューズメント事業 総合店 売上高(前年比)	sales	アミューズメント事業 総合店		売上高	全体	日本 アミューズメント事業 総合店 売上高
-43430	2026	14	legacy	yoy_index	日本 アミューズメント事業 総合店 既存 売上高(前年比)	日本 アミューズメント事業 総合店 既存 売上高(前年比)	yoy_index	日本 アミューズメント事業 総合店 既存 売上高(前年比)	sales	アミューズメント事業 総合店	既存	売上高	全体	日本 アミューズメント事業 総合店 既存 売上高
-43430	2026	15	legacy	number	日本 アミューズメント事業 総合店 店舗数	日本 アミューズメント事業 総合店 店舗数	number	日本 アミューズメント事業 総合店 店舗数	stores	アミューズメント事業 総合店		店舗数	全体	日本 アミューズメント事業 総合店 店舗数
-43430	2026	16	legacy	yoy_index	日本 アミューズメント事業 専門店 売上高(前年比)	日本 アミューズメント事業 専門店 売上高(前年比)	yoy_index	日本 アミューズメント事業 専門店 売上高(前年比)	sales	アミューズメント事業 専門店		売上高	全体	日本 アミューズメント事業 専門店 売上高
-43430	2026	17	legacy	yoy_index	日本 アミューズメント事業 専門店 既存 売上高(前年比)	日本 アミューズメント事業 専門店 既存 売上高(前年比)	yoy_index	日本 アミューズメント事業 専門店 既存 売上高(前年比)	sales	アミューズメント事業 専門店	既存	売上高	全体	日本 アミューズメント事業 専門店 既存 売上高
-43430	2026	18	legacy	number	日本 アミューズメント事業 専門店 店舗数	日本 アミューズメント事業 専門店 店舗数	number	日本 アミューズメント事業 専門店 店舗数	stores	アミューズメント事業 専門店		店舗数	全体	日本 アミューズメント事業 専門店 店舗数
-43430	2026	19	legacy	yoy_index	日本 プレイグラウンド事業 売上高(前年比)	日本 プレイグラウンド事業 売上高(前年比)	yoy_index	日本 プレイグラウンド事業 売上高(前年比)	sales	プレイグラウンド事業		売上高	全体	日本 プレイグラウンド事業 売上高
-43430	2026	20	legacy	yoy_index	日本 プレイグラウンド事業 既存 売上高(前年比)	日本 プレイグラウンド事業 既存 売上高(前年比)	yoy_index	日本 プレイグラウンド事業 既存 売上高(前年比)	sales	プレイグラウンド事業	既存	売上高	全体	日本 プレイグラウンド事業 既存 売上高
-43430	2026	21	legacy	number	日本 プレイグラウンド事業 店舗数	日本 プレイグラウンド事業 店舗数	number	日本 プレイグラウンド事業 店舗数	stores	プレイグラウンド事業		店舗数	全体	日本 プレイグラウンド事業 店舗数
-43430	2026	22	legacy	yoy_index	日本 温浴事業 売上高(前年比)	日本 温浴事業 売上高(前年比)	yoy_index	日本 温浴事業 売上高(前年比)	sales	温浴事業		売上高	全体	日本 温浴事業 売上高
-43430	2026	23	legacy	yoy_index	日本 温浴事業 既存 売上高(前年比)	日本 温浴事業 既存 売上高(前年比)	yoy_index	日本 温浴事業 既存 売上高(前年比)	sales	温浴事業	既存	売上高	全体	日本 温浴事業 既存 売上高
-43430	2026	24	legacy	number	日本 温浴事業 店舗数	日本 温浴事業 店舗数	number	日本 温浴事業 店舗数	stores	温浴事業		店舗数	全体	日本 温浴事業 店舗数
-43430	2026	25	legacy	yoy_index	日本 その他事業 売上高(前年比)	日本 その他事業 売上高(前年比)	yoy_index	日本 その他事業 売上高(前年比)	sales	その他事業		売上高	全体	日本 その他事業 売上高
-43430	2026	26	legacy	yoy_index	日本 その他事業 既存 売上高(前年比)	日本 その他事業 既存 売上高(前年比)	yoy_index	日本 その他事業 既存 売上高(前年比)	sales	その他事業	既存	売上高	全体	日本 その他事業 既存 売上高
-43430	2026	27	legacy	number	日本 その他事業 店舗数	日本 その他事業 店舗数	number	日本 その他事業 店舗数	stores	その他事業		店舗数	全体	日本 その他事業 店舗数
+43430	2026	10	legacy	yoy_index	日本 アミューズメント事業 売上高(前年比)	日本 アミューズメント事業 売上高(前年比)	yoy_index	日本 アミューズメント事業 売上高(前年比)	sales	アミューズメント事業		売上高	全体 > アミューズメント事業	日本 売上高
+43430	2026	11	legacy	yoy_index	日本 アミューズメント事業 既存 売上高(前年比)	日本 アミューズメント事業 既存 売上高(前年比)	yoy_index	日本 アミューズメント事業 既存 売上高(前年比)	sales	アミューズメント事業	既存	売上高	全体 > アミューズメント事業	日本 既存 売上高
+43430	2026	12	legacy	number	日本 アミューズメント事業 店舗数	日本 アミューズメント事業 店舗数	number	日本 アミューズメント事業 店舗数	stores	アミューズメント事業		店舗数	全体 > アミューズメント事業	日本 店舗数
+43430	2026	13	legacy	yoy_index	日本 アミューズメント事業 総合店 売上高(前年比)	日本 アミューズメント事業 総合店 売上高(前年比)	yoy_index	日本 アミューズメント事業 総合店 売上高(前年比)	sales	アミューズメント事業 総合店		売上高	全体 > アミューズメント事業 総合店	日本 売上高
+43430	2026	14	legacy	yoy_index	日本 アミューズメント事業 総合店 既存 売上高(前年比)	日本 アミューズメント事業 総合店 既存 売上高(前年比)	yoy_index	日本 アミューズメント事業 総合店 既存 売上高(前年比)	sales	アミューズメント事業 総合店	既存	売上高	全体 > アミューズメント事業 総合店	日本 既存 売上高
+43430	2026	15	legacy	number	日本 アミューズメント事業 総合店 店舗数	日本 アミューズメント事業 総合店 店舗数	number	日本 アミューズメント事業 総合店 店舗数	stores	アミューズメント事業 総合店		店舗数	全体 > アミューズメント事業 総合店	日本 店舗数
+43430	2026	16	legacy	yoy_index	日本 アミューズメント事業 専門店 売上高(前年比)	日本 アミューズメント事業 専門店 売上高(前年比)	yoy_index	日本 アミューズメント事業 専門店 売上高(前年比)	sales	アミューズメント事業 専門店		売上高	全体 > アミューズメント事業 専門店	日本 売上高
+43430	2026	17	legacy	yoy_index	日本 アミューズメント事業 専門店 既存 売上高(前年比)	日本 アミューズメント事業 専門店 既存 売上高(前年比)	yoy_index	日本 アミューズメント事業 専門店 既存 売上高(前年比)	sales	アミューズメント事業 専門店	既存	売上高	全体 > アミューズメント事業 専門店	日本 既存 売上高
+43430	2026	18	legacy	number	日本 アミューズメント事業 専門店 店舗数	日本 アミューズメント事業 専門店 店舗数	number	日本 アミューズメント事業 専門店 店舗数	stores	アミューズメント事業 専門店		店舗数	全体 > アミューズメント事業 専門店	日本 店舗数
+43430	2026	19	legacy	yoy_index	日本 プレイグラウンド事業 売上高(前年比)	日本 プレイグラウンド事業 売上高(前年比)	yoy_index	日本 プレイグラウンド事業 売上高(前年比)	sales	プレイグラウンド事業		売上高	全体 > プレイグラウンド事業	日本 売上高
+43430	2026	20	legacy	yoy_index	日本 プレイグラウンド事業 既存 売上高(前年比)	日本 プレイグラウンド事業 既存 売上高(前年比)	yoy_index	日本 プレイグラウンド事業 既存 売上高(前年比)	sales	プレイグラウンド事業	既存	売上高	全体 > プレイグラウンド事業	日本 既存 売上高
+43430	2026	21	legacy	number	日本 プレイグラウンド事業 店舗数	日本 プレイグラウンド事業 店舗数	number	日本 プレイグラウンド事業 店舗数	stores	プレイグラウンド事業		店舗数	全体 > プレイグラウンド事業	日本 店舗数
+43430	2026	22	legacy	yoy_index	日本 温浴事業 売上高(前年比)	日本 温浴事業 売上高(前年比)	yoy_index	日本 温浴事業 売上高(前年比)	sales	温浴事業		売上高	全体 > 温浴事業	日本 売上高
+43430	2026	23	legacy	yoy_index	日本 温浴事業 既存 売上高(前年比)	日本 温浴事業 既存 売上高(前年比)	yoy_index	日本 温浴事業 既存 売上高(前年比)	sales	温浴事業	既存	売上高	全体 > 温浴事業	日本 既存 売上高
+43430	2026	24	legacy	number	日本 温浴事業 店舗数	日本 温浴事業 店舗数	number	日本 温浴事業 店舗数	stores	温浴事業		店舗数	全体 > 温浴事業	日本 店舗数
+43430	2026	25	legacy	yoy_index	日本 その他事業 売上高(前年比)	日本 その他事業 売上高(前年比)	yoy_index	日本 その他事業 売上高(前年比)	sales	その他事業		売上高	全体 > その他事業	日本 売上高
+43430	2026	26	legacy	yoy_index	日本 その他事業 既存 売上高(前年比)	日本 その他事業 既存 売上高(前年比)	yoy_index	日本 その他事業 既存 売上高(前年比)	sales	その他事業	既存	売上高	全体 > その他事業	日本 既存 売上高
+43430	2026	27	legacy	number	日本 その他事業 店舗数	日本 その他事業 店舗数	number	日本 その他事業 店舗数	stores	その他事業		店舗数	全体 > その他事業	日本 店舗数
 43430	2026	28	legacy	yoy_index	日本 売上高(前年比)	日本 売上高(前年比)	yoy_index	日本 売上高(前年比)	sales			売上高	全体	日本 売上高
 43430	2026	29	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
 43740	2023	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
@@ -3723,18 +3723,18 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 46660	2026	64	legacy	number	タイムズカー 専用車両	タイムズカー 専用車両	number	タイムズカー 専用車両	other	タイムズカー 専用車両			全体 > タイムズカー > 専用車両	車両
 46660	2026	65	legacy	number	タイムズカー 貸出拠点数	タイムズカー 貸出拠点数	number	タイムズカー 貸出拠点数	count	タイムズカー		貸出拠点数	全体 > タイムズカー	貸出拠点数
 46660	2026	66	legacy	number	タイムズカー 会員数	タイムズカー 会員数	number	タイムズカー 会員数	other	タイムズカー 会員数			全体 > タイムズカー	会員数
-46800	2024	1	legacy	number	日本 ボウリング 売上高	日本 ボウリング 売上高	number	日本 ボウリング 売上高	sales	ボウリング		売上高	全体	日本 ボウリング 売上高
-46800	2024	2	legacy	yoy_index	日本 ボウリング 既存 売上高(前年比)	日本 ボウリング 既存 売上高(前年比)	yoy_index	日本 ボウリング 既存 売上高(前年比)	sales	ボウリング	既存	売上高	全体	日本 ボウリング 既存 売上高
-46800	2024	3	legacy	number	日本 アミューズメント 売上高	日本 アミューズメント 売上高	number	日本 アミューズメント 売上高	sales	アミューズメント		売上高	全体	日本 アミューズメント 売上高
-46800	2024	4	legacy	yoy_index	日本 アミューズメント 既存 売上高(前年比)	日本 アミューズメント 既存 売上高(前年比)	yoy_index	日本 アミューズメント 既存 売上高(前年比)	sales	アミューズメント	既存	売上高	全体	日本 アミューズメント 既存 売上高
-46800	2024	5	legacy	number	日本 カラオケ 売上高	日本 カラオケ 売上高	number	日本 カラオケ 売上高	sales	カラオケ		売上高	全体	日本 カラオケ 売上高
-46800	2024	6	legacy	yoy_index	日本 カラオケ 既存 売上高(前年比)	日本 カラオケ 既存 売上高(前年比)	yoy_index	日本 カラオケ 既存 売上高(前年比)	sales	カラオケ	既存	売上高	全体	日本 カラオケ 既存 売上高
-46800	2024	7	legacy	number	日本 スポッチャ 売上高	日本 スポッチャ 売上高	number	日本 スポッチャ 売上高	sales	スポッチャ		売上高	全体	日本 スポッチャ 売上高
-46800	2024	8	legacy	yoy_index	日本 スポッチャ 既存 売上高(前年比)	日本 スポッチャ 既存 売上高(前年比)	yoy_index	日本 スポッチャ 既存 売上高(前年比)	sales	スポッチャ	既存	売上高	全体	日本 スポッチャ 既存 売上高
-46800	2024	9	legacy	number	日本 その他 売上高	日本 その他 売上高	number	日本 その他 売上高	sales	その他		売上高	全体	日本 その他 売上高
-46800	2024	10	legacy	yoy_index	日本 その他 既存 売上高(前年比)	日本 その他 既存 売上高(前年比)	yoy_index	日本 その他 既存 売上高(前年比)	sales	その他	既存	売上高	全体	日本 その他 既存 売上高
-46800	2024	11	legacy	number	日本 総 売上高	日本 総 売上高	number	日本 総 売上高	sales	総		売上高	全体	日本 総 売上高
-46800	2024	12	legacy	yoy_index	日本 総 既存 売上高(前年比)	日本 総 既存 売上高(前年比)	yoy_index	日本 総 既存 売上高(前年比)	sales	総	既存	売上高	全体	日本 総 既存 売上高
+46800	2024	1	legacy	number	日本 ボウリング 売上高	日本 ボウリング 売上高	number	日本 ボウリング 売上高	sales	ボウリング		売上高	全体 > ボウリング	日本 売上高
+46800	2024	2	legacy	yoy_index	日本 ボウリング 既存 売上高(前年比)	日本 ボウリング 既存 売上高(前年比)	yoy_index	日本 ボウリング 既存 売上高(前年比)	sales	ボウリング	既存	売上高	全体 > ボウリング	日本 既存 売上高
+46800	2024	3	legacy	number	日本 アミューズメント 売上高	日本 アミューズメント 売上高	number	日本 アミューズメント 売上高	sales	アミューズメント		売上高	全体 > アミューズメント	日本 売上高
+46800	2024	4	legacy	yoy_index	日本 アミューズメント 既存 売上高(前年比)	日本 アミューズメント 既存 売上高(前年比)	yoy_index	日本 アミューズメント 既存 売上高(前年比)	sales	アミューズメント	既存	売上高	全体 > アミューズメント	日本 既存 売上高
+46800	2024	5	legacy	number	日本 カラオケ 売上高	日本 カラオケ 売上高	number	日本 カラオケ 売上高	sales	カラオケ		売上高	全体 > カラオケ	日本 売上高
+46800	2024	6	legacy	yoy_index	日本 カラオケ 既存 売上高(前年比)	日本 カラオケ 既存 売上高(前年比)	yoy_index	日本 カラオケ 既存 売上高(前年比)	sales	カラオケ	既存	売上高	全体 > カラオケ	日本 既存 売上高
+46800	2024	7	legacy	number	日本 スポッチャ 売上高	日本 スポッチャ 売上高	number	日本 スポッチャ 売上高	sales	スポッチャ		売上高	全体 > スポッチャ	日本 売上高
+46800	2024	8	legacy	yoy_index	日本 スポッチャ 既存 売上高(前年比)	日本 スポッチャ 既存 売上高(前年比)	yoy_index	日本 スポッチャ 既存 売上高(前年比)	sales	スポッチャ	既存	売上高	全体 > スポッチャ	日本 既存 売上高
+46800	2024	9	legacy	number	日本 その他 売上高	日本 その他 売上高	number	日本 その他 売上高	sales	その他		売上高	全体 > その他	日本 売上高
+46800	2024	10	legacy	yoy_index	日本 その他 既存 売上高(前年比)	日本 その他 既存 売上高(前年比)	yoy_index	日本 その他 既存 売上高(前年比)	sales	その他	既存	売上高	全体 > その他	日本 既存 売上高
+46800	2024	11	legacy	number	日本 総 売上高	日本 総 売上高	number	日本 総 売上高	sales	総		売上高	全体	日本 売上高
+46800	2024	12	legacy	yoy_index	日本 総 既存 売上高(前年比)	日本 総 既存 売上高(前年比)	yoy_index	日本 総 既存 売上高(前年比)	sales	総	既存	売上高	全体	日本 既存 売上高
 46800	2024	13	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
 46800	2024	14	legacy	number	日本 既存 店舗数	日本 既存 店舗数	number	日本 既存 店舗数	stores		既存	店舗数	全体	日本 既存 店舗数
 46800	2024	15	legacy	number	米国 ボウリング 売上高	米国 ボウリング 売上高	number	米国 ボウリング 売上高	sales	米国 ボウリング		売上高	全体 > 米国 ボウリング	売上高
@@ -3747,18 +3747,18 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 46800	2024	22	legacy	yoy_index	米国 スポッチャ 既存 売上高(前年比)	米国 スポッチャ 既存 売上高(前年比)	yoy_index	米国 スポッチャ 既存 売上高(前年比)	sales	米国 スポッチャ	既存	売上高	全体 > 米国 スポッチャ	既存 売上高
 46800	2024	23	legacy	number	米国 総 売上高	米国 総 売上高	number	米国 総 売上高	sales	米国 総		売上高	全体 > 米国	売上高
 46800	2024	24	legacy	yoy_index	米国 総 既存 売上高(前年比)	米国 総 既存 売上高(前年比)	yoy_index	米国 総 既存 売上高(前年比)	sales	米国 総	既存	売上高	全体 > 米国	既存 売上高
-46800	2025	1	legacy	number	日本 ボウリング 売上高	日本 ボウリング 売上高	number	日本 ボウリング 売上高	sales	ボウリング		売上高	全体	日本 ボウリング 売上高
-46800	2025	2	legacy	yoy_index	日本 ボウリング 既存 売上高(前年比)	日本 ボウリング 既存 売上高(前年比)	yoy_index	日本 ボウリング 既存 売上高(前年比)	sales	ボウリング	既存	売上高	全体	日本 ボウリング 既存 売上高
-46800	2025	3	legacy	number	日本 アミューズメント 売上高	日本 アミューズメント 売上高	number	日本 アミューズメント 売上高	sales	アミューズメント		売上高	全体	日本 アミューズメント 売上高
-46800	2025	4	legacy	yoy_index	日本 アミューズメント 既存 売上高(前年比)	日本 アミューズメント 既存 売上高(前年比)	yoy_index	日本 アミューズメント 既存 売上高(前年比)	sales	アミューズメント	既存	売上高	全体	日本 アミューズメント 既存 売上高
-46800	2025	5	legacy	number	日本 カラオケ 売上高	日本 カラオケ 売上高	number	日本 カラオケ 売上高	sales	カラオケ		売上高	全体	日本 カラオケ 売上高
-46800	2025	6	legacy	yoy_index	日本 カラオケ 既存 売上高(前年比)	日本 カラオケ 既存 売上高(前年比)	yoy_index	日本 カラオケ 既存 売上高(前年比)	sales	カラオケ	既存	売上高	全体	日本 カラオケ 既存 売上高
-46800	2025	7	legacy	number	日本 スポッチャ 売上高	日本 スポッチャ 売上高	number	日本 スポッチャ 売上高	sales	スポッチャ		売上高	全体	日本 スポッチャ 売上高
-46800	2025	8	legacy	yoy_index	日本 スポッチャ 既存 売上高(前年比)	日本 スポッチャ 既存 売上高(前年比)	yoy_index	日本 スポッチャ 既存 売上高(前年比)	sales	スポッチャ	既存	売上高	全体	日本 スポッチャ 既存 売上高
-46800	2025	9	legacy	number	日本 その他 売上高	日本 その他 売上高	number	日本 その他 売上高	sales	その他		売上高	全体	日本 その他 売上高
-46800	2025	10	legacy	yoy_index	日本 その他 既存 売上高(前年比)	日本 その他 既存 売上高(前年比)	yoy_index	日本 その他 既存 売上高(前年比)	sales	その他	既存	売上高	全体	日本 その他 既存 売上高
-46800	2025	11	legacy	number	日本 総 売上高	日本 総 売上高	number	日本 総 売上高	sales	総		売上高	全体	日本 総 売上高
-46800	2025	12	legacy	yoy_index	日本 総 既存 売上高(前年比)	日本 総 既存 売上高(前年比)	yoy_index	日本 総 既存 売上高(前年比)	sales	総	既存	売上高	全体	日本 総 既存 売上高
+46800	2025	1	legacy	number	日本 ボウリング 売上高	日本 ボウリング 売上高	number	日本 ボウリング 売上高	sales	ボウリング		売上高	全体 > ボウリング	日本 売上高
+46800	2025	2	legacy	yoy_index	日本 ボウリング 既存 売上高(前年比)	日本 ボウリング 既存 売上高(前年比)	yoy_index	日本 ボウリング 既存 売上高(前年比)	sales	ボウリング	既存	売上高	全体 > ボウリング	日本 既存 売上高
+46800	2025	3	legacy	number	日本 アミューズメント 売上高	日本 アミューズメント 売上高	number	日本 アミューズメント 売上高	sales	アミューズメント		売上高	全体 > アミューズメント	日本 売上高
+46800	2025	4	legacy	yoy_index	日本 アミューズメント 既存 売上高(前年比)	日本 アミューズメント 既存 売上高(前年比)	yoy_index	日本 アミューズメント 既存 売上高(前年比)	sales	アミューズメント	既存	売上高	全体 > アミューズメント	日本 既存 売上高
+46800	2025	5	legacy	number	日本 カラオケ 売上高	日本 カラオケ 売上高	number	日本 カラオケ 売上高	sales	カラオケ		売上高	全体 > カラオケ	日本 売上高
+46800	2025	6	legacy	yoy_index	日本 カラオケ 既存 売上高(前年比)	日本 カラオケ 既存 売上高(前年比)	yoy_index	日本 カラオケ 既存 売上高(前年比)	sales	カラオケ	既存	売上高	全体 > カラオケ	日本 既存 売上高
+46800	2025	7	legacy	number	日本 スポッチャ 売上高	日本 スポッチャ 売上高	number	日本 スポッチャ 売上高	sales	スポッチャ		売上高	全体 > スポッチャ	日本 売上高
+46800	2025	8	legacy	yoy_index	日本 スポッチャ 既存 売上高(前年比)	日本 スポッチャ 既存 売上高(前年比)	yoy_index	日本 スポッチャ 既存 売上高(前年比)	sales	スポッチャ	既存	売上高	全体 > スポッチャ	日本 既存 売上高
+46800	2025	9	legacy	number	日本 その他 売上高	日本 その他 売上高	number	日本 その他 売上高	sales	その他		売上高	全体 > その他	日本 売上高
+46800	2025	10	legacy	yoy_index	日本 その他 既存 売上高(前年比)	日本 その他 既存 売上高(前年比)	yoy_index	日本 その他 既存 売上高(前年比)	sales	その他	既存	売上高	全体 > その他	日本 既存 売上高
+46800	2025	11	legacy	number	日本 総 売上高	日本 総 売上高	number	日本 総 売上高	sales	総		売上高	全体	日本 売上高
+46800	2025	12	legacy	yoy_index	日本 総 既存 売上高(前年比)	日本 総 既存 売上高(前年比)	yoy_index	日本 総 既存 売上高(前年比)	sales	総	既存	売上高	全体	日本 既存 売上高
 46800	2025	13	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
 46800	2025	14	legacy	number	日本 既存 店舗数	日本 既存 店舗数	number	日本 既存 店舗数	stores		既存	店舗数	全体	日本 既存 店舗数
 46800	2025	15	legacy	number	米国 ボウリング 売上高	米国 ボウリング 売上高	number	米国 ボウリング 売上高	sales	米国 ボウリング		売上高	全体 > 米国 ボウリング	売上高
@@ -3771,18 +3771,18 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 46800	2025	22	legacy	yoy_index	米国 スポッチャ 既存 売上高(前年比)	米国 スポッチャ 既存 売上高(前年比)	yoy_index	米国 スポッチャ 既存 売上高(前年比)	sales	米国 スポッチャ	既存	売上高	全体 > 米国 スポッチャ	既存 売上高
 46800	2025	23	legacy	number	米国 総 売上高	米国 総 売上高	number	米国 総 売上高	sales	米国 総		売上高	全体 > 米国	売上高
 46800	2025	24	legacy	yoy_index	米国 総 既存 売上高(前年比)	米国 総 既存 売上高(前年比)	yoy_index	米国 総 既存 売上高(前年比)	sales	米国 総	既存	売上高	全体 > 米国	既存 売上高
-46800	2026	1	legacy	number	日本 ボウリング 売上高	日本 ボウリング 売上高	number	日本 ボウリング 売上高	sales	ボウリング		売上高	全体	日本 ボウリング 売上高
-46800	2026	2	legacy	yoy_index	日本 ボウリング 既存 売上高(前年比)	日本 ボウリング 既存 売上高(前年比)	yoy_index	日本 ボウリング 既存 売上高(前年比)	sales	ボウリング	既存	売上高	全体	日本 ボウリング 既存 売上高
-46800	2026	3	legacy	number	日本 アミューズメント 売上高	日本 アミューズメント 売上高	number	日本 アミューズメント 売上高	sales	アミューズメント		売上高	全体	日本 アミューズメント 売上高
-46800	2026	4	legacy	yoy_index	日本 アミューズメント 既存 売上高(前年比)	日本 アミューズメント 既存 売上高(前年比)	yoy_index	日本 アミューズメント 既存 売上高(前年比)	sales	アミューズメント	既存	売上高	全体	日本 アミューズメント 既存 売上高
-46800	2026	5	legacy	number	日本 カラオケ 売上高	日本 カラオケ 売上高	number	日本 カラオケ 売上高	sales	カラオケ		売上高	全体	日本 カラオケ 売上高
-46800	2026	6	legacy	yoy_index	日本 カラオケ 既存 売上高(前年比)	日本 カラオケ 既存 売上高(前年比)	yoy_index	日本 カラオケ 既存 売上高(前年比)	sales	カラオケ	既存	売上高	全体	日本 カラオケ 既存 売上高
-46800	2026	7	legacy	number	日本 スポッチャ 売上高	日本 スポッチャ 売上高	number	日本 スポッチャ 売上高	sales	スポッチャ		売上高	全体	日本 スポッチャ 売上高
-46800	2026	8	legacy	yoy_index	日本 スポッチャ 既存 売上高(前年比)	日本 スポッチャ 既存 売上高(前年比)	yoy_index	日本 スポッチャ 既存 売上高(前年比)	sales	スポッチャ	既存	売上高	全体	日本 スポッチャ 既存 売上高
-46800	2026	9	legacy	number	日本 その他 売上高	日本 その他 売上高	number	日本 その他 売上高	sales	その他		売上高	全体	日本 その他 売上高
-46800	2026	10	legacy	yoy_index	日本 その他 既存 売上高(前年比)	日本 その他 既存 売上高(前年比)	yoy_index	日本 その他 既存 売上高(前年比)	sales	その他	既存	売上高	全体	日本 その他 既存 売上高
-46800	2026	11	legacy	number	日本 総 売上高	日本 総 売上高	number	日本 総 売上高	sales	総		売上高	全体	日本 総 売上高
-46800	2026	12	legacy	yoy_index	日本 総 既存 売上高(前年比)	日本 総 既存 売上高(前年比)	yoy_index	日本 総 既存 売上高(前年比)	sales	総	既存	売上高	全体	日本 総 既存 売上高
+46800	2026	1	legacy	number	日本 ボウリング 売上高	日本 ボウリング 売上高	number	日本 ボウリング 売上高	sales	ボウリング		売上高	全体 > ボウリング	日本 売上高
+46800	2026	2	legacy	yoy_index	日本 ボウリング 既存 売上高(前年比)	日本 ボウリング 既存 売上高(前年比)	yoy_index	日本 ボウリング 既存 売上高(前年比)	sales	ボウリング	既存	売上高	全体 > ボウリング	日本 既存 売上高
+46800	2026	3	legacy	number	日本 アミューズメント 売上高	日本 アミューズメント 売上高	number	日本 アミューズメント 売上高	sales	アミューズメント		売上高	全体 > アミューズメント	日本 売上高
+46800	2026	4	legacy	yoy_index	日本 アミューズメント 既存 売上高(前年比)	日本 アミューズメント 既存 売上高(前年比)	yoy_index	日本 アミューズメント 既存 売上高(前年比)	sales	アミューズメント	既存	売上高	全体 > アミューズメント	日本 既存 売上高
+46800	2026	5	legacy	number	日本 カラオケ 売上高	日本 カラオケ 売上高	number	日本 カラオケ 売上高	sales	カラオケ		売上高	全体 > カラオケ	日本 売上高
+46800	2026	6	legacy	yoy_index	日本 カラオケ 既存 売上高(前年比)	日本 カラオケ 既存 売上高(前年比)	yoy_index	日本 カラオケ 既存 売上高(前年比)	sales	カラオケ	既存	売上高	全体 > カラオケ	日本 既存 売上高
+46800	2026	7	legacy	number	日本 スポッチャ 売上高	日本 スポッチャ 売上高	number	日本 スポッチャ 売上高	sales	スポッチャ		売上高	全体 > スポッチャ	日本 売上高
+46800	2026	8	legacy	yoy_index	日本 スポッチャ 既存 売上高(前年比)	日本 スポッチャ 既存 売上高(前年比)	yoy_index	日本 スポッチャ 既存 売上高(前年比)	sales	スポッチャ	既存	売上高	全体 > スポッチャ	日本 既存 売上高
+46800	2026	9	legacy	number	日本 その他 売上高	日本 その他 売上高	number	日本 その他 売上高	sales	その他		売上高	全体 > その他	日本 売上高
+46800	2026	10	legacy	yoy_index	日本 その他 既存 売上高(前年比)	日本 その他 既存 売上高(前年比)	yoy_index	日本 その他 既存 売上高(前年比)	sales	その他	既存	売上高	全体 > その他	日本 既存 売上高
+46800	2026	11	legacy	number	日本 総 売上高	日本 総 売上高	number	日本 総 売上高	sales	総		売上高	全体	日本 売上高
+46800	2026	12	legacy	yoy_index	日本 総 既存 売上高(前年比)	日本 総 既存 売上高(前年比)	yoy_index	日本 総 既存 売上高(前年比)	sales	総	既存	売上高	全体	日本 既存 売上高
 46800	2026	13	legacy	number	日本 既存 店舗数	日本 既存 店舗数	number	日本 既存 店舗数	stores		既存	店舗数	全体	日本 既存 店舗数
 46800	2026	14	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
 47760	2023	1	legacy	number	連結営業利益	連結営業利益	number	連結営業利益	other			連結営業利益	全体	連結営業利益
@@ -4555,16 +4555,16 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 71340	2023	20	legacy	number	FC 店舗数	FC 店舗数	number	FC 店舗数	stores			店舗数	全体	FC 店舗数
 71340	2023	21	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 71340	2024	1	legacy	number	直営 全店 売上高	直営 全店 売上高	number	直営 全店 売上高	sales		全店	売上高	全体	直営 全店 売上高
-71340	2024	2	legacy	yoy_index	直営 全店(前年比)	直営 全店(前年比)	yoy_index	直営 全店(前年比)	other		全店		全体	直営 全店
+71340	2024	2	legacy	yoy_index	直営 全店(前年比)	直営 全店(前年比)	yoy_index	直営 全店(前年比)	other		全店		全体	直営 全店 売上高
 71340	2024	3	legacy	number	直営 既存 売上高	直営 既存 売上高	number	直営 既存 売上高	sales		既存	売上高	全体	直営 既存 売上高
-71340	2024	4	legacy	yoy_index	直営 既存(前年比)	直営 既存(前年比)	yoy_index	直営 既存(前年比)	other		既存		全体	直営 既存
+71340	2024	4	legacy	yoy_index	直営 既存(前年比)	直営 既存(前年比)	yoy_index	直営 既存(前年比)	other		既存		全体	直営 既存 売上高
 71340	2024	5	legacy	number	FC 全店 売上高	FC 全店 売上高	number	FC 全店 売上高	sales		全店	売上高	全体	FC 全店 売上高
-71340	2024	6	legacy	yoy_index	FC 全店(前年比)	FC 全店(前年比)	yoy_index	FC 全店(前年比)	other		全店		全体	FC 全店
+71340	2024	6	legacy	yoy_index	FC 全店(前年比)	FC 全店(前年比)	yoy_index	FC 全店(前年比)	other		全店		全体	FC 全店 売上高
 71340	2024	7	legacy	number	FC 既存 売上高	FC 既存 売上高	number	FC 既存 売上高	sales		既存	売上高	全体	FC 既存 売上高
-71340	2024	8	legacy	yoy_index	FC 既存(前年比)	FC 既存(前年比)	yoy_index	FC 既存(前年比)	other		既存		全体	FC 既存
+71340	2024	8	legacy	yoy_index	FC 既存(前年比)	FC 既存(前年比)	yoy_index	FC 既存(前年比)	other		既存		全体	FC 既存 売上高
 71340	2024	9	legacy	number	アップガレージ 直営 店舗数	アップガレージ 直営 店舗数	number	アップガレージ 直営 店舗数	stores	アップガレージ		店舗数	全体 > アップガレージ	直営 店舗数
 71340	2024	10	legacy	number	アップガレージ FC 店舗数	アップガレージ FC 店舗数	number	アップガレージ FC 店舗数	stores	アップガレージ		店舗数	全体 > アップガレージ	FC 店舗数
-71340	2024	11	legacy	number	海外 アップガレージ 店舗数	海外 アップガレージ 店舗数	number	海外 アップガレージ 店舗数	stores	アップガレージ		店舗数	全体	海外 アップガレージ 店舗数
+71340	2024	11	legacy	number	海外 アップガレージ 店舗数	海外 アップガレージ 店舗数	number	海外 アップガレージ 店舗数	stores	アップガレージ		店舗数	全体 > アップガレージ	海外 店舗数
 71340	2024	12	legacy	number	ライダース 直営 店舗数	ライダース 直営 店舗数	number	ライダース 直営 店舗数	stores	ライダース		店舗数	全体 > ライダース	直営 店舗数
 71340	2024	13	legacy	number	ライダース FC 店舗数	ライダース FC 店舗数	number	ライダース FC 店舗数	stores	ライダース		店舗数	全体 > ライダース	FC 店舗数
 71340	2024	14	legacy	number	ホイールズ 直営 店舗数	ホイールズ 直営 店舗数	number	ホイールズ 直営 店舗数	stores	ホイールズ		店舗数	全体 > ホイールズ	直営 店舗数
@@ -4576,18 +4576,18 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 71340	2024	20	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体	海外 店舗数
 71340	2024	21	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 71340	2024	22	legacy	number	直営+FC 全店 売上高	直営+FC 全店 売上高	number	直営+FC 全店 売上高	sales		全店	売上高	全体	直営+FC 全店 売上高
-71340	2024	23	legacy	yoy_index	直営+FC 全店(前年比)	直営+FC 全店(前年比)	yoy_index	直営+FC 全店(前年比)	other		全店		全体	直営+FC 全店
+71340	2024	23	legacy	yoy_index	直営+FC 全店(前年比)	直営+FC 全店(前年比)	yoy_index	直営+FC 全店(前年比)	other		全店		全体	直営+FC 全店 売上高
 71340	2025	1	legacy	number	直営 全店 売上高	直営 全店 売上高	number	直営 全店 売上高	sales		全店	売上高	全体	直営 全店 売上高
-71340	2025	2	legacy	yoy_index	直営 全店(前年比)	直営 全店(前年比)	yoy_index	直営 全店(前年比)	other		全店		全体	直営 全店
+71340	2025	2	legacy	yoy_index	直営 全店(前年比)	直営 全店(前年比)	yoy_index	直営 全店(前年比)	other		全店		全体	直営 全店 売上高
 71340	2025	3	legacy	number	直営 既存 売上高	直営 既存 売上高	number	直営 既存 売上高	sales		既存	売上高	全体	直営 既存 売上高
-71340	2025	4	legacy	yoy_index	直営 既存(前年比)	直営 既存(前年比)	yoy_index	直営 既存(前年比)	other		既存		全体	直営 既存
+71340	2025	4	legacy	yoy_index	直営 既存(前年比)	直営 既存(前年比)	yoy_index	直営 既存(前年比)	other		既存		全体	直営 既存 売上高
 71340	2025	5	legacy	number	FC 全店 売上高	FC 全店 売上高	number	FC 全店 売上高	sales		全店	売上高	全体	FC 全店 売上高
-71340	2025	6	legacy	yoy_index	FC 全店(前年比)	FC 全店(前年比)	yoy_index	FC 全店(前年比)	other		全店		全体	FC 全店
+71340	2025	6	legacy	yoy_index	FC 全店(前年比)	FC 全店(前年比)	yoy_index	FC 全店(前年比)	other		全店		全体	FC 全店 売上高
 71340	2025	7	legacy	number	FC 既存 売上高	FC 既存 売上高	number	FC 既存 売上高	sales		既存	売上高	全体	FC 既存 売上高
-71340	2025	8	legacy	yoy_index	FC 既存(前年比)	FC 既存(前年比)	yoy_index	FC 既存(前年比)	other		既存		全体	FC 既存
+71340	2025	8	legacy	yoy_index	FC 既存(前年比)	FC 既存(前年比)	yoy_index	FC 既存(前年比)	other		既存		全体	FC 既存 売上高
 71340	2025	9	legacy	number	アップガレージ 直営 店舗数	アップガレージ 直営 店舗数	number	アップガレージ 直営 店舗数	stores	アップガレージ		店舗数	全体 > アップガレージ	直営 店舗数
 71340	2025	10	legacy	number	アップガレージ FC 店舗数	アップガレージ FC 店舗数	number	アップガレージ FC 店舗数	stores	アップガレージ		店舗数	全体 > アップガレージ	FC 店舗数
-71340	2025	11	legacy	number	海外 アップガレージ 店舗数	海外 アップガレージ 店舗数	number	海外 アップガレージ 店舗数	stores	アップガレージ		店舗数	全体	海外 アップガレージ 店舗数
+71340	2025	11	legacy	number	海外 アップガレージ 店舗数	海外 アップガレージ 店舗数	number	海外 アップガレージ 店舗数	stores	アップガレージ		店舗数	全体 > アップガレージ	海外 店舗数
 71340	2025	12	legacy	number	ライダース 直営 店舗数	ライダース 直営 店舗数	number	ライダース 直営 店舗数	stores	ライダース		店舗数	全体 > ライダース	直営 店舗数
 71340	2025	13	legacy	number	ライダース FC 店舗数	ライダース FC 店舗数	number	ライダース FC 店舗数	stores	ライダース		店舗数	全体 > ライダース	FC 店舗数
 71340	2025	14	legacy	number	ホイールズ 直営 店舗数	ホイールズ 直営 店舗数	number	ホイールズ 直営 店舗数	stores	ホイールズ		店舗数	全体 > ホイールズ	直営 店舗数
@@ -4599,18 +4599,18 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 71340	2025	20	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体	海外 店舗数
 71340	2025	21	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 71340	2025	22	legacy	number	直営+FC 全店 売上高	直営+FC 全店 売上高	number	直営+FC 全店 売上高	sales		全店	売上高	全体	直営+FC 全店 売上高
-71340	2025	23	legacy	yoy_index	直営+FC 全店(前年比)	直営+FC 全店(前年比)	yoy_index	直営+FC 全店(前年比)	other		全店		全体	直営+FC 全店
+71340	2025	23	legacy	yoy_index	直営+FC 全店(前年比)	直営+FC 全店(前年比)	yoy_index	直営+FC 全店(前年比)	other		全店		全体	直営+FC 全店 売上高
 71340	2026	1	legacy	number	直営 全店 売上高	直営 全店 売上高	number	直営 全店 売上高	sales		全店	売上高	全体	直営 全店 売上高
-71340	2026	2	legacy	yoy_index	直営 全店(前年比)	直営 全店(前年比)	yoy_index	直営 全店(前年比)	other		全店		全体	直営 全店
+71340	2026	2	legacy	yoy_index	直営 全店(前年比)	直営 全店(前年比)	yoy_index	直営 全店(前年比)	other		全店		全体	直営 全店 売上高
 71340	2026	3	legacy	number	直営 既存 売上高	直営 既存 売上高	number	直営 既存 売上高	sales		既存	売上高	全体	直営 既存 売上高
-71340	2026	4	legacy	yoy_index	直営 既存(前年比)	直営 既存(前年比)	yoy_index	直営 既存(前年比)	other		既存		全体	直営 既存
+71340	2026	4	legacy	yoy_index	直営 既存(前年比)	直営 既存(前年比)	yoy_index	直営 既存(前年比)	other		既存		全体	直営 既存 売上高
 71340	2026	5	legacy	number	FC 全店 売上高	FC 全店 売上高	number	FC 全店 売上高	sales		全店	売上高	全体	FC 全店 売上高
-71340	2026	6	legacy	yoy_index	FC 全店(前年比)	FC 全店(前年比)	yoy_index	FC 全店(前年比)	other		全店		全体	FC 全店
+71340	2026	6	legacy	yoy_index	FC 全店(前年比)	FC 全店(前年比)	yoy_index	FC 全店(前年比)	other		全店		全体	FC 全店 売上高
 71340	2026	7	legacy	number	FC 既存 売上高	FC 既存 売上高	number	FC 既存 売上高	sales		既存	売上高	全体	FC 既存 売上高
-71340	2026	8	legacy	yoy_index	FC 既存(前年比)	FC 既存(前年比)	yoy_index	FC 既存(前年比)	other		既存		全体	FC 既存
+71340	2026	8	legacy	yoy_index	FC 既存(前年比)	FC 既存(前年比)	yoy_index	FC 既存(前年比)	other		既存		全体	FC 既存 売上高
 71340	2026	9	legacy	number	アップガレージ 直営 店舗数	アップガレージ 直営 店舗数	number	アップガレージ 直営 店舗数	stores	アップガレージ		店舗数	全体 > アップガレージ	直営 店舗数
 71340	2026	10	legacy	number	アップガレージ FC 店舗数	アップガレージ FC 店舗数	number	アップガレージ FC 店舗数	stores	アップガレージ		店舗数	全体 > アップガレージ	FC 店舗数
-71340	2026	11	legacy	number	海外 アップガレージ 店舗数	海外 アップガレージ 店舗数	number	海外 アップガレージ 店舗数	stores	アップガレージ		店舗数	全体	海外 アップガレージ 店舗数
+71340	2026	11	legacy	number	海外 アップガレージ 店舗数	海外 アップガレージ 店舗数	number	海外 アップガレージ 店舗数	stores	アップガレージ		店舗数	全体 > アップガレージ	海外 店舗数
 71340	2026	12	legacy	number	ライダース 直営 店舗数	ライダース 直営 店舗数	number	ライダース 直営 店舗数	stores	ライダース		店舗数	全体 > ライダース	直営 店舗数
 71340	2026	13	legacy	number	ライダース FC 店舗数	ライダース FC 店舗数	number	ライダース FC 店舗数	stores	ライダース		店舗数	全体 > ライダース	FC 店舗数
 71340	2026	14	legacy	number	ホイールズ 直営 店舗数	ホイールズ 直営 店舗数	number	ホイールズ 直営 店舗数	stores	ホイールズ		店舗数	全体 > ホイールズ	直営 店舗数
@@ -4622,7 +4622,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 71340	2026	20	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体	海外 店舗数
 71340	2026	21	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 71340	2026	22	legacy	number	直営+FC 全店 売上高	直営+FC 全店 売上高	number	直営+FC 全店 売上高	sales		全店	売上高	全体	直営+FC 全店 売上高
-71340	2026	23	legacy	yoy_index	直営+FC 全店(前年比)	直営+FC 全店(前年比)	yoy_index	直営+FC 全店(前年比)	other		全店		全体	直営+FC 全店
+71340	2026	23	legacy	yoy_index	直営+FC 全店(前年比)	直営+FC 全店(前年比)	yoy_index	直営+FC 全店(前年比)	other		全店		全体	直営+FC 全店 売上高
 71570	2024	1	legacy	number	保有契約年換算保険料	保有契約年換算保険料	number	保有契約年換算保険料	other	保有契約年換算保険料			全体	保有契約年換算保険料
 71570	2024	2	legacy	number	保有契約年換算保険料 個人保険	保有契約年換算保険料 個人保険	number	保有契約年換算保険料 個人保険	other	保有契約年換算保険料 個人保険			全体	保有契約年換算保険料 個人保険
 71570	2024	3	legacy	number	保有契約年換算保険料 団体信用生命保険	保有契約年換算保険料 団体信用生命保険	number	保有契約年換算保険料 団体信用生命保険	other	保有契約年換算保険料 団体信用生命保険			全体	保有契約年換算保険料 団体信用生命保険
@@ -5529,11 +5529,11 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 76250	2024	2	legacy	yoy_index	日本 全店 売上高(前年比)	日本 全店 売上高(前年比)	yoy_index	日本 全店 売上高(前年比)	sales		全店	売上高	全体	日本 全店 売上高
 76250	2024	3	legacy	number	日本 全店 店舗数	日本 全店 店舗数	number	日本 全店 店舗数	stores		全店	店舗数	全体	日本 全店 店舗数
 76250	2024	4	legacy	yoy_index	日本 既存 売上高(前年比)	日本 既存 売上高(前年比)	yoy_index	日本 既存 売上高(前年比)	sales		既存	売上高	全体	日本 既存 売上高
-76250	2024	5	legacy	yoy_index	日本 ラ・ボエム 既存 売上高(前年比)	日本 ラ・ボエム 既存 売上高(前年比)	yoy_index	日本 ラ・ボエム 既存 売上高(前年比)	sales	ラ・ボエム	既存	売上高	全体	日本 ラ・ボエム 既存 売上高
-76250	2024	6	legacy	yoy_index	日本 ゼスト 既存 売上高(前年比)	日本 ゼスト 既存 売上高(前年比)	yoy_index	日本 ゼスト 既存 売上高(前年比)	sales	ゼスト	既存	売上高	全体	日本 ゼスト 既存 売上高
-76250	2024	7	legacy	yoy_index	日本 モンスーンカフェ 既存 売上高(前年比)	日本 モンスーンカフェ 既存 売上高(前年比)	yoy_index	日本 モンスーンカフェ 既存 売上高(前年比)	sales	モンスーンカフェ	既存	売上高	全体	日本 モンスーンカフェ 既存 売上高
-76250	2024	8	legacy	yoy_index	日本 権八 既存 売上高(前年比)	日本 権八 既存 売上高(前年比)	yoy_index	日本 権八 既存 売上高(前年比)	sales	権八	既存	売上高	全体	日本 権八 既存 売上高
-76250	2024	9	legacy	yoy_index	日本 その他 既存 売上高(前年比)	日本 その他 既存 売上高(前年比)	yoy_index	日本 その他 既存 売上高(前年比)	sales	その他	既存	売上高	全体	日本 その他 既存 売上高
+76250	2024	5	legacy	yoy_index	日本 ラ・ボエム 既存 売上高(前年比)	日本 ラ・ボエム 既存 売上高(前年比)	yoy_index	日本 ラ・ボエム 既存 売上高(前年比)	sales	ラ・ボエム	既存	売上高	全体 > ラ・ボエム	日本 既存 売上高
+76250	2024	6	legacy	yoy_index	日本 ゼスト 既存 売上高(前年比)	日本 ゼスト 既存 売上高(前年比)	yoy_index	日本 ゼスト 既存 売上高(前年比)	sales	ゼスト	既存	売上高	全体 > ゼスト	日本 既存 売上高
+76250	2024	7	legacy	yoy_index	日本 モンスーンカフェ 既存 売上高(前年比)	日本 モンスーンカフェ 既存 売上高(前年比)	yoy_index	日本 モンスーンカフェ 既存 売上高(前年比)	sales	モンスーンカフェ	既存	売上高	全体 > モンスーンカフェ	日本 既存 売上高
+76250	2024	8	legacy	yoy_index	日本 権八 既存 売上高(前年比)	日本 権八 既存 売上高(前年比)	yoy_index	日本 権八 既存 売上高(前年比)	sales	権八	既存	売上高	全体 > 権八	日本 既存 売上高
+76250	2024	9	legacy	yoy_index	日本 その他 既存 売上高(前年比)	日本 その他 既存 売上高(前年比)	yoy_index	日本 その他 既存 売上高(前年比)	sales	その他	既存	売上高	全体 > その他	日本 既存 売上高
 76250	2024	10	legacy	yoy_index	日本 既存 客数(前年比)	日本 既存 客数(前年比)	yoy_index	日本 既存 客数(前年比)	customers		既存	客数	全体	日本 既存 客数
 76250	2024	11	legacy	yoy_index	日本 既存 客単価(前年比)	日本 既存 客単価(前年比)	yoy_index	日本 既存 客単価(前年比)	spend		既存	客単価	全体	日本 既存 客単価
 76250	2024	12	legacy	number	日本 既存 店舗数	日本 既存 店舗数	number	日本 既存 店舗数	stores		既存	店舗数	全体	日本 既存 店舗数
@@ -5543,11 +5543,11 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 76250	2025	2	legacy	yoy_index	日本 全店 売上高(前年比)	日本 全店 売上高(前年比)	yoy_index	日本 全店 売上高(前年比)	sales		全店	売上高	全体	日本 全店 売上高
 76250	2025	3	legacy	number	日本 全店 店舗数	日本 全店 店舗数	number	日本 全店 店舗数	stores		全店	店舗数	全体	日本 全店 店舗数
 76250	2025	4	legacy	yoy_index	日本 既存 売上高(前年比)	日本 既存 売上高(前年比)	yoy_index	日本 既存 売上高(前年比)	sales		既存	売上高	全体	日本 既存 売上高
-76250	2025	5	legacy	yoy_index	日本 ラ・ボエム 既存 売上高(前年比)	日本 ラ・ボエム 既存 売上高(前年比)	yoy_index	日本 ラ・ボエム 既存 売上高(前年比)	sales	ラ・ボエム	既存	売上高	全体	日本 ラ・ボエム 既存 売上高
-76250	2025	6	legacy	yoy_index	日本 ゼスト 既存 売上高(前年比)	日本 ゼスト 既存 売上高(前年比)	yoy_index	日本 ゼスト 既存 売上高(前年比)	sales	ゼスト	既存	売上高	全体	日本 ゼスト 既存 売上高
-76250	2025	7	legacy	yoy_index	日本 モンスーンカフェ 既存 売上高(前年比)	日本 モンスーンカフェ 既存 売上高(前年比)	yoy_index	日本 モンスーンカフェ 既存 売上高(前年比)	sales	モンスーンカフェ	既存	売上高	全体	日本 モンスーンカフェ 既存 売上高
-76250	2025	8	legacy	yoy_index	日本 権八 既存 売上高(前年比)	日本 権八 既存 売上高(前年比)	yoy_index	日本 権八 既存 売上高(前年比)	sales	権八	既存	売上高	全体	日本 権八 既存 売上高
-76250	2025	9	legacy	yoy_index	日本 その他 既存 売上高(前年比)	日本 その他 既存 売上高(前年比)	yoy_index	日本 その他 既存 売上高(前年比)	sales	その他	既存	売上高	全体	日本 その他 既存 売上高
+76250	2025	5	legacy	yoy_index	日本 ラ・ボエム 既存 売上高(前年比)	日本 ラ・ボエム 既存 売上高(前年比)	yoy_index	日本 ラ・ボエム 既存 売上高(前年比)	sales	ラ・ボエム	既存	売上高	全体 > ラ・ボエム	日本 既存 売上高
+76250	2025	6	legacy	yoy_index	日本 ゼスト 既存 売上高(前年比)	日本 ゼスト 既存 売上高(前年比)	yoy_index	日本 ゼスト 既存 売上高(前年比)	sales	ゼスト	既存	売上高	全体 > ゼスト	日本 既存 売上高
+76250	2025	7	legacy	yoy_index	日本 モンスーンカフェ 既存 売上高(前年比)	日本 モンスーンカフェ 既存 売上高(前年比)	yoy_index	日本 モンスーンカフェ 既存 売上高(前年比)	sales	モンスーンカフェ	既存	売上高	全体 > モンスーンカフェ	日本 既存 売上高
+76250	2025	8	legacy	yoy_index	日本 権八 既存 売上高(前年比)	日本 権八 既存 売上高(前年比)	yoy_index	日本 権八 既存 売上高(前年比)	sales	権八	既存	売上高	全体 > 権八	日本 既存 売上高
+76250	2025	9	legacy	yoy_index	日本 その他 既存 売上高(前年比)	日本 その他 既存 売上高(前年比)	yoy_index	日本 その他 既存 売上高(前年比)	sales	その他	既存	売上高	全体 > その他	日本 既存 売上高
 76250	2025	10	legacy	yoy_index	日本 既存 客数(前年比)	日本 既存 客数(前年比)	yoy_index	日本 既存 客数(前年比)	customers		既存	客数	全体	日本 既存 客数
 76250	2025	11	legacy	yoy_index	日本 既存 客単価(前年比)	日本 既存 客単価(前年比)	yoy_index	日本 既存 客単価(前年比)	spend		既存	客単価	全体	日本 既存 客単価
 76250	2025	12	legacy	number	日本 既存 店舗数	日本 既存 店舗数	number	日本 既存 店舗数	stores		既存	店舗数	全体	日本 既存 店舗数
@@ -5557,11 +5557,11 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 76250	2026	2	legacy	yoy_index	日本 全店 売上高(前年比)	日本 全店 売上高(前年比)	yoy_index	日本 全店 売上高(前年比)	sales		全店	売上高	全体	日本 全店 売上高
 76250	2026	3	legacy	number	日本 全店 店舗数	日本 全店 店舗数	number	日本 全店 店舗数	stores		全店	店舗数	全体	日本 全店 店舗数
 76250	2026	4	legacy	yoy_index	日本 既存 売上高(前年比)	日本 既存 売上高(前年比)	yoy_index	日本 既存 売上高(前年比)	sales		既存	売上高	全体	日本 既存 売上高
-76250	2026	5	legacy	yoy_index	日本 ラ・ボエム 既存 売上高(前年比)	日本 ラ・ボエム 既存 売上高(前年比)	yoy_index	日本 ラ・ボエム 既存 売上高(前年比)	sales	ラ・ボエム	既存	売上高	全体	日本 ラ・ボエム 既存 売上高
-76250	2026	6	legacy	yoy_index	日本 ゼスト 既存 売上高(前年比)	日本 ゼスト 既存 売上高(前年比)	yoy_index	日本 ゼスト 既存 売上高(前年比)	sales	ゼスト	既存	売上高	全体	日本 ゼスト 既存 売上高
-76250	2026	7	legacy	yoy_index	日本 モンスーンカフェ 既存 売上高(前年比)	日本 モンスーンカフェ 既存 売上高(前年比)	yoy_index	日本 モンスーンカフェ 既存 売上高(前年比)	sales	モンスーンカフェ	既存	売上高	全体	日本 モンスーンカフェ 既存 売上高
-76250	2026	8	legacy	yoy_index	日本 権八 既存 売上高(前年比)	日本 権八 既存 売上高(前年比)	yoy_index	日本 権八 既存 売上高(前年比)	sales	権八	既存	売上高	全体	日本 権八 既存 売上高
-76250	2026	9	legacy	yoy_index	日本 その他 既存 売上高(前年比)	日本 その他 既存 売上高(前年比)	yoy_index	日本 その他 既存 売上高(前年比)	sales	その他	既存	売上高	全体	日本 その他 既存 売上高
+76250	2026	5	legacy	yoy_index	日本 ラ・ボエム 既存 売上高(前年比)	日本 ラ・ボエム 既存 売上高(前年比)	yoy_index	日本 ラ・ボエム 既存 売上高(前年比)	sales	ラ・ボエム	既存	売上高	全体 > ラ・ボエム	日本 既存 売上高
+76250	2026	6	legacy	yoy_index	日本 ゼスト 既存 売上高(前年比)	日本 ゼスト 既存 売上高(前年比)	yoy_index	日本 ゼスト 既存 売上高(前年比)	sales	ゼスト	既存	売上高	全体 > ゼスト	日本 既存 売上高
+76250	2026	7	legacy	yoy_index	日本 モンスーンカフェ 既存 売上高(前年比)	日本 モンスーンカフェ 既存 売上高(前年比)	yoy_index	日本 モンスーンカフェ 既存 売上高(前年比)	sales	モンスーンカフェ	既存	売上高	全体 > モンスーンカフェ	日本 既存 売上高
+76250	2026	8	legacy	yoy_index	日本 権八 既存 売上高(前年比)	日本 権八 既存 売上高(前年比)	yoy_index	日本 権八 既存 売上高(前年比)	sales	権八	既存	売上高	全体 > 権八	日本 既存 売上高
+76250	2026	9	legacy	yoy_index	日本 その他 既存 売上高(前年比)	日本 その他 既存 売上高(前年比)	yoy_index	日本 その他 既存 売上高(前年比)	sales	その他	既存	売上高	全体 > その他	日本 既存 売上高
 76250	2026	10	legacy	yoy_index	日本 既存 客数(前年比)	日本 既存 客数(前年比)	yoy_index	日本 既存 客数(前年比)	customers		既存	客数	全体	日本 既存 客数
 76250	2026	11	legacy	yoy_index	日本 既存 客単価(前年比)	日本 既存 客単価(前年比)	yoy_index	日本 既存 客単価(前年比)	spend		既存	客単価	全体	日本 既存 客単価
 76250	2026	12	legacy	number	日本 既存 店舗数	日本 既存 店舗数	number	日本 既存 店舗数	stores		既存	店舗数	全体	日本 既存 店舗数
