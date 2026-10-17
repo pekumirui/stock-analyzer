@@ -841,10 +841,19 @@ def test_issuer_alias_cases() -> None:
 
     # 71340: 壊れた ・ FC ラベル → 直営+FC（Lane B / 既存格納・再ingest）。
     for incoming, stored, unit in (
-        ("・ FC 全店 売上高", "直営+FC 全店 売上高", "number"),
-        ("・ FC(前年比)", "直営+FC 全店 売上高(前年比)", "yoy_index"),
-        ("・ FC 全店(前年比)", "直営+FC 全店 売上高(前年比)", "yoy_index"),
-        ("・ FC 全店 売上高(前年比)", "直営+FC 全店 売上高(前年比)", "yoy_index"),
+        ("・ FC 全店 売上高", "直営+FC 売上高", "number"),
+        ("・ FC(前年比)", "直営+FC(前年比)", "yoy_index"),
+        ("・ FC 全店(前年比)", "直営+FC(前年比)", "yoy_index"),
+        ("・ FC 全店 売上高(前年比)", "直営+FC(前年比)", "yoy_index"),
+        # PDF 原文の表記へ（KPI 10/17）。前年比は 売上高 の語なし、合計は 全店 なし、ブランドは正式名
+        ("直営+FC 全店 売上高", "直営+FC 売上高", "number"),
+        ("直営+FC 全店(前年比)", "直営+FC(前年比)", "yoy_index"),
+        ("全店 売上高", "直営+FC 売上高", "number"),
+        ("全店 売上高(前年比)", "直営+FC(前年比)", "yoy_index"),
+        ("直営 全店 売上高(前年比)", "直営 全店(前年比)", "yoy_index"),
+        ("FC 既存 売上高(前年比)", "FC 既存(前年比)", "yoy_index"),
+        ("ライダース 直営 店舗数", "アップガレージライダース 直営 店舗数", "number"),
+        ("ホイールズ FC 店舗数", "アップガレージホイールズ FC 店舗数", "number"),
     ):
         got = apply_issuer_aliases(
             "71340", canonicalize_element_label(incoming, unit), year=2099,
