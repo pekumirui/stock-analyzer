@@ -299,6 +299,19 @@ def test_monthly_layout_js() -> None:
         "elements": [{**_el(e, u), "tree": tabaya_assign[e]} for e, u in tabaya_rows],
         **tree_payload("76060", [e for e, _ in tabaya_rows], sanyo_trees),
     }]
+    taka_rows = [
+        ("全社 売上高(前年比)", "yoy_index"),
+        ("小売+ネット通販 既存 売上高(前年比)", "yoy_index"),
+        ("小売 既存 売上高(前年比)", "yoy_index"),
+        ("ネット通販 既存 売上高(前年比)", "yoy_index"),
+        ("小売 店舗数", "number"),
+    ]
+    taka_assign = assign_tree_rows("81660", [e for e, _ in taka_rows], sanyo_trees)
+    fixtures["takaTree"] = [{
+        "year": 2026, "code": "81660",
+        "elements": [{**_el(e, u), "tree": taka_assign[e]} for e, u in taka_rows],
+        **tree_payload("81660", [e for e, _ in taka_rows], sanyo_trees),
+    }]
     lom_canon = [
         "ストック型 売上高",
         "電気 売上高",
@@ -614,6 +627,11 @@ sandbox.monthlyTreeSeedOpen(tbtm);
 vm.runInContext('monthlyTlOpen.add("m:既存 売上高\\u203atree:全体\\u203a小売＋ネット通販"); monthlyTlOpen.add("m:既存 店舗数"); monthlyTlOpen.add("m:売上高"); monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a小売＋ネット通販"); monthlyTlOpen.add("m:店舗数");', sandbox);
 const tabayaNames = namesOf(sandbox.monthlyTreeHtml(tbtm, () => "<td></td>", [{y: 2026, m: 1}]));
 vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+const tktm = sandbox.monthlyTreeModel(fixtures.takaTree);
+sandbox.monthlyTreeSeedOpen(tktm);
+vm.runInContext('monthlyTlOpen.add("m:既存 売上高\\u203atree:全体\\u203a小売+ネット通販"); monthlyTlOpen.add("m:店舗数");', sandbox);
+const takaNames = namesOf(sandbox.monthlyTreeHtml(tktm, () => "<td></td>", [{y: 2026, m: 1}]));
+vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
 const ltm = sandbox.monthlyTreeModel(fixtures.lomTree);
 sandbox.monthlyTreeSeedOpen(ltm);
 vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a電気");', sandbox);
@@ -715,6 +733,7 @@ console.log(JSON.stringify({
   watamiNames,
   autobacsNames,
   tabayaNames,
+  takaNames,
   lomNames,
   arclandsNames,
   lomPart: lomHtml.includes("tl-part"),
@@ -826,6 +845,13 @@ console.log(JSON.stringify({
     ]
     if got.get("tabayaNames") != want_tabaya:
         _fail(f"76060 config tree rows: {got.get('tabayaNames')!r}")
+    want_taka = [
+        "既存 売上高", "小売+ネット通販", "小売", "ネット通販",
+        "全社 売上高(前年比)",
+        "小売 店舗数",
+    ]
+    if got.get("takaNames") != want_taka:
+        _fail(f"81660 config tree rows: {got.get('takaNames')!r}")
     want_lom = ["ストック型 売上高", "電気", "内燃料調整費", "宅配水", "インターネット", "その他"]
     if got.get("lomNames") != want_lom:
         _fail(f"92520 config tree rows: {got.get('lomNames')!r}")
