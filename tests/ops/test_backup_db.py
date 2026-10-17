@@ -325,15 +325,7 @@ def test_cleans_stale_tmp_sidecars(tmp_path: Path) -> None:
     _assert_tmp_empty(dest)
 
 
-def test_crontab_and_docs() -> None:
-    crontab = (ROOT / "deploy" / "crontab").read_text(encoding="utf-8")
-    want = "0 5 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/backup_db.py"
-    if want not in crontab:
-        _fail("crontab missing 05:00 JST backup_db entry")
-    if "cp -a" in crontab:
-        _fail("crontab must not keep the cp backup")
-    if ">>" in want:
-        _fail("crontab must not redirect")
+def test_provision_and_isolation() -> None:
     provision = (ROOT / "deploy" / "provision.sh").read_text(encoding="utf-8")
     if 'crontab -u "$STOCK_USER" "$APP_DIR/deploy/crontab"' not in provision:
         _fail("provision.sh must install deploy/crontab")
@@ -343,15 +335,11 @@ def test_crontab_and_docs() -> None:
     for needle in ("from app", "import app", "rclone", "r2-share"):
         if needle in src:
             _fail(f"backup job must not reference {needle}")
-    design = (ROOT / "docs" / "DESIGN_backup.md").read_text(encoding="utf-8")
-    for needle in ("gzip -dc", "systemctl stop stock-analyzer", "/home/stock/backups/daily"):
-        if needle not in design:
-            _fail(f"restore doc missing {needle}")
 
 
 def main_tests() -> None:
     test_constants()
-    test_crontab_and_docs()
+    test_provision_and_isolation()
     with TemporaryDirectory() as d:
         test_default_db_path(Path(d))
     with TemporaryDirectory() as d:

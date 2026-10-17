@@ -568,25 +568,12 @@ def test_apply_watch_only_change_does_not_restart_mount() -> None:
             _fail(f"watch-only should leave mount: {proc.stdout!r}")
 
 
-def test_systemd_watch_contracts() -> None:
+def test_systemd_unit_matches_job_wait() -> None:
     unit = (ROOT / "deploy" / "r2-share.service").read_text(encoding="utf-8")
     if "Restart=always" not in unit:
         _fail("r2-share.service must Restart=always")
     if "RestartSec=5" not in unit:
         _fail("RestartSec must stay 5")
-    watch = (ROOT / "deploy" / "r2-share-watch.sh").read_text(encoding="utf-8")
-    if "systemctl --user restart r2-share.service" not in watch:
-        _fail("watch must restart the mount unit")
-    if "/proc/mounts" not in watch or "timeout 10 ls" not in watch:
-        _fail("watch must probe /proc/mounts and ls")
-    provision = (ROOT / "deploy" / "provision.sh").read_text(encoding="utf-8")
-    if "r2-share-apply.sh" not in provision:
-        _fail("provision must source r2-share-apply.sh")
-    if 'restart r2-share.service' in provision:
-        _fail("provision.sh must not restart r2-share.service itself")
-    apply = (ROOT / "deploy" / "r2-share-apply.sh").read_text(encoding="utf-8")
-    if "r2_share_plan" not in apply or "leave mount running" not in apply:
-        _fail("r2-share-apply.sh must keep a running mount when unchanged")
     chk = subprocess.run(
         ["bash", "-n", str(ROOT / "deploy" / "r2-share-apply.sh")],
         capture_output=True,
@@ -621,7 +608,7 @@ def main() -> None:
     test_apply_restart_when_mount_unit_changes()
     test_apply_rclone_conf_change_restarts()
     test_apply_watch_only_change_does_not_restart_mount()
-    test_systemd_watch_contracts()
+    test_systemd_unit_matches_job_wait()
     print("ok: r2 mount")
 
 

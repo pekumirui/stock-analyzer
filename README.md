@@ -160,7 +160,7 @@ tools/          機能ごと (market/ monthly/ supply/ xbrl/)
 analyzer/       stock.db を読むだけの分析（一覧は analyzer/README.md）
 deploy/
   stock-analyzer.service  systemd（uvicorn ワーカー1）
-  nginx.conf              リバースプロキシ。月次閲覧は公開、/app は Basic 認証
+  nginx-site.sh           nginx の設定の正本（provision.sh が書く）。月次閲覧は公開、/app は Basic 認証
   crontab                 J-Quants 19:30 JST、為替 08:00 JST、パッケージ一覧 06:40 JST、SQLite バックアップ 05:00 JST
   update.sh               VPS 側デプロイ（Actions から実行）
   enable-cicd.sh          デプロイ用 SSH 鍵と sudoers を一度だけ入れる

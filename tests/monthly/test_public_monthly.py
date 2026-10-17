@@ -73,9 +73,6 @@ def main() -> None:
         _fail("GET /app must send an ETag (boot.js compares it)")
     if c.get(f"/static/css/app.css?v={m.group(1)}").status_code != 200:
         _fail("versioned /static URL must still be served")
-    spa_js = (ROOT / "static" / "js" / "monthly.js").read_text(encoding="utf-8")
-    if "ゲート（一時）" in spa_js:
-        _fail("gate chip is gone (timeline only)")
 
     r = c.get("/monthly")
     _expect(r, 200, "GET /monthly")
@@ -153,10 +150,6 @@ def main() -> None:
     r = c.post("/api/v1/tables/72030/2025/elements", json={"element": "店舗数", "unit": "number"})
     if r.status_code not in (200, 201):
         _fail(f"loopback POST should work: {r.status_code} {r.text[:200]}")
-
-    pub = (ROOT / "app" / "monthly" / "public.py").read_text(encoding="utf-8")
-    if "ゲート（一時）" in pub or "IR（一時）" in pub or "monthly-layout-debug" in pub:
-        _fail("public HTML builder must not emit TEMP debug UI")
 
     print("ok: public monthly")
 

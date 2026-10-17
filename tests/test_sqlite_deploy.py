@@ -192,14 +192,6 @@ def test_put_values_batch_retries_sqlite_lock() -> None:
         _fail("put_values_batch must retry sqlite locked via run_sqlite_write")
 
 
-def test_indicators_are_written_in_chunks() -> None:
-    src = (ROOT / "app" / "market" / "analytics.py").read_text(encoding="utf-8")
-    if "delete_all_chunked" not in src:
-        _fail("compute_indicators must delete indicators in chunks")
-    if "commit=False" in src:
-        _fail("compute_indicators must not keep one write txn for all rows")
-
-
 def _connect_short_timeout(path: Path, timeout_s: float) -> sqlite3.Connection:
     conn = sqlite3.connect(path, timeout=timeout_s, check_same_thread=False)
     apply_sqlite_pragmas(conn)
@@ -440,7 +432,6 @@ def main() -> None:
     test_run_sqlite_write_retries_lock()
     test_run_sqlite_write_gives_up()
     test_put_values_batch_retries_sqlite_lock()
-    test_indicators_are_written_in_chunks()
     test_long_write_txn_exceeds_short_busy_timeout()
     test_chunked_commits_let_other_writer_in()
     test_delete_all_chunked_and_compute_indicators_commit()

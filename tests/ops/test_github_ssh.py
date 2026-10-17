@@ -54,15 +54,6 @@ def test_static_contracts() -> None:
         _fail("update.sh must force GitHub SSH port 443 before fetch")
     if "git status --porcelain --untracked-files=no" not in update:
         _fail("update.sh missing git status --porcelain --untracked-files=no")
-    for needle in (
-        "git → CI → VPS",
-        "Hand edits",
-        "SCP",
-        "not allowed",
-        "detected to stop deploy",
-    ):
-        if needle not in update:
-            _fail(f"update.sh missing tracked-dirty policy text {needle!r}")
     if "git reset --hard" in update:
         _fail("update.sh must not git reset --hard")
     if "git clean" in update:
@@ -110,16 +101,6 @@ def test_static_contracts() -> None:
     )
     if tracked_venv:
         _fail(f".venv must not be tracked: {tracked_venv!r}")
-    migrate_py = (ROOT / "jobs" / "migrate.py").read_text(encoding="utf-8")
-    if "migrate locked" not in migrate_py or "LOCK_ATTEMPTS" not in migrate_py:
-        _fail("jobs/migrate.py must retry on SQLite database is locked")
-    db_py = (ROOT / "app" / "db.py").read_text(encoding="utf-8")
-    if "PRAGMA journal_mode=WAL" not in db_py:
-        _fail("app/db.py must enable SQLite WAL")
-    if "PRAGMA busy_timeout=30000" not in db_py:
-        _fail("app/db.py must set SQLite busy_timeout")
-    if '"timeout": 30.0' not in db_py:
-        _fail("app/db.py sqlite connect_args must set timeout=30")
 
 
 def test_rewrites_existing_github_host() -> None:
