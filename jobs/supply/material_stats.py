@@ -39,8 +39,8 @@ from app.supply.material_stats import (  # noqa: E402
     seidou_rows, summarize_warnings, write_country_rows, write_rows,
 )
 from app.supply.meti import (  # noqa: E402
-    MetiChallenged, MetiClient, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells, sekiyu_nenpo_inventory_cells,
-    sekiyu_sokuho_cells, seidou_december_kakuho, seidou_files,
+    MetiChallenged, MetiClient, MetiError, sekiyu_files, sekiyu_kakuho_cells, sekiyu_nenpo_cells,
+    sekiyu_nenpo_inventory_cells, sekiyu_sokuho_cells, seidou_december_kakuho, seidou_files,
 )
 from app.supply.meti import seidou_records as meti_seidou_records  # noqa: E402
 from app.models import MaterialMonthly  # noqa: E402
@@ -242,7 +242,7 @@ def ingest_meti_seidou(db, mapping: dict, refetch: bool = False, december: list[
             print(f"fail meti seidou {f.name}: {e}. stop and retry next run")
             fails.append(f.name)
             break
-        except (MountDisconnected, OSError) as e:
+        except (MetiError, MountDisconnected, OSError) as e:
             print(f"fail meti seidou {f.name}: {e}")
             fails.append(f.name)
             continue
@@ -290,7 +290,7 @@ def ingest_meti_sekiyu(db, mapping: dict, refetch: bool = False, archive: MetiAr
             print(f"fail meti sekiyu {f.name}: {e}. stop and retry next run")
             fails.append(f.name)
             break
-        except (MountDisconnected, OSError) as e:
+        except (MetiError, MountDisconnected, OSError) as e:
             print(f"fail meti sekiyu {f.name}: {e}")
             fails.append(f.name)
             continue
