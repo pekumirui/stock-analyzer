@@ -84,7 +84,6 @@ SECRET_RE = re.compile(
 GREP_RE = re.compile(r"^[^\n\r\x00]{1,120}$")
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$")
 SHORT_SINCE_RE = re.compile(r"^(\d+)([smhd])$", re.I)
-# 先頭・末尾は数字、途中は 0-9A-Z。4桁は末尾0で 5桁正規形 (9279→92790, 262A→262A0)。
 CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
 JOB_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 BATCH_LOG_SKIP = frozenset({"stock-analyzer.log", "mcp.log"})
@@ -548,7 +547,6 @@ def _window_paths(
                 mtime = datetime.fromtimestamp(path.stat().st_mtime, JST).replace(tzinfo=None)
             except OSError:
                 mtime = None
-            # 最後の書き込みが start より前なら中身も全部 start より前
             if mtime is not None and mtime < start:
                 continue
         try:

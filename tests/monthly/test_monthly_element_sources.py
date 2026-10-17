@@ -63,7 +63,6 @@ def test_post_element_records_raw_label(c: TestClient) -> None:
     _expect(r, 201, "POST elements")
     stored = r.json()["element"]
     got = _sources(code)
-    # 前後の空白だけ落とした形と、送られた unit（保存形にする前）で残す
     if got != {("売上高前年比", "yoy_pct"): (2026, stored, "api")}:
         _fail(f"POST source: {got!r}")
     db = SessionLocal()
@@ -113,7 +112,6 @@ def test_ingest_records_every_raw_label(c: TestClient) -> None:
         _fail(f"sources must point at stored names {names!r}: {got!r}")
     if {v[2] for v in got.values()} != {"ir_html"}:
         _fail(f"ingest via: {got!r}")
-    # 合計の行は総額の行に寄る（同じ保存名を指す）
     if got[("百貨店事業 総額 売上高", "yoy_pct")][1] != got[("百貨店事業合計 売上高", "yoy_pct")][1]:
         _fail(f"merged rows must share the stored name: {got!r}")
 
@@ -177,7 +175,6 @@ def test_legacy_backfill_is_idempotent() -> None:
         _fail(f"legacy source: {_sources(code)!r}")
     if backfill_legacy_element_sources(verbose=False) != 0:
         _fail("legacy backfill must be idempotent")
-    # 既に api の記録がある行には legacy を足さない
     if any(v[2] == "legacy" for v in _sources("69810").values()):
         _fail("rows with a recorded source must not get a legacy row")
 
@@ -199,7 +196,6 @@ def test_sync_copies_sources_when_present() -> None:
     if counts.get("monthly_element_sources", 0) < 1:
         _fail(f"dump must copy sources: {counts!r}")
 
-    # 手元に表があって本番に無いとき: 手元の古い分は消える
     dest = work / "dest.db"
     con = sqlite3.connect(dest)
     for table in (*sync.MONTHLY_TABLES, "stocks", "monthly_element_sources"):

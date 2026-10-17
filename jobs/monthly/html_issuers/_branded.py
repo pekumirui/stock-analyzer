@@ -32,7 +32,6 @@ from jobs.monthly.tdnet_monthly_r2 import display_code
 _SCOPED_STORE_UNIT_HEAD_RE = re.compile(
     r"(既存店|全店)(?=(?:・卸計)?(?:\(単位|（単位|単位|$))"
 )
-# Royal form: （既存店前年比）. Scope is inside the parens.
 _SCOPED_STORE_YOY_HEAD_RE = re.compile(
     r"[（(](既存店|全店)[^）)]*前年(?:同月)?比[）)]"
 )

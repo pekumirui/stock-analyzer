@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# クラウドのエージェントから VPS へ SSH するための鍵配置。冪等。
-# Secrets に VPS_SSH_KEY（GitHub Actions と同じデプロイ秘密鍵）があれば有効。
-# 値を echo しない。鍵ファイルは 600。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,11 +24,9 @@ key.write_text(raw)
 key.chmod(0o600)
 PY
 
-# known_hosts はリポジトリのピン留めを使う（TOFU しない）。冪等に差し替える。
 if [[ -f "$KNOWN_HOSTS" ]]; then
   grep -v '^#' "$KNOWN_HOSTS" | grep -v '^$' > "${HOME}/.ssh/known_hosts.vps" || true
   if [[ -s "${HOME}/.ssh/known_hosts.vps" ]]; then
-    # 他ホスト行は残し、この HOST の行だけ差し替え
     if [[ -f "${HOME}/.ssh/known_hosts" ]]; then
       grep -v "^${HOST} " "${HOME}/.ssh/known_hosts" > "${HOME}/.ssh/known_hosts.tmp" || true
       mv "${HOME}/.ssh/known_hosts.tmp" "${HOME}/.ssh/known_hosts"
@@ -63,7 +58,6 @@ EOF
 fi
 
 echo "VPS SSH ready: ssh stock-vps"
-# 接続確認（失敗しても install は落とさない。鍵未登録・一時障害があり得る）
 if ssh -o BatchMode=yes stock-vps 'echo ok $(hostname)' 2>/dev/null; then
   echo "VPS SSH check: ok"
 else

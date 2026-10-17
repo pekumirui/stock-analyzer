@@ -23,7 +23,6 @@ def chart(code: str, tf: str = "D", ma: str = "50,150,200", rel: bool = False,
                                         "adj_volume", "open", "high", "low", "close", "volume"])
     if df.empty:
         raise HTTPException(404, "no data")
-    # 分析・表示は調整済を使用 (欠損時のみ調整前で代替)
     for a, b in (("adj_open", "open"), ("adj_high", "high"), ("adj_low", "low"),
                  ("adj_close", "close"), ("adj_volume", "volume")):
         df[b] = df[a].fillna(df[b])
@@ -49,7 +48,7 @@ def chart(code: str, tf: str = "D", ma: str = "50,150,200", rel: bool = False,
             df["_k"] = df["date"].map(lambda d: (d.year, d.month))
             ma_div = 20  # 日数→月数 (約20営業日/月)
         else:
-            df["_k"] = df["date"].map(lambda d: d.isocalendar()[:2])  # ISO週 (月曜始まり)
+            df["_k"] = df["date"].map(lambda d: d.isocalendar()[:2])
             ma_div = 5   # 日数→週数 (約5営業日/週)
         agg = df.groupby("_k").agg(
             date=("date", "last"), open=("open", "first"), high=("high", "max"),

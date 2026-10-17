@@ -60,7 +60,7 @@ def actual_month_facts(db: Session, month: str, today: date) -> ActualMonth:
     rows = (db.query(a.disclosed_date, func.count(func.distinct(a.code)))
             .filter(a.disclosed_date >= first, a.disclosed_date < after,  # strftime だと索引が効かない
                     a.type_of_document.contains("FinancialStatements"),
-                    _not_duplicate(a),          # 一覧の行数と件数を一致させる
+                    _not_duplicate(a),
                     _not_excluded_product(a.code))
             .group_by(a.disclosed_date).all())
     codes: frozenset[str] = frozenset()
@@ -113,7 +113,6 @@ def earnings_rows(db: Session, day: date) -> list[dict]:
                 "fy_label": period_label(s.fiscal_year_end),
                 "qoq": summary["qoq"],
                 "yoy": summary["yoy"],
-                # 一覧に金額も出す。QoQ の相手は Q単独、YoY の相手は累計
                 "single": summary["single"],
                 "cumulative": summary["cumulative"],
             })

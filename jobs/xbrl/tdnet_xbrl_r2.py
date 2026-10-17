@@ -64,7 +64,6 @@ _CODE4_HEAD_RE = re.compile(r"^[0-9][0-9A-Z]{3}$")
 _NON_SQLITE_UNMATCHED = "warn stocks db not sqlite; infra unmatched uses company_name only"
 
 # Infra funds share ProdCat 013/022 with REITs; J-Quants has no dedicated category.
-# Monthly skips these; XBRL still downloads them under _unmatched/.
 INFRA_FUND_PRODUCT_CATEGORIES = ("013", "022")
 INFRA_FUND_NAME_NEEDLE = "インフラ"
 INFRA_FUND_FALLBACK_NEEDLE = "インフラ投資法人"

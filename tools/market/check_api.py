@@ -67,7 +67,6 @@ def main():
                       "operating_profit", "ordinary_profit", "profit", "eps",
                       "fy_net_sales", "fy_operating_profit", "fy_eps", "is_revision"):
                 print(f"      {k:22} = {row[k]!r}")
-            # 会計基準の分布 (経常利益がIFRSで空になることの確認)
             n_ifrs = sum(1 for x in st if "IFRS" in (x.get("DocType") or ""))
             n_noord = sum(1 for x in st if not str(x.get("OdP", "")).strip())
             print(f"\n  IFRS/USGAAP開示: {n_ifrs}/{len(st)}件, 経常利益が空: {n_noord}/{len(st)}件")

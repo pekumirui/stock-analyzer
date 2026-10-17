@@ -48,7 +48,6 @@ function applyChartMarkers(state){
     if(!evtOn[layer.id]) continue;
     for(const t of (d[layer.key] || [])) put(t, th[layer.color] || th.warn, layer.text);
   }
-  // 決算タブで選んでいる発表日だけは、重ね合わせオフでも1件出す
   if(opt.mark) put(opt.mark, hi, "決");
   cs.setMarkers([...byTime.values()]);
 }
@@ -74,7 +73,6 @@ function fillEventToggles(){
   });
 }
 
-// 決算タブは行選択のたびに描き直すので、必ず前のインスタンスを破棄してから作る
 function renderPriceChart(el, d, opt={}){
   if(opt.prev){ try { opt.prev.remove(); } catch(e) {} }
   el.innerHTML = "";

@@ -9,18 +9,16 @@ from datetime import datetime, timedelta, timezone
 
 @dataclass(frozen=True)
 class AlertPattern:
-    source: str  # app | batch | nginx | mcp | systemd
-    kind: str  # asgi | access_5xx | startup | fail | summary | traceback | jquants | xbrl | cron_exit | nginx | unit
-    regex: str  # applied to the log line (or MESSAGE for systemd)
+    source: str
+    kind: str
+    regex: str
 
 
-# failed=0 / errors=0 must not match; 10+ must (0* then a non-zero digit).
 ALERT_PATTERNS: tuple[AlertPattern, ...] = (
     AlertPattern("app", "asgi", r"ERROR:\s+Exception in ASGI application"),
     AlertPattern("app", "access_5xx", r" 5[0-9][0-9] "),
     AlertPattern("app", "startup", r"ERROR:\s+Error loading ASGI app"),
     AlertPattern("app", "fail", r"SchemaMismatch"),
-    # cron-run.sh prefixes JST "YYYY-MM-DD HH:MM:SS ". Per-item "fail …" stays unpaged.
     AlertPattern(
         "batch",
         "cron_exit",

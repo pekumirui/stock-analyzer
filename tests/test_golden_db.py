@@ -70,7 +70,6 @@ def test_load_and_serve() -> None:
         _fail("loading into a non-empty DB must refuse")
 
     c = TestClient(app)
-    # verify skill の doctor と同じ条件
     r = c.get("/api/screener", params={"stage": 2, "rs_min": 70})
     if r.status_code != 200 or not r.json().get("results"):
         _fail(f"screener stage=2 rs_min=70 must not be empty: {r.status_code} {r.text[:200]}")

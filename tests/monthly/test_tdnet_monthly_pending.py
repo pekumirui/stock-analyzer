@@ -95,22 +95,16 @@ def _fixture(tmp: Path) -> tuple[Path, Path]:
     tmp.mkdir(parents=True, exist_ok=True)
     dest = tmp / "monthly"
     db = tmp / "stock.db"
-    # ok: PDF 2026-08-05 → expected 2026-07, DB has 2026-07
     _touch_pdf(
         dest,
         "9279",
         "20260805_9279_ギフトHD_2026年10月期7月度_直営店売上速報についてのお知らせ.pdf",
     )
     _touch_pdf(dest, "9279", "20260705_9279_ギフトHD_古い.pdf")
-    # stale: PDF 2026-09-10 → expected 2026-08, DB latest 2026-06 (gap 2)
     _touch_pdf(dest, "7203", "20260910_7203_トヨタ_月次.pdf")
-    # missing: PDF 2026-09-01 → expected 2026-08, no monthly_values
     _touch_pdf(dest, "262A", "20260901_262A_テスト_月次.pdf")
-    # year wrap ok: PDF 2026-01-08 → expected 2025-12
     _touch_pdf(dest, "9983", "20260108_9983_ファーストリテイリング_月次.pdf")
-    # DB ahead of PDF (HTML ingest newer) → ok, not stale
     _touch_pdf(dest, "3382", "20260805_3382_セブン_月次.pdf")
-    # ignored: html, no date, non-issuer dir
     html_dir = dest / "1234"
     html_dir.mkdir(parents=True, exist_ok=True)
     (html_dir / "20260915_1234_x_月次.html").write_text("html", encoding="utf-8")
@@ -169,7 +163,6 @@ def test_report_statuses(tmp: Path) -> None:
         _fail(f"year wrap {by_code['9983']}")
     if by_code["3382"]["status"] != "ok" or by_code["3382"]["gap_months"] != -1:
         _fail(f"DB ahead must be ok {by_code['3382']}")
-    # stale/missing first
     if payload["rows"][0]["status"] != "missing":
         _fail(f"sort { [r['status'] for r in payload['rows']] }")
 
@@ -295,7 +288,6 @@ def test_pending_ignore_codes_not_missing(tmp: Path) -> None:
         _fail("must not reuse MONTHLY_SKIP_CODES")
     dest = tmp / "monthly"
     db = tmp / "stock.db"
-    # PDF あり・monthly_values なし → 通常は MISSING。7062 だけ落とす。
     _touch_pdf(dest, "7062", "20260901_7062_Gフレアス_月次.pdf")
     _touch_pdf(dest, "262A", "20260901_262A_テスト_月次.pdf")
     _touch_pdf(dest, "8739", "20260901_8739_スパークス_月次.pdf")
@@ -314,7 +306,6 @@ def test_pending_ignore_codes_not_missing(tmp: Path) -> None:
     by_code = {r["code"]: r for r in payload["rows"]}
     if by_code["262A"]["status"] != "missing" or by_code["8739"]["status"] != "missing":
         _fail(f"statuses {by_code}")
-    # --code 7062 でも出さない
     only = json.loads(
         pending.run_report(
             dest=dest, db_path=db, only_codes={"7062"}, as_json=True

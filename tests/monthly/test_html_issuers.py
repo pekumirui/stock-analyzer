@@ -174,10 +174,6 @@ ROYAL_TRAILING_UNIT_HTML = """
 """
 
 
-# Live 8179 index shape: nav both brands, h2 + year h3 with （既存店前年比）,
-# H1 1–6 / H2 7–12 (7–8 filled). Values from /tmp/royal_index.html.
-
-
 FORCE_UNIT_HTML = """
 <html><body>
 <h2>全店売上高前年同月比</h2>
@@ -2034,7 +2030,6 @@ def test_hurxley_dual_brand_prefixes_and_count_units() -> None:
 
 
 def test_hurxley_canonicalize_aliases() -> None:
-    # parser raw → canonicalize → 75610 alias → ops final (no extra parser 名寄せ)
     cases = [
         ("ほっかほっか亭 売上(前年同月比:%) 全店", "yoy_index", "ほっかほっか亭 全店 売上高(前年比)"),
         ("ほっかほっか亭 売上(前年同月比:%) 既存店", "yoy_index", "ほっかほっか亭 既存 売上高(前年比)"),
@@ -2046,7 +2041,6 @@ def test_hurxley_canonicalize_aliases() -> None:
         ("店舗流通ネット ② 店舖リースの 取引店舖数 (店)", "number", "店舗流通ネット 稼働店舗数 取引店舗数"),
         ("店舗流通ネット 増加(店)", "number", "店舗流通ネット 稼働店舗数 増加"),
         ("店舗流通ネット 減少(店)", "number", "店舗流通ネット 稼働店舗数 減少"),
-        # previous flat ops names also fold into the parent/child form
         ("店舗流通ネット 管理テナント数", "number", "店舗流通ネット 稼働店舗数 管理テナント数"),
         ("店舗流通ネット 取引 店舗数", "number", "店舗流通ネット 稼働店舗数 取引店舗数"),
         ("店舗流通ネット 増加", "number", "店舗流通ネット 稼働店舗数 増加"),

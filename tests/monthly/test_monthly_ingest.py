@@ -50,7 +50,6 @@ from app.monthly.ingest import (  # noqa: E402
 GIFT_MONTHS = [11, 12, 1, 2, 3, 4, 5, 6, 7]
 MARCH_MONTHS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3]
 CAL_MONTHS = list(range(1, 13))
-# Genky 20250630: Jun2024 … Jun2025 (13 cols, month 6 twice)
 GENKY_MONTHS = [6, 7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6]
 
 
@@ -90,7 +89,7 @@ def _expect_ingest_error(fn, code: str, needle: str | None = None) -> MonthlyIng
             _fail(f"{code} message {exc.message!r} missing {needle!r}")
         return exc
     _fail(f"expected {code}")
-    raise AssertionError  # unreachable
+    raise AssertionError
 
 
 def test_alias_rename_takes_unit_from_names(tmp: Path) -> None:
@@ -102,7 +101,6 @@ def test_alias_rename_takes_unit_from_names(tmp: Path) -> None:
     rule = load_issuer_aliases(path)["99990"][0]
     if rule.until != date(2027, 1, 1):
         _fail(f"until {rule.until}")
-    # 片方だけ前年比でも両側を yoy の表示名にそろえる。実数行は接尾辞を付けない
     if rule.rename != {"売上高(前年比)": "全店 売上高(前年比)", "客数": "全店 客数"}:
         _fail(f"alias rename {rule.rename}")
 
@@ -824,7 +822,6 @@ def test_issuer_alias_cases() -> None:
     if sample_26980 != "全社 売上高(前年比)":
         _fail(f"26980 sample: {sample_26980!r}")
 
-    # 262A0: 2025 無印月次 → Zoff。2026 多セグメントはメガネスーパー等を触らない。
     sample_262a0_2025 = apply_issuer_aliases("262A0", "全店", year=2025)
     if sample_262a0_2025 != "Zoff 全店":
         _fail(f"262A0 year=2025 全店: {sample_262a0_2025!r}")
@@ -835,7 +832,6 @@ def test_issuer_alias_cases() -> None:
     if sample_262a0_2026_bare != "全店":
         _fail(f"262A0 year=2026 must not force-prefix 全店: {sample_262a0_2026_bare!r}")
 
-    # 27800: 売上高 に コメ兵 prefix を付けない。canonicalize 済みの全店ラベルはそのまま。
     sample_27800 = apply_issuer_aliases("27800", "全店 売上高", year=2026)
     if sample_27800 != "全店 売上高":
         _fail(f"27800 year=2026 全店 売上高: {sample_27800!r}")
@@ -843,7 +839,6 @@ def test_issuer_alias_cases() -> None:
     if sample_27800_yoy != "全店 売上高(前年比)":
         _fail(f"27800 year=2026 全店 売上高(前年比): {sample_27800_yoy!r}")
 
-    # 76830: 内 MM → 内アパレル（Lane B / re-ingest）。canonicalize 後キーで照合。
     sample_76830 = apply_issuer_aliases(
         "76830", canonicalize_element_label("内 MM 全店 売上高", "number"), year=2026,
     )
@@ -871,13 +866,11 @@ def test_issuer_alias_cases() -> None:
     if sample_76830_yoy != "内アパレル 全店 売上高(前年比)":
         _fail(f"76830 内 MM 全店 売上高(前年比): {sample_76830_yoy!r}")
 
-    # 71340: 壊れた ・ FC ラベル → 直営+FC（Lane B / 既存格納・再ingest）。
     for incoming, stored, unit in (
         ("・ FC 全店 売上高", "直営+FC 売上高", "number"),
         ("・ FC(前年比)", "直営+FC(前年比)", "yoy_index"),
         ("・ FC 全店(前年比)", "直営+FC(前年比)", "yoy_index"),
         ("・ FC 全店 売上高(前年比)", "直営+FC(前年比)", "yoy_index"),
-        # PDF 原文の表記へ（KPI 10/17）。前年比は 売上高 の語なし、合計は 全店 なし、ブランドは正式名
         ("直営+FC 全店 売上高", "直営+FC 売上高", "number"),
         ("直営+FC 全店(前年比)", "直営+FC(前年比)", "yoy_index"),
         ("全店 売上高", "直営+FC 売上高", "number"),
@@ -893,7 +886,6 @@ def test_issuer_alias_cases() -> None:
         if got != stored:
             _fail(f"71340 year=2099 {incoming!r}: {got!r}, want {stored!r}")
 
-    # 30880: FC は別表（FC 単月売上高）で 全店 を付けない。合計表の FC も同じ数字なので寄せる。子会社化等は空白入り
     for incoming, stored, unit in (
         ("MKG FC 売上高前年比", "マツモトキヨシグループ FC 売上高(前年比)", "yoy_pct"),
         ("合計 FC 売上高前年比", "マツモトキヨシグループ FC 売上高(前年比)", "yoy_pct"),
@@ -909,8 +901,6 @@ def test_issuer_alias_cases() -> None:
         if got != stored:
             _fail(f"30880 {incoming!r}: {got!r}, want {stored!r}")
 
-    # 46660: PDF の生ラベル「直営 タイムズパーキング 件数/台数」は 直営 なしの保存名へ寄せる。
-    # ■タイムズパーキング数 の「累計」も同じ保存名のまま
     for incoming, stored in (
         ("直営 タイムズパーキング 件数", "タイムズパーキング 件数"),
         ("直営 タイムズパーキング 台数", "タイムズパーキング 台数"),
@@ -922,7 +912,6 @@ def test_issuer_alias_cases() -> None:
         if got != stored:
             _fail(f"46660 {incoming!r}: {got!r}, want {stored!r}")
 
-    # 38170: 株式会社SRA/AIT → 短名（year=2026）。短名からは戻さない。
     for incoming, stored in (
         ("株式会社SRA 全店 売上高", "SRA 全店 売上高"),
         ("株式会社SRA 全店 売上高(前年比)", "SRA 全店 売上高(前年比)"),
@@ -941,7 +930,6 @@ def test_issuer_alias_cases() -> None:
         if reverse != stored:
             _fail(f"38170 year=2026 reverse {stored!r}: {reverse!r}")
 
-    # 30820: 中黒+半角スペースの「モール・郊外型 レストラン業態」へ。HTML の業態行（既存店見出しなし）は既存へ、店舗数はスコープなし。
     mall = "モール・郊外型 レストラン業態"
     urban = "都市型ダイニング業態"
     p_lines_30820 = (
@@ -1030,7 +1018,6 @@ def test_mapping_examples() -> None:
     layout, mapping = plan_column_years(MARCH_MONTHS, 3, date(2026, 4, 10))
     if layout != "fiscal":
         _fail(f"march layout: {layout}")
-    # April is fiscal start after March-end → completed FY（4/2025…3/2026）
     expect = {m: 2025 for m in range(4, 13)}
     expect.update({1: 2026, 2: 2026, 3: 2026})
     if _map_dict(mapping) != expect:
@@ -1042,7 +1029,6 @@ def test_mapping_examples() -> None:
     if _map_dict(mapping) != {m: 2026 for m in CAL_MONTHS}:
         _fail(f"dec mapping: {mapping}")
 
-    # 先頭が1でも会計年度開始でもない列。暦年は最終列 + as_of。拒否しない。
     as_of_aug = date(2026, 8, 5)
     layout, mapping = plan_column_years([7], 10, as_of_aug)
     if layout != "partial":
@@ -1064,7 +1050,6 @@ def test_mapping_examples() -> None:
     if fy != 10 or layout != "partial" or _map_dict(mapping) != {7: 2026}:
         _fail(f"single July map_pdf_columns: {fy} {layout} {mapping}")
 
-    # Genky 13列: 月6が2回。右端 as_of=2025-06-30 → 先頭6は2024、末尾6は2025。
     layout, mapping = plan_column_years(GENKY_MONTHS, 6, date(2025, 6, 30))
     if layout != "partial":
         _fail(f"genky layout: {layout}")
@@ -1075,7 +1060,6 @@ def test_mapping_examples() -> None:
     if mapping[0] != (6, 2024) or mapping[-1] != (6, 2025):
         _fail(f"genky June split: {mapping[0]} {mapping[-1]}")
 
-    # 60400 型: 7月期末・as_of が期末月より後（9月）→ 完了した FY（8/2025…7/2026）
     july_months = [8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7]
     layout, mapping = plan_column_years(july_months, 7, date(2026, 9, 11))
     if layout != "fiscal":
@@ -1085,7 +1069,6 @@ def test_mapping_examples() -> None:
     if _map_dict(mapping) != expect_july:
         _fail(f"july post-end mapping: {mapping}")
 
-    # 同 FY・as_of が期末月より前（6月）→ 現行 FY は当年7月期末
     layout, mapping = plan_column_years(july_months, 7, date(2026, 6, 15))
     if layout != "fiscal":
         _fail(f"july mid-fy layout: {layout}")
@@ -1094,13 +1077,11 @@ def test_mapping_examples() -> None:
     if _map_dict(mapping) != expect_july_mid:
         _fail(f"july mid-fy mapping: {mapping}")
 
-    # HTML の当期途中（期首から as_of 月まで）。3月期 4〜8月、2月期 3〜8月はどちらも当年
     for months, fy_end in (([4, 5, 6, 7, 8], 3), ([3, 4, 5, 6, 7, 8], 2)):
         layout, mapping = plan_column_years(months, fy_end, date(2026, 8, 31))
         if layout != "fiscal" or _map_dict(mapping) != {m: 2026 for m in months}:
             _fail(f"in-progress fy={fy_end} {layout} {mapping}")
 
-    # 27360 / 99790 型: 8月期末・12列(9〜8月)。新FY先頭月だけでなく翌々月以降も完了FY
     aug_months = [9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8]
     expect_aug = {m: 2025 for m in (9, 10, 11, 12)}
     expect_aug.update({m: 2026 for m in (1, 2, 3, 4, 5, 6, 7, 8)})
@@ -1111,7 +1092,6 @@ def test_mapping_examples() -> None:
         if _map_dict(mapping) != expect_aug:
             _fail(f"aug post-end mapping as_of={as_of}: {mapping}")
 
-    # 同 FY・as_of が期末月内（8月）→ まだ当期 FY（9/2025…7/2026）
     layout, mapping = plan_column_years(aug_months[:-1], 8, date(2026, 8, 10))
     if layout != "fiscal":
         _fail(f"aug mid-fy layout: {layout}")
@@ -1137,7 +1117,6 @@ def test_fy_end_and_layout_errors() -> None:
     if resolve_fy_end_month(oct_rows, as_of) != 10:
         _fail("same fy_end month should be accepted")
 
-    # 2種の期末月があっても as_of 時点の最新開示の1か月。FY_END_CHANGED にはしない。
     changed = [
         (date(2026, 6, 1), date(2026, 3, 31)),
         (date(2026, 5, 1), date(2025, 10, 31)),
@@ -1158,7 +1137,6 @@ def test_fy_end_and_layout_errors() -> None:
     if resolve_fy_end_month(same_day, as_of) != 11:
         _fail("same disclosed_date should pick later fiscal_year_end")
 
-    # 実在の期変更銘柄: 後の開示の月末を使う（live DB は見ない）
     for older_m, newer_m in ((2, 11), (1, 6), (2, 3), (11, 3), (8, 11), (1, 2)):
         rows = [
             (date(2020, 6, 1), date(2020, older_m, 1)),
@@ -1182,7 +1160,6 @@ def test_fy_end_and_layout_errors() -> None:
     if _map_dict(mapping) != expect_wrap:
         _fail(f"wrap mid-start mapping: {mapping}")
 
-    # 期末後の as_of で、右端列が as_of より未来なら書かない
     exc = _expect_ingest_error(
         lambda: plan_column_years([9, 10, 11], 8, date(2026, 10, 1)),
         "FUTURE_COLUMN",
@@ -1310,7 +1287,6 @@ def test_api_errors() -> None:
     if _err(r)["code"] != "NEED_FY_END":
         _fail(f"as_of before fy_end rows: {r.json()!r}")
 
-    # 2月と11月: 後の開示が11月。FY_END_CHANGED にはしない。
     _add_fy_end("26980", date(2020, 4, 10), date(2020, 2, 29), "candu-feb")
     _add_fy_end("26980", date(2020, 12, 15), date(2020, 11, 30), "candu-nov")
     r = c.post("/api/v1/tables/26980/ingest", json={
@@ -1322,7 +1298,6 @@ def test_api_errors() -> None:
     if r.json().get("fy_end_month") != 11 or r.json().get("layout") != "calendar":
         _fail(f"2/11 as-of: {r.json()!r}")
 
-    # 同日開示は fiscal_year_end の新しい方
     _add_fy_end("36120", date(2021, 6, 1), date(2021, 2, 28), "world-feb")
     _add_fy_end("36120", date(2021, 6, 1), date(2021, 3, 31), "world-mar")
     r = c.post("/api/v1/tables/36120/ingest", json={
@@ -2021,12 +1996,10 @@ def test_issuer_alias_ingest_and_migrate() -> None:
         if incoming != stored:
             by_code.setdefault(code, []).append((incoming, stored, as_of))
         else:
-            # 複数 until では最早の境界を「新 as_of」側にする
             prev = after_until.get(code)
             if prev is None or as_of < prev:
                 after_until[code] = as_of
 
-    # 複数 until の銘柄は period を混ぜると同一 ingest で衝突するため、最早 as_of だけ使う
     for code, pairs in list(by_code.items()):
         min_as = min(p[2] for p in pairs)
         by_code[code] = [p for p in pairs if p[2] == min_as]
@@ -2036,7 +2009,6 @@ def test_issuer_alias_ingest_and_migrate() -> None:
         as_of = pairs[0][2]
         year = as_of.year if as_of.month >= 6 else as_of.year - 1
         _add_fy_end(code, date(year, 6, 1), date(year, 6, 30), f"alias-fy-{code}-{year}")
-        # many-to-one rename（複数 before → 同一 after）は同一 ingest で衝突するため stored で畳む
         rows = []
         seen_stored: set[str] = set()
         for j, (incoming, stored, _) in enumerate(pairs):
@@ -2067,7 +2039,6 @@ def test_issuer_alias_ingest_and_migrate() -> None:
             as_of: date | None = None,
             code: str = code,
         ) -> str:
-            # fold_aliased_element: dest が別 src なら保存名はもう一段 alias 後
             unit = "yoy_index" if stored.endswith("(前年比)") else "number"
             return canonicalize_element_label(
                 apply_issuer_aliases(code, stored, year=year, as_of=as_of),
@@ -2081,7 +2052,6 @@ def test_issuer_alias_ingest_and_migrate() -> None:
             if incoming != expect and incoming in names:
                 _fail(f"{code} incoming leftover {incoming!r}: {names!r}")
 
-        # migrate / POST は一段 hop。stored が最終名の pair を使う
         incoming, stored, _ = next(
             (p for p in pairs if _folded_stored(p[1], as_of=as_of) == p[1]),
             pairs[0],
@@ -2333,7 +2303,6 @@ def test_api_genky_year_wrap_ingest() -> None:
     if abs(v2025["6"] - 110.1) > 1e-6:
         _fail(f"2025 June value: {v2025!r}")
 
-    # 重複月なのに月キー object は拒否
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": GENKY_MONTHS,
         "rows": [{"element": "客数", "unit": "yoy_index", "values": {"6": 1.0}}],
@@ -2343,7 +2312,6 @@ def test_api_genky_year_wrap_ingest() -> None:
     if _err(r)["code"] != "INVALID_PARAM":
         _fail(f"ambiguous: {r.json()!r}")
 
-    # 列番号キーは許可
     r = c.post(f"/api/v1/tables/{code}/ingest", json={
         "months": GENKY_MONTHS,
         "rows": [{"element": "客数前年比（既存店）", "unit": "yoy_index",
@@ -2354,7 +2322,6 @@ def test_api_genky_year_wrap_ingest() -> None:
     r = c.get(f"/api/v1/tables/{code}/2024")
     names = [e["element"] for e in r.json()["elements"]]
     if "客数前年比（既存店）(前年比)" not in names and "客数前年比（既存店）" not in names:
-        # canonicalize may add (前年比)
         if not any("客数" in n for n in names):
             _fail(f"col-index 2024 missing: {names!r}")
 
@@ -2777,7 +2744,7 @@ def test_department_store_layers() -> None:
         _fail(f"髙島屋各店 入店 既存 layers must keep 入店 before 既存: {layers!r}")
 
 
-_COUNT_CODE = "90000"  # 架空の銘柄。辞書の仕組みだけを見る（銘柄の分岐は書かない）
+_COUNT_CODE = "90000"
 _COUNT_WORDS = frozenset({
     "受託施設数", "訪問介護事業所数", "居宅介護支援事業所数", "有料老人ホーム数",
     "総レセプト数(鍼灸込み)", "拠点数", "件数",
@@ -2850,22 +2817,18 @@ def test_issuer_count_metrics() -> None:
         if not code_re.fullmatch(code):
             _fail(f"issuer_metrics.json key must be a 5-char code: {code!r}")
         for word in words:
-            # 共通の語彙（_METRIC_PREFIX）が先に剥がす語は辞書に置いても効かない
             if word.split() != [word] or monthly_ingest_mod._peel_metric(word)[0]:
                 _fail(f"issuer_metrics.json {code} {word!r}: one token, not a common metric")
 
     with _issuer_count_words(_COUNT_CODE, _COUNT_WORDS):
         _check_count_cases(cases)
-        # 辞書に無い銘柄では件数語は指標にならない（ほかの銘柄に波及しない）
         for src in ("アスモフードサービス 受託施設数", "メディカルケア事業 拠点数"):
             for other in (None, "90010"):
                 lab = monthly_element_label(src, "number", other)
                 if lab["metric"] or lab["metric_kind"] != "other" or lab["group"] != src:
                     _fail(f"count word leaked to code={other!r} {src!r}: {lab!r}")
-        # 保存名は辞書を読まない
         if canonicalize_element_label("直営 タイムズパーキング 件数", "number") != "タイムズパーキング 件数 直営":
             _fail("issuer count words must not reorder stored names")
-        # 完全一致だけ（売上個数 は 個数 に当たらない。辞書に無い …数 も拾わない）
         if parse_element_layers("ZAC 追加ライセンス数", code=_COUNT_CODE)["metric"]:
             _fail("count words must match whole tokens listed in the dictionary only")
 

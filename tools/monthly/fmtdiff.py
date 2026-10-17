@@ -27,7 +27,6 @@ import pdfplumber
 RE_DATE = re.compile(r"\d+\s*年\s*\d+\s*月(\s*\d+\s*日)?|\d{4}[/-]\d{1,2}([/-]\d{1,2})?")
 RE_QUARTER = re.compile(r"第\s*\d+\s*(四半期|Q)")
 RE_NUM = re.compile(r"[△▲\-−+]?\d[\d,]*(\.\d+)?")
-# TDnet 発行体コード（4桁）。ディレクトリ名優先、なければファイル名の _CODE_
 RE_ISSUER_DIR = re.compile(r"^[0-9][0-9A-Z]{3}$")
 RE_ISSUER_IN_NAME = re.compile(r"_([0-9][0-9A-Z]{3})_")
 
@@ -239,7 +238,6 @@ def render(changed, changes, notes, old, new):
                 if c.get(k):
                     out.append(f"      {k}: {c[k]}")
     else:
-        # ハッシュは変わったが突合で説明できない = 表の並び順変更など
         out.append("判定: フォーマット変更あり — ただし内訳を特定できず（要目視）")
 
     if notes:

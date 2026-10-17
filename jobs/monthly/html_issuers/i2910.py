@@ -7,7 +7,6 @@ import unicodedata
 from jobs.monthly.html_issuers._page import Page
 from jobs.monthly.html_issuers._read import Candidate, emit, pick_scored, read_page
 
-# 見出し「既存店売上」「全店売上」。売上高 は列名なので除外。
 _SCOPE_RE = re.compile(r"(既存店|全店)売上(?!高)")
 _BRAND_YOY_SUFFIX = "売上高前年同月比"
 

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Linux セットアップ
-# 使い方:  ./setup.sh
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 

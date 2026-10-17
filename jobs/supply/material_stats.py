@@ -233,7 +233,7 @@ def ingest_meti_seidou(db, mapping: dict, refetch: bool = False, december: list[
         return 0
     total = 0
     done = ingested_origins(db)
-    done -= archive.missing("seidou", done & {f.name for f in files})  # 控えの無い年報は一度落として残す
+    done -= archive.missing("seidou", done & {f.name for f in files})
     for f in meti_targets(files, done, refetch or reread):
         try:
             data, got = archive.get(client, f, "seidou", refetch)
@@ -280,7 +280,7 @@ def ingest_meti_sekiyu(db, mapping: dict, refetch: bool = False, archive: MetiAr
     parsers = {REVISION_NENPO: ("nenpo", _nenpo_cells), REVISION_KAKUHO: ("kakuho", sekiyu_kakuho_cells),
                REVISION_SOKUHO: ("sokuho", sekiyu_sokuho_cells)}
     done = sekiyu_done(db, items, files)
-    done -= archive.missing("sekiyu", done)  # 控えの無い年報は一度落として残す
+    done -= archive.missing("sekiyu", done)
     for f in meti_targets(files, done, refetch or reread):
         kind, parse = parsers[f.revision]
         try:
@@ -355,7 +355,7 @@ def ingest_estat_trade(client: EstatClient, db, mapping: dict, years: list[int])
             want = sorted({c for it in items + country_only for c in it["codes"]})
             kinds = [c for c, n in meta.get("cat02", {}).items() if re.fullmatch(r"単位[12]|\d{1,2}月_数量[12]", n)]
             values: list[dict] = []
-            for i in range(0, len(want), 50):  # URL を長くしすぎない
+            for i in range(0, len(want), 50):
                 values += client.values(sid, cdCat01=",".join(want[i:i + 50]), cdCat02=",".join(kinds))
             rows = trade_rows(
                 flow=flow, items=items, cat02=meta["cat02"], times=meta.get("time", {}), values=values,

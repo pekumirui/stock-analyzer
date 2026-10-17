@@ -96,20 +96,17 @@ def test_fy_end_fallback_order() -> None:
         _fail("pl")
     if fiscal_year_end_from_pl_contexts([duration], []) is not None:
         _fail("pl empty")
-    # DEI wins over title / PL / duration
     got = resolve_fiscal_year_end(
         [duration], [dei, pl_fact], title="2027年3月期 決算短信〔日本基準〕（連結）",
     )
     if got != date(2026, 6, 30):
         _fail(f"dei first {got}")
-    # excluded DEI falls through to annual title
     got = resolve_fiscal_year_end(
         [duration], [dei], title="2027年3月期 決算短信〔日本基準〕（連結）",
         exclude_dates={date(2026, 6, 30)},
     )
     if got != date(2027, 3, 31):
         _fail(f"title after excluded dei {got}")
-    # quarterly title skipped, PL used
     got = resolve_fiscal_year_end(
         [duration], [pl_fact], title="2027年3月期 第1四半期決算短信",
     )

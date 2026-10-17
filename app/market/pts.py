@@ -24,7 +24,7 @@ RANKINGS = {
     "night_volume": "pts_night_volume_ranking",
 }
 MAX_PAGES = 5      # 1 ページ 15 銘柄。1 ランキング 75 銘柄まで
-PAUSE_S = 3.0      # リクエストの間隔（負荷をかけない）
+PAUSE_S = 3.0
 JST = timezone(timedelta(hours=9))
 USER_AGENT = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
               "(KHTML, like Gecko) Chrome/129.0 Safari/537.36")

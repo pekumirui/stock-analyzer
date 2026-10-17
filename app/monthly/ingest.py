@@ -1337,7 +1337,6 @@ def resolve_fy_end_month(
 
 
 def _is_calendar_layout(months: Sequence[int]) -> bool:
-    # 先頭が1で暦月昇順。欠月は可。年をまたぐ並び (12→1) は暦年レイアウトではない。
     if not months or months[0] != 1:
         return False
     for i in range(1, len(months)):
@@ -1454,11 +1453,9 @@ def plan_column_years(
         mapping = _assign_years(months, as_of)
     elif start == _fiscal_start_month(fy_end_month):
         layout = "fiscal"
-        # 期末月+as_of で現行/完了 FY を決める（as_of が期末月より後なら完了した FY）
         mapping = _assign_years(months, as_of, fy_end_month=fy_end_month)
     else:
         layout = "partial"
-        # 部分列は右端月+as_of（暦年アンカー）。FY 全体を仮定しない。
         mapping = _assign_years(months, as_of)
     _reject_future_columns(
         mapping, as_of, layout=layout, fy_end_month=fy_end_month,

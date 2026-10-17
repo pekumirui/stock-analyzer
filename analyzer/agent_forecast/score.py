@@ -22,7 +22,6 @@ from pathlib import Path
 from common import fy_label, load_target, root_of, target_args, target_label
 
 EPS = "NetIncomePerShare"
-# 項目 -> (XBRL 要素の候補（先にあるものを採る）, 表の見出し)
 ITEMS = {
     "net_sales": (("NetSales",), "売上高"),
     "gross_profit": (("GrossProfit",), "粗利"),
@@ -33,7 +32,6 @@ ITEMS = {
     "net_income": (("ProfitLossAttributableToOwnersOfParent", "ProfitLoss"), "純利益"),
     "eps": ((EPS,), "EPS(円)"),
 }
-# 項目 -> financials.json の company_forecasts のラベルの候補
 GUIDANCE_KEYS = {
     "net_sales": ("売上高",),
     "operating_income": ("営業利益",),
@@ -41,7 +39,6 @@ GUIDANCE_KEYS = {
     "net_income": ("親会社株主に帰属する当期純利益", "当期純利益"),
     "eps": ("1株当たり当期純利益(円)",),
 }
-# サマリーの累計実績の context（例 CurrentAccumulatedQ1Duration_ConsolidatedMember_ResultMember）
 SUMMARY_CTX = re.compile(r"Current(?:AccumulatedQ\dDuration|YearDuration)_(?:Non)?ConsolidatedMember_ResultMember")
 
 

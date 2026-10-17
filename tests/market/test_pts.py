@@ -56,10 +56,8 @@ def test_parse_page() -> None:
 
 
 def test_session_date_for() -> None:
-    # 土曜の昼も 16日（金）のまま。夕方の開始前は前のセッション
     assert session_date_for(16, date(2026, 10, 17)) == date(2026, 10, 16)
     assert session_date_for(16, date(2026, 10, 16)) == date(2026, 10, 16)
-    # 月またぎと、その日が無い月
     assert session_date_for(30, date(2026, 10, 1)) == date(2026, 9, 30)
     assert session_date_for(31, date(2026, 10, 1)) == date(2026, 8, 31)
     assert session_date_for(31, date(2027, 1, 2)) == date(2026, 12, 31)
@@ -81,7 +79,6 @@ def test_snapshot_dedup_and_api(c) -> None:
         with _client({}) as http:
             stats = snapshot_all(db, http, now=now, pause=0)
         assert stats == {"night_up": 2, "night_down": 2, "night_volume": 2}
-        # 同じ「HH:MM現在」は書かない
         with _client({}) as http:
             stats = snapshot_all(db, http, now=datetime(2026, 10, 17, 0, 0, tzinfo=JST), pause=0)
         assert stats == {"night_up": 0, "night_down": 0, "night_volume": 0}

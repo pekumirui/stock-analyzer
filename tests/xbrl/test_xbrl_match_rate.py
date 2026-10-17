@@ -184,11 +184,8 @@ def test_tolerance(tmp: Path) -> None:
             (2, "net_income", "PL"),
             (3, "ordinary_income", "PL"),
         ])
-        # abs: 100.5 vs 100 → 0.5 ≤ 1
         _insert_fin(conn, std_item_id=1, value=100_500_000, unit="JPY")
-        # rel: 10010 vs 10000 → 10/10010 ≤ 0.001
         _insert_fin(conn, std_item_id=2, value=10_010_000_000, unit="JPY")
-        # fail: 105 vs 100 → abs 5 > 1 and rel 0.05 > 0.001
         _insert_fin(conn, std_item_id=3, value=105_000_000, unit="JPY")
         conn.commit()
     finally:
@@ -426,9 +423,9 @@ def test_fetch_builds_cumulative_from_standalone(tmp: Path) -> None:
             _fail(f"{label} basis {rec.get('period_basis')}")
     if q1["metrics"]["revenue"] != 100:
         _fail(f"Q1 revenue {q1['metrics']}")
-    if q2["metrics"]["revenue"] != 300:  # 100+200
+    if q2["metrics"]["revenue"] != 300:
         _fail(f"Q2 H1 revenue {q2['metrics']}")
-    if q3["metrics"]["revenue"] != 600:  # 100+200+300
+    if q3["metrics"]["revenue"] != 600:
         _fail(f"Q3 9M revenue {q3['metrics']}")
     if fy["metrics"]["revenue"] != 1000:
         _fail(f"FY revenue {fy['metrics']}")

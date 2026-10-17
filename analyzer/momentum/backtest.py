@@ -26,8 +26,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-MONTHS = 3  # 保有期間
-TURNOVER_WINDOW = 20  # 営業日
+MONTHS = 3
+TURNOVER_WINDOW = 20
 FORM_START_FFILL_BDAYS = 5
 
 
@@ -150,7 +150,7 @@ def build_panel(
     dates = adj.index
     me = month_end_decision_dates(dates)
     fresh = adj.ffill(limit=FORM_START_FFILL_BDAYS)
-    last_px = adj.ffill()  # 廃止後は最終終値のまま
+    last_px = adj.ffill()
     liq = turnover.rolling(TURNOVER_WINDOW, min_periods=TURNOVER_WINDOW).mean()
 
     rows = []
@@ -162,7 +162,7 @@ def build_panel(
         codes = ok[ok].index
         tx_form = topix.loc[de] / topix.loc[d0] - 1
         tx_hold = topix.loc[d1] / topix.loc[d] - 1
-        delisted = adj.loc[d1:, codes].isna().all()  # d1 以降に価格が一度も無い
+        delisted = adj.loc[d1:, codes].isna().all()
         rows.append(
             pd.DataFrame(
                 {

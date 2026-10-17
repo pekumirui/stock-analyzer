@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# プライベートリポジトリを git fetch できるよう、stock の GitHub deploy key と origin を SSH にする。
-# 公開鍵は GitHub → Settings → Deploy keys に read-only で登録する。
-# 既存 VPS は ~/.ssh/id_github + Host github.com の config を使う。
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/home/stock/stock-analyzer}"
@@ -10,7 +7,6 @@ REPO_SSH="${REPO_SSH:-git@github.com:pekumirui/stock-analyzer.git}"
 
 install -d -m 700 "$SSH_DIR"
 
-# 既にある GitHub 専用鍵を優先。無ければ作る。
 if [[ -f "${SSH_DIR}/id_github" ]]; then
   KEY="${SSH_DIR}/id_github"
 elif [[ -f "${SSH_DIR}/id_ed25519" ]]; then

@@ -30,7 +30,6 @@ COMPRESSLEVEL = 1
 BUSY_TIMEOUT_MS = 30_000
 BACKUP_PAGES = 100
 BACKUP_SLEEP_S = 0.25
-# gzip -1 実測は約 0.30。未圧縮コピー + gzip 分を多めに見る。
 GZIP_RATIO_SLACK = 0.5
 MIN_FREE_MARGIN = 256 * 1024 * 1024
 BACKUP_NAME_RE = re.compile(r"^stock-(\d{4}-\d{2}-\d{2})\.db\.gz$")

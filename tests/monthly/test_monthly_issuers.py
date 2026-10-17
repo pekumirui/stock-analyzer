@@ -317,7 +317,6 @@ def test_year_payload_unchanged() -> None:
     r = c.get("/api/v1/tables/72030/2026")
     _expect(r, 200, "GET year")
     body = r.json()
-    # tree / tree_metrics / tree_auto は全発行体に付く（config の木が無ければ自動の木。#434）
     if set(body) != {"code", "year", "elements", "tree", "tree_metrics", "tree_metric_parent", "tree_auto"}:
         _fail(f"year keys: {body!r}")
 
@@ -352,7 +351,6 @@ def test_headline_yoy_prefers_company_wide() -> None:
     """一覧はセグメントなしの売上高を優先。同条件なら sort_order。#336"""
     c = TestClient(app)
 
-    # (a) シュッピン相当: 同じ月の EC より全社の全店売上高
     _seed_yoy_rows("31790", "シュッピン", 2026, 8, [
         ("EC 全店 売上高(前年比)", 1, 85.9),
         ("全店 売上高(前年比)", 2, 94.5),
@@ -361,7 +359,6 @@ def test_headline_yoy_prefers_company_wide() -> None:
     if row["all_store_yoy"] != 94.5:
         _fail(f"(a) company-wide all_store: {row!r}")
 
-    # (b) TSI 相当: セグメント行の sort_order が先でも全社を選ぶ
     _seed_yoy_rows("36080", "TSIホールディングス", 2026, 8, [
         ("小売店 全店 売上高(前年比)", 1, 210.9),
         ("全店 売上高(前年比)", 2, 143.1),
@@ -370,7 +367,6 @@ def test_headline_yoy_prefers_company_wide() -> None:
     if row["all_store_yoy"] != 143.1:
         _fail(f"(b) sort_order must not beat company-wide: {row!r}")
 
-    # (c) 大黒天相当: 一品 客単価より全店売上高
     _seed_yoy_rows("27910", "大黒天物産", 2026, 8, [
         ("一品 全店 客単価(前年比)", 1, 100.5),
         ("全店 売上高(前年比)", 2, 108.9),
@@ -379,7 +375,6 @@ def test_headline_yoy_prefers_company_wide() -> None:
     if row["all_store_yoy"] != 108.9:
         _fail(f"(c) sales over 客単価: {row!r}")
 
-    # (d) セグメントなしが無いときは sort_order 最小（文字コード順に頼らない）
     _seed_yoy_rows("141A0", "トライアル", 2026, 8, [
         ("EC 全店 売上高(前年比)", 2, 85.9),
         ("オンラインショップ 全店 売上高(前年比)", 1, 210.9),
@@ -388,7 +383,6 @@ def test_headline_yoy_prefers_company_wide() -> None:
     if row["all_store_yoy"] != 210.9:
         _fail(f"(d) segmented min sort_order: {row!r}")
 
-    # (e) 既存店欄も同じ。サンドラッグ相当
     _seed_yoy_rows("99890", "サンドラッグ", 2026, 8, [
         ("ディスカウントストア事業 既存 売上高(前年比)", 1, 102.6),
         ("既存 売上高(前年比)", 2, 100.3),

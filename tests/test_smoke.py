@@ -179,7 +179,6 @@ def test_api_smoke() -> None:
     if not candles:
         raise SystemExit("chart had no candles")
 
-    # 週足は日足を ISO 週で集約。2週にまたがる日足を足して本数と OHLC を確認する
     from app.market.analytics import compute_indicators, rs_universe_codes
     from app.db import SessionLocal
     from app.db import upsert
@@ -292,7 +291,6 @@ def test_api_smoke() -> None:
         raise SystemExit("earnings list should exclude REIT")
     if code not in earn_codes:
         raise SystemExit("earnings list dropped common stock")
-    # 一覧は金額も返す (Q単独は算出できなければ null)
     for x in listed["actuals"]:
         if "single" not in x or "net_sales" not in (x.get("cumulative") or {}):
             raise SystemExit(f"earnings list should carry single/cumulative amounts, got {x!r}")

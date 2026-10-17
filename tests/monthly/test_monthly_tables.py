@@ -393,7 +393,6 @@ def _assert_ingest_dry_run_only_months(c) -> None:
 
 
 def test_tables_api() -> None:
-    # display is index 100=flat (not +X.X% / ▲). number rows round; unit goes on the label.
     if format_monthly_cell(None, "yoy_index") != "-":
         _fail("empty cell")
     if format_monthly_cell(105.2, "yoy_index") != "105.2":
@@ -560,7 +559,6 @@ def test_tables_api() -> None:
     if r.json()["element"] != "売上高" or r.json()["created"] is not False:
         _fail(f"売上高前年比 number folds: {r.json()!r}")
 
-    # similar-element 409 (空白差。トークン正規化後も別名)
     r = c.post(f"{base}/elements", json={"element": "世界観ビジネス", "unit": "number"})
     _expect(r, 201, "segment create")
     r = c.post(f"{base}/elements", json={"element": "世界観 ビジネス", "unit": "number"})
@@ -1064,7 +1062,6 @@ def _assert_monthly_row_order(c) -> None:
 
     code = "60590"
     _ensure_stock(code, "ウチヤマ")
-    # 新しい年: カラオケ先だが店舗数が売上より前
     _post_monthly_elements(c, code, 2025, [
         ("カラオケ全店 店舗数", "number"),
         ("カラオケ既存店 店舗数", "number"),
@@ -1077,7 +1074,6 @@ def _assert_monthly_row_order(c) -> None:
         ("飲食既存店 店舗数", "number"),
         ("飲食全店 客単価", "yoy_index"),
     ])
-    # 古い年: 飲食先・店舗数先。来客数はこの年だけ
     _post_monthly_elements(c, code, 2024, [
         ("飲食全店 店舗数", "number"),
         ("飲食既存店 店舗数", "number"),

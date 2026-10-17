@@ -54,7 +54,6 @@ def test_jq_lookup_code() -> None:
 
 
 def test_should_skip_infra_fund() -> None:
-    # 013 + インフラ (9282 / 9284 / 9285)
     if not should_skip_infra_fund(
         "013", "ジャパン・インフラファンド投資法人", "ジャパン・インフラファンド投資法人"
     ):
@@ -65,33 +64,26 @@ def test_should_skip_infra_fund() -> None:
         "013", "東京インフラ・エネルギー投資法人", "東京インフラ・エネルギー投資法人"
     ):
         _fail("9285 013+インフラ should skip")
-    # 022 + インフラ
     if not should_skip_infra_fund("022", "外国インフラREIT", "foreign infra"):
         _fail("022 + インフラ should skip")
-    # either name is enough when 013/022
     if not should_skip_infra_fund("013", "何かリート", "インフラファンド投資法人"):
         _fail("013 + company_name インフラ should skip")
     if not should_skip_infra_fund("013", "インフラファンド投資法人", "何かリート"):
         _fail("013 + stock_name インフラ should skip")
-    # 013 without インフラ: 8985 ジャパン・ホテル・リート投資法人
     if should_skip_infra_fund(
         "013", "ジャパン・ホテル・リート投資法人", "ジャパン・ホテル・リート投資法人"
     ):
         _fail("8985 REIT should keep")
-    # master missing / unset + インフラ投資法人
     if not should_skip_infra_fund(None, None, "○○インフラ投資法人"):
         _fail("master missing + インフラ投資法人 should skip")
     if not should_skip_infra_fund("", None, "インフラ投資法人"):
         _fail("unset category + インフラ投資法人 should skip")
-    # master missing + ホテル・リート投資法人 (no インフラ投資法人)
     if should_skip_infra_fund(None, None, "ジャパン・ホテル・リート投資法人"):
         _fail("master missing + ホテル・リート should keep")
-    # 011 + インフラ in name → keep
     if should_skip_infra_fund("011", "インフラ関連株式会社", "インフラ関連"):
         _fail("011 + インフラ should keep")
     if should_skip_infra_fund("011", "インフラ投資法人もどき", "インフラ投資法人"):
         _fail("011 + インフラ投資法人 should keep")
-    # ファンドが挟まると「インフラ投資法人」非該当。マスタ無しでは残す
     if should_skip_infra_fund(None, None, "ジャパン・インフラファンド投資法人"):
         _fail("fallback should not skip インフラファンド投資法人 (no インフラ投資法人)")
 
@@ -152,7 +144,6 @@ def test_download_skip_reason() -> None:
         "87980": ("011", "アドバンスクリエイト"),
         "87390": ("011", "スパークス・グループ"),
     }
-    # 1. non-empty map + absent code (名古屋単独など) → skip, do not download
     got = download_skip_reason("3032", "ゴルフ・ドゥ", stock_map)
     if got != "unknown-stock 3032 ゴルフ・ドゥ":
         _fail(f"3032 unknown: {got!r}")
@@ -162,12 +153,10 @@ def test_download_skip_reason() -> None:
     got = download_skip_reason("30320", "ゴルフ・ドゥ", stock_map)
     if got != "unknown-stock 3032 ゴルフ・ドゥ":
         _fail(f"30320 padded unknown: {got!r}")
-    # unknown takes precedence over infra-looking name when not in stocks
     got = download_skip_reason("9999", "○○インフラ投資法人", stock_map)
     if got != "unknown-stock 9999 ○○インフラ投資法人":
         _fail(f"unknown infra-looking name: {got!r}")
 
-    # 2. empty map (DB unreadable / missing) → unknown filter off
     empty: dict[str, tuple[str | None, str | None]] = {}
     if download_skip_reason("3032", "ゴルフ・ドゥ", empty) is not None:
         _fail("empty map must not skip 3032")
@@ -175,7 +164,6 @@ def test_download_skip_reason() -> None:
         _fail("empty map must not skip 3066")
     if download_skip_reason("7203", "トヨタ自動車", empty) is not None:
         _fail("empty map must not skip known-looking 7203")
-    # empty map still infra-skips via company_name fallback
     got = download_skip_reason("9282", "○○インフラ投資法人", empty)
     if got != "infra-fund 9282 ○○インフラ投資法人":
         _fail(f"empty map infra fallback: {got!r}")
@@ -191,7 +179,6 @@ def test_download_skip_reason() -> None:
     if download_skip_reason("8952", "テストリート投資法人", empty) is not None:
         _fail("empty map must keep ordinary REIT 8952")
 
-    # 3. code in stocks + infra fund → still infra skip
     got = download_skip_reason("9282", "ジャパン・インフラファンド投資法人", stock_map)
     if got != "infra-fund 9282 ジャパン・インフラファンド投資法人":
         _fail(f"9282 infra: {got!r}")
@@ -199,7 +186,6 @@ def test_download_skip_reason() -> None:
     if got != "infra-fund 9282 ジャパン・インフラファンド投資法人":
         _fail(f"92820 infra: {got!r}")
 
-    # 4. MONTHLY_SKIP_CODES (map の有無にかかわらず excluded-code)。普通の REIT は残す。
     got = download_skip_reason("8985", "ジャパン・ホテル・リート投資法人", stock_map)
     if got != "excluded-code 8985 ジャパン・ホテル・リート投資法人":
         _fail(f"8985 excluded-code: {got!r}")
@@ -241,7 +227,6 @@ def test_tdnet_pdf_id() -> None:
     direct = "https://www.release.tdnet.info/inbs/140120260805509698.pdf"
     if tdnet_pdf_id(direct) != "140120260805509698":
         _fail(f"direct inbs url: {tdnet_pdf_id(direct)!r}")
-    # やのしん id だけの URL は使わない
     if tdnet_pdf_id("https://example.invalid/1271048") is not None:
         _fail("should ignore non-inbs url")
 
@@ -272,7 +257,6 @@ def test_dest_filename_gift() -> None:
     )
     if "/" in messy or "\n" in messy:
         _fail(f"unsanitized: {messy!r}")
-    # やのしん実タイトルは全角７。既存 R2 名は半角7
     nfkc = dest_filename(
         "2026-08-05 15:30:00",
         "92790",
@@ -341,7 +325,6 @@ def test_is_monthly_title() -> None:
         "月次 人事異動のお知らせ",
         "自己株式の状況（月次）",
         "有報提出に伴う月次補足",
-        # #126 TDnet 27 社の直近タイトル（grep漏れ 25 + 月次ヒット未ingest 2）
         "2026年８月度 受注速報",
         "2026年7月度 受注速報",
         "2027年4月期8月度の売上高についてのお知らせ",
@@ -369,7 +352,6 @@ def test_is_monthly_title() -> None:
         "売上高前年同月比推移に関するお知らせ",
         "2026年7月 月次業績報告",
         "2027年３月期７月度月次売上（速報）に関するお知らせ",
-        # 神戸物産 3038。日次 / backfill とも同じ is_monthly_title。
         "月次IRニュース（2024年10月）",
         "2026年8月度 月次IRニュース",
         "2024年10月度 IRニュース",

@@ -372,7 +372,6 @@ def load_stock_product_map(
 
 
 def sanitize_filename_part(s: str) -> str:
-    # NFKC: 全角数字・英字を半角に（既存 R2 オブジェクト名と揃える）
     s = unicodedata.normalize("NFKC", s or "")
     s = _BAD_FILENAME_RE.sub("_", s)
     s = re.sub(r"\s+", " ", s).strip(" .")

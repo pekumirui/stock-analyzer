@@ -1,7 +1,6 @@
 name: Monthly names
 
 # 月次の保存名は起動時に書き換えない（#545）。正規化や issuer_aliases を変えたあと、ここから付け替える。
-# 既定は plan（書かない）。ログを見てから apply で流し直す。
 on:
   workflow_dispatch:
     inputs:

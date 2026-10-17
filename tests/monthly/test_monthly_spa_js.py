@@ -79,7 +79,6 @@ def test_monthly_layout_js() -> None:
             ],
         }],
         "leftoverMkg": _el("MKG ドラッグ 全店 売上高(前年比)"),
-        # 60360: 海外 is unsegmented (country only, empty scope) and used to beat 全社.
         "keeper": [{
             "year": 2026,
             "code": "60360",
@@ -150,7 +149,6 @@ def test_monthly_layout_js() -> None:
     }
     from app.monthly.tree import assign_tree_rows, auto_tree_payload, build_auto_tree, load_monthly_trees, tree_payload
 
-    # 神戸物産（config の木）: 前年比だけの会社の行は (前年比) を残す。単独の指標は「節名 葉」
     kobe_rows = [
         ("売上高", "number"), ("売上高(前年比)", "yoy_index"), ("店舗数", "number"), ("FC 店舗数", "number"),
         ("直轄エリア 店舗数", "number"), ("直轄エリア 仕入れ 既存 売上高(前年比)", "yoy_index"),
@@ -187,7 +185,6 @@ def test_monthly_layout_js() -> None:
         "elements": [{**_el(e, u), "tree": brand_auto.rows[e]} for e, u in brand_rows],
         **auto_tree_payload(brand_auto, [e for e, _ in brand_rows]),
     }]
-    # ハードオフ: 業態が 直営 と FC の両方を持ち、業態合計の 店舗数 は無い。庄やは店舗数だけの節
     hardoff_rows = [
         ("店舗数", "number"), ("直営 店舗数", "number"), ("海外 直営 店舗数", "number"),
         ("FC 店舗数", "number"), ("海外 FC 店舗数", "number"),
@@ -246,7 +243,6 @@ def test_monthly_layout_js() -> None:
         ],
         **tree_payload("99560", valor_rows, sanyo_trees),
     }]
-    # ワタミ: 既存店は 国内外食 の行が無く サブウェイ除く / サブウェイ だけ
     watami_rows = [
         ("国内外食 全店 売上高(前年比)", "yoy_index"),
         ("国内外食 全店 店舗数", "number"),
@@ -261,7 +257,6 @@ def test_monthly_layout_js() -> None:
         "elements": [{**_el(e, u), "tree": watami_assign[e]} for e, u in watami_rows],
         **tree_payload("75220", [e for e, _ in watami_rows], sanyo_trees),
     }]
-    # オートバックスセブン: 車検・整備はサービスの子。商品群は既存売上高の下
     ab_rows = [
         ("日本 全店 売上高(前年比)", "yoy_index"),
         ("日本 既存 売上高(前年比)", "yoy_index"),
@@ -280,7 +275,6 @@ def test_monthly_layout_js() -> None:
         "elements": [{**_el(e, u), "tree": ab_assign[e]} for e, u in ab_rows],
         **tree_payload("98320", [e for e, _ in ab_rows], sanyo_trees),
     }]
-    # TABAYA: 小売は小売＋ネット通販の下。既存店カウントは根で、開くと小売 / ネット通販が直下
     tabaya_rows = [
         ("全社 売上高(前年比)", "yoy_index"),
         ("ビジネスユニット計 売上高(前年比)", "yoy_index"),
@@ -367,7 +361,6 @@ def test_monthly_layout_js() -> None:
         "elements": [{**_el(e, "number"), "tree": lom_assign[e]} for e in lom_canon],
         **tree_payload("92520", lom_canon, sanyo_trees),
     }]
-    # アークランズ: 国内総店舗数は外食事業の店舗数。かつや / その他はその子（#484）
     arc_rows = [
         ("小売事業 既存 売上高(前年比)", "yoy_index"),
         ("小売事業 全店 売上高(前年比)", "yoy_index"),
@@ -406,7 +399,6 @@ def test_monthly_layout_js() -> None:
         **tree_payload("92780", bookoff_rows, sanyo_trees),
     }]
 
-    # 小田急: 見出しの鉄道・箱根を開いたときの横持ち（#482）
     oda_rows = [
         ("鉄道 定期+定期外 輸送人員", "number"),
         ("鉄道 定期計 輸送人員", "number"),
@@ -442,7 +434,6 @@ def test_monthly_layout_js() -> None:
         "elements": [{**_el(e, u), "tree": oda_assign[e]} for e, u in oda_rows],
         **tree_payload("90070", [e for e, _ in oda_rows], sanyo_trees),
     }]
-    # ピープル: 裸の前年比は国内カテゴリの節。旧名は同じ節（#480）
     people_rows = [
         ("全店 売上高", "number"),
         ("全店 売上高(前年比)", "yoy_index"),
@@ -489,7 +480,6 @@ def test_monthly_layout_js() -> None:
         "elements": [{**_el(e, u), "tree": rakus_assign[e]} for e, u in rakus_rows],
         **tree_payload("39230", [e for e, _ in rakus_rows], sanyo_trees),
     }]
-    # Trailhead: 子会社は連結の見出しの下。業態の店舗数は全店店舗数（#476）
     th_rows = [
         ("連結売上高", "number"),
         ("連結売上高(前年比)", "yoy_index"),
@@ -790,14 +780,12 @@ console.log(JSON.stringify({
         _fail("year panels must label bars with monthly-bar-v")
     if "110" not in chart_html or "100" not in chart_html:
         _fail(f"bar labels must include 110 and 100: {chart_html[:400]!r}")
-    # ブランドは 1 回だけ。直営 / FC はブランドの行の子。名前は 日本+海外 だけ外し（直営+FC は残す）、子は親との差だけ
     want_names = ["直営+FC 既存 店舗数", "直営", "焼肉", "直営+FC 全店 店舗数", "日本", "直営", "FC", "焼肉", "直営", "FC", "海外"]
     if got.get("treeNames") != want_names:
         _fail(f"物語 store tree rows: {got.get('treeNames')!r}")
     want_brand = ["既存 売上高", "トライアル", "西友", "全店 売上高", "トライアル", "西友"]
     if got.get("brandNames") != want_brand:
         _fail(f"トライアル: 会社の行が無い指標は開く: {got.get('brandNames')!r}")
-    # 仕入れ 全店 の FC には行が無いので節を出さず 直轄 を同じ深さに
     want_kobe = ["売上高", "店舗数", "FC", "直轄", "直轄 仕入れ 既存 売上高(前年比)",
                  "全国 仕入れ 全店 売上高(前年比)", "直轄"]
     if got.get("kobeNames") != want_kobe:
@@ -819,12 +807,10 @@ console.log(JSON.stringify({
     ]
     if got.get("valorNames") != want_valor:
         _fail(f"99560 config tree rows: {got.get('valorNames')!r}")
-    # 既存 売上高 は 国内外食 の行が無いので、数字の無い 国内外食 は出さず子を指標の直下に
     want_watami = ["既存 売上高", "サブウェイ除く", "サブウェイ",
                    "国内外食 全店 売上高(前年比)", "全店 店舗数", "国内外食"]
     if got.get("watamiNames") != want_watami:
         _fail(f"75220 config tree rows: {got.get('watamiNames')!r}")
-    # 車検・整備はサービスを開いた下。既存売上高が先頭なので商品群が見える
     want_ab = [
         "日本 既存 売上高(前年比)", "タイヤ", "サービス", "車検・整備", "車販売",
         "日本 既存 客数(前年比)", "既存 客単価(前年比)", "日本 全店 売上高(前年比)",
@@ -832,7 +818,6 @@ console.log(JSON.stringify({
     ]
     if got.get("autobacsNames") != want_ab:
         _fail(f"98320 config tree rows: {got.get('autobacsNames')!r}")
-    # 既存売上は小売＋ネット通販の下に小売 / ネット通販。既存店舗数は根の直下（空の親は出さない）
     want_tabaya = [
         "既存 売上高", "小売＋ネット通販", "小売", "ネット通販",
         "既存 店舗数", "小売", "ネット通販",
@@ -865,7 +850,6 @@ console.log(JSON.stringify({
         _fail(f"78650 config tree rows: {got.get('peopleNames')!r}")
     if not got.get("lomPart"):
         _fail("92520 内燃料調整費 must render as tl-part")
-    # 店舗数は会社の行が無いので開く。かつや / その他は外食事業を開いた下。国内総は指標名に出ない
     want_arc = [
         "既存 売上高", "小売事業", "外食事業",
         "全店 売上高", "小売事業", "外食事業",
@@ -924,7 +908,6 @@ console.log(JSON.stringify({
     ]
     if got.get("aeonNames") != want_aeon:
         _fail(f"82670 config tree rows: {got.get('aeonNames')!r}")
-    # 直営と FC の両方に業態行があるときは両方の下に出す。FC の無い業態は直営だけ。店舗数だけの節は合計の下
     want_hardoff = [
         "店舗数", "直営", "海外", "ハードオフ", "オフハウス", "ブックオフ",
         "FC", "海外", "ハードオフ", "オフハウス", "庄や",

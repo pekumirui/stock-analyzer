@@ -26,7 +26,6 @@ LOCK_SLEEP_CAP_S = 60.0
 def migrate_once() -> None:
     init_db()
     migrate_columns()
-    # 月次の後始末はデプロイごとにここで 1 回だけ。起動時や各ジョブでは走らせない
     run_deploy_maintenance()
 
 

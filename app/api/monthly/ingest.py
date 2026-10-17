@@ -18,7 +18,6 @@ from ._common import (
 
 router = APIRouter()
 
-# 取り込みの経路。行名の元の形を monthly_element_sources に残すときの via
 INGEST_VIAS = frozenset({"api", "ir_html", "ir_xls"})
 
 
@@ -73,7 +72,6 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
                     continue
                 if only_months is not None and (year_i, month) not in only_months:
                     continue
-                # as_of の alias のあと、列の暦年の alias も入ってくる名前に掛ける（既存行は作り直さない）
                 name = names.setdefault(year_i, _year_alias(code, element, unit, year_i))
                 if not dry_run:
                     if year_i not in by_year:
@@ -89,7 +87,6 @@ def ingest_monthly(code: str, payload: dict | None = Body(None),
             _touch_monthly_issuer(db, code)
 
     try:
-        # 新着はセルが変わったときだけ。dry_run と rows=[] の年割当確認では動かさない
         if dry_run:
             _apply()
             db.rollback()

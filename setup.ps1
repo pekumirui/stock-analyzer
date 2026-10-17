@@ -1,9 +1,6 @@
-# Windows セットアップ (PowerShell)
-# 使い方:  .\setup.ps1
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
-# Python 検出 (py ランチャー優先)
 $py = $null
 foreach ($cmd in @("py", "python", "python3")) {
     if (Get-Command $cmd -ErrorAction SilentlyContinue) {

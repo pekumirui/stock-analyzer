@@ -1,6 +1,5 @@
 name: TDnet monthly backfill
 
-# 通常デプロイでは走らない。初回や取りこぼしのときだけ手動。
 on:
   workflow_dispatch:
     inputs:

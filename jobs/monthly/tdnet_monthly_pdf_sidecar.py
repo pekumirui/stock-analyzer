@@ -51,16 +51,13 @@ from jobs.monthly.tdnet_monthly_r2 import DEFAULT_DEST, display_code, jq_lookup_
 
 SIDECAR_SUFFIX = ".pdf-ingest.json"
 PDFTOTEXT_TIMEOUT = 60
-# 前回の PDF を何本までさかのぼって学ぶか（DB に開示月の値があるものだけ数える）
 MAX_SOURCES = 3
 MIN_HEADER_MONTHS = 3
-# 行の間がこれ（行の高さの倍数）以上空いたら表は終わり
 GRID_GAP = 3.0
 TOL = 0.051
 
 _PDF_NAME_RE = re.compile(r"^(\d{8})_.*\.pdf$", re.I)
 _CODE_DIR_RE = re.compile(r"^[0-9][0-9A-Z]{3}$")
-# 9月 / 10月度 / 2025年7月 / 25年7月 / 2025/7 / 7月分
 _MONTH_TOKEN_RE = re.compile(r"^(?:(?:\d{2}|\d{4})[年/.])?(\d{1,2})月(?:度|分)?$|^\d{4}[/.](\d{1,2})$")
 _YEAR_PREFIX_RE = re.compile(r"^(\d{2}|\d{4})[年/.]")
 _EN_MONTH_RE = re.compile(
@@ -85,9 +82,6 @@ _BLANK_TOKENS = frozenset({"-", "−", "―", "—", "–", "ー", "‐", "*", "
 _RE_DATE = re.compile(r"\d+\s*年\s*\d+\s*月(\s*\d+\s*日)?|\d{4}[/-]\d{1,2}([/-]\d{1,2})?")
 _RE_QUARTER = re.compile(r"第\s*\d+\s*(四半期|Q)")
 _RE_NUM = re.compile(r"[△▲\-−+]?\d[\d,]*(\.\d+)?")
-
-
-# ---------------------------------------------------------------- 語と行
 
 
 @dataclass(frozen=True)
@@ -217,12 +211,9 @@ def _gap(a: Line, b: Line) -> float:
     return (b.top - a.top) / max(a.height, 1e-6) - 1
 
 
-# ---------------------------------------------------------------- グリッド
-
-
 @dataclass(frozen=True)
 class Column:
-    month: int | None  # None は 上期計 / 通期 / 累計 など
+    month: int | None
     x0: float
     x1: float
     label: str
@@ -233,15 +224,15 @@ class Series:
     """一つの指標。横組みなら行、縦組み（月が行）なら列。"""
 
     label: str
-    key: tuple[str, int]  # (伏せた名前, 同じグリッド内で何回目か)
-    cells: dict[int, float | None]  # 時間軸の位置 → 値（- は None）
+    key: tuple[str, int]
+    cells: dict[int, float | None]
 
 
 @dataclass
 class Grid:
     ordinal: int
-    slots: list[int | None]  # 時間軸の位置ごとの月（None は小計列など）
-    years: list[int | None]  # 見出しに年があればその年（25年4月 / 2025/7）
+    slots: list[int | None]
+    years: list[int | None]
     skeleton: str
     series: list[Series] = field(default_factory=list)
 
@@ -279,7 +270,6 @@ def _align(columns: Sequence[tuple[float, float]], cells: Sequence[Tok]) -> dict
         return min(abs(t.x0 - c0), abs(t.x1 - c1), abs((t.x0 + t.x1) / 2 - (c0 + c1) / 2))
 
     inf = float("inf")
-    # dp[i][j]: 先頭 i 個を先頭 j 列に置いたときの最小コスト
     dp = [[inf] * (n + 1) for _ in range(k + 1)]
     for j in range(n + 1):
         dp[0][j] = 0.0
@@ -479,9 +469,6 @@ def slot_years(grid: Grid, series: Series, as_of: date) -> dict[int, tuple[int, 
     return dict(zip(slots, column_years(months, as_of)))  # type: ignore[arg-type]
 
 
-# ---------------------------------------------------------------- DB から学ぶ
-
-
 def close(a: float, b: float) -> bool:
     return abs(a - b) <= TOL + 1e-9 * max(abs(a), abs(b))
 
@@ -508,14 +495,13 @@ def expected_month(as_of: date) -> tuple[int, int]:
     return as_of.year, as_of.month - 1
 
 
-# element → {(year, month): value}
 DbValues = dict[str, dict[tuple[int, int], float]]
 
 
 @dataclass(frozen=True)
 class DbIssuer:
     values: DbValues
-    units: dict[str, str]  # element → 保存 unit（最新の年のもの）
+    units: dict[str, str]
 
     def months(self) -> set[tuple[int, int]]:
         return {ym for cells in self.values.values() for ym in cells}
@@ -537,23 +523,23 @@ def load_db_issuer(conn: sqlite3.Connection, code5: str) -> DbIssuer:
     return DbIssuer(values=values, units=units)
 
 
-Place = tuple[int, tuple[str, int], float]  # (grid, key, shift)
+Place = tuple[int, tuple[str, int], float]
 
 
 @dataclass(frozen=True)
 class RowRule:
     element: str
-    unit: str  # 入力 unit（number / yoy_index / yoy_pct）
+    unit: str
     grid: int
     key: tuple[str, int]
-    shift: float  # PDF 値 + shift = DB 値（yoy_pct は 100）
+    shift: float
     # 同じだけ当たった別の行。新しい PDF でも全部同じ値のときだけ書く
     alts: tuple[Place, ...] = ()
 
 
 @dataclass(frozen=True)
 class Template:
-    source: str  # 学んだ PDF のファイル名
+    source: str
     as_of: date
     rules: tuple[RowRule, ...]
     fingerprint: tuple[tuple[str, tuple[tuple[str, int], ...] | None], ...]
@@ -819,9 +805,6 @@ def build_payload(
     }
 
 
-# ---------------------------------------------------------------- R2 と DB
-
-
 def pdftotext_tsv(path: Path) -> str:
     exe = shutil.which("pdftotext")
     if exe is None:
@@ -855,7 +838,7 @@ def sidecar_path(pdf: Path) -> Path:
 @dataclass(frozen=True)
 class Plan:
     code: str
-    status: str  # ready / current / manual / skip
+    status: str
     detail: str
     pdf: Path | None = None
     payload: dict[str, Any] | None = None

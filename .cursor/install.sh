@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# クラウドのエージェントの環境ビルド（ベンダー共通。Cursor は environment.json から呼ぶ）。冪等。
-# apt → .venv → tools 依存 → stock.db を用意。
-# stock.db が無ければゴールデンデータで作る（tests/golden/db の実データの切り出し。数秒。./run.sh golden）。
-# STOCK_DB=full なら代わりに backfill 2（JQUANTS_API_KEY が要る。約 40 分）。
-# 既にある stock.db は、ゴールデンデータの DB なら触らない。backfill した DB なら日次 batch だけ回す。
-# VPS_SSH_KEY があれば本番の monthly_* だけ載せ替える（DB 丸ごとコピーしない）。
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -14,10 +8,8 @@ sudo apt-get install -y -qq --no-install-recommends python3-venv poppler-utils r
 ./setup.sh
 .venv/bin/python -m pip install -q -r tools/requirements.txt
 
-# 任意: Secrets / 環境変数の VPS_SSH_KEY があれば stock-vps へ SSH 可能にする
 bash .cursor/setup-vps-ssh.sh || echo "setup-vps-ssh skipped"
 
-# Claude Code の自動メモリをリポジトリの .claude/memory/ に向ける（環境が消えても残す）。
 # autoMemoryDirectory はコミットする .claude/settings.json では無視されるので settings.local.json に書く
 python3 - <<'PY'
 import json, pathlib

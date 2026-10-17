@@ -3,7 +3,6 @@ const UI_ROUTE_KEY = "ui.route";
 const CODE_RE = /^[0-9][0-9A-Z]{3}[0-9]$/;
 const SUPPLY_ID_RE = /^[a-z][a-z0-9_]*$/;
 
-// 2 段目: chart / monthly は銘柄コード、supply は素材 id
 function routeArg(tab, raw){
   if(tab === "chart" || tab === "monthly") return CODE_RE.test(raw || "") ? raw : "";
   if(tab === "supply") return SUPPLY_ID_RE.test(raw || "") ? raw : "";

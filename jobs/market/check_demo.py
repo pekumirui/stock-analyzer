@@ -18,7 +18,7 @@ from app.models import Stock, Statement
 
 def main() -> int:
     if not inspect(engine).has_table("stocks"):
-        return 0  # DB未作成 = クリーン
+        return 0
 
     lacks = missing_columns()
     if lacks:

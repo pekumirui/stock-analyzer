@@ -1,4 +1,3 @@
-// サプライチェーン: 素材の有向グラフを左(上流)→右(下流)に描く。仕様は docs/DESIGN_supply.md
 const SUPPLY_LIBS = [
   "https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js",
   "https://unpkg.com/elkjs@0.9.3/lib/elk.bundled.js",
@@ -17,13 +16,12 @@ const SUPPLY_REC_ICON = "data:image/svg+xml;utf8," + encodeURIComponent(
   + "<path d='M10 6a4 4 0 0 1-6.8 2.8'/><path d='M2 6a4 4 0 0 1 6.8-2.8'/><path d='M8.8 1.2v2h-2'/><path d='M3.2 10.8v-2h2'/></svg>");
 const SUPPLY_REC_W = 14;  // 印のぶん箱を広げる
 const SUPPLY_MAX_ZOOM = 3;
-let supplyInit = null;  // Promise。ライブラリとグラフの読込は一度だけ
-let supply = null;      // {cy, byId, parents, kids, retFrom, retTo, selected, co}
-// 企業: 能力シェアの色。上位 5 社に固定順で振り、6 位から下はその他の灰色
+let supplyInit = null;
+let supply = null;
 const SUPPLY_SHARE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"];
 const SUPPLY_SHARE_OTHER = "#b7c0bd";
 const SUPPLY_STATUS = {listed: "上場", private: "非上場", foreign: "海外"};
-let supplyGroup = false;  // 能力シェアを親会社でまとめる
+let supplyGroup = false;
 
 function supplySelectedId(){ return supply?.selected || ""; }
 
@@ -60,7 +58,6 @@ async function supplySetup(){
   // 回収される素材の箱に印を付け、選んだときに相手の箱を紫の枠で示す
   (graph.returns || []).forEach(([a, b]) => { retTo[a].push(b); retFrom[b].push(a); });
 
-  // 箱の幅はラベルの文字幅で決めてから ELK に渡す
   const font = `600 12px ${getComputedStyle(document.body).fontFamily}`;
   if(document.fonts?.ready) await document.fonts.ready;
   const ctx = document.createElement("canvas").getContext("2d");
@@ -102,7 +99,6 @@ async function supplySetup(){
   cy.on("tap", e => { if(e.target === cy) supplyClear(); });
   $("#supply-reset").onclick = () => { supplyClear(); $("#supply-q").value = ""; cy.animate({fit: {padding: 16}}, {duration: 300}); };
   $("#supply-merge").onchange = async () => { await supplyLayout(); cy.fit(undefined, 16); };
-  // 候補は素材名、社名（上場は「社名 4 桁コード」）。証券コードだけでも引ける
   const names = $("#supply-names"), index = {}, cos = companies.companies;
   const addName = (label, id) => {
     index[label] = id;
@@ -148,7 +144,6 @@ function supplyStyle(font){
       // 強調した線は箱より手前に描くので、端のタップを線が取ってしまう。線は押させない
       events: "no",
     }},
-    // ELK の曲がり角をそのまま使う。始点と終点も ELK が決めた位置
     {selector: "edge[?routed]", style: {
       "curve-style": e => e.data("sw").length ? "segments" : "straight",
       "segment-weights": e => e.data("sw").length ? e.data("sw") : [0.5],
@@ -410,7 +405,6 @@ function supplyBindPanel(p){
   p.querySelectorAll("[data-co]").forEach(b => b.onclick = () => supplySelectCompany(b.dataset.co, true));
   p.querySelectorAll(".supply-group").forEach(b => b.onchange = () => {
     supplyGroup = b.checked;
-    // 開いている表だけ描き直す（月次のグラフは作り直さない）
     p.querySelectorAll(".supply-share").forEach(el => {
       const t = supply.co.caps[el.dataset.cap];
       el.outerHTML = supplyShare(t);
@@ -419,7 +413,6 @@ function supplyBindPanel(p){
   });
 }
 
-// ---- 輸入元の国 ----
 
 const SUPPLY_COUNTRY_TOP = 5;
 
@@ -427,12 +420,11 @@ async function supplyCountries(id){
   let d = supply.countries[id];
   if(!d){
     try { d = supply.countries[id] = await api(`/api/supply/countries/${id}`); }
-    catch(e){ return; }  // 国別は補助。失敗しても素材の表示は続ける
+    catch(e){ return; }
   }
   if(supply.selected !== id || !d.countries.length || !d.total) return;
   const box = $("#supply-countries");
   if(!box) return;
-  // 上位 5 か国（0.1% 未満は出さない）+ その他
   const top = d.countries.slice(0, SUPPLY_COUNTRY_TOP).filter(c => c.share >= 0.001);
   const rest = d.countries.slice(top.length);
   const segs = top.map((c, i) => ({name: c.name, v: c.value, share: c.share, color: SUPPLY_SHARE_COLORS[i]}));
@@ -450,7 +442,6 @@ async function supplyCountries(id){
   if(supplyTab === "ctry") supplyShowTab("ctry");
 }
 
-// ---- 企業 ----
 
 function supplyCompanyIndex(d){
   const byId = {}, makesByMat = {}, makesByCo = {}, capsByMat = {}, caps = {}, kids = {}, stakes = {};
@@ -468,7 +459,6 @@ function supplyCompanyIndex(d){
           sources: d.sources, trade: d.trade, capacities: d.capacities};
 }
 
-// 親をたどった一番上の会社。グループでまとめるときの単位
 function supplyTop(id){
   const {byId} = supply.co;
   let cur = id;
@@ -490,7 +480,6 @@ function supplyCoChips(items){
 function supplyMakers(mat){
   const list = supply.co.makesByMat[mat] || [];
   if(!list.length) return '<span class="sub">まだありません</span>';
-  // 出典つき（能力表など）を先に、出典未確認を後に。どちらも json の企業順
   const order = Object.keys(supply.co.byId);
   const rank = m => (m.source ? 0 : 1e6) + order.indexOf(m.company);
   const sorted = [...list].sort((a, b) => rank(a) - rank(b));
@@ -531,7 +520,6 @@ function supplyDonut(segs, unit, label, sub, aria){
     <text x="64" y="76" text-anchor="middle" class="t2">${sub}</text></svg>`;
 }
 
-// 上位 5 社 + その他
 function supplyShareSegs(rows){
   const segs = rows.slice(0, SUPPLY_SHARE_COLORS.length).map(r => ({...r, name: supply.co.byId[r.id].name}));
   const rest = rows.slice(SUPPLY_SHARE_COLORS.length);
@@ -563,7 +551,6 @@ function supplyCompanyPanel(id){
   const made = makesByCo[id] || [];
   const order = Object.keys(supply.byId);
   const mats = order.filter(m => made.some(x => x.material === m));
-  // 能力表に載っている行。シェアは表の合計に対する割合（まとめない）
   const caps = capacities.filter(t => t.rows.some(r => r[0] === id)).map(t => {
     const v = t.rows.find(r => r[0] === id)[1], tot = t.rows.reduce((a, r) => a + r[1], 0);
     return `<tr class="supply-row" data-id="${t.materials[0]}"><td class="l">${t.label.replace(/生産能力$/, "")}</td>
@@ -607,8 +594,8 @@ const SUPPLY_METRIC = {
 };
 const SUPPLY_CHART_METRICS = ["production", "import", "export", "processing", "domestic_sales", "apparent"];
 let supplyChart = null;
-let supplySeries = [];  // いま描いている lightweight-charts の系列
-let supplyMonthlyData = null;  // {id, series, picked}。picked は表で選んだ系列の番号の Set（空なら既定の系列）
+let supplySeries = [];
+let supplyMonthlyData = null;
 
 // 時刻は "YYYY-MM-DD" か {year, month, day} で来る
 const supplyYm = t => typeof t === "string" ? t.slice(0, 7)
@@ -645,13 +632,11 @@ async function supplyMonthly(id){
 function supplyChartLines(){
   const {series, picked} = supplyMonthlyData;
   if(picked.size) return series.filter((_, i) => picked.has(i));
-  // 既定は生産の単位（無ければ最初の系列の単位）にそろう系列だけ
   const unit = (series.find(x => x.metric === "production") || series[0]).unit;
   return series.filter(x => x.unit === unit && SUPPLY_CHART_METRICS.includes(x.metric));
 }
 
 function supplyLegend(lines){
-  // 凡例は色と指標名だけ。値は触れた月の吹き出しに出す（指標ごとに最新月が違うので並べない）
   $("#supply-legend").innerHTML = lines.map(x =>
     `<span><i style="background:${SUPPLY_METRIC[x.metric].color}"></i>${SUPPLY_METRIC[x.metric].label}</span>`).join("");
 }
@@ -664,7 +649,6 @@ function supplyTip(lines, param){
     return `<div><i style="background:${SUPPLY_METRIC[x.metric].color}"></i>${SUPPLY_METRIC[x.metric].label}<span>${p ? fmt(p[1]) : "–"}</span></div>`;
   }).join("")}`;
   tip.hidden = false;
-  // 触れた位置の横に出す。右半分なら左側へ
   const w = tip.parentElement.clientWidth, {x, y} = param.point;
   tip.style.left = `${x < w / 2 ? x + 12 : Math.max(0, x - 12 - tip.offsetWidth)}px`;
   tip.style.top = `${Math.max(0, Math.min(y - tip.offsetHeight / 2, 180 - tip.offsetHeight))}px`;
@@ -681,7 +665,6 @@ function supplyEnsureChart(){
       const s = supplyYm(t) || "";
       return type === 0 ? `${s.slice(0, 4)}年` : `${Number(s.slice(5))}月`;  // 0 = 年の目盛り
     }},
-    // 値は吹き出しに全系列ぶん出すので、横線の値ラベルは出さない
     crosshair: {horzLine: {visible: false, labelVisible: false}},
     handleScroll: false, handleScale: false,
     localization: {priceFormatter: v => fmt(v), timeFormatter: t => supplyYm(t) || ""},
@@ -695,7 +678,6 @@ function supplyDrawChart(){
   document.querySelectorAll(".supply-row").forEach(tr =>
     tr.classList.toggle("sel", picked.has(Number(tr.dataset.i))));
   const lines = supplyChartLines();
-  // 単位ごとに縦軸を分ける。1 つ目は右、2 つ目は左、3 つ目からは目盛りを出さない
   const units = [...new Set(lines.map(x => x.unit))];
   const scaleOf = u => ["right", "left"][units.indexOf(u)] || `u${units.indexOf(u)}`;
   $("#supply-unit").textContent = !units.length ? ""

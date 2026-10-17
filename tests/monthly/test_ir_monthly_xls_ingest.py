@@ -101,7 +101,6 @@ def _header() -> list[list[Any]]:
 def tiny_grid() -> list[list[Any]]:
     """2023-04..2024-03 then 2024-04..2024-08 filled, rest of FY empty."""
     rows = _header()
-    # 第50期 FY start 2023: need Jan-Mar 2024
     for m in (4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3):
         fy: Any = ""
         if m == 4:

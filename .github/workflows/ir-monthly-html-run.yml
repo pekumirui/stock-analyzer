@@ -1,6 +1,5 @@
 name: IR monthly HTML run
 
-# 通常デプロイでは走らない。取りこぼしのときだけ手動。
 on:
   workflow_dispatch:
     inputs:

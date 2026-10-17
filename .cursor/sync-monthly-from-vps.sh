@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# 本番 stock.db の monthly_* だけ Cloud Agent の stock.db へ載せ替える。冪等。
-# 本番へは書かない。VPS SSH が無い・繋がらないときは skip（install は落とさない）。
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"

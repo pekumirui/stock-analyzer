@@ -72,7 +72,7 @@
   .suggest div:hover { background:var(--row); }
   #monthly-top .row { z-index:2; }
   #monthly-suggest { left:0; top:100%; }
-  .a-list > .row { z-index:5; }  /* 一覧の sticky 見出し (z-index:2) より上に候補を出す */
+  .a-list > .row { z-index:5; }
   #earn-suggest { left:0; top:100%; }
   .mchip .n { margin-left:4px; opacity:.75; }
   .sub { color:var(--sub); }
@@ -80,7 +80,6 @@
 
   .egrid { display:grid; gap:12px; grid-template-columns:minmax(0,1fr); }
   .egrid > * { min-width:0; }
-  /* 一覧は必ずスクロール枠に収める (ピーク日は1000件近くあり、下段の詳細に辿り着けなくなる) */
   .a-list .scroll { max-height:50vh; overflow:auto; }
   @media (min-width:1100px){
     .egrid { grid-template-columns:repeat(2,minmax(0,1fr)); align-items:start; }
@@ -88,7 +87,6 @@
     .a-chart { grid-column:span 1; } .a-fin { grid-column:span 1; }
     .a-list .scroll { max-height:46vh; }
   }
-  /* 決算表 (table.fin) と同じ見た目: 縦罫なし・横罫だけ・縞・上揃え・バッジは値の下段 */
   #earn-tbl { width:100%; border-collapse:separate; border-spacing:0; }
   #earn-tbl th { font-size:11px; letter-spacing:.02em; padding:6px 8px; }
   #earn-tbl td { padding:7px 8px; vertical-align:top; background:var(--panel); }
@@ -102,7 +100,6 @@
   #earn-tbl .g { display:block; font-size:11px; font-weight:400; line-height:1.35; min-height:1.35em; }
   #earn-tbl .g .qb + .qb { margin-left:3px; }
   #earn-tbl .loss { color:var(--up); }
-  /* 時刻・決算期・銘柄は横スクロールで残す。left は pinCols が実測で入れる */
   #earn-tbl .pin0, #earn-tbl .pin1, #earn-tbl .pin2 { position:sticky; z-index:1; }
   #earn-tbl .pin0 { left:var(--pin0, 0); }
   #earn-tbl .pin1 { left:var(--pin1, 0); }
@@ -122,7 +119,6 @@
   td.num { font-variant-numeric:tabular-nums; }
   .grp { border-left:1px solid var(--border); }
   #earn-list:focus { outline:none; }
-  /* 2段ヘッダは thead ごと固定。th 単体 + top:29px だと段の実高さとズレて本文が透ける */
   #earn-tbl thead { position:sticky; top:0; z-index:2; }
   #earn-tbl thead th { position:static; top:auto; z-index:auto; background:var(--panel); }
   #earn-tbl tbody tr { cursor:pointer; }
@@ -334,7 +330,6 @@
   table.monthly-tl .tl-cnt { margin-left:6px; font-weight:400; color:var(--sub); }
   table.monthly-tl .tl-tw { display:inline-block; width:1.1em; color:var(--sub); }
   table.monthly-tl td.tl-tog { cursor:pointer; }
-  /* 内数の節（うち商品売上高）。店計・法人・本社等と足し合わせる関係ではないので薄くする */
   table.monthly-tl tr.tl-part td.tl-name { color:var(--sub); font-weight:400; }
   table.monthly-tl td.num[data-m] { cursor:pointer; }
   .monthly-pop {
@@ -420,12 +415,10 @@
     table.monthly td:last-child {
       position:static; left:auto; right:auto;
     }
-    /* 決算集中日は 30 業種を超える。折り返さず横に流して一覧を押し下げない */
     #earn-groups { flex-wrap:nowrap; overflow-x:auto; }
     #earn-groups .mchip { flex-shrink:0; }
   }
 
-  /* サプライ (docs/DESIGN_supply.md) */
   #supply-q { flex:1 1 200px; min-width:0; max-width:320px; }
   .supply-btn { background:var(--panel); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 10px; cursor:pointer; font-size:13px; }
   .supply-tg { display:inline-flex; align-items:center; gap:4px; font-size:13px; }

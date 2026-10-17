@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# root 用。何度実行しても同じ状態になる。
-# GitHub Actions → update.sh → sudo deploy/provision.sh
 set -euo pipefail
 
 if [[ ${EUID} -ne 0 ]]; then
@@ -82,14 +80,12 @@ apt_retry \
 
 timedatectl set-timezone Asia/Tokyo
 
-# rclone: Debian 版は古いことがある。無ければ公式インストーラ。
 if ! command -v rclone >/dev/null 2>&1; then
   curl -fsSL https://rclone.org/install.sh | bash || echo "rclone install failed (R2 mount skipped)" >&2
 else
   echo "rclone present: $(rclone version 2>/dev/null | head -n1)"
 fi
 
-# fluent-bit: 無ければ公式 Ubuntu apt リポジトリ。
 if command -v fluent-bit >/dev/null 2>&1 || [[ -x /opt/fluent-bit/bin/fluent-bit ]]; then
   echo "fluent-bit present"
 else
@@ -206,8 +202,6 @@ fi
 # shellcheck disable=SC1091
 source "$APP_DIR/deploy/nginx-site.sh"
 write_if_changed /etc/nginx/conf.d/stock-analyzer-limit.conf 644 < <(render_limit_conf)
-# 処理時間を残すアクセスログ。rt=nginx 全体 / urt=uvicorn（秒）。MCP の nginx_logs が読む。
-# 既定の access.log と書式が混ざらないよう、アプリの server だけ別ファイルへ書く
 write_if_changed /etc/nginx/conf.d/stock-analyzer-log.conf 644 < <(render_log_conf)
 
 nginx_changed=0
@@ -261,14 +255,12 @@ fi
 if [[ -f "$APP_DIR/deploy/cron-run.sh" ]]; then
   chmod +x "$APP_DIR/deploy/cron-run.sh"
 fi
-# 日次 SQLite バックアップ先。ジョブも mkdir する。デプロイで所有者を揃える。
 STOCK_HOME="$(getent passwd "$STOCK_USER" | cut -d: -f6)"
 if [[ -n "$STOCK_HOME" ]]; then
   install -d -m 750 -o "$STOCK_USER" -g "$STOCK_USER" "$STOCK_HOME/backups"
 fi
 crontab -u "$STOCK_USER" "$APP_DIR/deploy/crontab"
 
-# Cloudflare R2: stock の user systemd で rclone mount（linger で再起動後も残す）
 STOCK_HOME="$(getent passwd "$STOCK_USER" | cut -d: -f6)"
 if [[ -z "$STOCK_HOME" ]]; then
   echo "stock home not found; skip R2 mount" >&2
@@ -301,7 +293,6 @@ else
   fi
 fi
 
-# slack.env only. The app .env has JQUANTS_API_KEY and MCP_TOKEN.
 install -d -m 755 /etc/fluent-bit
 install -d -m 755 /var/lib/fluent-bit
 if [[ -f "$APP_DIR/deploy/fluent-bit.conf" ]]; then
@@ -343,7 +334,6 @@ slack_uri_from_url() {
   printf '%s' "$uri"
 }
 
-# Empty/invalid extras reuse the default URI so fluent-bit.conf variables are always set.
 slack_channel_uri() {
   local extra_url="$1"
   local label="$2"

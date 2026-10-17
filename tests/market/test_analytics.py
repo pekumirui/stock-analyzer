@@ -89,7 +89,6 @@ def _stmt(
 
 
 def _hist() -> list[Statement]:
-    # 累計。Q単独は差: FY26 1Q=100, 2Q=150, 3Q=150, 4Q=200
     return [
         _stmt("p1q", "1Q", FY25, date(2024, 8, 1), 80),
         _stmt("p2q", "2Q", FY25, date(2024, 11, 1), 180),
@@ -230,7 +229,6 @@ def test_disclosure_and_rows() -> None:
     fyf = next(r for r in cum if r["kind"] == "forecast_fy")
     if fyf["range"] != "26.3":
         _fail(fyf["range"])
-    # 本決算は raw_json の来期予想 (NxF*) を出し、前期通期 (= 上の実績行) は出さない
     fy = next(s for s in hist if s.disclosure_no == "cfy")
     fy.raw_json = json.dumps({"NxtFYEn": "2027-03-31", "NxFSales2Q": "350", "NxFSales": "700",
                               "NxFOP": "", "NxFNp": "50"})
@@ -248,7 +246,6 @@ def test_disclosure_and_rows() -> None:
         _fail("fy without raw_json must not invent forecasts")
     qtr = quarterly_rows(hist, q2, 4, TOL)
     got = [(r["label"], r["values"]["net_sales"], (r["growth"] or {}).get("net_sales")) for r in qtr]
-    # 直近 4 四半期の単独値。前年同期がある 1Q / 2Q だけ前年比が付く
     if got != [
         ("FY25.3_3Q", 90, None),
         ("FY25.3_4Q", 90, None),
@@ -303,7 +300,6 @@ def _seed() -> None:
         ev = db.get(EarningsEvent, (CODE, date(2025, 11, 1)))
         if ev is None or ev.return_1d is None:
             _fail(f"earnings event {ev}")
-        # 15:00 発表なので基準は 11-02 (1002)、1d は 11-03 (1003)
         want = round((1003 / 1002 - 1) * 100, 2)
         if ev.return_1d != want:
             _fail(f"return_1d {ev.return_1d} != {want} base={ev.base_date} {ev.base_price}")
@@ -333,7 +329,6 @@ def test_earnings_api() -> None:
     q2 = next(row for row in body["quarterly"] if row["label"] == "FY26.3_2Q")
     if q2["values"]["net_sales"] != 150:
         _fail(q2)
-    # 無い disclosure_no と指定なしは最新の実績、date はその日の開示
     for params, want in (
         ({"disclosure_no": "missing"}, "cfy"),
         ({}, "cfy"),
@@ -342,7 +337,6 @@ def test_earnings_api() -> None:
         r = c.get(f"/api/earnings/detail/{CODE}", params=params)
         if r.status_code != 200 or r.json()["disclosure_no"] != want:
             _fail(f"detail {params}: {r.status_code} {r.text[:200]}")
-    # 決算速報の検索: ひらがな・全角コードでも引ける
     for q in ("とよた", "トヨタ", CODE[:4], "７２０３"):
         hits = c.get("/api/stocks/search", params={"q": q}).json()
         if [h["code"] for h in hits] != [CODE]:
@@ -358,7 +352,6 @@ def test_earnings_api() -> None:
     perf = r.json()
     hit = next((e for e in perf if e["disclosed_date"] == "2025-11-01"), None)
     want = round((1003 / 1002 - 1) * 100, 2)
-    # TOPIX は横ばいなので alpha はリターンと同じ
     if hit is None or hit["return_1d"] != want or hit["alpha_1d"] != want:
         _fail(f"perf 2025-11-01: {hit}")
     if [e["disclosed_date"] for e in perf] != sorted((e["disclosed_date"] for e in perf), reverse=True):
@@ -373,8 +366,8 @@ def test_upsert_mixed_columns_and_freshness() -> None:
         upsert(db, Topix, [
             {"date": d1, "open": 1, "close": 10},
             {"date": d2, "close": 20},
-            {"close": 11, "date": d1},  # 列の組が違う区間をまたいでも後勝ち
-            {"date": d2},                # 主キーだけは既存行を変えない
+            {"close": 11, "date": d1},
+            {"date": d2},
         ])
         a, b = db.get(Topix, d1), db.get(Topix, d2)
         if (a.open, a.close, b.open, b.close) != (1, 11, None, 20):

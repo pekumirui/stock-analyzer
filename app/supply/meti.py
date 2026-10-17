@@ -99,7 +99,7 @@ class MetiClient:
 
 def seidou_records(data: bytes, reports: set[str]) -> list[SeidouRecord]:
     """Excel のシート「実数表」→ セル。2 行目が見出し（調査票番号 … 単位名、月は YYYYMM）。製品の行だけ"""
-    from openpyxl import load_workbook  # 重いので使うときだけ
+    from openpyxl import load_workbook
 
     wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     if "実数表" not in wb.sheetnames:
@@ -134,7 +134,6 @@ def seidou_records(data: bytes, reports: set[str]) -> list[SeidouRecord]:
     return out
 
 
-# ---------- 石油統計（資源・エネルギー統計） ----------
 # 確報 sekiyuka/xls/seYYYYMMkakji.xlsx: 時系列表。品目ごとのブロック（（４）ガソリン …）に直近 15 か月ほどの月の行
 # 速報 sekiyuso/result/xls/h2j5*j.xlsx: 当月だけ。シート「需給概要」（品目 × 指標）と「原油受払」
 # 年報 sekiyuka/xls/h2dhhpeYYYYk.xlsx: その年の 12 か月。横持ちの表（①原油処理 / ②原油在庫 / 石油製品月別国内向販売 …）
@@ -146,10 +145,10 @@ _TITLE = re.compile(r"^\s*(?:[（(][0-9０-９]+[）)]|[①-⑳])\s*")
 
 
 class SekiyuCell(NamedTuple):
-    block: str   # 品目（ガソリン / 原油 …）。空白を除いた NFKC
-    column: str  # 指標（国内向販売 / 消費 / 在庫 …）
+    block: str
+    column: str
     unit: str
-    month: str   # YYYY-MM
+    month: str
     raw: object
 
 

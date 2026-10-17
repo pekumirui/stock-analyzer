@@ -80,7 +80,6 @@ class Sidecar:
     months: tuple[int, ...]
     rows: tuple[Mapping[str, Any], ...]
     sha256: str
-    # 各列の暦年月（TDnet PDF の sidecar だけが持つ。dry_run の mapping と突き合わせる）
     columns: tuple[str, ...] = ()
 
 

@@ -35,7 +35,6 @@ class IssuerTree:
 
     def __init__(self, roots: tuple[TreeNode, ...], metrics: tuple[tuple[str, frozenset[str]], ...]) -> None:
         self.roots = roots
-        # (指標名, その指標に当たる葉の集合)。並びがタブの並び（先頭が既定）
         self.metrics = metrics
 
 
@@ -203,30 +202,14 @@ def tree_payload(code: str, elements: Sequence[str],
     return {"tree": dump(tree.roots, ()), "tree_metrics": [name for name, _ in tree.metrics]}
 
 
-# ---- 自動の木（config に tree の無い発行体） ----
-# 根は会社全体。行名の group（ブランド・事業）を根の子の節、売上高の内訳をその行の節の子の節にする。
-# 横持ちは指標が一番上の行で、その下に節の木を出す（既存 売上高 ▸ 焼肉 / ラーメン …）。
-# 指標は葉（group と内訳を剥がした表示名）から (前年比) を外したもの。会社の行も節の行も同じ葉なら同じ指標。
-# 指標どうしもチャネルと国で親子にする（合計店舗数 ▸ 国内 ▸ 直営 / FC、海外）。
-# `日本+海外` と `グループ` は行名の解析では group になるが、会社全体の数字なので根に置き、葉からは剥がす（物語 合計店舗数 932）。
-
 AUTO_ROOT = "全体"
-# 会社全体を指す group。マツキヨココカラの `グループ 店舗数` はグループ全体の店舗数
 _COMPANY_GROUPS = frozenset({"日本+海外", "グループ"})
-# group の中の「その節の合計」を表す語。節にも葉にも残さない（イオン北海道 `衣料 企業計 全店 売上高` は 衣料 の全店、
-# `企業計 …` だけなら会社全体。バロー グループ総計、ブックオフ チェーン合計、アートネイチャー 総売上高、ラクス 全社（連結）、
-# TABAYA 既存店カウント店舗数）
 _TOTAL_TOKENS = frozenset({"企業計", "グループ総", "チェーン", "総", "全社（連結）", "カウント"})
-# group の中の指標の語。節にせず葉に残す（LOIVE `ピラティスK 増減 店舗数` は ピラティスK の 増減 店舗数、
-# スズデン 増減額、MV東海 / 大黒天 の 同規模・一品（単価）・買上点数）
 _METRIC_TOKENS = frozenset({"増減", "増減額", "同規模", "一品", "買上点数"})
-# group の中のチャネルの語。節にせず葉に残す（31930 `日本 鳥貴族 TCC 店舗数` は 鳥貴族 の `日本 TCC 店舗数`）
 _GROUP_CHANNEL_TOKENS = frozenset({"TCC"})
-# 指標の並びは見る順: チャネル（無印・直営+FC → 直営 → FC）→ 国（無印 → 日本 → 海外）→ 既存 → 全店 → 売上高 → 客数 → 客単価 → 店舗 …
 _AUTO_CHANNEL_RANK = {"": 0, "直営+FC": 0, "直営": 1, "FC": 2}
 _AUTO_COUNTRY_RANK = {"": 0, "日本+海外": 0, "日本": 1, "海外": 2}
 _AUTO_SCOPE_RANK = {"既存": 0, "全店": 1, "全社": 1, "": 1}
-# 指標どうしの親子（チャネルと国）。直営 / FC は 直営+FC（無ければ無印）の子、日本 / 海外 は国なしの子
 _AUTO_COUNTRIES = frozenset({"日本", "海外", "日本+海外"})
 _AUTO_PART_CHANNELS = frozenset({"直営", "FC"})
 
@@ -251,7 +234,6 @@ def _auto_split(label: Mapping[str, Any]) -> tuple[str, str]:
     else:
         country = ""
     if not g or not s.startswith(g + " "):
-        # 指標の無い行（`グループ 稼働率`）も会社全体の語は葉から剥がす
         head = next((c for c in _COMPANY_GROUPS if s.startswith(c + " ")), "")
         return "", s[len(head) + 1:] if head else s
     rest = s[len(g) + 1:]
@@ -280,8 +262,6 @@ class AutoTree:
 
     def __init__(self, nodes: list[tuple[str, list]], rows: dict[str, dict[str, Any]], metrics: list[str],
                  metric_parent: dict[str, str] | None = None) -> None:
-        # nodes は (名前, 子) の入れ子。rows は保存名 → {path, leaf, metric, order}。metrics は見る順の指標
-        # metric_parent は 指標 → 親の指標（直営 全店 店舗数 → 直営+FC 全店 店舗数）
         self.nodes = nodes
         self.rows = rows
         self.metrics = metrics
@@ -311,7 +291,6 @@ def auto_metric_parents(metrics: Sequence[str], domestic: Iterable[str] = ()) ->
         r = " ".join(rest)
         if channel in _AUTO_PART_CHANNELS:
             cands = [join("日本", "直営+FC", r)] if m in dom else []
-            # 国の合計が無ければ国なしの同じチャネル（ハードオフ 海外 直営 店舗数 14 は 直営 店舗数 568 の内訳）
             cands += [join(country, "直営+FC", r), join(country, r), join(channel, r)]
         elif country in ("日本", "海外"):
             cands = [join(channel, r), join("直営+FC", r), r]
@@ -355,7 +334,6 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
     bd_first: dict[tuple[str, str], tuple[int, int]] = {}
     rows: dict[str, dict[str, Any]] = {}
     metric_key: dict[str, tuple] = {}
-    # 節 → その節の金額の売上高の行の (チャネル, 範囲, 国, 指標)
     sales: dict[tuple[str, ...], list[tuple[str, str, str, str]]] = {}
     seen = 0
 
@@ -378,7 +356,6 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
         rows[element] = {"path": list(path), "leaf": leaf, "metric": metric, "order": idx}
         if L["metric_kind"] == "sales" and not monthly_row_unit_rank(unit):
             sales.setdefault(path, []).append((str(L["channel"]), str(L["scope"]), str(L["country"]), metric))
-        # 指標の並びは会社の行を代表にする（無ければ最初に見た節の行）
         key = (
             _AUTO_CHANNEL_RANK.get(str(L["channel"]), 3),
             _AUTO_COUNTRY_RANK.get(str(L["country"]), 3),

@@ -132,8 +132,6 @@ def published_through(title: str) -> int:
     return max(months) if months else 12
 
 
-# ---------- 解析 ----------
-
 def parse_production_label(name: str) -> tuple[str, str, str] | None:
     """`製品_0101_ポリエチレン（…）_A_生産_t` → (品名, 指標, 単位)。品名は NFKC。製品以外の区分は None
 

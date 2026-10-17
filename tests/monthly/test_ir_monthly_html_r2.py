@@ -150,10 +150,6 @@ def test_load_html_registry() -> None:
         _fail(f"force_unit {forced}")
 
 
-# Live 8179 index shape: nav both brands, h2 + year h3 with （既存店前年比）,
-# H1 1–6 / H2 7–12 (7–8 filled). Values from /tmp/royal_index.html.
-
-
 def test_hash_skip_and_reparse(tmp: Path) -> None:
     import jobs.monthly.ir_monthly_html_r2 as mod
 

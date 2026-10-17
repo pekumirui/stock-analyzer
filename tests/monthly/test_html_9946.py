@@ -15,7 +15,6 @@ from app.monthly.ingest import apply_issuer_aliases, canonicalize_element_label 
 
 FIXTURE_20261013 = ROOT / "tests" / "monthly" / "testdata" / "html_9946" / "20261013.html"
 
-# 1店1日当り（既存・全店）にも下期表がある。全店売上の下期だけ足す。
 MINISTOP_H1H2_HTML = """
 <html><body>
 <h1>月次営業報告 2026年</h1>

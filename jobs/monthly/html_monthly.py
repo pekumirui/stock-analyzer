@@ -17,7 +17,6 @@ _MONTH_RE = re.compile(
 _YY_MM_CELL_RE = re.compile(r"^(?P<y>\d{2})\s*[./-]\s*(?P<m>0[1-9]|1[0-2])$")
 _FY_CAPTION_RE = re.compile(r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月期")
 _MIN_AS_OF_YEAR = 2015
-# `2026年度` と `2026年（令和8年）度`（大黒天物産の年度帯）
 _FY_YEAR_RE = re.compile(r"(\d{4})\s*年(?:\s*[（(][^）)]*[）)])?\s*度")
 _FY_RANGE_RE = re.compile(
     r"(\d{4})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{1,2})\s*[～〜~\-－]\s*"
@@ -30,12 +29,10 @@ _FY_MONTH_RANGE_RE = re.compile(
 _YEAR_TIT_RE = re.compile(r"(20\d{2})\s*年\s*[（(]\s*令和")
 _TABLE_START_RE = re.compile(r"<table\b", re.I)
 _SECTION_LOOKBACK = 900
-# 注記の「YYYY年M月度より」は開示月ではない
 _YM_DO_RE = re.compile(r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月度(?!より|から|以降)")
 _YM_HEAD_RE = re.compile(
     r"(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月(?!\s*期)(?!\s*度)(?!\s*\d)"
 )
-# <p> は「YYYY年M月」が月次見出しに直結したものだけ（子会社化月などは除外）
 _YM_P_TITLE_RE = re.compile(
     r"(?:(\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月(?:度)?(?:の)?\s*月次"
     r"|月次[^\s]{0,8}[（(](\d{4})\s*年\s*(1[0-2]|0?[1-9])\s*月[)）])"
@@ -369,7 +366,6 @@ def _is_count_header(header: str) -> bool:
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
 
 
-# 長い語を先に。比/対比/差/増減は今期の比率。同月/同期は 前年同月比 が 前年 に食われないため。
 _PRIOR_ABS_RE = re.compile(
     r"(前期|前年同月|前年同期|前年)(?!(?:比|対比|差|増減|同月|同期))"
 )
@@ -647,7 +643,6 @@ def parse_tables(html: str) -> list[list[list[str]]]:
 def _is_skip_axis(text: str) -> bool:
     s = unicodedata.normalize("NFKC", text or "").strip()
     s = re.sub(r"\s+", "", s)
-    # 末尾の注記記号（※3）は軸名ではない
     s = re.sub(r"(?:※\d*)+$", "", s)
     if not s:
         return False

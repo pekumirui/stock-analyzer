@@ -1,9 +1,5 @@
 name: CI/CD
 
-# PR: テストのみ
-# main へマージ: テスト → タグと GitHub Release → ConoHa VPS へデプロイ
-# 手動: Actions → CI/CD → Run workflow（再デプロイやバンプ指定）
-# main への push で変更が .md / docs/ / .claude/memory/ だけなら走らない
 
 on:
   pull_request:
@@ -54,7 +50,6 @@ jobs:
       - name: Install
         run: pip install -r requirements.txt -r requirements-dev.txt
 
-      # tests/ops/test_nginx_public.py が deploy/nginx-site.sh を nginx -t に通し、起動して振り分けを見る
       - name: Install nginx
         run: |
           sudo apt-get update -qq
@@ -63,7 +58,6 @@ jobs:
       - name: Compile
         run: python -m compileall -q -f app jobs tests tools deploy mcp .cursor
 
-      # tests/ 以下の test_*.py を全部集める。DB はファイルごとに空から（tests/conftest.py）
       - name: Test
         run: python -m pytest tests -q
 

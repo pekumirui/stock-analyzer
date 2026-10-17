@@ -1,16 +1,3 @@
-# 実行ヘルパー
-#   .\run.ps1 serve          開発サーバー起動 (http://localhost:8000)
-#   .\run.ps1 serve 8080     ポート指定
-#   .\run.ps1 check          J-Quants疎通・項目マッピング確認 (要 .env)
-#   .\run.ps1 check 2026-08-14   日付を指定して確認
-#   .\run.ps1 reset          DBを完全削除
-#   .\run.ps1 migrate        スキーマ変更後、既存DBに不足列を追加
-#   .\run.ps1 golden         ゴールデンデータで DB を作る (tests/golden/db の実データの切り出し。数秒。.env 不要)
-#   .\run.ps1 batch          日次バッチ (要 .env)
-#   .\run.ps1 batch 2026-08-14   特定日を取り込み
-#   .\run.ps1 backfill       初回バックフィル (既定5年分, 要 .env)
-#   .\run.ps1 backfill 2     過去2年分
-#   .\run.ps1 lint           Ruff + Bandit
 param(
     [Parameter(Position = 0)][string]$cmd = "serve",
     [Parameter(Position = 1)][string]$arg = ""
@@ -21,7 +8,6 @@ Set-Location $PSScriptRoot
 $python = ".\.venv\Scripts\python.exe"
 if (-not (Test-Path $python)) { Write-Host "先に .\setup.ps1 を実行してください" -ForegroundColor Red; exit 1 }
 
-# .env があれば環境変数に読み込む
 if (Test-Path ".env") {
     Get-Content ".env" | ForEach-Object {
         if ($_ -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$') {
@@ -68,7 +54,6 @@ switch ($cmd) {
             }
             $years = [int]$arg
         }
-        # Lightプランは5年、Standardは10年、Premiumは20年が上限
         if ($years -lt 1 -or $years -gt 20) {
             Write-Host "年数は1〜20の範囲で指定してください" -ForegroundColor Red
             break

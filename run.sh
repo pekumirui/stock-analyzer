@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# 実行ヘルパー
-#   ./run.sh serve          開発サーバー起動 (http://localhost:8000)
-#   ./run.sh serve 8080     ポート指定
-#   ./run.sh check          J-Quants疎通・項目マッピング確認 (要 .env)
-#   ./run.sh check 2026-08-14   日付を指定して確認
-#   ./run.sh reset          DBを完全削除
-#   ./run.sh reset y        非対話で削除
-#   ./run.sh migrate        スキーマ変更後、既存DBに不足列を追加
-#   ./run.sh golden         ゴールデンデータで DB を作る (tests/golden/db の実データの切り出し。数秒。.env 不要)
-#   ./run.sh batch          日次バッチ (要 .env)
-#   ./run.sh batch 2026-08-14   特定日を取り込み
-#   ./run.sh backfill       初回バックフィル (既定5年分, 要 .env)
-#   ./run.sh backfill 2     過去2年分
-#   ./run.sh lint           Ruff + Bandit
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
