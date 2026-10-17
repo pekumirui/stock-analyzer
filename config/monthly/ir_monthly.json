@@ -40,15 +40,8 @@
       "name": "ユナイテッドアローズ",
       "index_url": "https://www.tabaya-holdings.co.jp/ir/monthly/",
       "link_re": "sokuho.*\\.xlsx(?:$|[?#])",
+      "latest_year": true,
       "title": "月次売上概況"
-    },
-    {
-      "code": "7643",
-      "name": "ダイイチ",
-      "index_url": "https://www.daiichi-d.co.jp/ir/monthly-report",
-      "link_re": "getuji.*\\.xlsx(?:$|[?#])",
-      "comment_links": true,
-      "title": "月次"
     }
   ],
   "html": [

@@ -56,6 +56,7 @@ class ColumnSpec:
     unit: str = "number"
     label: str | None = None
     section: str | None = None
+    digits: int | None = None
 
 
 @dataclass(frozen=True)
@@ -66,34 +67,23 @@ class SectionSpec:
 
 
 @dataclass(frozen=True)
-class ValueHeader:
-    label: str
-    element: str
-    unit: str
-
-
-@dataclass(frozen=True)
 class IssuerXlsSpec:
     code: str
     layout: str
     exts: tuple[str, ...]
     force: bool
+    digits: int | None = None
     columns: tuple[ColumnSpec, ...] = ()
     month_col: int = 1
     year_col: int = 0
     header_value: str = "月"
     fy_start_month: int = 4
-    fy_end_month: int = 3
     sheet: str = "first"
     label_col: int = 1
     as_of_cell: tuple[int, int] | None = None
     skip_month_re: str = ""
     stop_section_re: str = ""
     sections: tuple[SectionSpec, ...] = ()
-    year_header_re: str = ""
-    value_headers: tuple[ValueHeader, ...] = ()
-    department_header: str = ""
-    department_unit: str = "yoy_index"
 
 
 @dataclass(frozen=True)
@@ -190,6 +180,10 @@ def scale_occupancy(value: float) -> float:
     return value
 
 
+def round_digits(value: float, digits: int) -> float:
+    return round(value, digits)
+
+
 def _parse_kind(raw: object) -> Kind:
     kind = str(raw or "number")
     if kind not in ("number", "occupancy"):
@@ -197,20 +191,40 @@ def _parse_kind(raw: object) -> Kind:
     return kind  # type: ignore[return-value]
 
 
-def _parse_column(raw: object, *, section: str | None = None, unit: str | None = None) -> ColumnSpec:
+def _parse_digits(raw: object) -> int | None:
+    if raw is None or raw == "":
+        return None
+    digits = int(raw)
+    if digits < 0:
+        raise ValueError(f"invalid digits: {raw!r}")
+    return digits
+
+
+def _parse_column(
+    raw: object,
+    *,
+    section: str | None = None,
+    unit: str | None = None,
+    default_digits: int | None = None,
+) -> ColumnSpec:
     if not isinstance(raw, dict):
         raise ValueError("column must be an object")
     element = str(raw.get("element") or "").strip()
     if not element:
         raise ValueError("column missing element")
     col = raw.get("col")
+    unit_s = str(raw.get("unit") or unit or "number")
+    digits = _parse_digits(raw.get("digits"))
+    if digits is None and unit_s == "yoy_index":
+        digits = default_digits
     return ColumnSpec(
         element=element,
         col=int(col) if col is not None and col != "" else None,
         kind=_parse_kind(raw.get("kind")),
-        unit=str(raw.get("unit") or unit or "number"),
+        unit=unit_s,
         label=str(raw["label"]).strip() if raw.get("label") else None,
         section=section,
+        digits=digits,
     )
 
 
@@ -218,31 +232,28 @@ def _parse_spec(code: str, raw: object) -> IssuerXlsSpec:
     if not isinstance(raw, dict):
         raise ValueError(f"{code} spec must be an object")
     layout = str(raw.get("layout") or "").strip()
-    if layout not in {"fy_blocks", "month_columns", "current_fy_rows"}:
+    if layout not in {"fy_blocks", "month_columns"}:
         raise ValueError(f"{code} invalid layout: {layout!r}")
     exts_raw = raw.get("exts") or [".xls"]
     if not isinstance(exts_raw, list) or not exts_raw:
         raise ValueError(f"{code} missing exts")
     exts = tuple(str(x).lower() if str(x).startswith(".") else f".{str(x).lower()}" for x in exts_raw)
-    columns = tuple(_parse_column(c) for c in (raw.get("columns") or []))
+    digits = _parse_digits(raw.get("digits"))
+    columns = tuple(_parse_column(c, default_digits=digits) for c in (raw.get("columns") or []))
     sections: list[SectionSpec] = []
     for sec in raw.get("sections") or []:
         if not isinstance(sec, dict):
             raise ValueError(f"{code} section must be an object")
         header = str(sec.get("header") or "").strip()
         unit = str(sec.get("unit") or "number")
-        rows = tuple(_parse_column(r, section=header, unit=unit) for r in (sec.get("rows") or []))
-        sections.append(SectionSpec(header=header, unit=unit, rows=rows))
-    value_headers = tuple(
-        ValueHeader(
-            label=str(h.get("label") or "").strip(),
-            element=str(h.get("element") or "").strip(),
-            unit=str(h.get("unit") or "yoy_index"),
+        sec_digits = _parse_digits(sec.get("digits"))
+        if sec_digits is None and unit == "yoy_index":
+            sec_digits = digits
+        rows = tuple(
+            _parse_column(r, section=header, unit=unit, default_digits=sec_digits)
+            for r in (sec.get("rows") or [])
         )
-        for h in (raw.get("value_headers") or [])
-        if isinstance(h, dict)
-    )
-    dept = raw.get("department") if isinstance(raw.get("department"), dict) else {}
+        sections.append(SectionSpec(header=header, unit=unit, rows=rows))
     as_of_cell = raw.get("as_of_cell")
     cell: tuple[int, int] | None = None
     if isinstance(as_of_cell, list) and len(as_of_cell) == 2:
@@ -252,22 +263,18 @@ def _parse_spec(code: str, raw: object) -> IssuerXlsSpec:
         layout=layout,
         exts=exts,
         force=bool(raw.get("force", False)),
+        digits=digits,
         columns=columns,
         month_col=int(raw.get("month_col", 1)),
         year_col=int(raw.get("year_col", 0)),
         header_value=str(raw.get("header_value") or "月"),
         fy_start_month=int(raw.get("fy_start_month", 4)),
-        fy_end_month=int(raw.get("fy_end_month", 3)),
         sheet=str(raw.get("sheet") or "first"),
         label_col=int(raw.get("label_col", 1)),
         as_of_cell=cell,
         skip_month_re=str(raw.get("skip_month_re") or ""),
         stop_section_re=str(raw.get("stop_section_re") or ""),
         sections=tuple(sections),
-        year_header_re=str(raw.get("year_header_re") or ""),
-        value_headers=value_headers,
-        department_header=str(dept.get("header") or ""),
-        department_unit=str(dept.get("unit") or "yoy_index"),
     )
 
 
@@ -351,7 +358,9 @@ def fy_start_year(
 
 def _apply_kind(num: float, spec: ColumnSpec) -> float:
     if spec.kind == "occupancy":
-        return scale_occupancy(num)
+        num = scale_occupancy(num)
+    if spec.digits is not None:
+        num = round_digits(num, spec.digits)
     return num
 
 
@@ -469,105 +478,12 @@ def month_column_points(grid: Sequence[Sequence[Any]], spec: IssuerXlsSpec) -> l
     return points
 
 
-def _header_cols(row: Sequence[Any], labels: Sequence[str], *, start: int) -> dict[str, int]:
-    found: dict[str, int] = {}
-    want = {_norm_label(x): x for x in labels}
-    for c in range(start, len(row)):
-        key = _norm_label(row[c])
-        if key in want and key not in found:
-            found[key] = c
-    return found
-
-
-def current_fy_row_points(grid: Sequence[Sequence[Any]], spec: IssuerXlsSpec) -> list[MonthPoint]:
-    year_re = re.compile(spec.year_header_re) if spec.year_header_re else None
-    header_i: int | None = None
-    fy_end_year: int | None = None
-    value_cols: dict[str, int] = {}
-    want_labels = [_norm_label(h.label) for h in spec.value_headers]
-    for i, row in enumerate(grid):
-        year_row = grid[i - 1] if i > 0 else []
-        start = spec.month_col + 1
-        if year_re:
-            hit: tuple[int, int] | None = None
-            for c, cell in enumerate(year_row):
-                m = year_re.search(_norm_label(cell))
-                if m:
-                    hit = (c, int(m.group(1)))
-                    break
-            if hit is None:
-                continue
-            start, fy_end_year = hit
-        cols = _header_cols(row, want_labels, start=start)
-        if len(cols) < len(want_labels):
-            continue
-        header_i = i
-        value_cols = cols
-        break
-    if header_i is None or fy_end_year is None:
-        raise ValueError("no current-FY header row")
-    skip_re = re.compile(spec.skip_month_re) if spec.skip_month_re else None
-    points_map: dict[tuple[int, int], dict[str, float]] = {}
-    dept_cols: dict[str, int] | None = None
-
-    def fy_year(month: int) -> int:
-        if month > spec.fy_end_month:
-            return fy_end_year - 1
-        return fy_end_year
-
-    def put(year: int, month: int, element: str, raw: Any) -> None:
-        num = cell_number(raw)
-        if num is None:
-            return
-        points_map.setdefault((year, month), {})[element] = num
-
-    for row in grid[header_i + 1:]:
-        label = _norm_label(row[spec.month_col] if len(row) > spec.month_col else None)
-        if spec.department_header and spec.department_header in label:
-            dept_cols = None
-            continue
-        if dept_cols is None and spec.department_header:
-            names = [
-                _norm_label(c) for c in row[spec.month_col + 1:]
-                if _norm_label(c) and _as_month(c) is None
-            ]
-            if len(names) >= 3 and all(_as_month(c) is None for c in row[: spec.month_col + 1] or [None]):
-                if _as_month(row[spec.month_col] if len(row) > spec.month_col else None) is None:
-                    found = _header_cols(row, names, start=spec.month_col + 1)
-                    if found:
-                        dept_cols = found
-                        continue
-        month = _as_month(row[spec.month_col] if len(row) > spec.month_col else None)
-        if month is None:
-            continue
-        if skip_re and skip_re.search(label):
-            continue
-        year = fy_year(month)
-        if dept_cols:
-            for name, c in dept_cols.items():
-                put(year, month, name, row[c] if c < len(row) else None)
-            continue
-        for head in spec.value_headers:
-            c = value_cols.get(_norm_label(head.label))
-            if c is None:
-                continue
-            put(year, month, head.element, row[c] if c < len(row) else None)
-    if not points_map:
-        raise ValueError("no current-FY month rows")
-    return [
-        MonthPoint(year=y, month=m, values=vals)
-        for (y, m), vals in sorted(points_map.items())
-    ]
-
-
 def month_points(grid: Sequence[Sequence[Any]], spec: IssuerXlsSpec | None = None) -> list[MonthPoint]:
     resolved = spec if spec is not None else spec_for(CODE)
     if resolved.layout == "fy_blocks":
         return fy_block_points(grid, resolved)
     if resolved.layout == "month_columns":
         return month_column_points(grid, resolved)
-    if resolved.layout == "current_fy_rows":
-        return current_fy_row_points(grid, resolved)
     raise ValueError(f"unsupported layout: {resolved.layout}")
 
 
@@ -650,23 +566,12 @@ def drop_trailing_empty(months: list[int], rows: list[dict[str, Any]]) -> list[i
     return months[: last + 1]
 
 
-def _output_columns(spec: IssuerXlsSpec, points: Sequence[MonthPoint]) -> list[ColumnSpec]:
+def _output_columns(spec: IssuerXlsSpec) -> list[ColumnSpec]:
     if spec.columns:
         return list(spec.columns)
     if spec.sections:
         return [col for sec in spec.sections for col in sec.rows]
-    seen: list[ColumnSpec] = []
-    names: set[str] = set()
-    for head in spec.value_headers:
-        if head.element not in names:
-            names.add(head.element)
-            seen.append(ColumnSpec(element=head.element, unit=head.unit))
-    for p in points:
-        for name in p.values:
-            if name not in names:
-                names.add(name)
-                seen.append(ColumnSpec(element=name, unit=spec.department_unit or "yoy_index"))
-    return seen
+    raise ValueError(f"{spec.code} has no columns or sections")
 
 
 def ingest_from_points(
@@ -682,7 +587,7 @@ def ingest_from_points(
         raise ValueError(f"no months at or after {from_year}")
     months = [p.month for p in kept]
     rows: list[dict[str, Any]] = []
-    for col in _output_columns(resolved, kept):
+    for col in _output_columns(resolved):
         values = [p.values.get(col.element) for p in kept]
         if all(v is None for v in values):
             continue

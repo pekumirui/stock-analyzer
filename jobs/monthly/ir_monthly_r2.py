@@ -48,8 +48,8 @@ _ALLOWED_EXT = frozenset({"pdf", "xlsx", "xls", "html"})
 _XLS_MAGIC = b"\xd0\xcf\x11\xe0"
 _CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
 _SKIP_HREF_RE = re.compile(r"^(?:javascript:|mailto:|#)", re.I)
-_HTML_COMMENT_RE = re.compile(r"<!--(.*?)-->", re.S)
 _HASH_STEM_RE = re.compile(r"^[0-9a-f]{32,}$", re.I)
+_YEAR_IN_NAME_RE = re.compile(r"(?:19|20)\d{2}")
 
 
 @dataclass(frozen=True)
@@ -59,7 +59,7 @@ class Issuer:
     index_url: str
     link_re: str
     title: str
-    comment_links: bool = False
+    latest_year: bool = False
 
 
 @dataclass(frozen=True)
@@ -113,18 +113,12 @@ def url_stem(url: str) -> str:
     return sanitize_filename_part(stem)
 
 
-def parse_file_links(html: str, base_url: str, *, comments: bool = False) -> list[FileLink]:
-    """<a href> の pdf/xlsx/xls だけ。コメント内のリンクは既定では HTMLParser が無視する。"""
+def parse_file_links(html: str, base_url: str) -> list[FileLink]:
+    """<a href> の pdf/xlsx/xls だけ。コメント内のリンクは HTMLParser が無視する。"""
     parser = _AParser()
     parser.feed(html or "")
     parser.close()
     pairs = list(parser.links)
-    if comments:
-        for block in _HTML_COMMENT_RE.findall(html or ""):
-            inner = _AParser()
-            inner.feed(block)
-            inner.close()
-            pairs.extend(inner.links)
     out: list[FileLink] = []
     seen: set[str] = set()
     for href, text in pairs:
@@ -152,7 +146,24 @@ def parse_file_links(html: str, base_url: str, *, comments: bool = False) -> lis
     return out
 
 
-def filter_links(links: list[FileLink], link_re: str) -> list[FileLink]:
+def link_year(link: FileLink) -> int | None:
+    found = [int(y) for y in _YEAR_IN_NAME_RE.findall(link.stem)]
+    if not found:
+        found = [int(y) for y in _YEAR_IN_NAME_RE.findall(link.url)]
+    return max(found) if found else None
+
+
+def pick_latest_year(links: list[FileLink]) -> list[FileLink]:
+    years = [link_year(ln) for ln in links]
+    best = max((y for y in years if y is not None), default=None)
+    if best is None:
+        return links
+    return [ln for ln, y in zip(links, years) if y == best]
+
+
+def filter_links(
+    links: list[FileLink], link_re: str, *, latest_year: bool = False,
+) -> list[FileLink]:
     try:
         rx = re.compile(link_re)
     except re.error as e:
@@ -160,11 +171,13 @@ def filter_links(links: list[FileLink], link_re: str) -> list[FileLink]:
     matched = [ln for ln in links if rx.search(ln.url)]
     xlsx = [ln for ln in matched if ln.ext == "xlsx"]
     if xlsx:
-        return xlsx
-    xls = [ln for ln in matched if ln.ext == "xls"]
-    if xls:
-        return xls
-    return [ln for ln in matched if ln.ext == "pdf"]
+        out = xlsx
+    else:
+        xls = [ln for ln in matched if ln.ext == "xls"]
+        out = xls if xls else [ln for ln in matched if ln.ext == "pdf"]
+    if latest_year:
+        out = pick_latest_year(out)
+    return out
 
 
 def dest_title(link: FileLink, issuer_title: str, text_counts: Mapping[str, int]) -> str:
@@ -264,10 +277,10 @@ def _parse_issuer(raw: object) -> Issuer:
         re.compile(link_re)
     except re.error as e:
         raise ValueError(f"issuer {code} invalid link_re: {e}") from e
-    comment_links = bool(raw.get("comment_links"))
+    latest_year = bool(raw.get("latest_year"))
     return Issuer(
         code=code, name=name, index_url=index_url, link_re=link_re, title=title,
-        comment_links=comment_links,
+        latest_year=latest_year,
     )
 
 
@@ -313,8 +326,9 @@ def fetch_issuer(
     body = http_get(iss.index_url).decode("utf-8", errors="replace")
     time.sleep(SLEEP_SEC)
     links = filter_links(
-        parse_file_links(body, iss.index_url, comments=iss.comment_links),
+        parse_file_links(body, iss.index_url),
         iss.link_re,
+        latest_year=iss.latest_year,
     )
     listed = len(links)
     if dry_run:

@@ -22,6 +22,7 @@ from jobs.monthly.ir_monthly_xls_ingest import (  # noqa: E402
     ingest_from_xls,
     latest_xls,
     pick_xlsx_sheet,
+    round_digits,
     scale_occupancy,
     spec_for,
 )
@@ -29,7 +30,6 @@ from tools.monthly.read_xls import read_sheet_builtin  # noqa: E402
 
 FIXTURE = ROOT / "tests" / "monthly" / "testdata" / "1878_history_1.xls"
 FIXTURE_7606 = ROOT / "tests" / "monthly" / "testdata" / "7606_sokuho2027.xlsx"
-FIXTURE_7643 = ROOT / "tests" / "monthly" / "testdata" / "7643_getuji-1.xlsx"
 SOURCE_URL = "https://www.kentaku.co.jp/ir/library/monthly-report/__icsFiles/afieldfile/2026/09/02/history_1.xls"
 
 
@@ -365,7 +365,7 @@ def test_1878_columns_from_json() -> None:
     names = [c.element for c in spec.columns]
     if names != [c.element for c in COLUMNS]:
         _fail(f"COLUMNS drifted from json: {names}")
-    if spec.layout != "fy_blocks" or spec.force is not True or spec.exts != (".xls",):
+    if spec.layout != "fy_blocks" or spec.force is not True or spec.exts != (".xls",) or spec.digits is not None:
         _fail(f"1878 spec meta {spec}")
     if any(c.element in {"受注トレンド", "管理戸数"} for c in spec.columns):
         _fail("1878 json must omit derived columns")
@@ -381,6 +381,26 @@ def test_pick_xlsx_sheet() -> None:
         _fail("latest_int")
     if pick_xlsx_sheet(["A", "B"], "first") != "A":
         _fail("first")
+
+
+def test_round_yoy_digits() -> None:
+    if round_digits(109.1885, 1) != 109.2:
+        _fail(f"109.1885 -> {round_digits(109.1885, 1)}")
+    if round_digits(116.351, 1) != 116.4:
+        _fail(f"116.351 -> {round_digits(116.351, 1)}")
+    if round_digits(111.08804814301179, 1) != 111.1:
+        _fail("111.088…")
+    spec = spec_for("7606")
+    if spec.digits != 1:
+        _fail(f"7606 digits {spec.digits}")
+    yoy = [c for sec in spec.sections if sec.unit == "yoy_index" for c in sec.rows]
+    stores = [c for sec in spec.sections if sec.unit == "number" for c in sec.rows]
+    if not yoy or any(c.digits != 1 for c in yoy):
+        _fail(f"7606 yoy digits {[c.digits for c in yoy]}")
+    if not stores or any(c.digits is not None for c in stores):
+        _fail("7606 store counts must not inherit yoy digits")
+    if spec_for("1878").digits is not None:
+        _fail("1878 must not round")
 
 
 def test_7606_fixture() -> None:
@@ -399,10 +419,12 @@ def test_7606_fixture() -> None:
     all_store = _named(payload, "全社")
     if all_store["unit"] != "yoy_index" or all_store.get("force"):
         _fail(f"7606 全社 meta {all_store}")
-    if abs(all_store["values"][-1] - 111.08804814301179) > 1e-9:
+    if all_store["values"][-1] != 111.1:
         _fail(f"7606 2026-08 全社 {all_store['values'][-1]}")
+    if any(v != round(v, 1) for v in all_store["values"]):
+        _fail(f"7606 全社 not 1 decimal {all_store['values']}")
     existing = _named(payload, "小売＋ネット通販 既存店")
-    if abs(existing["values"][-1] - 108.43984394998508) > 1e-9:
+    if existing["values"][-1] != 108.4:
         _fail(f"7606 2026-08 既存 {existing['values'][-1]}")
     stores = _named(payload, "店舗数")
     if stores["unit"] != "number" or stores["values"][-1] != 324:
@@ -419,44 +441,6 @@ def test_7606_fixture() -> None:
     layout, mapping = plan_column_years(payload["months"], 3, date(2026, 9, 2))
     if mapping[0] != (4, 2026) or mapping[-1] != (8, 2026):
         _fail(f"7606 mapping {layout} {mapping}")
-
-
-def test_7643_fixture() -> None:
-    if not FIXTURE_7643.is_file():
-        _fail(f"missing fixture {FIXTURE_7643}")
-    payload = ingest_from_xls(FIXTURE_7643, code="7643", from_year=2024)
-    if payload["as_of"] != "2025-01-06":
-        _fail(f"7643 as_of {payload['as_of']}")
-    if "year" in payload:
-        _fail("year must not be sent")
-    if payload["months"] != [10, 11, 12]:
-        _fail(f"7643 months must be 本年 only {payload['months']}")
-    company = _named(payload, "全社計")
-    if company["unit"] != "yoy_index" or company.get("force"):
-        _fail(f"7643 全社計 meta {company}")
-    if company["values"] != [106.7, 115.3, 108.6]:
-        _fail(f"7643 全社計 {company['values']}")
-    existing = _named(payload, "既存店計")
-    if existing["values"] != [97.7, 107.7, 101.5]:
-        _fail(f"7643 既存店計 {existing['values']}")
-    produce = _named(payload, "青果")
-    if produce["values"] != [101.9, 107.7, 106.4]:
-        _fail(f"7643 青果 {produce['values']}")
-    livestock = _named(payload, "畜産")
-    if livestock["values"] != [108.7, 117.1, 108.2]:
-        _fail(f"7643 畜産 must not overwrite 全社計 {livestock['values']}")
-    names = [r["element"] for r in payload["rows"]]
-    if any("上期" in n or "下期" in n or "年間" in n for n in names):
-        _fail(f"7643 totals leaked {names}")
-    if canonicalize_element_label("全社計", "yoy_index") != "全社 売上高(前年比)":
-        _fail("7643 全社計 canonicalize")
-    if canonicalize_element_label("既存店計", "yoy_index") != "既存 売上高(前年比)":
-        _fail("7643 既存店計 canonicalize")
-    if canonicalize_element_label("青果", "yoy_index") != "青果(前年比)":
-        _fail("7643 青果 canonicalize")
-    layout, mapping = plan_column_years(payload["months"], 9, date(2025, 1, 6))
-    if mapping != [(10, 2024), (11, 2024), (12, 2024)]:
-        _fail(f"7643 mapping {layout} {mapping}")
 
 
 def test_cli_code_7606(tmp: Path) -> None:
@@ -493,9 +477,9 @@ def main() -> None:
     test_canonicalize_labels()
     test_1878_columns_from_json()
     test_pick_xlsx_sheet()
+    test_round_yoy_digits()
     test_fixture_spots()
     test_7606_fixture()
-    test_7643_fixture()
     with tempfile.TemporaryDirectory() as raw:
         tmp = Path(raw)
         test_latest_xls(tmp / "a")

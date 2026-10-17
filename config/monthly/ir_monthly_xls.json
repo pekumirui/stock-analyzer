@@ -27,6 +27,7 @@
     "layout": "month_columns",
     "exts": [".xlsx"],
     "force": false,
+    "digits": 1,
     "sheet": "latest_ym",
     "label_col": 1,
     "as_of_cell": [0, 20],
@@ -87,24 +88,5 @@
         ]
       }
     ]
-  },
-  "7643": {
-    "layout": "current_fy_rows",
-    "exts": [".xlsx"],
-    "force": false,
-    "sheet": "latest_int",
-    "as_of_cell": [1, 8],
-    "month_col": 1,
-    "fy_end_month": 9,
-    "skip_month_re": "上期|下期|年間",
-    "year_header_re": "本年[^0-9]*((?:19|20)\\d{2})年",
-    "value_headers": [
-      {"label": "全社計", "element": "全社計", "unit": "yoy_index"},
-      {"label": "内既存店計", "element": "既存店計", "unit": "yoy_index"}
-    ],
-    "department": {
-      "header": "部門別",
-      "unit": "yoy_index"
-    }
   }
 }
