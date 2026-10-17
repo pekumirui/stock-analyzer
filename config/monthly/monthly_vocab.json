@@ -311,6 +311,10 @@
       "prefix": true
     },
     {
+      "word": "仕入高",
+      "metric": "仕入高"
+    },
+    {
       "word": "客室収入",
       "metric": "客室収入",
       "prefix": true

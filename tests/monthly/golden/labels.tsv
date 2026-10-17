@@ -5802,24 +5802,24 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 76830	2026	7	legacy	yoy_index	オンライン販売 全店 売上高(前年比)	オンライン販売 全店 売上高(前年比)	yoy_index	オンライン販売 全店 売上高(前年比)	sales	オンライン販売	全店	売上高	全体 > オンライン販売	全店 売上高
 76830	2026	8	legacy	yoy_index	その他 全店 売上高(前年比)	その他 全店 売上高(前年比)	yoy_index	その他 全店 売上高(前年比)	sales	その他	全店	売上高	全体 > その他	全店 売上高
 76830	2026	9	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-76850	2024	1	legacy	number	出張訪問買取 仕入高	出張訪問買取 仕入高	number	出張訪問買取 仕入高	other	出張訪問買取 仕入高			全体	出張訪問買取 仕入高
-76850	2024	2	legacy	yoy_index	出張訪問買取 仕入高(前年比)	出張訪問買取 仕入高(前年比)	yoy_index	出張訪問買取 仕入高(前年比)	other	出張訪問買取 仕入高			全体	出張訪問買取 仕入高
-76850	2024	3	legacy	number	店舗買取 仕入高	店舗買取 仕入高	number	店舗買取 仕入高	other	店舗買取 仕入高			全体	店舗買取 仕入高
-76850	2024	4	legacy	yoy_index	店舗買取 仕入高(前年比)	店舗買取 仕入高(前年比)	yoy_index	店舗買取 仕入高(前年比)	other	店舗買取 仕入高			全体	店舗買取 仕入高
+76850	2024	1	legacy	number	出張訪問買取 仕入高	出張訪問買取 仕入高	number	出張訪問買取 仕入高	other	出張訪問買取		仕入高	全体 > 出張訪問買取	仕入高
+76850	2024	2	legacy	yoy_index	出張訪問買取 仕入高(前年比)	出張訪問買取 仕入高(前年比)	yoy_index	出張訪問買取 仕入高(前年比)	other	出張訪問買取		仕入高	全体 > 出張訪問買取	仕入高
+76850	2024	3	legacy	number	店舗買取 仕入高	店舗買取 仕入高	number	店舗買取 仕入高	other	店舗買取		仕入高	全体 > 店舗買取	仕入高
+76850	2024	4	legacy	yoy_index	店舗買取 仕入高(前年比)	店舗買取 仕入高(前年比)	yoy_index	店舗買取 仕入高(前年比)	other	店舗買取		仕入高	全体 > 店舗買取	仕入高
 76850	2024	5	legacy	number	グループ 店舗数	グループ 店舗数	number	グループ 店舗数	stores	グループ		店舗数	全体	店舗数
 76850	2024	6	legacy	number	出張訪問買取 出張訪問数	出張訪問買取 出張訪問数	number	出張訪問買取 出張訪問数	count	出張訪問買取		出張訪問数	全体 > 出張訪問買取	出張訪問数
 76850	2024	7	legacy	yoy_index	出張訪問買取 出張訪問数(前年比)	出張訪問買取 出張訪問数(前年比)	yoy_index	出張訪問買取 出張訪問数(前年比)	count	出張訪問買取		出張訪問数	全体 > 出張訪問買取	出張訪問数
-76850	2025	1	legacy	number	出張訪問買取 仕入高	出張訪問買取 仕入高	number	出張訪問買取 仕入高	other	出張訪問買取 仕入高			全体	出張訪問買取 仕入高
-76850	2025	2	legacy	yoy_index	出張訪問買取 仕入高(前年比)	出張訪問買取 仕入高(前年比)	yoy_index	出張訪問買取 仕入高(前年比)	other	出張訪問買取 仕入高			全体	出張訪問買取 仕入高
-76850	2025	3	legacy	number	店舗買取 仕入高	店舗買取 仕入高	number	店舗買取 仕入高	other	店舗買取 仕入高			全体	店舗買取 仕入高
-76850	2025	4	legacy	yoy_index	店舗買取 仕入高(前年比)	店舗買取 仕入高(前年比)	yoy_index	店舗買取 仕入高(前年比)	other	店舗買取 仕入高			全体	店舗買取 仕入高
+76850	2025	1	legacy	number	出張訪問買取 仕入高	出張訪問買取 仕入高	number	出張訪問買取 仕入高	other	出張訪問買取		仕入高	全体 > 出張訪問買取	仕入高
+76850	2025	2	legacy	yoy_index	出張訪問買取 仕入高(前年比)	出張訪問買取 仕入高(前年比)	yoy_index	出張訪問買取 仕入高(前年比)	other	出張訪問買取		仕入高	全体 > 出張訪問買取	仕入高
+76850	2025	3	legacy	number	店舗買取 仕入高	店舗買取 仕入高	number	店舗買取 仕入高	other	店舗買取		仕入高	全体 > 店舗買取	仕入高
+76850	2025	4	legacy	yoy_index	店舗買取 仕入高(前年比)	店舗買取 仕入高(前年比)	yoy_index	店舗買取 仕入高(前年比)	other	店舗買取		仕入高	全体 > 店舗買取	仕入高
 76850	2025	5	legacy	number	グループ 店舗数	グループ 店舗数	number	グループ 店舗数	stores	グループ		店舗数	全体	店舗数
 76850	2025	6	legacy	number	出張訪問買取 出張訪問数	出張訪問買取 出張訪問数	number	出張訪問買取 出張訪問数	count	出張訪問買取		出張訪問数	全体 > 出張訪問買取	出張訪問数
 76850	2025	7	legacy	yoy_index	出張訪問買取 出張訪問数(前年比)	出張訪問買取 出張訪問数(前年比)	yoy_index	出張訪問買取 出張訪問数(前年比)	count	出張訪問買取		出張訪問数	全体 > 出張訪問買取	出張訪問数
-76850	2026	1	legacy	number	出張訪問買取 仕入高	出張訪問買取 仕入高	number	出張訪問買取 仕入高	other	出張訪問買取 仕入高			全体	出張訪問買取 仕入高
-76850	2026	2	legacy	yoy_index	出張訪問買取 仕入高(前年比)	出張訪問買取 仕入高(前年比)	yoy_index	出張訪問買取 仕入高(前年比)	other	出張訪問買取 仕入高			全体	出張訪問買取 仕入高
-76850	2026	3	legacy	number	店舗買取 仕入高	店舗買取 仕入高	number	店舗買取 仕入高	other	店舗買取 仕入高			全体	店舗買取 仕入高
-76850	2026	4	legacy	yoy_index	店舗買取 仕入高(前年比)	店舗買取 仕入高(前年比)	yoy_index	店舗買取 仕入高(前年比)	other	店舗買取 仕入高			全体	店舗買取 仕入高
+76850	2026	1	legacy	number	出張訪問買取 仕入高	出張訪問買取 仕入高	number	出張訪問買取 仕入高	other	出張訪問買取		仕入高	全体 > 出張訪問買取	仕入高
+76850	2026	2	legacy	yoy_index	出張訪問買取 仕入高(前年比)	出張訪問買取 仕入高(前年比)	yoy_index	出張訪問買取 仕入高(前年比)	other	出張訪問買取		仕入高	全体 > 出張訪問買取	仕入高
+76850	2026	3	legacy	number	店舗買取 仕入高	店舗買取 仕入高	number	店舗買取 仕入高	other	店舗買取		仕入高	全体 > 店舗買取	仕入高
+76850	2026	4	legacy	yoy_index	店舗買取 仕入高(前年比)	店舗買取 仕入高(前年比)	yoy_index	店舗買取 仕入高(前年比)	other	店舗買取		仕入高	全体 > 店舗買取	仕入高
 76850	2026	5	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体	直営 店舗数
 76850	2026	6	legacy	number	FC 店舗数	FC 店舗数	number	FC 店舗数	stores			店舗数	全体	FC 店舗数
 76850	2026	7	legacy	number	グループ 店舗数	グループ 店舗数	number	グループ 店舗数	stores	グループ		店舗数	全体	店舗数

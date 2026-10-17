@@ -1477,6 +1477,55 @@ def test_auto_tree_country_total_keeps_country() -> None:
         _fail(f"46800 日本 ボウリング: {rows['日本 ボウリング 売上高']!r}")
 
 
+def test_auto_tree_76850() -> None:
+    """76850 B u y S e l l T e c h n o l o g i e s: `仕入高` は指標語（#581）。
+
+    `出張訪問買取 仕入高` は `出張訪問買取` の節で `出張訪問数` の隣、`店舗買取 仕入高` は
+    `店舗買取` の節。どちらも根に散らばらない。店舗数の 直営 / FC の親子はそのまま。
+    """
+    from app.monthly.tree import auto_tree_payload, build_auto_tree
+
+    months = {2026: [
+        ("直営 店舗数", "number"),
+        ("FC 店舗数", "number"),
+        ("グループ 店舗数", "number"),
+        ("出張訪問買取 出張訪問数", "number"),
+        ("出張訪問買取 出張訪問数(前年比)", "yoy_index"),
+        ("出張訪問買取 仕入高", "number"),
+        ("出張訪問買取 仕入高(前年比)", "yoy_index"),
+        ("店舗買取 仕入高", "number"),
+        ("店舗買取 仕入高(前年比)", "yoy_index"),
+    ]}
+    auto = build_auto_tree("76850", months)
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in auto.rows.items()}
+    want = {
+        "直営 店舗数": (["全体"], "直営 店舗数", "直営 店舗数"),
+        "FC 店舗数": (["全体"], "FC 店舗数", "FC 店舗数"),
+        "グループ 店舗数": (["全体"], "店舗数", "店舗数"),
+        "出張訪問買取 出張訪問数": (["全体", "出張訪問買取"], "出張訪問数", "出張訪問数"),
+        "出張訪問買取 出張訪問数(前年比)": (["全体", "出張訪問買取"], "出張訪問数(前年比)", "出張訪問数"),
+        "出張訪問買取 仕入高": (["全体", "出張訪問買取"], "仕入高", "仕入高"),
+        "出張訪問買取 仕入高(前年比)": (["全体", "出張訪問買取"], "仕入高(前年比)", "仕入高"),
+        "店舗買取 仕入高": (["全体", "店舗買取"], "仕入高", "仕入高"),
+        "店舗買取 仕入高(前年比)": (["全体", "店舗買取"], "仕入高(前年比)", "仕入高"),
+    }
+    if got != want:
+        _fail(f"76850 tree rows: {got!r}")
+    if auto.metric_parent != {"直営 店舗数": "店舗数", "FC 店舗数": "店舗数"}:
+        _fail(f"76850 metric parents: {auto.metric_parent!r}")
+    pay = auto_tree_payload(auto, [e for e, _ in months[2026]])
+    kids = {c["name"]: c for c in pay["tree"][0]["children"]}
+    if sorted(kids) != ["出張訪問買取", "店舗買取"]:
+        _fail(f"76850 children: {pay['tree'][0]['children']!r}")
+    if kids["出張訪問買取"]["elements"] != [
+        "出張訪問買取 出張訪問数", "出張訪問買取 出張訪問数(前年比)",
+        "出張訪問買取 仕入高", "出張訪問買取 仕入高(前年比)",
+    ]:
+        _fail(f"76850 出張訪問買取 rows: {kids['出張訪問買取']!r}")
+    if kids["店舗買取"]["elements"] != ["店舗買取 仕入高", "店舗買取 仕入高(前年比)"]:
+        _fail(f"76850 店舗買取 rows: {kids['店舗買取']!r}")
+
+
 def test_union_collapses_yoy_display_names() -> None:
     """年Aの短い yoy 名と年Bの正規名は表示名で1行。number は分けたまま。"""
     short = "全店 売上高前期比"
@@ -1635,6 +1684,7 @@ def main() -> None:
     test_tree_39230()
     test_tree_33580()
     test_monthly_auto_tree()
+    test_auto_tree_76850()
     test_union_collapses_yoy_display_names()
     test_segment_tail_row_order()
 
