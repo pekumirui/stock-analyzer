@@ -155,6 +155,57 @@ def test_rename_and_delete_follow_stored_name(c: TestClient) -> None:
         _fail(f"delete must drop sources: {_sources(code)!r}")
 
 
+def test_doc_put_swaps_rows(c: TestClient) -> None:
+    code = "24130"
+    _setup(code)
+    r = c.post(f"/api/v1/tables/{code}/2026/elements",
+               json={"element": "行A", "unit": "number"})
+    _expect(r, 201, "POST 行A")
+    r = c.put(f"/api/v1/tables/{code}/2026/values",
+              json={"element": "行A", "month": 1, "value": 10.0})
+    _expect(r, 200, "PUT 行A")
+    r = c.post(f"/api/v1/tables/{code}/2026/elements",
+               json={"element": "行B", "unit": "number"})
+    _expect(r, 201, "POST 行B")
+    r = c.put(f"/api/v1/tables/{code}/2026/values",
+              json={"element": "行B", "month": 1, "value": 20.0})
+    _expect(r, 200, "PUT 行B")
+
+    r = c.get(f"/api/v1/tables/{code}/2026/doc")
+    _expect(r, 200, "GET doc")
+    doc = r.json()
+    r = c.put(f"/api/v1/tables/{code}/2026/doc",
+              json={"version": doc["version"],
+                    "elements": [{"element": "行B", "was": "行A"},
+                                 {"element": "行A", "was": "行B"}],
+                    "allow_structure_change": True})
+    _expect(r, 200, "PUT doc swap")
+    renamed = r.json()["changes"]["renamed"]
+    if renamed != [{"was": "行A", "element": "行B", "cells": 1},
+                   {"was": "行B", "element": "行A", "cells": 1}]:
+        _fail(f"swap changes: {r.json()['changes']!r}")
+
+    r = c.get(f"/api/v1/tables/{code}/2026/doc")
+    _expect(r, 200, "GET doc after swap")
+    rows = r.json()["elements"]
+    names = [e["element"] for e in rows]
+    if names != ["行B", "行A"]:
+        _fail(f"sort_order after swap: {names!r}")
+    if any("\x00" in n for n in names):
+        _fail(f"NUL name leaked: {names!r}")
+    by = {e["element"]: e for e in rows}
+    if by["行B"]["values"]["1"] != 10.0 or by["行A"]["values"]["1"] != 20.0:
+        _fail(f"values after swap: {by!r}")
+
+    got = _sources(code)
+    want = {
+        ("行A", "number"): (2026, "行B", "api"),
+        ("行B", "number"): (2026, "行A", "api"),
+    }
+    if got != want:
+        _fail(f"swap sources: {got!r}")
+
+
 def test_legacy_backfill_is_idempotent() -> None:
     code = "13010"
     _setup(code)
@@ -228,6 +279,7 @@ def main() -> None:
     test_post_element_records_raw_label(c)
     test_ingest_records_every_raw_label(c)
     test_rename_and_delete_follow_stored_name(c)
+    test_doc_put_swaps_rows(c)
     test_legacy_backfill_is_idempotent()
     test_sync_copies_sources_when_present()
     print("ok: monthly element sources")

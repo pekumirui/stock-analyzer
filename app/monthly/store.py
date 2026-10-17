@@ -42,6 +42,43 @@ def _norm_element_name(element: str) -> str:
     return re.sub(r"\s+", "", s)
 
 
+def remap_monthly_elements(db, code: str, year: int, mapping: dict[str, str]) -> None:
+    """複合PKの element 名を対応表で付け替える。入れ替え・循環もそのまま。"""
+    if not mapping:
+        return
+    olds = list(mapping)
+    elems = (db.query(MonthlyElement)
+             .filter(MonthlyElement.code == code, MonthlyElement.year == year,
+                     MonthlyElement.element.in_(olds))
+             .all())
+    vals = (db.query(MonthlyValue)
+            .filter(MonthlyValue.code == code, MonthlyValue.year == year,
+                    MonthlyValue.element.in_(olds))
+            .all())
+    sources = (db.query(MonthlyElementSource)
+               .filter(MonthlyElementSource.code == code, MonthlyElementSource.year == year,
+                       MonthlyElementSource.element.in_(olds))
+               .all())
+    elem_rows = [(mapping[e.element], e.sort_order, e.unit) for e in elems]
+    val_rows = [(mapping[v.element], v.month, v.value) for v in vals]
+    for v in vals:
+        db.delete(v)
+    for e in elems:
+        db.delete(e)
+    db.flush()
+    for element, sort_order, unit in elem_rows:
+        db.add(MonthlyElement(
+            code=code, year=year, element=element, sort_order=sort_order, unit=unit,
+        ))
+    for element, month, value in val_rows:
+        db.add(MonthlyValue(
+            code=code, year=year, element=element, month=month, value=value,
+        ))
+    for src in sources:
+        src.element = mapping[src.element]
+    db.flush()
+
+
 def rename_monthly_element(
     db, code: str, year: int, old: str, new: str, *, strict: bool = False,
 ) -> None:
