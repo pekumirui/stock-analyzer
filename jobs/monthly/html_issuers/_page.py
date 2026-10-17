@@ -11,11 +11,10 @@ from jobs.monthly.html_monthly import (
     _section_pick_rank,
     _sticky_section_fy,
     as_of_from_table,
+    as_of_prefer_grid_year,
     drop_trailing_empty_months,
     page_context,
-    parse_as_of_text,
     parse_grid,
-    parse_month_year,
     parse_tables,
     resolve_as_of,
     section_fy_end_from_text,
@@ -43,16 +42,6 @@ def _count_only(parsed: dict) -> bool:
         r.get("unit") == "number" and _is_count_header(str(r.get("element") or ""))
         for r in rows
     )
-
-
-def _grid_has_cell_years(grid: list[list[str]]) -> bool:
-    """セルに `YYYY年M月` がある表。ページ全体の現在日より表の年を使う。"""
-    for row in grid:
-        for cell in row:
-            year, _month = parse_month_year(cell)
-            if year is not None:
-                return True
-    return False
 
 
 def _table_as_of(
@@ -207,18 +196,14 @@ def _select(
         parsed, candidates, primary_index=table_index, html=html
     )
     derived = _table_as_of(html, grid_used, parsed, section_fy)
-    as_of_s = resolve_as_of(
-        html, grid_used, parsed["rows"], as_of, parsed.get("months"), section_fy
+    as_of_s = as_of_prefer_grid_year(
+        resolve_as_of(
+            html, grid_used, parsed["rows"], as_of, parsed.get("months"), section_fy
+        ),
+        derived,
+        grid_used,
+        html,
     )
-    # 行に YYYY年M月 がある表は、ページ全体の「現在」が別の年なら表の年を使う
-    page_as_of = parse_as_of_text(html)
-    if (
-        derived
-        and _grid_has_cell_years(grid_used)
-        and page_as_of
-        and page_as_of[:4] != derived[:4]
-    ):
-        as_of_s = derived
     _apply_force_unit(parsed["rows"], force_unit)
     parsed["rows"] = _drop_ytd_when_monthly_pair(parsed["rows"])
     months = drop_trailing_empty_months(list(parsed.get("months") or []), parsed["rows"])
