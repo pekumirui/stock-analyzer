@@ -5857,7 +5857,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 78230	2023	10	legacy	yoy_index	主要商品 女性新規(前年比)	主要商品 女性新規(前年比)	yoy_index	主要商品 女性新規(前年比)	other	主要商品 女性新規			全体 > 主要商品 > 女性 > 新規	売上高(前年比)
 78230	2023	11	legacy	yoy_index	主要商品 女性リピート(前年比)	主要商品 女性リピート(前年比)	yoy_index	主要商品 女性リピート(前年比)	other	主要商品 女性リピート			全体 > 主要商品 > 女性 > リピート	売上高(前年比)
 78230	2023	12	legacy	yoy_index	主要商品 女性(前年比)	主要商品 女性(前年比)	yoy_index	主要商品 女性(前年比)	other	主要商品 女性			全体 > 主要商品 > 女性	売上高(前年比)
-78230	2023	13	legacy	yoy_index	主要商品 出店(前年比)	主要商品 出店(前年比)	yoy_index	主要商品 出店(前年比)	open	主要商品		出店	全体 > 主要商品 > 新規	売上高(前年比)
+78230	2023	13	legacy	yoy_index	主要商品 出店(前年比)	主要商品 新規(前年比)	yoy_index	主要商品 新規(前年比)	other	主要商品 新規			全体 > 主要商品 > 新規	売上高(前年比)
 78230	2023	14	legacy	yoy_index	主要商品 リピート(前年比)	主要商品 リピート(前年比)	yoy_index	主要商品 リピート(前年比)	other	主要商品 リピート			全体 > 主要商品 > リピート	売上高(前年比)
 78230	2023	15	legacy	yoy_index	主要商品(前年比)	主要商品(前年比)	yoy_index	主要商品(前年比)	other	主要商品			全体 > 主要商品	売上高(前年比)
 78230	2023	16	legacy	yoy_index	ヘアケア商品 男性(前年比)	ヘアケア商品 男性(前年比)	yoy_index	ヘアケア商品 男性(前年比)	other	ヘアケア商品 男性			全体 > ヘアケア商品 > 男性	売上高(前年比)
@@ -5882,7 +5882,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 78230	2024	10	legacy	yoy_index	主要商品 女性新規(前年比)	主要商品 女性新規(前年比)	yoy_index	主要商品 女性新規(前年比)	other	主要商品 女性新規			全体 > 主要商品 > 女性 > 新規	売上高(前年比)
 78230	2024	11	legacy	yoy_index	主要商品 女性リピート(前年比)	主要商品 女性リピート(前年比)	yoy_index	主要商品 女性リピート(前年比)	other	主要商品 女性リピート			全体 > 主要商品 > 女性 > リピート	売上高(前年比)
 78230	2024	12	legacy	yoy_index	主要商品 女性(前年比)	主要商品 女性(前年比)	yoy_index	主要商品 女性(前年比)	other	主要商品 女性			全体 > 主要商品 > 女性	売上高(前年比)
-78230	2024	13	legacy	yoy_index	主要商品 出店(前年比)	主要商品 出店(前年比)	yoy_index	主要商品 出店(前年比)	open	主要商品		出店	全体 > 主要商品 > 新規	売上高(前年比)
+78230	2024	13	legacy	yoy_index	主要商品 出店(前年比)	主要商品 新規(前年比)	yoy_index	主要商品 新規(前年比)	other	主要商品 新規			全体 > 主要商品 > 新規	売上高(前年比)
 78230	2024	14	legacy	yoy_index	主要商品 リピート(前年比)	主要商品 リピート(前年比)	yoy_index	主要商品 リピート(前年比)	other	主要商品 リピート			全体 > 主要商品 > リピート	売上高(前年比)
 78230	2024	15	legacy	yoy_index	ヘアケア商品 男性(前年比)	ヘアケア商品 男性(前年比)	yoy_index	ヘアケア商品 男性(前年比)	other	ヘアケア商品 男性			全体 > ヘアケア商品 > 男性	売上高(前年比)
 78230	2024	16	legacy	yoy_index	ヘアケア商品 女性(前年比)	ヘアケア商品 女性(前年比)	yoy_index	ヘアケア商品 女性(前年比)	other	ヘアケア商品 女性			全体 > ヘアケア商品 > 女性	売上高(前年比)
@@ -5907,7 +5907,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 78230	2025	10	legacy	yoy_index	主要商品 女性新規(前年比)	主要商品 女性新規(前年比)	yoy_index	主要商品 女性新規(前年比)	other	主要商品 女性新規			全体 > 主要商品 > 女性 > 新規	売上高(前年比)
 78230	2025	11	legacy	yoy_index	主要商品 女性リピート(前年比)	主要商品 女性リピート(前年比)	yoy_index	主要商品 女性リピート(前年比)	other	主要商品 女性リピート			全体 > 主要商品 > 女性 > リピート	売上高(前年比)
 78230	2025	12	legacy	yoy_index	主要商品 女性(前年比)	主要商品 女性(前年比)	yoy_index	主要商品 女性(前年比)	other	主要商品 女性			全体 > 主要商品 > 女性	売上高(前年比)
-78230	2025	13	legacy	yoy_index	主要商品 出店(前年比)	主要商品 出店(前年比)	yoy_index	主要商品 出店(前年比)	open	主要商品		出店	全体 > 主要商品 > 新規	売上高(前年比)
+78230	2025	13	legacy	yoy_index	主要商品 出店(前年比)	主要商品 新規(前年比)	yoy_index	主要商品 新規(前年比)	other	主要商品 新規			全体 > 主要商品 > 新規	売上高(前年比)
 78230	2025	14	legacy	yoy_index	主要商品 リピート(前年比)	主要商品 リピート(前年比)	yoy_index	主要商品 リピート(前年比)	other	主要商品 リピート			全体 > 主要商品 > リピート	売上高(前年比)
 78230	2025	15	legacy	yoy_index	ヘアケア商品 男性(前年比)	ヘアケア商品 男性(前年比)	yoy_index	ヘアケア商品 男性(前年比)	other	ヘアケア商品 男性			全体 > ヘアケア商品 > 男性	売上高(前年比)
 78230	2025	16	legacy	yoy_index	ヘアケア商品 女性(前年比)	ヘアケア商品 女性(前年比)	yoy_index	ヘアケア商品 女性(前年比)	other	ヘアケア商品 女性			全体 > ヘアケア商品 > 女性	売上高(前年比)
@@ -5932,7 +5932,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 78230	2026	10	legacy	yoy_index	主要商品 女性新規(前年比)	主要商品 女性新規(前年比)	yoy_index	主要商品 女性新規(前年比)	other	主要商品 女性新規			全体 > 主要商品 > 女性 > 新規	売上高(前年比)
 78230	2026	11	legacy	yoy_index	主要商品 女性リピート(前年比)	主要商品 女性リピート(前年比)	yoy_index	主要商品 女性リピート(前年比)	other	主要商品 女性リピート			全体 > 主要商品 > 女性 > リピート	売上高(前年比)
 78230	2026	12	legacy	yoy_index	主要商品 女性(前年比)	主要商品 女性(前年比)	yoy_index	主要商品 女性(前年比)	other	主要商品 女性			全体 > 主要商品 > 女性	売上高(前年比)
-78230	2026	13	legacy	yoy_index	主要商品 出店(前年比)	主要商品 出店(前年比)	yoy_index	主要商品 出店(前年比)	open	主要商品		出店	全体 > 主要商品 > 新規	売上高(前年比)
+78230	2026	13	legacy	yoy_index	主要商品 出店(前年比)	主要商品 新規(前年比)	yoy_index	主要商品 新規(前年比)	other	主要商品 新規			全体 > 主要商品 > 新規	売上高(前年比)
 78230	2026	14	legacy	yoy_index	主要商品 リピート(前年比)	主要商品 リピート(前年比)	yoy_index	主要商品 リピート(前年比)	other	主要商品 リピート			全体 > 主要商品 > リピート	売上高(前年比)
 78230	2026	15	legacy	yoy_index	ヘアケア商品 男性(前年比)	ヘアケア商品 男性(前年比)	yoy_index	ヘアケア商品 男性(前年比)	other	ヘアケア商品 男性			全体 > ヘアケア商品 > 男性	売上高(前年比)
 78230	2026	16	legacy	yoy_index	ヘアケア商品 女性(前年比)	ヘアケア商品 女性(前年比)	yoy_index	ヘアケア商品 女性(前年比)	other	ヘアケア商品 女性			全体 > ヘアケア商品 > 女性	売上高(前年比)
@@ -5945,7 +5945,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 78230	2026	23	legacy	yoy_index	延べ来店顧 女性 全店 客数(前年比)	延べ来店顧 女性 全店 客数(前年比)	yoy_index	延べ来店顧 女性 全店 客数(前年比)	customers	延べ来店顧 女性	全店	客数	全体 > 延べ来店顧 > 女性	全店 客数
 78230	2026	24	legacy	yoy_index	延べ来店顧 全店 客数(前年比)	延べ来店顧 全店 客数(前年比)	yoy_index	延べ来店顧 全店 客数(前年比)	customers	延べ来店顧	全店	客数	全体 > 延べ来店顧	全店 客数
 78230	2026	25	legacy	yoy_index	主要商品(前年比)	主要商品(前年比)	yoy_index	主要商品(前年比)	other	主要商品			全体 > 主要商品	売上高(前年比)
-78230	2026	26	known	yoy_index	主要商品 合計新規	主要商品 出店(前年比)	yoy_index	主要商品 出店(前年比)	open	主要商品		出店	全体 > 主要商品 > 新規	売上高(前年比)
+78230	2026	26	known	yoy_index	主要商品 合計新規	主要商品 新規(前年比)	yoy_index	主要商品 新規(前年比)	other	主要商品 新規			全体 > 主要商品 > 新規	売上高(前年比)
 78230	2026	27	known	yoy_index	延べ来店顧客数	延べ来店顧 客数(前年比)	yoy_index	延べ来店顧 客数(前年比)	customers	延べ来店顧		客数	全体 > 延べ来店顧	
 78650	2023	1	legacy	number	乳児・知育玩具 全店 売上高	乳児・知育玩具 全店 売上高	number	乳児・知育玩具 全店 売上高	sales	乳児・知育玩具	全店	売上高	全体 > 国内販売 > 乳児・知育玩具	全店 売上高
 78650	2023	2	legacy	yoy_index	乳児・知育玩具(前年比)	乳児・知育玩具(前年比)	yoy_index	乳児・知育玩具(前年比)	other	乳児・知育玩具			全体 > 国内販売 > 乳児・知育玩具	全店 売上高

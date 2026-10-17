@@ -341,6 +341,27 @@ def test_canonicalize_element_label() -> None:
         _fail("出店 keeps 全店")
     if canonicalize_element_label("トライアル 新規 全店 出店", "number") != "トライアル 全店 出店":
         _fail("出店 keeps 全店")
+    if canonicalize_element_label("新規 店舗数", "number") != "出店":
+        _fail("新規 店舗数 is store-flow 出店")
+    if canonicalize_element_label("新規 店舗", "number") != "出店":
+        _fail("新規 店舗 is store-flow 出店")
+    if canonicalize_element_label("主要商品 合計新規", "yoy_index") != "主要商品 新規(前年比)":
+        _fail("主要商品 合計新規 keeps 新規 (not 出店)")
+    if canonicalize_element_label("主要商品 合計 新規", "yoy_index") != "主要商品 新規(前年比)":
+        _fail("主要商品 合計 新規 keeps 新規")
+    if canonicalize_element_label("主要商品 新規", "yoy_index") != "主要商品 新規(前年比)":
+        _fail("主要商品 新規 stays leftover")
+    if canonicalize_element_label("新規 会員数", "number") != "新規 会員数":
+        _fail("新規 会員数 must not become 会員数 出店")
+    if canonicalize_element_label("新規 会員数", "yoy_index") != "新規 会員数(前年比)":
+        _fail("新規 会員数 yoy must not fill 出店")
+    if canonicalize_element_label("新規 売上高", "number") != "新規 売上高":
+        _fail("新規 売上高 must keep 新規")
+    if canonicalize_element_label("既存 新規 売上高", "number") != "新規 既存 売上高":
+        _fail("既存 新規 売上高 must keep 新規")
+    new_cust = canonicalize_element_label("新規 顧客数", "number")
+    if new_cust == "顧 客数" or "出店" in new_cust or not new_cust.startswith("新規"):
+        _fail(f"新規 顧客数 must keep 新規 (not 顧 客数 / 出店): {new_cust!r}")
     if canonicalize_element_label("西友 全店 出店", "number") != "西友 全店 出店":
         _fail("西友 全店 出店 stays")
     if canonicalize_element_label("西友 業態転換数 全店", "number") != "西友 全店 業態転換数":
@@ -781,6 +802,17 @@ def test_issuer_alias_cases() -> None:
         if apply_issuer_aliases("72030", incoming, year=ctx.get("year"), as_of=ctx.get("as_of")) != incoming:  # type: ignore[arg-type]
             _fail(f"other issuer must not alias {incoming!r}")
 
+    sample_78230 = apply_issuer_aliases(
+        "78230", canonicalize_element_label("主要商品 出店(前年比)", "yoy_index"), year=2026,
+    )
+    if sample_78230 != "主要商品 新規(前年比)":
+        _fail(f"78230 出店 alias: {sample_78230!r}")
+    sample_78230_src = canonicalize_element_label("主要商品 合計新規", "yoy_index")
+    if sample_78230_src != "主要商品 新規(前年比)":
+        _fail(f"78230 合計新規: {sample_78230_src!r}")
+    sample_78230_twice = canonicalize_element_label(sample_78230, "yoy_index")
+    if sample_78230_twice != "主要商品 新規(前年比)":
+        _fail(f"78230 dest must not fold back to 出店: {sample_78230_twice!r}")
     sample_34150 = apply_issuer_aliases(
         "34150", canonicalize_element_label("全社 国内 合計 売上高(前年比)", "yoy_index"), year=2099,
     )
