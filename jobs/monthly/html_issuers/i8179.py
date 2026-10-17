@@ -12,10 +12,15 @@ _PREFIXES: tuple[tuple[str, str], ...] = (
 _BRANDS = ("ロイヤルホスト", "てんや")
 
 
-def parse(html: str, *, as_of: str | None = None) -> dict:
+def _is_branded_or_flash(html: str) -> bool:
     text = html or ""
-    # 1表の速報（既存店売上、客数）はブランド見出し無しで通す。
-    if len(parse_tables(text)) >= 2 and not any(brand in text for brand in _BRANDS):
+    if any(brand in text for brand in _BRANDS):
+        return True
+    return len(parse_tables(text)) < 2
+
+
+def parse(html: str, *, as_of: str | None = None) -> dict:
+    if not _is_branded_or_flash(html or ""):
         raise ValueError("8179 page does not match declaration")
     return parse_branded(
         html,
