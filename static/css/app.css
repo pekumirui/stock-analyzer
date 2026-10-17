@@ -425,6 +425,21 @@
   @media (min-width:900px){ .supply-grid { grid-template-columns:minmax(0,1fr) 300px; } }
   #supply-map { height:calc(100vh - 150px); min-height:360px; border:1px solid var(--border); position:relative; min-width:0; }
   #supply-msg { position:absolute; left:10px; top:8px; font-size:13px; }
+  #supply-grip { display:none; }
+  /* スマホは詳細を下からのシートで出す。閉じる / peek（下 40%。supply.js の SUPPLY_PEEK）/ full */
+  @media (max-width:899px){
+    #supply-map { height:calc(100dvh - 250px); min-height:300px; }
+    #supply-panel { --supply-sheet:88dvh; --supply-peek:40dvh;
+      position:fixed; left:0; right:0; bottom:0; z-index:30; height:var(--supply-sheet); display:flex; flex-direction:column;
+      background:var(--panel); border-radius:12px 12px 0 0; box-shadow:0 -4px 18px rgba(0,0,0,.16);
+      transform:translateY(100%); transition:transform .25s ease; }
+    #supply-panel.peek { transform:translateY(calc(var(--supply-sheet) - var(--supply-peek))); }
+    #supply-panel.full { transform:translateY(0); }
+    #supply-grip { display:flex; flex:none; justify-content:center; align-items:center; height:24px; cursor:pointer; touch-action:none; }
+    #supply-grip::before { content:""; width:40px; height:4px; border-radius:2px; background:#c4cad0; }
+    #supply-body { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:0 16px calc(16px + env(safe-area-inset-bottom)); }
+    #supply-panel.peek #supply-body { overflow:hidden; }
+  }
   #supply-panel h2 { font-size:16px; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
   #supply-panel h3 { font-size:12px; margin:12px 0 4px; }
   .supply-meta { font-size:12px; margin-top:2px; font-variant-numeric:tabular-nums; }
@@ -434,7 +449,6 @@
   .supply-chip { display:inline-flex; align-items:center; gap:5px; font-size:12px; border:1px solid var(--border); border-radius:999px; padding:2px 9px; background:var(--panel); color:var(--text); cursor:pointer; }
   .supply-chip:hover { border-color:var(--accent); }
   @media (max-width:640px){
-    #supply-map { height:60vh; }
     .supply-chip { padding:5px 10px; font-size:13px; }
   }
   .supply-unit { font-size:11px; margin-bottom:2px; }
@@ -459,6 +473,8 @@
   .supply-chip.unverified { border-style:dashed; }
   .supply-code { font-size:11px; color:var(--sub); font-variant-numeric:tabular-nums; }
   .supply-chip .sub { font-size:11px; }
+  .supply-pie { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .supply-pie .supply-tbl { margin-top:0; }
   .supply-share-body { display:flex; flex-direction:column; align-items:flex-start; }
   .supply-donut { width:128px; height:128px; margin-top:4px; }
   .supply-donut path { stroke:#fff; stroke-width:2; cursor:pointer; }
