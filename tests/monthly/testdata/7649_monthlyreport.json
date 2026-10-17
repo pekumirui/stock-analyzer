@@ -1,0 +1,126 @@
+{
+  "last_updated": "2026-10-15 15:30:02",
+  "data": [
+    {
+      "year": "2027",
+      "month": 1,
+      "group_total_all": null,
+      "group_total_existing": null,
+      "sugi_total_all": null,
+      "sugi_total_existing": null,
+      "chozai_total_all": null,
+      "chozai_total_existing": null,
+      "pdf_path": null
+    },
+    {
+      "year": "2026",
+      "month": 10,
+      "group_total_all": null,
+      "group_total_existing": null,
+      "sugi_total_all": null,
+      "sugi_total_existing": null,
+      "chozai_total_all": null,
+      "chozai_total_existing": null,
+      "pdf_path": null
+    },
+    {
+      "year": "2026",
+      "month": 9,
+      "group_total_all": "5.5",
+      "group_total_existing": "3.4",
+      "sugi_total_all": "4.4",
+      "sugi_total_existing": "1.6",
+      "chozai_total_all": "8.3",
+      "chozai_total_existing": "7.6",
+      "pdf_path": "20261015_月次速報.pdf"
+    },
+    {
+      "year": "2026",
+      "month": 8,
+      "group_total_all": "6.7",
+      "group_total_existing": "4.3",
+      "sugi_total_all": "5.3",
+      "sugi_total_existing": "2.3",
+      "chozai_total_all": "10.5",
+      "chozai_total_existing": "9.7",
+      "pdf_path": "20260915_月次速報.pdf"
+    },
+    {
+      "year": "2026",
+      "month": 7,
+      "group_total_all": "5.2",
+      "group_total_existing": "2.7",
+      "sugi_total_all": "3.8",
+      "sugi_total_existing": "0.6",
+      "chozai_total_all": "9.1",
+      "chozai_total_existing": "8.3",
+      "pdf_path": "20260815_月次報告_v1.pdf"
+    },
+    {
+      "year": "2026",
+      "month": 6,
+      "group_total_all": "4.5",
+      "group_total_existing": "2.0",
+      "sugi_total_all": "1.6",
+      "sugi_total_existing": "-1.5",
+      "chozai_total_all": "12.4",
+      "chozai_total_existing": "11.4",
+      "pdf_path": "20260715_月次報告_v1.pdf"
+    },
+    {
+      "year": "2026",
+      "month": 5,
+      "group_total_all": "9.3",
+      "group_total_existing": "6.4",
+      "sugi_total_all": "10.3",
+      "sugi_total_existing": "6.6",
+      "chozai_total_all": "6.7",
+      "chozai_total_existing": "5.8",
+      "pdf_path": "20260615_月次報告_v1.pdf"
+    },
+    {
+      "year": "2026",
+      "month": 4,
+      "group_total_all": "8.2",
+      "group_total_existing": "5.3",
+      "sugi_total_all": "7.3",
+      "sugi_total_existing": "3.6",
+      "chozai_total_all": "10.4",
+      "chozai_total_existing": "9.3",
+      "pdf_path": "20260515_月次報告_v1.pdf"
+    },
+    {
+      "year": "2026",
+      "month": 3,
+      "group_total_all": "8.5",
+      "group_total_existing": "5.7",
+      "sugi_total_all": "6.7",
+      "sugi_total_existing": "3.2",
+      "chozai_total_all": "13.1",
+      "chozai_total_existing": "12.0",
+      "pdf_path": "20260415_月次報告_v1.pdf"
+    },
+    {
+      "year": "2026",
+      "month": 2,
+      "group_total_all": "7.8",
+      "group_total_existing": "5.4",
+      "sugi_total_all": "5.3",
+      "sugi_total_existing": "2.4",
+      "chozai_total_all": "14.3",
+      "chozai_total_existing": "13.2",
+      "pdf_path": "20260313_01.pdf"
+    },
+    {
+      "year": "2025",
+      "month": 3,
+      "group_total_all": "19.4",
+      "group_total_existing": "6.6",
+      "sugi_total_all": "10.1",
+      "sugi_total_existing": "5.9",
+      "chozai_total_all": "51.7",
+      "chozai_total_existing": "8.9",
+      "pdf_path": "(新)Sugi Holdings News_mar 1.pdf"
+    }
+  ]
+}

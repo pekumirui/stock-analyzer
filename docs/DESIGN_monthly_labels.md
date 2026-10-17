@@ -194,6 +194,10 @@ year GET の各行は保存 `element` に加え、派生の `label`（display / 
 - 大東建託 (1878): `history.xls`。`家賃ベース入居率` は Excel パーセント 0.9785 を 97.85 で `number` 保存（issue #195）。`空室在庫`（カ月）は掛けない。canonicalize 後 `既存 空室数` は `空室数 既存`。受注トレンドと管理戸数は入れない。画面の表示単位は上の表（項目名。セルは数字だけ）。JSON は保存値のまま。列の正本は `config/monthly/ir_monthly_xls.json`
 - ユナイテッドアローズ (7606): `sokuho*.xlsx`。シートは最新の `YYYY.MM`。月は列（4月始まり）。売上高・買上客数・客単価は `yoy_index`（100=フラット、取り込み時に小数1桁へ round。本番の 8月全社は訂正後 109.2）。店舗数は `number`（丸めない）。事業本部別・累計列・既存店過去３期は入れない。行名は表の見出し（セクション＋行）。POST 時の canonicalize で DB の保存名に揃う。ダイイチ (7643) の IR xlsx は更新が止まっているので TDnet PDF のまま
 
+## json 銘柄メモ
+
+- スギHD (7649): CloudFront JSON。`group_total_*` はページの スギ薬局、`sugi_total_*` は ドラッグストア事業（物販）、`chozai_total_*` は 調剤事業。既存店は canonicalize で `既存`。客数・客単価・総拠点数は JSON に無いので足さない。POST 時の canonicalize で本番の `スギ薬局 / ドラッグストア事業 / 調剤事業` × `全店 / 既存` `売上高(前年比)` に揃う。物販→ドラッグストア事業の alias は使わない（新しい行を作らない）
+
 ## 例
 
 | 入力 | unit | 出力 |
