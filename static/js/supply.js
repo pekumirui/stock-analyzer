@@ -70,7 +70,9 @@ async function supplySetup(){
   const cy = cytoscape({
     container: $("#supply-map"),
     elements: [
-      ...graph.materials.map(m => ({data: {id: m.id, label: m.name, kind: m.kind, w: m.w, rec: retTo[m.id].length > 0}})),
+      // 箱から指を動かしてもマップを動かす（既定では箱の上で始めたドラッグは何もしない）。押せば選ぶのは変わらない
+      ...graph.materials.map(m => ({data: {id: m.id, label: m.name, kind: m.kind, w: m.w, rec: retTo[m.id].length > 0},
+                                    pannable: true})),
       ...graph.flows.map(([a, b]) => ({data: {id: `${a}>${b}`, source: a, target: b}})),
     ],
     style: supplyStyle(font),
