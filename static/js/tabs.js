@@ -1,4 +1,4 @@
-const TABS = ["earnings", "chart", "screener", "monthly", "supply"];
+const TABS = ["earnings", "chart", "screener", "pts", "monthly", "supply"];
 const UI_ROUTE_KEY = "ui.route";
 const CODE_RE = /^[0-9][0-9A-Z]{3}[0-9]$/;
 const SUPPLY_ID_RE = /^[a-z][a-z0-9_]*$/;
@@ -44,6 +44,7 @@ function selectTab(tab){
   showTab(tab);
   writeRoute(tab, tab === "chart" ? (curCode || "") : "");
   if(tab === "screener" && !$("#sc-tbl").innerHTML) loadScreener();
+  if(tab === "pts" && !$("#pts-tbl").innerHTML) loadPts();
   if(tab === "monthly") loadMonthlyList();
   if(tab === "supply"){
     writeRoute("supply", supplySelectedId());
@@ -57,6 +58,11 @@ async function restoreRoute(){
   if(tab === "screener"){
     loadScreener();
     writeRoute("screener");
+    return;
+  }
+  if(tab === "pts"){
+    loadPts();
+    writeRoute("pts");
     return;
   }
   if(tab === "chart"){

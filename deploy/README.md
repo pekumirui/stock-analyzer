@@ -97,7 +97,7 @@ VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 認
 
 - `service_status` — プロセスと localhost の HTTP コード
 - `app_logs` — `/var/log/app/stock-analyzer.log` と journalctl。uvicorn は `deploy/uvicorn-log.json` で行頭に JST `YYYY-MM-DD HH:MM:SS` を付ける。`since` / `until` は `batch_logs` と同じ形。省略時は journal が直近 1h、ファイルは live の末尾だけ。指定すると `.1` / `.gz` も読み、行頭の時刻で絞る。時刻の無い行（Traceback の続き）は直前の行に付く
-- `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` は crontab の stem（`run_batch` / `fx_rates` / `tdnet_monthly_r2` / `tdnet_monthly_pdf_sidecar` / `tdnet_monthly_pdf_ingest` / `ir_monthly_r2` / `ir_monthly_html_r2` / `ir_monthly_html_ingest` / `tdnet_xbrl_r2` / `xbrl_parse` / `xbrl_normalize` / `vps_packages_r2` / `backup_db`）。一覧に無い名前とパスは拒否。省略時は `stock-analyzer.log` と `mcp.log` 以外の live ファイル（古い `batch.log` を含む）。`since` / `until` は `1h` / `30m` / `today` / `yesterday` / `YYYY-MM-DD`。`until` はその時刻を含まない。昨日は `since=yesterday` と `until=today`。日時を指定したときは `.1` と `.gz` も読み、行頭の JST `YYYY-MM-DD HH:MM:SS` で絞る。`lines` は 1-500。超えた分は末尾だけ返すので範囲を狭める
+- `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` は crontab の stem（`run_batch` / `pts_snapshot` / `fx_rates` / `tdnet_monthly_r2` / `tdnet_monthly_pdf_sidecar` / `tdnet_monthly_pdf_ingest` / `ir_monthly_r2` / `ir_monthly_html_r2` / `ir_monthly_html_ingest` / `tdnet_xbrl_r2` / `xbrl_parse` / `xbrl_normalize` / `vps_packages_r2` / `backup_db`）。一覧に無い名前とパスは拒否。省略時は `stock-analyzer.log` と `mcp.log` 以外の live ファイル（古い `batch.log` を含む）。`since` / `until` は `1h` / `30m` / `today` / `yesterday` / `YYYY-MM-DD`。`until` はその時刻を含まない。昨日は `since=yesterday` と `until=today`。日時を指定したときは `.1` と `.gz` も読み、行頭の JST `YYYY-MM-DD HH:MM:SS` で絞る。`lines` は 1-500。超えた分は末尾だけ返すので範囲を狭める
 - `nginx_logs` — nginx journal と error.log と `/var/log/nginx/stock-analyzer.access.log`。アクセスログの `rt=` は nginx 全体、`urt=` は uvicorn の処理秒。遅いリクエストは `grep` に `rt=[1-9]` などを渡す。`since` / `until` は `batch_logs` と同じ形。省略時は journal が直近 1h、ファイルは live の末尾だけ。指定すると logrotate 済みの `.1` / `.gz`（既定で 14 日分）も読み、行の時刻（JST）で絞る。URL の OAuth 一時値（`code` / `state` など）は伏せる
 - `db_stats` — stock.db の件数・日付範囲・デモ混在
 - `db_lookup` — 1銘柄のマスタ・直近株価・決算・指標
@@ -199,6 +199,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 | `jobs/monthly/ir_monthly_html_ingest.py` | 10:30 / 16:30（HTML 取得の後。ledger は `/var/log/app/html_ingest_ledger.json`） |
 | `jobs/xbrl/tdnet_xbrl_r2.py 1` | 12–23 時の毎時 00 分 |
 | `jobs/xbrl/xbrl_parse.py` / `jobs/xbrl/xbrl_normalize.py` | 12–23 時の毎時 10 分 / 20 分 |
+| `jobs/market/pts_snapshot.py` | 平日 15:30〜24:00 の 30 分ごと（株探 PTS ランキング。24:00 は翌日 0:00 の回） |
 | `jobs/ops/vps_packages_r2.py` | 06:40 |
 | `jobs/ops/backup_db.py` | 05:00（SQLite 整合バックアップ。R2 には出ない。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
 

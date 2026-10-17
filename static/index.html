@@ -14,6 +14,7 @@
     <button data-tab="earnings" class="active">決算速報</button>
     <button data-tab="chart">チャート</button>
     <button data-tab="screener">スクリーナー</button>
+    <button data-tab="pts">PTS</button>
     <button data-tab="monthly">月次</button>
     <button data-tab="supply">サプライ</button>
   </nav>
@@ -113,6 +114,21 @@
   </div>
 </section>
 
+<section id="tab-pts" style="display:none">
+  <div class="panel">
+    <div class="row">
+      <select id="pts-date" aria-label="セッション日"></select>
+      <select id="pts-ranking" aria-label="ランキング">
+        <option value="night_up">値上がり</option><option value="night_down">値下がり</option><option value="night_volume">出来高</option>
+      </select>
+      <select id="pts-at" aria-label="取得時刻"></select>
+      <span id="pts-info" class="sub"></span>
+    </div>
+    <div id="pts-summary" class="sub"></div>
+    <div class="tbl-wrap"><table id="pts-tbl"></table></div>
+  </div>
+</section>
+
 <section id="tab-monthly" style="display:none">
   <div id="monthly-top">
     <div class="phead"><h3>月次データ</h3></div>
@@ -157,6 +173,7 @@
 <script src="/static/js/earnings.js"></script>
 <script src="/static/js/chart-tab.js"></script>
 <script src="/static/js/screener.js"></script>
+<script src="/static/js/pts.js"></script>
 <script src="/static/js/monthly.js"></script>
 <script src="/static/js/supply.js"></script>
 <script src="/static/js/boot.js"></script>

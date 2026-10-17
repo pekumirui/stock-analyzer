@@ -11,6 +11,12 @@ SHELL=/bin/bash
 # 日次（引け後の開示を夜に取る）
 30 19 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/run_batch.py
 
+# 株探 PTS ナイトタイム ランキング → pts_snapshots（平日 15:30〜24:00 の 30 分ごと。株探は 15 分ディレイ）
+# 同じセッション・同じ「HH:MM現在」は書かない。翌日 15:30 の回が前夜の最終（06:00）を拾う
+30 15 * * 1-5 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/pts_snapshot.py
+0,30 16-23 * * 1-5 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/pts_snapshot.py
+0 0 * * 2-6 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/pts_snapshot.py
+
 # Frankfurter / ECB 対EUR 日次レート。公表は 16:00 CET 前後なので翌朝 JST。空なら 1999-01-04〜。
 0 8 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/fx_rates.py
 

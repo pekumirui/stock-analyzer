@@ -50,6 +50,7 @@ notepad .env                    # JQUANTS_API_KEY を記入
 | `.\run.ps1 batch` / `./run.sh batch` / `batch 2026-08-14` | 日次取込 (日付指定可) |
 | `.\run.ps1 backfill` / `./run.sh backfill` / `backfill 2` | バックフィル (既定5年、年数指定可) |
 | `.\run.ps1 lint` / `./run.sh lint` | Ruff + Bandit（`requirements-dev.txt`） |
+| `python jobs/market/pts_snapshot.py` | 株探の PTS ナイトタイム ランキングを今の分だけ取る（cron は平日 15:30〜24:00） |
 | `python jobs/fx_rates.py --backfill` | 為替（ECB/EUR）を 1999-01-04 から取得。以後は引数なしで差分 |
 
 > **バックフィル年数の目安**
@@ -149,6 +150,7 @@ static/
 jobs/           機能ごと (market/ monthly/ supply/ xbrl/ ops/)。cron は deploy/crontab
   market/run_batch.py   日次バッチ / バックフィル
   market/check_demo.py  スキーマ + 旧デモ取り残しガード
+  market/pts_snapshot.py  株探 PTS ランキング → pts_snapshots（cron は平日 15:30〜24:00）
   ops/backup_db.py      本番 SQLite の日次バックアップ（cron は 05:00 JST。手順は docs/DESIGN_backup.md）
   ops/vps_packages_r2.py  VPS パッケージ一覧 → R2（cron は 06:40 JST）
   fx_rates.py           Frankfurter 為替（EUR ベース。cron は 08:00 JST）

@@ -46,6 +46,8 @@
   .evt-toggles .evt-label { display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none; }
   .evt-toggles .swatch { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
   .tbl-wrap { overflow-x:auto; }
+  #pts-tbl { width:auto; }
+  #pts-summary { font-size:12px; margin:0 0 6px; }
   .clicky { cursor:pointer; color:var(--accent); }
   h3 { font-size:14px; color:var(--sub); margin:8px 0; }
   .suggest { position:absolute; background:var(--panel); border:1px solid var(--border); border-radius:6px; z-index:10; max-height:240px; overflow:auto; }
