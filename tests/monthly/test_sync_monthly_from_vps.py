@@ -153,7 +153,7 @@ def _make_dest(path: Path) -> None:
     con.close()
 
 
-def main() -> None:
+def test_sync_monthly_from_vps() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_p = Path(tmp)
         src = tmp_p / "prod.db"
@@ -202,4 +202,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    test_sync_monthly_from_vps()

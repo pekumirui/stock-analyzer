@@ -12,8 +12,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tools" / "xbrl"))
 
-# ci_smoke から呼ばれても自分の空 DB を使う（setdefault だと test_xbrl_parse の行が残った DB を共有する）
-os.environ["DATABASE_URL"] = f"sqlite:///{tempfile.mkdtemp(prefix='xbrl-units-')}/stock.db"
+# 直接走らせたときは自分の空 DB。pytest では conftest がファイルごとに DB を空にする
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{tempfile.mkdtemp(prefix='xbrl-units-')}/stock.db")
 
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.models import XbrlFiling, XbrlJobRun  # noqa: E402

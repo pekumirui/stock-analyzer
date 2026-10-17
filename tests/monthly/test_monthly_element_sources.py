@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-sources-")
-os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -192,7 +192,7 @@ def test_sync_copies_sources_when_present() -> None:
     sync = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(sync)
 
-    src = Path(_tmp) / "stock.db"
+    src = Path(os.environ["DATABASE_URL"].removeprefix("sqlite:///"))
     work = Path(tempfile.mkdtemp(prefix="stock-analyzer-sources-sync-"))
     slice_path = work / "slice.sqlite"
     counts = sync.dump_monthly_slice(src, slice_path)

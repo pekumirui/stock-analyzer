@@ -21,12 +21,12 @@ REQUIRED = (
     ROOT / "jobs" / "market" / "check_demo.py",
     ROOT / "tools" / "market" / "check_api.py",
     ROOT / "tools" / "monthly" / "read_xls.py",
-    ROOT / "tests" / "ci_smoke.py",
+    ROOT / "tests" / "conftest.py",
     ROOT / "mcp" / "log_mcp.py",
 )
 
 
-def main() -> None:
+def test_layout() -> None:
     for path in REQUIRED:
         if not path.is_file():
             raise SystemExit(f"missing {path.relative_to(ROOT)}")
@@ -43,4 +43,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    test_layout()

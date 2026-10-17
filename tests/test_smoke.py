@@ -1,10 +1,8 @@
-"""CI smoke: 空DBで起動し、主要 API が応答すること。データ投入は CI 用の最小フィクスチャのみ。"""
+"""API スモーク: 空 DB で起動し、主要 API が応答すること。データは手で組んだ最小の行だけ。"""
 from __future__ import annotations
 
 import json
 import os
-import re
-import subprocess
 import sys
 import tempfile
 from datetime import date
@@ -15,7 +13,7 @@ sys.path.insert(0, str(ROOT))
 
 # app.config が DATABASE_URL を読む前に一時DBへ向ける (手元の stock.db を汚さない)
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-ci-")
-os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -72,64 +70,8 @@ def _check_demo_exit() -> int:
     return mod.main()
 
 
-# API スモークの後に subprocess で走らせる。test_layout.py は API より前に走らせるので別枠。
-SUITES = (
-    "monthly/test_monthly_tables.py",
-    "monthly/test_public_monthly.py",
-    "ops/test_nginx_public.py",
-    "ops/test_github_ssh.py",
-    "test_sqlite_deploy.py",
-    "test_golden_db.py",
-    "monthly/test_monthly_ingest.py",
-    "monthly/test_monthly_stock_master.py",
-    "monthly/test_monthly_issuers.py",
-    "monthly/test_monthly_element_sources.py",
-    "monthly/test_monthly_label_snapshot.py",
-    "monthly/test_sync_monthly_from_vps.py",
-    "monthly/test_tdnet_monthly_r2.py",
-    "monthly/test_tdnet_monthly_pending.py",
-    "monthly/test_tdnet_monthly_pdf_sidecar.py",
-    "ops/test_r2_mount.py",
-    "monthly/test_ir_monthly_r2.py",
-    "monthly/test_ir_monthly_html_r2.py",
-    "monthly/test_html_recipe.py",
-    "monthly/test_html_issue248_parity.py",
-    "monthly/test_html_3082_scope.py",
-    "monthly/test_ir_monthly_html_ingest.py",
-    "monthly/test_ir_monthly_xls_ingest.py",
-    "xbrl/test_xbrl_parse.py",
-    "xbrl/test_xbrl_match_rate.py",
-    "xbrl/test_xbrl_units.py",
-    "xbrl/test_tdnet_xbrl_r2.py",
-    "ops/test_vps_packages_r2.py",
-    "ops/test_backup_db.py",
-    "market/test_backfill.py",
-    "ops/test_alert_patterns.py",
-    "monthly/test_html_predicates.py",
-    "market/test_analytics.py",
-    "market/test_jquants.py",
-    "market/test_earnings_schedule.py",
-    "test_fx.py",
-    "supply/test_supply_chain.py",
-    "supply/test_material_stats.py",
-)
-
-
-def unregistered_tests(tests_dir: Path, workflow: str) -> tuple[list[str], list[str]]:
-    """(どこからも走らない test_*.py, 実在しない登録名)。workflow は cicd.yml の本文。"""
-    direct = set(re.findall(r"python tests/((?:\w+/)*test_\w+\.py)", workflow))
-    registered = {"test_layout.py", *SUITES} | direct
-    present = {p.relative_to(tests_dir).as_posix() for p in tests_dir.rglob("test_*.py")}
-    return sorted(present - registered), sorted(set(SUITES) - present)
-
-
-def main() -> None:
+def test_apply_dotenv() -> None:
     from app.config import apply_dotenv
-
-    workflow = (ROOT / ".github" / "workflows" / "cicd.yml").read_text(encoding="utf-8")
-    missing, stale = unregistered_tests(ROOT / "tests", workflow)
-    if missing or stale:
-        raise SystemExit(f"register tests in ci_smoke.SUITES: missing={missing} stale={stale}")
 
     got: dict[str, str] = {"FOO": "keep"}
     apply_dotenv(
@@ -141,13 +83,9 @@ def main() -> None:
     if "NOT KEY" in got or "" in got:
         raise SystemExit(f"apply_dotenv accepted bad keys: {got}")
 
-    layout = subprocess.run(
-        [sys.executable, str(ROOT / "tests" / "test_layout.py")],
-        cwd=ROOT,
-    )
-    if layout.returncode != 0:
-        raise SystemExit("layout tests failed")
 
+
+def test_api_smoke() -> None:
     client = TestClient(app)
 
     r = client.get("/static/monthly_row_order.json")
@@ -397,11 +335,7 @@ def main() -> None:
         f"screener {len(results)}, chart {len(candles)} candles"
     )
 
-    for name in SUITES:
-        proc = subprocess.run([sys.executable, str(ROOT / "tests" / name)], cwd=ROOT)
-        if proc.returncode != 0:
-            raise SystemExit(f"{name} failed")
-
 
 if __name__ == "__main__":
-    main()
+    test_apply_dotenv()
+    test_api_smoke()

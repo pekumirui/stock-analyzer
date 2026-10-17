@@ -28,7 +28,7 @@
 | `static/` | SPA（`index.html` + `css/` + `js/<tab>.js`） |
 | `jobs/` | バッチ・cron。機能ごとのフォルダ、直下は共通 |
 | `config/` | 機能ごとの JSON / YAML 設定と `pyproject.toml`（Ruff / Bandit） |
-| `tests/` | 機能ごとのフォルダ。新しい `test_*.py` は `tests/ci_smoke.py` の `SUITES` に登録する |
+| `tests/` | 機能ごとのフォルダ。`python -m pytest tests` が `test_*.py` を全部集める（登録は要らない）。DB はファイルごとに空から（`tests/conftest.py`） |
 | `tools/` | オフライン検証と手元ヘルパー |
 | `analyzer/` | `stock.db` を読むだけのオフライン分析。約束は `analyzer/README.md` |
 | `mcp/` | VPS 上のログ MCP（別プロセス）。`__init__.py` は置かない（公式 SDK の `mcp` と衝突） |

@@ -119,7 +119,7 @@ DB のバックアップは ConoHa の自動バックアップか、日次で別
 
 `main` にマージすると GitHub Actions がテスト → GitHub Release（タグ）→ ConoHa VPS へデプロイする。変更が `.md` / `docs/` / `.claude/memory/` だけのときは走らない。
 
-1. **PR.** `tests/ci_smoke.py`（起動・検索/スクリーナー/チャート）と Ruff / Bandit（`app` `jobs` `tests` `tools` `deploy`。`app/xbrlp` は除外）
+1. **PR.** `python -m pytest tests`（`tests/` 以下の `test_*.py` を全部。API スモークは `tests/test_smoke.py`）と Ruff / Bandit（`app` `jobs` `tests` `tools` `deploy`。`app/xbrlp` は除外）
 2. **main マージ.** コミットメッセージでバージョンを自動バンプ（`feat:` は minor、`BREAKING CHANGE` / `feat!:` は major、それ以外は patch）。初回は `v0.1.0`
 3. **VPS.** SSH で `git pull` → `provision.sh`（nginx/ufw/certbot/systemd）→ `pip install` → `migrate.py` → `systemctl restart`。
    `stock.db` は触らない
@@ -154,7 +154,7 @@ jobs/           機能ごと (market/ monthly/ supply/ xbrl/ ops/)。cron は de
   fx_rates.py           Frankfurter 為替（EUR ベース。cron は 08:00 JST）
   migrate.py            デプロイごとのスキーマ追随と月次の後始末
 tests/          機能ごと (market/ monthly/ supply/ xbrl/ ops/)
-  ci_smoke.py   CI 起動スモーク (各テストもここから走る)
+  conftest.py   pytest の共通設定（DB はファイルごとに空から）。`python -m pytest tests` で全部走る
 tools/          機能ごと (market/ monthly/ supply/ xbrl/)
   market/check_api.py  J-Quants 疎通確認
 analyzer/       stock.db を読むだけの分析（一覧は analyzer/README.md）
