@@ -1398,7 +1398,7 @@ def test_auto_tree_71340() -> None:
     }
     auto = build_auto_tree("71340", months)
     got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in auto.rows.items()}
-    # 2023 の会社の全店計は yoy だけ。5 つの指標語の無い前年比は各 売上高 の前年比に寄る
+    # 5 つの指標語の無い前年比は各 売上高 の前年比に寄る
     want_yoy = {
         "直営 全店(前年比)": (["全体"], "直営 全店 売上高(前年比)", "直営 全店 売上高"),
         "直営 既存(前年比)": (["全体"], "直営 既存 売上高(前年比)", "直営 既存 売上高"),
@@ -1438,6 +1438,14 @@ def test_auto_tree_71340() -> None:
     m = monthly_element_label("日本 ラ・ボエム 既存 売上高(前年比)", "yoy_index", "99990")
     if _auto_split(m) != ("ラ・ボエム", "日本 既存 売上高(前年比)"):
         _fail(f"country 日本 ラ・ボエム: {_auto_split(m)!r}")
+    # group の中のチャネルの語（TCC）は節にせず葉に残す（31930 鳥貴族 直営 425 + TCC 272 = 鳥貴族 697）
+    m = monthly_element_label("日本 鳥貴族 TCC 店舗数", "number", "99990")
+    if _auto_split(m) != ("鳥貴族", "日本 TCC 店舗数"):
+        _fail(f"country 日本 鳥貴族 TCC: {_auto_split(m)!r}")
+    # 括弧で始まる group（43430 曜日調整）は節にしない
+    m = monthly_element_label("日本 (曜日調整前) 既存 売上高(前年比)", "yoy_index", "99990")
+    if _auto_split(m) != ("", "日本 (曜日調整前) 既存 売上高(前年比)"):
+        _fail(f"country 日本 (曜日調整前): {_auto_split(m)!r}")
     # 国の語と group が噛み合わないときは根のまま（噛み合う group だけ節にする）
     if _auto_split({"display": "海外 アップガレージ 店舗数", "group": "アップガレージグループ"}) \
             != ("", "海外 アップガレージ 店舗数"):
@@ -1446,6 +1454,24 @@ def test_auto_tree_71340() -> None:
     m = monthly_element_label("日本+海外 直営+FC 全店 店舗数", "number", "99991")
     if _auto_split(m) != ("", "直営+FC 全店 店舗数"):
         _fail(f"company country group must strip whole: {_auto_split(m)!r}")
+
+
+def test_auto_tree_country_total_keeps_country() -> None:
+    """46800 ラウンドワン: `日本 総 売上高` は `日本 売上高`。節（ボウリング …）も `日本 売上高` なので
+    会社の `日本 ` 付きの行を国なしに寄せない（寄せると国の語の無い 米国 の節の `売上高` の親になる）。
+    """
+    from app.monthly.tree import build_auto_tree
+
+    months = {2025: [
+        ("日本 ボウリング 売上高", "number"), ("日本 カラオケ 売上高", "number"), ("日本 総 売上高", "number"),
+        ("米国 ボウリング 売上高", "number"), ("米国 総 売上高", "number"),
+    ]}
+    rows = build_auto_tree("46800", months).rows
+    if (rows["日本 総 売上高"]["path"], rows["日本 総 売上高"]["metric"]) != (["全体"], "日本 売上高"):
+        _fail(f"46800 日本 総: {rows['日本 総 売上高']!r}")
+    if (rows["日本 ボウリング 売上高"]["path"], rows["日本 ボウリング 売上高"]["metric"]) \
+            != (["全体", "ボウリング"], "日本 売上高"):
+        _fail(f"46800 日本 ボウリング: {rows['日本 ボウリング 売上高']!r}")
 
 
 def test_union_collapses_yoy_display_names() -> None:

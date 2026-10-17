@@ -220,6 +220,8 @@ _TOTAL_TOKENS = frozenset({"企業計", "グループ総", "チェーン", "総"
 # group の中の指標の語。節にせず葉に残す（LOIVE `ピラティスK 増減 店舗数` は ピラティスK の 増減 店舗数、
 # スズデン 増減額、MV東海 / 大黒天 の 同規模・一品（単価）・買上点数）
 _METRIC_TOKENS = frozenset({"増減", "増減額", "同規模", "一品", "買上点数"})
+# group の中のチャネルの語。節にせず葉に残す（31930 `日本 鳥貴族 TCC 店舗数` は 鳥貴族 の `日本 TCC 店舗数`）
+_GROUP_CHANNEL_TOKENS = frozenset({"TCC"})
 # 指標の並びは見る順: チャネル（無印・直営+FC → 直営 → FC）→ 国（無印 → 日本 → 海外）→ 既存 → 全店 → 売上高 → 客数 → 客単価 → 店舗 …
 _AUTO_CHANNEL_RANK = {"": 0, "直営+FC": 0, "直営": 1, "FC": 2}
 _AUTO_COUNTRY_RANK = {"": 0, "日本+海外": 0, "日本": 1, "海外": 2}
@@ -237,28 +239,18 @@ def monthly_display_years(years: Sequence[int]) -> list[int]:
 
 def _auto_split(label: Mapping[str, Any]) -> tuple[str, str]:
     """(節にする group, 葉)。行名全体が group（指標の無い行）と会社全体の合計は節にしない。
-    group の中の合計の語は節からも葉からも外し、指標の語は節から外して葉の頭に残す。内訳はこのあと葉から外す。
+    group の中の合計の語は節からも葉からも外し、指標の語とチャネルの語は節から外して葉の頭に残す。内訳はこのあと葉から外す。
+    国の語（`日本` / `海外`）が group の前に出る行（31930 `日本 鳥貴族 店舗数`、7134 `海外 アップガレージ 店舗数`）は
+    国の語を剥がして group に当て、国の語は葉の頭に残す（#590）。括弧で始まる group（43430 `(曜日調整前)`）は節にしない
     """
     s = str(label["display"])
     g = str(label["group"] or "")
+    country = next((c for c in ("日本", "海外") if s.startswith(c + " ")), "")
+    if g and country and not g.startswith("(") and s.startswith(f"{country} {g} "):
+        s = s[len(country) + 1:]
+    else:
+        country = ""
     if not g or not s.startswith(g + " "):
-        # 国の語（`日本` / `海外`）が group の前に出る行（7134 `海外 アップガレージ 店舗数`、#590）は
-        # group は `monthly_row_segment` で取れているので、国の語を剥がして group に当て直す。
-        # 国の語は葉にも残す（指標は 海外 店舗数 → 店舗数 ▸ 海外、#580）
-        head = ""
-        while True:
-            c = next((c2 for c2 in ("海外", "日本") if s.startswith(c2 + " ")), "")
-            if not c:
-                break
-            head = f"{head}{c} "
-            s = s[len(c) + 1:]
-        if g and s.startswith(g + " "):
-            toks = g.split(" ")
-            group = " ".join(t for t in toks if t not in _TOTAL_TOKENS and t not in _METRIC_TOKENS)
-            leaf = " ".join([*([head.strip()] if head.strip() else []),
-                             *(t for t in toks if t in _METRIC_TOKENS), s[len(g) + 1:]])
-            return group, leaf
-        s = str(label["display"])
         # 指標の無い行（`グループ 稼働率`）も会社全体の語は葉から剥がす
         head = next((c for c in _COMPANY_GROUPS if s.startswith(c + " ")), "")
         return "", s[len(head) + 1:] if head else s
@@ -266,8 +258,10 @@ def _auto_split(label: Mapping[str, Any]) -> tuple[str, str]:
     if g in _COMPANY_GROUPS:
         return "", rest
     toks = g.split(" ")
-    group = " ".join(t for t in toks if t not in _TOTAL_TOKENS and t not in _METRIC_TOKENS)
-    leaf = " ".join([*(t for t in toks if t in _METRIC_TOKENS), rest])
+    group = " ".join(t for t in toks if t not in _TOTAL_TOKENS and t not in _METRIC_TOKENS
+                     and t not in _GROUP_CHANNEL_TOKENS)
+    leaf = " ".join([*((country,) if country else ()),
+                     *(t for t in toks if t in _GROUP_CHANNEL_TOKENS or t in _METRIC_TOKENS), rest])
     return group, leaf
 
 
@@ -361,8 +355,8 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
     bd_first: dict[tuple[str, str], tuple[int, int]] = {}
     rows: dict[str, dict[str, Any]] = {}
     metric_key: dict[str, tuple] = {}
-    sales: dict[tuple[str, ...], set[str]] = {}
-    sales_info: dict[tuple[str, ...], list[tuple[str, str, str, str]]] = {}
+    # 節 → その節の金額の売上高の行の (チャネル, 範囲, 国, 指標)
+    sales: dict[tuple[str, ...], list[tuple[str, str, str, str]]] = {}
     seen = 0
 
     def place(element: str, unit: str, L: Mapping[str, Any], canon: str, group: str, leaf: str,
@@ -383,9 +377,7 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
         idx = union_idx.get(canon, len(union_idx) + seen)
         rows[element] = {"path": list(path), "leaf": leaf, "metric": metric, "order": idx}
         if L["metric_kind"] == "sales" and not monthly_row_unit_rank(unit):
-            sales.setdefault(path, set()).add(metric)
-            sales_info.setdefault(path, []).append(
-                (str(L["channel"]), str(L["scope"]), str(L["country"]), metric))
+            sales.setdefault(path, []).append((str(L["channel"]), str(L["scope"]), str(L["country"]), metric))
         # 指標の並びは会社の行を代表にする（無ければ最初に見た節の行）
         key = (
             _AUTO_CHANNEL_RANK.get(str(L["channel"]), 3),
@@ -403,7 +395,7 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
     # 指標の語が無くて チャネル / 範囲 だけの前年比（7134 `直営 全店(前年比)`、`FC 既存(前年比)`）は、
     # 同じ節の 同じ チャネル + 範囲 の 売上高 の行に寄せる（#578 / #580）。直営+FC はチャネル無しの売上高へ。
     # 売上高が 複数で決まらなければ行名のまま根。節の売上高の行を先に見てから寄せるので、いったん持ち送り。
-    pending: list[tuple[str, str, Mapping[str, Any], str]] = []
+    pending: list[tuple[str, str, Mapping[str, Any], str, str, str]] = []
     deferred: set[str] = set()
     for y in newest:
         for element, unit in years[y]:
@@ -420,22 +412,19 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
                 continue
             if monthly_row_unit_rank(unit) and not L["metric"] and not L["breakdown"] \
                     and (L["channel"] or L["scope"]):
-                pending.append((element, unit, L, canon))
+                pending.append((element, unit, L, canon, group, leaf))
                 deferred.add(element)
                 continue
             place(element, unit, L, canon, group, leaf)
-    for element, unit, L, canon in pending:
-        group, leaf = _auto_split(L)
-        path = (AUTO_ROOT, *((group,) if group else ()))
-        cands = sales_info.get(tuple(path), [])
-        m = _yoy_sales_parent(L, cands)
+    for element, unit, L, canon, group, leaf in pending:
+        m = _yoy_sales_parent(L, sales.get((AUTO_ROOT, *((group,) if group else ())), []))
         if m is not None:
             suffix = str(L["display"])[len(strip_yoy_fragments(str(L["display"]))):]
             place(element, unit, L, canon, group, m + suffix, m)
         else:
             place(element, unit, L, canon, group, leaf)
     for element, unit, L, canon, own, group, leaf in bare:
-        cands = sales.get((AUTO_ROOT, *((own,) if own else ())), set())
+        cands = {c[3] for c in sales.get((AUTO_ROOT, *((own,) if own else ())), [])}
         if len(cands) == 1:
             m = next(iter(cands))
             place(element, unit, L, canon, own, m + str(L["display"])[len(strip_yoy_fragments(str(L["display"]))):], m)
@@ -443,11 +432,13 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
             place(element, unit, L, canon, group, leaf)
     # 節にしか無い指標は、会社の `日本 ` 付きの行を親にする（物語: 直営 全店 店舗数 の親は 日本 直営 全店 店舗数 553）。
     # 会社に同じ指標の行があるとき（直営+FC 全店 店舗数 は 日本+海外 の 932）は寄せない。
+    # 節の行が `日本 ` 付きの指標を使っているとき（46800 `日本 ボウリング 売上高`）も寄せない（`日本 総 売上高` は 日本 のまま）
     company = {r["metric"] for r in rows.values() if len(r["path"]) == 1}
+    node_metrics = {r["metric"] for r in rows.values() if len(r["path"]) > 1}
     folded: list[str] = []
-    for m in {r["metric"] for r in rows.values() if len(r["path"]) > 1} - company:
+    for m in node_metrics - company:
         domestic = "日本 " + m
-        if domestic not in company:
+        if domestic not in company or domestic in node_metrics:
             continue
         for r in rows.values():
             if len(r["path"]) == 1 and r["metric"] == domestic:
