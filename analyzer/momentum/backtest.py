@@ -12,7 +12,7 @@
 - 保有期間: 判定日の終値 → 3 か月後の判定日の終値（= 翌営業日から 3 か月）。同じく超過
 - 価格は close と adj_factor から自前で遡及調整する。DB の adj_close は直近の分割が
   過去日へ反映されていないことがある（2026-08-28 効力の 5 件で確認）ため使わない
-- 判定日に売買の無い銘柄は除く（形成開始日だけ STALE_LIMIT 営業日まで前方埋め）
+- 判定日に売買の無い銘柄は除く（形成開始日だけ FORM_START_FFILL_BDAYS 営業日まで前方埋め）
 - 保有中に上場廃止した銘柄は最終終値で現金化したとみなす（以降の超過は −TOPIX）
 - 判定日ごとに形成期間の超過リターンで 5 分位。Q1 = 最も強い、Q5 = 最も弱い。等ウェイト
 """
@@ -28,8 +28,7 @@ import pandas as pd
 
 MONTHS = 3  # 保有期間
 TURNOVER_WINDOW = 20  # 営業日
-STALE_LIMIT = 5  # 形成開始日の価格をこの営業日数まで前方埋めする
-NW_LAGS = MONTHS - 1  # 保有期間が 3 か月重なるので Newey-West のラグは 2
+FORM_START_FFILL_BDAYS = 5
 
 
 def connect(db: str) -> sqlite3.Connection:
@@ -118,6 +117,28 @@ def check_adjustment(con: sqlite3.Connection, adj: pd.DataFrame) -> str:
     )
 
 
+def month_end_decision_dates(dates: pd.DatetimeIndex) -> list[pd.Timestamp]:
+    me = list(pd.Series(dates, index=dates).groupby(dates.to_period("M")).max())
+    if (me[-1] + pd.offsets.BDay(1)).month == me[-1].month:
+        me = me[:-1]
+    return me
+
+
+def q1_strong_quintiles(form_ex: pd.Series):
+    return pd.qcut(form_ex.rank(method="first", ascending=False), 5, labels=False) + 1
+
+
+def newey_west_t(values: np.ndarray, hold_months: int = MONTHS) -> float:
+    lags = hold_months - 1
+    n = len(values)
+    mean = values.mean()
+    x = values - mean
+    s = (x @ x) / n
+    for k in range(1, lags + 1):
+        s += 2 * (1 - k / (lags + 1)) * (x[k:] @ x[:-k]) / n
+    return mean / np.sqrt(s / n)
+
+
 def build_panel(
     adj: pd.DataFrame,
     turnover: pd.DataFrame,
@@ -127,12 +148,8 @@ def build_panel(
     skip_months: int = 0,
 ) -> pd.DataFrame:
     dates = adj.index
-    me = list(pd.Series(dates, index=dates).groupby(dates.to_period("M")).max())
-    # 最終月は月末まで揃っていなければ判定日に使わない（翌営業日が同じ月なら途中）
-    if (me[-1] + pd.offsets.BDay(1)).month == me[-1].month:
-        me = me[:-1]
-
-    fresh = adj.ffill(limit=STALE_LIMIT)
+    me = month_end_decision_dates(dates)
+    fresh = adj.ffill(limit=FORM_START_FFILL_BDAYS)
     last_px = adj.ffill()  # 廃止後は最終終値のまま
     liq = turnover.rolling(TURNOVER_WINDOW, min_periods=TURNOVER_WINDOW).mean()
 
@@ -159,10 +176,7 @@ def build_panel(
             )
         )
     panel = pd.concat(rows, ignore_index=True)
-    # 5 分位。Q1 = 形成期間が最も強い
-    panel["q"] = panel.groupby("date")["form_ex"].transform(
-        lambda s: pd.qcut(s.rank(method="first", ascending=False), 5, labels=False) + 1
-    )
+    panel["q"] = panel.groupby("date")["form_ex"].transform(q1_strong_quintiles)
     return panel
 
 
@@ -171,16 +185,11 @@ def stats(monthly: pd.DataFrame) -> dict[str, float]:
     n = len(spread)
     mean = spread.mean()
     sd = spread.std(ddof=1)
-    # Newey-West（ラグ NW_LAGS）。月次判定で 3 か月保有なので系列は重なり、素の t は過大になる
-    x = spread - mean
-    s = (x @ x) / n
-    for k in range(1, NW_LAGS + 1):
-        s += 2 * (1 - k / (NW_LAGS + 1)) * (x[k:] @ x[:-k]) / n
     return {
         "months": n,
         "mean": mean,
         "t": mean / (sd / np.sqrt(n)),
-        "t_nw": mean / np.sqrt(s / n),
+        "t_nw": newey_west_t(spread),
         "win": (spread > 0).mean(),
         "from": monthly.index.min().strftime("%Y-%m"),
         "to": monthly.index.max().strftime("%Y-%m"),
@@ -213,7 +222,7 @@ def summarize(panel: pd.DataFrame, split: pd.Timestamp) -> tuple[pd.DataFrame, l
     out.append("| 判定月数 | " + " | ".join(str(s["months"]) for s in st.values()) + " |")
     out.append("| 平均 | " + " | ".join(pct(s["mean"]) for s in st.values()) + " |")
     out.append("| t 値（素朴） | " + " | ".join(f"{s['t']:+.2f}" for s in st.values()) + " |")
-    out.append(f"| t 値（Newey-West, lag {NW_LAGS}） | " + " | ".join(f"{s['t_nw']:+.2f}" for s in st.values()) + " |")
+    out.append(f"| t 値（Newey-West, lag {MONTHS - 1}） | " + " | ".join(f"{s['t_nw']:+.2f}" for s in st.values()) + " |")
     out.append("| プラスの月の割合 | " + " | ".join(f"{s['win'] * 100:.0f}%" for s in st.values()) + " |")
     out.append(
         "| 1 判定日あたり銘柄数（平均） | " + " | ".join(f"{v['n'].mean():,.0f}" for v in periods.values()) + " |"
