@@ -76,7 +76,7 @@ METI_SEIDOU_URL = os.getenv(
 METI_SEKIYU_KAKUHO_URL = os.getenv("METI_SEKIYU_KAKUHO_URL", "https://www.meti.go.jp/statistics/tyo/sekiyuka/index.html")
 METI_SEKIYU_SOKUHO_URL = os.getenv("METI_SEKIYU_SOKUHO_URL", "https://www.meti.go.jp/statistics/tyo/sekiyuso/result.html")
 METI_USER_AGENT = "Mozilla/5.0 (compatible; stock-analyzer; +https://kabukpi.com/)"
-# 経産省 Excel が取れない（WAF・空の本文）状態がこの日数続いたら material_stats が failed= を出して page する
+# 経産省 Excel が取れない日数がこれ以上続いたら material_stats が台帳の診断行を出す（page は summary の failed=）
 METI_FAIL_PAGE_DAYS = int(os.getenv("METI_FAIL_PAGE_DAYS", "3"))
 
 # レートリミット (プラン別: Free=5 / Light=60 / Standard=120 / Premium=500)

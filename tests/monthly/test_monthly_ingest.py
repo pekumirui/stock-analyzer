@@ -2962,6 +2962,68 @@ def _check_count_cases(cases) -> None:
             _fail(f"count peel group {src!r}: {lab['group']!r}")
 
 
+def test_issuer_rate_metrics_14350() -> None:
+    """14350 の入居率は件数辞書と同じく層だけ指標。保存名は並べ替えない（KAB-11 / #662）。"""
+    code = "14350"
+    cases = (
+        ("入居率 全体", "全体", "入居率"),
+        ("入居率 自社施工", "自社施工", "入居率"),
+        ("入居率 管理受託", "管理受託", "入居率"),
+    )
+    for src, segment, metric in cases:
+        got = canonicalize_element_label(src, "number")
+        if got != src:
+            _fail(f"occupancy stored name must not reorder {src!r} -> {got!r}")
+        layers = parse_element_layers(src, code=code)
+        if layers["metric"] != metric or layers["segment"] != segment:
+            _fail(f"14350 occupancy layers {src!r}: {layers!r}")
+        lab = monthly_element_label(src, "number", code)
+        if (
+            lab["metric"] != metric
+            or lab["segment"] != segment
+            or lab["metric_kind"] != "count"
+            or lab["display"] != src
+        ):
+            _fail(f"14350 occupancy label {src!r}: {lab!r}")
+        for other in (None, "18780", "29910"):
+            leaked = monthly_element_label(src, "number", other)
+            if leaked["metric"] or leaked["segment"] != src:
+                _fail(f"occupancy leaked to code={other!r} {src!r}: {leaked!r}")
+
+    units = parse_element_layers("管理戸数 全体", code=code)
+    if units["metric"] != "管理戸数" or units["segment"] != "全体":
+        _fail(f"14350 管理戸数 still peels: {units!r}")
+
+    side = (
+        ("18780", "家賃ベース入居率"),
+        ("18780", "家賃ベース入居率 事業用"),
+        ("18780", "家賃ベース入居率 居住用"),
+        ("29910", "入居率"),
+        ("90070", "ホテル センチュリー 客室稼働率"),
+        ("31740", "粗利率 既存"),
+        ("89140", "稼働率 既存"),
+        ("21540", "エンジニア 稼働率"),
+    )
+    for other, src in side:
+        if canonicalize_element_label(src, "number") != src:
+            _fail(
+                f"rate side stored {other} {src!r} -> "
+                f"{canonicalize_element_label(src, 'number')!r}"
+            )
+        lab = monthly_element_label(src, "number", other)
+        if lab["metric"]:
+            _fail(f"rate side must not peel metric {other} {src!r}: {lab!r}")
+
+    if canonicalize_element_label("既存 空室数", "number") != "空室数 既存":
+        _fail("空室数 stays leftover so 既存 reorders after it")
+    vacant = monthly_element_label("空室数 既存", "number", "18780")
+    if vacant["metric"]:
+        _fail(f"空室数 must stay leftover: {vacant!r}")
+    members = monthly_element_label("会員数 既存", "number")
+    if members["metric"] or members["metric_kind"] != "other":
+        _fail(f"会員数 must stay leftover: {members!r}")
+
+
 def test_count_metric_keeps_pre534_stored_names() -> None:
     """#534 の件数 peel は層だけ。保存名と起動時の寄せは #534 前と同じ。"""
     stored = (
@@ -3100,6 +3162,7 @@ def main() -> None:
         test_alias_rename_takes_unit_from_names(Path(d))
     test_monthly_element_label()
     test_issuer_count_metrics()
+    test_issuer_rate_metrics_14350()
     test_count_metric_keeps_pre534_stored_names()
     test_department_store_layers()
     test_issuer_alias_cases()

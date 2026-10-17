@@ -169,8 +169,8 @@ class MetiArchive:
 class MetiLedger:
     """経産省 Excel の取得の台帳（{kind: {"ok": 最後に全部取れた日, "fail_since": 取れなくなった日}}）。
 
-    WAF の確認は毎日のように返るので 1 回の失敗では page しない。最後に全部取れた日（無ければ取れなくなった日）から
-    METI_FAIL_PAGE_DAYS 日たっても取れなければ、毎回 failed= の行を出す（fluent-bit が #alerts-batch に送る）。
+    行単位の `fail meti …` は page しない。page はジョブ最終行の failed=K。台帳は続けて取れない日数の診断用で、
+    METI_FAIL_PAGE_DAYS 日たっても取れなければ `not fetched for N days` を出す（failed= は付けない）。
     """
 
     def __init__(self, path: Path | None) -> None:
@@ -194,7 +194,7 @@ class MetiLedger:
         if days < page_days:
             return None
         return (f"material_stats meti {kind} not fetched for {days} days (last ok {st.get('ok', '-')}) "
-                f"failed={len(fails)} {','.join(fails[:5])}")
+                f"n={len(fails)} {','.join(fails[:5])}")
 
     def save(self) -> None:
         if not self.path:
@@ -421,8 +421,9 @@ def main() -> int:
                 if line:
                     print(line)
             ledger.save()
-        print(f"material_stats done written={n}")
-        return 0
+        k = sum(len(v) for v in fails.values())
+        print(f"material_stats done written={n} failed={k}")
+        return 1 if k else 0
     finally:
         db.close()
 

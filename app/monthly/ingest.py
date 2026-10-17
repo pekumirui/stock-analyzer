@@ -350,7 +350,7 @@ def _unglue_element(text: str) -> str:
 
 
 def load_issuer_metrics(path: Path | None = None) -> dict[str, frozenset[str]]:
-    """issuer code → 件数指標の語。その銘柄の層の分解だけで指標にする。保存名には使わない。"""
+    """issuer code → 件数・率指標の語。その銘柄の層の分解だけで指標にする。保存名には使わない。"""
     raw = json.loads((path or ISSUER_METRICS_PATH).read_text(encoding="utf-8"))
     out: dict[str, frozenset[str]] = {}
     if not isinstance(raw, dict):
@@ -379,7 +379,7 @@ def _peel_metric(
     """指標語をトークンの前後から剥がす。残りはセグメント候補。
 
     短い接頭辞（売上/来客/単価）は前方一致しない（売上変化を売上高にしない）。
-    count_metrics は銘柄別の件数指標（`config/monthly/issuer_metrics.json`）。完全一致だけ。
+    count_metrics は銘柄別の件数・率指標（`config/monthly/issuer_metrics.json`）。完全一致だけ。
     """
     if tok in _ACTIVE_STORE_BREAKDOWN_RANK:
         return None, tok
@@ -588,7 +588,7 @@ def _peel_active_store_breakdown(
 def parse_element_layers(element: str, *, code: str | None = None) -> dict[str, str]:
     """国 / セグメント / 時間軸 / チャネル / スコープ / 指標 / 内訳。正規化前の名前でも読む。
 
-    code があれば、その銘柄の件数指標の語も指標にする。保存名（normalize_element_tokens）は code を渡さない。
+    code があれば、その銘柄の件数・率指標の語も指標にする。保存名（normalize_element_tokens）は code を渡さない。
     """
     count_metrics = issuer_count_metrics(code)
     country = ""
@@ -668,7 +668,7 @@ def normalize_element_tokens(element: str, *, fill_default_metric: bool = False)
     trimmed = re.sub(r"\s+", " ", element.strip())
     if not trimmed:
         return trimmed
-    # 銘柄別の件数指標は層だけ。保存名の並べ替えには使わない（#534 前と同じ語順）。
+    # 銘柄別の件数・率指標は層だけ。保存名の並べ替えには使わない（#534 前と同じ語順）。
     parts = parse_element_layers(trimmed)
     # leftover に会員数がある yoy は売上高を補わない（#366）。
     if (
@@ -1253,7 +1253,7 @@ class MonthlyElementLabel(TypedDict):
 def monthly_element_label(
     element: str, unit: str | None, code: str | None = None,
 ) -> MonthlyElementLabel:
-    """code は銘柄別の件数指標（`config/monthly/issuer_metrics.json`）を層に効かせる。表示名は code で変わらない。"""
+    """code は銘柄別の件数・率指標（`config/monthly/issuer_metrics.json`）を層に効かせる。表示名は code で変わらない。"""
     u = unit or "number"
     canon = canonicalize_element_label(strip_monthly_display_unit(element, u), u)
     display = monthly_display_label(canon, u)
