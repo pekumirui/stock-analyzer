@@ -404,3 +404,21 @@ class MaterialTradeCountry(Base):
     revision = Column(Integer, nullable=False)     # 1 速報 / 2 確報。下がる上書きはしない
     origin = Column(String)                        # e-Stat の表 ID
     updated_at = Column(DateTime)
+
+
+class PtsSnapshot(Base):
+    """株探の PTS ナイトタイムセッションのランキング。取得 1 回ごとにランキング全行を残す。"""
+    __tablename__ = "pts_snapshots"
+    fetched_at = Column(DateTime, primary_key=True)  # 取得時刻 JST
+    ranking = Column(String, primary_key=True)       # night_up / night_down / night_volume
+    code = Column(String(5), primary_key=True)       # stocks.code と同じ 5 桁。FK は付けない
+    session_date = Column(Date, nullable=False)      # 比べている通常取引の終値の日
+    as_of = Column(String(5))                        # 株探の「HH:MM現在」（15 分ディレイ）
+    rank = Column(Integer, nullable=False)
+    name = Column(String)
+    market = Column(String)
+    base_close = Column(Float)                       # 通常取引の終値
+    pts_price = Column(Float)
+    pts_chg_pct = Column(Float)                      # 終値比 %
+    volume = Column(Integer)
+    __table_args__ = (Index("ix_pts_session_ranking", "session_date", "ranking"),)

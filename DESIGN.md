@@ -164,6 +164,13 @@ monthly_element_sources  -- 送られてきたままの行名 → 今の保存�
   first_seen_at, last_seen_at
   -- source_label は一度入れたら書き換えない。記録前からある行はデプロイ時に保存名そのものを legacy で入れる
 
+pts_snapshots     -- 株探の PTS ナイトタイムセッション ランキング。取得 1 回ごとにランキング全行
+  fetched_at, ranking, code PK  -- 取得時刻 JST / night_up・night_down・night_volume / 5桁コード (FK なし)
+  session_date            -- 比べている通常取引の終値の日（株探の見出し「D日終値」から。取得日ではない）
+  as_of                   -- 株探の「HH:MM現在」。同じ session_date・ranking・as_of は書かない
+  rank, name, market, base_close, pts_price, pts_chg_pct, volume
+  -- 索引 (session_date, ranking)
+
 fx_rates          -- ECB 対EUR 日次レート (Frankfurter api.frankfurter.dev/v1)
   date, quote PK  -- quote は ISO 4217（USD / JPY 等）。EUR 自身は持たない
   rate            -- 1 EUR = rate quote。任意ペアは EUR クロス（quote/base）
@@ -277,6 +284,14 @@ IR 月次 HTML（`jobs/monthly/ir_monthly_html_r2.py`）:
 
 TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。
 スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。決算速報 UI の正本は当面 `statements` のまま。XBRL 層で上書きしない。
+
+**PTS ランキング（`pts_snapshots`）。** 株探 `https://kabutan.jp/warning/` の `pts_night_price_increase` / `pts_night_price_decrease` / `pts_night_volume_ranking`（夜間 PTS。株価は 15 分ディレイ）。取得は `app/market/pts.py`、ジョブは `jobs/market/pts_snapshot.py`。キー不要。画面は `docs/DESIGN_pts.md`。
+
+- 1 ページ 15 銘柄。各ランキング 5 ページ（75 銘柄）まで。リクエストの間は 3 秒
+- 1 ページ目の見出し「通常取引 D日終値」の D を、今日以前で一番近いその日にして `session_date` にする。夕方の開始前や休日は前のセッションのまま出るため。前夜の最終（株探のナイトタイムは 06:00 まで）は翌日 15:30 の回が拾う
+- 1 ページ目の「HH:MM現在」が同じセッション・ランキングで保存済みなら、残りのページを取らずに飛ばす
+- 3 本とも取得に失敗したら非ゼロ終了。cron は平日 15:30〜24:00 の 30 分ごと（`deploy/crontab`）
+- 翌営業日の始値は `daily_prices` の `session_date` より後の最初の日足の `open`（調整前）。19:30 の日次バッチの後に埋まる
 
 **VPS パッケージ一覧（`jobs/ops/vps_packages_r2.py`）。** 読み取り専用。R2 の `inventory/` へ書く。中身と cron は [`deploy/README.md`](deploy/README.md)。
 
@@ -399,6 +414,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `GET /api/chart/{code}?tf=D|W|M&ma=50,150,200&rel=topix` | 株価チャートデータ。W/M は日足を ISO週 / 暦月で集約 (足の日付は期間の最終営業日)。MA 期間は営業日換算 (週=÷5、月=÷20) |
 | `GET /api/earnings-performance/{code}` | 決算日からの対TOPIXリターン |
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
+| `GET /api/pts?date=2026-10-16&ranking=night_up&at=2026-10-16 23:30:00` | PTS ランキング 1 回分と翌営業日の始値とのギャップ。`ranking` は `night_up` / `night_down` / `night_volume`（ほかは 400）。`date` 省略で最新のセッション、`at`（`fetched_at`）省略かつ不一致で最新の取得。形は `docs/DESIGN_pts.md` |
 | `GET /api/stocks/search?q=トヨタ` | 銘柄検索。名前の部分一致（q を NFKC とひらがな→カタカナに寄せたものでも引く）とコードの前方一致。最大 20 件 |
 | `GET /api/supply/graph` | サプライタブの素材と流れ（`config/supply/supply_chain.json`）。形は `docs/DESIGN_supply.md` |
 | `GET /api/supply/monthly/{material_id}` | 素材の月次量（`material_monthly`）と見掛け消費。形は `docs/DESIGN_supply.md`。素材が無ければ 404 |
@@ -418,6 +434,10 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 ### 決算速報の画面
 
 画面は `docs/DESIGN_earnings.md`。書き方は `docs/SCREEN_SPEC.md`。
+
+### PTS タブの画面
+
+画面は `docs/DESIGN_pts.md`。書き方は `docs/SCREEN_SPEC.md`。
 
 ### 月次タブの画面
 
@@ -451,7 +471,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 |---|---|
 | API + SPA | 同一 VPS の uvicorn（systemd、ワーカー1） |
 | DB | `stock.db`（VPS の SSD）。`DATABASE_URL` は今の SQLite のまま |
-| バッチ | crontab（19:30 JST の J-Quants 日次。為替は 08:00 JST。パッケージ一覧は 06:40 JST。SQLite バックアップは 05:00 JST） |
+| バッチ | crontab（19:30 JST の J-Quants 日次。株探 PTS は平日 15:30〜24:00 の 30 分ごと。為替は 08:00 JST。パッケージ一覧は 06:40 JST。SQLite バックアップは 05:00 JST） |
 | バックアップ | VPS ローカル gzip（`/home/stock/backups`）。手順は [`docs/DESIGN_backup.md`](docs/DESIGN_backup.md) |
 | 公開 | nginx + Let's Encrypt。月次閲覧は `/monthly`（Basic なし）。個人ツールは `/app` + Basic 認証 |
 | 開発 | 今どおり Windows + `.\run.ps1` |
