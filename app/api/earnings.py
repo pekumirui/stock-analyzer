@@ -75,23 +75,29 @@ def actual_month_facts(db: Session, month: str, today: date) -> ActualMonth:
     return ActualMonth({d: int(n) for d, n in rows}, codes)
 
 
-_HIST_COLS = tuple(c for c in Statement.__table__.columns if c.key != "raw_json")
+_LIST_HISTORY_COLUMNS = tuple(
+    c for c in Statement.__table__.columns if c.key != "raw_json")
+
+
+def prefetch_list_history(db: Session, codes, day: date) -> dict[str, list]:
+    """指定日までの一覧用履歴を銘柄ごとにまとめて取る。"""
+    hist_by_code: dict[str, list] = defaultdict(list)
+    since = day - timedelta(days=EP["list_history_days"])
+    for row in db.execute(
+            select(*_LIST_HISTORY_COLUMNS)
+            .where(Statement.code.in_(codes),
+                   Statement.disclosed_date <= day,
+                   Statement.disclosed_date >= since)
+            .order_by(Statement.code, Statement.disclosed_date)):
+        hist_by_code[row.code].append(row)
+    return hist_by_code
 
 
 def earnings_rows(db: Session, day: date) -> list[dict]:
     """その日の決算速報一覧 (QoQ=Q単独の前四半期比 / YoY=累計の前年同期比)。"""
     codes = select(Statement.code).where(
         Statement.disclosed_date == day, _ACTUAL_DOC, _not_excluded_product(Statement.code))
-    # 開示1件ごとに履歴を引くとピーク日(約1,000件)で数千クエリになるため、まとめて取って配る
-    hist_by_code: dict[str, list[Statement]] = defaultdict(list)
-    # 読むだけなので ORM の実体ではなく Row で受ける (ピーク日は数万行あり、実体化と属性アクセスが支配的)
-    for s in db.execute(
-            select(*_HIST_COLS)
-            .where(Statement.code.in_(codes),
-                   Statement.disclosed_date <= day,
-                   Statement.disclosed_date >= day - timedelta(days=EP["list_history_days"]))
-            .order_by(Statement.code, Statement.disclosed_date)):
-        hist_by_code[s.code].append(s)
+    hist_by_code = prefetch_list_history(db, codes, day)
     names = dict(db.query(Stock.code, Stock.name).filter(Stock.code.in_(codes)).all())
 
     out = []
