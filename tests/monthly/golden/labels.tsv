@@ -92,9 +92,9 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 14350	2026	2	legacy	number	管理戸数 全体	管理戸数 全体	number	管理戸数 全体	count	全体		管理戸数	全体	管理戸数 全体
 14350	2026	3	legacy	number	管理戸数 自社施工	管理戸数 自社施工	number	管理戸数 自社施工	count	自社施工		管理戸数	全体	管理戸数 自社施工
 14350	2026	4	legacy	number	管理戸数 管理受託	管理戸数 管理受託	number	管理戸数 管理受託	count	管理受託		管理戸数	全体	管理戸数 管理受託
-14350	2026	5	legacy	number	入居率 全体	入居率 全体	number	入居率 全体	other	入居率 全体			全体	入居率 全体
-14350	2026	6	legacy	number	入居率 自社施工	入居率 自社施工	number	入居率 自社施工	other	入居率 自社施工			全体	入居率 自社施工
-14350	2026	7	legacy	number	入居率 管理受託	入居率 管理受託	number	入居率 管理受託	other	入居率 管理受託			全体	入居率 管理受託
+14350	2026	5	legacy	number	入居率 全体	入居率 全体	number	入居率 全体	count	全体		入居率	全体	入居率 全体
+14350	2026	6	legacy	number	入居率 自社施工	入居率 自社施工	number	入居率 自社施工	count	自社施工		入居率	全体	入居率 自社施工
+14350	2026	7	legacy	number	入居率 管理受託	入居率 管理受託	number	入居率 管理受託	count	管理受託		入居率	全体	入居率 管理受託
 14350	2026	8	legacy	number	成約件数	成約件数	number	成約件数	count			成約件数	全体	成約件数
 14350	2026	9	legacy	number	引渡棟数	引渡棟数	number	引渡棟数	count			引渡棟数	全体	引渡棟数
 150A0	2026	1	legacy	number	地方創生 障がい者受入数	地方創生 障がい者受入数	number	地方創生 障がい者受入数	count	地方創生		障がい者受入数	全体 > 地方創生	障がい者受入数
