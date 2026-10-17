@@ -6,8 +6,11 @@ import re
 from jobs.monthly.html_issuers._read import emit, read_page
 from jobs.monthly.html_monthly import _apply_force_unit
 
-# 日英併記の英語語（Existing stores / Monthly 等）を落とす
 _ASCII_WORD_RE = re.compile(r"[A-Za-z]+")
+
+
+def _drop_latin_words(text: str) -> str:
+    return " ".join(_ASCII_WORD_RE.sub(" ", text).split())
 
 
 def parse(html: str, *, as_of: str | None = None) -> dict:
@@ -20,6 +23,6 @@ def parse(html: str, *, as_of: str | None = None) -> dict:
     parsed = chosen[2]
     rows = [dict(r, values=dict(r.get("values") or {})) for r in parsed["rows"]]
     for row in rows:
-        row["element"] = " ".join(_ASCII_WORD_RE.sub(" ", row["element"]).split())
+        row["element"] = _drop_latin_words(row["element"])
     _apply_force_unit(rows, "yoy_index")
     return emit(html, "3148", chosen, rows, as_of=as_of)

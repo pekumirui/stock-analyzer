@@ -126,6 +126,14 @@ def _cells(grid: list[list[str]]) -> tuple[tuple[str, ...], tuple[str, ...]]:
     return header, ()
 
 
+def _carry_section_fy(
+    fy: tuple[int, int] | None, prev: tuple[int, int] | None
+) -> tuple[tuple[int, int] | None, tuple[int, int] | None]:
+    if fy is None:
+        return prev, prev
+    return fy, fy
+
+
 def _facts(html: str) -> list[_Fact]:
     grids = parse_tables(html)
     sections = table_section_texts(html)
@@ -146,12 +154,10 @@ def _facts(html: str) -> list[_Fact]:
         months = tuple(parsed.get("months") or []) if parsed else ()
         rows = parsed.get("rows") or [] if parsed else []
         last_m = last_filled_month(rows, list(months)) if rows else None
-        fy = section_fy_end_from_text(section, list(months) if months else None)
-        # 見出しの無い表は直前の表の期末を引き継ぐ。
-        if fy is None:
-            fy = prev_fy
-        else:
-            prev_fy = fy
+        fy, prev_fy = _carry_section_fy(
+            section_fy_end_from_text(section, list(months) if months else None),
+            prev_fy,
+        )
         out.append(
             _Fact(
                 index=i,
@@ -183,15 +189,14 @@ def _matches(role: _Role, fact: _Fact) -> bool:
 def _latest_key(fact: _Fact) -> tuple[int, int, int, int]:
     fy_y, fy_m = fact.fy_end if fact.fy_end is not None else (0, 0)
     last_m = fact.last_filled or 0
-    complete = (
+    complete_year = (
         fact.last_filled is not None
         and fy_m != 0
         and fact.last_filled == fy_m
         and len(fact.months) >= 12
     )
-    # 同じ期の 12 か月埋まり表は、後の部分月より下に並べる。
-    filled_key = 0 if complete else last_m
-    return (fy_y, fy_m, filled_key, -fact.index)
+    partial_month = 0 if complete_year else last_m
+    return (fy_y, fy_m, partial_month, -fact.index)
 
 
 def _pick_latest(matched: list[_Fact]) -> _Fact | None:

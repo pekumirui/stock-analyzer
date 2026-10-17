@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from jobs.monthly.html_monthly import (
+    _VALID_UNITS,
     _apply_force_unit,
     _drop_ytd_when_monthly_pair,
     _is_count_header,
@@ -127,6 +128,19 @@ def _prefer_section(candidates: list[Candidate], sections: list[str]) -> list[Ca
     return [c for c, r in zip(candidates, ranks) if r == best]
 
 
+def _force_number_unit(
+    rows: list[dict], marks: tuple[str, ...], unit: str | None
+) -> None:
+    if not marks or not unit:
+        return
+    if unit not in _VALID_UNITS:
+        raise ValueError(f"invalid force_number_unit: {unit!r}")
+    for row in rows:
+        name = str(row.get("element") or "")
+        if row.get("unit") == "number" and any(mark in name for mark in marks):
+            row["unit"] = unit
+
+
 @dataclass(frozen=True)
 class Page:
     """table は None なら全表。rows のいずれかが行名に含まれること。unit で yoy を上書きする。"""
@@ -135,9 +149,12 @@ class Page:
     table: int | None
     unit: str | None
     rows: tuple[str, ...]
+    force_number_marks: tuple[str, ...] = ()
+    force_number_unit: str | None = None
 
     def parse(self, html: str, *, as_of: str | None = None) -> dict:
         payload = _select(html, self.code, table=self.table, force_unit=self.unit, as_of=as_of)
+        _force_number_unit(payload["rows"], self.force_number_marks, self.force_number_unit)
         blob = "\n".join(str(r.get("element") or "") for r in payload["rows"])
         if not any(token in blob for token in self.rows):
             raise ValueError(f"{self.code} page does not match declaration")

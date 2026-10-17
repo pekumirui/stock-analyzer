@@ -17,6 +17,7 @@ _ALL_STORE_SALES_ROW_MARKS = (
     "CVS前年比",
     "店内加工FF前年比",
 )
+_TABLE_SCOPE = "全店"
 
 
 def _tail(section_text: str) -> str:
@@ -108,7 +109,6 @@ def parse(html: str, *, as_of: str | None = None) -> dict:
     months = _merge_continuing_half(rows, _month_axis(parsed), candidates, chosen[0])
     parsed["months"] = months
     rows = _totals_only(rows)
-    # 表は「全店売上」見出しで選んでいるので、そのスコープを行名に残す
     for r in rows:
-        r["element"] = "全店 " + str(r.get("element") or "")
+        r["element"] = f"{_TABLE_SCOPE} {r.get('element') or ''}"
     return emit(html, "9946", chosen, rows, as_of=as_of)
