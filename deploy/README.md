@@ -3,6 +3,7 @@
 手で nginx / ufw / systemd を積む必要はない。**root でデプロイ鍵を一度入れる**と、あとは GitHub Actions が冪等に初期設定する。
 
 `deploy/provision.sh` が apt / nginx / ufw / certbot / systemd / crontab を冪等に揃える。
+nginx の設定の正本は `deploy/nginx-site.sh`（`provision.sh` が source して `/etc/nginx` に書く）。CI の `tests/ops/test_nginx_public.py` が同じものを組み立てて `nginx -t` に通し、起動して公開 / Basic 認証 / MCP の振り分けを確かめる。
 
 ## 一度だけ（root）
 

@@ -52,6 +52,12 @@ jobs:
       - name: Install
         run: pip install -r requirements.txt
 
+      # tests/ops/test_nginx_public.py が deploy/nginx-site.sh を nginx -t に通し、起動して振り分けを見る
+      - name: Install nginx
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends nginx-light
+
       - name: Compile
         run: python -m compileall -q -f app jobs tests tools deploy mcp .cursor
 
