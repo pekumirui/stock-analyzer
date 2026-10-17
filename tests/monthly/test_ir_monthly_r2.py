@@ -117,6 +117,23 @@ def test_parse_seven_skips_html_comment() -> None:
         _fail(f"seven pdf: {pdfs}")
 
 
+def test_comment_links_opt_in() -> None:
+    html = """
+    <html><body>
+    <a href="/live.pdf">pdf</a>
+    <!-- <li class="btn-xle"><a href="/sys/wp-content/uploads/7643_getuji-1.xlsx">エクセル</a></li> -->
+    </body></html>
+    """
+    base = "https://www.daiichi-d.co.jp/ir/monthly-report"
+    hidden = parse_file_links(html, base)
+    if any(ln.ext == "xlsx" for ln in hidden):
+        _fail(f"comment xlsx leaked by default: {hidden}")
+    shown = parse_file_links(html, base, comments=True)
+    picked = filter_links(shown, r"getuji.*\.xlsx(?:$|[?#])")
+    if [ln.ext for ln in picked] != ["xlsx"] or "7643_getuji-1" not in picked[0].stem:
+        _fail(f"comment_links xlsx: {picked}")
+
+
 def test_filter_xlsx_priority() -> None:
     base = "https://www.example.test/ir/"
     links = parse_file_links(BOTH_HTML, base)
@@ -261,11 +278,17 @@ def test_load_registry(tmp: Path) -> None:
     repo_cfg = ROOT / "config" / "monthly" / "ir_monthly.json"
     live = load_registry(repo_cfg)
     codes = {i.code for i in live}
-    if codes != {"1878", "2695", "3088", "3382", "3397"}:
+    if codes != {"1878", "2695", "3088", "3382", "3397", "7606", "7643"}:
         _fail(f"repo issuers: {codes}")
     kentaku = next(i for i in live if i.code == "1878")
     if "history_" not in kentaku.link_re or "xls" not in kentaku.link_re:
         _fail(f"1878 link_re: {kentaku.link_re}")
+    ua = next(i for i in live if i.code == "7606")
+    if "sokuho" not in ua.link_re or "xlsx" not in ua.link_re or ua.comment_links:
+        _fail(f"7606 issuer: {ua}")
+    daiichi = next(i for i in live if i.code == "7643")
+    if "getuji" not in daiichi.link_re or "xlsx" not in daiichi.link_re or not daiichi.comment_links:
+        _fail(f"7643 issuer: {daiichi}")
     bad = tmp / "bad.json"
     bad.write_text(json.dumps({"issuers": [{"code": "12", "name": "x", "index_url": "http://x", "link_re": "."}]}), encoding="utf-8")
     try:
@@ -752,6 +775,7 @@ def main() -> None:
 
     test_parse_kura_relative()
     test_parse_seven_skips_html_comment()
+    test_comment_links_opt_in()
     test_filter_xlsx_priority()
     test_dest_filename_ext_and_unique_stem()
     test_dest_title_hash_stem()

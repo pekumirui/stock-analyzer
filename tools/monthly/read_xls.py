@@ -375,3 +375,28 @@ def read_sheet(path: Path) -> list[list[Any]]:
             return read_sheet_xlrd(path)
         except Exception:
             return read_sheet_soffice(path)
+
+
+def xlsx_sheet_names(path: Path) -> list[str]:
+    from openpyxl import load_workbook
+
+    wb = load_workbook(path, data_only=True, read_only=True)
+    try:
+        return list(wb.sheetnames)
+    finally:
+        wb.close()
+
+
+def read_xlsx_sheet(path: Path, sheet: str | None = None) -> list[list[Any]]:
+    """xlsx 1 シート → 行の配列。merged の左上以外は空。数式はキャッシュ値。"""
+    from openpyxl import load_workbook
+
+    wb = load_workbook(path, data_only=True)
+    try:
+        ws = wb[sheet] if sheet else wb[wb.sheetnames[0]]
+        grid: list[list[Any]] = []
+        for row in ws.iter_rows(values_only=True):
+            grid.append(["" if v is None else v for v in row])
+        return grid
+    finally:
+        wb.close()

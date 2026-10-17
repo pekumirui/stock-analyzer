@@ -6,7 +6,7 @@
   python jobs/monthly/ir_monthly_r2.py --dry-run
 
 対象は config/monthly/ir_monthly.json。表計算と pdf が両方あるページは表計算だけ取る。
-xlsx があれば xlsx、なければ xls。ingest / パーサーはまだ。
+xlsx があれば xlsx、なければ xls。JSON 化は ir_monthly_xls_ingest.py（このスクリプトは取得だけ）。
 ネットワークと app/ はテストから分離する。
 """
 from __future__ import annotations
@@ -48,6 +48,7 @@ _ALLOWED_EXT = frozenset({"pdf", "xlsx", "xls", "html"})
 _XLS_MAGIC = b"\xd0\xcf\x11\xe0"
 _CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
 _SKIP_HREF_RE = re.compile(r"^(?:javascript:|mailto:|#)", re.I)
+_HTML_COMMENT_RE = re.compile(r"<!--(.*?)-->", re.S)
 _HASH_STEM_RE = re.compile(r"^[0-9a-f]{32,}$", re.I)
 
 
@@ -58,6 +59,7 @@ class Issuer:
     index_url: str
     link_re: str
     title: str
+    comment_links: bool = False
 
 
 @dataclass(frozen=True)
@@ -111,14 +113,21 @@ def url_stem(url: str) -> str:
     return sanitize_filename_part(stem)
 
 
-def parse_file_links(html: str, base_url: str) -> list[FileLink]:
-    """<a href> の pdf/xlsx/xls だけ。コメント内のリンクは HTMLParser が無視する。"""
+def parse_file_links(html: str, base_url: str, *, comments: bool = False) -> list[FileLink]:
+    """<a href> の pdf/xlsx/xls だけ。コメント内のリンクは既定では HTMLParser が無視する。"""
     parser = _AParser()
     parser.feed(html or "")
     parser.close()
+    pairs = list(parser.links)
+    if comments:
+        for block in _HTML_COMMENT_RE.findall(html or ""):
+            inner = _AParser()
+            inner.feed(block)
+            inner.close()
+            pairs.extend(inner.links)
     out: list[FileLink] = []
     seen: set[str] = set()
-    for href, text in parser.links:
+    for href, text in pairs:
         raw = (href or "").strip()
         if not raw or _SKIP_HREF_RE.match(raw):
             continue
@@ -255,7 +264,11 @@ def _parse_issuer(raw: object) -> Issuer:
         re.compile(link_re)
     except re.error as e:
         raise ValueError(f"issuer {code} invalid link_re: {e}") from e
-    return Issuer(code=code, name=name, index_url=index_url, link_re=link_re, title=title)
+    comment_links = bool(raw.get("comment_links"))
+    return Issuer(
+        code=code, name=name, index_url=index_url, link_re=link_re, title=title,
+        comment_links=comment_links,
+    )
 
 
 def load_registry(path: Path) -> list[Issuer]:
@@ -299,7 +312,10 @@ def fetch_issuer(
         return 0, 0, 1, 0
     body = http_get(iss.index_url).decode("utf-8", errors="replace")
     time.sleep(SLEEP_SEC)
-    links = filter_links(parse_file_links(body, iss.index_url), iss.link_re)
+    links = filter_links(
+        parse_file_links(body, iss.index_url, comments=iss.comment_links),
+        iss.link_re,
+    )
     listed = len(links)
     if dry_run:
         for ln in links:

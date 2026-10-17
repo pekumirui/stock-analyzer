@@ -1,0 +1,110 @@
+{
+  "1878": {
+    "layout": "fy_blocks",
+    "exts": [".xls"],
+    "force": true,
+    "month_col": 1,
+    "year_col": 0,
+    "header_value": "月",
+    "fy_start_month": 4,
+    "columns": [
+      {"col": 2, "element": "新規受注高"},
+      {"col": 3, "element": "キャンセル額"},
+      {"col": 4, "element": "受注高"},
+      {"col": 5, "element": "営業人員数"},
+      {"col": 6, "element": "1人当たり受注高"},
+      {"col": 8, "element": "入居者斡旋件数"},
+      {"col": 9, "element": "家賃ベース入居率", "kind": "occupancy"},
+      {"col": 10, "element": "家賃ベース入居率 事業用", "kind": "occupancy"},
+      {"col": 11, "element": "家賃ベース入居率 居住用", "kind": "occupancy"},
+      {"col": 12, "element": "空室在庫"},
+      {"col": 13, "element": "空室数"},
+      {"col": 14, "element": "新築 空室数"},
+      {"col": 15, "element": "既存 空室数"}
+    ]
+  },
+  "7606": {
+    "layout": "month_columns",
+    "exts": [".xlsx"],
+    "force": false,
+    "sheet": "latest_ym",
+    "label_col": 1,
+    "as_of_cell": [0, 20],
+    "fy_start_month": 4,
+    "skip_month_re": "まで|[1-4]Q|上期|下期|通期",
+    "stop_section_re": "事業本部別|出退店|既存店過去|概況",
+    "sections": [
+      {
+        "header": "売上高",
+        "unit": "yoy_index",
+        "rows": [
+          {"label": "全社", "element": "全社"},
+          {"label": "ビジネスユニット計", "element": "ビジネスユニット計 売上高"},
+          {"label": "小売＋ネット通販", "element": "小売＋ネット通販 売上高"},
+          {"label": "小売", "element": "小売 売上高"},
+          {"label": "ネット通販", "element": "ネット通販 売上高"},
+          {"label": "小売＋ネット通販 既存店", "element": "小売＋ネット通販 既存店"},
+          {"label": "小売 既存店", "element": "小売 既存店"},
+          {"label": "ネット通販 既存店", "element": "ネット通販 既存店"},
+          {"label": "アウトレット その他", "element": "アウトレット その他 売上高"}
+        ]
+      },
+      {
+        "header": "買上客数",
+        "unit": "yoy_index",
+        "rows": [
+          {"label": "小売＋ネット通販", "element": "小売＋ネット通販 客数"},
+          {"label": "小売", "element": "小売 客数"},
+          {"label": "ネット通販", "element": "ネット通販 客数"},
+          {"label": "小売＋ネット通販 既存店", "element": "小売＋ネット通販 既存店 客数"},
+          {"label": "小売 既存店", "element": "小売 既存店 客数"},
+          {"label": "ネット通販 既存店", "element": "ネット通販 既存店 客数"}
+        ]
+      },
+      {
+        "header": "客単価",
+        "unit": "yoy_index",
+        "rows": [
+          {"label": "小売＋ネット通販", "element": "小売＋ネット通販 客単価"},
+          {"label": "小売", "element": "小売 客単価"},
+          {"label": "ネット通販", "element": "ネット通販 客単価"},
+          {"label": "小売＋ネット通販 既存店", "element": "小売＋ネット通販 既存店 客単価"},
+          {"label": "小売 既存店", "element": "小売 既存店 客単価"},
+          {"label": "ネット通販 既存店", "element": "ネット通販 既存店 客単価"}
+        ]
+      },
+      {
+        "header": "店舗数推移",
+        "unit": "number",
+        "rows": [
+          {"label": "月末時点 店舗数", "element": "店舗数"},
+          {"label": "小売店舗数", "element": "小売店舗数"},
+          {"label": "ネット通販店舗数", "element": "ネット通販店舗数"},
+          {"label": "アウトレット店舗数", "element": "アウトレット店舗数"},
+          {"label": "既存店カウント店舗数", "element": "既存店カウント店舗数"},
+          {"label": "小売既存店舗数", "element": "小売既存店舗数"},
+          {"label": "ネット通販既存店舗数", "element": "ネット通販既存店舗数"}
+        ]
+      }
+    ]
+  },
+  "7643": {
+    "layout": "current_fy_rows",
+    "exts": [".xlsx"],
+    "force": false,
+    "sheet": "latest_int",
+    "as_of_cell": [1, 8],
+    "month_col": 1,
+    "fy_end_month": 9,
+    "skip_month_re": "上期|下期|年間",
+    "year_header_re": "本年[^0-9]*((?:19|20)\\d{2})年",
+    "value_headers": [
+      {"label": "全社計", "element": "全社計", "unit": "yoy_index"},
+      {"label": "内既存店計", "element": "既存店計", "unit": "yoy_index"}
+    ],
+    "department": {
+      "header": "部門別",
+      "unit": "yoy_index"
+    }
+  }
+}
