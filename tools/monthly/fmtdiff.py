@@ -18,29 +18,24 @@ import hashlib
 import json
 import re
 import sys
-import unicodedata
 from difflib import SequenceMatcher
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 import pdfplumber
 
-RE_DATE = re.compile(r"\d+\s*年\s*\d+\s*月(\s*\d+\s*日)?|\d{4}[/-]\d{1,2}([/-]\d{1,2})?")
-RE_QUARTER = re.compile(r"第\s*\d+\s*(四半期|Q)")
-RE_NUM = re.compile(r"[△▲\-−+]?\d[\d,]*(\.\d+)?")
+from tools.monthly.text_mask import mask
+
 RE_ISSUER_DIR = re.compile(r"^[0-9][0-9A-Z]{3}$")
 RE_ISSUER_IN_NAME = re.compile(r"_([0-9][0-9A-Z]{3})_")
 
 
 def norm(s: str) -> str:
     """数値・日付をマスクして構造だけ残す。'2026年7月度 売上高 1,234' -> '<D>度売上高<N>'"""
-    if not s:
-        return ""
-    s = unicodedata.normalize("NFKC", s)
-    s = RE_DATE.sub("<D>", s)
-    s = RE_QUARTER.sub("<Q>", s)
-    s = RE_NUM.sub("<N>", s)
-    s = re.sub(r"\s+", "", s)
-    return s
+    return mask(s)
 
 
 def is_label(s: str) -> bool:
