@@ -34,6 +34,14 @@
       "index_url": "https://www.toridoll.com/ir/finance/report/index.html",
       "link_re": "monthly-sales-report.*\\.xlsx(?:$|[?#])",
       "title": "月次売上高レポート"
+    },
+    {
+      "code": "7606",
+      "name": "ユナイテッドアローズ",
+      "index_url": "https://www.tabaya-holdings.co.jp/ir/monthly/",
+      "link_re": "sokuho.*\\.xlsx(?:$|[?#])",
+      "latest_year": true,
+      "title": "月次売上概況"
     }
   ],
   "html": [

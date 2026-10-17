@@ -16,15 +16,20 @@ from app.monthly.ingest import (  # noqa: E402
     plan_column_years,
 )
 from jobs.monthly.ir_monthly_xls_ingest import (  # noqa: E402
+    COLUMNS,
     as_of_from_url,
     ingest_from_grid,
     ingest_from_xls,
     latest_xls,
+    pick_xlsx_sheet,
+    round_digits,
     scale_occupancy,
+    spec_for,
 )
 from tools.monthly.read_xls import read_sheet_builtin  # noqa: E402
 
 FIXTURE = ROOT / "tests" / "monthly" / "testdata" / "1878_history_1.xls"
+FIXTURE_7606 = ROOT / "tests" / "monthly" / "testdata" / "7606_sokuho2027.xlsx"
 SOURCE_URL = "https://www.kentaku.co.jp/ir/library/monthly-report/__icsFiles/afieldfile/2026/09/02/history_1.xls"
 
 
@@ -347,6 +352,122 @@ def test_cli_dry_run(tmp: Path) -> None:
         _fail("dry-run JSON missing as_of")
 
 
+def _named(payload: dict[str, Any], name: str) -> dict[str, Any]:
+    for row in payload["rows"]:
+        if row["element"] == name:
+            return row
+    _fail(f"missing {name}")
+    raise AssertionError
+
+
+def test_1878_columns_from_json() -> None:
+    spec = spec_for("1878")
+    names = [c.element for c in spec.columns]
+    if names != [c.element for c in COLUMNS]:
+        _fail(f"COLUMNS drifted from json: {names}")
+    if spec.layout != "fy_blocks" or spec.force is not True or spec.exts != (".xls",) or spec.digits is not None:
+        _fail(f"1878 spec meta {spec}")
+    if any(c.element in {"受注トレンド", "管理戸数"} for c in spec.columns):
+        _fail("1878 json must omit derived columns")
+    occ = [c.element for c in spec.columns if c.kind == "occupancy"]
+    if occ != ["家賃ベース入居率", "家賃ベース入居率 事業用", "家賃ベース入居率 居住用"]:
+        _fail(f"occupancy cols {occ}")
+
+
+def test_pick_xlsx_sheet() -> None:
+    if pick_xlsx_sheet(["2026.05", "2026.08", "2026.07"], "latest_ym") != "2026.08":
+        _fail("latest_ym")
+    if pick_xlsx_sheet(["wk", "70", "71"], "latest_int") != "71":
+        _fail("latest_int")
+    if pick_xlsx_sheet(["A", "B"], "first") != "A":
+        _fail("first")
+
+
+def test_round_yoy_digits() -> None:
+    if round_digits(109.1885, 1) != 109.2:
+        _fail(f"109.1885 -> {round_digits(109.1885, 1)}")
+    if round_digits(116.351, 1) != 116.4:
+        _fail(f"116.351 -> {round_digits(116.351, 1)}")
+    if round_digits(111.08804814301179, 1) != 111.1:
+        _fail("111.088…")
+    spec = spec_for("7606")
+    if spec.digits != 1:
+        _fail(f"7606 digits {spec.digits}")
+    yoy = [c for sec in spec.sections if sec.unit == "yoy_index" for c in sec.rows]
+    stores = [c for sec in spec.sections if sec.unit == "number" for c in sec.rows]
+    if not yoy or any(c.digits != 1 for c in yoy):
+        _fail(f"7606 yoy digits {[c.digits for c in yoy]}")
+    if not stores or any(c.digits is not None for c in stores):
+        _fail("7606 store counts must not inherit yoy digits")
+    if spec_for("1878").digits is not None:
+        _fail("1878 must not round")
+
+
+def test_7606_fixture() -> None:
+    if not FIXTURE_7606.is_file():
+        _fail(f"missing fixture {FIXTURE_7606}")
+    payload = ingest_from_xls(FIXTURE_7606, code="7606", from_year=2024)
+    if payload["as_of"] != "2026-09-02":
+        _fail(f"7606 as_of {payload['as_of']}")
+    if "year" in payload:
+        _fail("year must not be sent")
+    if payload["months"] != [4, 5, 6, 7, 8]:
+        _fail(f"7606 months {payload['months']}")
+    names = [r["element"] for r in payload["rows"]]
+    if "トレンドマーケット" in names or any("まで" in n for n in names):
+        _fail(f"7606 leaked derived rows {names}")
+    all_store = _named(payload, "全社")
+    if all_store["unit"] != "yoy_index" or all_store.get("force"):
+        _fail(f"7606 全社 meta {all_store}")
+    if all_store["values"][-1] != 111.1:
+        _fail(f"7606 2026-08 全社 {all_store['values'][-1]}")
+    if any(v != round(v, 1) for v in all_store["values"]):
+        _fail(f"7606 全社 not 1 decimal {all_store['values']}")
+    existing = _named(payload, "小売＋ネット通販 既存店")
+    if existing["values"][-1] != 108.4:
+        _fail(f"7606 2026-08 既存 {existing['values'][-1]}")
+    stores = _named(payload, "店舗数")
+    if stores["unit"] != "number" or stores["values"][-1] != 324:
+        _fail(f"7606 店舗数 {stores}")
+    counted = _named(payload, "既存店カウント店舗数")
+    if counted["values"][-1] != 243:
+        _fail(f"7606 既存店カウント {counted['values'][-1]}")
+    if canonicalize_element_label("既存店カウント店舗数", "number") != "カウント 既存 店舗数":
+        _fail("7606 既存店カウント canonicalize")
+    if canonicalize_element_label("全社", "yoy_index") != "全社 売上高(前年比)":
+        _fail("7606 全社 canonicalize")
+    if canonicalize_element_label("小売＋ネット通販 既存店 客数", "yoy_index") != "小売＋ネット通販 既存 客数(前年比)":
+        _fail("7606 既存 客数 canonicalize")
+    layout, mapping = plan_column_years(payload["months"], 3, date(2026, 9, 2))
+    if mapping[0] != (4, 2026) or mapping[-1] != (8, 2026):
+        _fail(f"7606 mapping {layout} {mapping}")
+
+
+def test_cli_code_7606(tmp: Path) -> None:
+    from io import StringIO
+    from jobs.monthly.ir_monthly_xls_ingest import main as cli
+
+    dest = tmp / "monthly"
+    folder = dest / "7606"
+    folder.mkdir(parents=True)
+    target = folder / "20260902_7606_ユナイテッドアローズ_sokuho2027.xlsx"
+    target.write_bytes(FIXTURE_7606.read_bytes())
+    buf = StringIO()
+    old = sys.stdout
+    sys.stdout = buf
+    try:
+        rc = cli(["--dest", str(dest), "--code", "7606", "--from-year", "2024", "--dry-run"])
+        rc_unknown = cli(["--code", "9999", "--dry-run"])
+    finally:
+        sys.stdout = old
+    if rc != 0:
+        _fail(f"7606 dry-run rc {rc}")
+    if rc_unknown != 2:
+        _fail(f"unknown code rc {rc_unknown}")
+    if '"as_of": "2026-09-02"' not in buf.getvalue() or "全社" not in buf.getvalue():
+        _fail("7606 dry-run JSON")
+
+
 def main() -> None:
     import tempfile
 
@@ -354,12 +475,17 @@ def main() -> None:
     test_tiny_grid_years_and_trailing()
     test_as_of_from_url()
     test_canonicalize_labels()
+    test_1878_columns_from_json()
+    test_pick_xlsx_sheet()
+    test_round_yoy_digits()
     test_fixture_spots()
+    test_7606_fixture()
     with tempfile.TemporaryDirectory() as raw:
         tmp = Path(raw)
         test_latest_xls(tmp / "a")
         test_cli_dry_run(tmp / "b")
         test_post_sends_ingest_body(tmp / "c")
+        test_cli_code_7606(tmp / "d")
     print("ok")
 
 

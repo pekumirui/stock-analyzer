@@ -6,7 +6,7 @@
   python jobs/monthly/ir_monthly_r2.py --dry-run
 
 対象は config/monthly/ir_monthly.json。表計算と pdf が両方あるページは表計算だけ取る。
-xlsx があれば xlsx、なければ xls。ingest / パーサーはまだ。
+xlsx があれば xlsx、なければ xls。JSON 化は ir_monthly_xls_ingest.py（このスクリプトは取得だけ）。
 ネットワークと app/ はテストから分離する。
 """
 from __future__ import annotations
@@ -49,6 +49,7 @@ _XLS_MAGIC = b"\xd0\xcf\x11\xe0"
 _CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
 _SKIP_HREF_RE = re.compile(r"^(?:javascript:|mailto:|#)", re.I)
 _HASH_STEM_RE = re.compile(r"^[0-9a-f]{32,}$", re.I)
+_YEAR_IN_NAME_RE = re.compile(r"(?:19|20)\d{2}")
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,7 @@ class Issuer:
     index_url: str
     link_re: str
     title: str
+    latest_year: bool = False
 
 
 @dataclass(frozen=True)
@@ -116,9 +118,10 @@ def parse_file_links(html: str, base_url: str) -> list[FileLink]:
     parser = _AParser()
     parser.feed(html or "")
     parser.close()
+    pairs = list(parser.links)
     out: list[FileLink] = []
     seen: set[str] = set()
-    for href, text in parser.links:
+    for href, text in pairs:
         raw = (href or "").strip()
         if not raw or _SKIP_HREF_RE.match(raw):
             continue
@@ -143,7 +146,24 @@ def parse_file_links(html: str, base_url: str) -> list[FileLink]:
     return out
 
 
-def filter_links(links: list[FileLink], link_re: str) -> list[FileLink]:
+def link_year(link: FileLink) -> int | None:
+    found = [int(y) for y in _YEAR_IN_NAME_RE.findall(link.stem)]
+    if not found:
+        found = [int(y) for y in _YEAR_IN_NAME_RE.findall(link.url)]
+    return max(found) if found else None
+
+
+def pick_latest_year(links: list[FileLink]) -> list[FileLink]:
+    years = [link_year(ln) for ln in links]
+    best = max((y for y in years if y is not None), default=None)
+    if best is None:
+        return links
+    return [ln for ln, y in zip(links, years) if y == best]
+
+
+def filter_links(
+    links: list[FileLink], link_re: str, *, latest_year: bool = False,
+) -> list[FileLink]:
     try:
         rx = re.compile(link_re)
     except re.error as e:
@@ -151,11 +171,13 @@ def filter_links(links: list[FileLink], link_re: str) -> list[FileLink]:
     matched = [ln for ln in links if rx.search(ln.url)]
     xlsx = [ln for ln in matched if ln.ext == "xlsx"]
     if xlsx:
-        return xlsx
-    xls = [ln for ln in matched if ln.ext == "xls"]
-    if xls:
-        return xls
-    return [ln for ln in matched if ln.ext == "pdf"]
+        out = xlsx
+    else:
+        xls = [ln for ln in matched if ln.ext == "xls"]
+        out = xls if xls else [ln for ln in matched if ln.ext == "pdf"]
+    if latest_year:
+        out = pick_latest_year(out)
+    return out
 
 
 def dest_title(link: FileLink, issuer_title: str, text_counts: Mapping[str, int]) -> str:
@@ -255,7 +277,11 @@ def _parse_issuer(raw: object) -> Issuer:
         re.compile(link_re)
     except re.error as e:
         raise ValueError(f"issuer {code} invalid link_re: {e}") from e
-    return Issuer(code=code, name=name, index_url=index_url, link_re=link_re, title=title)
+    latest_year = bool(raw.get("latest_year"))
+    return Issuer(
+        code=code, name=name, index_url=index_url, link_re=link_re, title=title,
+        latest_year=latest_year,
+    )
 
 
 def load_registry(path: Path) -> list[Issuer]:
@@ -299,7 +325,11 @@ def fetch_issuer(
         return 0, 0, 1, 0
     body = http_get(iss.index_url).decode("utf-8", errors="replace")
     time.sleep(SLEEP_SEC)
-    links = filter_links(parse_file_links(body, iss.index_url), iss.link_re)
+    links = filter_links(
+        parse_file_links(body, iss.index_url),
+        iss.link_re,
+        latest_year=iss.latest_year,
+    )
     listed = len(links)
     if dry_run:
         for ln in links:
