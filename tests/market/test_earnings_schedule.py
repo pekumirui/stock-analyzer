@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-earn-date-")
-os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 os.environ.setdefault("JQUANTS_API_KEY", "test-key")
 
 from app.config import EARNINGS_DATE_LOOKBACK_DAYS  # noqa: E402

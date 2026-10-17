@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-monthly-")
-os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -2267,7 +2267,7 @@ def _assert_ingest_dry_run_only_months(c) -> None:
         db.close()
 
 
-def main() -> None:
+def test_tables_api() -> None:
     # display is index 100=flat (not +X.X% / ▲). number rows round; unit goes on the label.
     if format_monthly_cell(None, "yoy_index") != "-":
         _fail("empty cell")
@@ -2326,11 +2326,6 @@ def main() -> None:
             _fail(f"invalid unit: {exc.status} {exc.code}")
     else:
         _fail("invalid unit should 400")
-    test_apply_incoming_unit_conflict_and_force()
-    test_monthly_tree_assign()
-    test_monthly_auto_tree()
-    test_startup_keeps_names_and_job_renames()
-    test_migrate_restores_dropped_columns()
     _assert_monthly_year_window()
     _assert_monthly_year_color_stable()
     _assert_union_collapses_yoy_display_names()
@@ -4327,6 +4322,15 @@ def _assert_known_prod_units(c) -> None:
         raw = vals.get("1", vals.get(1))
         if raw is not None and float(raw) != -7.1:
             _fail(f"262A0 value converted: {vals!r}")
+
+def main() -> None:
+    test_apply_incoming_unit_conflict_and_force()
+    test_monthly_tree_assign()
+    test_monthly_auto_tree()
+    test_startup_keeps_names_and_job_renames()
+    test_migrate_restores_dropped_columns()
+    test_tables_api()
+
 
 if __name__ == "__main__":
     main()

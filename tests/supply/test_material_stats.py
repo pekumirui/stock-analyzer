@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-material-stats-")
-os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.supply.estat import (  # noqa: E402

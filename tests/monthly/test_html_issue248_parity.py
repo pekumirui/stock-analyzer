@@ -91,7 +91,7 @@ def _fixture_html(code: str) -> Path | None:
     return p if p.is_file() else None
 
 
-def test_issue248_html_parity() -> dict[str, str]:
+def issue248_html_parity() -> dict[str, str]:
     if not PROD_PATH.is_file():
         print("skip: testdata/html_issue248/prod_monthly.json missing")
         return {}
@@ -162,8 +162,8 @@ def test_issue248_html_parity() -> dict[str, str]:
     return results
 
 
-def main() -> None:
-    results = test_issue248_html_parity()
+def test_issue248_html_parity() -> None:
+    results = issue248_html_parity()
     gaps = results.pop("_gaps", [])
     print("ok: html issue248 parity", results)
     if gaps:
@@ -173,4 +173,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    test_issue248_html_parity()

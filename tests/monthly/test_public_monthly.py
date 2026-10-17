@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-public-")
-os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -49,7 +49,7 @@ def _seed() -> None:
         db.close()
 
 
-def main() -> None:
+def test_public_monthly() -> None:
     _seed()
     c = TestClient(app)
 
@@ -155,4 +155,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    test_public_monthly()

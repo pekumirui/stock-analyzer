@@ -47,10 +47,12 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: requirements.txt
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
 
       - name: Install
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt -r requirements-dev.txt
 
       # tests/ops/test_nginx_public.py が deploy/nginx-site.sh を nginx -t に通し、起動して振り分けを見る
       - name: Install nginx
@@ -61,11 +63,9 @@ jobs:
       - name: Compile
         run: python -m compileall -q -f app jobs tests tools deploy mcp .cursor
 
-      - name: Smoke
-        run: python tests/ci_smoke.py
-
-      - name: Log MCP
-        run: python tests/ops/test_log_mcp.py
+      # tests/ 以下の test_*.py を全部集める。DB はファイルごとに空から（tests/conftest.py）
+      - name: Test
+        run: python -m pytest tests -q
 
   lint:
     name: Lint

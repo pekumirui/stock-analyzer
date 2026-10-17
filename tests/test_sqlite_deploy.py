@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-sqlite-")
-os.environ["DATABASE_URL"] = f"sqlite:///{_tmp}/stock.db"
+os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
 from sqlalchemy import text  # noqa: E402
 from sqlalchemy.exc import OperationalError  # noqa: E402

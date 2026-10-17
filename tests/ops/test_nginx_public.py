@@ -170,7 +170,7 @@ def check_routes(base: str) -> None:
     want("/mcp", 200, "mcp:POST:", method="POST")
 
 
-def main() -> None:
+def test_nginx_public_routes() -> None:
     nginx = shutil.which("nginx") or ("/usr/sbin/nginx" if Path("/usr/sbin/nginx").exists() else None)
     if nginx is None:
         if os.environ.get("CI"):
@@ -224,4 +224,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    test_nginx_public_routes()
