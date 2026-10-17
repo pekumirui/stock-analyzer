@@ -2,9 +2,10 @@
 const ptsEsc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 const ptsMd = iso => iso ? `${+iso.slice(5,7)}/${+iso.slice(8,10)}` : "–";
 const ptsFollow = v => v==null ? "–" : fmt(v,2);
+let ptsRanking = "night_up";
 
 async function loadPts(opts = {}){
-  const q = new URLSearchParams({ranking: $("#pts-ranking").value});
+  const q = new URLSearchParams({ranking: ptsRanking});
   const date = opts.date ?? $("#pts-date").value;
   if(date) q.set("date", date);
   if(opts.at) q.set("at", opts.at);
@@ -42,7 +43,12 @@ async function loadPts(opts = {}){
 }
 
 $("#pts-date").onchange = () => loadPts();
-$("#pts-ranking").onchange = () => loadPts();
+document.querySelectorAll("#pts-ranking .ftab").forEach(b => b.onclick = () => {
+  if(b.dataset.ranking === ptsRanking) return;
+  ptsRanking = b.dataset.ranking;
+  document.querySelectorAll("#pts-ranking .ftab").forEach(x => x.classList.toggle("on", x === b));
+  loadPts();
+});
 $("#pts-at").onchange = e => loadPts({at: e.target.value});
 
 window.loadPts = loadPts;

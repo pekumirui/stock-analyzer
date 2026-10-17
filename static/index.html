@@ -118,9 +118,11 @@
   <div class="panel">
     <div class="row">
       <select id="pts-date" aria-label="セッション日"></select>
-      <select id="pts-ranking" aria-label="ランキング">
-        <option value="night_up">値上がり</option><option value="night_down">値下がり</option><option value="night_volume">出来高</option>
-      </select>
+      <div class="fin-tabs" id="pts-ranking" role="group" aria-label="ランキング">
+        <button type="button" class="ftab on" data-ranking="night_up">値上がり</button>
+        <button type="button" class="ftab" data-ranking="night_down">値下がり</button>
+        <button type="button" class="ftab" data-ranking="night_volume">出来高</button>
+      </div>
       <select id="pts-at" aria-label="取得時刻"></select>
       <span id="pts-info" class="sub"></span>
     </div>
