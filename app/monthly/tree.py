@@ -242,6 +242,23 @@ def _auto_split(label: Mapping[str, Any]) -> tuple[str, str]:
     s = str(label["display"])
     g = str(label["group"] or "")
     if not g or not s.startswith(g + " "):
+        # 国の語（`日本` / `海外`）が group の前に出る行（7134 `海外 アップガレージ 店舗数`、#590）は
+        # group は `monthly_row_segment` で取れているので、国の語を剥がして group に当て直す。
+        # 国の語は葉にも残す（指標は 海外 店舗数 → 店舗数 ▸ 海外、#580）
+        head = ""
+        while True:
+            c = next((c2 for c2 in ("海外", "日本") if s.startswith(c2 + " ")), "")
+            if not c:
+                break
+            head = f"{head}{c} "
+            s = s[len(c) + 1:]
+        if g and s.startswith(g + " "):
+            toks = g.split(" ")
+            group = " ".join(t for t in toks if t not in _TOTAL_TOKENS and t not in _METRIC_TOKENS)
+            leaf = " ".join([*([head.strip()] if head.strip() else []),
+                             *(t for t in toks if t in _METRIC_TOKENS), s[len(g) + 1:]])
+            return group, leaf
+        s = str(label["display"])
         # 指標の無い行（`グループ 稼働率`）も会社全体の語は葉から剥がす
         head = next((c for c in _COMPANY_GROUPS if s.startswith(c + " ")), "")
         return "", s[len(head) + 1:] if head else s
@@ -312,6 +329,21 @@ def auto_metric_parents(metrics: Sequence[str], domestic: Iterable[str] = ()) ->
     return out
 
 
+def _yoy_sales_parent(L: Mapping[str, Any], cands: Sequence[tuple[str, str, str, str]]) -> str | None:
+    """指標語の無い前年比の親の 売上高。(channel, scope, country, metric) が同じ 売上高 が 1 つだけのとき寄せる。
+    チャネル `直営+FC` は同じ 範囲 のチャネル無しの 売上高（全店）に寄せる。0 か 2 以上は決められない。
+    """
+    ch, sc, co = str(L["channel"]), str(L["scope"]), str(L["country"])
+    metrics = {c[3] for c in cands if c[0] == ch and c[1] == sc and c[2] == co}
+    if len(metrics) == 1:
+        return next(iter(metrics))
+    if ch == "直営+FC":
+        nochan = {c[3] for c in cands if not c[0] and c[1] == sc and c[2] == co}
+        if len(nochan) == 1:
+            return next(iter(nochan))
+    return None
+
+
 def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
                     group_metric: Mapping[str, str] | None = None) -> AutoTree:
     """years は 暦年 → [(保存名, unit)]（値のある行だけ、sort_order 順）。節の形と並びは渡した年すべてで決める。
@@ -330,6 +362,7 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
     rows: dict[str, dict[str, Any]] = {}
     metric_key: dict[str, tuple] = {}
     sales: dict[tuple[str, ...], set[str]] = {}
+    sales_info: dict[tuple[str, ...], list[tuple[str, str, str, str]]] = {}
     seen = 0
 
     def place(element: str, unit: str, L: Mapping[str, Any], canon: str, group: str, leaf: str,
@@ -351,6 +384,8 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
         rows[element] = {"path": list(path), "leaf": leaf, "metric": metric, "order": idx}
         if L["metric_kind"] == "sales" and not monthly_row_unit_rank(unit):
             sales.setdefault(path, set()).add(metric)
+            sales_info.setdefault(path, []).append(
+                (str(L["channel"]), str(L["scope"]), str(L["country"]), metric))
         # 指標の並びは会社の行を代表にする（無ければ最初に見た節の行）
         key = (
             _AUTO_CHANNEL_RANK.get(str(L["channel"]), 3),
@@ -365,6 +400,10 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
     # 指標の語の無い前年比（アスモ `アスモトレーディング(前年比)`、`合計(前年比)`）は、その節の金額の売上高の行が
     # 1 つに決まればその指標の前年比にする（決まらなければ行名のまま根）。節の金額の行を先に見てから置く。
     bare: list[tuple[str, str, Mapping[str, Any], str, str, str, str]] = []
+    # 指標の語が無くて チャネル / 範囲 だけの前年比（7134 `直営 全店(前年比)`、`FC 既存(前年比)`）は、
+    # 同じ節の 同じ チャネル + 範囲 の 売上高 の行に寄せる（#578 / #580）。直営+FC はチャネル無しの売上高へ。
+    # 売上高が 複数で決まらなければ行名のまま根。節の売上高の行を先に見てから寄せるので、いったん持ち送り。
+    pending: list[tuple[str, str, Mapping[str, Any], str]] = []
     deferred: set[str] = set()
     for y in newest:
         for element, unit in years[y]:
@@ -379,6 +418,21 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
                 bare.append((element, unit, L, canon, own, group, leaf))
                 deferred.add(element)
                 continue
+            if monthly_row_unit_rank(unit) and not L["metric"] and not L["breakdown"] \
+                    and (L["channel"] or L["scope"]):
+                pending.append((element, unit, L, canon))
+                deferred.add(element)
+                continue
+            place(element, unit, L, canon, group, leaf)
+    for element, unit, L, canon in pending:
+        group, leaf = _auto_split(L)
+        path = (AUTO_ROOT, *((group,) if group else ()))
+        cands = sales_info.get(tuple(path), [])
+        m = _yoy_sales_parent(L, cands)
+        if m is not None:
+            suffix = str(L["display"])[len(strip_yoy_fragments(str(L["display"]))):]
+            place(element, unit, L, canon, group, m + suffix, m)
+        else:
             place(element, unit, L, canon, group, leaf)
     for element, unit, L, canon, own, group, leaf in bare:
         cands = sales.get((AUTO_ROOT, *((own,) if own else ())), set())
