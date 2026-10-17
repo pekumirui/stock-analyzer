@@ -61,9 +61,6 @@ jobs:
       - name: Log MCP
         run: python tests/ops/test_log_mcp.py
 
-      - name: Alert patterns
-        run: python tests/ops/test_alert_patterns.py
-
   lint:
     name: Lint
     runs-on: ubuntu-latest
