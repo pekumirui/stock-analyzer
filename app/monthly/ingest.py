@@ -400,7 +400,7 @@ def _is_flow_metric(metric: str) -> bool:
 
 
 def _stitch_store_flow(leftover: list[str], metric: str) -> tuple[list[str], str]:
-    """店数→店舗数 が 退店/開店/閉店 を割った残骸を指標へ戻す。新規は出店。"""
+    """店数→店舗数 が 退店/開店/閉店 を割った残骸を指標へ戻す。新規は店舗の行だけ出店。"""
     if metric in ("", "店舗数"):
         if any(tok in _OPEN_SHARDS for tok in leftover):
             leftover = [tok for tok in leftover if tok not in _OPEN_SHARDS]
@@ -408,6 +408,14 @@ def _stitch_store_flow(leftover: list[str], metric: str) -> tuple[list[str], str
         elif any(tok in _CLOSE_SHARDS for tok in leftover):
             leftover = [tok for tok in leftover if tok not in _CLOSE_SHARDS]
             metric = "退店"
+    # 新規→出店は店舗の行だけ（#661）。売上・会員などの新規はセグメントに残す。
+    store_open = metric == "店舗数" or (
+        not metric and any(tok in _DUMMY_STORE_TOKS for tok in leftover)
+    )
+    if store_open and any(tok in _OPEN_QUALIFIERS for tok in leftover):
+        leftover = [tok for tok in leftover if tok not in _OPEN_QUALIFIERS]
+        leftover = [tok for tok in leftover if tok not in _DUMMY_STORE_TOKS]
+        metric = "出店"
     if _is_flow_metric(metric):
         leftover = [tok for tok in leftover if tok not in _DUMMY_STORE_TOKS]
     if metric.endswith("出店"):
