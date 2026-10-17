@@ -33,6 +33,7 @@ from app.models import MaterialMonthly, MaterialTradeCountry  # noqa: E402
 from app.supply.chain import apparent_consumption, load_supply_chain, monthly_payload  # noqa: E402
 
 from jobs.supply.material_stats import MetiArchive, MetiLedger, meti_targets, sekiyu_done  # noqa: E402
+import jobs.supply.material_stats as material_stats_job  # noqa: E402
 
 
 def _fail(msg: object) -> None:
@@ -516,16 +517,115 @@ def test_meti_ledger() -> None:
         _eq(led.record("sekiyu", ["se.xlsx"], date(2026, 10, 1), 3), None, "ledger first fail")
         _eq(led.record("sekiyu", ["se.xlsx"], date(2026, 10, 3), 3), None, "ledger fail 2 days")
         line = led.record("sekiyu", ["list"], date(2026, 10, 4), 3)
-        _eq(bool(line and any(r.search(line) for r in pages)), True, "ledger pages after 3 days")
+        _eq(bool(line and "not fetched for 3 days" in line and "n=1" in line), True, "ledger reports after 3 days")
+        _eq(any(r.search(line) for r in pages), False, "ledger line must not extra-page")
         _eq(led.record("seidou", [], date(2026, 10, 4), 3), None, "ledger ok")
         led.save()
         led = MetiLedger(path)
         _eq(led.data["seidou"], {"ok": "2026-10-04"}, "ledger saved")
         _eq(led.record("seidou", ["h.xlsx"], date(2026, 10, 6), 3), None, "ledger counts from last ok")
-        _eq(led.record("seidou", ["h.xlsx"], date(2026, 10, 7), 3) is not None, True, "ledger pages 3 days after ok")
+        _eq(led.record("seidou", ["h.xlsx"], date(2026, 10, 7), 3) is not None, True, "ledger reports 3 days after ok")
         _eq(led.record("seidou", [], date(2026, 10, 8), 3), None, "ledger recovers")
         _eq("fail_since" in led.data["seidou"], False, "ledger clears fail_since")
     _eq(MetiLedger(None).record("seidou", ["x"], date(2026, 10, 1), 0) is not None, True, "ledger without file")
+
+
+class _WafClient:
+    """Every METI GET is a WAF challenge (list pages included)."""
+
+    def __init__(self, *a, **k) -> None:
+        pass
+
+    def get(self, url: str) -> bytes:
+        raise MetiChallenged(f"WAF challenge: {url}")
+
+
+class _ListThenWafClient:
+    """List HTML succeeds; the first Excel GET is a WAF challenge (ingest stops)."""
+
+    def __init__(self, *a, **k) -> None:
+        pass
+
+    def get(self, url: str) -> bytes:
+        if url.endswith(".xlsx"):
+            raise MetiChallenged(f"WAF challenge: {url}")
+        return (
+            '<a href="resourceData/08_seidou/sokuho/h2daa202608s.xlsx">'
+            '<a href="resourceData/08_seidou/kakuho/2026/h2daa202607_jikei.xlsx">'
+        ).encode()
+
+
+def _batch_pages(out: str) -> list[str]:
+    sys.path.insert(0, str(ROOT / "deploy"))
+    from alert_patterns import should_page
+
+    return [ln for ln in out.splitlines() if should_page("batch", ln)]
+
+
+def _run_material_stats(argv: list[str], client=None) -> tuple[int, str]:
+    from contextlib import redirect_stdout
+    from unittest.mock import patch
+
+    buf = io.StringIO()
+    with patch.object(material_stats_job, "ESTAT_APP_ID", ""), \
+            patch.object(material_stats_job.MetiArchive, "open", return_value=MetiArchive(None)), \
+            patch.object(sys, "argv", ["material_stats.py", *argv]), \
+            redirect_stdout(buf):
+        if client is not None:
+            with patch.object(material_stats_job, "MetiClient", client):
+                rc = material_stats_job.main()
+        else:
+            rc = material_stats_job.main()
+    return rc, buf.getvalue()
+
+
+def test_material_stats_waf_summary_pages_once() -> None:
+    """WAF で seidou/sekiyu が止まっても、page するのは summary の failed=K 1 行だけ。"""
+    init_db()
+    with tempfile.TemporaryDirectory() as tmp:
+        ledger = Path(tmp) / "ledger.json"
+        ledger.write_text(
+            '{"seidou": {"fail_since": "2026-01-01"}, "sekiyu": {"fail_since": "2026-01-01"}}',
+            encoding="utf-8",
+        )
+        rc, out = _run_material_stats(
+            ["--source", "meti", "--ledger", str(ledger)], _WafClient,
+        )
+    if "fail meti seidou list:" not in out or "fail meti sekiyu list:" not in out:
+        _fail(f"expected two fail meti list lines: {out}")
+    if "material_stats done written=0 failed=2" not in out:
+        _fail(f"summary: {out}")
+    if "failed=" in out.split("material_stats done", 1)[0]:
+        _fail(f"ledger must not emit failed=: {out}")
+    _eq(rc, 1, "waf exit")
+    paged = _batch_pages(out)
+    _eq(len(paged), 1, f"one page, got {paged!r}")
+    if "material_stats done written=0 failed=2" not in paged[0]:
+        _fail(f"page must be the summary: {paged}")
+
+
+def test_material_stats_waf_file_stop() -> None:
+    """一覧は取れて Excel で WAF なら、止まった 1 本を failed=1 にして非ゼロ終了。"""
+    init_db()
+    rc, out = _run_material_stats(["--source", "meti", "--only", "seidou"], _ListThenWafClient)
+    if "fail meti seidou h2daa202608s.xlsx:" not in out:
+        _fail(f"expected file stop: {out}")
+    if "material_stats done written=0 failed=1" not in out:
+        _fail(f"summary: {out}")
+    _eq(rc, 1, "file waf exit")
+    paged = _batch_pages(out)
+    _eq(len(paged), 1, f"one page, got {paged!r}")
+    if "failed=1" not in paged[0]:
+        _fail(f"page must be the summary: {paged}")
+
+
+def test_material_stats_ok_failed_zero() -> None:
+    init_db()
+    rc, out = _run_material_stats(["--source", "estat"])
+    if "material_stats done written=0 failed=0" not in out:
+        _fail(f"ok summary: {out}")
+    _eq(rc, 0, "ok exit")
+    _eq(_batch_pages(out), [], f"failed=0 must not page: {out}")
 
 
 def main() -> None:
@@ -539,6 +639,9 @@ def main() -> None:
     test_meti_waf_challenge()
     test_meti_archive()
     test_meti_ledger()
+    test_material_stats_waf_summary_pages_once()
+    test_material_stats_waf_file_stop()
+    test_material_stats_ok_failed_zero()
     test_trade()
     test_revision_guard()
     test_prune_and_done()
