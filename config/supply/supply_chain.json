@@ -59,7 +59,15 @@
     {"id": "steel", "name": "普通鋼鋼材", "kind": "mid", "note": "熱間圧延の鋼板・形鋼・棒鋼など。冷延鋼板やめっき鋼板はここから作る"},
     {"id": "special_steel", "name": "特殊鋼鋼材", "kind": "mid", "note": "合金を加えた鋼。歯車・軸受・ばねなどの自動車部品向けが多い"},
     {"id": "construction", "name": "建設（建物・橋）", "kind": "prod", "note": "鋼材の最大の用途"},
-    {"id": "steel_scrap", "name": "鉄スクラップ", "kind": "recycled", "note": "使い終わった自動車・家電・建物と、鋼材を加工したときの切りくず。主に電炉で溶かす。日本は輸出のほうが多い"}
+    {"id": "steel_scrap", "name": "鉄スクラップ", "kind": "recycled", "note": "使い終わった自動車・家電・建物と、鋼材を加工したときの切りくず。主に電炉で溶かす。日本は輸出のほうが多い"},
+    {"id": "copper_ore", "name": "銅鉱石（精鉱）", "kind": "raw", "note": "鉱石を銅分 30% 前後まで選鉱した精鉱で輸入する。日本は全量を輸入し、チリが約半分"},
+    {"id": "blister_copper", "name": "粗銅", "kind": "mid", "note": "精鉱を溶かして硫黄と鉄を抜いた純度 99% 前後の銅。精鉱の硫黄は排ガスから硫酸にする"},
+    {"id": "refined_copper", "name": "電気銅", "kind": "mid", "note": "粗銅を電解精製した純度 99.99% の地金。生産の 4 割強を輸出する"},
+    {"id": "copper_products", "name": "伸銅品", "kind": "mid", "note": "銅・黄銅などの板・条・管・棒・線。条はコネクタ・端子・リードフレーム、管はエアコン、黄銅棒は水栓・バルブになる。銅合金の鋳物（水栓・バルブ・船のプロペラ）も行き先が同じなので箱を分けない"},
+    {"id": "electric_wire", "name": "電線・ケーブル", "kind": "mid", "note": "銅の電線（電力用・建物の配線・巻線・自動車用など）。量は導体の重さ"},
+    {"id": "copper_foil", "name": "銅箔", "kind": "mid", "note": "プリント基板の配線とリチウムイオン電池の負極に使う薄い銅。電気銅を溶かして析出させる電解銅箔と、圧延銅箔がある"},
+    {"id": "electronic_parts", "name": "電子部品", "kind": "prod", "note": "コネクタ・半導体・プリント基板など"},
+    {"id": "copper_scrap", "name": "銅スクラップ", "kind": "recycled", "note": "使い終わった電線・家電・自動車・建物と、伸銅品を加工したときの切りくず。製錬所で電気銅に戻すか、伸銅品の工場で直接溶かす。日本は輸出のほうが多い"}
   ],
   "flows": [
     ["crude", "lpg"],
@@ -141,12 +149,35 @@
     ["steel", "appliance"],
     ["steel", "construction"],
     ["special_steel", "carpart"],
-    ["steel_scrap", "crude_steel"]
+    ["steel_scrap", "crude_steel"],
+    ["copper_ore", "blister_copper"],
+    ["copper_ore", "sulfuric"],
+    ["blister_copper", "refined_copper"],
+    ["copper_scrap", "refined_copper"],
+    ["copper_scrap", "copper_products"],
+    ["refined_copper", "copper_products"],
+    ["refined_copper", "electric_wire"],
+    ["refined_copper", "copper_foil"],
+    ["copper_products", "electronic_parts"],
+    ["copper_products", "carpart"],
+    ["copper_products", "appliance"],
+    ["copper_products", "construction"],
+    ["electric_wire", "carpart"],
+    ["electric_wire", "appliance"],
+    ["electric_wire", "construction"],
+    ["copper_foil", "electronic_parts"],
+    ["electronic_parts", "car"],
+    ["electronic_parts", "appliance"]
   ],
   "returns": [
     ["car", "steel_scrap"],
     ["appliance", "steel_scrap"],
     ["construction", "steel_scrap"],
-    ["steel", "steel_scrap"]
+    ["steel", "steel_scrap"],
+    ["car", "copper_scrap"],
+    ["appliance", "copper_scrap"],
+    ["construction", "copper_scrap"],
+    ["copper_products", "copper_scrap"],
+    ["electric_wire", "copper_scrap"]
   ]
 }

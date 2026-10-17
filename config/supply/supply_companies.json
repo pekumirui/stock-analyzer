@@ -8,10 +8,18 @@
     "edinet_japex_2026": {"title": "石油資源開発 有価証券報告書 第56期（2026年3月期）事業の内容", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YERU", "checked": "2026-10-14"},
     "paj_refining_202604": {"title": "石油連盟「製油所の所在地と原油処理能力」2026年4月末現在", "url": "https://www.paj.gr.jp/sites/default/files/2026-06/paj-04_refining%20capacities_202604r.pdf", "checked": "2026-10-14"},
     "wiki_bf_202504": {"title": "Wikipedia「高炉」日本の高炉一覧（2025年4月現在 稼働 19 基）。名古屋第3（4,425m³）・千葉第6（5,153m³）・鹿島第3の休止は各社の発表と照合", "url": "https://ja.wikipedia.org/wiki/%E9%AB%98%E7%82%89", "checked": "2026-10-14"},
-    "edinet_mc_2026": {"title": "三菱商事 有価証券報告書（2026年3月期）重要な投資案件（BMA 原料炭 50%）と関係会社の状況（IOC 26.18%）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YB25", "checked": "2026-10-14"},
-    "edinet_mitsui_2026": {"title": "三井物産 有価証券報告書 第107期（2026年3月期）関係会社の状況（豪州鉄鉱石・原料炭関連事業への投資）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YAVT", "checked": "2026-10-14"},
+    "edinet_mc_2026": {"title": "三菱商事 有価証券報告書（2026年3月期）重要な投資案件（BMA 原料炭 50%、アングロ・アメリカン・スールとケジャベコの銅資産権益）、関係会社の状況（IOC 26.18%）と金融資産（エスコンディーダ銅鉱山）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YB25", "checked": "2026-10-14"},
+    "edinet_mitsui_2026": {"title": "三井物産 有価証券報告書 第107期（2026年3月期）関係会社の状況（豪州鉄鉱石・原料炭関連事業への投資、チリのコジャワシ銅鉱山とアングロ・アメリカン・スールへの投資）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YAVT", "checked": "2026-10-14"},
     "edinet_itochu_2026": {"title": "伊藤忠商事 有価証券報告書 第102期（2026年3月期）関係会社の状況（ITOCHU Minerals & Energy of Australia、CSN Mineração 20.2%、米国原料炭事業）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YA6H", "checked": "2026-10-14"},
-    "edinet_marubeni_2026": {"title": "丸紅 有価証券報告書 第102期（2026年3月期）事業等のリスク（ロイヒル鉄鉱山、ジェリンバイースト・レイクバーモント・ヘイルクリーク炭鉱）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YAY4", "checked": "2026-10-14"}
+    "edinet_marubeni_2026": {"title": "丸紅 有価証券報告書 第102期（2026年3月期）事業等のリスク（ロイヒル鉄鉱山、ジェリンバイースト・レイクバーモント・ヘイルクリーク炭鉱、チリのロスペランブレス・センチネラ・アントコヤ銅鉱山）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YAY4", "checked": "2026-10-14"},
+    "edinet_smm_2026": {"title": "住友金属鉱山 有価証券報告書 第101期（2026年3月期）事業の内容（資源: 銅精鉱の生産、製錬: 銅の製錬・販売、金属加工: 伸銅品）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YJ6N", "checked": "2026-10-17"},
+    "edinet_mmc_2026": {"title": "三菱マテリアル 有価証券報告書 第101期（2026年3月期）事業の内容（金属事業: 銅の製錬・販売と子会社小名浜製錬、高機能製品: 銅加工品）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YFRY", "checked": "2026-10-17"},
+    "edinet_jx_2026": {"title": "JX金属 有価証券報告書 第24期（2026年3月期）事業の内容（資源: 銅精鉱、金属・リサイクル: 電気銅・硫酸、機能材料: 圧延銅箔・チタン銅・コルソン合金）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YINW", "checked": "2026-10-17"},
+    "edinet_dowa_2026": {"title": "DOWAホールディングス 有価証券報告書 第123期（2026年3月期）事業の内容（金属加工: 銅・黄銅及び銅合金の板条、黄銅棒）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YGIN", "checked": "2026-10-17"},
+    "edinet_furukawa_2026": {"title": "古河電気工業 有価証券報告書 第204期（2026年3月期）事業の内容（インフラ: 古河電工メタルケーブル、電装エレクトロニクス: 古河マグネットワイヤ、機能製品: 古河銅箔）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YCF0", "checked": "2026-10-17"},
+    "edinet_sei_2026": {"title": "住友電気工業 有価証券報告書 第156期（2026年3月期）事業の内容（環境エネルギー: 送配電用電線・ケーブル、巻線）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YL2M", "checked": "2026-10-17"},
+    "edinet_fujikura_2026": {"title": "フジクラ 有価証券報告書 第178期（2026年3月期）事業の内容（エネルギー: 電力ケーブル・通信ケーブル・被覆線）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YGP3", "checked": "2026-10-17"},
+    "edinet_mitsuikinzoku_2026": {"title": "三井金属 有価証券報告書 第101期（2026年3月期）事業の内容（機能材料: キャリア付極薄銅箔・プリント配線板用電解銅箔）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YBQV", "checked": "2026-10-17"}
   },
   "companies": [
     {"id": "aramco", "name": "サウジアラムコ", "status": "foreign"},
@@ -106,7 +114,15 @@
     {"id": "bhp", "name": "BHP", "status": "foreign"},
     {"id": "bma", "name": "BMA（BHP三菱アライアンス）", "status": "foreign", "owners": [["mitsubishicorp", 50], ["bhp", 50]], "source": "edinet_mc_2026", "note": "豪州クイーンズランド州の原料炭事業"},
     {"id": "riotinto", "name": "リオ・ティント", "status": "foreign"},
-    {"id": "vale", "name": "ヴァーレ", "status": "foreign"}
+    {"id": "vale", "name": "ヴァーレ", "status": "foreign"},
+    {"id": "smm", "name": "住友金属鉱山", "code": "57130", "status": "listed", "note": "東予工場で銅を製錬。米国モレンシー・ペルーのセロベルデ・チリのケブラダブランカなどの銅鉱山に出資"},
+    {"id": "mmc", "name": "三菱マテリアル", "code": "57110", "status": "listed", "note": "直島製錬所と子会社の小名浜製錬で銅を製錬。電子機器くず（E-Scrap）の処理が多い"},
+    {"id": "jxmetals", "name": "JX金属", "code": "50160", "status": "listed", "note": "佐賀関製錬所（パンパシフィック・カッパー・JX金属製錬）で銅を製錬。チリのロスペランブレス・エスコンディーダの銅鉱山に出資"},
+    {"id": "dowa", "name": "DOWAホールディングス", "code": "57140", "status": "listed", "note": "伸銅品は DOWAメタル。小坂製錬でリサイクル原料から銅を回収する"},
+    {"id": "furukawaelec", "name": "古河電気工業", "code": "58010", "status": "listed"},
+    {"id": "sumielec", "name": "住友電気工業", "code": "58020", "status": "listed"},
+    {"id": "fujikura", "name": "フジクラ", "code": "58030", "status": "listed", "note": "銅電線はフジクラ・ダイヤケーブル"},
+    {"id": "mitsuikinzoku", "name": "三井金属", "code": "57060", "status": "listed", "note": "半導体パッケージ基板向けのキャリア付極薄銅箔が強い"}
   ],
   "makes": [
     ["aramco", "crude"],
@@ -149,7 +165,18 @@
     ["godosteel", "crude_steel"], ["godosteel", "steel"],
     ["daidosteel", "crude_steel"], ["daidosteel", "special_steel"],
     ["aichisteel", "crude_steel"], ["aichisteel", "special_steel"],
-    ["sanyosteel", "crude_steel"], ["sanyosteel", "special_steel"]
+    ["sanyosteel", "crude_steel"], ["sanyosteel", "special_steel"],
+    ["mitsubishicorp", "copper_ore", "edinet_mc_2026"],
+    ["mitsuibussan", "copper_ore", "edinet_mitsui_2026"],
+    ["marubeni", "copper_ore", "edinet_marubeni_2026"],
+    ["smm", "copper_ore", "edinet_smm_2026"], ["smm", "blister_copper", "edinet_smm_2026"], ["smm", "refined_copper", "edinet_smm_2026"], ["smm", "copper_products", "edinet_smm_2026"],
+    ["mmc", "blister_copper", "edinet_mmc_2026"], ["mmc", "refined_copper", "edinet_mmc_2026"], ["mmc", "copper_products", "edinet_mmc_2026"],
+    ["jxmetals", "copper_ore", "edinet_jx_2026"], ["jxmetals", "blister_copper", "edinet_jx_2026"], ["jxmetals", "refined_copper", "edinet_jx_2026"], ["jxmetals", "copper_products", "edinet_jx_2026"], ["jxmetals", "copper_foil", "edinet_jx_2026"],
+    ["dowa", "copper_products", "edinet_dowa_2026"],
+    ["furukawaelec", "electric_wire", "edinet_furukawa_2026"], ["furukawaelec", "copper_foil", "edinet_furukawa_2026"],
+    ["sumielec", "electric_wire", "edinet_sei_2026"],
+    ["fujikura", "electric_wire", "edinet_fujikura_2026"],
+    ["mitsuikinzoku", "copper_foil", "edinet_mitsuikinzoku_2026"]
   ],
   "capacities": [
     {"id": "ethylene", "materials": ["ethylene"], "label": "エチレン生産能力", "unit": "千t/年", "as_of": "2024-12", "source": "meti_cap_2024", "url": "https://knak.jp/japan/ethylene.htm",

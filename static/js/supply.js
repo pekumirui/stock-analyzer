@@ -231,7 +231,8 @@ async function supplyLayout(){
 // 回収の線は右（製品）から左（リサイクル資源）へ戻る。配置の外を回る直角の線にする:
 // 製品の真下へ降りて配置の下端の外を左へ進み、リサイクル資源の真下から入る。真下に箱があれば
 // 右へ出て配置の右端の外を降りる（どちらも箱にぶつかるなら、ぶつかる数の少ないほう）。
-// 同じ資源へ戻る線は 8px ずつ外へずらして重ねない。曲がり角は segments と同じ (比率, 垂直距離) で持つ
+// 資源の真下に箱があれば、資源の列の左の隙間を上って左から入る（列の隙間には箱が無い）。
+// 回収の線は 8px ずつ外へずらして重ねない（資源が違う線も）。曲がり角は segments と同じ (比率, 垂直距離) で持つ
 function supplyBendReturns(center){
   const {cy} = supply, H = SUPPLY_NODE_H;
   const box = id => { const c = center[id], w = cy.getElementById(id).data("w"); return {x1: c.x - w / 2, x2: c.x + w / 2, y1: c.y - H / 2, y2: c.y + H / 2}; };
@@ -239,20 +240,29 @@ function supplyBendReturns(center){
   const bottom = Math.max(...boxes.map(b => b.y2)), right = Math.max(...boxes.map(b => b.x2));
   const hits = (x1, y1, x2, y2, skip) => boxes.filter(b => !skip.includes(b.id)
     && Math.min(x1, x2) < b.x2 && Math.max(x1, x2) > b.x1 && Math.min(y1, y2) < b.y2 && Math.max(y1, y2) > b.y1).length;
+  // 資源の列（横に重なる箱）の左端。左から入る線はその 8px 左を上る
+  const colLeft = tb => Math.min(...boxes.filter(o => o.x1 < tb.x2 && o.x2 > tb.x1).map(o => o.x1));
   const lane = {};
-  cy.edges(".ret").forEach(e => {
+  cy.edges(".ret").forEach((e, k) => {
     const a = e.source().id(), b = e.target().id();
     if(!center[a] || !center[b]) return;
-    const k = lane[b] = (lane[b] ?? -1) + 1;
+    const j = lane[b] = (lane[b] ?? -1) + 1;
     const sb = box(a), tb = box(b), Y = bottom + 16 + k * 8, X = right + 16 + k * 8;
     const sc = center[a], tc = center[b], skip = [a, b];
     const down = hits(sc.x, sb.y2, sc.x + 1, Y, skip);
     const side = hits(sb.x2, sc.y, X, sc.y + 1, skip);
     // 始点と終点（箱の縁）と曲がり角
     const [s, bends] = down <= side
-      ? [{x: sc.x, y: sb.y2}, [[sc.x, Y], [tc.x, Y]]]
-      : [{x: sb.x2, y: sc.y}, [[X, sc.y], [X, Y], [tc.x, Y]]];
-    const t = {x: tc.x, y: tb.y2};
+      ? [{x: sc.x, y: sb.y2}, [[sc.x, Y]]]
+      : [{x: sb.x2, y: sc.y}, [[X, sc.y], [X, Y]]];
+    let t = {x: tc.x, y: tb.y2};
+    if(hits(tc.x, tb.y2, tc.x + 1, Y, skip)){
+      const L = colLeft(tb) - 8 - j * 4;
+      bends.push([L, Y], [L, tc.y]);
+      t = {x: tb.x1, y: tc.y};
+    } else {
+      bends.push([tc.x, Y]);
+    }
     const dx = t.x - s.x, dy = t.y - s.y, len2 = dx * dx + dy * dy || 1, len = Math.sqrt(len2);
     const sw = [], sd = [];
     bends.forEach(([x, y]) => {
