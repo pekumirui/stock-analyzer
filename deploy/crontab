@@ -50,8 +50,8 @@ SHELL=/bin/bash
 # 素材の月次量 → material_monthly（サプライタブ）
 # 経産省 Excel（生産動態と石油統計。速報は翌月末、確報は翌々月中旬）。毎日見て、変わっていなければ同じ値の UPSERT
 # 生産動態と石油統計は時刻をずらす（METI の WAF は続けて取ると bot 確認を返す）。取り込み済みの年報は落とさない
-15 7 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/supply/material_stats.py --source meti --only seidou
-45 7 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/supply/material_stats.py --source meti --only sekiyu
+15 7 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/supply/material_stats.py --source meti --only seidou --ledger /var/log/app/material_stats_ledger.json
+45 7 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/supply/material_stats.py --source meti --only sekiyu --ledger /var/log/app/material_stats_ledger.json
 # e-Stat（生産動態の年報、貿易統計）。ESTAT_APP_ID が無ければ何もしない
 10 7 * * 1 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/supply/material_stats.py --source estat
 

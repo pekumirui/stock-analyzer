@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import re
 import sys
 from datetime import date
@@ -26,7 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from jobs._r2common import check_r2_mount, r2_share_root  # noqa: E402
 
 from app.config import (  # noqa: E402
-    ESTAT_APP_ID, METI_SEIDOU_URL, METI_SEKIYU_KAKUHO_URL, METI_SEKIYU_SOKUHO_URL,
+    ESTAT_APP_ID, METI_FAIL_PAGE_DAYS, METI_SEIDOU_URL, METI_SEKIYU_KAKUHO_URL, METI_SEKIYU_SOKUHO_URL,
 )
 from app.db import SessionLocal  # noqa: E402
 from app.supply.estat import (  # noqa: E402
@@ -165,12 +166,56 @@ class MetiArchive:
             print(f"warn meti archive save {kind}/{name}: {e}")
 
 
+class MetiLedger:
+    """経産省 Excel の取得の台帳（{kind: {"ok": 最後に全部取れた日, "fail_since": 取れなくなった日}}）。
+
+    WAF の確認は毎日のように返るので 1 回の失敗では page しない。最後に全部取れた日（無ければ取れなくなった日）から
+    METI_FAIL_PAGE_DAYS 日たっても取れなければ、毎回 failed= の行を出す（fluent-bit が #alerts-batch に送る）。
+    """
+
+    def __init__(self, path: Path | None) -> None:
+        self.path = path
+        self.data: dict[str, dict[str, str]] = {}
+        if path and path.exists():
+            try:
+                self.data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as e:
+                print(f"warn meti ledger {path}: {e}")
+
+    def record(self, kind: str, fails: list[str], today: date, page_days: int = METI_FAIL_PAGE_DAYS) -> str | None:
+        """今回の結果を記録し、page する行（無ければ None）を返す"""
+        st = self.data.setdefault(kind, {})
+        if not fails:
+            st["ok"] = today.isoformat()
+            st.pop("fail_since", None)
+            return None
+        st.setdefault("fail_since", today.isoformat())
+        days = (today - date.fromisoformat(st.get("ok") or st["fail_since"])).days
+        if days < page_days:
+            return None
+        return (f"material_stats meti {kind} not fetched for {days} days (last ok {st.get('ok', '-')}) "
+                f"failed={len(fails)} {','.join(fails[:5])}")
+
+    def save(self) -> None:
+        if not self.path:
+            return
+        try:
+            tmp = self.path.with_name(self.path.name + ".part")
+            tmp.write_text(json.dumps(self.data, ensure_ascii=False, indent=1), encoding="utf-8")
+            tmp.replace(self.path)
+        except OSError as e:
+            print(f"warn meti ledger save {self.path}: {e}")
+
+
 def _nenpo_cells(data: bytes) -> list:
     return sekiyu_nenpo_cells(data) + sekiyu_nenpo_inventory_cells(data)
 
 
 def ingest_meti_seidou(db, mapping: dict, refetch: bool = False, december: list[int] | None = None,
-                       archive: MetiArchive | None = None, reread: bool = False) -> int:
+                       archive: MetiArchive | None = None, reread: bool = False,
+                       fails: list[str] | None = None) -> int:
+    """fails に取れなかったファイル名（一覧ページは list）を足す"""
+    fails = [] if fails is None else fails
     conf = mapping["seidou"]
     reports = {it["report"] for it in conf["items"]}
     client = MetiClient()
@@ -179,10 +224,12 @@ def ingest_meti_seidou(db, mapping: dict, refetch: bool = False, december: list[
         files = seidou_files(client.get(METI_SEIDOU_URL).decode("utf-8", "replace"))
     except MetiChallenged as e:
         print(f"fail meti seidou list: {e}. stop and retry next run")
+        fails.append("list")
         return 0
     files[:0] = [seidou_december_kakuho(y) for y in december or []]  # 確報なので年間補正号より前に書く
     if not files:
         print("meti seidou: no Excel link on the list page")
+        fails.append("list")
         return 0
     total = 0
     done = ingested_origins(db)
@@ -193,9 +240,11 @@ def ingest_meti_seidou(db, mapping: dict, refetch: bool = False, december: list[
             records = meti_seidou_records(data, reports)
         except MetiChallenged as e:
             print(f"fail meti seidou {f.name}: {e}. stop and retry next run")
+            fails.append(f.name)
             break
         except Exception as e:  # noqa: BLE001  1 本壊れていても他の Excel は取り込む
             print(f"fail meti seidou {f.name}: {e}")
+            fails.append(f.name)
             continue
         rows, warnings = seidou_rows(records, items=conf["items"], metrics=conf["metrics"],
                                      revision=f.revision, origin=f.name)
@@ -209,7 +258,9 @@ def ingest_meti_seidou(db, mapping: dict, refetch: bool = False, december: list[
 
 
 def ingest_meti_sekiyu(db, mapping: dict, refetch: bool = False, archive: MetiArchive | None = None,
-                       reread: bool = False) -> int:
+                       reread: bool = False, fails: list[str] | None = None) -> int:
+    """fails に取れなかったファイル名（一覧ページは list）を足す"""
+    fails = [] if fails is None else fails
     items = mapping["sekiyu"]["items"]
     client = MetiClient()
     archive = archive or MetiArchive(None)
@@ -219,9 +270,11 @@ def ingest_meti_sekiyu(db, mapping: dict, refetch: bool = False, archive: MetiAr
                              METI_SEKIYU_KAKUHO_URL, METI_SEKIYU_SOKUHO_URL)
     except MetiChallenged as e:
         print(f"fail meti sekiyu list: {e}. stop and retry next run")
+        fails.append("list")
         return 0
     if not files:
         print("meti sekiyu: no Excel link on the list pages")
+        fails.append("list")
         return 0
     total = 0
     parsers = {REVISION_NENPO: ("nenpo", _nenpo_cells), REVISION_KAKUHO: ("kakuho", sekiyu_kakuho_cells),
@@ -235,9 +288,11 @@ def ingest_meti_sekiyu(db, mapping: dict, refetch: bool = False, archive: MetiAr
             cells = parse(data)
         except MetiChallenged as e:
             print(f"fail meti sekiyu {f.name}: {e}. stop and retry next run")
+            fails.append(f.name)
             break
         except Exception as e:  # noqa: BLE001  1 本壊れていても他の Excel は取り込む
             print(f"fail meti sekiyu {f.name}: {e}")
+            fails.append(f.name)
             continue
         rows, warnings = sekiyu_rows(cells, items=items, kind=kind, revision=f.revision, origin=f.name)
         _report_warnings(f.name, warnings)
@@ -326,6 +381,7 @@ def main() -> int:
     ap.add_argument("--only", choices=("seidou", "sekiyu", "trade"))
     ap.add_argument("--refetch", action="store_true", help="取り込み済みの年報・年間補正号・過去年の 12 月の確報も経産省から落とし直す")
     ap.add_argument("--reread", action="store_true", help="取り込み済みの年報なども読み直す。控えがあれば経産省には行かない")
+    ap.add_argument("--ledger", help="経産省 Excel の取得の台帳（JSON）。続けて取れないとき page する。cron は /var/log/app/material_stats_ledger.json")
     ap.add_argument("--december", help="生産動態の過去年の 12 月の確報も読む（一覧ページに無い年）。2024 または 2023-2024。手で一度だけ")
     args = ap.parse_args()
     years = parse_years(args.years, date.today())
@@ -349,12 +405,22 @@ def main() -> int:
                     n += ingest_estat_trade(client, db, mapping, years)
         # Excel は e-Stat の後。同じ revision なら後から書いたほうが残る
         archive = MetiArchive.open() if args.source in (None, "meti") and args.only != "trade" else None
+        ledger = MetiLedger(Path(args.ledger) if args.ledger else None)
+        fails: dict[str, list[str]] = {}
         if args.source in (None, "meti") and args.only in (None, "seidou"):
+            fails["seidou"] = []
             n += ingest_meti_seidou(db, mapping, args.refetch,
                                      parse_years(args.december, date.today()) if args.december else None, archive,
-                                     args.reread)
+                                     args.reread, fails["seidou"])
         if args.source in (None, "meti") and args.only in (None, "sekiyu"):
-            n += ingest_meti_sekiyu(db, mapping, args.refetch, archive, args.reread)
+            fails["sekiyu"] = []
+            n += ingest_meti_sekiyu(db, mapping, args.refetch, archive, args.reread, fails["sekiyu"])
+        if args.ledger:
+            for kind, failed in fails.items():
+                line = ledger.record(kind, failed, date.today())
+                if line:
+                    print(line)
+            ledger.save()
         print(f"material_stats done written={n}")
         return 0
     finally:

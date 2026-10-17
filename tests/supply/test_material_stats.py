@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import os
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -31,7 +32,7 @@ from app.supply.meti import seidou_records as meti_records  # noqa: E402
 from app.models import MaterialMonthly, MaterialTradeCountry  # noqa: E402
 from app.supply.chain import apparent_consumption, load_supply_chain, monthly_payload  # noqa: E402
 
-from jobs.supply.material_stats import MetiArchive, meti_targets, sekiyu_done  # noqa: E402
+from jobs.supply.material_stats import MetiArchive, MetiLedger, meti_targets, sekiyu_done  # noqa: E402
 
 
 def _fail(msg: object) -> None:
@@ -503,6 +504,30 @@ def test_meti_archive() -> None:
         "archive off")
 
 
+def test_meti_ledger() -> None:
+    from datetime import date
+    sys.path.insert(0, str(ROOT / "deploy"))
+    from alert_patterns import ALERT_PATTERNS
+
+    pages = [re.compile(a.regex) for a in ALERT_PATTERNS if a.source == "batch"]
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "ledger.json"
+        led = MetiLedger(path)
+        _eq(led.record("sekiyu", ["se.xlsx"], date(2026, 10, 1), 3), None, "ledger first fail")
+        _eq(led.record("sekiyu", ["se.xlsx"], date(2026, 10, 3), 3), None, "ledger fail 2 days")
+        line = led.record("sekiyu", ["list"], date(2026, 10, 4), 3)
+        _eq(bool(line and any(r.search(line) for r in pages)), True, "ledger pages after 3 days")
+        _eq(led.record("seidou", [], date(2026, 10, 4), 3), None, "ledger ok")
+        led.save()
+        led = MetiLedger(path)
+        _eq(led.data["seidou"], {"ok": "2026-10-04"}, "ledger saved")
+        _eq(led.record("seidou", ["h.xlsx"], date(2026, 10, 6), 3), None, "ledger counts from last ok")
+        _eq(led.record("seidou", ["h.xlsx"], date(2026, 10, 7), 3) is not None, True, "ledger pages 3 days after ok")
+        _eq(led.record("seidou", [], date(2026, 10, 8), 3), None, "ledger recovers")
+        _eq("fail_since" in led.data["seidou"], False, "ledger clears fail_since")
+    _eq(MetiLedger(None).record("seidou", ["x"], date(2026, 10, 1), 0) is not None, True, "ledger without file")
+
+
 def main() -> None:
     test_config_mapping()
     test_labels()
@@ -513,6 +538,7 @@ def main() -> None:
     test_sekiyu_sokuho_and_nenpo()
     test_meti_waf_challenge()
     test_meti_archive()
+    test_meti_ledger()
     test_trade()
     test_revision_guard()
     test_prune_and_done()
