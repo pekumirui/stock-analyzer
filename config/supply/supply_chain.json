@@ -55,10 +55,11 @@
     {"id": "car", "name": "自動車", "kind": "prod"},
     {"id": "coke", "name": "コークス", "kind": "mid", "note": "原料炭を蒸し焼きにしたもの。高炉で鉄鉱石を還元する"},
     {"id": "pig_iron", "name": "銑鉄", "kind": "mid", "note": "高炉で鉄鉱石を溶かして還元した鉄。炭素が多く硬くてもろい"},
-    {"id": "crude_steel", "name": "粗鋼", "kind": "mid", "note": "転炉で銑鉄の炭素を抜いたもの。電炉（約 25%）は鉄スクラップから作るが、スクラップはマップに置かない"},
+    {"id": "crude_steel", "name": "粗鋼", "kind": "mid", "note": "転炉で銑鉄の炭素を抜いたもの（高炉ルート）と、電炉で鉄スクラップを溶かしたもの（電炉ルート、約 25%）"},
     {"id": "steel", "name": "普通鋼鋼材", "kind": "mid", "note": "熱間圧延の鋼板・形鋼・棒鋼など。冷延鋼板やめっき鋼板はここから作る"},
     {"id": "special_steel", "name": "特殊鋼鋼材", "kind": "mid", "note": "合金を加えた鋼。歯車・軸受・ばねなどの自動車部品向けが多い"},
-    {"id": "construction", "name": "建設（建物・橋）", "kind": "prod", "note": "鋼材の最大の用途"}
+    {"id": "construction", "name": "建設（建物・橋）", "kind": "prod", "note": "鋼材の最大の用途"},
+    {"id": "steel_scrap", "name": "鉄スクラップ", "kind": "recycled", "note": "使い終わった自動車・家電・建物と、鋼材を加工したときの切りくず。主に電炉で溶かす。日本は輸出のほうが多い"}
   ],
   "flows": [
     ["crude", "lpg"],
@@ -139,6 +140,13 @@
     ["steel", "car"],
     ["steel", "appliance"],
     ["steel", "construction"],
-    ["special_steel", "carpart"]
+    ["special_steel", "carpart"],
+    ["steel_scrap", "crude_steel"]
+  ],
+  "returns": [
+    ["car", "steel_scrap"],
+    ["appliance", "steel_scrap"],
+    ["construction", "steel_scrap"],
+    ["steel", "steel_scrap"]
   ]
 }

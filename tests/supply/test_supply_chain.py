@@ -83,6 +83,29 @@ def test_rejects() -> None:
     _rejects(_graph([RAW], [["crude"]]), "flow must be")
 
 
+SCRAP = {"id": "scrap", "name": "スクラップ", "kind": "recycled"}
+
+
+def test_recycled_and_returns() -> None:
+    base = [RAW, MID, PROD, SCRAP]
+    flows = [["crude", "naphtha"], ["naphtha", "bag"], ["scrap", "naphtha"]]
+    # 回収（bag → scrap）は flows と別なので naphtha → bag → scrap → naphtha でも循環にしない
+    g = validate_supply_chain({"materials": base, "flows": flows, "returns": [["bag", "scrap"]]})
+    if g["returns"] != [["bag", "scrap"]]:
+        _fail(g["returns"])
+    if validate_supply_chain(_graph([RAW, MID], [["crude", "naphtha"]]))["returns"] != []:
+        _fail("returns defaults to []")
+    _rejects({"materials": base, "flows": flows}, "recycled needs at least one return")
+    _rejects({"materials": base, "flows": flows + [["bag", "scrap"]], "returns": [["bag", "scrap"]]},
+             "recycled material must not have inputs")
+    _rejects({"materials": base, "flows": flows, "returns": [["bag", "naphtha"]]}, "must be recycled")
+    _rejects({"materials": base, "flows": flows, "returns": [["crude", "scrap"]]}, "is raw")
+    _rejects({"materials": base, "flows": flows, "returns": [["bag", "scrap"], ["bag", "scrap"]]}, "duplicate return")
+    _rejects({"materials": base, "flows": flows, "returns": [["nope", "scrap"]]}, "unknown material nope")
+    _rejects({"materials": base, "flows": flows, "returns": [["bag"]]}, "return must be")
+    _rejects({"materials": base, "flows": flows, "returns": [["bag", "scrap"]], "loops": []}, "unknown top-level")
+
+
 def test_api() -> None:
     r = TestClient(app).get("/api/supply/graph")
     if r.status_code != 200:

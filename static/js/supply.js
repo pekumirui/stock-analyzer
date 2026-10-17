@@ -3,16 +3,17 @@ const SUPPLY_LIBS = [
   "https://unpkg.com/cytoscape@3.30.2/dist/cytoscape.min.js",
   "https://unpkg.com/elkjs@0.9.3/lib/elk.bundled.js",
 ];
-const SUPPLY_KIND = {raw: "原料", mid: "中間財", prod: "最終製品"};
+const SUPPLY_KIND = {raw: "原料", mid: "中間財", prod: "最終製品", recycled: "リサイクル資源"};
 const SUPPLY_COLOR = {
   raw:  {fill: "#fdf1de", line: "#b37314"},
   mid:  {fill: "#e3f0f4", line: "#2f7489"},
   prod: {fill: "#e6f2e0", line: "#4a8a37"},
+  recycled: {fill: "#efe9f8", line: "#6f4fb0"},
 };
 const SUPPLY_NODE_H = 28;
 const SUPPLY_MAX_ZOOM = 3;
 let supplyInit = null;  // Promise。ライブラリとグラフの読込は一度だけ
-let supply = null;      // {cy, byId, parents, kids, selected, co}
+let supply = null;      // {cy, byId, parents, kids, retFrom, retTo, selected, co}
 // 企業: 能力シェアの色。上位 5 社に固定順で振り、6 位から下はその他の灰色
 const SUPPLY_SHARE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"];
 const SUPPLY_SHARE_OTHER = "#b7c0bd";
@@ -47,9 +48,12 @@ async function loadSupply(sel){
 async function supplySetup(){
   const [graph, companies] = await Promise.all([
     api("/api/supply/graph"), api("/api/supply/companies"), ...SUPPLY_LIBS.map(supplyLoadScript)]);
-  const byId = {}, parents = {}, kids = {};
-  graph.materials.forEach(m => { byId[m.id] = m; parents[m.id] = []; kids[m.id] = []; });
+  const byId = {}, parents = {}, kids = {}, retFrom = {}, retTo = {};
+  graph.materials.forEach(m => { byId[m.id] = m; parents[m.id] = []; kids[m.id] = []; retFrom[m.id] = []; retTo[m.id] = []; });
   graph.flows.forEach(([a, b]) => { kids[a].push(b); parents[b].push(a); });
+  // 回収（使い終わった製品 → リサイクル資源）。循環になるので配置と祖先・子孫には使わない
+  const returns = graph.returns || [];
+  returns.forEach(([a, b]) => { retTo[a].push(b); retFrom[b].push(a); });
 
   // 箱の幅はラベルの文字幅で決めてから ELK に渡す
   const font = `600 12px ${getComputedStyle(document.body).fontFamily}`;
@@ -64,6 +68,7 @@ async function supplySetup(){
     elements: [
       ...graph.materials.map(m => ({data: {id: m.id, label: m.name, kind: m.kind, w: m.w}})),
       ...graph.flows.map(([a, b]) => ({data: {id: `${a}>${b}`, source: a, target: b}})),
+      ...returns.map(([a, b]) => ({classes: "ret", data: {id: `${a}~${b}`, source: a, target: b, sw: [0.5], sd: [0], se: "0px 0px", te: "0px 0px"}})),
     ],
     style: supplyStyle(font),
     layout: {name: "preset"},
@@ -71,7 +76,7 @@ async function supplySetup(){
     boxSelectionEnabled: false, autoungrabify: true,
   });
   $("#supply-msg").remove();
-  supply = {cy, byId, parents, kids, selected: "", co: supplyCompanyIndex(companies), measure, countries: {}};
+  supply = {cy, byId, parents, kids, retFrom, retTo, selected: "", co: supplyCompanyIndex(companies), measure, countries: {}};
   await supplyLayout();
   cy.fit(undefined, 16);
 
@@ -151,6 +156,17 @@ function supplyStyle(font){
       width: 2.6, "line-color": "#0077b6", "target-arrow-color": "#0077b6", "z-index": 20,
     }},
     {selector: "node.sel", style: {"border-width": 3, "border-color": "#0077b6"}},
+    // 回収の線。右の製品から左のリサイクル資源へ、配置の下を回って戻る（配置が済んでから曲げ具合を決める）
+    // 箱より奥に描く（ほかの箱の下をくぐるときに文字を隠さない）
+    {selector: "edge.ret", style: {
+      width: 1.6, "line-color": "#6f4fb0", "target-arrow-color": "#6f4fb0", "line-style": "dashed",
+      "line-dash-pattern": [6, 4], "curve-style": "round-segments", "segment-radius": 10,
+      "segment-weights": "data(sw)", "segment-distances": "data(sd)", "edge-distances": "endpoints",
+      "source-endpoint": "data(se)", "target-endpoint": "data(te)",
+      opacity: 0.7, "z-index": 5,
+    }},
+    {selector: "edge.ret.dim", style: {opacity: 0.12}},
+    {selector: "edge.ret.hl", style: {width: 2.4, opacity: 1, "z-index": 6}},
     // 輸入元の国。選んだ素材の左に一時的に置く
     {selector: "node.ctry", style: {
       "background-color": "#fff", "border-color": "#7a8794", "border-style": "dashed", "border-width": 1.2,
@@ -180,7 +196,7 @@ async function supplyLayout(){
       "elk.layered.spacing.edgeNodeBetweenLayers": "12",
     },
     children: cy.nodes().map(n => ({id: n.id(), width: n.data("w"), height: SUPPLY_NODE_H})),
-    edges: cy.edges().map(e => ({id: e.id(), sources: [e.source().id()], targets: [e.target().id()]})),
+    edges: cy.edges().not(".ret").map(e => ({id: e.id(), sources: [e.source().id()], targets: [e.target().id()]})),
   });
   const center = {};
   cy.batch(() => {
@@ -208,6 +224,43 @@ async function supplyLayout(){
         te: `${t.x - tc.x}px ${t.y - tc.y}px`,
       });
     });
+    supplyBendReturns(center);
+  });
+}
+
+// 回収の線は右（製品）から左（リサイクル資源）へ戻る。配置の外を回る直角の線にする:
+// 製品の真下へ降りて配置の下端の外を左へ進み、リサイクル資源の真下から入る。真下に箱があれば
+// 右へ出て配置の右端の外を降りる（どちらも箱にぶつかるなら、ぶつかる数の少ないほう）。
+// 同じ資源へ戻る線は 8px ずつ外へずらして重ねない。曲がり角は segments と同じ (比率, 垂直距離) で持つ
+function supplyBendReturns(center){
+  const {cy} = supply, H = SUPPLY_NODE_H;
+  const box = id => { const c = center[id], w = cy.getElementById(id).data("w"); return {x1: c.x - w / 2, x2: c.x + w / 2, y1: c.y - H / 2, y2: c.y + H / 2}; };
+  const boxes = Object.keys(center).map(id => ({id, ...box(id)}));
+  const bottom = Math.max(...boxes.map(b => b.y2)), right = Math.max(...boxes.map(b => b.x2));
+  const hits = (x1, y1, x2, y2, skip) => boxes.filter(b => !skip.includes(b.id)
+    && Math.min(x1, x2) < b.x2 && Math.max(x1, x2) > b.x1 && Math.min(y1, y2) < b.y2 && Math.max(y1, y2) > b.y1).length;
+  const lane = {};
+  cy.edges(".ret").forEach(e => {
+    const a = e.source().id(), b = e.target().id();
+    if(!center[a] || !center[b]) return;
+    const k = lane[b] = (lane[b] ?? -1) + 1;
+    const sb = box(a), tb = box(b), Y = bottom + 16 + k * 8, X = right + 16 + k * 8;
+    const sc = center[a], tc = center[b], skip = [a, b];
+    const down = hits(sc.x, sb.y2, sc.x + 1, Y, skip);
+    const side = hits(sb.x2, sc.y, X, sc.y + 1, skip);
+    // 始点と終点（箱の縁）と曲がり角
+    const [s, bends] = down <= side
+      ? [{x: sc.x, y: sb.y2}, [[sc.x, Y], [tc.x, Y]]]
+      : [{x: sb.x2, y: sc.y}, [[X, sc.y], [X, Y], [tc.x, Y]]];
+    const t = {x: tc.x, y: tb.y2};
+    const dx = t.x - s.x, dy = t.y - s.y, len2 = dx * dx + dy * dy || 1, len = Math.sqrt(len2);
+    const sw = [], sd = [];
+    bends.forEach(([x, y]) => {
+      const px = x - s.x, py = y - s.y;
+      sw.push((px * dx + py * dy) / len2);
+      sd.push((py * dx - px * dy) / len);
+    });
+    e.data({sw, sd, se: `${s.x - sc.x}px ${s.y - sc.y}px`, te: `${t.x - tc.x}px ${t.y - tc.y}px`});
   });
 }
 
@@ -226,10 +279,12 @@ function supplySelect(id, fly){
   cy.batch(() => {
     cy.elements().removeClass("dim hl sel");
     cy.nodes().forEach(n => { if(!onUp(n.id()) && !onDown(n.id())) n.addClass("dim"); });
-    cy.edges().forEach(e => {
+    cy.edges().not(".ret").forEach(e => {
       const a = e.source().id(), b = e.target().id();
       e.addClass((up.has(a) && onUp(b)) || (onDown(a) && down.has(b)) ? "hl" : "dim");
     });
+    // 回収の線は選んだ素材が端にあるときだけ強調する
+    cy.edges(".ret").forEach(e => e.addClass(e.source().id() === id || e.target().id() === id ? "hl" : "dim"));
     cy.getElementById(id).addClass("sel");
   });
   if(fly){
@@ -288,15 +343,17 @@ function supplyPanel(up, down){
   }
   const m = supply.byId[id], order = Object.keys(supply.byId);
   const sorted = set => order.filter(i => set.has(i));
-  const raws = sorted(up).filter(i => supply.byId[i].kind === "raw");
+  const raws = sorted(up).filter(i => ["raw", "recycled"].includes(supply.byId[i].kind));
   const prods = sorted(down).filter(i => supply.byId[i].kind === "prod");
   p.innerHTML = `<h2>${m.name} <span class="supply-kind k-${m.kind}">${SUPPLY_KIND[m.kind]}</span></h2>
     <div class="sub supply-meta">上流 ${up.size} ・ 下流 ${down.size}</div>
     ${m.note ? `<p class="supply-note">${m.note}</p>` : ""}
     <h3>直接の原料</h3>${supplyChips(supply.parents[id])}
     <h3>これから作られるもの</h3>${supplyChips(supply.kids[id])}
-    ${m.kind !== "raw" ? `<h3>元をたどった原料</h3>${supplyChips(raws)}` : ""}
+    ${!["raw", "recycled"].includes(m.kind) ? `<h3>元をたどった原料</h3>${supplyChips(raws)}` : ""}
     ${down.size ? `<h3>行き着く最終製品</h3>${supplyChips(prods)}` : ""}
+    ${m.kind === "recycled" ? `<h3>回収元</h3>${supplyChips(supply.retFrom[id])}` : ""}
+    ${supply.retTo[id].length ? `<h3>使い終わると</h3>${supplyChips(supply.retTo[id])}` : ""}
     <h3>作っている企業</h3>${supplyMakers(id)}
     ${(supply.co.capsByMat[id] || []).map(supplyShare).join("")}
     <div id="supply-countries"></div>
