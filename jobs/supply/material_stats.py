@@ -24,7 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from jobs._r2common import check_r2_mount, r2_share_root  # noqa: E402
+from jobs._r2common import MountDisconnected, check_r2_mount, r2_share_root  # noqa: E402
 
 from app.config import (  # noqa: E402
     ESTAT_APP_ID, METI_FAIL_PAGE_DAYS, METI_SEIDOU_URL, METI_SEKIYU_KAKUHO_URL, METI_SEKIYU_SOKUHO_URL,
@@ -110,7 +110,7 @@ class MetiArchive:
         try:
             check_r2_mount(root, require_existing=False, retries=0)
             root.mkdir(parents=True, exist_ok=True)
-        except Exception as e:  # noqa: BLE001  R2 マウント切断（MountDisconnected）や権限。控えなしで続ける
+        except (MountDisconnected, OSError) as e:
             print(f"warn meti archive off: {e}")
             return cls(None)
         return cls(root)
@@ -242,7 +242,7 @@ def ingest_meti_seidou(db, mapping: dict, refetch: bool = False, december: list[
             print(f"fail meti seidou {f.name}: {e}. stop and retry next run")
             fails.append(f.name)
             break
-        except Exception as e:  # noqa: BLE001  1 本壊れていても他の Excel は取り込む
+        except (MountDisconnected, OSError) as e:
             print(f"fail meti seidou {f.name}: {e}")
             fails.append(f.name)
             continue
@@ -290,7 +290,7 @@ def ingest_meti_sekiyu(db, mapping: dict, refetch: bool = False, archive: MetiAr
             print(f"fail meti sekiyu {f.name}: {e}. stop and retry next run")
             fails.append(f.name)
             break
-        except Exception as e:  # noqa: BLE001  1 本壊れていても他の Excel は取り込む
+        except (MountDisconnected, OSError) as e:
             print(f"fail meti sekiyu {f.name}: {e}")
             fails.append(f.name)
             continue
