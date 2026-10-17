@@ -256,6 +256,12 @@ IR 月次 PDF/xlsx/xls（`jobs/monthly/ir_monthly_r2.py`）:
 - 中間証明書が欠ける／付け違う発行体は、同じ `http_get` がリーフの AIA (CA Issuers) から中間を補って検証し直す。検証は切らない（7544 スリーエフ）
 - 大東建託 (1878) の `history.xls`、ユナイテッドアローズ (7606) の xlsx は `jobs/monthly/ir_monthly_xls_ingest.py` が `config/monthly/ir_monthly_xls.json` の列・行指定で ingest JSON を作り loopback POST する。year は送らない。汎用 xlsx パーサは無い。銘柄クラスは作らない。HTML ingest の cron には混ぜない
 
+IR 月次 JSON（`jobs/monthly/ir_monthly_json_ingest.py`）:
+
+- スギHD (7649) の公開 CloudFront JSON。E-IR と同じく GET して ingest JSON を書く。自動 POST しない。crontab に載せない。銘柄クラスは作らない。HTML ingest の cron には混ぜない
+- JSON の `year` は HTML `data-year`（暦年。2027年2月期の3月は year=2026 month=3）。今年度だけ。過去年度の表は入れない
+- 伸び率は +100 して `yoy_index`、`digits` で小数1桁。フィールドと行名は `config/monthly/ir_monthly_json.json`
+
 IR 月次 HTML（`jobs/monthly/ir_monthly_html_r2.py`）:
 
 - `http_get` が打ち切った 429 は `failed` にせず `skip issuer {code} rate-limited:`。同一ホストは残りを `skip issuer {code} host-cooled {host}`。summary の `failed=` と exit=1 は 404・パース・I/O などだけ（`failed>0`）。再試行回数は増やさない

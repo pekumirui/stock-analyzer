@@ -1,0 +1,18 @@
+{
+  "7649": {
+    "name": "スギホールディングス",
+    "url": "https://d1vyjchtv8ee5.cloudfront.net/ja/cms/api/monthlyreport",
+    "fy_end_month": 2,
+    "digits": 1,
+    "unit": "yoy_index",
+    "add": 100,
+    "fields": [
+      {"key": "group_total_all", "element": "スギ薬局 全店"},
+      {"key": "group_total_existing", "element": "スギ薬局 既存店"},
+      {"key": "sugi_total_all", "element": "ドラッグストア事業 全店"},
+      {"key": "sugi_total_existing", "element": "ドラッグストア事業 既存店"},
+      {"key": "chozai_total_all", "element": "調剤事業 全店"},
+      {"key": "chozai_total_existing", "element": "調剤事業 既存店"}
+    ]
+  }
+}
