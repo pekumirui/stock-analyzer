@@ -307,7 +307,10 @@ def tool_service_status(_args: dict[str, Any]) -> str:
         "=== curl local ===",
         "80 " + run_cmd(["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "3", "http://127.0.0.1/"]),
         "8000 " + run_cmd(["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "3", "http://127.0.0.1:8000/"]),
-        "8010 " + run_cmd(["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "3", "http://127.0.0.1:8010/mcp"]),
+        # uvicorn は workers=1。call_tool は同期でイベントループを塞ぐので、
+        # 自分の /mcp へ curl すると --max-time 3 で 000 になり故障と誤認する。
+        # この tool が応答できていること自体が MCP の生存確認。
+        f"{PORT} ok (this process)",
         "",
         f"=== {log_dir()} ===",
         run_cmd(["ls", "-l", str(log_dir())]),
@@ -1265,7 +1268,7 @@ def tool_monthly_ingest(args: dict[str, Any]) -> str:
 
 TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = {
     "service_status": (
-        "nginx / stock-analyzer / MCP の active 状態、待ち受けポート、localhost の HTTP コード。",
+        "nginx / stock-analyzer / MCP の active 状態、待ち受けポート、localhost:80 / :8000 の HTTP コード。MCP 自身はこの応答自体を ok とし、自分へは curl しない。",
         {"type": "object", "properties": {}},
         tool_service_status,
     ),
