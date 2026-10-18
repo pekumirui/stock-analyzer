@@ -357,14 +357,14 @@ for lab in parser.load_labels():
 
 展開後、次の順で iXBRL を探す。
 
-1. `*manifest*.xml` があり `<ixbrl>` を列挙していればそれを使う（xbrlp `prepare_ixbrl`）
-2. 無ければ `Summary/` 配下、次に ZIP ルートの `*.htm` / `*.html` / `*.ixbrl` で `ix:nonFraction` または `ix:nonNumeric` を含むもの
+1. ZIP 内の `Summary/` を先頭に、続く `*.htm` / `*.html` / `*.ixbrl` で `ix:nonFraction` または `ix:nonNumeric` を含むもの（`find_ixbrl_files`）
+2. `*manifest*.xml` があり `<ixbrl>` を列挙していればそれを足す（xbrlp `prepare_ixbrl`）。Attachment の manifest だけあっても Summary 側は捨てない（KAB-48）
 3. `AuditDoc/` / 監査関連パスは除外
 4. 対象 iXBRL が 0 件なら `parse_status='skipped'`、`parse_error='no-ixbrl'`
 
 第1弾は伝統的 instance `.xbrl` だけしか無い ZIP をパースしない（skipped）。有報を始めるときに拡張する。
 
-タクソノミ XSD は遠隔取得になる。`FileLoader` のキャッシュディレクトリは `XBRL_CACHE_DIR`（既定 `/home/stock/r2-share/xbrl/_cache`）。プロセス間で `shared_xsd_cache` を共有してよい。
+タクソノミ XSD は遠隔取得になる。キャッシュは `XBRL_CACHE_DIR`（既定 `/home/stock/r2-share/xbrl/_cache`）。`urlopen` は `XBRL_XSD_TIMEOUT`（既定 8 秒）で打ち切り、失敗しても facts は残す（ラベルだけ欠ける）。
 
 ### 5.5 コンテキスト解釈
 
@@ -438,7 +438,7 @@ parse ジョブは manifest を入力カタログにする。fetch 側に parse_
 9. 成功なら `parse_status='parsed'`。例外は filing 単位でロールバックし `failed` + 要約トレース。ジョブは止めない。
 10. 再パースは当該 `filing_id` の contexts を DELETE（facts も CASCADE 相当をアプリ側で消す。SQLite で FK が効かないため明示 DELETE）。
 
-レート制限は TDnet に触れないので不要。XSD 取得失敗は `FileLoader(ignore_failure=False)` で落とし、その filing を failed にする。
+レート制限は TDnet に触れないので不要。XSD 取得失敗は filing を failed にしない（facts は schema 無しで取れる）。
 
 ### 6.3 load-mappings
 
@@ -460,7 +460,7 @@ filing 単位。
 2. **既存23項目（BS/PL/CF）の実績**: 従来どおり `has_dimensions` が空か連結/非連結だけ、かつ `relative_period='current'`。選定キーは `std_item` ごと 1 値（値を変えない）
 3. **EPS 実績**: 本表コンテキストに加え `ResultMember`（短信表紙）を許す
 4. **配当**: `FirstQuarter` / `SecondQuarter` / `ThirdQuarter` / `YearEnd` / `Annual` メンバーで `target_period` を分ける。`ResultMember` は実績、`ForecastMember` は予想
-5. **業績予想**: `ForecastMember` 必須。`relative_period='current'` は要求しない（通期予想の期末は短信の四半期末とずれる）。`PreviousMember` は `value_kind=forecast_previous`（今回予想は `forecast`）。`LowerMember`/`UpperMember` は `range_side`
+5. **業績予想**: `ForecastMember`、または `LowerMember`/`UpperMember`/`MinimumMember`/`MaximumMember`（ForecastMember 無しのレンジ）。`relative_period='current'` は要求しない（通期予想の期末は短信の四半期末とずれる）。`PreviousMember` は `value_kind=forecast_previous`（今回予想は `forecast`）。`LowerMember`/`UpperMember` は `range_side`。context 名の `accumulatedq1`/`accumulatedq3` と日数（80–100→Q1、240–300→Q3）で `target_period` を付ける
 6. `is_consolidated` が取れなければ 1（連結）として正規化する。NULL のまま残さない
 7. mappings を `namespace_key + local_name` で結合。`accounting_standard` が NULL でない行は filing の基準と一致するときだけ。同一キーでは `priority` 昇順で最初の値
 8. `sign='invert'` なら符号反転
@@ -480,6 +480,7 @@ python jobs/xbrl/xbrl_parse.py                     # pending + 未登録 ZIP
 python jobs/xbrl/xbrl_parse.py --from 2026-01-01 --to 2026-09-05
 python jobs/xbrl/xbrl_parse.py --doc-id 2026090750xxxx
 python jobs/xbrl/xbrl_parse.py --retry-failed
+python jobs/xbrl/xbrl_parse.py --reparse   # 既に parsed の ZIP も再読込（KAB-48）
 python jobs/xbrl/xbrl_parse.py load-mappings
 python jobs/xbrl/xbrl_parse.py report-unmapped --limit 50
 
@@ -534,7 +535,7 @@ TDnet 短信の実際の `namespace_key` は fixture を見てから YAML に書
 
 | code | label_ja | 代表 local_name |
 |---|---|---|
-| net_sales | 売上高 | NetSales / OperatingRevenue1 |
+| net_sales | 売上高 | NetSales / OperatingRevenue1 / OperatingRevenuesIFRS |
 | cost_of_sales | 売上原価 | CostOfSales |
 | gross_profit | 売上総利益 | GrossProfit |
 | sga | 販売費及び一般管理費 | SellingGeneralAndAdministrativeExpenses |
@@ -543,7 +544,7 @@ TDnet 短信の実際の `namespace_key` は fixture を見てから YAML に書
 | profit_before_tax | 税引前当期純利益 | IncomeBeforeIncomeTaxes |
 | net_income | 親会社株主に帰属する当期純利益 | ProfitLossAttributableToOwnersOfParent |
 | eps_basic | 1株当たり当期純利益 | tse-ed-t:NetIncomePerShare / BasicEarningsPerShare |
-| eps_diluted | 潜在株式調整後1株当たり当期純利益 | DilutedNetIncomePerShare |
+| eps_diluted | 潜在株式調整後1株当たり当期純利益 | DilutedNetIncomePerShare / DilutedEarningsLossPerShareIFRS |
 
 **配当（OTHER。実績/予想は `value_kind`、期は `target_period`）**
 
@@ -584,6 +585,7 @@ TDnet 短信 ZIP には BS/CF が薄い（PL 中心のサマリ）ものが多�
 XBRL_DEST=/home/stock/r2-share/xbrl
 XBRL_CACHE_DIR=/home/stock/r2-share/xbrl/_cache
 XBRL_TEXT_MAX_CHARS=1000
+XBRL_XSD_TIMEOUT=8
 ```
 
 `.env.example` にコメントで追記する。必須キーは増やさない。

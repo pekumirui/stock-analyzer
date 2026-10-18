@@ -8,6 +8,7 @@ import sqlite3
 import sys
 import tempfile
 import zipfile
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -350,6 +351,43 @@ def test_classify_context_helpers() -> None:
         )
         if classify_context(seg) is not None:
             _fail("segment must be skipped")
+        rng = XbrlContext(
+            filing_id=filing.id, context_ref="CurrentYearDuration_ConsolidatedMember_LowerMember",
+            period_type="duration",
+            start_date=date(2026, 4, 1),
+            end_date=date(2027, 3, 31),
+            is_consolidated=1, relative_period=None,
+            dimensions_json=json.dumps({AXIS_C: CONS, AXIS_RG: LOWER}),
+            has_dimensions=True,
+        )
+        rngk = classify_context(rng)
+        if rngk is None or rngk.value_kind != "forecast" or rngk.range_side != "lower":
+            _fail(f"range without ForecastMember: {rngk}")
+        q3 = XbrlContext(
+            filing_id=filing.id,
+            context_ref="CurrentAccumulatedQ3Duration_ConsolidatedMember_ForecastMember",
+            period_type="duration",
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 9, 30),
+            is_consolidated=1, relative_period=None,
+            dimensions_json=json.dumps({AXIS_C: CONS, AXIS_RF: FORECAST}),
+            has_dimensions=True,
+        )
+        q3k = classify_context(q3)
+        if q3k is None or infer_target_period(q3, filing, q3k, "net_sales") != "Q3":
+            _fail(f"q3 accumulated target {q3k} {infer_target_period(q3, filing, q3k, 'net_sales') if q3k else None}")
+        q1 = XbrlContext(
+            filing_id=filing.id, context_ref="CurrentAccumulatedQ1Duration",
+            period_type="duration",
+            start_date=date(2026, 4, 1),
+            end_date=date(2026, 6, 30),
+            is_consolidated=1, relative_period=None,
+            dimensions_json=json.dumps({AXIS_C: CONS, AXIS_RF: FORECAST}),
+            has_dimensions=True,
+        )
+        q1k = classify_context(q1)
+        if q1k is None or infer_target_period(q1, filing, q1k, "net_sales") != "Q1":
+            _fail(f"q1 accumulated target {q1k}")
     finally:
         db.close()
 
@@ -499,6 +537,218 @@ def test_legacy_23_unchanged_with_forecast_facts(tmp: Path) -> None:
         db.close()
 
 
+def range_no_forecast_contexts() -> str:
+    ytd = [(AXIS_C, CONS)]
+    lo = [(AXIS_C, CONS), (AXIS_RG, LOWER)]
+    hi = [(AXIS_C, CONS), (AXIS_RG, UPPER)]
+    inst = [(AXIS_C, CONS)]
+    return "".join([
+        _context("CurrentYTDDuration", start="2026-04-01", end="2026-06-30", members=ytd),
+        _context("CurrentYearInstant", start=None, end="2026-06-30", members=inst),
+        _context(
+            "CurrentYearDuration_ConsolidatedMember_LowerMember",
+            start="2026-04-01", end="2027-03-31", members=lo,
+        ),
+        _context(
+            "CurrentYearDuration_ConsolidatedMember_UpperMember",
+            start="2026-04-01", end="2027-03-31", members=hi,
+        ),
+    ])
+
+
+def range_no_forecast_facts() -> list[tuple[str, str, str, str, str, str, str]]:
+    return [
+        ("jpigp_cor", "RevenueIFRS", "CurrentYTDDuration", "JPY", "6", "10000", "-6"),
+        ("jpigp_cor", "OperatingProfitLossIFRS", "CurrentYTDDuration", "JPY", "6", "2000", "-6"),
+        ("jpigp_cor", "AssetsIFRS", "CurrentYearInstant", "JPY", "6", "800", "-6"),
+        ("tse-ed-t", "SalesIFRS", "CurrentYearDuration_ConsolidatedMember_LowerMember", "JPY", "6", "57823", "-6"),
+        ("tse-ed-t", "SalesIFRS", "CurrentYearDuration_ConsolidatedMember_UpperMember", "JPY", "6", "59000", "-6"),
+        (
+            "tse-ed-t", "BasicEarningsPerShareIFRS",
+            "CurrentYearDuration_ConsolidatedMember_LowerMember", "JPYPershare", "0", "99.33", "2",
+        ),
+        (
+            "tse-ed-t", "BasicEarningsPerShareIFRS",
+            "CurrentYearDuration_ConsolidatedMember_UpperMember", "JPYPershare", "0", "108.55", "2",
+        ),
+    ]
+
+
+def q3_and_fy_forecast_contexts() -> str:
+    ytd = [(AXIS_C, CONS)]
+    q3 = [(AXIS_C, CONS), (AXIS_RF, FORECAST)]
+    fy = [(AXIS_C, CONS), (AXIS_RF, FORECAST)]
+    return "".join([
+        _context("CurrentYTDDuration", start="2026-01-01", end="2026-06-30", members=ytd),
+        _context(
+            "CurrentAccumulatedQ3Duration_ConsolidatedMember_ForecastMember",
+            start="2026-01-01", end="2026-09-30", members=q3,
+        ),
+        _context("CurrentYearDuration", start="2026-01-01", end="2026-12-31", members=fy),
+    ])
+
+
+def q3_and_fy_forecast_facts() -> list[tuple[str, str, str, str, str, str, str]]:
+    return [
+        ("jppfs_cor", "NetSales", "CurrentYTDDuration", "JPY", "6", "40000", "-6"),
+        ("tse-ed-t", "NetSales", "CurrentAccumulatedQ3Duration_ConsolidatedMember_ForecastMember", "JPY", "6", "74200", "-6"),
+        ("tse-ed-t", "NetSales", "CurrentYearDuration", "JPY", "6", "103800", "-6"),
+    ]
+
+
+def ifrs_loss_eps_facts() -> list[tuple[str, str, str, str, str, str, str]]:
+    return [
+        ("jpigp_cor", "DilutedEarningsLossPerShareIFRS", "CurrentYTDDuration", "JPYPershare", "0", "16.73", "2"),
+        ("tse-ed-t", "OperatingRevenuesIFRS", "CurrentYTDDuration", "JPY", "6", "5949", "-6"),
+        ("tse-ed-t", "OperatingRevenuesIFRS", "CurrentYearDuration", "JPY", "6", "28000", "-6"),
+        ("jpigp_cor", "AssetsIFRS", "CurrentYearInstant", "JPY", "6", "800", "-6"),
+    ]
+
+
+def test_range_forecast_without_forecast_member(tmp: Path) -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        html = build_ixbrl(facts=range_no_forecast_facts(), contexts=range_no_forecast_contexts())
+        filing = parse_and_normalize(
+            db, tmp, code="39620", doc_id="rng1",
+            title="2027年3月期 第1四半期決算短信〔IFRS〕（連結）",
+            html=html,
+        )
+        lo = _one(db, filing.id, "net_sales", value_kind="forecast", range_side="lower")
+        hi = _one(db, filing.id, "net_sales", value_kind="forecast", range_side="upper")
+        if lo is None or hi is None:
+            _fail("range forecast missing")
+        if Decimal(str(lo.value)) != Decimal("57823000000") or Decimal(str(hi.value)) != Decimal("59000000000"):
+            _fail(f"range sales {lo.value} {hi.value}")
+        if lo.target_period != "FY" or hi.target_period != "FY":
+            _fail(f"range target {lo.target_period} {hi.target_period}")
+        eps_lo = _one(db, filing.id, "eps_basic", value_kind="forecast", range_side="lower")
+        eps_hi = _one(db, filing.id, "eps_basic", value_kind="forecast", range_side="upper")
+        if eps_lo is None or Decimal(str(eps_lo.value)) != Decimal("99.33"):
+            _fail(f"range eps lower {eps_lo.value if eps_lo else None}")
+        if eps_hi is None or Decimal(str(eps_hi.value)) != Decimal("108.55"):
+            _fail(f"range eps upper {eps_hi.value if eps_hi else None}")
+    finally:
+        db.close()
+
+
+def test_q3_accumulated_forecast_not_fy(tmp: Path) -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        html = build_ixbrl(facts=q3_and_fy_forecast_facts(), contexts=q3_and_fy_forecast_contexts())
+        filing = parse_and_normalize(
+            db, tmp, code="68710", doc_id="q3fy1",
+            title="2026年12月期 第2四半期決算短信〔日本基準〕（連結）",
+            html=html,
+        )
+        q3 = _one(db, filing.id, "net_sales", value_kind="forecast", target_period="Q3")
+        fy = _one(db, filing.id, "net_sales", value_kind="forecast", target_period="FY")
+        if q3 is None or Decimal(str(q3.value)) != Decimal("74200000000"):
+            _fail(f"q3 forecast {q3.value if q3 else None}")
+        if fy is None or Decimal(str(fy.value)) != Decimal("103800000000"):
+            _fail(f"fy forecast {fy.value if fy else None}")
+        wrongly_fy = [
+            r for r in _rows(db, filing.id, "net_sales")
+            if r.value_kind == "forecast" and r.target_period == "FY"
+            and Decimal(str(r.value)) == Decimal("74200000000")
+        ]
+        if wrongly_fy:
+            _fail("Q3 YTD forecast registered as FY")
+    finally:
+        db.close()
+
+
+def test_ifrs_diluted_loss_eps_and_operating_revenues(tmp: Path) -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        html = build_ixbrl(facts=ifrs_loss_eps_facts(), contexts=ifrs_contexts())
+        filing = parse_and_normalize(
+            db, tmp, code="436A0", doc_id="deps1",
+            title="2026年3月期 第2四半期決算短信〔IFRS〕（連結）",
+            html=html,
+        )
+        deps = _one(db, filing.id, "eps_diluted", value_kind="actual")
+        if deps is None or Decimal(str(deps.value)) != Decimal("16.73"):
+            _fail(f"diluted loss eps {deps.value if deps else None}")
+        sales = _one(db, filing.id, "net_sales", value_kind="actual")
+        if sales is None or Decimal(str(sales.value)) != Decimal("5949000000"):
+            _fail(f"operating revenues actual {sales.value if sales else None}")
+        fc = _one(db, filing.id, "net_sales", value_kind="forecast")
+        if fc is None or Decimal(str(fc.value)) != Decimal("28000000000"):
+            _fail(f"operating revenues forecast {fc.value if fc else None}")
+    finally:
+        db.close()
+
+
+def _vs_schema(conn: sqlite3.Connection) -> None:
+    conn.executescript("""
+        CREATE TABLE statements (
+            disclosure_no TEXT PRIMARY KEY,
+            code TEXT,
+            disclosed_date TEXT,
+            type_of_period TEXT,
+            type_of_document TEXT,
+            period_end TEXT,
+            fiscal_year_end TEXT,
+            net_sales REAL,
+            operating_profit REAL,
+            ordinary_profit REAL,
+            profit REAL,
+            eps REAL,
+            fy_net_sales REAL,
+            fy_operating_profit REAL,
+            fy_ordinary_profit REAL,
+            fy_profit REAL,
+            fy_eps REAL,
+            f2_net_sales REAL,
+            f2_operating_profit REAL,
+            f2_ordinary_profit REAL,
+            f2_profit REAL,
+            f2_eps REAL,
+            is_revision INTEGER,
+            raw_json TEXT
+        );
+        CREATE TABLE xbrl_std_items (
+            id INTEGER PRIMARY KEY,
+            code TEXT NOT NULL UNIQUE,
+            statement TEXT NOT NULL,
+            label_ja TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE xbrl_filings (
+            id INTEGER PRIMARY KEY,
+            code TEXT,
+            submitted_at TEXT,
+            doc_id TEXT,
+            doc_type TEXT,
+            parse_status TEXT
+        );
+        CREATE TABLE xbrl_financials (
+            id INTEGER PRIMARY KEY,
+            code TEXT,
+            filing_id INTEGER,
+            std_item_id INTEGER,
+            is_consolidated INTEGER,
+            period_type TEXT,
+            period_end TEXT,
+            value NUMERIC,
+            unit TEXT,
+            value_kind TEXT,
+            range_side TEXT,
+            target_period TEXT
+        );
+        INSERT INTO xbrl_std_items (id, code, statement, label_ja) VALUES
+          (1,'net_sales','PL','売上高'),
+          (2,'operating_income','PL','営業利益'),
+          (3,'ordinary_income','PL','経常利益'),
+          (4,'net_income','PL','純利益'),
+          (5,'eps_basic','PL','EPS'),
+          (6,'dps','OTHER','配当');
+    """)
+
+
 def test_vs_statements_fixture(tmp: Path) -> None:
     db = tmp / "vs.db"
     conn = sqlite3.connect(db)
@@ -609,6 +859,121 @@ def test_vs_statements_fixture(tmp: Path) -> None:
     payload = json.loads(out.read_text(encoding="utf-8"))
     if payload["overall"]["mismatches"] != 0:
         _fail(payload["overall"])
+    if payload["overall"].get("skipped_date", 0) != 0:
+        _fail(f"date skip on matching fixture {payload['overall']}")
+
+
+def test_vs_statements_skips_date_mismatch(tmp: Path) -> None:
+    db = tmp / "vs-date.db"
+    conn = sqlite3.connect(db)
+    try:
+        _vs_schema(conn)
+        conn.execute(
+            "INSERT INTO xbrl_filings (id, code, submitted_at, doc_id, doc_type, parse_status) "
+            "VALUES (1,'51010','2026-08-08 15:00:00','d1','quarterly','parsed')"
+        )
+        conn.execute(
+            "INSERT INTO xbrl_financials (code, filing_id, std_item_id, is_consolidated, period_type, "
+            "period_end, value, unit, value_kind, range_side, target_period) "
+            "VALUES ('51010',1,1,1,'Q2','2026-06-30',100,'JPY','actual','point','Q2')"
+        )
+        conn.execute(
+            "INSERT INTO statements VALUES ("
+            "'OLD','51010','2020-01-01','2Q','2QFinancialStatements_Consolidated_JP',"
+            "'2020-06-30','2020-12-31',"
+            "1,1,1,1,1, NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL,NULL,0,'{}')"
+        )
+        conn.execute(
+            "INSERT INTO statements VALUES ("
+            "'NEW','51010','2026-08-08','2Q','2QFinancialStatements_Consolidated_JP',"
+            "'2026-06-30','2026-12-31',"
+            "100,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL,NULL,0,'{}')"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    report = vs.compare_db(db)
+    if report.skipped_date != 1:
+        _fail(f"skipped_date {report.skipped_date} rows={report.rows}")
+    if report.compared != 1 or report.matched != 1:
+        _fail(f"date-matched compared {report.matched}/{report.compared}")
+    if any(r.disclosure_no == "OLD" and r.status != "skipped" for r in report.rows):
+        _fail("old statement should not be compared")
+
+
+def test_vs_statements_dps_uses_fiscal_year_end(tmp: Path) -> None:
+    db = tmp / "vs-dps.db"
+    conn = sqlite3.connect(db)
+    try:
+        _vs_schema(conn)
+        conn.execute(
+            "INSERT INTO xbrl_filings (id, code, submitted_at, doc_id, doc_type, parse_status) "
+            "VALUES (1,'51010','2026-08-08 15:00:00','d1','quarterly','parsed')"
+        )
+        conn.executemany(
+            "INSERT INTO xbrl_financials (code, filing_id, std_item_id, is_consolidated, period_type, "
+            "period_end, value, unit, value_kind, range_side, target_period) VALUES "
+            "(?,?,?,?,?,?,?,?,?,?,?)",
+            [
+                ("51010", 1, 6, 0, "Q2", "2025-12-31", 48, "JPYPershare", "actual", "point", "Q2"),
+                ("51010", 1, 6, 0, "Q2", "2026-12-31", 87, "JPYPershare", "actual", "point", "Q2"),
+            ],
+        )
+        conn.execute(
+            "INSERT INTO statements VALUES ("
+            "'D1','51010','2026-08-08','2Q','2QFinancialStatements_Consolidated_JP',"
+            "'2026-06-30','2026-12-31',"
+            "NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL,NULL,0,"
+            "'{\"Div2Q\":\"87\"}')"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    report = vs.compare_db(db)
+    dps = [r for r in report.rows if r.field == "Div2Q"]
+    if len(dps) != 1 or dps[0].status != "match" or dps[0].xbrl != "87":
+        _fail(f"Div2Q should pick current FY 87: {dps}")
+
+
+def test_vs_statements_rounding_tally(tmp: Path) -> None:
+    db = tmp / "vs-round.db"
+    conn = sqlite3.connect(db)
+    try:
+        _vs_schema(conn)
+        conn.execute(
+            "INSERT INTO xbrl_filings (id, code, submitted_at, doc_id, doc_type, parse_status) "
+            "VALUES (1,'81520','2026-08-08 15:00:00','d1','quarterly','parsed')"
+        )
+        conn.execute(
+            "INSERT INTO xbrl_financials (code, filing_id, std_item_id, is_consolidated, period_type, "
+            "period_end, value, unit, value_kind, range_side, target_period) "
+            "VALUES ('81520',1,2,1,'Q1','2026-06-30',743844000,'JPY','actual','point','Q1')"
+        )
+        conn.execute(
+            "INSERT INTO statements VALUES ("
+            "'D1','81520','2026-08-08','1Q','1QFinancialStatements_Consolidated_JP',"
+            "'2026-06-30','2027-03-31',"
+            "NULL,743000000,NULL,NULL,NULL, NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL,NULL,0,'{}')"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    report = vs.compare_db(db)
+    if report.rounding != 1 or report.matched != 1 or report.mismatches != 0:
+        _fail(f"rounding {report.rounding} matched={report.matched} mismatches={report.mismatches} {report.rows}")
+    if report.rows[0].status != "rounding":
+        _fail(f"status {report.rows[0]}")
+
+
+def test_values_rounding_match() -> None:
+    if not vs.values_rounding_match(Decimal("743000000"), Decimal("743844000"), per_share=False):
+        _fail("positive truncation")
+    if not vs.values_rounding_match(Decimal("-45000000"), Decimal("-45636000"), per_share=False):
+        _fail("negative truncation toward 0")
+    if vs.values_rounding_match(Decimal("743000000"), Decimal("745000000"), per_share=False):
+        _fail("|diff|>=1e6 is not rounding")
+    if vs.values_rounding_match(Decimal("12.5"), Decimal("12.51"), per_share=True):
+        _fail("per-share must not use million rounding")
 
 
 def test_migrate_unique_from_old_schema(tmp: Path) -> None:
@@ -674,7 +1039,14 @@ def main() -> None:
         test_ifrs_forecast_and_no_ordinary(tmp)
         test_forecast_revision_current_and_previous(tmp)
         test_legacy_23_unchanged_with_forecast_facts(tmp)
+        test_range_forecast_without_forecast_member(tmp)
+        test_q3_accumulated_forecast_not_fy(tmp)
+        test_ifrs_diluted_loss_eps_and_operating_revenues(tmp)
         test_vs_statements_fixture(tmp)
+        test_vs_statements_skips_date_mismatch(tmp)
+        test_vs_statements_dps_uses_fiscal_year_end(tmp)
+        test_vs_statements_rounding_tally(tmp)
+        test_values_rounding_match()
         test_migrate_unique_from_old_schema(tmp)
     print("ok: xbrl forecast")
 
