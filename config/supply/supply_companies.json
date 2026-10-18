@@ -19,7 +19,15 @@
     "edinet_furukawa_2026": {"title": "古河電気工業 有価証券報告書 第204期（2026年3月期）事業の内容（インフラ: 古河電工メタルケーブル、電装エレクトロニクス: 古河マグネットワイヤ、機能製品: 古河銅箔）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YCF0", "checked": "2026-10-17"},
     "edinet_sei_2026": {"title": "住友電気工業 有価証券報告書 第156期（2026年3月期）事業の内容（環境エネルギー: 送配電用電線・ケーブル、巻線）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YL2M", "checked": "2026-10-17"},
     "edinet_fujikura_2026": {"title": "フジクラ 有価証券報告書 第178期（2026年3月期）事業の内容（エネルギー: 電力ケーブル・通信ケーブル・被覆線）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YGP3", "checked": "2026-10-17"},
-    "edinet_mitsuikinzoku_2026": {"title": "三井金属 有価証券報告書 第101期（2026年3月期）事業の内容（機能材料: キャリア付極薄銅箔・プリント配線板用電解銅箔）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YBQV", "checked": "2026-10-17"}
+    "edinet_mitsuikinzoku_2026": {"title": "三井金属 有価証券報告書 第101期（2026年3月期）事業の内容（機能材料: キャリア付極薄銅箔・プリント配線板用電解銅箔）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YBQV", "checked": "2026-10-17"},
+    "edinet_uacj_2026": {"title": "UACJ 有価証券報告書 第13期（2026年3月期）事業の内容（板製品関連: 板圧延製品・箔製品、押出・加工品関連: 押出製品、航空宇宙・防衛材関連: 鋳物製品、自動車部品関連）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YCV0", "checked": "2026-10-17"},
+    "edinet_nlm_2026": {"title": "日本軽金属HD 有価証券報告書 第14期（2026年3月期）事業の内容（アルミナ・化成品、地金: アルミナ・水酸化アルミニウム・アルミニウム合金、板・押出製品、箔・粉末製品: 東洋アルミニウム）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YFJY", "checked": "2026-10-17"},
+    "edinet_kobe_2026": {"title": "神戸製鋼所 有価証券報告書 第173期（2026年3月期）事業の内容（鉄鋼アルミ: アルミ板、素形材: アルミニウム合金鋳造品・アルミ押出材）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YCDA", "checked": "2026-10-17"},
+    "edinet_daiki_2026": {"title": "大紀アルミニウム工業所 有価証券報告書 第99期（2026年3月期）事業の内容（アルミニウム二次合金地金、ダイカスト製品: 聖心製作所）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YCJD", "checked": "2026-10-17"},
+    "edinet_ahresty_2026": {"title": "アーレスティ 有価証券報告書 第105期（2026年3月期）事業の内容（ダイカスト事業: 自動車向けダイカスト製品、アルミニウム事業: ダイカスト用・鋳物用二次合金地金）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YIGS", "checked": "2026-10-17"},
+    "edinet_ryobi_2025": {"title": "リョービ 有価証券報告書 第114期（2025年12月期）事業の内容（ダイカスト事業: ダイカスト製品・アルミニウム鋳物）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100XT40", "checked": "2026-10-17"},
+    "edinet_sankyo_2026": {"title": "三協立山 有価証券報告書 第81期（2026年5月期）事業の内容（マテリアル事業: アルミニウムの鋳造・押出・加工）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YYN7", "checked": "2026-10-17"},
+    "edinet_fujisash_2026": {"title": "不二サッシ 有価証券報告書 第45期（2026年3月期）事業の内容（形材外販事業: 外販用アルミ形材）", "url": "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YIDL", "checked": "2026-10-17"}
   },
   "companies": [
     {"id": "aramco", "name": "サウジアラムコ", "status": "foreign"},
@@ -122,7 +130,15 @@
     {"id": "furukawaelec", "name": "古河電気工業", "code": "58010", "status": "listed"},
     {"id": "sumielec", "name": "住友電気工業", "code": "58020", "status": "listed"},
     {"id": "fujikura", "name": "フジクラ", "code": "58030", "status": "listed", "note": "銅電線はフジクラ・ダイヤケーブル"},
-    {"id": "mitsuikinzoku", "name": "三井金属", "code": "57060", "status": "listed", "note": "半導体パッケージ基板向けのキャリア付極薄銅箔が強い"}
+    {"id": "mitsuikinzoku", "name": "三井金属", "code": "57060", "status": "listed", "note": "半導体パッケージ基板向けのキャリア付極薄銅箔が強い"},
+    {"id": "uacj", "name": "UACJ", "code": "57410", "status": "listed", "note": "古河スカイと住友軽金属が統合したアルミ圧延の最大手。箔は UACJ製箔"},
+    {"id": "nlm", "name": "日本軽金属HD", "code": "57030", "status": "listed", "note": "国内でアルミナ・水酸化アルミニウムを作る。箔は東洋アルミニウム、二次合金は日軽エムシーアルミ"},
+    {"id": "daiki", "name": "大紀アルミニウム工業所", "code": "57020", "status": "listed", "note": "二次合金地金の最大手"},
+    {"id": "ahresty", "name": "アーレスティ", "code": "58520", "status": "listed"},
+    {"id": "ryobi", "name": "リョービ", "code": "58510", "status": "listed"},
+    {"id": "sankyotateyama", "name": "三協立山", "code": "59320", "status": "listed", "note": "サッシなどの建材が主力"},
+    {"id": "fujisash", "name": "不二サッシ", "code": "59400", "status": "listed", "note": "ビル用サッシが主力"},
+    {"id": "toyoseikan", "name": "東洋製罐GHD", "code": "59010", "status": "listed"}
   ],
   "makes": [
     ["aramco", "crude"],
@@ -176,7 +192,16 @@
     ["furukawaelec", "electric_wire", "edinet_furukawa_2026"], ["furukawaelec", "copper_foil", "edinet_furukawa_2026"],
     ["sumielec", "electric_wire", "edinet_sei_2026"],
     ["fujikura", "electric_wire", "edinet_fujikura_2026"],
-    ["mitsuikinzoku", "copper_foil", "edinet_mitsuikinzoku_2026"]
+    ["mitsuikinzoku", "copper_foil", "edinet_mitsuikinzoku_2026"],
+    ["uacj", "aluminium_sheet", "edinet_uacj_2026"], ["uacj", "aluminium_foil", "edinet_uacj_2026"], ["uacj", "aluminium_extrusion", "edinet_uacj_2026"], ["uacj", "aluminium_casting", "edinet_uacj_2026"], ["uacj", "carpart", "edinet_uacj_2026"],
+    ["nlm", "alumina", "edinet_nlm_2026"], ["nlm", "secondary_aluminium", "edinet_nlm_2026"], ["nlm", "aluminium_sheet", "edinet_nlm_2026"], ["nlm", "aluminium_extrusion", "edinet_nlm_2026"], ["nlm", "aluminium_foil", "edinet_nlm_2026"],
+    ["kobesteel", "aluminium_sheet", "edinet_kobe_2026"], ["kobesteel", "aluminium_extrusion", "edinet_kobe_2026"], ["kobesteel", "aluminium_casting", "edinet_kobe_2026"],
+    ["daiki", "secondary_aluminium", "edinet_daiki_2026"], ["daiki", "aluminium_casting", "edinet_daiki_2026"],
+    ["ahresty", "secondary_aluminium", "edinet_ahresty_2026"], ["ahresty", "aluminium_casting", "edinet_ahresty_2026"],
+    ["ryobi", "aluminium_casting", "edinet_ryobi_2025"],
+    ["sankyotateyama", "aluminium_extrusion", "edinet_sankyo_2026"],
+    ["fujisash", "aluminium_extrusion", "edinet_fujisash_2026"],
+    ["toyoseikan", "can"]
   ],
   "capacities": [
     {"id": "ethylene", "materials": ["ethylene"], "label": "エチレン生産能力", "unit": "千t/年", "as_of": "2024-12", "source": "meti_cap_2024", "url": "https://knak.jp/japan/ethylene.htm",
