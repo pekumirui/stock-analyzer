@@ -201,6 +201,36 @@ def _xbrl_financials_unique_indexes(conn) -> list[dict]:
     return out
 
 
+def migrate_xbrl_financials_source_layer() -> int:
+    """source_layer が空の既存行を source_element の namespace から埋める。
+
+    tse-ed-t → summary、それ以外で要素がある行 → primary。戻り値は更新行数。
+    """
+    insp = inspect(engine)
+    if "xbrl_financials" not in insp.get_table_names():
+        return 0
+    cols = {c["name"] for c in insp.get_columns("xbrl_financials")}
+    if "source_layer" not in cols:
+        return 0
+    elem_tables = insp.get_table_names()
+    if "xbrl_elements" not in elem_tables:
+        return 0
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "UPDATE xbrl_financials SET source_layer = CASE "
+                "WHEN ("
+                "  SELECT namespace_key FROM xbrl_elements"
+                "  WHERE xbrl_elements.id = xbrl_financials.source_element_id"
+                ") = 'tse-ed-t' THEN 'summary' "
+                "WHEN source_element_id IS NOT NULL THEN 'primary' "
+                "ELSE source_layer END "
+                "WHERE source_layer IS NULL"
+            )
+        )
+        return int(result.rowcount or 0)
+
+
 def migrate_xbrl_financials_unique() -> bool:
     """旧 UNIQUE (filing, std, consol, period_end) を予想・レンジ列込みに付け替える。
 

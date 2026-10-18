@@ -2,10 +2,11 @@
   elements:
     - { ns: jpigp_cor, name: RevenueIFRS, priority: 10, standard: IFRS }
     - { ns: jpigp_cor, name: Revenue, priority: 20, standard: IFRS }
-    - { ns: tse-ed-t, name: SalesIFRS, priority: 50, standard: IFRS }
-    - { ns: tse-ed-t, name: NetSalesIFRS, priority: 60, standard: IFRS }
-    - { ns: tse-ed-t, name: RevenueIFRS, priority: 70, standard: IFRS }
-    - { ns: tse-ed-t, name: OperatingRevenuesIFRS, priority: 80, standard: IFRS }
+    # 短信サマリー。要素名が IFRS を表す。SFRS 等で accounting_standard が空でも使う。
+    - { ns: tse-ed-t, name: SalesIFRS, priority: 50 }
+    - { ns: tse-ed-t, name: NetSalesIFRS, priority: 60 }
+    - { ns: tse-ed-t, name: RevenueIFRS, priority: 70 }
+    - { ns: tse-ed-t, name: OperatingRevenuesIFRS, priority: 80 }
 - std_item: operating_income
   elements:
     - { ns: jpigp_cor, name: OperatingProfitLossIFRS, priority: 10, standard: IFRS }

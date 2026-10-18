@@ -19,6 +19,7 @@ from app.db import (
     init_db,
     is_sqlite_lock,
     migrate_add_columns,
+    migrate_xbrl_financials_source_layer,
     migrate_xbrl_financials_unique,
     missing_columns,
 )
@@ -34,6 +35,9 @@ def migrate_once() -> None:
     migrate_columns()
     if migrate_xbrl_financials_unique():
         print("xbrl_financials の UNIQUE を value_kind/range_side/target_period 込みに付け替えた。")
+    n_layer = migrate_xbrl_financials_source_layer()
+    if n_layer:
+        print(f"xbrl_financials.source_layer を {n_layer} 行、要素の namespace から埋めた。")
     run_deploy_maintenance()
 
 
