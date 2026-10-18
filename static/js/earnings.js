@@ -390,9 +390,9 @@ function renderRev(el, rows, d){
   }
   const dim = rows.every(r => r.values.ordinary_profit == null);
   const dc = k => k==="ordinary_profit" && dim ? " dim" : "";
-  let h = `<thead><tr><th class="l">決算期</th>`
+  let h = `<thead><tr><th class="l">決算期</th><th class="disc">発表日</th>`
         + FIN_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
-        + `<th>EPS</th><th class="disc">発表日</th></tr></thead><tbody>`;
+        + `<th>EPS</th></tr></thead><tbody>`;
   rows.forEach((r,i) => {
     const [txt, bc, tip] = REV_BADGE[r.kind] || ["", "", ""];
     const now = d && r.disclosed_date === d.disclosed_date;
@@ -403,9 +403,9 @@ function renderRev(el, rows, d){
       return `<td class="num${dc(k)}">${txt}<span class="g">${g ? revG(g) : " "}</span></td>`;
     };
     h += `<tr class="${cls}"><td class="l" title="${r.label||""} ${tip}">${r.range}<span class="g"><span class="qb ${bc}">${txt}</span></span></td>`
+       + `<td class="num disc sub">${disc(r.disclosed_date)}</td>`
        + FIN_MET.map(([k])=>cell(k, k==="operating_profit" ? opAmt(r) : amt(r.values[k]))).join("")
-       + cell("eps", epsTxt(r.values.eps))
-       + `<td class="num disc sub">${disc(r.disclosed_date)}</td></tr>`;
+       + cell("eps", epsTxt(r.values.eps)) + `</tr>`;
   });
   el.innerHTML = h + `</tbody>`;
 }
