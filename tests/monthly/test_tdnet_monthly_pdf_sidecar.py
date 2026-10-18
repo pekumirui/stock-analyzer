@@ -138,6 +138,65 @@ def _capture(fn: Any) -> tuple[Any, str]:
     return rc, buf.getvalue()
 
 
+def test_shared_mask_calendar_identity() -> None:
+    from app.monthly.calendar import anchor_year, column_years
+    from app.monthly.ingest import _anchor_year
+    from tools.monthly.text_mask import mask as shared_mask
+
+    if sc.mask is not shared_mask:
+        _fail("sidecar.mask must be tools.monthly.text_mask.mask")
+    if sc.column_years is not column_years:
+        _fail("sidecar.column_years must be app.monthly.calendar.column_years")
+    if _anchor_year is not anchor_year:
+        _fail("ingest._anchor_year must be calendar.anchor_year")
+    if shared_mask("2026年7月度 売上高 1,234") != "<D>度売上高<N>":
+        _fail(f"shared mask {shared_mask('2026年7月度 売上高 1,234')!r}")
+    if column_years([9, 10, 11, 12, 1], date(2026, 2, 5)) != [
+        (2025, 9), (2025, 10), (2025, 11), (2025, 12), (2026, 1),
+    ]:
+        _fail(f"column_years {column_years([9, 10, 11, 12, 1], date(2026, 2, 5))}")
+    labeled = (
+        "            2025年9月  2025年10月  2025年11月\n"
+        "売上高           101.0       102.0       103.0\n"
+    )
+    g = _grids(labeled)[0]
+    cells = sc._series_cells(g, g.series[0], date(2026, 1, 5))
+    if cells != {(2025, 9): 101.0, (2025, 10): 102.0, (2025, 11): 103.0}:
+        _fail(f"header years {cells}")
+    db = _db(_brand_db_rows())
+    template = sc.learn(_grids(_brand_pdf(filled=6, extra=False)), date(2026, 9, 1), db)
+    if not template.known or not all(isinstance(k, sc.RowIdentity) for k in template.known):
+        _fail("known must be RowIdentity")
+    if any(k.ordinal != 0 for k in template.known):
+        _fail("single-block fixture ordinal")
+    extra = {
+        sc.row_identity(g, s)
+        for g in _grids(_brand_pdf(filled=7, extra=True))
+        for s in g.series
+        if g.ordinal == 1
+    }
+    if not extra:
+        _fail("second block must have ordinal 1")
+    if extra & template.known:
+        _fail("new block identity must not be in known")
+
+
+def test_workaround_comments_removed() -> None:
+    src = (ROOT / "jobs" / "monthly" / "tdnet_monthly_pdf_sidecar.py").read_text(encoding="utf-8")
+    gone = (
+        "pdfplumber は VPS に無いので import しない",
+        "jobs は app を import しない",
+        "type: ignore",
+        "序数を含めないと",
+        "8 (0) の (0) は FC 店舗数",
+        "数値の直前の - は空セル",
+        "前回の PDF にあった (表の序数",
+    )
+    for fragment in gone:
+        if fragment in src:
+            _fail(f"workaround comment remains: {fragment}")
+
+
 def test_tokens() -> None:
     cases = {"105.5": 105.5, "1,234": 1234.0, "▲3.3": -3.3, "△0.4": -0.4, "-": None, "275店": 275.0, "(6)": 6.0}
     for token, want in cases.items():
@@ -555,6 +614,8 @@ def test_ingest_checks_mapping_before_post() -> None:
 
 
 def main_tests() -> None:
+    test_shared_mask_calendar_identity()
+    test_workaround_comments_removed()
     test_tokens()
     test_row_grid_columns()
     test_lines_from_tsv_merges_split_month()

@@ -64,10 +64,20 @@
     {"id": "blister_copper", "name": "粗銅", "kind": "mid", "note": "精鉱を溶かして硫黄と鉄を抜いた純度 99% 前後の銅。精鉱の硫黄は排ガスから硫酸にする"},
     {"id": "refined_copper", "name": "電気銅", "kind": "mid", "note": "粗銅を電解精製した純度 99.99% の地金。生産の 4 割強を輸出する"},
     {"id": "copper_products", "name": "伸銅品", "kind": "mid", "note": "銅・黄銅などの板・条・管・棒・線。条はコネクタ・端子・リードフレーム、管はエアコン、黄銅棒は水栓・バルブになる。銅合金の鋳物（水栓・バルブ・船のプロペラ）も行き先が同じなので箱を分けない"},
-    {"id": "electric_wire", "name": "電線・ケーブル", "kind": "mid", "note": "銅の電線（電力用・建物の配線・巻線・自動車用など）。量は導体の重さ"},
+    {"id": "electric_wire", "name": "電線・ケーブル", "kind": "mid", "note": "銅とアルミの電線（電力用・建物の配線・巻線・自動車用・送電線など）。アルミは軽いので主に送電線。量は導体の重さ"},
     {"id": "copper_foil", "name": "銅箔", "kind": "mid", "note": "プリント基板の配線とリチウムイオン電池の負極に使う薄い銅。電気銅を溶かして析出させる電解銅箔と、圧延銅箔がある"},
     {"id": "electronic_parts", "name": "電子部品", "kind": "prod", "note": "コネクタ・半導体・プリント基板など"},
-    {"id": "copper_scrap", "name": "銅スクラップ", "kind": "recycled", "note": "使い終わった電線・家電・自動車・建物と、伸銅品を加工したときの切りくず。製錬所で電気銅に戻すか、伸銅品の工場で直接溶かす。日本は輸出のほうが多い"}
+    {"id": "copper_scrap", "name": "銅スクラップ", "kind": "recycled", "note": "使い終わった電線・家電・自動車・建物と、伸銅品を加工したときの切りくず。製錬所で電気銅に戻すか、伸銅品の工場で直接溶かす。日本は輸出のほうが多い"},
+    {"id": "bauxite", "name": "ボーキサイト", "kind": "raw", "note": "アルミナの原料の鉱石。日本は地金を精錬しないので輸入は少ない"},
+    {"id": "alumina", "name": "アルミナ", "kind": "mid", "note": "ボーキサイトから取り出した酸化アルミニウム。電気分解すると地金になる。国内では地金にせず、化学品・セラミックス向けに作る"},
+    {"id": "aluminium_ingot", "name": "アルミ地金", "kind": "mid", "note": "アルミナを電気分解した一次地金。電気を大量に使うので日本は精錬をしておらず、ほぼ全量を輸入する。輸入には合金地金（ダイカスト用の二次合金を含む）も入る。国内の精製アルミ地金（年 3 万t）は輸入地金を高純度に精製し直したもの"},
+    {"id": "secondary_aluminium", "name": "アルミ二次合金地金", "kind": "mid", "note": "アルミスクラップを溶かして成分を整えた合金地金。大半がダイカスト・鋳物用。国内の地金の生産はほぼこれ"},
+    {"id": "aluminium_sheet", "name": "アルミ板", "kind": "mid", "note": "板・条（コイル）・円板。条が大半で、飲料缶・自動車のパネル・エアコンの熱交換器になる。箔はここから圧延する"},
+    {"id": "aluminium_extrusion", "name": "アルミ押出品", "kind": "mid", "note": "形材・管・棒・線。形材は窓のサッシなどの建材と、自動車・鉄道の部材"},
+    {"id": "aluminium_foil", "name": "アルミ箔", "kind": "mid", "note": "食品・薬の包装、コンデンサの電極、リチウムイオン電池の正極に使う薄いアルミ。アルミ板を圧延して作る"},
+    {"id": "aluminium_casting", "name": "アルミダイカスト・鋳物", "kind": "mid", "note": "二次合金地金を型に流し込んだ部品。9 割が自動車用（エンジン・変速機など）"},
+    {"id": "can", "name": "飲料缶", "kind": "prod", "note": "アルミ缶の缶体と缶ふた。使い終わった缶は回収して缶材に戻す"},
+    {"id": "aluminium_scrap", "name": "アルミスクラップ", "kind": "recycled", "note": "使い終わった自動車・建物のサッシ・飲料缶・家電と、板や押出品を加工したときの切りくず。多くは二次合金地金にし、缶材やサッシにも戻す。日本は輸出のほうが多い"}
   ],
   "flows": [
     ["crude", "lpg"],
@@ -167,7 +177,27 @@
     ["electric_wire", "construction"],
     ["copper_foil", "electronic_parts"],
     ["electronic_parts", "car"],
-    ["electronic_parts", "appliance"]
+    ["electronic_parts", "appliance"],
+    ["bauxite", "alumina"],
+    ["alumina", "aluminium_ingot"],
+    ["aluminium_ingot", "secondary_aluminium"],
+    ["aluminium_ingot", "aluminium_sheet"],
+    ["aluminium_ingot", "aluminium_extrusion"],
+    ["aluminium_ingot", "electric_wire"],
+    ["aluminium_scrap", "secondary_aluminium"],
+    ["aluminium_scrap", "aluminium_sheet"],
+    ["aluminium_scrap", "aluminium_extrusion"],
+    ["secondary_aluminium", "aluminium_casting"],
+    ["aluminium_sheet", "aluminium_foil"],
+    ["aluminium_sheet", "can"],
+    ["aluminium_sheet", "car"],
+    ["aluminium_sheet", "appliance"],
+    ["aluminium_extrusion", "construction"],
+    ["aluminium_extrusion", "car"],
+    ["aluminium_foil", "foodbox"],
+    ["aluminium_foil", "electronic_parts"],
+    ["aluminium_casting", "carpart"],
+    ["aluminium_casting", "appliance"]
   ],
   "returns": [
     ["car", "steel_scrap"],
@@ -178,6 +208,12 @@
     ["appliance", "copper_scrap"],
     ["construction", "copper_scrap"],
     ["copper_products", "copper_scrap"],
-    ["electric_wire", "copper_scrap"]
+    ["electric_wire", "copper_scrap"],
+    ["car", "aluminium_scrap"],
+    ["appliance", "aluminium_scrap"],
+    ["construction", "aluminium_scrap"],
+    ["can", "aluminium_scrap"],
+    ["aluminium_sheet", "aluminium_scrap"],
+    ["aluminium_extrusion", "aluminium_scrap"]
   ]
 }

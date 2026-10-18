@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Literal, Sequence, TypedDict
 
 from app.config import ISSUER_ALIASES_PATH, ISSUER_METRICS_PATH, MONTHLY_ROW_ORDER_PATH, MONTHLY_VOCAB_PATH
+from app.monthly.calendar import anchor_year as _anchor_year
 
 MONTHLY_UNITS = ("number", "yoy_index", "yoy_pct")
 _YOY_UNITS = frozenset({"yoy_index", "yoy_pct"})
@@ -1347,14 +1348,6 @@ def _is_calendar_layout(months: Sequence[int]) -> bool:
 
 def _fiscal_start_month(fy_end_month: int) -> int:
     return (fy_end_month % 12) + 1
-
-
-def _anchor_year(last_month: int, as_of: date) -> int:
-    """暦年レイアウト用。右端月が as_of 年に既に始まっていればその年、そうでなければ as_of.year-1。"""
-    year = as_of.year
-    if date(year, last_month, 1) <= as_of:
-        return year
-    return year - 1
 
 
 def _current_fy_end_year(fy_end_month: int, as_of: date) -> int:

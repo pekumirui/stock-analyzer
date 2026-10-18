@@ -29,8 +29,8 @@ SEIDOU_SOURCE = "seidou:{report}"
 TRADE_SOURCE = "trade"
 SEKIYU_SOURCE = "sekiyu"
 _CODE_RE = re.compile(r"^[0-9]{4,9}$")
-# 生産動態の単位。同じ素材の品目で 本 と 千本 が混ざる（タイヤ）
-_SEIDOU_UNITS = {"千本": ("本", 1000.0)}
+# 生産動態の単位。同じ素材の品目で 本 と 千本 が混ざる（タイヤ）。kg は貿易統計と同じ t にそろえる（ダイカスト・飲料缶）
+_SEIDOU_UNITS = {"千本": ("本", 1000.0), "kg": ("t", 0.001)}
 _ZERO = {"-", "(-)", "*-", "* -", "―", "－", "‐"}  # 皆無または該当なし
 
 

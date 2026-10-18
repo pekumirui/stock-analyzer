@@ -1,7 +1,7 @@
 {
   "seidou": {
     "estat_stats_code": "00550200",
-    "metrics": {"生産": "production", "生産数量": "production", "販売数量": "shipment", "出荷販売": "shipment", "出荷販売部門": "shipment", "出荷販売数量": "shipment", "月末在庫": "inventory"},
+    "metrics": {"生産": "production", "生産数量": "production", "販売数量": "shipment", "出荷販売": "shipment", "出荷販売部門": "shipment", "出荷販売数量": "shipment", "月末在庫": "inventory", "生産重量": "production"},
     "items": [
       {"material": "sulfur", "report": "8061", "products": ["回収いおう"], "note": "回収いおう"},
       {"material": "ethylene", "report": "6100", "products": ["エチレン"]},
@@ -36,7 +36,14 @@
       {"material": "blister_copper", "report": "9810", "products": ["粗銅"], "note": "速報に無いので確報から"},
       {"material": "refined_copper", "report": "9810", "products": ["電気銅"]},
       {"material": "copper_products", "report": "9050", "products": ["銅製品(板)", "銅製品(条)", "銅製品(管)", "銅製品(棒・線)", "黄銅製品(板)", "黄銅製品(条)", "黄銅製品(管)", "黄銅製品(棒)", "黄銅製品(線)", "その他の伸銅製品(板・条)", "その他の伸銅製品(棒・線)"], "note": "伸銅製品の全品目"},
-      {"material": "electric_wire", "report": "9080", "products": ["裸線(ユーザー向け)", "巻線", "機器用電線", "輸送機器用電線", "通信用電線・ケーブル", "電力用電線・ケーブル", "その他の絶縁電線"], "note": "銅電線の全品目（導体t）。電線メーカー向けの心線は絶縁電線の材料なので足さない。速報は品目が欠けるので確報から"}
+      {"material": "electric_wire", "report": "9080", "products": ["裸線(ユーザー向け)", "巻線", "機器用電線", "輸送機器用電線", "通信用電線・ケーブル", "電力用電線・ケーブル", "その他の絶縁電線", "アルミニウム線"], "note": "銅電線の全品目とアルミニウム線（導体t）。電線メーカー向けの心線は絶縁電線の材料なので足さない。速報は品目が欠けるので確報から"},
+      {"material": "secondary_aluminium", "report": "9040", "products": ["アルミニウム二次合金地金(鋳物・ダイカスト用)", "アルミニウム二次合金地金(その他用)"], "note": "二次合金地金。二次地金（鉄鋼の脱酸用など）と、全月秘匿 (X) の合金地金は除く"},
+      {"material": "aluminium_sheet", "report": "9070", "products": ["アルミニウム圧延製品(板)", "アルミニウム圧延製品(条)", "アルミニウム圧延製品(円板)"], "note": "板類（板・条・円板）"},
+      {"material": "aluminium_extrusion", "report": "9070", "products": ["アルミニウム圧延製品(形材)", "アルミニウム圧延製品(管)", "アルミニウム圧延製品(棒・線)"], "note": "押出類（形材・管・棒・線）。形材の生産は自社でサッシなどに加工する分を含む"},
+      {"material": "aluminium_foil", "report": "9070", "products": ["アルミニウム圧延製品(はく)"]},
+      {"material": "aluminium_casting", "report": "2560", "products": ["アルミニウムダイカスト(自動車用)", "アルミニウムダイカスト(二輪自動車用)", "アルミニウムダイカスト(一般機械用)", "アルミニウムダイカスト(電気機械用)", "アルミニウムダイカスト(その他用のアルミニウム)"], "note": "ダイカスト。生産重量だけ（kg を t に直す）"},
+      {"material": "aluminium_casting", "report": "2550", "products": ["アルミニウム鋳物(輸送機械用_自動車用)", "アルミニウム鋳物(輸送機械用_その他の輸送機械用)", "アルミニウム鋳物(一般機械用)", "アルミニウム鋳物(その他用のアルミニウム鋳物)"], "note": "鋳物。ダイカストと足して 1 系列にする"},
+      {"material": "can", "report": "5040", "products": ["産業用品_飲料用缶_缶体", "産業用品_飲料用缶_缶ふた"], "note": "アルミの飲料缶（kg を t に直す）。スチール缶は統計が無い"}
     ]
   },
   "sekiyu": {
@@ -127,7 +134,14 @@
       {"material": "copper_products", "import": ["7407", "740819", "74082", "7409", "7411"], "export": ["7407", "740819", "74082", "7409", "7411"], "note": "銅の棒・線・板・条・管。荒引線（断面 6mm 超の精製銅の線、7408.11）と銅箔（7410）は除く"},
       {"material": "electric_wire", "import": ["854411", "854419", "854420", "854442", "854449", "854460"], "export": ["854411", "854419", "854420", "854442", "854449", "854460"], "note": "絶縁電線とケーブル（巻線・同軸・低圧・高圧）の総重量。ワイヤーハーネス（8544.30）と光ファイバケーブル（8544.70）は除く。アルミの電線を含む"},
       {"material": "copper_foil", "import": ["7410"], "export": ["7410"], "note": "厚さ 0.15mm 以下の銅のはく（裏張りしたものを含む）"},
-      {"material": "copper_scrap", "import": ["7404"], "export": ["7404"], "note": "銅と銅合金のくず"}
+      {"material": "copper_scrap", "import": ["7404"], "export": ["7404"], "note": "銅と銅合金のくず"},
+      {"material": "bauxite", "import": ["2606"], "export": ["2606"]},
+      {"material": "alumina", "import": ["281820"], "export": ["281820"], "note": "人造コランダムを除く"},
+      {"material": "aluminium_ingot", "import": ["7601"], "export": ["7601"], "note": "合金地金（7601.20）はダイカスト用の二次合金と一次の合金地金が分けられないので、ここに全部入れる"},
+      {"material": "aluminium_sheet", "import": ["7606"], "export": ["7606"], "note": "厚さ 0.2mm を超える板・条"},
+      {"material": "aluminium_extrusion", "import": ["7604", "760519", "76052", "7608"], "export": ["7604", "760519", "76052", "7608"], "note": "棒・形材・線・管。電線用の荒引線（7605.11）は除く"},
+      {"material": "aluminium_foil", "import": ["7607"], "export": ["7607"], "note": "厚さ 0.2mm 以下のはく（裏張りしたものを含む）"},
+      {"material": "aluminium_scrap", "import": ["7602"], "export": ["7602"], "note": "アルミのくず"}
     ],
     "country_items": [
       {"material": "crude", "import": ["2709"], "note": "国合計は石油統計が正。輸入国の内訳だけ取る"},

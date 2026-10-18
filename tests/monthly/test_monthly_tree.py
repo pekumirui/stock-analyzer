@@ -1087,6 +1087,74 @@ def test_tree_90070() -> None:
         _fail(f"90070 箱根 hotels: {hakone!r}")
 
 
+def test_tree_81660() -> None:
+    from app.monthly.tree import assign_tree_rows, tree_payload
+    from app.monthly.tree import load_monthly_trees
+
+    taka_rows = [
+        "全社 売上高(前年比)",
+        "全社 客数(前年比)",
+        "全社 客単価(前年比)",
+        "店舗数",
+        "小売+ネット通販 既存 売上高(前年比)",
+        "小売+ネット通販 既存 客数(前年比)",
+        "小売+ネット通販 既存 客単価(前年比)",
+        "小売 既存 売上高(前年比)",
+        "小売 既存 客数(前年比)",
+        "小売 既存 客単価(前年比)",
+        "小売 店舗数",
+        "ネット通販 既存 売上高(前年比)",
+        "ネット通販 既存 客数(前年比)",
+        "ネット通販 既存 客単価(前年比)",
+    ]
+    taka = assign_tree_rows("81660", taka_rows, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in taka.items()}
+    retail = ["全体", "小売+ネット通販", "小売"]
+    web = ["全体", "小売+ネット通販", "ネット通販"]
+    both = ["全体", "小売+ネット通販"]
+    want = {
+        "全社 売上高(前年比)": (["全体"], "全社 売上高(前年比)", "全社 売上高"),
+        "全社 客数(前年比)": (["全体"], "全社 客数(前年比)", "全社 客数"),
+        "全社 客単価(前年比)": (["全体"], "全社 客単価(前年比)", "全社 客単価"),
+        "店舗数": (["全体"], "店舗数", "店舗数"),
+        "小売+ネット通販 既存 売上高(前年比)": (both, "既存 売上高(前年比)", "既存 売上高"),
+        "小売+ネット通販 既存 客数(前年比)": (both, "既存 客数(前年比)", "既存 客数"),
+        "小売+ネット通販 既存 客単価(前年比)": (both, "既存 客単価(前年比)", "既存 客単価"),
+        "小売 既存 売上高(前年比)": (retail, "既存 売上高(前年比)", "既存 売上高"),
+        "小売 既存 客数(前年比)": (retail, "既存 客数(前年比)", "既存 客数"),
+        "小売 既存 客単価(前年比)": (retail, "既存 客単価(前年比)", "既存 客単価"),
+        "小売 店舗数": (retail, "店舗数", "店舗数"),
+        "ネット通販 既存 売上高(前年比)": (web, "既存 売上高(前年比)", "既存 売上高"),
+        "ネット通販 既存 客数(前年比)": (web, "既存 客数(前年比)", "既存 客数"),
+        "ネット通販 既存 客単価(前年比)": (web, "既存 客単価(前年比)", "既存 客単価"),
+    }
+    if got != want:
+        _fail(f"81660 tree rows: {got!r}")
+    taka_tree = tree_payload("81660", taka_rows, load_monthly_trees())
+    if taka_tree is None or taka_tree.get("tree_auto"):
+        _fail("81660 must use the config tree")
+    if taka_tree["tree_metrics"] != [
+        "既存 売上高", "既存 客数", "既存 客単価",
+        "全社 売上高", "全社 客数", "全社 客単価", "店舗数",
+    ]:
+        _fail(f"81660 metrics: {taka_tree!r}")
+    taka_kids = taka_tree["tree"][0]["children"]
+    if [n["name"] for n in taka_kids] != ["小売+ネット通販"]:
+        _fail(f"81660 section order: {taka_kids!r}")
+    if [n["name"] for n in taka_kids[0]["children"]] != ["小売", "ネット通販"]:
+        _fail(f"81660 小売 / ネット通販 must be under 小売+ネット通販: {taka_kids[0]!r}")
+    if taka_tree["tree"][0]["elements"] != [
+        "全社 売上高(前年比)", "全社 客数(前年比)", "全社 客単価(前年比)", "店舗数",
+    ]:
+        _fail(f"81660 root rows: {taka_tree['tree'][0]!r}")
+    if taka_kids[0]["elements"] != [
+        "小売+ネット通販 既存 売上高(前年比)",
+        "小売+ネット通販 既存 客数(前年比)",
+        "小売+ネット通販 既存 客単価(前年比)",
+    ]:
+        _fail(f"81660 小売+ネット通販 rows: {taka_kids[0]!r}")
+
+
 def test_tree_81980() -> None:
     from app.monthly.tree import tree_payload
     from app.monthly.tree import load_monthly_trees
@@ -1661,6 +1729,7 @@ def main() -> None:
     test_tree_92520()
     test_tree_92780()
     test_tree_90070()
+    test_tree_81660()
     test_tree_81980()
     test_tree_39230()
     test_tree_33580()

@@ -160,7 +160,7 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
 monthly_element_sources  -- 送られてきたままの行名 → 今の保存名。正規化の差分スナップショットの入力 (KAB-17)
   code, year, source_label, unit PK  -- source_label は前後の空白だけ落とした受信のまま。unit も受信のまま (yoy_pct 可)
   element                 -- 今の保存名。付け替え・統合 (rename_monthly_element) に付いていく。行を消すと一緒に消える
-  via                     -- api (POST elements・ingest の既定) / ir_html / ir_xls (ingest の via) / doc (PUT doc の新規行) / legacy
+  via                     -- api (POST elements・ingest の既定) / ir_html / ir_xls / ir_json (ingest の via) / doc (PUT doc の新規行) / legacy
   first_seen_at, last_seen_at
   -- source_label は一度入れたら書き換えない。記録前からある行はデプロイ時に保存名そのものを legacy で入れる
 
@@ -199,7 +199,7 @@ material_monthly  -- サプライタブの素材ごとの月次量 (e-Stat)
 - `as_of` は YYYY-MM-DD 必須。省略・null は 400 `AS_OF_REQUIRED`。サーバ日付は使わない
 - `dry_run: true` は `fy_end_month` / `layout` / `mapping` と、書くはずのセル（`updated`）を返す。DB には書かない。新着にもならない
 - `only_months` は `YYYY-MM` の配列。mapping を決めたあと、その暦年の列だけ書く。省略時は全列。当たらない月は書かない
-- `via` は経路（`api` / `ir_html` / `ir_xls`）。省略は `api`。それ以外は 400。書いた行ごとに元の行名を `monthly_element_sources` に残す（dry_run では残さない）
+- `via` は経路（`api` / `ir_html` / `ir_xls` / `ir_json`）。省略は `api`。それ以外は 400。書いた行ごとに元の行名を `monthly_element_sources` に残す（dry_run では残さない）
 
 **銘柄マスタとの関係。**
 
@@ -258,9 +258,10 @@ IR 月次 PDF/xlsx/xls（`jobs/monthly/ir_monthly_r2.py`）:
 
 IR 月次 JSON（`jobs/monthly/ir_monthly_json_ingest.py`）:
 
-- スギHD (7649) の公開 CloudFront JSON。E-IR と同じく GET して ingest JSON を書く。自動 POST しない。crontab に載せない。銘柄クラスは作らない。HTML ingest の cron には混ぜない
+- スギHD (7649) の公開 CloudFront JSON。E-IR と同じく GET して ingest JSON を書き、loopback `POST /api/v1/tables/{code}/ingest` する（`via=ir_json`。year は送らない）。crontab は HTML ingest と同じ 10:30 / 16:30（`deploy/cron-run.sh`）。銘柄クラスは作らない。HTML ingest のレジストリには混ぜない
 - JSON の `year` は HTML `data-year`（暦年。2027年2月期の3月は year=2026 month=3）。今年度だけ。過去年度の表は入れない
 - 伸び率は +100 して `yoy_index`、`digits` で小数1桁。フィールドと行名は `config/monthly/ir_monthly_json.json`
+- `values` は値のある月だけ（`{月: 値}`。null は既存セルを消すので送らない）。同じ値のセルはサーバが書き換えない。失敗時は最終行 `failed=K` で exit≠0
 
 IR 月次 HTML（`jobs/monthly/ir_monthly_html_r2.py`）:
 
@@ -318,7 +319,7 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
   - 一覧に載らない過去年の 12 月の確報 `kakuho/YYYY12/h2daaYYYY12_jikei.xlsx`（2、その年の 1〜12 月）。e-Stat の年報に無く、年間補正号も一覧から消えた年の品目を埋める（銑鉄計の 2024 年）。`--december 2024` で手で一度だけ読む（取り込み済みなら落とさない）。2022 年以前は置いていない
   - e-Stat（00550200）の「YYYY年 時系列表(<報告番号>_…)」（revision 3）。年報だけで当年は無い。2021〜2024 年の表は品目が `cat02`、月が `cat01`、2025 年は `cat01` と `time`。月は `202501` と `2022年1月` のどちらも読む
 - 品目は品名で引く（NFKC）。品目番号は年で振り直される（化学繊維は 2023 年、AS・ABS 樹脂は 2024 年に 1 品目へ）。年や速報で品目の分け方が違うものは候補の並びで書き、品名が全部その表にある最初の並びを使う。揃う並びが無い表（速報に無い二輪タイヤや硫安など）ではその素材を書かない
-- 素材に足す品目が 1 つでも秘匿（`X`）や不詳の月は、その月・指標を書かない（過小な合計で系列が跳ねるのを避ける）。`-` は 0、空欄（未公表）は無し。秘匿の年がある品目は対応表から外し、`note` に書く（ポリスチレン発泡用、NBR・EPDM、PET 容器用）。単位 `千本` は `本` に直す
+- 素材に足す品目が 1 つでも秘匿（`X`）や不詳の月は、その月・指標を書かない（過小な合計で系列が跳ねるのを避ける）。`-` は 0、空欄（未公表）は無し。秘匿の年がある品目は対応表から外し、`note` に書く（ポリスチレン発泡用、NBR・EPDM、PET 容器用）。単位 `千本` は `本` に、`kg` は `t` に直す（ダイカスト・飲料缶。貿易統計とそろえる）
 - 資源・エネルギー統計（石油）（`source` は `sekiyu`）: 原油（生産・輸入・原油処理・在庫）、ガソリン・ナフサ・ジェット燃料油 + 灯油・軽油・A重油 + B・C重油・アスファルト・液化石油ガス（生産・在庫・輸入・輸出・国内向販売）、天然ガスの生産。在庫は月末在庫。液化石油ガスとアスファルトは t、ほかは kl
   - 年報 `sekiyuka/xls/h2dhhpeYYYYk.xlsx`（revision 3、その年の 1 月から翌年 3 月）。横持ちの表（原油地域別、国別輸入の「合計」/ 原油処理 / 原油在庫 / 石油製品月別国内向販売 / 月別輸入 / 月別輸出。2021 年は表題が「国内向月別販売」）。最初の数値の行（平成・令和）より上の見出しから数値の列を決める。単位「kl、アスファルト以降:t」はアスファルトの列から右が t。在庫は別の形の「石油製品月別業態別在庫」（月ごとに 計 / 製油所 / 製造・輸入業者 の 3 行。計 だけ取る）。製品の月別生産は無い
   - 確報 `sekiyuka/xls/seYYYYMMkakji.xlsx`（revision 2、前年 10 月からの 15 か月の時系列）。一覧の最新 1 本と、年報のある年の 12 月号（`seYYYY12kakji.xlsx`。一覧には今年の分しか載らないが過去の分も同じ名前で置いてある）。12 月号で年報に無い製品の生産を埋める。品目ごとのブロック（（４）ガソリン …）を見出し行「年・期・月」で切る。見出しの無い左ブロックは上の続き（原油の在庫）

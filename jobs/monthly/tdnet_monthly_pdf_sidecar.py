@@ -39,6 +39,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
+from app.monthly.calendar import column_years  # noqa: E402
 from jobs._r2common import (  # noqa: E402
     MountDisconnected,
     fail_if_mount_down,
@@ -48,6 +49,7 @@ from jobs._r2common import (  # noqa: E402
 )
 from jobs.monthly.ir_monthly_r2 import atomic_write  # noqa: E402
 from jobs.monthly.tdnet_monthly_r2 import DEFAULT_DEST, display_code, jq_lookup_code  # noqa: E402
+from tools.monthly.text_mask import mask  # noqa: E402
 
 SIDECAR_SUFFIX = ".pdf-ingest.json"
 PDFTOTEXT_TIMEOUT = 60
@@ -78,10 +80,6 @@ _UNIT_SUFFIX = (
 _NUM_TOKEN_RE = re.compile(r"^([▲△\-−]?)([0-9][0-9,]*(?:\.[0-9]+)?)" + _UNIT_SUFFIX + "?$")
 _UNIT_TOKEN_RE = re.compile("^" + _UNIT_SUFFIX + "$")
 _BLANK_TOKENS = frozenset({"-", "−", "―", "—", "–", "ー", "‐", "*", "…", "n/a", "N/A"})
-# tools/monthly/fmtdiff.py の norm と同じ伏せ方（pdfplumber は VPS に無いので import しない）
-_RE_DATE = re.compile(r"\d+\s*年\s*\d+\s*月(\s*\d+\s*日)?|\d{4}[/-]\d{1,2}([/-]\d{1,2})?")
-_RE_QUARTER = re.compile(r"第\s*\d+\s*(四半期|Q)")
-_RE_NUM = re.compile(r"[△▲\-−+]?\d[\d,]*(\.\d+)?")
 
 
 @dataclass(frozen=True)
@@ -97,14 +95,6 @@ class Line:
     top: float
     height: float
     toks: tuple[Tok, ...]
-
-
-def mask(s: str) -> str:
-    s = unicodedata.normalize("NFKC", s or "")
-    s = _RE_DATE.sub("<D>", s)
-    s = _RE_QUARTER.sub("<Q>", s)
-    s = _RE_NUM.sub("<N>", s)
-    return re.sub(r"\s+", "", s)
 
 
 def _month_of(token: str) -> int | None:
@@ -125,13 +115,18 @@ def _year_of(token: str) -> int | None:
     return year + 2000 if year < 100 else year
 
 
+def _unwrap_other_metric_parens(token: str) -> str:
+    if len(token) > 2 and token.startswith("(") and token.endswith(")"):
+        return token[1:-1]
+    return token
+
+
 def parse_number(token: str) -> tuple[bool, float | None]:
     """(数値セルか, 値)。- 類は (True, None)。▲△ は負。"""
     t = token.strip()
     if t in _BLANK_TOKENS:
         return True, None
-    if len(t) > 2 and t.startswith("(") and t.endswith(")"):
-        t = t[1:-1]  # 8 (0) の (0) は FC 店舗数などの別の値
+    t = _unwrap_other_metric_parens(t)
     m = _NUM_TOKEN_RE.match(t)
     if m is None:
         return False, None
@@ -288,10 +283,8 @@ def _align(columns: Sequence[tuple[float, float]], cells: Sequence[Tok]) -> dict
     return out
 
 
-def _split_label(line: Line) -> tuple[str, list[Tok]] | None:
-    """先頭の文字列を行名、残りを数値セルとする。数値でない語が混じれば None。"""
-    toks = line.toks
-    first = None
+def _value_start_including_blanks(toks: Sequence[Tok]) -> int | None:
+    first: int | None = None
     for i, t in enumerate(toks):
         ok, _v = parse_number(t.text)
         if ok and t.text not in _BLANK_TOKENS:
@@ -299,9 +292,17 @@ def _split_label(line: Line) -> tuple[str, list[Tok]] | None:
             break
     if first is None:
         return None
-    # 数値の直前の - は空セル（店舗数(店) - 130 …）
     while first > 0 and toks[first - 1].text in _BLANK_TOKENS:
         first -= 1
+    return first
+
+
+def _split_label(line: Line) -> tuple[str, list[Tok]] | None:
+    """先頭の文字列を行名、残りを数値セルとする。数値でない語が混じれば None。"""
+    toks = line.toks
+    first = _value_start_including_blanks(toks)
+    if first is None:
+        return None
     cells = list(toks[first:])
     if not all(parse_number(t.text)[0] for t in cells):
         return None
@@ -435,38 +436,29 @@ def parse_grids(lines: Sequence[Line]) -> list[Grid]:
     return grids
 
 
-def _anchor_year(last_month: int, as_of: date) -> int:
-    # app.monthly.ingest._anchor_year と同じ（jobs は app を import しない）
-    if date(as_of.year, last_month, 1) <= as_of:
-        return as_of.year
-    return as_of.year - 1
-
-
-def column_years(months: Sequence[int], as_of: date) -> list[tuple[int, int]]:
-    """列の月 → (year, month)。右端から左へ。サーバの calendar / partial と同じ割り当て。"""
-    if not months:
-        return []
-    year = _anchor_year(months[-1], as_of)
-    out = [(year, months[-1])]
-    for pos in range(len(months) - 2, -1, -1):
-        if months[pos] > months[pos + 1]:
-            year -= 1
-        out.append((year, months[pos]))
-    return out[::-1]
+def _filled_month_slots(grid: Grid, series: Series) -> list[tuple[int, int]]:
+    slots = [(i, month) for i, month in enumerate(grid.slots) if month is not None]
+    last = max((pos for pos, (si, _month) in enumerate(slots) if series.cells.get(si) is not None), default=-1)
+    return slots[: last + 1]
 
 
 def slot_years(grid: Grid, series: Series, as_of: date) -> dict[int, tuple[int, int]]:
     """位置 → (year, month)。見出しに年が無ければ、その行の値のある右端の月から左へ。
     同じ表の前年の行（店舗数（前期）など）は右端が違うので行ごとに決める。"""
-    slots = [i for i, m in enumerate(grid.slots) if m is not None]
-    last = max((pos for pos, si in enumerate(slots) if series.cells.get(si) is not None), default=-1)
-    slots = slots[: last + 1]
-    if not slots:
+    month_slots = _filled_month_slots(grid, series)
+    if not month_slots:
         return {}
-    if all(grid.years[si] is not None for si in slots):
-        return {si: (grid.years[si], grid.slots[si]) for si in slots}  # type: ignore[misc]
-    months = [grid.slots[si] for si in slots]
-    return dict(zip(slots, column_years(months, as_of)))  # type: ignore[arg-type]
+    labeled: dict[int, tuple[int, int]] = {}
+    for si, month in month_slots:
+        year = grid.years[si]
+        if year is None:
+            break
+        labeled[si] = (year, month)
+    else:
+        return labeled
+    months = [month for _si, month in month_slots]
+    indices = [si for si, _month in month_slots]
+    return dict(zip(indices, column_years(months, as_of)))
 
 
 def close(a: float, b: float) -> bool:
@@ -527,6 +519,13 @@ Place = tuple[int, tuple[str, int], float]
 
 
 @dataclass(frozen=True)
+class RowIdentity:
+    ordinal: int
+    skeleton: str
+    masked: str
+
+
+@dataclass(frozen=True)
 class RowRule:
     element: str
     unit: str
@@ -543,9 +542,7 @@ class Template:
     as_of: date
     rules: tuple[RowRule, ...]
     fingerprint: tuple[tuple[str, tuple[tuple[str, int], ...] | None], ...]
-    # 前回の PDF にあった (表の序数, 見出しの骨格, 行名)。値のある新しい行・表が増えたら書かない。
-    # 序数を含めないと、同じ見出し・同じ行名の新ブロック（3557 の業態表など）を既知扱いする
-    known: frozenset[tuple[int, str, str]] = frozenset()
+    known: frozenset[RowIdentity] = frozenset()
 
 
 class NoTemplate(ValueError):
@@ -602,8 +599,12 @@ def _score(
     return hit, miss, anchored
 
 
-def _row_names(grids: Sequence[Grid]) -> frozenset[tuple[int, str, str]]:
-    return frozenset((g.ordinal, g.skeleton, s.key[0]) for g in grids for s in g.series)
+def row_identity(grid: Grid, series: Series) -> RowIdentity:
+    return RowIdentity(grid.ordinal, grid.skeleton, series.key[0])
+
+
+def _row_names(grids: Sequence[Grid]) -> frozenset[RowIdentity]:
+    return frozenset(row_identity(g, s) for g in grids for s in g.series)
 
 
 def _new_rows(template: Template, grids: Sequence[Grid], as_of: date) -> list[str]:
@@ -613,7 +614,7 @@ def _new_rows(template: Template, grids: Sequence[Grid], as_of: date) -> list[st
     by_grid: dict[int, list[str]] = {}
     for g in grids:
         for s in g.series:
-            if (g.ordinal, g.skeleton, s.key[0]) in template.known:
+            if row_identity(g, s) in template.known:
                 continue
             cells = _series_cells(g, s, as_of)
             if anchor in cells or len(cells) >= 2:

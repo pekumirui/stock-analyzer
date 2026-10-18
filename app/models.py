@@ -181,7 +181,7 @@ class MonthlyElementSource(Base):
 
     source_label と unit は受け取ったまま（正規化前）。一度入れたら書き換えない。
     element は保存名の付け替え・統合に付いていく。行を消すと一緒に消える。
-    via は経路（api / doc / ir_html / ir_xls / legacy）。
+    via は経路（api / doc / ir_html / ir_json / ir_xls / legacy）。
     """
     __tablename__ = "monthly_element_sources"
     code = Column(String(5), primary_key=True)

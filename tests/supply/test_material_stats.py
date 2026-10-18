@@ -123,6 +123,10 @@ def test_alternatives_and_units() -> None:
     _eq({(r.material_id, r.metric, r.value, r.unit) for r in rows},
         {("abs", "production", 300.0, "t"), ("tire", "production", 10500.0, "本"),
          ("tire", "inventory", 2000.0, "本")}, "combined ABS, 千本 and '-' as zero")
+    rows, _ = seidou_rows([SeidouRecord("5040", "産業用品_飲料用缶_缶体", "生産", "kg", "2025-01", "2500")],
+                          items=[{"material": "can", "report": "5040", "products": ["産業用品_飲料用缶_缶体"]}],
+                          metrics=METRICS, revision=REVISION_KAKUHO, origin="t")
+    _eq([(r.value, r.unit) for r in rows], [(2.5, "t")], "kg to t")
     rows, warnings = seidou_rows(rec[1:2], items=ITEMS, metrics=METRICS, revision=REVISION_SOKUHO, origin="s")
     _eq(rows, [], "incomplete group")
     if not any(w.startswith("tire -") for w in warnings):
@@ -468,6 +472,12 @@ def test_apparent_and_payload() -> None:
     _eq(got[("export", "t")], [["2023-10", 1.0, 2], ["2025-01", 0.0, 2], ["2025-02", 0.0, 1]], "trade zero fill")
     _eq(got[("import", "t")], [["2025-01", 9.0, 2], ["2025-02", 0.0, 1]], "trade import zero fill")
     _eq(got[("import", "kl")], [["2025-01", 5.0, 2]], "non-trade series is not filled")
+
+    rows = [SimpleNamespace(metric="production", unit="t", month="2025-01", value=8.0, source="seidou:2560", revision=2),
+            SimpleNamespace(metric="production", unit="t", month="2025-01", value=3.0, source="seidou:2550", revision=1),
+            SimpleNamespace(metric="production", unit="t", month="2025-02", value=9.0, source="seidou:2560", revision=1)]
+    p = monthly_payload(rows, "x")
+    _eq(p["series"][0]["points"], [["2025-01", 11.0, 1]], "reports summed, month without every report dropped")
 
 
 def test_meti_archive() -> None:

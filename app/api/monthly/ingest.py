@@ -18,7 +18,7 @@ from ._common import (
 
 router = APIRouter()
 
-INGEST_VIAS = frozenset({"api", "ir_html", "ir_xls"})
+INGEST_VIAS = frozenset({"api", "ir_html", "ir_json", "ir_xls"})
 
 
 @router.post("/tables/{code}/ingest")
