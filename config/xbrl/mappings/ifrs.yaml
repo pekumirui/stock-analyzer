@@ -2,16 +2,21 @@
   elements:
     - { ns: jpigp_cor, name: RevenueIFRS, priority: 10, standard: IFRS }
     - { ns: jpigp_cor, name: Revenue, priority: 20, standard: IFRS }
+    - { ns: tse-ed-t, name: SalesIFRS, priority: 50, standard: IFRS }
+    - { ns: tse-ed-t, name: NetSalesIFRS, priority: 60, standard: IFRS }
+    - { ns: tse-ed-t, name: RevenueIFRS, priority: 70, standard: IFRS }
 - std_item: operating_income
   elements:
     - { ns: jpigp_cor, name: OperatingProfitLossIFRS, priority: 10, standard: IFRS }
     - { ns: jpigp_cor, name: OperatingIncome, priority: 20, standard: IFRS }
+    - { ns: tse-ed-t, name: OperatingIncomeIFRS, priority: 50, standard: IFRS }
 - std_item: profit_before_tax
   elements:
     - { ns: jpigp_cor, name: ProfitLossBeforeTaxIFRS, priority: 10, standard: IFRS }
 - std_item: net_income
   elements:
     - { ns: jpigp_cor, name: ProfitLossAttributableToOwnersOfParentIFRS, priority: 10, standard: IFRS }
+    - { ns: tse-ed-t, name: ProfitAttributableToOwnersOfParentIFRS, priority: 50, standard: IFRS }
 - std_item: total_assets
   elements:
     - { ns: jpigp_cor, name: AssetsIFRS, priority: 10, standard: IFRS }

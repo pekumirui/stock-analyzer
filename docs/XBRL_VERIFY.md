@@ -142,3 +142,16 @@ per_metric: net_sales=1/1 ...
 ```
 
 テスト: `.venv/bin/python tests/xbrl/test_xbrl_match_rate.py`
+
+## J-Quants `statements` との突合（KAB-47）
+
+IRBANK ゴールデンとは別に、`statements`（J-Quants `/v2/fins/summary`）と `xbrl_financials` を突合する。本番 `stock.db` には書かない。検証DBへ stocks に加えて statements をコピーしてよい。
+
+```
+python tools/xbrl/copy_stocks_for_verify.py --from /path/to/stock.db --to "$VERIFY_DB" --tables stocks,statements
+DATABASE_URL="sqlite:///$VERIFY_DB" python jobs/migrate.py
+DATABASE_URL="sqlite:///$VERIFY_DB" python jobs/xbrl/xbrl_normalize.py --rebuild
+python tools/xbrl/xbrl_vs_statements.py --db "$VERIFY_DB" --out /tmp/xbrl_vs_statements.json
+```
+
+ZIP が無いときは `tests/xbrl/test_xbrl_forecast.py` のフィクスチャでコマンド形を確認する。

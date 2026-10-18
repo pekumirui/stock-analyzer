@@ -241,6 +241,9 @@ def test_classify_title() -> None:
     g = classify_title("2026年3月期 決算短信（連結）")
     if g["accounting_standard"] is not None:
         _fail(f"ambiguous title should stay NULL: {g}")
+    h = classify_title("2026年3月期通期業績予想の修正に関するお知らせ")
+    if h["doc_type"] != "forecast_revision" or h["period_type"] != "FY":
+        _fail(f"forecast revision title: {h}")
 
 
 def test_infer_accounting_standard_from_namespaces() -> None:
@@ -299,14 +302,16 @@ def _std_value(db, filing_id: int, code: str) -> Decimal | None:
     item = db.query(XbrlStdItem).filter_by(code=code).one_or_none()
     if item is None:
         return None
-    row = (
-        db.query(XbrlFinancial)
-        .filter_by(filing_id=filing_id, std_item_id=item.id)
-        .one_or_none()
-    )
-    if row is None:
+    q = db.query(XbrlFinancial).filter_by(filing_id=filing_id, std_item_id=item.id)
+    if hasattr(XbrlFinancial, "value_kind"):
+        q = q.filter_by(value_kind="actual", range_side="point")
+    rows = q.all()
+    if not rows:
         return None
-    return Decimal(str(row.value))
+    if len(rows) > 1:
+        consol = [r for r in rows if r.is_consolidated]
+        rows = consol or rows
+    return Decimal(str(rows[0].value))
 
 
 def test_parse_normalize_idempotent(tmp: Path) -> None:

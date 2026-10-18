@@ -1,0 +1,17 @@
+- std_item: eps_basic
+  elements:
+    - { ns: tse-ed-t, name: NetIncomePerShare, priority: 10 }
+    - { ns: jppfs_cor, name: BasicEarningsPerShare, priority: 20 }
+    - { ns: jppfs_cor, name: NetIncomePerShare, priority: 30 }
+    - { ns: tse-ed-t, name: BasicEarningsPerShareIFRS, priority: 10, standard: IFRS }
+    - { ns: jpigp_cor, name: BasicEarningsPerShareIFRS, priority: 20, standard: IFRS }
+    - { ns: jpigp_cor, name: BasicEarningsLossPerShareIFRS, priority: 30, standard: IFRS }
+- std_item: eps_diluted
+  elements:
+    - { ns: tse-ed-t, name: DilutedNetIncomePerShare, priority: 10 }
+    - { ns: jppfs_cor, name: DilutedEarningsPerShare, priority: 20 }
+    - { ns: tse-ed-t, name: DilutedEarningsPerShareIFRS, priority: 10, standard: IFRS }
+    - { ns: jpigp_cor, name: DilutedEarningsPerShareIFRS, priority: 20, standard: IFRS }
+- std_item: dps
+  elements:
+    - { ns: tse-ed-t, name: DividendPerShare, priority: 10 }

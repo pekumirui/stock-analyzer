@@ -34,7 +34,7 @@
 | 入力 | `/home/stock/r2-share/xbrl/{code4}/` の ZIP と `manifest/{YYYY-MM-DD}.jsonl` |
 | 対象書類 | 決算短信・四半期短信・訂正短信の **Summary iXBRL**（本表） |
 | 対象データ | iXBRL の fact を保存。1000 文字超のテキストブロックは値を捨てるが要素は残す |
-| 正規化対象 | BS / PL / CF の §7.2 最小セット |
+| 正規化対象 | BS / PL / CF の §7.2 最小セット + EPS / 配当 / 業績予想（KAB-47） |
 | 企業キー | `stocks.code`（5桁）。ZIP 側の 4桁は末尾 `0` を付けて照合 |
 | DB | 既存 `DATABASE_URL` |
 
@@ -111,7 +111,7 @@ stocks.code   例 7203 → 72030、262A → 262A0
 | ソース | J-Quants 短信サマリ | TDnet XBRL 生 fact を正規化 |
 | 形 | 横持ち（売上・営利・予想など固定列） | 縦持ち（標準科目 × 値） |
 | UI | 決算速報・詳細の正本 | 第1弾では API/UI に出さない |
-| 期間 | 累計実績 + 会社予想 | 本表の当期実績（予想はマッピングに無い限り入れない） |
+| 期間 | 累計実績 + 会社予想 | 本表の当期実績に加え、EPS・配当・会社予想（通期/中間、レンジ、予想修正） |
 
 突合（同じ開示の `net_sales` が一致するか）は実装後の検証用であり、自動で `statements` を上書きしない。
 
@@ -251,13 +251,16 @@ CREATE TABLE xbrl_financials (
     period_end          DATE NOT NULL,
     value               NUMERIC NOT NULL,
     unit                TEXT NOT NULL DEFAULT 'JPY',
+    value_kind          TEXT NOT NULL DEFAULT 'actual',  -- actual|forecast|forecast_previous
+    range_side          TEXT NOT NULL DEFAULT 'point',   -- point|lower|upper
+    target_period       TEXT NOT NULL DEFAULT 'FY',      -- FY|H1|Q1|Q2|Q3|year_end|annual
     source_fact_id      INTEGER REFERENCES xbrl_facts(id),
     source_element_id   INTEGER REFERENCES xbrl_elements(id),
     generated_at        TEXT NOT NULL,
-    UNIQUE (filing_id, std_item_id, is_consolidated, period_end)
+    UNIQUE (filing_id, std_item_id, is_consolidated, period_end, value_kind, range_side, target_period)
 );
 CREATE INDEX idx_xbrl_financials_lookup
-    ON xbrl_financials(code, std_item_id, is_consolidated, period_end);
+    ON xbrl_financials(code, std_item_id, is_consolidated, period_end, value_kind);
 
 CREATE TABLE xbrl_job_runs (
     id              INTEGER PRIMARY KEY,
@@ -453,15 +456,18 @@ YAML の `ns` は `namespace_key`。URI 完全一致では解決しない。
 
 filing 単位。
 
-1. 本表 fact のみ: `has_dimensions=0`、または dimensions が連結/非連結メンバーだけのもの
-2. `relative_period='current'` のみ（前期比較は前期の filing から取る）
-3. `is_consolidated` が取れなければ 1（連結）として正規化する。NULL のまま残さない
-4. mappings を `namespace_key + local_name` で結合。`accounting_standard` が NULL でない行は filing の基準と一致するときだけ。`std_item_id` ごとに `priority` 昇順で最初の値
-5. `sign='invert'` なら符号反転
-6. UPSERT
-7. `is_required=1` が欠けたら警告ログ（`code, filing_id, std_item.code`）。処理は継続
+1. セグメント等、連結/実績予想/レンジ/配当以外の次元が付いた fact は捨てる
+2. **既存23項目（BS/PL/CF）の実績**: 従来どおり `has_dimensions` が空か連結/非連結だけ、かつ `relative_period='current'`。選定キーは `std_item` ごと 1 値（値を変えない）
+3. **EPS 実績**: 本表コンテキストに加え `ResultMember`（短信表紙）を許す
+4. **配当**: `FirstQuarter` / `SecondQuarter` / `ThirdQuarter` / `YearEnd` / `Annual` メンバーで `target_period` を分ける。`ResultMember` は実績、`ForecastMember` は予想
+5. **業績予想**: `ForecastMember` 必須。`relative_period='current'` は要求しない（通期予想の期末は短信の四半期末とずれる）。`PreviousMember` は `value_kind=forecast_previous`（今回予想は `forecast`）。`LowerMember`/`UpperMember` は `range_side`
+6. `is_consolidated` が取れなければ 1（連結）として正規化する。NULL のまま残さない
+7. mappings を `namespace_key + local_name` で結合。`accounting_standard` が NULL でない行は filing の基準と一致するときだけ。同一キーでは `priority` 昇順で最初の値
+8. `sign='invert'` なら符号反転
+9. filing 単位で既存の `xbrl_financials` を消してから入れ直す
+10. `is_required=1` が欠けたら警告ログ（`code, filing_id, std_item.code`）。処理は継続。required は本表実績だけ
 
-通常実行は `xbrl_financials` が無い filing と、`parsed_at` が既存の `generated_at` より新しい filing だけ。`--rebuild` は `xbrl_financials` を全削除して全 parsed filing を再処理する。
+通常実行は `xbrl_financials` が無い filing と、`parsed_at` が既存の `generated_at` より新しい filing だけ。`--rebuild` は `xbrl_financials` を全削除して全 parsed filing を再処理する。`--code` で銘柄を限定できる。
 
 ### 6.5 CLI
 
@@ -479,6 +485,7 @@ python jobs/xbrl/xbrl_parse.py report-unmapped --limit 50
 
 python jobs/xbrl/xbrl_normalize.py
 python jobs/xbrl/xbrl_normalize.py --rebuild
+python jobs/xbrl/xbrl_normalize.py --rebuild --code 72030
 ```
 
 dest 既定は `tdnet_xbrl_r2.DEFAULT_DEST`。`--dest` で上書き。
@@ -503,7 +510,9 @@ YAML のみ。コードに科目名をハードコードしない。
 
 TDnet 短信の実際の `namespace_key` は fixture を見てから YAML に書く。`tse-ed-t` 等を実装前に決め打ちしない。
 
-### 7.2 初期定義（最小セット）— これ以外を足さない
+### 7.2 初期定義（最小セット）
+
+第1弾の BS/PL/CF 23項目に加え、KAB-47 で EPS・配当・業績予想を足した。これ以外の科目は確認なく足さない。
 
 **BS（instant）**
 
@@ -533,6 +542,16 @@ TDnet 短信の実際の `namespace_key` は fixture を見てから YAML に書
 | ordinary_income | 経常利益 | OrdinaryIncome |
 | profit_before_tax | 税引前当期純利益 | IncomeBeforeIncomeTaxes |
 | net_income | 親会社株主に帰属する当期純利益 | ProfitLossAttributableToOwnersOfParent |
+| eps_basic | 1株当たり当期純利益 | tse-ed-t:NetIncomePerShare / BasicEarningsPerShare |
+| eps_diluted | 潜在株式調整後1株当たり当期純利益 | DilutedNetIncomePerShare |
+
+**配当（OTHER。実績/予想は `value_kind`、期は `target_period`）**
+
+| code | label_ja | 代表 local_name |
+|---|---|---|
+| dps | 1株当たり配当金 | tse-ed-t:DividendPerShare |
+
+業績予想は新しい std_item を増やさず、`net_sales` / `operating_income` / `ordinary_income` / `net_income` / `eps_basic` / `dps` を `value_kind=forecast` で持つ。通期は `target_period=FY`、中間は `H1`。レンジは `range_side=lower|upper`。
 
 **CF（duration）**
 
@@ -646,5 +665,4 @@ XBRL_TEXT_MAX_CHARS=1000
 - EDINET API v2 で有報 ZIP を取り、`source='edinet'` の filing を足す。そのとき `stocks.edinet_code` を nullable で追加
 - 伝統的 instance `.xbrl` パーサ
 - 正規化層の実績を決算詳細 API に出す（`statements` の予想列は残す）
-- `statements.net_sales` と `xbrl_financials` の差分レポート
 - facts の DB 分離

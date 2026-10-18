@@ -224,7 +224,15 @@ def load_xbrl_values(db_path: Path) -> dict[tuple[str, str, str], dict[str, Any]
         }
         if "xbrl_financials" not in tables or "xbrl_std_items" not in tables:
             raise SystemExit("db missing xbrl_financials or xbrl_std_items")
-        sql = """
+        fin_cols = {
+            r[1] for r in conn.execute("PRAGMA table_info(xbrl_financials)")
+        }
+        extra = ""
+        if "value_kind" in fin_cols:
+            extra += " AND COALESCE(f.value_kind, 'actual') = 'actual'"
+        if "range_side" in fin_cols:
+            extra += " AND COALESCE(f.range_side, 'point') = 'point'"
+        sql = f"""
             SELECT
               f.code AS code,
               f.period_end AS period_end,
@@ -235,6 +243,7 @@ def load_xbrl_values(db_path: Path) -> dict[tuple[str, str, str], dict[str, Any]
               s.code AS std_item
             FROM xbrl_financials f
             JOIN xbrl_std_items s ON s.id = f.std_item_id
+            WHERE 1=1 {extra}
         """
         chosen: dict[tuple[str, str, str], dict[str, Any]] = {}
         for row in conn.execute(sql):

@@ -3,6 +3,9 @@
     - { ns: jppfs_cor, name: NetSales, priority: 10 }
     - { ns: jppfs_cor, name: OperatingRevenue1, priority: 20 }
     - { ns: jppfs_cor, name: NetSalesOfCompletedConstructionContracts, priority: 30 }
+    - { ns: tse-ed-t, name: NetSales, priority: 50 }
+    - { ns: tse-ed-t, name: OperatingRevenues, priority: 60 }
+    - { ns: tse-ed-t, name: OrdinaryRevenuesBK, priority: 70 }
 - std_item: cost_of_sales
   elements:
     - { ns: jppfs_cor, name: CostOfSales, priority: 10 }
@@ -16,9 +19,11 @@
   elements:
     - { ns: jppfs_cor, name: OperatingIncome, priority: 10 }
     - { ns: jppfs_cor, name: OperatingIncomeLoss, priority: 20 }
+    - { ns: tse-ed-t, name: OperatingIncome, priority: 50 }
 - std_item: ordinary_income
   elements:
     - { ns: jppfs_cor, name: OrdinaryIncome, priority: 10 }
+    - { ns: tse-ed-t, name: OrdinaryIncome, priority: 50 }
 - std_item: profit_before_tax
   elements:
     - { ns: jppfs_cor, name: IncomeBeforeIncomeTaxes, priority: 10 }
@@ -27,3 +32,5 @@
     - { ns: jppfs_cor, name: ProfitLossAttributableToOwnersOfParent, priority: 10 }
     - { ns: jppfs_cor, name: ProfitLoss, priority: 20 }
     - { ns: jppfs_cor, name: NetIncome, priority: 30 }
+    - { ns: tse-ed-t, name: ProfitAttributableToOwnersOfParent, priority: 50 }
+    - { ns: tse-ed-t, name: NetIncome, priority: 60 }
