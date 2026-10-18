@@ -314,8 +314,8 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
                 if std.sign == "invert":
                     value = -value
                 fallback_sales.append((
-                    mapping.priority,
                     0 if ctx.is_consolidated else 1,
+                    mapping.priority,
                     value, fact, el, ctx, mapping.priority, klass, target_period, std,
                 ))
             continue
@@ -332,6 +332,7 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
     if net_sales_std is not None:
         sales_key = _legacy_actual_key(net_sales_std)
         if sales_key not in chosen and fallback_sales:
+            # 連結を先に。同じ連結区分なら mapping の priority。
             fallback_sales.sort(key=lambda t: (t[0], t[1]))
             chosen[sales_key] = fallback_sales[0][2:]
 

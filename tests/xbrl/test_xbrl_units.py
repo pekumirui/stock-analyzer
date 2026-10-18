@@ -71,6 +71,22 @@ def test_parsed_context_dimensions() -> None:
     other = _ctx("c", dims={"axis": "jpcrp_cor:BusinessSegmentMember"})
     if other.only_consol_dimensions() is not False:
         _fail("segment member")
+    if other.only_consol_or_result_dimensions() is not False:
+        _fail("segment is not result")
+    result = _ctx("d", dims={
+        "tse-ed-t:ConsolidatedOrNonConsolidatedAxis": "tse-ed-t:ConsolidatedMember",
+        "tse-ed-t:ResultForecastAxis": "tse-ed-t:ResultMember",
+    })
+    if result.only_consol_dimensions() is not False:
+        _fail("ResultMember is not consol-only")
+    if result.only_consol_or_result_dimensions() is not True:
+        _fail("ResultMember + consol should be allowed")
+    forecast = _ctx("e", dims={
+        "tse-ed-t:ConsolidatedOrNonConsolidatedAxis": "tse-ed-t:ConsolidatedMember",
+        "tse-ed-t:ResultForecastAxis": "tse-ed-t:ForecastMember",
+    })
+    if forecast.only_consol_or_result_dimensions() is not False:
+        _fail("ForecastMember must be excluded")
 
 
 def test_fy_end_fallback_order() -> None:
@@ -112,6 +128,82 @@ def test_fy_end_fallback_order() -> None:
     )
     if got != date(2026, 9, 30):
         _fail(f"pl after quarterly title {got}")
+
+
+def test_fy_end_from_summary_result_member() -> None:
+    """本表も DEI も無いとき ResultMember の期末を使い、Forecast の通期末は採らない。"""
+    result = _ctx(
+        "CurrentAccumulatedQ2Duration_ConsolidatedMember_ResultMember",
+        start=date(2026, 1, 1),
+        end=date(2026, 6, 30),
+        dims={
+            "tse-ed-t:ConsolidatedOrNonConsolidatedAxis": "tse-ed-t:ConsolidatedMember",
+            "tse-ed-t:ResultForecastAxis": "tse-ed-t:ResultMember",
+        },
+    )
+    forecast = _ctx(
+        "CurrentYearDuration_ConsolidatedMember_ForecastMember",
+        start=date(2026, 1, 1),
+        end=date(2026, 12, 31),
+        dims={
+            "tse-ed-t:ConsolidatedOrNonConsolidatedAxis": "tse-ed-t:ConsolidatedMember",
+            "tse-ed-t:ResultForecastAxis": "tse-ed-t:ForecastMember",
+        },
+    )
+    result_fact = SimpleNamespace(
+        is_numeric=True, value_num=10462, local_name="SalesIFRS",
+        context_ref=result.context_ref,
+    )
+    forecast_fact = SimpleNamespace(
+        is_numeric=True, value_num=20000, local_name="SalesIFRS",
+        context_ref=forecast.context_ref,
+    )
+    got = fiscal_year_end_from_pl_contexts(
+        [result, forecast], [result_fact, forecast_fact],
+    )
+    if got != date(2026, 6, 30):
+        _fail(f"summary result fy_end {got}")
+    got = resolve_fiscal_year_end(
+        [result, forecast], [result_fact, forecast_fact],
+        title="2026年12月期 第2四半期決算短信〔ＳＦＲＳ(Ｉ)及びＩＦＲＳ〕（連結）",
+    )
+    if got != date(2026, 6, 30):
+        _fail(f"resolve summary-only {got}")
+    if fiscal_year_end_from_pl_contexts([forecast], [forecast_fact]) is not None:
+        _fail("forecast-only must not yield PL fy_end")
+
+    primary = _ctx("CurrentYTDDuration", start=date(2026, 1, 1), end=date(2026, 6, 30))
+    later_result = _ctx(
+        "CurrentAccumulatedQ3Duration_ConsolidatedMember_ResultMember",
+        start=date(2026, 1, 1),
+        end=date(2026, 9, 30),
+        dims={
+            "tse-ed-t:ConsolidatedOrNonConsolidatedAxis": "tse-ed-t:ConsolidatedMember",
+            "tse-ed-t:ResultForecastAxis": "tse-ed-t:ResultMember",
+        },
+    )
+    primary_fact = SimpleNamespace(
+        is_numeric=True, value_num=1, local_name="NetSales",
+        context_ref=primary.context_ref,
+    )
+    later_fact = SimpleNamespace(
+        is_numeric=True, value_num=2, local_name="SalesIFRS",
+        context_ref=later_result.context_ref,
+    )
+    got = fiscal_year_end_from_pl_contexts(
+        [primary, later_result], [primary_fact, later_fact],
+    )
+    if got != date(2026, 6, 30):
+        _fail(f"primary must win over later ResultMember {got}")
+    dei = SimpleNamespace(
+        local_name="CurrentPeriodEndDateDEI", value_text="2026-06-30", value_num=None,
+    )
+    got = resolve_fiscal_year_end(
+        [later_result, forecast], [dei, later_fact, forecast_fact],
+        title="2026年12月期 第2四半期決算短信",
+    )
+    if got != date(2026, 6, 30):
+        _fail(f"DEI must still win {got}")
 
 
 def test_parser_helpers(tmp: Path) -> None:
@@ -203,6 +295,7 @@ def test_match_rate_and_golden_helpers() -> None:
 def main() -> None:
     test_parsed_context_dimensions()
     test_fy_end_fallback_order()
+    test_fy_end_from_summary_result_member()
     with tempfile.TemporaryDirectory() as d:
         test_parser_helpers(Path(d))
     test_jobs_store_and_normalize()
