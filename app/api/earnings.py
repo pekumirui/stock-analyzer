@@ -12,6 +12,9 @@ from ..models import Stock, Statement
 from ..market.analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
 from ..market.earnings_schedule import ActualMonth, day_payload, month_payload
+from ..market.revisions import jquants_points
+from ..revisions import revision_rows
+from ..xbrl.revisions import xbrl_points
 
 
 router = APIRouter()
@@ -145,8 +148,11 @@ def earnings_by_date(date_: str = Query(..., alias="date"),
 @router.get("/earnings/detail/{code}")
 def earnings_detail(code: str, date_: str | None = Query(None, alias="date"),
                     disclosure_no: str | None = None,
+                    rev_source: str | None = Query(None, pattern=r"^(jquants|xbrl)$"),
                     db: Session = Depends(get_session)):
-    """累計テーブル・3か月決算テーブル。
+    """累計テーブル・3か月決算テーブル・修正履歴。
+
+    修正履歴のデータ源は既定が `EARNINGS_PARAMS["revision_source"]`。`rev_source` で上書きする。
 
     同一銘柄が同じ日に複数開示する日があるため、一覧からは disclosure_no で一意に引く。
     """
@@ -170,6 +176,8 @@ def earnings_detail(code: str, date_: str | None = Query(None, alias="date"),
         raise HTTPException(404, "no statement")
 
     stock = db.get(Stock, code)
+    src = rev_source or EP["revision_source"]
+    points = xbrl_points(db, code, stmt.disclosed_date) if src == "xbrl" else jquants_points(db, stmt)
     return {
         "code": code, "name": stock.name if stock else code,
         "disclosure_no": stmt.disclosure_no,
@@ -179,4 +187,6 @@ def earnings_detail(code: str, date_: str | None = Query(None, alias="date"),
         "fiscal_year_end": stmt.fiscal_year_end.isoformat() if stmt.fiscal_year_end else None,
         "unit": "yen", "metrics": list(METRIC_KEYS),
         **build_earnings_detail(db, stmt),
+        "revisions": revision_rows(points, EP["revision_history_years"]),
+        "revision_source": src,
     }

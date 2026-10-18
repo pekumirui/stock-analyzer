@@ -110,4 +110,6 @@ EARNINGS_PARAMS = {
     "single_history_quarters": 12,
     "fy_match_tol_days": 45,       # 前年同期の突合許容日数 (決算期変更・うるう年を吸収)
     "revision_noise_th": 0.001,
+    "revision_history_years": 4,   # 修正履歴タブに出す年度数 (本決算の後は来期を含む)
+    "revision_source": "jquants",  # 修正履歴のデータ源。jquants | xbrl
 }

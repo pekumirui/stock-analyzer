@@ -141,6 +141,7 @@
   table.fin tr.fc td { background:#f0f7fc !important; }
   table.fin tr.prevfy td { opacity:.78; }
   table.fin tr.sep td { border-top:1px solid var(--border); }
+  table.fin tr.act td.num { font-weight:600; }
   table.fin .loss { color:var(--up); }
   #monthly-groups, #earn-groups { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
   .mchip { background:transparent; border:1px solid var(--border); color:var(--sub); border-radius:999px; padding:4px 12px; cursor:pointer; font-size:13px; }
@@ -365,6 +366,9 @@
   .qb-fy { color:#1d4ed8; }
   .qb-prev { color:var(--sub); }
   .qb-rev { color:#fff; background:var(--warn); }
+  .qb-init { color:#1d4ed8; }
+  .qb-mod { color:#c2410c; }
+  .qb-act { color:var(--text); font-weight:600; }
   .a-fin .tbl-wrap { max-height:min(52vh, 560px); }
 
   @media (max-width:640px){
