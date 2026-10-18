@@ -72,6 +72,7 @@ def parse_manifest_row(
     *,
     cache_dir: Path,
     retry_failed: bool = False,
+    reparse: bool = False,
 ) -> str:
     doc_id = str(row["xbrl_id"])
     rel = str(row.get("path") or "")
@@ -84,7 +85,12 @@ def parse_manifest_row(
         return "skipped"
     existing = db.query(XbrlFiling).filter_by(source="tdnet", doc_id=doc_id).one_or_none()
     sha = str(row.get("sha256") or "") or None
-    if existing and existing.parse_status in ("parsed", "skipped") and existing.raw_sha256 == sha:
+    if (
+        existing
+        and existing.parse_status in ("parsed", "skipped")
+        and existing.raw_sha256 == sha
+        and not reparse
+    ):
         return "skipped"
     if existing and existing.parse_status == "failed" and not retry_failed:
         return "skipped"
@@ -130,6 +136,7 @@ def run_parse(
     end: date | None = None,
     doc_id: str | None = None,
     retry_failed: bool = False,
+    reparse: bool = False,
     cache_dir: Path | None = None,
 ) -> dict[str, int]:
     root = Path(dest or XBRL_DEST)
@@ -141,7 +148,9 @@ def run_parse(
         rows = [r for r in rows if str(r.get("xbrl_id")) == doc_id]
     processed = errors = skipped = 0
     for row in rows:
-        status = parse_manifest_row(db, root, row, cache_dir=cache, retry_failed=retry_failed)
+        status = parse_manifest_row(
+            db, root, row, cache_dir=cache, retry_failed=retry_failed, reparse=reparse,
+        )
         if status == "parsed":
             processed += 1
         elif status == "error":

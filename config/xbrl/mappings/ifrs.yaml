@@ -5,6 +5,7 @@
     - { ns: tse-ed-t, name: SalesIFRS, priority: 50, standard: IFRS }
     - { ns: tse-ed-t, name: NetSalesIFRS, priority: 60, standard: IFRS }
     - { ns: tse-ed-t, name: RevenueIFRS, priority: 70, standard: IFRS }
+    - { ns: tse-ed-t, name: OperatingRevenuesIFRS, priority: 80, standard: IFRS }
 - std_item: operating_income
   elements:
     - { ns: jpigp_cor, name: OperatingProfitLossIFRS, priority: 10, standard: IFRS }

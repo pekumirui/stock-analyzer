@@ -54,6 +54,8 @@ PUBLIC_ORIGIN = os.getenv("PUBLIC_ORIGIN", "").rstrip("/")
 XBRL_DEST = os.getenv("XBRL_DEST", "/home/stock/r2-share/xbrl")
 XBRL_CACHE_DIR = os.getenv("XBRL_CACHE_DIR", "/home/stock/r2-share/xbrl/_cache")
 XBRL_TEXT_MAX_CHARS = int(os.getenv("XBRL_TEXT_MAX_CHARS", "1000"))
+# tse-ed-t 等の遠隔 XSD。キャッシュ無しだと urlopen が数分待つ。facts 自体は XSD 不要。
+XBRL_XSD_TIMEOUT = float(os.getenv("XBRL_XSD_TIMEOUT", "8"))
 
 # V1 (メール/パスワード → idToken) は閉鎖予定。V2はダッシュボード発行のAPIキー方式。
 JQUANTS_API_KEY = os.getenv("JQUANTS_API_KEY", "")

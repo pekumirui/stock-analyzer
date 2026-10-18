@@ -5,8 +5,10 @@ No network. sqlite3 + stdlib. Does not write the DB (read-only).
 
   python tools/xbrl/xbrl_vs_statements.py --db PATH [--out PATH] [--code 72030]
 
-Join is code + disclosed_date == date(submitted_at), then period_end.
-Prefer consolidated, point forecasts (not previous / not range).
+Join is code + disclosed_date == date(submitted_at) only (no all-history
+fallback). Prefer consolidated, point forecasts (not previous / not range).
+dps uses statements.fiscal_year_end == xbrl period_end.
+Million-yen truncation is status=rounding and counted in matched.
 
 Scale: both sides are yen (or yen/share). Trust unit; yen-like units are
 compared as-is. Per-share items use a slightly wider absolute tolerance.
@@ -21,7 +23,7 @@ import json
 import sqlite3
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_DOWN, Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +31,7 @@ ABS_MONEY = Decimal("1")
 ABS_PER_SHARE = Decimal("0.05")
 REL_TOL = Decimal("0.001")
 EPS = Decimal("1e-9")
+MILLION = Decimal("1E6")
 
 YEN_UNITS = {
     "",
@@ -114,6 +117,19 @@ def values_match(a: Decimal, b: Decimal, *, per_share: bool) -> bool:
     return (diff / denom) <= REL_TOL
 
 
+def values_rounding_match(stmt: Decimal, xbrl: Decimal, *, per_share: bool) -> bool:
+    """statements の百万円未満切捨て（0方向）と XBRL 財表値が |diff|<1e6 で一致。"""
+    if per_share:
+        return False
+    if stmt % MILLION != 0:
+        return False
+    diff = abs(stmt - xbrl)
+    if diff == 0 or diff >= MILLION:
+        return False
+    truncated = xbrl.quantize(MILLION, rounding=ROUND_DOWN)
+    return truncated == stmt
+
+
 @dataclass
 class CmpRow:
     code: str
@@ -135,6 +151,8 @@ class Report:
     missing: int = 0
     mismatches: int = 0
     skipped: int = 0
+    skipped_date: int = 0
+    rounding: int = 0
     rows: list[CmpRow] = field(default_factory=list)
     per_field: dict[str, dict[str, int]] = field(default_factory=dict)
 
@@ -213,6 +231,7 @@ def _pick(
     value_kind: str,
     target_period: str,
     period_end: str | None,
+    fiscal_year_end: str | None = None,
 ) -> dict[str, Any] | None:
     cands = [
         r for r in rows
@@ -224,6 +243,12 @@ def _pick(
         dated = [r for r in cands if norm_date(r["period_end"]) == period_end]
         if dated:
             cands = dated
+    if std_item == "dps" and fiscal_year_end:
+        dated = [r for r in cands if norm_date(r["period_end"]) == fiscal_year_end]
+        if dated:
+            cands = dated
+        else:
+            return None
     if not cands:
         return None
     cands.sort(key=lambda r: (0 if _as_bool(r["is_consolidated"]) else 1, -(r["filing_id"] or 0)))
@@ -246,9 +271,7 @@ def compare_db(db_path: Path, *, code: str | None = None) -> Report:
         conn.close()
 
     by_code_date: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
-    by_code: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in fins:
-        by_code[str(row["code"])].append(row)
         day = norm_date(row.get("submitted_date"))
         if day:
             by_code_date[(str(row["code"]), day)].append(row)
@@ -258,8 +281,27 @@ def compare_db(db_path: Path, *, code: str | None = None) -> Report:
         code5 = str(st.get("code") or "")
         disc = str(st.get("disclosure_no") or "")
         day = norm_date(st.get("disclosed_date"))
-        rows = by_code_date.get((code5, day)) or by_code.get(code5) or []
+        if not day:
+            report.skipped_date += 1
+            report.rows.append(CmpRow(
+                code=code5, disclosure_no=disc, field="", std_item="",
+                value_kind="", target_period="",
+                stmt=None, xbrl=None, status="skipped",
+                reason="disclosure date missing",
+            ))
+            continue
+        rows = by_code_date.get((code5, day)) or []
+        if not rows:
+            report.skipped_date += 1
+            report.rows.append(CmpRow(
+                code=code5, disclosure_no=disc, field="", std_item="",
+                value_kind="", target_period="",
+                stmt=None, xbrl=None, status="skipped",
+                reason="disclosure date mismatch",
+            ))
+            continue
         period_end = norm_date(st.get("period_end"))
+        fy_end = norm_date(st.get("fiscal_year_end"))
         filing_period = period_token(st.get("type_of_period"))
         pairs = list(PAIRS)
         raw = st.get("_raw") or {}
@@ -273,7 +315,9 @@ def compare_db(db_path: Path, *, code: str | None = None) -> Report:
                 stmt_val = _dec(raw.get(src))
             field = src
             want_target = filing_period if target == "period" else target
-            stats = report.per_field.setdefault(field, {"matched": 0, "compared": 0, "missing": 0, "mismatch": 0})
+            stats = report.per_field.setdefault(
+                field, {"matched": 0, "compared": 0, "missing": 0, "mismatch": 0, "rounding": 0},
+            )
             if stmt_val is None:
                 report.skipped += 1
                 continue
@@ -283,6 +327,7 @@ def compare_db(db_path: Path, *, code: str | None = None) -> Report:
                 value_kind=kind,
                 target_period=want_target,
                 period_end=period_end if kind == "actual" and target == "period" else None,
+                fiscal_year_end=fy_end if std == "dps" else None,
             )
             if hit is None:
                 report.missing += 1
@@ -308,11 +353,18 @@ def compare_db(db_path: Path, *, code: str | None = None) -> Report:
             report.compared += 1
             stats["compared"] += 1
             ok = values_match(stmt_val, xval, per_share=per_share)
-            if ok:
+            rounding = (not ok) and values_rounding_match(stmt_val, xval, per_share=per_share)
+            if ok or rounding:
                 report.matched += 1
                 stats["matched"] += 1
-                status = "match"
-                reason = ""
+                if rounding:
+                    report.rounding += 1
+                    stats["rounding"] += 1
+                    status = "rounding"
+                    reason = f"stmt={stmt_val} xbrl={xval} rounding"
+                else:
+                    status = "match"
+                    reason = ""
             else:
                 report.mismatches += 1
                 stats["mismatch"] += 1
@@ -332,7 +384,8 @@ def format_stdout(report: Report) -> str:
         (
             f"overall: {report.matched}/{report.compared} = {pct}  "
             f"(missing_excluded={report.missing}, mismatches={report.mismatches}, "
-            f"skipped_empty={report.skipped})"
+            f"skipped_empty={report.skipped}, skipped_date={report.skipped_date}, "
+            f"rounding={report.rounding})"
         ),
     ]
     fields = []
@@ -367,6 +420,8 @@ def main(argv: list[str] | None = None) -> int:
                 "missing": report.missing,
                 "mismatches": report.mismatches,
                 "skipped": report.skipped,
+                "skipped_date": report.skipped_date,
+                "rounding": report.rounding,
                 "rate": report.rate,
             },
             "per_field": report.per_field,

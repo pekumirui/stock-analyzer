@@ -128,7 +128,9 @@ def classify_context(ctx: XbrlContext) -> ContextClass | None:
     members = _members_of(ctx)
     if any(m not in ALLOWED_MEMBERS for m in members):
         return None
-    if "ForecastMember" in members:
+    # 実データのレンジ context は ForecastMember を付けず Lower/UpperMember のみ。
+    is_range = any(m in RANGE_LOWER or m in RANGE_UPPER for m in members)
+    if "ForecastMember" in members or is_range:
         kind = (
             VALUE_KIND_FORECAST_PREV
             if "PreviousMember" in members
@@ -157,14 +159,22 @@ def infer_target_period(
     if klass.value_kind == VALUE_KIND_ACTUAL:
         return filing.period_type or "FY"
     ref = (ctx.context_ref or "").lower()
+    if "accumulatedq1" in ref or "firstquarter" in ref:
+        return "Q1"
     if "interim" in ref or "accumulatedq2" in ref or "secondquarter" in ref:
         return "H1"
+    if "accumulatedq3" in ref or "thirdquarter" in ref:
+        return "Q3"
     if "nextyear" in ref or "currentyear" in ref or "fiscalyear" in ref:
         return "FY"
     if ctx.start_date and ctx.end_date:
         days = (ctx.end_date - ctx.start_date).days
+        if 80 <= days <= 100:
+            return "Q1"
         if 150 <= days <= 220:
             return "H1"
+        if 240 <= days <= 300:
+            return "Q3"
         if days >= 300:
             return "FY"
     return "FY"

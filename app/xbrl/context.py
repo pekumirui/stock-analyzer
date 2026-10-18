@@ -149,7 +149,10 @@ DEI_CURRENT_PERIOD_END_NAMES = (
 _PL_DURATION_HINTS = frozenset({
     "NetSales",
     "SalesIFRS",
+    "NetSalesIFRS",
     "RevenueIFRS",
+    "OperatingRevenues",
+    "OperatingRevenuesIFRS",
     "OperatingRevenue1",
     "OperatingIncome",
     "OperatingProfitLossIFRS",
