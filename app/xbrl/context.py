@@ -53,14 +53,24 @@ class ParsedContext:
     def dimensions_json(self) -> str:
         return json.dumps(self.dimensions, ensure_ascii=False, sort_keys=True)
 
+    def _member_locals(self) -> list[str]:
+        return [member.split(":", 1)[-1] for member in self.dimensions.values()]
+
     def only_consol_dimensions(self) -> bool:
         if not self.dimensions:
             return True
-        for member in self.dimensions.values():
-            name = member.split(":", 1)[-1]
-            if name not in ("ConsolidatedMember", "NonConsolidatedMember"):
-                return False
-        return True
+        return all(
+            name in ("ConsolidatedMember", "NonConsolidatedMember")
+            for name in self._member_locals()
+        )
+
+    def only_consol_or_result_dimensions(self) -> bool:
+        """連結/単体だけ、またはそれに ResultMember を足した短信実績。Forecast は含まない。"""
+        if self.only_consol_dimensions():
+            return True
+        members = set(self._member_locals())
+        allowed = {"ConsolidatedMember", "NonConsolidatedMember", "ResultMember"}
+        return members <= allowed and "ResultMember" in members
 
 
 def extract_dimensions(ctx: ET.Element) -> dict[str, str]:
@@ -212,8 +222,12 @@ def fiscal_year_end_from_dei(facts) -> date | None:
     return None
 
 
-def fiscal_year_end_from_pl_contexts(contexts: list[ParsedContext], facts) -> date | None:
-    """Latest duration end among 本表 PL facts (ignore forecast / dividend dims)."""
+def _pl_duration_ends(
+    contexts: list[ParsedContext],
+    facts,
+    *,
+    allow_result_member: bool,
+) -> list[date]:
     ctx_by = {c.context_ref: c for c in contexts}
     ends: list[date] = []
     for fact in facts:
@@ -227,10 +241,28 @@ def fiscal_year_end_from_pl_contexts(contexts: list[ParsedContext], facts) -> da
         ctx = ctx_by.get(getattr(fact, "context_ref", ""))
         if ctx is None or ctx.period_type != "duration":
             continue
-        if not ctx.only_consol_dimensions():
+        ok = (
+            ctx.only_consol_or_result_dimensions()
+            if allow_result_member
+            else ctx.only_consol_dimensions()
+        )
+        if not ok:
             continue
         ends.append(ctx.end_date)
-    return max(ends) if ends else None
+    return ends
+
+
+def fiscal_year_end_from_pl_contexts(contexts: list[ParsedContext], facts) -> date | None:
+    """Latest duration end among 本表 PL facts, else 短信実績 (ResultMember).
+
+    Forecast / 配当 / セグメントは見ない。本表（連結/単体のみ）があればその期末を使い、
+    サマリー実績の有無で本表あり書類の判定を変えない。
+    """
+    primary = _pl_duration_ends(contexts, facts, allow_result_member=False)
+    if primary:
+        return max(primary)
+    summary_actual = _pl_duration_ends(contexts, facts, allow_result_member=True)
+    return max(summary_actual) if summary_actual else None
 
 
 def fiscal_year_end_from_duration_contexts(contexts: list[ParsedContext]) -> date | None:
@@ -249,7 +281,8 @@ def resolve_fiscal_year_end(
     """Determine 本表の期末 for relative_period assignment.
 
     Order: DEI CurrentPeriod/DocumentPeriod end → reliable annual title →
-    PL monetary duration ends → any duration ends.
+    本表 PL duration ends → 本表が無ければ短信 ResultMember duration ends →
+    any duration ends.
     Never returns a date in ``exclude_dates`` (e.g. submitted_at / pubdate day).
     """
     excluded = exclude_dates or set()

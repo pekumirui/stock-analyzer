@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
@@ -13,7 +14,7 @@ sys.path.insert(0, str(ROOT))
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{tempfile.mkdtemp(prefix='xbrl-sf-')}/stock.db")
 
 from app.db import SessionLocal, init_db  # noqa: E402
-from app.models import XbrlElement  # noqa: E402
+from app.models import XbrlContext, XbrlElement  # noqa: E402
 from app.xbrl.jobs import run_normalize  # noqa: E402
 from app.xbrl.normalize import (  # noqa: E402
     SOURCE_LAYER_PRIMARY,
@@ -126,6 +127,8 @@ def test_primary_sales_not_overwritten_by_summary(tmp: Path) -> None:
             _fail(f"primary overwritten {sales.value if sales else None}")
         if sales.source_layer != SOURCE_LAYER_PRIMARY:
             _fail(f"primary source_layer {sales.source_layer}")
+        if filing.fiscal_year_end != date(2025, 9, 30):
+            _fail(f"primary fy_end changed {filing.fiscal_year_end}")
         fc = _one(db, filing.id, "net_sales", value_kind="forecast")
         if fc is None or Decimal(str(fc.value)) != Decimal("500000000"):
             _fail(f"forecast {fc.value if fc else None}")
@@ -220,6 +223,265 @@ def test_insurance_without_summary_sales_stays_empty(tmp: Path) -> None:
         op = _one(db, filing.id, "ordinary_income", value_kind="forecast")
         if op is None:
             _fail("ordinary forecast should still come from summary")
+    finally:
+        db.close()
+
+
+def test_fallback_prefers_consolidated_over_higher_priority_standalone(tmp: Path) -> None:
+    """65940/60300/62680 型: 単体の JGAAP 売上（priority 小）より連結の IFRS 売上を採る。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        result = [(AXIS_C, CONS), (AXIS_RF, RESULT)]
+        result_nc = [(AXIS_C, NCONS), (AXIS_RF, RESULT)]
+        fc = [(AXIS_C, CONS), (AXIS_RF, FORECAST)]
+        ytd = [(AXIS_C, CONS)]
+        contexts = "".join([
+            _context("CurrentYearDuration", start="2025-04-01", end="2026-03-31", members=ytd),
+            _context(
+                "CurrentYearDuration_ConsolidatedMember_ResultMember",
+                start="2025-04-01", end="2026-03-31", members=result,
+            ),
+            _context(
+                "CurrentYearDuration_NonConsolidatedMember_ResultMember",
+                start="2025-04-01", end="2026-03-31", members=result_nc,
+            ),
+            _context(
+                "CurrentYearDuration_ConsolidatedMember_ForecastMember",
+                start="2025-04-01", end="2026-03-31", members=fc,
+            ),
+        ])
+        facts = [
+            ("jppfs_cor", "OperatingIncome", "CurrentYearDuration", "JPY", "6", "9", "-6"),
+            ("tse-ed-t", "NetSales", "CurrentYearDuration_NonConsolidatedMember_ResultMember",
+             "JPY", "6", "273452", "-6"),
+            ("tse-ed-t", "NetSalesIFRS", "CurrentYearDuration_ConsolidatedMember_ResultMember",
+             "JPY", "6", "2708705", "-6"),
+            ("tse-ed-t", "NetSalesIFRS", "CurrentYearDuration_ConsolidatedMember_ForecastMember",
+             "JPY", "6", "2800000", "-6"),
+        ]
+        html = build_ixbrl(facts=facts, contexts=contexts)
+        filing = parse_and_normalize(
+            db, tmp, code="65940", doc_id="kab59-6594",
+            title="2026年3月期 決算短信〔IFRS〕（連結）",
+            html=html,
+        )
+        sales = _one(db, filing.id, "net_sales", value_kind="actual")
+        if sales is None or Decimal(str(sales.value)) != Decimal("2708705000000"):
+            _fail(f"consol IFRS sales {sales.value if sales else None}")
+        if not sales.is_consolidated:
+            _fail("must pick ConsolidatedMember over standalone NetSales")
+        el = db.get(XbrlElement, sales.source_element_id)
+        if el is None or el.local_name != "NetSalesIFRS":
+            _fail(f"expected NetSalesIFRS not standalone NetSales: {el}")
+        if sales.source_layer != SOURCE_LAYER_SUMMARY:
+            _fail(f"source_layer {sales.source_layer}")
+    finally:
+        db.close()
+
+
+def test_fallback_prefers_consolidated_operating_revenues_ifrs(tmp: Path) -> None:
+    """60300 型: 単体 OperatingRevenues より連結 RevenueIFRS。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        result = [(AXIS_C, CONS), (AXIS_RF, RESULT)]
+        result_nc = [(AXIS_C, NCONS), (AXIS_RF, RESULT)]
+        ytd = [(AXIS_C, CONS)]
+        contexts = "".join([
+            _context("CurrentYearDuration", start="2025-07-01", end="2026-06-30", members=ytd),
+            _context(
+                "CurrentYearDuration_ConsolidatedMember_ResultMember",
+                start="2025-07-01", end="2026-06-30", members=result,
+            ),
+            _context(
+                "CurrentYearDuration_NonConsolidatedMember_ResultMember",
+                start="2025-07-01", end="2026-06-30", members=result_nc,
+            ),
+        ])
+        facts = [
+            ("jppfs_cor", "OperatingIncome", "CurrentYearDuration", "JPY", "6", "1", "-6"),
+            ("tse-ed-t", "OperatingRevenues",
+             "CurrentYearDuration_NonConsolidatedMember_ResultMember",
+             "JPY", "6", "14463", "-6"),
+            ("tse-ed-t", "RevenueIFRS",
+             "CurrentYearDuration_ConsolidatedMember_ResultMember",
+             "JPY", "6", "25634", "-6"),
+        ]
+        html = build_ixbrl(facts=facts, contexts=contexts)
+        filing = parse_and_normalize(
+            db, tmp, code="60300", doc_id="kab59-6030",
+            title="2026年6月期 決算短信〔IFRS〕（連結）",
+            html=html,
+        )
+        sales = _one(db, filing.id, "net_sales", value_kind="actual")
+        if sales is None or Decimal(str(sales.value)) != Decimal("25634000000"):
+            _fail(f"60300 consol {sales.value if sales else None}")
+        el = db.get(XbrlElement, sales.source_element_id)
+        if el is None or el.local_name != "RevenueIFRS":
+            _fail(f"expected RevenueIFRS: {el}")
+    finally:
+        db.close()
+
+
+def _assert_summary_q_sales(
+    db,
+    filing,
+    *,
+    want: Decimal,
+    want_end: date,
+    local_name: str,
+) -> None:
+    if filing.fiscal_year_end != want_end:
+        _fail(f"fy_end {filing.fiscal_year_end} want {want_end} (not forecast year-end)")
+    sales = _one(db, filing.id, "net_sales", value_kind="actual")
+    if sales is None or Decimal(str(sales.value)) != want:
+        _fail(f"summary-only sales {sales.value if sales else None}")
+    if sales.source_layer != SOURCE_LAYER_SUMMARY:
+        _fail(f"source_layer {sales.source_layer}")
+    if sales.period_end != want_end:
+        _fail(f"period_end {sales.period_end}")
+    el = db.get(XbrlElement, sales.source_element_id)
+    if el is None or el.local_name != local_name:
+        _fail(f"source {el}")
+    result_ctx = (
+        db.query(XbrlContext)
+        .filter(
+            XbrlContext.filing_id == filing.id,
+            XbrlContext.context_ref.like("%ResultMember"),
+        )
+        .one()
+    )
+    if result_ctx.relative_period != "current":
+        _fail(f"ResultMember relative_period {result_ctx.relative_period}")
+
+
+def test_summary_only_sfrs_q2_uses_result_member_period_end(tmp: Path) -> None:
+    """92570 型: 本表も DEI も無く、Q2 実績の ResultMember 期末を当期末にする。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        result = [(AXIS_C, CONS), (AXIS_RF, RESULT)]
+        fc = [(AXIS_C, CONS), (AXIS_RF, FORECAST)]
+        contexts = "".join([
+            _context(
+                "CurrentAccumulatedQ2Duration_ConsolidatedMember_ResultMember",
+                start="2026-01-01", end="2026-06-30", members=result,
+            ),
+            _context(
+                "CurrentYearDuration_ConsolidatedMember_ForecastMember",
+                start="2026-01-01", end="2026-12-31", members=fc,
+            ),
+        ])
+        facts = [
+            ("tse-ed-t", "SalesIFRS",
+             "CurrentAccumulatedQ2Duration_ConsolidatedMember_ResultMember",
+             "JPY", "6", "10462", "-6"),
+            ("tse-ed-t", "SalesIFRS",
+             "CurrentYearDuration_ConsolidatedMember_ForecastMember",
+             "JPY", "6", "22000", "-6"),
+        ]
+        html = build_ixbrl(facts=facts, contexts=contexts)
+        filing = parse_and_normalize(
+            db, tmp, code="92570", doc_id="kab59-9257",
+            title="2026年12月期 第2四半期決算短信〔ＳＦＲＳ(Ｉ)及びＩＦＲＳ〕（連結）",
+            html=html,
+        )
+        _assert_summary_q_sales(
+            db, filing,
+            want=Decimal("10462000000"),
+            want_end=date(2026, 6, 30),
+            local_name="SalesIFRS",
+        )
+        fc_row = _one(db, filing.id, "net_sales", value_kind="forecast")
+        if fc_row is None or Decimal(str(fc_row.value)) != Decimal("22000000000"):
+            _fail(f"92570 forecast {fc_row.value if fc_row else None}")
+    finally:
+        db.close()
+
+
+def test_summary_only_sfrs_q1_without_ifrs_in_title(tmp: Path) -> None:
+    """76990 型: 〔SFRS〕で standard 空。Q1 ResultMember が relative_period=current。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        result = [(AXIS_C, CONS), (AXIS_RF, RESULT)]
+        fc = [(AXIS_C, CONS), (AXIS_RF, FORECAST)]
+        contexts = "".join([
+            _context(
+                "CurrentAccumulatedQ1Duration_ConsolidatedMember_ResultMember",
+                start="2026-04-01", end="2026-06-30", members=result,
+            ),
+            _context(
+                "CurrentYearDuration_ConsolidatedMember_ForecastMember",
+                start="2026-04-01", end="2027-03-31", members=fc,
+            ),
+        ])
+        facts = [
+            ("tse-ed-t", "NetSalesIFRS",
+             "CurrentAccumulatedQ1Duration_ConsolidatedMember_ResultMember",
+             "JPY", "6", "21469", "-6"),
+            ("tse-ed-t", "NetSalesIFRS",
+             "CurrentYearDuration_ConsolidatedMember_ForecastMember",
+             "JPY", "6", "90000", "-6"),
+        ]
+        html = build_ixbrl(facts=facts, contexts=contexts)
+        filing = parse_and_normalize(
+            db, tmp, code="76990", doc_id="kab59-7699",
+            title="2027年3月期 第1四半期決算短信〔SFRS〕（連結）",
+            html=html,
+        )
+        if filing.accounting_standard is not None:
+            _fail(f"SFRS title must leave standard empty: {filing.accounting_standard}")
+        _assert_summary_q_sales(
+            db, filing,
+            want=Decimal("21469000000"),
+            want_end=date(2026, 6, 30),
+            local_name="NetSalesIFRS",
+        )
+    finally:
+        db.close()
+
+
+def test_amendment_flash_summary_only_keeps_quarter_actual(tmp: Path) -> None:
+    """訂正短信 50350/60710/75090 型: 本表無しでも四半期実績売上を残す。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        result = [(AXIS_C, CONS), (AXIS_RF, RESULT)]
+        fc = [(AXIS_C, CONS), (AXIS_RF, FORECAST)]
+        contexts = "".join([
+            _context(
+                "CurrentAccumulatedQ1Duration_ConsolidatedMember_ResultMember",
+                start="2025-04-01", end="2025-06-30", members=result,
+            ),
+            _context(
+                "CurrentYearDuration_ConsolidatedMember_ForecastMember",
+                start="2025-04-01", end="2026-03-31", members=fc,
+            ),
+        ])
+        facts = [
+            ("tse-ed-t", "NetSales",
+             "CurrentAccumulatedQ1Duration_ConsolidatedMember_ResultMember",
+             "JPY", "6", "2280", "-6"),
+            ("tse-ed-t", "NetSales",
+             "CurrentYearDuration_ConsolidatedMember_ForecastMember",
+             "JPY", "6", "10000", "-6"),
+        ]
+        html = build_ixbrl(facts=facts, contexts=contexts)
+        filing = parse_and_normalize(
+            db, tmp, code="50350", doc_id="kab59-5035",
+            title="（訂正）2026年3月期 第1四半期決算短信〔日本基準〕（連結）",
+            html=html,
+        )
+        if not filing.is_amendment:
+            _fail("expected amendment")
+        _assert_summary_q_sales(
+            db, filing,
+            want=Decimal("2280000000"),
+            want_end=date(2025, 6, 30),
+            local_name="NetSales",
+        )
     finally:
         db.close()
 
@@ -325,6 +587,11 @@ def main() -> None:
         test_sfrs_summary_sales_without_ifrs_standard(tmp)
         test_insurance_without_summary_sales_stays_empty(tmp)
         test_fallback_prefers_consolidated_summary(tmp)
+        test_fallback_prefers_consolidated_over_higher_priority_standalone(tmp)
+        test_fallback_prefers_consolidated_operating_revenues_ifrs(tmp)
+        test_summary_only_sfrs_q2_uses_result_member_period_end(tmp)
+        test_summary_only_sfrs_q1_without_ifrs_in_title(tmp)
+        test_amendment_flash_summary_only_keeps_quarter_actual(tmp)
     print("ok: xbrl sales fallback")
 
 

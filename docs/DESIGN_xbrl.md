@@ -391,10 +391,11 @@ for lab in parser.load_labels():
 
 **relative_period**
 
-- filing の当期期末（DEI またはタイトルから取った `fiscal_year_end`。無ければその context 群の最新 `end_date`）と一致 → `current`
+- filing の当期期末（優先順: DEI の CurrentPeriod/DocumentPeriod → 年次タイトルの `YYYY年M月期` → 本表 PL の duration 期末 → 本表も DEI も無ければ短信サマリーの `ResultMember` duration 期末 → 全 duration の最新 `end_date`）と一致 → `current`
 - ほぼ 1 年前（±30 日）→ `prior1`
 - ほぼ 2 年前 → `prior2`
 - それ以外 → NULL
+- 本表または DEI がある書類ではサマリー実績を期末判定に使わない（KAB-59）
 
 **doc_type / period_type / is_amendment**
 
@@ -459,7 +460,7 @@ filing 単位。
 
 1. セグメント等、連結/実績予想/レンジ/配当以外の次元が付いた fact は捨てる
 2. **既存23項目（BS/PL/CF）の実績**: 従来どおり `has_dimensions` が空か連結/非連結だけ、かつ `relative_period='current'`。選定キーは `std_item` ごと 1 値（値を変えない）
-2b. **実績売上のサマリー補完（KAB-58）**: 上の本表経路で `net_sales` 実績が 1 件も取れなかったときだけ、同じ書類の短信サマリー（`tse-ed-t`）の当期実績（`ResultMember`、点）を使う。本表で取れている値は上書きしない。会社独自の拡張タグはマッピングしない。出どころは `source_layer`（`primary` / `summary`）
+2b. **実績売上のサマリー補完（KAB-58 / KAB-59）**: 上の本表経路で `net_sales` 実績が 1 件も取れなかったときだけ、同じ書類の短信サマリー（`tse-ed-t`）の当期実績（`ResultMember`、点）を使う。連結を先に、同じ連結区分なら mapping の `priority`。本表で取れている値は上書きしない。会社独自の拡張タグはマッピングしない。出どころは `source_layer`（`primary` / `summary`）
 3. **EPS 実績**: 本表コンテキストに加え `ResultMember`（短信表紙）を許す
 4. **配当**: `FirstQuarter` / `SecondQuarter` / `ThirdQuarter` / `YearEnd` / `Annual` メンバーで `target_period` を分ける。`ResultMember` は実績、`ForecastMember` は予想
 5. **業績予想**: `ForecastMember`、または `LowerMember`/`UpperMember`/`MinimumMember`/`MaximumMember`（ForecastMember 無しのレンジ）。`relative_period='current'` は要求しない（通期予想の期末は短信の四半期末とずれる）。`PreviousMember` は `value_kind=forecast_previous`（今回予想は `forecast`）。`LowerMember`/`UpperMember` は `range_side`。context 名の `accumulatedq1`/`accumulatedq3` と日数（80–100→Q1、240–300→Q3）で `target_period` を付ける
