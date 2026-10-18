@@ -337,6 +337,8 @@ class XbrlFinancial(Base):
     target_period = Column(String(16), nullable=False, default="FY", server_default="FY")
     source_fact_id = Column(Integer, ForeignKey("xbrl_facts.id"))
     source_element_id = Column(Integer, ForeignKey("xbrl_elements.id"))
+    # primary=本表 / summary=短信サマリー(tse-ed-t)。旧行は NULL（migrate で要素から埋める）
+    source_layer = Column(String(16))
     generated_at = Column(DateTime, nullable=False)
     __table_args__ = (
         UniqueConstraint(

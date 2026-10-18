@@ -5,7 +5,20 @@
     - { ns: jppfs_cor, name: NetSalesOfCompletedConstructionContracts, priority: 30 }
     - { ns: tse-ed-t, name: NetSales, priority: 50 }
     - { ns: tse-ed-t, name: OperatingRevenues, priority: 60 }
+    - { ns: tse-ed-t, name: OperatingRevenuesSpecific, priority: 62 }
+    - { ns: tse-ed-t, name: OperatingRevenuesSE, priority: 64 }
     - { ns: tse-ed-t, name: OrdinaryRevenuesBK, priority: 70 }
+    - { ns: tse-ed-t, name: OrdinaryRevenuesIN, priority: 72 }
+    - { ns: tse-ed-t, name: GrossOperatingRevenues, priority: 74 }
+    - { ns: tse-ed-t, name: NetSalesOfCompletedConstructionContracts, priority: 76 }
+    - { ns: tse-ed-t, name: NetSalesAndOperatingRevenues, priority: 78 }
+    - { ns: tse-ed-t, name: Revenue, priority: 80 }
+    - { ns: tse-ed-t, name: Revenue2, priority: 82 }
+    - { ns: tse-ed-t, name: NetSalesUS, priority: 84 }
+    - { ns: tse-ed-t, name: OperatingRevenuesUS, priority: 86 }
+    - { ns: tse-ed-t, name: RevenuesUS, priority: 88 }
+    - { ns: tse-ed-t, name: NetSalesAndOperatingRevenuesUS, priority: 90 }
+    - { ns: tse-ed-t, name: TotalRevenuesUS, priority: 92 }
 - std_item: cost_of_sales
   elements:
     - { ns: jppfs_cor, name: CostOfSales, priority: 10 }

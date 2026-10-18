@@ -256,6 +256,7 @@ CREATE TABLE xbrl_financials (
     target_period       TEXT NOT NULL DEFAULT 'FY',      -- FY|H1|Q1|Q2|Q3|year_end|annual
     source_fact_id      INTEGER REFERENCES xbrl_facts(id),
     source_element_id   INTEGER REFERENCES xbrl_elements(id),
+    source_layer        TEXT,            -- 'primary'=本表 / 'summary'=短信サマリー(tse-ed-t)
     generated_at        TEXT NOT NULL,
     UNIQUE (filing_id, std_item_id, is_consolidated, period_end, value_kind, range_side, target_period)
 );
@@ -458,6 +459,7 @@ filing 単位。
 
 1. セグメント等、連結/実績予想/レンジ/配当以外の次元が付いた fact は捨てる
 2. **既存23項目（BS/PL/CF）の実績**: 従来どおり `has_dimensions` が空か連結/非連結だけ、かつ `relative_period='current'`。選定キーは `std_item` ごと 1 値（値を変えない）
+2b. **実績売上のサマリー補完（KAB-58）**: 上の本表経路で `net_sales` 実績が 1 件も取れなかったときだけ、同じ書類の短信サマリー（`tse-ed-t`）の当期実績（`ResultMember`、点）を使う。本表で取れている値は上書きしない。会社独自の拡張タグはマッピングしない。出どころは `source_layer`（`primary` / `summary`）
 3. **EPS 実績**: 本表コンテキストに加え `ResultMember`（短信表紙）を許す
 4. **配当**: `FirstQuarter` / `SecondQuarter` / `ThirdQuarter` / `YearEnd` / `Annual` メンバーで `target_period` を分ける。`ResultMember` は実績、`ForecastMember` は予想
 5. **業績予想**: `ForecastMember`、または `LowerMember`/`UpperMember`/`MinimumMember`/`MaximumMember`（ForecastMember 無しのレンジ）。`relative_period='current'` は要求しない（通期予想の期末は短信の四半期末とずれる）。`PreviousMember` は `value_kind=forecast_previous`（今回予想は `forecast`）。`LowerMember`/`UpperMember` は `range_side`。context 名の `accumulatedq1`/`accumulatedq3` と日数（80–100→Q1、240–300→Q3）で `target_period` を付ける
@@ -535,7 +537,7 @@ TDnet 短信の実際の `namespace_key` は fixture を見てから YAML に書
 
 | code | label_ja | 代表 local_name |
 |---|---|---|
-| net_sales | 売上高 | NetSales / OperatingRevenue1 / OperatingRevenuesIFRS |
+| net_sales | 売上高 | NetSales / OperatingRevenue1 / OperatingRevenuesIFRS。本表欠落時は tse-ed-t の NetSales / OperatingRevenues / Revenue / SalesIFRS 等 |
 | cost_of_sales | 売上原価 | CostOfSales |
 | gross_profit | 売上総利益 | GrossProfit |
 | sga | 販売費及び一般管理費 | SellingGeneralAndAdministrativeExpenses |

@@ -407,9 +407,13 @@ def test_jpgaap_eps_dividend_forecast_range(tmp: Path) -> None:
             _fail(f"legacy net_sales changed: {sales.value if sales else None}")
         if sales.target_period != "Q2" or sales.range_side != "point":
             _fail(f"legacy extras {sales.target_period} {sales.range_side}")
+        if getattr(sales, "source_layer", None) != "primary":
+            _fail(f"本表売上 source_layer {sales.source_layer}")
         fc = _one(db, filing.id, "net_sales", value_kind="forecast", range_side="point")
         if fc is None or Decimal(str(fc.value)) != Decimal("500000000"):
             _fail(f"fy forecast {fc.value if fc else None}")
+        if getattr(fc, "source_layer", None) != "summary":
+            _fail(f"予想売上 source_layer {fc.source_layer}")
         if fc.target_period != "FY":
             _fail(f"forecast target {fc.target_period}")
         lo = _one(db, filing.id, "net_sales", value_kind="forecast", range_side="lower")
@@ -1028,6 +1032,11 @@ def test_migrate_unique_from_old_schema(tmp: Path) -> None:
         ).scalar()
         if Decimal(str(val)) != Decimal("100"):
             _fail(f"legacy value changed {val}")
+        cols = [
+            r[1] for r in conn.execute(text("PRAGMA table_info(xbrl_financials)")).fetchall()
+        ]
+        if "source_layer" not in cols:
+            _fail("source_layer column missing after migrate_add_columns")
 
 
 def main() -> None:

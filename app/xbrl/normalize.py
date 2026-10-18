@@ -84,6 +84,10 @@ VALUE_KIND_FORECAST_PREV = "forecast_previous"
 RANGE_POINT = "point"
 RANGE_LOWER_SIDE = "lower"
 RANGE_UPPER_SIDE = "upper"
+SUMMARY_NS = "tse-ed-t"
+SOURCE_LAYER_PRIMARY = "primary"
+SOURCE_LAYER_SUMMARY = "summary"
+NET_SALES_CODE = "net_sales"
 
 
 def _dims(raw: str | None) -> dict:
@@ -215,6 +219,32 @@ def mapping_applies(mapping: XbrlElementMapping, filing: XbrlFiling) -> bool:
     return mapping.accounting_standard == filing.accounting_standard
 
 
+def source_layer_of(el: XbrlElement) -> str:
+    if (el.namespace_key or "") == SUMMARY_NS:
+        return SOURCE_LAYER_SUMMARY
+    return SOURCE_LAYER_PRIMARY
+
+
+def _legacy_actual_key(std: XbrlStdItem) -> tuple:
+    return ("legacy", std.id)
+
+
+def is_summary_actual_net_sales_fallback(
+    el: XbrlElement,
+    ctx: XbrlContext,
+    klass: ContextClass,
+    std: XbrlStdItem,
+) -> bool:
+    """本表に売上がないときだけ使う、短信サマリーの当期実績売上。"""
+    if std.code != NET_SALES_CODE:
+        return False
+    if (el.namespace_key or "") != SUMMARY_NS:
+        return False
+    if klass.value_kind != VALUE_KIND_ACTUAL or klass.range_side != RANGE_POINT:
+        return False
+    return "ResultMember" in _members_of(ctx)
+
+
 def _chosen_key(
     std: XbrlStdItem,
     ctx: XbrlContext,
@@ -253,6 +283,7 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         by_elem.setdefault((m.namespace_key, m.local_name), []).append(m)
 
     chosen: dict[tuple, tuple] = {}
+    fallback_sales: list[tuple] = []
     for fact in facts:
         if fact.is_nil or fact.value_num is None:
             continue
@@ -274,7 +305,19 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         applicable.sort(key=lambda m: m.priority)
         mapping = applicable[0]
         std = std_items.get(mapping.std_item_id)
-        if std is None or not _accepts_fact(std, ctx, klass):
+        if std is None:
+            continue
+        if not _accepts_fact(std, ctx, klass):
+            if is_summary_actual_net_sales_fallback(el, ctx, klass, std):
+                target_period = infer_target_period(ctx, filing, klass, std.code)
+                value = Decimal(str(fact.value_num))
+                if std.sign == "invert":
+                    value = -value
+                fallback_sales.append((
+                    mapping.priority,
+                    0 if ctx.is_consolidated else 1,
+                    value, fact, el, ctx, mapping.priority, klass, target_period, std,
+                ))
             continue
         target_period = infer_target_period(ctx, filing, klass, std.code)
         value = Decimal(str(fact.value_num))
@@ -284,6 +327,13 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         prev = chosen.get(key)
         if prev is None or mapping.priority < prev[4]:
             chosen[key] = (value, fact, el, ctx, mapping.priority, klass, target_period, std)
+
+    net_sales_std = next((s for s in std_items.values() if s.code == NET_SALES_CODE), None)
+    if net_sales_std is not None:
+        sales_key = _legacy_actual_key(net_sales_std)
+        if sales_key not in chosen and fallback_sales:
+            fallback_sales.sort(key=lambda t: (t[0], t[1]))
+            chosen[sales_key] = fallback_sales[0][2:]
 
     db.query(XbrlFinancial).filter_by(filing_id=filing.id).delete(synchronize_session="fetch")
     db.flush()
@@ -308,6 +358,7 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         row.unit = (fact.unit or "JPY")[:32]
         row.source_fact_id = fact.id
         row.source_element_id = el.id
+        row.source_layer = source_layer_of(el)
         row.generated_at = generated
         upserted += 1
         if std.code in LEGACY_PRIMARY_CODES and klass.value_kind == VALUE_KIND_ACTUAL:
