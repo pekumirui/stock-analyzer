@@ -27,6 +27,7 @@ from app.monthly.ingest import (  # noqa: E402
     format_monthly_cell,
     load_issuer_aliases,
     load_issuer_metrics,
+    load_monthly_vocab,
     map_pdf_columns,
     monthly_breakdown_depth,
     monthly_element_label,
@@ -113,6 +114,85 @@ def test_alias_rename_takes_unit_from_names(tmp: Path) -> None:
         _fail(f"until {rule.until}")
     if rule.rename != {"売上高(前年比)": "全店 売上高(前年比)", "客数": "全店 客数"}:
         _fail(f"alias rename {rule.rename}")
+
+
+def _write_vocab(tmp: Path, **overrides) -> Path:
+    raw = json.loads((ROOT / "config" / "monthly" / "monthly_vocab.json").read_text(encoding="utf-8"))
+    raw.update(overrides)
+    path = tmp / "monthly_vocab.json"
+    path.write_text(json.dumps(raw, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
+def _expect_value_error(fn, needle: str) -> None:
+    try:
+        fn()
+    except ValueError as exc:
+        if needle not in str(exc):
+            _fail(f"ValueError {exc!r} missing {needle!r}")
+        return
+    _fail(f"expected ValueError containing {needle!r}")
+
+
+def test_vocab_load_rejects_short_yoy_before_long(tmp: Path) -> None:
+    raw_yoy = json.loads((ROOT / "config" / "monthly" / "monthly_vocab.json").read_text(encoding="utf-8"))["yoy_words"]
+    words = [w for w in raw_yoy if w != "前年比"]
+    path = _write_vocab(tmp, yoy_words=["前年比", *words])
+    _expect_value_error(lambda: load_monthly_vocab(path), "前年比")
+
+
+def test_vocab_load_rejects_channel_store_before_store_count(tmp: Path) -> None:
+    raw = json.loads((ROOT / "config" / "monthly" / "monthly_vocab.json").read_text(encoding="utf-8"))
+    split = [pair for pair in raw["split"] if pair[0] != "直営店舗"]
+    store_i = next(i for i, pair in enumerate(split) if pair[0] == "店舗数")
+    split.insert(store_i, ["直営店舗", "直営"])
+    path = _write_vocab(tmp, split=split)
+    _expect_value_error(lambda: load_monthly_vocab(path), "直営店舗")
+
+
+def test_vocab_load_rejects_short_metric_prefix(tmp: Path) -> None:
+    raw = json.loads((ROOT / "config" / "monthly" / "monthly_vocab.json").read_text(encoding="utf-8"))
+    metrics = []
+    for item in raw["metrics"]:
+        row = dict(item)
+        if row.get("word") == "売上":
+            row["prefix"] = True
+        metrics.append(row)
+    path = _write_vocab(tmp, metrics=metrics)
+    _expect_value_error(lambda: load_monthly_vocab(path), "売上")
+
+
+def test_issuer_metrics_load_rejects_common_metric(tmp: Path) -> None:
+    path = tmp / "issuer_metrics.json"
+    path.write_text(json.dumps({"99990": ["売上高"]}, ensure_ascii=False), encoding="utf-8")
+    _expect_value_error(lambda: load_issuer_metrics(path), "売上高")
+
+
+def test_issuer_metrics_load_rejects_bad_code(tmp: Path) -> None:
+    path = tmp / "issuer_metrics.json"
+    path.write_text(json.dumps({"xx": ["件数"]}, ensure_ascii=False), encoding="utf-8")
+    _expect_value_error(lambda: load_issuer_metrics(path), "5桁コード")
+
+
+def test_issuer_aliases_load_rejects_bad_code(tmp: Path) -> None:
+    path = tmp / "issuer_aliases.json"
+    path.write_text(json.dumps({"xx": [{
+        "until": "2027-01-01",
+        "rename": {"客数": "全店 客数"},
+    }]}, ensure_ascii=False), encoding="utf-8")
+    _expect_value_error(lambda: load_issuer_aliases(path), "5桁コード")
+
+
+def test_current_vocab_and_issuer_configs_load() -> None:
+    vocab = load_monthly_vocab()
+    if "yoy_words" not in vocab or "split" not in vocab:
+        _fail("production monthly_vocab.json failed to load")
+    metrics = load_issuer_metrics()
+    if not metrics:
+        _fail("production issuer_metrics.json is empty")
+    aliases = load_issuer_aliases()
+    if not aliases:
+        _fail("production issuer_aliases.json is empty")
 
 
 def test_union_orders_country_then_channel() -> None:
@@ -3156,8 +3236,16 @@ def test_count_metric_keeps_pre534_stored_names() -> None:
 def main() -> None:
     test_canonicalize_element_label()
     test_union_orders_country_then_channel()
+    test_current_vocab_and_issuer_configs_load()
     with tempfile.TemporaryDirectory() as d:
-        test_alias_rename_takes_unit_from_names(Path(d))
+        tmp = Path(d)
+        test_alias_rename_takes_unit_from_names(tmp)
+        test_vocab_load_rejects_short_yoy_before_long(tmp)
+        test_vocab_load_rejects_channel_store_before_store_count(tmp)
+        test_vocab_load_rejects_short_metric_prefix(tmp)
+        test_issuer_metrics_load_rejects_common_metric(tmp)
+        test_issuer_metrics_load_rejects_bad_code(tmp)
+        test_issuer_aliases_load_rejects_bad_code(tmp)
     test_monthly_element_label()
     test_issuer_count_metrics()
     test_issuer_rate_metrics_14350()

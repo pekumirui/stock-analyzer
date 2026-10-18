@@ -18,8 +18,45 @@ _YOY_SUFFIX = "(前年比)"
 _UNIT_MSG = "unit は number / yoy_index / yoy_pct です。"
 
 
+_ISSUER_CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]$")
+_STORE_COUNT_SPLIT = frozenset({"店舗数", "店数"})
+_CHANNEL_STORE_SPLIT = frozenset({
+    "直営店舗", "直営店", "FC店舗", "FC店", "ＦＣ店舗", "ＦＣ店",
+})
+_SHORT_METRIC_NO_PREFIX = frozenset({"売上", "来客", "単価"})
+
+
+def _require_longest_first(words: Sequence[str], *, field: str) -> None:
+    for i, short in enumerate(words):
+        if not short:
+            raise ValueError(f"{field} に空の語があります")
+        for long in words[i + 1:]:
+            if short != long and short in long:
+                raise ValueError(f"{field}: {short!r} が {long!r} より先です")
+
+
+def _require_store_count_before_channel_store(pairs: Sequence[Any], *, field: str) -> None:
+    store_at = [i for i, item in enumerate(pairs) if item[0] in _STORE_COUNT_SPLIT]
+    if not store_at:
+        return
+    first_store = min(store_at)
+    for i, item in enumerate(pairs):
+        src = item[0]
+        if src in _CHANNEL_STORE_SPLIT and i < first_store:
+            raise ValueError(f"{field}: {src!r} が 店舗数 より先です")
+
+
+def _require_short_metrics_without_prefix(metrics: Sequence[Any], *, field: str) -> None:
+    for item in metrics:
+        if not isinstance(item, dict):
+            raise ValueError(f"{field} の要素は object です")
+        word = str(item.get("word") or "")
+        if word in _SHORT_METRIC_NO_PREFIX and item.get("prefix"):
+            raise ValueError(f"{field}: {word!r} に prefix を付けられません")
+
+
 def load_monthly_vocab(path: Path | None = None) -> dict[str, Any]:
-    """全銘柄に共通の行名の語彙（国・チャネル・範囲・落とす語・出退店・内訳・指標）。手順はコードに置く。"""
+    """全銘柄に共通の行名の語彙。語順と発行体例外はここで強制する。"""
     raw = json.loads((path or MONTHLY_VOCAB_PATH).read_text(encoding="utf-8"))
     keys = (
         "yoy_words", "split", "country", "channel", "scope", "time_axis", "drop",
@@ -28,13 +65,24 @@ def load_monthly_vocab(path: Path | None = None) -> dict[str, Any]:
     missing = [k for k in keys if k not in raw]
     if missing:
         raise ValueError(f"monthly_vocab.json に {missing} がありません")
+    yoy = [str(w) for w in raw["yoy_words"]]
+    _require_longest_first(yoy, field="monthly_vocab.json yoy_words")
+    raw["yoy_words"] = yoy
+    split = [(str(src), str(dst)) for src, dst in raw["split"]]
+    _require_longest_first([src for src, _dst in split], field="monthly_vocab.json split")
+    _require_store_count_before_channel_store(split, field="monthly_vocab.json split")
+    raw["split"] = split
+    metrics = list(raw["metrics"])
+    _require_short_metrics_without_prefix(metrics, field="monthly_vocab.json metrics")
+    _require_longest_first(
+        [str(item["word"]) for item in metrics],
+        field="monthly_vocab.json metrics",
+    )
     return raw
 
 
 _VOCAB = load_monthly_vocab()
-# 長い語を先に。前年同月比 を 前年同月 より先、前年対比 を 前年比 より先、括弧付きを 前年比 より先。
 _YOY_FRAGMENTS: tuple[str, ...] = tuple(_VOCAB["yoy_words"])
-# 表示だけ。保存 unit は number|yoy_index。長い token を先に（受注高 ⊂ 新規受注高）。
 MONTHLY_DISPLAY_UNITS: tuple[tuple[str, str, int], ...] = (
     ("1人当たり受注高", "万円", 0),
     ("新規受注高", "百万円", 0),
@@ -45,6 +93,10 @@ MONTHLY_DISPLAY_UNITS: tuple[tuple[str, str, int], ...] = (
     ("空室在庫", "カ月", 2),
     ("空室数", "戸", 0),
     ("受注高", "百万円", 0),
+)
+_require_longest_first(
+    [token for token, _suffix, _digits in MONTHLY_DISPLAY_UNITS],
+    field="MONTHLY_DISPLAY_UNITS",
 )
 
 
@@ -114,86 +166,66 @@ def canonicalize_element_label(element: str, unit: str | None) -> str:
     return f"{base}{_YOY_SUFFIX}"
 
 
-# 合成語を空白で割る。長い語を先に（直営店 ⊂ 直営店舗）。店舗数 系はチャネル+店舗 より先（直営店舗数 → 直営 店舗数）。
 _UNGLUE: tuple[tuple[str, str], ...] = tuple((str(src), str(dst)) for src, dst in _VOCAB["split"])
+_UNGLUE_KEEP = ("百貨店事業合計",)
+_FLOW_WORDS = (
+    "転換出店数", "転換出店", "開店数", "出店数", "退店数", "閉店数", "閉鎖数",
+    "開設数", "撤退数", "稼働店舗数", "取引店舗数", "開店", "出店", "退店",
+    "閉店", "閉鎖", "開設", "撤退",
+)
+
+
+def _require_compounds_kept(compounds: Sequence[str], split: Sequence[tuple[str, str]]) -> None:
+    srcs = [src for src, _dst in split]
+    for word in compounds:
+        if not any(src != word and src in word for src in srcs):
+            raise ValueError(f"{word!r} は split に切れないので protect から外してください")
+
+
+_require_compounds_kept(_UNGLUE_KEEP, _UNGLUE)
+_require_longest_first(_UNGLUE_KEEP + _FLOW_WORDS, field="flow protect")
 _CHAN_BOTH_MARK = "\x00CHANBOTH\x00"
-_OPEN_CNT_MARK = "\x00OPENCNT\x00"
-_OPEN_MARK = "\x00OPEN\x00"
-_CLOSE_CNT_MARK = "\x00CLOSECNT\x00"
-_CLOSE_MARK = "\x00CLOSE\x00"
-_LEAVE_CNT_MARK = "\x00LEAVECNT\x00"
-_LEAVE_MARK = "\x00LEAVE\x00"
-_SHUT_CNT_MARK = "\x00SHUTCNT\x00"
-_SHUT_MARK = "\x00SHUT\x00"
-_LAUNCH_CNT_MARK = "\x00LAUNCHCNT\x00"
-_LAUNCH_MARK = "\x00LAUNCH\x00"
-_TENKAN_CNT_MARK = "\x00TENKANCNT\x00"
-_TENKAN_MARK = "\x00TENKAN\x00"
-_KAISETSU_CNT_MARK = "\x00KAISETSUCNT\x00"
-_KAISETSU_MARK = "\x00KAISETSU\x00"
-_TETTAI_CNT_MARK = "\x00TETTAICNT\x00"
-_TETTAI_MARK = "\x00TETTAI\x00"
-_KADO_STORES_MARK = "\x00KADOSTORES\x00"
-_TRADE_STORES_MARK = "\x00TRADESTORES\x00"
 _STATUS_STORES_MARK = "\x00STATUSSTORES\x00"
-_DEPT_TOTAL_MARK = "\x00DEPTTOTAL\x00"  # 百貨店事業合計。_UNGLUE の 合計 で切らない。
-# 閉店中店舗数など。閉店/出店のフロー保護より先に1語にする（稼働店舗数と同じ）。
-# 閉鎖店舗数は空白なしだけ（`閉鎖 店舗数` は従来の退店フロー）。
-_STATUS_STORE_RE = re.compile(
-    r"(?:"
-    r"一時閉店(?:中|予定|準備中)?"
-    r"|開店準備(?:中|予定|準備中)?"
-    r"|出店予定"
-    r"|閉店(?:中|予定|準備中)"
-    r"|閉鎖(?:中|予定|準備中)"
-    r"|休業(?:中|予定|準備中)?"
-    r")[の 　]*"
-    r"(?:店舗数|店数)"
-    r"|"
-    r"閉鎖(?:店舗数|店数)"
+
+
+def _flow_marks(words: Sequence[str]) -> tuple[tuple[tuple[str, str], ...], tuple[tuple[str, str], ...]]:
+    protect: list[tuple[str, str]] = []
+    restore: list[tuple[str, str]] = []
+    for i, word in enumerate(words):
+        mark = f"\x00F{i}\x00"
+        protect.append((word, mark))
+        restore.append((mark, word))
+    return tuple(protect), tuple(restore)
+
+
+_FLOW_PROTECT, _FLOW_RESTORE = _flow_marks(_UNGLUE_KEEP + _FLOW_WORDS)
+_STATUS_STORE_AFFIX = "(?:中|予定|準備中)"
+_STATUS_STORE_SPACED: tuple[tuple[str, bool | None], ...] = (
+    ("一時閉店", True),
+    ("開店準備", True),
+    ("出店予定", None),
+    ("閉店", False),
+    ("閉鎖", False),
+    ("休業", True),
 )
-_FLOW_PROTECT: tuple[tuple[str, str], ...] = (
-    ("百貨店事業合計", _DEPT_TOTAL_MARK),
-    ("転換出店数", _TENKAN_CNT_MARK),
-    ("転換出店", _TENKAN_MARK),
-    ("開店数", _LAUNCH_CNT_MARK),
-    ("出店数", _OPEN_CNT_MARK),
-    ("退店数", _LEAVE_CNT_MARK),
-    ("閉店数", _SHUT_CNT_MARK),
-    ("閉鎖数", _CLOSE_CNT_MARK),
-    ("開設数", _KAISETSU_CNT_MARK),
-    ("撤退数", _TETTAI_CNT_MARK),
-    ("稼働店舗数", _KADO_STORES_MARK),
-    ("取引店舗数", _TRADE_STORES_MARK),
-    ("開店", _LAUNCH_MARK),
-    ("出店", _OPEN_MARK),
-    ("退店", _LEAVE_MARK),
-    ("閉店", _SHUT_MARK),
-    ("閉鎖", _CLOSE_MARK),
-    ("開設", _KAISETSU_MARK),
-    ("撤退", _TETTAI_MARK),
-)
-_FLOW_RESTORE: tuple[tuple[str, str], ...] = (
-    (_DEPT_TOTAL_MARK, "百貨店事業合計"),
-    (_TENKAN_CNT_MARK, "転換出店数"),
-    (_TENKAN_MARK, "転換出店"),
-    (_LAUNCH_CNT_MARK, "開店数"),
-    (_OPEN_CNT_MARK, "出店数"),
-    (_LEAVE_CNT_MARK, "退店数"),
-    (_SHUT_CNT_MARK, "閉店数"),
-    (_CLOSE_CNT_MARK, "閉鎖数"),
-    (_KAISETSU_CNT_MARK, "開設数"),
-    (_TETTAI_CNT_MARK, "撤退数"),
-    (_KADO_STORES_MARK, "稼働店舗数"),
-    (_TRADE_STORES_MARK, "取引店舗数"),
-    (_LAUNCH_MARK, "開店"),
-    (_OPEN_MARK, "出店"),
-    (_LEAVE_MARK, "退店"),
-    (_SHUT_MARK, "閉店"),
-    (_CLOSE_MARK, "閉鎖"),
-    (_KAISETSU_MARK, "開設"),
-    (_TETTAI_MARK, "撤退"),
-)
+_STATUS_STORE_GLUED = ("閉鎖",)
+
+
+def _status_store_pattern() -> str:
+    parts: list[str] = []
+    for stem, optional in _STATUS_STORE_SPACED:
+        if optional is None:
+            parts.append(stem)
+        elif optional:
+            parts.append(f"{stem}{_STATUS_STORE_AFFIX}?")
+        else:
+            parts.append(f"{stem}{_STATUS_STORE_AFFIX}")
+    spaced = "(?:" + "|".join(parts) + r")[の 　]*(?:店舗数|店数)"
+    glued = "|".join(f"{stem}(?:店舗数|店数)" for stem in _STATUS_STORE_GLUED)
+    return f"{spaced}|{glued}"
+
+
+_STATUS_STORE_RE = re.compile(_status_store_pattern())
 _FC_EMBED_RE = re.compile(r"(?<![A-Za-z])FC(?![A-Za-z])")
 _FCW_EMBED_RE = re.compile(r"ＦＣ")
 _DROP_TOKS = frozenset(_VOCAB["drop"])
@@ -206,10 +238,13 @@ _TIME_AXIS_TOKS = frozenset(_VOCAB["time_axis"])
 _COUNTRY_CANON: dict[str, str] = dict(_VOCAB["country"])
 _CHANNEL_CANON: dict[str, str] = dict(_VOCAB["channel"])
 _SCOPE_CANON: dict[str, str] = dict(_VOCAB["scope"])
+_SCOPE_STICKY = next(
+    (v for v in _SCOPE_CANON.values() if v == "既存"),
+    next(iter(_SCOPE_CANON.values()), ""),
+)
 _BREAKDOWN_CANON: dict[str, str] = dict(_VOCAB["breakdown"])
 _BREAKDOWN_MARKS = frozenset({"内)", "（内", "うち"})
 _BREAKDOWN_RANK = {"": 0, "ドラッグ": 1, "調剤": 2, "物販": 3}
-# 稼働店舗数の内訳（ハークスレイ店舗流通ネットなど）。保存は1語。
 _ACTIVE_STORE_BREAKDOWN_RANK = {
     "管理テナント数": 1,
     "取引店舗数": 2,
@@ -217,7 +252,6 @@ _ACTIVE_STORE_BREAKDOWN_RANK = {
     "減少": 4,
 }
 _BREAKDOWN_RANK.update(_ACTIVE_STORE_BREAKDOWN_RANK)
-# 領域 leftover の木。中節のあと小枝。保存の内訳は1語。
 _AREA_TREE: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
     "グロース領域": (
         ("プロパティ", ("ホテル", "インカム太陽光")),
@@ -233,6 +267,20 @@ _AREA_CHILD_ALIAS: dict[str, str] = {
     "インカム、太陽光": "インカム太陽光",
     "アパレル・雑貨": "アパレル雑貨",
 }
+
+
+def _require_area_aliases() -> None:
+    known: set[str] = set()
+    for nodes in _AREA_TREE.values():
+        for mid, twigs in nodes:
+            known.add(mid)
+            known.update(twigs)
+    missing = [dst for dst in _AREA_CHILD_ALIAS.values() if dst not in known]
+    if missing:
+        raise ValueError(f"area alias の先が木にありません: {missing}")
+
+
+_require_area_aliases()
 
 
 def _area_child_maps() -> tuple[dict[str, dict[str, int]], dict[str, int]]:
@@ -257,7 +305,6 @@ _AREA_CHILDREN, _AREA_BREAKDOWN_DEPTH = _area_child_maps()
 for _area_children in _AREA_CHILDREN.values():
     _BREAKDOWN_RANK.update(_area_children)
 _STORE_FLOW_CANON: dict[str, str] = dict(_VOCAB["store_flow"])
-# 閉鎖店舗数など。peel の残りがフロー語でも、状態＋店舗数なら退店にしない。
 _STATUS_STORE_STEMS = frozenset({"閉鎖", "休業"})
 _STORE_FLOW_METRICS = frozenset({"出店", "退店", "転換出店"})
 _OPEN_SHARDS = frozenset({"開"})
@@ -265,9 +312,9 @@ _CLOSE_SHARDS = frozenset({"退", "閉"})
 _DUMMY_STORE_TOKS = frozenset({"店舗"})
 _OPEN_QUALIFIERS = frozenset({"新規"})
 _STORE_ADJ_MARKS = ("純増", "新設", "改装", "業態転換")
-# leftover に残して表示名は変えない。group だけ除く（入店客数 / 総額売上高）。
 _GROUP_MODIFIER_TOKS = frozenset({"入店", "総額"})
-# 並び順どおりに当てる（長い語を先に）。prefix は前方一致も見る（短い 売上/来客/単価 は見ない）。
+if _GROUP_MODIFIER_TOKS & _DROP_TOKS:
+    raise ValueError(f"group modifier が drop に入っています: {_GROUP_MODIFIER_TOKS & _DROP_TOKS}")
 _METRIC_PREFIX: tuple[tuple[str, str], ...] = tuple(
     (str(item["word"]), str(item["metric"])) for item in _VOCAB["metrics"]
 )
@@ -353,19 +400,27 @@ def _unglue_element(text: str) -> str:
 def load_issuer_metrics(path: Path | None = None) -> dict[str, frozenset[str]]:
     """issuer code → 件数・率指標の語。その銘柄の層の分解だけで指標にする。保存名には使わない。"""
     raw = json.loads((path or ISSUER_METRICS_PATH).read_text(encoding="utf-8"))
-    out: dict[str, frozenset[str]] = {}
     if not isinstance(raw, dict):
-        return out
+        raise ValueError("issuer_metrics.json は object です")
+    out: dict[str, frozenset[str]] = {}
     for code, words in raw.items():
+        key = str(code)
+        if not _ISSUER_CODE_RE.fullmatch(key):
+            raise ValueError(f"issuer_metrics.json のキーは5桁コードです: {code!r}")
         if not isinstance(words, list):
-            continue
-        toks = frozenset(str(w).strip() for w in words if str(w).strip())
+            raise ValueError(f"issuer_metrics.json {key} は配列です")
+        toks: list[str] = []
+        for w in words:
+            tok = str(w).strip()
+            if not tok:
+                continue
+            if tok.split() != [tok]:
+                raise ValueError(f"issuer_metrics.json {key} {tok!r}: 1語にしてください")
+            toks.append(tok)
         if toks:
-            out[str(code)] = toks
+            out[key] = frozenset(toks)
+    _require_issuer_metrics_not_common(out)
     return out
-
-
-ISSUER_METRICS = load_issuer_metrics()
 
 
 def issuer_count_metrics(code: str | None) -> frozenset[str]:
@@ -394,6 +449,18 @@ def _peel_metric(
     if tok in count_metrics:
         return tok, None
     return None, tok
+
+
+def _require_issuer_metrics_not_common(metrics: dict[str, frozenset[str]]) -> None:
+    for code, words in metrics.items():
+        for word in words:
+            if _peel_metric(word)[0]:
+                raise ValueError(
+                    f"issuer_metrics.json {code} {word!r}: 共通指標と重なります"
+                )
+
+
+ISSUER_METRICS = load_issuer_metrics()
 
 
 def _is_flow_metric(metric: str) -> bool:
@@ -631,8 +698,7 @@ def parse_element_layers(element: str, *, code: str | None = None) -> dict[str, 
             continue
         mapped_scope = _SCOPE_CANON.get(tok)
         if mapped_scope:
-            # 既存店全店 など 既存 と 全店 が並ぶときは既存（既存店の全店計）。
-            if mapped_scope == "既存" or scope != "既存":
+            if mapped_scope == _SCOPE_STICKY or scope != _SCOPE_STICKY:
                 scope = mapped_scope
             continue
         leftover.append(tok)
@@ -722,12 +788,15 @@ _ALIAS_PATH = ISSUER_ALIASES_PATH
 
 def load_issuer_aliases(path: Path | None = None) -> dict[str, tuple[IssuerPeriodRename, ...]]:
     raw = json.loads((path or _ALIAS_PATH).read_text(encoding="utf-8"))
-    out: dict[str, tuple[IssuerPeriodRename, ...]] = {}
     if not isinstance(raw, dict):
-        return out
+        raise ValueError("issuer_aliases.json は object です")
+    out: dict[str, tuple[IssuerPeriodRename, ...]] = {}
     for code, periods in raw.items():
+        key = str(code)
+        if not _ISSUER_CODE_RE.fullmatch(key):
+            raise ValueError(f"issuer_aliases.json のキーは5桁コードです: {code!r}")
         if not isinstance(periods, list):
-            continue
+            raise ValueError(f"issuer_aliases.json {key} は配列です")
         rules: list[IssuerPeriodRename] = []
         for item in periods:
             if not isinstance(item, dict):
@@ -743,13 +812,13 @@ def load_issuer_aliases(path: Path | None = None) -> dict[str, tuple[IssuerPerio
                 if not src_s or not dst_s:
                     continue
                 unit = _alias_unit(src_s) if _alias_unit(src_s) == "yoy_index" else _alias_unit(dst_s)
-                key = canonicalize_element_label(src_s, unit)
-                val = canonicalize_element_label(dst_s, unit)
-                if key:
-                    rename[key] = val or key
+                canon_src = canonicalize_element_label(src_s, unit)
+                canon_dst = canonicalize_element_label(dst_s, unit)
+                if canon_src:
+                    rename[canon_src] = canon_dst or canon_src
             rules.append(IssuerPeriodRename(date.fromisoformat(until_raw), rename))
         rules.sort(key=lambda rule: rule.until)
-        out[str(code)] = tuple(rules)
+        out[key] = tuple(rules)
     return out
 
 
