@@ -34,34 +34,82 @@ STOCK_HOME="$(getent passwd "$STOCK_USER" | cut -d: -f6)"
 APP_DIR="${APP_DIR:-${STOCK_HOME}/stock-analyzer}"
 
 install -d -m 700 -o "$STOCK_USER" -g "$STOCK_USER" "$STOCK_HOME/.ssh"
-# clone 前は setup-github-ssh.sh がまだ無いので、鍵と GitHub host key だけ先に揃える
-sudo -u "$STOCK_USER" env APP_DIR="$APP_DIR" REPO_SSH="$REPO_URL" bash -c '
-  if [[ -f "$APP_DIR/deploy/setup-github-ssh.sh" ]]; then
-    bash "$APP_DIR/deploy/setup-github-ssh.sh"
-    exit 0
-  fi
+sudo -u "$STOCK_USER" env APP_DIR="$APP_DIR" REPO_SSH="$REPO_URL" bash -s <<'GITHUB_SSH_BOOTSTRAP'
+set -euo pipefail
+install -d -m 700 "$HOME/.ssh"
+if [[ -f "$HOME/.ssh/id_github" ]]; then
   KEY="$HOME/.ssh/id_github"
-  if [[ ! -f "$KEY" ]]; then
-    ssh-keygen -t ed25519 -C "stock-analyzer-vps-github" -f "$KEY" -N ""
+elif [[ -f "$HOME/.ssh/id_ed25519" ]]; then
+  KEY="$HOME/.ssh/id_ed25519"
+else
+  KEY="$HOME/.ssh/id_github"
+  ssh-keygen -t ed25519 -C "stock-analyzer-vps-github" -f "$KEY" -N ""
+fi
+chmod 600 "$KEY"
+chmod 644 "${KEY}.pub"
+CFG="$HOME/.ssh/config"
+touch "$CFG"
+chmod 600 "$CFG"
+tmp="$(mktemp)"
+awk '
+  BEGIN { skip=0 }
+  /^Host[[:space:]]+github\.com[[:space:]]*$/ { skip=1; next }
+  /^Host[[:space:]]/ || /^Match[[:space:]]/ { skip=0 }
+  skip { next }
+  { print }
+' "$CFG" > "$tmp"
+{
+  echo "Host github.com"
+  echo "  HostName ssh.github.com"
+  echo "  Port 443"
+  echo "  HostKeyAlias github.com"
+  echo "  User git"
+  echo "  IdentityFile $KEY"
+  echo "  IdentitiesOnly yes"
+} >> "$tmp"
+mv "$tmp" "$CFG"
+chmod 600 "$CFG"
+KNOWN="$HOME/.ssh/known_hosts"
+touch "$KNOWN"
+chmod 644 "$KNOWN"
+github_keys() {
+  local key
+  local keys
+  keys="$(cat <<'EOF'
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=
+ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQCj7ndNxQowgcQnjshcLrqPEiiphnt+VTTvDP6mHBL9j1aNUkY4Ue1gvwnGLVlOhGeYrnZaMgRK6+PKCUXaDbC7qtbW8gIkhL7aGCsOr/C56SJMy/BCZfxd1nWzAOxSDPgVsmerOBYfNqltV9/hWCqBywINIR+5dIg6JTJ72pcEpEjcYgXkE2YEFXV1JHnsKgbLWNlhScqb2UmyRkQyytRLtL+38TGxkxCflmO+5Z8CSSNY7GidjMIZ7Q4zMjA2n1nGrlTDkzwDCsw+wqFPGQA179cnfGWOWRVruj16z6XyvxvjJwbz0wQZ75XK5tKSb7FNyeIEs4TT4jk+S4dhPeAUC5y+bDYirYgM4GC7uEnztnZyaVWQ7B381AK4Qdrwt51ZqExKbQpTUNn+EjqoTwvqNj4kqx5QUCI0ThS/YkOxJCXmPUWZbhjpCg56i+2aB6CmK2JGhn57K5mj0MNdBXA4/WnwH6XoPWJzK5Nyu2zB3nAZp+S5hpQs+p1vN1/wsjk=
+EOF
+)"
+  local host
+  for host in github.com ssh.github.com "[ssh.github.com]:443"; do
+    while IFS= read -r key; do
+      [[ -z "$key" ]] && continue
+      printf '%s %s\n' "$host" "$key"
+    done <<< "$keys"
+  done
+}
+while IFS= read -r line; do
+  [[ -z "$line" ]] && continue
+  if ! grep -qxF "$line" "$KNOWN"; then
+    printf '%s\n' "$line" >> "$KNOWN"
   fi
-  CFG="$HOME/.ssh/config"
-  touch "$CFG"
-  chmod 600 "$CFG"
-  if ! grep -qE "^Host github\\.com$" "$CFG"; then
-    printf "Host github.com\\n  IdentityFile %s\\n  IdentitiesOnly yes\\n" "$KEY" >> "$CFG"
-  fi
-  KNOWN="$HOME/.ssh/known_hosts"
-  touch "$KNOWN"
-  chmod 644 "$KNOWN"
-  grep -qF "AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" "$KNOWN" || \
-    echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" >> "$KNOWN"
-'
+done < <(github_keys)
+GITHUB_SSH_BOOTSTRAP
 
 if [[ ! -d "$APP_DIR/.git" ]]; then
   install -d -o "$STOCK_USER" -g "$STOCK_USER" "$(dirname "$APP_DIR")"
   if ! sudo -u "$STOCK_USER" git clone "$REPO_URL" "$APP_DIR"; then
     echo "clone 失敗。GitHub → Settings → Deploy keys に次の公開鍵を read-only で追加して再実行:" >&2
-    cat "$STOCK_HOME/.ssh/id_github.pub" >&2
+    pub=""
+    if [[ -f "$STOCK_HOME/.ssh/id_github.pub" ]]; then
+      pub="$STOCK_HOME/.ssh/id_github.pub"
+    elif [[ -f "$STOCK_HOME/.ssh/id_ed25519.pub" ]]; then
+      pub="$STOCK_HOME/.ssh/id_ed25519.pub"
+    fi
+    if [[ -n "$pub" ]]; then
+      cat "$pub" >&2
+    fi
     exit 1
   fi
   echo "clone $APP_DIR"

@@ -20,45 +20,6 @@ fi
 
 echo "==> $(date -Is) deploy start $(git rev-parse --short HEAD 2>/dev/null || echo none)"
 
-if [[ -f "$APP_DIR/deploy/setup-github-ssh.sh" ]]; then
-  bash "$APP_DIR/deploy/setup-github-ssh.sh"
-fi
-
-# Piped from Actions. On-disk setup-github-ssh.sh is stale until fetch, so rewrite port 443 here.
-install -d -m 700 "$HOME/.ssh"
-CFG="$HOME/.ssh/config"
-touch "$CFG"
-chmod 600 "$CFG"
-KEY=""
-if [[ -f "$HOME/.ssh/id_github" ]]; then
-  KEY="$HOME/.ssh/id_github"
-elif [[ -f "$HOME/.ssh/id_ed25519" ]]; then
-  KEY="$HOME/.ssh/id_ed25519"
-fi
-if [[ -n "$KEY" ]]; then
-  tmp="$(mktemp)"
-  awk '
-    BEGIN { skip=0 }
-    /^Host[[:space:]]+github\.com[[:space:]]*$/ { skip=1; next }
-    /^Host[[:space:]]/ || /^Match[[:space:]]/ { skip=0 }
-    skip { next }
-    { print }
-  ' "$CFG" > "$tmp"
-  {
-    echo "Host github.com"
-    echo "  HostName ssh.github.com"
-    echo "  Port 443"
-    echo "  HostKeyAlias github.com"
-    echo "  User git"
-    echo "  IdentityFile $KEY"
-    echo "  IdentitiesOnly yes"
-  } >> "$tmp"
-  mv "$tmp" "$CFG"
-  chmod 600 "$CFG"
-fi
-KNOWN="$HOME/.ssh/known_hosts"
-touch "$KNOWN"
-chmod 644 "$KNOWN"
 # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints
 # ssh.github.com は github.com と同じ鍵。port 443 は [host]:443 形式が必要。
 github_keys() {
@@ -78,12 +39,87 @@ EOF
     done <<< "$keys"
   done
 }
-while IFS= read -r line; do
-  [[ -z "$line" ]] && continue
-  if ! grep -qxF "$line" "$KNOWN"; then
-    printf '%s\n' "$line" >> "$KNOWN"
+
+github_ssh_bootstrap() {
+  install -d -m 700 "$HOME/.ssh"
+  local key=""
+  if [[ -f "$HOME/.ssh/id_github" ]]; then
+    key="$HOME/.ssh/id_github"
+  elif [[ -f "$HOME/.ssh/id_ed25519" ]]; then
+    key="$HOME/.ssh/id_ed25519"
+  else
+    key="$HOME/.ssh/id_github"
+    ssh-keygen -t ed25519 -C "stock-analyzer-vps-github" -f "$key" -N ""
+    echo "generated $key"
   fi
-done < <(github_keys)
+  chmod 600 "$key"
+  chmod 644 "${key}.pub"
+  echo "key $key"
+
+  local cfg="$HOME/.ssh/config"
+  touch "$cfg"
+  chmod 600 "$cfg"
+  local tmp
+  tmp="$(mktemp)"
+  awk '
+    BEGIN { skip=0 }
+    /^Host[[:space:]]+github\.com[[:space:]]*$/ { skip=1; next }
+    /^Host[[:space:]]/ || /^Match[[:space:]]/ { skip=0 }
+    skip { next }
+    { print }
+  ' "$cfg" > "$tmp"
+  {
+    echo "Host github.com"
+    echo "  HostName ssh.github.com"
+    echo "  Port 443"
+    echo "  HostKeyAlias github.com"
+    echo "  User git"
+    echo "  IdentityFile $key"
+    echo "  IdentitiesOnly yes"
+  } >> "$tmp"
+  mv "$tmp" "$cfg"
+  chmod 600 "$cfg"
+  echo "wrote $cfg"
+
+  local known="$HOME/.ssh/known_hosts"
+  touch "$known"
+  chmod 644 "$known"
+  local line
+  while IFS= read -r line; do
+    [[ -z "$line" ]] && continue
+    if ! grep -qxF "$line" "$known"; then
+      printf '%s\n' "$line" >> "$known"
+    fi
+  done < <(github_keys)
+
+  if [[ -n "${ADMIN_SSH_PUBKEY:-}" ]]; then
+    local auth="$HOME/.ssh/authorized_keys"
+    touch "$auth"
+    chmod 600 "$auth"
+    if ! grep -qxF "$ADMIN_SSH_PUBKEY" "$auth"; then
+      printf '%s\n' "$ADMIN_SSH_PUBKEY" >> "$auth"
+      echo "added ADMIN_SSH_PUBKEY to authorized_keys"
+    fi
+  fi
+
+  local repo_ssh="${REPO_SSH:-git@github.com:pekumirui/stock-analyzer.git}"
+  if [[ -d "$APP_DIR/.git" ]]; then
+    local origin
+    origin="$(git -C "$APP_DIR" remote get-url origin 2>/dev/null || true)"
+    case "$origin" in
+      git@github.com:*|https://github.com/*|http://github.com/*|ssh://git@github.com/*)
+        git -C "$APP_DIR" remote set-url origin "$repo_ssh"
+        echo "origin $(git -C "$APP_DIR" remote get-url origin)"
+        ;;
+    esac
+  fi
+
+  echo "DEPLOY_PUBKEY_BEGIN"
+  cat "${key}.pub"
+  echo "DEPLOY_PUBKEY_END"
+}
+
+github_ssh_bootstrap
 
 if ! git fetch origin main; then
   echo "git fetch 失敗。プライベートリポジトリは Deploy keys (read-only) が必要です。" >&2
@@ -182,40 +218,53 @@ sudo --preserve-env=APP_DIR \
 sudo --preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,CERTBOT_EMAIL,SLACK_WEBHOOK_URL,SLACK_WEBHOOK_URL_APP,SLACK_WEBHOOK_URL_BATCH,SLACK_WEBHOOK_URL_INFRA,SLACK_WEBHOOK_URL_QUIET \
   "$APP_DIR/deploy/provision.sh"
 
-# python3 を優先（cron-run.sh / uvicorn shebang と同じ）。リンクの .venv は
-# worktree 残骸なので作り直す。新規作成は staging → mv で、cron が半完成の
-# bin/ を踏まないようにする。python が動けば pip だけ欠けていても作り直さない。
-venv_bin="$APP_DIR/.venv/bin"
-venv_py=""
-if [ -x "$venv_bin/python3" ]; then
-  venv_py="$venv_bin/python3"
-elif [ -x "$venv_bin/python" ]; then
-  venv_py="$venv_bin/python"
-fi
-if [ -L "$APP_DIR/.venv" ] || [ -z "$venv_py" ] || ! "$venv_py" -c "" 2>/dev/null; then
+install_venv() {
   echo "venv が無いので作ります"
+  local staging
   staging="$(mktemp -d "$APP_DIR/.venv.building.XXXXXX")"
   python3 -m venv "$staging"
   if [ -e "$APP_DIR/.venv" ] || [ -L "$APP_DIR/.venv" ]; then
     rm -rf "$APP_DIR/.venv.old"
     mv "$APP_DIR/.venv" "$APP_DIR/.venv.old"
   fi
-  mv "$staging" "$APP_DIR/.venv"
+  if ! mv "$staging" "$APP_DIR/.venv"; then
+    if [ -e "$APP_DIR/.venv.old" ] || [ -L "$APP_DIR/.venv.old" ]; then
+      mv "$APP_DIR/.venv.old" "$APP_DIR/.venv"
+    fi
+    rm -rf "$staging"
+    return 1
+  fi
   rm -rf "$APP_DIR/.venv.old"
-  venv_bin="$APP_DIR/.venv/bin"
+}
+
+ensure_app_venv() {
+  local venv_bin="$APP_DIR/.venv/bin"
+  venv_py=""
   if [ -x "$venv_bin/python3" ]; then
     venv_py="$venv_bin/python3"
-  else
+  elif [ -x "$venv_bin/python" ]; then
     venv_py="$venv_bin/python"
   fi
-fi
-if [ -x "$venv_bin/python3" ] && [ ! -x "$venv_bin/python" ]; then
-  ln -sfn python3 "$venv_bin/python"
-fi
-if ! "$venv_py" -m pip --version >/dev/null 2>&1; then
-  echo "venv に pip が無いので入れ直します"
-  "$venv_py" -m ensurepip --upgrade
-fi
+  if [ -L "$APP_DIR/.venv" ] || [ -z "$venv_py" ] || ! "$venv_py" -c "" 2>/dev/null; then
+    install_venv
+    venv_bin="$APP_DIR/.venv/bin"
+    if [ -x "$venv_bin/python3" ]; then
+      venv_py="$venv_bin/python3"
+    else
+      venv_py="$venv_bin/python"
+    fi
+  fi
+  if [ -x "$venv_bin/python3" ] && [ ! -x "$venv_bin/python" ]; then
+    ln -sfn python3 "$venv_bin/python"
+  fi
+  if ! "$venv_py" -m pip --version >/dev/null 2>&1; then
+    echo "venv に pip が無いので入れ直します"
+    "$venv_py" -m ensurepip --upgrade
+  fi
+}
+
+venv_py=""
+ensure_app_venv
 "$venv_py" -m pip install -r requirements.txt -q
 "$venv_py" jobs/migrate.py
 
