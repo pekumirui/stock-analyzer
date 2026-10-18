@@ -5,6 +5,7 @@
   python jobs/xbrl/xbrl_parse.py --from 2026-01-01 --to 2026-09-05
   python jobs/xbrl/xbrl_parse.py --doc-id 081220260805509698
   python jobs/xbrl/xbrl_parse.py --retry-failed
+  python jobs/xbrl/xbrl_parse.py --reparse
   python jobs/xbrl/xbrl_parse.py load-mappings
   python jobs/xbrl/xbrl_parse.py report-unmapped --limit 50
 """
@@ -38,6 +39,11 @@ def main() -> int:
     ap.add_argument("--to", dest="date_to", help="YYYY-MM-DD")
     ap.add_argument("--doc-id")
     ap.add_argument("--retry-failed", action="store_true")
+    ap.add_argument(
+        "--reparse",
+        action="store_true",
+        help="parsed/skipped で sha が同じ ZIP も再パースする（KAB-48 の Summary 取りこぼし直し）",
+    )
     ap.add_argument("--dest", default=XBRL_DEST)
     ap.add_argument("--limit", type=int, default=50)
     args = ap.parse_args()
@@ -68,6 +74,7 @@ def main() -> int:
             end=_d(args.date_to),
             doc_id=args.doc_id,
             retry_failed=args.retry_failed,
+            reparse=args.reparse,
         )
         print(f"parse processed={stats['processed']} errors={stats['errors']} skipped={stats['skipped']}")
         return 0 if stats["errors"] == 0 else 1

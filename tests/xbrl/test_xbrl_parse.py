@@ -26,7 +26,11 @@ from app.xbrl.context import (  # noqa: E402
 from datetime import date  # noqa: E402
 from app.xbrl.jobs import run_normalize  # noqa: E402
 from app.xbrl.mappings import apply_mappings  # noqa: E402
-from app.xbrl.parser import find_ixbrl_files, parse_package  # noqa: E402
+from app.xbrl.parser import (  # noqa: E402
+    CachedTimeoutFileLoader,
+    find_ixbrl_files,
+    parse_package,
+)
 from app.xbrl.store import parse_zip_into_filing  # noqa: E402
 from jobs.xbrl.tdnet_xbrl_r2 import append_manifest, build_manifest_row  # noqa: E402
 
@@ -652,6 +656,85 @@ def test_fy_end_from_pl_when_dei_missing(tmp: Path) -> None:
         db.close()
 
 
+def test_attachment_manifest_still_reads_summary(tmp: Path) -> None:
+    """KAB-48: Attachment/manifest.xml があっても Summary の tse-ed-t を読む。"""
+    from app.xbrl.parser import extract_zip
+
+    att = _ixbrl_html([("NetSales", "CurrentYearDuration", "JPY", "6", "200")])
+    summary = _ixbrl_html(
+        [("NetIncomePerShare", "CurrentYearDuration", "JPY", "0", "12.5")],
+        ns_prefix="tse-ed-t",
+        ns_uri="http://www.xbrl.tdnet.info/jp/tse/ed/t/2014-01-12",
+    )
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("XBRLData/Attachment/fs.htm", att)
+        zf.writestr(
+            "XBRLData/Attachment/manifest.xml",
+            '<?xml version="1.0" encoding="UTF-8"?><manifest><ixbrl>fs.htm</ixbrl></manifest>\n',
+        )
+        zf.writestr("XBRLData/Summary/tse-qcedjpsm-13790-20270331-ixbrl.htm", summary)
+    zpath = write_zip(tmp, "both.zip", buf.getvalue())
+    unpacked = extract_zip(zpath, tmp / "unpacked")
+    pkg = parse_package(unpacked, cache_dir=tmp / "cache", text_max=1000)
+    names = {(f.namespace_key, f.local_name) for f in pkg.facts}
+    if ("tse-ed-t", "NetIncomePerShare") not in names:
+        _fail(f"summary tse-ed-t dropped: {names}")
+    if ("jppfs_cor", "NetSales") not in names:
+        _fail(f"attachment missing: {names}")
+
+
+def test_xsd_fetch_uses_timeout(tmp: Path) -> None:
+    from unittest.mock import patch
+
+    def hang(url, timeout=None, *args, **kwargs):  # noqa: ANN001, ARG001
+        if timeout is None:
+            _fail("urlopen called without timeout")
+        raise TimeoutError("timed out")
+
+    loader = CachedTimeoutFileLoader(cache_dir=tmp / "xsd-cache", timeout=0.2, ignore_failure=True)
+    url = "http://www.xbrl.tdnet.info/taxonomy/jp/tse/tdnet/ed/t/2014-01-12/tse-ed-t-2014-01-12.xsd"
+    with patch("urllib.request.urlopen", side_effect=hang):
+        got = loader.fetch(url)
+    if got is not None:
+        _fail(f"timeout should return None via ignore_failure, got {got}")
+
+
+def test_reparse_reprocesses(tmp: Path) -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        seed_stock(db, "72030", "トヨタ自動車")
+        apply_mappings(db)
+        dest = tmp / "dest-reparse"
+        data = build_zip(MANUFACTURING)
+        rel = "7203/20260425_7203_短信_reparse.zip"
+        write_zip(dest, rel, data)
+        row = build_manifest_row(
+            xbrl_id="reparse1",
+            code="72030",
+            code4="7203",
+            pubdate="2026-04-25 15:00:00",
+            title="2026年3月期 決算短信〔日本基準〕（連結）",
+            rel_path=rel,
+            n_bytes=len(data),
+            sha256="reparse-sha",
+        )
+        append_manifest(dest, row)
+        from app.xbrl.jobs import run_parse
+        first = run_parse(db, dest=dest, cache_dir=tmp / "cache")
+        if first["processed"] != 1:
+            _fail(f"first parse {first}")
+        second = run_parse(db, dest=dest, cache_dir=tmp / "cache")
+        if second["processed"] != 0:
+            _fail(f"second parse should skip: {second}")
+        third = run_parse(db, dest=dest, cache_dir=tmp / "cache", reparse=True)
+        if third["processed"] != 1:
+            _fail(f"reparse should process: {third}")
+    finally:
+        db.close()
+
+
 def test_title_fy_end_annual_only() -> None:
     if fiscal_year_end_from_title("2026年3月期 決算短信〔日本基準〕（連結）") != date(2026, 3, 31):
         _fail("annual title fy_end")
@@ -677,6 +760,9 @@ def main() -> None:
         test_manifest_job(tmp)
         test_fiscal_year_end_not_disclosure_date(tmp)
         test_fy_end_from_pl_when_dei_missing(tmp)
+        test_attachment_manifest_still_reads_summary(tmp)
+        test_xsd_fetch_uses_timeout(tmp)
+        test_reparse_reprocesses(tmp)
     print("ok: xbrl parse")
 
 

@@ -1,12 +1,15 @@
 """ZIP → facts/contexts/labels using vendored xbrlp plus context walk."""
 from __future__ import annotations
 
+import tempfile
+import urllib.request
 import zipfile
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+from app.config import XBRL_XSD_TIMEOUT
 from app.xbrl.context import (
     ParsedContext,
     assign_relative_periods,
@@ -78,9 +81,57 @@ def looks_like_ixbrl(path: Path) -> bool:
     return "ix:nonFraction" in sample or "ix:nonNumeric" in sample or "inlineXBRL" in sample
 
 
+class CachedTimeoutFileLoader(FileLoader):
+    """Vendor FileLoader は urlopen に timeout が無い。XSD 欠落は facts を落とさない。"""
+
+    def __init__(
+        self,
+        cache_dir: Path | None = None,
+        *,
+        timeout: float | None = None,
+        ignore_failure: bool = True,
+    ):
+        super().__init__(cache_dir=cache_dir, ignore_failure=ignore_failure)
+        self.timeout = XBRL_XSD_TIMEOUT if timeout is None else timeout
+
+    def _download_file(self, url: str, dest_path: Path) -> None:
+        dest_path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=dest_path.parent,
+            prefix=".download_",
+            suffix=dest_path.suffix,
+            delete=False,
+        ) as tmp_file:
+            tmp_path = Path(tmp_file.name)
+            try:
+                if not url.startswith(("http://", "https://")):
+                    raise ValueError(f"unsupported URL scheme: {url}")
+                with urllib.request.urlopen(url, timeout=self.timeout) as response:  # nosec B310
+                    tmp_file.write(response.read())
+                tmp_path.replace(dest_path)
+            except Exception:
+                tmp_path.unlink(missing_ok=True)
+                raise
+
+
 def find_manifest(root: Path) -> Path | None:
     hits = list(root.rglob("*manifest*.xml")) + list(root.rglob("*Manifest*.xml"))
     return hits[0] if hits else None
+
+
+def union_ixbrl_files(*groups: list[Path]) -> list[Path]:
+    """Preserve first-seen order (Summary first from find_ixbrl_files)."""
+    seen: set[Path] = set()
+    out: list[Path] = []
+    for group in groups:
+        for path in group:
+            key = path.resolve()
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(path)
+    return out
 
 
 def find_ixbrl_files(root: Path) -> list[Path]:
@@ -178,16 +229,20 @@ def parse_package(
     title: str | None = None,
     exclude_dates: set[date] | None = None,
 ) -> ParsedPackage:
-    files = find_ixbrl_files(unpacked)
+    discovered = find_ixbrl_files(unpacked)
     manifest = find_manifest(unpacked)
-    parser = Parser(file_loader=FileLoader(cache_dir=cache_dir))
+    parser = Parser(
+        file_loader=CachedTimeoutFileLoader(cache_dir=cache_dir, timeout=XBRL_XSD_TIMEOUT),
+    )
+    manifest_files: list[Path] = []
     if manifest is not None:
         try:
             parser.prepare_ixbrl(manifest)
+            manifest_files = list(parser.ixbrl_files)
         except (FileNotFoundError, ValueError):
-            parser.ixbrl_files = files
-    else:
-        parser.ixbrl_files = files
+            manifest_files = []
+    # Attachment/manifest.xml は本表だけ列挙する。短信サマリー（tse-ed-t）は必ず足す。
+    parser.ixbrl_files = union_ixbrl_files(discovered, manifest_files)
     if not parser.ixbrl_files:
         raise ValueError("no-ixbrl")
 
