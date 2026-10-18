@@ -14,7 +14,7 @@
 2. `stocks` に **`edinet_code` を今は足さない**。企業キーは `stocks.code`（5桁）だけ。
 3. context から連結/単体が取れなければ **連結として扱う**（`is_consolidated=1`）。
 4. 生データ・正規化層は **既存と同じ SQLite**（`DATABASE_URL` / 本番 `stock.db`）に載せる。分離は容量が問題になってから。
-5. 決算速報 UI / API の正本は当面 **`statements` のまま**。XBRL 層とマージしない。精度が出てから実績列の読み出し寄せを検討する。
+5. 決算速報 UI / API の正本は当面 **`statements` のまま**。XBRL 層とマージしない。精度が出てから実績列の読み出し寄せを検討する。例外として、決算表の修正履歴（KAB-57）は `?rev_source=xbrl` / `EARNINGS_PARAMS["revision_source"]` で `xbrl_financials` を読める（既定は `jquants`）。読むだけで `statements` は変えない。
 
 ---
 
@@ -110,7 +110,7 @@ stocks.code   例 7203 → 72030、262A → 262A0
 |---|---|---|
 | ソース | J-Quants 短信サマリ | TDnet XBRL 生 fact を正規化 |
 | 形 | 横持ち（売上・営利・予想など固定列） | 縦持ち（標準科目 × 値） |
-| UI | 決算速報・詳細の正本 | 第1弾では API/UI に出さない |
+| UI | 決算速報・詳細の正本 | 決算表の修正履歴だけデータ源に選べる（既定は `statements`） |
 | 期間 | 累計実績 + 会社予想 | 本表の当期実績に加え、EPS・配当・会社予想（通期/中間、レンジ、予想修正） |
 
 突合（同じ開示の `net_sales` が一致するか）は実装後の検証用であり、自動で `statements` を上書きしない。

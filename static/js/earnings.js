@@ -262,7 +262,7 @@ function selectSched(code){
 function clearDetail(msg){
   if(detailAc){ detailAc.abort(); detailAc = null; }
   $("#e-chart-title").textContent = msg;
-  $("#e-chart").innerHTML = ""; $("#cum-tbl").innerHTML = ""; $("#q-tbl").innerHTML = "";
+  $("#e-chart").innerHTML = ""; $("#cum-tbl").innerHTML = ""; $("#q-tbl").innerHTML = ""; $("#rev-tbl").innerHTML = "";
 }
 
 async function loadSched(row){
@@ -278,6 +278,7 @@ async function loadSched(row){
   const pending = `<tr><td class="l sub">まだ開示されていません</td></tr>`;
   $("#cum-tbl").innerHTML = pending;
   $("#q-tbl").innerHTML = pending;
+  $("#rev-tbl").innerHTML = pending;
 }
 
 async function loadDetail(row){
@@ -295,6 +296,7 @@ async function loadDetail(row){
   else { $("#e-chart").innerHTML = `<div class="sub">株価データなし</div>`; }
   renderFin($("#cum-tbl"), d && d.cumulative, d);
   renderFin($("#q-tbl"),   d && d.quarterly,  d);
+  renderRev($("#rev-tbl"), d && d.revisions,  d);
 }
 
 const FIN_MET = [["net_sales","売上高"],["operating_profit","営業益"],
@@ -372,11 +374,46 @@ function renderFin(el, rows, d){
   el.innerHTML = h + `</tbody>`;
 }
 
-document.querySelectorAll(".ftab").forEach(b => b.onclick = () => {
-  document.querySelectorAll(".ftab").forEach(x => x.classList.toggle("on", x===b));
-  const q = b.dataset.fin === "q";
-  $("#q-wrap").hidden = !q;
-  $("#cum-wrap").hidden = q;
+const REV_BADGE = {forecast_initial:["期初","qb-init","期初予想"], forecast:["予想","qb-init","取得できる最初の予想"],
+                   forecast_revised:["修正","qb-mod","予想修正"],
+                   actual_fy:["実績","qb-act","通期実績"]};
+function revG(c){
+  if(!c || c.state==="na") return "–";
+  if(c.state==="flat") return `<span class="sub">→</span>`;
+  const arrow = c.state==="up" ? `<span class="pos">↑</span>` : c.state==="down" ? `<span class="neg">↓</span>` : "";
+  return arrow + gc(c);
+}
+function renderRev(el, rows, d){
+  if(!rows || !rows.length){
+    el.innerHTML = `<tr><td class="l sub">修正履歴なし</td></tr>`;
+    return;
+  }
+  const dim = rows.every(r => r.values.ordinary_profit == null);
+  const dc = k => k==="ordinary_profit" && dim ? " dim" : "";
+  let h = `<thead><tr><th class="l">決算期</th>`
+        + FIN_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
+        + `<th>EPS</th><th class="disc">発表日</th></tr></thead><tbody>`;
+  rows.forEach((r,i) => {
+    const [txt, bc, tip] = REV_BADGE[r.kind] || ["", "", ""];
+    const now = d && r.disclosed_date === d.disclosed_date;
+    const sep = i > 0 && r.fiscal_year_end !== rows[i-1].fiscal_year_end;
+    const cls = [now&&"now", r.kind==="actual_fy"&&"act", sep&&"sep"].filter(Boolean).join(" ");
+    const cell = (k, txt) => {
+      const g = r.growth && r.growth[k];
+      return `<td class="num${dc(k)}">${txt}<span class="g">${g ? revG(g) : " "}</span></td>`;
+    };
+    h += `<tr class="${cls}"><td class="l" title="${r.label||""} ${tip}">${r.range}<span class="g"><span class="qb ${bc}">${txt}</span></span></td>`
+       + FIN_MET.map(([k])=>cell(k, k==="operating_profit" ? opAmt(r) : amt(r.values[k]))).join("")
+       + cell("eps", epsTxt(r.values.eps))
+       + `<td class="num disc sub">${disc(r.disclosed_date)}</td></tr>`;
+  });
+  el.innerHTML = h + `</tbody>`;
+}
+
+const FIN_WRAP = {cum:"#cum-wrap", q:"#q-wrap", rev:"#rev-wrap"};
+document.querySelectorAll(".ftab[data-fin]").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".ftab[data-fin]").forEach(x => x.classList.toggle("on", x===b));
+  for(const [k, sel] of Object.entries(FIN_WRAP)) $(sel).hidden = k !== b.dataset.fin;
 });
 
 $("#earn-list").addEventListener("keydown", e => {
