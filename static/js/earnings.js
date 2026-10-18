@@ -86,7 +86,16 @@ const shortName = n => { const s = String(n||""); return s.length>5 ? s.slice(0,
 const nameCell = r => `<td class="l name pin2" title="${r.name}">${shortName(r.name)}${under(`<span class="sub">${r.code.slice(0,4)}</span>`)}</td>`;
 const valCell = (vals, g, k, i) => `<td class="num ${i?'':'grp'}">${amt((vals||{})[k])}${under(gc(g && g[k]))}</td>`;
 const fyShort = s => String(s||"").replace(/^FY/, "");
-let earnBoard={kind:"scheduled", actuals:[], scheduled:[]}, selKey=null, detailReq=0;
+let earnBoard={kind:"scheduled", actuals:[], scheduled:[]}, selKey=null;
+let detailAc = null;
+function beginDetail(){
+  if(detailAc) detailAc.abort();
+  detailAc = new AbortController();
+  return detailAc.signal;
+}
+function apiMaybe(p, signal){
+  return api(p, {signal}).catch(e => { if(e.name === "AbortError") throw e; return null; });
+}
 let earnDay="", earnToday="";
 let earnSector="";
 const sectorOf = r => r.sector33 || "未分類";
@@ -180,11 +189,12 @@ function renderList(){
 function pinCols(){
   const t = $("#earn-tbl");
   const ths = t ? t.querySelectorAll("thead tr:first-child th") : [];
-  if(ths.length < 3 || !ths[0].offsetWidth) return;
+  if(ths.length < 3) return;
+  const w = [...ths].slice(0, 3).map(th => th.offsetWidth);
+  if(w.some(x => x < 1)) return;
   let x = 0;
-  for(let i=0; i<3; i++){ t.style.setProperty(`--pin${i}`, `${x}px`); x += ths[i].offsetWidth; }
+  for(let i=0; i<3; i++){ t.style.setProperty(`--pin${i}`, `${x}px`); x += w[i]; }
 }
-// タブが隠れている間は幅が 0。見えたときと幅が変わったときに測り直す
 new ResizeObserver(pinCols).observe($("#earn-list"));
 
 function scrollToSel(){
@@ -250,16 +260,19 @@ function selectSched(code){
 }
 
 function clearDetail(msg){
+  if(detailAc){ detailAc.abort(); detailAc = null; }
   $("#e-chart-title").textContent = msg;
   $("#e-chart").innerHTML = ""; $("#cum-tbl").innerHTML = ""; $("#q-tbl").innerHTML = "";
 }
 
 async function loadSched(row){
-  const my = ++detailReq;
+  const signal = beginDetail();
   $("#e-chart-title").innerHTML = `<span class="clicky" onclick="gotoChart('${row.code}')">${row.name}</span>
     <small class="sub">${row.code.slice(0,4)}</small>`;
-  const ch = await api(`/api/chart/${row.code}?tf=D&ma=50,150,200`).catch(()=>null);
-  if(my !== detailReq) return;
+  let ch;
+  try { ch = await apiMaybe(`/api/chart/${row.code}?tf=D&ma=50,150,200`, signal); }
+  catch(e){ if(e.name === "AbortError") return; throw e; }
+  if(signal.aborted) return;
   if(ch) eChartObj = renderPriceChart($("#e-chart"), ch, {height:320, prev:eChartObj});
   else { $("#e-chart").innerHTML = `<div class="sub">株価データなし</div>`; }
   const pending = `<tr><td class="l sub">まだ開示されていません</td></tr>`;
@@ -268,13 +281,16 @@ async function loadSched(row){
 }
 
 async function loadDetail(row){
-  const my = ++detailReq;                      // 連続選択時に古いレスポンスで上書きしない
+  const signal = beginDetail();
   $("#e-chart-title").innerHTML = `<span class="clicky" onclick="gotoChart('${row.code}')">${row.name}</span>
     <small class="sub">${row.code.slice(0,4)} / ${fyShort(row.fy_label)} ${row.period||""}</small>`;
-  const [d, ch] = await Promise.all([
-    api(`/api/earnings/detail/${row.code}?disclosure_no=${encodeURIComponent(row.disclosure_no)}`).catch(()=>null),
-    api(`/api/chart/${row.code}?tf=D&ma=50,150,200`).catch(()=>null)]);
-  if(my !== detailReq) return;
+  let d, ch;
+  try {
+    [d, ch] = await Promise.all([
+      apiMaybe(`/api/earnings/detail/${row.code}?disclosure_no=${encodeURIComponent(row.disclosure_no)}`, signal),
+      apiMaybe(`/api/chart/${row.code}?tf=D&ma=50,150,200`, signal)]);
+  } catch(e){ if(e.name === "AbortError") return; throw e; }
+  if(signal.aborted) return;
   if(ch) eChartObj = renderPriceChart($("#e-chart"), ch, {height:320, prev:eChartObj, mark:d && d.disclosed_date});
   else { $("#e-chart").innerHTML = `<div class="sub">株価データなし</div>`; }
   renderFin($("#cum-tbl"), d && d.cumulative, d);
@@ -382,14 +398,20 @@ $("#earn-groups").addEventListener("click", e => {
   if(b) setSector(b.dataset.sector);
 });
 
-let earnSearchReq = 0;
+let earnSearchAc = null;
 function hideEarnSuggest(){ $("#earn-suggest").style.display = "none"; $("#earn-suggest").innerHTML = ""; }
 async function refreshEarnSuggest(){
+  if(earnSearchAc) earnSearchAc.abort();
   const q = $("#earn-sym").value.trim();
-  const my = ++earnSearchReq;
   if(!q){ hideEarnSuggest(); return []; }
-  const hits = await api(`/api/stocks/search?q=${encodeURIComponent(q)}`).catch(()=>[]);
-  if(my !== earnSearchReq) return null;
+  const ac = earnSearchAc = new AbortController();
+  let hits;
+  try { hits = await api(`/api/stocks/search?q=${encodeURIComponent(q)}`, {signal: ac.signal}); }
+  catch(e){
+    if(e.name === "AbortError") return null;
+    hits = [];
+  }
+  if(ac.signal.aborted) return null;
   const box = $("#earn-suggest");
   box.innerHTML = hits.map(s =>
     `<div data-code="${escHtml(s.code)}" data-name="${escHtml(s.name)}">${escHtml(s.code.slice(0,4))} ${escHtml(s.name)}</div>`).join("");
