@@ -118,3 +118,18 @@
   section: cash
   label_ja: 現金及び現金同等物期末残高
   display_order: 230
+- code: eps_basic
+  statement: PL
+  section: per_share
+  label_ja: 1株当たり当期純利益
+  display_order: 240
+- code: eps_diluted
+  statement: PL
+  section: per_share
+  label_ja: 潜在株式調整後1株当たり当期純利益
+  display_order: 250
+- code: dps
+  statement: OTHER
+  section: dividend
+  label_ja: 1株当たり配当金
+  display_order: 260

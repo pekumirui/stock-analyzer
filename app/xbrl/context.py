@@ -210,7 +210,7 @@ def fiscal_year_end_from_dei(facts) -> date | None:
 
 
 def fiscal_year_end_from_pl_contexts(contexts: list[ParsedContext], facts) -> date | None:
-    """Latest duration end among contexts that carry monetary PL facts."""
+    """Latest duration end among 本表 PL facts (ignore forecast / dividend dims)."""
     ctx_by = {c.context_ref: c for c in contexts}
     ends: list[date] = []
     for fact in facts:
@@ -223,6 +223,8 @@ def fiscal_year_end_from_pl_contexts(contexts: list[ParsedContext], facts) -> da
             continue
         ctx = ctx_by.get(getattr(fact, "context_ref", ""))
         if ctx is None or ctx.period_type != "duration":
+            continue
+        if not ctx.only_consol_dimensions():
             continue
         ends.append(ctx.end_date)
     return max(ends) if ends else None
@@ -298,7 +300,13 @@ def classify_title(title: str) -> dict[str, Any]:
     t = unicodedata.normalize("NFKC", title or "")
     amendment = "訂正" in t
     period: str | None
-    if "四半期" in t:
+    if ("業績予想" in t and "修正" in t) or "EarnForecastRevision" in t:
+        doc_type = "forecast_revision"
+        period = _period_from_title_tokens(t) or "FY"
+    elif ("配当予想" in t and "修正" in t) or "DividendForecastRevision" in t:
+        doc_type = "dividend_revision"
+        period = _period_from_title_tokens(t) or "FY"
+    elif "四半期" in t:
         doc_type = "quarterly"
         if "第1" in t or "第１" in t:
             period = "Q1"
@@ -331,6 +339,18 @@ def classify_title(title: str) -> dict[str, Any]:
         "is_amendment": amendment,
         "accounting_standard": standard,
     }
+
+
+def _period_from_title_tokens(t: str) -> str | None:
+    if "第1" in t or "第１" in t:
+        return "Q1"
+    if "第3" in t or "第３" in t:
+        return "Q3"
+    if "第2" in t or "第２" in t or "半期" in t or "中間" in t:
+        return "Q2"
+    if "通期" in t or "期末" in t or "決算短信" in t:
+        return "FY"
+    return None
 
 
 def infer_accounting_standard_from_namespaces(

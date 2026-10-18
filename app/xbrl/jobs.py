@@ -177,14 +177,16 @@ def filings_pending_normalize(db: Session) -> list[XbrlFiling]:
     )
 
 
-def run_normalize(db: Session, *, rebuild: bool = False) -> dict:
+def run_normalize(db: Session, *, rebuild: bool = False, code: str | None = None) -> dict:
     run = start_run(db, "normalize")
     if rebuild:
-        stats = rebuild_all(db)
+        stats = rebuild_all(db, code=code)
         finish_run(db, run, "success" if stats["errors"] == 0 else "failed", stats["processed"], stats["errors"])
         return stats
     processed = errors = 0
     pending = filings_pending_normalize(db)
+    if code:
+        pending = [f for f in pending if f.code == code]
     for filing in pending:
         try:
             stats = normalize_filing(db, filing)

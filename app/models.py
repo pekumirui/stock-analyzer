@@ -210,7 +210,7 @@ class XbrlFiling(Base):
     code = Column(String(5), nullable=False, index=True)
     source = Column(String(16), nullable=False, default="tdnet")
     doc_id = Column(String(64), nullable=False)
-    doc_type = Column(String(16), nullable=False, default="other")
+    doc_type = Column(String(32), nullable=False, default="other")
     period_type = Column(String(8))
     fiscal_year_end = Column(Date)
     submitted_at = Column(DateTime, nullable=False)
@@ -328,18 +328,25 @@ class XbrlFinancial(Base):
     period_start = Column(Date)
     period_end = Column(Date, nullable=False)
     value = Column(Numeric(30, 4), nullable=False)
-    unit = Column(String(16), nullable=False, default="JPY")
+    unit = Column(String(32), nullable=False, default="JPY")
+    # actual | forecast | forecast_previous（前回予想。EarnForecastRevision の PreviousMember）
+    value_kind = Column(String(24), nullable=False, default="actual", server_default="actual")
+    # point | lower | upper（レンジ予想。点予想は point）
+    range_side = Column(String(16), nullable=False, default="point", server_default="point")
+    # 数値が指す期間: FY / H1 / Q1 / Q2 / Q3 / year_end / annual
+    target_period = Column(String(16), nullable=False, default="FY", server_default="FY")
     source_fact_id = Column(Integer, ForeignKey("xbrl_facts.id"))
     source_element_id = Column(Integer, ForeignKey("xbrl_elements.id"))
     generated_at = Column(DateTime, nullable=False)
     __table_args__ = (
         UniqueConstraint(
             "filing_id", "std_item_id", "is_consolidated", "period_end",
+            "value_kind", "range_side", "target_period",
             name="uq_xbrl_financials_key",
         ),
         Index(
             "idx_xbrl_financials_lookup",
-            "code", "std_item_id", "is_consolidated", "period_end",
+            "code", "std_item_id", "is_consolidated", "period_end", "value_kind",
         ),
     )
 

@@ -173,6 +173,137 @@ def migrate_add_columns(verbose: bool = True) -> int:
     return n
 
 
+XBRL_FINANCIALS_UNIQUE_COLS = (
+    "filing_id",
+    "std_item_id",
+    "is_consolidated",
+    "period_end",
+    "value_kind",
+    "range_side",
+    "target_period",
+)
+
+
+def _xbrl_financials_unique_indexes(conn) -> list[dict]:
+    rows = conn.execute(text("PRAGMA index_list('xbrl_financials')")).fetchall()
+    out = []
+    for row in rows:
+        name = row[1]
+        unique = row[2]
+        origin = row[3] if len(row) > 3 else ""
+        if not unique:
+            continue
+        cols = [
+            r[2]
+            for r in conn.execute(text(f'PRAGMA index_info("{name}")')).fetchall()
+        ]
+        out.append({"name": name, "origin": origin, "cols": cols})
+    return out
+
+
+def migrate_xbrl_financials_unique() -> bool:
+    """旧 UNIQUE (filing, std, consol, period_end) を予想・レンジ列込みに付け替える。
+
+    SQLite の表制約 UNIQUE は DROP INDEX できないので、そのときは表を作り直す。
+    既存23項目の value はコピーしたまま。新しい列は actual/point/period_type。
+    戻り値はユニークキーを付け替えたとき True。
+    """
+    insp = inspect(engine)
+    if "xbrl_financials" not in insp.get_table_names():
+        return False
+    wanted = list(XBRL_FINANCIALS_UNIQUE_COLS)
+    with engine.begin() as conn:
+        indexes = _xbrl_financials_unique_indexes(conn)
+        if any(idx["cols"] == wanted for idx in indexes):
+            conn.execute(
+                text(
+                    "UPDATE xbrl_financials SET target_period = COALESCE("
+                    "NULLIF(target_period, ''), NULLIF(period_type, ''), 'FY') "
+                    "WHERE target_period IS NULL OR target_period = ''"
+                )
+            )
+            return False
+        stale = [
+            idx for idx in indexes
+            if idx["cols"] != ["id"]
+            and "filing_id" in idx["cols"]
+            and "value_kind" not in idx["cols"]
+        ]
+        if not stale:
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_xbrl_financials_key "
+                    "ON xbrl_financials ("
+                    "filing_id, std_item_id, is_consolidated, period_end, "
+                    "value_kind, range_side, target_period)"
+                )
+            )
+            return True
+        table_constraint = any(idx["origin"] == "u" for idx in stale)
+        if not table_constraint:
+            for idx in stale:
+                conn.execute(text(f'DROP INDEX IF EXISTS "{idx["name"]}"'))
+            conn.execute(
+                text(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS uq_xbrl_financials_key "
+                    "ON xbrl_financials ("
+                    "filing_id, std_item_id, is_consolidated, period_end, "
+                    "value_kind, range_side, target_period)"
+                )
+            )
+            conn.execute(
+                text(
+                    "UPDATE xbrl_financials SET target_period = COALESCE("
+                    "NULLIF(target_period, ''), NULLIF(period_type, ''), 'FY') "
+                    "WHERE target_period IS NULL OR target_period = ''"
+                )
+            )
+            return True
+        _recreate_xbrl_financials_table(conn)
+        return True
+
+
+def _recreate_xbrl_financials_table(conn) -> None:
+    from app.models import XbrlFinancial
+
+    old_cols = [
+        r[1] for r in conn.execute(text("PRAGMA table_info(xbrl_financials)")).fetchall()
+    ]
+    conn.execute(text("ALTER TABLE xbrl_financials RENAME TO xbrl_financials__old"))
+    # RENAME 後も名前付き INDEX は残る。新しい CREATE と衝突するので先に外す。
+    for row in conn.execute(text("PRAGMA index_list('xbrl_financials__old')")).fetchall():
+        name = row[1]
+        if name in ("uq_xbrl_financials_key", "idx_xbrl_financials_lookup"):
+            conn.execute(text(f'DROP INDEX IF EXISTS "{name}"'))
+    XbrlFinancial.__table__.create(bind=conn)
+    new_cols = [
+        r[1] for r in conn.execute(text("PRAGMA table_info(xbrl_financials)")).fetchall()
+    ]
+    shared = [c for c in new_cols if c in old_cols and c != "id"]
+    select_bits = []
+    for c in shared:
+        ident = '"' + c.replace('"', '""') + '"'
+        if c == "target_period":
+            select_bits.append(
+                f"COALESCE(NULLIF({ident}, ''), NULLIF(\"period_type\", ''), 'FY')"
+            )
+        elif c == "value_kind":
+            select_bits.append(f"COALESCE(NULLIF({ident}, ''), 'actual')")
+        elif c == "range_side":
+            select_bits.append(f"COALESCE(NULLIF({ident}, ''), 'point')")
+        else:
+            select_bits.append(ident)
+    dest_sql = ", ".join('"' + c.replace('"', '""') + '"' for c in shared)
+    src_sql = ", ".join(select_bits)
+    conn.execute(
+        text(
+            f"INSERT INTO xbrl_financials ({dest_sql}) "
+            f"SELECT {src_sql} FROM xbrl_financials__old"
+        )
+    )
+    conn.execute(text("DROP TABLE xbrl_financials__old"))
+
+
 def _server_default_sql(col) -> str | None:
     default = col.server_default
     if default is None or default.arg is None:

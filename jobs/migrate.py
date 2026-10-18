@@ -15,7 +15,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy.exc import OperationalError
 
-from app.db import init_db, is_sqlite_lock, migrate_add_columns, missing_columns
+from app.db import (
+    init_db,
+    is_sqlite_lock,
+    migrate_add_columns,
+    migrate_xbrl_financials_unique,
+    missing_columns,
+)
 from app.monthly.maintenance import run_deploy_maintenance
 
 LOCK_ATTEMPTS = 10
@@ -26,6 +32,8 @@ LOCK_SLEEP_CAP_S = 60.0
 def migrate_once() -> None:
     init_db()
     migrate_columns()
+    if migrate_xbrl_financials_unique():
+        print("xbrl_financials の UNIQUE を value_kind/range_side/target_period 込みに付け替えた。")
     run_deploy_maintenance()
 
 
