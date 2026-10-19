@@ -207,6 +207,34 @@ def _write_stubs(bin_dir: Path) -> None:
         "exit 1\n",
         encoding="utf-8",
     )
+    real_install = "/usr/bin/install"
+    real_chown = "/usr/bin/chown"
+    real_chmod = "/usr/bin/chmod"
+    (bin_dir / "install").write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'dest="${@: -1}"\n'
+        'if [[ -f "${BOXRO_TEST_MOUNTED}" ]] && grep -qxF "$dest" "${BOXRO_TEST_MOUNTED}"; then\n'
+        '  printf "install %s\\n" "$*" >> "${BOXRO_TEST_LOG}"\n'
+        '  echo "install: cannot create directory \'$dest\': Read-only file system" >&2\n'
+        "  exit 1\n"
+        "fi\n"
+        f"exec {real_install} \"$@\"\n",
+        encoding="utf-8",
+    )
+    for name, real in (("chown", real_chown), ("chmod", real_chmod)):
+        (bin_dir / name).write_text(
+            "#!/usr/bin/env bash\n"
+            "set -euo pipefail\n"
+            'dest="${@: -1}"\n'
+            'if [[ -f "${BOXRO_TEST_MOUNTED}" ]] && grep -qxF "$dest" "${BOXRO_TEST_MOUNTED}"; then\n'
+            f'  printf "{name} %s\\n" "$*" >> "${{BOXRO_TEST_LOG}}"\n'
+            f'  echo "{name}: changing permissions of \'$dest\': Read-only file system" >&2\n'
+            "  exit 1\n"
+            "fi\n"
+            f"exec {real} \"$@\"\n",
+            encoding="utf-8",
+        )
     (bin_dir / "umount").write_text(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
@@ -262,6 +290,9 @@ def _write_stubs(bin_dir: Path) -> None:
         "passwd",
         "mountpoint",
         "findmnt",
+        "install",
+        "chown",
+        "chmod",
         "mount",
         "umount",
         "sshd",
@@ -608,6 +639,56 @@ def test_drops_existing_logs_bind_without_touching_app_logs(tmp_path: Path) -> N
         _fail(f"second apply must not bind logs: {log2!r}")
 
 
+def test_already_applied_host_skips_perms_on_ro_binds(tmp_path: Path) -> None:
+    """Re-run with data+logs already ro-mounted must not install/chown/chmod them."""
+    _write_stubs(tmp_path / "bin")
+    app = _seed_app(tmp_path)
+    env = _env(tmp_path, app)
+    Path(env["BOXRO_TEST_USER_FLAG"]).write_text("", encoding="utf-8")
+    data_dest = Path(env["BOXRO_CHROOT"]) / "data"
+    logs_dest = Path(env["BOXRO_CHROOT"]) / "logs"
+    data_dest.mkdir(parents=True)
+    logs_dest.mkdir(parents=True)
+    data_line = f"{env['BOXRO_DATA_SRC']} {data_dest} none bind,ro 0 0"
+    logs_line = f"{env['BOXRO_LOGS_SRC']} {logs_dest} none bind,ro 0 0"
+    Path(env["BOXRO_FSTAB"]).write_text(
+        f"proc /proc proc defaults 0 0\n{data_line}\n{logs_line}\n",
+        encoding="utf-8",
+    )
+    Path(env["BOXRO_TEST_MOUNTED"]).write_text(
+        f"{data_dest}\n{logs_dest}\n", encoding="utf-8"
+    )
+    Path(env["BOXRO_AUTH_DIR"]).mkdir(parents=True)
+    Path(env["BOXRO_AUTH_DEST"]).write_text(
+        Path(env["BOXRO_AUTH_SRC"]).read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    Path(env["BOXRO_SSHD_DROPIN"]).parent.mkdir(parents=True)
+    Path(env["BOXRO_SSHD_DROPIN"]).write_text(DROPIN, encoding="utf-8")
+    proc = _run(env, "boxro_apply")
+    _assert_ok(proc, "already-applied boxro_apply")
+    err = proc.stderr
+    if "Read-only file system" in err:
+        _fail(f"re-run must not hit ro mount: {err!r} {proc.stdout!r}")
+    log = Path(env["BOXRO_TEST_LOG"]).read_text(encoding="utf-8")
+    for line in log.splitlines():
+        if line.startswith("install ") and str(data_dest) in line.split():
+            _fail(f"must not install on mounted data: {log!r}")
+        if line.startswith("install ") and str(logs_dest) in line.split():
+            _fail(f"must not install on mounted logs: {log!r}")
+        if line.startswith(("chown ", "chmod ")) and (
+            str(data_dest) in line.split() or str(logs_dest) in line.split()
+        ):
+            _fail(f"must not chown/chmod ro bind: {log!r}")
+    if f"mount --bind {env['BOXRO_DATA_SRC']} {data_dest}" in log:
+        _fail(f"already mounted data must not bind again: {log!r}")
+    if "systemctl reload" in log:
+        _fail(f"unchanged drop-in must not reload: {log!r}")
+    if logs_line in Path(env["BOXRO_FSTAB"]).read_text(encoding="utf-8"):
+        _fail("logs fstab line must still be cleaned up")
+    if logs_dest.exists():
+        _fail("logs dest must be unmounted and rmdir'd")
+
+
 def test_provision_continues_after_boxro_failure(tmp_path: Path) -> None:
     """The if ! boxro_apply wrapper must not trip set -e."""
     script = tmp_path / "run.sh"
@@ -667,6 +748,8 @@ def main() -> None:
         test_partial_vps_state_is_idempotent(Path(raw))
     with TemporaryDirectory() as raw:
         test_drops_existing_logs_bind_without_touching_app_logs(Path(raw))
+    with TemporaryDirectory() as raw:
+        test_already_applied_host_skips_perms_on_ro_binds(Path(raw))
     with TemporaryDirectory() as raw:
         test_provision_continues_after_boxro_failure(Path(raw))
     with TemporaryDirectory() as raw:

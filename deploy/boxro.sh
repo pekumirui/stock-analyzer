@@ -21,6 +21,11 @@ boxro_defaults() {
 
 boxro_root_owned() {
   local path="$1" mode="${2:-755}"
+  # Already-applied hosts have /srv/boxro/data (and leftover logs) as ro
+  # binds. install/chown/chmod on the mountpoint is "Read-only file system".
+  if boxro_is_mountpoint "$path"; then
+    return 0
+  fi
   install -d -m "$mode" "$path"
   if [[ ${EUID} -eq 0 ]]; then
     chown root:root "$path"
@@ -105,11 +110,11 @@ boxro_mount_ro_bind() {
     echo "boxro: bind source missing: ${src}" >&2
     return 1
   fi
-  install -d -m 755 "$dest"
   if boxro_is_mountpoint "$dest"; then
     mount -o remount,bind,ro "$dest"
     echo "boxro: remount ro ${dest}"
   else
+    install -d -m 755 "$dest"
     mount --bind "$src" "$dest"
     mount -o remount,bind,ro "$dest"
     echo "boxro: mounted ${src} -> ${dest} (ro bind)"
