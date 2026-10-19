@@ -26,6 +26,8 @@ data/*
 data/xbrl_golden/*
 !data/xbrl_golden/README.md
 !data/xbrl_golden/schema.example.json
+# XBRL タクソノミ同梱（KAB-60）。中身はメンテがキャッシュから投入してコミットする
+!data/xbrl_taxonomy/
 *.csv.gz
 
 # --- Python ---

@@ -1,8 +1,10 @@
-"""File loader with caching support for remote URLs."""
+"""File loader with caching support for remote URLs.
 
-import tempfile
+KAB-60: remote taxonomy URLs are resolved against the local bundle only.
+This loader never downloads. A missing file raises FileNotFoundError.
+"""
+
 import urllib.parse
-import urllib.request
 from pathlib import Path
 from typing import Optional
 
@@ -62,8 +64,8 @@ class FileLoader:
             enabled and an error occurs.
 
         Raises:
-            FileNotFoundError: If local file doesn't exist
-            urllib.error.URLError: If URL download fails
+            FileNotFoundError: If local file doesn't exist, or the URL is not
+                present in the local taxonomy bundle (never downloads).
         """
         try:
             # Check if it's a URL
@@ -82,24 +84,21 @@ class FileLoader:
 
     def _fetch_url(self, url: str) -> Path:
         """
-        Fetch a file from a URL with caching.
+        Resolve a remote URL against the local taxonomy bundle.
 
         Args:
-            url: HTTP/HTTPS URL to download
+            url: HTTP/HTTPS URL that names a taxonomy file
 
         Returns:
-            Path to the cached file
+            Path to the bundled file
+
+        Raises:
+            FileNotFoundError: If the URL is not in the bundle. Never downloads.
         """
-        # Generate cache filename based on URL
         cache_path = self._get_cache_path(url)
-
-        # Check if file exists in cache
-        if cache_path.exists():
+        if cache_path.is_file():
             return cache_path
-
-        # Download file to cache
-        self._download_file(url, cache_path)
-        return cache_path
+        raise FileNotFoundError(f"taxonomy not in bundle: {url} (looked in {cache_path})")
 
     def _get_cache_path(self, url: str) -> Path:
         """
@@ -153,45 +152,10 @@ class FileLoader:
         return cache_path
 
     def _download_file(self, url: str, dest_path: Path) -> None:
-        """
-        Download a file from URL to destination path using atomic write.
-
-        Uses a temporary file and atomic rename to prevent race conditions
-        when multiple processes try to download the same URL simultaneously.
-
-        Args:
-            url: URL to download from
-            dest_path: Path to save the file
-
-        Raises:
-            urllib.error.URLError: If download fails
-        """
-        # Ensure parent directory exists
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Download to a temporary file first
-        # Use same directory as dest_path to ensure atomic rename works
-        with tempfile.NamedTemporaryFile(
-            mode="wb",
-            dir=dest_path.parent,
-            prefix=".download_",
-            suffix=dest_path.suffix,
-            delete=False,
-        ) as tmp_file:
-            tmp_path = Path(tmp_file.name)
-            try:
-                # Download with urllib
-                with urllib.request.urlopen(url) as response:
-                    content = response.read()
-                    tmp_file.write(content)
-
-                # Atomic rename - if file exists, it will be replaced atomically
-                # This prevents partial files and handles concurrent downloads
-                tmp_path.replace(dest_path)
-            except Exception:
-                # Clean up temp file on error
-                tmp_path.unlink(missing_ok=True)
-                raise
+        """Removed (KAB-60). Taxonomy files are never fetched from the network."""
+        raise FileNotFoundError(
+            f"taxonomy download disabled: {url} (looked in {dest_path})"
+        )
 
     def clear_cache(self) -> None:
         """Clear all cached files."""
