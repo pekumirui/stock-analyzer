@@ -365,7 +365,7 @@ for lab in parser.load_labels():
 
 第1弾は伝統的 instance `.xbrl` だけしか無い ZIP をパースしない（skipped）。有報を始めるときに拡張する。
 
-タクソノミはリポジトリ同梱の `XBRL_CACHE_DIR`（既定 `data/xbrl_taxonomy`）だけを読む。`urlopen` しない。参照ファイルが無い filing は `parse_status='failed'`、ログに欠けた URL/パスを出す。復旧は同梱を足して `xbrl_parse.py --retry-failed`。版は filing の `schemaRef` 等が指すもの（過去年を含む）をすべて残す。走査・同期は `tools/xbrl/taxonomy_bundle.py`。プロセス内では remote の XSD とラベル linkbase を使い回す（`parse_package` の shared cache）。ラベル linkbase は href ごとに (prefix, local) → 最初の ja / en に縮約して持ち、filing ではファクトに出る要素だけ引く（KAB-63）。DB へは要素を filing 単位でまとめて SELECT / INSERT し、変わった行だけ UPDATE、コンテキストとファクトは bulk insert する。
+タクソノミはリポジトリ同梱の `XBRL_CACHE_DIR`（既定 `data/xbrl_taxonomy`）だけを読む。`urlopen` しない。参照ファイルが無い filing は `parse_status='failed'`、ログに欠けた URL/パスを出す。復旧は同梱を足して `xbrl_parse.py --retry-failed`。版は filing の `schemaRef` 等が指すもの（過去年を含む）をすべて残す。走査・同期は `tools/xbrl/taxonomy_bundle.py`（`check` / `sync` はパーサと同じ解決：`schemaRef` → `xsd:import` と `load_labels` のラベル linkbase。汎用ラベル・定義リンク・コメント上の URL は数えない）。プロセス内では remote の XSD とラベル linkbase を使い回す（`parse_package` の shared cache）。ラベル linkbase は href ごとに (prefix, local) → 最初の ja / en に縮約して持ち、filing ではファクトに出る要素だけ引く（KAB-63）。DB へは要素を filing 単位でまとめて SELECT / INSERT し、変わった行だけ UPDATE、コンテキストとファクトは bulk insert する。
 
 `xbrl_parse.py` は ZIP の展開とパース（DB に触らない `parse_zip`）を `XBRL_PARSE_WORKERS` 個のプロセスで先読みし、DB 書き込みは親 1 本が manifest 順に行う（KAB-63。1 で直列）。順番を守るので、直近 filing からの会計基準引き継ぎは直列と同じになる。各行の skip 判定は書き込みの順番が来たときにもう一度行う。ワーカーの例外は親で直列と同じく `failed` に記録し、ワーカーが落ちたらその行は親でパースし直す。既定 2。DB 書き込みが 1 件約 30ms で律速するので、3 以上にしてもほぼ速くならない。
 

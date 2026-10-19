@@ -1,6 +1,6 @@
 # XBRL taxonomy bundle
 
-Parse はネットワークに出ない。`schemaRef` / `xsd:import` / `linkbaseRef` が指すファイルは
+Parse はネットワークに出ない。パーサが読む `schemaRef` / `xsd:import` / ラベル linkbase は
 すべてこのディレクトリから読む（`FileLoader` の URL→パス対応。ホスト名が先頭ディレクトリ）。
 
 ```
@@ -20,9 +20,9 @@ data/xbrl_taxonomy/
 filing が参照する版は過去年も含めて残す。どの ZIP からも参照されないファイルだけ落としてよい。
 配布物はバイト単位で保持する（`.gitattributes` で `-text`。CRLF のファイルがある）。
 
-`check` は ZIP から辿れる参照をすべて数えるため、パーサが読まない汎用ラベル（`*_gla.xml` /
-`*-gla.xml`）、定義リンク（`*_def.xml`）、`www.xbrl.org/2003/2008-07-02/*` の 26 件を
-MISSING と出す。これらは本番キャッシュにも無く、パースには不要。
+`check` / `sync` はパーサが実際に読むファイルだけを数える（`collect_parser_taxonomy_urls`）。
+汎用ラベル（`*_gla.xml` / `*-gla.xml`）、定義リンク（`*_def.xml`）、
+`www.xbrl.org/2003/2008-07-02/*` はパースに使わないので同梱しなくてよい。
 
 ## 投入手順（R2 が見える箱で）
 
@@ -53,5 +53,5 @@ python tools/xbrl/taxonomy_bundle.py sync \
   --to data/xbrl_taxonomy
 ```
 
-`check` が MISSING を出したら、その URL をキャッシュへ足して `sync` し直す。
+`check` が MISSING を出したら（パーサが読む .xsd / ラベルが欠けている）、その URL をキャッシュへ足して `sync` し直す。
 パース失敗の filing は `python jobs/xbrl/xbrl_parse.py --retry-failed`。
