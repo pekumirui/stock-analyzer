@@ -100,7 +100,7 @@ box エージェントはユーザ `boxro` で sftp するだけ（シェルも�
 
 見せない: `stock.db`、`.env`、`/home/stock/backups`、R2 FUSE（`/home/stock/r2-share`）。将来 R2 を VPS ローカルに移したら、そのフォルダの bind を 1 行足す。今の FUSE は bind しない。
 
-公開鍵は `deploy/ssh/boxro_authorized_keys`（1行1鍵、先頭 `restrict`）。provision が `/etc/ssh/authorized_keys/boxro`（root:root、644）へ同期する。鍵を足すときはそのファイルに行を足してデプロイ。`/etc/ssh/sshd_config.d/90-boxro.conf` が変わったときだけ `sshd -t && systemctl reload ssh`。`sshd -t` が失敗したら drop-in を戻して provision を止める。restart はしない。既存の stock / root / デプロイ鍵には触らない。
+公開鍵は `deploy/ssh/boxro_authorized_keys`（1行1鍵、先頭 `restrict`）。provision が `/etc/ssh/authorized_keys/boxro`（root:root、644）へ同期する。鍵を足すときはそのファイルに行を足してデプロイ。`/etc/ssh/sshd_config.d/90-boxro.conf` が変わったときだけ `sshd -t && systemctl reload ssh`。`sshd -t` が失敗したら drop-in を戻す。restart はしない。boxro の失敗は stderr に出すが、アプリの provision（systemd / nginx / crontab）は続ける。既存の stock / root / デプロイ鍵には触らない。
 
 元に戻す（root）:
 
