@@ -28,9 +28,12 @@ from app.xbrl.jobs import run_normalize  # noqa: E402
 from app.xbrl.mappings import apply_mappings  # noqa: E402
 from app.xbrl.parser import (  # noqa: E402
     CachedTimeoutFileLoader,
+    TaxonomyMissingError,
     find_ixbrl_files,
     parse_package,
+    reset_taxonomy_caches,
 )
+from app.xbrlp.file_loader import FileLoader  # noqa: E402
 from app.xbrl.store import parse_zip_into_filing  # noqa: E402
 from jobs.xbrl.tdnet_xbrl_r2 import append_manifest, build_manifest_row  # noqa: E402
 
@@ -54,6 +57,7 @@ def _ixbrl_html(
     extra_context: str = "",
     filing_instant: str | None = None,
     dei_period_end: str | None = None,
+    schema_ref: str | None = None,
 ) -> str:
     fact_xml = []
     for name, ctx, unit, scale, value in facts:
@@ -85,6 +89,16 @@ def _ixbrl_html(
         )
     dei_hidden = "\n      ".join(dei_bits)
     extra_context = (extra_context or "") + filing_ctx
+    schema_ns = ""
+    schema_elem = ""
+    if schema_ref:
+        schema_ns = (
+            ' xmlns:link="http://www.xbrl.org/2003/linkbase"'
+            ' xmlns:xlink="http://www.w3.org/1999/xlink"'
+        )
+        schema_elem = (
+            f'<link:schemaRef xlink:type="simple" xlink:href="{schema_ref}"/>'
+        )
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml"
       xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"
@@ -93,9 +107,10 @@ def _ixbrl_html(
       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
       xmlns:{ns_prefix}="{ns_uri}"
       xmlns:jpdei_cor="http://disclosure.edinet-fsa.go.jp/taxonomy/jpdei/2013-08-31/jpdei_cor"
-      xmlns:iso4217="http://www.xbrl.org/2003/iso4217">
+      xmlns:iso4217="http://www.xbrl.org/2003/iso4217"{schema_ns}>
 <head>
   <ix:header>
+    {schema_elem}
     <ix:hidden>
       {hidden}
       {dei_hidden}
@@ -142,11 +157,14 @@ def _manifest_xml() -> str:
 
 
 def build_zip(facts: list[tuple[str, str, str, str, str]], **kwargs) -> bytes:
+    extra_files = kwargs.pop("extra_files", None) or {}
     html = _ixbrl_html(facts, **kwargs)
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
         zf.writestr("XBRLData/Summary/summary.htm", html)
         zf.writestr("XBRLData/Summary/manifest.xml", _manifest_xml())
+        for name, content in extra_files.items():
+            zf.writestr(name, content)
     return buf.getvalue()
 
 
@@ -705,20 +723,170 @@ def test_attachment_manifest_still_reads_summary(tmp: Path) -> None:
         _fail(f"attachment missing: {names}")
 
 
-def test_xsd_fetch_uses_timeout(tmp: Path) -> None:
+REMOTE_JPPFS_XSD = "http://disclosure.edinet-fsa.go.jp/taxonomy/jppfs/2024-11-01/jppfs_cor.xsd"
+REMOTE_JPPFS_LAB = "http://disclosure.edinet-fsa.go.jp/taxonomy/jppfs/2024-11-01/label/jppfs_cor_lab.xml"
+
+_COMPANY_XSD = f"""<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="http://example.jp/corp">
+  <xsd:import namespace="{NS}" schemaLocation="{REMOTE_JPPFS_XSD}"/>
+</xsd:schema>
+"""
+
+_REMOTE_XSD = f"""<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            xmlns:link="http://www.xbrl.org/2003/linkbase"
+            xmlns:xlink="http://www.w3.org/1999/xlink"
+            xmlns:jppfs_cor="{NS}"
+            targetNamespace="{NS}">
+  <xsd:element id="jppfs_cor_NetSales" name="NetSales"/>
+  <link:linkbaseRef xlink:type="simple" xlink:href="{REMOTE_JPPFS_LAB}"
+                    xlink:role="http://www.xbrl.org/2003/role/labelLinkbaseRef"/>
+</xsd:schema>
+"""
+
+_REMOTE_LAB = f"""<?xml version="1.0" encoding="UTF-8"?>
+<link:linkbase xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <link:labelLink xlink:role="http://www.xbrl.org/2003/role/link">
+    <link:loc xlink:type="locator" xlink:href="{REMOTE_JPPFS_XSD}#jppfs_cor_NetSales" xlink:label="NetSales"/>
+    <link:label xlink:type="resource" xlink:label="NetSales_lab" xlink:role="http://www.xbrl.org/2003/role/label"
+                xml:lang="ja">売上高</link:label>
+    <link:labelArc xlink:type="arc" xlink:arcrole="http://www.xbrl.org/2003/arcrole/concept-label"
+                   xlink:from="NetSales" xlink:to="NetSales_lab"/>
+  </link:labelLink>
+</link:linkbase>
+"""
+
+
+def _write_bundle(cache_dir: Path, url: str, content: str) -> Path:
+    path = FileLoader(cache_dir=cache_dir)._get_cache_path(url)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+def _taxonomy_zip() -> bytes:
+    return build_zip(
+        MANUFACTURING,
+        schema_ref="company.xsd",
+        extra_files={"XBRLData/Summary/company.xsd": _COMPANY_XSD},
+    )
+
+
+def test_missing_taxonomy_fails_without_network(tmp: Path) -> None:
     from unittest.mock import patch
 
-    def hang(url, timeout=None, *args, **kwargs):  # noqa: ANN001, ARG001
-        if timeout is None:
-            _fail("urlopen called without timeout")
-        raise TimeoutError("timed out")
+    from app.xbrl.parser import extract_zip
 
-    loader = CachedTimeoutFileLoader(cache_dir=tmp / "xsd-cache", timeout=0.2, ignore_failure=True)
+    reset_taxonomy_caches()
+    raw = _taxonomy_zip()
+    zpath = write_zip(tmp, "missing-tax.zip", raw)
+    unpacked = extract_zip(zpath, tmp / "unpacked")
+    with patch("urllib.request.urlopen", side_effect=AssertionError("network")):
+        try:
+            parse_package(unpacked, cache_dir=tmp / "empty-bundle", text_max=1000)
+        except TaxonomyMissingError as exc:
+            if REMOTE_JPPFS_XSD not in str(exc):
+                _fail(f"missing URL not in error: {exc}")
+        else:
+            _fail("expected TaxonomyMissingError")
+
+
+def test_missing_taxonomy_marks_filing_failed(tmp: Path) -> None:
+    from unittest.mock import patch
+
+    from app.xbrl.jobs import run_parse
+
+    reset_taxonomy_caches()
+    init_db()
+    db = SessionLocal()
+    try:
+        seed_stock(db, "72030", "トヨタ自動車")
+        dest = tmp / "dest-missing"
+        data = _taxonomy_zip()
+        rel = "7203/20260425_7203_短信_missing.zip"
+        write_zip(dest, rel, data)
+        row = build_manifest_row(
+            xbrl_id="missing-tax-1",
+            code="72030",
+            code4="7203",
+            pubdate="2026-04-25 15:00:00",
+            title="2026年3月期 決算短信〔日本基準〕（連結）",
+            rel_path=rel,
+            n_bytes=len(data),
+            sha256="missing-tax-sha",
+        )
+        append_manifest(dest, row)
+        with patch("urllib.request.urlopen", side_effect=AssertionError("network")):
+            stats = run_parse(db, dest=dest, cache_dir=tmp / "empty-bundle")
+        if stats["errors"] != 1:
+            _fail(f"expected errors=1, got {stats}")
+        filing = db.query(XbrlFiling).filter_by(doc_id="missing-tax-1").one_or_none()
+        if filing is None or filing.parse_status != "failed":
+            _fail(f"filing status {filing}")
+        if not filing.parse_error or REMOTE_JPPFS_XSD not in filing.parse_error:
+            _fail(f"parse_error missing URL: {filing.parse_error}")
+    finally:
+        db.close()
+
+
+def test_label_and_xsd_cache_across_filings(tmp: Path) -> None:
+    from app.xbrl.parser import extract_zip
+    from app.xbrlp.parser import Parser as XbrlParser
+
+    reset_taxonomy_caches()
+    cache = tmp / "bundle"
+    _write_bundle(cache, REMOTE_JPPFS_XSD, _REMOTE_XSD)
+    _write_bundle(cache, REMOTE_JPPFS_LAB, _REMOTE_LAB)
+    raw = _taxonomy_zip()
+    zpath = write_zip(tmp, "with-tax.zip", raw)
+
+    orig_xsd = XbrlParser._parse_xsd_schema
+    orig_lb = XbrlParser._parse_linkbase
+    counts = {"xsd": 0, "lab": 0}
+
+    def wrap_xsd(self, url):  # noqa: ANN001
+        if str(url).startswith(("http://", "https://")):
+            counts["xsd"] += 1
+        return orig_xsd(self, url)
+
+    def wrap_lb(self, linkbase_url, *a, **k):  # noqa: ANN001
+        if str(linkbase_url).startswith(("http://", "https://")):
+            counts["lab"] += 1
+        yield from orig_lb(self, linkbase_url, *a, **k)
+
+    XbrlParser._parse_xsd_schema = wrap_xsd  # type: ignore[method-assign]
+    XbrlParser._parse_linkbase = wrap_lb  # type: ignore[method-assign]
+    try:
+        labels_ja = []
+        for i in range(2):
+            unpacked = extract_zip(zpath, tmp / f"unpacked-{i}")
+            pkg = parse_package(unpacked, cache_dir=cache, text_max=1000)
+            names = {f.local_name for f in pkg.facts}
+            if "NetSales" not in names:
+                _fail(f"facts dropped on pass {i}: {names}")
+            labels_ja.append(pkg.labels.get(("jppfs_cor", "NetSales"), {}).get("label_ja"))
+        if labels_ja[0] != "売上高" or labels_ja[1] != "売上高":
+            _fail(f"labels {labels_ja}")
+        if counts["xsd"] != 1 or counts["lab"] != 1:
+            _fail(f"expected one remote XSD/label parse across two filings, got {counts}")
+    finally:
+        XbrlParser._parse_xsd_schema = orig_xsd  # type: ignore[method-assign]
+        XbrlParser._parse_linkbase = orig_lb  # type: ignore[method-assign]
+
+
+def test_loader_never_downloads(tmp: Path) -> None:
+    from unittest.mock import patch
+
+    loader = CachedTimeoutFileLoader(cache_dir=tmp / "xsd-cache")
     url = "http://www.xbrl.tdnet.info/taxonomy/jp/tse/tdnet/ed/t/2014-01-12/tse-ed-t-2014-01-12.xsd"
-    with patch("urllib.request.urlopen", side_effect=hang):
-        got = loader.fetch(url)
-    if got is not None:
-        _fail(f"timeout should return None via ignore_failure, got {got}")
+    with patch("urllib.request.urlopen", side_effect=AssertionError("network")):
+        try:
+            loader.fetch(url)
+        except TaxonomyMissingError as exc:
+            if url not in str(exc):
+                _fail(f"url missing from error: {exc}")
+        else:
+            _fail("expected TaxonomyMissingError")
 
 
 def test_reparse_reprocesses(tmp: Path) -> None:
@@ -782,7 +950,10 @@ def main() -> None:
         test_fiscal_year_end_not_disclosure_date(tmp)
         test_fy_end_from_pl_when_dei_missing(tmp)
         test_attachment_manifest_still_reads_summary(tmp)
-        test_xsd_fetch_uses_timeout(tmp)
+        test_loader_never_downloads(tmp)
+        test_missing_taxonomy_fails_without_network(tmp)
+        test_missing_taxonomy_marks_filing_failed(tmp)
+        test_label_and_xsd_cache_across_filings(tmp)
         test_reparse_reprocesses(tmp)
     print("ok: xbrl parse")
 

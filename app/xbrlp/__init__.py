@@ -1,7 +1,8 @@
 """XBRLP: Lightweight Python XBRL Parser for Japanese financial data.
 
 Vendored from https://gist.github.com/kawasin73/346ed6a24382a2b238e1ff0d10f3f40c
-Do not edit these files. Wrapper lives in app/xbrl/.
+Do not edit these files (wrapper lives in app/xbrl/), except file_loader.py
+which is offline-only since KAB-60 (no URL download).
 """
 
 from .file_loader import FileLoader

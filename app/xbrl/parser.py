@@ -1,15 +1,13 @@
 """ZIP → facts/contexts/labels using vendored xbrlp plus context walk."""
 from __future__ import annotations
 
-import tempfile
-import urllib.request
 import zipfile
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from collections.abc import Iterator
 from pathlib import Path
 
-from app.config import XBRL_XSD_TIMEOUT
 from app.xbrl.context import (
     ParsedContext,
     assign_relative_periods,
@@ -17,7 +15,7 @@ from app.xbrl.context import (
     parse_contexts_from_xml,
     resolve_fiscal_year_end,
 )
-from app.xbrlp import Fact, FileLoader, Parser
+from app.xbrlp import Fact, FileLoader, Label, Parser
 
 
 STANDARD_NS_PREFIXES = (
@@ -81,38 +79,69 @@ def looks_like_ixbrl(path: Path) -> bool:
     return "ix:nonFraction" in sample or "ix:nonNumeric" in sample or "inlineXBRL" in sample
 
 
+class TaxonomyMissingError(FileNotFoundError):
+    """Referenced taxonomy URL is not in the local bundle. Never downloads."""
+
+    def __init__(self, url: str, cache_path: Path | None = None):
+        self.url = url
+        self.cache_path = cache_path
+        extra = f" (looked in {cache_path})" if cache_path is not None else ""
+        super().__init__(f"taxonomy not in bundle: {url}{extra}")
+
+
 class CachedTimeoutFileLoader(FileLoader):
-    """Vendor FileLoader は urlopen に timeout が無い。XSD 欠落は facts を落とさない。"""
+    """Local taxonomy bundle only. The timeout kwarg is ignored (KAB-60, no download)."""
 
     def __init__(
         self,
         cache_dir: Path | None = None,
         *,
         timeout: float | None = None,
-        ignore_failure: bool = True,
+        ignore_failure: bool = False,
     ):
         super().__init__(cache_dir=cache_dir, ignore_failure=ignore_failure)
-        self.timeout = XBRL_XSD_TIMEOUT if timeout is None else timeout
+        self.timeout = timeout
+
+    def _fetch_url(self, url: str) -> Path:
+        cache_path = self._get_cache_path(url)
+        if cache_path.is_file():
+            return cache_path
+        raise TaxonomyMissingError(url, cache_path)
 
     def _download_file(self, url: str, dest_path: Path) -> None:
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(
-            mode="wb",
-            dir=dest_path.parent,
-            prefix=".download_",
-            suffix=dest_path.suffix,
-            delete=False,
-        ) as tmp_file:
-            tmp_path = Path(tmp_file.name)
-            try:
-                if not url.startswith(("http://", "https://")):
-                    raise ValueError(f"unsupported URL scheme: {url}")
-                with urllib.request.urlopen(url, timeout=self.timeout) as response:  # nosec B310
-                    tmp_file.write(response.read())
-                tmp_path.replace(dest_path)
-            except Exception:
-                tmp_path.unlink(missing_ok=True)
-                raise
+        raise TaxonomyMissingError(url, dest_path)
+
+
+# Process-level caches reused across parse_package() calls (one Parser per filing).
+_SHARED_XSD_CACHE: dict = {}
+_SHARED_LABEL_CACHE: dict[str, list[Label]] = {}
+
+
+def reset_taxonomy_caches() -> None:
+    """Drop in-process XSD / label-linkbase caches (tests)."""
+    _SHARED_XSD_CACHE.clear()
+    _SHARED_LABEL_CACHE.clear()
+
+
+def _iter_labels_cached(parser: Parser) -> Iterator[Label]:
+    """load_labels() but reuse parsed remote label linkbases within this process."""
+    parser._ensure_linkbase_refs()
+    refs = list(parser.linkbase_refs.get("labelLinkbaseRef", []))
+    saved = parser.linkbase_refs
+    try:
+        for ref in refs:
+            href = ref[0]
+            remote = str(href).startswith(("http://", "https://"))
+            if remote and href in _SHARED_LABEL_CACHE:
+                yield from _SHARED_LABEL_CACHE[href]
+                continue
+            parser.linkbase_refs = {"labelLinkbaseRef": [ref]}
+            out = list(parser.load_labels())
+            if remote:
+                _SHARED_LABEL_CACHE[href] = out
+            yield from out
+    finally:
+        parser.linkbase_refs = saved
 
 
 def find_manifest(root: Path) -> Path | None:
@@ -232,7 +261,8 @@ def parse_package(
     discovered = find_ixbrl_files(unpacked)
     manifest = find_manifest(unpacked)
     parser = Parser(
-        file_loader=CachedTimeoutFileLoader(cache_dir=cache_dir, timeout=XBRL_XSD_TIMEOUT),
+        file_loader=CachedTimeoutFileLoader(cache_dir=cache_dir, ignore_failure=False),
+        shared_xsd_cache=_SHARED_XSD_CACHE,
     )
     manifest_files: list[Path] = []
     if manifest is not None:
@@ -260,7 +290,7 @@ def parse_package(
         facts.append(row)
 
     try:
-        for lab in parser.load_labels():
+        for lab in _iter_labels_cached(parser):
             ns = lab.qname.prefix or ""
             local = lab.qname.local_name
             slot = labels.setdefault((ns, local), {})
@@ -268,6 +298,8 @@ def parse_package(
                 slot["label_ja"] = lab.text
             elif lab.lang.startswith("en") and "label_en" not in slot:
                 slot["label_en"] = lab.text
+    except (TaxonomyMissingError, FileNotFoundError):
+        raise
     except Exception:
         pass
 

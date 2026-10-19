@@ -301,7 +301,7 @@ Arelle は 1 ファイル数秒。xbrlp は標準ライブラリのみで iXBRL 
 
 gist は pip パッケージではない。`app/xbrlp/` にソースをコピーする（外部 git submodule は使わない）。
 
-触るのはラッパだけ。gist 本体は改変しない。
+触るのはラッパだけ。gist 本体は改変しない。例外: `app/xbrlp/file_loader.py` は KAB-60 でダウンロードを廃止し、同梱ディレクトリだけを読む。
 
 ```
 app/xbrlp/          # vendored。改変しない
@@ -365,7 +365,7 @@ for lab in parser.load_labels():
 
 第1弾は伝統的 instance `.xbrl` だけしか無い ZIP をパースしない（skipped）。有報を始めるときに拡張する。
 
-タクソノミ XSD は遠隔取得になる。キャッシュは `XBRL_CACHE_DIR`（既定 `/home/stock/r2-share/xbrl/_cache`）。`urlopen` は `XBRL_XSD_TIMEOUT`（既定 8 秒）で打ち切り、失敗しても facts は残す（ラベルだけ欠ける）。
+タクソノミはリポジトリ同梱の `XBRL_CACHE_DIR`（既定 `data/xbrl_taxonomy`）だけを読む。`urlopen` しない。参照ファイルが無い filing は `parse_status='failed'`、ログに欠けた URL/パスを出す。復旧は同梱を足して `xbrl_parse.py --retry-failed`。版は filing の `schemaRef` 等が指すもの（過去年を含む）をすべて残す。走査・同期は `tools/xbrl/taxonomy_bundle.py`。プロセス内では remote の XSD とラベル linkbase を使い回す（`parse_package` の shared cache）。
 
 ### 5.5 コンテキスト解釈
 
@@ -440,7 +440,7 @@ parse ジョブは manifest を入力カタログにする。fetch 側に parse_
 9. 成功なら `parse_status='parsed'`。例外は filing 単位でロールバックし `failed` + 要約トレース。ジョブは止めない。
 10. 再パースは当該 `filing_id` の contexts を DELETE（facts も CASCADE 相当をアプリ側で消す。SQLite で FK が効かないため明示 DELETE）。
 
-レート制限は TDnet に触れないので不要。XSD 取得失敗は filing を failed にしない（facts は schema 無しで取れる）。
+レート制限は TDnet に触れないので不要。同梱に無いタクソノミ URL は filing を `failed` にする（ネットワークには出ない）。`xbrl_parse.py` の `errors=` と cron の非ゼロ終了が既存の Slack バッチアラートに乗る。
 
 ### 6.3 load-mappings
 
@@ -588,9 +588,8 @@ TDnet 短信 ZIP には BS/CF が薄い（PL 中心のサマリ）ものが多�
 
 ```
 XBRL_DEST=/home/stock/r2-share/xbrl
-XBRL_CACHE_DIR=/home/stock/r2-share/xbrl/_cache
+XBRL_CACHE_DIR=data/xbrl_taxonomy
 XBRL_TEXT_MAX_CHARS=1000
-XBRL_XSD_TIMEOUT=8
 ```
 
 `.env.example` にコメントで追記する。必須キーは増やさない。
@@ -605,7 +604,7 @@ XBRL_XSD_TIMEOUT=8
 | トランザクション | filing 単位。部分 fact を残さない |
 | ログ | 既存バッチと同様に stdout。`doc_id` と `code` を含める。JSON 必須にはしない |
 | 依存 | requirements に Arelle / lxml / pyyaml 以外の大型パーサを足さない。YAML は PyYAML を足してよい |
-| 実行環境 | VPS の `.venv`。R2 fuse mount 前提。ローカルは `--dest` で ZIP ディレクトリを指す |
+| 実行環境 | VPS の `.venv`。ZIP は R2 fuse mount 前提。タクソノミはリポジトリ同梱（`XBRL_CACHE_DIR`）。ローカルは `--dest` で ZIP ディレクトリを指す |
 
 ---
 

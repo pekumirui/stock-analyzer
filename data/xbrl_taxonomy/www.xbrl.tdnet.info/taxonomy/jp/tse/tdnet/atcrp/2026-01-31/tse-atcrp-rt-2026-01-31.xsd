@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema targetNamespace="http://www.xbrl.tdnet.info/taxonomy/jp/tse/tdnet/atcrp/2026-01-31/tse-atcrp-rt" attributeFormDefault="unqualified" elementFormDefault="qualified" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:tse-atcrp-rt="http://www.xbrl.tdnet.info/taxonomy/jp/tse/tdnet/atcrp/2026-01-31/tse-atcrp-rt" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xbrli="http://www.xbrl.org/2003/instance">
+  <xsd:annotation>
+    <xsd:appinfo>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_std_ElementsForNotesEtcQuarterlyFinancialStatements" id="rol_std_ElementsForNotesEtcQuarterlyFinancialStatements">
+        <link:definition>010430 日本基準財務諸表注記等タクソノミ 四半期要素</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_NotesQuarterlyConsolidatedBalanceSheetTDnet" id="rol_NotesQuarterlyConsolidatedBalanceSheetTDnet">
+        <link:definition>401030 四半期連結貸借対照表関係 TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_std_NotesQuarterlyConsolidatedBalanceSheetTDnet" id="rol_std_NotesQuarterlyConsolidatedBalanceSheetTDnet">
+        <link:definition>401030 四半期連結貸借対照表関係 TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_NotesQuarterlyBalanceSheetTDnet" id="rol_NotesQuarterlyBalanceSheetTDnet">
+        <link:definition>401060 四半期貸借対照表関係 TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_std_NotesQuarterlyBalanceSheetTDnet" id="rol_std_NotesQuarterlyBalanceSheetTDnet">
+        <link:definition>401060 四半期貸借対照表関係 TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_NotesQuarterlyConsolidatedStatementOfComprehensiveIncomeSingleStatementTDnet" id="rol_NotesQuarterlyConsolidatedStatementOfComprehensiveIncomeSingleStatementTDnet">
+        <link:definition>402030 四半期連結損益及び包括利益計算書関係 TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_std_NotesQuarterlyConsolidatedStatementOfComprehensiveIncomeSingleStatementTDnet" id="rol_std_NotesQuarterlyConsolidatedStatementOfComprehensiveIncomeSingleStatementTDnet">
+        <link:definition>402030 四半期連結損益及び包括利益計算書関係 TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_NotesQuarterlyConsolidatedStatementOfIncomeTDnet" id="rol_NotesQuarterlyConsolidatedStatementOfIncomeTDnet">
+        <link:definition>402130 四半期連結損益計算書関係 TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_std_NotesQuarterlyConsolidatedStatementOfIncomeTDnet" id="rol_std_NotesQuarterlyConsolidatedStatementOfIncomeTDnet">
+        <link:definition>402130 四半期連結損益計算書関係 TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_NotesQuarterlyStatementOfIncomeTDnet" id="rol_NotesQuarterlyStatementOfIncomeTDnet">
+        <link:definition>402160 四半期損益計算書関係 TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_std_NotesQuarterlyStatementOfIncomeTDnet" id="rol_std_NotesQuarterlyStatementOfIncomeTDnet">
+        <link:definition>402160 四半期損益計算書関係 TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_NotesSegmentInformationEtcQuarterlyConsolidatedFinancialStatementsTDnet-01" id="rol_NotesSegmentInformationEtcQuarterlyConsolidatedFinancialStatementsTDnet-01">
+        <link:definition>410030a セグメント情報等、四半期連結財務諸表（単一セグメントである旨） TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_std_NotesSegmentInformationEtcQuarterlyConsolidatedFinancialStatementsTDnet-01" id="rol_std_NotesSegmentInformationEtcQuarterlyConsolidatedFinancialStatementsTDnet-01">
+        <link:definition>410030a セグメント情報等、四半期連結財務諸表（単一セグメントである旨） TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_NotesSegmentInformationEtcQuarterlyConsolidatedFinancialStatementsTDnet-02" id="rol_NotesSegmentInformationEtcQuarterlyConsolidatedFinancialStatementsTDnet-02">
+        <link:definition>410030b セグメント情報等、四半期連結財務諸表（セグメント情報） TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_std_NotesSegmentInformationEtcQuarterlyConsolidatedFinancialStatementsTDnet-02" id="rol_std_NotesSegmentInformationEtcQuarterlyConsolidatedFinancialStatementsTDnet-02">
+        <link:definition>410030b セグメント情報等、四半期連結財務諸表（セグメント情報） TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_NotesSegmentInformationEtcQuarterlyConsolidatedFinancialStatementsTDnet-03" id="rol_NotesSegmentInformationEtcQuarterlyConsolidatedFinancialStatementsTDnet-03">
+        <link:definition>410030c セグメント情報等、四半期連結財務諸表（脚注等） TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_std_NotesSegmentInformationEtcQuarterlyConsolidatedFinancialStatementsTDnet-03" id="rol_std_NotesSegmentInformationEtcQuarterlyConsolidatedFinancialStatementsTDnet-03">
+        <link:definition>410030c セグメント情報等、四半期連結財務諸表（脚注等） TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_NotesSegmentInformationEtcQuarterlyFinancialStatementsTDnet-01" id="rol_NotesSegmentInformationEtcQuarterlyFinancialStatementsTDnet-01">
+        <link:definition>410060a セグメント情報等、四半期財務諸表（単一セグメントである旨） TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_std_NotesSegmentInformationEtcQuarterlyFinancialStatementsTDnet-01" id="rol_std_NotesSegmentInformationEtcQuarterlyFinancialStatementsTDnet-01">
+        <link:definition>410060a セグメント情報等、四半期財務諸表（単一セグメントである旨） TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_NotesSegmentInformationEtcQuarterlyFinancialStatementsTDnet-02" id="rol_NotesSegmentInformationEtcQuarterlyFinancialStatementsTDnet-02">
+        <link:definition>410060b セグメント情報等、四半期財務諸表（セグメント情報） TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_std_NotesSegmentInformationEtcQuarterlyFinancialStatementsTDnet-02" id="rol_std_NotesSegmentInformationEtcQuarterlyFinancialStatementsTDnet-02">
+        <link:definition>410060b セグメント情報等、四半期財務諸表（セグメント情報） TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_NotesSegmentInformationEtcQuarterlyFinancialStatementsTDnet-03" id="rol_NotesSegmentInformationEtcQuarterlyFinancialStatementsTDnet-03">
+        <link:definition>410060c セグメント情報等、四半期財務諸表（脚注等） TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atcrp/rol_std_NotesSegmentInformationEtcQuarterlyFinancialStatementsTDnet-03" id="rol_std_NotesSegmentInformationEtcQuarterlyFinancialStatementsTDnet-03">
+        <link:definition>410060c セグメント情報等、四半期財務諸表（脚注等） TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atcrp/alt/ConsolidatedQuarterlyTDnet/role/label" id="rol_altConsolidatedQuarterlyTDnetLabel">
+        <link:definition>提出者用 四半期連結財務諸表 代替 TDnet 標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atcrp/alt/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_altConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>提出者用 四半期連結財務諸表 代替 TDnet 負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atcrp/alt/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_altConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>提出者用 四半期連結財務諸表 代替 TDnet 期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atcrp/alt/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_altConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>提出者用 四半期連結財務諸表 代替 TDnet 期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atcrp/alt/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_altConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>提出者用 四半期連結財務諸表 代替 TDnet 正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atcrp/alt/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_altConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>提出者用 四半期連結財務諸表 代替 TDnet 合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atcrp/alt/NonConsolidatedQuarterlyTDnet/role/label" id="rol_altNonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>提出者用 四半期財務諸表 代替 TDnet 標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atcrp/alt/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_altNonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>提出者用 四半期財務諸表 代替 TDnet 負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atcrp/alt/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_altNonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>提出者用 四半期財務諸表 代替 TDnet 期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atcrp/alt/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_altNonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>提出者用 四半期財務諸表 代替 TDnet 期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atcrp/alt/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_altNonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>提出者用 四半期財務諸表 代替 TDnet 正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atcrp/alt/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_altNonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>提出者用 四半期財務諸表 代替 TDnet 合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+    </xsd:appinfo>
+  </xsd:annotation>
+</xsd:schema>

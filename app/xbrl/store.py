@@ -51,22 +51,30 @@ def _parse_submitted(raw: str) -> datetime:
     return _now()
 
 
+_ELEMENT_IDS: dict[tuple[str, str], int] = {}
+
+
+def reset_element_id_cache() -> None:
+    """Drop process-level element PK cache (tests recreate the DB)."""
+    _ELEMENT_IDS.clear()
+
+
 def delete_filing_payload(db: Session, filing_id: int) -> None:
-    facts = db.query(XbrlFact).filter_by(filing_id=filing_id).all()
-    for fact in facts:
-        db.delete(fact)
-    ctxs = db.query(XbrlContext).filter_by(filing_id=filing_id).all()
-    for ctx in ctxs:
-        db.delete(ctx)
+    db.query(XbrlFact).filter(XbrlFact.filing_id == filing_id).delete(synchronize_session="fetch")
+    db.query(XbrlContext).filter(XbrlContext.filing_id == filing_id).delete(synchronize_session="fetch")
     db.flush()
 
 
 def upsert_element(db: Session, *, uri: str, key: str, local: str, labels: dict, is_custom: bool, numeric: bool) -> XbrlElement:
-    row = (
-        db.query(XbrlElement)
-        .filter_by(namespace_uri=uri, local_name=local)
-        .one_or_none()
-    )
+    cache_key = (uri, local)
+    cached_id = _ELEMENT_IDS.get(cache_key)
+    row = db.get(XbrlElement, cached_id) if cached_id is not None else None
+    if row is None or row.namespace_uri != uri or row.local_name != local:
+        row = (
+            db.query(XbrlElement)
+            .filter_by(namespace_uri=uri, local_name=local)
+            .one_or_none()
+        )
     if row is None:
         row = XbrlElement(
             namespace_uri=uri,
@@ -84,6 +92,7 @@ def upsert_element(db: Session, *, uri: str, key: str, local: str, labels: dict,
     if row.item_type is None:
         row.item_type = "monetary" if numeric else "string"
     row.is_custom = is_custom
+    _ELEMENT_IDS[cache_key] = row.id
     return row
 
 
@@ -182,7 +191,24 @@ def parse_zip_into_filing(
             submitted_at=filing.submitted_at,
         )
 
+    element_rows: dict[tuple[str, str], XbrlElement] = {}
+    for fact in pkg.facts:
+        el_key = (fact.namespace_uri, fact.local_name)
+        if el_key in element_rows:
+            continue
+        labels = pkg.labels.get((fact.namespace_key, fact.local_name), {})
+        element_rows[el_key] = upsert_element(
+            db,
+            uri=fact.namespace_uri,
+            key=fact.namespace_key,
+            local=fact.local_name,
+            labels=labels,
+            is_custom=not namespace_is_standard(fact.namespace_key, fact.namespace_uri),
+            numeric=fact.is_numeric,
+        )
+
     ctx_rows: dict[str, XbrlContext] = {}
+    ctx_objects: list[XbrlContext] = []
     for ctx in pkg.contexts:
         row = XbrlContext(
             filing_id=filing.id,
@@ -195,25 +221,20 @@ def parse_zip_into_filing(
             dimensions_json=ctx.dimensions_json,
             has_dimensions=ctx.has_dimensions,
         )
-        db.add(row)
-        db.flush()
+        ctx_objects.append(row)
         ctx_rows[ctx.context_ref] = row
+    db.add_all(ctx_objects)
+    db.flush()
 
+    fact_objects: list[XbrlFact] = []
     for fact in pkg.facts:
         ctx = ctx_rows.get(fact.context_ref)
         if ctx is None:
             continue
-        labels = pkg.labels.get((fact.namespace_key, fact.local_name), {})
-        el = upsert_element(
-            db,
-            uri=fact.namespace_uri,
-            key=fact.namespace_key,
-            local=fact.local_name,
-            labels=labels,
-            is_custom=not namespace_is_standard(fact.namespace_key, fact.namespace_uri),
-            numeric=fact.is_numeric,
-        )
-        db.add(XbrlFact(
+        el = element_rows.get((fact.namespace_uri, fact.local_name))
+        if el is None:
+            continue
+        fact_objects.append(XbrlFact(
             filing_id=filing.id,
             element_id=el.id,
             context_id=ctx.id,
@@ -223,6 +244,7 @@ def parse_zip_into_filing(
             value_text=fact.value_text,
             is_nil=fact.is_nil,
         ))
+    db.add_all(fact_objects)
     filing.parse_status = "parsed"
     filing.parse_error = None
     filing.parsed_at = _now()

@@ -1,0 +1,1191 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema targetNamespace="http://www.xbrl.tdnet.info/taxonomy/jp/tse/tdnet/atpfs/2026-01-31/tse-atpfs-rt" attributeFormDefault="unqualified" elementFormDefault="qualified" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:tse-atpfs-rt="http://www.xbrl.tdnet.info/taxonomy/jp/tse/tdnet/atpfs/2026-01-31/tse-atpfs-rt" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xbrli="http://www.xbrl.org/2003/instance">
+  <xsd:annotation>
+    <xsd:appinfo>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_QuarterlyConsolidatedBalanceSheetTDnet" id="rol_QuarterlyConsolidatedBalanceSheetTDnet">
+        <link:definition>310030 四半期連結貸借対照表　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_std_QuarterlyConsolidatedBalanceSheetTDnet" id="rol_std_QuarterlyConsolidatedBalanceSheetTDnet">
+        <link:definition>310030 四半期連結貸借対照表　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_QuarterlyBalanceSheetTDnet" id="rol_QuarterlyBalanceSheetTDnet">
+        <link:definition>310060 四半期貸借対照表　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_std_QuarterlyBalanceSheetTDnet" id="rol_std_QuarterlyBalanceSheetTDnet">
+        <link:definition>310060 四半期貸借対照表　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_std_YearToQuarterEndConsolidatedStatementOfIncomeTDnet" id="rol_std_YearToQuarterEndConsolidatedStatementOfIncomeTDnet">
+        <link:definition>321031 四半期連結損益（及び包括利益）計算書　四半期連結累計期間　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_YearToQuarterEndConsolidatedStatementOfIncomeTDnet" id="rol_YearToQuarterEndConsolidatedStatementOfIncomeTDnet">
+        <link:definition>321031 四半期連結損益（及び包括利益）計算書　四半期連結累計期間　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_QuarterPeriodConsolidatedStatementOfIncomeTDnet" id="rol_QuarterPeriodConsolidatedStatementOfIncomeTDnet">
+        <link:definition>321032 四半期連結損益（及び包括利益）計算書　四半期連結会計期間　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_std_QuarterPeriodConsolidatedStatementOfIncomeTDnet" id="rol_std_QuarterPeriodConsolidatedStatementOfIncomeTDnet">
+        <link:definition>321032 四半期連結損益（及び包括利益）計算書　四半期連結会計期間　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_std_YearToQuarterEndStatementOfIncomeTDnet" id="rol_std_YearToQuarterEndStatementOfIncomeTDnet">
+        <link:definition>321061 四半期損益計算書　四半期累計期間　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_YearToQuarterEndStatementOfIncomeTDnet" id="rol_YearToQuarterEndStatementOfIncomeTDnet">
+        <link:definition>321061 四半期損益計算書　四半期累計期間　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_QuarterPeriodStatementOfIncomeTDnet" id="rol_QuarterPeriodStatementOfIncomeTDnet">
+        <link:definition>321062 四半期損益計算書　四半期会計期間　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_std_QuarterPeriodStatementOfIncomeTDnet" id="rol_std_QuarterPeriodStatementOfIncomeTDnet">
+        <link:definition>321062 四半期損益計算書　四半期会計期間　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_std_YearToQuarterEndConsolidatedStatementOfComprehensiveIncomeTDnet" id="rol_std_YearToQuarterEndConsolidatedStatementOfComprehensiveIncomeTDnet">
+        <link:definition>322031 四半期連結包括利益計算書　四半期連結累計期間　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_YearToQuarterEndConsolidatedStatementOfComprehensiveIncomeTDnet" id="rol_YearToQuarterEndConsolidatedStatementOfComprehensiveIncomeTDnet">
+        <link:definition>322031 四半期連結包括利益計算書　四半期連結累計期間　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_QuarterPeriodConsolidatedStatementOfComprehensiveIncomeTDnet" id="rol_QuarterPeriodConsolidatedStatementOfComprehensiveIncomeTDnet">
+        <link:definition>322032 四半期連結包括利益計算書　四半期連結会計期間　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_std_QuarterPeriodConsolidatedStatementOfComprehensiveIncomeTDnet" id="rol_std_QuarterPeriodConsolidatedStatementOfComprehensiveIncomeTDnet">
+        <link:definition>322032 四半期連結包括利益計算書　四半期連結会計期間　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_QuarterlyConsolidatedStatementOfCashFlows-directTDnet" id="rol_QuarterlyConsolidatedStatementOfCashFlows-directTDnet">
+        <link:definition>341030 四半期連結キャッシュ・フロー計算書　直接法　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_std_QuarterlyConsolidatedStatementOfCashFlows-directTDnet" id="rol_std_QuarterlyConsolidatedStatementOfCashFlows-directTDnet">
+        <link:definition>341030 四半期連結キャッシュ・フロー計算書　直接法　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_QuarterlyStatementOfCashFlows-directTDnet" id="rol_QuarterlyStatementOfCashFlows-directTDnet">
+        <link:definition>341060 四半期キャッシュ・フロー計算書　直接法　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_std_QuarterlyStatementOfCashFlows-directTDnet" id="rol_std_QuarterlyStatementOfCashFlows-directTDnet">
+        <link:definition>341060 四半期キャッシュ・フロー計算書　直接法　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_QuarterlyConsolidatedStatementOfCashFlows-indirectTDnet" id="rol_QuarterlyConsolidatedStatementOfCashFlows-indirectTDnet">
+        <link:definition>342030 四半期連結キャッシュ・フロー計算書　間接法　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_std_QuarterlyConsolidatedStatementOfCashFlows-indirectTDnet" id="rol_std_QuarterlyConsolidatedStatementOfCashFlows-indirectTDnet">
+        <link:definition>342030 四半期連結キャッシュ・フロー計算書　間接法　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_QuarterlyStatementOfCashFlows-indirectTDnet" id="rol_QuarterlyStatementOfCashFlows-indirectTDnet">
+        <link:definition>342060 四半期キャッシュ・フロー計算書　間接法　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atpfs/rol_std_QuarterlyStatementOfCashFlows-indirectTDnet" id="rol_std_QuarterlyStatementOfCashFlows-indirectTDnet">
+        <link:definition>342060 四半期キャッシュ・フロー計算書　間接法　TDnet</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_ConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ConsolidatedQuarterlyTDnet/role/label" id="rol_ConsolidatedQuarterlyTDnetLabel">
+        <link:definition>四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_ConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_ConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_ConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_ConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_ConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ConsolidatedQuarterlyTDnet/role/verboseLabel" id="rol_ConsolidatedQuarterlyTDnetVerboseLabel">
+        <link:definition>四半期連結財務諸表　TDnet　冗長ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_NonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/NonConsolidatedQuarterlyTDnet/role/label" id="rol_NonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_NonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_NonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_NonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_NonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_NonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/NonConsolidatedQuarterlyTDnet/role/verboseLabel" id="rol_NonConsolidatedQuarterlyTDnetVerboseLabel">
+        <link:definition>四半期財務諸表　TDnet　冗長ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/bnk/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_BNKConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>銀行・信託業　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/bnk/ConsolidatedQuarterlyTDnet/role/label" id="rol_BNKConsolidatedQuarterlyTDnetLabel">
+        <link:definition>銀行・信託業　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/bnk/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_BNKConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>銀行・信託業　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/bnk/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_BNKConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>銀行・信託業　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/bnk/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_BNKConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>銀行・信託業　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/bnk/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_BNKConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>銀行・信託業　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/bnk/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_BNKConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>銀行・信託業　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/bnk/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_BNKNonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>銀行・信託業　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/bnk/NonConsolidatedQuarterlyTDnet/role/label" id="rol_BNKNonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>銀行・信託業　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/bnk/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_BNKNonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>銀行・信託業　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/bnk/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_BNKNonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>銀行・信託業　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/bnk/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_BNKNonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>銀行・信託業　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/bnk/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_BNKNonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>銀行・信託業　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/bnk/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_BNKNonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>銀行・信託業　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cmd/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_CMDConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>商品先物取引業　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cmd/ConsolidatedQuarterlyTDnet/role/label" id="rol_CMDConsolidatedQuarterlyTDnetLabel">
+        <link:definition>商品先物取引業　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cmd/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_CMDConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>商品先物取引業　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cmd/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_CMDConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>商品先物取引業　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cmd/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_CMDConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>商品先物取引業　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cmd/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_CMDConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>商品先物取引業　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cmd/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_CMDConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>商品先物取引業　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cmd/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_CMDNonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>商品先物取引業　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cmd/NonConsolidatedQuarterlyTDnet/role/label" id="rol_CMDNonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>商品先物取引業　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cmd/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_CMDNonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>商品先物取引業　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cmd/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_CMDNonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>商品先物取引業　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cmd/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_CMDNonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>商品先物取引業　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cmd/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_CMDNonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>商品先物取引業　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cmd/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_CMDNonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>商品先物取引業　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cna/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_CNAConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>建設保証業　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cna/ConsolidatedQuarterlyTDnet/role/label" id="rol_CNAConsolidatedQuarterlyTDnetLabel">
+        <link:definition>建設保証業　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cna/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_CNAConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>建設保証業　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cna/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_CNAConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>建設保証業　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cna/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_CNAConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>建設保証業　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cna/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_CNAConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>建設保証業　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cna/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_CNAConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>建設保証業　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cna/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_CNANonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>建設保証業　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cna/NonConsolidatedQuarterlyTDnet/role/label" id="rol_CNANonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>建設保証業　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cna/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_CNANonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>建設保証業　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cna/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_CNANonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>建設保証業　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cna/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_CNANonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>建設保証業　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cna/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_CNANonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>建設保証業　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cna/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_CNANonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>建設保証業　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cns/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_CNSConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>建設業　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cns/ConsolidatedQuarterlyTDnet/role/label" id="rol_CNSConsolidatedQuarterlyTDnetLabel">
+        <link:definition>建設業　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cns/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_CNSConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>建設業　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cns/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_CNSConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>建設業　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cns/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_CNSConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>建設業　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cns/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_CNSConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>建設業　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cns/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_CNSConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>建設業　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cns/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_CNSNonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>建設業　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cns/NonConsolidatedQuarterlyTDnet/role/label" id="rol_CNSNonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>建設業　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cns/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_CNSNonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>建設業　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cns/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_CNSNonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>建設業　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cns/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_CNSNonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>建設業　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cns/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_CNSNonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>建設業　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/cns/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_CNSNonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>建設業　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/edu/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_EDUConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>学校法人　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/edu/ConsolidatedQuarterlyTDnet/role/label" id="rol_EDUConsolidatedQuarterlyTDnetLabel">
+        <link:definition>学校法人　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/edu/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_EDUConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>学校法人　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/edu/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_EDUConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>学校法人　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/edu/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_EDUConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>学校法人　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/edu/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_EDUConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>学校法人　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/edu/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_EDUConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>学校法人　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/edu/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_EDUNonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>学校法人　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/edu/NonConsolidatedQuarterlyTDnet/role/label" id="rol_EDUNonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>学校法人　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/edu/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_EDUNonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>学校法人　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/edu/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_EDUNonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>学校法人　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/edu/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_EDUNonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>学校法人　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/edu/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_EDUNonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>学校法人　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/edu/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_EDUNonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>学校法人　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/elc/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_ELCConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>電気通信事業　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/elc/ConsolidatedQuarterlyTDnet/role/label" id="rol_ELCConsolidatedQuarterlyTDnetLabel">
+        <link:definition>電気通信事業　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/elc/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_ELCConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>電気通信事業　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/elc/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_ELCConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>電気通信事業　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/elc/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_ELCConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>電気通信事業　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/elc/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_ELCConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>電気通信事業　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/elc/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_ELCConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>電気通信事業　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/elc/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_ELCNonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>電気通信事業　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/elc/NonConsolidatedQuarterlyTDnet/role/label" id="rol_ELCNonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>電気通信事業　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/elc/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_ELCNonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>電気通信事業　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/elc/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_ELCNonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>電気通信事業　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/elc/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_ELCNonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>電気通信事業　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/elc/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_ELCNonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>電気通信事業　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/elc/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_ELCNonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>電気通信事業　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ele/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_ELEConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>電気事業　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ele/ConsolidatedQuarterlyTDnet/role/label" id="rol_ELEConsolidatedQuarterlyTDnetLabel">
+        <link:definition>電気事業　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ele/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_ELEConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>電気事業　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ele/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_ELEConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>電気事業　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ele/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_ELEConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>電気事業　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ele/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_ELEConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>電気事業　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ele/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_ELEConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>電気事業　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ele/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_ELENonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>電気事業　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ele/NonConsolidatedQuarterlyTDnet/role/label" id="rol_ELENonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>電気事業　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ele/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_ELENonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>電気事業　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ele/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_ELENonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>電気事業　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ele/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_ELENonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>電気事業　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ele/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_ELENonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>電気事業　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ele/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_ELENonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>電気事業　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/gas/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_GASConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>ガス事業　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/gas/ConsolidatedQuarterlyTDnet/role/label" id="rol_GASConsolidatedQuarterlyTDnetLabel">
+        <link:definition>ガス事業　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/gas/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_GASConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>ガス事業　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/gas/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_GASConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>ガス事業　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/gas/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_GASConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>ガス事業　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/gas/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_GASConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>ガス事業　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/gas/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_GASConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>ガス事業　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/gas/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_GASNonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>ガス事業　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/gas/NonConsolidatedQuarterlyTDnet/role/label" id="rol_GASNonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>ガス事業　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/gas/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_GASNonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>ガス事業　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/gas/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_GASNonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>ガス事業　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/gas/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_GASNonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>ガス事業　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/gas/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_GASNonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>ガス事業　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/gas/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_GASNonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>ガス事業　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/hwy/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_HWYConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>高速道路事業　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/hwy/ConsolidatedQuarterlyTDnet/role/label" id="rol_HWYConsolidatedQuarterlyTDnetLabel">
+        <link:definition>高速道路事業　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/hwy/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_HWYConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>高速道路事業　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/hwy/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_HWYConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>高速道路事業　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/hwy/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_HWYConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>高速道路事業　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/hwy/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_HWYConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>高速道路事業　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/hwy/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_HWYConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>高速道路事業　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/hwy/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_HWYNonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>高速道路事業　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/hwy/NonConsolidatedQuarterlyTDnet/role/label" id="rol_HWYNonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>高速道路事業　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/hwy/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_HWYNonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>高速道路事業　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/hwy/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_HWYNonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>高速道路事業　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/hwy/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_HWYNonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>高速道路事業　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/hwy/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_HWYNonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>高速道路事業　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/hwy/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_HWYNonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>高速道路事業　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ins/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_INSConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>保険業　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ins/ConsolidatedQuarterlyTDnet/role/label" id="rol_INSConsolidatedQuarterlyTDnetLabel">
+        <link:definition>保険業　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ins/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_INSConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>保険業　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ins/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_INSConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>保険業　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ins/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_INSConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>保険業　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ins/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_INSConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>保険業　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ins/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_INSConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>保険業　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ins/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_INSNonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>保険業　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ins/NonConsolidatedQuarterlyTDnet/role/label" id="rol_INSNonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>保険業　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ins/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_INSNonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>保険業　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ins/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_INSNonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>保険業　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ins/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_INSNonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>保険業　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ins/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_INSNonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>保険業　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ins/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_INSNonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>保険業　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ivt/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_IVTConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>投資運用業　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ivt/ConsolidatedQuarterlyTDnet/role/label" id="rol_IVTConsolidatedQuarterlyTDnetLabel">
+        <link:definition>投資運用業　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ivt/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_IVTConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>投資運用業　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ivt/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_IVTConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>投資運用業　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ivt/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_IVTConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>投資運用業　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ivt/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_IVTConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>投資運用業　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ivt/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_IVTConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>投資運用業　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ivt/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_IVTNonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>投資運用業　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ivt/NonConsolidatedQuarterlyTDnet/role/label" id="rol_IVTNonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>投資運用業　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ivt/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_IVTNonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>投資運用業　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ivt/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_IVTNonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>投資運用業　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ivt/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_IVTNonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>投資運用業　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ivt/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_IVTNonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>投資運用業　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/ivt/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_IVTNonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>投資運用業　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/lea/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_LEAConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>リース事業　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/lea/ConsolidatedQuarterlyTDnet/role/label" id="rol_LEAConsolidatedQuarterlyTDnetLabel">
+        <link:definition>リース事業　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/lea/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_LEAConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>リース事業　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/lea/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_LEAConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>リース事業　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/lea/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_LEAConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>リース事業　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/lea/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_LEAConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>リース事業　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/lea/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_LEAConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>リース事業　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/lea/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_LEANonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>リース事業　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/lea/NonConsolidatedQuarterlyTDnet/role/label" id="rol_LEANonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>リース事業　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/lea/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_LEANonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>リース事業　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/lea/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_LEANonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>リース事業　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/lea/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_LEANonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>リース事業　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/lea/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_LEANonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>リース事業　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/lea/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_LEANonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>リース事業　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/med/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_MEDConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>社会医療法人　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/med/ConsolidatedQuarterlyTDnet/role/label" id="rol_MEDConsolidatedQuarterlyTDnetLabel">
+        <link:definition>社会医療法人　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/med/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_MEDConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>社会医療法人　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/med/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_MEDConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>社会医療法人　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/med/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_MEDConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>社会医療法人　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/med/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_MEDConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>社会医療法人　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/med/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_MEDConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>社会医療法人　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/med/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_MEDNonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>社会医療法人　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/med/NonConsolidatedQuarterlyTDnet/role/label" id="rol_MEDNonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>社会医療法人　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/med/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_MEDNonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>社会医療法人　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/med/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_MEDNonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>社会医療法人　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/med/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_MEDNonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>社会医療法人　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/med/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_MEDNonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>社会医療法人　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/med/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_MEDNonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>社会医療法人　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/rwy/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_RWYConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>鉄道事業　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/rwy/ConsolidatedQuarterlyTDnet/role/label" id="rol_RWYConsolidatedQuarterlyTDnetLabel">
+        <link:definition>鉄道事業　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/rwy/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_RWYConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>鉄道事業　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/rwy/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_RWYConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>鉄道事業　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/rwy/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_RWYConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>鉄道事業　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/rwy/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_RWYConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>鉄道事業　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/rwy/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_RWYConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>鉄道事業　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/rwy/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_RWYNonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>鉄道事業　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/rwy/NonConsolidatedQuarterlyTDnet/role/label" id="rol_RWYNonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>鉄道事業　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/rwy/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_RWYNonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>鉄道事業　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/rwy/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_RWYNonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>鉄道事業　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/rwy/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_RWYNonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>鉄道事業　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/rwy/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_RWYNonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>鉄道事業　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/rwy/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_RWYNonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>鉄道事業　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/sec/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_SECConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>第一種金融商品取引業　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/sec/ConsolidatedQuarterlyTDnet/role/label" id="rol_SECConsolidatedQuarterlyTDnetLabel">
+        <link:definition>第一種金融商品取引業　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/sec/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_SECConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>第一種金融商品取引業　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/sec/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_SECConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>第一種金融商品取引業　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/sec/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_SECConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>第一種金融商品取引業　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/sec/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_SECConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>第一種金融商品取引業　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/sec/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_SECConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>第一種金融商品取引業　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/sec/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_SECNonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>第一種金融商品取引業　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/sec/NonConsolidatedQuarterlyTDnet/role/label" id="rol_SECNonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>第一種金融商品取引業　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/sec/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_SECNonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>第一種金融商品取引業　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/sec/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_SECNonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>第一種金融商品取引業　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/sec/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_SECNonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>第一種金融商品取引業　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/sec/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_SECNonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>第一種金融商品取引業　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/sec/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_SECNonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>第一種金融商品取引業　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/spf/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_SPFConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>特定金融業　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/spf/ConsolidatedQuarterlyTDnet/role/label" id="rol_SPFConsolidatedQuarterlyTDnetLabel">
+        <link:definition>特定金融業　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/spf/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_SPFConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>特定金融業　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/spf/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_SPFConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>特定金融業　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/spf/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_SPFConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>特定金融業　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/spf/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_SPFConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>特定金融業　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/spf/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_SPFConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>特定金融業　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/spf/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_SPFNonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>特定金融業　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/spf/NonConsolidatedQuarterlyTDnet/role/label" id="rol_SPFNonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>特定金融業　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/spf/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_SPFNonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>特定金融業　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/spf/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_SPFNonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>特定金融業　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/spf/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_SPFNonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>特定金融業　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/spf/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_SPFNonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>特定金融業　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/spf/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_SPFNonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>特定金融業　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/wat/ConsolidatedQuarterlyTDnet/role/documentation" id="rol_WATConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>海運事業　四半期連結財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/wat/ConsolidatedQuarterlyTDnet/role/label" id="rol_WATConsolidatedQuarterlyTDnetLabel">
+        <link:definition>海運事業　四半期連結財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/wat/ConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_WATConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>海運事業　四半期連結財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/wat/ConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_WATConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>海運事業　四半期連結財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/wat/ConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_WATConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>海運事業　四半期連結財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/wat/ConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_WATConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>海運事業　四半期連結財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/wat/ConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_WATConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>海運事業　四半期連結財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/wat/NonConsolidatedQuarterlyTDnet/role/documentation" id="rol_WATNonConsolidatedQuarterlyTDnetDocumentation">
+        <link:definition>海運事業　四半期財務諸表　TDnet　ドキュメンテーション</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/wat/NonConsolidatedQuarterlyTDnet/role/label" id="rol_WATNonConsolidatedQuarterlyTDnetLabel">
+        <link:definition>海運事業　四半期財務諸表　TDnet　標準ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/wat/NonConsolidatedQuarterlyTDnet/role/negativeLabel" id="rol_WATNonConsolidatedQuarterlyTDnetNegativeLabel">
+        <link:definition>海運事業　四半期財務諸表　TDnet　負値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/wat/NonConsolidatedQuarterlyTDnet/role/periodEndLabel" id="rol_WATNonConsolidatedQuarterlyTDnetPeriodEndLabel">
+        <link:definition>海運事業　四半期財務諸表　TDnet　期末ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/wat/NonConsolidatedQuarterlyTDnet/role/periodStartLabel" id="rol_WATNonConsolidatedQuarterlyTDnetPeriodStartLabel">
+        <link:definition>海運事業　四半期財務諸表　TDnet　期首ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/wat/NonConsolidatedQuarterlyTDnet/role/positiveLabel" id="rol_WATNonConsolidatedQuarterlyTDnetPositiveLabel">
+        <link:definition>海運事業　四半期財務諸表　TDnet　正値ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/atpfs/wat/NonConsolidatedQuarterlyTDnet/role/totalLabel" id="rol_WATNonConsolidatedQuarterlyTDnetTotalLabel">
+        <link:definition>海運事業　四半期財務諸表　TDnet　合計ラベル</link:definition>
+        <link:usedOn>link:label</link:usedOn>
+      </link:roleType>
+    </xsd:appinfo>
+  </xsd:annotation>
+</xsd:schema>

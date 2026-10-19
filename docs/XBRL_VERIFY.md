@@ -30,7 +30,7 @@ python tools/xbrl/copy_stocks_for_verify.py --from /path/to/stock.db --to /absol
 # 例: rsync -a /home/stock/r2-share/xbrl/ /tmp/xbrl-verify-dest/
 ```
 
-XSD キャッシュは `XBRL_CACHE_DIR`（既定は R2 配下）。手元だけなら別ディレクトリを指してよい。
+タクソノミは `XBRL_CACHE_DIR`（既定はリポジトリの `data/xbrl_taxonomy`）。ネットワークには出ない。手元で別ディレクトリを指してもよい。投入は `tools/xbrl/taxonomy_bundle.py`。
 
 ## コマンド列（parse → normalize → 一致率）
 
