@@ -1,0 +1,3 @@
+# boxro の authorized_keys。1行1鍵。各行の先頭は restrict。
+# provision.sh が /etc/ssh/authorized_keys/boxro へ同期する（root:root、644）。
+restrict ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAX/NTi1DbHtuQxf4Oig6cjtn2MzcHqMlsShA92t0LkI grokbot-box-vps-ro

@@ -87,6 +87,32 @@ Host stock-vps-root
 
 `ssh stock-vps` / `ssh stock-vps-root`。GitHub Actions のデプロイ鍵は従来どおり `stock` の `authorized_keys` だけ。
 
+## box からの読み取り専用 SFTP（boxro）
+
+box エージェントはユーザ `boxro` で sftp するだけ（シェルもポート転送も不可）。chroot は `/srv/boxro`。`provision.sh` が冪等に揃える。
+
+見えるもの:
+
+| chroot 内 | 実体 |
+|---|---|
+| `/data` | `$APP_DIR/data`（`xbrl_golden` / `xbrl_taxonomy`） |
+| `/logs` | `/var/log/app` |
+
+見せない: `stock.db`、`.env`、`/home/stock/backups`、R2 FUSE（`/home/stock/r2-share`）。将来 R2 を VPS ローカルに移したら、そのフォルダの bind を 1 行足す。今の FUSE は bind しない。
+
+公開鍵は `deploy/ssh/boxro_authorized_keys`（1行1鍵、先頭 `restrict`）。provision が `/etc/ssh/authorized_keys/boxro`（root:root、644）へ同期する。鍵を足すときはそのファイルに行を足してデプロイ。`/etc/ssh/sshd_config.d/90-boxro.conf` が変わったときだけ `sshd -t && systemctl reload ssh`。`sshd -t` が失敗したら drop-in を戻して provision を止める。restart はしない。既存の stock / root / デプロイ鍵には触らない。
+
+元に戻す（root）:
+
+```bash
+rm -f /etc/ssh/sshd_config.d/90-boxro.conf /etc/ssh/authorized_keys/boxro
+sshd -t && systemctl reload ssh
+umount /srv/boxro/data /srv/boxro/logs
+# /etc/fstab の /srv/boxro/data と /srv/boxro/logs の 2 行を消す
+userdel boxro
+rmdir /srv/boxro/data /srv/boxro/logs /srv/boxro
+```
+
 失敗したデプロイのやり直しは Actions の **Run workflow**（`bump: none`）。
 
 ## ログ MCP（Grok）
