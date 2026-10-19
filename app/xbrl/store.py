@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import traceback
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.config import XBRL_CACHE_DIR, XBRL_TEXT_MAX_CHARS
 from app.models import Stock, XbrlContext, XbrlElement, XbrlFact, XbrlFiling
 from app.xbrl.context import classify_title, infer_accounting_standard_from_namespaces
-from app.xbrl.parser import extract_zip, namespace_is_standard, parse_package
+from app.xbrl.parser import ParsedPackage, extract_zip, namespace_is_standard, parse_package
 
 
 def inherit_accounting_standard_from_prior_filings(
@@ -125,6 +125,30 @@ def upsert_elements(db: Session, wanted: dict[tuple[str, str], dict]) -> dict[tu
     return ids
 
 
+def parse_zip(
+    zip_path: Path,
+    *,
+    title: str,
+    submitted_at: str,
+    cache_dir: Path | None = None,
+    text_max: int | None = None,
+) -> ParsedPackage:
+    """ZIP → ParsedPackage. No DB, so it also runs in parse workers (KAB-63)."""
+    cache = Path(cache_dir or XBRL_CACHE_DIR)
+    limit = XBRL_TEXT_MAX_CHARS if text_max is None else text_max
+    with TemporaryDirectory(prefix="xbrl-parse-") as tmp:
+        unpacked = extract_zip(zip_path, Path(tmp) / "unpacked")
+        # Always resolve 本表の期末 from package contents (ignore stale column).
+        return parse_package(
+            unpacked,
+            cache_dir=cache,
+            text_max=limit,
+            fiscal_year_end=None,
+            title=title,
+            exclude_dates={_parse_submitted(submitted_at).date()},
+        )
+
+
 def parse_zip_into_filing(
     db: Session,
     *,
@@ -137,7 +161,9 @@ def parse_zip_into_filing(
     submitted_at: str,
     cache_dir: Path | None = None,
     text_max: int | None = None,
+    package: ParsedPackage | BaseException | None = None,
 ) -> XbrlFiling:
+    """``package``: a parse_zip() result (or its exception) from a worker. None parses here."""
     stock = db.get(Stock, code)
     if stock is None:
         raise ValueError(f"NOT_IN_MASTER {code}")
@@ -172,23 +198,18 @@ def parse_zip_into_filing(
     db.flush()
 
     delete_filing_payload(db, filing.id)
-    cache = Path(cache_dir or XBRL_CACHE_DIR)
-    limit = XBRL_TEXT_MAX_CHARS if text_max is None else text_max
     try:
-        with TemporaryDirectory(prefix="xbrl-parse-") as tmp:
-            unpacked = extract_zip(zip_path, Path(tmp) / "unpacked")
-            exclude: set[date] = set()
-            if filing.submitted_at is not None:
-                exclude.add(filing.submitted_at.date())
-            # Always resolve 本表の期末 from package contents (ignore stale column).
-            pkg = parse_package(
-                unpacked,
-                cache_dir=cache,
-                text_max=limit,
-                fiscal_year_end=None,
+        if isinstance(package, BaseException):
+            raise package
+        if package is None:
+            package = parse_zip(
+                zip_path,
                 title=title,
-                exclude_dates=exclude or None,
+                submitted_at=submitted_at,
+                cache_dir=cache_dir,
+                text_max=text_max,
             )
+        pkg = package
     except ValueError as exc:
         if str(exc) == "no-ixbrl":
             filing.parse_status = "skipped"

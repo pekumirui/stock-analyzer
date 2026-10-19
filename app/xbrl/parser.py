@@ -88,6 +88,10 @@ class TaxonomyMissingError(FileNotFoundError):
         extra = f" (looked in {cache_path})" if cache_path is not None else ""
         super().__init__(f"taxonomy not in bundle: {url}{extra}")
 
+    def __reduce__(self):
+        # Rebuild from url/path so the message survives the trip back from a parse worker.
+        return (type(self), (self.url, self.cache_path))
+
 
 class CachedTimeoutFileLoader(FileLoader):
     """Local taxonomy bundle only. The timeout kwarg is ignored (KAB-60, no download)."""

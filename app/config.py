@@ -55,6 +55,8 @@ XBRL_DEST = os.getenv("XBRL_DEST", "/home/stock/r2-share/xbrl")
 # Local taxonomy bundle (KAB-60). Never downloaded at parse time.
 XBRL_CACHE_DIR = os.getenv("XBRL_CACHE_DIR", str(BASE_DIR / "data" / "xbrl_taxonomy"))
 XBRL_TEXT_MAX_CHARS = int(os.getenv("XBRL_TEXT_MAX_CHARS", "1000"))
+# xbrl_parse の ZIP 解析プロセス数（KAB-63）。DB 書き込みは親 1 本。1 で直列
+XBRL_PARSE_WORKERS = int(os.getenv("XBRL_PARSE_WORKERS", "2"))
 # Unused since KAB-60 (no urlopen). Kept so existing .env still loads.
 XBRL_XSD_TIMEOUT = float(os.getenv("XBRL_XSD_TIMEOUT", "8"))
 
