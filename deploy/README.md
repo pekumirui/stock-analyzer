@@ -97,7 +97,7 @@ box エージェントはユーザ `boxro` で sftp するだけ（シェルも�
 |---|---|
 | `/data` | `$APP_DIR/data`（`xbrl_golden` / `xbrl_taxonomy`） |
 
-見せない: `/var/log/app`（ログは MCP の `app_logs` / `batch_logs` と `fs_*`）、`stock.db`、`.env`、`/home/stock/backups`、R2 FUSE（`/home/stock/r2-share`）。将来 R2 を VPS ローカルに移したら、そのフォルダの bind を 1 行足す。今の FUSE は bind しない。既存ホストに `/srv/boxro/logs` の bind が残っていれば provision が umount し、fstab のその 1 行だけ消して空なら rmdir する（`/var/log/app` の中身は触らない）。
+見せない: `/var/log/app`（ログは MCP の `app_logs` / `batch_logs` と `fs_*`）、`stock.db`、`.env`、`/home/stock/backups`、R2 FUSE（`/home/stock/r2-share`）。`data/` は既に bind しているので、`data/monthly` と `data/xbrl` は boxro から見える。FUSE は bind しない。既存ホストに `/srv/boxro/logs` の bind が残っていれば provision が umount し、fstab のその 1 行だけ消して空なら rmdir する（`/var/log/app` の中身は触らない）。
 
 公開鍵は `deploy/ssh/boxro_authorized_keys`（1行1鍵、先頭 `restrict`）。provision が `/etc/ssh/authorized_keys/boxro`（root:root、644）へ同期する。鍵を足すときはそのファイルに行を足してデプロイ。`/etc/ssh/sshd_config.d/90-boxro.conf` が変わったときだけ `sshd -t && systemctl reload ssh`。`sshd -t` が失敗したら drop-in を戻す。restart はしない。boxro の失敗は stderr に出すが、アプリの provision（systemd / nginx / crontab）は続ける。既存の stock / root / デプロイ鍵には触らない。
 
@@ -198,7 +198,20 @@ MCP 自体が死んだときの退避路は Actions の **Debug VPS**。
 VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount する。
 ユーザ `stock`、`loginctl enable-linger stock` でログアウト・再起動後も残る。systemd ユニットは `deploy/r2-share.service`（秘密情報は含まない）。`Restart=always` / `RestartSec=5` で rclone プロセスが落ちたら付け直す。プロセスが残ったまま FUSE だけ切れる場合は `r2-share-watch.timer`（5 分ごと）が `/proc/mounts` と `ls` を見て `r2-share.service` を restart する。デプロイ（`provision.sh` → `r2-share-apply.sh`）はユニット / `rclone.conf` / watch の内容ハッシュが変わったときだけ daemon-reload し、**マウント unit か rclone.conf が変わったときだけ** `r2-share.service` を restart する。同じなら動いているマウントには触らない。ジョブ側の打ち切りは `DESIGN.md` §3。
 
-見える場所:
+ジョブが `--dest` を省略したときの保存先はリポジトリの `data/` である。接頭辞はバケットと同じで、`monthly`、`xbrl`、`inventory`、`stats`。`SHARE_ROOT` を置くとその直下になる。マウントと `r2-share-watch.timer` は切り替えのあいだ残す。
+
+### data/ へのコピー
+
+マージ後、10:30–12:00 JST（IR HTML ingest のあと、XBRL 12:00 の前）か、デプロイ直後で次の書き込みジョブの前に、ユーザ `stock` で一度だけ実行する。マウントと `r2-share-watch.timer` は上げたままにする。R2 のオブジェクトは消さない。dest が FUSE 上だと exit 2。中身が違う dest は `--force` なしでは触らず exit 1。
+
+```bash
+cd /home/stock/stock-analyzer
+.venv/bin/python jobs/ops/migrate_r2_share.py
+```
+
+終了コードが 0 なら、コピー対象の src は dest にあり sha256 が一致している。コピー対象の件数は `files_src` から `skipped_cache` を引いた数で、その数が `files_dest_copied_this_run` と `files_skipped_identical` の和と一致する。2 回目は `files_dest_copied_this_run=0` で終了コード 0。`xbrl/_cache` は既定ではコピーしない。
+
+マウント上と `data/` の接頭辞:
 
 - `monthly/{code}/YYYYMMDD_CODE_….pdf|xlsx|xls|html`（`{code}` は TDnet の発行体コードそのまま。9279 / 262A。J-Quants 5桁にはしない）
 - `xbrl/{code4}/…zip` と `xbrl/_unmatched/`
@@ -237,10 +250,10 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 
 読み取り専用。`.venv` の `pip freeze`、`dpkg-query -W`（全パッケージ。nginx / openssh-server / openssl / certbot / python3 / fluent-bit / fuse3 / ufw は必ず行に出す）、`uname -r`、`/etc/os-release`、`rclone version` をプレーンテキスト 1 ファイルにまとめる。先頭は JST の `generated-at` と hostname。無いコマンドは `not installed` で、ジョブ自体は落とさない。環境変数・鍵・`rclone.conf` は書かない。
 
-保存先は rclone mount の `inventory/`（bucket `share`）:
+保存先は `data/inventory/`。
 
-- `inventory/vps-packages.txt`（毎回上書き）
-- `inventory/history/vps-packages-YYYYMMDD.txt`（同日の再実行は上書き）
+- `data/inventory/vps-packages.txt`（毎回上書き）
+- `data/inventory/history/vps-packages-YYYYMMDD.txt`（同日の再実行は上書き）
 
 失敗時は他ジョブと同じく `deploy/cron-run.sh` が `fail cron … exit=` を `/var/log/app/vps_packages_r2.log` に書き、fluent-bit が page する。
 
@@ -264,9 +277,9 @@ tail /var/log/app/backup_db.log
 
 ### TDnet 月次 PDF の未投入レポート（読み取り専用）
 
-前回と同じ書式の PDF は次の節の cron が入れる。残りは MCP `monthly_ingest` の手作業。R2 の PDF と `monthly_values` の差は、VPS 上のスクリプトで見る（MCP ツールは足さない。cron にも載せない）。
+前回と同じ書式の PDF は次の節の cron が入れる。残りは MCP `monthly_ingest` の手作業。`data/monthly` の PDF と `monthly_values` の差は、VPS 上のスクリプトで見る（MCP ツールは足さない。cron にも載せない）。
 
-ユーザ `stock` で。SQLite は `mode=ro`。R2 mount にも DB にも書かない。
+ユーザ `stock` で。SQLite は `mode=ro`。dest にも DB にも書かない。
 
 ```bash
 cd /home/stock/stock-analyzer
@@ -275,7 +288,7 @@ cd /home/stock/stock-analyzer
 .venv/bin/python tools/monthly/tdnet_monthly_pending.py --code 9279 --json
 ```
 
-既定の dest は `jobs/monthly/tdnet_monthly_r2.py` と同じ `/home/stock/r2-share/monthly`。DB は `DATABASE_URL`（無ければリポジトリの `stock.db`）。上書きは `--dest` と `--db`。
+既定の dest は `jobs/monthly/tdnet_monthly_r2.py` と同じ `data/monthly`。DB は `DATABASE_URL`（無ければリポジトリの `stock.db`）。上書きは `--dest` と `--db`。
 
 列:
 

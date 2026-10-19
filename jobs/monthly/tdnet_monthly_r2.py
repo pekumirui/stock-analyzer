@@ -1,4 +1,4 @@
-"""TDnet の月次PDFを Cloudflare R2 mount へ保存する。
+"""TDnet の月次PDFを data/monthly へ保存する。
 
 使い方:
   python jobs/monthly/tdnet_monthly_r2.py 1
@@ -32,8 +32,9 @@ from jobs._r2common import (  # noqa: E402
     sanitize_filename_part,
     yyyymmdd_from_pubdate,
 )
+from jobs.share_paths import share_path  # noqa: E402
 
-DEFAULT_DEST = "/home/stock/r2-share/monthly"
+DEFAULT_DEST = str(share_path("monthly"))
 LIST_BASE = "https://webapi.yanoshin.jp/webapi/tdnet/list"
 PDF_BASE = "https://www.release.tdnet.info/inbs"
 USER_AGENT = "stock-analyzer-tdnet-monthly/1.0"
@@ -349,7 +350,7 @@ def run(days: int, dest: Path) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Fetch TDnet monthly PDFs into R2 mount")
+    ap = argparse.ArgumentParser(description="Fetch TDnet monthly PDFs into data/monthly")
     ap.add_argument("days", type=int, help="days back from today JST (inclusive)")
     ap.add_argument("--dest", default=DEFAULT_DEST, help="destination directory")
     args = ap.parse_args(argv)

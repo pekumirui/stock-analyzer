@@ -1,11 +1,11 @@
-"""VPS のパッケージ/バージョン一覧を R2 mount へ書く。
+"""VPS のパッケージ/バージョン一覧を data/inventory へ書く。
 
 使い方:
   python jobs/ops/vps_packages_r2.py
   python jobs/ops/vps_packages_r2.py --dest /tmp/inventory
 
 読み取り専用。秘密情報は書かない。無いコマンドは not installed。
-ネットワークと app/ は使わない。R2 へは既存の rclone mount にファイルを書く。
+ネットワークと app/ は使わない。
 """
 from __future__ import annotations
 
@@ -23,10 +23,11 @@ from zoneinfo import ZoneInfo
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from jobs._r2common import MountDisconnected, fail_if_mount_down  # noqa: E402
+from jobs.share_paths import share_path  # noqa: E402
 
 JST = ZoneInfo("Asia/Tokyo")
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_DEST = "/home/stock/r2-share/inventory"
+DEFAULT_DEST = str(share_path("inventory"))
 LATEST_NAME = "vps-packages.txt"
 OS_RELEASE_PATH = Path("/etc/os-release")
 CMD_TIMEOUT_SEC = 60.0

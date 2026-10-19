@@ -42,3 +42,7 @@ sudo systemctl start stock-analyzer stock-analyzer-mcp
 ```
 
 戻したファイルで `PRAGMA quick_check` が `ok` であることを確認してからアプリを付ける。ダメなら `stock.db.bak-*` に戻す。
+
+## 取得ファイルの控え
+
+月次の PDF、XBRL の ZIP、経産省の Excel は、以前は R2 の bucket `share` が VPS の外の控えだった。マウントは `/home/stock/r2-share`。切り替えのあと、R2 はその時点の複製として残す。オブジェクトは消さない。新しいファイルは VPS の `data/` にだけ書く。あとから外へ戻すときは `rclone copy` で `data/` を `r2:share` へ送る。copy だけにする。delete はしない。その cron はまだ入れない。

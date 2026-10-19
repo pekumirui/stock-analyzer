@@ -429,7 +429,11 @@ def test_manifest_skip_by_xbrl_id(tmp: Path) -> None:
 
 
 def test_default_dest_shares_xbrl_dest() -> None:
-    want = "/home/stock/r2-share/xbrl"
+    from jobs.share_paths import share_path
+
+    want = str(share_path("xbrl"))
+    if "data/xbrl" not in want:
+        _fail(f"xbrl dest not under data: {want}")
     if xbrl_mod.DEFAULT_DEST != want:
         _fail(f"DEFAULT_DEST {xbrl_mod.DEFAULT_DEST!r} != {want}")
     if XBRL_DEST != want:

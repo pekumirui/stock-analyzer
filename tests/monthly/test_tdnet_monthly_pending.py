@@ -275,7 +275,7 @@ def test_default_dest_reuses_tdnet_job() -> None:
 
     if pending.DEFAULT_DEST != DEFAULT_DEST:
         _fail("must reuse tdnet_monthly_r2.DEFAULT_DEST")
-    if pending.DEFAULT_DEST != "/home/stock/r2-share/monthly":
+    if "data/monthly" not in pending.DEFAULT_DEST:
         _fail(f"unexpected dest {pending.DEFAULT_DEST}")
 
 

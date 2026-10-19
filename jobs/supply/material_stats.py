@@ -5,10 +5,10 @@
   python jobs/supply/material_stats.py --years 2021-2026  # e-Stat の年を指定（初回）
   python jobs/supply/material_stats.py --source meti      # meti / estat の片方だけ
   python jobs/supply/material_stats.py --source meti --refetch  # 取り込み済みの年報も経産省から落とし直す（正誤訂正のとき）
-  python jobs/supply/material_stats.py --source meti --reread   # 取り込み済みの年報も R2 の控えから読み直す（対応表を変えたとき）
+  python jobs/supply/material_stats.py --source meti --reread   # 取り込み済みの年報も data/stats/meti の控えから読み直す（対応表を変えたとき）
   python jobs/supply/material_stats.py --only trade       # seidou（生産動態）/ sekiyu（石油統計）/ trade（貿易）のどれかだけ
 
-経産省の Excel は R2（/home/stock/r2-share/stats/meti/{seidou,sekiyu}/）に控えを残し、変わらないファイルは控えから読む。
+経産省の Excel は data/stats/meti/{seidou,sekiyu}/ に控えを残し、変わらないファイルは控えから読む。
 
 e-Stat は ESTAT_APP_ID が無ければ飛ばす。経産省 Excel はキー不要。設計は DESIGN.md §3「素材の月次量」。
 """
@@ -24,7 +24,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from jobs._r2common import MountDisconnected, check_r2_mount, r2_share_root  # noqa: E402
+from jobs._r2common import MountDisconnected, check_r2_mount  # noqa: E402
+from jobs.share_paths import share_path  # noqa: E402
 
 from app.config import (  # noqa: E402
     ESTAT_APP_ID, METI_FAIL_PAGE_DAYS, METI_SEIDOU_URL, METI_SEKIYU_KAKUHO_URL, METI_SEKIYU_SOKUHO_URL,
@@ -95,10 +96,10 @@ def sekiyu_done(db, items: list[dict], files: list) -> set[str]:
 
 
 class MetiArchive:
-    """経産省 Excel の控え（R2 の stats/meti/<kind>/<ファイル名>）。検証と再投入に使い、変わらないファイルは落とし直さない。
+    """経産省 Excel の控え（data/stats/meti/<kind>/<ファイル名>）。検証と再投入に使い、変わらないファイルは落とし直さない。
 
     中身が同じなら書かない。同じ名前で中身が変わったら（正誤訂正）<名前>_YYYYMMDD で別に残し、前のものは消さない。
-    R2 が使えなければ控えなしで取り込む（取り込みは止めない）。
+    控えのディレクトリが使えなければ控えなしで取り込む（取り込みは止めない）。
     """
 
     def __init__(self, root: Path | None) -> None:
@@ -106,7 +107,7 @@ class MetiArchive:
 
     @classmethod
     def open(cls) -> MetiArchive:
-        root = r2_share_root() / "stats" / "meti"
+        root = share_path("stats") / "meti"
         try:
             check_r2_mount(root, require_existing=False, retries=0)
             root.mkdir(parents=True, exist_ok=True)

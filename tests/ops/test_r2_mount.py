@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests" / "monthly"))
 
+from jobs.share_paths import share_path  # noqa: E402
 from jobs._r2common import (  # noqa: E402
     MOUNT_RETRIES,
     MOUNT_RETRY_WAIT_SEC,
@@ -70,6 +71,9 @@ def test_path_on_r2_share() -> None:
         _fail("prefix sibling must not match")
     if r2_share_root("/opt/r2") != Path("/opt/r2"):
         _fail("explicit root")
+    data_monthly = share_path("monthly", environ={})
+    if path_on_r2_share(data_monthly, root):
+        _fail(f"data dest must not be fuse: {data_monthly}")
 
 
 def test_r2_mount_in_proc() -> None:

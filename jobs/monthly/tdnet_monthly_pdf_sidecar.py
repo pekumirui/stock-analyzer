@@ -10,7 +10,7 @@
    同じ行を読んで sidecar を書く。重なる月は DB の値と突き合わせる
 
 指紋が違う・DB の行を全部は再現できない・重なる月が食い違う PDF は書かない（人が入れる）。
-理由は `manual` の行に出す。R2 の PDF は読むだけ。DB は sqlite の mode=ro。ネットワークには出ない。
+理由は `manual` の行に出す。PDF は `data/monthly` を読むだけ。DB は sqlite の mode=ro。ネットワークには出ない。
 
   python jobs/monthly/tdnet_monthly_pdf_sidecar.py
   python jobs/monthly/tdnet_monthly_pdf_sidecar.py --only 428A --dry-run
@@ -1005,7 +1005,7 @@ def run(
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Write .pdf-ingest.json for TDnet monthly PDFs in last month's format")
-    ap.add_argument("--dest", default=DEFAULT_DEST, help=f"R2 monthly directory (default {DEFAULT_DEST})")
+    ap.add_argument("--dest", default=DEFAULT_DEST, help=f"monthly directory (default {DEFAULT_DEST})")
     ap.add_argument("--db", default=None, help="sqlite file (default DATABASE_URL / repo stock.db)")
     ap.add_argument("--only", action="append", default=[], help="issuer code (4 or 5 char; repeatable)")
     ap.add_argument("--dry-run", action="store_true", help="print plans, do not write sidecars")

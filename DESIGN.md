@@ -223,14 +223,14 @@ ingest / POST は `canonicalize_element_label` してから既存行を探す。
 
 ingest が新しい行を作るとき、同じ (code, year) に `strip_yoy_fragments` 後の名前が同じで unit が yoy と number で違う既存行があり、その既存行が今回の `rows` に無いなら 409 `YOY_NUMBER_CONFLICT`。`force=true` で作る。同じ POST に両方あるときは作る（実数と前年比の併存）。既にある行の更新は対象外。`POST .../elements` はこの検査をしない。
 
-**R2 への保存（月次 `jobs/*_r2.py`）。** 保存先は `/home/stock/r2-share/monthly/{code}/`。cron と運用は `deploy/README.md`。共通の約束は次のとおり。
+**月次ファイルの保存（`jobs/*_r2.py`）。** 保存先はリポジトリの `data/monthly/{code}/`。`SHARE_ROOT` を置くと、その直下の `monthly/{code}/` になる。cron と運用は `deploy/README.md`。共通の約束は次のとおり。
 
 - `{code}` は TDnet の発行体コードそのまま（9279 / 262A）。J-Quants 5 桁にしない。stocks 照合だけ display_code + 末尾 0（9282→92820, 262A→262A0）
 - stocks に無いコードはダウンロードしない。DB が読めない／map が空なら警告のみで継続
 - 既存ファイルは消さない。IR（PDF/xlsx/HTML）は同じ URL の上書き公開を日付付きで残し、中身の sha256 が同じなら skip
 - 3 本のバッチ（TDnet PDF / IR PDF・xlsx / IR HTML）の cron は分ける
 - 日付・HTTP・銘柄マスタ・ファイル名の共通処理は `jobs/_r2common.py`（`app` は import しない）。`http_get` は TDnet も IR も同じ。識別 UA はジョブごとで、403 のときだけブラウザ UA に一度切り替え、中間証明書の欠落は AIA で補う。429 / 408 / 5xx は Retry-After があればそれに従い（最大 60 秒）、無ければ指数バックオフ＋jitter（5→10→20→40→60 秒、最大 6 回）。打ち切ったら例外を上げる。発行体ログは原則 `fail issuer {code} fetch:`（IR HTML の 429 だけ下の例外）
-- rclone FUSE（`/home/stock/r2-share`）が切れたら各社 `fail` を並べない。開始時と処理中に dest を probe し、ECONNABORTED / ENOTCONN / ESTALE / ルート消失なら `RestartSec` と同じ 5 秒を挟んで再試行し、駄目なら `R2 マウント切断` の 1 行で exit≠0。正常時の行は変えない。マウントの再起動は `deploy/r2-share.service` と `r2-share-watch.timer`。デプロイはハッシュが変わったときだけ `r2-share.service` を restart する（`deploy/README.md`）
+- 新しいファイルは `data/` に書く。rclone FUSE（`/home/stock/r2-share`）の切断プロトコルは、dest がまだそのマウント上にあるときに働く。`data/` の dest は `/proc/mounts` を見ない。マウントが切れたら各社 `fail` を並べない。開始時と処理中に dest を probe し、ECONNABORTED / ENOTCONN / ESTALE / ルート消失なら `RestartSec` と同じ 5 秒を挟んで再試行し、駄目なら `R2 マウント切断` の 1 行で exit≠0。正常時の行は変えない。マウントの再起動は `deploy/r2-share.service` と `r2-share-watch.timer`。デプロイはハッシュが変わったときだけ `r2-share.service` を restart する（`deploy/README.md`）
 
 TDnet 月次 PDF（`jobs/monthly/tdnet_monthly_r2.py`）:
 
@@ -326,7 +326,7 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
   - 速報 `sekiyuso/result/xls/h2j*j.xlsx`（revision 1、当月だけ）。シート「需給概要」（列が品目、行が指標）と 1 行目が「原油受払」のシート
   - 品目名は空白を除いた NFKC。ジェット燃料油 + 灯油、A重油 + B・C重油 のように足すものは 1 つでも欠けた月を書かない。`―` は 0
   - 取れなかったら（WAF の確認・空の本文・一覧ページ）行単位の `fail meti …` は page しない。ジョブは止まった件数と fail の件数 K を数え、最終行を `material_stats done written=N failed=K` にし、K≥1 なら非ゼロ終了する（fluent-bit の `failed=` と cron-run の `fail cron`。ジョブ出力では summary の 1 行だけが page する）。cron は `--ledger /var/log/app/material_stats_ledger.json` に生産動態・石油統計ごとの「最後に全部取れた日」を残し、そこから `METI_FAIL_PAGE_DAYS`（既定 3）日たっても取れなければ `material_stats meti <kind> not fetched for N days …` を出す（`failed=` は付けない）
-  - 落とした Excel は R2 の `stats/meti/{seidou,sekiyu}/<ファイル名>` に控えを残す（検証と再投入用）。中身が同じなら書かず、同じ名前で中身が変わったら `<名前>_YYYYMMDD` で別に残す（前の版は消さない）。変わらないファイル（final）は控えがあればそこから読み、経産省へは行かない。取り込み済みでも控えが無ければ一度落として残す。`--reread` は取り込み済みの final も控えから読み直す（対応表を変えたとき）、`--refetch` は経産省から落とし直す（正誤訂正）。R2 が切れていれば `warn meti archive off` を出して控えなしで取り込む
+  - 落とした Excel は `data/stats/meti/{seidou,sekiyu}/<ファイル名>` に控えを残す（検証と再投入用。`SHARE_ROOT` があればその直下）。中身が同じなら書かず、同じ名前で中身が変わったら `<名前>_YYYYMMDD` で別に残す（前の版は消さない）。変わらないファイル（final）は控えがあればそこから読み、経産省へは行かない。取り込み済みでも控えが無ければ一度落として残す。`--reread` は取り込み済みの final も控えから読み直す（対応表を変えたとき）、`--refetch` は経産省から落とし直す（正誤訂正）。控え先が書けなければ `warn meti archive off` を出して控えなしで取り込む
   - METI（CloudFront）は同じ IP から続けて取ると AWS WAF が bot 確認を返す（202、`x-amzn-waf-action: challenge`、本文は空）。2 秒あけて取り、確認が返ったら 60 秒待って 1 回だけ取り直す。それでも確認ならその回の取得をやめて次の cron に回す（取り直しを重ねると長引く。一覧ページで返っても同じ）。空や xlsx でない本文は `fail` を出してその 1 本を飛ばす
   - 変わらないファイル（年報・年間補正号・過去年の 12 月の確報）は取り込み済みのファイル名なら落とさない。ただし石油統計は、対応表の項目がそのファイル名の行でそろっていなければ（項目を足した後の初回）落とし直す。12 月の確報は年報に無い項目（製品の生産）だけ見る。正誤訂正のときは `--refetch`。cron は生産動態 07:15、石油統計 07:45 とずらす
 - 輸入・輸出: 普通貿易統計（00350300）の「全国分 品別国別表 輸入 / 輸出」（`source` は `trade`。表題で速報の月は revision 1、ほかは 2）。石油統計で取る素材は載せない。統計品目番号 9 桁の前方一致で素材に寄せ、国は合計する。輸入と輸出で番号体系が違う

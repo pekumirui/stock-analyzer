@@ -7,18 +7,18 @@ must contain every http(s) file the parser actually reads, including past years.
 the label linkbases `load_labels` fetches. Generic labels, definition linkbases,
 and comment-only URLs are ignored.
 
-Typical maintainer flow on the box where R2 is mounted:
+Typical maintainer flow after the ZIP tree is on disk:
 
   python tools/xbrl/taxonomy_bundle.py scan \\
-      --zips /home/stock/r2-share/xbrl --out /tmp/taxonomy-urls.txt
+      --zips data/xbrl --out /tmp/taxonomy-urls.txt
 
   python tools/xbrl/taxonomy_bundle.py sync \\
-      --zips /home/stock/r2-share/xbrl \\
-      --from-cache /home/stock/r2-share/xbrl/_cache \\
+      --zips data/xbrl \\
+      --from-cache data/xbrl/_cache \\
       --to data/xbrl_taxonomy
 
   python tools/xbrl/taxonomy_bundle.py check \\
-      --zips /home/stock/r2-share/xbrl --bundle data/xbrl_taxonomy
+      --zips data/xbrl --bundle data/xbrl_taxonomy
 
 `sync` copies only files the parser would read. `--all-from-cache` copies the
 whole cache instead (larger). `--prune` deletes bundle files the parser would

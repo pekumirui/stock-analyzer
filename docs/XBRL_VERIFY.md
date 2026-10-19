@@ -22,12 +22,12 @@ python tools/xbrl/copy_stocks_for_verify.py --from /path/to/stock.db --to /absol
 
 `--from`/`--source` は読むだけ。`--to`/`--dest-db` がソースと同じ、または本番 `stock.db` / `verify-live/stock.db` なら拒否する。
 
-## dest は R2 のコピー
+## ZIP ツリーを渡す
 
-`jobs/xbrl/xbrl_parse.py --dest` は ZIP ツリーを読む。共有 R2 マウント（`/home/stock/r2-share/xbrl`）を直接指さず、手元へコピーした verify dest を渡す。
+`jobs/xbrl/xbrl_parse.py --dest` は ZIP ツリーを読む。リポジトリの `data/xbrl` を渡すか、そのコピーを渡す。
 
 ```
-# 例: rsync -a /home/stock/r2-share/xbrl/ /tmp/xbrl-verify-dest/
+# 例: rsync -a /path/to/stock-analyzer/data/xbrl/ /tmp/xbrl-verify-dest/
 ```
 
 タクソノミは `XBRL_CACHE_DIR`（既定はリポジトリの `data/xbrl_taxonomy`）。ネットワークには出ない。手元で別ディレクトリを指してもよい。投入は `tools/xbrl/taxonomy_bundle.py`。

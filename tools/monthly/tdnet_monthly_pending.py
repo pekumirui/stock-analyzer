@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """TDnet 月次 PDF の未投入レポート（読み取り専用）。
 
-R2 の `monthly/{code}/YYYYMMDD_CODE_….pdf` と DB `monthly_values` の
-最新 (year, month) を銘柄ごとに突き合わせる。R2 にも DB にも書かない。
+`data/monthly/{code}/YYYYMMDD_CODE_….pdf` と DB `monthly_values` の
+最新 (year, month) を銘柄ごとに突き合わせる。ディスクにも DB にも書かない。
 ネットワークには出ない。
 
   python tools/monthly/tdnet_monthly_pending.py
@@ -378,7 +378,7 @@ def main(argv: list[str] | None = None, out: TextIO | None = None) -> int:
     ap.add_argument(
         "--dest",
         default=DEFAULT_DEST,
-        help=f"R2 monthly directory (default {DEFAULT_DEST})",
+        help=f"monthly directory (default {DEFAULT_DEST})",
     )
     ap.add_argument(
         "--db",

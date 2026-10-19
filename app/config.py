@@ -2,6 +2,8 @@ import os
 from collections.abc import MutableMapping
 from pathlib import Path
 
+from jobs.share_paths import share_path
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_DIR = BASE_DIR / "config"
 ISSUER_ALIASES_PATH = CONFIG_DIR / "monthly" / "issuer_aliases.json"
@@ -51,7 +53,7 @@ DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'stock.db'}")
 PUBLIC_SITE_NAME = os.getenv("PUBLIC_SITE_NAME", "株KPI")
 PUBLIC_ORIGIN = os.getenv("PUBLIC_ORIGIN", "").rstrip("/")
 
-XBRL_DEST = os.getenv("XBRL_DEST", "/home/stock/r2-share/xbrl")
+XBRL_DEST = os.getenv("XBRL_DEST", str(share_path("xbrl")))
 # Local taxonomy bundle (KAB-60). Never downloaded at parse time.
 XBRL_CACHE_DIR = os.getenv("XBRL_CACHE_DIR", str(BASE_DIR / "data" / "xbrl_taxonomy"))
 XBRL_TEXT_MAX_CHARS = int(os.getenv("XBRL_TEXT_MAX_CHARS", "1000"))
