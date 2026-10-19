@@ -22,7 +22,7 @@
 
 ### 1.1 目的
 
-- R2 に溜まっている TDnet XBRL ZIP をパースし、fact を欠損なく保存する（生データ層）
+- `data/xbrl` に溜まっている TDnet XBRL ZIP をパースし、fact を欠損なく保存する（生データ層）
 - 企業横断で比較できる標準勘定科目に正規化する（正規化層）
 - 既存の `statements`（短信サマリ）を置き換えず、より厚い BS/PL/CF の基盤にする
 
@@ -31,7 +31,7 @@
 | 項目 | 内容 |
 |---|---|
 | 取得元 | TDnet。取得自体は既存ジョブ。本設計の対象は **パース以降** |
-| 入力 | `data/xbrl/{code4}/` の ZIP と `manifest/{YYYY-MM-DD}.jsonl`。FUSE の `/home/stock/r2-share/xbrl` は KPI が R2 を消すまで残す |
+| 入力 | `data/xbrl/{code4}/` の ZIP と `manifest/{YYYY-MM-DD}.jsonl`。読むときは MCP `fs_*`（`root=data`）か box の `/mnt/vps/data` |
 | 対象書類 | 決算短信・四半期短信・訂正短信の **Summary iXBRL**（本表） |
 | 対象データ | iXBRL の fact を保存。1000 文字超のテキストブロックは値を捨てるが要素は残す |
 | 正規化対象 | BS / PL / CF の §7.2 最小セット + EPS / 配当 / 業績予想（KAB-47） |
@@ -75,7 +75,7 @@
 [stocks] ──既存──▶ 銘柄マスタ（5桁）。XBRL 側の FK 相当は code 文字列照合のみ
 ```
 
-FUSE の `/home/stock/r2-share/xbrl` は、KPI が R2 を消すまで残す。パースが読むのは `data/xbrl`。
+パースが読むのは `data/xbrl`。FUSE `/home/stock/r2-share` は残置（ジョブの dest ではない）。
 
 3 ジョブは独立して再実行できる。
 
@@ -122,7 +122,7 @@ stocks.code   例 7203 → 72030、262A → 262A0
 既存どおり:
 
 - 保存・結合キーは 5桁 `^[0-9][0-9A-Z]{3}[0-9]$`
-- R2 ディレクトリと manifest の `code4` は 4桁のまま
+- 保存ディレクトリと manifest の `code4` は 4桁のまま
 - 表示の 4桁と混同しない
 
 ---
@@ -162,7 +162,7 @@ CREATE TABLE xbrl_filings (
     title               TEXT,
     accounting_standard TEXT,                   -- 'JPGAAP'|'IFRS'|'USGAAP'|NULL
     is_amendment        BOOLEAN NOT NULL DEFAULT 0,
-    raw_path            TEXT NOT NULL,          -- R2 上の相対パス（manifest.path）
+    raw_path            TEXT NOT NULL,          -- data/xbrl からの相対パス（manifest.path）
     raw_sha256          TEXT,                   -- manifest.sha256
     parse_status        TEXT NOT NULL DEFAULT 'pending',
                         -- 'pending'|'parsed'|'failed'|'skipped'
@@ -438,7 +438,7 @@ parse ジョブは manifest を入力カタログにする。fetch 側に parse_
 1. manifest 行を読む。`path` の ZIP が無ければ error_count++ して次へ。
 2. `jq_lookup_code(code or code4)` が `stocks` に無ければ skip（`_unmatched` は対象外）。
 3. 既に `xbrl_filings` が `(tdnet, doc_id)` で `parse_status='parsed'` かつ `raw_sha256` が同じなら skip。
-4. ZIP を一時ディレクトリに展開（R2 上には展開しない）。
+4. ZIP を一時ディレクトリに展開（`data/` 上には展開しない）。
 5. §5.4 で iXBRL を特定し xbrlp で fact / label を読む。
 6. 同じファイル群から context を読む。
 7. elements UPSERT（`namespace_uri + local_name`）。`namespace_key` は prefix。標準タクソノミ（jppfs / jpcrp / jpdei / jpigp / tse-ed / tse-t-ed など **prefix の先頭一致**）以外は `is_custom=1`。リストを勝手に増やさない。
@@ -613,7 +613,7 @@ XBRL_PARSE_WORKERS=2
 | トランザクション | filing 単位。部分 fact を残さない |
 | ログ | 既存バッチと同様に stdout。`doc_id` と `code` を含める。JSON 必須にはしない |
 | 依存 | requirements に Arelle / lxml / pyyaml 以外の大型パーサを足さない。YAML は PyYAML を足してよい |
-| 実行環境 | VPS の `.venv`。ZIP は R2 fuse mount 前提。タクソノミはリポジトリ同梱（`XBRL_CACHE_DIR`）。ローカルは `--dest` で ZIP ディレクトリを指す |
+| 実行環境 | VPS の `.venv`。ZIP は `data/xbrl`。タクソノミはリポジトリ同梱（`XBRL_CACHE_DIR`）。ローカルは `--dest` で ZIP ディレクトリを指す |
 
 ---
 

@@ -116,7 +116,7 @@ IRBANK 指標キー → `xbrl_std_items.code`:
 | operating_cf | operating_cf |
 | investing_cf | investing_cf |
 
-## フィクスチャだけで一致率を出す（R2 不要）
+## フィクスチャだけで一致率を出す（本番 ZIP 不要）
 
 ```
 DB=$(.venv/bin/python - <<'PY'

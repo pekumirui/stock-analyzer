@@ -34,7 +34,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 | `VPS_SSH_KEY` | はい | デプロイ用秘密鍵 |
 | `JQUANTS_API_KEY` | 推奨 | あるときだけ `.env` の当該行を更新。無ければ既存 `.env` を触らない |
 | `ESTAT_APP_ID` | 任意 | e-Stat API のアプリケーション ID（サプライタブの月次量）。あるときだけ `.env` の当該行を更新。無ければ `jobs/supply/material_stats.py --source estat` は何もしない（経産省 Excel はキー不要） |
-| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | 推奨 | Cloudflare R2 (bucket `share`) の rclone 認証。あるときだけ `.env` と `~/.config/rclone/rclone.conf` を更新。無ければ既存を触らない |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | 残置 | 残置の rclone FUSE（`/home/stock/r2-share`）用。ジョブの dest は `data/`。あるときだけ `.env` と `~/.config/rclone/rclone.conf` を更新。無ければ既存を触らない |
 | `SLACK_WEBHOOK_URL` | 推奨 | Slack Incoming Webhook（#alerts）。コミットしない。漏れたら rotate。provision が `/etc/fluent-bit/slack.env` に URL と `SLACK_WEBHOOK_URI` を書く。`.env` には入れない |
 | `SLACK_WEBHOOK_URL_APP` | 任意 | Incoming Webhook（#alerts-app、fluent-bit タグ `app`）。未設定・空なら `SLACK_WEBHOOK_URL`（#alerts）にフォールバック。`.env` には入れない |
 | `SLACK_WEBHOOK_URL_BATCH` | 任意 | Incoming Webhook（#alerts-batch、タグ `batch`）。未設定・空なら #alerts にフォールバック |
@@ -95,7 +95,7 @@ box エージェントはユーザ `boxro` で sftp するだけ（シェルも�
 
 | chroot 内 | 実体 |
 |---|---|
-| `/data` | `$APP_DIR/data`（`xbrl_golden` / `xbrl_taxonomy`） |
+| `/data` | `$APP_DIR/data`（`monthly` / `xbrl` / `inventory` / `stats` / `xbrl_golden` / `xbrl_taxonomy`）。box からは `/mnt/vps/data` |
 
 見せない: `/var/log/app`（ログは MCP の `app_logs` / `batch_logs` と `fs_*`）、`stock.db`、`.env`、`/home/stock/backups`、R2 FUSE（`/home/stock/r2-share`）。`data/` は既に bind しているので、`data/monthly` と `data/xbrl` は boxro から見える。FUSE は bind しない。既存ホストに `/srv/boxro/logs` の bind が残っていれば provision が umount し、fstab のその 1 行だけ消して空なら rmdir する（`/var/log/app` の中身は触らない）。
 
@@ -195,12 +195,14 @@ well-known は Basic 認証の外。`/.well-known/oauth-authorization-server` �
 
 MCP 自体が死んだときの退避路は Actions の **Debug VPS**。
 
-## Cloudflare R2 mount と月次 / XBRL バッチ
+## 共有ファイル（data/）と月次 / XBRL バッチ
 
-VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount する。
-ユーザ `stock`、`loginctl enable-linger stock` でログアウト・再起動後も残る。systemd ユニットは `deploy/r2-share.service`（秘密情報は含まない）。`Restart=always` / `RestartSec=5` で rclone プロセスが落ちたら付け直す。プロセスが残ったまま FUSE だけ切れる場合は `r2-share-watch.timer`（5 分ごと）が `/proc/mounts` と `ls` を見て `r2-share.service` を restart する。デプロイ（`provision.sh` → `r2-share-apply.sh`）はユニット / `rclone.conf` / watch の内容ハッシュが変わったときだけ daemon-reload し、**マウント unit か rclone.conf が変わったときだけ** `r2-share.service` を restart する。同じなら動いているマウントには触らない。ジョブ側の打ち切りは `DESIGN.md` §3。
+ジョブが `--dest` を省略したときの保存先はリポジトリの `data/` である。接頭辞は `monthly`、`xbrl`、`inventory`、`stats`。`SHARE_ROOT` を置くとその直下になる。読むときは MCP `fs_*`（`root=data`）か box の `/mnt/vps/data`。R2 は使わない（KAB-66 以降。KPI 方針 2026-10-20）。
 
-ジョブが `--dest` を省略したときの保存先はリポジトリの `data/` である。接頭辞はバケットと同じで、`monthly`、`xbrl`、`inventory`、`stats`。`SHARE_ROOT` を置くとその直下になる。マウントと `r2-share-watch.timer` は切り替えのあいだ残す。
+### 残置: rclone FUSE（`/home/stock/r2-share`）
+
+VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount する（KAB-66 以前の保存先。ジョブの既定 dest ではない）。
+ユーザ `stock`、`loginctl enable-linger stock` でログアウト・再起動後も残る。systemd ユニットは `deploy/r2-share.service`（秘密情報は含まない）。`Restart=always` / `RestartSec=5` で rclone プロセスが落ちたら付け直す。プロセスが残ったまま FUSE だけ切れる場合は `r2-share-watch.timer`（5 分ごと）が `/proc/mounts` と `ls` を見て `r2-share.service` を restart する。デプロイ（`provision.sh` → `r2-share-apply.sh`）はユニット / `rclone.conf` / watch の内容ハッシュが変わったときだけ daemon-reload し、**マウント unit か rclone.conf が変わったときだけ** `r2-share.service` を restart する。同じなら動いているマウントには触らない。ジョブ側の打ち切りは `DESIGN.md` §3。マウントと `r2-share-watch.timer` は残す。撤去は別 issue。
 
 ### data/ へのコピー
 
@@ -380,21 +382,16 @@ cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/monthly/ir_monthly_htm
 
 ### クラウドのエージェントから読む
 
-エージェントの VM / コンテナには mount が無い。同じ bucket を S3 互換 API で読む。
+共有ファイル（月次 PDF/HTML、XBRL ZIP、inventory、stats）は VPS の `data/` にある。R2 は使わない。読む経路は次の 2 つ。
 
-1. エージェントの Secrets / 環境変数に `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` を登録する（R2 側で **Object Read only** のトークンを別に発行する。登録先は上の `VPS_SSH_KEY` と同じ）。
-   起動時に環境変数として入る。登録後に始めたエージェントから有効
-2. `rclone` は `bash .cursor/install.sh`（環境ビルド。Cursor は自動）で入る。同じスクリプトが `.venv` / `pdftotext` と、Secrets に `JQUANTS_API_KEY` があれば `stock.db`（2 年分）も作る。`VPS_SSH_KEY` があれば続けて本番の `monthly_issuers` / `monthly_tables` / `monthly_elements` / `monthly_values` だけを載せ替える（DB 丸ごとコピーしない。SSH が無い・繋がらないときは skip）
-3. 同じスクリプトが `/usr/local/bin/rclone` にラッパーを置く。`R2_*` から remote `r2` を環境変数で定義し（設定ファイルは書かない）、`AWS_CA_BUNDLE` があるプロキシ環境では外して `--ca-cert` で渡し直す（そのままだと S3 が `LoadCustomCABundleError` で落ちる）。export は要らない
+1. MCP `fs_list` / `fs_read` / `fs_grep`（`root=data`）。`path` は `data/` からの相対（例 `monthly/9279/`、`xbrl/6036/`）。`fs_read` は 1 回あたり `MCP_FS_MAX_BYTES`（既定 1MiB）
+2. box の読み取り専用 sshfs: `/mnt/vps/data`（boxro の chroot `/data` = `$APP_DIR/data`）
 
 ```bash
-rclone lsd r2:share/monthly/
-rclone ls r2:share/monthly/9279/
-rclone copy r2:share/monthly/9279/ /tmp/r2/monthly/9279/   # 必要な分だけ /tmp へ
-rclone copy r2:share/inventory/vps-packages.txt /tmp/r2/inventory/
-rclone copy r2:share/stats/meti/seidou/ /tmp/r2/stats/meti/seidou/
+# MCP（stock-analyzer）: fs_list / fs_read / fs_grep  root=data  path=monthly/9279
+pdftotext -layout /mnt/vps/data/monthly/9279/<file>.pdf -
 ```
 
-- 取得先は `/tmp` 配下。リポジトリに置かない（`*.pdf` は commit 禁止）
-- 書き込みはしない。R2 へ書くのは VPS の cron だけ
-- 鍵の値を `echo` やログに出さない
+- リポジトリに PDF / ZIP を置かない（`*.pdf` は commit 禁止）
+- 書き込みはしない。新しいファイルは VPS の cron が `data/` に書く
+- `/home/stock/r2-share` と rclone `r2:share` は読まない（MCP は r2-share を二重拒否）

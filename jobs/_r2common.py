@@ -1,7 +1,8 @@
-"""R2 バッチの共通処理。ネットワークと app/ はテストから分離する。app は import しない。
+"""バッチ共通処理。ネットワークと app/ はテストから分離する。app は import しない。
 
 http_get は IR 側の実装（識別 UA が 403 ならブラウザ UA に一度だけ切替、
 中間証明書の欠落は AIA で補う）。各ジョブの識別 UA は user_agent で渡す。
+既定 dest は data/。dest が FUSE `/home/stock/r2-share` 上のときの切断プロトコルもここ。
 """
 from __future__ import annotations
 

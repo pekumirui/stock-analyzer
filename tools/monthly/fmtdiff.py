@@ -279,7 +279,7 @@ def scan_directory(root):
     """発行体ごとに basename 順で隣接ペアだけ比較。全対比較はしない。
 
     DIR 直下に PDF が無く DIR/monthly がディレクトリなら、そこをルートにする
-    （R2 の monthly/{code}/*.pdf。任意再帰はしない）。
+    （data/monthly/{code}/*.pdf。任意再帰はしない）。
     """
     root = Path(root)
     if not discover_pdfs(root):

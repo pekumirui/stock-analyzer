@@ -281,7 +281,7 @@ def run(
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
-        description="Write VPS package inventory to the R2 rclone mount"
+        description="Write VPS package inventory to data/inventory"
     )
     ap.add_argument("--dest", default=DEFAULT_DEST, help="destination directory")
     args = ap.parse_args(argv)

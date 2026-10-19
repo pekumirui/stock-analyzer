@@ -152,7 +152,7 @@ jobs/           機能ごと (market/ monthly/ supply/ xbrl/ ops/)。cron は de
   market/check_demo.py  スキーマ + 旧デモ取り残しガード
   market/pts_snapshot.py  株探 PTS ランキング → pts_snapshots（cron は平日 15:30〜24:00）
   ops/backup_db.py      本番 SQLite の日次バックアップ（cron は 05:00 JST。手順は docs/DESIGN_backup.md）
-  ops/vps_packages_r2.py  VPS パッケージ一覧 → R2（cron は 06:40 JST）
+  ops/vps_packages_r2.py  VPS パッケージ一覧 → data/inventory/（cron は 06:40 JST）
   fx_rates.py           Frankfurter 為替（EUR ベース。cron は 08:00 JST）
   migrate.py            デプロイごとのスキーマ追随と月次の後始末
 tests/          機能ごと (market/ monthly/ supply/ xbrl/ ops/)

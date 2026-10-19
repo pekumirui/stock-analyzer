@@ -127,7 +127,7 @@ class MetiArchive:
         return ([plain] if plain.exists() else []) + dated
 
     def missing(self, kind: str, names: set[str]) -> set[str]:
-        """控えの無いファイル名。R2 が使えなければ空（控えのために落とし直さない）"""
+        """控えの無いファイル名。控え先が使えなければ空（控えのために落とし直さない）"""
         if self.root is None:
             return set()
         try:
@@ -136,7 +136,7 @@ class MetiArchive:
             return set()
 
     def get(self, client: MetiClient, f, kind: str, refetch: bool) -> tuple[bytes, str]:
-        """(中身, 取得元 meti / r2)。final は控えがあれば最新の版を読む。--refetch は必ず落とす"""
+        """(中身, 取得元 meti / 控え)。戻り値の控えラベルは歴史的に r2。final は控えがあれば最新の版を読む。--refetch は必ず落とす"""
         if f.final and not refetch:
             try:
                 versions = self._versions(kind, f.name)
