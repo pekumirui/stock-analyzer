@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -54,8 +55,10 @@ def test_static_contracts() -> None:
     provision = PROVISION.read_text(encoding="utf-8")
     if "source \"$APP_DIR/deploy/boxro.sh\"" not in provision:
         _fail("provision.sh must source deploy/boxro.sh")
-    if "boxro_apply" not in provision:
-        _fail("provision.sh must call boxro_apply")
+    if "if ! boxro_apply; then" not in provision:
+        _fail("provision.sh must catch boxro_apply so a jail failure cannot abort app deploy")
+    if re.search(r"^boxro_apply$", provision, re.M):
+        _fail("bare boxro_apply would abort provision under set -e")
     if "systemctl restart ssh" in provision or "systemctl restart sshd" in provision:
         _fail("provision.sh must not restart ssh")
 
@@ -82,6 +85,10 @@ def test_static_contracts() -> None:
         _fail("boxro.sh must pin AuthorizedKeysFile")
     if "useradd --system --shell" not in script or "--no-create-home" not in script:
         _fail("boxro.sh must create a system user without a home")
+    if "findmnt -n --target" in script or "findmnt --target" in script:
+        _fail("findmnt --target matches parent /; use mountpoint or --mountpoint")
+    if "mountpoint -q" not in script:
+        _fail("boxro.sh must detect the exact mount with mountpoint -q")
 
     chk = subprocess.run(
         ["bash", "-n", str(BOXRO_SH)],
@@ -137,21 +144,61 @@ def _write_stubs(bin_dir: Path) -> None:
         'printf "passwd %s\\n" "$*" >> "${BOXRO_TEST_LOG}"\n',
         encoding="utf-8",
     )
+    (bin_dir / "mountpoint").write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "path=\n"
+        "while [[ $# -gt 0 ]]; do\n"
+        '  case "$1" in\n'
+        "    -q|--quiet) shift ;;\n"
+        "    --) shift ;;\n"
+        "    *) path=\"$1\"; shift ;;\n"
+        "  esac\n"
+        "done\n"
+        '[[ -n "$path" ]] || exit 1\n'
+        '[[ -f "${BOXRO_TEST_MOUNTED}" ]] || exit 1\n'
+        'grep -qxF "$path" "${BOXRO_TEST_MOUNTED}"\n',
+        encoding="utf-8",
+    )
+    # --target matches the parent filesystem (the production bug). --mountpoint
+    # is exact. OPTIONS is ro only for recorded mountpoints.
     (bin_dir / "findmnt").write_text(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
         "target=\n"
+        "mp=\n"
+        "want_opts=0\n"
         "while [[ $# -gt 0 ]]; do\n"
         '  case "$1" in\n'
         "    --target) target=\"$2\"; shift 2 ;;\n"
         "    --target=*) target=\"${1#--target=}\"; shift ;;\n"
+        "    --mountpoint) mp=\"$2\"; shift 2 ;;\n"
+        "    --mountpoint=*) mp=\"${1#--mountpoint=}\"; shift ;;\n"
+        "    -o) [[ \"${2:-}\" == OPTIONS ]] && want_opts=1; shift 2 ;;\n"
+        "    -o*) [[ \"$1\" == -oOPTIONS ]] && want_opts=1; shift ;;\n"
         "    -n) shift ;;\n"
         "    *) shift ;;\n"
         "  esac\n"
         "done\n"
+        "listed() {\n"
+        '  [[ -f "${BOXRO_TEST_MOUNTED}" ]] && grep -qxF "$1" "${BOXRO_TEST_MOUNTED}"\n'
+        "}\n"
+        "if [[ -n \"$mp\" ]]; then\n"
+        '  listed "$mp" || exit 1\n'
+        "  if [[ \"$want_opts\" == 1 ]]; then echo ro,relatime,bind; fi\n"
+        "  exit 0\n"
+        "fi\n"
         '[[ -n "$target" ]] || exit 1\n'
-        '[[ -f "${BOXRO_TEST_MOUNTED}" ]] || exit 1\n'
-        'grep -qxF "$target" "${BOXRO_TEST_MOUNTED}"\n',
+        'if listed "$target"; then\n'
+        "  if [[ \"$want_opts\" == 1 ]]; then echo ro,relatime,bind; fi\n"
+        "  exit 0\n"
+        "fi\n"
+        "# util-linux findmnt --target: any existing path on / succeeds.\n"
+        'if [[ -e "$target" ]]; then\n'
+        "  if [[ \"$want_opts\" == 1 ]]; then echo rw,relatime; fi\n"
+        "  exit 0\n"
+        "fi\n"
+        "exit 1\n",
         encoding="utf-8",
     )
     (bin_dir / "mount").write_text(
@@ -195,6 +242,7 @@ def _write_stubs(bin_dir: Path) -> None:
         "getent",
         "useradd",
         "passwd",
+        "mountpoint",
         "findmnt",
         "mount",
         "sshd",
@@ -394,6 +442,118 @@ def test_sshd_t_failure_removes_new_dropin(tmp_path: Path) -> None:
         _fail(f"failed first write must not reload: {log!r}")
 
 
+def test_unmounted_dir_on_root_is_bind_mounted(tmp_path: Path) -> None:
+    """Dir exists on / but is not a mountpoint: must bind, not remount."""
+    _write_stubs(tmp_path / "bin")
+    app = _seed_app(tmp_path)
+    env = _env(tmp_path, app)
+    dest = Path(env["BOXRO_CHROOT"]) / "data"
+    dest.mkdir(parents=True)
+    (dest / "already-there").write_text("x\n", encoding="utf-8")
+    proc = _run(
+        env,
+        'boxro_mount_ro_bind "$BOXRO_DATA_SRC" "${BOXRO_CHROOT}/data"',
+    )
+    _assert_ok(proc, "bind unmounted dest")
+    log = Path(env["BOXRO_TEST_LOG"]).read_text(encoding="utf-8")
+    bind = f"mount --bind {env['BOXRO_DATA_SRC']} {dest}"
+    if bind not in log:
+        _fail(f"unmounted dest must mount --bind first: {log!r}")
+    first_mount = next(
+        (line for line in log.splitlines() if line.startswith("mount ")),
+        "",
+    )
+    if "remount" in first_mount:
+        _fail(f"must not remount before bind: {log!r}")
+    if "remount,bind,ro" not in log:
+        _fail(f"must remount ro after bind: {log!r}")
+    mounted = Path(env["BOXRO_TEST_MOUNTED"]).read_text(encoding="utf-8")
+    if str(dest) not in mounted.splitlines():
+        _fail(f"dest should be recorded as mounted: {mounted!r}")
+
+
+def test_already_mounted_remounts_ro(tmp_path: Path) -> None:
+    _write_stubs(tmp_path / "bin")
+    app = _seed_app(tmp_path)
+    env = _env(tmp_path, app)
+    dest = Path(env["BOXRO_CHROOT"]) / "data"
+    dest.mkdir(parents=True)
+    Path(env["BOXRO_TEST_MOUNTED"]).write_text(f"{dest}\n", encoding="utf-8")
+    proc = _run(
+        env,
+        'boxro_mount_ro_bind "$BOXRO_DATA_SRC" "${BOXRO_CHROOT}/data"',
+    )
+    _assert_ok(proc, "remount existing")
+    log = Path(env["BOXRO_TEST_LOG"]).read_text(encoding="utf-8")
+    if f"mount --bind {env['BOXRO_DATA_SRC']} {dest}" in log:
+        _fail(f"already mounted dest must not bind again: {log!r}")
+    if "remount,bind,ro" not in log:
+        _fail(f"already mounted dest must remount ro: {log!r}")
+
+
+def test_partial_vps_state_is_idempotent(tmp_path: Path) -> None:
+    """User + dirs + fstab exist, nothing mounted, no drop-in/keys."""
+    _write_stubs(tmp_path / "bin")
+    app = _seed_app(tmp_path)
+    env = _env(tmp_path, app)
+    Path(env["BOXRO_TEST_USER_FLAG"]).write_text("", encoding="utf-8")
+    data_dest = Path(env["BOXRO_CHROOT"]) / "data"
+    logs_dest = Path(env["BOXRO_CHROOT"]) / "logs"
+    data_dest.mkdir(parents=True)
+    logs_dest.mkdir(parents=True)
+    data_line = f"{env['BOXRO_DATA_SRC']} {data_dest} none bind,ro 0 0"
+    logs_line = f"{env['BOXRO_LOGS_SRC']} {logs_dest} none bind,ro 0 0"
+    Path(env["BOXRO_FSTAB"]).write_text(
+        f"proc /proc proc defaults 0 0\n{data_line}\n{logs_line}\n",
+        encoding="utf-8",
+    )
+    proc = _run(env, "boxro_apply")
+    _assert_ok(proc, "partial-state boxro_apply")
+    log = Path(env["BOXRO_TEST_LOG"]).read_text(encoding="utf-8")
+    if "useradd" in log:
+        _fail(f"existing user must not useradd: {log!r}")
+    if f"mount --bind {env['BOXRO_DATA_SRC']} {data_dest}" not in log:
+        _fail(f"partial state must bind data: {log!r}")
+    if f"mount --bind {env['BOXRO_LOGS_SRC']} {logs_dest}" not in log:
+        _fail(f"partial state must bind logs: {log!r}")
+    fstab = Path(env["BOXRO_FSTAB"]).read_text(encoding="utf-8")
+    if fstab.count(data_line) != 1 or fstab.count(logs_line) != 1:
+        _fail(f"fstab duplicated on resume: {fstab!r}")
+    if not Path(env["BOXRO_AUTH_DEST"]).is_file():
+        _fail("partial state must sync authorized_keys")
+    if Path(env["BOXRO_SSHD_DROPIN"]).read_text(encoding="utf-8") != DROPIN:
+        _fail("partial state must write sshd drop-in")
+    if "systemctl reload ssh" not in log:
+        _fail(f"partial state must reload ssh once: {log!r}")
+
+
+def test_provision_continues_after_boxro_failure(tmp_path: Path) -> None:
+    """The if ! boxro_apply wrapper must not trip set -e."""
+    script = tmp_path / "run.sh"
+    script.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        "boxro_apply() { echo boxro-fail >&2; return 1; }\n"
+        "if ! boxro_apply; then\n"
+        '  echo "boxro: apply failed (sftp jail incomplete; app deploy continues)" >&2\n'
+        "fi\n"
+        "echo app-deploy-ok\n",
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        ["bash", str(script)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        _fail(f"boxro failure must not abort: rc={proc.returncode} {proc.stderr!r}")
+    if "app-deploy-ok" not in proc.stdout:
+        _fail(f"app deploy must continue: {proc.stdout!r}")
+    if "sftp jail incomplete" not in proc.stderr:
+        _fail(f"must report boxro failure: {proc.stderr!r}")
+
+
 def test_dropin_body() -> None:
     proc = subprocess.run(
         [
@@ -418,6 +578,14 @@ def main() -> None:
     test_dropin_body()
     with TemporaryDirectory() as raw:
         test_apply_idempotent_and_isolated(Path(raw))
+    with TemporaryDirectory() as raw:
+        test_unmounted_dir_on_root_is_bind_mounted(Path(raw))
+    with TemporaryDirectory() as raw:
+        test_already_mounted_remounts_ro(Path(raw))
+    with TemporaryDirectory() as raw:
+        test_partial_vps_state_is_idempotent(Path(raw))
+    with TemporaryDirectory() as raw:
+        test_provision_continues_after_boxro_failure(Path(raw))
     with TemporaryDirectory() as raw:
         test_rejects_key_without_restrict(Path(raw))
     with TemporaryDirectory() as raw:

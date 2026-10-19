@@ -88,21 +88,42 @@ boxro_ensure_fstab_line() {
   echo "boxro: fstab added ${line}"
 }
 
+boxro_is_mountpoint() {
+  local dest="$1"
+  # Do not query by path-on-filesystem: that follows the parent (often /)
+  # and treats an ordinary directory as already mounted. Check the exact
+  # mountpoint only.
+  if type mountpoint >/dev/null 2>&1; then
+    mountpoint -q -- "$dest"
+  else
+    findmnt -n --mountpoint "$dest" >/dev/null 2>&1
+  fi
+}
+
 boxro_mount_ro_bind() {
-  local src="$1" dest="$2"
+  local src="$1" dest="$2" opts
   if [[ ! -d "$src" ]]; then
     echo "boxro: bind source missing: ${src}" >&2
     return 1
   fi
   install -d -m 755 "$dest"
-  if findmnt -n --target "$dest" >/dev/null 2>&1; then
+  if boxro_is_mountpoint "$dest"; then
     mount -o remount,bind,ro "$dest"
     echo "boxro: remount ro ${dest}"
-    return 0
+  else
+    mount --bind "$src" "$dest"
+    mount -o remount,bind,ro "$dest"
+    echo "boxro: mounted ${src} -> ${dest} (ro bind)"
   fi
-  mount --bind "$src" "$dest"
-  mount -o remount,bind,ro "$dest"
-  echo "boxro: mounted ${src} -> ${dest} (ro bind)"
+  if ! boxro_is_mountpoint "$dest"; then
+    echo "boxro: ${dest} is not a mountpoint after bind" >&2
+    return 1
+  fi
+  opts="$(findmnt -n -o OPTIONS --mountpoint "$dest" 2>/dev/null || true)"
+  if [[ -n "$opts" && ",${opts}," != *,ro,* ]]; then
+    echo "boxro: ${dest} is not read-only (${opts})" >&2
+    return 1
+  fi
 }
 
 boxro_ensure_binds() {

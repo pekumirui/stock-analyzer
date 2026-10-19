@@ -179,10 +179,13 @@ if [[ -f "$APP_DIR/deploy/logrotate" ]]; then
 fi
 
 # boxro: data と logs だけを読む SFTP。既存の ssh / cron / サービスは触らない。
+# 失敗してもアプリ側の provision（systemd / nginx / crontab）は続ける。
 # shellcheck source=boxro.sh
 # shellcheck disable=SC1091
 source "$APP_DIR/deploy/boxro.sh"
-boxro_apply
+if ! boxro_apply; then
+  echo "boxro: apply failed (sftp jail incomplete; app deploy continues)" >&2
+fi
 
 if write_if_changed /etc/systemd/system/stock-analyzer.service 644 < "$APP_DIR/deploy/stock-analyzer.service"; then
   systemctl daemon-reload
