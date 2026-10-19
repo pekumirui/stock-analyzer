@@ -1,7 +1,6 @@
 """data/ 共有ルート。FUSE の /home/stock/r2-share とは別。"""
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -9,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from jobs._r2common import fail_if_mount_down, path_on_r2_share  # noqa: E402
-from jobs.share_paths import share_path, share_root  # noqa: E402
+from jobs.share_paths import PREFIXES, share_path, share_root  # noqa: E402
 
 FUSE = "/home/stock/r2-share"
 
@@ -19,13 +18,18 @@ def _fail(msg: object) -> None:
 
 
 def test_default_share_root_is_repo_data() -> None:
+    oracle = Path(__file__).resolve().parents[2] / "data"
     got = share_root(environ={})
     if not str(got).endswith("/data"):
         _fail(f"share_root {got}")
     if got == Path(FUSE) or FUSE in got.parts:
         _fail(f"share_root must not be the fuse mount: {got}")
-    if got != ROOT / "data":
-        _fail(f"default root {got} != {ROOT / 'data'}")
+    if got != oracle:
+        _fail(f"default root {got} != {oracle}")
+    for kind in PREFIXES:
+        path = share_path(kind, environ={})
+        if path != oracle / kind:
+            _fail(f"{kind} {path} != {oracle / kind}")
 
 
 def test_share_root_env_and_explicit_root() -> None:

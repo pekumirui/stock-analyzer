@@ -10,7 +10,7 @@
    同じ行を読んで sidecar を書く。重なる月は DB の値と突き合わせる
 
 指紋が違う・DB の行を全部は再現できない・重なる月が食い違う PDF は書かない（人が入れる）。
-理由は `manual` の行に出す。R2 の PDF は読むだけ。DB は sqlite の mode=ro。ネットワークには出ない。
+理由は `manual` の行に出す。PDF は `data/monthly` を読むだけ。DB は sqlite の mode=ro。ネットワークには出ない。
 
   python jobs/monthly/tdnet_monthly_pdf_sidecar.py
   python jobs/monthly/tdnet_monthly_pdf_sidecar.py --only 428A --dry-run

@@ -203,7 +203,7 @@ VPS 上で rclone が bucket `share` を `/home/stock/r2-share` に user mount �
 
 ### data/ へのコピー
 
-マージ後、ユーザ `stock` で一度だけ実行する。マウントは上げたままにする。R2 のオブジェクトは消さない。
+マージ後、10:30–12:00 JST（IR HTML ingest のあと、XBRL 12:00 の前）か、デプロイ直後で次の書き込みジョブの前に、ユーザ `stock` で一度だけ実行する。マウントと `r2-share-watch.timer` は上げたままにする。R2 のオブジェクトは消さない。dest が FUSE 上だと exit 2。中身が違う dest は `--force` なしでは触らず exit 1。
 
 ```bash
 cd /home/stock/stock-analyzer

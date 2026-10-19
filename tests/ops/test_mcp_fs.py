@@ -165,6 +165,64 @@ def test_fs_list_and_read_monthly_sample(tmp_path: Path) -> None:
         env.close()
 
 
+def test_fs_allows_monthly_pdf_and_xbrl_zip(tmp_path: Path) -> None:
+    import base64
+
+    data = tmp_path / "data"
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    pdf_bytes = b"%PDF-1.4 sample"
+    zip_bytes = b"PK\x03\x04sample"
+    pdf = data / "monthly" / "7203" / "x.pdf"
+    zipped = data / "xbrl" / "7203" / "y.zip"
+    pdf.parent.mkdir(parents=True)
+    zipped.parent.mkdir(parents=True)
+    pdf.write_bytes(pdf_bytes)
+    zipped.write_bytes(zip_bytes)
+    (data / "monthly" / "7203" / ".env").write_text("SECRET=1\n", encoding="utf-8")
+    (data / "xbrl" / "7203" / "notes.db").write_text("sqlite\n", encoding="utf-8")
+    env = _Env(data, logs)
+    try:
+        listed, list_err = _call("fs_list", root="data", path="monthly/7203")
+        if list_err:
+            raise SystemExit(f"list monthly/7203: {listed}")
+        names = {e["name"] for e in _body(listed)["entries"]}
+        if "x.pdf" not in names:
+            raise SystemExit(f"monthly pdf missing: {names}")
+        if ".env" in names:
+            raise SystemExit(f"monthly .env leaked: {names}")
+
+        pdf_text, pdf_err = _call(
+            "fs_read", root="data", path="monthly/7203/x.pdf", encoding="base64",
+        )
+        if pdf_err:
+            raise SystemExit(f"read pdf: {pdf_text}")
+        if base64.b64decode(_body(pdf_text)["content"]) != pdf_bytes:
+            raise SystemExit(f"pdf payload: {pdf_text}")
+
+        zip_listed, zip_list_err = _call("fs_list", root="data", path="xbrl/7203")
+        if zip_list_err:
+            raise SystemExit(f"list xbrl/7203: {zip_listed}")
+        zip_names = {e["name"] for e in _body(zip_listed)["entries"]}
+        if "y.zip" not in zip_names:
+            raise SystemExit(f"xbrl zip missing: {zip_names}")
+        if "notes.db" in zip_names:
+            raise SystemExit(f"xbrl db leaked: {zip_names}")
+
+        zip_text, zip_err = _call(
+            "fs_read", root="data", path="xbrl/7203/y.zip", encoding="base64",
+        )
+        if zip_err:
+            raise SystemExit(f"read zip: {zip_text}")
+        if base64.b64decode(_body(zip_text)["content"]) != zip_bytes:
+            raise SystemExit(f"zip payload: {zip_text}")
+
+        _must_err("fs_read", "denied", root="data", path="monthly/7203/.env")
+        _must_err("fs_read", "denied", root="data", path="xbrl/7203/notes.db")
+    finally:
+        env.close()
+
+
 def test_fs_unknown_root_and_absolute_and_traversal(tmp_path: Path) -> None:
     data, logs = _layout(tmp_path)
     env = _Env(data, logs)

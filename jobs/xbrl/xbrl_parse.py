@@ -1,4 +1,4 @@
-"""Parse TDnet XBRL ZIPs from R2 dest into xbrl_* tables.
+"""Parse TDnet XBRL ZIPs from data/xbrl into xbrl_* tables.
 
 使い方:
   python jobs/xbrl/xbrl_parse.py

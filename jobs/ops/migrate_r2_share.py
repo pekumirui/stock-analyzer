@@ -3,7 +3,9 @@
 src も dest も消さない。dest にだけあるファイルは残す。
 同じサイズかつ同じ sha256 は書かない。中身が違うファイルは --force のときだけ置き換える。
 書き込みは sibling の `.part` に終えてから `Path.replace` する。途中で落ちても dest の完成ファイルは前の中身のまま。
+`.part` の sha256 が src と違うときは dest を置き換えない。
 `xbrl/_cache` は既定でコピーしない。外部コマンドは呼ばない。app は import しない。
+dest が FUSE 上、または src と同じ場所なら exit 2。src が無い・読めないときは exit 1。
 
 使い方:
   python jobs/ops/migrate_r2_share.py
@@ -21,10 +23,12 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
-from jobs._r2common import r2_share_root  # noqa: E402
+from jobs._r2common import path_on_r2_share, r2_share_root  # noqa: E402
 from jobs.share_paths import share_root  # noqa: E402
 
 _CHUNK = 1024 * 1024
+EXIT_IO = 1
+EXIT_MISCONFIG = 2
 
 
 class Summary:
@@ -74,21 +78,34 @@ def _is_xbrl_cache(rel: Path) -> bool:
     return len(parts) >= 2 and parts[0] == "xbrl" and parts[1] == "_cache"
 
 
-def _identical(src: Path, dest: Path) -> bool:
-    if dest.is_symlink() or not dest.is_file():
-        return False
-    if src.stat().st_size != dest.stat().st_size:
-        return False
-    return _sha256(src) == _sha256(dest)
-
-
-def _copy_atomic(src: Path, dest: Path) -> None:
+def _copy_atomic(src: Path, dest: Path, expected_sha: str) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".part")
-    with src.open("rb") as rf, tmp.open("wb") as wf:
-        for chunk in iter(lambda: rf.read(_CHUNK), b""):
-            wf.write(chunk)
-    tmp.replace(dest)
+    digest = hashlib.sha256()
+    try:
+        with src.open("rb") as rf, tmp.open("wb") as wf:
+            for chunk in iter(lambda: rf.read(_CHUNK), b""):
+                wf.write(chunk)
+                digest.update(chunk)
+        if digest.hexdigest() != expected_sha:
+            raise OSError("copied bytes do not match src sha256")
+        tmp.replace(dest)
+    except Exception:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def validate_roots(src: Path, dest: Path) -> str | None:
+    src_r = Path(src).expanduser().resolve()
+    dest_r = Path(dest).expanduser().resolve()
+    if src_r == dest_r:
+        return "dest must not equal src"
+    if path_on_r2_share(dest_r):
+        return "dest must not sit on the FUSE mount"
+    return None
 
 
 def migrate(
@@ -101,8 +118,15 @@ def migrate(
     summary = Summary()
     src = Path(src)
     dest = Path(dest)
-    if not src.is_dir():
-        return 1, summary
+    misconfig = validate_roots(src, dest)
+    if misconfig:
+        print(misconfig, file=sys.stderr, flush=True)
+        return EXIT_MISCONFIG, summary
+    try:
+        if not src.is_dir():
+            return EXIT_IO, summary
+    except OSError:
+        return EXIT_IO, summary
     for path in _iter_files(src):
         rel = path.relative_to(src)
         size = path.stat().st_size
@@ -112,21 +136,27 @@ def migrate(
             summary.skipped_cache += 1
             continue
         target = dest / rel
-        if _identical(path, target):
+        src_sha = _sha256(path)
+        if (
+            not target.is_symlink()
+            and target.is_file()
+            and target.stat().st_size == size
+            and _sha256(target) == src_sha
+        ):
             summary.files_skipped_identical += 1
             continue
         if (target.exists() or target.is_symlink()) and not force:
             summary.files_mismatched += 1
             continue
         try:
-            _copy_atomic(path, target)
+            _copy_atomic(path, target, src_sha)
         except OSError:
             summary.files_mismatched += 1
             continue
         summary.files_dest_copied_this_run += 1
         summary.bytes_copied += size
     if summary.files_mismatched:
-        return 1, summary
+        return EXIT_IO, summary
     return 0, summary
 
 

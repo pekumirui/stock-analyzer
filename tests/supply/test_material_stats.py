@@ -546,6 +546,43 @@ def test_meti_archive_open_expected_errors() -> None:
         _fail("RuntimeError must propagate from MetiArchive.open")
 
 
+def test_meti_archive_open_local_dest_without_fuse_line(tmp_path: Path) -> None:
+    from jobs._r2common import check_r2_mount as real_check
+    from jobs.share_paths import share_path
+
+    share = tmp_path / "share"
+    old = os.environ.get("SHARE_ROOT")
+    os.environ["SHARE_ROOT"] = str(share)
+    buf = io.StringIO()
+    probed: list[Path] = []
+
+    def wrapped(path, **kwargs):  # noqa: ANN001
+        probed.append(Path(path))
+        kwargs.setdefault("proc_mounts", lambda: "tmpfs /tmp tmpfs rw 0 0\n")
+        kwargs.setdefault("r2_root", "/home/stock/r2-share")
+        kwargs.setdefault("retries", 0)
+        return real_check(path, **kwargs)
+
+    try:
+        with patch("jobs.supply.material_stats.check_r2_mount", side_effect=wrapped), \
+             redirect_stdout(buf):
+            arc = MetiArchive.open()
+    finally:
+        if old is None:
+            os.environ.pop("SHARE_ROOT", None)
+        else:
+            os.environ["SHARE_ROOT"] = old
+
+    expect = share_path("stats", environ={"SHARE_ROOT": str(share)}) / "meti"
+    _eq(arc.root, expect, "archive root on local share")
+    if not probed or probed[0] != expect:
+        _fail(f"probed {probed} != {expect}")
+    if "warn meti archive off" in buf.getvalue():
+        _fail(f"local dest must stay on: {buf.getvalue()!r}")
+    if not expect.is_dir():
+        _fail(f"archive dir not created: {expect}")
+
+
 class _ErrArchive:
     def __init__(self, errors: list[BaseException | None]) -> None:
         self.errors = list(errors)
@@ -794,6 +831,7 @@ def main() -> None:
     test_meti_waf_challenge()
     test_meti_archive()
     test_meti_archive_open_expected_errors()
+    test_meti_archive_open_local_dest_without_fuse_line()
     test_ingest_meti_skips_io_only()
     test_ingest_meti_skips_broken_excel()
     test_meti_ledger()
