@@ -178,6 +178,12 @@ if [[ -f "$APP_DIR/deploy/logrotate" ]]; then
   write_if_changed /etc/logrotate.d/stock-analyzer 644 < "$APP_DIR/deploy/logrotate"
 fi
 
+# boxro: data と logs だけを読む SFTP。既存の ssh / cron / サービスは触らない。
+# shellcheck source=boxro.sh
+# shellcheck disable=SC1091
+source "$APP_DIR/deploy/boxro.sh"
+boxro_apply
+
 if write_if_changed /etc/systemd/system/stock-analyzer.service 644 < "$APP_DIR/deploy/stock-analyzer.service"; then
   systemctl daemon-reload
 fi
