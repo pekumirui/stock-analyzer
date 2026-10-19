@@ -25,13 +25,11 @@ def _fresh_db_per_file():
     """ファイルの頭で DB を消して表を作り直す（直接走らせたときの main() の init_db と同じ）。"""
     from app.db import engine, init_db
     from app.xbrl.parser import reset_taxonomy_caches
-    from app.xbrl.store import reset_element_id_cache
 
     engine.dispose()
     for suffix in ("", "-wal", "-shm", "-journal"):
         Path(f"{DB_PATH}{suffix}").unlink(missing_ok=True)
     reset_taxonomy_caches()
-    reset_element_id_cache()
     init_db()
     yield
 

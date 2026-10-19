@@ -129,9 +129,51 @@ def parse_context_element(elem: ET.Element) -> ParsedContext | None:
     )
 
 
+_CONTEXT_BLOCK = re.compile(rb"<(?P<p>[A-Za-z_][\w.-]*:)?context\b[^>]*>.*?</(?P=p)context\s*>", re.S)
+_CONTEXT_START = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?context[\s/>]")
+_XMLNS_ATTR = re.compile(rb"""\sxmlns(?::[A-Za-z_][\w.-]*)?\s*=\s*(?:"[^"]*"|'[^']*')""")
+
+
+def _context_elements_fast(raw: bytes) -> list[ET.Element] | None:
+    """Parse only the context blocks of an iXBRL file. None → caller does the full parse.
+
+    Contexts sit in ix:resources; re-parsing the whole HTML just for them is most of the
+    cost. Comments / CDATA / entities could hide or fake a block, so those files take the
+    full parse, as does any start tag the block pattern did not pair up.
+    """
+    if b"<!--" in raw or b"<![CDATA[" in raw or b"<!ENTITY" in raw:
+        return None
+    starts = len(_CONTEXT_START.findall(raw))
+    if starts == 0:
+        return []  # Attachment 本表: contextRef only, contexts live elsewhere.
+    blocks = list(_CONTEXT_BLOCK.finditer(raw))
+    if len(blocks) != starts:
+        return None
+    decls: dict[bytes, bytes] = {}
+    for m in _XMLNS_ATTR.finditer(raw, 0, blocks[0].start()):
+        attr = m.group(0).strip()
+        decls.setdefault(attr.split(b"=", 1)[0].strip(), attr)
+    doc = b"<root " + b" ".join(decls.values()) + b">" + b"".join(m.group(0) for m in blocks) + b"</root>"
+    try:
+        return list(ET.fromstring(doc))
+    except ET.ParseError:
+        return None
+
+
 def parse_contexts_from_xml(path: Path) -> list[ParsedContext]:
     contexts: list[ParsedContext] = []
     seen: set[str] = set()
+    try:
+        elems = _context_elements_fast(path.read_bytes())
+    except OSError:
+        elems = None
+    if elems is not None:
+        for elem in elems:
+            parsed = parse_context_element(elem)
+            if parsed and parsed.context_ref not in seen:
+                seen.add(parsed.context_ref)
+                contexts.append(parsed)
+        return contexts
     try:
         for _event, elem in ET.iterparse(str(path), events=["end"]):
             if local_name(elem.tag) != "context":

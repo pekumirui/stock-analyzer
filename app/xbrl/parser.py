@@ -5,7 +5,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from collections.abc import Iterator
+from collections.abc import Iterable
 from pathlib import Path
 
 from app.xbrl.context import (
@@ -114,7 +114,8 @@ class CachedTimeoutFileLoader(FileLoader):
 
 # Process-level caches reused across parse_package() calls (one Parser per filing).
 _SHARED_XSD_CACHE: dict = {}
-_SHARED_LABEL_CACHE: dict[str, list[Label]] = {}
+LabelSlots = dict[tuple[str, str], dict[str, str]]
+_SHARED_LABEL_CACHE: dict[str, LabelSlots] = {}
 
 
 def reset_taxonomy_caches() -> None:
@@ -123,25 +124,53 @@ def reset_taxonomy_caches() -> None:
     _SHARED_LABEL_CACHE.clear()
 
 
-def _iter_labels_cached(parser: Parser) -> Iterator[Label]:
-    """load_labels() but reuse parsed remote label linkbases within this process."""
-    parser._ensure_linkbase_refs()
-    refs = list(parser.linkbase_refs.get("labelLinkbaseRef", []))
-    saved = parser.linkbase_refs
+def _label_slots(labels: Iterable[Label]) -> LabelSlots:
+    """(prefix, local) → first ja / first en label, in linkbase order."""
+    slots: LabelSlots = {}
+    for lab in labels:
+        slot = slots.setdefault((lab.qname.prefix or "", lab.qname.local_name), {})
+        if lab.lang.startswith("ja"):
+            slot.setdefault("label_ja", lab.text)
+        elif lab.lang.startswith("en"):
+            slot.setdefault("label_en", lab.text)
+    return slots
+
+
+def _collect_labels(parser: Parser, wanted: set[tuple[str, str]]) -> LabelSlots:
+    """Labels for ``wanted`` keys only. Remote label linkbases are reduced once per process.
+
+    Same result as walking every label of every linkbase with first-wins per slot.
+    A non-missing-taxonomy error keeps the labels found before it.
+    """
+    labels: LabelSlots = {}
+    saved = None
     try:
-        for ref in refs:
+        parser._ensure_linkbase_refs()
+        saved = parser.linkbase_refs
+        for ref in list(saved.get("labelLinkbaseRef", [])):
             href = ref[0]
             remote = str(href).startswith(("http://", "https://"))
-            if remote and href in _SHARED_LABEL_CACHE:
-                yield from _SHARED_LABEL_CACHE[href]
-                continue
-            parser.linkbase_refs = {"labelLinkbaseRef": [ref]}
-            out = list(parser.load_labels())
-            if remote:
-                _SHARED_LABEL_CACHE[href] = out
-            yield from out
+            slots = _SHARED_LABEL_CACHE.get(href) if remote else None
+            if slots is None:
+                parser.linkbase_refs = {"labelLinkbaseRef": [ref]}
+                slots = _label_slots(parser.load_labels())
+                if remote:
+                    _SHARED_LABEL_CACHE[href] = slots
+            for key in wanted:
+                src = slots.get(key)
+                if src is None:
+                    continue
+                slot = labels.setdefault(key, {})
+                for name, text in src.items():
+                    slot.setdefault(name, text)
+    except (TaxonomyMissingError, FileNotFoundError):
+        raise
+    except Exception:
+        pass
     finally:
-        parser.linkbase_refs = saved
+        if saved is not None:
+            parser.linkbase_refs = saved
+    return labels
 
 
 def find_manifest(root: Path) -> Path | None:
@@ -276,7 +305,6 @@ def parse_package(
     if not parser.ixbrl_files:
         raise ValueError("no-ixbrl")
 
-    labels: dict[tuple[str, str], dict[str, str]] = {}
     facts: list[ParsedFact] = []
     seen_facts: set[tuple[str, str, str, str]] = set()
     for fact in parser.load_facts():
@@ -289,19 +317,7 @@ def parse_package(
         seen_facts.add(key)
         facts.append(row)
 
-    try:
-        for lab in _iter_labels_cached(parser):
-            ns = lab.qname.prefix or ""
-            local = lab.qname.local_name
-            slot = labels.setdefault((ns, local), {})
-            if lab.lang.startswith("ja") and "label_ja" not in slot:
-                slot["label_ja"] = lab.text
-            elif lab.lang.startswith("en") and "label_en" not in slot:
-                slot["label_en"] = lab.text
-    except (TaxonomyMissingError, FileNotFoundError):
-        raise
-    except Exception:
-        pass
+    labels = _collect_labels(parser, {(f.namespace_key, f.local_name) for f in facts})
 
     contexts: list[ParsedContext] = []
     seen_ctx: set[str] = set()
