@@ -1,10 +1,11 @@
-"""Streamable HTTP MCP for VPS logs, SQLite stats, monthly tables, and FX rates.
+"""Streamable HTTP MCP for VPS logs, SQLite stats, monthly tables, FX rates, and read-only files.
 
 No extra deps: Starlette ships with FastAPI. Listens on 127.0.0.1:8010/mcp.
 Arbitrary shell/SQL is not exposed. journalctl units, log paths, and SELECT shapes are allowlisted.
 Monthly table tools call http://127.0.0.1:8000/api/v1/tables only (not nginx, not user URLs).
 monthly_ingest POSTs /api/v1/tables/{code}/ingest and does not send year.
 FX tools read fx_rates (EUR base) and compute cross rates. They do not call Frankfurter.
+fs_list / fs_read / fs_grep are read-only over allowlisted roots (data/, /var/log/app).
 """
 from __future__ import annotations
 
@@ -35,8 +36,13 @@ from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, R
 from starlette.routing import Route
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
+_MCP_DIR = Path(__file__).resolve().parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
+if str(_MCP_DIR) not in sys.path:
+    sys.path.insert(0, str(_MCP_DIR))
+
+import fs_tools  # noqa: E402
 
 
 def app_dir() -> Path:
@@ -62,7 +68,7 @@ PORT = int(os.environ.get("MCP_PORT", "8010"))
 MAX_LINES = 500
 DEFAULT_LINES = 200
 SERVER_NAME = "stock-analyzer-logs"
-SERVER_VERSION = "1.0.0"
+SERVER_VERSION = "1.1.0"
 PROTOCOL_VERSIONS = (
     "2024-11-05",
     "2025-03-26",
@@ -1265,6 +1271,63 @@ def tool_monthly_ingest(args: dict[str, Any]) -> str:
 
 
 TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = {
+    "fs_list": (
+        (
+            "許可 root 内のファイル/ディレクトリ一覧（name / path / type / size / mtime）。"
+            "root は data（リポジトリ data/、MCP_DATA_DIR）か logs（/var/log/app、MCP_LOG_DIR）。"
+            "path は root からの相対。realpath で正規化し、外へ出る .. / 絶対パス / symlink は拒否。"
+            ".env* / *.db / *.sqlite* / 鍵類 / rclone.conf / /home/stock/backups / r2-share は出さない。"
+            "読み取り専用。limit は 1-2000（既定 200）。recursive=true で配下も列挙。"
+        ),
+        {
+            "type": "object",
+            "properties": {
+                "root": {"type": "string", "enum": ["data", "logs"], "description": "data = repo data/, logs = /var/log/app"},
+                "path": {"type": "string", "description": "relative path under root; omit or empty for the root itself"},
+                "recursive": {"type": "boolean", "description": "list descendants; default false"},
+                "limit": {"type": "integer", "description": "max entries, 1-2000, default 200"},
+            },
+            "required": ["root"],
+        },
+        fs_tools.tool_fs_list,
+    ),
+    "fs_read": (
+        (
+            "許可 root 内のファイルを部分読み。root / path の約束は fs_list と同じ。"
+            "1 回の上限は MCP_FS_MAX_BYTES（既定 1MiB）。size はファイル全体、truncated で切り詰めを返す。"
+            "encoding は utf-8（既定、不正バイトは置換）か base64。読み取り専用。"
+        ),
+        {
+            "type": "object",
+            "properties": {
+                "root": {"type": "string", "enum": ["data", "logs"], "description": "data = repo data/, logs = /var/log/app"},
+                "path": {"type": "string", "description": "relative file path under root"},
+                "offset": {"type": "integer", "description": "byte offset, default 0"},
+                "length": {"type": "integer", "description": "max bytes to return, default and cap ~1MiB"},
+                "encoding": {"type": "string", "enum": ["utf-8", "base64"], "description": "utf-8 (default) or base64"},
+            },
+            "required": ["root", "path"],
+        },
+        fs_tools.tool_fs_read,
+    ),
+    "fs_grep": (
+        (
+            "許可 root 内のテキストを行grep。大きいログ向け。root / path の約束は fs_list と同じ。"
+            "path がディレクトリなら配下の通常ファイルを読む。pattern は 1-120 文字。"
+            "max_matches は 1-500（既定 50）。超えたら truncated。読み取り専用。"
+        ),
+        {
+            "type": "object",
+            "properties": {
+                "root": {"type": "string", "enum": ["data", "logs"], "description": "data = repo data/, logs = /var/log/app"},
+                "path": {"type": "string", "description": "relative file or directory under root"},
+                "pattern": {"type": "string", "description": "regex or substring, max 120 chars"},
+                "max_matches": {"type": "integer", "description": "1-500, default 50"},
+            },
+            "required": ["root", "path", "pattern"],
+        },
+        fs_tools.tool_fs_grep,
+    ),
     "service_status": (
         "nginx / stock-analyzer / MCP の active 状態、待ち受けポート、localhost:80 / :8000 の HTTP コード。MCP 自身はこの応答自体を ok とし、自分へは curl しない。",
         {"type": "object", "properties": {}},

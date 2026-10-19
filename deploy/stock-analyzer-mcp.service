@@ -12,6 +12,8 @@ EnvironmentFile=-/home/stock/stock-analyzer/.env
 Environment=MCP_HOST=127.0.0.1
 Environment=MCP_PORT=8010
 Environment=PYTHONUNBUFFERED=1
+# fs_* roots: data=$WorkingDirectory/data (MCP_DATA_DIR), logs=/var/log/app (MCP_LOG_DIR).
+# User=stock owns LogsDirectory=app; keep that readable if LogsDirectoryMode is tightened.
 LogsDirectory=app
 LogsDirectoryMode=0755
 StandardOutput=append:/var/log/app/mcp.log

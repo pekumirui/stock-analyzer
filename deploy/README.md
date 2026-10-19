@@ -99,6 +99,7 @@ VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 認
 - `app_logs` — `/var/log/app/stock-analyzer.log` と journalctl。uvicorn は `deploy/uvicorn-log.json` で行頭に JST `YYYY-MM-DD HH:MM:SS` を付ける。`since` / `until` は `batch_logs` と同じ形。省略時は journal が直近 1h、ファイルは live の末尾だけ。指定すると `.1` / `.gz` も読み、行頭の時刻で絞る。時刻の無い行（Traceback の続き）は直前の行に付く
 - `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` は crontab の stem（`run_batch` / `pts_snapshot` / `fx_rates` / `tdnet_monthly_r2` / `tdnet_monthly_pdf_sidecar` / `tdnet_monthly_pdf_ingest` / `ir_monthly_r2` / `ir_monthly_html_r2` / `ir_monthly_html_ingest` / `ir_monthly_json_ingest` / `tdnet_xbrl_r2` / `xbrl_parse` / `xbrl_normalize` / `vps_packages_r2` / `backup_db`）。一覧に無い名前とパスは拒否。省略時は `stock-analyzer.log` と `mcp.log` 以外の live ファイル（古い `batch.log` を含む）。`since` / `until` は `1h` / `30m` / `today` / `yesterday` / `YYYY-MM-DD`。`until` はその時刻を含まない。昨日は `since=yesterday` と `until=today`。日時を指定したときは `.1` と `.gz` も読み、行頭の JST `YYYY-MM-DD HH:MM:SS` で絞る。`lines` は 1-500。超えた分は末尾だけ返すので範囲を狭める
 - `nginx_logs` — nginx journal と error.log と `/var/log/nginx/stock-analyzer.access.log`。アクセスログの `rt=` は nginx 全体、`urt=` は uvicorn の処理秒。遅いリクエストは `grep` に `rt=[1-9]` などを渡す。`since` / `until` は `batch_logs` と同じ形。省略時は journal が直近 1h、ファイルは live の末尾だけ。指定すると logrotate 済みの `.1` / `.gz`（既定で 14 日分）も読み、行の時刻（JST）で絞る。URL の OAuth 一時値（`code` / `state` など）は伏せる
+- `fs_list` / `fs_read` / `fs_grep` — 読み取り専用。`root` は `data`（リポジトリの `data/`、`MCP_DATA_DIR`）か `logs`（`/var/log/app`、`MCP_LOG_DIR`）。それ以外・絶対パス・`..`・symlink で root の外へ出るものは拒否。`.env*` / `*.db` / `*.sqlite*` / `stock.db` / `*.pem` / `id_*` / `*.key` / `rclone.conf` と `/home/stock/backups` / `/home/stock/r2-share` は二重に拒否。`fs_read` は 1 回あたり `MCP_FS_MAX_BYTES`（既定 1MiB）、切り詰め時は `truncated` とファイル全体の `size` を返す。認証は他ツールと同じ `MCP_TOKEN` / OAuth
 - `db_stats` — stock.db の件数・日付範囲・デモ混在
 - `db_lookup` — 1銘柄のマスタ・直近株価・決算・指標
 - `fx_rate` — 指定日の為替。EUR ベースのクロス（例 USD/JPY）。休日・ECB非公表日は直近営業日（`as_of`）。`holiday_fallback` で明示
@@ -114,6 +115,7 @@ VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 認
   列順 + as_of 時点の最新 `fiscal_year_end` から暦年を決める。月が重複する year-wrap は列順配列の `values`。`dry_run: true` は書かずに年割当と書くはずのセルを返す。`only_months` は `YYYY-MM` で列を絞る
 
 任意コマンドも restart も任意 SQL もない。月次ツールは FastAPI の `http://127.0.0.1:8000` だけを叩く（nginx Basic は使わない）。行数は最大 500。`.env` の値は伏せる。
+`fs_*` のプロセスユーザは `stock`。`stock-analyzer-mcp.service` の `LogsDirectory=app`（mode 0755）で `/var/log/app` の所有者は既に `stock` なので、ログ root を読むための追加 ACL や supplementary group は不要。`data/` は `WorkingDirectory` 配下。`LogsDirectoryMode` を後から絞るときは `stock` が `/var/log/app` を読める状態を保つ。
 `monthly_get` の `values` は 1〜12。無い月は null。0 は実ゼロ。1年通して値のない行は出さない。
 月次の unit は PDF 見出しから付ける（`DESIGN.md` §3 の表）。既存行の unit 変更は `PUT /api/v1/tables/{code}/{year}/elements`（`{element, unit}`）。行はその unit の正規名へ付け替わる。
 月次の保存名は起動時に書き換えない（`docs/DESIGN_monthly_labels.md`「同一行・保存名の凍結」）。ずれた行があるとデプロイ（`jobs/migrate.py`）のログに `月次の保存名ドリフト: N 行` が出る。正規化や `config/monthly/issuer_aliases.json` を変えたあとは Actions の **Monthly names** を `plan`（既定、書かない）で流してログを見てから `apply`。中身は `jobs/monthly/monthly_names.py`。

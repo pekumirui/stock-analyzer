@@ -280,6 +280,9 @@ def test_http_auth_and_tools() -> None:
     r = _rpc(client, "tools/list", req_id=2)
     names = {t["name"] for t in r.json()["result"]["tools"]}
     expect = {
+        "fs_list",
+        "fs_read",
+        "fs_grep",
         "service_status",
         "app_logs",
         "batch_logs",
