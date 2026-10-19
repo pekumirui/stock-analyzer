@@ -292,12 +292,87 @@ def test_match_rate_and_golden_helpers() -> None:
         _fail("q4 label")
 
 
+_IXBRL_HEAD = (
+    '<?xml version="1.0" encoding="utf-8"?>\n'
+    '<html xmlns="http://www.w3.org/1999/xhtml" xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"'
+    ' xmlns:xbrli="http://www.xbrl.org/2003/instance"'
+    ' xmlns:xbrldi="http://xbrl.org/2006/xbrldi"><body><ix:header><ix:resources>'
+)
+_IXBRL_CONTEXTS = (
+    '<xbrli:context id="CurrentYTDDuration"><xbrli:entity><xbrli:identifier scheme="x">1</xbrli:identifier>'
+    "</xbrli:entity><xbrli:period><xbrli:startDate>2026-04-01</xbrli:startDate>"
+    "<xbrli:endDate>2026-09-30</xbrli:endDate></xbrli:period></xbrli:context>"
+    '<xbrli:context id="CurrentYTDDuration_NonConsolidatedMember"><xbrli:entity>'
+    '<xbrli:identifier scheme="x">1</xbrli:identifier><xbrli:segment>'
+    '<xbrldi:explicitMember dimension="jppfs_cor:ConsolidatedOrNonConsolidatedAxis">'
+    "jppfs_cor:NonConsolidatedMember</xbrldi:explicitMember></xbrli:segment></xbrli:entity>"
+    "<xbrli:period><xbrli:instant>2026-09-30</xbrli:instant></xbrli:period></xbrli:context>"
+)
+_IXBRL_TAIL = '</ix:resources></ix:header><p><ix:nonFraction contextRef="CurrentYTDDuration">1</ix:nonFraction></p></body></html>'
+
+
+def test_context_fast_path(tmp: Path) -> None:
+    """Context-block-only parse == full iterparse; odd files take the full parse."""
+    import xml.etree.ElementTree as ET
+
+    from app.xbrl.context import (
+        _context_elements_fast,
+        local_name,
+        parse_context_element,
+        parse_contexts_from_xml,
+    )
+
+    def full(path: Path) -> list:
+        out = []
+        for _ev, elem in ET.iterparse(str(path), events=["end"]):
+            if local_name(elem.tag) == "context":
+                parsed = parse_context_element(elem)
+                if parsed is not None:
+                    out.append(parsed)
+        return out
+
+    plain = tmp / "plain.htm"
+    plain.write_text(_IXBRL_HEAD + _IXBRL_CONTEXTS + _IXBRL_TAIL, encoding="utf-8")
+    if _context_elements_fast(plain.read_bytes()) is None:
+        _fail("plain file should take the fast path")
+    got = parse_contexts_from_xml(plain)
+    if got != full(plain) or len(got) != 2:
+        _fail(f"fast path differs: {got}")
+    if got[1].is_consolidated != 0 or got[1].period_type != "instant":
+        _fail(f"dimensions/period lost: {got[1]}")
+
+    no_ctx = tmp / "attachment.htm"
+    no_ctx.write_text(_IXBRL_HEAD + _IXBRL_TAIL, encoding="utf-8")
+    if _context_elements_fast(no_ctx.read_bytes()) != [] or parse_contexts_from_xml(no_ctx) != []:
+        _fail("contextRef-only file should give no contexts")
+
+    commented = tmp / "commented.htm"
+    commented.write_text(
+        _IXBRL_HEAD + "<!--" + _IXBRL_CONTEXTS + "-->" + _IXBRL_TAIL, encoding="utf-8",
+    )
+    if _context_elements_fast(commented.read_bytes()) is not None:
+        _fail("comments must fall back to the full parse")
+    if parse_contexts_from_xml(commented) != []:
+        _fail("commented-out contexts must not be read")
+
+    self_closing = tmp / "self-closing.htm"
+    self_closing.write_text(
+        _IXBRL_HEAD + _IXBRL_CONTEXTS + '<xbrli:context id="Empty"/>' + _IXBRL_TAIL, encoding="utf-8",
+    )
+    if _context_elements_fast(self_closing.read_bytes()) is not None:
+        _fail("unpaired context tag must fall back to the full parse")
+    if parse_contexts_from_xml(self_closing) != full(self_closing):
+        _fail("fallback differs from full parse")
+
+
 def main() -> None:
     test_parsed_context_dimensions()
     test_fy_end_fallback_order()
     test_fy_end_from_summary_result_member()
     with tempfile.TemporaryDirectory() as d:
         test_parser_helpers(Path(d))
+    with tempfile.TemporaryDirectory() as d:
+        test_context_fast_path(Path(d))
     test_jobs_store_and_normalize()
     test_match_rate_and_golden_helpers()
     print("ok: xbrl units")

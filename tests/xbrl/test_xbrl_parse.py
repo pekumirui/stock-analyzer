@@ -924,6 +924,73 @@ def test_reparse_reprocesses(tmp: Path) -> None:
         db.close()
 
 
+def test_parallel_parse_matches_serial(tmp: Path) -> None:
+    """Parse workers (KAB-63) give the same DB and stats as a serial run, errors included."""
+    from app.models import XbrlContext, XbrlElement
+    from app.xbrl.jobs import run_parse
+
+    reset_taxonomy_caches()
+    init_db()
+    db = SessionLocal()
+    try:
+        seed_stock(db, "72030", "トヨタ自動車")
+        seed_stock(db, "83160", "三井住友FG")
+        seed_stock(db, "99840", "ソフトバンクG")
+        apply_mappings(db)
+        dest = tmp / "dest-parallel"
+        cases = [
+            ("par-mfg", "72030", build_zip(MANUFACTURING)),
+            ("par-bank", "83160", build_zip(BANK)),
+            ("par-ifrs", "99840", build_zip(IFRS_FACTS, ns_prefix="jpigp_cor", ns_uri=IFRS_NS)),
+            ("par-missing", "72030", _taxonomy_zip()),
+            ("par-mfg", "72030", build_zip(MANUFACTURING)),  # 同じ doc_id がもう一度来る
+        ]
+        for i, (doc_id, code, data) in enumerate(cases):
+            rel = f"{code[:4]}/2026042{i}_{doc_id}.zip"
+            write_zip(dest, rel, data)
+            append_manifest(dest, build_manifest_row(
+                xbrl_id=doc_id, code=code, code4=code[:4],
+                pubdate=f"2026-04-2{i} 15:00:00",
+                title="2026年3月期 決算短信〔日本基準〕（連結）",
+                rel_path=rel, n_bytes=len(data), sha256=f"sha-{doc_id}",
+            ))
+        cache = tmp / "cache-parallel"
+
+        def snapshot() -> tuple:
+            facts = sorted(
+                (f.doc_id, el.local_name, ctx.context_ref, str(x.value_num), x.value_text)
+                for x, f, el, ctx in db.query(XbrlFact, XbrlFiling, XbrlElement, XbrlContext)
+                .join(XbrlFiling, XbrlFiling.id == XbrlFact.filing_id)
+                .join(XbrlElement, XbrlElement.id == XbrlFact.element_id)
+                .join(XbrlContext, XbrlContext.id == XbrlFact.context_id)
+                .filter(XbrlFiling.doc_id.like("par-%"))
+            )
+            filings = sorted(
+                (f.doc_id, f.parse_status, f.parse_error, f.fiscal_year_end, f.accounting_standard)
+                for f in db.query(XbrlFiling).filter(XbrlFiling.doc_id.like("par-%"))
+            )
+            return facts, filings
+
+        first = run_parse(db, dest=dest, cache_dir=cache, workers=2)
+        if first != {"processed": 3, "errors": 1, "skipped": 1}:
+            _fail(f"parallel first run {first}")
+        missing = db.query(XbrlFiling).filter_by(doc_id="par-missing").one()
+        if missing.parse_status != "failed" or REMOTE_JPPFS_XSD not in (missing.parse_error or ""):
+            _fail(f"worker error not recorded like serial: {missing.parse_status} {missing.parse_error}")
+
+        serial = run_parse(db, dest=dest, cache_dir=cache, workers=1, reparse=True, retry_failed=True)
+        serial_snap = snapshot()
+        parallel = run_parse(db, dest=dest, cache_dir=cache, workers=2, reparse=True, retry_failed=True)
+        if parallel != serial:
+            _fail(f"stats differ: serial={serial} parallel={parallel}")
+        if snapshot() != serial_snap:
+            _fail("parallel parse wrote a different DB than serial")
+        if not serial_snap[0]:
+            _fail("no facts parsed")
+    finally:
+        db.close()
+
+
 def test_title_fy_end_annual_only() -> None:
     if fiscal_year_end_from_title("2026年3月期 決算短信〔日本基準〕（連結）") != date(2026, 3, 31):
         _fail("annual title fy_end")
@@ -955,6 +1022,7 @@ def main() -> None:
         test_missing_taxonomy_marks_filing_failed(tmp)
         test_label_and_xsd_cache_across_filings(tmp)
         test_reparse_reprocesses(tmp)
+        test_parallel_parse_matches_serial(tmp)
     print("ok: xbrl parse")
 
 

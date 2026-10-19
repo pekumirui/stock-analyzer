@@ -2,16 +2,23 @@
 from __future__ import annotations
 
 import json
+import multiprocessing
+import multiprocessing.context
+from collections.abc import Iterator
+from concurrent.futures import Future, ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
+from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.config import XBRL_CACHE_DIR, XBRL_DEST, XBRL_TEXT_MAX_CHARS
+from app.config import XBRL_CACHE_DIR, XBRL_DEST, XBRL_PARSE_WORKERS, XBRL_TEXT_MAX_CHARS
 from app.models import Stock, XbrlElement, XbrlElementMapping, XbrlFact, XbrlFiling, XbrlFinancial, XbrlJobRun
 from app.xbrl.normalize import normalize_filing, rebuild_all
-from app.xbrl.store import mark_failed, parse_zip_into_filing
+from app.xbrl.parser import ParsedPackage
+from app.xbrl.store import mark_failed, parse_zip, parse_zip_into_filing
 
 from jobs.xbrl.tdnet_xbrl_r2 import jq_lookup_code
 
@@ -65,23 +72,35 @@ def iter_manifest_rows(dest: Path, start: date | None, end: date | None) -> list
     return rows
 
 
-def parse_manifest_row(
+@dataclass
+class _ParsePlan:
+    doc_id: str
+    code5: str
+    rel: str
+    sha: str | None
+    zip_path: Path
+
+
+def _plan_row(
     db: Session,
     dest: Path,
     row: dict,
     *,
-    cache_dir: Path,
-    retry_failed: bool = False,
-    reparse: bool = False,
-) -> str:
+    retry_failed: bool,
+    reparse: bool,
+    log: bool,
+) -> _ParsePlan | str:
+    """Skip / missing checks of parse_manifest_row. A status string, or what to parse."""
     doc_id = str(row["xbrl_id"])
     rel = str(row.get("path") or "")
     if any(rel.startswith(p) or f"/{p}" in f"/{rel}" for p in SKIP_PREFIXES):
-        print(f"skip unmatched doc_id={doc_id} path={rel}", flush=True)
+        if log:
+            print(f"skip unmatched doc_id={doc_id} path={rel}", flush=True)
         return "skipped"
     code5 = jq_lookup_code(str(row.get("code") or row.get("code4") or ""))
     if not code5 or db.get(Stock, code5) is None:
-        print(f"skip not-in-master doc_id={doc_id} code={code5}", flush=True)
+        if log:
+            print(f"skip not-in-master doc_id={doc_id} code={code5}", flush=True)
         return "skipped"
     existing = db.query(XbrlFiling).filter_by(source="tdnet", doc_id=doc_id).one_or_none()
     sha = str(row.get("sha256") or "") or None
@@ -96,20 +115,53 @@ def parse_manifest_row(
         return "skipped"
     zip_path = dest / rel
     if not zip_path.is_file():
-        print(f"error missing-zip doc_id={doc_id} path={rel}", flush=True)
+        if log:
+            print(f"error missing-zip doc_id={doc_id} path={rel}", flush=True)
         return "error"
+    return _ParsePlan(doc_id=doc_id, code5=code5, rel=rel, sha=sha, zip_path=zip_path)
+
+
+def _parse_in_worker(zip_path: Path, title: str, submitted_at: str, cache_dir: Path) -> ParsedPackage | BaseException:
+    """Pool target. Exceptions come back as values so the parent records them like a serial parse."""
+    try:
+        return parse_zip(
+            zip_path,
+            title=title,
+            submitted_at=submitted_at,
+            cache_dir=cache_dir,
+            text_max=XBRL_TEXT_MAX_CHARS,
+        )
+    except Exception as exc:
+        return exc
+
+
+def parse_manifest_row(
+    db: Session,
+    dest: Path,
+    row: dict,
+    *,
+    cache_dir: Path,
+    retry_failed: bool = False,
+    reparse: bool = False,
+    package: ParsedPackage | BaseException | None = None,
+) -> str:
+    plan = _plan_row(db, dest, row, retry_failed=retry_failed, reparse=reparse, log=True)
+    if isinstance(plan, str):
+        return plan
+    doc_id, code5 = plan.doc_id, plan.code5
     try:
         filing = parse_zip_into_filing(
             db,
-            zip_path=zip_path,
+            zip_path=plan.zip_path,
             code=code5,
             doc_id=doc_id,
             title=str(row.get("title") or ""),
-            raw_path=rel,
-            raw_sha256=sha,
+            raw_path=plan.rel,
+            raw_sha256=plan.sha,
             submitted_at=str(row.get("pubdate") or ""),
             cache_dir=cache_dir,
             text_max=XBRL_TEXT_MAX_CHARS,
+            package=package,
         )
         print(
             f"parsed doc_id={doc_id} code={code5} status={filing.parse_status}",
@@ -128,6 +180,66 @@ def parse_manifest_row(
         return "error"
 
 
+def _pool_context() -> multiprocessing.context.BaseContext:
+    # fork はスレッド・SQLite 接続ごと複製するので避ける。Windows は spawn しかない
+    methods = multiprocessing.get_all_start_methods()
+    return multiprocessing.get_context("forkserver" if "forkserver" in methods else "spawn")
+
+
+def _iter_packages(
+    db: Session,
+    root: Path,
+    rows: list[dict],
+    *,
+    cache: Path,
+    retry_failed: bool,
+    reparse: bool,
+    workers: int,
+) -> Iterator[ParsedPackage | BaseException | None]:
+    """One item per row, in row order. ZIPs are parsed ahead in ``workers`` processes.
+
+    Writes stay in the parent and in manifest order, so prior-filing lookups see the same
+    DB as a serial run. parse_manifest_row re-checks each row when its turn comes; a row
+    that was not parsed ahead (or whose worker died) yields None and is parsed inline.
+    """
+    if workers <= 1 or len(rows) < 2:
+        yield from (None for _ in rows)
+        return
+    ahead = workers * 2
+    with ProcessPoolExecutor(max_workers=workers, mp_context=_pool_context()) as pool:
+        futures: dict[int, Future] = {}
+        submitted = 0
+
+        def submit_until(limit: int) -> None:
+            nonlocal submitted
+            while submitted < min(limit, len(rows)):
+                row = rows[submitted]
+                plan = _plan_row(db, root, row, retry_failed=retry_failed, reparse=reparse, log=False)
+                if isinstance(plan, _ParsePlan):
+                    try:
+                        futures[submitted] = pool.submit(
+                            _parse_in_worker,
+                            plan.zip_path,
+                            str(row.get("title") or ""),
+                            str(row.get("pubdate") or ""),
+                            cache,
+                        )
+                    except BrokenProcessPool:
+                        pass
+                submitted += 1
+
+        for i in range(len(rows)):
+            submit_until(i + 1 + ahead)
+            fut = futures.pop(i, None)
+            package = None
+            if fut is not None:
+                try:
+                    package = fut.result()
+                except Exception as exc:  # worker died / result not picklable → parse inline
+                    print(f"parse worker failed doc_id={rows[i].get('xbrl_id')} err={exc!r}", flush=True)
+            yield package
+
+
 def run_parse(
     db: Session,
     *,
@@ -138,6 +250,7 @@ def run_parse(
     retry_failed: bool = False,
     reparse: bool = False,
     cache_dir: Path | None = None,
+    workers: int | None = None,
 ) -> dict[str, int]:
     root = Path(dest or XBRL_DEST)
     cache = Path(cache_dir or XBRL_CACHE_DIR)
@@ -147,9 +260,15 @@ def run_parse(
     if doc_id:
         rows = [r for r in rows if str(r.get("xbrl_id")) == doc_id]
     processed = errors = skipped = 0
-    for row in rows:
+    packages = _iter_packages(
+        db, root, rows,
+        cache=cache, retry_failed=retry_failed, reparse=reparse,
+        workers=XBRL_PARSE_WORKERS if workers is None else workers,
+    )
+    for row, package in zip(rows, packages):
         status = parse_manifest_row(
             db, root, row, cache_dir=cache, retry_failed=retry_failed, reparse=reparse,
+            package=package,
         )
         if status == "parsed":
             processed += 1
