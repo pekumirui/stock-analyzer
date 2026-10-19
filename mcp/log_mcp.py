@@ -125,7 +125,10 @@ def crontab_job_names() -> tuple[str, ...]:
     return tuple(found)
 
 
-BATCH_JOBS = frozenset(crontab_job_names())
+# crontab に無いが cron-run.sh が /var/log/app/<stem>.log に書くジョブ。
+# migrate_r2_share は定期 cron に載せない（初回移行とギャップ埋めだけ）。
+EXTRA_BATCH_JOBS = frozenset({"migrate_r2_share"})
+BATCH_JOBS = frozenset(crontab_job_names()) | EXTRA_BATCH_JOBS
 YEAR_RE = re.compile(r"^\d{4}$")
 DB_TABLES = (
     "stocks", "daily_prices", "topix", "statements", "indicators",
@@ -354,7 +357,7 @@ def tool_app_logs(args: dict[str, Any]) -> str:
 
 def _job_error() -> str:
     names = ", ".join(sorted(BATCH_JOBS))
-    return f"job must be a crontab script stem ({names})"
+    return f"job must be a crontab / cron-run.sh script stem ({names})"
 
 
 def parse_batch_job(raw: Any) -> str | None:
@@ -1355,7 +1358,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
     "batch_logs": (
         (
             "cron の /var/log/app/<ジョブ>.log。"
-            f"job は crontab のスクリプト名（{', '.join(sorted(BATCH_JOBS))}）。"
+            f"job は crontab / cron-run.sh のスクリプト名（{', '.join(sorted(BATCH_JOBS))}）。"
             "一覧に無い名前とパスは拒否。"
             "省略時は stock-analyzer.log と mcp.log 以外の live ファイル（古い batch.log を含む）。"
             "since / until は 1h / 30m / today / yesterday / YYYY-MM-DD。"
@@ -1366,7 +1369,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         {
             "type": "object",
             "properties": {
-                "job": {"type": "string", "description": "crontab script stem without .py, e.g. xbrl_parse"},
+                "job": {"type": "string", "description": "crontab / cron-run.sh script stem without .py, e.g. xbrl_parse"},
                 "since": {"type": "string", "description": "1h, 30m, today, yesterday, or YYYY-MM-DD. Inclusive."},
                 "until": {
                     "type": "string",

@@ -142,6 +142,33 @@ def test_batch_logs_job_file(tmp_path: Path) -> None:
             os.environ["MCP_LOG_DIR"] = prev_log
 
 
+def test_batch_logs_migrate_r2_share(tmp_path: Path) -> None:
+    logs = tmp_path / "logs"
+    logs.mkdir(parents=True)
+    line = (
+        "2026-10-19 23:27:08 mismatch path=xbrl/manifest/2026-10-19.jsonl "
+        "src_size=10 dest_size=10 src_sha=aaaaaaaaaaaa dest_sha=bbbbbbbbbbbb"
+    )
+    (logs / "migrate_r2_share.log").write_text(line + "\n", encoding="utf-8")
+    prev_app, prev_log = _with_log_dir(logs)
+    try:
+        if "migrate_r2_share" not in m.BATCH_JOBS:
+            raise SystemExit("migrate_r2_share must be allowed for batch_logs")
+        if "migrate_r2_share" in m.crontab_job_names():
+            raise SystemExit("migrate_r2_share must stay off crontab")
+        text = m.tool_batch_logs({"job": "migrate_r2_share"})
+        if "xbrl/manifest/2026-10-19.jsonl" not in text:
+            raise SystemExit(f"migrate_r2_share log: {text!r}")
+        windowed, err = m.call_tool(
+            "batch_logs",
+            {"job": "migrate_r2_share", "since": "2026-10-19", "until": "2026-10-20"},
+        )
+        if err or "xbrl/manifest/2026-10-19.jsonl" not in windowed:
+            raise SystemExit(f"migrate_r2_share since=today: {windowed!r} err={err}")
+    finally:
+        _restore_log_dir(prev_app, prev_log)
+
+
 def _with_log_dir(tmp_path: Path) -> tuple[str | None, str | None]:
     prev_app = os.environ.get("MCP_APP_DIR")
     prev_log = os.environ.get("MCP_LOG_DIR")
@@ -1942,6 +1969,7 @@ def main() -> None:
         test_tail_grep(Path(d))
         test_pick_log(Path(d) / "pick")
         test_batch_logs_job_file(Path(d) / "jobs")
+        test_batch_logs_migrate_r2_share(Path(d) / "migrate")
         test_batch_logs_window(Path(d) / "window")
     test_http_auth_and_tools()
     test_service_status_skips_self_mcp_curl()

@@ -6,10 +6,13 @@ src も dest も消さない。dest にだけあるファイルは残す。
 `.part` の sha256 が src と違うときは dest を置き換えない。
 `xbrl/_cache` は既定でコピーしない。外部コマンドは呼ばない。app は import しない。
 dest が FUSE 上、または src と同じ場所なら exit 2。src が無い・読めないときは exit 1。
+不一致は相対パスと src/dest の size・短い sha256 を 1 行ずつ出す。多いときは先頭 N 件と件数。
+`--list-mismatches` はコピーせず不一致だけ出して終わる。
 
 使い方:
   python jobs/ops/migrate_r2_share.py
   python jobs/ops/migrate_r2_share.py --src /home/stock/r2-share --dest /home/stock/stock-analyzer/data
+  python jobs/ops/migrate_r2_share.py --list-mismatches
 """
 from __future__ import annotations
 
@@ -29,6 +32,24 @@ from jobs.share_paths import share_root  # noqa: E402
 _CHUNK = 1024 * 1024
 EXIT_IO = 1
 EXIT_MISCONFIG = 2
+SHA_SHORT = 12
+MISMATCH_LOG_LIMIT = 50
+
+
+class Mismatch:
+    def __init__(
+        self,
+        path: str,
+        src_size: int,
+        dest_size: int | None,
+        src_sha: str,
+        dest_sha: str | None,
+    ) -> None:
+        self.path = path
+        self.src_size = src_size
+        self.dest_size = dest_size
+        self.src_sha = src_sha
+        self.dest_sha = dest_sha
 
 
 class Summary:
@@ -40,6 +61,7 @@ class Summary:
         self.bytes_copied = 0
         self.bytes_src = 0
         self.skipped_cache = 0
+        self.mismatches: list[Mismatch] = []
 
 
 def format_summary(summary: Summary) -> str:
@@ -52,6 +74,29 @@ def format_summary(summary: Summary) -> str:
         f"bytes_src={summary.bytes_src} "
         f"skipped_cache={summary.skipped_cache}"
     )
+
+
+def _short_sha(digest: str | None) -> str:
+    if not digest:
+        return "-"
+    return digest[:SHA_SHORT]
+
+
+def format_mismatch(item: Mismatch) -> str:
+    dest_size = "-" if item.dest_size is None else str(item.dest_size)
+    return (
+        f"mismatch path={item.path} "
+        f"src_size={item.src_size} dest_size={dest_size} "
+        f"src_sha={_short_sha(item.src_sha)} dest_sha={_short_sha(item.dest_sha)}"
+    )
+
+
+def log_mismatches(mismatches: list[Mismatch], *, limit: int = MISMATCH_LOG_LIMIT) -> None:
+    for item in mismatches[:limit]:
+        print(format_mismatch(item), flush=True)
+    total = len(mismatches)
+    if total > limit:
+        print(f"mismatch_truncated showing={limit} total={total}", flush=True)
 
 
 def _sha256(path: Path) -> str:
@@ -78,6 +123,15 @@ def _is_xbrl_cache(rel: Path) -> bool:
     return len(parts) >= 2 and parts[0] == "xbrl" and parts[1] == "_cache"
 
 
+def _dest_stats(path: Path) -> tuple[int | None, str | None]:
+    try:
+        if path.is_symlink() or not path.is_file():
+            return None, None
+        return path.stat().st_size, _sha256(path)
+    except OSError:
+        return None, None
+
+
 def _copy_atomic(src: Path, dest: Path, expected_sha: str) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_name(dest.name + ".part")
@@ -98,6 +152,20 @@ def _copy_atomic(src: Path, dest: Path, expected_sha: str) -> None:
         raise
 
 
+def _record_mismatch(
+    summary: Summary,
+    rel: Path,
+    src_size: int,
+    dest_size: int | None,
+    src_sha: str,
+    dest_sha: str | None,
+) -> None:
+    summary.files_mismatched += 1
+    summary.mismatches.append(
+        Mismatch(rel.as_posix(), src_size, dest_size, src_sha, dest_sha)
+    )
+
+
 def validate_roots(src: Path, dest: Path) -> str | None:
     src_r = Path(src).expanduser().resolve()
     dest_r = Path(dest).expanduser().resolve()
@@ -114,6 +182,7 @@ def migrate(
     *,
     include_cache: bool = False,
     force: bool = False,
+    list_mismatches: bool = False,
 ) -> tuple[int, Summary]:
     summary = Summary()
     src = Path(src)
@@ -137,24 +206,27 @@ def migrate(
             continue
         target = dest / rel
         src_sha = _sha256(path)
-        if (
-            not target.is_symlink()
-            and target.is_file()
-            and target.stat().st_size == size
-            and _sha256(target) == src_sha
-        ):
+        dest_size, dest_sha = _dest_stats(target)
+        if dest_size is not None and dest_size == size and dest_sha == src_sha:
             summary.files_skipped_identical += 1
             continue
-        if (target.exists() or target.is_symlink()) and not force:
-            summary.files_mismatched += 1
+        dest_present = target.exists() or target.is_symlink()
+        if list_mismatches:
+            if dest_present:
+                _record_mismatch(summary, rel, size, dest_size, src_sha, dest_sha)
+            continue
+        if dest_present and not force:
+            _record_mismatch(summary, rel, size, dest_size, src_sha, dest_sha)
             continue
         try:
             _copy_atomic(path, target, src_sha)
         except OSError:
-            summary.files_mismatched += 1
+            after_size, after_sha = _dest_stats(target)
+            _record_mismatch(summary, rel, size, after_size, src_sha, after_sha)
             continue
         summary.files_dest_copied_this_run += 1
         summary.bytes_copied += size
+    log_mismatches(summary.mismatches)
     if summary.files_mismatched:
         return EXIT_IO, summary
     return 0, summary
@@ -166,10 +238,21 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dest", default=None, help="destination tree (default: share_root())")
     ap.add_argument("--include-cache", action="store_true", help="also copy xbrl/_cache")
     ap.add_argument("--force", action="store_true", help="replace dest files whose sha256 differs")
+    ap.add_argument(
+        "--list-mismatches",
+        action="store_true",
+        help="print mismatches and exit without copying",
+    )
     args = ap.parse_args(argv)
     src = Path(args.src) if args.src else r2_share_root()
     dest = Path(args.dest) if args.dest else share_root()
-    code, summary = migrate(src, dest, include_cache=args.include_cache, force=args.force)
+    code, summary = migrate(
+        src,
+        dest,
+        include_cache=args.include_cache,
+        force=args.force,
+        list_mismatches=args.list_mismatches,
+    )
     print(format_summary(summary), flush=True)
     return code
 
