@@ -341,15 +341,9 @@ cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/monthly/ir_monthly_htm
 1. エージェントの Secrets / 環境変数に `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` を登録する（R2 側で **Object Read only** のトークンを別に発行する。登録先は上の `VPS_SSH_KEY` と同じ）。
    起動時に環境変数として入る。登録後に始めたエージェントから有効
 2. `rclone` は `bash .cursor/install.sh`（環境ビルド。Cursor は自動）で入る。同じスクリプトが `.venv` / `pdftotext` と、Secrets に `JQUANTS_API_KEY` があれば `stock.db`（2 年分）も作る。`VPS_SSH_KEY` があれば続けて本番の `monthly_issuers` / `monthly_tables` / `monthly_elements` / `monthly_values` だけを載せ替える（DB 丸ごとコピーしない。SSH が無い・繋がらないときは skip）
-3. 設定ファイルは書かず、環境変数だけで remote `r2` を定義する
+3. 同じスクリプトが `/usr/local/bin/rclone` にラッパーを置く。`R2_*` から remote `r2` を環境変数で定義し（設定ファイルは書かない）、`AWS_CA_BUNDLE` があるプロキシ環境では外して `--ca-cert` で渡し直す（そのままだと S3 が `LoadCustomCABundleError` で落ちる）。export は要らない
 
 ```bash
-export RCLONE_CONFIG_R2_TYPE=s3
-export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
-export RCLONE_CONFIG_R2_ENDPOINT=https://39a6da16651b53d44c459c3a4f4d59f5.r2.cloudflarestorage.com
-export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
-export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
-
 rclone lsd r2:share/monthly/
 rclone ls r2:share/monthly/9279/
 rclone copy r2:share/monthly/9279/ /tmp/r2/monthly/9279/   # 必要な分だけ /tmp へ
