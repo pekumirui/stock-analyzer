@@ -161,12 +161,19 @@ _PL_DURATION_HINTS = frozenset({
     "SalesIFRS",
     "NetSalesIFRS",
     "RevenueIFRS",
+    "Revenue2IFRS",
     "OperatingRevenues",
     "OperatingRevenuesIFRS",
     "OperatingRevenue1",
+    "OperatingRevenue2",
+    "GrossOperatingRevenue",
+    "GrossOperatingRevenues",
+    "OrdinaryIncomeBNK",
     "OperatingIncome",
     "OperatingProfitLossIFRS",
     "OrdinaryIncome",
+    "ProfitLoss",
+    "ProfitLossIFRS",
     "ProfitLossAttributableToOwnersOfParent",
     "ProfitAttributableToOwnersOfParentIFRS",
     "ProfitLossAttributableToOwnersOfParentIFRS",
@@ -361,7 +368,8 @@ def classify_title(title: str) -> dict[str, Any]:
     else:
         doc_type = "other"
         period = None
-    if "IFRS" in t.upper() or "国際会計" in t:
+    upper = t.upper()
+    if "IFRS" in upper or "SFRS" in upper or "国際会計" in t:
         standard = "IFRS"
     elif "米国" in t:
         standard = "USGAAP"
@@ -397,7 +405,8 @@ def infer_accounting_standard_from_namespaces(
     """When title leaves accounting_standard NULL, prefer namespace evidence.
 
     DESIGN_xbrl: DEI/namespaces with ``jpigp`` / ``ifrs`` → IFRS,
-    ``us-gaap`` → USGAAP; otherwise leave NULL (do not invent JPGAAP).
+    ``us-gaap`` → USGAAP; tse-ed-t (or any) numeric ``*IFRS`` facts → IFRS;
+    otherwise leave NULL (do not invent JPGAAP).
     Title result wins when already set.
     """
     if title_standard:
@@ -412,12 +421,20 @@ def infer_accounting_standard_from_namespaces(
             saw_ifrs = True
         if "us-gaap" in blob or "usgaap" in blob:
             saw_us = True
+        local_orig = getattr(fact, "local_name", None) or ""
+        if (
+            local_orig.endswith("IFRS")
+            and getattr(fact, "is_numeric", False)
+            and getattr(fact, "value_num", None) is not None
+            and not getattr(fact, "is_nil", False)
+        ):
+            saw_ifrs = True
         # DEI text values sometimes name the standard explicitly.
-        local = (getattr(fact, "local_name", None) or "").lower().replace("_", "")
+        local = local_orig.lower().replace("_", "")
         if "accountingstandard" in local:
             raw_nfkc = unicodedata.normalize("NFKC", str(getattr(fact, "value_text", None) or ""))
             upper = raw_nfkc.upper()
-            if "IFRS" in upper or "国際会計" in raw_nfkc:
+            if "IFRS" in upper or "SFRS" in upper or "国際会計" in raw_nfkc:
                 return "IFRS"
             if "US-GAAP" in upper or "USGAAP" in upper or "米国" in raw_nfkc:
                 return "USGAAP"

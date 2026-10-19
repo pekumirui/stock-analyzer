@@ -5,10 +5,13 @@ No network. sqlite3 + stdlib. Does not write the DB (read-only).
 
   python tools/xbrl/xbrl_vs_statements.py --db PATH [--out PATH] [--code 72030]
 
-Join is code + disclosed_date == date(submitted_at) only (no all-history
-fallback). Prefer consolidated, point forecasts (not previous / not range).
-dps uses statements.fiscal_year_end == xbrl period_end.
-Million-yen truncation is status=rounding and counted in matched.
+Join prefers statements.disclosure_no == xbrl_filings.doc_id last 14 chars
+(same-day 訂正/修正の取り違え防止). Falls back to code + disclosed_date ==
+date(submitted_at). Prefer consolidated, point forecasts (not previous /
+not range). FNC* (個別予想) prefers non-consolidated. dps uses
+statements.fiscal_year_end == xbrl period_end.
+Million-yen truncation (ROUND_DOWN) and half-up rounding are status=rounding
+and counted in matched.
 
 Scale: both sides are yen (or yen/share). Trust unit; yen-like units are
 compared as-is. Per-share items use a slightly wider absolute tolerance.
@@ -23,7 +26,7 @@ import json
 import sqlite3
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
-from decimal import ROUND_DOWN, Decimal, InvalidOperation
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -73,7 +76,36 @@ RAW_PAIRS: list[tuple[str, str, str, str, bool]] = [
     ("FDiv3Q", "dps", "forecast", "Q3", True),
     ("FDivFY", "dps", "forecast", "year_end", True),
     ("FDivAnn", "dps", "forecast", "annual", True),
+    ("FNCSales", "net_sales", "forecast", "FY", False),
+    ("FNCOP", "operating_income", "forecast", "FY", False),
+    ("FNCOdP", "ordinary_income", "forecast", "FY", False),
+    ("FNCNP", "net_income", "forecast", "FY", False),
+    ("FNCEPS", "eps_basic", "forecast", "FY", True),
+    ("FNCSales2Q", "net_sales", "forecast", "H1", False),
+    ("FNCOP2Q", "operating_income", "forecast", "H1", False),
+    ("FNCOdP2Q", "ordinary_income", "forecast", "H1", False),
+    ("FNCNP2Q", "net_income", "forecast", "H1", False),
+    ("FNCEPS2Q", "eps_basic", "forecast", "H1", True),
 ]
+
+RAW_ONLY_FIELDS = {
+    "DEPS", "Div1Q", "Div2Q", "Div3Q", "DivFY", "DivAnn",
+    "FDiv1Q", "FDiv2Q", "FDiv3Q", "FDivFY", "FDivAnn",
+    "FNCSales", "FNCOP", "FNCOdP", "FNCNP", "FNCEPS",
+    "FNCSales2Q", "FNCOP2Q", "FNCOdP2Q", "FNCNP2Q", "FNCEPS2Q",
+}
+NONCONS_FORECAST_FIELDS = {
+    "FNCSales", "FNCOP", "FNCOdP", "FNCNP", "FNCEPS",
+    "FNCSales2Q", "FNCOP2Q", "FNCOdP2Q", "FNCNP2Q", "FNCEPS2Q",
+}
+
+
+def disclosure_tail(raw: Any) -> str:
+    """doc_id / disclosure_no の末尾14桁（0812…517841 → 20260812517841）。"""
+    s = str(raw or "").strip()
+    if len(s) >= 14:
+        return s[-14:]
+    return s
 
 
 def _dec(raw: Any) -> Decimal | None:
@@ -118,7 +150,7 @@ def values_match(a: Decimal, b: Decimal, *, per_share: bool) -> bool:
 
 
 def values_rounding_match(stmt: Decimal, xbrl: Decimal, *, per_share: bool) -> bool:
-    """statements の百万円未満切捨て（0方向）と XBRL 財表値が |diff|<1e6 で一致。"""
+    """statements の百万円丸め（切捨てまたは四捨五入）と XBRL 財表値が |diff|<1e6 で一致。"""
     if per_share:
         return False
     if stmt % MILLION != 0:
@@ -127,7 +159,9 @@ def values_rounding_match(stmt: Decimal, xbrl: Decimal, *, per_share: bool) -> b
     if diff == 0 or diff >= MILLION:
         return False
     truncated = xbrl.quantize(MILLION, rounding=ROUND_DOWN)
-    return truncated == stmt
+    if truncated == stmt:
+        return True
+    return xbrl.quantize(MILLION, rounding=ROUND_HALF_UP) == stmt
 
 
 @dataclass
@@ -205,7 +239,8 @@ def load_financials(conn: sqlite3.Connection, code: str | None) -> list[dict[str
           {range_sql} AS range_side,
           {target_sql} AS target_period,
           s.code AS std_item,
-          substr(fl.submitted_at, 1, 10) AS submitted_date
+          substr(fl.submitted_at, 1, 10) AS submitted_date,
+          fl.doc_id AS doc_id
         FROM xbrl_financials f
         JOIN xbrl_std_items s ON s.id = f.std_item_id
         LEFT JOIN xbrl_filings fl ON fl.id = f.filing_id
@@ -232,6 +267,7 @@ def _pick(
     target_period: str,
     period_end: str | None,
     fiscal_year_end: str | None = None,
+    prefer_noncons: bool = False,
 ) -> dict[str, Any] | None:
     cands = [
         r for r in rows
@@ -251,7 +287,10 @@ def _pick(
             return None
     if not cands:
         return None
-    cands.sort(key=lambda r: (0 if _as_bool(r["is_consolidated"]) else 1, -(r["filing_id"] or 0)))
+    if prefer_noncons:
+        cands.sort(key=lambda r: (0 if not _as_bool(r["is_consolidated"]) else 1, -(r["filing_id"] or 0)))
+    else:
+        cands.sort(key=lambda r: (0 if _as_bool(r["is_consolidated"]) else 1, -(r["filing_id"] or 0)))
     return cands[0]
 
 
@@ -271,10 +310,14 @@ def compare_db(db_path: Path, *, code: str | None = None) -> Report:
         conn.close()
 
     by_code_date: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+    by_disc: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in fins:
         day = norm_date(row.get("submitted_date"))
         if day:
             by_code_date[(str(row["code"]), day)].append(row)
+        tail = disclosure_tail(row.get("doc_id"))
+        if tail:
+            by_disc[(str(row["code"]), tail)].append(row)
 
     report = Report()
     for st in stmts:
@@ -290,7 +333,10 @@ def compare_db(db_path: Path, *, code: str | None = None) -> Report:
                 reason="disclosure date missing",
             ))
             continue
-        rows = by_code_date.get((code5, day)) or []
+        disc_key = disclosure_tail(disc)
+        rows = (by_disc.get((code5, disc_key)) or []) if disc_key else []
+        if not rows:
+            rows = by_code_date.get((code5, day)) or []
         if not rows:
             report.skipped_date += 1
             report.rows.append(CmpRow(
@@ -308,8 +354,7 @@ def compare_db(db_path: Path, *, code: str | None = None) -> Report:
         for src, std, kind, target, per_share in RAW_PAIRS:
             pairs.append((src, std, kind, target, per_share))
         for src, std, kind, target, per_share in pairs:
-            if src in st and src not in {"DEPS", "Div1Q", "Div2Q", "Div3Q", "DivFY", "DivAnn",
-                                         "FDiv1Q", "FDiv2Q", "FDiv3Q", "FDivFY", "FDivAnn"}:
+            if src in st and src not in RAW_ONLY_FIELDS:
                 stmt_val = _dec(st.get(src))
             else:
                 stmt_val = _dec(raw.get(src))
@@ -328,6 +373,7 @@ def compare_db(db_path: Path, *, code: str | None = None) -> Report:
                 target_period=want_target,
                 period_end=period_end if kind == "actual" and target == "period" else None,
                 fiscal_year_end=fy_end if std == "dps" else None,
+                prefer_noncons=src in NONCONS_FORECAST_FIELDS,
             )
             if hit is None:
                 report.missing += 1

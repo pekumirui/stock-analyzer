@@ -171,7 +171,7 @@ def test_revenue2_summary_fills_when_primary_missing(tmp: Path) -> None:
 
 
 def test_sfrs_summary_sales_without_ifrs_standard(tmp: Path) -> None:
-    """92570/76990 型: タイトルが SFRS で accounting_standard が空でも tse-ed-t SalesIFRS を使う。"""
+    """92570 型: タイトルに IFRS が無くても tse-ed-t SalesIFRS で IFRS と判定し売上を使う。"""
     init_db()
     db = SessionLocal()
     try:
@@ -187,8 +187,8 @@ def test_sfrs_summary_sales_without_ifrs_standard(tmp: Path) -> None:
             title="2026年3月期 第2四半期決算短信〔シンガポール基準〕（連結）",
             html=html,
         )
-        if filing.accounting_standard is not None:
-            _fail(f"SFRS title must leave standard empty: {filing.accounting_standard}")
+        if filing.accounting_standard != "IFRS":
+            _fail(f"SalesIFRS facts should set IFRS: {filing.accounting_standard}")
         sales = _one(db, filing.id, "net_sales", value_kind="actual")
         if sales is None or Decimal(str(sales.value)) != Decimal("770000000"):
             _fail(f"SFRS fallback {sales.value if sales else None}")
@@ -401,7 +401,7 @@ def test_summary_only_sfrs_q2_uses_result_member_period_end(tmp: Path) -> None:
 
 
 def test_summary_only_sfrs_q1_without_ifrs_in_title(tmp: Path) -> None:
-    """76990 型: 〔SFRS〕で standard 空。Q1 ResultMember が relative_period=current。"""
+    """76990 型: 〔SFRS〕は IFRS。Q1 ResultMember が relative_period=current。"""
     init_db()
     db = SessionLocal()
     try:
@@ -431,8 +431,8 @@ def test_summary_only_sfrs_q1_without_ifrs_in_title(tmp: Path) -> None:
             title="2027年3月期 第1四半期決算短信〔SFRS〕（連結）",
             html=html,
         )
-        if filing.accounting_standard is not None:
-            _fail(f"SFRS title must leave standard empty: {filing.accounting_standard}")
+        if filing.accounting_standard != "IFRS":
+            _fail(f"SFRS title should be IFRS: {filing.accounting_standard}")
         _assert_summary_q_sales(
             db, filing,
             want=Decimal("21469000000"),

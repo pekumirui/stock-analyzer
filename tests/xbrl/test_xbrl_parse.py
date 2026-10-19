@@ -248,6 +248,12 @@ def test_classify_title() -> None:
     h = classify_title("2026年3月期通期業績予想の修正に関するお知らせ")
     if h["doc_type"] != "forecast_revision" or h["period_type"] != "FY":
         _fail(f"forecast revision title: {h}")
+    i = classify_title("2027年3月期 第1四半期決算短信〔SFRS〕（連結）")
+    if i["accounting_standard"] != "IFRS" or i["period_type"] != "Q1":
+        _fail(f"SFRS title should be IFRS: {i}")
+    j = classify_title("2026年3月期 第2四半期決算短信〔シンガポール基準〕（連結）")
+    if j["accounting_standard"] is not None:
+        _fail(f"Singapore GAAP title should stay NULL: {j}")
 
 
 def test_infer_accounting_standard_from_namespaces() -> None:
@@ -274,6 +280,21 @@ def test_infer_accounting_standard_from_namespaces() -> None:
     got3 = infer_accounting_standard_from_namespaces([jppfs], title_standard=None)
     if got3 is not None:
         _fail(f"jppfs alone must stay NULL: {got3}")
+    tse_ifrs = SimpleNamespace(
+        namespace_key="tse-ed-t",
+        namespace_uri="http://www.xbrl.tdnet.info/jp/tse/ed/t/2014-01-12",
+        local_name="SalesIFRS",
+        value_text=None,
+        is_numeric=True,
+        value_num=22000000000,
+        is_nil=False,
+    )
+    got4 = infer_accounting_standard_from_namespaces([tse_ifrs], title_standard=None)
+    if got4 != "IFRS":
+        _fail(f"*IFRS numeric fact → IFRS: {got4}")
+    got5 = infer_accounting_standard_from_namespaces([tse_ifrs], title_standard="JPGAAP")
+    if got5 != "JPGAAP":
+        _fail(f"JPGAAP title must win over *IFRS facts: {got5}")
 
 
 def test_infer_consolidated() -> None:
