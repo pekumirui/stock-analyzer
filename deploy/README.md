@@ -96,9 +96,8 @@ box エージェントはユーザ `boxro` で sftp するだけ（シェルも�
 | chroot 内 | 実体 |
 |---|---|
 | `/data` | `$APP_DIR/data`（`xbrl_golden` / `xbrl_taxonomy`） |
-| `/logs` | `/var/log/app` |
 
-見せない: `stock.db`、`.env`、`/home/stock/backups`、R2 FUSE（`/home/stock/r2-share`）。将来 R2 を VPS ローカルに移したら、そのフォルダの bind を 1 行足す。今の FUSE は bind しない。
+見せない: `/var/log/app`（ログは MCP の `app_logs` / `batch_logs` と `fs_*`）、`stock.db`、`.env`、`/home/stock/backups`、R2 FUSE（`/home/stock/r2-share`）。将来 R2 を VPS ローカルに移したら、そのフォルダの bind を 1 行足す。今の FUSE は bind しない。既存ホストに `/srv/boxro/logs` の bind が残っていれば provision が umount し、fstab のその 1 行だけ消して空なら rmdir する（`/var/log/app` の中身は触らない）。
 
 公開鍵は `deploy/ssh/boxro_authorized_keys`（1行1鍵、先頭 `restrict`）。provision が `/etc/ssh/authorized_keys/boxro`（root:root、644）へ同期する。鍵を足すときはそのファイルに行を足してデプロイ。`/etc/ssh/sshd_config.d/90-boxro.conf` が変わったときだけ `sshd -t && systemctl reload ssh`。`sshd -t` が失敗したら drop-in を戻す。restart はしない。boxro の失敗は stderr に出すが、アプリの provision（systemd / nginx / crontab）は続ける。既存の stock / root / デプロイ鍵には触らない。
 
@@ -107,10 +106,10 @@ box エージェントはユーザ `boxro` で sftp するだけ（シェルも�
 ```bash
 rm -f /etc/ssh/sshd_config.d/90-boxro.conf /etc/ssh/authorized_keys/boxro
 sshd -t && systemctl reload ssh
-umount /srv/boxro/data /srv/boxro/logs
-# /etc/fstab の /srv/boxro/data と /srv/boxro/logs の 2 行を消す
+umount /srv/boxro/data
+# /etc/fstab の /srv/boxro/data の 1 行を消す（logs 行は provision が消す）
 userdel boxro
-rmdir /srv/boxro/data /srv/boxro/logs /srv/boxro
+rmdir /srv/boxro/data /srv/boxro
 ```
 
 失敗したデプロイのやり直しは Actions の **Run workflow**（`bump: none`）。

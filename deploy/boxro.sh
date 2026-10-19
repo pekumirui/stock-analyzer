@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # box エージェント向けの読み取り専用 SFTP（KAB-64 / #769）。
-# provision.sh から source する。/home/stock/backups・stock.db・.env・R2 FUSE は bind しない。
+# provision.sh から source する。bind は data だけ。logs・backups・stock.db・.env・R2 FUSE は見せない。
 
 boxro_defaults() {
   : "${APP_DIR:=/home/stock/stock-analyzer}"
@@ -53,7 +53,6 @@ boxro_ensure_chroot() {
   boxro_root_owned "$BOXRO_SRV" 755
   boxro_root_owned "$BOXRO_CHROOT" 755
   boxro_root_owned "${BOXRO_CHROOT}/data" 755
-  boxro_root_owned "${BOXRO_CHROOT}/logs" 755
 }
 
 boxro_fstab_line() {
@@ -128,13 +127,64 @@ boxro_mount_ro_bind() {
 
 boxro_ensure_binds() {
   boxro_defaults
-  local data_dest logs_dest
+  local data_dest
   data_dest="${BOXRO_CHROOT}/data"
-  logs_dest="${BOXRO_CHROOT}/logs"
   boxro_ensure_fstab_line "$(boxro_fstab_line "$BOXRO_DATA_SRC" "$data_dest")"
-  boxro_ensure_fstab_line "$(boxro_fstab_line "$BOXRO_LOGS_SRC" "$logs_dest")"
   boxro_mount_ro_bind "$BOXRO_DATA_SRC" "$data_dest"
-  boxro_mount_ro_bind "$BOXRO_LOGS_SRC" "$logs_dest"
+}
+
+boxro_remove_exact_fstab_line() {
+  local line="$1"
+  local fstab tmp rc=0
+  boxro_defaults
+  fstab="$BOXRO_FSTAB"
+  [[ -f "$fstab" ]] || return 0
+  grep -qxF "$line" "$fstab" || return 0
+  tmp="$(mktemp)"
+  cp -a "$fstab" "${fstab}.boxro.bak"
+  echo "boxro: fstab backup ${fstab}.boxro.bak"
+  grep -vxF "$line" "${fstab}.boxro.bak" > "$tmp" || rc=$?
+  if [[ "$rc" -gt 1 ]]; then
+    rm -f "$tmp"
+    echo "boxro: fstab filter failed" >&2
+    return 1
+  fi
+  if ! cat "$tmp" > "$fstab"; then
+    cp -a "${fstab}.boxro.bak" "$fstab"
+    rm -f "$tmp"
+    echo "boxro: fstab write failed; restored backup" >&2
+    return 1
+  fi
+  rm -f "$tmp"
+  echo "boxro: fstab removed ${line}"
+}
+
+boxro_drop_logs_bind() {
+  # Idempotent cleanup of the former /logs jail. Never touch /var/log/app.
+  boxro_defaults
+  local dest="${BOXRO_CHROOT}/logs"
+  local prod_line="/var/log/app /srv/boxro/logs none bind,ro 0 0"
+  local cfg_line
+  cfg_line="$(boxro_fstab_line "${BOXRO_LOGS_SRC}" "$dest")"
+  if boxro_is_mountpoint "$dest"; then
+    if umount -- "$dest" 2>/dev/null || umount -l -- "$dest"; then
+      echo "boxro: unmounted ${dest}"
+    else
+      echo "boxro: umount ${dest} failed" >&2
+      return 1
+    fi
+  fi
+  boxro_remove_exact_fstab_line "$prod_line"
+  if [[ "$cfg_line" != "$prod_line" ]]; then
+    boxro_remove_exact_fstab_line "$cfg_line"
+  fi
+  if [[ -d "$dest" ]] && ! boxro_is_mountpoint "$dest"; then
+    if rmdir "$dest" 2>/dev/null; then
+      echo "boxro: removed empty ${dest}"
+    else
+      echo "boxro: ${dest} not empty; leaving (did not touch /var/log/app)"
+    fi
+  fi
 }
 
 boxro_validate_authorized_keys() {
@@ -238,6 +288,7 @@ boxro_apply() {
   boxro_defaults
   boxro_ensure_user
   boxro_ensure_chroot
+  boxro_drop_logs_bind
   boxro_ensure_binds
   boxro_sync_authorized_keys
   boxro_apply_sshd_dropin

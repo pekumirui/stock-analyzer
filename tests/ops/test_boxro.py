@@ -89,6 +89,12 @@ def test_static_contracts() -> None:
         _fail("findmnt --target matches parent /; use mountpoint or --mountpoint")
     if "mountpoint -q" not in script:
         _fail("boxro.sh must detect the exact mount with mountpoint -q")
+    if "boxro_drop_logs_bind" not in script:
+        _fail("boxro.sh must clean up the former logs bind")
+    if "boxro_mount_ro_bind \"$BOXRO_LOGS_SRC\"" in script:
+        _fail("boxro.sh must not bind logs")
+    if 'boxro_ensure_fstab_line "$(boxro_fstab_line "$BOXRO_LOGS_SRC"' in script:
+        _fail("boxro.sh must not add a logs fstab line")
 
     chk = subprocess.run(
         ["bash", "-n", str(BOXRO_SH)],
@@ -201,6 +207,18 @@ def _write_stubs(bin_dir: Path) -> None:
         "exit 1\n",
         encoding="utf-8",
     )
+    (bin_dir / "umount").write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        'printf "umount %s\\n" "$*" >> "${BOXRO_TEST_LOG}"\n'
+        "dest=\"${@: -1}\"\n"
+        '[[ "$dest" == -- ]] && exit 1\n'
+        'if [[ -f "${BOXRO_TEST_MOUNTED}" ]]; then\n'
+        '  grep -vxF "$dest" "${BOXRO_TEST_MOUNTED}" > "${BOXRO_TEST_MOUNTED}.tmp" || true\n'
+        '  mv "${BOXRO_TEST_MOUNTED}.tmp" "${BOXRO_TEST_MOUNTED}"\n'
+        "fi\n",
+        encoding="utf-8",
+    )
     (bin_dir / "mount").write_text(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
@@ -245,6 +263,7 @@ def _write_stubs(bin_dir: Path) -> None:
         "mountpoint",
         "findmnt",
         "mount",
+        "umount",
         "sshd",
         "systemctl",
     ):
@@ -333,8 +352,10 @@ def test_apply_idempotent_and_isolated(tmp_path: Path) -> None:
     logs_line = (
         f"{env['BOXRO_LOGS_SRC']} {env['BOXRO_CHROOT']}/logs none bind,ro 0 0"
     )
-    if data_line not in fstab or logs_line not in fstab:
-        _fail(f"fstab missing bind lines: {fstab!r}")
+    if data_line not in fstab:
+        _fail(f"fstab missing data bind: {fstab!r}")
+    if logs_line in fstab or "/logs none bind,ro" in fstab:
+        _fail(f"fstab must not bind logs: {fstab!r}")
     if "backups" in fstab or "r2-share" in fstab:
         _fail(f"fstab must not bind secrets: {fstab!r}")
     dest = Path(env["BOXRO_AUTH_DEST"])
@@ -353,7 +374,7 @@ def test_apply_idempotent_and_isolated(tmp_path: Path) -> None:
         _fail(f"idempotent apply must not useradd again: {log2!r}")
     if "systemctl reload" in log2:
         _fail(f"unchanged drop-in must not reload ssh: {log2!r} {second.stdout!r}")
-    if fstab.count(data_line) != 1 or fstab.count(logs_line) != 1:
+    if Path(env["BOXRO_FSTAB"]).read_text(encoding="utf-8").count(data_line) != 1:
         _fail(f"fstab duplicated: {Path(env['BOXRO_FSTAB']).read_text()!r}")
     if "boxro: sshd drop-in unchanged" not in second.stdout:
         _fail(f"second apply should skip drop-in: {second.stdout!r}")
@@ -514,17 +535,77 @@ def test_partial_vps_state_is_idempotent(tmp_path: Path) -> None:
         _fail(f"existing user must not useradd: {log!r}")
     if f"mount --bind {env['BOXRO_DATA_SRC']} {data_dest}" not in log:
         _fail(f"partial state must bind data: {log!r}")
-    if f"mount --bind {env['BOXRO_LOGS_SRC']} {logs_dest}" not in log:
-        _fail(f"partial state must bind logs: {log!r}")
+    if f"mount --bind {env['BOXRO_LOGS_SRC']} {logs_dest}" in log:
+        _fail(f"must not bind logs: {log!r}")
     fstab = Path(env["BOXRO_FSTAB"]).read_text(encoding="utf-8")
-    if fstab.count(data_line) != 1 or fstab.count(logs_line) != 1:
-        _fail(f"fstab duplicated on resume: {fstab!r}")
+    if fstab.count(data_line) != 1:
+        _fail(f"data fstab duplicated on resume: {fstab!r}")
+    if logs_line in fstab:
+        _fail(f"logs fstab line must be removed: {fstab!r}")
+    if logs_dest.exists():
+        _fail("empty logs dest must be rmdir'd")
     if not Path(env["BOXRO_AUTH_DEST"]).is_file():
         _fail("partial state must sync authorized_keys")
     if Path(env["BOXRO_SSHD_DROPIN"]).read_text(encoding="utf-8") != DROPIN:
         _fail("partial state must write sshd drop-in")
     if "systemctl reload ssh" not in log:
         _fail(f"partial state must reload ssh once: {log!r}")
+
+
+def test_drops_existing_logs_bind_without_touching_app_logs(tmp_path: Path) -> None:
+    """Production leftover: logs mount + fstab line; /var/log/app must stay."""
+    _write_stubs(tmp_path / "bin")
+    app = _seed_app(tmp_path)
+    env = _env(tmp_path, app)
+    Path(env["BOXRO_TEST_USER_FLAG"]).write_text("", encoding="utf-8")
+    data_dest = Path(env["BOXRO_CHROOT"]) / "data"
+    logs_dest = Path(env["BOXRO_CHROOT"]) / "logs"
+    data_dest.mkdir(parents=True)
+    logs_dest.mkdir(parents=True)
+    app_log = Path(env["BOXRO_LOGS_SRC"]) / "stock-analyzer.log"
+    marker = "keep-app-log\n"
+    app_log.write_text(marker, encoding="utf-8")
+    data_line = f"{env['BOXRO_DATA_SRC']} {data_dest} none bind,ro 0 0"
+    logs_line = f"{env['BOXRO_LOGS_SRC']} {logs_dest} none bind,ro 0 0"
+    prod_line = "/var/log/app /srv/boxro/logs none bind,ro 0 0"
+    Path(env["BOXRO_FSTAB"]).write_text(
+        f"proc /proc proc defaults 0 0\n{data_line}\n{logs_line}\n{prod_line}\n",
+        encoding="utf-8",
+    )
+    Path(env["BOXRO_TEST_MOUNTED"]).write_text(f"{logs_dest}\n", encoding="utf-8")
+    proc = _run(env, "boxro_apply")
+    _assert_ok(proc, "drop logs bind")
+    log = Path(env["BOXRO_TEST_LOG"]).read_text(encoding="utf-8")
+    if f"umount -- {logs_dest}" not in log and f"umount {logs_dest}" not in log:
+        _fail(f"must umount logs dest: {log!r}")
+    if env["BOXRO_LOGS_SRC"] in log and "umount" in log:
+        for line in log.splitlines():
+            if line.startswith("umount ") and env["BOXRO_LOGS_SRC"] in line.split():
+                _fail(f"must not umount /var/log/app: {log!r}")
+    if f"mount --bind {env['BOXRO_LOGS_SRC']}" in log:
+        _fail(f"must not bind logs: {log!r}")
+    fstab = Path(env["BOXRO_FSTAB"]).read_text(encoding="utf-8")
+    if logs_line in fstab or prod_line in fstab:
+        _fail(f"logs fstab lines must be gone: {fstab!r}")
+    if data_line not in fstab or "proc /proc proc defaults 0 0" not in fstab:
+        _fail(f"must keep data and unrelated fstab lines: {fstab!r}")
+    bak = Path(str(env["BOXRO_FSTAB"]) + ".boxro.bak")
+    if not bak.is_file():
+        _fail("must back up fstab before editing")
+    if logs_line not in bak.read_text(encoding="utf-8"):
+        _fail("backup must contain the removed logs line")
+    if logs_dest.exists():
+        _fail("empty logs dest must be removed")
+    if app_log.read_text(encoding="utf-8") != marker:
+        _fail("must not touch /var/log/app contents")
+    Path(env["BOXRO_TEST_LOG"]).write_text("", encoding="utf-8")
+    again = _run(env, "boxro_apply")
+    _assert_ok(again, "second drop is idempotent")
+    log2 = Path(env["BOXRO_TEST_LOG"]).read_text(encoding="utf-8")
+    if "umount" in log2:
+        _fail(f"already dropped logs must not umount again: {log2!r}")
+    if f"mount --bind {env['BOXRO_LOGS_SRC']}" in log2:
+        _fail(f"second apply must not bind logs: {log2!r}")
 
 
 def test_provision_continues_after_boxro_failure(tmp_path: Path) -> None:
@@ -584,6 +665,8 @@ def main() -> None:
         test_already_mounted_remounts_ro(Path(raw))
     with TemporaryDirectory() as raw:
         test_partial_vps_state_is_idempotent(Path(raw))
+    with TemporaryDirectory() as raw:
+        test_drops_existing_logs_bind_without_touching_app_logs(Path(raw))
     with TemporaryDirectory() as raw:
         test_provision_continues_after_boxro_failure(Path(raw))
     with TemporaryDirectory() as raw:
