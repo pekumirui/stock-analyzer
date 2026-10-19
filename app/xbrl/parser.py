@@ -1,6 +1,7 @@
 """ZIP → facts/contexts/labels using vendored xbrlp plus context walk."""
 from __future__ import annotations
 
+import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass
 from datetime import date
@@ -16,6 +17,7 @@ from app.xbrl.context import (
     resolve_fiscal_year_end,
 )
 from app.xbrlp import Fact, FileLoader, Label, Parser
+from app.xbrlp.parser import LabelResourceParser, resolve_url
 
 
 STANDARD_NS_PREFIXES = (
@@ -110,6 +112,147 @@ class CachedTimeoutFileLoader(FileLoader):
 
     def _download_file(self, url: str, dest_path: Path) -> None:
         raise TaxonomyMissingError(url, dest_path)
+
+
+class RecordingFileLoader(CachedTimeoutFileLoader):
+    """Bundle loader that records every remote URL the parser tries to fetch."""
+
+    def __init__(
+        self,
+        cache_dir: Path | None = None,
+        *,
+        timeout: float | None = None,
+        ignore_failure: bool = True,
+        fetched: set[str] | None = None,
+        missing: set[str] | None = None,
+    ):
+        super().__init__(cache_dir=cache_dir, timeout=timeout, ignore_failure=ignore_failure)
+        self.fetched: set[str] = fetched if fetched is not None else set()
+        self.missing: set[str] = missing if missing is not None else set()
+        self.scanned_label_urls: set[str] = set()
+
+    def _fetch_url(self, url: str) -> Path:
+        cache_path = self._get_cache_path(url)
+        if cache_path.is_file():
+            self.fetched.add(url)
+            return cache_path
+        self.missing.add(url)
+        raise TaxonomyMissingError(url, cache_path)
+
+
+def _remote_taxonomy_url(url: str) -> str | None:
+    text = str(url).split("#", 1)[0].strip()
+    if text.startswith(("http://", "https://")):
+        return text
+    return None
+
+
+def _scan_label_linkbase_urls(label_url: str, loader: RecordingFileLoader, parser: Parser) -> None:
+    """Record remote files load_labels() would fetch from one labelLinkbaseRef."""
+    if label_url in loader.scanned_label_urls:
+        return
+    loader.scanned_label_urls.add(label_url)
+    label_path = loader.fetch(label_url)
+    if label_path is None:
+        return
+    loc_parser = LabelResourceParser(file_loader=loader, base_url=label_url)
+    loc_tag = None
+    href_attr = None
+    type_attr = None
+    role_attr = None
+    try:
+        for event, elem in ET.iterparse(str(label_path), events=["start-ns", "end"]):
+            loc_parser.on_xml_event(event, elem)
+            if event == "start-ns":
+                prefix, uri = elem
+                if prefix == "link":
+                    loc_tag = f"{{{uri}}}loc"
+                elif prefix == "xlink":
+                    href_attr = f"{{{uri}}}href"
+                    type_attr = f"{{{uri}}}type"
+                    role_attr = f"{{{uri}}}role"
+                continue
+            if event != "end" or loc_tag is None or elem.tag != loc_tag:
+                continue
+            if (elem.get(type_attr) if type_attr else None) != "locator":
+                continue
+            # Locators with xlink:role are remote resources (LabelResourceParser).
+            if role_attr and elem.get(role_attr):
+                continue
+            loc_href = elem.get(href_attr) if href_attr else None
+            if not loc_href:
+                continue
+            schema_url = _remote_taxonomy_url(resolve_url(label_url, loc_href.split("#", 1)[0]))
+            if schema_url is None:
+                continue
+            parser._get_or_parse_xsd_schema(schema_url)
+    except ET.ParseError:
+        return
+
+
+def collect_parser_taxonomy_urls(
+    unpacked: Path,
+    *,
+    cache_dir: Path | None,
+    shared_xsd_cache: dict | None = None,
+    file_loader: RecordingFileLoader | None = None,
+) -> tuple[set[str], set[str]]:
+    """Remote URLs parse_package() would fetch from this unpacked filing.
+
+    Closure is schemaRef → xsd:import (recursive) plus load_labels() label
+    linkbases. Presentation / definition / generic-label linkbases are omitted.
+    """
+    if file_loader is None:
+        cache = cache_dir if cache_dir is not None else unpacked / ".taxonomy-bundle-empty"
+        file_loader = RecordingFileLoader(cache_dir=cache, ignore_failure=True)
+    parser = Parser(
+        file_loader=file_loader,
+        shared_xsd_cache=shared_xsd_cache if shared_xsd_cache is not None else {},
+    )
+    discovered = find_ixbrl_files(unpacked)
+    manifest = find_manifest(unpacked)
+    manifest_files: list[Path] = []
+    if manifest is not None:
+        try:
+            parser.prepare_ixbrl(manifest)
+            manifest_files = list(parser.ixbrl_files)
+        except (FileNotFoundError, ValueError):
+            manifest_files = []
+    parser.ixbrl_files = union_ixbrl_files(discovered, manifest_files)
+    if not parser.ixbrl_files:
+        needed = set(file_loader.fetched) | set(file_loader.missing)
+        return needed, set(file_loader.missing) if cache_dir is not None else set()
+
+    try:
+        parser.find_xsd_files()
+    except ValueError:
+        needed = set(file_loader.fetched) | set(file_loader.missing)
+        return needed, set(file_loader.missing) if cache_dir is not None else set()
+
+    parser._ensure_linkbase_refs()
+    needed: set[str] = set()
+    for url in parser._collect_all_schemas_with_imports([str(path) for path in parser.root_xsd_files]):
+        remote = _remote_taxonomy_url(url)
+        if remote:
+            needed.add(remote)
+    needed |= file_loader.fetched | file_loader.missing
+
+    for href, _ in parser.linkbase_refs.get("labelLinkbaseRef", []):
+        label_url = _remote_taxonomy_url(str(href)) or str(href).split("#", 1)[0]
+        remote = _remote_taxonomy_url(label_url)
+        if remote:
+            needed.add(remote)
+        _scan_label_linkbase_urls(label_url, file_loader, parser)
+
+    needed |= file_loader.fetched | file_loader.missing
+    for url in parser.xsd_schemas_by_url:
+        remote = _remote_taxonomy_url(url)
+        if remote:
+            needed.add(remote)
+    if cache_dir is None:
+        return needed, set()
+    missing = {url for url in needed if not file_loader._get_cache_path(url).is_file()}
+    return needed, missing
 
 
 # Process-level caches reused across parse_package() calls (one Parser per filing).

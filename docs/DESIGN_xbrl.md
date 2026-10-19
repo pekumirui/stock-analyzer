@@ -365,7 +365,7 @@ for lab in parser.load_labels():
 
 第1弾は伝統的 instance `.xbrl` だけしか無い ZIP をパースしない（skipped）。有報を始めるときに拡張する。
 
-タクソノミはリポジトリ同梱の `XBRL_CACHE_DIR`（既定 `data/xbrl_taxonomy`）だけを読む。`urlopen` しない。参照ファイルが無い filing は `parse_status='failed'`、ログに欠けた URL/パスを出す。復旧は同梱を足して `xbrl_parse.py --retry-failed`。版は filing の `schemaRef` 等が指すもの（過去年を含む）をすべて残す。走査・同期は `tools/xbrl/taxonomy_bundle.py`。プロセス内では remote の XSD とラベル linkbase を使い回す（`parse_package` の shared cache）。
+タクソノミはリポジトリ同梱の `XBRL_CACHE_DIR`（既定 `data/xbrl_taxonomy`）だけを読む。`urlopen` しない。参照ファイルが無い filing は `parse_status='failed'`、ログに欠けた URL/パスを出す。復旧は同梱を足して `xbrl_parse.py --retry-failed`。版は filing の `schemaRef` 等が指すもの（過去年を含む）をすべて残す。走査・同期は `tools/xbrl/taxonomy_bundle.py`（`check` / `sync` はパーサと同じ解決：`schemaRef` → `xsd:import` と `load_labels` のラベル linkbase。汎用ラベル・定義リンク・コメント上の URL は数えない）。プロセス内では remote の XSD とラベル linkbase を使い回す（`parse_package` の shared cache）。
 
 ### 5.5 コンテキスト解釈
 
