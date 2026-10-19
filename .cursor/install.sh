@@ -5,6 +5,25 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 sudo apt-get update -qq
 sudo apt-get install -y -qq --no-install-recommends python3-venv poppler-utils rclone
 
+# PATH で /usr/bin より先に立つラッパー。remote r2 を R2_* から定義する（鍵はディスクに書かない）。
+# AWS_CA_BUNDLE（プロキシ環境）があると S3 が LoadCustomCABundleError で落ちるので --ca-cert で渡し直す
+sudo tee /usr/local/bin/rclone >/dev/null <<'SH'
+#!/bin/sh
+if [ -n "${AWS_CA_BUNDLE:-}" ]; then
+  set -- --ca-cert "$AWS_CA_BUNDLE" "$@"
+  unset AWS_CA_BUNDLE
+fi
+if [ -n "${R2_ACCESS_KEY_ID:-}" ] && [ -n "${R2_SECRET_ACCESS_KEY:-}" ]; then
+  export RCLONE_CONFIG_R2_TYPE=s3
+  export RCLONE_CONFIG_R2_PROVIDER=Cloudflare
+  export RCLONE_CONFIG_R2_ENDPOINT=https://39a6da16651b53d44c459c3a4f4d59f5.r2.cloudflarestorage.com
+  export RCLONE_CONFIG_R2_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+  export RCLONE_CONFIG_R2_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+fi
+exec /usr/bin/rclone "$@"
+SH
+sudo chmod 755 /usr/local/bin/rclone
+
 ./setup.sh
 .venv/bin/python -m pip install -q -r tools/requirements.txt
 
