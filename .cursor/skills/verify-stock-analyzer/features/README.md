@@ -10,6 +10,8 @@ Read this index, then the matching feature file, before driving the app.
 - Drive the instance recorded in `.run/state.json` (adopted or launched).
 - 月次 Detail needs a non-empty `GET /api/v1/tables`. Cloud Agent builds copy production `monthly_*` when `VPS_SSH_KEY` is set; empty monthly is `verified-unreachable` (see `features/monthly.md`).
 - サプライ monthly / countries need `material_monthly` / `material_trade_country`, which that copy does not include; empty is `verified-unreachable` (see `features/supply.md`).
+- PTS rows need `pts_snapshots` (prod cron `jobs/market/pts_snapshot.py`), which that copy does not include either; empty is 「PTS のデータがまだありません」 (see `features/pts.md`).
+- 修正履歴 with `?rev_source=xbrl` needs `xbrl_financials` rows; the default `jquants` source reads `statements` only.
 
 ## Driving conventions
 
@@ -17,7 +19,7 @@ Read this index, then the matching feature file, before driving the app.
 - Prefer `nav button[data-tab]`, `#id`, and `data-fin` / `data-no` over pixel clicks.
 - Treat every command as literal.
 - HTTP proofs use `helpers/capture.py <feature>` against the same `/api/*` the SPA calls.
-- Browser proofs use `browser-use`: open `{url}/app` then click the tab handle.
+- Browser proofs use `browser-use`: open `{url}/app` then click the tab handle. At ≤720px the tabs are in the `#menu-btn` drawer; open it first (or call `selectTab`).
 - Cleanup removes `.run/` only. Leave `artifacts/`.
 
 ## Proof and skip reporting
@@ -40,8 +42,9 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 
 ## Features
 
-- [決算速報](./earnings.md) calendar day list, issuer search + sector chips, row detail, 累計 / 3か月 tabs.
+- [決算速報](./earnings.md) calendar day list (amount + rate cells), issuer search + sector chips, row detail, 累計 / 3か月 / 修正履歴 tabs.
 - [チャート](./chart.md) symbol search, daily/weekly/monthly candles, 対TOPIX, 決算発表後リターン.
 - [スクリーナー](./screener.md) Stage + RS filter table (UI defaults Stage 2, RS≥70).
+- [PTS](./pts.md) night PTS ranking (値上がり / 値下がり / 出来高) per session and fetch time, with the next-day open gap and 追随率.
 - [月次](./monthly.md) issuer list + industry chips + TOP search via `/api/v1/tables`, Detail with series select, year-panel bar charts, one 横持ち `table.monthly-tl` (metric ▸ section tree, paired cells show 金額 with (前年比) under it, month-cell popup).
-- [サプライ](./supply.md) material graph (原料 → 中間財 → 最終製品), material / company panel, capacity share donuts, import countries, monthly volume chart, `#supply/{id}` route.
+- [サプライ](./supply.md) material graph (原料 → 中間財 → 最終製品, plus リサイクル資源 and 回収 marks), material panel tabs (概要 / 企業 / 輸入元 / 推移) or company panel, capacity share donuts, import-country donut, monthly volume chart, phone bottom sheet, `#supply/{id}` route.

@@ -53,11 +53,12 @@ def _pick_earnings_date(base: str, month: str, today: str) -> str | None:
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("feature", choices=["screener", "earnings", "chart", "monthly", "search", "supply"])
+    p.add_argument("feature", choices=["screener", "earnings", "chart", "monthly", "search", "supply", "pts"])
     p.add_argument("--date", default="")
     p.add_argument("--code", default="")
     p.add_argument("--month", default="")
     p.add_argument("--id", default="")
+    p.add_argument("--ranking", default="night_up", choices=["night_up", "night_down", "night_volume"])
     args = p.parse_args()
     base = _url()
     from datetime import date
@@ -136,6 +137,19 @@ def main() -> None:
             if dst != 200:
                 raise SystemExit(f"monthly {code}/{year} failed status={dst}")
         print(path)
+        return
+
+    if args.feature == "pts":
+        q = {"ranking": args.ranking}
+        if args.date:
+            q["date"] = args.date
+        url = f"{base}/api/pts?" + urllib.parse.urlencode(q)
+        status, body = _get(url)
+        path = _write("pts", "body.json", "GET", url, status, body)
+        if status != 200 or not isinstance(body, dict):
+            raise SystemExit(f"pts failed status={status}")
+        # 空の DB（pts_snapshots なし）でも 200。行数は表示して判断を任せる
+        print(path, f"dates={len(body.get('dates') or [])} rows={len(body.get('rows') or [])}")
         return
 
     if args.feature == "supply":
