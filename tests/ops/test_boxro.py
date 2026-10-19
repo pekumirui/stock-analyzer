@@ -17,6 +17,12 @@ KEY_LINE = (
     "AAAAC3NzaC1lZDI1NTE5AAAAIAX/NTi1DbHtuQxf4Oig6cjtn2MzcHqMlsShA92t0LkI "
     "grokbot-box-vps-ro"
 )
+CURSOR_KEY_LINE = (
+    "restrict ssh-ed25519 "
+    "AAAAC3NzaC1lZDI1NTE5AAAAIMpgCZvddCA++Qu67D2+5fmIBi5tV/BTCG5N1qDW/a+3 "
+    "cursor-vps-ro"
+)
+KEY_LINES = (KEY_LINE, CURSOR_KEY_LINE)
 DROPIN = """\
 Match User boxro
     AuthorizedKeysFile /etc/ssh/authorized_keys/boxro
@@ -46,8 +52,8 @@ def test_static_contracts() -> None:
         for line in keys.splitlines()
         if line.strip() and not line.lstrip().startswith("#")
     ]
-    if live != [KEY_LINE]:
-        _fail(f"expected one restrict key, got {live!r}")
+    if live != list(KEY_LINES):
+        _fail(f"expected restrict keys {list(KEY_LINES)!r}, got {live!r}")
     for line in live:
         if not line.startswith("restrict "):
             _fail(f"key line must start with restrict: {line!r}")
