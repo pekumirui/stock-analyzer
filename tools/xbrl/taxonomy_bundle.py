@@ -200,7 +200,7 @@ def main() -> int:
 
     sy = sub.add_parser("sync", help="Copy parser-needed taxonomy files into the bundle")
     sy.add_argument("--zips", default=XBRL_DEST, help="Filing ZIP root (ignored with --all-from-cache)")
-    sy.add_argument("--from-cache", required=True, help="Existing FileLoader cache (e.g. R2 xbrl/_cache)")
+    sy.add_argument("--from-cache", required=True, help="Existing FileLoader cache (e.g. data/xbrl/_cache)")
     sy.add_argument("--to", default=XBRL_CACHE_DIR, help="Bundle directory")
     sy.add_argument("--all-from-cache", action="store_true", help="Copy every file in --from-cache")
     sy.add_argument("--prune", action="store_true", help="Delete bundle files the parser would not read")

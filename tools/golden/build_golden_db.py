@@ -8,7 +8,7 @@
 - 月次: --api の公開 GET から全銘柄・全年
 - 為替: jobs/fx_rates.py を一時 DB に向けて、株価と同じ期間
 - 素材: jobs/supply/material_stats.py を一時 DB に向けて、--material-years の年（ESTAT_APP_ID が要る）
-- XBRL は持たない（R2 のマウントが要る）
+- XBRL は持たない（本番 ZIP は data/xbrl）
 
 --skip で表の組を飛ばすと、その CSV は前のまま残す。
 """

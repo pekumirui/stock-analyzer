@@ -62,7 +62,7 @@ T=targets/6036_FY2026Q4.json; R=/workspace/forecast-exp/6036_FY2026Q4; cd analyz
 ```
 
 1. 短信 XBRL: エージェントが IR Bank MCP の `get_disclosure(doc_id, include=["xbrl_facts"])` を短信ごとに呼び、応答をそのまま `$R/raw/xbrl/<stem>.json` に置く（MCP なのでスクリプトにできない）
-2. 実績: 発表日の短信 zip（R2 の `xbrl/<code4>/` など）を `$R/answer/` に置く。条件フォルダからは読めない
+2. 実績: 発表日の短信 zip（`data/xbrl/<code4>/`。MCP `fs_*` の `root=data`、または box の `/mnt/vps/data`）を `$R/answer/` に置く。条件フォルダからは読めない
 3. 残りはスクリプト
 
 ```bash

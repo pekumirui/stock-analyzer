@@ -12,4 +12,4 @@ metadata:
 
 **Why:** ユーザーが「全店を無しにする修正は手動対応」と明言した。
 
-**How to apply:** コード側の PR は木（`config/monthly/monthly_row_order.json`）・docs・テストだけ。行名の付け替えは MCP（add_element → put_values → 旧行を null → delete_element）か人の手作業。誰が・いつやるかは確認してから。関連: [[r2-mount-readable]]
+**How to apply:** コード側の PR は木（`config/monthly/monthly_row_order.json`）・docs・テストだけ。行名の付け替えは MCP（add_element → put_values → 旧行を null → delete_element）か人の手作業。誰が・いつやるかは確認してから。関連: [[share-data-readable]]

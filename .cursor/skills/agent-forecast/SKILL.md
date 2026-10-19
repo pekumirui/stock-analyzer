@@ -74,7 +74,7 @@ T=targets/<id>.json; R=/workspace/forecast-exp/<id>; cd analyzer/agent_forecast
 
 **短信 XBRL（スクリプトにできない）:** 各 `tanshin` について MCP `get_disclosure(doc_id, include=["xbrl_facts"])`。応答を加工せず `$R/raw/xbrl/<stem>.json` に書く。
 
-**実績 zip:** 発表日の短信。R2 なら `deploy/README.md`「クラウドのエージェントから読む」の rclone（`r2:share/xbrl/<code4>/`）。取得先は `/tmp`、最終的に `$R/answer/`。鍵を echo しない。R2 が無ければ人手の zip を待つ。
+**実績 zip:** 発表日の短信。`data/xbrl/<code4>/`（MCP `fs_*` の `root=data`、または box の `/mnt/vps/data/xbrl/<code4>/`）。取得先は `/tmp`、最終的に `$R/answer/`。無ければ人手の zip を待つ。
 
 残り:
 

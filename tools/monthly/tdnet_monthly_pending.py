@@ -49,7 +49,7 @@ HEURISTIC_LINES = (
     ),
     (
         "stale = expected_month > DB latest (year, month). "
-        "missing = PDF on R2 but no monthly_values. Age is not a filter "
+        "missing = PDF on data/monthly but no monthly_values. Age is not a filter "
         "(21:00 TDnet batch PDFs may never have been ingested). "
         "PENDING_IGNORE_CODES (7062 only) are omitted from the report."
     ),
