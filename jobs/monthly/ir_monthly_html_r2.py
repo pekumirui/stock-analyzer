@@ -1,4 +1,4 @@
-"""IR サイトの月次 HTML を Cloudflare R2 mount へ保存し、ingest JSON を隣に書く。
+"""IR サイトの月次 HTML を data/monthly へ保存し、ingest JSON を隣に書く。
 
 使い方:
   python jobs/monthly/ir_monthly_html_r2.py
@@ -607,7 +607,7 @@ def run(
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Fetch IR monthly HTML into R2 mount and write ingest JSON")
+    ap = argparse.ArgumentParser(description="Fetch IR monthly HTML into data/monthly and write ingest JSON")
     ap.add_argument("--dest", default=DEFAULT_DEST, help="destination directory")
     ap.add_argument("--config", default=str(DEFAULT_CONFIG), help="issuer registry JSON")
     ap.add_argument(

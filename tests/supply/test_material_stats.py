@@ -513,12 +513,18 @@ def test_meti_archive() -> None:
 
 
 def test_meti_archive_open_expected_errors() -> None:
-    root = Path("/tmp/stock-analyzer-r2-share")
+    from jobs.share_paths import share_path
+
+    probed: list[Path] = []
 
     def _open(exc: BaseException) -> tuple[MetiArchive, str]:
         buf = io.StringIO()
-        with patch("jobs.supply.material_stats.check_r2_mount", side_effect=exc), \
-             patch("jobs.supply.material_stats.r2_share_root", return_value=root), \
+
+        def boom(path, **kwargs):  # noqa: ANN001
+            probed.append(Path(path))
+            raise exc
+
+        with patch("jobs.supply.material_stats.check_r2_mount", side_effect=boom), \
              redirect_stdout(buf):
             return MetiArchive.open(), buf.getvalue()
 
@@ -527,6 +533,10 @@ def test_meti_archive_open_expected_errors() -> None:
         _eq(arc.root, None, f"archive off on {type(exc).__name__}")
         if "warn meti archive off:" not in out:
             _fail(f"expected warn for {type(exc).__name__}: {out!r}")
+
+    expect = share_path("stats") / "meti"
+    if probed[0] != expect or probed[0].parts[-3:] != ("data", "stats", "meti"):
+        _fail(f"archive root {probed[0]} != {expect}")
 
     try:
         _open(RuntimeError("bug"))

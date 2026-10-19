@@ -1,4 +1,4 @@
-"""IR サイトの月次 PDF/xlsx/xls を Cloudflare R2 mount へ保存する。
+"""IR サイトの月次 PDF/xlsx/xls を data/monthly へ保存する。
 
 使い方:
   python jobs/monthly/ir_monthly_r2.py
@@ -39,8 +39,9 @@ from jobs._r2common import (  # noqa: E402
     yyyymmdd_from_pubdate,
 )
 from jobs.monthly.tdnet_monthly_r2 import display_code, download_skip_reason  # noqa: E402
+from jobs.share_paths import share_path  # noqa: E402
 
-DEFAULT_DEST = "/home/stock/r2-share/monthly"
+DEFAULT_DEST = str(share_path("monthly"))
 DEFAULT_CONFIG = SCRIPT_DIR.parents[1] / "config" / "monthly" / "ir_monthly.json"
 SLEEP_SEC = 0.4
 _EXT_RE = re.compile(r"\.(pdf|xlsx|xls)(?:$|[?#])", re.I)
@@ -429,7 +430,7 @@ def run(
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Fetch IR monthly PDF/xlsx/xls into R2 mount")
+    ap = argparse.ArgumentParser(description="Fetch IR monthly PDF/xlsx/xls into data/monthly")
     ap.add_argument("--dest", default=DEFAULT_DEST, help="destination directory")
     ap.add_argument("--config", default=str(DEFAULT_CONFIG), help="issuer registry JSON")
     ap.add_argument(

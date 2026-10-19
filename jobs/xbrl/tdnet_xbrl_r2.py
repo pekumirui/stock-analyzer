@@ -1,4 +1,4 @@
-"""TDnet の XBRL ZIP を Cloudflare R2 mount へ保存する。
+"""TDnet の XBRL ZIP を data/xbrl へ保存する。
 
 使い方:
   python jobs/xbrl/tdnet_xbrl_r2.py 1
@@ -504,7 +504,7 @@ def run(days: int, dest: Path) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Fetch TDnet XBRL ZIPs into R2 mount")
+    ap = argparse.ArgumentParser(description="Fetch TDnet XBRL ZIPs into data/xbrl")
     ap.add_argument("days", type=int, help="days back from today JST (inclusive)")
     ap.add_argument("--dest", default=DEFAULT_DEST, help="destination directory")
     args = ap.parse_args(argv)

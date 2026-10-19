@@ -378,7 +378,7 @@ def main(argv: list[str] | None = None, out: TextIO | None = None) -> int:
     ap.add_argument(
         "--dest",
         default=DEFAULT_DEST,
-        help=f"R2 monthly directory (default {DEFAULT_DEST})",
+        help=f"monthly directory (default {DEFAULT_DEST})",
     )
     ap.add_argument(
         "--db",

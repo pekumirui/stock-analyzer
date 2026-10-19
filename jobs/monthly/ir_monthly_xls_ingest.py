@@ -768,7 +768,7 @@ def _parse_as_of_flag(raw: str) -> date:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Build monthly ingest JSON from IR xls/xlsx")
     ap.add_argument("--xls", default="", help="path to workbook")
-    ap.add_argument("--dest", default=str(DEFAULT_DEST), help="R2 monthly dest; used when --xls is omitted")
+    ap.add_argument("--dest", default=str(DEFAULT_DEST), help="monthly dest; used when --xls is omitted")
     ap.add_argument("--code", default=CODE, help="issuer code (default 1878)")
     ap.add_argument("--as-of", default="", type=str, help="disclosure date YYYY-MM-DD")
     ap.add_argument("--source-url", default="", help="IR file URL (afieldfile /YYYY/MM/DD/ becomes as_of)")

@@ -1005,7 +1005,7 @@ def run(
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Write .pdf-ingest.json for TDnet monthly PDFs in last month's format")
-    ap.add_argument("--dest", default=DEFAULT_DEST, help=f"R2 monthly directory (default {DEFAULT_DEST})")
+    ap.add_argument("--dest", default=DEFAULT_DEST, help=f"monthly directory (default {DEFAULT_DEST})")
     ap.add_argument("--db", default=None, help="sqlite file (default DATABASE_URL / repo stock.db)")
     ap.add_argument("--only", action="append", default=[], help="issuer code (4 or 5 char; repeatable)")
     ap.add_argument("--dry-run", action="store_true", help="print plans, do not write sidecars")

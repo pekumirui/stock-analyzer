@@ -66,6 +66,28 @@ def test_data_monthly_is_not_on_fuse_root() -> None:
         _fail(f"monthly path {monthly}")
 
 
+def test_job_defaults_follow_share_prefixes() -> None:
+    from app.config import XBRL_DEST
+    from jobs.monthly.ir_monthly_r2 import DEFAULT_DEST as ir_dest
+    from jobs.monthly.tdnet_monthly_r2 import DEFAULT_DEST as tdnet_dest
+    from jobs.ops.vps_packages_r2 import DEFAULT_DEST as inventory_dest
+    from jobs.xbrl.tdnet_xbrl_r2 import DEFAULT_DEST as xbrl_dest
+
+    if tdnet_dest != str(share_path("monthly")) or "data/monthly" not in tdnet_dest:
+        _fail(f"tdnet dest {tdnet_dest}")
+    if ir_dest != tdnet_dest:
+        _fail(f"ir dest {ir_dest}")
+    if inventory_dest != str(share_path("inventory")) or "data/inventory" not in inventory_dest:
+        _fail(f"inventory dest {inventory_dest}")
+    if XBRL_DEST != xbrl_dest or xbrl_dest != str(share_path("xbrl")) or "data/xbrl" not in xbrl_dest:
+        _fail(f"xbrl dest {XBRL_DEST!r} {xbrl_dest!r}")
+    if path_on_r2_share(tdnet_dest, FUSE) or path_on_r2_share(xbrl_dest, FUSE):
+        _fail("job dest must not sit on the fuse root")
+    config = (ROOT / "app" / "config.py").read_text(encoding="utf-8")
+    if "_r2common" in config:
+        _fail("app.config must not import jobs._r2common")
+
+
 def test_fail_if_mount_down_local_dest_without_fuse_line(tmp_path: Path) -> None:
     dest = tmp_path / "data" / "monthly"
     dest.mkdir(parents=True)

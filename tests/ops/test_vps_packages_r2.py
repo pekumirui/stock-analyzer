@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from jobs.share_paths import share_path  # noqa: E402
 from jobs.ops.vps_packages_r2 import (  # noqa: E402
     DEFAULT_DEST,
     LATEST_NAME,
@@ -77,8 +78,10 @@ def _which(name: str) -> str | None:
 
 
 def test_default_dest() -> None:
-    if DEFAULT_DEST != "/home/stock/r2-share/inventory":
+    if DEFAULT_DEST != str(share_path("inventory")):
         _fail(f"DEFAULT_DEST {DEFAULT_DEST!r}")
+    if "data/inventory" not in DEFAULT_DEST:
+        _fail(f"inventory dest not under data: {DEFAULT_DEST!r}")
     if LATEST_NAME != "vps-packages.txt":
         _fail(f"LATEST_NAME {LATEST_NAME!r}")
 
