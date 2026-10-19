@@ -14,6 +14,29 @@ from app.xbrl.context import classify_title, infer_accounting_standard_from_name
 from app.xbrl.parser import extract_zip, namespace_is_standard, parse_package
 
 
+def inherit_accounting_standard_from_prior_filings(
+    db: Session,
+    *,
+    code: str,
+    doc_id: str,
+    submitted_at: datetime | None,
+) -> str | None:
+    """Title/facts が基準を決められないとき、同じ銘柄の直近の parsed filing から引き継ぐ。"""
+    q = db.query(XbrlFiling).filter(
+        XbrlFiling.code == code,
+        XbrlFiling.doc_id != doc_id,
+        XbrlFiling.parse_status == "parsed",
+        XbrlFiling.accounting_standard.isnot(None),
+        XbrlFiling.accounting_standard != "",
+    )
+    if submitted_at is not None:
+        q = q.filter(XbrlFiling.submitted_at <= submitted_at)
+    prior = q.order_by(XbrlFiling.submitted_at.desc(), XbrlFiling.id.desc()).first()
+    if prior is None:
+        return None
+    return prior.accounting_standard
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -146,11 +169,18 @@ def parse_zip_into_filing(
     # Resolved 本表の期末 (never submitted_at/pubdate; see resolve_fiscal_year_end).
     filing.fiscal_year_end = pkg.fiscal_year_end
 
-    # Prefer title; if ambiguous, use fact namespaces / DEI (jpigp|ifrs|us-gaap).
+    # Prefer title; if ambiguous, use fact namespaces / DEI / *IFRS, then prior filings.
     filing.accounting_standard = infer_accounting_standard_from_namespaces(
         pkg.facts,
         title_standard=filing.accounting_standard,
     )
+    if filing.accounting_standard is None:
+        filing.accounting_standard = inherit_accounting_standard_from_prior_filings(
+            db,
+            code=filing.code,
+            doc_id=filing.doc_id,
+            submitted_at=filing.submitted_at,
+        )
 
     ctx_rows: dict[str, XbrlContext] = {}
     for ctx in pkg.contexts:

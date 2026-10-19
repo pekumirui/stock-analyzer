@@ -2,7 +2,10 @@
   elements:
     - { ns: jpigp_cor, name: RevenueIFRS, priority: 10, standard: IFRS }
     - { ns: jpigp_cor, name: Revenue, priority: 20, standard: IFRS }
-    # 短信サマリー。要素名が IFRS を表す。SFRS 等で accounting_standard が空でも使う。
+    - { ns: jpigp_cor, name: NetSalesIFRS, priority: 25, standard: IFRS }
+    # 収益の分解注記等で定義がずれる例（82530）があるので RevenueIFRS より後置。
+    - { ns: jpigp_cor, name: Revenue2IFRS, priority: 30, standard: IFRS }
+    # 短信サマリー。要素名が IFRS を表す。filing の基準が空/JPGAAP でも使う（KAB-55）。
     - { ns: tse-ed-t, name: SalesIFRS, priority: 50 }
     - { ns: tse-ed-t, name: NetSalesIFRS, priority: 60 }
     - { ns: tse-ed-t, name: RevenueIFRS, priority: 70 }
@@ -18,6 +21,8 @@
 - std_item: net_income
   elements:
     - { ns: jpigp_cor, name: ProfitLossAttributableToOwnersOfParentIFRS, priority: 10, standard: IFRS }
+    # 単体 IFRS（436A0）。連結では attributable の方が先。
+    - { ns: jpigp_cor, name: ProfitLossIFRS, priority: 15, standard: IFRS }
     - { ns: tse-ed-t, name: ProfitAttributableToOwnersOfParentIFRS, priority: 50, standard: IFRS }
 - std_item: total_assets
   elements:

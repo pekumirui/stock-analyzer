@@ -267,7 +267,10 @@ def _one(db, filing_id: int, code: str, **kwargs) -> XbrlFinancial | None:
     return rows[0]
 
 
-def parse_and_normalize(db, tmp: Path, *, code: str, doc_id: str, title: str, html: str):
+def parse_and_normalize(
+    db, tmp: Path, *, code: str, doc_id: str, title: str, html: str,
+    submitted_at: str = "2025-10-31 16:00:00",
+):
     seed_stock(db, code, code)
     apply_mappings(db)
     zpath = write_zip(tmp, f"{doc_id}.zip", html)
@@ -279,7 +282,7 @@ def parse_and_normalize(db, tmp: Path, *, code: str, doc_id: str, title: str, ht
         title=title,
         raw_path=f"{doc_id}.zip",
         raw_sha256=doc_id,
-        submitted_at="2025-10-31 16:00:00",
+        submitted_at=submitted_at,
         cache_dir=tmp / "cache",
     )
     if filing.parse_status != "parsed":
@@ -969,11 +972,130 @@ def test_vs_statements_rounding_tally(tmp: Path) -> None:
         _fail(f"status {report.rows[0]}")
 
 
+def test_vs_statements_same_day_joins_doc_id(tmp: Path) -> None:
+    """同日の訂正と短信を disclosure_no ↔ doc_id 末尾14桁で結ぶ（KAB-53）。"""
+    db = tmp / "vs-sameday.db"
+    conn = sqlite3.connect(db)
+    try:
+        _vs_schema(conn)
+        conn.executemany(
+            "INSERT INTO xbrl_filings (id, code, submitted_at, doc_id, doc_type, parse_status) "
+            "VALUES (?,?,?,?,?,?)",
+            [
+                (1, "72560", "2026-08-14 15:00:00", "081220260812517841", "quarterly", "parsed"),
+                (2, "72560", "2026-08-14 15:10:00", "081220260812518224", "quarterly", "parsed"),
+            ],
+        )
+        conn.executemany(
+            "INSERT INTO xbrl_financials (code, filing_id, std_item_id, is_consolidated, period_type, "
+            "period_end, value, unit, value_kind, range_side, target_period) VALUES "
+            "(?,?,?,?,?,?,?,?,?,?,?)",
+            [
+                ("72560", 1, 4, 1, "Q3", "2026-12-31", 1000000000, "JPY", "forecast", "point", "FY"),
+                ("72560", 2, 4, 1, "Q1", "2027-03-31", 4000000000, "JPY", "forecast", "point", "FY"),
+            ],
+        )
+        conn.execute(
+            "INSERT INTO statements VALUES ("
+            "'20260812517841','72560','2026-08-14','3Q','3QFinancialStatements_Consolidated_JP',"
+            "'2026-09-30','2026-12-31',"
+            "NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,1000000000,NULL,"
+            " NULL,NULL,NULL,NULL,NULL,1,'{}')"
+        )
+        conn.execute(
+            "INSERT INTO statements VALUES ("
+            "'20260812518224','72560','2026-08-14','1Q','1QFinancialStatements_Consolidated_JP',"
+            "'2026-06-30','2027-03-31',"
+            "NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,4000000000,NULL,"
+            " NULL,NULL,NULL,NULL,NULL,0,'{}')"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    report = vs.compare_db(db)
+    by_disc = {r.disclosure_no: r for r in report.rows if r.field == "fy_profit"}
+    if by_disc.get("20260812517841") is None or by_disc["20260812517841"].status != "match":
+        _fail(f"3Q 訂正 should match own filing: {by_disc}")
+    if by_disc["20260812517841"].xbrl != "1000000000":
+        _fail(f"3Q xbrl {by_disc['20260812517841']}")
+    if by_disc.get("20260812518224") is None or by_disc["20260812518224"].xbrl != "4000000000":
+        _fail(f"1Q should keep own filing: {by_disc}")
+    if report.mismatches != 0:
+        _fail(f"sameday mismatches {report.rows}")
+
+
+def test_vs_statements_fnc_noncons(tmp: Path) -> None:
+    db = tmp / "vs-fnc.db"
+    conn = sqlite3.connect(db)
+    try:
+        _vs_schema(conn)
+        conn.execute(
+            "INSERT INTO xbrl_filings (id, code, submitted_at, doc_id, doc_type, parse_status) "
+            "VALUES (1,'66770','2026-08-10 15:00:00','091220260810516616','other','parsed')"
+        )
+        conn.executemany(
+            "INSERT INTO xbrl_financials (code, filing_id, std_item_id, is_consolidated, period_type, "
+            "period_end, value, unit, value_kind, range_side, target_period) VALUES "
+            "(?,?,?,?,?,?,?,?,?,?,?)",
+            [
+                ("66770", 1, 1, 1, "FY", "2026-12-31", 16200000000, "JPY", "forecast", "point", "FY"),
+                ("66770", 1, 1, 0, "FY", "2026-12-31", 20300000000, "JPY", "forecast", "point", "FY"),
+            ],
+        )
+        conn.execute(
+            "INSERT INTO statements VALUES ("
+            "'20260810516616','66770','2026-08-10','FY','EarnForecastRevision',"
+            "'2026-12-31','2026-12-31',"
+            "NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL,NULL,"
+            " NULL,NULL,NULL,NULL,NULL,1,"
+            "'{\"FNCSales\":\"20300000000\"}')"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    report = vs.compare_db(db)
+    fnc = [r for r in report.rows if r.field == "FNCSales"]
+    if len(fnc) != 1 or fnc[0].status != "match" or fnc[0].xbrl != "20300000000":
+        _fail(f"FNCSales should compare noncons 203億: {fnc} rows={report.rows}")
+
+
+def test_vs_statements_half_up_rounding(tmp: Path) -> None:
+    db = tmp / "vs-halfup.db"
+    conn = sqlite3.connect(db)
+    try:
+        _vs_schema(conn)
+        conn.execute(
+            "INSERT INTO xbrl_filings (id, code, submitted_at, doc_id, doc_type, parse_status) "
+            "VALUES (1,'39860','2026-08-08 15:00:00','d1','annual','parsed')"
+        )
+        conn.execute(
+            "INSERT INTO xbrl_financials (code, filing_id, std_item_id, is_consolidated, period_type, "
+            "period_end, value, unit, value_kind, range_side, target_period) "
+            "VALUES ('39860',1,2,1,'FY','2026-03-31',124769000,'JPY','actual','point','FY')"
+        )
+        conn.execute(
+            "INSERT INTO statements VALUES ("
+            "'D1','39860','2026-08-08','FY','FYFinancialStatements_Consolidated_JP',"
+            "'2026-03-31','2026-03-31',"
+            "NULL,125000000,NULL,NULL,NULL, NULL,NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL,NULL,0,'{}')"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    report = vs.compare_db(db)
+    if report.rounding != 1 or report.matched != 1 or report.mismatches != 0:
+        _fail(f"half-up rounding {report.rounding} {report.rows}")
+
+
 def test_values_rounding_match() -> None:
     if not vs.values_rounding_match(Decimal("743000000"), Decimal("743844000"), per_share=False):
         _fail("positive truncation")
     if not vs.values_rounding_match(Decimal("-45000000"), Decimal("-45636000"), per_share=False):
         _fail("negative truncation toward 0")
+    if not vs.values_rounding_match(Decimal("125000000"), Decimal("124769000"), per_share=False):
+        _fail("half-up 124.769M → 125M")
+    if not vs.values_rounding_match(Decimal("-151000000"), Decimal("-150658000"), per_share=False):
+        _fail("half-up negative -150.658M → -151M")
     if vs.values_rounding_match(Decimal("743000000"), Decimal("745000000"), per_share=False):
         _fail("|diff|>=1e6 is not rounding")
     if vs.values_rounding_match(Decimal("12.5"), Decimal("12.51"), per_share=True):
@@ -1055,6 +1177,9 @@ def main() -> None:
         test_vs_statements_skips_date_mismatch(tmp)
         test_vs_statements_dps_uses_fiscal_year_end(tmp)
         test_vs_statements_rounding_tally(tmp)
+        test_vs_statements_same_day_joins_doc_id(tmp)
+        test_vs_statements_fnc_noncons(tmp)
+        test_vs_statements_half_up_rounding(tmp)
         test_values_rounding_match()
         test_migrate_unique_from_old_schema(tmp)
     print("ok: xbrl forecast")

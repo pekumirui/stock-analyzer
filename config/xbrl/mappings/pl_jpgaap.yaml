@@ -1,15 +1,24 @@
 - std_item: net_sales
   elements:
+    # 営業総収入は売上高（内訳）より優先（KAB-56）。
+    - { ns: jppfs_cor, name: GrossOperatingRevenue, priority: 5 }
     - { ns: jppfs_cor, name: NetSales, priority: 10 }
     - { ns: jppfs_cor, name: OperatingRevenue1, priority: 20 }
+    - { ns: jppfs_cor, name: OrdinaryIncomeBNK, priority: 22 }
+    - { ns: jppfs_cor, name: OperatingRevenue2, priority: 24 }
+    - { ns: jppfs_cor, name: Revenue, priority: 26 }
+    - { ns: jppfs_cor, name: OperatingRevenueRWY, priority: 28 }
+    - { ns: jppfs_cor, name: OperatingRevenueELE, priority: 29 }
     - { ns: jppfs_cor, name: NetSalesOfCompletedConstructionContracts, priority: 30 }
+    - { ns: jppfs_cor, name: OperatingRevenueSEC, priority: 31 }
+    - { ns: jppfs_cor, name: NetSalesOfCompletedConstructionContractsCNS, priority: 32 }
+    - { ns: tse-ed-t, name: GrossOperatingRevenues, priority: 45 }
     - { ns: tse-ed-t, name: NetSales, priority: 50 }
     - { ns: tse-ed-t, name: OperatingRevenues, priority: 60 }
     - { ns: tse-ed-t, name: OperatingRevenuesSpecific, priority: 62 }
     - { ns: tse-ed-t, name: OperatingRevenuesSE, priority: 64 }
     - { ns: tse-ed-t, name: OrdinaryRevenuesBK, priority: 70 }
     - { ns: tse-ed-t, name: OrdinaryRevenuesIN, priority: 72 }
-    - { ns: tse-ed-t, name: GrossOperatingRevenues, priority: 74 }
     - { ns: tse-ed-t, name: NetSalesOfCompletedConstructionContracts, priority: 76 }
     - { ns: tse-ed-t, name: NetSalesAndOperatingRevenues, priority: 78 }
     - { ns: tse-ed-t, name: Revenue, priority: 80 }

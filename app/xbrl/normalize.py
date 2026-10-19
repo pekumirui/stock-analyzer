@@ -213,10 +213,39 @@ def _skip_non_current_actual(ctx: XbrlContext, klass: ContextClass) -> bool:
     return True
 
 
-def mapping_applies(mapping: XbrlElementMapping, filing: XbrlFiling) -> bool:
+def local_name_is_ifrs(el: XbrlElement | None) -> bool:
+    """tse-ed-t / jpigp などの local_name 末尾 IFRS を要素側の基準にする。"""
+    if el is None:
+        return False
+    return (el.local_name or "").endswith("IFRS")
+
+
+def is_jppfs_element(el: XbrlElement) -> bool:
+    key = (el.namespace_key or "").lower()
+    uri = (el.namespace_uri or "").lower()
+    return key.startswith("jppfs") or "/jppfs/" in uri or "taxonomy/jppfs" in uri
+
+
+def skip_jppfs_on_ifrs_filing(filing: XbrlFiling, el: XbrlElement) -> bool:
+    """IFRS の書類では jppfs を正規化に使わない（KAB-52 案B）。"""
+    if filing.accounting_standard != "IFRS":
+        return False
+    return is_jppfs_element(el)
+
+
+def mapping_applies(
+    mapping: XbrlElementMapping,
+    filing: XbrlFiling,
+    el: XbrlElement | None = None,
+) -> bool:
     if mapping.accounting_standard is None:
         return True
-    return mapping.accounting_standard == filing.accounting_standard
+    if mapping.accounting_standard == filing.accounting_standard:
+        return True
+    # 40530 型: 短信は JPGAAP でも予想が *IFRS 要素。要素側を優先。
+    if mapping.accounting_standard == "IFRS" and local_name_is_ifrs(el):
+        return True
+    return False
 
 
 def source_layer_of(el: XbrlElement) -> str:
@@ -298,8 +327,10 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         el = elements.get(fact.element_id)
         if el is None:
             continue
+        if skip_jppfs_on_ifrs_filing(filing, el):
+            continue
         cands = by_elem.get((el.namespace_key, el.local_name), [])
-        applicable = [m for m in cands if mapping_applies(m, filing)]
+        applicable = [m for m in cands if mapping_applies(m, filing, el)]
         if not applicable:
             continue
         applicable.sort(key=lambda m: m.priority)

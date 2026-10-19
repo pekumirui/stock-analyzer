@@ -408,7 +408,7 @@ manifest の `title` から機械判定する。取りこぼしは `other` / NUL
 - 「半期」「中間」→ `semiannual` / `Q2`
 - 「通期」「決算短信」で四半期でない → `annual` / `FY`
 
-会計基準は DEI または名前空間に `jpigp` / `ifrs` があれば `IFRS`、`us-gaap` なら `USGAAP`、それ以外は `JPGAAP` または NULL。曖昧なら NULL。
+会計基準はタイトルの IFRS / SFRS / 国際会計 → `IFRS`、米国 → `USGAAP`、日本基準 → `JPGAAP`。タイトルが空なら DEI または名前空間に `jpigp` / `ifrs`、tse-ed-t 等の数値 `*IFRS` fact があれば `IFRS`、`us-gaap` なら `USGAAP`。それでも空なら同じ銘柄の直近 parsed filing から引き継ぐ。曖昧なら NULL（JPGAAP と決めない）。
 
 ---
 
@@ -465,7 +465,7 @@ filing 単位。
 4. **配当**: `FirstQuarter` / `SecondQuarter` / `ThirdQuarter` / `YearEnd` / `Annual` メンバーで `target_period` を分ける。`ResultMember` は実績、`ForecastMember` は予想
 5. **業績予想**: `ForecastMember`、または `LowerMember`/`UpperMember`/`MinimumMember`/`MaximumMember`（ForecastMember 無しのレンジ）。`relative_period='current'` は要求しない（通期予想の期末は短信の四半期末とずれる）。`PreviousMember` は `value_kind=forecast_previous`（今回予想は `forecast`）。`LowerMember`/`UpperMember` は `range_side`。context 名の `accumulatedq1`/`accumulatedq3` と日数（80–100→Q1、240–300→Q3）で `target_period` を付ける
 6. `is_consolidated` が取れなければ 1（連結）として正規化する。NULL のまま残さない
-7. mappings を `namespace_key + local_name` で結合。`accounting_standard` が NULL でない行は filing の基準と一致するときだけ。同一キーでは `priority` 昇順で最初の値
+7. mappings を `namespace_key + local_name` で結合。`accounting_standard` が NULL でない行は filing の基準と一致するときだけ。例外: 要素の `local_name` が `*IFRS` なら、filing が JPGAAP / NULL でも IFRS マッピングを使う（40530 の予想）。同一キーでは `priority` 昇順で最初の値。**IFRS の書類では `jppfs_*` 要素を正規化に使わない**（KAB-52 案B。IFRS 側に対応が無い科目は空欄）
 8. `sign='invert'` なら符号反転
 9. filing 単位で既存の `xbrl_financials` を消してから入れ直す
 10. `is_required=1` が欠けたら警告ログ（`code, filing_id, std_item.code`）。処理は継続。required は本表実績だけ
@@ -538,14 +538,14 @@ TDnet 短信の実際の `namespace_key` は fixture を見てから YAML に書
 
 | code | label_ja | 代表 local_name |
 |---|---|---|
-| net_sales | 売上高 | NetSales / OperatingRevenue1 / OperatingRevenuesIFRS。本表欠落時は tse-ed-t の NetSales / OperatingRevenues / Revenue / SalesIFRS 等 |
+| net_sales | 売上高 | NetSales / OperatingRevenue1 / GrossOperatingRevenue / OrdinaryIncomeBNK / OperatingRevenue2 / Revenue / OperatingRevenueRWY / ELE / SEC / NetSalesOfCompletedConstructionContractsCNS / RevenueIFRS / NetSalesIFRS / Revenue2IFRS。本表欠落時は tse-ed-t の NetSales / OperatingRevenues / GrossOperatingRevenues / Revenue / SalesIFRS 等。営業総収入は売上高（内訳）より優先 |
 | cost_of_sales | 売上原価 | CostOfSales |
 | gross_profit | 売上総利益 | GrossProfit |
 | sga | 販売費及び一般管理費 | SellingGeneralAndAdministrativeExpenses |
 | operating_income | 営業利益 | OperatingIncome |
 | ordinary_income | 経常利益 | OrdinaryIncome |
 | profit_before_tax | 税引前当期純利益 | IncomeBeforeIncomeTaxes |
-| net_income | 親会社株主に帰属する当期純利益 | ProfitLossAttributableToOwnersOfParent |
+| net_income | 親会社株主に帰属する当期純利益 | ProfitLossAttributableToOwnersOfParent / ProfitLossIFRS（単体 IFRS） |
 | eps_basic | 1株当たり当期純利益 | tse-ed-t:NetIncomePerShare / BasicEarningsPerShare |
 | eps_diluted | 潜在株式調整後1株当たり当期純利益 | DilutedNetIncomePerShare / DilutedEarningsLossPerShareIFRS |
 
@@ -574,9 +574,11 @@ TDnet 短信 ZIP には BS/CF が薄い（PL 中心のサマリ）ものが多�
 
 ### 7.3 IFRS・業種
 
-- IFRS は `jpigp_cor` 等。`accounting_standard='IFRS'` のマッピングは filing の基準一致時のみ
+- IFRS は `jpigp_cor` 等。`accounting_standard='IFRS'` のマッピングは filing の基準一致時のみ。ただし要素名が `*IFRS` なら filing の基準が JPGAAP / NULL でも使う（KAB-55 / 40530）
+- IFRS の書類では `jppfs_*` を正規化に使わない。日本の制度上、単体決算書は日本基準のため IFRS 短信に両基準の本表が同居することがある（436A0）。IFRS 側に対応が無い科目は空欄
 - IFRS に経常利益は無い。欠損はエラーにしない
-- 銀行等の営業収益は priority フォールバックで吸収。業種分岐コードは書かない
+- 銀行等の営業収益・建設完成工事高・鉄道/電力/証券の営業収益、営業総収入は priority フォールバックで吸収。業種分岐コードは書かない
+- タイトルの `SFRS`（指定国際会計基準）は IFRS。タイトルが空のときは tse-ed-t の `*IFRS` 数値 fact、それが無ければ同じ銘柄の直近 parsed filing から `accounting_standard` を引き継ぐ。タイトルに日本基準がある書類は上書きしない
 
 ---
 
