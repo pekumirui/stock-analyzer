@@ -13,14 +13,16 @@ data/xbrl_taxonomy/
 既定パスは `XBRL_CACHE_DIR`（未設定ならリポジトリのこのディレクトリ）。
 本番の R2 `xbrl/_cache` は移行後もしばらく残してよい。
 
-## この PR 時点では中身は空
+## 中身
 
-クラウドの作業 VM から R2 マウント（`/mnt/r2/xbrl/_cache` や
-`/home/stock/r2-share/xbrl/_cache`）に届かない。部分セットをコミットしない。
+本番 R2 `xbrl/_cache` の全ファイル（114 ファイル・約 107MB）をそのままコピーして同梱済み。
+2,188 件の filing をネットワークなしで全件パースし errors=0 を確認している。
+filing が参照する版は過去年も含めて残す。どの ZIP からも参照されないファイルだけ落としてよい。
+配布物はバイト単位で保持する（`.gitattributes` で `-text`。CRLF のファイルがある）。
 
-既存キャッシュ全体は約 **107MB**（disclosure.edinet-fsa.go.jp / www.xbrl.org /
-www.xbrl.tdnet.info）。filing が参照する版は過去年も含めて残す。どの ZIP からも
-参照されないファイルだけ落としてよい。
+`check` は ZIP から辿れる参照をすべて数えるため、パーサが読まない汎用ラベル（`*_gla.xml` /
+`*-gla.xml`）、定義リンク（`*_def.xml`）、`www.xbrl.org/2003/2008-07-02/*` の 26 件を
+MISSING と出す。これらは本番キャッシュにも無く、パースには不要。
 
 ## 投入手順（R2 が見える箱で）
 

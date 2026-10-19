@@ -11,3 +11,6 @@
 *.jpg binary
 *.gz binary
 *.db binary
+
+# XBRL タクソノミ同梱 (KAB-60): 公式配布物をバイト単位でそのまま保持（CRLF を含むファイルがある）
+data/xbrl_taxonomy/** -text

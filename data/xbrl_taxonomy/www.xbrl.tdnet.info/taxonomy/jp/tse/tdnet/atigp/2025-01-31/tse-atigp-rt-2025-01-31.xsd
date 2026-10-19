@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema targetNamespace="http://www.xbrl.tdnet.info/taxonomy/jp/tse/tdnet/atigp/2025-01-31/tse-atigp-rt" attributeFormDefault="unqualified" elementFormDefault="qualified" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:tse-atigp-rt="http://www.xbrl.tdnet.info/taxonomy/jp/tse/tdnet/atigp/2025-01-31/tse-atigp-rt" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xbrli="http://www.xbrl.org/2003/instance">
+  <xsd:annotation>
+    <xsd:appinfo>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedQuarterlyConsolidatedStatementOfFinancialPositionTDnetIFRS" id="rol_CondensedQuarterlyConsolidatedStatementOfFinancialPositionTDnetIFRS">
+        <link:definition>513030 要約四半期連結財政状態計算書 TDnet （IFRS）</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedQuarterlyStatementOfFinancialPositionTDnetIFRS" id="rol_CondensedQuarterlyStatementOfFinancialPositionTDnetIFRS">
+        <link:definition>513060 要約四半期財政状態計算書 TDnet （IFRS）</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedYearToQuarterEndConsolidatedStatementOfComprehensiveIncomeSingleStatementTDnetIFRS" id="rol_CondensedYearToQuarterEndConsolidatedStatementOfComprehensiveIncomeSingleStatementTDnetIFRS">
+        <link:definition>520031 要約四半期連結損益及び包括利益計算書 TDnet （IFRS）四半期累計期間</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedQuarterPeriodConsolidatedStatementOfComprehensiveIncomeSingleStatementTDnetIFRS" id="rol_CondensedQuarterPeriodConsolidatedStatementOfComprehensiveIncomeSingleStatementTDnetIFRS">
+        <link:definition>520032 要約四半期連結損益及び包括利益計算書 TDnet （IFRS）四半期会計期間</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedYearToQuarterEndStatementOfComprehensiveIncomeSingleStatementTDnetIFRS" id="rol_CondensedYearToQuarterEndStatementOfComprehensiveIncomeSingleStatementTDnetIFRS">
+        <link:definition>520061 要約四半期損益及び包括利益計算書 TDnet （IFRS）四半期累計期間</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedQuarterPeriodStatementOfComprehensiveIncomeSingleStatementTDnetIFRS" id="rol_CondensedQuarterPeriodStatementOfComprehensiveIncomeSingleStatementTDnetIFRS">
+        <link:definition>520062 要約四半期損益及び包括利益計算書 TDnet （IFRS）四半期会計期間</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedYearToQuarterEndConsolidatedStatementOfProfitOrLossTDnetIFRS" id="rol_CondensedYearToQuarterEndConsolidatedStatementOfProfitOrLossTDnetIFRS">
+        <link:definition>521031 要約四半期連結損益計算書 TDnet （IFRS）四半期累計期間</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedQuarterPeriodConsolidatedStatementOfProfitOrLossTDnetIFRS" id="rol_CondensedQuarterPeriodConsolidatedStatementOfProfitOrLossTDnetIFRS">
+        <link:definition>521032 要約四半期連結損益計算書 TDnet （IFRS）四半期会計期間</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedYearToQuarterEndStatementOfProfitOrLossTDnetIFRS" id="rol_CondensedYearToQuarterEndStatementOfProfitOrLossTDnetIFRS">
+        <link:definition>521061 要約四半期損益計算書 TDnet （IFRS）四半期累計期間</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedQuarterPeriodStatementOfProfitOrLossTDnetIFRS" id="rol_CondensedQuarterPeriodStatementOfProfitOrLossTDnetIFRS">
+        <link:definition>521062 要約四半期損益計算書 TDnet （IFRS）四半期会計期間</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedYearToQuarterEndConsolidatedStatementOfComprehensiveIncomeTDnetIFRS" id="rol_CondensedYearToQuarterEndConsolidatedStatementOfComprehensiveIncomeTDnetIFRS">
+        <link:definition>522031 要約四半期連結包括利益計算書 TDnet （IFRS）四半期累計期間</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedQuarterPeriodConsolidatedStatementOfComprehensiveIncomeTDnetIFRS" id="rol_CondensedQuarterPeriodConsolidatedStatementOfComprehensiveIncomeTDnetIFRS">
+        <link:definition>522032 要約四半期連結包括利益計算書 TDnet （IFRS）四半期会計期間</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedYearToQuarterEndStatementOfComprehensiveIncomeTDnetIFRS" id="rol_CondensedYearToQuarterEndStatementOfComprehensiveIncomeTDnetIFRS">
+        <link:definition>522061 要約四半期包括利益計算書 TDnet （IFRS）四半期累計期間</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedQuarterPeriodStatementOfComprehensiveIncomeTDnetIFRS" id="rol_CondensedQuarterPeriodStatementOfComprehensiveIncomeTDnetIFRS">
+        <link:definition>522062 要約四半期包括利益計算書 TDnet （IFRS）四半期会計期間</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedQuarterlyConsolidatedStatementOfChangesInEquityTDnetIFRS" id="rol_CondensedQuarterlyConsolidatedStatementOfChangesInEquityTDnetIFRS">
+        <link:definition>530030 要約四半期連結持分変動計算書 TDnet （IFRS）</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedQuarterlyStatementOfChangesInEquityTDnetIFRS" id="rol_CondensedQuarterlyStatementOfChangesInEquityTDnetIFRS">
+        <link:definition>530060 要約四半期持分変動計算書 TDnet （IFRS）</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedQuarterlyConsolidatedStatementOfCashFlowsTDnetIFRS" id="rol_CondensedQuarterlyConsolidatedStatementOfCashFlowsTDnetIFRS">
+        <link:definition>540030 要約四半期連結キャッシュ・フロー計算書 TDnet （IFRS）</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_CondensedQuarterlyStatementOfCashFlowsTDnetIFRS" id="rol_CondensedQuarterlyStatementOfCashFlowsTDnetIFRS">
+        <link:definition>540060 要約四半期キャッシュ・フロー計算書 TDnet （IFRS）</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_NotesSegmentInformationCondensedQuarterlyConsolidatedFinancialStatementsTDnetIFRS-01" id="rol_NotesSegmentInformationCondensedQuarterlyConsolidatedFinancialStatementsTDnetIFRS-01">
+        <link:definition>610030a セグメント情報 TDnet （IFRS）四半期連結財務諸表（報告セグメントに係る事項）</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_NotesSegmentInformationCondensedQuarterlyConsolidatedFinancialStatementsTDnetIFRS-02" id="rol_NotesSegmentInformationCondensedQuarterlyConsolidatedFinancialStatementsTDnetIFRS-02">
+        <link:definition>610030b セグメント情報 TDnet （IFRS）四半期連結財務諸表（セグメント情報）</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_NotesSegmentInformationCondensedQuarterlyConsolidatedFinancialStatementsTDnetIFRS-03" id="rol_NotesSegmentInformationCondensedQuarterlyConsolidatedFinancialStatementsTDnetIFRS-03">
+        <link:definition>610030c セグメント情報 TDnet （IFRS）四半期連結財務諸表（企業全体の開示）</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_NotesSegmentInformationCondensedQuarterlyFinancialStatementsTDnetIFRS-01" id="rol_NotesSegmentInformationCondensedQuarterlyFinancialStatementsTDnetIFRS-01">
+        <link:definition>610060a セグメント情報 TDnet （IFRS）四半期財務諸表（報告セグメントに係る事項）</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_NotesSegmentInformationCondensedQuarterlyFinancialStatementsTDnetIFRS-02" id="rol_NotesSegmentInformationCondensedQuarterlyFinancialStatementsTDnetIFRS-02">
+        <link:definition>610060b セグメント情報 TDnet （IFRS）四半期財務諸表（セグメント情報）</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_NotesSegmentInformationCondensedQuarterlyFinancialStatementsTDnetIFRS-03" id="rol_NotesSegmentInformationCondensedQuarterlyFinancialStatementsTDnetIFRS-03">
+        <link:definition>610060c セグメント情報 TDnet （IFRS）四半期財務諸表（企業全体の開示）</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+      <link:roleType roleURI="http://www.xbrl.tdnet.info/jp/tse/tdnet/role/atigp/rol_std_ElementsForQuarterlyFinancialStatementsIFRS" id="rol_std_ElementsForQuarterlyFinancialStatementsIFRS">
+        <link:definition>500000 国際会計基準財務諸表タクソノミ 四半期要素</link:definition>
+        <link:usedOn>link:presentationLink</link:usedOn>
+        <link:usedOn>link:calculationLink</link:usedOn>
+        <link:usedOn>link:definitionLink</link:usedOn>
+        <link:usedOn>link:footnoteLink</link:usedOn>
+      </link:roleType>
+    </xsd:appinfo>
+  </xsd:annotation>
+</xsd:schema>
