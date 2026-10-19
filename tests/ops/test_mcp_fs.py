@@ -139,6 +139,32 @@ def test_fs_list_and_read_allowed(tmp_path: Path) -> None:
         env.close()
 
 
+def test_fs_list_and_read_monthly_sample(tmp_path: Path) -> None:
+    data = tmp_path / "data"
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    sample = data / "monthly" / "sample.txt"
+    sample.parent.mkdir(parents=True)
+    payload = "monthly sample\n"
+    sample.write_text(payload, encoding="utf-8")
+    env = _Env(data, logs)
+    try:
+        listed, list_err = _call("fs_list", root="data", path="monthly")
+        if list_err:
+            raise SystemExit(f"list monthly: {listed}")
+        names = {e["name"] for e in _body(listed)["entries"]}
+        if names != {"sample.txt"}:
+            raise SystemExit(f"monthly names: {names}")
+        read, read_err = _call("fs_read", root="data", path="monthly/sample.txt")
+        if read_err:
+            raise SystemExit(f"read monthly: {read}")
+        body = _body(read)
+        if body["content"] != payload or body["truncated"] or body["size"] != len(payload.encode()):
+            raise SystemExit(f"monthly read: {body}")
+    finally:
+        env.close()
+
+
 def test_fs_unknown_root_and_absolute_and_traversal(tmp_path: Path) -> None:
     data, logs = _layout(tmp_path)
     env = _Env(data, logs)

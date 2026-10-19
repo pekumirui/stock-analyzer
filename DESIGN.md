@@ -223,14 +223,14 @@ ingest / POST は `canonicalize_element_label` してから既存行を探す。
 
 ingest が新しい行を作るとき、同じ (code, year) に `strip_yoy_fragments` 後の名前が同じで unit が yoy と number で違う既存行があり、その既存行が今回の `rows` に無いなら 409 `YOY_NUMBER_CONFLICT`。`force=true` で作る。同じ POST に両方あるときは作る（実数と前年比の併存）。既にある行の更新は対象外。`POST .../elements` はこの検査をしない。
 
-**R2 への保存（月次 `jobs/*_r2.py`）。** 保存先は `/home/stock/r2-share/monthly/{code}/`。cron と運用は `deploy/README.md`。共通の約束は次のとおり。
+**月次ファイルの保存（`jobs/*_r2.py`）。** 保存先はリポジトリの `data/monthly/{code}/`。`SHARE_ROOT` を置くと、その直下の `monthly/{code}/` になる。cron と運用は `deploy/README.md`。共通の約束は次のとおり。
 
 - `{code}` は TDnet の発行体コードそのまま（9279 / 262A）。J-Quants 5 桁にしない。stocks 照合だけ display_code + 末尾 0（9282→92820, 262A→262A0）
 - stocks に無いコードはダウンロードしない。DB が読めない／map が空なら警告のみで継続
 - 既存ファイルは消さない。IR（PDF/xlsx/HTML）は同じ URL の上書き公開を日付付きで残し、中身の sha256 が同じなら skip
 - 3 本のバッチ（TDnet PDF / IR PDF・xlsx / IR HTML）の cron は分ける
 - 日付・HTTP・銘柄マスタ・ファイル名の共通処理は `jobs/_r2common.py`（`app` は import しない）。`http_get` は TDnet も IR も同じ。識別 UA はジョブごとで、403 のときだけブラウザ UA に一度切り替え、中間証明書の欠落は AIA で補う。429 / 408 / 5xx は Retry-After があればそれに従い（最大 60 秒）、無ければ指数バックオフ＋jitter（5→10→20→40→60 秒、最大 6 回）。打ち切ったら例外を上げる。発行体ログは原則 `fail issuer {code} fetch:`（IR HTML の 429 だけ下の例外）
-- rclone FUSE（`/home/stock/r2-share`）が切れたら各社 `fail` を並べない。開始時と処理中に dest を probe し、ECONNABORTED / ENOTCONN / ESTALE / ルート消失なら `RestartSec` と同じ 5 秒を挟んで再試行し、駄目なら `R2 マウント切断` の 1 行で exit≠0。正常時の行は変えない。マウントの再起動は `deploy/r2-share.service` と `r2-share-watch.timer`。デプロイはハッシュが変わったときだけ `r2-share.service` を restart する（`deploy/README.md`）
+- 新しいファイルは `data/` に書く。rclone FUSE（`/home/stock/r2-share`）の切断プロトコルは、dest がまだそのマウント上にあるときに働く。`data/` の dest は `/proc/mounts` を見ない。マウントが切れたら各社 `fail` を並べない。開始時と処理中に dest を probe し、ECONNABORTED / ENOTCONN / ESTALE / ルート消失なら `RestartSec` と同じ 5 秒を挟んで再試行し、駄目なら `R2 マウント切断` の 1 行で exit≠0。正常時の行は変えない。マウントの再起動は `deploy/r2-share.service` と `r2-share-watch.timer`。デプロイはハッシュが変わったときだけ `r2-share.service` を restart する（`deploy/README.md`）
 
 TDnet 月次 PDF（`jobs/monthly/tdnet_monthly_r2.py`）:
 

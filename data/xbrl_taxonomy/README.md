@@ -11,7 +11,7 @@ data/xbrl_taxonomy/
 ```
 
 既定パスは `XBRL_CACHE_DIR`（未設定ならリポジトリのこのディレクトリ）。
-本番の R2 `xbrl/_cache` は移行後もしばらく残してよい。
+filing の ZIP ツリーは `data/xbrl`。`jobs/ops/migrate_r2_share.py` は `xbrl/_cache` を既定でコピーしない。タクソノミの同梱はこのディレクトリ。
 
 ## 中身
 
@@ -24,23 +24,23 @@ filing が参照する版は過去年も含めて残す。どの ZIP からも�
 汎用ラベル（`*_gla.xml` / `*-gla.xml`）、定義リンク（`*_def.xml`）、
 `www.xbrl.org/2003/2008-07-02/*` はパースに使わないので同梱しなくてよい。
 
-## 投入手順（R2 が見える箱で）
+## 投入手順
 
-ZIP 全件を走査して参照クロージャを同梱する:
+ZIP 全件を走査して参照クロージャを同梱する。`--zips` は `data/xbrl`。`_cache` は移行スクリプトが既定でコピーしないので、キャッシュが要るときはそのディレクトリを別に渡す。
 
 ```
 python tools/xbrl/taxonomy_bundle.py scan \
-  --zips /home/stock/r2-share/xbrl \
-  --cache /home/stock/r2-share/xbrl/_cache \
+  --zips data/xbrl \
+  --cache data/xbrl/_cache \
   --out /tmp/taxonomy-urls.txt
 
 python tools/xbrl/taxonomy_bundle.py sync \
-  --zips /home/stock/r2-share/xbrl \
-  --from-cache /home/stock/r2-share/xbrl/_cache \
+  --zips data/xbrl \
+  --from-cache data/xbrl/_cache \
   --to data/xbrl_taxonomy
 
 python tools/xbrl/taxonomy_bundle.py check \
-  --zips /home/stock/r2-share/xbrl \
+  --zips data/xbrl \
   --bundle data/xbrl_taxonomy
 ```
 
@@ -49,7 +49,7 @@ python tools/xbrl/taxonomy_bundle.py check \
 ```
 python tools/xbrl/taxonomy_bundle.py sync \
   --all-from-cache \
-  --from-cache /home/stock/r2-share/xbrl/_cache \
+  --from-cache data/xbrl/_cache \
   --to data/xbrl_taxonomy
 ```
 

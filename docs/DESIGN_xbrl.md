@@ -31,7 +31,7 @@
 | 項目 | 内容 |
 |---|---|
 | 取得元 | TDnet。取得自体は既存ジョブ。本設計の対象は **パース以降** |
-| 入力 | `/home/stock/r2-share/xbrl/{code4}/` の ZIP と `manifest/{YYYY-MM-DD}.jsonl` |
+| 入力 | `data/xbrl/{code4}/` の ZIP と `manifest/{YYYY-MM-DD}.jsonl`。FUSE の `/home/stock/r2-share/xbrl` は KPI が R2 を消すまで残す |
 | 対象書類 | 決算短信・四半期短信・訂正短信の **Summary iXBRL**（本表） |
 | 対象データ | iXBRL の fact を保存。1000 文字超のテキストブロックは値を捨てるが要素は残す |
 | 正規化対象 | BS / PL / CF の §7.2 最小セット + EPS / 配当 / 業績予想（KAB-47） |
@@ -55,7 +55,7 @@
         │
         │ 既存: jobs/xbrl/tdnet_xbrl_r2.py
         ▼
-[R2 mount /home/stock/r2-share/xbrl/{code4}/ + manifest/*.jsonl]
+[data/xbrl/{code4}/ + manifest/*.jsonl]
         │
         │ (2) parse   jobs/xbrl/xbrl_parse.py
         ▼
@@ -75,11 +75,13 @@
 [stocks] ──既存──▶ 銘柄マスタ（5桁）。XBRL 側の FK 相当は code 文字列照合のみ
 ```
 
+FUSE の `/home/stock/r2-share/xbrl` は、KPI が R2 を消すまで残す。パースが読むのは `data/xbrl`。
+
 3 ジョブは独立して再実行できる。
 
 | ジョブ | 実装 | 責務 |
 |---|---|---|
-| (1) fetch | `jobs/xbrl/tdnet_xbrl_r2.py`（既存・変更最小） | 一覧 → ZIP → R2。skip 正本は manifest の `xbrl_id` |
+| (1) fetch | `jobs/xbrl/tdnet_xbrl_r2.py`（既存・変更最小） | 一覧 → ZIP → dest（既定 `data/xbrl`）。skip 正本は manifest の `xbrl_id` |
 | (2) parse | `jobs/xbrl/xbrl_parse.py`（新規） | ZIP → xbrlp → `xbrl_*` 生データ |
 | (3) normalize | `jobs/xbrl/xbrl_normalize.py`（新規） | facts + YAML マッピング → `xbrl_financials` |
 
@@ -591,7 +593,9 @@ TDnet 短信 ZIP には BS/CF が薄い（PL 中心のサマリ）ものが多�
 `app/config.py` に足す（ハードコードしない）。
 
 ```
-XBRL_DEST=/home/stock/r2-share/xbrl
+# 未設定なら {repo}/data/xbrl。ルートだけ変えるときは SHARE_ROOT。
+XBRL_DEST={repo}/data/xbrl
+# SHARE_ROOT={repo}/data
 XBRL_CACHE_DIR=data/xbrl_taxonomy
 XBRL_TEXT_MAX_CHARS=1000
 XBRL_PARSE_WORKERS=2
