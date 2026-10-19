@@ -101,6 +101,8 @@ box エージェントはユーザ `boxro` で sftp するだけ（シェルも�
 
 公開鍵は `deploy/ssh/boxro_authorized_keys`（1行1鍵、先頭 `restrict`）。provision が `/etc/ssh/authorized_keys/boxro`（root:root、644）へ同期する。鍵を足すときはそのファイルに行を足してデプロイ。`/etc/ssh/sshd_config.d/90-boxro.conf` が変わったときだけ `sshd -t && systemctl reload ssh`。`sshd -t` が失敗したら drop-in を戻す。restart はしない。boxro の失敗は stderr に出すが、アプリの provision（systemd / nginx / crontab）は続ける。既存の stock / root / デプロイ鍵には触らない。
 
+Cursor のクラウドエージェントは Secret `cursor_vps_ro`（秘密鍵）で `boxro@160.251.179.50` に sftp / sshfs する。見えるのは `data/` だけ。
+
 元に戻す（root）:
 
 ```bash
