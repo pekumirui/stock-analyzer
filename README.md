@@ -52,6 +52,8 @@ notepad .env                    # JQUANTS_API_KEY を記入
 | `.\run.ps1 lint` / `./run.sh lint` | Ruff + Bandit（`requirements-dev.txt`） |
 | `python jobs/market/pts_snapshot.py` | 株探の PTS ナイトタイム ランキングを今の分だけ取る（cron は平日 15:30〜24:00） |
 | `python jobs/fx_rates.py --backfill` | 為替（ECB/EUR）を 1999-01-04 から取得。以後は引数なしで差分 |
+| `python jobs/edinet/edinet_codes.py` | EDINET コードリスト → `edinet_filers` と `stocks.edinet_code`（キー不要） |
+| `python jobs/edinet/edinet_documents.py --backfill-years 5` | EDINET 書類一覧を 5 年分（`EDINET_API_KEY`）。以後は引数なしで直近 7 日の未確定の日 |
 
 > **バックフィル年数の目安**
 > 指標の計算にはRSが252営業日、MA200が200営業日の履歴を必要とするため、
@@ -140,6 +142,8 @@ app/
     analytics.py  MA/RS/ステージ/Q単独/決算後リターン
   monthly/      月次 (行名の正規化・親子・公開ページ)
   supply/       サプライ (素材マスタ・e-Stat・経産省)
+  edinet/       EDINET 提出者・書類一覧 (docs/DESIGN_edinet.md)
+  edinet_wrapper/  EDINET API v2 ラッパー (vendor。改変しない)
   api/          REST API (機能ごとに 1 ファイル。月次は api/monthly/)
   main.py       FastAPIエントリ
 config/         機能ごとの JSON (monthly/ supply/ xbrl/)
@@ -147,13 +151,15 @@ static/
   index.html    SPA マークアップ
   css/app.css   スタイル
   js/           タブ別 vanilla JS
-jobs/           機能ごと (market/ monthly/ supply/ xbrl/ ops/)。cron は deploy/crontab
+jobs/           機能ごと (market/ monthly/ supply/ xbrl/ edinet/ ops/)。cron は deploy/crontab
   market/run_batch.py   日次バッチ / バックフィル
   market/check_demo.py  スキーマ + 旧デモ取り残しガード
   market/pts_snapshot.py  株探 PTS ランキング → pts_snapshots（cron は平日 15:30〜24:00）
   ops/backup_db.py      本番 SQLite の日次バックアップ（cron は 05:00 JST。手順は docs/DESIGN_backup.md）
   ops/vps_packages_r2.py  VPS パッケージ一覧 → data/inventory/（cron は 06:40 JST）
   fx_rates.py           Frankfurter 為替（EUR ベース。cron は 08:00 JST）
+  edinet/edinet_codes.py      EDINET コードリスト（cron は 07:30 JST）
+  edinet/edinet_documents.py  EDINET 書類一覧（cron は 08:40〜23:40 JST 毎時）
   migrate.py            デプロイごとのスキーマ追随と月次の後始末
 tests/          機能ごと (market/ monthly/ supply/ xbrl/ ops/)
   conftest.py   pytest の共通設定（DB はファイルごとに空から）。`python -m pytest tests` で全部走る

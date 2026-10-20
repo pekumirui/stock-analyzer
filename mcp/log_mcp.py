@@ -132,7 +132,7 @@ BATCH_JOBS = frozenset(crontab_job_names()) | EXTRA_BATCH_JOBS
 YEAR_RE = re.compile(r"^\d{4}$")
 DB_TABLES = (
     "stocks", "daily_prices", "topix", "statements", "indicators",
-    "earnings_events", "fx_rates",
+    "earnings_events", "fx_rates", "edinet_documents", "edinet_list_days",
 )
 DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 FX_MAX_OBS = 500
@@ -875,6 +875,16 @@ def tool_db_stats(_args: dict[str, Any]) -> str:
                     "SELECT MIN(date), MAX(date), COUNT(DISTINCT quote), COUNT(DISTINCT date) FROM fx_rates"
                 ).fetchone()
                 extra = f"  {mn}..{mx}  quotes={quotes} days={days}"
+            elif table == "edinet_documents":
+                mn, mx, linked = conn.execute(
+                    "SELECT MIN(file_date), MAX(file_date), COUNT(code) FROM edinet_documents"
+                ).fetchone()
+                extra = f"  {mn}..{mx}  linked={linked}"
+            elif table == "edinet_list_days":
+                mn, mx, fin = conn.execute(
+                    "SELECT MIN(file_date), MAX(file_date), SUM(finalized) FROM edinet_list_days"
+                ).fetchone()
+                extra = f"  {mn}..{mx}  finalized={fin or 0}"
             parts.append(f"{table}: {n}{extra}")
     finally:
         conn.close()

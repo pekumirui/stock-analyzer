@@ -33,6 +33,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 |---|---|---|
 | `VPS_SSH_KEY` | はい | デプロイ用秘密鍵 |
 | `JQUANTS_API_KEY` | 推奨 | あるときだけ `.env` の当該行を更新。無ければ既存 `.env` を触らない |
+| `EDINET_API_KEY` | 任意 | EDINET API v2 のキー（`docs/DESIGN_edinet.md`）。あるときだけ `.env` の当該行を更新。無ければ `jobs/edinet/edinet_documents.py` は何もしない（コードリストはキー不要） |
 | `ESTAT_APP_ID` | 任意 | e-Stat API のアプリケーション ID（サプライタブの月次量）。あるときだけ `.env` の当該行を更新。無ければ `jobs/supply/material_stats.py --source estat` は何もしない（経産省 Excel はキー不要） |
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | 残置 | 残置の rclone FUSE（`/home/stock/r2-share`）用。ジョブの dest は `data/`。あるときだけ `.env` と `~/.config/rclone/rclone.conf` を更新。無ければ既存を触らない |
 | `SLACK_WEBHOOK_URL` | 推奨 | Slack Incoming Webhook（#alerts）。コミットしない。漏れたら rotate。provision が `/etc/fluent-bit/slack.env` に URL と `SLACK_WEBHOOK_URI` を書く。`.env` には入れない |
@@ -53,7 +54,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 `update.sh`:
 
 1. GitHub SSH（deploy key）を冪等に揃えてから `git pull --ff-only origin main`
-2. `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `MCP_TOKEN` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` があれば `.env` のその行だけ upsert。R2 の両方が揃っていれば `~/.config/rclone/rclone.conf` も書く。`SLACK_WEBHOOK_URL` と `SLACK_WEBHOOK_URL_{APP,BATCH,INFRA,QUIET}` は `.env` に書かない
+2. `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `EDINET_API_KEY` / `MCP_TOKEN` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` があれば `.env` のその行だけ upsert。R2 の両方が揃っていれば `~/.config/rclone/rclone.conf` も書く。`SLACK_WEBHOOK_URL` と `SLACK_WEBHOOK_URL_{APP,BATCH,INFRA,QUIET}` は `.env` に書かない
 3. `sudo provision.sh --sudoers-only`（`APP_DIR` だけ preserve。live sudoers を repo に合わせる）→ `sudo provision.sh`（パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers、R2 user mount、fluent-bit。Slack webhook は `--preserve-env`）。Webhook が空なら fluent-bit は enable のみで start しない
 4. venv / `pip install` / `migrate.py`（`database is locked` は最大約 6 分まで再試行。19:30 の日次バッチや毎時 `xbrl_normalize` と重なるため）
 5. `systemctl restart stock-analyzer` と `stock-analyzer-mcp`、localhost:8000 / :8010 のヘルスチェック
@@ -124,10 +125,10 @@ VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 認
 
 - `service_status` — プロセスと localhost:80 / :8000 の HTTP コード。MCP 自身（:8010）は自己 curl せず、この応答自体を ok とする
 - `app_logs` — `/var/log/app/stock-analyzer.log` と journalctl。uvicorn は `deploy/uvicorn-log.json` で行頭に JST `YYYY-MM-DD HH:MM:SS` を付ける。`since` / `until` は `batch_logs` と同じ形。省略時は journal が直近 1h、ファイルは live の末尾だけ。指定すると `.1` / `.gz` も読み、行頭の時刻で絞る。時刻の無い行（Traceback の続き）は直前の行に付く
-- `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` は crontab / cron-run.sh の stem（`run_batch` / `pts_snapshot` / `fx_rates` / `tdnet_monthly_r2` / `tdnet_monthly_pdf_sidecar` / `tdnet_monthly_pdf_ingest` / `ir_monthly_r2` / `ir_monthly_html_r2` / `ir_monthly_html_ingest` / `ir_monthly_json_ingest` / `tdnet_xbrl_r2` / `xbrl_parse` / `xbrl_normalize` / `vps_packages_r2` / `backup_db` / `migrate_r2_share`）。一覧に無い名前とパスは拒否。省略時は `stock-analyzer.log` と `mcp.log` 以外の live ファイル（古い `batch.log` を含む）。`since` / `until` は `1h` / `30m` / `today` / `yesterday` / `YYYY-MM-DD`。`until` はその時刻を含まない。昨日は `since=yesterday` と `until=today`。日時を指定したときは `.1` と `.gz` も読み、行頭の JST `YYYY-MM-DD HH:MM:SS` で絞る。`lines` は 1-500。超えた分は末尾だけ返すので範囲を狭める
+- `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` は crontab / cron-run.sh の stem（`run_batch` / `pts_snapshot` / `fx_rates` / `tdnet_monthly_r2` / `tdnet_monthly_pdf_sidecar` / `tdnet_monthly_pdf_ingest` / `ir_monthly_r2` / `ir_monthly_html_r2` / `ir_monthly_html_ingest` / `ir_monthly_json_ingest` / `tdnet_xbrl_r2` / `xbrl_parse` / `xbrl_normalize` / `edinet_codes` / `edinet_documents` / `vps_packages_r2` / `backup_db` / `migrate_r2_share`）。一覧に無い名前とパスは拒否。省略時は `stock-analyzer.log` と `mcp.log` 以外の live ファイル（古い `batch.log` を含む）。`since` / `until` は `1h` / `30m` / `today` / `yesterday` / `YYYY-MM-DD`。`until` はその時刻を含まない。昨日は `since=yesterday` と `until=today`。日時を指定したときは `.1` と `.gz` も読み、行頭の JST `YYYY-MM-DD HH:MM:SS` で絞る。`lines` は 1-500。超えた分は末尾だけ返すので範囲を狭める
 - `nginx_logs` — nginx journal と error.log と `/var/log/nginx/stock-analyzer.access.log`。アクセスログの `rt=` は nginx 全体、`urt=` は uvicorn の処理秒。遅いリクエストは `grep` に `rt=[1-9]` などを渡す。`since` / `until` は `batch_logs` と同じ形。省略時は journal が直近 1h、ファイルは live の末尾だけ。指定すると logrotate 済みの `.1` / `.gz`（既定で 14 日分）も読み、行の時刻（JST）で絞る。URL の OAuth 一時値（`code` / `state` など）は伏せる
 - `fs_list` / `fs_read` / `fs_grep` — 読み取り専用。`root` は `data`（リポジトリの `data/`、`MCP_DATA_DIR`）か `logs`（`/var/log/app`、`MCP_LOG_DIR`）。それ以外・絶対パス・`..`・symlink で root の外へ出るものは拒否。`.env*` / `*.db` / `*.sqlite*` / `stock.db` / `*.pem` / `id_*` / `*.key` / `rclone.conf` と `/home/stock/backups` / `/home/stock/r2-share` は二重に拒否。`fs_read` は 1 回あたり `MCP_FS_MAX_BYTES`（既定 1MiB）、切り詰め時は `truncated` とファイル全体の `size` を返す。認証は他ツールと同じ `MCP_TOKEN` / OAuth
-- `db_stats` — stock.db の件数・日付範囲・デモ混在
+- `db_stats` — stock.db の件数・日付範囲・デモ混在。EDINET の `edinet_documents` / `edinet_list_days` も
 - `db_lookup` — 1銘柄のマスタ・直近株価・決算・指標
 - `fx_rate` — 指定日の為替。EUR ベースのクロス（例 USD/JPY）。休日・ECB非公表日は直近営業日（`as_of`）。`holiday_fallback` で明示
 - `fx_rates` — 期間の為替（公表日のみ）。休日を直近営業日で埋めたいときは `fx_rate`

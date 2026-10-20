@@ -51,6 +51,11 @@ SHELL=/bin/bash
 10 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/xbrl_parse.py
 20 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/xbrl_normalize.py
 
+# EDINET（KAB-72）。コードリスト → edinet_filers / stocks.edinet_code（キー不要）、書類一覧 → edinet_documents（EDINET_API_KEY）
+# 一覧は直近 7 日の未確定の日だけ取る。前日分は翌朝の回で確定する
+30 7 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/edinet/edinet_codes.py
+40 8-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/edinet/edinet_documents.py
+
 # 素材の月次量 → material_monthly（サプライタブ）
 # 経産省 Excel（生産動態と石油統計。速報は翌月末、確報は翌々月中旬）。毎日見て、変わっていなければ同じ値の UPSERT
 # 生産動態と石油統計は時刻をずらす（METI の WAF は続けて取ると bot 確認を返す）。取り込み済みの年報は落とさない
