@@ -21,7 +21,7 @@ from app.xbrl.mappings import apply_mappings  # noqa: E402
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--rebuild", action="store_true", help="xbrl_financials を消して parsed filing を全部やり直す")
+    ap.add_argument("--rebuild", action="store_true", help="xbrl_financials / xbrl_segments を消して parsed filing を全部やり直す")
     ap.add_argument("--code", help="5桁コードに限定（--rebuild と併用可）")
     args = ap.parse_args()
     db = SessionLocal()

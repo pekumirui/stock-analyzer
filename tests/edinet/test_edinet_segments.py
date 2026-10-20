@@ -187,6 +187,9 @@ def test_ingest_segments() -> None:
         # --rebuild で作り直しても同じ
         st = rebuild_all(db)
         assert st["errors"] == 0
+        # 消す前と作り直した後の件数（KAB-83）。正規化が同じなので前後が一致する
+        assert st["segments_deleted"] == st["segments"] == 6
+        assert st["deleted"] == st["financials"] > 0
         assert len(_segments(db, f.id)) == 6
     finally:
         db.close()

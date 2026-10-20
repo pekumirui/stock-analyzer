@@ -413,14 +413,17 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
 
 
 def rebuild_all(db: Session, *, code: str | None = None) -> dict[str, int]:
-    q = db.query(XbrlFinancial)
-    if code:
-        q = q.filter_by(code=code)
-    n = q.delete(synchronize_session="fetch")
-    seg_q = db.query(XbrlSegment)
-    if code:
-        seg_q = seg_q.filter_by(code=code)
-    seg_q.delete(synchronize_session="fetch")
+    """xbrl_financials / xbrl_segments を消して parsed の filing を全部やり直す。
+
+    deleted / segments_deleted は消す前、financials / segments は作り直した後の行数（KAB-83）。
+    正規化が変わっていなければ deleted と financials は同じになる。
+    """
+    def scoped(model):
+        q = db.query(model)
+        return q.filter_by(code=code) if code else q
+
+    n = scoped(XbrlFinancial).delete(synchronize_session="fetch")
+    n_seg = scoped(XbrlSegment).delete(synchronize_session="fetch")
     db.commit()
     db.expire_all()
     processed = errors = 0
@@ -435,4 +438,11 @@ def rebuild_all(db: Session, *, code: str | None = None) -> dict[str, int]:
         except Exception:
             db.rollback()
             errors += 1
-    return {"deleted": n, "processed": processed, "errors": errors}
+    return {
+        "deleted": n,
+        "financials": scoped(XbrlFinancial).count(),
+        "segments_deleted": n_seg,
+        "segments": scoped(XbrlSegment).count(),
+        "processed": processed,
+        "errors": errors,
+    }
