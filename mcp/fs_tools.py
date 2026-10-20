@@ -191,7 +191,7 @@ def resolve_fs_path(alias: str, rel: Any) -> Path:
     return target
 
 
-def _clamp_int(raw: Any, default: int, lo: int, hi: int, label: str) -> int:
+def clamp_int(raw: Any, default: int, lo: int, hi: int, label: str) -> int:
     if raw is None:
         n = default
     else:
@@ -348,7 +348,7 @@ def _dump(body: dict[str, Any]) -> str:
 def tool_fs_list(args: dict[str, Any]) -> str:
     alias = parse_root(args.get("root"))
     recursive = _parse_bool(args.get("recursive"), False, "recursive")
-    limit = _clamp_int(args.get("limit"), DEFAULT_LIST_LIMIT, 1, MAX_LIST_LIMIT, "limit")
+    limit = clamp_int(args.get("limit"), DEFAULT_LIST_LIMIT, 1, MAX_LIST_LIMIT, "limit")
     target = resolve_fs_path(alias, args.get("path"))
     deadline = _Deadline()
     if not target.exists():
@@ -397,9 +397,9 @@ def tool_fs_read(args: dict[str, Any]) -> str:
         raise ValueError("path is required")
     target = resolve_fs_path(alias, args.get("path"))
     encoding = _parse_encoding(args.get("encoding"))
-    offset = _clamp_int(args.get("offset"), 0, 0, 2**63 - 1, "offset")
+    offset = clamp_int(args.get("offset"), 0, 0, 2**63 - 1, "offset")
     cap = max_read_bytes()
-    length = _clamp_int(args.get("length"), cap, 1, cap, "length")
+    length = clamp_int(args.get("length"), cap, 1, cap, "length")
     deadline = _Deadline()
     if not target.exists():
         raise ValueError("path not found")
@@ -482,7 +482,7 @@ def tool_fs_grep(args: dict[str, Any]) -> str:
     if args.get("path") is None or (isinstance(args.get("path"), str) and not str(args.get("path")).strip()):
         raise ValueError("path is required")
     pattern = parse_grep_pattern(args.get("pattern"))
-    max_matches = _clamp_int(
+    max_matches = clamp_int(
         args.get("max_matches"), DEFAULT_GREP_MATCHES, 1, MAX_GREP_MATCHES, "max_matches",
     )
     target = resolve_fs_path(alias, args.get("path"))

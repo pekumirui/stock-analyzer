@@ -43,6 +43,7 @@ if str(_MCP_DIR) not in sys.path:
     sys.path.insert(0, str(_MCP_DIR))
 
 import fs_tools  # noqa: E402
+import xbrl_compare
 
 
 def app_dir() -> Path:
@@ -91,6 +92,7 @@ GREP_RE = re.compile(r"^[^\n\r\x00]{1,120}$")
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$")
 SHORT_SINCE_RE = re.compile(r"^(\d+)([smhd])$", re.I)
 CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
+ITEM_NAME_RE = re.compile(r"^[a-z0-9_]{1,64}$")
 JOB_NAME_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 BATCH_LOG_SKIP = frozenset({"stock-analyzer.log", "mcp.log"})
 # cron-run.sh の行頭。JST の "YYYY-MM-DD HH:MM:SS "。別の形は読まない。
@@ -947,6 +949,29 @@ def tool_db_lookup(args: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+def parse_name_list(raw: Any, label: str) -> tuple[str, ...] | None:
+    if raw is None:
+        return None
+    if isinstance(raw, str):
+        parts = [part.strip() for part in raw.split(",") if part.strip()]
+    elif isinstance(raw, list):
+        parts = []
+        for part in raw:
+            if not isinstance(part, str):
+                raise ValueError(f"{label} must be an array of strings")
+            text = part.strip()
+            if text:
+                parts.append(text)
+    else:
+        raise ValueError(f"{label} must be an array of strings or a comma-separated string")
+    if not parts:
+        return None
+    for part in parts:
+        if ITEM_NAME_RE.fullmatch(part) is None:
+            raise ValueError(f"{label} name {part!r} must match ^[a-z0-9_]{{1,64}}$")
+    return tuple(parts)
+
+
 def parse_iso_date(raw: Any, label: str) -> date:
     s = str(raw or "").strip()
     if not DATE_ONLY_RE.fullmatch(s):
@@ -1283,6 +1308,31 @@ def tool_monthly_ingest(args: dict[str, Any]) -> str:
     return call_monthly_api("POST", monthly_ingest_url(code), body)
 
 
+def tool_xbrl_compare(args: dict[str, Any]) -> str:
+    code = parse_code(args.get("code"))
+    period_end = parse_iso_date(args["period_end"], "period_end") if args.get("period_end") else None
+    items = parse_name_list(args.get("items"), "items")
+    conn = open_db()
+    try:
+        return xbrl_compare.compare_text(conn, code, period_end=period_end, items=items)
+    finally:
+        conn.close()
+
+
+def tool_xbrl_diff_summary(args: dict[str, Any]) -> str:
+    raw = str(args.get("source") or "edinet").strip().lower()
+    source = xbrl_compare.SUMMARY_SOURCES.get(raw)
+    if source is None:
+        raise ValueError(f"source must be one of {', '.join(xbrl_compare.SUMMARY_SOURCES)}")
+    since = parse_iso_date(args["since"], "since") if args.get("since") else None
+    limit = fs_tools.clamp_int(args.get("limit"), 20, 1, 500, "limit")
+    conn = open_db()
+    try:
+        return xbrl_compare.diff_summary_text(conn, source=source, since=since, limit=limit)
+    finally:
+        conn.close()
+
+
 TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = {
     "fs_list": (
         (
@@ -1427,6 +1477,37 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
             "required": ["code"],
         },
         tool_db_lookup,
+    ),
+    "xbrl_compare": (
+        "1銘柄の実績を期末ごとに statements / TDnet XBRL / EDINET XBRL で並べて OK / DIFF / MISSING。"
+        "既定は直近 8 期。各期に doc_id・提出日・連結/単体・訂正。読み取り専用。",
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
+                "period_end": {"type": "string", "description": "YYYY-MM-DD; omit for the latest 8"},
+                "items": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "std codes (operating_income) or statements columns (operating_profit)",
+                },
+            },
+            "required": ["code"],
+        },
+        tool_xbrl_compare,
+    ),
+    "xbrl_diff_summary": (
+        "市場全体で XBRL と statements の実績を期末で突き合わせた一致率と DIFF 上位。"
+        "source は edinet（既定）か tdnet。since は xbrl_filings.submitted_at。読み取り専用。",
+        {
+            "type": "object",
+            "properties": {
+                "source": {"type": "string", "enum": list(xbrl_compare.SUMMARY_SOURCES)},
+                "since": {"type": "string", "description": "YYYY-MM-DD lower bound on submitted_at"},
+                "limit": {"type": "integer", "description": "top DIFF rows, 1-500, default 20"},
+            },
+        },
+        tool_xbrl_diff_summary,
     ),
     "fx_rate": (
         (
