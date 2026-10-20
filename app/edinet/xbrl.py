@@ -6,6 +6,8 @@ ZIP は保存しない（一時ディレクトリで読んで捨てる。取り�
 from __future__ import annotations
 
 import hashlib
+import re
+import unicodedata
 from datetime import date, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -28,9 +30,11 @@ SOURCE = "edinet"
 ANNUAL = ("120", "130")         # 有価証券報告書 / 訂正
 SEMIANNUAL = ("160", "170")     # 半期報告書 / 訂正
 QUARTERLY = ("140", "150")      # 四半期報告書 / 訂正（2024-03 まで）
-DEFAULT_DOC_TYPES = ANNUAL + SEMIANNUAL
+DEFAULT_DOC_TYPES = ANNUAL + SEMIANNUAL + QUARTERLY
 AMENDMENTS = ("130", "150", "170")
 DEI_KEY = "jpdei_cor"
+# 「第138期第2四半期」。classify_title は「第1」を先に探すので 第1xx期 を Q1 にしてしまう
+_QUARTER_RE = re.compile(r"第([123])四半期")
 
 
 def title_meta(doc_type_code: str, description: str | None) -> dict:
@@ -44,7 +48,8 @@ def title_meta(doc_type_code: str, description: str | None) -> dict:
     elif doc_type_code in SEMIANNUAL:
         meta.update(doc_type="semiannual", period_type="Q2")
     elif doc_type_code in QUARTERLY:
-        meta["doc_type"] = "quarterly"
+        m = _QUARTER_RE.search(unicodedata.normalize("NFKC", description or ""))
+        meta.update(doc_type="quarterly", period_type=f"Q{m[1]}" if m else None)
     meta["is_amendment"] = doc_type_code in AMENDMENTS
     meta["accounting_standard"] = None
     return meta

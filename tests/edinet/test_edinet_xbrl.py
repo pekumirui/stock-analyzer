@@ -107,6 +107,9 @@ def test_title_meta() -> None:
     assert (m["doc_type"], m["period_type"], m["is_amendment"]) == ("semiannual", "Q2", False)
     m = title_meta("140", "四半期報告書－第70期第3四半期(2023/10/01－2023/12/31)")
     assert (m["doc_type"], m["period_type"]) == ("quarterly", "Q3")
+    # 第138期 の「第1」を Q1 と読まない
+    assert title_meta("140", "四半期報告書－第138期第2四半期(2019/07/01－2019/09/30)")["period_type"] == "Q2"
+    assert title_meta("150", "訂正四半期報告書－第１１期第１四半期")["period_type"] == "Q1"
 
 
 def test_keep_fact() -> None:

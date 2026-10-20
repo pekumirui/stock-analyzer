@@ -73,7 +73,7 @@ edinet_list_days   -- 取った日ごと
 - 既定（cron）は直近 7 日のうち確定していない日と、それより古い未確定の日。毎時 08:40〜23:40
 - 期間指定は `--from` / `--to`。`--backfill-years N`（最大 10）。確定済みの日は飛ばすので、止めても続きから。`--force` で取り直す
 - 確定: EDINET の一覧作成時刻（`processDateTime`）が `file_date` の翌日以降の回で取ったら `finalized`。前日分は翌朝の回で確定する
-- 過去分は EDINET が 10 年分まで持つ。1 日約 1 秒。1 行は索引込み約 390 バイトで、年 8 万行ほど（2025-06〜2026-04 の実測から）。5 年で約 150MB、10 年で約 300MB。本番は株価と同じ 5 年を推奨（`--backfill-years 5`。約 30 分）
+- 過去分は EDINET が 10 年分まで持つ。1 日約 1 秒。1 行は索引込み約 390 バイトで、年 8 万行ほど（2025-06〜2026-04 の実測から）。5 年で約 150MB、10 年で約 300MB。本番は 10 年全部取る（`--backfill-years 10`。約 1 時間）
 
 ### 状態の書き換え（イベント行）
 
@@ -93,12 +93,12 @@ EDINET は修正・不開示・取下げを、後の日の一覧に別レコー�
 `edinet_documents` の書類を書類取得 API type=1（XBRL ZIP）で取り、TDnet と同じ `app/xbrl` でパース・正規化する。`xbrl_filings.source='edinet'`、`doc_id` は EDINET の docID。表は増やさない（`DESIGN_xbrl.md` §4）。
 
 - ジョブ: `python jobs/edinet/edinet_xbrl.py`。cron は毎時 08:50〜23:50 に `--limit 300`（1 件 2〜3 秒で約 14 分。cron-run.sh にロックが無いので 1 時間に収める）
-- 対象: `code` あり（上場銘柄）、`xbrl_flag`、取下げ（`withdrawal_status=2`）・不開示（`disclosure_status≠0`）・修正通知の行を除く。書類種別は有報 120 / 訂正 130、半期報 160 / 訂正 170。四半期報告書 140 / 150（2024-03 まで）は `--quarterly` のときだけ
+- 対象: `code` あり（上場銘柄）、`xbrl_flag`、取下げ（`withdrawal_status=2`）・不開示（`disclosure_status≠0`）・修正通知の行を除く。書類種別は有報 120 / 訂正 130、半期報 160 / 訂正 170、四半期報告書 140 / 150（2024-03 まで。`--no-quarterly` で除く）。EDINET が持つ 10 年分を全部取る
 - 新しい日から取る。一覧を backfill したあとの過去分は、毎時の cron が新着の後に少しずつ取る（1 日約 4,800 件）
 - `parsed` / `skipped` の docID は飛ばす（`--reparse` で取り直し）。`failed` は `--retry-failed`。ダウンロードに失敗した書類は filing を作らないので次の回にまた取る
 - `doc_type` / `period_type` / `is_amendment` は書類種別コードから決める（120/130 → `annual`/`FY`、160/170 → `semiannual`/`Q2`、140/150 → `quarterly` で期はタイトル）。会計基準は DEI の `AccountingStandardsDEI`（`Japan GAAP` / `IFRS` / `US GAAP`）
 - 取り込み済みの書類が後から取下げ・不開示になったら、`xbrl_financials` と生 fact を消して `parse_status='skipped'`、`parse_error='withdrawn'`
-- タクソノミは同梱（`data/xbrl_taxonomy`）だけを読む。jppfs / jpcrp / jpigp は 2022-11-01〜2025-11-01 版がある。それより古い版を参照する書類は `failed` になるので、同梱を足して `--retry-failed`
+- タクソノミは同梱（`data/xbrl_taxonomy`）だけを読む。10 年分の書類が参照する版を同梱した（`tools/edinet/sample_zips.py --sample-years 10` の見本から `tools/xbrl/taxonomy_bundle.py fetch`）。それでも足りない書類は `failed`（`TaxonomyMissingError`）になる。`sample_zips.py --failed` → `fetch` → `edinet_xbrl.py --retry-failed`
 
 ### ZIP と fact は持ちすぎない
 
@@ -111,10 +111,11 @@ EDINET は修正・不開示・取下げを、後の日の一覧に別レコー�
 - マッピングは TDnet と同じ `config/xbrl/mappings/*.yaml`。EDINET 用の分岐は無い
 - 同じ決算期の実績が TDnet（短信）と EDINET（有報）の両方に入る。`xbrl_financials` は filing ごとなので重ならない。`statements` は上書きしない
 - 修正履歴（KAB-57、`app/xbrl/revisions.py`）は `source='tdnet'` だけ読む。有報の実績が提出日にもう一度出ないように
-- 実データ（2025-06-27 の有報、2025-11-14 の半期報）で、日本基準は 22 科目が取れ、IR Bank の値（百万円）と一致した。IFRS は既存マッピングが少なく 6〜8 科目（`DESIGN_xbrl.md` §7.3。足すのは確認してから）
+- 実データ（2025-06-27 の有報、2025-11-14 の半期報）で、日本基準は 22 科目が取れ、IR Bank の値（百万円）と一致した。IFRS は KAB-73 で本表の 14 要素を足した（`config/xbrl/mappings/ifrs.yaml` 末尾。承認済み）
+- 容量: 有報 1 件約 46KB（fact・context・正規化）。10 年分（有報・半期報・四半期報）で数 GB 規模
 
 ## 5. 運用
 
 - cron は `deploy/crontab`（07:30 コードリスト、08:40〜23:40 毎時 一覧、08:50〜23:50 毎時 XBRL）。ログは `/var/log/app/edinet_codes.log` / `edinet_documents.log` / `edinet_xbrl.log`（MCP `batch_logs`）
 - MCP `db_stats` に `edinet_documents` / `edinet_list_days` の件数と範囲が出る
-- 初回の本番投入: デプロイ（`jobs/migrate.py` が表と `stocks.edinet_code` を足す）→ `python jobs/edinet/edinet_codes.py` → `python jobs/edinet/edinet_documents.py --backfill-years 5`。XBRL は cron に任せる（急ぐなら `python jobs/edinet/edinet_xbrl.py --limit 0` を手で）
+- 初回の本番投入: デプロイ（`jobs/migrate.py` が表と `stocks.edinet_code` を足す）→ `python jobs/edinet/edinet_codes.py` → `python jobs/edinet/edinet_documents.py --backfill-years 10`（約 1 時間）→ IFRS マッピングの追加を TDnet 分にも効かせる `python jobs/xbrl/xbrl_parse.py load-mappings` と `python jobs/xbrl/xbrl_normalize.py --rebuild`。XBRL は cron に任せる（急ぐなら `python jobs/edinet/edinet_xbrl.py --limit 0` を手で）

@@ -583,6 +583,7 @@ TDnet 短信 ZIP には BS/CF が薄い（PL 中心のサマリ）ものが多�
 - IFRS は `jpigp_cor` 等。`accounting_standard='IFRS'` のマッピングは filing の基準一致時のみ。ただし要素名が `*IFRS` なら filing の基準が JPGAAP / NULL でも使う（KAB-55 / 40530）
 - IFRS の書類では `jppfs_*` を正規化に使わない。日本の制度上、単体決算書は日本基準のため IFRS 短信に両基準の本表が同居することがある（436A0）。IFRS 側に対応が無い科目は空欄
 - IFRS に経常利益は無い。欠損はエラーにしない
+- KAB-73 で IFRS 本表の要素を足した（承認済み）: 流動資産 `CurrentAssetsIFRS` / 非流動資産 `NonCurrentAssetsIFRS` / 流動負債 `TotalCurrentLiabilitiesIFRS` / 非流動負債 `NonCurrentLabilitiesIFRS`（タクソノミの綴り）/ 負債 `LiabilitiesIFRS` / `shareholders_equity` に親会社の所有者に帰属する持分 `EquityAttributableToOwnersOfParentIFRS`（日本基準の株主資本より広い）/ 売上原価・売上総利益・販管費 / 投資・財務 CF / 設備投資 `PurchaseOfPropertyPlantAndEquipmentInvCFIFRS` / 減価償却費 `DepreciationAndAmortizationOpeCFIFRS` / 現金同等物 `CashAndCashEquivalentsIFRS`。TDnet の IFRS 短信の添付本表にも効くので、入れたら `xbrl_normalize.py --rebuild`
 - 銀行等の営業収益・建設完成工事高・鉄道/電力/証券の営業収益、営業総収入は priority フォールバックで吸収。業種分岐コードは書かない
 - タイトルの `SFRS`（指定国際会計基準）は IFRS。タイトルが空のときは tse-ed-t の `*IFRS` 数値 fact、それが無ければ同じ銘柄の直近 parsed filing から `accounting_standard` を引き継ぐ。タイトルに日本基準がある書類は上書きしない
 

@@ -53,8 +53,8 @@ notepad .env                    # JQUANTS_API_KEY を記入
 | `python jobs/market/pts_snapshot.py` | 株探の PTS ナイトタイム ランキングを今の分だけ取る（cron は平日 15:30〜24:00） |
 | `python jobs/fx_rates.py --backfill` | 為替（ECB/EUR）を 1999-01-04 から取得。以後は引数なしで差分 |
 | `python jobs/edinet/edinet_codes.py` | EDINET コードリスト → `edinet_filers` と `stocks.edinet_code`（キー不要） |
-| `python jobs/edinet/edinet_documents.py --backfill-years 5` | EDINET 書類一覧を 5 年分（`EDINET_API_KEY`）。以後は引数なしで直近 7 日の未確定の日 |
-| `python jobs/edinet/edinet_xbrl.py --limit 300` | 有報・半期報の XBRL → `xbrl_financials`（`source='edinet'`）。新しい書類から |
+| `python jobs/edinet/edinet_documents.py --backfill-years 10` | EDINET 書類一覧を 10 年分（`EDINET_API_KEY`）。以後は引数なしで直近 7 日の未確定の日 |
+| `python jobs/edinet/edinet_xbrl.py --limit 300` | 有報・半期報・四半期報の XBRL → `xbrl_financials`（`source='edinet'`）。新しい書類から |
 
 > **バックフィル年数の目安**
 > 指標の計算にはRSが252営業日、MA200が200営業日の履歴を必要とするため、
