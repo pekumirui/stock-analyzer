@@ -441,7 +441,7 @@ parse ジョブは manifest を入力カタログにする。fetch 側に parse_
 4. ZIP を一時ディレクトリに展開（`data/` 上には展開しない）。
 5. §5.4 で iXBRL を特定し xbrlp で fact / label を読む。
 6. 同じファイル群から context を読む。
-7. elements UPSERT（`namespace_uri + local_name`）。`namespace_key` は prefix。標準タクソノミ（jppfs / jpcrp / jpdei / jpigp / tse-ed / tse-t-ed など **prefix の先頭一致**）以外は `is_custom=1`。リストを勝手に増やさない。
+7. elements UPSERT（`namespace_uri + local_name`）。`namespace_key` は prefix。標準タクソノミ以外は `is_custom=1`。標準は名前空間 URI が `disclosure.edinet-fsa.go.jp/taxonomy/` か `www.xbrl.tdnet.info/taxonomy/` の配下のもの。URI が無いときだけ `namespace_key` の完全一致（`jppfs_cor` / `jpcrp_cor` / `tse-ed-t` など。`app/xbrl/parser.py STANDARD_NS_KEYS`）。部分一致にしない（EDINET の会社独自 `jpcrp030000-asr_E…` はキーにも URI にも jpcrp が入る。KAB-81）。既存行は `jobs/migrate.py` が付け直す。リストを勝手に増やさない。
 8. facts INSERT。数値は `Fact.value`（Decimal, scale/sign 済）を `value_num` へ。非数値は 1000 文字以内だけ `value_text`。超過は fact 行自体を作らない（要素は登録済み）。`xsi:nil` は `is_nil=1`、値 NULL。
 9. 成功なら `parse_status='parsed'`。例外は filing 単位でロールバックし `failed` + 要約トレース。ジョブは止めない。
 10. 再パースは当該 `filing_id` の contexts を DELETE（facts も CASCADE 相当をアプリ側で消す。SQLite で FK が効かないため明示 DELETE）。

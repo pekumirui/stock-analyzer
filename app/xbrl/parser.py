@@ -20,21 +20,31 @@ from app.xbrlp import Fact, FileLoader, Label, Parser
 from app.xbrlp.parser import LabelResourceParser, resolve_url
 
 
-STANDARD_NS_PREFIXES = (
-    "jppfs",
-    "jpcrp",
-    "jpdei",
-    "jpigp",
-    "tse-ed",
-    "tse-t-ed",
-    "jpctl",
-    "jplvh",
+# 標準タクソノミの名前空間 URI はこの配下（KAB-81）。会社独自は
+# EDINET が disclosure.edinet-fsa.go.jp/jpcrp030000/asr/…、TDnet が www.xbrl.tdnet.info/jp/tse/… で外れる
+STANDARD_NS_URI_ROOTS = (
+    "disclosure.edinet-fsa.go.jp/taxonomy/",
+    "www.xbrl.tdnet.info/taxonomy/",
 )
+# URI が無いときだけ使う標準の namespace_key（完全一致。jpcrp030000-asr_E… は外れる）
+STANDARD_NS_KEYS = frozenset({
+    "jppfs_cor",
+    "jpcrp_cor",
+    "jpdei_cor",
+    "jpigp_cor",
+    "jpctl_cor",
+    "jplvh_cor",
+    "jpsps_cor",
+    "tse-ed-t",
+    "tse-t-ed",
+})
 
 
 def namespace_is_standard(key: str | None, uri: str | None = None) -> bool:
-    blob = f"{key or ''} {uri or ''}".lower()
-    return any(p in blob for p in STANDARD_NS_PREFIXES)
+    if uri:
+        tail = uri.lower().split("://", 1)[-1]
+        return tail.startswith(STANDARD_NS_URI_ROOTS)
+    return (key or "") in STANDARD_NS_KEYS
 
 
 def namespace_key_of(fact: Fact) -> str:

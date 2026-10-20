@@ -19,6 +19,7 @@ from app.db import (
     init_db,
     is_sqlite_lock,
     migrate_add_columns,
+    migrate_xbrl_elements_is_custom,
     migrate_xbrl_financials_source_layer,
     migrate_xbrl_financials_unique,
     missing_columns,
@@ -38,6 +39,10 @@ def migrate_once() -> None:
     n_layer = migrate_xbrl_financials_source_layer()
     if n_layer:
         print(f"xbrl_financials.source_layer を {n_layer} 行、要素の namespace から埋めた。")
+    flips = migrate_xbrl_elements_is_custom()
+    if any(flips.values()):
+        print(f"xbrl_elements.is_custom を付け直した: 独自へ {flips['to_custom']} 行、"
+              f"標準へ {flips['to_standard']} 行（KAB-81）。")
     run_deploy_maintenance()
 
 

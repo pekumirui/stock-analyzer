@@ -35,7 +35,7 @@ import xbrl_vs_statements as vs  # noqa: E402
 
 JP_NS = "http://disclosure.edinet-fsa.go.jp/taxonomy/jppfs/2024-11-01/jppfs_cor"
 IFRS_NS = "http://disclosure.edinet-fsa.go.jp/taxonomy/jpigp/2024-11-01/jpigp_cor"
-TSE_NS = "http://www.xbrl.tdnet.info/jp/tse/ed/t/2014-01-12"
+TSE_NS = "http://www.xbrl.tdnet.info/taxonomy/jp/tse/tdnet/ed/t/2014-01-12"
 
 
 def _fail(msg: str) -> None:
