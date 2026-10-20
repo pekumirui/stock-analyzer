@@ -5,4 +5,3 @@
 - [月次の横持ちは指標 ▸ 組織](monthly-view-analyst-order.md) — 既存店売上高が先頭、指標タブは却下、ブランドは 1 回だけ
 - [共有データは data/ で読める](share-data-readable.md) — 月次 PDF は MCP fs_*（root=data）か /mnt/vps/data/monthly/<code>/
 - [全店名残は手で付け替え](scope-word-fix-manual.md) — #502 の 全店 外しは alias/migrate でなく本番を手で
-- [VM の秘密ファイル](vm-secrets-env.md) — ~/.secrets.env の GH_TOKEN で PR を作る。gh は無い
