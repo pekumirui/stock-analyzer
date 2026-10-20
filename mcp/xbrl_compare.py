@@ -641,9 +641,11 @@ def _render_compare(
 ) -> str:
     lines = [
         f"{code} {name}  periods={len(periods)} (newest first)  items={len(items)}",
-        "OK: |diff|<1e6 yen (money vs statements) or rel<=0.1% after that slack  "
-        "DIFF: sign or rel>0.1%  "
-        "MISSING: one side empty  -: not compared",
+        (
+            "OK: |diff|<1e6 yen (money vs statements) or rel<=0.1% after that slack  "
+            "DIFF: sign or rel>0.1%  "
+            "MISSING: one side empty  -: not compared"
+        ),
     ]
     head = f"  {'item':<20}" + "".join(f"{source.value:>18}" for source in COLUMNS)
     head += "".join(f"{pair.label:>8}" for pair in COMPARE_PAIRS)
