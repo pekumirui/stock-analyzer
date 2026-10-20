@@ -27,6 +27,7 @@ from app.models import (  # noqa: E402
     XbrlFact,
     XbrlFiling,
     XbrlFinancial,
+    XbrlSegment,
     XbrlStdItem,
 )
 from app.xbrl.context import ParsedContext  # noqa: E402
@@ -83,7 +84,7 @@ def _doc(seq: int, doc_id: str, **over) -> EdinetDocument:
 
 
 def _reset(db) -> None:
-    for model in (XbrlFinancial, XbrlFact, XbrlContext, XbrlFiling, EdinetDocument, Stock):
+    for model in (XbrlSegment, XbrlFinancial, XbrlFact, XbrlContext, XbrlFiling, EdinetDocument, Stock):
         db.execute(delete(model))
     db.add(Stock(code="72030", name="トヨタ", product_category="011", market="プライム"))
     db.commit()
@@ -127,7 +128,9 @@ def test_keep_fact() -> None:
     assert keep_fact(fact(), ctx("current", {"jppfs_cor:ConsolidatedOrNonConsolidatedAxis":
                                              "jppfs_cor:NonConsolidatedMember"}))
     assert not keep_fact(fact(), ctx("prior1"))
-    assert not keep_fact(fact(), ctx("current", {"jpcrp_cor:OperatingSegmentsAxis": "x:AutoMember"}))
+    # セグメント軸は残す（KAB-77。tests/edinet/test_edinet_segments.py）。ほかの軸は捨てる
+    assert keep_fact(fact(), ctx("current", {"jpcrp_cor:OperatingSegmentsAxis": "x:AutoMember"}))
+    assert not keep_fact(fact(), ctx("current", {"jppfs_cor:ComponentsOfEquityAxis": "x:CapitalStockMember"}))
     assert keep_fact(fact("jpdei_cor"), ctx(None))
     assert not keep_fact(fact(), None)
 

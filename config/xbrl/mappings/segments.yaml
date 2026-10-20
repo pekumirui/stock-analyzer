@@ -1,0 +1,38 @@
+# セグメント注記（KAB-77。docs/DESIGN_xbrl.md §14）。jpcrp_cor:OperatingSegmentsAxis の当期 fact だけに効く。
+# seg_net_sales は外部顧客＋セグメント間の合計（注記の「計」の行）、seg_external_sales は外部顧客への売上高。
+- std_item: seg_net_sales
+  elements:
+    - { ns: jppfs_cor, name: GrossOperatingRevenue, priority: 5 }
+    - { ns: jppfs_cor, name: NetSales, priority: 10 }
+    - { ns: jppfs_cor, name: OperatingRevenue1, priority: 20 }
+    - { ns: jppfs_cor, name: OrdinaryIncomeBNK, priority: 22 }
+    - { ns: jppfs_cor, name: OperatingRevenue2, priority: 24 }
+    - { ns: jppfs_cor, name: Revenue, priority: 26 }
+    - { ns: jppfs_cor, name: OperatingRevenueRWY, priority: 28 }
+    - { ns: jppfs_cor, name: OperatingRevenueELE, priority: 29 }
+    - { ns: jppfs_cor, name: NetSalesOfCompletedConstructionContracts, priority: 30 }
+    - { ns: jppfs_cor, name: OperatingRevenueSEC, priority: 31 }
+    - { ns: jppfs_cor, name: NetSalesOfCompletedConstructionContractsCNS, priority: 32 }
+    - { ns: jpigp_cor, name: RevenueIFRS, priority: 10, standard: IFRS }
+    - { ns: jpigp_cor, name: NetSalesIFRS, priority: 25, standard: IFRS }
+    - { ns: jpigp_cor, name: Revenue2IFRS, priority: 30, standard: IFRS }
+- std_item: seg_external_sales
+  elements:
+    - { ns: jpcrp_cor, name: RevenuesFromExternalCustomers, priority: 10 }
+    - { ns: jpigp_cor, name: RevenueFromExternalCustomersIFRS, priority: 10, standard: IFRS }
+    - { ns: jpigp_cor, name: SalesToExternalCustomersIFRS, priority: 20, standard: IFRS }
+    - { ns: jpigp_cor, name: RevenueFromExternalCustomers2IFRS, priority: 30, standard: IFRS }
+# セグメント利益の物差しは会社が決める（営業利益・調整後営業利益・税引前利益・当期純利益など）。
+# 1 社が複数載せていれば priority の小さい方。どれを採ったかは xbrl_segments.source_element_id。
+- std_item: seg_profit
+  elements:
+    - { ns: jppfs_cor, name: OperatingIncome, priority: 10 }
+    - { ns: jppfs_cor, name: OrdinaryIncome, priority: 40 }
+    - { ns: jpigp_cor, name: SegmentProfitLossIFRS, priority: 10, standard: IFRS }
+    - { ns: jpigp_cor, name: OperatingProfitLossIFRS, priority: 20, standard: IFRS }
+    - { ns: jpigp_cor, name: ProfitLossBeforeTaxIFRS, priority: 40, standard: IFRS }
+    - { ns: jpigp_cor, name: ProfitLossAttributableToOwnersOfParentIFRS, priority: 50, standard: IFRS }
+- std_item: seg_assets
+  elements:
+    - { ns: jppfs_cor, name: Assets, priority: 10 }
+    - { ns: jpigp_cor, name: AssetsIFRS, priority: 10, standard: IFRS }

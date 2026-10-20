@@ -133,3 +133,24 @@
   section: dividend
   label_ja: 1株当たり配当金
   display_order: 260
+# セグメント注記（KAB-77）。xbrl_segments だけに入る（xbrl_financials には入れない）
+- code: seg_net_sales
+  statement: SEG
+  section: segment
+  label_ja: セグメント売上高
+  display_order: 300
+- code: seg_external_sales
+  statement: SEG
+  section: segment
+  label_ja: 外部顧客への売上高
+  display_order: 305
+- code: seg_profit
+  statement: SEG
+  section: segment
+  label_ja: セグメント利益
+  display_order: 310
+- code: seg_assets
+  statement: SEG
+  section: segment
+  label_ja: セグメント資産
+  display_order: 320

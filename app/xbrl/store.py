@@ -1,6 +1,7 @@
 """Persist a parsed XBRL package into the DB (filing-scoped, idempotent)."""
 from __future__ import annotations
 
+import json
 import traceback
 from datetime import datetime, timezone
 from pathlib import Path
@@ -58,6 +59,19 @@ def delete_filing_payload(db: Session, filing_id: int) -> None:
 
 
 _IN_CHUNK = 500
+
+
+def member_labels_json(ctx, labels: dict) -> str | None:
+    """連結/単体以外の次元メンバー → その書類の日本語ラベル。無ければ None（KAB-77）。"""
+    out: dict[str, str] = {}
+    for member in ctx.dimensions.values():
+        prefix, sep, local = member.partition(":")
+        if not sep or local in ("ConsolidatedMember", "NonConsolidatedMember"):
+            continue
+        label = (labels.get((prefix, local)) or {}).get("label_ja")
+        if label:
+            out[member] = label
+    return json.dumps(out, ensure_ascii=False, sort_keys=True) if out else None
 
 
 def upsert_elements(db: Session, wanted: dict[tuple[str, str], dict]) -> dict[tuple[str, str], int]:
@@ -284,6 +298,7 @@ def parse_zip_into_filing(
                     "relative_period": ctx.relative_period,
                     "dimensions_json": ctx.dimensions_json,
                     "has_dimensions": ctx.has_dimensions,
+                    "member_labels_json": member_labels_json(ctx, pkg.labels),
                 }
                 for ctx in contexts
             ],
