@@ -15,7 +15,8 @@ permissions:
 jobs:
   run:
     name: Fetch IR monthly HTML
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, arm64]
+    timeout-minutes: 60
     env:
       VPS_HOST: ${{ secrets.VPS_HOST }}
       VPS_USER: ${{ secrets.VPS_USER }}
@@ -82,3 +83,7 @@ jobs:
             -o ServerAliveInterval=15 \
             "${USER}@${HOST}" \
             "$REMOTE"
+
+      - name: Remove deploy key
+        if: always()
+        run: rm -f "$HOME/.ssh/id_deploy"
