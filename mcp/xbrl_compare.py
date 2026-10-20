@@ -144,10 +144,10 @@ class _Tally:
 
     @property
     def rate(self) -> float | None:
-        total = self.ok + self.diff + self.missing
-        if total == 0:
+        compared = self.ok + self.diff
+        if compared == 0:
             return None
-        return self.ok / total
+        return self.ok / compared
 
 
 @dataclass(frozen=True)
@@ -261,10 +261,6 @@ def judge(a: float | None, b: float | None, abs_tol: float) -> Verdict | None:
     if scale == 0 or diff == 0:
         return Verdict.OK
     if diff / scale > REL_TOL:
-        return Verdict.DIFF
-    # No J-Quants slack. A whole-yen gap stays DIFF even under 0.1% of a large base
-    # (400,000 yen on 1e9 between TDnet and EDINET). A sub-yen EPS gap still uses 0.1%.
-    if abs_tol == 0 and diff >= 1:
         return Verdict.DIFF
     return Verdict.OK
 
@@ -683,7 +679,7 @@ def _render_compare(
     lines = [
         f"{code} {name}  periods={len(periods)} (newest first)  items={len(items)}",
         "OK: |diff|<1e6 yen (money vs statements) or rel<=0.1% after that slack  "
-        "DIFF: sign, rel>0.1%, or nonzero with no slack  "
+        "DIFF: sign or rel>0.1%  "
         "MISSING: one side empty  -: not compared",
     ]
     head = f"  {'item':<20}" + "".join(f"{source.value:>18}" for source in COLUMNS)

@@ -2076,7 +2076,7 @@ def test_xbrl_compare_tools() -> None:
                  7_777_000_000, None, None, None, None),
                 ("A-NEW", "72030", "2025-05-15", "15:30", "FY",
                  "FinancialStatements_Consolidated_FY", "2025-03-31",
-                 1_000_000_000, 1_000_000_000, 500_000_000, -500_000_000, 100.0),
+                 100_000_000, 1_000_000_000, 500_000_000, -500_000_000, 100.0),
                 ("F-REV", "72030", "2025-06-01", "10:00", "FY",
                  "EarnForecastRevision", "2025-03-31",
                  None, None, None, None, None),
@@ -2116,7 +2116,7 @@ def test_xbrl_compare_tools() -> None:
             "INSERT INTO xbrl_financials (filing_id, std_item_id, is_consolidated, period_end, value, value_kind, range_side) "
             "VALUES (?,?,?,?,?,?,?)",
             [
-                (1, 1, 1, "2025-03-31", 1_000_400_000, "actual", "point"),
+                (1, 1, 1, "2025-03-31", 100_400_000, "actual", "point"),
                 (1, 1, 0, "2025-03-31", 7, "actual", "point"),
                 (1, 2, 1, "2025-03-31", 1_000_000_000, "actual", "point"),
                 (1, 3, 1, "2025-03-31", 500_000_000, "actual", "point"),
@@ -2125,7 +2125,7 @@ def test_xbrl_compare_tools() -> None:
                 (1, 6, 1, "2025-03-31", 40_000_000_000, "actual", "point"),
                 (1, 7, 1, "2025-03-31", 999, "actual", "point"),
                 (2, 1, 1, "2025-03-31", 42_000_000_000, "actual", "point"),
-                (3, 1, 1, "2025-03-31", 1_000_000_000, "actual", "point"),
+                (3, 1, 1, "2025-03-31", 100_000_000, "actual", "point"),
                 (3, 2, 1, "2025-03-31", 1_010_000_000, "actual", "point"),
                 (3, 4, 1, "2025-03-31", 500_000_000, "actual", "point"),
                 (3, 5, 1, "2025-03-31", 100.20, "actual", "point"),
@@ -2155,7 +2155,7 @@ def test_xbrl_compare_tools() -> None:
 
             fy = _period_block(text, "2025-03-31")
             if _item_cells(fy, "net_sales")[1:] != [
-                "1,000,000,000", "1,000,400,000", "1,000,000,000", "OK", "OK", "DIFF",
+                "100,000,000", "100,400,000", "100,000,000", "OK", "OK", "DIFF",
             ]:
                 raise SystemExit(f"net_sales rounding: {fy}")
             if _item_cells(fy, "operating_income")[1:] != [
