@@ -17,10 +17,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import XBRL_CACHE_DIR
-from app.models import EdinetDocument, XbrlFiling, XbrlFinancial
+from app.models import EdinetDocument, XbrlFiling, XbrlFinancial, XbrlSegment
 from app.xbrl.context import ParsedContext, classify_title
 from app.xbrl.normalize import normalize_filing
 from app.xbrl.parser import ParsedFact
+from app.xbrl.segments import is_segment_context
 from app.xbrl.store import mark_failed, parse_zip_into_filing
 
 if TYPE_CHECKING:
@@ -56,7 +57,8 @@ def title_meta(doc_type_code: str, description: str | None) -> dict:
 
 
 def keep_fact(fact: ParsedFact, ctx: ParsedContext | None) -> bool:
-    """DB に残す fact。正規化が使う当期・次元なし（連結/単体の軸だけは可）と DEI。
+    """DB に残す fact。正規化が使う当期・次元なし（連結/単体の軸だけは可）と DEI、
+    当期のセグメント軸だけの fact（KAB-77。連結/単体の軸は付いてよい）。
 
     有報は 1 件 1,000〜2,000 fact あり、全部入れると年 800MB を超える。これで 4 分の 1 ほど。
     """
@@ -64,7 +66,9 @@ def keep_fact(fact: ParsedFact, ctx: ParsedContext | None) -> bool:
         return False
     if fact.namespace_key == DEI_KEY:
         return True
-    return ctx.relative_period == "current" and ctx.only_consol_dimensions()
+    if ctx.relative_period != "current":
+        return False
+    return ctx.only_consol_dimensions() or is_segment_context(ctx)
 
 
 def pending_documents(
@@ -135,6 +139,7 @@ def retract(db: Session, filing: XbrlFiling) -> None:
     from app.xbrl.store import delete_filing_payload
 
     db.query(XbrlFinancial).filter_by(filing_id=filing.id).delete()
+    db.query(XbrlSegment).filter_by(filing_id=filing.id).delete()
     delete_filing_payload(db, filing.id)
     filing.parse_status = "skipped"
     filing.parse_error = "withdrawn"
@@ -194,7 +199,7 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
         return "error"
     missing = stats.get("missing_required") or []
     print(f"edinet xbrl parsed doc_id={doc.doc_id} code={doc.code} type={doc.doc_type_code} "
-          f"std={filing.accounting_standard} items={stats.get('upserted')}"
+          f"std={filing.accounting_standard} items={stats.get('upserted')} segs={stats.get('segments')}"
           + (f" missing={missing}" if missing else ""), flush=True)
     return "parsed"
 

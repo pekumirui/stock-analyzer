@@ -1,4 +1,4 @@
-"""facts + mappings → xbrl_financials."""
+"""facts + mappings → xbrl_financials（とセグメント注記の xbrl_segments。app/xbrl/segments.py）。"""
 from __future__ import annotations
 
 import json
@@ -15,8 +15,10 @@ from app.models import (
     XbrlFact,
     XbrlFiling,
     XbrlFinancial,
+    XbrlSegment,
     XbrlStdItem,
 )
+from app.xbrl.segments import SEGMENT_STATEMENT, normalize_segments
 
 
 CONSOL_ONLY_MEMBERS = {"ConsolidatedMember", "NonConsolidatedMember"}
@@ -298,9 +300,12 @@ def _chosen_key(
 
 def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = None) -> dict:
     generated = now or datetime.now(timezone.utc).replace(tzinfo=None)
-    mappings = db.query(XbrlElementMapping).all()
+    # セグメント科目（statement='SEG'）は xbrl_segments だけ。同じ要素（NetSales 等）を取り合わない
+    std_items = {
+        s.id: s for s in db.query(XbrlStdItem).all() if s.statement != SEGMENT_STATEMENT
+    }
+    mappings = [m for m in db.query(XbrlElementMapping).all() if m.std_item_id in std_items]
     elements = {e.id: e for e in db.query(XbrlElement).all()}
-    std_items = {s.id: s for s in db.query(XbrlStdItem).all()}
     contexts = {
         c.id: c
         for c in db.query(XbrlContext).filter_by(filing_id=filing.id).all()
@@ -403,7 +408,8 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
             s.code for s in std_items.values()
             if s.is_required and s.id not in filled_std_ids
         ]
-    return {"upserted": upserted, "missing_required": missing}
+    segments = normalize_segments(db, filing, now=generated)
+    return {"upserted": upserted, "missing_required": missing, "segments": segments}
 
 
 def rebuild_all(db: Session, *, code: str | None = None) -> dict[str, int]:
@@ -411,6 +417,10 @@ def rebuild_all(db: Session, *, code: str | None = None) -> dict[str, int]:
     if code:
         q = q.filter_by(code=code)
     n = q.delete(synchronize_session="fetch")
+    seg_q = db.query(XbrlSegment)
+    if code:
+        seg_q = seg_q.filter_by(code=code)
+    seg_q.delete(synchronize_session="fetch")
     db.commit()
     db.expire_all()
     processed = errors = 0

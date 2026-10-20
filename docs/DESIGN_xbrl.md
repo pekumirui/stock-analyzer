@@ -42,7 +42,7 @@
 
 - EDINET 有報・四半期報告書の取得とパース（有報・半期報は KAB-73 で足した。`docs/DESIGN_edinet.md` §4）
 - AuditDoc / 監査報告書
-- セグメント軸付き fact の正規化層投入
+- セグメント軸付き fact の正規化層投入（KAB-77 で別表 `xbrl_segments` に入れた。§14）
 - `statements` との自動突合・置換
 - インフラファンド専用の科目体系
 
@@ -464,7 +464,7 @@ YAML の `ns` は `namespace_key`。URI 完全一致では解決しない。
 
 filing 単位。
 
-1. セグメント等、連結/実績予想/レンジ/配当以外の次元が付いた fact は捨てる
+1. セグメント等、連結/実績予想/レンジ/配当以外の次元が付いた fact は捨てる（セグメントは §14 の `xbrl_segments` へ。`statement='SEG'` の科目は `xbrl_financials` に使わない）
 2. **既存23項目（BS/PL/CF）の実績**: 従来どおり `has_dimensions` が空か連結/非連結だけ、かつ `relative_period='current'`。選定キーは `std_item` ごと 1 値（値を変えない）
 2b. **実績売上のサマリー補完（KAB-58 / KAB-59）**: 上の本表経路で `net_sales` 実績が 1 件も取れなかったときだけ、同じ書類の短信サマリー（`tse-ed-t`）の当期実績（`ResultMember`、点）を使う。連結を先に、同じ連結区分なら mapping の `priority`。本表で取れている値は上書きしない。会社独自の拡張タグはマッピングしない。出どころは `source_layer`（`primary` / `summary`）
 3. **EPS 実績**: 本表コンテキストに加え `ResultMember`（短信表紙）を許す
@@ -476,7 +476,7 @@ filing 単位。
 9. filing 単位で既存の `xbrl_financials` を消してから入れ直す
 10. `is_required=1` が欠けたら警告ログ（`code, filing_id, std_item.code`）。処理は継続。required は本表実績だけ
 
-通常実行は `xbrl_financials` が無い filing と、`parsed_at` が既存の `generated_at` より新しい filing だけ。`--rebuild` は `xbrl_financials` を全削除して全 parsed filing を再処理する。`--code` で銘柄を限定できる。
+通常実行は `xbrl_financials` が無い filing と、`parsed_at` が既存の `generated_at` より新しい filing だけ。`--rebuild` は `xbrl_financials` と `xbrl_segments` を全削除して全 parsed filing を再処理する。`--code` で銘柄を限定できる。
 
 ### 6.5 CLI
 
@@ -682,3 +682,68 @@ XBRL_PARSE_WORKERS=2
 - 伝統的 instance `.xbrl` パーサ
 - 正規化層の実績を決算詳細 API に出す（`statements` の予想列は残す）
 - facts の DB 分離
+
+---
+
+## 14. セグメント注記（KAB-77）
+
+有報・半期報・四半期報のセグメント情報（報告セグメントごとの売上高・利益・資産）を `xbrl_segments` に正規化する。`xbrl_financials` には次元を足さない（§12「勘定科目を列にしたテーブルを作らない」を守るため縦持ちの別表。`xbrl_financials` の UNIQUE とクエリを変えない）。
+
+### 14.1 実データで分かったこと（2025 年の有報 11 社・半期報 3・四半期報 3）
+
+- 数値で取れる軸は `jpcrp_cor:OperatingSegmentsAxis` だけ。EDINET タクソノミ（jpcrp / jpigp）に地域別・主要顧客の軸は無く、`RevenuesFromExternalCustomersInformationForEachRegionTextBlock` / `InformationAboutGeographicalAreasIFRSTextBlock` / `InformationForEachOfMainCustomersTextBlock` などのテキストブロックだけ。1000 文字を超えるので値は残らない（§6.2）。地域別・主要顧客は取らない
+- 各セグメントは会社独自のメンバー（`jpcrp030000-asr_E02144-000:AutomotiveReportableSegmentMember`。半期報は `jpcrp040300-ssr_…`、四半期報は `jpcrp040300-q3r_…`）。名前はその書類の label linkbase にしか無い。標準メンバー（`ReportableSegmentsMember` 等）も会社がラベルを付け替える（日立は「小計」「全社及び消去」）ので、ラベルは要素ではなく書類ごとに持つ（`xbrl_contexts.member_labels_json`）
+- 売上高は外部顧客（`jpcrp_cor:RevenuesFromExternalCustomers` / `jpigp_cor:RevenueFromExternalCustomersIFRS` 等）・セグメント間（`TransactionsWithOtherSegments` / `IntersegmentRevenueIFRS`）・計（`jppfs_cor:NetSales` / `OperatingRevenue1` / `jpigp_cor:RevenueIFRS` / `NetSalesIFRS` / `Revenue2IFRS`）の 3 行。トヨタ・ソニーは計と外部顧客を会社独自の要素で出すので取れない（会社独自の要素はマッピングしない）
+- セグメント利益の物差しは会社ごと: 日本基準は `jppfs_cor:OperatingIncome`（経常利益の会社もある）、IFRS は `OperatingProfitLossIFRS`（トヨタ・ソニー）/ `SegmentProfitLossIFRS`（日立の調整後営業利益）/ `ProfitLossBeforeTaxIFRS`（ソフトバンク G）/ `ProfitLossAttributableToOwnersOfParentIFRS`（伊藤忠）
+- 単一セグメント（任天堂・武田）と米国基準（野村）はセグメントの数値 fact が無い（従業員数だけ）。0 行で正常
+- 同じ軸に従業員数・設備投資・研究開発費も載る（`NumberOfEmployees` 等）。生 fact には残るが、今は正規化しない
+
+### 14.2 生データ層
+
+- EDINET の `keep_fact` は、当期でセグメント軸だけ（連結/単体の軸は付いてよい）の fact も残す（`app/edinet/xbrl.py`）。前期のセグメントは残さない
+- `xbrl_contexts.member_labels_json`: 連結/単体以外の次元メンバー → その書類の日本語ラベル（`{"prefix:Member": "自動車"}`）。無ければ NULL。パーサは fact の要素に加えて、context の次元メンバーのラベルも引く（`app/xbrl/parser.py parse_package`）
+- 過去分は `edinet_xbrl.py --reparse` でダウンロードし直さないと入らない
+- デプロイ: `jobs/migrate.py`（表と列）→ `python jobs/xbrl/xbrl_parse.py load-mappings`（SEG の科目とマッピング）。そのあとの取込から入る。取込済みの書類は `edinet_xbrl.py --reparse`
+
+### 14.3 正規化層 `xbrl_segments`
+
+```sql
+CREATE TABLE xbrl_segments (
+    id                INTEGER PRIMARY KEY,
+    code              TEXT NOT NULL,
+    filing_id         INTEGER NOT NULL REFERENCES xbrl_filings(id),
+    std_item_id       INTEGER NOT NULL REFERENCES xbrl_std_items(id),  -- statement='SEG'
+    axis              TEXT NOT NULL,     -- 'jpcrp_cor:OperatingSegmentsAxis'
+    member            TEXT NOT NULL,     -- 'prefix:LocalName'
+    member_label_ja   TEXT,              -- その書類のラベル
+    member_kind       TEXT NOT NULL,     -- segment|subtotal|other|total|reconciling|unknown
+    is_consolidated   BOOLEAN NOT NULL,
+    period_type       TEXT NOT NULL,     -- filing の period_type
+    period_start      DATE,
+    period_end        DATE NOT NULL,
+    value             NUMERIC NOT NULL,
+    unit              TEXT NOT NULL DEFAULT 'JPY',
+    source_fact_id    INTEGER REFERENCES xbrl_facts(id),
+    source_element_id INTEGER REFERENCES xbrl_elements(id),  -- どの物差しを採ったか
+    generated_at      TEXT NOT NULL,
+    UNIQUE (filing_id, std_item_id, axis, member, is_consolidated, period_end)
+);
+```
+
+- 科目は `config/xbrl/std_items.yaml` の `statement: SEG`（`seg_net_sales` 計 / `seg_external_sales` 外部顧客への売上高 / `seg_profit` / `seg_assets`）、マッピングは `config/xbrl/mappings/segments.yaml`。`xbrl_financials` の正規化は SEG の科目とマッピングを読まない（同じ `jppfs_cor:NetSales` を取り合わない）
+- `normalize_filing` の最後に `app/xbrl/segments.py normalize_segments` を呼ぶ（取込・`xbrl_normalize.py`・`--rebuild` の全部で作り直す）。TDnet の filing にも効く
+- 選び方: 同じ (科目, 軸, メンバー, 連結, 期末) では mapping の `priority` が小さい方、同じなら期間が長い方（四半期報告書の累計）。IFRS の書類では `jppfs_*` を使わない（§6.4-7 と同じ）
+- `member_kind`: 標準メンバーは `ReportableSegmentsMember`→subtotal、`TotalOfReportableSegmentsAndOthersMember`→total、`OperatingSegmentsNotIncluded…Member` / `OtherReportableSegmentsMember` / `OtherOperatingSegmentsAxisMember`→other、`ReconcilingItemsMember` / `UnallocatedAmountsAndEliminationMember` / `CorporateSharedMember`→reconciling。会社独自は名前に Elimination / Reconcil / Adjustment / Corporate があれば reconciling、ReportableSegment があれば segment、どちらも無ければ unknown
+
+### 14.4 検証（2025-03 期の有報、IR Bank `list_segments` の百万円値）
+
+| 会社 | 基準 | 外部顧客への売上高 | セグメント利益 | セグメント資産 |
+|---|---|---|---|---|
+| オリエンタルランド 4661 | 日本 | 3 セグメント一致 | 一致 | 一致 |
+| JR 東日本 9020 | 日本 | 4 一致 | 一致 | 一致 |
+| 信越化学 4063 | 日本 | 4 一致 | 一致 | 開示なし（IR Bank も null） |
+| 日立 6501 | IFRS | 4 一致 | 一致（調整後営業利益） | 一致 |
+| 伊藤忠 8001 | IFRS | 8 一致 | 有報の注記どおり（当社株主帰属当期純利益）。IR Bank の「営業利益」は有報に無い値 | 一致 |
+| ソフトバンク G 9984 | IFRS | 3 一致 | 有報の注記どおり（税引前利益）。IR Bank は null | 開示なし |
+
+既存の `xbrl_financials` は同じ 17 件で main と全行一致した（`keep_fact` を広げても次元付き fact は §6.4-1 で落ちる）。

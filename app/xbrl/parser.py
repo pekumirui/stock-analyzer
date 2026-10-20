@@ -464,8 +464,6 @@ def parse_package(
         seen_facts.add(key)
         facts.append(row)
 
-    labels = _collect_labels(parser, {(f.namespace_key, f.local_name) for f in facts})
-
     contexts: list[ParsedContext] = []
     seen_ctx: set[str] = set()
     for path in parser.ixbrl_files:
@@ -474,6 +472,11 @@ def parse_package(
                 continue
             seen_ctx.add(ctx.context_ref)
             contexts.append(ctx)
+
+    wanted_labels = {(f.namespace_key, f.local_name) for f in facts}
+    # セグメント等の次元メンバー。会社独自のメンバーは名前をここでしか取れない（KAB-77）
+    wanted_labels |= {tuple(m.split(":", 1)) for c in contexts for m in c.dimensions.values() if ":" in m}
+    labels = _collect_labels(parser, wanted_labels)
     fy_end = fiscal_year_end
     if fy_end is None:
         fy_end = resolve_fiscal_year_end(

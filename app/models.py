@@ -260,6 +260,8 @@ class XbrlContext(Base):
     relative_period = Column(String(16))
     dimensions_json = Column(Text, nullable=False, default="{}")
     has_dimensions = Column(Boolean, nullable=False, default=False)
+    # 次元メンバー → その書類のラベル（日本語）。標準メンバーも会社が名前を付け替えるので書類ごと（KAB-77）
+    member_labels_json = Column(Text)
     __table_args__ = (
         UniqueConstraint("filing_id", "context_ref", name="uq_xbrl_contexts_filing_ref"),
         Index("idx_xbrl_contexts_filing", "filing_id"),
@@ -351,6 +353,37 @@ class XbrlFinancial(Base):
             "idx_xbrl_financials_lookup",
             "code", "std_item_id", "is_consolidated", "period_end", "value_kind",
         ),
+    )
+
+
+class XbrlSegment(Base):
+    """セグメント注記の正規化層（KAB-77。docs/DESIGN_xbrl.md §14）。xbrl_financials と同じく再生成できる。"""
+    __tablename__ = "xbrl_segments"
+    id = Column(Integer, primary_key=True)
+    code = Column(String(5), nullable=False)
+    filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), nullable=False)
+    std_item_id = Column(Integer, ForeignKey("xbrl_std_items.id"), nullable=False)
+    axis = Column(String(255), nullable=False)       # 'jpcrp_cor:OperatingSegmentsAxis'
+    member = Column(String(255), nullable=False)     # 'prefix:localName'（会社独自は jpcrp030000-asr_E...）
+    member_label_ja = Column(String(255))            # その書類のラベル
+    # segment=各セグメント / subtotal=報告セグメント計 / other=その他 / total=合計 / reconciling=調整額
+    member_kind = Column(String(16), nullable=False)
+    is_consolidated = Column(Boolean, nullable=False)
+    period_type = Column(String(8), nullable=False)
+    period_start = Column(Date)
+    period_end = Column(Date, nullable=False)
+    value = Column(Numeric(30, 4), nullable=False)
+    unit = Column(String(32), nullable=False, default="JPY")
+    source_fact_id = Column(Integer, ForeignKey("xbrl_facts.id"))
+    source_element_id = Column(Integer, ForeignKey("xbrl_elements.id"))
+    generated_at = Column(DateTime, nullable=False)
+    __table_args__ = (
+        UniqueConstraint(
+            "filing_id", "std_item_id", "axis", "member", "is_consolidated", "period_end",
+            name="uq_xbrl_segments_key",
+        ),
+        Index("idx_xbrl_segments_lookup", "code", "std_item_id", "period_end"),
+        Index("idx_xbrl_segments_filing", "filing_id"),
     )
 
 
