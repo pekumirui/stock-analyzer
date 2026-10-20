@@ -833,6 +833,11 @@ def _scalar(conn: sqlite3.Connection, sql: str, params: tuple[Any, ...] = ()) ->
     return None if row is None else row[0]
 
 
+def _quote_ident(name: str) -> str:
+    """sqlite_master 由来の識別子を二重引用符で囲む。"""
+    return '"' + str(name).replace('"', '""') + '"'
+
+
 def tool_db_stats(_args: dict[str, Any]) -> str:
     path = db_file()
     if not path.is_file():
@@ -846,7 +851,12 @@ def tool_db_stats(_args: dict[str, Any]) -> str:
     ]
     conn = open_db()
     try:
-        names = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        names = {
+            r[0]
+            for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+            )
+        }
         for table in DB_TABLES:
             if table not in names:
                 parts.append(f"{table}: (no table)")
@@ -888,6 +898,9 @@ def tool_db_stats(_args: dict[str, Any]) -> str:
                 ).fetchone()
                 extra = f"  {mn}..{mx}  finalized={fin or 0}"
             parts.append(f"{table}: {n}{extra}")
+        for table in sorted(names - set(DB_TABLES)):
+            n = _scalar(conn, f"SELECT COUNT(*) FROM {_quote_ident(table)}")
+            parts.append(f"{table}: {n}")
     finally:
         conn.close()
     return "\n".join(parts)

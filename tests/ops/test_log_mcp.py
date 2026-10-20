@@ -585,6 +585,13 @@ def test_db_tools() -> None:
             INSERT INTO topix VALUES ('2026-08-21', 2800);
             INSERT INTO statements VALUES ('1','72030','2026-05-08','FY','FinancialStatements');
             INSERT INTO indicators VALUES ('72030','2026-08-21',2,85,2900,2800,2700);
+            CREATE TABLE xbrl_segments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT,
+                period_end TEXT
+            );
+            INSERT INTO xbrl_segments (code, period_end) VALUES ('72030', '2026-03-31');
+            INSERT INTO xbrl_segments (code, period_end) VALUES ('72030', '2025-03-31');
             """
         )
         conn.commit()
@@ -621,6 +628,14 @@ def test_db_tools() -> None:
                 raise SystemExit(f"db_stats: {text}")
             if "daily_prices: 2" not in text or "2026-08-20..2026-08-21" not in text:
                 raise SystemExit(f"db_stats prices: {text}")
+            if "xbrl_segments: 2" not in text:
+                raise SystemExit(f"db_stats extra table: {text}")
+            last_fixed = text.rfind("edinet_list_days:")
+            extra_row = text.find("xbrl_segments:")
+            if last_fixed < 0 or extra_row < 0 or extra_row < last_fixed:
+                raise SystemExit(f"db_stats extra table order: {text}")
+            if "sqlite_sequence:" in text:
+                raise SystemExit(f"db_stats leaked sqlite_*: {text}")
             looked = m.tool_db_lookup({"code": "7203", "lines": 5})
             if "72030" not in looked or "トヨタ" not in looked or "adj=3010" not in looked:
                 raise SystemExit(f"db_lookup: {looked}")
@@ -629,7 +644,10 @@ def test_db_tools() -> None:
                 raise SystemExit(f"missing: {missing}")
             client = TestClient(m.create_app(token))
             r = _rpc(client, "tools/call", {"name": "db_stats", "arguments": {}}, req_id=90)
-            if r.status_code != 200 or "stocks: 2" not in r.json()["result"]["content"][0]["text"]:
+            if r.status_code != 200:
+                raise SystemExit(f"rpc db_stats: {r.text}")
+            rpc_text = r.json()["result"]["content"][0]["text"]
+            if "stocks: 2" not in rpc_text or "xbrl_segments: 2" not in rpc_text:
                 raise SystemExit(f"rpc db_stats: {r.text}")
         finally:
             if prev is None:
