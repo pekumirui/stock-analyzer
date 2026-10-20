@@ -130,6 +130,9 @@ VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 認
 - `fs_list` / `fs_read` / `fs_grep` — 読み取り専用。`root` は `data`（リポジトリの `data/`、`MCP_DATA_DIR`）か `logs`（`/var/log/app`、`MCP_LOG_DIR`）。それ以外・絶対パス・`..`・symlink で root の外へ出るものは拒否。`.env*` / `*.db` / `*.sqlite*` / `stock.db` / `*.pem` / `id_*` / `*.key` / `rclone.conf` と `/home/stock/backups` / `/home/stock/r2-share` は二重に拒否。`fs_read` は 1 回あたり `MCP_FS_MAX_BYTES`（既定 1MiB）、切り詰め時は `truncated` とファイル全体の `size` を返す。認証は他ツールと同じ `MCP_TOKEN` / OAuth
 - `db_stats` — stock.db の件数・日付範囲・デモ混在。EDINET の `edinet_documents` / `edinet_list_days` も
 - `db_lookup` — 1銘柄のマスタ・直近株価・決算・指標
+- `xbrl_compare` — 1銘柄の実績を期末（period_end）ごとに statements / TDnet XBRL / EDINET XBRL で並べる。既定は直近 8 期。`period_end`（YYYY-MM-DD）で 1 期だけ。`items` で科目を絞る（std コード `operating_income` か statements の列名 `operating_profit`）。各期の行に各 source の doc_id・提出日・連結/単体・訂正（AMENDED）。判定は st:td / st:ed / td:ed。OK / DIFF / MISSING。読み取り専用
+- `xbrl_diff_summary` — 市場全体で XBRL（既定 edinet。`source=tdnet` も可）と statements を期末で突き合わせる。期の件数（XBRL の期・statements と組めた期・XBRL だけの期）、科目別・会計基準別・33業種別の一致率、ずれの大きい DIFF 上位 `limit` 件（既定 20、最大 500）。`since`（YYYY-MM-DD）は xbrl_filings.submitted_at。全期間は重いので since で絞る。約 9 秒で打ち切る
+- 判定: 両方ある・符号が逆 → DIFF。statements との金額差が 100 万円未満なら OK（J-Quants の百万円丸め）。td:ed にその許容は無い。EPS も丸め許容なし。相対差 > 0.1% → DIFF。許容の無い組で差が残れば DIFF。片方が空 → MISSING。四半期は累計のまま。1 期 1 書類（提出が新しい方。訂正も含む）、その書類に連結があれば連結
 - `fx_rate` — 指定日の為替。EUR ベースのクロス（例 USD/JPY）。休日・ECB非公表日は直近営業日（`as_of`）。`holiday_fallback` で明示
 - `fx_rates` — 期間の為替（公表日のみ）。休日を直近営業日で埋めたいときは `fx_rate`
 - `monthly_list` — 月次表一覧。localhost:8000 の GET /api/v1/tables
