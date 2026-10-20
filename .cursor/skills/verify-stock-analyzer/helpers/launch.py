@@ -67,7 +67,8 @@ def _write_state(pid: int | None, port: int, url: str, adopted: bool) -> dict:
         "url": url,
         "adopted": adopted,
         "started_at": datetime.now(timezone.utc).isoformat(),
-        "db": str(ROOT / "stock.db"),
+        # adopted: the other process's DB is unknown. Started: DATABASE_URL is inherited by uvicorn
+        "db": None if adopted else (os.environ.get("DATABASE_URL") or str(ROOT / "stock.db")),
     }
     (RUN / "state.json").write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
     return state
