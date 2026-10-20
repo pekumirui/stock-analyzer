@@ -48,6 +48,12 @@ jobs:
             requirements.txt
             requirements-dev.txt
 
+      # GitHub-hosted images ship node; this persistent runner does not.
+      # setup-node publishes linux-arm64 binaries into the runner tool cache.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Install
         run: pip install -r requirements.txt -r requirements-dev.txt
 
