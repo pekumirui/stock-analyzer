@@ -55,6 +55,8 @@ SHELL=/bin/bash
 # 一覧は直近 7 日の未確定の日だけ取る。前日分は翌朝の回で確定する
 30 7 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/edinet/edinet_codes.py
 40 8-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/edinet/edinet_documents.py
+# 有報・半期報の XBRL → xbrl_financials（KAB-73）。新しい書類から 1 回 300 件（約 14 分）。過去分は毎時少しずつ
+50 8-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/edinet/edinet_xbrl.py --limit 300
 
 # 素材の月次量 → material_monthly（サプライタブ）
 # 経産省 Excel（生産動態と石油統計。速報は翌月末、確報は翌々月中旬）。毎日見て、変わっていなければ同じ値の UPSERT

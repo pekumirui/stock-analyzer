@@ -1,5 +1,7 @@
 """修正履歴のデータ源: TDnet XBRL の正規化層 (xbrl_financials)。
 
+EDINET の有報・半期報 (source='edinet', KAB-73) は読まない。実績が有報の提出日にもう一度出てしまう。
+
 予想は `value_kind=forecast` かつ `target_period=FY` (業績予想修正の開示を含む)。実績は
 本決算 (`doc_type=annual`) の `value_kind=actual`。連結があれば連結だけ使う。レンジ予想は
 point が無ければ下限と上限の中点。前回予想 (`forecast_previous`) は使わない (前の開示で拾える)。
@@ -34,7 +36,8 @@ def xbrl_points(db: Session, code: str, upto: date) -> list[RevisionPoint]:
             .filter(XbrlFinancial.code == code,
                     XbrlStdItem.code.in_(STD_TO_METRIC),
                     XbrlFiling.submitted_at <= datetime.combine(upto, time.max),
-                    XbrlFiling.parse_status == "parsed")
+                    XbrlFiling.parse_status == "parsed",
+                    XbrlFiling.source == "tdnet")
             .all())
     consolidated = {f.filing_id for f, _, _ in rows if f.is_consolidated}
     # (filing, kind, 期末) → 指標 → range_side → 値

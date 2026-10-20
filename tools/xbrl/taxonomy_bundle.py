@@ -23,6 +23,13 @@ Typical maintainer flow after the ZIP tree is on disk:
 `sync` copies only files the parser would read. `--all-from-cache` copies the
 whole cache instead (larger). `--prune` deletes bundle files the parser would
 not read.
+
+`fetch` downloads what `check` reports MISSING straight from the taxonomy host
+(EDINET publishes its taxonomies at the schemaRef URLs) and repeats until the
+closure is complete. Only this maintainer tool goes online; parse never does.
+
+  python tools/edinet/sample_zips.py --sample-years 10 --out /tmp/edinet-zips
+  python tools/xbrl/taxonomy_bundle.py fetch --zips /tmp/edinet-zips
 """
 from __future__ import annotations
 
@@ -170,6 +177,61 @@ def cmd_sync(args: argparse.Namespace) -> int:
     return 0
 
 
+FETCH_HOSTS = ("disclosure.edinet-fsa.go.jp", "www.xbrl.org", "www.xbrl.tdnet.info")
+FETCH_MAX_ROUNDS = 12
+
+
+def download_url(url: str, dest: Path) -> bool:
+    """One taxonomy file into the bundle. Only FETCH_HOSTS; http is upgraded to https first."""
+    import httpx
+
+    from urllib.parse import urlparse
+
+    host = urlparse(url).hostname or ""
+    if host not in FETCH_HOSTS:
+        print(f"  SKIP host {url}", flush=True)
+        return False
+    path = cache_path_for(dest, url)
+    tries = [url.replace("http://", "https://", 1), url] if url.startswith("http://") else [url]
+    for candidate in tries:
+        try:
+            res = httpx.get(candidate, follow_redirects=True, timeout=60.0)
+        except httpx.HTTPError:
+            continue
+        if res.status_code == 200 and res.content:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(res.content)
+            return True
+    print(f"  FAILED {url}", flush=True)
+    return False
+
+
+def cmd_fetch(args: argparse.Namespace) -> int:
+    from app.xbrl.parser import reset_taxonomy_caches
+
+    bundle = Path(args.to)
+    bundle.mkdir(parents=True, exist_ok=True)
+    failed: set[str] = set()
+    total = 0
+    for round_no in range(1, FETCH_MAX_ROUNDS + 1):
+        reset_taxonomy_caches()
+        _, missing = collect_from_zips(Path(args.zips), cache_dir=bundle)
+        todo = sorted(missing - failed)
+        print(f"round {round_no}: missing={len(todo)}", flush=True)
+        if not todo:
+            break
+        for url in todo:
+            if download_url(url, bundle):
+                total += 1
+            else:
+                failed.add(url)
+    print(f"fetched {total} taxonomy files -> {bundle}", flush=True)
+    if failed:
+        print(f"failed {len(failed)}", flush=True)
+        return 1
+    return 0
+
+
 def cmd_check(args: argparse.Namespace) -> int:
     bundle = Path(args.bundle)
     zips_root = Path(args.zips)
@@ -210,6 +272,11 @@ def main() -> int:
     ck.add_argument("--zips", default=XBRL_DEST, help="Filing ZIP root")
     ck.add_argument("--bundle", default=XBRL_CACHE_DIR, help="Bundle directory")
     ck.set_defaults(func=cmd_check)
+
+    fe = sub.add_parser("fetch", help="Download MISSING files from the taxonomy host until complete")
+    fe.add_argument("--zips", default=XBRL_DEST, help="Filing ZIP root (or a single .zip)")
+    fe.add_argument("--to", default=XBRL_CACHE_DIR, help="Bundle directory")
+    fe.set_defaults(func=cmd_fetch)
 
     args = ap.parse_args()
     return int(args.func(args))

@@ -17,6 +17,19 @@ filing の ZIP ツリーは `data/xbrl`。`jobs/ops/migrate_r2_share.py` は `xb
 
 本番 R2 `xbrl/_cache` の全ファイル（114 ファイル・約 107MB）をそのままコピーして同梱済み。
 2,188 件の filing をネットワークなしで全件パースし errors=0 を確認している。
+
+KAB-73 で EDINET の有報・半期報・四半期報 10 年分が参照する版を足した（jpcrp / jppfs 2016-02-29〜2021-11-01、
+jpigp 2019-02-28〜2021-11-01。88 ファイル・約 169MB。計 276MB）。2016〜2026 年の見本 73 件
+（日本基準 50・IFRS 16・米国基準 7）を `check` で missing=0、ネットワークなしで全件パースできることを確認した。
+
+EDINET の版はスキーマの URL（`http://disclosure.edinet-fsa.go.jp/taxonomy/...`）からそのまま取れる。
+足りない版は見本 ZIP を落として `fetch`（このツールだけがネットワークに出る）:
+
+```
+python tools/edinet/sample_zips.py --sample-years 10 --out /tmp/edinet-zips   # または --failed
+python tools/xbrl/taxonomy_bundle.py fetch --zips /tmp/edinet-zips
+python tools/xbrl/taxonomy_bundle.py check --zips /tmp/edinet-zips
+```
 filing が参照する版は過去年も含めて残す。どの ZIP からも参照されないファイルだけ落としてよい。
 配布物はバイト単位で保持する（`.gitattributes` で `-text`。CRLF のファイルがある）。
 

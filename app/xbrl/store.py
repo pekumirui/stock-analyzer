@@ -162,21 +162,28 @@ def parse_zip_into_filing(
     cache_dir: Path | None = None,
     text_max: int | None = None,
     package: ParsedPackage | BaseException | None = None,
+    source: str = "tdnet",
+    title_meta: dict | None = None,
+    keep_fact=None,
 ) -> XbrlFiling:
-    """``package``: a parse_zip() result (or its exception) from a worker. None parses here."""
+    """``package``: a parse_zip() result (or its exception) from a worker. None parses here.
+
+    ``title_meta``: classify_title の代わり（EDINET は書類種別コードから決める）。
+    ``keep_fact(fact, ctx) -> bool``: 入れる fact を絞る（EDINET は正規化に使わない次元を落とす）。
+    """
     stock = db.get(Stock, code)
     if stock is None:
         raise ValueError(f"NOT_IN_MASTER {code}")
-    meta = classify_title(title)
+    meta = title_meta or classify_title(title)
     filing = (
         db.query(XbrlFiling)
-        .filter_by(source="tdnet", doc_id=doc_id)
+        .filter_by(source=source, doc_id=doc_id)
         .one_or_none()
     )
     if filing is None:
         filing = XbrlFiling(
             code=code,
-            source="tdnet",
+            source=source,
             doc_id=doc_id,
             raw_path=raw_path,
             submitted_at=_parse_submitted(submitted_at),
@@ -241,8 +248,16 @@ def parse_zip_into_filing(
             submitted_at=filing.submitted_at,
         )
 
+    if keep_fact is not None:
+        by_ref = {ctx.context_ref: ctx for ctx in pkg.contexts}
+        facts = [f for f in pkg.facts if keep_fact(f, by_ref.get(f.context_ref))]
+        used = {f.context_ref for f in facts}
+        contexts = [c for c in pkg.contexts if c.context_ref in used]
+    else:
+        facts, contexts = pkg.facts, pkg.contexts
+
     wanted: dict[tuple[str, str], dict] = {}
-    for fact in pkg.facts:
+    for fact in facts:
         el_key = (fact.namespace_uri, fact.local_name)
         if el_key in wanted:
             continue
@@ -255,7 +270,7 @@ def parse_zip_into_filing(
     element_ids = upsert_elements(db, wanted)
 
     ctx_ids: dict[str, int] = {}
-    if pkg.contexts:
+    if contexts:
         result = db.execute(
             insert(XbrlContext.__table__).returning(XbrlContext.id, XbrlContext.context_ref),
             [
@@ -270,13 +285,13 @@ def parse_zip_into_filing(
                     "dimensions_json": ctx.dimensions_json,
                     "has_dimensions": ctx.has_dimensions,
                 }
-                for ctx in pkg.contexts
+                for ctx in contexts
             ],
         )
         ctx_ids = {ref: ctx_id for ctx_id, ref in result}
 
     fact_rows: list[dict] = []
-    for fact in pkg.facts:
+    for fact in facts:
         ctx_id = ctx_ids.get(fact.context_ref)
         if ctx_id is None:
             continue

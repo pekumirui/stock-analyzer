@@ -34,3 +34,48 @@
 - std_item: operating_cf
   elements:
     - { ns: jpigp_cor, name: NetCashProvidedByUsedInOperatingActivitiesIFRS, priority: 10, standard: IFRS }
+# EDINET 有報・半期報の IFRS 本表（KAB-73）。2025-06-27 の IFRS 有報 15 件中 11〜15 件にある要素。
+- std_item: current_assets
+  elements:
+    - { ns: jpigp_cor, name: CurrentAssetsIFRS, priority: 10, standard: IFRS }
+- std_item: noncurrent_assets
+  elements:
+    - { ns: jpigp_cor, name: NonCurrentAssetsIFRS, priority: 10, standard: IFRS }
+- std_item: current_liabilities
+  elements:
+    - { ns: jpigp_cor, name: TotalCurrentLiabilitiesIFRS, priority: 10, standard: IFRS }
+- std_item: noncurrent_liabilities
+  elements:
+    # タクソノミ側の綴りが Labilities
+    - { ns: jpigp_cor, name: NonCurrentLabilitiesIFRS, priority: 10, standard: IFRS }
+- std_item: total_liabilities
+  elements:
+    - { ns: jpigp_cor, name: LiabilitiesIFRS, priority: 10, standard: IFRS }
+- std_item: shareholders_equity
+  elements:
+    # 親会社の所有者に帰属する持分（その他の資本の構成要素を含む。日本基準の株主資本より広い）
+    - { ns: jpigp_cor, name: EquityAttributableToOwnersOfParentIFRS, priority: 10, standard: IFRS }
+- std_item: cost_of_sales
+  elements:
+    - { ns: jpigp_cor, name: CostOfSalesIFRS, priority: 10, standard: IFRS }
+- std_item: gross_profit
+  elements:
+    - { ns: jpigp_cor, name: GrossProfitIFRS, priority: 10, standard: IFRS }
+- std_item: sga
+  elements:
+    - { ns: jpigp_cor, name: SellingGeneralAndAdministrativeExpensesIFRS, priority: 10, standard: IFRS }
+- std_item: investing_cf
+  elements:
+    - { ns: jpigp_cor, name: NetCashProvidedByUsedInInvestingActivitiesIFRS, priority: 10, standard: IFRS }
+- std_item: financing_cf
+  elements:
+    - { ns: jpigp_cor, name: NetCashProvidedByUsedInFinancingActivitiesIFRS, priority: 10, standard: IFRS }
+- std_item: capex
+  elements:
+    - { ns: jpigp_cor, name: PurchaseOfPropertyPlantAndEquipmentInvCFIFRS, priority: 10, standard: IFRS }
+- std_item: depreciation
+  elements:
+    - { ns: jpigp_cor, name: DepreciationAndAmortizationOpeCFIFRS, priority: 10, standard: IFRS }
+- std_item: cash_end
+  elements:
+    - { ns: jpigp_cor, name: CashAndCashEquivalentsIFRS, priority: 10, standard: IFRS }
