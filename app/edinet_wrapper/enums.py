@@ -1,0 +1,165 @@
+from __future__ import annotations
+
+from enum import IntEnum, StrEnum
+
+
+class ListType(IntEnum):
+    METADATA = 1
+    FULL = 2
+
+
+class DocumentFileType(IntEnum):
+    MAIN = 1
+    PDF = 2
+    ATTACHMENT = 3
+    ENGLISH = 4
+    CSV = 5
+
+    @property
+    def suffix(self) -> str:
+        return ".pdf" if self is DocumentFileType.PDF else ".zip"
+
+
+class WithdrawalStatus(StrEnum):
+    NONE = "0"
+    WITHDRAWAL_NOTICE = "1"
+    WITHDRAWN = "2"
+
+
+class DocInfoEditStatus(StrEnum):
+    NONE = "0"
+    EDIT_NOTICE = "1"
+    EDITED = "2"
+
+
+class DisclosureStatus(StrEnum):
+    NONE = "0"
+    NONDISCLOSURE_START = "1"
+    NONDISCLOSED = "2"
+    NONDISCLOSURE_END = "3"
+
+
+class LegalStatus(StrEnum):
+    EXPIRED = "0"
+    PUBLIC_INSPECTION = "1"
+    EXTENDED = "2"
+
+
+class Ordinance(StrEnum):
+    DISCLOSURE_OF_CORPORATE_AFFAIRS = "010"
+    INTERNAL_CONTROL = "015"
+    FOREIGN_BONDS = "020"
+    SPECIFIED_SECURITIES = "030"
+    TOB_BY_NON_ISSUER = "040"
+    TOB_BY_ISSUER = "050"
+    LARGE_SHAREHOLDING = "060"
+
+    @property
+    def label(self) -> str:
+        return _ORDINANCE_LABELS[self]
+
+
+_ORDINANCE_LABELS: dict[Ordinance, str] = {
+    Ordinance.DISCLOSURE_OF_CORPORATE_AFFAIRS: "企業内容等の開示に関する内閣府令",
+    Ordinance.INTERNAL_CONTROL: ("財務計算に関する書類その他の情報の適正性を確保するための体制に関する内閣府令"),
+    Ordinance.FOREIGN_BONDS: "外国債等の発行者の開示に関する内閣府令",
+    Ordinance.SPECIFIED_SECURITIES: "特定有価証券の内容等の開示に関する内閣府令",
+    Ordinance.TOB_BY_NON_ISSUER: "発行者以外の者による株券等の公開買付けの開示に関する内閣府令",
+    Ordinance.TOB_BY_ISSUER: "発行者による上場株券等の公開買付けの開示に関する内閣府令",
+    Ordinance.LARGE_SHAREHOLDING: "株券等の大量保有の状況の開示に関する内閣府令",
+}
+
+
+class DocType(StrEnum):
+    SECURITIES_REGISTRATION_NOTICE = "010"
+    AMENDED_SECURITIES_REGISTRATION_NOTICE = "020"
+    SECURITIES_REGISTRATION_STATEMENT = "030"
+    AMENDED_SECURITIES_REGISTRATION_STATEMENT = "040"
+    WITHDRAWAL_OF_REGISTRATION = "050"
+    SHELF_REGISTRATION_NOTICE = "060"
+    AMENDED_SHELF_REGISTRATION_NOTICE = "070"
+    SHELF_REGISTRATION_STATEMENT = "080"
+    AMENDED_SHELF_REGISTRATION_STATEMENT = "090"
+    SHELF_REGISTRATION_SUPPLEMENT = "100"
+    WITHDRAWAL_OF_SHELF_REGISTRATION = "110"
+    ANNUAL_SECURITIES_REPORT = "120"
+    AMENDED_ANNUAL_SECURITIES_REPORT = "130"
+    CONFIRMATION_LETTER = "135"
+    AMENDED_CONFIRMATION_LETTER = "136"
+    QUARTERLY_SECURITIES_REPORT = "140"
+    AMENDED_QUARTERLY_SECURITIES_REPORT = "150"
+    SEMIANNUAL_SECURITIES_REPORT = "160"
+    AMENDED_SEMIANNUAL_SECURITIES_REPORT = "170"
+    EXTRAORDINARY_REPORT = "180"
+    AMENDED_EXTRAORDINARY_REPORT = "190"
+    PARENT_COMPANY_STATUS_REPORT = "200"
+    AMENDED_PARENT_COMPANY_STATUS_REPORT = "210"
+    TREASURY_STOCK_PURCHASE_REPORT = "220"
+    AMENDED_TREASURY_STOCK_PURCHASE_REPORT = "230"
+    INTERNAL_CONTROL_REPORT = "235"
+    AMENDED_INTERNAL_CONTROL_REPORT = "236"
+    TOB_REGISTRATION_STATEMENT = "240"
+    AMENDED_TOB_REGISTRATION_STATEMENT = "250"
+    TOB_WITHDRAWAL_STATEMENT = "260"
+    TOB_REPORT = "270"
+    AMENDED_TOB_REPORT = "280"
+    POSITION_STATEMENT = "290"
+    AMENDED_POSITION_STATEMENT = "300"
+    RESPONSE_TO_QUESTIONS = "310"
+    AMENDED_RESPONSE_TO_QUESTIONS = "320"
+    SEPARATE_PURCHASE_PROHIBITION_NOTICE = "330"
+    AMENDED_SEPARATE_PURCHASE_PROHIBITION_NOTICE = "340"
+    LARGE_SHAREHOLDING_REPORT = "350"
+    AMENDED_LARGE_SHAREHOLDING_REPORT = "360"
+    RECORD_DATE_NOTICE = "370"
+    CHANGE_NOTICE = "380"
+
+    @property
+    def label(self) -> str:
+        return _DOC_TYPE_LABELS[self]
+
+
+_DOC_TYPE_LABELS: dict[DocType, str] = {
+    DocType.SECURITIES_REGISTRATION_NOTICE: "有価証券通知書",
+    DocType.AMENDED_SECURITIES_REGISTRATION_NOTICE: "変更通知書（有価証券通知書）",
+    DocType.SECURITIES_REGISTRATION_STATEMENT: "有価証券届出書",
+    DocType.AMENDED_SECURITIES_REGISTRATION_STATEMENT: "訂正有価証券届出書",
+    DocType.WITHDRAWAL_OF_REGISTRATION: "届出の取下げ願い",
+    DocType.SHELF_REGISTRATION_NOTICE: "発行登録通知書",
+    DocType.AMENDED_SHELF_REGISTRATION_NOTICE: "変更通知書（発行登録通知書）",
+    DocType.SHELF_REGISTRATION_STATEMENT: "発行登録書",
+    DocType.AMENDED_SHELF_REGISTRATION_STATEMENT: "訂正発行登録書",
+    DocType.SHELF_REGISTRATION_SUPPLEMENT: "発行登録追補書類",
+    DocType.WITHDRAWAL_OF_SHELF_REGISTRATION: "発行登録取下届出書",
+    DocType.ANNUAL_SECURITIES_REPORT: "有価証券報告書",
+    DocType.AMENDED_ANNUAL_SECURITIES_REPORT: "訂正有価証券報告書",
+    DocType.CONFIRMATION_LETTER: "確認書",
+    DocType.AMENDED_CONFIRMATION_LETTER: "訂正確認書",
+    DocType.QUARTERLY_SECURITIES_REPORT: "四半期報告書",
+    DocType.AMENDED_QUARTERLY_SECURITIES_REPORT: "訂正四半期報告書",
+    DocType.SEMIANNUAL_SECURITIES_REPORT: "半期報告書",
+    DocType.AMENDED_SEMIANNUAL_SECURITIES_REPORT: "訂正半期報告書",
+    DocType.EXTRAORDINARY_REPORT: "臨時報告書",
+    DocType.AMENDED_EXTRAORDINARY_REPORT: "訂正臨時報告書",
+    DocType.PARENT_COMPANY_STATUS_REPORT: "親会社等状況報告書",
+    DocType.AMENDED_PARENT_COMPANY_STATUS_REPORT: "訂正親会社等状況報告書",
+    DocType.TREASURY_STOCK_PURCHASE_REPORT: "自己株券買付状況報告書",
+    DocType.AMENDED_TREASURY_STOCK_PURCHASE_REPORT: "訂正自己株券買付状況報告書",
+    DocType.INTERNAL_CONTROL_REPORT: "内部統制報告書",
+    DocType.AMENDED_INTERNAL_CONTROL_REPORT: "訂正内部統制報告書",
+    DocType.TOB_REGISTRATION_STATEMENT: "公開買付届出書",
+    DocType.AMENDED_TOB_REGISTRATION_STATEMENT: "訂正公開買付届出書",
+    DocType.TOB_WITHDRAWAL_STATEMENT: "公開買付撤回届出書",
+    DocType.TOB_REPORT: "公開買付報告書",
+    DocType.AMENDED_TOB_REPORT: "訂正公開買付報告書",
+    DocType.POSITION_STATEMENT: "意見表明報告書",
+    DocType.AMENDED_POSITION_STATEMENT: "訂正意見表明報告書",
+    DocType.RESPONSE_TO_QUESTIONS: "対質問回答報告書",
+    DocType.AMENDED_RESPONSE_TO_QUESTIONS: "訂正対質問回答報告書",
+    DocType.SEPARATE_PURCHASE_PROHIBITION_NOTICE: "別途買付け禁止の特例を受けるための申出書",
+    DocType.AMENDED_SEPARATE_PURCHASE_PROHIBITION_NOTICE: ("訂正別途買付け禁止の特例を受けるための申出書"),
+    DocType.LARGE_SHAREHOLDING_REPORT: "大量保有報告書",
+    DocType.AMENDED_LARGE_SHAREHOLDING_REPORT: "訂正大量保有報告書",
+    DocType.RECORD_DATE_NOTICE: "基準日の届出書",
+    DocType.CHANGE_NOTICE: "変更の届出書",
+}

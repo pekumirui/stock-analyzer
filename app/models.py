@@ -27,6 +27,7 @@ class Stock(Base):
     scale_category = Column(String)
     margin_type = Column(String)
     product_category = Column(String)  # ProdCat: 011=内国株券, 013=REIT, 014=ETF 等
+    edinet_code = Column(String(6))    # EDINET コードリストの証券コードで付ける。無い銘柄は NULL
 
 
 class DailyPrice(Base):
@@ -429,3 +430,78 @@ class PtsSnapshot(Base):
     pts_chg_pct = Column(Float)
     volume = Column(Integer)
     __table_args__ = (Index("ix_pts_session_ranking", "session_date", "ranking"),)
+
+
+class EdinetFiler(Base):
+    """EDINET コードリスト（提出者）の写し。上場していない提出者（大量保有の保有者など）も持つ。
+
+    取込は jobs/edinet/edinet_codes.py。全件置き換えでなく UPSERT（リストから消えた提出者も残す）。
+    """
+    __tablename__ = "edinet_filers"
+    edinet_code = Column(String(6), primary_key=True)
+    sec_code = Column(String(5), index=True)        # 証券コード 5 桁。stocks.code と同じ形
+    filer_name = Column(String)
+    filer_name_en = Column(String)
+    filer_type = Column(String)                     # 提出者種別（内国法人・組合 / 外国法人・組合 / 個人 など）
+    listed = Column(String)                         # 上場区分（上場 / 非上場）
+    is_consolidated = Column(String)                # 連結の有無（有 / 無）
+    capital = Column(String)                        # 資本金（百万円）。リストの文字列のまま
+    fiscal_year_end = Column(String)                # 決算日（例 3月31日）
+    industry = Column(String)                       # 提出者業種
+    jcn = Column(String(13))                        # 提出者法人番号
+    list_date = Column(Date)                        # リストのダウンロード実行日
+    updated_at = Column(DateTime, nullable=False)
+
+
+class EdinetDocument(Base):
+    """EDINET 書類一覧 API（type=2）の 1 行。docID は一意でない（修正・不開示・取下げが別レコードで出る）。
+
+    元の行の状態は後の日のイベント行で書き換える（app/edinet/documents.py apply_events）。
+    """
+    __tablename__ = "edinet_documents"
+    file_date = Column(Date, primary_key=True)
+    seq_number = Column(Integer, primary_key=True)
+    doc_id = Column(String(8), nullable=False, index=True)
+    code = Column(String(5), index=True)            # stocks.code。secCode か edinet_filers から引く。FK は付けない
+    edinet_code = Column(String(6), index=True)
+    sec_code = Column(String(5))
+    jcn = Column(String(13))
+    filer_name = Column(String)
+    fund_code = Column(String(6))
+    ordinance_code = Column(String(3))
+    form_code = Column(String(6))
+    doc_type_code = Column(String(3), index=True)
+    period_start = Column(Date)
+    period_end = Column(Date)
+    submit_datetime = Column(DateTime)              # JST naive
+    doc_description = Column(Text)
+    issuer_edinet_code = Column(String(6), index=True)
+    subject_edinet_code = Column(String(6), index=True)
+    subsidiary_edinet_codes = Column(Text)          # カンマ区切り
+    current_report_reasons = Column(Text)           # カンマ区切り
+    parent_doc_id = Column(String(8))
+    ope_datetime = Column(DateTime)
+    withdrawal_status = Column(String(1), nullable=False)
+    doc_info_edit_status = Column(String(1), nullable=False)
+    disclosure_status = Column(String(1), nullable=False)
+    xbrl_flag = Column(Boolean, nullable=False)
+    pdf_flag = Column(Boolean, nullable=False)
+    attach_doc_flag = Column(Boolean, nullable=False)
+    english_doc_flag = Column(Boolean, nullable=False)
+    csv_flag = Column(Boolean, nullable=False)
+    legal_status = Column(String(1), nullable=False)
+    fetched_at = Column(DateTime, nullable=False)
+    __table_args__ = (
+        Index("ix_edinet_documents_code_type", "code", "doc_type_code", "submit_datetime"),
+    )
+
+
+class EdinetListDay(Base):
+    """書類一覧を取った日ごとの記録。finalized の日は取り直さない。"""
+    __tablename__ = "edinet_list_days"
+    file_date = Column(Date, primary_key=True)
+    count = Column(Integer, nullable=False)          # metadata.resultset.count
+    max_seq = Column(Integer)
+    process_datetime = Column(DateTime)              # EDINET 側の一覧作成時刻（JST naive）
+    finalized = Column(Boolean, nullable=False)      # file_date より後（JST）に取った = その日の一覧は確定
+    fetched_at = Column(DateTime, nullable=False)

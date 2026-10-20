@@ -11,7 +11,7 @@
 実装前に確認済み。覆すときはこの節と該当箇所を両方直す。
 
 1. 第1弾の取得・パース対象は **TDnet 短信 iXBRL のみ**。EDINET 有報は後続。
-2. `stocks` に **`edinet_code` を今は足さない**。企業キーは `stocks.code`（5桁）だけ。
+2. 企業キーは `stocks.code`（5桁）だけ。`stocks.edinet_code`（nullable）は KAB-72 で足した（`docs/DESIGN_edinet.md` §2）。XBRL 層のキーには使わない。
 3. context から連結/単体が取れなければ **連結として扱う**（`is_consolidated=1`）。
 4. 生データ・正規化層は **既存と同じ SQLite**（`DATABASE_URL` / 本番 `stock.db`）に載せる。分離は容量が問題になってから。
 5. 決算速報 UI / API の正本は当面 **`statements` のまま**。XBRL 層とマージしない。精度が出てから実績列の読み出し寄せを検討する。例外として、決算表の修正履歴（KAB-57）は `?rev_source=xbrl` / `EARNINGS_PARAMS["revision_source"]` で `xbrl_financials` を読める（既定は `jquants`）。読むだけで `statements` は変えない。
@@ -104,7 +104,7 @@ stocks.code   例 7203 → 72030、262A → 262A0
 
 - `stocks` に無いコードの ZIP は今日 `_unmatched/` に落ちている。parse 対象にしない（第1弾）。
 - インフラファンドも `_unmatched/`。第1弾はスキップ。
-- `edinet_code` は今足さない（§0-2）。有報を EDINET から取り始めるときに nullable で追加する。
+- `stocks.edinet_code` は KAB-72 で nullable で足した（§0-2）。EDINET の書類は `edinet_documents.code` で `stocks.code` に付いている。
 
 ### 3.2 `statements` との関係
 
@@ -662,7 +662,7 @@ XBRL_PARSE_WORKERS=2
 ## 12. 禁止事項
 
 - `companies` テーブルを新設して `stocks` と二重マスタにしない
-- 第1弾で `stocks.edinet_code` を必須にしない
+- `stocks.edinet_code` を必須にしない
 - 勘定科目を列にしたテーブルを作らない
 - `xbrl_financials` に手で INSERT する処理を書かない
 - マッピングをコードに埋め込まない
@@ -677,7 +677,7 @@ XBRL_PARSE_WORKERS=2
 
 ## 13. 後続（今書かない）
 
-- EDINET API v2 で有報 ZIP を取り、`source='edinet'` の filing を足す。そのとき `stocks.edinet_code` を nullable で追加
+- EDINET API v2 で有報 ZIP を取り、`source='edinet'` の filing を足す（KAB-73）。入口は `edinet_documents`（`docs/DESIGN_edinet.md`）
 - 伝統的 instance `.xbrl` パーサ
 - 正規化層の実績を決算詳細 API に出す（`statements` の予想列は残す）
 - facts の DB 分離

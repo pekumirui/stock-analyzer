@@ -86,6 +86,7 @@ APIキー方式。ダッシュボードで発行したキーを `x-api-key` ヘ�
 stocks            -- 銘柄マスタ
   code TEXT PK    -- 5桁コード (例 "72030", "262A0")。先頭・末尾は数字、途中は 0-9A-Z
   name, sector33, market, product_category, updated_at
+  edinet_code     -- EDINET コード。jobs/edinet/edinet_codes.py が付ける。無い銘柄は NULL (docs/DESIGN_edinet.md)
   -- product_category = J-Quants ProdCat
   --   011 内国株券 / 012 優先出資 / 013 REIT / 014 ETF
   --   021 外国株券 / 022 外国REIT / 023 外国ETF / 024 外国株預託証券
@@ -170,6 +171,9 @@ pts_snapshots     -- 株探の PTS ナイトタイムセッション ランキ�
   as_of                   -- 株探の「HH:MM現在」。同じ session_date・ranking・as_of は書かない
   rank, name, market, base_close, pts_price, pts_chg_pct, volume
   -- 索引 (session_date, ranking)
+
+edinet_filers / edinet_documents / edinet_list_days
+                  -- EDINET の提出者・書類一覧。docs/DESIGN_edinet.md
 
 fx_rates          -- ECB 対EUR 日次レート (Frankfurter api.frankfurter.dev/v1)
   date, quote PK  -- quote は ISO 4217（USD / JPY 等）。EUR 自身は持たない
@@ -290,7 +294,7 @@ IR 月次 HTML（`jobs/monthly/ir_monthly_html_r2.py`）:
 - パーサーを直したら保存済み HTML を `--reparse`。HTML が同じでも、現行パーサの `.ingest.json` が保存済みと違えば hash skip 時に書き直す（古い sidecar を latest-per-code に残さない）
 
 TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。
-スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。決算速報 UI の正本は当面 `statements` のまま。XBRL 層で上書きしない。
+スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。EDINET の提出者・書類一覧は [`docs/DESIGN_edinet.md`](docs/DESIGN_edinet.md)。決算速報 UI の正本は当面 `statements` のまま。XBRL 層で上書きしない。
 
 **PTS ランキング（`pts_snapshots`）。** 株探 `https://kabutan.jp/warning/` の `pts_night_price_increase` / `pts_night_price_decrease` / `pts_night_volume_ranking`（夜間 PTS。株価は 15 分ディレイ）。取得は `app/market/pts.py`、ジョブは `jobs/market/pts_snapshot.py`。キー不要。画面は `docs/DESIGN_pts.md`。
 

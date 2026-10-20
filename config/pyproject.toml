@@ -1,6 +1,6 @@
 [tool.ruff]
 target-version = "py310"
-extend-exclude = ["app/xbrlp"]
+extend-exclude = ["app/xbrlp", "app/edinet_wrapper"]
 
 [tool.ruff.lint]
 # 141A は発行体コード。ファイル名 i141A.py が pep8 のモジュール名に合わない。
@@ -38,7 +38,7 @@ ignore = [
 ]
 
 [tool.bandit]
-exclude_dirs = ["app/xbrlp", ".cursor", "tmp", ".venv"]
+exclude_dirs = ["app/xbrlp", "app/edinet_wrapper", ".cursor", "tmp", ".venv"]
 skips = [
     "B101",
     "B105",
