@@ -43,7 +43,7 @@ if str(_MCP_DIR) not in sys.path:
     sys.path.insert(0, str(_MCP_DIR))
 
 import fs_tools  # noqa: E402
-import xbrl_compare  # noqa: E402
+import xbrl_compare
 
 
 def app_dir() -> Path:
@@ -950,7 +950,6 @@ def tool_db_lookup(args: dict[str, Any]) -> str:
 
 
 def parse_name_list(raw: Any, label: str) -> tuple[str, ...] | None:
-    """Array of strings or a comma-separated string. Each name matches ^[a-z0-9_]{1,64}$."""
     if raw is None:
         return None
     if isinstance(raw, str):

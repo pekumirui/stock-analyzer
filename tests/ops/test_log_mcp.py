@@ -2111,7 +2111,6 @@ def test_xbrl_compare_tools() -> None:
                 (8, "72030", "edinet", "S100ONLY", "FY", "2023-11-01 09:00:00", "JPGAAP", 0, "parsed"),
             ],
         )
-        # filing, std_item, consolidated, period_end, value, value_kind, range_side
         conn.executemany(
             "INSERT INTO xbrl_financials (filing_id, std_item_id, is_consolidated, period_end, value, value_kind, range_side) "
             "VALUES (?,?,?,?,?,?,?)",

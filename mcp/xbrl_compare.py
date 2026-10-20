@@ -1,9 +1,3 @@
-"""XBRL (TDnet / EDINET) vs J-Quants statements actuals for the ops MCP (KAB-76).
-
-Callers hand in an open read-only sqlite3 connection and validated args and get text back.
-Every source becomes one Doc per (code, period_end, source) with values keyed by
-xbrl_std_items.code, so one kernel compares any pair.
-"""
 from __future__ import annotations
 
 import heapq
@@ -52,7 +46,6 @@ class Pair(NamedTuple):
         return item.carried_by(self.left) and item.carried_by(self.right)
 
     def abs_tolerance(self, item: Item) -> float:
-        # J-Quants rounds money to the nearest million yen. TDnet vs EDINET has no such slack.
         if Source.STATEMENTS in self and not item.per_share:
             return float(ROUNDING_YEN)
         return 0.0
@@ -73,8 +66,6 @@ class Verdict(str, Enum):
 
 @dataclass(frozen=True)
 class Item:
-    """One comparable subject. `code` is xbrl_std_items.code and the key of every Doc.values."""
-
     code: str
     label: str
     metric: str | None
@@ -86,8 +77,6 @@ class Item:
 
 @dataclass(frozen=True)
 class Doc:
-    """The one chosen document of one source for one (code, period_end)."""
-
     source: Source
     doc_id: str
     submitted: str
@@ -107,15 +96,12 @@ class Period:
 
 @dataclass(frozen=True)
 class Row:
-    """One (period, item) line. The comparison row both tools consume."""
-
     period: Period
     item: Item
     values: Mapping[Source, float | None]
     verdicts: Mapping[Pair, Verdict]
 
     def gap(self, pair: Pair) -> float:
-        """Relative gap for ranking. MISSING is 1.0, so a sign flip (gap > 1) ranks ahead of it."""
         if self.verdicts.get(pair) is Verdict.MISSING:
             return 1.0
         a = self.values.get(pair.left)
@@ -164,8 +150,6 @@ class Summary:
 
 @dataclass(frozen=True)
 class _Scope:
-    """What one load reads. Built by the two public functions, never by callers."""
-
     sources: tuple[Source, ...]
     items: tuple[Item, ...]
     code: str | None = None
@@ -205,7 +189,6 @@ def compare_text(
     period_end: date | None,
     items: Sequence[str] | None,
 ) -> str:
-    """xbrl_compare body. `code` is already parse_code'd. Unknown item names raise ValueError."""
     _require_tables(conn)
     chosen = _resolve_items(_catalog(conn), items)
     with _budget(conn) as deadline:
@@ -229,7 +212,6 @@ def diff_summary_text(
     since: date | None,
     limit: int,
 ) -> str:
-    """xbrl_diff_summary body. Pair is (statements, source). Items are those statements carries."""
     _require_tables(conn)
     catalog = _catalog(conn)
     items = tuple(item for item in catalog if item.carried_by(Source.STATEMENTS))
@@ -246,12 +228,10 @@ def diff_summary_text(
 
 
 def judge(a: float | None, b: float | None, abs_tol: float) -> Verdict | None:
-    """None when both are empty. The whole diff rule lives here and nowhere else."""
     if a is None and b is None:
         return None
     if a is None or b is None:
         return Verdict.MISSING
-    # Million-yen truncation never flips a sign, so a small opposite pair is still a discrepancy.
     if a * b < 0:
         return Verdict.DIFF
     diff = abs(a - b)
@@ -268,11 +248,6 @@ def judge(a: float | None, b: float | None, abs_tol: float) -> Verdict | None:
 def compare_period(
     period: Period, items: Sequence[Item], pairs: Sequence[Pair],
 ) -> list[Row]:
-    """Rows for items that have a value in at least one loaded doc, in catalog order.
-
-    A pair is compared only when both sources have a doc and both carry the item.
-    A missing filing stays out of `verdicts`, so the cell is `-` rather than MISSING.
-    """
     rows: list[Row] = []
     for item in items:
         values: dict[Source, float | None] = {}
@@ -306,7 +281,6 @@ def summarize(
     limit: int,
     since: date | None,
 ) -> Summary:
-    """Anchored on the XBRL side. Periods with no XBRL doc are skipped. Unpaired XBRL periods are counted."""
     by_item = {item.code: _Tally() for item in items}
     by_standard: dict[str, _Tally] = defaultdict(_Tally)
     by_sector: dict[str, _Tally] = defaultdict(_Tally)
@@ -355,17 +329,12 @@ def summarize(
 
 @cache
 def _std_to_metric() -> Mapping[str, str]:
-    """Lazy import, same pattern as log_mcp._fx_mod. revisions.py pulls SQLAlchemy and pandas."""
-    from app.xbrl.revisions import STD_TO_METRIC  # noqa: PLC0415
+    from app.xbrl.revisions import STD_TO_METRIC
 
     return STD_TO_METRIC
 
 
 def _catalog(conn: sqlite3.Connection) -> tuple[Item, ...]:
-    """xbrl_std_items in display_order, minus statement='OTHER'.
-
-    dps is the only OTHER item and it is slot-keyed, so two actuals would collide in Doc.values.
-    """
     metric_of = _std_to_metric()
     rows = conn.execute(
         "SELECT code, label_ja, section FROM xbrl_std_items "
@@ -384,7 +353,6 @@ def _catalog(conn: sqlite3.Connection) -> tuple[Item, ...]:
 
 
 def _resolve_items(catalog: tuple[Item, ...], names: Sequence[str] | None) -> tuple[Item, ...]:
-    """None or empty returns the whole catalog. Accepts std codes and statements column names."""
     if not names:
         return catalog
     by_code = {item.code: item for item in catalog}
@@ -417,7 +385,6 @@ def _resolve_items(catalog: tuple[Item, ...], names: Sequence[str] | None) -> tu
 
 
 def _load_periods(conn: sqlite3.Connection, scope: _Scope) -> dict[tuple[str, date], Period]:
-    """One SELECT per kind of source, grouped in Python, merged on (code, period_end)."""
     found: dict[tuple[str, date], dict[Source, Doc]] = {}
 
     def put(code: str, period_end: date, doc: Doc) -> None:
@@ -444,7 +411,6 @@ def _load_periods(conn: sqlite3.Connection, scope: _Scope) -> dict[tuple[str, da
 
 
 def _xbrl_rows(conn: sqlite3.Connection, scope: _Scope) -> Iterator[_XbrlRow]:
-    """Actual point rows of parsed filings for the XBRL sources in scope, items in scope only."""
     sources = [source.value for source in scope.sources if source is not Source.STATEMENTS]
     codes = [item.code for item in scope.items]
     if not sources or not codes:
@@ -554,7 +520,6 @@ def _statement_rows(conn: sqlite3.Connection, scope: _Scope) -> Iterator[_Statem
 
 
 def _pick_filing(rows: Sequence[_XbrlRow]) -> Doc:
-    """Rows share (code, period_end, source). Newest filing, then consolidated if that filing has it."""
     winner = max(rows, key=lambda row: (row.submitted_at, row.filing_id))
     same = [row for row in rows if row.filing_id == winner.filing_id]
     consolidated = any(row.is_consolidated for row in same)
@@ -576,7 +541,6 @@ def _pick_filing(rows: Sequence[_XbrlRow]) -> Doc:
 
 
 def _pick_statement(rows: Sequence[_StatementRow], items: Sequence[Item]) -> Doc:
-    """Rows share (code, period_end). Newest disclosed text, then disclosure_no."""
     winner = max(rows, key=lambda row: (row.disclosed, row.disclosure_no))
     values: dict[str, float] = {}
     for item in items:
@@ -607,7 +571,6 @@ def _require_tables(conn: sqlite3.Connection) -> None:
 
 @contextmanager
 def _budget(conn: sqlite3.Connection, seconds: float = BUDGET_S) -> Iterator[float]:
-    """Abort SQLite past the deadline. Callers check the same deadline in Python loops."""
     deadline = time.monotonic() + seconds
 
     def handler() -> int:
