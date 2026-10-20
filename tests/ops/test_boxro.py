@@ -22,7 +22,12 @@ CURSOR_KEY_LINE = (
     "AAAAC3NzaC1lZDI1NTE5AAAAIMpgCZvddCA++Qu67D2+5fmIBi5tV/BTCG5N1qDW/a+3 "
     "cursor-vps-ro"
 )
-KEY_LINES = (KEY_LINE, CURSOR_KEY_LINE)
+AZURE_KEY_LINE = (
+    'restrict,from="74.235.120.220" ssh-ed25519 '
+    "AAAAC3NzaC1lZDI1NTE5AAAAIB+iB6mk3ya69NHb4G4GFiS9NUNv/8iXMXu1UKKbHh0N "
+    "azure-vm-vps-data-ro"
+)
+KEY_LINES = (KEY_LINE, CURSOR_KEY_LINE, AZURE_KEY_LINE)
 DROPIN = """\
 Match User boxro
     AuthorizedKeysFile /etc/ssh/authorized_keys/boxro
@@ -55,7 +60,7 @@ def test_static_contracts() -> None:
     if live != list(KEY_LINES):
         _fail(f"expected restrict keys {list(KEY_LINES)!r}, got {live!r}")
     for line in live:
-        if not line.startswith("restrict "):
+        if not (line.startswith("restrict ") or line.startswith("restrict,")):
             _fail(f"key line must start with restrict: {line!r}")
 
     provision = PROVISION.read_text(encoding="utf-8")
@@ -396,10 +401,14 @@ def test_apply_idempotent_and_isolated(tmp_path: Path) -> None:
     if "backups" in fstab or "r2-share" in fstab:
         _fail(f"fstab must not bind secrets: {fstab!r}")
     dest = Path(env["BOXRO_AUTH_DEST"])
-    if dest.read_text(encoding="utf-8") != (app / "deploy" / "ssh" / "boxro_authorized_keys").read_text(
+    src_keys = (app / "deploy" / "ssh" / "boxro_authorized_keys").read_text(
         encoding="utf-8"
-    ):
-        _fail("authorized_keys not synced")
+    )
+    dest_keys = dest.read_text(encoding="utf-8")
+    if dest_keys != src_keys:
+        _fail("authorized_keys not synced as-is")
+    if AZURE_KEY_LINE not in dest_keys:
+        _fail("restrict,from= Azure key missing from dest")
     dropin = Path(env["BOXRO_SSHD_DROPIN"]).read_text(encoding="utf-8")
     if dropin != DROPIN:
         _fail(f"drop-in mismatch: {dropin!r}")
@@ -458,6 +467,37 @@ def test_syncs_additional_restrict_key(tmp_path: Path) -> None:
     Path(env["BOXRO_TEST_LOG"]).write_text("", encoding="utf-8")
     proc = _run(env, "boxro_sync_authorized_keys")
     _assert_ok(proc, "sync unchanged keys")
+    if "systemctl" in Path(env["BOXRO_TEST_LOG"]).read_text(encoding="utf-8"):
+        _fail("keys sync must not call systemctl")
+
+
+def test_syncs_restrict_from_key_as_is(tmp_path: Path) -> None:
+    """restrict,from= is accepted and copied byte-for-byte with existing keys."""
+    _write_stubs(tmp_path / "bin")
+    app = _seed_app(tmp_path)
+    env = _env(tmp_path, app)
+    _assert_ok(_run(env, "boxro_apply"), "seed")
+    extra = (
+        'restrict,from="203.0.113.10" ssh-ed25519 '
+        "AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA "
+        "from-ip-box-vps-ro"
+    )
+    src = Path(env["BOXRO_AUTH_SRC"])
+    body = src.read_text(encoding="utf-8")
+    if not body.endswith("\n"):
+        body += "\n"
+    expected = f"{body}{extra}\n"
+    src.write_text(expected, encoding="utf-8")
+    proc = _run(env, "boxro_sync_authorized_keys")
+    _assert_ok(proc, "sync restrict,from= key")
+    dest = Path(env["BOXRO_AUTH_DEST"]).read_text(encoding="utf-8")
+    if dest != expected:
+        _fail(f"dest must match src as-is: {dest!r}")
+    if extra not in dest or KEY_LINE not in dest or CURSOR_KEY_LINE not in dest:
+        _fail(f"dest missing keys: {dest!r}")
+    Path(env["BOXRO_TEST_LOG"]).write_text("", encoding="utf-8")
+    proc = _run(env, "boxro_sync_authorized_keys")
+    _assert_ok(proc, "sync unchanged restrict,from= keys")
     if "systemctl" in Path(env["BOXRO_TEST_LOG"]).read_text(encoding="utf-8"):
         _fail("keys sync must not call systemctl")
 
@@ -762,6 +802,8 @@ def main() -> None:
         test_rejects_key_without_restrict(Path(raw))
     with TemporaryDirectory() as raw:
         test_syncs_additional_restrict_key(Path(raw))
+    with TemporaryDirectory() as raw:
+        test_syncs_restrict_from_key_as_is(Path(raw))
     with TemporaryDirectory() as raw:
         test_sshd_t_failure_restores_previous(Path(raw))
     with TemporaryDirectory() as raw:
