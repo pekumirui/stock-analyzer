@@ -2,3 +2,5 @@
 # provision.sh が /etc/ssh/authorized_keys/boxro へ同期する（root:root、644）。
 restrict ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAX/NTi1DbHtuQxf4Oig6cjtn2MzcHqMlsShA92t0LkI grokbot-box-vps-ro
 restrict ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMpgCZvddCA++Qu67D2+5fmIBi5tV/BTCG5N1qDW/a+3 cursor-vps-ro
+# KPI Azure VM の読み取り専用 data アクセス（KAB-70）
+restrict,from="74.235.120.220" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB+iB6mk3ya69NHb4G4GFiS9NUNv/8iXMXu1UKKbHh0N azure-vm-vps-data-ro
