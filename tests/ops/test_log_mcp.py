@@ -316,6 +316,8 @@ def test_http_auth_and_tools() -> None:
         "nginx_logs",
         "db_stats",
         "db_lookup",
+        "xbrl_compare",
+        "xbrl_diff_summary",
         "fx_rate",
         "fx_rates",
         "monthly_list",
@@ -1960,6 +1962,310 @@ def test_tool_nginx_logs_window_reads_rotated(tmp_path: Path) -> None:
         m.journal, m.NGINX_ACCESS_LOG, m.NGINX_ERROR_LOG, m._jst_now = orig  # type: ignore[assignment]
 
 
+def _period_block(text: str, period: str) -> str:
+    lines = text.splitlines()
+    start = None
+    for index, line in enumerate(lines):
+        if line.startswith(period):
+            start = index
+            break
+    if start is None:
+        raise SystemExit(f"missing period {period}: {text}")
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        line = lines[index]
+        if len(line) >= 10 and line[4] == "-" and line[:4].isdigit() and line[7] == "-":
+            end = index
+            break
+    return "\n".join(lines[start:end])
+
+
+def _item_cells(block: str, item: str) -> list[str]:
+    for line in block.splitlines():
+        parts = line.split()
+        if parts and parts[0] == item:
+            return parts
+    raise SystemExit(f"missing {item} in {block}")
+
+
+def _source_line(block: str, source: str) -> str:
+    prefix = f"  {source}"
+    for line in block.splitlines():
+        if line.startswith(prefix):
+            return line
+    raise SystemExit(f"missing {source} line in {block}")
+
+
+def test_xbrl_compare_tools() -> None:
+    from tempfile import TemporaryDirectory
+
+    token = "test-token-for-ci-only"
+    prev = os.environ.get("MCP_APP_DIR")
+    prev_url = os.environ.get("DATABASE_URL")
+    with TemporaryDirectory() as d:
+        os.environ["MCP_APP_DIR"] = d
+        os.environ.pop("DATABASE_URL", None)
+        dbp = Path(d) / "stock.db"
+        import sqlite3
+
+        conn = sqlite3.connect(dbp)
+        conn.executescript(
+            """
+            CREATE TABLE stocks (
+                code TEXT PRIMARY KEY, name TEXT, market TEXT, sector33 TEXT, scale_category TEXT
+            );
+            CREATE TABLE statements (
+                disclosure_no TEXT PRIMARY KEY,
+                code TEXT,
+                disclosed_date TEXT,
+                disclosed_time TEXT,
+                type_of_period TEXT,
+                type_of_document TEXT,
+                period_end TEXT,
+                net_sales REAL,
+                operating_profit REAL,
+                ordinary_profit REAL,
+                profit REAL,
+                eps REAL
+            );
+            CREATE TABLE xbrl_filings (
+                id INTEGER PRIMARY KEY,
+                code TEXT NOT NULL,
+                source TEXT NOT NULL,
+                doc_id TEXT NOT NULL,
+                period_type TEXT,
+                submitted_at TEXT NOT NULL,
+                accounting_standard TEXT,
+                is_amendment INTEGER NOT NULL DEFAULT 0,
+                parse_status TEXT NOT NULL
+            );
+            CREATE TABLE xbrl_std_items (
+                id INTEGER PRIMARY KEY,
+                code TEXT NOT NULL,
+                statement TEXT NOT NULL,
+                section TEXT,
+                label_ja TEXT NOT NULL,
+                display_order INTEGER NOT NULL
+            );
+            CREATE TABLE xbrl_financials (
+                id INTEGER PRIMARY KEY,
+                filing_id INTEGER NOT NULL,
+                std_item_id INTEGER NOT NULL,
+                is_consolidated INTEGER NOT NULL,
+                period_end TEXT NOT NULL,
+                value REAL NOT NULL,
+                value_kind TEXT NOT NULL,
+                range_side TEXT NOT NULL
+            );
+            INSERT INTO stocks VALUES ('72030','トヨタ','プライム','輸送用機器','TOPIX Large70');
+            INSERT INTO xbrl_std_items VALUES
+                (6,'total_assets','BS','assets','資産合計',40),
+                (1,'net_sales','PL','operating','売上高',100),
+                (2,'operating_income','PL','operating','営業利益',140),
+                (3,'ordinary_income','PL','nonoperating','経常利益',150),
+                (4,'net_income','PL','tax','親会社株主に帰属する当期純利益',170),
+                (5,'eps_basic','PL','per_share','1株当たり当期純利益',240),
+                (7,'dps','OTHER','dividend','1株当たり配当金',260);
+            """
+        )
+        conn.executemany(
+            "INSERT INTO statements VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            [
+                ("Z-OLD", "72030", "2025-05-01", "15:00", "FY",
+                 "FinancialStatements_Consolidated_FY", "2025-03-31",
+                 7_777_000_000, None, None, None, None),
+                ("A-NEW", "72030", "2025-05-15", "15:30", "FY",
+                 "FinancialStatements_Consolidated_FY", "2025-03-31",
+                 1_000_000_000, 1_000_000_000, 500_000_000, -500_000_000, 100.0),
+                ("F-REV", "72030", "2025-06-01", "10:00", "FY",
+                 "EarnForecastRevision", "2025-03-31",
+                 None, None, None, None, None),
+                ("B-STMT", "72030", "2024-05-10", "15:00", "FY",
+                 "FinancialStatements", "2024-03-31",
+                 2_222_000_000, None, None, None, None),
+                ("C-STMT", "72030", "2025-02-10", "15:00", "3Q",
+                 "FinancialStatements", "2024-12-31",
+                 3_000_000_000, None, None, None, None),
+                ("F2023", "72030", "2023-05-10", "15:00", "FY",
+                 "FinancialStatements", "2023-03-31", 10, None, None, None, None),
+                ("F2022", "72030", "2022-05-10", "15:00", "FY",
+                 "FinancialStatements", "2022-03-31", 10, None, None, None, None),
+                ("F2021", "72030", "2021-05-10", "15:00", "FY",
+                 "FinancialStatements", "2021-03-31", 10, None, None, None, None),
+                ("F2020", "72030", "2020-05-10", "15:00", "FY",
+                 "FinancialStatements", "2020-03-31", 10, None, None, None, None),
+                ("F2017", "72030", "2017-05-10", "15:00", "FY",
+                 "FinancialStatements", "2017-03-31", 10, None, None, None, None),
+            ],
+        )
+        conn.executemany(
+            "INSERT INTO xbrl_filings VALUES (?,?,?,?,?,?,?,?,?)",
+            [
+                (1, "72030", "tdnet", "TD-A", "FY", "2025-05-15 15:30:00", "JPGAAP", 0, "parsed"),
+                (2, "72030", "edinet", "S100OLD", "FY", "2025-06-01 09:00:00", "IFRS", 0, "parsed"),
+                (3, "72030", "edinet", "S100AMND", "FY", "2025-06-25 09:12:00", "IFRS", 1, "parsed"),
+                (4, "72030", "edinet", "S100PEND", "FY", "2025-07-01 09:00:00", "IFRS", 0, "pending"),
+                (5, "72030", "edinet", "S100SOLO", "FY", "2024-06-20 09:00:00", "JPGAAP", 0, "parsed"),
+                (6, "72030", "tdnet", "TD-B", "FY", "2024-05-10 15:00:00", "JPGAAP", 0, "parsed"),
+                (7, "72030", "tdnet", "TD-C", "3Q", "2025-02-10 15:00:00", "JPGAAP", 0, "parsed"),
+                (8, "72030", "edinet", "S100ONLY", "FY", "2023-11-01 09:00:00", "JPGAAP", 0, "parsed"),
+            ],
+        )
+        # filing, std_item, consolidated, period_end, value, value_kind, range_side
+        conn.executemany(
+            "INSERT INTO xbrl_financials (filing_id, std_item_id, is_consolidated, period_end, value, value_kind, range_side) "
+            "VALUES (?,?,?,?,?,?,?)",
+            [
+                (1, 1, 1, "2025-03-31", 1_000_400_000, "actual", "point"),
+                (1, 1, 0, "2025-03-31", 7, "actual", "point"),
+                (1, 2, 1, "2025-03-31", 1_000_000_000, "actual", "point"),
+                (1, 3, 1, "2025-03-31", 500_000_000, "actual", "point"),
+                (1, 4, 1, "2025-03-31", -500_000_000, "actual", "point"),
+                (1, 5, 1, "2025-03-31", 100.00, "actual", "point"),
+                (1, 6, 1, "2025-03-31", 40_000_000_000, "actual", "point"),
+                (1, 7, 1, "2025-03-31", 999, "actual", "point"),
+                (2, 1, 1, "2025-03-31", 42_000_000_000, "actual", "point"),
+                (3, 1, 1, "2025-03-31", 1_000_000_000, "actual", "point"),
+                (3, 2, 1, "2025-03-31", 1_010_000_000, "actual", "point"),
+                (3, 4, 1, "2025-03-31", 500_000_000, "actual", "point"),
+                (3, 5, 1, "2025-03-31", 100.20, "actual", "point"),
+                (3, 6, 1, "2025-03-31", 40_000_000_000, "actual", "point"),
+                (3, 1, 1, "2025-03-31", 123_456_789, "forecast", "point"),
+                (3, 1, 1, "2025-03-31", 555_000_000, "actual", "lower"),
+                (4, 1, 1, "2025-03-31", 99_000_000_000, "actual", "point"),
+                (5, 1, 0, "2024-03-31", 2_222_000_000, "actual", "point"),
+                (6, 1, 1, "2024-03-31", 2_222_000_000, "actual", "point"),
+                (7, 1, 1, "2024-12-31", 3_000_000_000, "actual", "point"),
+                (8, 1, 1, "2023-09-30", 8_000_000_000, "actual", "point"),
+            ],
+        )
+        conn.commit()
+        conn.close()
+        try:
+            text = m.tool_xbrl_compare({"code": "7203"})
+            if "72030" not in text or "トヨタ" not in text or "periods=8" not in text:
+                raise SystemExit(f"header: {text}")
+            if "2017-03-31" in text or "2020-03-31" not in text:
+                raise SystemExit(f"newest 8: {text}")
+            if "dps" in text or "S100OLD" in text or "S100PEND" in text or "Z-OLD" in text or "F-REV" in text:
+                raise SystemExit(f"dropped rows leaked: {text}")
+            for absent in ("7,777,000,000", "42,000,000,000", "99,000,000,000", "123,456,789", "555,000,000"):
+                if absent in text:
+                    raise SystemExit(f"shadow value {absent}: {text}")
+
+            fy = _period_block(text, "2025-03-31")
+            if _item_cells(fy, "net_sales")[1:] != [
+                "1,000,000,000", "1,000,400,000", "1,000,000,000", "OK", "OK", "DIFF",
+            ]:
+                raise SystemExit(f"net_sales rounding: {fy}")
+            if _item_cells(fy, "operating_income")[1:] != [
+                "1,000,000,000", "1,000,000,000", "1,010,000,000", "OK", "DIFF", "DIFF",
+            ]:
+                raise SystemExit(f"operating rel: {fy}")
+            if _item_cells(fy, "ordinary_income")[1:] != [
+                "500,000,000", "500,000,000", "-", "OK", "MISSING", "MISSING",
+            ]:
+                raise SystemExit(f"ordinary missing: {fy}")
+            if _item_cells(fy, "net_income")[1:] != [
+                "-500,000,000", "-500,000,000", "500,000,000", "OK", "DIFF", "DIFF",
+            ]:
+                raise SystemExit(f"sign flip: {fy}")
+            if _item_cells(fy, "eps_basic")[1:] != [
+                "100.00", "100.00", "100.20", "OK", "DIFF", "DIFF",
+            ]:
+                raise SystemExit(f"eps: {fy}")
+            if _item_cells(fy, "total_assets")[1:] != [
+                "-", "40,000,000,000", "40,000,000,000", "-", "-", "OK",
+            ]:
+                raise SystemExit(f"xbrl-only: {fy}")
+            td_line = _source_line(fy, "tdnet")
+            ed_line = _source_line(fy, "edinet")
+            st_line = _source_line(fy, "statements")
+            if "consolidated" not in td_line or " 7 " in td_line:
+                raise SystemExit(f"tdnet consolidated: {td_line}")
+            if "S100AMND" not in ed_line or "AMENDED" not in ed_line or "*" not in ed_line:
+                raise SystemExit(f"amendment mark: {ed_line}")
+            if "A-NEW" not in st_line or "AMENDED" not in st_line:
+                raise SystemExit(f"statements correction: {st_line}")
+
+            solo = _period_block(text, "2024-03-31")
+            if "standalone" not in _source_line(solo, "edinet"):
+                raise SystemExit(f"standalone filing: {solo}")
+            if _item_cells(solo, "net_sales")[1:] != [
+                "2,222,000,000", "2,222,000,000", "2,222,000,000", "OK", "OK", "OK",
+            ]:
+                raise SystemExit(f"standalone value: {solo}")
+
+            empty_ed = _period_block(text, "2024-12-31")
+            if "(no filing)" not in _source_line(empty_ed, "edinet"):
+                raise SystemExit(f"no filing: {empty_ed}")
+            if "MISSING" in empty_ed:
+                raise SystemExit(f"no filing must not be MISSING: {empty_ed}")
+            if _item_cells(empty_ed, "net_sales")[-3:] != ["OK", "-", "-"]:
+                raise SystemExit(f"no filing verdicts: {empty_ed}")
+
+            pinned = m.tool_xbrl_compare({"code": "72030", "period_end": "2017-03-31"})
+            if "2017-03-31" not in pinned or "2025-03-31" in pinned or "periods=1" not in pinned:
+                raise SystemExit(f"period_end pin: {pinned}")
+            for key in ("operating_profit", "operating_income"):
+                narrowed = m.tool_xbrl_compare({"code": "7203", "period_end": "2025-03-31", "items": [key]})
+                if "operating_income" not in narrowed or "net_sales" in narrowed:
+                    raise SystemExit(f"items {key}: {narrowed}")
+            unknown, unknown_err = m.call_tool("xbrl_compare", {"code": "7203", "items": ["not_a_real_item"]})
+            if not unknown_err or "unknown items" not in unknown:
+                raise SystemExit(f"unknown item: {unknown!r}")
+
+            summary = m.tool_xbrl_diff_summary({})
+            if "paired=2" not in summary or "xbrl_periods=3" not in summary or "xbrl_only=1" not in summary:
+                raise SystemExit(f"pair counts: {summary}")
+            if "match=" not in summary or "accounting_standard" not in summary or "IFRS" not in summary:
+                raise SystemExit(f"rates: {summary}")
+            if "sector33" not in summary or "輸送用機器" not in summary:
+                raise SystemExit(f"sector: {summary}")
+            top = summary.split("top diffs", 1)[1].strip().splitlines()
+            first = top[0]
+            for need in ("net_income", "-500,000,000", "500,000,000", "A-NEW", "S100AMND", "DIFF"):
+                if need not in first:
+                    raise SystemExit(f"top diff missing {need}: {first}")
+
+            td_sum, td_err = m.call_tool("xbrl_diff_summary", {"source": "tdnet"})
+            if td_err or "source=tdnet" not in td_sum or "paired=" not in td_sum:
+                raise SystemExit(f"tdnet summary: {td_sum!r}")
+            bad_source, bad_source_err = m.call_tool("xbrl_diff_summary", {"source": "statements"})
+            if not bad_source_err or "source must be" not in bad_source:
+                raise SystemExit(f"bad source: {bad_source!r}")
+            bad_limit, bad_limit_err = m.call_tool("xbrl_diff_summary", {"limit": "abc"})
+            if not bad_limit_err or "limit" not in bad_limit:
+                raise SystemExit(f"bad limit: {bad_limit!r}")
+
+            client = TestClient(m.create_app(token))
+            listed = _rpc(client, "tools/list", req_id=70)
+            names = {tool["name"] for tool in listed.json()["result"]["tools"]}
+            if "xbrl_compare" not in names or "xbrl_diff_summary" not in names:
+                raise SystemExit(f"tools/list: {names}")
+            compared = _rpc(
+                client, "tools/call",
+                {"name": "xbrl_compare", "arguments": {"code": "7203", "period_end": "2025-03-31"}},
+                req_id=71,
+            )
+            body = compared.json()["result"]
+            if body["isError"] or "S100AMND" not in body["content"][0]["text"]:
+                raise SystemExit(f"tools/call compare: {body}")
+            summed = _rpc(client, "tools/call", {"name": "xbrl_diff_summary", "arguments": {}}, req_id=72)
+            sum_body = summed.json()["result"]
+            if sum_body["isError"] or "paired=2" not in sum_body["content"][0]["text"]:
+                raise SystemExit(f"tools/call summary: {sum_body}")
+        finally:
+            if prev is None:
+                os.environ.pop("MCP_APP_DIR", None)
+            else:
+                os.environ["MCP_APP_DIR"] = prev
+            if prev_url is None:
+                os.environ.pop("DATABASE_URL", None)
+            else:
+                os.environ["DATABASE_URL"] = prev_url
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -1990,6 +2296,7 @@ def main() -> None:
         test_tool_nginx_logs_access_timed_and_redacted(logs)
         test_tool_nginx_logs_window_reads_rotated(logs)
     test_db_tools()
+    test_xbrl_compare_tools()
     test_fx_tools()
     test_monthly_tools()
     test_monthly_ingest_tool()
