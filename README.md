@@ -54,6 +54,7 @@ notepad .env                    # JQUANTS_API_KEY を記入
 | `python jobs/fx_rates.py --backfill` | 為替（ECB/EUR）を 1999-01-04 から取得。以後は引数なしで差分 |
 | `python jobs/edinet/edinet_codes.py` | EDINET コードリスト → `edinet_filers` と `stocks.edinet_code`（キー不要） |
 | `python jobs/edinet/edinet_documents.py --backfill-years 5` | EDINET 書類一覧を 5 年分（`EDINET_API_KEY`）。以後は引数なしで直近 7 日の未確定の日 |
+| `python jobs/edinet/edinet_xbrl.py --limit 300` | 有報・半期報の XBRL → `xbrl_financials`（`source='edinet'`）。新しい書類から |
 
 > **バックフィル年数の目安**
 > 指標の計算にはRSが252営業日、MA200が200営業日の履歴を必要とするため、
@@ -160,6 +161,7 @@ jobs/           機能ごと (market/ monthly/ supply/ xbrl/ edinet/ ops/)。cro
   fx_rates.py           Frankfurter 為替（EUR ベース。cron は 08:00 JST）
   edinet/edinet_codes.py      EDINET コードリスト（cron は 07:30 JST）
   edinet/edinet_documents.py  EDINET 書類一覧（cron は 08:40〜23:40 JST 毎時）
+  edinet/edinet_xbrl.py       有報・半期報の XBRL（cron は 08:50〜23:50 JST 毎時 300 件）
   migrate.py            デプロイごとのスキーマ追随と月次の後始末
 tests/          機能ごと (market/ monthly/ supply/ xbrl/ ops/)
   conftest.py   pytest の共通設定（DB はファイルごとに空から）。`python -m pytest tests` で全部走る

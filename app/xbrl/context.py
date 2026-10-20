@@ -478,9 +478,10 @@ def infer_accounting_standard_from_namespaces(
             upper = raw_nfkc.upper()
             if "IFRS" in upper or "SFRS" in upper or "国際会計" in raw_nfkc:
                 return "IFRS"
-            if "US-GAAP" in upper or "USGAAP" in upper or "米国" in raw_nfkc:
+            # EDINET の jpdei_cor:AccountingStandardsDEI は "Japan GAAP" / "US GAAP" / "IFRS"
+            if "US-GAAP" in upper or "USGAAP" in upper or "US GAAP" in upper or "米国" in raw_nfkc:
                 return "USGAAP"
-            if "日本基準" in raw_nfkc or "JPGAAP" in upper:
+            if "日本基準" in raw_nfkc or "JPGAAP" in upper or "JAPAN GAAP" in upper:
                 return "JPGAAP"
     if saw_ifrs and not saw_us:
         return "IFRS"
