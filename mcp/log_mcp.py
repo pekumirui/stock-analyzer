@@ -1479,8 +1479,10 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_db_lookup,
     ),
     "xbrl_compare": (
-        "1銘柄の実績を期末ごとに statements / TDnet XBRL / EDINET XBRL で並べて OK / DIFF / MISSING。"
-        "既定は直近 8 期。各期に doc_id・提出日・連結/単体・訂正。読み取り専用。",
+        (
+            "1銘柄の実績を期末ごとに statements / TDnet XBRL / EDINET XBRL で並べて OK / DIFF / MISSING。"
+            "既定は直近 8 期。各期に doc_id・提出日・連結/単体・訂正。読み取り専用。"
+        ),
         {
             "type": "object",
             "properties": {
@@ -1497,8 +1499,10 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_xbrl_compare,
     ),
     "xbrl_diff_summary": (
-        "市場全体で XBRL と statements の実績を期末で突き合わせた一致率と DIFF 上位。"
-        "source は edinet（既定）か tdnet。since は xbrl_filings.submitted_at。読み取り専用。",
+        (
+            "市場全体で XBRL と statements の実績を期末で突き合わせた一致率と DIFF 上位。"
+            "source は edinet（既定）か tdnet。since は xbrl_filings.submitted_at。読み取り専用。"
+        ),
         {
             "type": "object",
             "properties": {
