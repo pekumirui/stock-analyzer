@@ -15,7 +15,8 @@ permissions:
 jobs:
   backfill:
     name: Fetch TDnet monthly PDFs
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, arm64]
+    timeout-minutes: 120
     env:
       VPS_HOST: ${{ secrets.VPS_HOST }}
       VPS_USER: ${{ secrets.VPS_USER }}
@@ -72,3 +73,7 @@ jobs:
             -o ServerAliveInterval=15 \
             "${USER}@${HOST}" \
             "cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/monthly/tdnet_monthly_r2.py $(printf %q "$DAYS")"
+
+      - name: Remove deploy key
+        if: always()
+        run: rm -f "$HOME/.ssh/id_deploy"

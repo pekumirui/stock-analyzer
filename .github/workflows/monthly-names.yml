@@ -19,7 +19,8 @@ permissions:
 jobs:
   run:
     name: Monthly names ${{ inputs.mode }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, arm64]
+    timeout-minutes: 15
     env:
       VPS_HOST: ${{ secrets.VPS_HOST }}
       VPS_USER: ${{ secrets.VPS_USER }}
@@ -72,3 +73,7 @@ jobs:
             -o ServerAliveInterval=15 \
             "${USER}@${HOST}" \
             "cd /home/stock/stock-analyzer && .venv/bin/python -u jobs/monthly/monthly_names.py ${MODE}"
+
+      - name: Remove deploy key
+        if: always()
+        run: rm -f "$HOME/.ssh/id_deploy"
