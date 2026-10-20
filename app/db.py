@@ -231,6 +231,33 @@ def migrate_xbrl_financials_source_layer() -> int:
         return int(result.rowcount or 0)
 
 
+def migrate_xbrl_elements_is_custom() -> dict[str, int]:
+    """xbrl_elements.is_custom を今の namespace_is_standard で付け直す（KAB-81）。
+
+    変わった行だけ UPDATE。戻り値は {"to_custom": n, "to_standard": n}。何度走らせても同じ。
+    """
+    from app.xbrl.parser import namespace_is_standard
+
+    out = {"to_custom": 0, "to_standard": 0}
+    if "xbrl_elements" not in inspect(engine).get_table_names():
+        return out
+    with engine.begin() as conn:
+        rows = conn.execute(text(
+            "SELECT DISTINCT namespace_key, namespace_uri, is_custom FROM xbrl_elements"
+        )).fetchall()
+        for key, uri, is_custom in rows:
+            want = not namespace_is_standard(key, uri)
+            if bool(is_custom) == want:
+                continue
+            n = conn.execute(
+                text("UPDATE xbrl_elements SET is_custom = :c "
+                     "WHERE namespace_key = :k AND namespace_uri = :u AND is_custom = :old"),
+                {"c": want, "k": key, "u": uri, "old": is_custom},
+            ).rowcount or 0
+            out["to_custom" if want else "to_standard"] += int(n)
+    return out
+
+
 def migrate_xbrl_financials_unique() -> bool:
     """旧 UNIQUE (filing, std, consol, period_end) を予想・レンジ列込みに付け替える。
 
