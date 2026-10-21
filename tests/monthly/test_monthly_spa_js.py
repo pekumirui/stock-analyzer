@@ -985,6 +985,147 @@ def test_monthly_year_window() -> None:
         _fail("empty years")
 
 
+def test_monthly_tree_html_kab87() -> None:
+    """画面の指標 ▸ 区分（#582 / #585 / #586 / #587 / #588）。"""
+    import json
+    import subprocess
+    import tempfile
+
+    from app.monthly.tree import (
+        assign_tree_rows, auto_tree_payload, build_auto_tree, load_monthly_trees, tree_payload,
+    )
+
+    js_path = ROOT / "static" / "js" / "monthly.js"
+
+    def _vals() -> dict:
+        return {str(m): (1 if m == 1 else None) for m in range(1, 13)}
+
+    def _el(name: str, unit: str = "number") -> dict:
+        return {
+            "element": name,
+            "unit": unit,
+            "label": monthly_element_label(name, unit),
+            "values": _vals(),
+        }
+
+    def _cfg(code: str, pairs: list[tuple[str, str]]) -> list[dict]:
+        trees = load_monthly_trees()
+        els = [e for e, _ in pairs]
+        assign = assign_tree_rows(code, els, trees)
+        payload = tree_payload(code, els, trees)
+        return [{
+            "year": 2026, "code": code,
+            "elements": [{**_el(e, u), "tree": assign[e]} for e, u in pairs],
+            **payload,
+        }]
+
+    def _auto(code: str, pairs: list[tuple[str, str]]) -> list[dict]:
+        auto = build_auto_tree(code, {2026: pairs})
+        return [{
+            "year": 2026, "code": code,
+            "elements": [{**_el(e, u), "tree": auto.rows[e]} for e, u in pairs],
+            **auto_tree_payload(auto, [e for e, _ in pairs]),
+        }]
+
+    fixtures = {
+        "sugi": _cfg("76490", [
+            ("スギ薬局 全店 売上高(前年比)", "yoy_index"),
+            ("ドラッグストア事業 全店 売上高(前年比)", "yoy_index"),
+            ("調剤事業 全店 売上高(前年比)", "yoy_index"),
+        ]),
+        "life": _auto("71570", [
+            ("保有契約年換算保険料", "number"),
+            ("保有契約年換算保険料 個人保険", "number"),
+            ("保有契約年換算保険料 団体信用生命保険", "number"),
+        ]),
+        "hirose": _auto("71850", [
+            ("連結営業収益", "number"),
+            ("単体 営業収益", "number"),
+            ("連結顧客口座数", "number"),
+            ("単体 顧客口座数", "number"),
+        ]),
+        "gmo": _cfg("71770", [
+            ("営業収益", "number"),
+            ("受入手数料", "number"),
+            ("トレーディング損益", "number"),
+            ("証券・FX事業 営業収益", "number"),
+            ("クリック 一日平均売買代金", "number"),
+            ("クリック 一日平均売買代金現物", "number"),
+            ("クリック 一日平均売買代金信用", "number"),
+        ]),
+        "nissan": _cfg("87050", [
+            ("純営業収益", "number"),
+            ("受入手数料", "number"),
+            ("預かり資産", "number"),
+            ("リテール事業 預かり資産", "number"),
+            ("ホールセール事業 預かり資産", "number"),
+        ]),
+    }
+    harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+const jsPath = process.argv[process.argv.length - 1];
+const fixtures = """ + json.dumps(fixtures, ensure_ascii=False) + r""";
+const code = fs.readFileSync(jsPath, "utf8");
+const el = {
+  innerHTML: "", value: "", textContent: "",
+  style: { display: "", setProperty() {}, removeProperty() {} },
+  classList: { toggle() {} }, dataset: {}, clientWidth: 720,
+  addEventListener() {},
+};
+const sandbox = {
+  console, fetch: async () => ({ ok: false, json: async () => ({}) }),
+  $: () => el,
+  document: { querySelector: () => el, querySelectorAll: () => [], documentElement: { clientWidth: 720 } },
+  window: { matchMedia: () => ({ matches: false, addEventListener() {} }), addEventListener() {} },
+};
+sandbox.globalThis = sandbox;
+vm.createContext(sandbox);
+vm.runInContext(code, sandbox);
+const nameRe = /<td class="tl-name[^"]*"[^>]*>(?:<span class="tl-tw">[^<]*<\/span>)?([^<]*)/g;
+const namesOf = (html) => [...html.matchAll(nameRe)].map((m) => m[1]);
+const run = (tables, extra) => {
+  vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
+  const tm = sandbox.monthlyTreeModel(tables);
+  sandbox.monthlyTreeSeedOpen(tm);
+  if (extra) extra();
+  return namesOf(sandbox.monthlyTreeHtml(tm, () => "<td></td>", [{y: 2026, m: 1}]));
+};
+const sugi = run(fixtures.sugi, () => vm.runInContext(
+  'monthlyTlOpen.add("m:全店 売上高"); monthlyTlOpen.add("m:全店 売上高\\u203atree:全体\\u203aスギ薬局");', sandbox));
+const life = run(fixtures.life, () => vm.runInContext('monthlyTlOpen.add("m:保有契約年換算保険料");', sandbox));
+const hirose = run(fixtures.hirose, () => vm.runInContext('monthlyTlOpen.add("m:営業収益");', sandbox));
+const gmo = run(fixtures.gmo, () => vm.runInContext(
+  'monthlyTlOpen.add("m:営業収益"); monthlyTlOpen.add("m:一日平均売買代金"); monthlyTlOpen.add("m:一日平均売買代金\\u203atree:全体\\u203aクリック");', sandbox));
+const nissan = run(fixtures.nissan, () => vm.runInContext(
+  'monthlyTlOpen.add("m:純営業収益"); monthlyTlOpen.add("m:預かり資産");', sandbox));
+console.log(JSON.stringify({sugi, life, hirose, gmo, nissan}));
+"""
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as tmp:
+        tmp.write(harness)
+        harness_path = tmp.name
+    try:
+        proc = subprocess.run(
+            ["node", harness_path, str(js_path)],
+            capture_output=True, text=True, encoding="utf-8", cwd=str(ROOT),
+        )
+    finally:
+        Path(harness_path).unlink(missing_ok=True)
+    if proc.returncode != 0:
+        _fail(f"kab87 tree html: {proc.stderr.strip() or proc.stdout.strip() or proc.returncode}")
+    got = json.loads(proc.stdout.strip().splitlines()[-1])
+    if got.get("sugi") != ["全店 売上高", "スギ薬局", "ドラッグストア事業", "調剤事業"]:
+        _fail(f"76490 screen: {got.get('sugi')!r}")
+    if got.get("life") != ["保有契約年換算保険料", "個人保険", "団体信用生命保険"]:
+        _fail(f"71570 screen: {got.get('life')!r}")
+    if got.get("hirose") != ["連結顧客口座数", "単体", "連結営業収益", "単体"]:
+        _fail(f"71850 screen: {got.get('hirose')!r}")
+    if "受入手数料" not in (got.get("gmo") or []) or "現物" not in (got.get("gmo") or []):
+        _fail(f"71770 screen: {got.get('gmo')!r}")
+    if got.get("nissan") != ["純営業収益", "受入手数料", "預かり資産", "リテール事業", "ホールセール事業"]:
+        _fail(f"87050 screen: {got.get('nissan')!r}")
+
+
 def test_monthly_year_color_stable() -> None:
     """色は暦年。2025 は 2026 の有無で変わらない。"""
     if _monthly_year_color(2025) != _MONTHLY_YEAR_COLORS[2025 % 4]:
@@ -1002,6 +1143,7 @@ def main() -> None:
     test_display_units_match_js()
     test_monthly_year_window()
     test_monthly_year_color_stable()
+    test_monthly_tree_html_kab87()
 
 
 if __name__ == "__main__":
