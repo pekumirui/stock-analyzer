@@ -476,7 +476,7 @@ filing 単位。
 9. filing 単位で既存の `xbrl_financials` を消してから入れ直す
 10. `is_required=1` が欠けたら警告ログ（`code, filing_id, std_item.code`）。処理は継続。required は本表実績だけ
 
-通常実行は `xbrl_financials` が無い filing と、`parsed_at` が既存の `generated_at` より新しい filing だけ。`--rebuild` は `xbrl_financials` と `xbrl_segments` を全削除して全 parsed filing を再処理する。`--code` で銘柄を限定できる。
+通常実行は `xbrl_financials` が無い filing と、`parsed_at` が既存の `generated_at` より新しい filing だけ。`--rebuild` は `xbrl_financials` と `xbrl_segments` を全削除して全 parsed filing を再処理する。ログの `deleted` / `segments_deleted` は消す前、`financials` / `segments` は作り直した後の行数（KAB-83。正規化が変わっていなければ前後が同じ）。`--code` で銘柄を限定できる。
 
 ### 6.5 CLI
 
