@@ -6486,27 +6486,27 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 82190	2023	2	legacy	yoy_index	ビジネスウェア 既存 売上高(前年比)	ビジネスウェア 既存 売上高(前年比)	yoy_index	ビジネスウェア 既存 売上高(前年比)	sales	ビジネスウェア	既存	売上高	全体 > ビジネスウェア	既存 売上高
 82190	2023	3	legacy	yoy_index	ビジネスウェア 既存 客数(前年比)	ビジネスウェア 既存 客数(前年比)	yoy_index	ビジネスウェア 既存 客数(前年比)	customers	ビジネスウェア	既存	客数	全体 > ビジネスウェア	既存 客数
 82190	2023	4	legacy	yoy_index	ビジネスウェア 既存 客単価(前年比)	ビジネスウェア 既存 客単価(前年比)	yoy_index	ビジネスウェア 既存 客単価(前年比)	spend	ビジネスウェア	既存	客単価	全体 > ビジネスウェア	既存 客単価
-82190	2023	5	legacy	number	洋服の青山 店舗数	洋服の青山 店舗数	number	洋服の青山 店舗数	stores	洋服の青山		店舗数	全体 > 洋服の青山	店舗数
-82190	2023	6	legacy	number	TSC他 店舗数	TSC他 店舗数	number	TSC他 店舗数	stores	TSC他		店舗数	全体 > TSC他	店舗数
+82190	2023	5	legacy	number	洋服の青山 店舗数	洋服の青山 店舗数	number	洋服の青山 店舗数	stores	洋服の青山		店舗数	全体 > ビジネスウェア > 洋服の青山	店舗数
+82190	2023	6	legacy	number	TSC他 店舗数	TSC他 店舗数	number	TSC他 店舗数	stores	TSC他		店舗数	全体 > ビジネスウェア > TSC他	店舗数
 82190	2024	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 82190	2024	2	legacy	yoy_index	ビジネスウェア 既存 売上高(前年比)	ビジネスウェア 既存 売上高(前年比)	yoy_index	ビジネスウェア 既存 売上高(前年比)	sales	ビジネスウェア	既存	売上高	全体 > ビジネスウェア	既存 売上高
 82190	2024	3	legacy	yoy_index	ビジネスウェア 既存 客数(前年比)	ビジネスウェア 既存 客数(前年比)	yoy_index	ビジネスウェア 既存 客数(前年比)	customers	ビジネスウェア	既存	客数	全体 > ビジネスウェア	既存 客数
 82190	2024	4	legacy	yoy_index	ビジネスウェア 既存 客単価(前年比)	ビジネスウェア 既存 客単価(前年比)	yoy_index	ビジネスウェア 既存 客単価(前年比)	spend	ビジネスウェア	既存	客単価	全体 > ビジネスウェア	既存 客単価
-82190	2024	5	legacy	number	洋服の青山 店舗数	洋服の青山 店舗数	number	洋服の青山 店舗数	stores	洋服の青山		店舗数	全体 > 洋服の青山	店舗数
-82190	2024	6	legacy	number	TSC他 店舗数	TSC他 店舗数	number	TSC他 店舗数	stores	TSC他		店舗数	全体 > TSC他	店舗数
+82190	2024	5	legacy	number	洋服の青山 店舗数	洋服の青山 店舗数	number	洋服の青山 店舗数	stores	洋服の青山		店舗数	全体 > ビジネスウェア > 洋服の青山	店舗数
+82190	2024	6	legacy	number	TSC他 店舗数	TSC他 店舗数	number	TSC他 店舗数	stores	TSC他		店舗数	全体 > ビジネスウェア > TSC他	店舗数
 82190	2025	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 82190	2025	2	legacy	yoy_index	ビジネスウェア 既存 売上高(前年比)	ビジネスウェア 既存 売上高(前年比)	yoy_index	ビジネスウェア 既存 売上高(前年比)	sales	ビジネスウェア	既存	売上高	全体 > ビジネスウェア	既存 売上高
 82190	2025	3	legacy	yoy_index	ビジネスウェア 既存 客数(前年比)	ビジネスウェア 既存 客数(前年比)	yoy_index	ビジネスウェア 既存 客数(前年比)	customers	ビジネスウェア	既存	客数	全体 > ビジネスウェア	既存 客数
 82190	2025	4	legacy	yoy_index	ビジネスウェア 既存 客単価(前年比)	ビジネスウェア 既存 客単価(前年比)	yoy_index	ビジネスウェア 既存 客単価(前年比)	spend	ビジネスウェア	既存	客単価	全体 > ビジネスウェア	既存 客単価
-82190	2025	5	legacy	number	洋服の青山 店舗数	洋服の青山 店舗数	number	洋服の青山 店舗数	stores	洋服の青山		店舗数	全体 > 洋服の青山	店舗数
-82190	2025	6	legacy	number	TSC他 店舗数	TSC他 店舗数	number	TSC他 店舗数	stores	TSC他		店舗数	全体 > TSC他	店舗数
-82190	2025	7	legacy	number	SUIT SQUARE他 店舗数	SUIT SQUARE他 店舗数	number	SUIT SQUARE他 店舗数	stores	SUIT SQUARE他		店舗数	全体 > SUIT SQUARE他	店舗数
+82190	2025	5	legacy	number	洋服の青山 店舗数	洋服の青山 店舗数	number	洋服の青山 店舗数	stores	洋服の青山		店舗数	全体 > ビジネスウェア > 洋服の青山	店舗数
+82190	2025	6	legacy	number	TSC他 店舗数	TSC他 店舗数	number	TSC他 店舗数	stores	TSC他		店舗数	全体 > ビジネスウェア > TSC他	店舗数
+82190	2025	7	legacy	number	SUIT SQUARE他 店舗数	SUIT SQUARE他 店舗数	number	SUIT SQUARE他 店舗数	stores	SUIT SQUARE他		店舗数	全体 > ビジネスウェア > SUIT SQUARE他	店舗数
 82190	2026	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 82190	2026	2	legacy	yoy_index	ビジネスウェア 既存 売上高(前年比)	ビジネスウェア 既存 売上高(前年比)	yoy_index	ビジネスウェア 既存 売上高(前年比)	sales	ビジネスウェア	既存	売上高	全体 > ビジネスウェア	既存 売上高
 82190	2026	3	legacy	yoy_index	ビジネスウェア 既存 客数(前年比)	ビジネスウェア 既存 客数(前年比)	yoy_index	ビジネスウェア 既存 客数(前年比)	customers	ビジネスウェア	既存	客数	全体 > ビジネスウェア	既存 客数
 82190	2026	4	legacy	yoy_index	ビジネスウェア 既存 客単価(前年比)	ビジネスウェア 既存 客単価(前年比)	yoy_index	ビジネスウェア 既存 客単価(前年比)	spend	ビジネスウェア	既存	客単価	全体 > ビジネスウェア	既存 客単価
-82190	2026	5	legacy	number	洋服の青山 店舗数	洋服の青山 店舗数	number	洋服の青山 店舗数	stores	洋服の青山		店舗数	全体 > 洋服の青山	店舗数
-82190	2026	6	legacy	number	SUIT SQUARE他 店舗数	SUIT SQUARE他 店舗数	number	SUIT SQUARE他 店舗数	stores	SUIT SQUARE他		店舗数	全体 > SUIT SQUARE他	店舗数
+82190	2026	5	legacy	number	洋服の青山 店舗数	洋服の青山 店舗数	number	洋服の青山 店舗数	stores	洋服の青山		店舗数	全体 > ビジネスウェア > 洋服の青山	店舗数
+82190	2026	6	legacy	number	SUIT SQUARE他 店舗数	SUIT SQUARE他 店舗数	number	SUIT SQUARE他 店舗数	stores	SUIT SQUARE他		店舗数	全体 > ビジネスウェア > SUIT SQUARE他	店舗数
 82330	2024	1	legacy	yoy_index	髙島屋計 売上高(前年比)	髙島屋計 売上高(前年比)	yoy_index	髙島屋計 売上高(前年比)	sales	髙島屋計		売上高	全体 > 髙島屋	売上高
 82330	2024	2	legacy	yoy_index	髙島屋および国内百貨店子会社計 売上高(前年比)	髙島屋および国内百貨店子会社計 売上高(前年比)	yoy_index	髙島屋および国内百貨店子会社計 売上高(前年比)	sales	髙島屋および国内百貨店子会社計		売上高	全体	売上高
 82330	2024	3	legacy	yoy_index	髙島屋 既存 売上高(前年比)	髙島屋 既存 売上高(前年比)	yoy_index	髙島屋 既存 売上高(前年比)	sales	髙島屋	既存	売上高	全体 > 髙島屋	既存 売上高
@@ -6761,21 +6761,21 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 82330	2026	83	legacy	yoy_index	商品別 髙島屋および国内百貨店子会社 売上高(前年比)	髙島屋および国内百貨店子会社計 売上高(前年比)	yoy_index	髙島屋および国内百貨店子会社計 売上高(前年比)	sales	髙島屋および国内百貨店子会社計		売上高	全体	売上高
 82330	2026	84	legacy	yoy_index	堺店 売上高(前年比)	堺店 売上高(前年比)	yoy_index	堺店 売上高(前年比)	sales	堺店		売上高	全体 > 髙島屋 > 髙島屋各店 > 堺店	売上高
 82330	2026	85	legacy	yoy_index	堺店 入店 客数(前年比)	堺店 入店 客数(前年比)	yoy_index	堺店 入店 客数(前年比)	customers	堺店 入店		客数	全体 > 髙島屋 > 髙島屋各店 > 堺店	入店客数
-82370	2022	1	legacy	yoy_index	銀座本店 全店 売上高(前年比)	銀座本店 全店 売上高(前年比)	yoy_index	銀座本店 全店 売上高(前年比)	sales	銀座本店	全店	売上高	全体 > 銀座本店	全店 売上高
-82370	2022	2	legacy	yoy_index	銀座店 全店 売上高(前年比)	銀座店 全店 売上高(前年比)	yoy_index	銀座店 全店 売上高(前年比)	sales	銀座店	全店	売上高	全体 > 銀座店	全店 売上高
-82370	2022	3	legacy	yoy_index	浅草店 全店 売上高(前年比)	浅草店 全店 売上高(前年比)	yoy_index	浅草店 全店 売上高(前年比)	sales	浅草店	全店	売上高	全体 > 浅草店	全店 売上高
-82370	2023	1	legacy	yoy_index	銀座本店 全店 売上高(前年比)	銀座本店 全店 売上高(前年比)	yoy_index	銀座本店 全店 売上高(前年比)	sales	銀座本店	全店	売上高	全体 > 銀座本店	全店 売上高
-82370	2023	2	legacy	yoy_index	銀座店 全店 売上高(前年比)	銀座店 全店 売上高(前年比)	yoy_index	銀座店 全店 売上高(前年比)	sales	銀座店	全店	売上高	全体 > 銀座店	全店 売上高
-82370	2023	3	legacy	yoy_index	浅草店 全店 売上高(前年比)	浅草店 全店 売上高(前年比)	yoy_index	浅草店 全店 売上高(前年比)	sales	浅草店	全店	売上高	全体 > 浅草店	全店 売上高
-82370	2024	1	legacy	yoy_index	銀座本店 全店 売上高(前年比)	銀座本店 全店 売上高(前年比)	yoy_index	銀座本店 全店 売上高(前年比)	sales	銀座本店	全店	売上高	全体 > 銀座本店	全店 売上高
-82370	2024	2	legacy	yoy_index	銀座店 全店 売上高(前年比)	銀座店 全店 売上高(前年比)	yoy_index	銀座店 全店 売上高(前年比)	sales	銀座店	全店	売上高	全体 > 銀座店	全店 売上高
-82370	2024	3	legacy	yoy_index	浅草店 全店 売上高(前年比)	浅草店 全店 売上高(前年比)	yoy_index	浅草店 全店 売上高(前年比)	sales	浅草店	全店	売上高	全体 > 浅草店	全店 売上高
-82370	2025	1	legacy	yoy_index	銀座本店 全店 売上高(前年比)	銀座本店 全店 売上高(前年比)	yoy_index	銀座本店 全店 売上高(前年比)	sales	銀座本店	全店	売上高	全体 > 銀座本店	全店 売上高
-82370	2025	2	legacy	yoy_index	銀座店 全店 売上高(前年比)	銀座店 全店 売上高(前年比)	yoy_index	銀座店 全店 売上高(前年比)	sales	銀座店	全店	売上高	全体 > 銀座店	全店 売上高
-82370	2025	3	legacy	yoy_index	浅草店 全店 売上高(前年比)	浅草店 全店 売上高(前年比)	yoy_index	浅草店 全店 売上高(前年比)	sales	浅草店	全店	売上高	全体 > 浅草店	全店 売上高
-82370	2026	1	legacy	yoy_index	銀座店 全店 売上高(前年比)	銀座店 全店 売上高(前年比)	yoy_index	銀座店 全店 売上高(前年比)	sales	銀座店	全店	売上高	全体 > 銀座店	全店 売上高
-82370	2026	2	legacy	yoy_index	浅草店 全店 売上高(前年比)	浅草店 全店 売上高(前年比)	yoy_index	浅草店 全店 売上高(前年比)	sales	浅草店	全店	売上高	全体 > 浅草店	全店 売上高
-82370	2026	3	legacy	yoy_index	銀座本店 全店 売上高(前年比)	銀座本店 全店 売上高(前年比)	yoy_index	銀座本店 全店 売上高(前年比)	sales	銀座本店	全店	売上高	全体 > 銀座本店	全店 売上高
+82370	2022	1	legacy	yoy_index	銀座本店 全店 売上高(前年比)	銀座本店 全店 売上高(前年比)	yoy_index	銀座本店 全店 売上高(前年比)	sales	銀座本店	全店	売上高	銀座本店	全店 売上高
+82370	2022	2	legacy	yoy_index	銀座店 全店 売上高(前年比)	銀座店 全店 売上高(前年比)	yoy_index	銀座店 全店 売上高(前年比)	sales	銀座店	全店	売上高	銀座本店 > 銀座店	全店 売上高
+82370	2022	3	legacy	yoy_index	浅草店 全店 売上高(前年比)	浅草店 全店 売上高(前年比)	yoy_index	浅草店 全店 売上高(前年比)	sales	浅草店	全店	売上高	銀座本店 > 浅草店	全店 売上高
+82370	2023	1	legacy	yoy_index	銀座本店 全店 売上高(前年比)	銀座本店 全店 売上高(前年比)	yoy_index	銀座本店 全店 売上高(前年比)	sales	銀座本店	全店	売上高	銀座本店	全店 売上高
+82370	2023	2	legacy	yoy_index	銀座店 全店 売上高(前年比)	銀座店 全店 売上高(前年比)	yoy_index	銀座店 全店 売上高(前年比)	sales	銀座店	全店	売上高	銀座本店 > 銀座店	全店 売上高
+82370	2023	3	legacy	yoy_index	浅草店 全店 売上高(前年比)	浅草店 全店 売上高(前年比)	yoy_index	浅草店 全店 売上高(前年比)	sales	浅草店	全店	売上高	銀座本店 > 浅草店	全店 売上高
+82370	2024	1	legacy	yoy_index	銀座本店 全店 売上高(前年比)	銀座本店 全店 売上高(前年比)	yoy_index	銀座本店 全店 売上高(前年比)	sales	銀座本店	全店	売上高	銀座本店	全店 売上高
+82370	2024	2	legacy	yoy_index	銀座店 全店 売上高(前年比)	銀座店 全店 売上高(前年比)	yoy_index	銀座店 全店 売上高(前年比)	sales	銀座店	全店	売上高	銀座本店 > 銀座店	全店 売上高
+82370	2024	3	legacy	yoy_index	浅草店 全店 売上高(前年比)	浅草店 全店 売上高(前年比)	yoy_index	浅草店 全店 売上高(前年比)	sales	浅草店	全店	売上高	銀座本店 > 浅草店	全店 売上高
+82370	2025	1	legacy	yoy_index	銀座本店 全店 売上高(前年比)	銀座本店 全店 売上高(前年比)	yoy_index	銀座本店 全店 売上高(前年比)	sales	銀座本店	全店	売上高	銀座本店	全店 売上高
+82370	2025	2	legacy	yoy_index	銀座店 全店 売上高(前年比)	銀座店 全店 売上高(前年比)	yoy_index	銀座店 全店 売上高(前年比)	sales	銀座店	全店	売上高	銀座本店 > 銀座店	全店 売上高
+82370	2025	3	legacy	yoy_index	浅草店 全店 売上高(前年比)	浅草店 全店 売上高(前年比)	yoy_index	浅草店 全店 売上高(前年比)	sales	浅草店	全店	売上高	銀座本店 > 浅草店	全店 売上高
+82370	2026	1	legacy	yoy_index	銀座店 全店 売上高(前年比)	銀座店 全店 売上高(前年比)	yoy_index	銀座店 全店 売上高(前年比)	sales	銀座店	全店	売上高	銀座本店 > 銀座店	全店 売上高
+82370	2026	2	legacy	yoy_index	浅草店 全店 売上高(前年比)	浅草店 全店 売上高(前年比)	yoy_index	浅草店 全店 売上高(前年比)	sales	浅草店	全店	売上高	銀座本店 > 浅草店	全店 売上高
+82370	2026	3	legacy	yoy_index	銀座本店 全店 売上高(前年比)	銀座本店 全店 売上高(前年比)	yoy_index	銀座本店 全店 売上高(前年比)	sales	銀座本店	全店	売上高	銀座本店	全店 売上高
 82550	2023	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 82550	2023	2	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 82550	2023	3	legacy	yoy_index	（従来基準） 全店 売上高(前年比)	（従来基準） 全店 売上高(前年比)	yoy_index	（従来基準） 全店 売上高(前年比)	sales	（従来基準）	全店	売上高	全体 > （従来基準）	全店 売上高
