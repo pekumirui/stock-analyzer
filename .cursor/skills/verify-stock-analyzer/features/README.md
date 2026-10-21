@@ -11,7 +11,7 @@ Read this index, then the matching feature file, before driving the app.
 - 月次 Detail needs a non-empty `GET /api/v1/tables`. Cloud Agent builds copy production `monthly_*` when `VPS_SSH_KEY` is set; empty monthly is `verified-unreachable` (see `features/monthly.md`).
 - サプライ monthly / countries need `material_monthly` / `material_trade_country`. The golden DB (`./run.sh golden`, the `.cursor/install.sh` default) has them; a backfilled or box DB copy usually does not. Empty is `verified-unreachable` only after trying a golden side DB (see `features/supply.md`).
 - PTS rows need `pts_snapshots` (prod cron `jobs/market/pts_snapshot.py`). Neither the golden DB nor a DB copy has them; empty is 「PTS のデータがまだありません」 (see `features/pts.md`).
-- 修正履歴 with `?rev_source=xbrl` needs `xbrl_financials` rows; the default `jquants` source reads `statements` only.
+- 修正履歴 with `?rev_source=xbrl` needs `xbrl_financials` rows from TDnet filings (`source='tdnet'`; EDINET rows are not read); the default `jquants` source reads `statements` only.
 
 ## Driving conventions
 
