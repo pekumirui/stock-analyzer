@@ -31,7 +31,7 @@ Uses the repo's `stock.db` (read-only for UI proofs). Do not `.\run.ps1 reset` /
 
 If `stock.db` is missing, launch still starts (empty UI). Doctor then fails until a DB exists: `./run.sh golden` (seconds; golden real data for ~45 codes, all monthly, recent `material_*`) or `./run.sh backfill 2` (all codes, ~40 min). `jobs/golden_db.py` writes to `DATABASE_URL`, so `DATABASE_URL=sqlite:////abs/path/golden.db .venv/bin/python jobs/golden_db.py` builds a side DB (about 6 s) without touching `stock.db`.
 
-If launch prints `uvicorn exited 1`, read `.run/uvicorn.log`. `app.db.SchemaMismatch` (e.g. `xbrl_financials: value_kind, range_side, target_period, source_layer`) means the DB is older than the code. `./run.sh migrate` (`jobs/migrate.py`) adds the columns; run it only on a DB this run owns (a copy), never on a shared or production DB. On start the app also `create_all`s missing tables (e.g. empty `pts_snapshots`).
+If launch prints `uvicorn exited 1`, read `.run/uvicorn.log`. `app.db.SchemaMismatch` (e.g. `xbrl_financials: value_kind, range_side, target_period, source_layer`, or `stocks: edinet_code` / `xbrl_contexts: member_labels_json` from the EDINET ingest #793/#804) means the DB is older than the code. `./run.sh migrate` (`jobs/migrate.py`) adds the columns; run it only on a DB this run owns (a copy), never on a shared or production DB. On start the app also `create_all`s missing tables (e.g. empty `pts_snapshots`).
 
 Teardown: see Cleanup. Keep the server up for the whole drive.
 
