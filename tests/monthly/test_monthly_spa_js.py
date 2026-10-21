@@ -1049,9 +1049,9 @@ def test_monthly_tree_html_kab87() -> None:
             ("受入手数料", "number"),
             ("トレーディング損益", "number"),
             ("証券・FX事業 営業収益", "number"),
-            ("クリック 一日平均売買代金", "number"),
-            ("クリック 一日平均売買代金現物", "number"),
-            ("クリック 一日平均売買代金信用", "number"),
+            ("クリック証券 一日平均売買代金", "number"),
+            ("クリック証券 一日平均売買代金現物", "number"),
+            ("クリック証券 一日平均売買代金信用", "number"),
         ]),
         "nissan": _cfg("87050", [
             ("純営業収益", "number"),
@@ -1096,7 +1096,7 @@ const sugi = run(fixtures.sugi, () => vm.runInContext(
 const life = run(fixtures.life, () => vm.runInContext('monthlyTlOpen.add("m:保有契約年換算保険料");', sandbox));
 const hirose = run(fixtures.hirose, () => vm.runInContext('monthlyTlOpen.add("m:営業収益");', sandbox));
 const gmo = run(fixtures.gmo, () => vm.runInContext(
-  'monthlyTlOpen.add("m:営業収益"); monthlyTlOpen.add("m:一日平均売買代金"); monthlyTlOpen.add("m:一日平均売買代金\\u203atree:全体\\u203aクリック");', sandbox));
+  'monthlyTlOpen.add("m:営業収益"); monthlyTlOpen.add("m:一日平均売買代金"); monthlyTlOpen.add("m:一日平均売買代金\\u203atree:全体\\u203aクリック証券");', sandbox));
 const nissan = run(fixtures.nissan, () => vm.runInContext(
   'monthlyTlOpen.add("m:純営業収益"); monthlyTlOpen.add("m:預かり資産");', sandbox));
 console.log(JSON.stringify({sugi, life, hirose, gmo, nissan}));
