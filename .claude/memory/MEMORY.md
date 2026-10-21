@@ -1,8 +1,5 @@
-- [verify-live DB](verify-live-db.md) — stock.db → /workspace/verify-live/stock.db は検証用の本番コピー。自由に使ってよい
 - [並列エージェントは体数を確認](confirm-parallel-agent-count.md) — issue は切ってよいが、起動前に何体かを示して了承を得る
-- [作業ツリーは他セッションと共有](shared-workdir-sessions.md) — same-dir で複数セッション同居。checkout 衝突に注意、worktree 推奨
 - [月次の計算値は次の段階](monthly-computed-metrics-later.md) — 寄与度など月次に無い値は今は足さない
 - [月次の横持ちは指標 ▸ 組織](monthly-view-analyst-order.md) — 既存店売上高が先頭、指標タブは却下、ブランドは 1 回だけ
-- [共有データは data/ で読める](share-data-readable.md) — 月次 PDF は MCP fs_*（root=data）か /mnt/vps/data/monthly/<code>/
 - [全店名残は手で付け替え](scope-word-fix-manual.md) — #502 の 全店 外しは alias/migrate でなく本番を手で
 - [IR Bank のセグメント売上は外部顧客](irbank-segment-revenue-external.md) — list_segments の revenue は外部顧客への売上高。利益は有報と違う会社あり
