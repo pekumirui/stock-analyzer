@@ -35,25 +35,25 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 138A0	2026	10	legacy	number	大黒・魚椿 FC 店舗数	大黒・魚椿 FC 店舗数	number	大黒・魚椿 FC 店舗数	stores	大黒・魚椿		店舗数	全体 > 大黒・魚椿 > FC	店舗数
 138A0	2026	11	legacy	number	大黒・魚椿 店舗数	大黒・魚椿 店舗数	number	大黒・魚椿 店舗数	stores	大黒・魚椿		店舗数	全体 > 大黒・魚椿	店舗数
 138A0	2026	12	legacy	number	大黒・魚椿 業務委託店 店舗数	大黒・魚椿 業務委託店 店舗数	number	大黒・魚椿 業務委託店 店舗数	stores	大黒・魚椿 業務委託店		店舗数	全体 > 大黒・魚椿 > 業務委託	店舗数
-14190	2024	1	legacy	yoy_index	注文住宅 受注高(前年比)	注文住宅 受注高(前年比)	yoy_index	注文住宅 受注高(前年比)	other	注文住宅 受注高			全体	注文住宅 受注高
-14190	2024	2	legacy	yoy_index	戸建分譲 受注高(前年比)	戸建分譲 受注高(前年比)	yoy_index	戸建分譲 受注高(前年比)	other	戸建分譲 受注高			全体	戸建分譲 受注高
-14190	2024	3	legacy	yoy_index	リフォーム 受注高(前年比)	リフォーム 受注高(前年比)	yoy_index	リフォーム 受注高(前年比)	other	リフォーム 受注高			全体	リフォーム 受注高
+14190	2024	1	legacy	yoy_index	注文住宅 受注高(前年比)	注文住宅 受注高(前年比)	yoy_index	注文住宅 受注高(前年比)	other	注文住宅 受注高			全体 > 注文住宅	受注高
+14190	2024	2	legacy	yoy_index	戸建分譲 受注高(前年比)	戸建分譲 受注高(前年比)	yoy_index	戸建分譲 受注高(前年比)	other	戸建分譲 受注高			全体 > 戸建分譲	受注高
+14190	2024	3	legacy	yoy_index	リフォーム 受注高(前年比)	リフォーム 受注高(前年比)	yoy_index	リフォーム 受注高(前年比)	other	リフォーム 受注高			全体 > リフォーム	受注高
 14190	2024	4	legacy	yoy_index	受注高(前年比)	受注高(前年比)	yoy_index	受注高(前年比)	other	受注高			全体	受注高
-14190	2024	5	legacy	yoy_index	注文住宅 受注 粗利益ベース(前年比)	注文住宅 受注 粗利益ベース(前年比)	yoy_index	注文住宅 受注 粗利益ベース(前年比)	other	注文住宅 受注 粗利益ベース			全体	注文住宅 受注 粗利益ベース
-14190	2024	6	legacy	yoy_index	戸建分譲 受注 粗利益ベース(前年比)	戸建分譲 受注 粗利益ベース(前年比)	yoy_index	戸建分譲 受注 粗利益ベース(前年比)	other	戸建分譲 受注 粗利益ベース			全体	戸建分譲 受注 粗利益ベース
-14190	2024	7	legacy	yoy_index	リフォーム 受注 粗利益ベース(前年比)	リフォーム 受注 粗利益ベース(前年比)	yoy_index	リフォーム 受注 粗利益ベース(前年比)	other	リフォーム 受注 粗利益ベース			全体	リフォーム 受注 粗利益ベース
+14190	2024	5	legacy	yoy_index	注文住宅 受注 粗利益ベース(前年比)	注文住宅 受注 粗利益ベース(前年比)	yoy_index	注文住宅 受注 粗利益ベース(前年比)	other	注文住宅 受注 粗利益ベース			全体 > 注文住宅	受注 粗利益ベース
+14190	2024	6	legacy	yoy_index	戸建分譲 受注 粗利益ベース(前年比)	戸建分譲 受注 粗利益ベース(前年比)	yoy_index	戸建分譲 受注 粗利益ベース(前年比)	other	戸建分譲 受注 粗利益ベース			全体 > 戸建分譲	受注 粗利益ベース
+14190	2024	7	legacy	yoy_index	リフォーム 受注 粗利益ベース(前年比)	リフォーム 受注 粗利益ベース(前年比)	yoy_index	リフォーム 受注 粗利益ベース(前年比)	other	リフォーム 受注 粗利益ベース			全体 > リフォーム	受注 粗利益ベース
 14190	2024	8	legacy	yoy_index	受注 粗利益ベース(前年比)	受注 粗利益ベース(前年比)	yoy_index	受注 粗利益ベース(前年比)	other	受注 粗利益ベース			全体	受注 粗利益ベース
-14190	2025	1	legacy	yoy_index	注文住宅 受注 粗利益ベース(前年比)	注文住宅 受注 粗利益ベース(前年比)	yoy_index	注文住宅 受注 粗利益ベース(前年比)	other	注文住宅 受注 粗利益ベース			全体	注文住宅 受注 粗利益ベース
-14190	2025	2	legacy	yoy_index	戸建分譲 受注 粗利益ベース(前年比)	戸建分譲 受注 粗利益ベース(前年比)	yoy_index	戸建分譲 受注 粗利益ベース(前年比)	other	戸建分譲 受注 粗利益ベース			全体	戸建分譲 受注 粗利益ベース
-14190	2025	3	legacy	yoy_index	リフォーム 受注 粗利益ベース(前年比)	リフォーム 受注 粗利益ベース(前年比)	yoy_index	リフォーム 受注 粗利益ベース(前年比)	other	リフォーム 受注 粗利益ベース			全体	リフォーム 受注 粗利益ベース
+14190	2025	1	legacy	yoy_index	注文住宅 受注 粗利益ベース(前年比)	注文住宅 受注 粗利益ベース(前年比)	yoy_index	注文住宅 受注 粗利益ベース(前年比)	other	注文住宅 受注 粗利益ベース			全体 > 注文住宅	受注 粗利益ベース
+14190	2025	2	legacy	yoy_index	戸建分譲 受注 粗利益ベース(前年比)	戸建分譲 受注 粗利益ベース(前年比)	yoy_index	戸建分譲 受注 粗利益ベース(前年比)	other	戸建分譲 受注 粗利益ベース			全体 > 戸建分譲	受注 粗利益ベース
+14190	2025	3	legacy	yoy_index	リフォーム 受注 粗利益ベース(前年比)	リフォーム 受注 粗利益ベース(前年比)	yoy_index	リフォーム 受注 粗利益ベース(前年比)	other	リフォーム 受注 粗利益ベース			全体 > リフォーム	受注 粗利益ベース
 14190	2025	4	legacy	yoy_index	受注 粗利益ベース(前年比)	受注 粗利益ベース(前年比)	yoy_index	受注 粗利益ベース(前年比)	other	受注 粗利益ベース			全体	受注 粗利益ベース
-14190	2026	1	legacy	yoy_index	注文住宅 受注高(前年比)	注文住宅 受注高(前年比)	yoy_index	注文住宅 受注高(前年比)	other	注文住宅 受注高			全体	注文住宅 受注高
-14190	2026	2	legacy	yoy_index	戸建分譲 受注高(前年比)	戸建分譲 受注高(前年比)	yoy_index	戸建分譲 受注高(前年比)	other	戸建分譲 受注高			全体	戸建分譲 受注高
-14190	2026	3	legacy	yoy_index	リフォーム 受注高(前年比)	リフォーム 受注高(前年比)	yoy_index	リフォーム 受注高(前年比)	other	リフォーム 受注高			全体	リフォーム 受注高
+14190	2026	1	legacy	yoy_index	注文住宅 受注高(前年比)	注文住宅 受注高(前年比)	yoy_index	注文住宅 受注高(前年比)	other	注文住宅 受注高			全体 > 注文住宅	受注高
+14190	2026	2	legacy	yoy_index	戸建分譲 受注高(前年比)	戸建分譲 受注高(前年比)	yoy_index	戸建分譲 受注高(前年比)	other	戸建分譲 受注高			全体 > 戸建分譲	受注高
+14190	2026	3	legacy	yoy_index	リフォーム 受注高(前年比)	リフォーム 受注高(前年比)	yoy_index	リフォーム 受注高(前年比)	other	リフォーム 受注高			全体 > リフォーム	受注高
 14190	2026	4	legacy	yoy_index	受注高(前年比)	受注高(前年比)	yoy_index	受注高(前年比)	other	受注高			全体	受注高
-14190	2026	5	legacy	yoy_index	注文住宅 受注 粗利益ベース(前年比)	注文住宅 受注 粗利益ベース(前年比)	yoy_index	注文住宅 受注 粗利益ベース(前年比)	other	注文住宅 受注 粗利益ベース			全体	注文住宅 受注 粗利益ベース
-14190	2026	6	legacy	yoy_index	戸建分譲 受注 粗利益ベース(前年比)	戸建分譲 受注 粗利益ベース(前年比)	yoy_index	戸建分譲 受注 粗利益ベース(前年比)	other	戸建分譲 受注 粗利益ベース			全体	戸建分譲 受注 粗利益ベース
-14190	2026	7	legacy	yoy_index	リフォーム 受注 粗利益ベース(前年比)	リフォーム 受注 粗利益ベース(前年比)	yoy_index	リフォーム 受注 粗利益ベース(前年比)	other	リフォーム 受注 粗利益ベース			全体	リフォーム 受注 粗利益ベース
+14190	2026	5	legacy	yoy_index	注文住宅 受注 粗利益ベース(前年比)	注文住宅 受注 粗利益ベース(前年比)	yoy_index	注文住宅 受注 粗利益ベース(前年比)	other	注文住宅 受注 粗利益ベース			全体 > 注文住宅	受注 粗利益ベース
+14190	2026	6	legacy	yoy_index	戸建分譲 受注 粗利益ベース(前年比)	戸建分譲 受注 粗利益ベース(前年比)	yoy_index	戸建分譲 受注 粗利益ベース(前年比)	other	戸建分譲 受注 粗利益ベース			全体 > 戸建分譲	受注 粗利益ベース
+14190	2026	7	legacy	yoy_index	リフォーム 受注 粗利益ベース(前年比)	リフォーム 受注 粗利益ベース(前年比)	yoy_index	リフォーム 受注 粗利益ベース(前年比)	other	リフォーム 受注 粗利益ベース			全体 > リフォーム	受注 粗利益ベース
 14190	2026	8	legacy	yoy_index	受注 粗利益ベース(前年比)	受注 粗利益ベース(前年比)	yoy_index	受注 粗利益ベース(前年比)	other	受注 粗利益ベース			全体	受注 粗利益ベース
 141A0	2024	1	legacy	yoy_index	トライアル 既存 売上高(前年比)	トライアル 既存 売上高(前年比)	yoy_index	トライアル 既存 売上高(前年比)	sales	トライアル	既存	売上高	全体 > トライアル	既存 売上高
 141A0	2024	2	legacy	yoy_index	トライアル 既存 客数(前年比)	トライアル 既存 客数(前年比)	yoy_index	トライアル 既存 客数(前年比)	customers	トライアル	既存	客数	全体 > トライアル	既存 客数
@@ -173,33 +173,33 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 21240	2024	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
 21240	2024	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
 21240	2024	3	legacy	number	連結売上総利益	連結売上総利益	number	連結売上総利益	sales			連結売上総利益	全体	連結売上総利益
-21240	2024	4	legacy	yoy_index	連結売上総利益増減率(前年比)	連結売上総利益増減率(前年比)	yoy_index	連結売上総利益増減率(前年比)	sales			連結売上総利益増減率	全体	連結売上総利益増減率
+21240	2024	4	legacy	yoy_index	連結売上総利益増減率(前年比)	連結売上総利益増減率(前年比)	yoy_index	連結売上総利益増減率(前年比)	sales			連結売上総利益増減率	全体	連結売上総利益
 21240	2024	5	legacy	number	従業員数	従業員数	number	従業員数	count			従業員数	全体	従業員数
-21240	2024	6	legacy	yoy_index	従業員数増減率(前年比)	従業員数増減率(前年比)	yoy_index	従業員数増減率(前年比)	other	従業員数増減率			全体	従業員数増減率
+21240	2024	6	legacy	yoy_index	従業員数増減率(前年比)	従業員数増減率(前年比)	yoy_index	従業員数増減率(前年比)	other	従業員数増減率			全体	従業員数
 21240	2024	7	legacy	number	コンサルタント人員	コンサルタント人員	number	コンサルタント人員	other	コンサルタント人員			全体	コンサルタント人員
-21240	2024	8	legacy	yoy_index	コンサルタント人員増減率(前年比)	コンサルタント人員増減率(前年比)	yoy_index	コンサルタント人員増減率(前年比)	other	コンサルタント人員増減率			全体	コンサルタント人員増減率
+21240	2024	8	legacy	yoy_index	コンサルタント人員増減率(前年比)	コンサルタント人員増減率(前年比)	yoy_index	コンサルタント人員増減率(前年比)	other	コンサルタント人員増減率			全体	コンサルタント人員
 21240	2024	9	legacy	number	採用決定人数	採用決定人数	number	採用決定人数	count			採用決定人数	全体	採用決定人数
-21240	2024	10	legacy	yoy_index	採用決定人数増減率(前年比)	採用決定人数増減率(前年比)	yoy_index	採用決定人数増減率(前年比)	other	採用決定人数増減率			全体	採用決定人数増減率
+21240	2024	10	legacy	yoy_index	採用決定人数増減率(前年比)	採用決定人数増減率(前年比)	yoy_index	採用決定人数増減率(前年比)	other	採用決定人数増減率			全体	採用決定人数
 21240	2025	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
 21240	2025	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
 21240	2025	3	legacy	number	連結売上総利益	連結売上総利益	number	連結売上総利益	sales			連結売上総利益	全体	連結売上総利益
-21240	2025	4	legacy	yoy_index	連結売上総利益増減率(前年比)	連結売上総利益増減率(前年比)	yoy_index	連結売上総利益増減率(前年比)	sales			連結売上総利益増減率	全体	連結売上総利益増減率
+21240	2025	4	legacy	yoy_index	連結売上総利益増減率(前年比)	連結売上総利益増減率(前年比)	yoy_index	連結売上総利益増減率(前年比)	sales			連結売上総利益増減率	全体	連結売上総利益
 21240	2025	5	legacy	number	従業員数	従業員数	number	従業員数	count			従業員数	全体	従業員数
-21240	2025	6	legacy	yoy_index	従業員数増減率(前年比)	従業員数増減率(前年比)	yoy_index	従業員数増減率(前年比)	other	従業員数増減率			全体	従業員数増減率
+21240	2025	6	legacy	yoy_index	従業員数増減率(前年比)	従業員数増減率(前年比)	yoy_index	従業員数増減率(前年比)	other	従業員数増減率			全体	従業員数
 21240	2025	7	legacy	number	コンサルタント人員	コンサルタント人員	number	コンサルタント人員	other	コンサルタント人員			全体	コンサルタント人員
-21240	2025	8	legacy	yoy_index	コンサルタント人員増減率(前年比)	コンサルタント人員増減率(前年比)	yoy_index	コンサルタント人員増減率(前年比)	other	コンサルタント人員増減率			全体	コンサルタント人員増減率
+21240	2025	8	legacy	yoy_index	コンサルタント人員増減率(前年比)	コンサルタント人員増減率(前年比)	yoy_index	コンサルタント人員増減率(前年比)	other	コンサルタント人員増減率			全体	コンサルタント人員
 21240	2025	9	legacy	number	採用決定人数	採用決定人数	number	採用決定人数	count			採用決定人数	全体	採用決定人数
-21240	2025	10	legacy	yoy_index	採用決定人数増減率(前年比)	採用決定人数増減率(前年比)	yoy_index	採用決定人数増減率(前年比)	other	採用決定人数増減率			全体	採用決定人数増減率
+21240	2025	10	legacy	yoy_index	採用決定人数増減率(前年比)	採用決定人数増減率(前年比)	yoy_index	採用決定人数増減率(前年比)	other	採用決定人数増減率			全体	採用決定人数
 21240	2026	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
 21240	2026	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
 21240	2026	3	legacy	number	連結売上総利益	連結売上総利益	number	連結売上総利益	sales			連結売上総利益	全体	連結売上総利益
-21240	2026	4	legacy	yoy_index	連結売上総利益増減率(前年比)	連結売上総利益増減率(前年比)	yoy_index	連結売上総利益増減率(前年比)	sales			連結売上総利益増減率	全体	連結売上総利益増減率
+21240	2026	4	legacy	yoy_index	連結売上総利益増減率(前年比)	連結売上総利益増減率(前年比)	yoy_index	連結売上総利益増減率(前年比)	sales			連結売上総利益増減率	全体	連結売上総利益
 21240	2026	5	legacy	number	従業員数	従業員数	number	従業員数	count			従業員数	全体	従業員数
-21240	2026	6	legacy	yoy_index	従業員数増減率(前年比)	従業員数増減率(前年比)	yoy_index	従業員数増減率(前年比)	other	従業員数増減率			全体	従業員数増減率
+21240	2026	6	legacy	yoy_index	従業員数増減率(前年比)	従業員数増減率(前年比)	yoy_index	従業員数増減率(前年比)	other	従業員数増減率			全体	従業員数
 21240	2026	7	legacy	number	コンサルタント人員	コンサルタント人員	number	コンサルタント人員	other	コンサルタント人員			全体	コンサルタント人員
-21240	2026	8	legacy	yoy_index	コンサルタント人員増減率(前年比)	コンサルタント人員増減率(前年比)	yoy_index	コンサルタント人員増減率(前年比)	other	コンサルタント人員増減率			全体	コンサルタント人員増減率
+21240	2026	8	legacy	yoy_index	コンサルタント人員増減率(前年比)	コンサルタント人員増減率(前年比)	yoy_index	コンサルタント人員増減率(前年比)	other	コンサルタント人員増減率			全体	コンサルタント人員
 21240	2026	9	legacy	number	採用決定人数	採用決定人数	number	採用決定人数	count			採用決定人数	全体	採用決定人数
-21240	2026	10	legacy	yoy_index	採用決定人数増減率(前年比)	採用決定人数増減率(前年比)	yoy_index	採用決定人数増減率(前年比)	other	採用決定人数増減率			全体	採用決定人数増減率
+21240	2026	10	legacy	yoy_index	採用決定人数増減率(前年比)	採用決定人数増減率(前年比)	yoy_index	採用決定人数増減率(前年比)	other	採用決定人数増減率			全体	採用決定人数
 212A0	2025	1	legacy	number	会員数	会員数	number	会員数	other	会員数			全体	会員数
 212A0	2025	2	legacy	yoy_index	会員数(前年比)	会員数(前年比)	yoy_index	会員数(前年比)	other	会員数			全体	会員数
 212A0	2025	3	legacy	number	会員数 既存	会員数 既存	number	会員数 既存	other	会員数	既存		全体 > 既存	会員数
@@ -233,35 +233,35 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 212A0	2026	15	legacy	number	九州沖縄 店舗数	九州沖縄 店舗数	number	九州沖縄 店舗数	stores	九州沖縄		店舗数	全体 > 九州沖縄	全店 店舗数
 212A0	2026	16	legacy	yoy_index	会員数 既存(前年比)	会員数 既存(前年比)	yoy_index	会員数 既存(前年比)	other	会員数	既存		全体 > 既存	会員数
 21540	2024	1	legacy	number	エンジニア 在籍人数	エンジニア 在籍人数	number	エンジニア 在籍人数	count	エンジニア		在籍人数	全体 > エンジニア	在籍人数
-21540	2024	2	legacy	number	エンジニア 稼働率	エンジニア 稼働率	number	エンジニア 稼働率	other	エンジニア 稼働率			全体	エンジニア 稼働率
+21540	2024	2	legacy	number	エンジニア 稼働率	エンジニア 稼働率	number	エンジニア 稼働率	other	エンジニア 稼働率			全体 > エンジニア	稼働率
 21540	2024	3	legacy	number	機電・IT 在籍人数	機電・IT 在籍人数	number	機電・IT 在籍人数	count	機電・IT		在籍人数	全体 > 機電・IT	在籍人数
 21540	2024	4	legacy	number	機電 在籍人数	機電 在籍人数	number	機電 在籍人数	count	機電		在籍人数	全体 > 機電	在籍人数
 21540	2024	5	legacy	number	IT 在籍人数	IT 在籍人数	number	IT 在籍人数	count	IT		在籍人数	全体 > IT	在籍人数
-21540	2024	6	legacy	number	機電・IT 稼働率	機電・IT 稼働率	number	機電・IT 稼働率	other	機電・IT 稼働率			全体	機電・IT 稼働率
-21540	2024	7	legacy	number	機電 稼働率	機電 稼働率	number	機電 稼働率	other	機電 稼働率			全体	機電 稼働率
-21540	2024	8	legacy	number	IT 稼働率	IT 稼働率	number	IT 稼働率	other	IT 稼働率			全体	IT 稼働率
+21540	2024	6	legacy	number	機電・IT 稼働率	機電・IT 稼働率	number	機電・IT 稼働率	other	機電・IT 稼働率			全体 > 機電・IT	稼働率
+21540	2024	7	legacy	number	機電 稼働率	機電 稼働率	number	機電 稼働率	other	機電 稼働率			全体 > 機電	稼働率
+21540	2024	8	legacy	number	IT 稼働率	IT 稼働率	number	IT 稼働率	other	IT 稼働率			全体 > IT	稼働率
 21540	2024	9	legacy	number	建設エンジニア 在籍人数	建設エンジニア 在籍人数	number	建設エンジニア 在籍人数	count	建設エンジニア		在籍人数	全体 > 建設エンジニア	在籍人数
-21540	2024	10	legacy	number	建設エンジニア 稼働率	建設エンジニア 稼働率	number	建設エンジニア 稼働率	other	建設エンジニア 稼働率			全体	建設エンジニア 稼働率
+21540	2024	10	legacy	number	建設エンジニア 稼働率	建設エンジニア 稼働率	number	建設エンジニア 稼働率	other	建設エンジニア 稼働率			全体 > 建設エンジニア	稼働率
 21540	2025	1	legacy	number	エンジニア 在籍人数	エンジニア 在籍人数	number	エンジニア 在籍人数	count	エンジニア		在籍人数	全体 > エンジニア	在籍人数
-21540	2025	2	legacy	number	エンジニア 稼働率	エンジニア 稼働率	number	エンジニア 稼働率	other	エンジニア 稼働率			全体	エンジニア 稼働率
+21540	2025	2	legacy	number	エンジニア 稼働率	エンジニア 稼働率	number	エンジニア 稼働率	other	エンジニア 稼働率			全体 > エンジニア	稼働率
 21540	2025	3	legacy	number	機電・IT 在籍人数	機電・IT 在籍人数	number	機電・IT 在籍人数	count	機電・IT		在籍人数	全体 > 機電・IT	在籍人数
 21540	2025	4	legacy	number	機電 在籍人数	機電 在籍人数	number	機電 在籍人数	count	機電		在籍人数	全体 > 機電	在籍人数
 21540	2025	5	legacy	number	IT 在籍人数	IT 在籍人数	number	IT 在籍人数	count	IT		在籍人数	全体 > IT	在籍人数
-21540	2025	6	legacy	number	機電・IT 稼働率	機電・IT 稼働率	number	機電・IT 稼働率	other	機電・IT 稼働率			全体	機電・IT 稼働率
-21540	2025	7	legacy	number	機電 稼働率	機電 稼働率	number	機電 稼働率	other	機電 稼働率			全体	機電 稼働率
-21540	2025	8	legacy	number	IT 稼働率	IT 稼働率	number	IT 稼働率	other	IT 稼働率			全体	IT 稼働率
+21540	2025	6	legacy	number	機電・IT 稼働率	機電・IT 稼働率	number	機電・IT 稼働率	other	機電・IT 稼働率			全体 > 機電・IT	稼働率
+21540	2025	7	legacy	number	機電 稼働率	機電 稼働率	number	機電 稼働率	other	機電 稼働率			全体 > 機電	稼働率
+21540	2025	8	legacy	number	IT 稼働率	IT 稼働率	number	IT 稼働率	other	IT 稼働率			全体 > IT	稼働率
 21540	2025	9	legacy	number	建設エンジニア 在籍人数	建設エンジニア 在籍人数	number	建設エンジニア 在籍人数	count	建設エンジニア		在籍人数	全体 > 建設エンジニア	在籍人数
-21540	2025	10	legacy	number	建設エンジニア 稼働率	建設エンジニア 稼働率	number	建設エンジニア 稼働率	other	建設エンジニア 稼働率			全体	建設エンジニア 稼働率
+21540	2025	10	legacy	number	建設エンジニア 稼働率	建設エンジニア 稼働率	number	建設エンジニア 稼働率	other	建設エンジニア 稼働率			全体 > 建設エンジニア	稼働率
 21540	2026	1	legacy	number	エンジニア 在籍人数	エンジニア 在籍人数	number	エンジニア 在籍人数	count	エンジニア		在籍人数	全体 > エンジニア	在籍人数
-21540	2026	2	legacy	number	エンジニア 稼働率	エンジニア 稼働率	number	エンジニア 稼働率	other	エンジニア 稼働率			全体	エンジニア 稼働率
+21540	2026	2	legacy	number	エンジニア 稼働率	エンジニア 稼働率	number	エンジニア 稼働率	other	エンジニア 稼働率			全体 > エンジニア	稼働率
 21540	2026	3	legacy	number	機電・IT 在籍人数	機電・IT 在籍人数	number	機電・IT 在籍人数	count	機電・IT		在籍人数	全体 > 機電・IT	在籍人数
 21540	2026	4	legacy	number	機電 在籍人数	機電 在籍人数	number	機電 在籍人数	count	機電		在籍人数	全体 > 機電	在籍人数
 21540	2026	5	legacy	number	IT 在籍人数	IT 在籍人数	number	IT 在籍人数	count	IT		在籍人数	全体 > IT	在籍人数
-21540	2026	6	legacy	number	機電・IT 稼働率	機電・IT 稼働率	number	機電・IT 稼働率	other	機電・IT 稼働率			全体	機電・IT 稼働率
-21540	2026	7	legacy	number	機電 稼働率	機電 稼働率	number	機電 稼働率	other	機電 稼働率			全体	機電 稼働率
-21540	2026	8	legacy	number	IT 稼働率	IT 稼働率	number	IT 稼働率	other	IT 稼働率			全体	IT 稼働率
+21540	2026	6	legacy	number	機電・IT 稼働率	機電・IT 稼働率	number	機電・IT 稼働率	other	機電・IT 稼働率			全体 > 機電・IT	稼働率
+21540	2026	7	legacy	number	機電 稼働率	機電 稼働率	number	機電 稼働率	other	機電 稼働率			全体 > 機電	稼働率
+21540	2026	8	legacy	number	IT 稼働率	IT 稼働率	number	IT 稼働率	other	IT 稼働率			全体 > IT	稼働率
 21540	2026	9	legacy	number	建設エンジニア 在籍人数	建設エンジニア 在籍人数	number	建設エンジニア 在籍人数	count	建設エンジニア		在籍人数	全体 > 建設エンジニア	在籍人数
-21540	2026	10	legacy	number	建設エンジニア 稼働率	建設エンジニア 稼働率	number	建設エンジニア 稼働率	other	建設エンジニア 稼働率			全体	建設エンジニア 稼働率
+21540	2026	10	legacy	number	建設エンジニア 稼働率	建設エンジニア 稼働率	number	建設エンジニア 稼働率	other	建設エンジニア 稼働率			全体 > 建設エンジニア	稼働率
 22940	2024	1	legacy	number	精肉事業 売上高	精肉事業 売上高	number	精肉事業 売上高	sales	精肉事業		売上高	全体 > 精肉事業	売上高
 22940	2024	2	legacy	yoy_index	精肉事業 売上高(前年比)	精肉事業 売上高(前年比)	yoy_index	精肉事業 売上高(前年比)	sales	精肉事業		売上高	全体 > 精肉事業	売上高
 22940	2024	3	legacy	number	精肉事業 既存 売上高	精肉事業 既存 売上高	number	精肉事業 既存 売上高	sales	精肉事業	既存	売上高	全体 > 精肉事業	既存 売上高
@@ -399,12 +399,12 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 23110	2026	12	legacy	number	LESSO EPCO 経常利益	LESSO EPCO 経常利益	number	LESSO EPCO 経常利益	other	LESSO EPCO 経常利益			全体	LESSO EPCO 経常利益
 23110	2026	13	legacy	number	その他 経常利益	その他 経常利益	number	その他 経常利益	other	その他 経常利益			全体	その他 経常利益
 23110	2026	14	legacy	yoy_index	TEPCO ホームテック 経常利益(前年比)	TEPCO ホームテック 経常利益(前年比)	yoy_index	TEPCO ホームテック 経常利益(前年比)	other	TEPCO ホームテック 経常利益			全体	TEPCO ホームテック 経常利益
-23370	2026	1	legacy	number	いちご 発電量	いちご 発電量	number	いちご 発電量	other	いちご 発電量			全体	いちご 発電量
-23370	2026	2	legacy	number	いちごグリーン 発電量	いちごグリーン 発電量	number	いちごグリーン 発電量	other	いちごグリーン 発電量			全体	いちごグリーン 発電量
+23370	2026	1	legacy	number	いちご 発電量	いちご 発電量	number	いちご 発電量	other	いちご 発電量			全体 > いちご	発電量
+23370	2026	2	legacy	number	いちごグリーン 発電量	いちごグリーン 発電量	number	いちごグリーン 発電量	other	いちごグリーン 発電量			全体 > いちごグリーン	発電量
 23370	2026	3	legacy	number	発電量	発電量	number	発電量	other	発電量			全体	発電量
 23370	2026	4	legacy	yoy_index	発電量(前年比)	発電量(前年比)	yoy_index	発電量(前年比)	other	発電量			全体	発電量
-23370	2026	5	legacy	number	いちご CO2削減量	いちご CO2削減量	number	いちご CO2削減量	other	いちご CO2削減量			全体	いちご CO2削減量
-23370	2026	6	legacy	number	いちごグリーン CO2削減量	いちごグリーン CO2削減量	number	いちごグリーン CO2削減量	other	いちごグリーン CO2削減量			全体	いちごグリーン CO2削減量
+23370	2026	5	legacy	number	いちご CO2削減量	いちご CO2削減量	number	いちご CO2削減量	other	いちご CO2削減量			全体 > いちご	CO2削減量
+23370	2026	6	legacy	number	いちごグリーン CO2削減量	いちごグリーン CO2削減量	number	いちごグリーン CO2削減量	other	いちごグリーン CO2削減量			全体 > いちごグリーン	CO2削減量
 23370	2026	7	legacy	number	CO2削減量	CO2削減量	number	CO2削減量	other	CO2削減量			全体	CO2削減量
 245A0	2024	1	legacy	yoy_index	ラーメン事業 全店 売上高(前年比)	ラーメン事業 全店 売上高(前年比)	yoy_index	ラーメン事業 全店 売上高(前年比)	sales	ラーメン事業	全店	売上高	全体 > ラーメン事業	全店 売上高
 245A0	2024	2	legacy	yoy_index	ラーメン事業 全店 客単価(前年比)	ラーメン事業 全店 客単価(前年比)	yoy_index	ラーメン事業 全店 客単価(前年比)	spend	ラーメン事業	全店	客単価	全体 > ラーメン事業	全店 客単価
@@ -836,8 +836,8 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 26870	2026	1	legacy	yoy_index	営業利益(前年比)	営業利益(前年比)	yoy_index	営業利益(前年比)	other	営業利益			全体	営業利益
 26870	2026	2	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
 26870	2026	3	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-26870	2026	4	legacy	number	連結営業利益	連結営業利益	number	連結営業利益	other			連結営業利益	全体	連結営業利益
-26870	2026	5	legacy	yoy_index	連結営業利益(前年比)	連結営業利益(前年比)	yoy_index	連結営業利益(前年比)	other			連結営業利益	全体	連結営業利益
+26870	2026	4	legacy	number	連結営業利益	連結営業利益	number	連結営業利益	other			連結営業利益	全体	営業利益
+26870	2026	5	legacy	yoy_index	連結営業利益(前年比)	連結営業利益(前年比)	yoy_index	連結営業利益(前年比)	other			連結営業利益	全体	営業利益
 26950	2024	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 26950	2024	2	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 26950	2024	3	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
@@ -867,14 +867,14 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 26980	2024	1	legacy	yoy_index	直営 既存 売上高(前年比)	直営 既存 売上高(前年比)	yoy_index	直営 既存 売上高(前年比)	sales		既存	売上高	全体	直営 既存 売上高
 26980	2024	2	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	全社 売上高
 26980	2024	3	legacy	number	単体 店舗数	単体 店舗数	number	単体 店舗数	stores	単体		店舗数	全体 > 単体	店舗数
-26980	2024	4	legacy	number	連結店舗数	連結店舗数	number	連結店舗数	stores			連結店舗数	全体	連結店舗数
+26980	2024	4	legacy	number	連結店舗数	連結店舗数	number	連結店舗数	stores			連結店舗数	全体	店舗数
 26980	2025	1	legacy	yoy_index	直営 既存 売上高(前年比)	直営 既存 売上高(前年比)	yoy_index	直営 既存 売上高(前年比)	sales		既存	売上高	全体	直営 既存 売上高
 26980	2025	2	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	全社 売上高
 26980	2025	3	legacy	number	単体 店舗数	単体 店舗数	number	単体 店舗数	stores	単体		店舗数	全体 > 単体	店舗数
-26980	2025	4	legacy	number	連結店舗数	連結店舗数	number	連結店舗数	stores			連結店舗数	全体	連結店舗数
+26980	2025	4	legacy	number	連結店舗数	連結店舗数	number	連結店舗数	stores			連結店舗数	全体	店舗数
 26980	2026	1	legacy	yoy_index	直営 既存 売上高(前年比)	直営 既存 売上高(前年比)	yoy_index	直営 既存 売上高(前年比)	sales		既存	売上高	全体	直営 既存 売上高
 26980	2026	2	legacy	number	単体 店舗数	単体 店舗数	number	単体 店舗数	stores	単体		店舗数	全体 > 単体	店舗数
-26980	2026	3	legacy	number	連結店舗数	連結店舗数	number	連結店舗数	stores			連結店舗数	全体	連結店舗数
+26980	2026	3	legacy	number	連結店舗数	連結店舗数	number	連結店舗数	stores			連結店舗数	全体	店舗数
 26980	2026	4	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	全社 売上高
 27020	2024	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 27020	2024	2	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
@@ -1303,23 +1303,23 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 29700	2026	4	legacy	number	賃貸管理 管理戸数累計	賃貸管理 管理戸数累計	number	賃貸管理 管理戸数累計	other	賃貸管理 管理戸数累計			全体	賃貸管理 管理戸数累計
 29700	2026	5	legacy	number	エネルギー ガス設備管理戸数累計	エネルギー ガス設備管理戸数累計	number	エネルギー ガス設備管理戸数累計	other	エネルギー ガス設備管理戸数累計			全体	エネルギー ガス設備管理戸数累計
 29910	2023	1	legacy	number	不動産売買 取引件数	不動産売買 取引件数	number	不動産売買 取引件数	count	不動産売買		取引件数	全体 > 不動産売買	取引件数
-29910	2023	2	legacy	number	不動産売買 業績	不動産売買 業績	number	不動産売買 業績	other	不動産売買 業績			全体	不動産売買 業績
-29910	2023	3	legacy	yoy_index	不動産売買 業績(前年比)	不動産売買 業績(前年比)	yoy_index	不動産売買 業績(前年比)	other	不動産売買 業績			全体	不動産売買 業績
+29910	2023	2	legacy	number	不動産売買 業績	不動産売買 業績	number	不動産売買 業績	other	不動産売買 業績			全体 > 不動産売買	業績
+29910	2023	3	legacy	yoy_index	不動産売買 業績(前年比)	不動産売買 業績(前年比)	yoy_index	不動産売買 業績(前年比)	other	不動産売買 業績			全体 > 不動産売買	業績
 29910	2023	4	legacy	number	管理戸数	管理戸数	number	管理戸数	count			管理戸数	全体	管理戸数
 29910	2023	5	legacy	number	入居率	入居率	number	入居率	other	入居率			全体	入居率
 29910	2024	1	legacy	number	不動産売買 取引件数	不動産売買 取引件数	number	不動産売買 取引件数	count	不動産売買		取引件数	全体 > 不動産売買	取引件数
-29910	2024	2	legacy	number	不動産売買 業績	不動産売買 業績	number	不動産売買 業績	other	不動産売買 業績			全体	不動産売買 業績
-29910	2024	3	legacy	yoy_index	不動産売買 業績(前年比)	不動産売買 業績(前年比)	yoy_index	不動産売買 業績(前年比)	other	不動産売買 業績			全体	不動産売買 業績
+29910	2024	2	legacy	number	不動産売買 業績	不動産売買 業績	number	不動産売買 業績	other	不動産売買 業績			全体 > 不動産売買	業績
+29910	2024	3	legacy	yoy_index	不動産売買 業績(前年比)	不動産売買 業績(前年比)	yoy_index	不動産売買 業績(前年比)	other	不動産売買 業績			全体 > 不動産売買	業績
 29910	2024	4	legacy	number	管理戸数	管理戸数	number	管理戸数	count			管理戸数	全体	管理戸数
 29910	2024	5	legacy	number	入居率	入居率	number	入居率	other	入居率			全体	入居率
 29910	2025	1	legacy	number	不動産売買 取引件数	不動産売買 取引件数	number	不動産売買 取引件数	count	不動産売買		取引件数	全体 > 不動産売買	取引件数
-29910	2025	2	legacy	number	不動産売買 業績	不動産売買 業績	number	不動産売買 業績	other	不動産売買 業績			全体	不動産売買 業績
-29910	2025	3	legacy	yoy_index	不動産売買 業績(前年比)	不動産売買 業績(前年比)	yoy_index	不動産売買 業績(前年比)	other	不動産売買 業績			全体	不動産売買 業績
+29910	2025	2	legacy	number	不動産売買 業績	不動産売買 業績	number	不動産売買 業績	other	不動産売買 業績			全体 > 不動産売買	業績
+29910	2025	3	legacy	yoy_index	不動産売買 業績(前年比)	不動産売買 業績(前年比)	yoy_index	不動産売買 業績(前年比)	other	不動産売買 業績			全体 > 不動産売買	業績
 29910	2025	4	legacy	number	管理戸数	管理戸数	number	管理戸数	count			管理戸数	全体	管理戸数
 29910	2025	5	legacy	number	入居率	入居率	number	入居率	other	入居率			全体	入居率
 29910	2026	1	legacy	number	不動産売買 取引件数	不動産売買 取引件数	number	不動産売買 取引件数	count	不動産売買		取引件数	全体 > 不動産売買	取引件数
-29910	2026	2	legacy	number	不動産売買 業績	不動産売買 業績	number	不動産売買 業績	other	不動産売買 業績			全体	不動産売買 業績
-29910	2026	3	legacy	yoy_index	不動産売買 業績(前年比)	不動産売買 業績(前年比)	yoy_index	不動産売買 業績(前年比)	other	不動産売買 業績			全体	不動産売買 業績
+29910	2026	2	legacy	number	不動産売買 業績	不動産売買 業績	number	不動産売買 業績	other	不動産売買 業績			全体 > 不動産売買	業績
+29910	2026	3	legacy	yoy_index	不動産売買 業績(前年比)	不動産売買 業績(前年比)	yoy_index	不動産売買 業績(前年比)	other	不動産売買 業績			全体 > 不動産売買	業績
 29910	2026	4	legacy	number	管理戸数	管理戸数	number	管理戸数	count			管理戸数	全体	管理戸数
 29910	2026	5	legacy	number	入居率	入居率	number	入居率	other	入居率			全体	入居率
 29970	2024	1	legacy	number	部屋数	部屋数	number	部屋数	count			部屋数	全体	部屋数
@@ -3787,20 +3787,20 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 46800	2026	14	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
 47760	2023	1	legacy	number	連結営業利益	連結営業利益	number	連結営業利益	other			連結営業利益	全体	連結営業利益
 47760	2023	2	legacy	yoy_index	連結営業利益(前年比)	連結営業利益(前年比)	yoy_index	連結営業利益(前年比)	other			連結営業利益	全体	連結営業利益
-47760	2023	3	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
-47760	2023	4	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
+47760	2023	3	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	売上高
+47760	2023	4	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
 47760	2023	5	legacy	yoy_index	クラウド関連事業 売上高(前年比)	クラウド関連事業 売上高(前年比)	yoy_index	クラウド関連事業 売上高(前年比)	sales	クラウド関連事業		売上高	全体 > クラウド関連事業	売上高
 47760	2023	6	legacy	number	クラウド関連事業 売上高	クラウド関連事業 売上高	number	クラウド関連事業 売上高	sales	クラウド関連事業		売上高	全体 > クラウド関連事業	売上高
-47760	2024	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
-47760	2024	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
+47760	2024	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	売上高
+47760	2024	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
 47760	2024	3	legacy	number	クラウド関連事業 売上高	クラウド関連事業 売上高	number	クラウド関連事業 売上高	sales	クラウド関連事業		売上高	全体 > クラウド関連事業	売上高
 47760	2024	4	legacy	yoy_index	クラウド関連事業 売上高(前年比)	クラウド関連事業 売上高(前年比)	yoy_index	クラウド関連事業 売上高(前年比)	sales	クラウド関連事業		売上高	全体 > クラウド関連事業	売上高
-47760	2025	1	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
+47760	2025	1	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
 47760	2025	2	legacy	yoy_index	クラウド関連事業 売上高(前年比)	クラウド関連事業 売上高(前年比)	yoy_index	クラウド関連事業 売上高(前年比)	sales	クラウド関連事業		売上高	全体 > クラウド関連事業	売上高
-47760	2025	3	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
+47760	2025	3	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	売上高
 47760	2025	4	legacy	number	クラウド関連事業 売上高	クラウド関連事業 売上高	number	クラウド関連事業 売上高	sales	クラウド関連事業		売上高	全体 > クラウド関連事業	売上高
-47760	2026	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
-47760	2026	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
+47760	2026	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	売上高
+47760	2026	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
 47760	2026	3	legacy	number	クラウド関連事業 売上高	クラウド関連事業 売上高	number	クラウド関連事業 売上高	sales	クラウド関連事業		売上高	全体 > クラウド関連事業	売上高
 47760	2026	4	legacy	yoy_index	クラウド関連事業 売上高(前年比)	クラウド関連事業 売上高(前年比)	yoy_index	クラウド関連事業 売上高(前年比)	sales	クラウド関連事業		売上高	全体 > クラウド関連事業	売上高
 48800	2025	1	legacy	number	1日あたり平均加工受託件数	1日あたり平均加工受託件数	number	1日あたり平均加工受託件数	count			1日あたり平均加工受託件数	全体	1日あたり平均加工受託件数
@@ -3959,12 +3959,12 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 60400	2023	12	legacy	number	ウィンター 竜王 来場者数	ウィンター 竜王 来場者数	number	ウィンター 竜王 来場者数	count	ウィンター 竜王		来場者数	全体 > ウィンター 竜王	来場者数
 60400	2023	13	legacy	number	ウィンター 川場 来場者数	ウィンター 川場 来場者数	number	ウィンター 川場 来場者数	count	ウィンター 川場		来場者数	全体 > ウィンター 川場	来場者数
 60400	2023	14	legacy	number	ウィンター めいほう 来場者数	ウィンター めいほう 来場者数	number	ウィンター めいほう 来場者数	count	ウィンター めいほう		来場者数	全体 > ウィンター めいほう	来場者数
-60400	2024	1	legacy	number	グリーン 索道計 リフト券	グリーン 索道計 リフト券	number	グリーン 索道計 リフト券	other	グリーン 索道計 リフト券			全体	グリーン 索道計 リフト券
-60400	2024	2	legacy	number	グリーン めいほう高原 来場者	グリーン めいほう高原 来場者	number	グリーン めいほう高原 来場者	other	グリーン めいほう高原 来場者			全体	グリーン めいほう高原 来場者
-60400	2024	3	legacy	number	グリーン 鹿島槍 来場者	グリーン 鹿島槍 来場者	number	グリーン 鹿島槍 来場者	other	グリーン 鹿島槍 来場者			全体	グリーン 鹿島槍 来場者
-60400	2024	4	legacy	number	ウィンター 川場 来場者	ウィンター 川場 来場者	number	ウィンター 川場 来場者	other	ウィンター 川場 来場者			全体	ウィンター 川場 来場者
-60400	2024	5	legacy	number	ウィンター めいほう 来場者	ウィンター めいほう 来場者	number	ウィンター めいほう 来場者	other	ウィンター めいほう 来場者			全体	ウィンター めいほう 来場者
-60400	2024	6	legacy	number	ウィンター 鹿島槍 来場者	ウィンター 鹿島槍 来場者	number	ウィンター 鹿島槍 来場者	other	ウィンター 鹿島槍 来場者			全体	ウィンター 鹿島槍 来場者
+60400	2024	1	legacy	number	グリーン 索道計 リフト券	グリーン 索道計 リフト券	number	グリーン 索道計 リフト券	other	グリーン 索道計 リフト券			全体 > グリーン	索道計 リフト券
+60400	2024	2	legacy	number	グリーン めいほう高原 来場者	グリーン めいほう高原 来場者	number	グリーン めいほう高原 来場者	other	グリーン めいほう高原 来場者			全体 > グリーン	めいほう高原 来場者
+60400	2024	3	legacy	number	グリーン 鹿島槍 来場者	グリーン 鹿島槍 来場者	number	グリーン 鹿島槍 来場者	other	グリーン 鹿島槍 来場者			全体 > グリーン	鹿島槍 来場者
+60400	2024	4	legacy	number	ウィンター 川場 来場者	ウィンター 川場 来場者	number	ウィンター 川場 来場者	other	ウィンター 川場 来場者			全体 > ウィンター 川場	来場者
+60400	2024	5	legacy	number	ウィンター めいほう 来場者	ウィンター めいほう 来場者	number	ウィンター めいほう 来場者	other	ウィンター めいほう 来場者			全体 > ウィンター めいほう	来場者
+60400	2024	6	legacy	number	ウィンター 鹿島槍 来場者	ウィンター 鹿島槍 来場者	number	ウィンター 鹿島槍 来場者	other	ウィンター 鹿島槍 来場者			全体 > ウィンター 鹿島槍	来場者
 60400	2024	7	legacy	number	ウィンター 八方尾根 来場者数	ウィンター 八方尾根 来場者数	number	ウィンター 八方尾根 来場者数	count	ウィンター 八方尾根		来場者数	全体 > ウィンター 八方尾根	来場者数
 60400	2024	8	legacy	number	ウィンター 岩岳 来場者数	ウィンター 岩岳 来場者数	number	ウィンター 岩岳 来場者数	count	ウィンター 岩岳		来場者数	全体 > ウィンター 岩岳	来場者数
 60400	2024	9	legacy	number	ウィンター つがいけ 来場者数	ウィンター つがいけ 来場者数	number	ウィンター つがいけ 来場者数	count	ウィンター つがいけ		来場者数	全体 > ウィンター つがいけ	来場者数
@@ -3980,11 +3980,11 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 60400	2024	19	legacy	number	グリーン 索道以外計 来場者数	グリーン 索道以外計 来場者数	number	グリーン 索道以外計 来場者数	count	グリーン 索道以外計		来場者数	全体 > グリーン 索道以外計	来場者数
 60400	2024	20	legacy	number	グリーン 八方尾根 来場者数	グリーン 八方尾根 来場者数	number	グリーン 八方尾根 来場者数	count	グリーン 八方尾根		来場者数	全体 > グリーン 八方尾根	来場者数
 60400	2024	21	legacy	number	グリーン つがいけ 来場者数	グリーン つがいけ 来場者数	number	グリーン つがいけ 来場者数	count	グリーン つがいけ		来場者数	全体 > グリーン つがいけ	来場者数
-60400	2025	1	legacy	number	グリーン 索道計 リフト券	グリーン 索道計 リフト券	number	グリーン 索道計 リフト券	other	グリーン 索道計 リフト券			全体	グリーン 索道計 リフト券
-60400	2025	2	legacy	number	グリーン めいほう高原 来場者	グリーン めいほう高原 来場者	number	グリーン めいほう高原 来場者	other	グリーン めいほう高原 来場者			全体	グリーン めいほう高原 来場者
-60400	2025	3	legacy	number	ウィンター 鹿島槍 来場者	ウィンター 鹿島槍 来場者	number	ウィンター 鹿島槍 来場者	other	ウィンター 鹿島槍 来場者			全体	ウィンター 鹿島槍 来場者
-60400	2025	4	legacy	number	ウィンター 川場 来場者	ウィンター 川場 来場者	number	ウィンター 川場 来場者	other	ウィンター 川場 来場者			全体	ウィンター 川場 来場者
-60400	2025	5	legacy	number	ウィンター めいほう 来場者	ウィンター めいほう 来場者	number	ウィンター めいほう 来場者	other	ウィンター めいほう 来場者			全体	ウィンター めいほう 来場者
+60400	2025	1	legacy	number	グリーン 索道計 リフト券	グリーン 索道計 リフト券	number	グリーン 索道計 リフト券	other	グリーン 索道計 リフト券			全体 > グリーン	索道計 リフト券
+60400	2025	2	legacy	number	グリーン めいほう高原 来場者	グリーン めいほう高原 来場者	number	グリーン めいほう高原 来場者	other	グリーン めいほう高原 来場者			全体 > グリーン	めいほう高原 来場者
+60400	2025	3	legacy	number	ウィンター 鹿島槍 来場者	ウィンター 鹿島槍 来場者	number	ウィンター 鹿島槍 来場者	other	ウィンター 鹿島槍 来場者			全体 > ウィンター 鹿島槍	来場者
+60400	2025	4	legacy	number	ウィンター 川場 来場者	ウィンター 川場 来場者	number	ウィンター 川場 来場者	other	ウィンター 川場 来場者			全体 > ウィンター 川場	来場者
+60400	2025	5	legacy	number	ウィンター めいほう 来場者	ウィンター めいほう 来場者	number	ウィンター めいほう 来場者	other	ウィンター めいほう 来場者			全体 > ウィンター めいほう	来場者
 60400	2025	6	legacy	number	ウィンター 八方尾根 来場者数	ウィンター 八方尾根 来場者数	number	ウィンター 八方尾根 来場者数	count	ウィンター 八方尾根		来場者数	全体 > ウィンター 八方尾根	来場者数
 60400	2025	7	legacy	number	ウィンター 岩岳 来場者数	ウィンター 岩岳 来場者数	number	ウィンター 岩岳 来場者数	count	ウィンター 岩岳		来場者数	全体 > ウィンター 岩岳	来場者数
 60400	2025	8	legacy	number	ウィンター つがいけ 来場者数	ウィンター つがいけ 来場者数	number	ウィンター つがいけ 来場者数	count	ウィンター つがいけ		来場者数	全体 > ウィンター つがいけ	来場者数
@@ -4001,11 +4001,11 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 60400	2025	19	legacy	number	グリーン つがいけ 来場者数	グリーン つがいけ 来場者数	number	グリーン つがいけ 来場者数	count	グリーン つがいけ		来場者数	全体 > グリーン つがいけ	来場者数
 60400	2025	20	legacy	number	グリーン 川場 来場者数	グリーン 川場 来場者数	number	グリーン 川場 来場者数	count	グリーン 川場		来場者数	全体 > グリーン 川場	来場者数
 60400	2025	21	legacy	number	グリーン 鹿島槍SV 来場者数	グリーン 鹿島槍SV 来場者数	number	グリーン 鹿島槍SV 来場者数	count	グリーン 鹿島槍SV		来場者数	全体 > グリーン 鹿島槍SV	来場者数
-60400	2026	1	legacy	number	グリーン 索道計 リフト券	グリーン 索道計 リフト券	number	グリーン 索道計 リフト券	other	グリーン 索道計 リフト券			全体	グリーン 索道計 リフト券
-60400	2026	2	legacy	number	グリーン めいほう高原 来場者	グリーン めいほう高原 来場者	number	グリーン めいほう高原 来場者	other	グリーン めいほう高原 来場者			全体	グリーン めいほう高原 来場者
-60400	2026	3	legacy	number	ウィンター 鹿島槍 来場者	ウィンター 鹿島槍 来場者	number	ウィンター 鹿島槍 来場者	other	ウィンター 鹿島槍 来場者			全体	ウィンター 鹿島槍 来場者
-60400	2026	4	legacy	number	ウィンター 川場 来場者	ウィンター 川場 来場者	number	ウィンター 川場 来場者	other	ウィンター 川場 来場者			全体	ウィンター 川場 来場者
-60400	2026	5	legacy	number	ウィンター めいほう 来場者	ウィンター めいほう 来場者	number	ウィンター めいほう 来場者	other	ウィンター めいほう 来場者			全体	ウィンター めいほう 来場者
+60400	2026	1	legacy	number	グリーン 索道計 リフト券	グリーン 索道計 リフト券	number	グリーン 索道計 リフト券	other	グリーン 索道計 リフト券			全体 > グリーン	索道計 リフト券
+60400	2026	2	legacy	number	グリーン めいほう高原 来場者	グリーン めいほう高原 来場者	number	グリーン めいほう高原 来場者	other	グリーン めいほう高原 来場者			全体 > グリーン	めいほう高原 来場者
+60400	2026	3	legacy	number	ウィンター 鹿島槍 来場者	ウィンター 鹿島槍 来場者	number	ウィンター 鹿島槍 来場者	other	ウィンター 鹿島槍 来場者			全体 > ウィンター 鹿島槍	来場者
+60400	2026	4	legacy	number	ウィンター 川場 来場者	ウィンター 川場 来場者	number	ウィンター 川場 来場者	other	ウィンター 川場 来場者			全体 > ウィンター 川場	来場者
+60400	2026	5	legacy	number	ウィンター めいほう 来場者	ウィンター めいほう 来場者	number	ウィンター めいほう 来場者	other	ウィンター めいほう 来場者			全体 > ウィンター めいほう	来場者
 60400	2026	6	legacy	number	ウィンター 川場 来場者数	ウィンター 川場 来場者数	number	ウィンター 川場 来場者数	count	ウィンター 川場		来場者数	全体 > ウィンター 川場	来場者数
 60400	2026	7	legacy	number	ウィンター めいほう 来場者数	ウィンター めいほう 来場者数	number	ウィンター めいほう 来場者数	count	ウィンター めいほう		来場者数	全体 > ウィンター めいほう	来場者数
 60400	2026	8	legacy	number	ウィンター 索道以外計 来場者数	ウィンター 索道以外計 来場者数	number	ウィンター 索道以外計 来場者数	count	ウィンター 索道以外計		来場者数	全体 > ウィンター 索道以外計	来場者数
@@ -4231,35 +4231,35 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 66270	2025	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 66270	2026	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 66270	2026	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
-70430	2024	1	legacy	number	etudes MRR	etudes MRR	number	etudes MRR	other	etudes MRR			全体	etudes MRR
-70430	2024	2	legacy	number	etudes 社内利用 MRR	etudes 社内利用 MRR	number	etudes 社内利用 MRR	other	etudes 社内利用 MRR			全体	etudes 社内利用 MRR
-70430	2024	3	legacy	number	etudes ビジネス利用他 MRR	etudes ビジネス利用他 MRR	number	etudes ビジネス利用他 MRR	other	etudes ビジネス利用他 MRR			全体	etudes ビジネス利用他 MRR
+70430	2024	1	legacy	number	etudes MRR	etudes MRR	number	etudes MRR	other	etudes MRR			全体 > etudes	MRR
+70430	2024	2	legacy	number	etudes 社内利用 MRR	etudes 社内利用 MRR	number	etudes 社内利用 MRR	other	etudes 社内利用 MRR			全体 > etudes 社内利用	MRR
+70430	2024	3	legacy	number	etudes ビジネス利用他 MRR	etudes ビジネス利用他 MRR	number	etudes ビジネス利用他 MRR	other	etudes ビジネス利用他 MRR			全体 > etudes ビジネス利用他	MRR
 70430	2024	4	legacy	number	etudes 利用企業数	etudes 利用企業数	number	etudes 利用企業数	count	etudes		利用企業数	全体 > etudes	利用企業数
 70430	2024	5	legacy	number	etudes 社内利用 企業数	etudes 社内利用 企業数	number	etudes 社内利用 企業数	count	etudes 社内利用		企業数	全体 > etudes 社内利用	企業数
 70430	2024	6	legacy	number	etudes ビジネス利用他 企業数	etudes ビジネス利用他 企業数	number	etudes ビジネス利用他 企業数	count	etudes ビジネス利用他		企業数	全体 > etudes ビジネス利用他	企業数
-70430	2024	7	legacy	number	etudes ARPU	etudes ARPU	number	etudes ARPU	other	etudes ARPU			全体	etudes ARPU
-70430	2024	8	legacy	number	etudes 社内利用 ARPU	etudes 社内利用 ARPU	number	etudes 社内利用 ARPU	other	etudes 社内利用 ARPU			全体	etudes 社内利用 ARPU
-70430	2024	9	legacy	number	etudes ビジネス利用他 ARPU	etudes ビジネス利用他 ARPU	number	etudes ビジネス利用他 ARPU	other	etudes ビジネス利用他 ARPU			全体	etudes ビジネス利用他 ARPU
-70430	2025	1	legacy	number	etudes MRR	etudes MRR	number	etudes MRR	other	etudes MRR			全体	etudes MRR
-70430	2025	2	legacy	number	etudes 社内利用 MRR	etudes 社内利用 MRR	number	etudes 社内利用 MRR	other	etudes 社内利用 MRR			全体	etudes 社内利用 MRR
-70430	2025	3	legacy	number	etudes ビジネス利用他 MRR	etudes ビジネス利用他 MRR	number	etudes ビジネス利用他 MRR	other	etudes ビジネス利用他 MRR			全体	etudes ビジネス利用他 MRR
+70430	2024	7	legacy	number	etudes ARPU	etudes ARPU	number	etudes ARPU	other	etudes ARPU			全体 > etudes	ARPU
+70430	2024	8	legacy	number	etudes 社内利用 ARPU	etudes 社内利用 ARPU	number	etudes 社内利用 ARPU	other	etudes 社内利用 ARPU			全体 > etudes 社内利用	ARPU
+70430	2024	9	legacy	number	etudes ビジネス利用他 ARPU	etudes ビジネス利用他 ARPU	number	etudes ビジネス利用他 ARPU	other	etudes ビジネス利用他 ARPU			全体 > etudes ビジネス利用他	ARPU
+70430	2025	1	legacy	number	etudes MRR	etudes MRR	number	etudes MRR	other	etudes MRR			全体 > etudes	MRR
+70430	2025	2	legacy	number	etudes 社内利用 MRR	etudes 社内利用 MRR	number	etudes 社内利用 MRR	other	etudes 社内利用 MRR			全体 > etudes 社内利用	MRR
+70430	2025	3	legacy	number	etudes ビジネス利用他 MRR	etudes ビジネス利用他 MRR	number	etudes ビジネス利用他 MRR	other	etudes ビジネス利用他 MRR			全体 > etudes ビジネス利用他	MRR
 70430	2025	4	legacy	number	etudes 利用企業数	etudes 利用企業数	number	etudes 利用企業数	count	etudes		利用企業数	全体 > etudes	利用企業数
 70430	2025	5	legacy	number	etudes 社内利用 企業数	etudes 社内利用 企業数	number	etudes 社内利用 企業数	count	etudes 社内利用		企業数	全体 > etudes 社内利用	企業数
 70430	2025	6	legacy	number	etudes ビジネス利用他 企業数	etudes ビジネス利用他 企業数	number	etudes ビジネス利用他 企業数	count	etudes ビジネス利用他		企業数	全体 > etudes ビジネス利用他	企業数
-70430	2025	7	legacy	number	etudes ARPU	etudes ARPU	number	etudes ARPU	other	etudes ARPU			全体	etudes ARPU
-70430	2025	8	legacy	number	etudes 社内利用 ARPU	etudes 社内利用 ARPU	number	etudes 社内利用 ARPU	other	etudes 社内利用 ARPU			全体	etudes 社内利用 ARPU
-70430	2025	9	legacy	number	etudes ビジネス利用他 ARPU	etudes ビジネス利用他 ARPU	number	etudes ビジネス利用他 ARPU	other	etudes ビジネス利用他 ARPU			全体	etudes ビジネス利用他 ARPU
-70430	2026	1	legacy	number	etudes MRR	etudes MRR	number	etudes MRR	other	etudes MRR			全体	etudes MRR
-70430	2026	2	legacy	yoy_index	etudes MRR前年増減率(前年比)	etudes MRR前年増減率(前年比)	yoy_index	etudes MRR前年増減率(前年比)	other	etudes MRR前年増減率			全体	etudes MRR前年増減率
-70430	2026	3	legacy	number	etudes 社内利用 MRR	etudes 社内利用 MRR	number	etudes 社内利用 MRR	other	etudes 社内利用 MRR			全体	etudes 社内利用 MRR
-70430	2026	4	legacy	number	etudes ビジネス利用他 MRR	etudes ビジネス利用他 MRR	number	etudes ビジネス利用他 MRR	other	etudes ビジネス利用他 MRR			全体	etudes ビジネス利用他 MRR
+70430	2025	7	legacy	number	etudes ARPU	etudes ARPU	number	etudes ARPU	other	etudes ARPU			全体 > etudes	ARPU
+70430	2025	8	legacy	number	etudes 社内利用 ARPU	etudes 社内利用 ARPU	number	etudes 社内利用 ARPU	other	etudes 社内利用 ARPU			全体 > etudes 社内利用	ARPU
+70430	2025	9	legacy	number	etudes ビジネス利用他 ARPU	etudes ビジネス利用他 ARPU	number	etudes ビジネス利用他 ARPU	other	etudes ビジネス利用他 ARPU			全体 > etudes ビジネス利用他	ARPU
+70430	2026	1	legacy	number	etudes MRR	etudes MRR	number	etudes MRR	other	etudes MRR			全体 > etudes	MRR
+70430	2026	2	legacy	yoy_index	etudes MRR前年増減率(前年比)	etudes MRR前年増減率(前年比)	yoy_index	etudes MRR前年増減率(前年比)	other	etudes MRR前年増減率			全体 > etudes	MRR前年増減率
+70430	2026	3	legacy	number	etudes 社内利用 MRR	etudes 社内利用 MRR	number	etudes 社内利用 MRR	other	etudes 社内利用 MRR			全体 > etudes 社内利用	MRR
+70430	2026	4	legacy	number	etudes ビジネス利用他 MRR	etudes ビジネス利用他 MRR	number	etudes ビジネス利用他 MRR	other	etudes ビジネス利用他 MRR			全体 > etudes ビジネス利用他	MRR
 70430	2026	5	legacy	number	etudes 利用企業数	etudes 利用企業数	number	etudes 利用企業数	count	etudes		利用企業数	全体 > etudes	利用企業数
-70430	2026	6	legacy	yoy_index	etudes 利用企業数前年増減率(前年比)	etudes 利用企業数前年増減率(前年比)	yoy_index	etudes 利用企業数前年増減率(前年比)	other	etudes 利用企業数前年増減率			全体	etudes 利用企業数前年増減率
+70430	2026	6	legacy	yoy_index	etudes 利用企業数前年増減率(前年比)	etudes 利用企業数前年増減率(前年比)	yoy_index	etudes 利用企業数前年増減率(前年比)	other	etudes 利用企業数前年増減率			全体 > etudes	利用企業数前年増減率
 70430	2026	7	legacy	number	etudes 社内利用 企業数	etudes 社内利用 企業数	number	etudes 社内利用 企業数	count	etudes 社内利用		企業数	全体 > etudes 社内利用	企業数
 70430	2026	8	legacy	number	etudes ビジネス利用他 企業数	etudes ビジネス利用他 企業数	number	etudes ビジネス利用他 企業数	count	etudes ビジネス利用他		企業数	全体 > etudes ビジネス利用他	企業数
-70430	2026	9	legacy	number	etudes ARPU	etudes ARPU	number	etudes ARPU	other	etudes ARPU			全体	etudes ARPU
-70430	2026	10	legacy	number	etudes 社内利用 ARPU	etudes 社内利用 ARPU	number	etudes 社内利用 ARPU	other	etudes 社内利用 ARPU			全体	etudes 社内利用 ARPU
-70430	2026	11	legacy	number	etudes ビジネス利用他 ARPU	etudes ビジネス利用他 ARPU	number	etudes ビジネス利用他 ARPU	other	etudes ビジネス利用他 ARPU			全体	etudes ビジネス利用他 ARPU
+70430	2026	9	legacy	number	etudes ARPU	etudes ARPU	number	etudes ARPU	other	etudes ARPU			全体 > etudes	ARPU
+70430	2026	10	legacy	number	etudes 社内利用 ARPU	etudes 社内利用 ARPU	number	etudes 社内利用 ARPU	other	etudes 社内利用 ARPU			全体 > etudes 社内利用	ARPU
+70430	2026	11	legacy	number	etudes ビジネス利用他 ARPU	etudes ビジネス利用他 ARPU	number	etudes ビジネス利用他 ARPU	other	etudes ビジネス利用他 ARPU			全体 > etudes ビジネス利用他	ARPU
 70490	2023	1	legacy	number	識学基本サービス 契約社数	識学基本サービス 契約社数	number	識学基本サービス 契約社数	count	識学基本サービス		契約社数	全体 > 識学基本サービス	契約社数
 70490	2023	2	legacy	number	識学基本サービスライト 契約社数	識学基本サービスライト 契約社数	number	識学基本サービスライト 契約社数	count	識学基本サービスライト		契約社数	全体 > 識学基本サービスライト	契約社数
 70490	2023	3	legacy	number	識学クラウド 契約社数	識学クラウド 契約社数	number	識学クラウド 契約社数	count	識学クラウド		契約社数	全体 > 識学クラウド	契約社数
@@ -4286,28 +4286,28 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 70490	2026	6	legacy	yoy_index	プラットフォーム 売上高(前年比)	プラットフォーム 売上高(前年比)	yoy_index	プラットフォーム 売上高(前年比)	sales	プラットフォーム		売上高	全体	売上高
 70590	2024	1	legacy	number	建設派遣 在籍技術者数	建設派遣 在籍技術者数	number	建設派遣 在籍技術者数	count	建設派遣		在籍技術者数	全体 > 建設派遣	在籍技術者数
 70590	2024	2	legacy	number	建設派遣 稼働技術者数	建設派遣 稼働技術者数	number	建設派遣 稼働技術者数	count	建設派遣		稼働技術者数	全体 > 建設派遣	稼働技術者数
-70590	2024	3	legacy	number	建設派遣 稼働率	建設派遣 稼働率	number	建設派遣 稼働率	other	建設派遣 稼働率			全体	建設派遣 稼働率
-70590	2024	4	legacy	number	建設派遣 稼働率(研修中除く)	建設派遣 稼働率(研修中除く)	number	建設派遣 稼働率(研修中除く)	other	建設派遣 稼働率(研修中除く)			全体	建設派遣 稼働率(研修中除く)
+70590	2024	3	legacy	number	建設派遣 稼働率	建設派遣 稼働率	number	建設派遣 稼働率	other	建設派遣 稼働率			全体 > 建設派遣	稼働率
+70590	2024	4	legacy	number	建設派遣 稼働率(研修中除く)	建設派遣 稼働率(研修中除く)	number	建設派遣 稼働率(研修中除く)	other	建設派遣 稼働率(研修中除く)			全体 > 建設派遣	稼働率(研修中除く)
 70590	2024	5	legacy	number	建設派遣 SPIDERPLUS研修受講者数	建設派遣 SPIDERPLUS研修受講者数	number	建設派遣 SPIDERPLUS研修受講者数	count	建設派遣		SPIDERPLUS研修受講者数	全体 > 建設派遣	SPIDERPLUS研修受講者数
 70590	2024	6	legacy	number	機電半導体 在籍技術者数	機電半導体 在籍技術者数	number	機電半導体 在籍技術者数	count	機電半導体		在籍技術者数	全体 > 機電半導体	在籍技術者数
 70590	2024	7	legacy	number	機電半導体 稼働技術者数	機電半導体 稼働技術者数	number	機電半導体 稼働技術者数	count	機電半導体		稼働技術者数	全体 > 機電半導体	稼働技術者数
-70590	2024	8	legacy	number	機電半導体 稼働率	機電半導体 稼働率	number	機電半導体 稼働率	other	機電半導体 稼働率			全体	機電半導体 稼働率
-70590	2024	9	legacy	number	機電半導体 稼働率(研修中除く)	機電半導体 稼働率(研修中除く)	number	機電半導体 稼働率(研修中除く)	other	機電半導体 稼働率(研修中除く)			全体	機電半導体 稼働率(研修中除く)
+70590	2024	8	legacy	number	機電半導体 稼働率	機電半導体 稼働率	number	機電半導体 稼働率	other	機電半導体 稼働率			全体 > 機電半導体	稼働率
+70590	2024	9	legacy	number	機電半導体 稼働率(研修中除く)	機電半導体 稼働率(研修中除く)	number	機電半導体 稼働率(研修中除く)	other	機電半導体 稼働率(研修中除く)			全体 > 機電半導体	稼働率(研修中除く)
 70590	2024	10	legacy	number	IT派遣 在籍技術者数	IT派遣 在籍技術者数	number	IT派遣 在籍技術者数	count	IT派遣		在籍技術者数	全体 > IT派遣	在籍技術者数
 70590	2024	11	legacy	number	IT派遣 稼働技術者数	IT派遣 稼働技術者数	number	IT派遣 稼働技術者数	count	IT派遣		稼働技術者数	全体 > IT派遣	稼働技術者数
-70590	2024	12	legacy	number	IT派遣 稼働率	IT派遣 稼働率	number	IT派遣 稼働率	other	IT派遣 稼働率			全体	IT派遣 稼働率
+70590	2024	12	legacy	number	IT派遣 稼働率	IT派遣 稼働率	number	IT派遣 稼働率	other	IT派遣 稼働率			全体 > IT派遣	稼働率
 70590	2025	1	legacy	number	建設派遣 在籍技術者数	建設派遣 在籍技術者数	number	建設派遣 在籍技術者数	count	建設派遣		在籍技術者数	全体 > 建設派遣	在籍技術者数
 70590	2025	2	legacy	number	建設派遣 稼働技術者数	建設派遣 稼働技術者数	number	建設派遣 稼働技術者数	count	建設派遣		稼働技術者数	全体 > 建設派遣	稼働技術者数
-70590	2025	3	legacy	number	建設派遣 稼働率	建設派遣 稼働率	number	建設派遣 稼働率	other	建設派遣 稼働率			全体	建設派遣 稼働率
-70590	2025	4	legacy	number	建設派遣 稼働率(研修中除く)	建設派遣 稼働率(研修中除く)	number	建設派遣 稼働率(研修中除く)	other	建設派遣 稼働率(研修中除く)			全体	建設派遣 稼働率(研修中除く)
+70590	2025	3	legacy	number	建設派遣 稼働率	建設派遣 稼働率	number	建設派遣 稼働率	other	建設派遣 稼働率			全体 > 建設派遣	稼働率
+70590	2025	4	legacy	number	建設派遣 稼働率(研修中除く)	建設派遣 稼働率(研修中除く)	number	建設派遣 稼働率(研修中除く)	other	建設派遣 稼働率(研修中除く)			全体 > 建設派遣	稼働率(研修中除く)
 70590	2025	5	legacy	number	建設派遣 SPIDERPLUS研修受講者数	建設派遣 SPIDERPLUS研修受講者数	number	建設派遣 SPIDERPLUS研修受講者数	count	建設派遣		SPIDERPLUS研修受講者数	全体 > 建設派遣	SPIDERPLUS研修受講者数
 70590	2025	6	legacy	number	機電半導体 在籍技術者数	機電半導体 在籍技術者数	number	機電半導体 在籍技術者数	count	機電半導体		在籍技術者数	全体 > 機電半導体	在籍技術者数
 70590	2025	7	legacy	number	機電半導体 稼働技術者数	機電半導体 稼働技術者数	number	機電半導体 稼働技術者数	count	機電半導体		稼働技術者数	全体 > 機電半導体	稼働技術者数
-70590	2025	8	legacy	number	機電半導体 稼働率	機電半導体 稼働率	number	機電半導体 稼働率	other	機電半導体 稼働率			全体	機電半導体 稼働率
-70590	2025	9	legacy	number	機電半導体 稼働率(研修中除く)	機電半導体 稼働率(研修中除く)	number	機電半導体 稼働率(研修中除く)	other	機電半導体 稼働率(研修中除く)			全体	機電半導体 稼働率(研修中除く)
+70590	2025	8	legacy	number	機電半導体 稼働率	機電半導体 稼働率	number	機電半導体 稼働率	other	機電半導体 稼働率			全体 > 機電半導体	稼働率
+70590	2025	9	legacy	number	機電半導体 稼働率(研修中除く)	機電半導体 稼働率(研修中除く)	number	機電半導体 稼働率(研修中除く)	other	機電半導体 稼働率(研修中除く)			全体 > 機電半導体	稼働率(研修中除く)
 70590	2025	10	legacy	number	IT派遣 在籍技術者数	IT派遣 在籍技術者数	number	IT派遣 在籍技術者数	count	IT派遣		在籍技術者数	全体 > IT派遣	在籍技術者数
 70590	2025	11	legacy	number	IT派遣 稼働技術者数	IT派遣 稼働技術者数	number	IT派遣 稼働技術者数	count	IT派遣		稼働技術者数	全体 > IT派遣	稼働技術者数
-70590	2025	12	legacy	number	IT派遣 稼働率	IT派遣 稼働率	number	IT派遣 稼働率	other	IT派遣 稼働率			全体	IT派遣 稼働率
+70590	2025	12	legacy	number	IT派遣 稼働率	IT派遣 稼働率	number	IT派遣 稼働率	other	IT派遣 稼働率			全体 > IT派遣	稼働率
 70590	2025	13	legacy	number	グループ 在籍技術者数	グループ 在籍技術者数	number	グループ 在籍技術者数	count	グループ		在籍技術者数	全体	在籍技術者数
 70590	2025	14	legacy	number	グループ 稼働技術者数	グループ 稼働技術者数	number	グループ 稼働技術者数	count	グループ		稼働技術者数	全体	稼働技術者数
 70590	2025	15	legacy	number	グループ 稼働率	グループ 稼働率	number	グループ 稼働率	other	グループ 稼働率			全体	稼働率
@@ -4318,12 +4318,12 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 70590	2026	4	legacy	number	グループ 稼働率(研修中除く)	グループ 稼働率(研修中除く)	number	グループ 稼働率(研修中除く)	other	グループ 稼働率(研修中除く)			全体	稼働率(研修中除く)
 70590	2026	5	legacy	number	建設派遣 在籍技術者数	建設派遣 在籍技術者数	number	建設派遣 在籍技術者数	count	建設派遣		在籍技術者数	全体 > 建設派遣	在籍技術者数
 70590	2026	6	legacy	number	建設派遣 稼働技術者数	建設派遣 稼働技術者数	number	建設派遣 稼働技術者数	count	建設派遣		稼働技術者数	全体 > 建設派遣	稼働技術者数
-70590	2026	7	legacy	number	建設派遣 稼働率	建設派遣 稼働率	number	建設派遣 稼働率	other	建設派遣 稼働率			全体	建設派遣 稼働率
-70590	2026	8	legacy	number	建設派遣 稼働率(研修中除く)	建設派遣 稼働率(研修中除く)	number	建設派遣 稼働率(研修中除く)	other	建設派遣 稼働率(研修中除く)			全体	建設派遣 稼働率(研修中除く)
+70590	2026	7	legacy	number	建設派遣 稼働率	建設派遣 稼働率	number	建設派遣 稼働率	other	建設派遣 稼働率			全体 > 建設派遣	稼働率
+70590	2026	8	legacy	number	建設派遣 稼働率(研修中除く)	建設派遣 稼働率(研修中除く)	number	建設派遣 稼働率(研修中除く)	other	建設派遣 稼働率(研修中除く)			全体 > 建設派遣	稼働率(研修中除く)
 70590	2026	9	legacy	number	機電半導体 在籍技術者数	機電半導体 在籍技術者数	number	機電半導体 在籍技術者数	count	機電半導体		在籍技術者数	全体 > 機電半導体	在籍技術者数
 70590	2026	10	legacy	number	機電半導体 稼働技術者数	機電半導体 稼働技術者数	number	機電半導体 稼働技術者数	count	機電半導体		稼働技術者数	全体 > 機電半導体	稼働技術者数
-70590	2026	11	legacy	number	機電半導体 稼働率	機電半導体 稼働率	number	機電半導体 稼働率	other	機電半導体 稼働率			全体	機電半導体 稼働率
-70590	2026	12	legacy	number	機電半導体 稼働率(研修中除く)	機電半導体 稼働率(研修中除く)	number	機電半導体 稼働率(研修中除く)	other	機電半導体 稼働率(研修中除く)			全体	機電半導体 稼働率(研修中除く)
+70590	2026	11	legacy	number	機電半導体 稼働率	機電半導体 稼働率	number	機電半導体 稼働率	other	機電半導体 稼働率			全体 > 機電半導体	稼働率
+70590	2026	12	legacy	number	機電半導体 稼働率(研修中除く)	機電半導体 稼働率(研修中除く)	number	機電半導体 稼働率(研修中除く)	other	機電半導体 稼働率(研修中除く)			全体 > 機電半導体	稼働率(研修中除く)
 70620	2024	1	legacy	number	連結全体 売上高	連結全体 売上高	number	連結全体 売上高	sales	連結全体		売上高	全体	売上高
 70620	2024	2	legacy	yoy_index	連結全体 売上高(前年比)	連結全体 売上高(前年比)	yoy_index	連結全体 売上高(前年比)	sales	連結全体		売上高	全体	売上高
 70620	2024	3	legacy	number	マッサージ事業 直営 売上高	マッサージ事業 直営 売上高	number	マッサージ事業 直営 売上高	sales	マッサージ事業		売上高	全体 > マッサージ事業 > 直営	売上高
@@ -4624,148 +4624,148 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 71340	2026	22	legacy	number	直営+FC 全店 売上高	直営+FC 売上高	number	直営+FC 売上高	sales			売上高	全体	直営+FC 売上高
 71340	2026	23	legacy	yoy_index	直営+FC 全店(前年比)	直営+FC(前年比)	yoy_index	直営+FC(前年比)	other				全体	直営+FC 売上高
 71570	2024	1	legacy	number	保有契約年換算保険料	保有契約年換算保険料	number	保有契約年換算保険料	other	保有契約年換算保険料			全体	保有契約年換算保険料
-71570	2024	2	legacy	number	保有契約年換算保険料 個人保険	保有契約年換算保険料 個人保険	number	保有契約年換算保険料 個人保険	other	保有契約年換算保険料 個人保険			全体	保有契約年換算保険料 個人保険
-71570	2024	3	legacy	number	保有契約年換算保険料 団体信用生命保険	保有契約年換算保険料 団体信用生命保険	number	保有契約年換算保険料 団体信用生命保険	other	保有契約年換算保険料 団体信用生命保険			全体	保有契約年換算保険料 団体信用生命保険
+71570	2024	2	legacy	number	保有契約年換算保険料 個人保険	保有契約年換算保険料 個人保険	number	保有契約年換算保険料 個人保険	other	保有契約年換算保険料 個人保険			全体 > 個人保険	保有契約年換算保険料
+71570	2024	3	legacy	number	保有契約年換算保険料 団体信用生命保険	保有契約年換算保険料 団体信用生命保険	number	保有契約年換算保険料 団体信用生命保険	other	保有契約年換算保険料 団体信用生命保険			全体 > 団体信用生命保険	保有契約年換算保険料
 71570	2024	4	legacy	number	個人保険 保有契約件数	個人保険 保有契約件数	number	個人保険 保有契約件数	count	個人保険		保有契約件数	全体 > 個人保険	保有契約件数
-71570	2024	5	legacy	number	個人保険 新契約年換算保険料	個人保険 新契約年換算保険料	number	個人保険 新契約年換算保険料	other	個人保険 新契約年換算保険料			全体	個人保険 新契約年換算保険料
+71570	2024	5	legacy	number	個人保険 新契約年換算保険料	個人保険 新契約年換算保険料	number	個人保険 新契約年換算保険料	other	個人保険 新契約年換算保険料			全体 > 個人保険	新契約年換算保険料
 71570	2024	6	legacy	number	個人保険 新契約件数	個人保険 新契約件数	number	個人保険 新契約件数	count	個人保険		新契約件数	全体 > 個人保険	新契約件数
-71570	2024	7	legacy	number	個人保険 保険金及び給付金支払額	個人保険 保険金及び給付金支払額	number	個人保険 保険金及び給付金支払額	other	個人保険 保険金及び給付金支払額			全体	個人保険 保険金及び給付金支払額
-71570	2024	8	legacy	number	個人保険 解約失効率	個人保険 解約失効率	number	個人保険 解約失効率	other	個人保険 解約失効率			全体	個人保険 解約失効率
+71570	2024	7	legacy	number	個人保険 保険金及び給付金支払額	個人保険 保険金及び給付金支払額	number	個人保険 保険金及び給付金支払額	other	個人保険 保険金及び給付金支払額			全体 > 個人保険	保険金及び給付金支払額
+71570	2024	8	legacy	number	個人保険 解約失効率	個人保険 解約失効率	number	個人保険 解約失効率	other	個人保険 解約失効率			全体 > 個人保険	解約失効率
 71570	2025	1	legacy	number	保有契約年換算保険料	保有契約年換算保険料	number	保有契約年換算保険料	other	保有契約年換算保険料			全体	保有契約年換算保険料
-71570	2025	2	legacy	number	保有契約年換算保険料 個人保険	保有契約年換算保険料 個人保険	number	保有契約年換算保険料 個人保険	other	保有契約年換算保険料 個人保険			全体	保有契約年換算保険料 個人保険
-71570	2025	3	legacy	number	保有契約年換算保険料 団体信用生命保険	保有契約年換算保険料 団体信用生命保険	number	保有契約年換算保険料 団体信用生命保険	other	保有契約年換算保険料 団体信用生命保険			全体	保有契約年換算保険料 団体信用生命保険
+71570	2025	2	legacy	number	保有契約年換算保険料 個人保険	保有契約年換算保険料 個人保険	number	保有契約年換算保険料 個人保険	other	保有契約年換算保険料 個人保険			全体 > 個人保険	保有契約年換算保険料
+71570	2025	3	legacy	number	保有契約年換算保険料 団体信用生命保険	保有契約年換算保険料 団体信用生命保険	number	保有契約年換算保険料 団体信用生命保険	other	保有契約年換算保険料 団体信用生命保険			全体 > 団体信用生命保険	保有契約年換算保険料
 71570	2025	4	legacy	number	個人保険 保有契約件数	個人保険 保有契約件数	number	個人保険 保有契約件数	count	個人保険		保有契約件数	全体 > 個人保険	保有契約件数
-71570	2025	5	legacy	number	個人保険 新契約年換算保険料	個人保険 新契約年換算保険料	number	個人保険 新契約年換算保険料	other	個人保険 新契約年換算保険料			全体	個人保険 新契約年換算保険料
+71570	2025	5	legacy	number	個人保険 新契約年換算保険料	個人保険 新契約年換算保険料	number	個人保険 新契約年換算保険料	other	個人保険 新契約年換算保険料			全体 > 個人保険	新契約年換算保険料
 71570	2025	6	legacy	number	個人保険 新契約件数	個人保険 新契約件数	number	個人保険 新契約件数	count	個人保険		新契約件数	全体 > 個人保険	新契約件数
-71570	2025	7	legacy	number	個人保険 保険金及び給付金支払額	個人保険 保険金及び給付金支払額	number	個人保険 保険金及び給付金支払額	other	個人保険 保険金及び給付金支払額			全体	個人保険 保険金及び給付金支払額
-71570	2025	8	legacy	number	個人保険 解約失効率	個人保険 解約失効率	number	個人保険 解約失効率	other	個人保険 解約失効率			全体	個人保険 解約失効率
+71570	2025	7	legacy	number	個人保険 保険金及び給付金支払額	個人保険 保険金及び給付金支払額	number	個人保険 保険金及び給付金支払額	other	個人保険 保険金及び給付金支払額			全体 > 個人保険	保険金及び給付金支払額
+71570	2025	8	legacy	number	個人保険 解約失効率	個人保険 解約失効率	number	個人保険 解約失効率	other	個人保険 解約失効率			全体 > 個人保険	解約失効率
 71570	2026	1	legacy	number	保有契約年換算保険料	保有契約年換算保険料	number	保有契約年換算保険料	other	保有契約年換算保険料			全体	保有契約年換算保険料
-71570	2026	2	legacy	number	保有契約年換算保険料 個人保険	保有契約年換算保険料 個人保険	number	保有契約年換算保険料 個人保険	other	保有契約年換算保険料 個人保険			全体	保有契約年換算保険料 個人保険
-71570	2026	3	legacy	number	保有契約年換算保険料 団体信用生命保険	保有契約年換算保険料 団体信用生命保険	number	保有契約年換算保険料 団体信用生命保険	other	保有契約年換算保険料 団体信用生命保険			全体	保有契約年換算保険料 団体信用生命保険
+71570	2026	2	legacy	number	保有契約年換算保険料 個人保険	保有契約年換算保険料 個人保険	number	保有契約年換算保険料 個人保険	other	保有契約年換算保険料 個人保険			全体 > 個人保険	保有契約年換算保険料
+71570	2026	3	legacy	number	保有契約年換算保険料 団体信用生命保険	保有契約年換算保険料 団体信用生命保険	number	保有契約年換算保険料 団体信用生命保険	other	保有契約年換算保険料 団体信用生命保険			全体 > 団体信用生命保険	保有契約年換算保険料
 71570	2026	4	legacy	number	個人保険 保有契約件数	個人保険 保有契約件数	number	個人保険 保有契約件数	count	個人保険		保有契約件数	全体 > 個人保険	保有契約件数
-71570	2026	5	legacy	number	個人保険 新契約年換算保険料	個人保険 新契約年換算保険料	number	個人保険 新契約年換算保険料	other	個人保険 新契約年換算保険料			全体	個人保険 新契約年換算保険料
+71570	2026	5	legacy	number	個人保険 新契約年換算保険料	個人保険 新契約年換算保険料	number	個人保険 新契約年換算保険料	other	個人保険 新契約年換算保険料			全体 > 個人保険	新契約年換算保険料
 71570	2026	6	legacy	number	個人保険 新契約件数	個人保険 新契約件数	number	個人保険 新契約件数	count	個人保険		新契約件数	全体 > 個人保険	新契約件数
-71570	2026	7	legacy	number	個人保険 保険金及び給付金支払額	個人保険 保険金及び給付金支払額	number	個人保険 保険金及び給付金支払額	other	個人保険 保険金及び給付金支払額			全体	個人保険 保険金及び給付金支払額
-71570	2026	8	legacy	number	個人保険 解約失効率	個人保険 解約失効率	number	個人保険 解約失効率	other	個人保険 解約失効率			全体	個人保険 解約失効率
+71570	2026	7	legacy	number	個人保険 保険金及び給付金支払額	個人保険 保険金及び給付金支払額	number	個人保険 保険金及び給付金支払額	other	個人保険 保険金及び給付金支払額			全体 > 個人保険	保険金及び給付金支払額
+71570	2026	8	legacy	number	個人保険 解約失効率	個人保険 解約失効率	number	個人保険 解約失効率	other	個人保険 解約失効率			全体 > 個人保険	解約失効率
 71770	2023	1	legacy	number	営業収益	営業収益	number	営業収益	other	営業収益			全体	営業収益
 71770	2023	2	legacy	number	受入手数料	受入手数料	number	受入手数料	other	受入手数料			全体	受入手数料
 71770	2023	3	legacy	number	トレーディング損益	トレーディング損益	number	トレーディング損益	other	トレーディング損益			全体	トレーディング損益
 71770	2023	4	legacy	number	金融収益	金融収益	number	金融収益	other	金融収益			全体	金融収益
 71770	2023	5	legacy	number	その他営業収益	その他営業収益	number	その他営業収益	other	その他営業収益			全体	その他営業収益
-71770	2023	6	legacy	number	証券・FX事業 営業収益	証券・FX事業 営業収益	number	証券・FX事業 営業収益	other	証券・FX事業 営業収益			全体	証券・FX事業 営業収益
-71770	2023	7	legacy	number	暗号資産事業 営業収益	暗号資産事業 営業収益	number	暗号資産事業 営業収益	other	暗号資産事業 営業収益			全体	暗号資産事業 営業収益
-71770	2023	8	legacy	number	その他事業 営業収益	その他事業 営業収益	number	その他事業 営業収益	other	その他事業 営業収益			全体	その他事業 営業収益
+71770	2023	6	legacy	number	証券・FX事業 営業収益	証券・FX事業 営業収益	number	証券・FX事業 営業収益	other	証券・FX事業 営業収益			全体 > 証券・FX事業	営業収益
+71770	2023	7	legacy	number	暗号資産事業 営業収益	暗号資産事業 営業収益	number	暗号資産事業 営業収益	other	暗号資産事業 営業収益			全体 > 暗号資産事業	営業収益
+71770	2023	8	legacy	number	その他事業 営業収益	その他事業 営業収益	number	その他事業 営業収益	other	その他事業 営業収益			全体 > その他事業	営業収益
 71770	2023	9	legacy	number	調整額	調整額	number	調整額	other	調整額			全体	調整額
 71770	2024	1	legacy	number	営業収益	営業収益	number	営業収益	other	営業収益			全体	営業収益
 71770	2024	2	legacy	number	受入手数料	受入手数料	number	受入手数料	other	受入手数料			全体	受入手数料
 71770	2024	3	legacy	number	トレーディング損益	トレーディング損益	number	トレーディング損益	other	トレーディング損益			全体	トレーディング損益
 71770	2024	4	legacy	number	金融収益	金融収益	number	金融収益	other	金融収益			全体	金融収益
 71770	2024	5	legacy	number	その他営業収益	その他営業収益	number	その他営業収益	other	その他営業収益			全体	その他営業収益
-71770	2024	6	legacy	number	証券・FX事業 営業収益	証券・FX事業 営業収益	number	証券・FX事業 営業収益	other	証券・FX事業 営業収益			全体	証券・FX事業 営業収益
-71770	2024	7	legacy	number	暗号資産事業 営業収益	暗号資産事業 営業収益	number	暗号資産事業 営業収益	other	暗号資産事業 営業収益			全体	暗号資産事業 営業収益
-71770	2024	8	legacy	number	その他事業 営業収益	その他事業 営業収益	number	その他事業 営業収益	other	その他事業 営業収益			全体	その他事業 営業収益
+71770	2024	6	legacy	number	証券・FX事業 営業収益	証券・FX事業 営業収益	number	証券・FX事業 営業収益	other	証券・FX事業 営業収益			全体 > 証券・FX事業	営業収益
+71770	2024	7	legacy	number	暗号資産事業 営業収益	暗号資産事業 営業収益	number	暗号資産事業 営業収益	other	暗号資産事業 営業収益			全体 > 暗号資産事業	営業収益
+71770	2024	8	legacy	number	その他事業 営業収益	その他事業 営業収益	number	その他事業 営業収益	other	その他事業 営業収益			全体 > その他事業	営業収益
 71770	2024	9	legacy	number	調整額	調整額	number	調整額	other	調整額			全体	調整額
 71770	2025	1	legacy	number	営業収益	営業収益	number	営業収益	other	営業収益			全体	営業収益
 71770	2025	2	legacy	number	受入手数料	受入手数料	number	受入手数料	other	受入手数料			全体	受入手数料
 71770	2025	3	legacy	number	トレーディング損益	トレーディング損益	number	トレーディング損益	other	トレーディング損益			全体	トレーディング損益
 71770	2025	4	legacy	number	金融収益	金融収益	number	金融収益	other	金融収益			全体	金融収益
 71770	2025	5	legacy	number	その他営業収益	その他営業収益	number	その他営業収益	other	その他営業収益			全体	その他営業収益
-71770	2025	6	legacy	number	証券・FX事業 営業収益	証券・FX事業 営業収益	number	証券・FX事業 営業収益	other	証券・FX事業 営業収益			全体	証券・FX事業 営業収益
-71770	2025	7	legacy	number	暗号資産事業 営業収益	暗号資産事業 営業収益	number	暗号資産事業 営業収益	other	暗号資産事業 営業収益			全体	暗号資産事業 営業収益
-71770	2025	8	legacy	number	その他事業 営業収益	その他事業 営業収益	number	その他事業 営業収益	other	その他事業 営業収益			全体	その他事業 営業収益
+71770	2025	6	legacy	number	証券・FX事業 営業収益	証券・FX事業 営業収益	number	証券・FX事業 営業収益	other	証券・FX事業 営業収益			全体 > 証券・FX事業	営業収益
+71770	2025	7	legacy	number	暗号資産事業 営業収益	暗号資産事業 営業収益	number	暗号資産事業 営業収益	other	暗号資産事業 営業収益			全体 > 暗号資産事業	営業収益
+71770	2025	8	legacy	number	その他事業 営業収益	その他事業 営業収益	number	その他事業 営業収益	other	その他事業 営業収益			全体 > その他事業	営業収益
 71770	2025	9	legacy	number	調整額	調整額	number	調整額	other	調整額			全体	調整額
 71770	2026	1	legacy	number	営業収益	営業収益	number	営業収益	other	営業収益			全体	営業収益
 71770	2026	2	legacy	number	受入手数料	受入手数料	number	受入手数料	other	受入手数料			全体	受入手数料
 71770	2026	3	legacy	number	トレーディング損益	トレーディング損益	number	トレーディング損益	other	トレーディング損益			全体	トレーディング損益
 71770	2026	4	legacy	number	金融収益	金融収益	number	金融収益	other	金融収益			全体	金融収益
 71770	2026	5	legacy	number	その他営業収益	その他営業収益	number	その他営業収益	other	その他営業収益			全体	その他営業収益
-71770	2026	6	legacy	number	証券・FX事業 営業収益	証券・FX事業 営業収益	number	証券・FX事業 営業収益	other	証券・FX事業 営業収益			全体	証券・FX事業 営業収益
-71770	2026	7	legacy	number	暗号資産事業 営業収益	暗号資産事業 営業収益	number	暗号資産事業 営業収益	other	暗号資産事業 営業収益			全体	暗号資産事業 営業収益
+71770	2026	6	legacy	number	証券・FX事業 営業収益	証券・FX事業 営業収益	number	証券・FX事業 営業収益	other	証券・FX事業 営業収益			全体 > 証券・FX事業	営業収益
+71770	2026	7	legacy	number	暗号資産事業 営業収益	暗号資産事業 営業収益	number	暗号資産事業 営業収益	other	暗号資産事業 営業収益			全体 > 暗号資産事業	営業収益
 71770	2026	8	legacy	number	証券営業日数	証券営業日数	number	証券営業日数	count			証券営業日数	全体	証券営業日数
 71770	2026	9	legacy	number	FX営業日数	FX営業日数	number	FX営業日数	count			FX営業日数	全体	FX営業日数
 71770	2026	10	legacy	number	暗号資産営業日数	暗号資産営業日数	number	暗号資産営業日数	count			暗号資産営業日数	全体	暗号資産営業日数
-71770	2026	11	legacy	number	クリック 一日平均売買代金	クリック 一日平均売買代金	number	クリック 一日平均売買代金	other	クリック 一日平均売買代金			全体	クリック 一日平均売買代金
-71770	2026	12	legacy	number	クリック 一日平均売買代金現物	クリック 一日平均売買代金現物	number	クリック 一日平均売買代金現物	other	クリック 一日平均売買代金現物			全体	クリック 一日平均売買代金現物
-71770	2026	13	legacy	number	クリック 一日平均売買代金信用	クリック 一日平均売買代金信用	number	クリック 一日平均売買代金信用	other	クリック 一日平均売買代金信用			全体	クリック 一日平均売買代金信用
+71770	2026	11	legacy	number	クリック 一日平均売買代金	クリック 一日平均売買代金	number	クリック 一日平均売買代金	other	クリック 一日平均売買代金			全体 > クリック	一日平均売買代金
+71770	2026	12	legacy	number	クリック 一日平均売買代金現物	クリック 一日平均売買代金現物	number	クリック 一日平均売買代金現物	other	クリック 一日平均売買代金現物			全体 > クリック > 現物	一日平均売買代金
+71770	2026	13	legacy	number	クリック 一日平均売買代金信用	クリック 一日平均売買代金信用	number	クリック 一日平均売買代金信用	other	クリック 一日平均売買代金信用			全体 > クリック > 信用	一日平均売買代金
 71770	2026	14	legacy	number	クリック 株式約定件数	クリック 株式約定件数	number	クリック 株式約定件数	count	クリック		株式約定件数	全体 > クリック	株式約定件数
-71770	2026	15	legacy	number	クリック 株式約定件数現物	クリック 株式約定件数現物	number	クリック 株式約定件数現物	other	クリック 株式約定件数現物			全体	クリック 株式約定件数現物
-71770	2026	16	legacy	number	クリック 株式約定件数信用	クリック 株式約定件数信用	number	クリック 株式約定件数信用	other	クリック 株式約定件数信用			全体	クリック 株式約定件数信用
+71770	2026	15	legacy	number	クリック 株式約定件数現物	クリック 株式約定件数現物	number	クリック 株式約定件数現物	other	クリック 株式約定件数現物			全体 > クリック > 現物	株式約定件数
+71770	2026	16	legacy	number	クリック 株式約定件数信用	クリック 株式約定件数信用	number	クリック 株式約定件数信用	other	クリック 株式約定件数信用			全体 > クリック > 信用	株式約定件数
 71770	2026	17	legacy	number	クリック 一日平均約定件数	クリック 一日平均約定件数	number	クリック 一日平均約定件数	count	クリック		一日平均約定件数	全体 > クリック	一日平均約定件数
-71770	2026	18	legacy	number	クリック 一日平均約定件数現物	クリック 一日平均約定件数現物	number	クリック 一日平均約定件数現物	other	クリック 一日平均約定件数現物			全体	クリック 一日平均約定件数現物
-71770	2026	19	legacy	number	クリック 一日平均約定件数信用	クリック 一日平均約定件数信用	number	クリック 一日平均約定件数信用	other	クリック 一日平均約定件数信用			全体	クリック 一日平均約定件数信用
-71770	2026	20	legacy	number	クリック 店頭FX売買代金一日平均	クリック 店頭FX売買代金一日平均	number	クリック 店頭FX売買代金一日平均	other	クリック 店頭FX売買代金一日平均			全体	クリック 店頭FX売買代金一日平均
-71770	2026	21	legacy	number	クリック くりっく365取引数量	クリック くりっく365取引数量	number	クリック くりっく365取引数量	other	クリック くりっく365取引数量			全体	クリック くりっく365取引数量
+71770	2026	18	legacy	number	クリック 一日平均約定件数現物	クリック 一日平均約定件数現物	number	クリック 一日平均約定件数現物	other	クリック 一日平均約定件数現物			全体 > クリック > 現物	一日平均約定件数
+71770	2026	19	legacy	number	クリック 一日平均約定件数信用	クリック 一日平均約定件数信用	number	クリック 一日平均約定件数信用	other	クリック 一日平均約定件数信用			全体 > クリック > 信用	一日平均約定件数
+71770	2026	20	legacy	number	クリック 店頭FX売買代金一日平均	クリック 店頭FX売買代金一日平均	number	クリック 店頭FX売買代金一日平均	other	クリック 店頭FX売買代金一日平均			全体 > クリック	店頭FX売買代金一日平均
+71770	2026	21	legacy	number	クリック くりっく365取引数量	クリック くりっく365取引数量	number	クリック くりっく365取引数量	other	クリック くりっく365取引数量			全体 > クリック	くりっく365取引数量
 71770	2026	22	legacy	number	クリック くりっく365口座数	クリック くりっく365口座数	number	クリック くりっく365口座数	count	クリック		くりっく365口座数	全体 > クリック	くりっく365口座数
 71770	2026	23	legacy	number	クリック CFD取引口座数	クリック CFD取引口座数	number	クリック CFD取引口座数	count	クリック		CFD取引口座数	全体 > クリック	CFD取引口座数
 71770	2026	24	legacy	number	クリック 外為オプション口座数	クリック 外為オプション口座数	number	クリック 外為オプション口座数	count	クリック		外為オプション口座数	全体 > クリック	外為オプション口座数
 71770	2026	25	legacy	number	クリック 株価指数BO口座数	クリック 株価指数BO口座数	number	クリック 株価指数BO口座数	count	クリック		株価指数BO口座数	全体 > クリック	株価指数BO口座数
-71770	2026	26	legacy	number	外貨 店頭FX売買代金月間	外貨 店頭FX売買代金月間	number	外貨 店頭FX売買代金月間	other	外貨 店頭FX売買代金月間			全体	外貨 店頭FX売買代金月間
-71770	2026	27	legacy	number	外貨 店頭FX売買代金一日平均	外貨 店頭FX売買代金一日平均	number	外貨 店頭FX売買代金一日平均	other	外貨 店頭FX売買代金一日平均			全体	外貨 店頭FX売買代金一日平均
-71770	2026	28	legacy	number	外貨 店頭FX取引数量	外貨 店頭FX取引数量	number	外貨 店頭FX取引数量	other	外貨 店頭FX取引数量			全体	外貨 店頭FX取引数量
-71770	2026	29	legacy	number	外貨 店頭FX預り証拠金残高	外貨 店頭FX預り証拠金残高	number	外貨 店頭FX預り証拠金残高	other	外貨 店頭FX預り証拠金残高			全体	外貨 店頭FX預り証拠金残高
-71770	2026	30	legacy	number	外貨 CFD売買代金	外貨 CFD売買代金	number	外貨 CFD売買代金	other	外貨 CFD売買代金			全体	外貨 CFD売買代金
-71770	2026	31	legacy	number	外貨 CFD預り証拠金残高	外貨 CFD預り証拠金残高	number	外貨 CFD預り証拠金残高	other	外貨 CFD預り証拠金残高			全体	外貨 CFD預り証拠金残高
+71770	2026	26	legacy	number	外貨 店頭FX売買代金月間	外貨 店頭FX売買代金月間	number	外貨 店頭FX売買代金月間	other	外貨 店頭FX売買代金月間			全体 > 外貨	店頭FX売買代金月間
+71770	2026	27	legacy	number	外貨 店頭FX売買代金一日平均	外貨 店頭FX売買代金一日平均	number	外貨 店頭FX売買代金一日平均	other	外貨 店頭FX売買代金一日平均			全体 > 外貨	店頭FX売買代金一日平均
+71770	2026	28	legacy	number	外貨 店頭FX取引数量	外貨 店頭FX取引数量	number	外貨 店頭FX取引数量	other	外貨 店頭FX取引数量			全体 > 外貨	店頭FX取引数量
+71770	2026	29	legacy	number	外貨 店頭FX預り証拠金残高	外貨 店頭FX預り証拠金残高	number	外貨 店頭FX預り証拠金残高	other	外貨 店頭FX預り証拠金残高			全体 > 外貨	店頭FX預り証拠金残高
+71770	2026	30	legacy	number	外貨 CFD売買代金	外貨 CFD売買代金	number	外貨 CFD売買代金	other	外貨 CFD売買代金			全体 > 外貨	CFD売買代金
+71770	2026	31	legacy	number	外貨 CFD預り証拠金残高	外貨 CFD預り証拠金残高	number	外貨 CFD預り証拠金残高	other	外貨 CFD預り証拠金残高			全体 > 外貨	CFD預り証拠金残高
 71770	2026	32	legacy	number	外貨 店頭FX取引口座数	外貨 店頭FX取引口座数	number	外貨 店頭FX取引口座数	count	外貨		店頭FX取引口座数	全体 > 外貨	店頭FX取引口座数
 71770	2026	33	legacy	number	外貨 CFD取引口座数	外貨 CFD取引口座数	number	外貨 CFD取引口座数	count	外貨		CFD取引口座数	全体 > 外貨	CFD取引口座数
-71770	2026	34	legacy	number	コイン 暗号資産売買代金	コイン 暗号資産売買代金	number	コイン 暗号資産売買代金	other	コイン 暗号資産売買代金			全体	コイン 暗号資産売買代金
-71770	2026	35	legacy	number	コイン 取引所取引	コイン 取引所取引	number	コイン 取引所取引	other	コイン 取引所取引			全体	コイン 取引所取引
-71770	2026	36	legacy	number	コイン 取引所現物取引	コイン 取引所現物取引	number	コイン 取引所現物取引	other	コイン 取引所現物取引			全体	コイン 取引所現物取引
-71770	2026	37	legacy	number	コイン 取引所証拠金取引	コイン 取引所証拠金取引	number	コイン 取引所証拠金取引	other	コイン 取引所証拠金取引			全体	コイン 取引所証拠金取引
-71770	2026	38	legacy	number	コイン 販売所取引	コイン 販売所取引	number	コイン 販売所取引	other	コイン 販売所取引			全体	コイン 販売所取引
-71770	2026	39	legacy	number	コイン 販売所現物取引	コイン 販売所現物取引	number	コイン 販売所現物取引	other	コイン 販売所現物取引			全体	コイン 販売所現物取引
-71770	2026	40	legacy	number	コイン 販売所証拠金取引	コイン 販売所証拠金取引	number	コイン 販売所証拠金取引	other	コイン 販売所証拠金取引			全体	コイン 販売所証拠金取引
-71770	2026	41	legacy	number	コイン 暗号資産関連預り資産	コイン 暗号資産関連預り資産	number	コイン 暗号資産関連預り資産	other	コイン 暗号資産関連預り資産			全体	コイン 暗号資産関連預り資産
+71770	2026	34	legacy	number	コイン 暗号資産売買代金	コイン 暗号資産売買代金	number	コイン 暗号資産売買代金	other	コイン 暗号資産売買代金			全体 > コイン	暗号資産売買代金
+71770	2026	35	legacy	number	コイン 取引所取引	コイン 取引所取引	number	コイン 取引所取引	other	コイン 取引所取引			全体 > コイン	取引所取引
+71770	2026	36	legacy	number	コイン 取引所現物取引	コイン 取引所現物取引	number	コイン 取引所現物取引	other	コイン 取引所現物取引			全体 > コイン	取引所現物取引
+71770	2026	37	legacy	number	コイン 取引所証拠金取引	コイン 取引所証拠金取引	number	コイン 取引所証拠金取引	other	コイン 取引所証拠金取引			全体 > コイン	取引所証拠金取引
+71770	2026	38	legacy	number	コイン 販売所取引	コイン 販売所取引	number	コイン 販売所取引	other	コイン 販売所取引			全体 > コイン	販売所取引
+71770	2026	39	legacy	number	コイン 販売所現物取引	コイン 販売所現物取引	number	コイン 販売所現物取引	other	コイン 販売所現物取引			全体 > コイン	販売所現物取引
+71770	2026	40	legacy	number	コイン 販売所証拠金取引	コイン 販売所証拠金取引	number	コイン 販売所証拠金取引	other	コイン 販売所証拠金取引			全体 > コイン	販売所証拠金取引
+71770	2026	41	legacy	number	コイン 暗号資産関連預り資産	コイン 暗号資産関連預り資産	number	コイン 暗号資産関連預り資産	other	コイン 暗号資産関連預り資産			全体 > コイン	暗号資産関連預り資産
 71770	2026	42	legacy	number	コイン 暗号資産取引口座数	コイン 暗号資産取引口座数	number	コイン 暗号資産取引口座数	count	コイン		暗号資産取引口座数	全体 > コイン	暗号資産取引口座数
-71770	2026	43	legacy	number	コイン 店頭FX売買代金月間	コイン 店頭FX売買代金月間	number	コイン 店頭FX売買代金月間	other	コイン 店頭FX売買代金月間			全体	コイン 店頭FX売買代金月間
-71770	2026	44	legacy	number	コイン 店頭FX売買代金一日平均	コイン 店頭FX売買代金一日平均	number	コイン 店頭FX売買代金一日平均	other	コイン 店頭FX売買代金一日平均			全体	コイン 店頭FX売買代金一日平均
-71770	2026	45	legacy	number	コイン 店頭FX取引数量	コイン 店頭FX取引数量	number	コイン 店頭FX取引数量	other	コイン 店頭FX取引数量			全体	コイン 店頭FX取引数量
-71770	2026	46	legacy	number	コイン 店頭FX預り証拠金残高	コイン 店頭FX預り証拠金残高	number	コイン 店頭FX預り証拠金残高	other	コイン 店頭FX預り証拠金残高			全体	コイン 店頭FX預り証拠金残高
+71770	2026	43	legacy	number	コイン 店頭FX売買代金月間	コイン 店頭FX売買代金月間	number	コイン 店頭FX売買代金月間	other	コイン 店頭FX売買代金月間			全体 > コイン	店頭FX売買代金月間
+71770	2026	44	legacy	number	コイン 店頭FX売買代金一日平均	コイン 店頭FX売買代金一日平均	number	コイン 店頭FX売買代金一日平均	other	コイン 店頭FX売買代金一日平均			全体 > コイン	店頭FX売買代金一日平均
+71770	2026	45	legacy	number	コイン 店頭FX取引数量	コイン 店頭FX取引数量	number	コイン 店頭FX取引数量	other	コイン 店頭FX取引数量			全体 > コイン	店頭FX取引数量
+71770	2026	46	legacy	number	コイン 店頭FX預り証拠金残高	コイン 店頭FX預り証拠金残高	number	コイン 店頭FX預り証拠金残高	other	コイン 店頭FX預り証拠金残高			全体 > コイン	店頭FX預り証拠金残高
 71770	2026	47	legacy	number	コイン 店頭FX取引口座数	コイン 店頭FX取引口座数	number	コイン 店頭FX取引口座数	count	コイン		店頭FX取引口座数	全体 > コイン	店頭FX取引口座数
-71770	2026	48	legacy	number	その他事業 営業収益	その他事業 営業収益	number	その他事業 営業収益	other	その他事業 営業収益			全体	その他事業 営業収益
-71770	2026	49	legacy	number	クリック証券 株式売買代金月間	クリック証券 株式売買代金月間	number	クリック証券 株式売買代金月間	other	クリック証券 株式売買代金月間			全体	クリック証券 株式売買代金月間
-71770	2026	50	legacy	number	クリック証券 株式売買代金月間現物	クリック証券 株式売買代金月間現物	number	クリック証券 株式売買代金月間現物	other	クリック証券 株式売買代金月間現物			全体	クリック証券 株式売買代金月間現物
-71770	2026	51	legacy	number	クリック証券 株式売買代金月間信用	クリック証券 株式売買代金月間信用	number	クリック証券 株式売買代金月間信用	other	クリック証券 株式売買代金月間信用			全体	クリック証券 株式売買代金月間信用
-71770	2026	52	legacy	number	クリック証券 信用取引残高	クリック証券 信用取引残高	number	クリック証券 信用取引残高	other	クリック証券 信用取引残高			全体	クリック証券 信用取引残高
-71770	2026	53	legacy	number	クリック証券 店頭FX売買代金月間	クリック証券 店頭FX売買代金月間	number	クリック証券 店頭FX売買代金月間	other	クリック証券 店頭FX売買代金月間			全体	クリック証券 店頭FX売買代金月間
-71770	2026	54	legacy	number	クリック証券 店頭FX取引数量	クリック証券 店頭FX取引数量	number	クリック証券 店頭FX取引数量	other	クリック証券 店頭FX取引数量			全体	クリック証券 店頭FX取引数量
-71770	2026	55	legacy	number	クリック証券 店頭FX預り証拠金残高	クリック証券 店頭FX預り証拠金残高	number	クリック証券 店頭FX預り証拠金残高	other	クリック証券 店頭FX預り証拠金残高			全体	クリック証券 店頭FX預り証拠金残高
-71770	2026	56	legacy	number	クリック証券 CFD売買代金	クリック証券 CFD売買代金	number	クリック証券 CFD売買代金	other	クリック証券 CFD売買代金			全体	クリック証券 CFD売買代金
-71770	2026	57	legacy	number	クリック証券 CFD預り証拠金残高	クリック証券 CFD預り証拠金残高	number	クリック証券 CFD預り証拠金残高	other	クリック証券 CFD預り証拠金残高			全体	クリック証券 CFD預り証拠金残高
+71770	2026	48	legacy	number	その他事業 営業収益	その他事業 営業収益	number	その他事業 営業収益	other	その他事業 営業収益			全体 > その他事業	営業収益
+71770	2026	49	legacy	number	クリック証券 株式売買代金月間	クリック証券 株式売買代金月間	number	クリック証券 株式売買代金月間	other	クリック証券 株式売買代金月間			全体 > クリック証券	株式売買代金月間
+71770	2026	50	legacy	number	クリック証券 株式売買代金月間現物	クリック証券 株式売買代金月間現物	number	クリック証券 株式売買代金月間現物	other	クリック証券 株式売買代金月間現物			全体 > クリック証券 > 現物	株式売買代金月間
+71770	2026	51	legacy	number	クリック証券 株式売買代金月間信用	クリック証券 株式売買代金月間信用	number	クリック証券 株式売買代金月間信用	other	クリック証券 株式売買代金月間信用			全体 > クリック証券 > 信用	株式売買代金月間
+71770	2026	52	legacy	number	クリック証券 信用取引残高	クリック証券 信用取引残高	number	クリック証券 信用取引残高	other	クリック証券 信用取引残高			全体 > クリック証券	信用取引残高
+71770	2026	53	legacy	number	クリック証券 店頭FX売買代金月間	クリック証券 店頭FX売買代金月間	number	クリック証券 店頭FX売買代金月間	other	クリック証券 店頭FX売買代金月間			全体 > クリック証券	店頭FX売買代金月間
+71770	2026	54	legacy	number	クリック証券 店頭FX取引数量	クリック証券 店頭FX取引数量	number	クリック証券 店頭FX取引数量	other	クリック証券 店頭FX取引数量			全体 > クリック証券	店頭FX取引数量
+71770	2026	55	legacy	number	クリック証券 店頭FX預り証拠金残高	クリック証券 店頭FX預り証拠金残高	number	クリック証券 店頭FX預り証拠金残高	other	クリック証券 店頭FX預り証拠金残高			全体 > クリック証券	店頭FX預り証拠金残高
+71770	2026	56	legacy	number	クリック証券 CFD売買代金	クリック証券 CFD売買代金	number	クリック証券 CFD売買代金	other	クリック証券 CFD売買代金			全体 > クリック証券	CFD売買代金
+71770	2026	57	legacy	number	クリック証券 CFD預り証拠金残高	クリック証券 CFD預り証拠金残高	number	クリック証券 CFD預り証拠金残高	other	クリック証券 CFD預り証拠金残高			全体 > クリック証券	CFD預り証拠金残高
 71770	2026	58	legacy	number	クリック証券 証券取引口座数	クリック証券 証券取引口座数	number	クリック証券 証券取引口座数	count	クリック証券		証券取引口座数	全体 > クリック証券	証券取引口座数
 71770	2026	59	legacy	number	クリック証券 FXネオ取引口座数	クリック証券 FXネオ取引口座数	number	クリック証券 FXネオ取引口座数	count	クリック証券		FXネオ取引口座数	全体 > クリック証券	FXネオ取引口座数
-71770	2026	60	legacy	number	クリック証券 全商品預り資産	クリック証券 全商品預り資産	number	クリック証券 全商品預り資産	other	クリック証券 全商品預り資産			全体	クリック証券 全商品預り資産
-71850	2023	1	legacy	number	連結営業収益	連結営業収益	number	連結営業収益	other			連結営業収益	全体	連結営業収益
-71850	2023	2	legacy	number	連結顧客口座数	連結顧客口座数	number	連結顧客口座数	count			連結顧客口座数	全体	連結顧客口座数
-71850	2023	3	legacy	number	連結外国為替取引高	連結外国為替取引高	number	連結外国為替取引高	other			連結外国為替取引高	全体	連結外国為替取引高
-71850	2023	4	legacy	number	連結顧客預り証拠金	連結顧客預り証拠金	number	連結顧客預り証拠金	other			連結顧客預り証拠金	全体	連結顧客預り証拠金
-71850	2023	5	legacy	number	単体 営業収益	単体 営業収益	number	単体 営業収益	other	単体 営業収益			全体	単体 営業収益
+71770	2026	60	legacy	number	クリック証券 全商品預り資産	クリック証券 全商品預り資産	number	クリック証券 全商品預り資産	other	クリック証券 全商品預り資産			全体 > クリック証券	全商品預り資産
+71850	2023	1	legacy	number	連結営業収益	連結営業収益	number	連結営業収益	other			連結営業収益	全体	営業収益
+71850	2023	2	legacy	number	連結顧客口座数	連結顧客口座数	number	連結顧客口座数	count			連結顧客口座数	全体	顧客口座数
+71850	2023	3	legacy	number	連結外国為替取引高	連結外国為替取引高	number	連結外国為替取引高	other			連結外国為替取引高	全体	外国為替取引高
+71850	2023	4	legacy	number	連結顧客預り証拠金	連結顧客預り証拠金	number	連結顧客預り証拠金	other			連結顧客預り証拠金	全体	顧客預り証拠金
+71850	2023	5	legacy	number	単体 営業収益	単体 営業収益	number	単体 営業収益	other	単体 営業収益			全体 > 単体	営業収益
 71850	2023	6	legacy	number	単体 顧客口座数	単体 顧客口座数	number	単体 顧客口座数	count	単体		顧客口座数	全体 > 単体	顧客口座数
-71850	2023	7	legacy	number	単体 外国為替取引高	単体 外国為替取引高	number	単体 外国為替取引高	other	単体 外国為替取引高			全体	単体 外国為替取引高
-71850	2023	8	legacy	number	単体 顧客預り証拠金	単体 顧客預り証拠金	number	単体 顧客預り証拠金	other	単体 顧客預り証拠金			全体	単体 顧客預り証拠金
-71850	2024	1	legacy	number	連結営業収益	連結営業収益	number	連結営業収益	other			連結営業収益	全体	連結営業収益
-71850	2024	2	legacy	number	連結顧客口座数	連結顧客口座数	number	連結顧客口座数	count			連結顧客口座数	全体	連結顧客口座数
-71850	2024	3	legacy	number	連結外国為替取引高	連結外国為替取引高	number	連結外国為替取引高	other			連結外国為替取引高	全体	連結外国為替取引高
-71850	2024	4	legacy	number	連結顧客預り証拠金	連結顧客預り証拠金	number	連結顧客預り証拠金	other			連結顧客預り証拠金	全体	連結顧客預り証拠金
-71850	2024	5	legacy	number	単体 営業収益	単体 営業収益	number	単体 営業収益	other	単体 営業収益			全体	単体 営業収益
+71850	2023	7	legacy	number	単体 外国為替取引高	単体 外国為替取引高	number	単体 外国為替取引高	other	単体 外国為替取引高			全体 > 単体	外国為替取引高
+71850	2023	8	legacy	number	単体 顧客預り証拠金	単体 顧客預り証拠金	number	単体 顧客預り証拠金	other	単体 顧客預り証拠金			全体 > 単体	顧客預り証拠金
+71850	2024	1	legacy	number	連結営業収益	連結営業収益	number	連結営業収益	other			連結営業収益	全体	営業収益
+71850	2024	2	legacy	number	連結顧客口座数	連結顧客口座数	number	連結顧客口座数	count			連結顧客口座数	全体	顧客口座数
+71850	2024	3	legacy	number	連結外国為替取引高	連結外国為替取引高	number	連結外国為替取引高	other			連結外国為替取引高	全体	外国為替取引高
+71850	2024	4	legacy	number	連結顧客預り証拠金	連結顧客預り証拠金	number	連結顧客預り証拠金	other			連結顧客預り証拠金	全体	顧客預り証拠金
+71850	2024	5	legacy	number	単体 営業収益	単体 営業収益	number	単体 営業収益	other	単体 営業収益			全体 > 単体	営業収益
 71850	2024	6	legacy	number	単体 顧客口座数	単体 顧客口座数	number	単体 顧客口座数	count	単体		顧客口座数	全体 > 単体	顧客口座数
-71850	2024	7	legacy	number	単体 外国為替取引高	単体 外国為替取引高	number	単体 外国為替取引高	other	単体 外国為替取引高			全体	単体 外国為替取引高
-71850	2024	8	legacy	number	単体 顧客預り証拠金	単体 顧客預り証拠金	number	単体 顧客預り証拠金	other	単体 顧客預り証拠金			全体	単体 顧客預り証拠金
-71850	2025	1	legacy	number	連結営業収益	連結営業収益	number	連結営業収益	other			連結営業収益	全体	連結営業収益
-71850	2025	2	legacy	number	連結顧客口座数	連結顧客口座数	number	連結顧客口座数	count			連結顧客口座数	全体	連結顧客口座数
-71850	2025	3	legacy	number	連結外国為替取引高	連結外国為替取引高	number	連結外国為替取引高	other			連結外国為替取引高	全体	連結外国為替取引高
-71850	2025	4	legacy	number	連結顧客預り証拠金	連結顧客預り証拠金	number	連結顧客預り証拠金	other			連結顧客預り証拠金	全体	連結顧客預り証拠金
-71850	2025	5	legacy	number	単体 営業収益	単体 営業収益	number	単体 営業収益	other	単体 営業収益			全体	単体 営業収益
+71850	2024	7	legacy	number	単体 外国為替取引高	単体 外国為替取引高	number	単体 外国為替取引高	other	単体 外国為替取引高			全体 > 単体	外国為替取引高
+71850	2024	8	legacy	number	単体 顧客預り証拠金	単体 顧客預り証拠金	number	単体 顧客預り証拠金	other	単体 顧客預り証拠金			全体 > 単体	顧客預り証拠金
+71850	2025	1	legacy	number	連結営業収益	連結営業収益	number	連結営業収益	other			連結営業収益	全体	営業収益
+71850	2025	2	legacy	number	連結顧客口座数	連結顧客口座数	number	連結顧客口座数	count			連結顧客口座数	全体	顧客口座数
+71850	2025	3	legacy	number	連結外国為替取引高	連結外国為替取引高	number	連結外国為替取引高	other			連結外国為替取引高	全体	外国為替取引高
+71850	2025	4	legacy	number	連結顧客預り証拠金	連結顧客預り証拠金	number	連結顧客預り証拠金	other			連結顧客預り証拠金	全体	顧客預り証拠金
+71850	2025	5	legacy	number	単体 営業収益	単体 営業収益	number	単体 営業収益	other	単体 営業収益			全体 > 単体	営業収益
 71850	2025	6	legacy	number	単体 顧客口座数	単体 顧客口座数	number	単体 顧客口座数	count	単体		顧客口座数	全体 > 単体	顧客口座数
-71850	2025	7	legacy	number	単体 外国為替取引高	単体 外国為替取引高	number	単体 外国為替取引高	other	単体 外国為替取引高			全体	単体 外国為替取引高
-71850	2025	8	legacy	number	単体 顧客預り証拠金	単体 顧客預り証拠金	number	単体 顧客預り証拠金	other	単体 顧客預り証拠金			全体	単体 顧客預り証拠金
-71850	2026	1	legacy	number	連結営業収益	連結営業収益	number	連結営業収益	other			連結営業収益	全体	連結営業収益
-71850	2026	2	legacy	number	連結顧客口座数	連結顧客口座数	number	連結顧客口座数	count			連結顧客口座数	全体	連結顧客口座数
-71850	2026	3	legacy	number	連結外国為替取引高	連結外国為替取引高	number	連結外国為替取引高	other			連結外国為替取引高	全体	連結外国為替取引高
-71850	2026	4	legacy	number	連結顧客預り証拠金	連結顧客預り証拠金	number	連結顧客預り証拠金	other			連結顧客預り証拠金	全体	連結顧客預り証拠金
-71850	2026	5	legacy	number	単体 営業収益	単体 営業収益	number	単体 営業収益	other	単体 営業収益			全体	単体 営業収益
+71850	2025	7	legacy	number	単体 外国為替取引高	単体 外国為替取引高	number	単体 外国為替取引高	other	単体 外国為替取引高			全体 > 単体	外国為替取引高
+71850	2025	8	legacy	number	単体 顧客預り証拠金	単体 顧客預り証拠金	number	単体 顧客預り証拠金	other	単体 顧客預り証拠金			全体 > 単体	顧客預り証拠金
+71850	2026	1	legacy	number	連結営業収益	連結営業収益	number	連結営業収益	other			連結営業収益	全体	営業収益
+71850	2026	2	legacy	number	連結顧客口座数	連結顧客口座数	number	連結顧客口座数	count			連結顧客口座数	全体	顧客口座数
+71850	2026	3	legacy	number	連結外国為替取引高	連結外国為替取引高	number	連結外国為替取引高	other			連結外国為替取引高	全体	外国為替取引高
+71850	2026	4	legacy	number	連結顧客預り証拠金	連結顧客預り証拠金	number	連結顧客預り証拠金	other			連結顧客預り証拠金	全体	顧客預り証拠金
+71850	2026	5	legacy	number	単体 営業収益	単体 営業収益	number	単体 営業収益	other	単体 営業収益			全体 > 単体	営業収益
 71850	2026	6	legacy	number	単体 顧客口座数	単体 顧客口座数	number	単体 顧客口座数	count	単体		顧客口座数	全体 > 単体	顧客口座数
-71850	2026	7	legacy	number	単体 外国為替取引高	単体 外国為替取引高	number	単体 外国為替取引高	other	単体 外国為替取引高			全体	単体 外国為替取引高
-71850	2026	8	legacy	number	単体 顧客預り証拠金	単体 顧客預り証拠金	number	単体 顧客預り証拠金	other	単体 顧客預り証拠金			全体	単体 顧客預り証拠金
+71850	2026	7	legacy	number	単体 外国為替取引高	単体 外国為替取引高	number	単体 外国為替取引高	other	単体 外国為替取引高			全体 > 単体	外国為替取引高
+71850	2026	8	legacy	number	単体 顧客預り証拠金	単体 顧客預り証拠金	number	単体 顧客預り証拠金	other	単体 顧客預り証拠金			全体 > 単体	顧客預り証拠金
 73700	2024	1	legacy	number	グループ 売上高	グループ 売上高	number	グループ 売上高	sales	グループ		売上高	全体	売上高
 73700	2024	2	legacy	number	PRコンサルティングサービス 売上高	PRコンサルティングサービス 売上高	number	PRコンサルティングサービス 売上高	sales	PRコンサルティングサービス		売上高	全体 > PRコンサルティングサービス	売上高
 73700	2024	3	legacy	number	メディアプラットフォームサービス 売上高	メディアプラットフォームサービス 売上高	number	メディアプラットフォームサービス 売上高	sales	メディアプラットフォームサービス		売上高	全体 > メディアプラットフォームサービス	売上高
@@ -6947,73 +6947,73 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 87050	2023	4	legacy	number	その他	その他	number	その他	other	その他			全体	その他
 87050	2023	5	legacy	number	口座数	口座数	number	口座数	count			口座数	全体	口座数
 87050	2023	6	legacy	number	預かり資産	預かり資産	number	預かり資産	other	預かり資産			全体	預かり資産
-87050	2023	7	legacy	number	リテール事業 預かり資産	リテール事業 預かり資産	number	リテール事業 預かり資産	other	リテール事業 預かり資産			全体	リテール事業 預かり資産
+87050	2023	7	legacy	number	リテール事業 預かり資産	リテール事業 預かり資産	number	リテール事業 預かり資産	other	リテール事業 預かり資産			全体 > リテール事業	預かり資産
 87050	2023	8	legacy	number	リテール 投資信託残高	リテール 投資信託残高	number	リテール 投資信託残高	other	リテール 投資信託残高			全体	リテール 投資信託残高
 87050	2023	9	legacy	number	リテール 外国株預かり残高	リテール 外国株預かり残高	number	リテール 外国株預かり残高	other	リテール 外国株預かり残高			全体	リテール 外国株預かり残高
-87050	2023	10	legacy	number	ホールセール事業 預かり資産	ホールセール事業 預かり資産	number	ホールセール事業 預かり資産	other	ホールセール事業 預かり資産			全体	ホールセール事業 預かり資産
+87050	2023	10	legacy	number	ホールセール事業 預かり資産	ホールセール事業 預かり資産	number	ホールセール事業 預かり資産	other	ホールセール事業 預かり資産			全体 > ホールセール事業	預かり資産
 87050	2023	11	legacy	number	純金積立預かり残高	純金積立預かり残高	number	純金積立預かり残高	other	純金積立預かり残高			全体	純金積立預かり残高
 87050	2023	12	legacy	number	株式等売買代金	株式等売買代金	number	株式等売買代金	other	株式等売買代金			全体	株式等売買代金
-87050	2023	13	legacy	number	リテール事業 株式等売買代金	リテール事業 株式等売買代金	number	リテール事業 株式等売買代金	other	リテール事業 株式等売買代金			全体	リテール事業 株式等売買代金
+87050	2023	13	legacy	number	リテール事業 株式等売買代金	リテール事業 株式等売買代金	number	リテール事業 株式等売買代金	other	リテール事業 株式等売買代金			全体 > リテール事業	株式等売買代金
 87050	2023	14	legacy	number	リテール 外国株売買代金	リテール 外国株売買代金	number	リテール 外国株売買代金	other	リテール 外国株売買代金			全体	リテール 外国株売買代金
-87050	2023	15	legacy	number	ホールセール事業 株式等売買代金	ホールセール事業 株式等売買代金	number	ホールセール事業 株式等売買代金	other	ホールセール事業 株式等売買代金			全体	ホールセール事業 株式等売買代金
+87050	2023	15	legacy	number	ホールセール事業 株式等売買代金	ホールセール事業 株式等売買代金	number	ホールセール事業 株式等売買代金	other	ホールセール事業 株式等売買代金			全体 > ホールセール事業	株式等売買代金
 87050	2023	16	legacy	number	デリバティブ取引売買高	デリバティブ取引売買高	number	デリバティブ取引売買高	other	デリバティブ取引売買高			全体	デリバティブ取引売買高
-87050	2023	17	legacy	number	ホールセール事業 デリバティブ取引売買高	ホールセール事業 デリバティブ取引売買高	number	ホールセール事業 デリバティブ取引売買高	other	ホールセール事業 デリバティブ取引売買高			全体	ホールセール事業 デリバティブ取引売買高
+87050	2023	17	legacy	number	ホールセール事業 デリバティブ取引売買高	ホールセール事業 デリバティブ取引売買高	number	ホールセール事業 デリバティブ取引売買高	other	ホールセール事業 デリバティブ取引売買高			全体 > ホールセール事業	デリバティブ取引売買高
 87050	2024	1	legacy	number	純営業収益	純営業収益	number	純営業収益	other	純営業収益			全体	純営業収益
 87050	2024	2	legacy	number	受入手数料	受入手数料	number	受入手数料	other	受入手数料			全体	受入手数料
 87050	2024	3	legacy	number	トレーディング損益	トレーディング損益	number	トレーディング損益	other	トレーディング損益			全体	トレーディング損益
 87050	2024	4	legacy	number	その他	その他	number	その他	other	その他			全体	その他
 87050	2024	5	legacy	number	口座数	口座数	number	口座数	count			口座数	全体	口座数
 87050	2024	6	legacy	number	預かり資産	預かり資産	number	預かり資産	other	預かり資産			全体	預かり資産
-87050	2024	7	legacy	number	リテール事業 預かり資産	リテール事業 預かり資産	number	リテール事業 預かり資産	other	リテール事業 預かり資産			全体	リテール事業 預かり資産
+87050	2024	7	legacy	number	リテール事業 預かり資産	リテール事業 預かり資産	number	リテール事業 預かり資産	other	リテール事業 預かり資産			全体 > リテール事業	預かり資産
 87050	2024	8	legacy	number	リテール 投資信託残高	リテール 投資信託残高	number	リテール 投資信託残高	other	リテール 投資信託残高			全体	リテール 投資信託残高
 87050	2024	9	legacy	number	リテール 外国株預かり残高	リテール 外国株預かり残高	number	リテール 外国株預かり残高	other	リテール 外国株預かり残高			全体	リテール 外国株預かり残高
-87050	2024	10	legacy	number	ホールセール事業 預かり資産	ホールセール事業 預かり資産	number	ホールセール事業 預かり資産	other	ホールセール事業 預かり資産			全体	ホールセール事業 預かり資産
+87050	2024	10	legacy	number	ホールセール事業 預かり資産	ホールセール事業 預かり資産	number	ホールセール事業 預かり資産	other	ホールセール事業 預かり資産			全体 > ホールセール事業	預かり資産
 87050	2024	11	legacy	number	純金積立預かり残高	純金積立預かり残高	number	純金積立預かり残高	other	純金積立預かり残高			全体	純金積立預かり残高
 87050	2024	12	legacy	number	株式等売買代金	株式等売買代金	number	株式等売買代金	other	株式等売買代金			全体	株式等売買代金
-87050	2024	13	legacy	number	リテール事業 株式等売買代金	リテール事業 株式等売買代金	number	リテール事業 株式等売買代金	other	リテール事業 株式等売買代金			全体	リテール事業 株式等売買代金
+87050	2024	13	legacy	number	リテール事業 株式等売買代金	リテール事業 株式等売買代金	number	リテール事業 株式等売買代金	other	リテール事業 株式等売買代金			全体 > リテール事業	株式等売買代金
 87050	2024	14	legacy	number	リテール 国内株式等売買代金	リテール 国内株式等売買代金	number	リテール 国内株式等売買代金	other	リテール 国内株式等売買代金			全体	リテール 国内株式等売買代金
 87050	2024	15	legacy	number	リテール 外国株売買代金	リテール 外国株売買代金	number	リテール 外国株売買代金	other	リテール 外国株売買代金			全体	リテール 外国株売買代金
-87050	2024	16	legacy	number	ホールセール事業 株式等売買代金	ホールセール事業 株式等売買代金	number	ホールセール事業 株式等売買代金	other	ホールセール事業 株式等売買代金			全体	ホールセール事業 株式等売買代金
+87050	2024	16	legacy	number	ホールセール事業 株式等売買代金	ホールセール事業 株式等売買代金	number	ホールセール事業 株式等売買代金	other	ホールセール事業 株式等売買代金			全体 > ホールセール事業	株式等売買代金
 87050	2024	17	legacy	number	デリバティブ取引売買高	デリバティブ取引売買高	number	デリバティブ取引売買高	other	デリバティブ取引売買高			全体	デリバティブ取引売買高
-87050	2024	18	legacy	number	リテール事業 デリバティブ取引売買高	リテール事業 デリバティブ取引売買高	number	リテール事業 デリバティブ取引売買高	other	リテール事業 デリバティブ取引売買高			全体	リテール事業 デリバティブ取引売買高
-87050	2024	19	legacy	number	ホールセール事業 デリバティブ取引売買高	ホールセール事業 デリバティブ取引売買高	number	ホールセール事業 デリバティブ取引売買高	other	ホールセール事業 デリバティブ取引売買高			全体	ホールセール事業 デリバティブ取引売買高
+87050	2024	18	legacy	number	リテール事業 デリバティブ取引売買高	リテール事業 デリバティブ取引売買高	number	リテール事業 デリバティブ取引売買高	other	リテール事業 デリバティブ取引売買高			全体 > リテール事業	デリバティブ取引売買高
+87050	2024	19	legacy	number	ホールセール事業 デリバティブ取引売買高	ホールセール事業 デリバティブ取引売買高	number	ホールセール事業 デリバティブ取引売買高	other	ホールセール事業 デリバティブ取引売買高			全体 > ホールセール事業	デリバティブ取引売買高
 87050	2025	1	legacy	number	純営業収益	純営業収益	number	純営業収益	other	純営業収益			全体	純営業収益
 87050	2025	2	legacy	number	受入手数料	受入手数料	number	受入手数料	other	受入手数料			全体	受入手数料
 87050	2025	3	legacy	number	トレーディング損益	トレーディング損益	number	トレーディング損益	other	トレーディング損益			全体	トレーディング損益
 87050	2025	4	legacy	number	その他	その他	number	その他	other	その他			全体	その他
 87050	2025	5	legacy	number	口座数	口座数	number	口座数	count			口座数	全体	口座数
 87050	2025	6	legacy	number	預かり資産	預かり資産	number	預かり資産	other	預かり資産			全体	預かり資産
-87050	2025	7	legacy	number	リテール事業 預かり資産	リテール事業 預かり資産	number	リテール事業 預かり資産	other	リテール事業 預かり資産			全体	リテール事業 預かり資産
+87050	2025	7	legacy	number	リテール事業 預かり資産	リテール事業 預かり資産	number	リテール事業 預かり資産	other	リテール事業 預かり資産			全体 > リテール事業	預かり資産
 87050	2025	8	legacy	number	リテール 投資信託残高	リテール 投資信託残高	number	リテール 投資信託残高	other	リテール 投資信託残高			全体	リテール 投資信託残高
 87050	2025	9	legacy	number	リテール 外国株預かり残高	リテール 外国株預かり残高	number	リテール 外国株預かり残高	other	リテール 外国株預かり残高			全体	リテール 外国株預かり残高
-87050	2025	10	legacy	number	ホールセール事業 預かり資産	ホールセール事業 預かり資産	number	ホールセール事業 預かり資産	other	ホールセール事業 預かり資産			全体	ホールセール事業 預かり資産
+87050	2025	10	legacy	number	ホールセール事業 預かり資産	ホールセール事業 預かり資産	number	ホールセール事業 預かり資産	other	ホールセール事業 預かり資産			全体 > ホールセール事業	預かり資産
 87050	2025	11	legacy	number	純金積立預かり残高	純金積立預かり残高	number	純金積立預かり残高	other	純金積立預かり残高			全体	純金積立預かり残高
 87050	2025	12	legacy	number	株式等売買代金	株式等売買代金	number	株式等売買代金	other	株式等売買代金			全体	株式等売買代金
-87050	2025	13	legacy	number	リテール事業 株式等売買代金	リテール事業 株式等売買代金	number	リテール事業 株式等売買代金	other	リテール事業 株式等売買代金			全体	リテール事業 株式等売買代金
+87050	2025	13	legacy	number	リテール事業 株式等売買代金	リテール事業 株式等売買代金	number	リテール事業 株式等売買代金	other	リテール事業 株式等売買代金			全体 > リテール事業	株式等売買代金
 87050	2025	14	legacy	number	リテール 国内株式等売買代金	リテール 国内株式等売買代金	number	リテール 国内株式等売買代金	other	リテール 国内株式等売買代金			全体	リテール 国内株式等売買代金
 87050	2025	15	legacy	number	リテール 外国株売買代金	リテール 外国株売買代金	number	リテール 外国株売買代金	other	リテール 外国株売買代金			全体	リテール 外国株売買代金
-87050	2025	16	legacy	number	ホールセール事業 株式等売買代金	ホールセール事業 株式等売買代金	number	ホールセール事業 株式等売買代金	other	ホールセール事業 株式等売買代金			全体	ホールセール事業 株式等売買代金
+87050	2025	16	legacy	number	ホールセール事業 株式等売買代金	ホールセール事業 株式等売買代金	number	ホールセール事業 株式等売買代金	other	ホールセール事業 株式等売買代金			全体 > ホールセール事業	株式等売買代金
 87050	2025	17	legacy	number	デリバティブ取引売買高	デリバティブ取引売買高	number	デリバティブ取引売買高	other	デリバティブ取引売買高			全体	デリバティブ取引売買高
-87050	2025	18	legacy	number	リテール事業 デリバティブ取引売買高	リテール事業 デリバティブ取引売買高	number	リテール事業 デリバティブ取引売買高	other	リテール事業 デリバティブ取引売買高			全体	リテール事業 デリバティブ取引売買高
-87050	2025	19	legacy	number	ホールセール事業 デリバティブ取引売買高	ホールセール事業 デリバティブ取引売買高	number	ホールセール事業 デリバティブ取引売買高	other	ホールセール事業 デリバティブ取引売買高			全体	ホールセール事業 デリバティブ取引売買高
+87050	2025	18	legacy	number	リテール事業 デリバティブ取引売買高	リテール事業 デリバティブ取引売買高	number	リテール事業 デリバティブ取引売買高	other	リテール事業 デリバティブ取引売買高			全体 > リテール事業	デリバティブ取引売買高
+87050	2025	19	legacy	number	ホールセール事業 デリバティブ取引売買高	ホールセール事業 デリバティブ取引売買高	number	ホールセール事業 デリバティブ取引売買高	other	ホールセール事業 デリバティブ取引売買高			全体 > ホールセール事業	デリバティブ取引売買高
 87050	2026	1	legacy	number	純営業収益	純営業収益	number	純営業収益	other	純営業収益			全体	純営業収益
 87050	2026	2	legacy	number	受入手数料	受入手数料	number	受入手数料	other	受入手数料			全体	受入手数料
 87050	2026	3	legacy	number	トレーディング損益	トレーディング損益	number	トレーディング損益	other	トレーディング損益			全体	トレーディング損益
 87050	2026	4	legacy	number	その他	その他	number	その他	other	その他			全体	その他
 87050	2026	5	legacy	number	口座数	口座数	number	口座数	count			口座数	全体	口座数
 87050	2026	6	legacy	number	預かり資産	預かり資産	number	預かり資産	other	預かり資産			全体	預かり資産
-87050	2026	7	legacy	number	リテール事業 預かり資産	リテール事業 預かり資産	number	リテール事業 預かり資産	other	リテール事業 預かり資産			全体	リテール事業 預かり資産
-87050	2026	8	legacy	number	ホールセール事業 預かり資産	ホールセール事業 預かり資産	number	ホールセール事業 預かり資産	other	ホールセール事業 預かり資産			全体	ホールセール事業 預かり資産
+87050	2026	7	legacy	number	リテール事業 預かり資産	リテール事業 預かり資産	number	リテール事業 預かり資産	other	リテール事業 預かり資産			全体 > リテール事業	預かり資産
+87050	2026	8	legacy	number	ホールセール事業 預かり資産	ホールセール事業 預かり資産	number	ホールセール事業 預かり資産	other	ホールセール事業 預かり資産			全体 > ホールセール事業	預かり資産
 87050	2026	9	legacy	number	純金積立預かり残高	純金積立預かり残高	number	純金積立預かり残高	other	純金積立預かり残高			全体	純金積立預かり残高
 87050	2026	10	legacy	number	株式等売買代金	株式等売買代金	number	株式等売買代金	other	株式等売買代金			全体	株式等売買代金
 87050	2026	11	legacy	number	デリバティブ取引売買高	デリバティブ取引売買高	number	デリバティブ取引売買高	other	デリバティブ取引売買高			全体	デリバティブ取引売買高
 87050	2026	12	legacy	number	リテール 投資信託残高	リテール 投資信託残高	number	リテール 投資信託残高	other	リテール 投資信託残高			全体	リテール 投資信託残高
 87050	2026	13	legacy	number	リテール 外国株預かり残高	リテール 外国株預かり残高	number	リテール 外国株預かり残高	other	リテール 外国株預かり残高			全体	リテール 外国株預かり残高
-87050	2026	14	legacy	number	リテール事業 株式等売買代金	リテール事業 株式等売買代金	number	リテール事業 株式等売買代金	other	リテール事業 株式等売買代金			全体	リテール事業 株式等売買代金
+87050	2026	14	legacy	number	リテール事業 株式等売買代金	リテール事業 株式等売買代金	number	リテール事業 株式等売買代金	other	リテール事業 株式等売買代金			全体 > リテール事業	株式等売買代金
 87050	2026	15	legacy	number	リテール 外国株売買代金	リテール 外国株売買代金	number	リテール 外国株売買代金	other	リテール 外国株売買代金			全体	リテール 外国株売買代金
-87050	2026	16	legacy	number	ホールセール事業 株式等売買代金	ホールセール事業 株式等売買代金	number	ホールセール事業 株式等売買代金	other	ホールセール事業 株式等売買代金			全体	ホールセール事業 株式等売買代金
-87050	2026	17	legacy	number	リテール事業 デリバティブ取引売買高	リテール事業 デリバティブ取引売買高	number	リテール事業 デリバティブ取引売買高	other	リテール事業 デリバティブ取引売買高			全体	リテール事業 デリバティブ取引売買高
-87050	2026	18	legacy	number	ホールセール事業 デリバティブ取引売買高	ホールセール事業 デリバティブ取引売買高	number	ホールセール事業 デリバティブ取引売買高	other	ホールセール事業 デリバティブ取引売買高			全体	ホールセール事業 デリバティブ取引売買高
+87050	2026	16	legacy	number	ホールセール事業 株式等売買代金	ホールセール事業 株式等売買代金	number	ホールセール事業 株式等売買代金	other	ホールセール事業 株式等売買代金			全体 > ホールセール事業	株式等売買代金
+87050	2026	17	legacy	number	リテール事業 デリバティブ取引売買高	リテール事業 デリバティブ取引売買高	number	リテール事業 デリバティブ取引売買高	other	リテール事業 デリバティブ取引売買高			全体 > リテール事業	デリバティブ取引売買高
+87050	2026	18	legacy	number	ホールセール事業 デリバティブ取引売買高	ホールセール事業 デリバティブ取引売買高	number	ホールセール事業 デリバティブ取引売買高	other	ホールセール事業 デリバティブ取引売買高			全体 > ホールセール事業	デリバティブ取引売買高
 87150	2024	1	legacy	number	正味収入保険料	正味収入保険料	number	正味収入保険料	other	正味収入保険料			全体	正味収入保険料
 87150	2024	2	legacy	number	保有契約件数	保有契約件数	number	保有契約件数	count			保有契約件数	全体	保有契約件数
 87150	2024	3	legacy	number	平均継続率	平均継続率	number	平均継続率	other	平均継続率			全体	平均継続率
@@ -7048,7 +7048,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 89140	2026	4	legacy	number	稼働率 既存	稼働率 既存	number	稼働率 既存	other	稼働率	既存		全体 > 稼働率	既存
 89140	2026	5	legacy	number	新規稼働率	新規稼働率	number	新規稼働率	other	新規稼働率			全体	新規稼働率
 89270	2026	1	legacy	number	仕入 件数	仕入 件数	number	仕入 件数	count	仕入		件数	全体 > 仕入	件数
-89270	2026	2	legacy	number	仕入 敷地面積	仕入 敷地面積	number	仕入 敷地面積	other	仕入 敷地面積			全体	仕入 敷地面積
+89270	2026	2	legacy	number	仕入 敷地面積	仕入 敷地面積	number	仕入 敷地面積	other	仕入 敷地面積			全体 > 仕入	敷地面積
 89270	2026	3	legacy	number	販売 件数	販売 件数	number	販売 件数	count	販売		件数	全体 > 販売	件数
 89270	2026	4	legacy	number	販売 戸数	販売 戸数	number	販売 戸数	count	販売		戸数	全体 > 販売	戸数
 90070	2024	1	legacy	number	鉄道 定期計 輸送人員	鉄道 定期計 輸送人員	number	鉄道 定期計 輸送人員	other	鉄道 定期計 輸送人員			全体 > 鉄道 > 定期+定期外 > 定期計	輸送人員

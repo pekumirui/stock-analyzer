@@ -219,6 +219,12 @@ _COMPANY_GROUPS = frozenset({"日本+海外", "グループ"})
 _TOTAL_TOKENS = frozenset({"企業計", "グループ総", "チェーン", "総", "全社（連結）", "カウント"})
 _METRIC_TOKENS = frozenset({"増減", "増減額", "同規模", "一品", "買上点数"})
 _GROUP_CHANNEL_TOKENS = frozenset({"TCC"})
+_YOY_RATE_SUFFIX = "増減率"
+_INNER_MARKS = ("内訳：", "内訳:", "内訳", "うち")
+_GLUED_INNERS = ("現物", "信用")
+_FOLD_SKIP_GROUPS = _COMPANY_GROUPS | _TOTAL_TOKENS | frozenset({
+    "全社", "全店", "既存", "直営", "FC", "直営+FC", "日本", "海外", "日本+海外",
+})
 _AUTO_CHANNEL_RANK = {"": 0, "直営+FC": 0, "直営": 1, "FC": 2}
 _AUTO_COUNTRY_RANK = {"": 0, "日本+海外": 0, "日本": 1, "海外": 2}
 _AUTO_SCOPE_RANK = {"既存": 0, "全店": 1, "全社": 1, "": 1}
@@ -314,6 +320,174 @@ def auto_metric_parents(metrics: Sequence[str], domestic: Iterable[str] = ()) ->
     return out
 
 
+def _auto_inner_name(rest: str) -> str:
+    s = rest.strip()
+    for mark in _INNER_MARKS:
+        if s.startswith(mark):
+            s = s[len(mark):].strip()
+            break
+    return s
+
+
+def _glued_inner(leaf: str, metrics: Sequence[str]) -> tuple[str, str] | None:
+    """`一日平均売買代金現物` → (`一日平均売買代金`, `現物`)。親の指標が既にあるときだけ。"""
+    for m in metrics:
+        if not m or leaf == m:
+            continue
+        rest = leaf[len(m):] if leaf.startswith(m) else ""
+        if rest in _GLUED_INNERS:
+            return m, rest
+    return None
+
+
+def _fold_skip_section(name: str) -> bool:
+    """合計・チャネル・範囲・国・指標の語を含む名前は節にしない（`日本 総` / `増減`）。"""
+    if not name:
+        return True
+    return any(t in _FOLD_SKIP_GROUPS or t in _METRIC_TOKENS for t in name.split())
+
+
+def _auto_is_baked(row: Mapping[str, Any], element: str) -> bool:
+    """指標語が無く行名全体が group / 指標になった行。既に節へ割れている行は触らない。
+    `既存 売上高` のように辞書の指標語がある会社行は寄せない（#822 の 既存 を指標にしない）。
+    """
+    if len(row["path"]) != 1 or row.get("has_scope_or_channel") or not row.get("unknown_metric"):
+        return False
+    return row["metric"] == strip_yoy_fragments(element) or row["metric"] == strip_yoy_fragments(row["leaf"])
+
+
+def _fold_yoy_rate_metrics(rows: dict[str, dict[str, Any]]) -> None:
+    """指標語の無い `増減率` 前年比を実数の指標へ寄せる（#578。21240 `従業員数増減率` → `従業員数`）。"""
+    have = {r["metric"] for r in rows.values()}
+    for r in rows.values():
+        m = r["metric"]
+        if m.endswith(_YOY_RATE_SUFFIX) and len(m) > len(_YOY_RATE_SUFFIX):
+            base = m[:-len(_YOY_RATE_SUFFIX)]
+            if base in have:
+                r["metric"] = base
+
+
+def _fold_consolidated_metrics(rows: dict[str, dict[str, Any]]) -> None:
+    """会社の `連結X` を、節に `X` があるとき `X` へ寄せる（#577。71850 `連結営業収益` / `単体 営業収益`）。"""
+    have = {r["metric"] for r in rows.values()}
+    for r in rows.values():
+        if len(r["path"]) != 1:
+            continue
+        m = r["metric"]
+        if m.startswith("連結") and len(m) > 2:
+            core = m[2:]
+            if core in have:
+                r["metric"] = core
+
+
+def _fold_baked_auto_rows(rows: dict[str, dict[str, Any]]) -> None:
+    """辞書に無い指標語で根にばらけた行を、既知の指標・節へ戻す（#577 / #579）。
+
+    - 行名が既知の指標で始まる（`保有契約年換算保険料 個人保険`）→ その指標の節（内訳）
+    - 行名が既知の節で始まる（`単体 営業収益`）→ その節の葉
+    - 行名が既知の指標で終わる（`リテール事業 預かり資産`）→ その指標の節
+    既に group + 葉に割れている行は触らない。
+    """
+    changed = True
+    while changed:
+        changed = False
+        groups = sorted(
+            {r["path"][1] for r in rows.values() if len(r["path"]) >= 2},
+            key=len, reverse=True,
+        )
+        metrics = sorted({r["metric"] for r in rows.values()}, key=len, reverse=True)
+        for element, r in rows.items():
+            if not _auto_is_baked(r, element):
+                continue
+            base = strip_yoy_fragments(element)
+            yoy = element[len(base):] if element.startswith(base) else ""
+            # #577: 既知の節名で始まる（膠着の現物/信用より先。クリック 一日平均売買代金現物）
+            hit_g = next((g for g in groups if g and not _fold_skip_section(g) and base.startswith(g + " ")), None)
+            if hit_g:
+                leaf = base[len(hit_g) + 1:]
+                if leaf:
+                    glued = _glued_inner(leaf, metrics)
+                    if glued:
+                        m, inner = glued
+                        r["path"] = [AUTO_ROOT, hit_g, inner]
+                        r["metric"] = m
+                        r["leaf"] = m + yoy
+                    else:
+                        r["path"] = [AUTO_ROOT, hit_g]
+                        r["metric"] = leaf
+                        r["leaf"] = leaf + yoy
+                    changed = True
+                    continue
+            # #579: 合計行のあとに内訳が続く（自分自身の指標名は除く）
+            hit_m = next((m for m in metrics if m and base != m and (
+                base.startswith(m + " ") or (base.startswith(m) and base[len(m):] in _GLUED_INNERS)
+            )), None)
+            if hit_m:
+                rest = _auto_inner_name(base[len(hit_m):])
+                if rest and rest != hit_m and not _fold_skip_section(rest):
+                    r["path"] = [AUTO_ROOT, rest]
+                    r["metric"] = hit_m
+                    r["leaf"] = hit_m + yoy
+                    changed = True
+                    continue
+            # #577: 既知の指標名で終わる
+            hit_m = next((m for m in metrics if m and base.endswith(" " + m) and base != m), None)
+            if hit_m:
+                rest = _auto_inner_name(base[:-(len(hit_m) + 1)])
+                if rest and rest != hit_m and not _fold_skip_section(rest):
+                    r["path"] = [AUTO_ROOT, rest]
+                    r["metric"] = hit_m
+                    r["leaf"] = hit_m + yoy
+                    changed = True
+        if _fold_glued_inners(rows):
+            changed = True
+
+
+def _fold_glued_inners(rows: dict[str, dict[str, Any]]) -> bool:
+    """節に入ったあとの `現物` / `信用` 膠着を 3 段目にする（#579。71770 `クリック 一日平均売買代金現物`）。"""
+    metrics = sorted({r["metric"] for r in rows.values()}, key=len, reverse=True)
+    changed = False
+    for r in rows.values():
+        if len(r["path"]) != 2:
+            continue
+        base = strip_yoy_fragments(r["leaf"])
+        glued = _glued_inner(base, metrics)
+        if glued is None:
+            continue
+        m, inner = glued
+        yoy = r["leaf"][len(base):] if r["leaf"].startswith(base) else ""
+        r["path"] = [r["path"][0], r["path"][1], inner]
+        r["metric"] = m
+        r["leaf"] = m + yoy
+        changed = True
+    return changed
+
+
+def _rebuild_auto_groups(rows: Mapping[str, Mapping[str, Any]]
+                         ) -> tuple[dict[str, int], dict[tuple[str, str], tuple[int, int]]]:
+    group_first: dict[str, int] = {}
+    bd_first: dict[tuple[str, str], tuple[int, int]] = {}
+    for r in sorted(rows.values(), key=lambda x: x["order"]):
+        path = r["path"]
+        if len(path) >= 2:
+            group_first.setdefault(path[1], r["order"])
+        if len(path) >= 3:
+            bd_first.setdefault((path[1], path[2]), (0, r["order"]))
+    return group_first, bd_first
+
+
+def _rebuild_metric_key(rows: Mapping[str, Mapping[str, Any]],
+                        old: Mapping[str, tuple]) -> dict[str, tuple]:
+    out: dict[str, tuple] = {}
+    for r in sorted(rows.values(), key=lambda x: x["order"]):
+        m = r["metric"]
+        in_node = len(r["path"]) > 1
+        key = old[m][1] if m in old else (9, 9, 9, 9, r["order"])
+        if m not in out or (not in_node and out[m][0]):
+            out[m] = (in_node, key)
+    return out
+
+
 def _yoy_sales_parent(L: Mapping[str, Any], cands: Sequence[tuple[str, str, str, str]]) -> str | None:
     """指標語の無い前年比の親の 売上高。(channel, scope, country, metric) が同じ 売上高 が 1 つだけのとき寄せる。
     チャネル `直営+FC` は同じ 範囲 のチャネル無しの 売上高（全店）に寄せる。0 か 2 以上は決められない。
@@ -367,7 +541,11 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
             if len(path) > 1:
                 metric = gmap.get(metric, metric)
         idx = union_idx.get(canon, len(union_idx) + seen)
-        rows[element] = {"path": list(path), "leaf": leaf, "metric": metric, "order": idx}
+        rows[element] = {
+            "path": list(path), "leaf": leaf, "metric": metric, "order": idx,
+            "unknown_metric": not str(L["metric"] or ""),
+            "has_scope_or_channel": bool(L["channel"] or L["scope"]),
+        }
         if L["metric_kind"] == "sales" and not monthly_row_unit_rank(unit):
             sales.setdefault(path, []).append((str(L["channel"]), str(L["scope"]), str(L["country"]), metric))
         key = (
@@ -421,6 +599,11 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
             place(element, unit, L, canon, own, m + str(L["display"])[len(strip_yoy_fragments(str(L["display"]))):], m)
         else:
             place(element, unit, L, canon, group, leaf)
+    _fold_yoy_rate_metrics(rows)
+    _fold_baked_auto_rows(rows)
+    _fold_consolidated_metrics(rows)
+    group_first, bd_first = _rebuild_auto_groups(rows)
+    metric_key = _rebuild_metric_key(rows, metric_key)
     company = {r["metric"] for r in rows.values() if len(r["path"]) == 1}
     node_only = {r["metric"] for r in rows.values() if len(r["path"]) > 1} - company
     folded: list[str] = []
