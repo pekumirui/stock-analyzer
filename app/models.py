@@ -1,4 +1,5 @@
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     Column,
     Date,
@@ -538,3 +539,66 @@ class EdinetListDay(Base):
     process_datetime = Column(DateTime)              # EDINET 側の一覧作成時刻（JST naive）
     finalized = Column(Boolean, nullable=False)      # file_date より後（JST）に取った = その日の一覧は確定
     fetched_at = Column(DateTime, nullable=False)
+
+
+class LargeHoldingReport(Base):
+    """大量保有報告書・変更報告書・訂正（EDINET 書類種別 350 / 360）の 1 書類（KAB-74）。
+
+    中身は書類取得 API type=5（XBRL→CSV）。取込は app/edinet/large_holdings.py。
+    訂正は大元（original_doc_id）に束ね、取下げでない最新の 1 件に is_latest を立てる。
+    """
+    __tablename__ = "large_holding_reports"
+    doc_id = Column(String(8), primary_key=True)
+    file_date = Column(Date, nullable=False)
+    submit_datetime = Column(DateTime)              # JST naive
+    doc_type_code = Column(String(3), nullable=False)  # 350 大量保有・変更報告書 / 360 訂正
+    form_code = Column(String(6))                   # 010000 大量保有 / 010002 変更 / 020002 短期大量譲渡 / 03xxxx 特例 など
+    title = Column(Text)                            # 表紙の書類名（変更報告書ＮＯ．3 など）
+    filer_edinet_code = Column(String(6), index=True)
+    filer_name = Column(String)
+    issuer_edinet_code = Column(String(6))
+    issuer_sec_code = Column(String(5))             # 発行者の証券コード（CSV の 4 桁に 0 を付けた 5 桁）
+    issuer_name = Column(String)
+    code = Column(String(5))                        # stocks.code。上場していなければ NULL。FK は付けない
+    obligation_date = Column(Date)                  # 報告義務発生日
+    filing_date = Column(Date)                      # 表紙の提出日
+    reason = Column(Text)                           # 提出事由（変更報告書だけ）
+    arrangement = Column(String)                    # 提出形態（連名 / その他）
+    holder_count = Column(Integer)                  # 提出者及び共同保有者の総数
+    shares_held = Column(BigInteger)                # 保有株券等の数（合計）
+    outstanding_shares = Column(BigInteger)         # 発行済株式等総数
+    holding_ratio = Column(Float)                   # 株券等保有割合（0.0507 = 5.07%）
+    holding_ratio_prev = Column(Float)              # 直前の報告書の保有割合。大量保有報告書は NULL
+    joint_holders_text = Column(Text)               # 第3 共同保有者に関する事項（該当なしは NULL）
+    is_amendment = Column(Boolean, nullable=False, default=False)
+    amends_doc_id = Column(String(8))               # 訂正の対象（DEI の IdentificationOfDocumentSubjectToAmendment）
+    original_doc_id = Column(String(8), nullable=False, index=True)  # 訂正をたどった大元。訂正でなければ自分
+    is_latest = Column(Boolean, nullable=False, default=False)  # 大元ごとに取下げでない最新の 1 件
+    withdrawn = Column(Boolean, nullable=False, default=False)  # 取下げ・不開示（edinet_documents から）
+    parse_status = Column(String, nullable=False)   # parsed / failed
+    parse_error = Column(Text)
+    fetched_at = Column(DateTime, nullable=False)
+    __table_args__ = (
+        Index("ix_large_holding_reports_code", "code", "obligation_date"),
+    )
+
+
+class LargeHolding(Base):
+    """大量保有の 1 書類 × 提出者・共同保有者 1 人（CSV の FilerLargeVolumeHolder<N>Member）。"""
+    __tablename__ = "large_holdings"
+    doc_id = Column(String(8), primary_key=True)
+    holder_no = Column(Integer, primary_key=True)   # 書類の中の番号（1 始まり）
+    edinet_code = Column(String(6), index=True)
+    name = Column(String)
+    holder_type = Column(String)                    # 個人・法人の別（法人（株式会社）など）
+    shares_held = Column(BigInteger)
+    outstanding_shares = Column(BigInteger)
+    holding_ratio = Column(Float)
+    holding_ratio_prev = Column(Float)
+    base_date = Column(Date)                        # 保有の基準日
+    purpose = Column(Text)                          # 保有目的
+    important_proposal = Column(Text)               # 重要提案行為等（該当なしは NULL）
+    own_funds = Column(BigInteger)                  # 取得資金: 自己資金額（円）
+    borrowings = Column(BigInteger)                 # 借入金額計
+    other_funds = Column(BigInteger)                # その他金額計
+    total_funds = Column(BigInteger)                # 取得資金合計

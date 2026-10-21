@@ -1,6 +1,6 @@
 # EDINET 取込 設計
 
-EDINET API v2（金融庁）の提出者・書類一覧と、有報・半期報の財務 XBRL を `stock.db` に載せる。親 issue は KAB-71。§1〜3 は KAB-72（土台）、§4 は KAB-73（財務 XBRL）。大量保有（KAB-74）と有報テキスト（KAB-75）は、`edinet_documents` を入口にして節を足す。
+EDINET API v2（金融庁）の提出者・書類一覧と、有報・半期報の財務 XBRL を `stock.db` に載せる。親 issue は KAB-71。§1〜3 は KAB-72（土台）、§4 は KAB-73（財務 XBRL）、§5 は KAB-74（大量保有）。有報テキスト（KAB-75）は、`edinet_documents` を入口にして節を足す。
 
 ## 0. 決めたこと
 
@@ -115,8 +115,47 @@ EDINET は修正・不開示・取下げを、後の日の一覧に別レコー�
 - 容量: 有報 1 件約 46KB（fact・context・正規化）。10 年分（有報・半期報・四半期報）で数 GB 規模
 - セグメント（KAB-77、`docs/DESIGN_xbrl.md` §14）で 1 件あたり有報 +約 16KB、半期報・四半期報 +約 12KB（fact +50 / context +14 / `xbrl_segments` +16 行ほど。2025 年の 17 件で計測）。10 万件で +1.5GB 前後
 
-## 5. 運用
+## 5. 大量保有報告書（KAB-74）
 
-- cron は `deploy/crontab`（07:30 コードリスト、08:40〜23:40 毎時 一覧、08:50〜23:50 毎時 XBRL）。ログは `/var/log/app/edinet_codes.log` / `edinet_documents.log` / `edinet_xbrl.log`（MCP `batch_logs`）
-- MCP `db_stats` に `edinet_documents` / `edinet_list_days` の件数と範囲が出る
+`edinet_documents` の大量保有報告書・変更報告書（書類種別 350）と訂正報告書（360）を、書類取得 API type=5（XBRL→CSV）で取る。書類 1 件 = `large_holding_reports` 1 行、提出者・共同保有者 1 人 = `large_holdings` 1 行。
+
+```sql
+large_holding_reports   -- 1 書類
+  doc_id PK
+  file_date, submit_datetime, doc_type_code, form_code, title
+  filer_edinet_code, filer_name              -- 提出者（連名なら代表）
+  issuer_edinet_code, issuer_sec_code, issuer_name
+  code                                       -- stocks.code。上場していなければ NULL。索引 (code, obligation_date)
+  obligation_date                            -- 報告義務発生日
+  filing_date, reason, arrangement, holder_count
+  shares_held, outstanding_shares, holding_ratio, holding_ratio_prev   -- 合計（提出者及び共同保有者）
+  joint_holders_text                         -- 第3 共同保有者に関する事項（文章のまま。該当なしは NULL）
+  is_amendment, amends_doc_id, original_doc_id, is_latest, withdrawn
+  parse_status, parse_error, fetched_at
+
+large_holdings          -- 1 書類 × 1 人
+  doc_id, holder_no PK                       -- holder_no は CSV の FilerLargeVolumeHolder<N>Member の N
+  edinet_code, name, holder_type
+  shares_held, outstanding_shares, holding_ratio, holding_ratio_prev
+  base_date, purpose, important_proposal
+  own_funds, borrowings, other_funds, total_funds   -- 取得資金（円）
+```
+
+- ジョブ: `python jobs/edinet/edinet_large_holdings.py`。cron は毎時 09:05〜23:05 に `--limit 1000`（1 件約 1 秒で約 17 分。一覧の :40 と XBRL の :50 に重ねない）
+- 対象: 350 / 360・`csv_flag`、取下げ（`withdrawal_status=2`）・不開示・修正通知の行を除く。発行者が上場していない書類も取る（`code` は NULL）。新しい日から。`parsed` は飛ばす（`--reparse` で取り直し）、`failed` は `--retry-failed`。ダウンロードに失敗した書類は行を作らないので次の回にまた取る
+- EDINET は大量保有を 5 年分しか持たない（一覧に出るのは 2021-11 ごろから）。1 日 20〜50 件、年 1 万件ほど。全部で 5 万件前後、1 件 1KB 前後で数十 MB。初回は毎時の cron で 4 日ほどかかる
+- 値: 割合は小数（`0.0507` = 5.07%）。CSV の「－」は NULL。保有者が 1 人の書類は書類レベルの合計が CSV に無いので、保有者 1 の値を合計に入れる。「該当事項なし」の文章（共同保有者・重要提案行為等）は NULL
+- 発行者の `code` は `issuer_edinet_code` → `edinet_filers.sec_code`、無ければ CSV の発行者の証券コード（4 桁 → 末尾 0 の 5 桁）。どちらも `stocks` にあるときだけ付ける。`edinet_documents.code` は提出者（保有者）の銘柄なので使わない
+- 共同保有者: 連名の書類は全員が `large_holdings` に並ぶ（`holder_count` = 人数）。連名でない共同保有者は「第3 共同保有者に関する事項」の文章にしか無いので `joint_holders_text` に入れる。2021-11 と 2026-10 の 101 件では、文章に名前があるものは無かった
+- 訂正: 訂正報告書（360）の CSV は訂正後の全文（大量保有報告書・変更報告書の様式そのまま）。訂正の対象は DEI の `IdentificationOfDocumentSubjectToAmendmentDEI`（無ければ一覧の `parentDocID`）。訂正の訂正もたどって大元を `original_doc_id` に入れる（訂正でなければ自分）
+- 最新: 取込のたびに全件から決め直す（`refresh_versions`。`--refresh-only` で手でも）。`original_doc_id` ごとに、`parsed` で取下げ・不開示でない書類のうち `submit_datetime` が新しい 1 件が `is_latest`。取下げ・不開示は `edinet_documents` の状態から `withdrawn` に入れ、行は消さない
+- 使う側: 銘柄の大量保有の推移は `WHERE code = ? AND is_latest ORDER BY obligation_date`。保有者ごとの最新は、そこから `large_holdings.edinet_code` ごとに最後の行
+- 実データ（2026-10-15 の 52 件、2021-11-15 の 47 件）で全件パースでき、3 件を閲覧画面の本文（XBRL の honbun）と突き合わせて、保有割合・直前の割合・保有株数・発行済株式等総数・報告義務発生日が一致した
+- 画面と API はまだ出さない（別 issue）
+
+## 6. 運用
+
+- cron は `deploy/crontab`（07:30 コードリスト、09:05〜23:05 毎時 大量保有、08:40〜23:40 毎時 一覧、08:50〜23:50 毎時 XBRL）。ログは `/var/log/app/edinet_codes.log` / `edinet_documents.log` / `edinet_xbrl.log` / `edinet_large_holdings.log`（MCP `batch_logs`）
+- MCP `db_stats` に `edinet_documents` / `edinet_list_days` の件数と範囲、`large_holding_reports` / `large_holdings` の件数が出る
 - 初回の本番投入: デプロイ（`jobs/migrate.py` が表と `stocks.edinet_code` を足す）→ `python jobs/edinet/edinet_codes.py` → `python jobs/edinet/edinet_documents.py --backfill-years 10`（約 1 時間）→ IFRS マッピングの追加を TDnet 分にも効かせる `python jobs/xbrl/xbrl_parse.py load-mappings` と `python jobs/xbrl/xbrl_normalize.py --rebuild`。XBRL は cron に任せる（急ぐなら `python jobs/edinet/edinet_xbrl.py --limit 0` を手で）
+- 大量保有の初回: デプロイ（`jobs/migrate.py` が表を足す）のあとは cron に任せる。急ぐなら `python jobs/edinet/edinet_large_holdings.py --limit 0` を手で（5 万件で約 14 時間）
