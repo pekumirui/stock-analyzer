@@ -467,6 +467,77 @@ def test_cli_code_7606(tmp: Path) -> None:
         _fail("7606 dry-run JSON")
 
 
+def test_run_all(tmp: Path) -> None:
+    """cron の --all: config の全銘柄の最新ファイルを送る。1 銘柄の失敗で残りを止めない（KAB-117）。"""
+    import io
+    from contextlib import redirect_stdout
+
+    from jobs.monthly.ir_monthly_xls_ingest import main as cli
+    from jobs.monthly.ir_monthly_xls_ingest import run_all
+
+    dest = tmp / "monthly"
+    (dest / "1878").mkdir(parents=True)
+    (dest / "7606").mkdir(parents=True)
+    (dest / "1878" / "20260901_1878_大東建託_history_1.xls").write_bytes(b"old, must not be read")
+    (dest / "1878" / "20260918_1878_大東建託_history_1.xls").write_bytes(FIXTURE.read_bytes())
+    (dest / "7606" / "20260902_7606_ユナイテッドアローズ_sokuho2027.xlsx").write_bytes(FIXTURE_7606.read_bytes())
+
+    class Client:
+        def __init__(self, fail: str = "") -> None:
+            self.fail = fail
+            self.urls: list[str] = []
+
+        def post_json(self, url: str, body: dict[str, Any]) -> tuple[int, Any]:
+            self.urls.append(url)
+            if body["via"] != "ir_xls" or not body["rows"]:
+                _fail(f"run_all body {sorted(body)}")
+            return (409, {"error": {}}) if self.fail and self.fail in url else (200, {"updated": []})
+
+    def go(client: Client, **kw: Any) -> tuple[int, str]:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = run_all(dest=dest, from_year=2024, dry_run=False, post=True,
+                         base_url="http://127.0.0.1:8000", client=client, **kw)
+        return rc, buf.getvalue()
+
+    client = Client()
+    rc, out = go(client)
+    if rc != 0 or client.urls != ["http://127.0.0.1:8000/api/v1/tables/1878/ingest",
+                                  "http://127.0.0.1:8000/api/v1/tables/7606/ingest"]:
+        _fail(f"run_all rc={rc} urls={client.urls} {out!r}")
+    if "post 1878 20260918_1878_" not in out or not out.rstrip().endswith(
+            "ir_monthly_xls_ingest done posted=2 skipped=0 failed=0"):
+        _fail(f"run_all out {out!r}")
+
+    client = Client(fail="/1878/")
+    rc, out = go(client)
+    if rc != 1 or len(client.urls) != 2 or not out.rstrip().endswith("posted=1 skipped=0 failed=1"):
+        _fail(f"run_all with one failure rc={rc} {out!r}")
+
+    (dest / "7606" / "20260902_7606_ユナイテッドアローズ_sokuho2027.xlsx").unlink()
+    client = Client()
+    rc, out = go(client)
+    if rc != 1 or len(client.urls) != 1 or "fail 7606" not in out:
+        _fail(f"run_all missing workbook rc={rc} {out!r}")
+
+    client = Client()
+    with redirect_stdout(io.StringIO()):
+        rc = run_all(dest=dest, from_year=2024, dry_run=False, post=True,
+                     base_url="https://example.test", client=client)
+    if rc != 1 or client.urls:
+        _fail(f"run_all remote base_url must not POST rc={rc}")
+
+    (dest / "7606" / "20260902_7606_ユナイテッドアローズ_sokuho2027.xlsx").write_bytes(FIXTURE_7606.read_bytes())
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        rc_dry = cli(["--all", "--dest", str(dest), "--from-year", "2024"])
+        rc_mix = cli(["--all", "--code", "7606"])
+    if rc_dry != 0 or "skipped=2" not in buf.getvalue():
+        _fail(f"--all without --post must not POST rc={rc_dry} {buf.getvalue()!r}")
+    if rc_mix != 2:
+        _fail(f"--all with --code rc {rc_mix}")
+
+
 def main() -> None:
     import tempfile
 
@@ -485,6 +556,7 @@ def main() -> None:
         test_cli_dry_run(tmp / "b")
         test_post_sends_ingest_body(tmp / "c")
         test_cli_code_7606(tmp / "d")
+        test_run_all(tmp / "e")
     print("ok")
 
 

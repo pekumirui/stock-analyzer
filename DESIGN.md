@@ -260,7 +260,8 @@ IR 月次 PDF/xlsx/xls（`jobs/monthly/ir_monthly_r2.py`）:
 - 表計算と pdf が両方あるページは表計算だけ取る。xlsx があれば xlsx、なければ xls（大東建託 `history_*.xls`）
 - AWS ELB が識別 UA を 403 する発行体は、同じ `http_get` がブラウザ UA に一度だけフォールバックする
 - 中間証明書が欠ける／付け違う発行体は、同じ `http_get` がリーフの AIA (CA Issuers) から中間を補って検証し直す。検証は切らない（7544 スリーエフ）
-- 大東建託 (1878) の `history.xls`、ユナイテッドアローズ (7606) の xlsx は `jobs/monthly/ir_monthly_xls_ingest.py` が `config/monthly/ir_monthly_xls.json` の列・行指定で ingest JSON を作り loopback POST する。year は送らない。汎用 xlsx パーサは無い。銘柄クラスは作らない。HTML ingest の cron には混ぜない
+- 大東建託 (1878) の `history.xls`、ユナイテッドアローズ (7606) の xlsx は `jobs/monthly/ir_monthly_xls_ingest.py` が `config/monthly/ir_monthly_xls.json` の列・行指定で ingest JSON を作り loopback POST する（`via=ir_xls`）。year は送らない。汎用 xlsx パーサは無い。銘柄クラスは作らない。HTML ingest の cron には混ぜない
+- cron は `--all --post`（10:40 / 16:40。取得の後）。config の全銘柄について `data/monthly/<code>/` の最新ファイル（ファイル名の日付）を送る。毎回全列を送るので、速報の訂正（1878 の前月の空室数など）も次の回で追いつく。同じ値のセルはサーバが書き換えない（`last_ingested_at` も動かない）。銘柄ごとに `post` / `fail` を 1 行、最終行 `ir_monthly_xls_ingest done posted= skipped= failed=`。1 銘柄の失敗で残りを止めず、失敗があれば exit≠0（KAB-117）
 
 IR 月次 JSON（`jobs/monthly/ir_monthly_json_ingest.py`）:
 
