@@ -7,7 +7,7 @@ import os
 import sys
 import tempfile
 import zipfile
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from io import StringIO
 from pathlib import Path
 
@@ -288,10 +288,10 @@ def _api_err(cls, status: int, message: str, doc_id: str):
     return cls(message, status=status, endpoint=f"/documents/{doc_id}")
 
 
-def _run(db, client, docs):
+def _run(db, client, docs, *, today: date | None = None):
     buf = StringIO()
     with contextlib.redirect_stdout(buf):
-        st = run(db, client, docs)
+        st = run(db, client, docs, today=today)
     return st, buf.getvalue()
 
 
@@ -354,10 +354,13 @@ def test_outside_window_marked_without_download() -> None:
     db = SessionLocal()
     try:
         _reset(db)
-        today = date(2026, 10, 22)
+        # 実行日とずらす。run() にも同じ today を渡さないと ingest が now_jst() を使う。
+        today = date(2025, 6, 15)
+        floor = keep_after(today)
+        old_day = floor - timedelta(days=1)
         db.add_all([
-            _doc(1, "S100OLD1", file_date=date(2021, 10, 21)),
-            _doc(2, "S100NEW1", file_date=date(2021, 10, 22)),
+            _doc(1, "S100OLD1", file_date=old_day),
+            _doc(2, "S100NEW1", file_date=floor),
         ])
         db.commit()
         assert [d.doc_id for d in pending_documents(db, today=today)] == ["S100NEW1"]
@@ -367,9 +370,9 @@ def test_outside_window_marked_without_download() -> None:
         assert old is not None
         assert old.parse_status == "failed"
         assert "OutsideEdinetWindow" in (old.parse_error or "")
-        assert "2021-10-21" in (old.parse_error or "")
+        assert old_day.isoformat() in (old.parse_error or "")
         client = _ErrClient({"S100NEW1": _joint_report()})
-        st, _out = _run(db, client, pending_documents(db, today=today))
+        st, _out = _run(db, client, pending_documents(db, today=today), today=today)
         assert client.calls == ["S100NEW1"]
         assert st["parsed"] == 1
         assert pending_documents(db, today=today) == []
