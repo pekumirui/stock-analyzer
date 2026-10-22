@@ -97,10 +97,10 @@ def _canonical_element(
     except MonthlyIngestError as exc:
         raise _ingest_error(exc) from exc
     s = apply_issuer_aliases(
-        code, canonicalize_element_label(raw_name, unit),
+        code, canonicalize_element_label(raw_name, unit, code),
         year=year, as_of=as_of,
     )
-    s = canonicalize_element_label(s, unit)
+    s = canonicalize_element_label(s, unit, code)
     if not s or len(s) > 50:
         raise ApiError(400, "INVALID_PARAM", "element は1〜50文字の文字列です。")
     return s
@@ -108,7 +108,9 @@ def _canonical_element(
 
 def _year_alias(code: str, element: str, unit: str | None, year: int) -> str:
     """正規化済みの入ってくる名前に、列の暦年の銘柄エイリアスを掛ける。"""
-    return canonicalize_element_label(apply_issuer_aliases(code, element, year=year), unit)
+    return canonicalize_element_label(
+        apply_issuer_aliases(code, element, year=year), unit, code,
+    )
 
 
 def _lookup_element(raw: Any, code: str, *, year: int | None = None) -> str:
@@ -116,9 +118,9 @@ def _lookup_element(raw: Any, code: str, *, year: int | None = None) -> str:
     raw_name = _parse_element(raw)
     unit = "yoy_index" if any(f in raw_name for f in ("(前年比)", "（前年比）", "前年比")) else "number"
     s = apply_issuer_aliases(
-        code, canonicalize_element_label(raw_name, unit), year=year,
+        code, canonicalize_element_label(raw_name, unit, code), year=year,
     )
-    s = canonicalize_element_label(s, unit)
+    s = canonicalize_element_label(s, unit, code)
     if not s or len(s) > 50:
         raise ApiError(400, "INVALID_PARAM", "element は1〜50文字の文字列です。")
     return s
@@ -316,7 +318,7 @@ def _ensure_element(
     similar = [
         row.element for row in existing
         if _normalize_element(row.element) == _normalize_element(element)
-        and not same_yoy_element(row.element, row.unit, element, unit)
+        and not same_yoy_element(row.element, row.unit, element, unit, code=code)
     ]
     if similar and not force:
         raise ApiError(409, "ELEMENT_SIMILAR_EXISTS", _SIMILAR_MSG, extra={"similar": similar})
@@ -324,7 +326,7 @@ def _ensure_element(
     if posted is not None and not force:
         twins = uncovered_yoy_number_twins(
             [(row.element, row.unit) for row in existing],
-            element, unit, posted,
+            element, unit, posted, code=code,
         )
         if twins:
             raise ApiError(

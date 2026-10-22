@@ -28,9 +28,11 @@ def apply_issuer_element_aliases(verbose: bool = True, *, dry_run: bool = False)
             r for r in db.query(MonthlyElement).all()
             if canonicalize_element_label(
                 apply_issuer_aliases(
-                    r.code, canonicalize_element_label(r.element, r.unit), year=r.year,
+                    r.code, canonicalize_element_label(r.element, r.unit, r.code),
+                    year=r.year,
                 ),
                 r.unit,
+                r.code,
             ) != r.element
         ]
         rows.sort(key=lambda r: (r.code, r.year, r.sort_order, r.element))
@@ -38,9 +40,11 @@ def apply_issuer_element_aliases(verbose: bool = True, *, dry_run: bool = False)
             old = row.element
             new = canonicalize_element_label(
                 apply_issuer_aliases(
-                    row.code, canonicalize_element_label(old, row.unit), year=row.year,
+                    row.code, canonicalize_element_label(old, row.unit, row.code),
+                    year=row.year,
                 ),
                 row.unit,
+                row.code,
             )
             if db.get(MonthlyElement, (row.code, row.year, old)) is None:
                 continue
@@ -162,7 +166,11 @@ def monthly_name_drift() -> list[tuple[str, int, str, str]]:
     out: list[tuple[str, int, str, str]] = []
     for code, year, element, unit in rows:
         want = canonicalize_element_label(
-            apply_issuer_aliases(code, canonicalize_element_label(element, unit), year=year), unit,
+            apply_issuer_aliases(
+                code, canonicalize_element_label(element, unit, code), year=year,
+            ),
+            unit,
+            code,
         )
         if want and want != element:
             out.append((code, year, element, want))

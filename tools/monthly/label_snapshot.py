@@ -63,7 +63,11 @@ def resolve(code: str, year: int, label: str, unit: str, via: str) -> str:
     except MonthlyIngestError as exc:
         return f"!{exc.code}"
     s = canonicalize_element_label(
-        apply_issuer_aliases(code, canonicalize_element_label(label, unit), year=year), unit,
+        apply_issuer_aliases(
+            code, canonicalize_element_label(label, unit, code), year=year,
+        ),
+        unit,
+        code,
     )
     if not s or len(s) > 50:
         return "!INVALID_PARAM"
