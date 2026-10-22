@@ -985,7 +985,7 @@ def test_monthly_year_window() -> None:
 
 
 def test_monthly_tree_html_kab87() -> None:
-    """画面の指標 ▸ 区分（#582 / #585 / #586 / #587 / #588）。"""
+    """画面の指標 ▸ 区分（#582 / #585 / #586 / #587 / #588 / #831 / #834 / #835）。"""
     import json
     import subprocess
     import tempfile
@@ -1059,6 +1059,22 @@ def test_monthly_tree_html_kab87() -> None:
             ("リテール事業 預かり資産", "number"),
             ("ホールセール事業 預かり資産", "number"),
         ]),
+        "abc": _cfg("92510", [
+            ("日本 全店 売上高(前年比)", "yoy_index"),
+            ("国内店舗 売上高", "number"),
+            ("直営 売上高", "number"),
+            ("FC 売上高", "number"),
+        ]),
+        "robot": _cfg("14350", [
+            ("管理戸数 全体", "number"),
+            ("管理戸数 自社施工", "number"),
+            ("管理戸数 管理受託", "number"),
+        ]),
+        "daito": _cfg("18780", [
+            ("空室数", "number"),
+            ("新築 空室数", "number"),
+            ("空室数 既存", "number"),
+        ]),
     }
     harness = r"""
 const fs = require("fs");
@@ -1098,7 +1114,10 @@ const gmo = run(fixtures.gmo, () => vm.runInContext(
   'monthlyTlOpen.add("m:営業収益"); monthlyTlOpen.add("m:一日平均売買代金"); monthlyTlOpen.add("m:一日平均売買代金\\u203atree:全体\\u203aクリック証券");', sandbox));
 const nissan = run(fixtures.nissan, () => vm.runInContext(
   'monthlyTlOpen.add("m:純営業収益"); monthlyTlOpen.add("m:預かり資産");', sandbox));
-console.log(JSON.stringify({sugi, life, hirose, gmo, nissan}));
+const abc = run(fixtures.abc, () => vm.runInContext('monthlyTlOpen.add("m:売上高");', sandbox));
+const robot = run(fixtures.robot, () => vm.runInContext('monthlyTlOpen.add("m:管理戸数");', sandbox));
+const daito = run(fixtures.daito, () => vm.runInContext('monthlyTlOpen.add("m:空室数");', sandbox));
+console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito}));
 """
     with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as tmp:
         tmp.write(harness)
@@ -1123,6 +1142,12 @@ console.log(JSON.stringify({sugi, life, hirose, gmo, nissan}));
         _fail(f"71770 screen: {got.get('gmo')!r}")
     if got.get("nissan") != ["純営業収益", "受入手数料", "預かり資産", "リテール事業", "ホールセール事業"]:
         _fail(f"87050 screen: {got.get('nissan')!r}")
+    if got.get("abc") != ["日本 全店 売上高(前年比)", "国内店舗 売上高", "直営", "FC"]:
+        _fail(f"92510 screen: {got.get('abc')!r}")
+    if got.get("robot") != ["管理戸数 全体", "自社施工", "管理受託"]:
+        _fail(f"14350 screen: {got.get('robot')!r}")
+    if got.get("daito") != ["空室数", "新築", "既存"]:
+        _fail(f"18780 screen: {got.get('daito')!r}")
 
 
 def test_monthly_year_color_stable() -> None:

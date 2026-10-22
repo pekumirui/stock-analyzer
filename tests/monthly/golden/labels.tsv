@@ -89,12 +89,12 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 141A0	2026	14	legacy	number	西友 全店 出店	西友 全店 出店	number	西友 全店 出店	open	西友	全店	出店	全体 > 西友	全店 出店
 141A0	2026	15	legacy	number	西友 全店 退店	西友 全店 退店	number	西友 全店 退店	close	西友	全店	退店	全体 > 西友	全店 退店
 14350	2026	1	legacy	number	プロジェクト件数	プロジェクト件数	number	プロジェクト件数	count			プロジェクト件数	全体	プロジェクト件数
-14350	2026	2	legacy	number	管理戸数 全体	管理戸数 全体	number	管理戸数 全体	count	全体		管理戸数	全体	管理戸数 全体
-14350	2026	3	legacy	number	管理戸数 自社施工	管理戸数 自社施工	number	管理戸数 自社施工	count	自社施工		管理戸数	全体	管理戸数 自社施工
-14350	2026	4	legacy	number	管理戸数 管理受託	管理戸数 管理受託	number	管理戸数 管理受託	count	管理受託		管理戸数	全体	管理戸数 管理受託
-14350	2026	5	legacy	number	入居率 全体	入居率 全体	number	入居率 全体	count	全体		入居率	全体	入居率 全体
-14350	2026	6	legacy	number	入居率 自社施工	入居率 自社施工	number	入居率 自社施工	count	自社施工		入居率	全体	入居率 自社施工
-14350	2026	7	legacy	number	入居率 管理受託	入居率 管理受託	number	入居率 管理受託	count	管理受託		入居率	全体	入居率 管理受託
+14350	2026	2	legacy	number	管理戸数 全体	管理戸数 全体	number	管理戸数 全体	count	全体		管理戸数	全体	管理戸数
+14350	2026	3	legacy	number	管理戸数 自社施工	管理戸数 自社施工	number	管理戸数 自社施工	count	自社施工		管理戸数	全体 > 自社施工	管理戸数
+14350	2026	4	legacy	number	管理戸数 管理受託	管理戸数 管理受託	number	管理戸数 管理受託	count	管理受託		管理戸数	全体 > 管理受託	管理戸数
+14350	2026	5	legacy	number	入居率 全体	入居率 全体	number	入居率 全体	count	全体		入居率	全体	入居率
+14350	2026	6	legacy	number	入居率 自社施工	入居率 自社施工	number	入居率 自社施工	count	自社施工		入居率	全体 > 自社施工	入居率
+14350	2026	7	legacy	number	入居率 管理受託	入居率 管理受託	number	入居率 管理受託	count	管理受託		入居率	全体 > 管理受託	入居率
 14350	2026	8	legacy	number	成約件数	成約件数	number	成約件数	count			成約件数	全体	成約件数
 14350	2026	9	legacy	number	引渡棟数	引渡棟数	number	引渡棟数	count			引渡棟数	全体	引渡棟数
 150A0	2026	1	legacy	number	地方創生 障がい者受入数	地方創生 障がい者受入数	number	地方創生 障がい者受入数	count	地方創生		障がい者受入数	全体 > 地方創生	障がい者受入数
@@ -103,45 +103,45 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 150A0	2026	4	legacy	yoy_index	在宅医療 訪問件数(前年比)	在宅医療 訪問件数(前年比)	yoy_index	在宅医療 訪問件数(前年比)	count	在宅医療		訪問件数	全体 > 在宅医療	訪問件数
 150A0	2026	5	legacy	number	IoT 利用中戸数	IoT 利用中戸数	number	IoT 利用中戸数	count	IoT		利用中戸数	全体 > IoT	利用中戸数
 150A0	2026	6	legacy	yoy_index	IoT 利用中戸数(前年比)	IoT 利用中戸数(前年比)	yoy_index	IoT 利用中戸数(前年比)	count	IoT		利用中戸数	全体 > IoT	利用中戸数
-18780	2024	1	legacy	number	新規受注高	新規受注高	number	新規受注高（百万円）	other	新規受注高			全体	新規受注高（百万円）
-18780	2024	2	legacy	number	キャンセル額	キャンセル額	number	キャンセル額（百万円）	other	キャンセル額			全体	キャンセル額（百万円）
-18780	2024	3	legacy	number	受注高	受注高	number	受注高（百万円）	other	受注高			全体	受注高（百万円）
-18780	2024	4	legacy	number	営業人員数	営業人員数	number	営業人員数（人）	count			営業人員数	全体	営業人員数（人）
-18780	2024	5	legacy	number	1人当たり受注高	1人当たり受注高	number	1人当たり受注高（万円）	other	1人当たり受注高			全体	1人当たり受注高（万円）
-18780	2024	6	legacy	number	家賃ベース入居率	家賃ベース入居率	number	家賃ベース入居率（%）	other	家賃ベース入居率			全体	家賃ベース入居率（%）
-18780	2024	7	legacy	number	家賃ベース入居率 事業用	家賃ベース入居率 事業用	number	家賃ベース入居率 事業用（%）	other	家賃ベース入居率 事業用			全体	家賃ベース入居率 事業用（%）
-18780	2024	8	legacy	number	家賃ベース入居率 居住用	家賃ベース入居率 居住用	number	家賃ベース入居率 居住用（%）	other	家賃ベース入居率 居住用			全体	家賃ベース入居率 居住用（%）
-18780	2024	9	legacy	number	空室在庫	空室在庫	number	空室在庫（カ月）	other	空室在庫			全体	空室在庫（カ月）
-18780	2024	10	legacy	number	空室数	空室数	number	空室数（戸）	other	空室数			全体	空室数（戸）
-18780	2024	11	legacy	number	新築 空室数	新築 空室数	number	新築 空室数（戸）	other	新築 空室数			全体	新築 空室数（戸）
-18780	2024	12	legacy	number	空室数 既存	空室数 既存	number	空室数 既存（戸）	other	空室数	既存		全体 > 空室数	既存（戸）
-18780	2024	13	legacy	number	入居者斡旋件数	入居者斡旋件数	number	入居者斡旋件数（件）	count			入居者斡旋件数	全体	入居者斡旋件数（件）
-18780	2025	1	legacy	number	新規受注高	新規受注高	number	新規受注高（百万円）	other	新規受注高			全体	新規受注高（百万円）
-18780	2025	2	legacy	number	キャンセル額	キャンセル額	number	キャンセル額（百万円）	other	キャンセル額			全体	キャンセル額（百万円）
-18780	2025	3	legacy	number	受注高	受注高	number	受注高（百万円）	other	受注高			全体	受注高（百万円）
-18780	2025	4	legacy	number	営業人員数	営業人員数	number	営業人員数（人）	count			営業人員数	全体	営業人員数（人）
-18780	2025	5	legacy	number	1人当たり受注高	1人当たり受注高	number	1人当たり受注高（万円）	other	1人当たり受注高			全体	1人当たり受注高（万円）
-18780	2025	6	legacy	number	家賃ベース入居率	家賃ベース入居率	number	家賃ベース入居率（%）	other	家賃ベース入居率			全体	家賃ベース入居率（%）
-18780	2025	7	legacy	number	家賃ベース入居率 事業用	家賃ベース入居率 事業用	number	家賃ベース入居率 事業用（%）	other	家賃ベース入居率 事業用			全体	家賃ベース入居率 事業用（%）
-18780	2025	8	legacy	number	家賃ベース入居率 居住用	家賃ベース入居率 居住用	number	家賃ベース入居率 居住用（%）	other	家賃ベース入居率 居住用			全体	家賃ベース入居率 居住用（%）
-18780	2025	9	legacy	number	空室在庫	空室在庫	number	空室在庫（カ月）	other	空室在庫			全体	空室在庫（カ月）
-18780	2025	10	legacy	number	空室数	空室数	number	空室数（戸）	other	空室数			全体	空室数（戸）
-18780	2025	11	legacy	number	新築 空室数	新築 空室数	number	新築 空室数（戸）	other	新築 空室数			全体	新築 空室数（戸）
-18780	2025	12	legacy	number	空室数 既存	空室数 既存	number	空室数 既存（戸）	other	空室数	既存		全体 > 空室数	既存（戸）
-18780	2025	13	legacy	number	入居者斡旋件数	入居者斡旋件数	number	入居者斡旋件数（件）	count			入居者斡旋件数	全体	入居者斡旋件数（件）
-18780	2026	1	legacy	number	新規受注高	新規受注高	number	新規受注高（百万円）	other	新規受注高			全体	新規受注高（百万円）
-18780	2026	2	legacy	number	キャンセル額	キャンセル額	number	キャンセル額（百万円）	other	キャンセル額			全体	キャンセル額（百万円）
-18780	2026	3	legacy	number	受注高	受注高	number	受注高（百万円）	other	受注高			全体	受注高（百万円）
-18780	2026	4	legacy	number	営業人員数	営業人員数	number	営業人員数（人）	count			営業人員数	全体	営業人員数（人）
-18780	2026	5	legacy	number	1人当たり受注高	1人当たり受注高	number	1人当たり受注高（万円）	other	1人当たり受注高			全体	1人当たり受注高（万円）
-18780	2026	6	legacy	number	家賃ベース入居率	家賃ベース入居率	number	家賃ベース入居率（%）	other	家賃ベース入居率			全体	家賃ベース入居率（%）
-18780	2026	7	legacy	number	家賃ベース入居率 事業用	家賃ベース入居率 事業用	number	家賃ベース入居率 事業用（%）	other	家賃ベース入居率 事業用			全体	家賃ベース入居率 事業用（%）
-18780	2026	8	legacy	number	家賃ベース入居率 居住用	家賃ベース入居率 居住用	number	家賃ベース入居率 居住用（%）	other	家賃ベース入居率 居住用			全体	家賃ベース入居率 居住用（%）
-18780	2026	9	legacy	number	空室在庫	空室在庫	number	空室在庫（カ月）	other	空室在庫			全体	空室在庫（カ月）
-18780	2026	10	legacy	number	空室数	空室数	number	空室数（戸）	other	空室数			全体	空室数（戸）
-18780	2026	11	legacy	number	新築 空室数	新築 空室数	number	新築 空室数（戸）	other	新築 空室数			全体	新築 空室数（戸）
-18780	2026	12	legacy	number	空室数 既存	空室数 既存	number	空室数 既存（戸）	other	空室数	既存		全体 > 空室数	既存（戸）
-18780	2026	13	legacy	number	入居者斡旋件数	入居者斡旋件数	number	入居者斡旋件数（件）	count			入居者斡旋件数	全体	入居者斡旋件数（件）
+18780	2024	1	legacy	number	新規受注高	新規受注高	number	新規受注高（百万円）	other	新規受注高			全体	新規受注高
+18780	2024	2	legacy	number	キャンセル額	キャンセル額	number	キャンセル額（百万円）	other	キャンセル額			全体	キャンセル額
+18780	2024	3	legacy	number	受注高	受注高	number	受注高（百万円）	other	受注高			全体	受注高
+18780	2024	4	legacy	number	営業人員数	営業人員数	number	営業人員数（人）	count			営業人員数	全体	営業人員数
+18780	2024	5	legacy	number	1人当たり受注高	1人当たり受注高	number	1人当たり受注高（万円）	other	1人当たり受注高			全体	1人当たり受注高
+18780	2024	6	legacy	number	家賃ベース入居率	家賃ベース入居率	number	家賃ベース入居率（%）	other	家賃ベース入居率			全体	家賃ベース入居率
+18780	2024	7	legacy	number	家賃ベース入居率 事業用	家賃ベース入居率 事業用	number	家賃ベース入居率 事業用（%）	other	家賃ベース入居率 事業用			全体 > 事業用	家賃ベース入居率
+18780	2024	8	legacy	number	家賃ベース入居率 居住用	家賃ベース入居率 居住用	number	家賃ベース入居率 居住用（%）	other	家賃ベース入居率 居住用			全体 > 居住用	家賃ベース入居率
+18780	2024	9	legacy	number	空室在庫	空室在庫	number	空室在庫（カ月）	other	空室在庫			全体	空室在庫
+18780	2024	10	legacy	number	空室数	空室数	number	空室数（戸）	other	空室数			全体	空室数
+18780	2024	11	legacy	number	新築 空室数	新築 空室数	number	新築 空室数（戸）	other	新築 空室数			全体 > 新築	空室数
+18780	2024	12	legacy	number	空室数 既存	空室数 既存	number	空室数 既存（戸）	other	空室数	既存		全体 > 既存	空室数
+18780	2024	13	legacy	number	入居者斡旋件数	入居者斡旋件数	number	入居者斡旋件数（件）	count			入居者斡旋件数	全体	入居者斡旋件数
+18780	2025	1	legacy	number	新規受注高	新規受注高	number	新規受注高（百万円）	other	新規受注高			全体	新規受注高
+18780	2025	2	legacy	number	キャンセル額	キャンセル額	number	キャンセル額（百万円）	other	キャンセル額			全体	キャンセル額
+18780	2025	3	legacy	number	受注高	受注高	number	受注高（百万円）	other	受注高			全体	受注高
+18780	2025	4	legacy	number	営業人員数	営業人員数	number	営業人員数（人）	count			営業人員数	全体	営業人員数
+18780	2025	5	legacy	number	1人当たり受注高	1人当たり受注高	number	1人当たり受注高（万円）	other	1人当たり受注高			全体	1人当たり受注高
+18780	2025	6	legacy	number	家賃ベース入居率	家賃ベース入居率	number	家賃ベース入居率（%）	other	家賃ベース入居率			全体	家賃ベース入居率
+18780	2025	7	legacy	number	家賃ベース入居率 事業用	家賃ベース入居率 事業用	number	家賃ベース入居率 事業用（%）	other	家賃ベース入居率 事業用			全体 > 事業用	家賃ベース入居率
+18780	2025	8	legacy	number	家賃ベース入居率 居住用	家賃ベース入居率 居住用	number	家賃ベース入居率 居住用（%）	other	家賃ベース入居率 居住用			全体 > 居住用	家賃ベース入居率
+18780	2025	9	legacy	number	空室在庫	空室在庫	number	空室在庫（カ月）	other	空室在庫			全体	空室在庫
+18780	2025	10	legacy	number	空室数	空室数	number	空室数（戸）	other	空室数			全体	空室数
+18780	2025	11	legacy	number	新築 空室数	新築 空室数	number	新築 空室数（戸）	other	新築 空室数			全体 > 新築	空室数
+18780	2025	12	legacy	number	空室数 既存	空室数 既存	number	空室数 既存（戸）	other	空室数	既存		全体 > 既存	空室数
+18780	2025	13	legacy	number	入居者斡旋件数	入居者斡旋件数	number	入居者斡旋件数（件）	count			入居者斡旋件数	全体	入居者斡旋件数
+18780	2026	1	legacy	number	新規受注高	新規受注高	number	新規受注高（百万円）	other	新規受注高			全体	新規受注高
+18780	2026	2	legacy	number	キャンセル額	キャンセル額	number	キャンセル額（百万円）	other	キャンセル額			全体	キャンセル額
+18780	2026	3	legacy	number	受注高	受注高	number	受注高（百万円）	other	受注高			全体	受注高
+18780	2026	4	legacy	number	営業人員数	営業人員数	number	営業人員数（人）	count			営業人員数	全体	営業人員数
+18780	2026	5	legacy	number	1人当たり受注高	1人当たり受注高	number	1人当たり受注高（万円）	other	1人当たり受注高			全体	1人当たり受注高
+18780	2026	6	legacy	number	家賃ベース入居率	家賃ベース入居率	number	家賃ベース入居率（%）	other	家賃ベース入居率			全体	家賃ベース入居率
+18780	2026	7	legacy	number	家賃ベース入居率 事業用	家賃ベース入居率 事業用	number	家賃ベース入居率 事業用（%）	other	家賃ベース入居率 事業用			全体 > 事業用	家賃ベース入居率
+18780	2026	8	legacy	number	家賃ベース入居率 居住用	家賃ベース入居率 居住用	number	家賃ベース入居率 居住用（%）	other	家賃ベース入居率 居住用			全体 > 居住用	家賃ベース入居率
+18780	2026	9	legacy	number	空室在庫	空室在庫	number	空室在庫（カ月）	other	空室在庫			全体	空室在庫
+18780	2026	10	legacy	number	空室数	空室数	number	空室数（戸）	other	空室数			全体	空室数
+18780	2026	11	legacy	number	新築 空室数	新築 空室数	number	新築 空室数（戸）	other	新築 空室数			全体 > 新築	空室数
+18780	2026	12	legacy	number	空室数 既存	空室数 既存	number	空室数 既存（戸）	other	空室数	既存		全体 > 既存	空室数
+18780	2026	13	legacy	number	入居者斡旋件数	入居者斡旋件数	number	入居者斡旋件数（件）	count			入居者斡旋件数	全体	入居者斡旋件数
 19110	2024	1	legacy	yoy_index	戸建注文住宅(前年比)	戸建注文住宅(前年比)	yoy_index	戸建注文住宅(前年比)	other	戸建注文住宅			全体	戸建注文住宅
 19110	2024	2	legacy	yoy_index	賃貸住宅(前年比)	賃貸住宅(前年比)	yoy_index	賃貸住宅(前年比)	other	賃貸住宅			全体	賃貸住宅
 19110	2024	3	legacy	yoy_index	リフォーム(前年比)	リフォーム(前年比)	yoy_index	リフォーム(前年比)	other	リフォーム			全体	リフォーム
@@ -3162,35 +3162,35 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 36080	2026	4	legacy	yoy_index	小売店 既存 売上高(前年比)	小売店 既存 売上高(前年比)	yoy_index	小売店 既存 売上高(前年比)	sales	小売店	既存	売上高	全体 > 小売店	既存 売上高
 36080	2026	5	legacy	yoy_index	オンラインショップ 既存 売上高(前年比)	オンラインショップ 既存 売上高(前年比)	yoy_index	オンラインショップ 既存 売上高(前年比)	sales	オンラインショップ	既存	売上高	全体 > オンラインショップ	既存 売上高
 36080	2026	6	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
-36120	2023	1	legacy	yoy_index	国内小売 売上高(前年比)	国内小売 売上高(前年比)	yoy_index	国内小売 売上高(前年比)	sales	国内小売		売上高	全体 > 国内小売	売上高
+36120	2023	1	legacy	yoy_index	国内小売 売上高(前年比)	国内小売 売上高(前年比)	yoy_index	国内小売 売上高(前年比)	sales	国内小売		売上高	全体	売上高
 36120	2023	2	legacy	yoy_index	店舗 売上高(前年比)	店舗 売上高(前年比)	yoy_index	店舗 売上高(前年比)	sales	店舗		売上高	全体 > 店舗	売上高
 36120	2023	3	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 36120	2023	4	legacy	yoy_index	Eコマース 売上高(前年比)	Eコマース 売上高(前年比)	yoy_index	Eコマース 売上高(前年比)	sales	Eコマース		売上高	全体 > Eコマース	売上高
-36120	2023	5	legacy	number	小売 店舗数	小売 店舗数	number	小売 店舗数	stores	小売		店舗数	全体 > 小売	店舗数
+36120	2023	5	legacy	number	小売 店舗数	小売 店舗数	number	小売 店舗数	stores	小売		店舗数	全体	店舗数
 36120	2023	6	legacy	number	既存 店舗数	既存 店舗数	number	既存 店舗数	stores		既存	店舗数	全体	既存 店舗数
-36120	2024	1	legacy	yoy_index	国内小売 売上高(前年比)	国内小売 売上高(前年比)	yoy_index	国内小売 売上高(前年比)	sales	国内小売		売上高	全体 > 国内小売	売上高
+36120	2024	1	legacy	yoy_index	国内小売 売上高(前年比)	国内小売 売上高(前年比)	yoy_index	国内小売 売上高(前年比)	sales	国内小売		売上高	全体	売上高
 36120	2024	2	legacy	yoy_index	店舗 売上高(前年比)	店舗 売上高(前年比)	yoy_index	店舗 売上高(前年比)	sales	店舗		売上高	全体 > 店舗	売上高
 36120	2024	3	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 36120	2024	4	legacy	yoy_index	Eコマース 売上高(前年比)	Eコマース 売上高(前年比)	yoy_index	Eコマース 売上高(前年比)	sales	Eコマース		売上高	全体 > Eコマース	売上高
-36120	2024	5	legacy	number	小売 店舗数	小売 店舗数	number	小売 店舗数	stores	小売		店舗数	全体 > 小売	店舗数
+36120	2024	5	legacy	number	小売 店舗数	小売 店舗数	number	小売 店舗数	stores	小売		店舗数	全体	店舗数
 36120	2024	6	legacy	number	出店	出店	number	出店	open			出店	全体	出店
 36120	2024	7	legacy	number	退店	退店	number	退店	close			退店	全体	退店
 36120	2024	8	legacy	number	M&A	M&A	number	M&A	other	M&A			全体	M&A
 36120	2024	9	legacy	number	既存 店舗数	既存 店舗数	number	既存 店舗数	stores		既存	店舗数	全体	既存 店舗数
-36120	2025	1	legacy	yoy_index	国内小売 売上高(前年比)	国内小売 売上高(前年比)	yoy_index	国内小売 売上高(前年比)	sales	国内小売		売上高	全体 > 国内小売	売上高
+36120	2025	1	legacy	yoy_index	国内小売 売上高(前年比)	国内小売 売上高(前年比)	yoy_index	国内小売 売上高(前年比)	sales	国内小売		売上高	全体	売上高
 36120	2025	2	legacy	yoy_index	店舗 売上高(前年比)	店舗 売上高(前年比)	yoy_index	店舗 売上高(前年比)	sales	店舗		売上高	全体 > 店舗	売上高
 36120	2025	3	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 36120	2025	4	legacy	yoy_index	Eコマース 売上高(前年比)	Eコマース 売上高(前年比)	yoy_index	Eコマース 売上高(前年比)	sales	Eコマース		売上高	全体 > Eコマース	売上高
-36120	2025	5	legacy	number	小売 店舗数	小売 店舗数	number	小売 店舗数	stores	小売		店舗数	全体 > 小売	店舗数
+36120	2025	5	legacy	number	小売 店舗数	小売 店舗数	number	小売 店舗数	stores	小売		店舗数	全体	店舗数
 36120	2025	6	legacy	number	出店	出店	number	出店	open			出店	全体	出店
 36120	2025	7	legacy	number	退店	退店	number	退店	close			退店	全体	退店
 36120	2025	8	legacy	number	M&A	M&A	number	M&A	other	M&A			全体	M&A
 36120	2025	9	legacy	number	既存 店舗数	既存 店舗数	number	既存 店舗数	stores		既存	店舗数	全体	既存 店舗数
-36120	2026	1	legacy	yoy_index	国内小売 売上高(前年比)	国内小売 売上高(前年比)	yoy_index	国内小売 売上高(前年比)	sales	国内小売		売上高	全体 > 国内小売	売上高
+36120	2026	1	legacy	yoy_index	国内小売 売上高(前年比)	国内小売 売上高(前年比)	yoy_index	国内小売 売上高(前年比)	sales	国内小売		売上高	全体	売上高
 36120	2026	2	legacy	yoy_index	店舗 売上高(前年比)	店舗 売上高(前年比)	yoy_index	店舗 売上高(前年比)	sales	店舗		売上高	全体 > 店舗	売上高
 36120	2026	3	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 36120	2026	4	legacy	yoy_index	Eコマース 売上高(前年比)	Eコマース 売上高(前年比)	yoy_index	Eコマース 売上高(前年比)	sales	Eコマース		売上高	全体 > Eコマース	売上高
-36120	2026	5	legacy	number	小売 店舗数	小売 店舗数	number	小売 店舗数	stores	小売		店舗数	全体 > 小売	店舗数
+36120	2026	5	legacy	number	小売 店舗数	小売 店舗数	number	小売 店舗数	stores	小売		店舗数	全体	店舗数
 36120	2026	6	legacy	number	出店	出店	number	出店	open			出店	全体	出店
 36120	2026	7	legacy	number	退店	退店	number	退店	close			退店	全体	退店
 36120	2026	8	legacy	number	M&A	M&A	number	M&A	other	M&A			全体	M&A
@@ -7244,59 +7244,59 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 92450	2026	4	legacy	yoy_index	転貸戸数前年同期比(前年比)	転貸戸数前年同期比(前年比)	yoy_index	転貸戸数前年同期比(前年比)	other	転貸戸数前年同期比			全体	転貸戸数前年同期比
 92450	2026	5	legacy	number	法人企業等	法人企業等	number	法人企業等	other	法人企業等			全体	法人企業等
 92450	2026	6	legacy	yoy_index	法人企業等前年同期比(前年比)	法人企業等前年同期比(前年比)	yoy_index	法人企業等前年同期比(前年比)	other	法人企業等前年同期比			全体	法人企業等前年同期比
-92510	2024	1	legacy	yoy_index	日本 全店 売上高(前年比)	日本 全店 売上高(前年比)	yoy_index	日本 全店 売上高(前年比)	sales		全店	売上高	全体	日本 全店 売上高
-92510	2024	2	legacy	yoy_index	日本 既存 売上高(前年比)	日本 既存 売上高(前年比)	yoy_index	日本 既存 売上高(前年比)	sales		既存	売上高	全体	日本 既存 売上高
-92510	2024	3	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
-92510	2024	4	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体	直営 店舗数
-92510	2024	5	legacy	number	FC 店舗数	FC 店舗数	number	FC 店舗数	stores			店舗数	全体	FC 店舗数
+92510	2024	1	legacy	yoy_index	日本 全店 売上高(前年比)	日本 全店 売上高(前年比)	yoy_index	日本 全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高(前年比)
+92510	2024	2	legacy	yoy_index	日本 既存 売上高(前年比)	日本 既存 売上高(前年比)	yoy_index	日本 既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
+92510	2024	3	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	店舗数
+92510	2024	4	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体 > 直営	店舗数
+92510	2024	5	legacy	number	FC 店舗数	FC 店舗数	number	FC 店舗数	stores			店舗数	全体 > FC	店舗数
 92510	2024	6	legacy	number	出店	出店	number	出店	open			出店	全体	出店
-92510	2024	7	legacy	number	直営 出店	直営 出店	number	直営 出店	open			出店	全体	直営 出店
-92510	2024	8	legacy	number	FC 出店	FC 出店	number	FC 出店	open			出店	全体	FC 出店
+92510	2024	7	legacy	number	直営 出店	直営 出店	number	直営 出店	open			出店	全体 > 直営	出店
+92510	2024	8	legacy	number	FC 出店	FC 出店	number	FC 出店	open			出店	全体 > FC	出店
 92510	2024	9	legacy	number	退店	退店	number	退店	close			退店	全体	退店
-92510	2024	10	legacy	number	直営 退店	直営 退店	number	直営 退店	close			退店	全体	直営 退店
-92510	2024	11	legacy	number	FC 退店	FC 退店	number	FC 退店	close			退店	全体	FC 退店
+92510	2024	10	legacy	number	直営 退店	直営 退店	number	直営 退店	close			退店	全体 > 直営	退店
+92510	2024	11	legacy	number	FC 退店	FC 退店	number	FC 退店	close			退店	全体 > FC	退店
 92510	2024	12	legacy	number	純増 店舗数	純増 店舗数	number	純増 店舗数	adj	純増		店舗数	全体	純増 店舗数
-92510	2024	13	legacy	number	純増 FC 店舗数	純増 FC 店舗数	number	純増 FC 店舗数	adj	純増		店舗数	全体	純増 FC 店舗数
-92510	2024	14	legacy	yoy_index	店舗数(前年比)	店舗数(前年比)	yoy_index	店舗数(前年比)	stores			店舗数	全体	店舗数
-92510	2024	15	legacy	number	FC 売上高	FC 売上高	number	FC 売上高	sales			売上高	全体	FC 売上高
-92510	2024	16	legacy	number	国内店舗 売上高	国内店舗 売上高	number	国内店舗 売上高	sales	国内店舗		売上高	全体 > 国内店舗	売上高
-92510	2024	17	legacy	number	直営 売上高	直営 売上高	number	直営 売上高	sales			売上高	全体	直営 売上高
-92510	2025	1	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
-92510	2025	2	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体	直営 店舗数
-92510	2025	3	legacy	number	FC 店舗数	FC 店舗数	number	FC 店舗数	stores			店舗数	全体	FC 店舗数
+92510	2024	13	legacy	number	純増 FC 店舗数	純増 FC 店舗数	number	純増 FC 店舗数	adj	純増		店舗数	全体 > FC	純増 店舗数
+92510	2024	14	legacy	yoy_index	店舗数(前年比)	店舗数(前年比)	yoy_index	店舗数(前年比)	stores			店舗数	全体	店舗数(前年比)
+92510	2024	15	legacy	number	FC 売上高	FC 売上高	number	FC 売上高	sales			売上高	全体 > FC	売上高
+92510	2024	16	legacy	number	国内店舗 売上高	国内店舗 売上高	number	国内店舗 売上高	sales	国内店舗		売上高	全体	売上高
+92510	2024	17	legacy	number	直営 売上高	直営 売上高	number	直営 売上高	sales			売上高	全体 > 直営	売上高
+92510	2025	1	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	店舗数
+92510	2025	2	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体 > 直営	店舗数
+92510	2025	3	legacy	number	FC 店舗数	FC 店舗数	number	FC 店舗数	stores			店舗数	全体 > FC	店舗数
 92510	2025	4	legacy	number	出店	出店	number	出店	open			出店	全体	出店
-92510	2025	5	legacy	number	直営 出店	直営 出店	number	直営 出店	open			出店	全体	直営 出店
-92510	2025	6	legacy	number	FC 出店	FC 出店	number	FC 出店	open			出店	全体	FC 出店
+92510	2025	5	legacy	number	直営 出店	直営 出店	number	直営 出店	open			出店	全体 > 直営	出店
+92510	2025	6	legacy	number	FC 出店	FC 出店	number	FC 出店	open			出店	全体 > FC	出店
 92510	2025	7	legacy	number	退店	退店	number	退店	close			退店	全体	退店
-92510	2025	8	legacy	number	直営 退店	直営 退店	number	直営 退店	close			退店	全体	直営 退店
-92510	2025	9	legacy	number	FC 退店	FC 退店	number	FC 退店	close			退店	全体	FC 退店
+92510	2025	8	legacy	number	直営 退店	直営 退店	number	直営 退店	close			退店	全体 > 直営	退店
+92510	2025	9	legacy	number	FC 退店	FC 退店	number	FC 退店	close			退店	全体 > FC	退店
 92510	2025	10	legacy	number	純増 店舗数	純増 店舗数	number	純増 店舗数	adj	純増		店舗数	全体	純増 店舗数
-92510	2025	11	legacy	number	純増 直営 店舗数	純増 直営 店舗数	number	純増 直営 店舗数	adj	純増		店舗数	全体	純増 直営 店舗数
-92510	2025	12	legacy	number	純増 FC 店舗数	純増 FC 店舗数	number	純増 FC 店舗数	adj	純増		店舗数	全体	純増 FC 店舗数
-92510	2025	13	legacy	number	FC 売上高	FC 売上高	number	FC 売上高	sales			売上高	全体	FC 売上高
-92510	2025	14	legacy	number	国内店舗 売上高	国内店舗 売上高	number	国内店舗 売上高	sales	国内店舗		売上高	全体 > 国内店舗	売上高
-92510	2025	15	legacy	yoy_index	日本 全店 売上高(前年比)	日本 全店 売上高(前年比)	yoy_index	日本 全店 売上高(前年比)	sales		全店	売上高	全体	日本 全店 売上高
-92510	2025	16	legacy	yoy_index	日本 既存 売上高(前年比)	日本 既存 売上高(前年比)	yoy_index	日本 既存 売上高(前年比)	sales		既存	売上高	全体	日本 既存 売上高
-92510	2025	17	legacy	yoy_index	店舗数(前年比)	店舗数(前年比)	yoy_index	店舗数(前年比)	stores			店舗数	全体	店舗数
-92510	2025	18	legacy	number	直営 売上高	直営 売上高	number	直営 売上高	sales			売上高	全体	直営 売上高
-92510	2026	1	legacy	yoy_index	日本 全店 売上高(前年比)	日本 全店 売上高(前年比)	yoy_index	日本 全店 売上高(前年比)	sales		全店	売上高	全体	日本 全店 売上高
-92510	2026	2	legacy	yoy_index	日本 既存 売上高(前年比)	日本 既存 売上高(前年比)	yoy_index	日本 既存 売上高(前年比)	sales		既存	売上高	全体	日本 既存 売上高
-92510	2026	3	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
-92510	2026	4	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体	直営 店舗数
-92510	2026	5	legacy	number	FC 店舗数	FC 店舗数	number	FC 店舗数	stores			店舗数	全体	FC 店舗数
+92510	2025	11	legacy	number	純増 直営 店舗数	純増 直営 店舗数	number	純増 直営 店舗数	adj	純増		店舗数	全体 > 直営	純増 店舗数
+92510	2025	12	legacy	number	純増 FC 店舗数	純増 FC 店舗数	number	純増 FC 店舗数	adj	純増		店舗数	全体 > FC	純増 店舗数
+92510	2025	13	legacy	number	FC 売上高	FC 売上高	number	FC 売上高	sales			売上高	全体 > FC	売上高
+92510	2025	14	legacy	number	国内店舗 売上高	国内店舗 売上高	number	国内店舗 売上高	sales	国内店舗		売上高	全体	売上高
+92510	2025	15	legacy	yoy_index	日本 全店 売上高(前年比)	日本 全店 売上高(前年比)	yoy_index	日本 全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高(前年比)
+92510	2025	16	legacy	yoy_index	日本 既存 売上高(前年比)	日本 既存 売上高(前年比)	yoy_index	日本 既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
+92510	2025	17	legacy	yoy_index	店舗数(前年比)	店舗数(前年比)	yoy_index	店舗数(前年比)	stores			店舗数	全体	店舗数(前年比)
+92510	2025	18	legacy	number	直営 売上高	直営 売上高	number	直営 売上高	sales			売上高	全体 > 直営	売上高
+92510	2026	1	legacy	yoy_index	日本 全店 売上高(前年比)	日本 全店 売上高(前年比)	yoy_index	日本 全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高(前年比)
+92510	2026	2	legacy	yoy_index	日本 既存 売上高(前年比)	日本 既存 売上高(前年比)	yoy_index	日本 既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
+92510	2026	3	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	店舗数
+92510	2026	4	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体 > 直営	店舗数
+92510	2026	5	legacy	number	FC 店舗数	FC 店舗数	number	FC 店舗数	stores			店舗数	全体 > FC	店舗数
 92510	2026	6	legacy	number	出店	出店	number	出店	open			出店	全体	出店
-92510	2026	7	legacy	number	直営 出店	直営 出店	number	直営 出店	open			出店	全体	直営 出店
-92510	2026	8	legacy	number	FC 出店	FC 出店	number	FC 出店	open			出店	全体	FC 出店
+92510	2026	7	legacy	number	直営 出店	直営 出店	number	直営 出店	open			出店	全体 > 直営	出店
+92510	2026	8	legacy	number	FC 出店	FC 出店	number	FC 出店	open			出店	全体 > FC	出店
 92510	2026	9	legacy	number	退店	退店	number	退店	close			退店	全体	退店
-92510	2026	10	legacy	number	直営 退店	直営 退店	number	直営 退店	close			退店	全体	直営 退店
-92510	2026	11	legacy	number	FC 退店	FC 退店	number	FC 退店	close			退店	全体	FC 退店
+92510	2026	10	legacy	number	直営 退店	直営 退店	number	直営 退店	close			退店	全体 > 直営	退店
+92510	2026	11	legacy	number	FC 退店	FC 退店	number	FC 退店	close			退店	全体 > FC	退店
 92510	2026	12	legacy	number	純増 店舗数	純増 店舗数	number	純増 店舗数	adj	純増		店舗数	全体	純増 店舗数
-92510	2026	13	legacy	number	純増 直営 店舗数	純増 直営 店舗数	number	純増 直営 店舗数	adj	純増		店舗数	全体	純増 直営 店舗数
-92510	2026	14	legacy	number	純増 FC 店舗数	純増 FC 店舗数	number	純増 FC 店舗数	adj	純増		店舗数	全体	純増 FC 店舗数
-92510	2026	15	legacy	yoy_index	店舗数(前年比)	店舗数(前年比)	yoy_index	店舗数(前年比)	stores			店舗数	全体	店舗数
-92510	2026	16	legacy	number	FC 売上高	FC 売上高	number	FC 売上高	sales			売上高	全体	FC 売上高
-92510	2026	17	legacy	number	国内店舗 売上高	国内店舗 売上高	number	国内店舗 売上高	sales	国内店舗		売上高	全体 > 国内店舗	売上高
-92510	2026	18	legacy	number	直営 売上高	直営 売上高	number	直営 売上高	sales			売上高	全体	直営 売上高
+92510	2026	13	legacy	number	純増 直営 店舗数	純増 直営 店舗数	number	純増 直営 店舗数	adj	純増		店舗数	全体 > 直営	純増 店舗数
+92510	2026	14	legacy	number	純増 FC 店舗数	純増 FC 店舗数	number	純増 FC 店舗数	adj	純増		店舗数	全体 > FC	純増 店舗数
+92510	2026	15	legacy	yoy_index	店舗数(前年比)	店舗数(前年比)	yoy_index	店舗数(前年比)	stores			店舗数	全体	店舗数(前年比)
+92510	2026	16	legacy	number	FC 売上高	FC 売上高	number	FC 売上高	sales			売上高	全体 > FC	売上高
+92510	2026	17	legacy	number	国内店舗 売上高	国内店舗 売上高	number	国内店舗 売上高	sales	国内店舗		売上高	全体	売上高
+92510	2026	18	legacy	number	直営 売上高	直営 売上高	number	直営 売上高	sales			売上高	全体 > 直営	売上高
 92520	2024	1	legacy	number	電気 燃料調整費	電気 燃料調整費	number	電気 燃料調整費	other	電気 燃料調整費			全体 > 電気 > 内燃料調整費	売上高
 92520	2024	2	legacy	number	電気 売上高	電気 売上高	number	電気 売上高	sales	電気		売上高	全体 > 電気	売上高
 92520	2024	3	legacy	number	宅配水 売上高	宅配水 売上高	number	宅配水 売上高	sales	宅配水		売上高	全体 > 宅配水	売上高
