@@ -1,12 +1,14 @@
 """EDINET 大量保有報告書（KAB-74）。ダウンロードはフェイク、CSV は実物の形に合わせた合成。"""
 from __future__ import annotations
 
+import contextlib
 import io
 import os
 import sys
 import tempfile
 import zipfile
 from datetime import date, datetime
+from io import StringIO
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
@@ -21,6 +23,8 @@ from app.db import SessionLocal, init_db  # noqa: E402
 from app.edinet.documents import CodeLookup  # noqa: E402
 from app.edinet.large_holdings import (  # noqa: E402
     exit_status,
+    keep_after,
+    mark_outside_window,
     parse_csv_zip,
     pending_documents,
     refresh_versions,
@@ -156,6 +160,11 @@ def test_sec_code5() -> None:
     assert sec_code5("－") is None
 
 
+def test_keep_after() -> None:
+    assert keep_after(date(2026, 10, 22)) == date(2021, 10, 22)
+    assert keep_after(date(2024, 2, 29)) == date(2019, 2, 28)
+
+
 def test_parse_joint_report() -> None:
     rep = parse_csv_zip(_joint_report())
     assert rep.holders == [1, 2]
@@ -279,33 +288,44 @@ def _api_err(cls, status: int, message: str, doc_id: str):
     return cls(message, status=status, endpoint=f"/documents/{doc_id}")
 
 
+def _run(db, client, docs):
+    buf = StringIO()
+    with contextlib.redirect_stdout(buf):
+        st = run(db, client, docs)
+    return st, buf.getvalue()
+
+
 def test_download_404_is_failed_not_error() -> None:
-    """CSV が 404 なら failed で保存し、次の pending に出ない。cron は exit=0。"""
+    """CSV が 404 なら failed で保存し、次の pending に出ない。cron は exit=0。ログは集約。"""
     init_db()
     db = SessionLocal()
     try:
         _reset(db)
-        db.add(_doc(1, "S100MZJD"))
+        db.add_all([_doc(1, "S100MZJD"), _doc(2, "S100N24C")])
         db.commit()
         client = _ErrClient({
             "S100MZJD": _api_err(EdinetNotFoundError, 404, "Not Found", "S100MZJD"),
+            "S100N24C": _api_err(EdinetNotFoundError, 404, "Not Found", "S100N24C"),
         })
-        st = run(db, client, pending_documents(db))
-        assert (st["parsed"], st["failed"], st["missing"], st["errors"]) == (0, 0, 1, 0)
+        st, out = _run(db, client, pending_documents(db))
+        assert (st["parsed"], st["failed"], st["missing"], st["errors"]) == (0, 0, 2, 0)
         assert exit_status(st) == 0
         row = db.get(LargeHoldingReport, "S100MZJD")
         assert row is not None
         assert row.parse_status == "failed"
         assert "404" in (row.parse_error or "")
         assert pending_documents(db) == []
-        assert [d.doc_id for d in pending_documents(db, retry_failed=True)] == ["S100MZJD"]
+        assert {d.doc_id for d in pending_documents(db, retry_failed=True)} == {"S100MZJD", "S100N24C"}
         assert db.query(LargeHolding).count() == 0
+        assert "download-failed doc_id=" not in out
+        assert "failed doc_id=" not in out
+        assert "edinet lvh missing n=2 sample=S100MZJD,S100N24C" in out
     finally:
         db.close()
 
 
 def test_download_5xx_stays_error() -> None:
-    """5xx・タイムアウトは行を作らず errors。次の回も取り直し、cron は exit=1。"""
+    """5xx・タイムアウトは行を作らず errors。次の回も取り直し、cron は exit=1。ログは集約。"""
     init_db()
     db = SessionLocal()
     try:
@@ -316,12 +336,44 @@ def test_download_5xx_stays_error() -> None:
             "S100SRV1": _api_err(EdinetServerError, 500, "Internal Server Error", "S100SRV1"),
             "S100TMO1": EdinetTransportError("timed out"),
         })
-        st = run(db, client, pending_documents(db))
+        st, out = _run(db, client, pending_documents(db))
         assert (st["parsed"], st["failed"], st["missing"], st["errors"]) == (0, 0, 0, 2)
         assert exit_status(st) == 1
         assert db.get(LargeHoldingReport, "S100SRV1") is None
         assert db.get(LargeHoldingReport, "S100TMO1") is None
         assert {d.doc_id for d in pending_documents(db)} == {"S100SRV1", "S100TMO1"}
+        assert "download-failed doc_id=" not in out
+        assert "edinet lvh download-error n=2 sample=S100SRV1,S100TMO1" in out
+    finally:
+        db.close()
+
+
+def test_outside_window_marked_without_download() -> None:
+    """5 年より前はダウンロードせず failed。pending から外れ、次回も選ばれない。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        today = date(2026, 10, 22)
+        db.add_all([
+            _doc(1, "S100OLD1", file_date=date(2021, 10, 21)),
+            _doc(2, "S100NEW1", file_date=date(2021, 10, 22)),
+        ])
+        db.commit()
+        assert [d.doc_id for d in pending_documents(db, today=today)] == ["S100NEW1"]
+        n = mark_outside_window(db, today=today)
+        assert n == 1
+        old = db.get(LargeHoldingReport, "S100OLD1")
+        assert old is not None
+        assert old.parse_status == "failed"
+        assert "OutsideEdinetWindow" in (old.parse_error or "")
+        assert "2021-10-21" in (old.parse_error or "")
+        client = _ErrClient({"S100NEW1": _joint_report()})
+        st, _out = _run(db, client, pending_documents(db, today=today))
+        assert client.calls == ["S100NEW1"]
+        assert st["parsed"] == 1
+        assert pending_documents(db, today=today) == []
+        assert pending_documents(db, today=today, retry_failed=True) == []
     finally:
         db.close()
 
@@ -329,11 +381,13 @@ def test_download_5xx_stays_error() -> None:
 def main() -> None:
     init_db()
     test_sec_code5()
+    test_keep_after()
     test_parse_joint_report()
     test_single_holder_totals_from_holder()
     test_run_versions_and_rerun()
     test_download_404_is_failed_not_error()
     test_download_5xx_stays_error()
+    test_outside_window_marked_without_download()
     print("ok")
 
 
