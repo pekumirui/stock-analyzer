@@ -1163,10 +1163,10 @@ def _row_metric(key: str, code: str | None = None) -> str:
         return "spend"
     if "客数" in key or "来客" in key:
         return "customers"
-    if "売上" in key:
-        return "sales"
     if metric in issuer_count_metrics(code):
         return "count"
+    if "売上" in key:
+        return "sales"
     return "other"
 
 

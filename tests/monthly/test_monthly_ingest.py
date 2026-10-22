@@ -3200,6 +3200,41 @@ def test_count_metric_keeps_pre534_stored_names() -> None:
         )
         if folded != dest:
             _fail(f"31740 dest must be a fixed point: {dest!r} -> {folded!r}")
+        with_code = canonicalize_element_label(dest, "yoy_index", "31740")
+        if with_code != dest:
+            _fail(f"31740 dest with code must stay {dest!r} -> {with_code!r}")
+
+    old_stored = (
+        "売上総利益 既存 売上高(前年比)",
+        "売上個数 既存 売上高(前年比)",
+        "ヴィンテージ商品 既存 売上高(前年比)",
+    )
+    sales = canonicalize_element_label("既存 売上高(前年比)", "yoy_index")
+    for src in old_stored:
+        for code in (None, "31740"):
+            got = canonicalize_element_label(src, "yoy_index", code)
+            if got != src:
+                _fail(f"31740 old stored {src!r} code={code!r} -> {got!r}")
+            if got == sales:
+                _fail(f"31740 old stored {src!r} must not collapse to 既存 売上高")
+
+    vintage = monthly_element_label("既存 ヴィンテージ商品売上高(前年比)", "yoy_index", "31740")
+    if vintage["segment"] or vintage["metric"] != "ヴィンテージ商品売上高" or vintage["metric_kind"] != "sales":
+        _fail(f"31740 vintage label: {vintage!r}")
+    gp = monthly_element_label("既存 売上総利益(前年比)", "yoy_index", "31740")
+    if gp["segment"] or gp["metric"] != "売上総利益" or gp["metric_kind"] != "sales":
+        _fail(f"31740 売上総利益 label: {gp!r}")
+    qty = monthly_element_label("既存 売上個数(前年比)", "yoy_index", "31740")
+    if qty["segment"] or qty["metric"] != "売上個数" or qty["metric_kind"] != "count":
+        _fail(f"31740 売上個数 label: {qty!r}")
+    for other in (None, "30380"):
+        leaked_gp = monthly_element_label("既存 売上総利益(前年比)", "yoy_index", other)
+        leaked_qty = monthly_element_label("既存 売上個数(前年比)", "yoy_index", other)
+        if leaked_gp["metric"] or leaked_qty["metric"]:
+            _fail(f"31740 dest metrics leaked to code={other!r}: {leaked_gp!r} {leaked_qty!r}")
+    other_gp = monthly_element_label("売上総利益", "number", "30380")
+    if other_gp["metric"] or other_gp["segment"] != "売上総利益":
+        _fail(f"30380 売上総利益 must stay leftover: {other_gp!r}")
 
     rows = [
         ("23050", 2026, "撮影件数 既存 売上高(前年比)", "yoy_index"),
