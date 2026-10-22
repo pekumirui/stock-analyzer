@@ -249,14 +249,33 @@ def store_failed(db: Session, doc: EdinetDocument, exc: Exception, fetched_at: d
     store_report(db, row, [])
 
 
+def is_not_found(exc: BaseException) -> bool:
+    """書類取得が 404。取り下げ・非公開で、次の回に取り直しても同じ。"""
+    if getattr(exc, "status", None) == 404:
+        return True
+    resp = getattr(exc, "response", None)
+    if getattr(resp, "status_code", None) == 404:
+        return True
+    return type(exc).__name__ == "EdinetNotFoundError"
+
+
 def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
                     lookup: CodeLookup) -> str:
-    """1 書類: CSV をダウンロード → パース → 保存。戻り値は parsed / failed / error（ダウンロード失敗）。"""
+    """1 書類: CSV をダウンロード → パース → 保存。
+
+    戻り値は parsed / failed / missing / error。
+    missing は CSV が 404（書類が無い）。failed で保存し、次の回は飛ばす。
+    error は 5xx・タイムアウトなど一時的な失敗。行を作らない。
+    """
     from app.edinet_wrapper import DocumentFileType
 
     try:
         got = client.download(doc.doc_id, DocumentFileType.CSV)
     except Exception as exc:
+        if is_not_found(exc):
+            store_failed(db, doc, exc, now_jst())
+            print(f"edinet lvh missing doc_id={doc.doc_id} err={exc}", flush=True)
+            return "missing"
         print(f"edinet lvh download-failed doc_id={doc.doc_id} err={exc}", flush=True)
         return "error"
     fetched_at = now_jst()
@@ -329,10 +348,15 @@ def refresh_versions(db: Session) -> int:
 
 
 def run(db: Session, client: EdinetClient, docs: list[EdinetDocument]) -> dict:
-    out = {"parsed": 0, "failed": 0, "errors": 0}
+    out = {"parsed": 0, "failed": 0, "missing": 0, "errors": 0}
     lookup = CodeLookup.load(db)
     for doc in docs:
         st = ingest_document(db, client, doc, lookup)
-        out[{"parsed": "parsed", "failed": "failed"}.get(st, "errors")] += 1
+        out[{"parsed": "parsed", "failed": "failed", "missing": "missing"}.get(st, "errors")] += 1
     out["refreshed"] = refresh_versions(db)
     return out
+
+
+def exit_status(st: dict) -> int:
+    """cron の終了コード。パース失敗と一時的な download 失敗だけ 1。404 の missing は 0。"""
+    return 0 if st["failed"] + st["errors"] == 0 else 1

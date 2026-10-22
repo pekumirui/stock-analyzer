@@ -20,12 +20,18 @@ from sqlalchemy import delete, select  # noqa: E402
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.edinet.documents import CodeLookup  # noqa: E402
 from app.edinet.large_holdings import (  # noqa: E402
+    exit_status,
     parse_csv_zip,
     pending_documents,
     refresh_versions,
     report_row,
     run,
     sec_code5,
+)
+from app.edinet_wrapper.errors import (  # noqa: E402
+    EdinetNotFoundError,
+    EdinetServerError,
+    EdinetTransportError,
 )
 from app.models import (  # noqa: E402
     EdinetDocument,
@@ -200,7 +206,8 @@ def test_run_versions_and_rerun() -> None:
         docs = pending_documents(db)
         assert {d.doc_id for d in docs} == {"S100ORIG", "S100SNGL", "S100BRKN"}
         st = run(db, client, docs)
-        assert (st["parsed"], st["failed"], st["errors"]) == (2, 1, 0)
+        assert (st["parsed"], st["failed"], st["missing"], st["errors"]) == (2, 1, 0, 0)
+        assert exit_status(st) == 1
 
         holders = db.scalars(select(LargeHolding).where(LargeHolding.doc_id == "S100ORIG")
                              .order_by(LargeHolding.holder_no)).all()
@@ -257,12 +264,76 @@ def test_run_versions_and_rerun() -> None:
         db.close()
 
 
+class _ErrClient(FakeClient):
+    """payloads に Exception を置ける。"""
+
+    def download(self, doc_id, file_type):
+        got = self.payloads.get(doc_id)
+        if isinstance(got, BaseException):
+            self.calls.append(doc_id)
+            raise got
+        return super().download(doc_id, file_type)
+
+
+def _api_err(cls, status: int, message: str, doc_id: str):
+    return cls(message, status=status, endpoint=f"/documents/{doc_id}")
+
+
+def test_download_404_is_failed_not_error() -> None:
+    """CSV が 404 なら failed で保存し、次の pending に出ない。cron は exit=0。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add(_doc(1, "S100MZJD"))
+        db.commit()
+        client = _ErrClient({
+            "S100MZJD": _api_err(EdinetNotFoundError, 404, "Not Found", "S100MZJD"),
+        })
+        st = run(db, client, pending_documents(db))
+        assert (st["parsed"], st["failed"], st["missing"], st["errors"]) == (0, 0, 1, 0)
+        assert exit_status(st) == 0
+        row = db.get(LargeHoldingReport, "S100MZJD")
+        assert row is not None
+        assert row.parse_status == "failed"
+        assert "404" in (row.parse_error or "")
+        assert pending_documents(db) == []
+        assert [d.doc_id for d in pending_documents(db, retry_failed=True)] == ["S100MZJD"]
+        assert db.query(LargeHolding).count() == 0
+    finally:
+        db.close()
+
+
+def test_download_5xx_stays_error() -> None:
+    """5xx・タイムアウトは行を作らず errors。次の回も取り直し、cron は exit=1。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add_all([_doc(1, "S100SRV1"), _doc(2, "S100TMO1")])
+        db.commit()
+        client = _ErrClient({
+            "S100SRV1": _api_err(EdinetServerError, 500, "Internal Server Error", "S100SRV1"),
+            "S100TMO1": EdinetTransportError("timed out"),
+        })
+        st = run(db, client, pending_documents(db))
+        assert (st["parsed"], st["failed"], st["missing"], st["errors"]) == (0, 0, 0, 2)
+        assert exit_status(st) == 1
+        assert db.get(LargeHoldingReport, "S100SRV1") is None
+        assert db.get(LargeHoldingReport, "S100TMO1") is None
+        assert {d.doc_id for d in pending_documents(db)} == {"S100SRV1", "S100TMO1"}
+    finally:
+        db.close()
+
+
 def main() -> None:
     init_db()
     test_sec_code5()
     test_parse_joint_report()
     test_single_holder_totals_from_holder()
     test_run_versions_and_rerun()
+    test_download_404_is_failed_not_error()
+    test_download_5xx_stays_error()
     print("ok")
 
 

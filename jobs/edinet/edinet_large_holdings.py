@@ -22,7 +22,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from app.db import SessionLocal  # noqa: E402
-from app.edinet.large_holdings import pending_documents, refresh_versions, run  # noqa: E402
+from app.edinet.large_holdings import (  # noqa: E402
+    exit_status,
+    pending_documents,
+    refresh_versions,
+    run,
+)
 
 
 def _d(raw: str | None) -> date | None:
@@ -60,9 +65,9 @@ def main() -> int:
             st = run(db, client, docs)
         print(
             f"edinet lvh done parsed={st['parsed']} failed={st['failed']} "
-            f"errors={st['errors']} refreshed={st['refreshed']}"
+            f"missing={st['missing']} errors={st['errors']} refreshed={st['refreshed']}"
         )
-        return 0 if st["failed"] + st["errors"] == 0 else 1
+        return exit_status(st)
     finally:
         db.close()
 

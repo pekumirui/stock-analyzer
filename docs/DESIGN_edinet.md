@@ -142,7 +142,7 @@ large_holdings          -- 1 書類 × 1 人
 ```
 
 - ジョブ: `python jobs/edinet/edinet_large_holdings.py`。cron は毎時 09:05〜23:05 に `--limit 1000`（1 件約 1 秒で約 17 分。一覧の :40 と XBRL の :50 に重ねない）
-- 対象: 350 / 360・`csv_flag`、取下げ（`withdrawal_status=2`）・不開示・修正通知の行を除く。発行者が上場していない書類も取る（`code` は NULL）。新しい日から。`parsed` は飛ばす（`--reparse` で取り直し）、`failed` は `--retry-failed`。ダウンロードに失敗した書類は行を作らないので次の回にまた取る
+- 対象: 350 / 360・`csv_flag`、取下げ（`withdrawal_status=2`）・不開示・修正通知の行を除く。発行者が上場していない書類も取る（`code` は NULL）。新しい日から。`parsed` は飛ばす（`--reparse` で取り直し）、`failed` は `--retry-failed`。CSV が 404（取り下げ・非公開）なら `parse_status='failed'`（`parse_error` に 404）として残し、次の回は飛ばす。ログは `missing=`（`errors` にも `failed=` にも数えない。cron は exit=0）。5xx・タイムアウトは行を作らず次の回にまた取る（`errors`、exit=1）
 - EDINET は大量保有を 5 年分しか持たない（一覧に出るのは 2021-11 ごろから）。1 日 20〜50 件、年 1 万件ほど。全部で 5 万件前後、1 件 1KB 前後で数十 MB。初回は毎時の cron で 4 日ほどかかる
 - 値: 割合は小数（`0.0507` = 5.07%）。CSV の「－」は NULL。保有者が 1 人の書類は書類レベルの合計が CSV に無いので、保有者 1 の値を合計に入れる。「該当事項なし」の文章（共同保有者・重要提案行為等）は NULL
 - 発行者の `code` は `issuer_edinet_code` → `edinet_filers.sec_code`、無ければ CSV の発行者の証券コード（4 桁 → 末尾 0 の 5 桁）。どちらも `stocks` にあるときだけ付ける。`edinet_documents.code` は提出者（保有者）の銘柄なので使わない
