@@ -27,6 +27,12 @@ if TYPE_CHECKING:
 
 DOC_TYPES = ("350", "360")       # 大量保有報告書・変更報告書 / 訂正報告書
 AMENDMENT = "360"
+KEEP_YEARS = 5                   # EDINET が大量保有 CSV（type=5）を持つ期間
+_SAMPLE_IDS = 8
+
+
+class OutsideEdinetWindow(Exception):
+    """大量保有 CSV が EDINET の取得可能期間（KEEP_YEARS 年）より前。"""
 _HOLDER_RE = re.compile(r"FilerLargeVolumeHolder(\d+)Member$")
 # 「該当事項なし」「該当事項はありません。」「第３【共同保有者に関する事項】該当事項なし」
 _NONE_TEXT_RE = re.compile(r"(第3【共同保有者に関する事項】)?\s*該当(事項)?(は)?(なし|無し|ありません)[。.]?")
@@ -181,6 +187,21 @@ def holder_rows(doc_id: str, rep: ParsedReport) -> list[dict]:
     return out
 
 
+def keep_after(today: date | None = None) -> date:
+    """大量保有 CSV を取る file_date の下限（今日の KEEP_YEARS 年前）。"""
+    day = today or now_jst().date()
+    try:
+        return day.replace(year=day.year - KEEP_YEARS)
+    except ValueError:
+        return day.replace(month=2, day=28, year=day.year - KEEP_YEARS)
+
+
+def _sample_ids(ids: list[str]) -> str:
+    if len(ids) <= _SAMPLE_IDS:
+        return ",".join(ids)
+    return ",".join(ids[:_SAMPLE_IDS]) + f",...+{len(ids) - _SAMPLE_IDS}"
+
+
 def pending_documents(
     db: Session,
     *,
@@ -189,20 +210,23 @@ def pending_documents(
     retry_failed: bool = False,
     reparse: bool = False,
     limit: int | None = None,
+    today: date | None = None,
 ) -> list[EdinetDocument]:
     """取り込む書類。350 / 360・CSV あり・取下げ/不開示でない元の行。新しい日から。
 
     発行者が上場していない書類も取る（code は NULL）。parsed は reparse でなければ飛ばす。
-    failed は retry_failed のときだけ。
+    failed は retry_failed のときだけ。KEEP_YEARS 年より前は一覧に出ても CSV が無いので除く
+    （先に mark_outside_window で failed に残す）。
     """
     T = EdinetDocument
+    floor = keep_after(today)
+    if start and start > floor:
+        floor = start
     q = (select(T)
          .where(T.doc_type_code.in_(DOC_TYPES), T.csv_flag.is_(True),
                 T.withdrawal_status != "2", T.disclosure_status == "0",
-                T.doc_info_edit_status != "1")
+                T.doc_info_edit_status != "1", T.file_date >= floor)
          .order_by(T.file_date.desc(), T.seq_number))
-    if start:
-        q = q.where(T.file_date >= start)
     if end:
         q = q.where(T.file_date <= end)
     docs = db.scalars(q).all()
@@ -249,15 +273,68 @@ def store_failed(db: Session, doc: EdinetDocument, exc: Exception, fetched_at: d
     store_report(db, row, [])
 
 
+def is_not_found(exc: BaseException) -> bool:
+    """書類取得が 404。取り下げ・非公開・取得可能期間外。次の回に取り直しても同じ。"""
+    if getattr(exc, "status", None) == 404:
+        return True
+    resp = getattr(exc, "response", None)
+    if getattr(resp, "status_code", None) == 404:
+        return True
+    return type(exc).__name__ == "EdinetNotFoundError"
+
+
+def mark_outside_window(db: Session, *, today: date | None = None) -> int:
+    """KEEP_YEARS 年より前で report が無い 350/360 を failed で残す。ダウンロードしない。"""
+    cutoff = keep_after(today)
+    have = set(db.scalars(select(LargeHoldingReport.doc_id)))
+    T = EdinetDocument
+    docs = db.scalars(
+        select(T).where(
+            T.doc_type_code.in_(DOC_TYPES), T.csv_flag.is_(True),
+            T.file_date < cutoff, T.withdrawal_status != "2",
+            T.disclosure_status == "0", T.doc_info_edit_status != "1",
+        )
+    ).all()
+    seen: set[str] = set()
+    n = 0
+    fetched_at = now_jst()
+    for doc in docs:
+        if doc.doc_id in seen or doc.doc_id in have:
+            continue
+        seen.add(doc.doc_id)
+        store_failed(
+            db, doc,
+            OutsideEdinetWindow(f"file_date={doc.file_date} keep_years={KEEP_YEARS}"),
+            fetched_at,
+        )
+        n += 1
+    return n
+
+
 def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
-                    lookup: CodeLookup) -> str:
-    """1 書類: CSV をダウンロード → パース → 保存。戻り値は parsed / failed / error（ダウンロード失敗）。"""
+                    lookup: CodeLookup, *, today: date | None = None) -> str:
+    """1 書類: CSV をダウンロード → パース → 保存。
+
+    戻り値は parsed / failed / missing / error。
+    missing は CSV が 404 か取得可能期間外。failed で保存し、次の回は飛ばす。
+    error は 5xx・タイムアウトなど一時的な失敗。行を作らない。
+    1 件ごとの失敗ログは出さない（run が集約する。Slack の failed doc_id= に引っかかるため）。
+    """
     from app.edinet_wrapper import DocumentFileType
 
+    if doc.file_date < keep_after(today):
+        store_failed(
+            db, doc,
+            OutsideEdinetWindow(f"file_date={doc.file_date} keep_years={KEEP_YEARS}"),
+            now_jst(),
+        )
+        return "missing"
     try:
         got = client.download(doc.doc_id, DocumentFileType.CSV)
     except Exception as exc:
-        print(f"edinet lvh download-failed doc_id={doc.doc_id} err={exc}", flush=True)
+        if is_not_found(exc):
+            store_failed(db, doc, exc, now_jst())
+            return "missing"
         return "error"
     fetched_at = now_jst()
     try:
@@ -266,7 +343,6 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
         holders = holder_rows(doc.doc_id, rep)
     except Exception as exc:
         store_failed(db, doc, exc, fetched_at)
-        print(f"edinet lvh failed doc_id={doc.doc_id} err={exc}", flush=True)
         return "failed"
     store_report(db, row, holders)
     ratio = "" if row["holding_ratio"] is None else f"{row['holding_ratio'] * 100:.2f}%"
@@ -328,11 +404,35 @@ def refresh_versions(db: Session) -> int:
     return run_sqlite_write(db, write)
 
 
-def run(db: Session, client: EdinetClient, docs: list[EdinetDocument]) -> dict:
-    out = {"parsed": 0, "failed": 0, "errors": 0}
+def run(db: Session, client: EdinetClient, docs: list[EdinetDocument],
+        *, today: date | None = None) -> dict:
+    out = {"parsed": 0, "failed": 0, "missing": 0, "errors": 0}
     lookup = CodeLookup.load(db)
+    missing_ids: list[str] = []
+    failed_ids: list[str] = []
+    error_ids: list[str] = []
     for doc in docs:
-        st = ingest_document(db, client, doc, lookup)
-        out[{"parsed": "parsed", "failed": "failed"}.get(st, "errors")] += 1
+        st = ingest_document(db, client, doc, lookup, today=today)
+        out[{"parsed": "parsed", "failed": "failed", "missing": "missing"}.get(st, "errors")] += 1
+        if st == "missing":
+            missing_ids.append(doc.doc_id)
+        elif st == "failed":
+            failed_ids.append(doc.doc_id)
+        elif st != "parsed":
+            error_ids.append(doc.doc_id)
+    if missing_ids:
+        print(f"edinet lvh missing n={len(missing_ids)} sample={_sample_ids(missing_ids)}",
+              flush=True)
+    if failed_ids:
+        print(f"edinet lvh parse-error n={len(failed_ids)} sample={_sample_ids(failed_ids)}",
+              flush=True)
+    if error_ids:
+        print(f"edinet lvh download-error n={len(error_ids)} sample={_sample_ids(error_ids)}",
+              flush=True)
     out["refreshed"] = refresh_versions(db)
     return out
+
+
+def exit_status(st: dict) -> int:
+    """cron の終了コード。パース失敗と一時的な download 失敗だけ 1。404 の missing は 0。"""
+    return 0 if st["failed"] + st["errors"] == 0 else 1

@@ -50,7 +50,9 @@ PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "warn list truncated for 2026-08-05: next_flag=1"),
     ("batch", "error missing-zip doc_id=S100ABC path=xbrl/7203/foo.zip"),
     ("batch", "failed doc_id=S100ABC code=72030 err=boom"),
+    ("batch", "2026-10-22 12:00:00 failed doc_id=S100ABC code=72030 err=boom"),
     ("batch", "normalize failed doc_id=S100ABC code=72030 err=boom"),
+    ("batch", "edinet lvh done parsed=0 failed=0 missing=0 errors=3 refreshed=0"),
     ("nginx", "2026/08/05 12:00:00 [error] 12#12: *1 connect() failed (111: Connection refused)"),
     (
         "nginx",
@@ -85,6 +87,19 @@ NOT_PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "normalize missing-required doc_id=S100ABC code=72030 items=NetSales"),
     ("batch", "saved xbrl/3032/foo.zip (12 bytes) unknown-stock"),
     ("batch", "tdnet_monthly_r2 done listed=10 saved=1 skipped=9 failed=0"),
+    ("batch", "edinet lvh download-failed doc_id=S100MMVL err=404 Not Found"),
+    (
+        "batch",
+        (
+            "2026-10-22 16:30:14 edinet lvh download-failed doc_id=S100MMVL "
+            "err=404 Not Found (https://api.edinet-fsa.go.jp/api/v2/documents/S100MMVL?type=5)"
+        ),
+    ),
+    ("batch", "edinet lvh missing n=164 sample=S100MMVL,S100MMWV"),
+    ("batch", "edinet lvh outside-window n=12"),
+    ("batch", "edinet lvh parse-error n=1 sample=S100BRKN"),
+    ("batch", "edinet lvh download-error n=2 sample=S100SRV1,S100TMO1"),
+    ("batch", "edinet lvh done parsed=73161 failed=0 missing=164 errors=0 refreshed=363"),
     ("batch", "material_stats done written=3 failed=0"),
     ("batch", "fail meti seidou list: WAF challenge: https://x. stop and retry next run"),
     ("batch", "parse processed=3 errors=0 skipped=1"),

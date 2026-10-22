@@ -22,7 +22,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from app.db import SessionLocal  # noqa: E402
-from app.edinet.large_holdings import pending_documents, refresh_versions, run  # noqa: E402
+from app.edinet.large_holdings import (  # noqa: E402
+    exit_status,
+    mark_outside_window,
+    pending_documents,
+    refresh_versions,
+    run,
+)
 
 
 def _d(raw: str | None) -> date | None:
@@ -50,6 +56,9 @@ def main() -> int:
 
         from app.edinet_wrapper import EdinetClient
 
+        expired = mark_outside_window(db)
+        if expired:
+            print(f"edinet lvh outside-window n={expired}", flush=True)
         docs = pending_documents(
             db, start=_d(args.date_from), end=_d(args.date_to),
             retry_failed=args.retry_failed, reparse=args.reparse,
@@ -58,11 +67,12 @@ def main() -> int:
         print(f"edinet lvh docs={len(docs)}", flush=True)
         with EdinetClient() as client:
             st = run(db, client, docs)
+        st["missing"] += expired
         print(
             f"edinet lvh done parsed={st['parsed']} failed={st['failed']} "
-            f"errors={st['errors']} refreshed={st['refreshed']}"
+            f"missing={st['missing']} errors={st['errors']} refreshed={st['refreshed']}"
         )
-        return 0 if st["failed"] + st["errors"] == 0 else 1
+        return exit_status(st)
     finally:
         db.close()
 

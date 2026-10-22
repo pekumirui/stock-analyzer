@@ -30,7 +30,7 @@ ALERT_PATTERNS: tuple[AlertPattern, ...] = (
     AlertPattern("batch", "jquants", r"JQUANTS_API_KEY が未設定"),
     AlertPattern("batch", "xbrl", r"list truncated"),
     AlertPattern("batch", "xbrl", r"error missing-zip"),
-    AlertPattern("batch", "xbrl", r"failed doc_id="),
+    AlertPattern("batch", "xbrl", r"(^|[^-])failed doc_id="),
     AlertPattern("batch", "xbrl", r"normalize failed"),
     AlertPattern("nginx", "nginx", r"\[error\]"),
     AlertPattern("nginx", "nginx", r"\[crit\]"),
