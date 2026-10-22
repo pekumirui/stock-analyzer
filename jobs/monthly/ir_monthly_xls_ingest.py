@@ -5,9 +5,13 @@
   python jobs/monthly/ir_monthly_xls_ingest.py --dest /tmp/r2/monthly --dry-run
   python jobs/monthly/ir_monthly_xls_ingest.py --xls history.xls --as-of 2026-09-02 --post
   python jobs/monthly/ir_monthly_xls_ingest.py --code 7606 --xls sokuho2027.xlsx --dry-run
+  python jobs/monthly/ir_monthly_xls_ingest.py --all --post   # cron。config の全銘柄の最新ファイル
 
 対象と列・行の正本は config/monthly/ir_monthly_xls.json。取得は ir_monthly_r2.py。
 このスクリプトは JSON 化と loopback POST だけ。year は送らない。HTML ingest の cron には混ぜない。
+--all は銘柄ごとに 1 行だけ出し、最終行 `ir_monthly_xls_ingest done posted= skipped= failed=`。失敗が 1 つでもあれば exit 1。
+
+VPS cron (JST, ir_monthly_r2.py の取得の後): 10:30 / 16:30
 """
 from __future__ import annotations
 
@@ -38,6 +42,7 @@ CODE = "1878"
 DEFAULT_FROM_YEAR = 2024
 DEFAULT_BASE_URL = "http://127.0.0.1:8000"
 DEFAULT_XLS_CONFIG = ROOT / "config" / "monthly" / "ir_monthly_xls.json"
+SUMMARY_LABEL = "ir_monthly_xls_ingest"
 _AFIELD_DATE_RE = re.compile(r"/(19\d{2}|20\d{2})/(0[1-9]|1[0-2])/(0[1-9]|[12]\d|3[01])/")
 _STEM_DATE_RE = re.compile(r"^(\d{8})_")
 _YEAR_TEXT_RE = re.compile(r"(19\d{2}|20\d{2})\s*年")
@@ -758,6 +763,63 @@ def run(
     return 0 if status == 200 else 1
 
 
+def run_all(
+    *,
+    dest: Path,
+    from_year: int,
+    dry_run: bool,
+    post: bool,
+    base_url: str,
+    client: UrllibClient | None = None,
+    config: str | None = None,
+) -> int:
+    """config の全銘柄について dest の最新ファイルを ingest する。1 銘柄の失敗で残りを止めない。"""
+    posted = skipped = failed = 0
+    try:
+        check_r2_mount(dest)
+    except MountDisconnected as e:
+        print(f"{SUMMARY_LABEL} {e}", flush=True)
+        _print_done(0, 0, 1)
+        return 1
+    except OSError:
+        pass
+    origin = ""
+    if post and not dry_run:
+        try:
+            origin = assert_loopback_base(base_url)
+        except ValueError as e:
+            print(f"fail {e}", flush=True)
+            _print_done(0, 0, 1)
+            return 1
+    for code, spec in sorted(load_xls_specs(config).items()):
+        try:
+            path = latest_workbook(dest, code, spec.exts)
+            payload = ingest_from_xls(path, from_year=from_year, spec=spec)
+        except (OSError, ValueError) as e:
+            failed += 1
+            print(f"fail {code} {e}", flush=True)
+            continue
+        head = (f"{code} {path.name} as_of={payload['as_of']} "
+                f"months={len(payload['months'])} rows={len(payload['rows'])}")
+        if not origin:
+            skipped += 1
+            print(f"skip {head}", flush=True)
+            continue
+        status, body = post_ingest(origin, payload, code=code, client=client)
+        if status != 200:
+            failed += 1
+            print(f"fail {head} http={status} {body}", flush=True)
+            continue
+        posted += 1
+        print(f"post {head}", flush=True)
+    _print_done(posted, skipped, failed)
+    return 1 if failed else 0
+
+
+def _print_done(posted: int, skipped: int, failed: int) -> None:
+    print(f"{SUMMARY_LABEL} done posted={posted} skipped={skipped} failed={failed}", flush=True)
+
+
 def _parse_as_of_flag(raw: str) -> date:
     try:
         return date.fromisoformat(raw)
@@ -770,6 +832,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--xls", default="", help="path to workbook")
     ap.add_argument("--dest", default=str(DEFAULT_DEST), help="monthly dest; used when --xls is omitted")
     ap.add_argument("--code", default=CODE, help="issuer code (default 1878)")
+    ap.add_argument("--all", action="store_true",
+                    help="every issuer in ir_monthly_xls.json; latest workbook under --dest (cron)")
     ap.add_argument("--as-of", default="", type=str, help="disclosure date YYYY-MM-DD")
     ap.add_argument("--source-url", default="", help="IR file URL (afieldfile /YYYY/MM/DD/ becomes as_of)")
     ap.add_argument("--from-year", type=int, default=DEFAULT_FROM_YEAR, help="first calendar year to keep")
@@ -780,6 +844,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.dry_run and args.post:
         print("error: --dry-run and --post cannot be combined", flush=True)
         return 2
+    if args.all:
+        if args.xls or args.as_of or args.source_url or args.code != CODE:
+            print("error: --all cannot be combined with --xls / --code / --as-of / --source-url", flush=True)
+            return 2
+        return run_all(
+            dest=Path(args.dest), from_year=args.from_year, dry_run=args.dry_run,
+            post=args.post, base_url=args.base_url,
+        )
     as_of = _parse_as_of_flag(args.as_of) if args.as_of else None
     xls = Path(args.xls) if args.xls else None
     source = args.source_url.strip() or None

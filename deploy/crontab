@@ -46,6 +46,10 @@ SHELL=/bin/bash
 30 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/ir_monthly_json_ingest.py
 30 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/ir_monthly_json_ingest.py
 
+# IR 月次 xls/xlsx → DB（loopback POST。ir_monthly_r2 の取得の後。config/monthly/ir_monthly_xls.json の全銘柄の最新ファイル）
+40 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/ir_monthly_xls_ingest.py --all --post
+40 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/ir_monthly_xls_ingest.py --all --post
+
 # TDnet XBRL ZIP → data/xbrl（当日分・毎時 12–23）
 0 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/tdnet_xbrl_r2.py 1
 10 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/xbrl_parse.py
