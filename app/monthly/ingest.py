@@ -172,7 +172,10 @@ def canonicalize_element_label(
 
 
 _UNGLUE: tuple[tuple[str, str], ...] = tuple((str(src), str(dst)) for src, dst in _VOCAB["split"])
-_UNGLUE_KEEP = ("百貨店事業合計",)
+_UNGLUE_KEEP = ("ヴィンテージ商品売上高", "百貨店事業合計")
+# yoy でスコープ+この leftover だけなら売上高を補わず指標位置へ（31740）。
+# 共通語彙の指標にすると `売上総利益 既存 売上高(前年比)` が `既存 売上高` に潰れる。
+_YOY_SCOPE_LEFTOVER_METRICS = frozenset({"売上総利益", "売上個数"})
 _FLOW_WORDS = (
     "転換出店数", "転換出店", "開店数", "出店数", "退店数", "閉店数", "閉鎖数",
     "開設数", "撤退数", "稼働店舗数", "取引店舗数", "開店", "出店", "退店",
@@ -790,14 +793,19 @@ def normalize_element_tokens(
         and not parts["channel"]
         and "会員数" not in parts["segment"]
     ):
-        parts["metric"] = "売上高"
-        parts["time_axis"] = ""
-        leftover, breakdown = _peel_breakdown(parts["segment"].split(), "売上高")
-        leftover, breakdown = _peel_area_breakdown(leftover, "売上高", breakdown)
-        leftover, metric = _stitch_consolidated(leftover, parts["metric"])
-        parts["segment"] = " ".join(leftover)
-        parts["metric"] = metric
-        parts["breakdown"] = breakdown
+        leftover = parts["segment"].split()
+        if len(leftover) == 1 and leftover[0] in _YOY_SCOPE_LEFTOVER_METRICS:
+            parts["metric"] = leftover[0]
+            parts["segment"] = ""
+        else:
+            parts["metric"] = "売上高"
+            parts["time_axis"] = ""
+            leftover, breakdown = _peel_breakdown(leftover, "売上高")
+            leftover, breakdown = _peel_area_breakdown(leftover, "売上高", breakdown)
+            leftover, metric = _stitch_consolidated(leftover, parts["metric"])
+            parts["segment"] = " ".join(leftover)
+            parts["metric"] = metric
+            parts["breakdown"] = breakdown
     parts["segment"], parts["metric"] = _glue_status_store_metric(
         parts["segment"], parts["metric"],
     )

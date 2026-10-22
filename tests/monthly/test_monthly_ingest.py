@@ -258,6 +258,14 @@ def test_canonicalize_element_label() -> None:
         _fail("omitted unit is number: tokens only")
     if canonicalize_element_label("合計 店舗数", "number") != "店舗数":
         _fail("合計 店舗数 drops 合計")
+    if canonicalize_element_label("既存 ヴィンテージ商品売上高(前年比)", "yoy_index") != (
+        "既存 ヴィンテージ商品売上高(前年比)"
+    ):
+        _fail("ヴィンテージ商品売上高 keeps compound and stays metric")
+    if canonicalize_element_label("既存 売上総利益(前年比)", "yoy_index") != "既存 売上総利益(前年比)":
+        _fail("既存 売上総利益 yoy does not fill 売上高")
+    if canonicalize_element_label("既存 売上個数(前年比)", "yoy_index") != "既存 売上個数(前年比)":
+        _fail("既存 売上個数 yoy does not fill 売上高")
     if canonicalize_element_label("百貨店事業合計 売上高(前年比)", "yoy_index") != "百貨店事業合計 売上高(前年比)":
         _fail("百貨店事業合計 売上高 keeps compound 合計")
     if canonicalize_element_label("百貨店事業合計売上高(前年比)", "yoy_index") != "百貨店事業合計 売上高(前年比)":
@@ -3162,6 +3170,36 @@ def test_count_metric_keeps_pre534_stored_names() -> None:
         canonicalize_element_label("既存 売上高(前年比)", "yoy_index")
     ):
         _fail("31740 売上個数 must not collide with 既存 売上高(前年比)")
+    if canonicalize_element_label("売上総利益 既存 売上高(前年比)", "yoy_index") != (
+        "売上総利益 既存 売上高(前年比)"
+    ):
+        _fail("31740 old 売上総利益 stored name must stay")
+    if canonicalize_element_label("ヴィンテージ商品 既存 売上高(前年比)", "yoy_index") != (
+        "ヴィンテージ商品 既存 売上高(前年比)"
+    ):
+        _fail("31740 old ヴィンテージ商品 stored name must stay")
+    if apply_issuer_aliases("31740", "売上総利益 既存 売上高(前年比)", year=2026) != (
+        "既存 売上総利益(前年比)"
+    ):
+        _fail("31740 alias 売上総利益 dest")
+    if apply_issuer_aliases("31740", "売上個数 既存 売上高(前年比)", year=2026) != (
+        "既存 売上個数(前年比)"
+    ):
+        _fail("31740 alias 売上個数 dest")
+    if apply_issuer_aliases("31740", "ヴィンテージ商品 既存 売上高(前年比)", year=2026) != (
+        "既存 ヴィンテージ商品売上高(前年比)"
+    ):
+        _fail("31740 alias ヴィンテージ商品 dest")
+    for dest in (
+        "既存 売上総利益(前年比)",
+        "既存 売上個数(前年比)",
+        "既存 ヴィンテージ商品売上高(前年比)",
+    ):
+        folded = canonicalize_element_label(
+            apply_issuer_aliases("31740", dest, year=2026), "yoy_index",
+        )
+        if folded != dest:
+            _fail(f"31740 dest must be a fixed point: {dest!r} -> {folded!r}")
 
     rows = [
         ("23050", 2026, "撮影件数 既存 売上高(前年比)", "yoy_index"),
