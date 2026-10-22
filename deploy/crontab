@@ -63,6 +63,10 @@ SHELL=/bin/bash
 50 8-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/edinet/edinet_xbrl.py --limit 300
 # 大量保有報告書 → large_holding_reports / large_holdings（KAB-74）。新しい書類から 1 回 1000 件（約 17 分）。:40 / :50 に重ねない
 5 9-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/edinet/edinet_large_holdings.py --limit 1000
+# 公開買付の書類 → edinet_tender_offer_docs / edinet_tender_offers（KAB-79）。1 回 100 件（5 分以内）。:25 に重ねない
+20 9-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/edinet/edinet_tender_offers.py --limit 100
+# 自己株券買付状況報告書 → edinet_buybacks / edinet_buyback_resolutions（KAB-79）。1 回 500 件（約 9 分）。:40 に重ねない
+25 9-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/edinet/edinet_buybacks.py --limit 500
 
 # 素材の月次量 → material_monthly（サプライタブ）
 # 経産省 Excel（生産動態と石油統計。速報は翌月末、確報は翌々月中旬）。毎日見て、変わっていなければ同じ値の UPSERT
