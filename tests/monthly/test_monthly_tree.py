@@ -1767,6 +1767,28 @@ def test_tree_71770() -> None:
         _fail(f"71770 くりっく: {got['クリック証券 くりっく365口座数']!r}")
 
 
+def test_tree_23370() -> None:
+    """23370 いちご: 発電量 / CO2削減量 ▸ いちご / いちごグリーン（#836）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees
+
+    rows = assign_tree_rows("23370", [
+        "いちご 発電量", "いちごグリーン 発電量", "発電量", "発電量(前年比)",
+        "いちご CO2削減量", "いちごグリーン CO2削減量", "CO2削減量",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    want = {
+        "発電量": (["全体"], "発電量", "発電量"),
+        "発電量(前年比)": (["全体"], "発電量(前年比)", "発電量"),
+        "いちご 発電量": (["全体", "いちご"], "発電量", "発電量"),
+        "いちごグリーン 発電量": (["全体", "いちごグリーン"], "発電量", "発電量"),
+        "CO2削減量": (["全体"], "CO2削減量", "CO2削減量"),
+        "いちご CO2削減量": (["全体", "いちご"], "CO2削減量", "CO2削減量"),
+        "いちごグリーン CO2削減量": (["全体", "いちごグリーン"], "CO2削減量", "CO2削減量"),
+    }
+    if got != want:
+        _fail(f"23370 tree: {got!r}")
+
+
 def test_tree_kab102() -> None:
     """月次の木の監査（#831〜#835）: 合計を会社の行、内訳を子の節にする。"""
     from app.monthly.tree import assign_tree_rows, load_monthly_trees
@@ -2024,6 +2046,7 @@ def main() -> None:
     test_tree_76490()
     test_tree_87050()
     test_tree_71770()
+    test_tree_23370()
     test_tree_kab102()
     test_union_collapses_yoy_display_names()
     test_segment_tail_row_order()
