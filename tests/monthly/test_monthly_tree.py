@@ -470,12 +470,12 @@ def test_tree_99410_2() -> None:
     from app.monthly.tree import load_monthly_trees
 
     taiyo_tree = tree_payload("99410", [
-        "全店 売上高", "農産品 全店 売上高", "食料部計 全店 売上高",
+        "売上高", "農産品 売上高", "食料部計 売上高", "営業開拓部計",
     ], load_monthly_trees())
     if taiyo_tree is None:
         _fail("99410 tree payload")
     if [n["name"] for n in taiyo_tree["tree"][0]["children"]] != [
-        "食料部", "農産部", "中国開拓部", "生活産業部",
+        "食料部", "農産部", "営業開拓部", "中国開拓部", "生活産業部",
     ]:
         _fail(f"99410 dept order: {taiyo_tree['tree'][0]['children']!r}")
     if not taiyo_tree["tree"][0]["children"][1]["heading"]:
