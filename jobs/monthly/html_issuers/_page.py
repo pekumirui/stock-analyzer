@@ -45,6 +45,22 @@ def _count_only(parsed: dict) -> bool:
     )
 
 
+def _apply_element_aliases(
+    parsed: dict,
+    aliases: tuple[tuple[str, str], ...],
+) -> None:
+    """行名の置換。ページ yoy 接尾辞が付いた別名（`月末 売上高前年同月比`）も元語で当て、件数にする。"""
+    if not aliases:
+        return
+    for row in parsed.get("rows") or []:
+        el = str(row.get("element") or "")
+        for src, dst in aliases:
+            if el == src or el.startswith(src + " "):
+                row["element"] = dst
+                row["unit"] = "number"
+                break
+
+
 def _table_as_of(
     html: str,
     grid: list[list[str]],
@@ -151,9 +167,17 @@ class Page:
     rows: tuple[str, ...]
     force_number_marks: tuple[str, ...] = ()
     force_number_unit: str | None = None
+    element_aliases: tuple[tuple[str, str], ...] = ()
 
     def parse(self, html: str, *, as_of: str | None = None) -> dict:
-        payload = _select(html, self.code, table=self.table, force_unit=self.unit, as_of=as_of)
+        payload = _select(
+            html,
+            self.code,
+            table=self.table,
+            force_unit=self.unit,
+            as_of=as_of,
+            element_aliases=self.element_aliases,
+        )
         _force_number_unit(payload["rows"], self.force_number_marks, self.force_number_unit)
         blob = "\n".join(str(r.get("element") or "") for r in payload["rows"])
         if not any(token in blob for token in self.rows):
@@ -168,6 +192,7 @@ def _select(
     as_of: str | None,
     table: int | None,
     force_unit: str | None,
+    element_aliases: tuple[tuple[str, str], ...] = (),
 ) -> dict:
     tables = parse_tables(html)
     if not tables:
@@ -193,6 +218,7 @@ def _select(
             last_err = str(e)
             parsed = None
         if parsed and parsed.get("rows"):
+            _apply_element_aliases(parsed, element_aliases)
             section_fy = sticky_fy[i] if i < len(sticky_fy) else None
             if section_fy is None:
                 section_fy = section_fy_end_from_text(section_text, parsed.get("months"))
