@@ -448,24 +448,24 @@ def test_monthly_layout_js() -> None:
         **tree_payload("90070", [e for e, _ in oda_rows], sanyo_trees),
     }]
     people_rows = [
-        ("全店 売上高", "number"),
-        ("全店 売上高(前年比)", "yoy_index"),
-        ("国内販売 全店 売上高", "number"),
-        ("国内販売 全店 売上高(前年比)", "yoy_index"),
-        ("海外販売 全店 売上高", "number"),
-        ("海外販売 全店 売上高(前年比)", "yoy_index"),
-        ("乳児・知育玩具 全店 売上高", "number"),
-        ("乳児・知育玩具(前年比)", "yoy_index"),
-        ("乳児・知育・構成玩具 全店 売上高", "number"),
-        ("乳児・知育・構成玩具 全店 売上高(前年比)", "yoy_index"),
-        ("メイキングトイ 全店 売上高", "number"),
-        ("メイキングトイ(前年比)", "yoy_index"),
-        ("屋内遊具・乗り物 全店 売上高", "number"),
-        ("屋内遊具・乗り物(前年比)", "yoy_index"),
-        ("その他 全店 売上高", "number"),
-        ("その他(前年比)", "yoy_index"),
-        ("海外販売・ロイヤリティ 全店 売上高", "number"),
-        ("海外販売・ロイヤリティ 全店 売上高(前年比)", "yoy_index"),
+        ("売上高", "number"),
+        ("売上高(前年比)", "yoy_index"),
+        ("国内販売 売上高", "number"),
+        ("国内販売 売上高(前年比)", "yoy_index"),
+        ("海外販売 売上高", "number"),
+        ("海外販売 売上高(前年比)", "yoy_index"),
+        ("乳児・知育玩具 売上高", "number"),
+        ("乳児・知育玩具 売上高(前年比)", "yoy_index"),
+        ("乳児・知育・構成玩具 売上高", "number"),
+        ("乳児・知育・構成玩具 売上高(前年比)", "yoy_index"),
+        ("メイキングトイ 売上高", "number"),
+        ("メイキングトイ 売上高(前年比)", "yoy_index"),
+        ("屋内遊具・乗り物 売上高", "number"),
+        ("屋内遊具・乗り物 売上高(前年比)", "yoy_index"),
+        ("その他 売上高", "number"),
+        ("その他 売上高(前年比)", "yoy_index"),
+        ("海外販売・ロイヤリティ 売上高", "number"),
+        ("海外販売・ロイヤリティ 売上高(前年比)", "yoy_index"),
     ]
     people_assign = assign_tree_rows("78650", [e for e, _ in people_rows], sanyo_trees)
     fixtures["peopleTree"] = [{
@@ -662,7 +662,7 @@ const odakyuNames = namesOf(sandbox.monthlyTreeHtml(otm, () => "<td></td>", [{y:
 vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
 const ptm = sandbox.monthlyTreeModel(fixtures.peopleTree);
 sandbox.monthlyTreeSeedOpen(ptm);
-vm.runInContext('monthlyTlOpen.add("m:全店 売上高\\u203atree:全体\\u203a国内販売");', sandbox);
+vm.runInContext('monthlyTlOpen.add("m:売上高\\u203atree:全体\\u203a国内販売");', sandbox);
 const peopleNames = namesOf(sandbox.monthlyTreeHtml(ptm, () => "<td></td>", [{y: 2026, m: 1}]));
 vm.runInContext("monthlyTlOpen = new Set(); monthlyTlTreeSeeded = false;", sandbox);
 const rktm = sandbox.monthlyTreeModel(fixtures.rakusTree);
@@ -867,10 +867,9 @@ console.log(JSON.stringify({
     if got.get("odakyuNames") != want_oda:
         _fail(f"90070 config tree rows: {got.get('odakyuNames')!r}")
     want_people = [
-        "全店 売上高", "国内販売", "乳児・知育玩具", "乳児・知育玩具(前年比)",
-        "乳児・知育・構成玩具 全店 売上高", "メイキングトイ", "メイキングトイ(前年比)",
-        "屋内遊具・乗り物", "屋内遊具・乗り物(前年比)", "その他", "その他(前年比)",
-        "海外販売", "海外販売・ロイヤリティ 全店 売上高",
+        "売上高", "国内販売", "乳児・知育玩具", "乳児・知育・構成玩具 売上高",
+        "メイキングトイ", "屋内遊具・乗り物", "その他",
+        "海外販売", "海外販売・ロイヤリティ 売上高",
     ]
     if got.get("peopleNames") != want_people:
         _fail(f"78650 config tree rows: {got.get('peopleNames')!r}")

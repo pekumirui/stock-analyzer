@@ -170,8 +170,8 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 205A0	2025	2	legacy	yoy_index	受注棟数(前年比)	受注棟数(前年比)	yoy_index	受注棟数(前年比)	count			受注棟数	全体	受注棟数
 205A0	2026	1	legacy	number	受注棟数	受注棟数	number	受注棟数	count			受注棟数	全体	受注棟数
 205A0	2026	2	legacy	yoy_index	受注棟数(前年比)	受注棟数(前年比)	yoy_index	受注棟数(前年比)	count			受注棟数	全体	受注棟数
-21240	2024	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-21240	2024	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
+21240	2024	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
+21240	2024	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
 21240	2024	3	legacy	number	連結売上総利益	連結売上総利益	number	連結売上総利益	sales			連結売上総利益	全体	連結売上総利益
 21240	2024	4	legacy	yoy_index	連結売上総利益増減率(前年比)	連結売上総利益増減率(前年比)	yoy_index	連結売上総利益増減率(前年比)	sales			連結売上総利益増減率	全体	連結売上総利益
 21240	2024	5	legacy	number	従業員数	従業員数	number	従業員数	count			従業員数	全体	従業員数
@@ -180,8 +180,8 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 21240	2024	8	legacy	yoy_index	コンサルタント人員増減率(前年比)	コンサルタント人員増減率(前年比)	yoy_index	コンサルタント人員増減率(前年比)	other	コンサルタント人員増減率			全体	コンサルタント人員
 21240	2024	9	legacy	number	採用決定人数	採用決定人数	number	採用決定人数	count			採用決定人数	全体	採用決定人数
 21240	2024	10	legacy	yoy_index	採用決定人数増減率(前年比)	採用決定人数増減率(前年比)	yoy_index	採用決定人数増減率(前年比)	other	採用決定人数増減率			全体	採用決定人数
-21240	2025	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-21240	2025	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
+21240	2025	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
+21240	2025	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
 21240	2025	3	legacy	number	連結売上総利益	連結売上総利益	number	連結売上総利益	sales			連結売上総利益	全体	連結売上総利益
 21240	2025	4	legacy	yoy_index	連結売上総利益増減率(前年比)	連結売上総利益増減率(前年比)	yoy_index	連結売上総利益増減率(前年比)	sales			連結売上総利益増減率	全体	連結売上総利益
 21240	2025	5	legacy	number	従業員数	従業員数	number	従業員数	count			従業員数	全体	従業員数
@@ -190,8 +190,8 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 21240	2025	8	legacy	yoy_index	コンサルタント人員増減率(前年比)	コンサルタント人員増減率(前年比)	yoy_index	コンサルタント人員増減率(前年比)	other	コンサルタント人員増減率			全体	コンサルタント人員
 21240	2025	9	legacy	number	採用決定人数	採用決定人数	number	採用決定人数	count			採用決定人数	全体	採用決定人数
 21240	2025	10	legacy	yoy_index	採用決定人数増減率(前年比)	採用決定人数増減率(前年比)	yoy_index	採用決定人数増減率(前年比)	other	採用決定人数増減率			全体	採用決定人数
-21240	2026	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-21240	2026	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
+21240	2026	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
+21240	2026	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
 21240	2026	3	legacy	number	連結売上総利益	連結売上総利益	number	連結売上総利益	sales			連結売上総利益	全体	連結売上総利益
 21240	2026	4	legacy	yoy_index	連結売上総利益増減率(前年比)	連結売上総利益増減率(前年比)	yoy_index	連結売上総利益増減率(前年比)	sales			連結売上総利益増減率	全体	連結売上総利益
 21240	2026	5	legacy	number	従業員数	従業員数	number	従業員数	count			従業員数	全体	従業員数
@@ -448,14 +448,14 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 245A0	2026	12	legacy	yoy_index	レストラン事業 既存 売上高(前年比)	レストラン事業 既存 売上高(前年比)	yoy_index	レストラン事業 既存 売上高(前年比)	sales	レストラン事業	既存	売上高	全体 > レストラン事業	既存 売上高
 245A0	2026	13	legacy	yoy_index	レストラン事業 既存 客単価(前年比)	レストラン事業 既存 客単価(前年比)	yoy_index	レストラン事業 既存 客単価(前年比)	spend	レストラン事業	既存	客単価	全体 > レストラン事業	既存 客単価
 245A0	2026	14	legacy	yoy_index	レストラン事業 既存 客数(前年比)	レストラン事業 既存 客数(前年比)	yoy_index	レストラン事業 既存 客数(前年比)	customers	レストラン事業	既存	客数	全体 > レストラン事業	既存 客数
-24610	2023	1	legacy	number	CPAソリューション事業 全店 売上高	CPAソリューション事業 全店 売上高	number	CPAソリューション事業 全店 売上高	sales	CPAソリューション事業	全店	売上高	全体 > CPAソリューション事業	全店 売上高
-24610	2023	2	legacy	yoy_index	CPAソリューション事業 全店 売上高(前年比)	CPAソリューション事業 全店 売上高(前年比)	yoy_index	CPAソリューション事業 全店 売上高(前年比)	sales	CPAソリューション事業	全店	売上高	全体 > CPAソリューション事業	全店 売上高
-24610	2023	3	legacy	number	ADコミュニケーション事業 全店 売上高	ADコミュニケーション事業 全店 売上高	number	ADコミュニケーション事業 全店 売上高	sales	ADコミュニケーション事業	全店	売上高	全体 > ADコミュニケーション事業	全店 売上高
-24610	2023	4	legacy	yoy_index	ADコミュニケーション事業 全店 売上高(前年比)	ADコミュニケーション事業 全店 売上高(前年比)	yoy_index	ADコミュニケーション事業 全店 売上高(前年比)	sales	ADコミュニケーション事業	全店	売上高	全体 > ADコミュニケーション事業	全店 売上高
-24610	2023	5	legacy	number	その他 全店 売上高	その他 全店 売上高	number	その他 全店 売上高	sales	その他	全店	売上高	全体 > その他	全店 売上高
-24610	2023	6	legacy	yoy_index	その他 全店 売上高(前年比)	その他 全店 売上高(前年比)	yoy_index	その他 全店 売上高(前年比)	sales	その他	全店	売上高	全体 > その他	全店 売上高
-24610	2023	7	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-24610	2023	8	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+24610	2023	1	legacy	number	CPAソリューション事業 売上高	CPAソリューション事業 売上高	number	CPAソリューション事業 売上高	sales	CPAソリューション事業		売上高	全体 > CPAソリューション事業	売上高
+24610	2023	2	legacy	yoy_index	CPAソリューション事業 売上高(前年比)	CPAソリューション事業 売上高(前年比)	yoy_index	CPAソリューション事業 売上高(前年比)	sales	CPAソリューション事業		売上高	全体 > CPAソリューション事業	売上高
+24610	2023	3	legacy	number	ADコミュニケーション事業 売上高	ADコミュニケーション事業 売上高	number	ADコミュニケーション事業 売上高	sales	ADコミュニケーション事業		売上高	全体 > ADコミュニケーション事業	売上高
+24610	2023	4	legacy	yoy_index	ADコミュニケーション事業 売上高(前年比)	ADコミュニケーション事業 売上高(前年比)	yoy_index	ADコミュニケーション事業 売上高(前年比)	sales	ADコミュニケーション事業		売上高	全体 > ADコミュニケーション事業	売上高
+24610	2023	5	legacy	number	その他 売上高	その他 売上高	number	その他 売上高	sales	その他		売上高	全体 > その他	売上高
+24610	2023	6	legacy	yoy_index	その他 売上高(前年比)	その他 売上高(前年比)	yoy_index	その他 売上高(前年比)	sales	その他		売上高	全体 > その他	売上高
+24610	2023	7	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+24610	2023	8	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 24610	2023	9	legacy	number	CPAソリューション事業 取扱高	CPAソリューション事業 取扱高	number	CPAソリューション事業 取扱高	other	CPAソリューション事業		取扱高	全体 > CPAソリューション事業	取扱高
 24610	2023	10	legacy	yoy_index	CPAソリューション事業 取扱高(前年比)	CPAソリューション事業 取扱高(前年比)	yoy_index	CPAソリューション事業 取扱高(前年比)	other	CPAソリューション事業		取扱高	全体 > CPAソリューション事業	取扱高
 24610	2023	11	legacy	number	ADコミュニケーション事業 取扱高	ADコミュニケーション事業 取扱高	number	ADコミュニケーション事業 取扱高	other	ADコミュニケーション事業		取扱高	全体 > ADコミュニケーション事業	取扱高
@@ -464,40 +464,40 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 24610	2023	14	legacy	yoy_index	その他 取扱高(前年比)	その他 取扱高(前年比)	yoy_index	その他 取扱高(前年比)	other	その他		取扱高	全体 > その他	取扱高
 24610	2023	15	legacy	number	取扱高	取扱高	number	取扱高	other			取扱高	全体	取扱高
 24610	2023	16	legacy	yoy_index	取扱高(前年比)	取扱高(前年比)	yoy_index	取扱高(前年比)	other			取扱高	全体	取扱高
-24610	2024	1	legacy	number	CPAソリューション事業 全店 売上高	CPAソリューション事業 全店 売上高	number	CPAソリューション事業 全店 売上高	sales	CPAソリューション事業	全店	売上高	全体 > CPAソリューション事業	全店 売上高
-24610	2024	2	legacy	yoy_index	CPAソリューション事業 全店 売上高(前年比)	CPAソリューション事業 全店 売上高(前年比)	yoy_index	CPAソリューション事業 全店 売上高(前年比)	sales	CPAソリューション事業	全店	売上高	全体 > CPAソリューション事業	全店 売上高
-24610	2024	3	legacy	number	ADコミュニケーション事業 全店 売上高	ADコミュニケーション事業 全店 売上高	number	ADコミュニケーション事業 全店 売上高	sales	ADコミュニケーション事業	全店	売上高	全体 > ADコミュニケーション事業	全店 売上高
-24610	2024	4	legacy	yoy_index	ADコミュニケーション事業 全店 売上高(前年比)	ADコミュニケーション事業 全店 売上高(前年比)	yoy_index	ADコミュニケーション事業 全店 売上高(前年比)	sales	ADコミュニケーション事業	全店	売上高	全体 > ADコミュニケーション事業	全店 売上高
-24610	2024	5	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-24610	2024	6	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+24610	2024	1	legacy	number	CPAソリューション事業 売上高	CPAソリューション事業 売上高	number	CPAソリューション事業 売上高	sales	CPAソリューション事業		売上高	全体 > CPAソリューション事業	売上高
+24610	2024	2	legacy	yoy_index	CPAソリューション事業 売上高(前年比)	CPAソリューション事業 売上高(前年比)	yoy_index	CPAソリューション事業 売上高(前年比)	sales	CPAソリューション事業		売上高	全体 > CPAソリューション事業	売上高
+24610	2024	3	legacy	number	ADコミュニケーション事業 売上高	ADコミュニケーション事業 売上高	number	ADコミュニケーション事業 売上高	sales	ADコミュニケーション事業		売上高	全体 > ADコミュニケーション事業	売上高
+24610	2024	4	legacy	yoy_index	ADコミュニケーション事業 売上高(前年比)	ADコミュニケーション事業 売上高(前年比)	yoy_index	ADコミュニケーション事業 売上高(前年比)	sales	ADコミュニケーション事業		売上高	全体 > ADコミュニケーション事業	売上高
+24610	2024	5	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+24610	2024	6	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 24610	2024	7	legacy	number	CPAソリューション事業 取扱高	CPAソリューション事業 取扱高	number	CPAソリューション事業 取扱高	other	CPAソリューション事業		取扱高	全体 > CPAソリューション事業	取扱高
 24610	2024	8	legacy	yoy_index	CPAソリューション事業 取扱高(前年比)	CPAソリューション事業 取扱高(前年比)	yoy_index	CPAソリューション事業 取扱高(前年比)	other	CPAソリューション事業		取扱高	全体 > CPAソリューション事業	取扱高
 24610	2024	9	legacy	number	ADコミュニケーション事業 取扱高	ADコミュニケーション事業 取扱高	number	ADコミュニケーション事業 取扱高	other	ADコミュニケーション事業		取扱高	全体 > ADコミュニケーション事業	取扱高
 24610	2024	10	legacy	yoy_index	ADコミュニケーション事業 取扱高(前年比)	ADコミュニケーション事業 取扱高(前年比)	yoy_index	ADコミュニケーション事業 取扱高(前年比)	other	ADコミュニケーション事業		取扱高	全体 > ADコミュニケーション事業	取扱高
 24610	2024	11	legacy	number	取扱高	取扱高	number	取扱高	other			取扱高	全体	取扱高
 24610	2024	12	legacy	yoy_index	取扱高(前年比)	取扱高(前年比)	yoy_index	取扱高(前年比)	other			取扱高	全体	取扱高
-24610	2025	1	legacy	number	戦略事業 全店 売上高	戦略事業 全店 売上高	number	戦略事業 全店 売上高	sales	戦略事業	全店	売上高	全体 > 戦略事業	全店 売上高
-24610	2025	2	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
+24610	2025	1	legacy	number	戦略事業 売上高	戦略事業 売上高	number	戦略事業 売上高	sales	戦略事業		売上高	全体 > 戦略事業	売上高
+24610	2025	2	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 24610	2025	3	legacy	number	戦略事業 取扱高	戦略事業 取扱高	number	戦略事業 取扱高	other	戦略事業		取扱高	全体 > 戦略事業	取扱高
 24610	2025	4	legacy	yoy_index	戦略事業 取扱高(前年比)	戦略事業 取扱高(前年比)	yoy_index	戦略事業 取扱高(前年比)	other	戦略事業		取扱高	全体 > 戦略事業	取扱高
 24610	2025	5	legacy	number	取扱高	取扱高	number	取扱高	other			取扱高	全体	取扱高
 24610	2025	6	legacy	yoy_index	取扱高(前年比)	取扱高(前年比)	yoy_index	取扱高(前年比)	other			取扱高	全体	取扱高
-24610	2025	7	legacy	number	CPAソリューション事業 全店 売上高	CPAソリューション事業 全店 売上高	number	CPAソリューション事業 全店 売上高	sales	CPAソリューション事業	全店	売上高	全体 > CPAソリューション事業	全店 売上高
-24610	2025	8	legacy	yoy_index	CPAソリューション事業 全店 売上高(前年比)	CPAソリューション事業 全店 売上高(前年比)	yoy_index	CPAソリューション事業 全店 売上高(前年比)	sales	CPAソリューション事業	全店	売上高	全体 > CPAソリューション事業	全店 売上高
-24610	2025	9	legacy	yoy_index	戦略事業 全店 売上高(前年比)	戦略事業 全店 売上高(前年比)	yoy_index	戦略事業 全店 売上高(前年比)	sales	戦略事業	全店	売上高	全体 > 戦略事業	全店 売上高
-24610	2025	10	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+24610	2025	7	legacy	number	CPAソリューション事業 売上高	CPAソリューション事業 売上高	number	CPAソリューション事業 売上高	sales	CPAソリューション事業		売上高	全体 > CPAソリューション事業	売上高
+24610	2025	8	legacy	yoy_index	CPAソリューション事業 売上高(前年比)	CPAソリューション事業 売上高(前年比)	yoy_index	CPAソリューション事業 売上高(前年比)	sales	CPAソリューション事業		売上高	全体 > CPAソリューション事業	売上高
+24610	2025	9	legacy	yoy_index	戦略事業 売上高(前年比)	戦略事業 売上高(前年比)	yoy_index	戦略事業 売上高(前年比)	sales	戦略事業		売上高	全体 > 戦略事業	売上高
+24610	2025	10	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 24610	2025	11	legacy	number	CPAソリューション事業 取扱高	CPAソリューション事業 取扱高	number	CPAソリューション事業 取扱高	other	CPAソリューション事業		取扱高	全体 > CPAソリューション事業	取扱高
 24610	2025	12	legacy	yoy_index	CPAソリューション事業 取扱高(前年比)	CPAソリューション事業 取扱高(前年比)	yoy_index	CPAソリューション事業 取扱高(前年比)	other	CPAソリューション事業		取扱高	全体 > CPAソリューション事業	取扱高
-24610	2026	1	legacy	number	戦略事業 全店 売上高	戦略事業 全店 売上高	number	戦略事業 全店 売上高	sales	戦略事業	全店	売上高	全体 > 戦略事業	全店 売上高
-24610	2026	2	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
+24610	2026	1	legacy	number	戦略事業 売上高	戦略事業 売上高	number	戦略事業 売上高	sales	戦略事業		売上高	全体 > 戦略事業	売上高
+24610	2026	2	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 24610	2026	3	legacy	number	戦略事業 取扱高	戦略事業 取扱高	number	戦略事業 取扱高	other	戦略事業		取扱高	全体 > 戦略事業	取扱高
 24610	2026	4	legacy	yoy_index	戦略事業 取扱高(前年比)	戦略事業 取扱高(前年比)	yoy_index	戦略事業 取扱高(前年比)	other	戦略事業		取扱高	全体 > 戦略事業	取扱高
 24610	2026	5	legacy	number	取扱高	取扱高	number	取扱高	other			取扱高	全体	取扱高
 24610	2026	6	legacy	yoy_index	取扱高(前年比)	取扱高(前年比)	yoy_index	取扱高(前年比)	other			取扱高	全体	取扱高
-24610	2026	7	legacy	number	CPAソリューション事業 全店 売上高	CPAソリューション事業 全店 売上高	number	CPAソリューション事業 全店 売上高	sales	CPAソリューション事業	全店	売上高	全体 > CPAソリューション事業	全店 売上高
-24610	2026	8	legacy	yoy_index	CPAソリューション事業 全店 売上高(前年比)	CPAソリューション事業 全店 売上高(前年比)	yoy_index	CPAソリューション事業 全店 売上高(前年比)	sales	CPAソリューション事業	全店	売上高	全体 > CPAソリューション事業	全店 売上高
-24610	2026	9	legacy	yoy_index	戦略事業 全店 売上高(前年比)	戦略事業 全店 売上高(前年比)	yoy_index	戦略事業 全店 売上高(前年比)	sales	戦略事業	全店	売上高	全体 > 戦略事業	全店 売上高
-24610	2026	10	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+24610	2026	7	legacy	number	CPAソリューション事業 売上高	CPAソリューション事業 売上高	number	CPAソリューション事業 売上高	sales	CPAソリューション事業		売上高	全体 > CPAソリューション事業	売上高
+24610	2026	8	legacy	yoy_index	CPAソリューション事業 売上高(前年比)	CPAソリューション事業 売上高(前年比)	yoy_index	CPAソリューション事業 売上高(前年比)	sales	CPAソリューション事業		売上高	全体 > CPAソリューション事業	売上高
+24610	2026	9	legacy	yoy_index	戦略事業 売上高(前年比)	戦略事業 売上高(前年比)	yoy_index	戦略事業 売上高(前年比)	sales	戦略事業		売上高	全体 > 戦略事業	売上高
+24610	2026	10	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 24610	2026	11	legacy	number	CPAソリューション事業 取扱高	CPAソリューション事業 取扱高	number	CPAソリューション事業 取扱高	other	CPAソリューション事業		取扱高	全体 > CPAソリューション事業	取扱高
 24610	2026	12	legacy	yoy_index	CPAソリューション事業 取扱高(前年比)	CPAソリューション事業 取扱高(前年比)	yoy_index	CPAソリューション事業 取扱高(前年比)	other	CPAソリューション事業		取扱高	全体 > CPAソリューション事業	取扱高
 25900	2024	1	legacy	yoy_index	自販機 販売本数(前年比)	自販機 販売本数(前年比)	yoy_index	自販機 販売本数(前年比)	count	自販機		販売本数	全体 > 自販機	販売本数
@@ -748,49 +748,49 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 26740	2026	20	legacy	number	FC 店舗数	FC 店舗数	number	FC 店舗数	stores			店舗数	全体	FC 店舗数
 26740	2026	21	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 26740	2026	22	legacy	number	ブックオン 直営 店舗数	ブックオン 直営 店舗数	number	ブックオン 直営 店舗数	stores	ブックオン		店舗数	全体 > ブックオン	直営 店舗数
-26780	2023	1	legacy	number	BtoB事業 全店 売上高	BtoB事業 全店 売上高	number	BtoB事業 全店 売上高	sales	BtoB事業	全店	売上高	全体 > BtoB事業	全店 売上高
-26780	2023	2	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-26780	2023	3	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-26780	2023	4	legacy	yoy_index	BtoB事業 全店 売上高(前年比)	BtoB事業 全店 売上高(前年比)	yoy_index	BtoB事業 全店 売上高(前年比)	sales	BtoB事業	全店	売上高	全体 > BtoB事業	全店 売上高
-26780	2023	5	legacy	number	LOHACO事業 全店 売上高	LOHACO事業 全店 売上高	number	LOHACO事業 全店 売上高	sales	LOHACO事業	全店	売上高	全体 > LOHACO事業	全店 売上高
-26780	2023	6	legacy	yoy_index	LOHACO事業 全店 売上高(前年比)	LOHACO事業 全店 売上高(前年比)	yoy_index	LOHACO事業 全店 売上高(前年比)	sales	LOHACO事業	全店	売上高	全体 > LOHACO事業	全店 売上高
+26780	2023	1	legacy	number	BtoB事業 売上高	BtoB事業 売上高	number	BtoB事業 売上高	sales	BtoB事業		売上高	全体 > BtoB事業	売上高
+26780	2023	2	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+26780	2023	3	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+26780	2023	4	legacy	yoy_index	BtoB事業 売上高(前年比)	BtoB事業 売上高(前年比)	yoy_index	BtoB事業 売上高(前年比)	sales	BtoB事業		売上高	全体 > BtoB事業	売上高
+26780	2023	5	legacy	number	LOHACO事業 売上高	LOHACO事業 売上高	number	LOHACO事業 売上高	sales	LOHACO事業		売上高	全体 > LOHACO事業	売上高
+26780	2023	6	legacy	yoy_index	LOHACO事業 売上高(前年比)	LOHACO事業 売上高(前年比)	yoy_index	LOHACO事業 売上高(前年比)	sales	LOHACO事業		売上高	全体 > LOHACO事業	売上高
 26780	2023	7	legacy	yoy_index	BtoB事業 客単価(前年比)	BtoB事業 客単価(前年比)	yoy_index	BtoB事業 客単価(前年比)	spend	BtoB事業		客単価	全体 > BtoB事業	客単価
 26780	2023	8	legacy	yoy_index	BtoB事業 購入お客様数(前年比)	BtoB事業 購入お客様数(前年比)	yoy_index	BtoB事業 購入お客様数(前年比)	customers	BtoB事業		購入お客様数	全体 > BtoB事業	購入お客様数
-26780	2023	9	legacy	number	ASKUL事業 全店 売上高	ASKUL事業 全店 売上高	number	ASKUL事業 全店 売上高	sales	ASKUL事業	全店	売上高	全体 > ASKUL事業	全店 売上高
-26780	2023	10	legacy	yoy_index	ASKUL事業 全店 売上高(前年比)	ASKUL事業 全店 売上高(前年比)	yoy_index	ASKUL事業 全店 売上高(前年比)	sales	ASKUL事業	全店	売上高	全体 > ASKUL事業	全店 売上高
+26780	2023	9	legacy	number	ASKUL事業 売上高	ASKUL事業 売上高	number	ASKUL事業 売上高	sales	ASKUL事業		売上高	全体 > ASKUL事業	売上高
+26780	2023	10	legacy	yoy_index	ASKUL事業 売上高(前年比)	ASKUL事業 売上高(前年比)	yoy_index	ASKUL事業 売上高(前年比)	sales	ASKUL事業		売上高	全体 > ASKUL事業	売上高
 26780	2023	11	legacy	yoy_index	ASKUL事業 客単価(前年比)	ASKUL事業 客単価(前年比)	yoy_index	ASKUL事業 客単価(前年比)	spend	ASKUL事業		客単価	全体 > ASKUL事業	客単価
 26780	2023	12	legacy	yoy_index	ASKUL事業 購入お客様数(前年比)	ASKUL事業 購入お客様数(前年比)	yoy_index	ASKUL事業 購入お客様数(前年比)	customers	ASKUL事業		購入お客様数	全体 > ASKUL事業	購入お客様数
-26780	2024	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-26780	2024	2	legacy	number	ASKUL事業 全店 売上高	ASKUL事業 全店 売上高	number	ASKUL事業 全店 売上高	sales	ASKUL事業	全店	売上高	全体 > ASKUL事業	全店 売上高
+26780	2024	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+26780	2024	2	legacy	number	ASKUL事業 売上高	ASKUL事業 売上高	number	ASKUL事業 売上高	sales	ASKUL事業		売上高	全体 > ASKUL事業	売上高
 26780	2024	3	legacy	yoy_index	ASKUL事業 稼働日修正後(前年比)	ASKUL事業 稼働日修正後(前年比)	yoy_index	ASKUL事業 稼働日修正後(前年比)	sales	ASKUL事業		稼働日修正後	全体 > ASKUL事業	稼働日修正後
-26780	2024	4	legacy	number	LOHACO事業 全店 売上高	LOHACO事業 全店 売上高	number	LOHACO事業 全店 売上高	sales	LOHACO事業	全店	売上高	全体 > LOHACO事業	全店 売上高
-26780	2024	5	legacy	number	BtoB事業 全店 売上高	BtoB事業 全店 売上高	number	BtoB事業 全店 売上高	sales	BtoB事業	全店	売上高	全体 > BtoB事業	全店 売上高
-26780	2024	6	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-26780	2024	7	legacy	yoy_index	BtoB事業 全店 売上高(前年比)	BtoB事業 全店 売上高(前年比)	yoy_index	BtoB事業 全店 売上高(前年比)	sales	BtoB事業	全店	売上高	全体 > BtoB事業	全店 売上高
-26780	2024	8	legacy	yoy_index	LOHACO事業 全店 売上高(前年比)	LOHACO事業 全店 売上高(前年比)	yoy_index	LOHACO事業 全店 売上高(前年比)	sales	LOHACO事業	全店	売上高	全体 > LOHACO事業	全店 売上高
+26780	2024	4	legacy	number	LOHACO事業 売上高	LOHACO事業 売上高	number	LOHACO事業 売上高	sales	LOHACO事業		売上高	全体 > LOHACO事業	売上高
+26780	2024	5	legacy	number	BtoB事業 売上高	BtoB事業 売上高	number	BtoB事業 売上高	sales	BtoB事業		売上高	全体 > BtoB事業	売上高
+26780	2024	6	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+26780	2024	7	legacy	yoy_index	BtoB事業 売上高(前年比)	BtoB事業 売上高(前年比)	yoy_index	BtoB事業 売上高(前年比)	sales	BtoB事業		売上高	全体 > BtoB事業	売上高
+26780	2024	8	legacy	yoy_index	LOHACO事業 売上高(前年比)	LOHACO事業 売上高(前年比)	yoy_index	LOHACO事業 売上高(前年比)	sales	LOHACO事業		売上高	全体 > LOHACO事業	売上高
 26780	2024	9	legacy	yoy_index	BtoB事業 客単価(前年比)	BtoB事業 客単価(前年比)	yoy_index	BtoB事業 客単価(前年比)	spend	BtoB事業		客単価	全体 > BtoB事業	客単価
 26780	2024	10	legacy	yoy_index	BtoB事業 購入お客様数(前年比)	BtoB事業 購入お客様数(前年比)	yoy_index	BtoB事業 購入お客様数(前年比)	customers	BtoB事業		購入お客様数	全体 > BtoB事業	購入お客様数
 26780	2024	11	legacy	yoy_index	ASKUL事業 客単価(前年比)	ASKUL事業 客単価(前年比)	yoy_index	ASKUL事業 客単価(前年比)	spend	ASKUL事業		客単価	全体 > ASKUL事業	客単価
 26780	2024	12	legacy	yoy_index	ASKUL事業 購入お客様数(前年比)	ASKUL事業 購入お客様数(前年比)	yoy_index	ASKUL事業 購入お客様数(前年比)	customers	ASKUL事業		購入お客様数	全体 > ASKUL事業	購入お客様数
-26780	2024	13	legacy	yoy_index	ASKUL事業 全店 売上高(前年比)	ASKUL事業 全店 売上高(前年比)	yoy_index	ASKUL事業 全店 売上高(前年比)	sales	ASKUL事業	全店	売上高	全体 > ASKUL事業	全店 売上高
-26780	2025	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-26780	2025	2	legacy	number	ASKUL事業 全店 売上高	ASKUL事業 全店 売上高	number	ASKUL事業 全店 売上高	sales	ASKUL事業	全店	売上高	全体 > ASKUL事業	全店 売上高
+26780	2024	13	legacy	yoy_index	ASKUL事業 売上高(前年比)	ASKUL事業 売上高(前年比)	yoy_index	ASKUL事業 売上高(前年比)	sales	ASKUL事業		売上高	全体 > ASKUL事業	売上高
+26780	2025	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+26780	2025	2	legacy	number	ASKUL事業 売上高	ASKUL事業 売上高	number	ASKUL事業 売上高	sales	ASKUL事業		売上高	全体 > ASKUL事業	売上高
 26780	2025	3	legacy	yoy_index	ASKUL事業 稼働日修正後(前年比)	ASKUL事業 稼働日修正後(前年比)	yoy_index	ASKUL事業 稼働日修正後(前年比)	sales	ASKUL事業		稼働日修正後	全体 > ASKUL事業	稼働日修正後
-26780	2025	4	legacy	number	LOHACO事業 全店 売上高	LOHACO事業 全店 売上高	number	LOHACO事業 全店 売上高	sales	LOHACO事業	全店	売上高	全体 > LOHACO事業	全店 売上高
-26780	2025	5	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-26780	2025	6	legacy	yoy_index	ASKUL事業 全店 売上高(前年比)	ASKUL事業 全店 売上高(前年比)	yoy_index	ASKUL事業 全店 売上高(前年比)	sales	ASKUL事業	全店	売上高	全体 > ASKUL事業	全店 売上高
-26780	2025	7	legacy	yoy_index	LOHACO事業 全店 売上高(前年比)	LOHACO事業 全店 売上高(前年比)	yoy_index	LOHACO事業 全店 売上高(前年比)	sales	LOHACO事業	全店	売上高	全体 > LOHACO事業	全店 売上高
+26780	2025	4	legacy	number	LOHACO事業 売上高	LOHACO事業 売上高	number	LOHACO事業 売上高	sales	LOHACO事業		売上高	全体 > LOHACO事業	売上高
+26780	2025	5	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+26780	2025	6	legacy	yoy_index	ASKUL事業 売上高(前年比)	ASKUL事業 売上高(前年比)	yoy_index	ASKUL事業 売上高(前年比)	sales	ASKUL事業		売上高	全体 > ASKUL事業	売上高
+26780	2025	7	legacy	yoy_index	LOHACO事業 売上高(前年比)	LOHACO事業 売上高(前年比)	yoy_index	LOHACO事業 売上高(前年比)	sales	LOHACO事業		売上高	全体 > LOHACO事業	売上高
 26780	2025	8	legacy	yoy_index	ASKUL事業 客単価(前年比)	ASKUL事業 客単価(前年比)	yoy_index	ASKUL事業 客単価(前年比)	spend	ASKUL事業		客単価	全体 > ASKUL事業	客単価
 26780	2025	9	legacy	yoy_index	ASKUL事業 購入お客様数(前年比)	ASKUL事業 購入お客様数(前年比)	yoy_index	ASKUL事業 購入お客様数(前年比)	customers	ASKUL事業		購入お客様数	全体 > ASKUL事業	購入お客様数
-26780	2026	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-26780	2026	2	legacy	number	ASKUL事業 全店 売上高	ASKUL事業 全店 売上高	number	ASKUL事業 全店 売上高	sales	ASKUL事業	全店	売上高	全体 > ASKUL事業	全店 売上高
-26780	2026	3	legacy	number	LOHACO事業 全店 売上高	LOHACO事業 全店 売上高	number	LOHACO事業 全店 売上高	sales	LOHACO事業	全店	売上高	全体 > LOHACO事業	全店 売上高
-26780	2026	4	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+26780	2026	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+26780	2026	2	legacy	number	ASKUL事業 売上高	ASKUL事業 売上高	number	ASKUL事業 売上高	sales	ASKUL事業		売上高	全体 > ASKUL事業	売上高
+26780	2026	3	legacy	number	LOHACO事業 売上高	LOHACO事業 売上高	number	LOHACO事業 売上高	sales	LOHACO事業		売上高	全体 > LOHACO事業	売上高
+26780	2026	4	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 26780	2026	5	legacy	yoy_index	ASKUL事業 客単価(前年比)	ASKUL事業 客単価(前年比)	yoy_index	ASKUL事業 客単価(前年比)	spend	ASKUL事業		客単価	全体 > ASKUL事業	客単価
 26780	2026	6	legacy	yoy_index	ASKUL事業 購入お客様数(前年比)	ASKUL事業 購入お客様数(前年比)	yoy_index	ASKUL事業 購入お客様数(前年比)	customers	ASKUL事業		購入お客様数	全体 > ASKUL事業	購入お客様数
-26780	2026	7	legacy	yoy_index	ASKUL事業 全店 売上高(前年比)	ASKUL事業 全店 売上高(前年比)	yoy_index	ASKUL事業 全店 売上高(前年比)	sales	ASKUL事業	全店	売上高	全体 > ASKUL事業	全店 売上高
+26780	2026	7	legacy	yoy_index	ASKUL事業 売上高(前年比)	ASKUL事業 売上高(前年比)	yoy_index	ASKUL事業 売上高(前年比)	sales	ASKUL事業		売上高	全体 > ASKUL事業	売上高
 26780	2026	8	legacy	yoy_index	ASKUL事業 稼働日修正後(前年比)	ASKUL事業 稼働日修正後(前年比)	yoy_index	ASKUL事業 稼働日修正後(前年比)	sales	ASKUL事業		稼働日修正後	全体 > ASKUL事業	稼働日修正後
-26780	2026	9	legacy	yoy_index	LOHACO事業 全店 売上高(前年比)	LOHACO事業 全店 売上高(前年比)	yoy_index	LOHACO事業 全店 売上高(前年比)	sales	LOHACO事業	全店	売上高	全体 > LOHACO事業	全店 売上高
+26780	2026	9	legacy	yoy_index	LOHACO事業 売上高(前年比)	LOHACO事業 売上高(前年比)	yoy_index	LOHACO事業 売上高(前年比)	sales	LOHACO事業		売上高	全体 > LOHACO事業	売上高
 26850	2023	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 26850	2023	2	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 26850	2023	3	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
@@ -834,8 +834,8 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 26850	2026	11	legacy	number	FC 店舗数	FC 店舗数	number	FC 店舗数	stores			店舗数	全体	FC 店舗数
 26850	2026	12	legacy	number	WEBストア 店舗数	WEBストア 店舗数	number	WEBストア 店舗数	stores	WEBストア		店舗数	全体 > WEBストア	店舗数
 26870	2026	1	legacy	yoy_index	営業利益(前年比)	営業利益(前年比)	yoy_index	営業利益(前年比)	other	営業利益			全体	営業利益
-26870	2026	2	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-26870	2026	3	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
+26870	2026	2	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
+26870	2026	3	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
 26870	2026	4	legacy	number	連結営業利益	連結営業利益	number	連結営業利益	other			連結営業利益	全体	営業利益
 26870	2026	5	legacy	yoy_index	連結営業利益(前年比)	連結営業利益(前年比)	yoy_index	連結営業利益(前年比)	other			連結営業利益	全体	営業利益
 26950	2024	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
@@ -919,36 +919,36 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 27050	2026	7	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 27050	2026	8	legacy	number	FC 既存 店舗数	FC 既存 店舗数	number	FC 既存 店舗数	stores		既存	店舗数	全体	FC 既存 店舗数
 27050	2026	9	legacy	number	FC 店舗数	FC 店舗数	number	FC 店舗数	stores			店舗数	全体	FC 店舗数
-27220	2023	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-27220	2023	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-27220	2023	3	legacy	number	ダイレクトマーケティング 全店 売上高	ダイレクトマーケティング 全店 売上高	number	ダイレクトマーケティング 全店 売上高	sales	ダイレクトマーケティング	全店	売上高	全体 > ダイレクトマーケティング	全店 売上高
-27220	2023	4	legacy	yoy_index	ダイレクトマーケティング 全店 売上高(前年比)	ダイレクトマーケティング 全店 売上高(前年比)	yoy_index	ダイレクトマーケティング 全店 売上高(前年比)	sales	ダイレクトマーケティング	全店	売上高	全体 > ダイレクトマーケティング	全店 売上高
-27220	2023	5	legacy	number	セールスマーケティング 全店 売上高	セールスマーケティング 全店 売上高	number	セールスマーケティング 全店 売上高	sales	セールスマーケティング	全店	売上高	全体 > セールスマーケティング	全店 売上高
-27220	2023	6	legacy	yoy_index	セールスマーケティング 全店 売上高(前年比)	セールスマーケティング 全店 売上高(前年比)	yoy_index	セールスマーケティング 全店 売上高(前年比)	sales	セールスマーケティング	全店	売上高	全体 > セールスマーケティング	全店 売上高
-27220	2023	7	legacy	number	ITソリューション 全店 売上高	ITソリューション 全店 売上高	number	ITソリューション 全店 売上高	sales	ITソリューション	全店	売上高	全体 > ITソリューション	全店 売上高
-27220	2023	8	legacy	yoy_index	ITソリューション 全店 売上高(前年比)	ITソリューション 全店 売上高(前年比)	yoy_index	ITソリューション 全店 売上高(前年比)	sales	ITソリューション	全店	売上高	全体 > ITソリューション	全店 売上高
-27220	2024	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-27220	2024	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-27220	2024	3	legacy	number	ダイレクトマーケティング 全店 売上高	ダイレクトマーケティング 全店 売上高	number	ダイレクトマーケティング 全店 売上高	sales	ダイレクトマーケティング	全店	売上高	全体 > ダイレクトマーケティング	全店 売上高
-27220	2024	4	legacy	yoy_index	ダイレクトマーケティング 全店 売上高(前年比)	ダイレクトマーケティング 全店 売上高(前年比)	yoy_index	ダイレクトマーケティング 全店 売上高(前年比)	sales	ダイレクトマーケティング	全店	売上高	全体 > ダイレクトマーケティング	全店 売上高
-27220	2024	5	legacy	number	セールスマーケティング 全店 売上高	セールスマーケティング 全店 売上高	number	セールスマーケティング 全店 売上高	sales	セールスマーケティング	全店	売上高	全体 > セールスマーケティング	全店 売上高
-27220	2024	6	legacy	yoy_index	セールスマーケティング 全店 売上高(前年比)	セールスマーケティング 全店 売上高(前年比)	yoy_index	セールスマーケティング 全店 売上高(前年比)	sales	セールスマーケティング	全店	売上高	全体 > セールスマーケティング	全店 売上高
-27220	2024	7	legacy	number	ITソリューション 全店 売上高	ITソリューション 全店 売上高	number	ITソリューション 全店 売上高	sales	ITソリューション	全店	売上高	全体 > ITソリューション	全店 売上高
-27220	2024	8	legacy	yoy_index	ITソリューション 全店 売上高(前年比)	ITソリューション 全店 売上高(前年比)	yoy_index	ITソリューション 全店 売上高(前年比)	sales	ITソリューション	全店	売上高	全体 > ITソリューション	全店 売上高
-27220	2025	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-27220	2025	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-27220	2025	3	legacy	number	ダイレクトマーケティング 全店 売上高	ダイレクトマーケティング 全店 売上高	number	ダイレクトマーケティング 全店 売上高	sales	ダイレクトマーケティング	全店	売上高	全体 > ダイレクトマーケティング	全店 売上高
-27220	2025	4	legacy	yoy_index	ダイレクトマーケティング 全店 売上高(前年比)	ダイレクトマーケティング 全店 売上高(前年比)	yoy_index	ダイレクトマーケティング 全店 売上高(前年比)	sales	ダイレクトマーケティング	全店	売上高	全体 > ダイレクトマーケティング	全店 売上高
-27220	2025	5	legacy	number	セールスマーケティング 全店 売上高	セールスマーケティング 全店 売上高	number	セールスマーケティング 全店 売上高	sales	セールスマーケティング	全店	売上高	全体 > セールスマーケティング	全店 売上高
-27220	2025	6	legacy	yoy_index	セールスマーケティング 全店 売上高(前年比)	セールスマーケティング 全店 売上高(前年比)	yoy_index	セールスマーケティング 全店 売上高(前年比)	sales	セールスマーケティング	全店	売上高	全体 > セールスマーケティング	全店 売上高
-27220	2025	7	legacy	number	ITソリューション 全店 売上高	ITソリューション 全店 売上高	number	ITソリューション 全店 売上高	sales	ITソリューション	全店	売上高	全体 > ITソリューション	全店 売上高
-27220	2025	8	legacy	yoy_index	ITソリューション 全店 売上高(前年比)	ITソリューション 全店 売上高(前年比)	yoy_index	ITソリューション 全店 売上高(前年比)	sales	ITソリューション	全店	売上高	全体 > ITソリューション	全店 売上高
-27220	2026	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-27220	2026	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-27220	2026	3	legacy	number	ダイレクトマーケティング 全店 売上高	ダイレクトマーケティング 全店 売上高	number	ダイレクトマーケティング 全店 売上高	sales	ダイレクトマーケティング	全店	売上高	全体 > ダイレクトマーケティング	全店 売上高
-27220	2026	4	legacy	yoy_index	ダイレクトマーケティング 全店 売上高(前年比)	ダイレクトマーケティング 全店 売上高(前年比)	yoy_index	ダイレクトマーケティング 全店 売上高(前年比)	sales	ダイレクトマーケティング	全店	売上高	全体 > ダイレクトマーケティング	全店 売上高
-27220	2026	5	legacy	number	セールスマーケティング 全店 売上高	セールスマーケティング 全店 売上高	number	セールスマーケティング 全店 売上高	sales	セールスマーケティング	全店	売上高	全体 > セールスマーケティング	全店 売上高
-27220	2026	6	legacy	yoy_index	セールスマーケティング 全店 売上高(前年比)	セールスマーケティング 全店 売上高(前年比)	yoy_index	セールスマーケティング 全店 売上高(前年比)	sales	セールスマーケティング	全店	売上高	全体 > セールスマーケティング	全店 売上高
+27220	2023	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	売上高
+27220	2023	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
+27220	2023	3	legacy	number	ダイレクトマーケティング 売上高	ダイレクトマーケティング 売上高	number	ダイレクトマーケティング 売上高	sales	ダイレクトマーケティング		売上高	全体 > ダイレクトマーケティング	売上高
+27220	2023	4	legacy	yoy_index	ダイレクトマーケティング 売上高(前年比)	ダイレクトマーケティング 売上高(前年比)	yoy_index	ダイレクトマーケティング 売上高(前年比)	sales	ダイレクトマーケティング		売上高	全体 > ダイレクトマーケティング	売上高
+27220	2023	5	legacy	number	セールスマーケティング 売上高	セールスマーケティング 売上高	number	セールスマーケティング 売上高	sales	セールスマーケティング		売上高	全体 > セールスマーケティング	売上高
+27220	2023	6	legacy	yoy_index	セールスマーケティング 売上高(前年比)	セールスマーケティング 売上高(前年比)	yoy_index	セールスマーケティング 売上高(前年比)	sales	セールスマーケティング		売上高	全体 > セールスマーケティング	売上高
+27220	2023	7	legacy	number	ITソリューション 売上高	ITソリューション 売上高	number	ITソリューション 売上高	sales	ITソリューション		売上高	全体 > ITソリューション	売上高
+27220	2023	8	legacy	yoy_index	ITソリューション 売上高(前年比)	ITソリューション 売上高(前年比)	yoy_index	ITソリューション 売上高(前年比)	sales	ITソリューション		売上高	全体 > ITソリューション	売上高
+27220	2024	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	売上高
+27220	2024	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
+27220	2024	3	legacy	number	ダイレクトマーケティング 売上高	ダイレクトマーケティング 売上高	number	ダイレクトマーケティング 売上高	sales	ダイレクトマーケティング		売上高	全体 > ダイレクトマーケティング	売上高
+27220	2024	4	legacy	yoy_index	ダイレクトマーケティング 売上高(前年比)	ダイレクトマーケティング 売上高(前年比)	yoy_index	ダイレクトマーケティング 売上高(前年比)	sales	ダイレクトマーケティング		売上高	全体 > ダイレクトマーケティング	売上高
+27220	2024	5	legacy	number	セールスマーケティング 売上高	セールスマーケティング 売上高	number	セールスマーケティング 売上高	sales	セールスマーケティング		売上高	全体 > セールスマーケティング	売上高
+27220	2024	6	legacy	yoy_index	セールスマーケティング 売上高(前年比)	セールスマーケティング 売上高(前年比)	yoy_index	セールスマーケティング 売上高(前年比)	sales	セールスマーケティング		売上高	全体 > セールスマーケティング	売上高
+27220	2024	7	legacy	number	ITソリューション 売上高	ITソリューション 売上高	number	ITソリューション 売上高	sales	ITソリューション		売上高	全体 > ITソリューション	売上高
+27220	2024	8	legacy	yoy_index	ITソリューション 売上高(前年比)	ITソリューション 売上高(前年比)	yoy_index	ITソリューション 売上高(前年比)	sales	ITソリューション		売上高	全体 > ITソリューション	売上高
+27220	2025	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	売上高
+27220	2025	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
+27220	2025	3	legacy	number	ダイレクトマーケティング 売上高	ダイレクトマーケティング 売上高	number	ダイレクトマーケティング 売上高	sales	ダイレクトマーケティング		売上高	全体 > ダイレクトマーケティング	売上高
+27220	2025	4	legacy	yoy_index	ダイレクトマーケティング 売上高(前年比)	ダイレクトマーケティング 売上高(前年比)	yoy_index	ダイレクトマーケティング 売上高(前年比)	sales	ダイレクトマーケティング		売上高	全体 > ダイレクトマーケティング	売上高
+27220	2025	5	legacy	number	セールスマーケティング 売上高	セールスマーケティング 売上高	number	セールスマーケティング 売上高	sales	セールスマーケティング		売上高	全体 > セールスマーケティング	売上高
+27220	2025	6	legacy	yoy_index	セールスマーケティング 売上高(前年比)	セールスマーケティング 売上高(前年比)	yoy_index	セールスマーケティング 売上高(前年比)	sales	セールスマーケティング		売上高	全体 > セールスマーケティング	売上高
+27220	2025	7	legacy	number	ITソリューション 売上高	ITソリューション 売上高	number	ITソリューション 売上高	sales	ITソリューション		売上高	全体 > ITソリューション	売上高
+27220	2025	8	legacy	yoy_index	ITソリューション 売上高(前年比)	ITソリューション 売上高(前年比)	yoy_index	ITソリューション 売上高(前年比)	sales	ITソリューション		売上高	全体 > ITソリューション	売上高
+27220	2026	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	売上高
+27220	2026	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
+27220	2026	3	legacy	number	ダイレクトマーケティング 売上高	ダイレクトマーケティング 売上高	number	ダイレクトマーケティング 売上高	sales	ダイレクトマーケティング		売上高	全体 > ダイレクトマーケティング	売上高
+27220	2026	4	legacy	yoy_index	ダイレクトマーケティング 売上高(前年比)	ダイレクトマーケティング 売上高(前年比)	yoy_index	ダイレクトマーケティング 売上高(前年比)	sales	ダイレクトマーケティング		売上高	全体 > ダイレクトマーケティング	売上高
+27220	2026	5	legacy	number	セールスマーケティング 売上高	セールスマーケティング 売上高	number	セールスマーケティング 売上高	sales	セールスマーケティング		売上高	全体 > セールスマーケティング	売上高
+27220	2026	6	legacy	yoy_index	セールスマーケティング 売上高(前年比)	セールスマーケティング 売上高(前年比)	yoy_index	セールスマーケティング 売上高(前年比)	sales	セールスマーケティング		売上高	全体 > セールスマーケティング	売上高
 27350	2023	1	legacy	yoy_index	100円ショップ 直営 既存(前年比)	100円ショップ 直営 既存(前年比)	yoy_index	100円ショップ 直営 既存(前年比)	other	100円ショップ	既存		全体 > 100円ショップ	直営 既存
 27350	2023	2	legacy	yoy_index	100円ショップ 直営 全店(前年比)	100円ショップ 直営 全店(前年比)	yoy_index	100円ショップ 直営 全店(前年比)	other	100円ショップ	全店		全体 > 100円ショップ	直営 全店
 27350	2023	3	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	全社 売上高
@@ -1020,30 +1020,30 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 274A0	2025	2	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 274A0	2026	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 274A0	2026	2	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
-27500	2023	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-27500	2023	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-27500	2023	3	legacy	number	個別 全店 売上高	個別 全店 売上高	number	個別 全店 売上高	sales	個別	全店	売上高	全体 > 個別	全店 売上高
-27500	2023	4	legacy	yoy_index	個別 全店 売上高(前年比)	個別 全店 売上高(前年比)	yoy_index	個別 全店 売上高(前年比)	sales	個別	全店	売上高	全体 > 個別	全店 売上高
-27500	2023	5	legacy	number	コーヒー・飲料事業 全店 売上高	コーヒー・飲料事業 全店 売上高	number	コーヒー・飲料事業 全店 売上高	sales	コーヒー・飲料事業	全店	売上高	全体 > コーヒー・飲料事業	全店 売上高
-27500	2023	6	legacy	yoy_index	コーヒー・飲料事業 全店 売上高(前年比)	コーヒー・飲料事業 全店 売上高(前年比)	yoy_index	コーヒー・飲料事業 全店 売上高(前年比)	sales	コーヒー・飲料事業	全店	売上高	全体 > コーヒー・飲料事業	全店 売上高
-27500	2023	7	legacy	number	食品事業 全店 売上高	食品事業 全店 売上高	number	食品事業 全店 売上高	sales	食品事業	全店	売上高	全体 > 食品事業	全店 売上高
-27500	2023	8	legacy	yoy_index	食品事業 全店 売上高(前年比)	食品事業 全店 売上高(前年比)	yoy_index	食品事業 全店 売上高(前年比)	sales	食品事業	全店	売上高	全体 > 食品事業	全店 売上高
-27500	2023	9	legacy	number	海外事業 全店 売上高	海外事業 全店 売上高	number	海外事業 全店 売上高	sales	海外事業	全店	売上高	全体 > 海外事業	全店 売上高
-27500	2023	10	legacy	yoy_index	海外事業 全店 売上高(前年比)	海外事業 全店 売上高(前年比)	yoy_index	海外事業 全店 売上高(前年比)	sales	海外事業	全店	売上高	全体 > 海外事業	全店 売上高
-27500	2024	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-27500	2024	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-27500	2024	3	legacy	number	個別 全店 売上高	個別 全店 売上高	number	個別 全店 売上高	sales	個別	全店	売上高	全体 > 個別	全店 売上高
-27500	2024	4	legacy	yoy_index	個別 全店 売上高(前年比)	個別 全店 売上高(前年比)	yoy_index	個別 全店 売上高(前年比)	sales	個別	全店	売上高	全体 > 個別	全店 売上高
-27500	2024	5	legacy	number	コーヒー・飲料事業 全店 売上高	コーヒー・飲料事業 全店 売上高	number	コーヒー・飲料事業 全店 売上高	sales	コーヒー・飲料事業	全店	売上高	全体 > コーヒー・飲料事業	全店 売上高
-27500	2024	6	legacy	yoy_index	コーヒー・飲料事業 全店 売上高(前年比)	コーヒー・飲料事業 全店 売上高(前年比)	yoy_index	コーヒー・飲料事業 全店 売上高(前年比)	sales	コーヒー・飲料事業	全店	売上高	全体 > コーヒー・飲料事業	全店 売上高
-27500	2024	7	legacy	number	食品事業 全店 売上高	食品事業 全店 売上高	number	食品事業 全店 売上高	sales	食品事業	全店	売上高	全体 > 食品事業	全店 売上高
-27500	2024	8	legacy	yoy_index	食品事業 全店 売上高(前年比)	食品事業 全店 売上高(前年比)	yoy_index	食品事業 全店 売上高(前年比)	sales	食品事業	全店	売上高	全体 > 食品事業	全店 売上高
-27500	2024	9	legacy	number	海外事業 全店 売上高	海外事業 全店 売上高	number	海外事業 全店 売上高	sales	海外事業	全店	売上高	全体 > 海外事業	全店 売上高
-27500	2024	10	legacy	yoy_index	海外事業 全店 売上高(前年比)	海外事業 全店 売上高(前年比)	yoy_index	海外事業 全店 売上高(前年比)	sales	海外事業	全店	売上高	全体 > 海外事業	全店 売上高
-27500	2025	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-27500	2025	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-27500	2026	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-27500	2026	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
+27500	2023	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	売上高
+27500	2023	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
+27500	2023	3	legacy	number	個別 売上高	個別 売上高	number	個別 売上高	sales	個別		売上高	全体 > 個別	売上高
+27500	2023	4	legacy	yoy_index	個別 売上高(前年比)	個別 売上高(前年比)	yoy_index	個別 売上高(前年比)	sales	個別		売上高	全体 > 個別	売上高
+27500	2023	5	legacy	number	コーヒー・飲料事業 売上高	コーヒー・飲料事業 売上高	number	コーヒー・飲料事業 売上高	sales	コーヒー・飲料事業		売上高	全体 > コーヒー・飲料事業	売上高
+27500	2023	6	legacy	yoy_index	コーヒー・飲料事業 売上高(前年比)	コーヒー・飲料事業 売上高(前年比)	yoy_index	コーヒー・飲料事業 売上高(前年比)	sales	コーヒー・飲料事業		売上高	全体 > コーヒー・飲料事業	売上高
+27500	2023	7	legacy	number	食品事業 売上高	食品事業 売上高	number	食品事業 売上高	sales	食品事業		売上高	全体 > 食品事業	売上高
+27500	2023	8	legacy	yoy_index	食品事業 売上高(前年比)	食品事業 売上高(前年比)	yoy_index	食品事業 売上高(前年比)	sales	食品事業		売上高	全体 > 食品事業	売上高
+27500	2023	9	legacy	number	海外事業 売上高	海外事業 売上高	number	海外事業 売上高	sales	海外事業		売上高	全体 > 海外事業	売上高
+27500	2023	10	legacy	yoy_index	海外事業 売上高(前年比)	海外事業 売上高(前年比)	yoy_index	海外事業 売上高(前年比)	sales	海外事業		売上高	全体 > 海外事業	売上高
+27500	2024	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	売上高
+27500	2024	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
+27500	2024	3	legacy	number	個別 売上高	個別 売上高	number	個別 売上高	sales	個別		売上高	全体 > 個別	売上高
+27500	2024	4	legacy	yoy_index	個別 売上高(前年比)	個別 売上高(前年比)	yoy_index	個別 売上高(前年比)	sales	個別		売上高	全体 > 個別	売上高
+27500	2024	5	legacy	number	コーヒー・飲料事業 売上高	コーヒー・飲料事業 売上高	number	コーヒー・飲料事業 売上高	sales	コーヒー・飲料事業		売上高	全体 > コーヒー・飲料事業	売上高
+27500	2024	6	legacy	yoy_index	コーヒー・飲料事業 売上高(前年比)	コーヒー・飲料事業 売上高(前年比)	yoy_index	コーヒー・飲料事業 売上高(前年比)	sales	コーヒー・飲料事業		売上高	全体 > コーヒー・飲料事業	売上高
+27500	2024	7	legacy	number	食品事業 売上高	食品事業 売上高	number	食品事業 売上高	sales	食品事業		売上高	全体 > 食品事業	売上高
+27500	2024	8	legacy	yoy_index	食品事業 売上高(前年比)	食品事業 売上高(前年比)	yoy_index	食品事業 売上高(前年比)	sales	食品事業		売上高	全体 > 食品事業	売上高
+27500	2024	9	legacy	number	海外事業 売上高	海外事業 売上高	number	海外事業 売上高	sales	海外事業		売上高	全体 > 海外事業	売上高
+27500	2024	10	legacy	yoy_index	海外事業 売上高(前年比)	海外事業 売上高(前年比)	yoy_index	海外事業 売上高(前年比)	sales	海外事業		売上高	全体 > 海外事業	売上高
+27500	2025	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	売上高
+27500	2025	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
+27500	2026	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	売上高
+27500	2026	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
 27640	2024	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 27640	2024	2	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	全社 売上高
 27640	2025	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
@@ -1474,20 +1474,20 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 30580	2026	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 30580	2026	2	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 30580	2026	3	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
-30640	2023	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-30640	2023	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+30640	2023	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+30640	2023	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 30640	2023	3	legacy	number	新規顧客獲得数	新規顧客獲得数	number	新規顧客獲得数	count			新規顧客獲得数	全体	新規顧客獲得数
 30640	2023	4	legacy	number	営業日数	営業日数	number	営業日数	count			営業日数	全体	営業日数
-30640	2024	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-30640	2024	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+30640	2024	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+30640	2024	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 30640	2024	3	legacy	number	新規顧客獲得数	新規顧客獲得数	number	新規顧客獲得数	count			新規顧客獲得数	全体	新規顧客獲得数
 30640	2024	4	legacy	number	営業日数	営業日数	number	営業日数	count			営業日数	全体	営業日数
-30640	2025	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-30640	2025	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+30640	2025	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+30640	2025	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 30640	2025	3	legacy	number	新規顧客獲得数	新規顧客獲得数	number	新規顧客獲得数	count			新規顧客獲得数	全体	新規顧客獲得数
 30640	2025	4	legacy	number	営業日数	営業日数	number	営業日数	count			営業日数	全体	営業日数
-30640	2026	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-30640	2026	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+30640	2026	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+30640	2026	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 30640	2026	3	legacy	number	新規顧客獲得数	新規顧客獲得数	number	新規顧客獲得数	count			新規顧客獲得数	全体	新規顧客獲得数
 30640	2026	4	legacy	number	営業日数	営業日数	number	営業日数	count			営業日数	全体	営業日数
 30770	2025	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
@@ -2181,10 +2181,10 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 30970	2026	49	legacy	yoy_index	専門店・新業態 直営 既存 客数(前年比)	専門店・新業態 直営 既存 客数(前年比)	yoy_index	専門店・新業態 直営 既存 客数(前年比)	customers	専門店・新業態	既存	客数	全体 > 専門店・新業態	直営 既存 客数
 30970	2026	50	legacy	number	専門店・新業態 直営 既存 店舗数	専門店・新業態 直営 既存 店舗数	number	専門店・新業態 直営 既存 店舗数	stores	専門店・新業態	既存	店舗数	全体 > 専門店・新業態	直営 既存 店舗数
 30970	2026	51	legacy	number	専門店・新業態 FC 店舗数	専門店・新業態 FC 店舗数	number	専門店・新業態 FC 店舗数	stores	専門店・新業態		店舗数	全体 > 専門店・新業態	FC 店舗数
-31350	2024	1	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-31350	2025	1	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-31350	2026	1	legacy	yoy_index	ネット型リユース事業 全店 売上高(前年比)	ネット型リユース事業 全店 売上高(前年比)	yoy_index	ネット型リユース事業 全店 売上高(前年比)	sales	ネット型リユース事業	全店	売上高	全体 > ネット型リユース事業	全店 売上高
-31350	2026	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
+31350	2024	1	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
+31350	2025	1	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
+31350	2026	1	legacy	yoy_index	ネット型リユース事業 売上高(前年比)	ネット型リユース事業 売上高(前年比)	yoy_index	ネット型リユース事業 売上高(前年比)	sales	ネット型リユース事業		売上高	全体 > ネット型リユース事業	売上高
+31350	2026	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
 31480	2023	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31480	2023	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 31480	2024	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
@@ -2193,33 +2193,33 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 31480	2025	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 31480	2026	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31480	2026	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-31600	2023	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-31600	2023	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-31600	2023	3	legacy	number	外商事業 全店 売上高	外商事業 全店 売上高	number	外商事業 全店 売上高	sales	外商事業	全店	売上高	全体 > 外商事業	全店 売上高
-31600	2023	4	legacy	yoy_index	外商事業 全店 売上高(前年比)	外商事業 全店 売上高(前年比)	yoy_index	外商事業 全店 売上高(前年比)	sales	外商事業	全店	売上高	全体 > 外商事業	全店 売上高
-31600	2023	5	legacy	number	アミカ事業 全店 売上高	アミカ事業 全店 売上高	number	アミカ事業 全店 売上高	sales	アミカ事業	全店	売上高	全体 > アミカ事業	全店 売上高
-31600	2023	6	legacy	yoy_index	アミカ事業 全店 売上高(前年比)	アミカ事業 全店 売上高(前年比)	yoy_index	アミカ事業 全店 売上高(前年比)	sales	アミカ事業	全店	売上高	全体 > アミカ事業	全店 売上高
+31600	2023	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+31600	2023	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+31600	2023	3	legacy	number	外商事業 売上高	外商事業 売上高	number	外商事業 売上高	sales	外商事業		売上高	全体 > 外商事業	売上高
+31600	2023	4	legacy	yoy_index	外商事業 売上高(前年比)	外商事業 売上高(前年比)	yoy_index	外商事業 売上高(前年比)	sales	外商事業		売上高	全体 > 外商事業	売上高
+31600	2023	5	legacy	number	アミカ事業 売上高	アミカ事業 売上高	number	アミカ事業 売上高	sales	アミカ事業		売上高	全体 > アミカ事業	売上高
+31600	2023	6	legacy	yoy_index	アミカ事業 売上高(前年比)	アミカ事業 売上高(前年比)	yoy_index	アミカ事業 売上高(前年比)	sales	アミカ事業		売上高	全体 > アミカ事業	売上高
 31600	2023	7	legacy	number	アミカ事業 店舗数	アミカ事業 店舗数	number	アミカ事業 店舗数	stores	アミカ事業		店舗数	全体 > アミカ事業	店舗数
-31600	2024	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-31600	2024	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-31600	2024	3	legacy	number	外商事業 全店 売上高	外商事業 全店 売上高	number	外商事業 全店 売上高	sales	外商事業	全店	売上高	全体 > 外商事業	全店 売上高
-31600	2024	4	legacy	yoy_index	外商事業 全店 売上高(前年比)	外商事業 全店 売上高(前年比)	yoy_index	外商事業 全店 売上高(前年比)	sales	外商事業	全店	売上高	全体 > 外商事業	全店 売上高
-31600	2024	5	legacy	number	アミカ事業 全店 売上高	アミカ事業 全店 売上高	number	アミカ事業 全店 売上高	sales	アミカ事業	全店	売上高	全体 > アミカ事業	全店 売上高
-31600	2024	6	legacy	yoy_index	アミカ事業 全店 売上高(前年比)	アミカ事業 全店 売上高(前年比)	yoy_index	アミカ事業 全店 売上高(前年比)	sales	アミカ事業	全店	売上高	全体 > アミカ事業	全店 売上高
+31600	2024	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+31600	2024	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+31600	2024	3	legacy	number	外商事業 売上高	外商事業 売上高	number	外商事業 売上高	sales	外商事業		売上高	全体 > 外商事業	売上高
+31600	2024	4	legacy	yoy_index	外商事業 売上高(前年比)	外商事業 売上高(前年比)	yoy_index	外商事業 売上高(前年比)	sales	外商事業		売上高	全体 > 外商事業	売上高
+31600	2024	5	legacy	number	アミカ事業 売上高	アミカ事業 売上高	number	アミカ事業 売上高	sales	アミカ事業		売上高	全体 > アミカ事業	売上高
+31600	2024	6	legacy	yoy_index	アミカ事業 売上高(前年比)	アミカ事業 売上高(前年比)	yoy_index	アミカ事業 売上高(前年比)	sales	アミカ事業		売上高	全体 > アミカ事業	売上高
 31600	2024	7	legacy	number	アミカ事業 店舗数	アミカ事業 店舗数	number	アミカ事業 店舗数	stores	アミカ事業		店舗数	全体 > アミカ事業	店舗数
-31600	2025	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-31600	2025	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-31600	2025	3	legacy	number	外商事業 全店 売上高	外商事業 全店 売上高	number	外商事業 全店 売上高	sales	外商事業	全店	売上高	全体 > 外商事業	全店 売上高
-31600	2025	4	legacy	yoy_index	外商事業 全店 売上高(前年比)	外商事業 全店 売上高(前年比)	yoy_index	外商事業 全店 売上高(前年比)	sales	外商事業	全店	売上高	全体 > 外商事業	全店 売上高
-31600	2025	5	legacy	number	アミカ事業 全店 売上高	アミカ事業 全店 売上高	number	アミカ事業 全店 売上高	sales	アミカ事業	全店	売上高	全体 > アミカ事業	全店 売上高
-31600	2025	6	legacy	yoy_index	アミカ事業 全店 売上高(前年比)	アミカ事業 全店 売上高(前年比)	yoy_index	アミカ事業 全店 売上高(前年比)	sales	アミカ事業	全店	売上高	全体 > アミカ事業	全店 売上高
+31600	2025	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+31600	2025	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+31600	2025	3	legacy	number	外商事業 売上高	外商事業 売上高	number	外商事業 売上高	sales	外商事業		売上高	全体 > 外商事業	売上高
+31600	2025	4	legacy	yoy_index	外商事業 売上高(前年比)	外商事業 売上高(前年比)	yoy_index	外商事業 売上高(前年比)	sales	外商事業		売上高	全体 > 外商事業	売上高
+31600	2025	5	legacy	number	アミカ事業 売上高	アミカ事業 売上高	number	アミカ事業 売上高	sales	アミカ事業		売上高	全体 > アミカ事業	売上高
+31600	2025	6	legacy	yoy_index	アミカ事業 売上高(前年比)	アミカ事業 売上高(前年比)	yoy_index	アミカ事業 売上高(前年比)	sales	アミカ事業		売上高	全体 > アミカ事業	売上高
 31600	2025	7	legacy	number	アミカ事業 店舗数	アミカ事業 店舗数	number	アミカ事業 店舗数	stores	アミカ事業		店舗数	全体 > アミカ事業	店舗数
-31600	2026	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-31600	2026	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-31600	2026	3	legacy	number	外商事業 全店 売上高	外商事業 全店 売上高	number	外商事業 全店 売上高	sales	外商事業	全店	売上高	全体 > 外商事業	全店 売上高
-31600	2026	4	legacy	yoy_index	外商事業 全店 売上高(前年比)	外商事業 全店 売上高(前年比)	yoy_index	外商事業 全店 売上高(前年比)	sales	外商事業	全店	売上高	全体 > 外商事業	全店 売上高
-31600	2026	5	legacy	number	アミカ事業 全店 売上高	アミカ事業 全店 売上高	number	アミカ事業 全店 売上高	sales	アミカ事業	全店	売上高	全体 > アミカ事業	全店 売上高
-31600	2026	6	legacy	yoy_index	アミカ事業 全店 売上高(前年比)	アミカ事業 全店 売上高(前年比)	yoy_index	アミカ事業 全店 売上高(前年比)	sales	アミカ事業	全店	売上高	全体 > アミカ事業	全店 売上高
+31600	2026	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+31600	2026	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+31600	2026	3	legacy	number	外商事業 売上高	外商事業 売上高	number	外商事業 売上高	sales	外商事業		売上高	全体 > 外商事業	売上高
+31600	2026	4	legacy	yoy_index	外商事業 売上高(前年比)	外商事業 売上高(前年比)	yoy_index	外商事業 売上高(前年比)	sales	外商事業		売上高	全体 > 外商事業	売上高
+31600	2026	5	legacy	number	アミカ事業 売上高	アミカ事業 売上高	number	アミカ事業 売上高	sales	アミカ事業		売上高	全体 > アミカ事業	売上高
+31600	2026	6	legacy	yoy_index	アミカ事業 売上高(前年比)	アミカ事業 売上高(前年比)	yoy_index	アミカ事業 売上高(前年比)	sales	アミカ事業		売上高	全体 > アミカ事業	売上高
 31600	2026	7	legacy	number	アミカ事業 店舗数	アミカ事業 店舗数	number	アミカ事業 店舗数	stores	アミカ事業		店舗数	全体 > アミカ事業	店舗数
 31740	2024	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31740	2024	2	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
@@ -2332,27 +2332,27 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 31780	2026	9	legacy	number	FC 店舗数	FC 店舗数	number	FC 店舗数	stores			店舗数	全体	FC 店舗数
 31780	2026	10	legacy	number	子会社 店舗数	子会社 店舗数	number	子会社 店舗数	stores	子会社		店舗数	全体 > 子会社	店舗数
 31780	2026	11	legacy	number	グループ 店舗数	グループ 店舗数	number	グループ 店舗数	stores	グループ		店舗数	全体	店舗数
-31790	2023	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-31790	2023	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-31790	2023	3	legacy	number	EC 全店 売上高	EC 全店 売上高	number	EC 全店 売上高	sales	EC	全店	売上高	全体 > EC	全店 売上高
-31790	2023	4	legacy	yoy_index	EC 全店 売上高(前年比)	EC 全店 売上高(前年比)	yoy_index	EC 全店 売上高(前年比)	sales	EC	全店	売上高	全体 > EC	全店 売上高
+31790	2023	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+31790	2023	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+31790	2023	3	legacy	number	EC 売上高	EC 売上高	number	EC 売上高	sales	EC		売上高	全体 > EC	売上高
+31790	2023	4	legacy	yoy_index	EC 売上高(前年比)	EC 売上高(前年比)	yoy_index	EC 売上高(前年比)	sales	EC		売上高	全体 > EC	売上高
 31790	2023	5	legacy	number	Web会員数	Web会員数	number	Web会員数	count			Web会員数	全体	Web会員数
-31790	2024	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-31790	2024	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-31790	2024	3	legacy	number	EC 全店 売上高	EC 全店 売上高	number	EC 全店 売上高	sales	EC	全店	売上高	全体 > EC	全店 売上高
-31790	2024	4	legacy	yoy_index	EC 全店 売上高(前年比)	EC 全店 売上高(前年比)	yoy_index	EC 全店 売上高(前年比)	sales	EC	全店	売上高	全体 > EC	全店 売上高
+31790	2024	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+31790	2024	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+31790	2024	3	legacy	number	EC 売上高	EC 売上高	number	EC 売上高	sales	EC		売上高	全体 > EC	売上高
+31790	2024	4	legacy	yoy_index	EC 売上高(前年比)	EC 売上高(前年比)	yoy_index	EC 売上高(前年比)	sales	EC		売上高	全体 > EC	売上高
 31790	2024	5	legacy	number	Web会員数	Web会員数	number	Web会員数	count			Web会員数	全体	Web会員数
 31790	2024	6	legacy	number	Web会員数前月増減	Web会員数前月増減	number	Web会員数前月増減	other	Web会員数前月増減			全体	Web会員数前月増減
-31790	2025	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-31790	2025	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-31790	2025	3	legacy	number	EC 全店 売上高	EC 全店 売上高	number	EC 全店 売上高	sales	EC	全店	売上高	全体 > EC	全店 売上高
-31790	2025	4	legacy	yoy_index	EC 全店 売上高(前年比)	EC 全店 売上高(前年比)	yoy_index	EC 全店 売上高(前年比)	sales	EC	全店	売上高	全体 > EC	全店 売上高
+31790	2025	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+31790	2025	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+31790	2025	3	legacy	number	EC 売上高	EC 売上高	number	EC 売上高	sales	EC		売上高	全体 > EC	売上高
+31790	2025	4	legacy	yoy_index	EC 売上高(前年比)	EC 売上高(前年比)	yoy_index	EC 売上高(前年比)	sales	EC		売上高	全体 > EC	売上高
 31790	2025	5	legacy	number	Web会員数	Web会員数	number	Web会員数	count			Web会員数	全体	Web会員数
 31790	2025	6	legacy	number	Web会員数前月増減	Web会員数前月増減	number	Web会員数前月増減	other	Web会員数前月増減			全体	Web会員数前月増減
-31790	2026	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-31790	2026	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-31790	2026	3	legacy	number	EC 全店 売上高	EC 全店 売上高	number	EC 全店 売上高	sales	EC	全店	売上高	全体 > EC	全店 売上高
-31790	2026	4	legacy	yoy_index	EC 全店 売上高(前年比)	EC 全店 売上高(前年比)	yoy_index	EC 全店 売上高(前年比)	sales	EC	全店	売上高	全体 > EC	全店 売上高
+31790	2026	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+31790	2026	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+31790	2026	3	legacy	number	EC 売上高	EC 売上高	number	EC 売上高	sales	EC		売上高	全体 > EC	売上高
+31790	2026	4	legacy	yoy_index	EC 売上高(前年比)	EC 売上高(前年比)	yoy_index	EC 売上高(前年比)	sales	EC		売上高	全体 > EC	売上高
 31790	2026	5	legacy	number	Web会員数	Web会員数	number	Web会員数	count			Web会員数	全体	Web会員数
 31790	2026	6	legacy	number	Web会員数前月増減	Web会員数前月増減	number	Web会員数前月増減	other	Web会員数前月増減			全体	Web会員数前月増減
 31810	2023	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
@@ -2458,14 +2458,14 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 31930	2026	17	legacy	number	海外 韓国 店舗数	海外 韓国 店舗数	number	海外 韓国 店舗数	stores	韓国		店舗数	全体 > 韓国	海外 店舗数
 31930	2026	18	legacy	number	海外 ベトナム 店舗数	海外 ベトナム 店舗数	number	海外 ベトナム 店舗数	stores	ベトナム		店舗数	全体 > ベトナム	海外 店舗数
 31930	2026	19	legacy	number	海外 シンガポール 店舗数	海外 シンガポール 店舗数	number	海外 シンガポール 店舗数	stores	シンガポール		店舗数	全体 > シンガポール	海外 店舗数
-31950	2023	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-31950	2023	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-31950	2024	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-31950	2024	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-31950	2025	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-31950	2025	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-31950	2026	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-31950	2026	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
+31950	2023	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
+31950	2023	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
+31950	2024	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
+31950	2024	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
+31950	2025	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
+31950	2025	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
+31950	2026	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
+31950	2026	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
 31970	2024	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 31970	2024	2	legacy	number	出店	出店	number	出店	open			出店	全体	出店
 31970	2024	3	legacy	number	リモデル	リモデル	number	リモデル	other	リモデル			全体	リモデル
@@ -3130,14 +3130,14 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 35570	2026	23	legacy	yoy_index	もつ焼てけ八 既存 売上高(前年比)	もつ焼てけ八 既存 売上高(前年比)	yoy_index	もつ焼てけ八 既存 売上高(前年比)	sales	もつ焼てけ八	既存	売上高	全体 > もつ焼てけ八	既存 売上高
 35570	2026	24	legacy	yoy_index	もつ焼てけ八 既存 客数(前年比)	もつ焼てけ八 既存 客数(前年比)	yoy_index	もつ焼てけ八 既存 客数(前年比)	customers	もつ焼てけ八	既存	客数	全体 > もつ焼てけ八	既存 客数
 35570	2026	25	legacy	yoy_index	もつ焼てけ八 既存 客単価(前年比)	もつ焼てけ八 既存 客単価(前年比)	yoy_index	もつ焼てけ八 既存 客単価(前年比)	spend	もつ焼てけ八	既存	客単価	全体 > もつ焼てけ八	既存 客単価
-35660	2023	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-35660	2023	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-35660	2024	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-35660	2024	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-35660	2025	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-35660	2025	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-35660	2026	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-35660	2026	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+35660	2023	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+35660	2023	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+35660	2024	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+35660	2024	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+35660	2025	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+35660	2025	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+35660	2026	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+35660	2026	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 36080	2023	1	legacy	yoy_index	小売店 全店 売上高(前年比)	小売店 全店 売上高(前年比)	yoy_index	小売店 全店 売上高(前年比)	sales	小売店	全店	売上高	全体 > 小売店	全店 売上高
 36080	2023	2	legacy	yoy_index	オンラインショップ 全店 売上高(前年比)	オンラインショップ 全店 売上高(前年比)	yoy_index	オンラインショップ 全店 売上高(前年比)	sales	オンラインショップ	全店	売上高	全体 > オンラインショップ	全店 売上高
 36080	2023	3	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
@@ -3266,50 +3266,50 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 37330	2026	4	legacy	yoy_index	受注残高(前年比)	受注残高(前年比)	yoy_index	受注残高(前年比)	other	受注残高			全体	受注残高
 37330	2026	5	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 37330	2026	6	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
-37960	2023	1	legacy	number	サブスクリプション 全店 売上高	サブスクリプション 全店 売上高	number	サブスクリプション 全店 売上高	sales	サブスクリプション	全店	売上高	全体 > サブスクリプション	全店 売上高
-37960	2023	2	legacy	number	ソリューション 全店 売上高	ソリューション 全店 売上高	number	ソリューション 全店 売上高	sales	ソリューション	全店	売上高	全体 > ソリューション	全店 売上高
-37960	2023	3	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-37960	2024	1	legacy	number	サブスクリプション 全店 売上高	サブスクリプション 全店 売上高	number	サブスクリプション 全店 売上高	sales	サブスクリプション	全店	売上高	全体 > サブスクリプション	全店 売上高
-37960	2024	2	legacy	number	ソリューション 全店 売上高	ソリューション 全店 売上高	number	ソリューション 全店 売上高	sales	ソリューション	全店	売上高	全体 > ソリューション	全店 売上高
-37960	2024	3	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-37960	2025	1	legacy	number	サブスクリプション 全店 売上高	サブスクリプション 全店 売上高	number	サブスクリプション 全店 売上高	sales	サブスクリプション	全店	売上高	全体 > サブスクリプション	全店 売上高
-37960	2025	2	legacy	number	ソリューション 全店 売上高	ソリューション 全店 売上高	number	ソリューション 全店 売上高	sales	ソリューション	全店	売上高	全体 > ソリューション	全店 売上高
-37960	2025	3	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-37960	2026	1	legacy	number	サブスクリプション 全店 売上高	サブスクリプション 全店 売上高	number	サブスクリプション 全店 売上高	sales	サブスクリプション	全店	売上高	全体 > サブスクリプション	全店 売上高
-37960	2026	2	legacy	number	ソリューション 全店 売上高	ソリューション 全店 売上高	number	ソリューション 全店 売上高	sales	ソリューション	全店	売上高	全体 > ソリューション	全店 売上高
-37960	2026	3	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-38170	2023	1	legacy	number	国内子会社 全店 売上高	国内子会社 全店 売上高	number	国内子会社 全店 売上高	sales	国内子会社	全店	売上高	全体 > 国内子会社	全店 売上高
-38170	2023	2	legacy	yoy_index	国内子会社 全店 売上高(前年比)	国内子会社 全店 売上高(前年比)	yoy_index	国内子会社 全店 売上高(前年比)	sales	国内子会社	全店	売上高	全体 > 国内子会社	全店 売上高
-38170	2023	3	legacy	number	海外子会社 全店 売上高	海外子会社 全店 売上高	number	海外子会社 全店 売上高	sales	海外子会社	全店	売上高	全体 > 海外子会社	全店 売上高
-38170	2023	4	legacy	yoy_index	海外子会社 全店 売上高(前年比)	海外子会社 全店 売上高(前年比)	yoy_index	海外子会社 全店 売上高(前年比)	sales	海外子会社	全店	売上高	全体 > 海外子会社	全店 売上高
-38170	2023	5	legacy	number	SRA 全店 売上高	SRA 全店 売上高	number	SRA 全店 売上高	sales	SRA	全店	売上高	全体 > SRA	全店 売上高
-38170	2023	6	legacy	yoy_index	SRA 全店 売上高(前年比)	SRA 全店 売上高(前年比)	yoy_index	SRA 全店 売上高(前年比)	sales	SRA	全店	売上高	全体 > SRA	全店 売上高
-38170	2023	7	legacy	number	AIT 全店 売上高	AIT 全店 売上高	number	AIT 全店 売上高	sales	AIT	全店	売上高	全体 > AIT	全店 売上高
-38170	2023	8	legacy	yoy_index	AIT 全店 売上高(前年比)	AIT 全店 売上高(前年比)	yoy_index	AIT 全店 売上高(前年比)	sales	AIT	全店	売上高	全体 > AIT	全店 売上高
-38170	2024	1	legacy	number	国内子会社 全店 売上高	国内子会社 全店 売上高	number	国内子会社 全店 売上高	sales	国内子会社	全店	売上高	全体 > 国内子会社	全店 売上高
-38170	2024	2	legacy	yoy_index	国内子会社 全店 売上高(前年比)	国内子会社 全店 売上高(前年比)	yoy_index	国内子会社 全店 売上高(前年比)	sales	国内子会社	全店	売上高	全体 > 国内子会社	全店 売上高
-38170	2024	3	legacy	number	海外子会社 全店 売上高	海外子会社 全店 売上高	number	海外子会社 全店 売上高	sales	海外子会社	全店	売上高	全体 > 海外子会社	全店 売上高
-38170	2024	4	legacy	yoy_index	海外子会社 全店 売上高(前年比)	海外子会社 全店 売上高(前年比)	yoy_index	海外子会社 全店 売上高(前年比)	sales	海外子会社	全店	売上高	全体 > 海外子会社	全店 売上高
-38170	2024	5	legacy	number	SRA 全店 売上高	SRA 全店 売上高	number	SRA 全店 売上高	sales	SRA	全店	売上高	全体 > SRA	全店 売上高
-38170	2024	6	legacy	yoy_index	SRA 全店 売上高(前年比)	SRA 全店 売上高(前年比)	yoy_index	SRA 全店 売上高(前年比)	sales	SRA	全店	売上高	全体 > SRA	全店 売上高
-38170	2024	7	legacy	number	AIT 全店 売上高	AIT 全店 売上高	number	AIT 全店 売上高	sales	AIT	全店	売上高	全体 > AIT	全店 売上高
-38170	2024	8	legacy	yoy_index	AIT 全店 売上高(前年比)	AIT 全店 売上高(前年比)	yoy_index	AIT 全店 売上高(前年比)	sales	AIT	全店	売上高	全体 > AIT	全店 売上高
-38170	2025	1	legacy	number	国内子会社 全店 売上高	国内子会社 全店 売上高	number	国内子会社 全店 売上高	sales	国内子会社	全店	売上高	全体 > 国内子会社	全店 売上高
-38170	2025	2	legacy	yoy_index	国内子会社 全店 売上高(前年比)	国内子会社 全店 売上高(前年比)	yoy_index	国内子会社 全店 売上高(前年比)	sales	国内子会社	全店	売上高	全体 > 国内子会社	全店 売上高
-38170	2025	3	legacy	number	海外子会社 全店 売上高	海外子会社 全店 売上高	number	海外子会社 全店 売上高	sales	海外子会社	全店	売上高	全体 > 海外子会社	全店 売上高
-38170	2025	4	legacy	yoy_index	海外子会社 全店 売上高(前年比)	海外子会社 全店 売上高(前年比)	yoy_index	海外子会社 全店 売上高(前年比)	sales	海外子会社	全店	売上高	全体 > 海外子会社	全店 売上高
-38170	2025	5	legacy	number	SRA 全店 売上高	SRA 全店 売上高	number	SRA 全店 売上高	sales	SRA	全店	売上高	全体 > SRA	全店 売上高
-38170	2025	6	legacy	yoy_index	SRA 全店 売上高(前年比)	SRA 全店 売上高(前年比)	yoy_index	SRA 全店 売上高(前年比)	sales	SRA	全店	売上高	全体 > SRA	全店 売上高
-38170	2025	7	legacy	number	AIT 全店 売上高	AIT 全店 売上高	number	AIT 全店 売上高	sales	AIT	全店	売上高	全体 > AIT	全店 売上高
-38170	2025	8	legacy	yoy_index	AIT 全店 売上高(前年比)	AIT 全店 売上高(前年比)	yoy_index	AIT 全店 売上高(前年比)	sales	AIT	全店	売上高	全体 > AIT	全店 売上高
-38170	2026	1	legacy	number	国内子会社 全店 売上高	国内子会社 全店 売上高	number	国内子会社 全店 売上高	sales	国内子会社	全店	売上高	全体 > 国内子会社	全店 売上高
-38170	2026	2	legacy	yoy_index	国内子会社 全店 売上高(前年比)	国内子会社 全店 売上高(前年比)	yoy_index	国内子会社 全店 売上高(前年比)	sales	国内子会社	全店	売上高	全体 > 国内子会社	全店 売上高
-38170	2026	3	legacy	number	海外子会社 全店 売上高	海外子会社 全店 売上高	number	海外子会社 全店 売上高	sales	海外子会社	全店	売上高	全体 > 海外子会社	全店 売上高
-38170	2026	4	legacy	yoy_index	海外子会社 全店 売上高(前年比)	海外子会社 全店 売上高(前年比)	yoy_index	海外子会社 全店 売上高(前年比)	sales	海外子会社	全店	売上高	全体 > 海外子会社	全店 売上高
-38170	2026	5	legacy	number	SRA 全店 売上高	SRA 全店 売上高	number	SRA 全店 売上高	sales	SRA	全店	売上高	全体 > SRA	全店 売上高
-38170	2026	6	legacy	yoy_index	SRA 全店 売上高(前年比)	SRA 全店 売上高(前年比)	yoy_index	SRA 全店 売上高(前年比)	sales	SRA	全店	売上高	全体 > SRA	全店 売上高
-38170	2026	7	legacy	number	AIT 全店 売上高	AIT 全店 売上高	number	AIT 全店 売上高	sales	AIT	全店	売上高	全体 > AIT	全店 売上高
-38170	2026	8	legacy	yoy_index	AIT 全店 売上高(前年比)	AIT 全店 売上高(前年比)	yoy_index	AIT 全店 売上高(前年比)	sales	AIT	全店	売上高	全体 > AIT	全店 売上高
+37960	2023	1	legacy	number	サブスクリプション 売上高	サブスクリプション 売上高	number	サブスクリプション 売上高	sales	サブスクリプション		売上高	全体 > サブスクリプション	売上高
+37960	2023	2	legacy	number	ソリューション 売上高	ソリューション 売上高	number	ソリューション 売上高	sales	ソリューション		売上高	全体 > ソリューション	売上高
+37960	2023	3	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+37960	2024	1	legacy	number	サブスクリプション 売上高	サブスクリプション 売上高	number	サブスクリプション 売上高	sales	サブスクリプション		売上高	全体 > サブスクリプション	売上高
+37960	2024	2	legacy	number	ソリューション 売上高	ソリューション 売上高	number	ソリューション 売上高	sales	ソリューション		売上高	全体 > ソリューション	売上高
+37960	2024	3	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+37960	2025	1	legacy	number	サブスクリプション 売上高	サブスクリプション 売上高	number	サブスクリプション 売上高	sales	サブスクリプション		売上高	全体 > サブスクリプション	売上高
+37960	2025	2	legacy	number	ソリューション 売上高	ソリューション 売上高	number	ソリューション 売上高	sales	ソリューション		売上高	全体 > ソリューション	売上高
+37960	2025	3	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+37960	2026	1	legacy	number	サブスクリプション 売上高	サブスクリプション 売上高	number	サブスクリプション 売上高	sales	サブスクリプション		売上高	全体 > サブスクリプション	売上高
+37960	2026	2	legacy	number	ソリューション 売上高	ソリューション 売上高	number	ソリューション 売上高	sales	ソリューション		売上高	全体 > ソリューション	売上高
+37960	2026	3	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+38170	2023	1	legacy	number	国内子会社 売上高	国内子会社 売上高	number	国内子会社 売上高	sales	国内子会社		売上高	全体 > 国内子会社	売上高
+38170	2023	2	legacy	yoy_index	国内子会社 売上高(前年比)	国内子会社 売上高(前年比)	yoy_index	国内子会社 売上高(前年比)	sales	国内子会社		売上高	全体 > 国内子会社	売上高
+38170	2023	3	legacy	number	海外子会社 売上高	海外子会社 売上高	number	海外子会社 売上高	sales	海外子会社		売上高	全体 > 海外子会社	売上高
+38170	2023	4	legacy	yoy_index	海外子会社 売上高(前年比)	海外子会社 売上高(前年比)	yoy_index	海外子会社 売上高(前年比)	sales	海外子会社		売上高	全体 > 海外子会社	売上高
+38170	2023	5	legacy	number	SRA 売上高	SRA 売上高	number	SRA 売上高	sales	SRA		売上高	全体 > SRA	売上高
+38170	2023	6	legacy	yoy_index	SRA 売上高(前年比)	SRA 売上高(前年比)	yoy_index	SRA 売上高(前年比)	sales	SRA		売上高	全体 > SRA	売上高
+38170	2023	7	legacy	number	AIT 売上高	AIT 売上高	number	AIT 売上高	sales	AIT		売上高	全体 > AIT	売上高
+38170	2023	8	legacy	yoy_index	AIT 売上高(前年比)	AIT 売上高(前年比)	yoy_index	AIT 売上高(前年比)	sales	AIT		売上高	全体 > AIT	売上高
+38170	2024	1	legacy	number	国内子会社 売上高	国内子会社 売上高	number	国内子会社 売上高	sales	国内子会社		売上高	全体 > 国内子会社	売上高
+38170	2024	2	legacy	yoy_index	国内子会社 売上高(前年比)	国内子会社 売上高(前年比)	yoy_index	国内子会社 売上高(前年比)	sales	国内子会社		売上高	全体 > 国内子会社	売上高
+38170	2024	3	legacy	number	海外子会社 売上高	海外子会社 売上高	number	海外子会社 売上高	sales	海外子会社		売上高	全体 > 海外子会社	売上高
+38170	2024	4	legacy	yoy_index	海外子会社 売上高(前年比)	海外子会社 売上高(前年比)	yoy_index	海外子会社 売上高(前年比)	sales	海外子会社		売上高	全体 > 海外子会社	売上高
+38170	2024	5	legacy	number	SRA 売上高	SRA 売上高	number	SRA 売上高	sales	SRA		売上高	全体 > SRA	売上高
+38170	2024	6	legacy	yoy_index	SRA 売上高(前年比)	SRA 売上高(前年比)	yoy_index	SRA 売上高(前年比)	sales	SRA		売上高	全体 > SRA	売上高
+38170	2024	7	legacy	number	AIT 売上高	AIT 売上高	number	AIT 売上高	sales	AIT		売上高	全体 > AIT	売上高
+38170	2024	8	legacy	yoy_index	AIT 売上高(前年比)	AIT 売上高(前年比)	yoy_index	AIT 売上高(前年比)	sales	AIT		売上高	全体 > AIT	売上高
+38170	2025	1	legacy	number	国内子会社 売上高	国内子会社 売上高	number	国内子会社 売上高	sales	国内子会社		売上高	全体 > 国内子会社	売上高
+38170	2025	2	legacy	yoy_index	国内子会社 売上高(前年比)	国内子会社 売上高(前年比)	yoy_index	国内子会社 売上高(前年比)	sales	国内子会社		売上高	全体 > 国内子会社	売上高
+38170	2025	3	legacy	number	海外子会社 売上高	海外子会社 売上高	number	海外子会社 売上高	sales	海外子会社		売上高	全体 > 海外子会社	売上高
+38170	2025	4	legacy	yoy_index	海外子会社 売上高(前年比)	海外子会社 売上高(前年比)	yoy_index	海外子会社 売上高(前年比)	sales	海外子会社		売上高	全体 > 海外子会社	売上高
+38170	2025	5	legacy	number	SRA 売上高	SRA 売上高	number	SRA 売上高	sales	SRA		売上高	全体 > SRA	売上高
+38170	2025	6	legacy	yoy_index	SRA 売上高(前年比)	SRA 売上高(前年比)	yoy_index	SRA 売上高(前年比)	sales	SRA		売上高	全体 > SRA	売上高
+38170	2025	7	legacy	number	AIT 売上高	AIT 売上高	number	AIT 売上高	sales	AIT		売上高	全体 > AIT	売上高
+38170	2025	8	legacy	yoy_index	AIT 売上高(前年比)	AIT 売上高(前年比)	yoy_index	AIT 売上高(前年比)	sales	AIT		売上高	全体 > AIT	売上高
+38170	2026	1	legacy	number	国内子会社 売上高	国内子会社 売上高	number	国内子会社 売上高	sales	国内子会社		売上高	全体 > 国内子会社	売上高
+38170	2026	2	legacy	yoy_index	国内子会社 売上高(前年比)	国内子会社 売上高(前年比)	yoy_index	国内子会社 売上高(前年比)	sales	国内子会社		売上高	全体 > 国内子会社	売上高
+38170	2026	3	legacy	number	海外子会社 売上高	海外子会社 売上高	number	海外子会社 売上高	sales	海外子会社		売上高	全体 > 海外子会社	売上高
+38170	2026	4	legacy	yoy_index	海外子会社 売上高(前年比)	海外子会社 売上高(前年比)	yoy_index	海外子会社 売上高(前年比)	sales	海外子会社		売上高	全体 > 海外子会社	売上高
+38170	2026	5	legacy	number	SRA 売上高	SRA 売上高	number	SRA 売上高	sales	SRA		売上高	全体 > SRA	売上高
+38170	2026	6	legacy	yoy_index	SRA 売上高(前年比)	SRA 売上高(前年比)	yoy_index	SRA 売上高(前年比)	sales	SRA		売上高	全体 > SRA	売上高
+38170	2026	7	legacy	number	AIT 売上高	AIT 売上高	number	AIT 売上高	sales	AIT		売上高	全体 > AIT	売上高
+38170	2026	8	legacy	yoy_index	AIT 売上高(前年比)	AIT 売上高(前年比)	yoy_index	AIT 売上高(前年比)	sales	AIT		売上高	全体 > AIT	売上高
 386A0	2025	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 386A0	2025	2	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
 386A0	2025	3	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
@@ -3402,36 +3402,36 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 41770	2026	2	legacy	yoy_index	成功報酬型 受注高(前年比)	成功報酬型 受注高(前年比)	yoy_index	成功報酬型 受注高(前年比)	other	成功報酬型 受注高			全体	成功報酬型 受注高
 41770	2026	3	legacy	number	早期定額型 受注高	早期定額型 受注高	number	早期定額型 受注高（百万円）	other	早期定額型 受注高			全体	早期定額型 受注高（百万円）
 41770	2026	4	legacy	yoy_index	早期定額型 受注高(前年比)	早期定額型 受注高(前年比)	yoy_index	早期定額型 受注高(前年比)	other	早期定額型 受注高			全体	早期定額型 受注高
-41930	2024	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-41930	2024	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-41930	2024	3	legacy	number	SMSソリューショングループ 全店 売上高	SMSソリューショングループ 全店 売上高	number	SMSソリューショングループ 全店 売上高	sales	SMSソリューショングループ	全店	売上高	全体 > SMSソリューショングループ	全店 売上高
-41930	2024	4	legacy	yoy_index	SMSソリューショングループ 全店 売上高(前年比)	SMSソリューショングループ 全店 売上高(前年比)	yoy_index	SMSソリューショングループ 全店 売上高(前年比)	sales	SMSソリューショングループ	全店	売上高	全体 > SMSソリューショングループ	全店 売上高
-41930	2024	5	legacy	number	U-CARソリューショングループ 全店 売上高	U-CARソリューショングループ 全店 売上高	number	U-CARソリューショングループ 全店 売上高	sales	U-CARソリューショングループ	全店	売上高	全体 > U-CARソリューショングループ	全店 売上高
-41930	2024	6	legacy	yoy_index	U-CARソリューショングループ 全店 売上高(前年比)	U-CARソリューショングループ 全店 売上高(前年比)	yoy_index	U-CARソリューショングループ 全店 売上高(前年比)	sales	U-CARソリューショングループ	全店	売上高	全体 > U-CARソリューショングループ	全店 売上高
-41930	2025	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-41930	2025	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-41930	2025	3	legacy	number	SMSソリューショングループ 全店 売上高	SMSソリューショングループ 全店 売上高	number	SMSソリューショングループ 全店 売上高	sales	SMSソリューショングループ	全店	売上高	全体 > SMSソリューショングループ	全店 売上高
-41930	2025	4	legacy	yoy_index	SMSソリューショングループ 全店 売上高(前年比)	SMSソリューショングループ 全店 売上高(前年比)	yoy_index	SMSソリューショングループ 全店 売上高(前年比)	sales	SMSソリューショングループ	全店	売上高	全体 > SMSソリューショングループ	全店 売上高
-41930	2025	5	legacy	number	U-CARソリューショングループ 全店 売上高	U-CARソリューショングループ 全店 売上高	number	U-CARソリューショングループ 全店 売上高	sales	U-CARソリューショングループ	全店	売上高	全体 > U-CARソリューショングループ	全店 売上高
-41930	2025	6	legacy	yoy_index	U-CARソリューショングループ 全店 売上高(前年比)	U-CARソリューショングループ 全店 売上高(前年比)	yoy_index	U-CARソリューショングループ 全店 売上高(前年比)	sales	U-CARソリューショングループ	全店	売上高	全体 > U-CARソリューショングループ	全店 売上高
-41930	2025	7	legacy	number	ビジネスコミュニケーション事業 全店 売上高	ビジネスコミュニケーション事業 全店 売上高	number	ビジネスコミュニケーション事業 全店 売上高	sales	ビジネスコミュニケーション事業	全店	売上高	全体 > ビジネスコミュニケーション事業	全店 売上高
-41930	2025	8	legacy	yoy_index	ビジネスコミュニケーション事業 全店 売上高(前年比)	ビジネスコミュニケーション事業 全店 売上高(前年比)	yoy_index	ビジネスコミュニケーション事業 全店 売上高(前年比)	sales	ビジネスコミュニケーション事業	全店	売上高	全体 > ビジネスコミュニケーション事業	全店 売上高
-41930	2025	9	legacy	number	オートモーティブプラットフォーム事業 全店 売上高	オートモーティブプラットフォーム事業 全店 売上高	number	オートモーティブプラットフォーム事業 全店 売上高	sales	オートモーティブプラットフォーム事業	全店	売上高	全体 > オートモーティブプラットフォーム事業	全店 売上高
-41930	2025	10	legacy	yoy_index	オートモーティブプラットフォーム事業 全店 売上高(前年比)	オートモーティブプラットフォーム事業 全店 売上高(前年比)	yoy_index	オートモーティブプラットフォーム事業 全店 売上高(前年比)	sales	オートモーティブプラットフォーム事業	全店	売上高	全体 > オートモーティブプラットフォーム事業	全店 売上高
-41930	2025	11	legacy	number	AI事業 全店 売上高	AI事業 全店 売上高	number	AI事業 全店 売上高	sales	AI事業	全店	売上高	全体 > AI事業	全店 売上高
-41930	2025	12	legacy	yoy_index	AI事業 全店 売上高(前年比)	AI事業 全店 売上高(前年比)	yoy_index	AI事業 全店 売上高(前年比)	sales	AI事業	全店	売上高	全体 > AI事業	全店 売上高
-41930	2025	13	legacy	number	オートサービス事業 全店 売上高	オートサービス事業 全店 売上高	number	オートサービス事業 全店 売上高	sales	オートサービス事業	全店	売上高	全体 > オートサービス事業	全店 売上高
-41930	2025	14	legacy	yoy_index	オートサービス事業 全店 売上高(前年比)	オートサービス事業 全店 売上高(前年比)	yoy_index	オートサービス事業 全店 売上高(前年比)	sales	オートサービス事業	全店	売上高	全体 > オートサービス事業	全店 売上高
-41930	2026	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-41930	2026	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-41930	2026	3	legacy	number	ビジネスコミュニケーション事業 全店 売上高	ビジネスコミュニケーション事業 全店 売上高	number	ビジネスコミュニケーション事業 全店 売上高	sales	ビジネスコミュニケーション事業	全店	売上高	全体 > ビジネスコミュニケーション事業	全店 売上高
-41930	2026	4	legacy	yoy_index	ビジネスコミュニケーション事業 全店 売上高(前年比)	ビジネスコミュニケーション事業 全店 売上高(前年比)	yoy_index	ビジネスコミュニケーション事業 全店 売上高(前年比)	sales	ビジネスコミュニケーション事業	全店	売上高	全体 > ビジネスコミュニケーション事業	全店 売上高
-41930	2026	5	legacy	number	オートモーティブプラットフォーム事業 全店 売上高	オートモーティブプラットフォーム事業 全店 売上高	number	オートモーティブプラットフォーム事業 全店 売上高	sales	オートモーティブプラットフォーム事業	全店	売上高	全体 > オートモーティブプラットフォーム事業	全店 売上高
-41930	2026	6	legacy	yoy_index	オートモーティブプラットフォーム事業 全店 売上高(前年比)	オートモーティブプラットフォーム事業 全店 売上高(前年比)	yoy_index	オートモーティブプラットフォーム事業 全店 売上高(前年比)	sales	オートモーティブプラットフォーム事業	全店	売上高	全体 > オートモーティブプラットフォーム事業	全店 売上高
-41930	2026	7	legacy	number	AI事業 全店 売上高	AI事業 全店 売上高	number	AI事業 全店 売上高	sales	AI事業	全店	売上高	全体 > AI事業	全店 売上高
-41930	2026	8	legacy	yoy_index	AI事業 全店 売上高(前年比)	AI事業 全店 売上高(前年比)	yoy_index	AI事業 全店 売上高(前年比)	sales	AI事業	全店	売上高	全体 > AI事業	全店 売上高
-41930	2026	9	legacy	number	オートサービス事業 全店 売上高	オートサービス事業 全店 売上高	number	オートサービス事業 全店 売上高	sales	オートサービス事業	全店	売上高	全体 > オートサービス事業	全店 売上高
-41930	2026	10	legacy	yoy_index	オートサービス事業 全店 売上高(前年比)	オートサービス事業 全店 売上高(前年比)	yoy_index	オートサービス事業 全店 売上高(前年比)	sales	オートサービス事業	全店	売上高	全体 > オートサービス事業	全店 売上高
+41930	2024	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	売上高
+41930	2024	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
+41930	2024	3	legacy	number	SMSソリューショングループ 売上高	SMSソリューショングループ 売上高	number	SMSソリューショングループ 売上高	sales	SMSソリューショングループ		売上高	全体 > SMSソリューショングループ	売上高
+41930	2024	4	legacy	yoy_index	SMSソリューショングループ 売上高(前年比)	SMSソリューショングループ 売上高(前年比)	yoy_index	SMSソリューショングループ 売上高(前年比)	sales	SMSソリューショングループ		売上高	全体 > SMSソリューショングループ	売上高
+41930	2024	5	legacy	number	U-CARソリューショングループ 売上高	U-CARソリューショングループ 売上高	number	U-CARソリューショングループ 売上高	sales	U-CARソリューショングループ		売上高	全体 > U-CARソリューショングループ	売上高
+41930	2024	6	legacy	yoy_index	U-CARソリューショングループ 売上高(前年比)	U-CARソリューショングループ 売上高(前年比)	yoy_index	U-CARソリューショングループ 売上高(前年比)	sales	U-CARソリューショングループ		売上高	全体 > U-CARソリューショングループ	売上高
+41930	2025	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	売上高
+41930	2025	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
+41930	2025	3	legacy	number	SMSソリューショングループ 売上高	SMSソリューショングループ 売上高	number	SMSソリューショングループ 売上高	sales	SMSソリューショングループ		売上高	全体 > SMSソリューショングループ	売上高
+41930	2025	4	legacy	yoy_index	SMSソリューショングループ 売上高(前年比)	SMSソリューショングループ 売上高(前年比)	yoy_index	SMSソリューショングループ 売上高(前年比)	sales	SMSソリューショングループ		売上高	全体 > SMSソリューショングループ	売上高
+41930	2025	5	legacy	number	U-CARソリューショングループ 売上高	U-CARソリューショングループ 売上高	number	U-CARソリューショングループ 売上高	sales	U-CARソリューショングループ		売上高	全体 > U-CARソリューショングループ	売上高
+41930	2025	6	legacy	yoy_index	U-CARソリューショングループ 売上高(前年比)	U-CARソリューショングループ 売上高(前年比)	yoy_index	U-CARソリューショングループ 売上高(前年比)	sales	U-CARソリューショングループ		売上高	全体 > U-CARソリューショングループ	売上高
+41930	2025	7	legacy	number	ビジネスコミュニケーション事業 売上高	ビジネスコミュニケーション事業 売上高	number	ビジネスコミュニケーション事業 売上高	sales	ビジネスコミュニケーション事業		売上高	全体 > ビジネスコミュニケーション事業	売上高
+41930	2025	8	legacy	yoy_index	ビジネスコミュニケーション事業 売上高(前年比)	ビジネスコミュニケーション事業 売上高(前年比)	yoy_index	ビジネスコミュニケーション事業 売上高(前年比)	sales	ビジネスコミュニケーション事業		売上高	全体 > ビジネスコミュニケーション事業	売上高
+41930	2025	9	legacy	number	オートモーティブプラットフォーム事業 売上高	オートモーティブプラットフォーム事業 売上高	number	オートモーティブプラットフォーム事業 売上高	sales	オートモーティブプラットフォーム事業		売上高	全体 > オートモーティブプラットフォーム事業	売上高
+41930	2025	10	legacy	yoy_index	オートモーティブプラットフォーム事業 売上高(前年比)	オートモーティブプラットフォーム事業 売上高(前年比)	yoy_index	オートモーティブプラットフォーム事業 売上高(前年比)	sales	オートモーティブプラットフォーム事業		売上高	全体 > オートモーティブプラットフォーム事業	売上高
+41930	2025	11	legacy	number	AI事業 売上高	AI事業 売上高	number	AI事業 売上高	sales	AI事業		売上高	全体 > AI事業	売上高
+41930	2025	12	legacy	yoy_index	AI事業 売上高(前年比)	AI事業 売上高(前年比)	yoy_index	AI事業 売上高(前年比)	sales	AI事業		売上高	全体 > AI事業	売上高
+41930	2025	13	legacy	number	オートサービス事業 売上高	オートサービス事業 売上高	number	オートサービス事業 売上高	sales	オートサービス事業		売上高	全体 > オートサービス事業	売上高
+41930	2025	14	legacy	yoy_index	オートサービス事業 売上高(前年比)	オートサービス事業 売上高(前年比)	yoy_index	オートサービス事業 売上高(前年比)	sales	オートサービス事業		売上高	全体 > オートサービス事業	売上高
+41930	2026	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	売上高
+41930	2026	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
+41930	2026	3	legacy	number	ビジネスコミュニケーション事業 売上高	ビジネスコミュニケーション事業 売上高	number	ビジネスコミュニケーション事業 売上高	sales	ビジネスコミュニケーション事業		売上高	全体 > ビジネスコミュニケーション事業	売上高
+41930	2026	4	legacy	yoy_index	ビジネスコミュニケーション事業 売上高(前年比)	ビジネスコミュニケーション事業 売上高(前年比)	yoy_index	ビジネスコミュニケーション事業 売上高(前年比)	sales	ビジネスコミュニケーション事業		売上高	全体 > ビジネスコミュニケーション事業	売上高
+41930	2026	5	legacy	number	オートモーティブプラットフォーム事業 売上高	オートモーティブプラットフォーム事業 売上高	number	オートモーティブプラットフォーム事業 売上高	sales	オートモーティブプラットフォーム事業		売上高	全体 > オートモーティブプラットフォーム事業	売上高
+41930	2026	6	legacy	yoy_index	オートモーティブプラットフォーム事業 売上高(前年比)	オートモーティブプラットフォーム事業 売上高(前年比)	yoy_index	オートモーティブプラットフォーム事業 売上高(前年比)	sales	オートモーティブプラットフォーム事業		売上高	全体 > オートモーティブプラットフォーム事業	売上高
+41930	2026	7	legacy	number	AI事業 売上高	AI事業 売上高	number	AI事業 売上高	sales	AI事業		売上高	全体 > AI事業	売上高
+41930	2026	8	legacy	yoy_index	AI事業 売上高(前年比)	AI事業 売上高(前年比)	yoy_index	AI事業 売上高(前年比)	sales	AI事業		売上高	全体 > AI事業	売上高
+41930	2026	9	legacy	number	オートサービス事業 売上高	オートサービス事業 売上高	number	オートサービス事業 売上高	sales	オートサービス事業		売上高	全体 > オートサービス事業	売上高
+41930	2026	10	legacy	yoy_index	オートサービス事業 売上高(前年比)	オートサービス事業 売上高(前年比)	yoy_index	オートサービス事業 売上高(前年比)	sales	オートサービス事業		売上高	全体 > オートサービス事業	売上高
 428A0	2025	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 428A0	2025	2	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
 428A0	2025	3	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
@@ -3497,30 +3497,30 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 43430	2026	27	legacy	number	日本 その他事業 店舗数	日本 その他事業 店舗数	number	日本 その他事業 店舗数	stores	その他事業		店舗数	全体 > その他事業	日本 店舗数
 43430	2026	28	legacy	yoy_index	日本 売上高(前年比)	日本 売上高(前年比)	yoy_index	日本 売上高(前年比)	sales			売上高	全体	日本 売上高
 43430	2026	29	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
-43740	2023	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-43740	2023	2	legacy	number	請求管理ロボ 全店 売上高	請求管理ロボ 全店 売上高	number	請求管理ロボ 全店 売上高	sales	請求管理ロボ	全店	売上高	全体 > 請求管理ロボ	全店 売上高
-43740	2023	3	legacy	number	サブスクペイ 全店 売上高	サブスクペイ 全店 売上高	number	サブスクペイ 全店 売上高	sales	サブスクペイ	全店	売上高	全体 > サブスクペイ	全店 売上高
-43740	2023	4	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-43740	2023	5	legacy	yoy_index	請求管理ロボ(前年比)	請求管理ロボ(前年比)	yoy_index	請求管理ロボ(前年比)	other	請求管理ロボ			全体 > 請求管理ロボ	全店 売上高
-43740	2023	6	legacy	yoy_index	サブスクペイ(前年比)	サブスクペイ(前年比)	yoy_index	サブスクペイ(前年比)	other	サブスクペイ			全体 > サブスクペイ	全店 売上高
-43740	2024	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-43740	2024	2	legacy	number	請求管理ロボ 全店 売上高	請求管理ロボ 全店 売上高	number	請求管理ロボ 全店 売上高	sales	請求管理ロボ	全店	売上高	全体 > 請求管理ロボ	全店 売上高
-43740	2024	3	legacy	number	サブスクペイ 全店 売上高	サブスクペイ 全店 売上高	number	サブスクペイ 全店 売上高	sales	サブスクペイ	全店	売上高	全体 > サブスクペイ	全店 売上高
-43740	2024	4	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-43740	2024	5	legacy	yoy_index	請求管理ロボ(前年比)	請求管理ロボ(前年比)	yoy_index	請求管理ロボ(前年比)	other	請求管理ロボ			全体 > 請求管理ロボ	全店 売上高
-43740	2024	6	legacy	yoy_index	サブスクペイ(前年比)	サブスクペイ(前年比)	yoy_index	サブスクペイ(前年比)	other	サブスクペイ			全体 > サブスクペイ	全店 売上高
-43740	2025	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-43740	2025	2	legacy	number	請求管理ロボ 全店 売上高	請求管理ロボ 全店 売上高	number	請求管理ロボ 全店 売上高	sales	請求管理ロボ	全店	売上高	全体 > 請求管理ロボ	全店 売上高
-43740	2025	3	legacy	number	サブスクペイ 全店 売上高	サブスクペイ 全店 売上高	number	サブスクペイ 全店 売上高	sales	サブスクペイ	全店	売上高	全体 > サブスクペイ	全店 売上高
-43740	2025	4	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-43740	2025	5	legacy	yoy_index	請求管理ロボ(前年比)	請求管理ロボ(前年比)	yoy_index	請求管理ロボ(前年比)	other	請求管理ロボ			全体 > 請求管理ロボ	全店 売上高
-43740	2025	6	legacy	yoy_index	サブスクペイ(前年比)	サブスクペイ(前年比)	yoy_index	サブスクペイ(前年比)	other	サブスクペイ			全体 > サブスクペイ	全店 売上高
-43740	2026	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-43740	2026	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-43740	2026	3	legacy	number	請求管理ロボ 全店 売上高	請求管理ロボ 全店 売上高	number	請求管理ロボ 全店 売上高	sales	請求管理ロボ	全店	売上高	全体 > 請求管理ロボ	全店 売上高
-43740	2026	4	legacy	number	サブスクペイ 全店 売上高	サブスクペイ 全店 売上高	number	サブスクペイ 全店 売上高	sales	サブスクペイ	全店	売上高	全体 > サブスクペイ	全店 売上高
-43740	2026	5	legacy	yoy_index	請求管理ロボ(前年比)	請求管理ロボ(前年比)	yoy_index	請求管理ロボ(前年比)	other	請求管理ロボ			全体 > 請求管理ロボ	全店 売上高
-43740	2026	6	legacy	yoy_index	サブスクペイ(前年比)	サブスクペイ(前年比)	yoy_index	サブスクペイ(前年比)	other	サブスクペイ			全体 > サブスクペイ	全店 売上高
+43740	2023	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+43740	2023	2	legacy	number	請求管理ロボ 売上高	請求管理ロボ 売上高	number	請求管理ロボ 売上高	sales	請求管理ロボ		売上高	全体 > 請求管理ロボ	売上高
+43740	2023	3	legacy	number	サブスクペイ 売上高	サブスクペイ 売上高	number	サブスクペイ 売上高	sales	サブスクペイ		売上高	全体 > サブスクペイ	売上高
+43740	2023	4	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+43740	2023	5	legacy	yoy_index	請求管理ロボ 売上高(前年比)	請求管理ロボ 売上高(前年比)	yoy_index	請求管理ロボ 売上高(前年比)	sales	請求管理ロボ		売上高	全体 > 請求管理ロボ	売上高
+43740	2023	6	legacy	yoy_index	サブスクペイ 売上高(前年比)	サブスクペイ 売上高(前年比)	yoy_index	サブスクペイ 売上高(前年比)	sales	サブスクペイ		売上高	全体 > サブスクペイ	売上高
+43740	2024	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+43740	2024	2	legacy	number	請求管理ロボ 売上高	請求管理ロボ 売上高	number	請求管理ロボ 売上高	sales	請求管理ロボ		売上高	全体 > 請求管理ロボ	売上高
+43740	2024	3	legacy	number	サブスクペイ 売上高	サブスクペイ 売上高	number	サブスクペイ 売上高	sales	サブスクペイ		売上高	全体 > サブスクペイ	売上高
+43740	2024	4	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+43740	2024	5	legacy	yoy_index	請求管理ロボ 売上高(前年比)	請求管理ロボ 売上高(前年比)	yoy_index	請求管理ロボ 売上高(前年比)	sales	請求管理ロボ		売上高	全体 > 請求管理ロボ	売上高
+43740	2024	6	legacy	yoy_index	サブスクペイ 売上高(前年比)	サブスクペイ 売上高(前年比)	yoy_index	サブスクペイ 売上高(前年比)	sales	サブスクペイ		売上高	全体 > サブスクペイ	売上高
+43740	2025	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+43740	2025	2	legacy	number	請求管理ロボ 売上高	請求管理ロボ 売上高	number	請求管理ロボ 売上高	sales	請求管理ロボ		売上高	全体 > 請求管理ロボ	売上高
+43740	2025	3	legacy	number	サブスクペイ 売上高	サブスクペイ 売上高	number	サブスクペイ 売上高	sales	サブスクペイ		売上高	全体 > サブスクペイ	売上高
+43740	2025	4	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+43740	2025	5	legacy	yoy_index	請求管理ロボ 売上高(前年比)	請求管理ロボ 売上高(前年比)	yoy_index	請求管理ロボ 売上高(前年比)	sales	請求管理ロボ		売上高	全体 > 請求管理ロボ	売上高
+43740	2025	6	legacy	yoy_index	サブスクペイ 売上高(前年比)	サブスクペイ 売上高(前年比)	yoy_index	サブスクペイ 売上高(前年比)	sales	サブスクペイ		売上高	全体 > サブスクペイ	売上高
+43740	2026	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+43740	2026	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+43740	2026	3	legacy	number	請求管理ロボ 売上高	請求管理ロボ 売上高	number	請求管理ロボ 売上高	sales	請求管理ロボ		売上高	全体 > 請求管理ロボ	売上高
+43740	2026	4	legacy	number	サブスクペイ 売上高	サブスクペイ 売上高	number	サブスクペイ 売上高	sales	サブスクペイ		売上高	全体 > サブスクペイ	売上高
+43740	2026	5	legacy	yoy_index	請求管理ロボ 売上高(前年比)	請求管理ロボ 売上高(前年比)	yoy_index	請求管理ロボ 売上高(前年比)	sales	請求管理ロボ		売上高	全体 > 請求管理ロボ	売上高
+43740	2026	6	legacy	yoy_index	サブスクペイ 売上高(前年比)	サブスクペイ 売上高(前年比)	yoy_index	サブスクペイ 売上高(前年比)	sales	サブスクペイ		売上高	全体 > サブスクペイ	売上高
 46660	2024	1	legacy	number	駐車場 件数	駐車場 件数	number	駐車場 件数	count	駐車場		件数	全体 > 駐車場	件数
 46660	2024	2	legacy	number	駐車場 件数 直営	駐車場 件数 直営	number	駐車場 件数 直営	count	駐車場		件数	全体 > 駐車場 > 直営	件数
 46660	2024	3	legacy	number	タイムズのB 件数 直営	タイムズのB 件数 直営	number	タイムズのB 件数 直営	count	タイムズのB		件数	全体 > 駐車場 > 直営 > タイムズのB	件数
@@ -4108,61 +4108,61 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 60590	2026	14	legacy	yoy_index	飲食 既存 売上高(前年比)	飲食 既存 売上高(前年比)	yoy_index	飲食 既存 売上高(前年比)	sales	飲食	既存	売上高	全体 > 飲食	既存 売上高
 60590	2026	15	legacy	yoy_index	飲食 既存 客数(前年比)	飲食 既存 客数(前年比)	yoy_index	飲食 既存 客数(前年比)	customers	飲食	既存	客数	全体 > 飲食	既存 客数
 60590	2026	16	legacy	yoy_index	飲食 既存 客単価(前年比)	飲食 既存 客単価(前年比)	yoy_index	飲食 既存 客単価(前年比)	spend	飲食	既存	客単価	全体 > 飲食	既存 客単価
-60730	2023	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-60730	2023	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-60730	2024	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-60730	2024	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-60730	2025	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-60730	2025	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-60730	2026	1	legacy	number	全店 連結売上高	全店 連結売上高	number	全店 連結売上高	sales		全店	連結売上高	全体	全店 連結売上高
-60730	2026	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-62380	2023	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-62380	2023	2	legacy	number	世界観ビジネス	世界観ビジネス	number	世界観ビジネス	other	世界観ビジネス			全体	世界観ビジネス
-62380	2023	3	legacy	number	ガールズトレンドビジネス	ガールズトレンドビジネス	number	ガールズトレンドビジネス	other	ガールズトレンドビジネス			全体	ガールズトレンドビジネス
-62380	2023	4	legacy	number	フリューニュービジネス	フリューニュービジネス	number	フリューニュービジネス	other	フリューニュービジネス			全体	フリューニュービジネス
+60730	2023	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
+60730	2023	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
+60730	2024	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
+60730	2024	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
+60730	2025	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
+60730	2025	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
+60730	2026	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
+60730	2026	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
+62380	2023	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+62380	2023	2	legacy	number	世界観ビジネス 売上高	世界観ビジネス 売上高	number	世界観ビジネス 売上高	sales	世界観ビジネス		売上高	全体 > 世界観ビジネス	売上高
+62380	2023	3	legacy	number	ガールズトレンドビジネス 売上高	ガールズトレンドビジネス 売上高	number	ガールズトレンドビジネス 売上高	sales	ガールズトレンドビジネス		売上高	全体 > ガールズトレンドビジネス	売上高
+62380	2023	4	legacy	number	フリューニュービジネス 売上高	フリューニュービジネス 売上高	number	フリューニュービジネス 売上高	sales	フリューニュービジネス		売上高	全体 > フリューニュービジネス	売上高
 62380	2023	5	legacy	number	総プレイ回数	総プレイ回数	number	総プレイ回数	count			総プレイ回数	全体	総プレイ回数
 62380	2023	6	legacy	number	ピクトリンク 有料会員数	ピクトリンク 有料会員数	number	ピクトリンク 有料会員数	count	ピクトリンク		有料会員数	全体 > ピクトリンク	有料会員数
-62380	2023	7	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-62380	2023	8	legacy	yoy_index	世界観ビジネス(前年比)	世界観ビジネス(前年比)	yoy_index	世界観ビジネス(前年比)	other	世界観ビジネス			全体	世界観ビジネス
-62380	2023	9	legacy	yoy_index	ガールズトレンドビジネス(前年比)	ガールズトレンドビジネス(前年比)	yoy_index	ガールズトレンドビジネス(前年比)	other	ガールズトレンドビジネス			全体	ガールズトレンドビジネス
-62380	2023	10	legacy	yoy_index	フリューニュービジネス(前年比)	フリューニュービジネス(前年比)	yoy_index	フリューニュービジネス(前年比)	other	フリューニュービジネス			全体	フリューニュービジネス
+62380	2023	7	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+62380	2023	8	legacy	yoy_index	世界観ビジネス 売上高(前年比)	世界観ビジネス 売上高(前年比)	yoy_index	世界観ビジネス 売上高(前年比)	sales	世界観ビジネス		売上高	全体 > 世界観ビジネス	売上高
+62380	2023	9	legacy	yoy_index	ガールズトレンドビジネス 売上高(前年比)	ガールズトレンドビジネス 売上高(前年比)	yoy_index	ガールズトレンドビジネス 売上高(前年比)	sales	ガールズトレンドビジネス		売上高	全体 > ガールズトレンドビジネス	売上高
+62380	2023	10	legacy	yoy_index	フリューニュービジネス 売上高(前年比)	フリューニュービジネス 売上高(前年比)	yoy_index	フリューニュービジネス 売上高(前年比)	sales	フリューニュービジネス		売上高	全体 > フリューニュービジネス	売上高
 62380	2023	11	legacy	yoy_index	総プレイ回数(前年比)	総プレイ回数(前年比)	yoy_index	総プレイ回数(前年比)	count			総プレイ回数	全体	総プレイ回数
 62380	2023	12	legacy	yoy_index	ピクトリンク 有料会員数(前年比)	ピクトリンク 有料会員数(前年比)	yoy_index	ピクトリンク 有料会員数(前年比)	count	ピクトリンク		有料会員数	全体 > ピクトリンク	有料会員数
-62380	2024	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
+62380	2024	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 62380	2024	2	legacy	number	総プレイ回数	総プレイ回数	number	総プレイ回数	count			総プレイ回数	全体	総プレイ回数
 62380	2024	3	legacy	number	ピクトリンク 有料会員数	ピクトリンク 有料会員数	number	ピクトリンク 有料会員数	count	ピクトリンク		有料会員数	全体 > ピクトリンク	有料会員数
-62380	2024	4	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+62380	2024	4	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 62380	2024	5	legacy	yoy_index	総プレイ回数(前年比)	総プレイ回数(前年比)	yoy_index	総プレイ回数(前年比)	count			総プレイ回数	全体	総プレイ回数
-62380	2024	6	legacy	number	世界観ビジネス	世界観ビジネス	number	世界観ビジネス	other	世界観ビジネス			全体	世界観ビジネス
-62380	2024	7	legacy	number	ガールズトレンドビジネス	ガールズトレンドビジネス	number	ガールズトレンドビジネス	other	ガールズトレンドビジネス			全体	ガールズトレンドビジネス
-62380	2024	8	legacy	number	フリューニュービジネス	フリューニュービジネス	number	フリューニュービジネス	other	フリューニュービジネス			全体	フリューニュービジネス
-62380	2024	9	legacy	yoy_index	世界観ビジネス(前年比)	世界観ビジネス(前年比)	yoy_index	世界観ビジネス(前年比)	other	世界観ビジネス			全体	世界観ビジネス
-62380	2024	10	legacy	yoy_index	ガールズトレンドビジネス(前年比)	ガールズトレンドビジネス(前年比)	yoy_index	ガールズトレンドビジネス(前年比)	other	ガールズトレンドビジネス			全体	ガールズトレンドビジネス
-62380	2024	11	legacy	yoy_index	フリューニュービジネス(前年比)	フリューニュービジネス(前年比)	yoy_index	フリューニュービジネス(前年比)	other	フリューニュービジネス			全体	フリューニュービジネス
+62380	2024	6	legacy	number	世界観ビジネス 売上高	世界観ビジネス 売上高	number	世界観ビジネス 売上高	sales	世界観ビジネス		売上高	全体 > 世界観ビジネス	売上高
+62380	2024	7	legacy	number	ガールズトレンドビジネス 売上高	ガールズトレンドビジネス 売上高	number	ガールズトレンドビジネス 売上高	sales	ガールズトレンドビジネス		売上高	全体 > ガールズトレンドビジネス	売上高
+62380	2024	8	legacy	number	フリューニュービジネス 売上高	フリューニュービジネス 売上高	number	フリューニュービジネス 売上高	sales	フリューニュービジネス		売上高	全体 > フリューニュービジネス	売上高
+62380	2024	9	legacy	yoy_index	世界観ビジネス 売上高(前年比)	世界観ビジネス 売上高(前年比)	yoy_index	世界観ビジネス 売上高(前年比)	sales	世界観ビジネス		売上高	全体 > 世界観ビジネス	売上高
+62380	2024	10	legacy	yoy_index	ガールズトレンドビジネス 売上高(前年比)	ガールズトレンドビジネス 売上高(前年比)	yoy_index	ガールズトレンドビジネス 売上高(前年比)	sales	ガールズトレンドビジネス		売上高	全体 > ガールズトレンドビジネス	売上高
+62380	2024	11	legacy	yoy_index	フリューニュービジネス 売上高(前年比)	フリューニュービジネス 売上高(前年比)	yoy_index	フリューニュービジネス 売上高(前年比)	sales	フリューニュービジネス		売上高	全体 > フリューニュービジネス	売上高
 62380	2024	12	legacy	yoy_index	ピクトリンク 有料会員数(前年比)	ピクトリンク 有料会員数(前年比)	yoy_index	ピクトリンク 有料会員数(前年比)	count	ピクトリンク		有料会員数	全体 > ピクトリンク	有料会員数
-62380	2025	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
+62380	2025	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 62380	2025	2	legacy	number	総プレイ回数	総プレイ回数	number	総プレイ回数	count			総プレイ回数	全体	総プレイ回数
 62380	2025	3	legacy	number	ピクトリンク 有料会員数	ピクトリンク 有料会員数	number	ピクトリンク 有料会員数	count	ピクトリンク		有料会員数	全体 > ピクトリンク	有料会員数
-62380	2025	4	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+62380	2025	4	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 62380	2025	5	legacy	yoy_index	総プレイ回数(前年比)	総プレイ回数(前年比)	yoy_index	総プレイ回数(前年比)	count			総プレイ回数	全体	総プレイ回数
-62380	2025	6	legacy	number	世界観ビジネス	世界観ビジネス	number	世界観ビジネス	other	世界観ビジネス			全体	世界観ビジネス
-62380	2025	7	legacy	number	ガールズトレンドビジネス	ガールズトレンドビジネス	number	ガールズトレンドビジネス	other	ガールズトレンドビジネス			全体	ガールズトレンドビジネス
-62380	2025	8	legacy	number	フリューニュービジネス	フリューニュービジネス	number	フリューニュービジネス	other	フリューニュービジネス			全体	フリューニュービジネス
-62380	2025	9	legacy	yoy_index	世界観ビジネス(前年比)	世界観ビジネス(前年比)	yoy_index	世界観ビジネス(前年比)	other	世界観ビジネス			全体	世界観ビジネス
-62380	2025	10	legacy	yoy_index	ガールズトレンドビジネス(前年比)	ガールズトレンドビジネス(前年比)	yoy_index	ガールズトレンドビジネス(前年比)	other	ガールズトレンドビジネス			全体	ガールズトレンドビジネス
-62380	2025	11	legacy	yoy_index	フリューニュービジネス(前年比)	フリューニュービジネス(前年比)	yoy_index	フリューニュービジネス(前年比)	other	フリューニュービジネス			全体	フリューニュービジネス
+62380	2025	6	legacy	number	世界観ビジネス 売上高	世界観ビジネス 売上高	number	世界観ビジネス 売上高	sales	世界観ビジネス		売上高	全体 > 世界観ビジネス	売上高
+62380	2025	7	legacy	number	ガールズトレンドビジネス 売上高	ガールズトレンドビジネス 売上高	number	ガールズトレンドビジネス 売上高	sales	ガールズトレンドビジネス		売上高	全体 > ガールズトレンドビジネス	売上高
+62380	2025	8	legacy	number	フリューニュービジネス 売上高	フリューニュービジネス 売上高	number	フリューニュービジネス 売上高	sales	フリューニュービジネス		売上高	全体 > フリューニュービジネス	売上高
+62380	2025	9	legacy	yoy_index	世界観ビジネス 売上高(前年比)	世界観ビジネス 売上高(前年比)	yoy_index	世界観ビジネス 売上高(前年比)	sales	世界観ビジネス		売上高	全体 > 世界観ビジネス	売上高
+62380	2025	10	legacy	yoy_index	ガールズトレンドビジネス 売上高(前年比)	ガールズトレンドビジネス 売上高(前年比)	yoy_index	ガールズトレンドビジネス 売上高(前年比)	sales	ガールズトレンドビジネス		売上高	全体 > ガールズトレンドビジネス	売上高
+62380	2025	11	legacy	yoy_index	フリューニュービジネス 売上高(前年比)	フリューニュービジネス 売上高(前年比)	yoy_index	フリューニュービジネス 売上高(前年比)	sales	フリューニュービジネス		売上高	全体 > フリューニュービジネス	売上高
 62380	2025	12	legacy	yoy_index	ピクトリンク 有料会員数(前年比)	ピクトリンク 有料会員数(前年比)	yoy_index	ピクトリンク 有料会員数(前年比)	count	ピクトリンク		有料会員数	全体 > ピクトリンク	有料会員数
-62380	2026	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
+62380	2026	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 62380	2026	2	legacy	number	総プレイ回数	総プレイ回数	number	総プレイ回数	count			総プレイ回数	全体	総プレイ回数
 62380	2026	3	legacy	number	ピクトリンク 有料会員数	ピクトリンク 有料会員数	number	ピクトリンク 有料会員数	count	ピクトリンク		有料会員数	全体 > ピクトリンク	有料会員数
-62380	2026	4	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+62380	2026	4	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 62380	2026	5	legacy	yoy_index	総プレイ回数(前年比)	総プレイ回数(前年比)	yoy_index	総プレイ回数(前年比)	count			総プレイ回数	全体	総プレイ回数
-62380	2026	6	legacy	number	世界観ビジネス	世界観ビジネス	number	世界観ビジネス	other	世界観ビジネス			全体	世界観ビジネス
-62380	2026	7	legacy	number	ガールズトレンドビジネス	ガールズトレンドビジネス	number	ガールズトレンドビジネス	other	ガールズトレンドビジネス			全体	ガールズトレンドビジネス
-62380	2026	8	legacy	number	フリューニュービジネス	フリューニュービジネス	number	フリューニュービジネス	other	フリューニュービジネス			全体	フリューニュービジネス
-62380	2026	9	legacy	yoy_index	世界観ビジネス(前年比)	世界観ビジネス(前年比)	yoy_index	世界観ビジネス(前年比)	other	世界観ビジネス			全体	世界観ビジネス
-62380	2026	10	legacy	yoy_index	ガールズトレンドビジネス(前年比)	ガールズトレンドビジネス(前年比)	yoy_index	ガールズトレンドビジネス(前年比)	other	ガールズトレンドビジネス			全体	ガールズトレンドビジネス
-62380	2026	11	legacy	yoy_index	フリューニュービジネス(前年比)	フリューニュービジネス(前年比)	yoy_index	フリューニュービジネス(前年比)	other	フリューニュービジネス			全体	フリューニュービジネス
+62380	2026	6	legacy	number	世界観ビジネス 売上高	世界観ビジネス 売上高	number	世界観ビジネス 売上高	sales	世界観ビジネス		売上高	全体 > 世界観ビジネス	売上高
+62380	2026	7	legacy	number	ガールズトレンドビジネス 売上高	ガールズトレンドビジネス 売上高	number	ガールズトレンドビジネス 売上高	sales	ガールズトレンドビジネス		売上高	全体 > ガールズトレンドビジネス	売上高
+62380	2026	8	legacy	number	フリューニュービジネス 売上高	フリューニュービジネス 売上高	number	フリューニュービジネス 売上高	sales	フリューニュービジネス		売上高	全体 > フリューニュービジネス	売上高
+62380	2026	9	legacy	yoy_index	世界観ビジネス 売上高(前年比)	世界観ビジネス 売上高(前年比)	yoy_index	世界観ビジネス 売上高(前年比)	sales	世界観ビジネス		売上高	全体 > 世界観ビジネス	売上高
+62380	2026	10	legacy	yoy_index	ガールズトレンドビジネス 売上高(前年比)	ガールズトレンドビジネス 売上高(前年比)	yoy_index	ガールズトレンドビジネス 売上高(前年比)	sales	ガールズトレンドビジネス		売上高	全体 > ガールズトレンドビジネス	売上高
+62380	2026	11	legacy	yoy_index	フリューニュービジネス 売上高(前年比)	フリューニュービジネス 売上高(前年比)	yoy_index	フリューニュービジネス 売上高(前年比)	sales	フリューニュービジネス		売上高	全体 > フリューニュービジネス	売上高
 62380	2026	12	legacy	yoy_index	ピクトリンク 有料会員数(前年比)	ピクトリンク 有料会員数(前年比)	yoy_index	ピクトリンク 有料会員数(前年比)	count	ピクトリンク		有料会員数	全体 > ピクトリンク	有料会員数
 65370	2024	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 65370	2024	2	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
@@ -4884,44 +4884,44 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 74220	2026	16	legacy	number	不動産 売上高	不動産 売上高	number	不動産 売上高	sales	不動産		売上高	全体 > 不動産	売上高
 74220	2026	17	legacy	yoy_index	不動産 売上高(前年比)	不動産 売上高(前年比)	yoy_index	不動産 売上高(前年比)	sales	不動産		売上高	全体 > 不動産	売上高
 74760	2023	1	legacy	number	営業日数	営業日数	number	営業日数	count			営業日数	全体	営業日数
-74760	2023	2	legacy	yoy_index	1日当たり 全店 売上高(前年比)	1日当たり 全店 売上高(前年比)	yoy_index	1日当たり 全店 売上高(前年比)	sales	1日当たり	全店	売上高	全体	1日当たり 売上高
-74760	2023	3	legacy	number	主要3分野 全店 売上高	主要3分野 全店 売上高	number	主要3分野 全店 売上高	sales	主要3分野	全店	売上高	全体 > 主要3分野	全店 売上高
-74760	2023	4	legacy	yoy_index	主要3分野(前年比)	主要3分野(前年比)	yoy_index	主要3分野(前年比)	other	主要3分野			全体 > 主要3分野	全店 売上高
-74760	2024	1	legacy	number	主要3分野 全店 売上高	主要3分野 全店 売上高	number	主要3分野 全店 売上高	sales	主要3分野	全店	売上高	全体 > 主要3分野	全店 売上高
-74760	2024	2	legacy	yoy_index	主要3分野(前年比)	主要3分野(前年比)	yoy_index	主要3分野(前年比)	other	主要3分野			全体 > 主要3分野	全店 売上高
+74760	2023	2	legacy	yoy_index	1日当たり 売上高(前年比)	1日当たり 売上高(前年比)	yoy_index	1日当たり 売上高(前年比)	sales	1日当たり		売上高	全体	1日当たり 売上高
+74760	2023	3	legacy	number	主要3分野 売上高	主要3分野 売上高	number	主要3分野 売上高	sales	主要3分野		売上高	全体 > 主要3分野	売上高
+74760	2023	4	legacy	yoy_index	主要3分野 売上高(前年比)	主要3分野 売上高(前年比)	yoy_index	主要3分野 売上高(前年比)	sales	主要3分野		売上高	全体 > 主要3分野	売上高
+74760	2024	1	legacy	number	主要3分野 売上高	主要3分野 売上高	number	主要3分野 売上高	sales	主要3分野		売上高	全体 > 主要3分野	売上高
+74760	2024	2	legacy	yoy_index	主要3分野 売上高(前年比)	主要3分野 売上高(前年比)	yoy_index	主要3分野 売上高(前年比)	sales	主要3分野		売上高	全体 > 主要3分野	売上高
 74760	2024	3	legacy	number	営業日数	営業日数	number	営業日数	count			営業日数	全体	営業日数
-74760	2024	4	legacy	yoy_index	1日当たり 全店 売上高(前年比)	1日当たり 全店 売上高(前年比)	yoy_index	1日当たり 全店 売上高(前年比)	sales	1日当たり	全店	売上高	全体	1日当たり 売上高
-74760	2024	5	legacy	number	ラボラトリー 全店 売上高	ラボラトリー 全店 売上高	number	ラボラトリー 全店 売上高	sales	ラボラトリー	全店	売上高	全体 > 主要3分野 > ラボラトリー	全店 売上高
-74760	2024	6	legacy	yoy_index	ラボラトリー(前年比)	ラボラトリー(前年比)	yoy_index	ラボラトリー(前年比)	other	ラボラトリー			全体 > 主要3分野 > ラボラトリー	全店 売上高
-74760	2024	7	legacy	number	インダストリー 全店 売上高	インダストリー 全店 売上高	number	インダストリー 全店 売上高	sales	インダストリー	全店	売上高	全体 > 主要3分野 > インダストリー	全店 売上高
-74760	2024	8	legacy	yoy_index	インダストリー(前年比)	インダストリー(前年比)	yoy_index	インダストリー(前年比)	other	インダストリー			全体 > 主要3分野 > インダストリー	全店 売上高
-74760	2024	9	legacy	number	メディカル 全店 売上高	メディカル 全店 売上高	number	メディカル 全店 売上高	sales	メディカル	全店	売上高	全体 > 主要3分野 > メディカル	全店 売上高
-74760	2024	10	legacy	yoy_index	メディカル(前年比)	メディカル(前年比)	yoy_index	メディカル(前年比)	other	メディカル			全体 > 主要3分野 > メディカル	全店 売上高
-74760	2025	1	legacy	number	主要3分野 全店 売上高	主要3分野 全店 売上高	number	主要3分野 全店 売上高	sales	主要3分野	全店	売上高	全体 > 主要3分野	全店 売上高
-74760	2025	2	legacy	yoy_index	主要3分野(前年比)	主要3分野(前年比)	yoy_index	主要3分野(前年比)	other	主要3分野			全体 > 主要3分野	全店 売上高
+74760	2024	4	legacy	yoy_index	1日当たり 売上高(前年比)	1日当たり 売上高(前年比)	yoy_index	1日当たり 売上高(前年比)	sales	1日当たり		売上高	全体	1日当たり 売上高
+74760	2024	5	legacy	number	ラボラトリー 売上高	ラボラトリー 売上高	number	ラボラトリー 売上高	sales	ラボラトリー		売上高	全体 > 主要3分野 > ラボラトリー	売上高
+74760	2024	6	legacy	yoy_index	ラボラトリー 売上高(前年比)	ラボラトリー 売上高(前年比)	yoy_index	ラボラトリー 売上高(前年比)	sales	ラボラトリー		売上高	全体 > 主要3分野 > ラボラトリー	売上高
+74760	2024	7	legacy	number	インダストリー 売上高	インダストリー 売上高	number	インダストリー 売上高	sales	インダストリー		売上高	全体 > 主要3分野 > インダストリー	売上高
+74760	2024	8	legacy	yoy_index	インダストリー 売上高(前年比)	インダストリー 売上高(前年比)	yoy_index	インダストリー 売上高(前年比)	sales	インダストリー		売上高	全体 > 主要3分野 > インダストリー	売上高
+74760	2024	9	legacy	number	メディカル 売上高	メディカル 売上高	number	メディカル 売上高	sales	メディカル		売上高	全体 > 主要3分野 > メディカル	売上高
+74760	2024	10	legacy	yoy_index	メディカル 売上高(前年比)	メディカル 売上高(前年比)	yoy_index	メディカル 売上高(前年比)	sales	メディカル		売上高	全体 > 主要3分野 > メディカル	売上高
+74760	2025	1	legacy	number	主要3分野 売上高	主要3分野 売上高	number	主要3分野 売上高	sales	主要3分野		売上高	全体 > 主要3分野	売上高
+74760	2025	2	legacy	yoy_index	主要3分野 売上高(前年比)	主要3分野 売上高(前年比)	yoy_index	主要3分野 売上高(前年比)	sales	主要3分野		売上高	全体 > 主要3分野	売上高
 74760	2025	3	legacy	number	営業日数	営業日数	number	営業日数	count			営業日数	全体	営業日数
-74760	2025	4	legacy	yoy_index	1日当たり 全店 売上高(前年比)	1日当たり 全店 売上高(前年比)	yoy_index	1日当たり 全店 売上高(前年比)	sales	1日当たり	全店	売上高	全体	1日当たり 売上高
-74760	2025	5	legacy	number	ラボラトリー 全店 売上高	ラボラトリー 全店 売上高	number	ラボラトリー 全店 売上高	sales	ラボラトリー	全店	売上高	全体 > 主要3分野 > ラボラトリー	全店 売上高
-74760	2025	6	legacy	yoy_index	ラボラトリー(前年比)	ラボラトリー(前年比)	yoy_index	ラボラトリー(前年比)	other	ラボラトリー			全体 > 主要3分野 > ラボラトリー	全店 売上高
-74760	2025	7	legacy	number	インダストリー 全店 売上高	インダストリー 全店 売上高	number	インダストリー 全店 売上高	sales	インダストリー	全店	売上高	全体 > 主要3分野 > インダストリー	全店 売上高
-74760	2025	8	legacy	yoy_index	インダストリー(前年比)	インダストリー(前年比)	yoy_index	インダストリー(前年比)	other	インダストリー			全体 > 主要3分野 > インダストリー	全店 売上高
-74760	2025	9	legacy	number	メディカル 全店 売上高	メディカル 全店 売上高	number	メディカル 全店 売上高	sales	メディカル	全店	売上高	全体 > 主要3分野 > メディカル	全店 売上高
-74760	2025	10	legacy	yoy_index	メディカル(前年比)	メディカル(前年比)	yoy_index	メディカル(前年比)	other	メディカル			全体 > 主要3分野 > メディカル	全店 売上高
-74760	2026	1	legacy	number	ラボラトリー 全店 売上高	ラボラトリー 全店 売上高	number	ラボラトリー 全店 売上高	sales	ラボラトリー	全店	売上高	全体 > 主要3分野 > ラボラトリー	全店 売上高
-74760	2026	2	legacy	yoy_index	ラボラトリー(前年比)	ラボラトリー(前年比)	yoy_index	ラボラトリー(前年比)	other	ラボラトリー			全体 > 主要3分野 > ラボラトリー	全店 売上高
-74760	2026	3	legacy	number	インダストリー 全店 売上高	インダストリー 全店 売上高	number	インダストリー 全店 売上高	sales	インダストリー	全店	売上高	全体 > 主要3分野 > インダストリー	全店 売上高
-74760	2026	4	legacy	yoy_index	インダストリー(前年比)	インダストリー(前年比)	yoy_index	インダストリー(前年比)	other	インダストリー			全体 > 主要3分野 > インダストリー	全店 売上高
-74760	2026	5	legacy	number	メディカル 全店 売上高	メディカル 全店 売上高	number	メディカル 全店 売上高	sales	メディカル	全店	売上高	全体 > 主要3分野 > メディカル	全店 売上高
-74760	2026	6	legacy	yoy_index	メディカル(前年比)	メディカル(前年比)	yoy_index	メディカル(前年比)	other	メディカル			全体 > 主要3分野 > メディカル	全店 売上高
+74760	2025	4	legacy	yoy_index	1日当たり 売上高(前年比)	1日当たり 売上高(前年比)	yoy_index	1日当たり 売上高(前年比)	sales	1日当たり		売上高	全体	1日当たり 売上高
+74760	2025	5	legacy	number	ラボラトリー 売上高	ラボラトリー 売上高	number	ラボラトリー 売上高	sales	ラボラトリー		売上高	全体 > 主要3分野 > ラボラトリー	売上高
+74760	2025	6	legacy	yoy_index	ラボラトリー 売上高(前年比)	ラボラトリー 売上高(前年比)	yoy_index	ラボラトリー 売上高(前年比)	sales	ラボラトリー		売上高	全体 > 主要3分野 > ラボラトリー	売上高
+74760	2025	7	legacy	number	インダストリー 売上高	インダストリー 売上高	number	インダストリー 売上高	sales	インダストリー		売上高	全体 > 主要3分野 > インダストリー	売上高
+74760	2025	8	legacy	yoy_index	インダストリー 売上高(前年比)	インダストリー 売上高(前年比)	yoy_index	インダストリー 売上高(前年比)	sales	インダストリー		売上高	全体 > 主要3分野 > インダストリー	売上高
+74760	2025	9	legacy	number	メディカル 売上高	メディカル 売上高	number	メディカル 売上高	sales	メディカル		売上高	全体 > 主要3分野 > メディカル	売上高
+74760	2025	10	legacy	yoy_index	メディカル 売上高(前年比)	メディカル 売上高(前年比)	yoy_index	メディカル 売上高(前年比)	sales	メディカル		売上高	全体 > 主要3分野 > メディカル	売上高
+74760	2026	1	legacy	number	ラボラトリー 売上高	ラボラトリー 売上高	number	ラボラトリー 売上高	sales	ラボラトリー		売上高	全体 > 主要3分野 > ラボラトリー	売上高
+74760	2026	2	legacy	yoy_index	ラボラトリー 売上高(前年比)	ラボラトリー 売上高(前年比)	yoy_index	ラボラトリー 売上高(前年比)	sales	ラボラトリー		売上高	全体 > 主要3分野 > ラボラトリー	売上高
+74760	2026	3	legacy	number	インダストリー 売上高	インダストリー 売上高	number	インダストリー 売上高	sales	インダストリー		売上高	全体 > 主要3分野 > インダストリー	売上高
+74760	2026	4	legacy	yoy_index	インダストリー 売上高(前年比)	インダストリー 売上高(前年比)	yoy_index	インダストリー 売上高(前年比)	sales	インダストリー		売上高	全体 > 主要3分野 > インダストリー	売上高
+74760	2026	5	legacy	number	メディカル 売上高	メディカル 売上高	number	メディカル 売上高	sales	メディカル		売上高	全体 > 主要3分野 > メディカル	売上高
+74760	2026	6	legacy	yoy_index	メディカル 売上高(前年比)	メディカル 売上高(前年比)	yoy_index	メディカル 売上高(前年比)	sales	メディカル		売上高	全体 > 主要3分野 > メディカル	売上高
 74760	2026	7	legacy	number	営業日数	営業日数	number	営業日数	count			営業日数	全体	営業日数
-74760	2026	8	legacy	yoy_index	1日当たり 全店 売上高(前年比)	1日当たり 全店 売上高(前年比)	yoy_index	1日当たり 全店 売上高(前年比)	sales	1日当たり	全店	売上高	全体	1日当たり 売上高
-74760	2026	9	legacy	number	単体 全店 売上高	単体 全店 売上高	number	単体 全店 売上高	sales	単体	全店	売上高	全体	全店 売上高
-74760	2026	10	legacy	yoy_index	単体(前年比)	単体(前年比)	yoy_index	単体(前年比)	other	単体			全体	全店 売上高
-74760	2026	11	legacy	yoy_index	ラボラトリー 1日当たり(前年比)	ラボラトリー 1日当たり(前年比)	yoy_index	ラボラトリー 1日当たり(前年比)	other	ラボラトリー 1日当たり			全体 > 主要3分野 > ラボラトリー	1日当たり 売上高
-74760	2026	12	legacy	yoy_index	インダストリー 1日当たり(前年比)	インダストリー 1日当たり(前年比)	yoy_index	インダストリー 1日当たり(前年比)	other	インダストリー 1日当たり			全体 > 主要3分野 > インダストリー	1日当たり 売上高
-74760	2026	13	legacy	yoy_index	メディカル 1日当たり(前年比)	メディカル 1日当たり(前年比)	yoy_index	メディカル 1日当たり(前年比)	other	メディカル 1日当たり			全体 > 主要3分野 > メディカル	1日当たり 売上高
-74760	2026	14	legacy	number	主要3分野 全店 売上高	主要3分野 全店 売上高	number	主要3分野 全店 売上高	sales	主要3分野	全店	売上高	全体 > 主要3分野	全店 売上高
-74760	2026	15	legacy	yoy_index	主要3分野(前年比)	主要3分野(前年比)	yoy_index	主要3分野(前年比)	other	主要3分野			全体 > 主要3分野	全店 売上高
+74760	2026	8	legacy	yoy_index	1日当たり 売上高(前年比)	1日当たり 売上高(前年比)	yoy_index	1日当たり 売上高(前年比)	sales	1日当たり		売上高	全体	1日当たり 売上高
+74760	2026	9	legacy	number	単体 売上高	単体 売上高	number	単体 売上高	sales	単体		売上高	全体	売上高
+74760	2026	10	legacy	yoy_index	単体 売上高(前年比)	単体 売上高(前年比)	yoy_index	単体 売上高(前年比)	sales	単体		売上高	全体	売上高
+74760	2026	11	legacy	yoy_index	ラボラトリー 1日当たり 売上高(前年比)	ラボラトリー 1日当たり 売上高(前年比)	yoy_index	ラボラトリー 1日当たり 売上高(前年比)	sales	ラボラトリー 1日当たり		売上高	全体 > 主要3分野 > ラボラトリー	1日当たり 売上高
+74760	2026	12	legacy	yoy_index	インダストリー 1日当たり 売上高(前年比)	インダストリー 1日当たり 売上高(前年比)	yoy_index	インダストリー 1日当たり 売上高(前年比)	sales	インダストリー 1日当たり		売上高	全体 > 主要3分野 > インダストリー	1日当たり 売上高
+74760	2026	13	legacy	yoy_index	メディカル 1日当たり 売上高(前年比)	メディカル 1日当たり 売上高(前年比)	yoy_index	メディカル 1日当たり 売上高(前年比)	sales	メディカル 1日当たり		売上高	全体 > 主要3分野 > メディカル	1日当たり 売上高
+74760	2026	14	legacy	number	主要3分野 売上高	主要3分野 売上高	number	主要3分野 売上高	sales	主要3分野		売上高	全体 > 主要3分野	売上高
+74760	2026	15	legacy	yoy_index	主要3分野 売上高(前年比)	主要3分野 売上高(前年比)	yoy_index	主要3分野 売上高(前年比)	sales	主要3分野		売上高	全体 > 主要3分野	売上高
 74800	2024	1	legacy	number	個別 売上高	個別 売上高	number	個別 売上高	sales	個別		売上高	全体 > 個別	売上高
 74800	2024	2	legacy	number	個別 増減額 売上高	個別 増減額 売上高	number	個別 増減額 売上高	sales	個別 増減額		売上高	全体 > 個別	増減額 売上高
 74800	2024	3	legacy	yoy_index	個別 売上高(前年比)	個別 売上高(前年比)	yoy_index	個別 売上高(前年比)	sales	個別		売上高	全体 > 個別	売上高
@@ -5465,18 +5465,18 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 76060	2026	26	legacy	yoy_index	小売 客単価(前年比)	小売 客単価(前年比)	yoy_index	小売 客単価(前年比)	spend	小売		客単価	全体 > 小売＋ネット通販 > 小売	客単価
 76060	2026	27	legacy	yoy_index	ネット通販 客単価(前年比)	ネット通販 客単価(前年比)	yoy_index	ネット通販 客単価(前年比)	spend	ネット通販		客単価	全体 > 小売＋ネット通販 > ネット通販	客単価
 76060	2026	28	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	売上高
-76100	2023	1	legacy	yoy_index	グループ 全店 売上高(前年比)	グループ 全店 売上高(前年比)	yoy_index	グループ 全店 売上高(前年比)	sales	グループ	全店	売上高	全体	全店 売上高
-76100	2023	2	legacy	yoy_index	中古 全店 売上高(前年比)	中古 全店 売上高(前年比)	yoy_index	中古 全店 売上高(前年比)	sales	中古	全店	売上高	全体 > 中古	全店 売上高
-76100	2023	3	legacy	yoy_index	新品 全店 売上高(前年比)	新品 全店 売上高(前年比)	yoy_index	新品 全店 売上高(前年比)	sales	新品	全店	売上高	全体 > 新品	全店 売上高
-76100	2024	1	legacy	yoy_index	グループ 全店 売上高(前年比)	グループ 全店 売上高(前年比)	yoy_index	グループ 全店 売上高(前年比)	sales	グループ	全店	売上高	全体	全店 売上高
-76100	2024	2	legacy	yoy_index	中古 全店 売上高(前年比)	中古 全店 売上高(前年比)	yoy_index	中古 全店 売上高(前年比)	sales	中古	全店	売上高	全体 > 中古	全店 売上高
-76100	2024	3	legacy	yoy_index	新品 全店 売上高(前年比)	新品 全店 売上高(前年比)	yoy_index	新品 全店 売上高(前年比)	sales	新品	全店	売上高	全体 > 新品	全店 売上高
-76100	2025	1	legacy	yoy_index	グループ 全店 売上高(前年比)	グループ 全店 売上高(前年比)	yoy_index	グループ 全店 売上高(前年比)	sales	グループ	全店	売上高	全体	全店 売上高
-76100	2025	2	legacy	yoy_index	中古 全店 売上高(前年比)	中古 全店 売上高(前年比)	yoy_index	中古 全店 売上高(前年比)	sales	中古	全店	売上高	全体 > 中古	全店 売上高
-76100	2025	3	legacy	yoy_index	新品 全店 売上高(前年比)	新品 全店 売上高(前年比)	yoy_index	新品 全店 売上高(前年比)	sales	新品	全店	売上高	全体 > 新品	全店 売上高
-76100	2026	1	legacy	yoy_index	グループ 全店 売上高(前年比)	グループ 全店 売上高(前年比)	yoy_index	グループ 全店 売上高(前年比)	sales	グループ	全店	売上高	全体	全店 売上高
-76100	2026	2	legacy	yoy_index	中古 全店 売上高(前年比)	中古 全店 売上高(前年比)	yoy_index	中古 全店 売上高(前年比)	sales	中古	全店	売上高	全体 > 中古	全店 売上高
-76100	2026	3	legacy	yoy_index	新品 全店 売上高(前年比)	新品 全店 売上高(前年比)	yoy_index	新品 全店 売上高(前年比)	sales	新品	全店	売上高	全体 > 新品	全店 売上高
+76100	2023	1	legacy	yoy_index	グループ 売上高(前年比)	グループ 売上高(前年比)	yoy_index	グループ 売上高(前年比)	sales	グループ		売上高	全体	売上高
+76100	2023	2	legacy	yoy_index	中古 売上高(前年比)	中古 売上高(前年比)	yoy_index	中古 売上高(前年比)	sales	中古		売上高	全体 > 中古	売上高
+76100	2023	3	legacy	yoy_index	新品 売上高(前年比)	新品 売上高(前年比)	yoy_index	新品 売上高(前年比)	sales	新品		売上高	全体 > 新品	売上高
+76100	2024	1	legacy	yoy_index	グループ 売上高(前年比)	グループ 売上高(前年比)	yoy_index	グループ 売上高(前年比)	sales	グループ		売上高	全体	売上高
+76100	2024	2	legacy	yoy_index	中古 売上高(前年比)	中古 売上高(前年比)	yoy_index	中古 売上高(前年比)	sales	中古		売上高	全体 > 中古	売上高
+76100	2024	3	legacy	yoy_index	新品 売上高(前年比)	新品 売上高(前年比)	yoy_index	新品 売上高(前年比)	sales	新品		売上高	全体 > 新品	売上高
+76100	2025	1	legacy	yoy_index	グループ 売上高(前年比)	グループ 売上高(前年比)	yoy_index	グループ 売上高(前年比)	sales	グループ		売上高	全体	売上高
+76100	2025	2	legacy	yoy_index	中古 売上高(前年比)	中古 売上高(前年比)	yoy_index	中古 売上高(前年比)	sales	中古		売上高	全体 > 中古	売上高
+76100	2025	3	legacy	yoy_index	新品 売上高(前年比)	新品 売上高(前年比)	yoy_index	新品 売上高(前年比)	sales	新品		売上高	全体 > 新品	売上高
+76100	2026	1	legacy	yoy_index	グループ 売上高(前年比)	グループ 売上高(前年比)	yoy_index	グループ 売上高(前年比)	sales	グループ		売上高	全体	売上高
+76100	2026	2	legacy	yoy_index	中古 売上高(前年比)	中古 売上高(前年比)	yoy_index	中古 売上高(前年比)	sales	中古		売上高	全体 > 中古	売上高
+76100	2026	3	legacy	yoy_index	新品 売上高(前年比)	新品 売上高(前年比)	yoy_index	新品 売上高(前年比)	sales	新品		売上高	全体 > 新品	売上高
 76110	2024	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 76110	2024	2	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
 76110	2024	3	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
@@ -5766,42 +5766,42 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 76790	2026	4	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 76790	2026	5	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
 76790	2026	6	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
-76830	2023	1	legacy	number	店舗販売 全店 売上高	店舗販売 全店 売上高	number	店舗販売 全店 売上高	sales	店舗販売	全店	売上高	全体 > 店舗販売	全店 売上高
-76830	2023	2	legacy	number	オンライン販売 全店 売上高	オンライン販売 全店 売上高	number	オンライン販売 全店 売上高	sales	オンライン販売	全店	売上高	全体 > オンライン販売	全店 売上高
-76830	2023	3	legacy	number	その他 全店 売上高	その他 全店 売上高	number	その他 全店 売上高	sales	その他	全店	売上高	全体 > その他	全店 売上高
-76830	2023	4	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-76830	2023	5	legacy	number	内アパレル 全店 売上高	内アパレル 全店 売上高	number	内アパレル 全店 売上高	sales	内アパレル	全店	売上高	全体 > 内アパレル	全店 売上高
-76830	2023	6	legacy	yoy_index	店舗販売 全店 売上高(前年比)	店舗販売 全店 売上高(前年比)	yoy_index	店舗販売 全店 売上高(前年比)	sales	店舗販売	全店	売上高	全体 > 店舗販売	全店 売上高
-76830	2023	7	legacy	yoy_index	オンライン販売 全店 売上高(前年比)	オンライン販売 全店 売上高(前年比)	yoy_index	オンライン販売 全店 売上高(前年比)	sales	オンライン販売	全店	売上高	全体 > オンライン販売	全店 売上高
-76830	2023	8	legacy	yoy_index	その他 全店 売上高(前年比)	その他 全店 売上高(前年比)	yoy_index	その他 全店 売上高(前年比)	sales	その他	全店	売上高	全体 > その他	全店 売上高
-76830	2023	9	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-76830	2024	1	legacy	number	店舗販売 全店 売上高	店舗販売 全店 売上高	number	店舗販売 全店 売上高	sales	店舗販売	全店	売上高	全体 > 店舗販売	全店 売上高
-76830	2024	2	legacy	number	オンライン販売 全店 売上高	オンライン販売 全店 売上高	number	オンライン販売 全店 売上高	sales	オンライン販売	全店	売上高	全体 > オンライン販売	全店 売上高
-76830	2024	3	legacy	number	その他 全店 売上高	その他 全店 売上高	number	その他 全店 売上高	sales	その他	全店	売上高	全体 > その他	全店 売上高
-76830	2024	4	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-76830	2024	5	legacy	number	内アパレル 全店 売上高	内アパレル 全店 売上高	number	内アパレル 全店 売上高	sales	内アパレル	全店	売上高	全体 > 内アパレル	全店 売上高
-76830	2024	6	legacy	yoy_index	店舗販売 全店 売上高(前年比)	店舗販売 全店 売上高(前年比)	yoy_index	店舗販売 全店 売上高(前年比)	sales	店舗販売	全店	売上高	全体 > 店舗販売	全店 売上高
-76830	2024	7	legacy	yoy_index	オンライン販売 全店 売上高(前年比)	オンライン販売 全店 売上高(前年比)	yoy_index	オンライン販売 全店 売上高(前年比)	sales	オンライン販売	全店	売上高	全体 > オンライン販売	全店 売上高
-76830	2024	8	legacy	yoy_index	その他 全店 売上高(前年比)	その他 全店 売上高(前年比)	yoy_index	その他 全店 売上高(前年比)	sales	その他	全店	売上高	全体 > その他	全店 売上高
-76830	2024	9	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-76830	2025	1	legacy	number	店舗販売 全店 売上高	店舗販売 全店 売上高	number	店舗販売 全店 売上高	sales	店舗販売	全店	売上高	全体 > 店舗販売	全店 売上高
-76830	2025	2	legacy	number	オンライン販売 全店 売上高	オンライン販売 全店 売上高	number	オンライン販売 全店 売上高	sales	オンライン販売	全店	売上高	全体 > オンライン販売	全店 売上高
-76830	2025	3	legacy	number	その他 全店 売上高	その他 全店 売上高	number	その他 全店 売上高	sales	その他	全店	売上高	全体 > その他	全店 売上高
-76830	2025	4	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-76830	2025	5	legacy	number	内アパレル 全店 売上高	内アパレル 全店 売上高	number	内アパレル 全店 売上高	sales	内アパレル	全店	売上高	全体 > 内アパレル	全店 売上高
-76830	2025	6	legacy	yoy_index	店舗販売 全店 売上高(前年比)	店舗販売 全店 売上高(前年比)	yoy_index	店舗販売 全店 売上高(前年比)	sales	店舗販売	全店	売上高	全体 > 店舗販売	全店 売上高
-76830	2025	7	legacy	yoy_index	オンライン販売 全店 売上高(前年比)	オンライン販売 全店 売上高(前年比)	yoy_index	オンライン販売 全店 売上高(前年比)	sales	オンライン販売	全店	売上高	全体 > オンライン販売	全店 売上高
-76830	2025	8	legacy	yoy_index	その他 全店 売上高(前年比)	その他 全店 売上高(前年比)	yoy_index	その他 全店 売上高(前年比)	sales	その他	全店	売上高	全体 > その他	全店 売上高
-76830	2025	9	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-76830	2026	1	legacy	number	内アパレル 全店 売上高	内アパレル 全店 売上高	number	内アパレル 全店 売上高	sales	内アパレル	全店	売上高	全体 > 内アパレル	全店 売上高
-76830	2026	2	legacy	number	店舗販売 全店 売上高	店舗販売 全店 売上高	number	店舗販売 全店 売上高	sales	店舗販売	全店	売上高	全体 > 店舗販売	全店 売上高
-76830	2026	3	legacy	number	オンライン販売 全店 売上高	オンライン販売 全店 売上高	number	オンライン販売 全店 売上高	sales	オンライン販売	全店	売上高	全体 > オンライン販売	全店 売上高
-76830	2026	4	legacy	number	その他 全店 売上高	その他 全店 売上高	number	その他 全店 売上高	sales	その他	全店	売上高	全体 > その他	全店 売上高
-76830	2026	5	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-76830	2026	6	legacy	yoy_index	店舗販売 全店 売上高(前年比)	店舗販売 全店 売上高(前年比)	yoy_index	店舗販売 全店 売上高(前年比)	sales	店舗販売	全店	売上高	全体 > 店舗販売	全店 売上高
-76830	2026	7	legacy	yoy_index	オンライン販売 全店 売上高(前年比)	オンライン販売 全店 売上高(前年比)	yoy_index	オンライン販売 全店 売上高(前年比)	sales	オンライン販売	全店	売上高	全体 > オンライン販売	全店 売上高
-76830	2026	8	legacy	yoy_index	その他 全店 売上高(前年比)	その他 全店 売上高(前年比)	yoy_index	その他 全店 売上高(前年比)	sales	その他	全店	売上高	全体 > その他	全店 売上高
-76830	2026	9	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+76830	2023	1	legacy	number	店舗販売 売上高	店舗販売 売上高	number	店舗販売 売上高	sales	店舗販売		売上高	全体 > 店舗販売	売上高
+76830	2023	2	legacy	number	オンライン販売 売上高	オンライン販売 売上高	number	オンライン販売 売上高	sales	オンライン販売		売上高	全体 > オンライン販売	売上高
+76830	2023	3	legacy	number	その他 売上高	その他 売上高	number	その他 売上高	sales	その他		売上高	全体 > その他	売上高
+76830	2023	4	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+76830	2023	5	legacy	number	内アパレル 売上高	内アパレル 売上高	number	内アパレル 売上高	sales	内アパレル		売上高	全体 > 内アパレル	売上高
+76830	2023	6	legacy	yoy_index	店舗販売 売上高(前年比)	店舗販売 売上高(前年比)	yoy_index	店舗販売 売上高(前年比)	sales	店舗販売		売上高	全体 > 店舗販売	売上高
+76830	2023	7	legacy	yoy_index	オンライン販売 売上高(前年比)	オンライン販売 売上高(前年比)	yoy_index	オンライン販売 売上高(前年比)	sales	オンライン販売		売上高	全体 > オンライン販売	売上高
+76830	2023	8	legacy	yoy_index	その他 売上高(前年比)	その他 売上高(前年比)	yoy_index	その他 売上高(前年比)	sales	その他		売上高	全体 > その他	売上高
+76830	2023	9	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+76830	2024	1	legacy	number	店舗販売 売上高	店舗販売 売上高	number	店舗販売 売上高	sales	店舗販売		売上高	全体 > 店舗販売	売上高
+76830	2024	2	legacy	number	オンライン販売 売上高	オンライン販売 売上高	number	オンライン販売 売上高	sales	オンライン販売		売上高	全体 > オンライン販売	売上高
+76830	2024	3	legacy	number	その他 売上高	その他 売上高	number	その他 売上高	sales	その他		売上高	全体 > その他	売上高
+76830	2024	4	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+76830	2024	5	legacy	number	内アパレル 売上高	内アパレル 売上高	number	内アパレル 売上高	sales	内アパレル		売上高	全体 > 内アパレル	売上高
+76830	2024	6	legacy	yoy_index	店舗販売 売上高(前年比)	店舗販売 売上高(前年比)	yoy_index	店舗販売 売上高(前年比)	sales	店舗販売		売上高	全体 > 店舗販売	売上高
+76830	2024	7	legacy	yoy_index	オンライン販売 売上高(前年比)	オンライン販売 売上高(前年比)	yoy_index	オンライン販売 売上高(前年比)	sales	オンライン販売		売上高	全体 > オンライン販売	売上高
+76830	2024	8	legacy	yoy_index	その他 売上高(前年比)	その他 売上高(前年比)	yoy_index	その他 売上高(前年比)	sales	その他		売上高	全体 > その他	売上高
+76830	2024	9	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+76830	2025	1	legacy	number	店舗販売 売上高	店舗販売 売上高	number	店舗販売 売上高	sales	店舗販売		売上高	全体 > 店舗販売	売上高
+76830	2025	2	legacy	number	オンライン販売 売上高	オンライン販売 売上高	number	オンライン販売 売上高	sales	オンライン販売		売上高	全体 > オンライン販売	売上高
+76830	2025	3	legacy	number	その他 売上高	その他 売上高	number	その他 売上高	sales	その他		売上高	全体 > その他	売上高
+76830	2025	4	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+76830	2025	5	legacy	number	内アパレル 売上高	内アパレル 売上高	number	内アパレル 売上高	sales	内アパレル		売上高	全体 > 内アパレル	売上高
+76830	2025	6	legacy	yoy_index	店舗販売 売上高(前年比)	店舗販売 売上高(前年比)	yoy_index	店舗販売 売上高(前年比)	sales	店舗販売		売上高	全体 > 店舗販売	売上高
+76830	2025	7	legacy	yoy_index	オンライン販売 売上高(前年比)	オンライン販売 売上高(前年比)	yoy_index	オンライン販売 売上高(前年比)	sales	オンライン販売		売上高	全体 > オンライン販売	売上高
+76830	2025	8	legacy	yoy_index	その他 売上高(前年比)	その他 売上高(前年比)	yoy_index	その他 売上高(前年比)	sales	その他		売上高	全体 > その他	売上高
+76830	2025	9	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+76830	2026	1	legacy	number	内アパレル 売上高	内アパレル 売上高	number	内アパレル 売上高	sales	内アパレル		売上高	全体 > 内アパレル	売上高
+76830	2026	2	legacy	number	店舗販売 売上高	店舗販売 売上高	number	店舗販売 売上高	sales	店舗販売		売上高	全体 > 店舗販売	売上高
+76830	2026	3	legacy	number	オンライン販売 売上高	オンライン販売 売上高	number	オンライン販売 売上高	sales	オンライン販売		売上高	全体 > オンライン販売	売上高
+76830	2026	4	legacy	number	その他 売上高	その他 売上高	number	その他 売上高	sales	その他		売上高	全体 > その他	売上高
+76830	2026	5	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+76830	2026	6	legacy	yoy_index	店舗販売 売上高(前年比)	店舗販売 売上高(前年比)	yoy_index	店舗販売 売上高(前年比)	sales	店舗販売		売上高	全体 > 店舗販売	売上高
+76830	2026	7	legacy	yoy_index	オンライン販売 売上高(前年比)	オンライン販売 売上高(前年比)	yoy_index	オンライン販売 売上高(前年比)	sales	オンライン販売		売上高	全体 > オンライン販売	売上高
+76830	2026	8	legacy	yoy_index	その他 売上高(前年比)	その他 売上高(前年比)	yoy_index	その他 売上高(前年比)	sales	その他		売上高	全体 > その他	売上高
+76830	2026	9	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 76850	2024	1	legacy	number	出張訪問買取 仕入高	出張訪問買取 仕入高	number	出張訪問買取 仕入高	other	出張訪問買取		仕入高	全体 > 出張訪問買取	仕入高
 76850	2024	2	legacy	yoy_index	出張訪問買取 仕入高(前年比)	出張訪問買取 仕入高(前年比)	yoy_index	出張訪問買取 仕入高(前年比)	other	出張訪問買取		仕入高	全体 > 出張訪問買取	仕入高
 76850	2024	3	legacy	number	店舗買取 仕入高	店舗買取 仕入高	number	店舗買取 仕入高	other	店舗買取		仕入高	全体 > 店舗買取	仕入高
@@ -5825,26 +5825,26 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 76850	2026	7	legacy	number	グループ 店舗数	グループ 店舗数	number	グループ 店舗数	stores	グループ		店舗数	全体	店舗数
 76850	2026	8	legacy	number	出張訪問買取 出張訪問数	出張訪問買取 出張訪問数	number	出張訪問買取 出張訪問数	count	出張訪問買取		出張訪問数	全体 > 出張訪問買取	出張訪問数
 76850	2026	9	legacy	yoy_index	出張訪問買取 出張訪問数(前年比)	出張訪問買取 出張訪問数(前年比)	yoy_index	出張訪問買取 出張訪問数(前年比)	count	出張訪問買取		出張訪問数	全体 > 出張訪問買取	出張訪問数
-76860	2023	1	legacy	yoy_index	飲食店向け 全店 売上高(前年比)	飲食店向け 全店 売上高(前年比)	yoy_index	飲食店向け 全店 売上高(前年比)	sales	飲食店向け	全店	売上高	全体 > 飲食店向け	全店 売上高
-76860	2023	2	legacy	yoy_index	家庭向け 全店 売上高(前年比)	家庭向け 全店 売上高(前年比)	yoy_index	家庭向け 全店 売上高(前年比)	sales	家庭向け	全店	売上高	全体 > 家庭向け	全店 売上高
-76860	2023	3	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-76860	2024	1	legacy	yoy_index	時間帯配達事業 全店 売上高(前年比)	時間帯配達事業 全店 売上高(前年比)	yoy_index	時間帯配達事業 全店 売上高(前年比)	sales	時間帯配達事業	全店	売上高	全体 > 時間帯配達事業	全店 売上高
-76860	2024	2	legacy	yoy_index	ルート配達事業 全店 売上高(前年比)	ルート配達事業 全店 売上高(前年比)	yoy_index	ルート配達事業 全店 売上高(前年比)	sales	ルート配達事業	全店	売上高	全体 > ルート配達事業	全店 売上高
-76860	2024	3	legacy	yoy_index	店頭販売事業 全店 売上高(前年比)	店頭販売事業 全店 売上高(前年比)	yoy_index	店頭販売事業 全店 売上高(前年比)	sales	店頭販売事業	全店	売上高	全体 > 店頭販売事業	全店 売上高
-76860	2024	4	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-76860	2024	5	legacy	yoy_index	飲食店向け 全店 売上高(前年比)	飲食店向け 全店 売上高(前年比)	yoy_index	飲食店向け 全店 売上高(前年比)	sales	飲食店向け	全店	売上高	全体 > 飲食店向け	全店 売上高
-76860	2024	6	legacy	yoy_index	家庭向け 全店 売上高(前年比)	家庭向け 全店 売上高(前年比)	yoy_index	家庭向け 全店 売上高(前年比)	sales	家庭向け	全店	売上高	全体 > 家庭向け	全店 売上高
-76860	2025	1	legacy	yoy_index	時間帯配達事業 全店 売上高(前年比)	時間帯配達事業 全店 売上高(前年比)	yoy_index	時間帯配達事業 全店 売上高(前年比)	sales	時間帯配達事業	全店	売上高	全体 > 時間帯配達事業	全店 売上高
-76860	2025	2	legacy	yoy_index	ルート配達事業 全店 売上高(前年比)	ルート配達事業 全店 売上高(前年比)	yoy_index	ルート配達事業 全店 売上高(前年比)	sales	ルート配達事業	全店	売上高	全体 > ルート配達事業	全店 売上高
-76860	2025	3	legacy	yoy_index	店頭販売事業 全店 売上高(前年比)	店頭販売事業 全店 売上高(前年比)	yoy_index	店頭販売事業 全店 売上高(前年比)	sales	店頭販売事業	全店	売上高	全体 > 店頭販売事業	全店 売上高
-76860	2025	4	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-76860	2026	1	legacy	yoy_index	セラー事業 全店 売上高(前年比)	セラー事業 全店 売上高(前年比)	yoy_index	セラー事業 全店 売上高(前年比)	sales	セラー事業	全店	売上高	全体 > セラー事業	全店 売上高
-76860	2026	2	legacy	yoy_index	全店 連結売上高(前年比)	全店 連結売上高(前年比)	yoy_index	全店 連結売上高(前年比)	sales		全店	連結売上高	全体	全店 連結売上高
-76860	2026	3	legacy	yoy_index	時間帯配達事業 全店 売上高(前年比)	時間帯配達事業 全店 売上高(前年比)	yoy_index	時間帯配達事業 全店 売上高(前年比)	sales	時間帯配達事業	全店	売上高	全体 > 時間帯配達事業	全店 売上高
-76860	2026	4	legacy	yoy_index	ルート配達事業 全店 売上高(前年比)	ルート配達事業 全店 売上高(前年比)	yoy_index	ルート配達事業 全店 売上高(前年比)	sales	ルート配達事業	全店	売上高	全体 > ルート配達事業	全店 売上高
-76860	2026	5	legacy	yoy_index	店頭販売事業 全店 売上高(前年比)	店頭販売事業 全店 売上高(前年比)	yoy_index	店頭販売事業 全店 売上高(前年比)	sales	店頭販売事業	全店	売上高	全体 > 店頭販売事業	全店 売上高
-76860	2026	6	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-76860	2026	7	legacy	yoy_index	プラットフォーム事業 全店 売上高(前年比)	プラットフォーム事業 全店 売上高(前年比)	yoy_index	プラットフォーム事業 全店 売上高(前年比)	sales	プラットフォーム事業	全店	売上高	全体 > プラットフォーム事業	全店 売上高
+76860	2023	1	legacy	yoy_index	飲食店向け 売上高(前年比)	飲食店向け 売上高(前年比)	yoy_index	飲食店向け 売上高(前年比)	sales	飲食店向け		売上高	全体 > 飲食店向け	売上高
+76860	2023	2	legacy	yoy_index	家庭向け 売上高(前年比)	家庭向け 売上高(前年比)	yoy_index	家庭向け 売上高(前年比)	sales	家庭向け		売上高	全体 > 家庭向け	売上高
+76860	2023	3	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+76860	2024	1	legacy	yoy_index	時間帯配達事業 売上高(前年比)	時間帯配達事業 売上高(前年比)	yoy_index	時間帯配達事業 売上高(前年比)	sales	時間帯配達事業		売上高	全体 > 時間帯配達事業	売上高
+76860	2024	2	legacy	yoy_index	ルート配達事業 売上高(前年比)	ルート配達事業 売上高(前年比)	yoy_index	ルート配達事業 売上高(前年比)	sales	ルート配達事業		売上高	全体 > ルート配達事業	売上高
+76860	2024	3	legacy	yoy_index	店頭販売事業 売上高(前年比)	店頭販売事業 売上高(前年比)	yoy_index	店頭販売事業 売上高(前年比)	sales	店頭販売事業		売上高	全体 > 店頭販売事業	売上高
+76860	2024	4	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+76860	2024	5	legacy	yoy_index	飲食店向け 売上高(前年比)	飲食店向け 売上高(前年比)	yoy_index	飲食店向け 売上高(前年比)	sales	飲食店向け		売上高	全体 > 飲食店向け	売上高
+76860	2024	6	legacy	yoy_index	家庭向け 売上高(前年比)	家庭向け 売上高(前年比)	yoy_index	家庭向け 売上高(前年比)	sales	家庭向け		売上高	全体 > 家庭向け	売上高
+76860	2025	1	legacy	yoy_index	時間帯配達事業 売上高(前年比)	時間帯配達事業 売上高(前年比)	yoy_index	時間帯配達事業 売上高(前年比)	sales	時間帯配達事業		売上高	全体 > 時間帯配達事業	売上高
+76860	2025	2	legacy	yoy_index	ルート配達事業 売上高(前年比)	ルート配達事業 売上高(前年比)	yoy_index	ルート配達事業 売上高(前年比)	sales	ルート配達事業		売上高	全体 > ルート配達事業	売上高
+76860	2025	3	legacy	yoy_index	店頭販売事業 売上高(前年比)	店頭販売事業 売上高(前年比)	yoy_index	店頭販売事業 売上高(前年比)	sales	店頭販売事業		売上高	全体 > 店頭販売事業	売上高
+76860	2025	4	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+76860	2026	1	legacy	yoy_index	セラー事業 売上高(前年比)	セラー事業 売上高(前年比)	yoy_index	セラー事業 売上高(前年比)	sales	セラー事業		売上高	全体 > セラー事業	売上高
+76860	2026	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	売上高
+76860	2026	3	legacy	yoy_index	時間帯配達事業 売上高(前年比)	時間帯配達事業 売上高(前年比)	yoy_index	時間帯配達事業 売上高(前年比)	sales	時間帯配達事業		売上高	全体 > 時間帯配達事業	売上高
+76860	2026	4	legacy	yoy_index	ルート配達事業 売上高(前年比)	ルート配達事業 売上高(前年比)	yoy_index	ルート配達事業 売上高(前年比)	sales	ルート配達事業		売上高	全体 > ルート配達事業	売上高
+76860	2026	5	legacy	yoy_index	店頭販売事業 売上高(前年比)	店頭販売事業 売上高(前年比)	yoy_index	店頭販売事業 売上高(前年比)	sales	店頭販売事業		売上高	全体 > 店頭販売事業	売上高
+76860	2026	6	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+76860	2026	7	legacy	yoy_index	プラットフォーム事業 売上高(前年比)	プラットフォーム事業 売上高(前年比)	yoy_index	プラットフォーム事業 売上高(前年比)	sales	プラットフォーム事業		売上高	全体 > プラットフォーム事業	売上高
 78230	2023	1	legacy	yoy_index	オーダーメイドウィッグ 男性(前年比)	オーダーメイドウィッグ 男性(前年比)	yoy_index	オーダーメイドウィッグ 男性(前年比)	other	オーダーメイドウィッグ 男性			全体 > オーダーメイドウィッグ > 男性	売上高(前年比)
 78230	2023	2	legacy	yoy_index	オーダーメイドウィッグ 女性(前年比)	オーダーメイドウィッグ 女性(前年比)	yoy_index	オーダーメイドウィッグ 女性(前年比)	other	オーダーメイドウィッグ 女性			全体 > オーダーメイドウィッグ > 女性	売上高(前年比)
 78230	2023	3	legacy	yoy_index	増毛 男性(前年比)	増毛 男性(前年比)	yoy_index	増毛 男性(前年比)	other	増毛 男性			全体 > 増毛 > 男性	売上高(前年比)
@@ -5857,7 +5857,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 78230	2023	10	legacy	yoy_index	主要商品 女性新規(前年比)	主要商品 女性新規(前年比)	yoy_index	主要商品 女性新規(前年比)	other	主要商品 女性新規			全体 > 主要商品 > 女性 > 新規	売上高(前年比)
 78230	2023	11	legacy	yoy_index	主要商品 女性リピート(前年比)	主要商品 女性リピート(前年比)	yoy_index	主要商品 女性リピート(前年比)	other	主要商品 女性リピート			全体 > 主要商品 > 女性 > リピート	売上高(前年比)
 78230	2023	12	legacy	yoy_index	主要商品 女性(前年比)	主要商品 女性(前年比)	yoy_index	主要商品 女性(前年比)	other	主要商品 女性			全体 > 主要商品 > 女性	売上高(前年比)
-78230	2023	13	legacy	yoy_index	主要商品 出店(前年比)	主要商品 新規(前年比)	yoy_index	主要商品 新規(前年比)	other	主要商品 新規			全体 > 主要商品 > 新規	売上高(前年比)
+78230	2023	13	legacy	yoy_index	主要商品 新規(前年比)	主要商品 新規(前年比)	yoy_index	主要商品 新規(前年比)	other	主要商品 新規			全体 > 主要商品 > 新規	売上高(前年比)
 78230	2023	14	legacy	yoy_index	主要商品 リピート(前年比)	主要商品 リピート(前年比)	yoy_index	主要商品 リピート(前年比)	other	主要商品 リピート			全体 > 主要商品 > リピート	売上高(前年比)
 78230	2023	15	legacy	yoy_index	主要商品(前年比)	主要商品(前年比)	yoy_index	主要商品(前年比)	other	主要商品			全体 > 主要商品	売上高(前年比)
 78230	2023	16	legacy	yoy_index	ヘアケア商品 男性(前年比)	ヘアケア商品 男性(前年比)	yoy_index	ヘアケア商品 男性(前年比)	other	ヘアケア商品 男性			全体 > ヘアケア商品 > 男性	売上高(前年比)
@@ -5866,10 +5866,10 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 78230	2023	19	legacy	yoy_index	アフターサービス 女性(前年比)	アフターサービス 女性(前年比)	yoy_index	アフターサービス 女性(前年比)	other	アフターサービス 女性			全体 > アフターサービス > 女性	売上高(前年比)
 78230	2023	20	legacy	yoy_index	ジュリア・オージェ(前年比)	ジュリア・オージェ(前年比)	yoy_index	ジュリア・オージェ(前年比)	other	ジュリア・オージェ			全体 > ジュリア・オージェ	売上高(前年比)
 78230	2023	21	legacy	yoy_index	その他商品(前年比)	その他商品(前年比)	yoy_index	その他商品(前年比)	other	その他商品			全体 > その他商品	売上高(前年比)
-78230	2023	22	legacy	yoy_index	総 全店 売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高(前年比)
-78230	2023	23	legacy	yoy_index	延べ来店顧 男性 全店 客数(前年比)	男性 客数(前年比)	yoy_index	男性 客数(前年比)	customers	男性		客数	全体 > 延べ来店顧客数 > 男性	客数(前年比)
-78230	2023	24	legacy	yoy_index	延べ来店顧 女性 全店 客数(前年比)	女性 客数(前年比)	yoy_index	女性 客数(前年比)	customers	女性		客数	全体 > 延べ来店顧客数 > 女性	客数(前年比)
-78230	2023	25	legacy	yoy_index	延べ来店顧 全店 客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体 > 延べ来店顧客数 > 合計	客数(前年比)
+78230	2023	22	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高(前年比)
+78230	2023	23	legacy	yoy_index	男性 客数(前年比)	男性 客数(前年比)	yoy_index	男性 客数(前年比)	customers	男性		客数	全体 > 延べ来店顧客数 > 男性	客数(前年比)
+78230	2023	24	legacy	yoy_index	女性 客数(前年比)	女性 客数(前年比)	yoy_index	女性 客数(前年比)	customers	女性		客数	全体 > 延べ来店顧客数 > 女性	客数(前年比)
+78230	2023	25	legacy	yoy_index	客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体 > 延べ来店顧客数 > 合計	客数(前年比)
 78230	2024	1	legacy	yoy_index	オーダーメイドウィッグ 男性(前年比)	オーダーメイドウィッグ 男性(前年比)	yoy_index	オーダーメイドウィッグ 男性(前年比)	other	オーダーメイドウィッグ 男性			全体 > オーダーメイドウィッグ > 男性	売上高(前年比)
 78230	2024	2	legacy	yoy_index	オーダーメイドウィッグ 女性(前年比)	オーダーメイドウィッグ 女性(前年比)	yoy_index	オーダーメイドウィッグ 女性(前年比)	other	オーダーメイドウィッグ 女性			全体 > オーダーメイドウィッグ > 女性	売上高(前年比)
 78230	2024	3	legacy	yoy_index	増毛 男性(前年比)	増毛 男性(前年比)	yoy_index	増毛 男性(前年比)	other	増毛 男性			全体 > 増毛 > 男性	売上高(前年比)
@@ -5882,7 +5882,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 78230	2024	10	legacy	yoy_index	主要商品 女性新規(前年比)	主要商品 女性新規(前年比)	yoy_index	主要商品 女性新規(前年比)	other	主要商品 女性新規			全体 > 主要商品 > 女性 > 新規	売上高(前年比)
 78230	2024	11	legacy	yoy_index	主要商品 女性リピート(前年比)	主要商品 女性リピート(前年比)	yoy_index	主要商品 女性リピート(前年比)	other	主要商品 女性リピート			全体 > 主要商品 > 女性 > リピート	売上高(前年比)
 78230	2024	12	legacy	yoy_index	主要商品 女性(前年比)	主要商品 女性(前年比)	yoy_index	主要商品 女性(前年比)	other	主要商品 女性			全体 > 主要商品 > 女性	売上高(前年比)
-78230	2024	13	legacy	yoy_index	主要商品 出店(前年比)	主要商品 新規(前年比)	yoy_index	主要商品 新規(前年比)	other	主要商品 新規			全体 > 主要商品 > 新規	売上高(前年比)
+78230	2024	13	legacy	yoy_index	主要商品 新規(前年比)	主要商品 新規(前年比)	yoy_index	主要商品 新規(前年比)	other	主要商品 新規			全体 > 主要商品 > 新規	売上高(前年比)
 78230	2024	14	legacy	yoy_index	主要商品 リピート(前年比)	主要商品 リピート(前年比)	yoy_index	主要商品 リピート(前年比)	other	主要商品 リピート			全体 > 主要商品 > リピート	売上高(前年比)
 78230	2024	15	legacy	yoy_index	ヘアケア商品 男性(前年比)	ヘアケア商品 男性(前年比)	yoy_index	ヘアケア商品 男性(前年比)	other	ヘアケア商品 男性			全体 > ヘアケア商品 > 男性	売上高(前年比)
 78230	2024	16	legacy	yoy_index	ヘアケア商品 女性(前年比)	ヘアケア商品 女性(前年比)	yoy_index	ヘアケア商品 女性(前年比)	other	ヘアケア商品 女性			全体 > ヘアケア商品 > 女性	売上高(前年比)
@@ -5890,10 +5890,10 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 78230	2024	18	legacy	yoy_index	アフターサービス 女性(前年比)	アフターサービス 女性(前年比)	yoy_index	アフターサービス 女性(前年比)	other	アフターサービス 女性			全体 > アフターサービス > 女性	売上高(前年比)
 78230	2024	19	legacy	yoy_index	ジュリア・オージェ(前年比)	ジュリア・オージェ(前年比)	yoy_index	ジュリア・オージェ(前年比)	other	ジュリア・オージェ			全体 > ジュリア・オージェ	売上高(前年比)
 78230	2024	20	legacy	yoy_index	その他商品(前年比)	その他商品(前年比)	yoy_index	その他商品(前年比)	other	その他商品			全体 > その他商品	売上高(前年比)
-78230	2024	21	legacy	yoy_index	総 全店 売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高(前年比)
-78230	2024	22	legacy	yoy_index	延べ来店顧 男性 全店 客数(前年比)	男性 客数(前年比)	yoy_index	男性 客数(前年比)	customers	男性		客数	全体 > 延べ来店顧客数 > 男性	客数(前年比)
-78230	2024	23	legacy	yoy_index	延べ来店顧 女性 全店 客数(前年比)	女性 客数(前年比)	yoy_index	女性 客数(前年比)	customers	女性		客数	全体 > 延べ来店顧客数 > 女性	客数(前年比)
-78230	2024	24	legacy	yoy_index	延べ来店顧 全店 客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体 > 延べ来店顧客数 > 合計	客数(前年比)
+78230	2024	21	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高(前年比)
+78230	2024	22	legacy	yoy_index	男性 客数(前年比)	男性 客数(前年比)	yoy_index	男性 客数(前年比)	customers	男性		客数	全体 > 延べ来店顧客数 > 男性	客数(前年比)
+78230	2024	23	legacy	yoy_index	女性 客数(前年比)	女性 客数(前年比)	yoy_index	女性 客数(前年比)	customers	女性		客数	全体 > 延べ来店顧客数 > 女性	客数(前年比)
+78230	2024	24	legacy	yoy_index	客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体 > 延べ来店顧客数 > 合計	客数(前年比)
 78230	2024	25	legacy	yoy_index	主要商品(前年比)	主要商品(前年比)	yoy_index	主要商品(前年比)	other	主要商品			全体 > 主要商品	売上高(前年比)
 78230	2025	1	legacy	yoy_index	オーダーメイドウィッグ 男性(前年比)	オーダーメイドウィッグ 男性(前年比)	yoy_index	オーダーメイドウィッグ 男性(前年比)	other	オーダーメイドウィッグ 男性			全体 > オーダーメイドウィッグ > 男性	売上高(前年比)
 78230	2025	2	legacy	yoy_index	オーダーメイドウィッグ 女性(前年比)	オーダーメイドウィッグ 女性(前年比)	yoy_index	オーダーメイドウィッグ 女性(前年比)	other	オーダーメイドウィッグ 女性			全体 > オーダーメイドウィッグ > 女性	売上高(前年比)
@@ -5907,7 +5907,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 78230	2025	10	legacy	yoy_index	主要商品 女性新規(前年比)	主要商品 女性新規(前年比)	yoy_index	主要商品 女性新規(前年比)	other	主要商品 女性新規			全体 > 主要商品 > 女性 > 新規	売上高(前年比)
 78230	2025	11	legacy	yoy_index	主要商品 女性リピート(前年比)	主要商品 女性リピート(前年比)	yoy_index	主要商品 女性リピート(前年比)	other	主要商品 女性リピート			全体 > 主要商品 > 女性 > リピート	売上高(前年比)
 78230	2025	12	legacy	yoy_index	主要商品 女性(前年比)	主要商品 女性(前年比)	yoy_index	主要商品 女性(前年比)	other	主要商品 女性			全体 > 主要商品 > 女性	売上高(前年比)
-78230	2025	13	legacy	yoy_index	主要商品 出店(前年比)	主要商品 新規(前年比)	yoy_index	主要商品 新規(前年比)	other	主要商品 新規			全体 > 主要商品 > 新規	売上高(前年比)
+78230	2025	13	legacy	yoy_index	主要商品 新規(前年比)	主要商品 新規(前年比)	yoy_index	主要商品 新規(前年比)	other	主要商品 新規			全体 > 主要商品 > 新規	売上高(前年比)
 78230	2025	14	legacy	yoy_index	主要商品 リピート(前年比)	主要商品 リピート(前年比)	yoy_index	主要商品 リピート(前年比)	other	主要商品 リピート			全体 > 主要商品 > リピート	売上高(前年比)
 78230	2025	15	legacy	yoy_index	ヘアケア商品 男性(前年比)	ヘアケア商品 男性(前年比)	yoy_index	ヘアケア商品 男性(前年比)	other	ヘアケア商品 男性			全体 > ヘアケア商品 > 男性	売上高(前年比)
 78230	2025	16	legacy	yoy_index	ヘアケア商品 女性(前年比)	ヘアケア商品 女性(前年比)	yoy_index	ヘアケア商品 女性(前年比)	other	ヘアケア商品 女性			全体 > ヘアケア商品 > 女性	売上高(前年比)
@@ -5915,10 +5915,10 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 78230	2025	18	legacy	yoy_index	アフターサービス 女性(前年比)	アフターサービス 女性(前年比)	yoy_index	アフターサービス 女性(前年比)	other	アフターサービス 女性			全体 > アフターサービス > 女性	売上高(前年比)
 78230	2025	19	legacy	yoy_index	ジュリア・オージェ(前年比)	ジュリア・オージェ(前年比)	yoy_index	ジュリア・オージェ(前年比)	other	ジュリア・オージェ			全体 > ジュリア・オージェ	売上高(前年比)
 78230	2025	20	legacy	yoy_index	その他商品(前年比)	その他商品(前年比)	yoy_index	その他商品(前年比)	other	その他商品			全体 > その他商品	売上高(前年比)
-78230	2025	21	legacy	yoy_index	総 全店 売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高(前年比)
-78230	2025	22	legacy	yoy_index	延べ来店顧 男性 全店 客数(前年比)	男性 客数(前年比)	yoy_index	男性 客数(前年比)	customers	男性		客数	全体 > 延べ来店顧客数 > 男性	客数(前年比)
-78230	2025	23	legacy	yoy_index	延べ来店顧 女性 全店 客数(前年比)	女性 客数(前年比)	yoy_index	女性 客数(前年比)	customers	女性		客数	全体 > 延べ来店顧客数 > 女性	客数(前年比)
-78230	2025	24	legacy	yoy_index	延べ来店顧 全店 客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体 > 延べ来店顧客数 > 合計	客数(前年比)
+78230	2025	21	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高(前年比)
+78230	2025	22	legacy	yoy_index	男性 客数(前年比)	男性 客数(前年比)	yoy_index	男性 客数(前年比)	customers	男性		客数	全体 > 延べ来店顧客数 > 男性	客数(前年比)
+78230	2025	23	legacy	yoy_index	女性 客数(前年比)	女性 客数(前年比)	yoy_index	女性 客数(前年比)	customers	女性		客数	全体 > 延べ来店顧客数 > 女性	客数(前年比)
+78230	2025	24	legacy	yoy_index	客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体 > 延べ来店顧客数 > 合計	客数(前年比)
 78230	2025	25	legacy	yoy_index	主要商品(前年比)	主要商品(前年比)	yoy_index	主要商品(前年比)	other	主要商品			全体 > 主要商品	売上高(前年比)
 78230	2026	1	legacy	yoy_index	オーダーメイドウィッグ 男性(前年比)	オーダーメイドウィッグ 男性(前年比)	yoy_index	オーダーメイドウィッグ 男性(前年比)	other	オーダーメイドウィッグ 男性			全体 > オーダーメイドウィッグ > 男性	売上高(前年比)
 78230	2026	2	legacy	yoy_index	オーダーメイドウィッグ 女性(前年比)	オーダーメイドウィッグ 女性(前年比)	yoy_index	オーダーメイドウィッグ 女性(前年比)	other	オーダーメイドウィッグ 女性			全体 > オーダーメイドウィッグ > 女性	売上高(前年比)
@@ -5932,7 +5932,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 78230	2026	10	legacy	yoy_index	主要商品 女性新規(前年比)	主要商品 女性新規(前年比)	yoy_index	主要商品 女性新規(前年比)	other	主要商品 女性新規			全体 > 主要商品 > 女性 > 新規	売上高(前年比)
 78230	2026	11	legacy	yoy_index	主要商品 女性リピート(前年比)	主要商品 女性リピート(前年比)	yoy_index	主要商品 女性リピート(前年比)	other	主要商品 女性リピート			全体 > 主要商品 > 女性 > リピート	売上高(前年比)
 78230	2026	12	legacy	yoy_index	主要商品 女性(前年比)	主要商品 女性(前年比)	yoy_index	主要商品 女性(前年比)	other	主要商品 女性			全体 > 主要商品 > 女性	売上高(前年比)
-78230	2026	13	legacy	yoy_index	主要商品 出店(前年比)	主要商品 新規(前年比)	yoy_index	主要商品 新規(前年比)	other	主要商品 新規			全体 > 主要商品 > 新規	売上高(前年比)
+78230	2026	13	legacy	yoy_index	主要商品 新規(前年比)	主要商品 新規(前年比)	yoy_index	主要商品 新規(前年比)	other	主要商品 新規			全体 > 主要商品 > 新規	売上高(前年比)
 78230	2026	14	legacy	yoy_index	主要商品 リピート(前年比)	主要商品 リピート(前年比)	yoy_index	主要商品 リピート(前年比)	other	主要商品 リピート			全体 > 主要商品 > リピート	売上高(前年比)
 78230	2026	15	legacy	yoy_index	ヘアケア商品 男性(前年比)	ヘアケア商品 男性(前年比)	yoy_index	ヘアケア商品 男性(前年比)	other	ヘアケア商品 男性			全体 > ヘアケア商品 > 男性	売上高(前年比)
 78230	2026	16	legacy	yoy_index	ヘアケア商品 女性(前年比)	ヘアケア商品 女性(前年比)	yoy_index	ヘアケア商品 女性(前年比)	other	ヘアケア商品 女性			全体 > ヘアケア商品 > 女性	売上高(前年比)
@@ -5940,65 +5940,63 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 78230	2026	18	legacy	yoy_index	アフターサービス 女性(前年比)	アフターサービス 女性(前年比)	yoy_index	アフターサービス 女性(前年比)	other	アフターサービス 女性			全体 > アフターサービス > 女性	売上高(前年比)
 78230	2026	19	legacy	yoy_index	ジュリア・オージェ(前年比)	ジュリア・オージェ(前年比)	yoy_index	ジュリア・オージェ(前年比)	other	ジュリア・オージェ			全体 > ジュリア・オージェ	売上高(前年比)
 78230	2026	20	legacy	yoy_index	その他商品(前年比)	その他商品(前年比)	yoy_index	その他商品(前年比)	other	その他商品			全体 > その他商品	売上高(前年比)
-78230	2026	21	legacy	yoy_index	総 全店 売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高(前年比)
-78230	2026	22	legacy	yoy_index	延べ来店顧 男性 全店 客数(前年比)	男性 客数(前年比)	yoy_index	男性 客数(前年比)	customers	男性		客数	全体 > 延べ来店顧客数 > 男性	客数(前年比)
-78230	2026	23	legacy	yoy_index	延べ来店顧 女性 全店 客数(前年比)	女性 客数(前年比)	yoy_index	女性 客数(前年比)	customers	女性		客数	全体 > 延べ来店顧客数 > 女性	客数(前年比)
-78230	2026	24	legacy	yoy_index	延べ来店顧 全店 客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体 > 延べ来店顧客数 > 合計	客数(前年比)
+78230	2026	21	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高(前年比)
+78230	2026	22	legacy	yoy_index	男性 客数(前年比)	男性 客数(前年比)	yoy_index	男性 客数(前年比)	customers	男性		客数	全体 > 延べ来店顧客数 > 男性	客数(前年比)
+78230	2026	23	legacy	yoy_index	女性 客数(前年比)	女性 客数(前年比)	yoy_index	女性 客数(前年比)	customers	女性		客数	全体 > 延べ来店顧客数 > 女性	客数(前年比)
+78230	2026	24	legacy	yoy_index	客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体 > 延べ来店顧客数 > 合計	客数(前年比)
 78230	2026	25	legacy	yoy_index	主要商品(前年比)	主要商品(前年比)	yoy_index	主要商品(前年比)	other	主要商品			全体 > 主要商品	売上高(前年比)
 78230	2026	26	known	yoy_index	主要商品 合計新規	主要商品 新規(前年比)	yoy_index	主要商品 新規(前年比)	other	主要商品 新規			全体 > 主要商品 > 新規	売上高(前年比)
-78230	2026	27	known	yoy_index	延べ来店顧客数	延べ来店顧 客数(前年比)	yoy_index	延べ来店顧 客数(前年比)	customers	延べ来店顧		客数		
-78650	2023	1	legacy	number	乳児・知育玩具 全店 売上高	乳児・知育玩具 全店 売上高	number	乳児・知育玩具 全店 売上高	sales	乳児・知育玩具	全店	売上高	全体 > 国内販売 > 乳児・知育玩具	全店 売上高
-78650	2023	2	legacy	yoy_index	乳児・知育玩具(前年比)	乳児・知育玩具(前年比)	yoy_index	乳児・知育玩具(前年比)	other	乳児・知育玩具			全体 > 国内販売 > 乳児・知育玩具	全店 売上高
-78650	2023	3	legacy	number	メイキングトイ 全店 売上高	メイキングトイ 全店 売上高	number	メイキングトイ 全店 売上高	sales	メイキングトイ	全店	売上高	全体 > 国内販売 > メイキングトイ	全店 売上高
-78650	2023	4	legacy	yoy_index	メイキングトイ(前年比)	メイキングトイ(前年比)	yoy_index	メイキングトイ(前年比)	other	メイキングトイ			全体 > 国内販売 > メイキングトイ	全店 売上高
-78650	2023	5	legacy	number	屋内遊具・乗り物 全店 売上高	屋内遊具・乗り物 全店 売上高	number	屋内遊具・乗り物 全店 売上高	sales	屋内遊具・乗り物	全店	売上高	全体 > 国内販売 > 屋内遊具・乗り物	全店 売上高
-78650	2023	6	legacy	yoy_index	屋内遊具・乗り物(前年比)	屋内遊具・乗り物(前年比)	yoy_index	屋内遊具・乗り物(前年比)	other	屋内遊具・乗り物			全体 > 国内販売 > 屋内遊具・乗り物	全店 売上高
-78650	2023	7	legacy	number	その他 全店 売上高	その他 全店 売上高	number	その他 全店 売上高	sales	その他	全店	売上高	全体 > 国内販売 > その他	全店 売上高
-78650	2023	8	legacy	yoy_index	その他(前年比)	その他(前年比)	yoy_index	その他(前年比)	other	その他			全体 > 国内販売 > その他	全店 売上高
-78650	2023	9	legacy	number	海外販売 全店 売上高	海外販売 全店 売上高	number	海外販売 全店 売上高	sales	海外販売	全店	売上高	全体 > 海外販売	全店 売上高
-78650	2023	10	legacy	yoy_index	海外販売 全店 売上高(前年比)	海外販売 全店 売上高(前年比)	yoy_index	海外販売 全店 売上高(前年比)	sales	海外販売	全店	売上高	全体 > 海外販売	全店 売上高
-78650	2023	11	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-78650	2023	12	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-78650	2024	1	legacy	number	乳児・知育玩具 全店 売上高	乳児・知育玩具 全店 売上高	number	乳児・知育玩具 全店 売上高	sales	乳児・知育玩具	全店	売上高	全体 > 国内販売 > 乳児・知育玩具	全店 売上高
-78650	2024	2	legacy	yoy_index	乳児・知育玩具(前年比)	乳児・知育玩具(前年比)	yoy_index	乳児・知育玩具(前年比)	other	乳児・知育玩具			全体 > 国内販売 > 乳児・知育玩具	全店 売上高
-78650	2024	3	legacy	number	メイキングトイ 全店 売上高	メイキングトイ 全店 売上高	number	メイキングトイ 全店 売上高	sales	メイキングトイ	全店	売上高	全体 > 国内販売 > メイキングトイ	全店 売上高
-78650	2024	4	legacy	yoy_index	メイキングトイ(前年比)	メイキングトイ(前年比)	yoy_index	メイキングトイ(前年比)	other	メイキングトイ			全体 > 国内販売 > メイキングトイ	全店 売上高
-78650	2024	5	legacy	number	屋内遊具・乗り物 全店 売上高	屋内遊具・乗り物 全店 売上高	number	屋内遊具・乗り物 全店 売上高	sales	屋内遊具・乗り物	全店	売上高	全体 > 国内販売 > 屋内遊具・乗り物	全店 売上高
-78650	2024	6	legacy	yoy_index	屋内遊具・乗り物(前年比)	屋内遊具・乗り物(前年比)	yoy_index	屋内遊具・乗り物(前年比)	other	屋内遊具・乗り物			全体 > 国内販売 > 屋内遊具・乗り物	全店 売上高
-78650	2024	7	legacy	number	その他 全店 売上高	その他 全店 売上高	number	その他 全店 売上高	sales	その他	全店	売上高	全体 > 国内販売 > その他	全店 売上高
-78650	2024	8	legacy	yoy_index	その他(前年比)	その他(前年比)	yoy_index	その他(前年比)	other	その他			全体 > 国内販売 > その他	全店 売上高
-78650	2024	9	legacy	number	海外販売 全店 売上高	海外販売 全店 売上高	number	海外販売 全店 売上高	sales	海外販売	全店	売上高	全体 > 海外販売	全店 売上高
-78650	2024	10	legacy	yoy_index	海外販売 全店 売上高(前年比)	海外販売 全店 売上高(前年比)	yoy_index	海外販売 全店 売上高(前年比)	sales	海外販売	全店	売上高	全体 > 海外販売	全店 売上高
-78650	2024	11	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-78650	2024	12	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-78650	2025	1	legacy	number	乳児・知育・構成玩具 全店 売上高	乳児・知育・構成玩具 全店 売上高	number	乳児・知育・構成玩具 全店 売上高	sales	乳児・知育・構成玩具	全店	売上高	全体 > 国内販売 > 乳児・知育玩具	全店 売上高
-78650	2025	2	legacy	yoy_index	乳児・知育・構成玩具 全店 売上高(前年比)	乳児・知育・構成玩具 全店 売上高(前年比)	yoy_index	乳児・知育・構成玩具 全店 売上高(前年比)	sales	乳児・知育・構成玩具	全店	売上高	全体 > 国内販売 > 乳児・知育玩具	全店 売上高
-78650	2025	3	legacy	number	メイキングトイ 全店 売上高	メイキングトイ 全店 売上高	number	メイキングトイ 全店 売上高	sales	メイキングトイ	全店	売上高	全体 > 国内販売 > メイキングトイ	全店 売上高
-78650	2025	4	legacy	yoy_index	メイキングトイ 全店 売上高(前年比)	メイキングトイ 全店 売上高(前年比)	yoy_index	メイキングトイ 全店 売上高(前年比)	sales	メイキングトイ	全店	売上高	全体 > 国内販売 > メイキングトイ	全店 売上高
-78650	2025	5	legacy	number	その他 全店 売上高	その他 全店 売上高	number	その他 全店 売上高	sales	その他	全店	売上高	全体 > 国内販売 > その他	全店 売上高
-78650	2025	6	legacy	yoy_index	その他 全店 売上高(前年比)	その他 全店 売上高(前年比)	yoy_index	その他 全店 売上高(前年比)	sales	その他	全店	売上高	全体 > 国内販売 > その他	全店 売上高
-78650	2025	7	legacy	number	海外販売・ロイヤリティ 全店 売上高	海外販売・ロイヤリティ 全店 売上高	number	海外販売・ロイヤリティ 全店 売上高	sales	海外販売・ロイヤリティ	全店	売上高	全体 > 海外販売	全店 売上高
-78650	2025	8	legacy	yoy_index	海外販売・ロイヤリティ 全店 売上高(前年比)	海外販売・ロイヤリティ 全店 売上高(前年比)	yoy_index	海外販売・ロイヤリティ 全店 売上高(前年比)	sales	海外販売・ロイヤリティ	全店	売上高	全体 > 海外販売	全店 売上高
-78650	2025	9	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-78650	2025	10	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-78650	2025	11	legacy	number	乳児・知育玩具 全店 売上高	乳児・知育玩具 全店 売上高	number	乳児・知育玩具 全店 売上高	sales	乳児・知育玩具	全店	売上高	全体 > 国内販売 > 乳児・知育玩具	全店 売上高
-78650	2025	12	legacy	yoy_index	乳児・知育玩具(前年比)	乳児・知育玩具(前年比)	yoy_index	乳児・知育玩具(前年比)	other	乳児・知育玩具			全体 > 国内販売 > 乳児・知育玩具	全店 売上高
-78650	2025	13	legacy	yoy_index	メイキングトイ(前年比)	メイキングトイ(前年比)	yoy_index	メイキングトイ(前年比)	other	メイキングトイ			全体 > 国内販売 > メイキングトイ	全店 売上高
-78650	2025	14	legacy	yoy_index	その他(前年比)	その他(前年比)	yoy_index	その他(前年比)	other	その他			全体 > 国内販売 > その他	全店 売上高
-78650	2025	15	legacy	number	海外販売 全店 売上高	海外販売 全店 売上高	number	海外販売 全店 売上高	sales	海外販売	全店	売上高	全体 > 海外販売	全店 売上高
-78650	2025	16	legacy	yoy_index	海外販売 全店 売上高(前年比)	海外販売 全店 売上高(前年比)	yoy_index	海外販売 全店 売上高(前年比)	sales	海外販売	全店	売上高	全体 > 海外販売	全店 売上高
-78650	2026	1	legacy	number	国内販売 全店 売上高	国内販売 全店 売上高	number	国内販売 全店 売上高	sales	国内販売	全店	売上高	全体 > 国内販売	全店 売上高
-78650	2026	2	legacy	yoy_index	国内販売 全店 売上高(前年比)	国内販売 全店 売上高(前年比)	yoy_index	国内販売 全店 売上高(前年比)	sales	国内販売	全店	売上高	全体 > 国内販売	全店 売上高
-78650	2026	3	legacy	number	海外販売 全店 売上高	海外販売 全店 売上高	number	海外販売 全店 売上高	sales	海外販売	全店	売上高	全体 > 海外販売	全店 売上高
-78650	2026	4	legacy	yoy_index	海外販売 全店 売上高(前年比)	海外販売 全店 売上高(前年比)	yoy_index	海外販売 全店 売上高(前年比)	sales	海外販売	全店	売上高	全体 > 海外販売	全店 売上高
-78650	2026	5	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-78650	2026	6	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-78650	2026	7	legacy	number	乳児・知育玩具 全店 売上高	乳児・知育玩具 全店 売上高	number	乳児・知育玩具 全店 売上高	sales	乳児・知育玩具	全店	売上高	全体 > 国内販売 > 乳児・知育玩具	全店 売上高
-78650	2026	8	legacy	yoy_index	乳児・知育玩具(前年比)	乳児・知育玩具(前年比)	yoy_index	乳児・知育玩具(前年比)	other	乳児・知育玩具			全体 > 国内販売 > 乳児・知育玩具	全店 売上高
-78650	2026	9	legacy	number	メイキングトイ 全店 売上高	メイキングトイ 全店 売上高	number	メイキングトイ 全店 売上高	sales	メイキングトイ	全店	売上高	全体 > 国内販売 > メイキングトイ	全店 売上高
-78650	2026	10	legacy	yoy_index	メイキングトイ(前年比)	メイキングトイ(前年比)	yoy_index	メイキングトイ(前年比)	other	メイキングトイ			全体 > 国内販売 > メイキングトイ	全店 売上高
-78650	2026	11	legacy	number	その他 全店 売上高	その他 全店 売上高	number	その他 全店 売上高	sales	その他	全店	売上高	全体 > 国内販売 > その他	全店 売上高
-78650	2026	12	legacy	yoy_index	その他(前年比)	その他(前年比)	yoy_index	その他(前年比)	other	その他			全体 > 国内販売 > その他	全店 売上高
+78230	2026	27	known	yoy_index	延べ来店顧客数	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体 > 延べ来店顧客数 > 合計	客数(前年比)
+78650	2023	1	legacy	number	乳児・知育玩具 売上高	乳児・知育玩具 売上高	number	乳児・知育玩具 売上高	sales	乳児・知育玩具		売上高	全体 > 国内販売 > 乳児・知育玩具	売上高
+78650	2023	2	legacy	yoy_index	乳児・知育玩具 売上高(前年比)	乳児・知育玩具 売上高(前年比)	yoy_index	乳児・知育玩具 売上高(前年比)	sales	乳児・知育玩具		売上高	全体 > 国内販売 > 乳児・知育玩具	売上高
+78650	2023	3	legacy	number	メイキングトイ 売上高	メイキングトイ 売上高	number	メイキングトイ 売上高	sales	メイキングトイ		売上高	全体 > 国内販売 > メイキングトイ	売上高
+78650	2023	4	legacy	yoy_index	メイキングトイ 売上高(前年比)	メイキングトイ 売上高(前年比)	yoy_index	メイキングトイ 売上高(前年比)	sales	メイキングトイ		売上高	全体 > 国内販売 > メイキングトイ	売上高
+78650	2023	5	legacy	number	屋内遊具・乗り物 売上高	屋内遊具・乗り物 売上高	number	屋内遊具・乗り物 売上高	sales	屋内遊具・乗り物		売上高	全体 > 国内販売 > 屋内遊具・乗り物	売上高
+78650	2023	6	legacy	yoy_index	屋内遊具・乗り物 売上高(前年比)	屋内遊具・乗り物 売上高(前年比)	yoy_index	屋内遊具・乗り物 売上高(前年比)	sales	屋内遊具・乗り物		売上高	全体 > 国内販売 > 屋内遊具・乗り物	売上高
+78650	2023	7	legacy	number	その他 売上高	その他 売上高	number	その他 売上高	sales	その他		売上高	全体 > 国内販売 > その他	売上高
+78650	2023	8	legacy	yoy_index	その他 売上高(前年比)	その他 売上高(前年比)	yoy_index	その他 売上高(前年比)	sales	その他		売上高	全体 > 国内販売 > その他	売上高
+78650	2023	9	legacy	number	海外販売 売上高	海外販売 売上高	number	海外販売 売上高	sales	海外販売		売上高	全体 > 海外販売	売上高
+78650	2023	10	legacy	yoy_index	海外販売 売上高(前年比)	海外販売 売上高(前年比)	yoy_index	海外販売 売上高(前年比)	sales	海外販売		売上高	全体 > 海外販売	売上高
+78650	2023	11	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+78650	2023	12	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+78650	2024	1	legacy	number	乳児・知育玩具 売上高	乳児・知育玩具 売上高	number	乳児・知育玩具 売上高	sales	乳児・知育玩具		売上高	全体 > 国内販売 > 乳児・知育玩具	売上高
+78650	2024	2	legacy	yoy_index	乳児・知育玩具 売上高(前年比)	乳児・知育玩具 売上高(前年比)	yoy_index	乳児・知育玩具 売上高(前年比)	sales	乳児・知育玩具		売上高	全体 > 国内販売 > 乳児・知育玩具	売上高
+78650	2024	3	legacy	number	メイキングトイ 売上高	メイキングトイ 売上高	number	メイキングトイ 売上高	sales	メイキングトイ		売上高	全体 > 国内販売 > メイキングトイ	売上高
+78650	2024	4	legacy	yoy_index	メイキングトイ 売上高(前年比)	メイキングトイ 売上高(前年比)	yoy_index	メイキングトイ 売上高(前年比)	sales	メイキングトイ		売上高	全体 > 国内販売 > メイキングトイ	売上高
+78650	2024	5	legacy	number	屋内遊具・乗り物 売上高	屋内遊具・乗り物 売上高	number	屋内遊具・乗り物 売上高	sales	屋内遊具・乗り物		売上高	全体 > 国内販売 > 屋内遊具・乗り物	売上高
+78650	2024	6	legacy	yoy_index	屋内遊具・乗り物 売上高(前年比)	屋内遊具・乗り物 売上高(前年比)	yoy_index	屋内遊具・乗り物 売上高(前年比)	sales	屋内遊具・乗り物		売上高	全体 > 国内販売 > 屋内遊具・乗り物	売上高
+78650	2024	7	legacy	number	その他 売上高	その他 売上高	number	その他 売上高	sales	その他		売上高	全体 > 国内販売 > その他	売上高
+78650	2024	8	legacy	yoy_index	その他 売上高(前年比)	その他 売上高(前年比)	yoy_index	その他 売上高(前年比)	sales	その他		売上高	全体 > 国内販売 > その他	売上高
+78650	2024	9	legacy	number	海外販売 売上高	海外販売 売上高	number	海外販売 売上高	sales	海外販売		売上高	全体 > 海外販売	売上高
+78650	2024	10	legacy	yoy_index	海外販売 売上高(前年比)	海外販売 売上高(前年比)	yoy_index	海外販売 売上高(前年比)	sales	海外販売		売上高	全体 > 海外販売	売上高
+78650	2024	11	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+78650	2024	12	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+78650	2025	1	legacy	number	乳児・知育・構成玩具 売上高	乳児・知育・構成玩具 売上高	number	乳児・知育・構成玩具 売上高	sales	乳児・知育・構成玩具		売上高	全体 > 国内販売 > 乳児・知育玩具	売上高
+78650	2025	2	legacy	yoy_index	乳児・知育・構成玩具 売上高(前年比)	乳児・知育・構成玩具 売上高(前年比)	yoy_index	乳児・知育・構成玩具 売上高(前年比)	sales	乳児・知育・構成玩具		売上高	全体 > 国内販売 > 乳児・知育玩具	売上高
+78650	2025	3	legacy	number	メイキングトイ 売上高	メイキングトイ 売上高	number	メイキングトイ 売上高	sales	メイキングトイ		売上高	全体 > 国内販売 > メイキングトイ	売上高
+78650	2025	4	legacy	number	その他 売上高	その他 売上高	number	その他 売上高	sales	その他		売上高	全体 > 国内販売 > その他	売上高
+78650	2025	5	legacy	number	海外販売・ロイヤリティ 売上高	海外販売・ロイヤリティ 売上高	number	海外販売・ロイヤリティ 売上高	sales	海外販売・ロイヤリティ		売上高	全体 > 海外販売	売上高
+78650	2025	6	legacy	yoy_index	海外販売・ロイヤリティ 売上高(前年比)	海外販売・ロイヤリティ 売上高(前年比)	yoy_index	海外販売・ロイヤリティ 売上高(前年比)	sales	海外販売・ロイヤリティ		売上高	全体 > 海外販売	売上高
+78650	2025	7	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+78650	2025	8	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+78650	2025	9	legacy	number	乳児・知育玩具 売上高	乳児・知育玩具 売上高	number	乳児・知育玩具 売上高	sales	乳児・知育玩具		売上高	全体 > 国内販売 > 乳児・知育玩具	売上高
+78650	2025	10	legacy	yoy_index	乳児・知育玩具 売上高(前年比)	乳児・知育玩具 売上高(前年比)	yoy_index	乳児・知育玩具 売上高(前年比)	sales	乳児・知育玩具		売上高	全体 > 国内販売 > 乳児・知育玩具	売上高
+78650	2025	11	legacy	yoy_index	メイキングトイ 売上高(前年比)	メイキングトイ 売上高(前年比)	yoy_index	メイキングトイ 売上高(前年比)	sales	メイキングトイ		売上高	全体 > 国内販売 > メイキングトイ	売上高
+78650	2025	12	legacy	yoy_index	その他 売上高(前年比)	その他 売上高(前年比)	yoy_index	その他 売上高(前年比)	sales	その他		売上高	全体 > 国内販売 > その他	売上高
+78650	2025	13	legacy	number	海外販売 売上高	海外販売 売上高	number	海外販売 売上高	sales	海外販売		売上高	全体 > 海外販売	売上高
+78650	2025	14	legacy	yoy_index	海外販売 売上高(前年比)	海外販売 売上高(前年比)	yoy_index	海外販売 売上高(前年比)	sales	海外販売		売上高	全体 > 海外販売	売上高
+78650	2026	1	legacy	number	国内販売 売上高	国内販売 売上高	number	国内販売 売上高	sales	国内販売		売上高	全体 > 国内販売	売上高
+78650	2026	2	legacy	yoy_index	国内販売 売上高(前年比)	国内販売 売上高(前年比)	yoy_index	国内販売 売上高(前年比)	sales	国内販売		売上高	全体 > 国内販売	売上高
+78650	2026	3	legacy	number	海外販売 売上高	海外販売 売上高	number	海外販売 売上高	sales	海外販売		売上高	全体 > 海外販売	売上高
+78650	2026	4	legacy	yoy_index	海外販売 売上高(前年比)	海外販売 売上高(前年比)	yoy_index	海外販売 売上高(前年比)	sales	海外販売		売上高	全体 > 海外販売	売上高
+78650	2026	5	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+78650	2026	6	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+78650	2026	7	legacy	number	乳児・知育玩具 売上高	乳児・知育玩具 売上高	number	乳児・知育玩具 売上高	sales	乳児・知育玩具		売上高	全体 > 国内販売 > 乳児・知育玩具	売上高
+78650	2026	8	legacy	yoy_index	乳児・知育玩具 売上高(前年比)	乳児・知育玩具 売上高(前年比)	yoy_index	乳児・知育玩具 売上高(前年比)	sales	乳児・知育玩具		売上高	全体 > 国内販売 > 乳児・知育玩具	売上高
+78650	2026	9	legacy	number	メイキングトイ 売上高	メイキングトイ 売上高	number	メイキングトイ 売上高	sales	メイキングトイ		売上高	全体 > 国内販売 > メイキングトイ	売上高
+78650	2026	10	legacy	yoy_index	メイキングトイ 売上高(前年比)	メイキングトイ 売上高(前年比)	yoy_index	メイキングトイ 売上高(前年比)	sales	メイキングトイ		売上高	全体 > 国内販売 > メイキングトイ	売上高
+78650	2026	11	legacy	number	その他 売上高	その他 売上高	number	その他 売上高	sales	その他		売上高	全体 > 国内販売 > その他	売上高
+78650	2026	12	legacy	yoy_index	その他 売上高(前年比)	その他 売上高(前年比)	yoy_index	その他 売上高(前年比)	sales	その他		売上高	全体 > 国内販売 > その他	売上高
 79180	2023	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 79180	2023	2	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
 79180	2023	3	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
@@ -6761,21 +6759,21 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 82330	2026	83	legacy	yoy_index	商品別 髙島屋および国内百貨店子会社 売上高(前年比)	髙島屋および国内百貨店子会社計 売上高(前年比)	yoy_index	髙島屋および国内百貨店子会社計 売上高(前年比)	sales	髙島屋および国内百貨店子会社計		売上高	全体	売上高
 82330	2026	84	legacy	yoy_index	堺店 売上高(前年比)	堺店 売上高(前年比)	yoy_index	堺店 売上高(前年比)	sales	堺店		売上高	全体 > 髙島屋 > 髙島屋各店 > 堺店	売上高
 82330	2026	85	legacy	yoy_index	堺店 入店 客数(前年比)	堺店 入店 客数(前年比)	yoy_index	堺店 入店 客数(前年比)	customers	堺店 入店		客数	全体 > 髙島屋 > 髙島屋各店 > 堺店	入店客数
-82370	2022	1	legacy	yoy_index	銀座本店 全店 売上高(前年比)	銀座本店 全店 売上高(前年比)	yoy_index	銀座本店 全店 売上高(前年比)	sales	銀座本店	全店	売上高	銀座本店	全店 売上高
-82370	2022	2	legacy	yoy_index	銀座店 全店 売上高(前年比)	銀座店 全店 売上高(前年比)	yoy_index	銀座店 全店 売上高(前年比)	sales	銀座店	全店	売上高	銀座本店 > 銀座店	全店 売上高
-82370	2022	3	legacy	yoy_index	浅草店 全店 売上高(前年比)	浅草店 全店 売上高(前年比)	yoy_index	浅草店 全店 売上高(前年比)	sales	浅草店	全店	売上高	銀座本店 > 浅草店	全店 売上高
-82370	2023	1	legacy	yoy_index	銀座本店 全店 売上高(前年比)	銀座本店 全店 売上高(前年比)	yoy_index	銀座本店 全店 売上高(前年比)	sales	銀座本店	全店	売上高	銀座本店	全店 売上高
-82370	2023	2	legacy	yoy_index	銀座店 全店 売上高(前年比)	銀座店 全店 売上高(前年比)	yoy_index	銀座店 全店 売上高(前年比)	sales	銀座店	全店	売上高	銀座本店 > 銀座店	全店 売上高
-82370	2023	3	legacy	yoy_index	浅草店 全店 売上高(前年比)	浅草店 全店 売上高(前年比)	yoy_index	浅草店 全店 売上高(前年比)	sales	浅草店	全店	売上高	銀座本店 > 浅草店	全店 売上高
-82370	2024	1	legacy	yoy_index	銀座本店 全店 売上高(前年比)	銀座本店 全店 売上高(前年比)	yoy_index	銀座本店 全店 売上高(前年比)	sales	銀座本店	全店	売上高	銀座本店	全店 売上高
-82370	2024	2	legacy	yoy_index	銀座店 全店 売上高(前年比)	銀座店 全店 売上高(前年比)	yoy_index	銀座店 全店 売上高(前年比)	sales	銀座店	全店	売上高	銀座本店 > 銀座店	全店 売上高
-82370	2024	3	legacy	yoy_index	浅草店 全店 売上高(前年比)	浅草店 全店 売上高(前年比)	yoy_index	浅草店 全店 売上高(前年比)	sales	浅草店	全店	売上高	銀座本店 > 浅草店	全店 売上高
-82370	2025	1	legacy	yoy_index	銀座本店 全店 売上高(前年比)	銀座本店 全店 売上高(前年比)	yoy_index	銀座本店 全店 売上高(前年比)	sales	銀座本店	全店	売上高	銀座本店	全店 売上高
-82370	2025	2	legacy	yoy_index	銀座店 全店 売上高(前年比)	銀座店 全店 売上高(前年比)	yoy_index	銀座店 全店 売上高(前年比)	sales	銀座店	全店	売上高	銀座本店 > 銀座店	全店 売上高
-82370	2025	3	legacy	yoy_index	浅草店 全店 売上高(前年比)	浅草店 全店 売上高(前年比)	yoy_index	浅草店 全店 売上高(前年比)	sales	浅草店	全店	売上高	銀座本店 > 浅草店	全店 売上高
-82370	2026	1	legacy	yoy_index	銀座店 全店 売上高(前年比)	銀座店 全店 売上高(前年比)	yoy_index	銀座店 全店 売上高(前年比)	sales	銀座店	全店	売上高	銀座本店 > 銀座店	全店 売上高
-82370	2026	2	legacy	yoy_index	浅草店 全店 売上高(前年比)	浅草店 全店 売上高(前年比)	yoy_index	浅草店 全店 売上高(前年比)	sales	浅草店	全店	売上高	銀座本店 > 浅草店	全店 売上高
-82370	2026	3	legacy	yoy_index	銀座本店 全店 売上高(前年比)	銀座本店 全店 売上高(前年比)	yoy_index	銀座本店 全店 売上高(前年比)	sales	銀座本店	全店	売上高	銀座本店	全店 売上高
+82370	2022	1	legacy	yoy_index	銀座本店 売上高(前年比)	銀座本店 売上高(前年比)	yoy_index	銀座本店 売上高(前年比)	sales	銀座本店		売上高	銀座本店	売上高
+82370	2022	2	legacy	yoy_index	銀座店 売上高(前年比)	銀座店 売上高(前年比)	yoy_index	銀座店 売上高(前年比)	sales	銀座店		売上高	銀座本店 > 銀座店	売上高
+82370	2022	3	legacy	yoy_index	浅草店 売上高(前年比)	浅草店 売上高(前年比)	yoy_index	浅草店 売上高(前年比)	sales	浅草店		売上高	銀座本店 > 浅草店	売上高
+82370	2023	1	legacy	yoy_index	銀座本店 売上高(前年比)	銀座本店 売上高(前年比)	yoy_index	銀座本店 売上高(前年比)	sales	銀座本店		売上高	銀座本店	売上高
+82370	2023	2	legacy	yoy_index	銀座店 売上高(前年比)	銀座店 売上高(前年比)	yoy_index	銀座店 売上高(前年比)	sales	銀座店		売上高	銀座本店 > 銀座店	売上高
+82370	2023	3	legacy	yoy_index	浅草店 売上高(前年比)	浅草店 売上高(前年比)	yoy_index	浅草店 売上高(前年比)	sales	浅草店		売上高	銀座本店 > 浅草店	売上高
+82370	2024	1	legacy	yoy_index	銀座本店 売上高(前年比)	銀座本店 売上高(前年比)	yoy_index	銀座本店 売上高(前年比)	sales	銀座本店		売上高	銀座本店	売上高
+82370	2024	2	legacy	yoy_index	銀座店 売上高(前年比)	銀座店 売上高(前年比)	yoy_index	銀座店 売上高(前年比)	sales	銀座店		売上高	銀座本店 > 銀座店	売上高
+82370	2024	3	legacy	yoy_index	浅草店 売上高(前年比)	浅草店 売上高(前年比)	yoy_index	浅草店 売上高(前年比)	sales	浅草店		売上高	銀座本店 > 浅草店	売上高
+82370	2025	1	legacy	yoy_index	銀座本店 売上高(前年比)	銀座本店 売上高(前年比)	yoy_index	銀座本店 売上高(前年比)	sales	銀座本店		売上高	銀座本店	売上高
+82370	2025	2	legacy	yoy_index	銀座店 売上高(前年比)	銀座店 売上高(前年比)	yoy_index	銀座店 売上高(前年比)	sales	銀座店		売上高	銀座本店 > 銀座店	売上高
+82370	2025	3	legacy	yoy_index	浅草店 売上高(前年比)	浅草店 売上高(前年比)	yoy_index	浅草店 売上高(前年比)	sales	浅草店		売上高	銀座本店 > 浅草店	売上高
+82370	2026	1	legacy	yoy_index	銀座店 売上高(前年比)	銀座店 売上高(前年比)	yoy_index	銀座店 売上高(前年比)	sales	銀座店		売上高	銀座本店 > 銀座店	売上高
+82370	2026	2	legacy	yoy_index	浅草店 売上高(前年比)	浅草店 売上高(前年比)	yoy_index	浅草店 売上高(前年比)	sales	浅草店		売上高	銀座本店 > 浅草店	売上高
+82370	2026	3	legacy	yoy_index	銀座本店 売上高(前年比)	銀座本店 売上高(前年比)	yoy_index	銀座本店 売上高(前年比)	sales	銀座本店		売上高	銀座本店	売上高
 82550	2023	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 82550	2023	2	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 82550	2023	3	legacy	yoy_index	（従来基準） 全店 売上高(前年比)	（従来基準） 全店 売上高(前年比)	yoy_index	（従来基準） 全店 売上高(前年比)	sales	（従来基準）	全店	売上高	全体 > （従来基準）	全店 売上高
@@ -7031,7 +7029,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 87150	2026	3	legacy	number	平均継続率	平均継続率	number	平均継続率	other	平均継続率			全体	平均継続率
 87150	2026	4	legacy	number	どうぶつ健活申込数	どうぶつ健活申込数	number	どうぶつ健活申込数	count			どうぶつ健活申込数	全体	どうぶつ健活申込数
 87150	2026	5	legacy	number	特許保有件数	特許保有件数	number	特許保有件数	count			特許保有件数	全体	特許保有件数
-87150	2026	6	legacy	number	JARVIS Tokyo 全店 売上高	JARVIS Tokyo 全店 売上高	number	JARVIS Tokyo 全店 売上高	sales	JARVIS Tokyo	全店	売上高	全体 > JARVIS Tokyo	全店 売上高
+87150	2026	6	legacy	number	JARVIS Tokyo 売上高	JARVIS Tokyo 売上高	number	JARVIS Tokyo 売上高	sales	JARVIS Tokyo		売上高	全体 > JARVIS Tokyo	売上高
 89140	2024	1	legacy	number	総室数	総室数	number	総室数	count			総室数	全体	総室数
 89140	2024	2	legacy	number	稼働室数	稼働室数	number	稼働室数	count			稼働室数	全体	稼働室数
 89140	2024	3	legacy	number	稼働率	稼働率	number	稼働率	other	稼働率			全体	稼働率
@@ -7155,93 +7153,93 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 90070	2026	46	legacy	yoy_index	ホテル はつはな 稼働率前年差(前年比)	ホテル はつはな 稼働率前年差(前年比)	yoy_index	ホテル はつはな 稼働率前年差(前年比)	other	ホテル はつはな 稼働率前年差			全体 > ホテル > 箱根 > はつはな	稼働率前年差
 90070	2026	47	legacy	yoy_index	ホテル 箱根ゆとわ 稼働率前年差(前年比)	ホテル 箱根ゆとわ 稼働率前年差(前年比)	yoy_index	ホテル 箱根ゆとわ 稼働率前年差(前年比)	other	ホテル 箱根ゆとわ 稼働率前年差			全体 > ホテル > 箱根 > 箱根ゆとわ	稼働率前年差
 90070	2026	48	legacy	yoy_index	ホテル CLAD 稼働率前年差(前年比)	ホテル CLAD 稼働率前年差(前年比)	yoy_index	ホテル CLAD 稼働率前年差(前年比)	other	ホテル CLAD 稼働率前年差			全体 > ホテル > 箱根 > CLAD	稼働率前年差
-90390	2023	1	legacy	number	北海道・東北地区 全店 売上高	北海道・東北地区 全店 売上高	number	北海道・東北地区 全店 売上高	sales	北海道・東北地区	全店	売上高	全体 > 北海道・東北地区	全店 売上高
-90390	2023	2	legacy	yoy_index	北海道・東北地区 全店 売上高(前年比)	北海道・東北地区 全店 売上高(前年比)	yoy_index	北海道・東北地区 全店 売上高(前年比)	sales	北海道・東北地区	全店	売上高	全体 > 北海道・東北地区	全店 売上高
-90390	2023	3	legacy	number	関東地区 全店 売上高	関東地区 全店 売上高	number	関東地区 全店 売上高	sales	関東地区	全店	売上高	全体 > 関東地区	全店 売上高
-90390	2023	4	legacy	yoy_index	関東地区 全店 売上高(前年比)	関東地区 全店 売上高(前年比)	yoy_index	関東地区 全店 売上高(前年比)	sales	関東地区	全店	売上高	全体 > 関東地区	全店 売上高
-90390	2023	5	legacy	number	中部・東海地区 全店 売上高	中部・東海地区 全店 売上高	number	中部・東海地区 全店 売上高	sales	中部・東海地区	全店	売上高	全体 > 中部・東海地区	全店 売上高
-90390	2023	6	legacy	yoy_index	中部・東海地区 全店 売上高(前年比)	中部・東海地区 全店 売上高(前年比)	yoy_index	中部・東海地区 全店 売上高(前年比)	sales	中部・東海地区	全店	売上高	全体 > 中部・東海地区	全店 売上高
-90390	2023	7	legacy	number	近畿地区 全店 売上高	近畿地区 全店 売上高	number	近畿地区 全店 売上高	sales	近畿地区	全店	売上高	全体 > 近畿地区	全店 売上高
-90390	2023	8	legacy	yoy_index	近畿地区 全店 売上高(前年比)	近畿地区 全店 売上高(前年比)	yoy_index	近畿地区 全店 売上高(前年比)	sales	近畿地区	全店	売上高	全体 > 近畿地区	全店 売上高
-90390	2023	9	legacy	number	中国・四国地区 全店 売上高	中国・四国地区 全店 売上高	number	中国・四国地区 全店 売上高	sales	中国・四国地区	全店	売上高	全体 > 中国・四国地区	全店 売上高
-90390	2023	10	legacy	yoy_index	中国・四国地区 全店 売上高(前年比)	中国・四国地区 全店 売上高(前年比)	yoy_index	中国・四国地区 全店 売上高(前年比)	sales	中国・四国地区	全店	売上高	全体 > 中国・四国地区	全店 売上高
-90390	2023	11	legacy	number	九州・沖縄地区 全店 売上高	九州・沖縄地区 全店 売上高	number	九州・沖縄地区 全店 売上高	sales	九州・沖縄地区	全店	売上高	全体 > 九州・沖縄地区	全店 売上高
-90390	2023	12	legacy	yoy_index	九州・沖縄地区 全店 売上高(前年比)	九州・沖縄地区 全店 売上高(前年比)	yoy_index	九州・沖縄地区 全店 売上高(前年比)	sales	九州・沖縄地区	全店	売上高	全体 > 九州・沖縄地区	全店 売上高
-90390	2023	13	legacy	number	その他 全店 売上高	その他 全店 売上高	number	その他 全店 売上高	sales	その他	全店	売上高	全体 > その他	全店 売上高
-90390	2023	14	legacy	yoy_index	その他 全店 売上高(前年比)	その他 全店 売上高(前年比)	yoy_index	その他 全店 売上高(前年比)	sales	その他	全店	売上高	全体 > その他	全店 売上高
-90390	2023	15	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-90390	2023	16	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-90390	2024	1	legacy	number	北海道・東北地区 全店 売上高	北海道・東北地区 全店 売上高	number	北海道・東北地区 全店 売上高	sales	北海道・東北地区	全店	売上高	全体 > 北海道・東北地区	全店 売上高
-90390	2024	2	legacy	yoy_index	北海道・東北地区 全店 売上高(前年比)	北海道・東北地区 全店 売上高(前年比)	yoy_index	北海道・東北地区 全店 売上高(前年比)	sales	北海道・東北地区	全店	売上高	全体 > 北海道・東北地区	全店 売上高
-90390	2024	3	legacy	number	関東地区 全店 売上高	関東地区 全店 売上高	number	関東地区 全店 売上高	sales	関東地区	全店	売上高	全体 > 関東地区	全店 売上高
-90390	2024	4	legacy	yoy_index	関東地区 全店 売上高(前年比)	関東地区 全店 売上高(前年比)	yoy_index	関東地区 全店 売上高(前年比)	sales	関東地区	全店	売上高	全体 > 関東地区	全店 売上高
-90390	2024	5	legacy	number	中部・東海地区 全店 売上高	中部・東海地区 全店 売上高	number	中部・東海地区 全店 売上高	sales	中部・東海地区	全店	売上高	全体 > 中部・東海地区	全店 売上高
-90390	2024	6	legacy	yoy_index	中部・東海地区 全店 売上高(前年比)	中部・東海地区 全店 売上高(前年比)	yoy_index	中部・東海地区 全店 売上高(前年比)	sales	中部・東海地区	全店	売上高	全体 > 中部・東海地区	全店 売上高
-90390	2024	7	legacy	number	近畿地区 全店 売上高	近畿地区 全店 売上高	number	近畿地区 全店 売上高	sales	近畿地区	全店	売上高	全体 > 近畿地区	全店 売上高
-90390	2024	8	legacy	yoy_index	近畿地区 全店 売上高(前年比)	近畿地区 全店 売上高(前年比)	yoy_index	近畿地区 全店 売上高(前年比)	sales	近畿地区	全店	売上高	全体 > 近畿地区	全店 売上高
-90390	2024	9	legacy	number	中国・四国地区 全店 売上高	中国・四国地区 全店 売上高	number	中国・四国地区 全店 売上高	sales	中国・四国地区	全店	売上高	全体 > 中国・四国地区	全店 売上高
-90390	2024	10	legacy	yoy_index	中国・四国地区 全店 売上高(前年比)	中国・四国地区 全店 売上高(前年比)	yoy_index	中国・四国地区 全店 売上高(前年比)	sales	中国・四国地区	全店	売上高	全体 > 中国・四国地区	全店 売上高
-90390	2024	11	legacy	number	九州・沖縄地区 全店 売上高	九州・沖縄地区 全店 売上高	number	九州・沖縄地区 全店 売上高	sales	九州・沖縄地区	全店	売上高	全体 > 九州・沖縄地区	全店 売上高
-90390	2024	12	legacy	yoy_index	九州・沖縄地区 全店 売上高(前年比)	九州・沖縄地区 全店 売上高(前年比)	yoy_index	九州・沖縄地区 全店 売上高(前年比)	sales	九州・沖縄地区	全店	売上高	全体 > 九州・沖縄地区	全店 売上高
-90390	2024	13	legacy	number	その他 全店 売上高	その他 全店 売上高	number	その他 全店 売上高	sales	その他	全店	売上高	全体 > その他	全店 売上高
-90390	2024	14	legacy	yoy_index	その他 全店 売上高(前年比)	その他 全店 売上高(前年比)	yoy_index	その他 全店 売上高(前年比)	sales	その他	全店	売上高	全体 > その他	全店 売上高
-90390	2024	15	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-90390	2024	16	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-90390	2025	1	legacy	number	北海道・東北地区 全店 売上高	北海道・東北地区 全店 売上高	number	北海道・東北地区 全店 売上高	sales	北海道・東北地区	全店	売上高	全体 > 北海道・東北地区	全店 売上高
-90390	2025	2	legacy	yoy_index	北海道・東北地区 全店 売上高(前年比)	北海道・東北地区 全店 売上高(前年比)	yoy_index	北海道・東北地区 全店 売上高(前年比)	sales	北海道・東北地区	全店	売上高	全体 > 北海道・東北地区	全店 売上高
-90390	2025	3	legacy	number	関東地区 全店 売上高	関東地区 全店 売上高	number	関東地区 全店 売上高	sales	関東地区	全店	売上高	全体 > 関東地区	全店 売上高
-90390	2025	4	legacy	yoy_index	関東地区 全店 売上高(前年比)	関東地区 全店 売上高(前年比)	yoy_index	関東地区 全店 売上高(前年比)	sales	関東地区	全店	売上高	全体 > 関東地区	全店 売上高
-90390	2025	5	legacy	number	中部・東海地区 全店 売上高	中部・東海地区 全店 売上高	number	中部・東海地区 全店 売上高	sales	中部・東海地区	全店	売上高	全体 > 中部・東海地区	全店 売上高
-90390	2025	6	legacy	yoy_index	中部・東海地区 全店 売上高(前年比)	中部・東海地区 全店 売上高(前年比)	yoy_index	中部・東海地区 全店 売上高(前年比)	sales	中部・東海地区	全店	売上高	全体 > 中部・東海地区	全店 売上高
-90390	2025	7	legacy	number	近畿地区 全店 売上高	近畿地区 全店 売上高	number	近畿地区 全店 売上高	sales	近畿地区	全店	売上高	全体 > 近畿地区	全店 売上高
-90390	2025	8	legacy	yoy_index	近畿地区 全店 売上高(前年比)	近畿地区 全店 売上高(前年比)	yoy_index	近畿地区 全店 売上高(前年比)	sales	近畿地区	全店	売上高	全体 > 近畿地区	全店 売上高
-90390	2025	9	legacy	number	中国・四国地区 全店 売上高	中国・四国地区 全店 売上高	number	中国・四国地区 全店 売上高	sales	中国・四国地区	全店	売上高	全体 > 中国・四国地区	全店 売上高
-90390	2025	10	legacy	yoy_index	中国・四国地区 全店 売上高(前年比)	中国・四国地区 全店 売上高(前年比)	yoy_index	中国・四国地区 全店 売上高(前年比)	sales	中国・四国地区	全店	売上高	全体 > 中国・四国地区	全店 売上高
-90390	2025	11	legacy	number	九州・沖縄地区 全店 売上高	九州・沖縄地区 全店 売上高	number	九州・沖縄地区 全店 売上高	sales	九州・沖縄地区	全店	売上高	全体 > 九州・沖縄地区	全店 売上高
-90390	2025	12	legacy	yoy_index	九州・沖縄地区 全店 売上高(前年比)	九州・沖縄地区 全店 売上高(前年比)	yoy_index	九州・沖縄地区 全店 売上高(前年比)	sales	九州・沖縄地区	全店	売上高	全体 > 九州・沖縄地区	全店 売上高
-90390	2025	13	legacy	number	その他 全店 売上高	その他 全店 売上高	number	その他 全店 売上高	sales	その他	全店	売上高	全体 > その他	全店 売上高
-90390	2025	14	legacy	yoy_index	その他 全店 売上高(前年比)	その他 全店 売上高(前年比)	yoy_index	その他 全店 売上高(前年比)	sales	その他	全店	売上高	全体 > その他	全店 売上高
-90390	2025	15	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-90390	2025	16	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-90390	2026	1	legacy	number	北海道・東北地区 全店 売上高	北海道・東北地区 全店 売上高	number	北海道・東北地区 全店 売上高	sales	北海道・東北地区	全店	売上高	全体 > 北海道・東北地区	全店 売上高
-90390	2026	2	legacy	yoy_index	北海道・東北地区 全店 売上高(前年比)	北海道・東北地区 全店 売上高(前年比)	yoy_index	北海道・東北地区 全店 売上高(前年比)	sales	北海道・東北地区	全店	売上高	全体 > 北海道・東北地区	全店 売上高
-90390	2026	3	legacy	number	関東地区 全店 売上高	関東地区 全店 売上高	number	関東地区 全店 売上高	sales	関東地区	全店	売上高	全体 > 関東地区	全店 売上高
-90390	2026	4	legacy	yoy_index	関東地区 全店 売上高(前年比)	関東地区 全店 売上高(前年比)	yoy_index	関東地区 全店 売上高(前年比)	sales	関東地区	全店	売上高	全体 > 関東地区	全店 売上高
-90390	2026	5	legacy	number	中部・東海地区 全店 売上高	中部・東海地区 全店 売上高	number	中部・東海地区 全店 売上高	sales	中部・東海地区	全店	売上高	全体 > 中部・東海地区	全店 売上高
-90390	2026	6	legacy	yoy_index	中部・東海地区 全店 売上高(前年比)	中部・東海地区 全店 売上高(前年比)	yoy_index	中部・東海地区 全店 売上高(前年比)	sales	中部・東海地区	全店	売上高	全体 > 中部・東海地区	全店 売上高
-90390	2026	7	legacy	number	近畿地区 全店 売上高	近畿地区 全店 売上高	number	近畿地区 全店 売上高	sales	近畿地区	全店	売上高	全体 > 近畿地区	全店 売上高
-90390	2026	8	legacy	yoy_index	近畿地区 全店 売上高(前年比)	近畿地区 全店 売上高(前年比)	yoy_index	近畿地区 全店 売上高(前年比)	sales	近畿地区	全店	売上高	全体 > 近畿地区	全店 売上高
-90390	2026	9	legacy	number	中国・四国地区 全店 売上高	中国・四国地区 全店 売上高	number	中国・四国地区 全店 売上高	sales	中国・四国地区	全店	売上高	全体 > 中国・四国地区	全店 売上高
-90390	2026	10	legacy	yoy_index	中国・四国地区 全店 売上高(前年比)	中国・四国地区 全店 売上高(前年比)	yoy_index	中国・四国地区 全店 売上高(前年比)	sales	中国・四国地区	全店	売上高	全体 > 中国・四国地区	全店 売上高
-90390	2026	11	legacy	number	九州・沖縄地区 全店 売上高	九州・沖縄地区 全店 売上高	number	九州・沖縄地区 全店 売上高	sales	九州・沖縄地区	全店	売上高	全体 > 九州・沖縄地区	全店 売上高
-90390	2026	12	legacy	yoy_index	九州・沖縄地区 全店 売上高(前年比)	九州・沖縄地区 全店 売上高(前年比)	yoy_index	九州・沖縄地区 全店 売上高(前年比)	sales	九州・沖縄地区	全店	売上高	全体 > 九州・沖縄地区	全店 売上高
-90390	2026	13	legacy	number	その他 全店 売上高	その他 全店 売上高	number	その他 全店 売上高	sales	その他	全店	売上高	全体 > その他	全店 売上高
-90390	2026	14	legacy	yoy_index	その他 全店 売上高(前年比)	その他 全店 売上高(前年比)	yoy_index	その他 全店 売上高(前年比)	sales	その他	全店	売上高	全体 > その他	全店 売上高
-90390	2026	15	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-90390	2026	16	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+90390	2023	1	legacy	number	北海道・東北地区 売上高	北海道・東北地区 売上高	number	北海道・東北地区 売上高	sales	北海道・東北地区		売上高	全体 > 北海道・東北地区	売上高
+90390	2023	2	legacy	yoy_index	北海道・東北地区 売上高(前年比)	北海道・東北地区 売上高(前年比)	yoy_index	北海道・東北地区 売上高(前年比)	sales	北海道・東北地区		売上高	全体 > 北海道・東北地区	売上高
+90390	2023	3	legacy	number	関東地区 売上高	関東地区 売上高	number	関東地区 売上高	sales	関東地区		売上高	全体 > 関東地区	売上高
+90390	2023	4	legacy	yoy_index	関東地区 売上高(前年比)	関東地区 売上高(前年比)	yoy_index	関東地区 売上高(前年比)	sales	関東地区		売上高	全体 > 関東地区	売上高
+90390	2023	5	legacy	number	中部・東海地区 売上高	中部・東海地区 売上高	number	中部・東海地区 売上高	sales	中部・東海地区		売上高	全体 > 中部・東海地区	売上高
+90390	2023	6	legacy	yoy_index	中部・東海地区 売上高(前年比)	中部・東海地区 売上高(前年比)	yoy_index	中部・東海地区 売上高(前年比)	sales	中部・東海地区		売上高	全体 > 中部・東海地区	売上高
+90390	2023	7	legacy	number	近畿地区 売上高	近畿地区 売上高	number	近畿地区 売上高	sales	近畿地区		売上高	全体 > 近畿地区	売上高
+90390	2023	8	legacy	yoy_index	近畿地区 売上高(前年比)	近畿地区 売上高(前年比)	yoy_index	近畿地区 売上高(前年比)	sales	近畿地区		売上高	全体 > 近畿地区	売上高
+90390	2023	9	legacy	number	中国・四国地区 売上高	中国・四国地区 売上高	number	中国・四国地区 売上高	sales	中国・四国地区		売上高	全体 > 中国・四国地区	売上高
+90390	2023	10	legacy	yoy_index	中国・四国地区 売上高(前年比)	中国・四国地区 売上高(前年比)	yoy_index	中国・四国地区 売上高(前年比)	sales	中国・四国地区		売上高	全体 > 中国・四国地区	売上高
+90390	2023	11	legacy	number	九州・沖縄地区 売上高	九州・沖縄地区 売上高	number	九州・沖縄地区 売上高	sales	九州・沖縄地区		売上高	全体 > 九州・沖縄地区	売上高
+90390	2023	12	legacy	yoy_index	九州・沖縄地区 売上高(前年比)	九州・沖縄地区 売上高(前年比)	yoy_index	九州・沖縄地区 売上高(前年比)	sales	九州・沖縄地区		売上高	全体 > 九州・沖縄地区	売上高
+90390	2023	13	legacy	number	その他 売上高	その他 売上高	number	その他 売上高	sales	その他		売上高	全体 > その他	売上高
+90390	2023	14	legacy	yoy_index	その他 売上高(前年比)	その他 売上高(前年比)	yoy_index	その他 売上高(前年比)	sales	その他		売上高	全体 > その他	売上高
+90390	2023	15	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+90390	2023	16	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+90390	2024	1	legacy	number	北海道・東北地区 売上高	北海道・東北地区 売上高	number	北海道・東北地区 売上高	sales	北海道・東北地区		売上高	全体 > 北海道・東北地区	売上高
+90390	2024	2	legacy	yoy_index	北海道・東北地区 売上高(前年比)	北海道・東北地区 売上高(前年比)	yoy_index	北海道・東北地区 売上高(前年比)	sales	北海道・東北地区		売上高	全体 > 北海道・東北地区	売上高
+90390	2024	3	legacy	number	関東地区 売上高	関東地区 売上高	number	関東地区 売上高	sales	関東地区		売上高	全体 > 関東地区	売上高
+90390	2024	4	legacy	yoy_index	関東地区 売上高(前年比)	関東地区 売上高(前年比)	yoy_index	関東地区 売上高(前年比)	sales	関東地区		売上高	全体 > 関東地区	売上高
+90390	2024	5	legacy	number	中部・東海地区 売上高	中部・東海地区 売上高	number	中部・東海地区 売上高	sales	中部・東海地区		売上高	全体 > 中部・東海地区	売上高
+90390	2024	6	legacy	yoy_index	中部・東海地区 売上高(前年比)	中部・東海地区 売上高(前年比)	yoy_index	中部・東海地区 売上高(前年比)	sales	中部・東海地区		売上高	全体 > 中部・東海地区	売上高
+90390	2024	7	legacy	number	近畿地区 売上高	近畿地区 売上高	number	近畿地区 売上高	sales	近畿地区		売上高	全体 > 近畿地区	売上高
+90390	2024	8	legacy	yoy_index	近畿地区 売上高(前年比)	近畿地区 売上高(前年比)	yoy_index	近畿地区 売上高(前年比)	sales	近畿地区		売上高	全体 > 近畿地区	売上高
+90390	2024	9	legacy	number	中国・四国地区 売上高	中国・四国地区 売上高	number	中国・四国地区 売上高	sales	中国・四国地区		売上高	全体 > 中国・四国地区	売上高
+90390	2024	10	legacy	yoy_index	中国・四国地区 売上高(前年比)	中国・四国地区 売上高(前年比)	yoy_index	中国・四国地区 売上高(前年比)	sales	中国・四国地区		売上高	全体 > 中国・四国地区	売上高
+90390	2024	11	legacy	number	九州・沖縄地区 売上高	九州・沖縄地区 売上高	number	九州・沖縄地区 売上高	sales	九州・沖縄地区		売上高	全体 > 九州・沖縄地区	売上高
+90390	2024	12	legacy	yoy_index	九州・沖縄地区 売上高(前年比)	九州・沖縄地区 売上高(前年比)	yoy_index	九州・沖縄地区 売上高(前年比)	sales	九州・沖縄地区		売上高	全体 > 九州・沖縄地区	売上高
+90390	2024	13	legacy	number	その他 売上高	その他 売上高	number	その他 売上高	sales	その他		売上高	全体 > その他	売上高
+90390	2024	14	legacy	yoy_index	その他 売上高(前年比)	その他 売上高(前年比)	yoy_index	その他 売上高(前年比)	sales	その他		売上高	全体 > その他	売上高
+90390	2024	15	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+90390	2024	16	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+90390	2025	1	legacy	number	北海道・東北地区 売上高	北海道・東北地区 売上高	number	北海道・東北地区 売上高	sales	北海道・東北地区		売上高	全体 > 北海道・東北地区	売上高
+90390	2025	2	legacy	yoy_index	北海道・東北地区 売上高(前年比)	北海道・東北地区 売上高(前年比)	yoy_index	北海道・東北地区 売上高(前年比)	sales	北海道・東北地区		売上高	全体 > 北海道・東北地区	売上高
+90390	2025	3	legacy	number	関東地区 売上高	関東地区 売上高	number	関東地区 売上高	sales	関東地区		売上高	全体 > 関東地区	売上高
+90390	2025	4	legacy	yoy_index	関東地区 売上高(前年比)	関東地区 売上高(前年比)	yoy_index	関東地区 売上高(前年比)	sales	関東地区		売上高	全体 > 関東地区	売上高
+90390	2025	5	legacy	number	中部・東海地区 売上高	中部・東海地区 売上高	number	中部・東海地区 売上高	sales	中部・東海地区		売上高	全体 > 中部・東海地区	売上高
+90390	2025	6	legacy	yoy_index	中部・東海地区 売上高(前年比)	中部・東海地区 売上高(前年比)	yoy_index	中部・東海地区 売上高(前年比)	sales	中部・東海地区		売上高	全体 > 中部・東海地区	売上高
+90390	2025	7	legacy	number	近畿地区 売上高	近畿地区 売上高	number	近畿地区 売上高	sales	近畿地区		売上高	全体 > 近畿地区	売上高
+90390	2025	8	legacy	yoy_index	近畿地区 売上高(前年比)	近畿地区 売上高(前年比)	yoy_index	近畿地区 売上高(前年比)	sales	近畿地区		売上高	全体 > 近畿地区	売上高
+90390	2025	9	legacy	number	中国・四国地区 売上高	中国・四国地区 売上高	number	中国・四国地区 売上高	sales	中国・四国地区		売上高	全体 > 中国・四国地区	売上高
+90390	2025	10	legacy	yoy_index	中国・四国地区 売上高(前年比)	中国・四国地区 売上高(前年比)	yoy_index	中国・四国地区 売上高(前年比)	sales	中国・四国地区		売上高	全体 > 中国・四国地区	売上高
+90390	2025	11	legacy	number	九州・沖縄地区 売上高	九州・沖縄地区 売上高	number	九州・沖縄地区 売上高	sales	九州・沖縄地区		売上高	全体 > 九州・沖縄地区	売上高
+90390	2025	12	legacy	yoy_index	九州・沖縄地区 売上高(前年比)	九州・沖縄地区 売上高(前年比)	yoy_index	九州・沖縄地区 売上高(前年比)	sales	九州・沖縄地区		売上高	全体 > 九州・沖縄地区	売上高
+90390	2025	13	legacy	number	その他 売上高	その他 売上高	number	その他 売上高	sales	その他		売上高	全体 > その他	売上高
+90390	2025	14	legacy	yoy_index	その他 売上高(前年比)	その他 売上高(前年比)	yoy_index	その他 売上高(前年比)	sales	その他		売上高	全体 > その他	売上高
+90390	2025	15	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+90390	2025	16	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+90390	2026	1	legacy	number	北海道・東北地区 売上高	北海道・東北地区 売上高	number	北海道・東北地区 売上高	sales	北海道・東北地区		売上高	全体 > 北海道・東北地区	売上高
+90390	2026	2	legacy	yoy_index	北海道・東北地区 売上高(前年比)	北海道・東北地区 売上高(前年比)	yoy_index	北海道・東北地区 売上高(前年比)	sales	北海道・東北地区		売上高	全体 > 北海道・東北地区	売上高
+90390	2026	3	legacy	number	関東地区 売上高	関東地区 売上高	number	関東地区 売上高	sales	関東地区		売上高	全体 > 関東地区	売上高
+90390	2026	4	legacy	yoy_index	関東地区 売上高(前年比)	関東地区 売上高(前年比)	yoy_index	関東地区 売上高(前年比)	sales	関東地区		売上高	全体 > 関東地区	売上高
+90390	2026	5	legacy	number	中部・東海地区 売上高	中部・東海地区 売上高	number	中部・東海地区 売上高	sales	中部・東海地区		売上高	全体 > 中部・東海地区	売上高
+90390	2026	6	legacy	yoy_index	中部・東海地区 売上高(前年比)	中部・東海地区 売上高(前年比)	yoy_index	中部・東海地区 売上高(前年比)	sales	中部・東海地区		売上高	全体 > 中部・東海地区	売上高
+90390	2026	7	legacy	number	近畿地区 売上高	近畿地区 売上高	number	近畿地区 売上高	sales	近畿地区		売上高	全体 > 近畿地区	売上高
+90390	2026	8	legacy	yoy_index	近畿地区 売上高(前年比)	近畿地区 売上高(前年比)	yoy_index	近畿地区 売上高(前年比)	sales	近畿地区		売上高	全体 > 近畿地区	売上高
+90390	2026	9	legacy	number	中国・四国地区 売上高	中国・四国地区 売上高	number	中国・四国地区 売上高	sales	中国・四国地区		売上高	全体 > 中国・四国地区	売上高
+90390	2026	10	legacy	yoy_index	中国・四国地区 売上高(前年比)	中国・四国地区 売上高(前年比)	yoy_index	中国・四国地区 売上高(前年比)	sales	中国・四国地区		売上高	全体 > 中国・四国地区	売上高
+90390	2026	11	legacy	number	九州・沖縄地区 売上高	九州・沖縄地区 売上高	number	九州・沖縄地区 売上高	sales	九州・沖縄地区		売上高	全体 > 九州・沖縄地区	売上高
+90390	2026	12	legacy	yoy_index	九州・沖縄地区 売上高(前年比)	九州・沖縄地区 売上高(前年比)	yoy_index	九州・沖縄地区 売上高(前年比)	sales	九州・沖縄地区		売上高	全体 > 九州・沖縄地区	売上高
+90390	2026	13	legacy	number	その他 売上高	その他 売上高	number	その他 売上高	sales	その他		売上高	全体 > その他	売上高
+90390	2026	14	legacy	yoy_index	その他 売上高(前年比)	その他 売上高(前年比)	yoy_index	その他 売上高(前年比)	sales	その他		売上高	全体 > その他	売上高
+90390	2026	15	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+90390	2026	16	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 91450	2024	1	legacy	number	連結営業収益	連結営業収益	number	連結営業収益	other			連結営業収益	全体	連結営業収益
 91450	2024	2	legacy	yoy_index	連結営業収益(前年比)	連結営業収益(前年比)	yoy_index	連結営業収益(前年比)	other			連結営業収益	全体	連結営業収益
 91450	2025	1	legacy	number	連結営業収益	連結営業収益	number	連結営業収益	other			連結営業収益	全体	連結営業収益
 91450	2025	2	legacy	yoy_index	連結営業収益(前年比)	連結営業収益(前年比)	yoy_index	連結営業収益(前年比)	other			連結営業収益	全体	連結営業収益
 91450	2026	1	legacy	number	連結営業収益	連結営業収益	number	連結営業収益	other			連結営業収益	全体	連結営業収益
 91450	2026	2	legacy	yoy_index	連結営業収益(前年比)	連結営業収益(前年比)	yoy_index	連結営業収益(前年比)	other			連結営業収益	全体	連結営業収益
-92450	2023	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
+92450	2023	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 92450	2023	2	legacy	number	転貸戸数	転貸戸数	number	転貸戸数	count			転貸戸数	全体	転貸戸数
 92450	2023	3	legacy	number	法人企業等	法人企業等	number	法人企業等	other	法人企業等			全体	法人企業等
-92450	2024	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-92450	2024	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+92450	2024	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+92450	2024	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 92450	2024	3	legacy	number	転貸戸数	転貸戸数	number	転貸戸数	count			転貸戸数	全体	転貸戸数
 92450	2024	4	legacy	yoy_index	転貸戸数(前年比)	転貸戸数(前年比)	yoy_index	転貸戸数(前年比)	count			転貸戸数	全体	転貸戸数
 92450	2024	5	legacy	number	法人企業等	法人企業等	number	法人企業等	other	法人企業等			全体	法人企業等
 92450	2024	6	legacy	yoy_index	法人企業等(前年比)	法人企業等(前年比)	yoy_index	法人企業等(前年比)	other	法人企業等			全体	法人企業等
-92450	2025	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-92450	2025	2	legacy	yoy_index	前年同期比 全店 売上高(前年比)	前年同期比 全店 売上高(前年比)	yoy_index	前年同期比 全店 売上高(前年比)	sales	前年同期比	全店	売上高	全体 > 前年同期比	全店 売上高
+92450	2025	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+92450	2025	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 92450	2025	3	legacy	number	転貸戸数	転貸戸数	number	転貸戸数	count			転貸戸数	全体	転貸戸数
 92450	2025	4	legacy	yoy_index	転貸戸数前年同期比(前年比)	転貸戸数前年同期比(前年比)	yoy_index	転貸戸数前年同期比(前年比)	other	転貸戸数前年同期比			全体	転貸戸数前年同期比
 92450	2025	5	legacy	number	法人企業等	法人企業等	number	法人企業等	other	法人企業等			全体	法人企業等
 92450	2025	6	legacy	yoy_index	法人企業等前年同期比(前年比)	法人企業等前年同期比(前年比)	yoy_index	法人企業等前年同期比(前年比)	other	法人企業等前年同期比			全体	法人企業等前年同期比
-92450	2026	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
-92450	2026	2	legacy	yoy_index	前年同期比 全店 売上高(前年比)	前年同期比 全店 売上高(前年比)	yoy_index	前年同期比 全店 売上高(前年比)	sales	前年同期比	全店	売上高	全体 > 前年同期比	全店 売上高
+92450	2026	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
+92450	2026	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 92450	2026	3	legacy	number	転貸戸数	転貸戸数	number	転貸戸数	count			転貸戸数	全体	転貸戸数
 92450	2026	4	legacy	yoy_index	転貸戸数前年同期比(前年比)	転貸戸数前年同期比(前年比)	yoy_index	転貸戸数前年同期比(前年比)	other	転貸戸数前年同期比			全体	転貸戸数前年同期比
 92450	2026	5	legacy	number	法人企業等	法人企業等	number	法人企業等	other	法人企業等			全体	法人企業等
@@ -7693,18 +7691,18 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 98760	2026	7	legacy	yoy_index	全社 客単価(前年比)	全社 客単価(前年比)	yoy_index	全社 客単価(前年比)	spend		全社	客単価	全体	全社 客単価
 98760	2026	8	legacy	number	退店	退店	number	退店	close			退店	全体	退店
 98760	2026	9	legacy	number	出店	出店	number	出店	open			出店	全体	出店
-98900	2023	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-98900	2023	2	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
-98900	2023	3	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
-98900	2024	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-98900	2024	2	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
-98900	2024	3	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
-98900	2025	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-98900	2025	2	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
-98900	2025	3	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
-98900	2026	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-98900	2026	2	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
-98900	2026	3	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
+98900	2023	1	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+98900	2023	2	legacy	yoy_index	客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体	客数
+98900	2023	3	legacy	yoy_index	客単価(前年比)	客単価(前年比)	yoy_index	客単価(前年比)	spend			客単価	全体	客単価
+98900	2024	1	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+98900	2024	2	legacy	yoy_index	客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体	客数
+98900	2024	3	legacy	yoy_index	客単価(前年比)	客単価(前年比)	yoy_index	客単価(前年比)	spend			客単価	全体	客単価
+98900	2025	1	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+98900	2025	2	legacy	yoy_index	客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体	客数
+98900	2025	3	legacy	yoy_index	客単価(前年比)	客単価(前年比)	yoy_index	客単価(前年比)	spend			客単価	全体	客単価
+98900	2026	1	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
+98900	2026	2	legacy	yoy_index	客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体	客数
+98900	2026	3	legacy	yoy_index	客単価(前年比)	客単価(前年比)	yoy_index	客単価(前年比)	spend			客単価	全体	客単価
 99000	2023	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 99000	2023	2	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
 99000	2023	3	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価

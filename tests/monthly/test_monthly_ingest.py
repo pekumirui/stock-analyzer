@@ -930,11 +930,11 @@ def test_issuer_alias_cases() -> None:
         _fail(f"27800 year=2026 全店 売上高(前年比): {sample_27800_yoy!r}")
 
     sample_76830 = apply_issuer_aliases(
-        "76830", canonicalize_element_label("内 MM 全店 売上高", "number"), year=2026,
+        "76830", canonicalize_element_label("内 MM 売上高", "number"), year=2026,
     )
     sample_76830 = canonicalize_element_label(sample_76830, "number")
-    if sample_76830 != "内アパレル 全店 売上高":
-        _fail(f"76830 内 MM 全店 売上高: {sample_76830!r}")
+    if sample_76830 != "内アパレル 売上高":
+        _fail(f"76830 内 MM 売上高: {sample_76830!r}")
     sample_35570 = apply_issuer_aliases(
         "35570",
         canonicalize_element_label("てけてけ業態 既存 売上高(前年比)", "yoy_index"),
@@ -950,11 +950,11 @@ def test_issuer_alias_cases() -> None:
     if sample_35570_stores != "the 3rd Burger 既存 店舗数":
         _fail(f"35570 対象店舗数: {sample_35570_stores!r}")
     sample_76830_yoy = apply_issuer_aliases(
-        "76830", canonicalize_element_label("内 MM 全店 売上高(前年比)", "yoy_index"), year=2026,
+        "76830", canonicalize_element_label("内 MM 売上高(前年比)", "yoy_index"), year=2026,
     )
     sample_76830_yoy = canonicalize_element_label(sample_76830_yoy, "yoy_index")
-    if sample_76830_yoy != "内アパレル 全店 売上高(前年比)":
-        _fail(f"76830 内 MM 全店 売上高(前年比): {sample_76830_yoy!r}")
+    if sample_76830_yoy != "内アパレル 売上高(前年比)":
+        _fail(f"76830 内 MM 売上高(前年比): {sample_76830_yoy!r}")
 
     for incoming, stored, unit in (
         ("・ FC 全店 売上高", "直営+FC 売上高", "number"),
@@ -1003,10 +1003,10 @@ def test_issuer_alias_cases() -> None:
             _fail(f"46660 {incoming!r}: {got!r}, want {stored!r}")
 
     for incoming, stored in (
-        ("株式会社SRA 全店 売上高", "SRA 全店 売上高"),
-        ("株式会社SRA 全店 売上高(前年比)", "SRA 全店 売上高(前年比)"),
-        ("株式会社AIT 全店 売上高", "AIT 全店 売上高"),
-        ("株式会社AIT 全店 売上高(前年比)", "AIT 全店 売上高(前年比)"),
+        ("株式会社SRA 売上高", "SRA 売上高"),
+        ("株式会社SRA 売上高(前年比)", "SRA 売上高(前年比)"),
+        ("株式会社AIT 売上高", "AIT 売上高"),
+        ("株式会社AIT 売上高(前年比)", "AIT 売上高(前年比)"),
     ):
         unit = "yoy_index" if incoming.endswith("(前年比)") else "number"
         got = apply_issuer_aliases(
