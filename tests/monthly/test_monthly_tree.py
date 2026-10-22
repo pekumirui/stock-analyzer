@@ -1789,6 +1789,40 @@ def test_tree_23370() -> None:
         _fail(f"23370 tree: {got!r}")
 
 
+def test_tree_31740() -> None:
+    """31740 ハピネス: 既存店前年比の各行を別指標にする（#822）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees
+
+    rows = assign_tree_rows("31740", [
+        "既存 売上高(前年比)",
+        "売上総利益 既存 売上高(前年比)",
+        "売上個数 既存 売上高(前年比)",
+        "既存 客単価(前年比)",
+        "ヴィンテージ商品 既存 売上高(前年比)",
+        "粗利率 既存",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    want = {
+        "既存 売上高(前年比)": (["全体"], "既存 売上高(前年比)", "既存 売上高"),
+        "売上総利益 既存 売上高(前年比)": (
+            ["全体"], "売上総利益 既存 売上高(前年比)", "売上総利益",
+        ),
+        "売上個数 既存 売上高(前年比)": (["全体"], "売上個数 既存 売上高(前年比)", "売上個数"),
+        "既存 客単価(前年比)": (["全体"], "既存 客単価(前年比)", "既存 客単価"),
+        "ヴィンテージ商品 既存 売上高(前年比)": (
+            ["全体"], "ヴィンテージ商品 既存 売上高(前年比)", "ヴィンテージ商品売上高",
+        ),
+        "粗利率 既存": (["全体"], "粗利率 既存", "既存 粗利率"),
+    }
+    if got != want:
+        _fail(f"31740 tree: {got!r}")
+    metrics = [m for m, _ in load_monthly_trees()["31740"].metrics]
+    if metrics != [
+        "既存 売上高", "売上総利益", "売上個数", "既存 客単価", "ヴィンテージ商品売上高", "既存 粗利率",
+    ]:
+        _fail(f"31740 metrics: {metrics!r}")
+
+
 def test_tree_kab102() -> None:
     """月次の木の監査（#831〜#835）: 合計を会社の行、内訳を子の節にする。"""
     from app.monthly.tree import assign_tree_rows, load_monthly_trees
@@ -2047,6 +2081,7 @@ def main() -> None:
     test_tree_87050()
     test_tree_71770()
     test_tree_23370()
+    test_tree_31740()
     test_tree_kab102()
     test_union_collapses_yoy_display_names()
     test_segment_tail_row_order()
