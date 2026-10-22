@@ -6340,52 +6340,52 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 81940	2026	3	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
 81940	2026	4	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
 81980	2023	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-81980	2023	2	legacy	yoy_index	同規模 全店 売上高(前年比)	同規模 全店 売上高(前年比)	yoy_index	同規模 全店 売上高(前年比)	sales	同規模	全店	売上高	全体	同規模 全店 売上高
+81980	2023	2	legacy	yoy_index	同規模 売上高(前年比)	同規模 売上高(前年比)	yoy_index	同規模 売上高(前年比)	sales	同規模		売上高	全体	同規模 売上高
 81980	2023	3	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
-81980	2023	4	legacy	yoy_index	同規模 全店 客数(前年比)	同規模 全店 客数(前年比)	yoy_index	同規模 全店 客数(前年比)	customers	同規模	全店	客数	全体	同規模 全店 客数
+81980	2023	4	legacy	yoy_index	同規模 客数(前年比)	同規模 客数(前年比)	yoy_index	同規模 客数(前年比)	customers	同規模		客数	全体	同規模 客数
 81980	2023	5	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
-81980	2023	6	legacy	yoy_index	同規模 全店 客単価(前年比)	同規模 全店 客単価(前年比)	yoy_index	同規模 全店 客単価(前年比)	spend	同規模	全店	客単価	全体	同規模 全店 客単価
+81980	2023	6	legacy	yoy_index	同規模 客単価(前年比)	同規模 客単価(前年比)	yoy_index	同規模 客単価(前年比)	spend	同規模		客単価	全体	同規模 客単価
 81980	2023	7	legacy	yoy_index	一品 全店 客単価(前年比)	一品 全店 客単価(前年比)	yoy_index	一品 全店 客単価(前年比)	spend	一品	全店	客単価	全体	一品単価
-81980	2023	8	legacy	yoy_index	同規模 一品 全店 客単価(前年比)	同規模 一品 全店 客単価(前年比)	yoy_index	同規模 一品 全店 客単価(前年比)	spend	同規模 一品	全店	客単価	全体	同規模 一品単価
+81980	2023	8	legacy	yoy_index	同規模 一品 客単価(前年比)	同規模 一品 客単価(前年比)	yoy_index	同規模 一品 客単価(前年比)	spend	同規模 一品		客単価	全体	同規模 一品単価
 81980	2023	9	legacy	yoy_index	同規模 買上点数(前年比)	同規模 買上点数(前年比)	yoy_index	同規模 買上点数(前年比)	count	同規模		買上点数	全体	同規模 買上点数
 81980	2023	10	legacy	number	新設店舗	新設店舗	number	新設店舗	adj			新設店舗	全体	新設店舗
 81980	2023	11	legacy	number	退店	退店	number	退店	close			退店	全体	退店
 81980	2023	12	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 81980	2023	13	legacy	yoy_index	買上点数 全店 売上高(前年比)	買上点数 全店 売上高(前年比)	yoy_index	買上点数 全店 売上高(前年比)	sales		全店	売上高	全体	買上点数
 81980	2024	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-81980	2024	2	legacy	yoy_index	同規模 全店 売上高(前年比)	同規模 全店 売上高(前年比)	yoy_index	同規模 全店 売上高(前年比)	sales	同規模	全店	売上高	全体	同規模 全店 売上高
+81980	2024	2	legacy	yoy_index	同規模 売上高(前年比)	同規模 売上高(前年比)	yoy_index	同規模 売上高(前年比)	sales	同規模		売上高	全体	同規模 売上高
 81980	2024	3	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
-81980	2024	4	legacy	yoy_index	同規模 全店 客数(前年比)	同規模 全店 客数(前年比)	yoy_index	同規模 全店 客数(前年比)	customers	同規模	全店	客数	全体	同規模 全店 客数
+81980	2024	4	legacy	yoy_index	同規模 客数(前年比)	同規模 客数(前年比)	yoy_index	同規模 客数(前年比)	customers	同規模		客数	全体	同規模 客数
 81980	2024	5	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
-81980	2024	6	legacy	yoy_index	同規模 全店 客単価(前年比)	同規模 全店 客単価(前年比)	yoy_index	同規模 全店 客単価(前年比)	spend	同規模	全店	客単価	全体	同規模 全店 客単価
+81980	2024	6	legacy	yoy_index	同規模 客単価(前年比)	同規模 客単価(前年比)	yoy_index	同規模 客単価(前年比)	spend	同規模		客単価	全体	同規模 客単価
 81980	2024	7	legacy	yoy_index	一品 全店 客単価(前年比)	一品 全店 客単価(前年比)	yoy_index	一品 全店 客単価(前年比)	spend	一品	全店	客単価	全体	一品単価
-81980	2024	8	legacy	yoy_index	同規模 一品 全店 客単価(前年比)	同規模 一品 全店 客単価(前年比)	yoy_index	同規模 一品 全店 客単価(前年比)	spend	同規模 一品	全店	客単価	全体	同規模 一品単価
+81980	2024	8	legacy	yoy_index	同規模 一品 客単価(前年比)	同規模 一品 客単価(前年比)	yoy_index	同規模 一品 客単価(前年比)	spend	同規模 一品		客単価	全体	同規模 一品単価
 81980	2024	9	legacy	yoy_index	同規模 買上点数(前年比)	同規模 買上点数(前年比)	yoy_index	同規模 買上点数(前年比)	count	同規模		買上点数	全体	同規模 買上点数
 81980	2024	10	legacy	number	新設店舗	新設店舗	number	新設店舗	adj			新設店舗	全体	新設店舗
 81980	2024	11	legacy	number	退店	退店	number	退店	close			退店	全体	退店
 81980	2024	12	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 81980	2024	13	legacy	yoy_index	買上点数 全店 売上高(前年比)	買上点数 全店 売上高(前年比)	yoy_index	買上点数 全店 売上高(前年比)	sales		全店	売上高	全体	買上点数
 81980	2025	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-81980	2025	2	legacy	yoy_index	同規模 全店 売上高(前年比)	同規模 全店 売上高(前年比)	yoy_index	同規模 全店 売上高(前年比)	sales	同規模	全店	売上高	全体	同規模 全店 売上高
+81980	2025	2	legacy	yoy_index	同規模 売上高(前年比)	同規模 売上高(前年比)	yoy_index	同規模 売上高(前年比)	sales	同規模		売上高	全体	同規模 売上高
 81980	2025	3	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
-81980	2025	4	legacy	yoy_index	同規模 全店 客数(前年比)	同規模 全店 客数(前年比)	yoy_index	同規模 全店 客数(前年比)	customers	同規模	全店	客数	全体	同規模 全店 客数
+81980	2025	4	legacy	yoy_index	同規模 客数(前年比)	同規模 客数(前年比)	yoy_index	同規模 客数(前年比)	customers	同規模		客数	全体	同規模 客数
 81980	2025	5	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
-81980	2025	6	legacy	yoy_index	同規模 全店 客単価(前年比)	同規模 全店 客単価(前年比)	yoy_index	同規模 全店 客単価(前年比)	spend	同規模	全店	客単価	全体	同規模 全店 客単価
+81980	2025	6	legacy	yoy_index	同規模 客単価(前年比)	同規模 客単価(前年比)	yoy_index	同規模 客単価(前年比)	spend	同規模		客単価	全体	同規模 客単価
 81980	2025	7	legacy	yoy_index	一品 全店 客単価(前年比)	一品 全店 客単価(前年比)	yoy_index	一品 全店 客単価(前年比)	spend	一品	全店	客単価	全体	一品単価
-81980	2025	8	legacy	yoy_index	同規模 一品 全店 客単価(前年比)	同規模 一品 全店 客単価(前年比)	yoy_index	同規模 一品 全店 客単価(前年比)	spend	同規模 一品	全店	客単価	全体	同規模 一品単価
+81980	2025	8	legacy	yoy_index	同規模 一品 客単価(前年比)	同規模 一品 客単価(前年比)	yoy_index	同規模 一品 客単価(前年比)	spend	同規模 一品		客単価	全体	同規模 一品単価
 81980	2025	9	legacy	yoy_index	同規模 買上点数(前年比)	同規模 買上点数(前年比)	yoy_index	同規模 買上点数(前年比)	count	同規模		買上点数	全体	同規模 買上点数
 81980	2025	10	legacy	number	新設店舗	新設店舗	number	新設店舗	adj			新設店舗	全体	新設店舗
 81980	2025	11	legacy	number	退店	退店	number	退店	close			退店	全体	退店
 81980	2025	12	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 81980	2025	13	legacy	yoy_index	買上点数 全店 売上高(前年比)	買上点数 全店 売上高(前年比)	yoy_index	買上点数 全店 売上高(前年比)	sales		全店	売上高	全体	買上点数
 81980	2026	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-81980	2026	2	legacy	yoy_index	同規模 全店 売上高(前年比)	同規模 全店 売上高(前年比)	yoy_index	同規模 全店 売上高(前年比)	sales	同規模	全店	売上高	全体	同規模 全店 売上高
+81980	2026	2	legacy	yoy_index	同規模 売上高(前年比)	同規模 売上高(前年比)	yoy_index	同規模 売上高(前年比)	sales	同規模		売上高	全体	同規模 売上高
 81980	2026	3	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
-81980	2026	4	legacy	yoy_index	同規模 全店 客数(前年比)	同規模 全店 客数(前年比)	yoy_index	同規模 全店 客数(前年比)	customers	同規模	全店	客数	全体	同規模 全店 客数
+81980	2026	4	legacy	yoy_index	同規模 客数(前年比)	同規模 客数(前年比)	yoy_index	同規模 客数(前年比)	customers	同規模		客数	全体	同規模 客数
 81980	2026	5	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
-81980	2026	6	legacy	yoy_index	同規模 全店 客単価(前年比)	同規模 全店 客単価(前年比)	yoy_index	同規模 全店 客単価(前年比)	spend	同規模	全店	客単価	全体	同規模 全店 客単価
+81980	2026	6	legacy	yoy_index	同規模 客単価(前年比)	同規模 客単価(前年比)	yoy_index	同規模 客単価(前年比)	spend	同規模		客単価	全体	同規模 客単価
 81980	2026	7	legacy	yoy_index	一品 全店 客単価(前年比)	一品 全店 客単価(前年比)	yoy_index	一品 全店 客単価(前年比)	spend	一品	全店	客単価	全体	一品単価
-81980	2026	8	legacy	yoy_index	同規模 一品 全店 客単価(前年比)	同規模 一品 全店 客単価(前年比)	yoy_index	同規模 一品 全店 客単価(前年比)	spend	同規模 一品	全店	客単価	全体	同規模 一品単価
+81980	2026	8	legacy	yoy_index	同規模 一品 客単価(前年比)	同規模 一品 客単価(前年比)	yoy_index	同規模 一品 客単価(前年比)	spend	同規模 一品		客単価	全体	同規模 一品単価
 81980	2026	9	legacy	yoy_index	同規模 買上点数(前年比)	同規模 買上点数(前年比)	yoy_index	同規模 買上点数(前年比)	count	同規模		買上点数	全体	同規模 買上点数
 81980	2026	10	legacy	number	新設店舗	新設店舗	number	新設店舗	adj			新設店舗	全体	新設店舗
 81980	2026	11	legacy	number	退店	退店	number	退店	close			退店	全体	退店
@@ -6398,12 +6398,12 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 82000	2023	4	legacy	yoy_index	純 既存 売上高(前年比)	純 既存 売上高(前年比)	yoy_index	純 既存 売上高(前年比)	sales	純	既存	売上高	全体 > 純	既存 売上高
 82000	2023	5	legacy	yoy_index	純 既存 客数(前年比)	純 既存 客数(前年比)	yoy_index	純 既存 客数(前年比)	customers	純	既存	客数	全体 > 純	既存 客数
 82000	2023	6	legacy	yoy_index	純 既存 客単価(前年比)	純 既存 客単価(前年比)	yoy_index	純 既存 客単価(前年比)	spend	純	既存	客単価	全体 > 純	既存 客単価
-82000	2023	7	legacy	yoy_index	リンガーハット 全店 売上高(前年比)	リンガーハット 全店 売上高(前年比)	yoy_index	リンガーハット 全店 売上高(前年比)	sales	リンガーハット	全店	売上高	全体 > リンガーハット	全店 売上高
-82000	2023	8	legacy	yoy_index	リンガーハット 全店 客数(前年比)	リンガーハット 全店 客数(前年比)	yoy_index	リンガーハット 全店 客数(前年比)	customers	リンガーハット	全店	客数	全体 > リンガーハット	全店 客数
-82000	2023	9	legacy	yoy_index	リンガーハット 全店 客単価(前年比)	リンガーハット 全店 客単価(前年比)	yoy_index	リンガーハット 全店 客単価(前年比)	spend	リンガーハット	全店	客単価	全体 > リンガーハット	全店 客単価
-82000	2023	10	legacy	yoy_index	濵かつ 全店 売上高(前年比)	濵かつ 全店 売上高(前年比)	yoy_index	濵かつ 全店 売上高(前年比)	sales	濵かつ	全店	売上高	全体 > 濵かつ	全店 売上高
-82000	2023	11	legacy	yoy_index	濵かつ 全店 客数(前年比)	濵かつ 全店 客数(前年比)	yoy_index	濵かつ 全店 客数(前年比)	customers	濵かつ	全店	客数	全体 > 濵かつ	全店 客数
-82000	2023	12	legacy	yoy_index	濵かつ 全店 客単価(前年比)	濵かつ 全店 客単価(前年比)	yoy_index	濵かつ 全店 客単価(前年比)	spend	濵かつ	全店	客単価	全体 > 濵かつ	全店 客単価
+82000	2023	7	legacy	yoy_index	リンガーハット 売上高(前年比)	リンガーハット 売上高(前年比)	yoy_index	リンガーハット 売上高(前年比)	sales	リンガーハット		売上高	全体 > リンガーハット	売上高
+82000	2023	8	legacy	yoy_index	リンガーハット 客数(前年比)	リンガーハット 客数(前年比)	yoy_index	リンガーハット 客数(前年比)	customers	リンガーハット		客数	全体 > リンガーハット	客数
+82000	2023	9	legacy	yoy_index	リンガーハット 客単価(前年比)	リンガーハット 客単価(前年比)	yoy_index	リンガーハット 客単価(前年比)	spend	リンガーハット		客単価	全体 > リンガーハット	客単価
+82000	2023	10	legacy	yoy_index	濵かつ 売上高(前年比)	濵かつ 売上高(前年比)	yoy_index	濵かつ 売上高(前年比)	sales	濵かつ		売上高	全体 > 濵かつ	売上高
+82000	2023	11	legacy	yoy_index	濵かつ 客数(前年比)	濵かつ 客数(前年比)	yoy_index	濵かつ 客数(前年比)	customers	濵かつ		客数	全体 > 濵かつ	客数
+82000	2023	12	legacy	yoy_index	濵かつ 客単価(前年比)	濵かつ 客単価(前年比)	yoy_index	濵かつ 客単価(前年比)	spend	濵かつ		客単価	全体 > 濵かつ	客単価
 82000	2023	13	legacy	number	全店 店舗数	全店 店舗数	number	全店 店舗数	stores		全店	店舗数	全体	全店 店舗数
 82000	2023	14	legacy	number	リンガーハット 店舗数	リンガーハット 店舗数	number	リンガーハット 店舗数	stores	リンガーハット		店舗数	全体 > リンガーハット	店舗数
 82000	2023	15	legacy	number	濵かつ 店舗数	濵かつ 店舗数	number	濵かつ 店舗数	stores	濵かつ		店舗数	全体 > 濵かつ	店舗数
@@ -6414,12 +6414,12 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 82000	2024	4	legacy	yoy_index	純 既存 売上高(前年比)	純 既存 売上高(前年比)	yoy_index	純 既存 売上高(前年比)	sales	純	既存	売上高	全体 > 純	既存 売上高
 82000	2024	5	legacy	yoy_index	純 既存 客数(前年比)	純 既存 客数(前年比)	yoy_index	純 既存 客数(前年比)	customers	純	既存	客数	全体 > 純	既存 客数
 82000	2024	6	legacy	yoy_index	純 既存 客単価(前年比)	純 既存 客単価(前年比)	yoy_index	純 既存 客単価(前年比)	spend	純	既存	客単価	全体 > 純	既存 客単価
-82000	2024	7	legacy	yoy_index	リンガーハット 全店 売上高(前年比)	リンガーハット 全店 売上高(前年比)	yoy_index	リンガーハット 全店 売上高(前年比)	sales	リンガーハット	全店	売上高	全体 > リンガーハット	全店 売上高
-82000	2024	8	legacy	yoy_index	リンガーハット 全店 客数(前年比)	リンガーハット 全店 客数(前年比)	yoy_index	リンガーハット 全店 客数(前年比)	customers	リンガーハット	全店	客数	全体 > リンガーハット	全店 客数
-82000	2024	9	legacy	yoy_index	リンガーハット 全店 客単価(前年比)	リンガーハット 全店 客単価(前年比)	yoy_index	リンガーハット 全店 客単価(前年比)	spend	リンガーハット	全店	客単価	全体 > リンガーハット	全店 客単価
-82000	2024	10	legacy	yoy_index	濵かつ 全店 売上高(前年比)	濵かつ 全店 売上高(前年比)	yoy_index	濵かつ 全店 売上高(前年比)	sales	濵かつ	全店	売上高	全体 > 濵かつ	全店 売上高
-82000	2024	11	legacy	yoy_index	濵かつ 全店 客数(前年比)	濵かつ 全店 客数(前年比)	yoy_index	濵かつ 全店 客数(前年比)	customers	濵かつ	全店	客数	全体 > 濵かつ	全店 客数
-82000	2024	12	legacy	yoy_index	濵かつ 全店 客単価(前年比)	濵かつ 全店 客単価(前年比)	yoy_index	濵かつ 全店 客単価(前年比)	spend	濵かつ	全店	客単価	全体 > 濵かつ	全店 客単価
+82000	2024	7	legacy	yoy_index	リンガーハット 売上高(前年比)	リンガーハット 売上高(前年比)	yoy_index	リンガーハット 売上高(前年比)	sales	リンガーハット		売上高	全体 > リンガーハット	売上高
+82000	2024	8	legacy	yoy_index	リンガーハット 客数(前年比)	リンガーハット 客数(前年比)	yoy_index	リンガーハット 客数(前年比)	customers	リンガーハット		客数	全体 > リンガーハット	客数
+82000	2024	9	legacy	yoy_index	リンガーハット 客単価(前年比)	リンガーハット 客単価(前年比)	yoy_index	リンガーハット 客単価(前年比)	spend	リンガーハット		客単価	全体 > リンガーハット	客単価
+82000	2024	10	legacy	yoy_index	濵かつ 売上高(前年比)	濵かつ 売上高(前年比)	yoy_index	濵かつ 売上高(前年比)	sales	濵かつ		売上高	全体 > 濵かつ	売上高
+82000	2024	11	legacy	yoy_index	濵かつ 客数(前年比)	濵かつ 客数(前年比)	yoy_index	濵かつ 客数(前年比)	customers	濵かつ		客数	全体 > 濵かつ	客数
+82000	2024	12	legacy	yoy_index	濵かつ 客単価(前年比)	濵かつ 客単価(前年比)	yoy_index	濵かつ 客単価(前年比)	spend	濵かつ		客単価	全体 > 濵かつ	客単価
 82000	2024	13	legacy	number	全店 店舗数	全店 店舗数	number	全店 店舗数	stores		全店	店舗数	全体	全店 店舗数
 82000	2024	14	legacy	number	リンガーハット 店舗数	リンガーハット 店舗数	number	リンガーハット 店舗数	stores	リンガーハット		店舗数	全体 > リンガーハット	店舗数
 82000	2024	15	legacy	number	濵かつ 店舗数	濵かつ 店舗数	number	濵かつ 店舗数	stores	濵かつ		店舗数	全体 > 濵かつ	店舗数
@@ -6430,12 +6430,12 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 82000	2025	4	legacy	yoy_index	純 既存 売上高(前年比)	純 既存 売上高(前年比)	yoy_index	純 既存 売上高(前年比)	sales	純	既存	売上高	全体 > 純	既存 売上高
 82000	2025	5	legacy	yoy_index	純 既存 客数(前年比)	純 既存 客数(前年比)	yoy_index	純 既存 客数(前年比)	customers	純	既存	客数	全体 > 純	既存 客数
 82000	2025	6	legacy	yoy_index	純 既存 客単価(前年比)	純 既存 客単価(前年比)	yoy_index	純 既存 客単価(前年比)	spend	純	既存	客単価	全体 > 純	既存 客単価
-82000	2025	7	legacy	yoy_index	リンガーハット 全店 売上高(前年比)	リンガーハット 全店 売上高(前年比)	yoy_index	リンガーハット 全店 売上高(前年比)	sales	リンガーハット	全店	売上高	全体 > リンガーハット	全店 売上高
-82000	2025	8	legacy	yoy_index	リンガーハット 全店 客数(前年比)	リンガーハット 全店 客数(前年比)	yoy_index	リンガーハット 全店 客数(前年比)	customers	リンガーハット	全店	客数	全体 > リンガーハット	全店 客数
-82000	2025	9	legacy	yoy_index	リンガーハット 全店 客単価(前年比)	リンガーハット 全店 客単価(前年比)	yoy_index	リンガーハット 全店 客単価(前年比)	spend	リンガーハット	全店	客単価	全体 > リンガーハット	全店 客単価
-82000	2025	10	legacy	yoy_index	濵かつ 全店 売上高(前年比)	濵かつ 全店 売上高(前年比)	yoy_index	濵かつ 全店 売上高(前年比)	sales	濵かつ	全店	売上高	全体 > 濵かつ	全店 売上高
-82000	2025	11	legacy	yoy_index	濵かつ 全店 客数(前年比)	濵かつ 全店 客数(前年比)	yoy_index	濵かつ 全店 客数(前年比)	customers	濵かつ	全店	客数	全体 > 濵かつ	全店 客数
-82000	2025	12	legacy	yoy_index	濵かつ 全店 客単価(前年比)	濵かつ 全店 客単価(前年比)	yoy_index	濵かつ 全店 客単価(前年比)	spend	濵かつ	全店	客単価	全体 > 濵かつ	全店 客単価
+82000	2025	7	legacy	yoy_index	リンガーハット 売上高(前年比)	リンガーハット 売上高(前年比)	yoy_index	リンガーハット 売上高(前年比)	sales	リンガーハット		売上高	全体 > リンガーハット	売上高
+82000	2025	8	legacy	yoy_index	リンガーハット 客数(前年比)	リンガーハット 客数(前年比)	yoy_index	リンガーハット 客数(前年比)	customers	リンガーハット		客数	全体 > リンガーハット	客数
+82000	2025	9	legacy	yoy_index	リンガーハット 客単価(前年比)	リンガーハット 客単価(前年比)	yoy_index	リンガーハット 客単価(前年比)	spend	リンガーハット		客単価	全体 > リンガーハット	客単価
+82000	2025	10	legacy	yoy_index	濵かつ 売上高(前年比)	濵かつ 売上高(前年比)	yoy_index	濵かつ 売上高(前年比)	sales	濵かつ		売上高	全体 > 濵かつ	売上高
+82000	2025	11	legacy	yoy_index	濵かつ 客数(前年比)	濵かつ 客数(前年比)	yoy_index	濵かつ 客数(前年比)	customers	濵かつ		客数	全体 > 濵かつ	客数
+82000	2025	12	legacy	yoy_index	濵かつ 客単価(前年比)	濵かつ 客単価(前年比)	yoy_index	濵かつ 客単価(前年比)	spend	濵かつ		客単価	全体 > 濵かつ	客単価
 82000	2025	13	legacy	number	全店 店舗数	全店 店舗数	number	全店 店舗数	stores		全店	店舗数	全体	全店 店舗数
 82000	2025	14	legacy	number	リンガーハット 店舗数	リンガーハット 店舗数	number	リンガーハット 店舗数	stores	リンガーハット		店舗数	全体 > リンガーハット	店舗数
 82000	2025	15	legacy	number	濵かつ 店舗数	濵かつ 店舗数	number	濵かつ 店舗数	stores	濵かつ		店舗数	全体 > 濵かつ	店舗数
@@ -6446,12 +6446,12 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 82000	2026	4	legacy	yoy_index	純 既存 売上高(前年比)	純 既存 売上高(前年比)	yoy_index	純 既存 売上高(前年比)	sales	純	既存	売上高	全体 > 純	既存 売上高
 82000	2026	5	legacy	yoy_index	純 既存 客数(前年比)	純 既存 客数(前年比)	yoy_index	純 既存 客数(前年比)	customers	純	既存	客数	全体 > 純	既存 客数
 82000	2026	6	legacy	yoy_index	純 既存 客単価(前年比)	純 既存 客単価(前年比)	yoy_index	純 既存 客単価(前年比)	spend	純	既存	客単価	全体 > 純	既存 客単価
-82000	2026	7	legacy	yoy_index	リンガーハット 全店 売上高(前年比)	リンガーハット 全店 売上高(前年比)	yoy_index	リンガーハット 全店 売上高(前年比)	sales	リンガーハット	全店	売上高	全体 > リンガーハット	全店 売上高
-82000	2026	8	legacy	yoy_index	リンガーハット 全店 客数(前年比)	リンガーハット 全店 客数(前年比)	yoy_index	リンガーハット 全店 客数(前年比)	customers	リンガーハット	全店	客数	全体 > リンガーハット	全店 客数
-82000	2026	9	legacy	yoy_index	リンガーハット 全店 客単価(前年比)	リンガーハット 全店 客単価(前年比)	yoy_index	リンガーハット 全店 客単価(前年比)	spend	リンガーハット	全店	客単価	全体 > リンガーハット	全店 客単価
-82000	2026	10	legacy	yoy_index	濵かつ 全店 売上高(前年比)	濵かつ 全店 売上高(前年比)	yoy_index	濵かつ 全店 売上高(前年比)	sales	濵かつ	全店	売上高	全体 > 濵かつ	全店 売上高
-82000	2026	11	legacy	yoy_index	濵かつ 全店 客数(前年比)	濵かつ 全店 客数(前年比)	yoy_index	濵かつ 全店 客数(前年比)	customers	濵かつ	全店	客数	全体 > 濵かつ	全店 客数
-82000	2026	12	legacy	yoy_index	濵かつ 全店 客単価(前年比)	濵かつ 全店 客単価(前年比)	yoy_index	濵かつ 全店 客単価(前年比)	spend	濵かつ	全店	客単価	全体 > 濵かつ	全店 客単価
+82000	2026	7	legacy	yoy_index	リンガーハット 売上高(前年比)	リンガーハット 売上高(前年比)	yoy_index	リンガーハット 売上高(前年比)	sales	リンガーハット		売上高	全体 > リンガーハット	売上高
+82000	2026	8	legacy	yoy_index	リンガーハット 客数(前年比)	リンガーハット 客数(前年比)	yoy_index	リンガーハット 客数(前年比)	customers	リンガーハット		客数	全体 > リンガーハット	客数
+82000	2026	9	legacy	yoy_index	リンガーハット 客単価(前年比)	リンガーハット 客単価(前年比)	yoy_index	リンガーハット 客単価(前年比)	spend	リンガーハット		客単価	全体 > リンガーハット	客単価
+82000	2026	10	legacy	yoy_index	濵かつ 売上高(前年比)	濵かつ 売上高(前年比)	yoy_index	濵かつ 売上高(前年比)	sales	濵かつ		売上高	全体 > 濵かつ	売上高
+82000	2026	11	legacy	yoy_index	濵かつ 客数(前年比)	濵かつ 客数(前年比)	yoy_index	濵かつ 客数(前年比)	customers	濵かつ		客数	全体 > 濵かつ	客数
+82000	2026	12	legacy	yoy_index	濵かつ 客単価(前年比)	濵かつ 客単価(前年比)	yoy_index	濵かつ 客単価(前年比)	spend	濵かつ		客単価	全体 > 濵かつ	客単価
 82000	2026	13	legacy	number	全店 店舗数	全店 店舗数	number	全店 店舗数	stores		全店	店舗数	全体	全店 店舗数
 82000	2026	14	legacy	number	リンガーハット 店舗数	リンガーハット 店舗数	number	リンガーハット 店舗数	stores	リンガーハット		店舗数	全体 > リンガーハット	店舗数
 82000	2026	15	legacy	number	濵かつ 店舗数	濵かつ 店舗数	number	濵かつ 店舗数	stores	濵かつ		店舗数	全体 > 濵かつ	店舗数
@@ -7244,7 +7244,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 92450	2026	4	legacy	yoy_index	転貸戸数前年同期比(前年比)	転貸戸数前年同期比(前年比)	yoy_index	転貸戸数前年同期比(前年比)	other	転貸戸数前年同期比			全体	転貸戸数前年同期比
 92450	2026	5	legacy	number	法人企業等	法人企業等	number	法人企業等	other	法人企業等			全体	法人企業等
 92450	2026	6	legacy	yoy_index	法人企業等前年同期比(前年比)	法人企業等前年同期比(前年比)	yoy_index	法人企業等前年同期比(前年比)	other	法人企業等前年同期比			全体	法人企業等前年同期比
-92510	2024	1	legacy	yoy_index	日本 全店 売上高(前年比)	日本 全店 売上高(前年比)	yoy_index	日本 全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+92510	2024	1	legacy	yoy_index	日本 全店 売上高(前年比)	日本 全店 売上高(前年比)	yoy_index	日本 全店 売上高(前年比)	sales		全店	売上高	全体	日本 全店 売上高
 92510	2024	2	legacy	yoy_index	日本 既存 売上高(前年比)	日本 既存 売上高(前年比)	yoy_index	日本 既存 売上高(前年比)	sales		既存	売上高	全体	日本 既存 売上高
 92510	2024	3	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
 92510	2024	4	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体	直営 店舗数
@@ -7258,9 +7258,9 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 92510	2024	12	legacy	number	純増 店舗数	純増 店舗数	number	純増 店舗数	adj	純増		店舗数	全体	純増 店舗数
 92510	2024	13	legacy	number	純増 FC 店舗数	純増 FC 店舗数	number	純増 FC 店舗数	adj	純増		店舗数	全体	純増 FC 店舗数
 92510	2024	14	legacy	yoy_index	店舗数(前年比)	店舗数(前年比)	yoy_index	店舗数(前年比)	stores			店舗数	全体	店舗数
-92510	2024	15	legacy	number	FC 全店 売上高	FC 全店 売上高	number	FC 全店 売上高	sales		全店	売上高	全体	FC 全店 売上高
-92510	2024	16	legacy	number	国内店舗 全店 売上高	国内店舗 全店 売上高	number	国内店舗 全店 売上高	sales	国内店舗	全店	売上高	全体 > 国内店舗	全店 売上高
-92510	2024	17	legacy	number	直営 全店 売上高	直営 全店 売上高	number	直営 全店 売上高	sales		全店	売上高	全体	直営 全店 売上高
+92510	2024	15	legacy	number	FC 売上高	FC 売上高	number	FC 売上高	sales			売上高	全体	FC 売上高
+92510	2024	16	legacy	number	国内店舗 売上高	国内店舗 売上高	number	国内店舗 売上高	sales	国内店舗		売上高	全体 > 国内店舗	売上高
+92510	2024	17	legacy	number	直営 売上高	直営 売上高	number	直営 売上高	sales			売上高	全体	直営 売上高
 92510	2025	1	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
 92510	2025	2	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体	直営 店舗数
 92510	2025	3	legacy	number	FC 店舗数	FC 店舗数	number	FC 店舗数	stores			店舗数	全体	FC 店舗数
@@ -7273,13 +7273,13 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 92510	2025	10	legacy	number	純増 店舗数	純増 店舗数	number	純増 店舗数	adj	純増		店舗数	全体	純増 店舗数
 92510	2025	11	legacy	number	純増 直営 店舗数	純増 直営 店舗数	number	純増 直営 店舗数	adj	純増		店舗数	全体	純増 直営 店舗数
 92510	2025	12	legacy	number	純増 FC 店舗数	純増 FC 店舗数	number	純増 FC 店舗数	adj	純増		店舗数	全体	純増 FC 店舗数
-92510	2025	13	legacy	number	FC 全店 売上高	FC 全店 売上高	number	FC 全店 売上高	sales		全店	売上高	全体	FC 全店 売上高
-92510	2025	14	legacy	number	国内店舗 全店 売上高	国内店舗 全店 売上高	number	国内店舗 全店 売上高	sales	国内店舗	全店	売上高	全体 > 国内店舗	全店 売上高
-92510	2025	15	legacy	yoy_index	日本 全店 売上高(前年比)	日本 全店 売上高(前年比)	yoy_index	日本 全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+92510	2025	13	legacy	number	FC 売上高	FC 売上高	number	FC 売上高	sales			売上高	全体	FC 売上高
+92510	2025	14	legacy	number	国内店舗 売上高	国内店舗 売上高	number	国内店舗 売上高	sales	国内店舗		売上高	全体 > 国内店舗	売上高
+92510	2025	15	legacy	yoy_index	日本 全店 売上高(前年比)	日本 全店 売上高(前年比)	yoy_index	日本 全店 売上高(前年比)	sales		全店	売上高	全体	日本 全店 売上高
 92510	2025	16	legacy	yoy_index	日本 既存 売上高(前年比)	日本 既存 売上高(前年比)	yoy_index	日本 既存 売上高(前年比)	sales		既存	売上高	全体	日本 既存 売上高
 92510	2025	17	legacy	yoy_index	店舗数(前年比)	店舗数(前年比)	yoy_index	店舗数(前年比)	stores			店舗数	全体	店舗数
-92510	2025	18	legacy	number	直営 全店 売上高	直営 全店 売上高	number	直営 全店 売上高	sales		全店	売上高	全体	直営 全店 売上高
-92510	2026	1	legacy	yoy_index	日本 全店 売上高(前年比)	日本 全店 売上高(前年比)	yoy_index	日本 全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+92510	2025	18	legacy	number	直営 売上高	直営 売上高	number	直営 売上高	sales			売上高	全体	直営 売上高
+92510	2026	1	legacy	yoy_index	日本 全店 売上高(前年比)	日本 全店 売上高(前年比)	yoy_index	日本 全店 売上高(前年比)	sales		全店	売上高	全体	日本 全店 売上高
 92510	2026	2	legacy	yoy_index	日本 既存 売上高(前年比)	日本 既存 売上高(前年比)	yoy_index	日本 既存 売上高(前年比)	sales		既存	売上高	全体	日本 既存 売上高
 92510	2026	3	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
 92510	2026	4	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体	直営 店舗数
@@ -7294,9 +7294,9 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 92510	2026	13	legacy	number	純増 直営 店舗数	純増 直営 店舗数	number	純増 直営 店舗数	adj	純増		店舗数	全体	純増 直営 店舗数
 92510	2026	14	legacy	number	純増 FC 店舗数	純増 FC 店舗数	number	純増 FC 店舗数	adj	純増		店舗数	全体	純増 FC 店舗数
 92510	2026	15	legacy	yoy_index	店舗数(前年比)	店舗数(前年比)	yoy_index	店舗数(前年比)	stores			店舗数	全体	店舗数
-92510	2026	16	legacy	number	FC 全店 売上高	FC 全店 売上高	number	FC 全店 売上高	sales		全店	売上高	全体	FC 全店 売上高
-92510	2026	17	legacy	number	国内店舗 全店 売上高	国内店舗 全店 売上高	number	国内店舗 全店 売上高	sales	国内店舗	全店	売上高	全体 > 国内店舗	全店 売上高
-92510	2026	18	legacy	number	直営 全店 売上高	直営 全店 売上高	number	直営 全店 売上高	sales		全店	売上高	全体	直営 全店 売上高
+92510	2026	16	legacy	number	FC 売上高	FC 売上高	number	FC 売上高	sales			売上高	全体	FC 売上高
+92510	2026	17	legacy	number	国内店舗 売上高	国内店舗 売上高	number	国内店舗 売上高	sales	国内店舗		売上高	全体 > 国内店舗	売上高
+92510	2026	18	legacy	number	直営 売上高	直営 売上高	number	直営 売上高	sales			売上高	全体	直営 売上高
 92520	2024	1	legacy	number	電気 燃料調整費	電気 燃料調整費	number	電気 燃料調整費	other	電気 燃料調整費			全体 > 電気 > 内燃料調整費	売上高
 92520	2024	2	legacy	number	電気 売上高	電気 売上高	number	電気 売上高	sales	電気		売上高	全体 > 電気	売上高
 92520	2024	3	legacy	number	宅配水 売上高	宅配水 売上高	number	宅配水 売上高	sales	宅配水		売上高	全体 > 宅配水	売上高
