@@ -344,6 +344,22 @@
       "prefix": true
     },
     {
+      "word": "売上総利益率",
+      "metric": "売上総利益率"
+    },
+    {
+      "word": "売上総利益",
+      "metric": "売上総利益"
+    },
+    {
+      "word": "売上原価",
+      "metric": "売上原価"
+    },
+    {
+      "word": "売上個数",
+      "metric": "売上個数"
+    },
+    {
       "word": "客数",
       "metric": "客数",
       "prefix": true
@@ -368,8 +384,11 @@
     "客数": "customers",
     "購入お客様数": "customers",
     "売上高": "sales",
-    "売上総利益": "sales",
     "ヴィンテージ商品売上高": "sales",
-    "稼働日修正後": "sales"
+    "稼働日修正後": "sales",
+    "売上総利益率": "other",
+    "売上総利益": "other",
+    "売上原価": "other",
+    "売上個数": "count"
   }
 }
