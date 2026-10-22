@@ -1212,18 +1212,18 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 27910	2024	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 27910	2024	3	legacy	yoy_index	客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体	客数
 27910	2024	4	legacy	yoy_index	客単価(前年比)	客単価(前年比)	yoy_index	客単価(前年比)	spend			客単価	全体	客単価
-27910	2024	5	legacy	yoy_index	一品 客単価(前年比)	一品 客単価(前年比)	yoy_index	一品 客単価(前年比)	spend	一品		客単価	全体	一品 客単価
+27910	2024	5	legacy	yoy_index	一品 客単価(前年比)	一品単価(前年比)	yoy_index	一品単価(前年比)	spend			一品単価	全体	一品単価
 27910	2025	1	legacy	yoy_index	買上点数/人(前年比)	買上点数/人(前年比)	yoy_index	買上点数/人(前年比)	other	買上点数/人			全体	買上点数/人
 27910	2025	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 27910	2025	3	legacy	yoy_index	客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体	客数
 27910	2025	4	legacy	yoy_index	客単価(前年比)	客単価(前年比)	yoy_index	客単価(前年比)	spend			客単価	全体	客単価
-27910	2025	5	legacy	yoy_index	一品 客単価(前年比)	一品 客単価(前年比)	yoy_index	一品 客単価(前年比)	spend	一品		客単価	全体	一品 客単価
+27910	2025	5	legacy	yoy_index	一品 客単価(前年比)	一品単価(前年比)	yoy_index	一品単価(前年比)	spend			一品単価	全体	一品単価
 27910	2026	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 27910	2026	2	legacy	yoy_index	買上点数/人(前年比)	買上点数/人(前年比)	yoy_index	買上点数/人(前年比)	other	買上点数/人			全体	買上点数/人
 27910	2026	3	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 27910	2026	4	legacy	yoy_index	客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体	客数
 27910	2026	5	legacy	yoy_index	客単価(前年比)	客単価(前年比)	yoy_index	客単価(前年比)	spend			客単価	全体	客単価
-27910	2026	6	legacy	yoy_index	一品 客単価(前年比)	一品 客単価(前年比)	yoy_index	一品 客単価(前年比)	spend	一品		客単価	全体	一品 客単価
+27910	2026	6	legacy	yoy_index	一品 客単価(前年比)	一品単価(前年比)	yoy_index	一品単価(前年比)	spend			一品単価	全体	一品単価
 29100	2023	1	legacy	yoy_index	RF1 全店 売上高(前年比)	RF1 全店 売上高(前年比)	yoy_index	RF1 全店 売上高(前年比)	sales	RF1	全店	売上高	全体 > RF1	全店 売上高
 29100	2023	2	legacy	yoy_index	グリーン・グルメ 全店 売上高(前年比)	グリーン・グルメ 全店 売上高(前年比)	yoy_index	グリーン・グルメ 全店 売上高(前年比)	sales	グリーン・グルメ	全店	売上高	全体 > グリーン・グルメ	全店 売上高
 29100	2023	3	legacy	yoy_index	神戸コロッケ 全店 売上高(前年比)	神戸コロッケ 全店 売上高(前年比)	yoy_index	神戸コロッケ 全店 売上高(前年比)	sales	神戸コロッケ	全店	売上高	全体 > 神戸コロッケ	全店 売上高
@@ -6345,53 +6345,53 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 81980	2023	4	legacy	yoy_index	同規模 客数(前年比)	同規模 客数(前年比)	yoy_index	同規模 客数(前年比)	customers	同規模		客数	全体	同規模 客数
 81980	2023	5	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
 81980	2023	6	legacy	yoy_index	同規模 客単価(前年比)	同規模 客単価(前年比)	yoy_index	同規模 客単価(前年比)	spend	同規模		客単価	全体	同規模 客単価
-81980	2023	7	legacy	yoy_index	一品 全店 客単価(前年比)	一品 全店 客単価(前年比)	yoy_index	一品 全店 客単価(前年比)	spend	一品	全店	客単価	全体	一品単価
-81980	2023	8	legacy	yoy_index	同規模 一品 客単価(前年比)	同規模 一品 客単価(前年比)	yoy_index	同規模 一品 客単価(前年比)	spend	同規模 一品		客単価	全体	同規模 一品単価
+81980	2023	7	legacy	yoy_index	一品 全店 客単価(前年比)	全店 一品単価(前年比)	yoy_index	全店 一品単価(前年比)	spend		全店	一品単価	全体	一品単価
+81980	2023	8	legacy	yoy_index	同規模 一品 客単価(前年比)	同規模 一品単価(前年比)	yoy_index	同規模 一品単価(前年比)	spend	同規模		一品単価	全体	同規模 一品単価
 81980	2023	9	legacy	yoy_index	同規模 買上点数(前年比)	同規模 買上点数(前年比)	yoy_index	同規模 買上点数(前年比)	count	同規模		買上点数	全体	同規模 買上点数
 81980	2023	10	legacy	number	新設店舗	新設店舗	number	新設店舗	adj			新設店舗	全体	新設店舗
 81980	2023	11	legacy	number	退店	退店	number	退店	close			退店	全体	退店
 81980	2023	12	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
-81980	2023	13	legacy	yoy_index	買上点数 全店 売上高(前年比)	買上点数 全店 売上高(前年比)	yoy_index	買上点数 全店 売上高(前年比)	sales		全店	売上高	全体	買上点数
+81980	2023	13	legacy	yoy_index	買上点数 全店 売上高(前年比)	全店 買上点数(前年比)	yoy_index	全店 買上点数(前年比)	count		全店	買上点数	全体	買上点数
 81980	2024	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 81980	2024	2	legacy	yoy_index	同規模 売上高(前年比)	同規模 売上高(前年比)	yoy_index	同規模 売上高(前年比)	sales	同規模		売上高	全体	同規模 売上高
 81980	2024	3	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
 81980	2024	4	legacy	yoy_index	同規模 客数(前年比)	同規模 客数(前年比)	yoy_index	同規模 客数(前年比)	customers	同規模		客数	全体	同規模 客数
 81980	2024	5	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
 81980	2024	6	legacy	yoy_index	同規模 客単価(前年比)	同規模 客単価(前年比)	yoy_index	同規模 客単価(前年比)	spend	同規模		客単価	全体	同規模 客単価
-81980	2024	7	legacy	yoy_index	一品 全店 客単価(前年比)	一品 全店 客単価(前年比)	yoy_index	一品 全店 客単価(前年比)	spend	一品	全店	客単価	全体	一品単価
-81980	2024	8	legacy	yoy_index	同規模 一品 客単価(前年比)	同規模 一品 客単価(前年比)	yoy_index	同規模 一品 客単価(前年比)	spend	同規模 一品		客単価	全体	同規模 一品単価
+81980	2024	7	legacy	yoy_index	一品 全店 客単価(前年比)	全店 一品単価(前年比)	yoy_index	全店 一品単価(前年比)	spend		全店	一品単価	全体	一品単価
+81980	2024	8	legacy	yoy_index	同規模 一品 客単価(前年比)	同規模 一品単価(前年比)	yoy_index	同規模 一品単価(前年比)	spend	同規模		一品単価	全体	同規模 一品単価
 81980	2024	9	legacy	yoy_index	同規模 買上点数(前年比)	同規模 買上点数(前年比)	yoy_index	同規模 買上点数(前年比)	count	同規模		買上点数	全体	同規模 買上点数
 81980	2024	10	legacy	number	新設店舗	新設店舗	number	新設店舗	adj			新設店舗	全体	新設店舗
 81980	2024	11	legacy	number	退店	退店	number	退店	close			退店	全体	退店
 81980	2024	12	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
-81980	2024	13	legacy	yoy_index	買上点数 全店 売上高(前年比)	買上点数 全店 売上高(前年比)	yoy_index	買上点数 全店 売上高(前年比)	sales		全店	売上高	全体	買上点数
+81980	2024	13	legacy	yoy_index	買上点数 全店 売上高(前年比)	全店 買上点数(前年比)	yoy_index	全店 買上点数(前年比)	count		全店	買上点数	全体	買上点数
 81980	2025	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 81980	2025	2	legacy	yoy_index	同規模 売上高(前年比)	同規模 売上高(前年比)	yoy_index	同規模 売上高(前年比)	sales	同規模		売上高	全体	同規模 売上高
 81980	2025	3	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
 81980	2025	4	legacy	yoy_index	同規模 客数(前年比)	同規模 客数(前年比)	yoy_index	同規模 客数(前年比)	customers	同規模		客数	全体	同規模 客数
 81980	2025	5	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
 81980	2025	6	legacy	yoy_index	同規模 客単価(前年比)	同規模 客単価(前年比)	yoy_index	同規模 客単価(前年比)	spend	同規模		客単価	全体	同規模 客単価
-81980	2025	7	legacy	yoy_index	一品 全店 客単価(前年比)	一品 全店 客単価(前年比)	yoy_index	一品 全店 客単価(前年比)	spend	一品	全店	客単価	全体	一品単価
-81980	2025	8	legacy	yoy_index	同規模 一品 客単価(前年比)	同規模 一品 客単価(前年比)	yoy_index	同規模 一品 客単価(前年比)	spend	同規模 一品		客単価	全体	同規模 一品単価
+81980	2025	7	legacy	yoy_index	一品 全店 客単価(前年比)	全店 一品単価(前年比)	yoy_index	全店 一品単価(前年比)	spend		全店	一品単価	全体	一品単価
+81980	2025	8	legacy	yoy_index	同規模 一品 客単価(前年比)	同規模 一品単価(前年比)	yoy_index	同規模 一品単価(前年比)	spend	同規模		一品単価	全体	同規模 一品単価
 81980	2025	9	legacy	yoy_index	同規模 買上点数(前年比)	同規模 買上点数(前年比)	yoy_index	同規模 買上点数(前年比)	count	同規模		買上点数	全体	同規模 買上点数
 81980	2025	10	legacy	number	新設店舗	新設店舗	number	新設店舗	adj			新設店舗	全体	新設店舗
 81980	2025	11	legacy	number	退店	退店	number	退店	close			退店	全体	退店
 81980	2025	12	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
-81980	2025	13	legacy	yoy_index	買上点数 全店 売上高(前年比)	買上点数 全店 売上高(前年比)	yoy_index	買上点数 全店 売上高(前年比)	sales		全店	売上高	全体	買上点数
+81980	2025	13	legacy	yoy_index	買上点数 全店 売上高(前年比)	全店 買上点数(前年比)	yoy_index	全店 買上点数(前年比)	count		全店	買上点数	全体	買上点数
 81980	2026	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 81980	2026	2	legacy	yoy_index	同規模 売上高(前年比)	同規模 売上高(前年比)	yoy_index	同規模 売上高(前年比)	sales	同規模		売上高	全体	同規模 売上高
 81980	2026	3	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
 81980	2026	4	legacy	yoy_index	同規模 客数(前年比)	同規模 客数(前年比)	yoy_index	同規模 客数(前年比)	customers	同規模		客数	全体	同規模 客数
 81980	2026	5	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
 81980	2026	6	legacy	yoy_index	同規模 客単価(前年比)	同規模 客単価(前年比)	yoy_index	同規模 客単価(前年比)	spend	同規模		客単価	全体	同規模 客単価
-81980	2026	7	legacy	yoy_index	一品 全店 客単価(前年比)	一品 全店 客単価(前年比)	yoy_index	一品 全店 客単価(前年比)	spend	一品	全店	客単価	全体	一品単価
-81980	2026	8	legacy	yoy_index	同規模 一品 客単価(前年比)	同規模 一品 客単価(前年比)	yoy_index	同規模 一品 客単価(前年比)	spend	同規模 一品		客単価	全体	同規模 一品単価
+81980	2026	7	legacy	yoy_index	一品 全店 客単価(前年比)	全店 一品単価(前年比)	yoy_index	全店 一品単価(前年比)	spend		全店	一品単価	全体	一品単価
+81980	2026	8	legacy	yoy_index	同規模 一品 客単価(前年比)	同規模 一品単価(前年比)	yoy_index	同規模 一品単価(前年比)	spend	同規模		一品単価	全体	同規模 一品単価
 81980	2026	9	legacy	yoy_index	同規模 買上点数(前年比)	同規模 買上点数(前年比)	yoy_index	同規模 買上点数(前年比)	count	同規模		買上点数	全体	同規模 買上点数
 81980	2026	10	legacy	number	新設店舗	新設店舗	number	新設店舗	adj			新設店舗	全体	新設店舗
 81980	2026	11	legacy	number	退店	退店	number	退店	close			退店	全体	退店
 81980	2026	12	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 81980	2026	13	legacy	number	都市型小型店 新設	都市型小型店 新設	number	都市型小型店 新設	adj	都市型小型店		新設	全体 > 内都市型小型店	新設店舗
-81980	2026	14	legacy	yoy_index	買上点数 全店 売上高(前年比)	買上点数 全店 売上高(前年比)	yoy_index	買上点数 全店 売上高(前年比)	sales		全店	売上高	全体	買上点数
+81980	2026	14	legacy	yoy_index	買上点数 全店 売上高(前年比)	全店 買上点数(前年比)	yoy_index	全店 買上点数(前年比)	count		全店	買上点数	全体	買上点数
 82000	2023	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 82000	2023	2	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
 82000	2023	3	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価

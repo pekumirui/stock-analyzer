@@ -168,6 +168,16 @@ def test_issuer_metrics_load_rejects_common_metric(tmp: Path) -> None:
     _expect_value_error(lambda: load_issuer_metrics(path), "売上高")
 
 
+def test_issuer_metrics_load_allows_compound_not_exact_common(tmp: Path) -> None:
+    path = tmp / "issuer_metrics.json"
+    path.write_text(
+        json.dumps({"81980": ["一品単価", "買上点数"]}, ensure_ascii=False), encoding="utf-8",
+    )
+    got = load_issuer_metrics(path)
+    if got.get("81980") != frozenset({"一品単価", "買上点数"}):
+        _fail(f"compound issuer metrics: {got!r}")
+
+
 def test_issuer_metrics_load_rejects_bad_code(tmp: Path) -> None:
     path = tmp / "issuer_metrics.json"
     path.write_text(json.dumps({"xx": ["件数"]}, ensure_ascii=False), encoding="utf-8")
@@ -2158,6 +2168,7 @@ def test_issuer_alias_ingest_and_migrate() -> None:
             return canonicalize_element_label(
                 apply_issuer_aliases(code, stored, year=year, as_of=as_of),
                 unit,
+                code,
             )
 
         for incoming, stored, _ in pairs:
@@ -2932,7 +2943,8 @@ def test_issuer_count_metrics() -> None:
         if not code_re.fullmatch(code):
             _fail(f"issuer_metrics.json key must be a 5-char code: {code!r}")
         for word in words:
-            if word.split() != [word] or monthly_ingest_mod._peel_metric(word)[0]:
+            peeled, rest = monthly_ingest_mod._peel_metric(word)
+            if word.split() != [word] or (peeled and not rest):
                 _fail(f"issuer_metrics.json {code} {word!r}: one token, not a common metric")
 
     with _issuer_count_words(_COUNT_CODE, _COUNT_WORDS):
@@ -3233,6 +3245,128 @@ def test_count_metric_keeps_pre534_stored_names() -> None:
         _fail(f"park24 layers from raw: {park!r}")
 
 
+_81980_RENAMED = (
+    "全店 一品単価(前年比)",
+    "同規模 一品単価(前年比)",
+    "全店 買上点数(前年比)",
+)
+_81980_OLD = {
+    "全店 一品単価(前年比)": "一品 全店 客単価(前年比)",
+    "同規模 一品単価(前年比)": "同規模 一品 客単価(前年比)",
+    "全店 買上点数(前年比)": "買上点数 全店 売上高(前年比)",
+}
+
+
+def test_81980_renamed_labels_idempotent_with_code() -> None:
+    """KAB-121: 改名後の行名は 81980 の code 付きで不変。code 無しは旧名のまま。"""
+    for name in _81980_RENAMED:
+        got = canonicalize_element_label(name, "yoy_index", "81980")
+        if got != name:
+            _fail(f"81980 {name!r} -> {got!r}")
+        if canonicalize_element_label(got, "yoy_index", "81980") != name:
+            _fail(f"81980 not idempotent {name!r}")
+        old = canonicalize_element_label(name, "yoy_index")
+        if old != _81980_OLD[name]:
+            _fail(f"no-code {name!r} -> {old!r} want {_81980_OLD[name]!r}")
+
+    if canonicalize_element_label("一品単価(前年比)", "yoy_index", "27910") != "一品単価(前年比)":
+        _fail("27910 一品単価 must stay")
+    if canonicalize_element_label("一品単価(前年比)", "yoy_index") != "一品 客単価(前年比)":
+        _fail("no-code 一品単価 still splits")
+    if canonicalize_element_label("駐車場 件数 直営", "number", "46660") != "駐車場 件数 直営":
+        _fail("46660 save name must not reorder 件数")
+    if canonicalize_element_label("直営 タイムズパーキング 件数", "number", "46660") != (
+        "タイムズパーキング 件数 直営"
+    ):
+        _fail("46660 直営 件数 order must stay pre-534")
+    if canonicalize_element_label("入居率 全体", "number", "14350") != "入居率 全体":
+        _fail("14350 入居率 全体 must not become 全体 入居率")
+    if canonicalize_element_label("買上点数 全店 売上高(前年比)", "yoy_index", "81980") == (
+        canonicalize_element_label("全店 売上高(前年比)", "yoy_index", "81980")
+    ):
+        _fail("81980 old 買上点数 must not collide with 全店 売上高")
+
+
+def test_81980_put_values_and_ingest_keep_renamed_rows() -> None:
+    """改名後の行へ PUT でき、ingest の見出しも同じ行に入り、行は増えない。"""
+    c = TestClient(app)
+    code = "81980"
+    year = 2026
+    _add_fy_end(code, date(2026, 6, 1), date(2026, 6, 30), "81980-fy-kab121")
+    for name in _81980_RENAMED:
+        r = c.post(
+            f"/api/v1/tables/{code}/{year}/elements",
+            json={"element": name, "unit": "yoy_index"},
+        )
+        _expect(r, 201, f"POST {name}")
+        if r.json()["element"] != name:
+            _fail(f"POST stored {r.json()['element']!r} want {name!r}")
+
+    r = c.put(f"/api/v1/tables/{code}/{year}/values/batch", json={
+        "element": "全店 一品単価(前年比)",
+        "values": [{"month": 6, "value": 101.9}],
+    })
+    _expect(r, 200, "put_values renamed")
+
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [6],
+        "rows": [
+            {"element": "全店 一品単価", "unit": "yoy_index", "values": {"6": 101.9}},
+            {"element": "同規模 一品単価", "unit": "yoy_index", "values": {"6": 100.1}},
+            {"element": "全店 買上点数", "unit": "yoy_index", "values": {"6": 96.6}},
+            {"element": "一品 全店 客単価(前年比)", "unit": "yoy_index", "values": {"6": 101.9}},
+            {"element": "同規模 一品 客単価(前年比)", "unit": "yoy_index", "values": {"6": 100.1}},
+            {"element": "買上点数 全店 売上高(前年比)", "unit": "yoy_index", "values": {"6": 96.6}},
+        ],
+        "as_of": "2026-07-01",
+    })
+    _expect(r, 200, "ingest headings")
+    r = c.get(f"/api/v1/tables/{code}/{year}")
+    _expect(r, 200, f"GET {code}/{year}")
+    rows = r.json()["elements"]
+    names = [e["element"] for e in rows]
+    if names != list(_81980_RENAMED):
+        _fail(f"81980 rows after ingest: {names!r}")
+    by_name = {e["element"]: e["values"] for e in rows}
+    if by_name["全店 一品単価(前年比)"].get("6") != 101.9:
+        _fail(f"一品単価 value: {by_name['全店 一品単価(前年比)']!r}")
+    if by_name["同規模 一品単価(前年比)"].get("6") != 100.1:
+        _fail(f"同規模 一品単価 value: {by_name['同規模 一品単価(前年比)']!r}")
+    if by_name["全店 買上点数(前年比)"].get("6") != 96.6:
+        _fail(f"買上点数 value: {by_name['全店 買上点数(前年比)']!r}")
+    for old in _81980_OLD.values():
+        if old in names:
+            _fail(f"old name recreated: {old!r}")
+
+    _add_fy_end("27910", date(2026, 6, 1), date(2026, 6, 30), "27910-fy-kab121")
+    r = c.post(
+        f"/api/v1/tables/27910/{year}/elements",
+        json={"element": "一品単価(前年比)", "unit": "yoy_index"},
+    )
+    _expect(r, 201, "POST 27910 一品単価")
+    if r.json()["element"] != "一品単価(前年比)":
+        _fail(f"27910 POST stored {r.json()['element']!r}")
+    r = c.put("/api/v1/tables/27910/2026/values/batch", json={
+        "element": "一品単価(前年比)",
+        "values": [{"month": 6, "value": 99.5}],
+    })
+    _expect(r, 200, "27910 put_values")
+    r = c.post("/api/v1/tables/27910/ingest", json={
+        "months": [6],
+        "rows": [
+            {"element": "一品単価", "unit": "yoy_index", "values": {"6": 99.5}},
+            {"element": "一品 客単価(前年比)", "unit": "yoy_index", "values": {"6": 99.5}},
+        ],
+        "as_of": "2026-07-01",
+    })
+    _expect(r, 200, "27910 ingest")
+    r = c.get("/api/v1/tables/27910/2026")
+    _expect(r, 200, "GET 27910/2026")
+    names_27910 = [e["element"] for e in r.json()["elements"]]
+    if names_27910 != ["一品単価(前年比)"]:
+        _fail(f"27910 rows after ingest: {names_27910!r}")
+
+
 def main() -> None:
     test_canonicalize_element_label()
     test_union_orders_country_then_channel()
@@ -3244,12 +3378,15 @@ def main() -> None:
         test_vocab_load_rejects_channel_store_before_store_count(tmp)
         test_vocab_load_rejects_short_metric_prefix(tmp)
         test_issuer_metrics_load_rejects_common_metric(tmp)
+        test_issuer_metrics_load_allows_compound_not_exact_common(tmp)
         test_issuer_metrics_load_rejects_bad_code(tmp)
         test_issuer_aliases_load_rejects_bad_code(tmp)
     test_monthly_element_label()
     test_issuer_count_metrics()
     test_issuer_rate_metrics_14350()
     test_count_metric_keeps_pre534_stored_names()
+    test_81980_renamed_labels_idempotent_with_code()
+    test_81980_put_values_and_ingest_keep_renamed_rows()
     test_department_store_layers()
     test_issuer_alias_cases()
     test_mapping_examples()

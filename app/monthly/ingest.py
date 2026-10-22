@@ -151,14 +151,19 @@ def strip_yoy_fragments(name: str) -> str:
             return s
 
 
-def canonicalize_element_label(element: str, unit: str | None) -> str:
-    """保存名・表示名。トークン順を揃え、yoy は (前年比) を1回。"""
+def canonicalize_element_label(
+    element: str, unit: str | None, code: str | None = None,
+) -> str:
+    """保存名・表示名。トークン順を揃え、yoy は (前年比) を1回。
+
+    code があると、その銘柄の issuer_metrics を共通語彙より先に見る。
+    """
     trimmed = element.strip()
     is_yoy = (unit or "number") in _YOY_UNITS
     if unit is None and ("(前年比)" in trimmed or "（前年比）" in trimmed):
         is_yoy = True
     base = strip_yoy_fragments(trimmed) if is_yoy else trimmed
-    base = normalize_element_tokens(base, fill_default_metric=is_yoy)
+    base = normalize_element_tokens(base, fill_default_metric=is_yoy, code=code)
     if not is_yoy:
         return base
     if base.endswith(_YOY_SUFFIX):
@@ -398,7 +403,7 @@ def _unglue_element(text: str) -> str:
 
 
 def load_issuer_metrics(path: Path | None = None) -> dict[str, frozenset[str]]:
-    """issuer code → 件数・率指標の語。その銘柄の層の分解だけで指標にする。保存名には使わない。"""
+    """issuer code → 件数・率指標の語。層の分解と、code 付きの保存名で共通語彙より先に見る。"""
     raw = json.loads((path or ISSUER_METRICS_PATH).read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError("issuer_metrics.json は object です")
@@ -435,10 +440,13 @@ def _peel_metric(
     """指標語をトークンの前後から剥がす。残りはセグメント候補。
 
     短い接頭辞（売上/来客/単価）は前方一致しない（売上変化を売上高にしない）。
-    count_metrics は銘柄別の件数・率指標（`config/monthly/issuer_metrics.json`）。完全一致だけ。
+    count_metrics は銘柄別の件数・率指標（`config/monthly/issuer_metrics.json`）。
+    完全一致を共通語彙の後ろからの一致より先に見る（一品単価を客単価に割らない）。
     """
     if tok in _ACTIVE_STORE_BREAKDOWN_RANK:
         return None, tok
+    if tok in count_metrics:
+        return tok, None
     for src, canon in _METRIC_PREFIX:
         if tok == src:
             return canon, None
@@ -446,15 +454,15 @@ def _peel_metric(
             return canon, tok[:-len(src)]
         if src in _METRIC_STARTSWITH and len(tok) > len(src) and tok.startswith(src):
             return canon, tok[len(src):]
-    if tok in count_metrics:
-        return tok, None
     return None, tok
 
 
 def _require_issuer_metrics_not_common(metrics: dict[str, frozenset[str]]) -> None:
+    """共通指標と完全に一致する語だけ禁止。一品単価のように長い複合は置ける。"""
     for code, words in metrics.items():
         for word in words:
-            if _peel_metric(word)[0]:
+            peeled, rest = _peel_metric(word)
+            if peeled and not rest:
                 raise ValueError(
                     f"issuer_metrics.json {code} {word!r}: 共通指標と重なります"
                 )
@@ -656,7 +664,7 @@ def _peel_active_store_breakdown(
 def parse_element_layers(element: str, *, code: str | None = None) -> dict[str, str]:
     """国 / セグメント / 時間軸 / チャネル / スコープ / 指標 / 内訳。正規化前の名前でも読む。
 
-    code があれば、その銘柄の件数・率指標の語も指標にする。保存名（normalize_element_tokens）は code を渡さない。
+    code があれば、その銘柄の件数・率指標の語も指標にする。
     """
     count_metrics = issuer_count_metrics(code)
     country = ""
@@ -730,13 +738,50 @@ def parse_element_layers(element: str, *, code: str | None = None) -> dict[str, 
     }
 
 
-def normalize_element_tokens(element: str, *, fill_default_metric: bool = False) -> str:
+def _prefer_issuer_metric_layers(
+    common: dict[str, str],
+    issuer: dict[str, str],
+    count_metrics: frozenset[str],
+    *,
+    fill_default_metric: bool,
+) -> dict[str, str]:
+    """銘柄別の指標を共通語彙より優先する。#534 の件数語の並べ替えはしない。
+
+    使うのは (1) 共通語彙が銘柄別の語を割る（一品単価→一品+客単価）ときと
+    (2) 前年比の既定指標 売上高 を足してしまうとき（全店 買上点数）だけ。
+    """
+    issuer_metric = issuer["metric"]
+    if issuer_metric not in count_metrics or issuer_metric == common["metric"]:
+        return common
+    peeled, rest = _peel_metric(issuer_metric)
+    if peeled and rest:
+        return issuer
+    if (
+        fill_default_metric
+        and not common["metric"]
+        and common["scope"]
+        and not common["channel"]
+        and "会員数" not in common["segment"]
+    ):
+        return issuer
+    return common
+
+
+def normalize_element_tokens(
+    element: str, *, fill_default_metric: bool = False, code: str | None = None,
+) -> str:
     """空白区切り [国] [セグメント] [単月?] [チャネル] [スコープ] [指標] [内訳]。"""
     trimmed = re.sub(r"\s+", " ", element.strip())
     if not trimmed:
         return trimmed
-    # 銘柄別の件数・率指標は層だけ。保存名の並べ替えには使わない（#534 前と同じ語順）。
+    # 銘柄別の件数・率指標は層が先。保存名の並べ替えは割れる語と既定売上高だけ（#534）。
     parts = parse_element_layers(trimmed)
+    count_metrics = issuer_count_metrics(code)
+    if count_metrics:
+        parts = _prefer_issuer_metric_layers(
+            parts, parse_element_layers(trimmed, code=code), count_metrics,
+            fill_default_metric=fill_default_metric,
+        )
     # leftover に会員数がある yoy は売上高を補わない（#366）。
     if (
         fill_default_metric
@@ -812,8 +857,8 @@ def load_issuer_aliases(path: Path | None = None) -> dict[str, tuple[IssuerPerio
                 if not src_s or not dst_s:
                     continue
                 unit = _alias_unit(src_s) if _alias_unit(src_s) == "yoy_index" else _alias_unit(dst_s)
-                canon_src = canonicalize_element_label(src_s, unit)
-                canon_dst = canonicalize_element_label(dst_s, unit)
+                canon_src = canonicalize_element_label(src_s, unit, key)
+                canon_dst = canonicalize_element_label(dst_s, unit, key)
                 if canon_src:
                     rename[canon_src] = canon_dst or canon_src
             rules.append(IssuerPeriodRename(date.fromisoformat(until_raw), rename))
@@ -927,6 +972,8 @@ def same_yoy_element(
     stored_unit: str | None,
     incoming_name: str,
     incoming_unit: str | None,
+    *,
+    code: str | None = None,
 ) -> bool:
     """incoming は canonicalize 済み。正規化後に同一なら同一行。
 
@@ -940,7 +987,7 @@ def same_yoy_element(
     incoming_yoy = incoming_u in _YOY_UNITS
     if stored_yoy != incoming_yoy:
         return False
-    return canonicalize_element_label(stored_name, stored_u) == incoming_name
+    return canonicalize_element_label(stored_name, stored_u, code) == incoming_name
 
 
 def uncovered_yoy_number_twins(
@@ -948,6 +995,8 @@ def uncovered_yoy_number_twins(
     incoming_name: str,
     incoming_unit: str | None,
     posted: Sequence[tuple[str, str | None]],
+    *,
+    code: str | None = None,
 ) -> list[str]:
     """strip 後の名前が同じで yoy と number だけ違う既存行のうち、posted に無いもの。
 
@@ -966,7 +1015,7 @@ def uncovered_yoy_number_twins(
         if strip_yoy_fragments(name) != base:
             continue
         if any(
-            same_yoy_element(name, stored, posted_name, posted_unit)
+            same_yoy_element(name, stored, posted_name, posted_unit, code=code)
             for posted_name, posted_unit in posted
         ):
             continue
@@ -984,7 +1033,7 @@ def plan_yoy_duplicate_merges(
     """
     groups: dict[tuple[str, int, str], set[str]] = {}
     for code, year, element, unit in rows:
-        canonical = canonicalize_element_label(element, unit)
+        canonical = canonicalize_element_label(element, unit, code)
         if not canonical:
             continue
         groups.setdefault((code, year, canonical), set()).add(element)
@@ -1229,7 +1278,7 @@ def union_monthly_elements(
             unit = raw.get("unit") or "number"
             if not isinstance(unit, str):
                 unit = "number"
-            display = canonicalize_element_label(name, unit)
+            display = canonicalize_element_label(name, unit, resolved)
             if display in seen:
                 continue
             seen.add(display)
@@ -1323,9 +1372,9 @@ class MonthlyElementLabel(TypedDict):
 def monthly_element_label(
     element: str, unit: str | None, code: str | None = None,
 ) -> MonthlyElementLabel:
-    """code は銘柄別の件数・率指標（`config/monthly/issuer_metrics.json`）を層に効かせる。表示名は code で変わらない。"""
+    """code は銘柄別の件数・率指標を層と保存名に効かせる。件数語の並べ替えはしない。"""
     u = unit or "number"
-    canon = canonicalize_element_label(strip_monthly_display_unit(element, u), u)
+    canon = canonicalize_element_label(strip_monthly_display_unit(element, u), u, code)
     display = monthly_display_label(canon, u)
     layers = _layers_of(canon, code)
     return {

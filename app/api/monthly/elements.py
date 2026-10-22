@@ -77,7 +77,11 @@ def put_element(code: str, year: str, payload: dict | None = Body(None),
 
     # 保存名は起動時に作り直さないので、unit を変えた行はここで新しい unit の正規名へ付け替える
     renamed = canonicalize_element_label(
-        apply_issuer_aliases(code, canonicalize_element_label(element, unit), year=year_i), unit,
+        apply_issuer_aliases(
+            code, canonicalize_element_label(element, unit, code), year=year_i,
+        ),
+        unit,
+        code,
     )
 
     def _write() -> None:

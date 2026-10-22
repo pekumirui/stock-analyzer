@@ -571,7 +571,7 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
             if element in rows or element in deferred:
                 continue
             L = monthly_element_label(element, unit, code)
-            canon = canonicalize_element_label(element, unit)
+            canon = canonicalize_element_label(element, unit, code)
             group, leaf = _auto_split(L)
             if monthly_row_unit_rank(unit) and not any(L[k] for k in ("metric", "breakdown", "scope", "channel")):
                 g = str(L["group"] or "")

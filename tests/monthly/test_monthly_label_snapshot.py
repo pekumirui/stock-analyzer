@@ -44,7 +44,9 @@ def test_broad_rule_is_caught() -> None:
     if before:
         _fail("subset must start clean:\n" + snap.format_diff(before))
     orig = snap.canonicalize_element_label
-    snap.canonicalize_element_label = lambda s, u: orig(s.replace("新規", "出店"), u)
+    snap.canonicalize_element_label = lambda s, u, code=None: orig(
+        s.replace("新規", "出店"), u, code,
+    )
     try:
         changed = snap.check(path)
     finally:
