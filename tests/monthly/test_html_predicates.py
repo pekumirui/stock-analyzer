@@ -16,12 +16,20 @@ from jobs.monthly.html_issuers._branded import (  # noqa: E402
     _merge_companion_store_scopes,
     _merge_companion_total_stores,
 )
-from jobs.monthly.html_issuers._page import _count_only as page_count_only  # noqa: E402
-from jobs.monthly.html_issuers._page import _store_event as page_store_event  # noqa: E402
+from jobs.monthly.html_issuers._page import (  # noqa: E402
+    _apply_element_aliases,
+    _count_only as page_count_only,
+    _store_event as page_store_event,
+)
 from jobs.monthly.html_issuers.i8278 import _count_only as fuji_count_only  # noqa: E402
 from jobs.monthly.html_issuers.i8278 import _store_event as fuji_store_event  # noqa: E402
 from jobs.monthly.html_issuers.i9989 import _CaptionParser, _plain, _table_captions  # noqa: E402
-from jobs.monthly.html_monthly import _is_prior_year_absolute, parse_grid, unit_mark_context  # noqa: E402
+from jobs.monthly.html_monthly import (  # noqa: E402
+    _is_count_header,
+    _is_prior_year_absolute,
+    parse_grid,
+    unit_mark_context,
+)
 
 SALES_HTML = """
 <p>2026年5月度 月次売上高（前年同月比）</p>
@@ -100,6 +108,39 @@ def test_unit_mark_context() -> None:
         _fail(f"unit mark: {got!r}")
     if unit_mark_context("<p>hello</p>") != "":
         _fail(f"no unit mark: {unit_mark_context('<p>hello</p>')!r}")
+
+
+def test_count_header_ten_su_not_month_end() -> None:
+    """店数は件数見出し。月末は汎用語なので共通判定に入れない。"""
+    if not _is_count_header("店数") or not _is_count_header("スポーツデポ・アルペン 店数"):
+        _fail("店数 must be a count header")
+    if _is_count_header("月末") or _is_count_header("月末 売上高前年同月比"):
+        _fail("月末 must not be a global count header")
+    stores = {
+        "rows": [
+            {"element": "開店", "unit": "number"},
+            {"element": "閉店", "unit": "number"},
+            {"element": "店数", "unit": "number"},
+        ]
+    }
+    if not page_count_only(stores):
+        _fail("開店/閉店/店数 table must be count-only")
+    month_end = {
+        "rows": [
+            {"element": "出店", "unit": "number"},
+            {"element": "退店", "unit": "number"},
+            {"element": "月末 売上高前年同月比", "unit": "yoy_index"},
+        ]
+    }
+    if page_count_only(month_end):
+        _fail("月末 yoy row must keep the table out of count-only")
+    _apply_element_aliases(month_end, (("月末", "店舗数"),))
+    if [r["element"] for r in month_end["rows"]] != ["出店", "退店", "店舗数"]:
+        _fail(f"月末 alias {month_end['rows']}")
+    if month_end["rows"][2]["unit"] != "number":
+        _fail(f"月末 alias unit {month_end['rows'][2]}")
+    if not page_count_only(month_end):
+        _fail("aliased 月末 table must be count-only")
 
 
 def test_store_event_and_count_only() -> None:
@@ -227,6 +268,7 @@ def main() -> None:
     test_count_rows_ignore_page_yoy_context()
     test_pre_merger_reference_table_is_not_picked()
     test_unit_mark_context()
+    test_count_header_ten_su_not_month_end()
     test_store_event_and_count_only()
     test_merge_companion_rows()
     test_grid_self_dated()

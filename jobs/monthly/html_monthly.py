@@ -78,7 +78,7 @@ _COUNT_METRIC_MARKS = (
 )
 _STORE_FLOW_RE = re.compile(r"開店|閉店|出店|退店|開設|撤退")
 _COUNT_HEAD_RE = re.compile(
-    r"店舗数|拠点数|営業所数|千食|お届け|テナント数|稼働店舗数|取引店舗数"
+    r"店舗数|店数|拠点数|営業所数|千食|お届け|テナント数|稼働店舗数|取引店舗数"
 )
 # 舖 (U+8216) vs 舗 (U+8217): NFKC does not unify; some IR HTML uses 舖.
 _COUNT_DELTA_RE = re.compile(r"(?:増加|減少)\(店\)")

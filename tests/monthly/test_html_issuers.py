@@ -2270,6 +2270,69 @@ def test_himalaya_year_tab_as_of() -> None:
         _fail(f"年度累計 leaked {exist}")
 
 
+def test_alpen_merges_total_store_counts() -> None:
+    """3028: 出退店数の合計だけ 出店/退店/店舗数。業態別は落とす。売上は不変。"""
+    path = ROOT / "tests" / "monthly" / "testdata" / "html_3028" / "2026.html"
+    got = parse_issuer(decode_html_bytes(path.read_bytes()), "3028")
+    if got["as_of"] != "2026-09-30":
+        _fail(f"3028 as_of {got['as_of']}")
+    if got["months"] != [7, 8, 9]:
+        _fail(f"3028 months {got['months']}")
+    exist = _row(got, "既存店計 単月")
+    all_store = _row(got, "全店計 単月")
+    company = _row(got, "全社計 ※ 単月")
+    if exist["unit"] != "yoy_index" or exist["values"] != {"7": 104.6, "8": 102.9, "9": 105.5}:
+        _fail(f"3028 既存店計 単月 {exist}")
+    if all_store["values"] != {"7": 108.2, "8": 108.9, "9": 110.8}:
+        _fail(f"3028 全店計 単月 {all_store}")
+    if company["values"] != {"7": 108.3, "8": 109.7, "9": 111.3}:
+        _fail(f"3028 全社計 単月 {company}")
+    opened = _row(got, "出店", unit="number")
+    closed = _row(got, "退店", unit="number")
+    stores = _row(got, "店舗数", unit="number")
+    if opened["values"] != {"7": 1, "8": 3, "9": 1}:
+        _fail(f"3028 出店 {opened}")
+    if closed["values"] != {"7": 3, "8": 2, "9": 0}:
+        _fail(f"3028 退店 {closed}")
+    if stores["values"] != {"7": 405, "8": 406, "9": 407}:
+        _fail(f"3028 店舗数 {stores}")
+    labels = [r["element"] for r in got["rows"]]
+    if any("スポーツデポ" in el or "アウトドアーズ" in el or "ゴルフ" in el for el in labels):
+        _fail(f"3028 brand store rows leaked {labels}")
+    if any(el in labels for el in ("開店", "閉店", "店数")):
+        _fail(f"3028 raw store labels leaked {labels}")
+
+
+def test_himalaya_merges_month_end_store_counts() -> None:
+    """7514: 店舗表の 月末 を 店舗数 にして売上表へ足す。売上は不変。"""
+    path = ROOT / "tests" / "monthly" / "testdata" / "html_7514" / "2026.html"
+    got = parse_issuer(decode_html_bytes(path.read_bytes()), "7514")
+    if got["as_of"] != "2026-09-30":
+        _fail(f"7514 as_of {got['as_of']}")
+    if got["months"] != [9]:
+        _fail(f"7514 months {got['months']}")
+    exist = _row(got, "既存店")
+    all_store = _row(got, "全店")
+    if exist["unit"] != "yoy_index" or exist["values"] != {"9": 106.4}:
+        _fail(f"7514 既存店 {exist}")
+    if all_store["unit"] != "yoy_index" or all_store["values"] != {"9": 104.9}:
+        _fail(f"7514 全店 {all_store}")
+    opened = _row(got, "出店", unit="number")
+    closed = _row(got, "退店", unit="number")
+    stores = _row(got, "店舗数", unit="number")
+    if opened["values"] != {"9": 0}:
+        _fail(f"7514 出店 {opened}")
+    if closed["values"] != {"9": 0}:
+        _fail(f"7514 退店 {closed}")
+    if stores["values"] != {"9": 98}:
+        _fail(f"7514 店舗数 {stores}")
+    labels = [r["element"] for r in got["rows"]]
+    if any("月末" in el for el in labels):
+        _fail(f"7514 月末 leaked {labels}")
+    if any("売上高前年同月比" in el for el in labels):
+        _fail(f"7514 yoy suffix on store row {labels}")
+
+
 def test_drop_ytd_row_when_monthly_pair() -> None:
     html = """
     <html><body>
@@ -2786,6 +2849,8 @@ def main() -> None:
     test_sekisui_single_month_col_skips_cumulative()
     test_sumitomo_snapshot_heading_month()
     test_himalaya_year_tab_as_of()
+    test_alpen_merges_total_store_counts()
+    test_himalaya_merges_month_end_store_counts()
     test_drop_ytd_row_when_monthly_pair()
     test_xevo_prefers_current_fy_drops_ytd()
     test_fuji_skips_renovation_merges_total_stores()
