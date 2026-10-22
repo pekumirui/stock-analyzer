@@ -2223,18 +2223,18 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 31600	2026	7	legacy	number	アミカ事業 店舗数	アミカ事業 店舗数	number	アミカ事業 店舗数	stores	アミカ事業		店舗数	全体 > アミカ事業	店舗数
 31740	2024	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31740	2024	2	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
-31740	2024	3	legacy	number	粗利率 既存	粗利率 既存	number	粗利率 既存	other	粗利率	既存		全体 > 粗利率	既存
+31740	2024	3	legacy	number	粗利率 既存	粗利率 既存	number	粗利率 既存	other	粗利率	既存		全体	既存 粗利率
 31740	2025	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
-31740	2025	2	legacy	yoy_index	売上総利益 既存 売上高(前年比)	売上総利益 既存 売上高(前年比)	yoy_index	売上総利益 既存 売上高(前年比)	sales	売上総利益	既存	売上高	全体 > 売上総利益	既存 売上高
+31740	2025	2	legacy	yoy_index	売上総利益 既存 売上高(前年比)	既存 売上総利益(前年比)	yoy_index	既存 売上総利益(前年比)	sales		既存	売上総利益	全体	既存 売上総利益
 31740	2025	3	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
-31740	2025	4	legacy	number	粗利率 既存	粗利率 既存	number	粗利率 既存	other	粗利率	既存		全体 > 粗利率	既存
-31740	2025	5	legacy	yoy_index	売上個数 既存 売上高(前年比)	売上個数 既存 売上高(前年比)	yoy_index	売上個数 既存 売上高(前年比)	sales	売上個数	既存	売上高	全体 > 売上個数	既存 売上高
+31740	2025	4	legacy	number	粗利率 既存	粗利率 既存	number	粗利率 既存	other	粗利率	既存		全体	既存 粗利率
+31740	2025	5	legacy	yoy_index	売上個数 既存 売上高(前年比)	既存 売上個数(前年比)	yoy_index	既存 売上個数(前年比)	count		既存	売上個数	全体	既存 売上個数
 31740	2026	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
-31740	2026	2	legacy	yoy_index	売上総利益 既存 売上高(前年比)	売上総利益 既存 売上高(前年比)	yoy_index	売上総利益 既存 売上高(前年比)	sales	売上総利益	既存	売上高	全体 > 売上総利益	既存 売上高
+31740	2026	2	legacy	yoy_index	売上総利益 既存 売上高(前年比)	既存 売上総利益(前年比)	yoy_index	既存 売上総利益(前年比)	sales		既存	売上総利益	全体	既存 売上総利益
 31740	2026	3	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
-31740	2026	4	legacy	number	粗利率 既存	粗利率 既存	number	粗利率 既存	other	粗利率	既存		全体 > 粗利率	既存
-31740	2026	5	legacy	yoy_index	ヴィンテージ商品 既存 売上高(前年比)	ヴィンテージ商品 既存 売上高(前年比)	yoy_index	ヴィンテージ商品 既存 売上高(前年比)	sales	ヴィンテージ商品	既存	売上高	全体 > ヴィンテージ商品	既存 売上高
-31740	2026	6	legacy	yoy_index	売上個数 既存 売上高(前年比)	売上個数 既存 売上高(前年比)	yoy_index	売上個数 既存 売上高(前年比)	sales	売上個数	既存	売上高	全体 > 売上個数	既存 売上高
+31740	2026	4	legacy	number	粗利率 既存	粗利率 既存	number	粗利率 既存	other	粗利率	既存		全体	既存 粗利率
+31740	2026	5	legacy	yoy_index	ヴィンテージ商品 既存 売上高(前年比)	既存 ヴィンテージ商品売上高(前年比)	yoy_index	既存 ヴィンテージ商品売上高(前年比)	sales		既存	ヴィンテージ商品売上高	全体	既存 ヴィンテージ商品売上高
+31740	2026	6	legacy	yoy_index	売上個数 既存 売上高(前年比)	既存 売上個数(前年比)	yoy_index	既存 売上個数(前年比)	count		既存	売上個数	全体	既存 売上個数
 31750	2023	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 31750	2023	2	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
 31750	2023	3	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価

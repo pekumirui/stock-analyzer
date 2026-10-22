@@ -301,6 +301,10 @@
       "prefix": true
     },
     {
+      "word": "ヴィンテージ商品売上高",
+      "metric": "ヴィンテージ商品売上高"
+    },
+    {
       "word": "売上高",
       "metric": "売上高",
       "prefix": true
@@ -364,6 +368,8 @@
     "客数": "customers",
     "購入お客様数": "customers",
     "売上高": "sales",
+    "売上総利益": "sales",
+    "ヴィンテージ商品売上高": "sales",
     "稼働日修正後": "sales"
   }
 }

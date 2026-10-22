@@ -985,7 +985,7 @@ def test_monthly_year_window() -> None:
 
 
 def test_monthly_tree_html_kab87() -> None:
-    """画面の指標 ▸ 区分（#582 / #585 / #586 / #587 / #588 / #831 / #834 / #835 / #836）。"""
+    """画面の指標 ▸ 区分（#582 / #585 / #586 / #587 / #588 / #831 / #834 / #835 / #836 / #822）。"""
     import json
     import subprocess
     import tempfile
@@ -1084,6 +1084,14 @@ def test_monthly_tree_html_kab87() -> None:
             ("いちご CO2削減量", "number"),
             ("いちごグリーン CO2削減量", "number"),
         ]),
+        "happiness": _cfg("31740", [
+            ("既存 売上高(前年比)", "yoy_index"),
+            ("売上総利益 既存 売上高(前年比)", "yoy_index"),
+            ("売上個数 既存 売上高(前年比)", "yoy_index"),
+            ("既存 客単価(前年比)", "yoy_index"),
+            ("ヴィンテージ商品 既存 売上高(前年比)", "yoy_index"),
+            ("粗利率 既存", "number"),
+        ]),
     }
     harness = r"""
 const fs = require("fs");
@@ -1127,7 +1135,8 @@ const abc = run(fixtures.abc, () => vm.runInContext('monthlyTlOpen.add("m:売上
 const robot = run(fixtures.robot, () => vm.runInContext('monthlyTlOpen.add("m:管理戸数");', sandbox));
 const daito = run(fixtures.daito, () => vm.runInContext('monthlyTlOpen.add("m:空室数");', sandbox));
 const ichigo = run(fixtures.ichigo, () => vm.runInContext('monthlyTlOpen.add("m:発電量");', sandbox));
-console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, ichigo}));
+const happiness = run(fixtures.happiness);
+console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, ichigo, happiness}));
 """
     with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as tmp:
         tmp.write(harness)
@@ -1160,6 +1169,17 @@ console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, 
         _fail(f"18780 screen: {got.get('daito')!r}")
     if got.get("ichigo") != ["発電量", "いちご", "いちごグリーン", "CO2削減量"]:
         _fail(f"23370 screen: {got.get('ichigo')!r}")
+    if got.get("happiness") != [
+        "既存 売上高(前年比)",
+        "売上総利益 既存 売上高(前年比)",
+        "売上個数 既存 売上高(前年比)",
+        "既存 客単価(前年比)",
+        "ヴィンテージ商品 既存 売上高(前年比)",
+        "粗利率 既存",
+    ]:
+        _fail(f"31740 screen: {got.get('happiness')!r}")
+    if (got.get("happiness") or []).count("既存 売上高(前年比)") != 1:
+        _fail(f"31740 must not nest 既存 売上高: {got.get('happiness')!r}")
 
 
 def test_monthly_year_color_stable() -> None:
