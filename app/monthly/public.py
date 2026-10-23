@@ -56,7 +56,9 @@ def display_years(years: list[int]) -> list[int]:
 
 
 def _ld(obj: dict) -> str:
-    return json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+    # script 要素に入れるので < > & は JSON の unicode escape にする
+    raw = json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
+    return raw.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
 
 
 def _shell(

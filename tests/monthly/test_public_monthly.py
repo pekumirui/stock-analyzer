@@ -1,6 +1,7 @@
 """公開月次 HTML / robots / sitemap / 書き込み 403。"""
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
@@ -35,14 +36,24 @@ def _seed() -> None:
     db = SessionLocal()
     try:
         db.add(Stock(code="72030", name="トヨタ自動車", market="プライム", sector33="輸送用機器"))
+        db.add(Stock(code="11110", name="テスト</script>社", market="プライム", sector33="その他"))
         db.add(MonthlyTable(code="72030", year=2025))
+        db.add(MonthlyTable(code="11110", year=2025))
         db.add(MonthlyElement(
             code="72030", year=2025, element="全店 売上高(前年比)",
+            sort_order=1, unit="yoy_index",
+        ))
+        db.add(MonthlyElement(
+            code="11110", year=2025, element="全店 売上高(前年比)",
             sort_order=1, unit="yoy_index",
         ))
         db.add(MonthlyValue(
             code="72030", year=2025, element="全店 売上高(前年比)",
             month=4, value=105.2,
+        ))
+        db.add(MonthlyValue(
+            code="11110", year=2025, element="全店 売上高(前年比)",
+            month=4, value=100.0,
         ))
         db.commit()
     finally:
@@ -110,6 +121,28 @@ def test_public_monthly() -> None:
         _fail("detail missing SSR value")
     if 'rel="canonical"' not in r.text:
         _fail("detail missing canonical")
+
+    from app.monthly.public import _ld
+    payload = {"name": "テスト</script>社 & 他"}
+    encoded = _ld(payload)
+    if "<" in encoded or ">" in encoded or "&" in encoded:
+        _fail(f"ld markup: {encoded}")
+    if json.loads(encoded) != payload:
+        _fail(f"ld roundtrip: {json.loads(encoded)!r}")
+
+    r = c.get("/monthly/1111")
+    _expect(r, 200, "GET /monthly/1111")
+    m_ld = re.search(r'<script type="application/ld\+json">(.*?)</script>', r.text, re.S)
+    if not m_ld:
+        _fail("script-name detail missing jsonld")
+    body = m_ld.group(1)
+    if "<" in body or ">" in body:
+        _fail(f"jsonld still has angle brackets: {body}")
+    obj = json.loads(body)
+    if "テスト</script>社" not in str(obj.get("name")):
+        _fail(f"jsonld name roundtrip: {obj!r}")
+    if '<h1 id="monthly-title">テスト&lt;/script&gt;社 1111</h1>' not in r.text:
+        _fail("escaped h1 missing on script-name detail")
 
     r = c.get("/monthly/9999")
     _expect(r, 404, "unknown issuer")
