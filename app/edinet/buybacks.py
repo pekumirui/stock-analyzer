@@ -152,6 +152,16 @@ def _period(res: Resolution, text: str) -> bool:
     return False
 
 
+def _zero_cum_month_ok(month: int | None, cum: int | None, lim: int | None,
+                       prog: float | None) -> bool:
+    """累計 0・当月正・進捗が当月÷枠と 0.5pt 以内（消却で累計が消える書類）。"""
+    if month is None or cum is None or lim is None or prog is None:
+        return False
+    if month <= 0 or cum != 0 or lim <= 0:
+        return False
+    return abs(prog - month / lim) <= _PROGRESS_TOL
+
+
 def _sum_month_parts(parts: list[tuple[int | None, int | None]]) -> tuple[int | None, int | None]:
     shares = amount = None
     for s, a in parts:
@@ -166,7 +176,8 @@ def _finish_month(res: Resolution) -> None:
     """当月は「計」優先。計が無ければ報告月の行の実数。内訳と足したりはしない。
 
     計が空欄で日付の内訳がある書類は内訳の合計。計が累計を超え、内訳が無く、
-    報告月の行が累計を超えないときは報告月（計の誤記）。どちらも書類の行を読む。
+    報告月の行が累計を超えないときは報告月（計の誤記）。累計が 0 で当月が正、
+    進捗が当月÷枠と合う書類は当月も累計も書類の値のまま。どれも書類の行を読む。
     """
     if res.month_shares is None:
         if res._kei_row and res._month_details and res._month_parts:
@@ -178,13 +189,15 @@ def _finish_month(res: Resolution) -> None:
         elif res._month_row:
             res.month_shares, res.month_amount = 0, 0
     raw = res._month_from_report_raw
-    for unit, month_attr, cum_attr, idx in (
-        ("株", "month_shares", "cumulative_shares", 0),
-        ("円", "month_amount", "cumulative_amount", 1),
+    for unit, month_attr, cum_attr, lim_attr, prog_attr, idx in (
+        ("株", "month_shares", "cumulative_shares", "limit_shares", "progress_shares", 0),
+        ("円", "month_amount", "cumulative_amount", "limit_amount", "progress_amount", 1),
     ):
         month = getattr(res, month_attr)
         cum = getattr(res, cum_attr)
         if month is None or cum is None or month <= cum:
+            continue
+        if _zero_cum_month_ok(month, cum, getattr(res, lim_attr), getattr(res, prog_attr)):
             continue
         report = None if raw is None else raw[idx]
         if not res._month_details and report is not None and report <= cum:
@@ -311,9 +324,10 @@ def _check_honbun_resolution(r: Resolution) -> None:
     ):
         if cum is not None and lim is not None and cum > lim:
             raise ValueError(f"累計が枠を超えている({unit}): {cum} > {lim}")
-        if month is not None and cum is not None and month > cum:
+        zero_ok = _zero_cum_month_ok(month, cum, lim, prog)
+        if month is not None and cum is not None and month > cum and not zero_ok:
             raise ValueError(f"報告月の取得が累計を超えている({unit}): {month} > {cum}")
-        if prog is not None and cum is not None and lim:
+        if prog is not None and cum is not None and lim and not zero_ok:
             expected = cum / lim
             if abs(prog - expected) > _PROGRESS_TOL:
                 raise ValueError(f"進捗率が累計÷枠と合わない({unit}): {prog} vs {expected}")
