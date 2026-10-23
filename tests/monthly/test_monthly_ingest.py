@@ -3098,7 +3098,6 @@ def test_issuer_rate_metrics_14350() -> None:
         ("18780", "家賃ベース入居率 居住用"),
         ("29910", "入居率"),
         ("90070", "ホテル センチュリー 客室稼働率"),
-        ("31740", "粗利率 既存"),
         ("89140", "稼働率 既存"),
         ("21540", "エンジニア 稼働率"),
     )
@@ -3360,6 +3359,85 @@ def test_81980_renamed_labels_idempotent_with_code() -> None:
         _fail("81980 old 買上点数 must not collide with 全店 売上高")
 
 
+def test_31740_gross_margin_renamed_idempotent_with_code() -> None:
+    """KAB-127: 改名先 既存 粗利率 は 31740 の code 付きで不変。code 無しは旧名の語順。"""
+    dest = "既存 粗利率"
+    old = "粗利率 既存"
+    got = canonicalize_element_label(dest, "number", "31740")
+    if got != dest:
+        _fail(f"31740 dest -> {got!r}")
+    if canonicalize_element_label(got, "number", "31740") != dest:
+        _fail("31740 dest not idempotent")
+    if canonicalize_element_label(old, "number", "31740") != dest:
+        _fail(f"31740 old -> {canonicalize_element_label(old, 'number', '31740')!r}")
+    if canonicalize_element_label(dest, "number") != old:
+        _fail(f"no-code dest still leftover-before-scope -> {canonicalize_element_label(dest, 'number')!r}")
+    if canonicalize_element_label(old, "number") != old:
+        _fail(f"no-code old must stay {canonicalize_element_label(old, 'number')!r}")
+
+    lab = monthly_element_label(dest, "number", "31740")
+    if lab["segment"] or lab["metric"] != "粗利率" or lab["scope"] != "既存":
+        _fail(f"31740 dest label: {lab!r}")
+    if lab["metric_kind"] != "count":
+        _fail(f"31740 dest metric_kind: {lab['metric_kind']!r}")
+    old_lab = monthly_element_label(old, "number", "31740")
+    if old_lab["display"] != dest or old_lab["metric"] != "粗利率":
+        _fail(f"31740 old label with code: {old_lab!r}")
+
+    for other in (None, "89140", "30380"):
+        leaked = monthly_element_label(dest, "number", other)
+        if leaked["metric"]:
+            _fail(f"31740 粗利率 leaked to code={other!r}: {leaked!r}")
+        if canonicalize_element_label(dest, "number", other) != old:
+            _fail(f"other code dest order {other!r}: {canonicalize_element_label(dest, 'number', other)!r}")
+    if canonicalize_element_label("稼働率 既存", "number", "89140") != "稼働率 既存":
+        _fail("89140 稼働率 既存 must stay leftover")
+    if monthly_element_label("稼働率 既存", "number", "89140")["metric"]:
+        _fail("89140 稼働率 must not peel")
+    if canonicalize_element_label("入居率 全体", "number", "14350") != "入居率 全体":
+        _fail("14350 入居率 全体 must not become 全体 入居率")
+
+
+def test_31740_put_values_and_ingest_keep_renamed_gross_margin() -> None:
+    """改名後の 既存 粗利率 へ PUT でき、ingest の旧名も同じ行に入り、行は増えない。"""
+    c = TestClient(app)
+    code = "31740"
+    year = 2026
+    dest = "既存 粗利率"
+    _add_fy_end(code, date(2026, 8, 1), date(2026, 8, 31), "31740-fy-kab127")
+    r = c.post(
+        f"/api/v1/tables/{code}/{year}/elements",
+        json={"element": dest, "unit": "number"},
+    )
+    _expect(r, 201, f"POST {dest}")
+    if r.json()["element"] != dest:
+        _fail(f"POST stored {r.json()['element']!r} want {dest!r}")
+
+    r = c.put(f"/api/v1/tables/{code}/{year}/values/batch", json={
+        "element": dest,
+        "values": [{"month": 8, "value": 33.8}],
+    })
+    _expect(r, 200, "put_values dest")
+
+    r = c.post(f"/api/v1/tables/{code}/ingest", json={
+        "months": [8],
+        "rows": [
+            {"element": dest, "unit": "number", "values": {"8": 33.8}},
+            {"element": "粗利率 既存", "unit": "number", "values": {"8": 33.8}},
+        ],
+        "as_of": "2026-09-01",
+    })
+    _expect(r, 200, "ingest headings")
+    r = c.get(f"/api/v1/tables/{code}/{year}")
+    _expect(r, 200, f"GET {code}/{year}")
+    rows = r.json()["elements"]
+    names = [e["element"] for e in rows]
+    if names != [dest]:
+        _fail(f"31740 rows after ingest: {names!r}")
+    if rows[0]["values"].get("8") != 33.8:
+        _fail(f"31740 dest value: {rows[0]['values']!r}")
+
+
 def test_81980_put_values_and_ingest_keep_renamed_rows() -> None:
     """改名後の行へ PUT でき、ingest の見出しも同じ行に入り、行は増えない。"""
     c = TestClient(app)
@@ -3460,6 +3538,8 @@ def main() -> None:
     test_count_metric_keeps_pre534_stored_names()
     test_81980_renamed_labels_idempotent_with_code()
     test_81980_put_values_and_ingest_keep_renamed_rows()
+    test_31740_gross_margin_renamed_idempotent_with_code()
+    test_31740_put_values_and_ingest_keep_renamed_gross_margin()
     test_department_store_layers()
     test_issuer_alias_cases()
     test_mapping_examples()
