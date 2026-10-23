@@ -99,6 +99,15 @@ NOT_PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "edinet lvh outside-window n=12"),
     ("batch", "edinet lvh parse-error n=1 sample=S100BRKN"),
     ("batch", "edinet lvh download-error n=2 sample=S100SRV1,S100TMO1"),
+    ("batch", "edinet buyback parse-error n=1 sample=S100Z1HS"),
+    (
+        "batch",
+        (
+            "edinet buyback parse-error doc_id=S100Z1HS type=ValueError "
+            "msg=取得状況のテキストブロックが無い"
+        ),
+    ),
+    ("batch", "edinet buyback parse-error   app/edinet/buybacks.py:392 parse_buyback"),
     ("batch", "edinet lvh done parsed=73161 failed=0 missing=164 errors=0 refreshed=363"),
     ("batch", "material_stats done written=3 failed=0"),
     ("batch", "fail meti seidou list: WAF challenge: https://x. stop and retry next run"),

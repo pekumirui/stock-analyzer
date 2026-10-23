@@ -6,8 +6,11 @@
 from __future__ import annotations
 
 import re
+import sys
+import traceback
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy import delete, select, update
@@ -59,10 +62,58 @@ _TRUE = frozenset({"true", "1", "t", "yes"})
 _SCALED_UNIT_RE = re.compile(r"(千|万|百万|億)(株|円)")
 _PROGRESS_TOL = 0.005   # 進捗率と累計÷枠の差（0.5 ポイント）
 _LOG = "edinet buyback"
+_TRACE_FRAMES = 6
+_MSG_MAX = 500
+# Slack の failed doc_id= に当てない。値だけ伏せる（名前は残す）
+_SECRET_ASSIGN_RE = re.compile(
+    r"(?i)\b(EDINET_API_KEY|JQUANTS_API_KEY|ESTAT_APP_ID|MCP_TOKEN|"
+    r"R2_(?:ACCESS_KEY_ID|SECRET_ACCESS_KEY)|VPS_SSH_KEY|"
+    r"SLACK_WEBHOOK(?:_URL)?(?:_[A-Z]+)?|BASIC_AUTH_PASSWORD|"
+    r"Subscription-Key|Bearer|api[_-]?key|password)\s*[=:]\s*\S+"
+)
+_SECRET_QUERY_RE = re.compile(
+    r"(?i)([?&](?:token|api_key|subscription-key|code|state|access_token|"
+    r"refresh_token|client_secret|code_verifier)=)[^&\s\"]+"
+)
 
 
 class OutsideEdinetWindow(Exception):
     """縦覧期間（KEEP_YEARS 年）を過ぎた書類。EDINET から取れない。"""
+
+
+def _redact_log(text: str) -> str:
+    """例外メッセージとトレースから鍵・トークンを除く。"""
+    from app.edinet_wrapper._redact import redact_text
+
+    s = redact_text(text)
+    s = _SECRET_ASSIGN_RE.sub(lambda m: m.group(1) + "=<redacted>", s)
+    return _SECRET_QUERY_RE.sub(r"\1<redacted>", s)
+
+
+def _short_path(path: str) -> str:
+    norm = path.replace("\\", "/")
+    for marker in ("/app/", "/jobs/", "/tests/"):
+        at = norm.find(marker)
+        if at >= 0:
+            return norm[at + 1:]
+    return Path(path).name
+
+
+def _format_parse_error(doc_id: str, exc: BaseException) -> list[str]:
+    """1 件の parse 失敗。1 行目が要約、続きが短いトレース。"""
+    msg = _redact_log(str(exc)).replace("\n", " ").strip()[:_MSG_MAX]
+    lines = [f"{_LOG} parse-error doc_id={doc_id} type={type(exc).__name__} msg={msg}"]
+    frames = traceback.extract_tb(exc.__traceback__)[-_TRACE_FRAMES:]
+    for fr in frames:
+        loc = _redact_log(f"{_short_path(fr.filename)}:{fr.lineno} {fr.name}")
+        lines.append(f"{_LOG} parse-error   {loc}")
+    return lines
+
+
+def log_parse_error(doc_id: str, exc: BaseException) -> None:
+    """parse 失敗を stderr へ。cron-run の 2>&1 で batch_logs に載る。"""
+    for line in _format_parse_error(doc_id, exc):
+        print(line, file=sys.stderr, flush=True)
 
 
 @dataclass
@@ -601,6 +652,7 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
         row = report_row(doc, rep, lookup, fetched_at)
         res = resolution_rows(doc.doc_id, rep)
     except Exception as exc:
+        log_parse_error(doc.doc_id, exc)
         store_failed(db, doc, exc, fetched_at)
         return "failed"
     store_report(db, row, res)
