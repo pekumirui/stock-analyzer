@@ -2054,6 +2054,40 @@ def test_tree_35570() -> None:
         _fail(f"35570 全業態 must not be a group: {got!r}")
 
 
+def test_tree_76430() -> None:
+    """76430 ダイイチ: 部門別前年比は全社 売上高の内訳（#608）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
+
+    els = [
+        "全社 売上高(前年比)", "既存 売上高(前年比)",
+        "客数(前年比)", "客単価(前年比)",
+        "青果(前年比)", "水産(前年比)", "畜産(前年比)", "惣菜(前年比)",
+        "デイリー(前年比)", "一般食品(前年比)", "日用雑貨(前年比)", "その他(前年比)",
+    ]
+    trees = load_monthly_trees()
+    rows = assign_tree_rows("76430", els, trees)
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    want = {
+        "全社 売上高(前年比)": (["全体"], "全社 売上高(前年比)", "全社 売上高"),
+        "既存 売上高(前年比)": (["全体"], "既存 売上高(前年比)", "既存 売上高"),
+        "客数(前年比)": (["全体"], "客数(前年比)", "客数"),
+        "客単価(前年比)": (["全体"], "客単価(前年比)", "客単価"),
+        "青果(前年比)": (["全体", "青果"], "青果(前年比)", "全社 売上高"),
+        "水産(前年比)": (["全体", "水産"], "水産(前年比)", "全社 売上高"),
+        "畜産(前年比)": (["全体", "畜産"], "畜産(前年比)", "全社 売上高"),
+        "惣菜(前年比)": (["全体", "惣菜"], "惣菜(前年比)", "全社 売上高"),
+        "デイリー(前年比)": (["全体", "デイリー"], "デイリー(前年比)", "全社 売上高"),
+        "一般食品(前年比)": (["全体", "一般食品"], "一般食品(前年比)", "全社 売上高"),
+        "日用雑貨(前年比)": (["全体", "日用雑貨"], "日用雑貨(前年比)", "全社 売上高"),
+        "その他(前年比)": (["全体", "その他"], "その他(前年比)", "全社 売上高"),
+    }
+    if got != want:
+        _fail(f"76430 tree: {got!r}")
+    t = tree_payload("76430", els, trees)
+    if t is None or t["tree_metrics"] != ["全社 売上高", "既存 売上高", "客数", "客単価"] or "tree_auto" in t:
+        _fail(f"76430 tree_metrics: {None if t is None else t!r}")
+
+
 def test_tree_76160() -> None:
     """76160 コロワイド: （全業態）は会社の行（#591）。"""
     from app.monthly.tree import assign_tree_rows, load_monthly_trees
@@ -2354,6 +2388,7 @@ def main() -> None:
     test_tree_30820()
     test_tree_33290()
     test_tree_35570()
+    test_tree_76430()
     test_tree_76160()
     test_tree_81630()
     test_tree_82000()

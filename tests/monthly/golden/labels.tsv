@@ -5604,36 +5604,36 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 76400	2026	3	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 76400	2026	4	legacy	number	既存 店舗数	既存 店舗数	number	既存 店舗数	stores		既存	店舗数	全体	既存 店舗数
 76430	2024	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
-76430	2024	2	legacy	yoy_index	青果(前年比)	青果(前年比)	yoy_index	青果(前年比)	other	青果			全体	青果
-76430	2024	3	legacy	yoy_index	水産(前年比)	水産(前年比)	yoy_index	水産(前年比)	other	水産			全体	水産
-76430	2024	4	legacy	yoy_index	畜産(前年比)	畜産(前年比)	yoy_index	畜産(前年比)	other	畜産			全体	畜産
-76430	2024	5	legacy	yoy_index	惣菜(前年比)	惣菜(前年比)	yoy_index	惣菜(前年比)	other	惣菜			全体	惣菜
-76430	2024	6	legacy	yoy_index	デイリー(前年比)	デイリー(前年比)	yoy_index	デイリー(前年比)	other	デイリー			全体	デイリー
-76430	2024	7	legacy	yoy_index	一般食品(前年比)	一般食品(前年比)	yoy_index	一般食品(前年比)	other	一般食品			全体	一般食品
-76430	2024	8	legacy	yoy_index	日用雑貨(前年比)	日用雑貨(前年比)	yoy_index	日用雑貨(前年比)	other	日用雑貨			全体	日用雑貨
-76430	2024	9	legacy	yoy_index	その他(前年比)	その他(前年比)	yoy_index	その他(前年比)	other	その他			全体	その他
+76430	2024	2	legacy	yoy_index	青果(前年比)	青果(前年比)	yoy_index	青果(前年比)	other	青果			全体 > 青果	全社 売上高
+76430	2024	3	legacy	yoy_index	水産(前年比)	水産(前年比)	yoy_index	水産(前年比)	other	水産			全体 > 水産	全社 売上高
+76430	2024	4	legacy	yoy_index	畜産(前年比)	畜産(前年比)	yoy_index	畜産(前年比)	other	畜産			全体 > 畜産	全社 売上高
+76430	2024	5	legacy	yoy_index	惣菜(前年比)	惣菜(前年比)	yoy_index	惣菜(前年比)	other	惣菜			全体 > 惣菜	全社 売上高
+76430	2024	6	legacy	yoy_index	デイリー(前年比)	デイリー(前年比)	yoy_index	デイリー(前年比)	other	デイリー			全体 > デイリー	全社 売上高
+76430	2024	7	legacy	yoy_index	一般食品(前年比)	一般食品(前年比)	yoy_index	一般食品(前年比)	other	一般食品			全体 > 一般食品	全社 売上高
+76430	2024	8	legacy	yoy_index	日用雑貨(前年比)	日用雑貨(前年比)	yoy_index	日用雑貨(前年比)	other	日用雑貨			全体 > 日用雑貨	全社 売上高
+76430	2024	9	legacy	yoy_index	その他(前年比)	その他(前年比)	yoy_index	その他(前年比)	other	その他			全体 > その他	全社 売上高
 76430	2024	10	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	全社 売上高
 76430	2025	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
-76430	2025	2	legacy	yoy_index	青果(前年比)	青果(前年比)	yoy_index	青果(前年比)	other	青果			全体	青果
-76430	2025	3	legacy	yoy_index	水産(前年比)	水産(前年比)	yoy_index	水産(前年比)	other	水産			全体	水産
-76430	2025	4	legacy	yoy_index	畜産(前年比)	畜産(前年比)	yoy_index	畜産(前年比)	other	畜産			全体	畜産
-76430	2025	5	legacy	yoy_index	惣菜(前年比)	惣菜(前年比)	yoy_index	惣菜(前年比)	other	惣菜			全体	惣菜
-76430	2025	6	legacy	yoy_index	デイリー(前年比)	デイリー(前年比)	yoy_index	デイリー(前年比)	other	デイリー			全体	デイリー
-76430	2025	7	legacy	yoy_index	一般食品(前年比)	一般食品(前年比)	yoy_index	一般食品(前年比)	other	一般食品			全体	一般食品
-76430	2025	8	legacy	yoy_index	日用雑貨(前年比)	日用雑貨(前年比)	yoy_index	日用雑貨(前年比)	other	日用雑貨			全体	日用雑貨
-76430	2025	9	legacy	yoy_index	その他(前年比)	その他(前年比)	yoy_index	その他(前年比)	other	その他			全体	その他
+76430	2025	2	legacy	yoy_index	青果(前年比)	青果(前年比)	yoy_index	青果(前年比)	other	青果			全体 > 青果	全社 売上高
+76430	2025	3	legacy	yoy_index	水産(前年比)	水産(前年比)	yoy_index	水産(前年比)	other	水産			全体 > 水産	全社 売上高
+76430	2025	4	legacy	yoy_index	畜産(前年比)	畜産(前年比)	yoy_index	畜産(前年比)	other	畜産			全体 > 畜産	全社 売上高
+76430	2025	5	legacy	yoy_index	惣菜(前年比)	惣菜(前年比)	yoy_index	惣菜(前年比)	other	惣菜			全体 > 惣菜	全社 売上高
+76430	2025	6	legacy	yoy_index	デイリー(前年比)	デイリー(前年比)	yoy_index	デイリー(前年比)	other	デイリー			全体 > デイリー	全社 売上高
+76430	2025	7	legacy	yoy_index	一般食品(前年比)	一般食品(前年比)	yoy_index	一般食品(前年比)	other	一般食品			全体 > 一般食品	全社 売上高
+76430	2025	8	legacy	yoy_index	日用雑貨(前年比)	日用雑貨(前年比)	yoy_index	日用雑貨(前年比)	other	日用雑貨			全体 > 日用雑貨	全社 売上高
+76430	2025	9	legacy	yoy_index	その他(前年比)	その他(前年比)	yoy_index	その他(前年比)	other	その他			全体 > その他	全社 売上高
 76430	2025	10	legacy	yoy_index	客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体	客数
 76430	2025	11	legacy	yoy_index	客単価(前年比)	客単価(前年比)	yoy_index	客単価(前年比)	spend			客単価	全体	客単価
 76430	2025	12	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	全社 売上高
 76430	2026	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
-76430	2026	2	legacy	yoy_index	青果(前年比)	青果(前年比)	yoy_index	青果(前年比)	other	青果			全体	青果
-76430	2026	3	legacy	yoy_index	水産(前年比)	水産(前年比)	yoy_index	水産(前年比)	other	水産			全体	水産
-76430	2026	4	legacy	yoy_index	畜産(前年比)	畜産(前年比)	yoy_index	畜産(前年比)	other	畜産			全体	畜産
-76430	2026	5	legacy	yoy_index	惣菜(前年比)	惣菜(前年比)	yoy_index	惣菜(前年比)	other	惣菜			全体	惣菜
-76430	2026	6	legacy	yoy_index	デイリー(前年比)	デイリー(前年比)	yoy_index	デイリー(前年比)	other	デイリー			全体	デイリー
-76430	2026	7	legacy	yoy_index	一般食品(前年比)	一般食品(前年比)	yoy_index	一般食品(前年比)	other	一般食品			全体	一般食品
-76430	2026	8	legacy	yoy_index	日用雑貨(前年比)	日用雑貨(前年比)	yoy_index	日用雑貨(前年比)	other	日用雑貨			全体	日用雑貨
-76430	2026	9	legacy	yoy_index	その他(前年比)	その他(前年比)	yoy_index	その他(前年比)	other	その他			全体	その他
+76430	2026	2	legacy	yoy_index	青果(前年比)	青果(前年比)	yoy_index	青果(前年比)	other	青果			全体 > 青果	全社 売上高
+76430	2026	3	legacy	yoy_index	水産(前年比)	水産(前年比)	yoy_index	水産(前年比)	other	水産			全体 > 水産	全社 売上高
+76430	2026	4	legacy	yoy_index	畜産(前年比)	畜産(前年比)	yoy_index	畜産(前年比)	other	畜産			全体 > 畜産	全社 売上高
+76430	2026	5	legacy	yoy_index	惣菜(前年比)	惣菜(前年比)	yoy_index	惣菜(前年比)	other	惣菜			全体 > 惣菜	全社 売上高
+76430	2026	6	legacy	yoy_index	デイリー(前年比)	デイリー(前年比)	yoy_index	デイリー(前年比)	other	デイリー			全体 > デイリー	全社 売上高
+76430	2026	7	legacy	yoy_index	一般食品(前年比)	一般食品(前年比)	yoy_index	一般食品(前年比)	other	一般食品			全体 > 一般食品	全社 売上高
+76430	2026	8	legacy	yoy_index	日用雑貨(前年比)	日用雑貨(前年比)	yoy_index	日用雑貨(前年比)	other	日用雑貨			全体 > 日用雑貨	全社 売上高
+76430	2026	9	legacy	yoy_index	その他(前年比)	その他(前年比)	yoy_index	その他(前年比)	other	その他			全体 > その他	全社 売上高
 76430	2026	10	legacy	yoy_index	客数(前年比)	客数(前年比)	yoy_index	客数(前年比)	customers			客数	全体	客数
 76430	2026	11	legacy	yoy_index	客単価(前年比)	客単価(前年比)	yoy_index	客単価(前年比)	spend			客単価	全体	客単価
 76430	2026	12	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	全社 売上高

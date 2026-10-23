@@ -1130,6 +1130,20 @@ def test_monthly_tree_html_kab87() -> None:
             ("新太郎 既存 売上高(前年比)", "yoy_index"),
             ("the 3rd Burger 既存 売上高(前年比)", "yoy_index"),
         ]),
+        "daiichi": _cfg("76430", [
+            ("全社 売上高(前年比)", "yoy_index"),
+            ("既存 売上高(前年比)", "yoy_index"),
+            ("客数(前年比)", "yoy_index"),
+            ("客単価(前年比)", "yoy_index"),
+            ("青果(前年比)", "yoy_index"),
+            ("水産(前年比)", "yoy_index"),
+            ("畜産(前年比)", "yoy_index"),
+            ("惣菜(前年比)", "yoy_index"),
+            ("デイリー(前年比)", "yoy_index"),
+            ("一般食品(前年比)", "yoy_index"),
+            ("日用雑貨(前年比)", "yoy_index"),
+            ("その他(前年比)", "yoy_index"),
+        ]),
         "colowide": _cfg("76160", [
             ("（全業態） 全店 売上高(前年比)", "yoy_index"),
             ("（全業態） 既存 売上高(前年比)", "yoy_index"),
@@ -1204,11 +1218,12 @@ const eternal = run(fixtures.eternal, () => vm.runInContext(
 const kichiri = run(fixtures.kichiri, () => vm.runInContext('monthlyTlOpen.add("m:全店 店舗数");', sandbox));
 const towa = run(fixtures.towa, () => vm.runInContext('monthlyTlOpen.add("m:店舗数");', sandbox));
 const uandc = run(fixtures.uandc, () => vm.runInContext('monthlyTlOpen.add("m:既存 売上高");', sandbox));
+const daiichi = run(fixtures.daiichi);
 const colowide = run(fixtures.colowide);
 const srs = run(fixtures.srs);
 const ringer = run(fixtures.ringer, () => vm.runInContext('monthlyTlOpen.add("m:全店 店舗数");', sandbox));
 const axial = run(fixtures.axial);
-console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, ichigo, happiness, eternal, kichiri, towa, uandc, colowide, srs, ringer, axial}));
+console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, ichigo, happiness, eternal, kichiri, towa, uandc, daiichi, colowide, srs, ringer, axial}));
 """
     with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as tmp:
         tmp.write(harness)
@@ -1266,6 +1281,14 @@ console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, 
         _fail(f"35570 screen: {got.get('uandc')!r}")
     if "全業態" in (got.get("uandc") or []):
         _fail(f"35570 must not nest 全業態: {got.get('uandc')!r}")
+    if got.get("daiichi") != [
+        "全社 売上高(前年比)",
+        "青果", "水産", "畜産", "惣菜", "デイリー", "一般食品", "日用雑貨", "その他",
+        "既存 売上高(前年比)",
+        "客数(前年比)",
+        "客単価(前年比)",
+    ]:
+        _fail(f"76430 screen: {got.get('daiichi')!r}")
     if got.get("colowide") != ["既存 売上高(前年比)", "全店 売上高(前年比)"]:
         _fail(f"76160 screen: {got.get('colowide')!r}")
     if "（全業態）" in (got.get("colowide") or []):
