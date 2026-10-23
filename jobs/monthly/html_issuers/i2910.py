@@ -6,6 +6,7 @@ import unicodedata
 
 from jobs.monthly.html_issuers._page import Page
 from jobs.monthly.html_issuers._read import Candidate, emit, pick_scored, read_page
+from jobs.monthly.html_monthly import json_number, parse_month_cell, parse_number
 
 _SCOPE_RE = re.compile(r"(既存店|全店)売上(?!高)")
 _BRAND_YOY_SUFFIX = "売上高前年同月比"
@@ -70,6 +71,61 @@ def _copy_rows(rows: list[dict]) -> list[dict]:
     return [dict(r, values=dict(r.get("values") or {})) for r in rows]
 
 
+def _axis_label(text: str) -> str:
+    s = unicodedata.normalize("NFKC", text or "").strip()
+    return re.sub(r"\s+", "", s)
+
+
+def _month_cols(grid: list[list[str]]) -> tuple[int, list[tuple[int, int]]] | None:
+    for i, row in enumerate(grid):
+        cols: list[tuple[int, int]] = []
+        for c, cell in enumerate(row):
+            month = parse_month_cell(cell)
+            if month is not None:
+                cols.append((c, month))
+        if len(cols) >= 3:
+            return i, cols
+    return None
+
+
+def _company_total_row(grid: list[list[str]], scope: str) -> dict | None:
+    """表の最下行 `合計` は会社計。parse_grid は合計を軸と見て落とす。"""
+    found = _month_cols(grid)
+    if found is None:
+        return None
+    header_i, month_cols = found
+    for row in grid[header_i + 1 :]:
+        if not row or _axis_label(row[0]) != "合計":
+            continue
+        values: dict[str, int | float] = {}
+        for c, month in month_cols:
+            if c >= len(row):
+                continue
+            n = parse_number(row[c])
+            if n is None:
+                continue
+            values[str(month)] = json_number(n)
+        if not values:
+            return None
+        return {
+            "element": f"{scope} 売上高前年同月比",
+            "unit": "yoy_index",
+            "values": values,
+        }
+    return None
+
+
+def _with_company_total(rows: list[dict], grid: list[list[str]], scope: str) -> list[dict]:
+    total = _company_total_row(grid, scope)
+    if total is None:
+        return rows
+    key = (str(total.get("element") or ""), total.get("unit"))
+    have = {(str(r.get("element") or ""), r.get("unit")) for r in rows}
+    if key in have:
+        return rows
+    return [total, *rows]
+
+
 def _merge(primary_rows: list[dict], extra: list[dict]) -> None:
     have = {(str(r.get("element") or ""), r.get("unit")) for r in primary_rows}
     for row in extra:
@@ -97,6 +153,7 @@ def parse(html: str, *, as_of: str | None = None) -> dict:
     scope = next(s for c, s in scoped if c[0] == chosen[0])
     rows = _copy_rows(chosen[2]["rows"])
     _apply_scope(rows, scope)
+    rows = _with_company_total(rows, chosen[1], scope)
     primary_months = list(chosen[2].get("months") or [])
     for cand, other_scope in scoped:
         if cand[0] == chosen[0]:
@@ -105,6 +162,7 @@ def parse(html: str, *, as_of: str | None = None) -> dict:
             continue
         copied = _copy_rows(cand[2]["rows"])
         _apply_scope(copied, other_scope)
+        copied = _with_company_total(copied, cand[1], other_scope)
         _merge(rows, copied)
     payload = emit(html, "2910", chosen, rows, as_of=as_of)
     blob = "\n".join(str(r.get("element") or "") for r in payload["rows"])
