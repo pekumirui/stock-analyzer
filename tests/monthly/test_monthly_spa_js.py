@@ -985,7 +985,7 @@ def test_monthly_year_window() -> None:
 
 
 def test_monthly_tree_html_kab87() -> None:
-    """画面の指標 ▸ 区分（#582 / #585 / #586 / #587 / #588 / #831 / #834 / #835 / #836 / #822）。"""
+    """画面の指標 ▸ 区分（#582 / #585 / #586 / #587 / #588 / #598 / #831 / #834 / #835 / #836 / #822）。"""
     import json
     import subprocess
     import tempfile
@@ -1093,6 +1093,25 @@ def test_monthly_tree_html_kab87() -> None:
             ("ヴィンテージ商品 既存 売上高(前年比)", "yoy_index"),
             ("粗利率 既存", "number"),
         ]),
+        "eternal": _cfg("31930", [
+            ("店舗数", "number"),
+            ("日本 店舗数", "number"),
+            ("日本 鳥貴族 店舗数", "number"),
+            ("日本 鳥貴族 直営 店舗数", "number"),
+            ("日本 鳥貴族 TCC 店舗数", "number"),
+            ("日本 やきとり大吉 店舗数", "number"),
+            ("日本 その他 店舗数", "number"),
+            ("鳥貴族パートナーズ", "number"),
+            ("TORIKI BURGER", "number"),
+            ("海外 店舗数", "number"),
+            ("海外 米国 店舗数", "number"),
+            ("海外 韓国 店舗数", "number"),
+            ("海外 台湾 店舗数", "number"),
+            ("海外 中国 店舗数", "number"),
+            ("海外 香港 店舗数", "number"),
+            ("海外 ベトナム 店舗数", "number"),
+            ("海外 シンガポール 店舗数", "number"),
+        ]),
         "kichiri": _cfg("30820", [
             ("全店 店舗数", "number"),
             ("既存 店舗数", "number"),
@@ -1176,6 +1195,12 @@ const robot = run(fixtures.robot, () => vm.runInContext('monthlyTlOpen.add("m:�
 const daito = run(fixtures.daito, () => vm.runInContext('monthlyTlOpen.add("m:空室数");', sandbox));
 const ichigo = run(fixtures.ichigo, () => vm.runInContext('monthlyTlOpen.add("m:発電量");', sandbox));
 const happiness = run(fixtures.happiness);
+const eternal = run(fixtures.eternal, () => vm.runInContext(
+  'monthlyTlOpen.add("m:店舗数");'
+  + 'monthlyTlOpen.add("m:店舗数\\u203atree:全体\\u203a日本");'
+  + 'monthlyTlOpen.add("m:店舗数\\u203atree:全体\\u203a日本\\u203a鳥貴族");'
+  + 'monthlyTlOpen.add("m:店舗数\\u203atree:全体\\u203a日本\\u203aその他");'
+  + 'monthlyTlOpen.add("m:店舗数\\u203atree:全体\\u203a海外");', sandbox));
 const kichiri = run(fixtures.kichiri, () => vm.runInContext('monthlyTlOpen.add("m:全店 店舗数");', sandbox));
 const towa = run(fixtures.towa, () => vm.runInContext('monthlyTlOpen.add("m:店舗数");', sandbox));
 const uandc = run(fixtures.uandc, () => vm.runInContext('monthlyTlOpen.add("m:既存 売上高");', sandbox));
@@ -1183,7 +1208,7 @@ const colowide = run(fixtures.colowide);
 const srs = run(fixtures.srs);
 const ringer = run(fixtures.ringer, () => vm.runInContext('monthlyTlOpen.add("m:全店 店舗数");', sandbox));
 const axial = run(fixtures.axial);
-console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, ichigo, happiness, kichiri, towa, uandc, colowide, srs, ringer, axial}));
+console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, ichigo, happiness, eternal, kichiri, towa, uandc, colowide, srs, ringer, axial}));
 """
     with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as tmp:
         tmp.write(harness)
@@ -1227,6 +1252,12 @@ console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, 
         _fail(f"31740 screen: {got.get('happiness')!r}")
     if (got.get("happiness") or []).count("既存 売上高(前年比)") != 1:
         _fail(f"31740 must not nest 既存 売上高: {got.get('happiness')!r}")
+    if got.get("eternal") != [
+        "店舗数", "日本", "鳥貴族", "直営", "TCC", "やきとり大吉", "その他",
+        "鳥貴族パートナーズ", "TORIKI BURGER",
+        "海外", "米国", "韓国", "台湾", "中国", "香港", "ベトナム", "シンガポール",
+    ]:
+        _fail(f"31930 screen: {got.get('eternal')!r}")
     if got.get("kichiri") != ["既存 店舗数", "全店 店舗数", "都市型ダイニング業態", "モール・郊外型 レストラン業態"]:
         _fail(f"30820 screen: {got.get('kichiri')!r}")
     if got.get("towa") != ["店舗数", "休業", "数 退店"]:
