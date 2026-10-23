@@ -3221,19 +3221,20 @@ def test_count_metric_keeps_pre534_stored_names() -> None:
     if vintage["segment"] or vintage["metric"] != "ヴィンテージ商品売上高" or vintage["metric_kind"] != "sales":
         _fail(f"31740 vintage label: {vintage!r}")
     gp = monthly_element_label("既存 売上総利益(前年比)", "yoy_index", "31740")
-    if gp["segment"] or gp["metric"] != "売上総利益" or gp["metric_kind"] != "sales":
+    if gp["segment"] or gp["metric"] != "売上総利益" or gp["metric_kind"] != "other":
         _fail(f"31740 売上総利益 label: {gp!r}")
     qty = monthly_element_label("既存 売上個数(前年比)", "yoy_index", "31740")
     if qty["segment"] or qty["metric"] != "売上個数" or qty["metric_kind"] != "count":
         _fail(f"31740 売上個数 label: {qty!r}")
+    # KAB-126: 売上総利益 / 売上個数 は共通語彙。銘柄によらず指標になる
     for other in (None, "30380"):
-        leaked_gp = monthly_element_label("既存 売上総利益(前年比)", "yoy_index", other)
-        leaked_qty = monthly_element_label("既存 売上個数(前年比)", "yoy_index", other)
-        if leaked_gp["metric"] or leaked_qty["metric"]:
-            _fail(f"31740 dest metrics leaked to code={other!r}: {leaked_gp!r} {leaked_qty!r}")
+        gp_other = monthly_element_label("既存 売上総利益(前年比)", "yoy_index", other)
+        qty_other = monthly_element_label("既存 売上個数(前年比)", "yoy_index", other)
+        if gp_other["metric"] != "売上総利益" or qty_other["metric"] != "売上個数":
+            _fail(f"common metrics code={other!r}: {gp_other!r} {qty_other!r}")
     other_gp = monthly_element_label("売上総利益", "number", "30380")
-    if other_gp["metric"] or other_gp["segment"] != "売上総利益":
-        _fail(f"30380 売上総利益 must stay leftover: {other_gp!r}")
+    if other_gp["metric"] != "売上総利益" or other_gp["segment"] or other_gp["metric_kind"] != "other":
+        _fail(f"30380 売上総利益 is a metric: {other_gp!r}")
 
     rows = [
         ("23050", 2026, "撮影件数 既存 売上高(前年比)", "yoy_index"),
@@ -3322,6 +3323,30 @@ _81980_RENAMED = (
     "同規模 一品単価(前年比)",
     "全店 買上点数(前年比)",
 )
+def test_profit_and_quantity_metrics_are_not_sales() -> None:
+    """KAB-126: 売上総利益・売上原価・売上個数は売上の系列にしない。保存名は変えない。"""
+    cases = (
+        # 行名, unit, metric, metric_kind
+        ("既存 売上総利益(前年比)", "yoy_index", "売上総利益", "other"),
+        ("既存 売上個数(前年比)", "yoy_index", "売上個数", "count"),
+        ("売上総利益", "number", "売上総利益", "other"),
+        ("タイムズパーキング 売上原価(前年比)", "yoy_index", "売上原価", "other"),
+        ("タイムズパーキング 売上総利益率", "number", "売上総利益率", "other"),
+    )
+    for name, unit, metric, kind in cases:
+        if canonicalize_element_label(name, unit) != name:
+            _fail(f"{name!r} must stay: {canonicalize_element_label(name, unit)!r}")
+        label = monthly_element_label(name, unit)
+        if (label["metric"], label["metric_kind"], label["series_kind"]) != (metric, kind, None):
+            _fail(f"{name!r} label: {label!r}")
+    # 旧保存名は 既存 売上高 に潰れない（区分に残る）
+    for old in ("売上総利益 既存 売上高(前年比)", "売上個数 既存 売上高(前年比)"):
+        if canonicalize_element_label(old, "yoy_index") != old:
+            _fail(f"{old!r} must stay: {canonicalize_element_label(old, 'yoy_index')!r}")
+    if monthly_series_kind("既存 売上高(前年比)", "yoy_index") != "existing":
+        _fail("既存 売上高 stays the existing series")
+
+
 _81980_OLD = {
     "全店 一品単価(前年比)": "一品 全店 客単価(前年比)",
     "同規模 一品単価(前年比)": "同規模 一品 客単価(前年比)",
@@ -3536,6 +3561,7 @@ def main() -> None:
     test_issuer_count_metrics()
     test_issuer_rate_metrics_14350()
     test_count_metric_keeps_pre534_stored_names()
+    test_profit_and_quantity_metrics_are_not_sales()
     test_81980_renamed_labels_idempotent_with_code()
     test_81980_put_values_and_ingest_keep_renamed_rows()
     test_31740_gross_margin_renamed_idempotent_with_code()

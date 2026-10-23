@@ -56,6 +56,22 @@ def test_broad_rule_is_caught() -> None:
         _fail(f"broad 新規→出店 must show non-store rows: {sorted(hit)[:10]!r}")
 
 
+def test_sales_kind_has_metric() -> None:
+    """売上・客数・客単価の行は label に指標語がある（KAB-126）。
+
+    指標語が辞書に無いと metric が空になり、metric_kind は行名の「売上」で sales になる
+    （売上総利益・売上原価を売上と取り違える）。新しい指標語は monthly_vocab.json の metrics と
+    metric_kind に足す。
+    """
+    bad = sorted({
+        (r["code"], r["element"], r["metric_kind"])
+        for r in snap.read_tsv(snap.GOLDEN)
+        if r["metric_kind"] in ("sales", "customers", "spend") and not r["metric"]
+    })
+    if bad:
+        _fail(f"metric が空の sales / customers / spend の行: {bad[:20]!r}")
+
+
 def test_known_inputs_are_in_snapshot() -> None:
     known = {(r["code"], r["year"], r["source_label"]) for r in snap.read_tsv(snap.KNOWN)}
     got = {(r["code"], r["year"], r["source_label"])
@@ -66,6 +82,7 @@ def test_known_inputs_are_in_snapshot() -> None:
 
 def main() -> None:
     test_snapshot_has_no_diff()
+    test_sales_kind_has_metric()
     test_known_inputs_are_in_snapshot()
     test_broad_rule_is_caught()
     print("ok: monthly label snapshot")
