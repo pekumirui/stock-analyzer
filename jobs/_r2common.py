@@ -6,6 +6,7 @@ http_get は IR 側の実装（識別 UA が 403 ならブラウザ UA に一度
 """
 from __future__ import annotations
 
+import base64
 import errno
 import json
 import os
@@ -14,6 +15,8 @@ import re
 import socket
 import sqlite3
 import ssl
+import subprocess
+import tempfile
 import time
 import unicodedata
 from collections.abc import Callable, Mapping
@@ -492,14 +495,25 @@ def aia_ca_issuer_uris(der: bytes) -> list[str]:
         return []
 
 
+_INCOMPLETE_CHAIN_MARKERS = (
+    "unable to get local issuer",
+    "unable to get issuer certificate",
+    "incomplete certificate chain",
+)
+# OpenSSL X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT / _LOCALLY
+_INCOMPLETE_VERIFY_CODES = frozenset({2, 20})
+
+
 def _is_incomplete_chain(exc: BaseException) -> bool:
     cur: BaseException | None = exc
     for _ in range(6):
         if cur is None:
             return False
-        if isinstance(cur, ssl.SSLCertVerificationError):
+        code = getattr(cur, "verify_code", None)
+        if isinstance(code, int) and code in _INCOMPLETE_VERIFY_CODES:
             return True
-        if "certificate verify failed" in str(cur).lower():
+        msg = str(cur).lower()
+        if any(marker in msg for marker in _INCOMPLETE_CHAIN_MARKERS):
             return True
         nxt = cur.__cause__ or getattr(cur, "reason", None)
         if not isinstance(nxt, BaseException):
@@ -526,12 +540,75 @@ def _aia_cadata(blob: bytes) -> bytes | str:
     return blob
 
 
+def _aia_as_pem(cadata: bytes | str) -> bytes:
+    if isinstance(cadata, str):
+        text = cadata.strip()
+        if not text.startswith("-----BEGIN"):
+            raise ValueError("cadata str is not pem")
+        return text.encode("ascii")
+    blob = cadata
+    if blob.lstrip().startswith(b"-----BEGIN"):
+        return blob
+    wrapped = base64.encodebytes(blob).decode("ascii")
+    return ("-----BEGIN CERTIFICATE-----\n" + wrapped + "-----END CERTIFICATE-----\n").encode("ascii")
+
+
+def _default_cafile() -> str | None:
+    paths = ssl.get_default_verify_paths()
+    if paths.cafile and os.path.isfile(paths.cafile):
+        return paths.cafile
+    try:
+        import certifi
+
+        where = certifi.where()
+    except ImportError:
+        return None
+    if where and os.path.isfile(where):
+        return where
+    return None
+
+
+def _aia_chains_to_default_trust(cadata: bytes | str) -> bool:
+    """AIA の中身が既定トラストストアまで繋がるときだけ True。自己署名の差し替え CA は落とす。"""
+    cafile = _default_cafile()
+    if not cafile:
+        return False
+    try:
+        pem = _aia_as_pem(cadata)
+    except (UnicodeDecodeError, ValueError):
+        return False
+    fd, path = tempfile.mkstemp(prefix="stock-aia-", suffix=".pem")
+    try:
+        os.write(fd, pem)
+        os.close(fd)
+        fd = -1
+        proc = subprocess.run(
+            ["openssl", "verify", "-CAfile", cafile, path],
+            capture_output=True,
+            timeout=5,
+            check=False,
+        )
+        return proc.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False
+    finally:
+        if fd >= 0:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
 def ssl_context_with_aia(
     url: str,
     timeout: float = HTTP_TIMEOUT,
     user_agent: str | None = None,
 ) -> ssl.SSLContext | None:
-    """サーバーが中間を付けない／付け違えるとき、AIA の CA Issuers を足して検証する。"""
+    """サーバーが中間を付けないとき、AIA の CA Issuers を既定ルートに繋がる場合だけ足す。"""
     from urllib.request import Request, urlopen
 
     ua = USER_AGENT if user_agent is None else user_agent
@@ -560,6 +637,8 @@ def ssl_context_with_aia(
             ctx = ssl.create_default_context()
             loaded = False
             for cadata in extras:
+                if not _aia_chains_to_default_trust(cadata):
+                    continue
                 try:
                     ctx.load_verify_locations(cadata=cadata)
                     loaded = True

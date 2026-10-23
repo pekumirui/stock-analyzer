@@ -13,9 +13,12 @@ from jobs._r2common import (  # noqa: E402
     BROWSER_UA,
     HTTP_RETRY_ATTEMPTS,
     USER_AGENT,
+    _aia_chains_to_default_trust,
+    _is_incomplete_chain,
     aia_ca_issuer_uris,
     backoff_delay,
     retry_after_seconds,
+    ssl_context_with_aia,
 )
 from jobs.monthly.ir_monthly_r2 import (  # noqa: E402
     FileLink,
@@ -483,6 +486,81 @@ def test_aia_ca_issuer_uris() -> None:
         _fail("empty der should be empty")
     if aia_ca_issuer_uris(_tlv(0x06, ocsp_oid) + _tlv(0x04, octet)) != []:
         _fail("non-AIA oid should be ignored")
+
+
+def test_incomplete_chain_is_issuer_missing_only() -> None:
+    import ssl as sslmod
+
+    missing = sslmod.SSLCertVerificationError(
+        "certificate verify failed: unable to get local issuer certificate"
+    )
+    expired = sslmod.SSLCertVerificationError(
+        "certificate verify failed: certificate has expired"
+    )
+    if not _is_incomplete_chain(missing):
+        _fail("missing issuer must be incomplete chain")
+    if _is_incomplete_chain(expired):
+        _fail("expired cert must not take the AIA path")
+
+
+def _self_signed_pem() -> bytes:
+    import os
+    import subprocess
+    import tempfile
+
+    td = tempfile.mkdtemp(prefix="aia-self-")
+    key = os.path.join(td, "k.pem")
+    cert = os.path.join(td, "c.pem")
+    proc = subprocess.run(
+        [
+            "openssl", "req", "-x509", "-newkey", "rsa:2048",
+            "-keyout", key, "-out", cert, "-days", "1", "-nodes",
+            "-subj", "/CN=aia-untrusted-test",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        _fail(f"openssl req: {proc.stderr!r}")
+    return Path(cert).read_bytes()
+
+
+def test_aia_rejects_untrusted_and_accepts_system_ca() -> None:
+    import ssl as sslmod
+    from unittest.mock import MagicMock, patch
+
+    from jobs import _r2common
+
+    self_pem = _self_signed_pem()
+    if _aia_chains_to_default_trust(self_pem):
+        _fail("self-signed AIA blob must not chain to the default store")
+    cas = sslmod.create_default_context().get_ca_certs(binary_form=True)
+    if not cas:
+        _fail("default context has no CA certs to prove the allow path")
+    if not _aia_chains_to_default_trust(cas[0]):
+        _fail("system CA must chain to the default store")
+
+    uri = b"http://example.test/ca.crt"
+    ca_iss = bytes((0x2B, 0x06, 0x01, 0x05, 0x05, 0x07, 0x30, 0x02))
+    aia_oid = bytes((0x2B, 0x06, 0x01, 0x05, 0x05, 0x07, 0x01, 0x01))
+    acc_ca = _tlv(0x30, _tlv(0x06, ca_iss) + _tlv(0x86, uri))
+    octet = _tlv(0x30, acc_ca)
+    leaf = _tlv(0x06, aia_oid) + _tlv(0x04, octet)
+
+    def fake_urlopen(req, timeout=30.0):  # noqa: ARG001
+        cm = MagicMock()
+        cm.__enter__.return_value.read.return_value = self_pem
+        cm.__exit__.return_value = False
+        return cm
+
+    _r2common._AIA_CTX.clear()
+    with (
+        patch.object(_r2common, "_peer_leaf_der", return_value=leaf),
+        patch("urllib.request.urlopen", side_effect=fake_urlopen),
+    ):
+        ctx = ssl_context_with_aia("https://untrusted-aia.example.test/ir")
+    if ctx is not None:
+        _fail("untrusted AIA must not produce a retry context")
 
 
 def test_http_get_aia_on_incomplete_chain() -> None:
