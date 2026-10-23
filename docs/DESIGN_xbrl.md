@@ -469,7 +469,7 @@ filing 単位。
 2b. **実績売上のサマリー補完（KAB-58 / KAB-59）**: 上の本表経路で `net_sales` 実績が 1 件も取れなかったときだけ、同じ書類の短信サマリー（`tse-ed-t`）の当期実績（`ResultMember`、点）を使う。連結を先に、同じ連結区分なら mapping の `priority`。本表で取れている値は上書きしない。会社独自の拡張タグはマッピングしない。出どころは `source_layer`（`primary` / `summary`）
 3. **EPS 実績**: 本表コンテキストに加え `ResultMember`（短信表紙）を許す
 4. **配当**: `FirstQuarter` / `SecondQuarter` / `ThirdQuarter` / `YearEnd` / `Annual` メンバーで `target_period` を分ける。`ResultMember` は実績、`ForecastMember` は予想
-4b. **有報の科目（KAB-78）**: 上の 2〜4 に当たらない科目（§7.2 の有報の科目）は、当期（`relative_period='current'`）の実績の点で、連結/単体以外の次元が無い fact。連結と単体は別の行（`is_consolidated`）。セグメント別・所有者別（`Row1Member` 等）・前期・提出日現在は入らない。mapping の `part: months` は同じ科目・context の値に 月÷12 を足す（小数 2 桁）
+4b. **有報の科目（KAB-78）**: 上の 2〜4 に当たらない科目（§7.2 の有報の科目）は、当期（`relative_period='current'`）の実績の点で、連結/単体以外の次元が無い fact。連結と単体は別の行（`is_consolidated`）。セグメント別・所有者別（`Row1Member` 等）・前期・提出日現在は入らない。mapping の `part: months` は同じ科目・context の値に 月÷12 を足す（小数 2 桁）。DEI `WhetherConsolidatedFinancialStatementsArePreparedDEI` が false の書類（連結子会社が無い会社）は、連結の軸が無い context（設備の状況・研究開発活動・自己株式等など）も単体にする（全科目。TDnet は DEI が無いので今までどおり）
 5. **業績予想**: `ForecastMember`、または `LowerMember`/`UpperMember`/`MinimumMember`/`MaximumMember`（ForecastMember 無しのレンジ）。`relative_period='current'` は要求しない（通期予想の期末は短信の四半期末とずれる）。`PreviousMember` は `value_kind=forecast_previous`（今回予想は `forecast`）。`LowerMember`/`UpperMember` は `range_side`。context 名の `accumulatedq1`/`accumulatedq3` と日数（80–100→Q1、240–300→Q3）で `target_period` を付ける
 6. `is_consolidated` が取れなければ 1（連結）として正規化する。NULL のまま残さない
 7. mappings を `namespace_key + local_name` で結合。`accounting_standard` が NULL でない行は filing の基準と一致するときだけ。例外: 要素の `local_name` が `*IFRS` なら、filing が JPGAAP / NULL でも IFRS マッピングを使う（40530 の予想）。同一キーでは `priority` 昇順で最初の値。**IFRS の書類では `jppfs_*` 要素を正規化に使わない**（KAB-52 案B。IFRS 側に対応が無い科目は空欄）
@@ -603,6 +603,11 @@ TDnet 短信の実際の `namespace_key` は fixture を見てから YAML に書
   - 有報 HTML の表示（`ix:nonFraction` の文字 × scale。xbrlp を通さない別実装）と、上の科目と EPS の 2,701 行がすべて一致
   - IR Bank `get_financials`（百万円）と: EPS 155/155 一致。自己資本比率は 153/155（ずれた 2 社は IR Bank の計算値。有報の記載とは一致）。研究開発費は 84 一致・29 ずれ（丸めた記載、IR Bank が販管費の研究開発費だけを採る会社）。設備投資額は 129 一致・12 ずれ（IFRS で IR Bank が CF の値を採る会社など）・4 社は当方空（セグメント別だけ）
   - BPS ×（発行済株式数 − 自己株式数）と 自己資本比率 × 総資産 が 136/142 社で 3% 以内（外れた 6 社は期末後の株式分割・優先株など。値は有報の記載どおり）
+- 検証 2 回目（2025 年に提出された有報から、1 回目の会社を除いてランダムに 100 社。日本基準 95・IFRS 5。決算月は 3 月 55・12 月 12・9 月 7 ほか）
+  - 有報 HTML の表示と 1,595 行すべて一致
+  - IR Bank と（期が取れた 98 社）: EPS 97/98（ずれた 1 社は IR Bank の値が有報と違う）、自己資本比率 95/98（保険会社など IR Bank の計算値）、研究開発費 49 一致・3 ずれ（丸め・販管費だけ）、設備投資額 83/83
+  - 単体だけの会社で、研究開発費・設備投資額・自己株式数が「連結」の行になっていたのを、この検証で見つけて直した（上の DEI の規則）
+  - BPS の整合は 95/100 社で 3% 以内。外れた 5 社は優先株（BPS がマイナス・数円）や株式分割で、値は有報の記載どおり
 
 代表 local_name は例であり網羅ではない。実装後 `report-unmapped` を `fact_count DESC` で出し、上位の標準タクソノミ要素を実装者へ報告する。**エージェントが独断でマッピングを足さない。**
 

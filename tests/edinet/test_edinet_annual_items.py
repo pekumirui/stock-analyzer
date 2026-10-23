@@ -114,7 +114,7 @@ JPGAAP = [
 ]
 
 
-def _html(facts, standard: str) -> str:
+def _html(facts, standard: str, consolidated: bool = True) -> str:
     attrs = " ".join(f'xmlns:{p}="{u}"' for p, u in NS.items())
     body = []
     for name, ctx, unit, scale, decimals, shown, sign in facts:
@@ -134,19 +134,20 @@ def _html(facts, standard: str) -> str:
 <head><ix:header><ix:hidden>
 <ix:nonNumeric name="jpdei_cor:AccountingStandardsDEI" contextRef="FilingDateInstant">{standard}</ix:nonNumeric>
 <ix:nonNumeric name="jpdei_cor:CurrentPeriodEndDateDEI" contextRef="FilingDateInstant">2025-03-31</ix:nonNumeric>
+<ix:nonNumeric name="jpdei_cor:WhetherConsolidatedFinancialStatementsArePreparedDEI" contextRef="FilingDateInstant">{str(consolidated).lower()}</ix:nonNumeric>
 </ix:hidden><ix:resources>{CONTEXTS}{units}</ix:resources></ix:header></head>
 <body><p>{"".join(body)}</p></body></html>
 """
 
 
-def _zip(facts, standard: str = "Japan GAAP") -> bytes:
+def _zip(facts, standard: str = "Japan GAAP", consolidated: bool = True) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("XBRL/PublicDoc/0101010_honbun_jpcrp030000-asr-001_ixbrl.htm", _html(facts, standard))
+        zf.writestr("XBRL/PublicDoc/0101010_honbun_jpcrp030000-asr-001_ixbrl.htm", _html(facts, standard, consolidated))
     return buf.getvalue()
 
 
-def _ingest(facts, standard: str = "Japan GAAP") -> tuple:
+def _ingest(facts, standard: str = "Japan GAAP", consolidated: bool = True) -> tuple:
     init_db()
     db = SessionLocal()
     for model in (XbrlSegment, XbrlFinancial, XbrlFact, XbrlContext, XbrlFiling, EdinetDocument, Stock):
@@ -156,7 +157,7 @@ def _ingest(facts, standard: str = "Japan GAAP") -> tuple:
                 submit_datetime=datetime(2025, 6, 27, 15, 0)))  # noqa: DTZ001
     db.commit()
     apply_mappings(db)
-    st = run(db, FakeClient({"S100KB78": _zip(facts, standard)}), pending_documents(db))
+    st = run(db, FakeClient({"S100KB78": _zip(facts, standard, consolidated)}), pending_documents(db))
     assert st["parsed"] == 1, st
     f = db.query(XbrlFiling).filter_by(doc_id="S100KB78").one()
     rows = (db.query(XbrlStdItem.code, XbrlFinancial.is_consolidated, XbrlFinancial.value, XbrlFinancial.unit,
@@ -250,3 +251,22 @@ def test_years_and_months() -> None:
     _f, got = _ingest(facts)
     assert got[("employee_avg_age", False)][:2] == (Decimal("43.83"), "years")
     assert got[("employee_avg_tenure", False)][:2] == (Decimal("0.50"), "years")
+
+
+def test_single_entity_rows_are_non_consolidated() -> None:
+    """連結財務諸表の無い会社（DEI が false）は、連結の軸が無い context の値も単体"""
+    facts = [
+        ("jppfs_cor:NetSales", "CurrentYearDuration_NonConsolidatedMember", "JPY", "6", "-6", "200", ""),
+        ("jpcrp_cor:ResearchAndDevelopmentExpensesResearchAndDevelopmentActivities", "CurrentYearDuration",
+         "JPY", "6", "-6", "290", ""),
+        ("jpcrp_cor:CapitalExpendituresOverviewOfCapitalExpendituresEtc", "CurrentYearDuration", "JPY", "6", "-6",
+         "715", ""),
+        ("jpcrp_cor:TotalNumberOfSharesHeldTreasurySharesEtc", "CurrentYearInstant", "shares", "0", "0", "1,000", ""),
+        ("jpcrp_cor:NumberOfEmployees", "CurrentYearInstant_NonConsolidatedMember", "pure", "0", "0", "500", ""),
+    ]
+    _f, got = _ingest(facts, consolidated=False)
+    assert got[("rd_expenses", False)][:2] == (Decimal("290000000"), "JPY")
+    assert got[("capex_reported", False)][:2] == (Decimal("715000000"), "JPY")
+    assert got[("treasury_shares", False)][:2] == (Decimal("1000"), "shares")
+    assert got[("employees", False)][:2] == (Decimal("500"), "persons")
+    assert not any(cons for _code, cons in got)

@@ -91,6 +91,9 @@ SOURCE_LAYER_PRIMARY = "primary"
 SOURCE_LAYER_SUMMARY = "summary"
 NET_SALES_CODE = "net_sales"
 MONTHS_PART = "months"
+# 有報の DEI「連結財務諸表の有無」。false の書類（連結子会社が無い会社）は、
+# 連結の軸が無い context（設備の状況・研究開発活動・自己株式等など）も単体として持つ（KAB-78）
+CONSOLIDATED_DEI = ("jpdei_cor", "WhetherConsolidatedFinancialStatementsArePreparedDEI")
 
 
 def _dims(raw: str | None) -> dict:
@@ -290,6 +293,7 @@ def _chosen_key(
     ctx: XbrlContext,
     klass: ContextClass,
     target_period: str,
+    consolidated: bool,
 ) -> tuple:
     if (
         std.code in LEGACY_PRIMARY_CODES
@@ -299,7 +303,7 @@ def _chosen_key(
         return ("legacy", std.id)
     return (
         std.id,
-        bool(ctx.is_consolidated),
+        consolidated,
         ctx.end_date,
         klass.value_kind,
         klass.range_side,
@@ -319,6 +323,15 @@ def _add_months(chosen: dict[tuple, tuple], months: dict[tuple, tuple]) -> None:
             chosen[key] = (value, mfact, mel, mctx, mpri, mklass, mtp, mstd)
 
 
+def has_no_consolidated_statements(facts: list[XbrlFact], elements: dict[int, XbrlElement]) -> bool:
+    """DEI で「連結財務諸表を作っていない」と書いた書類。DEI が無い（TDnet）なら False。"""
+    for fact in facts:
+        el = elements.get(fact.element_id)
+        if el is not None and (el.namespace_key, el.local_name) == CONSOLIDATED_DEI:
+            return (fact.value_text or "").strip().lower() == "false"
+    return False
+
+
 def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = None) -> dict:
     generated = now or datetime.now(timezone.utc).replace(tzinfo=None)
     # セグメント科目（statement='SEG'）は xbrl_segments だけ。同じ要素（NetSales 等）を取り合わない
@@ -332,6 +345,10 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         for c in db.query(XbrlContext).filter_by(filing_id=filing.id).all()
     }
     facts = db.query(XbrlFact).filter_by(filing_id=filing.id).all()
+    single_entity = has_no_consolidated_statements(facts, elements)
+
+    def consolidated(ctx: XbrlContext) -> bool:
+        return bool(ctx.is_consolidated) and not single_entity
 
     by_elem: dict[tuple[str, str], list[XbrlElementMapping]] = {}
     for m in mappings:
@@ -381,7 +398,7 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         value = Decimal(str(fact.value_num))
         if std.sign == "invert":
             value = -value
-        key = _chosen_key(std, ctx, klass, target_period)
+        key = _chosen_key(std, ctx, klass, target_period, consolidated(ctx))
         pick = months if mapping.part == MONTHS_PART else chosen
         prev = pick.get(key)
         if prev is None or mapping.priority < prev[4]:
@@ -406,7 +423,7 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
             code=filing.code,
             filing_id=filing.id,
             std_item_id=std.id,
-            is_consolidated=bool(ctx.is_consolidated),
+            is_consolidated=consolidated(ctx),
             period_end=ctx.end_date,
             value_kind=klass.value_kind,
             range_side=klass.range_side,
