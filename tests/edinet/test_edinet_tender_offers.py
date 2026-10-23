@@ -92,6 +92,18 @@ SUPPORT = ("当社は、2026年５月12日開催の取締役会において、�
            "当社の株主の皆様に対して、本公開買付けへの応募を推奨する旨の決議をいたしました。")
 SUPPORT_NEUTRAL = ("当社は、本公開買付けに賛同する旨の意見を表明すること、また当社の株主の皆様が本公開買付けに"
                    "応募するか否かについては、中立の立場をとり、株主の皆様のご判断に委ねることを決議いたしました。")
+# S100Y50I（訂正意見表明報告書）: 要素名が違い、見出しに【】が無い
+OPPOSE_AMEND = ("当社は、2026年５月19日開催の取締役会において、公開買付者より開始された当社の普通株式に対する"
+                "公開買付けに反対することを決議いたしました。")
+
+
+def _opinion_alt_block(text: str) -> bytes:
+    return xbrl_zip([
+        (f"{PST}:OpinionAndBasisAndReasonOfOpinionRegardingSaidTenderOfferTextBlock",
+         para("(1) 本公開買付けに関する意見の内容", text,
+              "(2) 本公開買付けに関する意見の根拠及び理由",
+              "公開買付者の想定する企業価値向上施策は抽象的である。")),
+    ], name="jptoo040000-pst-001_E02848-000_2026-04-21_02_2026-05-19")
 
 
 def _issuer_notification() -> bytes:
@@ -147,6 +159,13 @@ def test_opinion() -> None:
     assert classify_opinion("本公開買付けに対する意見の表明を留保いたします。") == ("reserved", None)
     assert classify_opinion("本公開買付けについて中立の立場をとり、応募するか否かは株主の皆様のご判断に委ねます。") == (
         "neutral", "leave")
+
+
+def test_opinion_alt_textblock() -> None:
+    """S100Y50I: 別要素名・【】なし見出しでも反対意見が読める。"""
+    v = parse_document("300", read_instance(_opinion_alt_block(OPPOSE_AMEND)), issuer=False)
+    assert (v["opinion"], v["recommendation"]) == ("oppose", None)
+    assert v["opinion_text"] == OPPOSE_AMEND
 
 
 def _doc(seq: int, doc_id: str, doc_type: str, **over) -> EdinetDocument:
@@ -280,6 +299,25 @@ def test_withdrawal_issuer_and_doc_edit() -> None:
         db.close()
 
 
+def test_s100y50i_alt_opinion_is_parsed() -> None:
+    """S100Y50I 相当の訂正意見表明は failed にせず parsed。cron は exit=0。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add(_doc(1, "S100Y50I", "300", parent_doc_id="S100Y03F", file_date=date(2026, 5, 19),
+                    edinet_code="E02848", filer_name="株式会社ティムコ"))
+        db.commit()
+        client = _ErrClient({"S100Y50I": _opinion_alt_block(OPPOSE_AMEND)})
+        st, _ = _run(db, client, pending_documents(db, today=TODAY))
+        assert (st["parsed"], st["failed"], st["errors"], exit_status(st)) == (1, 0, 0, 0)
+        row = db.get(EdinetTenderOfferDoc, "S100Y50I")
+        assert (row.parse_status, row.opinion, row.parse_error) == ("parsed", "oppose", None)
+        assert pending_documents(db, today=TODAY) == []
+    finally:
+        db.close()
+
+
 def test_orphans_merge_by_parties() -> None:
     """届出書と意見表明が取込の範囲より前: 訂正届出書（親 240）と訂正意見表明（親 290）を同じ案件にする。"""
     init_db()
@@ -306,7 +344,9 @@ def main() -> None:
     test_parse_notification_and_report()
     test_parse_issuer()
     test_opinion()
+    test_opinion_alt_textblock()
     test_run_case_lifecycle()
+    test_s100y50i_alt_opinion_is_parsed()
     test_withdrawal_issuer_and_doc_edit()
     test_orphans_merge_by_parties()
     print("ok")

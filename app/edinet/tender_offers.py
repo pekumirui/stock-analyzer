@@ -42,6 +42,12 @@ REPORT = ("270", "280")              # 公開買付報告書 / 訂正報告書
 OPINION = ("290", "300")             # 意見表明報告書 / 訂正
 OTHER = ("310", "320", "330", "340")  # 対質問回答報告書・別途買付け禁止の特例を受けるための申出書（と訂正）
 DOC_TYPES = NOTIFICATION + WITHDRAWAL + REPORT + OPINION + OTHER
+# 訂正（S100Y50I など）は別のローカル名。見出しに【】が無いこともある
+OPINION_BLOCKS = (
+    "OpinionRegardingSaidTenderOfferAndBasisAndReasonsEtcTextBlock",
+    "OpinionAndBasisAndReasonOfOpinionRegardingSaidTenderOfferTextBlock",
+)
+_OPINION_HEADING_RE = re.compile(r"[\(（][1１]")
 # 中身を読む書類。ほかは一覧のメタデータだけ持つ（parse_status='meta'）
 PARSED_TYPES = NOTIFICATION + REPORT + OPINION
 ISSUER_ORDINANCE = "050"             # 発行者による上場株券等の公開買付けの開示に関する内閣府令
@@ -182,7 +188,7 @@ def opinion_text(block: Block | None) -> str | None:
     on = False
     for t in block.texts:
         s = squash(t)
-        if "意見の内容" in s and "【" in s:
+        if "意見の内容" in s and ("【" in s or _OPINION_HEADING_RE.match(s)):
             on = True
             continue
         if on and ("意見の根拠" in s or s.startswith("(2)")):
@@ -264,7 +270,7 @@ def parse_document(doc_type: str, inst: Instance, *, issuer: bool) -> dict:
         if out["tendered_shares"] is None and out["success"] is None:
             raise ValueError(f"報告書の応募数・成否が読めない: {inst.name}")
     elif doc_type in OPINION:
-        text = opinion_text(inst.block("OpinionRegardingSaidTenderOfferAndBasisAndReasonsEtcTextBlock"))
+        text = opinion_text(inst.block(*OPINION_BLOCKS))
         out["opinion_text"] = text
         out["opinion"], out["recommendation"] = classify_opinion(text)
         if text is None:

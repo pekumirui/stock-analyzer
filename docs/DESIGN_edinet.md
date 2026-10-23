@@ -236,7 +236,7 @@ edinet_tender_offers         -- 1 案件。取込のたびに全件から作り�
 - 訂正届出書（250）の XBRL は訂正後の全文（表紙の書名が「公開買付届出書（…付け訂正届出書の添付インラインXBRL）」）。案件の値は新しい届出書・訂正から順に、値のある最初の書類を使う
 - 束ね方: 250 / 260 / 270 / 290 の `parentDocID` は届出書（240）、300 は意見表明（290）。`parent_doc_id` をたどって 240 を大元にする。親が DB に無ければ親の docID を大元にする（同じ親の書類は同じ案件）。届出書も意見表明も取込の範囲より前だと、300 の系統（親 290）と 250・270 の系統（親 240）が別れるので、大元が DB に無い案件同士は買付者・対象者が同じなら束ねる（`_merge_orphans`。大元は 240 の系統の方）。書類情報修正があれば修正の行のメタデータ（対象者の付け替えなど）を使う
 - 買付者・対象者: 届出書・報告書は提出者が買付者、`subjectEdinetCode` が対象者。意見表明は逆（提出者が対象者、`subjectEdinetCode` が買付者）。発行者の TOB は両方とも自分。`stocks.code` は `edinet_filers.sec_code` か意見表明の `secCode` から引く。上場していない買付者は名前だけ
-- 意見の分類（`classify_opinion`）: 「（１）意見の内容」の文から。opinion は 賛同しない・反対 → `oppose`、賛同 → `support`、留保 → `reserved`、中立 → `neutral`。「賛同しつつ、応募は中立の立場で株主の判断に委ねる」が多いので、中立より賛同を先に見る。recommendation は 応募しないことを推奨 → `not_recommend`、応募を推奨 → `recommend`、判断に委ね → `leave`
+- 意見の分類（`classify_opinion`）: 「（１）意見の内容」の文から（【】なしの「(1) 本公開買付けに関する意見の内容」も含む）。テキストブロックは `OpinionRegardingSaidTenderOfferAndBasisAndReasonsEtcTextBlock`、無ければ `OpinionAndBasisAndReasonOfOpinionRegardingSaidTenderOfferTextBlock`（訂正 S100Y50I）。opinion は 賛同しない・反対 → `oppose`、賛同 → `support`、留保 → `reserved`、中立 → `neutral`。「賛同しつつ、応募は中立の立場で株主の判断に委ねる」が多いので、中立より賛同を先に見る。recommendation は 応募しないことを推奨 → `not_recommend`、応募を推奨 → `recommend`、判断に委ね → `leave`
 - 成否（`parse_success`）: 「不成立」「全部の買付け等を行いません」を先に見て、次に「成立」「買付け等を行います」。不成立の買付数（「―」）は 0
 - 状態: 撤回届出書があれば `withdrawn`、報告書があれば成否で `succeeded` / `failed`、無ければ `open`。取下げ・不開示の書類は案件に数えない（`withdrawn` の書類として残す）
 - ジョブ: `python jobs/edinet/edinet_tender_offers.py`。cron は毎時 09:20〜23:20 に `--limit 100`（届出書は 1 件 1〜3 秒で 5 分以内。:25 の自己株買いに重ねない）。404・期間外・5xx の扱いは §5 と同じ。`--refresh-only` で案件だけ作り直す
