@@ -102,8 +102,10 @@ NOT_PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "edinet buyback parse-error n=1 sample=S100Z1HS"),
     (
         "batch",
-        "edinet buyback parse-error doc_id=S100Z1HS type=ValueError "
-        "msg=取得状況のテキストブロックが無い",
+        (
+            "edinet buyback parse-error doc_id=S100Z1HS type=ValueError "
+            "msg=取得状況のテキストブロックが無い"
+        ),
     ),
     ("batch", "edinet buyback parse-error   app/edinet/buybacks.py:392 parse_buyback"),
     ("batch", "edinet lvh done parsed=73161 failed=0 missing=164 errors=0 refreshed=363"),
