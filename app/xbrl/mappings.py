@@ -58,6 +58,7 @@ def apply_mappings(db: Session, config_dir: Path | None = None) -> dict[str, int
         row.display_order = int(item.get("display_order", i * 10))
         row.sign = str(item.get("sign") or "natural")
         row.is_required = bool(item.get("is_required", False))
+        row.unit = item.get("unit")
     db.flush()
 
     wanted: set[tuple[int, str, str, str | None]] = set()
@@ -94,6 +95,7 @@ def apply_mappings(db: Session, config_dir: Path | None = None) -> dict[str, int
                 created += 1
             row.priority = int(el.get("priority", 100))
             row.note = el.get("note")
+            row.part = el.get("part")
 
     stale = db.query(XbrlElementMapping).all()
     deleted = 0

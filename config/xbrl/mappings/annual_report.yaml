@@ -1,0 +1,51 @@
+# 有報の主要な経営指標等・従業員の状況・株式等の状況・設備/研究開発の状況（KAB-78）。
+# 要素名・件数は 2025-06 提出の有報 155 社で確かめた（DESIGN_xbrl.md §7.2）
+- std_item: bps
+  elements:
+    # IFRS・米国基準の連結を先に（IFRS の初年度などは日本基準の連結の列も当期に付くことがある）。
+    # 名前は EquityToAssetRatio だが、ラベルは「１株当たり親会社所有者帰属持分」（タクソノミの命名）
+    - { ns: jpcrp_cor, name: EquityToAssetRatioIFRSSummaryOfBusinessResults, priority: 10 }
+    - { ns: jpcrp_cor, name: EquityAttributableToOwnersOfParentPerShareUSGAAPSummaryOfBusinessResults, priority: 10 }
+    - { ns: jpcrp_cor, name: NetAssetsPerShareSummaryOfBusinessResults, priority: 20 }
+- std_item: equity_ratio
+  elements:
+    - { ns: jpcrp_cor, name: RatioOfOwnersEquityToGrossAssetsIFRSSummaryOfBusinessResults, priority: 10 }
+    - { ns: jpcrp_cor, name: EquityToAssetRatioUSGAAPSummaryOfBusinessResults, priority: 10 }
+    - { ns: jpcrp_cor, name: EquityToAssetRatioSummaryOfBusinessResults, priority: 20 }
+- std_item: roe
+  elements:
+    - { ns: jpcrp_cor, name: RateOfReturnOnEquityIFRSSummaryOfBusinessResults, priority: 10 }
+    - { ns: jpcrp_cor, name: RateOfReturnOnEquityUSGAAPSummaryOfBusinessResults, priority: 10 }
+    - { ns: jpcrp_cor, name: RateOfReturnOnEquitySummaryOfBusinessResults, priority: 20 }
+- std_item: shares_issued
+  elements:
+    - { ns: jpcrp_cor, name: TotalNumberOfIssuedSharesSummaryOfBusinessResults, priority: 10 }
+- std_item: treasury_shares
+  elements:
+    # 自己株式等の表の「計」（次元なし）。所有者ごとの行は Row*Member が付くので入らない
+    - { ns: jpcrp_cor, name: TotalNumberOfSharesHeldTreasurySharesEtc, priority: 10 }
+- std_item: employees
+  elements:
+    - { ns: jpcrp_cor, name: NumberOfEmployees, priority: 10 }
+- std_item: employee_avg_age
+  elements:
+    - { ns: jpcrp_cor, name: AverageAgeYearsInformationAboutReportingCompanyInformationAboutEmployees, priority: 10 }
+    # 「40歳3ヶ月」と書く会社は月が別の要素。年に 月÷12 を足す
+    - { ns: jpcrp_cor, name: AverageAgeMonthsInformationAboutReportingCompanyInformationAboutEmployees, priority: 10, part: months }
+- std_item: employee_avg_tenure
+  elements:
+    - { ns: jpcrp_cor, name: AverageLengthOfServiceYearsInformationAboutReportingCompanyInformationAboutEmployees, priority: 10 }
+    - { ns: jpcrp_cor, name: AverageLengthOfServiceMonthsInformationAboutReportingCompanyInformationAboutEmployees, priority: 10, part: months }
+- std_item: employee_avg_salary
+  elements:
+    - { ns: jpcrp_cor, name: AverageAnnualSalaryInformationAboutReportingCompanyInformationAboutEmployees, priority: 10 }
+- std_item: rd_expenses
+  elements:
+    # 研究開発活動の節の合計を先に。無ければ注記・PL の研究開発費
+    - { ns: jpcrp_cor, name: ResearchAndDevelopmentExpensesResearchAndDevelopmentActivities, priority: 10 }
+    - { ns: jpigp_cor, name: ResearchAndDevelopmentExpenditureRecognizedAsExpenseDuringPeriodIFRS, priority: 20, standard: IFRS }
+    - { ns: jpcrp_cor, name: ResearchAndDevelopmentExpensesIncludedInGeneralAndAdministrativeExpensesAndManufacturingCostForCurrentPeriod, priority: 30 }
+    - { ns: jppfs_cor, name: ResearchAndDevelopmentExpensesSGA, priority: 40 }
+- std_item: capex_reported
+  elements:
+    - { ns: jpcrp_cor, name: CapitalExpendituresOverviewOfCapitalExpendituresEtc, priority: 10 }

@@ -90,6 +90,7 @@ SUMMARY_NS = "tse-ed-t"
 SOURCE_LAYER_PRIMARY = "primary"
 SOURCE_LAYER_SUMMARY = "summary"
 NET_SALES_CODE = "net_sales"
+MONTHS_PART = "months"
 
 
 def _dims(raw: str | None) -> dict:
@@ -201,7 +202,15 @@ def _accepts_fact(std: XbrlStdItem, ctx: XbrlContext, klass: ContextClass) -> bo
         return is_primary_statement(ctx) or "ResultMember" in members or not members
     if code in LEGACY_PRIMARY_CODES:
         return is_primary_statement(ctx) and ctx.relative_period == "current"
-    return False
+    # それ以外（有報の従業員・株式数・主要な経営指標等など。KAB-78）: 当期の実績の点で、
+    # 連結/単体以外の次元が無いもの。連結と単体は別の行（キーに is_consolidated が入る）
+    return (
+        klass.value_kind == VALUE_KIND_ACTUAL
+        and klass.range_side == RANGE_POINT
+        and klass.dividend_slot is None
+        and is_primary_statement(ctx)
+        and ctx.relative_period == "current"
+    )
 
 
 def _skip_non_current_actual(ctx: XbrlContext, klass: ContextClass) -> bool:
@@ -298,6 +307,18 @@ def _chosen_key(
     )
 
 
+def _add_months(chosen: dict[tuple, tuple], months: dict[tuple, tuple]) -> None:
+    """年の値に 月÷12 を足す（小数 2 桁）。年が無く月だけ（1 年未満）なら月÷12。"""
+    for key, (mval, mfact, mel, mctx, mpri, mklass, mtp, mstd) in months.items():
+        base = chosen.get(key)
+        years = base[0] if base else Decimal(0)
+        value = (years + mval / 12).quantize(Decimal("0.01"))
+        if base:
+            chosen[key] = (value, *base[1:])
+        else:
+            chosen[key] = (value, mfact, mel, mctx, mpri, mklass, mtp, mstd)
+
+
 def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = None) -> dict:
     generated = now or datetime.now(timezone.utc).replace(tzinfo=None)
     # セグメント科目（statement='SEG'）は xbrl_segments だけ。同じ要素（NetSales 等）を取り合わない
@@ -317,6 +338,7 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         by_elem.setdefault((m.namespace_key, m.local_name), []).append(m)
 
     chosen: dict[tuple, tuple] = {}
+    months: dict[tuple, tuple] = {}
     fallback_sales: list[tuple] = []
     for fact in facts:
         if fact.is_nil or fact.value_num is None:
@@ -360,9 +382,11 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         if std.sign == "invert":
             value = -value
         key = _chosen_key(std, ctx, klass, target_period)
-        prev = chosen.get(key)
+        pick = months if mapping.part == MONTHS_PART else chosen
+        prev = pick.get(key)
         if prev is None or mapping.priority < prev[4]:
-            chosen[key] = (value, fact, el, ctx, mapping.priority, klass, target_period, std)
+            pick[key] = (value, fact, el, ctx, mapping.priority, klass, target_period, std)
+    _add_months(chosen, months)
 
     net_sales_std = next((s for s in std_items.values() if s.code == NET_SALES_CODE), None)
     if net_sales_std is not None:
@@ -392,7 +416,7 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         row.period_type = filing.period_type or "FY"
         row.period_start = ctx.start_date
         row.value = value
-        row.unit = (fact.unit or "JPY")[:32]
+        row.unit = (std.unit or fact.unit or "JPY")[:32]
         row.source_fact_id = fact.id
         row.source_element_id = el.id
         row.source_layer = source_layer_of(el)

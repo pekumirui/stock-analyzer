@@ -129,7 +129,7 @@ EDINET は修正・不開示・取下げを、後の日の一覧に別レコー�
 
 - ZIP は保存しない（一時ディレクトリで読んで捨てる）。1 件 0.5〜3MB で、年 8,000 件だと数 GB になる。EDINET が 10 年分持っているので、取り直しはダウンロードし直す。`raw_path` は `edinet:<docID>`、`raw_sha256` はダウンロードした ZIP のもの
 - `xbrl_facts` / `xbrl_contexts` には、正規化が使う当期（`relative_period='current'`）・次元なし（連結/単体のメンバーだけは可）の fact、当期のセグメント軸（`jpcrp_cor:OperatingSegmentsAxis`。連結/単体の軸は付いてよい）だけの fact（KAB-77）と DEI だけ入れる（`app/edinet/xbrl.py keep_fact`）。有報は 1 件 1,000〜2,000 fact あり、全部だと年 800MB を超える。絞ると fact は約 4 分の 1、context は 2%。会計基準と期末の判定は絞る前の全 fact で行う
-- 前期の値やほかの軸が要るようになったら、`keep_fact` を広げて `--reparse`
+- 前期の値やほかの軸が要るようになったら、`keep_fact` を広げて `--reparse`。KAB-78 の有報の科目（従業員・株式数・主要な経営指標等など。`DESIGN_xbrl.md` §7.2）は今の `keep_fact` で残っている。入れるのは `load-mappings` → `xbrl_normalize.py --rebuild` だけ
 
 ### 正規化と TDnet との関係
 
