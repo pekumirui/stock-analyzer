@@ -1,6 +1,7 @@
 """GitHub deploy SSH must use port 443, and VPS_DOMAIN debug must stay off bash stdin."""
 from __future__ import annotations
 
+import fcntl
 import os
 import re
 import shutil
@@ -112,6 +113,12 @@ def test_static_contracts() -> None:
         _fail("update.sh must link .venv/bin/python to python3 when missing")
     if "ensurepip" not in update:
         _fail("update.sh must restore pip with ensurepip when missing")
+    if 'LOCK_FILE="${DEPLOY_LOCK:-/tmp/stock-analyzer-deploy.lock}"' not in update:
+        _fail("update.sh must allow DEPLOY_LOCK override with the production default")
+    if 'exec 9>"$LOCK_FILE"' not in update:
+        _fail("update.sh must flock via LOCK_FILE")
+    if "exec 9>/tmp/stock-analyzer-deploy.lock" in update:
+        _fail("update.sh must not hardcode the production lock path on exec")
     if "install_venv()" not in update or "ensure_app_venv()" not in update:
         _fail("update.sh must name install_venv / ensure_app_venv")
     if "mv \"$APP_DIR/.venv.old\" \"$APP_DIR/.venv\"" not in update:
@@ -197,6 +204,8 @@ def _git(app: Path, env: dict[str, str], *args: str) -> None:
 def _run_update(
     app: Path, env: dict[str, str], *, timeout: int = 30
 ) -> subprocess.CompletedProcess[str]:
+    if not env.get("DEPLOY_LOCK"):
+        _fail("DEPLOY_LOCK must be a tmp_path lock file")
     script = ROOT / "deploy" / "update.sh"
     try:
         return subprocess.run(
@@ -215,101 +224,101 @@ def _run_update(
         )
 
 
-def test_tracked_dirty_stops_deploy() -> None:
-    with tempfile.TemporaryDirectory(prefix="deploy-dirty-") as raw:
-        root = Path(raw)
-        app = root / "app"
-        home = root / "home"
-        app.mkdir()
-        home.mkdir()
-        env = os.environ.copy()
-        env["HOME"] = str(home)
-        env["APP_DIR"] = str(app)
-        env["GIT_TERMINAL_PROMPT"] = "0"
-        _git(app, env, "init")
-        _git(app, env, "config", "user.email", "deploy-test@example.com")
-        _git(app, env, "config", "user.name", "deploy-test")
-        tracked = app / "readme.txt"
-        tracked.write_text("one\n", encoding="utf-8")
-        _git(app, env, "add", "readme.txt")
-        _git(app, env, "commit", "-m", "init")
+def test_tracked_dirty_stops_deploy(tmp_path: Path) -> None:
+    root = tmp_path
+    app = root / "app"
+    home = root / "home"
+    app.mkdir()
+    home.mkdir()
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env["APP_DIR"] = str(app)
+    env["DEPLOY_LOCK"] = str(root / "deploy.lock")
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    _git(app, env, "init")
+    _git(app, env, "config", "user.email", "deploy-test@example.com")
+    _git(app, env, "config", "user.name", "deploy-test")
+    tracked = app / "readme.txt"
+    tracked.write_text("one\n", encoding="utf-8")
+    _git(app, env, "add", "readme.txt")
+    _git(app, env, "commit", "-m", "init")
 
-        tracked.write_text("two\n", encoding="utf-8")
-        note = app / "note.txt"
-        note.write_text("note\n", encoding="utf-8")
-        dirty = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=no"],
-            cwd=str(app),
-            env=env,
-            check=False,
-            capture_output=True,
-            text=True,
+    tracked.write_text("two\n", encoding="utf-8")
+    note = app / "note.txt"
+    note.write_text("note\n", encoding="utf-8")
+    dirty = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=no"],
+        cwd=str(app),
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if dirty.returncode != 0 or not dirty.stdout.strip():
+        _fail(f"expected tracked dirt before deploy: {dirty.stderr!r}")
+    proc = _run_update(app, env)
+    if proc.returncode != 1:
+        _fail(
+            "tracked dirt must exit 1 before deploy: "
+            f"rc={proc.returncode} stderr={proc.stderr!r} stdout={proc.stdout!r}"
         )
-        if dirty.returncode != 0 or not dirty.stdout.strip():
-            _fail(f"expected tracked dirt before deploy: {dirty.stderr!r}")
-        proc = _run_update(app, env)
-        if proc.returncode != 1:
-            _fail(
-                "tracked dirt must exit 1 before deploy: "
-                f"rc={proc.returncode} stderr={proc.stderr!r} stdout={proc.stdout!r}"
-            )
-        for needle in (
-            "git → CI → VPS",
-            "Hand edits",
-            "SCP",
-            "not allowed",
-            "detected to stop deploy",
-        ):
-            if needle not in proc.stderr:
-                _fail(f"tracked-dirty stderr missing {needle!r}: {proc.stderr!r}")
-        if dirty.stdout.strip() not in proc.stderr:
-            _fail(
-                "tracked-dirty stderr missing porcelain line "
-                f"{dirty.stdout.strip()!r}: {proc.stderr!r}"
-            )
-        if "deploy start" in proc.stdout or "deploy start" in proc.stderr:
-            _fail(
-                "tracked dirt reached deploy start: "
-                f"stderr={proc.stderr!r} stdout={proc.stdout!r}"
-            )
-        still = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=no"],
-            cwd=str(app),
-            env=env,
-            check=False,
-            capture_output=True,
-            text=True,
+    for needle in (
+        "git → CI → VPS",
+        "Hand edits",
+        "SCP",
+        "not allowed",
+        "detected to stop deploy",
+    ):
+        if needle not in proc.stderr:
+            _fail(f"tracked-dirty stderr missing {needle!r}: {proc.stderr!r}")
+    if dirty.stdout.strip() not in proc.stderr:
+        _fail(
+            "tracked-dirty stderr missing porcelain line "
+            f"{dirty.stdout.strip()!r}: {proc.stderr!r}"
         )
-        if still.returncode != 0 or not still.stdout.strip():
-            _fail(f"tracked file was repaired: {still.stdout!r} {still.stderr!r}")
-        if not note.is_file():
-            _fail("untracked note.txt was removed")
+    if "deploy start" in proc.stdout or "deploy start" in proc.stderr:
+        _fail(
+            "tracked dirt reached deploy start: "
+            f"stderr={proc.stderr!r} stdout={proc.stdout!r}"
+        )
+    still = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=no"],
+        cwd=str(app),
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if still.returncode != 0 or not still.stdout.strip():
+        _fail(f"tracked file was repaired: {still.stdout!r} {still.stderr!r}")
+    if not note.is_file():
+        _fail("untracked note.txt was removed")
 
-        _git(app, env, "add", "readme.txt")
-        _git(app, env, "commit", "-m", "fresh")
-        (app / ".env").write_text("X=1\n", encoding="utf-8")
-        (app / "stock.db").write_bytes(b"")
-        (app / "logs").mkdir()
-        (app / "logs" / "app.log").write_text("log\n", encoding="utf-8")
-        note.write_text("note\n", encoding="utf-8")
-        clean = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=no"],
-            cwd=str(app),
-            env=env,
-            check=False,
-            capture_output=True,
-            text=True,
+    _git(app, env, "add", "readme.txt")
+    _git(app, env, "commit", "-m", "fresh")
+    (app / ".env").write_text("X=1\n", encoding="utf-8")
+    (app / "stock.db").write_bytes(b"")
+    (app / "logs").mkdir()
+    (app / "logs" / "app.log").write_text("log\n", encoding="utf-8")
+    note.write_text("note\n", encoding="utf-8")
+    clean = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=no"],
+        cwd=str(app),
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if clean.returncode != 0 or clean.stdout.strip():
+        _fail(f"case B must have no tracked dirt: {clean.stdout!r} {clean.stderr!r}")
+    proc = _run_update(app, env)
+    if "deploy start" not in proc.stdout:
+        _fail(
+            "untracked and ignored files must pass the dirty gate: "
+            f"rc={proc.returncode} stderr={proc.stderr!r} stdout={proc.stdout!r}"
         )
-        if clean.returncode != 0 or clean.stdout.strip():
-            _fail(f"case B must have no tracked dirt: {clean.stdout!r} {clean.stderr!r}")
-        proc = _run_update(app, env)
-        if "deploy start" not in proc.stdout:
-            _fail(
-                "untracked and ignored files must pass the dirty gate: "
-                f"rc={proc.returncode} stderr={proc.stderr!r} stdout={proc.stdout!r}"
-            )
-        if "Hand edits" in proc.stderr:
-            _fail(f"untracked tree hit the dirty policy: {proc.stderr!r}")
+    if "Hand edits" in proc.stderr:
+        _fail(f"untracked tree hit the dirty policy: {proc.stderr!r}")
 
 
 def _heredoc(text: str, marker: str) -> str:
@@ -522,6 +531,7 @@ def test_update_sh_bootstrap_and_venv(tmp_path: Path) -> None:
     env = os.environ.copy()
     env["HOME"] = str(home)
     env["APP_DIR"] = str(app)
+    env["DEPLOY_LOCK"] = str(root / "deploy.lock")
     env["GIT_TERMINAL_PROMPT"] = "0"
     env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
     real_py = shutil.which("python3")
@@ -625,14 +635,53 @@ def test_update_sh_bootstrap_and_venv(tmp_path: Path) -> None:
         _fail("failed venv create replaced the existing .venv")
 
 
+def test_update_sh_busy_lock_exits_1(tmp_path: Path) -> None:
+    app = tmp_path / "app"
+    home = tmp_path / "home"
+    app.mkdir()
+    home.mkdir()
+    lock = tmp_path / "deploy.lock"
+    env = os.environ.copy()
+    env["HOME"] = str(home)
+    env["APP_DIR"] = str(app)
+    env["DEPLOY_LOCK"] = str(lock)
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    _git(app, env, "init")
+    _git(app, env, "config", "user.email", "deploy-test@example.com")
+    _git(app, env, "config", "user.name", "deploy-test")
+    tracked = app / "readme.txt"
+    tracked.write_text("one\n", encoding="utf-8")
+    _git(app, env, "add", "readme.txt")
+    _git(app, env, "commit", "-m", "init")
+
+    with lock.open("w") as fh:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        proc = _run_update(app, env)
+    if proc.returncode != 1:
+        _fail(
+            "busy deploy lock must exit 1: "
+            f"rc={proc.returncode} stderr={proc.stderr!r} stdout={proc.stdout!r}"
+        )
+    if "another deploy is running" not in proc.stderr:
+        _fail(f"busy lock stderr missing message: {proc.stderr!r}")
+    if "deploy start" in proc.stdout or "deploy start" in proc.stderr:
+        _fail(
+            "busy lock reached deploy start: "
+            f"stderr={proc.stderr!r} stdout={proc.stdout!r}"
+        )
+
+
 def main() -> None:
     test_static_contracts()
     test_rewrites_existing_github_host()
-    test_tracked_dirty_stops_deploy()
+    with tempfile.TemporaryDirectory(prefix="deploy-dirty-") as raw:
+        test_tracked_dirty_stops_deploy(Path(raw))
     test_enable_cicd_bootstrap_rewrites_host()
     test_enable_cicd_piped_stdin_keeps_heredoc()
     with tempfile.TemporaryDirectory(prefix="update-venv-") as raw:
         test_update_sh_bootstrap_and_venv(Path(raw))
+    with tempfile.TemporaryDirectory(prefix="deploy-lock-") as raw:
+        test_update_sh_busy_lock_exits_1(Path(raw))
     print("ok: github ssh port 443")
 
 

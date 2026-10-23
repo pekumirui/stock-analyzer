@@ -12,7 +12,8 @@ if [ -n "$tracked" ]; then
   exit 1
 fi
 
-exec 9>/tmp/stock-analyzer-deploy.lock
+LOCK_FILE="${DEPLOY_LOCK:-/tmp/stock-analyzer-deploy.lock}"
+exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
   echo "another deploy is running" >&2
   exit 1
