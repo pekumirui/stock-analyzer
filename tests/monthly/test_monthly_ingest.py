@@ -3384,6 +3384,26 @@ def test_81980_renamed_labels_idempotent_with_code() -> None:
         _fail("81980 old 買上点数 must not collide with 全店 売上高")
 
 
+def test_33290_closed_stores_canon_with_code() -> None:
+    """KAB-139: 33290 の PDF「休業店舗数」は 休業中 店舗数。ほかの銘柄は 休業 店舗数。"""
+    dest = "休業中 店舗数"
+    old = "休業 店舗数"
+    pdf = "休業店舗数"
+    got = canonicalize_element_label(pdf, "number", "33290")
+    if got != dest:
+        _fail(f"33290 PDF -> {got!r}")
+    if canonicalize_element_label(old, "number", "33290") != dest:
+        _fail(f"33290 old -> {canonicalize_element_label(old, 'number', '33290')!r}")
+    if canonicalize_element_label(dest, "number", "33290") != dest:
+        _fail("33290 dest not idempotent")
+    if canonicalize_element_label(pdf, "number") != old:
+        _fail(f"no-code PDF -> {canonicalize_element_label(pdf, 'number')!r}")
+    if canonicalize_element_label(pdf, "number", "30820") != old:
+        _fail(f"30820 PDF -> {canonicalize_element_label(pdf, 'number', '30820')!r}")
+    if canonicalize_element_label(old, "number", "30820") != old:
+        _fail(f"30820 old -> {canonicalize_element_label(old, 'number', '30820')!r}")
+
+
 def test_31740_gross_margin_renamed_idempotent_with_code() -> None:
     """KAB-127: 改名先 既存 粗利率 は 31740 の code 付きで不変。code 無しは旧名の語順。"""
     dest = "既存 粗利率"
@@ -3564,6 +3584,7 @@ def main() -> None:
     test_profit_and_quantity_metrics_are_not_sales()
     test_81980_renamed_labels_idempotent_with_code()
     test_81980_put_values_and_ingest_keep_renamed_rows()
+    test_33290_closed_stores_canon_with_code()
     test_31740_gross_margin_renamed_idempotent_with_code()
     test_31740_put_values_and_ingest_keep_renamed_gross_margin()
     test_department_store_layers()
