@@ -28,6 +28,36 @@ def _rpc(client: TestClient, method: str, params: dict | None = None, token: str
     return client.post("/mcp", json=body, headers={"Authorization": f"Bearer {token}"})
 
 
+def test_call_tool_redacts_query_token() -> None:
+    orig = m.TOOLS["fs_list"]
+    m.TOOLS["fs_list"] = (
+        orig[0],
+        orig[1],
+        lambda _a: "GET /mcp?token=dummy-consent-secret HTTP/1.0",
+    )
+    try:
+        text, err = m.call_tool("fs_list", {})
+        if err:
+            raise SystemExit(f"call_tool err: {text}")
+        if "dummy-consent-secret" in text:
+            raise SystemExit(f"query token leaked: {text!r}")
+        if "token=<redacted>" not in text:
+            raise SystemExit(f"expected url redaction: {text!r}")
+    finally:
+        m.TOOLS["fs_list"] = orig
+
+
+def test_main_disables_access_log() -> None:
+    from unittest.mock import patch
+
+    with patch.object(m, "configured_token", return_value="x"), patch("uvicorn.run") as run:
+        m.main()
+    if not run.called:
+        raise SystemExit("uvicorn.run not called")
+    if run.call_args.kwargs.get("access_log") is not False:
+        raise SystemExit(f"access_log: {run.call_args.kwargs}")
+
+
 def test_redact() -> None:
     out = m.redact("SLACK_WEBHOOK_URL=https://example.invalid/hook")
     if out != "SLACK_WEBHOOK_URL=<redacted>":
@@ -350,8 +380,12 @@ def test_http_auth_and_tools() -> None:
         raise SystemExit("bad since should set isError")
 
     r = client.get("/mcp", params={"token": token})
+    if r.status_code != 401:
+        raise SystemExit(f"query token must 401, got {r.status_code} {r.text}")
+
+    r = client.get("/mcp", headers={"X-MCP-Token": token})
     if r.status_code != 200 or "stock-analyzer-logs" not in r.text:
-        raise SystemExit(f"GET /mcp: {r.status_code} {r.text}")
+        raise SystemExit(f"GET /mcp X-MCP-Token: {r.status_code} {r.text}")
 
     r = _rpc(client, "initialize", token="wrong-token")
     if r.status_code != 401:
