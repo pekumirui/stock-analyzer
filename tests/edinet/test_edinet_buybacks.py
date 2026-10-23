@@ -27,7 +27,7 @@ from app.edinet.buybacks import (  # noqa: E402
     refresh_versions,
     run,
 )
-from app.edinet.textblocks import integer, is_dash, jp_dates, read_instance  # noqa: E402
+from app.edinet.textblocks import honbun_html, integer, is_dash, jp_dates, read_instance  # noqa: E402
 from app.edinet_wrapper.errors import EdinetNotFoundError  # noqa: E402
 from app.models import (  # noqa: E402
     EdinetBuyback,
@@ -172,6 +172,164 @@ def test_parse_period_on_next_row_and_shareholders() -> None:
     assert (b.cumulative_shares, b.progress_shares) == (1520000, 1.0)
 
 
+def _honbun_board_table(*, share_unit: str = "株", amount_unit: str = "円",
+                        limit_s: str = "1,100,000", limit_a: str = "500,000,000",
+                        month_s: str = "422,000", month_a: str = "299,292,100",
+                        cum_s: str = "422,000", cum_a: str = "299,292,100",
+                        prog_s: str = "38.36%", prog_a: str = "59.86%") -> str:
+    return table(
+        ["2026年８月31日現在"],
+        ["区分", f"株式数({share_unit})", f"価額の総額({amount_unit})"],
+        ["取締役会(2026年８月13日)での決議状況 (取得期間2026年８月14日～2026年８月31日)",
+         "", limit_s, limit_a],
+        ["報告月における取得自己株式(取得日)", "８月14日", "37,700", "24,997,200"],
+        ["計", "―", month_s, month_a],
+        ["報告月末現在の累計取得自己株式", "", cum_s, cum_a],
+        ["自己株式取得の進捗状況(%)", "", prog_s, prog_a],
+    )
+
+
+def _untagged_honbun(*, board_heading: bool = True, none: bool = False, after: str = "",
+                     shareholders: bool = True, **table_kw) -> str:
+    """S100Z1HS 形。none なら取得状況は該当事項のみ。"""
+    body = "<h3>１【取得状況】</h3>"
+    if shareholders:
+        body += "<p>(1) 【株主総会決議による取得の状況】</p><p>該当事項はありません。</p>"
+    if none:
+        body += "<p>(2) 【取締役会決議による取得の状況】</p><p>該当事項はありません。</p>"
+    else:
+        if board_heading:
+            body += "<p>(2) 【取締役会決議による取得の状況】</p>"
+        body += _honbun_board_table(**table_kw)
+    return (body + "<p>２【処理状況】</p>" + after
+            + "<p>該当事項はありません。</p><p>３【保有状況】</p>"
+            + _holding("41,270,663", "607,858"))
+
+
+def _report_untagged_acq(honbun: str | None = None, extra_honbun: str | None = None) -> bytes:
+    return xbrl_zip([
+        (f"{SBR}:DocumentTitleCoverPage", "自己株券買付状況報告書"),
+        (f"{SBR}:ReportingPeriodCoverPage", "自　2026年8月14日　至　2026年8月31日"),
+        (f"{SBR}:HoldingOfTreasurySharesTextBlock", _holding("41,270,663", "607,858")),
+    ], name="jpcrp170000-sbr-001_E34973-000_2026-09-10_01_2026-09-10",
+        honbun=_untagged_honbun() if honbun is None else honbun, extra_honbun=extra_honbun)
+
+
+def _assert_honbun_error(honbun: str, needle: str, extra_honbun: str | None = None) -> None:
+    zip_bytes = _report_untagged_acq(honbun, extra_honbun=extra_honbun)
+    try:
+        parse_buyback(read_instance(zip_bytes), honbun_html(zip_bytes))
+    except ValueError as exc:
+        assert needle in str(exc), exc
+        return
+    raise AssertionError(f"expected ValueError containing {needle!r}")
+
+
+def test_parse_untagged_honbun_s100z1hs() -> None:
+    zip_bytes = _report_untagged_acq()
+    tagged_only = False
+    try:
+        parse_buyback(read_instance(zip_bytes))
+    except ValueError as exc:
+        tagged_only = "取得状況のテキストブロックが無い" in str(exc)
+    assert tagged_only
+    rep = parse_buyback(read_instance(zip_bytes), honbun_html(zip_bytes))
+    assert (rep.period_start, rep.period_end) == (date(2026, 8, 14), date(2026, 8, 31))
+    assert (rep.issued_shares, rep.treasury_shares) == (41270663, 607858)
+    assert len(rep.resolutions) == 1
+    r = rep.resolutions[0]
+    assert (r.kind, r.body, r.resolution_date) == ("board", "取締役会", date(2026, 8, 13))
+    assert (r.acquire_from, r.acquire_to) == (date(2026, 8, 14), date(2026, 8, 31))
+    assert (r.limit_shares, r.limit_amount) == (1100000, 500000000)
+    assert (r.month_shares, r.month_amount) == (422000, 299292100)
+    assert (r.cumulative_shares, r.progress_shares, r.progress_amount) == (422000, 0.3836, 0.5986)
+
+
+def test_run_untagged_honbun_is_parsed() -> None:
+    """S100Z1HS 相当: 未タグの本文表でも parsed、cron は exit=0。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add(_doc(1, "S100Z1HS", file_date=date(2026, 9, 10), edinet_code="E34973",
+                    filer_name="株式会社プレイド", sec_code="41650", code="41650"))
+        db.add(Stock(code="41650", name="プレイド", product_category="011", market="グロース"))
+        db.commit()
+        client = _ErrClient({"S100Z1HS": _report_untagged_acq()})
+        st, _ = _run(db, client, pending_documents(db, today=TODAY), today=TODAY)
+        assert (st["parsed"], st["failed"], st["errors"], exit_status(st)) == (1, 0, 0, 0)
+        row = db.get(EdinetBuyback, "S100Z1HS")
+        assert (row.parse_status, row.parse_error, row.month_shares) == ("parsed", None, 422000)
+        assert pending_documents(db, today=TODAY) == []
+    finally:
+        db.close()
+
+
+def test_honbun_none_is_zero_resolutions() -> None:
+    zip_bytes = _report_untagged_acq(_untagged_honbun(none=True))
+    rep = parse_buyback(read_instance(zip_bytes), honbun_html(zip_bytes))
+    assert rep.resolutions == []
+    assert (rep.issued_shares, rep.treasury_shares) == (41270663, 607858)
+
+
+def test_honbun_broken_table_is_error() -> None:
+    html = (
+        "<h3>１【取得状況】</h3>"
+        "<p>(2) 【取締役会決議による取得の状況】</p>"
+        + table(["区分", "株式数(株)", "価額の総額(円)"], ["あいう", "1", "2"])
+        + "<p>２【処理状況】</p>"
+    )
+    _assert_honbun_error(html, "取得状況の決議が読めない")
+
+
+def test_honbun_ignores_disposal_chapter() -> None:
+    fake = ("<p>(2) 【取締役会決議による取得の状況】</p>"
+            + _honbun_board_table(limit_s="9,999,999", limit_a="9,999,999,999",
+                                  month_s="999,999", month_a="999,999",
+                                  cum_s="999,999", cum_a="999,999",
+                                  prog_s="10.00%", prog_a="0.01%"))
+    zip_bytes = _report_untagged_acq(_untagged_honbun(after=fake))
+    rep = parse_buyback(read_instance(zip_bytes), honbun_html(zip_bytes))
+    assert len(rep.resolutions) == 1
+    assert (rep.resolutions[0].month_shares, rep.resolutions[0].limit_shares) == (422000, 1100000)
+
+
+def test_honbun_scaled_units_is_error() -> None:
+    _assert_honbun_error(_untagged_honbun(share_unit="千株", amount_unit="千円"),
+                         "取得状況の単位が株・円ではない")
+
+
+def test_honbun_no_heading_is_error() -> None:
+    _assert_honbun_error(_untagged_honbun(board_heading=False, shareholders=False),
+                         "取得状況の表に株主総会/取締役会の見出しが無い")
+
+
+def test_honbun_cumulative_over_limit_is_error() -> None:
+    _assert_honbun_error(_untagged_honbun(cum_s="2,000,000"), "累計が枠を超えている")
+
+
+def test_honbun_duplicate_kind_date_is_error() -> None:
+    html = (
+        "<h3>１【取得状況】</h3>"
+        "<p>(2) 【取締役会決議による取得の状況】</p>"
+        + _honbun_board_table() + _honbun_board_table()
+        + "<p>２【処理状況】</p>"
+    )
+    _assert_honbun_error(html, "同じ区分・同じ決議日の決議が重複")
+
+
+def test_honbun_picks_file_with_acq_section() -> None:
+    zip_bytes = _report_untagged_acq("<p>表紙だけ</p>", extra_honbun=_untagged_honbun())
+    rep = parse_buyback(read_instance(zip_bytes), honbun_html(zip_bytes))
+    assert len(rep.resolutions) == 1
+    assert rep.resolutions[0].month_shares == 422000
+
+
+def test_honbun_multiple_acq_files_is_error() -> None:
+    _assert_honbun_error(_untagged_honbun(), "取得状況の本文 iXBRL が複数ある",
+                         extra_honbun=_untagged_honbun())
+
+
 def test_run_versions_and_rerun() -> None:
     init_db()
     db = SessionLocal()
@@ -257,6 +415,17 @@ def main() -> None:
     test_helpers()
     test_parse_two_resolutions()
     test_parse_period_on_next_row_and_shareholders()
+    test_parse_untagged_honbun_s100z1hs()
+    test_run_untagged_honbun_is_parsed()
+    test_honbun_none_is_zero_resolutions()
+    test_honbun_broken_table_is_error()
+    test_honbun_ignores_disposal_chapter()
+    test_honbun_scaled_units_is_error()
+    test_honbun_no_heading_is_error()
+    test_honbun_cumulative_over_limit_is_error()
+    test_honbun_duplicate_kind_date_is_error()
+    test_honbun_picks_file_with_acq_section()
+    test_honbun_multiple_acq_files_is_error()
     test_run_versions_and_rerun()
     test_missing_and_outside_window()
     print("ok")
