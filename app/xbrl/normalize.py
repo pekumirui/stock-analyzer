@@ -91,6 +91,7 @@ SOURCE_LAYER_PRIMARY = "primary"
 SOURCE_LAYER_SUMMARY = "summary"
 NET_SALES_CODE = "net_sales"
 MONTHS_PART = "months"
+ELEMENT_CHUNK = 900  # SQLite の IN の変数の上限より十分小さく
 # 有報の DEI「連結財務諸表の有無」。false の書類（連結子会社が無い会社）は、
 # 連結の軸が無い context（設備の状況・研究開発活動・自己株式等など）も単体として持つ（KAB-78）
 CONSOLIDATED_DEI = ("jpdei_cor", "WhetherConsolidatedFinancialStatementsArePreparedDEI")
@@ -323,6 +324,16 @@ def _add_months(chosen: dict[tuple, tuple], months: dict[tuple, tuple]) -> None:
             chosen[key] = (value, mfact, mel, mctx, mpri, mklass, mtp, mstd)
 
 
+def _elements_of(db: Session, facts: list[XbrlFact]) -> dict[int, XbrlElement]:
+    """その書類の fact が使う要素だけ。全件（本番 13 万行）を書類ごとに読むと --rebuild が 1 件 20 秒かかる"""
+    ids = sorted({f.element_id for f in facts})
+    out: dict[int, XbrlElement] = {}
+    for i in range(0, len(ids), ELEMENT_CHUNK):
+        chunk = ids[i:i + ELEMENT_CHUNK]
+        out.update({e.id: e for e in db.query(XbrlElement).filter(XbrlElement.id.in_(chunk))})
+    return out
+
+
 def has_no_consolidated_statements(facts: list[XbrlFact], elements: dict[int, XbrlElement]) -> bool:
     """DEI で「連結財務諸表を作っていない」と書いた書類。DEI が無い（TDnet）なら False。"""
     for fact in facts:
@@ -339,12 +350,12 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         s.id: s for s in db.query(XbrlStdItem).all() if s.statement != SEGMENT_STATEMENT
     }
     mappings = [m for m in db.query(XbrlElementMapping).all() if m.std_item_id in std_items]
-    elements = {e.id: e for e in db.query(XbrlElement).all()}
     contexts = {
         c.id: c
         for c in db.query(XbrlContext).filter_by(filing_id=filing.id).all()
     }
     facts = db.query(XbrlFact).filter_by(filing_id=filing.id).all()
+    elements = _elements_of(db, facts)
     single_entity = has_no_consolidated_statements(facts, elements)
 
     def consolidated(ctx: XbrlContext) -> bool:
