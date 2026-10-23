@@ -21,10 +21,12 @@ from app.edinet.textblocks import (
     Instance,
     chain_root,
     doc_metas,
+    honbun_html,
     integer,
     is_dash,
     jp_dates,
     number,
+    parse_html,
     read_instance,
     sample_ids,
     squash,
@@ -180,7 +182,30 @@ def _holding(block: Block | None) -> tuple[int | None, int | None]:
     return issued, treasury
 
 
-def parse_buyback(inst: Instance) -> ParsedBuyback:
+def _acq_kind(text: str) -> str | None:
+    s = squash(text)
+    if "株主総会決議" in s:
+        return "shareholders"
+    if "取締役会決議" in s or "役員会" in s:
+        return "board"
+    return None
+
+
+def parse_acquisitions_honbun(html: str) -> list[Resolution]:
+    """本文 iXBRL の未タグ表。見出しで株主総会 / 取締役会を分ける（S100Z1HS）。"""
+    out: list[Resolution] = []
+    kind = "board"
+    for k, v in parse_html(html).items:
+        if k == "X":
+            got = _acq_kind(v)
+            if got:
+                kind = got
+        else:
+            out += parse_acquisitions(Block(items=[("T", v)]), kind)
+    return out
+
+
+def parse_buyback(inst: Instance, honbun: str | None = None) -> ParsedBuyback:
     out = ParsedBuyback()
     period = jp_dates(inst.value("ReportingPeriodCoverPage"))
     if len(period) >= 2:
@@ -194,6 +219,11 @@ def parse_buyback(inst: Instance) -> ParsedBuyback:
             continue
         seen = True
         out.resolutions += parse_acquisitions(block, kind)
+    if not seen and honbun:
+        extra = parse_acquisitions_honbun(honbun)
+        out.resolutions += extra
+        if extra or "取得状況" in squash(honbun):
+            seen = True
     if not seen:
         raise ValueError(f"取得状況のテキストブロックが無い: {inst.name}")
     return out
@@ -358,7 +388,7 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
         return "error"
     fetched_at = now_jst()
     try:
-        rep = parse_buyback(read_instance(got.content))
+        rep = parse_buyback(read_instance(got.content), honbun_html(got.content))
         row = report_row(doc, rep, lookup, fetched_at)
         res = resolution_rows(doc.doc_id, rep)
     except Exception as exc:
