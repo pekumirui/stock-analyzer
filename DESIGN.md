@@ -176,6 +176,10 @@ edinet_filers / edinet_documents / edinet_list_days
                   -- EDINET の提出者・書類一覧。docs/DESIGN_edinet.md
 large_holding_reports / large_holdings
                   -- EDINET 大量保有報告書（書類 1 行 / 提出者・共同保有者 1 行）。docs/DESIGN_edinet.md §5
+edinet_buybacks / edinet_buyback_resolutions
+                  -- EDINET 自己株券買付状況報告書（書類 1 行 / 決議 1 行）。docs/DESIGN_edinet.md §6
+edinet_tender_offers / edinet_tender_offer_docs
+                  -- EDINET 公開買付け（案件 1 行 / 書類 1 行）。docs/DESIGN_edinet.md §7
 
 fx_rates          -- ECB 対EUR 日次レート (Frankfurter api.frankfurter.dev/v1)
   date, quote PK  -- quote は ISO 4217（USD / JPY 等）。EUR 自身は持たない

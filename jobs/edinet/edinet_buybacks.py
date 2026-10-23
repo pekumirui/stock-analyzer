@@ -1,0 +1,81 @@
+"""EDINET 自己株券買付状況報告書・訂正（220 / 230）→ edinet_buybacks / edinet_buyback_resolutions。
+
+EDINET_API_KEY が要る。入口は edinet_documents（先に jobs/edinet/edinet_documents.py）。
+
+使い方:
+  python jobs/edinet/edinet_buybacks.py --limit 500                    # 新しい書類から 500 件（cron）
+  python jobs/edinet/edinet_buybacks.py --from 2026-10-01 --to 2026-10-15
+  python jobs/edinet/edinet_buybacks.py --retry-failed --limit 100
+  python jobs/edinet/edinet_buybacks.py --refresh-only                 # 訂正・取下げ・最新の付け直しだけ
+
+1 書類 約 1 秒（XBRL を 1 回ダウンロード。ラッパーの既定で 1 秒間隔）。ZIP は保存しない。
+設計は docs/DESIGN_edinet.md §6。
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+from datetime import date
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+from app.db import SessionLocal  # noqa: E402
+from app.edinet.buybacks import (  # noqa: E402
+    exit_status,
+    mark_outside_window,
+    pending_documents,
+    refresh_versions,
+    run,
+)
+
+
+def _d(raw: str | None) -> date | None:
+    return date.fromisoformat(raw) if raw else None
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--from", dest="date_from", help="file_date YYYY-MM-DD")
+    ap.add_argument("--to", dest="date_to", help="file_date YYYY-MM-DD")
+    ap.add_argument("--retry-failed", action="store_true")
+    ap.add_argument("--reparse", action="store_true", help="取り込み済みもダウンロードし直す")
+    ap.add_argument("--limit", type=int, help="最大件数（0 以下は無制限）")
+    ap.add_argument("--refresh-only", action="store_true", help="ダウンロードせず、訂正・取下げ・最新だけ付け直す")
+    args = ap.parse_args()
+
+    db = SessionLocal()
+    try:
+        if args.refresh_only:
+            print(f"edinet buyback refreshed={refresh_versions(db)}")
+            return 0
+        if not os.environ.get("EDINET_API_KEY"):
+            print("edinet buyback skip: EDINET_API_KEY が無い")
+            return 0
+
+        from app.edinet_wrapper import EdinetClient
+
+        expired = mark_outside_window(db)
+        if expired:
+            print(f"edinet buyback outside-window n={expired}", flush=True)
+        docs = pending_documents(
+            db, start=_d(args.date_from), end=_d(args.date_to),
+            retry_failed=args.retry_failed, reparse=args.reparse,
+            limit=args.limit if args.limit and args.limit > 0 else None,
+        )
+        print(f"edinet buyback docs={len(docs)}", flush=True)
+        with EdinetClient() as client:
+            st = run(db, client, docs)
+        st["missing"] += expired
+        print(
+            f"edinet buyback done parsed={st['parsed']} failed={st['failed']} "
+            f"missing={st['missing']} errors={st['errors']} refreshed={st['refreshed']}"
+        )
+        return exit_status(st)
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

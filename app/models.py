@@ -602,3 +602,129 @@ class LargeHolding(Base):
     borrowings = Column(BigInteger)                 # 借入金額計
     other_funds = Column(BigInteger)                # その他金額計
     total_funds = Column(BigInteger)                # 取得資金合計
+
+
+class EdinetBuyback(Base):
+    """自己株券買付状況報告書・訂正（EDINET 書類種別 220 / 230）の 1 書類（KAB-79）。
+
+    中身は書類取得 API type=1（XBRL）のテキストブロックの表。取込は app/edinet/buybacks.py。
+    決議ごとの枠・買付・累計は edinet_buyback_resolutions。訂正は大元に束ね、最新に is_latest。
+    """
+    __tablename__ = "edinet_buybacks"
+    doc_id = Column(String(8), primary_key=True)
+    file_date = Column(Date, nullable=False)
+    submit_datetime = Column(DateTime)              # JST naive
+    doc_type_code = Column(String(3), nullable=False)  # 220 報告書 / 230 訂正
+    form_code = Column(String(6))                   # 170000 株式会社 / 253000 投資法人
+    code = Column(String(5))                        # stocks.code。上場していなければ NULL。FK は付けない
+    edinet_code = Column(String(6), index=True)
+    filer_name = Column(String)
+    report_month = Column(String(7))                # 報告月 YYYY-MM（報告期間の末日の月）
+    period_start = Column(Date)                     # 報告期間
+    period_end = Column(Date)
+    issued_shares = Column(BigInteger)              # 報告月末の発行済株式総数（投資法人は投資口）
+    treasury_shares = Column(BigInteger)            # 報告月末の保有自己株式数
+    resolution_count = Column(Integer)              # 決議の数（edinet_buyback_resolutions の行数）
+    month_shares = Column(BigInteger)               # 報告月に取得した株数（決議の合計）
+    month_amount = Column(BigInteger)               # 報告月に取得した価額の総額（円）
+    is_amendment = Column(Boolean, nullable=False, default=False)
+    amends_doc_id = Column(String(8))
+    original_doc_id = Column(String(8), nullable=False, index=True)
+    is_latest = Column(Boolean, nullable=False, default=False)
+    withdrawn = Column(Boolean, nullable=False, default=False)
+    parse_status = Column(String, nullable=False)   # parsed / failed
+    parse_error = Column(Text)
+    fetched_at = Column(DateTime, nullable=False)
+    __table_args__ = (
+        Index("ix_edinet_buybacks_code", "code", "report_month"),
+    )
+
+
+class EdinetBuybackResolution(Base):
+    """自己株券買付状況報告書の 1 書類 × 決議 1 件（取締役会・株主総会・投資法人の役員会）。"""
+    __tablename__ = "edinet_buyback_resolutions"
+    doc_id = Column(String(8), primary_key=True)
+    resolution_no = Column(Integer, primary_key=True)  # 書類の中の順番（1 始まり）
+    kind = Column(String, nullable=False)           # board / shareholders
+    body = Column(String)                           # 決議した機関（取締役会・定時株主総会・役員会）
+    resolution_date = Column(Date)                  # 決議日
+    acquire_from = Column(Date)                     # 取得期間
+    acquire_to = Column(Date)
+    limit_shares = Column(BigInteger)               # 決議の枠（株数）。無ければ NULL
+    limit_amount = Column(BigInteger)               # 決議の枠（価額の総額・円）
+    month_shares = Column(BigInteger)               # 報告月の取得（「－」は 0）
+    month_amount = Column(BigInteger)
+    cumulative_shares = Column(BigInteger)          # 報告月末までの累計
+    cumulative_amount = Column(BigInteger)
+    progress_shares = Column(Float)                 # 進捗（書類の値。0.5297 = 52.97%）
+    progress_amount = Column(Float)
+    label = Column(Text)                            # 決議状況の行の見出し（そのまま）
+
+
+class EdinetTenderOffer(Base):
+    """公開買付け 1 件（KAB-79）。届出書（240）を大元に、訂正・撤回・意見表明・報告書から決め直す。
+
+    書類ごとの値は edinet_tender_offer_docs。取込は app/edinet/tender_offers.py。
+    """
+    __tablename__ = "edinet_tender_offers"
+    tender_offer_id = Column(String(8), primary_key=True)  # 大元の docID（ふつうは公開買付届出書）
+    is_issuer = Column(Boolean, nullable=False, default=False)  # 発行者による公開買付け（自社株 TOB）
+    offeror_edinet_code = Column(String(6), index=True)
+    offeror_name = Column(String)
+    offeror_code = Column(String(5))                # 買付者が上場していれば stocks.code
+    target_edinet_code = Column(String(6), index=True)
+    target_name = Column(String)
+    target_code = Column(String(5), index=True)     # 対象者の stocks.code
+    announced_date = Column(Date)                   # 届出書の提出日
+    period_start = Column(Date)                     # 買付け等の期間（訂正で延長したら延長後）
+    period_end = Column(Date)
+    price = Column(Float)                           # 普通株式 1 株の買付価格（円。訂正で引き上げたら後の値）
+    price_initial = Column(Float)                   # 届出書の当初の価格
+    planned_shares = Column(BigInteger)             # 買付予定数
+    min_shares = Column(BigInteger)                 # 買付予定数の下限（無ければ NULL）
+    max_shares = Column(BigInteger)                 # 買付予定数の上限（無ければ NULL）
+    holding_ratio_after = Column(Float)             # 買付け後の株券等所有割合（届出書は予定、報告書は結果）
+    opinion = Column(String)                        # 対象者の意見: support / oppose / neutral / reserved
+    recommendation = Column(String)                 # 応募: recommend / leave / not_recommend
+    status = Column(String, nullable=False)         # open / succeeded / failed / withdrawn
+    tendered_shares = Column(BigInteger)            # 応募数（株式換算）
+    purchased_shares = Column(BigInteger)           # 買付数
+    result_date = Column(Date)                      # 公開買付報告書の提出日
+    latest_doc_id = Column(String(8))               # いちばん新しい書類
+    doc_count = Column(Integer)
+    updated_at = Column(DateTime, nullable=False)
+
+
+class EdinetTenderOfferDoc(Base):
+    """公開買付けの書類 1 件（240〜340）。届出・訂正・撤回・報告書・意見表明・対質問回答など。"""
+    __tablename__ = "edinet_tender_offer_docs"
+    doc_id = Column(String(8), primary_key=True)
+    tender_offer_id = Column(String(8), nullable=False, index=True)  # 大元（parent_doc_id をたどる）
+    file_date = Column(Date, nullable=False)
+    submit_datetime = Column(DateTime)
+    doc_type_code = Column(String(3), nullable=False)
+    ordinance_code = Column(String(3))              # 040 他社株 / 050 発行者（自社株）
+    form_code = Column(String(6))
+    title = Column(Text)
+    filer_edinet_code = Column(String(6))
+    filer_name = Column(String)
+    subject_edinet_code = Column(String(6))         # 届出書・報告書は対象者、意見表明は買付者
+    parent_doc_id = Column(String(8))
+    withdrawn = Column(Boolean, nullable=False, default=False)  # 取下げ・不開示
+    period_start = Column(Date)
+    period_end = Column(Date)
+    price = Column(Float)
+    planned_shares = Column(BigInteger)
+    min_shares = Column(BigInteger)
+    max_shares = Column(BigInteger)
+    holding_ratio_after = Column(Float)
+    target_name = Column(String)
+    opinion = Column(String)
+    recommendation = Column(String)
+    opinion_text = Column(Text)                     # 意見の内容（最初の段落）
+    success = Column(Boolean)                       # 公開買付けの成否（報告書）
+    tendered_shares = Column(BigInteger)
+    purchased_shares = Column(BigInteger)
+    parse_status = Column(String, nullable=False)   # parsed / meta（中身を読まない書類）/ failed
+    parse_error = Column(Text)
+    fetched_at = Column(DateTime, nullable=False)

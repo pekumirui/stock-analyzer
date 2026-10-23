@@ -55,6 +55,8 @@ notepad .env                    # JQUANTS_API_KEY を記入
 | `python jobs/edinet/edinet_codes.py` | EDINET コードリスト → `edinet_filers` と `stocks.edinet_code`（キー不要） |
 | `python jobs/edinet/edinet_documents.py --backfill-years 10` | EDINET 書類一覧を 10 年分（`EDINET_API_KEY`）。以後は引数なしで直近 7 日の未確定の日 |
 | `python jobs/edinet/edinet_large_holdings.py --limit 1000` | 大量保有報告書・変更報告書・訂正 → `large_holding_reports` / `large_holdings`。新しい書類から |
+| `python jobs/edinet/edinet_buybacks.py --limit 500` | 自己株券買付状況報告書・訂正 → `edinet_buybacks` / `edinet_buyback_resolutions`。新しい書類から |
+| `python jobs/edinet/edinet_tender_offers.py --limit 100` | 公開買付けの書類 → `edinet_tender_offer_docs` / 案件の `edinet_tender_offers` |
 | `python jobs/edinet/edinet_xbrl.py --limit 300` | 有報・半期報・四半期報の XBRL → `xbrl_financials`（`source='edinet'`）とセグメント注記の `xbrl_segments`。新しい書類から |
 
 > **バックフィル年数の目安**
@@ -144,7 +146,7 @@ app/
     analytics.py  MA/RS/ステージ/Q単独/決算後リターン
   monthly/      月次 (行名の正規化・親子・公開ページ)
   supply/       サプライ (素材マスタ・e-Stat・経産省)
-  edinet/       EDINET 提出者・書類一覧・財務 XBRL・大量保有 (docs/DESIGN_edinet.md)
+  edinet/       EDINET 提出者・書類一覧・財務 XBRL・大量保有・自己株買い・公開買付 (docs/DESIGN_edinet.md)
   edinet_wrapper/  EDINET API v2 ラッパー (vendor。改変しない)
   api/          REST API (機能ごとに 1 ファイル。月次は api/monthly/)
   main.py       FastAPIエントリ
@@ -164,6 +166,8 @@ jobs/           機能ごと (market/ monthly/ supply/ xbrl/ edinet/ ops/)。cro
   edinet/edinet_documents.py  EDINET 書類一覧（cron は 08:40〜23:40 JST 毎時）
   edinet/edinet_xbrl.py       有報・半期報の XBRL（cron は 08:50〜23:50 JST 毎時 300 件）
   edinet/edinet_large_holdings.py  大量保有報告書（cron は 09:05〜23:05 JST 毎時 1000 件）
+  edinet/edinet_tender_offers.py   公開買付けの書類（cron は 09:20〜23:20 JST 毎時 100 件）
+  edinet/edinet_buybacks.py        自己株券買付状況報告書（cron は 09:25〜23:25 JST 毎時 500 件）
   migrate.py            デプロイごとのスキーマ追随と月次の後始末
 tests/          機能ごと (market/ monthly/ supply/ xbrl/ ops/)
   conftest.py   pytest の共通設定（DB はファイルごとに空から）。`python -m pytest tests` で全部走る
