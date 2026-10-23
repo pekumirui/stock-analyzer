@@ -2389,75 +2389,75 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 31810	2026	10	legacy	number	買取王国 店舗数	買取王国 店舗数	number	買取王国 店舗数	stores	買取王国		店舗数	全体 > 買取王国	店舗数
 31810	2026	11	legacy	number	工具買取王国 店舗数	工具買取王国 店舗数	number	工具買取王国 店舗数	stores	工具買取王国		店舗数	全体 > 工具買取王国	店舗数
 31810	2026	12	legacy	number	良品買館 店舗数	良品買館 店舗数	number	良品買館 店舗数	stores	良品買館		店舗数	全体 > 良品買館	店舗数
-31930	2023	1	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体 > 鳥貴族	日本 直営 店舗数
-31930	2023	2	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体 > 鳥貴族	日本 TCC 店舗数
-31930	2023	3	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体 > 鳥貴族	日本 店舗数
-31930	2023	4	legacy	number	鳥貴族パートナーズ	鳥貴族パートナーズ	number	鳥貴族パートナーズ	other	鳥貴族パートナーズ			全体	鳥貴族パートナーズ
-31930	2023	5	legacy	number	TORIKI BURGER	TORIKI BURGER	number	TORIKI BURGER	other	TORIKI BURGER			全体	TORIKI BURGER
-31930	2023	6	legacy	number	日本 やきとり大吉 店舗数	日本 やきとり大吉 店舗数	number	日本 やきとり大吉 店舗数	stores	やきとり大吉		店舗数	全体 > やきとり大吉	日本 店舗数
-31930	2023	7	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
+31930	2023	1	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体 > 日本 > 鳥貴族 > 直営	店舗数
+31930	2023	2	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体 > 日本 > 鳥貴族 > TCC	店舗数
+31930	2023	3	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体 > 日本 > 鳥貴族	店舗数
+31930	2023	4	legacy	number	鳥貴族パートナーズ	鳥貴族パートナーズ	number	鳥貴族パートナーズ	other	鳥貴族パートナーズ			全体 > 日本 > その他	店舗数
+31930	2023	5	legacy	number	TORIKI BURGER	TORIKI BURGER	number	TORIKI BURGER	other	TORIKI BURGER			全体 > 日本 > その他	店舗数
+31930	2023	6	legacy	number	日本 やきとり大吉 店舗数	日本 やきとり大吉 店舗数	number	日本 やきとり大吉 店舗数	stores	やきとり大吉		店舗数	全体 > 日本 > やきとり大吉	店舗数
+31930	2023	7	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体 > 日本	店舗数
 31930	2023	8	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 31930	2023	9	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31930	2023	10	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
 31930	2023	11	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
-31930	2023	12	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体	海外 店舗数
+31930	2023	12	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体 > 海外	店舗数
 31930	2024	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 31930	2024	2	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31930	2024	3	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
 31930	2024	4	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
-31930	2024	5	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体 > 鳥貴族	日本 直営 店舗数
-31930	2024	6	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体 > 鳥貴族	日本 TCC 店舗数
-31930	2024	7	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体 > 鳥貴族	日本 店舗数
-31930	2024	8	legacy	number	日本 やきとり大吉 店舗数	日本 やきとり大吉 店舗数	number	日本 やきとり大吉 店舗数	stores	やきとり大吉		店舗数	全体 > やきとり大吉	日本 店舗数
-31930	2024	9	legacy	number	日本 その他 店舗数	日本 その他 店舗数	number	日本 その他 店舗数	stores	その他		店舗数	全体 > その他	日本 店舗数
-31930	2024	10	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
-31930	2024	11	legacy	number	海外 米国 店舗数	海外 米国 店舗数	number	海外 米国 店舗数	stores	米国		店舗数	全体 > 米国	海外 店舗数
-31930	2024	12	legacy	number	海外 韓国 店舗数	海外 韓国 店舗数	number	海外 韓国 店舗数	stores	韓国		店舗数	全体 > 韓国	海外 店舗数
-31930	2024	13	legacy	number	海外 台湾 店舗数	海外 台湾 店舗数	number	海外 台湾 店舗数	stores	台湾		店舗数	全体 > 台湾	海外 店舗数
-31930	2024	14	legacy	number	海外 中国 店舗数	海外 中国 店舗数	number	海外 中国 店舗数	stores	中国		店舗数	全体 > 中国	海外 店舗数
-31930	2024	15	legacy	number	海外 香港 店舗数	海外 香港 店舗数	number	海外 香港 店舗数	stores	香港		店舗数	全体 > 香港	海外 店舗数
-31930	2024	16	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体	海外 店舗数
+31930	2024	5	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体 > 日本 > 鳥貴族 > 直営	店舗数
+31930	2024	6	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体 > 日本 > 鳥貴族 > TCC	店舗数
+31930	2024	7	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体 > 日本 > 鳥貴族	店舗数
+31930	2024	8	legacy	number	日本 やきとり大吉 店舗数	日本 やきとり大吉 店舗数	number	日本 やきとり大吉 店舗数	stores	やきとり大吉		店舗数	全体 > 日本 > やきとり大吉	店舗数
+31930	2024	9	legacy	number	日本 その他 店舗数	日本 その他 店舗数	number	日本 その他 店舗数	stores	その他		店舗数	全体 > 日本 > その他	店舗数
+31930	2024	10	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体 > 日本	店舗数
+31930	2024	11	legacy	number	海外 米国 店舗数	海外 米国 店舗数	number	海外 米国 店舗数	stores	米国		店舗数	全体 > 海外 > 米国	店舗数
+31930	2024	12	legacy	number	海外 韓国 店舗数	海外 韓国 店舗数	number	海外 韓国 店舗数	stores	韓国		店舗数	全体 > 海外 > 韓国	店舗数
+31930	2024	13	legacy	number	海外 台湾 店舗数	海外 台湾 店舗数	number	海外 台湾 店舗数	stores	台湾		店舗数	全体 > 海外 > 台湾	店舗数
+31930	2024	14	legacy	number	海外 中国 店舗数	海外 中国 店舗数	number	海外 中国 店舗数	stores	中国		店舗数	全体 > 海外 > 中国	店舗数
+31930	2024	15	legacy	number	海外 香港 店舗数	海外 香港 店舗数	number	海外 香港 店舗数	stores	香港		店舗数	全体 > 海外 > 香港	店舗数
+31930	2024	16	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体 > 海外	店舗数
 31930	2024	17	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
-31930	2024	18	legacy	number	鳥貴族パートナーズ	鳥貴族パートナーズ	number	鳥貴族パートナーズ	other	鳥貴族パートナーズ			全体	鳥貴族パートナーズ
-31930	2024	19	legacy	number	TORIKI BURGER	TORIKI BURGER	number	TORIKI BURGER	other	TORIKI BURGER			全体	TORIKI BURGER
-31930	2025	1	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体 > 鳥貴族	日本 直営 店舗数
-31930	2025	2	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体 > 鳥貴族	日本 TCC 店舗数
-31930	2025	3	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体 > 鳥貴族	日本 店舗数
-31930	2025	4	legacy	number	日本 やきとり大吉 店舗数	日本 やきとり大吉 店舗数	number	日本 やきとり大吉 店舗数	stores	やきとり大吉		店舗数	全体 > やきとり大吉	日本 店舗数
-31930	2025	5	legacy	number	日本 その他 店舗数	日本 その他 店舗数	number	日本 その他 店舗数	stores	その他		店舗数	全体 > その他	日本 店舗数
-31930	2025	6	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
-31930	2025	7	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体	海外 店舗数
+31930	2024	18	legacy	number	鳥貴族パートナーズ	鳥貴族パートナーズ	number	鳥貴族パートナーズ	other	鳥貴族パートナーズ			全体 > 日本 > その他	店舗数
+31930	2024	19	legacy	number	TORIKI BURGER	TORIKI BURGER	number	TORIKI BURGER	other	TORIKI BURGER			全体 > 日本 > その他	店舗数
+31930	2025	1	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体 > 日本 > 鳥貴族 > 直営	店舗数
+31930	2025	2	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体 > 日本 > 鳥貴族 > TCC	店舗数
+31930	2025	3	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体 > 日本 > 鳥貴族	店舗数
+31930	2025	4	legacy	number	日本 やきとり大吉 店舗数	日本 やきとり大吉 店舗数	number	日本 やきとり大吉 店舗数	stores	やきとり大吉		店舗数	全体 > 日本 > やきとり大吉	店舗数
+31930	2025	5	legacy	number	日本 その他 店舗数	日本 その他 店舗数	number	日本 その他 店舗数	stores	その他		店舗数	全体 > 日本 > その他	店舗数
+31930	2025	6	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体 > 日本	店舗数
+31930	2025	7	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体 > 海外	店舗数
 31930	2025	8	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 31930	2025	9	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 31930	2025	10	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31930	2025	11	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
 31930	2025	12	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
-31930	2025	13	legacy	number	海外 米国 店舗数	海外 米国 店舗数	number	海外 米国 店舗数	stores	米国		店舗数	全体 > 米国	海外 店舗数
-31930	2025	14	legacy	number	海外 韓国 店舗数	海外 韓国 店舗数	number	海外 韓国 店舗数	stores	韓国		店舗数	全体 > 韓国	海外 店舗数
-31930	2025	15	legacy	number	海外 台湾 店舗数	海外 台湾 店舗数	number	海外 台湾 店舗数	stores	台湾		店舗数	全体 > 台湾	海外 店舗数
-31930	2025	16	legacy	number	海外 中国 店舗数	海外 中国 店舗数	number	海外 中国 店舗数	stores	中国		店舗数	全体 > 中国	海外 店舗数
-31930	2025	17	legacy	number	海外 香港 店舗数	海外 香港 店舗数	number	海外 香港 店舗数	stores	香港		店舗数	全体 > 香港	海外 店舗数
-31930	2025	18	legacy	number	海外 ベトナム 店舗数	海外 ベトナム 店舗数	number	海外 ベトナム 店舗数	stores	ベトナム		店舗数	全体 > ベトナム	海外 店舗数
-31930	2025	19	legacy	number	海外 シンガポール 店舗数	海外 シンガポール 店舗数	number	海外 シンガポール 店舗数	stores	シンガポール		店舗数	全体 > シンガポール	海外 店舗数
+31930	2025	13	legacy	number	海外 米国 店舗数	海外 米国 店舗数	number	海外 米国 店舗数	stores	米国		店舗数	全体 > 海外 > 米国	店舗数
+31930	2025	14	legacy	number	海外 韓国 店舗数	海外 韓国 店舗数	number	海外 韓国 店舗数	stores	韓国		店舗数	全体 > 海外 > 韓国	店舗数
+31930	2025	15	legacy	number	海外 台湾 店舗数	海外 台湾 店舗数	number	海外 台湾 店舗数	stores	台湾		店舗数	全体 > 海外 > 台湾	店舗数
+31930	2025	16	legacy	number	海外 中国 店舗数	海外 中国 店舗数	number	海外 中国 店舗数	stores	中国		店舗数	全体 > 海外 > 中国	店舗数
+31930	2025	17	legacy	number	海外 香港 店舗数	海外 香港 店舗数	number	海外 香港 店舗数	stores	香港		店舗数	全体 > 海外 > 香港	店舗数
+31930	2025	18	legacy	number	海外 ベトナム 店舗数	海外 ベトナム 店舗数	number	海外 ベトナム 店舗数	stores	ベトナム		店舗数	全体 > 海外 > ベトナム	店舗数
+31930	2025	19	legacy	number	海外 シンガポール 店舗数	海外 シンガポール 店舗数	number	海外 シンガポール 店舗数	stores	シンガポール		店舗数	全体 > 海外 > シンガポール	店舗数
 31930	2026	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 31930	2026	2	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31930	2026	3	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
 31930	2026	4	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
-31930	2026	5	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体 > 鳥貴族	日本 直営 店舗数
-31930	2026	6	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体 > 鳥貴族	日本 TCC 店舗数
-31930	2026	7	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体 > 鳥貴族	日本 店舗数
-31930	2026	8	legacy	number	日本 やきとり大吉 店舗数	日本 やきとり大吉 店舗数	number	日本 やきとり大吉 店舗数	stores	やきとり大吉		店舗数	全体 > やきとり大吉	日本 店舗数
-31930	2026	9	legacy	number	日本 その他 店舗数	日本 その他 店舗数	number	日本 その他 店舗数	stores	その他		店舗数	全体 > その他	日本 店舗数
-31930	2026	10	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体	日本 店舗数
-31930	2026	11	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体	海外 店舗数
+31930	2026	5	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体 > 日本 > 鳥貴族 > 直営	店舗数
+31930	2026	6	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体 > 日本 > 鳥貴族 > TCC	店舗数
+31930	2026	7	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体 > 日本 > 鳥貴族	店舗数
+31930	2026	8	legacy	number	日本 やきとり大吉 店舗数	日本 やきとり大吉 店舗数	number	日本 やきとり大吉 店舗数	stores	やきとり大吉		店舗数	全体 > 日本 > やきとり大吉	店舗数
+31930	2026	9	legacy	number	日本 その他 店舗数	日本 その他 店舗数	number	日本 その他 店舗数	stores	その他		店舗数	全体 > 日本 > その他	店舗数
+31930	2026	10	legacy	number	日本 店舗数	日本 店舗数	number	日本 店舗数	stores			店舗数	全体 > 日本	店舗数
+31930	2026	11	legacy	number	海外 店舗数	海外 店舗数	number	海外 店舗数	stores			店舗数	全体 > 海外	店舗数
 31930	2026	12	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
-31930	2026	13	legacy	number	海外 中国 店舗数	海外 中国 店舗数	number	海外 中国 店舗数	stores	中国		店舗数	全体 > 中国	海外 店舗数
-31930	2026	14	legacy	number	海外 米国 店舗数	海外 米国 店舗数	number	海外 米国 店舗数	stores	米国		店舗数	全体 > 米国	海外 店舗数
-31930	2026	15	legacy	number	海外 台湾 店舗数	海外 台湾 店舗数	number	海外 台湾 店舗数	stores	台湾		店舗数	全体 > 台湾	海外 店舗数
-31930	2026	16	legacy	number	海外 香港 店舗数	海外 香港 店舗数	number	海外 香港 店舗数	stores	香港		店舗数	全体 > 香港	海外 店舗数
-31930	2026	17	legacy	number	海外 韓国 店舗数	海外 韓国 店舗数	number	海外 韓国 店舗数	stores	韓国		店舗数	全体 > 韓国	海外 店舗数
-31930	2026	18	legacy	number	海外 ベトナム 店舗数	海外 ベトナム 店舗数	number	海外 ベトナム 店舗数	stores	ベトナム		店舗数	全体 > ベトナム	海外 店舗数
-31930	2026	19	legacy	number	海外 シンガポール 店舗数	海外 シンガポール 店舗数	number	海外 シンガポール 店舗数	stores	シンガポール		店舗数	全体 > シンガポール	海外 店舗数
+31930	2026	13	legacy	number	海外 中国 店舗数	海外 中国 店舗数	number	海外 中国 店舗数	stores	中国		店舗数	全体 > 海外 > 中国	店舗数
+31930	2026	14	legacy	number	海外 米国 店舗数	海外 米国 店舗数	number	海外 米国 店舗数	stores	米国		店舗数	全体 > 海外 > 米国	店舗数
+31930	2026	15	legacy	number	海外 台湾 店舗数	海外 台湾 店舗数	number	海外 台湾 店舗数	stores	台湾		店舗数	全体 > 海外 > 台湾	店舗数
+31930	2026	16	legacy	number	海外 香港 店舗数	海外 香港 店舗数	number	海外 香港 店舗数	stores	香港		店舗数	全体 > 海外 > 香港	店舗数
+31930	2026	17	legacy	number	海外 韓国 店舗数	海外 韓国 店舗数	number	海外 韓国 店舗数	stores	韓国		店舗数	全体 > 海外 > 韓国	店舗数
+31930	2026	18	legacy	number	海外 ベトナム 店舗数	海外 ベトナム 店舗数	number	海外 ベトナム 店舗数	stores	ベトナム		店舗数	全体 > 海外 > ベトナム	店舗数
+31930	2026	19	legacy	number	海外 シンガポール 店舗数	海外 シンガポール 店舗数	number	海外 シンガポール 店舗数	stores	シンガポール		店舗数	全体 > 海外 > シンガポール	店舗数
 31950	2023	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高
 31950	2023	2	legacy	yoy_index	連結売上高(前年比)	連結売上高(前年比)	yoy_index	連結売上高(前年比)	sales			連結売上高	全体	連結売上高
 31950	2024	1	legacy	number	連結売上高	連結売上高	number	連結売上高	sales			連結売上高	全体	連結売上高

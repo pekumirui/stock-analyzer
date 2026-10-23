@@ -206,6 +206,7 @@ year GET の各行は保存 `element` に加え、派生の `label`（display / 
 - ＳＲＳホールディングス (81630): 親子は `config/monthly/monthly_row_order.json` の `tree`（#591）。`＊M&A除く 全店 売上高(前年比)` は注の別系列なので根の別指標（節にしない）
 - リンガーハット (82000): 親子は `config/monthly/monthly_row_order.json` の `tree`（#591 / #592）。根の prefix は `純`（純既存店 → 会社の 既存）。ブランドは リンガーハット / 濵かつ / その他。業態の裸の `売上高(前年比)` / `店舗数` は会社の `全店` に寄せる（2026年9月 557+83+3=643 = 全店 店舗数）
 - アクシアルリテイリング (82550): 親子は `config/monthly/monthly_row_order.json` の `tree`（#591）。`（従来基準） 全店/既存 売上高(前年比)` は根の別指標（2026 は空なので SPA が隠す。2025 は行がある）
+- エターナルホスピタリティグループ (31930): 親子は `config/monthly/monthly_row_order.json` の `tree`（#598。2026年9月度 月次報告 ▸ 店舗数の状況）。総計 ▸ 日本（国内合計）▸ 鳥貴族（小計）▸ 直営 / TCC、やきとり大吉、その他。海外（海外合計）▸ 米国 / 韓国 / 台湾 / 中国 / 香港 / ベトナム / シンガポール。自動の木は国の語が group の前に出るので `_auto_split` が `s.startswith(group + " ")` に当たらず、鳥貴族・各国が根の兄弟で指標が割れる（#590）。2026年9月 425+272=697、697+463+6=1,166、3+5+7+9+7+2+3=36、1,166+36=1,202。2024年1–7月の `鳥貴族パートナーズ` / `TORIKI BURGER` はその他（1月 3+2+635+498=1,138 = 日本 店舗数）。8月から `日本 その他 店舗数`
 - 単位ノイズ: `(％)` / `(%)` / `（百万円）` / `(百万円)` / `売上（％）` / `売上（%）` は落とす。`［売上高］全店` の括弧はパーサ側で中身を出す
 - サンドラッグ (9989): HTML が `既存店Existing store` / `全店All stores` / `新規出店数Number of new store openings` / `退店店舗数Number of store closings` / `総店舗数Total number of stores` と日英連結。canonicalize 後に残る英語は `99890` alias で落とす。売上表（グループ/DG/DS）の unit は `jobs/monthly/html_issuers/i9989.py` の `yoy_pct`（セルに `%` が無くても）。店舗は `number`
 
