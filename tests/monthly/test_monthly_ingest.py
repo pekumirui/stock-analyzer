@@ -3430,6 +3430,29 @@ def test_33290_closed_stores_canon_with_code() -> None:
         _fail(f"30820 old -> {canonicalize_element_label(old, 'number', '30820')!r}")
 
 
+def test_81630_ma_ex_canon_with_code() -> None:
+    """KAB-143: 81630 の実ラベルは 全店 売上高 M&A除く(前年比)。ほかの銘柄は旧名の語順。"""
+    dest = "全店 売上高 M&A除く(前年比)"
+    old = "＊M&A除く 全店 売上高(前年比)"
+    raw = "全店 売上高(2) ＊M&A除く"
+    got = canonicalize_element_label(raw, "yoy_index", "81630")
+    if got != dest:
+        _fail(f"81630 raw -> {got!r}")
+    if canonicalize_element_label(dest, "yoy_index", "81630") != dest:
+        _fail(f"81630 dest not idempotent -> {canonicalize_element_label(dest, 'yoy_index', '81630')!r}")
+    if canonicalize_element_label(old, "yoy_index", "81630") != dest:
+        _fail(f"81630 old -> {canonicalize_element_label(old, 'yoy_index', '81630')!r}")
+    if canonicalize_element_label(raw, "yoy_index") != old:
+        _fail(f"no-code raw -> {canonicalize_element_label(raw, 'yoy_index')!r}")
+    if canonicalize_element_label(raw, "yoy_index", "82000") != old:
+        _fail(f"82000 raw -> {canonicalize_element_label(raw, 'yoy_index', '82000')!r}")
+    if canonicalize_element_label(dest, "yoy_index") != "M&A除く 全店 売上高(前年比)":
+        _fail(
+            "no-code dest still leftover-before-scope -> "
+            f"{canonicalize_element_label(dest, 'yoy_index')!r}"
+        )
+
+
 def test_31740_gross_margin_renamed_idempotent_with_code() -> None:
     """KAB-127: 改名先 既存 粗利率 は 31740 の code 付きで不変。code 無しは旧名の語順。"""
     dest = "既存 粗利率"
@@ -3611,6 +3634,7 @@ def main() -> None:
     test_81980_renamed_labels_idempotent_with_code()
     test_81980_put_values_and_ingest_keep_renamed_rows()
     test_33290_closed_stores_canon_with_code()
+    test_81630_ma_ex_canon_with_code()
     test_31740_gross_margin_renamed_idempotent_with_code()
     test_31740_put_values_and_ingest_keep_renamed_gross_margin()
     test_department_store_layers()

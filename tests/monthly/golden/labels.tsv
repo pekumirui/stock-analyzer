@@ -6267,11 +6267,11 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 81530	2026	4	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 81630	2023	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 81630	2024	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-81630	2024	2	legacy	yoy_index	＊M&A除く 全店 売上高(前年比)	＊M&A除く 全店 売上高(前年比)	yoy_index	＊M&A除く 全店 売上高(前年比)	sales	＊M&A除く	全店	売上高	全体	＊M&A除く 全店 売上高
+81630	2024	2	legacy	yoy_index	＊M&A除く 全店 売上高(前年比)	全店 売上高 M&A除く(前年比)	yoy_index	全店 売上高 M&A除く(前年比)	sales	M&A除く	全店	売上高	全体	＊M&A除く 全店 売上高
 81630	2025	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-81630	2025	2	legacy	yoy_index	＊M&A除く 全店 売上高(前年比)	＊M&A除く 全店 売上高(前年比)	yoy_index	＊M&A除く 全店 売上高(前年比)	sales	＊M&A除く	全店	売上高	全体	＊M&A除く 全店 売上高
+81630	2025	2	legacy	yoy_index	＊M&A除く 全店 売上高(前年比)	全店 売上高 M&A除く(前年比)	yoy_index	全店 売上高 M&A除く(前年比)	sales	M&A除く	全店	売上高	全体	＊M&A除く 全店 売上高
 81630	2026	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-81630	2026	2	legacy	yoy_index	＊M&A除く 全店 売上高(前年比)	＊M&A除く 全店 売上高(前年比)	yoy_index	＊M&A除く 全店 売上高(前年比)	sales	＊M&A除く	全店	売上高	全体	＊M&A除く 全店 売上高
+81630	2026	2	legacy	yoy_index	＊M&A除く 全店 売上高(前年比)	全店 売上高 M&A除く(前年比)	yoy_index	全店 売上高 M&A除く(前年比)	sales	M&A除く	全店	売上高	全体	＊M&A除く 全店 売上高
 81660	2023	1	legacy	yoy_index	小売+ネット通販 既存 売上高(前年比)	小売+ネット通販 既存 売上高(前年比)	yoy_index	小売+ネット通販 既存 売上高(前年比)	sales	小売+ネット通販	既存	売上高	全体 > 小売+ネット通販	既存 売上高
 81660	2023	2	legacy	yoy_index	小売+ネット通販 既存 客数(前年比)	小売+ネット通販 既存 客数(前年比)	yoy_index	小売+ネット通販 既存 客数(前年比)	customers	小売+ネット通販	既存	客数	全体 > 小売+ネット通販	既存 客数
 81660	2023	3	legacy	yoy_index	小売+ネット通販 既存 客単価(前年比)	小売+ネット通販 既存 客単価(前年比)	yoy_index	小売+ネット通販 既存 客単価(前年比)	spend	小売+ネット通販	既存	客単価	全体 > 小売+ネット通販	既存 客単価
