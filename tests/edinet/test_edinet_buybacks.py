@@ -254,6 +254,78 @@ def test_parse_month_over_cumulative_is_error() -> None:
     raise AssertionError("expected ValueError")
 
 
+def _board_empty_kei_with_days() -> str:
+    """S100YBMN 形。計は空欄、日付の内訳の合計が当月。"""
+    return para("（２）【取締役会決議による取得の状況】") + table(
+        ["区分", "株式数(株)", "価額の総額(円)"],
+        ["取締役会(2026年５月13日)での決議状況 (取得期間2026年５月14日～2026年12月31日)",
+         "", "16,000,000", "20,000,000,000"],
+        ["報告月における取得自己株式(取得日)", "５月14日", "96,600", "164,962,950"],
+        ["", "５月15日", "97,900", "166,747,098"],
+        ["計", "―", "", ""],
+        ["報告月末現在の累計取得自己株式", "", "194,500", "331,710,048"],
+        ["自己株式取得の進捗状況(％)", "", "1.22", "1.66"],
+    )
+
+
+def _board_kei_over_cum(*, kei_a="92,096,000", month_a="92,086,000", cum_a="92,086,000",
+                        extra_rows: list | None = None) -> str:
+    """S100Y8WI 形。計の金額が累計より 1 万円多い。"""
+    rows = [
+        ["区分", "株式数(株)", "価額の総額(円)"],
+        ["取締役会(2026年５月15日)での決議状況 (取得期間2026年５月18日～2026年５月18日)",
+         "", "45,000", "101,070,000"],
+        ["報告月における取得自己株式(取得日)", "５月18日", "41,000", month_a],
+    ]
+    if extra_rows:
+        rows.extend(extra_rows)
+    rows += [
+        ["計", "―", "41,000", kei_a],
+        ["報告月末現在の累計取得自己株式", "", "41,000", cum_a],
+        ["自己株式取得の進捗状況(％)", "", "91.1", "91.1"],
+    ]
+    return para("（２）【取締役会決議による取得の状況】") + table(*rows)
+
+
+def test_parse_empty_kei_sums_date_rows() -> None:
+    """計が空欄なら、報告月の初日と日付の内訳を足して当月にする。"""
+    rep = parse_buyback(read_instance(_report(_board_empty_kei_with_days())))
+    r = rep.resolutions[0]
+    assert (r.month_shares, r.month_amount) == (194500, 331710048)
+    assert (r.cumulative_shares, r.cumulative_amount) == (194500, 331710048)
+    assert (r.limit_shares, r.progress_shares) == (16000000, 0.0122)
+
+
+def test_parse_kei_over_cumulative_uses_report_row() -> None:
+    """計が累計を超え、日付の内訳が無く、報告月が超えなければ報告月を当月にする。"""
+    rep = parse_buyback(read_instance(_report(_board_kei_over_cum())))
+    r = rep.resolutions[0]
+    assert (r.month_shares, r.month_amount) == (41000, 92086000)
+    assert r.month_amount != 92096000
+    assert (r.cumulative_shares, r.progress_amount) == (41000, 0.911)
+
+
+def test_parse_kei_over_cumulative_with_details_is_error() -> None:
+    """計が累計を超え、日付の内訳もあるときは推測しない。"""
+    try:
+        parse_buyback(read_instance(_report(_board_kei_over_cum(
+            extra_rows=[["", "５月19日", "1", "10"]]))))
+    except ValueError as exc:
+        assert "報告月の取得が累計を超えている" in str(exc), exc
+        return
+    raise AssertionError("expected ValueError")
+
+
+def test_parse_kei_and_report_over_cumulative_is_error() -> None:
+    try:
+        parse_buyback(read_instance(_report(_board_kei_over_cum(
+            kei_a="92,096,000", month_a="92,096,000", cum_a="92,086,000"))))
+    except ValueError as exc:
+        assert "報告月の取得が累計を超えている" in str(exc), exc
+        return
+    raise AssertionError("expected ValueError")
+
+
 def _honbun_board_table(*, share_unit: str = "株", amount_unit: str = "円",
                         limit_s: str = "1,100,000", limit_a: str = "500,000,000",
                         month_s: str = "422,000", month_a: str = "299,292,100",
@@ -583,6 +655,8 @@ def test_regular_report_without_acq_chapter_is_error() -> None:
 
 _S100YWV5_ZIP = Path(__file__).resolve().parent / "testdata" / "S100YWV5.zip"
 _S100YUHP_ZIP = Path(__file__).resolve().parent / "testdata" / "S100YUHP.zip"
+_S100YBMN_ZIP = Path(__file__).resolve().parent / "testdata" / "S100YBMN.zip"
+_S100Y8WI_ZIP = Path(__file__).resolve().parent / "testdata" / "S100Y8WI.zip"
 
 
 def _amendment_body_no_acq() -> str:
@@ -815,6 +889,96 @@ def test_run_real_s100yuhp_zip_is_parsed() -> None:
         db.close()
 
 
+def test_real_s100ybmn_zip_sums_date_rows() -> None:
+    """本番の type=1 ZIP。計は空欄、日付 12 日の合計 1,266,400 株。"""
+    content = _S100YBMN_ZIP.read_bytes()
+    inst = read_instance(content)
+    block = inst.block("AcquisitionsByResolutionOfBoardOfDirectorsMeetingTextBlock")
+    labels = [squash(row[0]) if row else "" for row in block.rows()]
+    assert any(lab == "計" for lab in labels)
+    kei = next(row for row in block.rows() if squash(row[0]) == "計")
+    assert integer(kei[1]) is None
+    rep = parse_buyback(inst, honbun_html(content))
+    assert (rep.period_start, rep.period_end) == (date(2026, 5, 1), date(2026, 5, 31))
+    assert (rep.issued_shares, rep.treasury_shares) == (368497717, 21921688)
+    assert len(rep.resolutions) == 1
+    r = rep.resolutions[0]
+    assert (r.kind, r.resolution_date) == ("board", date(2026, 5, 13))
+    assert (r.acquire_from, r.acquire_to) == (date(2026, 5, 14), date(2026, 12, 31))
+    assert (r.limit_shares, r.limit_amount) == (16000000, 20000000000)
+    assert (r.month_shares, r.month_amount) == (1266400, 2114465097)
+    assert (r.cumulative_shares, r.cumulative_amount) == (1266400, 2114465097)
+    assert (r.progress_shares, r.progress_amount) == (0.079, 0.106)
+
+
+def test_run_real_s100ybmn_zip_is_parsed() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add(_doc(
+            1, "S100YBMN", edinet_code="E04088", filer_name="小田急電鉄株式会社",
+            sec_code="90070", code="90070", file_date=date(2026, 6, 15),
+        ))
+        db.commit()
+        client = _ErrClient({"S100YBMN": _S100YBMN_ZIP.read_bytes()})
+        st, out = _run(db, client, pending_documents(db, today=TODAY), today=TODAY)
+        assert (st["parsed"], st["failed"], st["errors"], exit_status(st)) == (1, 0, 0, 0)
+        assert "parse-error" not in out
+        row = db.get(EdinetBuyback, "S100YBMN")
+        assert (row.parse_status, row.parse_error, row.month_shares, row.month_amount) == (
+            "parsed", None, 1266400, 2114465097)
+        res = db.get(EdinetBuybackResolution, ("S100YBMN", 1))
+        assert (res.month_shares, res.month_amount) == (1266400, 2114465097)
+    finally:
+        db.close()
+
+
+def test_real_s100y8wi_zip_uses_report_row_not_kei_typo() -> None:
+    """本番の type=1 ZIP。計の金額 92,096,000 は累計より 1 万円多く、報告月を使う。"""
+    content = _S100Y8WI_ZIP.read_bytes()
+    inst = read_instance(content)
+    block = inst.block("AcquisitionsByResolutionOfBoardOfDirectorsMeetingTextBlock")
+    kei = next(row for row in block.rows() if squash(row[0]) == "計")
+    assert integer(kei[-1]) == 92096000
+    rep = parse_buyback(inst, honbun_html(content))
+    assert (rep.period_start, rep.period_end) == (date(2026, 5, 1), date(2026, 5, 31))
+    assert (rep.issued_shares, rep.treasury_shares) == (1876588, 61018)
+    assert len(rep.resolutions) == 1
+    r = rep.resolutions[0]
+    assert (r.kind, r.resolution_date) == ("board", date(2026, 5, 15))
+    assert (r.acquire_from, r.acquire_to) == (date(2026, 5, 18), date(2026, 5, 18))
+    assert (r.limit_shares, r.limit_amount) == (45000, 101070000)
+    assert (r.month_shares, r.month_amount) == (41000, 92086000)
+    assert r.month_amount != 92096000
+    assert (r.cumulative_shares, r.cumulative_amount) == (41000, 92086000)
+    assert (r.progress_shares, r.progress_amount) == (0.911, 0.911)
+
+
+def test_run_real_s100y8wi_zip_is_parsed() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add(_doc(
+            1, "S100Y8WI", edinet_code="E00487", filer_name="旭松食品株式会社",
+            sec_code="29110", code="29110", file_date=date(2026, 6, 5),
+        ))
+        db.commit()
+        client = _ErrClient({"S100Y8WI": _S100Y8WI_ZIP.read_bytes()})
+        st, out = _run(db, client, pending_documents(db, today=TODAY), today=TODAY)
+        assert (st["parsed"], st["failed"], st["errors"], exit_status(st)) == (1, 0, 0, 0)
+        assert "parse-error" not in out
+        row = db.get(EdinetBuyback, "S100Y8WI")
+        assert (row.parse_status, row.parse_error, row.month_shares, row.month_amount) == (
+            "parsed", None, 41000, 92086000)
+        res = db.get(EdinetBuybackResolution, ("S100Y8WI", 1))
+        assert (res.month_shares, res.month_amount) == (41000, 92086000)
+        assert res.month_amount != 92096000
+    finally:
+        db.close()
+
+
 def test_missing_and_outside_window() -> None:
     init_db()
     db = SessionLocal()
@@ -847,6 +1011,10 @@ def main() -> None:
     test_parse_kei_row_not_summed_with_report_row()
     test_parse_month_details_without_kei_is_error()
     test_parse_month_over_cumulative_is_error()
+    test_parse_empty_kei_sums_date_rows()
+    test_parse_kei_over_cumulative_uses_report_row()
+    test_parse_kei_over_cumulative_with_details_is_error()
+    test_parse_kei_and_report_over_cumulative_is_error()
     test_parse_untagged_honbun_s100z1hs()
     test_run_untagged_honbun_is_parsed()
     test_honbun_none_is_zero_resolutions()
@@ -870,6 +1038,10 @@ def main() -> None:
     test_run_truncated_dei_uses_parent_doc_id()
     test_real_s100yuhp_zip_reads_month_from_report_row()
     test_run_real_s100yuhp_zip_is_parsed()
+    test_real_s100ybmn_zip_sums_date_rows()
+    test_run_real_s100ybmn_zip_is_parsed()
+    test_real_s100y8wi_zip_uses_report_row_not_kei_typo()
+    test_run_real_s100y8wi_zip_is_parsed()
     test_run_versions_and_rerun()
     test_missing_and_outside_window()
     print("ok")

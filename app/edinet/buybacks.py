@@ -83,7 +83,10 @@ class Resolution:
     progress_amount: float | None = None
     _month_row: bool = False
     _month_from_report: tuple[int | None, int | None] | None = None
+    _month_from_report_raw: tuple[int | None, int | None] | None = None
     _month_details: bool = False   # 報告月のあとに日付の内訳行がある
+    _kei_row: bool = False         # 「計」の行がある（空欄・「―」も含む）
+    _month_parts: list[tuple[int | None, int | None]] = field(default_factory=list)
 
 
 @dataclass
@@ -149,20 +152,44 @@ def _period(res: Resolution, text: str) -> bool:
     return False
 
 
+def _sum_month_parts(parts: list[tuple[int | None, int | None]]) -> tuple[int | None, int | None]:
+    shares = amount = None
+    for s, a in parts:
+        if s is not None:
+            shares = (0 if shares is None else shares) + s
+        if a is not None:
+            amount = (0 if amount is None else amount) + a
+    return shares, amount
+
+
 def _finish_month(res: Resolution) -> None:
-    """当月は「計」優先。計が無ければ報告月の行の実数。内訳と足したりはしない。"""
+    """当月は「計」優先。計が無ければ報告月の行の実数。内訳と足したりはしない。
+
+    計が空欄で日付の内訳がある書類は内訳の合計。計が累計を超え、内訳が無く、
+    報告月の行が累計を超えないときは報告月（計の誤記）。どちらも書類の行を読む。
+    """
     if res.month_shares is None:
-        if res._month_details:
+        if res._kei_row and res._month_details and res._month_parts:
+            res.month_shares, res.month_amount = _sum_month_parts(res._month_parts)
+        elif res._month_details:
             raise ValueError("取得状況に計の行が無く、報告月の内訳がある")
-        if res._month_from_report is not None:
+        elif res._month_from_report is not None:
             res.month_shares, res.month_amount = res._month_from_report
         elif res._month_row:
             res.month_shares, res.month_amount = 0, 0
-    for unit, month, cum in (
-        ("株", res.month_shares, res.cumulative_shares),
-        ("円", res.month_amount, res.cumulative_amount),
+    raw = res._month_from_report_raw
+    for unit, month_attr, cum_attr, idx in (
+        ("株", "month_shares", "cumulative_shares", 0),
+        ("円", "month_amount", "cumulative_amount", 1),
     ):
-        if month is not None and cum is not None and month > cum:
+        month = getattr(res, month_attr)
+        cum = getattr(res, cum_attr)
+        if month is None or cum is None or month <= cum:
+            continue
+        report = None if raw is None else raw[idx]
+        if not res._month_details and report is not None and report <= cum:
+            setattr(res, month_attr, report)
+        else:
             raise ValueError(f"報告月の取得が累計を超えている({unit}): {month} > {cum}")
 
 
@@ -184,18 +211,26 @@ def parse_acquisitions(block: Block, kind: str) -> list[Resolution]:
             _period(cur, label)   # 期間が決議の行の下の行にある書類
         elif "報告月における取得" in label:
             cur._month_row = True
+            raw = _last2(row, integer)
+            cur._month_from_report_raw = (raw[0], raw[1])
             shares, amount = _last2(row, integer, dash_zero=True)
             cur._month_from_report = (shares, amount)
+            if raw[0] is not None or raw[1] is not None:
+                cur._month_parts.append((raw[0], raw[1]))
         elif label == "計" and cur.month_shares is None:
-            cur.month_shares, cur.month_amount = _last2(row, integer, dash_zero=True)
+            cur._kei_row = True
+            raw = _last2(row, integer)
+            if raw[0] is not None or raw[1] is not None:
+                cur.month_shares, cur.month_amount = _last2(row, integer, dash_zero=True)
         elif "累計" in label or "累積" in label:
             cur.cumulative_shares, cur.cumulative_amount = _last2(row, integer, dash_zero=True)
         elif "進捗" in label:
             cur.progress_shares, cur.progress_amount = _last2(row, _pct)
-        elif cur._month_row and cur.month_shares is None:
+        elif cur._month_row and not cur._kei_row and cur.month_shares is None:
             extra = _last2(row, integer)
             if extra[0] is not None or extra[1] is not None:
                 cur._month_details = True
+                cur._month_parts.append((extra[0], extra[1]))
     for r in out:
         _finish_month(r)
     return out
