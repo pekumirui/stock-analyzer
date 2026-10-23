@@ -1093,6 +1093,45 @@ def test_monthly_tree_html_kab87() -> None:
             ("ヴィンテージ商品 既存 売上高(前年比)", "yoy_index"),
             ("粗利率 既存", "number"),
         ]),
+        "kichiri": _cfg("30820", [
+            ("全店 店舗数", "number"),
+            ("既存 店舗数", "number"),
+            ("都市型ダイニング業態 店舗数", "number"),
+            ("モール・郊外型 レストラン業態 店舗数", "number"),
+        ]),
+        "towa": _cfg("33290", [
+            ("店舗数", "number"),
+            ("休業 店舗数", "number"),
+            ("数 退店", "number"),
+        ]),
+        "uandc": _cfg("35570", [
+            ("全業態 既存 売上高(前年比)", "yoy_index"),
+            ("てけてけ 既存 売上高(前年比)", "yoy_index"),
+            ("もつ焼てけ八 既存 売上高(前年比)", "yoy_index"),
+            ("新太郎 既存 売上高(前年比)", "yoy_index"),
+            ("the 3rd Burger 既存 売上高(前年比)", "yoy_index"),
+        ]),
+        "colowide": _cfg("76160", [
+            ("（全業態） 全店 売上高(前年比)", "yoy_index"),
+            ("（全業態） 既存 売上高(前年比)", "yoy_index"),
+        ]),
+        "srs": _cfg("81630", [
+            ("全店 売上高(前年比)", "yoy_index"),
+            ("＊M&A除く 全店 売上高(前年比)", "yoy_index"),
+        ]),
+        "ringer": _cfg("82000", [
+            ("全店 店舗数", "number"),
+            ("リンガーハット 店舗数", "number"),
+            ("濵かつ 店舗数", "number"),
+            ("その他 店舗数", "number"),
+            ("純 既存 売上高(前年比)", "yoy_index"),
+        ]),
+        "axial": _cfg("82550", [
+            ("全店 売上高(前年比)", "yoy_index"),
+            ("既存 売上高(前年比)", "yoy_index"),
+            ("（従来基準） 全店 売上高(前年比)", "yoy_index"),
+            ("（従来基準） 既存 売上高(前年比)", "yoy_index"),
+        ]),
     }
     harness = r"""
 const fs = require("fs");
@@ -1137,7 +1176,14 @@ const robot = run(fixtures.robot, () => vm.runInContext('monthlyTlOpen.add("m:�
 const daito = run(fixtures.daito, () => vm.runInContext('monthlyTlOpen.add("m:空室数");', sandbox));
 const ichigo = run(fixtures.ichigo, () => vm.runInContext('monthlyTlOpen.add("m:発電量");', sandbox));
 const happiness = run(fixtures.happiness);
-console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, ichigo, happiness}));
+const kichiri = run(fixtures.kichiri, () => vm.runInContext('monthlyTlOpen.add("m:全店 店舗数");', sandbox));
+const towa = run(fixtures.towa, () => vm.runInContext('monthlyTlOpen.add("m:店舗数");', sandbox));
+const uandc = run(fixtures.uandc, () => vm.runInContext('monthlyTlOpen.add("m:既存 売上高");', sandbox));
+const colowide = run(fixtures.colowide);
+const srs = run(fixtures.srs);
+const ringer = run(fixtures.ringer, () => vm.runInContext('monthlyTlOpen.add("m:全店 店舗数");', sandbox));
+const axial = run(fixtures.axial);
+console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, ichigo, happiness, kichiri, towa, uandc, colowide, srs, ringer, axial}));
 """
     with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as tmp:
         tmp.write(harness)
@@ -1181,6 +1227,35 @@ console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, 
         _fail(f"31740 screen: {got.get('happiness')!r}")
     if (got.get("happiness") or []).count("既存 売上高(前年比)") != 1:
         _fail(f"31740 must not nest 既存 売上高: {got.get('happiness')!r}")
+    if got.get("kichiri") != ["既存 店舗数", "全店 店舗数", "都市型ダイニング業態", "モール・郊外型 レストラン業態"]:
+        _fail(f"30820 screen: {got.get('kichiri')!r}")
+    if got.get("towa") != ["店舗数", "休業", "数 退店"]:
+        _fail(f"33290 screen: {got.get('towa')!r}")
+    if got.get("uandc") != ["既存 売上高(前年比)", "てけてけ", "もつ焼てけ八", "新太郎", "the 3rd Burger"]:
+        _fail(f"35570 screen: {got.get('uandc')!r}")
+    if "全業態" in (got.get("uandc") or []):
+        _fail(f"35570 must not nest 全業態: {got.get('uandc')!r}")
+    if got.get("colowide") != ["既存 売上高(前年比)", "全店 売上高(前年比)"]:
+        _fail(f"76160 screen: {got.get('colowide')!r}")
+    if "（全業態）" in (got.get("colowide") or []):
+        _fail(f"76160 must not nest （全業態）: {got.get('colowide')!r}")
+    if got.get("srs") != ["全店 売上高(前年比)", "＊M&amp;A除く 全店 売上高(前年比)"]:
+        _fail(f"81630 screen: {got.get('srs')!r}")
+    if any(n == "＊M&A除く" for n in (got.get("srs") or [])):
+        _fail(f"81630 must not nest ＊M&A除く: {got.get('srs')!r}")
+    if got.get("ringer") != ["既存 売上高(前年比)", "全店 店舗数", "リンガーハット", "濵かつ", "その他"]:
+        _fail(f"82000 screen: {got.get('ringer')!r}")
+    if "純" in (got.get("ringer") or []):
+        _fail(f"82000 must not nest 純: {got.get('ringer')!r}")
+    if got.get("axial") != [
+        "全店 売上高(前年比)",
+        "既存 売上高(前年比)",
+        "（従来基準） 全店 売上高(前年比)",
+        "（従来基準） 既存 売上高(前年比)",
+    ]:
+        _fail(f"82550 screen: {got.get('axial')!r}")
+    if any(n == "（従来基準）" for n in (got.get("axial") or [])):
+        _fail(f"82550 must not nest （従来基準）: {got.get('axial')!r}")
 
 
 def test_monthly_year_color_stable() -> None:
