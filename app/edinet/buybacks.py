@@ -81,6 +81,8 @@ class Resolution:
     progress_shares: float | None = None
     progress_amount: float | None = None
     _month_row: bool = False
+    _month_from_report: tuple[int | None, int | None] | None = None
+    _month_details: bool = False   # 報告月のあとに日付の内訳行がある
 
 
 @dataclass
@@ -146,6 +148,23 @@ def _period(res: Resolution, text: str) -> bool:
     return False
 
 
+def _finish_month(res: Resolution) -> None:
+    """当月は「計」優先。計が無ければ報告月の行の実数。内訳と足したりはしない。"""
+    if res.month_shares is None:
+        if res._month_details:
+            raise ValueError("取得状況に計の行が無く、報告月の内訳がある")
+        if res._month_from_report is not None:
+            res.month_shares, res.month_amount = res._month_from_report
+        elif res._month_row:
+            res.month_shares, res.month_amount = 0, 0
+    for unit, month, cum in (
+        ("株", res.month_shares, res.cumulative_shares),
+        ("円", res.month_amount, res.cumulative_amount),
+    ):
+        if month is not None and cum is not None and month > cum:
+            raise ValueError(f"報告月の取得が累計を超えている({unit}): {month} > {cum}")
+
+
 def parse_acquisitions(block: Block, kind: str) -> list[Resolution]:
     """取得状況の表 → 決議ごと。「決議状況」の行で新しい決議を始める。"""
     out: list[Resolution] = []
@@ -164,15 +183,20 @@ def parse_acquisitions(block: Block, kind: str) -> list[Resolution]:
             _period(cur, label)   # 期間が決議の行の下の行にある書類
         elif "報告月における取得" in label:
             cur._month_row = True
+            shares, amount = _last2(row, integer, dash_zero=True)
+            cur._month_from_report = (shares, amount)
         elif label == "計" and cur.month_shares is None:
             cur.month_shares, cur.month_amount = _last2(row, integer, dash_zero=True)
         elif "累計" in label or "累積" in label:
             cur.cumulative_shares, cur.cumulative_amount = _last2(row, integer, dash_zero=True)
         elif "進捗" in label:
             cur.progress_shares, cur.progress_amount = _last2(row, _pct)
+        elif cur._month_row and cur.month_shares is None:
+            extra = _last2(row, integer)
+            if extra[0] is not None or extra[1] is not None:
+                cur._month_details = True
     for r in out:
-        if r.month_shares is None and r._month_row:
-            r.month_shares, r.month_amount = 0, 0
+        _finish_month(r)
     return out
 
 
