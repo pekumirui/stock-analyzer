@@ -1891,6 +1891,167 @@ def test_tree_kab102() -> None:
         _fail("76830 内アパレル must be part")
 
 
+def test_tree_30820() -> None:
+    """30820 きちり: 業態の 店舗数 は会社の 全店 店舗数（#592）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees
+
+    rows = assign_tree_rows("30820", [
+        "全店 店舗数", "既存 店舗数",
+        "都市型ダイニング業態 店舗数", "都市型ダイニング業態 既存 売上高(前年比)",
+        "モール・郊外型 レストラン業態 店舗数",
+        "既存 売上高(前年比)", "全店 売上高(前年比)",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["都市型ダイニング業態 店舗数"] != (
+            ["全体", "都市型ダイニング業態"], "店舗数", "全店 店舗数"):
+        _fail(f"30820 都市型店舗数: {got['都市型ダイニング業態 店舗数']!r}")
+    if got["モール・郊外型 レストラン業態 店舗数"] != (
+            ["全体", "モール・郊外型 レストラン業態"], "店舗数", "全店 店舗数"):
+        _fail(f"30820 モール店舗数: {got['モール・郊外型 レストラン業態 店舗数']!r}")
+    if got["既存 店舗数"] != (["全体"], "既存 店舗数", "既存 店舗数"):
+        _fail(f"30820 既存店舗数: {got['既存 店舗数']!r}")
+    if got["都市型ダイニング業態 既存 売上高(前年比)"] != (
+            ["全体", "都市型ダイニング業態"], "既存 売上高(前年比)", "既存 売上高"):
+        _fail(f"30820 都市型既存売上: {got['都市型ダイニング業態 既存 売上高(前年比)']!r}")
+
+
+def test_tree_33290() -> None:
+    """33290 東和フード: 休業は店舗数の内数、数 退店 は会社の退店（#591）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees
+
+    trees = load_monthly_trees()
+    rows = assign_tree_rows("33290", [
+        "店舗数", "休業 店舗数", "既存 店舗数", "数 出店", "出店", "数 退店", "退店",
+        "全店 売上高(前年比)", "全社 売上高(前年比)",
+    ], trees)
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["休業 店舗数"] != (["全体", "休業"], "店舗数", "店舗数"):
+        _fail(f"33290 休業: {got['休業 店舗数']!r}")
+    if got["数 出店"] != (["全体"], "数 出店", "出店"):
+        _fail(f"33290 数 出店: {got['数 出店']!r}")
+    if got["数 退店"] != (["全体"], "数 退店", "退店"):
+        _fail(f"33290 数 退店: {got['数 退店']!r}")
+    if got["退店"] != (["全体"], "退店", "退店"):
+        _fail(f"33290 退店: {got['退店']!r}")
+    if got["店舗数"] != (["全体"], "店舗数", "店舗数"):
+        _fail(f"33290 店舗数: {got['店舗数']!r}")
+    if not next(n for n in trees["33290"].roots[0].children if n.name == "休業").part:
+        _fail("33290 休業 must be part")
+
+
+def test_tree_35570() -> None:
+    """35570 ユナイテッド＆コレクティブ: 全業態は会社の行（#591）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees
+
+    rows = assign_tree_rows("35570", [
+        "店舗数", "全業態 既存 売上高(前年比)", "全業態 既存 店舗数",
+        "てけてけ 既存 売上高(前年比)", "てけてけ 店舗数", "てけてけ 既存 店舗数",
+        "もつ焼てけ八 店舗数", "新太郎 店舗数",
+        "the 3rd Burger 既存 売上高(前年比)", "the 3rd Burger 店舗数",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["全業態 既存 売上高(前年比)"] != (["全体"], "既存 売上高(前年比)", "既存 売上高"):
+        _fail(f"35570 全業態売上: {got['全業態 既存 売上高(前年比)']!r}")
+    if got["全業態 既存 店舗数"] != (["全体"], "既存 店舗数", "既存 店舗数"):
+        _fail(f"35570 全業態既存店: {got['全業態 既存 店舗数']!r}")
+    if got["てけてけ 既存 売上高(前年比)"] != (
+            ["全体", "てけてけ"], "既存 売上高(前年比)", "既存 売上高"):
+        _fail(f"35570 てけてけ: {got['てけてけ 既存 売上高(前年比)']!r}")
+    if got["店舗数"] != (["全体"], "店舗数", "店舗数"):
+        _fail(f"35570 店舗数: {got['店舗数']!r}")
+    if any("全業態" in p for v in got.values() for p in v[0]):
+        _fail(f"35570 全業態 must not be a group: {got!r}")
+
+
+def test_tree_76160() -> None:
+    """76160 コロワイド: （全業態）は会社の行（#591）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees
+
+    rows = assign_tree_rows("76160", [
+        "（全業態） 全店 売上高(前年比)", "（全業態） 既存 売上高(前年比)",
+        "（全業態） 全店 客数(前年比)", "（全業態） 既存 客数(前年比)",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    want = {
+        "（全業態） 全店 売上高(前年比)": (["全体"], "全店 売上高(前年比)", "全店 売上高"),
+        "（全業態） 既存 売上高(前年比)": (["全体"], "既存 売上高(前年比)", "既存 売上高"),
+        "（全業態） 全店 客数(前年比)": (["全体"], "全店 客数(前年比)", "全店 客数"),
+        "（全業態） 既存 客数(前年比)": (["全体"], "既存 客数(前年比)", "既存 客数"),
+    }
+    if got != want:
+        _fail(f"76160 tree: {got!r}")
+
+
+def test_tree_81630() -> None:
+    """81630 SRS: ＊M&A除く は根の別指標（#591）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees
+
+    trees = load_monthly_trees()
+    rows = assign_tree_rows("81630", [
+        "全店 売上高(前年比)", "＊M&A除く 全店 売上高(前年比)",
+    ], trees)
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["全店 売上高(前年比)"] != (["全体"], "全店 売上高(前年比)", "全店 売上高"):
+        _fail(f"81630 全店: {got['全店 売上高(前年比)']!r}")
+    if got["＊M&A除く 全店 売上高(前年比)"] != (
+            ["全体"], "＊M&A除く 全店 売上高(前年比)", "＊M&A除く 全店 売上高"):
+        _fail(f"81630 M&A除く: {got['＊M&A除く 全店 売上高(前年比)']!r}")
+    metrics = [m for m, _ in trees["81630"].metrics]
+    if metrics != ["全店 売上高", "＊M&A除く 全店 売上高"]:
+        _fail(f"81630 metrics: {metrics!r}")
+
+
+def test_tree_82000() -> None:
+    """82000 リンガーハット: 純既存は会社の既存、ブランド店舗数は全店 店舗数（#591 / #592）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees
+
+    rows = assign_tree_rows("82000", [
+        "全店 売上高(前年比)", "全店 店舗数",
+        "純 既存 売上高(前年比)", "純 既存 客数(前年比)", "純 既存 客単価(前年比)",
+        "リンガーハット 売上高(前年比)", "リンガーハット 店舗数",
+        "濵かつ 店舗数", "その他 店舗数",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["純 既存 売上高(前年比)"] != (["全体"], "既存 売上高(前年比)", "既存 売上高"):
+        _fail(f"82000 純既存: {got['純 既存 売上高(前年比)']!r}")
+    if got["リンガーハット 店舗数"] != (["全体", "リンガーハット"], "店舗数", "全店 店舗数"):
+        _fail(f"82000 リンガー店舗: {got['リンガーハット 店舗数']!r}")
+    if got["濵かつ 店舗数"] != (["全体", "濵かつ"], "店舗数", "全店 店舗数"):
+        _fail(f"82000 濵かつ店舗: {got['濵かつ 店舗数']!r}")
+    if got["その他 店舗数"] != (["全体", "その他"], "店舗数", "全店 店舗数"):
+        _fail(f"82000 その他店舗: {got['その他 店舗数']!r}")
+    if got["リンガーハット 売上高(前年比)"] != (
+            ["全体", "リンガーハット"], "売上高(前年比)", "全店 売上高"):
+        _fail(f"82000 リンガー売上: {got['リンガーハット 売上高(前年比)']!r}")
+    if any("純" in p for v in got.values() for p in v[0]):
+        _fail(f"82000 純 must not be a group: {got!r}")
+
+
+def test_tree_82550() -> None:
+    """82550 アクシアル: （従来基準）は根の別指標（#591）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees
+
+    trees = load_monthly_trees()
+    rows = assign_tree_rows("82550", [
+        "全店 売上高(前年比)", "既存 売上高(前年比)",
+        "（従来基準） 全店 売上高(前年比)", "（従来基準） 既存 売上高(前年比)",
+    ], trees)
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["（従来基準） 全店 売上高(前年比)"] != (
+            ["全体"], "（従来基準） 全店 売上高(前年比)", "（従来基準） 全店 売上高"):
+        _fail(f"82550 従来全店: {got['（従来基準） 全店 売上高(前年比)']!r}")
+    if got["（従来基準） 既存 売上高(前年比)"] != (
+            ["全体"], "（従来基準） 既存 売上高(前年比)", "（従来基準） 既存 売上高"):
+        _fail(f"82550 従来既存: {got['（従来基準） 既存 売上高(前年比)']!r}")
+    if got["全店 売上高(前年比)"] != (["全体"], "全店 売上高(前年比)", "全店 売上高"):
+        _fail(f"82550 全店: {got['全店 売上高(前年比)']!r}")
+    if any("従来基準" in p for v in got.values() for p in v[0]):
+        _fail(f"82550 従来基準 must not be a group: {got!r}")
+    metrics = [m for m, _ in trees["82550"].metrics]
+    if "（従来基準） 全店 売上高" not in metrics or "全店 売上高" not in metrics:
+        _fail(f"82550 metrics: {metrics!r}")
+
+
 GOLDEN_TREE_ROWS = Path(__file__).resolve().parent / "golden" / "tree_rows.json"
 
 
@@ -2096,6 +2257,13 @@ def main() -> None:
     test_tree_23370()
     test_tree_31740()
     test_tree_kab102()
+    test_tree_30820()
+    test_tree_33290()
+    test_tree_35570()
+    test_tree_76160()
+    test_tree_81630()
+    test_tree_82000()
+    test_tree_82550()
     test_union_collapses_yoy_display_names()
     test_segment_tail_row_order()
 
