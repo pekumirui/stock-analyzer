@@ -2,9 +2,12 @@ name: Mark draft PRs ready
 
 # エージェントが draft で開いた PR を Ready にする。
 # 人があとから draft に戻したものは触らない（converted_to_draft では動かない）。
+# GITHUB_TOKEN で Ready にするには、Repo → Settings → Actions → General →
+# Workflow permissions の "Allow GitHub Actions to create and approve pull requests" が必要。
+# 代わりに repo 権限の PAT を secrets.GH_PAT に置いても動く。
 on:
   pull_request:
-    types: [opened, reopened]
+    types: [opened, reopened, synchronize]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -13,7 +16,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
 
 jobs:
@@ -30,7 +33,7 @@ jobs:
     steps:
       - name: Mark as ready
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
           GH_REPO: ${{ github.repository }}
           EVENT: ${{ github.event_name }}
           PR: ${{ github.event.pull_request.number }}
@@ -39,6 +42,16 @@ jobs:
           set -euo pipefail
           ready_one() {
             echo "Ready #$1"
+            # GITHUB_TOKEN は GraphQL markPullRequestReadyForReview を拒否することがあるので REST を先に試す。
+            if out="$(gh api --method PATCH "repos/${GH_REPO}/pulls/$1" -f draft=false)"; then
+              if printf '%s' "$out" | python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin).get("draft") is False else 1)'; then
+                echo "REST: ready"
+                return 0
+              fi
+              echo "REST: draft が残った。gh pr ready を試す"
+            else
+              echo "REST PATCH が失敗。gh pr ready を試す"
+            fi
             gh pr ready "$1"
           }
           if [ "$EVENT" = "pull_request" ]; then
