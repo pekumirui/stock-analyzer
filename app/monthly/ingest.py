@@ -315,6 +315,10 @@ _STATUS_STORE_STEMS = frozenset({"閉鎖", "休業"})
 _ISSUER_STATUS_STORE_SEGMENT: dict[str, dict[str, str]] = {
     "33290": {"休業": "休業中"},
 }
+# leftover を指標の後ろ（内訳）へ移す銘柄。81630 の「＊M&A除く」は「全店 売上高 M&A除く」。
+_ISSUER_SEGMENT_AS_BREAKDOWN: dict[str, dict[str, str]] = {
+    "81630": {"＊M&A除く": "M&A除く", "M&A除く": "M&A除く"},
+}
 _STORE_FLOW_METRICS = frozenset({"出店", "退店", "転換出店"})
 _OPEN_SHARDS = frozenset({"開"})
 _CLOSE_SHARDS = frozenset({"退", "閉"})
@@ -819,6 +823,11 @@ def normalize_element_tokens(
         dest = _ISSUER_STATUS_STORE_SEGMENT.get(str(code), {}).get(parts["segment"])
         if dest:
             parts["segment"] = dest
+    if code and not parts["breakdown"]:
+        dest_bd = _ISSUER_SEGMENT_AS_BREAKDOWN.get(str(code), {}).get(parts["segment"])
+        if dest_bd:
+            parts["segment"] = ""
+            parts["breakdown"] = dest_bd
     # 拠点数は件数指標。別指標があるときの表見出しだけ落とす（#534 前の _DROP_TOKS）。
     if parts["metric"]:
         parts["segment"] = " ".join(
