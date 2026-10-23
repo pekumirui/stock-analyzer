@@ -126,7 +126,7 @@ DB のバックアップは ConoHa の自動バックアップか、日次で別
 
 `main` にマージすると GitHub Actions がテスト → GitHub Release（タグ）→ ConoHa VPS へデプロイする。変更が `.md` / `docs/` / `.claude/memory/` だけのときは走らない。
 
-1. **PR.** `python -m pytest tests`（`tests/` 以下の `test_*.py` を全部。API スモークは `tests/test_smoke.py`）と Ruff / Bandit（`app` `jobs` `tests` `tools` `deploy`。`app/xbrlp` は除外）
+1. **PR.** `python -m pytest tests`（`tests/` 以下の `test_*.py` を全部。API スモークは `tests/test_smoke.py`）と Ruff / Bandit（`app` `jobs` `tests` `tools` `deploy`。`app/xbrlp` は除外）。draft で開いた同リポの PR は `mark-draft-ready.yml` が Ready にする
 2. **main マージ.** コミットメッセージでバージョンを自動バンプ（`feat:` は minor、`BREAKING CHANGE` / `feat!:` は major、それ以外は patch）。初回は `v0.1.0`
 3. **VPS.** SSH で `git pull` → `provision.sh`（nginx/ufw/certbot/systemd）→ `pip install` → `migrate.py` → `systemctl restart`。
    `stock.db` は触らない

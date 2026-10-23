@@ -1,0 +1,60 @@
+name: Mark draft PRs ready
+
+# エージェントが draft で開いた PR を Ready にする。
+# 人があとから draft に戻したものは触らない（converted_to_draft では動かない）。
+# github.token の GraphQL markPullRequestReadyForReview には contents: write が要る。
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Ready にする PR 番号。空なら open の draft を全部"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  ready:
+    name: Mark ready for review
+    if: >
+      github.event_name == 'workflow_dispatch'
+      || (
+        github.event.pull_request.draft
+        && github.event.pull_request.head.repo.full_name == github.repository
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Mark as ready
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          GH_REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number }}
+          PR_INPUT: ${{ github.event.inputs.pr_number }}
+        run: |
+          set -euo pipefail
+          ready_one() {
+            echo "Ready #$1"
+            gh pr ready "$1"
+          }
+          if [ "$EVENT" = "pull_request" ]; then
+            ready_one "$PR"
+            exit 0
+          fi
+          if [ -n "${PR_INPUT:-}" ]; then
+            ready_one "$PR_INPUT"
+            exit 0
+          fi
+          mapfile -t nums < <(gh pr list --state open --draft --json number --jq '.[].number')
+          if [ "${#nums[@]}" -eq 0 ]; then
+            echo "open の draft PR はない"
+            exit 0
+          fi
+          for n in "${nums[@]}"; do
+            ready_one "$n"
+          done
