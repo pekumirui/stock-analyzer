@@ -24,6 +24,7 @@ from app.edinet.textblocks import (
     honbun_html,
     integer,
     is_dash,
+    ixbrl_html,
     jp_dates,
     number,
     parse_html,
@@ -50,6 +51,10 @@ _ACQ_BLOCKS = (
 _BODY_RE = re.compile(r"^(.*?)[(（]")
 _ACQ_HEAD_RE = re.compile(r"[1１]\s*[．.、]?\s*【\s*取得状況\s*】")
 _DISP_HEAD_RE = re.compile(r"[2２]\s*[．.、]?\s*【\s*処理状況\s*】")
+_CHAPTER_HEAD_RE = re.compile(r"[1-3１-３]\s*[．.、]?\s*【\s*(?:取得状況|処理状況|保有状況)\s*】")
+_AMENDS_HEAD_RE = re.compile(r"【\s*訂正事項\s*】")
+_COVER_AMEND_RE = re.compile(r"提出書類.{0,120}訂正報告書")
+_TRUE = frozenset({"true", "1", "t", "yes"})
 _SCALED_UNIT_RE = re.compile(r"(千|万|百万|億)(株|円)")
 _PROGRESS_TOL = 0.005   # 進捗率と累計÷枠の差（0.5 ポイント）
 _LOG = "edinet buyback"
@@ -86,6 +91,7 @@ class ParsedBuyback:
     treasury_shares: int | None = None
     amends: str | None = None
     resolutions: list[Resolution] = field(default_factory=list)
+    acq_omitted: bool = False   # 訂正で取得状況が対象外のため章が無い。取得値は持たない
 
 
 def _values(row: list[str]) -> list[str]:
@@ -196,13 +202,18 @@ def _acq_kind(text: str) -> str | None:
 
 
 def _acq_section(html: str) -> str | None:
-    """１【取得状況】から２【処理状況】の手前まで。無ければ None。"""
-    m = _ACQ_HEAD_RE.search(html)
-    if not m:
-        return None
-    rest = html[m.start():]
-    end = _DISP_HEAD_RE.search(rest)
-    return rest[:end.start()] if end else rest
+    """１【取得状況】から２【処理状況】の手前まで。無ければ None。訂正事項の列挙は章にしない。"""
+    for m in _ACQ_HEAD_RE.finditer(html):
+        rest = html[m.start():]
+        after = html[m.end():]
+        nxt = _CHAPTER_HEAD_RE.search(after)
+        table = re.search(r"<table\b", after, re.I)
+        if nxt is not None and (table is None or nxt.start() < table.start()):
+            if "該当事項はありません" not in squash(after[:nxt.start()]):
+                continue
+        end = _DISP_HEAD_RE.search(rest)
+        return rest[:end.start()] if end else rest
+    return None
 
 
 def _pick_acq_honbun(honbun: str | list[str] | None) -> str | None:
@@ -279,7 +290,59 @@ def parse_acquisitions_honbun(html: str) -> list[Resolution]:
     return out
 
 
-def parse_buyback(inst: Instance, honbun: str | list[str] | None = None) -> ParsedBuyback:
+def _doc_texts(inst: Instance, honbun: str | list[str] | None) -> str:
+    parts = [v for v in inst.facts.values() if v]
+    if honbun is None:
+        pass
+    elif isinstance(honbun, str):
+        parts.append(honbun)
+    else:
+        parts.extend(h for h in honbun if h)
+    return "\n".join(parts)
+
+
+def _truthy(raw: str | None) -> bool:
+    return squash(raw).lower() in _TRUE
+
+
+def is_amendment_doc(inst: Instance, honbun: str | list[str] | None = None,
+                     *, amendment: bool = False) -> bool:
+    """訂正報告書か。書類種別 230・DEI の訂正フラグ・表紙の【提出書類】を見る。"""
+    if amendment:
+        return True
+    if _truthy(inst.value("AmendmentFlagDEI")):
+        return True
+    title = inst.value("DocumentTitleCoverPage") or ""
+    if "訂正報告書" in squash(title):
+        return True
+    return bool(_COVER_AMEND_RE.search(squash(_doc_texts(inst, honbun))))
+
+
+def _amendment_items(text: str) -> str | None:
+    """【訂正事項】の直後。次の表の手前と、見出し直後の短い窓。無ければ None。"""
+    m = _AMENDS_HEAD_RE.search(text) or re.search(r"訂正事項", text)
+    if not m:
+        return None
+    rest = text[m.end():]
+    table_at = re.search(r"<table\b", rest, re.I)
+    before = rest[:table_at.start()] if table_at else rest[:2000]
+    return squash(before + "\n" + rest[:800])
+
+
+def _allow_missing_acq(inst: Instance, honbun: str | list[str] | None,
+                       *, amendment: bool) -> bool:
+    """訂正で、訂正事項に取得状況が無く章も無いときだけ True。推測しない。"""
+    if not is_amendment_doc(inst, honbun, amendment=amendment):
+        return False
+    items = _amendment_items(_doc_texts(inst, honbun))
+    if items is None:
+        return False
+    return "取得状況" not in items
+
+
+def parse_buyback(inst: Instance, honbun: str | list[str] | None = None,
+                  *, amendment: bool = False,
+                  texts: str | list[str] | None = None) -> ParsedBuyback:
     out = ParsedBuyback()
     period = jp_dates(inst.value("ReportingPeriodCoverPage"))
     if len(period) >= 2:
@@ -295,9 +358,15 @@ def parse_buyback(inst: Instance, honbun: str | list[str] | None = None) -> Pars
         out.resolutions += parse_acquisitions(block, kind)
     if not seen:
         html = _pick_acq_honbun(honbun)
-        if html is None:
+        detect = texts if texts is not None else honbun
+        if html is not None and _acq_section(html) is not None:
+            out.resolutions += parse_acquisitions_honbun(html)
+        elif _allow_missing_acq(inst, detect, amendment=amendment):
+            out.acq_omitted = True
+        elif html is None:
             raise ValueError(f"取得状況のテキストブロックが無い: {inst.name}")
-        out.resolutions += parse_acquisitions_honbun(html)
+        else:
+            raise ValueError("取得状況の章が無い")
     return out
 
 
@@ -327,7 +396,7 @@ def report_row(doc: EdinetDocument, rep: ParsedBuyback, lookup: CodeLookup,
         "is_amendment": is_amendment,
         "amends_doc_id": amends,
         "original_doc_id": doc.doc_id,   # refresh_versions が付け直す
-        "parse_status": "parsed",
+        "parse_status": "meta" if rep.acq_omitted else "parsed",
         "parse_error": None,
         "fetched_at": fetched_at,
     }
@@ -376,7 +445,10 @@ def pending_documents(
     limit: int | None = None,
     today: date | None = None,
 ) -> list[EdinetDocument]:
-    """取り込む書類。220 / 230・XBRL あり・取下げ/不開示でない元の行。新しい日から。"""
+    """取り込む書類。220 / 230・XBRL あり・取下げ/不開示でない元の行。新しい日から。
+
+    parsed / meta は飛ばす（`--reparse`）。failed は `--retry-failed`。
+    """
     T = EdinetDocument
     floor = keep_after(today)
     if start and start > floor:
@@ -391,7 +463,7 @@ def pending_documents(
             continue
         seen.add(d.doc_id)
         st = status.get(d.doc_id)
-        if st == "parsed" and not reparse:
+        if st in ("parsed", "meta") and not reparse:
             continue
         if st == "failed" and not (retry_failed or reparse):
             continue
@@ -444,7 +516,7 @@ def mark_outside_window(db: Session, *, today: date | None = None) -> int:
 
 def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
                     lookup: CodeLookup, *, today: date | None = None) -> str:
-    """1 書類: XBRL をダウンロード → パース → 保存。戻り値は parsed / failed / missing / error。"""
+    """1 書類: XBRL をダウンロード → パース → 保存。戻り値は parsed / meta / failed / missing / error。"""
     from app.edinet_wrapper import DocumentFileType
 
     if doc.file_date < keep_after(today):
@@ -460,16 +532,20 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
         return "error"
     fetched_at = now_jst()
     try:
-        rep = parse_buyback(read_instance(got.content), honbun_html(got.content))
+        inst = read_instance(got.content)
+        honbun = honbun_html(got.content)
+        rep = parse_buyback(inst, honbun, amendment=doc.doc_type_code == AMENDMENT,
+                            texts=ixbrl_html(got.content))
         row = report_row(doc, rep, lookup, fetched_at)
         res = resolution_rows(doc.doc_id, rep)
     except Exception as exc:
         store_failed(db, doc, exc, fetched_at)
         return "failed"
     store_report(db, row, res)
-    print(f"{_LOG} parsed doc_id={doc.doc_id} type={doc.doc_type_code} code={row['code']} "
+    status = row["parse_status"]
+    print(f"{_LOG} {status} doc_id={doc.doc_id} type={doc.doc_type_code} code={row['code']} "
           f"month={row['report_month']} resolutions={len(res)} shares={row['month_shares']}", flush=True)
-    return "parsed"
+    return status
 
 
 def refresh_versions(db: Session) -> int:
@@ -509,14 +585,16 @@ def refresh_versions(db: Session) -> int:
 
 def run(db: Session, client: EdinetClient, docs: list[EdinetDocument],
         *, today: date | None = None) -> dict:
-    out = {"parsed": 0, "failed": 0, "missing": 0, "errors": 0}
+    out = {"parsed": 0, "meta": 0, "failed": 0, "missing": 0, "errors": 0}
     lookup = CodeLookup.load(db)
     ids: dict[str, list[str]] = {"missing": [], "failed": [], "error": []}
     for doc in docs:
         st = ingest_document(db, client, doc, lookup, today=today)
-        out[{"parsed": "parsed", "failed": "failed", "missing": "missing"}.get(st, "errors")] += 1
-        if st != "parsed":
-            ids["error" if st not in ids else st].append(doc.doc_id)
+        out[st if st in out else "errors"] += 1
+        if st in ids:
+            ids[st].append(doc.doc_id)
+        elif st not in ("parsed", "meta"):
+            ids["error"].append(doc.doc_id)
     for key, tag in (("missing", "missing"), ("failed", "parse-error"), ("error", "download-error")):
         if ids[key]:
             print(f"{_LOG} {tag} n={len(ids[key])} sample={sample_ids(ids[key])}", flush=True)

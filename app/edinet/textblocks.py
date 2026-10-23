@@ -205,6 +205,14 @@ def honbun_html(content: bytes) -> list[str]:
         return [zf.read(n).decode("utf-8", "replace") for n in names]
 
 
+def ixbrl_html(content: bytes) -> list[str]:
+    """type=1 の ZIP から PublicDoc の *_ixbrl.htm 全部（表紙含む）。名前順。無ければ空。"""
+    with zipfile.ZipFile(io.BytesIO(content)) as zf:
+        names = sorted(n for n in zf.namelist()
+                       if "PublicDoc/" in n and n.endswith("_ixbrl.htm"))
+        return [zf.read(n).decode("utf-8", "replace") for n in names]
+
+
 def read_instance(content: bytes) -> Instance:
     """type=1 の ZIP から XBRL/PublicDoc の .xbrl を読む。"""
     with zipfile.ZipFile(io.BytesIO(content)) as zf:

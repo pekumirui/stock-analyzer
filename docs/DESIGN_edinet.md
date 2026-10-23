@@ -167,7 +167,7 @@ edinet_buybacks              -- 1 書類
   issued_shares, treasury_shares                         -- ３【保有状況】の報告月末
   resolution_count, month_shares, month_amount           -- 報告月の取得（決議の合計）
   is_amendment, amends_doc_id, original_doc_id, is_latest, withdrawn
-  parse_status, parse_error, fetched_at
+  parse_status, parse_error, fetched_at   -- parsed / meta（取得状況が対象外の訂正）/ failed
 
 edinet_buyback_resolutions   -- 1 書類 × 決議 1 件
   doc_id, resolution_no PK
@@ -182,13 +182,13 @@ edinet_buyback_resolutions   -- 1 書類 × 決議 1 件
 ```
 
 - 中身の取り方を実データで比べた（2026-07〜10 の 220/230 約 2,100 件のうち 92 件）。CSV（type=5）は表紙と DEI のほかはテキストブロックだけで、表がつぶれて 1 行の文になる（`4,000,00010,000,000,000`）。XBRL のインスタンスのテキストブロックは HTML の表のまま入っているので、そちらを読む（`app/edinet/textblocks.py`）。PDF は使わない
-- 読むテキストブロック: `AcquisitionsByResolutionOfShareholdersMeetingTextBlock` / `AcquisitionsByResolutionOfBoardOfDirectorsMeetingTextBlock`（投資法人は `AcquisitionsOfTreasurySharesTextBlock`）と `HoldingOfTreasurySharesTextBlock`。報告期間は表紙の `ReportingPeriodCoverPage`。取得状況の要素がインスタンスに無い書類（S100Z1HS）は本文 iXBRL（`honbun *_ixbrl.htm`）の「１【取得状況】」〜「２【処理状況】」手前の未タグ表を同じ見出しで読む。株主総会/取締役会の見出しが無い、単位が株・円でない（千株・千円など）、累計>枠・報告月>累計・進捗率が累計÷枠と 0.5pt 超ずれる、同じ区分・同じ決議日が重複、取得状況の本文が複数、決議が取れず「該当事項はありません」でもない、は parse_error（換算や推測をしない）
+- 読むテキストブロック: `AcquisitionsByResolutionOfShareholdersMeetingTextBlock` / `AcquisitionsByResolutionOfBoardOfDirectorsMeetingTextBlock`（投資法人は `AcquisitionsOfTreasurySharesTextBlock`）と `HoldingOfTreasurySharesTextBlock`。報告期間は表紙の `ReportingPeriodCoverPage`。取得状況の要素がインスタンスに無い書類（S100Z1HS）は本文 iXBRL（`honbun *_ixbrl.htm`）の「１【取得状況】」〜「２【処理状況】」手前の未タグ表を同じ見出しで読む。株主総会/取締役会の見出しが無い、単位が株・円でない（千株・千円など）、累計>枠・報告月>累計・進捗率が累計÷枠と 0.5pt 超ずれる、同じ区分・同じ決議日が重複、取得状況の本文が複数、決議が取れず「該当事項はありません」でもない、は parse_error（換算や推測をしない）。訂正で取得状況が訂正事項に無く章も無いのは例外（`meta`）
 - 表は行の見出しで読む: 「決議状況」の行で新しい決議を始め（枠は右の 2 セル）、「計」が報告月の取得、「累計」「累積」が累計、「進捗」が進捗率。1 書類に決議が 2 件以上ある（終わりかけと始まったもの）。取得期間が決議の行の下の行にある書類、「2026年９月末日」、枠が空欄の書類（2 件。書類の記載どおり NULL）がある
 - 処理状況（２【処理状況】）・取得日ごとの行は持たない
 - ジョブ: `python jobs/edinet/edinet_buybacks.py`。cron は毎時 09:25〜23:25 に `--limit 500`（1 件約 1 秒で約 9 分）
-- 対象: 220 / 230・`xbrl_flag`、取下げ・不開示・修正通知の行を除く。新しい日から。`parsed` は飛ばす（`--reparse`）、`failed` は `--retry-failed`。404 と期間外は `missing`（failed で残し、exit=0）、5xx・タイムアウトは行を作らず次の回（exit=1）。大量保有（§5）と同じ
+- 対象: 220 / 230・`xbrl_flag`、取下げ・不開示・修正通知の行を除く。新しい日から。`parsed` / `meta` は飛ばす（`--reparse`）、`failed` は `--retry-failed`。404 と期間外は `missing`（failed で残し、exit=0）、5xx・タイムアウトは行を作らず次の回（exit=1）。大量保有（§5）と同じ
 - 縦覧期間は 1 年。過ぎた書類は EDINET の一覧からも消え、取れない（2026-10-22 に 2025-10-20 の一覧を取ると 220 は 0 件、2025-11-04 は 43 件）。`file_date` が 1 年より前は `mark_outside_window` で failed に残す。1 日 30〜70 件、年 7,000 件ほど。1 件 1KB 前後
-- 訂正: 230 の XBRL は訂正後の全文。訂正の対象は DEI の `IdentificationOfDocumentSubjectToAmendmentDEI`（無ければ `parentDocID`）。大元・取下げ・最新は大量保有と同じ（`refresh_versions`、`--refresh-only`）
+- 訂正: 230 の XBRL は原則として訂正後の全文。訂正の対象は DEI の `IdentificationOfDocumentSubjectToAmendmentDEI`（無ければ `parentDocID`）。大元・取下げ・最新は大量保有と同じ（`refresh_versions`、`--refresh-only`）。表紙の【提出書類】が「訂正報告書」、または DEI の `AmendmentFlagDEI` / 書類種別 230 の訂正で、【訂正事項】に取得状況が含まれず「１【取得状況】」の章も無い書類（S100YWV5）は取得値を持たない `meta` で終える（0 件にしない。最新にもしない）。訂正事項に取得状況があるのに章が無い、または通常の報告書（220）で章が無い、は今までどおり parse_error
 - 使う側: 銘柄の月ごとの自己株買いは `WHERE code = ? AND is_latest ORDER BY report_month`。決議ごとの進み具合は、`edinet_buyback_resolutions` を `resolution_date` で束ねて月をまたいで並べる
 - 実データ（2026-10-01・02・14 と無作為の 80 件）で全件パースでき、累計 ÷ 枠と書類の進捗率が全件で合った（差 0.2% 以内）。3 社（メルカリ S100Z824、りそな HD S100Z5JO、堺化学 S100Z5K9 と訂正 S100Z5L3）を閲覧画面の本文と突き合わせて、決議日・取得期間・枠・報告月の取得・累計・進捗率・発行済株式総数・保有自己株式数が一致した。堺化学の元の報告書は報告期間が「2026年8月1日〜」で、訂正で 9 月 1 日に直っている
 
