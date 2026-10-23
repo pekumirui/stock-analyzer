@@ -19,8 +19,10 @@ from sqlalchemy import delete, select  # noqa: E402
 
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.edinet.buybacks import (  # noqa: E402
+    _format_parse_error,
     exit_status,
     keep_after,
+    log_parse_error,
     mark_outside_window,
     parse_buyback,
     pending_documents,
@@ -992,13 +994,69 @@ def test_missing_and_outside_window() -> None:
         old = db.get(EdinetBuyback, "S100OLD1")
         assert old.parse_status == "failed" and "OutsideEdinetWindow" in old.parse_error
         client = _ErrClient({"S100GONE": EdinetNotFoundError("Not Found", status=404, endpoint="/documents/S100GONE")})
-        st, out = _run(db, client, pending_documents(db, today=TODAY), today=TODAY)
+        out, err = StringIO(), StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            st = run(db, client, pending_documents(db, today=TODAY), today=TODAY)
+        stdout, stderr = out.getvalue(), err.getvalue()
         assert (st["missing"], exit_status(st)) == (1, 0)
-        assert "edinet buyback missing n=1 sample=S100GONE" in out
+        assert "edinet buyback missing n=1 sample=S100GONE" in stdout
+        assert "parse-error doc_id=S100GONE" not in stdout
+        assert "parse-error doc_id=S100GONE" not in stderr
         assert pending_documents(db, today=TODAY) == []
         assert client.calls == ["S100GONE"]
     finally:
         db.close()
+
+
+def test_parse_error_logs_to_stderr() -> None:
+    """壊れた ZIP の parse 失敗は stderr に doc_id・型・メッセージ・短いトレース。stdout の集約行は残す。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add(_doc(1, "S100BRKN"))
+        db.commit()
+        client = _ErrClient({"S100BRKN": b"not a zip"})
+        out, err = StringIO(), StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            st = run(db, client, pending_documents(db, today=TODAY), today=TODAY)
+        stdout, stderr = out.getvalue(), err.getvalue()
+        assert (st["parsed"], st["failed"], exit_status(st)) == (0, 1, 1)
+        assert "edinet buyback parse-error n=1 sample=S100BRKN" in stdout
+        assert "parse-error doc_id=S100BRKN" not in stdout
+        assert "parse-error doc_id=S100BRKN" in stderr
+        assert "type=" in stderr and "msg=" in stderr
+        assert "ingest_document" in stderr or "read_instance" in stderr
+        assert "failed doc_id=" not in stdout
+        assert "failed doc_id=" not in stderr
+        row = db.get(EdinetBuyback, "S100BRKN")
+        assert row.parse_status == "failed" and row.parse_error
+    finally:
+        db.close()
+
+
+def test_parse_error_redacts_secrets() -> None:
+    secret = "super-secret-edinet-key-do-not-leak"
+    try:
+        raise ValueError(
+            f"EDINET_API_KEY={secret} "
+            f"https://api.edinet-fsa.go.jp/api/v2/documents/S100X?type=1&Subscription-Key={secret}"
+        )
+    except ValueError as exc:
+        lines = _format_parse_error("S100FAKE", exc)
+        buf = StringIO()
+        with contextlib.redirect_stderr(buf):
+            log_parse_error("S100FAKE", exc)
+        logged = buf.getvalue()
+    text = "\n".join(lines)
+    assert secret not in text
+    assert secret not in logged
+    assert "EDINET_API_KEY=<redacted>" in text
+    assert "Subscription-Key=***" in text or "Subscription-Key=<redacted>" in text
+    assert "doc_id=S100FAKE" in text and "type=ValueError" in text
+    assert "failed doc_id=" not in text
+    assert "parse-error doc_id=S100FAKE" in logged
+    assert any("test_parse_error_redacts_secrets" in line for line in lines)
 
 
 def main() -> None:
@@ -1044,6 +1102,8 @@ def main() -> None:
     test_run_real_s100y8wi_zip_is_parsed()
     test_run_versions_and_rerun()
     test_missing_and_outside_window()
+    test_parse_error_logs_to_stderr()
+    test_parse_error_redacts_secrets()
     print("ok")
 
 
