@@ -36,6 +36,7 @@ from app.edinet.textblocks import (  # noqa: E402
     jp_dates,
     public_html,
     read_instance,
+    squash,
 )
 from app.edinet_wrapper.errors import EdinetNotFoundError  # noqa: E402
 from app.models import (  # noqa: E402
@@ -184,6 +185,73 @@ def test_parse_period_on_next_row_and_shareholders() -> None:
     assert (b.acquire_from, b.acquire_to) == (date(2026, 7, 1), date(2026, 12, 31))
     assert (b.limit_shares, b.limit_amount) == (1520000, 7000000000)
     assert (b.cumulative_shares, b.progress_shares) == (1520000, 1.0)
+
+
+def _board_no_kei(*, month_s="6,610,000", month_a="5,003,770,000",
+                  cum_s="6,610,000", cum_a="5,003,770,000",
+                  extra_rows: list | None = None) -> str:
+    """S100YUHP 形。報告月の行に実数があり、計の行が無い。"""
+    rows = [
+        ["2026年7月31日現在"],
+        ["区分", "株式数（株）", "価額の総額（円）"],
+        ["取締役会（2026年7月29日）での決議状況（取得期間　2026年7月30日）", "6,610,000", "5,003,770,000"],
+        ["報告月における取得自己株式（取得日 2026年7月30日）", month_s, month_a],
+    ]
+    if extra_rows:
+        rows.extend(extra_rows)
+    rows += [
+        ["報告月末現在の累計取得自己株式", cum_s, cum_a],
+        ["自己株式取得の進捗状況", "100.00", "100.00"],
+    ]
+    return para("（２）【取締役会決議による取得の状況】") + table(*rows)
+
+
+def test_parse_month_from_report_row_without_kei() -> None:
+    """計が無ければ報告月の行の実数を当月にする。計がある書類は test_parse_two_resolutions。"""
+    rep = parse_buyback(read_instance(_report(_board_no_kei())))
+    assert len(rep.resolutions) == 1
+    r = rep.resolutions[0]
+    assert (r.resolution_date, r.acquire_from, r.acquire_to) == (
+        date(2026, 7, 29), date(2026, 7, 30), date(2026, 7, 30))
+    assert (r.limit_shares, r.limit_amount) == (6610000, 5003770000)
+    assert (r.month_shares, r.month_amount) == (6610000, 5003770000)
+    assert (r.cumulative_shares, r.progress_shares) == (6610000, 1.0)
+
+
+def test_parse_month_dash_without_kei_is_zero() -> None:
+    rep = parse_buyback(read_instance(_report(_board_no_kei(
+        month_s="―", month_a="―", cum_s="―", cum_a="―"))))
+    r = rep.resolutions[0]
+    assert (r.month_shares, r.month_amount) == (0, 0)
+    assert (r.cumulative_shares, r.cumulative_amount) == (0, 0)
+
+
+def test_parse_kei_row_not_summed_with_report_row() -> None:
+    """計がある通常の表は、報告月の初日の数ではなく計を使う。"""
+    rep = parse_buyback(read_instance(_report(_board_two())))
+    assert rep.resolutions[0].month_shares == 497400
+    assert rep.resolutions[0].month_amount == 1898107305
+    assert rep.resolutions[1].month_shares == 0
+
+
+def test_parse_month_details_without_kei_is_error() -> None:
+    try:
+        parse_buyback(read_instance(_report(_board_no_kei(
+            extra_rows=[["７月31日", "100", "200"]]))))
+    except ValueError as exc:
+        assert "計の行が無く、報告月の内訳がある" in str(exc), exc
+        return
+    raise AssertionError("expected ValueError")
+
+
+def test_parse_month_over_cumulative_is_error() -> None:
+    try:
+        parse_buyback(read_instance(_report(_board_no_kei(
+            month_s="6,610,000", cum_s="1,000"))))
+    except ValueError as exc:
+        assert "報告月の取得が累計を超えている" in str(exc), exc
+        return
+    raise AssertionError("expected ValueError")
 
 
 def _honbun_board_table(*, share_unit: str = "株", amount_unit: str = "円",
@@ -514,6 +582,7 @@ def test_regular_report_without_acq_chapter_is_error() -> None:
 
 
 _S100YWV5_ZIP = Path(__file__).resolve().parent / "testdata" / "S100YWV5.zip"
+_S100YUHP_ZIP = Path(__file__).resolve().parent / "testdata" / "S100YUHP.zip"
 
 
 def _amendment_body_no_acq() -> str:
@@ -700,6 +769,52 @@ def test_run_truncated_dei_uses_parent_doc_id() -> None:
         db.close()
 
 
+def test_real_s100yuhp_zip_reads_month_from_report_row() -> None:
+    """本番の type=1 ZIP。計の行が無く、報告月の行に 6,610,000 株。"""
+    content = _S100YUHP_ZIP.read_bytes()
+    inst = read_instance(content)
+    block = inst.block("AcquisitionsByResolutionOfBoardOfDirectorsMeetingTextBlock")
+    labels = [squash(row[0]) if row else "" for row in block.rows()]
+    assert any("報告月における取得" in lab for lab in labels)
+    assert not any(lab == "計" for lab in labels)
+    rep = parse_buyback(inst, honbun_html(content))
+    assert len(rep.resolutions) == 1
+    r = rep.resolutions[0]
+    assert (r.kind, r.resolution_date) == ("board", date(2026, 7, 29))
+    assert (r.acquire_from, r.acquire_to) == (date(2026, 7, 30), date(2026, 7, 30))
+    assert (r.limit_shares, r.limit_amount) == (6610000, 5003770000)
+    assert (r.month_shares, r.month_amount) == (6610000, 5003770000)
+    assert (r.cumulative_shares, r.cumulative_amount) == (6610000, 5003770000)
+    assert (r.progress_shares, r.progress_amount) == (1.0, 1.0)
+    assert (rep.issued_shares, rep.treasury_shares) == (27120000, 6610000)
+
+
+def test_run_real_s100yuhp_zip_is_parsed() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add(_doc(
+            1, "S100YUHP", edinet_code="E31267",
+            filer_name="株式会社シンプレクス・ファイナンシャル・ホールディングス",
+            file_date=date(2026, 8, 5),
+        ))
+        db.commit()
+        client = _ErrClient({"S100YUHP": _S100YUHP_ZIP.read_bytes()})
+        st, out = _run(db, client, pending_documents(db, today=TODAY), today=TODAY)
+        assert (st["parsed"], st["failed"], st["errors"], exit_status(st)) == (1, 0, 0, 0)
+        assert "parse-error" not in out
+        row = db.get(EdinetBuyback, "S100YUHP")
+        assert (row.parse_status, row.parse_error, row.month_shares, row.month_amount) == (
+            "parsed", None, 6610000, 5003770000)
+        assert row.resolution_count == 1
+        res = db.get(EdinetBuybackResolution, ("S100YUHP", 1))
+        assert (res.month_shares, res.month_amount) == (6610000, 5003770000)
+        assert (res.cumulative_shares, res.progress_shares) == (6610000, 1.0)
+    finally:
+        db.close()
+
+
 def test_missing_and_outside_window() -> None:
     init_db()
     db = SessionLocal()
@@ -727,6 +842,11 @@ def main() -> None:
     test_helpers()
     test_parse_two_resolutions()
     test_parse_period_on_next_row_and_shareholders()
+    test_parse_month_from_report_row_without_kei()
+    test_parse_month_dash_without_kei_is_zero()
+    test_parse_kei_row_not_summed_with_report_row()
+    test_parse_month_details_without_kei_is_error()
+    test_parse_month_over_cumulative_is_error()
     test_parse_untagged_honbun_s100z1hs()
     test_run_untagged_honbun_is_parsed()
     test_honbun_none_is_zero_resolutions()
@@ -748,6 +868,8 @@ def main() -> None:
     test_real_s100ywv5_zip_is_meta()
     test_run_real_s100ywv5_zip_is_meta()
     test_run_truncated_dei_uses_parent_doc_id()
+    test_real_s100yuhp_zip_reads_month_from_report_row()
+    test_run_real_s100yuhp_zip_is_parsed()
     test_run_versions_and_rerun()
     test_missing_and_outside_window()
     print("ok")
