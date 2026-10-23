@@ -388,6 +388,117 @@ def test_run_versions_and_rerun() -> None:
         db.close()
 
 
+def _amendment_honbun(*, items: str = "２【処理状況】</p><p>３【保有状況】",
+                      acq_chapter: bool = False, cover: bool = True) -> str:
+    """S100YWV5 形。訂正事項に取得状況が無く、取得状況の章も無い（acq_chapter で章を足せる）。"""
+    head = ""
+    if cover:
+        head += "<p>【提出書類】自己株券買付状況報告書の【訂正報告書】</p>"
+    head += f"<p>【訂正事項】</p><p>{items}</p>"
+    acq = _untagged_honbun() if acq_chapter else ""
+    body = acq or (
+        "<p>２【処理状況】</p>"
+        + table(["区分", "報告月における処分株式数(株)", "処分価額の総額(円)"],
+                ["その他", "86,663", "132,487,153"])
+        + "<p>３【保有状況】</p>" + _holding("36,961,950", "1,118,553")
+    )
+    return head + body
+
+
+def _amendment_zip(*, honbun: str | None = None, extra_facts: list | None = None,
+                   extra_honbun: str | None = None) -> bytes:
+    facts = [
+        (f"{SBR}:DocumentTitleCoverPage", "自己株券買付状況報告書の訂正報告書"),
+        (f"{SBR}:ReportingPeriodCoverPage", "自　2026年6月1日　至　2026年6月30日"),
+        ("jpdei_cor:AmendmentFlagDEI", "true"),
+        ("jpdei_cor:IdentificationOfDocumentSubjectToAmendmentDEI", "S100ORIG"),
+        (f"{SBR}:AmendmentsCoverPageTextBlock",
+         para("【訂正事項】", "２【処理状況】", "３【保有状況】")),
+        (f"{SBR}:HoldingOfTreasurySharesTextBlock", _holding("36,961,950", "1,118,553")),
+        (f"{SBR}:DisposalsOfTreasurySharesTextBlock", para("２【処理状況】", "訂正後")),
+    ]
+    if extra_facts:
+        facts.extend(extra_facts)
+    return xbrl_zip(
+        facts,
+        name="jpcrp170000-sbr-001_E02512-000_2026-08-14_01_2026-08-14",
+        honbun=_amendment_honbun() if honbun is None else honbun,
+        extra_honbun=extra_honbun,
+    )
+
+
+def test_amendment_without_acq_chapter_is_omitted() -> None:
+    """S100YWV5 相当: 訂正・取得状況なし → 失敗にならず、取得値も書かない。"""
+    zip_bytes = _amendment_zip()
+    try:
+        parse_buyback(read_instance(zip_bytes), honbun_html(zip_bytes))
+    except ValueError as exc:
+        raise AssertionError(exc) from exc
+    tagged_only = parse_buyback(read_instance(zip_bytes))
+    assert tagged_only.acq_omitted is True
+    assert tagged_only.resolutions == []
+    assert (tagged_only.issued_shares, tagged_only.treasury_shares) == (36961950, 1118553)
+    rep = parse_buyback(read_instance(zip_bytes), honbun_html(zip_bytes))
+    assert rep.acq_omitted is True
+    assert rep.resolutions == []
+    assert (rep.period_start, rep.period_end) == (date(2026, 6, 1), date(2026, 6, 30))
+    assert (rep.issued_shares, rep.treasury_shares) == (36961950, 1118553)
+
+
+def test_run_amendment_without_acq_does_not_write_shares() -> None:
+    """訂正を meta で残し、元の取得値を 0 で上書きしない。cron は exit=0。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add_all([
+            _doc(1, "S100ORIG"),
+            _doc(2, "S100YWV5", doc_type_code="230", form_code="170001", parent_doc_id="S100ORIG",
+                 edinet_code="E02512", filer_name="西華産業株式会社", sec_code="80600", code="80600",
+                 doc_description="訂正自己株券買付状況報告書（法２４条の６第１項に基づくもの）",
+                 file_date=date(2026, 8, 14)),
+        ])
+        db.add(Stock(code="80600", name="西華産業", product_category="011", market="プライム"))
+        db.commit()
+        client = _ErrClient({
+            "S100ORIG": _report(_board_one()),
+            "S100YWV5": _amendment_zip(),
+        })
+        st, out = _run(db, client, pending_documents(db, today=TODAY), today=TODAY)
+        assert (st["parsed"], st["meta"], st["failed"], st["errors"], exit_status(st)) == (1, 1, 0, 0, 0)
+        assert "parse-error" not in out
+        orig = db.get(EdinetBuyback, "S100ORIG")
+        amd = db.get(EdinetBuyback, "S100YWV5")
+        assert (orig.parse_status, orig.month_shares) == ("parsed", 189200)
+        assert (amd.parse_status, amd.parse_error, amd.is_amendment) == ("meta", None, True)
+        assert amd.month_shares is None and amd.month_amount is None
+        assert amd.month_shares != 0
+        assert amd.resolution_count == 0
+        assert db.query(EdinetBuybackResolution).filter_by(doc_id="S100YWV5").count() == 0
+        assert orig.month_shares == 189200
+        assert (orig.is_latest, amd.is_latest) == (True, False)
+        assert pending_documents(db, today=TODAY) == []
+        assert pending_documents(db, retry_failed=True, today=TODAY) == []
+    finally:
+        db.close()
+
+
+def test_amendment_claims_acq_but_chapter_missing_is_error() -> None:
+    honbun = _amendment_honbun(items="１【取得状況】</p><p>２【処理状況】")
+    zip_bytes = _amendment_zip(honbun=honbun)
+    try:
+        parse_buyback(read_instance(zip_bytes), honbun_html(zip_bytes), amendment=True)
+    except ValueError as exc:
+        assert "取得状況の章が無い" in str(exc), exc
+        return
+    raise AssertionError("expected ValueError containing '取得状況の章が無い'")
+
+
+def test_regular_report_without_acq_chapter_is_error() -> None:
+    html = "<p>２【処理状況】</p><p>該当事項はありません。</p><p>３【保有状況】</p>" + _holding()
+    _assert_honbun_error(html, "取得状況の章が無い")
+
+
 def test_missing_and_outside_window() -> None:
     init_db()
     db = SessionLocal()
@@ -426,6 +537,10 @@ def main() -> None:
     test_honbun_duplicate_kind_date_is_error()
     test_honbun_picks_file_with_acq_section()
     test_honbun_multiple_acq_files_is_error()
+    test_amendment_without_acq_chapter_is_omitted()
+    test_run_amendment_without_acq_does_not_write_shares()
+    test_amendment_claims_acq_but_chapter_missing_is_error()
+    test_regular_report_without_acq_chapter_is_error()
     test_run_versions_and_rerun()
     test_missing_and_outside_window()
     print("ok")

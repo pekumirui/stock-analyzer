@@ -632,7 +632,7 @@ class EdinetBuyback(Base):
     original_doc_id = Column(String(8), nullable=False, index=True)
     is_latest = Column(Boolean, nullable=False, default=False)
     withdrawn = Column(Boolean, nullable=False, default=False)
-    parse_status = Column(String, nullable=False)   # parsed / failed
+    parse_status = Column(String, nullable=False)   # parsed / meta（取得状況が対象外の訂正）/ failed
     parse_error = Column(Text)
     fetched_at = Column(DateTime, nullable=False)
     __table_args__ = (

@@ -69,8 +69,9 @@ def main() -> int:
             st = run(db, client, docs)
         st["missing"] += expired
         print(
-            f"edinet buyback done parsed={st['parsed']} failed={st['failed']} "
-            f"missing={st['missing']} errors={st['errors']} refreshed={st['refreshed']}"
+            f"edinet buyback done parsed={st['parsed']} meta={st.get('meta', 0)} "
+            f"failed={st['failed']} missing={st['missing']} errors={st['errors']} "
+            f"refreshed={st['refreshed']}"
         )
         return exit_status(st)
     finally:
