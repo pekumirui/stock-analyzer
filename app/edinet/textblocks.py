@@ -197,20 +197,30 @@ class Instance:
         return local in self.facts
 
 
+def _public_doc_html(content: bytes, pred) -> list[str]:
+    with zipfile.ZipFile(io.BytesIO(content)) as zf:
+        names = sorted(n for n in zf.namelist() if "PublicDoc/" in n and pred(n))
+        return [zf.read(n).decode("utf-8", "replace") for n in names]
+
+
 def honbun_html(content: bytes) -> list[str]:
     """type=1 の ZIP から本文 iXBRL（PublicDoc の honbun *_ixbrl.htm）全部。名前順。無ければ空。"""
-    with zipfile.ZipFile(io.BytesIO(content)) as zf:
-        names = sorted(n for n in zf.namelist()
-                       if "PublicDoc/" in n and "honbun" in n and n.endswith("_ixbrl.htm"))
-        return [zf.read(n).decode("utf-8", "replace") for n in names]
+    return _public_doc_html(
+        content, lambda n: "honbun" in n and n.endswith("_ixbrl.htm"))
 
 
 def ixbrl_html(content: bytes) -> list[str]:
     """type=1 の ZIP から PublicDoc の *_ixbrl.htm 全部（表紙含む）。名前順。無ければ空。"""
-    with zipfile.ZipFile(io.BytesIO(content)) as zf:
-        names = sorted(n for n in zf.namelist()
-                       if "PublicDoc/" in n and n.endswith("_ixbrl.htm"))
-        return [zf.read(n).decode("utf-8", "replace") for n in names]
+    return _public_doc_html(content, lambda n: n.endswith("_ixbrl.htm"))
+
+
+def public_html(content: bytes) -> list[str]:
+    """type=1 の ZIP から PublicDoc の HTML 全部（表紙・訂正事項・本文。iXBRL も含む）。名前順。
+
+    訂正事項は `PublicDoc/0001000_*.htm` のような非 iXBRL にだけある書類がある（S100YWV5）。
+    """
+    return _public_doc_html(
+        content, lambda n: n.lower().endswith((".htm", ".html")))
 
 
 def read_instance(content: bytes) -> Instance:

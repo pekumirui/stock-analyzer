@@ -24,10 +24,10 @@ from app.edinet.textblocks import (
     honbun_html,
     integer,
     is_dash,
-    ixbrl_html,
     jp_dates,
     number,
     parse_html,
+    public_html,
     read_instance,
     sample_ids,
     squash,
@@ -534,8 +534,9 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
     try:
         inst = read_instance(got.content)
         honbun = honbun_html(got.content)
+        # 取得状況の章は本文 iXBRL。訂正事項は PublicDoc の非 iXBRL HTML にあることがある
         rep = parse_buyback(inst, honbun, amendment=doc.doc_type_code == AMENDMENT,
-                            texts=ixbrl_html(got.content))
+                            texts=public_html(got.content))
         row = report_row(doc, rep, lookup, fetched_at)
         res = resolution_rows(doc.doc_id, rep)
     except Exception as exc:
