@@ -197,14 +197,12 @@ class Instance:
         return local in self.facts
 
 
-def honbun_html(content: bytes) -> str | None:
-    """type=1 の ZIP から本文 iXBRL（PublicDoc の honbun *_ixbrl.htm）。無ければ None。"""
+def honbun_html(content: bytes) -> list[str]:
+    """type=1 の ZIP から本文 iXBRL（PublicDoc の honbun *_ixbrl.htm）全部。名前順。無ければ空。"""
     with zipfile.ZipFile(io.BytesIO(content)) as zf:
-        names = [n for n in zf.namelist()
-                 if "PublicDoc/" in n and "honbun" in n and n.endswith("_ixbrl.htm")]
-        if not names:
-            return None
-        return zf.read(min(names)).decode("utf-8", "replace")
+        names = sorted(n for n in zf.namelist()
+                       if "PublicDoc/" in n and "honbun" in n and n.endswith("_ixbrl.htm"))
+        return [zf.read(n).decode("utf-8", "replace") for n in names]
 
 
 def read_instance(content: bytes) -> Instance:

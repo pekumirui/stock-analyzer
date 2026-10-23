@@ -48,6 +48,10 @@ _ACQ_BLOCKS = (
     ("AcquisitionsOfTreasurySharesTextBlock", "board"),
 )
 _BODY_RE = re.compile(r"^(.*?)[(（]")
+_ACQ_HEAD_RE = re.compile(r"[1１]\s*[．.、]?\s*【\s*取得状況\s*】")
+_DISP_HEAD_RE = re.compile(r"[2２]\s*[．.、]?\s*【\s*処理状況\s*】")
+_SCALED_UNIT_RE = re.compile(r"(千|万|百万|億)(株|円)")
+_PROGRESS_TOL = 0.005   # 進捗率と累計÷枠の差（0.5 ポイント）
 _LOG = "edinet buyback"
 
 
@@ -191,21 +195,91 @@ def _acq_kind(text: str) -> str | None:
     return None
 
 
+def _acq_section(html: str) -> str | None:
+    """１【取得状況】から２【処理状況】の手前まで。無ければ None。"""
+    m = _ACQ_HEAD_RE.search(html)
+    if not m:
+        return None
+    rest = html[m.start():]
+    end = _DISP_HEAD_RE.search(rest)
+    return rest[:end.start()] if end else rest
+
+
+def _pick_acq_honbun(honbun: str | list[str] | None) -> str | None:
+    """取得状況の章がある本文を1つ。複数なら ValueError。該当なしはファイル1件のときだけそれを返す。"""
+    if honbun is None:
+        return None
+    files = [honbun] if isinstance(honbun, str) else [h for h in honbun if h]
+    if not files:
+        return None
+    hits = [h for h in files if _ACQ_HEAD_RE.search(h)]
+    if len(hits) > 1:
+        raise ValueError(f"取得状況の本文 iXBRL が複数ある: {len(hits)} 件")
+    if len(hits) == 1:
+        return hits[0]
+    return files[0] if len(files) == 1 else None
+
+
+def _check_acq_units(rows: list[list[str]]) -> None:
+    header = None
+    for row in rows:
+        joined = squash("".join(row))
+        if "株式数" in joined or "価額" in joined:
+            header = joined
+            break
+    if header is None:
+        raise ValueError("取得状況の表に株式数/価額の見出しが無い")
+    if _SCALED_UNIT_RE.search(header) or "(株)" not in header or "(円)" not in header:
+        raise ValueError("取得状況の単位が株・円ではない")
+
+
+def _check_honbun_resolution(r: Resolution) -> None:
+    for unit, month, cum, lim, prog in (
+        ("株", r.month_shares, r.cumulative_shares, r.limit_shares, r.progress_shares),
+        ("円", r.month_amount, r.cumulative_amount, r.limit_amount, r.progress_amount),
+    ):
+        if cum is not None and lim is not None and cum > lim:
+            raise ValueError(f"累計が枠を超えている({unit}): {cum} > {lim}")
+        if month is not None and cum is not None and month > cum:
+            raise ValueError(f"報告月の取得が累計を超えている({unit}): {month} > {cum}")
+        if prog is not None and cum is not None and lim:
+            expected = cum / lim
+            if abs(prog - expected) > _PROGRESS_TOL:
+                raise ValueError(f"進捗率が累計÷枠と合わない({unit}): {prog} vs {expected}")
+
+
 def parse_acquisitions_honbun(html: str) -> list[Resolution]:
-    """本文 iXBRL の未タグ表。見出しで株主総会 / 取締役会を分ける（S100Z1HS）。"""
+    """本文 iXBRL の未タグ表（１【取得状況】のみ）。見出し必須。怪しければ ValueError。"""
+    section = _acq_section(html)
+    if section is None:
+        raise ValueError("取得状況の章が無い")
     out: list[Resolution] = []
-    kind = "board"
-    for k, v in parse_html(html).items:
+    kind: str | None = None
+    for k, v in parse_html(section).items:
         if k == "X":
             got = _acq_kind(v)
             if got:
                 kind = got
-        else:
-            out += parse_acquisitions(Block(items=[("T", v)]), kind)
+            continue
+        if kind is None:
+            raise ValueError("取得状況の表に株主総会/取締役会の見出しが無い")
+        _check_acq_units(v)
+        out += parse_acquisitions(Block(items=[("T", v)]), kind)
+    if not out:
+        if "該当事項はありません" in squash(section):
+            return []
+        raise ValueError("取得状況の決議が読めない")
+    seen: set[tuple[str, date | None]] = set()
+    for r in out:
+        key = (r.kind, r.resolution_date)
+        if key in seen:
+            raise ValueError(f"同じ区分・同じ決議日の決議が重複: {r.kind} {r.resolution_date}")
+        seen.add(key)
+        _check_honbun_resolution(r)
     return out
 
 
-def parse_buyback(inst: Instance, honbun: str | None = None) -> ParsedBuyback:
+def parse_buyback(inst: Instance, honbun: str | list[str] | None = None) -> ParsedBuyback:
     out = ParsedBuyback()
     period = jp_dates(inst.value("ReportingPeriodCoverPage"))
     if len(period) >= 2:
@@ -219,13 +293,11 @@ def parse_buyback(inst: Instance, honbun: str | None = None) -> ParsedBuyback:
             continue
         seen = True
         out.resolutions += parse_acquisitions(block, kind)
-    if not seen and honbun:
-        extra = parse_acquisitions_honbun(honbun)
-        out.resolutions += extra
-        if extra or "取得状況" in squash(honbun):
-            seen = True
     if not seen:
-        raise ValueError(f"取得状況のテキストブロックが無い: {inst.name}")
+        html = _pick_acq_honbun(honbun)
+        if html is None:
+            raise ValueError(f"取得状況のテキストブロックが無い: {inst.name}")
+        out.resolutions += parse_acquisitions_honbun(html)
     return out
 
 

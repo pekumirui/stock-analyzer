@@ -182,7 +182,7 @@ edinet_buyback_resolutions   -- 1 書類 × 決議 1 件
 ```
 
 - 中身の取り方を実データで比べた（2026-07〜10 の 220/230 約 2,100 件のうち 92 件）。CSV（type=5）は表紙と DEI のほかはテキストブロックだけで、表がつぶれて 1 行の文になる（`4,000,00010,000,000,000`）。XBRL のインスタンスのテキストブロックは HTML の表のまま入っているので、そちらを読む（`app/edinet/textblocks.py`）。PDF は使わない
-- 読むテキストブロック: `AcquisitionsByResolutionOfShareholdersMeetingTextBlock` / `AcquisitionsByResolutionOfBoardOfDirectorsMeetingTextBlock`（投資法人は `AcquisitionsOfTreasurySharesTextBlock`）と `HoldingOfTreasurySharesTextBlock`。報告期間は表紙の `ReportingPeriodCoverPage`。取得状況の要素がインスタンスに無い書類（S100Z1HS）は本文 iXBRL（`honbun *_ixbrl.htm`）の未タグ表を同じ見出しで読む
+- 読むテキストブロック: `AcquisitionsByResolutionOfShareholdersMeetingTextBlock` / `AcquisitionsByResolutionOfBoardOfDirectorsMeetingTextBlock`（投資法人は `AcquisitionsOfTreasurySharesTextBlock`）と `HoldingOfTreasurySharesTextBlock`。報告期間は表紙の `ReportingPeriodCoverPage`。取得状況の要素がインスタンスに無い書類（S100Z1HS）は本文 iXBRL（`honbun *_ixbrl.htm`）の「１【取得状況】」〜「２【処理状況】」手前の未タグ表を同じ見出しで読む。株主総会/取締役会の見出しが無い、単位が株・円でない（千株・千円など）、累計>枠・報告月>累計・進捗率が累計÷枠と 0.5pt 超ずれる、同じ区分・同じ決議日が重複、取得状況の本文が複数、決議が取れず「該当事項はありません」でもない、は parse_error（換算や推測をしない）
 - 表は行の見出しで読む: 「決議状況」の行で新しい決議を始め（枠は右の 2 セル）、「計」が報告月の取得、「累計」「累積」が累計、「進捗」が進捗率。1 書類に決議が 2 件以上ある（終わりかけと始まったもの）。取得期間が決議の行の下の行にある書類、「2026年９月末日」、枠が空欄の書類（2 件。書類の記載どおり NULL）がある
 - 処理状況（２【処理状況】）・取得日ごとの行は持たない
 - ジョブ: `python jobs/edinet/edinet_buybacks.py`。cron は毎時 09:25〜23:25 に `--limit 500`（1 件約 1 秒で約 9 分）
