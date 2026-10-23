@@ -76,7 +76,7 @@ apt_retry() {
 apt_retry \
   python3-venv python3-pip git curl gnupg ca-certificates \
   nginx apache2-utils certbot \
-  ufw tzdata fuse3 unzip poppler-utils
+  ufw tzdata fuse3 unzip poppler-utils rsync
 
 timedatectl set-timezone Asia/Tokyo
 
@@ -185,6 +185,15 @@ fi
 source "$APP_DIR/deploy/boxro.sh"
 if ! boxro_apply; then
   echo "boxro: apply failed (sftp jail incomplete; app deploy continues)" >&2
+fi
+
+# monthly_push: stock の authorized_keys に data/monthly 追加専用 rrsync キー。
+# 失敗してもアプリ側の provision は続ける。既存の admin / デプロイ鍵は触らない。
+# shellcheck source=monthly_push.sh
+# shellcheck disable=SC1091
+source "$APP_DIR/deploy/monthly_push.sh"
+if ! monthly_push_apply; then
+  echo "monthly_push: apply failed (rrsync key not installed; app deploy continues)" >&2
 fi
 
 if write_if_changed /etc/systemd/system/stock-analyzer.service 644 < "$APP_DIR/deploy/stock-analyzer.service"; then
