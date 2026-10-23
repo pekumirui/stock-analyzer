@@ -1291,8 +1291,18 @@ def test_rockfield_existing_and_all_store_stay_separate() -> None:
     labels = [r["element"] for r in got["rows"]]
     if any(el in ("RF1 売上高前年同月比", "グリーン・グルメ 売上高前年同月比") for el in labels):
         _fail(f"unscoped duplicate {labels}")
-    if any(el.startswith("合計") or el == "合計" for el in labels):
-        _fail(f"total row leaked {labels}")
+    if any(el.startswith("合計") or el == "合計" or " 合計 " in f" {el} " for el in labels):
+        _fail(f"total must not stay a brand {labels}")
+    company_exist = _row(got, "既存店 売上高前年同月比")
+    company_all = _row(got, "全店 売上高前年同月比")
+    if company_exist["unit"] != "yoy_index" or company_exist["values"].get("8") != 103.2:
+        _fail(f"company existing {company_exist}")
+    if company_all["unit"] != "yoy_index" or company_all["values"].get("8") != 103.0:
+        _fail(f"company all store {company_all}")
+    if canonicalize_element_label(company_exist["element"], company_exist["unit"]) != "既存 売上高(前年比)":
+        _fail(f"canon company exist {company_exist['element']}")
+    if canonicalize_element_label(company_all["element"], company_all["unit"]) != "全店 売上高(前年比)":
+        _fail(f"canon company all {company_all['element']}")
     exist = _row(got, "既存店 RF1 売上高前年同月比")
     all_store = _row(got, "全店 RF1 売上高前年同月比")
     if exist["unit"] != "yoy_index" or exist["values"].get("5") != 103.4:
@@ -1313,6 +1323,45 @@ def test_rockfield_existing_and_all_store_stay_separate() -> None:
         _fail(f"canon exist {exist['element']}")
     if canonicalize_element_label(all_store["element"], all_store["unit"]) != "RF1 全店 売上高(前年比)":
         _fail(f"canon all {all_store['element']}")
+
+
+def test_rockfield_live_html_company_total() -> None:
+    """本番の月次 HTML の合計行（既存 8月 103.2 / 全店 8月 103.0）。"""
+    sys.path.insert(0, str(ROOT))
+    from app.monthly.ingest import canonicalize_element_label
+
+    html = (ROOT / "tests" / "monthly" / "testdata" / "html_2910" / "monthly.html").read_text(
+        encoding="utf-8",
+    )
+    got = parse_issuer(html, "2910")
+    exist = _row(got, "既存店 売上高前年同月比")
+    all_store = _row(got, "全店 売上高前年同月比")
+    if exist["values"].get("8") != 103.2 or exist["values"].get("9") != 102.9:
+        _fail(f"live existing total {exist}")
+    if all_store["values"].get("8") != 103.0 or all_store["values"].get("9") != 102.9:
+        _fail(f"live all-store total {all_store}")
+    if canonicalize_element_label(exist["element"], exist["unit"]) != "既存 売上高(前年比)":
+        _fail(f"live canon exist {exist['element']}")
+    if canonicalize_element_label(all_store["element"], all_store["unit"]) != "全店 売上高(前年比)":
+        _fail(f"live canon all {all_store['element']}")
+    if _row(got, "既存店 RF1 売上高前年同月比")["values"].get("8") != 104.2:
+        _fail("live RF1 existing must stay")
+
+
+def test_rockfield_fy2026_html_full_year_total() -> None:
+    """2026年4月期アーカイブの合計は 12 か月（既存 5月 100.9 / 4月 100.3）。"""
+    html = (ROOT / "tests" / "monthly" / "testdata" / "html_2910" / "fy2026.html").read_text(
+        encoding="utf-8",
+    )
+    got = parse_issuer(html, "2910")
+    exist = _row(got, "既存店 売上高前年同月比")
+    all_store = _row(got, "全店 売上高前年同月比")
+    if exist["values"].get("5") != 100.9 or exist["values"].get("4") != 100.3:
+        _fail(f"fy2026 existing total {exist}")
+    if all_store["values"].get("5") != 99.3 or all_store["values"].get("8") != 102.6:
+        _fail(f"fy2026 all-store total {all_store}")
+    if got["months"] != [5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3, 4]:
+        _fail(f"fy2026 months {got['months']}")
 
 
 def test_trailing_unit_percent_is_yoy_index() -> None:
@@ -2811,6 +2860,8 @@ def main() -> None:
     test_kobebussan_second_half_stays_on_sales()
     test_section_unit_percent_is_yoy_index()
     test_rockfield_existing_and_all_store_stay_separate()
+    test_rockfield_live_html_company_total()
+    test_rockfield_fy2026_html_full_year_total()
     test_trailing_unit_percent_is_yoy_index()
     test_force_unit_overrides_yoy_keeps_number()
     test_create_sd_nobiritsu_force_yoy_index()
