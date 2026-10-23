@@ -1031,6 +1031,7 @@ def test_monthly_tree_html_kab87() -> None:
             ("スギ薬局 全店 売上高(前年比)", "yoy_index"),
             ("ドラッグストア事業 全店 売上高(前年比)", "yoy_index"),
             ("調剤事業 全店 売上高(前年比)", "yoy_index"),
+            ("スギ薬局事業 全店 売上高(前年比)", "yoy_index"),
         ]),
         "life": _auto("71570", [
             ("保有契約年換算保険料", "number"),
@@ -1151,7 +1152,7 @@ console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, 
     if proc.returncode != 0:
         _fail(f"kab87 tree html: {proc.stderr.strip() or proc.stdout.strip() or proc.returncode}")
     got = json.loads(proc.stdout.strip().splitlines()[-1])
-    if got.get("sugi") != ["全店 売上高", "スギ薬局", "ドラッグストア事業", "調剤事業"]:
+    if got.get("sugi") != ["全店 売上高", "スギ薬局", "ドラッグストア事業", "調剤事業", "スギ薬局事業"]:
         _fail(f"76490 screen: {got.get('sugi')!r}")
     if got.get("life") != ["保有契約年換算保険料", "個人保険", "団体信用生命保険"]:
         _fail(f"71570 screen: {got.get('life')!r}")
