@@ -2654,7 +2654,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 33290	2024	7	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
 33290	2024	8	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 33290	2024	9	legacy	number	既存 店舗数	既存 店舗数	number	既存 店舗数	stores		既存	店舗数	全体	既存 店舗数
-33290	2024	10	legacy	number	休業 店舗数	休業 店舗数	number	休業 店舗数	stores	休業		店舗数	全体 > 休業	店舗数
+33290	2024	10	legacy	number	休業 店舗数	休業中 店舗数	number	休業中 店舗数	stores	休業中		店舗数	全体 > 休業	店舗数
 33290	2024	11	legacy	number	数 出店	数 出店	number	数 出店	open	数		出店	全体	出店
 33290	2024	12	legacy	number	数 退店	数 退店	number	数 退店	close	数		退店	全体	退店
 33290	2025	1	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	全社 売上高
@@ -2666,7 +2666,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 33290	2025	7	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
 33290	2025	8	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 33290	2025	9	legacy	number	既存 店舗数	既存 店舗数	number	既存 店舗数	stores		既存	店舗数	全体	既存 店舗数
-33290	2025	10	legacy	number	休業 店舗数	休業 店舗数	number	休業 店舗数	stores	休業		店舗数	全体 > 休業	店舗数
+33290	2025	10	legacy	number	休業 店舗数	休業中 店舗数	number	休業中 店舗数	stores	休業中		店舗数	全体 > 休業	店舗数
 33290	2025	11	legacy	number	数 出店	数 出店	number	数 出店	open	数		出店	全体	出店
 33290	2025	12	legacy	number	数 退店	数 退店	number	数 退店	close	数		退店	全体	退店
 33290	2026	1	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	全社 売上高
@@ -2678,7 +2678,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 33290	2026	7	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
 33290	2026	8	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 33290	2026	9	legacy	number	既存 店舗数	既存 店舗数	number	既存 店舗数	stores		既存	店舗数	全体	既存 店舗数
-33290	2026	10	legacy	number	休業 店舗数	休業 店舗数	number	休業 店舗数	stores	休業		店舗数	全体 > 休業	店舗数
+33290	2026	10	legacy	number	休業 店舗数	休業中 店舗数	number	休業中 店舗数	stores	休業中		店舗数	全体 > 休業	店舗数
 33290	2026	11	legacy	number	数 退店	数 退店	number	数 退店	close	数		退店	全体	退店
 33330	2024	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 33330	2024	2	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
