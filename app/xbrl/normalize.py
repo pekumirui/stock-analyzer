@@ -324,6 +324,19 @@ def _add_months(chosen: dict[tuple, tuple], months: dict[tuple, tuple]) -> None:
             chosen[key] = (value, mfact, mel, mctx, mpri, mklass, mtp, mstd)
 
 
+def is_pure_unit(raw: str | None) -> bool:
+    """人数・年数・比率の fact。空も科目側で単位を決める（KAB-147）。"""
+    u = (raw or "").strip().lower()
+    return (not u) or u == "pure" or u.endswith(":pure")
+
+
+def financial_unit(std_unit: str | None, fact_unit: str | None) -> str:
+    """fact が pure / 空のときだけ std.unit。USD 開示は fact の単位のまま。"""
+    if is_pure_unit(fact_unit) and std_unit:
+        return std_unit[:32]
+    return ((fact_unit or "").strip() or "JPY")[:32]
+
+
 def _elements_of(db: Session, facts: list[XbrlFact]) -> dict[int, XbrlElement]:
     """その書類の fact が使う要素だけ。全件（本番 13 万行）を書類ごとに読むと --rebuild が 1 件 20 秒かかる"""
     ids = sorted({f.element_id for f in facts})
@@ -444,7 +457,7 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         row.period_type = filing.period_type or "FY"
         row.period_start = ctx.start_date
         row.value = value
-        row.unit = (std.unit or fact.unit or "JPY")[:32]
+        row.unit = financial_unit(std.unit, fact.unit)
         row.source_fact_id = fact.id
         row.source_element_id = el.id
         row.source_layer = source_layer_of(el)
