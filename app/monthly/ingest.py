@@ -311,6 +311,10 @@ for _area_children in _AREA_CHILDREN.values():
     _BREAKDOWN_RANK.update(_area_children)
 _STORE_FLOW_CANON: dict[str, str] = dict(_VOCAB["store_flow"])
 _STATUS_STORE_STEMS = frozenset({"閉鎖", "休業"})
+# PDF の「休業店舗数」を保存名「休業中 店舗数」へ寄せる銘柄。ほかは従来どおり「休業 店舗数」。
+_ISSUER_STATUS_STORE_SEGMENT: dict[str, dict[str, str]] = {
+    "33290": {"休業": "休業中"},
+}
 _STORE_FLOW_METRICS = frozenset({"出店", "退店", "転換出店"})
 _OPEN_SHARDS = frozenset({"開"})
 _CLOSE_SHARDS = frozenset({"退", "閉"})
@@ -811,6 +815,10 @@ def normalize_element_tokens(
     parts["segment"], parts["metric"] = _glue_status_store_metric(
         parts["segment"], parts["metric"],
     )
+    if code and parts["metric"] == "店舗数":
+        dest = _ISSUER_STATUS_STORE_SEGMENT.get(str(code), {}).get(parts["segment"])
+        if dest:
+            parts["segment"] = dest
     # 拠点数は件数指標。別指標があるときの表見出しだけ落とす（#534 前の _DROP_TOKS）。
     if parts["metric"]:
         parts["segment"] = " ".join(
