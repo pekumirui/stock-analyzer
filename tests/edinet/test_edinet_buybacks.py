@@ -28,6 +28,7 @@ from app.edinet.buybacks import (  # noqa: E402
     run,
 )
 from app.edinet.textblocks import (  # noqa: E402
+    edinet_doc_id,
     honbun_html,
     integer,
     is_dash,
@@ -136,6 +137,11 @@ TODAY = date(2026, 10, 22)
 
 
 def test_helpers() -> None:
+    assert edinet_doc_id("S100YQ5K") == "S100YQ5K"
+    assert edinet_doc_id("\u200aS100YQ5K") == "S100YQ5K"
+    assert edinet_doc_id("\u200aS100YQ5") is None
+    assert edinet_doc_id("S100YQ5") is None
+    assert edinet_doc_id("－") is None
     assert jp_dates("2026年９月末日") == [date(2026, 9, 30)]
     assert jp_dates("2026年12月末日") == [date(2026, 12, 31)]
     assert jp_dates("令和８年２月末日まで、令和元年5月1日") == [date(2026, 2, 28), date(2019, 5, 1)]
@@ -696,6 +702,8 @@ def test_real_s100ywv5_zip_is_meta() -> None:
     assert rep.resolutions == []
     assert (rep.period_start, rep.period_end) == (date(2026, 6, 1), date(2026, 6, 30))
     assert (rep.issued_shares, rep.treasury_shares) == (36961950, 1118553)
+    assert inst.value("IdentificationOfDocumentSubjectToAmendmentDEI") == "S100YQ5"
+    assert rep.amends is None
 
 
 def test_run_real_s100ywv5_zip_is_meta() -> None:
@@ -722,9 +730,41 @@ def test_run_real_s100ywv5_zip_is_meta() -> None:
         assert amd.month_shares != 0
         assert amd.resolution_count == 0
         assert amd.issued_shares == 36961950 and amd.treasury_shares == 1118553
+        assert (amd.amends_doc_id, amd.original_doc_id) == ("S100YQ5K", "S100YQ5K")
+        assert amd.amends_doc_id != "S100YQ5"
         assert db.query(EdinetBuybackResolution).filter_by(doc_id="S100YWV5").count() == 0
         assert amd.is_latest is False
         assert pending_documents(db, retry_failed=True, today=TODAY) == []
+    finally:
+        db.close()
+
+
+def test_run_truncated_dei_uses_parent_doc_id() -> None:
+    """DEI が S100YQ5（7 文字）でも parentDocID の S100YQ5K に紐付ける。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add_all([
+            _doc(1, "S100YQ5K"),
+            _doc(2, "S100YWV5", doc_type_code="230", form_code="170001", parent_doc_id="S100YQ5K",
+                 edinet_code="E02512", filer_name="西華産業株式会社", sec_code="80610", code="80610",
+                 file_date=date(2026, 8, 14)),
+        ])
+        db.commit()
+        items = "<p>２ 【訂正事項】</p><p>２　処理状況</p><p>３　保有状況</p>"
+        client = _ErrClient({
+            "S100YQ5K": _report(_board_one()),
+            "S100YWV5": _s100ywv5_layout_zip(items_html=items),
+        })
+        st, _ = _run(db, client, pending_documents(db, today=TODAY), today=TODAY)
+        assert (st["parsed"], st["meta"], st["failed"], exit_status(st)) == (1, 1, 0, 0)
+        orig = db.get(EdinetBuyback, "S100YQ5K")
+        amd = db.get(EdinetBuyback, "S100YWV5")
+        assert (amd.amends_doc_id, amd.original_doc_id) == ("S100YQ5K", "S100YQ5K")
+        assert orig.original_doc_id == "S100YQ5K"
+        assert (orig.is_latest, amd.is_latest) == (True, False)
+        assert orig.month_shares == 189200
     finally:
         db.close()
 
@@ -827,6 +867,7 @@ def main() -> None:
     test_regular_report_public_html_without_acq_chapter_is_error()
     test_real_s100ywv5_zip_is_meta()
     test_run_real_s100ywv5_zip_is_meta()
+    test_run_truncated_dei_uses_parent_doc_id()
     test_real_s100yuhp_zip_reads_month_from_report_row()
     test_run_real_s100yuhp_zip_is_parsed()
     test_run_versions_and_rerun()

@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.db import run_sqlite_write, upsert
 from app.edinet.documents import CodeLookup, now_jst
+from app.edinet.textblocks import edinet_doc_id
 from app.models import EdinetDocument, LargeHolding, LargeHoldingReport
 
 if TYPE_CHECKING:
@@ -127,10 +128,10 @@ def report_row(doc: EdinetDocument, rep: ParsedReport, lookup: CodeLookup,
         return v
 
     issuer_sec = sec_code5(rep.text("SecurityCodeOfIssuer"))
-    amends = rep.text("IdentificationOfDocumentSubjectToAmendmentDEI")
+    amends = edinet_doc_id(rep.text("IdentificationOfDocumentSubjectToAmendmentDEI"))
     is_amendment = doc.doc_type_code == AMENDMENT
     if is_amendment and not amends:
-        amends = doc.parent_doc_id
+        amends = edinet_doc_id(doc.parent_doc_id)
     return {
         "doc_id": doc.doc_id,
         "file_date": doc.file_date,
@@ -265,7 +266,7 @@ def store_failed(db: Session, doc: EdinetDocument, exc: Exception, fetched_at: d
         "title": doc.doc_description, "filer_edinet_code": doc.edinet_code,
         "filer_name": doc.filer_name, "issuer_edinet_code": doc.issuer_edinet_code,
         "is_amendment": doc.doc_type_code == AMENDMENT,
-        "amends_doc_id": doc.parent_doc_id if doc.doc_type_code == AMENDMENT else None,
+        "amends_doc_id": edinet_doc_id(doc.parent_doc_id) if doc.doc_type_code == AMENDMENT else None,
         "original_doc_id": doc.doc_id, "parse_status": "failed",
         "parse_error": f"{type(exc).__name__}: {exc}"[:2000], "fetched_at": fetched_at,
         "is_latest": False, "withdrawn": False,

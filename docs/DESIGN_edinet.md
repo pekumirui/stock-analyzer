@@ -172,7 +172,7 @@ large_holdings          -- 1 書類 × 1 人
 - 値: 割合は小数（`0.0507` = 5.07%）。CSV の「－」は NULL。保有者が 1 人の書類は書類レベルの合計が CSV に無いので、保有者 1 の値を合計に入れる。「該当事項なし」の文章（共同保有者・重要提案行為等）は NULL
 - 発行者の `code` は `issuer_edinet_code` → `edinet_filers.sec_code`、無ければ CSV の発行者の証券コード（4 桁 → 末尾 0 の 5 桁）。どちらも `stocks` にあるときだけ付ける。`edinet_documents.code` は提出者（保有者）の銘柄なので使わない
 - 共同保有者: 連名の書類は全員が `large_holdings` に並ぶ（`holder_count` = 人数）。連名でない共同保有者は「第3 共同保有者に関する事項」の文章にしか無いので `joint_holders_text` に入れる。2021-11 と 2026-10 の 101 件では、文章に名前があるものは無かった
-- 訂正: 訂正報告書（360）の CSV は訂正後の全文（大量保有報告書・変更報告書の様式そのまま）。訂正の対象は DEI の `IdentificationOfDocumentSubjectToAmendmentDEI`（無ければ一覧の `parentDocID`）。訂正の訂正もたどって大元を `original_doc_id` に入れる（訂正でなければ自分）
+- 訂正: 訂正報告書（360）の CSV は訂正後の全文（大量保有報告書・変更報告書の様式そのまま）。訂正の対象は DEI の `IdentificationOfDocumentSubjectToAmendmentDEI`（無ければ一覧の `parentDocID`）。DEI が docID の形（S + 英数字 7）でないときは `parentDocID` を使う（末尾を推測しない）。訂正の訂正もたどって大元を `original_doc_id` に入れる（訂正でなければ自分）
 - 最新: 取込のたびに全件から決め直す（`refresh_versions`。`--refresh-only` で手でも）。`original_doc_id` ごとに、`parsed` で取下げ・不開示でない書類のうち `submit_datetime` が新しい 1 件が `is_latest`。取下げ・不開示は `edinet_documents` の状態から `withdrawn` に入れ、行は消さない
 - 使う側: 銘柄の大量保有の推移は `WHERE code = ? AND is_latest ORDER BY obligation_date`。保有者ごとの最新は、そこから `large_holdings.edinet_code` ごとに最後の行
 - 実データ（2026-10-15 の 52 件、2021-11-15 の 47 件）で全件パースでき、3 件を閲覧画面の本文（XBRL の honbun）と突き合わせて、保有割合・直前の割合・保有株数・発行済株式等総数・報告義務発生日が一致した
@@ -213,7 +213,7 @@ edinet_buyback_resolutions   -- 1 書類 × 決議 1 件
 - ジョブ: `python jobs/edinet/edinet_buybacks.py`。cron は毎時 09:25〜23:25 に `--limit 500`（1 件約 1 秒で約 9 分）
 - 対象: 220 / 230・`xbrl_flag`、取下げ・不開示・修正通知の行を除く。新しい日から。`parsed` / `meta` は飛ばす（`--reparse`）、`failed` は `--retry-failed`。404 と期間外は `missing`（failed で残し、exit=0）、5xx・タイムアウトは行を作らず次の回（exit=1）。大量保有（§5）と同じ
 - 縦覧期間は 1 年。過ぎた書類は EDINET の一覧からも消え、取れない（2026-10-22 に 2025-10-20 の一覧を取ると 220 は 0 件、2025-11-04 は 43 件）。`file_date` が 1 年より前は `mark_outside_window` で failed に残す。1 日 30〜70 件、年 7,000 件ほど。1 件 1KB 前後
-- 訂正: 230 の XBRL は原則として訂正後の全文。訂正の対象は DEI の `IdentificationOfDocumentSubjectToAmendmentDEI`（無ければ `parentDocID`）。大元・取下げ・最新は大量保有と同じ（`refresh_versions`、`--refresh-only`）。表紙の【提出書類】が「訂正報告書」、または DEI の `AmendmentFlagDEI` / 書類種別 230 の訂正で、【訂正事項】に取得状況が含まれず「１【取得状況】」の章も無い書類（S100YWV5）は取得値を持たない `meta` で終える（0 件にしない。最新にもしない）。訂正事項に取得状況があるのに章が無い、または通常の報告書（220）で章が無い、は今までどおり parse_error。【訂正事項】は type=1 ZIP の `PublicDoc/*.htm` を見る（iXBRL とは限らない。S100YWV5 は `PublicDoc/0001000_*.htm` に「２ 【訂正事項】」「２　処理状況」「３　保有状況」。本文 iXBRL と DEI には無い）。取得状況の章はこれまでどおり本文 iXBRL（`honbun *_ixbrl.htm`）だけを見る
+- 訂正: 230 の XBRL は原則として訂正後の全文。訂正の対象は DEI の `IdentificationOfDocumentSubjectToAmendmentDEI`（無ければ `parentDocID`）。DEI が docID の形（S + 英数字 7）でないときは `parentDocID` を使う（S100YWV5 の DEI はヘアスペース付きの `S100YQ5` で末尾が無い。推測で補わない）。大元・取下げ・最新は大量保有と同じ（`refresh_versions`、`--refresh-only`）。表紙の【提出書類】が「訂正報告書」、または DEI の `AmendmentFlagDEI` / 書類種別 230 の訂正で、【訂正事項】に取得状況が含まれず「１【取得状況】」の章も無い書類（S100YWV5）は取得値を持たない `meta` で終える（0 件にしない。最新にもしない）。訂正事項に取得状況があるのに章が無い、または通常の報告書（220）で章が無い、は今までどおり parse_error。【訂正事項】は type=1 ZIP の `PublicDoc/*.htm` を見る（iXBRL とは限らない。S100YWV5 は `PublicDoc/0001000_*.htm` に「２ 【訂正事項】」「２　処理状況」「３　保有状況」。本文 iXBRL と DEI には無い）。取得状況の章はこれまでどおり本文 iXBRL（`honbun *_ixbrl.htm`）だけを見る
 - 使う側: 銘柄の月ごとの自己株買いは `WHERE code = ? AND is_latest ORDER BY report_month`。決議ごとの進み具合は、`edinet_buyback_resolutions` を `resolution_date` で束ねて月をまたいで並べる
 - 実データ（2026-10-01・02・14 と無作為の 80 件）で全件パースでき、累計 ÷ 枠と書類の進捗率が全件で合った（差 0.2% 以内）。3 社（メルカリ S100Z824、りそな HD S100Z5JO、堺化学 S100Z5K9 と訂正 S100Z5L3）を閲覧画面の本文と突き合わせて、決議日・取得期間・枠・報告月の取得・累計・進捗率・発行済株式総数・保有自己株式数が一致した。堺化学の元の報告書は報告期間が「2026年8月1日〜」で、訂正で 9 月 1 日に直っている
 

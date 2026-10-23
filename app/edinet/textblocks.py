@@ -25,6 +25,7 @@ _DASHES = frozenset("－―‐-ー—–")
 _ERA = {"令和": 2018, "平成": 1988}
 _DATE_RE = re.compile(r"(令和|平成)?\s*(\d{1,4}|元)\s*年\s*(\d{1,2})\s*月\s*(\d{1,2}\s*日|末日?)")
 _NUM_RE = re.compile(r"-?\d[\d,]*(?:\.\d+)?")
+_DOC_ID_RE = re.compile(r"S[0-9A-Z]{7}")
 
 
 def nfkc(s: str | None) -> str:
@@ -34,6 +35,12 @@ def nfkc(s: str | None) -> str:
 def squash(s: str | None) -> str:
     """NFKC して空白を全部取る。行の見出しの比較用。"""
     return re.sub(r"\s+", "", nfkc(s))
+
+
+def edinet_doc_id(raw: str | None) -> str | None:
+    """EDINET の docID（S + 英数字 7）。空白・桁不足は None（末尾を推測しない）。"""
+    s = squash(raw).upper()
+    return s if _DOC_ID_RE.fullmatch(s) else None
 
 
 def is_dash(cell: str | None) -> bool:
