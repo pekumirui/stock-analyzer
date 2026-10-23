@@ -328,6 +328,47 @@ def test_parse_kei_and_report_over_cumulative_is_error() -> None:
     raise AssertionError("expected ValueError")
 
 
+def _board_zero_cum(*, month_s="80,000", month_a="106,640,000",
+                    cum_s="0", cum_a="0", prog_s="88.89", prog_a="88.89") -> str:
+    """S100XZ69 形。当月は正、累計は 0（同月消却）。"""
+    return para("（２）【取締役会決議による取得の状況】") + table(
+        ["区分", "株式数(株)", "価額の総額(円)"],
+        ["取締役会(2026年３月13日)での決議状況 (取得期間2026年３月14日～2026年３月31日)",
+         "", "90,000", "119,970,000"],
+        ["報告月における取得自己株式(取得日)", "3月16日", month_s, month_a],
+        ["計", "―", month_s, month_a],
+        ["報告月末現在の累計取得自己株式", "", cum_s, cum_a],
+        ["自己株式取得の進捗状況(％)", "", prog_s, prog_a],
+    )
+
+
+def test_parse_zero_cum_when_progress_matches_month() -> None:
+    """累計 0・当月正・進捗が当月÷枠なら、当月も累計も書類の値のまま。"""
+    rep = parse_buyback(read_instance(_report(_board_zero_cum())))
+    r = rep.resolutions[0]
+    assert (r.month_shares, r.month_amount) == (80000, 106640000)
+    assert (r.cumulative_shares, r.cumulative_amount) == (0, 0)
+    assert (r.limit_shares, r.progress_shares, r.progress_amount) == (90000, 0.8889, 0.8889)
+
+
+def test_parse_zero_cum_wrong_progress_is_error() -> None:
+    try:
+        parse_buyback(read_instance(_report(_board_zero_cum(prog_s="10.00", prog_a="10.00"))))
+    except ValueError as exc:
+        assert "報告月の取得が累計を超えている" in str(exc), exc
+        return
+    raise AssertionError("expected ValueError")
+
+
+def test_parse_zero_cum_without_progress_is_error() -> None:
+    try:
+        parse_buyback(read_instance(_report(_board_zero_cum(prog_s="―", prog_a="―"))))
+    except ValueError as exc:
+        assert "報告月の取得が累計を超えている" in str(exc), exc
+        return
+    raise AssertionError("expected ValueError")
+
+
 def _honbun_board_table(*, share_unit: str = "株", amount_unit: str = "円",
                         limit_s: str = "1,100,000", limit_a: str = "500,000,000",
                         month_s: str = "422,000", month_a: str = "299,292,100",
@@ -462,6 +503,15 @@ def test_honbun_no_heading_is_error() -> None:
 
 def test_honbun_cumulative_over_limit_is_error() -> None:
     _assert_honbun_error(_untagged_honbun(cum_s="2,000,000"), "累計が枠を超えている")
+
+
+def test_honbun_zero_cum_when_progress_matches_month() -> None:
+    zip_bytes = _report_untagged_acq(_untagged_honbun(cum_s="0", cum_a="0"))
+    rep = parse_buyback(read_instance(zip_bytes), honbun_html(zip_bytes))
+    r = rep.resolutions[0]
+    assert (r.month_shares, r.month_amount) == (422000, 299292100)
+    assert (r.cumulative_shares, r.cumulative_amount) == (0, 0)
+    assert (r.progress_shares, r.progress_amount) == (0.3836, 0.5986)
 
 
 def test_honbun_duplicate_kind_date_is_error() -> None:
@@ -659,6 +709,7 @@ _S100YWV5_ZIP = Path(__file__).resolve().parent / "testdata" / "S100YWV5.zip"
 _S100YUHP_ZIP = Path(__file__).resolve().parent / "testdata" / "S100YUHP.zip"
 _S100YBMN_ZIP = Path(__file__).resolve().parent / "testdata" / "S100YBMN.zip"
 _S100Y8WI_ZIP = Path(__file__).resolve().parent / "testdata" / "S100Y8WI.zip"
+_S100XZ69_ZIP = Path(__file__).resolve().parent / "testdata" / "S100XZ69.zip"
 
 
 def _amendment_body_no_acq() -> str:
@@ -981,6 +1032,50 @@ def test_run_real_s100y8wi_zip_is_parsed() -> None:
         db.close()
 
 
+def test_real_s100xz69_zip_keeps_month_when_cum_is_zero() -> None:
+    """本番の type=1 ZIP。当月 80,000 株、累計 0、進捗 88.89% = 当月÷枠。"""
+    content = _S100XZ69_ZIP.read_bytes()
+    inst = read_instance(content)
+    block = inst.block("AcquisitionsByResolutionOfBoardOfDirectorsMeetingTextBlock")
+    cum = next(row for row in block.rows() if "累計" in squash(row[0]))
+    assert integer(cum[-2]) == 0 and integer(cum[-1]) == 0
+    rep = parse_buyback(inst, honbun_html(content))
+    assert (rep.period_start, rep.period_end) == (date(2026, 3, 1), date(2026, 3, 31))
+    assert (rep.issued_shares, rep.treasury_shares) == (2794662, 0)
+    assert len(rep.resolutions) == 1
+    r = rep.resolutions[0]
+    assert (r.kind, r.resolution_date) == ("board", date(2026, 3, 13))
+    assert (r.acquire_from, r.acquire_to) == (date(2026, 3, 14), date(2026, 3, 31))
+    assert (r.limit_shares, r.limit_amount) == (90000, 119970000)
+    assert (r.month_shares, r.month_amount) == (80000, 106640000)
+    assert (r.cumulative_shares, r.cumulative_amount) == (0, 0)
+    assert (r.progress_shares, r.progress_amount) == (0.8889, 0.8889)
+
+
+def test_run_real_s100xz69_zip_is_parsed() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add(_doc(
+            1, "S100XZ69", edinet_code="E04197", filer_name="京極運輸商事株式会社",
+            sec_code="90730", code="90730", file_date=date(2026, 4, 15),
+        ))
+        db.commit()
+        client = _ErrClient({"S100XZ69": _S100XZ69_ZIP.read_bytes()})
+        st, out = _run(db, client, pending_documents(db, today=TODAY), today=TODAY)
+        assert (st["parsed"], st["failed"], st["errors"], exit_status(st)) == (1, 0, 0, 0)
+        assert "parse-error" not in out
+        row = db.get(EdinetBuyback, "S100XZ69")
+        assert (row.parse_status, row.parse_error, row.month_shares, row.month_amount) == (
+            "parsed", None, 80000, 106640000)
+        res = db.get(EdinetBuybackResolution, ("S100XZ69", 1))
+        assert (res.month_shares, res.month_amount) == (80000, 106640000)
+        assert (res.cumulative_shares, res.cumulative_amount) == (0, 0)
+    finally:
+        db.close()
+
+
 def test_missing_and_outside_window() -> None:
     init_db()
     db = SessionLocal()
@@ -1073,6 +1168,9 @@ def main() -> None:
     test_parse_kei_over_cumulative_uses_report_row()
     test_parse_kei_over_cumulative_with_details_is_error()
     test_parse_kei_and_report_over_cumulative_is_error()
+    test_parse_zero_cum_when_progress_matches_month()
+    test_parse_zero_cum_wrong_progress_is_error()
+    test_parse_zero_cum_without_progress_is_error()
     test_parse_untagged_honbun_s100z1hs()
     test_run_untagged_honbun_is_parsed()
     test_honbun_none_is_zero_resolutions()
@@ -1081,6 +1179,7 @@ def main() -> None:
     test_honbun_scaled_units_is_error()
     test_honbun_no_heading_is_error()
     test_honbun_cumulative_over_limit_is_error()
+    test_honbun_zero_cum_when_progress_matches_month()
     test_honbun_duplicate_kind_date_is_error()
     test_honbun_picks_file_with_acq_section()
     test_honbun_multiple_acq_files_is_error()
@@ -1100,6 +1199,8 @@ def main() -> None:
     test_run_real_s100ybmn_zip_is_parsed()
     test_real_s100y8wi_zip_uses_report_row_not_kei_typo()
     test_run_real_s100y8wi_zip_is_parsed()
+    test_real_s100xz69_zip_keeps_month_when_cum_is_zero()
+    test_run_real_s100xz69_zip_is_parsed()
     test_run_versions_and_rerun()
     test_missing_and_outside_window()
     test_parse_error_logs_to_stderr()
