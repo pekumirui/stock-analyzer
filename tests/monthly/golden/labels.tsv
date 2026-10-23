@@ -3199,25 +3199,25 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 36630	2024	2	legacy	number	CLIP STUDIO PAINT チャーンレート	CLIP STUDIO PAINT チャーンレート	number	CLIP STUDIO PAINT チャーンレート	other	CLIP STUDIO PAINT チャーンレート			全体	CLIP STUDIO PAINT チャーンレート
 36630	2024	3	legacy	number	プラットフォーム 累計利用者数	プラットフォーム 累計利用者数	number	プラットフォーム 累計利用者数	count	プラットフォーム		累計利用者数	全体 > プラットフォーム	累計利用者数
 36630	2024	4	legacy	number	プラットフォーム 新規登録者数	プラットフォーム 新規登録者数	number	プラットフォーム 新規登録者数	count	プラットフォーム		新規登録者数	全体 > プラットフォーム	新規登録者数
-36630	2024	5	legacy	number	流通ソリューション 全店 売上高	流通ソリューション 全店 売上高	number	流通ソリューション 全店 売上高	sales	流通ソリューション	全店	売上高	全体 > 流通ソリューション	全店 売上高
-36630	2024	6	legacy	number	プラットフォームサービス 全店 売上高	プラットフォームサービス 全店 売上高	number	プラットフォームサービス 全店 売上高	sales	プラットフォームサービス	全店	売上高	全体 > プラットフォームサービス	全店 売上高
-36630	2024	7	legacy	number	ツール販売 全店 売上高	ツール販売 全店 売上高	number	ツール販売 全店 売上高	sales	ツール販売	全店	売上高	全体 > ツール販売	全店 売上高
-36630	2024	8	legacy	number	サブスクリプション 全店 売上高	サブスクリプション 全店 売上高	number	サブスクリプション 全店 売上高	sales	サブスクリプション	全店	売上高	全体 > サブスクリプション	全店 売上高
+36630	2024	5	legacy	number	流通ソリューション 全店 売上高	流通ソリューション 売上高	number	流通ソリューション 売上高	sales	流通ソリューション		売上高	全体 > 流通ソリューション	売上高
+36630	2024	6	legacy	number	プラットフォームサービス 全店 売上高	サービス 売上高	number	サービス 売上高	sales	サービス		売上高	全体 > サービス	売上高
+36630	2024	7	legacy	number	ツール販売 全店 売上高	ツール販売 売上高	number	ツール販売 売上高	sales	ツール販売		売上高	全体 > ツール販売	売上高
+36630	2024	8	legacy	number	サブスクリプション 全店 売上高	サブスクリプション 売上高	number	サブスクリプション 売上高	sales	サブスクリプション		売上高	全体 > サブスクリプション	売上高
 36630	2025	1	legacy	number	CLIP STUDIO PAINT ARR	CLIP STUDIO PAINT ARR	number	CLIP STUDIO PAINT ARR	other	CLIP STUDIO PAINT ARR			全体	CLIP STUDIO PAINT ARR
 36630	2025	2	legacy	number	CLIP STUDIO PAINT チャーンレート	CLIP STUDIO PAINT チャーンレート	number	CLIP STUDIO PAINT チャーンレート	other	CLIP STUDIO PAINT チャーンレート			全体	CLIP STUDIO PAINT チャーンレート
 36630	2025	3	legacy	number	プラットフォーム 累計利用者数	プラットフォーム 累計利用者数	number	プラットフォーム 累計利用者数	count	プラットフォーム		累計利用者数	全体 > プラットフォーム	累計利用者数
 36630	2025	4	legacy	number	プラットフォーム 新規登録者数	プラットフォーム 新規登録者数	number	プラットフォーム 新規登録者数	count	プラットフォーム		新規登録者数	全体 > プラットフォーム	新規登録者数
-36630	2025	5	legacy	number	流通ソリューション 全店 売上高	流通ソリューション 全店 売上高	number	流通ソリューション 全店 売上高	sales	流通ソリューション	全店	売上高	全体 > 流通ソリューション	全店 売上高
-36630	2025	6	legacy	number	プラットフォームサービス 全店 売上高	プラットフォームサービス 全店 売上高	number	プラットフォームサービス 全店 売上高	sales	プラットフォームサービス	全店	売上高	全体 > プラットフォームサービス	全店 売上高
-36630	2025	7	legacy	number	ツール販売 全店 売上高	ツール販売 全店 売上高	number	ツール販売 全店 売上高	sales	ツール販売	全店	売上高	全体 > ツール販売	全店 売上高
-36630	2025	8	legacy	number	サブスクリプション 全店 売上高	サブスクリプション 全店 売上高	number	サブスクリプション 全店 売上高	sales	サブスクリプション	全店	売上高	全体 > サブスクリプション	全店 売上高
+36630	2025	5	legacy	number	流通ソリューション 全店 売上高	流通ソリューション 売上高	number	流通ソリューション 売上高	sales	流通ソリューション		売上高	全体 > 流通ソリューション	売上高
+36630	2025	6	legacy	number	プラットフォームサービス 全店 売上高	サービス 売上高	number	サービス 売上高	sales	サービス		売上高	全体 > サービス	売上高
+36630	2025	7	legacy	number	ツール販売 全店 売上高	ツール販売 売上高	number	ツール販売 売上高	sales	ツール販売		売上高	全体 > ツール販売	売上高
+36630	2025	8	legacy	number	サブスクリプション 全店 売上高	サブスクリプション 売上高	number	サブスクリプション 売上高	sales	サブスクリプション		売上高	全体 > サブスクリプション	売上高
 36630	2026	1	legacy	number	CLIP STUDIO PAINT ARR	CLIP STUDIO PAINT ARR	number	CLIP STUDIO PAINT ARR	other	CLIP STUDIO PAINT ARR			全体	CLIP STUDIO PAINT ARR
 36630	2026	2	legacy	number	CLIP STUDIO PAINT チャーンレート	CLIP STUDIO PAINT チャーンレート	number	CLIP STUDIO PAINT チャーンレート	other	CLIP STUDIO PAINT チャーンレート			全体	CLIP STUDIO PAINT チャーンレート
 36630	2026	3	legacy	number	プラットフォーム 累計利用者数	プラットフォーム 累計利用者数	number	プラットフォーム 累計利用者数	count	プラットフォーム		累計利用者数	全体 > プラットフォーム	累計利用者数
 36630	2026	4	legacy	number	プラットフォーム 新規登録者数	プラットフォーム 新規登録者数	number	プラットフォーム 新規登録者数	count	プラットフォーム		新規登録者数	全体 > プラットフォーム	新規登録者数
-36630	2026	5	legacy	number	サービス 全店 売上高	サービス 全店 売上高	number	サービス 全店 売上高	sales	サービス	全店	売上高	全体 > サービス	全店 売上高
-36630	2026	6	legacy	number	ツール販売 全店 売上高	ツール販売 全店 売上高	number	ツール販売 全店 売上高	sales	ツール販売	全店	売上高	全体 > ツール販売	全店 売上高
-36630	2026	7	legacy	number	サブスクリプション 全店 売上高	サブスクリプション 全店 売上高	number	サブスクリプション 全店 売上高	sales	サブスクリプション	全店	売上高	全体 > サブスクリプション	全店 売上高
+36630	2026	5	legacy	number	サービス 全店 売上高	サービス 売上高	number	サービス 売上高	sales	サービス		売上高	全体 > サービス	売上高
+36630	2026	6	legacy	number	ツール販売 全店 売上高	ツール販売 売上高	number	ツール販売 売上高	sales	ツール販売		売上高	全体 > ツール販売	売上高
+36630	2026	7	legacy	number	サブスクリプション 全店 売上高	サブスクリプション 売上高	number	サブスクリプション 売上高	sales	サブスクリプション		売上高	全体 > サブスクリプション	売上高
 36900	2023	1	legacy	number	全社 売上高	全社 売上高	number	全社 売上高	sales		全社	売上高	全体	売上高
 36900	2023	2	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	売上高
 36900	2023	3	legacy	number	マーケティングAI事業 売上高	マーケティングAI事業 売上高	number	マーケティングAI事業 売上高	sales	マーケティングAI事業		売上高	全体 > マーケティングAI事業	売上高
@@ -3242,25 +3242,25 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 36900	2026	4	legacy	yoy_index	マーケティングAI事業 売上高(前年比)	マーケティングAI事業 売上高(前年比)	yoy_index	マーケティングAI事業 売上高(前年比)	sales	マーケティングAI事業		売上高	全体 > マーケティングAI事業	売上高
 36900	2026	5	legacy	number	コマースAI事業 売上高	コマースAI事業 売上高	number	コマースAI事業 売上高	sales	コマースAI事業		売上高	全体 > コマースAI事業	売上高
 36900	2026	6	legacy	yoy_index	コマースAI事業 売上高(前年比)	コマースAI事業 売上高(前年比)	yoy_index	コマースAI事業 売上高(前年比)	sales	コマースAI事業		売上高	全体 > コマースAI事業	売上高
-37330	2023	1	legacy	number	受注高	受注高	number	受注高（百万円）	other	受注高			全体	受注高（百万円）
+37330	2023	1	legacy	number	受注高	受注高	number	受注高（百万円）	other	受注高			全体	受注高
 37330	2023	2	legacy	yoy_index	受注高(前年比)	受注高(前年比)	yoy_index	受注高(前年比)	other	受注高			全体	受注高
 37330	2023	3	legacy	number	受注残高	受注残高	number	受注残高	other	受注残高			全体	受注残高
 37330	2023	4	legacy	yoy_index	受注残高(前年比)	受注残高(前年比)	yoy_index	受注残高(前年比)	other	受注残高			全体	受注残高
 37330	2023	5	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 37330	2023	6	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
-37330	2024	1	legacy	number	受注高	受注高	number	受注高（百万円）	other	受注高			全体	受注高（百万円）
+37330	2024	1	legacy	number	受注高	受注高	number	受注高（百万円）	other	受注高			全体	受注高
 37330	2024	2	legacy	yoy_index	受注高(前年比)	受注高(前年比)	yoy_index	受注高(前年比)	other	受注高			全体	受注高
 37330	2024	3	legacy	number	受注残高	受注残高	number	受注残高	other	受注残高			全体	受注残高
 37330	2024	4	legacy	yoy_index	受注残高(前年比)	受注残高(前年比)	yoy_index	受注残高(前年比)	other	受注残高			全体	受注残高
 37330	2024	5	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 37330	2024	6	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
-37330	2025	1	legacy	number	受注高	受注高	number	受注高（百万円）	other	受注高			全体	受注高（百万円）
+37330	2025	1	legacy	number	受注高	受注高	number	受注高（百万円）	other	受注高			全体	受注高
 37330	2025	2	legacy	number	受注残高	受注残高	number	受注残高	other	受注残高			全体	受注残高
 37330	2025	3	legacy	yoy_index	受注高(前年比)	受注高(前年比)	yoy_index	受注高(前年比)	other	受注高			全体	受注高
 37330	2025	4	legacy	yoy_index	受注残高(前年比)	受注残高(前年比)	yoy_index	受注残高(前年比)	other	受注残高			全体	受注残高
 37330	2025	5	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 37330	2025	6	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
-37330	2026	1	legacy	number	受注高	受注高	number	受注高（百万円）	other	受注高			全体	受注高（百万円）
+37330	2026	1	legacy	number	受注高	受注高	number	受注高（百万円）	other	受注高			全体	受注高
 37330	2026	2	legacy	yoy_index	受注高(前年比)	受注高(前年比)	yoy_index	受注高(前年比)	other	受注高			全体	受注高
 37330	2026	3	legacy	number	受注残高	受注残高	number	受注残高	other	受注残高			全体	受注残高
 37330	2026	4	legacy	yoy_index	受注残高(前年比)	受注残高(前年比)	yoy_index	受注残高(前年比)	other	受注残高			全体	受注残高
@@ -3373,9 +3373,9 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 39790	2023	1	legacy	number	NJSS MRR	NJSS MRR	number	NJSS MRR	other	NJSS MRR			全体	NJSS MRR
 39790	2024	1	legacy	number	NJSS MRR	NJSS MRR	number	NJSS MRR	other	NJSS MRR			全体	NJSS MRR
 39790	2025	1	legacy	number	NJSS MRR	NJSS MRR	number	NJSS MRR	other	NJSS MRR			全体	NJSS MRR
-39790	2025	2	legacy	yoy_index	NJSS MRR前年同期比(前年比)	NJSS MRR前年同期比(前年比)	yoy_index	NJSS MRR前年同期比(前年比)	other	NJSS MRR前年同期比			全体	NJSS MRR前年同期比
+39790	2025	2	legacy	yoy_index	NJSS MRR前年同期比(前年比)	NJSS MRR(前年比)	yoy_index	NJSS MRR(前年比)	other	NJSS MRR			全体	NJSS MRR
 39790	2026	1	legacy	number	NJSS MRR	NJSS MRR	number	NJSS MRR	other	NJSS MRR			全体	NJSS MRR
-39790	2026	2	legacy	yoy_index	NJSS MRR前年同期比(前年比)	NJSS MRR前年同期比(前年比)	yoy_index	NJSS MRR前年同期比(前年比)	other	NJSS MRR前年同期比			全体	NJSS MRR前年同期比
+39790	2026	2	legacy	yoy_index	NJSS MRR前年同期比(前年比)	NJSS MRR(前年比)	yoy_index	NJSS MRR(前年比)	other	NJSS MRR			全体	NJSS MRR
 39830	2023	1	legacy	number	ZAC 契約社数	ZAC 契約社数	number	ZAC 契約社数	count	ZAC		契約社数	全体 > ZAC	契約社数
 39830	2023	2	legacy	number	Reforma PSA 契約社数	Reforma PSA 契約社数	number	Reforma PSA 契約社数	count	Reforma PSA		契約社数	全体 > Reforma PSA	契約社数
 39830	2024	1	legacy	number	ZAC 契約ライセンス数	ZAC 契約ライセンス数	number	ZAC 契約ライセンス数	count	ZAC		契約ライセンス数	全体 > ZAC	契約ライセンス数

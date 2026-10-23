@@ -1836,6 +1836,53 @@ def test_tree_31740() -> None:
         _fail(f"31740 metrics: {metrics!r}")
 
 
+def test_tree_37330() -> None:
+    """37330 ソフトウェア・サービス: 受注高の実数と前年比を同じ指標にする（#602）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
+
+    els = [
+        "売上高", "売上高(前年比)",
+        "受注高", "受注高(前年比)",
+        "受注残高", "受注残高(前年比)",
+    ]
+    trees = load_monthly_trees()
+    rows = assign_tree_rows("37330", els, trees)
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    want = {
+        "売上高": (["全体"], "売上高", "売上高"),
+        "売上高(前年比)": (["全体"], "売上高(前年比)", "売上高"),
+        "受注高": (["全体"], "受注高", "受注高"),
+        "受注高(前年比)": (["全体"], "受注高(前年比)", "受注高"),
+        "受注残高": (["全体"], "受注残高", "受注残高"),
+        "受注残高(前年比)": (["全体"], "受注残高(前年比)", "受注残高"),
+    }
+    if got != want:
+        _fail(f"37330 tree: {got!r}")
+    t = tree_payload("37330", els, trees)
+    if t is None or t["tree_metrics"] != ["売上高", "受注高", "受注残高"] or "tree_auto" in t:
+        _fail(f"37330 tree_metrics: {None if t is None else t!r}")
+
+
+def test_tree_39790() -> None:
+    """39790 うるる: NJSS MRR の実数と前年比を同じ指標にする（#603）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
+
+    els = ["NJSS MRR", "NJSS MRR(前年比)", "NJSS MRR前年同期比(前年比)"]
+    trees = load_monthly_trees()
+    rows = assign_tree_rows("39790", els, trees)
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    want = {
+        "NJSS MRR": (["全体"], "NJSS MRR", "NJSS MRR"),
+        "NJSS MRR(前年比)": (["全体"], "NJSS MRR(前年比)", "NJSS MRR"),
+        "NJSS MRR前年同期比(前年比)": (["全体"], "NJSS MRR前年同期比(前年比)", "NJSS MRR"),
+    }
+    if got != want:
+        _fail(f"39790 tree: {got!r}")
+    t = tree_payload("39790", els, trees)
+    if t is None or t["tree_metrics"] != ["NJSS MRR"] or "tree_auto" in t:
+        _fail(f"39790 tree_metrics: {None if t is None else t!r}")
+
+
 def test_tree_kab102() -> None:
     """月次の木の監査（#831〜#835）: 合計を会社の行、内訳を子の節にする。"""
     from app.monthly.tree import assign_tree_rows, load_monthly_trees
@@ -2300,6 +2347,8 @@ def main() -> None:
     test_tree_71770()
     test_tree_23370()
     test_tree_31740()
+    test_tree_37330()
+    test_tree_39790()
     test_tree_kab102()
     test_tree_31930()
     test_tree_30820()

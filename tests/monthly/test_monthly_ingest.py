@@ -1038,6 +1038,32 @@ def test_issuer_alias_cases() -> None:
         if reverse != stored:
             _fail(f"38170 year=2026 reverse {stored!r}: {reverse!r}")
 
+    for incoming, stored in (
+        ("プラットフォームサービス 全店 売上高", "サービス 売上高"),
+        ("プラットフォームサービス 売上高", "サービス 売上高"),
+        ("サービス 全店 売上高", "サービス 売上高"),
+        ("サービス 売上高", "サービス 売上高"),
+        ("流通ソリューション 全店 売上高", "流通ソリューション 売上高"),
+        ("ツール販売 全店 売上高", "ツール販売 売上高"),
+        ("サブスクリプション 全店 売上高", "サブスクリプション 売上高"),
+    ):
+        got = apply_issuer_aliases(
+            "36630", canonicalize_element_label(incoming, "number"), year=2026,
+        )
+        if got != stored:
+            _fail(f"36630 year=2026 {incoming!r}: {got!r}, want {stored!r}")
+
+    for incoming, stored, unit in (
+        ("NJSS MRR前年同期比(前年比)", "NJSS MRR(前年比)", "yoy_index"),
+        ("NJSS MRR(前年比)", "NJSS MRR(前年比)", "yoy_index"),
+        ("NJSS MRR", "NJSS MRR", "number"),
+    ):
+        got = apply_issuer_aliases(
+            "39790", canonicalize_element_label(incoming, unit), year=2026,
+        )
+        if got != stored:
+            _fail(f"39790 year=2026 {incoming!r}: {got!r}, want {stored!r}")
+
     mall = "モール・郊外型 レストラン業態"
     urban = "都市型ダイニング業態"
     p_lines_30820 = (
