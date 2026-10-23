@@ -332,27 +332,67 @@ def has_no_consolidated_statements(facts: list[XbrlFact], elements: dict[int, Xb
     return False
 
 
-def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = None) -> dict:
+@dataclass(frozen=True)
+class NormalizeCatalog:
+    """std / mapping / element。ジョブ中は 1 回読んで使い回す（KAB-144）。
+
+    Session は commit のたびに identity map を expire するので、中身は load 時に
+    expunge した detached 行。属性を読むだけで SELECT は走らない。
+    """
+    std_items: dict[int, XbrlStdItem]
+    by_elem: dict[tuple[str, str], list[XbrlElementMapping]]
+    elements: dict[int, XbrlElement]
+
+
+def load_normalize_catalog(
+    db: Session,
+    *,
+    element_ids: set[int] | None = None,
+) -> NormalizeCatalog:
+    """科目・マッピングと要素を読む。element_ids が無いときは xbrl_elements 全件。"""
+    std_rows = db.query(XbrlStdItem).all()
+    std_items = {s.id: s for s in std_rows if s.statement != SEGMENT_STATEMENT}
+    map_rows = db.query(XbrlElementMapping).all()
+    mappings = [m for m in map_rows if m.std_item_id in std_items]
+    by_elem: dict[tuple[str, str], list[XbrlElementMapping]] = {}
+    for m in mappings:
+        by_elem.setdefault((m.namespace_key, m.local_name), []).append(m)
+    if element_ids is None:
+        elem_rows = db.query(XbrlElement).all()
+    elif element_ids:
+        elem_rows = db.query(XbrlElement).filter(XbrlElement.id.in_(element_ids)).all()
+    else:
+        elem_rows = []
+    elements = {e.id: e for e in elem_rows}
+    # expire_on_commit で次の書類が要素ごとに SELECT しないよう、セッションから外す
+    for obj in (*std_rows, *map_rows, *elem_rows):
+        if obj in db:
+            db.expunge(obj)
+    return NormalizeCatalog(std_items=std_items, by_elem=by_elem, elements=elements)
+
+
+def normalize_filing(
+    db: Session,
+    filing: XbrlFiling,
+    now: datetime | None = None,
+    catalog: NormalizeCatalog | None = None,
+) -> dict:
     generated = now or datetime.now(timezone.utc).replace(tzinfo=None)
-    # セグメント科目（statement='SEG'）は xbrl_segments だけ。同じ要素（NetSales 等）を取り合わない
-    std_items = {
-        s.id: s for s in db.query(XbrlStdItem).all() if s.statement != SEGMENT_STATEMENT
-    }
-    mappings = [m for m in db.query(XbrlElementMapping).all() if m.std_item_id in std_items]
-    elements = {e.id: e for e in db.query(XbrlElement).all()}
     contexts = {
         c.id: c
         for c in db.query(XbrlContext).filter_by(filing_id=filing.id).all()
     }
     facts = db.query(XbrlFact).filter_by(filing_id=filing.id).all()
+    if catalog is None:
+        # 取込直後など catalog が無いとき。この書類の fact が指す要素だけ（全表は読まない）
+        catalog = load_normalize_catalog(db, element_ids={f.element_id for f in facts})
+    std_items = catalog.std_items
+    elements = catalog.elements
+    by_elem = catalog.by_elem
     single_entity = has_no_consolidated_statements(facts, elements)
 
     def consolidated(ctx: XbrlContext) -> bool:
         return bool(ctx.is_consolidated) and not single_entity
-
-    by_elem: dict[tuple[str, str], list[XbrlElementMapping]] = {}
-    for m in mappings:
-        by_elem.setdefault((m.namespace_key, m.local_name), []).append(m)
 
     chosen: dict[tuple, tuple] = {}
     months: dict[tuple, tuple] = {}
@@ -467,13 +507,14 @@ def rebuild_all(db: Session, *, code: str | None = None) -> dict[str, int]:
     n_seg = scoped(XbrlSegment).delete(synchronize_session="fetch")
     db.commit()
     db.expire_all()
+    catalog = load_normalize_catalog(db)
     processed = errors = 0
     filings_q = db.query(XbrlFiling).filter_by(parse_status="parsed")
     if code:
         filings_q = filings_q.filter_by(code=code)
     for filing in filings_q.all():
         try:
-            normalize_filing(db, filing)
+            normalize_filing(db, filing, catalog=catalog)
             db.commit()
             processed += 1
         except Exception:

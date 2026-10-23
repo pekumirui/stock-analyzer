@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.config import XBRL_CACHE_DIR, XBRL_DEST, XBRL_PARSE_WORKERS, XBRL_TEXT_MAX_CHARS
 from app.models import Stock, XbrlElement, XbrlElementMapping, XbrlFact, XbrlFiling, XbrlFinancial, XbrlJobRun
-from app.xbrl.normalize import normalize_filing, rebuild_all
+from app.xbrl.normalize import load_normalize_catalog, normalize_filing, rebuild_all
 from app.xbrl.parser import ParsedPackage
 from app.xbrl.store import mark_failed, parse_zip, parse_zip_into_filing
 
@@ -315,9 +315,10 @@ def run_normalize(db: Session, *, rebuild: bool = False, code: str | None = None
     pending = filings_pending_normalize(db)
     if code:
         pending = [f for f in pending if f.code == code]
+    catalog = load_normalize_catalog(db) if pending else None
     for filing in pending:
         try:
-            stats = normalize_filing(db, filing)
+            stats = normalize_filing(db, filing, catalog=catalog)
             db.commit()
             processed += 1
             missing = stats.get("missing_required") or []
