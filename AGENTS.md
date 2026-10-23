@@ -41,7 +41,7 @@
 
 ## 作業の進め方
 
-1. 作業前に Linear（チーム `Kabukpi` / キー `KAB`）で issue を起票する。依頼に既存の issue ID があればそれを使う
+1. 作業前に Linear（チーム `Kabukpi` / キー `KAB`、プロジェクト `stock-analyzer`）で issue を起票する。依頼に既存の issue ID があればそれを使う
 2. 採番された ID でブランチを切る
 
 | プレフィックス | 用途 |
