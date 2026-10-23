@@ -751,7 +751,9 @@ def _prefer_issuer_metric_layers(
     """銘柄別の指標を共通語彙より優先する。#534 の件数語の並べ替えはしない。
 
     使うのは (1) 共通語彙が銘柄別の語を割る（一品単価→一品+客単価）ときと
-    (2) 前年比の既定指標 売上高 を足してしまうとき（全店 買上点数）だけ。
+    (2) 前年比の既定指標 売上高 を足してしまうとき（全店 買上点数）と
+    (3) leftover が銘柄別指標そのものでスコープがあるとき
+    （既存 粗利率 が number の語順で 粗利率 既存 に戻る。KAB-127）だけ。
     """
     issuer_metric = issuer["metric"]
     if issuer_metric not in count_metrics or issuer_metric == common["metric"]:
@@ -767,6 +769,12 @@ def _prefer_issuer_metric_layers(
         and "会員数" not in common["segment"]
     ):
         return issuer
+    if (
+        not common["metric"]
+        and common["scope"]
+        and common["segment"] == issuer_metric
+    ):
+        return issuer
     return common
 
 
@@ -777,7 +785,7 @@ def normalize_element_tokens(
     trimmed = re.sub(r"\s+", " ", element.strip())
     if not trimmed:
         return trimmed
-    # 銘柄別の件数・率指標は層が先。保存名の並べ替えは割れる語と既定売上高だけ（#534）。
+    # 銘柄別の件数・率指標は層が先。保存名の並べ替えは割れる語・既定売上高・leftover＝指標＋スコープだけ。
     parts = parse_element_layers(trimmed)
     count_metrics = issuer_count_metrics(code)
     if count_metrics:
@@ -1380,7 +1388,7 @@ class MonthlyElementLabel(TypedDict):
 def monthly_element_label(
     element: str, unit: str | None, code: str | None = None,
 ) -> MonthlyElementLabel:
-    """code は銘柄別の件数・率指標を層と保存名に効かせる。件数語の並べ替えはしない。"""
+    """code は銘柄別の件数・率指標を層と保存名に効かせる。#534 の件数語の並べ替えはしない。"""
     u = unit or "number"
     canon = canonicalize_element_label(strip_monthly_display_unit(element, u), u, code)
     display = monthly_display_label(canon, u)
