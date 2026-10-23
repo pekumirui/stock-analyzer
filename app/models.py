@@ -301,6 +301,9 @@ class XbrlStdItem(Base):
     display_order = Column(Integer, nullable=False, default=0)
     sign = Column(String(16), nullable=False, default="natural")
     is_required = Column(Boolean, nullable=False, default=False)
+    # xbrl_financials.unit に入れる単位。NULL は fact の単位（JPY / JPYPerShares / shares）。
+    # 有報の人数・年数・比率は fact が全部 pure なので、科目側で persons / years / ratio と決める（KAB-78）
+    unit = Column(String(32))
 
 
 class XbrlElementMapping(Base):
@@ -312,6 +315,9 @@ class XbrlElementMapping(Base):
     priority = Column(Integer, nullable=False, default=100)
     accounting_standard = Column(String(16))
     note = Column(Text)
+    # NULL は値そのもの。'months' は同じ科目・context の値に 月÷12 を足す
+    # （有報の「40歳3ヶ月」は年と月が別の要素。KAB-78）
+    part = Column(String(16))
     __table_args__ = (
         UniqueConstraint(
             "std_item_id", "namespace_key", "local_name", "accounting_standard",

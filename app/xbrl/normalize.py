@@ -90,6 +90,10 @@ SUMMARY_NS = "tse-ed-t"
 SOURCE_LAYER_PRIMARY = "primary"
 SOURCE_LAYER_SUMMARY = "summary"
 NET_SALES_CODE = "net_sales"
+MONTHS_PART = "months"
+# 有報の DEI「連結財務諸表の有無」。false の書類（連結子会社が無い会社）は、
+# 連結の軸が無い context（設備の状況・研究開発活動・自己株式等など）も単体として持つ（KAB-78）
+CONSOLIDATED_DEI = ("jpdei_cor", "WhetherConsolidatedFinancialStatementsArePreparedDEI")
 
 
 def _dims(raw: str | None) -> dict:
@@ -201,7 +205,15 @@ def _accepts_fact(std: XbrlStdItem, ctx: XbrlContext, klass: ContextClass) -> bo
         return is_primary_statement(ctx) or "ResultMember" in members or not members
     if code in LEGACY_PRIMARY_CODES:
         return is_primary_statement(ctx) and ctx.relative_period == "current"
-    return False
+    # それ以外（有報の従業員・株式数・主要な経営指標等など。KAB-78）: 当期の実績の点で、
+    # 連結/単体以外の次元が無いもの。連結と単体は別の行（キーに is_consolidated が入る）
+    return (
+        klass.value_kind == VALUE_KIND_ACTUAL
+        and klass.range_side == RANGE_POINT
+        and klass.dividend_slot is None
+        and is_primary_statement(ctx)
+        and ctx.relative_period == "current"
+    )
 
 
 def _skip_non_current_actual(ctx: XbrlContext, klass: ContextClass) -> bool:
@@ -281,6 +293,7 @@ def _chosen_key(
     ctx: XbrlContext,
     klass: ContextClass,
     target_period: str,
+    consolidated: bool,
 ) -> tuple:
     if (
         std.code in LEGACY_PRIMARY_CODES
@@ -290,12 +303,33 @@ def _chosen_key(
         return ("legacy", std.id)
     return (
         std.id,
-        bool(ctx.is_consolidated),
+        consolidated,
         ctx.end_date,
         klass.value_kind,
         klass.range_side,
         target_period,
     )
+
+
+def _add_months(chosen: dict[tuple, tuple], months: dict[tuple, tuple]) -> None:
+    """年の値に 月÷12 を足す（小数 2 桁）。年が無く月だけ（1 年未満）なら月÷12。"""
+    for key, (mval, mfact, mel, mctx, mpri, mklass, mtp, mstd) in months.items():
+        base = chosen.get(key)
+        years = base[0] if base else Decimal(0)
+        value = (years + mval / 12).quantize(Decimal("0.01"))
+        if base:
+            chosen[key] = (value, *base[1:])
+        else:
+            chosen[key] = (value, mfact, mel, mctx, mpri, mklass, mtp, mstd)
+
+
+def has_no_consolidated_statements(facts: list[XbrlFact], elements: dict[int, XbrlElement]) -> bool:
+    """DEI で「連結財務諸表を作っていない」と書いた書類。DEI が無い（TDnet）なら False。"""
+    for fact in facts:
+        el = elements.get(fact.element_id)
+        if el is not None and (el.namespace_key, el.local_name) == CONSOLIDATED_DEI:
+            return (fact.value_text or "").strip().lower() == "false"
+    return False
 
 
 def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = None) -> dict:
@@ -311,12 +345,17 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         for c in db.query(XbrlContext).filter_by(filing_id=filing.id).all()
     }
     facts = db.query(XbrlFact).filter_by(filing_id=filing.id).all()
+    single_entity = has_no_consolidated_statements(facts, elements)
+
+    def consolidated(ctx: XbrlContext) -> bool:
+        return bool(ctx.is_consolidated) and not single_entity
 
     by_elem: dict[tuple[str, str], list[XbrlElementMapping]] = {}
     for m in mappings:
         by_elem.setdefault((m.namespace_key, m.local_name), []).append(m)
 
     chosen: dict[tuple, tuple] = {}
+    months: dict[tuple, tuple] = {}
     fallback_sales: list[tuple] = []
     for fact in facts:
         if fact.is_nil or fact.value_num is None:
@@ -359,10 +398,12 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         value = Decimal(str(fact.value_num))
         if std.sign == "invert":
             value = -value
-        key = _chosen_key(std, ctx, klass, target_period)
-        prev = chosen.get(key)
+        key = _chosen_key(std, ctx, klass, target_period, consolidated(ctx))
+        pick = months if mapping.part == MONTHS_PART else chosen
+        prev = pick.get(key)
         if prev is None or mapping.priority < prev[4]:
-            chosen[key] = (value, fact, el, ctx, mapping.priority, klass, target_period, std)
+            pick[key] = (value, fact, el, ctx, mapping.priority, klass, target_period, std)
+    _add_months(chosen, months)
 
     net_sales_std = next((s for s in std_items.values() if s.code == NET_SALES_CODE), None)
     if net_sales_std is not None:
@@ -382,7 +423,7 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
             code=filing.code,
             filing_id=filing.id,
             std_item_id=std.id,
-            is_consolidated=bool(ctx.is_consolidated),
+            is_consolidated=consolidated(ctx),
             period_end=ctx.end_date,
             value_kind=klass.value_kind,
             range_side=klass.range_side,
@@ -392,7 +433,7 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         row.period_type = filing.period_type or "FY"
         row.period_start = ctx.start_date
         row.value = value
-        row.unit = (fact.unit or "JPY")[:32]
+        row.unit = (std.unit or fact.unit or "JPY")[:32]
         row.source_fact_id = fact.id
         row.source_element_id = el.id
         row.source_layer = source_layer_of(el)

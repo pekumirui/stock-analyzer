@@ -469,10 +469,11 @@ filing 単位。
 2b. **実績売上のサマリー補完（KAB-58 / KAB-59）**: 上の本表経路で `net_sales` 実績が 1 件も取れなかったときだけ、同じ書類の短信サマリー（`tse-ed-t`）の当期実績（`ResultMember`、点）を使う。連結を先に、同じ連結区分なら mapping の `priority`。本表で取れている値は上書きしない。会社独自の拡張タグはマッピングしない。出どころは `source_layer`（`primary` / `summary`）
 3. **EPS 実績**: 本表コンテキストに加え `ResultMember`（短信表紙）を許す
 4. **配当**: `FirstQuarter` / `SecondQuarter` / `ThirdQuarter` / `YearEnd` / `Annual` メンバーで `target_period` を分ける。`ResultMember` は実績、`ForecastMember` は予想
+4b. **有報の科目（KAB-78）**: 上の 2〜4 に当たらない科目（§7.2 の有報の科目）は、当期（`relative_period='current'`）の実績の点で、連結/単体以外の次元が無い fact。連結と単体は別の行（`is_consolidated`）。セグメント別・所有者別（`Row1Member` 等）・前期・提出日現在は入らない。mapping の `part: months` は同じ科目・context の値に 月÷12 を足す（小数 2 桁）。DEI `WhetherConsolidatedFinancialStatementsArePreparedDEI` が false の書類（連結子会社が無い会社）は、連結の軸が無い context（設備の状況・研究開発活動・自己株式等など）も単体にする（全科目。TDnet は DEI が無いので今までどおり）
 5. **業績予想**: `ForecastMember`、または `LowerMember`/`UpperMember`/`MinimumMember`/`MaximumMember`（ForecastMember 無しのレンジ）。`relative_period='current'` は要求しない（通期予想の期末は短信の四半期末とずれる）。`PreviousMember` は `value_kind=forecast_previous`（今回予想は `forecast`）。`LowerMember`/`UpperMember` は `range_side`。context 名の `accumulatedq1`/`accumulatedq3` と日数（80–100→Q1、240–300→Q3）で `target_period` を付ける
 6. `is_consolidated` が取れなければ 1（連結）として正規化する。NULL のまま残さない
 7. mappings を `namespace_key + local_name` で結合。`accounting_standard` が NULL でない行は filing の基準と一致するときだけ。例外: 要素の `local_name` が `*IFRS` なら、filing が JPGAAP / NULL でも IFRS マッピングを使う（40530 の予想）。同一キーでは `priority` 昇順で最初の値。**IFRS の書類では `jppfs_*` 要素を正規化に使わない**（KAB-52 案B。IFRS 側に対応が無い科目は空欄）
-8. `sign='invert'` なら符号反転
+8. `sign='invert'` なら符号反転。`xbrl_financials.unit` は科目の `unit`（`xbrl_std_items.unit`）、無ければ fact の単位
 9. filing 単位で既存の `xbrl_financials` を消してから入れ直す
 10. `is_required=1` が欠けたら警告ログ（`code, filing_id, std_item.code`）。処理は継続。required は本表実績だけ
 
@@ -522,7 +523,7 @@ TDnet 短信の実際の `namespace_key` は fixture を見てから YAML に書
 
 ### 7.2 初期定義（最小セット）
 
-第1弾の BS/PL/CF 23項目に加え、KAB-47 で EPS・配当・業績予想を足した。これ以外の科目は確認なく足さない。
+第1弾の BS/PL/CF 23項目に加え、KAB-47 で EPS・配当・業績予想、KAB-78 で有報の科目を足した。これ以外の科目は確認なく足さない。
 
 **BS（instant）**
 
@@ -555,6 +556,8 @@ TDnet 短信の実際の `namespace_key` は fixture を見てから YAML に書
 | eps_basic | 1株当たり当期純利益 | tse-ed-t:NetIncomePerShare / BasicEarningsPerShare |
 | eps_diluted | 潜在株式調整後1株当たり当期純利益 | DilutedNetIncomePerShare / DilutedEarningsLossPerShareIFRS |
 
+日本基準の有報は本表（PL）に EPS の数値 fact が無い。KAB-78 で主要な経営指標等の `jpcrp_cor:BasicEarningsLossPerShareSummaryOfBusinessResults` / `DilutedEarningsPerShareSummaryOfBusinessResults`（priority 50）と、その IFRS・米国基準版（`…IFRSSummaryOfBusinessResults` / `…USGAAPSummaryOfBusinessResults`。40）を足した。連結・単体の両方が入る
+
 **配当（OTHER。実績/予想は `value_kind`、期は `target_period`）**
 
 | code | label_ja | 代表 local_name |
@@ -573,6 +576,38 @@ TDnet 短信の実際の `namespace_key` は fixture を見てから YAML に書
 | capex | 設備投資額 | PurchaseOfPropertyPlantAndEquipment（sign: invert） |
 | depreciation | 減価償却費 | DepreciationAndAmortizationOpeCF |
 | cash_end | 現金及び現金同等物期末残高 | CashAndCashEquivalents |
+
+**有報の科目（OTHER。KAB-78。`config/xbrl/mappings/annual_report.yaml`）**
+
+有報（EDINET）にだけある値。主要な経営指標等・従業員の状況・株式等の状況・設備の状況・研究開発活動から、当期の点を取る（§6.4-4b）。連結と単体は別の行。単位は `std_items.yaml` の `unit`（fact は人数・年数・比率が全部 `pure` なので科目側で決める）。
+
+| code | label_ja | unit | 要素（`jpcrp_cor`。priority の小さい順） | 連結/単体 |
+|---|---|---|---|---|
+| bps | 1株当たり純資産 | JPYPerShares | `EquityToAssetRatioIFRSSummaryOfBusinessResults`（名前に反してラベルは「１株当たり親会社所有者帰属持分」）/ `EquityAttributableToOwnersOfParentPerShareUSGAAPSummaryOfBusinessResults` → `NetAssetsPerShareSummaryOfBusinessResults` | 両方 |
+| equity_ratio | 自己資本比率 | ratio（0.471 = 47.1%） | `RatioOfOwnersEquityToGrossAssetsIFRSSummaryOfBusinessResults` / `EquityToAssetRatioUSGAAPSummaryOfBusinessResults` → `EquityToAssetRatioSummaryOfBusinessResults` | 両方 |
+| roe | 自己資本利益率 | ratio | `RateOfReturnOnEquityIFRSSummaryOfBusinessResults` / `…USGAAPSummaryOfBusinessResults` → `RateOfReturnOnEquitySummaryOfBusinessResults` | 両方 |
+| shares_issued | 発行済株式総数 | shares | `TotalNumberOfIssuedSharesSummaryOfBusinessResults`（提出会社の経営指標等。期末） | 単体 |
+| treasury_shares | 自己株式数 | shares | `TotalNumberOfSharesHeldTreasurySharesEtc`（自己株式等の表の計。所有者ごとの行は `Row*Member` で入らない） | 連結（context に軸が無い） |
+| employees | 従業員数 | persons | `NumberOfEmployees`（セグメント別は入らない） | 両方 |
+| employee_avg_age | 平均年齢 | years | `AverageAgeYears…` + `AverageAgeMonths…`（`part: months`。「43歳10ヶ月」→ 43.83） | 単体 |
+| employee_avg_tenure | 平均勤続年数 | years | `AverageLengthOfServiceYears…` + `…Months…`（同上） | 単体 |
+| employee_avg_salary | 平均年間給与 | JPY | `AverageAnnualSalaryInformationAboutReportingCompanyInformationAboutEmployees` | 単体 |
+| rd_expenses | 研究開発費 | JPY | `ResearchAndDevelopmentExpensesResearchAndDevelopmentActivities`（研究開発活動の節）→ `jpigp_cor:ResearchAndDevelopmentExpenditureRecognizedAsExpenseDuringPeriodIFRS` → `ResearchAndDevelopmentExpensesIncludedInGeneralAndAdministrativeExpensesAndManufacturingCostForCurrentPeriod`（注記）→ `jppfs_cor:ResearchAndDevelopmentExpensesSGA` | 両方 |
+| capex_reported | 設備投資額（設備の状況） | JPY | `CapitalExpendituresOverviewOfCapitalExpendituresEtc`（設備投資等の概要の合計。セグメント別だけの会社は空） | 連結 |
+
+- `capex`（CF の有形固定資産の取得。符号反転）とは別の科目。設備の状況の設備投資額は無形資産を含み発生ベースで、CF と一致しない
+- 研究開発活動の節は「221億円」のように丸めて書く会社がある（注記の 22,134 百万円と 1 億未満ずれる）。有報の記載どおりに入れる
+- 取らないもの: 主要な経営指標等の前期以前（Prior1〜4。`keep_fact` で落ちる）、提出日現在の発行済株式数（`FilingDateInstant`。当期でない）、セグメント別の従業員数、PER・配当性向・株主総利回り
+- 要素名と件数（2026-10-23）: 本番の EDINET 有報（日本基準 7,838 / IFRS 667 / 米国基準 12 件）で、上の要素はどれも当期・次元なしで 90% 以上の書類にある。ただし研究開発活動の節は日本基準 4,187 件（研究開発費が無い会社は書かない）、設備投資等の概要の合計は 7,150 件、平均年齢の月は 544 件（6%）
+- 検証（2025-06 提出の有報 155 社。日本基準 118・IFRS 33・米国基準 4。`app/edinet/xbrl.py` と同じ経路で入れた `xbrl_financials`）
+  - 有報 HTML の表示（`ix:nonFraction` の文字 × scale。xbrlp を通さない別実装）と、上の科目と EPS の 2,701 行がすべて一致
+  - IR Bank `get_financials`（百万円）と: EPS 155/155 一致。自己資本比率は 153/155（ずれた 2 社は IR Bank の計算値。有報の記載とは一致）。研究開発費は 84 一致・29 ずれ（丸めた記載、IR Bank が販管費の研究開発費だけを採る会社）。設備投資額は 129 一致・12 ずれ（IFRS で IR Bank が CF の値を採る会社など）・4 社は当方空（セグメント別だけ）
+  - BPS ×（発行済株式数 − 自己株式数）と 自己資本比率 × 総資産 が 136/142 社で 3% 以内（外れた 6 社は期末後の株式分割・優先株など。値は有報の記載どおり）
+- 検証 2 回目（2025 年に提出された有報から、1 回目の会社を除いてランダムに 100 社。日本基準 95・IFRS 5。決算月は 3 月 55・12 月 12・9 月 7 ほか）
+  - 有報 HTML の表示と 1,595 行すべて一致
+  - IR Bank と（期が取れた 98 社）: EPS 97/98（ずれた 1 社は IR Bank の値が有報と違う）、自己資本比率 95/98（保険会社など IR Bank の計算値）、研究開発費 49 一致・3 ずれ（丸め・販管費だけ）、設備投資額 83/83
+  - 単体だけの会社で、研究開発費・設備投資額・自己株式数が「連結」の行になっていたのを、この検証で見つけて直した（上の DEI の規則）
+  - BPS の整合は 95/100 社で 3% 以内。外れた 5 社は優先株（BPS がマイナス・数円）や株式分割で、値は有報の記載どおり
 
 代表 local_name は例であり網羅ではない。実装後 `report-unmapped` を `fact_count DESC` で出し、上位の標準タクソノミ要素を実装者へ報告する。**エージェントが独断でマッピングを足さない。**
 

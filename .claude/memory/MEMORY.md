@@ -4,3 +4,4 @@
 - [全店名残は手で付け替え](scope-word-fix-manual.md) — #502 の 全店 外しは alias/migrate でなく本番を手で
 - [IR Bank のセグメント売上は外部顧客](irbank-segment-revenue-external.md) — list_segments の revenue は外部顧客への売上高。利益は有報と違う会社あり
 - [付け替え先は正規化の不動点](rename-target-fixed-point.md) — 新しい行名は canonicalize + alias で変わらない名前に。変わると次の取込で別行
+- [IR Bank の研究開発費・設備投資は範囲が違う](irbank-rd-capex-scope.md) — 販管費だけ・CF 寄りの会社あり。自己資本比率は計算値。EPS は一致
