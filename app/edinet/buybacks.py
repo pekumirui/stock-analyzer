@@ -21,6 +21,7 @@ from app.edinet.textblocks import (
     Instance,
     chain_root,
     doc_metas,
+    edinet_doc_id,
     honbun_html,
     integer,
     is_dash,
@@ -348,7 +349,7 @@ def parse_buyback(inst: Instance, honbun: str | list[str] | None = None,
     if len(period) >= 2:
         out.period_start, out.period_end = period[0], period[1]
     out.issued_shares, out.treasury_shares = _holding(inst.block("HoldingOfTreasurySharesTextBlock"))
-    out.amends = inst.value("IdentificationOfDocumentSubjectToAmendmentDEI")
+    out.amends = edinet_doc_id(inst.value("IdentificationOfDocumentSubjectToAmendmentDEI"))
     seen = False
     for local, kind in _ACQ_BLOCKS:
         block = inst.block(local)
@@ -373,7 +374,7 @@ def parse_buyback(inst: Instance, honbun: str | list[str] | None = None,
 def report_row(doc: EdinetDocument, rep: ParsedBuyback, lookup: CodeLookup,
                fetched_at: datetime) -> dict:
     is_amendment = doc.doc_type_code == AMENDMENT
-    amends = (rep.amends or doc.parent_doc_id) if is_amendment else None
+    amends = (rep.amends or edinet_doc_id(doc.parent_doc_id)) if is_amendment else None
     month = [r for r in rep.resolutions if r.month_shares is not None]
     month_amounts = [r.month_amount for r in month if r.month_amount is not None]
     return {
@@ -489,7 +490,8 @@ def store_failed(db: Session, doc: EdinetDocument, exc: Exception, fetched_at: d
         "doc_id": doc.doc_id, "file_date": doc.file_date, "submit_datetime": doc.submit_datetime,
         "doc_type_code": doc.doc_type_code, "form_code": doc.form_code, "code": doc.code,
         "edinet_code": doc.edinet_code, "filer_name": doc.filer_name,
-        "is_amendment": is_amendment, "amends_doc_id": doc.parent_doc_id if is_amendment else None,
+        "is_amendment": is_amendment,
+        "amends_doc_id": edinet_doc_id(doc.parent_doc_id) if is_amendment else None,
         "original_doc_id": doc.doc_id, "is_latest": False, "withdrawn": False,
         "parse_status": "failed", "parse_error": f"{type(exc).__name__}: {exc}"[:2000],
         "fetched_at": fetched_at,
