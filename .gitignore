@@ -11,6 +11,7 @@ rclone.conf
 *.zip
 *.xlsx
 !tests/monthly/testdata/*.xlsx
+!tests/edinet/testdata/*.zip
 stock.db
 stock.db-journal
 stock.db-wal
