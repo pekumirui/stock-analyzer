@@ -211,10 +211,7 @@ def extract_token(request: Request) -> str:
         return auth[7:].strip()
     if auth and not auth.lower().startswith("basic "):
         return auth.strip()
-    header = (request.headers.get("x-mcp-token") or "").strip()
-    if header:
-        return header
-    return (request.query_params.get("token") or "").strip()
+    return (request.headers.get("x-mcp-token") or "").strip()
 
 
 def token_ok(got: str, expected: str) -> bool:
@@ -1759,7 +1756,7 @@ def call_tool(name: str, arguments: dict[str, Any] | None) -> tuple[str, bool]:
         return f"unknown tool: {name}", True
     try:
         text = spec[2](arguments or {})
-        return redact(text), _http_status_is_error(text)
+        return redact_url(text), _http_status_is_error(text)
     except ValueError as exc:
         return str(exc), True
     except Exception as exc:  # noqa: BLE001 — surface unexpected errors to the agent
@@ -2243,7 +2240,7 @@ def main() -> None:
     token = configured_token()
     if not token:
         print("MCP_TOKEN is unset; all requests will be 401", flush=True)
-    uvicorn.run(app, host=HOST, port=PORT, log_level="info")
+    uvicorn.run(app, host=HOST, port=PORT, log_level="info", access_log=False)
 
 
 if __name__ == "__main__":
