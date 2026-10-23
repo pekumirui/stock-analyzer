@@ -117,6 +117,31 @@ rmdir /srv/boxro/data /srv/boxro
 
 失敗したデプロイのやり直しは Actions の **Run workflow**（`bump: none`）。
 
+## box から data/monthly へ PDF を追加する（monthly_push）
+
+R2 廃止後、TDnet に無い古い月次 PDF を box から VPS の `data/monthly/<code>/` に置く経路（KAB-135）。ユーザは `stock` のまま（既存のデプロイ鍵・admin 鍵は変えない）。鍵の `restrict,command=` でシェルと転送を禁止し、`rrsync -wo` で **書き込みのみ**・**`data/monthly` 配下のみ**。IP 制限はしない（box の IP は固定でない）。
+
+`provision.sh` が冪等に揃える（`deploy/monthly_push.sh`。boxro と同じく失敗してもアプリの provision は続ける。`enable-cicd.sh` は触らない。初回クローンのあとのデプロイで入る）。`sshd` の reload / restart はしない（`authorized_keys` を足すだけ）。パッケージ `rsync`（`/usr/bin/rrsync`）を apt で入れる。`data/monthly` が無ければ作る（所有者 `stock`）。
+
+公開鍵は `deploy/ssh/monthly_push_authorized_keys`（1行1鍵、先頭 `restrict,command="/usr/bin/rrsync -wo …/data/monthly"`）。provision が `stock` の `~/.ssh/authorized_keys` へ **追加だけ**する（既にあれば何もしない。無い行だけ足す。既存行は消さない・書き換えない）。同じ公開鍵が制限なしで既にあるときは足さず失敗する（sshd は先に書いた行を使うため）。root の `authorized_keys` と `deploy/admin_keys` と boxro には入れない。秘密鍵は box の `~/.ssh/vps_monthly_push`。リポジトリと GitHub Secrets には置かない。
+
+box からの送り方（クライアント。`--ignore-existing` で既存は SKIP。サーバ側は上書きを禁止しない）:
+
+```bash
+rsync -a --ignore-existing -e 'ssh -i ~/.ssh/vps_monthly_push -o IdentitiesOnly=yes' \
+  ./YYYYMMDD_CODE_….pdf stock@160.251.179.50:CODE/
+```
+
+`CODE/` は rrsync のルート（`$APP_DIR/data/monthly`）からの相対。実体は `data/monthly/<code>/`。`ssh -i ~/.ssh/vps_monthly_push stock@HOST` ではシェルは取れない。
+
+元に戻す（root。既存の stock 鍵は残す）:
+
+```bash
+# stock の authorized_keys から box-monthly-push の 1 行だけ消す
+```
+
+失敗したデプロイのやり直しは Actions の **Run workflow**（`bump: none`）。
+
 ## ログ MCP（Grok）
 
 VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 認証なしで `/mcp` だけプロキシする。ポート 8010 は外に開けない。

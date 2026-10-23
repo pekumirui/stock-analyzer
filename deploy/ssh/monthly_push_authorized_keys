@@ -1,0 +1,4 @@
+# box から data/monthly へ月次 PDF を追加するだけ（KAB-135 / #900）。
+# provision.sh が stock の ~/.ssh/authorized_keys へ冪等に足す（既存行は消さない）。
+# 秘密鍵はコミットしない。root / admin_keys / boxro には入れない。
+restrict,command="/usr/bin/rrsync -wo /home/stock/stock-analyzer/data/monthly" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICdBzMpXkspI+L/2YcNNB645yoPqL1fOF+eR7II7vcR/ box-monthly-push
