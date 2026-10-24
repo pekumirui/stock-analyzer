@@ -352,53 +352,53 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 23050	2026	4	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
 23050	2026	5	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
 23050	2026	6	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
-23110	2023	1	legacy	number	連結経常利益	連結経常利益	number	連結経常利益	other			連結経常利益	全体	連結経常利益
-23110	2023	2	legacy	yoy_index	連結経常利益(前年比)	連結経常利益(前年比)	yoy_index	連結経常利益(前年比)	other			連結経常利益	全体	連結経常利益
-23110	2023	3	legacy	number	再エネサービス 経常利益	再エネサービス 経常利益	number	再エネサービス 経常利益	other	再エネサービス 経常利益			全体	再エネサービス 経常利益
-23110	2023	4	legacy	yoy_index	再エネサービス 経常利益(前年比)	再エネサービス 経常利益(前年比)	yoy_index	再エネサービス 経常利益(前年比)	other	再エネサービス 経常利益			全体	再エネサービス 経常利益
-23110	2023	5	legacy	number	メンテナンスサービス 経常利益	メンテナンスサービス 経常利益	number	メンテナンスサービス 経常利益	other	メンテナンスサービス 経常利益			全体	メンテナンスサービス 経常利益
-23110	2023	6	legacy	yoy_index	メンテナンスサービス 経常利益(前年比)	メンテナンスサービス 経常利益(前年比)	yoy_index	メンテナンスサービス 経常利益(前年比)	other	メンテナンスサービス 経常利益			全体	メンテナンスサービス 経常利益
-23110	2023	7	legacy	number	設計サービス 経常利益	設計サービス 経常利益	number	設計サービス 経常利益	other	設計サービス 経常利益			全体	設計サービス 経常利益
-23110	2023	8	legacy	yoy_index	設計サービス 経常利益(前年比)	設計サービス 経常利益(前年比)	yoy_index	設計サービス 経常利益(前年比)	other	設計サービス 経常利益			全体	設計サービス 経常利益
-23110	2023	9	legacy	yoy_index	TEPCO ホームテック 経常利益(前年比)	TEPCO ホームテック 経常利益(前年比)	yoy_index	TEPCO ホームテック 経常利益(前年比)	other	TEPCO ホームテック 経常利益			全体	TEPCO ホームテック 経常利益
-23110	2024	1	legacy	number	連結経常利益	連結経常利益	number	連結経常利益	other			連結経常利益	全体	連結経常利益
-23110	2024	2	legacy	yoy_index	連結経常利益(前年比)	連結経常利益(前年比)	yoy_index	連結経常利益(前年比)	other			連結経常利益	全体	連結経常利益
-23110	2024	3	legacy	number	再エネサービス 経常利益	再エネサービス 経常利益	number	再エネサービス 経常利益	other	再エネサービス 経常利益			全体	再エネサービス 経常利益
-23110	2024	4	legacy	yoy_index	再エネサービス 経常利益(前年比)	再エネサービス 経常利益(前年比)	yoy_index	再エネサービス 経常利益(前年比)	other	再エネサービス 経常利益			全体	再エネサービス 経常利益
-23110	2024	5	legacy	number	メンテナンスサービス 経常利益	メンテナンスサービス 経常利益	number	メンテナンスサービス 経常利益	other	メンテナンスサービス 経常利益			全体	メンテナンスサービス 経常利益
-23110	2024	6	legacy	yoy_index	メンテナンスサービス 経常利益(前年比)	メンテナンスサービス 経常利益(前年比)	yoy_index	メンテナンスサービス 経常利益(前年比)	other	メンテナンスサービス 経常利益			全体	メンテナンスサービス 経常利益
-23110	2024	7	legacy	number	設計サービス 経常利益	設計サービス 経常利益	number	設計サービス 経常利益	other	設計サービス 経常利益			全体	設計サービス 経常利益
-23110	2024	8	legacy	yoy_index	設計サービス 経常利益(前年比)	設計サービス 経常利益(前年比)	yoy_index	設計サービス 経常利益(前年比)	other	設計サービス 経常利益			全体	設計サービス 経常利益
-23110	2024	9	legacy	yoy_index	TEPCO ホームテック 経常利益(前年比)	TEPCO ホームテック 経常利益(前年比)	yoy_index	TEPCO ホームテック 経常利益(前年比)	other	TEPCO ホームテック 経常利益			全体	TEPCO ホームテック 経常利益
-23110	2025	1	legacy	number	連結経常利益	連結経常利益	number	連結経常利益	other			連結経常利益	全体	連結経常利益
-23110	2025	2	legacy	yoy_index	連結経常利益(前年比)	連結経常利益(前年比)	yoy_index	連結経常利益(前年比)	other			連結経常利益	全体	連結経常利益
-23110	2025	3	legacy	number	再エネサービス 経常利益	再エネサービス 経常利益	number	再エネサービス 経常利益	other	再エネサービス 経常利益			全体	再エネサービス 経常利益
-23110	2025	4	legacy	yoy_index	再エネサービス 経常利益(前年比)	再エネサービス 経常利益(前年比)	yoy_index	再エネサービス 経常利益(前年比)	other	再エネサービス 経常利益			全体	再エネサービス 経常利益
-23110	2025	5	legacy	number	メンテナンスサービス 経常利益	メンテナンスサービス 経常利益	number	メンテナンスサービス 経常利益	other	メンテナンスサービス 経常利益			全体	メンテナンスサービス 経常利益
-23110	2025	6	legacy	yoy_index	メンテナンスサービス 経常利益(前年比)	メンテナンスサービス 経常利益(前年比)	yoy_index	メンテナンスサービス 経常利益(前年比)	other	メンテナンスサービス 経常利益			全体	メンテナンスサービス 経常利益
-23110	2025	7	legacy	number	設計サービス 経常利益	設計サービス 経常利益	number	設計サービス 経常利益	other	設計サービス 経常利益			全体	設計サービス 経常利益
-23110	2025	8	legacy	yoy_index	設計サービス 経常利益(前年比)	設計サービス 経常利益(前年比)	yoy_index	設計サービス 経常利益(前年比)	other	設計サービス 経常利益			全体	設計サービス 経常利益
-23110	2025	9	legacy	number	TEPCOホームテック 持分法損益	TEPCOホームテック 持分法損益	number	TEPCOホームテック 持分法損益	other	TEPCOホームテック 持分法損益			全体	TEPCOホームテック 持分法損益
-23110	2025	10	legacy	number	ENE's 経常利益	ENE's 経常利益	number	ENE's 経常利益	other	ENE's 経常利益			全体	ENE's 経常利益
-23110	2025	11	legacy	yoy_index	ENE's 経常利益(前年比)	ENE's 経常利益(前年比)	yoy_index	ENE's 経常利益(前年比)	other	ENE's 経常利益			全体	ENE's 経常利益
-23110	2025	12	legacy	number	MEDX 経常利益	MEDX 経常利益	number	MEDX 経常利益	other	MEDX 経常利益			全体	MEDX 経常利益
-23110	2025	13	legacy	number	LESSO EPCO 経常利益	LESSO EPCO 経常利益	number	LESSO EPCO 経常利益	other	LESSO EPCO 経常利益			全体	LESSO EPCO 経常利益
-23110	2025	14	legacy	yoy_index	LESSO EPCO 経常利益(前年比)	LESSO EPCO 経常利益(前年比)	yoy_index	LESSO EPCO 経常利益(前年比)	other	LESSO EPCO 経常利益			全体	LESSO EPCO 経常利益
-23110	2025	15	legacy	yoy_index	TEPCO ホームテック 経常利益(前年比)	TEPCO ホームテック 経常利益(前年比)	yoy_index	TEPCO ホームテック 経常利益(前年比)	other	TEPCO ホームテック 経常利益			全体	TEPCO ホームテック 経常利益
-23110	2026	1	legacy	number	連結経常利益	連結経常利益	number	連結経常利益	other			連結経常利益	全体	連結経常利益
-23110	2026	2	legacy	yoy_index	連結経常利益(前年比)	連結経常利益(前年比)	yoy_index	連結経常利益(前年比)	other			連結経常利益	全体	連結経常利益
-23110	2026	3	legacy	number	再エネサービス 経常利益	再エネサービス 経常利益	number	再エネサービス 経常利益	other	再エネサービス 経常利益			全体	再エネサービス 経常利益
-23110	2026	4	legacy	yoy_index	再エネサービス 経常利益(前年比)	再エネサービス 経常利益(前年比)	yoy_index	再エネサービス 経常利益(前年比)	other	再エネサービス 経常利益			全体	再エネサービス 経常利益
-23110	2026	5	legacy	number	メンテナンスサービス 経常利益	メンテナンスサービス 経常利益	number	メンテナンスサービス 経常利益	other	メンテナンスサービス 経常利益			全体	メンテナンスサービス 経常利益
-23110	2026	6	legacy	yoy_index	メンテナンスサービス 経常利益(前年比)	メンテナンスサービス 経常利益(前年比)	yoy_index	メンテナンスサービス 経常利益(前年比)	other	メンテナンスサービス 経常利益			全体	メンテナンスサービス 経常利益
-23110	2026	7	legacy	number	設計サービス 経常利益	設計サービス 経常利益	number	設計サービス 経常利益	other	設計サービス 経常利益			全体	設計サービス 経常利益
-23110	2026	8	legacy	yoy_index	設計サービス 経常利益(前年比)	設計サービス 経常利益(前年比)	yoy_index	設計サービス 経常利益(前年比)	other	設計サービス 経常利益			全体	設計サービス 経常利益
-23110	2026	9	legacy	number	TEPCOホームテック 持分法損益	TEPCOホームテック 持分法損益	number	TEPCOホームテック 持分法損益	other	TEPCOホームテック 持分法損益			全体	TEPCOホームテック 持分法損益
-23110	2026	10	legacy	number	ENE's 経常利益	ENE's 経常利益	number	ENE's 経常利益	other	ENE's 経常利益			全体	ENE's 経常利益
-23110	2026	11	legacy	yoy_index	ENE's 経常利益(前年比)	ENE's 経常利益(前年比)	yoy_index	ENE's 経常利益(前年比)	other	ENE's 経常利益			全体	ENE's 経常利益
-23110	2026	12	legacy	number	LESSO EPCO 経常利益	LESSO EPCO 経常利益	number	LESSO EPCO 経常利益	other	LESSO EPCO 経常利益			全体	LESSO EPCO 経常利益
-23110	2026	13	legacy	number	その他 経常利益	その他 経常利益	number	その他 経常利益	other	その他 経常利益			全体	その他 経常利益
-23110	2026	14	legacy	yoy_index	TEPCO ホームテック 経常利益(前年比)	TEPCO ホームテック 経常利益(前年比)	yoy_index	TEPCO ホームテック 経常利益(前年比)	other	TEPCO ホームテック 経常利益			全体	TEPCO ホームテック 経常利益
+23110	2023	1	legacy	number	連結経常利益	連結経常利益	number	連結経常利益	other			連結経常利益	全体	経常利益
+23110	2023	2	legacy	yoy_index	連結経常利益(前年比)	連結経常利益(前年比)	yoy_index	連結経常利益(前年比)	other			連結経常利益	全体	経常利益
+23110	2023	3	legacy	number	再エネサービス 経常利益	再エネサービス 経常利益	number	再エネサービス 経常利益	other	再エネサービス 経常利益			全体 > 再エネサービス	経常利益
+23110	2023	4	legacy	yoy_index	再エネサービス 経常利益(前年比)	再エネサービス 経常利益(前年比)	yoy_index	再エネサービス 経常利益(前年比)	other	再エネサービス 経常利益			全体 > 再エネサービス	経常利益
+23110	2023	5	legacy	number	メンテナンスサービス 経常利益	メンテナンスサービス 経常利益	number	メンテナンスサービス 経常利益	other	メンテナンスサービス 経常利益			全体 > メンテナンスサービス	経常利益
+23110	2023	6	legacy	yoy_index	メンテナンスサービス 経常利益(前年比)	メンテナンスサービス 経常利益(前年比)	yoy_index	メンテナンスサービス 経常利益(前年比)	other	メンテナンスサービス 経常利益			全体 > メンテナンスサービス	経常利益
+23110	2023	7	legacy	number	設計サービス 経常利益	設計サービス 経常利益	number	設計サービス 経常利益	other	設計サービス 経常利益			全体 > 設計サービス	経常利益
+23110	2023	8	legacy	yoy_index	設計サービス 経常利益(前年比)	設計サービス 経常利益(前年比)	yoy_index	設計サービス 経常利益(前年比)	other	設計サービス 経常利益			全体 > 設計サービス	経常利益
+23110	2023	9	legacy	yoy_index	TEPCO ホームテック 経常利益(前年比)	TEPCO ホームテック 経常利益(前年比)	yoy_index	TEPCO ホームテック 経常利益(前年比)	other	TEPCO ホームテック 経常利益			全体 > 再エネサービス > TEPCOホームテック	経常利益
+23110	2024	1	legacy	number	連結経常利益	連結経常利益	number	連結経常利益	other			連結経常利益	全体	経常利益
+23110	2024	2	legacy	yoy_index	連結経常利益(前年比)	連結経常利益(前年比)	yoy_index	連結経常利益(前年比)	other			連結経常利益	全体	経常利益
+23110	2024	3	legacy	number	再エネサービス 経常利益	再エネサービス 経常利益	number	再エネサービス 経常利益	other	再エネサービス 経常利益			全体 > 再エネサービス	経常利益
+23110	2024	4	legacy	yoy_index	再エネサービス 経常利益(前年比)	再エネサービス 経常利益(前年比)	yoy_index	再エネサービス 経常利益(前年比)	other	再エネサービス 経常利益			全体 > 再エネサービス	経常利益
+23110	2024	5	legacy	number	メンテナンスサービス 経常利益	メンテナンスサービス 経常利益	number	メンテナンスサービス 経常利益	other	メンテナンスサービス 経常利益			全体 > メンテナンスサービス	経常利益
+23110	2024	6	legacy	yoy_index	メンテナンスサービス 経常利益(前年比)	メンテナンスサービス 経常利益(前年比)	yoy_index	メンテナンスサービス 経常利益(前年比)	other	メンテナンスサービス 経常利益			全体 > メンテナンスサービス	経常利益
+23110	2024	7	legacy	number	設計サービス 経常利益	設計サービス 経常利益	number	設計サービス 経常利益	other	設計サービス 経常利益			全体 > 設計サービス	経常利益
+23110	2024	8	legacy	yoy_index	設計サービス 経常利益(前年比)	設計サービス 経常利益(前年比)	yoy_index	設計サービス 経常利益(前年比)	other	設計サービス 経常利益			全体 > 設計サービス	経常利益
+23110	2024	9	legacy	yoy_index	TEPCO ホームテック 経常利益(前年比)	TEPCO ホームテック 経常利益(前年比)	yoy_index	TEPCO ホームテック 経常利益(前年比)	other	TEPCO ホームテック 経常利益			全体 > 再エネサービス > TEPCOホームテック	経常利益
+23110	2025	1	legacy	number	連結経常利益	連結経常利益	number	連結経常利益	other			連結経常利益	全体	経常利益
+23110	2025	2	legacy	yoy_index	連結経常利益(前年比)	連結経常利益(前年比)	yoy_index	連結経常利益(前年比)	other			連結経常利益	全体	経常利益
+23110	2025	3	legacy	number	再エネサービス 経常利益	再エネサービス 経常利益	number	再エネサービス 経常利益	other	再エネサービス 経常利益			全体 > 再エネサービス	経常利益
+23110	2025	4	legacy	yoy_index	再エネサービス 経常利益(前年比)	再エネサービス 経常利益(前年比)	yoy_index	再エネサービス 経常利益(前年比)	other	再エネサービス 経常利益			全体 > 再エネサービス	経常利益
+23110	2025	5	legacy	number	メンテナンスサービス 経常利益	メンテナンスサービス 経常利益	number	メンテナンスサービス 経常利益	other	メンテナンスサービス 経常利益			全体 > メンテナンスサービス	経常利益
+23110	2025	6	legacy	yoy_index	メンテナンスサービス 経常利益(前年比)	メンテナンスサービス 経常利益(前年比)	yoy_index	メンテナンスサービス 経常利益(前年比)	other	メンテナンスサービス 経常利益			全体 > メンテナンスサービス	経常利益
+23110	2025	7	legacy	number	設計サービス 経常利益	設計サービス 経常利益	number	設計サービス 経常利益	other	設計サービス 経常利益			全体 > 設計サービス	経常利益
+23110	2025	8	legacy	yoy_index	設計サービス 経常利益(前年比)	設計サービス 経常利益(前年比)	yoy_index	設計サービス 経常利益(前年比)	other	設計サービス 経常利益			全体 > 設計サービス	経常利益
+23110	2025	9	legacy	number	TEPCOホームテック 持分法損益	TEPCOホームテック 持分法損益	number	TEPCOホームテック 持分法損益	other	TEPCOホームテック 持分法損益			全体 > 再エネサービス > TEPCOホームテック	経常利益
+23110	2025	10	legacy	number	ENE's 経常利益	ENE's 経常利益	number	ENE's 経常利益	other	ENE's 経常利益			全体 > 再エネサービス > ENE's	経常利益
+23110	2025	11	legacy	yoy_index	ENE's 経常利益(前年比)	ENE's 経常利益(前年比)	yoy_index	ENE's 経常利益(前年比)	other	ENE's 経常利益			全体 > 再エネサービス > ENE's	経常利益
+23110	2025	12	legacy	number	MEDX 経常利益	MEDX 経常利益	number	MEDX 経常利益	other	MEDX 経常利益			全体 > 再エネサービス > MEDX	経常利益
+23110	2025	13	legacy	number	LESSO EPCO 経常利益	LESSO EPCO 経常利益	number	LESSO EPCO 経常利益	other	LESSO EPCO 経常利益			全体 > 再エネサービス > LESSO EPCO	経常利益
+23110	2025	14	legacy	yoy_index	LESSO EPCO 経常利益(前年比)	LESSO EPCO 経常利益(前年比)	yoy_index	LESSO EPCO 経常利益(前年比)	other	LESSO EPCO 経常利益			全体 > 再エネサービス > LESSO EPCO	経常利益
+23110	2025	15	legacy	yoy_index	TEPCO ホームテック 経常利益(前年比)	TEPCO ホームテック 経常利益(前年比)	yoy_index	TEPCO ホームテック 経常利益(前年比)	other	TEPCO ホームテック 経常利益			全体 > 再エネサービス > TEPCOホームテック	経常利益
+23110	2026	1	legacy	number	連結経常利益	連結経常利益	number	連結経常利益	other			連結経常利益	全体	経常利益
+23110	2026	2	legacy	yoy_index	連結経常利益(前年比)	連結経常利益(前年比)	yoy_index	連結経常利益(前年比)	other			連結経常利益	全体	経常利益
+23110	2026	3	legacy	number	再エネサービス 経常利益	再エネサービス 経常利益	number	再エネサービス 経常利益	other	再エネサービス 経常利益			全体 > 再エネサービス	経常利益
+23110	2026	4	legacy	yoy_index	再エネサービス 経常利益(前年比)	再エネサービス 経常利益(前年比)	yoy_index	再エネサービス 経常利益(前年比)	other	再エネサービス 経常利益			全体 > 再エネサービス	経常利益
+23110	2026	5	legacy	number	メンテナンスサービス 経常利益	メンテナンスサービス 経常利益	number	メンテナンスサービス 経常利益	other	メンテナンスサービス 経常利益			全体 > メンテナンスサービス	経常利益
+23110	2026	6	legacy	yoy_index	メンテナンスサービス 経常利益(前年比)	メンテナンスサービス 経常利益(前年比)	yoy_index	メンテナンスサービス 経常利益(前年比)	other	メンテナンスサービス 経常利益			全体 > メンテナンスサービス	経常利益
+23110	2026	7	legacy	number	設計サービス 経常利益	設計サービス 経常利益	number	設計サービス 経常利益	other	設計サービス 経常利益			全体 > 設計サービス	経常利益
+23110	2026	8	legacy	yoy_index	設計サービス 経常利益(前年比)	設計サービス 経常利益(前年比)	yoy_index	設計サービス 経常利益(前年比)	other	設計サービス 経常利益			全体 > 設計サービス	経常利益
+23110	2026	9	legacy	number	TEPCOホームテック 持分法損益	TEPCOホームテック 持分法損益	number	TEPCOホームテック 持分法損益	other	TEPCOホームテック 持分法損益			全体 > 再エネサービス > TEPCOホームテック	経常利益
+23110	2026	10	legacy	number	ENE's 経常利益	ENE's 経常利益	number	ENE's 経常利益	other	ENE's 経常利益			全体 > 再エネサービス > ENE's	経常利益
+23110	2026	11	legacy	yoy_index	ENE's 経常利益(前年比)	ENE's 経常利益(前年比)	yoy_index	ENE's 経常利益(前年比)	other	ENE's 経常利益			全体 > 再エネサービス > ENE's	経常利益
+23110	2026	12	legacy	number	LESSO EPCO 経常利益	LESSO EPCO 経常利益	number	LESSO EPCO 経常利益	other	LESSO EPCO 経常利益			全体 > 再エネサービス > LESSO EPCO	経常利益
+23110	2026	13	legacy	number	その他 経常利益	その他 経常利益	number	その他 経常利益	other	その他 経常利益			全体 > 再エネサービス > その他	経常利益
+23110	2026	14	legacy	yoy_index	TEPCO ホームテック 経常利益(前年比)	TEPCO ホームテック 経常利益(前年比)	yoy_index	TEPCO ホームテック 経常利益(前年比)	other	TEPCO ホームテック 経常利益			全体 > 再エネサービス > TEPCOホームテック	経常利益
 23370	2026	1	legacy	number	いちご 発電量	いちご 発電量	number	いちご 発電量	other	いちご 発電量			全体 > いちご	発電量
 23370	2026	2	legacy	number	いちごグリーン 発電量	いちごグリーン 発電量	number	いちごグリーン 発電量	other	いちごグリーン 発電量			全体 > いちごグリーン	発電量
 23370	2026	3	legacy	number	発電量	発電量	number	発電量	other	発電量			全体	発電量
@@ -658,30 +658,30 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 26690	2026	20	legacy	yoy_index	外販事業 ファミリーマート 売上高(前年比)	外販事業 ファミリーマート 売上高(前年比)	yoy_index	外販事業 ファミリーマート 売上高(前年比)	sales	外販事業 ファミリーマート		売上高	全社 > 外販事業 > ファミリーマート	売上高
 26690	2026	21	legacy	number	外販事業 その他 売上高	外販事業 その他 売上高	number	外販事業 その他 売上高	sales	外販事業 その他		売上高	全社 > 外販事業 > その他	売上高
 26690	2026	22	legacy	yoy_index	外販事業 その他 売上高(前年比)	外販事業 その他 売上高(前年比)	yoy_index	外販事業 その他 売上高(前年比)	sales	外販事業 その他		売上高	全社 > 外販事業 > その他	売上高
-26700	2024	1	legacy	yoy_index	ABC-MART 既存 売上高(前年比)	ABC-MART 既存 売上高(前年比)	yoy_index	ABC-MART 既存 売上高(前年比)	sales	ABC-MART	既存	売上高	全体 > ABC-MART	既存 売上高
-26700	2024	2	legacy	yoy_index	ABC-MART 既存 客数(前年比)	ABC-MART 既存 客数(前年比)	yoy_index	ABC-MART 既存 客数(前年比)	customers	ABC-MART	既存	客数	全体 > ABC-MART	既存 客数
-26700	2024	3	legacy	yoy_index	ABC-MART 既存 客単価(前年比)	ABC-MART 既存 客単価(前年比)	yoy_index	ABC-MART 既存 客単価(前年比)	spend	ABC-MART	既存	客単価	全体 > ABC-MART	既存 客単価
-26700	2024	4	legacy	yoy_index	ABC-MART 全店 売上高(前年比)	ABC-MART 全店 売上高(前年比)	yoy_index	ABC-MART 全店 売上高(前年比)	sales	ABC-MART	全店	売上高	全体 > ABC-MART	全店 売上高
-26700	2024	5	legacy	yoy_index	ABC-MART 全店 客数(前年比)	ABC-MART 全店 客数(前年比)	yoy_index	ABC-MART 全店 客数(前年比)	customers	ABC-MART	全店	客数	全体 > ABC-MART	全店 客数
-26700	2024	6	legacy	yoy_index	ABC-MART 全店 客単価(前年比)	ABC-MART 全店 客単価(前年比)	yoy_index	ABC-MART 全店 客単価(前年比)	spend	ABC-MART	全店	客単価	全体 > ABC-MART	全店 客単価
-26700	2025	1	legacy	yoy_index	ABC-MART 既存 売上高(前年比)	ABC-MART 既存 売上高(前年比)	yoy_index	ABC-MART 既存 売上高(前年比)	sales	ABC-MART	既存	売上高	全体 > ABC-MART	既存 売上高
-26700	2025	2	legacy	yoy_index	ABC-MART 既存 客数(前年比)	ABC-MART 既存 客数(前年比)	yoy_index	ABC-MART 既存 客数(前年比)	customers	ABC-MART	既存	客数	全体 > ABC-MART	既存 客数
-26700	2025	3	legacy	yoy_index	ABC-MART 既存 客単価(前年比)	ABC-MART 既存 客単価(前年比)	yoy_index	ABC-MART 既存 客単価(前年比)	spend	ABC-MART	既存	客単価	全体 > ABC-MART	既存 客単価
-26700	2025	4	legacy	yoy_index	ABC-MART 全店 売上高(前年比)	ABC-MART 全店 売上高(前年比)	yoy_index	ABC-MART 全店 売上高(前年比)	sales	ABC-MART	全店	売上高	全体 > ABC-MART	全店 売上高
-26700	2025	5	legacy	yoy_index	ABC-MART 全店 客数(前年比)	ABC-MART 全店 客数(前年比)	yoy_index	ABC-MART 全店 客数(前年比)	customers	ABC-MART	全店	客数	全体 > ABC-MART	全店 客数
-26700	2025	6	legacy	yoy_index	ABC-MART 全店 客単価(前年比)	ABC-MART 全店 客単価(前年比)	yoy_index	ABC-MART 全店 客単価(前年比)	spend	ABC-MART	全店	客単価	全体 > ABC-MART	全店 客単価
+26700	2024	1	legacy	yoy_index	ABC-MART 既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
+26700	2024	2	legacy	yoy_index	ABC-MART 既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
+26700	2024	3	legacy	yoy_index	ABC-MART 既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
+26700	2024	4	legacy	yoy_index	ABC-MART 全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+26700	2024	5	legacy	yoy_index	ABC-MART 全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
+26700	2024	6	legacy	yoy_index	ABC-MART 全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
+26700	2025	1	legacy	yoy_index	ABC-MART 既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
+26700	2025	2	legacy	yoy_index	ABC-MART 既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
+26700	2025	3	legacy	yoy_index	ABC-MART 既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
+26700	2025	4	legacy	yoy_index	ABC-MART 全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+26700	2025	5	legacy	yoy_index	ABC-MART 全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
+26700	2025	6	legacy	yoy_index	ABC-MART 全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
 26700	2026	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 26700	2026	2	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
 26700	2026	3	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
 26700	2026	4	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 26700	2026	5	legacy	yoy_index	全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
 26700	2026	6	legacy	yoy_index	全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
-26700	2026	7	legacy	yoy_index	ABC-MART 既存 売上高(前年比)	ABC-MART 既存 売上高(前年比)	yoy_index	ABC-MART 既存 売上高(前年比)	sales	ABC-MART	既存	売上高	全体 > ABC-MART	既存 売上高
-26700	2026	8	legacy	yoy_index	ABC-MART 既存 客数(前年比)	ABC-MART 既存 客数(前年比)	yoy_index	ABC-MART 既存 客数(前年比)	customers	ABC-MART	既存	客数	全体 > ABC-MART	既存 客数
-26700	2026	9	legacy	yoy_index	ABC-MART 既存 客単価(前年比)	ABC-MART 既存 客単価(前年比)	yoy_index	ABC-MART 既存 客単価(前年比)	spend	ABC-MART	既存	客単価	全体 > ABC-MART	既存 客単価
-26700	2026	10	legacy	yoy_index	ABC-MART 全店 売上高(前年比)	ABC-MART 全店 売上高(前年比)	yoy_index	ABC-MART 全店 売上高(前年比)	sales	ABC-MART	全店	売上高	全体 > ABC-MART	全店 売上高
-26700	2026	11	legacy	yoy_index	ABC-MART 全店 客数(前年比)	ABC-MART 全店 客数(前年比)	yoy_index	ABC-MART 全店 客数(前年比)	customers	ABC-MART	全店	客数	全体 > ABC-MART	全店 客数
-26700	2026	12	legacy	yoy_index	ABC-MART 全店 客単価(前年比)	ABC-MART 全店 客単価(前年比)	yoy_index	ABC-MART 全店 客単価(前年比)	spend	ABC-MART	全店	客単価	全体 > ABC-MART	全店 客単価
+26700	2026	7	legacy	yoy_index	ABC-MART 既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
+26700	2026	8	legacy	yoy_index	ABC-MART 既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
+26700	2026	9	legacy	yoy_index	ABC-MART 既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
+26700	2026	10	legacy	yoy_index	ABC-MART 全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
+26700	2026	11	legacy	yoy_index	ABC-MART 全店 客数(前年比)	全店 客数(前年比)	yoy_index	全店 客数(前年比)	customers		全店	客数	全体	全店 客数
+26700	2026	12	legacy	yoy_index	ABC-MART 全店 客単価(前年比)	全店 客単価(前年比)	yoy_index	全店 客単価(前年比)	spend		全店	客単価	全体	全店 客単価
 26740	2024	1	legacy	number	全店 売上高	全店 売上高	number	全店 売上高	sales		全店	売上高	全体	全店 売上高
 26740	2024	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 26740	2024	3	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高

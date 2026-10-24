@@ -985,7 +985,7 @@ def test_monthly_year_window() -> None:
 
 
 def test_monthly_tree_html_kab87() -> None:
-    """画面の指標 ▸ 区分（#582 / #585 / #586 / #587 / #588 / #598 / #612 / #817 / #818 / #831 / #834 / #835 / #836 / #822）。"""
+    """画面の指標 ▸ 区分（#582 / #585 / #586 / #587 / #588 / #598 / #612 / #817 / #818 / #823 / #825 / #831 / #834 / #835 / #836 / #822）。"""
     import json
     import subprocess
     import tempfile
@@ -1186,6 +1186,27 @@ def test_monthly_tree_html_kab87() -> None:
             ("直営 店舗数", "number"),
             ("FC 店舗数", "number"),
         ]),
+        "rose": _cfg("75060", [
+            ("全社 売上高", "number"),
+            ("全社 売上高(前年比)", "yoy_index"),
+            ("直営 売上高", "number"),
+            ("直営 売上高(前年比)", "yoy_index"),
+            ("既存 売上高", "number"),
+            ("既存 売上高(前年比)", "yoy_index"),
+            ("直営 既存 売上高", "number"),
+            ("直営 既存 売上高(前年比)", "yoy_index"),
+        ]),
+        "epco": _cfg("23110", [
+            ("連結経常利益", "number"),
+            ("連結経常利益(前年比)", "yoy_index"),
+            ("再エネサービス 経常利益", "number"),
+            ("メンテナンスサービス 経常利益", "number"),
+            ("設計サービス 経常利益", "number"),
+            ("TEPCOホームテック 持分法損益", "number"),
+            ("ENE's 経常利益", "number"),
+            ("LESSO EPCO 経常利益", "number"),
+            ("その他 経常利益", "number"),
+        ]),
     }
     harness = r"""
 const fs = require("fs");
@@ -1247,7 +1268,11 @@ const axial = run(fixtures.axial);
 const aoyama = run(fixtures.aoyama, () => vm.runInContext('monthlyTlOpen.add("m:店舗数");', sandbox));
 const gift = run(fixtures.gift);
 const ohsho = run(fixtures.ohsho, () => vm.runInContext('monthlyTlOpen.add("m:全店 店舗数");', sandbox));
-console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, ichigo, happiness, eternal, kichiri, towa, uandc, daiichi, colowide, srs, ringer, axial, aoyama, gift, ohsho}));
+const rose = run(fixtures.rose);
+const epco = run(fixtures.epco, () => vm.runInContext(
+  'monthlyTlOpen.add("m:経常利益");'
+  + 'monthlyTlOpen.add("m:経常利益\\u203atree:全体\\u203a再エネサービス");', sandbox));
+console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, ichigo, happiness, eternal, kichiri, towa, uandc, daiichi, colowide, srs, ringer, axial, aoyama, gift, ohsho, rose, epco}));
 """
     with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as tmp:
         tmp.write(harness)
@@ -1363,6 +1388,15 @@ console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, 
         "FC",
     ]:
         _fail(f"99360 screen: {got.get('ohsho')!r}")
+    if got.get("rose") != ["全社 売上高", "直営 売上高", "既存 売上高", "直営 既存 売上高"]:
+        _fail(f"75060 screen: {got.get('rose')!r}")
+    if any(n == "直営" for n in (got.get("rose") or [])):
+        _fail(f"75060 must not nest 直営既存 under 既存: {got.get('rose')!r}")
+    if got.get("epco") != [
+        "連結経常利益", "再エネサービス", "TEPCOホームテック", "ENE's", "LESSO EPCO", "その他",
+        "メンテナンスサービス", "設計サービス",
+    ]:
+        _fail(f"23110 screen: {got.get('epco')!r}")
 
 
 def test_monthly_year_color_stable() -> None:
