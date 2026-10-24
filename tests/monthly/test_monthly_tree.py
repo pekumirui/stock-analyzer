@@ -2152,6 +2152,76 @@ def test_tree_82000() -> None:
         _fail(f"82000 純 must not be a group: {got!r}")
 
 
+def test_tree_23110() -> None:
+    """23110 エプコ: 経常利益 ▸ 連結 + 再エネ/メンテ/設計（再エネの子に TEPCO 等）（#825）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
+
+    rows = assign_tree_rows("23110", [
+        "連結経常利益", "連結経常利益(前年比)",
+        "再エネサービス 経常利益", "再エネサービス 経常利益(前年比)",
+        "メンテナンスサービス 経常利益", "設計サービス 経常利益",
+        "TEPCOホームテック 持分法損益", "TEPCO ホームテック 経常利益(前年比)",
+        "ENE's 経常利益", "LESSO EPCO 経常利益", "その他 経常利益", "MEDX 経常利益",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["連結経常利益"] != (["全体"], "連結経常利益", "経常利益"):
+        _fail(f"23110 連結: {got['連結経常利益']!r}")
+    if got["再エネサービス 経常利益"] != (["全体", "再エネサービス"], "経常利益", "経常利益"):
+        _fail(f"23110 再エネ: {got['再エネサービス 経常利益']!r}")
+    if got["メンテナンスサービス 経常利益"] != (
+            ["全体", "メンテナンスサービス"], "経常利益", "経常利益"):
+        _fail(f"23110 メンテ: {got['メンテナンスサービス 経常利益']!r}")
+    if got["設計サービス 経常利益"] != (["全体", "設計サービス"], "経常利益", "経常利益"):
+        _fail(f"23110 設計: {got['設計サービス 経常利益']!r}")
+    if got["TEPCOホームテック 持分法損益"] != (
+            ["全体", "再エネサービス", "TEPCOホームテック"],
+            "TEPCOホームテック 持分法損益", "経常利益"):
+        _fail(f"23110 TEPCO: {got['TEPCOホームテック 持分法損益']!r}")
+    if got["TEPCO ホームテック 経常利益(前年比)"] != (
+            ["全体", "再エネサービス", "TEPCOホームテック"],
+            "TEPCO ホームテック 経常利益(前年比)", "経常利益"):
+        _fail(f"23110 TEPCO yoy: {got['TEPCO ホームテック 経常利益(前年比)']!r}")
+    enes = got["ENE's 経常利益"]
+    if enes != (["全体", "再エネサービス", "ENE's"], "経常利益", "経常利益"):
+        _fail(f"23110 ENE's: {enes!r}")
+    if got["その他 経常利益"] != (["全体", "再エネサービス", "その他"], "経常利益", "経常利益"):
+        _fail(f"23110 その他: {got['その他 経常利益']!r}")
+    if got["MEDX 経常利益"] != (["全体", "再エネサービス", "MEDX"], "経常利益", "経常利益"):
+        _fail(f"23110 MEDX: {got['MEDX 経常利益']!r}")
+    payload = tree_payload("23110", list(got), load_monthly_trees())
+    if payload is None or payload.get("tree_metrics") != ["経常利益"]:
+        _fail(f"23110 tree_metrics: {payload!r}")
+    if payload.get("tree_metric_parent"):
+        _fail(f"23110 must not nest metrics: {payload.get('tree_metric_parent')!r}")
+
+
+def test_tree_75060() -> None:
+    """75060 ハウス オブ ローゼ: 全社/直営/既存/直営既存は兄弟の指標（#823）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
+
+    rows = assign_tree_rows("75060", [
+        "全社 売上高", "全社 売上高(前年比)",
+        "直営 売上高", "直営 売上高(前年比)",
+        "既存 売上高", "既存 売上高(前年比)",
+        "直営 既存 売上高", "直営 既存 売上高(前年比)",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["全社 売上高"] != (["全体"], "全社 売上高", "全社 売上高"):
+        _fail(f"75060 全社: {got['全社 売上高']!r}")
+    if got["直営 売上高"] != (["全体"], "直営 売上高", "直営 売上高"):
+        _fail(f"75060 直営: {got['直営 売上高']!r}")
+    if got["既存 売上高"] != (["全体"], "既存 売上高", "既存 売上高"):
+        _fail(f"75060 既存: {got['既存 売上高']!r}")
+    if got["直営 既存 売上高"] != (["全体"], "直営 既存 売上高", "直営 既存 売上高"):
+        _fail(f"75060 直営既存: {got['直営 既存 売上高']!r}")
+    payload = tree_payload("75060", list(got), load_monthly_trees())
+    if payload is None or payload.get("tree_metrics") != [
+            "全社 売上高", "直営 売上高", "既存 売上高", "直営 既存 売上高"]:
+        _fail(f"75060 tree_metrics: {payload!r}")
+    if payload.get("tree_metric_parent"):
+        _fail(f"75060 must not nest 直営既存: {payload.get('tree_metric_parent')!r}")
+
+
 def test_tree_82190() -> None:
     """82190 青山商事: 全店と既存はビジネスウェア、店舗数は内訳（#612）。"""
     from app.monthly.tree import assign_tree_rows, load_monthly_trees
@@ -2476,6 +2546,8 @@ def main() -> None:
     test_tree_76160()
     test_tree_81630()
     test_tree_82000()
+    test_tree_23110()
+    test_tree_75060()
     test_tree_82190()
     test_tree_82550()
     test_tree_92790()
