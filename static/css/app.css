@@ -145,6 +145,8 @@
   .mchip { background:transparent; border:1px solid var(--border); color:var(--sub); border-radius:999px; padding:4px 12px; cursor:pointer; font-size:13px; }
   .mchip.more { border-style:dashed; }
   .earn-box { border:1px solid var(--border); padding:12px; }
+  #earn-qf { display:flex; gap:14px; margin:0 0 8px; font-size:13px; }
+  #earn-qf label { display:inline-flex; align-items:center; gap:4px; cursor:pointer; }
   #earn-tbl .prev { color:var(--sub); }
   table.fin .base { color:var(--sub); }
   .mchip.on { background:var(--accent); color:#fff; border-color:var(--accent); }

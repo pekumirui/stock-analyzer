@@ -105,7 +105,11 @@ let earnDay="", earnToday="";
 let earnSector="", earnChipsOpen=false, earnView="cum";
 const CHIP_TOP = 5;  // 畳んだときに見せる業種の数 (「すべて」は別)
 const sectorOf = r => r.sector33 || "未分類";
-const inSector = r => !earnSector || sectorOf(r) === earnSector;
+const earnQs = new Set(["1Q","2Q","3Q","4Q"]);
+const q4 = q => /^(FY|4Q|5Q)$/.test(q||"") ? "4Q" : q;  // 本決算と変則の 5Q は 4Q に数える
+const rowQs = r => r.periods ? r.periods.map(p => q4(p.fq)) : [q4(r.period)];
+const inQ = r => rowQs(r).some(q => earnQs.has(q));
+const isShown = r => (!earnSector || sectorOf(r) === earnSector) && inQ(r);
 
 function emptyCopy(ds, today, board){
   if(ds > today && board.ready === false) return "予定未取得";
@@ -114,8 +118,8 @@ function emptyCopy(ds, today, board){
 }
 
 function flatRows(){
-  const actuals = (earnBoard.actuals||[]).filter(inSector).map(r => ({side:"a", id:r.disclosure_no, row:r}));
-  const scheduled = (earnBoard.scheduled||[]).filter(inSector).map(r => ({side:"s", id:r.code, row:r}));
+  const actuals = (earnBoard.actuals||[]).filter(isShown).map(r => ({side:"a", id:r.disclosure_no, row:r}));
+  const scheduled = (earnBoard.scheduled||[]).filter(isShown).map(r => ({side:"s", id:r.code, row:r}));
   return actuals.concat(scheduled);
 }
 
@@ -180,8 +184,18 @@ function renderGroups(){
     + shown.map(([g, n]) => chip(g, g.replace(/業$/, ""), n)).join("") + more;
 }
 
+$("#earn-qf").addEventListener("change", e => {
+  const b = e.target;
+  if(b.checked) earnQs.add(b.value); else earnQs.delete(b.value);
+  refilter();
+});
+
 function setSector(g){
   earnSector = g;
+  refilter();
+}
+
+function refilter(){
   renderGroups();
   renderList();
   const rows = flatRows();
@@ -189,9 +203,10 @@ function setSector(g){
 }
 
 function renderList(){
-  const actuals = (earnBoard.actuals||[]).filter(inSector), scheduled = (earnBoard.scheduled||[]).filter(inSector);
+  const actuals = (earnBoard.actuals||[]).filter(isShown), scheduled = (earnBoard.scheduled||[]).filter(isShown);
   if(!actuals.length && !scheduled.length){
-    $("#earn-list").innerHTML = `<div class="sub">${emptyCopy(earnDay, earnToday, earnBoard)}</div>`;
+    const any = (earnBoard.actuals||[]).length || (earnBoard.scheduled||[]).length;
+    $("#earn-list").innerHTML = `<div class="sub">${any ? "該当なし" : emptyCopy(earnDay, earnToday, earnBoard)}</div>`;
     return;
   }
   $("#earn-list").innerHTML = tableHtml(actuals, scheduled);
