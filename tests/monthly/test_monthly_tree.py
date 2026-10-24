@@ -2152,6 +2152,35 @@ def test_tree_82000() -> None:
         _fail(f"82000 純 must not be a group: {got!r}")
 
 
+def test_tree_82190() -> None:
+    """82190 青山商事: 全店と既存はビジネスウェア、店舗数は内訳（#612）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees
+
+    rows = assign_tree_rows("82190", [
+        "全店 売上高(前年比)",
+        "ビジネスウェア 既存 売上高(前年比)",
+        "ビジネスウェア 既存 客数(前年比)",
+        "ビジネスウェア 既存 客単価(前年比)",
+        "洋服の青山 店舗数",
+        "SUIT SQUARE他 店舗数",
+        "TSC他 店舗数",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["全店 売上高(前年比)"] != (["ビジネスウェア"], "全店 売上高(前年比)", "全店 売上高"):
+        _fail(f"82190 全店: {got['全店 売上高(前年比)']!r}")
+    if got["ビジネスウェア 既存 売上高(前年比)"] != (
+            ["ビジネスウェア"], "既存 売上高(前年比)", "既存 売上高"):
+        _fail(f"82190 既存: {got['ビジネスウェア 既存 売上高(前年比)']!r}")
+    if got["洋服の青山 店舗数"] != (["ビジネスウェア", "洋服の青山"], "店舗数", "店舗数"):
+        _fail(f"82190 青山: {got['洋服の青山 店舗数']!r}")
+    if got["SUIT SQUARE他 店舗数"] != (["ビジネスウェア", "SUIT SQUARE他"], "店舗数", "店舗数"):
+        _fail(f"82190 SUIT: {got['SUIT SQUARE他 店舗数']!r}")
+    if got["TSC他 店舗数"] != (["ビジネスウェア", "TSC他"], "店舗数", "店舗数"):
+        _fail(f"82190 TSC: {got['TSC他 店舗数']!r}")
+    if any(p == "全体" for v in got.values() for p in v[0]):
+        _fail(f"82190 全体 must not remain: {got!r}")
+
+
 def test_tree_82550() -> None:
     """82550 アクシアル: （従来基準）は根の別指標（#591）。"""
     from app.monthly.tree import assign_tree_rows, load_monthly_trees
@@ -2175,6 +2204,61 @@ def test_tree_82550() -> None:
     metrics = [m for m, _ in trees["82550"].metrics]
     if "（従来基準） 全店 売上高" not in metrics or "全店 売上高" not in metrics:
         _fail(f"82550 metrics: {metrics!r}")
+
+
+def test_tree_92790() -> None:
+    """92790 ギフトHD: （当期）は節にせず、改装店除くの表記揺れは同じ指標（#817）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees
+
+    trees = load_monthly_trees()
+    rows = assign_tree_rows("92790", [
+        "全店 売上高(前年比)", "既存 売上高(前年比)",
+        "改装店除く 既存 売上高(前年比)",
+        "(改装除く) 既存 売上高(前年比)",
+        "(改装店除く) 既存 売上高(前年比)",
+        "（当期） 店舗数", "店舗数",
+    ], trees)
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["（当期） 店舗数"] != (["全体"], "店舗数", "店舗数"):
+        _fail(f"92790 当期: {got['（当期） 店舗数']!r}")
+    if got["店舗数"] != (["全体"], "店舗数", "店舗数"):
+        _fail(f"92790 店舗数: {got['店舗数']!r}")
+    if got["改装店除く 既存 売上高(前年比)"] != (
+            ["全体"], "改装店除く 既存 売上高(前年比)", "改装店除く 既存 売上高"):
+        _fail(f"92790 改装 dest: {got['改装店除く 既存 売上高(前年比)']!r}")
+    if got["(改装除く) 既存 売上高(前年比)"] != (
+            ["全体"], "(改装除く) 既存 売上高(前年比)", "改装店除く 既存 売上高"):
+        _fail(f"92790 改装除く: {got['(改装除く) 既存 売上高(前年比)']!r}")
+    if got["(改装店除く) 既存 売上高(前年比)"] != (
+            ["全体"], "(改装店除く) 既存 売上高(前年比)", "改装店除く 既存 売上高"):
+        _fail(f"92790 改装店除く: {got['(改装店除く) 既存 売上高(前年比)']!r}")
+    if any("当期" in p for v in got.values() for p in v[0]):
+        _fail(f"92790 （当期） must not be a group: {got!r}")
+
+
+def test_tree_99360() -> None:
+    """99360 王将: 全店 店舗数 ▸ 直営 / FC。売上の直営は根のまま（#818）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees
+
+    rows = assign_tree_rows("99360", [
+        "直営 全店 売上高", "直営 全店 売上高(前年比)",
+        "直営 既存 売上高", "直営 既存 売上高(前年比)",
+        "直営 店舗数", "FC 店舗数", "全店 店舗数",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["直営 全店 売上高"] != (["全体"], "直営 全店 売上高", "直営 全店 売上高"):
+        _fail(f"99360 直営全店売上: {got['直営 全店 売上高']!r}")
+    if got["直営 既存 売上高(前年比)"] != (
+            ["全体"], "直営 既存 売上高(前年比)", "直営 既存 売上高"):
+        _fail(f"99360 直営既存売上: {got['直営 既存 売上高(前年比)']!r}")
+    if got["全店 店舗数"] != (["全体"], "全店 店舗数", "全店 店舗数"):
+        _fail(f"99360 全店店舗: {got['全店 店舗数']!r}")
+    if got["直営 店舗数"] != (["全体", "直営"], "直営 店舗数", "全店 店舗数"):
+        _fail(f"99360 直営店舗: {got['直営 店舗数']!r}")
+    if got["FC 店舗数"] != (["全体", "FC"], "FC 店舗数", "全店 店舗数"):
+        _fail(f"99360 FC店舗: {got['FC 店舗数']!r}")
+    if got["直営 全店 売上高"][0] != ["全体"]:
+        _fail(f"99360 直営売上 must stay at root: {got['直営 全店 売上高']!r}")
 
 
 GOLDEN_TREE_ROWS = Path(__file__).resolve().parent / "golden" / "tree_rows.json"
@@ -2392,7 +2476,10 @@ def main() -> None:
     test_tree_76160()
     test_tree_81630()
     test_tree_82000()
+    test_tree_82190()
     test_tree_82550()
+    test_tree_92790()
+    test_tree_99360()
     test_union_collapses_yoy_display_names()
     test_segment_tail_row_order()
 
