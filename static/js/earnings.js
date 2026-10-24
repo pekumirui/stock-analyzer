@@ -85,6 +85,12 @@ const under = html => `<span class="g">${html || " "}</span>`;
 const shortName = n => { const s = String(n||""); return s.length>5 ? s.slice(0,5) : s; };
 const nameCell = r => `<td class="l name pin2" title="${r.name}">${shortName(r.name)}${under(`<span class="sub">${r.code.slice(0,4)}</span>`)}</td>`;
 const valCell = (vals, g, k, i) => `<td class="num ${i?'':'grp'}">${amt((vals||{})[k])}${under(gc(g && g[k]))}</td>`;
+const progTxt = v => v==null ? "–" : `<span class="${v<0?"loss":""}">${fmt(v,1)}%</span>`;
+const progCell = (p, k, i) => {
+  const cur = p && p.cur && p.cur[k], prev = p && p.prev && p.prev[k];
+  return `<td class="num ${i?'':'grp'}">${progTxt(cur)}${under(prev==null ? "" : `<span class="prev" title="前年同期の進捗率">${progTxt(prev)}</span>`)}</td>`;
+};
+const VIEW_HEAD = {q:"3か月 / QoQ", cum:"累計 / YoY", prog:"進捗率 / 前年同期"};
 const fyShort = s => String(s||"").replace(/^FY/, "");
 let earnBoard={kind:"scheduled", actuals:[], scheduled:[]}, selKey=null;
 let detailAc = null;
@@ -97,7 +103,8 @@ function apiMaybe(p, signal){
   return api(p, {signal}).catch(e => { if(e.name === "AbortError") throw e; return null; });
 }
 let earnDay="", earnToday="";
-let earnSector="";
+let earnSector="", earnChipsOpen=false, earnView="q";
+const CHIP_TOP = 5;  // 畳んだときに見せる業種の数 (「すべて」は別)
 const sectorOf = r => r.sector33 || "未分類";
 const inSector = r => !earnSector || sectorOf(r) === earnSector;
 
@@ -116,6 +123,7 @@ function flatRows(){
 async function selectDate(ds, want){
   selDate = ds;
   earnSector = "";
+  earnChipsOpen = false;
   calClose();
   const today = todayISO();
   earnDay = ds;
@@ -163,8 +171,14 @@ function renderGroups(){
   const chip = (g, label, n) =>
     `<button type="button" class="mchip${earnSector===g?" on":""}" data-sector="${escHtml(g)}">`
     + `${escHtml(label)}${n==null ? "" : `<span class="n">${n}</span>`}</button>`;
+  const shown = earnChipsOpen ? groups
+    : groups.filter(([g], i) => i < CHIP_TOP || g === earnSector);
+  const rest = groups.length - shown.length;
+  const more = earnChipsOpen && groups.length > CHIP_TOP
+    ? `<button type="button" class="mchip more" data-more="0">閉じる</button>`
+    : rest > 0 ? `<button type="button" class="mchip more" data-more="1">他 ${rest}業種</button>` : "";
   $("#earn-groups").innerHTML = chip("", "すべて", null)
-    + groups.map(([g, n]) => chip(g, g.replace(/業$/, ""), n)).join("");
+    + shown.map(([g, n]) => chip(g, g.replace(/業$/, ""), n)).join("") + more;
 }
 
 function setSector(g){
@@ -208,16 +222,17 @@ function tableHtml(actuals, scheduled){
   let h = `<table id="earn-tbl"><thead>`
         + `<tr><th rowspan="2" class="pin0">時刻</th><th rowspan="2" class="l fy pin1">決算期</th>`
         + `<th rowspan="2" class="l name pin2">銘柄</th>`
-        + `<th colspan="4" class="grp">3か月 / QoQ</th><th colspan="4" class="grp">累計 / YoY</th></tr>`
-        + `<tr>${sub()}${sub()}</tr></thead><tbody>`;
+        + `<th colspan="4" class="grp">${VIEW_HEAD[earnView]}</th></tr>`
+        + `<tr>${sub()}</tr></thead><tbody>`;
   for(const r of actuals){
     const tip = r.period==="1Q" ? ' title="前期4Q単独比"' : "";
     h += `<tr data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">`
        + `<td class="pin0">${(r.disclosed_time||"").slice(0,5)}${under(revBadge(r))}</td>`
        + `<td class="l fy pin1">${fyShort(r.fy_label)}${under(listQ(r.period))}</td>`
        + nameCell(r)
-       + MET.map(([k],i)=>valCell(r.single, r.qoq, k, i).replace("<td ", `<td${tip} `)).join("")
-       + MET.map(([k],i)=>valCell(r.cumulative, r.yoy, k, i)).join("")
+       + (earnView==="q" ? MET.map(([k],i)=>valCell(r.single, r.qoq, k, i).replace("<td ", `<td${tip} `)).join("")
+        : earnView==="cum" ? MET.map(([k],i)=>valCell(r.cumulative, r.yoy, k, i)).join("")
+        : MET.map(([k],i)=>progCell(r.progress, k, i)).join(""))
        + `</tr>`;
   }
   for(const r of scheduled){
@@ -227,7 +242,7 @@ function tableHtml(actuals, scheduled){
        + `<td class="pin0">–</td>`
        + `<td class="l fy pin1">${label}${under(fq)}</td>`
        + nameCell(r)
-       + dash + dash
+       + dash
        + `</tr>`;
   }
   return h + `</tbody></table>`;
@@ -262,7 +277,7 @@ function selectSched(code){
 function clearDetail(msg){
   if(detailAc){ detailAc.abort(); detailAc = null; }
   $("#e-chart-title").textContent = msg;
-  $("#e-chart").innerHTML = ""; $("#cum-tbl").innerHTML = ""; $("#q-tbl").innerHTML = ""; $("#rev-tbl").innerHTML = "";
+  $("#e-chart").innerHTML = ""; $("#cum-tbl").innerHTML = ""; $("#prog-tbl").innerHTML = ""; $("#q-tbl").innerHTML = ""; $("#rev-tbl").innerHTML = "";
 }
 
 async function loadSched(row){
@@ -278,6 +293,7 @@ async function loadSched(row){
   const pending = `<tr><td class="l sub">まだ開示されていません</td></tr>`;
   $("#cum-tbl").innerHTML = pending;
   $("#q-tbl").innerHTML = pending;
+  $("#prog-tbl").innerHTML = pending;
   $("#rev-tbl").innerHTML = pending;
 }
 
@@ -296,6 +312,7 @@ async function loadDetail(row){
   else { $("#e-chart").innerHTML = `<div class="sub">株価データなし</div>`; }
   renderFin($("#cum-tbl"), d && d.cumulative, d);
   renderFin($("#q-tbl"),   d && d.quarterly,  d);
+  renderProg($("#prog-tbl"), d && d.progress, d);
   renderRev($("#rev-tbl"), d && d.revisions,  d);
 }
 
@@ -374,6 +391,31 @@ function renderFin(el, rows, d){
   el.innerHTML = h + `</tbody>`;
 }
 
+function renderProg(el, rows, d){
+  if(!rows || !rows.length){
+    el.innerHTML = `<tr><td class="l sub">${d && /^(FY|4Q)$/.test(d.period||"") ? "本決算は進捗率なし" : "データなし"}</td></tr>`;
+    return;
+  }
+  const dim = d && d.notes && d.notes.no_ordinary;
+  const dc = k => k==="ordinary_profit" && dim ? " dim" : "";
+  let h = `<thead><tr><th class="l">決算期</th>`
+        + FIN_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
+        + `<th class="disc">発表日</th></tr></thead><tbody>`;
+  rows.forEach(r => {
+    const now = r.kind==="actual_current";
+    const cell = k => {
+      const b = r.base && r.base[k];
+      const tip = now ? "通期予想" : "通期実績";
+      return `<td class="num${dc(k)}">${progTxt(r.progress && r.progress[k])}`
+           + `<span class="g"><span class="base" title="${tip}">${b==null ? " " : mil(b)}</span></span></td>`;
+    };
+    h += `<tr class="${now?"now":""}"><td class="l" title="${now ? "累計 / 通期予想" : "累計 / 通期実績"}">${finLabel(r)}<span class="g">${finBadge(r) || " "}</span></td>`
+       + FIN_MET.map(([k])=>cell(k)).join("")
+       + `<td class="num disc sub">${disc(r.disclosed_date)}</td></tr>`;
+  });
+  el.innerHTML = h + `</tbody>`;
+}
+
 const REV_BADGE = {forecast_initial:["期初","qb-init","期初予想"], forecast:["予想","qb-init","取得できる最初の予想"],
                    forecast_revised:["修正","qb-mod","予想修正"],
                    actual_fy:["実績","qb-act","通期実績"]};
@@ -410,7 +452,14 @@ function renderRev(el, rows, d){
   el.innerHTML = h + `</tbody>`;
 }
 
-const FIN_WRAP = {cum:"#cum-wrap", q:"#q-wrap", rev:"#rev-wrap"};
+const FIN_WRAP = {cum:"#cum-wrap", q:"#q-wrap", prog:"#prog-wrap", rev:"#rev-wrap"};
+document.querySelectorAll(".ftab[data-view]").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".ftab[data-view]").forEach(x => x.classList.toggle("on", x===b));
+  earnView = b.dataset.view;
+  const sc = $("#earn-list").scrollTop;
+  renderList();
+  $("#earn-list").scrollTop = sc;
+});
 document.querySelectorAll(".ftab[data-fin]").forEach(b => b.onclick = () => {
   document.querySelectorAll(".ftab[data-fin]").forEach(x => x.classList.toggle("on", x===b));
   for(const [k, sel] of Object.entries(FIN_WRAP)) $(sel).hidden = k !== b.dataset.fin;
@@ -432,7 +481,9 @@ $("#earn-list").addEventListener("keydown", e => {
 
 $("#earn-groups").addEventListener("click", e => {
   const b = e.target.closest(".mchip");
-  if(b) setSector(b.dataset.sector);
+  if(!b) return;
+  if(b.dataset.more){ earnChipsOpen = b.dataset.more === "1"; renderGroups(); return; }
+  setSector(b.dataset.sector);
 });
 
 let earnSearchAc = null;
