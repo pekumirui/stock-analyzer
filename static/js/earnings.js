@@ -90,7 +90,6 @@ const progCell = (p, k, i) => {
   const cur = p && p.cur && p.cur[k], prev = p && p.prev && p.prev[k];
   return `<td class="num ${i?'':'grp'}">${progTxt(cur)}${under(prev==null ? "" : `<span class="prev" title="前年同期の進捗率">${progTxt(prev)}</span>`)}</td>`;
 };
-const VIEW_HEAD = {q:"3か月 / QoQ", cum:"累計 / YoY", prog:"進捗率 / 前年同期"};
 const fyShort = s => String(s||"").replace(/^FY/, "");
 let earnBoard={kind:"scheduled", actuals:[], scheduled:[]}, selKey=null;
 let detailAc = null;
@@ -103,7 +102,7 @@ function apiMaybe(p, signal){
   return api(p, {signal}).catch(e => { if(e.name === "AbortError") throw e; return null; });
 }
 let earnDay="", earnToday="";
-let earnSector="", earnChipsOpen=false, earnView="q";
+let earnSector="", earnChipsOpen=false, earnView="cum";
 const CHIP_TOP = 5;  // 畳んだときに見せる業種の数 (「すべて」は別)
 const sectorOf = r => r.sector33 || "未分類";
 const inSector = r => !earnSector || sectorOf(r) === earnSector;
@@ -220,10 +219,8 @@ function tableHtml(actuals, scheduled){
   const sub = () => MET.map(([k,l],i) => `<th class="${i?'':'grp'}">${l}</th>`).join("");
   const dash = MET.map((_,i)=>`<td class="num ${i?'':'grp'}">–</td>`).join("");
   let h = `<table id="earn-tbl"><thead>`
-        + `<tr><th rowspan="2" class="pin0">時刻</th><th rowspan="2" class="l fy pin1">決算期</th>`
-        + `<th rowspan="2" class="l name pin2">銘柄</th>`
-        + `<th colspan="4" class="grp">${VIEW_HEAD[earnView]}</th></tr>`
-        + `<tr>${sub()}</tr></thead><tbody>`;
+        + `<tr><th class="pin0">時刻</th><th class="l fy pin1">決算期</th>`
+        + `<th class="l name pin2">銘柄</th>${sub()}</tr></thead><tbody>`;
   for(const r of actuals){
     const tip = r.period==="1Q" ? ' title="前期4Q単独比"' : "";
     h += `<tr data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">`

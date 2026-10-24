@@ -57,12 +57,17 @@
         <div id="earn-suggest" class="suggest" style="display:none"></div>
       </div>
       <div id="earn-groups"></div>
-      <div class="fin-tabs" id="earn-view">
-        <button type="button" class="ftab on" data-view="q">3か月</button>
-        <button type="button" class="ftab" data-view="cum">累計</button>
-        <button type="button" class="ftab" data-view="prog">進捗率</button>
+      <div class="earn-box">
+        <div class="phead">
+          <div class="fin-tabs" id="earn-view">
+            <button type="button" class="ftab on" data-view="cum">累計</button>
+            <button type="button" class="ftab" data-view="q">3か月</button>
+            <button type="button" class="ftab" data-view="prog">進捗率</button>
+          </div>
+          <span class="sub" style="font-size:12px">単位: 百万円</span>
+        </div>
+        <div class="tbl-wrap scroll" id="earn-list" tabindex="0"></div>
       </div>
-      <div class="tbl-wrap scroll" id="earn-list" tabindex="0"></div>
     </div>
 
     <div class="panel a-fin">

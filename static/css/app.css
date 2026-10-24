@@ -92,9 +92,6 @@
   #earn-tbl td { padding:7px 8px; vertical-align:top; background:var(--panel); }
   #earn-tbl td.num { font-size:13px; font-weight:500; }
   #earn-tbl th.l { text-align:left; }
-  #earn-tbl thead tr:first-child th[colspan] { text-align:center; }
-  /* 2段目の先頭 (3か月の売上) が th:first-child の左寄せを拾わないよう、指標の見出しは右に揃える */
-  #earn-tbl thead tr + tr th { text-align:right; }
   #earn-tbl td.name, #earn-tbl th.name { width:1%; white-space:nowrap; }
   #earn-tbl td.fy, #earn-tbl th.fy { width:1%; }
   #earn-tbl .g { display:block; font-size:11px; font-weight:400; line-height:1.35; min-height:1.35em; }
@@ -147,7 +144,7 @@
   #monthly-groups, #earn-groups { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
   .mchip { background:transparent; border:1px solid var(--border); color:var(--sub); border-radius:999px; padding:4px 12px; cursor:pointer; font-size:13px; }
   .mchip.more { border-style:dashed; }
-  #earn-view { display:inline-flex; margin:0 0 8px; }
+  .earn-box { border:1px solid var(--border); padding:12px; }
   #earn-tbl .prev { color:var(--sub); }
   table.fin .base { color:var(--sub); }
   .mchip.on { background:var(--accent); color:#fff; border-color:var(--accent); }
@@ -377,7 +374,9 @@
   .a-fin .tbl-wrap { max-height:min(52vh, 560px); }
 
   @media (max-width:640px){
-    #earn-tbl th, #earn-tbl td { padding-left:4px; padding-right:4px; }
+    #earn-tbl th, #earn-tbl td { padding-left:3px; padding-right:3px; }
+    .earn-box { padding:10px 6px; }
+    #earn-tbl td.num { font-size:12px; }
     body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:34px}
     .evt-toggles .evt-label { min-height:32px; }
     #monthly-chart .monthly-year-chart { min-height:148px; }
