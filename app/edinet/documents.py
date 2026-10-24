@@ -14,6 +14,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from app.db import run_sqlite_write, upsert
+from app.edinet.client import reraise
 from app.models import EdinetDocument, EdinetFiler, EdinetListDay, Stock
 
 if TYPE_CHECKING:
@@ -252,7 +253,11 @@ def ingest_days(db: Session, client: EdinetClient, days: list[date], log=print) 
     lookup = CodeLookup.load(db)
     total = {"days": 0, "rows": 0, "events": 0, "linked": 0}
     for day in days:
-        listing = client.list_documents(day)
+        try:
+            listing = client.list_documents(day)
+        except Exception as exc:
+            reraise(exc)
+            raise
         st = store_listing(db, day, listing, lookup, now_jst())
         log(f"edinet list {day.isoformat()} count={listing.metadata.count} "
             f"rows={st['rows']} linked={st['linked']} events={st['events']}")

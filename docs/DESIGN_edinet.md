@@ -42,7 +42,7 @@ EDINET API v2（金融庁）の提出者・書類一覧と、有報・半期報�
   `sed -i -E 's/^(\s*)from edinet_wrapper\./\1from ./' app/edinet_wrapper/*.py`
 - 依存は `httpx` と `pydantic` v2（どちらも `requirements.txt` にある）
 - Python 3.11+ が要る（`StrEnum` / `typing.Self`）。アプリ本体は 3.10 でも起動するよう、`app/edinet/` は型以外のラッパーを関数の中で import する
-- ラッパーが受け持つこと: HTTP 200 で返るエラーの判定（Content-Type と `metadata.status`）、429・5xx・メンテ画面のリトライ、リクエスト間の最小 1 秒、ZIP の安全な展開、`Subscription-Key` のマスク
+- ラッパーが受け持つこと: HTTP 200 で返るエラーの判定（Content-Type と `metadata.status`）、429・5xx・メンテ画面のリトライ、リクエスト間の最小 1 秒、ZIP の安全な展開、`Subscription-Key` のマスク。HTML 応答と 302 は `EdinetMaintenanceError`（ジョブ側の扱いは §8）
 - キーは `EDINET_API_KEY`（`.env` か環境変数）。本番は GitHub Secrets → `deploy/update.sh` が `.env` に書く。無ければ一覧のジョブは何もしない
 
 ## 2. 提出者（`edinet_filers`）と `stocks.edinet_code`
@@ -274,6 +274,7 @@ edinet_tender_offers         -- 1 案件。取込のたびに全件から作り�
 ## 8. 運用
 
 - cron は `deploy/crontab`（07:30 コードリスト、09:05〜23:05 毎時 大量保有、09:20〜23:20 毎時 公開買付、09:25〜23:25 毎時 自己株買い、08:40〜23:40 毎時 一覧、08:50〜23:50 毎時 XBRL）。ログは `/var/log/app/edinet_codes.log` / `edinet_documents.log` / `edinet_xbrl.log` / `edinet_large_holdings.log` / `edinet_tender_offers.log` / `edinet_buybacks.log`（MCP `batch_logs`）
+- EDINET がメンテ画面（HTML または案内への 302）を返すと、ラッパーが `EdinetMaintenanceError` にする。ジョブは 1 件目で打ち切り、`WARN edinet maintenance skip` 1 行で exit 0（KAB-149。`edinet_codes` は httpx 直叩きなので対象外）。5xx・タイムアウトは今までどおり exit=1。半日以上メンテが続いたときの昇格はしない（次回 cron が取り直す）
 - MCP `db_stats` に `edinet_documents` / `edinet_list_days` の件数と範囲、`large_holding_reports` / `large_holdings` / `edinet_buybacks` / `edinet_buyback_resolutions` / `edinet_tender_offers` / `edinet_tender_offer_docs` の件数が出る
 - 初回の本番投入: デプロイ（`jobs/migrate.py` が表と `stocks.edinet_code` を足す）→ `python jobs/edinet/edinet_codes.py` → `python jobs/edinet/edinet_documents.py --backfill-years 10`（約 1 時間）→ IFRS マッピングの追加を TDnet 分にも効かせる `python jobs/xbrl/xbrl_parse.py load-mappings` と `python jobs/xbrl/xbrl_normalize.py --rebuild`。XBRL は cron に任せる（急ぐなら `python jobs/edinet/edinet_xbrl.py --limit 0` を手で）
 - 大量保有の初回: デプロイ（`jobs/migrate.py` が表を足す）のあとは cron に任せる。急ぐなら `python jobs/edinet/edinet_large_holdings.py --limit 0` を手で（5 万件で約 14 時間）

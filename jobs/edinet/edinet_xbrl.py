@@ -21,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from app.db import SessionLocal  # noqa: E402
+from app.edinet.client import skip_on_maintenance  # noqa: E402
 from app.edinet.xbrl import DEFAULT_DOC_TYPES, QUARTERLY, pending_documents, run  # noqa: E402
 from app.xbrl.jobs import finish_run, start_run  # noqa: E402
 
@@ -56,8 +57,15 @@ def main() -> int:
         )
         print(f"edinet xbrl docs={len(docs)}", flush=True)
         job = start_run(db, "edinet_xbrl")
-        with EdinetClient() as client:
-            st = run(db, client, docs)
+        try:
+            with EdinetClient() as client:
+                st = run(db, client, docs)
+        except Exception as exc:
+            code = skip_on_maintenance("edinet_xbrl", exc)
+            if code is not None:
+                finish_run(db, job, "skipped", 0, 0, "maintenance skip")
+                return code
+            raise
         errors = st["errors"] + st["failed"]
         finish_run(db, job, "success" if errors == 0 else "failed",
                    st["parsed"], errors, f"skipped={st['skipped']} retracted={st['retracted']}")

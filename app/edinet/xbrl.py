@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import XBRL_CACHE_DIR
+from app.edinet.client import reraise
 from app.models import EdinetDocument, XbrlFiling, XbrlFinancial, XbrlSegment
 from app.xbrl.context import ParsedContext, classify_title
 from app.xbrl.normalize import normalize_filing
@@ -161,6 +162,7 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
             got = client.download(doc.doc_id, DocumentFileType.MAIN)
             zip_path.write_bytes(got.content)
         except Exception as exc:
+            reraise(exc)
             print(f"edinet xbrl download-failed doc_id={doc.doc_id} code={doc.code} err={exc}", flush=True)
             return "error"
         sha = hashlib.sha256(zip_path.read_bytes()).hexdigest()
