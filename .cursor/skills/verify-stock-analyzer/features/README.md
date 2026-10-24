@@ -25,7 +25,7 @@ Read this index, then the matching feature file, before driving the app.
 ## Proof and skip reporting
 
 - Capture the user action and the resulting state, not only the final screen.
-- UI proof includes a screenshot with header `h1` `株式分析` visible (document title is `株式分析ツール`).
+- UI proof includes a screenshot of the header (document title is `株式分析ツール`; no brand `h1`; ≤720px `#menu-btn` then `#cur-tab`).
 - HTTP proof includes `request.txt` and `body.json`.
 - Record the feature ID and entry point with every artifact.
 - Report an unreachable path with the attempted command and the unmet precondition.

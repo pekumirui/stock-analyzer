@@ -45,7 +45,7 @@ Preconditions:
 - **Clear.** `#supply-reset` → hash `#supply`, `#supply-q` empty, no `.dim`, no-pick copy.
 - **Monthly / countries.** With stats (golden DB, 2026-10-20), reload `/app#supply/ethylene`: the 輸入元 tab is visible. Click `[data-tab="ctry"]` → `#supply-countries` `h3` 輸入元の国, donut 大韓民国 50.5% / 中華人民共和国 42.2% / … / 「その他 1 か国」, center `8.5万` over `t・12か月計`, source `2025-09〜2026-08（最新月は速報）の輸入量 85,418 t・…`; no `.ctry` node. Click `[data-tab="monthly"]` → `#supply-unit` 単位 t, 6 rows 生産 / 出荷 / 月末在庫 / 輸入 (速報) / 輸出 / 見掛け消費 (速報), `#supply-chart` canvas. With no pick the chart draws 生産 / 輸入 / 輸出 / 見掛け消費 in the production unit (`supplyChartLines`); clicking 出荷 gives it `.sel` and the legend reads only 出荷 (each click adds or removes one). `supplySelect('crude')` keeps the tab and calls `/api/supply/monthly/crude` + `/countries/crude` (4 rows, 17 countries, `1.3億` kl; country rows come from `trade.country_items` 2709 in `config/supply/material_stats.json`). A material without stats (`car`): 推移 reads 「統計の対応がまだありません。」, 輸入元 is hidden, and a picked 輸入元 tab falls back to 概要. Re-picking `crude` calls only `/monthly/crude` (countries once per id per page).
 - **Phone sheet.** At 390×844: `#supply-map` is `100dvh - 186px` (658px), `#supply-panel` is `position: fixed`, 380px high, off-screen without a pick. Pick `ethylene` → `.open`, top at 464px. Tap `#supply-grip` → closed, `supply.selected` and hash `#supply/ethylene` stay.
-- **Proof.** Keep `artifacts/supply/*.json`. If CDP: `ui.png` of `/app#supply/ethylene` with header `h1` `株式分析`.
+- **Proof.** Keep `artifacts/supply/*.json`. If CDP: `ui.png` of `/app#supply/ethylene` with the header.
 
 ## Gotchas
 
