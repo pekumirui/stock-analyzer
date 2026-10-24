@@ -473,7 +473,7 @@ filing 単位。
 5. **業績予想**: `ForecastMember`、または `LowerMember`/`UpperMember`/`MinimumMember`/`MaximumMember`（ForecastMember 無しのレンジ）。`relative_period='current'` は要求しない（通期予想の期末は短信の四半期末とずれる）。`PreviousMember` は `value_kind=forecast_previous`（今回予想は `forecast`）。`LowerMember`/`UpperMember` は `range_side`。context 名の `accumulatedq1`/`accumulatedq3` と日数（80–100→Q1、240–300→Q3）で `target_period` を付ける
 6. `is_consolidated` が取れなければ 1（連結）として正規化する。NULL のまま残さない
 7. mappings を `namespace_key + local_name` で結合。`accounting_standard` が NULL でない行は filing の基準と一致するときだけ。例外: 要素の `local_name` が `*IFRS` なら、filing が JPGAAP / NULL でも IFRS マッピングを使う（40530 の予想）。同一キーでは `priority` 昇順で最初の値。**IFRS の書類では `jppfs_*` 要素を正規化に使わない**（KAB-52 案B。IFRS 側に対応が無い科目は空欄）
-8. `sign='invert'` なら符号反転。`xbrl_financials.unit` は科目の `unit`（`xbrl_std_items.unit`）、無ければ fact の単位
+8. `sign='invert'` なら符号反転。`xbrl_financials.unit` は fact の単位。fact が `pure`（または空）のときだけ科目の `unit`（人数・年数・比率を `persons` / `years` / `ratio` にする。KAB-147）。どちらも無ければ `JPY`
 9. filing 単位で既存の `xbrl_financials` を消してから入れ直す
 10. `is_required=1` が欠けたら警告ログ（`code, filing_id, std_item.code`）。処理は継続。required は本表実績だけ
 
@@ -579,7 +579,7 @@ TDnet 短信の実際の `namespace_key` は fixture を見てから YAML に書
 
 **有報の科目（OTHER。KAB-78。`config/xbrl/mappings/annual_report.yaml`）**
 
-有報（EDINET）にだけある値。主要な経営指標等・従業員の状況・株式等の状況・設備の状況・研究開発活動から、当期の点を取る（§6.4-4b）。連結と単体は別の行。単位は `std_items.yaml` の `unit`（fact は人数・年数・比率が全部 `pure` なので科目側で決める）。
+有報（EDINET）にだけある値。主要な経営指標等・従業員の状況・株式等の状況・設備の状況・研究開発活動から、当期の点を取る（§6.4-4b）。連結と単体は別の行。単位は fact の単位（USD 開示は `USD` / `USDPerShares`）。fact が `pure`（人数・年数・比率）のときだけ `std_items.yaml` の `unit`（`persons` / `years` / `ratio`）。
 
 | code | label_ja | unit | 要素（`jpcrp_cor`。priority の小さい順） | 連結/単体 |
 |---|---|---|---|---|

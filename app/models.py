@@ -301,8 +301,8 @@ class XbrlStdItem(Base):
     display_order = Column(Integer, nullable=False, default=0)
     sign = Column(String(16), nullable=False, default="natural")
     is_required = Column(Boolean, nullable=False, default=False)
-    # xbrl_financials.unit に入れる単位。NULL は fact の単位（JPY / JPYPerShares / shares）。
-    # 有報の人数・年数・比率は fact が全部 pure なので、科目側で persons / years / ratio と決める（KAB-78）
+    # xbrl_financials.unit に入れる単位。NULL は fact の単位（JPY / USD / JPYPerShares 等）。
+    # fact が pure（人数・年数・比率）のときだけ科目側で persons / years / ratio と決める（KAB-78 / KAB-147）
     unit = Column(String(32))
 
 

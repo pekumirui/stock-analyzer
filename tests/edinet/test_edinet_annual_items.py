@@ -122,10 +122,11 @@ def _html(facts, standard: str, consolidated: bool = True) -> str:
         body.append(f'<ix:nonFraction name="{name}" contextRef="{ctx}" unitRef="{unit}" scale="{scale}" '
                     f'decimals="{decimals}" format="ixt:num-dot-decimal"{s}>{shown}</ix:nonFraction>')
     units = "".join(f'<xbrli:unit id="{u}"><xbrli:measure>{m}</xbrli:measure></xbrli:unit>' for u, m in (
-        ("JPY", "iso4217:JPY"), ("pure", "xbrli:pure"), ("shares", "xbrli:shares")))
-    units += ('<xbrli:unit id="JPYPerShares"><xbrli:divide><xbrli:unitNumerator><xbrli:measure>iso4217:JPY'
-              "</xbrli:measure></xbrli:unitNumerator><xbrli:unitDenominator><xbrli:measure>xbrli:shares"
-              "</xbrli:measure></xbrli:unitDenominator></xbrli:divide></xbrli:unit>")
+        ("JPY", "iso4217:JPY"), ("USD", "iso4217:USD"), ("pure", "xbrli:pure"), ("shares", "xbrli:shares")))
+    for uid, curr in (("JPYPerShares", "iso4217:JPY"), ("USDPerShares", "iso4217:USD")):
+        units += (f'<xbrli:unit id="{uid}"><xbrli:divide><xbrli:unitNumerator><xbrli:measure>{curr}'
+                  "</xbrli:measure></xbrli:unitNumerator><xbrli:unitDenominator><xbrli:measure>xbrli:shares"
+                  "</xbrli:measure></xbrli:unitDenominator></xbrli:divide></xbrli:unit>")
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"
       xmlns:ixt="http://www.xbrl.org/inlineXBRL/transformation/2020-02-12"
@@ -270,3 +271,41 @@ def test_single_entity_rows_are_non_consolidated() -> None:
     assert got[("treasury_shares", False)][:2] == (Decimal("1000"), "shares")
     assert got[("employees", False)][:2] == (Decimal("500"), "persons")
     assert not any(cons for _code, cons in got)
+
+
+def test_usd_facts_keep_usd_unit() -> None:
+    """62690 型: std.unit が JPY* でも fact が USD なら financials も USD（KAB-147）。
+
+    単体の bps と pure の科目は今までどおり。
+    """
+    facts = [
+        ("jpcrp_cor:NetAssetsPerShareSummaryOfBusinessResults", "CurrentYearInstant",
+         "USDPerShares", "0", "2", "21.26", ""),
+        ("jpcrp_cor:NetAssetsPerShareSummaryOfBusinessResults", "CurrentYearInstant_NonConsolidatedMember",
+         "JPYPerShares", "0", "2", "1,500.50", ""),
+        ("jpcrp_cor:ResearchAndDevelopmentExpensesResearchAndDevelopmentActivities", "CurrentYearDuration",
+         "USD", "0", "0", "23,926,000", ""),
+        ("jpcrp_cor:CapitalExpendituresOverviewOfCapitalExpendituresEtc", "CurrentYearDuration",
+         "USD", "0", "0", "7,350,000", ""),
+        ("jpcrp_cor:NumberOfEmployees", "CurrentYearInstant", "pure", "0", "0", "5,000", ""),
+        ("jpcrp_cor:EquityToAssetRatioSummaryOfBusinessResults", "CurrentYearInstant", "pure", "-2", "3",
+         "47.1", ""),
+        ("jpcrp_cor:AverageAgeYearsInformationAboutReportingCompanyInformationAboutEmployees",
+         "CurrentYearInstant_NonConsolidatedMember", "pure", "0", "1", "39.8", ""),
+        ("jpcrp_cor:BasicEarningsLossPerShareSummaryOfBusinessResults", "CurrentYearDuration",
+         "USDPerShares", "0", "2", "3.45", ""),
+    ]
+    _f, got = _ingest(facts)
+
+    def v(code, cons=True):
+        hit = got.get((code, cons))
+        return None if hit is None else (hit[0], hit[1])
+
+    assert v("bps") == (Decimal("21.26"), "USDPerShares")
+    assert v("rd_expenses") == (Decimal("23926000"), "USD")
+    assert v("capex_reported") == (Decimal("7350000"), "USD")
+    assert v("eps_basic") == (Decimal("3.45"), "USDPerShares")
+    assert v("bps", False) == (Decimal("1500.50"), "JPYPerShares")
+    assert v("employees") == (Decimal("5000"), "persons")
+    assert v("equity_ratio") == (Decimal("0.471"), "ratio")
+    assert v("employee_avg_age", False) == (Decimal("39.8"), "years")
