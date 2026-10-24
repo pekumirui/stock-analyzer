@@ -729,7 +729,7 @@ function supplyDrawChart(){
   const chart = supplyEnsureChart();
   supplySeries.forEach(s => chart.removeSeries(s));
   supplySeries = lines.map(x => {
-    const s = chart.addLineSeries({color: SUPPLY_METRIC[x.metric].color, lineWidth: 2,
+    const s = chart.addSeries(LightweightCharts.LineSeries, {color: SUPPLY_METRIC[x.metric].color, lineWidth: 2,
       priceLineVisible: false, lastValueVisible: false, priceScaleId: scaleOf(x.unit)});
     s.setData(x.points.map(([m, v]) => ({time: `${m}-01`, value: v})));
     return s;

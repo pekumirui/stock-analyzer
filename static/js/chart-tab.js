@@ -21,7 +21,7 @@ async function loadChart(){
     $("#relchart").innerHTML="";
     const th = chartTheme();
     relObj = LightweightCharts.createChart($("#relchart"),{height:160,autoSize:true,layout:{background:{color:"transparent"},textColor:th.text},grid:{vertLines:{color:th.grid},horzLines:{color:th.grid}},timeScale:{borderColor:th.border},rightPriceScale:{borderColor:th.border}});
-    relObj.addLineSeries({color:th.warn,lineWidth:2}).setData(d.relative);
+    relObj.addSeries(LightweightCharts.LineSeries, {color:th.warn,lineWidth:2}).setData(d.relative);
     relObj.timeScale().fitContent();
   } else $("#relwrap").style.display="none";
   const perf = await api(`/api/earnings-performance/${curCode}`);

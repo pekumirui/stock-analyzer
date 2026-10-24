@@ -49,7 +49,9 @@ function applyChartMarkers(state){
     for(const t of (d[layer.key] || [])) put(t, th[layer.color] || th.warn, layer.text);
   }
   if(opt.mark) put(opt.mark, hi, "決");
-  cs.setMarkers([...byTime.values()]);
+  const markers = [...byTime.values()];
+  if(state.markers) state.markers.setMarkers(markers);
+  else state.markers = LightweightCharts.createSeriesMarkers(cs, markers);
 }
 function refreshEventMarkers(){
   if(chartObj && chartObj._sa) applyChartMarkers(chartObj._sa);
@@ -82,15 +84,15 @@ function renderPriceChart(el, d, opt={}){
     layout:{background:{color:"transparent"},textColor:th.text},
     grid:{vertLines:{color:th.grid},horzLines:{color:th.grid}}, timeScale:{borderColor:th.border},
     rightPriceScale:{borderColor:th.border}});
-  const cs = c.addCandlestickSeries({upColor:th.up,downColor:th.down,borderVisible:false,
-                                     wickUpColor:th.up,wickDownColor:th.down});
+  const cs = c.addSeries(LightweightCharts.CandlestickSeries, {upColor:th.up,downColor:th.down,borderVisible:false,
+    wickUpColor:th.up,wickDownColor:th.down});
   cs.setData(d.candles);
   const dates = new Set(d.candles.map(x=>x.time));
   c._sa = {cs, d, dates, opt};
   applyChartMarkers(c._sa);
   const colors=[th.accent, th.warn, "#8e4ec6", th.down];
   Object.entries(d.ma).forEach(([w,pts],i)=>{
-    c.addLineSeries({color:colors[i%4],lineWidth:1,priceLineVisible:false,lastValueVisible:false,
+    c.addSeries(LightweightCharts.LineSeries, {color:colors[i%4],lineWidth:1,priceLineVisible:false,lastValueVisible:false,
                      title:`MA${w}`}).setData(pts);
   });
   c.timeScale().fitContent();
