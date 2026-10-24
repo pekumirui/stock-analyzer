@@ -985,7 +985,7 @@ def test_monthly_year_window() -> None:
 
 
 def test_monthly_tree_html_kab87() -> None:
-    """画面の指標 ▸ 区分（#582 / #585 / #586 / #587 / #588 / #598 / #831 / #834 / #835 / #836 / #822）。"""
+    """画面の指標 ▸ 区分（#582 / #585 / #586 / #587 / #588 / #598 / #612 / #817 / #818 / #831 / #834 / #835 / #836 / #822）。"""
     import json
     import subprocess
     import tempfile
@@ -1165,6 +1165,27 @@ def test_monthly_tree_html_kab87() -> None:
             ("（従来基準） 全店 売上高(前年比)", "yoy_index"),
             ("（従来基準） 既存 売上高(前年比)", "yoy_index"),
         ]),
+        "aoyama": _cfg("82190", [
+            ("全店 売上高(前年比)", "yoy_index"),
+            ("ビジネスウェア 既存 売上高(前年比)", "yoy_index"),
+            ("洋服の青山 店舗数", "number"),
+            ("SUIT SQUARE他 店舗数", "number"),
+            ("TSC他 店舗数", "number"),
+        ]),
+        "gift": _cfg("92790", [
+            ("全店 売上高(前年比)", "yoy_index"),
+            ("既存 売上高(前年比)", "yoy_index"),
+            ("改装店除く 既存 売上高(前年比)", "yoy_index"),
+            ("(改装除く) 既存 売上高(前年比)", "yoy_index"),
+            ("（当期） 店舗数", "number"),
+        ]),
+        "ohsho": _cfg("99360", [
+            ("直営 既存 売上高(前年比)", "yoy_index"),
+            ("直営 全店 売上高(前年比)", "yoy_index"),
+            ("全店 店舗数", "number"),
+            ("直営 店舗数", "number"),
+            ("FC 店舗数", "number"),
+        ]),
     }
     harness = r"""
 const fs = require("fs");
@@ -1223,7 +1244,10 @@ const colowide = run(fixtures.colowide);
 const srs = run(fixtures.srs);
 const ringer = run(fixtures.ringer, () => vm.runInContext('monthlyTlOpen.add("m:全店 店舗数");', sandbox));
 const axial = run(fixtures.axial);
-console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, ichigo, happiness, eternal, kichiri, towa, uandc, daiichi, colowide, srs, ringer, axial}));
+const aoyama = run(fixtures.aoyama, () => vm.runInContext('monthlyTlOpen.add("m:店舗数");', sandbox));
+const gift = run(fixtures.gift);
+const ohsho = run(fixtures.ohsho, () => vm.runInContext('monthlyTlOpen.add("m:全店 店舗数");', sandbox));
+console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, ichigo, happiness, eternal, kichiri, towa, uandc, daiichi, colowide, srs, ringer, axial, aoyama, gift, ohsho}));
 """
     with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as tmp:
         tmp.write(harness)
@@ -1310,6 +1334,35 @@ console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, 
         _fail(f"82550 screen: {got.get('axial')!r}")
     if any(n == "（従来基準）" for n in (got.get("axial") or [])):
         _fail(f"82550 must not nest （従来基準）: {got.get('axial')!r}")
+    if got.get("aoyama") != [
+        "全店 売上高(前年比)",
+        "既存 売上高(前年比)",
+        "店舗数",
+        "洋服の青山",
+        "SUIT SQUARE他",
+        "TSC他",
+    ]:
+        _fail(f"82190 screen: {got.get('aoyama')!r}")
+    if "全体" in (got.get("aoyama") or []):
+        _fail(f"82190 must not nest 全体: {got.get('aoyama')!r}")
+    if got.get("gift") != [
+        "全店 売上高(前年比)",
+        "既存 売上高(前年比)",
+        "改装店除く 既存 売上高(前年比)",
+        "(改装除く) 既存 売上高(前年比)",
+        "店舗数",
+    ]:
+        _fail(f"92790 screen: {got.get('gift')!r}")
+    if any(n == "（当期）" for n in (got.get("gift") or [])):
+        _fail(f"92790 must not nest （当期）: {got.get('gift')!r}")
+    if got.get("ohsho") != [
+        "直営 既存 売上高(前年比)",
+        "直営 全店 売上高(前年比)",
+        "全店 店舗数",
+        "直営",
+        "FC",
+    ]:
+        _fail(f"99360 screen: {got.get('ohsho')!r}")
 
 
 def test_monthly_year_color_stable() -> None:
