@@ -486,6 +486,45 @@ def cumulative_rows(hist: list[Statement], stmt: Statement, years: int, tol_days
     return rows
 
 
+_MID_PERIODS = ("1Q", "2Q", "3Q")
+
+
+def progress_map(cum: dict | None, base: dict | None) -> dict | None:
+    """累計 / 通期 の進捗率 (%)。通期が 0 以下や欠けている指標は None。"""
+    if cum is None or base is None:
+        return None
+    out = {}
+    for k in METRIC_KEYS:
+        c, b = cum.get(k), base.get(k)
+        out[k] = round(c / b * 100, 1) if c is not None and b and b > 0 else None
+    return out
+
+
+def progress_rows(hist: list[Statement], stmt: Statement, years: int, tol_days: int) -> list[dict]:
+    """進捗率テーブル: 同一四半期の累計を、過去は通期実績で、当期は通期予想で割る。
+
+    1Q〜3Q だけ。本決算は通期そのものなので行を作らない。
+    """
+    fy_end, period = stmt.fiscal_year_end, stmt.type_of_period
+    if fy_end is None or period not in _MID_PERIODS:
+        return []
+    rows = []
+    for back in range(years - 1, 0, -1):
+        s = find_statement(hist, shift_year(fy_end, -back), period, tol_days)
+        if s is None:
+            continue
+        fy = find_statement(hist, s.fiscal_year_end, "FY", tol_days)
+        base = metrics(fy) if fy else None
+        row = _row(s.fiscal_year_end, period, "actual", metrics(s), None,
+                   disclosed=s.disclosed_date)
+        rows.append({**row, "base": base, "progress": progress_map(metrics(s), base)})
+    fyf = {k: getattr(stmt, "fy_" + k) for k in METRIC_KEYS}
+    row = _row(fy_end, period, "actual_current", metrics(stmt), None,
+               disclosed=stmt.disclosed_date)
+    rows.append({**row, "base": fyf, "progress": progress_map(metrics(stmt), fyf)})
+    return rows
+
+
 def quarterly_rows(hist: list[Statement], stmt: Statement, n: int, tol_days: int) -> list[dict]:
     """3か月決算テーブル: 当四半期から n 個ぶん遡ったQ単独実績 (古い順)。"""
     cursor = (stmt.fiscal_year_end, stmt.type_of_period) if stmt.fiscal_year_end else None
@@ -515,6 +554,7 @@ def earnings_detail(db: Session, stmt: Statement) -> dict:
     cum = cumulative_rows(hist, stmt, EP["cum_history_years"], tol)
     qtr = quarterly_rows(hist, stmt, EP["single_history_quarters"], tol)
     return {
+        "progress": progress_rows(hist, stmt, EP["cum_history_years"], tol),
         "label": period_label(stmt.fiscal_year_end, stmt.type_of_period),
         "cumulative": cum,
         "quarterly": qtr,
@@ -539,11 +579,18 @@ def quarter_summary(db: Session, stmt: Statement, hist: list[Statement] | None =
     single = single_from(hist, stmt, tol)
 
     yoy = yoy_single = None
+    fyf = {k: getattr(stmt, "fy_" + k) for k in METRIC_KEYS}
+    progress = None
+    if stmt.type_of_period in _MID_PERIODS:
+        progress = {"cur": progress_map(cum, fyf), "prev": None}
     if stmt.fiscal_year_end:
         prev_fy_end = shift_year(stmt.fiscal_year_end, -1)
         ly = find_statement(hist, prev_fy_end, stmt.type_of_period, tol)
         if ly is not None:
             yoy = growth_map(cum, metrics(ly))
+            if progress is not None:
+                ly_fy = find_statement(hist, ly.fiscal_year_end, "FY", tol)
+                progress["prev"] = progress_map(metrics(ly), metrics(ly_fy) if ly_fy else None)
             yoy_single = growth_map(single, single_metrics(hist, prev_fy_end,
                                                            stmt.type_of_period, tol))
 
@@ -570,7 +617,8 @@ def quarter_summary(db: Session, stmt: Statement, hist: list[Statement] | None =
         "yoy_single": yoy_single,
         "qoq": qoq_map(hist, stmt, tol),
         "forecast_h": {k: getattr(stmt, "f2_" + k) for k in METRIC_KEYS},
-        "forecast_fy": {k: getattr(stmt, "fy_" + k) for k in METRIC_KEYS},
+        "forecast_fy": fyf,
+        "progress": progress,
         "revised_up": revised_up,
         "is_revision_doc": bool(stmt.is_revision),
     }

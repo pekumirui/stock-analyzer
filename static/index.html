@@ -57,7 +57,23 @@
         <div id="earn-suggest" class="suggest" style="display:none"></div>
       </div>
       <div id="earn-groups"></div>
-      <div class="tbl-wrap scroll" id="earn-list" tabindex="0"></div>
+      <div class="earn-box">
+        <div class="phead">
+          <div class="fin-tabs" id="earn-view">
+            <button type="button" class="ftab on" data-view="cum">累計</button>
+            <button type="button" class="ftab" data-view="q">3か月</button>
+            <button type="button" class="ftab" data-view="prog">進捗率</button>
+          </div>
+          <span class="sub" style="font-size:12px">単位: 百万円</span>
+        </div>
+        <div id="earn-qf">
+          <label><input type="checkbox" value="1Q" checked>1Q</label>
+          <label><input type="checkbox" value="2Q" checked>2Q</label>
+          <label><input type="checkbox" value="3Q" checked>3Q</label>
+          <label><input type="checkbox" value="4Q" checked>4Q</label>
+        </div>
+        <div class="tbl-wrap scroll" id="earn-list" tabindex="0"></div>
+      </div>
     </div>
 
     <div class="panel a-fin">
@@ -65,12 +81,14 @@
         <div class="fin-tabs">
           <button type="button" class="ftab on" data-fin="cum">累計</button>
           <button type="button" class="ftab" data-fin="q">3か月</button>
+          <button type="button" class="ftab" data-fin="prog">進捗率</button>
           <button type="button" class="ftab" data-fin="rev">修正履歴</button>
         </div>
-        <span class="sub" style="font-size:12px">単位: 百万円 / EPSは円</span>
+        <span class="sub" style="font-size:12px">単位: 百万円</span>
       </div>
       <div class="tbl-wrap" id="cum-wrap"><table class="fin" id="cum-tbl"></table></div>
       <div class="tbl-wrap" id="q-wrap" hidden><table class="fin" id="q-tbl"></table></div>
+      <div class="tbl-wrap" id="prog-wrap" hidden><table class="fin" id="prog-tbl"></table></div>
       <div class="tbl-wrap" id="rev-wrap" hidden><table class="fin" id="rev-tbl"></table></div>
     </div>
 

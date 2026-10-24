@@ -124,6 +124,8 @@ def earnings_rows(db: Session, day: date) -> list[dict]:
                 "yoy": summary["yoy"],
                 "single": summary["single"],
                 "cumulative": summary["cumulative"],
+                "forecast_fy": summary["forecast_fy"],
+                "progress": summary["progress"],
             })
     out.sort(key=lambda r: (r["disclosed_time"] or "", r["code"]))
     return out

@@ -34,6 +34,9 @@ from app.market.analytics import (  # noqa: E402
     metrics,
     period_label,
     prev_quarter,
+    progress_map,
+    progress_rows,
+    quarter_summary,
     qoq_map,
     quarterly_rows,
     shift_year,
@@ -259,6 +262,28 @@ def test_disclosure_and_rows() -> None:
         _fail(f"quarterly singles {got}")
 
 
+def test_progress() -> None:
+    if progress_map({"net_sales": 50, "operating_profit": -5, "ordinary_profit": 1, "profit": None, "eps": 1},
+                    {"net_sales": 200, "operating_profit": 20, "ordinary_profit": 0, "profit": 10, "eps": None}) \
+            != {"net_sales": 25.0, "operating_profit": -25.0, "ordinary_profit": None, "profit": None, "eps": None}:
+        _fail("progress_map")
+    hist = _hist()
+    q2 = next(s for s in hist if s.disclosure_no == "c2q")
+    q2.fy_net_sales = 500
+    got = [(r["kind"], r["range"], r["progress"]["net_sales"], r["base"]["net_sales"])
+           for r in progress_rows(hist, q2, 2, TOL)]
+    if got != [("actual", "25.3", 50.0, 360), ("actual_current", "26.3", 50.0, 500)]:
+        _fail(f"progress rows {got}")
+    fy = next(s for s in hist if s.disclosure_no == "cfy")
+    if progress_rows(hist, fy, 2, TOL) != []:
+        _fail("fy has no progress rows")
+    summ = quarter_summary(None, q2, hist=[s for s in hist if s.disclosed_date <= q2.disclosed_date])
+    if summ["progress"]["cur"]["net_sales"] != 50.0 or summ["progress"]["prev"]["net_sales"] != 50.0:
+        _fail(summ["progress"])
+    if quarter_summary(None, fy, hist=hist)["progress"] is not None:
+        _fail("fy summary progress")
+
+
 def _seed() -> None:
     init_db()
     db = SessionLocal()
@@ -420,6 +445,7 @@ def main() -> None:
     test_growth_and_metrics()
     test_single_quarter_from_cumulative()
     test_disclosure_and_rows()
+    test_progress()
     test_earnings_api()
     test_upsert_mixed_columns_and_freshness()
     print("ok: analytics")
