@@ -19,6 +19,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.db import run_sqlite_write, upsert
+from app.edinet.client import reraise
 from app.edinet.documents import CodeLookup, now_jst
 from app.edinet.textblocks import edinet_doc_id
 from app.models import EdinetDocument, LargeHolding, LargeHoldingReport
@@ -333,6 +334,7 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
     try:
         got = client.download(doc.doc_id, DocumentFileType.CSV)
     except Exception as exc:
+        reraise(exc)
         if is_not_found(exc):
             store_failed(db, doc, exc, now_jst())
             return "missing"

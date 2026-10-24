@@ -99,6 +99,14 @@ NOT_PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "edinet lvh outside-window n=12"),
     ("batch", "edinet lvh parse-error n=1 sample=S100BRKN"),
     ("batch", "edinet lvh download-error n=2 sample=S100SRV1,S100TMO1"),
+    ("batch", "WARN edinet maintenance skip job=edinet_xbrl err=EDINET returned HTML instead of API data"),
+    (
+        "batch",
+        (
+            "2026-10-24 10:00:01 WARN edinet maintenance skip job=edinet_documents "
+            "err=HTTP 302 redirect; treating as a maintenance page"
+        ),
+    ),
     ("batch", "edinet buyback parse-error n=1 sample=S100Z1HS"),
     (
         "batch",

@@ -22,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from app.db import SessionLocal  # noqa: E402
+from app.edinet.client import skip_on_maintenance  # noqa: E402
 from app.edinet.buybacks import (  # noqa: E402
     exit_status,
     mark_outside_window,
@@ -65,8 +66,14 @@ def main() -> int:
             limit=args.limit if args.limit and args.limit > 0 else None,
         )
         print(f"edinet buyback docs={len(docs)}", flush=True)
-        with EdinetClient() as client:
-            st = run(db, client, docs)
+        try:
+            with EdinetClient() as client:
+                st = run(db, client, docs)
+        except Exception as exc:
+            code = skip_on_maintenance("edinet_buybacks", exc)
+            if code is not None:
+                return code
+            raise
         st["missing"] += expired
         print(
             f"edinet buyback done parsed={st['parsed']} meta={st.get('meta', 0)} "
