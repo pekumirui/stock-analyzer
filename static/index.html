@@ -16,6 +16,7 @@
   <nav id="app-nav">
     <button data-tab="earnings" class="active">決算速報</button>
     <button data-tab="chart">チャート</button>
+    <button data-tab="stock">銘柄</button>
     <button data-tab="screener">スクリーナー</button>
     <button data-tab="pts">PTS</button>
     <button data-tab="monthly">月次</button>
@@ -121,6 +122,18 @@
   </div>
 </section>
 
+<section id="tab-stock" style="display:none">
+  <div class="panel">
+    <div class="row" id="st-search" style="position:relative">
+      <input id="st-sym" placeholder="銘柄名 or コード" autocomplete="off" style="width:200px">
+      <div id="st-suggest" class="suggest" style="display:none"></div>
+      <select id="st-filing" hidden aria-label="決算短信"></select>
+    </div>
+    <div id="st-title"></div>
+    <div id="st-doc"></div>
+  </div>
+</section>
+
 <section id="tab-screener" style="display:none">
   <div class="panel">
     <div class="row">
@@ -198,6 +211,7 @@
 <script src="/static/js/chart-shared.js"></script>
 <script src="/static/js/earnings.js"></script>
 <script src="/static/js/chart-tab.js"></script>
+<script src="/static/js/stock.js"></script>
 <script src="/static/js/screener.js"></script>
 <script src="/static/js/pts.js"></script>
 <script src="/static/js/monthly.js"></script>

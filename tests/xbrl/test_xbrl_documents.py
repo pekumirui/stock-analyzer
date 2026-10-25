@@ -1,0 +1,134 @@
+"""短信 ZIP の原文 HTML（KAB-161）: 選び方・保存・流し込み・API。"""
+from __future__ import annotations
+
+import zipfile
+from datetime import datetime
+from pathlib import Path
+
+from app.db import SessionLocal
+from app.models import Stock, XbrlDocument, XbrlFiling
+from app.xbrl.documents import fill_missing_documents, load_html, pick_documents, sanitize_html
+
+SUMMARY = "XBRLData/Summary/tse-scedjpsy-99990-20261020399990-ixbrl.htm"
+QUAL = "XBRLData/Attachment/qualitative.htm"
+BS = "XBRLData/Attachment/0101010-scbs15-tse-scedjpfr-99990-2026-09-20-01-2026-10-20-ixbrl.htm"
+PL = "XBRLData/Attachment/0102010-scpl15-tse-scedjpfr-99990-2026-09-20-01-2026-10-20-ixbrl.htm"
+
+SUMMARY_HTML = (
+    '﻿<?xml version="1.0" encoding="utf-8"?><html><head><title>s</title>'
+    '<script>alert(1)</script><link rel="stylesheet" href="https://example.com/x.css"/></head>'
+    '<body onload="x()"><p onclick=\'y()\'>売上高 <ix:nonFraction name="tse-ed-t:NetSales">33,024</ix:nonFraction></p>'
+    '<img src="https://www.release.tdnet.info/img/mark1.gif" alt="" />'
+    '<a href="javascript:z()">link</a><iframe src="https://example.com"></iframe></body></html>'
+)
+
+
+def _zip(path: Path, names: list[str]) -> Path:
+    with zipfile.ZipFile(path, "w") as zf:
+        for n in names:
+            zf.writestr(n, SUMMARY_HTML if n == SUMMARY else f"<html><body>{n}</body></html>")
+        zf.writestr("XBRLData/Attachment/manifest.xml", "<manifest/>")
+    return path
+
+
+def test_pick_documents_prefers_qualitative() -> None:
+    assert pick_documents([PL, QUAL, BS, SUMMARY]) == [("summary", SUMMARY), ("qualitative", QUAL)]
+
+
+def test_pick_documents_falls_back_to_attachment_ixbrl_in_order() -> None:
+    assert pick_documents([PL, SUMMARY, BS]) == [
+        ("summary", SUMMARY), ("attachment", BS), ("attachment", PL),
+    ]
+    assert pick_documents([PL]) == [("attachment", PL)]
+    assert pick_documents(["XBRLData/Attachment/manifest.xml"]) == []
+
+
+def test_sanitize_drops_active_and_external_content() -> None:
+    s = sanitize_html(SUMMARY_HTML.lstrip("﻿"))
+    assert "<script" not in s and "alert" not in s
+    assert "<iframe" not in s and "<link" not in s
+    assert "onload" not in s and "onclick" not in s
+    assert "javascript:" not in s
+    assert "mark1.gif" not in s
+    assert "<?xml" not in s
+    assert '<ix:nonFraction name="tse-ed-t:NetSales">33,024</ix:nonFraction>' in s
+
+
+def _seed(db, tmp: Path) -> tuple[XbrlFiling, XbrlFiling, XbrlFiling]:
+    db.add(Stock(code="99990", name="テスト工業", market="プライム", sector33="金属製品"))
+    _zip(tmp / "a.zip", [SUMMARY, QUAL, BS])
+    _zip(tmp / "b.zip", [SUMMARY, PL, BS])
+    now = datetime(2026, 10, 20, 15, 30)  # noqa: DTZ001
+    rows = []
+    for i, (raw, err) in enumerate([("a.zip", None), ("b.zip", None), ("gone.zip", None), ("c.zip", "no-ixbrl")]):
+        f = XbrlFiling(
+            code="99990", source="tdnet", doc_id=f"doc{i}", doc_type="quarterly", period_type="Q2",
+            submitted_at=now.replace(day=20 - i), title=f"短信{i}", raw_path=raw,
+            parse_status="skipped" if err else "parsed", parse_error=err, created_at=now,
+        )
+        db.add(f)
+        rows.append(f)
+    db.add(XbrlFiling(
+        code="99990", source="edinet", doc_id="S100", doc_type="annual", submitted_at=now,
+        title="有報", raw_path="edinet:S100", parse_status="parsed", created_at=now,
+    ))
+    db.commit()
+    return rows[0], rows[1], rows[2]
+
+
+def test_fill_missing_documents_and_api(tmp: Path, c) -> None:
+    db = SessionLocal()
+    try:
+        a, b, gone = _seed(db, tmp)
+        stats = fill_missing_documents(db, tmp)
+        assert stats == {"stored": 2, "missing_zip": 1, "errors": 0}
+        # 2 回目は入れ直さない（ZIP が無い分だけ数える）
+        assert fill_missing_documents(db, tmp) == {"stored": 0, "missing_zip": 1, "errors": 0}
+
+        docs = db.query(XbrlDocument).filter_by(filing_id=a.id).order_by(XbrlDocument.seq).all()
+        assert [(d.seq, d.part, d.file_name) for d in docs] == [
+            (0, "summary", SUMMARY.rsplit("/", 1)[-1]), (1, "qualitative", "qualitative.htm"),
+        ]
+        assert docs[0].bytes == len(SUMMARY_HTML.encode("utf-8"))
+        assert load_html(docs[0]) == SUMMARY_HTML.lstrip("﻿")
+        parts_b = [d.part for d in db.query(XbrlDocument).filter_by(filing_id=b.id).order_by(XbrlDocument.seq)]
+        assert parts_b == ["summary", "attachment", "attachment"]
+        a_id, gone_id = a.id, gone.id
+    finally:
+        db.close()
+
+    r = c.get("/api/stock/9999/filings")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["code"] == "99990" and body["name"] == "テスト工業"
+    # TDnet だけ。新しい順
+    assert [f["title"] for f in body["filings"]] == ["短信0", "短信1", "短信2", "短信3"]
+    by_id = {f["id"]: f for f in body["filings"]}
+    assert [d["part"] for d in by_id[a_id]["documents"]] == ["summary", "qualitative"]
+    assert by_id[gone_id]["documents"] == []
+
+    r = c.get(f"/api/stock/filings/{a_id}/documents/0")
+    assert r.status_code == 200
+    assert r.headers["content-type"].startswith("text/html")
+    csp = r.headers["content-security-policy"]
+    assert "default-src 'none'" in csp and "sandbox" in csp and "allow-scripts" not in csp
+    assert "<script" not in r.text and "33,024" in r.text
+    etag = r.headers["etag"]
+    assert c.get(f"/api/stock/filings/{a_id}/documents/0", headers={"If-None-Match": etag}).status_code == 304
+
+    assert c.get(f"/api/stock/filings/{a_id}/documents/9").status_code == 404
+    assert c.get("/api/stock/1234/filings").status_code == 404
+    assert c.get("/api/stock/xx/filings").status_code == 400
+
+
+def test_spa_has_stock_tab() -> None:
+    root = Path(__file__).resolve().parents[2]
+    html = (root / "static/index.html").read_text(encoding="utf-8")
+    tabs = (root / "static/js/tabs.js").read_text(encoding="utf-8")
+    js = (root / "static/js/stock.js").read_text(encoding="utf-8")
+    assert 'data-tab="stock"' in html and 'id="tab-stock"' in html
+    assert '/static/js/stock.js' in html
+    assert '"stock"' in tabs and "loadStock(code)" in tabs
+    # 原文は script を動かさない iframe で出す
+    assert 'setAttribute("sandbox", "allow-same-origin")' in js
+    assert "/api/stocks/search" in js

@@ -59,6 +59,8 @@ XBRL_CACHE_DIR = os.getenv("XBRL_CACHE_DIR", str(BASE_DIR / "data" / "xbrl_taxon
 XBRL_TEXT_MAX_CHARS = int(os.getenv("XBRL_TEXT_MAX_CHARS", "1000"))
 # xbrl_parse の ZIP 解析プロセス数（KAB-63）。DB 書き込みは親 1 本。1 で直列
 XBRL_PARSE_WORKERS = int(os.getenv("XBRL_PARSE_WORKERS", "2"))
+# 毎時の xbrl_parse が、原文の無いパース済み filing を 1 回に何件まで埋めるか（KAB-161）
+XBRL_DOCUMENTS_FILL_LIMIT = int(os.getenv("XBRL_DOCUMENTS_FILL_LIMIT", "3000"))
 # Unused since KAB-60 (no urlopen). Kept so existing .env still loads.
 XBRL_XSD_TIMEOUT = float(os.getenv("XBRL_XSD_TIMEOUT", "8"))
 
