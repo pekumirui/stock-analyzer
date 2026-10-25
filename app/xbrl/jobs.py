@@ -191,7 +191,8 @@ def parse_manifest_row(
 def _store_documents_logged(db: Session, filing: XbrlFiling, zip_path: Path) -> None:
     """原文の HTML（KAB-161）。失敗してもパースの結果は変えない。"""
     try:
-        store_documents(db, filing, zip_path)
+        if not store_documents(db, filing, zip_path):
+            print(f"documents empty doc_id={filing.doc_id} code={filing.code}", flush=True)
         db.commit()
     except Exception as exc:
         db.rollback()
@@ -297,7 +298,8 @@ def run_parse(
     # パース済みで原文が無い filing（デプロイ前の分）を少しずつ埋める
     docs = fill_missing_documents(db, root, limit=XBRL_DOCUMENTS_FILL_LIMIT)
     print(
-        f"documents stored={docs['stored']} missing_zip={docs['missing_zip']} errors={docs['errors']}",
+        f"documents stored={docs['stored']} empty={docs['empty']} missing_zip={docs['missing_zip']} "
+        f"errors={docs['errors']}",
         flush=True,
     )
     finish_run(db, run, "success" if errors == 0 else "failed", processed, errors, f"skipped={skipped}")

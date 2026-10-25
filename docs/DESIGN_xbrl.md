@@ -168,6 +168,7 @@ CREATE TABLE xbrl_filings (
                         -- 'pending'|'parsed'|'failed'|'skipped'
     parse_error         TEXT,
     parsed_at           TEXT,
+    documents_status    TEXT,                   -- 原文（§15）: NULL|'stored'|'empty'
     created_at          TEXT NOT NULL,
     UNIQUE (source, doc_id)
 );
@@ -793,6 +794,7 @@ CREATE TABLE xbrl_segments (
 - 5933（2027/3 中間期）でサマリー＋`qualitative.htm` を Chromium で PDF にすると 12 ページ、数字 650 個と文字が元の PDF と一致した。違いはページのヘッダー・フッター、ロゴ、フォント。外の画像は TDnet の FASF マーク（`release.tdnet.info/img/mark1.gif`）だけ。`script` は 0 件
 - 大きさ（サマリー＋添付、1 件あたり）: HTML 平均 765KB / 中央値 584KB、gzip 後 平均 35KB。8/10〜10/23 で 2,347 件なので年 1 万件前後、DB は年 約 400MB 増える
 - 数値タグの無い表（EBITDA、定性的情報の中のセグメント表、収益の分解など）は原文にしか無い
+- 業績予想・配当予想の修正（`tse-rvfc…`）の ZIP はフォルダが無く、`*-ixbrl.htm` が ZIP の直下にある（`Summary/` も `qualitative.htm` も `Attachment/` も無い）。2026-10-25 時点で原文の無い TDnet の filing が 362 件あり、この形の ZIP は 0 件のまま毎時読み直されていた
 
 ### 15.2 表 `xbrl_documents`
 
@@ -806,14 +808,16 @@ CREATE TABLE xbrl_segments (
 | `bytes` / `sha256` | 圧縮前 |
 | `created_at` | 入れた時刻（UTC） |
 
-選び方（`app/xbrl/documents.py pick_documents`）: `Summary/` の `*-ixbrl.htm`（名前順）、続けて `qualitative.htm` を 1 つ。`qualitative.htm` が無いときは `Attachment/` の `*-ixbrl.htm` をファイル名順（`0101010-…` の並びが本表の順）。どれも無ければ 0 行。
+`xbrl_filings.documents_status`: 原文を作ったかどうか。NULL（まだ）/ `stored` / `empty`（選べる HTML が 0 件）。
+
+選び方（`app/xbrl/documents.py pick_documents`）: `Summary/` の `*-ixbrl.htm`（名前順）、続けて `qualitative.htm` を 1 つ。`qualitative.htm` が無いときは `Attachment/` の `*-ixbrl.htm` をファイル名順（`0101010-…` の並びが本表の順）。`Summary/` も `qualitative.htm` も `Attachment/` も無いフォルダなしの ZIP（`tse-rvfc` など）は、ZIP の中の `*-ixbrl.htm` を名前順に `summary` として入れる。それでも無ければ 0 行で、`documents_status='empty'` にする。
 
 既存の表に入れない: `xbrl_filings` は取込・正規化・API で何度も引く表で、1 行 35KB の BLOB を載せない。`xbrl_facts.value_text` は fact 単位で 1000 文字で切る（§1.2）。`qualitative.htm` はタグが無く fact にならない。
 
 ### 15.3 取込
 
 - `xbrl_parse` が ZIP をパースした直後に、その filing の原文を作り直す（`parse_manifest_row`）。失敗してもパースの結果は変えない（ログ `documents failed …`）
-- 同じ実行の最後に、原文の無い TDnet の filing（パース済み・失敗を含む。`parse_error='no-ixbrl'` は除く）を新しい順に `XBRL_DOCUMENTS_FILL_LIMIT`（既定 3000）件まで ZIP から埋める（`fill_missing_documents`）。デプロイ後の最初の毎時で既存分が入る。ZIP が無ければ数えて飛ばす（ログ `documents stored=… missing_zip=… errors=…`）
+- 同じ実行の最後に、原文の無い TDnet の filing（パース済み・失敗を含む。`parse_error='no-ixbrl'` は除く）を新しい順に `XBRL_DOCUMENTS_FILL_LIMIT`（既定 3000）件まで ZIP から埋める（`fill_missing_documents`）。デプロイ後の最初の毎時で既存分が入る。`documents_status='empty'` の filing は読み直さない。ZIP が無ければ数えて飛ばす。0 件だった ZIP は `documents empty doc_id=…` と出して `empty` に数える（ログ `documents stored=… empty=… missing_zip=… errors=…`）
 - 元の HTML のまま保存し、除去は表示のとき（`sanitize_html`）。除去の決まりを変えても入れ直さない
 - EDINET は対象外（ZIP の形が違う）
 

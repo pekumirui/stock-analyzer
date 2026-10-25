@@ -2,7 +2,8 @@
 
 PDF と同じ中身を画面で読むための原文。サマリーの iXBRL と `Attachment/qualitative.htm`
 （添付資料まるごと）を入れる。qualitative.htm が無い書類（REIT・一部の訂正）は本表の iXBRL を
-ファイル名順に入れる。元の HTML のまま gzip で持ち、script などは表示のときに除く。
+ファイル名順に入れる。どれも無いフォルダなしの ZIP（業績予想・配当予想の修正 tse-rvfc など）は
+ZIP の中の iXBRL をサマリーとして入れる。元の HTML のまま gzip で持ち、script などは表示のときに除く。
 """
 from __future__ import annotations
 
@@ -37,6 +38,9 @@ def pick_documents(names: list[str]) -> list[tuple[str, str]]:
             key=lambda n: n.rsplit("/", 1)[-1],
         )
         out += [("attachment", n) for n in att]
+    if not out:
+        # フォルダなしの ZIP（tse-rvfc など）。Summary/ も Attachment/ も無い
+        out = [("summary", n) for n in sorted(n for n in htm if n.lower().endswith("-ixbrl.htm"))]
     return out
 
 
@@ -50,9 +54,13 @@ def read_documents(zip_path: Path) -> list[dict]:
 
 
 def store_documents(db: Session, filing: XbrlFiling, zip_path: Path) -> int:
-    """filing の xbrl_documents を作り直す。commit しない。戻り値は入れた件数。"""
+    """filing の xbrl_documents を作り直す。commit しない。戻り値は入れた件数。
+
+    0 件なら filing.documents_status='empty' にして、毎時の埋め直しで読み直さない。
+    """
     docs = read_documents(zip_path)
     db.execute(delete(XbrlDocument).where(XbrlDocument.filing_id == filing.id))
+    filing.documents_status = "stored" if docs else "empty"
     now = _now()
     for d in docs:
         raw = d["html"]
@@ -71,12 +79,13 @@ def store_documents(db: Session, filing: XbrlFiling, zip_path: Path) -> int:
 
 
 def filings_missing_documents(db: Session, limit: int | None = None) -> list[XbrlFiling]:
-    """TDnet の filing のうち xbrl_documents が無いもの。新しい順。iXBRL の無い ZIP は除く。"""
+    """TDnet の filing のうち xbrl_documents が無いもの。新しい順。iXBRL の無い ZIP と、読んで 0 件だった ZIP は除く。"""
     q = (
         db.query(XbrlFiling)
         .filter(XbrlFiling.source == "tdnet")
         .filter(~exists().where(XbrlDocument.filing_id == XbrlFiling.id))
         .filter((XbrlFiling.parse_error.is_(None)) | (XbrlFiling.parse_error != "no-ixbrl"))
+        .filter((XbrlFiling.documents_status.is_(None)) | (XbrlFiling.documents_status != "empty"))
         .order_by(XbrlFiling.submitted_at.desc())
     )
     if limit:
@@ -86,7 +95,7 @@ def filings_missing_documents(db: Session, limit: int | None = None) -> list[Xbr
 
 def fill_missing_documents(db: Session, dest: Path, *, limit: int | None = None) -> dict[str, int]:
     """既にパースした filing に原文を足す（デプロイ後の流し込みと取りこぼしの拾い直し）。"""
-    stored = missing = errors = 0
+    stored = empty = missing = errors = 0
     for filing in filings_missing_documents(db, limit=limit):
         zip_path = Path(dest) / filing.raw_path
         if not zip_path.is_file():
@@ -95,12 +104,15 @@ def fill_missing_documents(db: Session, dest: Path, *, limit: int | None = None)
         try:
             if store_documents(db, filing, zip_path):
                 stored += 1
+            else:
+                empty += 1
+                print(f"documents empty doc_id={filing.doc_id} code={filing.code}", flush=True)
             db.commit()
         except Exception as exc:
             db.rollback()
             errors += 1
             print(f"documents failed doc_id={filing.doc_id} code={filing.code} err={exc}", flush=True)
-    return {"stored": stored, "missing_zip": missing, "errors": errors}
+    return {"stored": stored, "empty": empty, "missing_zip": missing, "errors": errors}
 
 
 def load_html(doc: XbrlDocument) -> str:
