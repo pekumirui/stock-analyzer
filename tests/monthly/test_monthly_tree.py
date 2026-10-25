@@ -2152,6 +2152,155 @@ def test_tree_82000() -> None:
         _fail(f"82000 純 must not be a group: {got!r}")
 
 
+def test_tree_43430() -> None:
+    """43430 イオンファンタジー: 国内計既存は日本 既存、総合店はアミューズメントの子（#826）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
+
+    rows = assign_tree_rows("43430", [
+        "日本 売上高(前年比)",
+        "日本 (曜日調整前) 既存 売上高(前年比)",
+        "日本 既存 売上高(前年比)",
+        "日本 (曜日調整後) 既存 売上高(前年比)",
+        "日本 店舗数",
+        "日本 アミューズメント事業 売上高(前年比)",
+        "日本 アミューズメント事業 既存 売上高(前年比)",
+        "日本 アミューズメント事業 店舗数",
+        "日本 アミューズメント事業 総合店 売上高(前年比)",
+        "日本 アミューズメント事業 総合店 既存 売上高(前年比)",
+        "日本 アミューズメント事業 総合店 店舗数",
+        "日本 アミューズメント事業 専門店 売上高(前年比)",
+        "日本 プレイグラウンド事業 売上高(前年比)",
+        "海外 既存 売上高(前年比)",
+        "海外 中国 既存 売上高(前年比)",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["日本 (曜日調整前) 既存 売上高(前年比)"] != (
+            ["全体"], "日本 (曜日調整前) 既存 売上高(前年比)", "日本 既存 売上高"):
+        _fail(f"43430 曜日調整前: {got['日本 (曜日調整前) 既存 売上高(前年比)']!r}")
+    if got["日本 既存 売上高(前年比)"] != (["全体"], "日本 既存 売上高(前年比)", "日本 既存 売上高"):
+        _fail(f"43430 日本既存: {got['日本 既存 売上高(前年比)']!r}")
+    if got["日本 (曜日調整後) 既存 売上高(前年比)"] != (
+            ["全体"], "日本 (曜日調整後) 既存 売上高(前年比)", "日本 (曜日調整後) 既存 売上高"):
+        _fail(f"43430 曜日調整後: {got['日本 (曜日調整後) 既存 売上高(前年比)']!r}")
+    if any("曜日調整" in p for v in got.values() for p in v[0]):
+        _fail(f"43430 曜日調整 must not be a group: {got!r}")
+    if got["日本 アミューズメント事業 総合店 売上高(前年比)"] != (
+            ["全体", "アミューズメント事業", "総合店"], "売上高(前年比)", "日本 売上高"):
+        _fail(f"43430 総合店: {got['日本 アミューズメント事業 総合店 売上高(前年比)']!r}")
+    if got["日本 アミューズメント事業 専門店 売上高(前年比)"] != (
+            ["全体", "アミューズメント事業", "専門店"], "売上高(前年比)", "日本 売上高"):
+        _fail(f"43430 専門店: {got['日本 アミューズメント事業 専門店 売上高(前年比)']!r}")
+    if got["日本 アミューズメント事業 既存 売上高(前年比)"] != (
+            ["全体", "アミューズメント事業"], "既存 売上高(前年比)", "日本 既存 売上高"):
+        _fail(f"43430 アミューズメント既存: {got['日本 アミューズメント事業 既存 売上高(前年比)']!r}")
+    if got["海外 中国 既存 売上高(前年比)"] != (
+            ["全体", "海外", "中国"], "海外 中国 既存 売上高(前年比)", "海外 既存 売上高"):
+        _fail(f"43430 中国: {got['海外 中国 既存 売上高(前年比)']!r}")
+    payload = tree_payload("43430", list(got), load_monthly_trees())
+    if payload is None or payload.get("tree_metrics") != [
+            "日本 既存 売上高", "日本 (曜日調整後) 既存 売上高", "日本 売上高", "日本 店舗数", "海外 既存 売上高"]:
+        _fail(f"43430 tree_metrics: {payload!r}")
+    if payload.get("tree_metric_parent"):
+        _fail(f"43430 must not nest metrics: {payload.get('tree_metric_parent')!r}")
+
+
+def test_tree_60400() -> None:
+    """60400 日本スキー場開発: リフト券・来場者の余りを来場者数へ（#827）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
+
+    rows = assign_tree_rows("60400", [
+        "グリーン 来場者数",
+        "グリーン 索道計 リフト券",
+        "グリーン 索道計 来場者数",
+        "グリーン めいほう高原 来場者",
+        "グリーン 岩岳 来場者数",
+        "ウィンター 川場 来場者",
+        "ウィンター 川場 来場者数",
+        "ウィンター めいほう 来場者",
+        "ウィンター めいほう 来場者数",
+        "ウィンター 鹿島槍 来場者",
+        "ウィンター 鹿島槍 来場者数",
+        "ウィンター 来場者数",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["グリーン 索道計 リフト券"] != (
+            ["全体", "グリーン 索道計"], "リフト券", "来場者数"):
+        _fail(f"60400 索道計: {got['グリーン 索道計 リフト券']!r}")
+    if got["グリーン めいほう高原 来場者"] != (
+            ["全体", "グリーン めいほう高原"], "来場者", "来場者数"):
+        _fail(f"60400 めいほう高原: {got['グリーン めいほう高原 来場者']!r}")
+    if got["ウィンター 川場 来場者"] != (
+            ["全体", "ウィンター 川場"], "来場者", "来場者数"):
+        _fail(f"60400 川場来場者: {got['ウィンター 川場 来場者']!r}")
+    if got["ウィンター 川場 来場者数"] != (
+            ["全体", "ウィンター 川場"], "来場者数", "来場者数"):
+        _fail(f"60400 川場来場者数: {got['ウィンター 川場 来場者数']!r}")
+    if got["ウィンター 鹿島槍 来場者"] != (
+            ["全体", "ウィンター 鹿島槍"], "来場者", "来場者数"):
+        _fail(f"60400 鹿島槍来場者: {got['ウィンター 鹿島槍 来場者']!r}")
+    if got["グリーン 来場者数"] != (["全体", "グリーン"], "来場者数", "来場者数"):
+        _fail(f"60400 グリーン計: {got['グリーン 来場者数']!r}")
+    payload = tree_payload("60400", list(got), load_monthly_trees())
+    if payload is None or payload.get("tree_metrics") != ["来場者数"]:
+        _fail(f"60400 tree_metrics: {payload!r}")
+    if payload.get("tree_metric_parent"):
+        _fail(f"60400 must not nest metrics: {payload.get('tree_metric_parent')!r}")
+
+
+def test_tree_65370() -> None:
+    """65370 ＷＡＳＨハウス: 一時閉店は退店の節にしない（#829）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
+
+    rows = assign_tree_rows("65370", [
+        "出店", "一時 退店", "一時閉店", "退店", "店舗数",
+        "全店 売上高(前年比)", "既存 売上高(前年比)",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["一時 退店"] != (["全体"], "一時 退店", "一時閉店"):
+        _fail(f"65370 一時退店: {got['一時 退店']!r}")
+    if got["一時閉店"] != (["全体"], "一時閉店", "一時閉店"):
+        _fail(f"65370 一時閉店: {got['一時閉店']!r}")
+    if got["退店"] != (["全体"], "退店", "退店"):
+        _fail(f"65370 退店: {got['退店']!r}")
+    if any(p == "一時" for v in got.values() for p in v[0]):
+        _fail(f"65370 一時 must not be a group: {got!r}")
+    payload = tree_payload("65370", list(got), load_monthly_trees())
+    if payload is None or payload.get("tree_metrics") != [
+            "出店", "一時閉店", "退店", "店舗数", "全店 売上高", "既存 売上高"]:
+        _fail(f"65370 tree_metrics: {payload!r}")
+    if payload.get("tree_metric_parent"):
+        _fail(f"65370 must not nest 一時閉店: {payload.get('tree_metric_parent')!r}")
+
+
+def test_tree_92450() -> None:
+    """92450 リベロ: 転貸戸数・法人企業等の前年同期比を各実数の前年比にする（#830）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
+
+    rows = assign_tree_rows("92450", [
+        "売上高", "売上高(前年比)",
+        "転貸戸数", "転貸戸数(前年比)", "転貸戸数前年同期比(前年比)",
+        "法人企業等", "法人企業等(前年比)", "法人企業等前年同期比(前年比)",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    want = {
+        "売上高": (["全体"], "売上高", "売上高"),
+        "売上高(前年比)": (["全体"], "売上高(前年比)", "売上高"),
+        "転貸戸数": (["全体"], "転貸戸数", "転貸戸数"),
+        "転貸戸数(前年比)": (["全体"], "転貸戸数(前年比)", "転貸戸数"),
+        "転貸戸数前年同期比(前年比)": (["全体"], "転貸戸数前年同期比(前年比)", "転貸戸数"),
+        "法人企業等": (["全体"], "法人企業等", "法人企業等"),
+        "法人企業等(前年比)": (["全体"], "法人企業等(前年比)", "法人企業等"),
+        "法人企業等前年同期比(前年比)": (["全体"], "法人企業等前年同期比(前年比)", "法人企業等"),
+    }
+    if got != want:
+        _fail(f"92450 tree: {got!r}")
+    payload = tree_payload("92450", list(got), load_monthly_trees())
+    if payload is None or payload.get("tree_metrics") != ["売上高", "転貸戸数", "法人企業等"]:
+        _fail(f"92450 tree_metrics: {payload!r}")
+    if payload.get("tree_metric_parent"):
+        _fail(f"92450 must not nest metrics: {payload.get('tree_metric_parent')!r}")
+
+
 def test_tree_23110() -> None:
     """23110 エプコ: 経常利益 ▸ 連結 + 再エネ/メンテ/設計（再エネの子に TEPCO 等）（#825）。"""
     from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
@@ -2546,6 +2695,10 @@ def main() -> None:
     test_tree_76160()
     test_tree_81630()
     test_tree_82000()
+    test_tree_43430()
+    test_tree_60400()
+    test_tree_65370()
+    test_tree_92450()
     test_tree_23110()
     test_tree_75060()
     test_tree_82190()
