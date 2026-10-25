@@ -8,3 +8,5 @@ pandas>=2.0
 openpyxl>=3.1
 numpy>=1.24
 pyyaml>=6.0
+# tools/tdnet_pdf（PDF → HTML。bot が VPS で動かす。KAB-164）
+pdfplumber>=0.11

@@ -122,6 +122,14 @@ scp stock.db user@YOUR_HOST:/home/user/stock-analyzer/stock.db
 
 DB のバックアップは ConoHa の自動バックアップか、日次で別パスへコピー。
 
+過去の決算短信の原文（IR BANK の PDF → HTML。`docs/DESIGN_xbrl.md` §16）は、VPS で銘柄を指定して流す。
+
+```bash
+cd /home/stock/stock-analyzer
+.venv/bin/python tools/tdnet_pdf/ingest.py --code 5933 --code 7203 --dry-run   # 対象の件数
+.venv/bin/python tools/tdnet_pdf/ingest.py --code 5933 --code 7203 --limit 500  # 429/503 で止まる
+```
+
 ## CI/CD
 
 `main` にマージすると GitHub Actions がテスト → GitHub Release（タグ）→ ConoHa VPS へデプロイする。変更が `.md` / `docs/` / `.claude/memory/` だけのときは走らない。

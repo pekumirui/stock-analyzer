@@ -4,6 +4,8 @@ let stockFilings = [];
 let stockAc = null;
 
 const STOCK_MAIN_DOC_TYPES = ["annual", "semiannual", "quarterly"];
+// XBRL の回は xbrl_filings.id、PDF から変換した回（KAB-164）は TDnet の docID
+const stockFilingKey = f => f.source === "pdf" ? `pdf:${f.disclosure_no}` : `x:${f.id}`;
 
 function stockSuggest(rs){
   const box = $("#st-suggest");
@@ -44,6 +46,7 @@ function stockPick(s){
 function stockMsg(text){
   const host = $("#st-doc");
   host.innerHTML = "";
+  $("#st-src").hidden = true;
   const p = document.createElement("p");
   p.className = "sub";
   p.textContent = text;
@@ -80,8 +83,8 @@ async function loadStock(code){
   sel.innerHTML = "";
   for(const f of stockFilings){
     const o = document.createElement("option");
-    o.value = f.id;
-    o.textContent = `${(f.submitted_at || "").slice(0, 10)} ${f.title || ""}`;
+    o.value = stockFilingKey(f);
+    o.textContent = `${(f.submitted_at || "").slice(0, 10)} ${f.title || ""}${f.source === "pdf" ? "（PDF から変換）" : ""}`;
     sel.appendChild(o);
   }
   sel.hidden = !stockFilings.length;
@@ -90,12 +93,12 @@ async function loadStock(code){
     return;
   }
   const first = stockFilings.find(f => STOCK_MAIN_DOC_TYPES.includes(f.doc_type)) || stockFilings[0];
-  sel.value = first.id;
+  sel.value = stockFilingKey(first);
   showStockFiling(first);
 }
 
 $("#st-filing").addEventListener("change", e => {
-  const f = stockFilings.find(x => String(x.id) === e.target.value);
+  const f = stockFilings.find(x => stockFilingKey(x) === e.target.value);
   if(f) showStockFiling(f);
 });
 
@@ -152,15 +155,18 @@ function fitStockFrame(frame){
 function showStockFiling(f){
   const host = $("#st-doc");
   host.innerHTML = "";
+  const src = $("#st-src");
+  src.textContent = f.attribution ? `出典: ${f.attribution}。PDF から変換した原文（画像は出ません）` : "";
+  src.hidden = !f.attribution;
   for(const doc of f.documents){
     const frame = document.createElement("iframe");
     frame.className = "st-frame";
     frame.setAttribute("sandbox", "allow-same-origin");
     frame.setAttribute("referrerpolicy", "no-referrer");
     frame.setAttribute("scrolling", "no");
-    frame.title = doc.part === "summary" ? "サマリー" : "添付資料";
+    frame.title = doc.part === "summary" ? "サマリー" : doc.part === "pdf" ? "PDF から変換" : "添付資料";
     frame.onload = () => fitStockFrame(frame);
-    frame.src = `/api/stock/filings/${f.id}/documents/${doc.seq}`;
+    frame.src = doc.url;
     const page = document.createElement("div");
     page.className = "st-page";
     page.appendChild(frame);
