@@ -99,11 +99,17 @@ $("#st-filing").addEventListener("change", e => {
   if(f) showStockFiling(f);
 });
 
-// 中で script は動かない（sandbox）。同じオリジンなので親から高さを測って iframe を伸ばす
+// 中で script は動かない（sandbox）。同じオリジンなので親から中身を測り、iframe を中身の幅と高さまで広げる。
+// iframe の中ではスクロールさせない（入れ子のスクロールは指で滑らせると引っかかる）。横にはみ出す分は #st-doc が横スクロール
 function fitStockFrame(frame){
   try {
     const doc = frame.contentDocument;
-    frame.style.height = Math.max(doc.documentElement.scrollHeight, doc.body ? doc.body.scrollHeight : 0) + "px";
+    const de = doc.documentElement;
+    de.style.overflow = "hidden";
+    frame.style.width = "";
+    const w = Math.max(de.scrollWidth, doc.body ? doc.body.scrollWidth : 0);
+    if(w > frame.clientWidth) frame.style.width = w + "px";
+    frame.style.height = Math.max(de.scrollHeight, doc.body ? doc.body.scrollHeight : 0) + "px";
   } catch(e){
     frame.style.height = "80vh";
   }
@@ -117,6 +123,7 @@ function showStockFiling(f){
     frame.className = "st-frame";
     frame.setAttribute("sandbox", "allow-same-origin");
     frame.setAttribute("referrerpolicy", "no-referrer");
+    frame.setAttribute("scrolling", "no");
     frame.title = doc.part === "summary" ? "サマリー" : "添付資料";
     frame.onload = () => fitStockFrame(frame);
     frame.src = `/api/stock/filings/${f.id}/documents/${doc.seq}`;
@@ -124,7 +131,16 @@ function showStockFiling(f){
   }
 }
 
+// スマホはスクロールでアドレスバーが出入りして resize が続く。高さを測り直すのは幅が変わったときだけ
+let stockFitWidth = window.innerWidth;
+let stockFitPending = false;
 window.addEventListener("resize", () => {
+  if(window.innerWidth === stockFitWidth || stockFitPending) return;
   if($("#tab-stock").style.display === "none") return;
-  document.querySelectorAll("#st-doc iframe").forEach(fitStockFrame);
+  stockFitPending = true;
+  requestAnimationFrame(() => {
+    stockFitPending = false;
+    stockFitWidth = window.innerWidth;
+    document.querySelectorAll("#st-doc iframe").forEach(fitStockFrame);
+  });
 });
