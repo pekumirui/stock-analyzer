@@ -1207,6 +1207,7 @@ function fmtMonthlyBarV(v){
 
 let monthlyChartCssW = 0;
 let monthlyChartState = null;
+const MONTHLY_OLD_YEAR_OPACITY = 0.4;
 
 // 線グラフの縦軸。値の幅に合わせ、0 から始めない（前年比は 100 を含める）
 function monthlyLineRange(vals, yoy){
@@ -1299,11 +1300,14 @@ function drawMonthlyChart(tables, seriesId){
       d += `${pen ? "L" : "M"}${mx(mi).toFixed(1)} ${yx(v).toFixed(1)}`;
       pen = true;
     });
-    svg += `<path d="${d}" fill="none" stroke="${color}" stroke-width="${isLatest ? 2.5 : 1.75}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    // 前の年は薄くして、最新の年を主役にする
+    const fade = isLatest ? "" : ` opacity="${MONTHLY_OLD_YEAR_OPACITY}"`;
+    svg += `<g${fade}><path d="${d}" fill="none" stroke="${color}" stroke-width="${isLatest ? 2.5 : 1.75}" stroke-linejoin="round" stroke-linecap="round"/>`;
     byYear[year].forEach((v, mi) => {
       if(v==null) return;
       svg += `<circle cx="${mx(mi).toFixed(1)}" cy="${yx(v).toFixed(1)}" r="${isLatest ? 3 : 2.25}" fill="${color}"/>`;
     });
+    svg += `</g>`;
   }
   // 値は最新の年だけ書く（3 年分は重なる）。ほかの年はカーソル・タップで出す
   byYear[latest].forEach((v, mi) => {
@@ -1317,7 +1321,7 @@ function drawMonthlyChart(tables, seriesId){
   svg += `</svg>`;
 
   const legend = years.map(y =>
-    `<span class="monthly-legend-item"><span class="monthly-year-swatch" style="background:${monthlyYearColor(y)}"></span>${y}年</span>`).join("");
+    `<span class="monthly-legend-item"><span class="monthly-year-swatch" style="background:${monthlyYearColor(y)}${y === latest ? "" : `;opacity:${MONTHLY_OLD_YEAR_OPACITY}`}"></span>${y}年</span>`).join("");
   host.innerHTML = `<div class="monthly-legend">${legend}</div><div class="monthly-line-chart">${svg}<div class="monthly-tip" hidden></div></div>`;
   monthlyChartState = {years, byYear, W, mx};
   monthlyBindChartTip(host);
