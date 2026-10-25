@@ -133,6 +133,10 @@ _JS_URL = re.compile(r"(href|src|action)\s*=\s*(['\"])\s*javascript:[^'\"]*\2", 
 # TDnet の FASF マーク（外の gif）。外へは取りに行かないので枠ごと外す
 _EXT_IMG = re.compile(r"<img\b[^>]*\bsrc\s*=\s*['\"]https?://[^>]*>", re.I)
 _XML_DECL = re.compile(r"^\s*<\?xml[^>]*\?>", re.I)
+_HEAD_OPEN = re.compile(r"<head\b[^>]*>", re.I)
+# iOS Safari の文字の自動拡大を止める（KAB-168）。viewport の無い原文で、横に長い段落（目次の …… の行）だけ
+# 文字を大きくし、リーダーが次の行に落ちて両端そろえで 1 字ずつ離れる
+TEXT_SIZE_ADJUST = "<style>html{-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>"
 
 
 def sanitize_html(html: str) -> str:
@@ -144,4 +148,5 @@ def sanitize_html(html: str) -> str:
     s = _ON_ATTR.sub("", s)
     s = _JS_URL.sub(r'\1=\2#\2', s)
     s = _EXT_IMG.sub("", s)
-    return s
+    m = _HEAD_OPEN.search(s)
+    return s[:m.end()] + TEXT_SIZE_ADJUST + s[m.end():] if m else TEXT_SIZE_ADJUST + s
