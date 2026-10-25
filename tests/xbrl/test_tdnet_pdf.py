@@ -25,6 +25,10 @@ def make_pdf(title: str = "Financial Results FY2025", value: str = "1,234") -> b
         b"<< /Length %d >>\nstream\n" % len(content) + content + b"\nendstream",
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
     ]
+    return _pdf(objs)
+
+
+def _pdf(objs: list[bytes]) -> bytes:
     out = bytearray(b"%PDF-1.4\n")
     offsets = []
     for i, body in enumerate(objs, 1):
@@ -50,6 +54,49 @@ def test_convert_pdf_draws_text_rules_and_shading() -> None:
     assert "<script" not in conv.html and CONVERTER == "svg2"
     # バイト列でもパスでも読める
     assert convert_pdf(make_pdf("Other title")).title is None
+
+
+def test_convert_pdf_joins_surrogate_pairs() -> None:
+    """ToUnicode が BMP の外（𠮷）なら pdfium はサロゲート 2 つで返す。1 字に戻し、組にならないものは U+FFFD（KAB-169）。"""
+    cmap = (
+        b"/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CMapName /T def "
+        b"1 begincodespacerange <00> <FF> endcodespacerange "
+        b"3 beginbfchar <41> <D842DFB7> <42> <D842> <43> <DC00> endbfchar endcmap end end"
+    )
+    content = b"BT /F1 12 Tf 50 750 Td (A) Tj ET BT /F1 12 Tf 50 700 Td (B) Tj ET BT /F1 12 Tf 50 650 Td (C) Tj ET"
+    pdf = _pdf([
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+        b"<< /Length %d >>\nstream\n" % len(content) + content + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /ToUnicode 6 0 R >>",
+        b"<< /Length %d >>\nstream\n" % len(cmap) + cmap + b"\nendstream",
+    ])
+    conv = convert_pdf(pdf)
+    conv.html.encode("utf-8")  # 落ちない
+    assert ">\U00020bb7</text>" in conv.html
+    assert conv.html.count(">\ufffd</text>") == 2
+
+
+def test_fetch_pdf_rejects_truncated_linearized() -> None:
+    """IR BANK の PDF が途中で切れている（/Linearized の /L より短い）なら failed にする（KAB-169。20260212556420）。"""
+    head = b"%PDF-1.4\r%\xe2\xe3\xcf\xd3\r\n92 0 obj\r\n<</Linearized 1/L 277188/H [ 1066 307]/O 94/E 106362/N 11/T 275228>>\r\nendobj\r\n"
+    body = head + b"x" * 1000
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=body)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        try:
+            ingest.fetch_pdf(client, "20260212556420")
+        except ValueError as exc:
+            assert "truncated" in str(exc) and "277188" in str(exc)
+        else:
+            raise AssertionError("truncated pdf was accepted")
+    # 長さが /L 以上なら通す（後ろに追記された PDF もある）
+    full = head + b"x" * (277188 - len(head))
+    with httpx.Client(transport=httpx.MockTransport(lambda req: httpx.Response(200, content=full))) as client:
+        assert ingest.fetch_pdf(client, "20260212556420") == full
 
 
 def _seed(db) -> None:

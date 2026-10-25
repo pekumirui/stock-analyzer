@@ -4,7 +4,8 @@ pdfium（pypdfium2）で文字と図形を読み、同じ位置に描く。文�
 罫線・網掛け・枠・曲線は <path>。語の幅は textLength で PDF に合わせるので、ブラウザのフォントが
 違っても表の桁がずれない。画像（ロゴ・グラフの画像）は出さない。
 
-- 文字: textpage の 1 文字ずつの原点（ベースライン）・ゆるい字の枠・大きさ。フォント名・太さ・色は
+- 文字: textpage の 1 文字ずつの原点（ベースライン）・ゆるい字の枠・大きさ。pdfium は UTF-16 の 1 単位ずつ返すので、
+  サロゲートの組（𠮷 など）は 1 字に戻し、組にならないものは U+FFFD にする。フォント名・太さ・色は
   文字が属するテキストのオブジェクトごとに 1 回だけ取る。pdfium が足した空白・改行（generated）は捨てる。
   ベースラインが 1pt 以内の文字を 1 行にまとめ、左から並べ、隙間が 1.2pt を超えるか書式が変われば語を切る
 - 図形: ページのオブジェクトの path。Form XObject の入れ子を辿り、行列を掛け合わせてページの座標にする
@@ -77,11 +78,24 @@ def _chars(page, height: float) -> list[_Char]:
         flags = ctypes.c_int()
         styles: dict[int, _Style] = {}
         out: list[_Char] = []
-        for i in range(raw.FPDFText_CountChars(tp)):
+        n_chars = raw.FPDFText_CountChars(tp)
+        low = False   # 直前の上位サロゲートと組にした下位サロゲート
+        for i in range(n_chars):
+            if low:
+                low = False
+                continue
             u = raw.FPDFText_GetUnicode(tp, i)
             if u < 32 or u in (0xFFFE, 0xFFFF) or raw.FPDFText_IsGenerated(tp, i) == 1:
                 continue
             key = ctypes.cast(raw.FPDFText_GetTextObject(tp, i), ctypes.c_void_p).value or 0
+            if 0xD800 <= u <= 0xDFFF:
+                v = raw.FPDFText_GetUnicode(tp, i + 1) if u <= 0xDBFF and i + 1 < n_chars else 0
+                if 0xDC00 <= v <= 0xDFFF and key == (
+                        ctypes.cast(raw.FPDFText_GetTextObject(tp, i + 1), ctypes.c_void_p).value or 0):
+                    u = 0x10000 + ((u - 0xD800) << 10) + (v - 0xDC00)
+                    low = True
+                else:
+                    u = 0xFFFD   # 組にならないサロゲートは UTF-8 に書けない
             st = styles.get(key)
             if st is None:
                 n = raw.FPDFText_GetFontInfo(tp, i, buf, len(buf), flags)
