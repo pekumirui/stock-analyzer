@@ -41,6 +41,7 @@ from tools.tdnet_pdf.convert import CONVERTER, convert_pdf  # noqa: E402
 PDF_URL = "https://api.irbank.net/api/market-files/v1/tdnet/{no}.pdf"
 USER_AGENT = "stock-analyzer/1.0 (personal; tools/tdnet_pdf)"
 _CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
+_LINEARIZED_LEN = re.compile(rb"/Linearized\s+[0-9.]+\s*/L\s+([0-9]+)")
 
 
 class RateLimited(RuntimeError):
@@ -99,6 +100,10 @@ def fetch_pdf(client: httpx.Client, no: str) -> bytes:
     r.raise_for_status()
     if not r.content.startswith(b"%PDF"):
         raise ValueError(f"not a pdf (content-type={r.headers.get('content-type')})")
+    m = _LINEARIZED_LEN.search(r.content[:1024])
+    if m and len(r.content) < int(m.group(1)):
+        # IR BANK に途中までしか無い PDF がある（20260212556420）。pdfium も pdfminer も読めない
+        raise ValueError(f"truncated pdf (bytes={len(r.content)} linearized_L={m.group(1)})")
     return r.content
 
 
