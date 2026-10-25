@@ -8,6 +8,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -231,6 +232,23 @@ class XbrlFiling(Base):
         Index("idx_xbrl_filings_parse_status", "parse_status"),
     )
 
+
+
+class XbrlDocument(Base):
+    """短信 ZIP の表示用 HTML（KAB-161）。書類ごとに表示順で並べる。元の HTML を gzip で持つ。
+
+    part は summary（サマリー）/ qualitative（添付資料まるごと）/ attachment（qualitative.htm が
+    無い書類の本表 iXBRL）。script などの除去は表示のとき（app/xbrl/documents.py）。
+    """
+    __tablename__ = "xbrl_documents"
+    filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), primary_key=True)
+    seq = Column(Integer, primary_key=True)
+    part = Column(String(16), nullable=False)
+    file_name = Column(Text, nullable=False)
+    html_gz = Column(LargeBinary, nullable=False)
+    bytes = Column(Integer, nullable=False)       # 圧縮前
+    sha256 = Column(String(64), nullable=False)   # 圧縮前
+    created_at = Column(DateTime, nullable=False)
 
 class XbrlElement(Base):
     __tablename__ = "xbrl_elements"

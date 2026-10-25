@@ -782,3 +782,38 @@ CREATE TABLE xbrl_segments (
 | ソフトバンク G 9984 | IFRS | 3 一致 | 有報の注記どおり（税引前利益）。IR Bank は null | 開示なし |
 
 既存の `xbrl_financials` は同じ 17 件で main と全行一致した（`keep_fact` を広げても次元付き fact は §6.4-1 で落ちる）。
+
+## 15. 短信の原文 HTML（KAB-161）
+
+銘柄タブ（`docs/DESIGN_stock.md`）で短信を PDF と同じ並びで読むため、ZIP の HTML を `xbrl_documents` に入れる。数値の層とは別。パース・正規化の結果は変えない。
+
+### 15.1 実データで分かったこと（2026-08-10〜10-23 の 304 件。種類ごとに最大 40 件）
+
+- 短信 ZIP には `Summary/*-ixbrl.htm`（サマリー）と `Attachment/qualitative.htm`（タグの無い HTML。添付資料まるごと: 定性的情報・財務諸表・注記）がある。`qualitative.htm` は本決算・中間・四半期の短信でほぼ全件、REIT は 39 件中 28 件。訂正は訂正箇所だけの書類で欠けることがある
+- 5933（2027/3 中間期）でサマリー＋`qualitative.htm` を Chromium で PDF にすると 12 ページ、数字 650 個と文字が元の PDF と一致した。違いはページのヘッダー・フッター、ロゴ、フォント。外の画像は TDnet の FASF マーク（`release.tdnet.info/img/mark1.gif`）だけ。`script` は 0 件
+- 大きさ（サマリー＋添付、1 件あたり）: HTML 平均 765KB / 中央値 584KB、gzip 後 平均 35KB。8/10〜10/23 で 2,347 件なので年 1 万件前後、DB は年 約 400MB 増える
+- 数値タグの無い表（EBITDA、定性的情報の中のセグメント表、収益の分解など）は原文にしか無い
+
+### 15.2 表 `xbrl_documents`
+
+| 列 | 中身 |
+|---|---|
+| `filing_id` | `xbrl_filings.id`（主キー 1） |
+| `seq` | 表示順（主キー 2）。0 から |
+| `part` | `summary` / `qualitative` / `attachment` |
+| `file_name` | ZIP の中のファイル名（パスなし） |
+| `html_gz` | 元の HTML（BOM 込みのバイト列）を gzip |
+| `bytes` / `sha256` | 圧縮前 |
+| `created_at` | 入れた時刻（UTC） |
+
+選び方（`app/xbrl/documents.py pick_documents`）: `Summary/` の `*-ixbrl.htm`（名前順）、続けて `qualitative.htm` を 1 つ。`qualitative.htm` が無いときは `Attachment/` の `*-ixbrl.htm` をファイル名順（`0101010-…` の並びが本表の順）。どれも無ければ 0 行。
+
+既存の表に入れない: `xbrl_filings` は取込・正規化・API で何度も引く表で、1 行 35KB の BLOB を載せない。`xbrl_facts.value_text` は fact 単位で 1000 文字で切る（§1.2）。`qualitative.htm` はタグが無く fact にならない。
+
+### 15.3 取込
+
+- `xbrl_parse` が ZIP をパースした直後に、その filing の原文を作り直す（`parse_manifest_row`）。失敗してもパースの結果は変えない（ログ `documents failed …`）
+- 同じ実行の最後に、原文の無い TDnet の filing（パース済み・失敗を含む。`parse_error='no-ixbrl'` は除く）を新しい順に `XBRL_DOCUMENTS_FILL_LIMIT`（既定 3000）件まで ZIP から埋める（`fill_missing_documents`）。デプロイ後の最初の毎時で既存分が入る。ZIP が無ければ数えて飛ばす（ログ `documents stored=… missing_zip=… errors=…`）
+- 元の HTML のまま保存し、除去は表示のとき（`sanitize_html`）。除去の決まりを変えても入れ直さない
+- EDINET は対象外（ZIP の形が違う）
+

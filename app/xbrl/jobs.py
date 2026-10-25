@@ -14,8 +14,15 @@ from pathlib import Path
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.config import XBRL_CACHE_DIR, XBRL_DEST, XBRL_PARSE_WORKERS, XBRL_TEXT_MAX_CHARS
+from app.config import (
+    XBRL_CACHE_DIR,
+    XBRL_DEST,
+    XBRL_DOCUMENTS_FILL_LIMIT,
+    XBRL_PARSE_WORKERS,
+    XBRL_TEXT_MAX_CHARS,
+)
 from app.models import Stock, XbrlElement, XbrlElementMapping, XbrlFact, XbrlFiling, XbrlFinancial, XbrlJobRun
+from app.xbrl.documents import fill_missing_documents, store_documents
 from app.xbrl.normalize import normalize_filing, rebuild_all
 from app.xbrl.parser import ParsedPackage
 from app.xbrl.store import mark_failed, parse_zip, parse_zip_into_filing
@@ -167,6 +174,7 @@ def parse_manifest_row(
             f"parsed doc_id={doc_id} code={code5} status={filing.parse_status}",
             flush=True,
         )
+        _store_documents_logged(db, filing, plan.zip_path)
         if filing.parse_status == "parsed":
             return "parsed"
         if filing.parse_status == "skipped":
@@ -178,6 +186,16 @@ def parse_manifest_row(
             mark_failed(db, filing, exc)
         print(f"failed doc_id={doc_id} code={code5} err={exc}", flush=True)
         return "error"
+
+
+def _store_documents_logged(db: Session, filing: XbrlFiling, zip_path: Path) -> None:
+    """原文の HTML（KAB-161）。失敗してもパースの結果は変えない。"""
+    try:
+        store_documents(db, filing, zip_path)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        print(f"documents failed doc_id={filing.doc_id} code={filing.code} err={exc}", flush=True)
 
 
 def _pool_context() -> multiprocessing.context.BaseContext:
@@ -276,6 +294,12 @@ def run_parse(
             errors += 1
         else:
             skipped += 1
+    # パース済みで原文が無い filing（デプロイ前の分）を少しずつ埋める
+    docs = fill_missing_documents(db, root, limit=XBRL_DOCUMENTS_FILL_LIMIT)
+    print(
+        f"documents stored={docs['stored']} missing_zip={docs['missing_zip']} errors={docs['errors']}",
+        flush=True,
+    )
     finish_run(db, run, "success" if errors == 0 else "failed", processed, errors, f"skipped={skipped}")
     return {"processed": processed, "errors": errors, "skipped": skipped}
 
