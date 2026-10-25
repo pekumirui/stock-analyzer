@@ -132,3 +132,12 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def test_snapshot_job_does_not_create_tables() -> None:
+    """表はデプロイの migrate が作る。cron は作らず、無ければ落ちる（KAB-166）。"""
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[2] / "jobs/market/pts_snapshot.py").read_text(encoding="utf-8")
+    assert "init_db" not in src and "create_all" not in src
+
