@@ -55,7 +55,7 @@ XBRL の原文が無い過去の回は、PDF から変換した原文（`source:
 
 マスタに無い銘柄は 404、形の違うコードは 400。原文がまだ無い書類は `documents: []`（画面には出さない）。
 
-`GET /api/stock/filings/{filing_id}/documents/{seq}` は原文の HTML（`text/html`）。`script` / `iframe` / `link` / イベント属性 / `javascript:` / 外の画像を除いて返す。ヘッダー `Content-Security-Policy` で script・外への通信を止め、`sandbox allow-same-origin`（親が高さを測るため）。`ETag` は原文の sha256。無ければ 404。
+`GET /api/stock/filings/{filing_id}/documents/{seq}` は原文の HTML（`text/html`）。`script` / `iframe` / `link` / イベント属性 / `javascript:` / 外の画像を除いて返す。ヘッダー `Content-Security-Policy` で script・外への通信を止め、`sandbox allow-same-origin`（親が高さを測るため）。`ETag` は原文の sha256 と除去の版（`SANITIZE_VERSION`。返す HTML を変えたら上げる。上げないと 304 が返り続け、ブラウザは古い HTML を使う）。iOS Safari の文字の自動拡大を止める `-webkit-text-size-adjust: 100%` を head の直後に差し込む。無ければ 404。
 
 `GET /api/stock/pdf/{disclosure_no}` は PDF から変換した原文（`tdnet_pdf_documents` の `ok` の行）。ヘッダーは上と同じ。`ok` でなければ 404。
 
