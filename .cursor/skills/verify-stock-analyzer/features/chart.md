@@ -33,7 +33,7 @@ Preconditions:
 - **Performance.** `artifacts/chart/performance.json` is a list (may be empty for a name with no events; still 200).
 - **対TOPIX.** Check `#rel`, then click `表示`. `#relwrap` display is not `none` when the chart payload can compute relative series.
 - **Timeframe.** Change `#tf` to `W` or `M` and click `表示` — a control change without `表示` must not be treated as a redraw proof.
-- **Proof.** Keep `body.json` and (if CDP) `ui.png` with `#chart` tall enough to show candles and header `h1` `株式分析`.
+- **Proof.** Keep `body.json` and (if CDP) `ui.png` with `#chart` tall enough to show candles and the header.
 
 ## Gotchas
 

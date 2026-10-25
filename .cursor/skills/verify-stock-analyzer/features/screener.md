@@ -24,7 +24,7 @@ Preconditions:
 - **Auto load.** Opening the tab with an empty `#sc-tbl` calls `loadScreener` without an extra click.
 - **Default payload.** Run `helpers/capture.py screener`. `artifacts/screener/body.json` has `date` (ISO) and `results` with `code`, `name`, `rs_rank`, `stage`. Every `stage` is `2` and every `rs_rank` ≥ 70. No `code` starts with `0`.
 - **検索.** Click `#tab-screener button.btn` (label 検索) after changing RS to `80`. `GET /api/screener?stage=2&rs_min=80` has no row with `rs_rank` < 80.
-- **Proof.** Keep `body.json` (action URL in `request.txt`) and (if CDP) `ui.png` showing `#sc-tbl` rows, `基準日:` in `#sc-date`, and header `h1` `株式分析`.
+- **Proof.** Keep `body.json` (action URL in `request.txt`) and (if CDP) `ui.png` showing `#sc-tbl` rows, `基準日:` in `#sc-date`, and the header.
 
 ## Gotchas
 

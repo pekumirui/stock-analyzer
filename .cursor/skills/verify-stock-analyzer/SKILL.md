@@ -25,7 +25,7 @@ Prefer a helper that picks the right interpreter (`.venv\Scripts\python.exe` on 
 .venv/bin/python .cursor/skills/verify-stock-analyzer/helpers/launch.py
 ```
 
-Default URL: `http://127.0.0.1:8000`. Override with env `VERIFY_PORT`. Ready when stdout JSON appears and `GET /app` returns 200 whose HTML contains `<title>株式分析ツール</title>`. Visible header `h1` is `📈 株式分析` (a link `a#home` back to 決算速報). `GET /` は `/monthly` へ 301。 State is `.cursor/skills/verify-stock-analyzer/.run/state.json` (`pid`, `port`, `url`, `adopted`, `db`). Adopted servers have `"adopted": true`, `pid: null`, and `db: null` (their DB is unknown; a leftover server from another worktree can be on a different DB and older code). Do not kill them. Pick another `VERIFY_PORT` when you need your own code or DB. A started server inherits `DATABASE_URL`, and `db` records it (else the repo `stock.db`). Set `VERIFY_WAIT=0` only if you confirmed the child survives after launch.py exits.
+Default URL: `http://127.0.0.1:8000`. Override with env `VERIFY_PORT`. Ready when stdout JSON appears and `GET /app` returns 200 whose HTML contains `<title>株式分析ツール</title>`. The header has no brand title; ≤720px `#menu-btn` is first then `#cur-tab`. `GET /` は `/monthly` へ 301。 State is `.cursor/skills/verify-stock-analyzer/.run/state.json` (`pid`, `port`, `url`, `adopted`, `db`). Adopted servers have `"adopted": true`, `pid: null`, and `db: null` (their DB is unknown; a leftover server from another worktree can be on a different DB and older code). Do not kill them. Pick another `VERIFY_PORT` when you need your own code or DB. A started server inherits `DATABASE_URL`, and `db` records it (else the repo `stock.db`). Set `VERIFY_WAIT=0` only if you confirmed the child survives after launch.py exits.
 
 Uses the repo's `stock.db` (read-only for UI proofs). Do not `.\run.ps1 reset` / `./run.sh reset`. Do not point `DATABASE_URL` at the user's DB from a second writer. If the port is taken by a non-SPA process, launch exits non-zero. Free the port or pick another `VERIFY_PORT`.
 
@@ -67,8 +67,8 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 
 | User control | Handle |
 |---|---|
-| 決算速報 tab | `nav button[data-tab="earnings"]` (fallback default when no `ui.route`/hash; `#tab-earnings` visible). `#home` (header title) also selects it |
-| Header ≤720px | Tabs live in drawer `nav#app-nav` (off-screen until `.open`). `#menu-btn` (三本線) toggles it, `#nav-backdrop` / Esc / a tab pick / left swipe close it. `#cur-tab` shows the current tab name. Above 720px `#menu-btn` and `#cur-tab` are `display:none` and the nav is one row |
+| 決算速報 tab | `nav button[data-tab="earnings"]` (fallback default when no `ui.route`/hash; `#tab-earnings` visible) |
+| Header ≤720px | Tabs live in drawer `nav#app-nav` (off-screen until `.open`). `#menu-btn` (三本線, left of `#cur-tab`) toggles it, `#nav-backdrop` / Esc / a tab pick / left swipe close it. `#cur-tab` shows the current tab name. Above 720px `#menu-btn` and `#cur-tab` are `display:none` and the nav is one row |
 | 月次 tab | `nav button[data-tab="monthly"]` |
 | チャート tab | `nav button[data-tab="chart"]` |
 | スクリーナー tab | `nav button[data-tab="screener"]` |
@@ -155,7 +155,7 @@ Minimum files per feature:
 
 - `request.txt`: method, URL, status
 - `body.json`: response (truncate lists to 20 rows if huge, keep `date` / counts)
-- `ui.png`: only when the browser path ran. The visible brand is header `h1` `株式分析` (document title is `株式分析ツール`)
+- `ui.png`: only when the browser path ran. Document title is `株式分析ツール`. Header has no brand `h1`; ≤720px `#menu-btn` is on the left then `#cur-tab`
 
 ## Cleanup
 

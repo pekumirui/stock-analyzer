@@ -45,7 +45,7 @@ Preconditions:
 - **Table.** For a FY filing, `#cum-tbl` 決算期 cells read like `26.8` with no `期` and no `actual_fy_prev` row; when the filing has next-year forecasts the last rows carry `中予` / `通予` (30480 ビックカメラ FY26.8 → `27.8`). 営業益 cells end with `.opm` `(x.x%)`.
 - **3か月.** Click `.ftab[data-fin="q"]`. `#q-wrap` is not `hidden`; `#cum-wrap` is.
 - **イベント.** `.evt-toggles` under `#e-chart` is in the markup and filled at boot (`fillEventToggles`). After a row loads `#e-chart`, one 「決」 mark is already on the selected `disclosed_date`. Checking 決算発表 adds the rest from `earnings_dates` (same layer as the chart tab; chart tab has no selected-filing `mark`).
-- **Proof.** Keep `calendar.json`, `body.json`, and (if CDP) `artifacts/earnings/ui.png` showing `#earn-tbl` (or a chosen day's list) plus header `h1` `株式分析`. Prefer a calendar day with `.cnt` — today's empty `予定なし` is not a list proof. The month grid must not occupy the first row; the list is at the top of `#tab-earnings`.
+- **Proof.** Keep `calendar.json`, `body.json`, and (if CDP) `artifacts/earnings/ui.png` showing `#earn-tbl` (or a chosen day's list) plus the header (`#menu-btn` then `#cur-tab` at ≤720px). Prefer a calendar day with `.cnt` — today's empty `予定なし` is not a list proof. The month grid must not occupy the first row; the list is at the top of `#tab-earnings`.
 
 ## Gotchas
 

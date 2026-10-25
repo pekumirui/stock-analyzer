@@ -108,7 +108,5 @@ document.addEventListener("keydown", e => { if(e.key === "Escape") setMenu(false
     x0 = null;
   });
 }
-// タイトルはトップ（決算速報）へ
-$("#home").onclick = e => { e.preventDefault(); setMenu(false); selectTab("earnings"); };
 window.writeRoute = writeRoute;
 window.restoreRoute = restoreRoute;

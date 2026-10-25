@@ -34,7 +34,7 @@ Preconditions:
 - **Ranking.** Click `.ftab[data-ranking="night_down"]` → `GET /api/pts?ranking=night_down&date=2026-10-16`, 値下がり is `.on`, row 1 has a negative 終値比.
 - **To chart.** Click a name → チャート active, hash `#chart/{code}`, `GET /api/chart/{code}?tf=D&ma=50,150,200&rel=false` + `/api/earnings-performance/{code}`.
 - **Route.** On `#pts`, reload → PTS active and `#pts-tbl` filled again.
-- **Proof.** Keep `artifacts/pts/body.json`. If CDP: `ui.png` of `#pts-tbl` with header `h1` `株式分析`.
+- **Proof.** Keep `artifacts/pts/body.json`. If CDP: `ui.png` of `#pts-tbl` with the header.
 
 ## Gotchas
 
