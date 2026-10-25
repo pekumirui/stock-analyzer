@@ -183,16 +183,27 @@
   #monthly-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
   #monthly-chart { width:100%; margin:0 0 16px; }
   #monthly-chart svg { width:100%; height:auto; display:block; font-family:inherit; overflow:visible; }
-  #monthly-chart .monthly-year-chart { margin:0 0 10px; min-height:140px; }
-  #monthly-chart .monthly-year-chart:last-child { margin-bottom:0; }
-  #monthly-chart .monthly-year-lab {
-    display:flex; align-items:center; gap:6px;
+  #monthly-chart .monthly-legend {
+    display:flex; flex-wrap:wrap; gap:4px 14px;
     font-size:12px; font-weight:600;
-    margin:0 0 2px; color:var(--text);
+    margin:0 0 4px; color:var(--text);
   }
+  #monthly-chart .monthly-legend-item { display:inline-flex; align-items:center; gap:6px; }
   #monthly-chart .monthly-year-swatch {
     display:inline-block; width:8px; height:8px; flex-shrink:0;
   }
+  #monthly-chart .monthly-line-chart { position:relative; min-height:250px; }
+  #monthly-chart .monthly-hit { cursor:crosshair; }
+  #monthly-chart .monthly-tip {
+    position:absolute; top:4px; z-index:2; pointer-events:none;
+    background:#fff; border:1px solid var(--border); border-radius:6px;
+    padding:6px 8px; font-size:12px; line-height:1.6;
+    box-shadow:0 2px 6px rgba(0,0,0,.08); white-space:nowrap;
+    font-variant-numeric:tabular-nums;
+  }
+  #monthly-chart .monthly-tip-m { font-weight:600; }
+  #monthly-chart .monthly-tip .monthly-year-swatch { margin-right:6px; }
+  #monthly-chart .monthly-tip b { font-weight:600; margin-left:10px; }
   table.monthly {
     font-size:14px;
     font-variant-numeric:tabular-nums;
@@ -381,7 +392,7 @@
     #earn-tbl td.num { font-size:12px; }
     body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:34px}
     .evt-toggles .evt-label { min-height:32px; }
-    #monthly-chart .monthly-year-chart { min-height:148px; }
+    #monthly-chart .monthly-line-chart { min-height:230px; }
     table.monthly th,
     table.monthly td { font-size:13px; }
     table.monthly.monthly-gated td.monthly-stub-leaf.monthly-bd { font-size:12px; }

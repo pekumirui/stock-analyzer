@@ -1206,9 +1206,27 @@ function fmtMonthlyBarV(v){
 }
 
 let monthlyChartCssW = 0;
+let monthlyChartState = null;
+
+// 線グラフの縦軸。値の幅に合わせ、0 から始めない（前年比は 100 を含める）
+function monthlyLineRange(vals, yoy){
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  if(yoy){ lo = Math.min(lo, 100); hi = Math.max(hi, 100); }
+  const pad = (hi - lo) * 0.1 || Math.abs(hi) * 0.05 || 1;
+  lo -= pad; hi += pad;
+  if(lo < 0 && Math.min(...vals) >= 0) lo = 0;
+  const ticks = monthlyYTicks(lo, hi, yoy);
+  const step = ticks.length > 1 ? ticks[1] - ticks[0] : 0;
+  if(step > 0){
+    lo = Math.min(lo, ticks[0]);
+    hi = Math.max(hi, ticks[ticks.length-1]);
+  }
+  return {lo, hi};
+}
 
 function drawMonthlyChart(tables, seriesId){
   const host = $("#monthly-chart");
+  monthlyChartState = null;
   const choices = monthlySeriesChoices(tables);
   const spec = choices.find(s => s.id === seriesId) || choices[0];
   if(!spec){
@@ -1242,59 +1260,103 @@ function drawMonthlyChart(tables, seriesId){
   }
   const vals = [];
   for(const y of years) for(const v of byYear[y]) if(v!=null) vals.push(v);
-  const ymin = 0;
-  const ymax = Math.max(...vals, spec.yoy ? 100 : 1) * 1.08;
-  const panels = years.map(year => ({
-    year,
-    color: monthlyYearColor(year),
-    values: byYear[year],
-  }));
-  const chart = {spec, ymin, ymax, panels};
+  const {lo: ymin, hi: ymax} = monthlyLineRange(vals, spec.yoy);
 
   const phone = monthlyIsPhone();
   const cssW = host.clientWidth || document.documentElement.clientWidth || 720;
   monthlyChartCssW = cssW;
   const W = Math.max(cssW, phone ? 280 : 480);
-  const H = phone ? 148 : 140;
+  const H = phone ? 230 : 250;
   const L = 52, R = phone ? 10 : 12, T = 20, B = phone ? 28 : 24;
   const fsAxis = phone ? 13 : 11;
   const plotW=W-L-R, plotH=H-T-B;
-  const yx = v => T + (1 - (v-chart.ymin)/((chart.ymax-chart.ymin)||1)) * plotH;
+  const yx = v => T + (1 - (v-ymin)/((ymax-ymin)||1)) * plotH;
   const slot = plotW/12;
-  const barW = Math.max(3, slot*0.5);
-  const fsBar = slot < 32 ? 9 : 11;
+  const mx = mi => L + slot*mi + slot/2;
+  const fsVal = slot < 32 ? 9 : 11;
   const monthY = T + plotH + (phone ? 16 : 14);
   const monthLabel = slot < 28 ? (m => String(m)) : (m => `${m}月`);
+  const latest = years[0];
 
-  let html = "";
-  for(const p of chart.panels){
-    let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escHtml(chart.spec.label)}">`;
-    for(const tick of monthlyYTicks(chart.ymin, chart.ymax, chart.spec.yoy)){
-      const y = yx(tick);
-      svg += `<line x1="${L}" x2="${W-R}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e8ecf0"/>`;
-      svg += `<text x="${L-6}" y="${y.toFixed(1)}" font-size="${fsAxis}" text-anchor="end" dominant-baseline="middle" fill="#66707a">${fmtMonthlyTick(tick)}</text>`;
-    }
-    if(chart.spec.yoy){
-      const y100 = yx(100);
-      svg += `<line x1="${L}" x2="${W-R}" y1="${y100}" y2="${y100}" stroke="#e6a100" stroke-dasharray="4 3"/>`;
-    }
-    p.values.forEach((v, mi) => {
-      if(v==null) return;
-      const x = L + slot*mi + (slot-barW)/2;
-      const y = yx(Math.max(v, chart.ymin));
-      const hgt = Math.max(1, yx(chart.ymin) - y);
-      svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${hgt.toFixed(1)}" fill="${p.color}"/>`;
-      const lx = x + barW/2;
-      svg += `<text class="monthly-bar-v" x="${lx.toFixed(1)}" y="${(y-3).toFixed(1)}" font-size="${fsBar}" text-anchor="middle" fill="#333">${fmtMonthlyBarV(v)}</text>`;
-    });
-    for(let m=1;m<=12;m++){
-      const x = L + slot*(m-1) + slot/2;
-      svg += `<text x="${x.toFixed(1)}" y="${monthY}" font-size="${fsAxis}" text-anchor="middle" fill="#66707a">${monthLabel(m)}</text>`;
-    }
-    svg += `</svg>`;
-    html += `<div class="monthly-year-chart"><div class="monthly-year-lab"><span class="monthly-year-swatch" style="background:${p.color}"></span>${p.year}年</div>${svg}</div>`;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${escHtml(spec.label)}">`;
+  for(const tick of monthlyYTicks(ymin, ymax, spec.yoy)){
+    const y = yx(tick);
+    svg += `<line x1="${L}" x2="${W-R}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#e8ecf0"/>`;
+    svg += `<text x="${L-6}" y="${y.toFixed(1)}" font-size="${fsAxis}" text-anchor="end" dominant-baseline="middle" fill="#66707a">${fmtMonthlyTick(tick)}</text>`;
   }
-  host.innerHTML = html;
+  if(spec.yoy){
+    const y100 = yx(100).toFixed(1);
+    svg += `<line x1="${L}" x2="${W-R}" y1="${y100}" y2="${y100}" stroke="#9aa3ad" stroke-dasharray="4 3"/>`;
+  }
+  svg += `<line class="monthly-guide" x1="0" x2="0" y1="${T}" y2="${T+plotH}" stroke="#9aa3ad" visibility="hidden"/>`;
+  // 古い年から描き、最新の年を一番上に重ねる
+  for(const year of [...years].reverse()){
+    const color = monthlyYearColor(year);
+    const isLatest = year === latest;
+    let d = "", pen = false;
+    byYear[year].forEach((v, mi) => {
+      if(v==null){ pen = false; return; }
+      d += `${pen ? "L" : "M"}${mx(mi).toFixed(1)} ${yx(v).toFixed(1)}`;
+      pen = true;
+    });
+    svg += `<path d="${d}" fill="none" stroke="${color}" stroke-width="${isLatest ? 2.5 : 1.75}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    byYear[year].forEach((v, mi) => {
+      if(v==null) return;
+      svg += `<circle cx="${mx(mi).toFixed(1)}" cy="${yx(v).toFixed(1)}" r="${isLatest ? 3 : 2.25}" fill="${color}"/>`;
+    });
+  }
+  // 値は最新の年だけ書く（3 年分は重なる）。ほかの年はカーソル・タップで出す
+  byYear[latest].forEach((v, mi) => {
+    if(v==null) return;
+    svg += `<text class="monthly-pt-v" x="${mx(mi).toFixed(1)}" y="${(yx(v)-7).toFixed(1)}" font-size="${fsVal}" text-anchor="middle" fill="#333">${fmtMonthlyBarV(v)}</text>`;
+  });
+  for(let m=1;m<=12;m++){
+    svg += `<text x="${mx(m-1).toFixed(1)}" y="${monthY}" font-size="${fsAxis}" text-anchor="middle" fill="#66707a">${monthLabel(m)}</text>`;
+    svg += `<rect class="monthly-hit" data-m="${m}" x="${(L+slot*(m-1)).toFixed(1)}" y="${T}" width="${slot.toFixed(1)}" height="${plotH}" fill="transparent"/>`;
+  }
+  svg += `</svg>`;
+
+  const legend = years.map(y =>
+    `<span class="monthly-legend-item"><span class="monthly-year-swatch" style="background:${monthlyYearColor(y)}"></span>${y}年</span>`).join("");
+  host.innerHTML = `<div class="monthly-legend">${legend}</div><div class="monthly-line-chart">${svg}<div class="monthly-tip" hidden></div></div>`;
+  monthlyChartState = {years, byYear, W, mx};
+  monthlyBindChartTip(host);
+}
+
+// 月にカーソルを当てる・タップすると、その月の各年の値を出す
+function monthlyBindChartTip(host){
+  if(host._tipBound) return;
+  host._tipBound = true;
+  const show = e => {
+    const hit = e.target.closest && e.target.closest(".monthly-hit");
+    const st = monthlyChartState;
+    if(!hit || !st) return;
+    const m = Number(hit.dataset.m);
+    const svg = host.querySelector("svg");
+    const tip = host.querySelector(".monthly-tip");
+    const guide = host.querySelector(".monthly-guide");
+    const x = st.mx(m-1);
+    guide.setAttribute("x1", x); guide.setAttribute("x2", x); guide.setAttribute("visibility", "visible");
+    tip.innerHTML = `<div class="monthly-tip-m">${m}月</div>` + st.years.map(y => {
+      const v = st.byYear[y][m-1];
+      return `<div><span class="monthly-year-swatch" style="background:${monthlyYearColor(y)}"></span>${y}年<b>${v==null ? "—" : fmtMonthlyTick(v)}</b></div>`;
+    }).join("");
+    tip.hidden = false;
+    const scale = svg.clientWidth / st.W;
+    const px = x * scale;
+    const right = px > svg.clientWidth / 2;
+    tip.style.left = right ? "" : `${px + 10}px`;
+    tip.style.right = right ? `${svg.clientWidth - px + 10}px` : "";
+  };
+  const hide = () => {
+    const tip = host.querySelector(".monthly-tip");
+    const guide = host.querySelector(".monthly-guide");
+    if(tip) tip.hidden = true;
+    if(guide) guide.setAttribute("visibility", "hidden");
+  };
+  host.addEventListener("pointerover", show);
+  host.addEventListener("click", show);
+  host.addEventListener("pointerleave", hide);
 }
 
 window.matchMedia("(max-width:640px)").addEventListener("change", () => {

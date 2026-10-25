@@ -791,14 +791,16 @@ console.log(JSON.stringify({
     if got.get("bdCompanyKind") is not None:
         _fail(f"会社 ドラッグ must not be all_store: {got.get('bdCompanyKind')!r}")
     chart_html = got.get("chartHtml") or ""
-    if chart_html.count("<svg") != 2:
-        _fail(f"year panels must draw two svgs: {chart_html[:400]!r}")
+    if chart_html.count("<svg") != 1:
+        _fail(f"line chart must be one svg: {chart_html[:400]!r}")
+    if chart_html.count("<path ") != 2:
+        _fail(f"line chart must draw one line per year: {chart_html[:400]!r}")
     if "2026年" not in chart_html or "2025年" not in chart_html:
-        _fail(f"year panel labels missing: {chart_html[:400]!r}")
-    if "monthly-bar-v" not in chart_html:
-        _fail("year panels must label bars with monthly-bar-v")
-    if "110" not in chart_html or "100" not in chart_html:
-        _fail(f"bar labels must include 110 and 100: {chart_html[:400]!r}")
+        _fail(f"year legend missing: {chart_html[:400]!r}")
+    if chart_html.count('class="monthly-pt-v"') != 1 or ">110</text>" not in chart_html:
+        _fail(f"only the latest year is labelled (110): {chart_html[:400]!r}")
+    if ">100</text>" not in chart_html:
+        _fail(f"yoy axis must include 100: {chart_html[:400]!r}")
     want_names = ["直営+FC 既存 店舗数", "直営", "焼肉", "直営+FC 全店 店舗数", "日本", "直営", "FC", "焼肉", "直営", "FC", "海外"]
     if got.get("treeNames") != want_names:
         _fail(f"物語 store tree rows: {got.get('treeNames')!r}")
