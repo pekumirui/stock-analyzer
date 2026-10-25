@@ -13,6 +13,8 @@ SUMMARY = "XBRLData/Summary/tse-scedjpsy-99990-20261020399990-ixbrl.htm"
 QUAL = "XBRLData/Attachment/qualitative.htm"
 BS = "XBRLData/Attachment/0101010-scbs15-tse-scedjpfr-99990-2026-09-20-01-2026-10-20-ixbrl.htm"
 PL = "XBRLData/Attachment/0102010-scpl15-tse-scedjpfr-99990-2026-09-20-01-2026-10-20-ixbrl.htm"
+# 業績予想・配当予想の修正（tse-rvfc）はフォルダなしの ZIP
+RVFC = "tse-rvfcjpsy-99990-20261020399990-ixbrl.htm"
 
 SUMMARY_HTML = (
     '﻿<?xml version="1.0" encoding="utf-8"?><html><head><title>s</title>'
@@ -43,6 +45,12 @@ def test_pick_documents_falls_back_to_attachment_ixbrl_in_order() -> None:
     assert pick_documents(["XBRLData/Attachment/manifest.xml"]) == []
 
 
+def test_pick_documents_folderless_zip_as_summary() -> None:
+    assert pick_documents(["manifest.xml", RVFC, "tse-rvfcjpsy-99990-20261020399990.xsd"]) == [("summary", RVFC)]
+    # フォルダつきの書類が 1 つでもあればそちらだけ
+    assert pick_documents([RVFC, PL]) == [("attachment", PL)]
+
+
 def test_sanitize_drops_active_and_external_content() -> None:
     s = sanitize_html(SUMMARY_HTML.lstrip("﻿"))
     assert "<script" not in s and "alert" not in s
@@ -54,13 +62,17 @@ def test_sanitize_drops_active_and_external_content() -> None:
     assert '<ix:nonFraction name="tse-ed-t:NetSales">33,024</ix:nonFraction>' in s
 
 
-def _seed(db, tmp: Path) -> tuple[XbrlFiling, XbrlFiling, XbrlFiling]:
+def _seed(db, tmp: Path) -> tuple[XbrlFiling, ...]:
     db.add(Stock(code="99990", name="テスト工業", market="プライム", sector33="金属製品"))
     _zip(tmp / "a.zip", [SUMMARY, QUAL, BS])
     _zip(tmp / "b.zip", [SUMMARY, PL, BS])
+    _zip(tmp / "d.zip", [RVFC])
+    _zip(tmp / "e.zip", [])
     now = datetime(2026, 10, 20, 15, 30)  # noqa: DTZ001
     rows = []
-    for i, (raw, err) in enumerate([("a.zip", None), ("b.zip", None), ("gone.zip", None), ("c.zip", "no-ixbrl")]):
+    for i, (raw, err) in enumerate([
+        ("a.zip", None), ("b.zip", None), ("gone.zip", None), ("c.zip", "no-ixbrl"), ("d.zip", None), ("e.zip", None),
+    ]):
         f = XbrlFiling(
             code="99990", source="tdnet", doc_id=f"doc{i}", doc_type="quarterly", period_type="Q2",
             submitted_at=now.replace(day=20 - i), title=f"短信{i}", raw_path=raw,
@@ -73,17 +85,21 @@ def _seed(db, tmp: Path) -> tuple[XbrlFiling, XbrlFiling, XbrlFiling]:
         title="有報", raw_path="edinet:S100", parse_status="parsed", created_at=now,
     ))
     db.commit()
-    return rows[0], rows[1], rows[2]
+    return rows[0], rows[1], rows[2], rows[4], rows[5]
 
 
 def test_fill_missing_documents_and_api(tmp: Path, c) -> None:
     db = SessionLocal()
     try:
-        a, b, gone = _seed(db, tmp)
+        a, b, gone, rvfc, empty = _seed(db, tmp)
         stats = fill_missing_documents(db, tmp)
-        assert stats == {"stored": 2, "missing_zip": 1, "errors": 0}
-        # 2 回目は入れ直さない（ZIP が無い分だけ数える）
-        assert fill_missing_documents(db, tmp) == {"stored": 0, "missing_zip": 1, "errors": 0}
+        assert stats == {"stored": 3, "empty": 1, "missing_zip": 1, "errors": 0}
+        # 2 回目は入れ直さない（ZIP が無い分だけ数える。0 件だった ZIP も読み直さない）
+        assert fill_missing_documents(db, tmp) == {"stored": 0, "empty": 0, "missing_zip": 1, "errors": 0}
+        db.refresh(empty)
+        assert empty.documents_status == "empty" and a.documents_status == "stored"
+        rv = db.query(XbrlDocument).filter_by(filing_id=rvfc.id).all()
+        assert [(d.seq, d.part, d.file_name) for d in rv] == [(0, "summary", RVFC)]
 
         docs = db.query(XbrlDocument).filter_by(filing_id=a.id).order_by(XbrlDocument.seq).all()
         assert [(d.seq, d.part, d.file_name) for d in docs] == [
@@ -102,7 +118,7 @@ def test_fill_missing_documents_and_api(tmp: Path, c) -> None:
     body = r.json()
     assert body["code"] == "99990" and body["name"] == "テスト工業"
     # TDnet だけ。新しい順
-    assert [f["title"] for f in body["filings"]] == ["短信0", "短信1", "短信2", "短信3"]
+    assert [f["title"] for f in body["filings"]] == ["短信0", "短信1", "短信2", "短信3", "短信4", "短信5"]
     by_id = {f["id"]: f for f in body["filings"]}
     assert [d["part"] for d in by_id[a_id]["documents"]] == ["summary", "qualitative"]
     assert by_id[gone_id]["documents"] == []

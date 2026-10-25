@@ -225,6 +225,7 @@ class XbrlFiling(Base):
     parse_status = Column(String(16), nullable=False, default="pending")
     parse_error = Column(Text)
     parsed_at = Column(DateTime)
+    documents_status = Column(String(16))  # 原文（KAB-161）: NULL=まだ / stored / empty（選べる HTML が 0 件）
     created_at = Column(DateTime, nullable=False)
     __table_args__ = (
         UniqueConstraint("source", "doc_id", name="uq_xbrl_filings_source_doc"),
