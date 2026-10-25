@@ -658,10 +658,30 @@ def test_db_tools() -> None:
             text = m.tool_db_stats({})
             if "72030" in text or "トヨタ" in text:
                 pass
+            if "counts: approx" not in text:
+                raise SystemExit(f"db_stats header: {text}")
             if "stocks: 2" not in text or "demo=1" not in text:
                 raise SystemExit(f"db_stats: {text}")
             if "daily_prices: 2" not in text or "2026-08-20..2026-08-21" not in text:
                 raise SystemExit(f"db_stats prices: {text}")
+            if "codes=" in text or "days=" in text:
+                raise SystemExit(f"db_stats default must omit DISTINCT: {text}")
+            sqls: list[str] = []
+            real_fetch = m._timed_fetch
+
+            def record_fetch(conn, budget, sql, params=()):  # noqa: ANN001
+                sqls.append(sql)
+                return real_fetch(conn, budget, sql, params)
+
+            m._timed_fetch = record_fetch
+            try:
+                m.tool_db_stats({"tables": ["daily_prices"]})
+            finally:
+                m._timed_fetch = real_fetch
+            if any("MIN(" in s and "MAX(" in s for s in sqls):
+                raise SystemExit(f"MIN and MAX must be separate queries: {sqls}")
+            if not any("MIN(" in s for s in sqls) or not any("MAX(" in s for s in sqls):
+                raise SystemExit(f"expected separate MIN and MAX: {sqls}")
             if "xbrl_segments: 2" not in text:
                 raise SystemExit(f"db_stats extra table: {text}")
             last_fixed = text.rfind("edinet_list_days:")
@@ -670,6 +690,20 @@ def test_db_tools() -> None:
                 raise SystemExit(f"db_stats extra table order: {text}")
             if "sqlite_sequence:" in text:
                 raise SystemExit(f"db_stats leaked sqlite_*: {text}")
+            exact = m.tool_db_stats({"exact": True})
+            if "counts: exact" not in exact or "codes=1" not in exact or "days=2" not in exact:
+                raise SystemExit(f"db_stats exact: {exact}")
+            only = m.tool_db_stats({"tables": ["stocks", "xbrl_segments"]})
+            if "stocks: 2" not in only or "xbrl_segments: 2" not in only:
+                raise SystemExit(f"db_stats tables: {only}")
+            if "daily_prices:" in only:
+                raise SystemExit(f"db_stats tables leaked: {only}")
+            missing_tbl = m.tool_db_stats({"tables": ["no_such_table"]})
+            if "no_such_table: (no table)" not in missing_tbl:
+                raise SystemExit(f"db_stats unknown table: {missing_tbl}")
+            bad_exact, bad_exact_err = m.call_tool("db_stats", {"exact": "yes"})
+            if not bad_exact_err or "exact must be a boolean" not in bad_exact:
+                raise SystemExit(f"db_stats bad exact: {bad_exact}")
             looked = m.tool_db_lookup({"code": "7203", "lines": 5})
             if "72030" not in looked or "トヨタ" not in looked or "adj=3010" not in looked:
                 raise SystemExit(f"db_lookup: {looked}")
@@ -692,6 +726,107 @@ def test_db_tools() -> None:
                 os.environ.pop("DATABASE_URL", None)
             else:
                 os.environ["DATABASE_URL"] = prev_url
+
+
+def test_db_stats_approx_timeout_and_stat1() -> None:
+    from tempfile import TemporaryDirectory
+
+    prev = os.environ.get("MCP_APP_DIR")
+    prev_url = os.environ.get("DATABASE_URL")
+    with TemporaryDirectory() as d:
+        os.environ["MCP_APP_DIR"] = d
+        os.environ.pop("DATABASE_URL", None)
+        dbp = Path(d) / "stock.db"
+        import sqlite3
+
+        conn = sqlite3.connect(dbp)
+        conn.executescript(
+            """
+            CREATE TABLE stocks (code TEXT PRIMARY KEY, name TEXT);
+            INSERT INTO stocks VALUES ('72030', 'トヨタ');
+            CREATE TABLE gap (id INTEGER PRIMARY KEY, x TEXT);
+            INSERT INTO gap VALUES (1, 'a'), (2, 'b'), (3, 'c');
+            DELETE FROM gap WHERE id = 1;
+            CREATE TABLE kv (k TEXT PRIMARY KEY, v TEXT) WITHOUT ROWID;
+            INSERT INTO kv VALUES ('a', '1'), ('b', '2');
+            ANALYZE;
+            """
+        )
+        conn.close()
+        try:
+            text = m.tool_db_stats({})
+            if "gap: 3" not in text:
+                raise SystemExit(f"approx MAX(rowid) after delete: {text}")
+            if "kv: 2" not in text:
+                raise SystemExit(f"WITHOUT ROWID sqlite_stat1: {text}")
+            exact = m.tool_db_stats({"exact": True, "tables": ["gap", "kv"]})
+            if "gap: 2" not in exact or "kv: 2" not in exact:
+                raise SystemExit(f"exact after delete: {exact}")
+            if "stocks:" in exact:
+                raise SystemExit(f"tables filter leaked stocks: {exact}")
+
+            real_fetch = m._timed_fetch
+
+            def timeout_stocks(conn, budget, sql, params=()):  # noqa: ANN001
+                if "MAX(rowid)" in sql and "stocks" in sql:
+                    return m._TIMEOUT
+                return real_fetch(conn, budget, sql, params)
+
+            m._timed_fetch = timeout_stocks
+            try:
+                partial = m.tool_db_stats({})
+            finally:
+                m._timed_fetch = real_fetch
+            if "stocks: (timeout)" not in partial:
+                raise SystemExit(f"timeout stocks: {partial}")
+            if "gap: 3" not in partial or "kv: 2" not in partial:
+                raise SystemExit(f"timeout must keep later tables: {partial}")
+
+            orig_budget = m._StatsBudget
+
+            def zero_query_budget(*_a, **_k):  # noqa: ANN002, ANN003
+                return orig_budget(total_s=8, query_s=0)
+
+            m._StatsBudget = zero_query_budget
+            try:
+                all_to = m.tool_db_stats({"tables": ["stocks", "gap"]})
+            finally:
+                m._StatsBudget = orig_budget
+            if "stocks: (timeout)" not in all_to or "gap: (timeout)" not in all_to:
+                raise SystemExit(f"query_s=0: {all_to}")
+        finally:
+            if prev is None:
+                os.environ.pop("MCP_APP_DIR", None)
+            else:
+                os.environ["MCP_APP_DIR"] = prev
+            if prev_url is None:
+                os.environ.pop("DATABASE_URL", None)
+            else:
+                os.environ["DATABASE_URL"] = prev_url
+
+
+def test_timed_fetch_progress_interrupt() -> None:
+    import sqlite3
+
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE t (x INTEGER)")
+    conn.executemany("INSERT INTO t VALUES (?)", [(i,) for i in range(8000)])
+    conn.commit()
+    clock = {"t": 0.0}
+
+    def now() -> float:
+        clock["t"] += 1.0
+        return clock["t"]
+
+    budget = m._StatsBudget(total_s=10, query_s=2, now=now)
+    conn.set_progress_handler(budget.handler, 1)
+    try:
+        row = m._timed_fetch(conn, budget, "SELECT COUNT(*) FROM t")
+    finally:
+        conn.set_progress_handler(None, 0)
+        conn.close()
+    if row is not m._TIMEOUT:
+        raise SystemExit(f"progress_handler should interrupt, got {row!r}")
 
 
 def test_fx_tools() -> None:
@@ -2347,6 +2482,8 @@ def main() -> None:
         test_tool_nginx_logs_access_timed_and_redacted(logs)
         test_tool_nginx_logs_window_reads_rotated(logs)
     test_db_tools()
+    test_db_stats_approx_timeout_and_stat1()
+    test_timed_fetch_progress_interrupt()
     test_xbrl_compare_tools()
     test_fx_tools()
     test_monthly_tools()

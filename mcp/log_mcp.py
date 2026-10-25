@@ -136,6 +136,13 @@ DB_TABLES = (
     "stocks", "daily_prices", "topix", "statements", "indicators",
     "earnings_events", "fx_rates", "edinet_documents", "edinet_list_days",
 )
+# db_stats: MAX(rowid) は B-tree の端で足りる。COUNT(*) は cold cache だと数秒。
+# MCP クライアントの待ちより短く切る。xbrl_diff_summary の ~9s と同じ帯。
+DB_STATS_TOTAL_S = 8.0
+DB_STATS_QUERY_S = 2.0
+DB_STATS_PROGRESS_OPS = 10_000
+_TIMEOUT = object()
+_INTERRUPT_MARKERS = ("interrupt", "cancel")
 DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 FX_MAX_OBS = 500
 DEFAULT_APP_HTTP = "http://127.0.0.1:8000"
@@ -835,19 +842,224 @@ def _quote_ident(name: str) -> str:
     return '"' + str(name).replace('"', '""') + '"'
 
 
-def tool_db_stats(_args: dict[str, Any]) -> str:
+class _StatsBudget:
+    """db_stats の全体上限と 1 クエリ上限。progress_handler から見る。"""
+
+    def __init__(
+        self,
+        total_s: float = DB_STATS_TOTAL_S,
+        query_s: float = DB_STATS_QUERY_S,
+        now: Callable[[], float] | None = None,
+    ) -> None:
+        self._now = now or time.monotonic
+        self.total_deadline = self._now() + total_s
+        self.query_s = query_s
+        self.query_deadline = self.total_deadline
+
+    def begin_query(self) -> bool:
+        now = self._now()
+        if now >= self.total_deadline:
+            return False
+        self.query_deadline = min(self.total_deadline, now + self.query_s)
+        return now < self.query_deadline
+
+    def handler(self) -> int:
+        return 1 if self._now() >= self.query_deadline else 0
+
+
+def _is_interrupt(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return any(mark in msg for mark in _INTERRUPT_MARKERS)
+
+
+def _timed_fetch(
+    conn: sqlite3.Connection,
+    budget: _StatsBudget,
+    sql: str,
+    params: tuple[Any, ...] = (),
+) -> Any:
+    if not budget.begin_query():
+        return _TIMEOUT
+    try:
+        return conn.execute(sql, params).fetchone()
+    except sqlite3.OperationalError as exc:
+        if _is_interrupt(exc):
+            return _TIMEOUT
+        raise
+
+
+def _timed_scalar(
+    conn: sqlite3.Connection,
+    budget: _StatsBudget,
+    sql: str,
+    params: tuple[Any, ...] = (),
+) -> Any:
+    row = _timed_fetch(conn, budget, sql, params)
+    if row is _TIMEOUT:
+        return _TIMEOUT
+    return None if row is None else row[0]
+
+
+def _stat1_n(conn: sqlite3.Connection, table: str) -> int | None:
+    """ANALYZE 済みなら sqlite_stat1 の先頭が行数。未 ANALYZE なら None。"""
+    try:
+        row = conn.execute(
+            "SELECT stat FROM sqlite_stat1 WHERE tbl = ? LIMIT 1",
+            (table,),
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if row is None or row[0] is None:
+        return None
+    token = str(row[0]).split()[0]
+    try:
+        return int(token)
+    except ValueError:
+        return None
+
+
+def _table_n(
+    conn: sqlite3.Connection,
+    budget: _StatsBudget,
+    table: str,
+    exact: bool,
+) -> Any:
+    quoted = _quote_ident(table)
+    if exact:
+        n = _timed_scalar(conn, budget, f"SELECT COUNT(*) FROM {quoted}")
+        return n if n is _TIMEOUT or n is None else int(n)
+    try:
+        n = _timed_scalar(conn, budget, f"SELECT MAX(rowid) FROM {quoted}")
+    except sqlite3.OperationalError:
+        n = _stat1_n(conn, table)
+        if n is not None:
+            return n
+        n = _timed_scalar(conn, budget, f"SELECT COUNT(*) FROM {quoted}")
+        return n if n is _TIMEOUT or n is None else int(n)
+    if n is _TIMEOUT:
+        return _TIMEOUT
+    if n is None:
+        return 0
+    return int(n)
+
+
+def _min_max(
+    conn: sqlite3.Connection,
+    budget: _StatsBudget,
+    table: str,
+    column: str,
+) -> Any:
+    """MIN と MAX を別クエリにする。両方入れると SQLite はインデックスを SCAN する。"""
+    quoted_t = _quote_ident(table)
+    quoted_c = _quote_ident(column)
+    mn = _timed_scalar(conn, budget, f"SELECT MIN({quoted_c}) FROM {quoted_t}")
+    if mn is _TIMEOUT:
+        return _TIMEOUT
+    mx = _timed_scalar(conn, budget, f"SELECT MAX({quoted_c}) FROM {quoted_t}")
+    if mx is _TIMEOUT:
+        return _TIMEOUT
+    return (mn, mx)
+
+
+def _range_extra(row: Any, prefix: str = "") -> str:
+    if row is _TIMEOUT:
+        return "  (timeout)"
+    return f"  {prefix}{row[0]}..{row[1]}"
+
+
+def _table_extra(
+    conn: sqlite3.Connection,
+    budget: _StatsBudget,
+    table: str,
+    n: int,
+    exact: bool,
+) -> str:
+    if table == "stocks":
+        demo = _timed_scalar(conn, budget, "SELECT COUNT(*) FROM stocks WHERE code LIKE '0%'")
+        if demo is _TIMEOUT:
+            return "  (timeout)"
+        return f"  demo={demo} real={int(n) - int(demo)}"
+    if table == "daily_prices":
+        extra = _range_extra(_min_max(conn, budget, "daily_prices", "date"))
+        if extra.endswith("(timeout)") or not exact:
+            return extra
+        dist = _timed_fetch(
+            conn, budget,
+            "SELECT COUNT(DISTINCT code), COUNT(DISTINCT date) FROM daily_prices",
+        )
+        if dist is _TIMEOUT:
+            return extra + "  (timeout)"
+        return extra + f"  codes={dist[0]} days={dist[1]}"
+    if table == "topix":
+        return _range_extra(_min_max(conn, budget, "topix", "date"))
+    if table == "statements":
+        extra = _range_extra(_min_max(conn, budget, "statements", "disclosed_date"), "disclosed ")
+        if extra.endswith("(timeout)") or not exact:
+            return extra
+        codes = _timed_scalar(conn, budget, "SELECT COUNT(DISTINCT code) FROM statements")
+        if codes is _TIMEOUT:
+            return extra + "  (timeout)"
+        return extra + f"  codes={codes}"
+    if table == "indicators":
+        return _range_extra(_min_max(conn, budget, "indicators", "date"))
+    if table == "fx_rates":
+        extra = _range_extra(_min_max(conn, budget, "fx_rates", "date"))
+        if extra.endswith("(timeout)") or not exact:
+            return extra
+        dist = _timed_fetch(
+            conn, budget,
+            "SELECT COUNT(DISTINCT quote), COUNT(DISTINCT date) FROM fx_rates",
+        )
+        if dist is _TIMEOUT:
+            return extra + "  (timeout)"
+        return extra + f"  quotes={dist[0]} days={dist[1]}"
+    if table == "edinet_documents":
+        extra = _range_extra(_min_max(conn, budget, "edinet_documents", "file_date"))
+        if extra.endswith("(timeout)"):
+            return extra
+        linked = _timed_scalar(conn, budget, "SELECT COUNT(code) FROM edinet_documents")
+        if linked is _TIMEOUT:
+            return extra + "  (timeout)"
+        return extra + f"  linked={linked}"
+    if table == "edinet_list_days":
+        extra = _range_extra(_min_max(conn, budget, "edinet_list_days", "file_date"))
+        if extra.endswith("(timeout)"):
+            return extra
+        fin = _timed_scalar(conn, budget, "SELECT SUM(finalized) FROM edinet_list_days")
+        if fin is _TIMEOUT:
+            return extra + "  (timeout)"
+        return extra + f"  finalized={fin or 0}"
+    return ""
+
+
+def _parse_exact_flag(raw: Any) -> bool:
+    if raw is None:
+        return False
+    if not isinstance(raw, bool):
+        raise ValueError("exact must be a boolean")
+    return raw
+
+
+def tool_db_stats(args: dict[str, Any]) -> str:
     path = db_file()
     if not path.is_file():
         return f"(missing {path})"
+    exact = _parse_exact_flag(args.get("exact"))
+    wanted = parse_name_list(args.get("tables"), "tables")
+    wanted_set = set(wanted) if wanted else None
     st = path.stat()
+    mode = "exact (COUNT(*))" if exact else "approx (MAX(rowid); exact=true for COUNT(*))"
     parts = [
         f"path: {path}",
         f"size_mb: {st.st_size / (1024 * 1024):.1f}",
         f"mtime: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(st.st_mtime))}",
+        f"counts: {mode}",
         "",
     ]
     conn = open_db()
+    budget = _StatsBudget()
     try:
+        conn.set_progress_handler(budget.handler, DB_STATS_PROGRESS_OPS)
         names = {
             r[0]
             for r in conn.execute(
@@ -855,50 +1067,32 @@ def tool_db_stats(_args: dict[str, Any]) -> str:
             )
         }
         for table in DB_TABLES:
+            if wanted_set is not None and table not in wanted_set:
+                continue
             if table not in names:
                 parts.append(f"{table}: (no table)")
                 continue
-            n = _scalar(conn, f"SELECT COUNT(*) FROM {table}")
-            extra = ""
-            if table == "stocks":
-                demo = _scalar(conn, "SELECT COUNT(*) FROM stocks WHERE code LIKE '0%'")
-                extra = f"  demo={demo} real={int(n) - int(demo)}"
-            elif table == "daily_prices":
-                mn, mx, codes, days = conn.execute(
-                    "SELECT MIN(date), MAX(date), COUNT(DISTINCT code), COUNT(DISTINCT date) FROM daily_prices"
-                ).fetchone()
-                extra = f"  {mn}..{mx}  codes={codes} days={days}"
-            elif table == "topix":
-                mn, mx = conn.execute("SELECT MIN(date), MAX(date) FROM topix").fetchone()
-                extra = f"  {mn}..{mx}"
-            elif table == "statements":
-                mn, mx, codes = conn.execute(
-                    "SELECT MIN(disclosed_date), MAX(disclosed_date), COUNT(DISTINCT code) FROM statements"
-                ).fetchone()
-                extra = f"  disclosed {mn}..{mx}  codes={codes}"
-            elif table == "indicators":
-                mn, mx = conn.execute("SELECT MIN(date), MAX(date) FROM indicators").fetchone()
-                extra = f"  {mn}..{mx}"
-            elif table == "fx_rates":
-                mn, mx, quotes, days = conn.execute(
-                    "SELECT MIN(date), MAX(date), COUNT(DISTINCT quote), COUNT(DISTINCT date) FROM fx_rates"
-                ).fetchone()
-                extra = f"  {mn}..{mx}  quotes={quotes} days={days}"
-            elif table == "edinet_documents":
-                mn, mx, linked = conn.execute(
-                    "SELECT MIN(file_date), MAX(file_date), COUNT(code) FROM edinet_documents"
-                ).fetchone()
-                extra = f"  {mn}..{mx}  linked={linked}"
-            elif table == "edinet_list_days":
-                mn, mx, fin = conn.execute(
-                    "SELECT MIN(file_date), MAX(file_date), SUM(finalized) FROM edinet_list_days"
-                ).fetchone()
-                extra = f"  {mn}..{mx}  finalized={fin or 0}"
+            n = _table_n(conn, budget, table, exact)
+            if n is _TIMEOUT:
+                parts.append(f"{table}: (timeout)")
+                continue
+            extra = _table_extra(conn, budget, table, int(n), exact)
             parts.append(f"{table}: {n}{extra}")
         for table in sorted(names - set(DB_TABLES)):
-            n = _scalar(conn, f"SELECT COUNT(*) FROM {_quote_ident(table)}")
+            if wanted_set is not None and table not in wanted_set:
+                continue
+            n = _table_n(conn, budget, table, exact)
+            if n is _TIMEOUT:
+                parts.append(f"{table}: (timeout)")
+                continue
             parts.append(f"{table}: {n}")
+        if wanted:
+            known = names | set(DB_TABLES)
+            for table in wanted:
+                if table not in known:
+                    parts.append(f"{table}: (no table)")
     finally:
+        conn.set_progress_handler(None, 0)
         conn.close()
     return "\n".join(parts)
 
@@ -1472,8 +1666,26 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_nginx_logs,
     ),
     "db_stats": (
-        "stock.db の件数・日付範囲・デモ混在。取込が想定通りか見る用。読み取り専用。",
-        {"type": "object", "properties": {}},
+        (
+            "stock.db の件数・日付範囲・デモ混在。取込が想定通りか見る用。読み取り専用。"
+            "既定は MAX(rowid) の概算（削除があると多め）。exact=true で COUNT(*)。"
+            "tables で対象を絞る。daily_prices の codes/days は exact のときだけ。"
+            "1クエリ約2秒・全体約8秒で打ち切り、超えた表は (timeout)。"
+        ),
+        {
+            "type": "object",
+            "properties": {
+                "exact": {
+                    "type": "boolean",
+                    "description": "true: COUNT(*) and DISTINCT extras. Default false uses MAX(rowid).",
+                },
+                "tables": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "table names to include. Omit for all. Also accepts a comma-separated string.",
+                },
+            },
+        },
         tool_db_stats,
     ),
     "db_lookup": (
