@@ -13,6 +13,7 @@
   python tools/tdnet_pdf/ingest.py --code 5933 --retry-failed  # failed も取り直す
 
 最後に 1 行: tdnet_pdf stopped=<done|limit|rate_limited> ok=… missing=… failed=… remaining=…
+表 tdnet_pdf_documents はデプロイの jobs/migrate.py が作る。ここでは作らない（無ければ no such table で落ちる）。
 """
 from __future__ import annotations
 
@@ -33,7 +34,7 @@ import httpx  # noqa: E402
 from sqlalchemy import exists  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
-from app.db import SessionLocal, init_db, run_sqlite_write  # noqa: E402
+from app.db import SessionLocal, run_sqlite_write  # noqa: E402
 from app.models import Statement, TdnetPdfDocument, XbrlDocument, XbrlFiling  # noqa: E402
 from tools.tdnet_pdf.convert import CONVERTER, convert_pdf  # noqa: E402
 
@@ -189,7 +190,6 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("--code か --all のどちらか一方を指定してください")
     codes = None if args.all else sorted({code5(c) for c in args.code})
 
-    init_db()
     db = SessionLocal()
     try:
         if args.dry_run:
