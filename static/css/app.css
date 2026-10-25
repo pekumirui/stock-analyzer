@@ -77,7 +77,8 @@
   #st-suggest { left:0; top:100%; }
   #st-filing { max-width:100%; }
   #st-title { margin:4px 0 8px; }
-  /* 短信の原文。中身の幅（約 172mm）より狭い画面は iframe の中で横スクロール */
+  /* 短信の原文。iframe は中身の幅・高さまで広げる（stock.js）。中身（約 172mm）より狭い画面は #st-doc が横スクロール */
+  #st-doc { overflow-x:auto; }
   .st-frame { display:block; width:100%; border:0; border-top:1px solid var(--border); background:#fff; }
   .mchip .n { margin-left:4px; opacity:.75; }
   .sub { color:var(--sub); }
