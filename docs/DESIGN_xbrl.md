@@ -817,3 +817,39 @@ CREATE TABLE xbrl_segments (
 - 元の HTML のまま保存し、除去は表示のとき（`sanitize_html`）。除去の決まりを変えても入れ直さない
 - EDINET は対象外（ZIP の形が違う）
 
+## 16. 過去の短信を PDF から HTML にする（KAB-164）
+
+TDnet の ZIP は 2026-08-10 からしか無く、TDnet は約 1 か月で消す。それより前の回の原文は、IR BANK が保管する TDnet の開示 PDF から HTML に変換して `tdnet_pdf_documents` に入れる。数値の層（`xbrl_financials`）には入れない。
+
+### 16.1 実データで分かったこと（2026-10-25）
+
+- 番号は 1 つ: J-Quants の `statements.disclosure_no` = TDnet の docID = IR BANK の `doc_id`（14 桁）。TDnet XBRL ZIP の名前は `0812` + docID（5933 の 2026-10-20 は `081220261020553439` と `20261020553439`）
+- PDF は `https://api.irbank.net/api/market-files/v1/tdnet/{docID}.pdf`（認証なし）。`statements` からランダムに 6 件、41 件とも取れた。2021 年の回もある。IR BANK に zip / xbrl / htm は無い（404）。TDnet の 1 か月より前の ZIP も 404
+- 変換（`tools/tdnet_pdf/convert.py`）を 41 件（2021〜2026、20 社余り）で試した: pdfium の文字と比べて 75 万字中 5 字違い（`～` / `〜` の取り違え 4、読めない 1 字）。1 件 平均 20 ページ・gzip 後 43KB・3 秒。元の PDF 平均 626KB
+- 手元の poppler（`pdftotext` / `pdftoppm`）は日本語の言語パックが無いと、フォントを埋め込んでいない PDF の文字を落とす（`Missing language pack for 'Adobe-Japan1'`）。突き合わせには使わない
+- 出ないもの: 画像（会社のロゴ・定性的情報のグラフ・FASF マーク）
+
+### 16.2 変換
+
+pdfplumber でページごとに、文字の語（位置・大きさ・フォント名）と罫線（`lines`）・四角（`rects`。網掛けと枠）を読み、同じ座標の SVG（`<text>` / `<line>` / `<rect>`）にする。語の幅は `textLength`（`lengthAdjust="spacingAndGlyphs"`）で PDF に合わせる。フォント名に gothic / sans 等があれば sans-serif、それ以外は serif。bold / W6〜W9 等は太字。重ね打ちの太字は `dedupe_chars(tolerance=1)` で 1 つ。題名は 1 ページ目で `決算短信` / `業績予想` / `お知らせ` 等を含む最初の行。変換器の版は `CONVERTER`（今は `svg1`）を行に残す。
+
+### 16.3 表 `tdnet_pdf_documents`
+
+| 列 | 中身 |
+|---|---|
+| `disclosure_no` | TDnet の docID（主キー） |
+| `code` / `disclosed_date` / `disclosed_time` | `statements` から |
+| `title` | 1 ページ目の題名。取れなければ `statements.type_of_document` |
+| `status` | `ok` / `missing`（PDF が 404）/ `failed`（取得・変換の失敗。`error` に理由） |
+| `html_gz` / `bytes` / `sha256` | 変換後の HTML（gzip。大きさとハッシュは圧縮前） |
+| `pages` / `pdf_bytes` / `pdf_sha256` | 元の PDF |
+| `converter` / `created_at` | 変換器の版と入れた時刻（UTC） |
+
+### 16.4 取込 `tools/tdnet_pdf/ingest.py`
+
+- 対象: 指定した銘柄（`--code` 複数可、`--all` で全銘柄）の `statements` のうち、XBRL の原文（`xbrl_documents`。ZIP 名の後ろ 14 桁で照合）も、この表の `ok` / `missing` も無い回。新しい順。`failed` は `--retry-failed` のときだけ
+- 1 件ずつ 取得 → 変換 → 保存（commit）。間隔は `--sleep`（既定 1 秒）、件数は `--limit`。IR BANK が 429 / 503 を返したら上限とみなして止める（終了コード 0）。途中で止めても次の実行で続きから
+- 最後の 1 行: `tdnet_pdf stopped=<done|limit|rate_limited> ok=… missing=… failed=… remaining=…`。`--dry-run` は対象の件数と先頭 10 件だけ
+- VPS で動かす（bot が銘柄を指定して毎日）。pdfplumber は `requirements.txt` に入れた
+- 規模の見込み: `statements` 約 9.6 万件を全部入れると DB は約 4GB 増える（1 件 43KB）
+

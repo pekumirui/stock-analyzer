@@ -250,6 +250,31 @@ class XbrlDocument(Base):
     sha256 = Column(String(64), nullable=False)   # 圧縮前
     created_at = Column(DateTime, nullable=False)
 
+
+class TdnetPdfDocument(Base):
+    """TDnet の開示 PDF（IR BANK の保管分）を HTML に変換したもの（KAB-164）。
+
+    XBRL ZIP の原文（xbrl_documents）が無い過去の回を銘柄タブで読むため。キーは TDnet の
+    docID（= statements.disclosure_no = XBRL ZIP 名の後ろ 14 桁）。取込は tools/tdnet_pdf/。
+    status: ok（html あり）/ missing（PDF が 404）/ failed（取得・変換の失敗）。
+    """
+    __tablename__ = "tdnet_pdf_documents"
+    disclosure_no = Column(String(14), primary_key=True)
+    code = Column(String(5), nullable=False, index=True)
+    disclosed_date = Column(Date)
+    disclosed_time = Column(String(8))
+    title = Column(Text)
+    status = Column(String(16), nullable=False)
+    error = Column(Text)
+    html_gz = Column(LargeBinary)
+    bytes = Column(Integer)          # 変換後 HTML（圧縮前）
+    sha256 = Column(String(64))      # 変換後 HTML（圧縮前）
+    pages = Column(Integer)
+    pdf_bytes = Column(Integer)
+    pdf_sha256 = Column(String(64))
+    converter = Column(String(16))   # 変換器の版（tools/tdnet_pdf/convert.py CONVERTER）
+    created_at = Column(DateTime, nullable=False)
+
 class XbrlElement(Base):
     __tablename__ = "xbrl_elements"
     id = Column(Integer, primary_key=True)

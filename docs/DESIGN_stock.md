@@ -1,6 +1,6 @@
 # 銘柄タブ
 
-原文の取込と保存は `docs/DESIGN_xbrl.md` §15。共通見た目は `docs/SCREEN_SPEC.md`。
+原文の取込と保存は `docs/DESIGN_xbrl.md` §15（TDnet の ZIP）と §16（過去の回を IR BANK の PDF から変換）。共通見た目は `docs/SCREEN_SPEC.md`。
 
 ## 誰のための画面か
 
@@ -14,14 +14,16 @@
 
 `GET /api/stock/{code}/filings` の 1 回分。TDnet の XBRL 書類（決算短信・訂正・業績予想の修正など。EDINET の有報は入らない）を提出の新しい順に最大 200 件。各書類に原文の部品（`documents`）が表示順に付く。部品は サマリー（`summary`）、添付資料まるごと（`qualitative`）、`qualitative.htm` の無い書類（REIT・一部の訂正）は本表の iXBRL（`attachment`）をファイル名順。
 
+XBRL の原文が無い過去の回は、PDF から変換した原文（`source: "pdf"`、部品は `pdf` 1 つ）を同じ一覧に混ぜる。題名は PDF の 1 ページ目から。XBRL の回は `source: "xbrl"`。
+
 ## 銘柄
 
 **目的。** 銘柄を探し、その銘柄の決算短信を 1 件選んで PDF と同じ中身を読む。
 
 **要素。** 上から:
 
-1. 操作の行 `#st-search`。銘柄の入力 `#st-sym`（銘柄名かコード。候補 `#st-suggest` は `GET /api/stocks/search` の最大 20 件、`4 桁コード 銘柄名`）、短信の選択 `#st-filing`（`YYYY-MM-DD 書類名`。原文のある書類だけ）、原文の大きさ `#st-zoom`（幅に合わせる / 中 / 原寸。決算速報の 累計 / 3か月 と同じ見た目。既定は幅に合わせる。選んだ方は localStorage `stock.zoom` に残す）
-2. `#st-title`。銘柄名（太字）、4 桁コード / 市場 / 33 業種
+1. 操作の行 `#st-search`。銘柄の入力 `#st-sym`（銘柄名かコード。候補 `#st-suggest` は `GET /api/stocks/search` の最大 20 件、`4 桁コード 銘柄名`）、短信の選択 `#st-filing`（`YYYY-MM-DD 書類名`。原文のある書類だけ。PDF から変換した回は末尾に `（PDF から変換）`）、原文の大きさ `#st-zoom`（幅に合わせる / 中 / 原寸。決算速報の 累計 / 3か月 と同じ見た目。既定は幅に合わせる。選んだ方は localStorage `stock.zoom` に残す）
+2. `#st-title`。銘柄名（太字）、4 桁コード / 市場 / 33 業種。PDF から変換した回を選んでいるときだけ、その下に `#st-src`（`出典: IR BANK（TDnet）。PDF から変換した原文（画像は出ません）`）
 3. `#st-doc`。選んだ書類の部品を上から順に 1 つずつ iframe で出す。iframe は中身の幅・高さまで伸ばし、画面のスクロールで読む。中身は会社が作った HTML のまま（見た目は PDF とほぼ同じ。ページのヘッダー・フッター、ロゴ、FASF マークは無い）
 
 既定で出す書類は、新しい順で最初の決算短信（本決算・中間・四半期）。無ければ一番新しい書類。
@@ -49,9 +51,13 @@
 }
 ```
 
+各部品の `url` が原文の場所。PDF から変換した回は `id: null`、`disclosure_no`（TDnet の docID）、`attribution`（出典）が付き、`url` は `/api/stock/pdf/{disclosure_no}`。XBRL の回と PDF の回を `submitted_at` の新しい順に混ぜて最大 200 件。
+
 マスタに無い銘柄は 404、形の違うコードは 400。原文がまだ無い書類は `documents: []`（画面には出さない）。
 
 `GET /api/stock/filings/{filing_id}/documents/{seq}` は原文の HTML（`text/html`）。`script` / `iframe` / `link` / イベント属性 / `javascript:` / 外の画像を除いて返す。ヘッダー `Content-Security-Policy` で script・外への通信を止め、`sandbox allow-same-origin`（親が高さを測るため）。`ETag` は原文の sha256。無ければ 404。
+
+`GET /api/stock/pdf/{disclosure_no}` は PDF から変換した原文（`tdnet_pdf_documents` の `ok` の行）。ヘッダーは上と同じ。`ok` でなければ 404。
 
 ## 対象外
 
