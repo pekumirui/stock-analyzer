@@ -830,12 +830,13 @@ TDnet の ZIP は 2026-08-10 からしか無く、TDnet は約 1 か月で消す
 - 番号は 1 つ: J-Quants の `statements.disclosure_no` = TDnet の docID = IR BANK の `doc_id`（14 桁）。TDnet XBRL ZIP の名前は `0812` + docID（5933 の 2026-10-20 は `081220261020553439` と `20261020553439`）
 - PDF は `https://api.irbank.net/api/market-files/v1/tdnet/{docID}.pdf`（認証なし）。`statements` からランダムに 6 件、41 件とも取れた。2021 年の回もある。IR BANK に zip / xbrl / htm は無い（404）。TDnet の 1 か月より前の ZIP も 404
 - 変換（`tools/tdnet_pdf/convert.py`）を 41 件（2021〜2026、20 社余り）で試した: pdfium の文字と比べて 75 万字中 5 字違い（`～` / `〜` の取り違え 4、読めない 1 字）。1 件 平均 20 ページ・gzip 後 43KB・3 秒。元の PDF 平均 626KB
+- KAB-169 で読み込みを pdfplumber（pdfminer。Python）から pdfium（pypdfium2。C++）に替えた（`svg2`）。同じ 41 件で 合計 126.5 秒 → 16.6 秒（約 7.6 倍）、pdfium の文字と比べて 75 万字中 1 字違い（わざと捨てる `\ufffe`）。gzip 後は 約 7% 増える（曲線も描くため）。最大メモリは 71 ページで 約 217MB → 約 45MB、19 ページで 約 86MB → 約 30MB。旧版は時間の約 65% が PDF の解釈、約 35% が `dedupe_chars` / `extract_words` だった
 - 手元の poppler（`pdftotext` / `pdftoppm`）は日本語の言語パックが無いと、フォントを埋め込んでいない PDF の文字を落とす（`Missing language pack for 'Adobe-Japan1'`）。突き合わせには使わない
 - 出ないもの: 画像（会社のロゴ・定性的情報のグラフ・FASF マーク）
 
 ### 16.2 変換
 
-pdfplumber でページごとに、文字の語（位置・大きさ・フォント名）と罫線（`lines`）・四角（`rects`。網掛けと枠）を読み、同じ座標の SVG（`<text>` / `<line>` / `<rect>`）にする。語の幅は `textLength`（`lengthAdjust="spacingAndGlyphs"`）で PDF に合わせる。フォント名に gothic / sans 等があれば sans-serif、それ以外は serif。bold / W6〜W9 等は太字。重ね打ちの太字は `dedupe_chars(tolerance=1)` で 1 つ。題名は 1 ページ目で `決算短信` / `業績予想` / `お知らせ` 等を含む最初の行。変換器の版は `CONVERTER`（今は `svg1`）を行に残す。
+pdfium（pypdfium2）でページごとに読む。文字は textpage の 1 文字ずつの原点（ベースライン）・ゆるい字の枠・大きさと、文字が属するテキストのオブジェクトのフォント名・太さ・色（オブジェクトごとに 1 回）。pdfium が足した空白・改行（generated）と制御文字・`\ufffe` は捨てる。ベースラインが 1pt 以内の文字を 1 行にまとめ、左から並べ、字間が 1.2pt を超えるか書式（フォント・太さ・色・大きさ）が変われば語を切る。図形はページのオブジェクトの path を、Form XObject の入れ子（8 段まで）を辿って行列を掛け合わせ、SVG の `<path>`（直線・ベジェ曲線・閉じ）にする。塗りが白で線が無いものは捨てる。語の幅は `textLength`（`lengthAdjust="spacingAndGlyphs"`）で PDF に合わせる。フォント名に gothic / sans 等があれば sans-serif、それ以外は serif。太さ 600 以上か名前に bold / W6〜W9 等があれば太字。題名は 1 ページ目の行で `決算短信` / `業績予想` / `お知らせ` 等を含む最初のもの。変換器の版は `CONVERTER`（今は `svg2`。KAB-164 の pdfplumber 版は `svg1`）を行に残す。`svg1` の行は入れ直さない（見た目はほぼ同じ）
 
 ### 16.3 表 `tdnet_pdf_documents`
 
@@ -854,6 +855,6 @@ pdfplumber でページごとに、文字の語（位置・大きさ・フォン
 - 対象: 指定した銘柄（`--code` 複数可、`--all` で全銘柄）の `statements` のうち、XBRL の原文（`xbrl_documents`。ZIP 名の後ろ 14 桁で照合）も、この表の `ok` / `missing` も無い回。新しい順。`failed` は `--retry-failed` のときだけ
 - 1 件ずつ 取得 → 変換 → 保存（commit）。間隔は `--sleep`（既定 1 秒）、件数は `--limit`。IR BANK が 429 / 503 を返したら上限とみなして止める（終了コード 0）。途中で止めても次の実行で続きから
 - 最後の 1 行: `tdnet_pdf stopped=<done|limit|rate_limited> ok=… missing=… failed=… remaining=…`。`--dry-run` は対象の件数と先頭 10 件だけ
-- VPS で動かす（bot が銘柄を指定して毎日）。pdfplumber は `requirements.txt` に入れた
+- VPS で動かす（bot が銘柄を指定して毎日）。pypdfium2 は `requirements.txt` に入れた（KAB-169 で pdfplumber から替えた）
 - 規模の見込み: `statements` 約 9.6 万件を全部入れると DB は約 4GB 増える（1 件 43KB）
 

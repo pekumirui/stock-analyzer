@@ -45,8 +45,9 @@ def test_convert_pdf_draws_text_rules_and_shading() -> None:
     assert ">1,234</text>" in conv.html
     assert 'textLength="' in conv.html and 'font-family="sans-serif"' in conv.html
     assert 'fill="rgb(204,204,204)"' in conv.html  # 0.8 g の網掛け
-    assert "<line " in conv.html
-    assert "<script" not in conv.html and CONVERTER == "svg1"
+    assert conv.html.count("<path ") == 2  # 網掛けと線
+    assert 'stroke="rgb(0,0,0)"' in conv.html
+    assert "<script" not in conv.html and CONVERTER == "svg2"
     # バイト列でもパスでも読める
     assert convert_pdf(make_pdf("Other title")).title is None
 
