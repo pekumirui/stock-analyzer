@@ -163,3 +163,13 @@ def test_sanitize_stops_ios_text_autosizing() -> None:
     # head の無い断片は先頭に付ける
     assert sanitize_html("<p>x</p>").startswith(TEXT_SIZE_ADJUST)
 
+
+def test_etag_changes_with_sanitize_version(monkeypatch) -> None:
+    """出力を変えたら ETag も変わる。原文の sha256 だけだと 304 が返り続けて古い HTML が残る（KAB-168）。"""
+    from app.api import stock
+
+    a = stock._doc_headers("ab" * 32)["ETag"]
+    monkeypatch.setattr(stock, "SANITIZE_VERSION", "999")
+    b = stock._doc_headers("ab" * 32)["ETag"]
+    assert a != b and a.startswith('"' + "ab" * 32)
+

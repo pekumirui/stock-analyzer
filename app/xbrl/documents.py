@@ -137,6 +137,9 @@ _HEAD_OPEN = re.compile(r"<head\b[^>]*>", re.I)
 # iOS Safari の文字の自動拡大を止める（KAB-168）。viewport の無い原文で、横に長い段落（目次の …… の行）だけ
 # 文字を大きくし、リーダーが次の行に落ちて両端そろえで 1 字ずつ離れる
 TEXT_SIZE_ADJUST = "<style>html{-webkit-text-size-adjust:100%;text-size-adjust:100%}</style>"
+# sanitize_html の出力の版。出力を変えたら上げる。原文の ETag に混ぜ、ブラウザに古い HTML を使わせない
+# （ETag が原文の sha256 だけだと、出力を変えても 304 が返り続ける。KAB-168）
+SANITIZE_VERSION = "2"
 
 
 def sanitize_html(html: str) -> str:

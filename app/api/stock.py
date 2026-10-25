@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_session
 from ..models import Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
-from ..xbrl.documents import load_html, sanitize_html
+from ..xbrl.documents import SANITIZE_VERSION, load_html, sanitize_html
 from .monthly._common import ApiError, _parse_code
 
 router = APIRouter()
@@ -40,7 +40,7 @@ def _pdf_doc_type(title: str | None) -> str:
 
 def _doc_headers(sha: str) -> dict[str, str]:
     return {
-        "ETag": f'"{sha}"',
+        "ETag": f'"{sha}.s{SANITIZE_VERSION}"',
         "Cache-Control": "private, no-cache",
         "Content-Security-Policy": DOC_CSP,
         "X-Content-Type-Options": "nosniff",
