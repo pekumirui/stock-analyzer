@@ -19,7 +19,8 @@ filing の ZIP ツリーは `data/xbrl`。`jobs/ops/migrate_r2_share.py` は `xb
 2,188 件の filing をネットワークなしで全件パースし errors=0 を確認している。
 
 KAB-73 で EDINET の有報・半期報・四半期報 10 年分が参照する版を足した（jpcrp / jppfs 2016-02-29〜2021-11-01、
-jpigp 2019-02-28〜2021-11-01。88 ファイル・約 169MB。計 276MB）。2016〜2026 年の見本 73 件
+jpigp 2019-02-28〜2021-11-01。88 ファイル・約 169MB。計 276MB）。KAB-167 で jpigp 2018-03-31（cor / rt / ラベル
+ja+en。4 ファイル・約 7MB。計 283MB）を足した。2016〜2026 年の見本 73 件
 （日本基準 50・IFRS 16・米国基準 7）を `check` で missing=0、ネットワークなしで全件パースできることを確認した。
 
 EDINET の版はスキーマの URL（`http://disclosure.edinet-fsa.go.jp/taxonomy/...`）からそのまま取れる。
