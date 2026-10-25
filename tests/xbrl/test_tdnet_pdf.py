@@ -134,3 +134,11 @@ def test_cli_requires_code_or_all(capsys) -> None:
     with pytest.raises(SystemExit):
         ingest.main([])
     assert ingest.code5("5933") == "59330" and ingest.code5("262A0") == "262A0"
+
+
+def test_cli_does_not_create_tables() -> None:
+    """表はデプロイの migrate が作る。ツールは作らず、無ければ落ちる（KAB-165）。"""
+    from pathlib import Path
+
+    src = (Path(__file__).resolve().parents[2] / "tools/tdnet_pdf/ingest.py").read_text(encoding="utf-8")
+    assert "init_db" not in src and "create_all" not in src
