@@ -21,7 +21,7 @@
 ```
 
 - **言語**: Python 3.10+ / FastAPI / SQLAlchemy / pandas
-- **フロント**: `static/index.html` + `static/css/` + `static/js/` の vanilla JS SPA (lightweight-charts)。スマホ対応。フレームワークを足さない
+- **フロント**: `static/index.html` + `static/css/` + `static/js/` の vanilla JS SPA (lightweight-charts)。スマホ対応
 - **バッチ**: `jobs/market/run_batch.py` を cron / スケジューラで日次実行
 
 ## 2. J-Quants API V2 / Light プランの前提
