@@ -128,6 +128,11 @@
       <input id="st-sym" placeholder="銘柄名 or コード" autocomplete="off" style="width:200px">
       <div id="st-suggest" class="suggest" style="display:none"></div>
       <select id="st-filing" hidden aria-label="決算短信"></select>
+      <div class="fin-tabs" id="st-zoom" role="group" aria-label="原文の大きさ">
+        <button type="button" class="ftab on" data-zoom="fit">幅に合わせる</button>
+        <button type="button" class="ftab" data-zoom="mid">中</button>
+        <button type="button" class="ftab" data-zoom="actual">原寸</button>
+      </div>
     </div>
     <div id="st-title"></div>
     <div id="st-doc"></div>

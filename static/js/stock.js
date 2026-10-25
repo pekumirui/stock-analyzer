@@ -99,19 +99,53 @@ $("#st-filing").addEventListener("change", e => {
   if(f) showStockFiling(f);
 });
 
+// 原文の大きさ。fit = 画面の幅に合わせて縮める（指で拡大できる）/ mid = 0.75 倍（幅に合わせるより縮めない）/
+// actual = 原寸。はみ出す分は #st-doc が横スクロール
+const STOCK_ZOOM_KEY = "stock.zoom";
+const STOCK_ZOOMS = ["fit", "mid", "actual"];
+const STOCK_MID_SCALE = 0.75;
+let stockZoom = "fit";
+try {
+  const z = localStorage.getItem(STOCK_ZOOM_KEY);
+  if(STOCK_ZOOMS.includes(z)) stockZoom = z;
+} catch(e) {}
+
+function syncStockZoomButtons(){
+  document.querySelectorAll("#st-zoom .ftab").forEach(b => b.classList.toggle("on", b.dataset.zoom === stockZoom));
+}
+syncStockZoomButtons();
+document.querySelectorAll("#st-zoom .ftab").forEach(b => b.onclick = () => {
+  stockZoom = b.dataset.zoom;
+  try { localStorage.setItem(STOCK_ZOOM_KEY, stockZoom); } catch(e) {}
+  syncStockZoomButtons();
+  document.querySelectorAll("#st-doc iframe").forEach(fitStockFrame);
+});
+
 // 中で script は動かない（sandbox）。同じオリジンなので親から中身を測り、iframe を中身の幅と高さまで広げる。
-// iframe の中ではスクロールさせない（入れ子のスクロールは指で滑らせると引っかかる）。横にはみ出す分は #st-doc が横スクロール
+// iframe の中ではスクロールさせない（入れ子のスクロールは指で滑らせると引っかかる）。
+// 縮めるときは iframe を transform で縮め、外枠（.st-page）を縮めた後の大きさにする
 function fitStockFrame(frame){
+  const page = frame.parentElement;
   try {
     const doc = frame.contentDocument;
     const de = doc.documentElement;
     de.style.overflow = "hidden";
     frame.style.width = "";
-    const w = Math.max(de.scrollWidth, doc.body ? doc.body.scrollWidth : 0);
-    if(w > frame.clientWidth) frame.style.width = w + "px";
-    frame.style.height = Math.max(de.scrollHeight, doc.body ? doc.body.scrollHeight : 0) + "px";
+    frame.style.transform = "";
+    page.style.width = "";
+    const avail = page.clientWidth;
+    const w = Math.max(de.scrollWidth, doc.body ? doc.body.scrollWidth : 0, avail);
+    frame.style.width = w + "px";
+    const h = Math.max(de.scrollHeight, doc.body ? doc.body.scrollHeight : 0);
+    frame.style.height = h + "px";
+    const fit = w > avail ? avail / w : 1;
+    const scale = stockZoom === "fit" ? fit : stockZoom === "mid" ? Math.max(fit, STOCK_MID_SCALE) : 1;
+    if(scale < 1) frame.style.transform = `scale(${scale})`;
+    if(w * scale > avail) page.style.width = Math.ceil(w * scale) + "px";
+    page.style.height = Math.ceil(h * scale) + "px";
   } catch(e){
     frame.style.height = "80vh";
+    page.style.height = "80vh";
   }
 }
 
@@ -127,7 +161,10 @@ function showStockFiling(f){
     frame.title = doc.part === "summary" ? "サマリー" : "添付資料";
     frame.onload = () => fitStockFrame(frame);
     frame.src = `/api/stock/filings/${f.id}/documents/${doc.seq}`;
-    host.appendChild(frame);
+    const page = document.createElement("div");
+    page.className = "st-page";
+    page.appendChild(frame);
+    host.appendChild(page);
   }
 }
 

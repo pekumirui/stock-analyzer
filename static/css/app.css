@@ -77,9 +77,10 @@
   #st-suggest { left:0; top:100%; }
   #st-filing { max-width:100%; }
   #st-title { margin:4px 0 8px; }
-  /* 短信の原文。iframe は中身の幅・高さまで広げる（stock.js）。中身（約 172mm）より狭い画面は #st-doc が横スクロール */
+  /* 短信の原文。iframe は中身の幅・高さまで広げる。幅に合わせるときは縮めて .st-page を縮めた大きさにする（stock.js）。原寸ではみ出す分は #st-doc が横スクロール */
   #st-doc { overflow-x:auto; }
-  .st-frame { display:block; width:100%; border:0; border-top:1px solid var(--border); background:#fff; }
+  .st-page { overflow:hidden; border-top:1px solid var(--border); }
+  .st-frame { display:block; width:100%; border:0; background:#fff; transform-origin:0 0; }
   .mchip .n { margin-left:4px; opacity:.75; }
   .sub { color:var(--sub); }
   .dim { opacity:.4; }

@@ -132,3 +132,5 @@ def test_spa_has_stock_tab() -> None:
     # 原文は script を動かさない iframe で出す
     assert 'setAttribute("sandbox", "allow-same-origin")' in js
     assert "/api/stocks/search" in js
+    # スマホは既定で幅に合わせる（KAB-163）
+    assert 'id="st-zoom"' in html and 'let stockZoom = "fit"' in js
