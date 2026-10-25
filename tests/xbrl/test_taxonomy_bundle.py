@@ -201,6 +201,109 @@ def test_check_fails_when_needed_label_missing(tmp: Path) -> None:
         _fail(f"missing label URL not reported: {out}")
 
 
+# KAB-167: S100SERZ (61910) referenced this edition; KAB-73's 10-year sample started at 2019-02-28.
+JPIGP_2018_COR = (
+    "http://disclosure.edinet-fsa.go.jp/taxonomy/jpigp/2018-03-31/jpigp_cor_2018-03-31.xsd"
+)
+JPIGP_2018_RT = (
+    "http://disclosure.edinet-fsa.go.jp/taxonomy/jpigp/2018-03-31/jpigp_rt_2018-03-31.xsd"
+)
+JPIGP_2018_LAB = (
+    "http://disclosure.edinet-fsa.go.jp/taxonomy/jpigp/2018-03-31/label/jpigp_2018-03-31_lab.xml"
+)
+JPIGP_2018_LAB_EN = (
+    "http://disclosure.edinet-fsa.go.jp/taxonomy/jpigp/2018-03-31/label/jpigp_2018-03-31_lab-en.xml"
+)
+JPIGP_2018_NS = "http://disclosure.edinet-fsa.go.jp/taxonomy/jpigp/2018-03-31/jpigp_cor"
+JPIGP_2018_URLS = (JPIGP_2018_COR, JPIGP_2018_RT, JPIGP_2018_LAB, JPIGP_2018_LAB_EN)
+BUNDLE = ROOT / "data" / "xbrl_taxonomy"
+
+
+def _jpigp_2018_sample_zip() -> bytes:
+    """S100SERZ-equivalent iXBRL: schemaRef → jpigp 2018-03-31 cor / rt / labels."""
+    company_xsd = f"""<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            xmlns:link="http://www.xbrl.org/2003/linkbase"
+            xmlns:xlink="http://www.w3.org/1999/xlink"
+            targetNamespace="http://example.jp/S100SERZ">
+  <xsd:import namespace="{JPIGP_2018_NS}" schemaLocation="{JPIGP_2018_COR}"/>
+  <xsd:import namespace="http://disclosure.edinet-fsa.go.jp/taxonomy/jpigp/2018-03-31/jpigp_rt"
+              schemaLocation="{JPIGP_2018_RT}"/>
+  <link:linkbaseRef xlink:type="simple" xlink:href="{JPIGP_2018_LAB}"
+                    xlink:role="http://www.xbrl.org/2003/role/labelLinkbaseRef"/>
+  <link:linkbaseRef xlink:type="simple" xlink:href="{JPIGP_2018_LAB_EN}"
+                    xlink:role="http://www.xbrl.org/2003/role/labelLinkbaseRef"/>
+</xsd:schema>
+"""
+    ixbrl = f"""<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"
+      xmlns:xbrli="http://www.xbrl.org/2003/instance"
+      xmlns:link="http://www.xbrl.org/2003/linkbase"
+      xmlns:xlink="http://www.w3.org/1999/xlink"
+      xmlns:jpigp_cor="{JPIGP_2018_NS}"
+      xmlns:iso4217="http://www.xbrl.org/2003/iso4217">
+<head>
+  <ix:header>
+    <link:schemaRef xlink:type="simple" xlink:href="company.xsd"/>
+    <ix:hidden>
+      <ix:nonFraction name="jpigp_cor:RevenueIFRS" contextRef="CurrentYearDuration"
+                      unitRef="JPY" scale="6" decimals="-6">300</ix:nonFraction>
+    </ix:hidden>
+    <ix:resources>
+      <xbrli:context id="CurrentYearDuration">
+        <xbrli:entity><xbrli:identifier scheme="http://disclosure.edinet-fsa.go.jp">E00000</xbrli:identifier></xbrli:entity>
+        <xbrli:period>
+          <xbrli:startDate>2017-04-01</xbrli:startDate>
+          <xbrli:endDate>2018-03-31</xbrli:endDate>
+        </xbrli:period>
+      </xbrli:context>
+      <xbrli:unit id="JPY"><xbrli:measure>iso4217:JPY</xbrli:measure></xbrli:unit>
+    </ix:resources>
+  </ix:header>
+</head>
+<body></body>
+</html>
+"""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("XBRL/PublicDoc/S100SERZ.htm", ixbrl)
+        zf.writestr("XBRL/PublicDoc/company.xsd", company_xsd)
+    return buf.getvalue()
+
+
+def test_jpigp_2018_in_bundle_parses_offline(tmp: Path) -> None:
+    """KAB-167: jpigp 2018-03-31 is bundled; S100SERZ-equivalent ZIP parses without network."""
+    from unittest.mock import patch
+
+    from app.xbrl.parser import extract_zip, parse_package, reset_taxonomy_caches
+
+    for url in JPIGP_2018_URLS:
+        if not tb.cache_path_for(BUNDLE, url).is_file():
+            _fail(f"bundle missing {url}")
+
+    zips = tmp / "zips"
+    zips.mkdir(parents=True)
+    (zips / "S100SERZ.zip").write_bytes(_jpigp_2018_sample_zip())
+    rc, out = _run_check(zips, BUNDLE)
+    if rc != 0 or "missing=0" not in out:
+        _fail(f"jpigp 2018 check should be missing=0: {rc} {out}")
+
+    reset_taxonomy_caches()
+    try:
+        unpacked = extract_zip(zips / "S100SERZ.zip", tmp / "unpacked")
+        with patch("urllib.request.urlopen", side_effect=AssertionError("network")):
+            pkg = parse_package(unpacked, cache_dir=BUNDLE, text_max=1000)
+    finally:
+        reset_taxonomy_caches()
+    names = {(f.namespace_key, f.local_name) for f in pkg.facts}
+    if ("jpigp_cor", "RevenueIFRS") not in names:
+        _fail(f"expected RevenueIFRS fact, got {names}")
+    lab = pkg.labels.get(("jpigp_cor", "RevenueIFRS")) or {}
+    if lab.get("label_ja") != "売上収益":
+        _fail(f"expected ja label 売上収益, got {lab}")
+
+
 def test_sync_skips_unused_files(tmp: Path) -> None:
     zips = _write_filing(tmp)
     src = tmp / "cache"
@@ -237,6 +340,7 @@ def main() -> None:
         test_check_fails_when_needed_xsd_missing(root / "need-xsd")
         test_check_fails_when_needed_label_missing(root / "need-lab")
         test_sync_skips_unused_files(root / "sync")
+        test_jpigp_2018_in_bundle_parses_offline(root / "jpigp-2018")
     print("ok: taxonomy bundle")
 
 
