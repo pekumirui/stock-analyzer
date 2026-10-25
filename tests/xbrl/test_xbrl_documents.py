@@ -150,3 +150,16 @@ def test_spa_has_stock_tab() -> None:
     assert "/api/stocks/search" in js
     # スマホは既定で幅に合わせる（KAB-163）
     assert 'id="st-zoom"' in html and 'let stockZoom = "fit"' in js
+
+
+def test_sanitize_stops_ios_text_autosizing() -> None:
+    """iOS Safari が目次の行だけ文字を大きくするのを止める（KAB-168）。head の直後に 1 つ。"""
+    from app.xbrl.documents import TEXT_SIZE_ADJUST
+
+    s = sanitize_html('<html><head><title>t</title></head><body><p>x</p></body></html>')
+    assert s.count(TEXT_SIZE_ADJUST) == 1
+    assert s.index("<head>") < s.index(TEXT_SIZE_ADJUST) < s.index("<title>")
+    assert "-webkit-text-size-adjust:100%" in TEXT_SIZE_ADJUST
+    # head の無い断片は先頭に付ける
+    assert sanitize_html("<p>x</p>").startswith(TEXT_SIZE_ADJUST)
+
