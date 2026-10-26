@@ -75,8 +75,20 @@
   .a-list > .row { z-index:5; }
   #earn-suggest { left:0; top:100%; }
   #st-suggest { left:0; top:100%; }
-  #st-filing { max-width:100%; }
-  #st-title { margin:4px 0 8px; }
+  #st-title { margin:4px 0 2px; }
+  #st-quote { display:flex; flex-wrap:wrap; gap:4px 14px; align-items:baseline; margin-bottom:8px; font-variant-numeric:tabular-nums; }
+  #st-quote .px { font-size:18px; font-weight:700; }
+  #st-tabs { display:inline-flex; margin-bottom:10px; }
+  #st-metrics { display:flex; flex-wrap:wrap; gap:8px 24px; margin:4px 0 12px; font-variant-numeric:tabular-nums; }
+  #st-metrics .k { font-size:12px; color:var(--sub); }
+  #st-metrics .v { font-size:18px; font-weight:600; }
+  #st-news tr.go { cursor:pointer; }
+  #st-news tr.go:hover td { background:var(--now); }
+  #tab-stock .kind { font-size:11px; padding:1px 6px; border:1px solid var(--border); border-radius:4px; white-space:nowrap; }
+  #st-news td { white-space:nowrap; }
+  #st-news td.t { white-space:normal; min-width:12em; }
+  .st-detail-bar { justify-content:space-between; }
+  #st-news-head { margin:6px 0; }
   /* 短信の原文。iframe は中身の幅・高さまで広げる。幅に合わせるときは縮めて .st-page を縮めた大きさにする（stock.js）。原寸ではみ出す分は #st-doc が横スクロール */
   #st-doc { overflow-x:auto; }
   .st-page { overflow:hidden; border-top:1px solid var(--border); }

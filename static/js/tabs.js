@@ -2,16 +2,30 @@ const TABS = ["earnings", "chart", "stock", "screener", "pts", "monthly", "suppl
 const UI_ROUTE_KEY = "ui.route";
 const CODE_RE = /^[0-9][0-9A-Z]{3}[0-9]$/;
 const SUPPLY_ID_RE = /^[a-z][a-z0-9_]*$/;
+// 銘柄タブは {code5}/{中のタブ}、ニュースの詳細は {code5}/news/{news_id}（docs/DESIGN_stock.md）
+const STOCK_SUBS = ["summary", "price", "news", "holders"];
+const NEWS_ID_RE = /^[a-z][0-9A-Za-z]{1,40}$/;
+
+function stockRouteArg(raw){
+  const [code, sub, id] = String(raw || "").split("/");
+  if(!CODE_RE.test(code || "")) return "";
+  if(!STOCK_SUBS.includes(sub)) return code;
+  if(sub === "news" && NEWS_ID_RE.test(id || "")) return `${code}/news/${id}`;
+  return `${code}/${sub}`;
+}
 
 function routeArg(tab, raw){
-  if(tab === "chart" || tab === "stock" || tab === "monthly") return CODE_RE.test(raw || "") ? raw : "";
+  if(tab === "stock") return stockRouteArg(raw);
+  if(tab === "chart" || tab === "monthly") return CODE_RE.test(raw || "") ? raw : "";
   if(tab === "supply") return SUPPLY_ID_RE.test(raw || "") ? raw : "";
   return "";
 }
 
 function parseRoute(raw){
   const s = String(raw || "").replace(/^#/, "").trim();
-  const [tab, rest] = s.split("/");
+  const i = s.indexOf("/");
+  const tab = i < 0 ? s : s.slice(0, i);
+  const rest = i < 0 ? "" : s.slice(i + 1);
   if(!TABS.includes(tab)) return {tab: "earnings", code: ""};
   return {tab, code: routeArg(tab, rest)};
 }
@@ -42,7 +56,7 @@ function showTab(tab){
 
 function selectTab(tab){
   showTab(tab);
-  writeRoute(tab, tab === "chart" ? (curCode || "") : tab === "stock" ? stockCode : "");
+  writeRoute(tab, tab === "chart" ? (curCode || "") : tab === "stock" ? stockRoutePath() : "");
   if(tab === "screener" && !$("#sc-tbl").innerHTML) loadScreener();
   if(tab === "pts" && !$("#pts-tbl").innerHTML) loadPts();
   if(tab === "monthly") loadMonthlyList();
@@ -74,7 +88,7 @@ async function restoreRoute(){
     return;
   }
   if(tab === "stock"){
-    if(code) loadStock(code);
+    if(code) openStockRoute(code);
     else writeRoute("stock");
     return;
   }

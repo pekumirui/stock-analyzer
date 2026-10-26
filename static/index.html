@@ -127,16 +127,43 @@
     <div class="row" id="st-search" style="position:relative">
       <input id="st-sym" placeholder="銘柄名 or コード" autocomplete="off" style="width:200px">
       <div id="st-suggest" class="suggest" style="display:none"></div>
-      <select id="st-filing" hidden aria-label="決算短信"></select>
-      <div class="fin-tabs" id="st-zoom" role="group" aria-label="原文の大きさ">
-        <button type="button" class="ftab on" data-zoom="fit">幅に合わせる</button>
-        <button type="button" class="ftab" data-zoom="mid">中</button>
-        <button type="button" class="ftab" data-zoom="actual">原寸</button>
+    </div>
+    <div id="st-head" hidden>
+      <div id="st-title"></div>
+      <div id="st-quote"></div>
+      <div class="fin-tabs" id="st-tabs" role="tablist" aria-label="銘柄の中のタブ">
+        <button type="button" class="ftab on" data-sub="summary">概要</button>
+        <button type="button" class="ftab" data-sub="price">株価</button>
+        <button type="button" class="ftab" data-sub="news">ニュース</button>
+        <button type="button" class="ftab" data-sub="holders">株主</button>
       </div>
     </div>
-    <div id="st-title"></div>
-    <p id="st-src" class="sub" hidden></p>
-    <div id="st-doc"></div>
+    <p id="st-msg" class="sub" hidden></p>
+    <div id="st-sub-summary" class="st-sub" hidden>
+      <div id="st-metrics"></div>
+    </div>
+    <div id="st-sub-price" class="st-sub" hidden>
+      <p class="sub"><a href="#" id="st-price-link">チャートタブで開く</a></p>
+    </div>
+    <div id="st-sub-news" class="st-sub" hidden>
+      <div id="st-news-list">
+        <div class="tbl-wrap"><table id="st-news"></table></div>
+      </div>
+      <div id="st-news-detail" hidden>
+        <div class="row st-detail-bar">
+          <a href="#" id="st-back">← ニュース</a>
+          <div class="fin-tabs" id="st-zoom" role="group" aria-label="原文の大きさ">
+            <button type="button" class="ftab on" data-zoom="fit">幅に合わせる</button>
+            <button type="button" class="ftab" data-zoom="mid">中</button>
+            <button type="button" class="ftab" data-zoom="actual">原寸</button>
+          </div>
+        </div>
+        <div id="st-news-head"></div>
+        <p id="st-src" class="sub" hidden></p>
+        <div id="st-doc"></div>
+      </div>
+    </div>
+    <div id="st-sub-holders" class="st-sub" hidden></div>
   </div>
 </section>
 
