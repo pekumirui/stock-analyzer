@@ -112,7 +112,8 @@ function renderStockHead(d){
   const small = document.createElement("small");
   small.textContent = ` ${d.code.slice(0, 4)}` + [d.market, d.sector33].filter(Boolean).map(x => ` / ${x}`).join("");
   t.append(b, small);
-  if(!$("#st-sym").value) $("#st-sym").value = d.name || "";
+  // ほかのタブから銘柄が変わることもあるので、入力も選んだ銘柄名にそろえる
+  $("#st-sym").value = d.name || "";
 
   const q = d.quote;
   let h = "";
@@ -149,6 +150,7 @@ function renderStockSub(){
   document.querySelectorAll(".st-sub").forEach(x => x.hidden = x.id !== `st-sub-${stockSub}`);
   stockMsg("");
   if(stockSub === "summary") renderStockSummary();
+  if(stockSub === "price") showStockPrice();
   if(stockSub === "news") renderStockNews();
   if(stockSub === "holders") $("#st-sub-holders").innerHTML = '<p class="sub">準備中</p>';
 }
@@ -165,11 +167,6 @@ function renderStockSummary(){
   ];
   $("#st-metrics").innerHTML = items.map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
 }
-
-$("#st-price-link").onclick = e => {
-  e.preventDefault();
-  if(stockCode) gotoChart(stockCode);
-};
 
 // ニュース（KAB-178 では短信の一覧 /filings の決算・修正だけ。ほかの種類は KAB-180）
 function loadStockFilings(){

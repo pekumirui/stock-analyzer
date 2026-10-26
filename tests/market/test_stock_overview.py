@@ -97,3 +97,20 @@ def test_spa_stock_sub_tabs() -> None:
     assert "/api/stock/${code}/overview" in js
     assert 'const STOCK_SUBS = ["summary", "price", "news", "holders"]' in tabs
     assert "history.pushState" in js and '"popstate"' in js
+
+
+def test_chart_tab_moved_into_stock_price() -> None:
+    """チャートタブは銘柄の株価タブになった（KAB-181）。古い #chart/{code} は株価タブへ読み替える。"""
+    html = (ROOT / "static/index.html").read_text(encoding="utf-8")
+    tabs = (ROOT / "static/js/tabs.js").read_text(encoding="utf-8")
+    js = (ROOT / "static/js/stock-price.js").read_text(encoding="utf-8")
+    assert 'data-tab="chart"' not in html and 'id="tab-chart"' not in html
+    assert not (ROOT / "static/js/chart-tab.js").exists()
+    sub = html[html.index('id="st-sub-price"'):html.index('id="st-sub-news"')]
+    for el in ('id="tf"', 'id="mas"', 'id="rel"', 'id="chart"', 'id="perf-tbl"', 'class="evt-toggles"'):
+        assert el in sub
+    assert 'onclick="loadChart()"' not in html  # 表示ボタンは無い
+    assert '"chart"' not in tabs.split("const TABS")[1].split(";")[0]
+    assert 'if(tab === "chart")' in tabs and "`${code}/price`" in tabs
+    assert 'showStock(code, "price", "")' in js
+    assert "#stock/${c.code}/price" in (ROOT / "static/js/supply.js").read_text(encoding="utf-8")

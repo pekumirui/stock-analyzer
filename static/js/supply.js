@@ -584,7 +584,7 @@ function supplyCompanyPanel(id){
     ...trade.filter(t => t.seller === id || t.buyer === id).map(t => t.source)].filter(Boolean))];
   const code = c.code ? c.code.slice(0, 4) : "";
   p.innerHTML = `<h2>${c.name} <span class="supply-kind k-co">${SUPPLY_STATUS[c.status]}${code ? ` ${code}` : ""}</span></h2>
-    ${code ? `<div class="sub supply-meta"><a href="#chart/${c.code}" id="supply-chart-link">チャートを開く</a></div>` : ""}
+    ${code ? `<div class="sub supply-meta"><a href="#stock/${c.code}/price" id="supply-chart-link">株価を開く</a></div>` : ""}
     ${c.note ? `<p class="supply-note">${c.note}</p>` : ""}
     <h3>作っている素材</h3>${mats.length ? `<div class="supply-chips">${mats.map(m => {
       const x = supply.byId[m], ok = made.find(y => y.material === m).source;

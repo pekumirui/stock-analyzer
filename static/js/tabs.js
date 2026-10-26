@@ -1,4 +1,4 @@
-const TABS = ["earnings", "chart", "stock", "screener", "pts", "monthly", "supply"];
+const TABS = ["earnings", "stock", "screener", "pts", "monthly", "supply"];
 const UI_ROUTE_KEY = "ui.route";
 const CODE_RE = /^[0-9][0-9A-Z]{3}[0-9]$/;
 const SUPPLY_ID_RE = /^[a-z][a-z0-9_]*$/;
@@ -16,7 +16,7 @@ function stockRouteArg(raw){
 
 function routeArg(tab, raw){
   if(tab === "stock") return stockRouteArg(raw);
-  if(tab === "chart" || tab === "monthly") return CODE_RE.test(raw || "") ? raw : "";
+  if(tab === "monthly") return CODE_RE.test(raw || "") ? raw : "";
   if(tab === "supply") return SUPPLY_ID_RE.test(raw || "") ? raw : "";
   return "";
 }
@@ -26,6 +26,11 @@ function parseRoute(raw){
   const i = s.indexOf("/");
   const tab = i < 0 ? s : s.slice(0, i);
   const rest = i < 0 ? "" : s.slice(i + 1);
+  // チャートタブは銘柄の株価タブになった（KAB-181）。古いハッシュと ui.route を読み替える
+  if(tab === "chart"){
+    const code = CODE_RE.test(rest) ? rest : "";
+    return {tab: "stock", code: code ? `${code}/price` : ""};
+  }
   if(!TABS.includes(tab)) return {tab: "earnings", code: ""};
   return {tab, code: routeArg(tab, rest)};
 }
@@ -56,7 +61,7 @@ function showTab(tab){
 
 function selectTab(tab){
   showTab(tab);
-  writeRoute(tab, tab === "chart" ? (curCode || "") : tab === "stock" ? stockRoutePath() : "");
+  writeRoute(tab, tab === "stock" ? stockRoutePath() : "");
   if(tab === "screener" && !$("#sc-tbl").innerHTML) loadScreener();
   if(tab === "pts" && !$("#pts-tbl").innerHTML) loadPts();
   if(tab === "monthly") loadMonthlyList();
@@ -77,14 +82,6 @@ async function restoreRoute(){
   if(tab === "pts"){
     loadPts();
     writeRoute("pts");
-    return;
-  }
-  if(tab === "chart"){
-    if(code){
-      curCode = code;
-      if($("#sym")) $("#sym").value = code;
-      loadChart();
-    } else writeRoute("chart");
     return;
   }
   if(tab === "stock"){
