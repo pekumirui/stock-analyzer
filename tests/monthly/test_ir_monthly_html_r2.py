@@ -1083,6 +1083,68 @@ def test_follow_re_picks_latest_month_not_year_folder() -> None:
         _fail(f"month page has no child {none}")
 
 
+SEKISUI_REDIRECT_SHELL = """
+<html><head>
+<link rel="canonical" href="https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/">
+</head><body><h1>2026年：受注速報</h1></body></html>
+"""
+
+
+def test_follow_re_uses_redirected_page_url_without_anchors() -> None:
+    """リダイレクト後の年 URL は <a> が無くても follow_re 候補。"""
+    year = "https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/"
+    index = "https://www.sekisuihouse.co.jp/company/financial/order/"
+    shell = "<html><body><h1>2026年：受注速報</h1></body></html>"
+    url = pick_follow_url(shell, year, r"orders_20\d{2}")
+    if url != year:
+        _fail(url)
+    via_canonical = pick_follow_url(SEKISUI_REDIRECT_SHELL, index, r"orders_20\d{2}")
+    if via_canonical != year:
+        _fail(via_canonical)
+    child = pick_follow_url(SEKISUI_REDIRECT_SHELL, year, r"orders_20\d{2}", under=year)
+    if child is not None:
+        _fail(f"canonical self is not a child {child}")
+
+
+def test_follow_re_resolves_relative_hrefs_against_redirected_base() -> None:
+    html = """
+    <html><body>
+    <a href="2026_8">8月</a>
+    <a href="2026_10">10月</a>
+    </body></html>
+    """
+    year = "https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/"
+    url = pick_follow_url(html, year, r"orders_20\d{2}")
+    if url != year + "2026_10":
+        _fail(url)
+    try:
+        pick_follow_url(
+            html,
+            "https://www.sekisuihouse.co.jp/company/financial/order/",
+            r"orders_20\d{2}",
+        )
+    except ValueError as e:
+        if "no follow url" not in str(e):
+            _fail(e)
+    else:
+        _fail("relative hrefs must not match against the pre-redirect index")
+
+
+def test_follow_re_page_url_does_not_outrank_newer_link() -> None:
+    listing = """
+    <html><body>
+    <a href="/ir/library/recent/fy2026/">2026</a>
+    </body></html>
+    """
+    url = pick_follow_url(
+        listing,
+        "https://www.watami.co.jp/ir/library/recent/fy2025/",
+        r"fy20\d{2}",
+    )
+    if url != "https://www.watami.co.jp/ir/library/recent/fy2026/":
+        _fail(url)
+
+
 def test_follow_year_then_latest_month(tmp: Path) -> None:
     import jobs.monthly.ir_monthly_html_r2 as mod
 
@@ -1144,6 +1206,140 @@ def test_follow_year_then_latest_month(tmp: Path) -> None:
         body = htmls[0].read_text(encoding="utf-8")
         if "単月" not in body or "2026年：受注速報" in body:
             _fail("saved year listing instead of month page")
+        payload = json.loads(jsons[0].read_text(encoding="utf-8"))
+        if payload["as_of"] != "2026-08-31" or payload["rows"][0]["values"] != {"8": 94}:
+            _fail(payload)
+    finally:
+        mod.http_get = orig
+        mod.SLEEP_SEC = orig_sleep
+
+
+def _sekisui_issuer() -> HtmlIssuer:
+    return HtmlIssuer(
+        code="1928",
+        name="積水ハウス",
+        index_url="https://www.sekisuihouse.co.jp/company/financial/order/",
+        title="月次",
+        source="html",
+        eir_code="1928",
+        eir_n=0,
+        eir_title_re="月次",
+        follow_re=r"orders_20\d{2}",
+        parse=True,
+    )
+
+
+def test_follow_index_redirect_shell_then_year_then_month(tmp: Path) -> None:
+    """index が年ページへ 302。ホップ後の HTML に orders_20 の <a> が無い。"""
+    import jobs.monthly.ir_monthly_html_r2 as mod
+
+    dest = tmp / "sekisui_redirect"
+    index = "https://www.sekisuihouse.co.jp/company/financial/order/"
+    year = "https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/"
+    month = "https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/2026_8"
+    year_html = """
+    <html><body>
+    <h1>2026年：受注速報</h1>
+    <table>
+    <tr><td>9月10日</td><td><a href="/company/financial/order/orders_2026/2026_8">2026年8月度受注速報</a></td></tr>
+    <tr><td>8月10日</td><td><a href="/company/financial/order/orders_2026/2026_7">2026年7月度受注速報</a></td></tr>
+    <tr><td>1月9日</td><td><a href="/company/financial/order/orders_2026/2025_12">2025年12月度受注速報</a></td></tr>
+    </table>
+    </body></html>
+    """
+    bodies = {
+        index: SEKISUI_REDIRECT_SHELL.encode("utf-8"),
+        year: year_html.encode("utf-8"),
+        month: SEKISUI_MONTH_HTML.encode("utf-8"),
+    }
+    calls: list[str] = []
+
+    def fake_get(url: str, timeout: float = 30.0) -> bytes:  # noqa: ARG001
+        calls.append(url)
+        if url not in bodies:
+            raise RuntimeError(url)
+        return bodies[url]
+
+    orig = mod.http_get
+    orig_sleep = mod.SLEEP_SEC
+    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.SLEEP_SEC = 0
+    try:
+        n, s, k, f = fetch_issuer(
+            _sekisui_issuer(),
+            dest,
+            {"19280": ("011", "積水ハウス")},
+            date(2026, 9, 14),
+            dry_run=False,
+        )
+        if (n, s, k, f) != (1, 1, 0, 0):
+            _fail(f"redirect canonical {n, s, k, f} calls={calls}")
+        if calls != [index, year, month]:
+            _fail(f"expected index→year→month via canonical {calls}")
+        htmls = list((dest / "1928").glob("*.html"))
+        jsons = list((dest / "1928").glob("*.ingest.json"))
+        if len(htmls) != 1 or len(jsons) != 1:
+            _fail(f"files {htmls} {jsons}")
+        payload = json.loads(jsons[0].read_text(encoding="utf-8"))
+        if payload["as_of"] != "2026-08-31" or payload["rows"][0]["values"] != {"8": 94}:
+            _fail(payload)
+    finally:
+        mod.http_get = orig
+        mod.SLEEP_SEC = orig_sleep
+
+
+def test_follow_index_redirect_final_url_without_canonical(tmp: Path) -> None:
+    """geturl() だけが年 URL。canonical も <a> も無いホップ後ページ。"""
+    import jobs.monthly.ir_monthly_html_r2 as mod
+
+    dest = tmp / "sekisui_final"
+    index = "https://www.sekisuihouse.co.jp/company/financial/order/"
+    year = "https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/"
+    month = "https://www.sekisuihouse.co.jp/company/financial/order/orders_2026/2026_8"
+    shell = b"<html><body><h1>year</h1></body></html>"
+    year_html = """
+    <html><body>
+    <h1>2026年：受注速報</h1>
+    <table>
+    <tr><td>9月10日</td><td><a href="/company/financial/order/orders_2026/2026_8">2026年8月度受注速報</a></td></tr>
+    <tr><td>8月10日</td><td><a href="/company/financial/order/orders_2026/2026_7">2026年7月度受注速報</a></td></tr>
+    <tr><td>1月9日</td><td><a href="/company/financial/order/orders_2026/2025_12">2025年12月度受注速報</a></td></tr>
+    </table>
+    </body></html>
+    """
+    bodies = {
+        year: year_html.encode("utf-8"),
+        month: SEKISUI_MONTH_HTML.encode("utf-8"),
+    }
+    calls: list[str] = []
+
+    def fake_get(url: str, timeout: float = 30.0):  # noqa: ARG001
+        calls.append(url)
+        if url == index:
+            return shell, year
+        if url not in bodies:
+            raise RuntimeError(url)
+        return bodies[url]
+
+    orig = mod.http_get
+    orig_sleep = mod.SLEEP_SEC
+    mod.http_get = fake_get  # type: ignore[assignment]
+    mod.SLEEP_SEC = 0
+    try:
+        n, s, k, f = fetch_issuer(
+            _sekisui_issuer(),
+            dest,
+            {"19280": ("011", "積水ハウス")},
+            date(2026, 9, 14),
+            dry_run=False,
+        )
+        if (n, s, k, f) != (1, 1, 0, 0):
+            _fail(f"redirect geturl {n, s, k, f} calls={calls}")
+        if calls != [index, year, month]:
+            _fail(f"expected index→year→month via final url {calls}")
+        jsons = list((dest / "1928").glob("*.ingest.json"))
+        if len(jsons) != 1:
+            _fail(f"json {jsons}")
         payload = json.loads(jsons[0].read_text(encoding="utf-8"))
         if payload["as_of"] != "2026-08-31" or payload["rows"][0]["values"] != {"8": 94}:
             _fail(payload)
@@ -1308,6 +1504,9 @@ def main() -> None:
     test_follow_re_picks_latest_year()
     test_7522_index_follows_js_location_to_fy2026()
     test_follow_re_picks_latest_month_not_year_folder()
+    test_follow_re_uses_redirected_page_url_without_anchors()
+    test_follow_re_resolves_relative_hrefs_against_redirected_base()
+    test_follow_re_page_url_does_not_outrank_newer_link()
     with TemporaryDirectory() as d:
         p = Path(d)
         test_hash_skip_and_reparse(p)
@@ -1326,6 +1525,8 @@ def main() -> None:
         test_no_as_of_does_not_write_json(p)
         test_parse_false_saves_html_without_json(p)
         test_follow_year_then_latest_month(p)
+        test_follow_index_redirect_shell_then_year_then_month(p)
+        test_follow_index_redirect_final_url_without_canonical(p)
     print("ok: ir monthly html r2")
 
 

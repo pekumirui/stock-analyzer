@@ -37,6 +37,8 @@ if str(SCRIPT_DIR.parents[1]) not in sys.path:
 from jobs._r2common import (  # noqa: E402
     abort_if_disconnected,
     fail_if_mount_down,
+    http_get as _REAL_HTTP_GET,
+    http_get_result,
     is_mount_disconnect_error,
     jst_today,
     load_stock_product_map,
@@ -232,6 +234,9 @@ def load_html_registry(path: Path) -> list[HtmlIssuer]:
 
 _FOLLOW_YM_RE = re.compile(r"(20\d{2})_(1[0-2]|0?[1-9])(?:/|$)")
 _LOCATION_HREF_RE = re.compile(r"""location\.href\s*=\s*(['"])([^'"]*)\1""")
+_LINK_TAG_RE = re.compile(r"<link\b[^>]*>", re.I)
+_REL_CANONICAL_RE = re.compile(r"""\brel\s*=\s*(['"])canonical\1""", re.I)
+_HREF_ATTR_RE = re.compile(r"""\bhref\s*=\s*(['"])(.*?)\1""", re.I)
 
 
 def _url_host(url: str) -> str:
@@ -265,6 +270,37 @@ def _follow_key(url: str) -> tuple[int, int, int, str]:
     return (y, 0, path.count("/"), url)
 
 
+def _same_url(a: str, b: str) -> bool:
+    return a.rstrip("/") == b.rstrip("/")
+
+
+def _canonical_hrefs(html: str) -> list[str]:
+    out: list[str] = []
+    for m in _LINK_TAG_RE.finditer(html or ""):
+        tag = m.group(0)
+        if not _REL_CANONICAL_RE.search(tag):
+            continue
+        hm = _HREF_ATTR_RE.search(tag)
+        if hm:
+            out.append(hm.group(2))
+    return out
+
+
+def _get(url: str) -> tuple[bytes, str]:
+    """(本文, 最終 URL)。テストが http_get を差し替えたときは要求 URL を最終とする。"""
+    getter = http_get
+    if getter is _REAL_HTTP_GET:
+        return http_get_result(url)
+    got = getter(url)
+    if (
+        isinstance(got, tuple)
+        and len(got) == 2
+        and isinstance(got[0], (bytes, bytearray))
+    ):
+        return bytes(got[0]), str(got[1])
+    return got, url
+
+
 def pick_follow_url(
     html: str,
     base_url: str,
@@ -274,6 +310,7 @@ def pick_follow_url(
 ) -> str | None:
     """index から follow_re に合うリンクを集め、年・月が最大のものを返す。
 
+    リダイレクト後の base_url 自身と canonical も候補。相対 href は base_url で解決する。
     under を付けると、その URL の子パスだけ（年一覧 → 最新月）。無ければ None。
     """
     try:
@@ -287,6 +324,7 @@ def pick_follow_url(
     seen: set[str] = set()
     hrefs = [href for href, _text in parser.links]
     hrefs.extend(m.group(2) for m in _LOCATION_HREF_RE.finditer(html or ""))
+    hrefs.extend(_canonical_hrefs(html or ""))
     for href in hrefs:
         raw = (href or "").strip()
         if not raw or _SKIP_HREF_RE.match(raw):
@@ -298,6 +336,10 @@ def pick_follow_url(
             continue
         seen.add(abs_url)
         found.append(abs_url)
+    page = (base_url or "").split("#", 1)[0]
+    if page and rx.search(page) and page not in seen:
+        seen.add(page)
+        found.append(page)
     if under:
         prefix = under.rstrip("/") + "/"
         under_n = under.rstrip("/")
@@ -319,27 +361,29 @@ def fetch_html_bytes(iss: HtmlIssuer) -> tuple[bytes, str | None, str]:
         payload = parse_eir_jsonp(decode_html_bytes(body))
         html, as_of = pick_eir_monthly(payload, iss.eir_title_re)
         return html.encode("utf-8"), as_of, url
-    url = iss.index_url
-    data = http_get(url)
+    requested = iss.index_url
+    data, page_url = _get(requested)
     time.sleep(SLEEP_SEC)
     if iss.follow_re:
-        followed = pick_follow_url(decode_html_bytes(data), url, iss.follow_re)
+        followed = pick_follow_url(decode_html_bytes(data), page_url, iss.follow_re)
         assert followed is not None
-        if followed.rstrip("/") != url.rstrip("/"):
-            data = http_get(followed)
+        if not _same_url(followed, page_url):
+            data, page_url = _get(followed)
             time.sleep(SLEEP_SEC)
-            url = followed
+        elif not _same_url(page_url, requested):
+            # リダイレクト先が follow_re に一致し、本文に他の候補が無い。最終 URL を取り直す。
+            data, page_url = _get(followed)
+            time.sleep(SLEEP_SEC)
         if iss.parse:
             html = decode_html_bytes(data)
             try:
                 ingest_payload(html, iss)
             except ValueError:
-                child = pick_follow_url(html, url, iss.follow_re, under=url)
-                if child and child.rstrip("/") != url.rstrip("/"):
-                    data = http_get(child)
+                child = pick_follow_url(html, page_url, iss.follow_re, under=page_url)
+                if child and not _same_url(child, page_url):
+                    data, page_url = _get(child)
                     time.sleep(SLEEP_SEC)
-                    url = child
-    return data, None, url
+    return data, None, page_url
 
 
 def ingest_payload(html: str, iss: HtmlIssuer, as_of: str | None = None) -> dict:

@@ -462,6 +462,31 @@ def test_http_get_falls_back_on_403() -> None:
         _fail("http_get drifted from _r2common")
 
 
+def test_http_get_result_returns_redirect_url() -> None:
+    from unittest.mock import MagicMock, patch
+
+    from jobs._r2common import http_get_result
+
+    def fake_urlopen(req, timeout=30.0, context=None):  # noqa: ARG001
+        cm = MagicMock()
+        resp = cm.__enter__.return_value
+        resp.read.return_value = b"year-page"
+        resp.geturl.return_value = "https://example.test/order/orders_2026/"
+        cm.__exit__.return_value = False
+        return cm
+
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        body, final = http_get_result("https://example.test/order/")
+    if body != b"year-page":
+        _fail(f"redirect body: {body!r}")
+    if final != "https://example.test/order/orders_2026/":
+        _fail(f"redirect url: {final}")
+    with patch("urllib.request.urlopen", side_effect=fake_urlopen):
+        raw = http_get("https://example.test/order/")
+    if raw != b"year-page":
+        _fail(f"http_get still bytes: {raw!r}")
+
+
 def _tlv(tag: int, body: bytes) -> bytes:
     n = len(body)
     if n >= 128:
@@ -870,6 +895,7 @@ def main() -> None:
         test_unknown_stock_skip(p)
         test_run_only_and_dry_run(p)
     test_http_get_falls_back_on_403()
+    test_http_get_result_returns_redirect_url()
     test_aia_ca_issuer_uris()
     test_http_get_aia_on_incomplete_chain()
     test_retry_after_seconds_and_backoff()
