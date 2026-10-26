@@ -691,3 +691,282 @@ def test_pdf_retire_error_does_not_fail_the_zip(tmp_path: Path, monkeypatch) -> 
             _fail(filing.parse_status)
     finally:
         db.close()
+
+
+def _fy_disclosure() -> PdfDisclosure:
+    parsed = PdfDisclosure.parse(_statement(
+        disclosure_no="20251015512360",
+        type_of_period="FY",
+        type_of_document="FYFinancialStatements_Consolidated_JP",
+        disclosed_date=date(2026, 10, 14),
+        period_start=date(2025, 9, 1),
+        period_end=date(2026, 8, 31),
+        fiscal_year_start=date(2025, 9, 1),
+        fiscal_year_end=date(2026, 8, 31),
+    ))
+    if not isinstance(parsed, PdfDisclosure):
+        _fail(parsed)
+    return parsed
+
+
+def test_wrapped_summary_header_joins_owners_profit() -> None:
+    parsed = PdfDisclosure.parse(_statement(
+        disclosure_no="20251015512361",
+        type_of_period="1Q",
+        type_of_document="1QFinancialStatements_Consolidated_JP",
+        disclosed_date=date(2026, 10, 14),
+        period_start=date(2025, 9, 1),
+        period_end=date(2025, 11, 30),
+        fiscal_year_start=date(2025, 9, 1),
+        fiscal_year_end=date(2026, 8, 31),
+    ))
+    if not isinstance(parsed, PdfDisclosure):
+        _fail(parsed)
+    parts = [
+        _text(40, 40, "（1）連結経営成績", 160),
+        _text(40, 58, "（単位：百万円）", 120),
+        _cell(360, 76, "親会社株主に帰属する", 140),
+        _cell(200, 94, "営業収益", 70),
+        _cell(360, 94, "当期純利益", 80),
+        _text(40, 112, "当第1四半期", 120),
+        _cell(200, 112, "923,592", 70),
+        _cell(360, 112, "76,422", 60),
+    ]
+    pkg = read_tdnet_pdf(_svg(parts, "path"), parsed)
+    names = {fact.local_name for fact in pkg.facts}
+    if "親会社株主に帰属する当期純利益" not in names:
+        _fail(f"wrapped header not joined {names}")
+    if "親会社株主に帰属する" in names:
+        _fail(f"partial header leaked {names}")
+
+
+def test_combined_pl_heading_and_paren_subheading() -> None:
+    parts = [
+        _text(40, 40, "（２）連結損益計算書及び連結包括利益計算書", 320),
+        _text(40, 58, "（連結損益計算書）", 160),
+        _text(40, 76, "（単位：百万円）", 120),
+        _cell(400, 94, "当連結会計年度", 120),
+        _text(40, 112, "営業利益", 80),
+        _cell(400, 112, "103,436", 70),
+        _text(40, 130, "親会社株主に帰属する当期純利益", 220),
+        _cell(400, 130, "76,422", 60),
+    ]
+    pkg = read_tdnet_pdf(_svg(parts, "path"), _fy_disclosure())
+    by_name = {fact.local_name: fact.value_num for fact in pkg.facts if "Prior" not in fact.context_ref}
+    if by_name.get("営業利益") != MILLION * Decimal("103436"):
+        _fail(f"pl heading missed {by_name}")
+    if by_name.get("親会社株主に帰属する当期純利益") != MILLION * Decimal("76422"):
+        _fail(f"owners profit {by_name}")
+
+
+def test_summary_pl_heading_and_year_month_period() -> None:
+    parts = [
+        _text(40, 40, "（1）連結経営成績", 160),
+        _text(40, 58, "（単位：百万円）", 120),
+        _cell(280, 76, "営業利益", 70),
+        _text(40, 94, "2026年8月期", 110),
+        _cell(280, 94, "103,436", 70),
+        _text(40, 112, "2025年8月期", 110),
+        _cell(280, 112, "73,840", 60),
+    ]
+    pkg = read_tdnet_pdf(_svg(parts, "path"), _fy_disclosure())
+    ops = [
+        fact for fact in pkg.facts
+        if fact.local_name == "営業利益" and fact.namespace_key == "pdf-sum"
+    ]
+    by_ref = {fact.context_ref: fact.value_num for fact in ops}
+    current = [value for ref, value in by_ref.items() if "Prior" not in ref]
+    prior = [value for ref, value in by_ref.items() if "Prior" in ref]
+    if current != [MILLION * Decimal("103436")]:
+        _fail(f"current {by_ref}")
+    if prior != [MILLION * Decimal("73840")]:
+        _fail(f"prior not dated {by_ref}")
+
+
+def test_running_header_does_not_glue_bs_label() -> None:
+    parts = [
+        _text(40, 40, "連結貸借対照表", 140),
+        _text(40, 58, "（単位：百万円）", 120),
+        _cell(400, 76, "当連結会計年度", 120),
+        _text(40, 94, "(株)良品計画(7453)2026年8月期決算短信", 280),
+        _text(40, 112, "現金及び預金", 120),
+        _cell(400, 112, "1,200", 50),
+    ]
+    pkg = read_tdnet_pdf(_svg(parts, "path"), _fy_disclosure())
+    names = {fact.local_name for fact in pkg.facts}
+    if "現金及び預金" not in names:
+        _fail(f"running header glued {names}")
+    if any("良品計画" in name or "7453" in name for name in names):
+        _fail(f"ticker leaked {names}")
+
+
+def test_yen_sen_not_scaled_as_millions() -> None:
+    parts = [
+        _text(40, 40, "1. 配当の状況", 120),
+        _text(160, 58, "年間配当金", 280),
+        _cell(300, 76, "第3四半期末", 90),
+        _cell(430, 76, "期末", 40),
+        _text(250, 94, "円 銭", 50),
+        _text(400, 94, "円 銭", 50),
+        _text(40, 112, "2026年8月期", 110),
+        _cell(300, 112, "40", 30),
+        _cell(430, 112, "22", 30),
+    ]
+    no = "20251015512362"
+    db = SessionLocal()
+    try:
+        _seed(db, no, _svg(parts, "path"), _statement(
+            disclosure_no=no,
+            type_of_period="FY",
+            type_of_document="FYFinancialStatements_Consolidated_JP",
+            disclosed_date=date(2026, 10, 14),
+            period_start=date(2025, 9, 1),
+            period_end=date(2026, 8, 31),
+            fiscal_year_start=date(2025, 9, 1),
+            fiscal_year_end=date(2026, 8, 31),
+        ))
+        apply_mappings(db)
+        if sync_pdf_filing(db, no) is not SyncOutcome.PARSED:
+            _fail("dps unit sync")
+        rows = _rows(db, no)
+        if rows[("dps", "actual", "point", "Q3")][0] != Decimal("40"):
+            _fail(f"q3 dps scaled {rows.get(('dps', 'actual', 'point', 'Q3'))}")
+        if rows[("dps", "actual", "point", "year_end")][0] != Decimal("22"):
+            _fail(f"year_end dps {rows.get(('dps', 'actual', 'point', 'year_end'))}")
+    finally:
+        db.close()
+
+
+def test_ifrs_expense_triangle_matches_zip_sign() -> None:
+    parts = [
+        _text(40, 40, "連結損益計算書", 140),
+        _text(40, 58, "（単位：百万円）", 120),
+        _cell(400, 76, "当連結会計年度", 120),
+        _text(40, 94, "売上原価", 80),
+        _cell(400, 94, "△1,774,864", 90),
+        _text(40, 112, "販売費及び一般管理費", 180),
+        _cell(400, 112, "△1,470,025", 90),
+    ]
+    parsed = PdfDisclosure.parse(_statement(
+        disclosure_no="20251015512363",
+        type_of_period="FY",
+        type_of_document="FYFinancialStatements_Consolidated_IFRS",
+        disclosed_date=date(2026, 10, 8),
+        period_start=date(2025, 9, 1),
+        period_end=date(2026, 8, 31),
+        fiscal_year_start=date(2025, 9, 1),
+        fiscal_year_end=date(2026, 8, 31),
+    ))
+    if not isinstance(parsed, PdfDisclosure):
+        _fail(parsed)
+    pkg = read_tdnet_pdf(_svg(parts, "path"), parsed)
+    by_name = {fact.local_name: fact.value_num for fact in pkg.facts}
+    if by_name.get("売上原価") != MILLION * Decimal("1774864"):
+        _fail(f"cost sign {by_name}")
+    if by_name.get("販売費及び一般管理費") != MILLION * Decimal("1470025"):
+        _fail(f"sga sign {by_name}")
+
+
+def test_fiscal_statement_heading_is_not_summary_bs() -> None:
+    parts = [
+        _text(40, 40, "（1）連結財政状態計算書", 200),
+        _text(40, 58, "（単位：百万円）", 120),
+        _cell(400, 76, "当連結会計年度", 120),
+        _text(40, 94, "流動資産合計", 120),
+        _cell(400, 94, "3,020,345", 80),
+        _text(40, 112, "資産合計", 80),
+        _cell(400, 112, "4,549,464", 80),
+    ]
+    parsed = PdfDisclosure.parse(_statement(
+        disclosure_no="20251015512365",
+        type_of_period="FY",
+        type_of_document="FYFinancialStatements_Consolidated_IFRS",
+        disclosed_date=date(2026, 10, 8),
+        period_start=date(2025, 9, 1),
+        period_end=date(2026, 8, 31),
+        fiscal_year_start=date(2025, 9, 1),
+        fiscal_year_end=date(2026, 8, 31),
+    ))
+    if not isinstance(parsed, PdfDisclosure):
+        _fail(parsed)
+    pkg = read_tdnet_pdf(_svg(parts, "path"), parsed)
+    by_name = {fact.local_name: fact.value_num for fact in pkg.facts if fact.namespace_key == "pdf-bs"}
+    if by_name.get("流動資産合計") != MILLION * Decimal("3020345"):
+        _fail(f"ifrs bs stolen by summary {by_name}")
+
+
+def test_loss_labels_and_glued_owners_profit() -> None:
+    parts = [
+        _text(40, 40, "四半期連結損益計算書", 180),
+        _text(40, 58, "（単位：百万円）", 120),
+        _cell(400, 76, "当第1四半期", 100),
+        _text(40, 94, "営業損失", 80),
+        _cell(400, 94, "△4,559", 60),
+        _text(40, 112, "帰属する中間純損失", 160),
+        _text(40, 130, "親会社株主に帰属する四半期純損失", 240),
+        _cell(400, 130, "△3,329", 60),
+    ]
+    parsed = PdfDisclosure.parse(_statement(
+        disclosure_no="20251015512366",
+        type_of_period="1Q",
+        type_of_document="1QFinancialStatements_Consolidated_JP",
+        disclosed_date=date(2026, 10, 13),
+        period_start=date(2026, 6, 1),
+        period_end=date(2026, 8, 31),
+        fiscal_year_start=date(2026, 6, 1),
+        fiscal_year_end=date(2027, 5, 31),
+    ))
+    if not isinstance(parsed, PdfDisclosure):
+        _fail(parsed)
+    pkg = read_tdnet_pdf(_svg(parts, "path"), parsed)
+    names = {fact.local_name: fact.value_num for fact in pkg.facts}
+    if "親会社株主に帰属する四半期純損失" not in names:
+        _fail(f"glued {names}")
+    if any("帰属する中間純損失親会社" in name for name in names):
+        _fail(f"still glued {names}")
+    if names.get("営業損失") != MILLION * Decimal("-4559"):
+        _fail(f"op loss {names}")
+
+
+def test_summary_ifrs_insurance_revenue_and_yoyaku_pl() -> None:
+    no = "20251015512364"
+    parts = [
+        _text(40, 40, "（1）連結経営成績", 160),
+        _text(40, 58, "（単位：百万円）", 120),
+        _text(200, 76, "税引前", 50),
+        _cell(200, 94, "保険収益", 70),
+        _cell(340, 94, "四半期利益", 80),
+        _text(40, 112, "当第1四半期", 120),
+        _cell(200, 112, "1,686,187", 80),
+        _cell(340, 112, "440,973", 70),
+        _text(40, 160, "（2）要約四半期連結損益計算書及び要約四半期連結包括利益計算書", 400),
+        _text(40, 178, "（要約四半期連結損益計算書）", 220),
+        _text(40, 196, "（単位：百万円）", 120),
+        _cell(400, 214, "当第1四半期", 100),
+        _text(40, 232, "保険収益", 80),
+        _cell(400, 232, "1,686,187", 80),
+        _text(40, 250, "親会社の所有者に帰属する四半期利益", 240),
+        _cell(400, 250, "328,618", 70),
+    ]
+    db = SessionLocal()
+    try:
+        _seed(db, no, _svg(parts, "path"), _statement(
+            disclosure_no=no,
+            type_of_period="1Q",
+            type_of_document="1QFinancialStatements_Consolidated_IFRS",
+            disclosed_date=date(2026, 8, 14),
+            period_start=date(2026, 4, 1),
+            period_end=date(2026, 6, 30),
+            fiscal_year_start=date(2026, 4, 1),
+            fiscal_year_end=date(2027, 3, 31),
+        ))
+        apply_mappings(db)
+        if sync_pdf_filing(db, no) is not SyncOutcome.PARSED:
+            _fail("insurance sync")
+        rows = _rows(db, no)
+        if rows[("net_sales", "actual", "point", "Q1")][0] != MILLION * Decimal("1686187"):
+            _fail(f"insurance sales {rows.get(('net_sales', 'actual', 'point', 'Q1'))}")
+        if rows[("net_income", "actual", "point", "Q1")][0] != MILLION * Decimal("328618"):
+            _fail(f"insurance np {rows.get(('net_income', 'actual', 'point', 'Q1'))}")
+    finally:
+        db.close()

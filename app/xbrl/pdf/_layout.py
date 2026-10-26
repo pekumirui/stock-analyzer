@@ -26,6 +26,8 @@ _AMOUNT = re.compile(
 _RANGE = re.compile(rf"^({_NUM})\s*[~～〜]\s*({_NUM})$")
 _NIL = {"―", "－", "-", "−", "—"}
 _UNIT_NOTE = re.compile(r"単位|百万円|千円|円銭|百万円未満")
+# 銘柄コード (7453) を負の金額と取り違えない。カンマ付き (1,234) は金額のまま。
+_TICKER_PAREN = re.compile(r"^\(\s*\d{4}\s*\)$")
 
 
 class PdfLayoutError(ValueError):
@@ -217,7 +219,10 @@ def _parse_amount(raw: str, x1: float) -> Amount:
 def split_amounts(line: Line) -> tuple[str, list[Amount]]:
     """行の右端の数値。行頭の「1.」のような番号はラベルのまま。"""
     text, spans = _line_string(line)
-    matches = list(_AMOUNT.finditer(text))
+    matches = [
+        match for match in _AMOUNT.finditer(text)
+        if not _TICKER_PAREN.fullmatch(re.sub(r"\s+", "", match.group(0)))
+    ]
     if not matches or not spans:
         return text.strip(), []
     chosen: list[re.Match[str]] | None = None
@@ -254,8 +259,9 @@ def _cluster(values: list[float]) -> list[float]:
 
 def _unit_note(lines: list[Line]) -> str | None:
     for line in lines:
-        if _UNIT_NOTE.search(unicodedata.normalize("NFKC", line.text)):
-            return line.text
+        compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", line.text))
+        if _UNIT_NOTE.search(compact):
+            return compact
     return None
 
 
@@ -286,7 +292,13 @@ def grid(lines: list[Line]) -> Grid:
         if not amounts:
             pending = f"{pending}{line.text}"
             continue
-        full = f"{pending}{label}" if pending else label
+        compact_label = re.sub(r"\s+", "", unicodedata.normalize("NFKC", label))
+        complete = bool(re.search(
+            r"親会社株主に帰属する(当期|四半期|中間)純(利益|損失)$"
+            r"|親会社の所有者に帰属する(当期|四半期|中間)利益$",
+            compact_label,
+        ))
+        full = f"{pending}{label}" if pending and not complete else (label or pending)
         pending = ""
         cells: list[Amount | None] = []
         for column in columns:

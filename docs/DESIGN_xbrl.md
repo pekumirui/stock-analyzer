@@ -879,7 +879,7 @@ pdfium（pypdfium2）でページごとに読む。文字は textpage の 1 文�
 
 読める DocType は `{1Q|2Q|3Q|FY}FinancialStatements_{Consolidated|NonConsolidated}_{JP|IFRS}` と `EarnForecastRevision` と `DividendForecastRevision`。REIT、米国基準、`4Q` / `5Q`、日付の欠けは filing を作らない。1Q / 3Q に CF が無くても失敗にしない。
 
-HTML は svg1（`<line>`）でも svg2（`<path>`）でも、`<text>` の位置だけを見る。見出しと列の役割は `app/xbrl/pdf/_tanshin.py` の表。百万円は円（10^6 倍）、百分率は `pure`（39.1 → 0.391）。設備投資の △ は負の fact のまま入れ、`std_items` の `sign: invert` で `capex` の行が正になる。「設備投資額」はマッピングしない。IFRS の経常利益はマッピングしない（`standard: JPGAAP` だけ）。
+HTML は svg1（`<line>`）でも svg2（`<path>`）でも、`<text>` の位置だけを見る。見出しと列の役割は `app/xbrl/pdf/_tanshin.py` の表。百万円は円（10^6 倍）、百分率は `pure`（39.1 → 0.391）。設備投資の △ は負の fact のまま入れ、`std_items` の `sign: invert` で `capex` の行が正になる。「設備投資額」はマッピングしない。IFRS の経常利益はマッピングしない（`standard: JPGAAP` だけ）。IFRS 本表の売上原価・販管費は ZIP に合わせて正にする（印字の △ を外す）。
 
 context は ZIP の短信サマリーと同じメンバー（`ResultMember` など）と、`CurrentYearDuration` / `CurrentAccumulatedQ2Duration` / `NextYearDuration` のようなトークンを使う。前期の実績は `is_normalizable_context` で fact ごと落とす。印字の行は、マッピングが無くても残った列については fact として残す。
 
@@ -887,5 +887,5 @@ context は ZIP の短信サマリーと同じメンバー（`ResultMember` な�
 
 ZIP の `parse_manifest_row` は、パースが `parsed` のあと、失敗を `mark_failed` する `try` の外で `sync_pdf_filing(db, doc_id の後ろ 14 桁)` を呼ぶ。PDF 側の例外は ZIP を `failed` にしない。`parse_status='parsed'` の `source='tdnet'` がある 14 桁は PDF filing を消す。
 
-ZIP との付き合わせは人がスクラッチの SQLite で行う。テストは本番 DB も IR BANK も呼ばない。
+ZIP との付き合わせは `tools/tdnet_pdf/verify_financials.py` がスクラッチの SQLite で行う（本番 `stock.db` へは書かない）。テストは本番 DB も IR BANK も呼ばない。
 

@@ -49,7 +49,7 @@ __all__ = [
 
 SOURCE = "tdnet_pdf"
 # レイアウト・行名・label_key の結果が変わったら上げる。上げると全 PDF filing の指紋がずれる。
-READER_VERSION = 1
+READER_VERSION = 2
 
 
 class SyncOutcome(str, Enum):
@@ -161,10 +161,20 @@ def _kept(pkg: ParsedPackage) -> ParsedPackage:
     )
 
 
-def sync_pdf_filing(db: Session, disclosure_no: str, *, reparse: bool = False) -> SyncOutcome:
-    """1 件を今あるべき状態へ寄せる。commit は 1 回。繰り返しても、途中で落ちても同じ終わりになる。"""
+def sync_pdf_filing(
+    db: Session,
+    disclosure_no: str,
+    *,
+    reparse: bool = False,
+    ignore_zip: bool = False,
+) -> SyncOutcome:
+    """1 件を今あるべき状態へ寄せる。commit は 1 回。繰り返しても、途中で落ちても同じ終わりになる。
+
+    ``ignore_zip`` は ZIP があっても PDF 側を残す。ZIP との突き合わせ用。本番ジョブは渡さない。
+    """
     number = parse_disclosure_no(disclosure_no)
-    return _sync(db, number, _zip_parsed(db, number), reparse=reparse)
+    zip_parsed = False if ignore_zip else _zip_parsed(db, number)
+    return _sync(db, number, zip_parsed, reparse=reparse)
 
 
 def _sync(db: Session, disclosure_no: str, zip_parsed: bool, *, reparse: bool) -> SyncOutcome:
