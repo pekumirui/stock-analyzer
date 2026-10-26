@@ -6,7 +6,7 @@
 
 ローカルに gzip したあと、rclone で OneDrive へ送る（既定
 onedrive:stock-analyzer-backups/{daily,weekly}）。トークンは
-~/.config/rclone/rclone.conf（リポジトリと CI には置かない）。
+rclone のユーザ設定（リポジトリと CI には置かない）。
 VPS の古い世代を消すのは、中身チェックとオフサイトの送信・確認が
 成功したあとだけ。rclone が無い / remote が無いときは警告してスキップ
 （ローカルは成功のまま、古い世代は残す）。オフサイト失敗は非ゼロ終了。
