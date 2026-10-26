@@ -903,6 +903,8 @@ context は ZIP の短信サマリーと同じメンバー（`ResultMember` な�
 
 「ZIP だけ」は減価償却費・設備投資（PDF の CF に行が無い、行名が違う）、研究開発費、決算期を変えた 37500 など。開発の組の 63 は、ツールが `expected_zip_only` に分ける 1Q・3Q の CF 14 件を含む（ZIP に CF があるので取りこぼし）。「PDF だけ」は設備投資（ZIP の要素名が対応表に無い）と 37500。J-Quants（`statements.raw_json`、ゴールデンデータの 40 社余り 177 件）とは 2,176 件一致・1 件違い（ソニーの期末の現金。PDF は CF の期末残高、J-Quants は BS の額）。REIT・米国基準は読まない。日立の「調整後営業利益」は営業利益にしない（ZIP にも無い）。
 
+有報・半期報（EDINET）とも比べた（2026-10-26。ゴールデンデータの 43 銘柄、同じ期が両方にある 80 期）。実績 1,647 件一致・16 件違い。違いは読み取りではなく書類・定義の差: 短信の出し直し（武田。当初の短信と有報は別の数字）、短信のあと有報で数字が変わった回（26740 の BS）、売上高の定義（イオンは PDF が営業収益・EDINET の対応表が内訳の売上高、SOMPO は PDF が PL の保険収益・EDINET が注記の収益）、短信と有報で基準が違う（東京海上の減価償却費。短信は日本基準、有報は IFRS）、ROE（44930。短信の印字どおり）、ソニーの期末の現金。同じ期の短信が 2 回出たときは PDF の filing も 2 つになる（ZIP と同じ。使う側が新しい方を選ぶ）。
+
 `tools/tdnet_pdf/financials.py` が新しい順に最大 `--limit`（既定 2000）件。cron では動かさない。新しい短信は ZIP があり `tools/tdnet_pdf/ingest.py` が PDF を取らないので、過去の PDF を入れたあとに手で流す（`--limit 100000` で全件）。後から ZIP が来た回の PDF filing は ZIP の取込が消す。指紋が同じ `parsed` / `failed` は HTML を読まない（`unchanged`）ので何度流してもよい。`READER_VERSION` を上げると指紋がずれ、次の実行が HTML を読み直す。`--reparse` は指紋を無視する。マッピングだけ変えたときは `jobs/xbrl/xbrl_normalize.py --rebuild` で足りる。
 
 ZIP の `parse_manifest_row` は、パースが `parsed` のあと、失敗を `mark_failed` する `try` の外で `sync_pdf_filing(db, doc_id の後ろ 14 桁)` を呼ぶ。PDF 側の例外は ZIP を `failed` にしない。`parse_status='parsed'` の `source='tdnet'` がある 14 桁は PDF filing を消す。
