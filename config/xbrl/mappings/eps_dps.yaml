@@ -24,3 +24,21 @@
 - std_item: dps
   elements:
     - { ns: tse-ed-t, name: DividendPerShare, priority: 10 }
+# 短信サマリーの BPS / 自己資本比率 / ROE（KAB-173）。
+# PDF から入れた回を ZIP が置き換えても科目が欠けない。priority は jpcrp_cor の後。同じ書類には並ばない。
+# 名前は tse-ed-t 2014-01-12（www.xbrl.tdnet.info/taxonomy/jp/tse/tdnet/ed/t/2014-01-12/）。
+- std_item: bps
+  elements:
+    - { ns: tse-ed-t, name: NetAssetsPerShare, priority: 60 }
+    - { ns: tse-ed-t, name: EquityAttributableToOwnersOfParentPerShareIFRS, priority: 60, standard: IFRS }
+    - { ns: tse-ed-t, name: NetAssetsPerShareUS, priority: 60 }
+- std_item: equity_ratio
+  elements:
+    - { ns: tse-ed-t, name: CapitalAdequacyRatio, priority: 60 }
+    - { ns: tse-ed-t, name: EquityAttributableToOwnersOfParentToTotalAssetsRatioIFRS, priority: 60, standard: IFRS }
+    - { ns: tse-ed-t, name: CapitalAdequacyRatioUS, priority: 60 }
+- std_item: roe
+  elements:
+    - { ns: tse-ed-t, name: NetIncomeToShareholdersEquityRatio, priority: 60 }
+    - { ns: tse-ed-t, name: ProfitToEquityAttributableToOwnersOfParentRatioIFRS, priority: 60, standard: IFRS }
+    - { ns: tse-ed-t, name: NetIncomeToShareholdersEquityRatioUS, priority: 60 }
