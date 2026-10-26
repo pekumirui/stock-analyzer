@@ -121,8 +121,12 @@ document.querySelectorAll("#st-zoom .ftab").forEach(b => b.onclick = () => {
   stockZoom = b.dataset.zoom;
   try { localStorage.setItem(STOCK_ZOOM_KEY, stockZoom); } catch(e) {}
   syncStockZoomButtons();
-  document.querySelectorAll("#st-doc iframe").forEach(fitStockFrame);
+  fitAllStockFrames();
 });
+
+function fitAllStockFrames(){
+  document.querySelectorAll("#st-doc iframe").forEach(fitStockFrame);
+}
 
 // 中で script は動かない（sandbox）。同じオリジンなので親から中身を測り、iframe を中身の幅と高さまで広げる。
 // iframe の中ではスクロールさせない（入れ子のスクロールは指で滑らせると引っかかる）。
@@ -165,7 +169,11 @@ function showStockFiling(f){
     frame.setAttribute("referrerpolicy", "no-referrer");
     frame.setAttribute("scrolling", "no");
     frame.title = doc.part === "summary" ? "サマリー" : doc.part === "pdf" ? "PDF から変換" : "添付資料";
-    frame.onload = () => fitStockFrame(frame);
+    frame.onload = () => {
+      fitStockFrame(frame);
+      // 高さ確定で縦スクロールバーが出ると #st-doc が縮む。次フレームでもう一度（KAB-175）
+      requestAnimationFrame(() => fitStockFrame(frame));
+    };
     frame.src = doc.url;
     const page = document.createElement("div");
     page.className = "st-page";
@@ -184,6 +192,26 @@ window.addEventListener("resize", () => {
   requestAnimationFrame(() => {
     stockFitPending = false;
     stockFitWidth = window.innerWidth;
-    document.querySelectorAll("#st-doc iframe").forEach(fitStockFrame);
+    fitAllStockFrames();
   });
 });
+
+// 縦スクロールバーが出ると #st-doc の幅が約15px縮む。最初の onload ではまだバーが無く、
+// iframe が古い幅のまま .st-page の overflow:hidden で右端が切れる（KAB-175）
+const stDoc = $("#st-doc");
+let stockDocWidth = stDoc.clientWidth;
+let stockDocFitPending = false;
+if(typeof ResizeObserver === "function"){
+  new ResizeObserver(() => {
+    if(stockDocFitPending) return;
+    if($("#tab-stock").style.display === "none") return;
+    stockDocFitPending = true;
+    requestAnimationFrame(() => {
+      stockDocFitPending = false;
+      const w = stDoc.clientWidth;
+      if(w === stockDocWidth) return;
+      stockDocWidth = w;
+      fitAllStockFrames();
+    });
+  }).observe(stDoc);
+}
