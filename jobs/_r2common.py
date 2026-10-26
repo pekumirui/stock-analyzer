@@ -701,16 +701,34 @@ def backoff_delay(
     return base * (0.75 + 0.5 * roll)
 
 
-def http_get(
+def _http_final_url(resp: object, requested: str) -> str:
+    """urlopen の geturl()。モックが str 以外を返すときは要求 URL のまま。"""
+    geturl = getattr(resp, "geturl", None)
+    if not callable(geturl):
+        return requested
+    try:
+        final = geturl()
+    except Exception:
+        return requested
+    if not isinstance(final, str):
+        return requested
+    final = final.strip()
+    if urlparse(final).scheme not in ("http", "https"):
+        return requested
+    return final
+
+
+def http_get_result(
     url: str,
     timeout: float = HTTP_TIMEOUT,
     *,
     user_agent: str | None = None,
-) -> bytes:
+) -> tuple[bytes, str]:
     """識別 UA で取り、403 のときだけブラウザ UA に切り替える。検証は切らない。
 
-    429 / 408 / 5xx は Retry-After があればそれに従い、無ければ指数バックオフ＋jitter。
-    同一 UA で最大 HTTP_RETRY_ATTEMPTS 回。打ち切ったら例外を上げる（UA は変えない）。
+    戻りは (本文, リダイレクト後の URL)。429 / 408 / 5xx は Retry-After があればそれに従い、
+    無ければ指数バックオフ＋jitter。同一 UA で最大 HTTP_RETRY_ATTEMPTS 回。
+    打ち切ったら例外を上げる（UA は変えない）。
     """
     from urllib.request import Request, urlopen
 
@@ -727,7 +745,7 @@ def http_get(
         while True:
             try:
                 with urlopen(req, timeout=timeout) as resp:  # nosec B310
-                    return resp.read()
+                    return resp.read(), _http_final_url(resp, url)
             except HTTPError as e:
                 last = e
                 if e.code == 403 and ua == primary:
@@ -748,7 +766,7 @@ def http_get(
                     if ctx is not None:
                         try:
                             with urlopen(req, timeout=timeout, context=ctx) as resp:  # nosec B310
-                                return resp.read()
+                                return resp.read(), _http_final_url(resp, url)
                         except (HTTPError, URLError, TimeoutError, OSError) as e2:
                             last = e2
                     raise last
@@ -758,3 +776,18 @@ def http_get(
                 time.sleep(1.5)
     assert last is not None
     raise last
+
+
+def http_get(
+    url: str,
+    timeout: float = HTTP_TIMEOUT,
+    *,
+    user_agent: str | None = None,
+) -> bytes:
+    """識別 UA で取り、403 のときだけブラウザ UA に切り替える。検証は切らない。
+
+    429 / 408 / 5xx は Retry-After があればそれに従い、無ければ指数バックオフ＋jitter。
+    同一 UA で最大 HTTP_RETRY_ATTEMPTS 回。打ち切ったら例外を上げる（UA は変えない）。
+    """
+    body, _final = http_get_result(url, timeout, user_agent=user_agent)
+    return body
