@@ -1,10 +1,11 @@
 """短信 PDF の HTML（tdnet_pdf_documents）→ xbrl_filings(source='tdnet_pdf') → xbrl_financials（KAB-173）。
 
-使い方:
-  python jobs/xbrl/xbrl_pdf_parse.py
-  python jobs/xbrl/xbrl_pdf_parse.py --code 7203
-  python jobs/xbrl/xbrl_pdf_parse.py --reparse
-  python jobs/xbrl/xbrl_pdf_parse.py --limit 100
+cron では動かさない。tools/tdnet_pdf/ingest.py で過去の短信 PDF を入れたあとに手で流す（新しい短信は
+TDnet の ZIP があり、ingest は PDF を取らない）。取り込み済みの回は飛ばすので何度流してもよい。
+
+  python tools/tdnet_pdf/financials.py --limit 100000
+  python tools/tdnet_pdf/financials.py --code 7203
+  python tools/tdnet_pdf/financials.py --reparse
 """
 from __future__ import annotations
 
@@ -43,7 +44,7 @@ def main(argv: list[str] | None = None) -> int:
         counts = sync_pdf_filings(db, codes=codes, reparse=args.reparse, limit=args.limit)
         parts = [f"{outcome.value}={counts[outcome]}" for outcome in SyncOutcome]
         parts.append(f"remaining={counts['remaining']}")
-        print("xbrl_pdf_parse " + " ".join(parts), flush=True)
+        print("tdnet_pdf_financials " + " ".join(parts), flush=True)
         return 0
     finally:
         db.close()

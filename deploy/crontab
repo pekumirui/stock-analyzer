@@ -54,8 +54,6 @@ SHELL=/bin/bash
 0 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/tdnet_xbrl_r2.py 1
 10 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/xbrl_parse.py
 20 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/xbrl_normalize.py
-# 短信 PDF の HTML → xbrl_financials（KAB-173）。:20 の normalize と :25 の buybacks とは分をずらす
-35 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/xbrl_pdf_parse.py
 
 # EDINET（KAB-72）。コードリスト → edinet_filers / stocks.edinet_code（キー不要）、書類一覧 → edinet_documents（EDINET_API_KEY）
 # 一覧は直近 7 日の未確定の日だけ取る。前日分は翌朝の回で確定する
