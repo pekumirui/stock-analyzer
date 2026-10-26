@@ -4,7 +4,7 @@
   * { box-sizing:border-box; margin:0; }
   html { color-scheme: light; }
   body { background:var(--bg); color:var(--text); font-family:-apple-system,"Hiragino Sans","Noto Sans JP",Meiryo,sans-serif; font-size:14px; }
-  header { display:flex; align-items:center; gap:8px; padding:10px 14px; border-top:3px solid var(--accent);
+  header { display:flex; align-items:center; gap:8px; padding:10px 14px;
            border-bottom:1px solid var(--border); flex-wrap:wrap; background:var(--panel); }
   nav button { background:none; border:none; color:var(--sub); padding:8px 10px; cursor:pointer; font-size:14px; border-bottom:2px solid transparent; }
   nav button.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
