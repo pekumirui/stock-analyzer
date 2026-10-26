@@ -175,17 +175,28 @@ def parse_manifest_row(
             flush=True,
         )
         _store_documents_logged(db, filing, plan.zip_path)
-        if filing.parse_status == "parsed":
-            return "parsed"
-        if filing.parse_status == "skipped":
-            return "skipped"
-        return "error"
     except Exception as exc:
         filing = db.query(XbrlFiling).filter_by(source="tdnet", doc_id=doc_id).one_or_none()
         if filing is not None:
             mark_failed(db, filing, exc)
         print(f"failed doc_id={doc_id} code={code5} err={exc}", flush=True)
         return "error"
+    if filing.parse_status == "parsed":
+        # ZIP の mark_failed に巻き込まない。PDF 側の失敗で短信 ZIP を failed にしない。
+        _retire_pdf_filing(db, doc_id)
+        return "parsed"
+    if filing.parse_status == "skipped":
+        return "skipped"
+    return "error"
+
+
+def _retire_pdf_filing(db: Session, doc_id: str) -> None:
+    from app.xbrl.pdf import sync_pdf_filing
+
+    try:
+        sync_pdf_filing(db, str(doc_id)[-14:])
+    except Exception as exc:
+        print(f"pdf retire failed doc_id={doc_id} err={exc}", flush=True)
 
 
 def _store_documents_logged(db: Session, filing: XbrlFiling, zip_path: Path) -> None:

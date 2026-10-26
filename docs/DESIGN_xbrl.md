@@ -153,7 +153,7 @@ SQLite 前提。Postgres に切っても動く型にする。`JSONB` / `GENERATE
 CREATE TABLE xbrl_filings (
     id                  INTEGER PRIMARY KEY,
     code                TEXT NOT NULL,          -- stocks.code 5桁
-    source              TEXT NOT NULL,          -- 第1弾は 'tdnet'
+    source              TEXT NOT NULL,          -- 'tdnet' | 'edinet' | 'tdnet_pdf'
     doc_id              TEXT NOT NULL,          -- TDnet xbrl_id（inbs ZIP 名）
     doc_type            TEXT NOT NULL,          -- 'annual'|'quarterly'|'semiannual'|'other'
     period_type         TEXT,                   -- 'FY'|'Q1'|'Q2'|'Q3'
@@ -287,6 +287,7 @@ CREATE TABLE xbrl_job_runs (
 - **マッピングは element_id ではなく `namespace_key + local_name`**: 年度で `namespace_uri` が変わる。element 行が増えても YAML を書き換えなくてよい。
 - **金額は float にしない**: 既存の `statements` は Float だが、生 fact は `NUMERIC`（Decimal）。正規化層も同様。
 - **容量**: 本番 `stock.db` は既に約 1.1GB。短信 iXBRL は有報より小さいが、全 fact を数年分入れると億行にはならない想定でも数千万行になり得る。第1弾は同一 DB。膨らんだら `xbrl_*.db` への分離を検討（今は作らない）。
+- **source**: `tdnet`（短信 ZIP。`doc_id` は ZIP 名）、`edinet`（有報・半期報）、`tdnet_pdf`（ZIP の無い短信 PDF。`doc_id` は開示番号 14 桁。`raw_path` は `tdnet_pdf:<開示番号>`。KAB-173、§16.5）。同じ 14 桁の `tdnet` が `parse_status='parsed'` になったら `tdnet_pdf` の filing は消す。`failed` / `no-ixbrl` の ZIP は消さない。
 
 ---
 
@@ -467,8 +468,8 @@ filing 単位。
 
 1. セグメント等、連結/実績予想/レンジ/配当以外の次元が付いた fact は捨てる（セグメントは §14 の `xbrl_segments` へ。`statement='SEG'` の科目は `xbrl_financials` に使わない）
 2. **既存23項目（BS/PL/CF）の実績**: 従来どおり `has_dimensions` が空か連結/非連結だけ、かつ `relative_period='current'`。選定キーは `std_item` ごと 1 値（値を変えない）
-2b. **実績売上のサマリー補完（KAB-58 / KAB-59）**: 上の本表経路で `net_sales` 実績が 1 件も取れなかったときだけ、同じ書類の短信サマリー（`tse-ed-t`）の当期実績（`ResultMember`、点）を使う。連結を先に、同じ連結区分なら mapping の `priority`。本表で取れている値は上書きしない。会社独自の拡張タグはマッピングしない。出どころは `source_layer`（`primary` / `summary`）
-3. **EPS 実績**: 本表コンテキストに加え `ResultMember`（短信表紙）を許す
+2b. **実績売上のサマリー補完（KAB-58 / KAB-59）**: 上の本表経路で `net_sales` 実績が 1 件も取れなかったときだけ、同じ書類の短信サマリー（`SUMMARY_NAMESPACES` = `tse-ed-t` と `pdf-sum`）の当期実績（`ResultMember`、点）を使う。連結を先に、同じ連結区分なら mapping の `priority`。本表で取れている値は上書きしない。会社独自の拡張タグはマッピングしない。出どころは `source_layer`（`primary` / `summary`）
+3. **EPS・BPS・自己資本比率・ROE の実績**（`SUMMARY_ACTUAL_CODES`）: 本表コンテキストに加え `ResultMember`（短信表紙）を許す。レガシー 23 科目の実績は表紙の `ResultMember` を受けない。前期の実績 context は `is_normalizable_context` が落とす（PDF の fact を入れるときも同じ）
 4. **配当**: `FirstQuarter` / `SecondQuarter` / `ThirdQuarter` / `YearEnd` / `Annual` メンバーで `target_period` を分ける。`ResultMember` は実績、`ForecastMember` は予想
 4b. **有報の科目（KAB-78）**: 上の 2〜4 に当たらない科目（§7.2 の有報の科目）は、当期（`relative_period='current'`）の実績の点で、連結/単体以外の次元が無い fact。連結と単体は別の行（`is_consolidated`）。セグメント別・所有者別（`Row1Member` 等）・前期・提出日現在は入らない。mapping の `part: months` は同じ科目・context の値に 月÷12 を足す（小数 2 桁）。DEI `WhetherConsolidatedFinancialStatementsArePreparedDEI` が false の書類（連結子会社が無い会社）は、連結の軸が無い context（設備の状況・研究開発活動・自己株式等など）も単体にする（全科目。TDnet は DEI が無いので今までどおり）
 5. **業績予想**: `ForecastMember`、または `LowerMember`/`UpperMember`/`MinimumMember`/`MaximumMember`（ForecastMember 無しのレンジ）。`relative_period='current'` は要求しない（通期予想の期末は短信の四半期末とずれる）。`PreviousMember` は `value_kind=forecast_previous`（今回予想は `forecast`）。`LowerMember`/`UpperMember` は `range_side`。context 名の `accumulatedq1`/`accumulatedq3` と日数（80–100→Q1、240–300→Q3）で `target_period` を付ける
@@ -502,7 +503,7 @@ python jobs/xbrl/xbrl_normalize.py --rebuild --code 72030
 
 dest 既定は `tdnet_xbrl_r2.DEFAULT_DEST`。`--dest` で上書き。
 
-cron は 12–23 時 JST に毎時 `fetch :00` → `parse :10` → `normalize :20`。normalize は未反映と再パース分だけ（マッピング変更は `--rebuild`）。
+cron は 12–23 時 JST に毎時 `fetch :00` → `parse :10` → `normalize :20`。短信 PDF の数値（§16.5）は cron に無い。normalize は未反映と再パース分だけ（マッピング変更は `--rebuild`）。
 
 ---
 
@@ -823,7 +824,7 @@ CREATE TABLE xbrl_segments (
 
 ## 16. 過去の短信を PDF から HTML にする（KAB-164）
 
-TDnet の ZIP は 2026-08-10 からしか無く、TDnet は約 1 か月で消す。それより前の回の原文は、IR BANK が保管する TDnet の開示 PDF から HTML に変換して `tdnet_pdf_documents` に入れる。数値の層（`xbrl_financials`）には入れない。
+TDnet の ZIP は 2026-08-10 からしか無く、TDnet は約 1 か月で消す。それより前の回の原文は、IR BANK が保管する TDnet の開示 PDF から HTML に変換して `tdnet_pdf_documents` に入れる。数値は §16.5 で同じ HTML から `xbrl_financials` に入れる。
 
 ### 16.1 実データで分かったこと（2026-10-25）
 
@@ -858,4 +859,55 @@ pdfium（pypdfium2）でページごとに読む。文字は textpage の 1 文�
 - 取った PDF が `/Linearized` の `/L`（ファイル全体の長さ）より短ければ、途中で切れたものとして `failed`（`truncated pdf`）。IR BANK に途中までしか無い PDF がある（79520 の 20260212556420 は 277,188 バイト中 76,224 バイト。pdfium も pdfminer も poppler も読めない）。旧変換器（pdfplumber）でも読めないのでフォールバックはせず `failed` のまま残し、`--retry-failed` で取り直す
 - VPS で動かす（bot が銘柄を指定して毎日）。pypdfium2 は `requirements.txt` に入れた（KAB-169 で pdfplumber から替えた）
 - 規模の見込み: `statements` 約 9.6 万件を全部入れると DB は約 4GB 増える（1 件 43KB）
+
+### 16.5 短信 PDF の数値（KAB-173）
+
+`tdnet_pdf_documents.status='ok'` の HTML を、ZIP と同じ生の層に入れる。書き込むのは `sync_pdf_filing` だけ。`normalize_filing` と `rebuild_all` は変えない。決算速報の UI は変えない。
+
+| 項目 | 中身 |
+|---|---|
+| `xbrl_filings.source` | `tdnet_pdf` |
+| `doc_id` | 開示番号 14 桁（`statements.disclosure_no`） |
+| `raw_path` | `tdnet_pdf:<開示番号>` |
+| `raw_sha256` | `sha256(html の sha256 + ":" + READER_VERSION)` |
+| 要素の名前空間 | `pdf-sum` / `pdf-bs` / `pdf-pl` / `pdf-cf`（カスタム。URI は `http://stock-analyzer.local/taxonomy/tdnet-pdf/`） |
+| マッピング | `config/xbrl/mappings/tdnet_pdf.yaml`。`name` は `label_key` の結果 |
+
+読める DocType は `{1Q|2Q|3Q|FY}FinancialStatements_{Consolidated|NonConsolidated}_{JP|IFRS}` と `EarnForecastRevision` と `DividendForecastRevision`。REIT、米国基準、`4Q` / `5Q`、日付の欠けは filing を作らない。1Q / 3Q に CF が無くても失敗にしない。
+
+HTML は svg1（`<line>`）でも svg2（`<path>`）でも、`<text>` の位置だけを見る。見出しと列の役割は `app/xbrl/pdf/_tanshin.py` の表。百万円は円（10^6 倍）、百分率は `pure`（39.1 → 0.391）。設備投資の △ は負の fact のまま入れ、`std_items` の `sign: invert` で `capex` の行が正になる。「設備投資額」はマッピングしない。IFRS の経常利益はマッピングしない（`standard: JPGAAP` だけ）。IFRS 本表の売上原価・販管費は ZIP に合わせて正にする（印字の △ を外す）。
+
+context は ZIP の短信サマリーと同じメンバー（`ResultMember` など）と、`CurrentYearDuration` / `CurrentAccumulatedQ2Duration` / `NextYearDuration` のようなトークンを使う。前期の実績は `is_normalizable_context` で fact ごと落とす。印字の行は、マッピングが無くても残った列については fact として残す。
+
+読み方（ZIP・J-Quants と突き合わせて直したもの。`READER_VERSION=3`）:
+
+- ページ番号（`- 6 -`）と柱（ページの上下の帯で 3 ページ以上同じ高さに出る行。2 行に分かれる柱も行ごと）は読む前に落とす。ダッシュが金額の「－」と読まれて幻の列になり、列見出しを吸っていた
+- 列見出しは、数値の列の幅（左端は数値の左端の最小）に重なる語。重ならない語は中心がいちばん近い列（80pt 以内）。右端だけで当てると中央寄せの見出しが付かず「右端が当期」の決め打ちになる（伊藤忠は当期が左、増減額が右）。表の右上の注記（「％表示は、対前期増減率」）と「(注)」の行は見出しにしない
+- 列の役割は日付（「至 2026年6月30日」）を先に、無ければ年月（「2027年3月期」「2026年6月末」、和暦「令和8年」「8年6月期」）。語が分かれた見出し（「2026年」「6月末」）はつないで読む。期間の長さは語（第1四半期・中間）で決める
+- 本表で捨てる列: 増減・比率（%・前年同期比・売上収益比）・3 か月だけ（「第2四半期連結会計期間」）・予想（本表の後ろの「業績予想の修正」表）。同じ役割の列が 2 つなら見出しで決まった方を残し、どちらも見出しで決まっていれば両方捨てる。ダッシュだけの列は役割を付けない
+- △ だけ右端が数 pt ずれる列（JT）は、同じ行に並ばない 8pt 以内の列を 1 列にまとめる
+- 本表は決算短信ごとに BS・PL・CF の最初の 1 つ（数値の行があるもの）。見出しは行頭から（「自動車等セグメントと…区分した連結損益計算書」は本表でない）。連結の短信は「連結」のある見出し、非連結は無い見出し（子会社・単体の表を読まない）。見出しの後ろの補足（「[第1四半期連結累計期間(…3ヵ月間)]」）は外して判定。ほかの「…計算書」「…対照表」と、後ろの注記（「(…に関する注記)」、文章の行）でブロックを切る
+- サマリーは 1〜2 ページ目だけ、ページをまたがない（目次のページ番号を予想の値にしない）。「(2)個別財政状態」「(参考)個別業績」は単体の値として読む。実績の表で期の読めない行（「(金融を除く)」）は読まない。同じ表で同じ科目・同じ期に違う値が出たら両方捨てる
+- 配当は ZIP と同じく単体（`is_consolidated=0`）。context の ref に `_NonConsolidated` を付け、連結の本表の context と取り違えない。列見出しが時点（「第１四半期末」）だけの列は 1 株当たり配当金
+- レンジ予想は 3 行（「下限 / ～ / 上限」「下限～ / ダッシュ / 上限」「下限 / 行名 / ～上限」）を 1 行の下限・上限にする。「5,100～ 30.9～」のように語をまたいで 1 つのレンジと読まない
+- 行名は `label_key` でそろえる: 「又は」の後ろを落とす（「営業利益又は営業損失(△)」→ 営業利益）、「(△…)」を落とす、四半期・中間の利益は当期の名前、「X利益の帰属 親会社の所有者」→ 親会社の所有者に帰属する当期利益、「営業活動に関する／から得た…(純額)」→ 営業活動によるキャッシュ・フロー、「四半期末残高」→ 期末残高。折り返した行名は、前の行が「及び」等で終わるか、値だけの行の後なら前の行の続き。「損失」で始まる数値の無い行は前の行名の尾
+- 読めない PDF（文字化けしたフォント、文字が図形だけ）は `failed`（`no in-scope table`）。値は入れない
+
+突き合わせの結果（2026-10-26。`verify_financials.py`。共有データの TDnet ZIP と、同じ回の IR BANK の PDF）:
+
+| 組 | 一致 | 不一致 | ZIP だけ | PDF だけ |
+|---|---|---|---|---|
+| 開発に使った 85 組（日本基準 連結・非連結、IFRS 22） | 2,817 | 0 | 63 | 17 |
+| 使っていない 57 組（日本基準） | 1,886 | 0 | 122 | 41 |
+| 使っていない 30 組（IFRS） | 909 | 0 | 54 | 9 |
+
+「ZIP だけ」は減価償却費・設備投資（PDF の CF に行が無い、行名が違う）、研究開発費、決算期を変えた 37500 など。開発の組の 63 は、ツールが `expected_zip_only` に分ける 1Q・3Q の CF 14 件を含む（ZIP に CF があるので取りこぼし）。「PDF だけ」は設備投資（ZIP の要素名が対応表に無い）と 37500。J-Quants（`statements.raw_json`、ゴールデンデータの 40 社余り 177 件）とは 2,176 件一致・1 件違い（ソニーの期末の現金。PDF は CF の期末残高、J-Quants は BS の額）。REIT・米国基準は読まない。日立の「調整後営業利益」は営業利益にしない（ZIP にも無い）。
+
+有報・半期報（EDINET）とも比べた（2026-10-26。ゴールデンデータの 43 銘柄、同じ期が両方にある 80 期）。実績 1,647 件一致・16 件違い。違いは読み取りではなく書類・定義の差: 短信の出し直し（武田。当初の短信と有報は別の数字）、短信のあと有報で数字が変わった回（26740 の BS）、売上高の定義（イオンは PDF が営業収益・EDINET の対応表が内訳の売上高、SOMPO は PDF が PL の保険収益・EDINET が注記の収益）、短信と有報で基準が違う（東京海上の減価償却費。短信は日本基準、有報は IFRS）、ROE（44930。短信の印字どおり）、ソニーの期末の現金。同じ期の短信が 2 回出たときは PDF の filing も 2 つになる（ZIP と同じ。使う側が新しい方を選ぶ）。
+
+`tools/tdnet_pdf/financials.py` が新しい順に最大 `--limit`（既定 2000）件。cron では動かさない。新しい短信は ZIP があり `tools/tdnet_pdf/ingest.py` が PDF を取らないので、過去の PDF を入れたあとに手で流す（`--limit 100000` で全件）。後から ZIP が来た回の PDF filing は ZIP の取込が消す。指紋が同じ `parsed` / `failed` は HTML を読まない（`unchanged`）ので何度流してもよい。`READER_VERSION` を上げると指紋がずれ、次の実行が HTML を読み直す。`--reparse` は指紋を無視する。マッピングだけ変えたときは `jobs/xbrl/xbrl_normalize.py --rebuild` で足りる。
+
+ZIP の `parse_manifest_row` は、パースが `parsed` のあと、失敗を `mark_failed` する `try` の外で `sync_pdf_filing(db, doc_id の後ろ 14 桁)` を呼ぶ。PDF 側の例外は ZIP を `failed` にしない。`parse_status='parsed'` の `source='tdnet'` がある 14 桁は PDF filing を消す。
+
+ZIP との付き合わせは `tools/tdnet_pdf/verify_financials.py` がスクラッチの SQLite で行う（本番 `stock.db` へは書かない）。テストは本番 DB も IR BANK も呼ばない。
 

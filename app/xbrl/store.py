@@ -11,7 +11,15 @@ from sqlalchemy import bindparam, delete, insert, select
 from sqlalchemy.orm import Session
 
 from app.config import XBRL_CACHE_DIR, XBRL_TEXT_MAX_CHARS
-from app.models import Stock, XbrlContext, XbrlElement, XbrlFact, XbrlFiling
+from app.models import (
+    Stock,
+    XbrlContext,
+    XbrlElement,
+    XbrlFact,
+    XbrlFiling,
+    XbrlFinancial,
+    XbrlSegment,
+)
 from app.xbrl.context import classify_title, infer_accounting_standard_from_namespaces
 from app.xbrl.parser import ParsedPackage, extract_zip, namespace_is_standard, parse_package
 
@@ -269,7 +277,28 @@ def parse_zip_into_filing(
         contexts = [c for c in pkg.contexts if c.context_ref in used]
     else:
         facts, contexts = pkg.facts, pkg.contexts
+    store_package(
+        db,
+        filing,
+        ParsedPackage(
+            contexts=contexts,
+            facts=facts,
+            labels=pkg.labels,
+            ixbrl_files=pkg.ixbrl_files,
+            fiscal_year_end=pkg.fiscal_year_end,
+        ),
+    )
+    db.commit()
+    return filing
 
+
+def store_package(db: Session, filing: XbrlFiling, pkg: ParsedPackage) -> None:
+    """Write elements, contexts, and facts for a filing whose payload is already deleted.
+
+    No commit. An empty fact list still marks the filing parsed. The ZIP path rejects
+    a package that arrived with no facts (``no-facts``) before it calls this.
+    """
+    facts, contexts = pkg.facts, pkg.contexts
     wanted: dict[tuple[str, str], dict] = {}
     for fact in facts:
         el_key = (fact.namespace_uri, fact.local_name)
@@ -328,8 +357,15 @@ def parse_zip_into_filing(
     filing.parse_status = "parsed"
     filing.parse_error = None
     filing.parsed_at = _now()
-    db.commit()
-    return filing
+
+
+def delete_filing(db: Session, filing: XbrlFiling) -> None:
+    """Drop financials, segments, facts, contexts, then the filing row. No commit."""
+    filing_id = filing.id
+    db.query(XbrlFinancial).filter_by(filing_id=filing_id).delete(synchronize_session="fetch")
+    db.query(XbrlSegment).filter_by(filing_id=filing_id).delete(synchronize_session="fetch")
+    delete_filing_payload(db, filing_id)
+    db.delete(filing)
 
 
 def mark_failed(db: Session, filing: XbrlFiling, exc: BaseException) -> None:

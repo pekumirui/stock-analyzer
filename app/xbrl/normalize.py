@@ -79,6 +79,9 @@ FORECAST_ITEM_CODES = {
 }
 EPS_ITEM_CODES = {"eps_basic", "eps_diluted"}
 DPS_ITEM_CODES = {"dps"}
+# 短信サマリーの当期実績として本表以外（ResultMember）を許す科目。
+# レガシー 23 科目は下の分岐のまま。サマリーの BS/PL 実績は落とす（KAB-173）。
+SUMMARY_ACTUAL_CODES = EPS_ITEM_CODES | {"bps", "equity_ratio", "roe"}
 
 VALUE_KIND_ACTUAL = "actual"
 VALUE_KIND_FORECAST = "forecast"
@@ -87,6 +90,9 @@ RANGE_POINT = "point"
 RANGE_LOWER_SIDE = "lower"
 RANGE_UPPER_SIDE = "upper"
 SUMMARY_NS = "tse-ed-t"
+PDF_SUMMARY_NS = "pdf-sum"
+# 短信サマリー（1 ページ目）。ZIP の tse-ed-t と PDF の pdf-sum は同じ扱い（KAB-173）
+SUMMARY_NAMESPACES = frozenset({SUMMARY_NS, PDF_SUMMARY_NS})
 SOURCE_LAYER_PRIMARY = "primary"
 SOURCE_LAYER_SUMMARY = "summary"
 NET_SALES_CODE = "net_sales"
@@ -197,7 +203,7 @@ def _accepts_fact(std: XbrlStdItem, ctx: XbrlContext, klass: ContextClass) -> bo
         return code in FORECAST_ITEM_CODES
     if code in DPS_ITEM_CODES:
         return klass.dividend_slot is not None
-    if code in EPS_ITEM_CODES:
+    if code in SUMMARY_ACTUAL_CODES:
         if klass.dividend_slot:
             return False
         members = _members_of(ctx)
@@ -215,6 +221,14 @@ def _accepts_fact(std: XbrlStdItem, ctx: XbrlContext, klass: ContextClass) -> bo
         and is_primary_statement(ctx)
         and ctx.relative_period == "current"
     )
+
+
+def is_normalizable_context(ctx: XbrlContext) -> bool:
+    """classify_context が受け、前期比較の実績ではない context。PDF の keep_fact が使う。"""
+    klass = classify_context(ctx)
+    if klass is None:
+        return False
+    return not _skip_non_current_actual(ctx, klass)
 
 
 def _skip_non_current_actual(ctx: XbrlContext, klass: ContextClass) -> bool:
@@ -264,7 +278,7 @@ def mapping_applies(
 
 
 def source_layer_of(el: XbrlElement) -> str:
-    if (el.namespace_key or "") == SUMMARY_NS:
+    if (el.namespace_key or "") in SUMMARY_NAMESPACES:
         return SOURCE_LAYER_SUMMARY
     return SOURCE_LAYER_PRIMARY
 
@@ -282,7 +296,7 @@ def is_summary_actual_net_sales_fallback(
     """本表に売上がないときだけ使う、短信サマリーの当期実績売上。"""
     if std.code != NET_SALES_CODE:
         return False
-    if (el.namespace_key or "") != SUMMARY_NS:
+    if (el.namespace_key or "") not in SUMMARY_NAMESPACES:
         return False
     if klass.value_kind != VALUE_KIND_ACTUAL or klass.range_side != RANGE_POINT:
         return False
