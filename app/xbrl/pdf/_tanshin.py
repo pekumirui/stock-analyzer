@@ -27,6 +27,8 @@ _URI = "http://stock-analyzer.local/taxonomy/tdnet-pdf/"
 _DATE = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")
 _LEADING = re.compile(r"^(?:[①-⑳]|※\d*|\(注\d*\)|\(\d+\)|\d+\.)+")
 _HINTS = re.compile(r"\(△は損失\)|\(△\)")
+# 本表の途中に出る分類見出し。grid が次の行名へ連結しない。
+_CLASS_HEAD = re.compile(r"の部$")
 
 
 def parse_disclosure_no(raw: str) -> DisclosureNo:
@@ -541,8 +543,23 @@ def _blocks(pages: list[Page], d: PdfDisclosure) -> list[tuple[SectionSpec, list
             continue
         if spec.name == "summary_solo" and d.consolidated:
             continue
-        blocks.append((spec, lines[index + 1:end], consolidated))
+        blocks.append((spec, _table_lines(lines[index + 1:end]), consolidated))
     return blocks
+
+
+def _table_lines(lines: list[Line]) -> list[Line]:
+    """ブロック内の分類見出しを落とす。折り返しの行名は残す。"""
+    kept: list[Line] = []
+    for line in lines:
+        compact = _compact(line.text)
+        if not compact:
+            continue
+        if _CLASS_HEAD.search(compact):
+            continue
+        if any(spec.headings.search(compact) for spec in SECTIONS):
+            continue
+        kept.append(line)
+    return kept
 
 
 def sides(role: Role, amount) -> list[tuple[Role, Decimal]]:

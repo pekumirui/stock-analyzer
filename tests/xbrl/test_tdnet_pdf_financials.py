@@ -317,6 +317,39 @@ def test_ifrs_1q_lands_like_a_zip() -> None:
         db.close()
 
 
+def test_bs_class_heading_does_not_glue_to_next_row() -> None:
+    disclosure = PdfDisclosure.parse(_statement(
+        disclosure_no="20250515512352",
+        type_of_period="FY",
+        type_of_document="FYFinancialStatements_Consolidated_JP",
+        disclosed_date=date(2025, 5, 15),
+        period_start=date(2024, 4, 1),
+        period_end=date(2025, 3, 31),
+        fiscal_year_start=date(2024, 4, 1),
+        fiscal_year_end=date(2025, 3, 31),
+    ))
+    if not isinstance(disclosure, PdfDisclosure):
+        _fail(disclosure)
+    parts = [
+        _text(40, 40, "連結貸借対照表", 140),
+        _text(40, 58, "（単位：百万円）", 120),
+        _cell(400, 76, "当連結会計年度", 120),
+        _text(40, 94, "資産の部", 80),
+        _text(40, 112, "現金及び預金", 120),
+        _cell(400, 112, "1,200", 50),
+        _text(40, 130, "流動資産合計", 120),
+        _cell(400, 130, "3,000", 50),
+    ]
+    pkg = read_tdnet_pdf(_svg(parts, "path"), disclosure)
+    names = {fact.local_name for fact in pkg.facts}
+    if "現金及び預金" not in names:
+        _fail(f"cash glued {names}")
+    if "流動資産合計" not in names:
+        _fail(f"current assets glued {names}")
+    if any("資産の部" in name or name.startswith("連結貸借対照表") for name in names):
+        _fail(f"heading leaked into names {names}")
+
+
 def test_svg1_and_svg2_read_the_same_numbers() -> None:
     disclosure = PdfDisclosure.parse(_statement(
         disclosure_no="20250515512346",

@@ -499,11 +499,15 @@ python jobs/xbrl/xbrl_parse.py report-unmapped --limit 50
 python jobs/xbrl/xbrl_normalize.py
 python jobs/xbrl/xbrl_normalize.py --rebuild
 python jobs/xbrl/xbrl_normalize.py --rebuild --code 72030
+
+python jobs/xbrl/xbrl_pdf_parse.py
+python jobs/xbrl/xbrl_pdf_parse.py --code 7203
+python jobs/xbrl/xbrl_pdf_parse.py --reparse --limit 100
 ```
 
 dest 既定は `tdnet_xbrl_r2.DEFAULT_DEST`。`--dest` で上書き。
 
-cron は 12–23 時 JST に毎時 `fetch :00` → `parse :10` → `normalize :20`。normalize は未反映と再パース分だけ（マッピング変更は `--rebuild`）。
+cron は 12–23 時 JST に毎時 `fetch :00` → `parse :10` → `normalize :20` → `pdf :35`。normalize は未反映と再パース分だけ（マッピング変更は `--rebuild`）。
 
 ---
 
@@ -879,7 +883,7 @@ HTML は svg1（`<line>`）でも svg2（`<path>`）でも、`<text>` の位置�
 
 context は ZIP の短信サマリーと同じメンバー（`ResultMember` など）と、`CurrentYearDuration` / `CurrentAccumulatedQ2Duration` / `NextYearDuration` のようなトークンを使う。前期の実績は `is_normalizable_context` で fact ごと落とす。印字の行は、マッピングが無くても残った列については fact として残す。
 
-`jobs/xbrl/xbrl_pdf_parse.py` が新しい順に最大 `--limit`（既定 2000）件。指紋が同じ `parsed` / `failed` は HTML を読まない（`unchanged`）。`READER_VERSION` を上げたときは `--reparse`。マッピングだけ変えたときは `jobs/xbrl/xbrl_normalize.py --rebuild` で足りる。crontab は `35 12-23`（`:20` の normalize、`:25` の buybacks と分が違う）。
+`jobs/xbrl/xbrl_pdf_parse.py` が新しい順に最大 `--limit`（既定 2000）件。指紋が同じ `parsed` / `failed` は HTML を読まない（`unchanged`）。`READER_VERSION` を上げると指紋がずれ、次の実行が HTML を読み直す。`--reparse` は指紋を無視する。マッピングだけ変えたときは `jobs/xbrl/xbrl_normalize.py --rebuild` で足りる。crontab は `35 12-23`（`:20` の normalize、`:25` の buybacks と分が違う）。
 
 ZIP の `parse_manifest_row` は、パースが `parsed` のあと、失敗を `mark_failed` する `try` の外で `sync_pdf_filing(db, doc_id の後ろ 14 桁)` を呼ぶ。PDF 側の例外は ZIP を `failed` にしない。`parse_status='parsed'` の `source='tdnet'` がある 14 桁は PDF filing を消す。
 
