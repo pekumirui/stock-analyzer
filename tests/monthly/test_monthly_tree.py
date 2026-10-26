@@ -2152,6 +2152,145 @@ def test_tree_82000() -> None:
         _fail(f"82000 純 must not be a group: {got!r}")
 
 
+def test_tree_21540() -> None:
+    """21540 オープンアップグループ: エンジニア ▸ 機電・IT ▸ 機電/IT、建設は兄弟（#840）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
+
+    rows = assign_tree_rows("21540", [
+        "エンジニア 在籍人数", "エンジニア 稼働率",
+        "機電・IT 在籍人数", "機電・IT 稼働率",
+        "機電 在籍人数", "機電 稼働率",
+        "IT 在籍人数", "IT 稼働率",
+        "建設エンジニア 在籍人数", "建設エンジニア 稼働率",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["エンジニア 在籍人数"] != (["全体", "エンジニア"], "在籍人数", "在籍人数"):
+        _fail(f"21540 エンジニア在籍: {got['エンジニア 在籍人数']!r}")
+    if got["機電・IT 在籍人数"] != (
+            ["全体", "エンジニア", "機電・IT"], "在籍人数", "在籍人数"):
+        _fail(f"21540 機電・IT: {got['機電・IT 在籍人数']!r}")
+    if got["機電 稼働率"] != (
+            ["全体", "エンジニア", "機電・IT", "機電"], "稼働率", "稼働率"):
+        _fail(f"21540 機電稼働: {got['機電 稼働率']!r}")
+    if got["IT 在籍人数"] != (
+            ["全体", "エンジニア", "機電・IT", "IT"], "在籍人数", "在籍人数"):
+        _fail(f"21540 IT: {got['IT 在籍人数']!r}")
+    if got["建設エンジニア 在籍人数"] != (
+            ["全体", "エンジニア", "建設エンジニア"], "在籍人数", "在籍人数"):
+        _fail(f"21540 建設: {got['建設エンジニア 在籍人数']!r}")
+    payload = tree_payload("21540", list(got), load_monthly_trees())
+    if payload is None or payload.get("tree_metrics") != ["在籍人数", "稼働率"]:
+        _fail(f"21540 tree_metrics: {payload!r}")
+    if payload.get("tree_metric_parent"):
+        _fail(f"21540 must not nest metrics: {payload.get('tree_metric_parent')!r}")
+
+
+def test_tree_27800() -> None:
+    """27800 コメ兵ホールディングス: 免税売上高比率は売上高の節にしない（#839）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
+
+    rows = assign_tree_rows("27800", [
+        "売上高", "売上高(前年比)", "小売比率",
+        "免税 比率 売上高", "個人買取額", "個人買取額(前年比)",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["免税 比率 売上高"] != (["全体"], "免税 比率 売上高", "免税売上高比率"):
+        _fail(f"27800 免税: {got['免税 比率 売上高']!r}")
+    if got["売上高"] != (["全体"], "売上高", "売上高"):
+        _fail(f"27800 売上高: {got['売上高']!r}")
+    if any("免税" in p for v in got.values() for p in v[0]):
+        _fail(f"27800 免税 must not be a group: {got!r}")
+    payload = tree_payload("27800", list(got), load_monthly_trees())
+    if payload is None or payload.get("tree_metrics") != [
+            "売上高", "小売比率", "免税売上高比率", "個人買取額"]:
+        _fail(f"27800 tree_metrics: {payload!r}")
+
+
+def test_tree_30100() -> None:
+    """30100 ポラリス・ホールディングス: 客室稼働率等 ▸ 全68ホテル会社行 + エリア（#837）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
+
+    rows = assign_tree_rows("30100", [
+        "新規契約ホテル数", "新規契約客室数",
+        "全68ホテル 客室稼働率", "全68ホテル ADR", "全68ホテル RevPAR",
+        "全68ホテル インバウンド比率",
+        "北海道 客室稼働率", "北海道 ADR",
+        "関東 客室稼働率", "中国・四国・九州 RevPAR",
+        "国籍構成 中国", "日本 国籍構成",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["全68ホテル 客室稼働率"] != (
+            ["全体"], "全68ホテル 客室稼働率", "客室稼働率"):
+        _fail(f"30100 全68稼働: {got['全68ホテル 客室稼働率']!r}")
+    if got["北海道 客室稼働率"] != (["全体", "北海道"], "客室稼働率", "客室稼働率"):
+        _fail(f"30100 北海道: {got['北海道 客室稼働率']!r}")
+    if got["北海道 ADR"] != (["全体", "北海道"], "ADR", "ADR"):
+        _fail(f"30100 北海道ADR: {got['北海道 ADR']!r}")
+    if got["関東 客室稼働率"] != (["全体", "関東"], "客室稼働率", "客室稼働率"):
+        _fail(f"30100 関東: {got['関東 客室稼働率']!r}")
+    if any("全68ホテル" in p for v in got.values() for p in v[0]):
+        _fail(f"30100 全68ホテル must not be a group: {got!r}")
+    if got["国籍構成 中国"] != (["全体", "国籍構成", "中国"], "国籍構成 中国", "国籍構成"):
+        _fail(f"30100 国籍中国: {got['国籍構成 中国']!r}")
+    if got["日本 国籍構成"] != (["全体", "国籍構成"], "日本 国籍構成", "国籍構成"):
+        _fail(f"30100 日本国籍: {got['日本 国籍構成']!r}")
+    payload = tree_payload("30100", list(got), load_monthly_trees())
+    if payload is None or payload.get("tree_metrics") != [
+            "客室稼働率", "ADR", "RevPAR", "インバウンド比率",
+            "新規契約ホテル数", "新規契約客室数", "国籍構成"]:
+        _fail(f"30100 tree_metrics: {payload!r}")
+
+
+def test_tree_31810() -> None:
+    """31810 買取王国: 店舗数の会社行は全店舗数。ブランドは節にしない（#841）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
+
+    els = [
+        "全店 売上高(前年比)", "既存 売上高(前年比)",
+        "出店", "退店", "店舗数", "直営 店舗数", "FC 店舗数", "FC 出店",
+        "買取王国 店舗数", "工具買取王国 店舗数",
+    ]
+    rows = assign_tree_rows("31810", els, load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["店舗数"] != (["全体"], "店舗数", "店舗数"):
+        _fail(f"31810 店舗数: {got['店舗数']!r}")
+    if got["直営 店舗数"] != (["全体", "直営"], "店舗数", "店舗数"):
+        _fail(f"31810 直営: {got['直営 店舗数']!r}")
+    if got["FC 出店"] != (["全体", "FC"], "出店", "出店"):
+        _fail(f"31810 FC出店: {got['FC 出店']!r}")
+    if "買取王国 店舗数" in got or "工具買取王国 店舗数" in got:
+        _fail(f"31810 brand must be outside tree: {got!r}")
+    payload = tree_payload("31810", list(got), load_monthly_trees())
+    if payload is None or payload.get("tree_metrics") != [
+            "全店 売上高", "既存 売上高", "出店", "退店", "店舗数"]:
+        _fail(f"31810 tree_metrics: {payload!r}")
+
+
+def test_tree_89140() -> None:
+    """89140 エリアリンク: 既存稼働率は稼働率の節にしない（#838）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
+
+    rows = assign_tree_rows("89140", [
+        "総室数", "稼働室数", "稼働率", "稼働率 既存", "新規稼働率",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    want = {
+        "総室数": (["全体"], "総室数", "総室数"),
+        "稼働室数": (["全体"], "稼働室数", "稼働室数"),
+        "稼働率": (["全体"], "稼働率", "稼働率"),
+        "稼働率 既存": (["全体"], "稼働率 既存", "既存稼働率"),
+        "新規稼働率": (["全体"], "新規稼働率", "新規稼働率"),
+    }
+    if got != want:
+        _fail(f"89140 tree: {got!r}")
+    if any(p == "既存" for v in got.values() for p in v[0]):
+        _fail(f"89140 既存 must not be a group: {got!r}")
+    payload = tree_payload("89140", list(got), load_monthly_trees())
+    if payload is None or payload.get("tree_metrics") != [
+            "総室数", "稼働室数", "稼働率", "既存稼働率", "新規稼働率"]:
+        _fail(f"89140 tree_metrics: {payload!r}")
+
+
 def test_tree_43430() -> None:
     """43430 イオンファンタジー: 国内計既存は日本 既存、総合店はアミューズメントの子（#826）。"""
     from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
@@ -2695,6 +2834,11 @@ def main() -> None:
     test_tree_76160()
     test_tree_81630()
     test_tree_82000()
+    test_tree_21540()
+    test_tree_27800()
+    test_tree_30100()
+    test_tree_31810()
+    test_tree_89140()
     test_tree_43430()
     test_tree_60400()
     test_tree_65370()
