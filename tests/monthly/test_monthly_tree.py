@@ -2266,6 +2266,71 @@ def test_tree_31810() -> None:
         _fail(f"31810 tree_metrics: {payload!r}")
 
 
+def test_tree_70430() -> None:
+    """70430 アルー: MRR / 利用企業数 / ARPU ▸ 社内利用 / ビジネス利用他（#842）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
+
+    rows = assign_tree_rows("70430", [
+        "etudes MRR", "etudes MRR前年増減率(前年比)",
+        "etudes 社内利用 MRR", "etudes ビジネス利用他 MRR",
+        "etudes 利用企業数", "etudes 利用企業数前年増減率(前年比)",
+        "etudes 社内利用 企業数", "etudes ビジネス利用他 企業数",
+        "etudes ARPU", "etudes 社内利用 ARPU", "etudes ビジネス利用他 ARPU",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["etudes MRR"] != (["全体"], "MRR", "MRR"):
+        _fail(f"70430 MRR: {got['etudes MRR']!r}")
+    if got["etudes 社内利用 MRR"] != (["全体", "社内利用"], "MRR", "MRR"):
+        _fail(f"70430 社内MRR: {got['etudes 社内利用 MRR']!r}")
+    if got["etudes ビジネス利用他 企業数"] != (
+            ["全体", "ビジネス利用他"], "企業数", "利用企業数"):
+        _fail(f"70430 ビジネス企業数: {got['etudes ビジネス利用他 企業数']!r}")
+    if got["etudes 利用企業数"] != (["全体"], "利用企業数", "利用企業数"):
+        _fail(f"70430 利用企業数: {got['etudes 利用企業数']!r}")
+    if got["etudes ARPU"] != (["全体"], "ARPU", "ARPU"):
+        _fail(f"70430 ARPU: {got['etudes ARPU']!r}")
+    if any("etudes" in p for v in got.values() for p in v[0]):
+        _fail(f"70430 etudes must not be a group: {got!r}")
+    payload = tree_payload("70430", list(got), load_monthly_trees())
+    if payload is None or payload.get("tree_metrics") != ["MRR", "利用企業数", "ARPU"]:
+        _fail(f"70430 tree_metrics: {payload!r}")
+    if payload.get("tree_metric_parent"):
+        _fail(f"70430 must not nest metrics: {payload.get('tree_metric_parent')!r}")
+
+
+def test_tree_74220() -> None:
+    """74220 東邦レマック: 売上高 ▸ シューズ ▸ 婦人靴/紳士靴/ゴム、不動産は兄弟（#844）。"""
+    from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
+
+    rows = assign_tree_rows("74220", [
+        "売上高", "売上高(前年比)", "総利益", "総利益率", "シューズ在庫",
+        "婦人靴 売上高", "紳士靴 売上高", "ゴム・スニーカー・その他 売上高",
+        "シューズ 売上高", "不動産 売上高",
+    ], load_monthly_trees())
+    got = {k: (v["path"], v["leaf"], v["metric"]) for k, v in rows.items()}
+    if got["売上高"] != (["全体"], "売上高", "売上高"):
+        _fail(f"74220 全体: {got['売上高']!r}")
+    if got["シューズ 売上高"] != (["全体", "シューズ"], "売上高", "売上高"):
+        _fail(f"74220 シューズ: {got['シューズ 売上高']!r}")
+    if got["婦人靴 売上高"] != (["全体", "シューズ", "婦人靴"], "売上高", "売上高"):
+        _fail(f"74220 婦人靴: {got['婦人靴 売上高']!r}")
+    if got["紳士靴 売上高"] != (["全体", "シューズ", "紳士靴"], "売上高", "売上高"):
+        _fail(f"74220 紳士靴: {got['紳士靴 売上高']!r}")
+    if got["ゴム・スニーカー・その他 売上高"] != (
+            ["全体", "シューズ", "ゴム・スニーカー・その他"], "売上高", "売上高"):
+        _fail(f"74220 ゴム: {got['ゴム・スニーカー・その他 売上高']!r}")
+    if got["不動産 売上高"] != (["全体", "不動産"], "売上高", "売上高"):
+        _fail(f"74220 不動産: {got['不動産 売上高']!r}")
+    if got["シューズ在庫"] != (["全体"], "シューズ在庫", "シューズ在庫"):
+        _fail(f"74220 在庫: {got['シューズ在庫']!r}")
+    if any(p == "婦人靴" and "シューズ" not in v[0] for k, v in got.items() for p in v[0]):
+        _fail(f"74220 婦人靴 must be under シューズ: {got!r}")
+    payload = tree_payload("74220", list(got), load_monthly_trees())
+    if payload is None or payload.get("tree_metrics") != [
+            "売上高", "総利益", "総利益率", "シューズ在庫"]:
+        _fail(f"74220 tree_metrics: {payload!r}")
+
+
 def test_tree_89140() -> None:
     """89140 エリアリンク: 既存稼働率は稼働率の節にしない（#838）。"""
     from app.monthly.tree import assign_tree_rows, load_monthly_trees, tree_payload
@@ -2838,6 +2903,8 @@ def main() -> None:
     test_tree_27800()
     test_tree_30100()
     test_tree_31810()
+    test_tree_70430()
+    test_tree_74220()
     test_tree_89140()
     test_tree_43430()
     test_tree_60400()

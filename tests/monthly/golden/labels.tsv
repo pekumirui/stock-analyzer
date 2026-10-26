@@ -4225,35 +4225,35 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 66270	2025	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
 66270	2026	1	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 66270	2026	2	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
-70430	2024	1	legacy	number	etudes MRR	etudes MRR	number	etudes MRR	other	etudes MRR			全体 > etudes	MRR
-70430	2024	2	legacy	number	etudes 社内利用 MRR	etudes 社内利用 MRR	number	etudes 社内利用 MRR	other	etudes 社内利用 MRR			全体 > etudes 社内利用	MRR
-70430	2024	3	legacy	number	etudes ビジネス利用他 MRR	etudes ビジネス利用他 MRR	number	etudes ビジネス利用他 MRR	other	etudes ビジネス利用他 MRR			全体 > etudes ビジネス利用他	MRR
-70430	2024	4	legacy	number	etudes 利用企業数	etudes 利用企業数	number	etudes 利用企業数	count	etudes		利用企業数	全体 > etudes	利用企業数
-70430	2024	5	legacy	number	etudes 社内利用 企業数	etudes 社内利用 企業数	number	etudes 社内利用 企業数	count	etudes 社内利用		企業数	全体 > etudes 社内利用	企業数
-70430	2024	6	legacy	number	etudes ビジネス利用他 企業数	etudes ビジネス利用他 企業数	number	etudes ビジネス利用他 企業数	count	etudes ビジネス利用他		企業数	全体 > etudes ビジネス利用他	企業数
-70430	2024	7	legacy	number	etudes ARPU	etudes ARPU	number	etudes ARPU	other	etudes ARPU			全体 > etudes	ARPU
-70430	2024	8	legacy	number	etudes 社内利用 ARPU	etudes 社内利用 ARPU	number	etudes 社内利用 ARPU	other	etudes 社内利用 ARPU			全体 > etudes 社内利用	ARPU
-70430	2024	9	legacy	number	etudes ビジネス利用他 ARPU	etudes ビジネス利用他 ARPU	number	etudes ビジネス利用他 ARPU	other	etudes ビジネス利用他 ARPU			全体 > etudes ビジネス利用他	ARPU
-70430	2025	1	legacy	number	etudes MRR	etudes MRR	number	etudes MRR	other	etudes MRR			全体 > etudes	MRR
-70430	2025	2	legacy	number	etudes 社内利用 MRR	etudes 社内利用 MRR	number	etudes 社内利用 MRR	other	etudes 社内利用 MRR			全体 > etudes 社内利用	MRR
-70430	2025	3	legacy	number	etudes ビジネス利用他 MRR	etudes ビジネス利用他 MRR	number	etudes ビジネス利用他 MRR	other	etudes ビジネス利用他 MRR			全体 > etudes ビジネス利用他	MRR
-70430	2025	4	legacy	number	etudes 利用企業数	etudes 利用企業数	number	etudes 利用企業数	count	etudes		利用企業数	全体 > etudes	利用企業数
-70430	2025	5	legacy	number	etudes 社内利用 企業数	etudes 社内利用 企業数	number	etudes 社内利用 企業数	count	etudes 社内利用		企業数	全体 > etudes 社内利用	企業数
-70430	2025	6	legacy	number	etudes ビジネス利用他 企業数	etudes ビジネス利用他 企業数	number	etudes ビジネス利用他 企業数	count	etudes ビジネス利用他		企業数	全体 > etudes ビジネス利用他	企業数
-70430	2025	7	legacy	number	etudes ARPU	etudes ARPU	number	etudes ARPU	other	etudes ARPU			全体 > etudes	ARPU
-70430	2025	8	legacy	number	etudes 社内利用 ARPU	etudes 社内利用 ARPU	number	etudes 社内利用 ARPU	other	etudes 社内利用 ARPU			全体 > etudes 社内利用	ARPU
-70430	2025	9	legacy	number	etudes ビジネス利用他 ARPU	etudes ビジネス利用他 ARPU	number	etudes ビジネス利用他 ARPU	other	etudes ビジネス利用他 ARPU			全体 > etudes ビジネス利用他	ARPU
-70430	2026	1	legacy	number	etudes MRR	etudes MRR	number	etudes MRR	other	etudes MRR			全体 > etudes	MRR
-70430	2026	2	legacy	yoy_index	etudes MRR前年増減率(前年比)	etudes MRR前年増減率(前年比)	yoy_index	etudes MRR前年増減率(前年比)	other	etudes MRR前年増減率			全体 > etudes	MRR前年増減率
-70430	2026	3	legacy	number	etudes 社内利用 MRR	etudes 社内利用 MRR	number	etudes 社内利用 MRR	other	etudes 社内利用 MRR			全体 > etudes 社内利用	MRR
-70430	2026	4	legacy	number	etudes ビジネス利用他 MRR	etudes ビジネス利用他 MRR	number	etudes ビジネス利用他 MRR	other	etudes ビジネス利用他 MRR			全体 > etudes ビジネス利用他	MRR
-70430	2026	5	legacy	number	etudes 利用企業数	etudes 利用企業数	number	etudes 利用企業数	count	etudes		利用企業数	全体 > etudes	利用企業数
-70430	2026	6	legacy	yoy_index	etudes 利用企業数前年増減率(前年比)	etudes 利用企業数前年増減率(前年比)	yoy_index	etudes 利用企業数前年増減率(前年比)	other	etudes 利用企業数前年増減率			全体 > etudes	利用企業数前年増減率
-70430	2026	7	legacy	number	etudes 社内利用 企業数	etudes 社内利用 企業数	number	etudes 社内利用 企業数	count	etudes 社内利用		企業数	全体 > etudes 社内利用	企業数
-70430	2026	8	legacy	number	etudes ビジネス利用他 企業数	etudes ビジネス利用他 企業数	number	etudes ビジネス利用他 企業数	count	etudes ビジネス利用他		企業数	全体 > etudes ビジネス利用他	企業数
-70430	2026	9	legacy	number	etudes ARPU	etudes ARPU	number	etudes ARPU	other	etudes ARPU			全体 > etudes	ARPU
-70430	2026	10	legacy	number	etudes 社内利用 ARPU	etudes 社内利用 ARPU	number	etudes 社内利用 ARPU	other	etudes 社内利用 ARPU			全体 > etudes 社内利用	ARPU
-70430	2026	11	legacy	number	etudes ビジネス利用他 ARPU	etudes ビジネス利用他 ARPU	number	etudes ビジネス利用他 ARPU	other	etudes ビジネス利用他 ARPU			全体 > etudes ビジネス利用他	ARPU
+70430	2024	1	legacy	number	etudes MRR	etudes MRR	number	etudes MRR	other	etudes MRR			全体	MRR
+70430	2024	2	legacy	number	etudes 社内利用 MRR	etudes 社内利用 MRR	number	etudes 社内利用 MRR	other	etudes 社内利用 MRR			全体 > 社内利用	MRR
+70430	2024	3	legacy	number	etudes ビジネス利用他 MRR	etudes ビジネス利用他 MRR	number	etudes ビジネス利用他 MRR	other	etudes ビジネス利用他 MRR			全体 > ビジネス利用他	MRR
+70430	2024	4	legacy	number	etudes 利用企業数	etudes 利用企業数	number	etudes 利用企業数	count	etudes		利用企業数	全体	利用企業数
+70430	2024	5	legacy	number	etudes 社内利用 企業数	etudes 社内利用 企業数	number	etudes 社内利用 企業数	count	etudes 社内利用		企業数	全体 > 社内利用	利用企業数
+70430	2024	6	legacy	number	etudes ビジネス利用他 企業数	etudes ビジネス利用他 企業数	number	etudes ビジネス利用他 企業数	count	etudes ビジネス利用他		企業数	全体 > ビジネス利用他	利用企業数
+70430	2024	7	legacy	number	etudes ARPU	etudes ARPU	number	etudes ARPU	other	etudes ARPU			全体	ARPU
+70430	2024	8	legacy	number	etudes 社内利用 ARPU	etudes 社内利用 ARPU	number	etudes 社内利用 ARPU	other	etudes 社内利用 ARPU			全体 > 社内利用	ARPU
+70430	2024	9	legacy	number	etudes ビジネス利用他 ARPU	etudes ビジネス利用他 ARPU	number	etudes ビジネス利用他 ARPU	other	etudes ビジネス利用他 ARPU			全体 > ビジネス利用他	ARPU
+70430	2025	1	legacy	number	etudes MRR	etudes MRR	number	etudes MRR	other	etudes MRR			全体	MRR
+70430	2025	2	legacy	number	etudes 社内利用 MRR	etudes 社内利用 MRR	number	etudes 社内利用 MRR	other	etudes 社内利用 MRR			全体 > 社内利用	MRR
+70430	2025	3	legacy	number	etudes ビジネス利用他 MRR	etudes ビジネス利用他 MRR	number	etudes ビジネス利用他 MRR	other	etudes ビジネス利用他 MRR			全体 > ビジネス利用他	MRR
+70430	2025	4	legacy	number	etudes 利用企業数	etudes 利用企業数	number	etudes 利用企業数	count	etudes		利用企業数	全体	利用企業数
+70430	2025	5	legacy	number	etudes 社内利用 企業数	etudes 社内利用 企業数	number	etudes 社内利用 企業数	count	etudes 社内利用		企業数	全体 > 社内利用	利用企業数
+70430	2025	6	legacy	number	etudes ビジネス利用他 企業数	etudes ビジネス利用他 企業数	number	etudes ビジネス利用他 企業数	count	etudes ビジネス利用他		企業数	全体 > ビジネス利用他	利用企業数
+70430	2025	7	legacy	number	etudes ARPU	etudes ARPU	number	etudes ARPU	other	etudes ARPU			全体	ARPU
+70430	2025	8	legacy	number	etudes 社内利用 ARPU	etudes 社内利用 ARPU	number	etudes 社内利用 ARPU	other	etudes 社内利用 ARPU			全体 > 社内利用	ARPU
+70430	2025	9	legacy	number	etudes ビジネス利用他 ARPU	etudes ビジネス利用他 ARPU	number	etudes ビジネス利用他 ARPU	other	etudes ビジネス利用他 ARPU			全体 > ビジネス利用他	ARPU
+70430	2026	1	legacy	number	etudes MRR	etudes MRR	number	etudes MRR	other	etudes MRR			全体	MRR
+70430	2026	2	legacy	yoy_index	etudes MRR前年増減率(前年比)	etudes MRR前年増減率(前年比)	yoy_index	etudes MRR前年増減率(前年比)	other	etudes MRR前年増減率			全体	MRR
+70430	2026	3	legacy	number	etudes 社内利用 MRR	etudes 社内利用 MRR	number	etudes 社内利用 MRR	other	etudes 社内利用 MRR			全体 > 社内利用	MRR
+70430	2026	4	legacy	number	etudes ビジネス利用他 MRR	etudes ビジネス利用他 MRR	number	etudes ビジネス利用他 MRR	other	etudes ビジネス利用他 MRR			全体 > ビジネス利用他	MRR
+70430	2026	5	legacy	number	etudes 利用企業数	etudes 利用企業数	number	etudes 利用企業数	count	etudes		利用企業数	全体	利用企業数
+70430	2026	6	legacy	yoy_index	etudes 利用企業数前年増減率(前年比)	etudes 利用企業数前年増減率(前年比)	yoy_index	etudes 利用企業数前年増減率(前年比)	other	etudes 利用企業数前年増減率			全体	利用企業数
+70430	2026	7	legacy	number	etudes 社内利用 企業数	etudes 社内利用 企業数	number	etudes 社内利用 企業数	count	etudes 社内利用		企業数	全体 > 社内利用	利用企業数
+70430	2026	8	legacy	number	etudes ビジネス利用他 企業数	etudes ビジネス利用他 企業数	number	etudes ビジネス利用他 企業数	count	etudes ビジネス利用他		企業数	全体 > ビジネス利用他	利用企業数
+70430	2026	9	legacy	number	etudes ARPU	etudes ARPU	number	etudes ARPU	other	etudes ARPU			全体	ARPU
+70430	2026	10	legacy	number	etudes 社内利用 ARPU	etudes 社内利用 ARPU	number	etudes 社内利用 ARPU	other	etudes 社内利用 ARPU			全体 > 社内利用	ARPU
+70430	2026	11	legacy	number	etudes ビジネス利用他 ARPU	etudes ビジネス利用他 ARPU	number	etudes ビジネス利用他 ARPU	other	etudes ビジネス利用他 ARPU			全体 > ビジネス利用他	ARPU
 70490	2023	1	legacy	number	識学基本サービス 契約社数	識学基本サービス 契約社数	number	識学基本サービス 契約社数	count	識学基本サービス		契約社数	全体 > 識学基本サービス	契約社数
 70490	2023	2	legacy	number	識学基本サービスライト 契約社数	識学基本サービスライト 契約社数	number	識学基本サービスライト 契約社数	count	識学基本サービスライト		契約社数	全体 > 識学基本サービスライト	契約社数
 70490	2023	3	legacy	number	識学クラウド 契約社数	識学クラウド 契約社数	number	識学クラウド 契約社数	count	識学クラウド		契約社数	全体 > 識学クラウド	契約社数
@@ -4825,12 +4825,12 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 74220	2023	5	legacy	yoy_index	シューズ在庫(前年比)	シューズ在庫(前年比)	yoy_index	シューズ在庫(前年比)	other	シューズ在庫			全体	シューズ在庫
 74220	2023	6	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 74220	2023	7	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
-74220	2023	8	legacy	number	婦人靴 売上高	婦人靴 売上高	number	婦人靴 売上高	sales	婦人靴		売上高	全体 > 婦人靴	売上高
-74220	2023	9	legacy	yoy_index	婦人靴 売上高(前年比)	婦人靴 売上高(前年比)	yoy_index	婦人靴 売上高(前年比)	sales	婦人靴		売上高	全体 > 婦人靴	売上高
-74220	2023	10	legacy	number	紳士靴 売上高	紳士靴 売上高	number	紳士靴 売上高	sales	紳士靴		売上高	全体 > 紳士靴	売上高
-74220	2023	11	legacy	yoy_index	紳士靴 売上高(前年比)	紳士靴 売上高(前年比)	yoy_index	紳士靴 売上高(前年比)	sales	紳士靴		売上高	全体 > 紳士靴	売上高
-74220	2023	12	legacy	number	ゴム・スニーカー・その他 売上高	ゴム・スニーカー・その他 売上高	number	ゴム・スニーカー・その他 売上高	sales	ゴム・スニーカー・その他		売上高	全体 > ゴム・スニーカー・その他	売上高
-74220	2023	13	legacy	yoy_index	ゴム・スニーカー・その他 売上高(前年比)	ゴム・スニーカー・その他 売上高(前年比)	yoy_index	ゴム・スニーカー・その他 売上高(前年比)	sales	ゴム・スニーカー・その他		売上高	全体 > ゴム・スニーカー・その他	売上高
+74220	2023	8	legacy	number	婦人靴 売上高	婦人靴 売上高	number	婦人靴 売上高	sales	婦人靴		売上高	全体 > シューズ > 婦人靴	売上高
+74220	2023	9	legacy	yoy_index	婦人靴 売上高(前年比)	婦人靴 売上高(前年比)	yoy_index	婦人靴 売上高(前年比)	sales	婦人靴		売上高	全体 > シューズ > 婦人靴	売上高
+74220	2023	10	legacy	number	紳士靴 売上高	紳士靴 売上高	number	紳士靴 売上高	sales	紳士靴		売上高	全体 > シューズ > 紳士靴	売上高
+74220	2023	11	legacy	yoy_index	紳士靴 売上高(前年比)	紳士靴 売上高(前年比)	yoy_index	紳士靴 売上高(前年比)	sales	紳士靴		売上高	全体 > シューズ > 紳士靴	売上高
+74220	2023	12	legacy	number	ゴム・スニーカー・その他 売上高	ゴム・スニーカー・その他 売上高	number	ゴム・スニーカー・その他 売上高	sales	ゴム・スニーカー・その他		売上高	全体 > シューズ > ゴム・スニーカー・その他	売上高
+74220	2023	13	legacy	yoy_index	ゴム・スニーカー・その他 売上高(前年比)	ゴム・スニーカー・その他 売上高(前年比)	yoy_index	ゴム・スニーカー・その他 売上高(前年比)	sales	ゴム・スニーカー・その他		売上高	全体 > シューズ > ゴム・スニーカー・その他	売上高
 74220	2024	1	legacy	number	総利益	総利益	number	総利益	other	総利益			全体	総利益
 74220	2024	2	legacy	yoy_index	総利益(前年比)	総利益(前年比)	yoy_index	総利益(前年比)	other	総利益			全体	総利益
 74220	2024	3	legacy	number	総利益率	総利益率	number	総利益率	other	総利益率			全体	総利益率
@@ -4838,12 +4838,12 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 74220	2024	5	legacy	yoy_index	シューズ在庫(前年比)	シューズ在庫(前年比)	yoy_index	シューズ在庫(前年比)	other	シューズ在庫			全体	シューズ在庫
 74220	2024	6	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 74220	2024	7	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
-74220	2024	8	legacy	number	婦人靴 売上高	婦人靴 売上高	number	婦人靴 売上高	sales	婦人靴		売上高	全体 > 婦人靴	売上高
-74220	2024	9	legacy	yoy_index	婦人靴 売上高(前年比)	婦人靴 売上高(前年比)	yoy_index	婦人靴 売上高(前年比)	sales	婦人靴		売上高	全体 > 婦人靴	売上高
-74220	2024	10	legacy	number	紳士靴 売上高	紳士靴 売上高	number	紳士靴 売上高	sales	紳士靴		売上高	全体 > 紳士靴	売上高
-74220	2024	11	legacy	yoy_index	紳士靴 売上高(前年比)	紳士靴 売上高(前年比)	yoy_index	紳士靴 売上高(前年比)	sales	紳士靴		売上高	全体 > 紳士靴	売上高
-74220	2024	12	legacy	number	ゴム・スニーカー・その他 売上高	ゴム・スニーカー・その他 売上高	number	ゴム・スニーカー・その他 売上高	sales	ゴム・スニーカー・その他		売上高	全体 > ゴム・スニーカー・その他	売上高
-74220	2024	13	legacy	yoy_index	ゴム・スニーカー・その他 売上高(前年比)	ゴム・スニーカー・その他 売上高(前年比)	yoy_index	ゴム・スニーカー・その他 売上高(前年比)	sales	ゴム・スニーカー・その他		売上高	全体 > ゴム・スニーカー・その他	売上高
+74220	2024	8	legacy	number	婦人靴 売上高	婦人靴 売上高	number	婦人靴 売上高	sales	婦人靴		売上高	全体 > シューズ > 婦人靴	売上高
+74220	2024	9	legacy	yoy_index	婦人靴 売上高(前年比)	婦人靴 売上高(前年比)	yoy_index	婦人靴 売上高(前年比)	sales	婦人靴		売上高	全体 > シューズ > 婦人靴	売上高
+74220	2024	10	legacy	number	紳士靴 売上高	紳士靴 売上高	number	紳士靴 売上高	sales	紳士靴		売上高	全体 > シューズ > 紳士靴	売上高
+74220	2024	11	legacy	yoy_index	紳士靴 売上高(前年比)	紳士靴 売上高(前年比)	yoy_index	紳士靴 売上高(前年比)	sales	紳士靴		売上高	全体 > シューズ > 紳士靴	売上高
+74220	2024	12	legacy	number	ゴム・スニーカー・その他 売上高	ゴム・スニーカー・その他 売上高	number	ゴム・スニーカー・その他 売上高	sales	ゴム・スニーカー・その他		売上高	全体 > シューズ > ゴム・スニーカー・その他	売上高
+74220	2024	13	legacy	yoy_index	ゴム・スニーカー・その他 売上高(前年比)	ゴム・スニーカー・その他 売上高(前年比)	yoy_index	ゴム・スニーカー・その他 売上高(前年比)	sales	ゴム・スニーカー・その他		売上高	全体 > シューズ > ゴム・スニーカー・その他	売上高
 74220	2025	1	legacy	number	総利益	総利益	number	総利益	other	総利益			全体	総利益
 74220	2025	2	legacy	number	総利益率	総利益率	number	総利益率	other	総利益率			全体	総利益率
 74220	2025	3	legacy	number	シューズ在庫	シューズ在庫	number	シューズ在庫	other	シューズ在庫			全体	シューズ在庫
@@ -4851,12 +4851,12 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 74220	2025	5	legacy	yoy_index	総利益(前年比)	総利益(前年比)	yoy_index	総利益(前年比)	other	総利益			全体	総利益
 74220	2025	6	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 74220	2025	7	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
-74220	2025	8	legacy	number	婦人靴 売上高	婦人靴 売上高	number	婦人靴 売上高	sales	婦人靴		売上高	全体 > 婦人靴	売上高
-74220	2025	9	legacy	yoy_index	婦人靴 売上高(前年比)	婦人靴 売上高(前年比)	yoy_index	婦人靴 売上高(前年比)	sales	婦人靴		売上高	全体 > 婦人靴	売上高
-74220	2025	10	legacy	number	紳士靴 売上高	紳士靴 売上高	number	紳士靴 売上高	sales	紳士靴		売上高	全体 > 紳士靴	売上高
-74220	2025	11	legacy	yoy_index	紳士靴 売上高(前年比)	紳士靴 売上高(前年比)	yoy_index	紳士靴 売上高(前年比)	sales	紳士靴		売上高	全体 > 紳士靴	売上高
-74220	2025	12	legacy	number	ゴム・スニーカー・その他 売上高	ゴム・スニーカー・その他 売上高	number	ゴム・スニーカー・その他 売上高	sales	ゴム・スニーカー・その他		売上高	全体 > ゴム・スニーカー・その他	売上高
-74220	2025	13	legacy	yoy_index	ゴム・スニーカー・その他 売上高(前年比)	ゴム・スニーカー・その他 売上高(前年比)	yoy_index	ゴム・スニーカー・その他 売上高(前年比)	sales	ゴム・スニーカー・その他		売上高	全体 > ゴム・スニーカー・その他	売上高
+74220	2025	8	legacy	number	婦人靴 売上高	婦人靴 売上高	number	婦人靴 売上高	sales	婦人靴		売上高	全体 > シューズ > 婦人靴	売上高
+74220	2025	9	legacy	yoy_index	婦人靴 売上高(前年比)	婦人靴 売上高(前年比)	yoy_index	婦人靴 売上高(前年比)	sales	婦人靴		売上高	全体 > シューズ > 婦人靴	売上高
+74220	2025	10	legacy	number	紳士靴 売上高	紳士靴 売上高	number	紳士靴 売上高	sales	紳士靴		売上高	全体 > シューズ > 紳士靴	売上高
+74220	2025	11	legacy	yoy_index	紳士靴 売上高(前年比)	紳士靴 売上高(前年比)	yoy_index	紳士靴 売上高(前年比)	sales	紳士靴		売上高	全体 > シューズ > 紳士靴	売上高
+74220	2025	12	legacy	number	ゴム・スニーカー・その他 売上高	ゴム・スニーカー・その他 売上高	number	ゴム・スニーカー・その他 売上高	sales	ゴム・スニーカー・その他		売上高	全体 > シューズ > ゴム・スニーカー・その他	売上高
+74220	2025	13	legacy	yoy_index	ゴム・スニーカー・その他 売上高(前年比)	ゴム・スニーカー・その他 売上高(前年比)	yoy_index	ゴム・スニーカー・その他 売上高(前年比)	sales	ゴム・スニーカー・その他		売上高	全体 > シューズ > ゴム・スニーカー・その他	売上高
 74220	2025	14	legacy	number	シューズ 売上高	シューズ 売上高	number	シューズ 売上高	sales	シューズ		売上高	全体 > シューズ	売上高
 74220	2025	15	legacy	yoy_index	シューズ 売上高(前年比)	シューズ 売上高(前年比)	yoy_index	シューズ 売上高(前年比)	sales	シューズ		売上高	全体 > シューズ	売上高
 74220	2025	16	legacy	number	不動産 売上高	不動産 売上高	number	不動産 売上高	sales	不動産		売上高	全体 > 不動産	売上高
@@ -4867,12 +4867,12 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 74220	2026	5	legacy	yoy_index	シューズ在庫(前年比)	シューズ在庫(前年比)	yoy_index	シューズ在庫(前年比)	other	シューズ在庫			全体	シューズ在庫
 74220	2026	6	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 74220	2026	7	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
-74220	2026	8	legacy	number	婦人靴 売上高	婦人靴 売上高	number	婦人靴 売上高	sales	婦人靴		売上高	全体 > 婦人靴	売上高
-74220	2026	9	legacy	yoy_index	婦人靴 売上高(前年比)	婦人靴 売上高(前年比)	yoy_index	婦人靴 売上高(前年比)	sales	婦人靴		売上高	全体 > 婦人靴	売上高
-74220	2026	10	legacy	number	紳士靴 売上高	紳士靴 売上高	number	紳士靴 売上高	sales	紳士靴		売上高	全体 > 紳士靴	売上高
-74220	2026	11	legacy	yoy_index	紳士靴 売上高(前年比)	紳士靴 売上高(前年比)	yoy_index	紳士靴 売上高(前年比)	sales	紳士靴		売上高	全体 > 紳士靴	売上高
-74220	2026	12	legacy	number	ゴム・スニーカー・その他 売上高	ゴム・スニーカー・その他 売上高	number	ゴム・スニーカー・その他 売上高	sales	ゴム・スニーカー・その他		売上高	全体 > ゴム・スニーカー・その他	売上高
-74220	2026	13	legacy	yoy_index	ゴム・スニーカー・その他 売上高(前年比)	ゴム・スニーカー・その他 売上高(前年比)	yoy_index	ゴム・スニーカー・その他 売上高(前年比)	sales	ゴム・スニーカー・その他		売上高	全体 > ゴム・スニーカー・その他	売上高
+74220	2026	8	legacy	number	婦人靴 売上高	婦人靴 売上高	number	婦人靴 売上高	sales	婦人靴		売上高	全体 > シューズ > 婦人靴	売上高
+74220	2026	9	legacy	yoy_index	婦人靴 売上高(前年比)	婦人靴 売上高(前年比)	yoy_index	婦人靴 売上高(前年比)	sales	婦人靴		売上高	全体 > シューズ > 婦人靴	売上高
+74220	2026	10	legacy	number	紳士靴 売上高	紳士靴 売上高	number	紳士靴 売上高	sales	紳士靴		売上高	全体 > シューズ > 紳士靴	売上高
+74220	2026	11	legacy	yoy_index	紳士靴 売上高(前年比)	紳士靴 売上高(前年比)	yoy_index	紳士靴 売上高(前年比)	sales	紳士靴		売上高	全体 > シューズ > 紳士靴	売上高
+74220	2026	12	legacy	number	ゴム・スニーカー・その他 売上高	ゴム・スニーカー・その他 売上高	number	ゴム・スニーカー・その他 売上高	sales	ゴム・スニーカー・その他		売上高	全体 > シューズ > ゴム・スニーカー・その他	売上高
+74220	2026	13	legacy	yoy_index	ゴム・スニーカー・その他 売上高(前年比)	ゴム・スニーカー・その他 売上高(前年比)	yoy_index	ゴム・スニーカー・その他 売上高(前年比)	sales	ゴム・スニーカー・その他		売上高	全体 > シューズ > ゴム・スニーカー・その他	売上高
 74220	2026	14	legacy	number	シューズ 売上高	シューズ 売上高	number	シューズ 売上高	sales	シューズ		売上高	全体 > シューズ	売上高
 74220	2026	15	legacy	yoy_index	シューズ 売上高(前年比)	シューズ 売上高(前年比)	yoy_index	シューズ 売上高(前年比)	sales	シューズ		売上高	全体 > シューズ	売上高
 74220	2026	16	legacy	number	不動産 売上高	不動産 売上高	number	不動産 売上高	sales	不動産		売上高	全体 > 不動産	売上高
