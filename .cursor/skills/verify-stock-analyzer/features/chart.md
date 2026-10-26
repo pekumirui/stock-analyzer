@@ -5,7 +5,7 @@ The chart tab searches an issuer and draws adjusted daily, weekly, or monthly ca
 ## Sub-features
 
 - `chart-search` typeahead from `#sym` via `/api/stocks/search`.
-- `chart-candles` fills `#chart` from `/api/chart/{code}` `candles` when `表示` / `pick` / `gotoChart` runs `loadChart()`.
+- `chart-candles` fills `#chart` (Lightweight Charts 5.2.1 from unpkg; v5 API `addSeries(LightweightCharts.CandlestickSeries)` / `createSeriesMarkers`) from `/api/chart/{code}` `candles` when `表示` / `pick` / `gotoChart` runs `loadChart()`.
 - `chart-rel` toggles `#rel` and shows `#relwrap` when `/api/chart/{code}` includes TOPIX (still needs `表示` after flipping the checkbox).
 - `chart-perf` fills `#perf-tbl` from `/api/earnings-performance/{code}`.
 - `chart-events` `.evt-toggles` (決算発表) overlays markers from chart JSON `earnings_dates`; defaults off unless `localStorage.chartEventOverlays` restored them.

@@ -53,7 +53,7 @@ def _pick_earnings_date(base: str, month: str, today: str) -> str | None:
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("feature", choices=["screener", "earnings", "chart", "monthly", "search", "supply", "pts"])
+    p.add_argument("feature", choices=["screener", "earnings", "chart", "stock", "monthly", "search", "supply", "pts"])
     p.add_argument("--date", default="")
     p.add_argument("--code", default="")
     p.add_argument("--month", default="")
@@ -114,6 +114,27 @@ def main() -> None:
         pst, pbody = _get(perf_url)
         _write("chart", "performance.json", "GET", perf_url, pst, pbody)
         print(path)
+        return
+
+    if args.feature == "stock":
+        code = args.code or "72030"
+        url = f"{base}/api/stock/{code}/filings"
+        status, body = _get(url)
+        path = _write("stock", "filings.json", "GET", url, status, body)
+        filings = body.get("filings") if isinstance(body, dict) else None
+        if status != 200 or filings is None:
+            raise SystemExit(f"stock {code} failed status={status}")
+        docs = [d for f in filings for d in (f.get("documents") or [])]
+        (ART / "stock" / "document.html").unlink(missing_ok=True)
+        if docs:
+            doc_url = base + docs[0]["url"]
+            with urllib.request.urlopen(doc_url, timeout=30) as r:
+                html = r.read()
+                (ART / "stock" / "document.html").write_bytes(html)
+                (ART / "stock" / "request.txt").write_text(
+                    f"GET {url}\nstatus {status}\nGET {doc_url}\nstatus {r.status}\n", encoding="utf-8")
+        # xbrl_documents が空の DB でも 200。件数を出して判断を任せる
+        print(path, f"filings={len(filings)} documents={len(docs)}")
         return
 
     if args.feature == "monthly":

@@ -1,6 +1,6 @@
 ---
 name: verify-stock-analyzer
-description: "Drive the stock-analyzer SPA (FastAPI + static/index.html + static/css/ + static/js/) the way a user does: launch uvicorn, open tabs, call the same /api/* the UI uses, capture evidence. Reach for this when proving 決算速報 / チャート / スクリーナー / PTS / 月次 / サプライ after a UI or API change."
+description: "Drive the stock-analyzer SPA (FastAPI + static/index.html + static/css/ + static/js/) the way a user does: launch uvicorn, open tabs, call the same /api/* the UI uses, capture evidence. Reach for this when proving 決算速報 / チャート / 銘柄 / スクリーナー / PTS / 月次 / サプライ after a UI or API change."
 ---
 
 # verify-stock-analyzer
@@ -25,13 +25,13 @@ Prefer a helper that picks the right interpreter (`.venv\Scripts\python.exe` on 
 .venv/bin/python .cursor/skills/verify-stock-analyzer/helpers/launch.py
 ```
 
-Default URL: `http://127.0.0.1:8000`. Override with env `VERIFY_PORT`. Ready when stdout JSON appears and `GET /app` returns 200 whose HTML contains `<title>株式分析ツール</title>`. The header has no brand title; ≤720px `#menu-btn` is first then `#cur-tab`. `GET /` は `/monthly` へ 301。 State is `.cursor/skills/verify-stock-analyzer/.run/state.json` (`pid`, `port`, `url`, `adopted`, `db`). Adopted servers have `"adopted": true`, `pid: null`, and `db: null` (their DB is unknown; a leftover server from another worktree can be on a different DB and older code). Do not kill them. Pick another `VERIFY_PORT` when you need your own code or DB. A started server inherits `DATABASE_URL`, and `db` records it (else the repo `stock.db`). Set `VERIFY_WAIT=0` only if you confirmed the child survives after launch.py exits.
+Default URL: `http://127.0.0.1:8000`. Override with env `VERIFY_PORT`. Ready when stdout JSON appears and `GET /app` returns 200 whose HTML contains `<title>株式分析ツール</title>`. The header has no brand title and no `#home`: its children are `#menu-btn`, `#cur-tab`, `nav#app-nav` (7 tabs: 決算速報 / チャート / 銘柄 / スクリーナー / PTS / 月次 / サプライ); ≤720px `#menu-btn` is first then `#cur-tab`. `GET /` は `/monthly` へ 301。 State is `.cursor/skills/verify-stock-analyzer/.run/state.json` (`pid`, `port`, `url`, `adopted`, `db`). Adopted servers have `"adopted": true`, `pid: null`, and `db: null` (their DB is unknown; a leftover server from another worktree can be on a different DB and older code). Do not kill them. Pick another `VERIFY_PORT` when you need your own code or DB. A started server inherits `DATABASE_URL`, and `db` records it (else the repo `stock.db`). Set `VERIFY_WAIT=0` only if you confirmed the child survives after launch.py exits.
 
 Uses the repo's `stock.db` (read-only for UI proofs). Do not `.\run.ps1 reset` / `./run.sh reset`. Do not point `DATABASE_URL` at the user's DB from a second writer. If the port is taken by a non-SPA process, launch exits non-zero. Free the port or pick another `VERIFY_PORT`.
 
 If `stock.db` is missing, launch still starts (empty UI). Doctor then fails until a DB exists: `./run.sh golden` (seconds; golden real data for ~45 codes, all monthly, recent `material_*`) or `./run.sh backfill 2` (all codes, ~40 min). `jobs/golden_db.py` writes to `DATABASE_URL`, so `DATABASE_URL=sqlite:////abs/path/golden.db .venv/bin/python jobs/golden_db.py` builds a side DB (about 6 s) without touching `stock.db`.
 
-If launch prints `uvicorn exited 1`, read `.run/uvicorn.log`. `app.db.SchemaMismatch` (e.g. `xbrl_financials: value_kind, range_side, target_period, source_layer`, or `stocks: edinet_code` / `xbrl_contexts: member_labels_json` from the EDINET ingest #793/#804) means the DB is older than the code. `./run.sh migrate` (`jobs/migrate.py`) adds the columns; run it only on a DB this run owns (a copy), never on a shared or production DB. On start the app also `create_all`s missing tables (e.g. empty `pts_snapshots`, `large_holding_reports` / `large_holdings` from #815), so a DB missing only tables starts without SchemaMismatch.
+If launch prints `uvicorn exited 1`, read `.run/uvicorn.log`. `app.db.SchemaMismatch` (e.g. `xbrl_financials: value_kind, range_side, target_period, source_layer`, or `stocks: edinet_code` / `xbrl_contexts: member_labels_json` from the EDINET ingest #793/#804, or `xbrl_filings: documents_status` / `xbrl_std_items: unit` / `xbrl_element_mappings: part` from the 銘柄 tab and XBRL work after #881) means the DB is older than the code. `./run.sh migrate` (`jobs/migrate.py`) adds the columns; run it only on a DB this run owns (a copy), never on a shared or production DB. On start the app also `create_all`s missing tables (e.g. empty `pts_snapshots`, `large_holding_reports` / `large_holdings` from #815, `xbrl_documents` / `tdnet_pdf_documents` / `edinet_buybacks` / `edinet_tender_offers` after #881), so a DB missing only tables starts without SchemaMismatch.
 
 Teardown: see Cleanup. Keep the server up for the whole drive.
 
@@ -61,24 +61,26 @@ Stdout is JSON. If screener is empty, the instance is up but the DB was not back
 
 HTTP against the same routes the SPA uses, plus the browser when CDP is available.
 
-**Route memory (#130):** `boot.js` calls `restoreRoute()` after priming today's earnings list. Hash / `localStorage` `ui.route` forms are `earnings` | `screener` | `pts` | `chart` | `monthly` | `supply` | `chart/{code}` | `monthly/{code}` | `supply/{id}` (material or company id, `^[a-z][a-z0-9_]*$`). Clear them when proving the cold default tab.
+**Route memory (#130):** `boot.js` calls `restoreRoute()` after priming today's earnings list. Hash / `localStorage` `ui.route` forms are `earnings` | `screener` | `pts` | `chart` | `stock` | `monthly` | `supply` | `chart/{code}` | `stock/{code}` | `monthly/{code}` | `supply/{id}` (material or company id, `^[a-z][a-z0-9_]*$`). Clear them when proving the cold default tab.
 
 **SPA handles (do not use coordinates):**
 
 | User control | Handle |
 |---|---|
 | 決算速報 tab | `nav button[data-tab="earnings"]` (fallback default when no `ui.route`/hash; `#tab-earnings` visible) |
-| Header ≤720px | Tabs live in drawer `nav#app-nav` (off-screen until `.open`). `#menu-btn` (三本線, left of `#cur-tab`) toggles it, `#nav-backdrop` / Esc / a tab pick / left swipe close it. `#cur-tab` shows the current tab name. Above 720px `#menu-btn` and `#cur-tab` are `display:none` and the nav is one row |
+| Header ≤720px | Tabs live in drawer `nav#app-nav` (off-screen until `.open`). `#menu-btn` (三本線, left of `#cur-tab`) toggles it, `#nav-backdrop` / Esc / a tab pick / left swipe close it. `#cur-tab` shows the current tab name. While the drawer is `.open`, `#menu-btn` and `#cur-tab` are `visibility:hidden`. Above 720px `#menu-btn` and `#cur-tab` are `display:none` and the nav is one row |
 | 月次 tab | `nav button[data-tab="monthly"]` |
 | チャート tab | `nav button[data-tab="chart"]` |
+| 銘柄 tab | `nav button[data-tab="stock"]` (between チャート and スクリーナー). Search `#st-sym` + `#st-suggest`, filing `select#st-filing`, zoom `#st-zoom .ftab[data-zoom="fit"|"mid"|"actual"]`, `#st-title`, `#st-src`, `#st-doc` (one sandboxed iframe per document). See `features/stock.md` |
 | スクリーナー tab | `nav button[data-tab="screener"]` |
 | PTS tab | `nav button[data-tab="pts"]` |
 | サプライ tab | `nav button[data-tab="supply"]` |
 | Earnings calendar | `#cal-btn` opens `#cal-pop`; `#cal-title` + ◀/▶ (`calMove(±1)`) change month and refetch `/api/earnings/calendar?month=YYYY-MM&today=YYYY-MM-DD` (`today` is `todayISO()`). A month already fetched is drawn from `calCells` first, then refetched; boot prefetches this month after the first list (`calPrefetch`). Day cells are `#cal .d` with `onclick="selectDate('YYYY-MM-DD')"`. A day with filings or a schedule shows `.cnt` (`cell.n` plus `件`). Future schedules add `.cnt.sched`. Today with names still scheduled adds `.cnt.pend` as `+N`. Esc / `#cal-backdrop` / a day click close the popover. |
-| Earnings row | `#earn-tbl tr[data-no]` for a filing. `#earn-tbl tr[data-code]` for a scheduled issuer (QoQ/YoY and time are `–`). The first row of the day is auto-selected. Columns 時刻 / 決算期 / 銘柄 / `3か月 / QoQ` ×4 / `累計 / YoY` ×4 (11 cells). Metric cells show the amount with the rate under it in `.g` |
+| Earnings row | `#earn-tbl tr[data-no]` for a filing. `#earn-tbl tr[data-code]` for a scheduled issuer (time and the four metric cells are `–`). The first row of the day is auto-selected. One header row: 時刻 / 決算期 / 銘柄 / 売上 / 営利 / 経利 / 純利 (7 cells). The four metric cells follow `#earn-view` (amount with the rate under it in `.g`, or 進捗率 with the prior year's in `.prev`) |
+| Earnings list view / Q filter | `#earn-view .ftab[data-view="cum"]` 累計 (default) / `[data-view="q"]` 3か月 / `[data-view="prog"]` 進捗率 (no refetch). `#earn-qf input[value="1Q"…"4Q"]` checkboxes (FY / 5Q count as 4Q); kept across `selectDate` |
 | Earnings search | `#earn-sym` (placeholder `銘柄名 or コード`), suggestions `#earn-suggest` from `/api/stocks/search`. A pick jumps the list to that issuer's latest filing day |
-| Earnings sector chips | `#earn-groups .mchip[data-sector]` (すべて = `""`, then `sector33` by issuer count, count in `.n`). Filters `#earn-tbl`; reset on every `selectDate` |
-| 累計 / 3か月 / 修正履歴 | `.ftab[data-fin="cum"]` (default on) / `.ftab[data-fin="q"]` / `.ftab[data-fin="rev"]` → `#cum-wrap` / `#q-wrap` / `#rev-wrap`. Use `[data-fin]`: the PTS ranking buttons are `.ftab` too |
+| Earnings sector chips | `#earn-groups .mchip[data-sector]` (すべて = `""`, then the top 5 `sector33` by issuer count, count in `.n`, then `.mchip.more[data-more="1"]` 「他 N業種」; open shows all plus `[data-more="0"]` 閉じる). Filters `#earn-tbl`; reset on every `selectDate` |
+| 累計 / 3か月 / 進捗率 / 修正履歴 | `.ftab[data-fin="cum"]` (default on) / `[data-fin="q"]` / `[data-fin="prog"]` / `[data-fin="rev"]` → `#cum-wrap` / `#q-wrap` / `#prog-wrap` / `#rev-wrap`. Use `[data-fin]`: the PTS ranking and 銘柄 zoom buttons are `.ftab` too |
 | Earnings embedded chart | `#e-chart` / `.a-chart` (same `/api/chart` as chart tab) |
 | Event overlays | `.evt-toggles` on earnings + chart (`input[data-evt="earnings"]`, label 決算発表) |
 | Chart search | `#sym` (placeholder `銘柄名 or コード`), suggestions `#suggest` |
@@ -92,7 +94,7 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 | PTS controls | `#pts-date` (session day), `#pts-ranking .ftab[data-ranking]` (`night_up` 値上がり / `night_down` 値下がり / `night_volume` 出来高), `#pts-at` (取得時刻), `#pts-info`, `#pts-summary`, `#pts-tbl` (name `.clicky` → `gotoChart`) |
 | Monthly list | `#monthly-groups`, `#monthly-list` (host), `#monthly-tbl` |
 | Monthly issuer search | `#monthly-sym` (placeholder `銘柄名 or コード`), suggestions `#monthly-suggest` from loaded monthly issuers (not `/api/stocks/search`). Enter or suggestion pick filters `#monthly-tbl`; company-name click opens Detail |
-| Monthly detail | `#monthly-detail`, `#monthly-series`, `#monthly-chart`, `#monthly-table-wrap`, `#monthly-back` |
+| Monthly detail | `#monthly-detail`, `#monthly-series`, `#monthly-chart` (one SVG line chart, `.monthly-legend`, `rect.monthly-hit[data-m]` → `.monthly-tip`), `#monthly-table-wrap`, `#monthly-back` |
 | Monthly timeline | `#monthly-table-wrap table.monthly-tl` (the only Detail table on `/app` and public `/monthly`). Tree toggles are `td.tl-name.tl-tog`. Month cells are `td.num[data-m]` and open `#monthly-pop`. Paired amount/yoy rows show both in the cell (`.tl-sub`) |
 | Supply map | `#supply-map` (Cytoscape; nodes are material ids, `.sel` / `.dim` / `.ctry`). Tap a box to pick; empty map or `#supply-reset` (全体表示) clears. `#supply-merge` (線をまとめる) re-lays out |
 | Supply search | `#supply-q` + `datalist#supply-names`; commits on `change` (exact label → 4-digit code → material name part → company name part) |
@@ -105,9 +107,12 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 | Open 決算速報 calendar | `GET /api/earnings/calendar?month=YYYY-MM&today=YYYY-MM-DD` |
 | Click a day | `GET /api/earnings?date=YYYY-MM-DD&today=YYYY-MM-DD` |
 | Select a filing row | `GET /api/earnings/detail/{code}?disclosure_no=...` (also carries `revisions` for 修正履歴) and `GET /api/chart/{code}?tf=D&ma=50,150,200` into `#e-chart` |
-| Select a scheduled row | `GET /api/chart/{code}?tf=D&ma=50,150,200` only. `#cum-tbl`, `#q-tbl`, and `#rev-tbl` read `まだ開示されていません` |
+| Select a scheduled row | `GET /api/chart/{code}?tf=D&ma=50,150,200` only. `#cum-tbl`, `#q-tbl`, `#prog-tbl`, and `#rev-tbl` read `まだ開示されていません` |
 | Chart search typeahead | `GET /api/stocks/search?q=...` |
 | Chart 表示 (UI defaults) | `GET /api/chart/{code}?tf=D&ma=50,150,200&rel=false` (may include `earnings_dates`) and `GET /api/earnings-performance/{code}` |
+| Open 銘柄 tab | nothing until a code is picked |
+| 銘柄 search typeahead | `GET /api/stocks/search?q=...` |
+| 銘柄 pick / reload on `#stock/{code}` | `GET /api/stock/{code}/filings`, then each iframe loads `GET /api/stock/filings/{id}/documents/{seq}` (HTML, CSP + ETag, 304 on `If-None-Match`). A PDF filing loads `/api/stock/pdf/{disclosure_no}` documents |
 | Screener 検索 (UI defaults) | `GET /api/screener?stage=2&rs_min=70` |
 | Open PTS (first time, or reload on `#pts`) | `GET /api/pts?ranking=night_up` |
 | PTS ranking / session day / 取得時刻 | `GET /api/pts?ranking=...&date=YYYY-MM-DD` (+ `&at=YYYY-MM-DD HH:MM:SS` from `#pts-at`) |
@@ -130,7 +135,7 @@ HTTP capture:
 .venv/bin/python .cursor/skills/verify-stock-analyzer/helpers/capture.py screener
 ```
 
-Writes under `artifacts/<feature>/`. For a calendar day, pass `capture.py earnings --date YYYY-MM-DD`. Across a month boundary, pass `--month YYYY-MM` (machine local month, same as `renderCal`). For monthly Detail, pass `capture.py monthly --code CODE`. For サプライ, pass `capture.py supply --id MATERIAL_ID` (default `ethylene`). For PTS, pass `capture.py pts [--ranking night_up|night_down|night_volume] [--date YYYY-MM-DD]`; it exits 0 on an empty DB and prints `dates=` / `rows=`.
+Writes under `artifacts/<feature>/`. For a calendar day, pass `capture.py earnings --date YYYY-MM-DD`. Across a month boundary, pass `--month YYYY-MM` (machine local month, same as `renderCal`). For monthly Detail, pass `capture.py monthly --code CODE`. For サプライ, pass `capture.py supply --id MATERIAL_ID` (default `ethylene`). For PTS, pass `capture.py pts [--ranking night_up|night_down|night_volume] [--date YYYY-MM-DD]`; it exits 0 on an empty DB and prints `dates=` / `rows=`. For 銘柄, pass `capture.py stock --code CODE` (default `72030`); it writes `filings.json` (+ `document.html` of the first document) and exits 0 with `filings=0` when `xbrl_documents` has nothing for that code.
 
 **Browser (user path).** When `browser-use` / CDP works: open `{url}/app` from state.json (`new_tab(url + "/app")`), `wait_for_load()`, click `nav button[data-tab="..."]`, then the feature file. Bare `{url}/` is public `/monthly` (301), not the Basic SPA. Do not `goto_url` for the first navigation. Screenshots via `capture_screenshot()` saved into `artifacts/<feature>/`. If Chrome remote debugging is denied, record that and finish the proof with the HTTP captures of the same routes.
 
@@ -155,7 +160,7 @@ Minimum files per feature:
 
 - `request.txt`: method, URL, status
 - `body.json`: response (truncate lists to 20 rows if huge, keep `date` / counts)
-- `ui.png`: only when the browser path ran. Document title is `株式分析ツール`. Header has no brand `h1`; ≤720px `#menu-btn` is on the left then `#cur-tab`
+- `ui.png`: only when the browser path ran. Document title is `株式分析ツール`. Header has no brand `h1` and no `#home`; ≤720px `#menu-btn` is on the left then `#cur-tab`
 
 ## Cleanup
 
@@ -181,5 +186,5 @@ All run from the repo root with the venv interpreter (`.venv\Scripts\python.exe`
 |---|---|
 | `helpers/launch.py` | Adopt or start uvicorn on `VERIFY_PORT` (default 8000), wait for `GET /app`, write `.run/state.json` |
 | `helpers/doctor.py` | Read-only health JSON. Exit 1 if screener is empty or the SPA is not up |
-| `helpers/capture.py <feature> [--date YYYY-MM-DD] [--month YYYY-MM] [--code CODE] [--id MATERIAL_ID] [--ranking RANKING]` | GET the SPA `/api/*` routes into `artifacts/<feature>/` (features: screener / search / earnings / chart / pts / monthly / supply) |
+| `helpers/capture.py <feature> [--date YYYY-MM-DD] [--month YYYY-MM] [--code CODE] [--id MATERIAL_ID] [--ranking RANKING]` | GET the SPA `/api/*` routes into `artifacts/<feature>/` (features: screener / search / earnings / chart / stock / pts / monthly / supply) |
 | `helpers/cleanup.py` | Stop a pid we started; leave adopted servers alone; keep artifacts |
