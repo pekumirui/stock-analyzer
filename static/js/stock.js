@@ -166,7 +166,40 @@ function renderStockSummary(){
     ["自己資本比率", val(m.equity_ratio, v => `${fmt(v * 100, 1)}%`)],
   ];
   $("#st-metrics").innerHTML = items.map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+  loadStockFin();
 }
+
+// 業績は決算速報の決算表と同じ表（earnings.js の renderFin / renderProg / renderRev）。最新の実績開示で描く
+let stockFinCode = "";
+async function loadStockFin(){
+  const code = stockCode;
+  if(stockFinCode === code) return;
+  stockFinCode = code;
+  const tbls = ["#st-cum-tbl", "#st-q-tbl", "#st-prog-tbl", "#st-rev-tbl"];
+  tbls.forEach(s => { $(s).innerHTML = ""; });
+  let d = null;
+  try {
+    d = await api(`/api/earnings/detail/${code}`, {signal: stockAc.signal});
+  } catch(e){
+    if(e.name === "AbortError") return;
+    if(code !== stockCode) return;
+    if(String(e.message) !== "404"){
+      stockFinCode = "";
+      tbls.forEach(s => { $(s).innerHTML = `<tr><td class="l sub">読み込めませんでした。</td></tr>`; });
+      return;
+    }
+  }
+  if(code !== stockCode) return;
+  renderFin($("#st-cum-tbl"), d && d.cumulative, d);
+  renderFin($("#st-q-tbl"), d && d.quarterly, d);
+  renderProg($("#st-prog-tbl"), d && d.progress, d);
+  renderRev($("#st-rev-tbl"), d && d.revisions, d);
+}
+
+document.querySelectorAll("#st-fin-tabs .ftab").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#st-fin-tabs .ftab").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll("[data-stfin-wrap]").forEach(w => { w.hidden = w.dataset.stfinWrap !== b.dataset.stfin; });
+});
 
 // ニュース（KAB-178 では短信の一覧 /filings の決算・修正だけ。ほかの種類は KAB-180）
 function loadStockFilings(){

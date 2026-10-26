@@ -120,6 +120,21 @@
     <p id="st-msg" class="sub" hidden></p>
     <div id="st-sub-summary" class="st-sub" hidden>
       <div id="st-metrics"></div>
+      <div id="st-fin">
+        <div class="phead">
+          <div class="fin-tabs" id="st-fin-tabs">
+            <button type="button" class="ftab on" data-stfin="cum">累計</button>
+            <button type="button" class="ftab" data-stfin="q">3か月</button>
+            <button type="button" class="ftab" data-stfin="prog">進捗率</button>
+            <button type="button" class="ftab" data-stfin="rev">修正履歴</button>
+          </div>
+          <span class="sub" style="font-size:12px">単位: 百万円</span>
+        </div>
+        <div class="tbl-wrap" data-stfin-wrap="cum"><table class="fin" id="st-cum-tbl"></table></div>
+        <div class="tbl-wrap" data-stfin-wrap="q" hidden><table class="fin" id="st-q-tbl"></table></div>
+        <div class="tbl-wrap" data-stfin-wrap="prog" hidden><table class="fin" id="st-prog-tbl"></table></div>
+        <div class="tbl-wrap" data-stfin-wrap="rev" hidden><table class="fin" id="st-rev-tbl"></table></div>
+      </div>
     </div>
     <div id="st-sub-price" class="st-sub" hidden>
       <div class="row">
