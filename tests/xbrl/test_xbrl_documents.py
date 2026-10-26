@@ -144,7 +144,7 @@ def test_spa_has_stock_tab() -> None:
     js = (root / "static/js/stock.js").read_text(encoding="utf-8")
     assert 'data-tab="stock"' in html and 'id="tab-stock"' in html
     assert '/static/js/stock.js' in html
-    assert '"stock"' in tabs and "loadStock(code)" in tabs
+    assert '"stock"' in tabs and "openStockRoute(code)" in tabs
     # 原文は script を動かさない iframe で出す
     assert 'setAttribute("sandbox", "allow-same-origin")' in js
     assert "/api/stocks/search" in js

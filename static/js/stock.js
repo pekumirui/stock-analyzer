@@ -1,11 +1,18 @@
-// 銘柄タブ（KAB-161。docs/DESIGN_stock.md）。銘柄を検索し、決算短信の原文を PDF と同じ並びで読む
+// 銘柄タブ（KAB-161 / KAB-177。docs/DESIGN_stock.md）。共通ヘッダーと中のタブ 概要 / 株価 / ニュース / 株主。
+// ニュースの詳細で決算短信の原文を PDF と同じ並びで読む
 let stockCode = "";
-let stockFilings = [];
+let stockSub = "summary";
+let stockNewsId = "";
+let stockOverview = null;
+let stockFilings = null;   // null = まだ読んでいない
+let stockFilingsReq = null;
+let stockDocKey = "";
 let stockAc = null;
 
 const STOCK_MAIN_DOC_TYPES = ["annual", "semiannual", "quarterly"];
-// XBRL の回は xbrl_filings.id、PDF から変換した回（KAB-164）は TDnet の docID
-const stockFilingKey = f => f.source === "pdf" ? `pdf:${f.disclosure_no}` : `x:${f.id}`;
+// ニュースの id。XBRL の回は x{xbrl_filings.id}、PDF から変換した回（KAB-164）は p{TDnet の docID}
+const stockNewsKey = f => f.source === "pdf" ? `p${f.disclosure_no}` : `x${f.id}`;
+const stockEsc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 
 function stockSuggest(rs){
   const box = $("#st-suggest");
@@ -43,32 +50,61 @@ function stockPick(s){
   loadStock(s.code);
 }
 
-function stockMsg(text){
-  const host = $("#st-doc");
-  host.innerHTML = "";
-  $("#st-src").hidden = true;
-  const p = document.createElement("p");
-  p.className = "sub";
-  p.textContent = text;
-  host.appendChild(p);
+function stockRoutePath(){
+  if(!stockCode) return "";
+  if(stockSub === "news" && stockNewsId) return `${stockCode}/news/${stockNewsId}`;
+  return `${stockCode}/${stockSub}`;
 }
 
-async function loadStock(code){
+// ルート（{code5} / {code5}/{sub} / {code5}/news/{id}。tabs.js で形は確かめ済み）を開く
+function openStockRoute(path){
+  const [code, sub, id] = String(path).split("/");
+  showStock(code, sub || "summary", sub === "news" ? (id || "") : "");
+}
+
+// 銘柄を選び直す。中のタブはそのまま（ニュースの詳細にいたら一覧へ）
+function loadStock(code){
+  showStock(code, stockSub, "");
+}
+
+function stockMsg(text){
+  const m = $("#st-msg");
+  m.textContent = text || "";
+  m.hidden = !text;
+}
+
+async function showStock(code, sub, newsId){
+  const changed = code !== stockCode || !stockOverview;
   stockCode = code;
-  writeRoute("stock", code);
-  if(stockAc) stockAc.abort();
-  stockAc = new AbortController();
-  let d;
-  try {
-    d = await api(`/api/stock/${code}/filings`, {signal: stockAc.signal});
-  } catch(e){
-    if(e.name === "AbortError") return;
-    $("#st-title").textContent = "";
-    $("#st-filing").innerHTML = "";
-    $("#st-filing").hidden = true;
-    stockMsg(String(e.message) === "404" ? "銘柄が見つかりません。" : "読み込めませんでした。");
-    return;
+  stockSub = sub;
+  stockNewsId = newsId;
+  writeRoute("stock", stockRoutePath());
+  if(changed){
+    if(stockAc) stockAc.abort();
+    stockAc = new AbortController();
+    stockOverview = null;
+    stockFilings = null;
+    stockFilingsReq = null;
+    stockDocKey = "";
+    $("#st-doc").innerHTML = "";
+    $("#st-head").hidden = true;
+    document.querySelectorAll(".st-sub").forEach(x => x.hidden = true);
+    stockMsg("");
+    let d;
+    try {
+      d = await api(`/api/stock/${code}/overview`, {signal: stockAc.signal});
+    } catch(e){
+      if(e.name === "AbortError") return;
+      stockMsg(String(e.message) === "404" ? "銘柄が見つかりません。" : "読み込めませんでした。");
+      return;
+    }
+    stockOverview = d;
+    renderStockHead(d);
   }
+  renderStockSub();
+}
+
+function renderStockHead(d){
   const t = $("#st-title");
   t.innerHTML = "";
   const b = document.createElement("b");
@@ -78,29 +114,152 @@ async function loadStock(code){
   t.append(b, small);
   if(!$("#st-sym").value) $("#st-sym").value = d.name || "";
 
-  stockFilings = d.filings.filter(f => f.documents.length);
-  const sel = $("#st-filing");
-  sel.innerHTML = "";
-  for(const f of stockFilings){
-    const o = document.createElement("option");
-    o.value = stockFilingKey(f);
-    o.textContent = `${(f.submitted_at || "").slice(0, 10)} ${f.title || ""}${f.source === "pdf" ? "（PDF から変換）" : ""}`;
-    sel.appendChild(o);
+  const q = d.quote;
+  let h = "";
+  if(q){
+    const dec = Number.isInteger(q.close) ? 0 : 1;
+    h += `<span class="px">${fmt(q.close, dec)}</span>`;
+    if(q.change_pct != null){
+      const cls = q.change_pct > 0 ? "pos" : q.change_pct < 0 ? "neg" : "";
+      const sign = q.change > 0 ? "+" : "";
+      h += `<span class="${cls}">${sign}${fmt(q.change, dec)} (${sign}${fmt(q.change_pct * 100, 2)}%)</span>`;
+    }
+    h += `<span class="sub">${q.date.slice(5).replace("-", "/")} 終値</span>`;
+    if(q.market_cap != null) h += `<span>時価総額 ${fmt(q.market_cap / 100)}億円</span>`;
+  } else {
+    h += `<span class="sub">株価データなし</span>`;
   }
-  sel.hidden = !stockFilings.length;
-  if(!stockFilings.length){
-    stockMsg("表示できる決算短信がありません。");
-    return;
-  }
-  const first = stockFilings.find(f => STOCK_MAIN_DOC_TYPES.includes(f.doc_type)) || stockFilings[0];
-  sel.value = stockFilingKey(first);
-  showStockFiling(first);
+  const ne = d.next_earnings;
+  if(ne) h += `<span>次回決算 ${ne.date ? ne.date.slice(5).replace("-", "/") : "未定"}</span>`;
+  $("#st-quote").innerHTML = h;
+  $("#st-head").hidden = false;
 }
 
-$("#st-filing").addEventListener("change", e => {
-  const f = stockFilings.find(x => stockFilingKey(x) === e.target.value);
-  if(f) showStockFiling(f);
+document.querySelectorAll("#st-tabs .ftab").forEach(b => b.onclick = () => {
+  if(!stockCode) return;
+  stockSub = b.dataset.sub;
+  stockNewsId = "";
+  writeRoute("stock", stockRoutePath());
+  renderStockSub();
 });
+
+function renderStockSub(){
+  if(!stockOverview) return;
+  document.querySelectorAll("#st-tabs .ftab").forEach(b => b.classList.toggle("on", b.dataset.sub === stockSub));
+  document.querySelectorAll(".st-sub").forEach(x => x.hidden = x.id !== `st-sub-${stockSub}`);
+  stockMsg("");
+  if(stockSub === "summary") renderStockSummary();
+  if(stockSub === "news") renderStockNews();
+  if(stockSub === "holders") $("#st-sub-holders").innerHTML = '<p class="sub">準備中</p>';
+}
+
+function renderStockSummary(){
+  const m = stockOverview.metrics || {};
+  const val = (v, f) => v == null ? "–" : f(v);
+  const items = [
+    ["PER（予想）", val(m.per, v => `${fmt(v, 1)}倍`)],
+    ["PBR（実績）", val(m.pbr, v => `${fmt(v, 2)}倍`)],
+    ["配当利回り（予想）", val(m.dividend_yield, v => `${fmt(v * 100, 2)}%`)],
+    ["ROE（実績）", val(m.roe, v => `${fmt(v * 100, 1)}%`)],
+    ["自己資本比率", val(m.equity_ratio, v => `${fmt(v * 100, 1)}%`)],
+  ];
+  $("#st-metrics").innerHTML = items.map(([k, v]) => `<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+}
+
+$("#st-price-link").onclick = e => {
+  e.preventDefault();
+  if(stockCode) gotoChart(stockCode);
+};
+
+// ニュース（KAB-178 では短信の一覧 /filings の決算・修正だけ。ほかの種類は KAB-180）
+function loadStockFilings(){
+  if(stockFilings) return Promise.resolve(stockFilings);
+  if(stockFilingsReq) return stockFilingsReq;
+  const code = stockCode;
+  stockFilingsReq = api(`/api/stock/${code}/filings`, {signal: stockAc.signal}).then(d => {
+    if(code === stockCode) stockFilings = d.filings;
+    return d.filings;
+  }).finally(() => { if(code === stockCode) stockFilingsReq = null; });
+  return stockFilingsReq;
+}
+
+const stockAt = s => (s || "").slice(2).replace(/-/g, "/");
+const stockKind = f => STOCK_MAIN_DOC_TYPES.includes(f.doc_type) ? "決算" : "修正";
+const stockTitle = f => `${f.title || ""}${f.source === "pdf" ? "（PDF から変換）" : ""}`;
+
+async function renderStockNews(){
+  const code = stockCode;
+  let fs;
+  try {
+    fs = await loadStockFilings();
+  } catch(e){
+    if(e.name === "AbortError" || code !== stockCode) return;
+    stockMsg("読み込めませんでした。");
+    return;
+  }
+  if(code !== stockCode || stockSub !== "news") return;
+  const list = $("#st-news-list"), detail = $("#st-news-detail");
+  if(stockNewsId){
+    list.hidden = true;
+    detail.hidden = false;
+    showStockNewsDetail(fs.find(f => stockNewsKey(f) === stockNewsId));
+    return;
+  }
+  detail.hidden = true;
+  list.hidden = false;
+  if(!fs.length){
+    $("#st-news").innerHTML = "";
+    stockMsg("ニュースがありません。");
+    return;
+  }
+  $("#st-news").innerHTML = "<tr><th class='l'>日時</th><th class='l'>種類</th><th class='l'>題名</th></tr>" + fs.map(f => {
+    const go = f.documents.length > 0;
+    const amend = f.is_amendment ? ' <span class="kind">訂正</span>' : "";
+    return `<tr${go ? ` class="go" data-id="${stockEsc(stockNewsKey(f))}"` : ""}>
+      <td class="l">${stockEsc(stockAt(f.submitted_at))}</td>
+      <td class="l"><span class="kind">${stockKind(f)}</span>${amend}</td>
+      <td class="l t">${stockEsc(stockTitle(f))}</td></tr>`;
+  }).join("");
+}
+
+$("#st-news").addEventListener("click", e => {
+  const tr = e.target.closest("tr.go");
+  if(!tr) return;
+  stockNewsId = tr.dataset.id;
+  // 詳細は履歴に積む（ブラウザの戻るで一覧へ）
+  history.pushState(null, "", "#stock/" + stockRoutePath());
+  writeRoute("stock", stockRoutePath());
+  renderStockNews();
+});
+
+$("#st-back").onclick = e => {
+  e.preventDefault();
+  stockNewsId = "";
+  writeRoute("stock", stockRoutePath());
+  renderStockNews();
+};
+
+window.addEventListener("popstate", () => {
+  if($("#tab-stock").style.display === "none") return;
+  const r = parseRoute(location.hash);
+  if(r.tab === "stock" && r.code) openStockRoute(r.code);
+});
+
+function showStockNewsDetail(f){
+  const head = $("#st-news-head");
+  if(!f || !f.documents.length){
+    head.textContent = "書類が見つかりません。";
+    $("#st-doc").innerHTML = "";
+    $("#st-src").hidden = true;
+    stockDocKey = "";
+    return;
+  }
+  head.innerHTML = `<span class="sub">${stockEsc(stockAt(f.submitted_at))}</span> <span class="kind">${stockKind(f)}</span>${f.is_amendment ? ' <span class="kind">訂正</span>' : ""} <b>${stockEsc(stockTitle(f))}</b>`;
+  const key = stockNewsKey(f);
+  if(key === stockDocKey) return;
+  stockDocKey = key;
+  showStockFiling(f);
+}
 
 // 原文の大きさ。fit = 画面の幅に合わせて縮める（指で拡大できる）/ mid = 0.75 倍（幅に合わせるより縮めない）/
 // actual = 原寸。はみ出す分は #st-doc が横スクロール
@@ -209,7 +368,8 @@ if(typeof ResizeObserver === "function"){
     requestAnimationFrame(() => {
       stockDocFitPending = false;
       const w = stDoc.clientWidth;
-      if(w === stockDocWidth) return;
+      // 中のタブを切り替えて隠れた（幅 0）ときは測らない。また出たときに測る
+      if(w === 0 || w === stockDocWidth) return;
       stockDocWidth = w;
       fitAllStockFrames();
     });
