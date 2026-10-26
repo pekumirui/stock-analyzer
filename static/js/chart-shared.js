@@ -1,4 +1,4 @@
-let chartObj=null, relObj=null, curCode=null, eChartObj=null;
+let chartObj=null, relObj=null, eChartObj=null;
 
 function chartTheme(){
   const s = getComputedStyle(document.documentElement);

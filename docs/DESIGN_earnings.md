@@ -181,7 +181,7 @@
 
 ### 操作
 
-`.ftab[data-fin="cum"]` / `.ftab[data-fin="q"]` / `.ftab[data-fin="prog"]` / `.ftab[data-fin="rev"]` で表を切り替える。銘柄名のクリックはチャートタブへ `gotoChart`。
+`.ftab[data-fin="cum"]` / `.ftab[data-fin="q"]` / `.ftab[data-fin="prog"]` / `.ftab[data-fin="rev"]` で表を切り替える。銘柄名のクリックは銘柄タブの株価へ `gotoChart`（`docs/DESIGN_stock.md`）。
 
 ### 空とエラー
 
@@ -211,7 +211,7 @@
 
 ### スマホと PC
 
-チャートタブと同じ描画。表は差し替えない。
+銘柄タブの株価と同じ描画。表は差し替えない。
 
 ## API
 

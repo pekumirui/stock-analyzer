@@ -16,7 +16,6 @@
   <span id="cur-tab"></span>
   <nav id="app-nav">
     <button data-tab="earnings" class="active">決算速報</button>
-    <button data-tab="chart">チャート</button>
     <button data-tab="stock">銘柄</button>
     <button data-tab="screener">スクリーナー</button>
     <button data-tab="pts">PTS</button>
@@ -102,27 +101,6 @@
   </div>
 </section>
 
-<section id="tab-chart" style="display:none">
-  <div class="panel">
-    <div class="row" style="position:relative">
-      <input id="sym" placeholder="銘柄名 or コード" autocomplete="off" style="width:200px">
-      <div id="suggest" class="suggest" style="display:none"></div>
-      <select id="tf"><option value="D">日足</option><option value="W">週足</option><option value="M">月足</option></select>
-      <input id="mas" value="50,150,200" style="width:110px" title="移動平均(カンマ区切り)">
-      <label><input type="checkbox" id="rel"> 対TOPIX</label>
-      <button class="btn" onclick="loadChart()">表示</button>
-    </div>
-    <div id="chart-title"></div>
-    <div id="chart" style="height:420px"></div>
-    <div class="evt-toggles"></div>
-    <div id="relwrap" style="display:none"><h3>対TOPIX相対 (期首=100)</h3><div id="relchart" style="height:160px"></div></div>
-  </div>
-  <div class="panel">
-    <h3>決算発表後パフォーマンス (%, α=対TOPIX超過)</h3>
-    <div class="tbl-wrap"><table id="perf-tbl"></table></div>
-  </div>
-</section>
-
 <section id="tab-stock" style="display:none">
   <div class="panel">
     <div class="row" id="st-search" style="position:relative">
@@ -144,7 +122,17 @@
       <div id="st-metrics"></div>
     </div>
     <div id="st-sub-price" class="st-sub" hidden>
-      <p class="sub"><a href="#" id="st-price-link">チャートタブで開く</a></p>
+      <div class="row">
+        <select id="tf" aria-label="足"><option value="D">日足</option><option value="W">週足</option><option value="M">月足</option></select>
+        <input id="mas" value="50,150,200" style="width:110px" title="移動平均(カンマ区切り)" aria-label="移動平均">
+        <label><input type="checkbox" id="rel"> 対TOPIX</label>
+      </div>
+      <p id="chart-msg" class="sub" hidden></p>
+      <div id="chart" style="height:420px"></div>
+      <div class="evt-toggles"></div>
+      <div id="relwrap" style="display:none"><h3>対TOPIX相対 (期首=100)</h3><div id="relchart" style="height:160px"></div></div>
+      <h3>決算発表後パフォーマンス (%, α=対TOPIX超過)</h3>
+      <div class="tbl-wrap"><table id="perf-tbl"></table></div>
     </div>
     <div id="st-sub-news" class="st-sub" hidden>
       <div id="st-news-list">
@@ -244,8 +232,8 @@
 <script src="/static/js/tabs.js"></script>
 <script src="/static/js/chart-shared.js"></script>
 <script src="/static/js/earnings.js"></script>
-<script src="/static/js/chart-tab.js"></script>
 <script src="/static/js/stock.js"></script>
+<script src="/static/js/stock-price.js"></script>
 <script src="/static/js/screener.js"></script>
 <script src="/static/js/pts.js"></script>
 <script src="/static/js/monthly.js"></script>
