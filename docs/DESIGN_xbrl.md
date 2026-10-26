@@ -153,7 +153,7 @@ SQLite 前提。Postgres に切っても動く型にする。`JSONB` / `GENERATE
 CREATE TABLE xbrl_filings (
     id                  INTEGER PRIMARY KEY,
     code                TEXT NOT NULL,          -- stocks.code 5桁
-    source              TEXT NOT NULL,          -- 第1弾は 'tdnet'
+    source              TEXT NOT NULL,          -- 'tdnet' | 'edinet' | 'tdnet_pdf'
     doc_id              TEXT NOT NULL,          -- TDnet xbrl_id（inbs ZIP 名）
     doc_type            TEXT NOT NULL,          -- 'annual'|'quarterly'|'semiannual'|'other'
     period_type         TEXT,                   -- 'FY'|'Q1'|'Q2'|'Q3'
@@ -287,6 +287,7 @@ CREATE TABLE xbrl_job_runs (
 - **マッピングは element_id ではなく `namespace_key + local_name`**: 年度で `namespace_uri` が変わる。element 行が増えても YAML を書き換えなくてよい。
 - **金額は float にしない**: 既存の `statements` は Float だが、生 fact は `NUMERIC`（Decimal）。正規化層も同様。
 - **容量**: 本番 `stock.db` は既に約 1.1GB。短信 iXBRL は有報より小さいが、全 fact を数年分入れると億行にはならない想定でも数千万行になり得る。第1弾は同一 DB。膨らんだら `xbrl_*.db` への分離を検討（今は作らない）。
+- **source**: `tdnet`（短信 ZIP。`doc_id` は ZIP 名）、`edinet`（有報・半期報）、`tdnet_pdf`（ZIP の無い短信 PDF。`doc_id` は開示番号 14 桁。`raw_path` は `tdnet_pdf:<開示番号>`。KAB-173、§16.5）。同じ 14 桁の `tdnet` が `parse_status='parsed'` になったら `tdnet_pdf` の filing は消す。`failed` / `no-ixbrl` の ZIP は消さない。
 
 ---
 
@@ -467,8 +468,8 @@ filing 単位。
 
 1. セグメント等、連結/実績予想/レンジ/配当以外の次元が付いた fact は捨てる（セグメントは §14 の `xbrl_segments` へ。`statement='SEG'` の科目は `xbrl_financials` に使わない）
 2. **既存23項目（BS/PL/CF）の実績**: 従来どおり `has_dimensions` が空か連結/非連結だけ、かつ `relative_period='current'`。選定キーは `std_item` ごと 1 値（値を変えない）
-2b. **実績売上のサマリー補完（KAB-58 / KAB-59）**: 上の本表経路で `net_sales` 実績が 1 件も取れなかったときだけ、同じ書類の短信サマリー（`tse-ed-t`）の当期実績（`ResultMember`、点）を使う。連結を先に、同じ連結区分なら mapping の `priority`。本表で取れている値は上書きしない。会社独自の拡張タグはマッピングしない。出どころは `source_layer`（`primary` / `summary`）
-3. **EPS 実績**: 本表コンテキストに加え `ResultMember`（短信表紙）を許す
+2b. **実績売上のサマリー補完（KAB-58 / KAB-59）**: 上の本表経路で `net_sales` 実績が 1 件も取れなかったときだけ、同じ書類の短信サマリー（`SUMMARY_NAMESPACES` = `tse-ed-t` と `pdf-sum`）の当期実績（`ResultMember`、点）を使う。連結を先に、同じ連結区分なら mapping の `priority`。本表で取れている値は上書きしない。会社独自の拡張タグはマッピングしない。出どころは `source_layer`（`primary` / `summary`）
+3. **EPS・BPS・自己資本比率・ROE の実績**（`SUMMARY_ACTUAL_CODES`）: 本表コンテキストに加え `ResultMember`（短信表紙）を許す。レガシー 23 科目の実績は表紙の `ResultMember` を受けない。前期の実績 context は `is_normalizable_context` が落とす（PDF の fact を入れるときも同じ）
 4. **配当**: `FirstQuarter` / `SecondQuarter` / `ThirdQuarter` / `YearEnd` / `Annual` メンバーで `target_period` を分ける。`ResultMember` は実績、`ForecastMember` は予想
 4b. **有報の科目（KAB-78）**: 上の 2〜4 に当たらない科目（§7.2 の有報の科目）は、当期（`relative_period='current'`）の実績の点で、連結/単体以外の次元が無い fact。連結と単体は別の行（`is_consolidated`）。セグメント別・所有者別（`Row1Member` 等）・前期・提出日現在は入らない。mapping の `part: months` は同じ科目・context の値に 月÷12 を足す（小数 2 桁）。DEI `WhetherConsolidatedFinancialStatementsArePreparedDEI` が false の書類（連結子会社が無い会社）は、連結の軸が無い context（設備の状況・研究開発活動・自己株式等など）も単体にする（全科目。TDnet は DEI が無いので今までどおり）
 5. **業績予想**: `ForecastMember`、または `LowerMember`/`UpperMember`/`MinimumMember`/`MaximumMember`（ForecastMember 無しのレンジ）。`relative_period='current'` は要求しない（通期予想の期末は短信の四半期末とずれる）。`PreviousMember` は `value_kind=forecast_previous`（今回予想は `forecast`）。`LowerMember`/`UpperMember` は `range_side`。context 名の `accumulatedq1`/`accumulatedq3` と日数（80–100→Q1、240–300→Q3）で `target_period` を付ける
@@ -823,7 +824,7 @@ CREATE TABLE xbrl_segments (
 
 ## 16. 過去の短信を PDF から HTML にする（KAB-164）
 
-TDnet の ZIP は 2026-08-10 からしか無く、TDnet は約 1 か月で消す。それより前の回の原文は、IR BANK が保管する TDnet の開示 PDF から HTML に変換して `tdnet_pdf_documents` に入れる。数値の層（`xbrl_financials`）には入れない。
+TDnet の ZIP は 2026-08-10 からしか無く、TDnet は約 1 か月で消す。それより前の回の原文は、IR BANK が保管する TDnet の開示 PDF から HTML に変換して `tdnet_pdf_documents` に入れる。数値は §16.5 で同じ HTML から `xbrl_financials` に入れる。
 
 ### 16.1 実データで分かったこと（2026-10-25）
 
@@ -858,4 +859,29 @@ pdfium（pypdfium2）でページごとに読む。文字は textpage の 1 文�
 - 取った PDF が `/Linearized` の `/L`（ファイル全体の長さ）より短ければ、途中で切れたものとして `failed`（`truncated pdf`）。IR BANK に途中までしか無い PDF がある（79520 の 20260212556420 は 277,188 バイト中 76,224 バイト。pdfium も pdfminer も poppler も読めない）。旧変換器（pdfplumber）でも読めないのでフォールバックはせず `failed` のまま残し、`--retry-failed` で取り直す
 - VPS で動かす（bot が銘柄を指定して毎日）。pypdfium2 は `requirements.txt` に入れた（KAB-169 で pdfplumber から替えた）
 - 規模の見込み: `statements` 約 9.6 万件を全部入れると DB は約 4GB 増える（1 件 43KB）
+
+### 16.5 短信 PDF の数値（KAB-173）
+
+`tdnet_pdf_documents.status='ok'` の HTML を、ZIP と同じ生の層に入れる。書き込むのは `sync_pdf_filing` だけ。`normalize_filing` と `rebuild_all` は変えない。決算速報の UI は変えない。
+
+| 項目 | 中身 |
+|---|---|
+| `xbrl_filings.source` | `tdnet_pdf` |
+| `doc_id` | 開示番号 14 桁（`statements.disclosure_no`） |
+| `raw_path` | `tdnet_pdf:<開示番号>` |
+| `raw_sha256` | `sha256(html の sha256 + ":" + READER_VERSION)` |
+| 要素の名前空間 | `pdf-sum` / `pdf-bs` / `pdf-pl` / `pdf-cf`（カスタム。URI は `http://stock-analyzer.local/taxonomy/tdnet-pdf/`） |
+| マッピング | `config/xbrl/mappings/tdnet_pdf.yaml`。`name` は `label_key` の結果 |
+
+読める DocType は `{1Q|2Q|3Q|FY}FinancialStatements_{Consolidated|NonConsolidated}_{JP|IFRS}` と `EarnForecastRevision` と `DividendForecastRevision`。REIT、米国基準、`4Q` / `5Q`、日付の欠けは filing を作らない。1Q / 3Q に CF が無くても失敗にしない。
+
+HTML は svg1（`<line>`）でも svg2（`<path>`）でも、`<text>` の位置だけを見る。見出しと列の役割は `app/xbrl/pdf/_tanshin.py` の表。百万円は円（10^6 倍）、百分率は `pure`（39.1 → 0.391）。設備投資の △ は負の fact のまま入れ、`std_items` の `sign: invert` で `capex` の行が正になる。「設備投資額」はマッピングしない。IFRS の経常利益はマッピングしない（`standard: JPGAAP` だけ）。
+
+context は ZIP の短信サマリーと同じメンバー（`ResultMember` など）と、`CurrentYearDuration` / `CurrentAccumulatedQ2Duration` / `NextYearDuration` のようなトークンを使う。前期の実績は `is_normalizable_context` で fact ごと落とす。印字の行は、マッピングが無くても残った列については fact として残す。
+
+`jobs/xbrl/xbrl_pdf_parse.py` が新しい順に最大 `--limit`（既定 2000）件。指紋が同じ `parsed` / `failed` は HTML を読まない（`unchanged`）。`READER_VERSION` を上げたときは `--reparse`。マッピングだけ変えたときは `jobs/xbrl/xbrl_normalize.py --rebuild` で足りる。crontab は `35 12-23`（`:20` の normalize、`:25` の buybacks と分が違う）。
+
+ZIP の `parse_manifest_row` は、パースが `parsed` のあと、失敗を `mark_failed` する `try` の外で `sync_pdf_filing(db, doc_id の後ろ 14 桁)` を呼ぶ。PDF 側の例外は ZIP を `failed` にしない。`parse_status='parsed'` の `source='tdnet'` がある 14 桁は PDF filing を消す。
+
+ZIP との付き合わせは人がスクラッチの SQLite で行う。テストは本番 DB も IR BANK も呼ばない。
 
