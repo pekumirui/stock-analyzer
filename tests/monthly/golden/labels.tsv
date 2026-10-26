@@ -234,34 +234,34 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 212A0	2026	16	legacy	yoy_index	会員数 既存(前年比)	会員数 既存(前年比)	yoy_index	会員数 既存(前年比)	other	会員数	既存		全体 > 既存	会員数
 21540	2024	1	legacy	number	エンジニア 在籍人数	エンジニア 在籍人数	number	エンジニア 在籍人数	count	エンジニア		在籍人数	全体 > エンジニア	在籍人数
 21540	2024	2	legacy	number	エンジニア 稼働率	エンジニア 稼働率	number	エンジニア 稼働率	other	エンジニア 稼働率			全体 > エンジニア	稼働率
-21540	2024	3	legacy	number	機電・IT 在籍人数	機電・IT 在籍人数	number	機電・IT 在籍人数	count	機電・IT		在籍人数	全体 > 機電・IT	在籍人数
-21540	2024	4	legacy	number	機電 在籍人数	機電 在籍人数	number	機電 在籍人数	count	機電		在籍人数	全体 > 機電	在籍人数
-21540	2024	5	legacy	number	IT 在籍人数	IT 在籍人数	number	IT 在籍人数	count	IT		在籍人数	全体 > IT	在籍人数
-21540	2024	6	legacy	number	機電・IT 稼働率	機電・IT 稼働率	number	機電・IT 稼働率	other	機電・IT 稼働率			全体 > 機電・IT	稼働率
-21540	2024	7	legacy	number	機電 稼働率	機電 稼働率	number	機電 稼働率	other	機電 稼働率			全体 > 機電	稼働率
-21540	2024	8	legacy	number	IT 稼働率	IT 稼働率	number	IT 稼働率	other	IT 稼働率			全体 > IT	稼働率
-21540	2024	9	legacy	number	建設エンジニア 在籍人数	建設エンジニア 在籍人数	number	建設エンジニア 在籍人数	count	建設エンジニア		在籍人数	全体 > 建設エンジニア	在籍人数
-21540	2024	10	legacy	number	建設エンジニア 稼働率	建設エンジニア 稼働率	number	建設エンジニア 稼働率	other	建設エンジニア 稼働率			全体 > 建設エンジニア	稼働率
+21540	2024	3	legacy	number	機電・IT 在籍人数	機電・IT 在籍人数	number	機電・IT 在籍人数	count	機電・IT		在籍人数	全体 > エンジニア > 機電・IT	在籍人数
+21540	2024	4	legacy	number	機電 在籍人数	機電 在籍人数	number	機電 在籍人数	count	機電		在籍人数	全体 > エンジニア > 機電・IT > 機電	在籍人数
+21540	2024	5	legacy	number	IT 在籍人数	IT 在籍人数	number	IT 在籍人数	count	IT		在籍人数	全体 > エンジニア > 機電・IT > IT	在籍人数
+21540	2024	6	legacy	number	機電・IT 稼働率	機電・IT 稼働率	number	機電・IT 稼働率	other	機電・IT 稼働率			全体 > エンジニア > 機電・IT	稼働率
+21540	2024	7	legacy	number	機電 稼働率	機電 稼働率	number	機電 稼働率	other	機電 稼働率			全体 > エンジニア > 機電・IT > 機電	稼働率
+21540	2024	8	legacy	number	IT 稼働率	IT 稼働率	number	IT 稼働率	other	IT 稼働率			全体 > エンジニア > 機電・IT > IT	稼働率
+21540	2024	9	legacy	number	建設エンジニア 在籍人数	建設エンジニア 在籍人数	number	建設エンジニア 在籍人数	count	建設エンジニア		在籍人数	全体 > エンジニア > 建設エンジニア	在籍人数
+21540	2024	10	legacy	number	建設エンジニア 稼働率	建設エンジニア 稼働率	number	建設エンジニア 稼働率	other	建設エンジニア 稼働率			全体 > エンジニア > 建設エンジニア	稼働率
 21540	2025	1	legacy	number	エンジニア 在籍人数	エンジニア 在籍人数	number	エンジニア 在籍人数	count	エンジニア		在籍人数	全体 > エンジニア	在籍人数
 21540	2025	2	legacy	number	エンジニア 稼働率	エンジニア 稼働率	number	エンジニア 稼働率	other	エンジニア 稼働率			全体 > エンジニア	稼働率
-21540	2025	3	legacy	number	機電・IT 在籍人数	機電・IT 在籍人数	number	機電・IT 在籍人数	count	機電・IT		在籍人数	全体 > 機電・IT	在籍人数
-21540	2025	4	legacy	number	機電 在籍人数	機電 在籍人数	number	機電 在籍人数	count	機電		在籍人数	全体 > 機電	在籍人数
-21540	2025	5	legacy	number	IT 在籍人数	IT 在籍人数	number	IT 在籍人数	count	IT		在籍人数	全体 > IT	在籍人数
-21540	2025	6	legacy	number	機電・IT 稼働率	機電・IT 稼働率	number	機電・IT 稼働率	other	機電・IT 稼働率			全体 > 機電・IT	稼働率
-21540	2025	7	legacy	number	機電 稼働率	機電 稼働率	number	機電 稼働率	other	機電 稼働率			全体 > 機電	稼働率
-21540	2025	8	legacy	number	IT 稼働率	IT 稼働率	number	IT 稼働率	other	IT 稼働率			全体 > IT	稼働率
-21540	2025	9	legacy	number	建設エンジニア 在籍人数	建設エンジニア 在籍人数	number	建設エンジニア 在籍人数	count	建設エンジニア		在籍人数	全体 > 建設エンジニア	在籍人数
-21540	2025	10	legacy	number	建設エンジニア 稼働率	建設エンジニア 稼働率	number	建設エンジニア 稼働率	other	建設エンジニア 稼働率			全体 > 建設エンジニア	稼働率
+21540	2025	3	legacy	number	機電・IT 在籍人数	機電・IT 在籍人数	number	機電・IT 在籍人数	count	機電・IT		在籍人数	全体 > エンジニア > 機電・IT	在籍人数
+21540	2025	4	legacy	number	機電 在籍人数	機電 在籍人数	number	機電 在籍人数	count	機電		在籍人数	全体 > エンジニア > 機電・IT > 機電	在籍人数
+21540	2025	5	legacy	number	IT 在籍人数	IT 在籍人数	number	IT 在籍人数	count	IT		在籍人数	全体 > エンジニア > 機電・IT > IT	在籍人数
+21540	2025	6	legacy	number	機電・IT 稼働率	機電・IT 稼働率	number	機電・IT 稼働率	other	機電・IT 稼働率			全体 > エンジニア > 機電・IT	稼働率
+21540	2025	7	legacy	number	機電 稼働率	機電 稼働率	number	機電 稼働率	other	機電 稼働率			全体 > エンジニア > 機電・IT > 機電	稼働率
+21540	2025	8	legacy	number	IT 稼働率	IT 稼働率	number	IT 稼働率	other	IT 稼働率			全体 > エンジニア > 機電・IT > IT	稼働率
+21540	2025	9	legacy	number	建設エンジニア 在籍人数	建設エンジニア 在籍人数	number	建設エンジニア 在籍人数	count	建設エンジニア		在籍人数	全体 > エンジニア > 建設エンジニア	在籍人数
+21540	2025	10	legacy	number	建設エンジニア 稼働率	建設エンジニア 稼働率	number	建設エンジニア 稼働率	other	建設エンジニア 稼働率			全体 > エンジニア > 建設エンジニア	稼働率
 21540	2026	1	legacy	number	エンジニア 在籍人数	エンジニア 在籍人数	number	エンジニア 在籍人数	count	エンジニア		在籍人数	全体 > エンジニア	在籍人数
 21540	2026	2	legacy	number	エンジニア 稼働率	エンジニア 稼働率	number	エンジニア 稼働率	other	エンジニア 稼働率			全体 > エンジニア	稼働率
-21540	2026	3	legacy	number	機電・IT 在籍人数	機電・IT 在籍人数	number	機電・IT 在籍人数	count	機電・IT		在籍人数	全体 > 機電・IT	在籍人数
-21540	2026	4	legacy	number	機電 在籍人数	機電 在籍人数	number	機電 在籍人数	count	機電		在籍人数	全体 > 機電	在籍人数
-21540	2026	5	legacy	number	IT 在籍人数	IT 在籍人数	number	IT 在籍人数	count	IT		在籍人数	全体 > IT	在籍人数
-21540	2026	6	legacy	number	機電・IT 稼働率	機電・IT 稼働率	number	機電・IT 稼働率	other	機電・IT 稼働率			全体 > 機電・IT	稼働率
-21540	2026	7	legacy	number	機電 稼働率	機電 稼働率	number	機電 稼働率	other	機電 稼働率			全体 > 機電	稼働率
-21540	2026	8	legacy	number	IT 稼働率	IT 稼働率	number	IT 稼働率	other	IT 稼働率			全体 > IT	稼働率
-21540	2026	9	legacy	number	建設エンジニア 在籍人数	建設エンジニア 在籍人数	number	建設エンジニア 在籍人数	count	建設エンジニア		在籍人数	全体 > 建設エンジニア	在籍人数
-21540	2026	10	legacy	number	建設エンジニア 稼働率	建設エンジニア 稼働率	number	建設エンジニア 稼働率	other	建設エンジニア 稼働率			全体 > 建設エンジニア	稼働率
+21540	2026	3	legacy	number	機電・IT 在籍人数	機電・IT 在籍人数	number	機電・IT 在籍人数	count	機電・IT		在籍人数	全体 > エンジニア > 機電・IT	在籍人数
+21540	2026	4	legacy	number	機電 在籍人数	機電 在籍人数	number	機電 在籍人数	count	機電		在籍人数	全体 > エンジニア > 機電・IT > 機電	在籍人数
+21540	2026	5	legacy	number	IT 在籍人数	IT 在籍人数	number	IT 在籍人数	count	IT		在籍人数	全体 > エンジニア > 機電・IT > IT	在籍人数
+21540	2026	6	legacy	number	機電・IT 稼働率	機電・IT 稼働率	number	機電・IT 稼働率	other	機電・IT 稼働率			全体 > エンジニア > 機電・IT	稼働率
+21540	2026	7	legacy	number	機電 稼働率	機電 稼働率	number	機電 稼働率	other	機電 稼働率			全体 > エンジニア > 機電・IT > 機電	稼働率
+21540	2026	8	legacy	number	IT 稼働率	IT 稼働率	number	IT 稼働率	other	IT 稼働率			全体 > エンジニア > 機電・IT > IT	稼働率
+21540	2026	9	legacy	number	建設エンジニア 在籍人数	建設エンジニア 在籍人数	number	建設エンジニア 在籍人数	count	建設エンジニア		在籍人数	全体 > エンジニア > 建設エンジニア	在籍人数
+21540	2026	10	legacy	number	建設エンジニア 稼働率	建設エンジニア 稼働率	number	建設エンジニア 稼働率	other	建設エンジニア 稼働率			全体 > エンジニア > 建設エンジニア	稼働率
 22940	2024	1	legacy	number	精肉事業 売上高	精肉事業 売上高	number	精肉事業 売上高	sales	精肉事業		売上高	全体 > 精肉事業	売上高
 22940	2024	2	legacy	yoy_index	精肉事業 売上高(前年比)	精肉事業 売上高(前年比)	yoy_index	精肉事業 売上高(前年比)	sales	精肉事業		売上高	全体 > 精肉事業	売上高
 22940	2024	3	legacy	number	精肉事業 既存 売上高	精肉事業 既存 売上高	number	精肉事業 既存 売上高	sales	精肉事業	既存	売上高	全体 > 精肉事業	既存 売上高
@@ -1099,11 +1099,11 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 27800	2024	1	legacy	number	個人買取額	個人買取額	number	個人買取額	other	個人買取額			全体	個人買取額
 27800	2024	2	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 27800	2024	3	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
-27800	2024	4	legacy	number	免税 比率 売上高	免税 比率 売上高	number	免税 比率 売上高	sales	免税 比率		売上高	全体 > 免税 比率	売上高
+27800	2024	4	legacy	number	免税 比率 売上高	免税 比率 売上高	number	免税 比率 売上高	sales	免税 比率		売上高	全体	免税売上高比率
 27800	2025	1	legacy	number	個人買取額	個人買取額	number	個人買取額	other	個人買取額			全体	個人買取額
 27800	2025	2	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 27800	2025	3	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
-27800	2025	4	legacy	number	免税 比率 売上高	免税 比率 売上高	number	免税 比率 売上高	sales	免税 比率		売上高	全体 > 免税 比率	売上高
+27800	2025	4	legacy	number	免税 比率 売上高	免税 比率 売上高	number	免税 比率 売上高	sales	免税 比率		売上高	全体	免税売上高比率
 27800	2025	5	legacy	yoy_index	個人買取額(前年比)	個人買取額(前年比)	yoy_index	個人買取額(前年比)	other	個人買取額			全体	個人買取額
 27800	2025	6	legacy	number	小売比率	小売比率	number	小売比率	other	小売比率			全体	小売比率
 27800	2026	1	legacy	number	小売比率	小売比率	number	小売比率	other	小売比率			全体	小売比率
@@ -1111,7 +1111,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 27800	2026	3	legacy	yoy_index	個人買取額(前年比)	個人買取額(前年比)	yoy_index	個人買取額(前年比)	other	個人買取額			全体	個人買取額
 27800	2026	4	legacy	number	売上高	売上高	number	売上高	sales			売上高	全体	売上高
 27800	2026	5	legacy	yoy_index	売上高(前年比)	売上高(前年比)	yoy_index	売上高(前年比)	sales			売上高	全体	売上高
-27800	2026	6	legacy	number	免税 比率 売上高	免税 比率 売上高	number	免税 比率 売上高	sales	免税 比率		売上高	全体 > 免税 比率	売上高
+27800	2026	6	legacy	number	免税 比率 売上高	免税 比率 売上高	number	免税 比率 売上高	sales	免税 比率		売上高	全体	免税売上高比率
 27820	2023	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 27820	2023	2	legacy	yoy_index	既存 客数(前年比)	既存 客数(前年比)	yoy_index	既存 客数(前年比)	customers		既存	客数	全体	既存 客数
 27820	2023	3	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
@@ -1336,39 +1336,39 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 29970	2026	4	legacy	number	2年以上稼働率	2年以上稼働率	number	2年以上稼働率	other	2年以上稼働率			全体	2年以上稼働率
 30100	2026	1	legacy	number	新規契約ホテル数	新規契約ホテル数	number	新規契約ホテル数	count			新規契約ホテル数	全体	新規契約ホテル数
 30100	2026	2	legacy	number	新規契約客室数	新規契約客室数	number	新規契約客室数	count			新規契約客室数	全体	新規契約客室数
-30100	2026	3	legacy	number	全68ホテル 客室稼働率	全68ホテル 客室稼働率	number	全68ホテル 客室稼働率	other	全68ホテル 客室稼働率			全体	全68ホテル 客室稼働率
-30100	2026	4	legacy	number	全68ホテル ADR	全68ホテル ADR	number	全68ホテル ADR	other	全68ホテル ADR			全体	全68ホテル ADR
-30100	2026	5	legacy	number	全68ホテル RevPAR	全68ホテル RevPAR	number	全68ホテル RevPAR	other	全68ホテル RevPAR			全体	全68ホテル RevPAR
-30100	2026	6	legacy	number	全68ホテル インバウンド比率	全68ホテル インバウンド比率	number	全68ホテル インバウンド比率	other	全68ホテル インバウンド比率			全体	全68ホテル インバウンド比率
-30100	2026	7	legacy	number	国籍構成 中国	国籍構成 中国	number	国籍構成 中国	other	国籍構成 中国			全体	国籍構成 中国
-30100	2026	8	legacy	number	国籍構成 中東	国籍構成 中東	number	国籍構成 中東	other	国籍構成 中東			全体	国籍構成 中東
-30100	2026	9	legacy	number	国籍構成 欧州	国籍構成 欧州	number	国籍構成 欧州	other	国籍構成 欧州			全体	国籍構成 欧州
-30100	2026	10	legacy	number	国籍構成 その他外国	国籍構成 その他外国	number	国籍構成 その他外国	other	国籍構成 その他外国			全体	国籍構成 その他外国
-30100	2026	11	legacy	number	日本 国籍構成	日本 国籍構成	number	日本 国籍構成	other	国籍構成			全体	日本 国籍構成
-30100	2026	12	legacy	number	北海道 客室稼働率	北海道 客室稼働率	number	北海道 客室稼働率	other	北海道 客室稼働率			全体	北海道 客室稼働率
-30100	2026	13	legacy	number	北海道 ADR	北海道 ADR	number	北海道 ADR	other	北海道 ADR			全体	北海道 ADR
-30100	2026	14	legacy	number	北海道 RevPAR	北海道 RevPAR	number	北海道 RevPAR	other	北海道 RevPAR			全体	北海道 RevPAR
-30100	2026	15	legacy	number	北海道 インバウンド比率	北海道 インバウンド比率	number	北海道 インバウンド比率	other	北海道 インバウンド比率			全体	北海道 インバウンド比率
-30100	2026	16	legacy	number	東北・北陸・信越 客室稼働率	東北・北陸・信越 客室稼働率	number	東北・北陸・信越 客室稼働率	other	東北・北陸・信越 客室稼働率			全体	東北・北陸・信越 客室稼働率
-30100	2026	17	legacy	number	東北・北陸・信越 ADR	東北・北陸・信越 ADR	number	東北・北陸・信越 ADR	other	東北・北陸・信越 ADR			全体	東北・北陸・信越 ADR
-30100	2026	18	legacy	number	東北・北陸・信越 RevPAR	東北・北陸・信越 RevPAR	number	東北・北陸・信越 RevPAR	other	東北・北陸・信越 RevPAR			全体	東北・北陸・信越 RevPAR
-30100	2026	19	legacy	number	東北・北陸・信越 インバウンド比率	東北・北陸・信越 インバウンド比率	number	東北・北陸・信越 インバウンド比率	other	東北・北陸・信越 インバウンド比率			全体	東北・北陸・信越 インバウンド比率
-30100	2026	20	legacy	number	関東 客室稼働率	関東 客室稼働率	number	関東 客室稼働率	other	関東 客室稼働率			全体	関東 客室稼働率
-30100	2026	21	legacy	number	関東 ADR	関東 ADR	number	関東 ADR	other	関東 ADR			全体	関東 ADR
-30100	2026	22	legacy	number	関東 RevPAR	関東 RevPAR	number	関東 RevPAR	other	関東 RevPAR			全体	関東 RevPAR
-30100	2026	23	legacy	number	関東 インバウンド比率	関東 インバウンド比率	number	関東 インバウンド比率	other	関東 インバウンド比率			全体	関東 インバウンド比率
-30100	2026	24	legacy	number	中部 客室稼働率	中部 客室稼働率	number	中部 客室稼働率	other	中部 客室稼働率			全体	中部 客室稼働率
-30100	2026	25	legacy	number	中部 ADR	中部 ADR	number	中部 ADR	other	中部 ADR			全体	中部 ADR
-30100	2026	26	legacy	number	中部 RevPAR	中部 RevPAR	number	中部 RevPAR	other	中部 RevPAR			全体	中部 RevPAR
-30100	2026	27	legacy	number	中部 インバウンド比率	中部 インバウンド比率	number	中部 インバウンド比率	other	中部 インバウンド比率			全体	中部 インバウンド比率
-30100	2026	28	legacy	number	近畿 客室稼働率	近畿 客室稼働率	number	近畿 客室稼働率	other	近畿 客室稼働率			全体	近畿 客室稼働率
-30100	2026	29	legacy	number	近畿 ADR	近畿 ADR	number	近畿 ADR	other	近畿 ADR			全体	近畿 ADR
-30100	2026	30	legacy	number	近畿 RevPAR	近畿 RevPAR	number	近畿 RevPAR	other	近畿 RevPAR			全体	近畿 RevPAR
-30100	2026	31	legacy	number	近畿 インバウンド比率	近畿 インバウンド比率	number	近畿 インバウンド比率	other	近畿 インバウンド比率			全体	近畿 インバウンド比率
-30100	2026	32	legacy	number	中国・四国・九州 客室稼働率	中国・四国・九州 客室稼働率	number	中国・四国・九州 客室稼働率	other	中国・四国・九州 客室稼働率			全体	中国・四国・九州 客室稼働率
-30100	2026	33	legacy	number	中国・四国・九州 ADR	中国・四国・九州 ADR	number	中国・四国・九州 ADR	other	中国・四国・九州 ADR			全体	中国・四国・九州 ADR
-30100	2026	34	legacy	number	中国・四国・九州 RevPAR	中国・四国・九州 RevPAR	number	中国・四国・九州 RevPAR	other	中国・四国・九州 RevPAR			全体	中国・四国・九州 RevPAR
-30100	2026	35	legacy	number	中国・四国・九州 インバウンド比率	中国・四国・九州 インバウンド比率	number	中国・四国・九州 インバウンド比率	other	中国・四国・九州 インバウンド比率			全体	中国・四国・九州 インバウンド比率
+30100	2026	3	legacy	number	全68ホテル 客室稼働率	全68ホテル 客室稼働率	number	全68ホテル 客室稼働率	other	全68ホテル 客室稼働率			全体	客室稼働率
+30100	2026	4	legacy	number	全68ホテル ADR	全68ホテル ADR	number	全68ホテル ADR	other	全68ホテル ADR			全体	ADR
+30100	2026	5	legacy	number	全68ホテル RevPAR	全68ホテル RevPAR	number	全68ホテル RevPAR	other	全68ホテル RevPAR			全体	RevPAR
+30100	2026	6	legacy	number	全68ホテル インバウンド比率	全68ホテル インバウンド比率	number	全68ホテル インバウンド比率	other	全68ホテル インバウンド比率			全体	インバウンド比率
+30100	2026	7	legacy	number	国籍構成 中国	国籍構成 中国	number	国籍構成 中国	other	国籍構成 中国			全体 > 国籍構成 > 中国	国籍構成
+30100	2026	8	legacy	number	国籍構成 中東	国籍構成 中東	number	国籍構成 中東	other	国籍構成 中東			全体 > 国籍構成 > 中東	国籍構成
+30100	2026	9	legacy	number	国籍構成 欧州	国籍構成 欧州	number	国籍構成 欧州	other	国籍構成 欧州			全体 > 国籍構成 > 欧州	国籍構成
+30100	2026	10	legacy	number	国籍構成 その他外国	国籍構成 その他外国	number	国籍構成 その他外国	other	国籍構成 その他外国			全体 > 国籍構成 > その他外国	国籍構成
+30100	2026	11	legacy	number	日本 国籍構成	日本 国籍構成	number	日本 国籍構成	other	国籍構成			全体 > 国籍構成	国籍構成
+30100	2026	12	legacy	number	北海道 客室稼働率	北海道 客室稼働率	number	北海道 客室稼働率	other	北海道 客室稼働率			全体 > 北海道	客室稼働率
+30100	2026	13	legacy	number	北海道 ADR	北海道 ADR	number	北海道 ADR	other	北海道 ADR			全体 > 北海道	ADR
+30100	2026	14	legacy	number	北海道 RevPAR	北海道 RevPAR	number	北海道 RevPAR	other	北海道 RevPAR			全体 > 北海道	RevPAR
+30100	2026	15	legacy	number	北海道 インバウンド比率	北海道 インバウンド比率	number	北海道 インバウンド比率	other	北海道 インバウンド比率			全体 > 北海道	インバウンド比率
+30100	2026	16	legacy	number	東北・北陸・信越 客室稼働率	東北・北陸・信越 客室稼働率	number	東北・北陸・信越 客室稼働率	other	東北・北陸・信越 客室稼働率			全体 > 東北・北陸・信越	客室稼働率
+30100	2026	17	legacy	number	東北・北陸・信越 ADR	東北・北陸・信越 ADR	number	東北・北陸・信越 ADR	other	東北・北陸・信越 ADR			全体 > 東北・北陸・信越	ADR
+30100	2026	18	legacy	number	東北・北陸・信越 RevPAR	東北・北陸・信越 RevPAR	number	東北・北陸・信越 RevPAR	other	東北・北陸・信越 RevPAR			全体 > 東北・北陸・信越	RevPAR
+30100	2026	19	legacy	number	東北・北陸・信越 インバウンド比率	東北・北陸・信越 インバウンド比率	number	東北・北陸・信越 インバウンド比率	other	東北・北陸・信越 インバウンド比率			全体 > 東北・北陸・信越	インバウンド比率
+30100	2026	20	legacy	number	関東 客室稼働率	関東 客室稼働率	number	関東 客室稼働率	other	関東 客室稼働率			全体 > 関東	客室稼働率
+30100	2026	21	legacy	number	関東 ADR	関東 ADR	number	関東 ADR	other	関東 ADR			全体 > 関東	ADR
+30100	2026	22	legacy	number	関東 RevPAR	関東 RevPAR	number	関東 RevPAR	other	関東 RevPAR			全体 > 関東	RevPAR
+30100	2026	23	legacy	number	関東 インバウンド比率	関東 インバウンド比率	number	関東 インバウンド比率	other	関東 インバウンド比率			全体 > 関東	インバウンド比率
+30100	2026	24	legacy	number	中部 客室稼働率	中部 客室稼働率	number	中部 客室稼働率	other	中部 客室稼働率			全体 > 中部	客室稼働率
+30100	2026	25	legacy	number	中部 ADR	中部 ADR	number	中部 ADR	other	中部 ADR			全体 > 中部	ADR
+30100	2026	26	legacy	number	中部 RevPAR	中部 RevPAR	number	中部 RevPAR	other	中部 RevPAR			全体 > 中部	RevPAR
+30100	2026	27	legacy	number	中部 インバウンド比率	中部 インバウンド比率	number	中部 インバウンド比率	other	中部 インバウンド比率			全体 > 中部	インバウンド比率
+30100	2026	28	legacy	number	近畿 客室稼働率	近畿 客室稼働率	number	近畿 客室稼働率	other	近畿 客室稼働率			全体 > 近畿	客室稼働率
+30100	2026	29	legacy	number	近畿 ADR	近畿 ADR	number	近畿 ADR	other	近畿 ADR			全体 > 近畿	ADR
+30100	2026	30	legacy	number	近畿 RevPAR	近畿 RevPAR	number	近畿 RevPAR	other	近畿 RevPAR			全体 > 近畿	RevPAR
+30100	2026	31	legacy	number	近畿 インバウンド比率	近畿 インバウンド比率	number	近畿 インバウンド比率	other	近畿 インバウンド比率			全体 > 近畿	インバウンド比率
+30100	2026	32	legacy	number	中国・四国・九州 客室稼働率	中国・四国・九州 客室稼働率	number	中国・四国・九州 客室稼働率	other	中国・四国・九州 客室稼働率			全体 > 中国・四国・九州	客室稼働率
+30100	2026	33	legacy	number	中国・四国・九州 ADR	中国・四国・九州 ADR	number	中国・四国・九州 ADR	other	中国・四国・九州 ADR			全体 > 中国・四国・九州	ADR
+30100	2026	34	legacy	number	中国・四国・九州 RevPAR	中国・四国・九州 RevPAR	number	中国・四国・九州 RevPAR	other	中国・四国・九州 RevPAR			全体 > 中国・四国・九州	RevPAR
+30100	2026	35	legacy	number	中国・四国・九州 インバウンド比率	中国・四国・九州 インバウンド比率	number	中国・四国・九州 インバウンド比率	other	中国・四国・九州 インバウンド比率			全体 > 中国・四国・九州	インバウンド比率
 30280	2023	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 30280	2023	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 30280	2023	3	legacy	yoy_index	全社 売上高(前年比)	全社 売上高(前年比)	yoy_index	全社 売上高(前年比)	sales		全社	売上高	全体	全社 売上高
@@ -2357,38 +2357,38 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 31790	2026	6	legacy	number	Web会員数前月増減	Web会員数前月増減	number	Web会員数前月増減	other	Web会員数前月増減			全体	Web会員数前月増減
 31810	2023	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31810	2023	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-31810	2023	3	legacy	number	買取王国 店舗数	買取王国 店舗数	number	買取王国 店舗数	stores	買取王国		店舗数	全体 > 買取王国	店舗数
-31810	2023	4	legacy	number	工具買取王国 店舗数	工具買取王国 店舗数	number	工具買取王国 店舗数	stores	工具買取王国		店舗数	全体 > 工具買取王国	店舗数
-31810	2023	5	legacy	number	その他 店舗数	その他 店舗数	number	その他 店舗数	stores	その他		店舗数	全体 > その他	店舗数
-31810	2023	6	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体	直営 店舗数
+31810	2023	3	legacy	number	買取王国 店舗数	買取王国 店舗数	number	買取王国 店舗数	stores	買取王国		店舗数		
+31810	2023	4	legacy	number	工具買取王国 店舗数	工具買取王国 店舗数	number	工具買取王国 店舗数	stores	工具買取王国		店舗数		
+31810	2023	5	legacy	number	その他 店舗数	その他 店舗数	number	その他 店舗数	stores	その他		店舗数		
+31810	2023	6	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体 > 直営	店舗数
 31810	2024	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31810	2024	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-31810	2024	3	legacy	number	買取王国 店舗数	買取王国 店舗数	number	買取王国 店舗数	stores	買取王国		店舗数	全体 > 買取王国	店舗数
-31810	2024	4	legacy	number	工具買取王国 店舗数	工具買取王国 店舗数	number	工具買取王国 店舗数	stores	工具買取王国		店舗数	全体 > 工具買取王国	店舗数
-31810	2024	5	legacy	number	良品買館 店舗数	良品買館 店舗数	number	良品買館 店舗数	stores	良品買館		店舗数	全体 > 良品買館	店舗数
-31810	2024	6	legacy	number	その他 店舗数	その他 店舗数	number	その他 店舗数	stores	その他		店舗数	全体 > その他	店舗数
+31810	2024	3	legacy	number	買取王国 店舗数	買取王国 店舗数	number	買取王国 店舗数	stores	買取王国		店舗数		
+31810	2024	4	legacy	number	工具買取王国 店舗数	工具買取王国 店舗数	number	工具買取王国 店舗数	stores	工具買取王国		店舗数		
+31810	2024	5	legacy	number	良品買館 店舗数	良品買館 店舗数	number	良品買館 店舗数	stores	良品買館		店舗数		
+31810	2024	6	legacy	number	その他 店舗数	その他 店舗数	number	その他 店舗数	stores	その他		店舗数		
 31810	2024	7	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
-31810	2024	8	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体	直営 店舗数
+31810	2024	8	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体 > 直営	店舗数
 31810	2025	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31810	2025	2	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
-31810	2025	3	legacy	number	買取王国 店舗数	買取王国 店舗数	number	買取王国 店舗数	stores	買取王国		店舗数	全体 > 買取王国	店舗数
-31810	2025	4	legacy	number	工具買取王国 店舗数	工具買取王国 店舗数	number	工具買取王国 店舗数	stores	工具買取王国		店舗数	全体 > 工具買取王国	店舗数
-31810	2025	5	legacy	number	良品買館 店舗数	良品買館 店舗数	number	良品買館 店舗数	stores	良品買館		店舗数	全体 > 良品買館	店舗数
-31810	2025	6	legacy	number	その他 店舗数	その他 店舗数	number	その他 店舗数	stores	その他		店舗数	全体 > その他	店舗数
+31810	2025	3	legacy	number	買取王国 店舗数	買取王国 店舗数	number	買取王国 店舗数	stores	買取王国		店舗数		
+31810	2025	4	legacy	number	工具買取王国 店舗数	工具買取王国 店舗数	number	工具買取王国 店舗数	stores	工具買取王国		店舗数		
+31810	2025	5	legacy	number	良品買館 店舗数	良品買館 店舗数	number	良品買館 店舗数	stores	良品買館		店舗数		
+31810	2025	6	legacy	number	その他 店舗数	その他 店舗数	number	その他 店舗数	stores	その他		店舗数		
 31810	2025	7	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
-31810	2025	8	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体	直営 店舗数
+31810	2025	8	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体 > 直営	店舗数
 31810	2026	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高
 31810	2026	2	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31810	2026	3	legacy	number	出店	出店	number	出店	open			出店	全体	出店
-31810	2026	4	legacy	number	FC 出店	FC 出店	number	FC 出店	open			出店	全体	FC 出店
+31810	2026	4	legacy	number	FC 出店	FC 出店	number	FC 出店	open			出店	全体 > FC	出店
 31810	2026	5	legacy	number	退店	退店	number	退店	close			退店	全体	退店
 31810	2026	6	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
-31810	2026	7	legacy	number	FC 店舗数	FC 店舗数	number	FC 店舗数	stores			店舗数	全体	FC 店舗数
-31810	2026	8	legacy	number	その他 店舗数	その他 店舗数	number	その他 店舗数	stores	その他		店舗数	全体 > その他	店舗数
-31810	2026	9	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体	直営 店舗数
-31810	2026	10	legacy	number	買取王国 店舗数	買取王国 店舗数	number	買取王国 店舗数	stores	買取王国		店舗数	全体 > 買取王国	店舗数
-31810	2026	11	legacy	number	工具買取王国 店舗数	工具買取王国 店舗数	number	工具買取王国 店舗数	stores	工具買取王国		店舗数	全体 > 工具買取王国	店舗数
-31810	2026	12	legacy	number	良品買館 店舗数	良品買館 店舗数	number	良品買館 店舗数	stores	良品買館		店舗数	全体 > 良品買館	店舗数
+31810	2026	7	legacy	number	FC 店舗数	FC 店舗数	number	FC 店舗数	stores			店舗数	全体 > FC	店舗数
+31810	2026	8	legacy	number	その他 店舗数	その他 店舗数	number	その他 店舗数	stores	その他		店舗数		
+31810	2026	9	legacy	number	直営 店舗数	直営 店舗数	number	直営 店舗数	stores			店舗数	全体 > 直営	店舗数
+31810	2026	10	legacy	number	買取王国 店舗数	買取王国 店舗数	number	買取王国 店舗数	stores	買取王国		店舗数		
+31810	2026	11	legacy	number	工具買取王国 店舗数	工具買取王国 店舗数	number	工具買取王国 店舗数	stores	工具買取王国		店舗数		
+31810	2026	12	legacy	number	良品買館 店舗数	良品買館 店舗数	number	良品買館 店舗数	stores	良品買館		店舗数		
 31930	2023	1	legacy	number	日本 鳥貴族 直営 店舗数	日本 鳥貴族 直営 店舗数	number	日本 鳥貴族 直営 店舗数	stores	鳥貴族		店舗数	全体 > 日本 > 鳥貴族 > 直営	店舗数
 31930	2023	2	legacy	number	日本 鳥貴族 TCC 店舗数	日本 鳥貴族 TCC 店舗数	number	日本 鳥貴族 TCC 店舗数	stores	鳥貴族 TCC		店舗数	全体 > 日本 > 鳥貴族 > TCC	店舗数
 31930	2023	3	legacy	number	日本 鳥貴族 店舗数	日本 鳥貴族 店舗数	number	日本 鳥貴族 店舗数	stores	鳥貴族		店舗数	全体 > 日本 > 鳥貴族	店舗数
@@ -7027,17 +7027,17 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 89140	2024	1	legacy	number	総室数	総室数	number	総室数	count			総室数	全体	総室数
 89140	2024	2	legacy	number	稼働室数	稼働室数	number	稼働室数	count			稼働室数	全体	稼働室数
 89140	2024	3	legacy	number	稼働率	稼働率	number	稼働率	other	稼働率			全体	稼働率
-89140	2024	4	legacy	number	稼働率 既存	稼働率 既存	number	稼働率 既存	other	稼働率	既存		全体 > 稼働率	既存
+89140	2024	4	legacy	number	稼働率 既存	稼働率 既存	number	稼働率 既存	other	稼働率	既存		全体	既存稼働率
 89140	2024	5	legacy	number	新規稼働率	新規稼働率	number	新規稼働率	other	新規稼働率			全体	新規稼働率
 89140	2025	1	legacy	number	総室数	総室数	number	総室数	count			総室数	全体	総室数
 89140	2025	2	legacy	number	稼働室数	稼働室数	number	稼働室数	count			稼働室数	全体	稼働室数
 89140	2025	3	legacy	number	稼働率	稼働率	number	稼働率	other	稼働率			全体	稼働率
-89140	2025	4	legacy	number	稼働率 既存	稼働率 既存	number	稼働率 既存	other	稼働率	既存		全体 > 稼働率	既存
+89140	2025	4	legacy	number	稼働率 既存	稼働率 既存	number	稼働率 既存	other	稼働率	既存		全体	既存稼働率
 89140	2025	5	legacy	number	新規稼働率	新規稼働率	number	新規稼働率	other	新規稼働率			全体	新規稼働率
 89140	2026	1	legacy	number	総室数	総室数	number	総室数	count			総室数	全体	総室数
 89140	2026	2	legacy	number	稼働室数	稼働室数	number	稼働室数	count			稼働室数	全体	稼働室数
 89140	2026	3	legacy	number	稼働率	稼働率	number	稼働率	other	稼働率			全体	稼働率
-89140	2026	4	legacy	number	稼働率 既存	稼働率 既存	number	稼働率 既存	other	稼働率	既存		全体 > 稼働率	既存
+89140	2026	4	legacy	number	稼働率 既存	稼働率 既存	number	稼働率 既存	other	稼働率	既存		全体	既存稼働率
 89140	2026	5	legacy	number	新規稼働率	新規稼働率	number	新規稼働率	other	新規稼働率			全体	新規稼働率
 89270	2026	1	legacy	number	仕入 件数	仕入 件数	number	仕入 件数	count	仕入		件数	全体 > 仕入	件数
 89270	2026	2	legacy	number	仕入 敷地面積	仕入 敷地面積	number	仕入 敷地面積	other	仕入 敷地面積			全体 > 仕入	敷地面積
