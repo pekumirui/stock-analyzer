@@ -24,11 +24,23 @@ _EARNINGS_DOC = re.compile(
 _PERIODS = {"1Q": "Q1", "2Q": "Q2", "3Q": "Q3", "FY": "FY"}
 _SPAN_OF_PERIOD = {"Q1": "AccumulatedQ1", "Q2": "AccumulatedQ2", "Q3": "AccumulatedQ3", "FY": "Year"}
 _URI = "http://stock-analyzer.local/taxonomy/tdnet-pdf/"
-_DATE = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")
-_YEAR_MONTH = re.compile(r"(\d{4})年(\d{1,2})月期")
+# 年は西暦 4 桁か和暦（「令和8年」、「令和」を省いた「8年6月期」）。_year で西暦にする。
+_DATE = re.compile(r"(?:令和)?(\d{4}|\d{1,2})年(\d{1,2})月(\d{1,2})日")
+_YEAR_MONTH = re.compile(r"(?:令和)?(\d{4}|\d{1,2})年(\d{1,2})月期")
+# 本表の列見出しの「2026年6月末」。日が無い。
+_YEAR_MONTH_END = re.compile(r"(?:令和)?(\d{4}|\d{1,2})年(\d{1,2})月末")
+_REIWA_BASE = 2018
+
+
+def _year(raw: str) -> int:
+    value = int(raw)
+    return value if value >= 1000 else _REIWA_BASE + value
+_DIVIDEND_SLOTS = frozenset({
+    "FirstQuarterMember", "SecondQuarterMember", "ThirdQuarterMember", "YearEndMember", "AnnualMember",
+})
 _LEADING = re.compile(r"^(?:[①-⑳]|※\d*|\(注\d*\)|\(\d+\)|\d+\.)+")
 _HEADING_LEAD = re.compile(r"^(?:[①-⑳]|\(\d+\)|\d+\.)+")
-_HINTS = re.compile(r"\(△は損失\)|\(△\)")
+_HINTS = re.compile(r"\([△▲][^)]*\)")
 # 本表の途中に出る分類見出し。grid が次の行名へ連結しない。
 _CLASS_HEAD = re.compile(r"の部$")
 # 続きページの柱（銘柄コードと題名）。数値の無い行として次の科目名に連結しない。
@@ -42,8 +54,35 @@ _HEADER_ROLE = re.compile(
     r"|第[123]四半期末|中間期末|^期末$|^(年間)?合計$|下限|上限"
     r"|第[123]四半期|中間期|上期|通期"
 )
-# IFRS 本表は費用を △ で印字する。ZIP の CostOfSales は正なので符号を合わせる。
-_IFRS_EXPENSE_ABS = frozenset({"売上原価", "販売費及び一般管理費"})
+# IFRS 本表は費用を △ で印字する。ZIP の CostOfSales は正なので符号を合わせる。合計の行も同じ。
+_IFRS_EXPENSE_ABS = re.compile(r"^(売上原価|原価|販売費及び一般管理費)(合計)?$")
+# 本表（BS/PL/CF）。決算短信ごとに最初の 1 つだけ読む（セグメント別・子会社・単体の表を読まない）。
+_STATEMENTS = frozenset({"bs", "pl", "cf"})
+# サマリー（1 ページ目。続きが 2 ページ目に出ることがある）。本文の「(2)財政状態に関する説明」を拾わない。
+_SUMMARY_PAGES = 2
+# 本表として採るのに要る数値の行（1 行以上）。見出しが 2 段（「(2)連結損益計算書及び…」「(連結損益計算書)」）のとき、
+# 上の見出しの下は空か単位の行だけ。
+_MIN_STATEMENT_ROWS = 1
+# 本表の後ろの注記の見出し（「(継続企業の前提に関する注記)」「(セグメント情報等)」「３．その他」）。
+_NOTE_HEADING = re.compile(r"^([(（【].*(注記|情報|事項)(等)?[)）】]$|\d\.その他|\(\d\).*注記)")
+# 目次の点線。本表・サマリーの行ではない。
+_LEADER = re.compile(r"[…‥]{2,}|\.{4,}|・{4,}|･{4,}|-{4,}")
+# 3 か月だけの列（第2〜第4四半期の会計期間）。累計の列と同じ期と取り違える。
+_QUARTER_ONLY = re.compile(r"第[2-4]四半期(連結)?会計期間(?!末)")
+# 行名の言い換え。四半期・中間の利益は当期の名前に寄せる（対応表は当期の名前だけ持つ）。
+_PERIOD_PROFIT = re.compile(r"(四半期|中間)(純利益|純損失|利益|損失)")
+_OWNERS_PROFIT = re.compile(r"^(当期)?純?利益の帰属:?(親会社の所有者|当社の所有者|当社株主|親会社株主)(持分)?$")
+_ALTERNATIVE = re.compile(r"又は.*$")
+_HEADING_NOTE = re.compile(r"[\[【〔(].*$")
+# 行名の言い換え（CF の「に関する」、期末残高の「四半期末」「中間期末」）。
+_SYNONYMS = (
+    (re.compile(r"活動に関するキャッシュ・フロー"), "活動によるキャッシュ・フロー"),
+    (re.compile(r"^(営業|投資|財務)活動(から得た|に使用した|から得た又は使用した|による)(正味)?現金(及び現金同等物)?(\(純額\))?$"),
+     r"\1活動によるキャッシュ・フロー"),
+    (re.compile(r"(四半期末|中間期末|中間会計期間末|四半期会計期間末)残高$"), "期末残高"),
+    (re.compile(r"^(基本的|希薄化後)1株当たり(親会社の所有者|当社の所有者|親会社株主|当社株主)に帰属する当期(純)?利益$"),
+     r"\g<1>1株当たり当期利益"),
+)
 _STMT = r"(要約)?(四半期|中間)?(連結|個別)?"
 
 
@@ -217,8 +256,8 @@ def _h(pattern: str) -> re.Pattern[str]:
 
 # 先に一致した見出しが勝つ。ブロックはその見出しから次の見出しの手前まで。
 SECTIONS: tuple[SectionSpec, ...] = (
-    SectionSpec("summary_pl", _h(r"^\(\d\)(連結)?経営成績"), NS_SUMMARY, Axis.ITEM_COLUMNS, Shape.DURATION, _E, _RESULT),
-    SectionSpec("summary_bs", _h(r"^\(\d\)(連結)?財政状態(?!計算書)"), NS_SUMMARY, Axis.ITEM_COLUMNS, Shape.INSTANT, _E, _RESULT),
+    SectionSpec("summary_pl", _h(r"^\(\d\)(連結|個別)?経営成績(?!に関する)"), NS_SUMMARY, Axis.ITEM_COLUMNS, Shape.DURATION, _E, _RESULT),
+    SectionSpec("summary_bs", _h(r"^\(\d\)(連結|個別)?財政状態(?!計算書|に関する)"), NS_SUMMARY, Axis.ITEM_COLUMNS, Shape.INSTANT, _E, _RESULT),
     SectionSpec(
         "summary_cf",
         _h(r"^\(\d\)(連結)?キャッシュ・フローの状況"),
@@ -229,24 +268,27 @@ SECTIONS: tuple[SectionSpec, ...] = (
     SectionSpec("summary_solo", _h(r"^\(参考\)個別"), NS_SUMMARY, Axis.ITEM_COLUMNS, Shape.DURATION, _E, _RESULT),
     SectionSpec(
         "bs",
-        _h(_STMT + r"(貸借対照表|財政状態計算書)$"),
+        _h(r"^" + _STMT + r"(貸借対照表|財政状態計算書)$"),
         NS_BS, Axis.ITEM_ROWS, Shape.INSTANT, _E, frozenset(),
     ),
     SectionSpec(
         "pl",
-        _h(_STMT + r"(損益計算書|損益及び包括利益計算書)(及び" + _STMT + r"包括利益計算書)?$"),
+        _h(r"^" + _STMT + r"(損益計算書|損益及び包括利益計算書)(及び" + _STMT + r"包括利益計算書)?$"),
         NS_PL, Axis.ITEM_ROWS, Shape.DURATION, _E, frozenset(),
     ),
     SectionSpec(
         "cf",
-        _h(_STMT + r"キャッシュ・フロー計算書$"),
+        _h(r"^" + _STMT + r"キャッシュ・フロー計算書$"),
         NS_CF, Axis.ITEM_ROWS, Shape.DURATION, _E, frozenset(),
     ),
-    SectionSpec("ci", _h(_STMT + r"包括利益計算書$"), None, Axis.ITEM_ROWS, Shape.DURATION, _E, frozenset()),
+    SectionSpec("ci", _h(r"^" + _STMT + r"包括利益計算書$"), None, Axis.ITEM_ROWS, Shape.DURATION, _E, frozenset()),
     SectionSpec("equity", _h(r"株主資本等変動計算書$|持分変動計算書$"), None, Axis.ITEM_ROWS, Shape.DURATION, _E, frozenset()),
     SectionSpec("segment", _h(r"セグメント情報"), None, Axis.ITEM_ROWS, Shape.DURATION, _E, frozenset()),
     SectionSpec("fc_rev", _h(r"業績予想.*修正"), NS_SUMMARY, Axis.ITEM_COLUMNS, Shape.DURATION, _FR, frozenset()),
     SectionSpec("div_rev", _h(r"配当予想.*修正"), NS_SUMMARY, Axis.ITEM_COLUMNS, Shape.DIVIDEND, _DR, frozenset()),
+    # 上のどれでもない計算書・対照表（セグメント別の損益計算書、子会社の貸借対照表など）。読まないが、
+    # 本表のブロックをここで切る。
+    SectionSpec("other_statement", _h(r"^.{0,40}(計算書|対照表)$"), None, Axis.ITEM_ROWS, Shape.DURATION, _E, frozenset()),
 )
 
 
@@ -275,6 +317,8 @@ class Role:
 # ^前 は「前回」に当てない。前回は修正前の予想で、前期の列ではない。
 ROLE_WORDS: tuple[tuple[re.Pattern[str], dict], ...] = (
     (_h(r"増減率|増減|対前期"), {"skip": True}),
+    # 本表の比率の列（売上収益比・前年同期比・構成比）。
+    (_h(r"[%％]$|^[%％]|収益比|売上比|同期比|構成比|前年比"), {"skip_rows": True}),
     (_h(r"前回発表予想|前回予想|\(A\)"), {"add": frozenset({"ForecastMember", "PreviousMember"})}),
     (_h(r"今回修正予想|今回発表予想|\(B\)"), {"add": frozenset({"ForecastMember", "CurrentMember"})}),
     (_h(r"第1四半期末"), {"add": frozenset({"FirstQuarterMember"})}),
@@ -345,6 +389,15 @@ def label_key(raw: str) -> str:
         previous = text
         text = _LEADING.sub("", text)
         text = _HINTS.sub("", text)
+    # 「営業利益又は営業損失(△)」は前半の名前。符号は印字の △ のまま。
+    head = _ALTERNATIVE.sub("", text)
+    if head:
+        text = head
+    text = _PERIOD_PROFIT.sub(r"当期\2", text)
+    for pattern, repl in _SYNONYMS:
+        text = pattern.sub(repl, text)
+    if _OWNERS_PROFIT.fullmatch(text):
+        text = "親会社の所有者に帰属する当期利益"
     return text
 
 
@@ -368,7 +421,7 @@ def _dates_in(texts: tuple[str, ...]) -> list[date]:
     for text in texts:
         for year, month, day in _DATE.findall(text):
             try:
-                found.append(date(int(year), int(month), int(day)))
+                found.append(date(_year(year), int(month), int(day)))
             except ValueError:
                 continue
     return found
@@ -421,8 +474,12 @@ def _heading_key(raw: str) -> str:
     """TOC の点線は残す。番号と囲みだけ落として見出し正規表現に渡す。"""
     text = _compact(raw)
     text = _HEADING_LEAD.sub("", text)
-    if len(text) >= 2 and text[0] in "(（" and text[-1] in ")）":
+    if len(text) >= 2 and text[0] in "(（【〔[" and text[-1] in ")）】〕]":
         text = text[1:-1]
+    # 「要約四半期連結損益計算書[第1四半期連結累計期間(…3ヵ月間)]」の後ろの補足。
+    trimmed = _HEADING_NOTE.sub("", text)
+    if trimmed != text and re.search(r"(計算書|対照表)$", trimmed):
+        text = trimmed
     return text
 
 
@@ -466,34 +523,66 @@ def role_of(
         for pattern, patch in ROLE_WORDS:
             if patch.get("skip") and pattern.search(text):
                 return None
+            if patch.get("skip_rows") and spec.axis is Axis.ITEM_ROWS and pattern.search(text):
+                return None
+    if spec.axis is Axis.ITEM_ROWS and spec.shape is Shape.DURATION and any(_QUARTER_ONLY.search(t) for t in norm):
+        return None
     members: set[str] = set(spec.base_members)
     period: PeriodRef | None = None
     span: Span | None = None
+    evidence = False
     for text in norm:
         for pattern, patch in ROLE_WORDS:
-            if patch.get("skip") or not pattern.search(text):
+            if patch.get("skip") or patch.get("skip_rows") or not pattern.search(text):
                 continue
+            evidence = True
             if "period" in patch:
                 period = patch["period"]
             if "span" in patch:
                 span = patch["span"]
             if "add" in patch:
-                members |= set(patch["add"])
+                added = set(patch["add"])
+                if spec.shape is not Shape.DIVIDEND:
+                    # 「第1四半期末」は配当表でだけ配当の時点。本表・サマリーでは期末の言い換え。
+                    added -= _DIVIDEND_SLOTS
+                members |= added
     if "ResultMember" in spec.base_members and any("予想" in text for text in norm):
         members.discard("ResultMember")
         members.add("ForecastMember")
+    # 日付（「至 2026年6月30日」）があれば日付で決める。「2027年3月期 第1四半期」の年月より確か。
+    # 列見出しは「2026年」「6月末」「(2026年6月30日)」のように語が分かれる。つないでも読む。
+    joined = ("".join(norm),)
     dated = None
-    for text in reversed(norm):
-        found = _YEAR_MONTH.findall(text)
-        if found:
-            year, month = found[-1]
-            dated = _period_from_year_month(int(year), int(month), d, spec)
-            if dated is not None:
-                break
-    if dated is None and _dates_in(norm):
+    by_month = False
+    if _dates_in(norm):
         dated = _period_from_date(_dates_in(norm)[-1], d, spec)
+    if dated is None and _dates_in(joined):
+        dated = _period_from_date(_dates_in(joined)[-1], d, spec)
+    if dated is None:
+        for text in (*reversed(norm), joined[0]):
+            found = _YEAR_MONTH.findall(text) or _YEAR_MONTH_END.findall(text)
+            if found:
+                year, month = found[-1]
+                dated = _period_from_year_month(_year(year), int(month), d, spec)
+                if dated is not None:
+                    by_month = True
+                    break
+    if (
+        spec.axis is Axis.ITEM_COLUMNS
+        and "ForecastMember" not in members
+        and dated is None
+        and not evidence
+        and texts and _compact(texts[0])
+    ):
+        # サマリーの実績の行名に期が無い（「(金融を除く)」等の内訳）。当期と決めつけると当期の行と重なる。
+        # 予想の表（たいてい 1 行）は今までどおり既定の期（FY の短信は来期、四半期は当期）。
+        return None
     if dated is not None:
-        period, span = dated
+        if by_month and span is not None:
+            # 「2027年3月期 第1四半期」は年度の年月。期間の長さは語（第1四半期）で決まる。
+            period = dated[0]
+        else:
+            period, span = dated
     if "ForecastMember" in members:
         if span is None:
             span = Span.YEAR
@@ -553,6 +642,9 @@ def context_for(
     ref = f"{role.period.value}{role.span.value}{suffix}"
     if role.members:
         ref = f"{ref}_{'_'.join(sorted(role.members))}"
+    if not consolidated:
+        # context は ref で使い回す。連結の短信の単体の値（配当）が連結の本表の context を奪わない。
+        ref = f"{ref}_NonConsolidated"
     dimensions = {f"pdf:{_AXIS.get(member, member)}:{member}": member for member in role.members}
     return ParsedContext(
         context_ref=ref,
@@ -592,12 +684,17 @@ def scaled(value: Decimal, unit: UnitKind) -> Decimal:
     return value * (Decimal(10) ** unit.value[1])
 
 
-def _consolidation(text: str, d: PdfDisclosure) -> bool | None:
-    """None はそのブロックを捨てる。修正通知だけ見出しごとに連結/個別を分ける。"""
+def _consolidation(text: str, d: PdfDisclosure, spec: SectionSpec | None = None) -> bool | None:
+    """None はそのブロックを捨てる。修正通知だけ見出しごとに連結/個別を分ける。
+
+    連結の短信のサマリーにある個別の表（「(2)個別財政状態」）は単体の値として読む。ZIP も単体で持つ。
+    """
     solo = "個別" in text or "単体" in text
     cons = "連結" in text
     if d.kind is DocKind.EARNINGS:
         if d.consolidated and solo and not cons:
+            if spec is not None and spec.axis is Axis.ITEM_COLUMNS:
+                return False
             return None
         if not d.consolidated and cons and not solo:
             return None
@@ -612,26 +709,75 @@ def _consolidation(text: str, d: PdfDisclosure) -> bool | None:
 def _blocks(pages: list[Page], d: PdfDisclosure) -> list[tuple[SectionSpec, list[Line], bool]]:
     specs = tuple(spec for spec in SECTIONS if d.kind in spec.kinds)
     lines = [line for page in pages for line in page.lines]
+    page_of = [page.index for page in pages for _line in page.lines]
     hits: list[tuple[int, SectionSpec, str]] = []
     for index, line in enumerate(lines):
         compact = _compact(line.text)
+        if _LEADER.search(compact):
+            continue
         heading = _heading_key(line.text)
         for spec in specs:
             if spec.headings.search(heading) or spec.headings.search(compact):
+                if spec.name.startswith("summary_") and page_of[index] >= _SUMMARY_PAGES:
+                    break
                 hits.append((index, spec, heading or compact))
                 break
-    blocks: list[tuple[SectionSpec, list[Line], bool]] = []
+    candidates: list[tuple[SectionSpec, list[Line], bool, str]] = []
     for nth, (index, spec, text) in enumerate(hits):
         end = hits[nth + 1][0] if nth + 1 < len(hits) else len(lines)
+        if spec.axis is Axis.ITEM_COLUMNS:
+            # サマリーの表はページをまたがない。次のページの目次や注記を表に入れない。
+            while end > index + 1 and page_of[end - 1] != page_of[index]:
+                end -= 1
         if spec.namespace is None:
             continue
-        consolidated = _consolidation(text, d)
+        consolidated = _consolidation(text, d, spec)
         if consolidated is None:
             continue
-        if spec.name == "summary_solo" and d.consolidated:
-            continue
-        blocks.append((spec, _table_lines(lines[index + 1:end]), consolidated))
+        if spec.name == "summary_solo":
+            # 連結の短信の「(参考) 個別業績」は単体の値。ZIP も単体として持つ。
+            consolidated = False
+        body = lines[index + 1:end]
+        if spec.name in _STATEMENTS:
+            body = _statement_body(body)
+        candidates.append((spec, _table_lines(body), consolidated, text))
+    blocks: list[tuple[SectionSpec, list[Line], bool]] = []
+    taken: set[str] = set()
+    for spec, body, consolidated, text in candidates:
+        if spec.name in _STATEMENTS:
+            if spec.name in taken or sum(1 for line in body if split_amounts(line)[1]) < _MIN_STATEMENT_ROWS:
+                continue
+            if d.kind is DocKind.EARNINGS and not _statement_matches(text, spec, d, candidates):
+                continue
+            taken.add(spec.name)
+        blocks.append((spec, body, consolidated))
     return blocks
+
+
+def _statement_body(lines: list[Line]) -> list[Line]:
+    """本表は表の終わりで切る。後ろの注記（「(継続企業の前提に関する注記)」、文章）の表を本表にしない。"""
+    seen_numeric = False
+    for index, line in enumerate(lines):
+        compact = _compact(line.text)
+        if split_amounts(line)[1]:
+            seen_numeric = True
+            continue
+        if seen_numeric and (_NOTE_HEADING.match(compact) or "。" in compact):
+            return lines[:index]
+    return lines
+
+
+def _statement_matches(text: str, spec: SectionSpec, d: PdfDisclosure, candidates) -> bool:
+    """連結の短信は題名に「連結」のある本表、非連結は無い本表。連結の短信で「連結」の本表が無ければ無いものも読む。"""
+    has_cons = "連結" in text
+    if not d.consolidated:
+        return not has_cons
+    if has_cons:
+        return True
+    return not any(
+        other.name == spec.name and body and "連結" in other_text
+        for other, body, _cons, other_text in candidates
+    )
 
 
 def _table_lines(lines: list[Line]) -> list[Line]:
@@ -644,6 +790,8 @@ def _table_lines(lines: list[Line]) -> list[Line]:
         if _CLASS_HEAD.search(compact):
             continue
         if _RUNNING_HEAD.search(compact):
+            continue
+        if _LEADER.search(compact):
             continue
         heading = _heading_key(line.text)
         if any(
@@ -677,6 +825,66 @@ def _split_grids(lines: list[Line]) -> list[list[Line]]:
     return [chunk for chunk in chunks if chunk]
 
 
+def _statement_roles(table, spec: SectionSpec, d: PdfDisclosure) -> list[Role | None]:
+    """本表の列ごとの役割。増減・3 か月・予想の列は None。同じ役割が 2 列に付けば、見出しで決まった方だけ残す。
+
+    見出しで決まらない列は位置で決める（右端が当期、ほかは前期）。見出しで決まった列どうしが重なれば、
+    どちらが正しいか分からないので両方捨てる（間違った値を入れるより空の方がよい）。
+    """
+    count = len(table.columns)
+    roles: list[Role | None] = []
+    explicit: list[bool] = []
+    filled = [
+        any(row.cells[index] is not None and row.cells[index].value is not None for row in table.rows)
+        for index in range(count)
+    ]
+    # 「右端」はダッシュだけの列を数えない。
+    last = max((index for index in range(count) if filled[index]), default=count - 1)
+    for index, column in enumerate(table.columns):
+        if not filled[index]:
+            # ダッシュだけの列。役割を付けると値のある列と重なって両方捨てることになる。
+            roles.append(None)
+            explicit.append(False)
+            continue
+        right = role_of(column.headers, spec, d, rightmost=True)
+        left = role_of(column.headers, spec, d, rightmost=False)
+        role = right if index == last else left
+        if role is not None and "ForecastMember" in role.members:
+            role = None
+        roles.append(role)
+        explicit.append(right is not None and left is not None and right.period is left.period)
+    by_key: dict[tuple, list[int]] = {}
+    for index, role in enumerate(roles):
+        if role is not None:
+            by_key.setdefault((role.period, role.span, role.members), []).append(index)
+    for indexes in by_key.values():
+        if len(indexes) < 2:
+            continue
+        sure = [index for index in indexes if explicit[index]]
+        for index in indexes:
+            # 見出しで決まった列が 1 つならそれを残す。2 つ以上ならどちらも捨てる（ほかの列は残す）。
+            if len(sure) != 1 or index != sure[0]:
+                roles[index] = None
+    return roles
+
+
+def _without_conflicts(pending: list[tuple[ParsedFact, str]]) -> list[tuple[ParsedFact, str]]:
+    """同じ (名前空間, 科目, context, 単位) に違う値があれば全部落とす。同じ値の重複は 1 つにする。"""
+    values: dict[tuple, set[Decimal]] = {}
+    for fact, _label in pending:
+        key = (fact.namespace_key, fact.local_name, fact.context_ref, fact.unit)
+        values.setdefault(key, set()).add(fact.value_num)
+    kept: list[tuple[ParsedFact, str]] = []
+    done: set[tuple] = set()
+    for fact, label in pending:
+        key = (fact.namespace_key, fact.local_name, fact.context_ref, fact.unit)
+        if len(values[key]) > 1 or key in done:
+            continue
+        done.add(key)
+        kept.append((fact, label))
+    return kept
+
+
 def sides(role: Role, amount) -> list[tuple[Role, Decimal]]:
     if amount.value is None:
         return []
@@ -692,6 +900,16 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
     facts: list[ParsedFact] = []
     labels: dict[tuple[str, str], dict[str, str]] = {}
     seen: Counter[tuple[str, str, str, str]] = Counter()
+
+    def add(fact: ParsedFact, label: str) -> None:
+        # 同じ科目・同じ期が 2 度出たら 2 つ目以降は #2, #3。マッピングは名前の完全一致なので 1 つ目が使われる。
+        slot = (fact.namespace_key, fact.local_name, fact.context_ref, fact.unit)
+        seen[slot] += 1
+        if seen[slot] > 1:
+            fact = replace(fact, local_name=f"{fact.local_name}#{seen[slot]}")
+        facts.append(fact)
+        labels.setdefault((fact.namespace_key, fact.local_name), {"label_ja": label})
+
     for spec, lines, consolidated in _blocks(pages, d):
         if spec.namespace is None or not lines:
             continue
@@ -700,21 +918,28 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                 table = grid(chunk)
             except PdfLayoutError:
                 continue
+            # サマリーの表は表ごとにためる。同じ科目・同じ期に違う値が 2 つ出たら、どの行が正しいか
+            # 分からない（期の読み違い）ので、どちらも入れない。
+            pending: list[tuple[ParsedFact, str]] = []
+            column_roles = _statement_roles(table, spec, d) if spec.axis is Axis.ITEM_ROWS else None
             for row in table.rows:
                 for index, (column, amount) in enumerate(zip(table.columns, row.cells)):
                     if amount is None or amount.value is None:
                         continue
-                    if spec.axis is Axis.ITEM_ROWS:
+                    if column_roles is not None:
                         item_text = row.label
                         role_texts = column.headers
-                        rightmost = index == len(table.columns) - 1
+                        role = column_roles[index]
                     else:
                         if not column.headers:
                             continue
                         item_text, extra = _split_item_headers(column.headers)
                         role_texts = (row.label, *extra)
-                        rightmost = False
-                    role = role_of(role_texts, spec, d, rightmost=rightmost)
+                        if spec.shape is Shape.DIVIDEND and _HEADER_ROLE.search(_compact(item_text)):
+                            # 配当表の列見出しが「第１四半期末」等の時点だけなら、科目は 1 株当たり配当金。
+                            # 配当金総額・配当性向の列は見出しの科目名のまま。
+                            item_text = "年間配当金"
+                        role = role_of(role_texts, spec, d, rightmost=False)
                     if role is None or not item_text.strip() or _is_unit_token(item_text):
                         continue
                     try:
@@ -733,19 +958,20 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                         if (
                             spec.namespace is NS_PL
                             and d.standard == "IFRS"
-                            and base_local in _IFRS_EXPENSE_ABS
+                            and _IFRS_EXPENSE_ABS.fullmatch(base_local)
                             and value < 0
                         ):
                             value = -value
-                        ctx = context_for(side, spec, d, consolidated=consolidated)
+                        # 配当は ZIP と同じく単体（連結の軸が無い）として持つ。
+                        ctx = context_for(
+                            side, spec, d,
+                            consolidated=consolidated and spec.shape is not Shape.DIVIDEND,
+                        )
                         contexts.setdefault(ctx.context_ref, ctx)
-                        slot = (spec.namespace.key, base_local, ctx.context_ref, unit.value[0])
-                        seen[slot] += 1
-                        local = base_local if seen[slot] == 1 else f"{base_local}#{seen[slot]}"
-                        facts.append(ParsedFact(
+                        fact = ParsedFact(
                             namespace_uri=spec.namespace.uri,
                             namespace_key=spec.namespace.key,
-                            local_name=local,
+                            local_name=base_local,
                             context_ref=ctx.context_ref,
                             unit=unit.value[0],
                             scale=unit.value[1],
@@ -753,8 +979,13 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                             value_text=None,
                             is_nil=False,
                             is_numeric=True,
-                        ))
-                        labels.setdefault((spec.namespace.key, local), {"label_ja": item_text})
+                        )
+                        if spec.axis is Axis.ITEM_COLUMNS:
+                            pending.append((fact, item_text))
+                        else:
+                            add(fact, item_text)
+            for fact, label in _without_conflicts(pending):
+                add(fact, label)
     if not facts:
         raise PdfLayoutError("no in-scope table")
     assign_relative_periods(list(contexts.values()), d.anchor_end)

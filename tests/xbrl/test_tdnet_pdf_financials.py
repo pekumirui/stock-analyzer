@@ -920,7 +920,7 @@ def test_loss_labels_and_glued_owners_profit() -> None:
         _fail(parsed)
     pkg = read_tdnet_pdf(_svg(parts, "path"), parsed)
     names = {fact.local_name: fact.value_num for fact in pkg.facts}
-    if "親会社株主に帰属する四半期純損失" not in names:
+    if "親会社株主に帰属する当期純損失" not in names:
         _fail(f"glued {names}")
     if any("帰属する中間純損失親会社" in name for name in names):
         _fail(f"still glued {names}")

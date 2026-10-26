@@ -49,7 +49,7 @@ __all__ = [
 
 SOURCE = "tdnet_pdf"
 # レイアウト・行名・label_key の結果が変わったら上げる。上げると全 PDF filing の指紋がずれる。
-READER_VERSION = 2
+READER_VERSION = 3
 
 
 class SyncOutcome(str, Enum):

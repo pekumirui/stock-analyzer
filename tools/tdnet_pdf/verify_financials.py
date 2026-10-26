@@ -22,10 +22,11 @@ import json
 import os
 import re
 import sys
+import unicodedata
 from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -36,6 +37,23 @@ PDF_URL = "https://api.irbank.net/api/market-files/v1/tdnet/{no}.pdf"
 USER_AGENT = "stock-analyzer/1.0 (personal; tools/tdnet_pdf/verify_financials)"
 _NO = re.compile(r"(\d{14})")
 _FY = re.compile(r"(\d{4})年(\d{1,2})月期")
+_FY_REIWA = re.compile(r"令和(\d{1,2})年(\d{1,2})月期")
+_TITLE_PERIOD = (
+    (re.compile(r"第\s*[1１]\s*四半期"), "Q1"),
+    (re.compile(r"第\s*[2２]\s*四半期|中間"), "Q2"),
+    (re.compile(r"第\s*[3３]\s*四半期"), "Q3"),
+)
+
+
+def period_from_title(title: str, period: str | None) -> str | None:
+    """ZIP の filing に期が無い（period_type が空）ときは題名の「第1四半期」「中間期」から。"""
+    if period:
+        return period
+    text = unicodedata.normalize("NFKC", title or "")
+    for pattern, token in _TITLE_PERIOD:
+        if pattern.search(text):
+            return token
+    return None
 _ZIP_ID = re.compile(r"(0812|0912)(\d{14})")
 CF_ITEMS = frozenset({"operating_cf", "investing_cf", "financing_cf", "capex", "depreciation", "cash_end"})
 MONEY_TOL = Decimal("1")
@@ -141,10 +159,16 @@ def type_of_period(doc: str, period: str | None) -> str:
 
 
 def dates_from_title(title: str, period: str | None) -> tuple[date, date, date, date] | None:
-    found = _FY.search(title or "")
-    if found is None:
-        return None
-    end = last_day(int(found.group(1)), int(found.group(2)))
+    text = unicodedata.normalize("NFKC", title or "")
+    found = _FY.search(text)
+    if found is not None:
+        year = int(found.group(1))
+    else:
+        found = _FY_REIWA.search(text)
+        if found is None:
+            return None
+        year = 2018 + int(found.group(1))
+    end = last_day(year, int(found.group(2)))
     start = fy_start(end)
     token = period or "FY"
     if token == "Q1":
@@ -269,6 +293,7 @@ def copy_master(source_db: Path, scratch: Path) -> None:
 def ensure_statement(db, *, no: str, code: str, title: str, submitted_at: str, period: str | None, standard: str | None):
     from app.models import Statement
 
+    period = period_from_title(title, period)
     row = db.get(Statement, no)
     if row is not None and row.period_start and row.period_end and row.fiscal_year_start and row.fiscal_year_end:
         if not row.type_of_document:
@@ -412,7 +437,7 @@ def pairs_in(work: Path) -> list[tuple[str, Path, Path | None, Path | None]]:
 def run_pair(db, *, no: str, zip_path: Path, html_path: Path | None, pdf_path: Path | None, work: Path, fetch: bool, convert: bool) -> PairResult:
     from app.models import Statement, Stock
     from app.xbrl.context import classify_title
-    from app.xbrl.pdf import SyncOutcome, sync_pdf_filing
+    from app.xbrl.pdf import sync_pdf_filing
 
     title = title_of_zip_name(zip_path.name)
     meta = classify_title(title)

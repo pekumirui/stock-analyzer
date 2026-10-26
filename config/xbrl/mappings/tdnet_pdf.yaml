@@ -1,6 +1,7 @@
 # 短信 PDF の印字の行名 → 標準科目（KAB-173。docs/DESIGN_xbrl.md §16.5）
 # name は app.xbrl.pdf の label_key の結果（NFKC、空白なし）。priority は小さい方が勝つ。
 # 営業収益は売上高より先。経常利益は JPGAAP のときだけ。設備投資額（正の印字）は対応させない。
+# 四半期・中間の利益の名前は label_key が当期の名前に寄せる（KAB-173）。「又は」の後ろは落とす。
 - std_item: net_sales
   elements:
     - { ns: pdf-pl, name: 営業収益, priority: 5 }
@@ -11,13 +12,28 @@
     - { ns: pdf-sum, name: 売上高, priority: 50 }
     - { ns: pdf-sum, name: 売上収益, priority: 50, standard: IFRS }
     - { ns: pdf-sum, name: 保険収益, priority: 50, standard: IFRS }
+    - { ns: pdf-pl, name: 営業収益合計, priority: 4 }
+    - { ns: pdf-pl, name: 売上高合計, priority: 8 }
+    - { ns: pdf-pl, name: 売上収益合計, priority: 8, standard: IFRS }
+    - { ns: pdf-pl, name: 収益, priority: 12, standard: IFRS }
+    - { ns: pdf-pl, name: 収益合計, priority: 11, standard: IFRS }
+    - { ns: pdf-pl, name: 経常収益, priority: 22, standard: JPGAAP }
+    - { ns: pdf-sum, name: 経常収益, priority: 52, standard: JPGAAP }
+    - { ns: pdf-sum, name: 収益, priority: 55, standard: IFRS }
+    - { ns: pdf-sum, name: 営業収入, priority: 56 }
+    - { ns: pdf-pl, name: 営業収入, priority: 20 }
 - std_item: cost_of_sales
   elements:
     - { ns: pdf-pl, name: 売上原価, priority: 10 }
     - { ns: pdf-pl, name: 売上原価合計, priority: 15 }
+    - { ns: pdf-pl, name: 原価, priority: 12, standard: IFRS }
+    - { ns: pdf-pl, name: 営業原価, priority: 14 }
 - std_item: gross_profit
   elements:
     - { ns: pdf-pl, name: 売上総利益, priority: 10 }
+    - { ns: pdf-pl, name: 売上総損失, priority: 10 }
+    - { ns: pdf-pl, name: 営業総利益, priority: 12 }
+    - { ns: pdf-pl, name: 売上総利益合計, priority: 15 }
 - std_item: sga
   elements:
     - { ns: pdf-pl, name: 販売費及び一般管理費, priority: 10 }
@@ -28,6 +44,7 @@
     - { ns: pdf-pl, name: 営業損失, priority: 10 }
     - { ns: pdf-sum, name: 営業利益, priority: 50 }
     - { ns: pdf-sum, name: 営業損失, priority: 50 }
+    - { ns: pdf-pl, name: 営業利益合計, priority: 12 }
 - std_item: ordinary_income
   elements:
     - { ns: pdf-pl, name: 経常利益, priority: 10, standard: JPGAAP }
@@ -37,37 +54,28 @@
 - std_item: profit_before_tax
   elements:
     - { ns: pdf-pl, name: 税金等調整前当期純利益, priority: 10 }
-    - { ns: pdf-pl, name: 税金等調整前四半期純利益, priority: 10 }
-    - { ns: pdf-pl, name: 税金等調整前中間純利益, priority: 10 }
-    - { ns: pdf-pl, name: 税金等調整前四半期純損失, priority: 10 }
     - { ns: pdf-pl, name: 税金等調整前当期純損失, priority: 10 }
     - { ns: pdf-pl, name: 税引前当期純利益, priority: 12 }
     - { ns: pdf-pl, name: 税引前利益, priority: 10, standard: IFRS }
-    - { ns: pdf-pl, name: 税引前四半期利益, priority: 10, standard: IFRS }
-    - { ns: pdf-pl, name: 税引前中間利益, priority: 10, standard: IFRS }
-    - { ns: pdf-sum, name: 税引前四半期利益, priority: 50, standard: IFRS }
-    - { ns: pdf-sum, name: 税引前中間利益, priority: 50, standard: IFRS }
+    - { ns: pdf-pl, name: 税引前当期利益, priority: 10, standard: IFRS }
+    - { ns: pdf-sum, name: 税引前当期利益, priority: 50, standard: IFRS }
+    - { ns: pdf-pl, name: 税引前当期純損失, priority: 12 }
+    - { ns: pdf-pl, name: 税引前当期損失, priority: 10, standard: IFRS }
 - std_item: net_income
   elements:
     - { ns: pdf-pl, name: 親会社株主に帰属する当期純利益, priority: 10 }
-    - { ns: pdf-pl, name: 親会社株主に帰属する四半期純利益, priority: 10 }
-    - { ns: pdf-pl, name: 親会社株主に帰属する中間純利益, priority: 10 }
     - { ns: pdf-pl, name: 親会社株主に帰属する当期純損失, priority: 10 }
-    - { ns: pdf-pl, name: 親会社株主に帰属する四半期純損失, priority: 10 }
-    - { ns: pdf-pl, name: 親会社株主に帰属する中間純損失, priority: 10 }
     - { ns: pdf-pl, name: 親会社の所有者に帰属する当期利益, priority: 10, standard: IFRS }
-    - { ns: pdf-pl, name: 親会社の所有者に帰属する四半期利益, priority: 10, standard: IFRS }
-    - { ns: pdf-pl, name: 親会社の所有者に帰属する中間利益, priority: 10, standard: IFRS }
-    - { ns: pdf-pl, name: 四半期利益の帰属:親会社の所有者, priority: 12, standard: IFRS }
-    - { ns: pdf-pl, name: 四半期利益の帰属親会社の所有者, priority: 12, standard: IFRS }
     - { ns: pdf-pl, name: 当期純利益, priority: 30 }
+    - { ns: pdf-pl, name: 当期純損失, priority: 30 }
     - { ns: pdf-sum, name: 親会社株主に帰属する当期純利益, priority: 50 }
-    - { ns: pdf-sum, name: 親会社株主に帰属する四半期純利益, priority: 50 }
-    - { ns: pdf-sum, name: 親会社株主に帰属する中間純利益, priority: 50 }
     - { ns: pdf-sum, name: 親会社の所有者に帰属する当期利益, priority: 50, standard: IFRS }
-    - { ns: pdf-sum, name: 親会社の所有者に帰属する四半期利益, priority: 50, standard: IFRS }
-    - { ns: pdf-sum, name: 親会社の所有者に帰属する中間利益, priority: 50, standard: IFRS }
     - { ns: pdf-sum, name: 当期純利益, priority: 70 }
+    - { ns: pdf-pl, name: 当社株主に帰属する当期純利益, priority: 10 }
+    - { ns: pdf-pl, name: 当社株主に帰属する当期純損失, priority: 10 }
+    - { ns: pdf-pl, name: 親会社の所有者に帰属する当期損失, priority: 10, standard: IFRS }
+    - { ns: pdf-sum, name: 親会社株主に帰属する当期純損失, priority: 50 }
+    - { ns: pdf-sum, name: 当社株主に帰属する当期純利益, priority: 50 }
 - std_item: cash_and_deposits
   elements:
     - { ns: pdf-bs, name: 現金及び預金, priority: 10 }
@@ -86,6 +94,7 @@
     - { ns: pdf-bs, name: 資産合計, priority: 10 }
     - { ns: pdf-sum, name: 資産合計, priority: 50 }
     - { ns: pdf-sum, name: 総資産, priority: 60 }
+    - { ns: pdf-bs, name: 資産の部合計, priority: 10 }
 - std_item: current_liabilities
   elements:
     - { ns: pdf-bs, name: 流動負債合計, priority: 10 }
@@ -100,17 +109,25 @@
   elements:
     - { ns: pdf-bs, name: 負債合計, priority: 10 }
     - { ns: pdf-sum, name: 負債合計, priority: 50 }
+    - { ns: pdf-bs, name: 負債の部合計, priority: 10 }
 - std_item: shareholders_equity
   elements:
     - { ns: pdf-bs, name: 株主資本合計, priority: 10 }
     - { ns: pdf-bs, name: 株主資本, priority: 20 }
     - { ns: pdf-bs, name: 親会社の所有者に帰属する持分合計, priority: 10, standard: IFRS }
+    - { ns: pdf-bs, name: 親会社の所有者に帰属する持分, priority: 12, standard: IFRS }
+    - { ns: pdf-bs, name: 親会社株主持分合計, priority: 10, standard: IFRS }
+    - { ns: pdf-bs, name: 当社の所有者に帰属する持分合計, priority: 10, standard: IFRS }
+    - { ns: pdf-bs, name: 当社の所有者に帰属する持分, priority: 12, standard: IFRS }
+    - { ns: pdf-bs, name: 当社株主に帰属する持分合計, priority: 10, standard: IFRS }
 - std_item: net_assets
   elements:
     - { ns: pdf-bs, name: 純資産合計, priority: 10 }
     - { ns: pdf-bs, name: 資本合計, priority: 10, standard: IFRS }
+    - { ns: pdf-bs, name: 資本の部合計, priority: 10, standard: IFRS }
     - { ns: pdf-sum, name: 純資産合計, priority: 50 }
     - { ns: pdf-sum, name: 純資産, priority: 60 }
+    - { ns: pdf-bs, name: 純資産の部合計, priority: 10 }
 - std_item: operating_cf
   elements:
     - { ns: pdf-cf, name: 営業活動によるキャッシュ・フロー, priority: 10 }
@@ -125,7 +142,6 @@
     - { ns: pdf-sum, name: 財務活動によるキャッシュ・フロー, priority: 50 }
 - std_item: capex
   elements:
-    # 印字は △。fact は負のまま入り、std_items の sign: invert で正になる。
     - { ns: pdf-cf, name: 有形固定資産の取得による支出, priority: 10 }
 - std_item: depreciation
   elements:
@@ -138,20 +154,12 @@
 - std_item: eps_basic
   elements:
     - { ns: pdf-sum, name: 1株当たり当期純利益, priority: 10 }
-    - { ns: pdf-sum, name: 1株当たり四半期純利益, priority: 10 }
-    - { ns: pdf-sum, name: 1株当たり中間純利益, priority: 10 }
     - { ns: pdf-sum, name: 基本的1株当たり当期利益, priority: 10, standard: IFRS }
-    - { ns: pdf-sum, name: 基本的1株当たり四半期利益, priority: 10, standard: IFRS }
-    - { ns: pdf-sum, name: 基本的1株当たり中間利益, priority: 10, standard: IFRS }
     - { ns: pdf-sum, name: 基本的1株当たり, priority: 20, standard: IFRS }
 - std_item: eps_diluted
   elements:
     - { ns: pdf-sum, name: 潜在株式調整後1株当たり当期純利益, priority: 10 }
-    - { ns: pdf-sum, name: 潜在株式調整後1株当たり四半期純利益, priority: 10 }
-    - { ns: pdf-sum, name: 潜在株式調整後1株当たり中間純利益, priority: 10 }
     - { ns: pdf-sum, name: 希薄化後1株当たり当期利益, priority: 10, standard: IFRS }
-    - { ns: pdf-sum, name: 希薄化後1株当たり四半期利益, priority: 10, standard: IFRS }
-    - { ns: pdf-sum, name: 希薄化後1株当たり中間利益, priority: 10, standard: IFRS }
     - { ns: pdf-sum, name: 希薄化後1株当たり, priority: 20, standard: IFRS }
 - std_item: dps
   elements:
