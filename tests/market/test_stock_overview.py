@@ -114,3 +114,16 @@ def test_chart_tab_moved_into_stock_price() -> None:
     assert 'if(tab === "chart")' in tabs and "`${code}/price`" in tabs
     assert 'showStock(code, "price", "")' in js
     assert "#stock/${c.code}/price" in (ROOT / "static/js/supply.js").read_text(encoding="utf-8")
+
+
+def test_summary_reuses_earnings_tables() -> None:
+    """概要の業績は決算速報と同じ表（KAB-179）。決算速報の .ftab[data-fin] と切り替えが混ざらない。"""
+    html = (ROOT / "static/index.html").read_text(encoding="utf-8")
+    js = (ROOT / "static/js/stock.js").read_text(encoding="utf-8")
+    sub = html[html.index('id="st-sub-summary"'):html.index('id="st-sub-price"')]
+    for t in ("cum", "q", "prog", "rev"):
+        assert f'data-stfin="{t}"' in sub and f'id="st-{t}-tbl"' in sub
+    assert "data-fin=" not in sub
+    assert "/api/earnings/detail/${code}`" in js
+    for fn in ("renderFin($(\"#st-cum-tbl\")", "renderFin($(\"#st-q-tbl\")", "renderProg(", "renderRev("):
+        assert fn in js
