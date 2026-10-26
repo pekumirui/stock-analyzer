@@ -216,14 +216,22 @@ def tree_payload(code: str, elements: Sequence[str],
 
 AUTO_ROOT = "全体"
 _COMPANY_GROUPS = frozenset({"日本+海外", "グループ"})
-_TOTAL_TOKENS = frozenset({"企業計", "グループ総", "チェーン", "総", "全社（連結）", "カウント"})
-_METRIC_TOKENS = frozenset({"増減", "増減額", "同規模", "一品", "買上点数"})
+_TOTAL_TOKENS = frozenset({
+    "企業計", "グループ総", "チェーン", "総", "全社（連結）", "カウント",
+    "全業態", "純", "数",
+})
+_METRIC_TOKENS = frozenset({
+    "増減", "増減額", "同規模", "一品", "買上点数", "＊M&A除く", "M&A除く",
+})
 _GROUP_CHANNEL_TOKENS = frozenset({"TCC"})
 _YOY_RATE_SUFFIX = "増減率"
 _INNER_MARKS = ("内訳：", "内訳:", "内訳", "うち")
 _GLUED_INNERS = ("現物", "信用")
+_SECTION_SCOPE_PREFIXES = ("全店 ", "全社 ")
 _FOLD_SKIP_GROUPS = _COMPANY_GROUPS | _TOTAL_TOKENS | frozenset({
     "全社", "全店", "既存", "直営", "FC", "直営+FC", "日本", "海外", "日本+海外",
+    "休業", "休業中", "（従来基準）", "(従来基準)", "（全業態）", "(全業態)",
+    "＊M&A除く", "M&A除く",
 })
 _AUTO_CHANNEL_RANK = {"": 0, "直営+FC": 0, "直営": 1, "FC": 2}
 _AUTO_COUNTRY_RANK = {"": 0, "日本+海外": 0, "日本": 1, "海外": 2}
@@ -242,15 +250,18 @@ def _auto_split(label: Mapping[str, Any]) -> tuple[str, str]:
     """(節にする group, 葉)。行名全体が group（指標の無い行）と会社全体の合計は節にしない。
     group の中の合計の語は節からも葉からも外し、指標の語とチャネルの語は節から外して葉の頭に残す。内訳はこのあと葉から外す。
     国の語（`日本` / `海外`）が group の前に出る行（31930 `日本 鳥貴族 店舗数`、7134 `海外 アップガレージ 店舗数`）は
-    国の語を剥がして group に当て、国の語は葉の頭に残す（#590）。括弧で始まる group（43430 `(曜日調整前)`）は節にしない
+    国の語を剥がして group に当て、国の語は葉の頭に残す（#590）。括弧で始まる group（43430 `(曜日調整前)`、
+    82550 `（従来基準）`）は節にしない（#590 / #591）
     """
     s = str(label["display"])
     g = str(label["group"] or "")
     country = next((c for c in ("日本", "海外") if s.startswith(c + " ")), "")
-    if g and country and not g.startswith("(") and s.startswith(f"{country} {g} "):
+    if g and country and not g.startswith("(") and not g.startswith("（") and s.startswith(f"{country} {g} "):
         s = s[len(country) + 1:]
     else:
         country = ""
+    if g.startswith("(") or g.startswith("（"):
+        return "", s
     if not g or not s.startswith(g + " "):
         head = next((c for c in _COMPANY_GROUPS if s.startswith(c + " ")), "")
         return "", s[len(head) + 1:] if head else s
@@ -378,6 +389,26 @@ def _fold_consolidated_metrics(rows: dict[str, dict[str, Any]]) -> None:
             core = m[2:]
             if core in have:
                 r["metric"] = core
+
+
+def _fold_section_scope_metrics(rows: dict[str, dict[str, Any]]) -> None:
+    """節にだけある指標を、会社の `全店` / `全社` 付きの同じ指標へ寄せる（#592）。
+
+    30820 `都市型ダイニング業態 店舗数` → 会社の `全店 店舗数`。82000 ブランドの `店舗数` も同じ。
+    全店が無く既存だけのときは寄せない（既存は別系列）。会社の行が無い指標はそのまま。
+    """
+    company = {r["metric"] for r in rows.values() if len(r["path"]) == 1}
+    node_only = {r["metric"] for r in rows.values() if len(r["path"]) > 1} - company
+    mapping: dict[str, str] = {}
+    for m in node_only:
+        hit = next((p + m for p in _SECTION_SCOPE_PREFIXES if p + m in company), None)
+        if hit:
+            mapping[m] = hit
+    if not mapping:
+        return
+    for r in rows.values():
+        if len(r["path"]) > 1 and r["metric"] in mapping:
+            r["metric"] = mapping[r["metric"]]
 
 
 def _fold_baked_auto_rows(rows: dict[str, dict[str, Any]]) -> None:
@@ -620,6 +651,8 @@ def build_auto_tree(code: str, years: Mapping[int, Sequence[tuple[str, str]]],
         metric_key[dst] = metric_key.pop(src)
         if src == "日本 " + dst:
             folded.append(dst)
+    _fold_section_scope_metrics(rows)
+    metric_key = _rebuild_metric_key(rows, metric_key)
     metrics = sorted(metric_key, key=lambda m: metric_key[m][1])
 
     def bd_nodes(group: str) -> list[tuple[str, list]]:

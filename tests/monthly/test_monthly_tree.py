@@ -1390,7 +1390,7 @@ def test_monthly_auto_tree() -> None:
             ["全体", "マッサージ事業"], "総レセプト数(鍼灸込み) 直営",
             "総レセプト数(鍼灸込み) 直営",
         ),
-        "数 出店": (["全体", "数"], "出店", "出店"),
+        "数 出店": (["全体"], "出店", "出店"),
     }
     if got_counts != want_counts:
         _fail(f"auto tree count metrics: {got_counts!r}")
@@ -2839,6 +2839,132 @@ def test_auto_tree_fold_unknown_metrics() -> None:
         _fail(f"既存 売上高 must stay: {got_k['既存 売上高(前年比)']!r}")
 
 
+def test_auto_tree_scope_words_not_groups() -> None:
+    """合計・基準・割り残しの語は節にしない（#591）。休業は店舗数の内数の節のまま。"""
+    from app.monthly.tree import build_auto_tree
+
+    uc = build_auto_tree("35570", {2026: [
+        ("店舗数", "number"),
+        ("全業態 既存 売上高(前年比)", "yoy_index"),
+        ("全業態 既存 店舗数", "number"),
+        ("全業態 店舗数", "number"),
+        ("てけてけ 既存 売上高(前年比)", "yoy_index"),
+        ("てけてけ 店舗数", "number"),
+    ]})
+    got = {k: (v["path"], v["metric"]) for k, v in uc.rows.items()}
+    if got["全業態 既存 売上高(前年比)"] != (["全体"], "既存 売上高"):
+        _fail(f"35570 auto 全業態売上: {got['全業態 既存 売上高(前年比)']!r}")
+    if got["全業態 既存 店舗数"] != (["全体"], "既存 店舗数"):
+        _fail(f"35570 auto 全業態既存店: {got['全業態 既存 店舗数']!r}")
+    if got["全業態 店舗数"] != (["全体"], "店舗数"):
+        _fail(f"35570 auto 全業態店: {got['全業態 店舗数']!r}")
+    if got["てけてけ 店舗数"] != (["全体", "てけてけ"], "店舗数"):
+        _fail(f"35570 auto てけてけ: {got['てけてけ 店舗数']!r}")
+    if any("全業態" in p for v in got.values() for p in v[0]):
+        _fail(f"35570 auto 全業態 must not be a group: {got!r}")
+
+    rh = build_auto_tree("82000", {2026: [
+        ("全店 売上高(前年比)", "yoy_index"),
+        ("全店 店舗数", "number"),
+        ("純 既存 売上高(前年比)", "yoy_index"),
+        ("リンガーハット 売上高(前年比)", "yoy_index"),
+        ("リンガーハット 店舗数", "number"),
+    ]})
+    got_r = {k: (v["path"], v["metric"]) for k, v in rh.rows.items()}
+    if got_r["純 既存 売上高(前年比)"] != (["全体"], "既存 売上高"):
+        _fail(f"82000 auto 純既存: {got_r['純 既存 売上高(前年比)']!r}")
+    if any("純" in p for v in got_r.values() for p in v[0]):
+        _fail(f"82000 auto 純 must not be a group: {got_r!r}")
+
+    ax = build_auto_tree("82550", {2026: [
+        ("全店 売上高(前年比)", "yoy_index"),
+        ("既存 売上高(前年比)", "yoy_index"),
+        ("（従来基準） 全店 売上高(前年比)", "yoy_index"),
+        ("（従来基準） 既存 売上高(前年比)", "yoy_index"),
+    ]})
+    got_a = {k: (v["path"], v["metric"]) for k, v in ax.rows.items()}
+    if got_a["（従来基準） 全店 売上高(前年比)"] != (["全体"], "（従来基準） 全店 売上高"):
+        _fail(f"82550 auto 従来全店: {got_a['（従来基準） 全店 売上高(前年比)']!r}")
+    if got_a["（従来基準） 既存 売上高(前年比)"] != (["全体"], "（従来基準） 既存 売上高"):
+        _fail(f"82550 auto 従来既存: {got_a['（従来基準） 既存 売上高(前年比)']!r}")
+    if got_a["全店 売上高(前年比)"] != (["全体"], "全店 売上高"):
+        _fail(f"82550 auto 全店: {got_a['全店 売上高(前年比)']!r}")
+    if any("従来基準" in p for v in got_a.values() for p in v[0]):
+        _fail(f"82550 auto 従来基準 must not be a group: {got_a!r}")
+
+    srs = build_auto_tree("81630", {2026: [
+        ("全店 売上高(前年比)", "yoy_index"),
+        ("＊M&A除く 全店 売上高(前年比)", "yoy_index"),
+    ]})
+    got_s = {k: (v["path"], v["metric"]) for k, v in srs.rows.items()}
+    if got_s["＊M&A除く 全店 売上高(前年比)"] != (["全体"], "全店 売上高 M&A除く"):
+        _fail(f"81630 auto M&A除く: {got_s['＊M&A除く 全店 売上高(前年比)']!r}")
+    if got_s["全店 売上高(前年比)"] != (["全体"], "全店 売上高"):
+        _fail(f"81630 auto 全店: {got_s['全店 売上高(前年比)']!r}")
+    if any("M&A" in p for v in got_s.values() for p in v[0]):
+        _fail(f"81630 auto M&A除く must not be a group: {got_s!r}")
+
+    towa = build_auto_tree("33290", {2026: [
+        ("店舗数", "number"),
+        ("休業中 店舗数", "number"),
+        ("数 出店", "number"),
+        ("出店", "number"),
+        ("数 退店", "number"),
+        ("退店", "number"),
+    ]})
+    got_t = {k: (v["path"], v["metric"]) for k, v in towa.rows.items()}
+    if got_t["数 出店"] != (["全体"], "出店"):
+        _fail(f"33290 auto 数出店: {got_t['数 出店']!r}")
+    if got_t["数 退店"] != (["全体"], "退店"):
+        _fail(f"33290 auto 数退店: {got_t['数 退店']!r}")
+    if got_t["休業中 店舗数"] != (["全体", "休業中"], "店舗数"):
+        _fail(f"33290 auto 休業: {got_t['休業中 店舗数']!r}")
+    if any(p == "数" for v in got_t.values() for p in v[0]):
+        _fail(f"33290 auto 数 must not be a group: {got_t!r}")
+
+
+def test_auto_tree_section_company_scope() -> None:
+    """節だけの 店舗数 / 売上高 は会社の 全店 付きへ寄せる（#592）。"""
+    from app.monthly.tree import build_auto_tree
+
+    kichiri = build_auto_tree("30820", {2026: [
+        ("全店 店舗数", "number"),
+        ("既存 店舗数", "number"),
+        ("都市型ダイニング業態 店舗数", "number"),
+        ("都市型ダイニング業態 既存 売上高(前年比)", "yoy_index"),
+        ("モール・郊外型 レストラン業態 店舗数", "number"),
+        ("既存 売上高(前年比)", "yoy_index"),
+    ]})
+    got = {k: (v["path"], v["metric"]) for k, v in kichiri.rows.items()}
+    if got["都市型ダイニング業態 店舗数"] != (["全体", "都市型ダイニング業態"], "全店 店舗数"):
+        _fail(f"30820 auto 都市型店舗数: {got['都市型ダイニング業態 店舗数']!r}")
+    if got["モール・郊外型 レストラン業態 店舗数"] != (
+            ["全体", "モール・郊外型 レストラン業態"], "全店 店舗数"):
+        _fail(f"30820 auto モール店舗数: {got['モール・郊外型 レストラン業態 店舗数']!r}")
+    if got["既存 店舗数"] != (["全体"], "既存 店舗数"):
+        _fail(f"30820 auto 既存店舗数: {got['既存 店舗数']!r}")
+    if "店舗数" in kichiri.metrics:
+        _fail(f"30820 auto must not keep bare 店舗数: {kichiri.metrics!r}")
+
+    rh = build_auto_tree("82000", {2026: [
+        ("全店 売上高(前年比)", "yoy_index"),
+        ("全店 店舗数", "number"),
+        ("リンガーハット 売上高(前年比)", "yoy_index"),
+        ("リンガーハット 店舗数", "number"),
+        ("濵かつ 店舗数", "number"),
+        ("その他 店舗数", "number"),
+    ]})
+    got_r = {k: (v["path"], v["metric"]) for k, v in rh.rows.items()}
+    if got_r["リンガーハット 店舗数"] != (["全体", "リンガーハット"], "全店 店舗数"):
+        _fail(f"82000 auto リンガー店舗: {got_r['リンガーハット 店舗数']!r}")
+    if got_r["濵かつ 店舗数"] != (["全体", "濵かつ"], "全店 店舗数"):
+        _fail(f"82000 auto 濵かつ店舗: {got_r['濵かつ 店舗数']!r}")
+    if got_r["その他 店舗数"] != (["全体", "その他"], "全店 店舗数"):
+        _fail(f"82000 auto その他店舗: {got_r['その他 店舗数']!r}")
+    if got_r["リンガーハット 売上高(前年比)"] != (["全体", "リンガーハット"], "全店 売上高"):
+        _fail(f"82000 auto リンガー売上: {got_r['リンガーハット 売上高(前年比)']!r}")
+
+
 def main() -> None:
     for case in _tree_cases():
         test_tree_rows_golden(case)
@@ -2883,6 +3009,8 @@ def main() -> None:
     test_monthly_auto_tree()
     test_auto_tree_76850()
     test_auto_tree_fold_unknown_metrics()
+    test_auto_tree_scope_words_not_groups()
+    test_auto_tree_section_company_scope()
     test_tree_76490()
     test_tree_87050()
     test_tree_71770()
