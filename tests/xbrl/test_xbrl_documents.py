@@ -150,6 +150,9 @@ def test_spa_has_stock_tab() -> None:
     assert "/api/stocks/search" in js
     # スマホは既定で幅に合わせる（KAB-163）
     assert 'id="st-zoom"' in html and 'let stockZoom = "fit"' in js
+    # 縦スクロールバーで #st-doc が縮んだら測り直す（KAB-175）
+    assert "new ResizeObserver" in js and ".observe(stDoc)" in js
+    assert "requestAnimationFrame(() => fitStockFrame(frame))" in js
 
 
 def test_sanitize_stops_ios_text_autosizing() -> None:

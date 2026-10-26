@@ -40,5 +40,5 @@ Preconditions:
 - `#st-zoom` buttons are `.ftab` like 決算速報 / PTS. Select by `[data-zoom]`.
 - The iframes are `sandbox="allow-same-origin"` without `allow-scripts`; links inside do nothing. Measuring height needs same-origin access, so do not fetch documents from another origin.
 - A changed sanitizer without a `SANITIZE_VERSION` bump keeps returning 304 with the old HTML.
-- `fitStockFrame` re-measures only on load, zoom change, and window width change. On PC the first iframe can be measured before the page scrollbar appears and end up about 15px wider than `#st-doc` (clipped by `.st-page overflow:hidden`) until a zoom click or resize.
+- `fitStockFrame` re-measures on load (and the next animation frame), zoom change, window width change, and `#st-doc` width change (`ResizeObserver`). The observer covers the PC first paint where the page scrollbar appears after the first measure and used to clip ~15px (KAB-175). Height-only resize (mobile address bar) does not re-measure.
 - EDINET 有報 are not listed; only TDnet XBRL and converted PDFs.
