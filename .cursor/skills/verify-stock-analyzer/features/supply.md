@@ -53,7 +53,7 @@ Preconditions:
 - Hash with an uppercase or invalid id (`#supply/NOPE`) is rewritten to `#supply` by `routeArg`. A valid-looking unknown id keeps the hash but selects nothing.
 - Donut slices and share rows carry `data-co`, so clicking them switches to the company panel (the share table disappears). Do not chain a share-row click after a donut click.
 - Edges have `events: "no"`; you cannot tap a line. Returns have no edge at all. There are no country boxes on the map any more.
-- While the page itself is pinch-zoomed (`visualViewport.scale` > 1) map pan/zoom is off (#636). Map zoom is capped at 3 (1.2 while flying to a pick).
+- While the page itself is pinch-zoomed (`visualViewport.scale` > 1) map pan/zoom is off (#636). Cytoscape `minZoom` is 0.2; there is no `maxZoom` (default unbounded). Fly-to-pick still clamps at 1.2, and the phone sheet floor is 0.6.
 - Layout: ≥900px the panel is a 300px right column and the map fills the rest of the screen. Below 900px the panel is the bottom sheet and the map is `calc(100dvh - 186px)` (min 300px).
 - Prod nginx keeps `/api/supply/*` behind Basic (`deploy/nginx-site.sh`; only `/api/v1/tables*` is public), and public `/monthly` has no supply surface. Local uvicorn has no auth. `GET /api/supply/countries/{id}?flow=export` exists but the UI never requests it.
 - `graph` / `companies` are read once per process; editing `config/supply/supply_*.json` needs a server restart to show.

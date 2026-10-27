@@ -19,7 +19,7 @@ Read this index, then the matching feature file, before driving the app.
 - Boot restores the last tab (and the 銘柄 code + sub tab / news id, monthly code, supply id) from `location.hash` or `localStorage` key `ui.route` via `restoreRoute()` (`static/js/tabs.js`, called from `boot.js`). For a cold 決算速報 start, clear hash + `ui.route` then reload, or open a fresh profile.
 - Prefer `nav button[data-tab]`, `#id`, and `data-fin` / `data-no` over pixel clicks.
 - Treat every command as literal.
-- HTTP proofs use `helpers/capture.py <feature>` against the same `/api/*` the SPA calls.
+- HTTP proofs use `helpers/capture.py <feature>` against the same `/api/*` the SPA calls (including `capture.py ranking`).
 - Browser proofs use `browser-use`: open `{url}/app` then click the tab handle. At ≤720px the tabs are in the `#menu-btn` drawer; open it first (or call `selectTab`).
 - Cleanup removes `.run/` only. Leave `artifacts/`.
 

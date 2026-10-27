@@ -54,7 +54,7 @@ def _pick_earnings_date(base: str, month: str, today: str) -> str | None:
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("feature", choices=["screener", "earnings", "chart", "stock", "monthly", "search", "supply", "pts"])
+    p.add_argument("feature", choices=["screener", "earnings", "chart", "stock", "monthly", "search", "supply", "pts", "ranking"])
     p.add_argument("--date", default="")
     p.add_argument("--code", default="")
     p.add_argument("--month", default="")
@@ -169,6 +169,23 @@ def main() -> None:
             if dst != 200:
                 raise SystemExit(f"monthly {code}/{year} failed status={dst}")
         print(path)
+        return
+
+    if args.feature == "ranking":
+        q = {}
+        if args.month:
+            q["month"] = args.month
+        url = f"{base}/api/ranking/earnings-perf"
+        if q:
+            url += "?" + urllib.parse.urlencode(q)
+        status, body = _get(url)
+        path = _write("ranking", "body.json", "GET", url, status, body)
+        if status != 200 or not isinstance(body, dict):
+            raise SystemExit(f"ranking failed status={status}")
+        print(
+            path,
+            f"month={body.get('month')} months={len(body.get('months') or [])} rows={len(body.get('rows') or [])}",
+        )
         return
 
     if args.feature == "pts":
