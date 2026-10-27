@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 import pandas as pd
 import numpy as np
-from sqlalchemy import func, select
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.orm import Session, defer
 
 from ..config import STAGE_PARAMS as P, EARNINGS_PARAMS as EP, RS_PRODUCT_CATEGORIES
@@ -185,12 +185,40 @@ def no_open_days(db: Session) -> set[tuple[str, date]]:
     return out
 
 
+def limit_up_closes(db: Session, keys: set[tuple[str, date]],
+                    prev_close: dict[tuple[str, date], float]) -> set[tuple[str, date]]:
+    """keys のうち、ストップ高で引けた日（引けでは張り付いていて買えない）。
+
+    終値が高値で、UL が 1。UL が無い過去の行は前日終値 prev_close から値幅いっぱいか。
+    """
+    out = set()
+    keys = sorted(keys)
+    for i in range(0, len(keys), 500):
+        rows = (db.query(DailyPrice.code, DailyPrice.date, DailyPrice.high, DailyPrice.close,
+                         DailyPrice.adj_factor, DailyPrice.upper_limit)
+                .filter(tuple_(DailyPrice.code, DailyPrice.date).in_(keys[i:i + 500])).all())
+        for code, d, high, close, factor, ul in rows:
+            if close is None or close != high:
+                continue
+            if ul is not None:
+                hit = bool(ul)
+            else:
+                p = prev_close.get((code, d))
+                hit = p is not None and close > p * (factor or 1.0) \
+                    and at_limit(p * (factor or 1.0), close)
+            if hit:
+                out.add((code, d))
+    return out
+
+
 def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
     """決算発表日からの対TOPIXリターンを earnings_events に保存。
 
-    基準は決算を織り込んだ最初の始値。15:30 以降の発表は翌営業日、それより前は当日の始値
-    （場中の発表の、発表後の最初の値は日足では取れない）。その日が寄らずのストップ高・安なら
-    寄った日まで先送りする。+Nd は基準日を 1 日目として N 日目の終値。
+    決算後に買えた最初の値を基準にする。
+    - 15:30 以降（引け後）の発表は翌営業日の始値
+    - 場中の発表は当日の終値。ストップ高で引けた日は引けで買えないので翌営業日の始値
+    - 始値で買う日が寄らずのストップ高・安なら、寄った日まで先送りする
+    +Nd は始値で買ったなら基準日を 1 日目、終値で買ったなら翌営業日を 1 日目として N 日目の終値。
     """
     px = price_frame(db) if px is None else px
     tp = pd.DataFrame(db.query(Topix.date, Topix.open, Topix.close).all(),
@@ -204,33 +232,57 @@ def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
     stmts = db.query(Statement.code, Statement.disclosed_date, Statement.disclosed_time).all()
 
     # px は code, date 順なので各銘柄の日付列は昇順
-    px_by_code = {c: (g["date"].to_numpy(), g["adj_open"].to_numpy(), g["adj_close"].to_numpy())
+    px_by_code = {c: (g["date"].to_numpy(), g["adj_open"].to_numpy(), g["adj_close"].to_numpy(),
+                      g["close"].to_numpy())
                   for c, g in px.groupby("code")}
+
+    def after_close(ddate, dtime) -> bool:
+        return (dtime or "16:00")[:5] >= (
+            EP["market_close"] if ddate >= close_since else EP["market_close_old"])
+
+    # 場中の発表で当日に取引がある日が、ストップ高引けか
+    intraday, prev_close = set(), {}
+    for code, ddate, dtime in stmts:
+        arr = px_by_code.get(code)
+        if arr is None or after_close(ddate, dtime):
+            continue
+        i = int(np.searchsorted(arr[0], ddate))
+        if i < len(arr[0]) and arr[0][i] == ddate:
+            intraday.add((code, ddate))
+            if i > 0:
+                prev_close[(code, ddate)] = arr[3][i - 1]
+    capped = limit_up_closes(db, intraday, prev_close)
+
     horizon = {"1d": 1, "5d": 5, "20d": 20, "60d": 60}
     rows = []
     for code, ddate, dtime in stmts:
         arr = px_by_code.get(code)
         if arr is None:
             continue
-        dates, opens, closes = arr
-        after_close = (dtime or "16:00")[:5] >= (
-            EP["market_close"] if ddate >= close_since else EP["market_close_old"])
-        i0 = int(np.searchsorted(dates, ddate, side="right" if after_close else "left"))
-        while i0 < len(dates) and (code, dates[i0]) in stuck:
-            i0 += 1
+        dates, opens, closes, _ = arr
+        i0 = int(np.searchsorted(dates, ddate, side="right" if after_close(ddate, dtime) else "left"))
+        at_close = (code, ddate) in intraday and (code, ddate) not in stuck \
+            and (code, ddate) not in capped
+        if not at_close:
+            if (code, ddate) in intraday:
+                i0 += 1
+            while i0 < len(dates) and (code, dates[i0]) in stuck:
+                i0 += 1
         if i0 >= len(dates):
             continue
         base_date = dates[i0]
-        base = opens[i0]
-        tbase = topen.get(base_date) or tclose.get(base_date)
+        if at_close:
+            base, tbase, first = closes[i0], tclose.get(base_date), i0 + 1
+        else:
+            base, tbase, first = opens[i0], topen.get(base_date) or tclose.get(base_date), i0
         if not base or np.isnan(base) or not tbase:
             continue
         rec = {"code": code, "disclosed_date": ddate, "base_date": base_date, "base_price": base}
         for label, n in horizon.items():
-            if i0 + n - 1 < len(dates):
-                d2 = dates[i0 + n - 1]
-                r = closes[i0 + n - 1] / base - 1
-                tr = (tclose.get(d2, tbase) / tbase - 1)
+            j = first + n - 1
+            if j < len(dates):
+                r = closes[j] / base - 1
+                tr = (tclose.get(dates[j], tbase) / tbase - 1)
                 rec[f"return_{label}"] = round(r * 100, 2)
                 rec[f"alpha_{label}"] = round((r - tr) * 100, 2)
             else:
