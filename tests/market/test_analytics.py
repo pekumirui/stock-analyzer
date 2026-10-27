@@ -317,9 +317,9 @@ def _seed() -> None:
             close = 1000.0 + i
             px.append({
                 "code": CODE, "date": d,
-                "open": close, "high": close, "low": close, "close": close,
+                "open": close - 0.5, "high": close, "low": close - 0.5, "close": close,
                 "volume": 1, "turnover": 1, "adj_factor": 1.0,
-                "adj_open": close, "adj_high": close, "adj_low": close,
+                "adj_open": close - 0.5, "adj_high": close, "adj_low": close - 0.5,
                 "adj_close": close, "adj_volume": 1, "market_cap": 1,
             })
             tp.append({"date": d, "open": 2000, "high": 2000, "low": 2000, "close": 2000})
@@ -329,7 +329,8 @@ def _seed() -> None:
         ev = db.get(EarningsEvent, (CODE, date(2025, 11, 1)))
         if ev is None or ev.return_1d is None:
             _fail(f"earnings event {ev}")
-        want = round((1003 / 1002 - 1) * 100, 2)
+        # 15:00 は大引け（15:30）前なので当日の始値から当日の終値まで
+        want = round((1001 / 1000.5 - 1) * 100, 2)
         if ev.return_1d != want:
             _fail(f"return_1d {ev.return_1d} != {want} base={ev.base_date} {ev.base_price}")
         hist = statement_history(db, CODE, date(2026, 5, 1), 800)
@@ -380,7 +381,7 @@ def test_earnings_api() -> None:
         _fail(f"perf {r.status_code} {r.text}")
     perf = r.json()
     hit = next((e for e in perf if e["disclosed_date"] == "2025-11-01"), None)
-    want = round((1003 / 1002 - 1) * 100, 2)
+    want = round((1001 / 1000.5 - 1) * 100, 2)
     if hit is None or hit["return_1d"] != want or hit["alpha_1d"] != want:
         _fail(f"perf 2025-11-01: {hit}")
     if [e["disclosed_date"] for e in perf] != sorted((e["disclosed_date"] for e in perf), reverse=True):

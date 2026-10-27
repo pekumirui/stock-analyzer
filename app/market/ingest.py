@@ -57,6 +57,10 @@ def ingest_master(db: Session, jq: JQuantsClient, day: str | None = None):
     return len(rows)
 
 
+def _flag(v) -> int | None:
+    return None if v in (None, "") else int(str(v) == "1")
+
+
 def _price_row(q: dict) -> dict | None:
     if q.get("C") is None and q.get("AdjC") is None:
         return None  # 売買停止日など
@@ -70,6 +74,7 @@ def _price_row(q: dict) -> dict | None:
         "adj_low": _f(q.get("AdjL")), "adj_close": _f(q.get("AdjC")),
         "adj_volume": _f(q.get("AdjVo")),
         "market_cap": _f(q.get("MktCap")),
+        "upper_limit": _flag(q.get("UL")), "lower_limit": _flag(q.get("LL")),
     }
 
 
