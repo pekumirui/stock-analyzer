@@ -5,16 +5,21 @@ const rkMonth = ym => ym ? `${ym.slice(0,4)}年${+ym.slice(5,7)}月` : "";
 const rkSession = s => s === "intraday"
   ? `<span class="qb qb-1Q">場中</span>` : `<span class="qb">引け後</span>`;
 const rkSessionTxt = s => s === "intraday" ? "場中" : "引け後";
-const rkAlpha = v => v==null ? " " : `<span class="sub">対TOPIX</span> ${pct(v)}`;
+const rkPctParen = v => v==null ? "–" : `<span class="${v>=0?'pos':'neg'}">(${v>0?'+':''}${fmt(v,1)}%)</span>`;
+const rkAlpha = v => v==null ? " " : `<span class="sub">(対TOPIX)</span> ${rkPctParen(v)}`;
 const rkName = r => {
   const raw = String(r.name||""), name = rkEsc(raw), code = rkEsc(r.code.slice(0,4));
   return `<td class="l name pin1" title="${name}"><span class="clicky" onclick="gotoChart('${rkEsc(r.code)}')">${rkEsc(shortName(raw))}</span>${under(`<span class="sub">${code}</span>`)}</td>`;
 };
 const rkMarket = r => { const m = fmtMarket(r.market); return `<td class="l ${m.cls}">${rkEsc(m.label || "–")}</td>`; };
 const RK_SHOT_ROWS = 20;
-// 保有期間。次の決算の前日まで。まだ次の決算が無い回は保有中（株価の最終日まで）
-const rkHeld = r => r.next_disclosed_date ? `〜${rkMd(r.end_date)}` : "保有中";
-const rkBdays = r => r.bdays == null ? "" : `${r.bdays}営業日`;
+// 経過日数。次の決算がまだなら営業日数だけ。終わっていれば終点の 〜M/D
+const rkElapsed = r => r.next_disclosed_date
+  ? `〜${rkMd(r.end_date)}`
+  : (r.bdays == null ? "–" : `${fmt(r.bdays)}日`);
+const rkElapsedTxt = r => r.next_disclosed_date
+  ? `〜${rkMd(r.end_date)}`
+  : (r.bdays == null ? "" : `${r.bdays}日`);
 let rkData = null;
 let rkShot = null;   // X に投稿する画像（Promise<Blob>）。共有はクリックの中で呼ぶので先に作っておく
 let rkSeq = 0;       // 月を続けて変えたとき、古い応答で上書きしない
@@ -47,15 +52,15 @@ async function loadRanking(month){
   $("#rk-info").textContent = `${d.rows.length} 銘柄 / ${rkMd(d.as_of)} 終値まで`;
   let h = "<thead><tr><th class='pin0'>順位</th><th class='l'>市場</th><th class='l'>業種</th>"
         + "<th class='l name pin1'>銘柄</th>"
-        + "<th class='grp' title='決算後に買えた最初の値から、次の決算の前日終値まで。下段は対TOPIX'>パフォーマンス</th>"
+        + "<th class='grp' title='決算後に買えた最初の値から、次の決算の前日終値まで。下段は (対TOPIX)'>パフォーマンス</th>"
         + "<th>決算日</th>"
-        + "<th title='決算後に買ってから次の決算の前日まで。次の決算がまだなら保有中（今日まで）'>保有期間</th></tr></thead><tbody>";
+        + "<th title='決算後に買ってから次の決算の前日までの営業日数。終わっていれば終点の日付'>経過日数</th></tr></thead><tbody>";
   for(const r of d.rows){
     h += `<tr><td class="num pin0">${r.rank}</td>
       ${rkMarket(r)}<td class="l" title="${rkEsc(r.sector33 || "")}">${rkEsc(fmtSector(r.sector33) || "–")}</td>${rkName(r)}
       <td class="num grp">${pct(r.return_to_next)}${under(rkAlpha(r.alpha_to_next))}</td>
       <td class="num">${rkMd(r.disclosed_date)}${under(rkSession(r.session))}</td>
-      <td class="num">${rkHeld(r)}${under(`<span class="sub">${rkBdays(r)}</span>`)}</td></tr>`;
+      <td class="num">${rkElapsed(r)}</td></tr>`;
   }
   $("#rk-tbl").innerHTML = h + "</tbody>";
   // 順位と銘柄を左に固定する（銘柄は順位の幅だけずらす）。市場・業種は横に送ると銘柄の下に隠れる
@@ -88,11 +93,11 @@ function rkDrawShot(d){
   g.fillStyle = color("--sub");
   g.font = `13px ${font}`;
   g.fillText(`決算後に買えた最初の値から次の決算の前日終値まで（まだなら ${rkMd(d.as_of)} 終値まで）`, PAD, 62);
-  // 列: 画面の表と同じ（対TOPIX はパフォーマンスの下、場中 / 引け後は決算日の下、営業日は保有期間の下）
+  // 列: 画面の表と同じ（対TOPIX はパフォーマンスの下、場中 / 引け後は決算日の下）
   const X = {rank: 52, mkt: 64, sec: 150, name: 262, perf: 548, date: 618, held: W - PAD};
   const cols = [["順位", X.rank, "right"], ["市場", X.mkt, "left"], ["業種", X.sec, "left"],
                 ["銘柄", X.name, "left"], ["パフォーマンス", X.perf, "right"], ["決算日", X.date, "right"],
-                ["保有期間", X.held, "right"]];
+                ["経過日数", X.held, "right"]];
   const line = y => { g.strokeStyle = color("--border"); g.lineWidth = 1; g.beginPath(); g.moveTo(PAD, y); g.lineTo(W - PAD, y); g.stroke(); };
   let y = HEAD + ROW / 2;
   g.font = `11px ${font}`; g.fillStyle = color("--sub");
@@ -120,11 +125,10 @@ function rkDrawShot(d){
     const cells = [
       [String(r.rank), X.rank, "right", color("--text"), y, "14px"],
       [sign(r.return_to_next), X.perf, "right", tone(r.return_to_next), y1, "600 14px"],
-      [r.alpha_to_next == null ? "" : `対TOPIX ${sign(r.alpha_to_next)}`, X.perf, "right", tone(r.alpha_to_next), y2, "11px"],
+      [r.alpha_to_next == null ? "" : `(対TOPIX) (${sign(r.alpha_to_next)})`, X.perf, "right", tone(r.alpha_to_next), y2, "11px"],
       [rkMd(r.disclosed_date), X.date, "right", color("--text"), y1, "14px"],
       [rkSessionTxt(r.session), X.date, "right", color("--sub"), y2, "11px"],
-      [rkHeld(r), X.held, "right", color("--text"), y1, "14px"],
-      [rkBdays(r), X.held, "right", color("--sub"), y2, "11px"],
+      [rkElapsedTxt(r), X.held, "right", color("--text"), y, "14px"],
     ];
     for(const [t, x, a, fill, yy, size] of cells){
       if(!t) continue;

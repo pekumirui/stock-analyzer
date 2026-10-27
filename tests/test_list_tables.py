@@ -25,9 +25,14 @@ def test_ranking_table_matches_sheet() -> None:
     assert "pin1" in src
     assert "rkSession" in src
     assert "rkAlpha" in src
-    assert "日数</th>" not in src
+    assert "rkElapsed" in src
+    assert ">経過日数</th>" in src
+    assert ">日数</th>" not in src
     assert "class='l'>発表</th>" not in src
     assert ">対TOPIX</th>" not in src
+    assert ">保有期間</th>" not in src
+    assert "保有中" not in src
+    assert "(対TOPIX)" in src
     assert 'under(`<span class="sub">' in src
     assert "shortName(raw)" in src
     assert "pinCols($(\"#rk-tbl\"), 2)" in src
