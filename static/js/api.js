@@ -13,3 +13,16 @@ function pinCols(table, n){
   let x = 0;
   for(let i=0; i<n; i++){ table.style.setProperty(`--pin${i}`, `${x}px`); x += w[i]; }
 }
+// 市場と業種。月次とランキングで同じ表記（市場は 東証P / 東証S / 東証G。色の点は CSS の .mkt-*）
+function fmtMarket(market){
+  const s = String(market || "");
+  if(s.includes("プライム") || /prime/i.test(s)) return {cls:"mkt mkt-p", label:"東証P"};
+  if(s.includes("スタンダード") || /standard/i.test(s)) return {cls:"mkt mkt-s", label:"東証S"};
+  if(s.includes("グロース") || /growth/i.test(s)) return {cls:"mkt mkt-g", label:"東証G"};
+  return {cls:"", label:s};
+}
+// 33 業種。末尾の「業」を外して先頭 5 文字
+function fmtSector(sector){
+  const s = String(sector || "").replace(/業$/, "");
+  return Array.from(s).slice(0, 5).join("");
+}

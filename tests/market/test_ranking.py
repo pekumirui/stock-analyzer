@@ -1,4 +1,4 @@
-"""ランキングタブの決算発表後パフォーマンス（KAB-192 / KAB-194 / KAB-195）。"""
+"""ランキングタブの決算発表後パフォーマンス（KAB-192 / KAB-194 / KAB-195 / KAB-198）。"""
 from __future__ import annotations
 
 import os
@@ -81,8 +81,13 @@ def test_earnings_perf_ranking() -> None:
         db.query(EarningsEvent).delete()
         db.query(DailyPrice).delete()
         db.commit()
-        upsert(db, Stock, [{"code": c, "name": n} for c, n in
-                           (("11110", "Ａ社"), ("22220", "B社"), ("44440", "D社"))])
+        db.query(Topix).delete()
+        upsert(db, Stock, [{"code": c, "name": n, "market": mk, "sector33": sec} for c, n, mk, sec in
+                           (("11110", "Ａ社", "プライム", "小売業"), ("22220", "B社", "グロース", "情報・通信業"),
+                            ("44440", "D社", None, None))])
+        # 営業日は TOPIX の日足の日。11/3（文化の日）は無い
+        upsert(db, Topix, [{"date": D(x), "close": 1} for x in
+                           ("2026-09-30", "2026-10-01", "2026-10-30", "2026-11-02", "2026-11-04", "2026-11-05")])
         upsert(db, EarningsEvent, [
             _ev("11110", "2026-10-14", 5.0, 3.0), _ev("11110", "2026-11-04", 50.0, 50.0, first=False),
             _ev("22220", "2026-10-30", 12.5, 10.0, t="13:00:00"), _ev("33330", "2026-10-20", 99.0, 99.0, first=False),
@@ -101,9 +106,11 @@ def test_earnings_perf_ranking() -> None:
     assert got == [(1, "22220", "intraday", 12.5), (2, "11110", "after", 5.0), (3, "44440", "after", None)]
     top = d["rows"][0]
     assert top["name"] == "B社" and top["alpha_to_next"] == 10.0 and top["disclosed_time"] == "13:00"
-    assert (top["next_disclosed_date"], top["end_date"], top["days"]) == (None, "2026-11-05", 6)
+    assert (top["market"], top["sector33"]) == ("グロース", "情報・通信業")
+    # 決算日 10/30 の翌営業日 11/2 から 11/5 まで（11/3 は休み）
+    assert (top["next_disclosed_date"], top["end_date"], top["bdays"]) == (None, "2026-11-05", 3)
     sep = c.get("/api/ranking/earnings-perf", params={"month": "2026-09"}).json()
-    assert [(r["code"], r["session"], r["end_date"], r["days"]) for r in sep["rows"]] == \
+    assert [(r["code"], r["session"], r["end_date"], r["bdays"]) for r in sep["rows"]] == \
         [("44440", "intraday", "2026-09-30", 0)]
     assert c.get("/api/ranking/earnings-perf", params={"month": "2026-08"}).json()["rows"] == []
     for bad in ("2026-13", "2026/10", "26-10"):
