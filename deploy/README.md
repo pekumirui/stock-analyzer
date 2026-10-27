@@ -56,7 +56,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 1. GitHub SSH（deploy key）を冪等に揃えてから `git pull --ff-only origin main`
 2. `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `EDINET_API_KEY` / `MCP_TOKEN` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` があれば `.env` のその行だけ upsert。R2 の両方が揃っていれば `~/.config/rclone/rclone.conf` の `[r2]` だけ upsert（`onedrive` など他 remote は消さない）。`SLACK_WEBHOOK_URL` と `SLACK_WEBHOOK_URL_{APP,BATCH,INFRA,QUIET}` は `.env` に書かない
 3. `sudo provision.sh --sudoers-only`（`APP_DIR` だけ preserve。live sudoers を repo に合わせる）→ `sudo provision.sh`（パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers、R2 user mount、fluent-bit。Slack webhook は `--preserve-env`）。Webhook が空なら fluent-bit は enable のみで start しない
-4. venv / `pip install` / `migrate.py`（`database is locked` は最大約 6 分まで再試行。19:30 の日次バッチや毎時 `xbrl_normalize` と重なるため）
+4. venv / `pip install` / `migrate.py`（`database is locked` は最大約 6 分まで再試行。日次バッチ（10:10 / 16:35 / 18:05）や毎時 `xbrl_normalize` と重なるため）
 5. `systemctl restart stock-analyzer` と `stock-analyzer-mcp`、localhost:8000 / :8010 のヘルスチェック
 
 証明書の更新は `certbot.timer`（1日2回）。更新後は `renewal-hooks/deploy` で nginx を reload する。
@@ -263,7 +263,7 @@ deploy/cron-run.sh jobs/ops/migrate_r2_share.py --list-mismatches
 3. 月次 PDF の初回バックフィルは Actions → **TDnet monthly backfill** → Run workflow、`days=30`。
    SSH で `jobs/monthly/tdnet_monthly_r2.py 30` が走る（通常デプロイでは走らない）
 
-日足を全部取り直すとき（調整後株価のずれと UL / LL の空きを埋める。KAB-188）は、19:30 の日次バッチと重ならない時間にユーザ `stock` で一度だけ流す。止めても再実行で続きから。
+日足を全部取り直すとき（調整後株価のずれと UL / LL の空きを埋める。KAB-188）は、日次バッチ（10:10 / 16:35 / 18:05）と重ならない時間にユーザ `stock` で一度だけ流す。止めても再実行で続きから。
 
 ```bash
 deploy/cron-run.sh jobs/market/run_batch.py --refetch-prices   # ログは batch_logs job=run_batch
@@ -275,7 +275,7 @@ deploy/cron-run.sh jobs/market/run_batch.py --refetch-prices   # ログは batch
 deploy/cron-run.sh jobs/market/run_batch.py --readjust-prices
 ```
 
-cron（JST）。`run_batch.py` は 19:30 の 1 回。
+cron（JST）。`run_batch.py` は 10:10（`--only schedule`）/ 16:35（`--only prices`）/ 18:05（`--only fins`）。分け方は `DESIGN.md` §6。
 
 | スクリプト | cron |
 |---|---|
@@ -290,7 +290,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 | `jobs/xbrl/tdnet_xbrl_r2.py 1` | 12–23 時の毎時 00 分 |
 | `jobs/xbrl/xbrl_parse.py` / `jobs/xbrl/xbrl_normalize.py` | 12–23 時の毎時 10 分 / 20 分 |
 | `jobs/market/pts_snapshot.py` | 平日 15:30〜24:00 の 30 分ごと（株探 PTS ランキング。24:00 は翌日 0:00 の回） |
-| `jobs/market/intraday_1m.py` | 平日 20:30（yfinance 1 分足 → `data/intraday/1m/`。日次バッチの後。約 45 分） |
+| `jobs/market/intraday_1m.py` | 平日 16:50（yfinance 1 分足 → `data/intraday/1m/`。16:35 の株価の回の後。約 45 分） |
 | `jobs/ops/vps_packages_r2.py` | 06:40 |
 | `jobs/ops/backup_db.py` | 05:00（SQLite 整合バックアップ。成功後に OneDrive へ送る。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
 

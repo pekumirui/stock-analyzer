@@ -8,8 +8,13 @@ SHELL=/bin/bash
 # VPS パッケージ一覧 → data/inventory（読み取り専用。セキュリティ照合用。07:00 より前）
 40 6 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/vps_packages_r2.py
 
-# 日次（引け後の開示を夜に取る）
-30 19 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/run_batch.py
+# J-Quants 日次（KAB-209）。配信時刻（J-Quants「提供データの更新タイミング」）の 5 分後に、種類ごとに取る
+# 決算発表予定（配信 10:05 ごろ）。当日と昨日。昨日は毎回取り直す
+10 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/run_batch.py --only schedule
+# 株価・TOPIX（16:30 ごろ）→ 指標・決算後パフォーマンス
+35 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/run_batch.py --only prices
+# 銘柄一覧（17:30 ごろ）・決算 当日と前営業日（18:00 ごろ）→ 決算後パフォーマンス。当日の株価が無ければ株価も取る
+5 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/run_batch.py --only fins
 
 # 株探 PTS ナイトタイム ランキング → pts_snapshots（平日 15:30〜24:00 の 30 分ごと。株探は 15 分ディレイ）
 # 同じセッション・同じ「HH:MM現在」は書かない。翌日 15:30 の回が前夜の最終（06:00）を拾う
@@ -17,8 +22,8 @@ SHELL=/bin/bash
 0,30 16-23 * * 1-5 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/pts_snapshot.py
 0 0 * * 2-6 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/pts_snapshot.py
 
-# yfinance 1 分足（直近 7 日）→ data/intraday/1m（KAB-208）。日次バッチ（19:30。19:45 ごろ終わる）の後
-30 20 * * 1-5 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/intraday_1m.py
+# yfinance 1 分足（直近 7 日）→ data/intraday/1m（KAB-208）。16:35 の株価（AdjFactor）の後
+50 16 * * 1-5 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/intraday_1m.py
 
 # Frankfurter / ECB 対EUR 日次レート。公表は 16:00 CET 前後なので翌朝 JST。空なら 1999-01-04〜。
 0 8 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/fx_rates.py
@@ -80,5 +85,5 @@ SHELL=/bin/bash
 10 7 * * 1 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/supply/material_stats.py --source estat
 
 # SQLite 整合バックアップ（WAL 中の cp は不可。手順は docs/DESIGN_backup.md）
-# 05:00 は run_batch（19:30）と XBRL（12–23 時）と重ならない。
+# 05:00 は run_batch（10:10 / 16:35 / 18:05）と XBRL（12–23 時）と重ならない。
 0 5 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/backup_db.py

@@ -179,31 +179,69 @@ def _prev_trading_day(db: Session, day: str) -> date | None:
     return db.query(func.max(DailyPrice.date)).filter(DailyPrice.date < _d(day)).scalar()
 
 
+def _prices(db: Session, jq: JQuantsClient, day: str) -> tuple[int, str]:
+    """当日の全銘柄株価と TOPIX。権利落ちの銘柄は調整後の値を計算し直す。"""
+    px_rows = _ingest_day(db, jq, day)
+    adjusted = refresh_adjusted(db, px_rows)
+    n_t = ingest_topix(db, jq, from_=day, to=day)
+    adj = f" / 権利落ちで調整後を計算し直し {','.join(adjusted)}" if adjusted else ""
+    return len(px_rows) + n_t, f"株価{len(px_rows)} / TOPIX{n_t}{adj}"
+
+
+def _statements(db: Session, jq: JQuantsClient, day: str) -> tuple[int, str]:
+    """当日と前営業日の決算。前営業日は配信より後の開示を拾うための取り直しで、新しく増えた件数だけ数える。"""
+    prev = _prev_trading_day(db, day)
+    n_s = ingest_statements_for_date(db, jq, day)
+    if prev is None:
+        return n_s, f"決算{n_s}"
+    before = db.query(func.count()).filter(Statement.disclosed_date == prev).scalar()
+    ingest_statements_for_date(db, jq, prev.isoformat())
+    n_late = db.query(func.count()).filter(Statement.disclosed_date == prev).scalar() - before
+    return n_s + n_late, f"決算{n_s} / {prev}の追加決算{n_late}"
+
+
+def has_prices(db: Session, day: str) -> bool:
+    return db.query(DailyPrice.code).filter(DailyPrice.date == _d(day)).first() is not None
+
+
 def run_daily(db: Session, day: str | None = None) -> int:
     """当日の全銘柄株価・財務・TOPIXと前営業日の財務を取得。マスタを入れて 5 リクエスト。
 
-    前営業日の財務は 19:30 より後の開示を拾うための取り直し。
+    cron は分けて回す（run_prices / run_fins）。これは手動とバックフィル後の 1 回分。
     発表予定はここではなく jobs/market/run_batch.py が指標の後に取る。
     返り値は株価・TOPIX・当日決算の件数と、前営業日に新しく増えた決算の件数の和。
     """
     day = day or date.today().strftime("%Y-%m-%d")
-    prev = _prev_trading_day(db, day)
     with JQuantsClient() as jq:
         n_m = ingest_master(db, jq)
-        px_rows = _ingest_day(db, jq, day)
-        n_p = len(px_rows)
-        adjusted = refresh_adjusted(db, px_rows)
-        n_t = ingest_topix(db, jq, from_=day, to=day)
-        n_s = ingest_statements_for_date(db, jq, day)
-        n_late = 0
-        if prev is not None:
-            before = db.query(func.count()).filter(Statement.disclosed_date == prev).scalar()
-            ingest_statements_for_date(db, jq, prev.isoformat())
-            n_late = db.query(func.count()).filter(Statement.disclosed_date == prev).scalar() - before
-    late = f" / {prev}の追加決算{n_late}" if prev is not None else ""
-    adj = f" / 権利落ちで調整後を計算し直し {','.join(adjusted)}" if adjusted else ""
-    print(f"{day}: 銘柄{n_m} / 株価{n_p} / TOPIX{n_t} / 決算{n_s}{late}{adj}")
-    return n_p + n_t + n_s + n_late
+        n_p, px = _prices(db, jq, day)
+        n_s, st = _statements(db, jq, day)
+    print(f"{day}: 銘柄{n_m} / {px} / {st}")
+    return n_p + n_s
+
+
+def run_prices(db: Session, day: str | None = None) -> int:
+    """当日の全銘柄株価と TOPIX（J-Quants の配信は 16:30 ごろ）。2 リクエスト。返り値は件数の和。"""
+    day = day or date.today().strftime("%Y-%m-%d")
+    with JQuantsClient() as jq:
+        n, px = _prices(db, jq, day)
+    print(f"{day}: {px}")
+    return n
+
+
+def run_fins(db: Session, day: str | None = None) -> int:
+    """銘柄一覧（17:30 ごろ）と当日・前営業日の決算（18:00 ごろ）。3 リクエスト。
+
+    当日の株価が DB に無ければ株価と TOPIX も取る（16:35 の回が配信の遅れで空だった日。休日も 2 本増える）。
+    返り値は取った株価・TOPIX と、当日の決算と前営業日に新しく増えた決算の件数の和。
+    """
+    day = day or date.today().strftime("%Y-%m-%d")
+    with JQuantsClient() as jq:
+        n_m = ingest_master(db, jq)
+        n_p, px = (0, "") if has_prices(db, day) else _prices(db, jq, day)
+        n_s, st = _statements(db, jq, day)
+    print(f"{day}: 銘柄{n_m} / {px + ' / ' if px else ''}{st}")
+    return n_p + n_s
 
 
 class BackfillError(RuntimeError):

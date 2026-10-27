@@ -5,7 +5,7 @@
   python jobs/market/intraday_1m.py --codes 72030 67580 --sleep 0
   python jobs/market/intraday_1m.py --limit 300        # 先頭から 300 銘柄（試し取り）
 
-cron は平日 20:30（deploy/crontab）。19:30 の日次バッチの後に回し、当日の AdjFactor が DB にある状態で
+cron は平日 16:50（deploy/crontab）。16:35 の株価の回（run_batch.py --only prices）の後に回し、当日の AdjFactor が DB にある状態で
 過去の日を埋める。設計は DESIGN.md「分足」と app/market/intraday.py。
 """
 from __future__ import annotations
