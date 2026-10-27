@@ -185,6 +185,13 @@ def no_open_days(db: Session) -> set[tuple[str, date]]:
     return out
 
 
+def is_after_close(ddate: date, dtime: str | None) -> bool:
+    """大引け以降の発表か。時刻が無ければ引け後とみなす。"""
+    close = EP["market_close"] if ddate >= date.fromisoformat(EP["market_close_since"]) \
+        else EP["market_close_old"]
+    return (dtime or "16:00")[:5] >= close
+
+
 def limit_up_closes(db: Session, keys: set[tuple[str, date]],
                     prev_close: dict[tuple[str, date], float]) -> set[tuple[str, date]]:
     """keys のうち、ストップ高で引けた日（引けでは張り付いていて買えない）。
@@ -228,7 +235,6 @@ def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
     tclose = dict(zip(tp["date"], tp["tclose"]))
     topen = dict(zip(tp["date"], tp["topen"]))
     stuck = no_open_days(db)
-    close_since = date.fromisoformat(EP["market_close_since"])
     stmts = db.query(Statement.code, Statement.disclosed_date, Statement.disclosed_time).all()
 
     # px は code, date 順なので各銘柄の日付列は昇順
@@ -236,15 +242,11 @@ def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
                       g["close"].to_numpy())
                   for c, g in px.groupby("code")}
 
-    def after_close(ddate, dtime) -> bool:
-        return (dtime or "16:00")[:5] >= (
-            EP["market_close"] if ddate >= close_since else EP["market_close_old"])
-
     # 場中の発表で当日に取引がある日が、ストップ高引けか
     intraday, prev_close = set(), {}
     for code, ddate, dtime in stmts:
         arr = px_by_code.get(code)
-        if arr is None or after_close(ddate, dtime):
+        if arr is None or is_after_close(ddate, dtime):
             continue
         i = int(np.searchsorted(arr[0], ddate))
         if i < len(arr[0]) and arr[0][i] == ddate:
@@ -260,7 +262,7 @@ def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
         if arr is None:
             continue
         dates, opens, closes, _ = arr
-        i0 = int(np.searchsorted(dates, ddate, side="right" if after_close(ddate, dtime) else "left"))
+        i0 = int(np.searchsorted(dates, ddate, side="right" if is_after_close(ddate, dtime) else "left"))
         at_close = (code, ddate) in intraday and (code, ddate) not in stuck \
             and (code, ddate) not in capped
         if not at_close:
