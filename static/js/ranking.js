@@ -105,7 +105,7 @@ function rkDrawShot(d){
   const css = getComputedStyle(document.documentElement);
   const color = k => css.getPropertyValue(k).trim();
   const font = getComputedStyle(document.body).fontFamily;
-  const S = 2, W = 760, PAD = 24, ROW = 40, HEAD = 108;
+  const S = 2, W = 760, PAD = 24, ROW = 40, HEAD = 60;
   const H = HEAD + ROW * (rows.length + 1) + 40;
   const cv = document.createElement("canvas");
   cv.width = W * S; cv.height = H * S;
@@ -115,11 +115,7 @@ function rkDrawShot(d){
   g.textBaseline = "middle";
   g.fillStyle = color("--text");
   g.font = `600 20px ${font}`;
-  g.fillText(rkTitle(d, rows.length), PAD, 28);
-  g.fillStyle = color("--sub");
-  g.font = `13px ${font}`;
-  g.fillText("計測方法は決算発表後初値〜", PAD, 54);
-  g.fillText("※場中決算は翌営業日初値", PAD, 74);
+  g.fillText(rkTitle(d, rows.length), PAD, 30);
   // 列: 画面の表と同じ（対TOPIX はパフォーマンス列名の下、場中 / 引け後は決算日の下）
   const X = {rank: 52, mkt: 64, sec: 150, name: 262, perf: 548, date: 618, held: W - PAD};
   const cols = [["順位", X.rank, "right"], ["市場", X.mkt, "left"], ["業種", X.sec, "left"],

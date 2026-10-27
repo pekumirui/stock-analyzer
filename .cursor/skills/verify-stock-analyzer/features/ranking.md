@@ -9,7 +9,7 @@ The ranking tab lists one month of 決算発表後パフォーマンス as 上�
 - `rk-month` is `#rk-month` (`YYYY年M月決算`, newest first). Changing it refetches that month and keeps the current 上昇率 / 下落率.
 - `rk-table` fills `#rk-tbl.sheet`: 順位 / 市場 / 業種 / 銘柄 / パフォーマンス / 決算日 / 経過日数. パフォーマンス heading is `パフォーマンス` with `(対TOPIX)` under it. Each row's lower line is `(+x.x%)` only. 銘柄 is 5 characters + 4-digit code. 経過日数 is `N日` or `〜M/D`.
 - `rk-info` reads `N 銘柄 / M/D 終値まで`. Empty dir reads `この月の上昇はありません` / `この月の下落はありません`.
-- `rk-share` is `#rk-share` (`X に投稿`). Title is `YYYY年M月決算 上昇率ランキングTOPN` or `下落率ランキングTOPN`.
+- `rk-share` is `#rk-share` (`X に投稿`). Post text is 3 lines (`YYYY年M月決算 上昇率ランキングTOPN` or `下落率ランキングTOPN`, then the two 計測方法 lines). The PNG title is the first line only.
 - `rk-to-chart` clicks a name → `gotoChart(code)` → 銘柄 › 株価, hash `#stock/{code}/price`.
 - `rk-route` writes `#ranking` to `location.hash` + `ui.route`; reload reopens the tab.
 
