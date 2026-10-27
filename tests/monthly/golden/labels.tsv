@@ -3058,7 +3058,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 35490	2026	9	legacy	number	出店	出店	number	出店	open			出店	全体	出店
 35570	2023	1	legacy	number	てけてけ 店舗数	てけてけ 店舗数	number	てけてけ 店舗数	stores	てけてけ		店舗数	全体 > てけてけ	店舗数
 35570	2023	2	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
-35570	2023	3	legacy	number	全業態 店舗数	全業態 店舗数	number	全業態 店舗数	stores	全業態		店舗数	全体	店舗数
+35570	2023	3	legacy	number	全業態 店舗数	全業態 既存 店舗数	number	全業態 既存 店舗数	stores	全業態	既存	店舗数	全体	既存 店舗数
 35570	2023	4	legacy	number	the 3rd Burger 店舗数	the 3rd Burger 店舗数	number	the 3rd Burger 店舗数	stores	the 3rd Burger		店舗数	全体 > the 3rd Burger	店舗数
 35570	2023	5	legacy	number	新太郎 店舗数	新太郎 店舗数	number	新太郎 店舗数	stores	新太郎		店舗数	全体 > 新太郎	店舗数
 35570	2023	6	legacy	yoy_index	全業態 既存 売上高(前年比)	全業態 既存 売上高(前年比)	yoy_index	全業態 既存 売上高(前年比)	sales	全業態	既存	売上高	全体	既存 売上高
@@ -3086,7 +3086,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 35570	2024	14	legacy	yoy_index	the 3rd Burger 既存 客単価(前年比)	the 3rd Burger 既存 客単価(前年比)	yoy_index	the 3rd Burger 既存 客単価(前年比)	spend	the 3rd Burger	既存	客単価	全体 > the 3rd Burger	既存 客単価
 35570	2024	15	legacy	number	the 3rd Burger 既存 店舗数	the 3rd Burger 既存 店舗数	number	the 3rd Burger 既存 店舗数	stores	the 3rd Burger	既存	店舗数	全体 > the 3rd Burger	既存 店舗数
 35570	2024	16	legacy	number	全業態 既存 店舗数	全業態 既存 店舗数	number	全業態 既存 店舗数	stores	全業態	既存	店舗数	全体	既存 店舗数
-35570	2024	17	legacy	number	全業態 店舗数	全業態 店舗数	number	全業態 店舗数	stores	全業態		店舗数	全体	店舗数
+35570	2024	17	legacy	number	全業態 店舗数	全業態 既存 店舗数	number	全業態 既存 店舗数	stores	全業態	既存	店舗数	全体	既存 店舗数
 35570	2025	1	legacy	number	てけてけ 店舗数	てけてけ 店舗数	number	てけてけ 店舗数	stores	てけてけ		店舗数	全体 > てけてけ	店舗数
 35570	2025	2	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
 35570	2025	3	legacy	yoy_index	全業態 既存 売上高(前年比)	全業態 既存 売上高(前年比)	yoy_index	全業態 既存 売上高(前年比)	sales	全業態	既存	売上高	全体	既存 売上高
@@ -3104,7 +3104,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 35570	2025	15	legacy	yoy_index	the 3rd Burger 既存 客単価(前年比)	the 3rd Burger 既存 客単価(前年比)	yoy_index	the 3rd Burger 既存 客単価(前年比)	spend	the 3rd Burger	既存	客単価	全体 > the 3rd Burger	既存 客単価
 35570	2025	16	legacy	number	the 3rd Burger 既存 店舗数	the 3rd Burger 既存 店舗数	number	the 3rd Burger 既存 店舗数	stores	the 3rd Burger	既存	店舗数	全体 > the 3rd Burger	既存 店舗数
 35570	2025	17	legacy	number	全業態 既存 店舗数	全業態 既存 店舗数	number	全業態 既存 店舗数	stores	全業態	既存	店舗数	全体	既存 店舗数
-35570	2025	18	legacy	number	全業態 店舗数	全業態 店舗数	number	全業態 店舗数	stores	全業態		店舗数	全体	店舗数
+35570	2025	18	legacy	number	全業態 店舗数	全業態 既存 店舗数	number	全業態 既存 店舗数	stores	全業態	既存	店舗数	全体	既存 店舗数
 35570	2026	1	legacy	number	てけてけ 店舗数	てけてけ 店舗数	number	てけてけ 店舗数	stores	てけてけ		店舗数	全体 > てけてけ	店舗数
 35570	2026	2	legacy	number	もつ焼てけ八 店舗数	もつ焼てけ八 店舗数	number	もつ焼てけ八 店舗数	stores	もつ焼てけ八		店舗数	全体 > もつ焼てけ八	店舗数
 35570	2026	3	legacy	number	店舗数	店舗数	number	店舗数	stores			店舗数	全体	店舗数
@@ -3126,7 +3126,7 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 35570	2026	19	legacy	yoy_index	新太郎 既存 客単価(前年比)	新太郎 既存 客単価(前年比)	yoy_index	新太郎 既存 客単価(前年比)	spend	新太郎	既存	客単価	全体 > 新太郎	既存 客単価
 35570	2026	20	legacy	number	新太郎 既存 店舗数	新太郎 既存 店舗数	number	新太郎 既存 店舗数	stores	新太郎	既存	店舗数	全体 > 新太郎	既存 店舗数
 35570	2026	21	legacy	number	全業態 既存 店舗数	全業態 既存 店舗数	number	全業態 既存 店舗数	stores	全業態	既存	店舗数	全体	既存 店舗数
-35570	2026	22	legacy	number	全業態 店舗数	全業態 店舗数	number	全業態 店舗数	stores	全業態		店舗数	全体	店舗数
+35570	2026	22	legacy	number	全業態 店舗数	全業態 既存 店舗数	number	全業態 既存 店舗数	stores	全業態	既存	店舗数	全体	既存 店舗数
 35570	2026	23	legacy	yoy_index	もつ焼てけ八 既存 売上高(前年比)	もつ焼てけ八 既存 売上高(前年比)	yoy_index	もつ焼てけ八 既存 売上高(前年比)	sales	もつ焼てけ八	既存	売上高	全体 > もつ焼てけ八	既存 売上高
 35570	2026	24	legacy	yoy_index	もつ焼てけ八 既存 客数(前年比)	もつ焼てけ八 既存 客数(前年比)	yoy_index	もつ焼てけ八 既存 客数(前年比)	customers	もつ焼てけ八	既存	客数	全体 > もつ焼てけ八	既存 客数
 35570	2026	25	legacy	yoy_index	もつ焼てけ八 既存 客単価(前年比)	もつ焼てけ八 既存 客単価(前年比)	yoy_index	もつ焼てけ八 既存 客単価(前年比)	spend	もつ焼てけ八	既存	客単価	全体 > もつ焼てけ八	既存 客単価

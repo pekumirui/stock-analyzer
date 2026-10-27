@@ -967,6 +967,21 @@ def test_issuer_alias_cases() -> None:
     )
     if sample_35570_stores != "the 3rd Burger 既存 店舗数":
         _fail(f"35570 対象店舗数: {sample_35570_stores!r}")
+    sample_35570_all_target = apply_issuer_aliases(
+        "35570",
+        canonicalize_element_label("全業態 対象 店舗数", "number"),
+        year=2099,
+    )
+    if sample_35570_all_target != "全業態 既存 店舗数":
+        _fail(f"35570 全業態 対象 店舗数: {sample_35570_all_target!r}")
+    sample_35570_all_stores = apply_issuer_aliases(
+        "35570", "全業態 店舗数", year=2099,
+    )
+    if sample_35570_all_stores != "全業態 既存 店舗数":
+        _fail(f"35570 leftover 全業態 店舗数: {sample_35570_all_stores!r}")
+    sample_35570_total = apply_issuer_aliases("35570", "店舗数", year=2099)
+    if sample_35570_total != "店舗数":
+        _fail(f"35570 店舗数 must stay total: {sample_35570_total!r}")
     sample_76830_yoy = apply_issuer_aliases(
         "76830", canonicalize_element_label("内 MM 売上高(前年比)", "yoy_index"), year=2026,
     )
