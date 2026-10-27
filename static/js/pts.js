@@ -1,5 +1,6 @@
 const ptsEsc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 const ptsMd = iso => iso ? `${+iso.slice(5,7)}/${+iso.slice(8,10)}` : "–";
+const ptsMarket = r => { const x = fmtMarket(r.market); return `<td class="l ${x.cls}">${ptsEsc(x.label)}</td>`; };
 const ptsFollow = v => v==null ? "–" : fmt(v,2);
 let ptsRanking = "night_up";
 
@@ -33,7 +34,7 @@ async function loadPts(opts = {}){
     const nd = r.next_date && r.next_date !== next ? ` <small>${ptsMd(r.next_date)}</small>` : "";
     h += `<tr><td>${r.rank}</td>
       <td class="l"><span class="clicky" onclick="gotoChart('${ptsEsc(r.code)}')">${ptsEsc(r.name)}</span> <small>${ptsEsc(r.code.slice(0,4))}</small></td>
-      <td class="l">${ptsEsc(r.market)}</td><td>${fmt(r.base_close,1)}</td><td>${fmt(r.pts_price,1)}</td>
+      ${ptsMarket(r)}<td>${fmt(r.base_close,1)}</td><td>${fmt(r.pts_price,1)}</td>
       <td>${pct(r.pts_chg_pct)}</td><td>${fmt(r.volume)}</td>
       <td>${fmt(r.next_open,1)}${nd}</td><td>${pct(r.open_gap_pct)}</td><td>${pct(r.open_vs_pts_pct)}</td>
       <td>${ptsFollow(r.follow_ratio)}</td></tr>`;

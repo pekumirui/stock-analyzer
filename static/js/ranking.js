@@ -89,8 +89,8 @@ function rkDrawShot(d){
   g.font = `13px ${font}`;
   g.fillText(`決算後に買えた最初の値から次の決算の前日終値まで（まだなら ${rkMd(d.as_of)} 終値まで）`, PAD, 62);
   // 列: 画面の表と同じ（対TOPIX はパフォーマンスの下、場中 / 引け後は決算日の下、営業日は保有期間の下）
-  const X = {rank: 52, market: 64, sector: 150, name: 262, perf: 548, date: 618, held: W - PAD};
-  const cols = [["順位", X.rank, "right"], ["市場", X.market, "left"], ["業種", X.sector, "left"],
+  const X = {rank: 52, mkt: 64, sec: 150, name: 262, perf: 548, date: 618, held: W - PAD};
+  const cols = [["順位", X.rank, "right"], ["市場", X.mkt, "left"], ["業種", X.sec, "left"],
                 ["銘柄", X.name, "left"], ["パフォーマンス", X.perf, "right"], ["決算日", X.date, "right"],
                 ["保有期間", X.held, "right"]];
   const line = y => { g.strokeStyle = color("--border"); g.lineWidth = 1; g.beginPath(); g.moveTo(PAD, y); g.lineTo(W - PAD, y); g.stroke(); };
@@ -109,9 +109,9 @@ function rkDrawShot(d){
     g.textAlign = "left"; g.fillStyle = color("--text"); g.font = `12px ${font}`;
     const mk = fmtMarket(r.market);
     const dot = {"mkt mkt-p": "#2563eb", "mkt mkt-s": "#9ca3af", "mkt mkt-g": "#16a34a"}[mk.cls];
-    if(dot){ g.fillStyle = dot; g.fillRect(X.market, y - 4, 7, 7); g.fillStyle = color("--text"); }
-    g.fillText(fit(mk.label || "–", 72), X.market + (dot ? 11 : 0), y);
-    g.fillText(fit(fmtSector(r.sector33).normalize("NFKC") || "–", 106), X.sector, y);
+    if(dot){ g.fillStyle = dot; g.fillRect(X.mkt, y - 4, 7, 7); g.fillStyle = color("--text"); }
+    g.fillText(fit(mk.label || "–", 72), X.mkt + (dot ? 11 : 0), y);
+    g.fillText(fit(fmtSector(r.sector33).normalize("NFKC") || "–", 106), X.sec, y);
     // J-Quants の名前は全角英数字。画像では半角に寄せて幅を取らない
     g.font = `14px ${font}`;
     g.fillText(fit(r.name.normalize("NFKC").replace(/\s+/g, " "), 180), X.name, y1);

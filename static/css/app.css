@@ -199,13 +199,13 @@
   }
   #monthly-tbl td.name { cursor:pointer; color:var(--accent); }
   #monthly-tbl td.name:hover { text-decoration:underline; }
-  #monthly-tbl td.mkt::before, #rk-tbl td.mkt::before {
+  td.mkt::before {
     content:''; display:inline-block; width:.55em; height:.55em;
     border-radius:2px; margin-right:.35em; vertical-align:middle;
   }
-  #monthly-tbl td.mkt-p::before, #rk-tbl td.mkt-p::before { background:#2563eb; }
-  #monthly-tbl td.mkt-s::before, #rk-tbl td.mkt-s::before { background:#9ca3af; }
-  #monthly-tbl td.mkt-g::before, #rk-tbl td.mkt-g::before { background:#16a34a; }
+  td.mkt-p::before { background:#2563eb; }
+  td.mkt-s::before { background:#9ca3af; }
+  td.mkt-g::before { background:#16a34a; }
   .badge.new { background:var(--warn); color:#fff; margin-left:6px; }
   #monthly-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
   #monthly-chart { width:100%; margin:0 0 16px; }

@@ -14,11 +14,12 @@ function pinCols(table, n){
   for(let i=0; i<n; i++){ table.style.setProperty(`--pin${i}`, `${x}px`); x += w[i]; }
 }
 // 市場と業種。月次とランキングで同じ表記（市場は 東証P / 東証S / 東証G。色の点は CSS の .mkt-*）
+// J-Quants の市場名（プライム）と株探の略記（東Ｐ）のどちらも受ける
 function fmtMarket(market){
-  const s = String(market || "");
-  if(s.includes("プライム") || /prime/i.test(s)) return {cls:"mkt mkt-p", label:"東証P"};
-  if(s.includes("スタンダード") || /standard/i.test(s)) return {cls:"mkt mkt-s", label:"東証S"};
-  if(s.includes("グロース") || /growth/i.test(s)) return {cls:"mkt mkt-g", label:"東証G"};
+  const s = String(market || "").normalize("NFKC");
+  if(s.includes("プライム") || /prime/i.test(s) || s === "東P") return {cls:"mkt mkt-p", label:"東証P"};
+  if(s.includes("スタンダード") || /standard/i.test(s) || s === "東S") return {cls:"mkt mkt-s", label:"東証S"};
+  if(s.includes("グロース") || /growth/i.test(s) || s === "東G") return {cls:"mkt mkt-g", label:"東証G"};
   return {cls:"", label:s};
 }
 // 33 業種。末尾の「業」を外して先頭 5 文字
