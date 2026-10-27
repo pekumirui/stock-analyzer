@@ -11,6 +11,7 @@ from ..config import STAGE_PARAMS as P, EARNINGS_PARAMS as EP, RS_PRODUCT_CATEGO
 from ..models import DailyPrice, Topix, Indicator, Statement, EarningsEvent, Stock
 from ..db import WRITE_CHUNK_SIZE, delete_all_chunked, upsert
 from .ingest import _f
+from .price_limit import at_limit
 
 
 def rs_universe_codes(db: Session) -> set[str] | None:
@@ -29,12 +30,13 @@ def price_frame(db: Session) -> pd.DataFrame:
     カーソルから区切って読み、同じ code / date は 1 つのオブジェクトを共有させる。
     """
     q = select(DailyPrice.code, DailyPrice.date, DailyPrice.adj_close,
-               DailyPrice.close, DailyPrice.adj_volume, DailyPrice.volume) \
+               DailyPrice.close, DailyPrice.adj_volume, DailyPrice.volume,
+               DailyPrice.adj_open, DailyPrice.open) \
         .order_by(DailyPrice.code, DailyPrice.date)
     shared: dict = {}
     parts = []
     for rows in db.execute(q).yield_per(200_000).partitions():
-        code, d, adj_close, close, adj_volume, volume = zip(*rows)
+        code, d, adj_close, close, adj_volume, volume, adj_open, open_ = zip(*rows)
         parts.append(pd.DataFrame({
             "code": [shared.setdefault(x, x) for x in code],
             "date": [shared.setdefault(x, x) for x in d],
@@ -42,14 +44,18 @@ def price_frame(db: Session) -> pd.DataFrame:
             "close": np.array(close, dtype=float),
             "adj_volume": np.array(adj_volume, dtype=float),
             "volume": np.array(volume, dtype=float),
+            "adj_open": np.array(adj_open, dtype=float),
+            "open": np.array(open_, dtype=float),
         }))
-        del rows, code, d, adj_close, close, adj_volume, volume
+        del rows, code, d, adj_close, close, adj_volume, volume, adj_open, open_
     if not parts:
-        return pd.DataFrame(columns=["code", "date", "adj_close", "close", "adj_volume", "volume"])
+        return pd.DataFrame(columns=["code", "date", "adj_close", "close", "adj_volume", "volume",
+                                     "adj_open", "open"])
     df = pd.concat(parts, ignore_index=True)
     del parts
     df["adj_close"] = df["adj_close"].fillna(df["close"])
     df["volume"] = df["adj_volume"].fillna(df["volume"])
+    df["adj_open"] = df["adj_open"].fillna(df["open"])
     return df.dropna(subset=["adj_close"])
 
 
@@ -142,39 +148,88 @@ def compute_indicators(
         upsert(db, Indicator, rows, commit=True)
 
 
+def no_open_days(db: Session) -> set[tuple[str, date]]:
+    """寄らずのストップ高・安の日（code, date）。
+
+    比例配分の約定が引けに入るので行はあり、四本値が同じになる。
+    寄ってすぐ張り付いた日とは日足では区別できないので、同じく寄らずとみなす。
+    UL / LL があればそれで、無い過去の行は前日終値からの値幅で判定する。
+    """
+    one_price = (DailyPrice.open == DailyPrice.high) & (DailyPrice.high == DailyPrice.low) \
+        & (DailyPrice.low == DailyPrice.close)
+    cand = db.query(DailyPrice.code, DailyPrice.date, DailyPrice.close, DailyPrice.adj_factor,
+                    DailyPrice.upper_limit, DailyPrice.lower_limit).filter(one_price).all()
+    need_prev = [(c, d) for c, d, _, _, ul, ll in cand if ul is None and ll is None]
+    prev: dict[tuple[str, date], float] = {}
+    for code in {c for c, _ in need_prev}:
+        days = sorted(d for c, d in need_prev if c == code)
+        rows = (db.query(DailyPrice.date, DailyPrice.close)
+                .filter(DailyPrice.code == code, DailyPrice.date < days[-1],
+                        DailyPrice.date >= days[0] - timedelta(days=30))
+                .order_by(DailyPrice.date).all())
+        ds = [r[0] for r in rows]
+        for d in days:
+            i = int(np.searchsorted(ds, d)) - 1
+            if i >= 0:
+                prev[(code, d)] = rows[i][1]
+    out = set()
+    for code, d, close, factor, ul, ll in cand:
+        if ul is not None or ll is not None:
+            hit = bool(ul) or bool(ll)
+        else:
+            p = prev.get((code, d))
+            # 分割の日は前日終値を当日の株数に直してから比べる
+            hit = at_limit(p * (factor or 1.0) if p else None, close)
+        if hit:
+            out.add((code, d))
+    return out
+
+
 def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
-    """決算発表日からの対TOPIXリターンを earnings_events に保存。"""
+    """決算発表日からの対TOPIXリターンを earnings_events に保存。
+
+    基準は決算を織り込んだ最初の始値。15:30 以降の発表は翌営業日、それより前は当日の始値
+    （場中の発表の、発表後の最初の値は日足では取れない）。その日が寄らずのストップ高・安なら
+    寄った日まで先送りする。+Nd は基準日を 1 日目として N 日目の終値。
+    """
     px = price_frame(db) if px is None else px
-    tp = pd.DataFrame(db.query(Topix.date, Topix.close).all(), columns=["date", "tclose"]).sort_values("date")
+    tp = pd.DataFrame(db.query(Topix.date, Topix.open, Topix.close).all(),
+                      columns=["date", "topen", "tclose"]).sort_values("date")
     if px.empty or tp.empty:
         return
     tclose = dict(zip(tp["date"], tp["tclose"]))
+    topen = dict(zip(tp["date"], tp["topen"]))
+    stuck = no_open_days(db)
+    close_since = date.fromisoformat(EP["market_close_since"])
     stmts = db.query(Statement.code, Statement.disclosed_date, Statement.disclosed_time).all()
 
     # px は code, date 順なので各銘柄の日付列は昇順
-    px_by_code = {c: (g["date"].to_numpy(), g["adj_close"].to_numpy()) for c, g in px.groupby("code")}
+    px_by_code = {c: (g["date"].to_numpy(), g["adj_open"].to_numpy(), g["adj_close"].to_numpy())
+                  for c, g in px.groupby("code")}
     horizon = {"1d": 1, "5d": 5, "20d": 20, "60d": 60}
     rows = []
     for code, ddate, dtime in stmts:
         arr = px_by_code.get(code)
         if arr is None:
             continue
-        dates, closes = arr
-        # 引け後(15時以降)発表なら基準は翌営業日、場中なら当日
-        after_close = (dtime or "16:00")[:2] >= "15"
+        dates, opens, closes = arr
+        after_close = (dtime or "16:00")[:5] >= (
+            EP["market_close"] if ddate >= close_since else EP["market_close_old"])
         i0 = int(np.searchsorted(dates, ddate, side="right" if after_close else "left"))
+        while i0 < len(dates) and (code, dates[i0]) in stuck:
+            i0 += 1
         if i0 >= len(dates):
             continue
         base_date = dates[i0]
-        base = closes[i0]
-        tbase = tclose.get(base_date)
-        if not base or not tbase:
+        base = opens[i0]
+        tbase = topen.get(base_date) or tclose.get(base_date)
+        if not base or np.isnan(base) or not tbase:
             continue
         rec = {"code": code, "disclosed_date": ddate, "base_date": base_date, "base_price": base}
         for label, n in horizon.items():
-            if i0 + n < len(dates):
-                d2 = dates[i0 + n]
-                r = closes[i0 + n] / base - 1
+            if i0 + n - 1 < len(dates):
+                d2 = dates[i0 + n - 1]
+                r = closes[i0 + n - 1] / base - 1
                 tr = (tclose.get(d2, tbase) / tbase - 1)
                 rec[f"return_{label}"] = round(r * 100, 2)
                 rec[f"alpha_{label}"] = round((r - tr) * 100, 2)

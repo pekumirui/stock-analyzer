@@ -112,6 +112,10 @@ STAGE_PARAMS = {
 }
 
 EARNINGS_PARAMS = {
+    # これ以降の発表は翌営業日の始値から。東証の大引けは 2024-11-05 から 15:30（それまで 15:00）
+    "market_close": "15:30",
+    "market_close_old": "15:00",
+    "market_close_since": "2024-11-05",
     "list_history_days": 800,
     "cum_history_years": 5,
     "single_history_quarters": 12,

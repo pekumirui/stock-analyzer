@@ -49,6 +49,8 @@ class DailyPrice(Base):
     adj_close = Column(Float)
     adj_volume = Column(Float)
     market_cap = Column(Float)        # 時価総額(百万円)
+    upper_limit = Column(Integer)     # J-Quants UL。その日にストップ高を付けたら 1。取込前の行は NULL
+    lower_limit = Column(Integer)     # J-Quants LL。ストップ安
     __table_args__ = (Index("ix_prices_date", "date"),)
 
 
