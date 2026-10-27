@@ -70,7 +70,10 @@ async function loadRanking(month){
 }
 
 function rkTitle(d, n){
-  return `${rkMonth(d.month)}決算 決算発表後パフォーマンス 上位${n}`;
+  return `${rkMonth(d.month)}決算 パフォーマンスランキングTOP${n}`;
+}
+function rkPost(d, n){
+  return `${rkTitle(d, n)}\n計測方法は決算発表後初値〜\n※場中決算は翌営業日初値`;
 }
 
 // 上位の表を PNG にする。見た目は画面の表に合わせる（白地・罫線・正は赤、負は緑）
@@ -79,7 +82,7 @@ function rkDrawShot(d){
   const css = getComputedStyle(document.documentElement);
   const color = k => css.getPropertyValue(k).trim();
   const font = getComputedStyle(document.body).fontFamily;
-  const S = 2, W = 760, PAD = 24, ROW = 40, HEAD = 92;
+  const S = 2, W = 760, PAD = 24, ROW = 40, HEAD = 108;
   const H = HEAD + ROW * (rows.length + 1) + 40;
   const cv = document.createElement("canvas");
   cv.width = W * S; cv.height = H * S;
@@ -89,10 +92,11 @@ function rkDrawShot(d){
   g.textBaseline = "middle";
   g.fillStyle = color("--text");
   g.font = `600 20px ${font}`;
-  g.fillText(rkTitle(d, rows.length), PAD, 32);
+  g.fillText(rkTitle(d, rows.length), PAD, 28);
   g.fillStyle = color("--sub");
   g.font = `13px ${font}`;
-  g.fillText(`決算後に買えた最初の値から次の決算の前日終値まで（まだなら ${rkMd(d.as_of)} 終値まで）`, PAD, 62);
+  g.fillText("計測方法は決算発表後初値〜", PAD, 54);
+  g.fillText("※場中決算は翌営業日初値", PAD, 74);
   // 列: 画面の表と同じ（対TOPIX はパフォーマンスの下、場中 / 引け後は決算日の下）
   const X = {rank: 52, mkt: 64, sec: 150, name: 262, perf: 548, date: 618, held: W - PAD};
   const cols = [["順位", X.rank, "right"], ["市場", X.mkt, "left"], ["業種", X.sec, "left"],
@@ -145,7 +149,7 @@ async function rkShare(){
   const blob = await rkShot;
   if(!blob) return;
   const n = Math.min(rkData.rows.length, RK_SHOT_ROWS);
-  const text = `${rkTitle(rkData, n)}（次の決算の前日終値まで）`;
+  const text = rkPost(rkData, n);
   const file = new File([blob], `earnings-perf-${rkData.month}.png`, {type: "image/png"});
   // スマホは共有シートで画像ごと X へ。PC は画像を保存して X の投稿画面を開く（画像は手で添付）
   const touch = matchMedia("(pointer: coarse)").matches;

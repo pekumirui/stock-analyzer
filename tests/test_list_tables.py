@@ -37,6 +37,11 @@ def test_ranking_table_matches_sheet() -> None:
     assert "shortName(raw)" in src
     assert "pinCols($(\"#rk-tbl\"), 2)" in src
     assert '["対TOPIX"' not in src
+    assert "パフォーマンスランキングTOP" in src
+    assert "計測方法は決算発表後初値〜" in src
+    assert "※場中決算は翌営業日初値" in src
+    assert "（次の決算の前日終値まで）" not in src
+    assert "決算発表後パフォーマンス 上位" not in src
 
 
 def test_screener_table_matches_sheet() -> None:
