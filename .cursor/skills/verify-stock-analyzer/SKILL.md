@@ -1,6 +1,6 @@
 ---
 name: verify-stock-analyzer
-description: "Drive the stock-analyzer SPA (FastAPI + static/index.html + static/css/ + static/js/) the way a user does: launch uvicorn, open tabs, call the same /api/* the UI uses, capture evidence. Reach for this when proving 決算速報 / 銘柄 (概要 / 株価 / ニュース / 株主) / スクリーナー / PTS / 月次 / サプライ after a UI or API change."
+description: "Drive the stock-analyzer SPA (FastAPI + static/index.html + static/css/ + static/js/) the way a user does: launch uvicorn, open tabs, call the same /api/* the UI uses, capture evidence. Reach for this when proving 決算速報 / 銘柄 (概要 / 株価 / ニュース / 株主) / スクリーナー / PTS / 月次 / サプライ / ランキング after a UI or API change."
 ---
 
 # verify-stock-analyzer
@@ -25,7 +25,7 @@ Prefer a helper that picks the right interpreter (`.venv\Scripts\python.exe` on 
 .venv/bin/python .cursor/skills/verify-stock-analyzer/helpers/launch.py
 ```
 
-Default URL: `http://127.0.0.1:8000`. Override with env `VERIFY_PORT`. Ready when stdout JSON appears and `GET /app` returns 200 whose HTML contains `<title>株式分析ツール</title>`. The header has no brand title and no `#home`: its children are `#menu-btn`, `#cur-tab`, `nav#app-nav` (6 tabs: 決算速報 / 銘柄 / スクリーナー / PTS / 月次 / サプライ; the チャート tab moved into 銘柄 › 株価 in KAB-181). `meta[name=theme-color]` is `#ffffff` and the header has no top blue line (KAB-184); ≤720px `#menu-btn` is first then `#cur-tab`. `GET /` は `/monthly` へ 301。 State is `.cursor/skills/verify-stock-analyzer/.run/state.json` (`pid`, `port`, `url`, `adopted`, `db`). Adopted servers have `"adopted": true`, `pid: null`, and `db: null` (their DB is unknown; a leftover server from another worktree can be on a different DB and older code). Do not kill them. Pick another `VERIFY_PORT` when you need your own code or DB. A started server inherits `DATABASE_URL`, and `db` records it (else the repo `stock.db`). Set `VERIFY_WAIT=0` only if you confirmed the child survives after launch.py exits.
+Default URL: `http://127.0.0.1:8000`. Override with env `VERIFY_PORT`. Ready when stdout JSON appears and `GET /app` returns 200 whose HTML contains `<title>株式分析ツール</title>`. The header has no brand title and no `#home`: its children are `#menu-btn`, `#cur-tab`, `nav#app-nav` (7 tabs: 決算速報 / 銘柄 / スクリーナー / PTS / 月次 / サプライ / ランキング; the チャート tab moved into 銘柄 › 株価 in KAB-181). `meta[name=theme-color]` is `#ffffff` and the header has no top blue line (KAB-184); ≤720px `#menu-btn` is first then `#cur-tab`. `GET /` は `/monthly` へ 301。 State is `.cursor/skills/verify-stock-analyzer/.run/state.json` (`pid`, `port`, `url`, `adopted`, `db`). Adopted servers have `"adopted": true`, `pid: null`, and `db: null` (their DB is unknown; a leftover server from another worktree can be on a different DB and older code). Do not kill them. Pick another `VERIFY_PORT` when you need your own code or DB. A started server inherits `DATABASE_URL`, and `db` records it (else the repo `stock.db`). Set `VERIFY_WAIT=0` only if you confirmed the child survives after launch.py exits.
 
 Uses the repo's `stock.db` (read-only for UI proofs). Do not `.\run.ps1 reset` / `./run.sh reset`. Do not point `DATABASE_URL` at the user's DB from a second writer. If the port is taken by a non-SPA process, launch exits non-zero. Free the port or pick another `VERIFY_PORT`.
 
@@ -88,7 +88,7 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 | Timeframe | `#tf` (`D` / `W` / `M`) |
 | MA list | `#mas` (default `50,150,200`; redraws on `change`, i.e. Enter or blur) |
 | 対TOPIX | `#rel` checkbox |
-| `gotoChart(code)` | 決算速報 title, スクリーナー / PTS name `.clicky`, サプライ `#supply-chart-link` 「株価を開く」 → 銘柄 › 株価, hash `#stock/{code}/price` |
+| `gotoChart(code)` | 決算速報 title, スクリーナー / PTS / ランキング name `.clicky`, サプライ `#supply-chart-link` 「株価を開く」 → 銘柄 › 株価, hash `#stock/{code}/price` |
 | Screener stage | `#sc-stage` (default `2`) |
 | Screener RS | `#sc-rs` (default `70`) |
 | Screener 検索 | `#tab-screener button.btn` (label 検索) |

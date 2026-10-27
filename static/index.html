@@ -21,6 +21,7 @@
     <button data-tab="pts">PTS</button>
     <button data-tab="monthly">月次</button>
     <button data-tab="supply">サプライ</button>
+    <button data-tab="ranking">ランキング</button>
   </nav>
 </header>
 <div id="nav-backdrop" hidden></div>
@@ -205,6 +206,20 @@
   </div>
 </section>
 
+<section id="tab-ranking" style="display:none">
+  <div class="panel">
+    <div class="fin-tabs" id="rk-kind" role="group" aria-label="ランキングの種類">
+      <button type="button" class="ftab on" data-kind="earnings-perf">決算発表後パフォーマンス</button>
+    </div>
+    <div class="row">
+      <select id="rk-month" aria-label="決算月"></select>
+      <span id="rk-info" class="sub"></span>
+      <button type="button" class="btn" id="rk-share" hidden>X に投稿</button>
+    </div>
+    <div class="tbl-wrap"><table id="rk-tbl"></table></div>
+  </div>
+</section>
+
 <section id="tab-monthly" style="display:none">
   <div id="monthly-top">
     <div class="phead"><h3>月次データ</h3></div>
@@ -251,6 +266,7 @@
 <script src="/static/js/stock-price.js"></script>
 <script src="/static/js/screener.js"></script>
 <script src="/static/js/pts.js"></script>
+<script src="/static/js/ranking.js"></script>
 <script src="/static/js/monthly.js"></script>
 <script src="/static/js/supply.js"></script>
 <script src="/static/js/boot.js"></script>
