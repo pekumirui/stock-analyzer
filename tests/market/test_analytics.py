@@ -329,8 +329,8 @@ def _seed() -> None:
         ev = db.get(EarningsEvent, (CODE, date(2025, 11, 1)))
         if ev is None or ev.return_1d is None:
             _fail(f"earnings event {ev}")
-        # 15:00 は大引け（15:30）前なので当日の始値から当日の終値まで
-        want = round((1001 / 1000.5 - 1) * 100, 2)
+        # 15:00 は大引け（15:30）前なので当日の終値で買い、翌営業日の終値まで
+        want = round((1002 / 1001 - 1) * 100, 2)
         if ev.return_1d != want:
             _fail(f"return_1d {ev.return_1d} != {want} base={ev.base_date} {ev.base_price}")
         hist = statement_history(db, CODE, date(2026, 5, 1), 800)
@@ -381,7 +381,7 @@ def test_earnings_api() -> None:
         _fail(f"perf {r.status_code} {r.text}")
     perf = r.json()
     hit = next((e for e in perf if e["disclosed_date"] == "2025-11-01"), None)
-    want = round((1001 / 1000.5 - 1) * 100, 2)
+    want = round((1002 / 1001 - 1) * 100, 2)
     if hit is None or hit["return_1d"] != want or hit["alpha_1d"] != want:
         _fail(f"perf 2025-11-01: {hit}")
     if [e["disclosed_date"] for e in perf] != sorted((e["disclosed_date"] for e in perf), reverse=True):
