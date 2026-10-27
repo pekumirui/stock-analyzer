@@ -10,6 +10,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from .adjust import readjust
 from .jquants import JQuantsClient
 from ..db import upsert
 from ..models import Stock, DailyPrice, Topix, Statement
@@ -92,15 +93,14 @@ def _ingest_day(db: Session, jq: JQuantsClient, day: str, *, commit: bool = True
     return rows
 
 
-def refresh_adjusted(db: Session, jq: JQuantsClient, rows: list[dict]) -> list[str]:
-    """権利落ち日（AdjFactor ≠ 1。分割・併合・ライツイシュー）がある銘柄は、全期間を取り直す。
+def refresh_adjusted(db: Session, rows: list[dict]) -> list[str]:
+    """権利落ち日（AdjFactor ≠ 1。分割・併合・ライツイシュー）がある銘柄は、調整後の値を計算し直す。
 
-    J-Quants は分割・併合で過去の調整後株価をさかのぼって直すが、日付指定の差分取込では
-    DB の過去分が古いまま残る。
+    日付指定の差分取込では DB の過去分が古いまま残る。API で取り直すとプランの期間より前が
+    取れないので、DB の中で計算する（app/market/adjust.py）。
     """
     codes = sorted({r["code"] for r in rows if r["adj_factor"] not in (None, 1.0)})
-    for code in codes:
-        ingest_prices_for_code(db, jq, code)
+    readjust(db, codes)
     return codes
 
 
@@ -192,7 +192,7 @@ def run_daily(db: Session, day: str | None = None) -> int:
         n_m = ingest_master(db, jq)
         px_rows = _ingest_day(db, jq, day)
         n_p = len(px_rows)
-        adjusted = refresh_adjusted(db, jq, px_rows)
+        adjusted = refresh_adjusted(db, px_rows)
         n_t = ingest_topix(db, jq, from_=day, to=day)
         n_s = ingest_statements_for_date(db, jq, day)
         n_late = 0
@@ -201,7 +201,7 @@ def run_daily(db: Session, day: str | None = None) -> int:
             ingest_statements_for_date(db, jq, prev.isoformat())
             n_late = db.query(func.count()).filter(Statement.disclosed_date == prev).scalar() - before
     late = f" / {prev}の追加決算{n_late}" if prev is not None else ""
-    adj = f" / 分割・併合で全期間を取り直し {','.join(adjusted)}" if adjusted else ""
+    adj = f" / 権利落ちで調整後を計算し直し {','.join(adjusted)}" if adjusted else ""
     print(f"{day}: 銘柄{n_m} / 株価{n_p} / TOPIX{n_t} / 決算{n_s}{late}{adj}")
     return n_p + n_t + n_s + n_late
 

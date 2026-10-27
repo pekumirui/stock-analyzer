@@ -5,6 +5,7 @@
   python jobs/market/run_batch.py --date 2026-08-14
   python jobs/market/run_batch.py --backfill 5   # 初回: 5年分。失敗したら非ゼロ終了
   python jobs/market/run_batch.py --refetch-prices  # DB にある日足を全部取り直す（再開可）
+  python jobs/market/run_batch.py --readjust-prices # 調整後株価を DB の中で全銘柄計算し直す
 """
 import argparse
 import sys
@@ -15,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from app.db import SessionLocal, init_db
 from app.market import ingest, analytics
+from app.market.adjust import readjust
 from app.market.earnings_schedule import sync
 
 
@@ -24,6 +26,8 @@ def main():
     ap.add_argument("--backfill", type=int, help="年数を指定して初回バックフィル")
     ap.add_argument("--refetch-prices", action="store_true",
                     help="DB にある日足を全部取り直して指標を計算し直す")
+    ap.add_argument("--readjust-prices", action="store_true",
+                    help="調整後株価を DB の調整前の値と調整係数から全銘柄計算し直して指標も計算し直す")
     ap.add_argument("--no-recompute", action="store_true", help="指標の再計算をスキップ")
     args = ap.parse_args()
 
@@ -34,6 +38,8 @@ def main():
         refetch_failed = 0
         if args.refetch_prices:
             refetch_failed = ingest.run_refetch_prices(db)
+        elif args.readjust_prices:
+            print(f"調整後株価を計算し直し {readjust(db)} 行")
         elif args.backfill:
             ingest.run_backfill(db, years=args.backfill)
         else:

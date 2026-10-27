@@ -268,6 +268,12 @@ deploy/cron-run.sh jobs/ops/migrate_r2_share.py --list-mismatches
 deploy/cron-run.sh jobs/market/run_batch.py --refetch-prices   # ログは batch_logs job=run_batch
 ```
 
+プランの期間より前の行の調整後株価を直すとき（KAB-193）は、同じく日次バッチと重ならない時間に一度だけ流す。API は呼ばない。
+
+```bash
+deploy/cron-run.sh jobs/market/run_batch.py --readjust-prices
+```
+
 cron（JST）。`run_batch.py` は 19:30 の 1 回。
 
 | スクリプト | cron |
