@@ -167,7 +167,7 @@ jobs/           機能ごと (market/ monthly/ supply/ xbrl/ edinet/ ops/)。cro
   market/run_batch.py   日次バッチ / バックフィル
   market/check_demo.py  スキーマ + 旧デモ取り残しガード
   market/pts_snapshot.py  株探 PTS ランキング → pts_snapshots（cron は平日 15:30〜24:00）
-  ops/backup_db.py      本番 SQLite の日次バックアップ（cron は 05:00 JST。手順は docs/DESIGN_backup.md）
+  ops/backup_db.py      本番 SQLite の日次バックアップ（cron は 05:00 JST。成功後に OneDrive。手順は docs/DESIGN_backup.md）
   ops/vps_packages_r2.py  VPS パッケージ一覧 → data/inventory/（cron は 06:40 JST）
   fx_rates.py           Frankfurter 為替（EUR ベース。cron は 08:00 JST）
   edinet/edinet_codes.py      EDINET コードリスト（cron は 07:30 JST）
