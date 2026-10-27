@@ -48,5 +48,6 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [銘柄 › 株価](./chart.md) daily/weekly/monthly candles, 対TOPIX, 決算発表後リターン (was the チャート tab until KAB-181; `gotoChart` lands here).
 - [スクリーナー](./screener.md) Stage + RS filter table (UI defaults Stage 2, RS≥70).
 - [PTS](./pts.md) night PTS ranking (値上がり / 値下がり / 出来高) per session and fetch time, with the next-day open gap and 追随率.
+- [ランキング](./ranking.md) 決算発表後パフォーマンス as 上昇率 / 下落率 per 決算月, with `(対TOPIX)` in the パフォーマンス column name.
 - [月次](./monthly.md) issuer list + industry chips + TOP search via `/api/v1/tables`, Detail with series select, one multi-year line chart (legend + month tooltip), one 横持ち `table.monthly-tl` (metric ▸ section tree, paired cells show 金額 with (前年比) under it, month-cell popup).
 - [サプライ](./supply.md) material graph (原料 → 中間財 → 最終製品, plus リサイクル資源 and 回収 marks), material panel tabs (概要 / 企業 / 輸入元 / 推移) or company panel, capacity share donuts, import-country donut, monthly volume chart, phone bottom sheet, `#supply/{id}` route.

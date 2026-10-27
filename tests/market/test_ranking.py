@@ -1,4 +1,4 @@
-"""ランキングタブの決算発表後パフォーマンス（KAB-192 / KAB-194 / KAB-195 / KAB-198）。"""
+"""ランキングタブの決算発表後パフォーマンス（KAB-192 / KAB-194 / KAB-195 / KAB-198 / KAB-201）。"""
 from __future__ import annotations
 
 import os

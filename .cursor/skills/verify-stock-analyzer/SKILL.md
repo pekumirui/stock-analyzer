@@ -93,6 +93,7 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 | Screener RS | `#sc-rs` (default `70`) |
 | Screener 検索 | `#tab-screener button.btn` (label 検索) |
 | PTS controls | `#pts-date` (session day), `#pts-ranking .ftab[data-ranking]` (`night_up` 値上がり / `night_down` 値下がり / `night_volume` 出来高), `#pts-at` (取得時刻), `#pts-info`, `#pts-summary`, `#pts-tbl` (name `.clicky` → `gotoChart`) |
+| Ranking controls | `#rk-kind .ftab[data-dir]` (`up` 上昇率 default / `down` 下落率), `#rk-month`, `#rk-info`, `#rk-share`, `#rk-tbl` (name `.clicky` → `gotoChart`) |
 | Monthly list | `#monthly-groups`, `#monthly-list` (host), `#monthly-tbl` |
 | Monthly issuer search | `#monthly-sym` (placeholder `銘柄名 or コード`), suggestions `#monthly-suggest` from loaded monthly issuers (not `/api/stocks/search`). Enter or suggestion pick filters `#monthly-tbl`; company-name click opens Detail |
 | Monthly detail | `#monthly-detail`, `#monthly-series`, `#monthly-chart` (one SVG line chart, `.monthly-legend`, `rect.monthly-hit[data-m]` → `.monthly-tip`), `#monthly-table-wrap`, `#monthly-back` |
@@ -117,6 +118,8 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 | 銘柄 › 株主 | nothing (準備中) |
 | Screener 検索 (UI defaults) | `GET /api/screener?stage=2&rs_min=70` |
 | Open PTS (first time, or reload on `#pts`) | `GET /api/pts?ranking=night_up` |
+| Open ランキング (first time, or reload on `#ranking`) | `GET /api/ranking/earnings-perf` |
+| Ranking 上昇率 / 下落率 | no refetch; client filters the same payload |
 | PTS ranking / session day / 取得時刻 | `GET /api/pts?ranking=...&date=YYYY-MM-DD` (+ `&at=YYYY-MM-DD HH:MM:SS` from `#pts-at`) |
 | 月次 TOP list | `GET /api/v1/tables` |
 | 月次 Detail years | `GET /api/v1/tables/{code}` |
