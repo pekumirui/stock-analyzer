@@ -266,6 +266,16 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
 - 3 本とも取得に失敗したら非ゼロ終了。cron は平日 15:30〜24:00 の 30 分ごと（`deploy/crontab`）
 - 翌営業日の始値は `daily_prices` の `session_date` より後の最初の日足の `open`（調整前）。19:30 の日次バッチの後に埋まる
 
+**分足（`data/intraday/1m/`）。** yfinance の 1 分足（KAB-208）。DB には入れず、日ごとの Parquet（zstd）を `data/intraday/1m/YYYY/YYYY-MM-DD.parquet` に置く。1 ファイルに内国株の全銘柄、列は `code`（J-Quants 5 桁）/ `ts`（Asia/Tokyo）/ `open` / `high` / `low` / `close` / `volume`。取得と読み出しは `app/market/intraday.py`、ジョブは `jobs/market/intraday_1m.py`。キー不要。画面はまだ無い。
+
+- Yahoo のシンボルは 5 桁の先頭 4 文字 + `.T`（`72030` → `7203.T`、`130A0` → `130A.T`）。1 分足は 1 回 7 日まで、さかのぼれるのは約 30 日。毎回直近 7 日を取り、まだファイルに無い (銘柄, 日) だけ書く
+- 値は調整前。Yahoo は分割があると過去の分足をさかのぼって直すので、一度書いた (銘柄, 日) は上書きしない。その回で一番新しい日は常に書く。それより前の日を埋めるのは、DB の日足がその日まであり、間に `adj_factor ≠ 1` が無く、分足の高値と日足の高値の比が 1.2 以内のときだけ
+- 読むときに `daily_prices.adj_factor` を、その日より後の分を掛けて調整する（`load(..., db=...)`）。出来高は割り、ライツイシュー（ExRT=3）の係数は使わない。`app/market/adjust.py` と同じ向き。丸めない
+- 1 銘柄ずつ 0.5 秒あけて取る（全銘柄で約 45 分）。429 は 60 秒・300 秒待って取り直し、それでも駄目なら打ち切って残りは次の回。1 分足を配っていない銘柄（応答に `tradingPeriods` が無い）は空として数える
+- 取れた銘柄が 0、または失敗が 1 割を超えたら非ゼロ終了。cron は平日 20:30（19:30 の日次バッチの後。当日の AdjFactor が DB にある状態で過去の日を埋める）
+- Yahoo の東証 1 分足は寄りの数分（09:00〜09:04）と引け（15:25〜15:30）の足が無い日が多く、最初の足の出来高が 0 や日足を超える値のことがある。日足の始値・終値・出来高とは合わない。日足は `daily_prices` を使う
+- 容量は 1 銘柄・1 日で約 1KB（約定の無い分は足が無い）。全銘柄で 1 日約 3.5MB、1 年で約 1GB。同じ足を SQLite（主キー込み）に入れると約 5 倍だった
+
 **VPS パッケージ一覧（`jobs/ops/vps_packages_r2.py`）。** 読み取り専用。`data/inventory/` へ書く。中身と cron は [`deploy/README.md`](deploy/README.md)。
 
 **為替（`fx_rates`）。** Frankfurter v1（`https://api.frankfurter.dev/v1`、ECB、基準通貨 EUR、キー不要。旧 `api.frankfurter.app` は 301）。UI は出さない。
@@ -466,7 +476,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 |---|---|
 | API + SPA | 同一 VPS の uvicorn（systemd、ワーカー1） |
 | DB | `stock.db`（VPS の SSD）。`DATABASE_URL` は今の SQLite のまま |
-| バッチ | crontab（19:30 JST の J-Quants 日次。株探 PTS は平日 15:30〜24:00 の 30 分ごと。為替は 08:00 JST。パッケージ一覧は 06:40 JST。SQLite バックアップは 05:00 JST） |
+| バッチ | crontab（19:30 JST の J-Quants 日次。株探 PTS は平日 15:30〜24:00 の 30 分ごと。yfinance 1 分足は平日 20:30。為替は 08:00 JST。パッケージ一覧は 06:40 JST。SQLite バックアップは 05:00 JST） |
 | バックアップ | VPS ローカル gzip（直近 1 世代）+ OneDrive（日次 7・週次 4）。手順は [`docs/DESIGN_backup.md`](docs/DESIGN_backup.md) |
 | 公開 | nginx + Let's Encrypt。月次閲覧は `/monthly`（Basic なし）。個人ツールは `/app` + Basic 認証 |
 | 開発 | 今どおり Windows + `.\run.ps1` |

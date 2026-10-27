@@ -226,7 +226,7 @@ MCP 自体が死んだときの退避路は Actions の **Debug VPS**。
 
 ## 共有ファイル（data/）と月次 / XBRL バッチ
 
-ジョブが `--dest` を省略したときの保存先はリポジトリの `data/` である。接頭辞は `monthly`、`xbrl`、`inventory`、`stats`。`SHARE_ROOT` を置くとその直下になる。読むときは MCP `fs_*`（`root=data`）か box の `/mnt/vps/data`。R2 は使わない（KAB-66 以降。KPI 方針 2026-10-20）。
+ジョブが `--dest` を省略したときの保存先はリポジトリの `data/` である。接頭辞は `monthly`、`xbrl`、`inventory`、`stats`、`intraday`。`SHARE_ROOT` を置くとその直下になる。読むときは MCP `fs_*`（`root=data`）か box の `/mnt/vps/data`。R2 は使わない（KAB-66 以降。KPI 方針 2026-10-20）。
 
 ### 残置: rclone FUSE（`/home/stock/r2-share`）
 
@@ -251,6 +251,7 @@ deploy/cron-run.sh jobs/ops/migrate_r2_share.py --list-mismatches
 - `monthly/{code}/YYYYMMDD_CODE_….pdf|xlsx|xls|html`（`{code}` は TDnet の発行体コードそのまま。9279 / 262A。J-Quants 5桁にはしない）
 - `xbrl/{code4}/…zip` と `xbrl/_unmatched/`
 - `inventory/vps-packages.txt`（上書き）と `inventory/history/vps-packages-YYYYMMDD.txt`
+- `intraday/1m/YYYY/YYYY-MM-DD.parquet`（yfinance 1 分足。1 日 1 ファイル・全銘柄。書いた銘柄は上書きしない。`DESIGN.md` §3「分足」）
 - `stats/meti/{seidou,sekiyu}/<経産省のファイル名>`（素材の月次量の Excel の控え。中身が変わった版は `_YYYYMMDD` つき。`DESIGN.md` §3）
 
 初回設定:
@@ -289,6 +290,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 | `jobs/xbrl/tdnet_xbrl_r2.py 1` | 12–23 時の毎時 00 分 |
 | `jobs/xbrl/xbrl_parse.py` / `jobs/xbrl/xbrl_normalize.py` | 12–23 時の毎時 10 分 / 20 分 |
 | `jobs/market/pts_snapshot.py` | 平日 15:30〜24:00 の 30 分ごと（株探 PTS ランキング。24:00 は翌日 0:00 の回） |
+| `jobs/market/intraday_1m.py` | 平日 20:30（yfinance 1 分足 → `data/intraday/1m/`。日次バッチの後。約 45 分） |
 | `jobs/ops/vps_packages_r2.py` | 06:40 |
 | `jobs/ops/backup_db.py` | 05:00（SQLite 整合バックアップ。成功後に OneDrive へ送る。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
 

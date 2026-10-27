@@ -17,6 +17,9 @@ SHELL=/bin/bash
 0,30 16-23 * * 1-5 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/pts_snapshot.py
 0 0 * * 2-6 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/pts_snapshot.py
 
+# yfinance 1 分足（直近 7 日）→ data/intraday/1m（KAB-208）。日次バッチ（19:30。19:45 ごろ終わる）の後
+30 20 * * 1-5 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/intraday_1m.py
+
 # Frankfurter / ECB 対EUR 日次レート。公表は 16:00 CET 前後なので翌朝 JST。空なら 1999-01-04〜。
 0 8 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/fx_rates.py
 

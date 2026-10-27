@@ -16,6 +16,7 @@ PREFIXES = {
     "xbrl": "xbrl",
     "inventory": "inventory",
     "stats": "stats",
+    "intraday": "intraday",
 }
 
 
