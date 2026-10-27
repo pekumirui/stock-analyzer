@@ -3103,10 +3103,6 @@ def _check_count_cases(cases) -> None:
 
 
 def test_issuer_rate_metrics_14350() -> None:
-    """14350 の入居率は件数辞書と同じく層だけ指標。保存名は並べ替えない（KAB-11 / #662）。
-
-    指標語が率で終わるときは metric_kind が rate（KAB-39 / #713）。
-    """
     code = "14350"
     cases = (
         ("入居率 全体", "全体", "入居率"),
