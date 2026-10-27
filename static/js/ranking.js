@@ -52,7 +52,7 @@ async function loadRanking(month){
         + "<th title='決算後に買ってから次の決算の前日まで。次の決算がまだなら保有中（今日まで）'>保有期間</th></tr></thead><tbody>";
   for(const r of d.rows){
     h += `<tr><td class="num pin0">${r.rank}</td>
-      ${rkMarket(r)}<td class="l">${rkEsc(r.sector33 || "–")}</td>${rkName(r)}
+      ${rkMarket(r)}<td class="l" title="${rkEsc(r.sector33 || "")}">${rkEsc(fmtSector(r.sector33) || "–")}</td>${rkName(r)}
       <td class="num grp">${pct(r.return_to_next)}${under(rkAlpha(r.alpha_to_next))}</td>
       <td class="num">${rkMd(r.disclosed_date)}${under(rkSession(r.session))}</td>
       <td class="num">${rkHeld(r)}${under(`<span class="sub">${rkBdays(r)}</span>`)}</td></tr>`;
@@ -111,7 +111,7 @@ function rkDrawShot(d){
     const dot = {"mkt mkt-p": "#2563eb", "mkt mkt-s": "#9ca3af", "mkt mkt-g": "#16a34a"}[mk.cls];
     if(dot){ g.fillStyle = dot; g.fillRect(X.market, y - 4, 7, 7); g.fillStyle = color("--text"); }
     g.fillText(fit(mk.label || "–", 72), X.market + (dot ? 11 : 0), y);
-    g.fillText(fit(String(r.sector33 || "–").normalize("NFKC"), 106), X.sector, y);
+    g.fillText(fit(fmtSector(r.sector33).normalize("NFKC") || "–", 106), X.sector, y);
     // J-Quants の名前は全角英数字。画像では半角に寄せて幅を取らない
     g.font = `14px ${font}`;
     g.fillText(fit(r.name.normalize("NFKC").replace(/\s+/g, " "), 180), X.name, y1);

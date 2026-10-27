@@ -347,11 +347,6 @@ function fmtMonthlyIssuerLabel(code, name){
   return `${monthlyCode4(code)} ${short}`;
 }
 
-function fmtMonthlySector(sector){
-  const s = String(sector || "").replace(/業$/, "");
-  return Array.from(s).slice(0, 5).join("");
-}
-
 function renderMonthlyList(){
   const issuers = filteredMonthlyIssuers();
   if(!issuers.length){
@@ -376,7 +371,7 @@ function renderMonthlyList(){
       : `<td class="l name" onclick="showMonthlyDetail('${r.code}')">${label}${neu}</td>`;
     h += `<tr data-code="${r.code}">` + nameCell +
       (pub ? "" : `<td class="l ${mkt.cls}">${escHtml(mkt.label)}</td>` +
-        `<td class="l sector">${escHtml(fmtMonthlySector(r.sector33))}</td>`) +
+        `<td class="l sector">${escHtml(fmtSector(r.sector33))}</td>`) +
       `<td class="l">${r.industry||"その他"}</td>` +
       `<td class="num">${fmtMonthlyYoyList(r.all_store_yoy)}</td>` +
       `<td class="num">${fmtMonthlyYoyList(r.existing_store_yoy)}</td>` +
