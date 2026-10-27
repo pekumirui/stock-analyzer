@@ -1,4 +1,4 @@
-// ランキングタブ（docs/DESIGN_ranking.md）。今は決算発表後パフォーマンスだけ
+// ランキングタブ（docs/DESIGN_ranking.md）。決算発表後パフォーマンスを上昇率 / 下落率に分ける
 const rkEsc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 const rkMd = iso => iso ? `${+iso.slice(5,7)}/${+iso.slice(8,10)}` : "–";
 const rkMonth = ym => ym ? `${ym.slice(0,4)}年${+ym.slice(5,7)}月` : "";
@@ -6,13 +6,13 @@ const rkSession = s => s === "intraday"
   ? `<span class="qb qb-1Q">場中</span>` : `<span class="qb">引け後</span>`;
 const rkSessionTxt = s => s === "intraday" ? "場中" : "引け後";
 const rkPctParen = v => v==null ? "–" : `<span class="${v>=0?'pos':'neg'}">(${v>0?'+':''}${fmt(v,1)}%)</span>`;
-const rkAlpha = v => v==null ? " " : `<span class="sub">(対TOPIX)</span> ${rkPctParen(v)}`;
 const rkName = r => {
   const raw = String(r.name||""), name = rkEsc(raw), code = rkEsc(r.code.slice(0,4));
   return `<td class="l name pin1" title="${name}"><span class="clicky" onclick="gotoChart('${rkEsc(r.code)}')">${rkEsc(shortName(raw))}</span>${under(`<span class="sub">${code}</span>`)}</td>`;
 };
 const rkMarket = r => { const m = fmtMarket(r.market); return `<td class="l ${m.cls}">${rkEsc(m.label || "–")}</td>`; };
 const RK_SHOT_ROWS = 20;
+const RK_DIR = {up: "上昇率", down: "下落率"};
 // 経過日数。次の決算がまだなら営業日数だけ。終わっていれば終点の 〜M/D
 const rkElapsed = r => r.next_disclosed_date
   ? `〜${rkMd(r.end_date)}`
@@ -21,8 +21,53 @@ const rkElapsedTxt = r => r.next_disclosed_date
   ? `〜${rkMd(r.end_date)}`
   : (r.bdays == null ? "" : `${r.bdays}日`);
 let rkData = null;
+let rkDir = "up";
 let rkShot = null;   // X に投稿する画像（Promise<Blob>）。共有はクリックの中で呼ぶので先に作っておく
 let rkSeq = 0;       // 月を続けて変えたとき、古い応答で上書きしない
+
+// 上昇はプラスだけ大きい順、下落はマイナスだけ小さい順。0 と欠測はどちらにも入れない
+function rkView(d){
+  const rows = (d.rows || []).filter(r => r.return_to_next != null);
+  const list = rkDir === "up"
+    ? rows.filter(r => r.return_to_next > 0).sort((a, b) => b.return_to_next - a.return_to_next || String(a.code).localeCompare(String(b.code)))
+    : rows.filter(r => r.return_to_next < 0).sort((a, b) => a.return_to_next - b.return_to_next || String(a.code).localeCompare(String(b.code)));
+  return list.map((r, i) => ({...r, rank: i + 1}));
+}
+
+function rkPaint(){
+  const d = rkData;
+  if(!d) return;
+  const view = rkView(d);
+  if(!d.rows.length){
+    $("#rk-info").textContent = d.months.length ? "この月の決算はありません" : "決算のデータがまだありません";
+    $("#rk-tbl").innerHTML = ""; $("#rk-share").hidden = true; rkShot = null;
+    return;
+  }
+  if(!view.length){
+    $("#rk-info").textContent = `この月の${RK_DIR[rkDir]}はありません`;
+    $("#rk-tbl").innerHTML = ""; $("#rk-share").hidden = true; rkShot = null;
+    return;
+  }
+  $("#rk-info").textContent = `${view.length} 銘柄 / ${rkMd(d.as_of)} 終値まで`;
+  let h = "<thead><tr><th class='pin0'>順位</th><th class='l'>市場</th><th class='l'>業種</th>"
+        + "<th class='l name pin1'>銘柄</th>"
+        + "<th class='grp' title='決算後に買えた最初の値から、次の決算の前日終値まで。下段は対TOPIX'>パフォーマンス"
+        + under(`<span class="sub">(対TOPIX)</span>`) + "</th>"
+        + "<th>決算日</th>"
+        + "<th title='決算後に買ってから次の決算の前日までの営業日数。終わっていれば終点の日付'>経過日数</th></tr></thead><tbody>";
+  for(const r of view){
+    h += `<tr><td class="num pin0">${r.rank}</td>
+      ${rkMarket(r)}<td class="l" title="${rkEsc(r.sector33 || "")}">${rkEsc(fmtSector(r.sector33) || "–")}</td>${rkName(r)}
+      <td class="num grp">${pct(r.return_to_next)}${under(rkPctParen(r.alpha_to_next))}</td>
+      <td class="num">${rkMd(r.disclosed_date)}${under(rkSession(r.session))}</td>
+      <td class="num">${rkElapsed(r)}</td></tr>`;
+  }
+  $("#rk-tbl").innerHTML = h + "</tbody>";
+  // 順位と銘柄を左に固定する（銘柄は順位の幅だけずらす）。市場・業種は横に送ると銘柄の下に隠れる
+  pinCols($("#rk-tbl"), 2);
+  $("#rk-share").hidden = false;
+  rkShot = rkDrawShot({...d, rows: view});
+}
 
 async function loadRanking(month){
   const q = new URLSearchParams();
@@ -44,33 +89,11 @@ async function loadRanking(month){
   rkData = d;
   $("#rk-month").innerHTML = d.months.map(x => `<option value="${x}"${x===d.month?" selected":""}>${rkMonth(x)}決算</option>`).join("");
   $("#rk-month").hidden = !d.months.length;
-  if(!d.rows.length){
-    $("#rk-info").textContent = d.months.length ? "この月の決算はありません" : "決算のデータがまだありません";
-    $("#rk-tbl").innerHTML = ""; $("#rk-share").hidden = true; rkShot = null;
-    return;
-  }
-  $("#rk-info").textContent = `${d.rows.length} 銘柄 / ${rkMd(d.as_of)} 終値まで`;
-  let h = "<thead><tr><th class='pin0'>順位</th><th class='l'>市場</th><th class='l'>業種</th>"
-        + "<th class='l name pin1'>銘柄</th>"
-        + "<th class='grp' title='決算後に買えた最初の値から、次の決算の前日終値まで。下段は (対TOPIX)'>パフォーマンス</th>"
-        + "<th>決算日</th>"
-        + "<th title='決算後に買ってから次の決算の前日までの営業日数。終わっていれば終点の日付'>経過日数</th></tr></thead><tbody>";
-  for(const r of d.rows){
-    h += `<tr><td class="num pin0">${r.rank}</td>
-      ${rkMarket(r)}<td class="l" title="${rkEsc(r.sector33 || "")}">${rkEsc(fmtSector(r.sector33) || "–")}</td>${rkName(r)}
-      <td class="num grp">${pct(r.return_to_next)}${under(rkAlpha(r.alpha_to_next))}</td>
-      <td class="num">${rkMd(r.disclosed_date)}${under(rkSession(r.session))}</td>
-      <td class="num">${rkElapsed(r)}</td></tr>`;
-  }
-  $("#rk-tbl").innerHTML = h + "</tbody>";
-  // 順位と銘柄を左に固定する（銘柄は順位の幅だけずらす）。市場・業種は横に送ると銘柄の下に隠れる
-  pinCols($("#rk-tbl"), 2);
-  $("#rk-share").hidden = false;
-  rkShot = rkDrawShot(d);
+  rkPaint();
 }
 
 function rkTitle(d, n){
-  return `${rkMonth(d.month)}決算 パフォーマンスランキングTOP${n}`;
+  return `${rkMonth(d.month)}決算 ${RK_DIR[rkDir]}ランキングTOP${n}`;
 }
 function rkPost(d, n){
   return `${rkTitle(d, n)}\n計測方法は決算発表後初値〜\n※場中決算は翌営業日初値`;
@@ -97,7 +120,7 @@ function rkDrawShot(d){
   g.font = `13px ${font}`;
   g.fillText("計測方法は決算発表後初値〜", PAD, 54);
   g.fillText("※場中決算は翌営業日初値", PAD, 74);
-  // 列: 画面の表と同じ（対TOPIX はパフォーマンスの下、場中 / 引け後は決算日の下）
+  // 列: 画面の表と同じ（対TOPIX はパフォーマンス列名の下、場中 / 引け後は決算日の下）
   const X = {rank: 52, mkt: 64, sec: 150, name: 262, perf: 548, date: 618, held: W - PAD};
   const cols = [["順位", X.rank, "right"], ["市場", X.mkt, "left"], ["業種", X.sec, "left"],
                 ["銘柄", X.name, "left"], ["パフォーマンス", X.perf, "right"], ["決算日", X.date, "right"],
@@ -105,7 +128,15 @@ function rkDrawShot(d){
   const line = y => { g.strokeStyle = color("--border"); g.lineWidth = 1; g.beginPath(); g.moveTo(PAD, y); g.lineTo(W - PAD, y); g.stroke(); };
   let y = HEAD + ROW / 2;
   g.font = `11px ${font}`; g.fillStyle = color("--sub");
-  for(const [t, x, a] of cols){ g.textAlign = a; g.fillText(t, x, y); }
+  for(const [t, x, a] of cols){
+    g.textAlign = a;
+    if(t === "パフォーマンス"){
+      g.fillText("パフォーマンス", x, y - 7);
+      g.fillText("(対TOPIX)", x, y + 9);
+    } else {
+      g.fillText(t, x, y);
+    }
+  }
   line(HEAD + ROW);
   const sign = v => v == null ? "–" : `${v > 0 ? "+" : ""}${v.toFixed(1)}%`;
   const tone = v => v == null ? color("--sub") : v >= 0 ? color("--up") : color("--down");
@@ -129,7 +160,7 @@ function rkDrawShot(d){
     const cells = [
       [String(r.rank), X.rank, "right", color("--text"), y, "14px"],
       [sign(r.return_to_next), X.perf, "right", tone(r.return_to_next), y1, "600 14px"],
-      [r.alpha_to_next == null ? "" : `(対TOPIX) (${sign(r.alpha_to_next)})`, X.perf, "right", tone(r.alpha_to_next), y2, "11px"],
+      [r.alpha_to_next == null ? "" : `(${sign(r.alpha_to_next)})`, X.perf, "right", tone(r.alpha_to_next), y2, "11px"],
       [rkMd(r.disclosed_date), X.date, "right", color("--text"), y1, "14px"],
       [rkSessionTxt(r.session), X.date, "right", color("--sub"), y2, "11px"],
       [rkElapsedTxt(r), X.held, "right", color("--text"), y, "14px"],
@@ -148,9 +179,10 @@ async function rkShare(){
   if(!rkData || !rkShot) return;
   const blob = await rkShot;
   if(!blob) return;
-  const n = Math.min(rkData.rows.length, RK_SHOT_ROWS);
+  const view = rkView(rkData);
+  const n = Math.min(view.length, RK_SHOT_ROWS);
   const text = rkPost(rkData, n);
-  const file = new File([blob], `earnings-perf-${rkData.month}.png`, {type: "image/png"});
+  const file = new File([blob], `earnings-perf-${rkDir}-${rkData.month}.png`, {type: "image/png"});
   // スマホは共有シートで画像ごと X へ。PC は画像を保存して X の投稿画面を開く（画像は手で添付）
   const touch = matchMedia("(pointer: coarse)").matches;
   if(touch && navigator.canShare && navigator.canShare({files: [file]})){
@@ -167,6 +199,15 @@ async function rkShare(){
 
 $("#rk-month").onchange = () => loadRanking();
 $("#rk-share").onclick = rkShare;
+document.querySelectorAll("#rk-kind .ftab").forEach(b => {
+  b.onclick = () => {
+    const dir = b.dataset.dir;
+    if(!dir || dir === rkDir) return;
+    rkDir = dir;
+    document.querySelectorAll("#rk-kind .ftab").forEach(x => x.classList.toggle("on", x === b));
+    if(rkData) rkPaint();
+  };
+});
 new ResizeObserver(() => pinCols($("#rk-tbl"), 2)).observe($("#tab-ranking .tbl-wrap"));
 
 window.loadRanking = loadRanking;

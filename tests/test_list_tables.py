@@ -15,16 +15,22 @@ def test_sheet_css_is_shared() -> None:
     assert "#sc-tbl.sheet" in css
     assert "#earn-tbl.sheet" in css
     assert "table.sheet td.name, table.sheet th.name { max-width:8em; }" in css
+    assert "#rk-tbl th.grp { white-space:nowrap; }" in css
 
 
 def test_ranking_table_matches_sheet() -> None:
     html = (ROOT / "static/index.html").read_text(encoding="utf-8")
     assert 'id="rk-tbl" class="sheet"' in html
+    assert 'data-dir="up"' in html
+    assert 'data-dir="down"' in html
+    assert ">上昇率</button>" in html
+    assert ">下落率</button>" in html
+    assert 'data-kind="earnings-perf"' not in html
     src = (ROOT / "static/js/ranking.js").read_text(encoding="utf-8")
     assert "<thead>" in src
     assert "pin1" in src
     assert "rkSession" in src
-    assert "rkAlpha" in src
+    assert "rkView" in src
     assert "rkElapsed" in src
     assert ">経過日数</th>" in src
     assert ">日数</th>" not in src
@@ -32,16 +38,22 @@ def test_ranking_table_matches_sheet() -> None:
     assert ">対TOPIX</th>" not in src
     assert ">保有期間</th>" not in src
     assert "保有中" not in src
-    assert "(対TOPIX)" in src
+    assert 'under(`<span class="sub">(対TOPIX)</span>`)' in src
     assert 'under(`<span class="sub">' in src
     assert "shortName(raw)" in src
     assert "pinCols($(\"#rk-tbl\"), 2)" in src
     assert '["対TOPIX"' not in src
-    assert "パフォーマンスランキングTOP" in src
+    assert "return_to_next > 0" in src
+    assert "return_to_next < 0" in src
+    assert "${RK_DIR[rkDir]}ランキングTOP" in src
+    assert 'up: "上昇率"' in src
+    assert 'down: "下落率"' in src
+    assert "パフォーマンスランキングTOP" not in src
     assert "計測方法は決算発表後初値〜" in src
     assert "※場中決算は翌営業日初値" in src
     assert "（次の決算の前日終値まで）" not in src
     assert "決算発表後パフォーマンス 上位" not in src
+    assert "この月の${RK_DIR[rkDir]}はありません" in src
 
 
 def test_screener_table_matches_sheet() -> None:
