@@ -6,19 +6,25 @@ const rkSession = s => s === "intraday" ? "場中" : "引け後";
 const RK_SHOT_ROWS = 20;
 let rkData = null;
 let rkShot = null;   // X に投稿する画像（Promise<Blob>）。共有はクリックの中で呼ぶので先に作っておく
+let rkSeq = 0;       // 月を続けて変えたとき、古い応答で上書きしない
 
 async function loadRanking(month){
   const q = new URLSearchParams();
   const m = month ?? $("#rk-month").value;
   if(m) q.set("month", m);
+  const seq = ++rkSeq;
+  $("#rk-info").textContent = "読み込み中…";
+  $("#rk-share").hidden = true;
   let d;
   try { d = await api(`/api/ranking/earnings-perf?${q}`); }
   catch(e){
+    if(seq !== rkSeq) return;
     rkData = null; rkShot = null;
     $("#rk-info").textContent = "読み込みに失敗しました";
     $("#rk-tbl").innerHTML = ""; $("#rk-share").hidden = true;
     return;
   }
+  if(seq !== rkSeq) return;
   rkData = d;
   $("#rk-month").innerHTML = d.months.map(x => `<option value="${x}"${x===d.month?" selected":""}>${rkMonth(x)}決算</option>`).join("");
   $("#rk-month").hidden = !d.months.length;

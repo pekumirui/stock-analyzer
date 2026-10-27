@@ -218,6 +218,25 @@ def limit_up_closes(db: Session, keys: set[tuple[str, date]],
     return out
 
 
+def first_disclosures(stmts) -> dict[tuple[str, date], str]:
+    """1 期（銘柄 × 決算期 × 四半期）につき最初の決算短信の (銘柄, 発表日) → 発表時刻。
+
+    stmts は (code, disclosed_date, disclosed_time, fiscal_year_end, type_of_period, is_revision)。
+    訂正は起点にしない。業績予想の修正だけの開示は入れない。
+    """
+    first: dict[tuple, tuple[date, str]] = {}
+    for code, d, t, fye, period, revision in stmts:
+        if revision or d is None:
+            continue
+        key, cur = (code, fye, period), (d, t or "")
+        if key not in first or cur < first[key]:
+            first[key] = cur
+    out: dict[tuple[str, date], str] = {}
+    for (code, _, _), (d, t) in first.items():
+        out[(code, d)] = min(out.get((code, d), t), t)
+    return out
+
+
 def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
     """決算発表日からの対TOPIXリターンを earnings_events に保存。
 
@@ -235,7 +254,15 @@ def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
     tclose = dict(zip(tp["date"], tp["tclose"]))
     topen = dict(zip(tp["date"], tp["topen"]))
     stuck = no_open_days(db)
-    stmts = db.query(Statement.code, Statement.disclosed_date, Statement.disclosed_time).all()
+    stmts = db.query(Statement.code, Statement.disclosed_date, Statement.disclosed_time,
+                     Statement.fiscal_year_end, Statement.type_of_period, Statement.is_revision).all()
+    firsts = first_disclosures(stmts)
+    # 同じ日に複数の開示がある銘柄は 1 件にまとめる。時刻は最初の決算短信、無ければ一番早いもの
+    times: dict[tuple[str, date], str | None] = {}
+    for code, d, t, *_ in stmts:
+        k = (code, d)
+        times[k] = firsts[k] if k in firsts else min((x for x in (times.get(k), t) if x), default=None)
+    stmts = [(code, d, t) for (code, d), t in times.items()]
 
     # px は code, date 順なので各銘柄の日付列は昇順
     px_by_code = {c: (g["date"].to_numpy(), g["adj_open"].to_numpy(), g["adj_close"].to_numpy(),
@@ -279,7 +306,8 @@ def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
             base, tbase, first = opens[i0], topen.get(base_date) or tclose.get(base_date), i0
         if not base or np.isnan(base) or not tbase:
             continue
-        rec = {"code": code, "disclosed_date": ddate, "base_date": base_date, "base_price": base}
+        rec = {"code": code, "disclosed_date": ddate, "base_date": base_date, "base_price": base,
+               "is_first": (code, ddate) in firsts, "disclosed_time": dtime or None}
         for label, n in horizon.items():
             j = first + n - 1
             if j < len(dates):
