@@ -24,61 +24,13 @@
 - **フロント**: `static/index.html` + `static/css/` + `static/js/` の vanilla JS SPA (lightweight-charts)。スマホ対応
 - **バッチ**: `jobs/market/run_batch.py` を cron / スケジューラで日次実行
 
-## 2. J-Quants API V2 / Light プランの前提
+## 2. J-Quants API
 
-> **V1は閉鎖予定のためV2を使用する。** V1とは認証方式・エンドポイント・レスポンス構造・
-> カラム名がすべて変わっている。
+**V2 の Light プラン**を使う。エンドポイント・項目・プラン別の取得期間とレートリミットは J-Quants の MCP で引く。ここには本ツールの選び方だけ書く。
 
-### 認証
-APIキー方式。ダッシュボードで発行したキーを `x-api-key` ヘッダーに付与するだけ。
-有効期限がないためトークンリフレッシュ処理は不要（V1のidToken/refreshTokenは廃止）。
-
-### 使用エンドポイント
-
-| 用途 | V2エンドポイント | 備考 |
-|---|---|---|
-| 上場銘柄一覧 | `/v2/equities/master` | 17/33業種・市場区分・貸借信用区分・商品区分(ProdCat) |
-| 株価四本値 | `/v2/equities/bars/daily` | **調整済OHLCV(AdjO/H/L/C/Vo)と時価総額を直接取得可** |
-| TOPIX四本値 | `/v2/indices/bars/daily/topix` | from/to指定 |
-| 財務情報 | `/v2/fins/summary` | 決算短信サマリ |
-| 決算発表予定日 | `/v2/fins/earnings-date` | 発表日 (`date` = PubDate) の全銘柄。`SchDate` が空なら未定 |
-| 取引カレンダー | `/v2/markets/calendar` | 営業日判定 (HolDiv=="1") |
-
-レスポンスは全て `{"data": [...], "pagination_key": "..."}` 形式。
-カラム名は短縮形（`Open`→`O`, `Close`→`C`, `AdjustmentClose`→`AdjC` 等）。
-
-### データ範囲 (Light)
-過去5年。RS計算に必要な252営業日+αには十分。
-
-### レートリミット ★設計上の最重要制約
-
-| プラン | 上限 |
-|---|---|
-| Free | 5 req/分 |
-| **Light** | **60 req/分** |
-| Standard | 120 req/分 |
-| Premium | 500 req/分 |
-
-加えて `/v2/fins/summary`、`/v2/fins/details`、`/v2/fins/earnings-date` はプランと別枠で60 req/分。`jquants.py` はパスが `/fins/` で始まるものを同じ枠にする。
-超過すると429、大幅超過だと5分間の全遮断。
-
-→ `jquants.py` でエンドポイント群ごとにスライディングウィンドウのトークンバケットを持ち、
-自主規制する。429を受けたら指数バックオフ (5→10→20→40→60秒) で最大6回再試行。
-
-### 取得方式 ★V1設計からの変更点
-
-公式ベストプラクティスに「**1銘柄ずつ×全日付での取得を避けてください**」と明記されている。
-`date` のみ指定すれば全上場銘柄のその日のデータが1リクエストで取れる。
-
-| 方式 | リクエスト数(5年) | Lightでの所要時間 |
-|---|---|---|
-| 銘柄ループ (旧設計) | 約4,000銘柄 × 2 = 8,000 | 約2時間 |
-| **日付ループ (採用)** | 約1,220営業日 × 2 = 2,440 | **約45分** |
-
-さらに高速な選択肢として、Lightプラン以上ではダッシュボードから**CSV一括ダウンロード**が
-利用できる。ただしCSVには調整済株価が含まれず自前計算が必要なため、
-本ツールでは調整済株価をAPIから直接取れる日付ループ方式を採用する。
-（10年以上の長期バックテストをやりたくなったらCSV + 自前調整を検討）
+- 取込は**日付ループ**。`date` だけ指定して全上場銘柄のその日を 1 リクエストで取る（銘柄ループはしない）。調整済み株価は API の値をそのまま使う（CSV 一括 + 自前調整はしない）
+- `jquants.py` はエンドポイント群ごとにスライディングウィンドウで自主規制する。パスが `/fins/` で始まるものはプランと別枠。429 は指数バックオフ（5→10→20→40→60 秒）で最大 6 回再試行
+- RS に要る 252 営業日 + α は Light の取得期間で足りる
 
 ## 3. DBスキーマ
 
@@ -88,8 +40,6 @@ stocks            -- 銘柄マスタ
   name, sector33, market, product_category, updated_at
   edinet_code     -- EDINET コード。jobs/edinet/edinet_codes.py が付ける。無い銘柄は NULL (docs/DESIGN_edinet.md)
   -- product_category = J-Quants ProdCat
-  --   011 内国株券 / 012 優先出資 / 013 REIT / 014 ETF
-  --   021 外国株券 / 022 外国REIT / 023 外国ETF / 024 外国株預託証券
   -- 既存DBは migrate で列追加。値は次の日次バッチの銘柄マスタ更新で埋まる
   -- (株価・財務の再取得は不要)
 
@@ -99,13 +49,12 @@ daily_prices      -- 日足
   adj_factor
   adj_open, adj_high, adj_low, adj_close, adj_volume  -- 調整済(分析はこちらを使う)
   market_cap                                     -- 時価総額(百万円)
-  upper_limit, lower_limit                       -- J-Quants UL / LL (その日にストップ高・安なら 1。取込前の行は NULL)
-  ex_rt                                          -- J-Quants ExRT (権利落ち日だけ 1=分割 / 2=併合 / 3=ライツイシュー。ほかは NULL)
+  upper_limit, lower_limit, ex_rt                -- J-Quants UL / LL / ExRT (UL / LL は取込前の行が NULL)
 
 topix             -- TOPIX日足
   date PK, open, high, low, close
 
-statements        -- 決算短信 (J-Quants /fins/statements ほぼ生保存)
+statements        -- 決算短信 (J-Quants /fins/summary ほぼ生保存)
   disclosure_no PK
   code, disclosed_date, disclosed_time
   type_of_period          -- 1Q/2Q/3Q/FY
@@ -424,7 +373,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 ### 4.3 決算日からの相対パフォーマンス
 決算を織り込んだ最初の始値（調整後）を基準価格にし、各期間の `(株価リターン − TOPIXリターン)` を算出。テーブルで +1d/+5d/+20d/+60d/現在 を表示。
 
-- 基準日は、大引け（2024-11-05 から 15:30、それまで 15:00）以降の発表なら翌営業日、それより前（場中）なら発表日。場中の発表後の最初の値は日足では取れない（前場・後場の四本値と分足はプレミアムプラン）ので、場中は当日の始値
+- 基準日は、大引け（2024-11-05 から 15:30、それまで 15:00）以降の発表なら翌営業日、それより前（場中）なら発表日。場中の発表後の最初の値は Light では取れないので、場中は当日の始値
 - 基準日が寄らずのストップ高・ストップ安なら翌営業日へ送り、寄った日まで続ける。寄らずは四本値が同じで、`upper_limit` / `lower_limit` が 1（NULL の過去の行は前日終値から制限値幅いっぱい動いたか。`app/market/price_limit.py`）。寄ってすぐ張り付いた日も日足では区別できないので寄らずとみなす
 - +Nd は基準日を 1 日目として N 日目の終値。TOPIX は基準日の始値から同じ日の終値まで
 チャート下のイベント重ね合わせ（既定オフ）で決算発表日に「決」マーカーを出せる。今後のイベント種別も同じチェック列に足す。決算速報タブだけ、選択中の発表日は重ね合わせオフでも1件出す。週足・月足では発表日を含む足（期間末）に載せる。
@@ -480,8 +429,8 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 
 1. `/equities/master` で銘柄マスタ更新 (ProdCat 含む)
 2. `/equities/bars/daily?date=当日` + `/indices/bars/daily/topix` 取込。戻り値は全部保存する。
-   AdjFactor ≠ 1（分割・併合・ライツイシューの権利落ち日）の銘柄は `/equities/bars/daily?code=` で全期間を取り直す。
-   J-Quants は過去の調整後株価をさかのぼって直すので、差分だけでは DB の過去分が古いまま残る
+   AdjFactor ≠ 1（権利落ち日）の銘柄は `/equities/bars/daily?code=` で全期間を取り直す。
+   権利落ちで過去の Adj* がさかのぼって直るので、差分だけでは DB の過去分が古いまま残る
 3. `/fins/summary?date=当日` と `/fins/summary?date=前営業日` 取込。前営業日は DB の株価で当日より前の最終日
 4. indicators 再計算 (MA/52週/RS/ステージ。RSユニバースは内国株券のみ) → earnings_events 更新。
    2〜3 が 0 件（前営業日は新しく増えた件数）で indicators が株価の最終日まで済んでいれば飛ばす。
@@ -496,7 +445,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 
 `run_batch.py --refetch-prices` は DB にある日足を日付ごとに全部取り直し、指標を計算し直す。
 対象は UL / LL が NULL の行が残る日だけなので、中断しても再実行で続きから。失敗した日は飛ばして最後に非ゼロ終了。
-1 日 1 リクエストで、5 年分なら約 1,250 日 ≒ 20〜40 分（Light は 60 req/分）。
+1 日 1 リクエストで、5 年分なら約 1,250 日 ≒ 20〜40 分。
 
 ## 7. ホスティング
 
