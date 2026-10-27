@@ -112,7 +112,7 @@
   table.sheet { border-collapse:separate; border-spacing:0; }
   #earn-tbl.sheet { width:100%; }
   #rk-tbl.sheet, #sc-tbl.sheet { width:auto; }
-  /* 幅 1% の列があると auto の表が横いっぱいに伸びる。ランキングは銘柄が真ん中の列なので外す */
+  /* 幅 1% の列があると auto の表が横いっぱいに伸びる。ランキングの銘柄は順位の右だが、1% だと表が伸びるので外す */
   #rk-tbl td.name, #rk-tbl th.name { width:auto; }
   /* 見出しは「パフォーマンス」1 行 + 下に (対TOPIX)。数字列の幅で「ス」だけ折り返さない */
   #rk-tbl th.grp { white-space:nowrap; }

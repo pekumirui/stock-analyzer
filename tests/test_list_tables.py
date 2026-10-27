@@ -42,6 +42,9 @@ def test_ranking_table_matches_sheet() -> None:
     assert 'under(`<span class="sub">' in src
     assert "shortName(raw)" in src
     assert "pinCols($(\"#rk-tbl\"), 2)" in src
+    assert "<th class='pin0'>順位</th><th class='l name pin1'>銘柄</th>" in src
+    assert src.find("pin1'>銘柄") < src.find(">市場</th>") < src.find(">業種</th>")
+    assert '["銘柄", X.name, "left"], ["市場", X.mkt, "left"]' in src
     assert '["対TOPIX"' not in src
     assert "return_to_next > 0" in src
     assert "return_to_next < 0" in src

@@ -49,15 +49,15 @@ function rkPaint(){
     return;
   }
   $("#rk-info").textContent = `${view.length} 銘柄 / ${rkMd(d.as_of)} 終値まで`;
-  let h = "<thead><tr><th class='pin0'>順位</th><th class='l'>市場</th><th class='l'>業種</th>"
-        + "<th class='l name pin1'>銘柄</th>"
+  let h = "<thead><tr><th class='pin0'>順位</th><th class='l name pin1'>銘柄</th>"
+        + "<th class='l'>市場</th><th class='l'>業種</th>"
         + "<th class='grp' title='決算後に買えた最初の値から、次の決算の前日終値まで。下段は対TOPIX'>パフォーマンス"
         + under(`<span class="sub">(対TOPIX)</span>`) + "</th>"
         + "<th>決算日</th>"
         + "<th title='決算後に買ってから次の決算の前日までの営業日数。終わっていれば終点の日付'>経過日数</th></tr></thead><tbody>";
   for(const r of view){
-    h += `<tr><td class="num pin0">${r.rank}</td>
-      ${rkMarket(r)}<td class="l" title="${rkEsc(r.sector33 || "")}">${rkEsc(fmtSector(r.sector33) || "–")}</td>${rkName(r)}
+    h += `<tr><td class="num pin0">${r.rank}</td>${rkName(r)}
+      ${rkMarket(r)}<td class="l" title="${rkEsc(r.sector33 || "")}">${rkEsc(fmtSector(r.sector33) || "–")}</td>
       <td class="num grp">${pct(r.return_to_next)}${under(rkPctParen(r.alpha_to_next))}</td>
       <td class="num">${rkMd(r.disclosed_date)}${under(rkSession(r.session))}</td>
       <td class="num">${rkElapsed(r)}</td></tr>`;
@@ -117,9 +117,9 @@ function rkDrawShot(d){
   g.font = `600 20px ${font}`;
   g.fillText(rkTitle(d, rows.length), PAD, 30);
   // 列: 画面の表と同じ（対TOPIX はパフォーマンス列名の下、場中 / 引け後は決算日の下）
-  const X = {rank: 52, mkt: 64, sec: 150, name: 262, perf: 548, date: 618, held: W - PAD};
-  const cols = [["順位", X.rank, "right"], ["市場", X.mkt, "left"], ["業種", X.sec, "left"],
-                ["銘柄", X.name, "left"], ["パフォーマンス", X.perf, "right"], ["決算日", X.date, "right"],
+  const X = {rank: 52, name: 64, mkt: 268, sec: 360, perf: 548, date: 618, held: W - PAD};
+  const cols = [["順位", X.rank, "right"], ["銘柄", X.name, "left"], ["市場", X.mkt, "left"],
+                ["業種", X.sec, "left"], ["パフォーマンス", X.perf, "right"], ["決算日", X.date, "right"],
                 ["経過日数", X.held, "right"]];
   const line = y => { g.strokeStyle = color("--border"); g.lineWidth = 1; g.beginPath(); g.moveTo(PAD, y); g.lineTo(W - PAD, y); g.stroke(); };
   let y = HEAD + ROW / 2;
