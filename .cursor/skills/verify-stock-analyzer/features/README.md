@@ -16,7 +16,7 @@ Read this index, then the matching feature file, before driving the app.
 
 ## Driving conventions
 
-- Boot restores the last tab (and chart/stock/monthly code) from `location.hash` or `localStorage` key `ui.route` via `restoreRoute()` (`static/js/tabs.js`, called from `boot.js`). For a cold 決算速報 start, clear hash + `ui.route` then reload, or open a fresh profile.
+- Boot restores the last tab (and the 銘柄 code + sub tab / news id, monthly code, supply id) from `location.hash` or `localStorage` key `ui.route` via `restoreRoute()` (`static/js/tabs.js`, called from `boot.js`). For a cold 決算速報 start, clear hash + `ui.route` then reload, or open a fresh profile.
 - Prefer `nav button[data-tab]`, `#id`, and `data-fin` / `data-no` over pixel clicks.
 - Treat every command as literal.
 - HTTP proofs use `helpers/capture.py <feature>` against the same `/api/*` the SPA calls.
@@ -44,8 +44,8 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 ## Features
 
 - [決算速報](./earnings.md) calendar day list (累計 / 3か月 / 進捗率 view, 1Q–4Q filter), issuer search + sector chips (top 5 + 他N業種), row detail, 累計 / 3か月 / 進捗率 / 修正履歴 tabs.
-- [チャート](./chart.md) symbol search, daily/weekly/monthly candles, 対TOPIX, 決算発表後リターン.
-- [銘柄](./stock.md) 決算短信の原文 (TDnet XBRL summary + 添付資料, or PDF via IR BANK) in sandboxed iframes, issuer search, filing select, 幅に合わせる / 中 / 原寸 zoom, `#stock/{code}` route.
+- [銘柄](./stock.md) issuer search, common header (price, 時価総額, 次回決算), sub tabs 概要 (指標 + 累計 / 3か月 / 進捗率 / 修正履歴) / 株価 / ニュース (決算短信の原文 in sandboxed iframes, 幅に合わせる / 中 / 原寸 zoom) / 株主 (準備中), `#stock/{code}/{sub}` route.
+- [銘柄 › 株価](./chart.md) daily/weekly/monthly candles, 対TOPIX, 決算発表後リターン (was the チャート tab until KAB-181; `gotoChart` lands here).
 - [スクリーナー](./screener.md) Stage + RS filter table (UI defaults Stage 2, RS≥70).
 - [PTS](./pts.md) night PTS ranking (値上がり / 値下がり / 出来高) per session and fetch time, with the next-day open gap and 追随率.
 - [月次](./monthly.md) issuer list + industry chips + TOP search via `/api/v1/tables`, Detail with series select, one multi-year line chart (legend + month tooltip), one 横持ち `table.monthly-tl` (metric ▸ section tree, paired cells show 金額 with (前年比) under it, month-cell popup).

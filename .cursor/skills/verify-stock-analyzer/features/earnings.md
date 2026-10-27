@@ -17,6 +17,7 @@ The default tab lists financial-statement disclosures for a calendar day, then s
 - `earnings-prog` draws `#prog-tbl` (`renderProg`) from the detail `progress` list: same-quarter rows of past years then the current one (`.now`). Columns 決算期 / 売上高 / 営業益 / 経常益 / 最終益 / 発表日. Each cell is 累計 ÷ 通期 as `x.x%` with the base (通期実績, or 通期予想 on `.now`) under it in `.g .base`. A FY/4Q filing reads `本決算は進捗率なし`; no rows otherwise `データなし`.
 - `earnings-rev` draws `#rev-tbl` (`renderRev`) from the detail `revisions`: per fiscal year, oldest year first (`revision_history_years` 4), 期初予想 → each disclosure whose 売上高・営業益・経常益・最終益 changed → 実績. Columns 決算期 / 発表日 / 売上高 / 営業益 / 経常益 / 最終益 / EPS (発表日 right after 決算期, #759). The badge under 決算期 is `.qb-init` `期初` (or `予想` when the first forecast is not within 100 days of the prior year end), `.qb-mod` `修正`, `.qb-act` `実績`. The rate under each value is the change from the row above: `↑+x%` / `↓-x%` / `→` when equal; 期初 rows have none. Rows get `.act` (実績), `.sep` (first row of a year), `.now` (same `disclosed_date` as the selected filing). After a FY filing the next year's 期初 is the last row. No rows → `修正履歴なし`. The API source is `EARNINGS_PARAMS["revision_source"]` (`jquants`, from `statements`); `?rev_source=xbrl` reads `xbrl_financials` of TDnet filings only (`xbrl_filings.source='tdnet'`; EDINET 有報・半期報 rows `source='edinet'` from `jobs/edinet/edinet_xbrl.py` are skipped, #794) and anything else is 422. The SPA never sends `rev_source`.
 - `earnings-events` shows `.evt-toggles` under `#e-chart` (checkbox `input[data-evt="earnings"]`, label 決算発表). Overlay markers come from the chart payload `earnings_dates` when the box is on. The selected filing’s `disclosed_date` is always marked on `#e-chart` even when the box is off (`renderPriceChart` `opt.mark`).
+- `earnings-to-stock` clicks the issuer name in `#e-chart-title` (`.clicky` → `gotoChart(code)`) → 銘柄 › 株価, hash `#stock/{code}/price` (2026-10-27: モバイルファクトリー on 10/23 → `#stock/39120/price`).
 
 ## How to get to it (user POV)
 
@@ -50,7 +51,7 @@ Preconditions:
 - **Search.** Type `とよた` or `トヨタ` into `#earn-sym`: `#earn-suggest` lists `3116 トヨタ紡織` then `7203 トヨタ自動車` (Enter takes the first). Click 7203: `#earn-title` moves to its latest `disclosed_date` (`GET /api/earnings/detail/72030` with no `disclosure_no`), and that filing row is `.sel` and scrolled into view.
 - **Table.** For a FY filing, `#cum-tbl` 決算期 cells read like `26.8` with no `期` and no `actual_fy_prev` row; when the filing has next-year forecasts the last rows carry `中予` / `通予` (30480 ビックカメラ FY26.8 → `27.8`). 営業益 cells end with `.opm` `(x.x%)`.
 - **3か月.** Click `.ftab[data-fin="q"]`. `#q-wrap` is not `hidden`; `#cum-wrap` is.
-- **イベント.** `.evt-toggles` under `#e-chart` is in the markup and filled at boot (`fillEventToggles`). After a row loads `#e-chart`, one 「決」 mark is already on the selected `disclosed_date`. Checking 決算発表 adds the rest from `earnings_dates` (same layer as the chart tab; chart tab has no selected-filing `mark`).
+- **イベント.** `.evt-toggles` under `#e-chart` is in the markup and filled at boot (`fillEventToggles`). After a row loads `#e-chart`, one 「決」 mark is already on the selected `disclosed_date`. Checking 決算発表 adds the rest from `earnings_dates` (same layer as 銘柄 › 株価, which has no selected-filing `mark`).
 - **Proof.** Keep `calendar.json`, `body.json`, and (if CDP) `artifacts/earnings/ui.png` showing `#earn-tbl` (or a chosen day's list) plus the header (`#menu-btn` then `#cur-tab` at ≤720px). Prefer a calendar day with `.cnt` — today's empty `予定なし` is not a list proof. The month grid must not occupy the first row; the list is at the top of `#tab-earnings`.
 
 ## Gotchas
@@ -69,4 +70,4 @@ Preconditions:
 - Narrow viewports keep `#earn-tbl` and scroll horizontally. Do not look for `.card`.
 - `renderCal` uses the machine local month, not JST. Capture `--month` if today is a month boundary.
 - There is no `#cal-panel` / `▼決算カレンダー` section. `#cal` exists only inside the popover.
-- A prior `ui.route` / `#chart` / `#monthly` / `#screener` can make reload land off 決算速報 — clear route when proving the default tab.
+- A prior `ui.route` / `#stock` / `#chart` (now read as `#stock/…/price`) / `#monthly` / `#screener` can make reload land off 決算速報 — clear route when proving the default tab.

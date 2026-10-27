@@ -35,7 +35,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 | `JQUANTS_API_KEY` | 推奨 | あるときだけ `.env` の当該行を更新。無ければ既存 `.env` を触らない |
 | `EDINET_API_KEY` | 任意 | EDINET API v2 のキー（`docs/DESIGN_edinet.md`）。あるときだけ `.env` の当該行を更新。無ければ `jobs/edinet/edinet_documents.py` は何もしない（コードリストはキー不要） |
 | `ESTAT_APP_ID` | 任意 | e-Stat API のアプリケーション ID（サプライタブの月次量）。あるときだけ `.env` の当該行を更新。無ければ `jobs/supply/material_stats.py --source estat` は何もしない（経産省 Excel はキー不要） |
-| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | 残置 | 残置の rclone FUSE（`/home/stock/r2-share`）用。ジョブの dest は `data/`。あるときだけ `.env` と `~/.config/rclone/rclone.conf` を更新。無ければ既存を触らない |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | 残置 | 残置の rclone FUSE（`/home/stock/r2-share`）用。ジョブの dest は `data/`。あるときだけ `.env` と `~/.config/rclone/rclone.conf` の `[r2]` を upsert（他 remote は残す）。無ければ既存を触らない |
 | `SLACK_WEBHOOK_URL` | 推奨 | Slack Incoming Webhook（#alerts）。コミットしない。漏れたら rotate。provision が `/etc/fluent-bit/slack.env` に URL と `SLACK_WEBHOOK_URI` を書く。`.env` には入れない |
 | `SLACK_WEBHOOK_URL_APP` | 任意 | Incoming Webhook（#alerts-app、fluent-bit タグ `app`）。未設定・空なら `SLACK_WEBHOOK_URL`（#alerts）にフォールバック。`.env` には入れない |
 | `SLACK_WEBHOOK_URL_BATCH` | 任意 | Incoming Webhook（#alerts-batch、タグ `batch`）。未設定・空なら #alerts にフォールバック |
@@ -54,7 +54,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 `update.sh`:
 
 1. GitHub SSH（deploy key）を冪等に揃えてから `git pull --ff-only origin main`
-2. `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `EDINET_API_KEY` / `MCP_TOKEN` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` があれば `.env` のその行だけ upsert。R2 の両方が揃っていれば `~/.config/rclone/rclone.conf` も書く。`SLACK_WEBHOOK_URL` と `SLACK_WEBHOOK_URL_{APP,BATCH,INFRA,QUIET}` は `.env` に書かない
+2. `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `EDINET_API_KEY` / `MCP_TOKEN` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` があれば `.env` のその行だけ upsert。R2 の両方が揃っていれば `~/.config/rclone/rclone.conf` の `[r2]` だけ upsert（`onedrive` など他 remote は消さない）。`SLACK_WEBHOOK_URL` と `SLACK_WEBHOOK_URL_{APP,BATCH,INFRA,QUIET}` は `.env` に書かない
 3. `sudo provision.sh --sudoers-only`（`APP_DIR` だけ preserve。live sudoers を repo に合わせる）→ `sudo provision.sh`（パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers、R2 user mount、fluent-bit。Slack webhook は `--preserve-env`）。Webhook が空なら fluent-bit は enable のみで start しない
 4. venv / `pip install` / `migrate.py`（`database is locked` は最大約 6 分まで再試行。19:30 の日次バッチや毎時 `xbrl_normalize` と重なるため）
 5. `systemctl restart stock-analyzer` と `stock-analyzer-mcp`、localhost:8000 / :8010 のヘルスチェック
@@ -284,7 +284,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 | `jobs/xbrl/xbrl_parse.py` / `jobs/xbrl/xbrl_normalize.py` | 12–23 時の毎時 10 分 / 20 分 |
 | `jobs/market/pts_snapshot.py` | 平日 15:30〜24:00 の 30 分ごと（株探 PTS ランキング。24:00 は翌日 0:00 の回） |
 | `jobs/ops/vps_packages_r2.py` | 06:40 |
-| `jobs/ops/backup_db.py` | 05:00（SQLite 整合バックアップ。R2 には出ない。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
+| `jobs/ops/backup_db.py` | 05:00（SQLite 整合バックアップ。成功後に OneDrive へ送る。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
 
 振る舞いは `DESIGN.md` §3 と `docs/DESIGN_xbrl.md`。`rclone.conf` と取得ファイルはリポジトリに置かない。
 
@@ -307,15 +307,21 @@ cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/vps_packages_r2.py
 
 ### SQLite 日次バックアップ
 
-WAL 中の `cp` は使わない。`jobs/ops/backup_db.py` が sqlite3 backup API → `PRAGMA quick_check` → gzip 圧縮レベル 1。保存は `/home/stock/backups/daily/`（7 世代）と日曜の `/home/stock/backups/weekly/`（4 世代）。R2 には出さない。失敗時は既存世代を消さず、`fail cron` が `#alerts-batch` に page する。復元は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)。
+WAL 中の `cp` は使わない。`jobs/ops/backup_db.py` が sqlite3 backup API → `PRAGMA quick_check` → gzip 圧縮レベル 1。ローカル成功後に `rclone copy` で `onedrive:stock-analyzer-backups/{daily,weekly}/` へ送り、`rclone check`（失敗時はサイズ）で確認する。世代数は OneDrive（日次 7・週次 4）。VPS は確認後の直近だけ（既定 1）。送信失敗では VPS の新旧を残し、`fail cron` が `#alerts-batch` に page する。rclone / remote が無いときは警告してスキップ（ローカル成功、古い世代は残す）。R2 には出さない。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)。
 
 `deploy/crontab` は `provision.sh` が `crontab -u stock` で入れる。デプロイ後に一度だけ手で走らせる（ユーザ `stock`）:
 
 ```bash
+rclone listremotes
+rclone lsd onedrive:stock-analyzer-backups || true
 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/backup_db.py
-ls -lh /home/stock/backups/daily
-tail /var/log/app/backup_db.log
+ls -lh /home/stock/backups/daily /home/stock/backups/weekly
+rclone ls onedrive:stock-analyzer-backups/daily
+rclone ls onedrive:stock-analyzer-backups/weekly
+tail -n 50 /var/log/app/backup_db.log
 ```
+
+ログに `offsite ok daily` と `pruned ... offsite=ok` があり、VPS の `daily/` が直近 1 件、OneDrive に今日のファイルがあること。`fail backup_db:` や `offsite skipped` なら送信側を見る。VPS の古い世代が残っていれば、成功するまで消さない。
 
 ### TDnet 月次 PDF の未投入レポート（読み取り専用）
 
