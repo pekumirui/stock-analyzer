@@ -15,6 +15,7 @@ def test_sheet_css_is_shared() -> None:
     assert "#sc-tbl.sheet" in css
     assert "#earn-tbl.sheet" in css
     assert "table.sheet td.name, table.sheet th.name { max-width:8em; }" in css
+    assert "#rk-tbl th.grp { white-space:nowrap; }" in css
 
 
 def test_ranking_table_matches_sheet() -> None:
