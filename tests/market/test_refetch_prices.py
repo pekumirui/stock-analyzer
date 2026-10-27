@@ -1,4 +1,4 @@
-"""分割・併合での取り直しと、日足の全期間の取り直し（KAB-188）。"""
+"""権利落ちでの調整後株価の計算し直し（KAB-193）と、日足の全期間の取り直し（KAB-188）。"""
 from __future__ import annotations
 
 import os
@@ -74,7 +74,7 @@ def _adj(db, d: str) -> float:
     return db.get(DailyPrice, ("285A0", date.fromisoformat(d))).adj_close
 
 
-def test_split_day_refetches_whole_history() -> None:
+def test_split_day_readjusts_in_db() -> None:
     init_db()
     db = SessionLocal()
     try:
@@ -82,7 +82,7 @@ def test_split_day_refetches_whole_history() -> None:
         JQ.calls = []
         with patch("app.market.ingest.JQuantsClient", JQ):
             run_daily(db, "2026-09-29")
-        assert "bars:285A0" in JQ.calls
+        assert "bars:285A0" not in JQ.calls  # API で取り直さない（プランの期間より前が取れないため）
         db.expire_all()
         assert _adj(db, "2026-09-28") == 17780.0
         assert _adj(db, "2026-09-25") == 18593.3
