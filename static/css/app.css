@@ -62,7 +62,7 @@
   .evt-toggles .evt-cap { font-size:12px; }
   .evt-toggles .evt-label { display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none; }
   .evt-toggles .swatch { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-  .tbl-wrap { overflow-x:auto; }
+  .tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
   #tab-ranking .tbl-wrap, #tab-screener .tbl-wrap { max-height:calc(100vh - 140px); overflow:auto; }
   #pts-tbl { width:auto; }
   #pts-summary { font-size:12px; margin:0 0 6px; }
@@ -412,7 +412,9 @@
   .a-fin .tbl-wrap { max-height:min(52vh, 560px); }
 
   @media (max-width:640px){
+    main { padding-left:6px; padding-right:6px; }
     table.sheet th, table.sheet td { padding-left:3px; padding-right:3px; }
+    table.sheet td.name, table.sheet th.name { max-width:8em; }
     .earn-box { padding:10px 6px; }
     table.sheet td.num { font-size:12px; }
     body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:34px}
