@@ -1,4 +1,4 @@
-"""ランキングタブの決算発表後パフォーマンス（KAB-192 / KAB-194）。"""
+"""ランキングタブの決算発表後パフォーマンス（KAB-192 / KAB-194 / KAB-195）。"""
 from __future__ import annotations
 
 import os
@@ -48,6 +48,7 @@ def test_batch_marks_first_disclosure() -> None:
             _stmt("a1", "11110", "2026-10-14", "15:30:00"),
             _stmt("a2", "11110", "2026-10-21", "15:30:00"),            # 訂正
             _stmt("a3", "11110", "2026-10-14", "13:00:00", revision=True),
+            _stmt("a4", "11110", "2026-10-22", "15:30:00", period="3Q"),  # 次の期
         ])
         days = [D("2026-10-13") + timedelta(days=i) for i in range(12)]
         upsert(db, DailyPrice, [{"code": "11110", "date": d, "open": 100, "high": 110, "low": 90,
@@ -58,14 +59,20 @@ def test_batch_marks_first_disclosure() -> None:
         # 予想修正の 13:00 ではなく決算短信の 15:30。引け後なので翌日の始値から
         assert (e.is_first, e.disclosed_time, e.base_date) == (True, "15:30:00", D("2026-10-15"))
         assert db.get(EarningsEvent, ("11110", D("2026-10-21"))).is_first is False
+        # 次の決算（訂正の 10/21 ではなく次の期の 10/22）の前営業日 10/21 の終値まで
+        assert (e.next_disclosed_date, e.end_date, e.return_to_next, e.alpha_to_next) == \
+            (D("2026-10-22"), D("2026-10-21"), 5.0, 5.0)
+        e = db.get(EarningsEvent, ("11110", D("2026-10-22")))
+        assert (e.next_disclosed_date, e.end_date, e.return_to_next) == (None, D("2026-10-24"), 5.0)
     finally:
         db.close()
 
 
-def _ev(code, d, r, a, t="15:30:00", first=True):
+def _ev(code, d, r, a, t="15:30:00", first=True, nxt=None):
     return {"code": code, "disclosed_date": D(d), "base_date": D(d) + timedelta(days=1),
-            "base_price": 1000, "return_to_date": r, "alpha_to_date": a,
-            "disclosed_time": t, "is_first": first}
+            "base_price": 1000, "return_to_next": r, "alpha_to_next": a, "return_to_date": -1,
+            "disclosed_time": t, "is_first": first, "next_disclosed_date": D(nxt) if nxt else None,
+            "end_date": D(nxt) - timedelta(days=1) if nxt else D("2026-11-05")}
 
 
 def test_earnings_perf_ranking() -> None:
@@ -79,7 +86,8 @@ def test_earnings_perf_ranking() -> None:
         upsert(db, EarningsEvent, [
             _ev("11110", "2026-10-14", 5.0, 3.0), _ev("11110", "2026-11-04", 50.0, 50.0, first=False),
             _ev("22220", "2026-10-30", 12.5, 10.0, t="13:00:00"), _ev("33330", "2026-10-20", 99.0, 99.0, first=False),
-            _ev("44440", "2026-09-30", 1.0, 1.0, t="15:00:00"), _ev("44440", "2026-10-01", None, None, t="16:00:00"),
+            _ev("44440", "2026-09-30", 1.0, 1.0, t="15:00:00", nxt="2026-10-01"),
+            _ev("44440", "2026-10-01", None, None, t="16:00:00"),
         ])
         upsert(db, DailyPrice, [{"code": "11110", "date": D("2026-11-05"), "close": 1}])
     finally:
@@ -88,14 +96,15 @@ def test_earnings_perf_ranking() -> None:
     d = c.get("/api/ranking/earnings-perf").json()
     assert d["months"] == ["2026-10", "2026-09"]
     assert d["month"] == "2026-10" and d["as_of"] == "2026-11-05"
-    got = [(r["rank"], r["code"], r["session"], r["return_to_date"]) for r in d["rows"]]
+    got = [(r["rank"], r["code"], r["session"], r["return_to_next"]) for r in d["rows"]]
     # 最初の決算短信でない行は出ない。値の無い D 社は最後
     assert got == [(1, "22220", "intraday", 12.5), (2, "11110", "after", 5.0), (3, "44440", "after", None)]
     top = d["rows"][0]
-    assert top["name"] == "B社" and top["alpha_to_date"] == 10.0 and top["disclosed_time"] == "13:00"
-    assert top["days"] == (date.today() - D("2026-10-30")).days
+    assert top["name"] == "B社" and top["alpha_to_next"] == 10.0 and top["disclosed_time"] == "13:00"
+    assert (top["next_disclosed_date"], top["end_date"], top["days"]) == (None, "2026-11-05", 6)
     sep = c.get("/api/ranking/earnings-perf", params={"month": "2026-09"}).json()
-    assert [(r["code"], r["session"]) for r in sep["rows"]] == [("44440", "intraday")]
+    assert [(r["code"], r["session"], r["end_date"], r["days"]) for r in sep["rows"]] == \
+        [("44440", "intraday", "2026-09-30", 0)]
     assert c.get("/api/ranking/earnings-perf", params={"month": "2026-08"}).json()["rows"] == []
     for bad in ("2026-13", "2026/10", "26-10"):
         assert c.get("/api/ranking/earnings-perf", params={"month": bad}).status_code == 400
