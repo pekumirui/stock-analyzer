@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -118,6 +119,15 @@ def main() -> None:
 
     if args.feature == "stock":
         code = args.code or "72030"
+        # 銘柄の見出しと概要（SPA が最初に呼ぶ）。404 は銘柄がない
+        ov_url = f"{base}/api/stock/{code}/overview"
+        try:
+            ost, obody = _get(ov_url)
+        except urllib.error.HTTPError as e:
+            ost, obody = e.code, json.loads(e.read().decode("utf-8") or "null")
+        _write("stock", "overview.json", "GET", ov_url, ost, obody)
+        if ost != 200:
+            raise SystemExit(f"stock {code} overview status={ost}")
         url = f"{base}/api/stock/{code}/filings"
         status, body = _get(url)
         path = _write("stock", "filings.json", "GET", url, status, body)
@@ -126,13 +136,14 @@ def main() -> None:
             raise SystemExit(f"stock {code} failed status={status}")
         docs = [d for f in filings for d in (f.get("documents") or [])]
         (ART / "stock" / "document.html").unlink(missing_ok=True)
+        req = f"GET {ov_url}\nstatus {ost}\nGET {url}\nstatus {status}\n"
         if docs:
             doc_url = base + docs[0]["url"]
             with urllib.request.urlopen(doc_url, timeout=30) as r:
                 html = r.read()
                 (ART / "stock" / "document.html").write_bytes(html)
-                (ART / "stock" / "request.txt").write_text(
-                    f"GET {url}\nstatus {status}\nGET {doc_url}\nstatus {r.status}\n", encoding="utf-8")
+                req += f"GET {doc_url}\nstatus {r.status}\n"
+        (ART / "stock" / "request.txt").write_text(req, encoding="utf-8")
         # xbrl_documents が空の DB でも 200。件数を出して判断を任せる
         print(path, f"filings={len(filings)} documents={len(docs)}")
         return

@@ -1,24 +1,25 @@
-# チャート
+# 銘柄 › 株価
 
-The chart tab searches an issuer and draws adjusted daily, weekly, or monthly candles with optional MAs, optional TOPIX relative, and post-earnings α. There is no monthly-KPI panel on this tab.
+The 株価 sub tab of 銘柄 draws adjusted daily, weekly, or monthly candles with optional MAs, optional TOPIX relative, and post-earnings α for the issuer picked in 銘柄. It was the チャート tab until KAB-181 (#1001); there is no `#tab-chart`, `#sym`, `#suggest`, `#chart-title`, or 表示 button any more. Code is `static/js/stock-price.js` (+ `chart-shared.js`).
 
 ## Sub-features
 
-- `chart-search` typeahead from `#sym` via `/api/stocks/search`.
-- `chart-candles` fills `#chart` (Lightweight Charts 5.2.1 from unpkg; v5 API `addSeries(LightweightCharts.CandlestickSeries)` / `createSeriesMarkers`) from `/api/chart/{code}` `candles` when `表示` / `pick` / `gotoChart` runs `loadChart()`.
-- `chart-rel` toggles `#rel` and shows `#relwrap` when `/api/chart/{code}` includes TOPIX (still needs `表示` after flipping the checkbox).
-- `chart-perf` fills `#perf-tbl` from `/api/earnings-performance/{code}`.
-- `chart-events` `.evt-toggles` (決算発表) overlays markers from chart JSON `earnings_dates`; defaults off unless `localStorage.chartEventOverlays` restored them.
-- `chart-route` persists `#chart` or `#chart/{code}` via `ui.route` / hash; reload restores the tab and re-runs `loadChart()` when a code is present.
+- `price-open` shows `#st-sub-price` on `#st-tabs .ftab[data-sub="price"]` (or route `#stock/{code}/price`). `showStockPrice` runs `loadChart()` only when the drawn code (`stockPriceCode`) differs, so reopening the tab for the same issuer sends nothing.
+- `price-candles` fills `#chart` (Lightweight Charts 5.2.1 from unpkg; v5 API `addSeries(LightweightCharts.CandlestickSeries)` / `createSeriesMarkers`) from `/api/chart/{code}` `candles`. No candles → `#chart-msg` 「株価データなし」; a failed request → 「読み込めませんでした。」.
+- `price-controls` `#tf` (`D` / `W` / `M` 日足/週足/月足) and `#rel` redraw on `change`; `#mas` (default `50,150,200`) redraws on `change` (Enter or blur). Each redraw refetches `/api/chart` and `/api/earnings-performance` together.
+- `price-rel` shows `#relwrap` / `#relchart` (対TOPIX相対, 期首=100) when `#rel` is on and the payload has `relative`; otherwise `#relwrap` is `display:none`.
+- `price-perf` fills `#perf-tbl` (発表日 / +1d / α / +5d / α / +20d / α / +60d / α / 現在まで / α) from `/api/earnings-performance/{code}`, at most 12 rows.
+- `price-events` `.evt-toggles` (決算発表) inside `#st-sub-price` overlays markers from chart JSON `earnings_dates`; on/off is kept in `localStorage.chartEventOverlays`.
+- `price-goto` `gotoChart(code)` from 決算速報 (`#e-chart-title .clicky`), スクリーナー / PTS (name `.clicky`), サプライ (`#supply-chart-link` 「株価を開く」) opens 銘柄 with 株価 `.on`, hash `#stock/{code}/price`.
+- `price-route` `#stock/{code}/price` restores it on reload. Old `#chart/{code}` or `ui.route` `chart/{code}` is read as `stock/{code}/price`; bare `#chart` → `#stock`.
 
 ## How to get to it (user POV)
 
-- Click `nav button[data-tab="chart"]`.
-- Type a name or 5-digit code into `#sym` and pick `#suggest`.
-- From 決算速報 (issuer title), スクリーナー (name cell), PTS (name cell in `#pts-tbl`), or サプライ (listed company panel `#supply-chart-link` 「チャートを開く」), use `gotoChart(code)`. `#sym` is not filled on that path; `#chart-title` shows the issuer. There is no chart button on 月次; 型の調査 / census is not in the SPA.
-- Change `#tf` (`D` / `W` / `M` — 日足/週足/月足), `#mas`, or `#rel`, then click `表示` (changing those controls alone does not redraw).
-- Optionally tick `.evt-toggles` 決算発表 for earnings markers.
-- Reload with `#chart/{code}` to reopen that issuer without searching.
+- In 銘柄, pick an issuer (`#st-sym`) and click 株価 in `#st-tabs`.
+- Click an issuer name on 決算速報 (chart title), スクリーナー, PTS, or 「株価を開く」 on a listed サプライ company.
+- Change `#tf`, tick `#rel`, or edit `#mas` and press Enter.
+- Tick `.evt-toggles` 決算発表.
+- Reload with `#stock/{code}/price` (or an old `#chart/{code}` bookmark).
 
 ## Driving it with verify-stock-analyzer
 
@@ -27,20 +28,20 @@ Preconditions:
 - Doctor reports `ok`.
 - A known code exists; doctor search for トヨタ should yield `72030` or similar.
 
-- **Tab.** Click `nav button[data-tab="chart"]`. `#tab-chart` is displayed.
-- **Search.** `GET /api/stocks/search?q=トヨタ` returns `{code,name,market}` with no `0`-prefix `code`. Typing the same into `#sym` opens `#suggest`.
-- **Candles.** Run `helpers/capture.py chart --code 72030`. `artifacts/chart/body.json` has `candles` length > 0. Candle fields are `open`/`high`/`low`/`close` already filled from `adj_*`. `#chart-title` is non-empty. Body may include `earnings_dates` (used by `.evt-toggles`).
-- **Performance.** `artifacts/chart/performance.json` is a list (may be empty for a name with no events; still 200).
-- **対TOPIX.** Check `#rel`, then click `表示`. `#relwrap` display is not `none` when the chart payload can compute relative series.
-- **Timeframe.** Change `#tf` to `W` or `M` and click `表示` — a control change without `表示` must not be treated as a redraw proof.
-- **Proof.** Keep `body.json` and (if CDP) `ui.png` with `#chart` tall enough to show candles and the header.
+- **Capture.** `helpers/capture.py chart --code 72030` writes `artifacts/chart/body.json` (`candles` length > 0, `open`/`high`/`low`/`close` already from `adj_*`, may include `earnings_dates`) and `performance.json` (a list, may be empty; still 200).
+- **Open.** On `#stock/31160` click `.ftab[data-sub="price"]`: hash `#stock/31160/price`, `#chart canvas` present, `#chart-msg` empty, requests exactly `GET /api/chart/31160?tf=D&ma=50%2C150%2C200&rel=false` + `GET /api/earnings-performance/31160`. No button whose label contains 表示.
+- **Controls.** Set `#tf` to `W` and dispatch `change` → `…?tf=W&ma=50%2C150%2C200&rel=false` + perf. Tick `#rel` → `…&rel=true`, `#relwrap` display `block`. Set `#mas` to `25` + `change` → `…&ma=25&rel=true`.
+- **Reopen.** Click 概要 then 株価 again: no `/api/*` request.
+- **Old route.** Reload on `#chart/72030` → hash `#stock/72030/price`, `#st-title` `トヨタ自動車 7203 / プライム / 輸送用機器`, only `#st-sub-price` visible. `localStorage` `ui.route=chart/39120` with no hash → `#stock/39120/price`.
+- **gotoChart.** From each caller above: 銘柄 active, 株価 `.on`, hash `#stock/{code}/price`, `GET /api/stock/{code}/overview` then the two price requests.
+- **Proof.** Keep `body.json` and (if CDP) a screenshot with `#chart` tall enough to show candles and the 銘柄 header.
 
 ## Gotchas
 
-- Prices in the chart are **adjusted** (`adj_*`). Do not assert raw `close` against the canvas.
-- Codes are 5 characters (`72030`). The table UI shows the first 4 as a label; the API still uses 5.
-- Empty `candles` is 404 or missing history, not a drawing bug — fail the precondition.
-- `#suggest` is `display:none` until there are hits; do not click it while hidden.
+- Prices in the chart are **adjusted** (`adj_*`). Do not assert raw `close` against the canvas; the header `#st-quote` uses the overview `quote.close`.
+- Codes are 5 characters (`72030`). Labels show the first 4; the API still uses 5.
+- Empty `candles` is missing history, not a drawing bug — fail the precondition.
+- `#tf`, `#mas`, `#rel` keep their values across issuers; a new issuer is drawn with the current controls.
+- Setting `.value` from a script does not redraw; dispatch `change` like the browser does.
 - `#tf` defaults to `D`; `W` and `M` resample on the server (MA windows scale down for week/month).
-- Event overlay on/off is remembered in `localStorage.chartEventOverlays` across reloads.
 - `#perf-tbl` shows at most 12 rows even if the API returns more.
