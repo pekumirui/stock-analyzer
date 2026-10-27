@@ -93,7 +93,7 @@ def _ingest_day(db: Session, jq: JQuantsClient, day: str, *, commit: bool = True
 
 
 def refresh_adjusted(db: Session, jq: JQuantsClient, rows: list[dict]) -> list[str]:
-    """分割・併合の日（AdjFactor ≠ 1）がある銘柄は、全期間を取り直す。
+    """権利落ち日（AdjFactor ≠ 1。分割・併合・ライツイシュー）がある銘柄は、全期間を取り直す。
 
     J-Quants は分割・併合で過去の調整後株価をさかのぼって直すが、日付指定の差分取込では
     DB の過去分が古いまま残る。

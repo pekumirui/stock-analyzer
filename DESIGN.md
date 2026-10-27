@@ -100,7 +100,7 @@ daily_prices      -- 日足
   adj_open, adj_high, adj_low, adj_close, adj_volume  -- 調整済(分析はこちらを使う)
   market_cap                                     -- 時価総額(百万円)
   upper_limit, lower_limit                       -- J-Quants UL / LL (その日にストップ高・安なら 1。取込前の行は NULL)
-  ex_rt                                          -- J-Quants ExRT (意味は未確認。2026-10 時点で全銘柄が空)
+  ex_rt                                          -- J-Quants ExRT (権利落ち日だけ 1=分割 / 2=併合 / 3=ライツイシュー。ほかは NULL)
 
 topix             -- TOPIX日足
   date PK, open, high, low, close
@@ -480,7 +480,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 
 1. `/equities/master` で銘柄マスタ更新 (ProdCat 含む)
 2. `/equities/bars/daily?date=当日` + `/indices/bars/daily/topix` 取込。戻り値は全部保存する。
-   AdjFactor ≠ 1（分割・併合の日）の銘柄は `/equities/bars/daily?code=` で全期間を取り直す。
+   AdjFactor ≠ 1（分割・併合・ライツイシューの権利落ち日）の銘柄は `/equities/bars/daily?code=` で全期間を取り直す。
    J-Quants は過去の調整後株価をさかのぼって直すので、差分だけでは DB の過去分が古いまま残る
 3. `/fins/summary?date=当日` と `/fins/summary?date=前営業日` 取込。前営業日は DB の株価で当日より前の最終日
 4. indicators 再計算 (MA/52週/RS/ステージ。RSユニバースは内国株券のみ) → earnings_events 更新。
