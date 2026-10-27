@@ -5,6 +5,7 @@
 | 何 | 正本 |
 |---|---|
 | 設計・スキーマ・取込・API | `DESIGN.md` |
+| J-Quants API の仕様（Light プラン） | J-Quants の MCP。md に写さない |
 | 画面（タブ別） | `docs/DESIGN_<tab>.md`。書き方と共通見た目は `docs/SCREEN_SPEC.md` |
 | 月次の行名 | `docs/DESIGN_monthly_labels.md` |
 | XBRL の設計と検証 | `docs/DESIGN_xbrl.md` / `docs/XBRL_VERIFY.md` |
