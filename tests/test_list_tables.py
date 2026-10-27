@@ -25,13 +25,23 @@ def test_ranking_table_matches_sheet() -> None:
     assert "pin1" in src
     assert "rkSession" in src
     assert "rkAlpha" in src
-    assert "日数</th>" not in src
+    assert "rkElapsed" in src
+    assert ">経過日数</th>" in src
+    assert ">日数</th>" not in src
     assert "class='l'>発表</th>" not in src
     assert ">対TOPIX</th>" not in src
+    assert ">保有期間</th>" not in src
+    assert "保有中" not in src
+    assert "(対TOPIX)" in src
     assert 'under(`<span class="sub">' in src
     assert "shortName(raw)" in src
     assert "pinCols($(\"#rk-tbl\"), 2)" in src
     assert '["対TOPIX"' not in src
+    assert "パフォーマンスランキングTOP" in src
+    assert "計測方法は決算発表後初値〜" in src
+    assert "※場中決算は翌営業日初値" in src
+    assert "（次の決算の前日終値まで）" not in src
+    assert "決算発表後パフォーマンス 上位" not in src
 
 
 def test_screener_table_matches_sheet() -> None:
