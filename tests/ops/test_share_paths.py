@@ -46,7 +46,7 @@ def test_share_root_env_and_explicit_root() -> None:
 
 def test_share_path_kinds() -> None:
     repo = Path("/tmp/repo-share")
-    for kind in ("monthly", "xbrl", "inventory", "stats"):
+    for kind in ("monthly", "xbrl", "inventory", "stats", "intraday"):
         got = share_path(kind, environ={}, repo_root=repo)
         if got != repo / "data" / kind:
             _fail(f"{kind} -> {got}")

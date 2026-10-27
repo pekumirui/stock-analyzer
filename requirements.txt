@@ -7,6 +7,9 @@ pydantic>=2.7
 pandas>=2.0
 openpyxl>=3.1
 numpy>=1.24
+# 1 分足（KAB-208）。yfinance で取り、data/intraday に Parquet で置く
+yfinance>=1.0
+pyarrow>=15
 pyyaml>=6.0
 # tools/tdnet_pdf（PDF → HTML。bot が VPS で動かす。KAB-164 / KAB-169）
 pypdfium2>=5.0
