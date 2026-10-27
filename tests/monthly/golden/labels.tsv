@@ -92,9 +92,9 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 14350	2026	2	legacy	number	管理戸数 全体	管理戸数 全体	number	管理戸数 全体	count	全体		管理戸数	全体	管理戸数
 14350	2026	3	legacy	number	管理戸数 自社施工	管理戸数 自社施工	number	管理戸数 自社施工	count	自社施工		管理戸数	全体 > 自社施工	管理戸数
 14350	2026	4	legacy	number	管理戸数 管理受託	管理戸数 管理受託	number	管理戸数 管理受託	count	管理受託		管理戸数	全体 > 管理受託	管理戸数
-14350	2026	5	legacy	number	入居率 全体	入居率 全体	number	入居率 全体	count	全体		入居率	全体	入居率
-14350	2026	6	legacy	number	入居率 自社施工	入居率 自社施工	number	入居率 自社施工	count	自社施工		入居率	全体 > 自社施工	入居率
-14350	2026	7	legacy	number	入居率 管理受託	入居率 管理受託	number	入居率 管理受託	count	管理受託		入居率	全体 > 管理受託	入居率
+14350	2026	5	legacy	number	入居率 全体	入居率 全体	number	入居率 全体	rate	全体		入居率	全体	入居率
+14350	2026	6	legacy	number	入居率 自社施工	入居率 自社施工	number	入居率 自社施工	rate	自社施工		入居率	全体 > 自社施工	入居率
+14350	2026	7	legacy	number	入居率 管理受託	入居率 管理受託	number	入居率 管理受託	rate	管理受託		入居率	全体 > 管理受託	入居率
 14350	2026	8	legacy	number	成約件数	成約件数	number	成約件数	count			成約件数	全体	成約件数
 14350	2026	9	legacy	number	引渡棟数	引渡棟数	number	引渡棟数	count			引渡棟数	全体	引渡棟数
 150A0	2026	1	legacy	number	地方創生 障がい者受入数	地方創生 障がい者受入数	number	地方創生 障がい者受入数	count	地方創生		障がい者受入数	全体 > 地方創生	障がい者受入数
@@ -2223,16 +2223,16 @@ code	year	order	via	unit	source_label	element	stored_unit	display	metric_kind	se
 31600	2026	7	legacy	number	アミカ事業 店舗数	アミカ事業 店舗数	number	アミカ事業 店舗数	stores	アミカ事業		店舗数	全体 > アミカ事業	店舗数
 31740	2024	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31740	2024	2	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
-31740	2024	3	legacy	number	粗利率 既存	既存 粗利率	number	既存 粗利率	count		既存	粗利率	全体	既存 粗利率
+31740	2024	3	legacy	number	粗利率 既存	既存 粗利率	number	既存 粗利率	rate		既存	粗利率	全体	既存 粗利率
 31740	2025	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31740	2025	2	legacy	yoy_index	売上総利益 既存 売上高(前年比)	既存 売上総利益(前年比)	yoy_index	既存 売上総利益(前年比)	other		既存	売上総利益	全体	既存 売上総利益
 31740	2025	3	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
-31740	2025	4	legacy	number	粗利率 既存	既存 粗利率	number	既存 粗利率	count		既存	粗利率	全体	既存 粗利率
+31740	2025	4	legacy	number	粗利率 既存	既存 粗利率	number	既存 粗利率	rate		既存	粗利率	全体	既存 粗利率
 31740	2025	5	legacy	yoy_index	売上個数 既存 売上高(前年比)	既存 売上個数(前年比)	yoy_index	既存 売上個数(前年比)	count		既存	売上個数	全体	既存 売上個数
 31740	2026	1	legacy	yoy_index	既存 売上高(前年比)	既存 売上高(前年比)	yoy_index	既存 売上高(前年比)	sales		既存	売上高	全体	既存 売上高
 31740	2026	2	legacy	yoy_index	売上総利益 既存 売上高(前年比)	既存 売上総利益(前年比)	yoy_index	既存 売上総利益(前年比)	other		既存	売上総利益	全体	既存 売上総利益
 31740	2026	3	legacy	yoy_index	既存 客単価(前年比)	既存 客単価(前年比)	yoy_index	既存 客単価(前年比)	spend		既存	客単価	全体	既存 客単価
-31740	2026	4	legacy	number	粗利率 既存	既存 粗利率	number	既存 粗利率	count		既存	粗利率	全体	既存 粗利率
+31740	2026	4	legacy	number	粗利率 既存	既存 粗利率	number	既存 粗利率	rate		既存	粗利率	全体	既存 粗利率
 31740	2026	5	legacy	yoy_index	ヴィンテージ商品 既存 売上高(前年比)	既存 ヴィンテージ商品売上高(前年比)	yoy_index	既存 ヴィンテージ商品売上高(前年比)	sales		既存	ヴィンテージ商品売上高	全体	既存 ヴィンテージ商品売上高
 31740	2026	6	legacy	yoy_index	売上個数 既存 売上高(前年比)	既存 売上個数(前年比)	yoy_index	既存 売上個数(前年比)	count		既存	売上個数	全体	既存 売上個数
 31750	2023	1	legacy	yoy_index	全店 売上高(前年比)	全店 売上高(前年比)	yoy_index	全店 売上高(前年比)	sales		全店	売上高	全体	全店 売上高

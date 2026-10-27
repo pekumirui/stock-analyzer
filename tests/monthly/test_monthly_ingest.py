@@ -33,6 +33,7 @@ from app.monthly.ingest import (  # noqa: E402
     monthly_element_label,
     monthly_row_breakdown_rank,
     monthly_row_segment,
+    monthly_row_slot,
     monthly_row_unit_rank,
     monthly_series_kind,
     parse_as_of,
@@ -3102,7 +3103,6 @@ def _check_count_cases(cases) -> None:
 
 
 def test_issuer_rate_metrics_14350() -> None:
-    """14350 の入居率は件数辞書と同じく層だけ指標。保存名は並べ替えない（KAB-11 / #662）。"""
     code = "14350"
     cases = (
         ("入居率 全体", "全体", "入居率"),
@@ -3120,17 +3120,20 @@ def test_issuer_rate_metrics_14350() -> None:
         if (
             lab["metric"] != metric
             or lab["segment"] != segment
-            or lab["metric_kind"] != "count"
+            or lab["metric_kind"] != "rate"
             or lab["display"] != src
+            or lab["series_kind"] is not None
         ):
             _fail(f"14350 occupancy label {src!r}: {lab!r}")
+        if monthly_row_slot(src, "number", code) != 9:
+            _fail(f"14350 occupancy slot {src!r}: {monthly_row_slot(src, 'number', code)}")
         for other in (None, "18780", "29910"):
             leaked = monthly_element_label(src, "number", other)
             if leaked["metric"] or leaked["segment"] != src:
                 _fail(f"occupancy leaked to code={other!r} {src!r}: {leaked!r}")
 
-    units = parse_element_layers("管理戸数 全体", code=code)
-    if units["metric"] != "管理戸数" or units["segment"] != "全体":
+    units = monthly_element_label("管理戸数 全体", "number", code)
+    if units["metric"] != "管理戸数" or units["segment"] != "全体" or units["metric_kind"] != "count":
         _fail(f"14350 管理戸数 still peels: {units!r}")
 
     side = (
@@ -3149,7 +3152,7 @@ def test_issuer_rate_metrics_14350() -> None:
                 f"{canonicalize_element_label(src, 'number')!r}"
             )
         lab = monthly_element_label(src, "number", other)
-        if lab["metric"]:
+        if lab["metric"] or lab["metric_kind"] != "other":
             _fail(f"rate side must not peel metric {other} {src!r}: {lab!r}")
 
     if canonicalize_element_label("既存 空室数", "number") != "空室数 既存":
@@ -3487,7 +3490,7 @@ def test_31740_gross_margin_renamed_idempotent_with_code() -> None:
     lab = monthly_element_label(dest, "number", "31740")
     if lab["segment"] or lab["metric"] != "粗利率" or lab["scope"] != "既存":
         _fail(f"31740 dest label: {lab!r}")
-    if lab["metric_kind"] != "count":
+    if lab["metric_kind"] != "rate":
         _fail(f"31740 dest metric_kind: {lab['metric_kind']!r}")
     old_lab = monthly_element_label(old, "number", "31740")
     if old_lab["display"] != dest or old_lab["metric"] != "粗利率":

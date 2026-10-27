@@ -1142,7 +1142,7 @@ def monthly_series_kind(element: str, unit: str | None) -> str | None:
 _SCOPE_RANK = {"all": 0, "company": 1, "existing": 2, "other": 3}
 _METRIC_RANK = {
     "sales": 1, "customers": 2, "spend": 3,
-    "open": 4, "close": 5, "adj": 6, "stores": 7, "count": 8, "other": 9,
+    "open": 4, "close": 5, "adj": 6, "stores": 7, "count": 8, "rate": 9, "other": 10,
 }
 
 
@@ -1186,7 +1186,7 @@ def _row_metric(key: str, code: str | None = None) -> str:
     if "客数" in key or "来客" in key:
         return "customers"
     if metric in issuer_count_metrics(code):
-        return "count"
+        return "rate" if metric.endswith("率") else "count"
     if "売上" in key:
         return "sales"
     return "other"
@@ -1210,7 +1210,7 @@ def monthly_row_segment(element: str, code: str | None = None) -> str:
 
 
 def monthly_row_slot(element: str, unit: str | None, code: str | None = None) -> int:
-    """指標枠。1売上高 2客数 3客単価 4出店 5退店 6純増/新設/改装/業態転換 7店舗数 8件数 9その他。"""
+    """指標枠。並びは _METRIC_RANK。"""
     _ = unit
     return _METRIC_RANK[_row_metric(element, code)]
 
@@ -1379,7 +1379,7 @@ def monthly_display_label(element: str | None, unit: str | None = None) -> str:
 
 
 MetricKind = Literal[
-    "sales", "customers", "spend", "open", "close", "adj", "stores", "count", "other",
+    "sales", "customers", "spend", "open", "close", "adj", "stores", "count", "rate", "other",
 ]
 SeriesKind = Literal["all_store", "existing", "stores"]
 

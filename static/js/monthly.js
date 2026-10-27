@@ -124,7 +124,7 @@ function monthlyIssuerSuggestHits(q){
 }
 
 const MONTHLY_METRIC_RANK = {
-  sales:1, customers:2, spend:3, open:4, close:5, adj:6, stores:7, count:8, other:9,
+  sales:1, customers:2, spend:3, open:4, close:5, adj:6, stores:7, count:8, rate:9, other:10,
 };
 const MONTHLY_BREAKDOWN_RANK = {
   "":0, ドラッグ:1, 調剤:2, 物販:3,
@@ -142,7 +142,7 @@ function monthlyRowScopeRank(label){
   if(label.scope === "全店") return 0;
   if(label.metric_kind === "stores" || label.metric_kind === "open"
       || label.metric_kind === "close" || label.metric_kind === "adj"
-      || label.metric_kind === "count") return 3;
+      || label.metric_kind === "count" || label.metric_kind === "rate") return 3;
   if(!label.segment) return 0;
   if(!label.scope && (label.metric_kind === "sales"
       || label.metric_kind === "customers" || label.metric_kind === "spend")) return 0;
