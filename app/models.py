@@ -150,6 +150,8 @@ class EarningsEvent(Base):
     alpha_20d = Column(Float)
     alpha_60d = Column(Float)
     alpha_to_date = Column(Float)
+    disclosed_time = Column(String)   # その日の決算短信のうち一番早い発表時刻
+    is_first = Column(Boolean)        # その期（決算期 × 四半期）の最初の決算短信。訂正・予想修正だけは偽
 
 
 class MonthlyIssuer(Base):

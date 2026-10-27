@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy import Boolean, Date, DateTime, Float, Integer, text  # noqa: E402
 
 from app.db import SessionLocal, engine, init_db  # noqa: E402
-from app.market.analytics import compute_indicators  # noqa: E402
+from app.market.analytics import compute_earnings_events, compute_indicators  # noqa: E402
 from app.models import Base  # noqa: E402
 from app.monthly.maintenance import backfill_legacy_element_sources  # noqa: E402
 
@@ -83,6 +83,9 @@ def main(golden_dir: Path = GOLDEN_DIR) -> int:
         compute_indicators(db)
         n = db.execute(text("SELECT COUNT(*) FROM indicators")).scalar()
         print(f"indicators\t{n}（計算し直し）")
+        compute_earnings_events(db)
+        n = db.execute(text("SELECT COUNT(*) FROM earnings_events")).scalar()
+        print(f"earnings_events\t{n}（計算し直し）")
     finally:
         db.close()
     backfill_legacy_element_sources(verbose=False)

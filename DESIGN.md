@@ -76,9 +76,11 @@ indicators        -- 日次算出テクニカル (バッチで更新, 最新日�
 
 earnings_events   -- 決算発表イベントと発表後パフォーマンス
   code, disclosed_date PK(複合)
-  base_price              -- 発表当日(場中発表)or翌営業日始値
+  base_date, base_price   -- 決算後に買えた最初の値 (§4.3)
   return_1d, return_5d, return_20d, return_60d, return_to_date
   alpha_1d, ... alpha_to_date   -- 対TOPIX超過リターン
+  disclosed_time          -- その日の発表時刻 (最初の決算短信、無ければ一番早い開示)
+  is_first                -- その期 (決算期 × 四半期) の最初の決算短信か。訂正・予想修正だけは偽
 
 earnings_date_pubs -- 決算発表予定の発表履歴。現在の予定は (code, fq_name) の最新 pub_date
   code, fq_name, pub_date PK
