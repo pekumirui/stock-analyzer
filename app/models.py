@@ -152,6 +152,10 @@ class EarningsEvent(Base):
     alpha_to_date = Column(Float)
     disclosed_time = Column(String)   # その日の決算短信のうち一番早い発表時刻
     is_first = Column(Boolean)        # その期（決算期 × 四半期）の最初の決算短信。訂正・予想修正だけは偽
+    next_disclosed_date = Column(Date)  # 同じ銘柄の次の期の最初の決算短信の日。まだ無ければ NULL
+    end_date = Column(Date)           # return_to_next の終点（次の決算の前営業日。無ければ株価の最終日）
+    return_to_next = Column(Float)    # 次の決算の前日終値まで（%）
+    alpha_to_next = Column(Float)
 
 
 class MonthlyIssuer(Base):

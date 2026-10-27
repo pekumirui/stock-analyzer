@@ -1,5 +1,6 @@
 """テクニカル指標・RS・ステージ判定・決算後リターンの一括計算。"""
 import json
+from bisect import bisect_right
 from datetime import date, timedelta
 
 import pandas as pd
@@ -263,6 +264,15 @@ def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
         k = (code, d)
         times[k] = firsts[k] if k in firsts else min((x for x in (times.get(k), t) if x), default=None)
     stmts = [(code, d, t) for (code, d), t in times.items()]
+    # 開示ごとに、同じ銘柄の次の期の最初の決算短信の日
+    first_days: dict[str, list[date]] = {}
+    for code, d in sorted(firsts):
+        first_days.setdefault(code, []).append(d)
+    next_first = {}
+    for code, d, _ in stmts:
+        days = first_days.get(code, [])
+        k = bisect_right(days, d)
+        next_first[(code, d)] = days[k] if k < len(days) else None
 
     # px は code, date 順なので各銘柄の日付列は昇順
     px_by_code = {c: (g["date"].to_numpy(), g["adj_open"].to_numpy(), g["adj_close"].to_numpy(),
@@ -322,6 +332,17 @@ def compute_earnings_events(db: Session, px: pd.DataFrame | None = None):
         tr = tclose.get(dates[-1], tbase) / tbase - 1
         rec["return_to_date"] = round(r * 100, 2)
         rec["alpha_to_date"] = round((r - tr) * 100, 2)
+        # 次の決算（次の期の最初の決算短信）の前営業日の終値まで。まだ無ければ現在まで
+        nxt = next_first.get((code, ddate))
+        j = int(np.searchsorted(dates, nxt)) - 1 if nxt else len(dates) - 1
+        rec["next_disclosed_date"] = nxt
+        rec["end_date"] = rec["return_to_next"] = rec["alpha_to_next"] = None
+        if j >= i0:
+            r = closes[j] / base - 1
+            tr = tclose.get(dates[j], tbase) / tbase - 1
+            rec["end_date"] = dates[j]
+            rec["return_to_next"] = round(r * 100, 2)
+            rec["alpha_to_next"] = round((r - tr) * 100, 2)
         rows.append(rec)
     if rows:
         for i in range(0, len(rows), WRITE_CHUNK_SIZE):

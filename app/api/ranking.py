@@ -1,4 +1,4 @@
-"""ランキングタブ。/ranking/earnings-perf。決算月ごとの決算発表後パフォーマンス（現在まで）。"""
+"""ランキングタブ。/ranking/earnings-perf。決算月ごとの決算発表後パフォーマンス（次の決算の前日終値まで）。"""
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -46,16 +46,17 @@ def earnings_perf(month: str | None = None, db: Session = Depends(get_session)):
            .filter(EarningsEvent.is_first.is_(True),
                    EarningsEvent.disclosed_date >= start, EarningsEvent.disclosed_date < end).all())
     names = dict(db.query(Stock.code, Stock.name).filter(Stock.code.in_({e.code for e in evs})).all())
-    today = date.today()
     rows = [{
         "code": e.code, "name": names.get(e.code) or e.code,
         "disclosed_date": e.disclosed_date.isoformat(), "disclosed_time": (e.disclosed_time or "")[:5] or None,
         "session": "after" if is_after_close(e.disclosed_date, e.disclosed_time) else "intraday",
         "base_date": e.base_date.isoformat() if e.base_date else None, "base_price": e.base_price,
-        "return_to_date": e.return_to_date, "alpha_to_date": e.alpha_to_date,
-        "days": (today - e.disclosed_date).days,
+        "return_to_next": e.return_to_next, "alpha_to_next": e.alpha_to_next,
+        "next_disclosed_date": e.next_disclosed_date.isoformat() if e.next_disclosed_date else None,
+        "end_date": e.end_date.isoformat() if e.end_date else None,
+        "days": (e.end_date - e.disclosed_date).days if e.end_date else None,
     } for e in evs]
-    rows.sort(key=lambda r: (r["return_to_date"] is None, -(r["return_to_date"] or 0), r["code"]))
+    rows.sort(key=lambda r: (r["return_to_next"] is None, -(r["return_to_next"] or 0), r["code"]))
     for i, r in enumerate(rows, 1):
         r["rank"] = i
     return {**out, "rows": rows}
