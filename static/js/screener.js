@@ -10,7 +10,7 @@ async function loadScreener(){
   for(const r of d.results){
     const raw = String(r.name||""), name = scEsc(raw), code = scEsc(r.code);
     h += `<tr><td class="l name pin0" title="${name}"><span class="clicky" onclick="gotoChart('${code}')">${scEsc(shortName(raw))}</span>${under(`<span class="sub">${scEsc(r.code.slice(0,4))}</span>`)}</td>
-      <td class="l grp">${scEsc(r.sector||"")}</td><td class="num">${fmt(r.close,1)}</td><td class="num">${r.rs_rank??"–"}</td>
+      <td class="l grp" title="${scEsc(r.sector||"")}">${scEsc(fmtSector(r.sector))}</td><td class="num">${fmt(r.close,1)}</td><td class="num">${r.rs_rank??"–"}</td>
       <td>${r.stage?`<span class="badge st${r.stage}">S${r.stage}</span>`:"–"}</td>
       <td class="num">${pct(r.pct_from_low52)}</td><td class="num">${pct(r.pct_from_high52)}</td>
       <td class="num">${fmt(r.ma50,1)}</td><td class="num">${fmt(r.ma200,1)}</td></tr>`;
