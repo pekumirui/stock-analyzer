@@ -129,7 +129,7 @@
   table.sheet .pin0 { left:var(--pin0, 0); }
   table.sheet .pin1 { left:var(--pin1, 0); }
   table.sheet .pin2 { left:var(--pin2, 0); }
-  #earn-tbl .pin2, #rk-tbl .pin1, #sc-tbl .pin0 { box-shadow:inset -1px 0 0 var(--border); }
+  #earn-tbl .pin2, #sc-tbl .pin0 { box-shadow:inset -1px 0 0 var(--border); }
   .phead { display:flex; align-items:center; gap:8px; justify-content:space-between; margin-bottom:8px; }
   .phead h3 { margin:0; }
   .phead-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
