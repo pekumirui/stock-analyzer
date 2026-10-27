@@ -7,7 +7,7 @@ The screener tab lists issuers matching Minervini stage and RS rank, using the l
 - `screener-open` shows `#tab-screener` and auto-runs `loadScreener` when `#sc-tbl` is empty.
 - `screener-default` uses Stage `2` and RS `70` (the select/input defaults).
 - `screener-filter` changes `#sc-stage` / `#sc-rs` and 検索.
-- `screener-to-chart` clicks a name (`.clicky` → `gotoChart`) → 銘柄 › 株価, hash `#stock/{code}/price`.
+- `screener-to-chart` clicks a name (`.clicky` → `gotoChart`) → 銘柄 › 株価, hash `#stock/{code}/price`. 銘柄 is the name over the 4-digit code in `.g` (same `table.sheet` look as 決算速報).
 
 ## How to get to it (user POV)
 
