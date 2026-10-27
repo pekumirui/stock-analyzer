@@ -262,6 +262,12 @@ deploy/cron-run.sh jobs/ops/migrate_r2_share.py --list-mismatches
 3. 月次 PDF の初回バックフィルは Actions → **TDnet monthly backfill** → Run workflow、`days=30`。
    SSH で `jobs/monthly/tdnet_monthly_r2.py 30` が走る（通常デプロイでは走らない）
 
+日足を全部取り直すとき（調整後株価のずれと UL / LL の空きを埋める。KAB-188）は、19:30 の日次バッチと重ならない時間にユーザ `stock` で一度だけ流す。止めても再実行で続きから。
+
+```bash
+deploy/cron-run.sh jobs/market/run_batch.py --refetch-prices   # ログは batch_logs job=run_batch
+```
+
 cron（JST）。`run_batch.py` は 19:30 の 1 回。
 
 | スクリプト | cron |

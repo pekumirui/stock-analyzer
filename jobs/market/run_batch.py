@@ -4,6 +4,7 @@
   python jobs/market/run_batch.py                # 当日取込+指標再計算
   python jobs/market/run_batch.py --date 2026-08-14
   python jobs/market/run_batch.py --backfill 5   # 初回: 5年分。失敗したら非ゼロ終了
+  python jobs/market/run_batch.py --refetch-prices  # DB にある日足を全部取り直す（再開可）
 """
 import argparse
 import sys
@@ -21,6 +22,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--date", help="取得日 YYYY-MM-DD (省略時は今日)")
     ap.add_argument("--backfill", type=int, help="年数を指定して初回バックフィル")
+    ap.add_argument("--refetch-prices", action="store_true",
+                    help="DB にある日足を全部取り直して指標を計算し直す")
     ap.add_argument("--no-recompute", action="store_true", help="指標の再計算をスキップ")
     args = ap.parse_args()
 
@@ -28,7 +31,10 @@ def main():
     db = SessionLocal()
     try:
         n_new = None
-        if args.backfill:
+        refetch_failed = 0
+        if args.refetch_prices:
+            refetch_failed = ingest.run_refetch_prices(db)
+        elif args.backfill:
             ingest.run_backfill(db, years=args.backfill)
         else:
             n_new = ingest.run_daily(db, day=args.date)
@@ -51,6 +57,8 @@ def main():
             raise
         print(f"決算発表予定 {n_ed}")
         print("完了")
+        if refetch_failed:
+            sys.exit(1)
     finally:
         db.close()
 

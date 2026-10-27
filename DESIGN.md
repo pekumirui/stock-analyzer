@@ -100,6 +100,7 @@ daily_prices      -- 日足
   adj_open, adj_high, adj_low, adj_close, adj_volume  -- 調整済(分析はこちらを使う)
   market_cap                                     -- 時価総額(百万円)
   upper_limit, lower_limit                       -- J-Quants UL / LL (その日にストップ高・安なら 1。取込前の行は NULL)
+  ex_rt                                          -- J-Quants ExRT (意味は未確認。2026-10 時点で全銘柄が空)
 
 topix             -- TOPIX日足
   date PK, open, high, low, close
@@ -478,18 +479,24 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 ## 6. 日次バッチ (19:30 JST)
 
 1. `/equities/master` で銘柄マスタ更新 (ProdCat 含む)
-2. `/equities/bars/daily?date=当日` + `/indices/bars/daily/topix` 取込
+2. `/equities/bars/daily?date=当日` + `/indices/bars/daily/topix` 取込。戻り値は全部保存する。
+   AdjFactor ≠ 1（分割・併合の日）の銘柄は `/equities/bars/daily?code=` で全期間を取り直す。
+   J-Quants は過去の調整後株価をさかのぼって直すので、差分だけでは DB の過去分が古いまま残る
 3. `/fins/summary?date=当日` と `/fins/summary?date=前営業日` 取込。前営業日は DB の株価で当日より前の最終日
 4. indicators 再計算 (MA/52週/RS/ステージ。RSユニバースは内国株券のみ) → earnings_events 更新。
    2〜3 が 0 件（前営業日は新しく増えた件数）で indicators が株価の最終日まで済んでいれば飛ばす。
    指標の全置換はチャンクごとに commit する（1 本のライターロックを `busy_timeout` 以上握らない）
 5. `/fins/earnings-date?date=当日` と `date=昨日`。昨日は暦日。4 の後。株価が 0 件でも行う。失敗しても 4 の結果は残し、プロセスは非ゼロで終わる
 
-定常の夜は **計7リクエスト**。内訳はマスタ、株価、TOPIX、財務の当日、財務の前営業日、発表予定の当日、発表予定の昨日。発表予定の2本は `/fins/` の枠。台帳が空の初回は指標のあと PubDate を `EARNINGS_DATE_LOOKBACK_DAYS` 日さかのぼる。この歩きは 7 に入らない。決算開示は15時以降が多いため、当日夜(19:30)に1回実行する。
+定常の夜は **計7リクエスト**（分割・併合の銘柄があればその数だけ増える）。内訳はマスタ、株価、TOPIX、財務の当日、財務の前営業日、発表予定の当日、発表予定の昨日。発表予定の2本は `/fins/` の枠。台帳が空の初回は指標のあと PubDate を `EARNINGS_DATE_LOOKBACK_DAYS` 日さかのぼる。この歩きは 7 に入らない。決算開示は15時以降が多いため、当日夜(19:30)に1回実行する。
 19:30 より後の開示（全体の 0.3% 程度）は、翌営業日の回が前営業日の決算を取り直して拾う。
 
 冪等設計 (UPSERT) のため何度実行しても安全。バックフィルは株価と決算を同じ日に commit できた日付を
 スキップするので、中断しても再実行すれば続きから埋まる。カレンダーが空、またはその日が失敗したら非ゼロ終了。
+
+`run_batch.py --refetch-prices` は DB にある日足を日付ごとに全部取り直し、指標を計算し直す。
+対象は UL / LL が NULL の行が残る日だけなので、中断しても再実行で続きから。失敗した日は飛ばして最後に非ゼロ終了。
+1 日 1 リクエストで、5 年分なら約 1,250 日 ≒ 20〜40 分（Light は 60 req/分）。
 
 ## 7. ホスティング
 

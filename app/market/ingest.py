@@ -75,6 +75,7 @@ def _price_row(q: dict) -> dict | None:
         "adj_volume": _f(q.get("AdjVo")),
         "market_cap": _f(q.get("MktCap")),
         "upper_limit": _flag(q.get("UL")), "lower_limit": _flag(q.get("LL")),
+        "ex_rt": None if q.get("ExRT") in (None, "") else str(q["ExRT"]),
     }
 
 
@@ -82,9 +83,25 @@ def ingest_prices_for_date(
     db: Session, jq: JQuantsClient, day: str, *, commit: bool = True,
 ) -> int:
     """指定日の全上場銘柄の株価を1リクエストで取得。"""
+    return len(_ingest_day(db, jq, day, commit=commit))
+
+
+def _ingest_day(db: Session, jq: JQuantsClient, day: str, *, commit: bool = True) -> list[dict]:
     rows = [r for r in (_price_row(q) for q in jq.bars_daily(date=day)) if r]
     upsert(db, DailyPrice, rows, commit=commit)
-    return len(rows)
+    return rows
+
+
+def refresh_adjusted(db: Session, jq: JQuantsClient, rows: list[dict]) -> list[str]:
+    """分割・併合の日（AdjFactor ≠ 1）がある銘柄は、全期間を取り直す。
+
+    J-Quants は分割・併合で過去の調整後株価をさかのぼって直すが、日付指定の差分取込では
+    DB の過去分が古いまま残る。
+    """
+    codes = sorted({r["code"] for r in rows if r["adj_factor"] not in (None, 1.0)})
+    for code in codes:
+        ingest_prices_for_code(db, jq, code)
+    return codes
 
 
 def ingest_prices_for_code(db: Session, jq: JQuantsClient, code: str,
@@ -173,7 +190,9 @@ def run_daily(db: Session, day: str | None = None) -> int:
     prev = _prev_trading_day(db, day)
     with JQuantsClient() as jq:
         n_m = ingest_master(db, jq)
-        n_p = ingest_prices_for_date(db, jq, day)
+        px_rows = _ingest_day(db, jq, day)
+        n_p = len(px_rows)
+        adjusted = refresh_adjusted(db, jq, px_rows)
         n_t = ingest_topix(db, jq, from_=day, to=day)
         n_s = ingest_statements_for_date(db, jq, day)
         n_late = 0
@@ -182,7 +201,8 @@ def run_daily(db: Session, day: str | None = None) -> int:
             ingest_statements_for_date(db, jq, prev.isoformat())
             n_late = db.query(func.count()).filter(Statement.disclosed_date == prev).scalar() - before
     late = f" / {prev}の追加決算{n_late}" if prev is not None else ""
-    print(f"{day}: 銘柄{n_m} / 株価{n_p} / TOPIX{n_t} / 決算{n_s}{late}")
+    adj = f" / 分割・併合で全期間を取り直し {','.join(adjusted)}" if adjusted else ""
+    print(f"{day}: 銘柄{n_m} / 株価{n_p} / TOPIX{n_t} / 決算{n_s}{late}{adj}")
     return n_p + n_t + n_s + n_late
 
 
@@ -247,3 +267,30 @@ def run_backfill(db: Session, years: int = 5, progress_every: int = 20) -> None:
                 pct = i / len(todo) * 100
                 print(f"  [{i}/{len(todo)} {pct:.0f}%] {d}  株価{n_p} 決算{n_s}")
     print("バックフィル完了")
+
+
+def run_refetch_prices(db: Session, progress_every: int = 20) -> int:
+    """DB にある日足を日付ごとに全部取り直す。返り値は取り直せなかった日数。
+
+    たまった調整後株価のずれと、UL / LL が無い過去の行を埋める。取り直した行は UL / LL が
+    0 か 1 になるので、NULL の行が残る日だけを対象にする（止めても再実行で続きから）。
+    1日ごとに commit する。失敗した日は飛ばして最後に数を返す。
+    """
+    days = [d for (d,) in db.query(DailyPrice.date)
+            .filter(DailyPrice.upper_limit.is_(None), DailyPrice.lower_limit.is_(None))
+            .distinct().order_by(DailyPrice.date).all()]
+    print(f"取り直す日 {len(days)}日分 (推定 {len(days) / 60:.0f}分)")
+    failed = []
+    with JQuantsClient() as jq:
+        for i, d in enumerate(days, 1):
+            try:
+                n = ingest_prices_for_date(db, jq, d.isoformat())
+            except Exception as exc:
+                db.rollback()
+                print(f"fail refetch {d}: {exc}")
+                failed.append(d)
+                continue
+            if i % progress_every == 0 or i == len(days):
+                print(f"  [{i}/{len(days)} {i / len(days) * 100:.0f}%] {d}  株価{n}")
+    print(f"取り直し完了 failed={len(failed)}")
+    return len(failed)
