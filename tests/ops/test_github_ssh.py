@@ -443,6 +443,7 @@ def _seed_git(app: Path, env: dict[str, str], origin: Path) -> None:
         encoding="utf-8",
     )
     (app / "deploy" / "provision.sh").chmod(0o755)
+    shutil.copy2(ROOT / "deploy" / "write_rclone_conf.py", app / "deploy" / "write_rclone_conf.py")
     stale = app / "deploy" / "setup-github-ssh.sh"
     stale.write_text(
         "#!/usr/bin/env bash\n"
