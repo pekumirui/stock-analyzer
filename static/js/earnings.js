@@ -81,7 +81,6 @@ document.addEventListener("click", e => {
 const MET = [["net_sales","売上"],["operating_profit","営利"],["ordinary_profit","経利"],["profit","純利"]];
 const revBadge = r => r.restated ? `<span class="qb qb-rev" title="既出期間の訂正">訂正</span>` : "";
 const listQ = q => q ? qBadge({kind:"single", period:q}) : "";
-const shortName = n => { const s = String(n||""); return s.length>5 ? s.slice(0,5) : s; };
 const nameCell = r => `<td class="l name pin2" title="${r.name}">${shortName(r.name)}${under(`<span class="sub">${r.code.slice(0,4)}</span>`)}</td>`;
 const valCell = (vals, g, k, i) => `<td class="num ${i?'':'grp'}">${amt((vals||{})[k])}${under(gc(g && g[k]))}</td>`;
 const progTxt = v => v==null ? "–" : `<span class="${v<0?"loss":""}">${fmt(v,1)}%</span>`;

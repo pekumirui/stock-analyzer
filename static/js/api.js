@@ -3,6 +3,7 @@ const api = (p, init) => fetch(p, init).then(r => { if(!r.ok) throw new Error(r.
 const fmt = (v,d=0) => v==null ? "–" : Number(v).toLocaleString("ja-JP",{maximumFractionDigits:d,minimumFractionDigits:d});
 const pct = v => v==null ? "–" : `<span class="${v>=0?'pos':'neg'}">${v>0?'+':''}${fmt(v,1)}%</span>`;
 const under = html => `<span class="g">${html || " "}</span>`;
+const shortName = n => { const s = String(n||""); return s.length>5 ? s.slice(0,5) : s; };
 function pinCols(table, n){
   if(!table) return;
   const ths = table.querySelectorAll("thead tr:first-child th");
