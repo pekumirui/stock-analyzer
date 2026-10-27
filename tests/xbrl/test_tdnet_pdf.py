@@ -79,8 +79,19 @@ def test_convert_pdf_joins_surrogate_pairs() -> None:
 
 
 def test_utf8_safe_replaces_only_surrogates() -> None:
-    """errors='replace' はサロゲートでは使えない。該当文字だけ U+FFFD にし、本文と補助面は残す（KAB-210）。"""
+    """strict の encode は落ち、replace は ASCII '?' になる。U+FFFD 1 字にして本文と補助面は残す（KAB-210）。"""
     body = "配当予想の修正" + "\ud800" + "に関するお知らせ" + "\U00020bb7" + ("本文" * 400)
+    try:
+        body.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        assert "surrogates" in str(exc)
+    else:
+        raise AssertionError("strict utf-8 unexpectedly encoded a lone surrogate")
+    try:
+        alt = body.encode("utf-8", errors="replace").decode("utf-8")
+        assert "?" in alt and "\ufffd" not in alt
+    except UnicodeEncodeError:
+        pass
     out = utf8_safe(body)
     out.encode("utf-8")
     assert "配当予想の修正" in out and "に関するお知らせ" in out
@@ -89,12 +100,6 @@ def test_utf8_safe_replaces_only_surrogates() -> None:
     assert len(out) == len(body)
     assert utf8_safe("ascii only") == "ascii only"
     assert utf8_safe("") == ""
-    try:
-        body.encode("utf-8", errors="replace")
-    except UnicodeEncodeError as exc:
-        assert "surrogates" in str(exc)
-    else:
-        raise AssertionError("errors='replace' unexpectedly encoded lone surrogates")
 
 
 def test_ingest_one_saves_html_with_lone_surrogates(monkeypatch) -> None:

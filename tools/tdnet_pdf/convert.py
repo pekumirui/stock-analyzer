@@ -6,7 +6,7 @@ pdfium（pypdfium2）で文字と図形を読み、同じ位置に描く。文�
 
 - 文字: textpage の 1 文字ずつの原点（ベースライン）・ゆるい字の枠・大きさ。pdfium は UTF-16 の 1 単位ずつ返すので、
   サロゲートの組（𠮷 など）は 1 字に戻し、組にならないものは U+FFFD にする。返す HTML は utf8_safe で
-  残りを U+FFFD にする（Python の encode errors='replace' はサロゲートでは使えない。KAB-210）。フォント名・太さ・色は
+  残りを U+FFFD にする（encode の errors='replace' は ASCII '?' になる。KAB-210）。フォント名・太さ・色は
   文字が属するテキストのオブジェクトごとに 1 回だけ取る。pdfium が足した空白・改行（generated）は捨てる。
   ベースラインが 1pt 以内の文字を 1 行にまとめ、左から並べ、隙間が 1.2pt を超えるか書式が変われば語を切る
 - 図形: ページのオブジェクトの path。Form XObject の入れ子を辿り、行列を掛け合わせてページの座標にする
@@ -28,8 +28,8 @@ CONVERTER = "svg2"
 def utf8_safe(s: str) -> str:
     """UTF-8 に書けないサロゲートを U+FFFD 1 字に置き換える。それ以外の文字は触らない。
 
-    Python 3 の ``str.encode('utf-8', errors='replace')`` はサロゲートでは使えない
-    （``UnicodeEncodeError: surrogates not allowed``）。組の復元は ``_chars``。ここは漏れの止め。
+    ``encode('utf-8')``（strict）は ``UnicodeEncodeError: surrogates not allowed``。
+    ``errors='replace'`` は ASCII ``?`` になるので使わない。組の復元は ``_chars``。ここは漏れの止め。
     """
     try:
         s.encode("utf-8")
