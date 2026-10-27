@@ -347,14 +347,6 @@ function fmtMonthlyIssuerLabel(code, name){
   return `${monthlyCode4(code)} ${short}`;
 }
 
-function fmtMonthlyMarket(market){
-  const s = String(market || "");
-  if(s.includes("プライム") || /prime/i.test(s)) return {cls:"mkt mkt-p", label:"東証P"};
-  if(s.includes("スタンダード") || /standard/i.test(s)) return {cls:"mkt mkt-s", label:"東証S"};
-  if(s.includes("グロース") || /growth/i.test(s)) return {cls:"mkt mkt-g", label:"東証G"};
-  return {cls:"", label:s};
-}
-
 function fmtMonthlySector(sector){
   const s = String(sector || "").replace(/業$/, "");
   return Array.from(s).slice(0, 5).join("");
@@ -377,7 +369,7 @@ function renderMonthlyList(){
     `</tr></thead><tbody>`;
   for(const r of issuers){
     const neu = r.ingested_today ? `<span class="badge new">NEW</span>` : "";
-    const mkt = fmtMonthlyMarket(r.market);
+    const mkt = fmtMarket(r.market);
     const label = escHtml(fmtMonthlyIssuerLabel(r.code, r.name));
     const nameCell = pub
       ? `<td class="l name"><a href="/monthly/${monthlyCode4(r.code)}">${label}</a>${neu}</td>`

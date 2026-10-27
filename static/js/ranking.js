@@ -5,14 +5,16 @@ const rkMonth = ym => ym ? `${ym.slice(0,4)}年${+ym.slice(5,7)}月` : "";
 const rkSession = s => s === "intraday"
   ? `<span class="qb qb-1Q">場中</span>` : `<span class="qb">引け後</span>`;
 const rkSessionTxt = s => s === "intraday" ? "場中" : "引け後";
-const rkAlpha = v => v==null ? " " : `<span class="sub">α</span> ${pct(v)}`;
+const rkAlpha = v => v==null ? " " : `<span class="sub">対TOPIX</span> ${pct(v)}`;
 const rkName = r => {
   const raw = String(r.name||""), name = rkEsc(raw), code = rkEsc(r.code.slice(0,4));
   return `<td class="l name pin1" title="${name}"><span class="clicky" onclick="gotoChart('${rkEsc(r.code)}')">${rkEsc(shortName(raw))}</span>${under(`<span class="sub">${code}</span>`)}</td>`;
 };
+const rkMarket = r => { const m = fmtMarket(r.market); return `<td class="l ${m.cls}">${rkEsc(m.label || "–")}</td>`; };
 const RK_SHOT_ROWS = 20;
-// 終点。次の決算がまだの回は現在まで
-const rkEnd = r => r.next_disclosed_date ? rkMd(r.end_date) : "現在";
+// 保有期間。次の決算の前日まで。まだ次の決算が無い回は保有中（株価の最終日まで）
+const rkHeld = r => r.next_disclosed_date ? `〜${rkMd(r.end_date)}` : "保有中";
+const rkBdays = r => r.bdays == null ? "" : `${r.bdays}営業日`;
 let rkData = null;
 let rkShot = null;   // X に投稿する画像（Promise<Blob>）。共有はクリックの中で呼ぶので先に作っておく
 let rkSeq = 0;       // 月を続けて変えたとき、古い応答で上書きしない
@@ -43,17 +45,20 @@ async function loadRanking(month){
     return;
   }
   $("#rk-info").textContent = `${d.rows.length} 銘柄 / ${rkMd(d.as_of)} 終値まで`;
-  let h = "<thead><tr><th class='pin0'>順位</th><th class='l name pin1'>銘柄</th>"
-        + "<th class='grp'>決算日</th>"
-        + "<th title='決算後に買えた最初の値から、次の決算の前日終値まで。下段は対TOPIX'>パフォーマンス</th>"
-        + "<th title='次の決算の前日。まだなら現在'>終点</th></tr></thead><tbody>";
+  let h = "<thead><tr><th class='pin0'>順位</th><th class='l'>市場</th><th class='l'>業種</th>"
+        + "<th class='l name pin1'>銘柄</th>"
+        + "<th class='grp' title='決算後に買えた最初の値から、次の決算の前日終値まで。下段は対TOPIX'>パフォーマンス</th>"
+        + "<th>決算日</th>"
+        + "<th title='決算後に買ってから次の決算の前日まで。次の決算がまだなら保有中（今日まで）'>保有期間</th></tr></thead><tbody>";
   for(const r of d.rows){
-    h += `<tr><td class="num pin0">${r.rank}</td>${rkName(r)}
-      <td class="num grp">${rkMd(r.disclosed_date)}${under(rkSession(r.session))}</td>
-      <td class="num">${pct(r.return_to_next)}${under(rkAlpha(r.alpha_to_next))}</td>
-      <td class="num">${rkEnd(r)}${under(r.days == null ? " " : `${fmt(r.days)}日`)}</td></tr>`;
+    h += `<tr><td class="num pin0">${r.rank}</td>
+      ${rkMarket(r)}<td class="l">${rkEsc(r.sector33 || "–")}</td>${rkName(r)}
+      <td class="num grp">${pct(r.return_to_next)}${under(rkAlpha(r.alpha_to_next))}</td>
+      <td class="num">${rkMd(r.disclosed_date)}${under(rkSession(r.session))}</td>
+      <td class="num">${rkHeld(r)}${under(`<span class="sub">${rkBdays(r)}</span>`)}</td></tr>`;
   }
   $("#rk-tbl").innerHTML = h + "</tbody>";
+  // 順位と銘柄を左に固定する（銘柄は順位の幅だけずらす）。市場・業種は横に送ると銘柄の下に隠れる
   pinCols($("#rk-tbl"), 2);
   $("#rk-share").hidden = false;
   rkShot = rkDrawShot(d);
@@ -83,9 +88,11 @@ function rkDrawShot(d){
   g.fillStyle = color("--sub");
   g.font = `13px ${font}`;
   g.fillText(`決算後に買えた最初の値から次の決算の前日終値まで（まだなら ${rkMd(d.as_of)} 終値まで）`, PAD, 62);
-  // 列: 画面の表と同じ 5 列（発表は決算日の下、α はパフォーマンスの下、日数は終点の下）
-  const cols = [["順位", 64, "right"], ["銘柄", 80, "left"], ["決算日", 430, "right"],
-                ["パフォーマンス", 580, "right"], ["終点", W - PAD, "right"]];
+  // 列: 画面の表と同じ（対TOPIX はパフォーマンスの下、場中 / 引け後は決算日の下、営業日は保有期間の下）
+  const X = {rank: 52, market: 64, sector: 150, name: 262, perf: 548, date: 618, held: W - PAD};
+  const cols = [["順位", X.rank, "right"], ["市場", X.market, "left"], ["業種", X.sector, "left"],
+                ["銘柄", X.name, "left"], ["パフォーマンス", X.perf, "right"], ["決算日", X.date, "right"],
+                ["保有期間", X.held, "right"]];
   const line = y => { g.strokeStyle = color("--border"); g.lineWidth = 1; g.beginPath(); g.moveTo(PAD, y); g.lineTo(W - PAD, y); g.stroke(); };
   let y = HEAD + ROW / 2;
   g.font = `11px ${font}`; g.fillStyle = color("--sub");
@@ -94,26 +101,30 @@ function rkDrawShot(d){
   const sign = v => v == null ? "–" : `${v > 0 ? "+" : ""}${v.toFixed(1)}%`;
   const tone = v => v == null ? color("--sub") : v >= 0 ? color("--up") : color("--down");
   const even = color("--row");
+  const fit = (t, w) => { while(g.measureText(t).width > w && t.length > 2) t = t.slice(0, -2) + "…"; return t; };
   for(const [i, r] of rows.entries()){
     y += ROW;
     if(i % 2 === 1){ g.fillStyle = even; g.fillRect(PAD, y - ROW / 2 + 1, W - PAD * 2, ROW - 1); }
     const y1 = y - 7, y2 = y + 9;
-    g.font = `14px ${font}`;
+    g.textAlign = "left"; g.fillStyle = color("--text"); g.font = `12px ${font}`;
+    const mk = fmtMarket(r.market);
+    const dot = {"mkt mkt-p": "#2563eb", "mkt mkt-s": "#9ca3af", "mkt mkt-g": "#16a34a"}[mk.cls];
+    if(dot){ g.fillStyle = dot; g.fillRect(X.market, y - 4, 7, 7); g.fillStyle = color("--text"); }
+    g.fillText(fit(mk.label || "–", 72), X.market + (dot ? 11 : 0), y);
+    g.fillText(fit(String(r.sector33 || "–").normalize("NFKC"), 106), X.sector, y);
     // J-Quants の名前は全角英数字。画像では半角に寄せて幅を取らない
-    let name = r.name.normalize("NFKC").replace(/\s+/g, " ");
-    g.textAlign = "left"; g.fillStyle = color("--text");
-    while(g.measureText(name).width > 280 && name.length > 2) name = name.slice(0, -2) + "…";
-    g.fillText(name, 80, y1);
+    g.font = `14px ${font}`;
+    g.fillText(fit(r.name.normalize("NFKC").replace(/\s+/g, " "), 180), X.name, y1);
     g.font = `11px ${font}`; g.fillStyle = color("--sub");
-    g.fillText(r.code.slice(0,4), 80, y2);
+    g.fillText(r.code.slice(0,4), X.name, y2);
     const cells = [
-      [String(r.rank), 64, "right", color("--text"), y, "14px"],
-      [rkMd(r.disclosed_date), 430, "right", color("--text"), y1, "14px"],
-      [rkSessionTxt(r.session), 430, "right", color("--sub"), y2, "11px"],
-      [sign(r.return_to_next), 580, "right", tone(r.return_to_next), y, "600 14px"],
-      [r.alpha_to_next == null ? "" : `α ${sign(r.alpha_to_next)}`, 580, "right", tone(r.alpha_to_next), y2, "11px"],
-      [rkEnd(r), W - PAD, "right", color("--text"), y1, "14px"],
-      [r.days == null ? "" : `${r.days}日`, W - PAD, "right", color("--sub"), y2, "11px"],
+      [String(r.rank), X.rank, "right", color("--text"), y, "14px"],
+      [sign(r.return_to_next), X.perf, "right", tone(r.return_to_next), y1, "600 14px"],
+      [r.alpha_to_next == null ? "" : `対TOPIX ${sign(r.alpha_to_next)}`, X.perf, "right", tone(r.alpha_to_next), y2, "11px"],
+      [rkMd(r.disclosed_date), X.date, "right", color("--text"), y1, "14px"],
+      [rkSessionTxt(r.session), X.date, "right", color("--sub"), y2, "11px"],
+      [rkHeld(r), X.held, "right", color("--text"), y1, "14px"],
+      [rkBdays(r), X.held, "right", color("--sub"), y2, "11px"],
     ];
     for(const [t, x, a, fill, yy, size] of cells){
       if(!t) continue;

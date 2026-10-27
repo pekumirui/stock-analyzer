@@ -1,4 +1,5 @@
 """ランキングタブ。/ranking/earnings-perf。決算月ごとの決算発表後パフォーマンス（次の決算の前日終値まで）。"""
+from bisect import bisect_right
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -7,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_session
 from ..market.analytics import is_after_close
-from ..models import DailyPrice, EarningsEvent, Stock
+from ..models import DailyPrice, EarningsEvent, Stock, Topix
 
 
 router = APIRouter()
@@ -45,17 +46,31 @@ def earnings_perf(month: str | None = None, db: Session = Depends(get_session)):
     evs = (db.query(EarningsEvent)
            .filter(EarningsEvent.is_first.is_(True),
                    EarningsEvent.disclosed_date >= start, EarningsEvent.disclosed_date < end).all())
-    names = dict(db.query(Stock.code, Stock.name).filter(Stock.code.in_({e.code for e in evs})).all())
-    rows = [{
-        "code": e.code, "name": names.get(e.code) or e.code,
-        "disclosed_date": e.disclosed_date.isoformat(), "disclosed_time": (e.disclosed_time or "")[:5] or None,
-        "session": "after" if is_after_close(e.disclosed_date, e.disclosed_time) else "intraday",
-        "base_date": e.base_date.isoformat() if e.base_date else None, "base_price": e.base_price,
-        "return_to_next": e.return_to_next, "alpha_to_next": e.alpha_to_next,
-        "next_disclosed_date": e.next_disclosed_date.isoformat() if e.next_disclosed_date else None,
-        "end_date": e.end_date.isoformat() if e.end_date else None,
-        "days": (e.end_date - e.disclosed_date).days if e.end_date else None,
-    } for e in evs]
+    stocks = {c: (n, mk, sec) for c, n, mk, sec in
+              db.query(Stock.code, Stock.name, Stock.market, Stock.sector33)
+              .filter(Stock.code.in_({e.code for e in evs})).all()}
+    # 営業日は TOPIX の日足の日。決算日の翌営業日から終点まで
+    bdays = [d for (d,) in db.query(Topix.date).filter(Topix.date > start).order_by(Topix.date)]
+
+    def held(e) -> int | None:
+        if not e.end_date:
+            return None
+        return bisect_right(bdays, e.end_date) - bisect_right(bdays, e.disclosed_date)
+
+    rows = []
+    for e in evs:
+        name, market, sector = stocks.get(e.code, (None, None, None))
+        rows.append({
+            "code": e.code, "name": name or e.code, "market": market, "sector33": sector,
+            "disclosed_date": e.disclosed_date.isoformat(),
+            "disclosed_time": (e.disclosed_time or "")[:5] or None,
+            "session": "after" if is_after_close(e.disclosed_date, e.disclosed_time) else "intraday",
+            "base_date": e.base_date.isoformat() if e.base_date else None, "base_price": e.base_price,
+            "return_to_next": e.return_to_next, "alpha_to_next": e.alpha_to_next,
+            "next_disclosed_date": e.next_disclosed_date.isoformat() if e.next_disclosed_date else None,
+            "end_date": e.end_date.isoformat() if e.end_date else None,
+            "bdays": held(e),
+        })
     rows.sort(key=lambda r: (r["return_to_next"] is None, -(r["return_to_next"] or 0), r["code"]))
     for i, r in enumerate(rows, 1):
         r["rank"] = i

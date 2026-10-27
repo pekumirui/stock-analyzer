@@ -112,6 +112,8 @@
   table.sheet { border-collapse:separate; border-spacing:0; }
   #earn-tbl.sheet { width:100%; }
   #rk-tbl.sheet, #sc-tbl.sheet { width:auto; }
+  /* 幅 1% の列があると auto の表が横いっぱいに伸びる。ランキングは銘柄が真ん中の列なので外す */
+  #rk-tbl td.name, #rk-tbl th.name { width:auto; }
   table.sheet th { font-size:11px; letter-spacing:.02em; padding:6px 8px; }
   table.sheet td { padding:7px 8px; vertical-align:top; background:var(--panel); }
   table.sheet td.num { font-size:13px; font-weight:500; }
@@ -197,13 +199,13 @@
   }
   #monthly-tbl td.name { cursor:pointer; color:var(--accent); }
   #monthly-tbl td.name:hover { text-decoration:underline; }
-  #monthly-tbl td.mkt::before {
+  #monthly-tbl td.mkt::before, #rk-tbl td.mkt::before {
     content:''; display:inline-block; width:.55em; height:.55em;
     border-radius:2px; margin-right:.35em; vertical-align:middle;
   }
-  #monthly-tbl td.mkt-p::before { background:#2563eb; }
-  #monthly-tbl td.mkt-s::before { background:#9ca3af; }
-  #monthly-tbl td.mkt-g::before { background:#16a34a; }
+  #monthly-tbl td.mkt-p::before, #rk-tbl td.mkt-p::before { background:#2563eb; }
+  #monthly-tbl td.mkt-s::before, #rk-tbl td.mkt-s::before { background:#9ca3af; }
+  #monthly-tbl td.mkt-g::before, #rk-tbl td.mkt-g::before { background:#16a34a; }
   .badge.new { background:var(--warn); color:#fff; margin-left:6px; }
   #monthly-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
   #monthly-chart { width:100%; margin:0 0 16px; }
