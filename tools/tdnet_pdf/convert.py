@@ -5,7 +5,8 @@ pdfium（pypdfium2）で文字と図形を読み、同じ位置に描く。文�
 違っても表の桁がずれない。画像（ロゴ・グラフの画像）は出さない。
 
 - 文字: textpage の 1 文字ずつの原点（ベースライン）・ゆるい字の枠・大きさ。pdfium は UTF-16 の 1 単位ずつ返すので、
-  サロゲートの組（𠮷 など）は 1 字に戻し、組にならないものは U+FFFD にする。フォント名・太さ・色は
+  サロゲートの組（𠮷 など）は 1 字に戻し、組にならないものは U+FFFD にする。返す HTML は utf8_safe で
+  残りを U+FFFD にする（Python の encode errors='replace' はサロゲートでは使えない。KAB-210）。フォント名・太さ・色は
   文字が属するテキストのオブジェクトごとに 1 回だけ取る。pdfium が足した空白・改行（generated）は捨てる。
   ベースラインが 1pt 以内の文字を 1 行にまとめ、左から並べ、隙間が 1.2pt を超えるか書式が変われば語を切る
 - 図形: ページのオブジェクトの path。Form XObject の入れ子を辿り、行列を掛け合わせてページの座標にする
@@ -22,6 +23,20 @@ import pypdfium2 as pdfium
 from pypdfium2 import raw
 
 CONVERTER = "svg2"
+
+
+def utf8_safe(s: str) -> str:
+    """UTF-8 に書けないサロゲートを U+FFFD 1 字に置き換える。それ以外の文字は触らない。
+
+    Python 3 の ``str.encode('utf-8', errors='replace')`` はサロゲートでは使えない
+    （``UnicodeEncodeError: surrogates not allowed``）。組の復元は ``_chars``。ここは漏れの止め。
+    """
+    try:
+        s.encode("utf-8")
+    except UnicodeEncodeError:
+        return "".join("\ufffd" if 0xD800 <= ord(c) <= 0xDFFF else c for c in s)
+    return s
+
 
 _BOLD = re.compile(r"bold|heavy|black|demi|w[6-9](?![0-9])|[-,]b$", re.I)
 _SANS = re.compile(r"gothic|goth|sans|arial|helvetica|meiryo|yu ?gothic|ud ?kaku", re.I)
@@ -270,4 +285,8 @@ def convert_pdf(src: Path | str | bytes) -> Converted:
         f'<!DOCTYPE html><html><head><meta charset="utf-8"><style>{STYLE}</style></head>'
         f"<body>\n{body}\n</body></html>"
     )
-    return Converted(html=out, pages=len(pages), title=title)
+    return Converted(
+        html=utf8_safe(out),
+        pages=len(pages),
+        title=utf8_safe(title) if title else None,
+    )

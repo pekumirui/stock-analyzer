@@ -13,6 +13,8 @@
   python tools/tdnet_pdf/ingest.py --code 5933 --retry-failed  # failed も取り直す
 
 最後に 1 行: tdnet_pdf stopped=<done|limit|rate_limited> ok=… missing=… failed=… remaining=…
+remaining は実行後に targets() を取り直した件数。failed（この実行で failed にした件数）とは別で、
+ok/missing/failed 済みと XBRL 原文のある回は入らない。--retry-failed のときだけ failed 済みも残件に入る。
 表 tdnet_pdf_documents はデプロイの jobs/migrate.py が作る。ここでは作らない（無ければ no such table で落ちる）。
 """
 from __future__ import annotations
@@ -36,7 +38,7 @@ from sqlalchemy.orm import Session  # noqa: E402
 
 from app.db import SessionLocal, run_sqlite_write  # noqa: E402
 from app.models import Statement, TdnetPdfDocument, XbrlDocument, XbrlFiling  # noqa: E402
-from tools.tdnet_pdf.convert import CONVERTER, convert_pdf  # noqa: E402
+from tools.tdnet_pdf.convert import CONVERTER, convert_pdf, utf8_safe  # noqa: E402
 
 PDF_URL = "https://api.irbank.net/api/market-files/v1/tdnet/{no}.pdf"
 USER_AGENT = "stock-analyzer/1.0 (personal; tools/tdnet_pdf)"
@@ -113,10 +115,14 @@ def _save(db: Session, row: TdnetPdfDocument) -> None:
 
 def ingest_one(db: Session, st: Statement, pdf: bytes) -> TdnetPdfDocument:
     conv = convert_pdf(pdf)
-    raw = conv.html.encode("utf-8")
+    html = utf8_safe(conv.html)
+    raw = html.encode("utf-8")
+    title = conv.title or st.type_of_document
+    if title:
+        title = utf8_safe(title)
     row = TdnetPdfDocument(
         disclosure_no=st.disclosure_no, code=st.code, disclosed_date=st.disclosed_date,
-        disclosed_time=st.disclosed_time, title=conv.title or st.type_of_document, status="ok", error=None,
+        disclosed_time=st.disclosed_time, title=title, status="ok", error=None,
         html_gz=gzip.compress(raw, compresslevel=6, mtime=0), bytes=len(raw),
         sha256=hashlib.sha256(raw).hexdigest(), pages=conv.pages,
         pdf_bytes=len(pdf), pdf_sha256=hashlib.sha256(pdf).hexdigest(),
