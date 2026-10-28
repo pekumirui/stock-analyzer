@@ -837,7 +837,7 @@ TDnet の ZIP は 2026-08-10 からしか無く、TDnet は約 1 か月で消す
 
 ### 16.2 変換
 
-pdfium（pypdfium2）でページごとに読む。文字は textpage の 1 文字ずつの原点（ベースライン）・ゆるい字の枠・大きさと、文字が属するテキストのオブジェクトのフォント名・太さ・色（オブジェクトごとに 1 回）。pdfium が足した空白・改行（generated）と制御文字・`\ufffe` は捨てる。pdfium は文字を UTF-16 の 1 単位ずつ返すので、同じテキストのオブジェクト内のサロゲートの組（`𠮷` など BMP の外）は 1 字に戻し、組にならないサロゲートは `U+FFFD` にする（UTF-8 に書けず `UnicodeEncodeError` で落ちていた。KAB-169、85110 の 20260212556179）。ベースラインが 1pt 以内の文字を 1 行にまとめ、左から並べ、字間が 1.2pt を超えるか書式（フォント・太さ・色・大きさ）が変われば語を切る。図形はページのオブジェクトの path を、Form XObject の入れ子（8 段まで）を辿って行列を掛け合わせ、SVG の `<path>`（直線・ベジェ曲線・閉じ）にする。塗りが白で線が無いものは捨てる。語の幅は `textLength`（`lengthAdjust="spacingAndGlyphs"`）で PDF に合わせる。フォント名に gothic / sans 等があれば sans-serif、それ以外は serif。太さ 600 以上か名前に bold / W6〜W9 等があれば太字。題名は 1 ページ目の行で `決算短信` / `業績予想` / `お知らせ` 等を含む最初のもの。変換器の版は `CONVERTER`（今は `svg2`。KAB-164 の pdfplumber 版は `svg1`）を行に残す。`svg1` の行は入れ直さない（見た目はほぼ同じ）
+pdfium（pypdfium2）でページごとに読む。文字は textpage の 1 文字ずつの原点（ベースライン）・ゆるい字の枠・大きさと、文字が属するテキストのオブジェクトのフォント名・太さ・色（オブジェクトごとに 1 回）。pdfium が足した空白・改行（generated）と制御文字・`\ufffe` は捨てる。pdfium は文字を UTF-16 の 1 単位ずつ返すので、同じテキストのオブジェクト内のサロゲートの組（`𠮷` など BMP の外）は 1 字に戻し、組にならないサロゲートは `U+FFFD` にする（UTF-8 に書けず `UnicodeEncodeError` で落ちていた。KAB-169、85110 の 20260212556179）。組の復元を通っても残り得るサロゲートは、変換結果を返す直前と `ingest_one` の `encode` 直前に `U+FFFD` 1 字へ置き換える（`encode('utf-8')` の strict は `UnicodeEncodeError`。`errors='replace'` は ASCII `?` になる。KAB-210）。置き換えは該当文字だけなので本文は欠けない。ベースラインが 1pt 以内の文字を 1 行にまとめ、左から並べ、字間が 1.2pt を超えるか書式（フォント・太さ・色・大きさ）が変われば語を切る。図形はページのオブジェクトの path を、Form XObject の入れ子（8 段まで）を辿って行列を掛け合わせ、SVG の `<path>`（直線・ベジェ曲線・閉じ）にする。塗りが白で線が無いものは捨てる。語の幅は `textLength`（`lengthAdjust="spacingAndGlyphs"`）で PDF に合わせる。フォント名に gothic / sans 等があれば sans-serif、それ以外は serif。太さ 600 以上か名前に bold / W6〜W9 等があれば太字。題名は 1 ページ目の行で `決算短信` / `業績予想` / `お知らせ` 等を含む最初のもの。変換器の版は `CONVERTER`（今は `svg2`。KAB-164 の pdfplumber 版は `svg1`）を行に残す。`svg1` の行は入れ直さない（見た目はほぼ同じ）
 
 ### 16.3 表 `tdnet_pdf_documents`
 
@@ -855,7 +855,7 @@ pdfium（pypdfium2）でページごとに読む。文字は textpage の 1 文�
 
 - 対象: 指定した銘柄（`--code` 複数可、`--all` で全銘柄）の `statements` のうち、XBRL の原文（`xbrl_documents`。ZIP 名の後ろ 14 桁で照合）も、この表の `ok` / `missing` も無い回。新しい順。`failed` は `--retry-failed` のときだけ
 - 1 件ずつ 取得 → 変換 → 保存（commit）。間隔は `--sleep`（既定 1 秒）、件数は `--limit`。IR BANK が 429 / 503 を返したら上限とみなして止める（終了コード 0）。途中で止めても次の実行で続きから
-- 最後の 1 行: `tdnet_pdf stopped=<done|limit|rate_limited> ok=… missing=… failed=… remaining=…`。`--dry-run` は対象の件数と先頭 10 件だけ
+- 最後の 1 行: `tdnet_pdf stopped=<done|limit|rate_limited> ok=… missing=… failed=… remaining=…`。`remaining` はこの実行のあとに `targets()` を取り直した件数で、`failed`（この実行で failed にした件数）とは別。`--retry-failed` 無しでは failed 済みは残件に入らない。`stopped=done` なのに remaining>0 なら、実行開始時の対象に含まれなかった回（実行中に statements が増えた等）が残っている。`--dry-run` は対象の件数と先頭 10 件だけ
 - 取った PDF が `/Linearized` の `/L`（ファイル全体の長さ）より短ければ、途中で切れたものとして `failed`（`truncated pdf`）。IR BANK に途中までしか無い PDF がある（79520 の 20260212556420 は 277,188 バイト中 76,224 バイト。pdfium も pdfminer も poppler も読めない）。旧変換器（pdfplumber）でも読めないのでフォールバックはせず `failed` のまま残し、`--retry-failed` で取り直す
 - VPS で動かす（bot が銘柄を指定して毎日）。pypdfium2 は `requirements.txt` に入れた（KAB-169 で pdfplumber から替えた）
 - 規模の見込み: `statements` 約 9.6 万件を全部入れると DB は約 4GB 増える（1 件 43KB）

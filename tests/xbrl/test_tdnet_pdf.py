@@ -9,7 +9,7 @@ import httpx
 from app.db import SessionLocal
 from app.models import Statement, Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
 from tools.tdnet_pdf import ingest
-from tools.tdnet_pdf.convert import CONVERTER, convert_pdf
+from tools.tdnet_pdf.convert import CONVERTER, convert_pdf, utf8_safe
 
 
 def make_pdf(title: str = "Financial Results FY2025", value: str = "1,234") -> bytes:
@@ -76,6 +76,108 @@ def test_convert_pdf_joins_surrogate_pairs() -> None:
     conv.html.encode("utf-8")  # 落ちない
     assert ">\U00020bb7</text>" in conv.html
     assert conv.html.count(">\ufffd</text>") == 2
+
+
+def test_utf8_safe_replaces_only_surrogates() -> None:
+    """strict の encode は落ち、replace は ASCII '?' になる。U+FFFD 1 字にして本文と補助面は残す（KAB-210）。"""
+    body = "配当予想の修正" + "\ud800" + "に関するお知らせ" + "\U00020bb7" + ("本文" * 400)
+    try:
+        body.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        assert "surrogates" in str(exc)
+    else:
+        raise AssertionError("strict utf-8 unexpectedly encoded a lone surrogate")
+    try:
+        alt = body.encode("utf-8", errors="replace").decode("utf-8")
+        assert "?" in alt and "\ufffd" not in alt
+    except UnicodeEncodeError:
+        pass
+    out = utf8_safe(body)
+    out.encode("utf-8")
+    assert "配当予想の修正" in out and "に関するお知らせ" in out
+    assert "\U00020bb7" in out
+    assert "\ud800" not in out and out.count("\ufffd") == 1
+    assert len(out) == len(body)
+    assert utf8_safe("ascii only") == "ascii only"
+    assert utf8_safe("") == ""
+
+
+def test_ingest_one_saves_html_with_lone_surrogates(monkeypatch) -> None:
+    """抽出漏れのサロゲートが本文に残っても、保存時に U+FFFD にして UTF-8 で書ける（KAB-210）。"""
+    db = SessionLocal()
+    try:
+        db.add(Stock(code="77770", name="サロゲート工業", market="プライム", sector33="情報・通信業"))
+        st = Statement(
+            disclosure_no="20260101000021", code="77770", disclosed_date=date(2026, 1, 1),
+            disclosed_time="15:30:00", type_of_document="FYFinancialStatements_Consolidated_JP",
+        )
+        db.add(st)
+        db.commit()
+
+        prefix = "前文。決算短信の本文はここにあり、"
+        mid = "数値は 1,234 百万円。"
+        suffix = "後文。" + ("あいうえお" * 200)
+        leaked = prefix + "\ud800" + mid + "\udfff" + suffix
+        html = (
+            '<!DOCTYPE html><html><head><meta charset="utf-8"></head>'
+            f"<body><svg>{leaked}</svg></body></html>"
+        )
+
+        class Fake:
+            def __init__(self) -> None:
+                self.html = html
+                self.pages = 3
+                self.title = "決算短信\ud800"
+
+        monkeypatch.setattr(ingest, "convert_pdf", lambda _pdf: Fake())
+        row = ingest.ingest_one(db, st, b"%PDF-fake")
+        saved = gzip.decompress(row.html_gz).decode("utf-8")
+        saved.encode("utf-8")
+        assert row.status == "ok" and row.pages == 3
+        assert prefix in saved and mid in saved and "後文。" in saved
+        assert "\ud800" not in saved and "\udfff" not in saved
+        assert saved.count("\ufffd") == 2
+        assert len(saved) == len(html)
+        assert row.title == "決算短信\ufffd"
+        assert row.bytes == len(saved.encode("utf-8"))
+    finally:
+        db.close()
+
+
+def test_remaining_is_unprocessed_not_failed() -> None:
+    """remaining は実行後の targets()。failed にした回は含まない（KAB-210）。"""
+    db = SessionLocal()
+    try:
+        db.add(Stock(code="88880", name="残件工業", market="プライム", sector33="情報・通信業"))
+        for no, d in [
+            ("20260101000011", date(2026, 1, 1)),  # ok
+            ("20250101000012", date(2025, 1, 1)),  # 壊れた PDF → failed
+            ("20240101000013", date(2024, 1, 1)),  # limit で未着手
+        ]:
+            db.add(Statement(
+                disclosure_no=no, code="88880", disclosed_date=d, disclosed_time="15:30:00",
+                type_of_document="FYFinancialStatements_Consolidated_JP",
+            ))
+        db.commit()
+        pdf = make_pdf("Financial Results FY2026")
+
+        def handler(req: httpx.Request) -> httpx.Response:
+            no = req.url.path.rsplit("/", 1)[-1].removesuffix(".pdf")
+            if no == "20250101000012":
+                return httpx.Response(200, content=b"%PDF-not-a-real-document")
+            return httpx.Response(200, content=pdf, headers={"content-type": "application/pdf"})
+
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            stats = ingest.run(db, ["88880"], sleep=0, limit=2, client=client, log=lambda *_: None)
+        assert stats["ok"] == 1 and stats["failed"] == 1 and stats["stopped"] == "limit"
+        assert stats["remaining"] == 1
+        assert db.get(TdnetPdfDocument, "20250101000012").status == "failed"
+        assert [s.disclosure_no for s in ingest.targets(db, ["88880"])] == ["20240101000013"]
+        assert [s.disclosure_no for s in ingest.targets(db, ["88880"], retry_failed=True)] == [
+            "20250101000012", "20240101000013",
+        ]
+    finally:
+        db.close()
 
 
 def test_fetch_pdf_rejects_truncated_linearized() -> None:
