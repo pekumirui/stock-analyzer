@@ -146,6 +146,8 @@
 - std_item: depreciation
   elements:
     - { ns: pdf-cf, name: 減価償却費, priority: 10 }
+    - { ns: pdf-cf, name: 減価償却費及び償却費, priority: 11 }
+    - { ns: pdf-cf, name: 減価償却費及びその他の償却費, priority: 12 }
 - std_item: cash_end
   elements:
     - { ns: pdf-cf, name: 現金及び現金同等物の期末残高, priority: 10 }

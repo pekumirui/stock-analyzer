@@ -12,6 +12,8 @@ from tools.tdnet_pdf.verify_financials import (
     compare_maps,
     disclosure_no_of,
     fy_start,
+    has_complete_dates,
+    submitted_at_of,
 )
 from pathlib import Path
 
@@ -82,3 +84,35 @@ def test_close_enough_dps_and_ratio() -> None:
 def test_fy_start_from_twentieth() -> None:
     if fy_start(date(2027, 3, 20)) != date(2026, 3, 21):
         _fail(str(fy_start(date(2027, 3, 20))))
+
+
+def test_submitted_at_prefers_statement_not_disclosure_no(tmp_path: Path) -> None:
+    """KAB-219: 135A の ZIP 名は 20261014、開示番号の先頭は 20260831。"""
+    zip_path = tmp_path / "20261014_135A_第2四半期決算短信_081220260831528808.zip"
+    zip_path.write_bytes(b"x")
+    st = SimpleNamespace(disclosed_date=date(2026, 10, 14), disclosed_time="16:15:00")
+    got = submitted_at_of(statement=st, zip_path=zip_path)
+    if got != "2026-10-14 16:15:00":
+        _fail(got)
+    from_name = submitted_at_of(statement=None, zip_path=zip_path)
+    if from_name != "2026-10-14 15:00:00":
+        _fail(from_name)
+    if "2026-08-31" in from_name:
+        _fail("disclosure_no date leaked")
+
+
+def test_has_complete_dates_skips_zip_overwrite() -> None:
+    """KAB-219: J-Quants の日付がある statements は ZIP の誤った期末で上書きしない。"""
+    complete = SimpleNamespace(
+        period_start=date(2026, 3, 1),
+        period_end=date(2026, 8, 31),
+        fiscal_year_start=date(2026, 3, 1),
+        fiscal_year_end=date(2027, 2, 28),
+    )
+    if not has_complete_dates(complete):
+        _fail("complete")
+    if has_complete_dates(SimpleNamespace(period_start=None, period_end=None,
+                                          fiscal_year_start=None, fiscal_year_end=None)):
+        _fail("empty")
+    if has_complete_dates(None):
+        _fail("none")

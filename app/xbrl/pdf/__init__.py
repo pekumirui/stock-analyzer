@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import re
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Literal
@@ -18,11 +19,18 @@ from sqlalchemy.orm import Session
 from app.models import Statement, TdnetPdfDocument, XbrlFiling, XbrlFinancial
 from app.xbrl.normalize import is_normalizable_context, normalize_filing
 from app.xbrl.parser import ParsedPackage
-from app.xbrl.pdf._layout import PdfLayoutError, read_pages
+from app.xbrl.pdf._layout import (
+    PdfLayoutError,
+    format_garbled_pages,
+    garbled_page_indexes,
+    read_pages,
+)
 from app.xbrl.pdf._tanshin import (
     DocKind,
     PdfDisclosure,
     Unsupported,
+    drop_pre_correction,
+    is_amendment_notice,
     label_key,
     package,
     parse_disclosure_no,
@@ -41,7 +49,10 @@ __all__ = [
     "PdfLayoutError",
     "SyncOutcome",
     "Unsupported",
+    "format_garbled_pages",
+    "garbled_page_indexes",
     "label_key",
+    "read_pages",
     "read_tdnet_pdf",
     "sync_pdf_filing",
     "sync_pdf_filings",
@@ -49,7 +60,10 @@ __all__ = [
 
 SOURCE = "tdnet_pdf"
 # レイアウト・行名・label_key の結果が変わったら上げる。上げると全 PDF filing の指紋がずれる。
-READER_VERSION = 3
+READER_VERSION = 5
+_STD_DOC = re.compile(
+    r"^(?:1Q|2Q|3Q|FY)FinancialStatements_(?:Consolidated|NonConsolidated)_(IFRS|JP)$"
+)
 
 
 class SyncOutcome(str, Enum):
@@ -60,9 +74,32 @@ class SyncOutcome(str, Enum):
     ABSENT = "absent"
 
 
-def fingerprint(html_sha256: str) -> str:
-    """xbrl_filings.raw_sha256。HTML と READER_VERSION を 1 つの値にする。"""
-    return hashlib.sha256(f"{html_sha256}:{READER_VERSION}".encode()).hexdigest()
+def fingerprint(html_sha256: str, standard: str | None = None) -> str:
+    """xbrl_filings.raw_sha256。HTML と READER_VERSION と会計基準を 1 つの値にする。"""
+    token = standard or ""
+    return hashlib.sha256(f"{html_sha256}:{READER_VERSION}:{token}".encode()).hexdigest()
+
+
+def inherit_accounting_standard_from_statements(
+    db: Session,
+    *,
+    code: str,
+    disclosed_date: date | None,
+) -> str | None:
+    """修正開示など type_of_document に基準が無いとき、近い通常の短信から取る（KAB-213）。"""
+    if disclosed_date is None:
+        return None
+    best: str | None = None
+    best_dist: int | None = None
+    for st in db.query(Statement).filter(Statement.code == code):
+        matched = _STD_DOC.fullmatch(st.type_of_document or "")
+        if matched is None or st.disclosed_date is None:
+            continue
+        dist = abs((st.disclosed_date - disclosed_date).days)
+        if best_dist is None or dist < best_dist:
+            best_dist = dist
+            best = "IFRS" if matched.group(1) == "IFRS" else "JPGAAP"
+    return best
 
 
 def read_tdnet_pdf(html: str, disclosure: PdfDisclosure) -> ParsedPackage:
@@ -70,7 +107,7 @@ def read_tdnet_pdf(html: str, disclosure: PdfDisclosure) -> ParsedPackage:
 
     金額は円（百万円は 10^6 倍）。印字の符号のまま（△ は負）。百分率は pure。
     """
-    return package(read_pages(html), disclosure)
+    return package(drop_pre_correction(read_pages(html)), disclosure)
 
 
 @dataclass(frozen=True)
@@ -82,7 +119,9 @@ class _Build:
 
 @dataclass(frozen=True)
 class _Absent:
-    reason: Literal["zip", "no-html", "no-statement", "doc-type", "reit", "irregular-period", "no-dates"]
+    reason: Literal[
+        "zip", "no-html", "no-statement", "doc-type", "reit", "irregular-period", "no-dates", "flash-results",
+    ]
 
 
 def _now() -> datetime:
@@ -103,10 +142,18 @@ def _plan(db: Session, disclosure_no: str, zip_parsed: bool) -> _Build | _Absent
     statement = db.get(Statement, disclosure_no)
     if statement is None:
         return _Absent("no-statement")
+    if doc.title and "速報値" in doc.title:
+        return _Absent("flash-results")
     parsed = PdfDisclosure.parse(statement)
     if isinstance(parsed, Unsupported):
         return _Absent(parsed.reason)
-    return _Build(parsed, doc, fingerprint(doc.sha256))
+    if parsed.standard is None:
+        inherited = inherit_accounting_standard_from_statements(
+            db, code=parsed.code, disclosed_date=statement.disclosed_date,
+        )
+        if inherited:
+            parsed = replace(parsed, standard=inherited)
+    return _Build(parsed, doc, fingerprint(doc.sha256, parsed.standard))
 
 
 def _filing(db: Session, disclosure_no: str) -> XbrlFiling | None:
@@ -198,7 +245,10 @@ def _sync(db: Session, disclosure_no: str, zip_parsed: bool, *, reparse: bool) -
     delete_filing_payload(db, filing.id)
     try:
         html = gzip.decompress(plan.doc.html_gz).decode("utf-8")
-        pkg = _kept(read_tdnet_pdf(html, plan.disclosure))
+        pages = read_pages(html)
+        garbled_note = format_garbled_pages(garbled_page_indexes(pages))
+        amendment = is_amendment_notice(plan.doc.title, pages)
+        pkg = _kept(package(drop_pre_correction(pages), plan.disclosure))
     except PdfLayoutError as exc:
         filing.parse_status = "failed"
         filing.parse_error = str(exc)[:2000]
@@ -218,6 +268,9 @@ def _sync(db: Session, disclosure_no: str, zip_parsed: bool, *, reparse: bool) -
         )
     store_package(db, filing, pkg)
     normalize_filing(db, filing)
+    filing.is_amendment = amendment
+    if garbled_note:
+        filing.parse_error = garbled_note
     db.commit()
     return SyncOutcome.PARSED
 
@@ -249,7 +302,12 @@ def sync_pdf_filings(
     counts: Counter = Counter()
     for number in ordered[:limit]:
         try:
-            counts[_sync(db, number, number in zip_set, reparse=reparse)] += 1
+            outcome = _sync(db, number, number in zip_set, reparse=reparse)
+            counts[outcome] += 1
+            if outcome is SyncOutcome.PARSED:
+                filing = _filing(db, number)
+                if filing is not None and (filing.parse_error or "").startswith("garbled"):
+                    counts["garbled"] += 1
         except Exception as exc:
             db.rollback()
             counts[SyncOutcome.FAILED] += 1

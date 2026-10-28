@@ -48,15 +48,29 @@ _FURNITURE_TOL = 3.0
 _FURNITURE_TOP = 60.0
 _FURNITURE_BOTTOM = 780.0
 # 表の右上の注記。列見出しではない（「対前期増減率」で列を捨てない）。
-_HEADER_NOTE = re.compile(r"表示は|^\(注")
+# ＝ で始まる式（KAB-216 9983「＝売上収益－売上原価－…」）も見出しにしない。
+_HEADER_NOTE = re.compile(r"表示は|^\(注|[＝=]")
 # 注記の行（「(注)包括利益 … △52百万円」）。列見出しにしない。
-_NOTE_LINE = re.compile(r"^(\(注|※|\(参考\))")
+_NOTE_LINE = re.compile(r"^(\(注|※|\(参考\)|[＝=])")
+# ※1 / ※ の注記番号（KAB-214）。空白の後ろだけ消す（※2171,958 の番号と金額をつながない）。
+_NOTE_MARK = re.compile(r"※\s*\d{0,2}(?=\s|$)")
+# 配当の「40 円 40 円」（KAB-213）。金額の間と末尾の飾り。
+_AMOUNT_GAP = re.compile(r"^[\s円銭]+$")
+# 語の途中から始まる数字は金額にしない（KAB-216）。直前が行頭・空白・△▲・～ のときだけ。
+_AMOUNT_PREV = set("△▲~～〜")
+# 列見出しの打ち切り（KAB-216）。空白を除いてこの字数を超える行は注記とみなす。
+_HEADER_PROSE_LEN = 40
+# 本表ページの文字化け（KAB-218）。想定する文字種以外の割合。
+_GARBLED_RATIO = 0.5
+_GARBLED_MIN_CHARS = 30
 # 見出しの語が数値の列に重ならないとき、この距離までなら中心がいちばん近い列の見出し。
 _HEADER_REACH = 80.0
 # 行名がここで終われば、次の数値の無い行は同じ行名の続き。
 _CONTINUES = re.compile(r"(及び|並びに|又は|に|の|・|、|帰属する|係る|対する)$")
-# 数値の無い行が「損失」で始まるなら、前の行名の折り返しの尾（「…中間純」＋「損失（△）」）。
-_TAIL = re.compile(r"^純?損失")
+# 数値の無い行が前の行名の折り返しの尾（「…中間純」＋「損失（△）」、「額（△は減少）」、「(予想)」）。
+_TAIL = re.compile(r"^純?損失|^額|^[（(]予想")
+# 値だけの行のあとでも、これは新しい行名（KAB-213 の今回予想を前回に付けない）。
+_ROW_ROLE = re.compile(r"^(前回|今回|前期|通期|第[123]四半期|(当|前|次)期)")
 
 
 class PdfLayoutError(ValueError):
@@ -202,14 +216,79 @@ def _strip_furniture(pages: list[Page]) -> list[Page]:
         near = {index for index, base in hits if abs(base - line.base) <= _FURNITURE_TOL}
         return len(near) >= _FURNITURE_PAGES
 
+    def page_number(line: Line) -> bool:
+        # 表の途中の「- 104」（前期ダッシュ・当期 104）をページ番号と取り違えない（KAB-220）。
+        if not _PAGE_NUMBER.fullmatch(_furniture_key(line)):
+            return False
+        return not (_FURNITURE_TOP < line.base < _FURNITURE_BOTTOM)
+
     out: list[Page] = []
     for page in pages:
         kept = tuple(
             line for line in page.lines
-            if not _PAGE_NUMBER.fullmatch(_furniture_key(line)) and not repeated(line)
+            if not page_number(line) and not repeated(line)
         )
         out.append(Page(page.index, kept))
     return out
+
+
+def _is_expected_char(ch: str) -> bool:
+    """ASCII・かな・漢字・全角・CJK 記号と、短信でよく出る印（※△①）。"""
+    if ch.isascii():
+        return True
+    code = ord(ch)
+    if 0x3000 <= code <= 0x30FF:
+        return True
+    if 0x4E00 <= code <= 0x9FFF:
+        return True
+    if 0xFF00 <= code <= 0xFFEF:
+        return True
+    if 0x2000 <= code <= 0x206F:
+        return True
+    if 0x2190 <= code <= 0x21FF:
+        return True
+    if 0x2460 <= code <= 0x24FF:
+        return True
+    if 0x2500 <= code <= 0x25FF:
+        return True
+    if 0x3200 <= code <= 0x33FF:
+        return True
+    if 0x2E80 <= code <= 0x2EFF:
+        return True
+    if 0x31C0 <= code <= 0x31FF:
+        return True
+    if 0x00A0 <= code <= 0x024F:
+        return True
+    return False
+
+
+def garbled_ratio(page: Page) -> float:
+    chars = [ch for line in page.lines for ch in line.text if not ch.isspace()]
+    if len(chars) < _GARBLED_MIN_CHARS:
+        return 0.0
+    bad = sum(1 for ch in chars if not _is_expected_char(ch))
+    return bad / len(chars)
+
+
+def garbled_page_indexes(pages: list[Page]) -> list[int]:
+    """0 始まりのページ番号。想定する文字種以外が半分以上なら文字化け（KAB-218）。"""
+    return [page.index for page in pages if garbled_ratio(page) >= _GARBLED_RATIO]
+
+
+def format_garbled_pages(indexes: list[int]) -> str:
+    if not indexes:
+        return ""
+    pages = [index + 1 for index in indexes]
+    ranges: list[str] = []
+    start = prev = pages[0]
+    for number in pages[1:]:
+        if number == prev + 1:
+            prev = number
+            continue
+        ranges.append(f"{start}-{prev}" if start != prev else str(start))
+        start = prev = number
+    ranges.append(f"{start}-{prev}" if start != prev else str(start))
+    return "garbled pages=" + ",".join(ranges)
 
 
 def _group_lines(words: list[Word]) -> tuple[Line, ...]:
@@ -293,12 +372,29 @@ def _parse_amount(raw: str, x1: float, x0: float = 0.0) -> Amount:
     return Amount(value, None, x1, x0)
 
 
+def _mask_note_marks(text: str) -> str:
+    return _NOTE_MARK.sub(lambda match: " " * len(match.group(0)), text)
+
+
+def _amount_start_ok(text: str, start: int) -> bool:
+    if start == 0:
+        return True
+    prev = text[start - 1]
+    return prev.isspace() or prev in _AMOUNT_PREV
+
+
+def _skippable_gap(text: str) -> bool:
+    return not text.strip() or bool(_AMOUNT_GAP.fullmatch(text))
+
+
 def split_amounts(line: Line) -> tuple[str, list[Amount]]:
     """行の右端の数値。行頭の「1.」のような番号はラベルのまま。"""
     text, spans = _line_string(line)
+    text = _mask_note_marks(text)
     matches = [
         match for match in _AMOUNT.finditer(text)
         if not _TICKER_PAREN.fullmatch(re.sub(r"\s+", "", match.group(0)))
+        and _amount_start_ok(text, match.start())
     ]
     if not matches or not spans:
         return text.strip(), []
@@ -307,11 +403,11 @@ def split_amounts(line: Line) -> tuple[str, list[Amount]]:
         cursor = match.start()
         ok = True
         for later in matches[index:]:
-            if text[cursor:later.start()].strip():
+            if not _skippable_gap(text[cursor:later.start()]):
                 ok = False
                 break
             cursor = later.end()
-        if ok and not text[cursor:].strip():
+        if ok and _skippable_gap(text[cursor:]):
             chosen = matches[index:]
             break
     if not chosen:
@@ -377,9 +473,51 @@ def grid(lines: list[Line]) -> Grid:
     # ダッシュだけの列も残す（配当の「第１四半期末 －」）。消すと見出しが隣の列へ寄る。
     if not any(has_value.values()):
         raise PdfLayoutError("no anchors")
+    min_left = min(lefts.values()) if lefts else 0.0
+
+    def is_prose(index: int) -> bool:
+        compact = _compact_text(parsed[index][0].text)
+        if "。" in compact or _NOTE_LINE.match(compact):
+            return True
+        return len(compact) > _HEADER_PROSE_LEN
+
+    def is_hanging_label(index: int) -> bool:
+        """数値より上にずれた行名（列より左だけ。列に乗る語があれば見出し）。KAB-213。"""
+        _, _, amounts = parsed[index]
+        if amounts:
+            return False
+        compact = _compact_text(parsed[index][0].text)
+        if _UNIT_NOTE.search(compact) or compact in {"円", "銭"}:
+            return False
+        words = parsed[index][0].words
+        if not words:
+            return False
+        edge = min_left - COL_TOL
+        return max(word.x1 for word in words) < edge
+
+    hanging: set[int] = set()
+    cursor = numeric[0] - 1
+    while cursor >= 0:
+        if parsed[cursor][2] or is_prose(cursor) or not is_hanging_label(cursor):
+            break
+        hanging.add(cursor)
+        cursor -= 1
+    header_from = 0
+    for index in range(numeric[0] - 1, -1, -1):
+        if index in hanging:
+            continue
+        # 式の注記は見出しの途中に挟まる。ここで切ると上の科目名が落ちる（KAB-216 9983）。
+        if _NOTE_LINE.match(_compact_text(parsed[index][0].text)):
+            continue
+        if parsed[index][2] or is_prose(index):
+            header_from = index + 1
+            break
     header_lines = [
-        parsed[index][0] for index in range(numeric[0])
-        if not parsed[index][2] and not _NOTE_LINE.match(_compact_text(parsed[index][0].text))
+        parsed[index][0]
+        for index in range(header_from, numeric[0])
+        if index not in hanging
+        and not parsed[index][2]
+        and not _NOTE_LINE.match(_compact_text(parsed[index][0].text))
     ]
     headers_of: dict[float, list[str]] = {anchor: [] for anchor in anchors}
     for line in header_lines:
@@ -396,13 +534,14 @@ def grid(lines: list[Line]) -> Grid:
     # 直前の行が「数値だけの行」に行名を前の行から借りたか（3 行に折り返した行名の真ん中に数値がある）
     value_only = False
     for index, (line, label, amounts) in enumerate(parsed):
-        if index < numeric[0]:
+        if index < numeric[0] and index not in hanging:
             continue
         if not amounts:
-            if rows and not pending and (
+            compact_line = _compact_text(line.text)
+            if rows and not pending and not _ROW_ROLE.match(compact_line) and (
                 value_only
                 or _CONTINUES.search(_compact_text(rows[-1].label))
-                or _TAIL.search(_compact_text(line.text))
+                or _TAIL.search(compact_line)
             ):
                 rows[-1] = GridRow(f"{rows[-1].label}{line.text}", rows[-1].cells)
                 value_only = False
@@ -416,6 +555,7 @@ def grid(lines: list[Line]) -> Grid:
             compact_label,
         ))
         full = f"{pending}{label}" if pending and not complete else (label or pending)
+        # 行名を借りた数値行のあと、「(予想)」「額（△は減少）」は続き。今回予想は新しい行。
         value_only = bool(pending) and not label.strip()
         pending = ""
         cells: list[Amount | None] = []
@@ -507,14 +647,21 @@ def _compact_text(raw: str) -> str:
     return re.sub(r"\s+", "", unicodedata.normalize("NFKC", raw or ""))
 
 
+def _header_overlap(word: Word, anchor: float, left: float) -> float:
+    """見出しの語と列（左端〜右端）が重なる幅。端が触れるだけの列は 0。"""
+    return max(0.0, min(word.x1, anchor) - max(word.x0, left))
+
+
 def _columns_under(word: Word, anchors: list[float], lefts: dict[float, float]) -> list[float]:
-    """見出しの語が重なる列。どれにも重ならなければ、中心がいちばん近い列（_HEADER_REACH 以内）。"""
-    hit = [
-        anchor for anchor in anchors
-        if word.x0 <= anchor + COL_TOL and word.x1 >= lefts[anchor] - COL_TOL
-    ]
-    if hit:
-        return hit
+    """見出しの語が重なる列。隣の列と端だけ接する語は入れない（KAB-213 の経常利益）。
+
+    重なりが正の列はすべて載せる（1377 の純利益が見出しを金額列と％列にまたぐ）。
+    どれにも重ならなければ、中心がいちばん近い列（_HEADER_REACH 以内）。
+    """
+    overlaps = [(anchor, _header_overlap(word, anchor, lefts[anchor])) for anchor in anchors]
+    positive = [anchor for anchor, width in overlaps if width > 0]
+    if positive:
+        return positive
     center = (word.x0 + word.x1) / 2
     best = min(anchors, key=lambda anchor: abs((lefts[anchor] + anchor) / 2 - center))
     if abs((lefts[best] + best) / 2 - center) <= _HEADER_REACH:

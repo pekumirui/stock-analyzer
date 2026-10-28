@@ -43,6 +43,7 @@ def main(argv: list[str] | None = None) -> int:
         apply_mappings(db)
         counts = sync_pdf_filings(db, codes=codes, reparse=args.reparse, limit=args.limit)
         parts = [f"{outcome.value}={counts[outcome]}" for outcome in SyncOutcome]
+        parts.append(f"garbled={counts['garbled']}")
         parts.append(f"remaining={counts['remaining']}")
         print("tdnet_pdf_financials " + " ".join(parts), flush=True)
         return 0

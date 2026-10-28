@@ -50,10 +50,20 @@ _UNIT_TOKENS = frozenset({"百万円", "千円", "円", "円銭", "銭", "%", "�
 _NUMERIC_ITEM = re.compile(r"\d")
 # 1 ページ目の列見出しのうち、科目名ではなく列の役割・単位。
 _HEADER_ROLE = re.compile(
-    r"増減率|対前期|前回発表予想|今回修正予想|今回発表予想"
+    r"増減率|対前期|前回発表予想|今回修正予想|今回発表予想|前回予想|今回予想"
+    r"|[\(（][ABＡＢ][\)）]"
     r"|第[123]四半期末|中間期末|^期末$|^(年間)?合計$|下限|上限"
     r"|第[123]四半期|中間期|上期|通期"
 )
+# 数値の無い CF の区分見出し（KAB-216）。金額がある合計行は残す。
+_CF_CLASS = re.compile(r"^(営業|投資|財務)活動によるキャッシュ・フロー$")
+# 数値の無い BS の区分見出し。hanging が「資産流動資産現金及び預金」にしない。
+_BS_CLASS = re.compile(
+    r"^(資産|負債|純資産|資本|流動資産|固定資産|非流動資産|流動負債|固定負債|非流動負債|株主資本)$"
+)
+# 訂正短信の「（訂正前）」ブロック（KAB-212）。
+_CORR_BEFORE = re.compile(r"^[【\[(（]*訂正前[)）】\]]*$")
+_CORR_AFTER = re.compile(r"^[【\[(（]*訂正後[)）】\]]*$")
 # IFRS 本表は費用を △ で印字する。ZIP の CostOfSales は正なので符号を合わせる。合計の行も同じ。
 _IFRS_EXPENSE_ABS = re.compile(r"^(売上原価|原価|販売費及び一般管理費)(合計)?$")
 # 本表（BS/PL/CF）。決算短信ごとに最初の 1 つだけ読む（セグメント別・子会社・単体の表を読まない）。
@@ -320,7 +330,7 @@ ROLE_WORDS: tuple[tuple[re.Pattern[str], dict], ...] = (
     # 本表の比率の列（売上収益比・前年同期比・構成比）。
     (_h(r"[%％]$|^[%％]|収益比|売上比|同期比|構成比|前年比"), {"skip_rows": True}),
     (_h(r"前回発表予想|前回予想|\(A\)"), {"add": frozenset({"ForecastMember", "PreviousMember"})}),
-    (_h(r"今回修正予想|今回発表予想|\(B\)"), {"add": frozenset({"ForecastMember", "CurrentMember"})}),
+    (_h(r"今回修正予想|今回発表予想|今回予想|\(B\)"), {"add": frozenset({"ForecastMember", "CurrentMember"})}),
     (_h(r"第1四半期末"), {"add": frozenset({"FirstQuarterMember"})}),
     (_h(r"第2四半期末|中間期末"), {"add": frozenset({"SecondQuarterMember"})}),
     (_h(r"第3四半期末"), {"add": frozenset({"ThirdQuarterMember"})}),
@@ -328,7 +338,7 @@ ROLE_WORDS: tuple[tuple[re.Pattern[str], dict], ...] = (
     (_h(r"^(年間)?合計$"), {"add": frozenset({"AnnualMember"})}),
     (_h(r"下限"), {"add": frozenset({"LowerMember"})}),
     (_h(r"上限"), {"add": frozenset({"UpperMember"})}),
-    (_h(r"第2四半期\(累計\)|中間期|上期"), {"span": Span.ACC_Q2}),
+    (_h(r"第2四半期(?!末)|中間期|上期"), {"span": Span.ACC_Q2}),
     (_h(r"第1四半期(?!末)"), {"span": Span.ACC_Q1}),
     (_h(r"第3四半期(?!末)"), {"span": Span.ACC_Q3}),
     (_h(r"通期"), {"span": Span.YEAR}),
@@ -378,6 +388,37 @@ def _compact(raw: str) -> str:
     return re.sub(r"\s+", "", unicodedata.normalize("NFKC", raw or ""))
 
 
+def drop_pre_correction(pages: list[Page]) -> list[Page]:
+    """「（訂正前）」から「（訂正後）」の手前までを捨てる（KAB-212）。"""
+    dropping = False
+    out: list[Page] = []
+    for page in pages:
+        kept: list[Line] = []
+        for line in page.lines:
+            compact = _compact(line.text)
+            if _CORR_BEFORE.fullmatch(compact):
+                dropping = True
+                continue
+            if _CORR_AFTER.fullmatch(compact):
+                dropping = False
+                continue
+            if not dropping:
+                kept.append(line)
+        out.append(Page(page.index, tuple(kept)))
+    return out
+
+
+def is_amendment_notice(title: str | None, pages: list[Page]) -> bool:
+    if title and "訂正" in title:
+        return True
+    for page in pages:
+        for line in page.lines:
+            compact = _compact(line.text)
+            if _CORR_BEFORE.fullmatch(compact) or _CORR_AFTER.fullmatch(compact):
+                return True
+    return False
+
+
 def label_key(raw: str) -> str:
     """印字の行名 → 要素の local_name。tdnet_pdf.yaml の name はこの結果と一致する。"""
     text = unicodedata.normalize("NFKC", raw or "")
@@ -398,6 +439,7 @@ def label_key(raw: str) -> str:
         text = pattern.sub(repl, text)
     if _OWNERS_PROFIT.fullmatch(text):
         text = "親会社の所有者に帰属する当期利益"
+    text = re.sub(r"[\(（][ABＡＢ][\)）]$", "", text)
     return text
 
 
@@ -789,6 +831,10 @@ def _table_lines(lines: list[Line]) -> list[Line]:
             continue
         if _CLASS_HEAD.search(compact):
             continue
+        if _CF_CLASS.fullmatch(compact) and not split_amounts(line)[1]:
+            continue
+        if _BS_CLASS.fullmatch(compact) and not split_amounts(line)[1]:
+            continue
         if _RUNNING_HEAD.search(compact):
             continue
         if _LEADER.search(compact):
@@ -947,7 +993,12 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                     except PdfLayoutError:
                         continue
                     base_local = label_key(item_text)
+                    if spec.namespace is NS_SUMMARY:
+                        base_local = re.sub(r"^(連結|個別)", "", base_local)
                     if not base_local:
+                        continue
+                    if spec.name in {"fc_rev", "div_rev"} and "ForecastMember" not in role.members:
+                        # 前期実績を今期末の実績として入れない。予想の行だけ残す。
                         continue
                     if _NUMERIC_ITEM.search(base_local) and "株" not in base_local:
                         continue
