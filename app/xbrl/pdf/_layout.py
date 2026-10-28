@@ -74,6 +74,8 @@ _GARBLED_RATIO = 0.5
 _GARBLED_MIN_CHARS = 30
 # 見出しの語が数値の列に重ならないとき、この距離までなら中心がいちばん近い列の見出し。
 _HEADER_REACH = 80.0
+# ％ 列の単位語（NFKC 後）。またがる見出しの分け先から外す（KAB-238。1377 の純利益は金額列に残す）。
+_PERCENT_UNIT = frozenset({"%", "(%)"})
 # 行名がここで終われば、次の数値の無い行は同じ行名の続き。
 _CONTINUES = re.compile(r"(及び|並びに|又は|に|の|・|、|帰属する|係る|対する)$")
 # 数値の無い行が前の行名の折り返しの尾（「…中間純」＋「損失（△）」、「額（△は減少）」、「(予想)」）。
@@ -546,13 +548,14 @@ def grid(lines: list[Line]) -> Grid:
         and not is_note(index)
     ]
     headers_of: dict[float, list[str]] = {anchor: [] for anchor in anchors}
+    percent = _percent_unit_columns(header_lines, anchors, lefts)
     for line in header_lines:
         for word in line.words:
             compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", word.text))
             if _HEADER_NOTE.search(compact):
                 continue
-            for anchor in _columns_under(word, anchors, lefts):
-                headers_of[anchor].append(word.text)
+            for anchor, fragment in _assign_header_word(word, anchors, lefts, percent):
+                headers_of[anchor].append(fragment)
     columns = [Column(lefts[anchor], anchor, tuple(headers_of[anchor])) for anchor in anchors]
     column_tol = {anchor: tolerance[anchor] for anchor in anchors}
     rows: list[GridRow] = []
@@ -696,7 +699,7 @@ def _header_overlap(word: Word, anchor: float, left: float) -> float:
 def _columns_under(word: Word, anchors: list[float], lefts: dict[float, float]) -> list[float]:
     """見出しの語が重なる列。隣の列と端だけ接する語は入れない（KAB-213 の経常利益）。
 
-    重なりが正の列はすべて載せる（1377 の純利益が見出しを金額列と％列にまたぐ）。
+    重なりが正の列はすべて返す。2 列以上の金額列にまたがる語の分割は _assign_header_word。
     どれにも重ならなければ、中心がいちばん近い列（_HEADER_REACH 以内）。
     """
     overlaps = [(anchor, _header_overlap(word, anchor, lefts[anchor])) for anchor in anchors]
@@ -708,6 +711,56 @@ def _columns_under(word: Word, anchors: list[float], lefts: dict[float, float]) 
     if abs((lefts[best] + best) / 2 - center) <= _HEADER_REACH:
         return [best]
     return []
+
+
+def _percent_unit_columns(
+    header_lines: list[Line],
+    anchors: list[float],
+    lefts: dict[float, float],
+) -> set[float]:
+    """単位が ％ だけの列。またがる見出しをここに分けない。"""
+    found: set[float] = set()
+    for line in header_lines:
+        for word in line.words:
+            if _compact_text(word.text) not in _PERCENT_UNIT:
+                continue
+            found.update(_columns_under(word, anchors, lefts))
+    return found
+
+
+def _assign_header_word(
+    word: Word,
+    anchors: list[float],
+    lefts: dict[float, float],
+    percent: set[float],
+) -> list[tuple[float, str]]:
+    """見出しの語を列へ。2 つ以上の金額列にまたがる 1 語は文字ごとに分ける（KAB-238）。"""
+    overlapping = _columns_under(word, anchors, lefts)
+    if not overlapping:
+        return []
+    targets = [anchor for anchor in overlapping if anchor not in percent]
+    if len(targets) <= 1:
+        return [(anchor, word.text) for anchor in (targets or overlapping)]
+    return _split_spanning_header(word, targets, lefts)
+
+
+def _split_spanning_header(
+    word: Word,
+    anchors: list[float],
+    lefts: dict[float, float],
+) -> list[tuple[float, str]]:
+    """textLength / 字数で 1 文字ごとの x を推定し、最寄りの列へ割り当ててから列ごとに連結する。"""
+    text = word.text
+    width = word.x1 - word.x0
+    if not text or width <= 0:
+        return [(anchors[0], text)]
+    char_w = width / len(text)
+    buckets: dict[float, list[str]] = {anchor: [] for anchor in anchors}
+    for index, char in enumerate(text):
+        center = word.x0 + (index + 0.5) * char_w
+        best = min(anchors, key=lambda anchor: abs((lefts[anchor] + anchor) / 2 - center))
+        buckets[best].append(char)
+    return [(anchor, "".join(chars)) for anchor, chars in buckets.items() if chars]
 
 
 def _merge_anchors(anchors: list[float], rows: list[list[float]]) -> tuple[list[float], dict[float, float]]:

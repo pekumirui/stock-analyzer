@@ -9777,11 +9777,15 @@
     {"evidence": ["jquants:FDivFY"], "is_consolidated": false, "period_end": "2026-12-31", "period_start": "2026-01-01", "period_type": "Q1", "range_side": "point", "std": "dps", "target_period": "year_end", "unit": "JPYPerShares", "value": "41", "value_kind": "forecast"},
     {"evidence": ["jquants:EPS"], "is_consolidated": true, "period_end": "2026-03-31", "period_start": "2026-01-01", "period_type": "Q1", "range_side": "point", "std": "eps_basic", "target_period": "Q1", "unit": "JPYPerShares", "value": "46.78", "value_kind": "actual"},
     {"evidence": ["jquants:DEPS"], "is_consolidated": true, "period_end": "2026-03-31", "period_start": "2026-01-01", "period_type": "Q1", "range_side": "point", "std": "eps_diluted", "target_period": "Q1", "unit": "JPYPerShares", "value": "46.78", "value_kind": "actual"},
+    {"evidence": ["jquants:FEPS2Q"], "is_consolidated": true, "period_end": "2026-06-30", "period_start": "2026-01-01", "period_type": "Q1", "range_side": "point", "std": "eps_basic", "target_period": "H1", "unit": "JPYPerShares", "value": "53.76", "value_kind": "forecast"},
+    {"evidence": ["jquants:FEPS"], "is_consolidated": true, "period_end": "2026-12-31", "period_start": "2026-01-01", "period_type": "Q1", "range_side": "point", "std": "eps_basic", "target_period": "FY", "unit": "JPYPerShares", "value": "158.72", "value_kind": "forecast"},
     {"evidence": ["jquants:EqAR"], "is_consolidated": true, "period_end": "2026-03-31", "period_start": null, "period_type": "Q1", "range_side": "point", "std": "equity_ratio", "target_period": "Q1", "unit": "ratio", "value": "0.617", "value_kind": "actual"},
     {"evidence": ["jquants:CFF"], "is_consolidated": true, "period_end": "2026-03-31", "period_start": "2026-01-01", "period_type": "Q1", "range_side": "point", "std": "financing_cf", "target_period": "Q1", "unit": "JPY", "value": "-8115000000", "value_kind": "actual"},
     {"evidence": ["jquants:CFI"], "is_consolidated": true, "period_end": "2026-03-31", "period_start": "2026-01-01", "period_type": "Q1", "range_side": "point", "std": "investing_cf", "target_period": "Q1", "unit": "JPY", "value": "10076000000", "value_kind": "actual"},
     {"evidence": ["jquants:Eq"], "is_consolidated": true, "period_end": "2026-03-31", "period_start": null, "period_type": "Q1", "range_side": "point", "std": "net_assets", "target_period": "Q1", "unit": "JPY", "value": "286046000000", "value_kind": "actual"},
     {"evidence": ["jquants:NP"], "is_consolidated": true, "period_end": "2026-03-31", "period_start": "2026-01-01", "period_type": "Q1", "range_side": "point", "std": "net_income", "target_period": "Q1", "unit": "JPY", "value": "5483000000", "value_kind": "actual"},
+    {"evidence": ["jquants:FNP2Q"], "is_consolidated": true, "period_end": "2026-06-30", "period_start": "2026-01-01", "period_type": "Q1", "range_side": "point", "std": "net_income", "target_period": "H1", "unit": "JPY", "value": "6300000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNP"], "is_consolidated": true, "period_end": "2026-12-31", "period_start": "2026-01-01", "period_type": "Q1", "range_side": "point", "std": "net_income", "target_period": "FY", "unit": "JPY", "value": "18600000000", "value_kind": "forecast"},
     {"evidence": ["jquants:Sales"], "is_consolidated": true, "period_end": "2026-03-31", "period_start": "2026-01-01", "period_type": "Q1", "range_side": "point", "std": "net_sales", "target_period": "Q1", "unit": "JPY", "value": "83032000000", "value_kind": "actual"},
     {"evidence": ["jquants:FSales2Q"], "is_consolidated": true, "period_end": "2026-06-30", "period_start": "2026-01-01", "period_type": "Q1", "range_side": "point", "std": "net_sales", "target_period": "H1", "unit": "JPY", "value": "157400000000", "value_kind": "forecast"},
     {"evidence": ["jquants:FSales"], "is_consolidated": true, "period_end": "2026-12-31", "period_start": "2026-01-01", "period_type": "Q1", "range_side": "point", "std": "net_sales", "target_period": "FY", "unit": "JPY", "value": "327000000000", "value_kind": "forecast"},
@@ -9792,10 +9796,6 @@
     {"evidence": ["jquants:TA"], "is_consolidated": true, "period_end": "2026-03-31", "period_start": null, "period_type": "Q1", "range_side": "point", "std": "total_assets", "target_period": "Q1", "unit": "JPY", "value": "444613000000", "value_kind": "actual"}
    ],
    "known_gaps": [
-    {"bot": "missing", "cons": 1, "item": "eps_basic", "jq": 158.72, "jq_key": "FEPS", "kind": "forecast", "period_end": "2026-12-31", "res": "missing", "tps": ["FY"]},
-    {"bot": "missing", "cons": 1, "item": "eps_basic", "jq": 53.76, "jq_key": "FEPS2Q", "kind": "forecast", "period_end": "2026-12-31", "res": "missing", "tps": ["H1"]},
-    {"bot": "missing", "cons": 1, "item": "net_income", "jq": 18600000000.0, "jq_key": "FNP", "kind": "forecast", "period_end": "2026-12-31", "res": "missing", "tps": ["FY"]},
-    {"bot": "missing", "cons": 1, "item": "net_income", "jq": 6300000000.0, "jq_key": "FNP2Q", "kind": "forecast", "period_end": "2026-12-31", "res": "missing", "tps": ["H1"]}
    ]
   },
   "20260513528342": {
