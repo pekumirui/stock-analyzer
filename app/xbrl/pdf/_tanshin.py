@@ -57,6 +57,10 @@ _HEADER_ROLE = re.compile(
 )
 # 数値の無い CF の区分見出し（KAB-216）。金額がある合計行は残す。
 _CF_CLASS = re.compile(r"^(営業|投資|財務)活動によるキャッシュ・フロー$")
+# 数値の無い BS の区分見出し。hanging が「資産流動資産現金及び預金」にしない。
+_BS_CLASS = re.compile(
+    r"^(資産|負債|純資産|資本|流動資産|固定資産|非流動資産|流動負債|固定負債|非流動負債|株主資本)$"
+)
 # 訂正短信の「（訂正前）」ブロック（KAB-212）。
 _CORR_BEFORE = re.compile(r"^[【\[(（]*訂正前[)）】\]]*$")
 _CORR_AFTER = re.compile(r"^[【\[(（]*訂正後[)）】\]]*$")
@@ -829,6 +833,8 @@ def _table_lines(lines: list[Line]) -> list[Line]:
             continue
         if _CF_CLASS.fullmatch(compact) and not split_amounts(line)[1]:
             continue
+        if _BS_CLASS.fullmatch(compact) and not split_amounts(line)[1]:
+            continue
         if _RUNNING_HEAD.search(compact):
             continue
         if _LEADER.search(compact):
@@ -991,9 +997,8 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                         base_local = re.sub(r"^(連結|個別)", "", base_local)
                     if not base_local:
                         continue
-                    if spec.name in {"fc_rev", "div_rev"} and not (
-                        role.members & {"ForecastMember", "ResultMember"}
-                    ):
+                    if spec.name in {"fc_rev", "div_rev"} and "ForecastMember" not in role.members:
+                        # 前期実績を今期末の実績として入れない。予想の行だけ残す。
                         continue
                     if _NUMERIC_ITEM.search(base_local) and "株" not in base_local:
                         continue

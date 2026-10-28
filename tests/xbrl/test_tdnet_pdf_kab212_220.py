@@ -237,6 +237,12 @@ def test_kab213_hanging_row_label_is_forecast_not_actual() -> None:
         _cell(700, 76, "親会社株主に帰属する当期純利益", 180),
         _cell(860, 76, "1株当たり当期純利益", 140),
         _text(40, 94, "円銭", 30),
+        _text(40, 452, "前期実績", 80),
+        _cell(280, 457, "77,263", 50),
+        _cell(400, 457, "8,000", 45),
+        _cell(520, 457, "8,000", 45),
+        _cell(700, 457, "7,000", 45),
+        _cell(860, 457, "213.98", 45),
         _text(40, 476, "前回発表予想（Ａ）", 140),
         _cell(280, 481, "80,000", 50),
         _cell(400, 481, "8,000", 45),
@@ -287,6 +293,8 @@ def test_kab213_hanging_row_label_is_forecast_not_actual() -> None:
                 _fail(f"{key} got {rows.get(key)} want {value} all={rows}")
         if any(key[1] == "actual" for key in rows):
             _fail(f"actual leaked {rows}")
+        if MILLION * Decimal("77263") in rows.values() or Decimal("213.98") in rows.values():
+            _fail(f"prior actual kept {rows}")
     finally:
         db.close()
 
@@ -301,6 +309,11 @@ def test_kab213_ifrs_revision_inherits_standard_from_statements() -> None:
         _cell(620, 76, "親会社の所有者に帰属する当期利益", 200),
         _cell(800, 76, "基本的1株当たり当期利益", 160),
         _text(40, 94, "円銭", 30),
+        _text(40, 100, "前期実績", 80),
+        _cell(280, 105, "2,939,422", 60),
+        _cell(420, 105, "213,000", 50),
+        _cell(620, 105, "167,000", 50),
+        _cell(800, 105, "126.66", 40),
         _text(40, 120, "前回発表予想（Ａ）", 140),
         _cell(280, 125, "2,950,000", 60),
         _cell(420, 125, "255,000", 50),
@@ -346,6 +359,10 @@ def test_kab213_ifrs_revision_inherits_standard_from_statements() -> None:
             _fail(f"eps {rows}")
         if rows.get(("net_sales", "forecast_previous", "point", "FY")) != MILLION * 2950000:
             _fail(f"prev sales {rows}")
+        if any(key[1] == "actual" for key in rows):
+            _fail(f"actual leaked {rows}")
+        if MILLION * Decimal("2939422") in rows.values() or Decimal("126.66") in rows.values():
+            _fail(f"prior actual kept {rows}")
     finally:
         db.close()
 
@@ -723,3 +740,181 @@ def test_kab220_dash_104_is_not_a_page_number() -> None:
         _fail(f"increase {facts}")
     if any("期末残高" in name and "増加額" in name for name, _ref in facts):
         _fail(f"glued {facts}")
+
+
+def test_spanning_net_income_header_stays_on_amount_column() -> None:
+    """1377 の予想純利益: 見出しが金額列と％列にまたがっても金額列に載る。"""
+    parts = [
+        _text(40, 40, "3. 連結業績予想", 120),
+        _text(40, 58, "（単位：百万円）", 100),
+        _cell(280, 76, "売上高", 50),
+        _cell(400, 76, "営業利益", 60),
+        _text(680, 76, "親会社株主に帰属する当期純利益", 220),
+        _text(250, 94, "百万円", 40),
+        _text(360, 94, "百万円", 40),
+        _text(620, 94, "百万円", 40),
+        _text(850, 94, "％", 16),
+        _text(40, 112, "通期", 40),
+        _cell(280, 112, "84,000", 50),
+        _cell(400, 112, "11,000", 50),
+        _cell(700, 112, "8,500", 50),
+        _cell(860, 112, "10.5", 30),
+    ]
+    d = _disclosure(
+        disclosure_no="20220712598744", code="13770",
+        type_of_period="FY",
+        type_of_document="FYFinancialStatements_Consolidated_JP",
+        disclosed_date=date(2022, 7, 12),
+        period_start=date(2022, 6, 1), period_end=date(2023, 5, 31),
+        fiscal_year_start=date(2022, 6, 1), fiscal_year_end=date(2023, 5, 31),
+    )
+    pkg = read_tdnet_pdf(_pages(parts), d)
+    facts = _facts(pkg)
+    income = [
+        value for (name, ref), value in facts.items()
+        if name == "親会社株主に帰属する当期純利益" and "Forecast" in ref
+    ]
+    if MILLION * 8500 not in income:
+        _fail(f"net income {facts}")
+    if any(value == Decimal("10.5") or value == Decimal("0.105") for value in _values(pkg)):
+        _fail(f"pct leaked {facts}")
+
+
+def test_next_line_yosou_is_forecast_not_actual() -> None:
+    """135A 20240412570387: 数値の次の行の「(予想)」が行名に付く。実績にしない。"""
+    parts = [
+        _text(40, 40, "1. 配当の状況", 100),
+        _text(40, 58, "（単位：円）", 80),
+        _cell(280, 76, "第2四半期末", 80),
+        _cell(400, 76, "期末", 40),
+        _cell(520, 76, "合計", 40),
+        _text(40, 100, "2025年2月期", 100),
+        _cell(280, 109, "0", 20),
+        _cell(400, 109, "0", 20),
+        _cell(520, 109, "0", 20),
+        _text(40, 125, "(予想)", 50),
+    ]
+    no = "20240412570387"
+    statement = SimpleNamespace(
+        disclosure_no=no, code="135A0", disclosed_date=date(2024, 4, 12),
+        disclosed_time="15:00", type_of_period="FY",
+        type_of_document="FYFinancialStatements_NonConsolidated_JP",
+        period_start=date(2024, 3, 1), period_end=date(2025, 2, 28),
+        fiscal_year_start=date(2024, 3, 1), fiscal_year_end=date(2025, 2, 28),
+    )
+    db = SessionLocal()
+    try:
+        _seed(db, no, _pages(parts), statement)
+        apply_mappings(db)
+        if sync_pdf_filing(db, no) is not SyncOutcome.PARSED:
+            _fail("div yosou sync")
+        rows = _rows(db, no)
+        if rows.get(("dps", "forecast", "point", "Q2")) != Decimal("0"):
+            _fail(f"q2 {rows}")
+        if rows.get(("dps", "forecast", "point", "year_end")) != Decimal("0"):
+            _fail(f"year_end {rows}")
+        if rows.get(("dps", "forecast", "point", "annual")) != Decimal("0"):
+            _fail(f"annual {rows}")
+        if any(key[1] == "actual" and key[0] == "dps" for key in rows):
+            _fail(f"actual dps {rows}")
+    finally:
+        db.close()
+
+
+def test_cash_end_tail_gaku_does_not_glue() -> None:
+    """7532: 「額（△は減少）」が次の期末残高に付かない。"""
+    parts = [
+        _text(40, 40, "連結キャッシュ・フロー計算書", 180),
+        _text(40, 58, "（単位：百万円）", 100),
+        _cell(400, 76, "前中間連結会計期間", 120),
+        _cell(560, 76, "当中間連結会計期間", 120),
+        _text(40, 112, "現金及び現金同等物の増減", 180),
+        _cell(400, 120, "1,000", 40),
+        _cell(560, 120, "2,000", 40),
+        _text(40, 136, "額（△は減少）", 100),
+        _text(40, 160, "現金及び現金同等物の中間期末残高", 200),
+        _cell(400, 160, "177,268", 50),
+        _cell(560, 160, "180,000", 50),
+    ]
+    d = _disclosure(
+        disclosure_no="20251101585596", code="75320",
+        type_of_period="2Q",
+        type_of_document="2QFinancialStatements_Consolidated_JP",
+        disclosed_date=date(2025, 11, 1),
+        period_start=date(2025, 7, 1), period_end=date(2025, 12, 31),
+        fiscal_year_start=date(2025, 7, 1), fiscal_year_end=date(2026, 6, 30),
+    )
+    pkg = read_tdnet_pdf(_pages(parts), d)
+    facts = _facts(pkg)
+    if facts.get(("現金及び現金同等物の期末残高", "CurrentAccumulatedQ2Duration")) != MILLION * 180000:
+        _fail(f"cash_end {facts}")
+    if any("期末残高" in name and "減少" in name for name, _ref in facts):
+        _fail(f"glued {facts}")
+
+
+def test_bs_section_heads_are_not_row_prefixes() -> None:
+    """2502: 「資産」「流動資産」が現金及び現金同等物の行名の頭に付かない。"""
+    parts = [
+        _text(40, 40, "連結財政状態計算書", 160),
+        _text(40, 58, "（単位：百万円）", 100),
+        _cell(400, 76, "前連結会計年度", 100),
+        _cell(560, 76, "当連結会計年度", 100),
+        _text(40, 94, "資産", 40),
+        _text(40, 112, "流動資産", 60),
+        _text(40, 130, "現金及び現金同等物", 140),
+        _cell(400, 130, "100,000", 50),
+        _cell(560, 130, "110,000", 50),
+        _text(40, 148, "現金及び預金", 100),
+        _cell(400, 148, "80,000", 50),
+        _cell(560, 148, "90,000", 50),
+    ]
+    d = _disclosure(
+        disclosure_no="20210805500000", code="25020",
+        type_of_period="FY",
+        type_of_document="FYFinancialStatements_Consolidated_IFRS",
+        disclosed_date=date(2021, 8, 5),
+        period_start=date(2021, 1, 1), period_end=date(2021, 12, 31),
+        fiscal_year_start=date(2021, 1, 1), fiscal_year_end=date(2021, 12, 31),
+    )
+    pkg = read_tdnet_pdf(_pages(parts), d)
+    names = {fact.local_name for fact in pkg.facts}
+    if "現金及び現金同等物" not in names:
+        _fail(names)
+    if "現金及び預金" not in names:
+        _fail(names)
+    if any(name.startswith("資産") or name.startswith("流動資産現金") for name in names):
+        _fail(names)
+
+
+def test_formula_note_is_not_eps_header() -> None:
+    """9983 20251007569462: 「＝売上収益－売上原価－販売費…」が見出しに混ざらない。"""
+    note = "＝売上収益－売上原価－販売費及び一般管理費"
+    parts = [
+        _text(40, 40, "（1）経営成績", 100),
+        _text(40, 58, "（単位：百万円）", 100),
+        _cell(400, 76, "売上収益", 60),
+        _cell(560, 76, "基本的1株当たり当期利益", 160),
+        _cell(740, 76, "希薄化後1株当たり当期利益", 160),
+        _text(40, 90, note, 280),
+        _text(40, 108, "円銭", 30),
+        _text(40, 126, "2025年8月期", 100),
+        _cell(400, 126, "3,400,000", 60),
+        _cell(560, 126, "1,411.44", 50),
+        _cell(740, 126, "1,409.32", 50),
+    ]
+    d = _disclosure(
+        disclosure_no="20251007569462", code="99830",
+        type_of_period="FY",
+        type_of_document="FYFinancialStatements_Consolidated_IFRS",
+        disclosed_date=date(2025, 10, 7),
+        period_start=date(2024, 9, 1), period_end=date(2025, 8, 31),
+        fiscal_year_start=date(2024, 9, 1), fiscal_year_end=date(2025, 8, 31),
+    )
+    pkg = read_tdnet_pdf(_pages(parts), d)
+    facts = _facts(pkg)
+    if facts.get(("基本的1株当たり当期利益", "CurrentYearDuration_ResultMember")) != Decimal("1411.44"):
+        _fail(f"eps {facts}")
+    if facts.get(("希薄化後1株当たり当期利益", "CurrentYearDuration_ResultMember")) != Decimal("1409.32"):
+        _fail(f"deps {facts}")
+    if any("売上収益" in name and "1株" in name for name, _ref in facts):
+        _fail(f"formula glued {facts}")

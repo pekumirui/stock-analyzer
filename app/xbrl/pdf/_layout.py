@@ -48,9 +48,10 @@ _FURNITURE_TOL = 3.0
 _FURNITURE_TOP = 60.0
 _FURNITURE_BOTTOM = 780.0
 # 表の右上の注記。列見出しではない（「対前期増減率」で列を捨てない）。
-_HEADER_NOTE = re.compile(r"表示は|^\(注")
+# ＝ で始まる式（KAB-216 9983「＝売上収益－売上原価－…」）も見出しにしない。
+_HEADER_NOTE = re.compile(r"表示は|^\(注|[＝=]")
 # 注記の行（「(注)包括利益 … △52百万円」）。列見出しにしない。
-_NOTE_LINE = re.compile(r"^(\(注|※|\(参考\))")
+_NOTE_LINE = re.compile(r"^(\(注|※|\(参考\)|[＝=])")
 # ※1 / ※ の注記番号（KAB-214）。空白の後ろだけ消す（※2171,958 の番号と金額をつながない）。
 _NOTE_MARK = re.compile(r"※\s*\d{0,2}(?=\s|$)")
 # 配当の「40 円 40 円」（KAB-213）。金額の間と末尾の飾り。
@@ -66,8 +67,10 @@ _GARBLED_MIN_CHARS = 30
 _HEADER_REACH = 80.0
 # 行名がここで終われば、次の数値の無い行は同じ行名の続き。
 _CONTINUES = re.compile(r"(及び|並びに|又は|に|の|・|、|帰属する|係る|対する)$")
-# 数値の無い行が「損失」で始まるなら、前の行名の折り返しの尾（「…中間純」＋「損失（△）」）。
-_TAIL = re.compile(r"^純?損失")
+# 数値の無い行が前の行名の折り返しの尾（「…中間純」＋「損失（△）」、「額（△は減少）」、「(予想)」）。
+_TAIL = re.compile(r"^純?損失|^額|^[（(]予想")
+# 値だけの行のあとでも、これは新しい行名（KAB-213 の今回予想を前回に付けない）。
+_ROW_ROLE = re.compile(r"^(前回|今回|前期|通期|第[123]四半期|(当|前|次)期)")
 
 
 class PdfLayoutError(ValueError):
@@ -503,6 +506,9 @@ def grid(lines: list[Line]) -> Grid:
     for index in range(numeric[0] - 1, -1, -1):
         if index in hanging:
             continue
+        # 式の注記は見出しの途中に挟まる。ここで切ると上の科目名が落ちる（KAB-216 9983）。
+        if _NOTE_LINE.match(_compact_text(parsed[index][0].text)):
+            continue
         if parsed[index][2] or is_prose(index):
             header_from = index + 1
             break
@@ -531,10 +537,11 @@ def grid(lines: list[Line]) -> Grid:
         if index < numeric[0] and index not in hanging:
             continue
         if not amounts:
-            if rows and not pending and (
+            compact_line = _compact_text(line.text)
+            if rows and not pending and not _ROW_ROLE.match(compact_line) and (
                 value_only
                 or _CONTINUES.search(_compact_text(rows[-1].label))
-                or _TAIL.search(_compact_text(line.text))
+                or _TAIL.search(compact_line)
             ):
                 rows[-1] = GridRow(f"{rows[-1].label}{line.text}", rows[-1].cells)
                 value_only = False
@@ -548,10 +555,8 @@ def grid(lines: list[Line]) -> Grid:
             compact_label,
         ))
         full = f"{pending}{label}" if pending and not complete else (label or pending)
-        value_only = (
-            bool(pending) and not label.strip()
-            and bool(_CONTINUES.search(_compact_text(pending)))
-        )
+        # 行名を借りた数値行のあと、「(予想)」「額（△は減少）」は続き。今回予想は新しい行。
+        value_only = bool(pending) and not label.strip()
         pending = ""
         cells: list[Amount | None] = []
         for column in columns:
@@ -650,14 +655,13 @@ def _header_overlap(word: Word, anchor: float, left: float) -> float:
 def _columns_under(word: Word, anchors: list[float], lefts: dict[float, float]) -> list[float]:
     """見出しの語が重なる列。隣の列と端だけ接する語は入れない（KAB-213 の経常利益）。
 
+    重なりが正の列はすべて載せる（1377 の純利益が見出しを金額列と％列にまたぐ）。
     どれにも重ならなければ、中心がいちばん近い列（_HEADER_REACH 以内）。
-    複数列に同じ幅で重なる語（またがる見出し）はどちらにも載せる。
     """
     overlaps = [(anchor, _header_overlap(word, anchor, lefts[anchor])) for anchor in anchors]
-    positive = [(anchor, width) for anchor, width in overlaps if width > 0]
+    positive = [anchor for anchor, width in overlaps if width > 0]
     if positive:
-        best = max(width for _, width in positive)
-        return [anchor for anchor, width in positive if width == best]
+        return positive
     center = (word.x0 + word.x1) / 2
     best = min(anchors, key=lambda anchor: abs((lefts[anchor] + anchor) / 2 - center))
     if abs((lefts[best] + best) / 2 - center) <= _HEADER_REACH:
