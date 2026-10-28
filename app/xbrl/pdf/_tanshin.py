@@ -71,14 +71,20 @@ _CF_CLASS = re.compile(r"^(営業|投資|財務)活動によるキャッシュ�
 _BS_CLASS = re.compile(
     r"^(資産|負債|純資産|資本|流動資産|固定資産|非流動資産|流動負債|固定負債|非流動負債|株主資本)$"
 )
-# 訂正短信の「（訂正前）」ブロック（KAB-212）。
+# 訂正短信の「（訂正前）」ブロック（KAB-212）。drop_pre_correction はこれだけ。
 _CORR_BEFORE = re.compile(r"^[【\[(（]*訂正前[)）】\]]*$")
 _CORR_AFTER = re.compile(r"^[【\[(（]*訂正後[)）】\]]*$")
+# 題名に「訂正」が無い訂正短信（KAB-226 の「…決算短信…の修正について」、KAB-235 の変更前/後・訂正版）。
+_AMENDMENT_TITLE = re.compile(r"決算短信.*(?:の修正について|の一部修正)")
+_CORR_NOTICE = re.compile(
+    r"^[【\[(（<＜]*((訂正|変更)(前|後)|訂正版)[)）】\]>＞]*$"
+)
 # IFRS 本表は費用を △ で印字する。ZIP の CostOfSales は正なので符号を合わせる。合計の行も同じ。
 _IFRS_EXPENSE_ABS = re.compile(r"^(売上原価|原価|販売費及び一般管理費)(合計)?$")
 # 本表（BS/PL/CF）。決算短信ごとに最初の 1 つだけ読む（セグメント別・子会社・単体の表を読まない）。
 _STATEMENTS = frozenset({"bs", "pl", "cf"})
-# サマリー（1 ページ目。続きが 2 ページ目に出ることがある）。本文の「(2)財政状態に関する説明」を拾わない。
+# サマリーは起点から 2 ページ。通常は 0。訂正理由書のあとに全文があるときは、最初の
+# サマリー見出しのページ（KAB-226 / KAB-235）。本文の「(2)財政状態に関する説明」を拾わない。
 _SUMMARY_PAGES = 2
 # 本表として採るのに要る数値の行（1 行以上）。見出しが 2 段（「(2)連結損益計算書及び…」「(連結損益計算書)」）のとき、
 # 上の見出しの下は空か単位の行だけ。
@@ -427,12 +433,13 @@ def drop_pre_correction(pages: list[Page]) -> list[Page]:
 
 
 def is_amendment_notice(title: str | None, pages: list[Page]) -> bool:
-    if title and "訂正" in title:
+    """訂正短信か。業績予想・配当の「修正について」だけでは True にしない。"""
+    compact_title = _compact(title or "")
+    if "訂正" in compact_title or _AMENDMENT_TITLE.search(compact_title):
         return True
     for page in pages:
         for line in page.lines:
-            compact = _compact(line.text)
-            if _CORR_BEFORE.fullmatch(compact) or _CORR_AFTER.fullmatch(compact):
+            if _CORR_NOTICE.fullmatch(_compact(line.text)):
                 return True
     return False
 
@@ -855,8 +862,25 @@ def _consolidation(text: str, d: PdfDisclosure, spec: SectionSpec | None = None)
     return d.consolidated
 
 
+def _summary_origin(pages: list[Page], specs: tuple[SectionSpec, ...]) -> int:
+    """サマリーを数える起点。通常は 0。訂正理由書のあとの全文は、サマリー見出しが最初に出るページ。"""
+    summary = tuple(spec for spec in specs if spec.name.startswith("summary_"))
+    if not summary:
+        return 0
+    for page in pages:
+        for line in page.lines:
+            compact = _compact(line.text)
+            if _LEADER.search(compact):
+                continue
+            heading = _heading_key(line.text)
+            if any(spec.headings.search(heading) or spec.headings.search(compact) for spec in summary):
+                return page.index
+    return 0
+
+
 def _blocks(pages: list[Page], d: PdfDisclosure) -> list[tuple[SectionSpec, list[Line], bool, str]]:
     specs = tuple(spec for spec in SECTIONS if d.kind in spec.kinds)
+    origin = _summary_origin(pages, specs)
     lines = [line for page in pages for line in page.lines]
     page_of = [page.index for page in pages for _line in page.lines]
     hits: list[tuple[int, SectionSpec, str]] = []
@@ -867,7 +891,7 @@ def _blocks(pages: list[Page], d: PdfDisclosure) -> list[tuple[SectionSpec, list
         heading = _heading_key(line.text)
         for spec in specs:
             if spec.headings.search(heading) or spec.headings.search(compact):
-                if spec.name.startswith("summary_") and page_of[index] >= _SUMMARY_PAGES:
+                if spec.name.startswith("summary_") and page_of[index] - origin >= _SUMMARY_PAGES:
                     break
                 hits.append((index, spec, heading or compact))
                 break
