@@ -55,6 +55,8 @@ _CLASS_HEAD = re.compile(r"の部$")
 _RUNNING_HEAD = re.compile(r"\(\d{4}\).*決算短信")
 _UNIT_ROW = re.compile(r"単位|百万円|千円|円銭|百万円未満")
 _UNIT_TOKENS = frozenset({"百万円", "千円", "円", "円銭", "銭", "%", "％"})
+# 配当の親見出し末尾の単位括弧（KAB-245。「年間配当金（円）」）。百万円・% は外さない。
+_DIV_YEN_PAREN = re.compile(r"^(.+?)[\(（](円銭|円)[\)）]$")
 _NUMERIC_ITEM = re.compile(r"\d")
 # 1 ページ目の列見出しのうち、科目名ではなく列の役割・単位。
 _HEADER_ROLE = re.compile(
@@ -593,6 +595,16 @@ def _is_unit_token(raw: str) -> bool:
     return "単位" in key and len(key) <= 12
 
 
+def _strip_dividend_yen_paren(item_text: str, role_texts: tuple[str, ...]) -> tuple[str, tuple[str, ...]]:
+    """配当の親見出し末尾の「（円）」「（円銭）」を外し、単位判定用に元の語を残す（KAB-245）。"""
+    match = _DIV_YEN_PAREN.fullmatch(_compact(item_text))
+    if match is None:
+        return item_text, role_texts
+    if item_text not in role_texts:
+        role_texts = (*role_texts, item_text)
+    return match.group(1), role_texts
+
+
 def _split_item_headers(headers: tuple[str, ...]) -> tuple[str, tuple[str, ...]]:
     """折り返した科目名を結合し、四半期末・単位は列の役割に残す。"""
     items: list[str] = []
@@ -779,6 +791,10 @@ def unit_of(grid_note: str | None, texts: tuple[str, ...]) -> UnitKind:
         return UnitKind.YEN_MILLIONS
     if "千円" in joined:
         return UnitKind.YEN_THOUSANDS
+    # 配当列の「年間配当金（円）」。NFKC 後は "(円)"。括弧付きの円は 1 株当たり（KAB-245）。
+    # 注記の裸の「円」は下の YEN（金額）。百万円・千円の列は上で先に決まる。
+    if "(円)" in joined:
+        return UnitKind.PER_SHARE
     note = _compact(grid_note or "")
     # 配当表は 円銭 と 百万円 が同じ注記に並ぶ。列ヘッダで決まらなかった金額列は百万円。
     if "百万円" in note:
@@ -1067,6 +1083,8 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                             continue
                         item_text, extra = _split_item_headers(column.headers)
                         role_texts = (row.label, *extra)
+                        if spec.shape is Shape.DIVIDEND:
+                            item_text, role_texts = _strip_dividend_yen_paren(item_text, role_texts)
                         if spec.shape is Shape.DIVIDEND and _HEADER_ROLE.search(_compact(item_text)):
                             # 配当表の列見出しが「第１四半期末」等の時点だけなら、科目は 1 株当たり配当金。
                             # 配当金総額・配当性向の列は見出しの科目名のまま。
