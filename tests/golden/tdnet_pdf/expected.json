@@ -1257,11 +1257,11 @@
    "values": [
    ],
    "known_gaps": [
-    {"bot": "match", "cons": -1, "item": "eps_basic", "jq": 18.55, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2023-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "net_income", "jq": 81000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2023-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "operating_income", "jq": 117000000.0, "jq_key": "FNCOP#nc", "kind": "forecast", "period_end": "2023-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "ordinary_income", "jq": 117000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2023-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "net_sales", "jq": 1420000000.0, "jq_key": "FNCSales#nc", "kind": "forecast", "period_end": "2023-01-20", "res": "missing", "tps": ["FY"]}
+    {"bot": "match", "cons": 0, "item": "eps_basic", "jq": 18.55, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2022-04-20", "res": "missing", "tps": ["Q1"]},
+    {"bot": "match", "cons": 0, "item": "net_income", "jq": 81000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2022-04-20", "res": "missing", "tps": ["Q1"]},
+    {"bot": "match", "cons": 0, "item": "operating_income", "jq": 117000000.0, "jq_key": "FNCOP#nc", "kind": "forecast", "period_end": "2022-04-20", "res": "missing", "tps": ["Q1"]},
+    {"bot": "match", "cons": 0, "item": "ordinary_income", "jq": 117000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2022-04-20", "res": "missing", "tps": ["Q1"]},
+    {"bot": "match", "cons": 0, "item": "net_sales", "jq": 1420000000.0, "jq_key": "FNCSales#nc", "kind": "forecast", "period_end": "2022-04-20", "res": "missing", "tps": ["Q1"]}
    ]
   },
   "20220607573767": {
@@ -3244,11 +3244,11 @@
    "values": [
    ],
    "known_gaps": [
-    {"bot": "match", "cons": -1, "item": "eps_basic", "jq": 0.81, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2024-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "net_income", "jq": 4000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2024-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "operating_income", "jq": 1000000.0, "jq_key": "FNCOP#nc", "kind": "forecast", "period_end": "2024-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "missing", "cons": -1, "item": "ordinary_income", "jq": 5000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2024-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "net_sales", "jq": 1011000000.0, "jq_key": "FNCSales#nc", "kind": "forecast", "period_end": "2024-01-20", "res": "missing", "tps": ["FY"]}
+    {"bot": "match", "cons": 0, "item": "eps_basic", "jq": 0.81, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2023-04-20", "res": "missing", "tps": ["Q1"]},
+    {"bot": "match", "cons": 0, "item": "net_income", "jq": 4000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2023-04-20", "res": "missing", "tps": ["Q1"]},
+    {"bot": "match", "cons": 0, "item": "operating_income", "jq": 1000000.0, "jq_key": "FNCOP#nc", "kind": "forecast", "period_end": "2023-04-20", "res": "missing", "tps": ["Q1"]},
+    {"bot": "missing", "cons": 0, "item": "ordinary_income", "jq": 5000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2023-04-20", "res": "missing", "tps": ["Q1"]},
+    {"bot": "match", "cons": 0, "item": "net_sales", "jq": 1011000000.0, "jq_key": "FNCSales#nc", "kind": "forecast", "period_end": "2023-04-20", "res": "missing", "tps": ["Q1"]}
    ]
   },
   "20230529586566": {
@@ -4244,13 +4244,13 @@
    "html_sha256": "7340ca954ebdbc43030a8f12aaab41da90b071b0d7a6d08a742209e23db4d329",
    "statement": {"code": "78650", "disclosed_date": "2023-11-28", "disclosed_time": "16:30:00", "fiscal_year_end": "2024-01-20", "fiscal_year_start": "2023-01-21", "period_end": "2023-10-20", "period_start": "2023-01-21", "type_of_document": "EarnForecastRevision", "type_of_period": "3Q"},
    "values": [
+    {"evidence": ["jquants:FNCEPS#nc"], "is_consolidated": false, "period_end": "2023-10-20", "period_start": "2023-01-21", "period_type": "Q3", "range_side": "point", "std": "eps_basic", "target_period": "Q3", "unit": "JPYPerShares", "value": "65.53", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCNP#nc"], "is_consolidated": false, "period_end": "2023-10-20", "period_start": "2023-01-21", "period_type": "Q3", "range_side": "point", "std": "net_income", "target_period": "Q3", "unit": "JPY", "value": "287000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCSales#nc"], "is_consolidated": false, "period_end": "2023-10-20", "period_start": "2023-01-21", "period_type": "Q3", "range_side": "point", "std": "net_sales", "target_period": "Q3", "unit": "JPY", "value": "4392000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOP#nc"], "is_consolidated": false, "period_end": "2023-10-20", "period_start": "2023-01-21", "period_type": "Q3", "range_side": "point", "std": "operating_income", "target_period": "Q3", "unit": "JPY", "value": "393000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOdP#nc"], "is_consolidated": false, "period_end": "2023-10-20", "period_start": "2023-01-21", "period_type": "Q3", "range_side": "point", "std": "ordinary_income", "target_period": "Q3", "unit": "JPY", "value": "411000000", "value_kind": "forecast"}
    ],
    "known_gaps": [
-    {"bot": "match", "cons": -1, "item": "eps_basic", "jq": 65.53, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2024-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "net_income", "jq": 287000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2024-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "operating_income", "jq": 393000000.0, "jq_key": "FNCOP#nc", "kind": "forecast", "period_end": "2024-01-20", "res": "diff", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "ordinary_income", "jq": 411000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2024-01-20", "res": "diff", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "net_sales", "jq": 4392000000.0, "jq_key": "FNCSales#nc", "kind": "forecast", "period_end": "2024-01-20", "res": "diff", "tps": ["FY"]}
    ]
   },
   "20231130597506": {
@@ -5335,11 +5335,11 @@
    "values": [
    ],
    "known_gaps": [
-    {"bot": "match", "cons": -1, "item": "eps_basic", "jq": -13.38, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2025-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "net_income", "jq": -59000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2025-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "operating_income", "jq": -50000000.0, "jq_key": "FNCOP#nc", "kind": "forecast", "period_end": "2025-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "ordinary_income", "jq": -50000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2025-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "net_sales", "jq": 380000000.0, "jq_key": "FNCSales#nc", "kind": "forecast", "period_end": "2025-01-20", "res": "missing", "tps": ["FY"]}
+    {"bot": "match", "cons": 0, "item": "eps_basic", "jq": -13.38, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2024-04-20", "res": "missing", "tps": ["Q1"]},
+    {"bot": "match", "cons": 0, "item": "net_income", "jq": -59000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2024-04-20", "res": "missing", "tps": ["Q1"]},
+    {"bot": "match", "cons": 0, "item": "operating_income", "jq": -50000000.0, "jq_key": "FNCOP#nc", "kind": "forecast", "period_end": "2024-04-20", "res": "missing", "tps": ["Q1"]},
+    {"bot": "match", "cons": 0, "item": "ordinary_income", "jq": -50000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2024-04-20", "res": "missing", "tps": ["Q1"]},
+    {"bot": "match", "cons": 0, "item": "net_sales", "jq": 380000000.0, "jq_key": "FNCSales#nc", "kind": "forecast", "period_end": "2024-04-20", "res": "missing", "tps": ["Q1"]}
    ]
   },
   "20240531516118": {
@@ -6511,11 +6511,11 @@
    "values": [
    ],
    "known_gaps": [
-    {"bot": "missing", "cons": -1, "item": "eps_basic", "jq": -27.49, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2025-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "net_income", "jq": -120000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2025-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "operating_income", "jq": -114000000.0, "jq_key": "FNCOP#nc", "kind": "forecast", "period_end": "2025-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "ordinary_income", "jq": -112000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2025-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "net_sales", "jq": 1244000000.0, "jq_key": "FNCSales#nc", "kind": "forecast", "period_end": "2025-01-20", "res": "missing", "tps": ["FY"]}
+    {"bot": "missing", "cons": 0, "item": "eps_basic", "jq": -27.49, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2024-10-20", "res": "missing", "tps": ["Q3"]},
+    {"bot": "match", "cons": 0, "item": "net_income", "jq": -120000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2024-10-20", "res": "missing", "tps": ["Q3"]},
+    {"bot": "match", "cons": 0, "item": "operating_income", "jq": -114000000.0, "jq_key": "FNCOP#nc", "kind": "forecast", "period_end": "2024-10-20", "res": "missing", "tps": ["Q3"]},
+    {"bot": "match", "cons": 0, "item": "ordinary_income", "jq": -112000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2024-10-20", "res": "missing", "tps": ["Q3"]},
+    {"bot": "match", "cons": 0, "item": "net_sales", "jq": 1244000000.0, "jq_key": "FNCSales#nc", "kind": "forecast", "period_end": "2024-10-20", "res": "missing", "tps": ["Q3"]}
    ]
   },
   "20241204534392": {
@@ -7166,11 +7166,11 @@
    "values": [
    ],
    "known_gaps": [
-    {"bot": "match", "cons": -1, "item": "eps_basic", "jq": 13.56, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2026-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "net_income", "jq": 59000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2026-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "operating_income", "jq": -97000000.0, "jq_key": "FNCOP#nc", "kind": "forecast", "period_end": "2026-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "ordinary_income", "jq": -97000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2026-01-20", "res": "missing", "tps": ["FY"]},
-    {"bot": "match", "cons": -1, "item": "net_sales", "jq": 286000000.0, "jq_key": "FNCSales#nc", "kind": "forecast", "period_end": "2026-01-20", "res": "missing", "tps": ["FY"]}
+    {"bot": "match", "cons": 0, "item": "eps_basic", "jq": 13.56, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2025-04-20", "res": "missing", "tps": ["Q1"]},
+    {"bot": "match", "cons": 0, "item": "net_income", "jq": 59000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2025-04-20", "res": "missing", "tps": ["Q1"]},
+    {"bot": "match", "cons": 0, "item": "operating_income", "jq": -97000000.0, "jq_key": "FNCOP#nc", "kind": "forecast", "period_end": "2025-04-20", "res": "missing", "tps": ["Q1"]},
+    {"bot": "match", "cons": 0, "item": "ordinary_income", "jq": -97000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2025-04-20", "res": "missing", "tps": ["Q1"]},
+    {"bot": "match", "cons": 0, "item": "net_sales", "jq": 286000000.0, "jq_key": "FNCSales#nc", "kind": "forecast", "period_end": "2025-04-20", "res": "missing", "tps": ["Q1"]}
    ]
   },
   "20250321597588": {
