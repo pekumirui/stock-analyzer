@@ -916,3 +916,25 @@ ZIP の `parse_manifest_row` は、パースが `parsed` のあと、失敗を `
 
 ZIP との付き合わせは `tools/tdnet_pdf/verify_financials.py` がスクラッチの SQLite で行う（本番 `stock.db` へは書かない）。提出日は `statements.disclosed_date` / `disclosed_time` を優先し、無ければ ZIP 名の先頭 8 桁から取る（開示番号からは作らない）。`statements` に J-Quants の日付がそろっているときは ZIP の期末で上書きしない（KAB-219）。テストは本番 DB も IR BANK も呼ばない。
 
+
+### 16.6 短信 PDF の回帰チェック（KAB-244）
+
+`app/xbrl/pdf/`・`config/xbrl/mappings/tdnet_pdf.yaml`・`tools/tdnet_pdf/financials.py` を変える PR は、`tools/tdnet_pdf/golden_check.py` を通す。#1071 は J-Quants との一致を 1,795 → 1,565 に落としたが、合成のテストは全部通っていた。実データの検証済みの値で止める。
+
+- **正解データ** `tests/golden/tdnet_pdf/expected.json`: XBRL 検証 bot の 2〜3 回目（19 銘柄）の 407 開示。`values` は読み取りの行のうち J-Quants と一致を確かめた値だけ（検証 bot の `cmp_jq.json` も `match`、かつ `build` で J-Quants の値と突き合わせて一致）。`evidence` に J-Quants の項目名。`known_gaps` は J-Quants と合わない項目で、直ると「一致するようになった」と出る。2021-10 より前の 12 開示は J-Quants（Light）が返さないので入れていない。EDINET と一致した値はまだ入れていない（`evidence: "edinet:…"` を受ける形にはしてある）
+- **HTML**: 全件は `data/tdnet_pdf_golden/html/{開示番号}.html.gz` と `titles.json`（repo に入れない）。`fetch` が IR BANK の PDF を `convert.py` で変換して作る（PDF は残さない）。`html_sha256` と違えば知らせる。原因の種類ごとの小さな組（38 開示・約 1.3MB。`html/classes.json` に種類）は `tests/golden/tdnet_pdf/html/` に入れ、`tests/xbrl/test_tdnet_pdf_golden.py` が CI で回す
+- **読み方**: 一時ファイルの SQLite に `statements`（J-Quants の日付）と `tdnet_pdf_documents`（HTML と題名）を入れ、`sync_pdf_filing` を開示番号の順に流す。会計基準は同じ銘柄の前の filing から引き継ぐので、開示 1 件だけでは結果が変わる。小さな組には、業績・配当の修正の直前の短信も入れてある
+- **判定**: 正解の値が消えた・変わったら exit 1。`--base-repo`（main の worktree）を付けると、正解データに無い行も含めた全行の差（消えた / 変わった / 増えた / filing の状態）を出す。PR 本文には `--md` の出力を貼る
+- **例外**: 正解の値は J-Quants と一致した値なので、変わるのは原則退行。J-Quants 側の誤りなどで変えるときは、PR 本文に一覧と理由を書き、同じ PR で `expected.json` を直す
+- **作り直し**: 検証 bot の新しい突き合わせ（`cmp_jq.json`）が来たら `build` で作り直す。差分は 1 値 1 行なので PR で読める
+
+```bash
+# HTML を用意する（初回だけ。約 1 時間。IR BANK に 1 秒おき）
+python tools/tdnet_pdf/golden_check.py fetch
+# 今のチェックアウトを正解データと比べ、main との全行の差も出す
+git worktree add /tmp/sa-main origin/main
+python tools/tdnet_pdf/golden_check.py check --base-repo /tmp/sa-main --md /tmp/golden.md
+# 正解データを作り直す（保守用。J-Quants の /fins/summary の行の JSON が要る）
+python tools/tdnet_pdf/golden_check.py build --statements fins_summary.json \
+  --cmp-jq r2_prev5=.../cmp_jq_prev5.json --cmp-jq r2_new5=.../cmp_jq_new5.json --cmp-jq r3=.../cmp_jq.json
+```

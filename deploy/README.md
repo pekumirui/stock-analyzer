@@ -96,7 +96,7 @@ box エージェントはユーザ `boxro` で sftp するだけ（シェルも�
 
 | chroot 内 | 実体 |
 |---|---|
-| `/data` | `$APP_DIR/data`（`monthly` / `xbrl` / `inventory` / `stats` / `xbrl_golden` / `xbrl_taxonomy`）。box からは `/mnt/vps/data` |
+| `/data` | `$APP_DIR/data`（`monthly` / `xbrl` / `inventory` / `stats` / `xbrl_golden` / `tdnet_pdf_golden` / `xbrl_taxonomy`）。box からは `/mnt/vps/data` |
 
 見せない: `/var/log/app`（ログは MCP の `app_logs` / `batch_logs` と `fs_*`）、`stock.db`、`.env`、`/home/stock/backups`、R2 FUSE（`/home/stock/r2-share`）。`data/` は既に bind しているので、`data/monthly` と `data/xbrl` は boxro から見える。FUSE は bind しない。既存ホストに `/srv/boxro/logs` の bind が残っていれば provision が umount し、fstab のその 1 行だけ消して空なら rmdir する（`/var/log/app` の中身は触らない）。
 
