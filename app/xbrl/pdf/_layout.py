@@ -85,7 +85,9 @@ _CONTINUES = re.compile(r"(及び|並びに|又は|に|の|・|、|帰属する|
 # 数値の無い行が前の行名の折り返しの尾（「…中間純」＋「損失（△）」、「額（△は減少）」、「(予想)」）。
 _TAIL = re.compile(r"^純?損失|^額|^[（(]予想")
 # 値だけの行のあとでも、これは新しい行名（KAB-213 の今回予想を前回に付けない）。
-_ROW_ROLE = re.compile(r"^(前回|今回|前期|通期|第[123]四半期|(当|前|次)期)")
+_ROW_ROLE = re.compile(r"^(前回|今回|前期|通期|増減|第[123]四半期|(当|前|次)期)")
+# 見出し帯に入った行ラベル（KAB-243。「（Ａ）」を売上高列に載せない）。
+_HEADER_ROW_LABEL = re.compile(r"^(前回|今回|増減|前期実績)")
 # 数値の下にずれた行名（松井の配当通知。KAB-237）。上の次の行の見出しにはしない。
 _UNDER_ROW = re.compile(r"^(前回|今回|実績)")
 
@@ -527,13 +529,36 @@ def grid(lines: list[Line]) -> Grid:
         edge = min_left - COL_TOL
         return max(word.x1 for word in words) < edge
 
+    def is_header_row_label(index: int) -> bool:
+        """「前回発表予想（Ａ）　円銭」のように、左が行名で右が単位だけの行。
+
+        前回/今回が列見出しとして並ぶ行（本表のあとの修正表）は列見出しのまま。
+        """
+        if parsed[index][2]:
+            return False
+        line = parsed[index][0]
+        edge = min_left - COL_TOL
+        left = [word for word in line.words if word.x1 < edge]
+        if not left:
+            return False
+        if not _HEADER_ROW_LABEL.match(_compact_text("".join(word.text for word in left))):
+            return False
+        right = [word for word in line.words if word.x1 >= edge]
+        if not right:
+            return False
+        compact_right = _compact_text("".join(word.text for word in right))
+        return bool(_UNIT_NOTE.search(compact_right) or compact_right in {"円", "銭"})
+
     hanging: set[int] = set()
     cursor = numeric[0] - 1
     while cursor >= 0:
-        if parsed[cursor][2] or is_prose(cursor) or not is_hanging_label(cursor):
+        if parsed[cursor][2] or is_prose(cursor):
             break
-        hanging.add(cursor)
-        cursor -= 1
+        if is_hanging_label(cursor) or is_header_row_label(cursor):
+            hanging.add(cursor)
+            cursor -= 1
+            continue
+        break
     header_from = 0
     for index in range(numeric[0] - 1, -1, -1):
         if index in hanging:
@@ -550,16 +575,13 @@ def grid(lines: list[Line]) -> Grid:
         if index not in hanging
         and not parsed[index][2]
         and not is_note(index)
+        and not is_header_row_label(index)
     ]
     headers_of: dict[float, list[str]] = {anchor: [] for anchor in anchors}
     percent = _percent_unit_columns(header_lines, anchors, lefts)
     for line in header_lines:
-        for word in line.words:
-            compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", word.text))
-            if _HEADER_NOTE.search(compact):
-                continue
-            for anchor, fragment in _assign_header_word(word, anchors, lefts, percent):
-                headers_of[anchor].append(fragment)
+        for anchor, fragment in _place_header_line(line, anchors, lefts, percent):
+            headers_of[anchor].append(fragment)
     columns = [Column(lefts[anchor], anchor, tuple(headers_of[anchor])) for anchor in anchors]
     column_tol = {anchor: tolerance[anchor] for anchor in anchors}
     rows: list[GridRow] = []
@@ -572,6 +594,14 @@ def grid(lines: list[Line]) -> Grid:
             continue
         if not amounts:
             compact_line = _compact_text(line.text)
+            label_text = line.text
+            if _HEADER_ROW_LABEL.match(compact_line):
+                left = [
+                    word.text for word in line.words
+                    if word.x1 < min_left - COL_TOL
+                ]
+                if left:
+                    label_text = "".join(left)
             if (
                 rows
                 and last_numeric_y is not None
@@ -582,7 +612,7 @@ def grid(lines: list[Line]) -> Grid:
                 if next_num is None or abs(line.base - last_numeric_y) <= abs(
                     parsed[next_num][0].base - line.base
                 ):
-                    rows[-1] = GridRow(f"{rows[-1].label}{line.text}", rows[-1].cells)
+                    rows[-1] = GridRow(f"{rows[-1].label}{label_text}", rows[-1].cells)
                     value_only = False
                     continue
             if rows and not pending and not _ROW_ROLE.match(compact_line) and (
@@ -590,10 +620,10 @@ def grid(lines: list[Line]) -> Grid:
                 or _CONTINUES.search(_compact_text(rows[-1].label))
                 or _TAIL.search(compact_line)
             ):
-                rows[-1] = GridRow(f"{rows[-1].label}{line.text}", rows[-1].cells)
+                rows[-1] = GridRow(f"{rows[-1].label}{label_text}", rows[-1].cells)
                 value_only = False
                 continue
-            pending = f"{pending}{line.text}"
+            pending = f"{pending}{label_text}"
             continue
         compact_label = re.sub(r"\s+", "", unicodedata.normalize("NFKC", label))
         complete = bool(re.search(
@@ -601,7 +631,12 @@ def grid(lines: list[Line]) -> Grid:
             r"|親会社の所有者に帰属する(当期|四半期|中間)利益$",
             compact_label,
         ))
-        full = f"{pending}{label}" if pending and not complete else (label or pending)
+        # 次の行が「今回」「前回」等の行名なら pending を連結しない（KAB-236）。
+        role_label = bool(_ROW_ROLE.match(compact_label))
+        full = (
+            f"{pending}{label}" if pending and not complete and not role_label
+            else (label or pending)
+        )
         # 行名を借りた数値行のあと、「(予想)」「額（△は減少）」は続き。今回予想は新しい行。
         value_only = bool(pending) and not label.strip()
         pending = ""
@@ -700,7 +735,13 @@ def _header_overlap(word: Word, anchor: float, left: float) -> float:
     return max(0.0, min(word.x1, anchor) - max(word.x0, left))
 
 
-def _columns_under(word: Word, anchors: list[float], lefts: dict[float, float]) -> list[float]:
+def _columns_under(
+    word: Word,
+    anchors: list[float],
+    lefts: dict[float, float],
+    *,
+    overlap_only: bool = False,
+) -> list[float]:
     """見出しの語が重なる列。隣の列と端だけ接する語は入れない（KAB-213 の経常利益）。
 
     重なりが正の列はすべて返す。2 列以上の金額列にまたがる語の分割は _assign_header_word。
@@ -710,6 +751,8 @@ def _columns_under(word: Word, anchors: list[float], lefts: dict[float, float]) 
     positive = [anchor for anchor, width in overlaps if width > 0]
     if positive:
         return positive
+    if overlap_only:
+        return []
     center = (word.x0 + word.x1) / 2
     best = min(anchors, key=lambda anchor: abs((lefts[anchor] + anchor) / 2 - center))
     if abs((lefts[best] + best) / 2 - center) <= _HEADER_REACH:
@@ -732,18 +775,53 @@ def _percent_unit_columns(
     return found
 
 
+def _place_header_line(
+    line: Line,
+    anchors: list[float],
+    lefts: dict[float, float],
+    percent: set[float],
+) -> list[tuple[float, str]]:
+    """1 行の見出し語を列へ。列に重ならない 1 字は右隣の列へ（KAB-236）。
+
+    9501 の「る」「１」は列の隙間に落ちる。中心の最寄りだと経常損益る・帰属す1 になる。
+    同じ行の重なった語へ付けると、EPS 側の「当」が NP 列へ寄る。
+    """
+    placed: list[tuple[float, str]] = []
+    for word in line.words:
+        compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", word.text))
+        if _HEADER_NOTE.search(compact):
+            continue
+        pieces = _assign_header_word(word, anchors, lefts, percent, overlap_only=True)
+        if pieces:
+            placed.extend(pieces)
+            continue
+        if len(_compact_text(word.text)) == 1:
+            right = [anchor for anchor in anchors if lefts[anchor] > word.x1]
+            amount_right = [anchor for anchor in right if anchor not in percent]
+            candidates = amount_right or right
+            if candidates:
+                best = min(candidates, key=lambda anchor: lefts[anchor] - word.x1)
+                if lefts[best] - word.x1 <= _HEADER_REACH:
+                    placed.append((best, word.text))
+                    continue
+        placed.extend(_assign_header_word(word, anchors, lefts, percent))
+    return placed
+
+
 def _assign_header_word(
     word: Word,
     anchors: list[float],
     lefts: dict[float, float],
     percent: set[float],
+    *,
+    overlap_only: bool = False,
 ) -> list[tuple[float, str]]:
     """見出しの語を列へ。％ 列を挟んで金額列をまたぐ 1 語は文字ごとに分ける（KAB-238）。
 
     隣り合う金額列にまたがる親見出し（「年間配当金」）と、表の左から伸びる期の見出し
     （7865「第１四半期業績予想（日付）」）は語全体を載せる。
     """
-    overlapping = _columns_under(word, anchors, lefts)
+    overlapping = _columns_under(word, anchors, lefts, overlap_only=overlap_only)
     if not overlapping:
         return []
     targets = [anchor for anchor in overlapping if anchor not in percent]

@@ -79,6 +79,16 @@ def test_mapping_applies_ifrs_local_name() -> None:
     jpigp = SimpleNamespace(local_name="ProfitLossIFRS", namespace_key="jpigp_cor", namespace_uri="")
     if skip_jppfs_on_ifrs_filing(ifrs_filing, jpigp):
         _fail("must not skip jpigp")
+    jpgaap_map = SimpleNamespace(accounting_standard="JPGAAP")
+    pdf_sum = SimpleNamespace(local_name="経常利益", namespace_key="pdf-sum", namespace_uri="")
+    nc = SimpleNamespace(is_consolidated=0)
+    cons = SimpleNamespace(is_consolidated=1)
+    if not mapping_applies(jpgaap_map, ifrs_filing, pdf_sum, nc):
+        _fail("IFRS filing #nc pdf should accept JPGAAP mapping")
+    if mapping_applies(jpgaap_map, ifrs_filing, pdf_sum, cons):
+        _fail("IFRS filing consolidated must not use JPGAAP 経常利益")
+    if mapping_applies(jpgaap_map, ifrs_filing, net_sales, nc):
+        _fail("JPGAAP mapping on non-pdf must stay filing-standard")
 
 
 def test_436a0_ifrs_standalone_skips_jppfs(tmp: Path) -> None:
