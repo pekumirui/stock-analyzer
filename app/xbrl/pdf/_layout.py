@@ -76,6 +76,8 @@ _GARBLED_MIN_CHARS = 30
 _HEADER_REACH = 80.0
 # ％ 列の単位語（NFKC 後）。またがる見出しの分け先から外す（KAB-238。1377 の純利益は金額列に残す）。
 _PERCENT_UNIT = frozenset({"%", "(%)"})
+# 分けたかけらがこれより短い列は、分割せず語全体を載せる（「金」だけ隣へ、を防ぐ）。
+_SPAN_MIN_CHARS = 3
 # 行名がここで終われば、次の数値の無い行は同じ行名の続き。
 _CONTINUES = re.compile(r"(及び|並びに|又は|に|の|・|、|帰属する|係る|対する)$")
 # 数値の無い行が前の行名の折り返しの尾（「…中間純」＋「損失（△）」、「額（△は減少）」、「(予想)」）。
@@ -734,14 +736,27 @@ def _assign_header_word(
     lefts: dict[float, float],
     percent: set[float],
 ) -> list[tuple[float, str]]:
-    """見出しの語を列へ。2 つ以上の金額列にまたがる 1 語は文字ごとに分ける（KAB-238）。"""
+    """見出しの語を列へ。％ 列を挟んで金額列をまたぐ 1 語は文字ごとに分ける（KAB-238）。
+
+    隣り合う金額列にまたがる親見出し（「年間配当金」）は語全体を載せる。
+    """
     overlapping = _columns_under(word, anchors, lefts)
     if not overlapping:
         return []
     targets = [anchor for anchor in overlapping if anchor not in percent]
-    if len(targets) <= 1:
-        return [(anchor, word.text) for anchor in (targets or overlapping)]
-    return _split_spanning_header(word, targets, lefts)
+    assign_to = targets or overlapping
+    if len(targets) >= 2 and not _amount_span_contiguous(overlapping, targets):
+        pieces = _split_spanning_header(word, targets, lefts)
+        if sum(1 for _anchor, fragment in pieces if len(fragment) >= _SPAN_MIN_CHARS) >= 2:
+            return pieces
+    return [(anchor, word.text) for anchor in assign_to]
+
+
+def _amount_span_contiguous(overlapping: list[float], targets: list[float]) -> bool:
+    """targets が overlapping の中で途切れない（間に ％ 列が無い）。"""
+    start = overlapping.index(targets[0])
+    end = overlapping.index(targets[-1])
+    return overlapping[start:end + 1] == targets
 
 
 def _split_spanning_header(

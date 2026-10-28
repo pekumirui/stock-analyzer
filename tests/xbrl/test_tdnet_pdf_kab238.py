@@ -120,8 +120,38 @@ def _spanning_forecast_parts() -> list[str]:
     ]
 
 
+def test_kab238_parent_header_on_adjacent_columns_is_not_split() -> None:
+    """隣り合う配当列にまたがる「年間配当金」は分割せず、各列の親見出しのまま。"""
+    parts = [
+        _text(40.0, 40.0, "1. 配当の状況", 120.0),
+        _text(160.0, 58.0, "年間配当金", 280.0),
+        _cell(300.0, 76.0, "第3四半期末", 90.0),
+        _cell(430.0, 76.0, "期末", 40.0),
+        _text(250.0, 94.0, "円 銭", 50.0),
+        _text(400.0, 94.0, "円 銭", 50.0),
+        _text(40.0, 112.0, "2026年8月期", 110.0),
+        _cell(300.0, 112.0, "40", 30.0),
+        _cell(430.0, 112.0, "22", 30.0),
+    ]
+    facts = _facts(read_tdnet_pdf(_pages(parts), _disclosure(
+        type_of_period="FY",
+        type_of_document="FYFinancialStatements_Consolidated_JP",
+        period_start=date(2025, 9, 1), period_end=date(2026, 8, 31),
+        fiscal_year_start=date(2025, 9, 1), fiscal_year_end=date(2026, 8, 31),
+    )))
+    names = {name for name, _ref in facts}
+    if names != {"年間配当金"}:
+        _fail(f"{facts}")
+    q3 = facts.get(("年間配当金", "CurrentYearDuration_ThirdQuarterMember_NonConsolidated"))
+    year_end = facts.get(("年間配当金", "CurrentYearDuration_YearEndMember_NonConsolidated"))
+    if q3 is None or q3.value_num != Decimal("40"):
+        _fail(f"q3 {facts}")
+    if year_end is None or year_end.value_num != Decimal("22"):
+        _fail(f"year_end {facts}")
+
+
 def test_kab238_spanning_np_eps_header_splits_to_columns() -> None:
-    """1 語の「親会社の所有者に基本的１株当たり」を NP 列と EPS 列に分け、％ は捨てる。"""
+    """％ 列を挟んだ 1 語の「親会社の所有者に基本的１株当たり」を NP 列と EPS 列に分ける。"""
     facts = _facts(read_tdnet_pdf(_pages(_spanning_forecast_parts()), _disclosure()))
     names = {name for name, _ref in facts}
     if "親会社の所有者に帰属する当期利益" not in names:
