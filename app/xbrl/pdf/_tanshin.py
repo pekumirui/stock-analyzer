@@ -24,17 +24,25 @@ _EARNINGS_DOC = re.compile(
 _PERIODS = {"1Q": "Q1", "2Q": "Q2", "3Q": "Q3", "FY": "FY"}
 _SPAN_OF_PERIOD = {"Q1": "AccumulatedQ1", "Q2": "AccumulatedQ2", "Q3": "AccumulatedQ3", "FY": "Year"}
 _URI = "http://stock-analyzer.local/taxonomy/tdnet-pdf/"
-# 年は西暦 4 桁か和暦（「令和8年」、「令和」を省いた「8年6月期」）。_year で西暦にする。
-_DATE = re.compile(r"(?:令和)?(\d{4}|\d{1,2})年(\d{1,2})月(\d{1,2})日")
-_YEAR_MONTH = re.compile(r"(?:令和)?(\d{4}|\d{1,2})年(\d{1,2})月期")
+# 年は西暦 4 桁か、1〜2 桁（「令和8年」「令和」を省いた「8年6月期」、西暦の下 2 桁「22年12月期」）。
+# 1 つ目のグループが「令和」。_year で西暦にする。
+_DATE = re.compile(r"(令和)?(\d{4}|\d{1,2})年(\d{1,2})月(\d{1,2})日")
+_YEAR_MONTH = re.compile(r"(令和)?(\d{4}|\d{1,2})年(\d{1,2})月期")
 # 本表の列見出しの「2026年6月末」。日が無い。
-_YEAR_MONTH_END = re.compile(r"(?:令和)?(\d{4}|\d{1,2})年(\d{1,2})月末")
+_YEAR_MONTH_END = re.compile(r"(令和)?(\d{4}|\d{1,2})年(\d{1,2})月末")
 _REIWA_BASE = 2018
 
 
-def _year(raw: str) -> int:
+def _year(reiwa: str, raw: str, d: PdfDisclosure | None = None) -> int:
+    """4 桁は西暦、「令和」付きは令和。「令和」の無い 1〜2 桁は、令和の省略（8年6月期 = 2026）と
+    西暦の下 2 桁（6268「22年12月期」= 2022）のうち、書類の年度末に近い方（KAB-228）。"""
     value = int(raw)
-    return value if value >= 1000 else _REIWA_BASE + value
+    if value >= 1000:
+        return value
+    if reiwa or d is None:
+        return _REIWA_BASE + value
+    anchor = d.fiscal_year_end.year
+    return min((_REIWA_BASE + value, 2000 + value), key=lambda year: abs(year - anchor))
 _DIVIDEND_SLOTS = frozenset({
     "FirstQuarterMember", "SecondQuarterMember", "ThirdQuarterMember", "YearEndMember", "AnnualMember",
 })
@@ -451,6 +459,17 @@ def _add_months(day: date, months: int) -> date:
     return date(year, month, min(day.day, _month_days(year, month)))
 
 
+def _shift_years(day: date, years: int) -> date:
+    """年をずらす。月末は月末のまま（6506 の 2023-02-28 の翌期末は 2024-02-29。KAB-228）。
+
+    app.xbrl.context.shift_years は EDINET も使うので変えない（2/29 → 2/28 に落とすだけ）。
+    """
+    year = day.year + years
+    if day.day == _month_days(day.year, day.month):
+        return date(year, day.month, _month_days(year, day.month))
+    return shift_years(day, years)
+
+
 def _month_days(year: int, month: int) -> int:
     if month == 12:
         nxt = date(year + 1, 1, 1)
@@ -459,12 +478,12 @@ def _month_days(year: int, month: int) -> int:
     return (nxt - timedelta(days=1)).day
 
 
-def _dates_in(texts: tuple[str, ...]) -> list[date]:
+def _dates_in(texts: tuple[str, ...], d: PdfDisclosure | None = None) -> list[date]:
     found: list[date] = []
     for text in texts:
-        for year, month, day in _DATE.findall(text):
+        for reiwa, year, month, day in _DATE.findall(text):
             try:
-                found.append(date(_year(year), int(month), int(day)))
+                found.append(date(_year(reiwa, year, d), int(month), int(day)))
             except ValueError:
                 continue
     return found
@@ -485,13 +504,13 @@ def _period_from_date(end: date, d: PdfDisclosure, spec: SectionSpec) -> tuple[P
     reported = _span_for(d, spec)
     if _near(end, d.period_end):
         return PeriodRef.CURRENT, reported
-    if _near(end, shift_years(d.period_end, -1)):
+    if _near(end, _shift_years(d.period_end, -1)):
         return PeriodRef.PRIOR, reported
     if _near(end, d.fiscal_year_end):
         return PeriodRef.CURRENT, Span.YEAR
-    if _near(end, shift_years(d.fiscal_year_end, -1)):
+    if _near(end, _shift_years(d.fiscal_year_end, -1)):
         return PeriodRef.PRIOR, Span.YEAR
-    if _near(end, shift_years(d.fiscal_year_end, 1)):
+    if _near(end, _shift_years(d.fiscal_year_end, 1)):
         return PeriodRef.NEXT, Span.YEAR
     return None
 
@@ -503,14 +522,55 @@ def _period_from_year_month(
     reported = _span_for(d, spec)
     for end, period, span in (
         (d.period_end, PeriodRef.CURRENT, reported),
-        (shift_years(d.period_end, -1), PeriodRef.PRIOR, reported),
+        (_shift_years(d.period_end, -1), PeriodRef.PRIOR, reported),
         (d.fiscal_year_end, PeriodRef.CURRENT, Span.YEAR),
-        (shift_years(d.fiscal_year_end, -1), PeriodRef.PRIOR, Span.YEAR),
-        (shift_years(d.fiscal_year_end, 1), PeriodRef.NEXT, Span.YEAR),
+        (_shift_years(d.fiscal_year_end, -1), PeriodRef.PRIOR, Span.YEAR),
+        (_shift_years(d.fiscal_year_end, 1), PeriodRef.NEXT, Span.YEAR),
     ):
         if end.year == year and end.month == month:
             return period, span
     return None
+
+
+def _period_from_range_end(end: date, d: PdfDisclosure) -> tuple[PeriodRef, Span] | None:
+    """期首から何か月で終わるかで期を決める（「2021年9月1日～2022年2月28日」は第2四半期累計）。
+
+    書類の期末・年度末に当たらない日（通期の書類の上期の表、20 日決算）にも使う。
+    """
+    for period, shift in ((PeriodRef.CURRENT, 0), (PeriodRef.PRIOR, -1), (PeriodRef.NEXT, 1)):
+        start = _shift_years(d.fiscal_year_start, shift)
+        for months, span in ((3, Span.ACC_Q1), (6, Span.ACC_Q2), (9, Span.ACC_Q3), (12, Span.YEAR)):
+            if _near(end, _add_months(start, months) - timedelta(days=1)):
+                return period, span
+    return None
+
+
+@dataclass(frozen=True)
+class PeriodHint:
+    """表の見出し・書類の題名から読んだ期。列や行に期の語が無い予想に使う（KAB-228）。"""
+
+    period: PeriodRef | None = None
+    span: Span | None = None
+    # 「第２四半期累計期間の業績予想及び通期業績予想の修正」のように、累計と通期の両方がある
+    ambiguous: bool = False
+
+    @property
+    def empty(self) -> bool:
+        return self.span is None and not self.ambiguous
+
+
+def heading_hint(text: str, d: PdfDisclosure, spec: SectionSpec) -> PeriodHint:
+    """見出しの期間（日付の範囲が先、無ければ「第2四半期（累計）」「通期」の語）。"""
+    norm = _compact(text)
+    dates = _dates_in((norm,), d)
+    if dates:
+        found = _period_from_date(dates[-1], d, spec) or _period_from_range_end(dates[-1], d)
+        if found is not None:
+            return PeriodHint(*found)
+    spans = {patch["span"] for pattern, patch in ROLE_WORDS if "span" in patch and pattern.search(norm)}
+    if len(spans) == 1:
+        return PeriodHint(span=spans.pop())
+    return PeriodHint(ambiguous=len(spans) > 1)
 
 
 def _heading_key(raw: str) -> str:
@@ -560,6 +620,7 @@ def role_of(
     d: PdfDisclosure,
     *,
     rightmost: bool = False,
+    hint: PeriodHint | None = None,
 ) -> Role | None:
     norm = tuple(_compact(text) for text in texts if text and _compact(text))
     for text in norm:
@@ -597,16 +658,16 @@ def role_of(
     joined = ("".join(norm),)
     dated = None
     by_month = False
-    if _dates_in(norm):
-        dated = _period_from_date(_dates_in(norm)[-1], d, spec)
-    if dated is None and _dates_in(joined):
-        dated = _period_from_date(_dates_in(joined)[-1], d, spec)
+    if _dates_in(norm, d):
+        dated = _period_from_date(_dates_in(norm, d)[-1], d, spec)
+    if dated is None and _dates_in(joined, d):
+        dated = _period_from_date(_dates_in(joined, d)[-1], d, spec)
     if dated is None:
         for text in (*reversed(norm), joined[0]):
             found = _YEAR_MONTH.findall(text) or _YEAR_MONTH_END.findall(text)
             if found:
-                year, month = found[-1]
-                dated = _period_from_year_month(_year(year), int(month), d, spec)
+                reiwa, year, month = found[-1]
+                dated = _period_from_year_month(_year(reiwa, year, d), int(month), d, spec)
                 if dated is not None:
                     by_month = True
                     break
@@ -627,6 +688,14 @@ def role_of(
         else:
             period, span = dated
     if "ForecastMember" in members:
+        if span is None and hint is not None and not hint.empty:
+            # 予想の修正の表は列にも行にも期が無い。表の見出し（無ければ題名）の期を使う。
+            # 累計と通期の両方が書いてあって決まらないときは入れない（通期と決めつけて上書きしない）。
+            if hint.ambiguous:
+                return None
+            span = hint.span
+            if period is None:
+                period = hint.period
         if span is None:
             span = Span.YEAR
         if period is None:
@@ -653,9 +722,9 @@ def _bounds(role: Role, d: PdfDisclosure, instant: bool) -> tuple[date | None, d
     if instant:
         end = d.period_end
         if role.period is PeriodRef.PRIOR:
-            end = shift_years(end, -1)
+            end = _shift_years(end, -1)
         elif role.period is PeriodRef.NEXT:
-            end = shift_years(end, 1)
+            end = _shift_years(end, 1)
         return None, end
     if role.span is Span.ACC_Q1:
         start, end = d.fiscal_year_start, _add_months(d.fiscal_year_start, 3) - timedelta(days=1)
@@ -666,9 +735,9 @@ def _bounds(role: Role, d: PdfDisclosure, instant: bool) -> tuple[date | None, d
     else:
         start, end = d.fiscal_year_start, d.fiscal_year_end
     if role.period is PeriodRef.PRIOR:
-        return shift_years(start, -1), shift_years(end, -1)
+        return _shift_years(start, -1), _shift_years(end, -1)
     if role.period is PeriodRef.NEXT:
-        return shift_years(start, 1), shift_years(end, 1)
+        return _shift_years(start, 1), _shift_years(end, 1)
     return start, end
 
 
@@ -749,7 +818,7 @@ def _consolidation(text: str, d: PdfDisclosure, spec: SectionSpec | None = None)
     return d.consolidated
 
 
-def _blocks(pages: list[Page], d: PdfDisclosure) -> list[tuple[SectionSpec, list[Line], bool]]:
+def _blocks(pages: list[Page], d: PdfDisclosure) -> list[tuple[SectionSpec, list[Line], bool, str]]:
     specs = tuple(spec for spec in SECTIONS if d.kind in spec.kinds)
     lines = [line for page in pages for line in page.lines]
     page_of = [page.index for page in pages for _line in page.lines]
@@ -784,7 +853,7 @@ def _blocks(pages: list[Page], d: PdfDisclosure) -> list[tuple[SectionSpec, list
         if spec.name in _STATEMENTS:
             body = _statement_body(body)
         candidates.append((spec, _table_lines(body), consolidated, text))
-    blocks: list[tuple[SectionSpec, list[Line], bool]] = []
+    blocks: list[tuple[SectionSpec, list[Line], bool, str]] = []
     taken: set[str] = set()
     for spec, body, consolidated, text in candidates:
         if spec.name in _STATEMENTS:
@@ -793,7 +862,7 @@ def _blocks(pages: list[Page], d: PdfDisclosure) -> list[tuple[SectionSpec, list
             if d.kind is DocKind.EARNINGS and not _statement_matches(text, spec, d, candidates):
                 continue
             taken.add(spec.name)
-        blocks.append((spec, body, consolidated))
+        blocks.append((spec, body, consolidated, text))
     return blocks
 
 
@@ -957,9 +1026,21 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
         facts.append(fact)
         labels.setdefault((fact.namespace_key, fact.local_name), {"label_ja": label})
 
-    for spec, lines, consolidated in _blocks(pages, d):
+    blocks = _blocks(pages, d)
+    # 業績予想の修正は表ごとに見出しの期（「(1)第2四半期（累計）…（9月1日～2月28日）」）を使う。
+    # 見出しに期が無ければ題名（最初の見出し）。どちらにも無ければ今までどおり通期（KAB-228）。
+    title_hint = next(
+        (heading_hint(text, d, spec) for spec, _lines, _cons, text in blocks if spec.name == "fc_rev"),
+        PeriodHint(),
+    )
+    for spec, lines, consolidated, heading in blocks:
         if spec.namespace is None or not lines:
             continue
+        hint = None
+        if spec.name == "fc_rev":
+            hint = heading_hint(heading, d, spec)
+            if hint.empty:
+                hint = title_hint
         for chunk in _split_grids(lines):
             try:
                 table = grid(chunk)
@@ -991,7 +1072,7 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                                 role_texts = (*role_texts, item_text)
                             item_text = "年間配当金"
                             slot_only = True
-                        role = role_of(role_texts, spec, d, rightmost=False)
+                        role = role_of(role_texts, spec, d, rightmost=False, hint=hint)
                     if role is None or not item_text.strip() or _is_unit_token(item_text):
                         continue
                     try:
