@@ -72,6 +72,9 @@ _HEADER_PROSE_LEN = 40
 # 本表ページの文字化け（KAB-218）。想定する文字種以外の割合。
 _GARBLED_RATIO = 0.5
 _GARBLED_MIN_CHARS = 30
+# アウトライン化されたページ（KAB-227）。柱を落としたあとの字数が少なく、図形が多い。
+_OUTLINE_MIN_DRAWINGS = 80
+_DRAWING_TAGS = frozenset({"path", "line"})
 # 見出しの語が数値の列に重ならないとき、この距離までなら中心がいちばん近い列の見出し。
 _HEADER_REACH = 80.0
 # ％ 列の単位語（NFKC 後）。またがる見出しの分け先から外す（KAB-238。1377 の純利益は金額列に残す）。
@@ -130,6 +133,8 @@ class Line:
 class Page:
     index: int
     lines: tuple[Line, ...]
+    # svg1 の <line> と svg2 の <path>。文字が図形だけのページを数える（KAB-227）。
+    drawings: int = 0
 
 
 @dataclass(frozen=True)
@@ -170,6 +175,7 @@ class _SvgTextParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.pages: list[list[Word]] = []
+        self.drawings: list[int] = []
         self._words: list[Word] | None = None
         self._attrs: dict[str, str] | None = None
         self._buf: list[str] = []
@@ -178,6 +184,10 @@ class _SvgTextParser(HTMLParser):
         if tag == "svg":
             self._words = []
             self.pages.append(self._words)
+            self.drawings.append(0)
+            return
+        if tag in _DRAWING_TAGS and self.drawings:
+            self.drawings[-1] += 1
             return
         if tag == "text" and self._words is not None:
             self._attrs = {key.lower(): value or "" for key, value in attrs}
@@ -222,8 +232,8 @@ def read_pages(html: str) -> list[Page]:
     parser.feed(html)
     parser.close()
     pages: list[Page] = []
-    for index, words in enumerate(parser.pages):
-        pages.append(Page(index, _group_lines(words)))
+    for index, (words, n_draw) in enumerate(zip(parser.pages, parser.drawings)):
+        pages.append(Page(index, _group_lines(words), n_draw))
     return _strip_furniture(pages)
 
 
@@ -257,7 +267,7 @@ def _strip_furniture(pages: list[Page]) -> list[Page]:
             line for line in page.lines
             if not page_number(line) and not repeated(line)
         )
-        out.append(Page(page.index, kept))
+        out.append(Page(page.index, kept, page.drawings))
     return out
 
 
@@ -291,17 +301,29 @@ def _is_expected_char(ch: str) -> bool:
     return False
 
 
+def _page_chars(page: Page) -> int:
+    return sum(1 for line in page.lines for ch in line.text if not ch.isspace())
+
+
 def garbled_ratio(page: Page) -> float:
-    chars = [ch for line in page.lines for ch in line.text if not ch.isspace()]
-    if len(chars) < _GARBLED_MIN_CHARS:
+    chars = _page_chars(page)
+    if chars < _GARBLED_MIN_CHARS:
         return 0.0
-    bad = sum(1 for ch in chars if not _is_expected_char(ch))
-    return bad / len(chars)
+    bad = sum(1 for line in page.lines for ch in line.text if not ch.isspace() and not _is_expected_char(ch))
+    return bad / chars
+
+
+def outlined_page(page: Page) -> bool:
+    """文字が図形だけで、柱を落としたあとに残る字が少ない（KAB-227）。"""
+    return _page_chars(page) < _GARBLED_MIN_CHARS and page.drawings >= _OUTLINE_MIN_DRAWINGS
 
 
 def garbled_page_indexes(pages: list[Page]) -> list[int]:
-    """0 始まりのページ番号。想定する文字種以外が半分以上なら文字化け（KAB-218）。"""
-    return [page.index for page in pages if garbled_ratio(page) >= _GARBLED_RATIO]
+    """0 始まりのページ番号。文字化け（KAB-218）か、アウトライン化（KAB-227）。"""
+    return [
+        page.index for page in pages
+        if garbled_ratio(page) >= _GARBLED_RATIO or outlined_page(page)
+    ]
 
 
 def format_garbled_pages(indexes: list[int]) -> str:

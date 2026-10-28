@@ -435,7 +435,7 @@ def drop_pre_correction(pages: list[Page]) -> list[Page]:
                 continue
             if not dropping:
                 kept.append(line)
-        out.append(Page(page.index, tuple(kept)))
+        out.append(Page(page.index, tuple(kept), page.drawings))
     return out
 
 
