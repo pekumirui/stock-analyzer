@@ -48,10 +48,10 @@ _FURNITURE_TOL = 3.0
 _FURNITURE_TOP = 60.0
 _FURNITURE_BOTTOM = 780.0
 # 表の右上の注記。列見出しではない（「対前期増減率」で列を捨てない）。
-# ＝ / － で始まる式（KAB-216 9983「＝売上収益－…」「－ 売上原価」）も見出しにしない。
-_HEADER_NOTE = re.compile(r"表示は|^\(注|[＝=]|^[-−—―－]")
+# ＝ で始まる式（KAB-216 9983「＝売上収益－売上原価－…」）も見出しにしない。
+_HEADER_NOTE = re.compile(r"表示は|^\(注|[＝=]")
 # 注記の行（「(注)包括利益 … △52百万円」）。列見出しにしない。
-_NOTE_LINE = re.compile(r"^(\(注|※|\(参考\)|[＝=-−—―－])")
+_NOTE_LINE = re.compile(r"^(\(注|※|\(参考\)|[＝=])")
 # ※1 / ※ の注記番号（KAB-214）。空白の後ろだけ消す（※2171,958 の番号と金額をつながない）。
 _NOTE_MARK = re.compile(r"※\s*\d{0,2}(?=\s|$)")
 # 配当の「40 円 40 円」（KAB-213）。金額の間と末尾の飾り。
@@ -519,12 +519,14 @@ def grid(lines: list[Line]) -> Grid:
         and not parsed[index][2]
         and not _NOTE_LINE.match(_compact_text(parsed[index][0].text))
     ]
-    per_line = [_headers_for_line(line, anchors, lefts) for line in header_lines]
-    _spread_parent_headers(header_lines, per_line, anchors)
     headers_of: dict[float, list[str]] = {anchor: [] for anchor in anchors}
-    for assigned in per_line:
-        for anchor, texts in assigned.items():
-            headers_of[anchor].extend(texts)
+    for line in header_lines:
+        for word in line.words:
+            compact = re.sub(r"\s+", "", unicodedata.normalize("NFKC", word.text))
+            if _HEADER_NOTE.search(compact):
+                continue
+            for anchor in _columns_under(word, anchors, lefts):
+                headers_of[anchor].append(word.text)
     columns = [Column(lefts[anchor], anchor, tuple(headers_of[anchor])) for anchor in anchors]
     column_tol = {anchor: tolerance[anchor] for anchor in anchors}
     rows: list[GridRow] = []
@@ -650,80 +652,6 @@ def _header_overlap(word: Word, anchor: float, left: float) -> float:
     return max(0.0, min(word.x1, anchor) - max(word.x0, left))
 
 
-def _column_center(anchor: float, lefts: dict[float, float]) -> float:
-    return (lefts[anchor] + anchor) / 2
-
-
-def _header_words(line: Line) -> list[Word]:
-    out: list[Word] = []
-    for word in line.words:
-        compact = _compact_text(word.text)
-        if not compact or _HEADER_NOTE.search(compact):
-            continue
-        out.append(word)
-    return out
-
-
-def _headers_for_line(
-    line: Line, anchors: list[float], lefts: dict[float, float],
-) -> dict[float, list[str]]:
-    """1 行の見出しを列へ付ける。同じ行の語が 1 列に寄ったら、左から列の順に付け直す（KAB-223）。"""
-    assigned: dict[float, list[str]] = {anchor: [] for anchor in anchors}
-    words = _header_words(line)
-    if not words:
-        return assigned
-    by_word = [(word, _columns_under(word, anchors, lefts)) for word in words]
-    used: set[float] = set()
-    collision = False
-    empty = False
-    for _word, cols in by_word:
-        if not cols:
-            empty = True
-        for col in cols:
-            if col in used:
-                collision = True
-            used.add(col)
-    # 科目・増減額のように、列に乗らない語が混ざっても付け直さない（伊藤忠）。
-    # 時点見出しが 1 列に寄ったときだけ、語の数と列の数が同じなら左から付け直す（KAB-223）。
-    if len(words) >= 2 and (collision or (empty and len(words) == len(anchors))):
-        unused = list(anchors)
-        for word in sorted(words, key=lambda item: (item.x0 + item.x1) / 2):
-            if not unused:
-                break
-            center = (word.x0 + word.x1) / 2
-            best = min(unused, key=lambda anchor: abs(_column_center(anchor, lefts) - center))
-            assigned[best].append(word.text)
-            unused.remove(best)
-        return assigned
-    for word, cols in by_word:
-        for col in cols:
-            assigned[col].append(word.text)
-    return assigned
-
-
-def _spread_parent_headers(
-    header_lines: list[Line],
-    per_line: list[dict[float, list[str]]],
-    anchors: list[float],
-) -> None:
-    """1 語の上段見出しを、直後の行が付けた列すべてへコピーする（KAB-223）。"""
-    for index, line in enumerate(header_lines[:-1]):
-        parents = _header_words(line)
-        if len(parents) != 1:
-            continue
-        compact = _compact_text(parents[0].text)
-        if _UNIT_NOTE.search(compact) or compact in {"円", "銭", "円銭"}:
-            continue
-        text = parents[0].text
-        parent_cols = {anchor for anchor in anchors if text in per_line[index][anchor]}
-        child_cols = {anchor for anchor in anchors if per_line[index + 1][anchor]}
-        if not parent_cols or not child_cols or parent_cols.isdisjoint(child_cols):
-            continue
-        for anchor in child_cols:
-            if text not in per_line[index][anchor]:
-                per_line[index][anchor] = [text, *per_line[index][anchor]]
-
-
 def _columns_under(word: Word, anchors: list[float], lefts: dict[float, float]) -> list[float]:
     """見出しの語が重なる列。隣の列と端だけ接する語は入れない（KAB-213 の経常利益）。
 
@@ -735,8 +663,8 @@ def _columns_under(word: Word, anchors: list[float], lefts: dict[float, float]) 
     if positive:
         return positive
     center = (word.x0 + word.x1) / 2
-    best = min(anchors, key=lambda anchor: abs(_column_center(anchor, lefts) - center))
-    if abs(_column_center(best, lefts) - center) <= _HEADER_REACH:
+    best = min(anchors, key=lambda anchor: abs((lefts[anchor] + anchor) / 2 - center))
+    if abs((lefts[best] + best) / 2 - center) <= _HEADER_REACH:
         return [best]
     return []
 
