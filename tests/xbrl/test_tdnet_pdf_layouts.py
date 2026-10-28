@@ -187,6 +187,8 @@ def test_or_and_triangle_labels() -> None:
     assert label_key("営業活動から得た現金及び現金同等物(純額)") == "営業活動によるキャッシュ・フロー"
     assert label_key("現金及び現金同等物の四半期末残高") == "現金及び現金同等物の期末残高"
     assert label_key("基本的１株当たり親会社の所有者に帰属する当期利益") == "基本的1株当たり当期利益"
+    assert label_key("連結売上高(A)") == "連結売上高"
+    assert label_key("売上高（Ｂ）") == "売上高"
 
 
 def _forecast_page(rows: list[str]) -> list[str]:

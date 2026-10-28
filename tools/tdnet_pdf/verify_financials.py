@@ -105,6 +105,17 @@ def fy_start(end: date) -> date:
     return prev + timedelta(days=1)
 
 
+def has_complete_dates(st) -> bool:
+    """J-Quants の期日がそろっている。そろっているときは ZIP の期末で上書きしない（KAB-219）。"""
+    return (
+        st is not None
+        and getattr(st, "period_start", None) is not None
+        and getattr(st, "period_end", None) is not None
+        and getattr(st, "fiscal_year_start", None) is not None
+        and getattr(st, "fiscal_year_end", None) is not None
+    )
+
+
 def align_statement_from_zip(st, filing) -> None:
     """ZIP の本表期末を statements に写す。題名の月末推定（20 日決算など）を上書きする。"""
     period_end = filing.fiscal_year_end
@@ -182,8 +193,23 @@ def dates_from_title(title: str, period: str | None) -> tuple[date, date, date, 
     return start, period_end, start, end
 
 
-def submitted_from_no(no: str) -> str:
-    return f"{no[0:4]}-{no[4:6]}-{no[6:8]} 15:00:00"
+_ZIP_DATE = re.compile(r"^(\d{8})_")
+
+
+def submitted_at_of(*, statement, zip_path: Path) -> str:
+    """提出日は statements を優先し、無ければ ZIP 名の先頭 8 桁。開示番号からは作らない（KAB-219）。"""
+    if statement is not None and getattr(statement, "disclosed_date", None) is not None:
+        clock = (statement.disclosed_time or "15:00:00").strip()
+        if len(clock) == 5:
+            clock = f"{clock}:00"
+        day = statement.disclosed_date
+        iso = day.isoformat() if hasattr(day, "isoformat") else str(day)
+        return f"{iso} {clock[:8]}"
+    found = _ZIP_DATE.match(zip_path.name)
+    if found is not None:
+        raw = found.group(1)
+        return f"{raw[0:4]}-{raw[4:6]}-{raw[6:8]} 15:00:00"
+    raise ValueError(f"提出日が statements にも ZIP 名にも無い: {zip_path.name}")
 
 
 def close_enough(item: str, left: Decimal, right: Decimal) -> bool:
@@ -441,11 +467,12 @@ def run_pair(db, *, no: str, zip_path: Path, html_path: Path | None, pdf_path: P
 
     title = title_of_zip_name(zip_path.name)
     meta = classify_title(title)
-    submitted = submitted_from_no(no)
     golden = db.get(Statement, no)
+    submitted = submitted_at_of(statement=golden, zip_path=zip_path)
     code = (golden.code if golden is not None else None) or code_of_zip_name(zip_path.name, None)
     if db.get(Stock, code) is None:
         raise ValueError(f"stocks に無い: {code}（--source-db にマスタを入れてください）")
+    had_jq_dates = has_complete_dates(golden)
     ensure_statement(
         db,
         no=no,
@@ -459,7 +486,7 @@ def run_pair(db, *, no: str, zip_path: Path, html_path: Path | None, pdf_path: P
     zip_filing = parse_zip(db, zip_path, code=code, no=no, title=title, submitted_at=submitted)
     zip_status = zip_filing.parse_status
     st = db.get(Statement, no)
-    if st is not None and zip_status == "parsed":
+    if st is not None and zip_status == "parsed" and not had_jq_dates:
         align_statement_from_zip(st, zip_filing)
         db.commit()
     if html_path is None:

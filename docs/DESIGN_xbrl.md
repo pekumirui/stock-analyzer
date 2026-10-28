@@ -869,20 +869,24 @@ pdfium（pypdfium2）でページごとに読む。文字は textpage の 1 文�
 | `xbrl_filings.source` | `tdnet_pdf` |
 | `doc_id` | 開示番号 14 桁（`statements.disclosure_no`） |
 | `raw_path` | `tdnet_pdf:<開示番号>` |
-| `raw_sha256` | `sha256(html の sha256 + ":" + READER_VERSION)` |
+| `raw_sha256` | `sha256(html の sha256 + ":" + READER_VERSION + ":" + 会計基準)` |
 | 要素の名前空間 | `pdf-sum` / `pdf-bs` / `pdf-pl` / `pdf-cf`（カスタム。URI は `http://stock-analyzer.local/taxonomy/tdnet-pdf/`） |
 | マッピング | `config/xbrl/mappings/tdnet_pdf.yaml`。`name` は `label_key` の結果 |
 
-読める DocType は `{1Q|2Q|3Q|FY}FinancialStatements_{Consolidated|NonConsolidated}_{JP|IFRS}` と `EarnForecastRevision` と `DividendForecastRevision`。REIT、米国基準、`4Q` / `5Q`、日付の欠けは filing を作らない。1Q / 3Q に CF が無くても失敗にしない。
+読める DocType は `{1Q|2Q|3Q|FY}FinancialStatements_{Consolidated|NonConsolidated}_{JP|IFRS}` と `EarnForecastRevision` と `DividendForecastRevision`。REIT、米国基準、`4Q` / `5Q`、日付の欠けは filing を作らない。1Q / 3Q に CF が無くても失敗にしない。PDF 1 ページ目の題名（`tdnet_pdf_documents.title`）に「速報値」がある開示は filing を作らない（`absent` / `flash-results`。failed に数えない）。訂正のお知らせは `is_amendment=True`。
 
 HTML は svg1（`<line>`）でも svg2（`<path>`）でも、`<text>` の位置だけを見る。見出しと列の役割は `app/xbrl/pdf/_tanshin.py` の表。百万円は円（10^6 倍）、百分率は `pure`（39.1 → 0.391）。設備投資の △ は負の fact のまま入れ、`std_items` の `sign: invert` で `capex` の行が正になる。「設備投資額」はマッピングしない。IFRS の経常利益はマッピングしない（`standard: JPGAAP` だけ）。IFRS 本表の売上原価・販管費は ZIP に合わせて正にする（印字の △ を外す）。
 
 context は ZIP の短信サマリーと同じメンバー（`ResultMember` など）と、`CurrentYearDuration` / `CurrentAccumulatedQ2Duration` / `NextYearDuration` のようなトークンを使う。前期の実績は `is_normalizable_context` で fact ごと落とす。印字の行は、マッピングが無くても残った列については fact として残す。
 
-読み方（ZIP・J-Quants と突き合わせて直したもの。`READER_VERSION=3`）:
+読み方（ZIP・J-Quants と突き合わせて直したもの。`READER_VERSION=4`）:
 
-- ページ番号（`- 6 -`）と柱（ページの上下の帯で 3 ページ以上同じ高さに出る行。2 行に分かれる柱も行ごと）は読む前に落とす。ダッシュが金額の「－」と読まれて幻の列になり、列見出しを吸っていた
-- 列見出しは、数値の列の幅（左端は数値の左端の最小）に重なる語。重ならない語は中心がいちばん近い列（80pt 以内）。右端だけで当てると中央寄せの見出しが付かず「右端が当期」の決め打ちになる（伊藤忠は当期が左、増減額が右）。表の右上の注記（「％表示は、対前期増減率」）と「(注)」の行は見出しにしない
+- ページ番号（`- 6 -`）と柱（ページの上下の帯で 3 ページ以上同じ高さに出る行。2 行に分かれる柱も行ごと）は読む前に落とす。ダッシュが金額の「－」と読まれて幻の列になり、列見出しを吸っていた。ページ番号の判定は上下の帯の外だけ（表の途中の「- 104」を落とさない。KAB-220）
+- 列見出しは、最初の数値の行のすぐ上に続く行だけ。上にたどって「。」を含む行・(注) / ※ で始まる行・空白を除いて 40 字を超える行で切る（KAB-216）。数値の列の幅（左端は数値の左端の最小）に重なる語。端だけ接する隣の列には載せない（KAB-213 の経常利益）。重ならない語は中心がいちばん近い列（80pt 以内）。右端だけで当てると中央寄せの見出しが付かず「右端が当期」の決め打ちになる（伊藤忠は当期が左、増減額が右）。表の右上の注記（「％表示は、対前期増減率」）と「(注)」の行は見出しにしない
+- 金額は、直前が行頭・空白・△▲・～ のときだけ取る（語の途中の数字や電話番号の末尾は金額にしない。KAB-216）。`※` / `※n` は後ろに空白があるときだけ消してから金額を取る（KAB-214）。配当の「40 円」の円は金額の飾り（KAB-213）
+- 「（訂正前）」から「（訂正後）」の手前までを捨て、訂正後の表を使う（KAB-212）
+- 数値より上にずれた行名（数値のすぐ上で、列より左からだけ始まる行）は見出しにせず次の数値の行の行名にする。業績予想・配当予想の修正で Result / Forecast の無い行は捨てる。pdf-sum の行名の先頭の「連結」「個別」は対応表に渡す前に落とす（KAB-213）
+- 修正開示の会計基準は、同じ銘柄の `statements`（`*_IFRS` / `*_JP`）のうち日付が近いものから取る。基準は指紋に含める
 - 列の役割は日付（「至 2026年6月30日」）を先に、無ければ年月（「2027年3月期」「2026年6月末」、和暦「令和8年」「8年6月期」）。語が分かれた見出し（「2026年」「6月末」）はつないで読む。期間の長さは語（第1四半期・中間）で決める
 - 本表で捨てる列: 増減・比率（%・前年同期比・売上収益比）・3 か月だけ（「第2四半期連結会計期間」）・予想（本表の後ろの「業績予想の修正」表）。同じ役割の列が 2 つなら見出しで決まった方を残し、どちらも見出しで決まっていれば両方捨てる。ダッシュだけの列は役割を付けない
 - △ だけ右端が数 pt ずれる列（JT）は、同じ行に並ばない 8pt 以内の列を 1 列にまとめる
@@ -890,8 +894,9 @@ context は ZIP の短信サマリーと同じメンバー（`ResultMember` な�
 - サマリーは 1〜2 ページ目だけ、ページをまたがない（目次のページ番号を予想の値にしない）。「(2)個別財政状態」「(参考)個別業績」は単体の値として読む。実績の表で期の読めない行（「(金融を除く)」）は読まない。同じ表で同じ科目・同じ期に違う値が出たら両方捨てる
 - 配当は ZIP と同じく単体（`is_consolidated=0`）。context の ref に `_NonConsolidated` を付け、連結の本表の context と取り違えない。列見出しが時点（「第１四半期末」）だけの列は 1 株当たり配当金
 - レンジ予想は 3 行（「下限 / ～ / 上限」「下限～ / ダッシュ / 上限」「下限 / 行名 / ～上限」）を 1 行の下限・上限にする。「5,100～ 30.9～」のように語をまたいで 1 つのレンジと読まない
-- 行名は `label_key` でそろえる: 「又は」の後ろを落とす（「営業利益又は営業損失(△)」→ 営業利益）、「(△…)」を落とす、四半期・中間の利益は当期の名前、「X利益の帰属 親会社の所有者」→ 親会社の所有者に帰属する当期利益、「営業活動に関する／から得た…(純額)」→ 営業活動によるキャッシュ・フロー、「四半期末残高」→ 期末残高。折り返した行名は、前の行が「及び」等で終わるか、値だけの行の後なら前の行の続き。「損失」で始まる数値の無い行は前の行名の尾
-- 読めない PDF（文字化けしたフォント、文字が図形だけ）は `failed`（`no in-scope table`）。値は入れない
+- 行名は `label_key` でそろえる: 「又は」の後ろを落とす（「営業利益又は営業損失(△)」→ 営業利益）、「(△…)」を落とす、末尾の `(A)` / `(B)` を落とす、四半期・中間の利益は当期の名前、「X利益の帰属 親会社の所有者」→ 親会社の所有者に帰属する当期利益、「営業活動に関する／から得た…(純額)」→ 営業活動によるキャッシュ・フロー、「四半期末残高」→ 期末残高。折り返した行名は、前の行が「及び」等で終わるか、値だけの行の後なら前の行の続き。「損失」で始まる数値の無い行は前の行名の尾。数値の無い「営業/投資/財務活動によるキャッシュ・フロー」は区分見出しとして落とす（KAB-216）
+- サマリーの「第2四半期」（末尾が「末」でないもの）は累計 Q2（KAB-215）
+- 本表ページが文字化けした PDF は `parsed` のまま残し、`parse_error` に `garbled pages=3-14` のように印を付ける。1〜2 ページ目のサマリー（売上高・EPS）は入れる。文字が図形だけで表が 1 つも無いときだけ `failed`（`no in-scope table`）。`tools/tdnet_pdf/financials.py` の最後の行に `garbled=` を出す（KAB-218）
 
 突き合わせの結果（2026-10-26。`verify_financials.py`。共有データの TDnet ZIP と、同じ回の IR BANK の PDF）:
 
@@ -905,9 +910,9 @@ context は ZIP の短信サマリーと同じメンバー（`ResultMember` な�
 
 有報・半期報（EDINET）とも比べた（2026-10-26。ゴールデンデータの 43 銘柄、同じ期が両方にある 80 期）。実績 1,647 件一致・16 件違い。違いは読み取りではなく書類・定義の差: 短信の出し直し（武田。当初の短信と有報は別の数字）、短信のあと有報で数字が変わった回（26740 の BS）、売上高の定義（イオンは PDF が営業収益・EDINET の対応表が内訳の売上高、SOMPO は PDF が PL の保険収益・EDINET が注記の収益）、短信と有報で基準が違う（東京海上の減価償却費。短信は日本基準、有報は IFRS）、ROE（44930。短信の印字どおり）、ソニーの期末の現金。同じ期の短信が 2 回出たときは PDF の filing も 2 つになる（ZIP と同じ。使う側が新しい方を選ぶ）。
 
-`tools/tdnet_pdf/financials.py` が新しい順に最大 `--limit`（既定 2000）件。cron では動かさない。新しい短信は ZIP があり `tools/tdnet_pdf/ingest.py` が PDF を取らないので、過去の PDF を入れたあとに手で流す（`--limit 100000` で全件）。後から ZIP が来た回の PDF filing は ZIP の取込が消す。指紋が同じ `parsed` / `failed` は HTML を読まない（`unchanged`）ので何度流してもよい。`READER_VERSION` を上げると指紋がずれ、次の実行が HTML を読み直す。`--reparse` は指紋を無視する。マッピングだけ変えたときは `jobs/xbrl/xbrl_normalize.py --rebuild` で足りる。
+`tools/tdnet_pdf/financials.py` が新しい順に最大 `--limit`（既定 2000）件。cron では動かさない。新しい短信は ZIP があり `tools/tdnet_pdf/ingest.py` が PDF を取らないので、過去の PDF を入れたあとに手で流す（`--limit 100000` で全件）。後から ZIP が来た回の PDF filing は ZIP の取込が消す。指紋が同じ `parsed` / `failed` は HTML を読まない（`unchanged`）ので何度流してもよい。`READER_VERSION` を上げるか会計基準が後から決まると指紋がずれ、次の実行が HTML を読み直す。`--reparse` は指紋を無視する。マッピングだけ変えたときは `jobs/xbrl/xbrl_normalize.py --rebuild` で足りる。
 
 ZIP の `parse_manifest_row` は、パースが `parsed` のあと、失敗を `mark_failed` する `try` の外で `sync_pdf_filing(db, doc_id の後ろ 14 桁)` を呼ぶ。PDF 側の例外は ZIP を `failed` にしない。`parse_status='parsed'` の `source='tdnet'` がある 14 桁は PDF filing を消す。
 
-ZIP との付き合わせは `tools/tdnet_pdf/verify_financials.py` がスクラッチの SQLite で行う（本番 `stock.db` へは書かない）。テストは本番 DB も IR BANK も呼ばない。
+ZIP との付き合わせは `tools/tdnet_pdf/verify_financials.py` がスクラッチの SQLite で行う（本番 `stock.db` へは書かない）。提出日は `statements.disclosed_date` / `disclosed_time` を優先し、無ければ ZIP 名の先頭 8 桁から取る（開示番号からは作らない）。`statements` に J-Quants の日付がそろっているときは ZIP の期末で上書きしない（KAB-219）。テストは本番 DB も IR BANK も呼ばない。
 
