@@ -346,6 +346,8 @@ def test_http_auth_and_tools() -> None:
         "nginx_logs",
         "db_stats",
         "db_lookup",
+        "db_query",
+        "db_schema",
         "xbrl_compare",
         "xbrl_diff_summary",
         "fx_rate",
@@ -827,6 +829,179 @@ def test_timed_fetch_progress_interrupt() -> None:
         conn.close()
     if row is not m._TIMEOUT:
         raise SystemExit(f"progress_handler should interrupt, got {row!r}")
+
+
+def test_db_query_and_schema() -> None:
+    from tempfile import TemporaryDirectory
+    import sqlite3
+
+    prev = os.environ.get("MCP_APP_DIR")
+    prev_url = os.environ.get("DATABASE_URL")
+    with TemporaryDirectory() as d:
+        os.environ["MCP_APP_DIR"] = d
+        os.environ.pop("DATABASE_URL", None)
+        dbp = Path(d) / "stock.db"
+        setup = sqlite3.connect(dbp)
+        setup.executescript(
+            """
+            CREATE TABLE stocks (code TEXT PRIMARY KEY, name TEXT NOT NULL);
+            INSERT INTO stocks VALUES ('72030', 'トヨタ'), ('99840', 'ソフバン');
+            CREATE TABLE api_tokens (token TEXT);
+            INSERT INTO api_tokens VALUES ('secret-token');
+            """
+        )
+        setup.commit()
+        setup.close()
+        audits: list[tuple[str, float, int, bool]] = []
+        orig_audit = m._audit_db_query
+
+        def capture_audit(sql: str, elapsed_s: float, row_count: int, truncated: bool) -> None:
+            audits.append((sql, elapsed_s, row_count, truncated))
+            orig_audit(sql, elapsed_s, row_count, truncated)
+
+        m._audit_db_query = capture_audit
+        try:
+            if m._query_authorizer(sqlite3.SQLITE_ATTACH, ":memory:", None, None, None) != sqlite3.SQLITE_DENY:
+                raise SystemExit("authorizer must deny ATTACH")
+            if m._query_authorizer(sqlite3.SQLITE_INSERT, "stocks", None, "main", None) != sqlite3.SQLITE_DENY:
+                raise SystemExit("authorizer must deny INSERT")
+            if m._query_authorizer(sqlite3.SQLITE_PRAGMA, "query_only", "OFF", None, None) != sqlite3.SQLITE_DENY:
+                raise SystemExit("authorizer must deny PRAGMA write")
+            if m._query_authorizer(sqlite3.SQLITE_CREATE_TEMP_TABLE, "x", None, "temp", None) != sqlite3.SQLITE_DENY:
+                raise SystemExit("authorizer must deny TEMP TABLE")
+            if m._query_authorizer(sqlite3.SQLITE_PRAGMA, "table_info", "stocks", None, None) != sqlite3.SQLITE_OK:
+                raise SystemExit("authorizer must allow table_info")
+            if m._query_authorizer(sqlite3.SQLITE_READ, "api_tokens", "token", "main", None) != sqlite3.SQLITE_DENY:
+                raise SystemExit("authorizer must deny secret table")
+            if m._query_authorizer(sqlite3.SQLITE_READ, "stocks", "code", "main", None) != sqlite3.SQLITE_OK:
+                raise SystemExit("authorizer must allow stocks")
+
+            text, err = m.call_tool(
+                "db_query",
+                {"sql": "SELECT code, name FROM stocks WHERE code = ? ORDER BY code", "params": ["72030"]},
+            )
+            if err:
+                raise SystemExit(f"select: {text}")
+            body = json.loads(text)
+            if body["columns"] != ["code", "name"] or body["row_count"] != 1 or body["truncated"]:
+                raise SystemExit(f"select body: {body}")
+            if body["rows"] != [["72030", "トヨタ"]]:
+                raise SystemExit(f"select rows: {body}")
+            if not audits or "SELECT code, name FROM stocks" not in audits[-1][0] or audits[-1][2] != 1:
+                raise SystemExit(f"audit: {audits}")
+
+            cte, cte_err = m.call_tool(
+                "db_query",
+                {"sql": "WITH x AS (SELECT code FROM stocks) SELECT COUNT(*) AS n FROM x"},
+            )
+            if cte_err or json.loads(cte)["rows"] != [[2]]:
+                raise SystemExit(f"cte select: {cte}")
+
+            named, named_err = m.call_tool(
+                "db_query",
+                {"sql": "SELECT name FROM stocks WHERE code = :code", "params": {"code": "99840"}},
+            )
+            if named_err or json.loads(named)["rows"] != [["ソフバン"]]:
+                raise SystemExit(f"named params: {named}")
+
+            semi, semi_err = m.call_tool("db_query", {"sql": "SELECT 1 AS n;"})
+            if semi_err or json.loads(semi)["rows"] != [[1]]:
+                raise SystemExit(f"trailing semicolon: {semi}")
+
+            denied = [
+                "INSERT INTO stocks VALUES ('00000', 'x')",
+                "UPDATE stocks SET name = 'x'",
+                "DELETE FROM stocks",
+                "DROP TABLE stocks",
+                "ATTACH DATABASE ':memory:' AS other",
+                "PRAGMA query_only = OFF",
+                "PRAGMA writable_schema = ON",
+                "SELECT 1; SELECT 2",
+                "SELECT 1; DROP TABLE stocks",
+                "WITH x AS (SELECT '00000' AS code, 'x' AS name) INSERT INTO stocks SELECT * FROM x",
+                "/* SELECT 1 */ INSERT INTO stocks VALUES ('00000', 'x')",
+            ]
+            for sql in denied:
+                text, is_error = m.call_tool("db_query", {"sql": sql})
+                if not is_error:
+                    raise SystemExit(f"must reject {sql!r}: {text}")
+            still = json.loads(m.tool_db_query({"sql": "SELECT COUNT(*) AS n FROM stocks"}))
+            if still["rows"] != [[2]]:
+                raise SystemExit(f"writes leaked: {still}")
+
+            secret, secret_err = m.call_tool("db_query", {"sql": "SELECT token FROM api_tokens"})
+            if not secret_err or "secret-token" in secret:
+                raise SystemExit(f"secret table: {secret!r}")
+
+            limited = json.loads(m.tool_db_query({"sql": "SELECT code FROM stocks ORDER BY code", "limit": 1}))
+            if limited["row_count"] != 1 or not limited["truncated"] or limited["rows"] != [["72030"]]:
+                raise SystemExit(f"row limit: {limited}")
+
+            orig_bytes = m.DB_QUERY_MAX_BYTES
+            m.DB_QUERY_MAX_BYTES = 20
+            try:
+                sized = json.loads(m.tool_db_query({"sql": "SELECT code, name FROM stocks ORDER BY code"}))
+            finally:
+                m.DB_QUERY_MAX_BYTES = orig_bytes
+            if not sized["truncated"] or sized["row_count"] < 1:
+                raise SystemExit(f"byte limit: {sized}")
+
+            orig_ops = m.DB_QUERY_PROGRESS_OPS
+            orig_budget = m._QueryBudget
+
+            class _ImmediateTimeout(m._QueryBudget):
+                def handler(self) -> int:
+                    return 1
+
+            m.DB_QUERY_PROGRESS_OPS = 1
+            m._QueryBudget = lambda *a, **k: _ImmediateTimeout(timeout_s=0)  # noqa: ARG005
+            try:
+                to_text, to_err = m.call_tool(
+                    "db_query",
+                    {
+                        "sql": (
+                            "WITH RECURSIVE n(x) AS ("
+                            "SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x < 1000000"
+                            ") SELECT COUNT(*) AS n FROM n"
+                        )
+                    },
+                )
+            finally:
+                m.DB_QUERY_PROGRESS_OPS = orig_ops
+                m._QueryBudget = orig_budget
+            if not to_err or "timeout" not in to_text.lower():
+                raise SystemExit(f"timeout: {to_text!r} err={to_err}")
+
+            schema = json.loads(m.tool_db_schema({}))
+            names = [t["name"] for t in schema["tables"]]
+            if "stocks" not in names or "api_tokens" in names or any(n.startswith("sqlite_") for n in names):
+                raise SystemExit(f"schema names: {schema}")
+            stocks = next(t for t in schema["tables"] if t["name"] == "stocks")
+            cols = {c["name"]: c for c in stocks["columns"]}
+            if "code" not in cols or cols["code"]["pk"] != 1 or not cols["name"]["notnull"]:
+                raise SystemExit(f"schema columns: {stocks}")
+            only = json.loads(m.tool_db_schema({"tables": ["stocks"]}))
+            if [t["name"] for t in only["tables"]] != ["stocks"]:
+                raise SystemExit(f"schema filter: {only}")
+            denied_schema, denied_schema_err = m.call_tool("db_schema", {"tables": ["api_tokens"]})
+            if not denied_schema_err or "not readable" not in denied_schema:
+                raise SystemExit(f"schema secret: {denied_schema}")
+
+            client = TestClient(m.create_app("test-token-for-ci-only"))
+            r = _rpc(client, "tools/call", {"name": "db_query", "arguments": {"sql": "SELECT 1 AS n"}}, req_id=91)
+            rpc_body = json.loads(r.json()["result"]["content"][0]["text"])
+            if r.json()["result"]["isError"] or rpc_body["rows"] != [[1]]:
+                raise SystemExit(f"rpc db_query: {r.text}")
+        finally:
+            m._audit_db_query = orig_audit
+            if prev is None:
+                os.environ.pop("MCP_APP_DIR", None)
+            else:
+                os.environ["MCP_APP_DIR"] = prev
+            if prev_url is None:
+                os.environ.pop("DATABASE_URL", None)
+            else:
+                os.environ["DATABASE_URL"] = prev_url
 
 
 def test_fx_tools() -> None:
@@ -2484,6 +2659,7 @@ def main() -> None:
     test_db_tools()
     test_db_stats_approx_timeout_and_stat1()
     test_timed_fetch_progress_interrupt()
+    test_db_query_and_schema()
     test_xbrl_compare_tools()
     test_fx_tools()
     test_monthly_tools()
