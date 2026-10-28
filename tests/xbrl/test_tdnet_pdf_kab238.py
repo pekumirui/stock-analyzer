@@ -1,6 +1,7 @@
 """KAB-238: 2 列にまたがる 1 語の見出しを金額列ごとに分ける。
 
 IR BANK も本番 DB も使わない。PDF はリポジトリに入れない。対象開示は golden HTML。
+表の左から伸びる期の見出し（7865 の第1四半期/第2四半期業績予想）は分割しない。
 """
 from __future__ import annotations
 
@@ -192,6 +193,116 @@ def test_kab238_nabtesco_1q_forecast_from_golden() -> None:
             _fail(f"{name} {ref} {fact}")
     if any("所有者" in name and "基本的" in name for name, _ref in facts):
         _fail(f"glued {[name for name, _ref in facts]}")
+
+
+def _7865_forecast_table(
+    caption: str,
+    row: str,
+    values: tuple[str, str, str, str, str],
+    *,
+    heading: str,
+) -> list[str]:
+    """7865 の予想表。行名側から ％ 列をまたいで伸びる期の見出し（座標は 20240229545849）。"""
+    y0, y1, y2, y3, y4, y5 = 40.0, 52.0, 67.0, 72.0, 88.0, 100.0
+    return [
+        _text(55.7, y0, heading, 300.0),
+        _text(66.2, y1, caption, 288.0),
+        _text(446.5, y2, "１株当たり当期純", 72.0),
+        _text(157.3, y3, "売上高", 27.0),
+        _text(230.5, y3, "営業利益", 36.0),
+        _text(308.5, y3, "経常利益", 36.0),
+        _text(382.0, y3, "当期純利益", 45.0),
+        _text(473.5, y3 + 5.0, "利益", 18.0),
+        _text(147.2, y4, "百万円", 22.5),
+        _text(199.7, y4, "％", 7.5),
+        _text(225.2, y4, "百万円", 22.5),
+        _text(277.7, y4, "％", 7.5),
+        _text(303.2, y4, "百万円", 22.5),
+        _text(355.7, y4, "％", 7.5),
+        _text(381.2, y4, "百万円", 22.5),
+        _text(433.7, y4, "％", 7.5),
+        _text(500.5, y4, "円", 7.5),
+        _text(511.7, y4, "銭", 7.5),
+        _text(71.5, y5, row, 45.0),
+        _text(156.5, y5, values[0], 13.5),
+        _text(180.5, y5, "―", 27.0),
+        _text(230.0, y5, values[1], 18.0),
+        _text(263.2, y5, "―", 9.0),
+        _text(308.0, y5, values[2], 18.0),
+        _text(341.2, y5, "―", 9.0),
+        _text(386.0, y5, values[3], 18.0),
+        _text(419.2, y5, "―", 9.0),
+        _text(488.0, y5, values[4], 31.5),
+    ]
+
+
+def _forecast_op(facts: dict[tuple[str, str], object], *tokens: str):
+    hits = [
+        fact for (name, ref), fact in facts.items()
+        if name == "営業利益" and "ForecastMember" in ref
+    ]
+    match = [fact for fact in hits if all(token in fact.context_ref for token in tokens)]
+    return hits, match[0] if len(match) == 1 else None
+
+
+def test_kab238_quarter_forecast_caption_is_not_split() -> None:
+    """7865 FY: 「第１四半期業績予想（日付）」を列に割らず、営業利益の予想は Q1 のまま。"""
+    parts = _7865_forecast_table(
+        "2025年１月期第１四半期業績予想（2024年１月21日～2024年４月20日）",
+        "第１四半期",
+        ("336", "△75", "△75", "△52", "△11.88"),
+        heading="３．2025年１月期の業績予想（2024年１月21日～2025年１月20日）",
+    )
+    facts = _facts(read_tdnet_pdf(_pages(parts), _disclosure(
+        disclosure_no="20240229545849", code="78650", type_of_period="FY",
+        type_of_document="FYFinancialStatements_NonConsolidated_JP",
+        disclosed_date=date(2024, 3, 1),
+        period_start=date(2023, 1, 21), period_end=date(2024, 1, 20),
+        fiscal_year_start=date(2023, 1, 21), fiscal_year_end=date(2024, 1, 20),
+    )))
+    ops, q1 = _forecast_op(facts, "AccumulatedQ1")
+    if q1 is None or q1.value_num != MILLION * Decimal("-75"):
+        _fail(f"q1 op {ops}")
+    if any("CurrentYearDuration_ForecastMember" in fact.context_ref for fact in ops):
+        _fail(f"q1 became FY {ops}")
+
+
+def test_kab238_h1_forecast_caption_is_not_split() -> None:
+    """7865 1Q: 「第２四半期業績予想（日付）」を列に割らず、営業利益の予想は H1 のまま。"""
+    parts = _7865_forecast_table(
+        "2024年１月期第２四半期業績予想（2023年１月21日～2023年７月20日）",
+        "第２四半期(累計)",
+        ("2,361", "67", "71", "49", "11.21"),
+        heading="３．2024年１月期の業績予想（2023年１月21日～2024年１月20日）",
+    )
+    facts = _facts(read_tdnet_pdf(_pages(parts), _disclosure(
+        disclosure_no="20230529586566", code="78650", type_of_period="1Q",
+        type_of_document="1QFinancialStatements_NonConsolidated_JP",
+        disclosed_date=date(2023, 6, 1),
+        period_start=date(2023, 1, 21), period_end=date(2023, 4, 20),
+        fiscal_year_start=date(2023, 1, 21), fiscal_year_end=date(2024, 1, 20),
+    )))
+    ops, h1 = _forecast_op(facts, "AccumulatedQ2")
+    if h1 is None or h1.value_num != MILLION * 67:
+        _fail(f"h1 op {ops}")
+    if any("CurrentYearDuration_ForecastMember" in fact.context_ref for fact in ops):
+        _fail(f"h1 became FY {ops}")
+
+
+def test_kab238_7865_q1_forecast_stays_q1_from_golden() -> None:
+    """20240229545849: 単体の第1四半期営業利益予想は FY に落ちない。"""
+    html_text, d = _golden("20240229545849")
+    facts = _facts(read_tdnet_pdf(html_text, d))
+    ops, q1 = _forecast_op(facts, "AccumulatedQ1", "NonConsolidated")
+    if q1 is None or q1.value_num != MILLION * Decimal("-75"):
+        _fail(f"q1 op {ops}")
+    if any(
+        fact.local_name == "営業利益"
+        and "ForecastMember" in fact.context_ref
+        and "CurrentYearDuration_ForecastMember" in fact.context_ref
+        for fact in facts.values()
+    ):
+        _fail(f"q1 became FY {ops}")
 
 
 def test_kab238_jquants_fnp_feps_match() -> None:

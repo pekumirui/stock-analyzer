@@ -78,6 +78,8 @@ _HEADER_REACH = 80.0
 _PERCENT_UNIT = frozenset({"%", "(%)"})
 # 分けたかけらがこれより短い列は、分割せず語全体を載せる（「金」だけ隣へ、を防ぐ）。
 _SPAN_MIN_CHARS = 3
+# 表の左から伸びる期の見出し（7865「第１四半期業績予想（日付）」）。列の項目名ではない。
+_SPAN_CAPTION = re.compile(r"第[123]四半期|通期|業績予想")
 # 行名がここで終われば、次の数値の無い行は同じ行名の続き。
 _CONTINUES = re.compile(r"(及び|並びに|又は|に|の|・|、|帰属する|係る|対する)$")
 # 数値の無い行が前の行名の折り返しの尾（「…中間純」＋「損失（△）」、「額（△は減少）」、「(予想)」）。
@@ -738,18 +740,30 @@ def _assign_header_word(
 ) -> list[tuple[float, str]]:
     """見出しの語を列へ。％ 列を挟んで金額列をまたぐ 1 語は文字ごとに分ける（KAB-238）。
 
-    隣り合う金額列にまたがる親見出し（「年間配当金」）は語全体を載せる。
+    隣り合う金額列にまたがる親見出し（「年間配当金」）と、表の左から伸びる期の見出し
+    （7865「第１四半期業績予想（日付）」）は語全体を載せる。
     """
     overlapping = _columns_under(word, anchors, lefts)
     if not overlapping:
         return []
     targets = [anchor for anchor in overlapping if anchor not in percent]
     assign_to = targets or overlapping
-    if len(targets) >= 2 and not _amount_span_contiguous(overlapping, targets):
+    if (
+        len(targets) >= 2
+        and not _amount_span_contiguous(overlapping, targets)
+        and not _is_spanning_caption(word, lefts)
+    ):
         pieces = _split_spanning_header(word, targets, lefts)
         if sum(1 for _anchor, fragment in pieces if len(fragment) >= _SPAN_MIN_CHARS) >= 2:
             return pieces
     return [(anchor, word.text) for anchor in assign_to]
+
+
+def _is_spanning_caption(word: Word, lefts: dict[float, float]) -> bool:
+    """行名側から伸びる見出し、または第1四半期・通期・業績予想を含む語。項目名の連結ではない。"""
+    if word.x0 < min(lefts.values()) - COL_TOL:
+        return True
+    return bool(_SPAN_CAPTION.search(_compact_text(word.text)))
 
 
 def _amount_span_contiguous(overlapping: list[float], targets: list[float]) -> bool:
