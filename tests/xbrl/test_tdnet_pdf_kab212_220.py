@@ -918,3 +918,303 @@ def test_formula_note_is_not_eps_header() -> None:
         _fail(f"deps {facts}")
     if any("売上収益" in name and "1株" in name for name, _ref in facts):
         _fail(f"formula glued {facts}")
+
+
+# KAB-216 の残りと KAB-223。座標は実 PDF（tools/tdnet_pdf/convert.py の出力）から写した。
+# #1071 は列見出しの付け直しと上段の見出しのコピーで直そうとして本表を落とした（revert #1082）。
+# 「回帰（#1071 原因 n）」のテストはその 3 つの誤りを繰り返さないためのもの。#1071 の _layout では落ちる。
+
+def _kab216_summary_parts(unit_words: list[str]) -> list[str]:
+    """9983 20251007569462 の 1 ページ目「（１）連結経営成績」の EPS の表。"""
+    return [
+        _text(55, 270, "（１）連結経営成績（2024年９月１日～2025年８月31日）", 280),
+        _text(55, 327.8, "（注）当期より、当社の事業そのものの利益を示す指標として事業利益を記載しております。", 376),
+        _text(82, 337.7, "事業利益", 35),
+        _text(122, 337.7, "＝", 9),
+        _text(135, 337.7, "売上収益", 36),
+        _text(176, 337.7, "－", 9),
+        _text(189, 337.7, "売上原価", 36),
+        _text(229, 337.7, "－", 9),
+        _text(243, 337.7, "販売費及び一般管理費", 89),
+        _text(124, 357.7, "基本的１株当たり", 60),
+        _text(228, 357.7, "希薄化後", 30),
+        _text(292, 357.7, "親会社所有者帰属持分", 75),
+        _text(139, 366.2, "当期利益", 30),
+        _text(210, 366.2, "１株当たり当期利益", 67),
+        _text(311, 366.2, "当期利益率", 37),
+        *unit_words,
+        _text(60, 387.4, "2025年８月期", 44),
+        _cell(197, 387.4, "1,411.44", 30),
+        _cell(286, 387.4, "1,409.32", 30),
+        _cell(370, 387.4, "20.2", 15),
+        _text(60, 398.6, "2024年８月期", 44),
+        _cell(197, 398.6, "1,212.88", 30),
+        _cell(286, 398.6, "1,210.81", 30),
+        _cell(370, 398.6, "19.4", 15),
+    ]
+
+
+def _kab216_disclosure() -> PdfDisclosure:
+    return _disclosure(
+        disclosure_no="20251007569462", code="99830",
+        type_of_period="FY",
+        type_of_document="FYFinancialStatements_Consolidated_IFRS",
+        disclosed_date=date(2025, 10, 9),
+        period_start=date(2024, 9, 1), period_end=date(2025, 8, 31),
+        fiscal_year_start=date(2024, 9, 1), fiscal_year_end=date(2025, 8, 31),
+    )
+
+
+_KAB216_EPS = {
+    ("基本的1株当たり当期利益", "CurrentYearDuration_ResultMember"): Decimal("1411.44"),
+    ("希薄化後1株当たり当期利益", "CurrentYearDuration_ResultMember"): Decimal("1409.32"),
+    ("基本的1株当たり当期利益", "Prior1YearDuration_ResultMember"): Decimal("1212.88"),
+    ("希薄化後1株当たり当期利益", "Prior1YearDuration_ResultMember"): Decimal("1210.81"),
+}
+
+
+def test_kab216_inline_formula_line_is_not_eps_header() -> None:
+    """9983 20251007569462: 「事業利益 ＝ 売上収益 － 売上原価 －…」は ＝ で始まらなくても式。"""
+    units = [
+        _text(178, 376.6, "円 銭", 19),
+        _text(268, 376.6, "円 銭", 18),
+        _text(362, 376.6, "％", 8),
+    ]
+    facts = _facts(read_tdnet_pdf(_pages(_kab216_summary_parts(units)), _kab216_disclosure()))
+    for key, value in _KAB216_EPS.items():
+        if facts.get(key) != value:
+            _fail(f"{key} {facts}")
+    if any(word in name for name, _ref in facts for word in ("売上", "販売費", "事業利益")):
+        _fail(f"formula glued {facts}")
+
+
+def test_kab216_wrapped_formula_continuation_is_not_header() -> None:
+    """式が折り返して「－ 売上原価」の行が続いても、見出しに混ざらない。"""
+    parts = [
+        _text(40, 40, "（1）経営成績", 100),
+        _cell(400, 76, "売上収益", 60),
+        _cell(560, 76, "基本的1株当たり当期利益", 160),
+        _cell(740, 76, "希薄化後1株当たり当期利益", 160),
+        _text(340, 90, "＝売上収益", 80),
+        _text(340, 102, "－ 売上原価", 120),
+        _text(340, 114, "－ 販売費及び一般管理費", 180),
+        _text(40, 128, "円銭", 30),
+        _text(40, 146, "2025年8月期", 100),
+        _cell(400, 146, "3,400,000", 60),
+        _cell(560, 146, "1,411.44", 50),
+        _cell(740, 146, "1,409.32", 50),
+    ]
+    facts = _facts(read_tdnet_pdf(_pages(parts), _kab216_disclosure()))
+    if facts.get(("基本的1株当たり当期利益", "CurrentYearDuration_ResultMember")) != Decimal("1411.44"):
+        _fail(f"eps {facts}")
+    if facts.get(("希薄化後1株当たり当期利益", "CurrentYearDuration_ResultMember")) != Decimal("1409.32"):
+        _fail(f"deps {facts}")
+    if any("売上原価" in name or "販売費" in name for name, _ref in facts):
+        _fail(f"continuation glued {facts}")
+
+
+def _kab223_parts() -> list[str]:
+    """9983 20221215579485 の 2 ページ目「４．株式分割に伴う配当予想の修正」。単位の注記は無い。"""
+    rows = []
+    for y, label, sub, values in (
+        (471.7, "前回予想（2023年８月期）", "（2022年10月13日発表）", ("340.00", "340.00", "680.00")),
+        (505.6, "今回予想（2023年８月期）", "（３分割後）", ("115.00", "115.00", "230.00")),
+        (540.9, "前期（2022年８月期）", "実績", ("280.00", "340.00", "620.00")),
+    ):
+        rows += [_text(78, y, label, 118)]
+        for x1, value in zip((279, 393, 505), values):
+            rows += [_cell(x1, y + 9.1, value, 29), _text(x1 + 2, y + 9.1, "円", 11)]
+        rows += [_text(108, y + 13.6, sub, 88)]
+    return [
+        _text(55, 378.4, "４．株式分割に伴う配当予想の修正", 158),
+        _text(55, 396.4, "今回の株式分割に伴い、１株当たりの予想配当金を下記のとおり修正いたします。", 496),
+        _text(343, 436.0, "１株当たり配当金", 77),
+        _text(122, 454.6, "基準日", 30),
+        _text(242, 454.6, "第２四半期末", 58),
+        _text(375, 454.6, "期末", 20),
+        _text(487, 454.6, "年間", 20),
+        *rows,
+    ]
+
+
+def _kab223_statement(no: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        disclosure_no=no, code="99830", disclosed_date=date(2022, 12, 15),
+        disclosed_time="15:00", type_of_period="FY",
+        type_of_document="DividendForecastRevision",
+        period_start=date(2022, 9, 1), period_end=date(2023, 8, 31),
+        fiscal_year_start=date(2022, 9, 1), fiscal_year_end=date(2023, 8, 31),
+    )
+
+
+def test_kab223_dividend_revision_reads_q2_and_annual_columns() -> None:
+    """9983 20221215579485: 「１株当たり配当金」は期末列の上だけ。2Q 115・期末 115・年間 230 を入れる。"""
+    no = "20221215579485"
+    db = SessionLocal()
+    try:
+        _seed(db, no, _pages(_kab223_parts()), _kab223_statement(no))
+        apply_mappings(db)
+        if sync_pdf_filing(db, no) is not SyncOutcome.PARSED:
+            _fail("div rev sync")
+        rows = _rows(db, no)
+        expected = {
+            ("dps", "forecast", "point", "Q2"): Decimal("115"),
+            ("dps", "forecast", "point", "year_end"): Decimal("115"),
+            ("dps", "forecast", "point", "annual"): Decimal("230"),
+        }
+        for key, value in expected.items():
+            if rows.get(key) != value:
+                _fail(f"{key} {rows}")
+        # 前期実績（280 / 620）は今期の予想にしない。
+        if {Decimal("280"), Decimal("620")} & set(rows.values()):
+            _fail(f"prior actual {rows}")
+    finally:
+        db.close()
+
+
+def test_kab223_dividend_parent_header_is_not_copied_to_other_columns() -> None:
+    """回帰（#1071 原因 2）: 1 語の上段見出し「１株当たり配当金」は語の下の期末列にだけ付く。
+
+    2Q・年間の列は時点だけの列（年間配当金）として読む。上段を全列へ広げない。
+    """
+    no = "20221215579485"
+    pkg = read_tdnet_pdf(_pages(_kab223_parts()), PdfDisclosure.parse(_kab223_statement(no)))
+    current = {
+        slot: name
+        for (name, ref), _value in _facts(pkg).items()
+        if "CurrentMember" in ref
+        for slot in ("SecondQuarterMember", "YearEndMember", "AnnualMember")
+        if slot in ref
+    }
+    if current != {
+        "SecondQuarterMember": "年間配当金",
+        "YearEndMember": "1株当たり配当金",
+        "AnnualMember": "年間配当金",
+    }:
+        _fail(f"{current}")
+
+
+def _summary_pl_disclosure() -> PdfDisclosure:
+    return _disclosure(
+        disclosure_no="20250512500001", code="72030",
+        type_of_period="FY",
+        type_of_document="FYFinancialStatements_Consolidated_JP",
+        disclosed_date=date(2025, 5, 12),
+        period_start=date(2024, 4, 1), period_end=date(2025, 3, 31),
+        fiscal_year_start=date(2024, 4, 1), fiscal_year_end=date(2025, 3, 31),
+    )
+
+
+def test_single_word_parent_header_stays_over_its_column() -> None:
+    """回帰（#1071 原因 2）: 「営業利益当期純利益」「(連結)」のような名前を作らない。"""
+    parts = [
+        _text(40, 30, "（1）連結経営成績", 100),
+        _text(40, 44, "（％表示は対前期増減率。）", 120),
+        _text(330, 60, "親会社株主に帰属する", 80),
+        _text(130, 72, "売上高", 30),
+        _text(220, 72, "営業利益", 40),
+        _text(340, 72, "当期純利益", 50),
+        _text(130, 84, "百万円", 30),
+        _text(220, 84, "百万円", 30),
+        _text(340, 84, "百万円", 30),
+        _text(40, 100, "2025年3月期", 60),
+        _cell(170, 100, "1,000", 40),
+        _cell(270, 100, "100", 40),
+        _cell(400, 100, "50", 40),
+    ]
+    facts = _facts(read_tdnet_pdf(_pages(parts), _summary_pl_disclosure()))
+    names = {name for name, _ref in facts}
+    if names != {"売上高", "営業利益", "親会社株主に帰属する当期純利益"}:
+        _fail(f"{facts}")
+    if facts.get(("売上高", "CurrentYearDuration_ResultMember")) != MILLION * 1000:
+        _fail(f"{facts}")
+
+
+def test_two_words_per_column_period_header_keeps_columns() -> None:
+    """回帰（#1071 原因 1）: 「（自 2020年4月1日」のように 1 列に 2 語ある見出しを左から付け直さない。
+
+    付け直すと語が列より多くて余り、日付が隣の列へずれて当期・前期が入れ替わる（4502 の P/L が消えた）。
+    """
+    parts = [
+        _text(40, 40, "連結損益計算書", 120),
+        _text(40, 58, "（単位：百万円）", 80),
+        _text(250, 76, "前連結会計年度", 70),
+        _text(400, 76, "当連結会計年度", 70),
+        _text(240, 88, "（自", 15),
+        _text(258, 88, "2020年4月1日", 60),
+        _text(390, 88, "（自", 15),
+        _text(408, 88, "2021年4月1日", 60),
+        _text(240, 100, "至", 10),
+        _text(253, 100, "2021年3月31日）", 70),
+        _text(390, 100, "至", 10),
+        _text(403, 100, "2022年3月31日）", 70),
+        _text(40, 118, "売上収益", 40),
+        _cell(320, 118, "3,197,812", 50),
+        _cell(470, 118, "3,569,006", 50),
+        _text(40, 132, "営業利益", 40),
+        _cell(320, 132, "509,269", 50),
+        _cell(470, 132, "460,844", 50),
+    ]
+    d = _disclosure(
+        disclosure_no="20220511500002", code="45020",
+        type_of_period="FY",
+        type_of_document="FYFinancialStatements_Consolidated_IFRS",
+        disclosed_date=date(2022, 5, 11),
+        period_start=date(2021, 4, 1), period_end=date(2022, 3, 31),
+        fiscal_year_start=date(2021, 4, 1), fiscal_year_end=date(2022, 3, 31),
+    )
+    facts = _facts(read_tdnet_pdf(_pages(parts), d))
+    expected = {
+        ("売上収益", "CurrentYearDuration"): MILLION * 3569006,
+        ("売上収益", "Prior1YearDuration"): MILLION * 3197812,
+        ("営業利益", "CurrentYearDuration"): MILLION * 460844,
+        ("営業利益", "Prior1YearDuration"): MILLION * 509269,
+    }
+    if facts != expected:
+        _fail(f"{facts}")
+
+
+def test_split_unit_words_stay_on_their_column() -> None:
+    """回帰（#1071 原因 1）: 「円」「銭」が 1 列に 2 語でも隣の ROE 列へずらさない（ROE が 100 万倍になる）。"""
+    units = [
+        _text(178, 376.6, "円", 8),
+        _text(189, 376.6, "銭", 8),
+        _text(268, 376.6, "円", 8),
+        _text(278, 376.6, "銭", 8),
+        _text(362, 376.6, "％", 8),
+    ]
+    facts = _facts(read_tdnet_pdf(_pages(_kab216_summary_parts(units)), _kab216_disclosure()))
+    for key, value in _KAB216_EPS.items():
+        if facts.get(key) != value:
+            _fail(f"{key} {facts}")
+    roe = {ref: value for (name, ref), value in facts.items() if "率" in name}
+    if roe != {
+        "CurrentYearDuration_ResultMember": Decimal("0.202"),
+        "Prior1YearDuration_ResultMember": Decimal("0.194"),
+    }:
+        _fail(f"roe {facts}")
+
+
+def test_english_led_header_line_is_not_note() -> None:
+    """回帰（#1071 原因 3）: [＝=-−] は = から − の範囲になる。英字で始まる見出し行を注記にしない。"""
+    parts = [
+        _text(40, 30, "（1）連結経営成績", 100),
+        _text(40, 44, "（％表示は対前期増減率。）", 120),
+        _text(130, 60, "Core営業利益", 50),
+        _text(230, 60, "EBITDA", 30),
+        _text(330, 60, "ROE", 20),
+        _text(130, 72, "百万円", 30),
+        _text(230, 72, "百万円", 30),
+        _text(330, 72, "％", 10),
+        _text(40, 90, "2025年3月期", 60),
+        _cell(170, 90, "1,000", 40),
+        _cell(270, 90, "1,500", 40),
+        _cell(370, 90, "8.1", 40),
+    ]
+    facts = _facts(read_tdnet_pdf(_pages(parts), _summary_pl_disclosure()))
+    expected = {
+        ("Core営業利益", "CurrentYearDuration_ResultMember"): MILLION * 1000,
+        ("EBITDA", "CurrentYearDuration_ResultMember"): MILLION * 1500,
+    }
+    if {key: facts.get(key) for key in expected} != expected:
+        _fail(f"{facts}")

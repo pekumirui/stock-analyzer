@@ -52,6 +52,10 @@ _FURNITURE_BOTTOM = 780.0
 _HEADER_NOTE = re.compile(r"表示は|^\(注|[＝=]")
 # 注記の行（「(注)包括利益 … △52百万円」）。列見出しにしない。
 _NOTE_LINE = re.compile(r"^(\(注|※|\(参考\)|[＝=])")
+# 数値の無い式の行（KAB-216 9983「事業利益 ＝ 売上収益 － 売上原価 －…」と折り返しの「－ 販売費…」）。
+# NFKC 後の行に当てる。- は文字クラスの先頭でエスケープする（[＝=-−] は = から − までの範囲になり、
+# EPS・ROE のような英字で始まる行まで注記になる）。ダッシュの後ろが数字・ダッシュなら金額の印なので外す。
+_FORMULA_LINE = re.compile(r"=|^[\-‐−—―](?=[^\d\-‐−—―])")
 # ※1 / ※ の注記番号（KAB-214）。空白の後ろだけ消す（※2171,958 の番号と金額をつながない）。
 _NOTE_MARK = re.compile(r"※\s*\d{0,2}(?=\s|$)")
 # 配当の「40 円 40 円」（KAB-213）。金額の間と末尾の飾り。
@@ -475,9 +479,15 @@ def grid(lines: list[Line]) -> Grid:
         raise PdfLayoutError("no anchors")
     min_left = min(lefts.values()) if lefts else 0.0
 
+    def is_note(index: int) -> bool:
+        compact = _compact_text(parsed[index][0].text)
+        if _NOTE_LINE.match(compact):
+            return True
+        return not parsed[index][2] and bool(_FORMULA_LINE.search(compact))
+
     def is_prose(index: int) -> bool:
         compact = _compact_text(parsed[index][0].text)
-        if "。" in compact or _NOTE_LINE.match(compact):
+        if "。" in compact or is_note(index):
             return True
         return len(compact) > _HEADER_PROSE_LEN
 
@@ -507,7 +517,7 @@ def grid(lines: list[Line]) -> Grid:
         if index in hanging:
             continue
         # 式の注記は見出しの途中に挟まる。ここで切ると上の科目名が落ちる（KAB-216 9983）。
-        if _NOTE_LINE.match(_compact_text(parsed[index][0].text)):
+        if is_note(index):
             continue
         if parsed[index][2] or is_prose(index):
             header_from = index + 1
@@ -517,7 +527,7 @@ def grid(lines: list[Line]) -> Grid:
         for index in range(header_from, numeric[0])
         if index not in hanging
         and not parsed[index][2]
-        and not _NOTE_LINE.match(_compact_text(parsed[index][0].text))
+        and not is_note(index)
     ]
     headers_of: dict[float, list[str]] = {anchor: [] for anchor in anchors}
     for line in header_lines:

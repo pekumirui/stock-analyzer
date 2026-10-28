@@ -52,7 +52,7 @@ _NUMERIC_ITEM = re.compile(r"\d")
 _HEADER_ROLE = re.compile(
     r"増減率|対前期|前回発表予想|今回修正予想|今回発表予想|前回予想|今回予想"
     r"|[\(（][ABＡＢ][\)）]"
-    r"|第[123]四半期末|中間期末|^期末$|^(年間)?合計$|下限|上限"
+    r"|第[123]四半期末|中間期末|^期末$|^(年間)?合計$|^年間$|下限|上限"
     r"|第[123]四半期|中間期|上期|通期"
 )
 # 数値の無い CF の区分見出し（KAB-216）。金額がある合計行は残す。
@@ -335,7 +335,8 @@ ROLE_WORDS: tuple[tuple[re.Pattern[str], dict], ...] = (
     (_h(r"第2四半期末|中間期末"), {"add": frozenset({"SecondQuarterMember"})}),
     (_h(r"第3四半期末"), {"add": frozenset({"ThirdQuarterMember"})}),
     (_h(r"^期末$"), {"add": frozenset({"YearEndMember"})}),
-    (_h(r"^(年間)?合計$"), {"add": frozenset({"AnnualMember"})}),
+    # 配当の修正は「年間」だけの列もある（KAB-223 9983「第２四半期末 / 期末 / 年間」）。
+    (_h(r"^(年間)?合計$|^年間$"), {"add": frozenset({"AnnualMember"})}),
     (_h(r"下限"), {"add": frozenset({"LowerMember"})}),
     (_h(r"上限"), {"add": frozenset({"UpperMember"})}),
     (_h(r"第2四半期(?!末)|中間期|上期"), {"span": Span.ACC_Q2}),
@@ -972,6 +973,7 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                 for index, (column, amount) in enumerate(zip(table.columns, row.cells)):
                     if amount is None or amount.value is None:
                         continue
+                    slot_only = False
                     if column_roles is not None:
                         item_text = row.label
                         role_texts = column.headers
@@ -985,13 +987,18 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                             # 配当表の列見出しが「第１四半期末」等の時点だけなら、科目は 1 株当たり配当金。
                             # 配当金総額・配当性向の列は見出しの科目名のまま。
                             item_text = "年間配当金"
+                            slot_only = True
                         role = role_of(role_texts, spec, d, rightmost=False)
                     if role is None or not item_text.strip() or _is_unit_token(item_text):
                         continue
                     try:
                         unit = unit_of(table.unit_note, (item_text, *role_texts))
                     except PdfLayoutError:
-                        continue
+                        if not slot_only:
+                            continue
+                        # 単位の注記も「円銭」も無い配当の修正（KAB-223 9983）。時点だけの列は 1 株当たり。
+                        # 「１株当たり配当金」は上の 1 列にしか載らないので、ほかの時点列はここで決める。
+                        unit = UnitKind.PER_SHARE
                     base_local = label_key(item_text)
                     if spec.namespace is NS_SUMMARY:
                         base_local = re.sub(r"^(連結|個別)", "", base_local)
