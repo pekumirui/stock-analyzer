@@ -1,7 +1,8 @@
 """Streamable HTTP MCP for VPS logs, SQLite stats, monthly tables, FX rates, and read-only files.
 
 No extra deps: Starlette ships with FastAPI. Listens on 127.0.0.1:8010/mcp.
-Arbitrary shell/SQL is not exposed. journalctl units, log paths, and SELECT shapes are allowlisted.
+Arbitrary shell is not exposed. Arbitrary SQL is db_query's single SELECT/WITH only
+(mode=ro, query_only, authorizer). journalctl units and log paths are allowlisted.
 Monthly table tools call http://127.0.0.1:8000/api/v1/tables only (not nginx, not user URLs).
 monthly_ingest POSTs /api/v1/tables/{code}/ingest and does not send year.
 FX tools read fx_rates (EUR base) and compute cross rates. They do not call Frankfurter.
@@ -16,6 +17,7 @@ import gzip
 import hashlib
 import html
 import json
+import logging
 import os
 import re
 import hmac
@@ -69,7 +71,7 @@ PORT = int(os.environ.get("MCP_PORT", "8010"))
 MAX_LINES = 500
 DEFAULT_LINES = 200
 SERVER_NAME = "stock-analyzer-logs"
-SERVER_VERSION = "1.1.0"
+SERVER_VERSION = "1.2.0"
 PROTOCOL_VERSIONS = (
     "2024-11-05",
     "2025-03-26",
@@ -141,6 +143,39 @@ DB_TABLES = (
 DB_STATS_TOTAL_S = 8.0
 DB_STATS_QUERY_S = 2.0
 DB_STATS_PROGRESS_OPS = 10_000
+# db_query: WAL 読取はライターを止めない。progress で打ち切り、行とバイトも上限。
+DB_QUERY_DEFAULT_LIMIT = 200
+DB_QUERY_MAX_LIMIT = 2000
+DB_QUERY_TIMEOUT_S = 10.0
+DB_QUERY_PROGRESS_OPS = 10_000
+DB_QUERY_MAX_BYTES = 1024 * 1024
+DB_QUERY_SQL_LOG_CHARS = 400
+DB_QUERY_MAX_SQL_CHARS = 100_000
+# OAuth トークンは .mcp-oauth.json（DB 外）。stock.db に秘密表は今は無い。
+# 名前が token/secret/password/credential を含む表と sqlite_dbpage は拒否。
+DB_SECRET_TABLES: frozenset[str] = frozenset()
+DB_SECRET_NAME_RE = re.compile(
+    r"(?:^|_)(tokens?|secrets?|passwords?|passwd|credentials?|api_keys?)(?:_|$)",
+    re.I,
+)
+DB_DENIED_TABLES = frozenset({"sqlite_dbpage", "sqlite_dbstat"}) | DB_SECRET_TABLES
+DB_DENIED_FUNCS = frozenset({"load_extension", "readfile", "writefile", "eval"})
+# table_info は db_schema が pragma_table_info() を読むときに SQLITE_PRAGMA になる。
+DB_READ_PRAGMAS = frozenset({
+    "table_info", "table_xinfo", "table_list",
+    "index_list", "index_info", "index_xinfo",
+    "foreign_key_list", "database_list",
+    "collation_list", "compile_options",
+    "function_list", "module_list", "pragma_list",
+    "data_version", "page_count", "freelist_count",
+})
+_QUERY_OK = frozenset({
+    sqlite3.SQLITE_READ,
+    sqlite3.SQLITE_SELECT,
+    sqlite3.SQLITE_FUNCTION,
+    sqlite3.SQLITE_RECURSIVE,
+})
+_LEAD_SQL_RE = re.compile(r"^\(*\s*(SELECT|WITH)\b", re.I | re.S)
 _TIMEOUT = object()
 _INTERRUPT_MARKERS = ("interrupt", "cancel")
 DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -1097,6 +1132,290 @@ def tool_db_stats(args: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+def _denied_table(name: str | None) -> bool:
+    if not name:
+        return False
+    if name in DB_DENIED_TABLES or name in DB_SECRET_TABLES:
+        return True
+    return DB_SECRET_NAME_RE.search(name) is not None
+
+
+def _query_authorizer(
+    action: int,
+    arg1: str | None,
+    arg2: str | None,
+    dbname: str | None,
+    _source: str | None,
+) -> int:
+    """Allow SELECT/READ/FUNCTION/RECURSIVE and read-only schema PRAGMAs."""
+    if action == sqlite3.SQLITE_READ:
+        if dbname and dbname != "main":
+            return sqlite3.SQLITE_DENY
+        if _denied_table(arg1):
+            return sqlite3.SQLITE_DENY
+        return sqlite3.SQLITE_OK
+    if action == sqlite3.SQLITE_FUNCTION:
+        func = (arg2 or arg1 or "").lower()
+        if func in DB_DENIED_FUNCS:
+            return sqlite3.SQLITE_DENY
+        return sqlite3.SQLITE_OK
+    if action == sqlite3.SQLITE_PRAGMA:
+        if (arg1 or "").lower() in DB_READ_PRAGMAS:
+            return sqlite3.SQLITE_OK
+        return sqlite3.SQLITE_DENY
+    if action in _QUERY_OK:
+        return sqlite3.SQLITE_OK
+    return sqlite3.SQLITE_DENY
+
+
+def _sql_statements(sql: str) -> list[str]:
+    """Split on semicolons outside strings and comments."""
+    parts: list[str] = []
+    buf: list[str] = []
+    i = 0
+    n = len(sql)
+    while i < n:
+        c = sql[i]
+        if c == "'":
+            buf.append(c)
+            i += 1
+            while i < n:
+                buf.append(sql[i])
+                if sql[i] == "'":
+                    if i + 1 < n and sql[i + 1] == "'":
+                        buf.append("'")
+                        i += 2
+                        continue
+                    i += 1
+                    break
+                i += 1
+            continue
+        if c == '"':
+            buf.append(c)
+            i += 1
+            while i < n:
+                buf.append(sql[i])
+                if sql[i] == '"':
+                    if i + 1 < n and sql[i + 1] == '"':
+                        buf.append('"')
+                        i += 2
+                        continue
+                    i += 1
+                    break
+                i += 1
+            continue
+        if c == "-" and i + 1 < n and sql[i + 1] == "-":
+            i += 2
+            while i < n and sql[i] not in "\n\r":
+                i += 1
+            continue
+        if c == "/" and i + 1 < n and sql[i + 1] == "*":
+            i += 2
+            while i + 1 < n and not (sql[i] == "*" and sql[i + 1] == "/"):
+                i += 1
+            i = min(n, i + 2)
+            continue
+        if c == ";":
+            stmt = "".join(buf).strip()
+            if stmt:
+                parts.append(stmt)
+            buf = []
+            i += 1
+            continue
+        buf.append(c)
+        i += 1
+    stmt = "".join(buf).strip()
+    if stmt:
+        parts.append(stmt)
+    return parts
+
+
+def parse_db_sql(raw: Any) -> str:
+    if not isinstance(raw, str):
+        raise ValueError("sql must be a single SELECT or WITH statement")
+    if "\x00" in raw:
+        raise ValueError("sql must not contain NUL")
+    if len(raw) > DB_QUERY_MAX_SQL_CHARS:
+        raise ValueError(f"sql must be at most {DB_QUERY_MAX_SQL_CHARS} characters")
+    parts = _sql_statements(raw)
+    if len(parts) != 1:
+        raise ValueError("sql must be a single SELECT or WITH statement")
+    sql = parts[0]
+    if _LEAD_SQL_RE.match(sql) is None:
+        raise ValueError("sql must be a single SELECT or WITH statement")
+    return sql
+
+
+def parse_db_params(raw: Any) -> tuple[Any, ...] | dict[str, Any]:
+    if raw is None:
+        return ()
+    if isinstance(raw, dict):
+        if not all(isinstance(key, str) for key in raw):
+            raise ValueError("params object keys must be strings")
+        return raw
+    if isinstance(raw, list):
+        return tuple(raw)
+    raise ValueError("params must be an array or object")
+
+
+def _json_cell(value: Any) -> Any:
+    if value is None or isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float, str)):
+        return value
+    if isinstance(value, memoryview):
+        value = value.tobytes()
+    if isinstance(value, (bytes, bytearray)):
+        return bytes(value).hex()
+    return str(value)
+
+
+class _QueryBudget:
+    """db_query の時間上限。progress_handler から見る。"""
+
+    def __init__(
+        self,
+        timeout_s: float = DB_QUERY_TIMEOUT_S,
+        now: Callable[[], float] | None = None,
+    ) -> None:
+        self._now = now or time.monotonic
+        self.deadline = self._now() + timeout_s
+
+    def handler(self) -> int:
+        return 1 if self._now() >= self.deadline else 0
+
+
+def _audit_db_query(sql: str, elapsed_s: float, row_count: int, truncated: bool) -> None:
+    snippet = redact(sql.replace("\n", " ").strip())
+    if len(snippet) > DB_QUERY_SQL_LOG_CHARS:
+        snippet = snippet[:DB_QUERY_SQL_LOG_CHARS] + "…"
+    line = (
+        f"db_query rows={row_count} elapsed={elapsed_s:.3f}s "
+        f"truncated={str(truncated).lower()} sql={snippet}"
+    )
+    print(line, flush=True)
+    logging.getLogger("mcp").info(line)
+
+
+def _prepare_query_conn(conn: sqlite3.Connection, budget: _QueryBudget) -> None:
+    conn.set_authorizer(_query_authorizer)
+    conn.set_progress_handler(budget.handler, DB_QUERY_PROGRESS_OPS)
+
+
+def _close_query_conn(conn: sqlite3.Connection) -> None:
+    conn.set_progress_handler(None, 0)
+    conn.set_authorizer(None)
+    conn.close()
+
+
+def _query_error(exc: BaseException) -> ValueError:
+    if _is_interrupt(exc):
+        return ValueError(f"query timeout after {DB_QUERY_TIMEOUT_S:.0f}s")
+    msg = str(exc).lower()
+    if "not authorized" in msg or "authoriz" in msg or "readonly" in msg or "query_only" in msg:
+        return ValueError("sql is not a read-only SELECT or WITH statement")
+    return ValueError(f"sql failed: {exc}")
+
+
+def tool_db_query(args: dict[str, Any]) -> str:
+    sql = parse_db_sql(args.get("sql"))
+    params = parse_db_params(args.get("params"))
+    limit = fs_tools.clamp_int(
+        args.get("limit"), DB_QUERY_DEFAULT_LIMIT, 1, DB_QUERY_MAX_LIMIT, "limit",
+    )
+    conn = open_db()
+    budget = _QueryBudget()
+    started = time.monotonic()
+    row_count = 0
+    truncated = False
+    try:
+        _prepare_query_conn(conn, budget)
+        cur = conn.execute(sql, params)
+        columns = [d[0] for d in cur.description] if cur.description else []
+        rows: list[list[Any]] = []
+        size = 2
+        for i, row in enumerate(cur):
+            if i >= limit:
+                truncated = True
+                break
+            cells = [_json_cell(v) for v in row]
+            encoded = json.dumps(cells, ensure_ascii=False, default=str)
+            extra = (1 if rows else 0) + len(encoded.encode("utf-8"))
+            if rows and size + extra > DB_QUERY_MAX_BYTES:
+                truncated = True
+                break
+            rows.append(cells)
+            size += extra
+            if size > DB_QUERY_MAX_BYTES:
+                truncated = True
+                break
+        row_count = len(rows)
+        body = {
+            "columns": columns,
+            "rows": rows,
+            "row_count": row_count,
+            "truncated": truncated,
+        }
+        return json.dumps(body, ensure_ascii=False, default=str)
+    except sqlite3.Error as exc:
+        raise _query_error(exc) from exc
+    finally:
+        _audit_db_query(sql, time.monotonic() - started, row_count, truncated)
+        _close_query_conn(conn)
+
+
+def tool_db_schema(args: dict[str, Any]) -> str:
+    wanted = parse_name_list(args.get("tables"), "tables")
+    wanted_set = set(wanted) if wanted else None
+    if wanted:
+        for name in wanted:
+            if _denied_table(name):
+                raise ValueError(f"table {name!r} is not readable")
+    conn = open_db()
+    budget = _QueryBudget()
+    try:
+        _prepare_query_conn(conn, budget)
+        names = conn.execute(
+            "SELECT name, type FROM sqlite_master "
+            "WHERE type IN ('table', 'view') AND name NOT LIKE 'sqlite_%' "
+            "ORDER BY type, name"
+        ).fetchall()
+        tables: list[dict[str, Any]] = []
+        for row in names:
+            name, typ = str(row[0]), str(row[1])
+            if wanted_set is not None and name not in wanted_set:
+                continue
+            if _denied_table(name):
+                continue
+            cols = conn.execute(
+                'SELECT name, type, "notnull", pk FROM pragma_table_info(?)',
+                (name,),
+            ).fetchall()
+            tables.append({
+                "name": name,
+                "type": typ,
+                "columns": [
+                    {
+                        "name": str(col[0]),
+                        "type": "" if col[1] is None else str(col[1]),
+                        "notnull": bool(col[2]),
+                        "pk": int(col[3] or 0),
+                    }
+                    for col in cols
+                ],
+            })
+        if wanted:
+            have = {t["name"] for t in tables}
+            for name in wanted:
+                if name not in have and not _denied_table(name):
+                    tables.append({"name": name, "type": None, "columns": []})
+        return json.dumps({"tables": tables}, ensure_ascii=False, indent=2)
+    except sqlite3.Error as exc:
+        raise _query_error(exc) from exc
+    finally:
+        _close_query_conn(conn)
+
+
 def tool_db_lookup(args: dict[str, Any]) -> str:
     code = parse_code(args.get("code"))
     lines = clamp_lines(args.get("lines") or 8)
@@ -1699,6 +2018,44 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
             "required": ["code"],
         },
         tool_db_lookup,
+    ),
+    "db_query": (
+        (
+            "stock.db に SELECT / WITH を 1 文だけ実行。読み取り専用"
+            "（mode=ro / query_only / authorizer）。"
+            "INSERT / UPDATE / DELETE / DROP / ATTACH / PRAGMA 書き込み / 複数文 / CTE 内の書き込みは拒否。"
+            "limit は 1-2000（既定 200）。超えた行と出力バイトは truncated。"
+            "約10秒で打ち切り。params は ? の配列か :name のオブジェクト。"
+        ),
+        {
+            "type": "object",
+            "properties": {
+                "sql": {"type": "string", "description": "single SELECT or WITH statement"},
+                "params": {
+                    "description": "bound parameters: array for ? placeholders, or object for :name",
+                },
+                "limit": {"type": "integer", "description": "max rows, 1-2000, default 200"},
+            },
+            "required": ["sql"],
+        },
+        tool_db_query,
+    ),
+    "db_schema": (
+        (
+            "stock.db のテーブル/ビューと列（sqlite_master と pragma_table_info）。読み取り専用。"
+            "sqlite_* と秘密表は出さない。tables で対象を絞る。"
+        ),
+        {
+            "type": "object",
+            "properties": {
+                "tables": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "table names to include. Omit for all. Also accepts a comma-separated string.",
+                },
+            },
+        },
+        tool_db_schema,
     ),
     "xbrl_compare": (
         (
