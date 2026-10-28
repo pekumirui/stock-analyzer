@@ -1255,13 +1255,13 @@
    "html_sha256": "f8e6f40cafe07d74b715f253a1b66cd468345dfdca05d6f3c9f55a04060e6a4d",
    "statement": {"code": "78650", "disclosed_date": "2022-05-31", "disclosed_time": "17:00:00", "fiscal_year_end": "2023-01-20", "fiscal_year_start": "2022-01-21", "period_end": "2022-04-20", "period_start": "2022-01-21", "type_of_document": "EarnForecastRevision", "type_of_period": "1Q"},
    "values": [
+    {"evidence": ["jquants:FNCEPS#nc"], "is_consolidated": false, "period_end": "2022-04-20", "period_start": "2022-01-21", "period_type": "Q1", "range_side": "point", "std": "eps_basic", "target_period": "Q1", "unit": "JPYPerShares", "value": "18.55", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCNP#nc"], "is_consolidated": false, "period_end": "2022-04-20", "period_start": "2022-01-21", "period_type": "Q1", "range_side": "point", "std": "net_income", "target_period": "Q1", "unit": "JPY", "value": "81000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCSales#nc"], "is_consolidated": false, "period_end": "2022-04-20", "period_start": "2022-01-21", "period_type": "Q1", "range_side": "point", "std": "net_sales", "target_period": "Q1", "unit": "JPY", "value": "1420000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOP#nc"], "is_consolidated": false, "period_end": "2022-04-20", "period_start": "2022-01-21", "period_type": "Q1", "range_side": "point", "std": "operating_income", "target_period": "Q1", "unit": "JPY", "value": "117000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOdP#nc"], "is_consolidated": false, "period_end": "2022-04-20", "period_start": "2022-01-21", "period_type": "Q1", "range_side": "point", "std": "ordinary_income", "target_period": "Q1", "unit": "JPY", "value": "117000000", "value_kind": "forecast"}
    ],
    "known_gaps": [
-    {"bot": "match", "cons": 0, "item": "eps_basic", "jq": 18.55, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2022-04-20", "res": "missing", "tps": ["Q1"]},
-    {"bot": "match", "cons": 0, "item": "net_income", "jq": 81000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2022-04-20", "res": "missing", "tps": ["Q1"]},
-    {"bot": "match", "cons": 0, "item": "operating_income", "jq": 117000000.0, "jq_key": "FNCOP#nc", "kind": "forecast", "period_end": "2022-04-20", "res": "missing", "tps": ["Q1"]},
-    {"bot": "match", "cons": 0, "item": "ordinary_income", "jq": 117000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2022-04-20", "res": "missing", "tps": ["Q1"]},
-    {"bot": "match", "cons": 0, "item": "net_sales", "jq": 1420000000.0, "jq_key": "FNCSales#nc", "kind": "forecast", "period_end": "2022-04-20", "res": "missing", "tps": ["Q1"]}
    ]
   },
   "20220607573767": {
@@ -3242,13 +3242,13 @@
    "html_sha256": "96a96d9799994d89b34fd12d1957c3589b2e0ae11f44c932a201bfbc25f55f61",
    "statement": {"code": "78650", "disclosed_date": "2023-05-23", "disclosed_time": "15:30:00", "fiscal_year_end": "2024-01-20", "fiscal_year_start": "2023-01-21", "period_end": "2023-04-20", "period_start": "2023-01-21", "type_of_document": "EarnForecastRevision", "type_of_period": "1Q"},
    "values": [
+    {"evidence": ["jquants:FNCEPS#nc"], "is_consolidated": false, "period_end": "2023-04-20", "period_start": "2023-01-21", "period_type": "Q1", "range_side": "point", "std": "eps_basic", "target_period": "Q1", "unit": "JPYPerShares", "value": "0.81", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCNP#nc"], "is_consolidated": false, "period_end": "2023-04-20", "period_start": "2023-01-21", "period_type": "Q1", "range_side": "point", "std": "net_income", "target_period": "Q1", "unit": "JPY", "value": "4000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCSales#nc"], "is_consolidated": false, "period_end": "2023-04-20", "period_start": "2023-01-21", "period_type": "Q1", "range_side": "point", "std": "net_sales", "target_period": "Q1", "unit": "JPY", "value": "1011000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOP#nc"], "is_consolidated": false, "period_end": "2023-04-20", "period_start": "2023-01-21", "period_type": "Q1", "range_side": "point", "std": "operating_income", "target_period": "Q1", "unit": "JPY", "value": "1000000", "value_kind": "forecast"}
    ],
    "known_gaps": [
-    {"bot": "match", "cons": 0, "item": "eps_basic", "jq": 0.81, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2023-04-20", "res": "missing", "tps": ["Q1"]},
-    {"bot": "match", "cons": 0, "item": "net_income", "jq": 4000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2023-04-20", "res": "missing", "tps": ["Q1"]},
-    {"bot": "match", "cons": 0, "item": "operating_income", "jq": 1000000.0, "jq_key": "FNCOP#nc", "kind": "forecast", "period_end": "2023-04-20", "res": "missing", "tps": ["Q1"]},
-    {"bot": "missing", "cons": 0, "item": "ordinary_income", "jq": 5000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2023-04-20", "res": "missing", "tps": ["Q1"]},
-    {"bot": "match", "cons": 0, "item": "net_sales", "jq": 1011000000.0, "jq_key": "FNCSales#nc", "kind": "forecast", "period_end": "2023-04-20", "res": "missing", "tps": ["Q1"]}
+    {"bot": "missing", "cons": 0, "item": "ordinary_income", "jq": 5000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2023-04-20", "res": "missing", "tps": ["Q1"]}
    ]
   },
   "20230529586566": {
@@ -3781,11 +3781,11 @@
    "values": [
    ],
    "known_gaps": [
-    {"bot": "missing", "cons": 1, "item": "eps_basic", "jq": 15.28, "jq_key": "FEPS2Q", "kind": "forecast", "period_end": "2024-01-20", "res": "diff", "tps": ["H1"]},
-    {"bot": "missing", "cons": 1, "item": "net_income", "jq": 67000000.0, "jq_key": "FNP2Q", "kind": "forecast", "period_end": "2024-01-20", "res": "diff", "tps": ["H1"]},
-    {"bot": "missing", "cons": 1, "item": "operating_income", "jq": 90000000.0, "jq_key": "FOP2Q", "kind": "forecast", "period_end": "2024-01-20", "res": "diff", "tps": ["H1"]},
-    {"bot": "missing", "cons": 1, "item": "ordinary_income", "jq": 97000000.0, "jq_key": "FOdP2Q", "kind": "forecast", "period_end": "2024-01-20", "res": "diff", "tps": ["H1"]},
-    {"bot": "missing", "cons": 1, "item": "net_sales", "jq": 2394000000.0, "jq_key": "FSales2Q", "kind": "forecast", "period_end": "2024-01-20", "res": "diff", "tps": ["H1"]}
+    {"bot": "missing", "cons": 1, "item": "eps_basic", "jq": 15.28, "jq_key": "FEPS2Q", "kind": "forecast", "period_end": "2024-01-20", "res": "missing", "tps": ["H1"]},
+    {"bot": "missing", "cons": 1, "item": "net_income", "jq": 67000000.0, "jq_key": "FNP2Q", "kind": "forecast", "period_end": "2024-01-20", "res": "missing", "tps": ["H1"]},
+    {"bot": "missing", "cons": 1, "item": "operating_income", "jq": 90000000.0, "jq_key": "FOP2Q", "kind": "forecast", "period_end": "2024-01-20", "res": "missing", "tps": ["H1"]},
+    {"bot": "missing", "cons": 1, "item": "ordinary_income", "jq": 97000000.0, "jq_key": "FOdP2Q", "kind": "forecast", "period_end": "2024-01-20", "res": "missing", "tps": ["H1"]},
+    {"bot": "missing", "cons": 1, "item": "net_sales", "jq": 2394000000.0, "jq_key": "FSales2Q", "kind": "forecast", "period_end": "2024-01-20", "res": "missing", "tps": ["H1"]}
    ]
   },
   "20230828547005": {
@@ -4763,11 +4763,11 @@
    "html_sha256": "5312d94d2dedbd5eb28579cafefff5ebc9c3ae22346cd9760a52d01b2e59a1ec",
    "statement": {"code": "78650", "disclosed_date": "2024-02-22", "disclosed_time": "16:30:00", "fiscal_year_end": "2024-01-20", "fiscal_year_start": "2023-01-21", "period_end": "2024-01-20", "period_start": "2023-01-21", "type_of_document": "EarnForecastRevision", "type_of_period": "FY"},
    "values": [
-    {"evidence": ["jquants:FNCEPS#nc"], "is_consolidated": true, "period_end": "2024-01-20", "period_start": "2023-01-21", "period_type": "FY", "range_side": "point", "std": "eps_basic", "target_period": "FY", "unit": "JPYPerShares", "value": "71.53", "value_kind": "forecast"},
-    {"evidence": ["jquants:FNCNP#nc"], "is_consolidated": true, "period_end": "2024-01-20", "period_start": "2023-01-21", "period_type": "FY", "range_side": "point", "std": "net_income", "target_period": "FY", "unit": "JPY", "value": "313000000", "value_kind": "forecast"},
-    {"evidence": ["jquants:FNCSales#nc"], "is_consolidated": true, "period_end": "2024-01-20", "period_start": "2023-01-21", "period_type": "FY", "range_side": "point", "std": "net_sales", "target_period": "FY", "unit": "JPY", "value": "5353000000", "value_kind": "forecast"},
-    {"evidence": ["jquants:FNCOP#nc"], "is_consolidated": true, "period_end": "2024-01-20", "period_start": "2023-01-21", "period_type": "FY", "range_side": "point", "std": "operating_income", "target_period": "FY", "unit": "JPY", "value": "431000000", "value_kind": "forecast"},
-    {"evidence": ["jquants:FNCOdP#nc"], "is_consolidated": true, "period_end": "2024-01-20", "period_start": "2023-01-21", "period_type": "FY", "range_side": "point", "std": "ordinary_income", "target_period": "FY", "unit": "JPY", "value": "449000000", "value_kind": "forecast"}
+    {"evidence": ["jquants:FNCEPS#nc"], "is_consolidated": false, "period_end": "2024-01-20", "period_start": "2023-01-21", "period_type": "FY", "range_side": "point", "std": "eps_basic", "target_period": "FY", "unit": "JPYPerShares", "value": "71.53", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCNP#nc"], "is_consolidated": false, "period_end": "2024-01-20", "period_start": "2023-01-21", "period_type": "FY", "range_side": "point", "std": "net_income", "target_period": "FY", "unit": "JPY", "value": "313000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCSales#nc"], "is_consolidated": false, "period_end": "2024-01-20", "period_start": "2023-01-21", "period_type": "FY", "range_side": "point", "std": "net_sales", "target_period": "FY", "unit": "JPY", "value": "5353000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOP#nc"], "is_consolidated": false, "period_end": "2024-01-20", "period_start": "2023-01-21", "period_type": "FY", "range_side": "point", "std": "operating_income", "target_period": "FY", "unit": "JPY", "value": "431000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOdP#nc"], "is_consolidated": false, "period_end": "2024-01-20", "period_start": "2023-01-21", "period_type": "FY", "range_side": "point", "std": "ordinary_income", "target_period": "FY", "unit": "JPY", "value": "449000000", "value_kind": "forecast"}
    ],
    "known_gaps": [
     {"bot": "missing", "cons": 1, "item": "dps", "jq": 48.0, "jq_key": "FDivAnn", "kind": "forecast", "period_end": "2024-01-20", "res": "missing", "tps": ["annual"]},
@@ -5333,13 +5333,13 @@
    "html_sha256": "b831f177ffb9e297b3ae232aa3490da87c9291c2c35c9a91b2e1a4f06072f7c8",
    "statement": {"code": "78650", "disclosed_date": "2024-05-27", "disclosed_time": "17:00:00", "fiscal_year_end": "2025-01-20", "fiscal_year_start": "2024-01-21", "period_end": "2024-04-20", "period_start": "2024-01-21", "type_of_document": "EarnForecastRevision", "type_of_period": "1Q"},
    "values": [
+    {"evidence": ["jquants:FNCEPS#nc"], "is_consolidated": false, "period_end": "2024-04-20", "period_start": "2024-01-21", "period_type": "Q1", "range_side": "point", "std": "eps_basic", "target_period": "Q1", "unit": "JPYPerShares", "value": "-13.38", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCNP#nc"], "is_consolidated": false, "period_end": "2024-04-20", "period_start": "2024-01-21", "period_type": "Q1", "range_side": "point", "std": "net_income", "target_period": "Q1", "unit": "JPY", "value": "-59000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCSales#nc"], "is_consolidated": false, "period_end": "2024-04-20", "period_start": "2024-01-21", "period_type": "Q1", "range_side": "point", "std": "net_sales", "target_period": "Q1", "unit": "JPY", "value": "380000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOP#nc"], "is_consolidated": false, "period_end": "2024-04-20", "period_start": "2024-01-21", "period_type": "Q1", "range_side": "point", "std": "operating_income", "target_period": "Q1", "unit": "JPY", "value": "-50000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOdP#nc"], "is_consolidated": false, "period_end": "2024-04-20", "period_start": "2024-01-21", "period_type": "Q1", "range_side": "point", "std": "ordinary_income", "target_period": "Q1", "unit": "JPY", "value": "-50000000", "value_kind": "forecast"}
    ],
    "known_gaps": [
-    {"bot": "match", "cons": 0, "item": "eps_basic", "jq": -13.38, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2024-04-20", "res": "missing", "tps": ["Q1"]},
-    {"bot": "match", "cons": 0, "item": "net_income", "jq": -59000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2024-04-20", "res": "missing", "tps": ["Q1"]},
-    {"bot": "match", "cons": 0, "item": "operating_income", "jq": -50000000.0, "jq_key": "FNCOP#nc", "kind": "forecast", "period_end": "2024-04-20", "res": "missing", "tps": ["Q1"]},
-    {"bot": "match", "cons": 0, "item": "ordinary_income", "jq": -50000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2024-04-20", "res": "missing", "tps": ["Q1"]},
-    {"bot": "match", "cons": 0, "item": "net_sales", "jq": 380000000.0, "jq_key": "FNCSales#nc", "kind": "forecast", "period_end": "2024-04-20", "res": "missing", "tps": ["Q1"]}
    ]
   },
   "20240531516118": {
@@ -5648,11 +5648,11 @@
    "html_sha256": "8857bf8bd2618fc4245fd4274689b77eb64055e48a6fe118667e775bcbbc3e12",
    "statement": {"code": "75130", "disclosed_date": "2024-07-11", "disclosed_time": "15:00:00", "fiscal_year_end": "2024-08-31", "fiscal_year_start": "2023-09-01", "period_end": "2024-08-31", "period_start": "2023-09-01", "type_of_document": "EarnForecastRevision", "type_of_period": "FY"},
    "values": [
-    {"evidence": ["jquants:FNCEPS#nc"], "is_consolidated": true, "period_end": "2024-08-31", "period_start": "2023-09-01", "period_type": "FY", "range_side": "point", "std": "eps_basic", "target_period": "FY", "unit": "JPYPerShares", "value": "44.07", "value_kind": "forecast"},
-    {"evidence": ["jquants:FNCNP#nc"], "is_consolidated": true, "period_end": "2024-08-31", "period_start": "2023-09-01", "period_type": "FY", "range_side": "point", "std": "net_income", "target_period": "FY", "unit": "JPY", "value": "3400000000", "value_kind": "forecast"},
-    {"evidence": ["jquants:FNCSales#nc"], "is_consolidated": true, "period_end": "2024-08-31", "period_start": "2023-09-01", "period_type": "FY", "range_side": "point", "std": "net_sales", "target_period": "FY", "unit": "JPY", "value": "267900000000", "value_kind": "forecast"},
-    {"evidence": ["jquants:FNCOP#nc"], "is_consolidated": true, "period_end": "2024-08-31", "period_start": "2023-09-01", "period_type": "FY", "range_side": "point", "std": "operating_income", "target_period": "FY", "unit": "JPY", "value": "5300000000", "value_kind": "forecast"},
-    {"evidence": ["jquants:FNCOdP#nc"], "is_consolidated": true, "period_end": "2024-08-31", "period_start": "2023-09-01", "period_type": "FY", "range_side": "point", "std": "ordinary_income", "target_period": "FY", "unit": "JPY", "value": "5500000000", "value_kind": "forecast"}
+    {"evidence": ["jquants:FNCEPS#nc"], "is_consolidated": false, "period_end": "2024-08-31", "period_start": "2023-09-01", "period_type": "FY", "range_side": "point", "std": "eps_basic", "target_period": "FY", "unit": "JPYPerShares", "value": "44.07", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCNP#nc"], "is_consolidated": false, "period_end": "2024-08-31", "period_start": "2023-09-01", "period_type": "FY", "range_side": "point", "std": "net_income", "target_period": "FY", "unit": "JPY", "value": "3400000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCSales#nc"], "is_consolidated": false, "period_end": "2024-08-31", "period_start": "2023-09-01", "period_type": "FY", "range_side": "point", "std": "net_sales", "target_period": "FY", "unit": "JPY", "value": "267900000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOP#nc"], "is_consolidated": false, "period_end": "2024-08-31", "period_start": "2023-09-01", "period_type": "FY", "range_side": "point", "std": "operating_income", "target_period": "FY", "unit": "JPY", "value": "5300000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOdP#nc"], "is_consolidated": false, "period_end": "2024-08-31", "period_start": "2023-09-01", "period_type": "FY", "range_side": "point", "std": "ordinary_income", "target_period": "FY", "unit": "JPY", "value": "5500000000", "value_kind": "forecast"}
    ],
    "known_gaps": [
    ]
@@ -6509,13 +6509,13 @@
    "html_sha256": "62c9cf1acefc6350b73173e15e8550f509d8119ce002ef9e0f643115acd32aea",
    "statement": {"code": "78650", "disclosed_date": "2024-11-26", "disclosed_time": "16:30:00", "fiscal_year_end": "2025-01-20", "fiscal_year_start": "2024-01-21", "period_end": "2024-10-20", "period_start": "2024-01-21", "type_of_document": "EarnForecastRevision", "type_of_period": "3Q"},
    "values": [
+    {"evidence": ["jquants:FNCNP#nc"], "is_consolidated": false, "period_end": "2024-10-20", "period_start": "2024-01-21", "period_type": "Q3", "range_side": "point", "std": "net_income", "target_period": "Q3", "unit": "JPY", "value": "-120000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCSales#nc"], "is_consolidated": false, "period_end": "2024-10-20", "period_start": "2024-01-21", "period_type": "Q3", "range_side": "point", "std": "net_sales", "target_period": "Q3", "unit": "JPY", "value": "1244000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOP#nc"], "is_consolidated": false, "period_end": "2024-10-20", "period_start": "2024-01-21", "period_type": "Q3", "range_side": "point", "std": "operating_income", "target_period": "Q3", "unit": "JPY", "value": "-114000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOdP#nc"], "is_consolidated": false, "period_end": "2024-10-20", "period_start": "2024-01-21", "period_type": "Q3", "range_side": "point", "std": "ordinary_income", "target_period": "Q3", "unit": "JPY", "value": "-112000000", "value_kind": "forecast"}
    ],
    "known_gaps": [
-    {"bot": "missing", "cons": 0, "item": "eps_basic", "jq": -27.49, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2024-10-20", "res": "missing", "tps": ["Q3"]},
-    {"bot": "match", "cons": 0, "item": "net_income", "jq": -120000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2024-10-20", "res": "missing", "tps": ["Q3"]},
-    {"bot": "match", "cons": 0, "item": "operating_income", "jq": -114000000.0, "jq_key": "FNCOP#nc", "kind": "forecast", "period_end": "2024-10-20", "res": "missing", "tps": ["Q3"]},
-    {"bot": "match", "cons": 0, "item": "ordinary_income", "jq": -112000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2024-10-20", "res": "missing", "tps": ["Q3"]},
-    {"bot": "match", "cons": 0, "item": "net_sales", "jq": 1244000000.0, "jq_key": "FNCSales#nc", "kind": "forecast", "period_end": "2024-10-20", "res": "missing", "tps": ["Q3"]}
+    {"bot": "missing", "cons": 0, "item": "eps_basic", "jq": -27.49, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2024-10-20", "res": "missing", "tps": ["Q3"]}
    ]
   },
   "20241204534392": {
@@ -7061,10 +7061,10 @@
    "html_sha256": "3148d8c627f37a6ecb4ccd65285f793a085f5d051b02f13e8195c9e213584a7b",
    "statement": {"code": "78650", "disclosed_date": "2025-02-28", "disclosed_time": "17:00:00", "fiscal_year_end": "2025-01-20", "fiscal_year_start": "2024-01-21", "period_end": "2025-01-20", "period_start": "2024-01-21", "type_of_document": "EarnForecastRevision", "type_of_period": "FY"},
    "values": [
-    {"evidence": ["jquants:FNCEPS#nc"], "is_consolidated": true, "period_end": "2025-01-20", "period_start": "2024-01-21", "period_type": "FY", "range_side": "point", "std": "eps_basic", "target_period": "FY", "unit": "JPYPerShares", "value": "-16.46", "value_kind": "forecast"},
-    {"evidence": ["jquants:FNCSales#nc"], "is_consolidated": true, "period_end": "2025-01-20", "period_start": "2024-01-21", "period_type": "FY", "range_side": "point", "std": "net_sales", "target_period": "FY", "unit": "JPY", "value": "1916000000", "value_kind": "forecast"},
-    {"evidence": ["jquants:FNCOP#nc"], "is_consolidated": true, "period_end": "2025-01-20", "period_start": "2024-01-21", "period_type": "FY", "range_side": "point", "std": "operating_income", "target_period": "FY", "unit": "JPY", "value": "-50000000", "value_kind": "forecast"},
-    {"evidence": ["jquants:FNCOdP#nc"], "is_consolidated": true, "period_end": "2025-01-20", "period_start": "2024-01-21", "period_type": "FY", "range_side": "point", "std": "ordinary_income", "target_period": "FY", "unit": "JPY", "value": "-45000000", "value_kind": "forecast"}
+    {"evidence": ["jquants:FNCEPS#nc"], "is_consolidated": false, "period_end": "2025-01-20", "period_start": "2024-01-21", "period_type": "FY", "range_side": "point", "std": "eps_basic", "target_period": "FY", "unit": "JPYPerShares", "value": "-16.46", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCSales#nc"], "is_consolidated": false, "period_end": "2025-01-20", "period_start": "2024-01-21", "period_type": "FY", "range_side": "point", "std": "net_sales", "target_period": "FY", "unit": "JPY", "value": "1916000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOP#nc"], "is_consolidated": false, "period_end": "2025-01-20", "period_start": "2024-01-21", "period_type": "FY", "range_side": "point", "std": "operating_income", "target_period": "FY", "unit": "JPY", "value": "-50000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOdP#nc"], "is_consolidated": false, "period_end": "2025-01-20", "period_start": "2024-01-21", "period_type": "FY", "range_side": "point", "std": "ordinary_income", "target_period": "FY", "unit": "JPY", "value": "-45000000", "value_kind": "forecast"}
    ],
    "known_gaps": [
     {"bot": "missing", "cons": -1, "item": "net_income", "jq": -72000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2025-01-20", "res": "missing", "tps": ["FY"]}
@@ -7164,13 +7164,13 @@
    "html_sha256": "194dd127ea4e6d26f833ff39947caef2a9516a08fa07aa536e3cfa399ea4877b",
    "statement": {"code": "78650", "disclosed_date": "2025-03-18", "disclosed_time": "16:30:00", "fiscal_year_end": "2026-01-20", "fiscal_year_start": "2025-01-21", "period_end": "2025-04-20", "period_start": "2025-01-21", "type_of_document": "EarnForecastRevision", "type_of_period": "1Q"},
    "values": [
+    {"evidence": ["jquants:FNCEPS#nc"], "is_consolidated": false, "period_end": "2025-04-20", "period_start": "2025-01-21", "period_type": "Q1", "range_side": "point", "std": "eps_basic", "target_period": "Q1", "unit": "JPYPerShares", "value": "13.56", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCNP#nc"], "is_consolidated": false, "period_end": "2025-04-20", "period_start": "2025-01-21", "period_type": "Q1", "range_side": "point", "std": "net_income", "target_period": "Q1", "unit": "JPY", "value": "59000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCSales#nc"], "is_consolidated": false, "period_end": "2025-04-20", "period_start": "2025-01-21", "period_type": "Q1", "range_side": "point", "std": "net_sales", "target_period": "Q1", "unit": "JPY", "value": "286000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOP#nc"], "is_consolidated": false, "period_end": "2025-04-20", "period_start": "2025-01-21", "period_type": "Q1", "range_side": "point", "std": "operating_income", "target_period": "Q1", "unit": "JPY", "value": "-97000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOdP#nc"], "is_consolidated": false, "period_end": "2025-04-20", "period_start": "2025-01-21", "period_type": "Q1", "range_side": "point", "std": "ordinary_income", "target_period": "Q1", "unit": "JPY", "value": "-97000000", "value_kind": "forecast"}
    ],
    "known_gaps": [
-    {"bot": "match", "cons": 0, "item": "eps_basic", "jq": 13.56, "jq_key": "FNCEPS#nc", "kind": "forecast", "period_end": "2025-04-20", "res": "missing", "tps": ["Q1"]},
-    {"bot": "match", "cons": 0, "item": "net_income", "jq": 59000000.0, "jq_key": "FNCNP#nc", "kind": "forecast", "period_end": "2025-04-20", "res": "missing", "tps": ["Q1"]},
-    {"bot": "match", "cons": 0, "item": "operating_income", "jq": -97000000.0, "jq_key": "FNCOP#nc", "kind": "forecast", "period_end": "2025-04-20", "res": "missing", "tps": ["Q1"]},
-    {"bot": "match", "cons": 0, "item": "ordinary_income", "jq": -97000000.0, "jq_key": "FNCOdP#nc", "kind": "forecast", "period_end": "2025-04-20", "res": "missing", "tps": ["Q1"]},
-    {"bot": "match", "cons": 0, "item": "net_sales", "jq": 286000000.0, "jq_key": "FNCSales#nc", "kind": "forecast", "period_end": "2025-04-20", "res": "missing", "tps": ["Q1"]}
    ]
   },
   "20250321597588": {
@@ -9578,11 +9578,11 @@
    "html_sha256": "583102ab358b40d7672eb8e9c1646799b9816f15e7bc9169b33d0e7f5f517a8c",
    "statement": {"code": "75130", "disclosed_date": "2026-04-09", "disclosed_time": "15:30:00", "fiscal_year_end": "2026-08-31", "fiscal_year_start": "2025-09-01", "period_end": "2026-08-31", "period_start": "2025-09-01", "type_of_document": "EarnForecastRevision", "type_of_period": "FY"},
    "values": [
-    {"evidence": ["jquants:FNCEPS#nc"], "is_consolidated": true, "period_end": "2026-08-31", "period_start": "2025-09-01", "period_type": "FY", "range_side": "point", "std": "eps_basic", "target_period": "FY", "unit": "JPYPerShares", "value": "68.41", "value_kind": "forecast"},
-    {"evidence": ["jquants:FNCNP#nc"], "is_consolidated": true, "period_end": "2026-08-31", "period_start": "2025-09-01", "period_type": "FY", "range_side": "point", "std": "net_income", "target_period": "FY", "unit": "JPY", "value": "5300000000", "value_kind": "forecast"},
-    {"evidence": ["jquants:FNCSales#nc"], "is_consolidated": true, "period_end": "2026-08-31", "period_start": "2025-09-01", "period_type": "FY", "range_side": "point", "std": "net_sales", "target_period": "FY", "unit": "JPY", "value": "294000000000", "value_kind": "forecast"},
-    {"evidence": ["jquants:FNCOP#nc"], "is_consolidated": true, "period_end": "2026-08-31", "period_start": "2025-09-01", "period_type": "FY", "range_side": "point", "std": "operating_income", "target_period": "FY", "unit": "JPY", "value": "8200000000", "value_kind": "forecast"},
-    {"evidence": ["jquants:FNCOdP#nc"], "is_consolidated": true, "period_end": "2026-08-31", "period_start": "2025-09-01", "period_type": "FY", "range_side": "point", "std": "ordinary_income", "target_period": "FY", "unit": "JPY", "value": "8500000000", "value_kind": "forecast"}
+    {"evidence": ["jquants:FNCEPS#nc"], "is_consolidated": false, "period_end": "2026-08-31", "period_start": "2025-09-01", "period_type": "FY", "range_side": "point", "std": "eps_basic", "target_period": "FY", "unit": "JPYPerShares", "value": "68.41", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCNP#nc"], "is_consolidated": false, "period_end": "2026-08-31", "period_start": "2025-09-01", "period_type": "FY", "range_side": "point", "std": "net_income", "target_period": "FY", "unit": "JPY", "value": "5300000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCSales#nc"], "is_consolidated": false, "period_end": "2026-08-31", "period_start": "2025-09-01", "period_type": "FY", "range_side": "point", "std": "net_sales", "target_period": "FY", "unit": "JPY", "value": "294000000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOP#nc"], "is_consolidated": false, "period_end": "2026-08-31", "period_start": "2025-09-01", "period_type": "FY", "range_side": "point", "std": "operating_income", "target_period": "FY", "unit": "JPY", "value": "8200000000", "value_kind": "forecast"},
+    {"evidence": ["jquants:FNCOdP#nc"], "is_consolidated": false, "period_end": "2026-08-31", "period_start": "2025-09-01", "period_type": "FY", "range_side": "point", "std": "ordinary_income", "target_period": "FY", "unit": "JPY", "value": "8500000000", "value_kind": "forecast"}
    ],
    "known_gaps": [
     {"bot": "missing", "cons": 1, "item": "dps", "jq": 24.0, "jq_key": "FDivAnn", "kind": "forecast", "period_end": "2026-08-31", "res": "missing", "tps": ["annual"]},

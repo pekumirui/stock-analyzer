@@ -816,6 +816,9 @@ def _consolidation(text: str, d: PdfDisclosure, spec: SectionSpec | None = None)
     """None はそのブロックを捨てる。修正通知だけ見出しごとに連結/個別を分ける。
 
     連結の短信のサマリーにある個別の表（「(2)個別財政状態」）は単体の値として読む。ZIP も単体で持つ。
+    見出しに「個別」「単体」も「連結」も無い修正は ``d.consolidated``（書類種別の既定、または近い
+    通常の短信から引き継いだ値。KAB-247）。本文が「非連結の短信」を引用していても、表の見出しでは
+    ないので見ない。
     """
     solo = "個別" in text or "単体" in text
     cons = "連結" in text
