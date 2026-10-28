@@ -23,6 +23,7 @@ from app.xbrl.pdf._layout import (
     PdfLayoutError,
     format_garbled_pages,
     garbled_page_indexes,
+    outlined_page,
     read_pages,
 )
 from app.xbrl.pdf._tanshin import (
@@ -52,6 +53,7 @@ __all__ = [
     "format_garbled_pages",
     "garbled_page_indexes",
     "label_key",
+    "outlined_page",
     "read_pages",
     "read_tdnet_pdf",
     "sync_pdf_filing",
@@ -60,7 +62,7 @@ __all__ = [
 
 SOURCE = "tdnet_pdf"
 # レイアウト・行名・label_key の結果が変わったら上げる。上げると全 PDF filing の指紋がずれる。
-READER_VERSION = 15
+READER_VERSION = 16
 _STD_DOC = re.compile(
     r"^(?:1Q|2Q|3Q|FY)FinancialStatements_(Consolidated|NonConsolidated)_(IFRS|JP)$"
 )
