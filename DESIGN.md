@@ -344,13 +344,26 @@ QoQ は `Q単独(当四半期) vs Q単独(直前四半期)`。1Qの相手は前�
 売上はマイナスを取らないので黒転の概念を適用しない。
 
 ### 予想修正の検知
-同一事業年度の、発表日が前の開示の通期営業利益予想 (`fy_operating_profit`) と比較し、
+同一事業年度の、発表日が前の開示の通期営業利益予想 (`statements.fy_operating_profit`) と比較し、
 ±0.1%以上 (`EARNINGS_PARAMS["revision_noise_th"]`) なら一覧の時刻列に `上方` / `下方` を出す。
 ホバーに修正率。判定は営業利益だけ。売上・経常・純利益が逆向きでも営利に従う。
 直前が 0・欠損、当期が欠損、閾値未満はマークなし。赤字予想は `|直前|` を分母にし、
 損失縮小を上方にする。同日の予想修正のみの開示 (`is_revision`) は直前に使わない
 （短信と `EarnForecastRevision` が同日だと新しい値同士で消えるため）。
 既出期間の損益訂正 (`restated`) は向きを付けず `訂正` のまま。両方あれば両方出す。
+
+向き（上方/下方）そのものを保存した列や表は無い。あるのは次で、時間列のマークには使えない。
+
+| 保存先 | 中身 | 使えない理由 |
+|---|---|---|
+| `statements.is_revision` | 予想修正**だけの**開示か（`EarnForecastRevision` 等） | 向きが無い。一覧から除外している（実績が空） |
+| `statements.type_of_document` | 短信 / 予想修正 / 配当修正 | 種別だけ。`上方` / `下方` の語は無い |
+| `statements.fy_*` | その開示の通期会社予想（金額） | 向きでは無い。直前比は API で出す（上の判定） |
+| `xbrl_filings.doc_type` | 題名から `forecast_revision` 等 | 向きが無い。決算速報の行は `statements`。ゴールデン DB は 0 件 |
+| `xbrl_financials.value_kind=forecast_previous` | 修正 XBRL の前回予想（PreviousMember） | 前回と今回の金額はあるが、向き列は無い。一覧と紐づかない。ゴールデンは 0 件。短信に埋め込まれた修正（一覧の大半）は PreviousMember が無いことが多い。修正履歴も前の開示から組む（`forecast_previous` は使わない） |
+| `raw_json` の `ChgByASRev` 等 | 会計方針・見積りの変更フラグ | 業績予想の上方/下方ではない |
+| `earnings_events.is_first` | その期の最初の短信か | 向きが無い。訂正・予想修正だけの行を落とすフラグ |
+| `quarter_summary.revised_up` | 上記判定の派生（計算値） | テーブルではない。一覧 API はこれまで出していなかった |
 
 ### 会計基準による欠損 ★注意
 IFRS・米国基準の開示には**経常利益の概念が無く `OdP` は空欄**になる。

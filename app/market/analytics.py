@@ -404,6 +404,8 @@ def _disc_key(s: Statement) -> tuple:
 def forecast_revision(hist: list[Statement], stmt: Statement) -> dict | None:
     """同一事業年度の直前の通期営業利益予想と比べた {direction, pct}。無ければ None。
 
+    向きの列は無い。読むのは保存済みの `statements.fy_operating_profit`。
+    `is_revision` / `type_of_document` は修正開示の種別だけで向きが無い。
     売上・経常・純利益は見ない（項目が混ざっても営利に従う）。閾値は
     EARNINGS_PARAMS["revision_noise_th"]（±0.1%）。赤字予想は |直前| を分母にし、
     損失縮小を up にする。同日の予想修正のみの開示は直前に使わない
