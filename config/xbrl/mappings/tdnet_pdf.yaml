@@ -69,7 +69,7 @@
     - { ns: pdf-pl, name: 当期純利益, priority: 30 }
     - { ns: pdf-pl, name: 当期純損失, priority: 30 }
     - { ns: pdf-sum, name: 親会社株主に帰属する当期純利益, priority: 50 }
-    - { ns: pdf-sum, name: 親会社の所有者に帰属する当期利益, priority: 50, standard: IFRS }
+    - { ns: pdf-sum, name: 親会社の所有者に帰属する当期利益, priority: 50 }
     - { ns: pdf-sum, name: 当期純利益, priority: 70 }
     - { ns: pdf-pl, name: 当社株主に帰属する当期純利益, priority: 10 }
     - { ns: pdf-pl, name: 当社株主に帰属する当期純損失, priority: 10 }
@@ -150,13 +150,14 @@
     - { ns: pdf-cf, name: 減価償却費及びその他の償却費, priority: 12 }
 - std_item: cash_end
   elements:
+    - { ns: pdf-cf, name: 現金及び現金同等物の四半期末残高(要約四半期連結財政状態計算書計上額), priority: 5 }
     - { ns: pdf-cf, name: 現金及び現金同等物の期末残高, priority: 10 }
     - { ns: pdf-cf, name: 現金及び現金同等物期末残高, priority: 12 }
     - { ns: pdf-bs, name: 現金及び現金同等物, priority: 20 }
 - std_item: eps_basic
   elements:
     - { ns: pdf-sum, name: 1株当たり当期純利益, priority: 10 }
-    - { ns: pdf-sum, name: 基本的1株当たり当期利益, priority: 10, standard: IFRS }
+    - { ns: pdf-sum, name: 基本的1株当たり当期利益, priority: 10 }
     - { ns: pdf-sum, name: 基本的1株当たり, priority: 20, standard: IFRS }
 - std_item: eps_diluted
   elements:
