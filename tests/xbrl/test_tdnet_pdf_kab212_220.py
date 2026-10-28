@@ -918,3 +918,99 @@ def test_formula_note_is_not_eps_header() -> None:
         _fail(f"deps {facts}")
     if any("売上収益" in name and "1株" in name for name, _ref in facts):
         _fail(f"formula glued {facts}")
+
+
+def test_formula_continuation_line_is_not_eps_header() -> None:
+    """9983 20251007569462: 折り返しの「－ 売上原価」が見出しに混ざらない。"""
+    parts = [
+        _text(40, 40, "（1）経営成績", 100),
+        _text(40, 58, "（単位：百万円）", 100),
+        _cell(400, 76, "売上収益", 60),
+        _cell(560, 76, "基本的1株当たり当期利益", 160),
+        _cell(740, 76, "希薄化後1株当たり当期利益", 160),
+        _text(340, 90, "＝売上収益", 80),
+        _text(340, 102, "－ 売上原価", 120),
+        _text(340, 114, "－ 販売費及び一般管理費", 180),
+        _text(40, 128, "円銭", 30),
+        _text(40, 146, "2025年8月期", 100),
+        _cell(400, 146, "3,400,000", 60),
+        _cell(560, 146, "1,411.44", 50),
+        _cell(740, 146, "1,409.32", 50),
+    ]
+    d = _disclosure(
+        disclosure_no="20251007569462", code="99830",
+        type_of_period="FY",
+        type_of_document="FYFinancialStatements_Consolidated_IFRS",
+        disclosed_date=date(2025, 10, 7),
+        period_start=date(2024, 9, 1), period_end=date(2025, 8, 31),
+        fiscal_year_start=date(2024, 9, 1), fiscal_year_end=date(2025, 8, 31),
+    )
+    pkg = read_tdnet_pdf(_pages(parts), d)
+    facts = _facts(pkg)
+    if facts.get(("基本的1株当たり当期利益", "CurrentYearDuration_ResultMember")) != Decimal("1411.44"):
+        _fail(f"eps {facts}")
+    if facts.get(("希薄化後1株当たり当期利益", "CurrentYearDuration_ResultMember")) != Decimal("1409.32"):
+        _fail(f"deps {facts}")
+    names = {name for name, _ref in facts}
+    if any("売上原価" in name or "販売費" in name for name in names):
+        _fail(f"continuation glued {facts}")
+
+
+def test_kab223_dividend_parent_header_spans_slot_columns() -> None:
+    """9983 20221215579485: 「１株当たり配当金」が期末列だけに付いても 2Q・年間を残す。"""
+    parts = [
+        _text(40, 40, "配当予想の修正", 100),
+        _text(40, 58, "（単位：円）", 80),
+        _cell(400, 76, "１株当たり配当金", 100),
+        _cell(180, 94, "第2四半期末", 80),
+        _cell(400, 94, "期末", 40),
+        _cell(440, 94, "合計", 40),
+        _text(40, 120, "今回予想", 80),
+        _cell(250, 140, "115", 40),
+        _cell(400, 140, "115", 40),
+        _cell(550, 140, "230", 40),
+    ]
+    no = "20221215579485"
+    statement = SimpleNamespace(
+        disclosure_no=no, code="99830", disclosed_date=date(2022, 12, 15),
+        disclosed_time="15:00", type_of_period="FY",
+        type_of_document="DividendForecastRevision",
+        period_start=date(2022, 9, 1), period_end=date(2023, 8, 31),
+        fiscal_year_start=date(2022, 9, 1), fiscal_year_end=date(2023, 8, 31),
+    )
+    db = SessionLocal()
+    try:
+        _seed(db, no, _pages(parts), statement)
+        apply_mappings(db)
+        if sync_pdf_filing(db, no) is not SyncOutcome.PARSED:
+            _fail("div rev sync")
+        rows = _rows(db, no)
+        if rows.get(("dps", "forecast", "point", "Q2")) != Decimal("115"):
+            _fail(f"q2 {rows}")
+        if rows.get(("dps", "forecast", "point", "year_end")) != Decimal("115"):
+            _fail(f"year_end {rows}")
+        if rows.get(("dps", "forecast", "point", "annual")) != Decimal("230"):
+            _fail(f"annual {rows}")
+    finally:
+        db.close()
+
+    d = _disclosure(
+        disclosure_no=no, code="99830",
+        type_of_period="FY",
+        type_of_document="DividendForecastRevision",
+        disclosed_date=date(2022, 12, 15),
+        period_start=date(2022, 9, 1), period_end=date(2023, 8, 31),
+        fiscal_year_start=date(2022, 9, 1), fiscal_year_end=date(2023, 8, 31),
+    )
+    pkg = read_tdnet_pdf(_pages(parts), d)
+    facts = _facts(pkg)
+    q2 = next((value for (name, ref), value in facts.items() if "SecondQuarterMember" in ref), None)
+    ye = next((value for (name, ref), value in facts.items() if "YearEndMember" in ref), None)
+    ann = next((value for (name, ref), value in facts.items() if "AnnualMember" in ref), None)
+    if (q2, ye, ann) != (Decimal("115"), Decimal("115"), Decimal("230")):
+        _fail(f"slots {facts}")
+    if any("売上" in name for name, _ref in facts):
+        _fail(facts)
+    names = {name for name, _ref in facts}
+    if "1株当たり配当金" not in names and "年間配当金" not in names:
+        _fail(f"item {names}")
