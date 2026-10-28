@@ -113,7 +113,7 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 | Open 銘柄 tab | nothing until a code is picked |
 | 銘柄 search typeahead | `GET /api/stocks/search?q=...` |
 | 銘柄 pick / reload on `#stock/{code}` | `GET /api/stock/{code}/overview` (`{code, name, market, sector33, quote{date, close, change, change_pct, market_cap}, next_earnings{date, fq}|null, metrics{per, pbr, dividend_yield, roe, equity_ratio}}`; 404 `銘柄がありません。`), then the open sub tab's request. 概要: `GET /api/earnings/detail/{code}` (no `disclosure_no`) |
-| 銘柄 › 株価 (first open per code, UI defaults) | `GET /api/chart/{code}?tf=D&ma=50,150,200&rel=false` (may include `earnings_dates`) and `GET /api/earnings-performance/{code}` in parallel. Each `#tf` / `#rel` / `#mas` change repeats both. Reopening the tab for the same code sends nothing |
+| 銘柄 › 株価 (first open per code, UI defaults) | `GET /api/chart/{code}?tf=D&ma=50,150,200&rel=false` (may include `earnings_dates`) and `GET /api/earnings-performance/{code}` in parallel. Each `#tf` / `#rel` / `#mas` change repeats both. Reopening the tab for the same code sends nothing unless the last chart call 404'd (`stockPriceCode` cleared; golden 31160) |
 | 銘柄 › ニュース | `GET /api/stock/{code}/filings` once per code; a detail row loads each iframe `GET /api/stock/filings/{id}/documents/{seq}` (HTML, CSP + ETag, 304 on `If-None-Match`) or `/api/stock/pdf/{disclosure_no}` |
 | 銘柄 › 株主 | nothing (準備中) |
 | Screener 検索 (UI defaults) | `GET /api/screener?stage=2&rs_min=70` |
