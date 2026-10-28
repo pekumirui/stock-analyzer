@@ -183,3 +183,103 @@ def test_write_expected_round_trips(tmp_path) -> None:
         _fail(path.read_text(encoding="utf-8"))
     if EXPECTED.name != "expected.json":
         _fail(EXPECTED)
+
+
+# KAB-246: J-Quants の業績予想の修正は、CurPerType=1Q / 3Q のとき第1・第3四半期累計を
+# 末尾なしの欄（FSales / FNCSales）に入れて返す。通期として突き合わせない。
+_QUARTER_REVISIONS = {
+    # 7865 の J-Quants の生データ（必要な欄だけ）
+    "20220530563624": {
+        "DocType": "EarnForecastRevision", "CurPerType": "1Q", "CurPerSt": "2022-01-21",
+        "CurPerEn": "2022-04-20", "CurFYSt": "2022-01-21", "CurFYEn": "2023-01-20",
+        "FNCSales": "1420000000", "FNCEPS": "18.55",
+    },
+    "20231120592700": {
+        "DocType": "EarnForecastRevision", "CurPerType": "3Q", "CurPerSt": "2023-01-21",
+        "CurPerEn": "2023-10-20", "CurFYSt": "2023-01-21", "CurFYEn": "2024-01-20",
+        "FNCSales": "4392000000", "FNCOP": "393000000", "FNCOdP": "411000000",
+        "FNCNP": "287000000", "FNCEPS": "65.53",
+    },
+}
+
+
+def _checks(raw: dict) -> set[tuple]:
+    return {(c["jq_key"], c["period_end"], tuple(c["tps"]), c["cons"], c["jq"]) for c in jquants_checks(raw)}
+
+
+def test_kab246_quarter_revisions_are_cumulative() -> None:
+    """1Q / 3Q の修正の末尾なしの欄は、期末 CurPerEn の Q1 / Q3 累計（FNC* は単体、F* は連結）。"""
+    q1 = _checks(_QUARTER_REVISIONS["20220530563624"])
+    if q1 != {("FNCSales#nc", "2022-04-20", ("Q1",), 0, 1.42e9), ("FNCEPS#nc", "2022-04-20", ("Q1",), 0, 18.55)}:
+        _fail(q1)
+    q3 = _checks(_QUARTER_REVISIONS["20231120592700"])
+    if {c[1:4] for c in q3} != {("2023-10-20", ("Q3",), 0)} or ("FNCSales#nc", "2023-10-20", ("Q3",), 0, 4.392e9) not in q3:
+        _fail(q3)
+    consolidated = _QUARTER_REVISIONS["20220530563624"] | {"FSales": "1500000000"}
+    consolidated.pop("FNCSales")
+    if ("FSales", "2022-04-20", ("Q1",), 1, 1.5e9) not in _checks(consolidated):
+        _fail(_checks(consolidated))
+
+
+def test_kab246_half_year_and_full_year_revisions_unchanged() -> None:
+    """2Q の修正は末尾なしが通期・2Q の欄が上期（7513）。通期の修正は通期。期が分からなければ末尾なしは見ない。"""
+    h1 = {
+        "DocType": "EarnForecastRevision", "CurPerType": "2Q", "CurPerEn": "2022-02-28", "CurFYEn": "2022-08-31",
+        "FNCSales": "280700000000", "FNCSales2Q": "138500000000",
+    }
+    if _checks(h1) != {("FNCSales#nc", "2022-08-31", ("FY",), -1, 2.807e11),
+                       ("FNCSales2Q#nc", "2022-08-31", ("H1",), -1, 1.385e11)}:
+        _fail(_checks(h1))
+    fy = h1 | {"CurPerType": "FY", "CurPerEn": "2022-08-31", "FSales": "280000000000"}
+    fy.pop("FNCSales2Q")
+    if _checks(fy) != {("FSales", "2022-08-31", ("FY",), 1, 2.8e11)}:
+        _fail(_checks(fy))
+    unknown = h1 | {"CurPerType": ""}
+    if _checks(unknown) != {("FNCSales2Q#nc", "2022-08-31", ("H1",), -1, 1.385e11)}:
+        _fail(_checks(unknown))
+
+
+def test_kab246_expected_has_no_full_year_keys_for_quarter_revisions() -> None:
+    """7865 の 1Q / 3Q 修正の累計の値を、通期の正解にも既知の欠けにも入れない。累計の突き合わせは残す。"""
+
+    def full_year(key: str, tps: list[str]) -> bool:
+        base = key.split("#")[0]
+        return tps == ["FY"] and base.startswith("F") and not base.endswith("2Q")
+
+    data = load_expected()
+    for no in ("20220530563624", "20230519577395", "20231120592700", "20240522503651", "20241126529281",
+               "20250314594495"):
+        doc = data["disclosures"][no]
+        gaps = [g for g in doc["known_gaps"] if full_year(g["jq_key"], g["tps"])]
+        values = [
+            v for v in doc["values"]
+            if v["target_period"] == "FY" and any(full_year(e.removeprefix("jquants:"), ["FY"]) for e in v["evidence"])
+        ]
+        if gaps or values:
+            _fail((no, gaps, values))
+        end = doc["statement"]["period_end"]
+        if not any(g["period_end"] == end for g in doc["known_gaps"]) and not any(
+            v["period_end"] == end for v in doc["values"]
+        ):
+            _fail(f"{no} has no cumulative check")
+
+
+def test_kab246_cumulative_relabelled_as_full_year_is_caught() -> None:
+    """後退の検知: 7865 の Q3 累計（20231120592700）を通期に付け直すと、消えた値として出る。"""
+    data = load_expected()
+    no = "20231120592700"
+    doc = data["disclosures"][no]
+    q3 = [v for v in doc["values"] if v["target_period"] == "Q3" and v["value_kind"] == "forecast"]
+    if len(q3) != 5:
+        _fail(q3)
+    good = [{"no": no, **{k: v[k] for k in (*KEY_FIELDS, "value", "unit")}} for v in doc["values"]]
+    sub = {"disclosures": {no: doc}}
+    if not compare(sub, {"outcomes": {no: "parsed"}, "rows": good}).ok:
+        _fail("good rows")
+    fy_end = doc["statement"]["fiscal_year_end"]
+    relabelled = [
+        row | {"period_end": fy_end, "target_period": "FY"} if row["target_period"] == "Q3" else row for row in good
+    ]
+    report = compare(sub, {"outcomes": {no: "parsed"}, "rows": relabelled})
+    if len(report.lost) != 5 or report.ok:
+        _fail(report)

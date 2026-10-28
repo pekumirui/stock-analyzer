@@ -931,6 +931,7 @@ ZIP との付き合わせは `tools/tdnet_pdf/verify_financials.py` がスクラ
 - **判定**: 正解の値が消えた・変わったら exit 1。`--base-repo`（main の worktree）を付けると、正解データに無い行も含めた全行の差（消えた / 変わった / 増えた / filing の状態）を出す。PR 本文には `--md` の出力を貼る
 - **例外**: 正解の値は J-Quants と一致した値なので、変わるのは原則退行。J-Quants 側の誤りなどで変えるときは、PR 本文に一覧と理由を書き、同じ PR で `expected.json` を直す
 - **作り直し**: 検証 bot の新しい突き合わせ（`cmp_jq.json`）が来たら `build` で作り直す。差分は 1 値 1 行なので PR で読める
+- **J-Quants の業績予想の修正の欄**（KAB-246）: `CurPerType=1Q / 3Q` の修正は、第1・第3四半期累計の予想を末尾なしの欄（`FSales` / `FNCSales` など）に入れて返す。`jquants_checks` はこれを期末 `CurPerEn` の Q1 / Q3 累計（`F*` は連結、`FNC*` は単体）として突き合わせ、通期にしない。`2Q` の修正は末尾なしが通期、`2Q` の欄が上期。`CurPerType` が分からない修正の末尾なしの欄は突き合わせない。検証 bot の `cmp_jq.py` は古い規則（通期扱い）のままなので、`build` は bot の `match` を値の一致の裏付けとしてだけ使う
 
 ```bash
 # HTML を用意する（初回だけ。約 1 時間。IR BANK に 1 秒おき）

@@ -358,7 +358,7 @@ def markdown(report: Report, result: dict, diff: dict | None, *, label: str) -> 
 
 
 def jquants_checks(raw: dict) -> list[dict]:
-    """J-Quants の 1 開示から突き合わせる項目を作る（cmp_jq.py と同じ）。"""
+    """J-Quants の 1 開示から突き合わせる項目を作る（cmp_jq.py と同じ。修正の 1Q / 3Q だけ違う。KAB-246）。"""
 
     def num(v):
         if v in (None, "", "－", "-"):
@@ -390,17 +390,29 @@ def jquants_checks(raw: dict) -> list[dict]:
                 add("actual", "dps", raw["CurFYEn"], (t,), jv, key)
     pre = "NxF" if isfy and isrep else "F"
     fyend = raw.get("NxtFYEn") if pre == "NxF" else raw.get("CurFYEn")
+    # 業績予想の修正の末尾なしの欄（FSales / FNCSales）は CurPerType の期の値（KAB-246）。
+    # 1Q / 3Q の修正は第1・第3四半期累計を入れて返す（7865 20220530563624 の FNCSales は Q1 累計 1,420）。
+    # 2Q の修正は末尾なしが通期、2Q の欄が上期（7513）。CurPerType が分からなければ末尾なしは突き合わせない。
+    plain: tuple[str | None, tuple[str, ...], int | None, int | None] = (fyend, ("FY",), None, -1)
+    if not isrep:
+        quarter = {"1Q": "Q1", "3Q": "Q3"}.get(raw.get("CurPerType") or "")
+        if quarter:
+            plain = (raw.get("CurPerEn"), (quarter,), 1, 0)
+        elif raw.get("CurPerType") not in ("2Q", "FY"):
+            plain = (None, ("FY",), None, -1)
     for item, key in _FORECAST.items():
         k1 = pre + ("Np" if (pre == "NxF" and key == "NP") else key)
-        for suf, tps in (("", ("FY",)), ("2Q", ("H1",))):
+        for suf in ("", "2Q"):
+            # (期末, 期, F* の連結, FNC* の連結)。2Q の欄は上期。
+            pe, tps, cn_f, cn_nc = plain if suf == "" else (fyend, ("H1",), None, -1)
             jv = num(raw.get(k1 + suf))
-            if jv is not None and fyend:
-                add("forecast", item, fyend, tps, jv, k1 + suf)
+            if jv is not None and pe:
+                add("forecast", item, pe, tps, jv, k1 + suf, cn=cn_f)
             elif not isrep:
                 k2 = pre + "NC" + k1[len(pre):] + suf
                 jv = num(raw.get(k2))
-                if jv is not None and fyend:
-                    add("forecast", item, fyend, tps, jv, k2 + "#nc", cn=-1)
+                if jv is not None and pe:
+                    add("forecast", item, pe, tps, jv, k2 + "#nc", cn=cn_nc)
     for t, key in _DIVIDEND:
         jv = num(raw.get(pre + key))
         if jv is not None and fyend:
