@@ -326,3 +326,48 @@ jobs:
       - name: Remove deploy key
         if: always()
         run: rm -f "$HOME/.ssh/id_deploy"
+
+      # 失敗時だけ #alerts-infra。成功・キャンセルは送らない。送信失敗は job 結果を変えない。
+      - name: Notify Slack on failure
+        if: ${{ failure() && !cancelled() }}
+        continue-on-error: true
+        env:
+          SLACK_WEBHOOK_URL_INFRA: ${{ secrets.SLACK_WEBHOOK_URL_INFRA }}
+          COMMIT_SUBJECT: ${{ github.event.head_commit.message }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          NOTIFY_KIND: deploy
+        run: python3 tools/ops/notify_cicd_failure.py
+
+  notify-skipped-deploy:
+    name: Notify skipped deploy
+    needs: [test, lint, release, deploy]
+    if: |
+      always()
+      && !cancelled()
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+      && needs.deploy.result != 'failure'
+      && needs.deploy.result != 'cancelled'
+      && (
+        needs.test.result == 'failure'
+        || needs.lint.result == 'failure'
+        || needs.release.result == 'failure'
+      )
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        continue-on-error: true
+
+      - name: Notify Slack
+        continue-on-error: true
+        env:
+          SLACK_WEBHOOK_URL_INFRA: ${{ secrets.SLACK_WEBHOOK_URL_INFRA }}
+          COMMIT_SUBJECT: ${{ github.event.head_commit.message }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          NOTIFY_KIND: gate
+          TEST_RESULT: ${{ needs.test.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          RELEASE_RESULT: ${{ needs.release.result }}
+        run: python3 tools/ops/notify_cicd_failure.py
