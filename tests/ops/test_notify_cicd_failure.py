@@ -21,7 +21,7 @@ from tools.ops.notify_cicd_failure import (  # noqa: E402
     short_sha,
 )
 
-WEBHOOK = "https://hooks.slack.com/services/T000/B000/FAKESECRET_c2d3e4f5g6h7i8j9k0l1"
+WEBHOOK = "https://example.invalid/hook/T000/B000/dummytoken"
 CICD = ROOT / ".github" / "workflows" / "cicd.yml"
 SCRIPT = "tools/ops/notify_cicd_failure.py"
 
@@ -69,9 +69,9 @@ def test_payload_gate_lists_failed_jobs() -> None:
 def test_short_sha_and_https() -> None:
     if short_sha("abc") != "abc" or short_sha("") != "unknown":
         _fail("short_sha edge cases")
-    if not is_https_webhook("https://hooks.slack.com/services/T/B/x"):
+    if not is_https_webhook("https://example.invalid/hook"):
         _fail("https webhook must be accepted")
-    if is_https_webhook("http://hooks.slack.com/services/T/B/x"):
+    if is_https_webhook("http://example.invalid/hook"):
         _fail("http webhook must be rejected")
     if is_https_webhook("not-a-url"):
         _fail("bare string must be rejected")
@@ -96,7 +96,7 @@ def test_dry_run_prints_json_not_webhook() -> None:
     if "Deploy VPS 失敗" not in payload["text"] or "`0123456`" not in payload["text"]:
         _fail(f"dry-run payload missing expected text: {payload}")
     dumped = buf.getvalue() + err.getvalue()
-    if "hooks.slack.com" in dumped or WEBHOOK in dumped or "/T000/" in dumped:
+    if WEBHOOK in dumped or "dummytoken" in dumped:
         _fail("dry-run must not print webhook")
 
 
@@ -115,8 +115,8 @@ def test_missing_webhook_exits_zero() -> None:
         _fail("unset webhook must exit 0")
     if "unset" not in err.getvalue():
         _fail("unset webhook should say skip notify")
-    if "hooks.slack.com" in err.getvalue():
-        _fail("unset path must not mention webhook host")
+    if WEBHOOK in err.getvalue() or "dummytoken" in err.getvalue():
+        _fail("unset path must not mention webhook")
 
 
 def test_send_failure_exits_zero_without_url() -> None:
@@ -138,7 +138,7 @@ def test_send_failure_exits_zero_without_url() -> None:
     if code != 0:
         _fail("send failure must exit 0")
     logged = err.getvalue()
-    if WEBHOOK in logged or "hooks.slack.com" in logged:
+    if WEBHOOK in logged or "dummytoken" in logged:
         _fail(f"send failure logged webhook: {logged!r}")
     if "URL error" not in logged:
         _fail(f"expected URL error log, got {logged!r}")
