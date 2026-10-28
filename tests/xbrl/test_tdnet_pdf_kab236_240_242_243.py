@@ -389,3 +389,172 @@ def test_kab243_ifrs_filing_maps_nc_ordinary_income() -> None:
             _fail(rows)
     finally:
         db.close()
+
+
+def _forecast_with_gap_percent(
+    *,
+    op_name: str,
+    odp_name: str,
+    np_name: str,
+    h1: tuple[str, str, str, str],
+    fy: tuple[str, str, str, str],
+) -> list[str]:
+    """％ が dash 列の右の隙間に落ちるサマリー予想（7513 / 9501 / 7865）。"""
+    return [
+        _text(40, 40, "3. 2022年8月期の業績予想（2021年9月1日～2022年8月31日）", 300),
+        _text(40, 58, "（単位：百万円）", 80),
+        _text(125, 76, "売上高", 30),
+        _text(230, 76, op_name, 40),
+        _text(340, 76, odp_name, 40),
+        _text(445, 76, np_name, 70),
+        _text(140, 92, "百万円", 28),
+        _text(192, 92, "％", 8),
+        _text(248, 92, "百万円", 28),
+        _text(313, 92, "％", 8),
+        _text(358, 92, "百万円", 28),
+        _text(423, 92, "％", 8),
+        _text(468, 92, "百万円", 28),
+        _text(533, 92, "％", 8),
+        _text(40, 110, "第２四半期(累計)", 80),
+        _cell(170, 110, h1[0], 45),
+        _cell(200, 110, "10.0", 18),
+        _cell(280, 110, h1[1], 40),
+        _cell(310, 110, "5.0", 16),
+        _cell(390, 110, h1[2], 40),
+        _cell(420, 110, "5.0", 16),
+        _cell(500, 110, h1[3], 40),
+        _cell(530, 110, "8.0", 16),
+        _text(40, 128, "通期", 24),
+        _cell(170, 128, fy[0], 45),
+        _cell(200, 128, "8.0", 16),
+        _cell(280, 128, fy[1], 40),
+        _cell(310, 128, "12.0", 18),
+        _cell(390, 128, fy[2], 40),
+        _cell(420, 128, "12.0", 18),
+        _cell(500, 128, fy[3], 40),
+        _cell(530, 128, "15.0", 18),
+    ]
+
+
+def test_forecast_percent_unit_char_stays_on_percent_column() -> None:
+    """列の隙間の ％ を右隣の金額列へ付けない。営業・経常・純利益の H1/FY 予想が残る。"""
+    parts = _forecast_with_gap_percent(
+        op_name="営業利益", odp_name="経常利益", np_name="当期純利益",
+        h1=("131,400", "1,700", "1,700", "1,100"),
+        fy=("270,000", "5,000", "5,000", "3,200"),
+    )
+    facts = _facts(read_tdnet_pdf(_pages(parts), _disclosure(
+        disclosure_no="20211223559502", code="75130",
+        type_of_period="1Q",
+        type_of_document="1QFinancialStatements_NonConsolidated_JP",
+        disclosed_date=date(2022, 1, 11),
+        period_start=date(2021, 9, 1), period_end=date(2021, 11, 30),
+        fiscal_year_start=date(2021, 9, 1), fiscal_year_end=date(2022, 8, 31),
+    )))
+    h1 = "CurrentAccumulatedQ2Duration_ForecastMember_NonConsolidated"
+    fy_ctx = "CurrentYearDuration_ForecastMember_NonConsolidated"
+    want = {
+        ("営業利益", h1): MILLION * 1700,
+        ("経常利益", h1): MILLION * 1700,
+        ("当期純利益", h1): MILLION * 1100,
+        ("営業利益", fy_ctx): MILLION * 5000,
+        ("経常利益", fy_ctx): MILLION * 5000,
+        ("当期純利益", fy_ctx): MILLION * 3200,
+    }
+    for key, value in want.items():
+        if facts.get(key) != value:
+            _fail((key, facts.get(key), facts))
+
+
+def test_forecast_loss_headers_keep_negative_ordinary_and_net() -> None:
+    """営業損益・経常損益の見出しと隙間の ％ でも、負の経常・純利益予想を落とさない。"""
+    parts = _forecast_with_gap_percent(
+        op_name="営業損益", odp_name="経常損益", np_name="親会社株主に帰属する当期純損益",
+        h1=("7,000,000", "100,000", "△8,000", "△20,000"),
+        fy=("7,931,000", "△488,000", "△16,000", "△41,000"),
+    )
+    facts = _facts(read_tdnet_pdf(_pages(parts), _disclosure(
+        disclosure_no="20220124571329", code="95010",
+        type_of_period="3Q",
+        type_of_document="3QFinancialStatements_Consolidated_JP",
+        disclosed_date=date(2022, 1, 24),
+        period_start=date(2021, 4, 1), period_end=date(2021, 12, 31),
+        fiscal_year_start=date(2021, 4, 1), fiscal_year_end=date(2022, 3, 31),
+    )))
+    fy_ctx = "CurrentYearDuration_ForecastMember"
+    if facts.get(("営業利益", fy_ctx)) != MILLION * Decimal(-488000):
+        _fail(facts)
+    if facts.get(("経常利益", fy_ctx)) != MILLION * Decimal(-16000):
+        _fail(facts)
+    if facts.get(("親会社株主に帰属する当期純利益", fy_ctx)) != MILLION * Decimal(-41000):
+        _fail(facts)
+
+
+def test_cash_end_not_glued_to_scope_change_zougengaku() -> None:
+    """連結範囲変更の折り返し「増減額（△は減少）」を期末残高に付けない。"""
+    parts = [
+        _text(40, 40, "連結キャッシュ・フロー計算書", 180),
+        _text(40, 58, "（単位：百万円）", 100),
+        _cell(400, 76, "前連結会計年度", 120),
+        _cell(560, 76, "当連結会計年度", 120),
+        _text(40, 112, "現金及び現金同等物の期首残高", 180),
+        _cell(400, 112, "52,743", 50),
+        _cell(560, 112, "37,438", 50),
+        _text(40, 136, "連結の範囲の変更に伴う現金及び現金同等物の", 240),
+        _cell(400, 144, "－", 8),
+        _cell(560, 144, "△586", 40),
+        _text(40, 152, "増減額（△は減少）", 120),
+        _text(40, 176, "現金及び現金同等物の期末残高", 180),
+        _cell(400, 176, "37,438", 50),
+        _cell(560, 176, "59,945", 50),
+    ]
+    d = _disclosure(
+        disclosure_no="20240209532259", code="25020",
+        type_of_period="FY",
+        type_of_document="FYFinancialStatements_Consolidated_JP",
+        disclosed_date=date(2024, 2, 9),
+        period_start=date(2023, 1, 1), period_end=date(2023, 12, 31),
+        fiscal_year_start=date(2023, 1, 1), fiscal_year_end=date(2023, 12, 31),
+    )
+    facts = _facts(read_tdnet_pdf(_pages(parts), d))
+    if facts.get(("現金及び現金同等物の期末残高", "CurrentYearDuration")) != MILLION * 59945:
+        _fail(facts)
+    if any("期末残高" in name and "減少" in name for name, _ref in facts):
+        _fail(f"glued {facts}")
+    wrap = facts.get(("連結の範囲の変更に伴う現金及び現金同等物の増減額", "CurrentYearDuration"))
+    if wrap != MILLION * Decimal(-586):
+        _fail(facts)
+
+
+def test_yen_sen_unit_char_does_not_steal_roe() -> None:
+    """希薄化後 EPS 列の右の隙間の円銭を ROE 列へ付けない（ROE が 100 万倍にならない）。"""
+    parts = [
+        _text(40, 40, "（1）経営成績", 80),
+        _text(40, 58, "（％表示は対前期増減率。）", 120),
+        _text(130, 76, "1株当たり当期純利益", 90),
+        _text(230, 76, "潜在株式調整後1株当たり当期純利益", 140),
+        _text(400, 76, "自己資本当期純利益率", 90),
+        _text(178, 92, "円", 8),
+        _text(189, 92, "銭", 8),
+        _text(258, 92, "円", 8),
+        _text(270, 92, "銭", 8),
+        _text(430, 92, "％", 8),
+        _text(40, 110, "2024年1月期", 60),
+        _cell(200, 110, "71.63", 30),
+        _cell(250, 110, "－", 8),
+        _cell(450, 110, "10.1", 20),
+    ]
+    facts = _facts(read_tdnet_pdf(_pages(parts), _disclosure(
+        disclosure_no="20240229545849", code="78650",
+        type_of_period="FY",
+        type_of_document="FYFinancialStatements_NonConsolidated_JP",
+        disclosed_date=date(2024, 3, 1),
+        period_start=date(2023, 1, 21), period_end=date(2024, 1, 20),
+        fiscal_year_start=date(2023, 1, 21), fiscal_year_end=date(2024, 1, 20),
+    )))
+    ctx = "CurrentYearDuration_ResultMember_NonConsolidated"
+    if facts.get(("1株当たり当期純利益", ctx)) != Decimal("71.63"):
+        _fail(facts)
+    roe = facts.get(("自己資本当期純利益率", ctx))
+    if roe != Decimal("0.101"):
+        _fail(f"roe {roe} {facts}")

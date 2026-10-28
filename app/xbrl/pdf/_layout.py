@@ -76,20 +76,28 @@ _GARBLED_MIN_CHARS = 30
 _HEADER_REACH = 80.0
 # ％ 列の単位語（NFKC 後）。またがる見出しの分け先から外す（KAB-238。1377 の純利益は金額列に残す）。
 _PERCENT_UNIT = frozenset({"%", "(%)"})
+# 列の隙間に落ちた単位の 1 字は右隣の金額列へ飛ばさない（KAB-236 の「る」「１」とは別。7865 の ％ / 円銭）。
+_HEADER_UNIT_CHAR = frozenset({"%", "円", "銭"})
 # 分けたかけらがこれより短い列は、分割せず語全体を載せる（「金」だけ隣へ、を防ぐ）。
 _SPAN_MIN_CHARS = 3
 # 表の左から伸びる期の見出し（7865「第１四半期業績予想（日付）」）。列の項目名ではない。
 _SPAN_CAPTION = re.compile(r"第[123]四半期|通期|業績予想")
 # 行名がここで終われば、次の数値の無い行は同じ行名の続き。
 _CONTINUES = re.compile(r"(及び|並びに|又は|に|の|・|、|帰属する|係る|対する)$")
-# 数値の無い行が前の行名の折り返しの尾（「…中間純」＋「損失（△）」、「額（△は減少）」、「(予想)」）。
-_TAIL = re.compile(r"^純?損失|^額|^[（(]予想")
+# 数値の無い行が前の行名の折り返しの尾（「…中間純」＋「損失（△）」、「額（△は減少）」、「増減額（△は減少）」、「(予想)」）。
+_TAIL = re.compile(r"^純?損失|^額|^増減額[（(]△は|^[（(]予想")
 # 値だけの行のあとでも、これは新しい行名（KAB-213 の今回予想を前回に付けない）。
+# 「増減額（△は減少）」は CF の折り返しなので _TAIL 側（KAB-236 の増減は修正表の行）。
 _ROW_ROLE = re.compile(r"^(前回|今回|前期|通期|増減|第[123]四半期|(当|前|次)期)")
 # 見出し帯に入った行ラベル（KAB-243。「（Ａ）」を売上高列に載せない）。
 _HEADER_ROW_LABEL = re.compile(r"^(前回|今回|増減|前期実績)")
 # 数値の下にずれた行名（松井の配当通知。KAB-237）。上の次の行の見出しにはしない。
 _UNDER_ROW = re.compile(r"^(前回|今回|実績)")
+
+
+def _is_row_role(compact: str) -> bool:
+    """前回/今回/増減額(B-A) は新しい行。CF の「増減額（△は減少）」は前の行の続き。"""
+    return bool(_ROW_ROLE.match(compact)) and not _TAIL.search(compact)
 
 
 class PdfLayoutError(ValueError):
@@ -615,7 +623,7 @@ def grid(lines: list[Line]) -> Grid:
                     rows[-1] = GridRow(f"{rows[-1].label}{label_text}", rows[-1].cells)
                     value_only = False
                     continue
-            if rows and not pending and not _ROW_ROLE.match(compact_line) and (
+            if rows and not pending and not _is_row_role(compact_line) and (
                 value_only
                 or _CONTINUES.search(_compact_text(rows[-1].label))
                 or _TAIL.search(compact_line)
@@ -632,7 +640,7 @@ def grid(lines: list[Line]) -> Grid:
             compact_label,
         ))
         # 次の行が「今回」「前回」等の行名なら pending を連結しない（KAB-236）。
-        role_label = bool(_ROW_ROLE.match(compact_label))
+        role_label = _is_row_role(compact_label)
         full = (
             f"{pending}{label}" if pending and not complete and not role_label
             else (label or pending)
@@ -795,7 +803,8 @@ def _place_header_line(
         if pieces:
             placed.extend(pieces)
             continue
-        if len(_compact_text(word.text)) == 1:
+        compact_char = _compact_text(word.text)
+        if len(compact_char) == 1 and compact_char not in _HEADER_UNIT_CHAR:
             right = [anchor for anchor in anchors if lefts[anchor] > word.x1]
             amount_right = [anchor for anchor in right if anchor not in percent]
             candidates = amount_right or right
