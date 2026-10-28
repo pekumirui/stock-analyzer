@@ -53,8 +53,8 @@ _HINTS = re.compile(r"\([△▲][^)]*\)")
 _CLASS_HEAD = re.compile(r"の部$")
 # 続きページの柱（銘柄コードと題名）。数値の無い行として次の科目名に連結しない。
 _RUNNING_HEAD = re.compile(r"\(\d{4}\).*決算短信")
-_UNIT_ROW = re.compile(r"単位|百万円|千円|円銭|百万円未満")
-_UNIT_TOKENS = frozenset({"百万円", "千円", "円", "円銭", "銭", "%", "％"})
+_UNIT_ROW = re.compile(r"単位|百万円|千円|億円|兆円|円銭|百万円未満")
+_UNIT_TOKENS = frozenset({"百万円", "千円", "億円", "兆円", "円", "円銭", "銭", "%", "％"})
 # 配当の親見出し末尾の単位括弧（KAB-245。「年間配当金（円）」）。百万円・% は外さない。
 _DIV_YEN_PAREN = re.compile(r"^(.+?)[\(（](円銭|円)[\)）]$")
 _NUMERIC_ITEM = re.compile(r"\d")
@@ -305,7 +305,12 @@ SECTIONS: tuple[SectionSpec, ...] = (
     SectionSpec("equity", _h(r"株主資本等変動計算書$|持分変動計算書$"), None, Axis.ITEM_ROWS, Shape.DURATION, _E, frozenset()),
     SectionSpec("segment", _h(r"セグメント情報"), None, Axis.ITEM_ROWS, Shape.DURATION, _E, frozenset()),
     SectionSpec("fc_rev", _h(r"業績予想.*修正"), NS_SUMMARY, Axis.ITEM_COLUMNS, Shape.DURATION, _FR, frozenset()),
-    SectionSpec("div_rev", _h(r"配当予想.*修正"), NS_SUMMARY, Axis.ITEM_COLUMNS, Shape.DIVIDEND, _DR, frozenset()),
+    # 「配当予想の修正」のほか、予定配当額・中間/期末配当（予定）の通知（KAB-237）。短信の「配当の状況」は当たない。
+    SectionSpec(
+        "div_rev",
+        _h(r"配当予想.*修正|予定配当額について|(中間|期末)配当(\(予定\)|予想)?(額)?(の修正)?について"),
+        NS_SUMMARY, Axis.ITEM_COLUMNS, Shape.DIVIDEND, _DR, frozenset(),
+    ),
     # 上のどれでもない計算書・対照表（セグメント別の損益計算書、子会社の貸借対照表など）。読まないが、
     # 本表のブロックをここで切る。
     SectionSpec("other_statement", _h(r"^.{0,40}(計算書|対照表)$"), None, Axis.ITEM_ROWS, Shape.DURATION, _E, frozenset()),
@@ -339,8 +344,8 @@ ROLE_WORDS: tuple[tuple[re.Pattern[str], dict], ...] = (
     (_h(r"増減率|増減|対前期"), {"skip": True}),
     # 本表の比率の列（売上収益比・前年同期比・構成比）。
     (_h(r"[%％]$|^[%％]|収益比|売上比|同期比|構成比|前年比"), {"skip_rows": True}),
-    (_h(r"前回発表予想|前回予想|\(A\)"), {"add": frozenset({"ForecastMember", "PreviousMember"})}),
-    (_h(r"今回修正予想|今回発表予想|今回予想|\(B\)"), {"add": frozenset({"ForecastMember", "CurrentMember"})}),
+    (_h(r"前回発表予想|前回予想|前回予定|\(A\)"), {"add": frozenset({"ForecastMember", "PreviousMember"})}),
+    (_h(r"今回修正予想|今回発表予想|今回予想|今回予定|今回決定|\(B\)"), {"add": frozenset({"ForecastMember", "CurrentMember"})}),
     (_h(r"第1四半期末"), {"add": frozenset({"FirstQuarterMember"})}),
     (_h(r"第2四半期末|中間期末"), {"add": frozenset({"SecondQuarterMember"})}),
     (_h(r"第3四半期末"), {"add": frozenset({"ThirdQuarterMember"})}),
@@ -391,6 +396,8 @@ class UnitKind(Enum):
     YEN = ("JPY", 0)
     YEN_THOUSANDS = ("JPY", 3)
     YEN_MILLIONS = ("JPY", 6)
+    YEN_HUNDRED_MILLIONS = ("JPY", 8)
+    YEN_TRILLIONS = ("JPY", 12)
     PER_SHARE = ("JPYPerShares", 0)
     PERCENT = ("pure", -2)
 
@@ -577,7 +584,9 @@ def heading_hint(text: str, d: PdfDisclosure, spec: SectionSpec) -> PeriodHint:
 
 def _heading_key(raw: str) -> str:
     """TOC の点線は残す。番号と囲みだけ落として見出し正規表現に渡す。"""
-    text = _compact(raw)
+    # ① は NFKC で 1 になり \d+\. に当たらない（KAB-234）。正規化の前に落とす。
+    text = _HEADING_LEAD.sub("", raw or "")
+    text = _compact(text)
     text = _HEADING_LEAD.sub("", text)
     if len(text) >= 2 and text[0] in "(（【〔[" and text[-1] in ")）】〕]":
         text = text[1:-1]
@@ -787,6 +796,11 @@ def unit_of(grid_note: str | None, texts: tuple[str, ...]) -> UnitKind:
         return UnitKind.PER_SHARE
     if "%" in joined or "％" in joined or "比率" in joined:
         return UnitKind.PERCENT
+    # 億円・兆円は「円」を含む。円より先に見る（8630 20231206599881）。
+    if "兆円" in joined:
+        return UnitKind.YEN_TRILLIONS
+    if "億円" in joined:
+        return UnitKind.YEN_HUNDRED_MILLIONS
     if "百万円" in joined:
         return UnitKind.YEN_MILLIONS
     if "千円" in joined:
@@ -797,6 +811,10 @@ def unit_of(grid_note: str | None, texts: tuple[str, ...]) -> UnitKind:
         return UnitKind.PER_SHARE
     note = _compact(grid_note or "")
     # 配当表は 円銭 と 百万円 が同じ注記に並ぶ。列ヘッダで決まらなかった金額列は百万円。
+    if "兆円" in note:
+        return UnitKind.YEN_TRILLIONS
+    if "億円" in note:
+        return UnitKind.YEN_HUNDRED_MILLIONS
     if "百万円" in note:
         return UnitKind.YEN_MILLIONS
     if "千円" in note:

@@ -17,6 +17,9 @@ COL_MERGE = 8.0
 
 # 内側の | が範囲や △ の代替を割らないよう、全体を非捕捉にする。
 _NUM = r"(?:\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+\.\d+)"
+# 「20円00銭」（語が分かれて "20 円 00 銭" でも）。_NUM より前に置く。
+_YEN_SEN = rf"{_NUM}\s*円\s*\d{{2}}\s*銭"
+_YEN_SEN_VALUE = re.compile(rf"^({_NUM})円(\d{{2}})銭$")
 # 数値の後ろの空白は食わない。食うと match の終端が次の <text> に入り、右の列へずれる。
 _AMOUNT = re.compile(
     rf"[△▲]\s*{_NUM}(?:\s*[~～〜](?!\s*[△▲\d]))?"
@@ -27,16 +30,18 @@ _AMOUNT = re.compile(
     rf"|{_NUM}[%％]?\s*[~～〜]"
     # レンジの上限だけ（「～5,257」「～△18.4」）。下限は上の行にある。
     rf"|[~～〜]\s*[△▲]?\s*{_NUM}[%％]?"
+    rf"|{_YEN_SEN}"
     rf"|{_NUM}[%％]?"
     rf"|[―－−—-]"
+    rf"|未定"
     # レンジの「～」だけ（下限の行と上限の行の間）。
     rf"|[~～〜]"
 )
 _TILDE = "~～〜"
 _TILDE_TOL = 30.0
 _RANGE = re.compile(rf"^({_NUM})\s*[~～〜]\s*({_NUM})$")
-_NIL = {"―", "－", "-", "−", "—"}
-_UNIT_NOTE = re.compile(r"単位|百万円|千円|円銭|百万円未満")
+_NIL = {"―", "－", "-", "−", "—", "未定"}
+_UNIT_NOTE = re.compile(r"単位|百万円|千円|億円|兆円|円銭|百万円未満")
 # 銘柄コード (7453) を負の金額と取り違えない。カンマ付き (1,234) は金額のまま。
 _TICKER_PAREN = re.compile(r"^\(\s*\d{4}\s*\)$")
 # ページ番号（- 6 - / ―6― / 6）。ダッシュが金額の「－」と読まれて幻の列になる。
@@ -62,7 +67,7 @@ _NOTE_MARK = re.compile(r"※\s*\d{0,2}(?=\s|$)")
 _AMOUNT_GAP = re.compile(r"^[\s円銭]+$")
 # 語の途中から始まる数字は金額にしない（KAB-216）。直前が行頭・空白・△▲・～ のときだけ。
 _AMOUNT_PREV = set("△▲~～〜")
-# 列見出しの打ち切り（KAB-216）。空白を除いてこの字数を超える行は注記とみなす。
+# 列見出しの打ち切り（KAB-216）。空白を除いてこの字数を超える「語」は注記（行全体ではない。KAB-224）。
 _HEADER_PROSE_LEN = 40
 # 本表ページの文字化け（KAB-218）。想定する文字種以外の割合。
 _GARBLED_RATIO = 0.5
@@ -75,6 +80,8 @@ _CONTINUES = re.compile(r"(及び|並びに|又は|に|の|・|、|帰属する|
 _TAIL = re.compile(r"^純?損失|^額|^[（(]予想")
 # 値だけの行のあとでも、これは新しい行名（KAB-213 の今回予想を前回に付けない）。
 _ROW_ROLE = re.compile(r"^(前回|今回|前期|通期|第[123]四半期|(当|前|次)期)")
+# 数値の下にずれた行名（松井の配当通知。KAB-237）。上の次の行の見出しにはしない。
+_UNDER_ROW = re.compile(r"^(前回|今回|実績)")
 
 
 class PdfLayoutError(ValueError):
@@ -362,6 +369,10 @@ def _parse_amount(raw: str, x1: float, x0: float = 0.0) -> Amount:
     found = _RANGE.match(text)
     if found:
         return Amount(_decimal(found.group(1)), _decimal(found.group(2)), x1, x0)
+    yen_sen = _YEN_SEN_VALUE.fullmatch(text)
+    if yen_sen:
+        value = _decimal(yen_sen.group(1)) + _decimal(yen_sen.group(2)) / Decimal(100)
+        return Amount(value, None, x1, x0)
     negative = False
     body = text
     if body[:1] in "△▲":
@@ -486,10 +497,15 @@ def grid(lines: list[Line]) -> Grid:
         return not parsed[index][2] and bool(_FORMULA_LINE.search(compact))
 
     def is_prose(index: int) -> bool:
-        compact = _compact_text(parsed[index][0].text)
+        line = parsed[index][0]
+        compact = _compact_text(line.text)
         if "。" in compact or is_note(index):
             return True
-        return len(compact) > _HEADER_PROSE_LEN
+        # 行全体ではなく語ごと（KAB-224。武田の EPS 見出しは短い語が 1 行に並び 40 字を超える）。
+        words = line.words
+        if not words:
+            return len(compact) > _HEADER_PROSE_LEN
+        return any(len(_compact_text(word.text)) > _HEADER_PROSE_LEN for word in words)
 
     def is_hanging_label(index: int) -> bool:
         """数値より上にずれた行名（列より左だけ。列に乗る語があれば見出し）。KAB-213。"""
@@ -541,6 +557,7 @@ def grid(lines: list[Line]) -> Grid:
     column_tol = {anchor: tolerance[anchor] for anchor in anchors}
     rows: list[GridRow] = []
     pending = ""
+    last_numeric_y: float | None = None
     # 直前の行が「数値だけの行」に行名を前の行から借りたか（3 行に折り返した行名の真ん中に数値がある）
     value_only = False
     for index, (line, label, amounts) in enumerate(parsed):
@@ -548,6 +565,19 @@ def grid(lines: list[Line]) -> Grid:
             continue
         if not amounts:
             compact_line = _compact_text(line.text)
+            if (
+                rows
+                and last_numeric_y is not None
+                and is_hanging_label(index)
+                and _UNDER_ROW.match(compact_line)
+            ):
+                next_num = next((j for j in range(index + 1, len(parsed)) if parsed[j][2]), None)
+                if next_num is None or abs(line.base - last_numeric_y) <= abs(
+                    parsed[next_num][0].base - line.base
+                ):
+                    rows[-1] = GridRow(f"{rows[-1].label}{line.text}", rows[-1].cells)
+                    value_only = False
+                    continue
             if rows and not pending and not _ROW_ROLE.match(compact_line) and (
                 value_only
                 or _CONTINUES.search(_compact_text(rows[-1].label))
@@ -582,6 +612,7 @@ def grid(lines: list[Line]) -> Grid:
         if not any(cells):
             continue
         rows.append(GridRow(full, tuple(cells)))
+        last_numeric_y = line.base
     return Grid(_unit_note(lines), tuple(columns), tuple(_join_ranges(rows)))
 
 
