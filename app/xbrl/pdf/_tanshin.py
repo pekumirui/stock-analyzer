@@ -53,8 +53,8 @@ _HINTS = re.compile(r"\([△▲][^)]*\)")
 _CLASS_HEAD = re.compile(r"の部$")
 # 続きページの柱（銘柄コードと題名）。数値の無い行として次の科目名に連結しない。
 _RUNNING_HEAD = re.compile(r"\(\d{4}\).*決算短信")
-_UNIT_ROW = re.compile(r"単位|百万円|千円|円銭|百万円未満")
-_UNIT_TOKENS = frozenset({"百万円", "千円", "円", "円銭", "銭", "%", "％"})
+_UNIT_ROW = re.compile(r"単位|百万円|千円|億円|兆円|円銭|百万円未満")
+_UNIT_TOKENS = frozenset({"百万円", "千円", "億円", "兆円", "円", "円銭", "銭", "%", "％"})
 # 配当の親見出し末尾の単位括弧（KAB-245。「年間配当金（円）」）。百万円・% は外さない。
 _DIV_YEN_PAREN = re.compile(r"^(.+?)[\(（](円銭|円)[\)）]$")
 _NUMERIC_ITEM = re.compile(r"\d")
@@ -396,6 +396,8 @@ class UnitKind(Enum):
     YEN = ("JPY", 0)
     YEN_THOUSANDS = ("JPY", 3)
     YEN_MILLIONS = ("JPY", 6)
+    YEN_HUNDRED_MILLIONS = ("JPY", 8)
+    YEN_TRILLIONS = ("JPY", 12)
     PER_SHARE = ("JPYPerShares", 0)
     PERCENT = ("pure", -2)
 
@@ -794,6 +796,11 @@ def unit_of(grid_note: str | None, texts: tuple[str, ...]) -> UnitKind:
         return UnitKind.PER_SHARE
     if "%" in joined or "％" in joined or "比率" in joined:
         return UnitKind.PERCENT
+    # 億円・兆円は「円」を含む。円より先に見る（8630 20231206599881）。
+    if "兆円" in joined:
+        return UnitKind.YEN_TRILLIONS
+    if "億円" in joined:
+        return UnitKind.YEN_HUNDRED_MILLIONS
     if "百万円" in joined:
         return UnitKind.YEN_MILLIONS
     if "千円" in joined:
@@ -804,6 +811,10 @@ def unit_of(grid_note: str | None, texts: tuple[str, ...]) -> UnitKind:
         return UnitKind.PER_SHARE
     note = _compact(grid_note or "")
     # 配当表は 円銭 と 百万円 が同じ注記に並ぶ。列ヘッダで決まらなかった金額列は百万円。
+    if "兆円" in note:
+        return UnitKind.YEN_TRILLIONS
+    if "億円" in note:
+        return UnitKind.YEN_HUNDRED_MILLIONS
     if "百万円" in note:
         return UnitKind.YEN_MILLIONS
     if "千円" in note:

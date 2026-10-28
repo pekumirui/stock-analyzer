@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from app.xbrl.pdf import PdfDisclosure, read_tdnet_pdf
 
 MILLION = Decimal(10) ** 6
+OKU = Decimal(10) ** 8
 GOLDEN_HTML = Path(__file__).resolve().parents[1] / "golden" / "tdnet_pdf" / "html"
 EXPECTED = Path(__file__).resolve().parents[1] / "golden" / "tdnet_pdf" / "expected.json"
 
@@ -282,3 +283,67 @@ def test_kab237_matsui_dividend_from_golden() -> None:
         _fail([(f.local_name, f.context_ref, f.value_num) for f in pkg.facts])
     if any("ResultMember" in fact.context_ref for fact in pkg.facts):
         _fail("実績を入れた")
+
+
+def test_oku_yen_forecast_revision_not_bare_yen() -> None:
+    """8630 20231206599881: （単位：億円）は 10^8。EPS の円銭は 1 株当たりのまま。"""
+    parts = [
+        _text(40, 40, "通期業績予想（連結）の修正", 220),
+        _text(400, 58, "（単位：億円）", 80),
+        _cell(220, 80, "経常利益", 50),
+        _cell(400, 80, "当期純利益", 60),
+        _cell(580, 80, "1株当たり当期純利益", 120),
+        _text(40, 110, "今回修正予想", 80),
+        _cell(220, 110, "4,510", 40),
+        _cell(400, 110, "3,240", 40),
+        _cell(540, 110, "984", 30),
+        _text(542, 110, "円", 12),
+        _text(556, 110, "25", 16),
+        _text(574, 110, "銭", 12),
+    ]
+    d = _disclosure(
+        disclosure_no="20231206599881", code="86300",
+        type_of_period="FY", type_of_document="EarnForecastRevision",
+        disclosed_date=date(2023, 12, 6),
+        period_start=date(2023, 4, 1), period_end=date(2024, 3, 31),
+        fiscal_year_start=date(2023, 4, 1), fiscal_year_end=date(2024, 3, 31),
+    )
+    facts = _facts(read_tdnet_pdf(_pages(parts), d))
+    ctx = "CurrentYearDuration_CurrentMember_ForecastMember"
+    if facts.get(("経常利益", ctx)) != OKU * 4510:
+        _fail(facts)
+    if facts.get(("当期純利益", ctx)) != OKU * 3240:
+        _fail(facts)
+    if facts.get(("1株当たり当期純利益", ctx)) != Decimal("984.25"):
+        _fail(facts)
+
+
+def test_kab237_later_matsui_dividends_are_yen_per_share() -> None:
+    """20230828547005 は 20 円、20240827577162 は 22 円。億円にはしない。"""
+    for no, yen, disclosed, fy_end in (
+        ("20230828547005", Decimal("20"), date(2023, 8, 28), date(2024, 3, 31)),
+        ("20240827577162", Decimal("22"), date(2024, 8, 27), date(2025, 3, 31)),
+    ):
+        parts = [
+            _text(40, 40, "中間配当（予定）について", 200),
+            _cell(300, 70, "中間期末", 50),
+            _text(40, 100, "今回予定", 60),
+            _cell(280, 100, str(int(yen)), 20),
+            _text(282, 100, "円", 12),
+            _text(296, 100, "00", 16),
+            _text(314, 100, "銭", 12),
+        ]
+        d = _disclosure(
+            disclosure_no=no, code="86280",
+            type_of_period="FY", type_of_document="DividendForecastRevision",
+            disclosed_date=disclosed,
+            period_start=date(fy_end.year - 1, 4, 1), period_end=fy_end,
+            fiscal_year_start=date(fy_end.year - 1, 4, 1), fiscal_year_end=fy_end,
+        )
+        pkg = read_tdnet_pdf(_pages(parts), d)
+        q2 = [
+            fact for fact in pkg.facts
+            if "SecondQuarterMember" in fact.context_ref and "ForecastMember" in fact.context_ref
+        ]
+        if len(q2) != 1 or q2[0].value_num != yen or q2[0].unit != "JPYPerShares":
+            _fail((no, [(f.local_name, f.context_ref, f.value_num, f.unit) for f in pkg.facts]))

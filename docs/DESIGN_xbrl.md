@@ -875,11 +875,11 @@ pdfium（pypdfium2）でページごとに読む。文字は textpage の 1 文�
 
 読める DocType は `{1Q|2Q|3Q|FY}FinancialStatements_{Consolidated|NonConsolidated}_{JP|IFRS}` と `EarnForecastRevision` と `DividendForecastRevision`。REIT、米国基準、`4Q` / `5Q`、日付の欠けは filing を作らない。1Q / 3Q に CF が無くても失敗にしない。PDF 1 ページ目の題名（`tdnet_pdf_documents.title`）に「速報値」がある開示は filing を作らない（`absent` / `flash-results`。failed に数えない）。訂正のお知らせは `is_amendment=True`。
 
-HTML は svg1（`<line>`）でも svg2（`<path>`）でも、`<text>` の位置だけを見る。見出しと列の役割は `app/xbrl/pdf/_tanshin.py` の表。百万円は円（10^6 倍）、百分率は `pure`（39.1 → 0.391）。設備投資の △ は負の fact のまま入れ、`std_items` の `sign: invert` で `capex` の行が正になる。「設備投資額」はマッピングしない。IFRS の経常利益はマッピングしない（`standard: JPGAAP` だけ）。IFRS 本表の売上原価・販管費は ZIP に合わせて正にする（印字の △ を外す）。
+HTML は svg1（`<line>`）でも svg2（`<path>`）でも、`<text>` の位置だけを見る。見出しと列の役割は `app/xbrl/pdf/_tanshin.py` の表。百万円は円（10^6 倍）、億円は 10^8 倍（「円」より先。8630 20231206599881）、百分率は `pure`（39.1 → 0.391）。設備投資の △ は負の fact のまま入れ、`std_items` の `sign: invert` で `capex` の行が正になる。「設備投資額」はマッピングしない。IFRS の経常利益はマッピングしない（`standard: JPGAAP` だけ）。IFRS 本表の売上原価・販管費は ZIP に合わせて正にする（印字の △ を外す）。
 
 context は ZIP の短信サマリーと同じメンバー（`ResultMember` など）と、`CurrentYearDuration` / `CurrentAccumulatedQ2Duration` / `NextYearDuration` のようなトークンを使う。前期の実績は `is_normalizable_context` で fact ごと落とす。印字の行は、マッピングが無くても残った列については fact として残す。
 
-読み方（ZIP・J-Quants と突き合わせて直したもの。`READER_VERSION=10`）:
+読み方（ZIP・J-Quants と突き合わせて直したもの。`READER_VERSION=11`）:
 
 - ページ番号（`- 6 -`）と柱（ページの上下の帯で 3 ページ以上同じ高さに出る行。2 行に分かれる柱も行ごと）は読む前に落とす。ダッシュが金額の「－」と読まれて幻の列になり、列見出しを吸っていた。ページ番号の判定は上下の帯の外だけ（表の途中の「- 104」を落とさない。KAB-220）
 - 列見出しは、最初の数値の行のすぐ上に続く行だけ。上にたどって「。」を含む行・(注) / ※ / ＝ で始まる行・空白を除いて 40 字を超える語で切る（KAB-216。行全体ではない。武田の EPS 見出しは短い語が 1 行に並び 40 字を超える。KAB-224）。数値の無い行で ＝ を含む行（「事業利益 ＝ 売上収益 － …」）と、－ の後ろに文字が続く行（折り返しの「－ 売上原価」）は式の注記として見出しにしない（KAB-216 9983 20251007569462）。同じ行の語が 1 列に重なっても左から列に付け直さない。1 語の上段見出しも語の下の列にだけ付け、ほかの列へ広げない（#1071 で期間見出し「（自 …」がずれて本表が落ち、単位がずれて ROE・配当が 100 万倍になったので戻した）。数値の列の幅（左端は数値の左端の最小）に重なる語は、重なりが正の列すべてに載せる（またがる純利益の見出し）。端だけ接する隣の列には載せない（KAB-213 の経常利益）。重ならない語は中心がいちばん近い列（80pt 以内）。右端だけで当てると中央寄せの見出しが付かず「右端が当期」の決め打ちになる（伊藤忠は当期が左、増減額が右）。表の右上の注記（「％表示は、対前期増減率」）と「(注)」の行は見出しにしない
