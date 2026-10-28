@@ -29,9 +29,10 @@ Preconditions:
 - A known code exists; doctor search for トヨタ should yield `72030` or similar.
 
 - **Capture.** `helpers/capture.py chart --code 72030` writes `artifacts/chart/body.json` (`candles` length > 0, `open`/`high`/`low`/`close` already from `adj_*`, may include `earnings_dates`) and `performance.json` (a list, may be empty; still 200).
-- **Open.** On `#stock/31160` click `.ftab[data-sub="price"]`: hash `#stock/31160/price`, `#chart canvas` present, `#chart-msg` empty, requests exactly `GET /api/chart/31160?tf=D&ma=50%2C150%2C200&rel=false` + `GET /api/earnings-performance/31160`. No button whose label contains 表示.
-- **Controls.** Set `#tf` to `W` and dispatch `change` → `…?tf=W&ma=50%2C150%2C200&rel=false` + perf. Tick `#rel` → `…&rel=true`, `#relwrap` display `block`. Set `#mas` to `25` + `change` → `…&ma=25&rel=true`.
-- **Reopen.** Click 概要 then 株価 again: no `/api/*` request.
+- **Open.** Reload `#stock/72030/price` (golden DB has candles; 31160 does not — see Gotchas). Hash `#stock/72030/price`, `#st-title` `トヨタ自動車 7203 / プライム / 輸送用機器`, `#chart canvas` present, `#chart-msg` hidden/empty, requests `GET /api/chart/72030?tf=D&ma=50%2C150%2C200&rel=false` + `GET /api/earnings-performance/72030`. No button whose label contains 表示.
+- **404.** Reload `#stock/31160/price`: overview 200, `#st-quote` 「株価データなし」, chart HTTP 404 `no data`, `#chart-msg` 「読み込めませんでした。」, no canvas from that response. Click 概要 then 株価: both price requests fire again (`stockPriceCode` was cleared).
+- **Controls.** On the 72030 draw, set `#tf` to `W` and dispatch `change` → `…?tf=W&ma=50%2C150%2C200&rel=false` + perf. Tick `#rel` → `…&rel=true`, `#relwrap` computed display `block` when the payload has `relative` (the client sets `style.display = ""`). Set `#mas` to `25` + `change` → `…&ma=25&rel=true`.
+- **Reopen.** On that successful 72030 draw, click 概要 then 株価 again: no `/api/chart` or `/api/earnings-performance`.
 - **Old route.** Reload on `#chart/72030` → hash `#stock/72030/price`, `#st-title` `トヨタ自動車 7203 / プライム / 輸送用機器`, only `#st-sub-price` visible. `localStorage` `ui.route=chart/39120` with no hash → `#stock/39120/price`.
 - **gotoChart.** From each caller above: 銘柄 active, 株価 `.on`, hash `#stock/{code}/price`, `GET /api/stock/{code}/overview` then the two price requests.
 - **Proof.** Keep `body.json` and (if CDP) a screenshot with `#chart` tall enough to show candles and the 銘柄 header.
