@@ -1218,3 +1218,42 @@ def test_english_led_header_line_is_not_note() -> None:
     }
     if {key: facts.get(key) for key in expected} != expected:
         _fail(f"{facts}")
+
+
+def test_kab223_split_slot_words_keep_q2_slot() -> None:
+    """8511 20260212556179: 「第 / 2 / 四半期末」と語が分かれても 2Q の時点。年間（FY）にしない。"""
+    rows = []
+    for y, label, values in (
+        (412.0, "前回予想", ((282, "40"), (388, "40"), (495, "80"))),
+        (449.5, "今回修正予想", ((388, "46"), (495, "86"))),
+    ):
+        rows += [_text(77, y, label, 66)]
+        for x1, value in values:
+            rows += [_cell(x1, y, value, 13), _text(x1 + 3, y, "円", 11)]
+    parts = [
+        _text(184, 221.9, "配当予想の修正（増配）に関するお知らせ", 228),
+        _text(71, 347.5, "１．修正の内容", 77),
+        _text(321, 366.0, "年間配当金（円）", 88),
+        _text(225, 384.5, "第", 11),
+        _text(239, 384.5, "2", 6),
+        _text(248, 384.5, "四半期末", 44),
+        _text(354, 384.5, "期末", 22),
+        _text(460, 384.5, "合計", 22),
+        *rows,
+    ]
+    d = _disclosure(
+        disclosure_no="20260212556179", code="85110",
+        type_of_period="FY", type_of_document="DividendForecastRevision",
+        disclosed_date=date(2026, 2, 12),
+        period_start=date(2025, 4, 1), period_end=date(2026, 3, 31),
+        fiscal_year_start=date(2025, 4, 1), fiscal_year_end=date(2026, 3, 31),
+    )
+    facts = _facts(read_tdnet_pdf(_pages(parts), d))
+    previous = {ref: value for (_name, ref), value in facts.items() if "PreviousMember" in ref}
+    if previous.get("CurrentYearDuration_ForecastMember_PreviousMember_SecondQuarterMember_NonConsolidated") != Decimal("40"):
+        _fail(f"q2 {facts}")
+    if any("Member" not in ref.replace("ForecastMember", "").replace("PreviousMember", "").replace("NonConsolidated", "")
+           for ref in previous):
+        _fail(f"slotless {facts}")
+    if facts.get(("年間配当金", "CurrentYearDuration_AnnualMember_CurrentMember_ForecastMember_NonConsolidated")) != Decimal("86"):
+        _fail(f"annual {facts}")

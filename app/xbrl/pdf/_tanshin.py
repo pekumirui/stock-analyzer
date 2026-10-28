@@ -986,6 +986,9 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                         if spec.shape is Shape.DIVIDEND and _HEADER_ROLE.search(_compact(item_text)):
                             # 配当表の列見出しが「第１四半期末」等の時点だけなら、科目は 1 株当たり配当金。
                             # 配当金総額・配当性向の列は見出しの科目名のまま。
+                            # 「第 / 2 / 四半期末」と語が分かれると、つないだ時点は役割に残っていない（8511）。
+                            if item_text not in extra:
+                                role_texts = (*role_texts, item_text)
                             item_text = "年間配当金"
                             slot_only = True
                         role = role_of(role_texts, spec, d, rightmost=False)
