@@ -410,6 +410,9 @@
   .qb-fy { color:#1d4ed8; }
   .qb-prev { color:var(--sub); }
   .qb-rev { color:#fff; background:var(--warn); }
+  .qb-up { color:#fff; background:var(--up); }
+  .qb-dn { color:#fff; background:var(--down); }
+  #earn-tbl .pin0 .qb + .qb { margin-left:3px; }
   .qb-init { color:#1d4ed8; }
   .qb-mod { color:#c2410c; }
   .qb-act { color:var(--text); font-weight:600; }
