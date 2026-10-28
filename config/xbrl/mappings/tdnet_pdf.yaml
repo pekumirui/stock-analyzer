@@ -38,6 +38,7 @@
   elements:
     - { ns: pdf-pl, name: 販売費及び一般管理費, priority: 10 }
     - { ns: pdf-pl, name: 販売費及び一般管理費合計, priority: 15 }
+    - { ns: pdf-pl, name: 販売費・一般管理費計, priority: 20 }
 - std_item: operating_income
   elements:
     - { ns: pdf-pl, name: 営業利益, priority: 10 }
@@ -49,6 +50,7 @@
   elements:
     - { ns: pdf-pl, name: 経常利益, priority: 10, standard: JPGAAP }
     - { ns: pdf-pl, name: 経常損失, priority: 10, standard: JPGAAP }
+    - { ns: pdf-pl, name: 当期経常利益, priority: 12, standard: JPGAAP }
     - { ns: pdf-sum, name: 経常利益, priority: 50, standard: JPGAAP }
     - { ns: pdf-sum, name: 経常損失, priority: 50, standard: JPGAAP }
 - std_item: profit_before_tax
@@ -79,14 +81,18 @@
 - std_item: cash_and_deposits
   elements:
     - { ns: pdf-bs, name: 現金及び預金, priority: 10 }
+    - { ns: pdf-bs, name: 現金預金, priority: 20 }
+    - { ns: pdf-bs, name: 現金・預金, priority: 20 }
 - std_item: current_assets
   elements:
     - { ns: pdf-bs, name: 流動資産合計, priority: 10 }
     - { ns: pdf-bs, name: 流動資産, priority: 20 }
+    - { ns: pdf-bs, name: 流動資産計, priority: 20 }
 - std_item: noncurrent_assets
   elements:
     - { ns: pdf-bs, name: 固定資産合計, priority: 10 }
     - { ns: pdf-bs, name: 固定資産, priority: 20 }
+    - { ns: pdf-bs, name: 固定資産計, priority: 20 }
     - { ns: pdf-bs, name: 非流動資産合計, priority: 10, standard: IFRS }
     - { ns: pdf-bs, name: 非流動資産, priority: 20, standard: IFRS }
 - std_item: total_assets
@@ -95,14 +101,17 @@
     - { ns: pdf-sum, name: 資産合計, priority: 50 }
     - { ns: pdf-sum, name: 総資産, priority: 60 }
     - { ns: pdf-bs, name: 資産の部合計, priority: 10 }
+    - { ns: pdf-bs, name: 合計, priority: 90 }  # 電気事業様式（9501）。資産合計が無いときだけ
 - std_item: current_liabilities
   elements:
     - { ns: pdf-bs, name: 流動負債合計, priority: 10 }
     - { ns: pdf-bs, name: 流動負債, priority: 20 }
+    - { ns: pdf-bs, name: 流動負債計, priority: 20 }
 - std_item: noncurrent_liabilities
   elements:
     - { ns: pdf-bs, name: 固定負債合計, priority: 10 }
     - { ns: pdf-bs, name: 固定負債, priority: 20 }
+    - { ns: pdf-bs, name: 固定負債計, priority: 20 }
     - { ns: pdf-bs, name: 非流動負債合計, priority: 10, standard: IFRS }
     - { ns: pdf-bs, name: 非流動負債, priority: 20, standard: IFRS }
 - std_item: total_liabilities
