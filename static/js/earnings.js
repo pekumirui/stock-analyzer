@@ -79,7 +79,17 @@ document.addEventListener("click", e => {
 });
 
 const MET = [["net_sales","売上"],["operating_profit","営利"],["ordinary_profit","経利"],["profit","純利"]];
-const revBadge = r => r.restated ? `<span class="qb qb-rev" title="既出期間の訂正">訂正</span>` : "";
+function revBadge(r){
+  const bits = [];
+  const fr = r.forecast_revision;
+  if(fr && (fr.direction==="up" || fr.direction==="down")){
+    const up = fr.direction==="up";
+    const sign = fr.pct>0 ? "+" : "";
+    bits.push(`<span class="qb ${up?"qb-up":"qb-dn"}" title="通期営業利益予想 ${sign}${fr.pct}%">${up?"上方":"下方"}</span>`);
+  }
+  if(r.restated) bits.push(`<span class="qb qb-rev" title="既出期間の訂正">訂正</span>`);
+  return bits.join("");
+}
 const listQ = q => q ? qBadge({kind:"single", period:q}) : "";
 const nameCell = r => `<td class="l name pin2" title="${r.name}">${shortName(r.name)}${under(`<span class="sub">${r.code.slice(0,4)}</span>`)}</td>`;
 const valCell = (vals, g, k, i) => `<td class="num ${i?'':'grp'}">${amt((vals||{})[k])}${under(gc(g && g[k]))}</td>`;

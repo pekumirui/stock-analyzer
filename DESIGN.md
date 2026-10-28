@@ -344,8 +344,26 @@ QoQ は `Q単独(当四半期) vs Q単独(直前四半期)`。1Qの相手は前�
 売上はマイナスを取らないので黒転の概念を適用しない。
 
 ### 予想修正の検知
-同一事業年度の直前開示の通期営業利益予想と比較し、±0.1%以上の差があれば
-上方/下方修正として修正率(%)付きでバッジ表示する。
+同一事業年度の、発表日が前の開示の通期営業利益予想 (`statements.fy_operating_profit`) と比較し、
+±0.1%以上 (`EARNINGS_PARAMS["revision_noise_th"]`) なら一覧の時刻列に `上方` / `下方` を出す。
+ホバーに修正率。判定は営業利益だけ。売上・経常・純利益が逆向きでも営利に従う。
+直前が 0・欠損、当期が欠損、閾値未満はマークなし。赤字予想は `|直前|` を分母にし、
+損失縮小を上方にする。同日の予想修正のみの開示 (`is_revision`) は直前に使わない
+（短信と `EarnForecastRevision` が同日だと新しい値同士で消えるため）。
+既出期間の損益訂正 (`restated`) は向きを付けず `訂正` のまま。両方あれば両方出す。
+
+向き（上方/下方）そのものを保存した列や表は無い。あるのは次で、時間列のマークには使えない。
+
+| 保存先 | 中身 | 使えない理由 |
+|---|---|---|
+| `statements.is_revision` | 予想修正**だけの**開示か（`EarnForecastRevision` 等） | 向きが無い。一覧から除外している（実績が空） |
+| `statements.type_of_document` | 短信 / 予想修正 / 配当修正 | 種別だけ。`上方` / `下方` の語は無い |
+| `statements.fy_*` | その開示の通期会社予想（金額） | 向きでは無い。直前比は API で出す（上の判定） |
+| `xbrl_filings.doc_type` | 題名から `forecast_revision` 等 | 向きが無い。決算速報の行は `statements`。ゴールデン DB は 0 件 |
+| `xbrl_financials.value_kind=forecast_previous` | 修正 XBRL の前回予想（PreviousMember） | 前回と今回の金額はあるが、向き列は無い。一覧と紐づかない。ゴールデンは 0 件。短信に埋め込まれた修正（一覧の大半）は PreviousMember が無いことが多い。修正履歴も前の開示から組む（`forecast_previous` は使わない） |
+| `raw_json` の `ChgByASRev` 等 | 会計方針・見積りの変更フラグ | 業績予想の上方/下方ではない |
+| `earnings_events.is_first` | その期の最初の短信か | 向きが無い。訂正・予想修正だけの行を落とすフラグ |
+| `quarter_summary.revised_up` | 上記判定の派生（計算値） | テーブルではない。一覧 API はこれまで出していなかった |
 
 ### 会計基準による欠損 ★注意
 IFRS・米国基準の開示には**経常利益の概念が無く `OdP` は空欄**になる。
@@ -398,7 +416,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 
 | Method/Path | 内容 |
 |---|---|
-| `GET /api/earnings?date=2026-08-14&today=2026-10-02` | `{kind, actuals, scheduled}`。`actuals` は開示1件が1行で、QoQ(Q単独の前四半期比) と YoY(累計の前年同期比) を4指標ずつ返す。金額は `single`（Q単独。算出できなければ null）と `cumulative`（累計）で、円。決算短信本体のみ (予想修正のみの開示、および損益が初回と同一の再提出は除外。損益が変わった再提出は `restated` を立てて残す)。`scheduled` は `{code, name, periods:[{fq, fye, label}]}` で銘柄1行。どちらの行にも `sector33`（マスタに無ければ null）。`kind` は `actual` / `scheduled` / `mixed`。過去は `actual` で `scheduled` は空。今日は開示と、そのコードが今日の開示に無い未発表。未来は予定だけ。`today` を省略するとサーバの今日。台帳が lookback を埋める前の未来には `ready: false`（空なら画面は 予定未取得）。`product_category` が REIT (`013`/`022`) の銘柄は出さない |
+| `GET /api/earnings?date=2026-08-14&today=2026-10-02` | `{kind, actuals, scheduled}`。`actuals` は開示1件が1行で、QoQ(Q単独の前四半期比) と YoY(累計の前年同期比) を4指標ずつ返す。金額は `single`（Q単独。算出できなければ null）と `cumulative`（累計）で、円。決算短信本体のみ (予想修正のみの開示、および損益が初回と同一の再提出は除外。損益が変わった再提出は `restated` を立てて残す)。通期営利予想が直前開示から ±0.1% 以上動いていれば `forecast_revision: {direction: "up"|"down", pct}`、無ければ null。`scheduled` は `{code, name, periods:[{fq, fye, label}]}` で銘柄1行。どちらの行にも `sector33`（マスタに無ければ null）。`kind` は `actual` / `scheduled` / `mixed`。過去は `actual` で `scheduled` は空。今日は開示と、そのコードが今日の開示に無い未発表。未来は予定だけ。`today` を省略するとサーバの今日。台帳が lookback を埋める前の未来には `ready: false`（空なら画面は 予定未取得）。`product_category` が REIT (`013`/`022`) の銘柄は出さない |
 | `GET /api/earnings/detail/{code}?disclosure_no=…` | 選択銘柄の累計テーブル (過去4期+当期の同一四半期 + 中間予想 + 通期予想 + 前期通期実績。本決算は予想が `raw_json` の来期予想 `NxF*` で、前期通期は出さない) と3か月決算テーブル (直近12四半期のQ単独)。各行に会計期末 (`26.11`) または Q単独の四半期末 (`25.08`) と発表日を付ける。同一銘柄が同日に複数開示する日があるため `disclosure_no` で一意に引く (`?date=` でも可)。どちらも無ければ最新の実績開示（決算速報の銘柄検索が使う）。実績が無ければ 404。`revisions` は通期予想の修正履歴 (`kind` = `forecast_initial` / `forecast` / `forecast_revised` / `actual_fy`、`growth` は前の行からの修正率で同値は `state: flat`)。選んだ開示の日までの開示から作る。データ源は `revision_source`（既定 `EARNINGS_PARAMS["revision_source"]` = `jquants`）で、`?rev_source=jquants|xbrl` で上書きできる。`jquants` は `statements` の `fy_*` と本決算の `NxF*`（期初）と本決算の実績。`xbrl` は `xbrl_financials` の `forecast`/`FY`（連結優先、レンジは中点）と `annual` の実績。組み立ては `app/revisions.py`、データ源は `app/market/revisions.py` / `app/xbrl/revisions.py` |
 | `GET /api/earnings/calendar?month=2026-08&today=2026-10-02` | 日付 → `{kind, n}`。`pending` は今日かつ未発表がいるときだけ。件数は銘柄の distinct。疎。一覧と同じく本体のみを数え、REIT も除外する。`today` を省略するとサーバの今日 |
 | `GET /api/chart/{code}?tf=D|W|M&ma=50,150,200&rel=topix` | 株価チャートデータ。W/M は日足を ISO週 / 暦月で集約 (足の日付は期間の最終営業日)。MA 期間は営業日換算 (週=÷5、月=÷20) |

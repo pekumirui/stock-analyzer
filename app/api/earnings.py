@@ -91,7 +91,7 @@ def prefetch_list_history(db: Session, codes, day: date) -> dict[str, list]:
             .where(Statement.code.in_(codes),
                    Statement.disclosed_date <= day,
                    Statement.disclosed_date >= since)
-            .order_by(Statement.code, Statement.disclosed_date)):
+            .order_by(Statement.code, Statement.disclosed_date, Statement.disclosure_no)):
         hist_by_code[row.code].append(row)
     return hist_by_code
 
@@ -114,6 +114,7 @@ def earnings_rows(db: Session, day: date) -> list[dict]:
             summary = quarter_summary(db, s, hist=hist)
             out.append({
                 "restated": state == "restated",
+                "forecast_revision": summary["forecast_revision"],
                 "disclosure_no": s.disclosure_no,
                 "code": code, "name": names.get(code, code),
                 "disclosed_time": s.disclosed_time,

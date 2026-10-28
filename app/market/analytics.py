@@ -394,7 +394,47 @@ def statement_history(db: Session, code: str, upto: date, days: int) -> list[Sta
             .filter(Statement.code == code,
                     Statement.disclosed_date <= upto,
                     Statement.disclosed_date >= upto - timedelta(days=days))
-            .order_by(Statement.disclosed_date).all())
+            .order_by(Statement.disclosed_date, Statement.disclosure_no).all())
+
+
+def _disc_key(s: Statement) -> tuple:
+    return (s.disclosed_date, s.disclosure_no or "")
+
+
+def forecast_revision(hist: list[Statement], stmt: Statement) -> dict | None:
+    """同一事業年度の直前の通期営業利益予想と比べた {direction, pct}。無ければ None。
+
+    向きの列は無い。読むのは保存済みの `statements.fy_operating_profit`。
+    `is_revision` / `type_of_document` は修正開示の種別だけで向きが無い。
+    売上・経常・純利益は見ない（項目が混ざっても営利に従う）。閾値は
+    EARNINGS_PARAMS["revision_noise_th"]（±0.1%）。赤字予想は |直前| を分母にし、
+    損失縮小を up にする。同日の予想修正のみの開示は直前に使わない
+    （短信と EarnForecastRevision が同日だと新しい値同士で消えるため）。
+    """
+    cur = stmt.fy_operating_profit
+    if cur is None or stmt.fiscal_year_end is None:
+        return None
+    key = _disc_key(stmt)
+    prev_fc = None
+    for s in hist:
+        if s.fiscal_year_end != stmt.fiscal_year_end or s.fy_operating_profit is None:
+            continue
+        sk = _disc_key(s)
+        if sk >= key:
+            continue
+        if s.disclosed_date == stmt.disclosed_date and getattr(s, "is_revision", False):
+            continue
+        if prev_fc is None or sk > _disc_key(prev_fc):
+            prev_fc = s
+    if prev_fc is None:
+        return None
+    prev = prev_fc.fy_operating_profit
+    if not prev:
+        return None
+    diff = (cur - prev) / abs(prev)
+    if abs(diff) < EP["revision_noise_th"]:
+        return None
+    return {"direction": "up" if diff > 0 else "down", "pct": round(diff * 100, 1)}
 
 
 def disclosure_state(hist: list[Statement], stmt: Statement) -> str:
@@ -752,23 +792,10 @@ def quarter_summary(db: Session, stmt: Statement, hist: list[Statement] | None =
             yoy_single = growth_map(single, single_metrics(hist, prev_fy_end,
                                                            stmt.type_of_period, tol))
 
-    revised_up = False
-    revision_pct = None
-    prev_fc = None
-    for s in reversed(hist):
-        if (s.disclosure_no != stmt.disclosure_no
-                and s.fiscal_year_end == stmt.fiscal_year_end
-                and s.fy_operating_profit is not None):
-            prev_fc = s
-            break
-    if prev_fc and stmt.fy_operating_profit is not None and prev_fc.fy_operating_profit:
-        diff = stmt.fy_operating_profit / prev_fc.fy_operating_profit - 1
-        if abs(diff) >= EP["revision_noise_th"]:
-            revision_pct = round(diff * 100, 1)
-            revised_up = diff > 0
-
+    rev = forecast_revision(hist, stmt)
     return {
-        "revision_pct": revision_pct,
+        "forecast_revision": rev,
+        "revision_pct": None if rev is None else rev["pct"],
         "cumulative": cum,
         "single": single,
         "yoy": yoy,
@@ -777,6 +804,6 @@ def quarter_summary(db: Session, stmt: Statement, hist: list[Statement] | None =
         "forecast_h": {k: getattr(stmt, "f2_" + k) for k in METRIC_KEYS},
         "forecast_fy": fyf,
         "progress": progress,
-        "revised_up": revised_up,
+        "revised_up": bool(rev and rev["direction"] == "up"),
         "is_revision_doc": bool(stmt.is_revision),
     }
