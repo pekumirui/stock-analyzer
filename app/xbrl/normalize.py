@@ -266,6 +266,7 @@ def mapping_applies(
     mapping: XbrlElementMapping,
     filing: XbrlFiling,
     el: XbrlElement | None = None,
+    ctx: XbrlContext | None = None,
 ) -> bool:
     if mapping.accounting_standard is None:
         return True
@@ -273,6 +274,15 @@ def mapping_applies(
         return True
     # 40530 型: 短信は JPGAAP でも予想が *IFRS 要素。要素側を優先。
     if mapping.accounting_standard == "IFRS" and local_name_is_ifrs(el):
+        return True
+    # IFRS 連結の個別表は JPGAAP（KAB-243。6268 の個別業績予想の経常利益）。
+    if (
+        mapping.accounting_standard == "JPGAAP"
+        and ctx is not None
+        and not ctx.is_consolidated
+        and el is not None
+        and (el.namespace_key or "").startswith("pdf-")
+    ):
         return True
     return False
 
@@ -412,7 +422,7 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         if skip_jppfs_on_ifrs_filing(filing, el):
             continue
         cands = by_elem.get((el.namespace_key, el.local_name), [])
-        applicable = [m for m in cands if mapping_applies(m, filing, el)]
+        applicable = [m for m in cands if mapping_applies(m, filing, el, ctx)]
         if not applicable:
             continue
         applicable.sort(key=lambda m: m.priority)

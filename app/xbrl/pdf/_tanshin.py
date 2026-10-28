@@ -55,6 +55,9 @@ _CLASS_HEAD = re.compile(r"の部$")
 _RUNNING_HEAD = re.compile(r"\(\d{4}\).*決算短信")
 _UNIT_ROW = re.compile(r"単位|百万円|千円|億円|兆円|円銭|百万円未満")
 _UNIT_TOKENS = frozenset({"百万円", "千円", "億円", "兆円", "円", "円銭", "銭", "%", "％"})
+_UNIT_PAREN = re.compile(
+    r"^[\(（](" + "|".join(sorted(_UNIT_TOKENS, key=len, reverse=True)) + r")[\)）]$"
+)
 # 配当の親見出し末尾の単位括弧（KAB-245。「年間配当金（円）」）。百万円・% は外さない。
 _DIV_YEN_PAREN = re.compile(r"^(.+?)[\(（](円銭|円)[\)）]$")
 _NUMERIC_ITEM = re.compile(r"\d")
@@ -91,14 +94,17 @@ _SUMMARY_PAGES = 2
 _MIN_STATEMENT_ROWS = 1
 # 本表の後ろの注記の見出し（「(継続企業の前提に関する注記)」「(セグメント情報等)」「３．その他」）。
 _NOTE_HEADING = re.compile(r"^([(（【].*(注記|情報|事項)(等)?[)）】]$|\d\.その他|\(\d\).*注記)")
-# 目次の点線。本表・サマリーの行ではない。
+# 目次の点線。本表・サマリーの行ではない。空白区切りの「－」は金額セル（KAB-236）。
 _LEADER = re.compile(r"[…‥]{2,}|\.{4,}|・{4,}|･{4,}|-{4,}")
 # 3 か月だけの列（第2〜第4四半期の会計期間）。累計の列と同じ期と取り違える。
 _QUARTER_ONLY = re.compile(r"第[2-4]四半期(連結)?会計期間(?!末)")
 # 行名の言い換え。四半期・中間の利益は当期の名前に寄せる（対応表は当期の名前だけ持つ）。
 _PERIOD_PROFIT = re.compile(r"(四半期|中間)(純利益|純損失|利益|損失)")
 _OWNERS_PROFIT = re.compile(r"^(当期)?純?利益の帰属:?(親会社の所有者|当社の所有者|当社株主|親会社株主)(持分)?$")
-_ALTERNATIVE = re.compile(r"又は.*$")
+# 「営業利益又は営業損失」の後半だけ落とす。「又は損失の帰属 親会社の所有者」は残す（KAB-240）。
+_ALTERNATIVE = re.compile(r"又は.*?損失(?=の帰属|$)")
+# 「営業損益」は利益にも損失にも使う印字（KAB-236 9501）。
+_PL_OR_LOSS = re.compile(r"(営業|経常|(?:当期|四半期|中間)純?)損益")
 _HEADING_NOTE = re.compile(r"[\[【〔(].*$")
 # 行名の言い換え（CF の「に関する」、期末残高の「四半期末」「中間期末」）。
 _SYNONYMS = (
@@ -456,9 +462,11 @@ def label_key(raw: str) -> str:
         text = _LEADING.sub("", text)
         text = _HINTS.sub("", text)
     # 「営業利益又は営業損失(△)」は前半の名前。符号は印字の △ のまま。
+    # 「又は損失の帰属親会社の所有者」はの帰属を残し、_OWNERS_PROFIT に渡す（KAB-240）。
     head = _ALTERNATIVE.sub("", text)
     if head:
         text = head
+    text = _PL_OR_LOSS.sub(r"\1利益", text)
     text = _PERIOD_PROFIT.sub(r"当期\2", text)
     for pattern, repl in _SYNONYMS:
         text = pattern.sub(repl, text)
@@ -606,7 +614,7 @@ def _heading_key(raw: str) -> str:
 
 def _is_unit_token(raw: str) -> bool:
     key = _compact(raw)
-    if key in _UNIT_TOKENS:
+    if key in _UNIT_TOKENS or _UNIT_PAREN.fullmatch(key):
         return True
     return "単位" in key and len(key) <= 12
 
@@ -969,7 +977,10 @@ def _table_lines(lines: list[Line]) -> list[Line]:
         if _RUNNING_HEAD.search(compact):
             continue
         if _LEADER.search(compact):
-            continue
+            # 空白区切りの「－」「未定」は金額セル（KAB-236）。目次の「……7」は点線のまま捨てる。
+            amounts = split_amounts(line)[1]
+            if not any(amount.value is None and not amount.tilde for amount in amounts):
+                continue
         heading = _heading_key(line.text)
         if any(
             spec.headings.search(heading) or spec.headings.search(compact)

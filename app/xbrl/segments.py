@@ -124,7 +124,7 @@ def normalize_segments(db: Session, filing: XbrlFiling, now: datetime | None = N
         if el is None or skip_jppfs_on_ifrs_filing(filing, el):
             continue
         cands = [m for m in by_elem.get((el.namespace_key, el.local_name), [])
-                 if mapping_applies(m, filing, el)]
+                 if mapping_applies(m, filing, el, ctx)]
         if not cands:
             continue
         mapping = min(cands, key=lambda m: m.priority)
