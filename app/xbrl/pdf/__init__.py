@@ -60,9 +60,9 @@ __all__ = [
 
 SOURCE = "tdnet_pdf"
 # レイアウト・行名・label_key の結果が変わったら上げる。上げると全 PDF filing の指紋がずれる。
-READER_VERSION = 7
+READER_VERSION = 8
 _STD_DOC = re.compile(
-    r"^(?:1Q|2Q|3Q|FY)FinancialStatements_(?:Consolidated|NonConsolidated)_(IFRS|JP)$"
+    r"^(?:1Q|2Q|3Q|FY)FinancialStatements_(Consolidated|NonConsolidated)_(IFRS|JP)$"
 )
 
 
@@ -98,7 +98,33 @@ def inherit_accounting_standard_from_statements(
         dist = abs((st.disclosed_date - disclosed_date).days)
         if best_dist is None or dist < best_dist:
             best_dist = dist
-            best = "IFRS" if matched.group(1) == "IFRS" else "JPGAAP"
+            best = "IFRS" if matched.group(2) == "IFRS" else "JPGAAP"
+    return best
+
+
+def inherit_consolidated_from_statements(
+    db: Session,
+    *,
+    code: str,
+    disclosed_date: date | None,
+) -> bool | None:
+    """修正開示など type_of_document に連結/非連結が無いとき、近い通常の短信から取る（KAB-247）。
+
+    会計基準と同じく日付が近い 1 件。連結の短信がある会社を、古い非連結だけで単体にしない。
+    通常の短信が無ければ None（呼び出し側は従来の既定＝連結のまま）。
+    """
+    if disclosed_date is None:
+        return None
+    best: bool | None = None
+    best_dist: int | None = None
+    for st in db.query(Statement).filter(Statement.code == code):
+        matched = _STD_DOC.fullmatch(st.type_of_document or "")
+        if matched is None or st.disclosed_date is None:
+            continue
+        dist = abs((st.disclosed_date - disclosed_date).days)
+        if best_dist is None or dist < best_dist:
+            best_dist = dist
+            best = matched.group(1) == "Consolidated"
     return best
 
 
@@ -153,6 +179,12 @@ def _plan(db: Session, disclosure_no: str, zip_parsed: bool) -> _Build | _Absent
         )
         if inherited:
             parsed = replace(parsed, standard=inherited)
+    if parsed.kind is DocKind.FORECAST_REVISION:
+        inherited_cons = inherit_consolidated_from_statements(
+            db, code=parsed.code, disclosed_date=statement.disclosed_date,
+        )
+        if inherited_cons is not None:
+            parsed = replace(parsed, consolidated=inherited_cons)
     return _Build(parsed, doc, fingerprint(doc.sha256, parsed.standard))
 
 
