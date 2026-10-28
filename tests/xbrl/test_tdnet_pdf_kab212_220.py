@@ -1220,8 +1220,8 @@ def test_english_led_header_line_is_not_note() -> None:
         _fail(f"{facts}")
 
 
-def test_kab223_split_slot_words_keep_q2_slot() -> None:
-    """8511 20260212556179: 「第 / 2 / 四半期末」と語が分かれても 2Q の時点。年間（FY）にしない。"""
+def _kab245_8511_parts() -> list[str]:
+    """8511 20260212556179。親見出し「年間配当金（円）」は期末列の上だけ。単位の注記は無い。"""
     rows = []
     for y, label, values in (
         (412.0, "前回予想", ((282, "40"), (388, "40"), (495, "80"))),
@@ -1230,7 +1230,7 @@ def test_kab223_split_slot_words_keep_q2_slot() -> None:
         rows += [_text(77, y, label, 66)]
         for x1, value in values:
             rows += [_cell(x1, y, value, 13), _text(x1 + 3, y, "円", 11)]
-    parts = [
+    return [
         _text(184, 221.9, "配当予想の修正（増配）に関するお知らせ", 228),
         _text(71, 347.5, "１．修正の内容", 77),
         _text(321, 366.0, "年間配当金（円）", 88),
@@ -1241,14 +1241,22 @@ def test_kab223_split_slot_words_keep_q2_slot() -> None:
         _text(460, 384.5, "合計", 22),
         *rows,
     ]
-    d = _disclosure(
-        disclosure_no="20260212556179", code="85110",
-        type_of_period="FY", type_of_document="DividendForecastRevision",
-        disclosed_date=date(2026, 2, 12),
+
+
+def _kab245_8511_statement() -> SimpleNamespace:
+    return SimpleNamespace(
+        disclosure_no="20260212556179", code="85110", disclosed_date=date(2026, 2, 12),
+        disclosed_time="15:00", type_of_period="FY",
+        type_of_document="DividendForecastRevision",
         period_start=date(2025, 4, 1), period_end=date(2026, 3, 31),
         fiscal_year_start=date(2025, 4, 1), fiscal_year_end=date(2026, 3, 31),
     )
-    facts = _facts(read_tdnet_pdf(_pages(parts), d))
+
+
+def test_kab223_split_slot_words_keep_q2_slot() -> None:
+    """8511 20260212556179: 「第 / 2 / 四半期末」と語が分かれても 2Q の時点。年間（FY）にしない。"""
+    d = PdfDisclosure.parse(_kab245_8511_statement())
+    facts = _facts(read_tdnet_pdf(_pages(_kab245_8511_parts()), d))
     previous = {ref: value for (_name, ref), value in facts.items() if "PreviousMember" in ref}
     if previous.get("CurrentYearDuration_ForecastMember_PreviousMember_SecondQuarterMember_NonConsolidated") != Decimal("40"):
         _fail(f"q2 {facts}")
@@ -1257,3 +1265,46 @@ def test_kab223_split_slot_words_keep_q2_slot() -> None:
         _fail(f"slotless {facts}")
     if facts.get(("年間配当金", "CurrentYearDuration_AnnualMember_CurrentMember_ForecastMember_NonConsolidated")) != Decimal("86"):
         _fail(f"annual {facts}")
+
+
+def test_kab245_8511_year_end_dividend_with_yen_paren() -> None:
+    """8511 20260212556179: 親見出し「年間配当金（円）」が期末列だけに付いても期末 46 / 前回 40 を読む（KAB-245）。"""
+    pkg = read_tdnet_pdf(_pages(_kab245_8511_parts()), PdfDisclosure.parse(_kab245_8511_statement()))
+    year_end = [
+        fact for fact in pkg.facts
+        if fact.local_name == "年間配当金" and "YearEndMember" in fact.context_ref
+    ]
+    by_kind = {
+        "PreviousMember" in fact.context_ref: (fact.value_num, fact.unit, fact.scale)
+        for fact in year_end
+    }
+    if by_kind.get(False) != (Decimal("46"), "JPYPerShares", 0):
+        _fail(f"forecast year_end {pkg.facts}")
+    if by_kind.get(True) != (Decimal("40"), "JPYPerShares", 0):
+        _fail(f"previous year_end {pkg.facts}")
+    if any("(円)" in fact.local_name or "（円）" in fact.local_name for fact in pkg.facts):
+        _fail(f"paren left in name {pkg.facts}")
+
+
+def test_kab245_8511_year_end_lands_on_dps() -> None:
+    """8511 20260212556179: 期末配当が dps に名寄せされる（yaml に「年間配当金(円)」は要らない）。"""
+    no = "20260212556179"
+    db = SessionLocal()
+    try:
+        _seed(db, no, _pages(_kab245_8511_parts()), _kab245_8511_statement())
+        apply_mappings(db)
+        if sync_pdf_filing(db, no) is not SyncOutcome.PARSED:
+            _fail("8511 div rev sync")
+        rows = _rows(db, no)
+        expected = {
+            ("dps", "forecast", "point", "annual"): Decimal("86"),
+            ("dps", "forecast", "point", "year_end"): Decimal("46"),
+            ("dps", "forecast_previous", "point", "Q2"): Decimal("40"),
+            ("dps", "forecast_previous", "point", "year_end"): Decimal("40"),
+            ("dps", "forecast_previous", "point", "annual"): Decimal("80"),
+        }
+        for key, value in expected.items():
+            if rows.get(key) != value:
+                _fail(f"{key} {rows}")
+    finally:
+        db.close()

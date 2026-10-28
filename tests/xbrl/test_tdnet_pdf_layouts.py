@@ -232,6 +232,58 @@ def test_range_forecast_three_line_layouts() -> None:
         assert not any(member.endswith("_ForecastMember") and local == "売上高" for local, member in facts), name
 
 
+def test_kab245_dividend_yen_paren_year_end_is_per_share() -> None:
+    """KAB-245: 親見出し「年間配当金（円）」が期末列だけに付き、単位の注記が無い。
+
+    期末 46 / 前回期末 40 は 1 株当たり。隣の「配当金総額（百万円）」は百万円のまま。
+    """
+    parts = [
+        _text(184, 40, "配当予想の修正（増配）に関するお知らせ", 228),
+        _text(71, 70, "１．修正の内容", 77),
+        _text(321, 88, "年間配当金（円）", 88),
+        _text(545, 88, "配当金総額（百万円）", 100),
+        _text(225, 106, "第", 11),
+        _text(239, 106, "2", 6),
+        _text(248, 106, "四半期末", 44),
+        _text(354, 106, "期末", 22),
+        _text(460, 106, "合計", 22),
+        _text(77, 130, "前回予想", 66),
+        _cell(282, 130, "40", 13), _text(285, 130, "円", 11),
+        _cell(388, 130, "40", 13), _text(391, 130, "円", 11),
+        _cell(495, 130, "80", 13), _text(498, 130, "円", 11),
+        _cell(640, 130, "100", 30),
+        _text(77, 160, "今回修正予想", 66),
+        _cell(388, 160, "46", 13), _text(391, 160, "円", 11),
+        _cell(495, 160, "86", 13), _text(498, 160, "円", 11),
+        _cell(640, 160, "120", 30),
+    ]
+    d = _disclosure(
+        disclosure_no="20260212556179", code="85110",
+        type_of_period="FY", type_of_document="DividendForecastRevision",
+        disclosed_date=date(2026, 2, 12),
+        period_start=date(2025, 4, 1), period_end=date(2026, 3, 31),
+        fiscal_year_start=date(2025, 4, 1), fiscal_year_end=date(2026, 3, 31),
+    )
+    pkg = read_tdnet_pdf(_pages(parts), d)
+    year_end = [
+        fact for fact in pkg.facts
+        if fact.local_name == "年間配当金" and "YearEndMember" in fact.context_ref
+    ]
+    by_prev = {
+        "PreviousMember" in fact.context_ref: (fact.value_num, fact.unit, fact.scale)
+        for fact in year_end
+    }
+    assert by_prev.get(False) == (Decimal("46"), "JPYPerShares", 0), pkg.facts
+    assert by_prev.get(True) == (Decimal("40"), "JPYPerShares", 0), pkg.facts
+    totals = [
+        fact for fact in pkg.facts
+        if "配当金総額" in fact.local_name
+    ]
+    assert totals, pkg.facts
+    assert all(fact.unit == "JPY" and fact.scale == 6 for fact in totals), totals
+    assert {fact.value_num for fact in totals} >= {MILLION * 100, MILLION * 120}
+
+
 def test_dividends_are_solo_and_keep_their_slots() -> None:
     """配当は単体の値（ZIP と同じ）。ダッシュだけの「第１四半期末」の列も残し、見出しが隣へ寄らない。
     単体の配当の context が、連結の本表の context を奪わない。"""
