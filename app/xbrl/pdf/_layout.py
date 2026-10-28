@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 from html.parser import HTMLParser
 
@@ -82,6 +82,8 @@ _HEADER_UNIT_CHAR = frozenset({"%", "円", "銭"})
 _SPAN_MIN_CHARS = 3
 # 表の左から伸びる期の見出し（7865「第１四半期業績予想（日付）」）。列の項目名ではない。
 _SPAN_CAPTION = re.compile(r"第[123]四半期|通期|業績予想")
+# 列寄せの見出しから外す日付のかけら（「年」「21」「日～2025」）。項目名ではない。
+_SNAP_SKIP = re.compile(r"^[年月日]$|^\d{1,4}$|[~～〜]|^\d+年|月期|月末")
 # 行名がここで終われば、次の数値の無い行は同じ行名の続き。
 _CONTINUES = re.compile(r"(及び|並びに|又は|に|の|・|、|帰属する|係る|対する)$")
 # 数値の無い行が前の行名の折り返しの尾（「…中間純」＋「損失（△）」、「額（△は減少）」、「増減額（△は減少）」、「(予想)」）。
@@ -455,6 +457,93 @@ def split_amounts(line: Line) -> tuple[str, list[Amount]]:
     return text[:chosen[0].start()].strip(), amounts
 
 
+def _is_snap_header_word(word: Word) -> bool:
+    """列寄せの見出し。単位・またがりキャプション・行ラベル・日付のかけらは外す。"""
+    compact = _compact_text(word.text)
+    if not compact:
+        return False
+    if _HEADER_NOTE.search(compact):
+        return False
+    if _UNIT_NOTE.search(compact) or compact in _HEADER_UNIT_CHAR or compact in _PERCENT_UNIT:
+        return False
+    if _SPAN_CAPTION.search(compact):
+        return False
+    if _HEADER_ROW_LABEL.match(compact):
+        return False
+    return not _SNAP_SKIP.search(compact)
+
+
+def _snap_headers(
+    parsed: list[tuple[Line, str, list[Amount]]],
+    numeric: list[int],
+) -> list[Word]:
+    """最初の数値行より上の、列の項目名になる語。"""
+    if not numeric:
+        return []
+    words: list[Word] = []
+    for index in range(numeric[0]):
+        line, _, amounts = parsed[index]
+        if amounts:
+            continue
+        compact = _compact_text(line.text)
+        if _NOTE_LINE.match(compact) or _FORMULA_LINE.search(compact) or "。" in compact:
+            continue
+        if any(len(_compact_text(word.text)) > _HEADER_PROSE_LEN for word in line.words):
+            continue
+        words.extend(word for word in line.words if _is_snap_header_word(word))
+    return words
+
+
+def _narrowest_header(headers: list[Word], x1: float) -> Word | None:
+    containing = [word for word in headers if word.x0 <= x1 <= word.x1]
+    if not containing:
+        return None
+    return min(containing, key=lambda word: (word.x1 - word.x0, word.x1))
+
+
+def _snap_to_header_columns(
+    parsed: list[tuple[Line, str, list[Amount]]],
+    numeric: list[int],
+) -> list[tuple[Line, str, list[Amount]]]:
+    """見出し語の x0–x1 に入る数値は、その見出しに入った数値の最大 x1 へ寄せる（KAB-229）。
+
+    見出しの右端へ寄せると隣の ％ 列まで列が伸びる（武田の Core売上収益）。
+    同じ行に 2 つ以上入る見出しはまたがり（KAB-238）なので寄せない。
+    単位語（円・銭・%・百万円）は寄せ先にしない（KAB-236 の ROE）。
+    """
+    headers = _snap_headers(parsed, numeric)
+    if not headers:
+        return parsed
+    chosen: list[list[Word | None]] = []
+    members: dict[int, list[float]] = {}
+    for _line, _label, amounts in parsed:
+        row: list[Word | None] = []
+        for amount in amounts:
+            header = _narrowest_header(headers, amount.x1)
+            if header is None:
+                row.append(None)
+                continue
+            peers = sum(1 for other in amounts if header.x0 <= other.x1 <= header.x1)
+            if peers >= 2:
+                row.append(None)
+                continue
+            row.append(header)
+            members.setdefault(id(header), []).append(amount.x1)
+        chosen.append(row)
+    targets = {key: max(values) for key, values in members.items()}
+    out: list[tuple[Line, str, list[Amount]]] = []
+    for (line, label, amounts), row in zip(parsed, chosen):
+        if not amounts:
+            out.append((line, label, amounts))
+            continue
+        snapped = [
+            amount if header is None else replace(amount, x1=targets[id(header)])
+            for amount, header in zip(amounts, row)
+        ]
+        out.append((line, label, snapped))
+    return out
+
+
 def _cluster(values: list[float]) -> list[float]:
     ordered = sorted(values)
     groups: list[list[float]] = [[ordered[0]]]
@@ -479,6 +568,7 @@ def grid(lines: list[Line]) -> Grid:
     numeric = [index for index, (_, _, amounts) in enumerate(parsed) if amounts]
     if not numeric:
         raise PdfLayoutError("no anchors")
+    parsed = _snap_to_header_columns(parsed, numeric)
     anchors = _cluster([
         amount.x1
         for index in numeric

@@ -321,7 +321,8 @@ SECTIONS: tuple[SectionSpec, ...] = (
     SectionSpec(
         "div_rev",
         _h(r"配当予想.*修正|予定配当額について|(中間|期末)配当(\(予定\)|予想)?(額)?(の修正)?について"),
-        NS_SUMMARY, Axis.ITEM_COLUMNS, Shape.DIVIDEND, _DR, frozenset(),
+        # 業績予想と配当予想の同時修正は EarnForecastRevision（KAB-231）。題名は fc_rev が先に取る。
+        NS_SUMMARY, Axis.ITEM_COLUMNS, Shape.DIVIDEND, _FR | _DR, frozenset(),
     ),
     # 上のどれでもない計算書・対照表（セグメント別の損益計算書、子会社の貸借対照表など）。読まないが、
     # 本表のブロックをここで切る。
