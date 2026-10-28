@@ -43,3 +43,4 @@ Preconditions:
 - `session_date` is the day of the 通常取引 close the ranking compares against, not the fetch day. Before the evening session starts, 株探 still shows the previous session, so a Monday-morning fetch lands on Friday's session.
 - `fetched_at` is JST without a zone (`app/market/pts.py`). The `at` query must match a `snapshots[].fetched_at` exactly; an unknown `at` falls back to the latest fetch.
 - `%` cells use `pct()` (positive `.pos` red, negative `.neg` green).
+- Empty `#pts-info` is not only the no-snapshots copy. `dates: []` → 「PTS のデータがまだありません」. Dates exist but this ranking has no snapshot → 「この日のランキングはありません」. A thrown fetch → 「読み込みに失敗しました」 and `#pts-tbl` is cleared. `#pts-info` uses the first row with `next_date` (not `next_open`); a later bar with a null open can show a date and still leave `#pts-summary` blank (`summary.n` is non-null `open_vs_pts_pct` count).
