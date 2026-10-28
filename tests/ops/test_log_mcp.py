@@ -938,12 +938,12 @@ def test_db_query_and_schema() -> None:
                 raise SystemExit(f"row limit: {limited}")
 
             orig_bytes = m.DB_QUERY_MAX_BYTES
-            m.DB_QUERY_MAX_BYTES = 20
+            m.DB_QUERY_MAX_BYTES = 30
             try:
                 sized = json.loads(m.tool_db_query({"sql": "SELECT code, name FROM stocks ORDER BY code"}))
             finally:
                 m.DB_QUERY_MAX_BYTES = orig_bytes
-            if not sized["truncated"] or sized["row_count"] < 1:
+            if not sized["truncated"] or sized["row_count"] != 1:
                 raise SystemExit(f"byte limit: {sized}")
 
             orig_ops = m.DB_QUERY_PROGRESS_OPS

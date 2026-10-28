@@ -1341,11 +1341,14 @@ def tool_db_query(args: dict[str, Any]) -> str:
             cells = [_json_cell(v) for v in row]
             encoded = json.dumps(cells, ensure_ascii=False, default=str)
             extra = (1 if rows else 0) + len(encoded.encode("utf-8"))
-            if size + extra > DB_QUERY_MAX_BYTES:
+            if rows and size + extra > DB_QUERY_MAX_BYTES:
                 truncated = True
                 break
             rows.append(cells)
             size += extra
+            if size > DB_QUERY_MAX_BYTES:
+                truncated = True
+                break
         row_count = len(rows)
         body = {
             "columns": columns,
