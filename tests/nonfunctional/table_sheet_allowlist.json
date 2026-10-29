@@ -1,66 +1,6 @@
 [
   {
     "file": "static/index.html",
-    "table": "table.fin#cum-tbl",
-    "rule": "no_sheet",
-    "reason": "決算累計は table.fin。sheet への移行前"
-  },
-  {
-    "file": "static/index.html",
-    "table": "table.fin#q-tbl",
-    "rule": "no_sheet",
-    "reason": "四半期決算は table.fin。sheet への移行前"
-  },
-  {
-    "file": "static/index.html",
-    "table": "table.fin#prog-tbl",
-    "rule": "no_sheet",
-    "reason": "進捗は table.fin。sheet への移行前"
-  },
-  {
-    "file": "static/index.html",
-    "table": "table.fin#rev-tbl",
-    "rule": "no_sheet",
-    "reason": "修正は table.fin。sheet への移行前"
-  },
-  {
-    "file": "static/index.html",
-    "table": "table.fin#st-cum-tbl",
-    "rule": "no_sheet",
-    "reason": "銘柄の累計決算は table.fin。sheet への移行前"
-  },
-  {
-    "file": "static/index.html",
-    "table": "table.fin#st-q-tbl",
-    "rule": "no_sheet",
-    "reason": "銘柄の四半期決算は table.fin。sheet への移行前"
-  },
-  {
-    "file": "static/index.html",
-    "table": "table.fin#st-prog-tbl",
-    "rule": "no_sheet",
-    "reason": "銘柄の進捗は table.fin。sheet への移行前"
-  },
-  {
-    "file": "static/index.html",
-    "table": "table.fin#st-rev-tbl",
-    "rule": "no_sheet",
-    "reason": "銘柄の修正は table.fin。sheet への移行前"
-  },
-  {
-    "file": "static/index.html",
-    "table": "table#perf-tbl",
-    "rule": "no_sheet",
-    "reason": "銘柄パフォーマンス表が未移行"
-  },
-  {
-    "file": "static/index.html",
-    "table": "table#st-news",
-    "rule": "no_sheet",
-    "reason": "銘柄ニュース表が未移行"
-  },
-  {
-    "file": "static/index.html",
     "table": "table#pts-tbl",
     "rule": "no_sheet",
     "reason": "PTS 表が未移行"
@@ -88,30 +28,6 @@
     "table": "table.supply-tbl",
     "rule": "no_sheet",
     "reason": "指標表は supply-tbl。sheet への移行前"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "table.fin th",
-    "rule": "font_size",
-    "reason": "決算見出し 11px が sheet と別指定"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "table.fin td.num",
-    "rule": "font_size",
-    "reason": "決算数字 13px が sheet と別指定"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "table.fin .opm",
-    "rule": "font_size",
-    "reason": "営業利益率 11px が sheet と別指定"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "table.fin .g",
-    "rule": "font_size",
-    "reason": "決算サブ行 11px が sheet と別指定"
   },
   {
     "file": "static/css/app.css",

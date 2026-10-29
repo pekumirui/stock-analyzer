@@ -425,7 +425,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
 | `GET /api/pts?date=2026-10-16&ranking=night_up&at=2026-10-16 23:30:00` | PTS ランキング 1 回分と翌営業日の始値とのギャップ。`ranking` は `night_up` / `night_down` / `night_volume`（ほかは 400）。`date` 省略で最新のセッション、`at`（`fetched_at`）省略かつ不一致で最新の取得。形は `docs/DESIGN_pts.md` |
 | `GET /api/stocks/search?q=トヨタ` | 銘柄検索。名前の部分一致（q を NFKC とひらがな→カタカナに寄せたものでも引く）とコードの前方一致。最大 20 件 |
-| `GET /api/holders/search?q=` / `GET /api/holders/activity` / `GET /api/holders/{edinet}` | 大量保有の保有者検索・最近の動き・保有者ページ。`docs/DESIGN_holders.md` |
+| `GET /api/holders/search?q=` / `GET /api/holders/activity` / `GET /api/holders/{edinet}` | 大量保有の保有者検索・提出日（または検索）の一覧・保有者ページ。`docs/DESIGN_holders.md` |
 | `GET /api/stock/{code}/holders` | 銘柄の株主タブ。`docs/DESIGN_stock.md` |
 | `GET /api/supply/graph` | サプライタブの素材と流れ（`config/supply/supply_chain.json`）。形は `docs/DESIGN_supply.md` |
 | `GET /api/supply/monthly/{material_id}` | 素材の月次量（`material_monthly`）と見掛け消費。形は `docs/DESIGN_supply.md`。素材が無ければ 404 |
@@ -450,7 +450,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 
 画面は `docs/DESIGN_stock.md`。書き方は `docs/SCREEN_SPEC.md`。原文の保存は `docs/DESIGN_xbrl.md` §15。
 
-### 保有者タブの画面
+### 大量保有報告書タブの画面
 
 画面は `docs/DESIGN_holders.md`。書き方は `docs/SCREEN_SPEC.md`。データは `docs/DESIGN_edinet.md` §5。
 
