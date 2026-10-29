@@ -695,6 +695,8 @@ class LargeHoldingReport(Base):
     fetched_at = Column(DateTime, nullable=False)
     __table_args__ = (
         Index("ix_large_holding_reports_code", "code", "obligation_date"),
+        Index("ix_large_holding_reports_file_date", "file_date"),
+        Index("ix_large_holding_reports_latest_file", "is_latest", "file_date"),
     )
 
 

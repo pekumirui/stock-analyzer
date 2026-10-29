@@ -63,7 +63,7 @@
   .evt-toggles .evt-label { display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none; }
   .evt-toggles .swatch { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
   .tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  #rk-sub-perf .tbl-wrap, #tab-screener .tbl-wrap { max-height:calc(100vh - 140px); overflow:auto; }
+  #rk-sub-perf .tbl-wrap, #tab-screener .tbl-wrap, #tab-holders .tbl-wrap, #st-sub-holders .tbl-wrap { max-height:calc(100vh - 140px); overflow:auto; }
   #pts-tbl { width:auto; }
   #pts-summary { font-size:12px; margin:0 0 6px; }
   #rk-subs { display:inline-flex; margin:0 0 10px; }
@@ -134,7 +134,7 @@
   table.sheet .pin0 { left:var(--pin0, 0); }
   table.sheet .pin1 { left:var(--pin1, 0); }
   table.sheet .pin2 { left:var(--pin2, 0); }
-  #earn-tbl .pin2, #sc-tbl .pin0 { box-shadow:inset -1px 0 0 var(--border); }
+  #earn-tbl .pin2, #sc-tbl .pin0, #hd-feed .pin2, #hd-holdings .pin0, #st-holders-large .pin0, #hd-activity .pin1 { box-shadow:inset -1px 0 0 var(--border); }
   .phead { display:flex; align-items:center; gap:8px; justify-content:space-between; margin-bottom:8px; }
   .phead h3 { margin:0; }
   .phead-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
@@ -216,7 +216,6 @@
   .badge.new { background:var(--warn); color:#fff; margin-left:6px; }
   #monthly-back, #hd-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
   #hd-note { margin:0 0 8px; }
-  #hd-holdings .purpose, #st-holders-large .purpose { white-space:normal; max-width:16em; }
   #hd-holdings tr.on td { background:var(--row-sel); }
   #hd-holdings tr.below td, #st-holders-large tr.below td { color:var(--sub); }
   #hd-feed .odd-date, #hd-holdings .odd-date, #st-holders-large .odd-date, #hd-activity .odd-date, #hd-series .odd-date { color:var(--warn); }

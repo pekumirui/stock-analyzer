@@ -1,4 +1,4 @@
-"""一覧表（決算速報・スクリーナー・ランキング）が table.sheet を共有し、スマホ幅に収まる（KAB-196 / KAB-197）。"""
+"""一覧表（決算速報・スクリーナー・ランキング・保有者）が table.sheet を共有し、スマホ幅に収まる（KAB-196 / KAB-197 / KAB-270）。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,8 +16,10 @@ def test_sheet_css_is_shared() -> None:
     assert "#earn-tbl.sheet" in css
     assert "table.sheet td.name, table.sheet th.name { max-width:8em; }" in css
     assert "#rk-tbl th.grp { white-space:nowrap; }" in css
-    assert "#earn-tbl .pin2, #sc-tbl .pin0 { box-shadow:inset -1px 0 0 var(--border); }" in css
+    assert "#earn-tbl .pin2, #sc-tbl .pin0, #hd-feed .pin2, #hd-holdings .pin0, #st-holders-large .pin0, #hd-activity .pin1 { box-shadow:inset -1px 0 0 var(--border); }" in css
     assert "#rk-tbl .pin1" not in css
+    assert "#hd-feed.sheet" in css
+    assert "#tab-holders .tbl-wrap" in css
 
 
 def test_ranking_table_matches_sheet() -> None:

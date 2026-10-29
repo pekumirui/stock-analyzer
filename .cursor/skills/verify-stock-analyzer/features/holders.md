@@ -6,7 +6,7 @@ The 保有者 tab searches large-holding filers by name or EDINET code, shows a 
 
 - `holders-tab` shows `#tab-holders` on `nav button[data-tab="holders"]` (after ランキング). Hash `#holders`, one `GET /api/holders/activity`, `#hd-top` visible, `#hd-detail` `display:none`.
 - `holders-search` types into `#hd-sym` and fills `#hd-suggest` from `GET /api/holders/search?q=` (`名前  EDINET`). Enter takes the first hit.
-- `holders-feed` fills `#hd-feed` (`table.sheet`: 日付 / 種類 / 保有者 / 銘柄 / 保有割合). Empty → `#hd-feed-msg` 「最近の大量保有の動きはありません。」. Holder name → detail, issuer name → `gotoChart`.
+- `holders-feed` fills `#hd-feed` (`table.sheet`: 日付 / 種類 / 保有者 / 銘柄 / 保有割合). Holder names use `shortName` + EDINET under, kinds use `.qb`. Empty → `#hd-feed-msg` 「最近の大量保有の動きはありません。」. Holder name → detail, issuer name → `gotoChart`.
 - `holders-detail` `#holders/{edinet}` loads `GET /api/holders/{edinet}` into `#hd-title`, `#hd-holdings`, `#hd-chart`, `#hd-series`, `#hd-activity`. Missing code → 404 「保有者が見つかりません。」. `#hd-back` returns to the feed.
 - `holders-below` latest ratio &lt; 5% rows sit under a 5%未満 header and use `tr.below`.
 - `holders-note` `#hd-note` always reads that 時価 / 平均取得単価 / 評価損益 are 目安.

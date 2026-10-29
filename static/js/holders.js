@@ -16,10 +16,11 @@ function hdOdd(ob, file){
   const a = Date.parse(ob), b = Date.parse(file);
   return Number.isFinite(a) && Number.isFinite(b) && (a - b) > 30 * 864e5;
 }
-function hdDateCell(ob, file){
+function hdDateCell(ob, file, pin){
   const odd = hdOdd(ob, file);
   const title = file ? `提出日 ${file}` : "";
-  return `<td class="num${odd ? " odd-date" : ""}" title="${hdEsc(title)}">${hdEsc(hdYmd(ob))}</td>`;
+  const extra = `${odd ? " odd-date" : ""}${pin ? " " + pin : ""}`;
+  return `<td class="num${extra}" title="${hdEsc(title)}">${hdEsc(hdYmd(ob))}</td>`;
 }
 function hdPct(v){ return v == null ? "–" : `${fmt(v * 100, 2)}%`; }
 function hdPt(cur, prev){
@@ -39,13 +40,27 @@ function hdYen(v){
 function hdCost(v){ return v == null ? "–" : `${fmt(v, 0)}円`; }
 function hdShares(v){ return v == null ? "–" : `${fmt(v, 0)}株`; }
 function hdKind(k){ return HD_KIND[k] || k || ""; }
+function hdKindCell(k, pin){
+  const cls = {new: "qb-init", buy: "qb-up", sell: "qb-dn", below: "qb-dn"}[k] || "";
+  return `<td class="l${pin ? " " + pin : ""}"><span class="qb ${cls}">${hdEsc(hdKind(k))}</span></td>`;
+}
+function hdHolderCell(edinet, name, pin){
+  const raw = String(name || edinet || "");
+  const pinCls = pin ? ` ${pin}` : "";
+  return `<td class="l name${pinCls}" title="${hdEsc(raw)}"><span class="clicky" onclick="event.stopPropagation();gotoHolder('${hdEsc(edinet)}')">${hdEsc(shortName(raw))}</span>${under(`<span class="sub">${hdEsc(edinet || "")}</span>`)}</td>`;
+}
 
-function hdIssuerCell(code, name){
+function hdIssuerCell(code, name, pin){
   const raw = String(name || "");
+  const pinCls = pin ? ` ${pin}` : "";
   if(code){
-    return `<td class="l name" title="${hdEsc(raw)}"><span class="clicky" onclick="event.stopPropagation();gotoChart('${hdEsc(code)}')">${hdEsc(shortName(raw))}</span>${under(`<span class="sub">${hdEsc(code.slice(0, 4))}</span>`)}</td>`;
+    return `<td class="l name${pinCls}" title="${hdEsc(raw)}"><span class="clicky" onclick="event.stopPropagation();gotoChart('${hdEsc(code)}')">${hdEsc(shortName(raw))}</span>${under(`<span class="sub">${hdEsc(code.slice(0, 4))}</span>`)}</td>`;
   }
-  return `<td class="l name">${hdEsc(raw || "–")}</td>`;
+  return `<td class="l name${pinCls}">${hdEsc(raw || "–")}</td>`;
+}
+function hdPurposeCell(text){
+  const s = String(text || "–");
+  return `<td class="l" title="${hdEsc(s)}">${hdEsc(s)}</td>`;
 }
 
 function drawHdChart(host, series, yFmt){
@@ -88,15 +103,14 @@ function drawHdChart(host, series, yFmt){
 }
 
 function hdFeedRows(items, withHolder){
-  let h = "<thead><tr><th>日付</th><th class='l'>種類</th>";
-  if(withHolder) h += "<th class='l'>保有者</th>";
-  h += "<th class='l name'>銘柄</th><th>保有割合</th></tr></thead><tbody>";
+  let h = "<thead><tr><th class='pin0'>日付</th><th class='l pin1'>種類</th>";
+  if(withHolder) h += "<th class='l name pin2'>保有者</th>";
+  h += `<th class='l name${withHolder ? "" : " pin2"}'>銘柄</th><th>保有割合</th></tr></thead><tbody>`;
   for(const r of items){
-    const holder = withHolder
-      ? `<td class="l"><span class="clicky" onclick="gotoHolder('${hdEsc(r.edinet_code)}')">${hdEsc(r.holder_name || r.edinet_code)}</span></td>`
-      : "";
-    h += `<tr>${hdDateCell(r.obligation_date, r.file_date)}<td class="l">${hdEsc(hdKind(r.kind))}</td>${holder}
-      ${hdIssuerCell(r.code, r.issuer_name)}
+    const holder = withHolder ? hdHolderCell(r.edinet_code, r.holder_name, "pin2") : "";
+    h += `<tr>${hdDateCell(r.obligation_date, r.file_date, "pin0")}
+      ${hdKindCell(r.kind, "pin1")}${holder}
+      ${hdIssuerCell(r.code, r.issuer_name, withHolder ? "" : "pin2")}
       <td class="num">${hdEsc(hdPct(r.holding_ratio))}${under(hdPt(r.holding_ratio, r.holding_ratio_prev))}</td></tr>`;
   }
   return h + "</tbody>";
@@ -146,6 +160,7 @@ async function paintHoldersFeed(){
     return;
   }
   $("#hd-feed").innerHTML = hdFeedRows(items, true);
+  pinCols($("#hd-feed"), 3);
 }
 
 function hdSuggest(rs){
@@ -219,7 +234,14 @@ function paintHolder(){
   if(!d) return;
   $("#hd-title").textContent = `${d.name || ""}  ${d.edinet_code || ""}`;
   const rows = d.holdings || [];
-  let h = "<table class='sheet'><thead><tr><th class='l name'>銘柄</th><th>保有割合</th><th>差</th><th>株数</th><th>時価（目安）</th><th>平均取得（目安）</th><th>評価損益（目安）</th><th>報告義務発生日</th><th class='l'>保有目的</th></tr></thead><tbody>";
+  let h = "<table class='sheet'><thead><tr>"
+    + "<th class='l name pin0'>銘柄</th>"
+    + "<th>保有割合</th><th title='前回からの差'>差</th><th>株数</th>"
+    + "<th title='時価（目安）'>時価</th>"
+    + "<th title='平均取得単価（目安）'>取得単価</th>"
+    + "<th title='評価損益（目安）'>評価損益</th>"
+    + "<th title='報告義務発生日'>義務発生日</th>"
+    + "<th class='l'>保有目的</th></tr></thead><tbody>";
   let below = false;
   rows.forEach((r, i) => {
     const isBelow = (r.holding_ratio || 0) < 0.05;
@@ -230,7 +252,7 @@ function paintHolder(){
     const un = r.unrealized;
     const ucls = un > 0 ? "pos" : un < 0 ? "neg" : "";
     h += `<tr class="${isBelow ? "below" : ""}${i === hdPick ? " on" : ""}" data-i="${i}">
-      ${hdIssuerCell(r.code, r.name)}
+      ${hdIssuerCell(r.code, r.name, "pin0")}
       <td class="num">${hdEsc(hdPct(r.holding_ratio))}</td>
       <td class="num">${hdPt(r.holding_ratio, r.holding_ratio_prev)}</td>
       <td class="num">${hdShares(r.shares_held)}</td>
@@ -238,10 +260,11 @@ function paintHolder(){
       <td class="num">${hdCost(r.avg_cost)}</td>
       <td class="num ${ucls}">${hdYen(un)}</td>
       ${hdDateCell(r.obligation_date, r.file_date)}
-      <td class="l purpose">${hdEsc(r.purpose || "–")}</td></tr>`;
+      ${hdPurposeCell(r.purpose)}</tr>`;
   });
   h += "</tbody></table>";
   $("#hd-holdings").innerHTML = rows.length ? h : "<p class='sub'>大量保有報告はありません。</p>";
+  pinCols($("#hd-holdings table.sheet"), 1);
   const chartRows = rows.slice(0, HD_CHART_N);
   drawHdChart($("#hd-chart"), chartRows.map((r, i) => ({
     name: shortName(r.name || r.code || ""),
@@ -251,6 +274,7 @@ function paintHolder(){
   paintHolderSeries();
   const act = d.activity || [];
   $("#hd-activity").innerHTML = act.length ? hdFeedRows(act, false) : "";
+  if(act.length) pinCols($("#hd-activity"), 2);
 }
 
 function paintHolderSeries(){
@@ -277,7 +301,9 @@ $("#hd-holdings").addEventListener("click", e => {
   const tr = e.target.closest("tr[data-i]");
   if(!tr) return;
   hdPick = +tr.dataset.i;
-  paintHolder();
+  $("#hd-holdings tbody tr.on")?.classList.remove("on");
+  tr.classList.add("on");
+  paintHolderSeries();
 });
 $("#hd-back").onclick = () => { hdHomeLoaded = false; loadHoldersHome(); };
 
@@ -331,7 +357,7 @@ async function renderStockHoldersTab(){
     $("#st-holders-large").innerHTML = "<p class='sub'>大量保有報告はありません。</p>";
     $("#st-holders-chart").innerHTML = "";
   } else {
-    let h = "<table class='sheet'><thead><tr><th class='l'>提出者</th><th>保有割合</th><th>差</th><th>報告義務発生日</th><th class='l'>保有目的</th></tr></thead><tbody>";
+    let h = "<table class='sheet'><thead><tr><th class='l name pin0'>提出者</th><th>保有割合</th><th title='前回からの差'>差</th><th title='報告義務発生日'>義務発生日</th><th class='l'>保有目的</th></tr></thead><tbody>";
     let below = false;
     for(const r of rows){
       const isBelow = (r.holding_ratio || 0) < 0.05;
@@ -339,16 +365,18 @@ async function renderStockHoldersTab(){
         h += `<tr class="below-h"><td class="l sub" colspan="5">5%未満</td></tr>`;
         below = true;
       }
+      const raw = r.filer_name || r.filer_edinet_code || "";
       const name = r.filer_edinet_code
-        ? `<span class="clicky" onclick="gotoHolderFromStock('${hdEsc(r.filer_edinet_code)}')">${hdEsc(r.filer_name || r.filer_edinet_code)}</span>`
-        : hdEsc(r.filer_name || "–");
-      h += `<tr class="${isBelow ? "below" : ""}"><td class="l">${name}</td>
+        ? `<span class="clicky" onclick="gotoHolderFromStock('${hdEsc(r.filer_edinet_code)}')">${hdEsc(shortName(raw))}</span>${under(`<span class="sub">${hdEsc(r.filer_edinet_code)}</span>`)}`
+        : hdEsc(shortName(raw) || "–");
+      h += `<tr class="${isBelow ? "below" : ""}"><td class="l name pin0" title="${hdEsc(raw)}">${name}</td>
         <td class="num">${hdEsc(hdPct(r.holding_ratio))}</td>
         <td class="num">${hdPt(r.holding_ratio, r.holding_ratio_prev)}</td>
         ${hdDateCell(r.obligation_date, r.file_date)}
-        <td class="l purpose">${hdEsc(r.purpose || "–")}</td></tr>`;
+        ${hdPurposeCell(r.purpose)}</tr>`;
     }
     $("#st-holders-large").innerHTML = h + "</tbody></table>";
+    pinCols($("#st-holders-large table.sheet"), 1);
     drawHdChart($("#st-holders-chart"), rows.slice(0, HD_CHART_N).map((r, i) => ({
       name: r.filer_name || r.filer_edinet_code || "",
       color: HD_COLORS[i % HD_COLORS.length],
@@ -380,3 +408,14 @@ window.loadHoldersHome = loadHoldersHome;
 window.openHolder = openHolder;
 window.renderStockHoldersTab = renderStockHoldersTab;
 window.resetStockHolders = resetStockHolders;
+
+if(window.ResizeObserver){
+  const feedWrap = $("#hd-feed") && $("#hd-feed").closest(".tbl-wrap");
+  if(feedWrap) new ResizeObserver(() => pinCols($("#hd-feed"), 3)).observe(feedWrap);
+  const holdWrap = $("#hd-holdings");
+  if(holdWrap) new ResizeObserver(() => pinCols($("#hd-holdings table.sheet"), 1)).observe(holdWrap);
+  const actWrap = $("#hd-activity") && $("#hd-activity").closest(".tbl-wrap");
+  if(actWrap) new ResizeObserver(() => pinCols($("#hd-activity"), 2)).observe(actWrap);
+  const stWrap = $("#st-holders-large");
+  if(stWrap) new ResizeObserver(() => pinCols($("#st-holders-large table.sheet"), 1)).observe(stWrap);
+}
