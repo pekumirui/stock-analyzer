@@ -21,7 +21,7 @@
     <button data-tab="monthly">月次</button>
     <button data-tab="supply">サプライ</button>
     <button data-tab="ranking">ランキング</button>
-    <button data-tab="holders">保有者</button>
+    <button data-tab="holders">大量保有報告書</button>
   </nav>
 </header>
 <div id="nav-backdrop" hidden></div>
@@ -266,25 +266,22 @@
 <section id="tab-holders" style="display:none">
   <div id="hd-top">
     <div class="row" id="hd-search" style="position:relative">
-      <input id="hd-sym" placeholder="保有者名 or EDINETコード" autocomplete="off" style="width:240px">
+      <input type="date" id="hd-date" aria-label="提出日">
+      <input id="hd-sym" placeholder="銘柄名・保有者名 or コード" autocomplete="off" style="width:240px">
       <div id="hd-suggest" class="suggest" style="display:none"></div>
     </div>
-    <h3>最近の動き</h3>
     <p id="hd-feed-msg" class="sub" hidden></p>
     <div class="tbl-wrap"><table id="hd-feed" class="sheet"></table></div>
   </div>
   <div id="hd-detail" style="display:none">
     <div class="phead">
-      <button type="button" id="hd-back">← 保有者</button>
+      <button type="button" id="hd-back">← 大量保有報告書</button>
       <h3 id="hd-title"></h3>
     </div>
-    <p id="hd-note" class="sub">時価・平均取得単価・評価損益は目安。取得資金の書き方・分割・無償取得では出さない。</p>
     <p id="hd-msg" class="sub" hidden></p>
     <div class="tbl-wrap" id="hd-holdings"></div>
     <div id="hd-chart"></div>
     <div id="hd-series"></div>
-    <h3>最近の動き</h3>
-    <div class="tbl-wrap"><table id="hd-activity" class="sheet"></table></div>
   </div>
 </section>
 
