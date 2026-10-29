@@ -1012,14 +1012,18 @@ def _pick_shifted_cell(left: Amount | None, right: Amount | None) -> Amount | No
 
 
 def _shifted_amount_pair(left: Column, right: Column, left_cells: tuple[Amount | None, ...], right_cells: tuple[Amount | None, ...]) -> bool:
-    """隣接列が同じスロットの数値と未定で、右端だけずれているか。"""
+    """隣接列が同じスロットの数値と未定で、右端だけずれているか。
+
+    未定セル（値なし）があるときだけ。EPS の桁違いで x1 がずれた 2 列（7865 20241126529281）は束ねない。
+    """
     if right.x1 - left.x1 > _SHIFT_COL:
         return False
     _left_yen, _left_sen, left_money = _yen_sen_flags(left.headers)
     _right_yen, _right_sen, right_money = _yen_sen_flags(right.headers)
     if left_money or right_money:
         return False
-    saw = False
+    saw_num = False
+    saw_nil = False
     for left_cell, right_cell in zip(left_cells, right_cells):
         left_val = None if left_cell is None else left_cell.value
         right_val = None if right_cell is None else right_cell.value
@@ -1030,8 +1034,10 @@ def _shifted_amount_pair(left: Column, right: Column, left_cells: tuple[Amount |
         if right_val is not None and left_cell is not None and left_val is None:
             return False
         if (left_val is not None) != (right_val is not None):
-            saw = True
-    if not saw:
+            saw_num = True
+        if (left_cell is not None and left_val is None) or (right_cell is not None and right_val is None):
+            saw_nil = True
+    if not saw_num or not saw_nil:
         return False
     right_items = tuple(item for item in _non_unit_headers(right.headers) if len(item) > 1)
     left_items = {item for item in _non_unit_headers(left.headers) if len(item) > 1}

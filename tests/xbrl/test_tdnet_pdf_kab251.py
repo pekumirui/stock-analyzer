@@ -279,6 +279,67 @@ def test_kab251_combined_yen_sen_aligns_with_undecided() -> None:
         _fail((got, facts))
 
 
+def test_kab251_split_ichi_kabu_atari_keeps_q3_feps() -> None:
+    """7865 20241126529281: 「1」「株当たり」が上段に分かれ、Q3 の EPS 予想と前回予想が残る。
+
+    前期実績 65.53 の右端が △41.80 より短いと 2 列になり、未定の無い束ねが「1」を末尾へ回す。
+    """
+    parts = [
+        _text(40, 40, "2025年1月期第3四半期累計期間業績予想の修正等（2024年1月21日～2024年10月20日）", 400),
+        _text(484.1, 70, "1", 4.0),
+        _text(490.2, 70, "株当たり", 35.9),
+        _text(226.7, 82, "売上高", 35.0),
+        _text(285.4, 82, "営業利益", 45.0),
+        _text(349.2, 82, "経常利益", 44.9),
+        _text(412.1, 82, "四半期純利益", 48.1),
+        _text(479.0, 88, "四半期純利益", 52.0),
+        _text(236.3, 100, "百万円", 29.9),
+        _text(300.1, 100, "百万円", 29.9),
+        _text(368.8, 100, "百万円", 29.9),
+        _text(432.7, 100, "百万円", 29.9),
+        _text(509.9, 100, "円銭", 19.9),
+        _text(40, 118, "前回予想（A）", 90),
+        _cell(259.2, 118, "1,249", 30),
+        _cell(323.0, 118, "△179", 30),
+        _cell(386.8, 118, "△176", 30),
+        _cell(446.3, 118, "△183", 25),
+        _cell(530.5, 118, "△41.80", 40.1),
+        _text(40, 136, "今回修正（B）", 90),
+        _cell(254.2, 136, "1,244", 25),
+        _cell(318.0, 136, "△114", 25),
+        _cell(381.8, 136, "△112", 25),
+        _cell(451.2, 136, "△120", 30),
+        _cell(530.3, 136, "△27.49", 39.8),
+        _text(40, 154, "（ご参考）前期第3四半期実績", 160),
+        _cell(259.2, 154, "4,392", 30),
+        _cell(317.9, 154, "393", 20),
+        _cell(381.7, 154, "411", 20),
+        _cell(446.2, 154, "287", 20),
+        _cell(520.6, 154, "65.53", 30),
+    ]
+    facts = _facts(read_tdnet_pdf(_pages(parts), _disclosure(
+        disclosure_no="20241126529281", code="78650",
+        disclosed_date=date(2024, 11, 26), disclosed_time="16:30",
+        type_of_period="3Q", type_of_document="EarnForecastRevision",
+        period_start=date(2024, 1, 21), period_end=date(2024, 10, 20),
+        fiscal_year_start=date(2024, 1, 21), fiscal_year_end=date(2025, 1, 20),
+    )))
+    current = next(
+        ((name, ref) for name, ref in facts if name == "1株当たり当期純利益" and "CurrentMember" in ref and "ForecastMember" in ref),
+        None,
+    )
+    previous = next(
+        ((name, ref) for name, ref in facts if name == "1株当たり当期純利益" and "PreviousMember" in ref),
+        None,
+    )
+    if current is None or facts[current] != Decimal("-27.49"):
+        _fail(facts)
+    if previous is None or facts[previous] != Decimal("-41.80"):
+        _fail(facts)
+    if any(name.endswith("1") and "株" in name for name, _ref in facts):
+        _fail(facts)
+
+
 def test_kab251_drops_implausible_per_share() -> None:
     """1 株当たり 1e5 以上は入れない。"""
     parts = [
