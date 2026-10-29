@@ -96,6 +96,69 @@ def prefetch_list_history(db: Session, codes, day: date) -> dict[str, list]:
     return hist_by_code
 
 
+_LATEST_KEYS = (
+    "disclosure_no", "period", "fiscal_year_end", "fy_label",
+    "qoq", "yoy", "single", "cumulative", "forecast_fy", "progress",
+)
+
+
+def _list_row(db: Session, s, hist, code: str, name: str) -> dict:
+    """一覧 1 行。hist は同一銘柄の開示履歴。"""
+    state = disclosure_state(hist, s)
+    summary = quarter_summary(db, s, hist=hist)
+    return {
+        "restated": state == "restated",
+        "forecast_revision": summary["forecast_revision"],
+        "disclosure_no": s.disclosure_no,
+        "code": code, "name": name,
+        "disclosed_time": s.disclosed_time,
+        "period": s.type_of_period,
+        "fiscal_year_end": s.fiscal_year_end.isoformat() if s.fiscal_year_end else None,
+        "fy_label": period_label(s.fiscal_year_end),
+        "qoq": summary["qoq"],
+        "yoy": summary["yoy"],
+        "single": summary["single"],
+        "cumulative": summary["cumulative"],
+        "forecast_fy": summary["forecast_fy"],
+        "progress": summary["progress"],
+    }
+
+
+def _latest_statement(hist):
+    """履歴の末尾から、重複再提出でない短信本体を 1 件。"""
+    for s in reversed(hist):
+        if not is_actual(s):
+            continue
+        if disclosure_state(hist, s) == "duplicate":
+            continue
+        return s
+    return None
+
+
+def latest_actuals(db: Session, codes, as_of: date) -> dict[str, dict]:
+    """未発表銘柄の、as_of 以前の直近実績。キーはコード。無ければ載らない。"""
+    if not codes:
+        return {}
+    hist_by_code = prefetch_list_history(db, codes, as_of)
+    out: dict[str, dict] = {}
+    for code, hist in hist_by_code.items():
+        s = _latest_statement(hist)
+        if s is None:
+            continue
+        row = _list_row(db, s, hist, code, code)
+        out[code] = {k: row[k] for k in _LATEST_KEYS}
+    return out
+
+
+def attach_latest_actuals(db: Session, payload: dict, as_of: date) -> dict:
+    """予定行に latest を足す。実績が無ければ null。actuals は触らない。"""
+    scheduled = payload.get("scheduled") or []
+    found = latest_actuals(db, [row["code"] for row in scheduled], as_of)
+    for row in scheduled:
+        row["latest"] = found.get(row["code"])
+    return payload
+
+
 def earnings_rows(db: Session, day: date) -> list[dict]:
     """その日の決算速報一覧 (QoQ=Q単独の前四半期比 / YoY=累計の前年同期比)。"""
     codes = select(Statement.code).where(
@@ -108,26 +171,9 @@ def earnings_rows(db: Session, day: date) -> list[dict]:
         for s in hist:
             if s.disclosed_date != day or not is_actual(s):
                 continue
-            state = disclosure_state(hist, s)
-            if state == "duplicate":
+            if disclosure_state(hist, s) == "duplicate":
                 continue
-            summary = quarter_summary(db, s, hist=hist)
-            out.append({
-                "restated": state == "restated",
-                "forecast_revision": summary["forecast_revision"],
-                "disclosure_no": s.disclosure_no,
-                "code": code, "name": names.get(code, code),
-                "disclosed_time": s.disclosed_time,
-                "period": s.type_of_period,
-                "fiscal_year_end": s.fiscal_year_end.isoformat() if s.fiscal_year_end else None,
-                "fy_label": period_label(s.fiscal_year_end),
-                "qoq": summary["qoq"],
-                "yoy": summary["yoy"],
-                "single": summary["single"],
-                "cumulative": summary["cumulative"],
-                "forecast_fy": summary["forecast_fy"],
-                "progress": summary["progress"],
-            })
+            out.append(_list_row(db, s, hist, code, names.get(code, code)))
     out.sort(key=lambda r: (r["disclosed_time"] or "", r["code"]))
     return out
 
@@ -145,7 +191,8 @@ def earnings_by_date(date_: str = Query(..., alias="date"),
                      today: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
                      db: Session = Depends(get_session)):
     day = _pd(date_)
-    return day_payload(db, day, resolve_today(today), earnings_rows(db, day))
+    payload = day_payload(db, day, resolve_today(today), earnings_rows(db, day))
+    return attach_latest_actuals(db, payload, day)
 
 
 @router.get("/earnings/detail/{code}")

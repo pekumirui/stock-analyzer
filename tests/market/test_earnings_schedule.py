@@ -39,7 +39,7 @@ from app.market.earnings_schedule import (  # noqa: E402
     sync,
 )
 from app.db import upsert  # noqa: E402
-from app.models import EarningsDateFetch, EarningsDatePub, Stock  # noqa: E402
+from app.models import EarningsDateFetch, EarningsDatePub, Statement, Stock  # noqa: E402
 
 TODAY = date(2026, 10, 2)
 
@@ -87,6 +87,7 @@ def _db():
     db = SessionLocal()
     db.query(EarningsDatePub).delete()
     db.query(EarningsDateFetch).delete()
+    db.query(Statement).delete()
     db.query(Stock).delete()
     db.commit()
     return db
@@ -509,6 +510,125 @@ def test_batch_syncs_after_indicators() -> None:
         _fail(order)
 
 
+def _add_stmt(db, no: str, code: str, period: str, fy_end: date, disclosed: date,
+             sales: float, **over: object) -> None:
+    row = {
+        "disclosure_no": no,
+        "code": code,
+        "disclosed_date": disclosed,
+        "disclosed_time": "15:00",
+        "type_of_period": period,
+        "type_of_document": f"{period}FinancialStatements_Consolidated_JP",
+        "fiscal_year_end": fy_end,
+        "net_sales": sales,
+        "operating_profit": sales / 10,
+        "ordinary_profit": sales / 12,
+        "profit": sales / 20,
+        "eps": sales / 1_000_000,
+        "is_revision": False,
+    }
+    row.update(over)
+    db.add(Statement(**row))  # type: ignore[arg-type]
+
+
+def test_scheduled_carries_latest_actual() -> None:
+    """未発表は直近の実績を latest に載せ、発表済みの actuals は形を変えない。"""
+    db = _db()
+    try:
+        ingest_pub_date(db, _JQ([  # type: ignore[arg-type]
+            _wire(Code="40620", SchDate="2026-10-29", CoName="イビデン", FQName="2Q"),
+            _wire(Code="65040", SchDate="2026-10-29", CoName="富士電機", FQName="2Q"),
+            _wire(Code="72030", SchDate="2026-10-29", CoName="トヨタ", FQName="2Q"),
+        ]), date(2026, 9, 20))
+        upsert(db, Stock, [
+            {"code": "40620", "name": "イビデン", "product_category": "011",
+             "sector33": "電気機器"},
+            {"code": "65040", "name": "富士電機", "product_category": "011",
+             "sector33": "電気機器"},
+            {"code": "72030", "name": "トヨタ自動車", "product_category": "011",
+             "sector33": "輸送用機器"},
+        ])
+        _add_stmt(db, "ibiden-1q-ly", "40620", "1Q", date(2026, 3, 31),
+                  date(2025, 7, 31), 80_000_000)
+        _add_stmt(db, "ibiden-1q", "40620", "1Q", date(2027, 3, 31),
+                  date(2026, 7, 31), 100_000_000,
+                  fy_net_sales=400_000_000, fy_operating_profit=40_000_000)
+        _add_stmt(db, "ibiden-1q-dup", "40620", "1Q", date(2027, 3, 31),
+                  date(2026, 8, 1), 100_000_000,
+                  fy_net_sales=400_000_000, fy_operating_profit=40_000_000)
+        _add_stmt(db, "toyota-2q", "72030", "2Q", date(2027, 3, 31),
+                  date(2026, 10, 29), 200_000_000)
+        db.commit()
+    finally:
+        db.close()
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    client = TestClient(app)
+    mixed = client.get("/api/earnings", params={"date": "2026-10-29", "today": "2026-10-29"}).json()
+    if mixed.get("kind") != "mixed":
+        _fail(mixed)
+    actuals = mixed.get("actuals") or []
+    if [r["code"] for r in actuals] != ["72030"]:
+        _fail(actuals)
+    if "latest" in actuals[0]:
+        _fail("発表済みの行に latest を足さない")
+    if actuals[0]["period"] != "2Q" or (actuals[0].get("cumulative") or {}).get("net_sales") != 200_000_000:
+        _fail(actuals[0])
+
+    by = {r["code"]: r for r in mixed.get("scheduled") or []}
+    if set(by) != {"40620", "65040"}:
+        _fail(by)
+    latest = by["40620"].get("latest")
+    if latest is None or latest.get("disclosure_no") != "ibiden-1q" or latest.get("period") != "1Q":
+        _fail(latest)
+    if latest.get("fy_label") != "FY27.3":
+        _fail(latest)
+    if (latest.get("cumulative") or {}).get("net_sales") != 100_000_000:
+        _fail(latest)
+    yoy = ((latest.get("yoy") or {}).get("net_sales") or {})
+    if yoy.get("pct") != 25.0:
+        _fail(yoy)
+    prog = ((latest.get("progress") or {}).get("cur") or {})
+    if prog.get("net_sales") != 25.0:
+        _fail(latest.get("progress"))
+    if by["65040"].get("latest") is not None:
+        _fail(by["65040"])
+
+    past = client.get("/api/earnings", params={"date": "2026-07-31", "today": "2026-10-29"}).json()
+    if past.get("kind") != "actual" or past.get("scheduled") != []:
+        _fail(past)
+    if [r["code"] for r in past.get("actuals") or []] != ["40620"]:
+        _fail(past.get("actuals"))
+    if "latest" in past["actuals"][0] or past["actuals"][0]["period"] != "1Q":
+        _fail(past["actuals"][0])
+
+    detail = client.get("/api/earnings/detail/40620", params={"disclosure_no": "ibiden-1q"})
+    if detail.status_code != 200 or detail.json().get("period") != "1Q":
+        _fail(detail.text)
+
+
+def test_scheduled_latest_markup() -> None:
+    js = (ROOT / "static" / "js" / "earnings.js").read_text(encoding="utf-8")
+    if "latestPeriodLabel" not in js or 'q+"実績"' not in js:
+        _fail("scheduled rows must label the prior period as 1Q実績")
+    if "latestBadge" not in js or "qb-act" not in js:
+        _fail("1Q実績 must use qb-act")
+    if "r.latest" not in js or "metricCells(latest" not in js:
+        _fail("scheduled metrics come from latest")
+    if "metricCells(r, r.period)" not in js:
+        _fail("published rows keep metricCells from the filing")
+    if "loadDetail({" not in js.split("async function loadSched")[1].split("async function loadDetail")[0]:
+        _fail("selecting a scheduled row with latest loads that filing's detail")
+    if "まだ開示されていません" not in js:
+        _fail("no prior filing still reads まだ開示されていません")
+    css = (ROOT / "static" / "css" / "app.css").read_text(encoding="utf-8")
+    if "#earn-tbl td.fy, #earn-tbl th.fy { width:1%; white-space:nowrap; }" not in css:
+        _fail("決算期 1Q実績 must stay on one line")
+
+
 def test_routes() -> None:
     db = _db()
     try:
@@ -531,6 +651,7 @@ def test_routes() -> None:
         "name": "トヨタ自動車",
         "periods": [{"fq": "2Q", "fye": "0331", "label": "FY27.3"}],
         "sector33": None,
+        "latest": None,
     }]:
         _fail(body)
     if body.get("ready") is not False or body.get("actuals") != []:
@@ -549,6 +670,8 @@ def main() -> None:
     test_payloads_mixed_past_and_unfetched()
     test_sync_idempotent_with_tiny_lookback()
     test_batch_syncs_after_indicators()
+    test_scheduled_carries_latest_actual()
+    test_scheduled_latest_markup()
     test_routes()
     print("ok: earnings schedule")
 

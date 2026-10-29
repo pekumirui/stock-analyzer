@@ -91,6 +91,12 @@ function revBadge(r){
   return bits.join("");
 }
 const listQ = q => q ? qBadge({kind:"single", period:q}) : "";
+const latestQ = p => p==="FY" ? "4Q" : (p || "");
+const latestPeriodLabel = p => { const q = latestQ(p); return q ? q+"実績" : ""; };
+const latestBadge = p => {
+  const label = latestPeriodLabel(p);
+  return label ? `<span class="qb qb-act">${label}</span>` : "";
+};
 const nameCell = r => `<td class="l name pin2" title="${r.name}">${shortName(r.name)}${under(`<span class="sub">${r.code.slice(0,4)}</span>`)}</td>`;
 const valCell = (vals, g, k, i) => `<td class="num ${i?'':'grp'}">${amt((vals||{})[k])}${under(gc(g && g[k]))}</td>`;
 const progTxt = v => v==null ? "–" : `<span class="${v<0?"loss":""}">${fmt(v,1)}%</span>`;
@@ -230,6 +236,12 @@ function scrollToSel(){
   if(el) el.scrollIntoView({block:"nearest"});
 }
 
+function metricCells(src, period){
+  const tip = period==="1Q" ? ' title="前期4Q単独比"' : "";
+  if(earnView==="q") return MET.map(([k],i)=>valCell(src.single, src.qoq, k, i).replace("<td ", `<td${tip} `)).join("");
+  if(earnView==="cum") return MET.map(([k],i)=>valCell(src.cumulative, src.yoy, k, i)).join("");
+  return MET.map(([k],i)=>progCell(src.progress, k, i)).join("");
+}
 function tableHtml(actuals, scheduled){
   const sub = () => MET.map(([k,l],i) => `<th class="${i?'':'grp'}">${l}</th>`).join("");
   const dash = MET.map((_,i)=>`<td class="num ${i?'':'grp'}">–</td>`).join("");
@@ -237,24 +249,25 @@ function tableHtml(actuals, scheduled){
         + `<tr><th class="pin0">時刻</th><th class="l fy pin1">決算期</th>`
         + `<th class="l name pin2">銘柄</th>${sub()}</tr></thead><tbody>`;
   for(const r of actuals){
-    const tip = r.period==="1Q" ? ' title="前期4Q単独比"' : "";
     h += `<tr data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">`
        + `<td class="pin0">${(r.disclosed_time||"").slice(0,5)}${under(revBadge(r))}</td>`
        + `<td class="l fy pin1">${fyShort(r.fy_label)}${under(listQ(r.period))}</td>`
        + nameCell(r)
-       + (earnView==="q" ? MET.map(([k],i)=>valCell(r.single, r.qoq, k, i).replace("<td ", `<td${tip} `)).join("")
-        : earnView==="cum" ? MET.map(([k],i)=>valCell(r.cumulative, r.yoy, k, i)).join("")
-        : MET.map(([k],i)=>progCell(r.progress, k, i)).join(""))
+       + metricCells(r, r.period)
        + `</tr>`;
   }
   for(const r of scheduled){
+    const latest = r.latest;
     const fq = (r.periods||[]).map(p => listQ(p.fq)).join("");
     const label = (r.periods||[]).map(p => fyShort(p.label)).join(" / ");
+    const fy = latest
+      ? `${fyShort(latest.fy_label)}${under(latestBadge(latest.period))}`
+      : `${label}${under(fq)}`;
     h += `<tr data-code="${r.code}" onclick="selectSched('${r.code}')">`
        + `<td class="pin0">–</td>`
-       + `<td class="l fy pin1">${label}${under(fq)}</td>`
+       + `<td class="l fy pin1">${fy}</td>`
        + nameCell(r)
-       + dash
+       + (latest ? metricCells(latest, latest.period) : dash)
        + `</tr>`;
   }
   return h + `</tbody></table>`;
@@ -293,6 +306,16 @@ function clearDetail(msg){
 }
 
 async function loadSched(row){
+  const latest = row.latest;
+  if(latest && latest.disclosure_no){
+    loadDetail({
+      code: row.code, name: row.name,
+      disclosure_no: latest.disclosure_no,
+      fy_label: latest.fy_label,
+      period: latestPeriodLabel(latest.period),
+    });
+    return;
+  }
   const signal = beginDetail();
   $("#e-chart-title").innerHTML = `<span class="clicky" onclick="gotoChart('${row.code}')">${row.name}</span>
     <small class="sub">${row.code.slice(0,4)}</small>`;
