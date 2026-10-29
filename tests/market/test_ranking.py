@@ -142,3 +142,6 @@ def test_pts_tab_moved_into_ranking() -> None:
     assert "showRankingSub" in tabs and "showRankingSub" in rk
     assert 'rkSub === "pts"' in rk
     assert "$(\"#pts-date\")" in pts and "$(\"#pts-tbl\")" in pts
+    assert 'id="pts-tbl" class="sheet"' in html
+    assert "shortName(raw)" in pts
+    assert "<thead>" in pts and "</tbody>" in pts

@@ -1,11 +1,5 @@
 [
   {
-    "file": "static/index.html",
-    "table": "table#pts-tbl",
-    "rule": "no_sheet",
-    "reason": "PTS 表が未移行"
-  },
-  {
     "file": "static/js/monthly.js",
     "table": "table#monthly-tbl",
     "rule": "no_sheet",
@@ -22,36 +16,6 @@
     "table": "table",
     "rule": "no_sheet",
     "reason": "月次セルのポップアップ表が未移行"
-  },
-  {
-    "file": "static/js/supply.js",
-    "table": "table.supply-tbl.supply-share-tbl",
-    "rule": "no_sheet",
-    "reason": "輸入シェア表は supply-tbl。sheet への移行前"
-  },
-  {
-    "file": "static/js/supply.js",
-    "table": "table.supply-tbl.supply-share-tbl",
-    "rule": "no_sheet",
-    "reason": "会社別シェア表は supply-tbl。sheet への移行前"
-  },
-  {
-    "file": "static/js/supply.js",
-    "table": "table.supply-tbl",
-    "rule": "no_sheet",
-    "reason": "生産能力表は supply-tbl。sheet への移行前"
-  },
-  {
-    "file": "static/js/supply.js",
-    "table": "table.supply-tbl",
-    "rule": "no_sheet",
-    "reason": "指標表は supply-tbl。sheet への移行前"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "#hd-holdings tr.below-h td, #st-holders-large tr.below-h td",
-    "rule": "font_size",
-    "reason": "5%未満の保有者行 12px が sheet と別指定"
   },
   {
     "file": "static/css/app.css",
@@ -136,11 +100,5 @@
     "selector": "@media (max-width:640px) { table.monthly-tl .tl-corner, table.monthly-tl td.tl-name }",
     "rule": "font_size",
     "reason": "スマホの年表項目名 12px"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": ".supply-tbl",
-    "rule": "font_size",
-    "reason": "サプライ表 12px"
   }
 ]

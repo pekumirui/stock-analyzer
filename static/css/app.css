@@ -64,7 +64,6 @@
   .evt-toggles .swatch { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
   .tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
   #rk-sub-perf .tbl-wrap, #tab-screener .tbl-wrap, #tab-holders .tbl-wrap, #st-sub-holders .tbl-wrap { max-height:calc(100vh - 140px); overflow:auto; }
-  #pts-tbl { width:auto; }
   #pts-summary { font-size:12px; margin:0 0 6px; }
   #rk-subs { display:inline-flex; margin:0 0 10px; }
   #rk-kind { display:inline-flex; margin:0 0 8px; }
@@ -113,10 +112,10 @@
   }
   table.sheet { border-collapse:separate; border-spacing:0; }
   #earn-tbl.sheet { width:100%; }
-  #rk-tbl.sheet, #sc-tbl.sheet, #hd-feed.sheet,
+  #rk-tbl.sheet, #sc-tbl.sheet, #hd-feed.sheet, #pts-tbl.sheet,
   #hd-holdings table.sheet, #st-holders-large table.sheet, #hd-series table.sheet { width:auto; }
   /* 幅 1% の列があると auto の表が横いっぱいに伸びる。ランキングの銘柄は順位の右だが、1% だと表が伸びるので外す */
-  #rk-tbl td.name, #rk-tbl th.name,
+  #rk-tbl td.name, #rk-tbl th.name, #pts-tbl td.name, #pts-tbl th.name,
   #hd-feed td.name, #hd-feed th.name,
   #hd-holdings td.name, #hd-holdings th.name { width:auto; }
   /* 見出しは「騰落率」1 行 + 下に (対TOPIX)。数字列の幅で折り返さない */
@@ -218,9 +217,9 @@
   #hd-date { font-variant-numeric:tabular-nums; }
   #hd-date:disabled { opacity:.55; }
   #hd-holdings tr.on td { background:var(--row-sel); }
-  #hd-holdings tr.below td, #st-holders-large tr.below td { color:var(--sub); }
+  #hd-holdings tr.below td, #st-holders-large tr.below td,
+  #hd-holdings tr.below-h td, #st-holders-large tr.below-h td { color:var(--sub); }
   #hd-feed .odd-date, #hd-holdings .odd-date, #st-holders-large .odd-date, #hd-series .odd-date { color:var(--warn); }
-  #hd-holdings tr.below-h td, #st-holders-large tr.below-h td { color:var(--sub); font-size:12px; }
   .hd-legend { display:flex; flex-wrap:wrap; gap:6px 12px; font-size:12px; color:var(--sub); margin:4px 0; }
   .hd-legend i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; }
   .hd-line svg { width:100%; max-width:720px; height:auto; }
@@ -533,7 +532,7 @@
   }
   .supply-unit { font-size:11px; margin-bottom:2px; }
   #supply-chart { width:100%; height:180px; }
-  .supply-tbl { width:auto; margin-top:6px; font-size:12px; }
+  .supply-tbl { width:auto; margin-top:6px; }
   .supply-tbl th, .supply-tbl td { padding:3px 6px; }
   .supply-tbl i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; }
   .supply-rev { font-size:10px; color:var(--warn); margin-right:4px; }
