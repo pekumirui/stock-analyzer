@@ -27,6 +27,9 @@ def test_ranking_table_matches_sheet() -> None:
     assert 'data-dir="down"' in html
     assert ">上昇率</button>" in html
     assert ">下落率</button>" in html
+    assert 'id="rk-subs"' in html
+    assert 'data-rksub="perf"' in html
+    assert 'data-rksub="pts"' in html
     assert 'data-kind="earnings-perf"' not in html
     src = (ROOT / "static/js/ranking.js").read_text(encoding="utf-8")
     assert "<thead>" in src

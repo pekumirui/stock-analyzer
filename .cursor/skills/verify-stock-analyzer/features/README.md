@@ -47,7 +47,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [銘柄](./stock.md) issuer search, common header (price, 時価総額, 次回決算), sub tabs 概要 (指標 + 累計 / 3か月 / 進捗率 / 修正履歴) / 株価 / ニュース (決算短信の原文 in sandboxed iframes, 幅に合わせる / 中 / 原寸 zoom) / 株主 (準備中), `#stock/{code}/{sub}` route.
 - [銘柄 › 株価](./chart.md) daily/weekly/monthly candles, 対TOPIX, 決算発表後リターン (was the チャート tab until KAB-181; `gotoChart` lands here).
 - [スクリーナー](./screener.md) Stage + RS filter table (UI defaults Stage 2, RS≥70).
-- [PTS](./pts.md) night PTS ranking (値上がり / 値下がり / 出来高) per session and fetch time, with the next-day open gap and 追随率.
-- [ランキング](./ranking.md) 決算発表後パフォーマンス as 上昇率 / 下落率 per 決算月, with `(対TOPIX)` in the 騰落率 column name.
+- [PTS](./pts.md) night PTS ranking inside ランキング (値上がり / 値下がり / 出来高) per session and fetch time, with the next-day open gap and 追随率. Header has no PTS tab; old `#pts` opens ランキング › PTS.
+- [ランキング](./ranking.md) inner tabs 決算後パフォーマンス / PTS. 決算後パフォーマンス is 上昇率 / 下落率 per 決算月, with `(対TOPIX)` in the 騰落率 column name.
 - [月次](./monthly.md) issuer list + industry chips + TOP search via `/api/v1/tables`, Detail with series select, one multi-year line chart (legend + month tooltip), one 横持ち `table.monthly-tl` (metric ▸ section tree, paired cells show 金額 with (前年比) under it, month-cell popup).
 - [サプライ](./supply.md) material graph (原料 → 中間財 → 最終製品, plus リサイクル資源 and 回収 marks), material panel tabs (概要 / 企業 / 輸入元 / 推移) or company panel, capacity share donuts, import-country donut, monthly volume chart, phone bottom sheet, `#supply/{id}` route.

@@ -448,9 +448,9 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 
 画面は `docs/DESIGN_stock.md`。書き方は `docs/SCREEN_SPEC.md`。原文の保存は `docs/DESIGN_xbrl.md` §15。
 
-### PTS タブの画面
+### ランキングタブの画面
 
-画面は `docs/DESIGN_pts.md`。書き方は `docs/SCREEN_SPEC.md`。
+画面は `docs/DESIGN_ranking.md`。書き方は `docs/SCREEN_SPEC.md`。PTS は同タブの中で、画面は `docs/DESIGN_pts.md`。
 
 ### 月次タブの画面
 
