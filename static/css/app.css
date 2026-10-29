@@ -113,11 +113,11 @@
   }
   table.sheet { border-collapse:separate; border-spacing:0; }
   #earn-tbl.sheet { width:100%; }
-  #rk-tbl.sheet, #sc-tbl.sheet, #hd-feed.sheet, #hd-activity.sheet,
+  #rk-tbl.sheet, #sc-tbl.sheet, #hd-feed.sheet,
   #hd-holdings table.sheet, #st-holders-large table.sheet, #hd-series table.sheet { width:auto; }
   /* 幅 1% の列があると auto の表が横いっぱいに伸びる。ランキングの銘柄は順位の右だが、1% だと表が伸びるので外す */
   #rk-tbl td.name, #rk-tbl th.name,
-  #hd-feed td.name, #hd-feed th.name, #hd-activity td.name, #hd-activity th.name,
+  #hd-feed td.name, #hd-feed th.name,
   #hd-holdings td.name, #hd-holdings th.name { width:auto; }
   /* 見出しは「騰落率」1 行 + 下に (対TOPIX)。数字列の幅で折り返さない */
   #rk-tbl th.grp { white-space:nowrap; }
@@ -134,7 +134,7 @@
   table.sheet .pin0 { left:var(--pin0, 0); }
   table.sheet .pin1 { left:var(--pin1, 0); }
   table.sheet .pin2 { left:var(--pin2, 0); }
-  #earn-tbl .pin2, #sc-tbl .pin0, #hd-feed .pin2, #hd-holdings .pin0, #st-holders-large .pin0, #hd-activity .pin1 { box-shadow:inset -1px 0 0 var(--border); }
+  #earn-tbl .pin2, #sc-tbl .pin0, #hd-feed .pin2, #hd-holdings .pin0, #st-holders-large .pin0 { box-shadow:inset -1px 0 0 var(--border); }
   .phead { display:flex; align-items:center; gap:8px; justify-content:space-between; margin-bottom:8px; }
   .phead h3 { margin:0; }
   .phead-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
@@ -215,10 +215,11 @@
   td.mkt-g::before { background:#16a34a; }
   .badge.new { background:var(--warn); color:#fff; margin-left:6px; }
   #monthly-back, #hd-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
-  #hd-note { margin:0 0 8px; }
+  #hd-date { font-variant-numeric:tabular-nums; }
+  #hd-date:disabled { opacity:.55; }
   #hd-holdings tr.on td { background:var(--row-sel); }
   #hd-holdings tr.below td, #st-holders-large tr.below td { color:var(--sub); }
-  #hd-feed .odd-date, #hd-holdings .odd-date, #st-holders-large .odd-date, #hd-activity .odd-date, #hd-series .odd-date { color:var(--warn); }
+  #hd-feed .odd-date, #hd-holdings .odd-date, #st-holders-large .odd-date, #hd-series .odd-date { color:var(--warn); }
   #hd-holdings tr.below-h td, #st-holders-large tr.below-h td { color:var(--sub); font-size:12px; }
   .hd-legend { display:flex; flex-wrap:wrap; gap:6px 12px; font-size:12px; color:var(--sub); margin:4px 0; }
   .hd-legend i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; }

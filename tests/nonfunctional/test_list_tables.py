@@ -16,7 +16,7 @@ def test_sheet_css_is_shared() -> None:
     assert "#earn-tbl.sheet" in css
     assert "table.sheet td.name, table.sheet th.name { max-width:8em; }" in css
     assert "#rk-tbl th.grp { white-space:nowrap; }" in css
-    assert "#earn-tbl .pin2, #sc-tbl .pin0, #hd-feed .pin2, #hd-holdings .pin0, #st-holders-large .pin0, #hd-activity .pin1 { box-shadow:inset -1px 0 0 var(--border); }" in css
+    assert "#earn-tbl .pin2, #sc-tbl .pin0, #hd-feed .pin2, #hd-holdings .pin0, #st-holders-large .pin0 { box-shadow:inset -1px 0 0 var(--border); }" in css
     assert "#rk-tbl .pin1" not in css
     assert "#hd-feed.sheet" in css
     assert "#tab-holders .tbl-wrap" in css

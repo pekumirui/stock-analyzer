@@ -1,8 +1,11 @@
-"""大量保有の保有者画面と銘柄の株主タブ（KAB-267）。読み取りのみ。"""
+"""大量保有の保有者画面と銘柄の株主タブ（KAB-267 / KAB-272）。読み取りのみ。"""
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta
+import re
+import unicodedata
+from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
@@ -19,9 +22,14 @@ BELOW_RATIO = 0.05
 HISTORY_YEARS = 5
 SEARCH_LIMIT = 20
 ACTIVITY_DEFAULT = 80
-ACTIVITY_MAX = 200
+ACTIVITY_MAX = 1000
+SEARCH_ACTIVITY_MAX = 200
+DAY_FETCH_CAP = 2000
 INITIAL_FORMS = {"010000", "030000"}
 _EDINET_PREFIX = "E"
+JST = ZoneInfo("Asia/Tokyo")
+_CODE_Q_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
+_EDINET_PREFIX_RE = re.compile(r"^E[0-9]{1,5}$")
 
 
 def news_id(doc_id: str) -> str:
@@ -86,11 +94,60 @@ def _report_key(file_date: date | None, submitted: datetime | None, obligation: 
     )
 
 
+def today_jst() -> date:
+    return datetime.now(JST).date()
+
+
 def _cutoff(today: date) -> date:
     try:
         return today.replace(year=today.year - HISTORY_YEARS)
     except ValueError:
         return today.replace(year=today.year - HISTORY_YEARS, day=28)
+
+
+def _fold_q(q: str) -> list[str]:
+    folded = unicodedata.normalize("NFKC", q)
+    kata = "".join(chr(ord(ch) + 0x60) if "\u3041" <= ch <= "\u3096" else ch for ch in folded)
+    out = [q]
+    if folded != q:
+        out.append(folded)
+    if kata != folded:
+        out.append(kata)
+    return list(dict.fromkeys(s for s in out if s))
+
+
+def is_activity_search(q: str) -> bool:
+    raw = (q or "").strip()
+    if not raw:
+        return False
+    if parse_edinet(raw):
+        return True
+    folded = unicodedata.normalize("NFKC", raw).strip().upper()
+    if _CODE_Q_RE.fullmatch(folded) or _EDINET_PREFIX_RE.fullmatch(folded):
+        return True
+    return len(raw) >= 2
+
+
+def _activity_search_filter(raw: str):
+    """保有者名・EDINET・発行者名・銘柄コードの OR。日付は掛けない。"""
+    conds: list[Any] = []
+    folded_upper = unicodedata.normalize("NFKC", raw).strip().upper()
+    edinet = parse_edinet(raw)
+    if edinet:
+        conds.append(LargeHolding.edinet_code == edinet)
+    elif _EDINET_PREFIX_RE.fullmatch(folded_upper):
+        conds.append(LargeHolding.edinet_code.like(f"{_like_escape(folded_upper)}%", escape="\\"))
+    if _CODE_Q_RE.fullmatch(folded_upper):
+        if len(folded_upper) == 4:
+            conds.append(LargeHoldingReport.code.like(f"{_like_escape(folded_upper)}%", escape="\\"))
+        else:
+            conds.append(LargeHoldingReport.code == folded_upper)
+    for term in _fold_q(raw):
+        like = f"%{_like_escape(term)}%"
+        conds.append(LargeHolding.name.like(like, escape="\\"))
+        conds.append(LargeHoldingReport.issuer_name.like(like, escape="\\"))
+        conds.append(Stock.name.like(like, escape="\\"))
+    return or_(*conds) if conds else None
 
 
 def _like_escape(s: str) -> str:
@@ -246,34 +303,60 @@ def _activity_item(h: LargeHolding, r: LargeHoldingReport, stocks: dict[str, Sto
     }
 
 
-def activity_feed(db: Session, *, limit: int = ACTIVITY_DEFAULT, today: date | None = None) -> dict[str, Any]:
-    n = max(1, min(int(limit or ACTIVITY_DEFAULT), ACTIVITY_MAX))
-    day = today or date.today()
-    since = day - timedelta(days=90)
-    fetch_n = min(ACTIVITY_MAX, max(n * 4, n))
+def activity_feed(
+    db: Session,
+    *,
+    limit: int = ACTIVITY_DEFAULT,
+    offset: int = 0,
+    file_date: date | None = None,
+    q: str = "",
+) -> dict[str, Any]:
+    raw = (q or "").strip()
+    searching = is_activity_search(raw)
+    max_n = SEARCH_ACTIVITY_MAX if searching else ACTIVITY_MAX
+    n = max(1, min(int(limit or ACTIVITY_DEFAULT), max_n))
+    off = max(0, int(offset or 0))
+    filters = [*_ok_report(), *_has_holder_code(), *_activity_move_sql()]
+    day: date | None = None
+    if searching:
+        search_f = _activity_search_filter(raw)
+        if search_f is not None:
+            filters.append(search_f)
+        fetch_n = min(DAY_FETCH_CAP, (n + off) * 4 + 1)
+    else:
+        day = file_date or today_jst()
+        # ix_large_holding_reports_file_date / ix_large_holding_reports_latest_file
+        filters.append(LargeHoldingReport.file_date == day)
+        fetch_n = DAY_FETCH_CAP
     rows = (
         db.query(LargeHolding, LargeHoldingReport, Stock)
         .join(LargeHoldingReport, LargeHoldingReport.doc_id == LargeHolding.doc_id)
         .outerjoin(Stock, Stock.code == LargeHoldingReport.code)
-        .filter(
-            *_ok_report(), *_has_holder_code(),
-            LargeHoldingReport.file_date >= since,
-            *_activity_move_sql(),
+        .filter(*filters)
+        .order_by(
+            LargeHoldingReport.file_date.desc(),
+            LargeHoldingReport.submit_datetime.desc(),
+            LargeHolding.doc_id.desc(),
+            LargeHolding.holder_no,
         )
-        .order_by(LargeHoldingReport.file_date.desc(), LargeHoldingReport.submit_datetime.desc())
         .limit(fetch_n)
         .all()
     )
     stocks = {st.code: st for _h, _r, st in rows if st is not None}
-    items = []
+    classified: list[dict[str, Any]] = []
     for h, r, _st in rows:
         item = _activity_item(h, r, stocks)
         if item is None:
             continue
-        items.append(item)
-        if len(items) >= n:
-            break
-    return {"items": items}
+        classified.append(item)
+    sliced = classified[off:off + n]
+    has_more = len(classified) > off + n or (searching and len(rows) >= fetch_n)
+    return {
+        "items": sliced,
+        "file_date": None if searching else (day.isoformat() if day else None),
+        "q": raw if searching else "",
+        "has_more": has_more,
+    }
 
 
 def _history_ok(r: LargeHoldingReport, cutoff: date) -> bool:
@@ -286,7 +369,7 @@ def holder_page(db: Session, edinet: str, *, today: date | None = None) -> dict[
     code = parse_edinet(edinet)
     if code is None:
         return None
-    day = today or date.today()
+    day = today or today_jst()
     cutoff = _cutoff(day)
     rows = (
         db.query(LargeHolding, LargeHoldingReport, Stock)
@@ -387,7 +470,7 @@ def _purpose_for_report(holders: list[LargeHolding], r: LargeHoldingReport) -> s
 
 
 def stock_holders(db: Session, code5: str, *, today: date | None = None) -> dict[str, Any]:
-    day = today or date.today()
+    day = today or today_jst()
     cutoff = _cutoff(day)
     reports = (
         db.query(LargeHoldingReport)
@@ -433,7 +516,7 @@ def stock_holders(db: Session, code5: str, *, today: date | None = None) -> dict
 
 
 def stock_treasury(db: Session, code5: str, *, today: date | None = None) -> dict[str, Any] | None:
-    day = today or date.today()
+    day = today or today_jst()
     row = (
         db.query(EdinetBuyback)
         .filter(
