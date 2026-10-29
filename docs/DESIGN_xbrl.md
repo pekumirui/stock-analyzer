@@ -479,7 +479,7 @@ filing 単位。
 9. filing 単位で既存の `xbrl_financials` を消してから入れ直す
 10. `is_required=1` が欠けたら警告ログ（`code, filing_id, std_item.code`）。処理は継続。required は本表実績だけ
 
-通常実行は `xbrl_financials` が無い filing と、`parsed_at` が既存の `generated_at` より新しい filing だけ。`--rebuild` は `xbrl_financials` と `xbrl_segments` を全削除して全 parsed filing を再処理する。ログの `deleted` / `segments_deleted` は消す前、`financials` / `segments` は作り直した後の行数（KAB-83。正規化が変わっていなければ前後が同じ）。`--code` で銘柄を限定できる。
+通常実行は `xbrl_financials` が無い filing と、`parsed_at` が既存の `generated_at` より新しい filing だけ。`--rebuild` は `xbrl_financials` と `xbrl_segments` と大株主の表を全削除して全 parsed filing を再処理する。ログの `deleted` / `segments_deleted` は消す前、`financials` / `segments` は作り直した後の行数（KAB-83。正規化が変わっていなければ前後が同じ）。`--code` で銘柄を限定できる。大株主は軸付き fact が無ければ 0 行のまま（`docs/DESIGN_edinet.md` §9）。
 
 ### 6.5 CLI
 
@@ -737,7 +737,7 @@ XBRL_PARSE_WORKERS=2
 
 ### 14.2 生データ層
 
-- EDINET の `keep_fact` は、当期でセグメント軸だけ（連結/単体の軸は付いてよい）の fact も残す（`app/edinet/xbrl.py`）。前期のセグメントは残さない
+- EDINET の `keep_fact` は、当期でセグメント軸だけ（連結/単体の軸は付いてよい）の fact も残す（`app/edinet/xbrl.py`）。前期のセグメントは残さない。大株主・所有者別の軸（`MajorShareholdersAxis` / `MajorShareholdersVotingRightsAxis` / `ClassesOfSharesAxis`）も、要素名があるときだけ残す（KAB-266。`docs/DESIGN_edinet.md` §9）
 - `xbrl_contexts.member_labels_json`: 連結/単体以外の次元メンバー → その書類の日本語ラベル（`{"prefix:Member": "自動車"}`）。無ければ NULL。パーサは fact の要素に加えて、context の次元メンバーのラベルも引く（`app/xbrl/parser.py parse_package`）
 - 過去分は `edinet_xbrl.py --reparse` でダウンロードし直さないと入らない
 - デプロイ: `jobs/migrate.py`（表と列）→ `python jobs/xbrl/xbrl_parse.py load-mappings`（SEG の科目とマッピング）。そのあとの取込から入る。取込済みの書類は `edinet_xbrl.py --reparse`

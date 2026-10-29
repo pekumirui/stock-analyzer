@@ -15,10 +15,14 @@ from app.models import (
     XbrlFact,
     XbrlFiling,
     XbrlFinancial,
+    XbrlMajorShareholder,
     XbrlSegment,
+    XbrlShareholderFiling,
+    XbrlShareholdingByCategory,
     XbrlStdItem,
 )
 from app.xbrl.segments import SEGMENT_STATEMENT, normalize_segments
+from app.xbrl.shareholders import normalize_shareholders, refresh_versions
 
 
 CONSOL_ONLY_MEMBERS = {"ConsolidatedMember", "NonConsolidatedMember"}
@@ -498,11 +502,17 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
             if s.is_required and s.id not in filled_std_ids
         ]
     segments = normalize_segments(db, filing, now=generated)
-    return {"upserted": upserted, "missing_required": missing, "segments": segments}
+    shareholders = normalize_shareholders(db, filing, now=generated)
+    return {
+        "upserted": upserted,
+        "missing_required": missing,
+        "segments": segments,
+        "shareholders": shareholders,
+    }
 
 
 def rebuild_all(db: Session, *, code: str | None = None) -> dict[str, int]:
-    """xbrl_financials / xbrl_segments を消して parsed の filing を全部やり直す。
+    """xbrl_financials / xbrl_segments / 大株主を消して parsed の filing を全部やり直す。
 
     deleted / segments_deleted は消す前、financials / segments は作り直した後の行数（KAB-83）。
     正規化が変わっていなければ deleted と financials は同じになる。
@@ -513,6 +523,23 @@ def rebuild_all(db: Session, *, code: str | None = None) -> dict[str, int]:
 
     n = scoped(XbrlFinancial).delete(synchronize_session="fetch")
     n_seg = scoped(XbrlSegment).delete(synchronize_session="fetch")
+    # 大株主の明細表に code は無い。銘柄指定は filing_id 経由。
+    if code:
+        filing_ids = [fid for (fid,) in db.query(XbrlFiling.id).filter_by(code=code)]
+        maj_q = db.query(XbrlMajorShareholder)
+        cat_q = db.query(XbrlShareholdingByCategory)
+        if filing_ids:
+            maj_q = maj_q.filter(XbrlMajorShareholder.filing_id.in_(filing_ids))
+            cat_q = cat_q.filter(XbrlShareholdingByCategory.filing_id.in_(filing_ids))
+        else:
+            maj_q = maj_q.filter(False)
+            cat_q = cat_q.filter(False)
+        n_maj = maj_q.delete(synchronize_session="fetch")
+        n_cat = cat_q.delete(synchronize_session="fetch")
+    else:
+        n_maj = db.query(XbrlMajorShareholder).delete(synchronize_session="fetch")
+        n_cat = db.query(XbrlShareholdingByCategory).delete(synchronize_session="fetch")
+    n_hdr = scoped(XbrlShareholderFiling).delete(synchronize_session="fetch")
     db.commit()
     db.expire_all()
     processed = errors = 0
@@ -527,11 +554,15 @@ def rebuild_all(db: Session, *, code: str | None = None) -> dict[str, int]:
         except Exception:
             db.rollback()
             errors += 1
+    refreshed = refresh_versions(db)
     return {
         "deleted": n,
         "financials": scoped(XbrlFinancial).count(),
         "segments_deleted": n_seg,
         "segments": scoped(XbrlSegment).count(),
+        "shareholders_deleted": n_maj + n_cat + n_hdr,
+        "shareholders": scoped(XbrlShareholderFiling).count(),
         "processed": processed,
         "errors": errors,
+        "refreshed": refreshed,
     }

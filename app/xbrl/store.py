@@ -18,7 +18,10 @@ from app.models import (
     XbrlFact,
     XbrlFiling,
     XbrlFinancial,
+    XbrlMajorShareholder,
     XbrlSegment,
+    XbrlShareholderFiling,
+    XbrlShareholdingByCategory,
 )
 from app.xbrl.context import classify_title, infer_accounting_standard_from_namespaces
 from app.xbrl.parser import ParsedPackage, extract_zip, namespace_is_standard, parse_package
@@ -360,10 +363,15 @@ def store_package(db: Session, filing: XbrlFiling, pkg: ParsedPackage) -> None:
 
 
 def delete_filing(db: Session, filing: XbrlFiling) -> None:
-    """Drop financials, segments, facts, contexts, then the filing row. No commit."""
+    """Drop financials, segments, shareholders, facts, contexts, then the filing row. No commit."""
     filing_id = filing.id
     db.query(XbrlFinancial).filter_by(filing_id=filing_id).delete(synchronize_session="fetch")
     db.query(XbrlSegment).filter_by(filing_id=filing_id).delete(synchronize_session="fetch")
+    db.query(XbrlMajorShareholder).filter_by(filing_id=filing_id).delete(synchronize_session="fetch")
+    db.query(XbrlShareholdingByCategory).filter_by(filing_id=filing_id).delete(
+        synchronize_session="fetch")
+    db.query(XbrlShareholderFiling).filter_by(filing_id=filing_id).delete(
+        synchronize_session="fetch")
     delete_filing_payload(db, filing_id)
     db.delete(filing)
 

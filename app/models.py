@@ -447,6 +447,62 @@ class XbrlSegment(Base):
     )
 
 
+class XbrlShareholderFiling(Base):
+    """有報の大株主・所有者別の 1 書類（KAB-266）。xbrl_facts から正規化。API は別 issue。
+
+    訂正は同じ code / fiscal_year_end / doc_type のうち提出が新しい 1 件が is_latest。
+    """
+    __tablename__ = "xbrl_shareholder_filings"
+    filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), primary_key=True)
+    code = Column(String(5), nullable=False)
+    doc_id = Column(String(64), nullable=False)
+    as_of = Column(Date)                            # 大株主・所有者別の instant（期末）
+    basis = Column(String(16), nullable=False)      # shares / voting_rights / both
+    shares_per_unit = Column(Integer)               # 単元株式数（普通株式。無ければ NULL）
+    is_amendment = Column(Boolean, nullable=False, default=False)
+    amends_doc_id = Column(String(8))
+    original_doc_id = Column(String(8), nullable=False)
+    is_latest = Column(Boolean, nullable=False, default=False)
+    withdrawn = Column(Boolean, nullable=False, default=False)
+    generated_at = Column(DateTime, nullable=False)
+    __table_args__ = (
+        Index("idx_xbrl_shareholder_filings_code", "code", "as_of"),
+        Index("idx_xbrl_shareholder_filings_latest", "code", "is_latest"),
+    )
+
+
+class XbrlMajorShareholder(Base):
+    """大株主の状況 1 行（順位 × 株式ベース / 議決権ベース）。"""
+    __tablename__ = "xbrl_major_shareholders"
+    filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), primary_key=True)
+    rank = Column(Integer, primary_key=True)        # NoNMajorShareholdersMember の N
+    basis = Column(String(16), primary_key=True)    # shares / voting_rights
+    name = Column(Text)
+    address = Column(Text)
+    shares_held = Column(Numeric(30, 4))            # 所有株式数。議決権ベースの表は NULL
+    shareholding_ratio = Column(Numeric(18, 6))     # 0.1650 = 16.50%
+    voting_rights = Column(Numeric(30, 4))          # 所有議決権数（個）
+    voting_rights_ratio = Column(Numeric(18, 6))
+    __table_args__ = (
+        Index("idx_xbrl_major_shareholders_filing", "filing_id"),
+    )
+
+
+class XbrlShareholdingByCategory(Base):
+    """所有者別状況 1 行（株式の種類 × 区分）。"""
+    __tablename__ = "xbrl_shareholding_by_category"
+    filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), primary_key=True)
+    share_class = Column(String(255), primary_key=True)  # OrdinaryShareMember 等。軸が無ければ ''
+    category = Column(String(32), primary_key=True)
+    shareholder_count = Column(Integer)
+    units_held = Column(BigInteger)                 # 所有株式数（単元）
+    shareholding_ratio = Column(Numeric(18, 6))     # 0.2780 = 27.80%。計の行は無いので NULL
+    shares_less_than_one_unit = Column(Numeric(30, 4))  # 単元未満株式。区分の計の行に載せる
+    __table_args__ = (
+        Index("idx_xbrl_shareholding_by_category_filing", "filing_id"),
+    )
+
+
 class XbrlJobRun(Base):
     __tablename__ = "xbrl_job_runs"
     id = Column(Integer, primary_key=True)
