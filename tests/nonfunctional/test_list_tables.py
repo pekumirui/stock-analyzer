@@ -1,4 +1,4 @@
-"""一覧表（決算速報・スクリーナー・ランキング・保有者）が table.sheet を共有し、スマホ幅に収まる（KAB-196 / KAB-197 / KAB-270）。"""
+"""一覧表（決算速報・スクリーナー・ランキング・大量保有報告書）が table.sheet を共有し、スマホ幅に収まる（KAB-196 / KAB-197 / KAB-270）。"""
 from __future__ import annotations
 
 from pathlib import Path
