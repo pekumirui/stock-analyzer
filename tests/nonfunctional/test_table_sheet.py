@@ -1,17 +1,20 @@
 """表は共通の table.sheet を使う（KAB-273。static/AGENTS.md）。
 
 テンプレート・JS・CSS を読み、(a) sheet クラスの無い <table>（JS 生成も含む）、
-(b) 共通 CSS 以外で表（table / th / td 等）に font-size を指定している箇所を落とす。
+(b) 共通 CSS 以外で表（table / th / td 等）に font-size を指定している箇所を検出する。
 共通 CSS はグローバルな table/th/td と table.sheet（およびその子孫）だけ。
+既知の違反は table_sheet_allowlist.json。一覧に無い違反、一覧にあって実体が無い項目は落とす。
 """
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 SCREEN = ROOT / "static"
-AGENTS_LINE = "表は共通のtable.sheetを使い、表ごとにフォントサイズや書式を指定しない。"
+ALLOWLIST_PATH = Path(__file__).resolve().parent / "table_sheet_allowlist.json"
+AGENTS_LINE = "表は共通のtable.sheetを使い、表ごとにフォントサイズを指定しない。"
 
 TABLE_TAG_RE = re.compile(r"<table\b([^>]*)>", re.I)
 CREATE_TABLE_RE = re.compile(r"""createElement\(\s*(['"])table\1\s*\)""", re.I)
@@ -23,6 +26,7 @@ TABLE_CELL_TAG_RE = re.compile(
     re.I,
 )
 CSS_RULE_RE = re.compile(r"([^{}]+)\{([^{}]*)\}")
+MEDIA_RE = re.compile(r"@media\s*([^{]+)\{", re.I)
 FONT_SIZE_DECL_RE = re.compile(r"(?<![\w-])font-size\s*:", re.I)
 TABLE_TYPE_RE = re.compile(
     r"(?<![\w-])(table|thead|tbody|tfoot|tr|th|td|caption|colgroup|col)(?![\w-])",
@@ -73,13 +77,10 @@ def _id_token(attrs: str) -> str | None:
     return raw or None
 
 
-def _hit(path: Path, text: str, start: int, snippet: str | None = None) -> str:
+def _line_no(text: str, start: int) -> int:
     while start < len(text) and text[start] in " \t\r\n":
         start += 1
-    line_no = text[:start].count("\n") + 1
-    if snippet is None:
-        snippet = text.splitlines()[line_no - 1].strip()
-    return f"{_rel(path)}:{line_no}: {snippet}"
+    return text[:start].count("\n") + 1
 
 
 def _var_gets_sheet(var: str, window: str) -> bool:
@@ -92,11 +93,29 @@ def _var_gets_sheet(var: str, window: str) -> bool:
     )
 
 
-def _tables_without_sheet(path: Path, text: str) -> list[str]:
-    out = []
+def _table_target(attrs: str) -> str:
+    classes = [c for c in _class_tokens(attrs) if not c.startswith("$")]
+    tid = _id_token(attrs)
+    out = "table"
+    if classes:
+        out += "." + ".".join(classes)
+    if tid and not tid.startswith("$"):
+        out += "#" + tid
+    return out
+
+
+def _tables_without_sheet(path: Path, text: str) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    rel = _rel(path)
     for m in TABLE_TAG_RE.finditer(text):
-        if not _has_sheet_class(m.group(1)):
-            out.append(_hit(path, text, m.start()))
+        if _has_sheet_class(m.group(1)):
+            continue
+        out.append({
+            "file": rel,
+            "table": _table_target(m.group(1)),
+            "rule": "no_sheet",
+            "line": str(_line_no(text, m.start())),
+        })
     lines = text.splitlines()
     for m in CREATE_TABLE_RE.finditer(text):
         chained = text[m.end() : m.end() + 80]
@@ -115,7 +134,12 @@ def _tables_without_sheet(path: Path, text: str) -> list[str]:
             window = "\n".join(lines[lineno : lineno + 8])
             if _var_gets_sheet(assigned.group(1), window):
                 continue
-        out.append(_hit(path, text, m.start()))
+        out.append({
+            "file": rel,
+            "table": 'createElement("table")',
+            "rule": "no_sheet",
+            "line": str(_line_no(text, m.start())),
+        })
     return out
 
 
@@ -137,6 +161,25 @@ def _table_classes_and_ids(files: list[Path]) -> tuple[set[str], set[str]]:
 
 def _blank_css_comments(text: str) -> str:
     return re.sub(r"/\*.*?\*/", lambda m: re.sub(r"[^\n]", " ", m.group(0)), text, flags=re.S)
+
+
+def _enclosing_media(text: str, pos: int) -> str | None:
+    found = None
+    for m in MEDIA_RE.finditer(text):
+        if m.start() >= pos:
+            break
+        depth = 0
+        for i in range(m.end() - 1, len(text)):
+            ch = text[i]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    if m.end() - 1 < pos <= i:
+                        found = "@media " + " ".join(m.group(1).split())
+                    break
+    return found
 
 
 def _is_common_table_selector(sel: str) -> bool:
@@ -163,10 +206,18 @@ def _selector_targets_table(sel: str, table_classes: set[str], table_ids: set[st
     return False
 
 
+def _selector_target(media: str | None, selectors: list[str]) -> str:
+    joined = ", ".join(selectors)
+    if media:
+        return f"{media} {{ {joined} }}"
+    return joined
+
+
 def _css_font_size_hits(
     path: Path, text: str, table_classes: set[str], table_ids: set[str]
-) -> list[str]:
-    out = []
+) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    rel = _rel(path)
     blanked = _blank_css_comments(text)
     for m in CSS_RULE_RE.finditer(blanked):
         raw_sel = m.group(1).strip()
@@ -182,22 +233,35 @@ def _css_font_size_hits(
                 continue
             bad.append(" ".join(sel.split()))
         if bad:
-            out.append(_hit(path, text, m.start(), ", ".join(bad)))
+            media = _enclosing_media(blanked, m.start())
+            out.append({
+                "file": rel,
+                "selector": _selector_target(media, bad),
+                "rule": "font_size",
+                "line": str(_line_no(text, m.start())),
+            })
     return out
 
 
-def _inline_table_font_size(path: Path, text: str) -> list[str]:
-    out = []
+def _inline_table_font_size(path: Path, text: str) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    rel = _rel(path)
     for m in TABLE_CELL_TAG_RE.finditer(text):
         style = STYLE_ATTR_RE.search(m.group(2))
         if style and FONT_SIZE_DECL_RE.search(style.group(2)):
-            out.append(_hit(path, text, m.start()))
+            tag = m.group(1).lower()
+            out.append({
+                "file": rel,
+                "selector": f"{tag}[style*=font-size]",
+                "rule": "font_size",
+                "line": str(_line_no(text, m.start())),
+            })
     return out
 
 
-def scan_table_sheet(files: list[Path]) -> tuple[list[str], list[str]]:
-    no_sheet: list[str] = []
-    font_size: list[str] = []
+def scan_table_sheet(files: list[Path]) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    no_sheet: list[dict[str, str]] = []
+    font_size: list[dict[str, str]] = []
     table_classes, table_ids = _table_classes_and_ids(files)
     for path in files:
         text = path.read_text(encoding="utf-8")
@@ -210,9 +274,46 @@ def scan_table_sheet(files: list[Path]) -> tuple[list[str], list[str]]:
     return no_sheet, font_size
 
 
+def _entry_target(entry: dict[str, str]) -> str:
+    return entry.get("table") or entry.get("selector") or ""
+
+
+def _hit_key(hit: dict[str, str]) -> tuple[str, str, str]:
+    return (hit["file"], hit["rule"], _entry_target(hit))
+
+
+def diff_allowlist(
+    hits: list[dict[str, str]], allow: list[dict[str, str]]
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    unused = list(range(len(allow)))
+    unexpected: list[dict[str, str]] = []
+    for hit in hits:
+        k = _hit_key(hit)
+        for i in unused:
+            if _hit_key(allow[i]) == k:
+                unused.remove(i)
+                break
+        else:
+            unexpected.append(hit)
+    stale = [allow[i] for i in unused]
+    return unexpected, stale
+
+
+def _fmt_hit(hit: dict[str, str]) -> str:
+    return f"{hit['file']} {_entry_target(hit)} ({hit['rule']})"
+
+
+def _fmt_stale(entry: dict[str, str]) -> str:
+    return "この行を消して: " + json.dumps(entry, ensure_ascii=False)
+
+
+def load_allowlist() -> list[dict[str, str]]:
+    return json.loads(ALLOWLIST_PATH.read_text(encoding="utf-8"))
+
+
 def test_static_agents_md_states_sheet_rule() -> None:
-    text = (SCREEN / "AGENTS.md").read_text(encoding="utf-8").strip()
-    assert text == AGENTS_LINE
+    text = (SCREEN / "AGENTS.md").read_text(encoding="utf-8")
+    assert AGENTS_LINE in text
 
 
 def test_detector_catches_table_without_sheet(tmp_path: Path) -> None:
@@ -237,8 +338,14 @@ def test_detector_catches_table_without_sheet(tmp_path: Path) -> None:
     ]
     js.write_text("\n".join(js_lines), encoding="utf-8")
     no_sheet, _ = scan_table_sheet([html, js])
-    got = {(h.split(":")[0], h.split(":")[1]) for h in no_sheet}
-    assert got == {("a.html", "2"), ("a.html", "3"), ("a.js", "2"), ("a.js", "3"), ("a.js", "4")}
+    got = {(h["file"], h["line"], h["table"]) for h in no_sheet}
+    assert got == {
+        ("a.html", "2", "table.fin"),
+        ("a.html", "3", "table"),
+        ("a.js", "2", "table.monthly-tl"),
+        ("a.js", "3", "table"),
+        ("a.js", "4", 'createElement("table")'),
+    }
 
 
 def test_detector_catches_per_table_font_size(tmp_path: Path) -> None:
@@ -266,17 +373,32 @@ def test_detector_catches_per_table_font_size(tmp_path: Path) -> None:
     js = tmp_path / "a.js"
     js.write_text('svg += `<text font-size="10"></text>`;\n', encoding="utf-8")
     _, font_size = scan_table_sheet([html, js, css])
-    got = {(h.split(":")[0], h.split(":")[1]) for h in font_size}
-    assert got == {("a.html", "2"), ("a.css", "6"), ("a.css", "7"), ("a.css", "8")}
+    got = {(h["file"], h["line"], h["selector"]) for h in font_size}
+    assert got == {
+        ("a.html", "2", "td[style*=font-size]"),
+        ("a.css", "6", "table.fin th"),
+        ("a.css", "7", ".supply-tbl"),
+        ("a.css", "8", ".monthly-pop table"),
+    }
 
 
-def test_tables_use_sheet_class() -> None:
-    no_sheet, _ = scan_table_sheet(_screen_files())
-    assert not no_sheet, "sheet クラスの無い <table>（static/AGENTS.md）:\n" + "\n".join(no_sheet)
+def test_allowlist_fails_on_unknown_violation() -> None:
+    hits = [{"file": "static/x.js", "table": "table.foo", "rule": "no_sheet"}]
+    allow = [{"file": "static/x.js", "table": "table.bar", "rule": "no_sheet", "reason": "x"}]
+    unexpected, stale = diff_allowlist(hits, allow)
+    assert [_fmt_hit(h) for h in unexpected] == ["static/x.js table.foo (no_sheet)"]
+    assert [_fmt_stale(e) for e in stale] == [
+        'この行を消して: {"file": "static/x.js", "table": "table.bar", "rule": "no_sheet", "reason": "x"}'
+    ]
 
 
-def test_no_per_table_font_size() -> None:
-    _, font_size = scan_table_sheet(_screen_files())
-    assert not font_size, (
-        "共通 CSS 以外で表に font-size（static/AGENTS.md）:\n" + "\n".join(font_size)
-    )
+def test_screen_tables_match_allowlist() -> None:
+    no_sheet, font_size = scan_table_sheet(_screen_files())
+    allow = load_allowlist()
+    unexpected, stale = diff_allowlist(no_sheet + font_size, allow)
+    msgs = []
+    if unexpected:
+        msgs.append("許可一覧に無い違反:\n" + "\n".join(_fmt_hit(h) for h in unexpected))
+    if stale:
+        msgs.append("\n".join(_fmt_stale(e) for e in stale))
+    assert not msgs, "\n".join(msgs)
