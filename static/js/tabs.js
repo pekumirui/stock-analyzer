@@ -1,7 +1,8 @@
-const TABS = ["earnings", "stock", "screener", "pts", "monthly", "supply", "ranking"];
+const TABS = ["earnings", "stock", "screener", "pts", "monthly", "supply", "ranking", "holders"];
 const UI_ROUTE_KEY = "ui.route";
 const CODE_RE = /^[0-9][0-9A-Z]{3}[0-9]$/;
 const SUPPLY_ID_RE = /^[a-z][a-z0-9_]*$/;
+const EDINET_RE = /^E[0-9]{5}$/;
 // 銘柄タブは {code5}/{中のタブ}、ニュースの詳細は {code5}/news/{news_id}（docs/DESIGN_stock.md）
 const STOCK_SUBS = ["summary", "price", "news", "holders"];
 const NEWS_ID_RE = /^[a-z][0-9A-Za-z]{1,40}$/;
@@ -18,6 +19,7 @@ function routeArg(tab, raw){
   if(tab === "stock") return stockRouteArg(raw);
   if(tab === "monthly") return CODE_RE.test(raw || "") ? raw : "";
   if(tab === "supply") return SUPPLY_ID_RE.test(raw || "") ? raw : "";
+  if(tab === "holders") return EDINET_RE.test(raw || "") ? raw : "";
   return "";
 }
 
@@ -70,6 +72,7 @@ function selectTab(tab){
     writeRoute("supply", supplySelectedId());
     loadSupply();
   }
+  if(tab === "holders") loadHoldersHome();
 }
 
 async function restoreRoute(){
@@ -104,6 +107,11 @@ async function restoreRoute(){
     await loadMonthlyList();
     if(code) showMonthlyDetail(code);
     else writeRoute("monthly");
+    return;
+  }
+  if(tab === "holders"){
+    if(code) openHolder(code);
+    else { writeRoute("holders"); loadHoldersHome(); }
     return;
   }
   writeRoute("earnings");

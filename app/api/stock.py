@@ -15,6 +15,7 @@ from fastapi.responses import HTMLResponse, Response
 from sqlalchemy.orm import Session
 
 from ..db import get_session
+from ..holders import stock_holders as holders_payload
 from ..models import DailyPrice, EarningsDatePub, Statement, Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
 from ..xbrl.documents import SANITIZE_VERSION, load_html, sanitize_html
 from .monthly._common import ApiError, _parse_code
@@ -191,6 +192,17 @@ def stock_overview(code: str, today: str | None = Query(None, pattern=r"^\d{4}-\
         "next_earnings": _next_earnings(db, code5, day),
         "metrics": metrics,
     }
+
+
+@router.get("/stock/{code}/holders")
+def stock_holders(code: str, today: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+                  db: Session = Depends(get_session)):
+    code5 = _parse_code(code)
+    stock = db.get(Stock, code5)
+    if stock is None:
+        raise ApiError(404, "NOT_FOUND", "銘柄がありません。")
+    day = date.fromisoformat(today) if today else date.today()
+    return holders_payload(db, code5, today=day)
 
 
 @router.get("/stock/{code}/filings")
