@@ -64,7 +64,7 @@ function openStockRoute(path){
 
 // 銘柄を選び直す。中のタブはそのまま（ニュースの詳細にいたら一覧へ）
 function loadStock(code){
-  showStock(code, stockSub, "");
+  showStock(code, stockSub, "", "stock");
 }
 
 function stockMsg(text){
@@ -73,12 +73,12 @@ function stockMsg(text){
   m.hidden = !text;
 }
 
-async function showStock(code, sub, newsId){
+async function showStock(code, sub, newsId, from){
   const changed = code !== stockCode || !stockOverview;
   stockCode = code;
   stockSub = sub;
   stockNewsId = newsId;
-  writeRoute("stock", stockRoutePath());
+  writeRoute("stock", stockRoutePath(), from);
   if(changed){
     if(stockAc) stockAc.abort();
     stockAc = new AbortController();
@@ -139,9 +139,11 @@ function renderStockHead(d){
 
 document.querySelectorAll("#st-tabs .ftab").forEach(b => b.onclick = () => {
   if(!stockCode) return;
+  if(b.dataset.sub === stockSub && !(stockSub === "news" && stockNewsId)) return;
+  const from = typeof currentScreenId === "function" ? currentScreenId() : "";
   stockSub = b.dataset.sub;
   stockNewsId = "";
-  writeRoute("stock", stockRoutePath());
+  writeRoute("stock", stockRoutePath(), from);
   renderStockSub();
 });
 
@@ -258,15 +260,14 @@ $("#st-news").addEventListener("click", e => {
   if(!tr) return;
   stockNewsId = tr.dataset.id;
   // 詳細は履歴に積む（ブラウザの戻るで一覧へ）
-  history.pushState(null, "", "#stock/" + stockRoutePath());
-  writeRoute("stock", stockRoutePath());
+  writeRoute("stock", stockRoutePath(), "stock-news", true);
   renderStockNews();
 });
 
 $("#st-back").onclick = e => {
   e.preventDefault();
   stockNewsId = "";
-  writeRoute("stock", stockRoutePath());
+  writeRoute("stock", stockRoutePath(), "stock-news-detail");
   renderStockNews();
 };
 

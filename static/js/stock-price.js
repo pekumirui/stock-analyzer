@@ -4,10 +4,11 @@ let stockPriceAc = null;
 
 // ほかのタブの銘柄名から開く（決算速報・スクリーナー・ランキング・サプライ）
 function gotoChart(code){
+  const from = typeof currentScreenId === "function" ? currentScreenId() : "";
   stockSub = "price";
   stockNewsId = "";
   showTab("stock");
-  showStock(code, "price", "");
+  showStock(code, "price", "", from);
 }
 
 // 株価タブを開いたとき。同じ銘柄を描いてあれば描き直さない

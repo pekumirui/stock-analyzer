@@ -100,6 +100,7 @@ def _shell(
   <a class="brand" href="/monthly">{escape(PUBLIC_SITE_NAME)}</a>
 </header>
 <main>
+<nav id="crumbs" aria-label="パンくず"></nav>
 <section id="tab-monthly">
   <div id="monthly-top"{' style="display:none"' if top_hidden else ""}>
     <div class="phead"><h1>月次売上</h1></div>
@@ -124,6 +125,7 @@ def _shell(
 </main>
 <footer class="site-foot">{escape(DISCLAIMER)} {escape(SOURCE)}</footer>
 <script src="/static/js/api.js"></script>
+<script src="/static/js/screens.js"></script>
 <script src="/static/js/monthly.js"></script>
 <script src="/static/js/monthly-public.js"></script>
 </body>
@@ -137,7 +139,7 @@ def render_top_list(issuers: list[dict]) -> str:
     rows = []
     for r in issuers:
         code = str(r.get("code") or "")
-        href = f"/monthly/{escape(code4(code))}"
+        href = f"/monthly/{escape(code4(code))}?from=monthly"
         label = escape(issuer_label(code, r.get("name")))
         neu = '<span class="badge new">NEW</span>' if r.get("ingested_today") else ""
         ind = escape(str(r.get("industry") or "その他"))

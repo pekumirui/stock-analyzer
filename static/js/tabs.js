@@ -30,37 +30,53 @@ function routeArg(tab, raw){
 }
 
 function parseRoute(raw){
-  const s = String(raw || "").replace(/^#/, "").trim();
-  const i = s.indexOf("/");
-  const tab = i < 0 ? s : s.slice(0, i);
-  const rest = i < 0 ? "" : s.slice(i + 1);
+  const {tab, rest, from} = splitRouteString(raw);
   // チャートタブは銘柄の株価タブになった（KAB-181）。古いハッシュと ui.route を読み替える
   if(tab === "chart"){
     const code = CODE_RE.test(rest) ? rest : "";
-    return {tab: "stock", code: code ? `${code}/price` : ""};
+    return {tab: "stock", code: code ? `${code}/price` : "", from};
   }
   // PTS タブはランキングの中になった（KAB-265）。古い #pts と ui.route を読み替える
   if(tab === "pts"){
-    return {tab: "ranking", code: "pts"};
+    return {tab: "ranking", code: "pts", from};
   }
-  if(!TABS.includes(tab)) return {tab: "earnings", code: ""};
-  return {tab, code: routeArg(tab, rest)};
+  if(!TABS.includes(tab)) return {tab: "earnings", code: "", from: ""};
+  return {tab, code: routeArg(tab, rest), from};
 }
 
 function currentRoute(){
   if(location.hash && location.hash.length > 1) return parseRoute(location.hash);
   try { return parseRoute(localStorage.getItem(UI_ROUTE_KEY) || ""); }
-  catch(e){ return {tab: "earnings", code: ""}; }
+  catch(e){ return {tab: "earnings", code: "", from: ""}; }
 }
 
-function writeRoute(tab, code){
+function currentScreenId(){
+  const r = currentRoute();
+  return screenIdFromTabCode(r.tab, r.code);
+}
+
+function writeRoute(tab, code, from, push){
   if(tab === "pts"){ tab = "ranking"; code = "pts"; }
   if(!TABS.includes(tab)) tab = "earnings";
   const useCode = routeArg(tab, code);
   const path = useCode ? `${tab}/${useCode}` : tab;
-  const hash = "#" + path;
-  if(location.hash !== hash) history.replaceState(null, "", hash);
+  const screen = screenIdFromTabCode(tab, useCode);
+  const incoming = from === undefined
+    ? ((parseRoute(location.hash).from || new URLSearchParams(location.search).get("from") || ""))
+    : (from || "");
+  const fromId = resolveFrom(screen, incoming);
+  const hash = fromId ? `#${path}?from=${encodeURIComponent(fromId)}` : `#${path}`;
+  const q = new URLSearchParams(location.search);
+  q.delete("from");
+  const search = q.toString();
+  const next = location.pathname + (search ? "?" + search : "") + hash;
+  const cur = location.pathname + location.search + location.hash;
+  if(cur !== next){
+    if(push) history.pushState(null, "", next);
+    else history.replaceState(null, "", next);
+  }
   try { localStorage.setItem(UI_ROUTE_KEY, path); } catch(e) {}
+  if(typeof renderBreadcrumbs === "function") renderBreadcrumbs();
 }
 
 function showTab(tab){
@@ -112,7 +128,7 @@ async function restoreRoute(){
   }
   if(tab === "monthly"){
     await loadMonthlyList();
-    if(code) showMonthlyDetail(code);
+    if(code) showMonthlyDetail(code, {keepFrom: true});
     else writeRoute("monthly");
     return;
   }
@@ -147,3 +163,17 @@ document.addEventListener("keydown", e => { if(e.key === "Escape") setMenu(false
 }
 window.writeRoute = writeRoute;
 window.restoreRoute = restoreRoute;
+window.currentScreenId = currentScreenId;
+window.parseRoute = parseRoute;
+
+const crumbsNav = document.getElementById("crumbs");
+if(crumbsNav){
+  crumbsNav.addEventListener("click", ev => {
+    const a = ev.target.closest("a[href^='#']");
+    if(!a || document.body.getAttribute("data-public-monthly") === "1") return;
+    ev.preventDefault();
+    const href = a.getAttribute("href");
+    if(location.hash !== href) history.replaceState(null, "", href);
+    restoreRoute();
+  });
+}
