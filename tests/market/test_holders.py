@@ -198,6 +198,7 @@ def test_spa_holders_tab() -> None:
     assert "/api/holders/search" in js and "/api/stock/${code}/holders" in js
     assert "準備中" not in stock
     assert "renderStockHoldersTab" in stock
-    # PTS タブは残す（KAB-265 と衝突させない）
-    assert 'data-tab="pts"' in html
+    # PTS はランキングの中（KAB-265）。保有者はナビ末尾
+    assert 'data-tab="pts"' not in html and 'id="tab-pts"' not in html
+    assert 'data-rksub="pts"' in html
     assert html.index('data-tab="ranking"') < html.index('data-tab="holders"')

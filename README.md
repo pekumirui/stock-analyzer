@@ -58,7 +58,8 @@ notepad .env                    # JQUANTS_API_KEY を記入
 | `python jobs/edinet/edinet_large_holdings.py --limit 1000` | 大量保有報告書・変更報告書・訂正 → `large_holding_reports` / `large_holdings`。新しい書類から |
 | `python jobs/edinet/edinet_buybacks.py --limit 500` | 自己株券買付状況報告書・訂正 → `edinet_buybacks` / `edinet_buyback_resolutions`。新しい書類から |
 | `python jobs/edinet/edinet_tender_offers.py --limit 100` | 公開買付けの書類 → `edinet_tender_offer_docs` / 案件の `edinet_tender_offers` |
-| `python jobs/edinet/edinet_xbrl.py --limit 300` | 有報・半期報・四半期報の XBRL → `xbrl_financials`（`source='edinet'`）とセグメント注記の `xbrl_segments`。新しい書類から |
+| `python jobs/edinet/edinet_xbrl.py --limit 300` | 有報・半期報・四半期報の XBRL → `xbrl_financials`（`source='edinet'`）とセグメント注記の `xbrl_segments`、有報の大株主・所有者別。新しい書類から |
+| `python jobs/edinet/edinet_shareholders.py --rebuild` | 既存の `xbrl_facts` から大株主・所有者別を作り直す。過去分は先に `edinet_xbrl.py --reparse` |
 
 > **バックフィル年数の目安**
 > 指標の計算にはRSが252営業日、MA200が200営業日の履歴を必要とするため、

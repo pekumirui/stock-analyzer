@@ -1,4 +1,4 @@
-const TABS = ["earnings", "stock", "screener", "pts", "monthly", "supply", "ranking", "holders"];
+const TABS = ["earnings", "stock", "screener", "monthly", "supply", "ranking", "holders"];
 const UI_ROUTE_KEY = "ui.route";
 const CODE_RE = /^[0-9][0-9A-Z]{3}[0-9]$/;
 const SUPPLY_ID_RE = /^[a-z][a-z0-9_]*$/;
@@ -6,6 +6,8 @@ const EDINET_RE = /^E[0-9]{5}$/;
 // 銘柄タブは {code5}/{中のタブ}、ニュースの詳細は {code5}/news/{news_id}（docs/DESIGN_stock.md）
 const STOCK_SUBS = ["summary", "price", "news", "holders"];
 const NEWS_ID_RE = /^[a-z][0-9A-Za-z]{1,40}$/;
+// ランキングの中の PTS。既定（決算後パフォーマンス）はルートに出さない
+const RANKING_SUBS = ["pts"];
 
 function stockRouteArg(raw){
   const [code, sub, id] = String(raw || "").split("/");
@@ -19,6 +21,10 @@ function routeArg(tab, raw){
   if(tab === "stock") return stockRouteArg(raw);
   if(tab === "monthly") return CODE_RE.test(raw || "") ? raw : "";
   if(tab === "supply") return SUPPLY_ID_RE.test(raw || "") ? raw : "";
+  if(tab === "ranking"){
+    const sub = String(raw || "").split("/")[0];
+    return RANKING_SUBS.includes(sub) ? sub : "";
+  }
   if(tab === "holders") return EDINET_RE.test(raw || "") ? raw : "";
   return "";
 }
@@ -33,6 +39,10 @@ function parseRoute(raw){
     const code = CODE_RE.test(rest) ? rest : "";
     return {tab: "stock", code: code ? `${code}/price` : ""};
   }
+  // PTS タブはランキングの中になった（KAB-265）。古い #pts と ui.route を読み替える
+  if(tab === "pts"){
+    return {tab: "ranking", code: "pts"};
+  }
   if(!TABS.includes(tab)) return {tab: "earnings", code: ""};
   return {tab, code: routeArg(tab, rest)};
 }
@@ -44,6 +54,7 @@ function currentRoute(){
 }
 
 function writeRoute(tab, code){
+  if(tab === "pts"){ tab = "ranking"; code = "pts"; }
   if(!TABS.includes(tab)) tab = "earnings";
   const useCode = routeArg(tab, code);
   const path = useCode ? `${tab}/${useCode}` : tab;
@@ -63,10 +74,12 @@ function showTab(tab){
 
 function selectTab(tab){
   showTab(tab);
+  if(tab === "ranking"){
+    showRankingSub();
+    return;
+  }
   writeRoute(tab, tab === "stock" ? stockRoutePath() : "");
   if(tab === "screener" && !$("#sc-tbl").innerHTML) loadScreener();
-  if(tab === "pts" && !$("#pts-tbl").innerHTML) loadPts();
-  if(tab === "ranking" && !$("#rk-tbl").innerHTML) loadRanking();
   if(tab === "monthly") loadMonthlyList();
   if(tab === "supply"){
     writeRoute("supply", supplySelectedId());
@@ -83,14 +96,8 @@ async function restoreRoute(){
     writeRoute("screener");
     return;
   }
-  if(tab === "pts"){
-    loadPts();
-    writeRoute("pts");
-    return;
-  }
   if(tab === "ranking"){
-    loadRanking();
-    writeRoute("ranking");
+    showRankingSub(code === "pts" ? "pts" : "perf", {force: true});
     return;
   }
   if(tab === "stock"){

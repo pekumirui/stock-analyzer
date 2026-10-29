@@ -1,4 +1,4 @@
-// ランキングタブ（docs/DESIGN_ranking.md）。決算発表後パフォーマンスを上昇率 / 下落率に分ける
+// ランキングタブ（docs/DESIGN_ranking.md）。中のタブは決算後パフォーマンス / PTS（KAB-265）
 const rkEsc = s => String(s ?? "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
 const rkMd = iso => iso ? `${+iso.slice(5,7)}/${+iso.slice(8,10)}` : "–";
 const rkMonth = ym => ym ? `${ym.slice(0,4)}年${+ym.slice(5,7)}月` : "";
@@ -22,8 +22,27 @@ const rkElapsedTxt = r => r.next_disclosed_date
   : (r.bdays == null ? "" : `${r.bdays}日`);
 let rkData = null;
 let rkDir = "up";
+let rkSub = "perf";  // ランキングの中: perf = 決算後パフォーマンス / pts = PTS
 let rkShot = null;   // X に投稿する画像（Promise<Blob>）。共有はクリックの中で呼ぶので先に作っておく
 let rkSeq = 0;       // 月を続けて変えたとき、古い応答で上書きしない
+
+function rankingSubRoute(){
+  return rkSub === "pts" ? "pts" : "";
+}
+
+function showRankingSub(sub, opts){
+  rkSub = sub == null ? rkSub : (sub === "pts" ? "pts" : "perf");
+  document.querySelectorAll("#rk-subs .ftab").forEach(b => b.classList.toggle("on", b.dataset.rksub === rkSub));
+  $("#rk-sub-perf").hidden = rkSub !== "perf";
+  $("#rk-sub-pts").hidden = rkSub !== "pts";
+  writeRoute("ranking", rankingSubRoute());
+  const force = !!(opts && opts.force);
+  if(rkSub === "pts"){
+    if(force || !$("#pts-tbl").innerHTML) loadPts();
+  } else if(force || !$("#rk-tbl").innerHTML){
+    loadRanking();
+  }
+}
 
 // 上昇はプラスだけ大きい順、下落はマイナスだけ小さい順。0 と欠測はどちらにも入れない
 function rkView(d){
@@ -195,6 +214,12 @@ async function rkShare(){
 
 $("#rk-month").onchange = () => loadRanking();
 $("#rk-share").onclick = rkShare;
+document.querySelectorAll("#rk-subs .ftab").forEach(b => {
+  b.onclick = () => {
+    if(!b.dataset.rksub || b.dataset.rksub === rkSub) return;
+    showRankingSub(b.dataset.rksub);
+  };
+});
 document.querySelectorAll("#rk-kind .ftab").forEach(b => {
   b.onclick = () => {
     const dir = b.dataset.dir;
@@ -204,6 +229,8 @@ document.querySelectorAll("#rk-kind .ftab").forEach(b => {
     if(rkData) rkPaint();
   };
 });
-new ResizeObserver(() => pinCols($("#rk-tbl"), 2)).observe($("#tab-ranking .tbl-wrap"));
+new ResizeObserver(() => pinCols($("#rk-tbl"), 2)).observe($("#rk-sub-perf .tbl-wrap"));
 
 window.loadRanking = loadRanking;
+window.showRankingSub = showRankingSub;
+window.rankingSubRoute = rankingSubRoute;

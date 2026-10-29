@@ -63,9 +63,10 @@
   .evt-toggles .evt-label { display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none; }
   .evt-toggles .swatch { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
   .tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  #tab-ranking .tbl-wrap, #tab-screener .tbl-wrap { max-height:calc(100vh - 140px); overflow:auto; }
+  #rk-sub-perf .tbl-wrap, #tab-screener .tbl-wrap { max-height:calc(100vh - 140px); overflow:auto; }
   #pts-tbl { width:auto; }
   #pts-summary { font-size:12px; margin:0 0 6px; }
+  #rk-subs { display:inline-flex; margin:0 0 10px; }
   #rk-kind { display:inline-flex; margin:0 0 8px; }
   .sheet .badge { margin-left:0; }
   .clicky { cursor:pointer; color:var(--accent); }

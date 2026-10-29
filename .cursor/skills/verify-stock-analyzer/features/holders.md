@@ -34,4 +34,4 @@ Preconditions:
 - EDINET codes are `E` + 5 digits. A bad hash `#holders/foo` falls back to the list.
 - Recent feed sorts by `file_date`, not `obligation_date`. A 2027-10-01 obligation with a 2026-10-08 filing is a source typo; the row is kept on the holder page and the date is muted when it is more than 30 days after the filing.
 - Joint holders without `edinet_code` are omitted from search and holder pages.
-- PTS stays a top-level tab (KAB-265 moves it separately).
+- PTS is inside ランキング (`#ranking/pts`, KAB-265). Header has no PTS tab.
