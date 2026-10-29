@@ -22,9 +22,11 @@ from app.xbrl.parser import ParsedPackage
 from app.xbrl.pdf._layout import (
     PdfLayoutError,
     format_garbled_pages,
+    format_textless_pages,
     garbled_page_indexes,
     outlined_page,
     read_pages,
+    textless_page_indexes,
 )
 from app.xbrl.pdf._tanshin import (
     DocKind,
@@ -51,6 +53,7 @@ __all__ = [
     "SyncOutcome",
     "Unsupported",
     "format_garbled_pages",
+    "format_textless_pages",
     "garbled_page_indexes",
     "label_key",
     "outlined_page",
@@ -58,11 +61,12 @@ __all__ = [
     "read_tdnet_pdf",
     "sync_pdf_filing",
     "sync_pdf_filings",
+    "textless_page_indexes",
 ]
 
 SOURCE = "tdnet_pdf"
 # レイアウト・行名・label_key の結果が変わったら上げる。上げると全 PDF filing の指紋がずれる。
-READER_VERSION = 17
+READER_VERSION = 18
 _STD_DOC = re.compile(
     r"^(?:1Q|2Q|3Q|FY)FinancialStatements_(Consolidated|NonConsolidated)_(IFRS|JP)$"
 )
@@ -280,7 +284,9 @@ def _sync(db: Session, disclosure_no: str, zip_parsed: bool, *, reparse: bool) -
     try:
         html = gzip.decompress(plan.doc.html_gz).decode("utf-8")
         pages = read_pages(html)
-        garbled_note = format_garbled_pages(garbled_page_indexes(pages))
+        garbled_idx = garbled_page_indexes(pages)
+        garbled_note = format_garbled_pages(garbled_idx)
+        textless_note = format_textless_pages(textless_page_indexes(pages, exclude=garbled_idx))
         amendment = is_amendment_notice(plan.doc.title, pages)
         pkg = _kept(package(drop_pre_correction(pages), plan.disclosure))
     except PdfLayoutError as exc:
@@ -303,8 +309,9 @@ def _sync(db: Session, disclosure_no: str, zip_parsed: bool, *, reparse: bool) -
     store_package(db, filing, pkg)
     normalize_filing(db, filing)
     filing.is_amendment = amendment
-    if garbled_note:
-        filing.parse_error = garbled_note
+    notes = [note for note in (garbled_note, textless_note) if note]
+    if notes:
+        filing.parse_error = "; ".join(notes)
     db.commit()
     return SyncOutcome.PARSED
 
@@ -342,8 +349,11 @@ def sync_pdf_filings(
             counts[outcome] += 1
             if outcome is SyncOutcome.PARSED:
                 filing = _filing(db, number)
-                if filing is not None and (filing.parse_error or "").startswith("garbled"):
+                err = filing.parse_error or "" if filing is not None else ""
+                if err.startswith("garbled"):
                     counts["garbled"] += 1
+                if "textless" in err:
+                    counts["textless"] += 1
         except Exception as exc:
             db.rollback()
             counts[SyncOutcome.FAILED] += 1

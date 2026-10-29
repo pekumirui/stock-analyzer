@@ -16,7 +16,7 @@
     - { ns: pdf-pl, name: 売上高合計, priority: 8 }
     - { ns: pdf-pl, name: 売上収益合計, priority: 8, standard: IFRS }
     - { ns: pdf-pl, name: 収益, priority: 12, standard: IFRS }
-    - { ns: pdf-pl, name: 収益合計, priority: 11, standard: IFRS }
+    - { ns: pdf-pl, name: 収益合計, priority: 13, standard: IFRS }
     - { ns: pdf-pl, name: 経常収益, priority: 22, standard: JPGAAP }
     - { ns: pdf-sum, name: 経常収益, priority: 52, standard: JPGAAP }
     - { ns: pdf-sum, name: 収益, priority: 55, standard: IFRS }
