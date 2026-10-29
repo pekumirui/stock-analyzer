@@ -486,8 +486,8 @@ function renderRev(el, rows, d){
       return `<td class="num${dc(k)}">${txt}<span class="g">${g ? revG(g) : " "}</span></td>`;
     };
     const badge = `<span class="qb ${bc}">${txt}</span>`;
-    // バッジは決算期の右に置き、どの行でも同じ位置にそろえる（決算期は年度の最初の行だけ）
-    const label = `<span class="fy">${head ? r.range : ""}</span>${badge}<span class="g"> </span>`;
+    // バッジはどの行も決算期の下の段（数値の修正率と同じ段）。決算期は年度の最初の行だけ
+    const label = `${head ? r.range : "&nbsp;"}<span class="g">${badge}</span>`;
     h += `<tr class="${cls}"><td class="l" title="${r.label||""} ${tip}">${label}</td>`
        + `<td class="num disc sub">${disc(r.disclosed_date)}</td>`
        + FC_MET.map(([k])=>cell(k, finAmt(r, k))).join("")

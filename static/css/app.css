@@ -184,8 +184,6 @@
   table.fin.rev tbody tr:nth-child(even) td { background:none; }
   table.fin.rev tbody tr.act td { background:var(--row); }
   table.fin.rev tbody tr:hover td { background:var(--row-sel); }
-  table.fin.rev td.l { white-space:nowrap; }
-  table.fin.rev .fy { display:inline-block; min-width:3.4em; }
   table.fin tr.act td.num { font-weight:600; }
   table.fin .loss { color:var(--up); }
   #monthly-groups, #earn-groups { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
