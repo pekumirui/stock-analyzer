@@ -1,6 +1,6 @@
 # 銘柄 › 株価
 
-The 株価 sub tab of 銘柄 draws adjusted daily, weekly, or monthly candles with optional MAs, optional TOPIX relative, and post-earnings α for the issuer picked in 銘柄. It was the チャート tab until KAB-181 (#1001); there is no `#tab-chart`, `#sym`, `#suggest`, `#chart-title`, or 表示 button any more. Code is `static/js/stock-price.js` (+ `chart-shared.js`).
+The 株価 sub tab of 銘柄 draws adjusted daily, weekly, or monthly candles with optional MAs, optional TOPIX relative, and post-earnings α for the issuer picked in 銘柄. It was the チャート tab until KAB-181 (#1001); there is no `#tab-chart`, `#sym`, `#suggest`, `#chart-title`, or 表示 button inside `#st-sub-price` any more (`#supply-reset` 全体表示 is the サプライ tab). Code is `static/js/stock-price.js` (+ `chart-shared.js`).
 
 ## Sub-features
 
@@ -29,19 +29,19 @@ Preconditions:
 - A known code exists; doctor search for トヨタ should yield `72030` or similar.
 
 - **Capture.** `helpers/capture.py chart --code 72030` writes `artifacts/chart/body.json` (`candles` length > 0, `open`/`high`/`low`/`close` already from `adj_*`, may include `earnings_dates`) and `performance.json` (a list, may be empty; still 200).
-- **Open.** Reload `#stock/72030/price` (golden DB has candles; 31160 does not — see Gotchas). Hash `#stock/72030/price`, `#st-title` `トヨタ自動車 7203 / プライム / 輸送用機器`, `#chart canvas` present, `#chart-msg` hidden/empty, requests `GET /api/chart/72030?tf=D&ma=50%2C150%2C200&rel=false` + `GET /api/earnings-performance/72030`. No button whose label contains 表示.
-- **404.** Reload `#stock/31160/price`: overview 200, `#st-quote` 「株価データなし」, chart HTTP 404 `no data`, `#chart-msg` 「読み込めませんでした。」, no canvas from that response. Click 概要 then 株価: both price requests fire again (`stockPriceCode` was cleared).
+- **Open.** Reload `#stock/72030/price` (golden DB has candles; 31160 does not — see Gotchas). Hash `#stock/72030/price`, `#st-title` `トヨタ自動車 7203 / プライム / 輸送用機器`, `#chart canvas` present, `#chart-msg` hidden/empty, requests `GET /api/chart/72030?tf=D&ma=50%2C150%2C200&rel=false` + `GET /api/earnings-performance/72030`. Inside `#st-sub-price` there is no button whose label contains 表示.
+- **404.** Reload `#stock/31160/price`: overview 200, `#st-quote` 「株価データなし」, chart HTTP 404 `no data`, `#chart-msg` 「読み込めませんでした。」, no canvas. Click 概要 then 株価: both price requests fire again (`stockPriceCode` was cleared). Switching from a drawn 72030 to 31160 *without* reload leaves the previous canvas (the catch returns before `renderPriceChart`); only a true reload is the empty-canvas proof.
 - **Controls.** On the 72030 draw, set `#tf` to `W` and dispatch `change` → `…?tf=W&ma=50%2C150%2C200&rel=false` + perf. Tick `#rel` → `…&rel=true`, `#relwrap` computed display `block` when the payload has `relative` (the client sets `style.display = ""`). Set `#mas` to `25` + `change` → `…&ma=25&rel=true`.
 - **Reopen.** On that successful 72030 draw, click 概要 then 株価 again: no `/api/chart` or `/api/earnings-performance`.
 - **Old route.** Reload on `#chart/72030` → hash `#stock/72030/price`, `#st-title` `トヨタ自動車 7203 / プライム / 輸送用機器`, only `#st-sub-price` visible. `localStorage` `ui.route=chart/39120` with no hash → `#stock/39120/price`.
-- **gotoChart.** From each caller above: 銘柄 active, 株価 `.on`, hash `#stock/{code}/price`, `GET /api/stock/{code}/overview` then the two price requests.
+- **gotoChart.** From each caller above, on a cold issuer: 銘柄 active, 株価 `.on`, hash `#stock/{code}/price`, `GET /api/stock/{code}/overview` then the two price requests. A second `gotoChart` for the already-drawn code sends nothing.
 - **Proof.** Keep `body.json` and (if CDP) a screenshot with `#chart` tall enough to show candles and the 銘柄 header.
 
 ## Gotchas
 
 - Prices in the chart are **adjusted** (`adj_*`). Do not assert raw `close` against the canvas; the header `#st-quote` uses the overview `quote.close`.
 - Codes are 5 characters (`72030`). Labels show the first 4; the API still uses 5.
-- `/api/chart/{code}` with no rows is HTTP 404 `no data`, so `#chart-msg` is 「読み込めませんでした。」 (31160 on the golden DB). Do not expect 「株価データなし」 on the chart for that 404; that copy is the empty-candles 200 branch, which this API does not emit. Overview `#st-quote` 「株価データなし」 is a different field (`quote` null).
+- `/api/chart/{code}` with no rows is HTTP 404 `no data`, so `#chart-msg` is 「読み込めませんでした。」 (31160 on the golden DB). Do not expect 「株価データなし」 on the chart for that 404; that copy is the empty-candles 200 branch, which this API does not emit. Overview `#st-quote` 「株価データなし」 is a different field (`quote` null). A hash-only jump from a drawn issuer to 31160 leaves the previous canvas; reload `#stock/31160/price` to prove there is none.
 - `#tf`, `#mas`, `#rel` keep their values across issuers; a new issuer is drawn with the current controls.
 - Setting `.value` from a script does not redraw; dispatch `change` like the browser does.
 - `#tf` defaults to `D`; `W` and `M` resample on the server (MA windows scale down for week/month).

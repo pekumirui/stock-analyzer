@@ -4,7 +4,7 @@ The default tab lists financial-statement disclosures for a calendar day, then s
 
 ## Sub-features
 
-- `earnings-cal` paints `#cal` inside `#cal-pop` for the current month. Each occupied day is `{kind, n, pending?}`. Filings use `.cnt`. Future schedules use `.cnt.sched`. Today with names still scheduled adds `.cnt.pend` (`+N`).
+- `earnings-cal` paints `#cal` inside `#cal-pop` for the current month. Each occupied day is `{kind, n, pending?}`. Filings use `.cnt`. `kind==="scheduled"` (a future day, or a schedule-only today) uses `.cnt.sched`. Today with names still scheduled adds `.cnt.pend` (`+N`).
 - `earnings-day` fills `#earn-list` after a day click (`selectDate`). Past empty shows `開示なし`. Future empty inside a complete publication ledger shows `予定なし`. Future empty before that ledger is complete shows `予定未取得`. A quiet today shows `予定なし`. A failed fetch shows `取得できませんでした`.
 - `earnings-list` draws `#earn-tbl` (`tableHtml`) inside `.earn-box`. One header row: `時刻` / `決算期` / `銘柄` / `売上` / `営利` / `経利` / `純利`. Each row has 7 cells. The four metric cells follow `earnView` (`#earn-view`): 累計 (default) shows `cumulative` in 百万円 with `yoy` under it in `.g`; 3か月 shows `single` with `qoq` (1Q cells carry `title="前期4Q単独比"`); 進捗率 shows `progress.cur` as `x.x%` with the prior year's `progress.prev` under it in `.g .prev`. FY/4Q/5Q actuals have `progress: null`, so the 進捗率 cell is `–` with no `.prev`. A 1Q–3Q `prev` that is null also omits `.prev` rather than printing `–` there. YoY/QoQ under the amount go through `gc()`: `%`, `N.N倍` when `pct >= 100`, 黒転 / 赤転 / 赤継, or `–`. A loss is `.loss`. `決算期` is `fy_label` without `FY` (`26.8`) with the period `.qb` chip under it (`FY` reads `4Q`; a schedule row with several periods lists the chips side by side). `銘柄` is the first 5 characters of the name with the 4-digit code under it in `.g`. A restated filing shows `.qb.qb-rev` `訂正` under the time. A filing whose full-year operating-profit forecast moved ±0.1% vs the previous disclosure of the same FY shows `.qb.qb-up` `上方` or `.qb.qb-dn` `下方` (title has the rate) in the same cell; both chips can appear. There is no Q column and no `.badge.rev`. 時刻 / 決算期 / 銘柄 are sticky on the left (`.pin0`–`.pin2`, offsets `--pin0`–`--pin2` measured by `pinCols`).
 - `earnings-view` switches `#earn-view .ftab[data-view="cum"|"q"|"prog"]`; it redraws from the loaded board (no request). `.on` marks the view.
@@ -23,7 +23,7 @@ The default tab lists financial-statement disclosures for a calendar day, then s
 
 - Open `{url}/app` with no hash and no `ui.route` (or after clearing them). 決算速報 is the fallback tab; boot still runs `selectDate(todayISO())` before `restoreRoute()`, so today's list loads even if another tab is restored. With a clean route: nav is `.active` on 決算速報 and `#earn-title` reads `{date}の決算発表`.
 - Click `nav button[data-tab="earnings"]` from any other tab.
-- Click `#cal-btn` to open `#cal-pop`. Use `#cal-title` ◀/▶ (`calMove`) to change month when needed. Click a day cell `#cal .d` that shows `.cnt` (accent for filings, muted `.cnt.sched` for a future schedule, `.cnt.pend` for `+N` still scheduled today). The popover closes.
+- Click `#cal-btn` to open `#cal-pop`. Use `#cal-title` ◀/▶ (`calMove`) to change month when needed. Click a day cell `#cal .d` that shows `.cnt` (accent for filings, muted `.cnt.sched` when `kind==="scheduled"`, `.cnt.pend` for `+N` still scheduled today). The popover closes.
 - Click a filing row `#earn-tbl tr[data-no]`, or a scheduled row `#earn-tbl tr[data-code]`.
 - Type in `#earn-sym` and pick a suggestion, or click a `#earn-groups` chip.
 - Click 累計 / 3か月 / 進捗率 in `#earn-view`, or untick a `#earn-qf` quarter.
@@ -56,7 +56,7 @@ Preconditions:
 
 ## Gotchas
 
-- The API query param is `date`, not `date_`. Calendar query is `month=YYYY-MM`.
+- The API query param is `date`, not `date_`. Calendar query is `month=YYYY-MM&today=YYYY-MM-DD` (SPA `todayISO()`). Omitting `today` uses the server’s `date.today()`.
 - Days without `.cnt` still call `selectDate`. Past empty is `開示なし`. Future empty is `予定なし` once the publication ledger covers the lookback, and `予定未取得` before that. A quiet today is `予定なし`. None of those is a list proof.
 - A thrown day fetch shows `取得できませんでした` and does not use the empty copies.
 - `#earn-count` reads `N件` for one kind. A mixed today reads `N件・未発表 M`. It is the API total; sector chips and `#earn-qf` do not change it.
