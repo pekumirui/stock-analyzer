@@ -2,7 +2,7 @@
 let stockPriceCode = "";   // 描いた銘柄。違えば描き直す
 let stockPriceAc = null;
 
-// ほかのタブの銘柄名から開く（決算速報・スクリーナー・PTS・サプライ）
+// ほかのタブの銘柄名から開く（決算速報・スクリーナー・ランキング・サプライ）
 function gotoChart(code){
   stockSub = "price";
   stockNewsId = "";

@@ -1,4 +1,4 @@
-# PTS タブ
+# PTS
 
 取得と保存は `DESIGN.md`「PTS ランキング」。共通見た目は `docs/SCREEN_SPEC.md`。
 
@@ -8,7 +8,7 @@
 
 ## 画面と遷移
 
-ランキング 1 画面。ヘッダーの `PTS` タブ（`data-tab="pts"`、ルートは `#pts`）。銘柄名をクリックすると銘柄タブの株価。
+ランキングタブの中の 1 画面。ヘッダーの `ランキング` タブ（`data-tab="ranking"`）→ 中のタブ `PTS`（`#rk-subs` の `data-rksub="pts"`、ルートは `#ranking/pts`）。ヘッダーに PTS タブは無い。古い `#pts`（ハッシュと `ui.route`）は `#ranking/pts` に置き換える。銘柄名をクリックすると銘柄タブの株価。
 
 ## データ形
 

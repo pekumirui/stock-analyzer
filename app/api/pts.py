@@ -1,4 +1,4 @@
-"""PTS タブ。/pts。株探の夜間 PTS ランキングと翌営業日の始値とのギャップ。"""
+"""ランキングタブの PTS。/pts。株探の夜間 PTS ランキングと翌営業日の始値とのギャップ。"""
 from datetime import date, datetime
 from statistics import median
 

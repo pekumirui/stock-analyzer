@@ -63,7 +63,7 @@ Preconditions:
 - `#earn-view` (list) and `.fin-tabs` (detail) are separate controls; both have 累計 / 3か月 / 進捗率.
 - `selectDate` does not refetch the month. `/api/earnings/calendar` runs from `calOpen` / `calMove` (`renderCal`) and once at boot after the first list (`calPrefetch`). `renderCal` draws a cached month first, then redraws when the fetch for the still-shown month lands.
 - There is no `#q-chips` and no 営利率 column any more.
-- `.ftab` also matches the PTS ranking buttons (`#pts-ranking`), ランキング `#rk-kind`, `#earn-view`, and 銘柄 `#st-zoom`. Select detail tabs with `.ftab[data-fin]` and list views with `[data-view]`.
+- `.ftab` also matches the PTS ranking buttons (`#pts-ranking`), ランキング `#rk-subs` / `#rk-kind`, `#earn-view`, and 銘柄 `#st-zoom`. Select detail tabs with `.ftab[data-fin]` and list views with `[data-view]`.
 - 修正履歴 is only as long as `statements` history. The box DB has `xbrl_financials` empty (no TDnet or EDINET filings), so `?rev_source=xbrl` returns `revisions: []` there. EDINET rows alone also give `[]`.
 - Clicking the day's first row right after `selectDate` repeats the auto-selected request; a doubled `/api/earnings/detail` in the network log is that, not a bug.
 - REIT (`product_category` 013/022) are excluded from this tab; an empty day can be real.

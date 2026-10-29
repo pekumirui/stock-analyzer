@@ -18,7 +18,6 @@
     <button data-tab="earnings" class="active">決算速報</button>
     <button data-tab="stock">銘柄</button>
     <button data-tab="screener">スクリーナー</button>
-    <button data-tab="pts">PTS</button>
     <button data-tab="monthly">月次</button>
     <button data-tab="supply">サプライ</button>
     <button data-tab="ranking">ランキング</button>
@@ -189,35 +188,38 @@
   </div>
 </section>
 
-<section id="tab-pts" style="display:none">
-  <div class="panel">
-    <div class="row">
-      <select id="pts-date" aria-label="セッション日"></select>
-      <div class="fin-tabs" id="pts-ranking" role="group" aria-label="ランキング">
-        <button type="button" class="ftab on" data-ranking="night_up">値上がり</button>
-        <button type="button" class="ftab" data-ranking="night_down">値下がり</button>
-        <button type="button" class="ftab" data-ranking="night_volume">出来高</button>
-      </div>
-      <select id="pts-at" aria-label="取得時刻"></select>
-      <span id="pts-info" class="sub"></span>
-    </div>
-    <div id="pts-summary" class="sub"></div>
-    <div class="tbl-wrap"><table id="pts-tbl"></table></div>
-  </div>
-</section>
-
 <section id="tab-ranking" style="display:none">
   <div class="panel">
-    <div class="fin-tabs" id="rk-kind" role="group" aria-label="上昇率と下落率">
-      <button type="button" class="ftab on" data-dir="up">上昇率</button>
-      <button type="button" class="ftab" data-dir="down">下落率</button>
+    <div class="fin-tabs" id="rk-subs" role="tablist" aria-label="ランキングの中のタブ">
+      <button type="button" class="ftab on" data-rksub="perf">決算後パフォーマンス</button>
+      <button type="button" class="ftab" data-rksub="pts">PTS</button>
     </div>
-    <div class="row">
-      <select id="rk-month" aria-label="決算月"></select>
-      <span id="rk-info" class="sub"></span>
-      <button type="button" class="btn" id="rk-share" hidden>X に投稿</button>
+    <div id="rk-sub-perf">
+      <div class="fin-tabs" id="rk-kind" role="group" aria-label="上昇率と下落率">
+        <button type="button" class="ftab on" data-dir="up">上昇率</button>
+        <button type="button" class="ftab" data-dir="down">下落率</button>
+      </div>
+      <div class="row">
+        <select id="rk-month" aria-label="決算月"></select>
+        <span id="rk-info" class="sub"></span>
+        <button type="button" class="btn" id="rk-share" hidden>X に投稿</button>
+      </div>
+      <div class="tbl-wrap"><table id="rk-tbl" class="sheet"></table></div>
     </div>
-    <div class="tbl-wrap"><table id="rk-tbl" class="sheet"></table></div>
+    <div id="rk-sub-pts" hidden>
+      <div class="row">
+        <select id="pts-date" aria-label="セッション日"></select>
+        <div class="fin-tabs" id="pts-ranking" role="group" aria-label="ランキング">
+          <button type="button" class="ftab on" data-ranking="night_up">値上がり</button>
+          <button type="button" class="ftab" data-ranking="night_down">値下がり</button>
+          <button type="button" class="ftab" data-ranking="night_volume">出来高</button>
+        </div>
+        <select id="pts-at" aria-label="取得時刻"></select>
+        <span id="pts-info" class="sub"></span>
+      </div>
+      <div id="pts-summary" class="sub"></div>
+      <div class="tbl-wrap"><table id="pts-tbl"></table></div>
+    </div>
   </div>
 </section>
 
