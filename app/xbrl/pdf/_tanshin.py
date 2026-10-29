@@ -60,6 +60,8 @@ _UNIT_PAREN = re.compile(
 )
 # 配当の親見出し末尾の単位括弧（KAB-245。「年間配当金（円）」）。百万円・% は外さない。
 _DIV_YEN_PAREN = re.compile(r"^(.+?)[\(（](円銭|円)[\)）]$")
+# 「年間配当金」＋分かれた「期」「末」（KAB-251 9507）。
+_DIV_SLOT_SUFFIX = re.compile(r"(第[123]四半期末|中間期末|期末|(年間)?合計)$")
 _NUMERIC_ITEM = re.compile(r"\d")
 # 1 ページ目の列見出しのうち、科目名ではなく列の役割・単位。
 _HEADER_ROLE = re.compile(
@@ -415,6 +417,10 @@ class UnitKind(Enum):
     PERCENT = ("pure", -2)
 
 
+# 1 株当たりとして残す上限。これ以上は百万円を円と取り違えた誤値（KAB-251）。
+_PER_SHARE_ABS_MAX = Decimal(100000)
+
+
 def _compact(raw: str) -> str:
     return re.sub(r"\s+", "", unicodedata.normalize("NFKC", raw or ""))
 
@@ -456,6 +462,7 @@ def label_key(raw: str) -> str:
     text = unicodedata.normalize("NFKC", raw or "")
     text = text.replace("·", "・").replace("･", "・")
     text = text.replace("－", "ー").replace("−", "ー").replace("‐", "ー")
+    text = text.replace("当り", "当たり")
     text = re.sub(r"\s+", "", text)
     previous = None
     while previous != text:
@@ -628,6 +635,38 @@ def _strip_dividend_yen_paren(item_text: str, role_texts: tuple[str, ...]) -> tu
     if item_text not in role_texts:
         role_texts = (*role_texts, item_text)
     return match.group(1), role_texts
+
+
+def _dividend_slot_item(
+    item_text: str,
+    extra: tuple[str, ...],
+    role_texts: tuple[str, ...],
+) -> tuple[str, tuple[str, ...], bool]:
+    """時点だけの列、または親見出しに張り付いた「期末」を 1 株当たり配当にする（KAB-251）。
+
+    列見出しが「第１四半期末」等の時点だけなら、科目は年間配当金。配当金総額・配当性向の列は
+    見出しの科目名のまま。「第 / 2 / 四半期末」と語が分かれると、つないだ時点は役割に残って
+    いない（8511）。「年間配当金」＋分かれた「期」「末」は「年間配当金期末」になる（9507）。
+    """
+    compact = _compact(item_text)
+    if _HEADER_ROLE.search(compact):
+        if item_text not in extra:
+            role_texts = (*role_texts, item_text)
+        return "年間配当金", role_texts, True
+    if "総額" in compact or "性向" in compact:
+        return item_text, role_texts, False
+    match = _DIV_SLOT_SUFFIX.search(compact)
+    if match is None:
+        return item_text, role_texts, False
+    remainder = compact[: match.start()]
+    slot = match.group(1)
+    if not remainder:
+        if item_text not in extra:
+            role_texts = (*role_texts, item_text)
+        return "年間配当金", role_texts, True
+    if slot not in {_compact(text) for text in role_texts}:
+        role_texts = (*role_texts, slot)
+    return remainder, role_texts, True
 
 
 def _split_item_headers(headers: tuple[str, ...]) -> tuple[str, tuple[str, ...]]:
@@ -808,7 +847,9 @@ def context_for(
 
 def unit_of(grid_note: str | None, texts: tuple[str, ...]) -> UnitKind:
     joined = "".join(_compact(text) for text in texts)
-    if "円銭" in joined or "銭" in joined or "1株当たり" in joined:
+    tokens = [_compact(text) for text in texts]
+    # 「1株当り」も「1株当たり」。銭列・円銭は 1 株当たり（KAB-251）。
+    if "円銭" in joined or "銭" in joined or "株当" in joined:
         return UnitKind.PER_SHARE
     if "%" in joined or "％" in joined or "比率" in joined:
         return UnitKind.PERCENT
@@ -822,8 +863,9 @@ def unit_of(grid_note: str | None, texts: tuple[str, ...]) -> UnitKind:
     if "千円" in joined:
         return UnitKind.YEN_THOUSANDS
     # 配当列の「年間配当金（円）」。NFKC 後は "(円)"。括弧付きの円は 1 株当たり（KAB-245）。
+    # 見出しが裸の「円」だけの列も 1 株当たり（KAB-251。注記の百万円を採らない）。
     # 注記の裸の「円」は下の YEN（金額）。百万円・千円の列は上で先に決まる。
-    if "(円)" in joined:
+    if "(円)" in joined or "円" in tokens:
         return UnitKind.PER_SHARE
     note = _compact(grid_note or "")
     # 配当表は 円銭 と 百万円 が同じ注記に並ぶ。列ヘッダで決まらなかった金額列は百万円。
@@ -844,6 +886,23 @@ def unit_of(grid_note: str | None, texts: tuple[str, ...]) -> UnitKind:
 
 def scaled(value: Decimal, unit: UnitKind) -> Decimal:
     return value * (Decimal(10) ** unit.value[1])
+
+
+def _implausible_per_share(unit: UnitKind, value: Decimal, local_name: str, spec: SectionSpec) -> bool:
+    """1 株当たりが 1e5 以上なら入れない（百万円を掛けた誤値。KAB-251）。配当金総額は残す。
+
+    「株主」だけの行名（親会社株主に帰属する当期純利益）は金額のまま。
+    """
+    if abs(value) < _PER_SHARE_ABS_MAX:
+        return False
+    if unit is UnitKind.PER_SHARE or "1株" in local_name or "一株" in local_name:
+        return True
+    return (
+        spec.shape is Shape.DIVIDEND
+        and "総額" not in local_name
+        and "性向" not in local_name
+        and "率" not in local_name
+    )
 
 
 def _consolidation(text: str, d: PdfDisclosure, spec: SectionSpec | None = None) -> bool | None:
@@ -1139,14 +1198,7 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                         role_texts = (row.label, *extra)
                         if spec.shape is Shape.DIVIDEND:
                             item_text, role_texts = _strip_dividend_yen_paren(item_text, role_texts)
-                        if spec.shape is Shape.DIVIDEND and _HEADER_ROLE.search(_compact(item_text)):
-                            # 配当表の列見出しが「第１四半期末」等の時点だけなら、科目は 1 株当たり配当金。
-                            # 配当金総額・配当性向の列は見出しの科目名のまま。
-                            # 「第 / 2 / 四半期末」と語が分かれると、つないだ時点は役割に残っていない（8511）。
-                            if item_text not in extra:
-                                role_texts = (*role_texts, item_text)
-                            item_text = "年間配当金"
-                            slot_only = True
+                            item_text, role_texts, slot_only = _dividend_slot_item(item_text, extra, role_texts)
                         role = role_of(role_texts, spec, d, rightmost=False, hint=hint)
                     if role is None or not item_text.strip() or _is_unit_token(item_text):
                         continue
@@ -1172,6 +1224,8 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                         continue
                     for side, raw in sides(role, amount):
                         value = scaled(raw, unit)
+                        if _implausible_per_share(unit, value, base_local, spec):
+                            continue
                         if (
                             spec.namespace is NS_PL
                             and d.standard == "IFRS"

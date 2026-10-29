@@ -20,6 +20,12 @@ _NUM = r"(?:\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+\.\d+)"
 # 「20円00銭」（語が分かれて "20 円 00 銭" でも）。_NUM より前に置く。
 _YEN_SEN = rf"{_NUM}\s*円\s*\d{{2}}\s*銭"
 _YEN_SEN_VALUE = re.compile(rf"^({_NUM})円(\d{{2}})銭$")
+# 「15円00銭」の円の数字の右端。銭まで伸ばすと未定の列とずれる（KAB-251 9507）。
+_YEN_SEN_YEN = re.compile(rf"[△▲(]*\s*{_NUM}")
+# 円列と銭列の見出し（「（円」「銭）」の欠けも含む。百万円は対象外）。
+_YEN_UNIT_HEADER = re.compile(r"^[（(]*円銭?[)）]*$")
+_SEN_UNIT_HEADER = re.compile(r"^[（(]*銭[)）]*$")
+_MONEY_UNIT_HEADER = re.compile(r"百万円|千円|億円|兆円")
 # 数値の後ろの空白は食わない。食うと match の終端が次の <text> に入り、右の列へずれる。
 _AMOUNT = re.compile(
     rf"[△▲]\s*{_NUM}(?:\s*[~～〜](?!\s*[△▲\d]))?"
@@ -470,13 +476,32 @@ def split_amounts(line: Line) -> tuple[str, list[Amount]]:
     amounts = [
         _parse_amount(
             match.group(0),
-            _x1_at(spans, match.end()),
+            _amount_x1(match, spans),
             # 語の途中から始まる数値（「△ 1,234」の後半など）は語の左端で代える。
             _x0_at(spans, match.start() + len(match.group(0)) - len(match.group(0).lstrip())),
         )
         for match in chosen
     ]
     return text[:chosen[0].start()].strip(), amounts
+
+
+def _amount_x1(match: re.Match[str], spans: list[tuple[int, int, Word]]) -> float:
+    """円銭の 1 数値は、隣に未定があるとき円の数字の右端。無いときは銭まで（松井）。"""
+    yen = _YEN_SEN_YEN.match(match.group(0))
+    compact = re.sub(r"\s+", "", match.group(0))
+    if yen is None or not _YEN_SEN_VALUE.fullmatch(compact):
+        return _x1_at(spans, match.end())
+    yen_x1 = _x1_at(spans, match.start() + yen.end())
+    full_x1 = _x1_at(spans, match.end())
+    # 同じ行の他の金額（未定）が円の数字に揃っているときだけ円の右端。銭に揃う表（松井）は伸ばす。
+    others = [
+        _x1_at(spans, other.end())
+        for other in _AMOUNT.finditer(match.string)
+        if other.start() != match.start()
+    ]
+    if others and min(abs(yen_x1 - x) for x in others) + 1e-6 < min(abs(full_x1 - x) for x in others):
+        return yen_x1
+    return full_x1
 
 
 def _is_snap_header_word(word: Word) -> bool:
@@ -775,7 +800,9 @@ def grid(lines: list[Line]) -> Grid:
             continue
         rows.append(GridRow(full, tuple(cells)))
         last_numeric_y = line.base
-    return Grid(_unit_note(lines), tuple(columns), tuple(_join_ranges(rows)))
+    return _merge_shifted_amount_columns(
+        _merge_yen_sen_columns(Grid(_unit_note(lines), tuple(columns), tuple(_join_ranges(rows))))
+    )
 
 
 def _range_label(*labels: str) -> str:
@@ -844,6 +871,224 @@ def _merge_range(low: GridRow, high: GridRow, label: str) -> GridRow:
         else:
             cells.append(left if left is not None and left.value is not None else right)
     return GridRow(label, tuple(cells))
+
+
+def _yen_sen_flags(headers: tuple[str, ...]) -> tuple[bool, bool, bool]:
+    """見出しに円単位・銭単位・金額単位（百万円等）があるか。表の「(単位：百万円)」は列の単位ではない。"""
+    yen = sen = money = False
+    for header in headers:
+        compact = _compact_text(header)
+        if "単位" in compact:
+            continue
+        if _MONEY_UNIT_HEADER.search(compact):
+            money = True
+            continue
+        # 「円銭」は 1 列に両方ある。隣の科目と束ねない。
+        if re.fullmatch(r"[（(]*円銭[)）]*", compact):
+            yen = sen = True
+            continue
+        if _SEN_UNIT_HEADER.fullmatch(compact):
+            sen = True
+        elif _YEN_UNIT_HEADER.fullmatch(compact):
+            yen = True
+    return yen, sen, money
+
+
+def _non_unit_headers(headers: tuple[str, ...]) -> tuple[str, ...]:
+    """円・銭・百万円以外の列見出し。銭列が別科目なら束ねない。"""
+    out: list[str] = []
+    for header in headers:
+        compact = _compact_text(header)
+        if not compact or "単位" in compact:
+            continue
+        if _YEN_UNIT_HEADER.fullmatch(compact) or _SEN_UNIT_HEADER.fullmatch(compact):
+            continue
+        if _MONEY_UNIT_HEADER.search(compact):
+            continue
+        if compact in {"%", "％"}:
+            continue
+        out.append(compact)
+    return tuple(out)
+
+
+def _pair_yen_sen(left: Column, right: Column) -> bool:
+    """右が銭だけの列で、左が円なら 1 つの 1 株当たり値。円銭が同じ列にある・右が別科目なら束ねない。"""
+    left_yen, left_sen, left_money = _yen_sen_flags(left.headers)
+    right_yen, right_sen, right_money = _yen_sen_flags(right.headers)
+    # 右に円がある列は銭の連れ列ではない（単位行の「円銭」が 2 列に分かれたとき）。
+    if left_money or right_money or not right_sen or left_sen or not left_yen or right_yen:
+        return False
+    right_items = _non_unit_headers(right.headers)
+    if not right_items:
+        return True
+    left_items = set(_non_unit_headers(left.headers))
+    return all(item in left_items for item in right_items)
+
+
+def _merge_yen_sen_headers(left: Column, right: Column) -> tuple[str, ...]:
+    seen: set[str] = set()
+    out: list[str] = []
+    dropped_unit = False
+    for header in (*left.headers, *right.headers):
+        compact = _compact_text(header)
+        if not compact:
+            continue
+        if _YEN_UNIT_HEADER.fullmatch(compact) or _SEN_UNIT_HEADER.fullmatch(compact):
+            dropped_unit = True
+            continue
+        if compact in seen:
+            continue
+        seen.add(compact)
+        out.append(header)
+    if dropped_unit:
+        out.append("円")
+    return tuple(out)
+
+
+def _combine_yen_sen(yen: Amount | None, sen: Amount | None) -> Amount | None:
+    if yen is None and sen is None:
+        return None
+    yen_val = None if yen is None else yen.value
+    sen_val = None if sen is None else sen.value
+    if yen_val is None and sen_val is None:
+        return yen if yen is not None else sen
+    if yen is None or yen_val is None:
+        # 円列が空で銭列に 48.00 のように載っているのは、円銭が 1 数値のとき。円として残す。
+        return sen
+    sen_part = Decimal(0) if sen_val is None else abs(sen_val) / Decimal(100)
+    sign = Decimal(-1) if yen_val < 0 else Decimal(1)
+    return Amount(yen_val + sign * sen_part, None, yen.x1, yen.x0)
+
+
+def _merge_yen_sen_columns(table: Grid) -> Grid:
+    """円列と隣の銭列を 1 列にする（KAB-251。3608 の 35円21銭、3944・7590 の FEPS）。"""
+    if len(table.columns) < 2:
+        return table
+    keep: list[int] = []
+    skip: set[int] = set()
+    merged_cols: dict[int, Column] = {}
+    merged_cells: dict[int, tuple[Amount | None, ...]] = {}
+    for index, column in enumerate(table.columns):
+        if index in skip:
+            continue
+        nxt = index + 1
+        if nxt < len(table.columns) and _pair_yen_sen(column, table.columns[nxt]):
+            merged_cols[index] = Column(
+                column.x0,
+                max(column.x1, table.columns[nxt].x1),
+                _merge_yen_sen_headers(column, table.columns[nxt]),
+            )
+            merged_cells[index] = tuple(
+                _combine_yen_sen(row.cells[index], row.cells[nxt]) for row in table.rows
+            )
+            skip.add(nxt)
+        keep.append(index)
+    if not skip:
+        return table
+    columns = tuple(merged_cols.get(index, table.columns[index]) for index in keep)
+    rows = tuple(
+        GridRow(
+            row.label,
+            tuple(
+                merged_cells[index][row_i] if index in merged_cells else row.cells[index]
+                for index in keep
+            ),
+        )
+        for row_i, row in enumerate(table.rows)
+    )
+    return Grid(table.unit_note, columns, rows)
+
+
+# 「15円00銭」の右端を円の数字にすると、銭まで伸ばした「未定」と 2 列になる（松井 20220825523972）。
+_SHIFT_COL = 50.0
+
+
+def _pick_shifted_cell(left: Amount | None, right: Amount | None) -> Amount | None:
+    if left is not None and left.value is not None:
+        return left
+    if right is not None and right.value is not None:
+        return right
+    return left if left is not None else right
+
+
+def _shifted_amount_pair(left: Column, right: Column, left_cells: tuple[Amount | None, ...], right_cells: tuple[Amount | None, ...]) -> bool:
+    """隣接列が同じスロットの数値と未定で、右端だけずれているか。
+
+    未定セル（値なし）があるときだけ。EPS の桁違いで x1 がずれた 2 列（7865 20241126529281）は束ねない。
+    """
+    if right.x1 - left.x1 > _SHIFT_COL:
+        return False
+    _left_yen, _left_sen, left_money = _yen_sen_flags(left.headers)
+    _right_yen, _right_sen, right_money = _yen_sen_flags(right.headers)
+    if left_money or right_money:
+        return False
+    saw_num = False
+    saw_nil = False
+    for left_cell, right_cell in zip(left_cells, right_cells):
+        left_val = None if left_cell is None else left_cell.value
+        right_val = None if right_cell is None else right_cell.value
+        if left_val is not None and right_val is not None:
+            return False
+        if left_val is not None and right_cell is not None and right_val is None:
+            return False
+        if right_val is not None and left_cell is not None and left_val is None:
+            return False
+        if (left_val is not None) != (right_val is not None):
+            saw_num = True
+        if (left_cell is not None and left_val is None) or (right_cell is not None and right_val is None):
+            saw_nil = True
+    if not saw_num or not saw_nil:
+        return False
+    right_items = tuple(item for item in _non_unit_headers(right.headers) if len(item) > 1)
+    left_items = {item for item in _non_unit_headers(left.headers) if len(item) > 1}
+    if not right_items or all(item in left_items for item in right_items):
+        return True
+    if not left_items or all(item in set(right_items) for item in left_items):
+        return True
+    return bool(left_items & set(right_items))
+
+
+def _merge_shifted_amount_columns(table: Grid) -> Grid:
+    """円銭の右端と未定の右端がずれた 2 列を 1 列にする（KAB-251）。"""
+    if len(table.columns) < 2:
+        return table
+    keep: list[int] = []
+    skip: set[int] = set()
+    merged_cols: dict[int, Column] = {}
+    merged_cells: dict[int, tuple[Amount | None, ...]] = {}
+    for index, column in enumerate(table.columns):
+        if index in skip:
+            continue
+        nxt = index + 1
+        left_cells = tuple(row.cells[index] for row in table.rows)
+        right_cells = tuple(row.cells[nxt] for row in table.rows) if nxt < len(table.columns) else ()
+        if nxt < len(table.columns) and _shifted_amount_pair(
+            column, table.columns[nxt], left_cells, right_cells
+        ):
+            merged_cols[index] = Column(
+                column.x0,
+                max(column.x1, table.columns[nxt].x1),
+                _merge_yen_sen_headers(column, table.columns[nxt]),
+            )
+            merged_cells[index] = tuple(
+                _pick_shifted_cell(row.cells[index], row.cells[nxt]) for row in table.rows
+            )
+            skip.add(nxt)
+        keep.append(index)
+    if not skip:
+        return table
+    columns = tuple(merged_cols.get(index, table.columns[index]) for index in keep)
+    rows = tuple(
+        GridRow(
+            row.label,
+            tuple(
+                merged_cells[index][row_i] if index in merged_cells else row.cells[index]
+                for index in keep
+            ),
+        )
+        for row_i, row in enumerate(table.rows)
+    )
+    return Grid(table.unit_note, columns, rows)
 
 
 def _compact_text(raw: str) -> str:
