@@ -8,7 +8,7 @@ PTS lives inside the ランキング tab. It lists one night-session PTS ranking
 - `pts-ranking` switches `#pts-ranking .ftab[data-ranking]` (`night_up` 値上がり default / `night_down` 値下がり / `night_volume` 出来高). The clicked button gets `.on`; the request keeps `date` from `#pts-date` and drops `at`, so it shows that pair's latest fetch.
 - `pts-date` is `#pts-date` (session days, newest first, up to 60). Changing it reloads with the current ranking.
 - `pts-at` is `#pts-at` (one option per fetch, `MM-DD HH:MM（HH:MM現在）`, newest first; `hidden` when there are no snapshots). Picking one sends `at=`.
-- `pts-table` fills `#pts-tbl`: 順位 / 銘柄 / 市場 / 終値 / PTS / 終値比 / PTS出来高 / 翌始値 / 終値→翌始値 / PTS→翌始値 / 追随率. 銘柄 is name `.clicky` + 4-digit `<small>`. 追随率 = (翌始値 − 終値) / (PTS − 終値), `–` when PTS equals 終値 or there is no open. A row whose `next_date` differs from the table's adds `M/D` beside 翌始値.
+- `pts-table` fills `#pts-tbl.sheet`: 順位 / 銘柄 / 市場 / 終値 / PTS / 終値比 / PTS出来高 / 翌始値 / 終値→翌始値 / PTS→翌始値 / 追随率. 銘柄 is `shortName` (5 chars, `title` full) + `code.slice(0,4)` under it (same `table.sheet` look as ランキング). 追随率 = (翌始値 − 終値) / (PTS − 終値), `–` when PTS equals 終値 or there is no open. A row whose `next_date` differs from the table's adds `M/D` beside 翌始値.
 - `pts-info` reads `{date} 終値比 / 翌営業日 {next_date}` (`未取込` when no row has an open yet). `#pts-summary` reads `翌始値あり N 銘柄: PTS→翌始値 平均 … / 追随率 中央値 …`, empty when `summary.n` is 0.
 - `pts-to-chart` clicks a name → `gotoChart(code)` → 銘柄 › 株価, hash `#stock/{code}/price`.
 - `pts-route` writes `#ranking/pts` to `location.hash` + `ui.route`; reload reopens ランキング › PTS. Old `#pts` (hash or `ui.route`) is rewritten to `#ranking/pts`.

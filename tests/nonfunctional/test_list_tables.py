@@ -14,17 +14,24 @@ def test_sheet_css_is_shared() -> None:
     assert "#rk-tbl.sheet" in css
     assert "#sc-tbl.sheet" in css
     assert "#earn-tbl.sheet" in css
+    assert "#pts-tbl.sheet" in css
     assert "table.sheet td.name, table.sheet th.name { max-width:8em; }" in css
     assert "#rk-tbl th.grp { white-space:nowrap; }" in css
     assert "#earn-tbl .pin2, #sc-tbl .pin0, #hd-feed .pin2, #hd-holdings .pin0, #st-holders-large .pin0, #hd-activity .pin1 { box-shadow:inset -1px 0 0 var(--border); }" in css
     assert "#rk-tbl .pin1" not in css
     assert "#hd-feed.sheet" in css
+    assert "#pts-tbl td.name, #pts-tbl th.name" in css
     assert "#tab-holders .tbl-wrap" in css
+    assert ".supply-tbl { width:auto; margin-top:6px; }" in css
+    assert ".supply-tbl { width:auto; margin-top:6px; font-size" not in css
+    assert "tr.below-h td { color:var(--sub); }" in css
+    assert "tr.below-h td { color:var(--sub); font-size" not in css
 
 
 def test_ranking_table_matches_sheet() -> None:
     html = (ROOT / "static/index.html").read_text(encoding="utf-8")
     assert 'id="rk-tbl" class="sheet"' in html
+    assert 'id="pts-tbl" class="sheet"' in html
     assert 'data-dir="up"' in html
     assert 'data-dir="down"' in html
     assert ">上昇率</button>" in html
@@ -69,6 +76,12 @@ def test_ranking_table_matches_sheet() -> None:
     assert "（次の決算の前日終値まで）" not in src
     assert "決算発表後パフォーマンス 上位" not in src
     assert "この月の${RK_DIR[rkDir]}はありません" in src
+
+
+def test_supply_tables_use_sheet() -> None:
+    src = (ROOT / "static/js/supply.js").read_text(encoding="utf-8")
+    assert src.count('class="sheet supply-tbl') == 4
+    assert 'class="supply-tbl' not in src.replace('class="sheet supply-tbl', "")
 
 
 def test_screener_table_matches_sheet() -> None:

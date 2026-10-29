@@ -263,3 +263,6 @@ def test_spa_holders_tab() -> None:
     assert "pinCols" in js and "hdHolderCell" in js and "hdPurposeCell" in js
     assert "shortName(raw)" in js
     assert "table.sheet" in js
+    assert 'class="below-h"' in js
+    assert "tr.below-h td { color:var(--sub); }" in css
+    assert "tr.below-h td { color:var(--sub); font-size" not in css
