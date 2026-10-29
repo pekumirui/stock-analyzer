@@ -4,7 +4,8 @@
   python jobs/monthly/tdnet_monthly_r2.py 1
   python jobs/monthly/tdnet_monthly_r2.py 30 --dest /tmp/monthly
 
-N は今日(JST)から遡る日数（当日を含む）。ネットワークと app/ はテストから分離する。
+N は今日(JST)から遡る日数（当日を含む）。日次 cron は 7（やのしん登録遅れの拾い直し）。
+ネットワークと app/ はテストから分離する。
 """
 from __future__ import annotations
 
