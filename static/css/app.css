@@ -127,6 +127,7 @@
   table.sheet th.l { text-align:left; }
   table.sheet td.name, table.sheet th.name { width:1%; white-space:nowrap; }
   table.sheet .g { display:block; font-size:11px; font-weight:400; line-height:1.35; min-height:1.35em; }
+  table.sheet .opm { font-size:11px; font-weight:400; color:var(--sub); }
   #earn-tbl td.fy, #earn-tbl th.fy { width:1%; white-space:nowrap; }
   #earn-tbl .g .qb + .qb { margin-left:3px; }
   #earn-tbl .loss { color:var(--up); }
@@ -160,12 +161,11 @@
   table.fin td:first-child, table.fin th:first-child { position:sticky; left:0; z-index:2; background:var(--panel); width:1%; }
   table.fin th:first-child { z-index:3; }  /* 縦スクロールで本文の決算期セルより上に出す */
   table.fin { font-variant-numeric:tabular-nums; }
-  table.fin th { font-size:11px; letter-spacing:.02em; }
+  table.fin th { letter-spacing:.02em; }
   table.fin td { padding:7px 8px; vertical-align:top; }
-  table.fin td.num { font-size:13px; font-weight:500; }
-  table.fin .opm { font-size:11px; font-weight:400; color:var(--sub); }
+  table.fin td.num { font-weight:500; }
   table.fin .opm.loss { color:var(--up); }
-  table.fin .g { display:block; font-size:11px; font-weight:400; line-height:1.35; min-height:1.35em; }
+  table.fin .g { display:block; font-weight:400; line-height:1.35; min-height:1.35em; }
   table.fin tbody tr:nth-child(even) td { background:var(--row); }
   table.fin tbody tr:hover td { background:var(--row-sel); }
   table.fin tr.now td { background:var(--now) !important; color:var(--text); }

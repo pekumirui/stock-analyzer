@@ -87,6 +87,22 @@ def test_screener_table_matches_sheet() -> None:
     assert "pinCols($(\"#sc-tbl\"), 1)" in src
 
 
+def test_fin_perf_news_use_sheet() -> None:
+    """決算表・銘柄パフォーマンス・銘柄ニュースは table.sheet（KAB-274）。"""
+    html = (ROOT / "static/index.html").read_text(encoding="utf-8")
+    css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
+    for tid in ("cum-tbl", "q-tbl", "prog-tbl", "rev-tbl",
+                "st-cum-tbl", "st-q-tbl", "st-prog-tbl", "st-rev-tbl"):
+        assert f'class="sheet fin" id="{tid}"' in html
+    assert 'id="perf-tbl" class="sheet"' in html
+    assert 'id="st-news" class="sheet"' in html
+    assert "table.sheet .opm" in css
+    assert "table.fin th { font-size" not in css
+    assert "table.fin td.num { font-size" not in css
+    assert "table.fin .opm { font-size" not in css
+    assert "table.fin .g { display:block; font-size" not in css
+
+
 def test_earnings_keeps_sheet_and_shared_pin() -> None:
     src = (ROOT / "static/js/earnings.js").read_text(encoding="utf-8")
     assert 'id="earn-tbl" class="sheet"' in src
