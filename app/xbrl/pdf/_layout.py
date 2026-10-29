@@ -332,7 +332,7 @@ def garbled_page_indexes(pages: list[Page]) -> list[int]:
     ]
 
 
-def format_garbled_pages(indexes: list[int]) -> str:
+def _format_page_ranges(indexes: list[int]) -> str:
     if not indexes:
         return ""
     pages = [index + 1 for index in indexes]
@@ -345,7 +345,29 @@ def format_garbled_pages(indexes: list[int]) -> str:
         ranges.append(f"{start}-{prev}" if start != prev else str(start))
         start = prev = number
     ranges.append(f"{start}-{prev}" if start != prev else str(start))
-    return "garbled pages=" + ",".join(ranges)
+    return ",".join(ranges)
+
+
+def format_garbled_pages(indexes: list[int]) -> str:
+    ranges = _format_page_ranges(indexes)
+    return f"garbled pages={ranges}" if ranges else ""
+
+
+def textless_page_indexes(pages: list[Page], *, exclude: list[int] | None = None) -> list[int]:
+    """2 ページ目以降で、柱・ページ番号を除いた文字が無い（KAB-262）。
+
+    文字化け・アウトライン化（garbled）のページは除く。印は textless pages=4-6。
+    """
+    skip = set(exclude or ())
+    return [
+        page.index for page in pages
+        if page.index >= 1 and page.index not in skip and _page_chars(page) == 0
+    ]
+
+
+def format_textless_pages(indexes: list[int]) -> str:
+    ranges = _format_page_ranges(indexes)
+    return f"textless pages={ranges}" if ranges else ""
 
 
 def _group_lines(words: list[Word]) -> tuple[Line, ...]:

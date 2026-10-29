@@ -49,6 +49,7 @@ _DIVIDEND_SLOTS = frozenset({
 _LEADING = re.compile(r"^(?:[①-⑳]|※\d*|\(注\d*\)|\(\d+\)|\d+\.)+")
 _HEADING_LEAD = re.compile(r"^(?:[①-⑳]|\(\d+\)|\d+\.)+")
 _HINTS = re.compile(r"\([△▲][^)]*\)")
+_BREAKDOWN_LEAD = re.compile(r"^[（(]内訳[)）]")
 # 本表の途中に出る分類見出し。grid が次の行名へ連結しない。
 _CLASS_HEAD = re.compile(r"の部$")
 # 続きページの柱（銘柄コードと題名）。数値の無い行として次の科目名に連結しない。
@@ -76,6 +77,12 @@ _CF_CLASS = re.compile(r"^(営業|投資|財務)活動によるキャッシュ�
 _BS_CLASS = re.compile(
     r"^(資産|負債|純資産|資本|流動資産|固定資産|非流動資産|流動負債|固定負債|非流動負債|株主資本)$"
 )
+# 数値の無い PL の区分見出し。hanging が「収益売上収益」にしない（KAB-261）。
+_PL_CLASS = re.compile(r"^収益$")
+# 内訳の行。親会社株主に帰属する行の頭に付くと名寄せできない（KAB-260）。
+_BREAKDOWN = re.compile(r"^[（(]内訳[)）]$")
+# CF の現金残高。期間ではなく時点（KAB-263。EDINET / TDnet ZIP の CashAndCashEquivalents に合わせる）。
+_CASH_BALANCE = re.compile(r"現金及び現金同等物.*(期首|期末)残高")
 # 訂正短信の「（訂正前）」ブロック（KAB-212）。drop_pre_correction はこれだけ。
 _CORR_BEFORE = re.compile(r"^[【\[(（]*訂正前[)）】\]]*$")
 _CORR_AFTER = re.compile(r"^[【\[(（]*訂正後[)）】\]]*$")
@@ -118,6 +125,8 @@ _SYNONYMS = (
      r"\g<1>1株当たり当期利益"),
 )
 _STMT = r"(要約)?(四半期|中間)?(連結|個別)?"
+# 包括利益計算書だけを PL と読む見出し（損益計算書が別に無いとき。KAB-259）。
+_CI_AS_PL = re.compile(r"^" + _STMT + r"包括利益計算書$")
 
 
 def parse_disclosure_no(raw: str) -> DisclosureNo:
@@ -307,7 +316,7 @@ SECTIONS: tuple[SectionSpec, ...] = (
     ),
     SectionSpec(
         "pl",
-        _h(r"^" + _STMT + r"(損益計算書|損益及び包括利益計算書)(及び" + _STMT + r"包括利益計算書)?$"),
+        _h(r"^" + _STMT + r"(純?損益計算書|損益及び包括利益計算書|包括利益計算書)(及び" + _STMT + r"包括利益計算書)?$"),
         NS_PL, Axis.ITEM_ROWS, Shape.DURATION, _E, frozenset(),
     ),
     SectionSpec(
@@ -469,6 +478,7 @@ def label_key(raw: str) -> str:
         previous = text
         text = _LEADING.sub("", text)
         text = _HINTS.sub("", text)
+        text = _BREAKDOWN_LEAD.sub("", text)
     # 「営業利益又は営業損失(△)」は前半の名前。符号は印字の △ のまま。
     # 「又は損失の帰属親会社の所有者」はの帰属を残し、_OWNERS_PROFIT に渡す（KAB-240）。
     head = _ALTERNATIVE.sub("", text)
@@ -823,21 +833,23 @@ def context_for(
     d: PdfDisclosure,
     *,
     consolidated: bool,
+    instant: bool | None = None,
 ) -> ParsedContext:
-    instant = spec.shape is Shape.INSTANT
-    start, end = _bounds(role, d, instant)
-    suffix = "Instant" if instant else "Duration"
-    ref = f"{role.period.value}{role.span.value}{suffix}"
-    if role.members:
-        ref = f"{ref}_{'_'.join(sorted(role.members))}"
+    use_instant = spec.shape is Shape.INSTANT if instant is None else instant
+    used = replace(role, span=Span.YEAR) if use_instant and role.span is not Span.YEAR else role
+    start, end = _bounds(used, d, use_instant)
+    suffix = "Instant" if use_instant else "Duration"
+    ref = f"{used.period.value}{used.span.value}{suffix}"
+    if used.members:
+        ref = f"{ref}_{'_'.join(sorted(used.members))}"
     if not consolidated:
         # context は ref で使い回す。連結の短信の単体の値（配当）が連結の本表の context を奪わない。
         ref = f"{ref}_NonConsolidated"
-    dimensions = {f"pdf:{_AXIS.get(member, member)}:{member}": member for member in role.members}
+    dimensions = {f"pdf:{_AXIS.get(member, member)}:{member}": member for member in used.members}
     return ParsedContext(
         context_ref=ref,
-        period_type="instant" if instant else "duration",
-        start_date=None if instant else start,
+        period_type="instant" if use_instant else "duration",
+        start_date=None if use_instant else start,
         end_date=end,
         is_consolidated=1 if consolidated else 0,
         relative_period=None,
@@ -984,15 +996,26 @@ def _blocks(pages: list[Page], d: PdfDisclosure) -> list[tuple[SectionSpec, list
         candidates.append((spec, _table_lines(body), consolidated, text))
     blocks: list[tuple[SectionSpec, list[Line], bool, str]] = []
     taken: set[str] = set()
+    has_income_pl = any(
+        other.name == "pl" and body and not _ci_as_pl_heading(other_text)
+        for other, body, _cons, other_text in candidates
+    )
     for spec, body, consolidated, text in candidates:
         if spec.name in _STATEMENTS:
             if spec.name in taken or sum(1 for line in body if split_amounts(line)[1]) < _MIN_STATEMENT_ROWS:
+                continue
+            if spec.name == "pl" and _ci_as_pl_heading(text) and has_income_pl:
                 continue
             if d.kind is DocKind.EARNINGS and not _statement_matches(text, spec, d, candidates):
                 continue
             taken.add(spec.name)
         blocks.append((spec, body, consolidated, text))
     return blocks
+
+
+def _ci_as_pl_heading(text: str) -> bool:
+    """「包括利益計算書」単体。損益計算書や「損益及び包括利益計算書」は含めない（KAB-259）。"""
+    return bool(_CI_AS_PL.fullmatch(_heading_key(text)) or _CI_AS_PL.fullmatch(_compact(text)))
 
 
 def _statement_body(lines: list[Line]) -> list[Line]:
@@ -1033,6 +1056,10 @@ def _table_lines(lines: list[Line]) -> list[Line]:
         if _CF_CLASS.fullmatch(compact) and not split_amounts(line)[1]:
             continue
         if _BS_CLASS.fullmatch(compact) and not split_amounts(line)[1]:
+            continue
+        if _PL_CLASS.fullmatch(compact) and not split_amounts(line)[1]:
+            continue
+        if _BREAKDOWN.fullmatch(compact) and not split_amounts(line)[1]:
             continue
         if _RUNNING_HEAD.search(compact):
             continue
@@ -1234,9 +1261,12 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                         ):
                             value = -value
                         # 配当は ZIP と同じく単体（連結の軸が無い）として持つ。
+                        # CF の現金残高は時点（KAB-263。EDINET / TDnet ZIP に合わせる）。
+                        cash_instant = spec.namespace is NS_CF and bool(_CASH_BALANCE.search(base_local))
                         ctx = context_for(
                             side, spec, d,
                             consolidated=consolidated and spec.shape is not Shape.DIVIDEND,
+                            instant=True if cash_instant else None,
                         )
                         contexts.setdefault(ctx.context_ref, ctx)
                         fact = ParsedFact(
