@@ -184,6 +184,61 @@ def test_stock_holders_and_treasury(c) -> None:
     assert expired["treasury"]["active"] == []
 
 
+def test_large_holding_report_indexes() -> None:
+    from sqlalchemy import inspect
+
+    from app.db import engine
+
+    names = {ix["name"] for ix in inspect(engine).get_indexes("large_holding_reports")}
+    assert "ix_large_holding_reports_file_date" in names
+    assert "ix_large_holding_reports_latest_file" in names
+
+
+def test_holder_page_query_count_is_bounded(c) -> None:
+    _seed()
+    db = SessionLocal()
+    try:
+        extra = []
+        for i in range(40):
+            code = f"{5000 + i:04d}0"
+            extra.append(Stock(code=code, name=f"発行{i}", market="プライム", sector33="機械"))
+            extra.append(DailyPrice(
+                code=code, date=D("2026-10-28"), close=100.0, adj_close=100.0, adj_factor=1.0,
+            ))
+            doc = f"S100Q{i:03d}"
+            extra.append(_rep(
+                doc, filer_edinet_code="E09096", filer_name="ブラックロック・ジャパン株式会社",
+                code=code, issuer_name=f"発行{i}",
+                obligation_date=D("2026-10-01"), file_date=D("2026-10-08"),
+                holding_ratio=0.06, holding_ratio_prev=0.05, shares_held=1000,
+            ))
+            extra.append(_h(
+                doc, shares_held=1000, holding_ratio=0.06, holding_ratio_prev=0.05,
+                purpose="純投資", total_funds=100_000,
+            ))
+        db.add_all(extra)
+        db.commit()
+    finally:
+        db.close()
+
+    from sqlalchemy import event
+
+    from app.db import engine
+
+    n = {"q": 0}
+
+    def _before(*_a, **_k):
+        n["q"] += 1
+
+    event.listen(engine, "before_cursor_execute", _before)
+    try:
+        p = c.get("/api/holders/E09096?today=2026-10-29").json()
+    finally:
+        event.remove(engine, "before_cursor_execute", _before)
+    assert len(p["holdings"]) >= 40
+    assert n["q"] < 20
+
+
 def test_spa_holders_tab() -> None:
     html = (ROOT / "static/index.html").read_text(encoding="utf-8")
     tabs = (ROOT / "static/js/tabs.js").read_text(encoding="utf-8")
@@ -202,3 +257,9 @@ def test_spa_holders_tab() -> None:
     assert 'data-tab="pts"' not in html and 'id="tab-pts"' not in html
     assert 'data-rksub="pts"' in html
     assert html.index('data-tab="ranking"') < html.index('data-tab="holders"')
+    css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
+    assert "#hd-holdings .purpose" not in css
+    assert "#tab-holders .tbl-wrap" in css
+    assert "pinCols" in js and "hdHolderCell" in js and "hdPurposeCell" in js
+    assert "shortName(raw)" in js
+    assert "table.sheet" in js

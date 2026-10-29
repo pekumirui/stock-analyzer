@@ -371,9 +371,17 @@ def _server_default_sql(col) -> str | None:
     return str(arg)
 
 
+def ensure_indexes() -> None:
+    """create_all は既存テーブルに索引を足さない。起動と migrate で不足分を足す。"""
+    for table in Base.metadata.sorted_tables:
+        for idx in table.indexes:
+            idx.create(bind=engine, checkfirst=True)
+
+
 def init_db(strict: bool = False):
     """テーブル作成。strict=True なら既存スキーマの不整合で例外を投げる。"""
     Base.metadata.create_all(engine)
+    ensure_indexes()
     if strict:
         lacks = missing_columns()
         if lacks:

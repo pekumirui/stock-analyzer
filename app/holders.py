@@ -4,11 +4,10 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import and_, func, or_, text
+from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
 from .models import (
-    DailyPrice,
     EdinetBuyback,
     EdinetBuybackResolution,
     LargeHolding,
@@ -98,22 +97,36 @@ def _like_escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+def _codes_union_sql(codes: list[str], params: dict[str, str], *, prefix: str = "c") -> str:
+    selects = []
+    for j, code in enumerate(codes):
+        key = f"{prefix}{j}"
+        selects.append(f"SELECT :{key} AS code")
+        params[key] = code
+    return " UNION ALL ".join(selects)
+
+
 def _latest_prices(db: Session, codes: list[str]) -> dict[str, tuple[date, float, float | None]]:
+    """銘柄ごとの最新終値。(code, date) PK への相関 MAX。IN + GROUP BY は日足全件を読む。"""
     codes = [c for c in dict.fromkeys(codes) if c]
+    out: dict[str, tuple[date, float, float | None]] = {}
     if not codes:
-        return {}
-    sub = (
-        db.query(DailyPrice.code, func.max(DailyPrice.date).label("d"))
-        .filter(DailyPrice.code.in_(codes), DailyPrice.close.isnot(None))
-        .group_by(DailyPrice.code)
-        .subquery()
-    )
-    rows = (
-        db.query(DailyPrice.code, DailyPrice.date, DailyPrice.close, DailyPrice.adj_factor)
-        .join(sub, and_(DailyPrice.code == sub.c.code, DailyPrice.date == sub.c.d))
-        .all()
-    )
-    return {c: (d, close, adj) for c, d, close, adj in rows}
+        return out
+    for i in range(0, len(codes), 80):
+        chunk = codes[i:i + 80]
+        params: dict[str, str] = {}
+        sql = text(
+            "SELECT a.code, p.date, p.close, p.adj_factor FROM ("
+            + _codes_union_sql(chunk, params)
+            + ") a JOIN daily_prices p ON p.code = a.code AND p.date = ("
+            "SELECT MAX(p2.date) FROM daily_prices p2 "
+            "WHERE p2.code = a.code AND p2.close IS NOT NULL)"
+        )
+        for code, d, close, adj in db.execute(sql, params):
+            if isinstance(d, str):
+                d = date.fromisoformat(d[:10])
+            out[code] = (d, close, adj)
+    return out
 
 
 def _adj_asof(db: Session, pairs: list[tuple[str, date]]) -> dict[tuple[str, date], float | None]:
@@ -121,8 +134,8 @@ def _adj_asof(db: Session, pairs: list[tuple[str, date]]) -> dict[tuple[str, dat
     out: dict[tuple[str, date], float | None] = dict.fromkeys(uniq)
     if not uniq:
         return out
-    for i in range(0, len(uniq), 40):
-        chunk = uniq[i:i + 40]
+    for i in range(0, len(uniq), 80):
+        chunk = uniq[i:i + 80]
         selects = []
         params: dict[str, str] = {}
         for j, (code, asof) in enumerate(chunk):
@@ -199,6 +212,18 @@ def search_holders(db: Session, q: str) -> dict[str, Any]:
     return {"q": raw, "results": [{"edinet_code": c, "name": n} for c, n in seen.items()]}
 
 
+def _activity_move_sql():
+    """割合が変わらない変更報告（住所変更など）を SQL で落とす。classify_move と同じ条件。"""
+    return (
+        LargeHolding.holding_ratio.isnot(None),
+        or_(
+            LargeHoldingReport.form_code.in_(tuple(INITIAL_FORMS)),
+            LargeHolding.holding_ratio_prev.is_(None),
+            LargeHolding.holding_ratio != LargeHolding.holding_ratio_prev,
+        ),
+    )
+
+
 def _activity_item(h: LargeHolding, r: LargeHoldingReport, stocks: dict[str, Stock]) -> dict[str, Any] | None:
     kind = classify_move(h.holding_ratio, h.holding_ratio_prev, r.form_code)
     if kind is None:
@@ -225,18 +250,23 @@ def activity_feed(db: Session, *, limit: int = ACTIVITY_DEFAULT, today: date | N
     n = max(1, min(int(limit or ACTIVITY_DEFAULT), ACTIVITY_MAX))
     day = today or date.today()
     since = day - timedelta(days=90)
+    fetch_n = min(ACTIVITY_MAX, max(n * 4, n))
     rows = (
-        db.query(LargeHolding, LargeHoldingReport)
+        db.query(LargeHolding, LargeHoldingReport, Stock)
         .join(LargeHoldingReport, LargeHoldingReport.doc_id == LargeHolding.doc_id)
-        .filter(*_ok_report(), *_has_holder_code(), LargeHoldingReport.file_date >= since)
+        .outerjoin(Stock, Stock.code == LargeHoldingReport.code)
+        .filter(
+            *_ok_report(), *_has_holder_code(),
+            LargeHoldingReport.file_date >= since,
+            *_activity_move_sql(),
+        )
         .order_by(LargeHoldingReport.file_date.desc(), LargeHoldingReport.submit_datetime.desc())
-        .limit(2500)
+        .limit(fetch_n)
         .all()
     )
-    codes = {r.code for _h, r in rows if r.code}
-    stocks = {s.code: s for s in db.query(Stock).filter(Stock.code.in_(codes)).all()} if codes else {}
+    stocks = {st.code: st for _h, _r, st in rows if st is not None}
     items = []
-    for h, r in rows:
+    for h, r, _st in rows:
         item = _activity_item(h, r, stocks)
         if item is None:
             continue
@@ -259,17 +289,18 @@ def holder_page(db: Session, edinet: str, *, today: date | None = None) -> dict[
     day = today or date.today()
     cutoff = _cutoff(day)
     rows = (
-        db.query(LargeHolding, LargeHoldingReport)
+        db.query(LargeHolding, LargeHoldingReport, Stock)
         .join(LargeHoldingReport, LargeHoldingReport.doc_id == LargeHolding.doc_id)
+        .outerjoin(Stock, Stock.code == LargeHoldingReport.code)
         .filter(*_ok_report(), LargeHolding.edinet_code == code)
         .all()
     )
     if not rows:
         return None
-    by_issuer: dict[str, list[tuple[LargeHolding, LargeHoldingReport]]] = {}
-    for h, r in rows:
+    by_issuer: dict[str, list[tuple[LargeHolding, LargeHoldingReport, Stock | None]]] = {}
+    for h, r, st in rows:
         key = r.code or r.issuer_edinet_code or r.issuer_name or r.doc_id
-        by_issuer.setdefault(key, []).append((h, r))
+        by_issuer.setdefault(key, []).append((h, r, st))
     latest_pairs = []
     for group in by_issuer.values():
         group.sort(key=lambda x: _report_key(x[1].file_date, x[1].submit_datetime, x[1].obligation_date))
@@ -281,15 +312,13 @@ def holder_page(db: Session, edinet: str, *, today: date | None = None) -> dict[
             x[1].code or "",
         )
     )
-    codes = [r.code for _h, r in latest_pairs if r.code]
-    stocks = {s.code: s for s in db.query(Stock).filter(Stock.code.in_(codes)).all()} if codes else {}
+    codes = [r.code for _h, r, _st in latest_pairs if r.code]
     prices = _latest_prices(db, codes)
-    adj_then = _adj_asof(db, [(r.code, r.obligation_date) for _h, r in latest_pairs if r.code and r.obligation_date])
+    adj_then = _adj_asof(db, [(r.code, r.obligation_date) for _h, r, _st in latest_pairs if r.code and r.obligation_date])
     newest = max(latest_pairs, key=lambda x: _report_key(x[1].file_date, x[1].submit_datetime, x[1].obligation_date))
     name = newest[0].name or code
     holdings = []
-    for h, r in latest_pairs:
-        st = stocks.get(r.code) if r.code else None
+    for h, r, st in latest_pairs:
         px = prices.get(r.code) if r.code else None
         close = px[1] if px else None
         adj_now = px[2] if px else None
@@ -297,7 +326,7 @@ def holder_page(db: Session, edinet: str, *, today: date | None = None) -> dict[
         mv, avg, unreal = _estimates(h.shares_held, h.total_funds, close, adj_now, then)
         hist = []
         key = r.code or r.issuer_edinet_code or r.issuer_name or r.doc_id
-        for hh, rr in by_issuer[key]:
+        for hh, rr, _st in by_issuer[key]:
             if not _history_ok(rr, cutoff):
                 continue
             hist.append({
@@ -331,8 +360,9 @@ def holder_page(db: Session, edinet: str, *, today: date | None = None) -> dict[
         key=lambda x: _report_key(x[1].file_date, x[1].submit_datetime, x[1].obligation_date),
         reverse=True,
     )
+    stocks = {st.code: st for _h, _r, st in rows if st is not None}
     activity = []
-    for h, r in activity_rows:
+    for h, r, _st in activity_rows:
         item = _activity_item(h, r, stocks)
         if item is None:
             continue
