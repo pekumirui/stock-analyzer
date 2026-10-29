@@ -317,18 +317,20 @@ def sync_pdf_filings(
     limit: int = 2000,
 ) -> Counter:
     """ok の HTML か、既存の PDF filing がある開示。新しい順。remaining は今回見なかった件数。"""
-    docs = db.query(TdnetPdfDocument).filter(TdnetPdfDocument.status == "ok")
-    filings = db.query(XbrlFiling).filter_by(source=SOURCE)
+    docs = db.query(
+        TdnetPdfDocument.disclosure_no, TdnetPdfDocument.disclosed_date,
+    ).filter(TdnetPdfDocument.status == "ok")
+    filings = db.query(XbrlFiling.doc_id, XbrlFiling.submitted_at).filter_by(source=SOURCE)
     if codes:
         docs = docs.filter(TdnetPdfDocument.code.in_(codes))
         filings = filings.filter(XbrlFiling.code.in_(codes))
     rank: dict[str, date] = {}
-    for doc in docs:
-        rank[doc.disclosure_no] = doc.disclosed_date or date.min
-    for filing in filings:
+    for disclosure_no, disclosed_date in docs:
+        rank[disclosure_no] = disclosed_date or date.min
+    for doc_id, submitted_at in filings:
         rank.setdefault(
-            filing.doc_id,
-            filing.submitted_at.date() if filing.submitted_at else date.min,
+            doc_id,
+            submitted_at.date() if submitted_at else date.min,
         )
     ordered = sorted(rank, key=lambda number: (rank[number], number), reverse=True)
     zip_rows = db.query(XbrlFiling.doc_id).filter_by(source="tdnet", parse_status="parsed")
