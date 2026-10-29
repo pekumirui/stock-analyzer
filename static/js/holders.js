@@ -31,6 +31,12 @@ function hdDateCell(ob, file, pin){
   const extra = `${odd ? " odd-date" : ""}${pin ? " " + pin : ""}`;
   return `<td class="num${extra}" title="${hdEsc(title)}">${hdEsc(hdYmd(ob))}</td>`;
 }
+function hdFileDateCell(file, ob, pin){
+  const odd = hdOdd(ob, file);
+  const title = ob ? `報告義務発生日 ${ob}` : "";
+  const extra = `${odd ? " odd-date" : ""}${pin ? " " + pin : ""}`;
+  return `<td class="num${extra}" title="${hdEsc(title)}">${hdEsc(hdYmd(file))}</td>`;
+}
 function hdPct(v){ return v == null ? "–" : `${fmt(v * 100, 2)}%`; }
 function hdPt(cur, prev){
   if(cur == null || prev == null) return "–";
@@ -112,12 +118,12 @@ function drawHdChart(host, series, yFmt){
 }
 
 function hdFeedRows(items, withHolder){
-  let h = "<thead><tr><th class='pin0'>日付</th><th class='l pin1'>種類</th>";
+  let h = "<thead><tr><th class='pin0'>提出日</th><th class='l pin1'>種類</th>";
   if(withHolder) h += "<th class='l name pin2'>保有者</th>";
   h += `<th class='l name${withHolder ? "" : " pin2"}'>銘柄</th><th>保有割合</th></tr></thead><tbody>`;
   for(const r of items){
     const holder = withHolder ? hdHolderCell(r.edinet_code, r.holder_name, "pin2") : "";
-    h += `<tr>${hdDateCell(r.obligation_date, r.file_date, "pin0")}
+    h += `<tr>${hdFileDateCell(r.file_date, r.obligation_date, "pin0")}
       ${hdKindCell(r.kind, "pin1")}${holder}
       ${hdIssuerCell(r.code, r.issuer_name, withHolder ? "" : "pin2")}
       <td class="num">${hdEsc(hdPct(r.holding_ratio))}${under(hdPt(r.holding_ratio, r.holding_ratio_prev))}</td></tr>`;

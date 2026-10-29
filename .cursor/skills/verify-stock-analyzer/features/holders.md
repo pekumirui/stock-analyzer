@@ -6,7 +6,7 @@ The 大量保有報告書 tab lists large-holding filings for a selected `file_d
 
 - `holders-tab` shows `#tab-holders` on `nav button[data-tab="holders"]` (after ランキング). Hash `#holders`, `#cur-tab` 大量保有報告書, `#hd-date` = Asia/Tokyo today, one `GET /api/holders/activity?file_date=YYYY-MM-DD&limit=1000`, `#hd-top` visible, `#hd-detail` `display:none`. No heading 最近の動き. No `#hd-note`.
 - `holders-search` types into `#hd-sym` and fills `#hd-suggest` from `GET /api/holders/search?q=` (`名前  EDINET`). The feed refetches `GET /api/holders/activity?q=...&limit=200` (no `file_date`; `#hd-date` disabled). Clearing the box returns to the selected date. Enter takes the first holder hit.
-- `holders-feed` fills `#hd-feed` (`table.sheet`: 日付 / 種類 / 保有者 / 銘柄 / 保有割合). Holder names use `shortName` + EDINET under, kinds use `.qb`. Empty date → `#hd-feed-msg` 「この日の大量保有報告書はありません。」. Empty search → 「該当する大量保有報告書はありません。」. Holder name → detail, issuer name → `gotoChart`.
+- `holders-feed` fills `#hd-feed` (`table.sheet`: 提出日 / 種類 / 保有者 / 銘柄 / 保有割合). 提出日 is `file_date` (`YY/MM/DD`; `title` 報告義務発生日). Holder names use `shortName` + EDINET under, kinds use `.qb`. Empty date → `#hd-feed-msg` 「この日の大量保有報告書はありません。」. Empty search → 「該当する大量保有報告書はありません。」. Holder name → detail, issuer name → `gotoChart`.
 - `holders-detail` `#holders/{edinet}` loads `GET /api/holders/{edinet}` into `#hd-title`, `#hd-holdings`, `#hd-chart`, `#hd-series`. Missing code → 404 「保有者が見つかりません。」. `#hd-back` (`← 大量保有報告書`) returns to the feed. No `#hd-activity`.
 - `holders-below` latest ratio &lt; 5% rows sit under a 5%未満 header and use `tr.below`.
 

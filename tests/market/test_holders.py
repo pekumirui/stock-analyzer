@@ -299,3 +299,6 @@ def test_spa_holders_tab() -> None:
     assert "pinCols" in js and "hdHolderCell" in js and "hdPurposeCell" in js
     assert "shortName(raw)" in js
     assert "table.sheet" in js
+    assert "hdFileDateCell" in js
+    assert "<th class='pin0'>提出日</th>" in js
+    assert "hdFileDateCell(r.file_date, r.obligation_date, \"pin0\")" in js
