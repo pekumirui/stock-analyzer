@@ -23,9 +23,9 @@ SHELL=/bin/bash
 # Frankfurter / ECB 対EUR 日次レート。公表は 16:00 CET 前後なので翌朝 JST。空なら 1999-01-04〜。
 0 8 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/fx_rates.py
 
-# TDnet 月次PDF → data/monthly（当日分）
-0 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_r2.py 1
-0 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_r2.py 1
+# TDnet 月次PDF → data/monthly（直近7日分。やのしん登録遅れの拾い直し。既存は skip）
+0 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_r2.py 7
+0 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_r2.py 7
 
 # TDnet 月次PDF → ingest JSON（前回投入分と同じ書式だけ。自動 POST しない）→ DB（loopback POST。ledger は dest に置かない）
 20 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_pdf_sidecar.py

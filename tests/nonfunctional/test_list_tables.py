@@ -17,7 +17,7 @@ def test_sheet_css_is_shared() -> None:
     assert "#pts-tbl.sheet" in css
     assert "table.sheet td.name, table.sheet th.name { max-width:8em; }" in css
     assert "#rk-tbl th.grp { white-space:nowrap; }" in css
-    assert "#earn-tbl .pin2, #sc-tbl .pin0, #hd-feed .pin2, #hd-holdings .pin0, #st-holders-large .pin0, #hd-activity .pin1 { box-shadow:inset -1px 0 0 var(--border); }" in css
+    assert "#earn-tbl .pin2, #sc-tbl .pin0, #hd-feed .pin2, #hd-holdings .pin0, #st-holders-large .pin0 { box-shadow:inset -1px 0 0 var(--border); }" in css
     assert "#rk-tbl .pin1" not in css
     assert "#hd-feed.sheet" in css
     assert "#pts-tbl td.name, #pts-tbl th.name" in css
@@ -98,6 +98,22 @@ def test_screener_table_matches_sheet() -> None:
     assert "52週安値比</th>" not in src
     assert "<small>" not in src
     assert "pinCols($(\"#sc-tbl\"), 1)" in src
+
+
+def test_fin_perf_news_use_sheet() -> None:
+    """決算表・銘柄パフォーマンス・銘柄ニュースは table.sheet（KAB-274）。"""
+    html = (ROOT / "static/index.html").read_text(encoding="utf-8")
+    css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
+    for tid in ("cum-tbl", "q-tbl", "prog-tbl", "rev-tbl",
+                "st-cum-tbl", "st-q-tbl", "st-prog-tbl", "st-rev-tbl"):
+        assert f'class="sheet fin" id="{tid}"' in html
+    assert 'id="perf-tbl" class="sheet"' in html
+    assert 'id="st-news" class="sheet"' in html
+    assert "table.sheet .opm" in css
+    assert "table.fin th { font-size" not in css
+    assert "table.fin td.num { font-size" not in css
+    assert "table.fin .opm { font-size" not in css
+    assert "table.fin .g { display:block; font-size" not in css
 
 
 def test_earnings_keeps_sheet_and_shared_pin() -> None:

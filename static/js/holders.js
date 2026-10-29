@@ -1,12 +1,21 @@
-// 保有者タブと銘柄 › 株主（KAB-267。docs/DESIGN_holders.md / DESIGN_stock.md）
+// 保有者タブと銘柄 › 株主（KAB-267 / KAB-272。docs/DESIGN_holders.md / DESIGN_stock.md）
 const hdEsc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const HD_KIND = {new: "新規5%超え", buy: "買い増し", sell: "売り", below: "5%割れ"};
 const HD_COLORS = ["#0077b6", "#d32f2f", "#1b8a5a", "#e6a100", "#8e4ec6", "#0e7490"];
 const HD_CHART_N = 6;
+const HD_DATE_LIMIT = 1000;
+const HD_SEARCH_LIMIT = 200;
 
 function hdToday(){
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return new Date().toLocaleDateString("en-CA", {timeZone: "Asia/Tokyo"});
+}
+function hdIsSearch(q){
+  const raw = String(q || "").trim();
+  if(!raw) return false;
+  const u = raw.toUpperCase();
+  if(/^E[0-9]{1,5}$/.test(u)) return true;
+  if(/^[0-9][0-9A-Z]{3}[0-9]?$/.test(u)) return true;
+  return raw.length >= 2;
 }
 function hdYmd(iso){ return iso ? iso.slice(2).replace(/-/g, "/") : "–"; }
 function hdOdd(ob, file){
@@ -21,6 +30,12 @@ function hdDateCell(ob, file, pin){
   const title = file ? `提出日 ${file}` : "";
   const extra = `${odd ? " odd-date" : ""}${pin ? " " + pin : ""}`;
   return `<td class="num${extra}" title="${hdEsc(title)}">${hdEsc(hdYmd(ob))}</td>`;
+}
+function hdFileDateCell(file, ob, pin){
+  const odd = hdOdd(ob, file);
+  const title = ob ? `報告義務発生日 ${ob}` : "";
+  const extra = `${odd ? " odd-date" : ""}${pin ? " " + pin : ""}`;
+  return `<td class="num${extra}" title="${hdEsc(title)}">${hdEsc(hdYmd(file))}</td>`;
 }
 function hdPct(v){ return v == null ? "–" : `${fmt(v * 100, 2)}%`; }
 function hdPt(cur, prev){
@@ -103,12 +118,12 @@ function drawHdChart(host, series, yFmt){
 }
 
 function hdFeedRows(items, withHolder){
-  let h = "<thead><tr><th class='pin0'>日付</th><th class='l pin1'>種類</th>";
+  let h = "<thead><tr><th class='pin0'>提出日</th><th class='l pin1'>種類</th>";
   if(withHolder) h += "<th class='l name pin2'>保有者</th>";
   h += `<th class='l name${withHolder ? "" : " pin2"}'>銘柄</th><th>保有割合</th></tr></thead><tbody>`;
   for(const r of items){
     const holder = withHolder ? hdHolderCell(r.edinet_code, r.holder_name, "pin2") : "";
-    h += `<tr>${hdDateCell(r.obligation_date, r.file_date, "pin0")}
+    h += `<tr>${hdFileDateCell(r.file_date, r.obligation_date, "pin0")}
       ${hdKindCell(r.kind, "pin1")}${holder}
       ${hdIssuerCell(r.code, r.issuer_name, withHolder ? "" : "pin2")}
       <td class="num">${hdEsc(hdPct(r.holding_ratio))}${under(hdPt(r.holding_ratio, r.holding_ratio_prev))}</td></tr>`;
@@ -121,6 +136,8 @@ let hdEdinet = "";
 let hdData = null;
 let hdPick = 0;
 let hdAc = null;
+let hdFeedAc = null;
+let hdFeedTimer = 0;
 let hdLastSuggest = [];
 
 function hdShowHome(){
@@ -132,33 +149,63 @@ function hdShowDetail(){
   $("#hd-detail").style.display = "";
 }
 
+function hdEnsureDate(){
+  const el = $("#hd-date");
+  if(el && !el.value) el.value = hdToday();
+  return el;
+}
+
 function loadHoldersHome(){
   hdEdinet = "";
   hdShowHome();
   writeRoute("holders");
+  hdEnsureDate();
   if(hdHomeLoaded && $("#hd-feed").innerHTML) return;
   paintHoldersFeed();
 }
 
+function hdDateValue(){
+  const el = hdEnsureDate();
+  const v = el && el.value;
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : hdToday();
+}
+
 async function paintHoldersFeed(){
   const msg = $("#hd-feed-msg");
-  msg.hidden = true;
-  msg.textContent = "";
-  $("#hd-feed").innerHTML = "";
+  const dateEl = hdEnsureDate();
+  const q = ($("#hd-sym").value || "").trim();
+  const searching = hdIsSearch(q);
+  if(dateEl){
+    dateEl.disabled = searching;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(dateEl.value)) dateEl.value = hdToday();
+  }
+  if(hdFeedAc) hdFeedAc.abort();
+  hdFeedAc = new AbortController();
+  const ac = hdFeedAc;
+  const params = searching
+    ? `q=${encodeURIComponent(q)}&limit=${HD_SEARCH_LIMIT}`
+    : `file_date=${encodeURIComponent(hdDateValue())}&limit=${HD_DATE_LIMIT}`;
   let d;
-  try { d = await api("/api/holders/activity"); }
+  try { d = await api(`/api/holders/activity?${params}`, {signal: ac.signal}); }
   catch(e){
+    if(ac.signal.aborted || e.name === "AbortError") return;
+    if(ac !== hdFeedAc) return;
+    $("#hd-feed").innerHTML = "";
     msg.textContent = "読み込めませんでした。";
     msg.hidden = false;
     return;
   }
+  if(ac !== hdFeedAc) return;
   hdHomeLoaded = true;
   const items = d.items || [];
   if(!items.length){
-    msg.textContent = "最近の大量保有の動きはありません。";
+    $("#hd-feed").innerHTML = "";
+    msg.textContent = searching ? "該当する大量保有報告書はありません。" : "この日の大量保有報告書はありません。";
     msg.hidden = false;
     return;
   }
+  msg.hidden = true;
+  msg.textContent = "";
   $("#hd-feed").innerHTML = hdFeedRows(items, true);
   pinCols($("#hd-feed"), 3);
 }
@@ -176,8 +223,14 @@ function hdSuggest(rs){
   return rs;
 }
 
+function hdQueueFeed(){
+  hdHomeLoaded = false;
+  clearTimeout(hdFeedTimer);
+  hdFeedTimer = setTimeout(() => paintHoldersFeed(), 200);
+}
 $("#hd-sym").addEventListener("input", async e => {
   const q = e.target.value.trim();
+  hdQueueFeed();
   if(!q){ hdSuggest([]); hdLastSuggest = []; return; }
   const d = await api(`/api/holders/search?q=${encodeURIComponent(q)}`).catch(() => ({results: []}));
   if(e.target.value.trim() !== q) return;
@@ -186,6 +239,11 @@ $("#hd-sym").addEventListener("input", async e => {
 $("#hd-sym").addEventListener("keydown", e => {
   if(e.key === "Enter" && hdLastSuggest.length) gotoHolder(hdLastSuggest[0].edinet_code);
   if(e.key === "Escape") hdSuggest([]);
+});
+$("#hd-date").addEventListener("change", () => {
+  if(hdIsSearch(($("#hd-sym").value || "").trim())) return;
+  hdHomeLoaded = false;
+  paintHoldersFeed();
 });
 document.addEventListener("click", e => {
   if(!e.target.closest("#hd-search")) $("#hd-suggest").style.display = "none";
@@ -210,7 +268,6 @@ async function openHolder(edinet){
   $("#hd-holdings").innerHTML = "";
   $("#hd-chart").innerHTML = "";
   $("#hd-series").innerHTML = "";
-  $("#hd-activity").innerHTML = "";
   const msg = $("#hd-msg");
   msg.hidden = true;
   msg.textContent = "";
@@ -272,9 +329,6 @@ function paintHolder(){
     points: (r.history || []).map(p => ({date: p.date, y: p.ratio})),
   })), v => `${fmt(v * 100, 1)}%`);
   paintHolderSeries();
-  const act = d.activity || [];
-  $("#hd-activity").innerHTML = act.length ? hdFeedRows(act, false) : "";
-  if(act.length) pinCols($("#hd-activity"), 2);
 }
 
 function paintHolderSeries(){
@@ -414,8 +468,6 @@ if(window.ResizeObserver){
   if(feedWrap) new ResizeObserver(() => pinCols($("#hd-feed"), 3)).observe(feedWrap);
   const holdWrap = $("#hd-holdings");
   if(holdWrap) new ResizeObserver(() => pinCols($("#hd-holdings table.sheet"), 1)).observe(holdWrap);
-  const actWrap = $("#hd-activity") && $("#hd-activity").closest(".tbl-wrap");
-  if(actWrap) new ResizeObserver(() => pinCols($("#hd-activity"), 2)).observe(actWrap);
   const stWrap = $("#st-holders-large");
   if(stWrap) new ResizeObserver(() => pinCols($("#st-holders-large table.sheet"), 1)).observe(stWrap);
 }

@@ -1,8 +1,9 @@
-"""大量保有の保有者画面と銘柄の株主タブ（KAB-267）。"""
+"""大量保有の保有者画面と銘柄の株主タブ（KAB-267 / KAB-272）。"""
 from __future__ import annotations
 
 from datetime import date, datetime
 from pathlib import Path
+from unittest.mock import patch
 
 from app.db import SessionLocal
 from app.holders import classify_move
@@ -149,15 +150,42 @@ def test_search_and_holder_page(c) -> None:
     assert [h["date"] for h in oak["history"]] == ["2026-03-02", "2026-10-22"]
 
 
-def test_activity_future_date_and_kinds(c) -> None:
+def test_activity_by_file_date_and_search(c) -> None:
     _seed()
-    d = c.get("/api/holders/activity?today=2026-10-29&limit=80").json()
-    kinds = {(x["edinet_code"], x["code"], x["kind"]) for x in d["items"]}
+    day = c.get("/api/holders/activity?file_date=2026-10-28").json()
+    assert day["file_date"] == "2026-10-28" and day["q"] == "" and day["has_more"] is False
+    assert day["items"] and all(x["file_date"] == "2026-10-28" for x in day["items"])
+    kinds = {(x["edinet_code"], x["code"], x["kind"]) for x in day["items"]}
     assert ("E09096", "18020", "buy") in kinds or ("E09096", "18020", "new") in kinds
-    assert ("E11111", "33330", "below") in kinds
-    # 割合が変わらない未来日付の行はフィードに出さない。出る場合は提出日順で、日付は報告義務発生日のまま
-    future = [x for x in d["items"] if x["obligation_date"] == "2027-10-01"]
-    assert future == []
+    assert all(x["edinet_code"] != "E11111" for x in day["items"])
+
+    empty = c.get("/api/holders/activity?file_date=2026-10-29").json()
+    assert empty["items"] == [] and empty["file_date"] == "2026-10-29"
+
+    below = c.get("/api/holders/activity?file_date=2026-10-15").json()
+    assert ("E11111", "33330", "below") in {(x["edinet_code"], x["code"], x["kind"]) for x in below["items"]}
+
+    found = c.get("/api/holders/activity?q=ブラック&file_date=2026-10-29").json()
+    assert found["q"] == "ブラック" and found["file_date"] is None
+    dates = {x["file_date"] for x in found["items"]}
+    assert "2026-10-28" in dates and "2026-03-08" in dates
+    assert all(x["edinet_code"] == "E09096" for x in found["items"])
+
+    code = c.get("/api/holders/activity?q=1802").json()
+    assert any(x["code"] == "18020" for x in code["items"])
+    issuer = c.get("/api/holders/activity?q=大林").json()
+    assert any(x["code"] == "18020" for x in issuer["items"])
+
+    one = c.get("/api/holders/activity?q=ブ&file_date=2026-10-28").json()
+    assert one["file_date"] == "2026-10-28" and one["q"] == ""
+
+    with patch("app.holders.today_jst", return_value=D("2026-10-28")):
+        default = c.get("/api/holders/activity").json()
+    assert default["file_date"] == "2026-10-28"
+    assert all(x["file_date"] == "2026-10-28" for x in default["items"])
+
+    future = c.get("/api/holders/activity?file_date=2026-10-08").json()
+    assert [x for x in future["items"] if x["obligation_date"] == "2027-10-01"] == []
     same = c.get("/api/holders/E25156?today=2026-10-29").json()
     assert same["holdings"][0]["obligation_date"] == "2027-10-01"
     assert same["holdings"][0]["file_date"] == "2026-10-08"
@@ -246,23 +274,34 @@ def test_spa_holders_tab() -> None:
     stock = (ROOT / "static/js/stock.js").read_text(encoding="utf-8")
     assert 'data-tab="holders"' in html and 'id="tab-holders"' in html
     assert 'id="hd-sym"' in html and 'id="hd-feed"' in html and 'id="hd-holdings"' in html
-    assert ">← 保有者<" in html
+    assert 'id="hd-date"' in html and 'type="date"' in html
+    assert ">大量保有報告書<" in html
+    assert ">← 大量保有報告書<" in html
+    assert "最近の動き" not in html
+    assert "時価・平均取得単価・評価損益は目安" not in html
+    assert 'id="hd-note"' not in html and 'id="hd-activity"' not in html
     assert 'id="st-holders-large"' in html and 'id="st-holders-chart"' in html
     assert '"holders"' in tabs.split("const TABS")[1].split(";")[0]
     assert "EDINET_RE" in tabs
     assert "/api/holders/search" in js and "/api/stock/${code}/holders" in js
+    assert "file_date=" in js and "Asia/Tokyo" in js
+    assert "ac.signal.aborted" in js and "hdDateValue" in js
     assert "準備中" not in stock
     assert "renderStockHoldersTab" in stock
-    # PTS はランキングの中（KAB-265）。保有者はナビ末尾
+    # PTS はランキングの中（KAB-265）。大量保有報告書はナビ末尾
     assert 'data-tab="pts"' not in html and 'id="tab-pts"' not in html
     assert 'data-rksub="pts"' in html
     assert html.index('data-tab="ranking"') < html.index('data-tab="holders"')
     css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
     assert "#hd-holdings .purpose" not in css
     assert "#tab-holders .tbl-wrap" in css
+    assert "#hd-activity" not in css and "#hd-note" not in css
     assert "pinCols" in js and "hdHolderCell" in js and "hdPurposeCell" in js
     assert "shortName(raw)" in js
     assert "table.sheet" in js
+    assert "hdFileDateCell" in js
+    assert "<th class='pin0'>提出日</th>" in js
+    assert "hdFileDateCell(r.file_date, r.obligation_date, \"pin0\")" in js
     assert 'class="below-h"' in js
     assert "tr.below-h td { color:var(--sub); }" in css
     assert "tr.below-h td { color:var(--sub); font-size" not in css

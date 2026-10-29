@@ -281,7 +281,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 
 | スクリプト | cron |
 |---|---|
-| `jobs/monthly/tdnet_monthly_r2.py 1` | 18:00 / 21:00 |
+| `jobs/monthly/tdnet_monthly_r2.py 7` | 18:00 / 21:00（直近7日。やのしん登録遅れの拾い直し） |
 | `jobs/monthly/tdnet_monthly_pdf_sidecar.py` | 18:20 / 21:20（TDnet PDF 取得の後） |
 | `jobs/monthly/tdnet_monthly_pdf_ingest.py` | 18:30 / 21:30（sidecar の後。ledger は `/var/log/app/pdf_ingest_ledger.json`） |
 | `jobs/monthly/ir_monthly_r2.py` | 10:00 / 16:00 |
