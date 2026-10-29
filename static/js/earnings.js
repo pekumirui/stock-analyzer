@@ -471,19 +471,24 @@ function renderRev(el, rows, d){
   }
   const dim = rows.every(r => r.values.ordinary_profit == null);
   const dc = k => k==="ordinary_profit" && dim ? " dim" : "";
+  el.classList.add("rev");
   let h = `<thead><tr><th class="l">決算期</th><th class="disc">発表日</th>`
         + FC_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
         + `<th>EPS</th></tr></thead><tbody>`;
+  // 年度のまとまり: 決算期は年度の最初の行だけに書く。地の色は実績の行だけ（KAB-279）
   rows.forEach((r,i) => {
     const [txt, bc, tip] = REV_BADGE[r.kind] || ["", "", ""];
     const now = d && r.disclosed_date === d.disclosed_date;
-    const sep = i > 0 && r.fiscal_year_end !== rows[i-1].fiscal_year_end;
-    const cls = [now&&"now", r.kind==="actual_fy"&&"act", sep&&"sep"].filter(Boolean).join(" ");
+    const head = i === 0 || r.fiscal_year_end !== rows[i-1].fiscal_year_end;
+    const cls = [now&&"now", r.kind==="actual_fy"&&"act", head&&i>0&&"sep"].filter(Boolean).join(" ");
     const cell = (k, txt) => {
       const g = r.growth && r.growth[k];
       return `<td class="num${dc(k)}">${txt}<span class="g">${g ? revG(g) : " "}</span></td>`;
     };
-    h += `<tr class="${cls}"><td class="l" title="${r.label||""} ${tip}">${r.range}<span class="g"><span class="qb ${bc}">${txt}</span></span></td>`
+    const badge = `<span class="qb ${bc}">${txt}</span>`;
+    // バッジはどの行も決算期の下の段（数値の修正率と同じ段）。決算期は年度の最初の行だけ
+    const label = `${head ? r.range : "&nbsp;"}<span class="g">${badge}</span>`;
+    h += `<tr class="${cls}"><td class="l" title="${r.label||""} ${tip}">${label}</td>`
        + `<td class="num disc sub">${disc(r.disclosed_date)}</td>`
        + FC_MET.map(([k])=>cell(k, finAmt(r, k))).join("")
        + cell("eps", epsTxt(r.values.eps)) + `</tr>`;
