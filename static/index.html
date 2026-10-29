@@ -87,10 +87,10 @@
         </div>
         <span class="sub" style="font-size:12px">単位: 百万円</span>
       </div>
-      <div class="tbl-wrap" id="cum-wrap"><table class="fin" id="cum-tbl"></table></div>
-      <div class="tbl-wrap" id="q-wrap" hidden><table class="fin" id="q-tbl"></table></div>
-      <div class="tbl-wrap" id="prog-wrap" hidden><table class="fin" id="prog-tbl"></table></div>
-      <div class="tbl-wrap" id="rev-wrap" hidden><table class="fin" id="rev-tbl"></table></div>
+      <div class="tbl-wrap" id="cum-wrap"><table class="sheet fin" id="cum-tbl"></table></div>
+      <div class="tbl-wrap" id="q-wrap" hidden><table class="sheet fin" id="q-tbl"></table></div>
+      <div class="tbl-wrap" id="prog-wrap" hidden><table class="sheet fin" id="prog-tbl"></table></div>
+      <div class="tbl-wrap" id="rev-wrap" hidden><table class="sheet fin" id="rev-tbl"></table></div>
     </div>
 
     <div class="panel a-chart">
@@ -131,10 +131,10 @@
           </div>
           <span class="sub" style="font-size:12px">単位: 百万円</span>
         </div>
-        <div class="tbl-wrap" data-stfin-wrap="cum"><table class="fin" id="st-cum-tbl"></table></div>
-        <div class="tbl-wrap" data-stfin-wrap="q" hidden><table class="fin" id="st-q-tbl"></table></div>
-        <div class="tbl-wrap" data-stfin-wrap="prog" hidden><table class="fin" id="st-prog-tbl"></table></div>
-        <div class="tbl-wrap" data-stfin-wrap="rev" hidden><table class="fin" id="st-rev-tbl"></table></div>
+        <div class="tbl-wrap" data-stfin-wrap="cum"><table class="sheet fin" id="st-cum-tbl"></table></div>
+        <div class="tbl-wrap" data-stfin-wrap="q" hidden><table class="sheet fin" id="st-q-tbl"></table></div>
+        <div class="tbl-wrap" data-stfin-wrap="prog" hidden><table class="sheet fin" id="st-prog-tbl"></table></div>
+        <div class="tbl-wrap" data-stfin-wrap="rev" hidden><table class="sheet fin" id="st-rev-tbl"></table></div>
       </div>
     </div>
     <div id="st-sub-price" class="st-sub" hidden>
@@ -148,11 +148,11 @@
       <div class="evt-toggles"></div>
       <div id="relwrap" style="display:none"><h3>対TOPIX相対 (期首=100)</h3><div id="relchart" style="height:160px"></div></div>
       <h3>決算発表後パフォーマンス (%, α=対TOPIX超過)</h3>
-      <div class="tbl-wrap"><table id="perf-tbl"></table></div>
+      <div class="tbl-wrap"><table id="perf-tbl" class="sheet"></table></div>
     </div>
     <div id="st-sub-news" class="st-sub" hidden>
       <div id="st-news-list">
-        <div class="tbl-wrap"><table id="st-news"></table></div>
+        <div class="tbl-wrap"><table id="st-news" class="sheet"></table></div>
       </div>
       <div id="st-news-detail" hidden>
         <div class="row st-detail-bar">

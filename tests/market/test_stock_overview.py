@@ -92,7 +92,7 @@ def test_spa_stock_sub_tabs() -> None:
     js = (ROOT / "static/js/stock.js").read_text(encoding="utf-8")
     for sub in ("summary", "price", "news", "holders"):
         assert f'data-sub="{sub}"' in html and f'id="st-sub-{sub}"' in html
-    assert 'id="st-quote"' in html and 'id="st-news"' in html and 'id="st-back"' in html
+    assert 'id="st-quote"' in html and 'id="st-news" class="sheet"' in html and 'id="st-back"' in html
     assert 'id="st-filing"' not in html
     assert "/api/stock/${code}/overview" in js
     assert 'const STOCK_SUBS = ["summary", "price", "news", "holders"]' in tabs
@@ -107,7 +107,7 @@ def test_chart_tab_moved_into_stock_price() -> None:
     assert 'data-tab="chart"' not in html and 'id="tab-chart"' not in html
     assert not (ROOT / "static/js/chart-tab.js").exists()
     sub = html[html.index('id="st-sub-price"'):html.index('id="st-sub-news"')]
-    for el in ('id="tf"', 'id="mas"', 'id="rel"', 'id="chart"', 'id="perf-tbl"', 'class="evt-toggles"'):
+    for el in ('id="tf"', 'id="mas"', 'id="rel"', 'id="chart"', 'id="perf-tbl" class="sheet"', 'class="evt-toggles"'):
         assert el in sub
     assert 'onclick="loadChart()"' not in html  # 表示ボタンは無い
     assert '"chart"' not in tabs.split("const TABS")[1].split(";")[0]
@@ -122,7 +122,7 @@ def test_summary_reuses_earnings_tables() -> None:
     js = (ROOT / "static/js/stock.js").read_text(encoding="utf-8")
     sub = html[html.index('id="st-sub-summary"'):html.index('id="st-sub-price"')]
     for t in ("cum", "q", "prog", "rev"):
-        assert f'data-stfin="{t}"' in sub and f'id="st-{t}-tbl"' in sub
+        assert f'data-stfin="{t}"' in sub and f'class="sheet fin" id="st-{t}-tbl"' in sub
     assert "data-fin=" not in sub
     assert "/api/earnings/detail/${code}`" in js
     for fn in ("renderFin($(\"#st-cum-tbl\")", "renderFin($(\"#st-q-tbl\")", "renderProg(", "renderRev("):
