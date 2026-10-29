@@ -78,7 +78,7 @@ document.addEventListener("click", e => {
   if(!$("#cal-wrap").contains(e.target) && e.target!==$("#cal-backdrop")) calClose();
 });
 
-const MET = [["net_sales","売上"],["operating_profit","営利"],["ordinary_profit","経利"],["profit","純利"]];
+const MET = [["net_sales","売上"],["gross_profit","粗利"],["operating_profit","営利"],["ordinary_profit","経利"],["profit","純利"]];
 function revBadge(r){
   const bits = [];
   const fr = r.forecast_revision;
@@ -351,11 +351,13 @@ async function loadDetail(row){
   renderRev($("#rev-tbl"), d && d.revisions,  d);
 }
 
-const FIN_MET = [["net_sales","売上高"],["operating_profit","営業益"],
+const FIN_MET = [["net_sales","売上高"],["gross_profit","粗利益"],["operating_profit","営業益"],
                  ["ordinary_profit","経常益"],["profit","最終益"]];
+// 進捗率と修正履歴は予想で割る・予想を並べる表。短信の予想に売上総利益は無いので列を置かない
+const FC_MET = FIN_MET.filter(([k]) => k !== "gross_profit");
 function disc(iso){ if(!iso) return "–"; const [y,m,d]=iso.split("-"); return `${y.slice(2)}/${m}/${d}`; }
-function opm(v){
-  const s = v && v.net_sales, o = v && v.operating_profit;
+function margin(v, k){
+  const s = v && v.net_sales, o = v && v[k];
   if(s == null || s <= 0 || o == null) return null;
   return o / s * 100;
 }
@@ -363,12 +365,14 @@ function amt(v){
   if(v == null) return "–";
   return `<span class="${v<0?"loss":""}">${mil(v)}</span>`;
 }
-function opAmt(r){
-  const v = r.values && r.values.operating_profit;
-  const m = opm(r.values);
+// 営業益と粗利益は売上に対する率を薄い括弧で添える
+function rateAmt(r, k){
+  const v = r.values && r.values[k];
+  const m = margin(r.values, k);
   const rate = m==null ? "" : `<span class="opm${m<0?" loss":""}">(${fmt(m,1)}%)</span>`;
   return `${amt(v)}${rate}`;
 }
+const finAmt = (r, k) => k==="operating_profit" || k==="gross_profit" ? rateAmt(r, k) : amt(r.values[k]);
 function epsTxt(v){
   if(v == null) return "–";
   return `<span class="${v<0?"loss":""}">${fmt(v,1)}</span>`;
@@ -419,7 +423,7 @@ function renderFin(el, rows, d){
       return `<td class="num${dc(k)}">${txt}<span class="g">${g ? gc(g) : " "}</span></td>`;
     };
     h += `<tr class="${cls}"><td class="l" title="${finTitle(r)}">${finLabel(r)}<span class="g">${finBadge(r) || " "}</span></td>`
-       + FIN_MET.map(([k])=>cell(k, k==="operating_profit" ? opAmt(r) : amt(r.values[k]))).join("")
+       + FIN_MET.map(([k])=>cell(k, finAmt(r, k))).join("")
        + cell("eps", epsTxt(r.values.eps))
        + `<td class="num disc sub">${disc(r.disclosed_date)}</td></tr>`;
   });
@@ -434,7 +438,7 @@ function renderProg(el, rows, d){
   const dim = d && d.notes && d.notes.no_ordinary;
   const dc = k => k==="ordinary_profit" && dim ? " dim" : "";
   let h = `<thead><tr><th class="l">決算期</th>`
-        + FIN_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
+        + FC_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
         + `<th class="disc">発表日</th></tr></thead><tbody>`;
   rows.forEach(r => {
     const now = r.kind==="actual_current";
@@ -445,7 +449,7 @@ function renderProg(el, rows, d){
            + `<span class="g"><span class="base" title="${tip}">${b==null ? " " : mil(b)}</span></span></td>`;
     };
     h += `<tr class="${now?"now":""}"><td class="l" title="${now ? "累計 / 通期予想" : "累計 / 通期実績"}">${finLabel(r)}<span class="g">${finBadge(r) || " "}</span></td>`
-       + FIN_MET.map(([k])=>cell(k)).join("")
+       + FC_MET.map(([k])=>cell(k)).join("")
        + `<td class="num disc sub">${disc(r.disclosed_date)}</td></tr>`;
   });
   el.innerHTML = h + `</tbody>`;
@@ -468,7 +472,7 @@ function renderRev(el, rows, d){
   const dim = rows.every(r => r.values.ordinary_profit == null);
   const dc = k => k==="ordinary_profit" && dim ? " dim" : "";
   let h = `<thead><tr><th class="l">決算期</th><th class="disc">発表日</th>`
-        + FIN_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
+        + FC_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
         + `<th>EPS</th></tr></thead><tbody>`;
   rows.forEach((r,i) => {
     const [txt, bc, tip] = REV_BADGE[r.kind] || ["", "", ""];
@@ -481,7 +485,7 @@ function renderRev(el, rows, d){
     };
     h += `<tr class="${cls}"><td class="l" title="${r.label||""} ${tip}">${r.range}<span class="g"><span class="qb ${bc}">${txt}</span></span></td>`
        + `<td class="num disc sub">${disc(r.disclosed_date)}</td>`
-       + FIN_MET.map(([k])=>cell(k, k==="operating_profit" ? opAmt(r) : amt(r.values[k]))).join("")
+       + FC_MET.map(([k])=>cell(k, finAmt(r, k))).join("")
        + cell("eps", epsTxt(r.values.eps)) + `</tr>`;
   });
   el.innerHTML = h + `</tbody>`;

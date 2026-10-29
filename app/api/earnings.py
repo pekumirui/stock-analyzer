@@ -1,6 +1,7 @@
 """決算タブ。/earnings の速報一覧・カレンダー・詳細。"""
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, func, or_, select
@@ -14,6 +15,7 @@ from ..market.analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual
 from ..market.earnings_schedule import ActualMonth, day_payload, month_payload
 from ..market.revisions import jquants_points
 from ..revisions import revision_rows
+from ..xbrl.gross_profit import attach_gross_profit
 from ..xbrl.revisions import xbrl_points
 
 
@@ -83,7 +85,7 @@ _LIST_HISTORY_COLUMNS = tuple(
 
 
 def prefetch_list_history(db: Session, codes, day: date) -> dict[str, list]:
-    """指定日までの一覧用履歴を銘柄ごとにまとめて取る。"""
+    """指定日までの一覧用履歴を銘柄ごとにまとめて取る。売上総利益（gross_profit）を付ける。"""
     hist_by_code: dict[str, list] = defaultdict(list)
     since = day - timedelta(days=EP["list_history_days"])
     for row in db.execute(
@@ -92,7 +94,8 @@ def prefetch_list_history(db: Session, codes, day: date) -> dict[str, list]:
                    Statement.disclosed_date <= day,
                    Statement.disclosed_date >= since)
             .order_by(Statement.code, Statement.disclosed_date, Statement.disclosure_no)):
-        hist_by_code[row.code].append(row)
+        hist_by_code[row.code].append(SimpleNamespace(**row._asdict()))
+    attach_gross_profit(db, [s for hist in hist_by_code.values() for s in hist])
     return hist_by_code
 
 
