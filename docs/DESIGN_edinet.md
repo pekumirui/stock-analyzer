@@ -176,7 +176,7 @@ large_holdings          -- 1 書類 × 1 人
 - 最新: 取込のたびに全件から決め直す（`refresh_versions`。`--refresh-only` で手でも）。`original_doc_id` ごとに、`parsed` で取下げ・不開示でない書類のうち `submit_datetime` が新しい 1 件が `is_latest`。取下げ・不開示は `edinet_documents` の状態から `withdrawn` に入れ、行は消さない
 - 使う側: 銘柄の大量保有の推移は `WHERE code = ? AND is_latest ORDER BY obligation_date`。保有者ごとの最新は、そこから `large_holdings.edinet_code` ごとに最後の行
 - 実データ（2026-10-15 の 52 件、2021-11-15 の 47 件）で全件パースでき、3 件を閲覧画面の本文（XBRL の honbun）と突き合わせて、保有割合・直前の割合・保有株数・発行済株式等総数・報告義務発生日が一致した
-- 画面と API はまだ出さない（別 issue）
+- 画面は保有者タブ `docs/DESIGN_holders.md` と銘柄の株主タブ `docs/DESIGN_stock.md`。API は読み取り（`GET /api/holders/*` と `GET /api/stock/{code}/holders`）
 
 ## 6. 自己株券買付状況報告書（KAB-79）
 

@@ -85,6 +85,7 @@ async function showStock(code, sub, newsId){
     stockOverview = null;
     stockFilings = null;
     stockFilingsReq = null;
+    if(typeof resetStockHolders === "function") resetStockHolders();
     stockDocKey = "";
     $("#st-doc").innerHTML = "";
     $("#st-head").hidden = true;
@@ -152,7 +153,7 @@ function renderStockSub(){
   if(stockSub === "summary") renderStockSummary();
   if(stockSub === "price") showStockPrice();
   if(stockSub === "news") renderStockNews();
-  if(stockSub === "holders") $("#st-sub-holders").innerHTML = '<p class="sub">準備中</p>';
+  if(stockSub === "holders") renderStockHoldersTab();
 }
 
 function renderStockSummary(){

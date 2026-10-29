@@ -1,6 +1,6 @@
 ---
 name: verify-stock-analyzer
-description: "Drive the stock-analyzer SPA (FastAPI + static/index.html + static/css/ + static/js/) the way a user does: launch uvicorn, open tabs, call the same /api/* the UI uses, capture evidence. Reach for this when proving 決算速報 / 銘柄 (概要 / 株価 / ニュース / 株主) / スクリーナー / PTS / 月次 / サプライ / ランキング after a UI or API change."
+description: "Drive the stock-analyzer SPA (FastAPI + static/index.html + static/css/ + static/js/) the way a user does: launch uvicorn, open tabs, call the same /api/* the UI uses, capture evidence. Reach for this when proving 決算速報 / 銘柄 (概要 / 株価 / ニュース / 株主) / スクリーナー / 月次 / サプライ / ランキング (PTS) / 保有者 after a UI or API change."
 ---
 
 # verify-stock-analyzer
@@ -25,7 +25,7 @@ Prefer a helper that picks the right interpreter (`.venv\Scripts\python.exe` on 
 .venv/bin/python .cursor/skills/verify-stock-analyzer/helpers/launch.py
 ```
 
-Default URL: `http://127.0.0.1:8000`. Override with env `VERIFY_PORT`. Ready when stdout JSON appears and `GET /app` returns 200 whose HTML contains `<title>株式分析ツール</title>`. The header has no brand title and no `#home`: its children are `#menu-btn`, `#cur-tab`, `nav#app-nav` (6 tabs: 決算速報 / 銘柄 / スクリーナー / 月次 / サプライ / ランキング; PTS moved into ランキング in KAB-265, チャート into 銘柄 › 株価 in KAB-181). `meta[name=theme-color]` is `#ffffff` and the header has no top blue line (KAB-184); ≤720px `#menu-btn` is first then `#cur-tab`. `GET /` は `/monthly` へ 301。 State is `.cursor/skills/verify-stock-analyzer/.run/state.json` (`pid`, `port`, `url`, `adopted`, `db`). Adopted servers have `"adopted": true`, `pid: null`, and `db: null` (their DB is unknown; a leftover server from another worktree can be on a different DB and older code). Do not kill them. Pick another `VERIFY_PORT` when you need your own code or DB. A started server inherits `DATABASE_URL`, and `db` records it (else the repo `stock.db`). Set `VERIFY_WAIT=0` only if you confirmed the child survives after launch.py exits.
+Default URL: `http://127.0.0.1:8000`. Override with env `VERIFY_PORT`. Ready when stdout JSON appears and `GET /app` returns 200 whose HTML contains `<title>株式分析ツール</title>`. The header has no brand title and no `#home`: its children are `#menu-btn`, `#cur-tab`, `nav#app-nav` (7 tabs: 決算速報 / 銘柄 / スクリーナー / 月次 / サプライ / ランキング / 保有者; PTS moved into ランキング in KAB-265, チャート into 銘柄 › 株価 in KAB-181). `meta[name=theme-color]` is `#ffffff` and the header has no top blue line (KAB-184); ≤720px `#menu-btn` is first then `#cur-tab`. `GET /` は `/monthly` へ 301。 State is `.cursor/skills/verify-stock-analyzer/.run/state.json` (`pid`, `port`, `url`, `adopted`, `db`). Adopted servers have `"adopted": true`, `pid: null`, and `db: null` (their DB is unknown; a leftover server from another worktree can be on a different DB and older code). Do not kill them. Pick another `VERIFY_PORT` when you need your own code or DB. A started server inherits `DATABASE_URL`, and `db` records it (else the repo `stock.db`). Set `VERIFY_WAIT=0` only if you confirmed the child survives after launch.py exits.
 
 Uses the repo's `stock.db` (read-only for UI proofs). Do not `.\run.ps1 reset` / `./run.sh reset`. Do not point `DATABASE_URL` at the user's DB from a second writer. If the port is taken by a non-SPA process, launch exits non-zero. Free the port or pick another `VERIFY_PORT`.
 
@@ -61,7 +61,7 @@ Stdout is JSON. If screener is empty, the instance is up but the DB was not back
 
 HTTP against the same routes the SPA uses, plus the browser when CDP is available.
 
-**Route memory (#130):** `boot.js` calls `restoreRoute()` after priming today's earnings list. Hash / `localStorage` `ui.route` forms are `earnings` | `screener` | `stock` | `monthly` | `supply` | `ranking` | `ranking/pts` | `stock/{code}` | `stock/{code}/{summary|price|news|holders}` | `stock/{code}/news/{news_id}` (`^[a-z][0-9A-Za-z]{1,40}$`; `x{xbrl_filings.id}` or `p{disclosure_no}`) | `monthly/{code}` | `supply/{id}` (material or company id, `^[a-z][a-z0-9_]*$`). An unknown sub falls back to `summary`. Old `chart/{code}` (hash or `ui.route`) is rewritten to `stock/{code}/price`, bare `chart` to `stock`. Old `pts` is rewritten to `ranking/pts`. Clear them when proving the cold default tab. Routing runs on boot and on `popstate` while 銘柄 is visible; there is no `hashchange` handler, so a hash-only jump to another tab (same document) does not switch tabs. Reload after setting the hash.
+**Route memory (#130):** `boot.js` calls `restoreRoute()` after priming today's earnings list. Hash / `localStorage` `ui.route` forms are `earnings` | `screener` | `stock` | `monthly` | `supply` | `ranking` | `ranking/pts` | `holders` | `stock/{code}` | `stock/{code}/{summary|price|news|holders}` | `stock/{code}/news/{news_id}` (`^[a-z][0-9A-Za-z]{1,40}$`; `x{xbrl_filings.id}` or `p{disclosure_no}`) | `monthly/{code}` | `supply/{id}` (material or company id, `^[a-z][a-z0-9_]*$`) | `holders/{edinet}` (`E` + 5 digits). An unknown sub falls back to `summary`. Old `chart/{code}` (hash or `ui.route`) is rewritten to `stock/{code}/price`, bare `chart` to `stock`. Old `pts` is rewritten to `ranking/pts`. Clear them when proving the cold default tab. Routing runs on boot and on `popstate` while 銘柄 is visible; there is no `hashchange` handler, so a hash-only jump to another tab (same document) does not switch tabs. Reload after setting the hash.
 
 **SPA handles (do not use coordinates):**
 
@@ -77,6 +77,7 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 | スクリーナー tab | `nav button[data-tab="screener"]` |
 | ランキング tab | `nav button[data-tab="ranking"]` (`#tab-ranking`). Inner `#rk-subs .ftab[data-rksub="perf"|"pts"]` → `#rk-sub-perf` / `#rk-sub-pts`. PTS is not a header tab |
 | サプライ tab | `nav button[data-tab="supply"]` |
+| 保有者 tab | `nav button[data-tab="holders"]` (after ランキング). Search `#hd-sym` + `#hd-suggest`. Home `#hd-top` / `#hd-feed`. Detail `#hd-detail` `#holders/{edinet}`. See `features/holders.md` |
 | Earnings calendar | `#cal-btn` opens `#cal-pop`; `#cal-title` + ◀/▶ (`calMove(±1)`) change month and refetch `/api/earnings/calendar?month=YYYY-MM&today=YYYY-MM-DD` (`today` is `todayISO()`). A month already fetched is drawn from `calCells` first, then refetched; boot prefetches this month after the first list (`calPrefetch`). Day cells are `#cal .d` with `onclick="selectDate('YYYY-MM-DD')"`. A day with filings or a schedule shows `.cnt` (`cell.n` plus `件`). Future schedules add `.cnt.sched`. Today with names still scheduled adds `.cnt.pend` as `+N`. Esc / `#cal-backdrop` / a day click close the popover. |
 | Earnings row | `#earn-tbl tr[data-no]` for a filing. `#earn-tbl tr[data-code]` for a scheduled issuer (time and the four metric cells are `–`). The first row of the day is auto-selected. One header row: 時刻 / 決算期 / 銘柄 / 売上 / 営利 / 経利 / 純利 (7 cells). The four metric cells follow `#earn-view` (amount with the rate under it in `.g`, or 進捗率 with the prior year's in `.prev`) |
 | Earnings list view / Q filter | `#earn-view .ftab[data-view="cum"]` 累計 (default) / `[data-view="q"]` 3か月 / `[data-view="prog"]` 進捗率 (no refetch). `#earn-qf input[value="1Q"…"4Q"]` checkboxes (FY / 5Q count as 4Q); kept across `selectDate` |
@@ -88,7 +89,7 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 | Timeframe | `#tf` (`D` / `W` / `M`) |
 | MA list | `#mas` (default `50,150,200`; redraws on `change`, i.e. Enter or blur) |
 | 対TOPIX | `#rel` checkbox |
-| `gotoChart(code)` | 決算速報 title, スクリーナー / PTS / ランキング name `.clicky`, サプライ `#supply-chart-link` 「株価を開く」 → 銘柄 › 株価, hash `#stock/{code}/price` |
+| `gotoChart(code)` | 決算速報 title, スクリーナー / PTS / ランキング / 保有者 name `.clicky`, サプライ `#supply-chart-link` 「株価を開く」 → 銘柄 › 株価, hash `#stock/{code}/price` |
 | Screener stage | `#sc-stage` (default `2`) |
 | Screener RS | `#sc-rs` (default `70`) |
 | Screener 検索 | `#tab-screener button.btn` (label 検索) |
@@ -115,7 +116,9 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 | 銘柄 pick / reload on `#stock/{code}` | `GET /api/stock/{code}/overview` (`{code, name, market, sector33, quote{date, close, change, change_pct, market_cap}, next_earnings{date, fq}|null, metrics{per, pbr, dividend_yield, roe, equity_ratio}}`; 404 `銘柄がありません。`), then the open sub tab's request. 概要: `GET /api/earnings/detail/{code}` (no `disclosure_no`) |
 | 銘柄 › 株価 (first open per code, UI defaults) | `GET /api/chart/{code}?tf=D&ma=50,150,200&rel=false` (may include `earnings_dates`) and `GET /api/earnings-performance/{code}` in parallel. Each `#tf` / `#rel` / `#mas` change repeats both. Reopening the tab for the same code sends nothing unless the last chart call 404'd (`stockPriceCode` cleared; golden 31160) |
 | 銘柄 › ニュース | `GET /api/stock/{code}/filings` once per code; a detail row loads each iframe `GET /api/stock/filings/{id}/documents/{seq}` (HTML, CSP + ETag, 304 on `If-None-Match`) or `/api/stock/pdf/{disclosure_no}` |
-| 銘柄 › 株主 | nothing (準備中) |
+| 銘柄 › 株主 | `GET /api/stock/{code}/holders` |
+| 保有者 search / pick | `GET /api/holders/search?q=` then `GET /api/holders/{edinet}` |
+| Open 保有者 (first time, or reload on `#holders`) | `GET /api/holders/activity` |
 | Screener 検索 (UI defaults) | `GET /api/screener?stage=2&rs_min=70` |
 | Open ランキング (first time, or reload on `#ranking`) | `GET /api/ranking/earnings-perf`. Sub-tab 決算後パフォーマンス (`#rk-subs [data-rksub="perf"]`) is `.on` |
 | Open PTS (ランキング › PTS, first time, or reload on `#ranking/pts` or old `#pts`) | `GET /api/pts?ranking=night_up`. `#rk-subs [data-rksub="pts"]` is `.on` |

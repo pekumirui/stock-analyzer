@@ -79,6 +79,7 @@
   .a-list > .row { z-index:5; }
   #earn-suggest { left:0; top:100%; }
   #st-suggest { left:0; top:100%; }
+  #hd-suggest { left:0; top:100%; }
   #st-title { margin:4px 0 2px; }
   #st-quote { display:flex; flex-wrap:wrap; gap:4px 14px; align-items:baseline; margin-bottom:8px; font-variant-numeric:tabular-nums; }
   #st-quote .px { font-size:18px; font-weight:700; }
@@ -112,9 +113,12 @@
   }
   table.sheet { border-collapse:separate; border-spacing:0; }
   #earn-tbl.sheet { width:100%; }
-  #rk-tbl.sheet, #sc-tbl.sheet { width:auto; }
+  #rk-tbl.sheet, #sc-tbl.sheet, #hd-feed.sheet, #hd-activity.sheet,
+  #hd-holdings table.sheet, #st-holders-large table.sheet, #hd-series table.sheet { width:auto; }
   /* 幅 1% の列があると auto の表が横いっぱいに伸びる。ランキングの銘柄は順位の右だが、1% だと表が伸びるので外す */
-  #rk-tbl td.name, #rk-tbl th.name { width:auto; }
+  #rk-tbl td.name, #rk-tbl th.name,
+  #hd-feed td.name, #hd-feed th.name, #hd-activity td.name, #hd-activity th.name,
+  #hd-holdings td.name, #hd-holdings th.name { width:auto; }
   /* 見出しは「騰落率」1 行 + 下に (対TOPIX)。数字列の幅で折り返さない */
   #rk-tbl th.grp { white-space:nowrap; }
   table.sheet th { font-size:11px; letter-spacing:.02em; padding:6px 8px; }
@@ -210,7 +214,21 @@
   td.mkt-s::before { background:#9ca3af; }
   td.mkt-g::before { background:#16a34a; }
   .badge.new { background:var(--warn); color:#fff; margin-left:6px; }
-  #monthly-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
+  #monthly-back, #hd-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
+  #hd-note { margin:0 0 8px; }
+  #hd-holdings .purpose, #st-holders-large .purpose { white-space:normal; max-width:16em; }
+  #hd-holdings tr.on td { background:var(--row-sel); }
+  #hd-holdings tr.below td, #st-holders-large tr.below td { color:var(--sub); }
+  #hd-feed .odd-date, #hd-holdings .odd-date, #st-holders-large .odd-date, #hd-activity .odd-date, #hd-series .odd-date { color:var(--warn); }
+  #hd-holdings tr.below-h td, #st-holders-large tr.below-h td { color:var(--sub); font-size:12px; }
+  .hd-legend { display:flex; flex-wrap:wrap; gap:6px 12px; font-size:12px; color:var(--sub); margin:4px 0; }
+  .hd-legend i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; }
+  .hd-line svg { width:100%; max-width:720px; height:auto; }
+  .hd-pair { display:flex; flex-wrap:wrap; gap:8px; }
+  .hd-pair > div { flex:1 1 280px; min-width:0; }
+  .hd-bar-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:6px 0; }
+  .hd-bar { width:min(240px, 60vw); height:6px; background:var(--row); }
+  .hd-bar > i { display:block; height:100%; background:var(--accent); }
   #monthly-chart { width:100%; margin:0 0 16px; }
   #monthly-chart svg { width:100%; height:auto; display:block; font-family:inherit; overflow:visible; }
   #monthly-chart .monthly-legend {

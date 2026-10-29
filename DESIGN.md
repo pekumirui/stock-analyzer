@@ -425,6 +425,8 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
 | `GET /api/pts?date=2026-10-16&ranking=night_up&at=2026-10-16 23:30:00` | PTS ランキング 1 回分と翌営業日の始値とのギャップ。`ranking` は `night_up` / `night_down` / `night_volume`（ほかは 400）。`date` 省略で最新のセッション、`at`（`fetched_at`）省略かつ不一致で最新の取得。形は `docs/DESIGN_pts.md` |
 | `GET /api/stocks/search?q=トヨタ` | 銘柄検索。名前の部分一致（q を NFKC とひらがな→カタカナに寄せたものでも引く）とコードの前方一致。最大 20 件 |
+| `GET /api/holders/search?q=` / `GET /api/holders/activity` / `GET /api/holders/{edinet}` | 大量保有の保有者検索・最近の動き・保有者ページ。`docs/DESIGN_holders.md` |
+| `GET /api/stock/{code}/holders` | 銘柄の株主タブ。`docs/DESIGN_stock.md` |
 | `GET /api/supply/graph` | サプライタブの素材と流れ（`config/supply/supply_chain.json`）。形は `docs/DESIGN_supply.md` |
 | `GET /api/supply/monthly/{material_id}` | 素材の月次量（`material_monthly`）と見掛け消費。形は `docs/DESIGN_supply.md`。素材が無ければ 404 |
 | `POST /api/v1/tables/{code}/{year}/elements` | 月次表の要素登録。`unit` 必須。表が無ければ作成。保存名をトークン正規化（yoy は末尾 `(前年比)`）と銘柄エイリアスのあと、保存名と完全一致する行を探す（既存行は作り直さない。`docs/DESIGN_monthly_labels.md`「同一行・保存名の凍結」）。完全一致は冪等。類似は 409 (force=true で強制)。unit の食い違いは 409 `UNIT_CONFLICT` (force=true で上書き)。`stocks` に無ければ 4xx `NOT_IN_MASTER` |
@@ -447,6 +449,10 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 ### 銘柄タブの画面
 
 画面は `docs/DESIGN_stock.md`。書き方は `docs/SCREEN_SPEC.md`。原文の保存は `docs/DESIGN_xbrl.md` §15。
+
+### 保有者タブの画面
+
+画面は `docs/DESIGN_holders.md`。書き方は `docs/SCREEN_SPEC.md`。データは `docs/DESIGN_edinet.md` §5。
 
 ### ランキングタブの画面
 

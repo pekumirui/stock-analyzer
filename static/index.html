@@ -21,6 +21,7 @@
     <button data-tab="monthly">月次</button>
     <button data-tab="supply">サプライ</button>
     <button data-tab="ranking">ランキング</button>
+    <button data-tab="holders">保有者</button>
   </nav>
 </header>
 <div id="nav-backdrop" hidden></div>
@@ -167,7 +168,11 @@
         <div id="st-doc"></div>
       </div>
     </div>
-    <div id="st-sub-holders" class="st-sub" hidden></div>
+    <div id="st-sub-holders" class="st-sub" hidden>
+      <div class="tbl-wrap" id="st-holders-large"></div>
+      <div id="st-holders-chart"></div>
+      <div id="st-holders-treasury"></div>
+    </div>
   </div>
 </section>
 
@@ -258,6 +263,31 @@
   </div>
 </section>
 
+<section id="tab-holders" style="display:none">
+  <div id="hd-top">
+    <div class="row" id="hd-search" style="position:relative">
+      <input id="hd-sym" placeholder="保有者名 or EDINETコード" autocomplete="off" style="width:240px">
+      <div id="hd-suggest" class="suggest" style="display:none"></div>
+    </div>
+    <h3>最近の動き</h3>
+    <p id="hd-feed-msg" class="sub" hidden></p>
+    <div class="tbl-wrap"><table id="hd-feed" class="sheet"></table></div>
+  </div>
+  <div id="hd-detail" style="display:none">
+    <div class="phead">
+      <button type="button" id="hd-back">← 保有者</button>
+      <h3 id="hd-title"></h3>
+    </div>
+    <p id="hd-note" class="sub">時価・平均取得単価・評価損益は目安。取得資金の書き方・分割・無償取得では出さない。</p>
+    <p id="hd-msg" class="sub" hidden></p>
+    <div class="tbl-wrap" id="hd-holdings"></div>
+    <div id="hd-chart"></div>
+    <div id="hd-series"></div>
+    <h3>最近の動き</h3>
+    <div class="tbl-wrap"><table id="hd-activity" class="sheet"></table></div>
+  </div>
+</section>
+
 </main>
 <div id="cal-backdrop" hidden></div>
 <script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
@@ -267,6 +297,7 @@
 <script src="/static/js/earnings.js"></script>
 <script src="/static/js/stock.js"></script>
 <script src="/static/js/stock-price.js"></script>
+<script src="/static/js/holders.js"></script>
 <script src="/static/js/screener.js"></script>
 <script src="/static/js/pts.js"></script>
 <script src="/static/js/ranking.js"></script>
