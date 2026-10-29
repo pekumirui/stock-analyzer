@@ -13,6 +13,7 @@ from ..models import DailyPrice, Topix, Indicator, Statement, EarningsEvent, Sto
 from ..db import WRITE_CHUNK_SIZE, delete_all_chunked, upsert
 from .ingest import _f
 from .price_limit import at_limit
+from ..xbrl.gross_profit import attach_gross_profit
 
 
 def rs_universe_codes(db: Session) -> set[str] | None:
@@ -356,7 +357,10 @@ def indicators_current(db: Session) -> bool:
     return last_px is None or (last_ind is not None and last_ind >= last_px)
 
 
-METRIC_KEYS = ("net_sales", "operating_profit", "ordinary_profit", "profit", "eps")
+# gross_profit は statements に無い。xbrl_financials から開示ごとに付ける（app/xbrl/gross_profit.py。KAB-278）
+METRIC_KEYS = ("net_sales", "gross_profit", "operating_profit", "ordinary_profit", "profit", "eps")
+# 予想のある指標（短信の予想に売上総利益は無い）。修正履歴はこれだけを見る
+FORECAST_KEYS = tuple(k for k in METRIC_KEYS if k != "gross_profit")
 # 再提出が実質的な訂正かを見るときに比べる指標。EPSは分割・増資で遡及修正されるだけの
 # ことがあり (損益は不変)、それを訂正扱いすると再提出が速報一覧に残ってしまうので除く。
 PL_KEYS = ("net_sales", "operating_profit", "ordinary_profit", "profit")
@@ -367,12 +371,17 @@ ORDER = {"1Q": 1, "2Q": 2, "3Q": 3, "4Q": 4, "FY": 4}
 PERIODS_OF = {1: ("1Q",), 2: ("2Q",), 3: ("3Q",), 4: ("FY", "4Q")}
 
 # 売上はマイナスを取らないため黒字転換の概念がない
-SIGNED = {"net_sales": False, "operating_profit": True, "ordinary_profit": True,
+SIGNED = {"net_sales": False, "gross_profit": True, "operating_profit": True, "ordinary_profit": True,
           "profit": True, "eps": True}
 
 
 def metrics(s: Statement) -> dict[str, float | None]:
-    return {k: getattr(s, k) for k in METRIC_KEYS}
+    return {k: getattr(s, k, None) for k in METRIC_KEYS}
+
+
+def forecast_values(s: Statement, prefix: str) -> dict[str, float | None]:
+    """f2_ / fy_ の予想。売上総利益の予想は短信に無いので None。"""
+    return {k: getattr(s, prefix + k, None) for k in METRIC_KEYS}
 
 
 def shift_year(d: date, n: int) -> date:
@@ -667,13 +676,13 @@ def cumulative_rows(hist: list[Statement], stmt: Statement, years: int, tol_days
         return rows
 
     prev_fy = find_statement(hist, prev_fy_end, "FY", tol_days)
-    f2 = {k: getattr(stmt, "f2_" + k) for k in METRIC_KEYS}
+    f2 = forecast_values(stmt, "f2_")
     if any(v is not None for v in f2.values()):
         ly2 = find_statement(hist, prev_fy_end, "2Q", tol_days)
         rows.append(_row(fy_end, None, "forecast_h", f2,
                          growth_map(f2, metrics(ly2) if ly2 else None),
                          disclosed=stmt.disclosed_date))
-    fyf = {k: getattr(stmt, "fy_" + k) for k in METRIC_KEYS}
+    fyf = forecast_values(stmt, "fy_")
     if any(v is not None for v in fyf.values()):
         rows.append(_row(fy_end, None, "forecast_fy", fyf,
                          growth_map(fyf, metrics(prev_fy) if prev_fy else None),
@@ -688,11 +697,11 @@ _MID_PERIODS = ("1Q", "2Q", "3Q")
 
 
 def progress_map(cum: dict | None, base: dict | None) -> dict | None:
-    """累計 / 通期 の進捗率 (%)。通期が 0 以下や欠けている指標は None。"""
+    """累計 / 通期 の進捗率 (%)。通期が 0 以下や欠けている指標は None。予想の無い売上総利益は出さない。"""
     if cum is None or base is None:
         return None
     out = {}
-    for k in METRIC_KEYS:
+    for k in FORECAST_KEYS:
         c, b = cum.get(k), base.get(k)
         out[k] = round(c / b * 100, 1) if c is not None and b and b > 0 else None
     return out
@@ -716,7 +725,7 @@ def progress_rows(hist: list[Statement], stmt: Statement, years: int, tol_days: 
         row = _row(s.fiscal_year_end, period, "actual", metrics(s), None,
                    disclosed=s.disclosed_date)
         rows.append({**row, "base": base, "progress": progress_map(metrics(s), base)})
-    fyf = {k: getattr(stmt, "fy_" + k) for k in METRIC_KEYS}
+    fyf = forecast_values(stmt, "fy_")
     row = _row(fy_end, period, "actual_current", metrics(stmt), None,
                disclosed=stmt.disclosed_date)
     rows.append({**row, "base": fyf, "progress": progress_map(metrics(stmt), fyf)})
@@ -749,6 +758,7 @@ def earnings_detail(db: Session, stmt: Statement) -> dict:
     tol = EP["fy_match_tol_days"]
     hist = statement_history(db, stmt.code, stmt.disclosed_date,
                              366 * (EP["cum_history_years"] + 1))
+    attach_gross_profit(db, hist if stmt in hist else [*hist, stmt])
     cum = cumulative_rows(hist, stmt, EP["cum_history_years"], tol)
     qtr = quarterly_rows(hist, stmt, EP["single_history_quarters"], tol)
     return {
@@ -772,12 +782,13 @@ def quarter_summary(db: Session, stmt: Statement, hist: list[Statement] | None =
     tol = EP["fy_match_tol_days"]
     if hist is None:
         hist = statement_history(db, stmt.code, stmt.disclosed_date, EP["list_history_days"])
+        attach_gross_profit(db, hist if stmt in hist else [*hist, stmt])
 
     cum = metrics(stmt)
     single = single_from(hist, stmt, tol)
 
     yoy = yoy_single = None
-    fyf = {k: getattr(stmt, "fy_" + k) for k in METRIC_KEYS}
+    fyf = forecast_values(stmt, "fy_")
     progress = None
     if stmt.type_of_period in _MID_PERIODS:
         progress = {"cur": progress_map(cum, fyf), "prev": None}
@@ -801,7 +812,7 @@ def quarter_summary(db: Session, stmt: Statement, hist: list[Statement] | None =
         "yoy": yoy,
         "yoy_single": yoy_single,
         "qoq": qoq_map(hist, stmt, tol),
-        "forecast_h": {k: getattr(stmt, "f2_" + k) for k in METRIC_KEYS},
+        "forecast_h": forecast_values(stmt, "f2_"),
         "forecast_fy": fyf,
         "progress": progress,
         "revised_up": bool(rev and rev["direction"] == "up"),

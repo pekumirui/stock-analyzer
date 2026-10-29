@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from .market.analytics import (METRIC_KEYS, PL_KEYS, SIGNED, calendar_label, growth_cell, period_label,
+from .market.analytics import (FORECAST_KEYS, PL_KEYS, SIGNED, calendar_label, growth_cell, period_label,
                                shift_year)
 
 FORECAST = "forecast"
@@ -44,9 +44,9 @@ def _has_values(v: dict) -> bool:
 
 
 def _row(fy_end: date, kind: str, p: RevisionPoint, prev: dict | None) -> dict:
-    values = {k: p.values.get(k) for k in METRIC_KEYS}
+    values = {k: p.values.get(k) for k in FORECAST_KEYS}
     growth = None if prev is None else {
-        k: revision_cell(values[k], prev.get(k), SIGNED[k]) for k in METRIC_KEYS}
+        k: revision_cell(values[k], prev.get(k), SIGNED[k]) for k in FORECAST_KEYS}
     return {"label": period_label(fy_end), "range": calendar_label(fy_end), "kind": kind,
             "fiscal_year_end": fy_end.isoformat(), "period": None,
             "disclosed_date": p.disclosed.isoformat(), "values": values, "growth": growth}
