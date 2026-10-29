@@ -302,3 +302,6 @@ def test_spa_holders_tab() -> None:
     assert "hdFileDateCell" in js
     assert "<th class='pin0'>提出日</th>" in js
     assert "hdFileDateCell(r.file_date, r.obligation_date, \"pin0\")" in js
+    assert 'class="below-h"' in js
+    assert "tr.below-h td { color:var(--sub); }" in css
+    assert "tr.below-h td { color:var(--sub); font-size" not in css
