@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import os
 import sys
 import tempfile
@@ -22,8 +23,12 @@ from sqlalchemy import delete, select  # noqa: E402
 from app.db import SessionLocal, init_db  # noqa: E402
 from app.edinet.documents import CodeLookup  # noqa: E402
 from app.edinet.large_holdings import (  # noqa: E402
+    ObligationDateFix,
+    apply_obligation_date_fix,
     exit_status,
+    is_late_obligation,
     keep_after,
+    load_obligation_date_fixes,
     mark_outside_window,
     parse_csv_zip,
     pending_documents,
@@ -31,6 +36,7 @@ from app.edinet.large_holdings import (  # noqa: E402
     report_row,
     run,
     sec_code5,
+    warn_late_obligation_dates,
 )
 from app.edinet_wrapper.errors import (  # noqa: E402
     EdinetNotFoundError,
@@ -67,12 +73,13 @@ def _csv_zip(facts: list[tuple[str, int, str]], name: str = "jplvh010000-lvh-001
 
 
 def _cover(title: str, *, issuer="サンプル株式会社", sec="190A", reason="－", n=2,
-           arrangement="連名", amends="－", joint="該当事項なし") -> list[tuple[str, int, str]]:
+           arrangement="連名", amends="－", joint="該当事項なし",
+           obligation="2026-10-07", filing="2026-10-15") -> list[tuple[str, int, str]]:
     return [
         ("jplvh_cor:TotalNumberOfFilersAndJointHoldersCoverPage", 0, str(n)),
         ("jplvh_cor:DocumentTitleCoverPage", 0, title),
-        ("jplvh_cor:DateWhenFilingRequirementAroseCoverPage", 0, "2026-10-07"),
-        ("jplvh_cor:FilingDateCoverPage", 0, "2026-10-15"),
+        ("jplvh_cor:DateWhenFilingRequirementAroseCoverPage", 0, obligation),
+        ("jplvh_cor:FilingDateCoverPage", 0, filing),
         ("jplvh_cor:ArrangementOfFilingCoverPage", 0, arrangement),
         ("jplvh_cor:ReasonForFilingChangeReportCoverPage", 0, reason),
         ("jpdei_cor:EDINETCodeDEI", 0, "E99999"),
@@ -381,6 +388,175 @@ def test_outside_window_marked_without_download() -> None:
         db.close()
 
 
+def _report(doc_id: str, **over) -> LargeHoldingReport:
+    row = {
+        "doc_id": doc_id, "file_date": date(2026, 10, 15),
+        "submit_datetime": datetime(2026, 10, 15, 9, 0),  # noqa: DTZ001
+        "doc_type_code": "350", "filer_name": "大量保有証券株式会社", "code": "190A0",
+        "obligation_date": date(2026, 10, 7), "is_amendment": False,
+        "original_doc_id": doc_id, "is_latest": True, "withdrawn": False,
+        "parse_status": "parsed", "fetched_at": FETCHED,
+    }
+    row.update(over)
+    return LargeHoldingReport(**row)
+
+
+def test_load_real_date_fixes() -> None:
+    fixes = load_obligation_date_fixes()
+    assert len(fixes) == 23
+    assert fixes["S100QKKW"] == ObligationDateFix(date(2024, 4, 3), date(2023, 4, 3))
+    assert fixes["S100Z6EL"] == ObligationDateFix(date(2027, 10, 1), date(2026, 10, 1))
+    assert all(fix.recorded != fix.correct for fix in fixes.values())
+
+
+def test_duplicate_fix_doc_id() -> None:
+    path = Path(_tmp) / "dup_fixes.json"
+    path.write_text(json.dumps({
+        "fixes": [
+            {"doc_id": "S100AAAA", "recorded": "2024-01-01", "correct": "2023-01-01"},
+            {"doc_id": "S100AAAA", "recorded": "2024-01-02", "correct": "2023-01-02"},
+        ]
+    }), encoding="utf-8")
+    try:
+        load_obligation_date_fixes(path)
+        raise AssertionError("expected ValueError")
+    except ValueError as exc:
+        assert "S100AAAA" in str(exc)
+
+
+def test_apply_obligation_date_fix() -> None:
+    fixes = {"S100QKKW": ObligationDateFix(date(2024, 4, 3), date(2023, 4, 3))}
+    assert apply_obligation_date_fix("S100QKKW", date(2024, 4, 3), fixes=fixes) == date(2023, 4, 3)
+    assert apply_obligation_date_fix("S100QKKW", date(2024, 4, 3), fixes=fixes) == date(2023, 4, 3)
+    assert apply_obligation_date_fix("S100NONE", date(2024, 1, 1), fixes=fixes) == date(2024, 1, 1)
+    assert apply_obligation_date_fix("S100QKKW", None, fixes=fixes) is None
+    buf = StringIO()
+    with contextlib.redirect_stdout(buf):
+        got = apply_obligation_date_fix("S100QKKW", date(2025, 1, 1), fixes=fixes)
+    assert got == date(2025, 1, 1)
+    assert "WARNING edinet lvh obligation-date-mismatch doc_id=S100QKKW" in buf.getvalue()
+    assert "recorded=2024-04-03" in buf.getvalue()
+    assert "parsed=2025-01-01" in buf.getvalue()
+
+
+def test_is_late_obligation() -> None:
+    submit = date(2026, 10, 15)
+    assert is_late_obligation(date(2026, 11, 14), submit) is True
+    assert is_late_obligation(date(2026, 11, 13), submit) is False
+    assert is_late_obligation(None, submit) is False
+    assert is_late_obligation(submit, None) is False
+
+
+def test_report_row_applies_matching_fix() -> None:
+    rep = parse_csv_zip(_joint_report(obligation="2024-04-03"))
+    lookup = CodeLookup({"190A0", "65160"}, {"E11111": "190A0"})
+    buf = StringIO()
+    with contextlib.redirect_stdout(buf):
+        row = report_row(_doc(1, "S100QKKW"), rep, lookup, FETCHED)
+    assert row["obligation_date"] == date(2023, 4, 3)
+    assert "mismatch" not in buf.getvalue()
+    with contextlib.redirect_stdout(buf):
+        again = report_row(_doc(1, "S100QKKW"), rep, lookup, FETCHED)
+    assert again["obligation_date"] == date(2023, 4, 3)
+
+
+def test_pending_documents_doc_ids() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add_all([_doc(1, "S100ORIG"), _doc(2, "S100SNGL")])
+        db.commit()
+        assert [d.doc_id for d in pending_documents(db, doc_ids=["S100SNGL"])] == ["S100SNGL"]
+        assert pending_documents(db, doc_ids=["S100NONE"]) == []
+    finally:
+        db.close()
+
+
+def test_warn_late_obligation_dates() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add_all([
+            _report("S100LATE", obligation_date=date(2026, 11, 14)),
+            _report("S100OK29", obligation_date=date(2026, 11, 13)),
+            _report("S100CFG1", obligation_date=date(2027, 10, 1)),
+            _report("S100GONE", obligation_date=date(2027, 1, 1), withdrawn=True),
+            _report("S100FAIL", obligation_date=date(2027, 1, 1), parse_status="failed"),
+        ])
+        db.commit()
+        fixes = {"S100CFG1": ObligationDateFix(date(2027, 10, 1), date(2026, 10, 1))}
+        buf = StringIO()
+        with contextlib.redirect_stdout(buf):
+            n = warn_late_obligation_dates(db, fixes=fixes)
+        out = buf.getvalue()
+        assert n == 1
+        assert (
+            "WARNING edinet lvh obligation-date-future doc_id=S100LATE "
+            "filer=大量保有証券株式会社 code=190A0 "
+            "obligation_date=2026-11-14 submit_date=2026-10-15"
+        ) in out
+        assert "S100OK29" not in out
+        assert "S100CFG1" not in out
+        assert "S100GONE" not in out
+        assert "S100FAIL" not in out
+    finally:
+        db.close()
+
+
+def test_run_applies_fix_and_warns_late() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add_all([
+            _doc(1, "S100QKKW"),
+            _doc(2, "S100LATE"),
+        ])
+        db.commit()
+        client = FakeClient({
+            "S100QKKW": _joint_report(obligation="2024-04-03"),
+            "S100LATE": _joint_report(obligation="2026-12-01"),
+        })
+        st, out = _run(db, client, pending_documents(db))
+        assert st["parsed"] == 2
+        assert db.get(LargeHoldingReport, "S100QKKW").obligation_date == date(2023, 4, 3)
+        assert db.get(LargeHoldingReport, "S100LATE").obligation_date == date(2026, 12, 1)
+        assert "obligation-date-mismatch" not in out
+        assert "obligation-date-future doc_id=S100LATE" in out
+        assert "obligation-date-future doc_id=S100QKKW" not in out
+        assert "filer=大量保有証券株式会社" in out
+        assert "code=190A0" in out
+        assert "obligation_date=2026-12-01" in out
+        assert "submit_date=2026-10-15" in out
+
+        st, out = _run(db, client, pending_documents(db, reparse=True))
+        assert db.get(LargeHoldingReport, "S100QKKW").obligation_date == date(2023, 4, 3)
+        assert "obligation-date-mismatch" not in out
+        assert "obligation-date-future doc_id=S100LATE" in out
+    finally:
+        db.close()
+
+
+def test_run_mismatch_keeps_parsed() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add(_doc(1, "S100QKKW"))
+        db.commit()
+        client = FakeClient({"S100QKKW": _joint_report(obligation="2025-01-01")})
+        st, out = _run(db, client, pending_documents(db))
+        assert st["parsed"] == 1
+        assert db.get(LargeHoldingReport, "S100QKKW").obligation_date == date(2025, 1, 1)
+        assert "WARNING edinet lvh obligation-date-mismatch doc_id=S100QKKW" in out
+        assert "recorded=2024-04-03 parsed=2025-01-01" in out
+        assert "obligation-date-future" not in out
+    finally:
+        db.close()
+
+
 def main() -> None:
     init_db()
     test_sec_code5()
@@ -391,6 +567,15 @@ def main() -> None:
     test_download_404_is_failed_not_error()
     test_download_5xx_stays_error()
     test_outside_window_marked_without_download()
+    test_load_real_date_fixes()
+    test_duplicate_fix_doc_id()
+    test_apply_obligation_date_fix()
+    test_is_late_obligation()
+    test_report_row_applies_matching_fix()
+    test_pending_documents_doc_ids()
+    test_warn_late_obligation_dates()
+    test_run_applies_fix_and_warns_late()
+    test_run_mismatch_keeps_parsed()
     print("ok")
 
 

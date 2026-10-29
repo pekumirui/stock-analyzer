@@ -1,0 +1,28 @@
+{
+  "_meta": {"field": "obligation_date", "researched_at": "2026-10-29", "source": "EDINET原本PDF(disclosure2dl) + DBの訂正報告書チェーン"},
+  "fixes": [
+    {"doc_id":"S100QKKW","recorded":"2024-04-03","correct":"2023-04-03","evidence":"提出2023-04-10。発行済株式数の基準日「2023年4月3日現在」。60日明細の最終取引も2023-04-03","confidence":"high"},
+    {"doc_id":"S100QRZK","recorded":"2024-05-09","correct":"2023-05-09","evidence":"提出2023-05-16。「2023年5月9日現在」。60日明細は空欄。年ずれ1年","confidence":"high"},
+    {"doc_id":"S100SD3X","recorded":"2024-11-29","correct":"2023-11-29","evidence":"提出2023-11-30。「2023年11月29日現在」。60日明細は空欄","confidence":"high"},
+    {"doc_id":"S100TA7Z","recorded":"2025-04-15","correct":"2024-04-15","evidence":"提出2024-04-16。最終取引2024-04-15。訂正S100TC8Lで基準日も2024-04-15に訂正済み。最新行ではないが同じ値に揃える","confidence":"high"},
+    {"doc_id":"S100TC8L","recorded":"2025-04-15","correct":"2024-04-15","evidence":"S100TA7Z(No.3)の訂正報告書。添付XBRLは元の誤った年のまま。訂正後の基準日は「2024年4月15日現在」。この系列の最新行","confidence":"high"},
+    {"doc_id":"S100TC8Y","recorded":"2025-04-23","correct":"2024-04-23","evidence":"提出2024-04-30。「2024年4月23日現在」。最終取引2024-04-23","confidence":"high"},
+    {"doc_id":"S100TC95","recorded":"2025-04-24","correct":"2024-04-24","evidence":"提出2024-04-30。「2024年4月24日現在」。最終取引2024-04-24","confidence":"high"},
+    {"doc_id":"S100TEMQ","recorded":"2025-05-09","correct":"2024-05-09","evidence":"提出2024-05-13。「2024年5月9日現在」。最終取引2024-05-09","confidence":"high"},
+    {"doc_id":"S100TFWO","recorded":"2025-05-13","correct":"2024-05-13","evidence":"提出2024-05-17。「2024年5月13日現在」。最終取引2024-05-13","confidence":"high"},
+    {"doc_id":"S100U6MZ","recorded":"2025-08-01","correct":"2024-08-01","evidence":"提出2024-08-08。「2024年8月1日現在」。最終取引2024-08-01。提出者の訂正S100U6OPで2024-08-01","confidence":"high"},
+    {"doc_id":"S100TEXH","recorded":"2025-05-07","correct":"2024-05-07","evidence":"提出2024-05-14。「2024年5月7日現在」(訂正S100THIZの訂正後)","confidence":"high"},
+    {"doc_id":"S100THIZ","recorded":"2025-05-07","correct":"2024-05-07","evidence":"S100TEXH(No.2)の訂正報告書。添付XBRLは元の誤った年のまま。訂正内容は基準日を「2024年5月7日現在」にするもの。この系列の最新行","confidence":"high"},
+    {"doc_id":"S100TI97","recorded":"2025-05-23","correct":"2024-05-23","evidence":"提出2024-05-29。「2024年5月23日現在」。60日明細の取引はすべて2024-05-23","confidence":"high"},
+    {"doc_id":"S100V7IJ","recorded":"2026-01-30","correct":"2025-01-30","evidence":"提出者自身の訂正S100VP2B(2025-05-01)とS100VP8R(2025-05-02)で2025-01-30。前の報告No.32の義務発生日は2025-01-14で、この日付と矛盾しない","confidence":"high"},
+    {"doc_id":"S100VFY0","recorded":"2026-04-03","correct":"2025-04-03","evidence":"提出2025-04-10。最終取引2025-04-03。提出者の訂正S100VMLQで2025-04-03","confidence":"high"},
+    {"doc_id":"S100VQJA","recorded":"2026-05-08","correct":"2025-05-08","evidence":"提出2025-05-15。「2025年5月8日現在」。最終取引2025-05-08。提出者の訂正S100VRQDで2025-05-08","confidence":"high"},
+    {"doc_id":"S100W73D","recorded":"2026-06-24","correct":"2025-06-24","evidence":"提出2025-06-27。「2025年6月24日現在」。重要な契約欄に「2025年6月24日付で契約を解約」","confidence":"high"},
+    {"doc_id":"S100WAPR","recorded":"2026-07-01","correct":"2025-07-01","evidence":"提出2025-07-04。「2025年7月1日現在」。貸借期間は2025-07-01開始。提出者の訂正S100WHEFで2025-07-01","confidence":"high"},
+    {"doc_id":"S100WMXA","recorded":"2026-08-27","correct":"2025-08-27","evidence":"公開買付けが2025-08-27に成立(決済は09-03)。提出者の訂正S100WORW(2025-09-17)で2025-08-27","confidence":"high"},
+    {"doc_id":"S100XGF8","recorded":"2027-01-14","correct":"2026-01-14","evidence":"提出2026-01-21。「2026年1月14日現在」。最終取引2026-01-14。訂正報告書なし","confidence":"high"},
+    {"doc_id":"S100XHAA","recorded":"2027-01-20","correct":"2026-01-20","evidence":"提出2026-01-27。「2026年1月20日現在」。最終取引2026-01-20。提出者の訂正S100XHTGで2026-01-20","confidence":"high"},
+    {"doc_id":"S100YCYS","recorded":"2027-06-15","correct":"2026-06-15","evidence":"提出2026-06-17。「2026年6月15日現在」。最終取引2026-06-15。提出者の訂正S100YI0Kで2026-06-15","confidence":"high"},
+    {"doc_id":"S100Z6EL","recorded":"2027-10-01","correct":"2026-10-01","evidence":"提出2026-10-08。「2026年10月1日現在」。2026-10-01に吸収分割による処分。訂正報告書なし","confidence":"high"}
+  ]
+}
