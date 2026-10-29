@@ -475,14 +475,12 @@ function renderRev(el, rows, d){
   let h = `<thead><tr><th class="l">決算期</th><th class="disc">発表日</th>`
         + FC_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
         + `<th>EPS</th></tr></thead><tbody>`;
-  // 年度のまとまり: 決算期は年度の最初の行だけに書き、縞は年度ごとに替える（KAB-279）
-  let band = 0;
+  // 年度のまとまり: 決算期は年度の最初の行だけに書く。地の色は実績の行だけ（KAB-279）
   rows.forEach((r,i) => {
     const [txt, bc, tip] = REV_BADGE[r.kind] || ["", "", ""];
     const now = d && r.disclosed_date === d.disclosed_date;
     const head = i === 0 || r.fiscal_year_end !== rows[i-1].fiscal_year_end;
-    if(head && i > 0) band ^= 1;
-    const cls = [now&&"now", r.kind==="actual_fy"&&"act", head&&i>0&&"sep", band&&"band"].filter(Boolean).join(" ");
+    const cls = [now&&"now", r.kind==="actual_fy"&&"act", head&&i>0&&"sep"].filter(Boolean).join(" ");
     const cell = (k, txt) => {
       const g = r.growth && r.growth[k];
       return `<td class="num${dc(k)}">${txt}<span class="g">${g ? revG(g) : " "}</span></td>`;
