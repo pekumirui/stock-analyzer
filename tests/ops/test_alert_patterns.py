@@ -52,6 +52,15 @@ PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "failed doc_id=S100ABC code=72030 err=boom"),
     ("batch", "2026-10-22 12:00:00 failed doc_id=S100ABC code=72030 err=boom"),
     ("batch", "normalize failed doc_id=S100ABC code=72030 err=boom"),
+    ("batch", "WARNING edinet lvh obligation-date-mismatch doc_id=S100QKKW recorded=2024-04-03 parsed=2025-04-03"),
+    (
+        "batch",
+        (
+            "2026-10-29 09:05:01 WARNING edinet lvh obligation-date-future "
+            "doc_id=S100LATE filer=大量保有証券株式会社 code=190A0 "
+            "obligation_date=2026-12-01 submit_date=2026-10-15"
+        ),
+    ),
     ("batch", "edinet lvh done parsed=0 failed=0 missing=0 errors=3 refreshed=0"),
     ("nginx", "2026/08/05 12:00:00 [error] 12#12: *1 connect() failed (111: Connection refused)"),
     (
@@ -99,6 +108,7 @@ NOT_PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "edinet lvh outside-window n=12"),
     ("batch", "edinet lvh parse-error n=1 sample=S100BRKN"),
     ("batch", "edinet lvh download-error n=2 sample=S100SRV1,S100TMO1"),
+    ("batch", "edinet lvh reparse-fixes n=23"),
     ("batch", "WARN edinet maintenance skip job=edinet_xbrl err=EDINET returned HTML instead of API data"),
     (
         "batch",

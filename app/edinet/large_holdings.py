@@ -7,17 +7,20 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import re
 import unicodedata
 import zipfile
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
+from app.config import LARGE_HOLDING_DATE_FIXES_PATH
 from app.db import run_sqlite_write, upsert
 from app.edinet.client import reraise
 from app.edinet.documents import CodeLookup, now_jst
@@ -30,7 +33,97 @@ if TYPE_CHECKING:
 DOC_TYPES = ("350", "360")       # 大量保有報告書・変更報告書 / 訂正報告書
 AMENDMENT = "360"
 KEEP_YEARS = 5                   # EDINET が大量保有 CSV（type=5）を持つ期間
+FUTURE_DAYS = 30                 # 義務発生日が提出日よりこれ以上先なら WARNING（KAB-269）
 _SAMPLE_IDS = 8
+
+
+@dataclass(frozen=True)
+class ObligationDateFix:
+    recorded: date
+    correct: date
+
+
+def load_obligation_date_fixes(path: Path | None = None) -> dict[str, ObligationDateFix]:
+    """config/large_holding_date_fixes.json。キーは doc_id。重複は ValueError。"""
+    src = LARGE_HOLDING_DATE_FIXES_PATH if path is None else path
+    raw = json.loads(src.read_text(encoding="utf-8"))
+    out: dict[str, ObligationDateFix] = {}
+    for item in raw.get("fixes") or []:
+        doc_id = str(item["doc_id"]).strip()
+        if doc_id in out:
+            raise ValueError(f"duplicate doc_id in date fixes: {doc_id}")
+        out[doc_id] = ObligationDateFix(
+            recorded=date.fromisoformat(item["recorded"]),
+            correct=date.fromisoformat(item["correct"]),
+        )
+    return out
+
+
+def apply_obligation_date_fix(
+    doc_id: str,
+    parsed: date | None,
+    *,
+    fixes: dict[str, ObligationDateFix] | None = None,
+) -> date | None:
+    """原本の値が recorded と一致したときだけ correct に差し替える。不一致は WARNING。冪等。"""
+    if parsed is None:
+        return None
+    table = load_obligation_date_fixes() if fixes is None else fixes
+    fix = table.get(doc_id)
+    if fix is None:
+        return parsed
+    if parsed != fix.recorded:
+        print(
+            f"WARNING edinet lvh obligation-date-mismatch doc_id={doc_id} "
+            f"recorded={fix.recorded.isoformat()} parsed={parsed.isoformat()}",
+            flush=True,
+        )
+        return parsed
+    return fix.correct
+
+
+def submit_day(submit_datetime: datetime | None, filing_date: date | None = None) -> date | None:
+    if submit_datetime is not None:
+        return submit_datetime.date()
+    return filing_date
+
+
+def is_late_obligation(obligation: date | None, submitted: date | None,
+                       *, days: int = FUTURE_DAYS) -> bool:
+    if obligation is None or submitted is None:
+        return False
+    return (obligation - submitted).days >= days
+
+
+def warn_late_obligation_dates(
+    db: Session,
+    *,
+    fixes: dict[str, ObligationDateFix] | None = None,
+) -> int:
+    """差し替え後も義務発生日が提出日より FUTURE_DAYS 日以上先の、設定に無い書類を WARNING。"""
+    table = load_obligation_date_fixes() if fixes is None else fixes
+    R = LargeHoldingReport
+    rows = db.execute(
+        select(R.doc_id, R.filer_name, R.code, R.obligation_date, R.submit_datetime, R.filing_date)
+        .where(R.parse_status == "parsed", R.withdrawn.is_(False), R.obligation_date.is_not(None))
+        .order_by(R.doc_id)
+    ).all()
+    n = 0
+    for r in rows:
+        if r.doc_id in table:
+            continue
+        submitted = submit_day(r.submit_datetime, r.filing_date)
+        if not is_late_obligation(r.obligation_date, submitted):
+            continue
+        print(
+            f"WARNING edinet lvh obligation-date-future doc_id={r.doc_id} "
+            f"filer={r.filer_name or '-'} code={r.code or '-'} "
+            f"obligation_date={r.obligation_date.isoformat()} "
+            f"submit_date={submitted.isoformat()}",
+            flush=True,
+        )
+        n += 1
+    return n
 
 
 class OutsideEdinetWindow(Exception):
@@ -120,7 +213,8 @@ def sec_code5(raw: str | None) -> str | None:
 
 
 def report_row(doc: EdinetDocument, rep: ParsedReport, lookup: CodeLookup,
-               fetched_at: datetime) -> dict:
+               fetched_at: datetime, *,
+               fixes: dict[str, ObligationDateFix] | None = None) -> dict:
     """large_holding_reports の 1 行。合計の欄は保有者が 1 人だと書類レベルに無いので、保有者 1 の値を使う。"""
     def total(name: str, conv):
         v = conv(name)
@@ -133,6 +227,8 @@ def report_row(doc: EdinetDocument, rep: ParsedReport, lookup: CodeLookup,
     is_amendment = doc.doc_type_code == AMENDMENT
     if is_amendment and not amends:
         amends = edinet_doc_id(doc.parent_doc_id)
+    obligation = apply_obligation_date_fix(
+        doc.doc_id, rep.day("DateWhenFilingRequirementAroseCoverPage"), fixes=fixes)
     return {
         "doc_id": doc.doc_id,
         "file_date": doc.file_date,
@@ -146,7 +242,7 @@ def report_row(doc: EdinetDocument, rep: ParsedReport, lookup: CodeLookup,
         "issuer_sec_code": issuer_sec,
         "issuer_name": rep.text("NameOfIssuer"),
         "code": lookup.code_for(issuer_sec, doc.issuer_edinet_code),
-        "obligation_date": rep.day("DateWhenFilingRequirementAroseCoverPage"),
+        "obligation_date": obligation,
         "filing_date": rep.day("FilingDateCoverPage"),
         "reason": rep.note("ReasonForFilingChangeReportCoverPage"),
         "arrangement": rep.text("ArrangementOfFilingCoverPage"),
@@ -213,6 +309,7 @@ def pending_documents(
     reparse: bool = False,
     limit: int | None = None,
     today: date | None = None,
+    doc_ids: list[str] | None = None,
 ) -> list[EdinetDocument]:
     """取り込む書類。350 / 360・CSV あり・取下げ/不開示でない元の行。新しい日から。
 
@@ -231,6 +328,8 @@ def pending_documents(
          .order_by(T.file_date.desc(), T.seq_number))
     if end:
         q = q.where(T.file_date <= end)
+    if doc_ids:
+        q = q.where(T.doc_id.in_(doc_ids))
     docs = db.scalars(q).all()
     status = dict(db.execute(select(LargeHoldingReport.doc_id, LargeHoldingReport.parse_status)).all())
     out, seen = [], set()
@@ -314,7 +413,8 @@ def mark_outside_window(db: Session, *, today: date | None = None) -> int:
 
 
 def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
-                    lookup: CodeLookup, *, today: date | None = None) -> str:
+                    lookup: CodeLookup, *, today: date | None = None,
+                    fixes: dict[str, ObligationDateFix] | None = None) -> str:
     """1 書類: CSV をダウンロード → パース → 保存。
 
     戻り値は parsed / failed / missing / error。
@@ -342,7 +442,7 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
     fetched_at = now_jst()
     try:
         rep = parse_csv_zip(got.content)
-        row = report_row(doc, rep, lookup, fetched_at)
+        row = report_row(doc, rep, lookup, fetched_at, fixes=fixes)
         holders = holder_rows(doc.doc_id, rep)
     except Exception as exc:
         store_failed(db, doc, exc, fetched_at)
@@ -408,14 +508,16 @@ def refresh_versions(db: Session) -> int:
 
 
 def run(db: Session, client: EdinetClient, docs: list[EdinetDocument],
-        *, today: date | None = None) -> dict:
+        *, today: date | None = None,
+        fixes: dict[str, ObligationDateFix] | None = None) -> dict:
     out = {"parsed": 0, "failed": 0, "missing": 0, "errors": 0}
     lookup = CodeLookup.load(db)
+    table = load_obligation_date_fixes() if fixes is None else fixes
     missing_ids: list[str] = []
     failed_ids: list[str] = []
     error_ids: list[str] = []
     for doc in docs:
-        st = ingest_document(db, client, doc, lookup, today=today)
+        st = ingest_document(db, client, doc, lookup, today=today, fixes=table)
         out[{"parsed": "parsed", "failed": "failed", "missing": "missing"}.get(st, "errors")] += 1
         if st == "missing":
             missing_ids.append(doc.doc_id)
@@ -433,6 +535,7 @@ def run(db: Session, client: EdinetClient, docs: list[EdinetDocument],
         print(f"edinet lvh download-error n={len(error_ids)} sample={_sample_ids(error_ids)}",
               flush=True)
     out["refreshed"] = refresh_versions(db)
+    out["late"] = warn_late_obligation_dates(db, fixes=table)
     return out
 
 
