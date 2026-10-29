@@ -130,3 +130,14 @@ def test_earnings_keeps_sheet_and_shared_pin() -> None:
     assert "qb-act" in src
     assert "metricCells(latest" in src
     assert "metricCells(r, r.period)" in src
+
+
+def test_monthly_tables_use_sheet() -> None:
+    src = (ROOT / "static/js/monthly.js").read_text(encoding="utf-8")
+    assert 'id="monthly-tbl" class="sheet"' in src
+    assert 'class="sheet monthly-tl"' in src
+    assert 'class="sheet">${head}${rows}</table>' in src
+    css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
+    assert "table.sheet .tl-sub { font-size:11px; }" in css
+    pub = (ROOT / "app/monthly/public.py").read_text(encoding="utf-8")
+    assert 'id="monthly-tbl" class="sheet"' in pub

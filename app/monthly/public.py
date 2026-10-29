@@ -153,7 +153,7 @@ def render_top_list(issuers: list[dict]) -> str:
         )
     body = "".join(rows)
     return (
-        '<table id="monthly-tbl"><thead><tr>'
+        '<table id="monthly-tbl" class="sheet"><thead><tr>'
         '<th class="l">会社名</th><th class="l">月次業種</th>'
         "<th>全店(前年比)</th><th>既存店(前年比)</th>"
         f"</tr></thead><tbody>{body}</tbody></table>"
