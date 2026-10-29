@@ -180,6 +180,12 @@
   table.fin tr.fc td { background:#f0f7fc !important; }
   table.fin tr.prevfy td { opacity:.78; }
   table.fin tr.sep td { border-top:1px solid var(--border); }
+  /* 修正履歴は年度ごとに縞を替え、境を太くする。決算期は年度の最初の行だけ（KAB-279） */
+  table.fin.rev tbody tr:nth-child(even) td { background:none; }
+  table.fin.rev tbody tr.band td { background:var(--row); }
+  table.fin.rev tbody tr:hover td { background:var(--row-sel); }
+  table.fin.rev tr.sep td { border-top:2px solid #b8c2cc; }
+  table.fin.rev .cont { padding-left:1em; }
   table.fin tr.act td.num { font-weight:600; }
   table.fin .loss { color:var(--up); }
   #monthly-groups, #earn-groups { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
