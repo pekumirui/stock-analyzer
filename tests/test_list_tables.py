@@ -95,3 +95,7 @@ def test_earnings_keeps_sheet_and_shared_pin() -> None:
     assert "const under =" in api
     assert "const shortName =" in api
     assert "const shortName" not in src
+    assert "latestPeriodLabel" in src
+    assert "qb-act" in src
+    assert "metricCells(latest" in src
+    assert "metricCells(r, r.period)" in src
