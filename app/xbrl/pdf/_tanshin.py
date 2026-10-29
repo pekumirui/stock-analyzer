@@ -79,6 +79,10 @@ _BS_CLASS = re.compile(
 )
 # 数値の無い PL の区分見出し。hanging が「収益売上収益」にしない（KAB-261）。
 _PL_CLASS = re.compile(r"^収益$")
+# 数値の無い「…の帰属」。次の行が「当社株主に帰属する…」なら区分見出し（KAB-264）。
+# 「親会社の所有者」だけの行は残して連結する（KAB-240）。
+_ATTR_CLASS = re.compile(r"の帰属:?$")
+_ATTR_ITEM = re.compile(r"に帰属する")
 # 内訳の行。親会社株主に帰属する行の頭に付くと名寄せできない（KAB-260）。
 _BREAKDOWN = re.compile(r"^[（(]内訳[)）]$")
 # CF の現金残高。期間ではなく時点（KAB-263。EDINET / TDnet ZIP の CashAndCashEquivalents に合わせる）。
@@ -1044,10 +1048,18 @@ def _statement_matches(text: str, spec: SectionSpec, d: PdfDisclosure, candidate
     )
 
 
+def _attr_class_heading(line: Line, rest: list[Line]) -> bool:
+    """値の無い「…の帰属」を、次の数値行が既に帰属先の科目なら落とす（KAB-264）。"""
+    if not _ATTR_CLASS.search(_compact(line.text)) or split_amounts(line)[1]:
+        return False
+    nxt = next((other for other in rest if split_amounts(other)[1]), None)
+    return nxt is None or bool(_ATTR_ITEM.search(_compact(nxt.text)))
+
+
 def _table_lines(lines: list[Line]) -> list[Line]:
     """ブロック内の分類見出しを落とす。折り返しの行名は残す。"""
     kept: list[Line] = []
-    for line in lines:
+    for index, line in enumerate(lines):
         compact = _compact(line.text)
         if not compact:
             continue
@@ -1060,6 +1072,8 @@ def _table_lines(lines: list[Line]) -> list[Line]:
         if _PL_CLASS.fullmatch(compact) and not split_amounts(line)[1]:
             continue
         if _BREAKDOWN.fullmatch(compact) and not split_amounts(line)[1]:
+            continue
+        if _attr_class_heading(line, lines[index + 1:]):
             continue
         if _RUNNING_HEAD.search(compact):
             continue
