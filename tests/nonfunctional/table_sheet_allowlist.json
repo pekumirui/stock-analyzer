@@ -66,24 +66,6 @@
     "reason": "PTS 表が未移行"
   },
   {
-    "file": "static/js/monthly.js",
-    "table": "table#monthly-tbl",
-    "rule": "no_sheet",
-    "reason": "月次発行体一覧が未移行"
-  },
-  {
-    "file": "static/js/monthly.js",
-    "table": "table.monthly-tl",
-    "rule": "no_sheet",
-    "reason": "月次年表は monthly-tl。sheet への移行前"
-  },
-  {
-    "file": "static/js/monthly.js",
-    "table": "table",
-    "rule": "no_sheet",
-    "reason": "月次セルのポップアップ表が未移行"
-  },
-  {
     "file": "static/js/supply.js",
     "table": "table.supply-tbl.supply-share-tbl",
     "rule": "no_sheet",
@@ -136,90 +118,6 @@
     "selector": "#hd-holdings tr.below-h td, #st-holders-large tr.below-h td",
     "rule": "font_size",
     "reason": "5%未満の保有者行 12px が sheet と別指定"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "table.monthly",
-    "rule": "font_size",
-    "reason": "月次表 14px（旧レイアウト）"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "table.monthly.monthly-gated td.monthly-stub-leaf.monthly-bd",
-    "rule": "font_size",
-    "reason": "月次ツリーの枝ラベル 12px"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "table.monthly thead th.l, table.monthly thead th:first-child, table.monthly thead th.year",
-    "rule": "font_size",
-    "reason": "月次見出し 13px（旧レイアウト）"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "table.monthly tbody tr.monthly-sec td.monthly-sec-label, table.monthly tbody tr.monthly-sec:hover td.monthly-sec-label",
-    "rule": "font_size",
-    "reason": "月次セクション見出し 12px"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "table.monthly tbody tr.monthly-sec td.monthly-sec-month, table.monthly tbody tr.monthly-sec:hover td.monthly-sec-month",
-    "rule": "font_size",
-    "reason": "月次セクションの月 11px"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "table.monthly-tl",
-    "rule": "font_size",
-    "reason": "月次年表 13px"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "table.monthly-tl thead th .tl-hy",
-    "rule": "font_size",
-    "reason": "年表の和暦ラベル 10px"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "table.monthly-tl tr.tl-sec td",
-    "rule": "font_size",
-    "reason": "年表セクション行 12px"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": ".monthly-pop table",
-    "rule": "font_size",
-    "reason": "月次ポップアップ表 13px"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": ".monthly-pop th",
-    "rule": "font_size",
-    "reason": "月次ポップアップ見出し 11px"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "table.monthly-tl .tl-sub",
-    "rule": "font_size",
-    "reason": "年表サブ行 11px"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "@media (max-width:640px) { table.monthly th, table.monthly td }",
-    "rule": "font_size",
-    "reason": "スマホの月次セル 13px"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "@media (max-width:640px) { table.monthly.monthly-gated td.monthly-stub-leaf.monthly-bd }",
-    "rule": "font_size",
-    "reason": "スマホの月次枝ラベル 12px"
-  },
-  {
-    "file": "static/css/app.css",
-    "selector": "@media (max-width:640px) { table.monthly-tl .tl-corner, table.monthly-tl td.tl-name }",
-    "rule": "font_size",
-    "reason": "スマホの年表項目名 12px"
   },
   {
     "file": "static/css/app.css",

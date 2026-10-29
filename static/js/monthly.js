@@ -357,7 +357,7 @@ function renderMonthlyList(){
     return;
   }
   const pub = monthlyPublic();
-  let h = `<table id="monthly-tbl"><thead><tr>` +
+  let h = `<table id="monthly-tbl" class="sheet"><thead><tr>` +
     `<th class="l">会社名</th>` +
     (pub ? "" : `<th class="l">市場</th><th class="l">業種</th>`) +
     `<th class="l">月次業種</th><th>全店(前年比)</th><th>既存店(前年比)</th>` +
@@ -1023,7 +1023,7 @@ function renderMonthlyTimeline(tables, opts){
   monthlyTlRecs = new Map();
   const body = monthlyTreeHtml(tm, cellsFor, cols);
   wrap.style.setProperty("--monthly-m-w", `calc(${Math.max(maxNumLen, 3)}ch + 14px)`);
-  wrap.innerHTML = `<table class="monthly-tl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  wrap.innerHTML = `<table class="sheet monthly-tl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
   if(!(opts && opts.keepScroll)){
     wrap.scrollLeft = wrap.scrollWidth;
     requestAnimationFrame(() => { wrap.scrollLeft = wrap.scrollWidth; });
@@ -1091,7 +1091,7 @@ async function openMonthlyPopup(td){
     const head = paired ? `<tr><th></th><th>金額</th><th>前年比</th></tr>` : "";
     pop.innerHTML = `<div class="mpop-head"><span class="mpop-title">${escHtml(name)}</span><span class="mpop-m">${m}月</span>`
       + `<button type="button" class="mpop-x" aria-label="閉じる" onclick="closeMonthlyPopup()">×</button></div>`
-      + `<table>${head}${rows}</table>`;
+      + `<table class="sheet">${head}${rows}</table>`;
     // PC もスマホも押したセルの近くに出す。iOS は表が横にはみ出すと layout viewport が見える幅より
     // 広くなるので、見えている範囲（visualViewport）に収める。
     const vv = window.visualViewport;
