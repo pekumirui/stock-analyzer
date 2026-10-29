@@ -252,13 +252,14 @@ document.addEventListener("click", e => {
 function gotoHolder(edinet){
   hdSuggest([]);
   hdLastSuggest = [];
-  openHolder(edinet);
+  const from = typeof currentScreenId === "function" ? currentScreenId() : "";
+  openHolder(edinet, from);
 }
 
-async function openHolder(edinet){
+async function openHolder(edinet, from){
   hdEdinet = edinet;
   showTab("holders");
-  writeRoute("holders", edinet);
+  writeRoute("holders", edinet, from);
   hdShowDetail();
   if(hdAc) hdAc.abort();
   hdAc = new AbortController();

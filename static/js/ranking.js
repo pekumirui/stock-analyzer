@@ -31,11 +31,14 @@ function rankingSubRoute(){
 }
 
 function showRankingSub(sub, opts){
+  const prev = rkSub === "pts" ? "ranking-pts" : "ranking";
   rkSub = sub == null ? rkSub : (sub === "pts" ? "pts" : "perf");
   document.querySelectorAll("#rk-subs .ftab").forEach(b => b.classList.toggle("on", b.dataset.rksub === rkSub));
   $("#rk-sub-perf").hidden = rkSub !== "perf";
   $("#rk-sub-pts").hidden = rkSub !== "pts";
-  writeRoute("ranking", rankingSubRoute());
+  const clicked = sub != null && !(opts && opts.force);
+  const from = clicked ? (rkSub === "pts" ? "ranking" : (prev === "ranking-pts" ? "ranking-pts" : "")) : undefined;
+  writeRoute("ranking", rankingSubRoute(), from);
   const force = !!(opts && opts.force);
   if(rkSub === "pts"){
     if(force || !$("#pts-tbl").innerHTML) loadPts();
