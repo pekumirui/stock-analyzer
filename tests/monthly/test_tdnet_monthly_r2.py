@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -27,6 +28,32 @@ from jobs.monthly.tdnet_monthly_r2 import (  # noqa: E402
 
 def _fail(msg: str) -> None:
     raise SystemExit(msg)
+
+
+_CRON_DAYS_RE = re.compile(
+    r"^[^#]*jobs/monthly/tdnet_monthly_r2\.py\s+(\d+)\b"
+)
+
+
+def test_crontab_lookback_covers_yanoshin_lag() -> None:
+    """日次 cron が当日1日だと、やのしん登録遅れを翌日以降拾えない（KAB-275）。"""
+    crontab = (ROOT / "deploy" / "crontab").read_text(encoding="utf-8")
+    days_vals: list[int] = []
+    for line in crontab.splitlines():
+        m = _CRON_DAYS_RE.search(line)
+        if m:
+            days_vals.append(int(m.group(1)))
+    if not days_vals:
+        _fail("deploy/crontab has no tdnet_monthly_r2.py days argument")
+    if len(set(days_vals)) != 1:
+        _fail(f"tdnet_monthly_r2.py days must be the same on every cron line: {days_vals}")
+    days = days_vals[0]
+    if days < 4:
+        _fail(f"tdnet_monthly_r2.py cron days={days} must be >= 4 (KAB-275)")
+    readme = (ROOT / "deploy" / "README.md").read_text(encoding="utf-8")
+    needle = f"`jobs/monthly/tdnet_monthly_r2.py {days}`"
+    if needle not in readme:
+        _fail(f"deploy/README.md must document {needle}")
 
 
 def test_display_code() -> None:
@@ -577,6 +604,7 @@ def test_run_pages_dedups_and_saves(tmp: Path) -> None:
 def main() -> None:
     from tempfile import TemporaryDirectory
 
+    test_crontab_lookback_covers_yanoshin_lag()
     test_display_code()
     test_jq_lookup_code()
     test_should_skip_infra_fund()
