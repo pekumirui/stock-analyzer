@@ -2,7 +2,8 @@
 
 No extra deps: Starlette ships with FastAPI. Listens on 127.0.0.1:8010/mcp.
 Arbitrary shell is not exposed. Arbitrary SQL is db_query's single SELECT/WITH only
-(mode=ro, query_only, authorizer). journalctl units and log paths are allowlisted.
+(optional EXPLAIN / EXPLAIN QUERY PLAN prefix; mode=ro, query_only, authorizer).
+journalctl units and log paths are allowlisted.
 Monthly table tools call http://127.0.0.1:8000/api/v1/tables only (not nginx, not user URLs).
 monthly_ingest POSTs /api/v1/tables/{code}/ingest and does not send year.
 FX tools read fx_rates (EUR base) and compute cross rates. They do not call Frankfurter.
@@ -175,7 +176,10 @@ _QUERY_OK = frozenset({
     sqlite3.SQLITE_FUNCTION,
     sqlite3.SQLITE_RECURSIVE,
 })
-_LEAD_SQL_RE = re.compile(r"^\(*\s*(SELECT|WITH)\b", re.I | re.S)
+_LEAD_SQL_RE = re.compile(
+    r"^(?:EXPLAIN\s+(?:QUERY\s+PLAN\s+)?)?\(*\s*(SELECT|WITH)\b",
+    re.I | re.S,
+)
 _TIMEOUT = object()
 _INTERRUPT_MARKERS = ("interrupt", "cancel")
 DATE_ONLY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -2021,16 +2025,21 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
     ),
     "db_query": (
         (
-            "stock.db に SELECT / WITH を 1 文だけ実行。読み取り専用"
+            "stock.db に SELECT / WITH を 1 文だけ実行。"
+            "先頭の EXPLAIN / EXPLAIN QUERY PLAN も可。読み取り専用"
             "（mode=ro / query_only / authorizer）。"
             "INSERT / UPDATE / DELETE / DROP / ATTACH / PRAGMA 書き込み / 複数文 / CTE 内の書き込みは拒否。"
+            "EXPLAIN の後ろも SELECT / WITH 以外は拒否。"
             "limit は 1-2000（既定 200）。超えた行と出力バイトは truncated。"
             "約10秒で打ち切り。params は ? の配列か :name のオブジェクト。"
         ),
         {
             "type": "object",
             "properties": {
-                "sql": {"type": "string", "description": "single SELECT or WITH statement"},
+                "sql": {
+                    "type": "string",
+                    "description": "single SELECT or WITH statement, optional EXPLAIN / EXPLAIN QUERY PLAN prefix",
+                },
                 "params": {
                     "description": "bound parameters: array for ? placeholders, or object for :name",
                 },
