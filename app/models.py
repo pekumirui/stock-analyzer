@@ -52,7 +52,9 @@ class DailyPrice(Base):
     upper_limit = Column(Integer)     # J-Quants UL。その日にストップ高を付けたら 1。取込前の行は NULL
     lower_limit = Column(Integer)     # J-Quants LL。ストップ安
     ex_rt = Column(String)            # J-Quants ExRT。権利落ち日だけ 1=分割（無償割当を含む）/ 2=併合 / 3=ライツイシュー
-    __table_args__ = (Index("ix_prices_date", "date"),)
+    # 行を (code, date) 順に置く。rowid 表だと日ごとの追記で 1 銘柄の行が表全体に散り、
+    # チャート 1 回で千ページ以上をランダムに読む (KAB-289)。既存 DB は jobs/ops/rebuild_daily_prices.py
+    __table_args__ = (Index("ix_prices_date", "date"), {"sqlite_with_rowid": False})
 
 
 class Topix(Base):

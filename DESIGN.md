@@ -43,7 +43,7 @@ stocks            -- 銘柄マスタ
   -- 既存DBは migrate で列追加。値は次の日次バッチの銘柄マスタ更新で埋まる
   -- (株価・財務の再取得は不要)
 
-daily_prices      -- 日足
+daily_prices      -- 日足。WITHOUT ROWID (行を code, date 順に置く。KAB-289)
   code, date PK(複合)
   open, high, low, close, volume, turnover      -- 調整前(報告時生値)
   adj_factor
