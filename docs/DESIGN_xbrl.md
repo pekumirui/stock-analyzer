@@ -286,7 +286,7 @@ CREATE TABLE xbrl_job_runs (
 - **正規化層は再生成可能**: マッピング修正 → `--rebuild` で `xbrl_financials` を作り直す。手で INSERT しない。
 - **マッピングは element_id ではなく `namespace_key + local_name`**: 年度で `namespace_uri` が変わる。element 行が増えても YAML を書き換えなくてよい。
 - **金額は float にしない**: 既存の `statements` は Float だが、生 fact は `NUMERIC`（Decimal）。正規化層も同様。
-- **容量**: 本番 `stock.db` は既に約 1.1GB。短信 iXBRL は有報より小さいが、全 fact を数年分入れると億行にはならない想定でも数千万行になり得る。第1弾は同一 DB。膨らんだら `xbrl_*.db` への分離を検討（今は作らない）。
+- **容量**: 全 fact を数年分入れると行数が大きくなり得る。第1弾は同一 DB。膨らんだら `xbrl_*.db` への分離を検討（今は作らない）。
 - **source**: `tdnet`（短信 ZIP。`doc_id` は ZIP 名）、`edinet`（有報・半期報）、`tdnet_pdf`（ZIP の無い短信 PDF。`doc_id` は開示番号 14 桁。`raw_path` は `tdnet_pdf:<開示番号>`。KAB-173、§16.5）。同じ 14 桁の `tdnet` が `parse_status='parsed'` になったら `tdnet_pdf` の filing は消す。`failed` / `no-ixbrl` の ZIP は消さない。
 
 ---
@@ -793,7 +793,7 @@ CREATE TABLE xbrl_segments (
 
 - 短信 ZIP には `Summary/*-ixbrl.htm`（サマリー）と `Attachment/qualitative.htm`（タグの無い HTML。添付資料まるごと: 定性的情報・財務諸表・注記）がある。`qualitative.htm` は本決算・中間・四半期の短信でほぼ全件、REIT は 39 件中 28 件。訂正は訂正箇所だけの書類で欠けることがある
 - 5933（2027/3 中間期）でサマリー＋`qualitative.htm` を Chromium で PDF にすると 12 ページ、数字 650 個と文字が元の PDF と一致した。違いはページのヘッダー・フッター、ロゴ、フォント。外の画像は TDnet の FASF マーク（`release.tdnet.info/img/mark1.gif`）だけ。`script` は 0 件
-- 大きさ（サマリー＋添付、1 件あたり）: HTML 平均 765KB / 中央値 584KB、gzip 後 平均 35KB。8/10〜10/23 で 2,347 件なので年 1 万件前後、DB は年 約 400MB 増える
+- HTML はよく縮むので gzip で持つ
 - 数値タグの無い表（EBITDA、定性的情報の中のセグメント表、収益の分解など）は原文にしか無い
 - 業績予想・配当予想の修正（`tse-rvfc…`）の ZIP はフォルダが無く、`*-ixbrl.htm` が ZIP の直下にある（`Summary/` も `qualitative.htm` も `Attachment/` も無い）。2026-10-25 時点で原文の無い TDnet の filing が 362 件あり、この形の ZIP は 0 件のまま毎時読み直されていた
 
@@ -813,7 +813,7 @@ CREATE TABLE xbrl_segments (
 
 選び方（`app/xbrl/documents.py pick_documents`）: `Summary/` の `*-ixbrl.htm`（名前順）、続けて `qualitative.htm` を 1 つ。`qualitative.htm` が無いときは `Attachment/` の `*-ixbrl.htm` をファイル名順（`0101010-…` の並びが本表の順）。`Summary/` も `qualitative.htm` も `Attachment/` も無いフォルダなしの ZIP（`tse-rvfc` など）は、ZIP の中の `*-ixbrl.htm` を名前順に `summary` として入れる。それでも無ければ 0 行で、`documents_status='empty'` にする。
 
-既存の表に入れない: `xbrl_filings` は取込・正規化・API で何度も引く表で、1 行 35KB の BLOB を載せない。`xbrl_facts.value_text` は fact 単位で 1000 文字で切る（§1.2）。`qualitative.htm` はタグが無く fact にならない。
+既存の表に入れない: `xbrl_filings` は取込・正規化・API で何度も引く表で、原文の BLOB を載せない。`xbrl_facts.value_text` は fact 単位で 1000 文字で切る（§1.2）。`qualitative.htm` はタグが無く fact にならない。
 
 ### 15.3 取込
 
@@ -858,7 +858,6 @@ pdfium（pypdfium2）でページごとに読む。文字は textpage の 1 文�
 - 最後の 1 行: `tdnet_pdf stopped=<done|limit|rate_limited> ok=… missing=… failed=… remaining=…`。`remaining` はこの実行のあとに `targets()` を取り直した件数で、`failed`（この実行で failed にした件数）とは別。`--retry-failed` 無しでは failed 済みは残件に入らない。`stopped=done` なのに remaining>0 なら、実行開始時の対象に含まれなかった回（実行中に statements が増えた等）が残っている。`--dry-run` は対象の件数と先頭 10 件だけ
 - 取った PDF が `/Linearized` の `/L`（ファイル全体の長さ）より短ければ、途中で切れたものとして `failed`（`truncated pdf`）。IR BANK に途中までしか無い PDF がある（79520 の 20260212556420 は 277,188 バイト中 76,224 バイト。pdfium も pdfminer も poppler も読めない）。旧変換器（pdfplumber）でも読めないのでフォールバックはせず `failed` のまま残し、`--retry-failed` で取り直す
 - VPS で動かす（bot が銘柄を指定して毎日）。pypdfium2 は `requirements.txt` に入れた（KAB-169 で pdfplumber から替えた）
-- 規模の見込み: `statements` 約 9.6 万件を全部入れると DB は約 4GB 増える（1 件 43KB）
 
 ### 16.5 短信 PDF の数値（KAB-173）
 
@@ -936,7 +935,7 @@ ZIP との付き合わせは `tools/tdnet_pdf/verify_financials.py` がスクラ
 - **J-Quants の業績予想の修正の欄**（KAB-246）: `CurPerType=1Q / 3Q` の修正は、第1・第3四半期累計の予想を末尾なしの欄（`FSales` / `FNCSales` など）に入れて返す。`jquants_checks` はこれを期末 `CurPerEn` の Q1 / Q3 累計（`F*` は連結、`FNC*` は単体）として突き合わせ、通期にしない。`2Q` の修正は末尾なしが通期、`2Q` の欄が上期。`CurPerType` が分からない修正の末尾なしの欄は突き合わせない。検証 bot の `cmp_jq.py` は古い規則（通期扱い）のままなので、`build` は bot の `match` を値の一致の裏付けとしてだけ使う
 
 ```bash
-# HTML を用意する（初回だけ。約 1 時間。IR BANK に 1 秒おき）
+# HTML を用意する（初回だけ。IR BANK に 1 秒おき）
 python tools/tdnet_pdf/golden_check.py fetch
 # 今のチェックアウトを正解データと比べ、main との全行の差も出す
 git worktree add /tmp/sa-main origin/main

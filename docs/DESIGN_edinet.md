@@ -98,7 +98,7 @@ edinet_list_days   -- 取った日ごと
 - 既定（cron）は直近 7 日のうち確定していない日と、それより古い未確定の日。毎時 08:40〜23:40
 - 期間指定は `--from` / `--to`。`--backfill-years N`（最大 10）。確定済みの日は飛ばすので、止めても続きから。`--force` で取り直す
 - 確定: EDINET の一覧作成時刻（`processDateTime`）が `file_date` の翌日以降の回で取ったら `finalized`。前日分は翌朝の回で確定する
-- 過去分は EDINET が 10 年分まで持つ。1 日約 1 秒。1 行は索引込み約 390 バイトで、年 8 万行ほど（2025-06〜2026-04 の実測から）。5 年で約 150MB、10 年で約 300MB。本番は 10 年全部取る（`--backfill-years 10`。約 1 時間）
+- 過去分は EDINET が 10 年分まで持つ。1 日 1 リクエスト。本番は 10 年全部取る（`--backfill-years 10`）
 
 ### 状態の書き換え（イベント行）
 
@@ -128,7 +128,7 @@ EDINET は修正・不開示・取下げを、後の日の一覧に別レコー�
 ### ZIP と fact は持ちすぎない
 
 - ZIP は §10 のとおり残す（`data/edinet` → OneDrive）。取り直しは手元 → EDINET → OneDrive の順。`raw_path` は `edinet:<docID>`、`raw_sha256` はダウンロードした ZIP のもの
-- `xbrl_facts` / `xbrl_contexts` には、正規化が使う当期（`relative_period='current'`）・次元なし（連結/単体のメンバーだけは可）の fact、当期のセグメント軸（`jpcrp_cor:OperatingSegmentsAxis`。連結/単体の軸は付いてよい）だけの fact（KAB-77）、当期の大株主・所有者別の軸だけの fact（KAB-266。§9。要素名で絞る）と DEI だけ入れる（`app/edinet/xbrl.py keep_fact`）。有報は 1 件 1,000〜2,000 fact あり、全部だと年 800MB を超える。絞ると fact は約 4 分の 1、context は 2%。会計基準と期末の判定は絞る前の全 fact で行う
+- `xbrl_facts` / `xbrl_contexts` には、正規化が使う当期（`relative_period='current'`）・次元なし（連結/単体のメンバーだけは可）の fact、当期のセグメント軸（`jpcrp_cor:OperatingSegmentsAxis`。連結/単体の軸は付いてよい）だけの fact（KAB-77）、当期の大株主・所有者別の軸だけの fact（KAB-266。§9。要素名で絞る）と DEI だけ入れる（`app/edinet/xbrl.py keep_fact`）。全 fact を入れると DB が大きくなりすぎるので絞る。会計基準と期末の判定は絞る前の全 fact で行う
 - 前期の値やほかの軸が要るようになったら、`keep_fact` を広げて `--reparse`。KAB-78 の有報の科目（従業員・株式数・主要な経営指標等など。`DESIGN_xbrl.md` §7.2）は今の `keep_fact` で残っている。入れるのは `load-mappings` → `xbrl_normalize.py --rebuild` だけ。大株主・所有者別は軸付き fact が要るので `--reparse` が要る（§9）
 
 ### 正規化と TDnet との関係
@@ -137,8 +137,6 @@ EDINET は修正・不開示・取下げを、後の日の一覧に別レコー�
 - 同じ決算期の実績が TDnet（短信）と EDINET（有報）の両方に入る。`xbrl_financials` は filing ごとなので重ならない。`statements` は上書きしない
 - 修正履歴（KAB-57、`app/xbrl/revisions.py`）は `source='tdnet'` だけ読む。有報の実績が提出日にもう一度出ないように
 - 実データ（2025-06-27 の有報、2025-11-14 の半期報）で、日本基準は 22 科目が取れ、IR Bank の値（百万円）と一致した。IFRS は KAB-73 で本表の 14 要素を足した（`config/xbrl/mappings/ifrs.yaml` 末尾。承認済み）
-- 容量: 有報 1 件約 46KB（fact・context・正規化）。10 年分（有報・半期報・四半期報）で数 GB 規模
-- セグメント（KAB-77、`docs/DESIGN_xbrl.md` §14）で 1 件あたり有報 +約 16KB、半期報・四半期報 +約 12KB（fact +50 / context +14 / `xbrl_segments` +16 行ほど。2025 年の 17 件で計測）。10 万件で +1.5GB 前後
 
 ## 5. 大量保有報告書（KAB-74）
 
@@ -277,9 +275,9 @@ edinet_tender_offers         -- 1 案件。取込のたびに全件から作り�
 - cron は `deploy/crontab`（00:15〜06:15 毎時 ZIP の取り直し（§10）、07:30 コードリスト、09:05〜23:05 毎時 大量保有、09:20〜23:20 毎時 公開買付、09:25〜23:25 毎時 自己株買い、08:40〜23:40 毎時 一覧、08:50〜23:50 毎時 XBRL）。ログは `/var/log/app/edinet_codes.log` / `edinet_documents.log` / `edinet_xbrl.log` / `edinet_large_holdings.log` / `edinet_tender_offers.log` / `edinet_buybacks.log` / `edinet_archive.log`（MCP `batch_logs`）
 - EDINET がメンテ画面（HTML または案内への 302）を返すと、ラッパーが `EdinetMaintenanceError` にする。ジョブは 1 件目で打ち切り、`WARN edinet maintenance skip` 1 行で exit 0（KAB-149。`edinet_codes` は httpx 直叩きなので対象外）。5xx・タイムアウトは今までどおり exit=1。半日以上メンテが続いたときの昇格はしない（次回 cron が取り直す）
 - MCP `db_stats` に `edinet_documents` / `edinet_list_days` の件数と範囲、`large_holding_reports` / `large_holdings` / `edinet_buybacks` / `edinet_buyback_resolutions` / `edinet_tender_offers` / `edinet_tender_offer_docs` の件数が出る
-- 初回の本番投入: デプロイ（`jobs/migrate.py` が表と `stocks.edinet_code` を足す）→ `python jobs/edinet/edinet_codes.py` → `python jobs/edinet/edinet_documents.py --backfill-years 10`（約 1 時間）→ IFRS マッピングの追加を TDnet 分にも効かせる `python jobs/xbrl/xbrl_parse.py load-mappings` と `python jobs/xbrl/xbrl_normalize.py --rebuild`。XBRL は cron に任せる（急ぐなら `python jobs/edinet/edinet_xbrl.py --limit 0` を手で）
-- 大量保有の初回: デプロイ（`jobs/migrate.py` が表を足す）のあとは cron に任せる。急ぐなら `python jobs/edinet/edinet_large_holdings.py --limit 0` を手で（5 万件で約 14 時間）
-- 自己株買い・公開買付の初回: デプロイ（`jobs/migrate.py` が表を足す）のあとは cron に任せる。自己株買いは 1 年分約 7,000 件で 14 時間ほど、公開買付は 5 年分約 2,500 件で 1 日ほど。急ぐなら `--limit 0` を手で
+- 初回の本番投入: デプロイ（`jobs/migrate.py` が表と `stocks.edinet_code` を足す）→ `python jobs/edinet/edinet_codes.py` → `python jobs/edinet/edinet_documents.py --backfill-years 10` → IFRS マッピングの追加を TDnet 分にも効かせる `python jobs/xbrl/xbrl_parse.py load-mappings` と `python jobs/xbrl/xbrl_normalize.py --rebuild`。XBRL は cron に任せる（急ぐなら `python jobs/edinet/edinet_xbrl.py --limit 0` を手で）
+- 大量保有の初回: デプロイ（`jobs/migrate.py` が表を足す）のあとは cron に任せる。急ぐなら `python jobs/edinet/edinet_large_holdings.py --limit 0` を手で
+- 自己株買い・公開買付の初回: デプロイ（`jobs/migrate.py` が表を足す）のあとは cron に任せる。急ぐなら `--limit 0` を手で
 - 大株主・所有者別（KAB-266、§9）: デプロイ後の新着は XBRL cron に乗る。過去分は fact が無いので `edinet_xbrl.py --reparse` が要る（一括はこの PR では走らせない）
 
 ## 9. 有報の大株主の状況・所有者別状況（KAB-266）
