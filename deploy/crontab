@@ -79,6 +79,10 @@ SHELL=/bin/bash
 # e-Stat（生産動態の年報、貿易統計）。ESTAT_APP_ID が無ければ何もしない
 10 7 * * 1 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/supply/material_stats.py --source estat
 
+# data/xbrl と data/monthly を OneDrive へ copy（sync はしない。VPS 側も消さない。手順は docs/DESIGN_backup.md）
+# 03:30 は data/ に書くジョブ（10〜23 時）と backup_db（05:00）の間。
+30 3 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/backup_data.py
+
 # SQLite 整合バックアップ（WAL 中の cp は不可。手順は docs/DESIGN_backup.md）
 # 05:00 は run_batch（19:30）と XBRL（12–23 時）と重ならない。
 0 5 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/backup_db.py
