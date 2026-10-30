@@ -476,7 +476,8 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 3. `/fins/summary?date=当日` と `/fins/summary?date=前営業日` 取込。前営業日は DB の株価で当日より前の最終日
 4. indicators 再計算 (MA/52週/RS/ステージ。RSユニバースは内国株券のみ) → earnings_events 更新。
    2〜3 が 0 件（前営業日は新しく増えた件数）で indicators が株価の最終日まで済んでいれば飛ばす。
-   指標の全置換はチャンクごとに commit する（1 本のライターロックを `busy_timeout` 以上握らない）
+   指標は全件計算し、今の行と突き合わせて変わった行の upsert と消えた行の削除だけ書く（全件の削除と入れ直しは本番規模で数分かかる）。
+   書き込みはチャンクごとに commit する（1 本のライターロックを `busy_timeout` 以上握らない）
 5. `/fins/earnings-date?date=当日` と `date=昨日`。昨日は暦日。4 の後。株価が 0 件でも行う。失敗しても 4 の結果は残し、プロセスは非ゼロで終わる
 
 定常の夜は **計7リクエスト**。内訳はマスタ、株価、TOPIX、財務の当日、財務の前営業日、発表予定の当日、発表予定の昨日。発表予定の2本は `/fins/` の枠。台帳が空の初回は指標のあと PubDate を `EARNINGS_DATE_LOOKBACK_DAYS` 日さかのぼる。この歩きは 7 に入らない。決算開示は15時以降が多いため、当日夜(19:30)に1回実行する。
@@ -510,7 +511,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 データ量は VPS のディスクなら余裕。
 ローカル backfill 完了後に `stock.db` を scp する（サーバで取り直さない）。
 
-見本は `deploy/`（systemd / nginx / crontab）。uvicorn のワーカー数は `nproc` と MemAvailable（1 本あたり数百 MiB。`deploy/uvicorn_workers.py`）で決める。SQLite はライター 1 本のまま WAL + `busy_timeout=30s` で待ち合わせる。日次バッチは定常で 7 リクエスト。指標の全置換はチャンク commit。月次の書き込み API は `database is locked` を短い回数だけ再試行する。`jobs/migrate.py`（deploy 含む）は同じエラーを指数バックオフで再試行する。起動前に migrate が `init_db` を 1 回だけ流す（`--preload` は使わない）。
+見本は `deploy/`（systemd / nginx / crontab）。uvicorn のワーカー数は `nproc` と MemAvailable（1 本あたり数百 MiB。`deploy/uvicorn_workers.py`）で決める。SQLite はライター 1 本のまま WAL + `busy_timeout=30s` で待ち合わせる。日次バッチは定常で 7 リクエスト。指標は差分だけをチャンク commit。月次の書き込み API は `database is locked` を短い回数だけ再試行する。`jobs/migrate.py`（deploy 含む）は同じエラーを指数バックオフで再試行する。起動前に migrate が `init_db` を 1 回だけ流す（`--preload` は使わない）。
 
 Postgres 切替は将来オプション。今は使わない。`DATABASE_URL` だけ変えれば SQLAlchemy は両対応のまま。
 
