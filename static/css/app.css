@@ -117,7 +117,9 @@
     .a-chart { grid-column:span 1; } .a-fin { grid-column:span 1; }
     .a-list .scroll { max-height:46vh; }
   }
-  table.sheet { border-collapse:separate; border-spacing:0; }
+  /* スマホが長い本文セル（保有目的など）だけ字を大きくするのを止める */
+  table.sheet { border-collapse:separate; border-spacing:0;
+                -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   #earn-tbl.sheet { width:100%; }
   #rk-tbl.sheet, #sc-tbl.sheet, #hd-feed.sheet, #pts-tbl.sheet,
   #hd-holdings table.sheet, #st-holders-large table.sheet, #hd-series table.sheet { width:auto; }
@@ -128,8 +130,8 @@
   /* 見出しは「騰落率」1 行 + 下に (対TOPIX)。数字列の幅で折り返さない */
   #rk-tbl th.grp { white-space:nowrap; }
   table.sheet th { font-size:11px; letter-spacing:.02em; padding:6px 8px; }
-  table.sheet td { padding:7px 8px; vertical-align:top; background:var(--panel); }
-  table.sheet td.num { font-size:13px; font-weight:500; }
+  table.sheet td { padding:7px 8px; vertical-align:top; background:var(--panel); font-size:13px; }
+  table.sheet td.num { font-weight:500; }
   table.sheet th.l { text-align:left; }
   table.sheet td.name, table.sheet th.name { width:1%; white-space:nowrap; }
   table.sheet .g { display:block; font-size:11px; font-weight:400; line-height:1.35; min-height:1.35em; }
@@ -453,7 +455,7 @@
     table.sheet th, table.sheet td { padding-left:3px; padding-right:3px; }
     table.sheet td.name, table.sheet th.name { max-width:8em; }
     .earn-box { padding:10px 6px; }
-    table.sheet td.num { font-size:12px; }
+    table.sheet td { font-size:12px; }
     body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:34px}
     .evt-toggles .evt-label { min-height:32px; }
     #monthly-chart .monthly-line-chart { min-height:230px; }
