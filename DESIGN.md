@@ -502,7 +502,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | DB | `stock.db`（VPS の SSD）。`DATABASE_URL` は今の SQLite のまま |
 | バッチ | crontab（19:30 JST の J-Quants 日次。株探 PTS は平日 15:30〜24:00 の 30 分ごと。yfinance 1 分足は平日 20:30。為替は 08:00 JST。パッケージ一覧は 06:40 JST。SQLite バックアップは 05:00 JST） |
 | バックアップ | VPS ローカル gzip（直近 1 世代）+ OneDrive（日次 7・週次 4）。手順は [`docs/DESIGN_backup.md`](docs/DESIGN_backup.md) |
-| 公開 | nginx + Let's Encrypt。月次閲覧は `/monthly`（Basic なし）。個人ツールは `/app` + Basic 認証 |
+| 公開 | nginx + Let's Encrypt。月次閲覧は `/monthly`（Basic なし）。個人ツールは `/app` + Basic 認証。`/static/` は nginx が直配信（`monthly_row_order.json` / `ir_monthly_codes.json` だけ uvicorn） |
 | 開発 | 今どおり Windows + `.\run.ps1` |
 
 推奨プランは **メモリ 2GB / SSD 100GB**（東京）。512MB は Python + pandas + SQLite で足りない。時間課金で立ててから長期契約を判断する。

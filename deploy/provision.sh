@@ -216,11 +216,33 @@ if [[ -n "${BASIC_AUTH_USER:-}" && -n "${BASIC_AUTH_PASSWORD:-}" ]]; then
   echo "htpasswd ok (${BASIC_AUTH_USER})"
 fi
 
+ensure_nginx_static_readable() {
+  # www-data が alias した static/ を読む。Ubuntu の adduser は $HOME を 750 にすることがある。
+  local static_dir="${APP_DIR}/static"
+  if [[ ! -d "$static_dir" ]]; then
+    echo "static dir missing: $static_dir (nginx alias は 404 になる)" >&2
+    return 0
+  fi
+  chmod -R a+rX "$static_dir"
+  local d home
+  home="$(getent passwd "${STOCK_USER:-stock}" | cut -d: -f6 || true)"
+  d="$(dirname "$static_dir")"
+  while [[ -n "$d" && "$d" != "/" ]]; do
+    chmod o+x "$d"
+    if [[ -n "$home" && "$d" == "$home" ]]; then
+      break
+    fi
+    d="$(dirname "$d")"
+  done
+}
+
 # shellcheck source=nginx-site.sh
 # shellcheck disable=SC1091
 source "$APP_DIR/deploy/nginx-site.sh"
 write_if_changed /etc/nginx/conf.d/stock-analyzer-limit.conf 644 < <(render_limit_conf)
 write_if_changed /etc/nginx/conf.d/stock-analyzer-log.conf 644 < <(render_log_conf)
+write_if_changed /etc/nginx/conf.d/stock-analyzer-gzip.conf 644 < <(render_gzip_conf)
+ensure_nginx_static_readable
 
 nginx_changed=0
 if [[ -f "${CERT_LIVE}/fullchain.pem" ]]; then
