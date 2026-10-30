@@ -65,7 +65,7 @@ uvicorn のワーカー数は `deploy/uvicorn_workers.py` が起動時に決め�
 
 ブラウザは [https://kabukpi.com/monthly](https://kabukpi.com/monthly) が公開の月次。個人ツールは [https://kabukpi.com/app](https://kabukpi.com/app)（Basic 認証）。証明書は RSA + ISRG Root X1。ECDSA 既定の Root YE は端末にまだ無く「セキュリティ保護なし」になる。
 
-公開 location は `/monthly`・GET `/api/v1/tables`（code/year まで）・`/static/`・`robots.txt` / `sitemap.xml`。書き込み API と `/app` は Basic。公開側に `limit_req` は付けない。
+公開 location は `/monthly`・GET `/api/v1/tables`（code/year まで）・`/static/`・`robots.txt` / `sitemap.xml`。書き込み API と `/app` は Basic。公開側に `limit_req` は付けない。`/static/` は `$APP_DIR/static/` を nginx が `alias` で直配信する（`Cache-Control: no-cache`）。`/static/monthly_row_order.json` と `/static/ir_monthly_codes.json` だけ uvicorn。provision が `www-data` 用に `$HOME` へ `o+x`、`static/` へ `a+rX` を付け、`gzip_types` に css/js を入れる（`conf.d/stock-analyzer-gzip.conf`）。
 
 ホスト鍵は `deploy/known_hosts` にピン留め。VPS を作り直したら `ssh-keyscan YOUR_HOST` で更新する。
 
