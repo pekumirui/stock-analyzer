@@ -14,7 +14,7 @@
 
 ## 時刻
 
-毎日 **05:00 JST**。`run_batch`（19:30）と毎時 XBRL（12–23 時）と重ならない隙間。バックアップ中は共有ロックを短く区切る（`pages=100`）。OneDrive 送信は gzip のあと（2026-10-30 で DB 9.8GB・gzip 約 6.1GB。送信まで約 1 時間）。タイムアウトは copy 1 時間、check 30 分。
+毎日 **05:00 JST**。`run_batch`（19:30）と毎時 XBRL（12–23 時）と重ならない隙間。バックアップ中は共有ロックを短く区切る（`pages=100`）。OneDrive 送信は gzip のあと。タイムアウトは copy 1 時間、check 30 分。
 
 ## 配置
 
@@ -82,6 +82,5 @@ KAB-280 から、`jobs/ops/backup_data.py` が毎日 **03:30 JST** に `data/xbr
 - remote・ルート・`BACKUP_OFFSITE`・`BACKUP_RCLONE_BIN` は上の表と同じ。rclone / remote が無いときは `offsite skipped` でスキップ（exit 0）。送信・確認の失敗は `fail backup_data:` で非ゼロ終了し、`fail cron` が page する
 - `--only xbrl` / `--only monthly` で片方だけ
 - 03:30 は `data/` に書くジョブ（10〜23 時）と `backup_db`（05:00）の間
-- 大きさ（2026-10-30）: `data/xbrl` 161MB、`data/monthly` 1.4GB。VPS は 99GB 中 27GB 使用
 - ほかの `data/`（`xbrl_taxonomy` はリポジトリ同梱、`intraday` / `stats` / `inventory`）は対象外
 - 戻すときは `rclone copy onedrive:stock-analyzer-backups/data/xbrl data/xbrl`。VPS 側を外す（`rclone move --min-age`）のは EDINET の ZIP を貯めるときに決める
