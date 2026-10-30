@@ -93,6 +93,38 @@ class Statement(Base):
     fy_eps = Column(Float)
     is_revision = Column(Boolean, default=False)
     raw_json = Column(Text)
+    __table_args__ = (
+        # カレンダーの重複判定と決算一覧の履歴。raw_json 以外を載せて表本体を読まない (KAB-292)
+        Index(
+            "ix_statements_earnings_cover",
+            "code",
+            "disclosed_date",
+            "disclosure_no",
+            "disclosed_time",
+            "type_of_period",
+            "type_of_document",
+            "period_start",
+            "period_end",
+            "fiscal_year_start",
+            "fiscal_year_end",
+            "net_sales",
+            "operating_profit",
+            "ordinary_profit",
+            "profit",
+            "eps",
+            "f2_net_sales",
+            "f2_operating_profit",
+            "f2_ordinary_profit",
+            "f2_profit",
+            "f2_eps",
+            "fy_net_sales",
+            "fy_operating_profit",
+            "fy_ordinary_profit",
+            "fy_profit",
+            "fy_eps",
+            "is_revision",
+        ),
+    )
 
 
 class Indicator(Base):
@@ -125,6 +157,7 @@ class EarningsDatePub(Base):
     sch_date = Column(Date, nullable=True)  # NULL は未定。欠測ではない
     fye = Column(String(4), nullable=False)  # MMDD。0299 は 2月末
     co_name = Column(String, nullable=False)
+    __table_args__ = (Index("ix_earnings_date_pubs_sch_date", "sch_date"),)
 
 
 class EarningsDateFetch(Base):
