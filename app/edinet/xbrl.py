@@ -1,7 +1,7 @@
 """EDINET 有報・半期報の XBRL（type=1）→ xbrl_filings(source='edinet') → xbrl_financials。
 
 設計は docs/DESIGN_edinet.md §4。パース・正規化は TDnet と同じ app/xbrl を使う。
-ZIP は保存しない（一時ディレクトリで読んで捨てる。取り直しは EDINET から）。
+ZIP は data/edinet に残し、毎朝 OneDrive へ退避する（app/edinet/archive.py。KAB-281）。
 """
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import XBRL_CACHE_DIR
+from app.edinet.archive import download
 from app.edinet.client import reraise
 from app.models import EdinetDocument, XbrlFiling, XbrlFinancial, XbrlSegment
 from app.xbrl.context import ParsedContext, classify_title
@@ -164,7 +165,7 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
     with TemporaryDirectory(prefix="edinet-xbrl-") as tmp:
         zip_path = Path(tmp) / f"{doc.doc_id}.zip"
         try:
-            got = client.download(doc.doc_id, DocumentFileType.MAIN)
+            got = download(db, client, doc, DocumentFileType.MAIN)
             zip_path.write_bytes(got.content)
         except Exception as exc:
             reraise(exc)

@@ -1,7 +1,7 @@
 """EDINET 大量保有報告書・変更報告書・訂正（350 / 360）→ large_holding_reports / large_holdings。
 
 設計は docs/DESIGN_edinet.md §5（KAB-74）。中身は書類取得 API type=5（XBRL→CSV）。
-入口は edinet_documents（先に jobs/edinet/edinet_documents.py）。ZIP は保存しない。
+入口は edinet_documents（先に jobs/edinet/edinet_documents.py）。ZIP は data/edinet に残し、毎朝 OneDrive へ退避する（app/edinet/archive.py。KAB-281）。
 """
 from __future__ import annotations
 
@@ -22,7 +22,8 @@ from sqlalchemy.orm import Session
 
 from app.config import LARGE_HOLDING_DATE_FIXES_PATH
 from app.db import run_sqlite_write, upsert
-from app.edinet.client import reraise
+from app.edinet.archive import archived, download
+from app.edinet.client import is_not_found, reraise
 from app.edinet.documents import CodeLookup, now_jst
 from app.edinet.textblocks import edinet_doc_id
 from app.models import EdinetDocument, LargeHolding, LargeHoldingReport
@@ -374,16 +375,6 @@ def store_failed(db: Session, doc: EdinetDocument, exc: Exception, fetched_at: d
     store_report(db, row, [])
 
 
-def is_not_found(exc: BaseException) -> bool:
-    """書類取得が 404。取り下げ・非公開・取得可能期間外。次の回に取り直しても同じ。"""
-    if getattr(exc, "status", None) == 404:
-        return True
-    resp = getattr(exc, "response", None)
-    if getattr(resp, "status_code", None) == 404:
-        return True
-    return type(exc).__name__ == "EdinetNotFoundError"
-
-
 def mark_outside_window(db: Session, *, today: date | None = None) -> int:
     """KEEP_YEARS 年より前で report が無い 350/360 を failed で残す。ダウンロードしない。"""
     cutoff = keep_after(today)
@@ -424,7 +415,8 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
     """
     from app.edinet_wrapper import DocumentFileType
 
-    if doc.file_date < keep_after(today):
+    expired = doc.file_date < keep_after(today)
+    if expired and not archived(db, doc.doc_id, DocumentFileType.CSV):
         store_failed(
             db, doc,
             OutsideEdinetWindow(f"file_date={doc.file_date} keep_years={KEEP_YEARS}"),
@@ -432,7 +424,7 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
         )
         return "missing"
     try:
-        got = client.download(doc.doc_id, DocumentFileType.CSV)
+        got = download(db, client, doc, DocumentFileType.CSV, expired=expired)
     except Exception as exc:
         reraise(exc)
         if is_not_found(exc):

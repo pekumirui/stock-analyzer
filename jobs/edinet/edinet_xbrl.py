@@ -8,7 +8,7 @@ EDINET_API_KEY が要る。入口は edinet_documents（先に jobs/edinet/edine
   python jobs/edinet/edinet_xbrl.py --code 72030 --reparse
   python jobs/edinet/edinet_xbrl.py --retry-failed --limit 100
 
-1 書類 2〜3 秒（ダウンロード 1 秒間隔 + パース）。ZIP は保存しない。設計は docs/DESIGN_edinet.md §4。
+1 書類 2〜3 秒（ダウンロード 1 秒間隔 + パース）。ZIP は残す（§10）。設計は docs/DESIGN_edinet.md §4。
 """
 from __future__ import annotations
 

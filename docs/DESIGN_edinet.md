@@ -127,7 +127,7 @@ EDINET は修正・不開示・取下げを、後の日の一覧に別レコー�
 
 ### ZIP と fact は持ちすぎない
 
-- ZIP は保存しない（一時ディレクトリで読んで捨てる）。1 件 0.5〜3MB で、年 8,000 件だと数 GB になる。EDINET が 10 年分持っているので、取り直しはダウンロードし直す。`raw_path` は `edinet:<docID>`、`raw_sha256` はダウンロードした ZIP のもの
+- ZIP は §10 のとおり残す（`data/edinet` → OneDrive）。取り直しは手元 → EDINET → OneDrive の順。`raw_path` は `edinet:<docID>`、`raw_sha256` はダウンロードした ZIP のもの
 - `xbrl_facts` / `xbrl_contexts` には、正規化が使う当期（`relative_period='current'`）・次元なし（連結/単体のメンバーだけは可）の fact、当期のセグメント軸（`jpcrp_cor:OperatingSegmentsAxis`。連結/単体の軸は付いてよい）だけの fact（KAB-77）、当期の大株主・所有者別の軸だけの fact（KAB-266。§9。要素名で絞る）と DEI だけ入れる（`app/edinet/xbrl.py keep_fact`）。有報は 1 件 1,000〜2,000 fact あり、全部だと年 800MB を超える。絞ると fact は約 4 分の 1、context は 2%。会計基準と期末の判定は絞る前の全 fact で行う
 - 前期の値やほかの軸が要るようになったら、`keep_fact` を広げて `--reparse`。KAB-78 の有報の科目（従業員・株式数・主要な経営指標等など。`DESIGN_xbrl.md` §7.2）は今の `keep_fact` で残っている。入れるのは `load-mappings` → `xbrl_normalize.py --rebuild` だけ。大株主・所有者別は軸付き fact が要るので `--reparse` が要る（§9）
 
@@ -274,7 +274,7 @@ edinet_tender_offers         -- 1 案件。取込のたびに全件から作り�
 
 ## 8. 運用
 
-- cron は `deploy/crontab`（07:30 コードリスト、09:05〜23:05 毎時 大量保有、09:20〜23:20 毎時 公開買付、09:25〜23:25 毎時 自己株買い、08:40〜23:40 毎時 一覧、08:50〜23:50 毎時 XBRL）。ログは `/var/log/app/edinet_codes.log` / `edinet_documents.log` / `edinet_xbrl.log` / `edinet_large_holdings.log` / `edinet_tender_offers.log` / `edinet_buybacks.log`（MCP `batch_logs`）
+- cron は `deploy/crontab`（00:15〜06:15 毎時 ZIP の取り直し（§10）、07:30 コードリスト、09:05〜23:05 毎時 大量保有、09:20〜23:20 毎時 公開買付、09:25〜23:25 毎時 自己株買い、08:40〜23:40 毎時 一覧、08:50〜23:50 毎時 XBRL）。ログは `/var/log/app/edinet_codes.log` / `edinet_documents.log` / `edinet_xbrl.log` / `edinet_large_holdings.log` / `edinet_tender_offers.log` / `edinet_buybacks.log` / `edinet_archive.log`（MCP `batch_logs`）
 - EDINET がメンテ画面（HTML または案内への 302）を返すと、ラッパーが `EdinetMaintenanceError` にする。ジョブは 1 件目で打ち切り、`WARN edinet maintenance skip` 1 行で exit 0（KAB-149。`edinet_codes` は httpx 直叩きなので対象外）。5xx・タイムアウトは今までどおり exit=1。半日以上メンテが続いたときの昇格はしない（次回 cron が取り直す）
 - MCP `db_stats` に `edinet_documents` / `edinet_list_days` の件数と範囲、`large_holding_reports` / `large_holdings` / `edinet_buybacks` / `edinet_buyback_resolutions` / `edinet_tender_offers` / `edinet_tender_offer_docs` の件数が出る
 - 初回の本番投入: デプロイ（`jobs/migrate.py` が表と `stocks.edinet_code` を足す）→ `python jobs/edinet/edinet_codes.py` → `python jobs/edinet/edinet_documents.py --backfill-years 10`（約 1 時間）→ IFRS マッピングの追加を TDnet 分にも効かせる `python jobs/xbrl/xbrl_parse.py load-mappings` と `python jobs/xbrl/xbrl_normalize.py --rebuild`。XBRL は cron に任せる（急ぐなら `python jobs/edinet/edinet_xbrl.py --limit 0` を手で）
@@ -297,7 +297,7 @@ edinet_tender_offers         -- 1 案件。取込のたびに全件から作り�
 - `NumberOfShareholdersFinancialInstitutions` は 2 fact（古い CUC。`ClassesOfSharesAxis` 無し）
 - 順位付き（`NoNMajorShareholdersMember`）と、近時の所有者別（`OrdinaryShareMember`）は入っていない
 
-取り方: `keep_fact` を広げて有報を `--reparse` する。ZIP は保存していないので EDINET から取り直す。本番への一括投入はこの PR では走らせない。
+取り方: `keep_fact` を広げて有報を `--reparse` する。ZIP は §10 の順に取り直す（2026-10 までに取り込んだ分は §10 の取り直しが済むまで EDINET から）。本番への一括投入はこの PR では走らせない。
 
 ### タクソノミ（jpcrp_cor。実 ZIP で確認）
 
@@ -361,3 +361,48 @@ xbrl_shareholding_by_category     -- 1 書類 × 株式の種類 × 区分
 | 東京エレクトロン S100YEOO | 日本基準 | 1 位 日本マスタートラスト 111,481×10^3 株・24.43%。金融機関 143 / 1,712,829 単元 / 36.37% |
 | 日立製作所 S100YGBO | IFRS | 1 位 742,663,700 株・16.50%。金融機関 221 / 27.80% |
 | 伊藤園 S100YRK7 | 日本基準 | 株式 グリーンコア 22,676×10^3・19.68%。議決権 167,812・19.93%。第一種優先の金融機関 15 / 7,848 / 2.48% |
+
+## 10. ZIP を残して OneDrive へ退避する（KAB-281）
+
+閲覧期間（早見表）を過ぎた書類は EDINET から二度と取れない。`--reparse` や本文の取込のため、取った ZIP を残す。
+
+### 残すもの
+
+| 書類 | type | 理由 |
+|---|---|---|
+| 有報・四半期報・半期報（120〜170）、自己株買い（220/230）、公開買付けのうち読む書類（240/250/270/280/290/300） | 1（XBRL・本文 iXBRL・監査報告書） | パースしているもの。本文の HTML も入っている |
+| 大量保有（350/360） | 5（CSV） | パースしているもの |
+
+PDF（type=2。type=1 の本文と同じ）・代替書面と添付（type=3。添付の PDF だけ）・英文（type=4）は残さない。
+
+### 取り方（`app/edinet/archive.py download`）
+
+1. 手元 `data/edinet/{書類種別}/{docID}_type{n}.zip` があればそれ。docID の中身は変わらない（訂正は別の docID）
+2. EDINET から取り、ZIP として読める（`testzip`）ものだけ一時ファイル → rename で手元に書き、`edinet_archives` に `saved` で記録する。壊れた ZIP は残さず、そのまま返す（パースが失敗にし、`--retry-failed` で取り直せる）
+3. EDINET が 404 で `edinet_archives` が `saved` なら OneDrive から `rclone cat`。閲覧期間外と分かっている書類（大量保有・公開買付け・自己株買いの `keep_after`）は EDINET を飛ばして OneDrive へ。残していなければ今までどおり missing
+4. OneDrive から読めない（rclone が無い・失敗）は一時的な失敗（`error`）
+
+各取込（`edinet_xbrl` / `edinet_buybacks` / `edinet_tender_offers` / `edinet_large_holdings`）はこれを通す。
+
+### 表 `edinet_archives`
+
+| 列 | 中身 |
+|---|---|
+| `doc_id` / `file_type` | 主キー。書類取得 API の type（1 / 5） |
+| `doc_type_code` | 書類種別 |
+| `rel_path` | `data/edinet` からの相対パス。OneDrive でも同じ |
+| `status` | `saved`（手元に書いた。OneDrive へは翌朝）/ `gone`（取り直しのとき EDINET が 404） |
+| `bytes` / `sha256` / `saved_at` | ZIP の大きさ・ハッシュ・書いた時刻（JST） |
+
+### 退避（`jobs/ops/backup_data.py`）
+
+毎朝 03:30 に `data/edinet` を `onedrive:stock-analyzer-backups/data/edinet/` へ `rclone move`（`*.zip` だけ、10 分より古いもの）。1 ファイルずつ送って確かめてから VPS 側を消すので、VPS には次の 03:30 までの分しか溜まらない。`data/xbrl` / `data/monthly` は copy のまま（`docs/DESIGN_backup.md`）。
+
+### 過去分の取り直し（`jobs/edinet/edinet_archive.py`）
+
+2026-10 までに取り込んだ書類は ZIP を捨てていたので、一度 EDINET から取り直す。対象は取込済み（`xbrl_filings` の edinet、`edinet_buybacks`、`edinet_tender_offer_docs` の meta 以外、`large_holding_reports`）で `edinet_archives` に無い書類。閲覧期間の終わり（`file_date` + 年数）が近い順。404 は `gone` にして次から飛ばす。パースはしない。
+
+- cron は 00:15〜06:15 の毎時 `--limit 1000`（ほかの EDINET ジョブは 07:30 から）。最後の行 `edinet archive done saved=… gone=… errors=… remaining=…`
+- `--dry-run` で残件と先頭 10 件
+- 取り直しが終われば cron の行は残してよい（対象 0 件で終わる）
+

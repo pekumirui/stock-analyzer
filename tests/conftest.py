@@ -34,6 +34,12 @@ def _fresh_db_per_file():
     yield
 
 
+@pytest.fixture(autouse=True)
+def _edinet_archive_dir(tmp_path_factory, monkeypatch):
+    """EDINET の ZIP（app/edinet/archive.py）は テストごとの一時ディレクトリへ。repo の data/edinet に書かない。"""
+    monkeypatch.setenv("EDINET_ARCHIVE_DIR", str(tmp_path_factory.mktemp("edinet-archive")))
+
+
 @pytest.fixture
 def tmp(tmp_path: Path) -> Path:
     """直接走らせたときに main() が渡していた一時ディレクトリ。"""

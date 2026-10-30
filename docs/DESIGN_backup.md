@@ -83,4 +83,5 @@ KAB-280 から、`jobs/ops/backup_data.py` が毎日 **03:30 JST** に `data/xbr
 - `--only xbrl` / `--only monthly` で片方だけ
 - 03:30 は `data/` に書くジョブ（10〜23 時）と `backup_db`（05:00）の間
 - ほかの `data/`（`xbrl_taxonomy` はリポジトリ同梱、`intraday` / `stats` / `inventory`）は対象外
-- 戻すときは `rclone copy onedrive:stock-analyzer-backups/data/xbrl data/xbrl`。VPS 側を外す（`rclone move --min-age`）のは EDINET の ZIP を貯めるときに決める
+- 戻すときは `rclone copy onedrive:stock-analyzer-backups/data/xbrl data/xbrl`
+- `data/edinet`（EDINET の ZIP。KAB-281）だけは `rclone move`（`*.zip` で 10 分より古いもの）。送って確かめたものから VPS 側を消す。読むときは `app/edinet/archive.py` が手元 → EDINET → OneDrive の順に探す（`docs/DESIGN_edinet.md` §10）

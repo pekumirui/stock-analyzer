@@ -645,6 +645,23 @@ class EdinetDocument(Base):
     )
 
 
+class EdinetArchive(Base):
+    """EDINET の書類取得 API の ZIP を残した記録（KAB-281）。中身は data/edinet → OneDrive。
+
+    status: saved（data/edinet に書いた。翌朝 backup_data が OneDrive へ move する）/
+    gone（取り直しのとき EDINET が 404。残っていない）。
+    """
+    __tablename__ = "edinet_archives"
+    doc_id = Column(String(8), primary_key=True)
+    file_type = Column(Integer, primary_key=True)    # 書類取得 API の type（1 / 5）
+    doc_type_code = Column(String(3))
+    rel_path = Column(Text, nullable=False)           # data/edinet からの相対パス
+    status = Column(String(8), nullable=False)
+    bytes = Column(Integer)
+    sha256 = Column(String(64))
+    saved_at = Column(DateTime, nullable=False)       # JST naive
+
+
 class EdinetListDay(Base):
     """書類一覧を取った日ごとの記録。finalized の日は取り直さない。"""
     __tablename__ = "edinet_list_days"
