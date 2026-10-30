@@ -105,6 +105,12 @@ def test_static_contracts() -> None:
         _fail("enable-cicd.sh must embed official GitHub host keys before clone")
     if "jobs/migrate.py" not in update:
         _fail("update.sh must run jobs/migrate.py")
+    mig_at = update.find('"$venv_py" jobs/migrate.py')
+    restart_at = update.find("systemctl restart stock-analyzer")
+    if mig_at < 0 or restart_at < 0 or mig_at > restart_at:
+        _fail("update.sh must run jobs/migrate.py before restarting stock-analyzer")
+    if re.search(r"(^|[^\s#])--preload(\s|$)", update, flags=re.M):
+        _fail("update.sh must not pass uvicorn --preload")
     if ".venv.building" not in update:
         _fail("update.sh must create a missing venv in a staging directory")
     if '[ -L "$APP_DIR/.venv" ]' not in update:

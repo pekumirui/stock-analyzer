@@ -39,9 +39,11 @@ if str(DATABASE_URL).startswith("sqlite"):
 
 
 LOCK_MARKERS = ("database is locked", "database is busy")
+ALREADY_EXISTS_MARKERS = ("already exists",)
 WRITE_LOCK_ATTEMPTS = 6
 WRITE_LOCK_SLEEP_S = 0.05
 WRITE_LOCK_SLEEP_CAP_S = 2.0
+SCHEMA_DDL_ATTEMPTS = 4
 
 
 def is_sqlite_lock(exc: BaseException) -> bool:
@@ -50,6 +52,15 @@ def is_sqlite_lock(exc: BaseException) -> bool:
     if orig is not None:
         msg = f"{msg} {orig}".lower()
     return any(marker in msg for marker in LOCK_MARKERS)
+
+
+def is_already_exists(exc: BaseException) -> bool:
+    """CREATE TABLE / INDEX の競合。WAL の待ち合わせでは消えない。"""
+    msg = str(exc).lower()
+    orig = getattr(exc, "orig", None)
+    if orig is not None:
+        msg = f"{msg} {orig}".lower()
+    return any(marker in msg for marker in ALREADY_EXISTS_MARKERS)
 
 
 def run_sqlite_write(db, fn, *, attempts: int = WRITE_LOCK_ATTEMPTS):
@@ -372,15 +383,29 @@ def _server_default_sql(col) -> str | None:
 
 
 def ensure_indexes() -> None:
-    """create_all は既存テーブルに索引を足さない。起動と migrate で不足分を足す。"""
+    """create_all は既存テーブルに索引を足さない。起動と migrate で不足分を足す。
+
+    uvicorn --workers N が同時に走ると checkfirst のあと別ワーカーが CREATE INDEX
+    して already exists になる。WAL の busy_timeout では消えないので無視する。
+    """
     for table in Base.metadata.sorted_tables:
         for idx in table.indexes:
-            idx.create(bind=engine, checkfirst=True)
+            try:
+                idx.create(bind=engine, checkfirst=True)
+            except OperationalError as exc:
+                if not is_already_exists(exc):
+                    raise
 
 
 def init_db(strict: bool = False):
     """テーブル作成。strict=True なら既存スキーマの不整合で例外を投げる。"""
-    Base.metadata.create_all(engine)
+    for attempt in range(1, SCHEMA_DDL_ATTEMPTS + 1):
+        try:
+            Base.metadata.create_all(engine)
+            break
+        except OperationalError as exc:
+            if not is_already_exists(exc) or attempt >= SCHEMA_DDL_ATTEMPTS:
+                raise
     ensure_indexes()
     if strict:
         lacks = missing_columns()

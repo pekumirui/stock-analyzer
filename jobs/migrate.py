@@ -46,6 +46,9 @@ def migrate_once() -> None:
         print(f"xbrl_elements.is_custom を付け直した: 独自へ {flips['to_custom']} 行、"
               f"標準へ {flips['to_standard']} 行（KAB-81）。")
     run_deploy_maintenance()
+    # uvicorn --workers N が同時に init_db(strict=True) しても CREATE INDEX しないよう、
+    # 起動前に 1 回だけ strict まで通す（--preload は使わない）。
+    init_db(strict=True)
 
 
 def migrate_columns() -> None:

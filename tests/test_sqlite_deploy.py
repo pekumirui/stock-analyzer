@@ -25,6 +25,7 @@ from sqlalchemy.exc import OperationalError  # noqa: E402
 from app.db import (  # noqa: E402
     apply_sqlite_pragmas,
     engine,
+    is_already_exists,
     is_sqlite_lock,
     run_sqlite_write,
     sqlite_connect_args,
@@ -93,6 +94,71 @@ def test_is_sqlite_lock() -> None:
         _fail("sqlite3 locked must match")
     if is_sqlite_lock(OperationalError("SELECT", {}, sqlite3.OperationalError("no such table"))):
         _fail("unrelated OperationalError must not match")
+
+
+def test_is_already_exists() -> None:
+    orig = sqlite3.OperationalError("index ix_prices_date already exists")
+    exc = OperationalError("CREATE INDEX", {}, orig)
+    if not is_already_exists(exc):
+        _fail("OperationalError orig=already exists must match")
+    if not is_already_exists(orig):
+        _fail("sqlite3 already exists must match")
+    if is_already_exists(OperationalError("SELECT", {}, sqlite3.OperationalError("no such table"))):
+        _fail("unrelated OperationalError must not match")
+
+
+def test_ensure_indexes_duplicate_create_is_ok() -> None:
+    """checkfirst を外した CREATE INDEX は already exists。ensure_indexes は落とさない。"""
+    from app.db import ensure_indexes, init_db
+    from app.models import DailyPrice
+
+    init_db()
+    idx = next(i for i in DailyPrice.__table__.indexes if i.name == "ix_prices_date")
+    idx.create(bind=engine, checkfirst=True)
+    try:
+        idx.create(bind=engine, checkfirst=False)
+        _fail("duplicate CREATE INDEX must raise without handler")
+    except OperationalError as exc:
+        if not is_already_exists(exc):
+            raise
+    ensure_indexes()
+
+
+def test_init_db_concurrent_new_index() -> None:
+    """N 本が同時に不足インデックスを足しても落ちない（uvicorn --workers N 相当）。"""
+    import subprocess
+
+    from app.db import init_db
+
+    init_db()
+    with engine.begin() as conn:
+        conn.execute(text("DROP INDEX IF EXISTS ix_prices_date"))
+    engine.dispose()
+    url = os.environ["DATABASE_URL"]
+    child = (
+        "import os, sys\n"
+        f"os.environ['DATABASE_URL'] = {url!r}\n"
+        f"sys.path.insert(0, {str(ROOT)!r})\n"
+        "from app.db import init_db\n"
+        "init_db(strict=True)\n"
+    )
+    procs = [
+        subprocess.Popen(
+            [sys.executable, "-c", child],
+            cwd=str(ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for _ in range(8)
+    ]
+    bad = []
+    for proc in procs:
+        out, err = proc.communicate(timeout=60)
+        if proc.returncode != 0:
+            bad.append((proc.returncode, out, err))
+    if bad:
+        _fail(f"concurrent init_db(strict=True) failed: {bad!r}")
 
 
 def test_migrate_retries_then_succeeds() -> None:
@@ -425,6 +491,9 @@ def main() -> None:
     test_engine_pragmas()
     test_apply_pragmas_on_raw_connection()
     test_is_sqlite_lock()
+    test_is_already_exists()
+    test_ensure_indexes_duplicate_create_is_ok()
+    test_init_db_concurrent_new_index()
     test_migrate_retries_then_succeeds()
     test_migrate_gives_up_on_persistent_lock()
     test_migrate_once_is_callable()
