@@ -11,7 +11,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs.ops.backup_data import KINDS, run  # noqa: E402
+from jobs.ops.backup_data import KINDS, MOVE_KINDS, run  # noqa: E402
 from jobs.ops.backup_db import BackupError, CmdResult  # noqa: E402
 
 
@@ -48,8 +48,11 @@ def test_copy_then_check_each_kind_never_sync(tmp_path: Path) -> None:
     rc, out = _run_out(environ=env, which=lambda _n: "/usr/bin/rclone", rclone=_fake(calls))
     assert rc == 0
     cmds = [c[0] for c in calls]
-    assert cmds == ["listremotes", "copy", "check", "copy", "check"]
-    assert all(c[0] not in ("sync", "move", "delete", "deletefile", "purge") for c in calls)
+    assert cmds == ["listremotes", "copy", "check", "copy", "check", "move"]
+    assert all(c[0] not in ("sync", "delete", "deletefile", "purge") for c in calls)
+    move = calls[-1]
+    assert move[1:3] == [str(tmp_path / "edinet"), "onedrive:stock-analyzer-backups/data/edinet"]
+    assert "--min-age" in move and "*.zip" in move
     copies = [c for c in calls if c[0] == "copy"]
     assert copies[0][1:3] == [str(tmp_path / "xbrl"), "onedrive:stock-analyzer-backups/data/xbrl"]
     assert copies[1][1:3] == [
@@ -59,6 +62,29 @@ def test_copy_then_check_each_kind_never_sync(tmp_path: Path) -> None:
     checks = [c for c in calls if c[0] == "check"]
     assert all("--one-way" in c for c in checks)
     assert "offsite ok xbrl files=1" in out and "offsite ok monthly files=1" in out
+    assert "offsite ok edinet moved=" in out
+
+
+def test_move_only_edinet(tmp_path: Path) -> None:
+    assert MOVE_KINDS == {"edinet"}
+    env = _share(tmp_path)
+    calls: list[list[str]] = []
+    run(["xbrl", "monthly"], environ=env, which=lambda _n: "/usr/bin/rclone", rclone=_fake(calls))
+    assert "move" not in [c[0] for c in calls]
+
+
+def test_missing_edinet_dir_is_ok(tmp_path: Path) -> None:
+    env = {"SHARE_ROOT": str(tmp_path)}
+    calls: list[list[str]] = []
+    rc, out = _run_out(kinds=["edinet"], environ=env, which=lambda _n: "/usr/bin/rclone",
+                       rclone=_fake(calls))
+    assert rc == 0 and "files=0" in out and [c[0] for c in calls] == ["listremotes"]
+
+
+def test_move_failure_raises(tmp_path: Path) -> None:
+    env = _share(tmp_path)
+    with pytest.raises(BackupError, match="rclone move edinet exit=1"):
+        run(["edinet"], environ=env, which=lambda _n: "/usr/bin/rclone", rclone=_fake([], fail="move"))
 
 
 def test_only_limits_kinds(tmp_path: Path) -> None:

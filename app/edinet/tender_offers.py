@@ -2,7 +2,7 @@
 
 設計は docs/DESIGN_edinet.md §7（KAB-79）。中身は書類取得 API type=1（XBRL）のテキストブロック。
 書類は parent_doc_id をたどって大元（公開買付届出書）に束ね、案件の行は取込のたびに全件から決め直す。
-入口は edinet_documents（先に jobs/edinet/edinet_documents.py）。ZIP は保存しない。
+入口は edinet_documents（先に jobs/edinet/edinet_documents.py）。ZIP は data/edinet に残し、毎朝 OneDrive へ退避する（app/edinet/archive.py。KAB-281）。
 """
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.db import run_sqlite_write, upsert
-from app.edinet.client import reraise
+from app.edinet.archive import archived, download
+from app.edinet.client import is_not_found, reraise
 from app.edinet.documents import CodeLookup, now_jst
-from app.edinet.large_holdings import is_not_found
 from app.edinet.textblocks import (
     Block,
     DocMeta,
@@ -382,7 +382,8 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
     if doc.doc_type_code not in PARSED_TYPES:
         _store(db, {**base_row(doc, now_jst()), "parse_status": "meta"})
         return "meta"
-    if doc.file_date < keep_after(today):
+    expired = doc.file_date < keep_after(today)
+    if expired and not archived(db, doc.doc_id, DocumentFileType.MAIN):
         store_failed(db, doc, OutsideEdinetWindow(f"file_date={doc.file_date} keep_years={KEEP_YEARS}"),
                      now_jst())
         return "missing"
@@ -390,7 +391,7 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
         store_failed(db, doc, ValueError("XBRL が無い"), now_jst())
         return "failed"
     try:
-        got = client.download(doc.doc_id, DocumentFileType.MAIN)
+        got = download(db, client, doc, DocumentFileType.MAIN, expired=expired)
     except Exception as exc:
         reraise(exc)
         if is_not_found(exc):
