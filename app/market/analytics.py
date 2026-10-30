@@ -5,12 +5,12 @@ from datetime import date, timedelta
 
 import pandas as pd
 import numpy as np
-from sqlalchemy import func, select, tuple_
+from sqlalchemy import func, select, text, tuple_
 from sqlalchemy.orm import Session, defer
 
 from ..config import STAGE_PARAMS as P, EARNINGS_PARAMS as EP, RS_PRODUCT_CATEGORIES
 from ..models import DailyPrice, Topix, Indicator, Statement, EarningsEvent, Stock
-from ..db import WRITE_CHUNK_SIZE, delete_all_chunked, upsert
+from ..db import WRITE_CHUNK_SIZE, upsert
 from .ingest import _f
 from .price_limit import at_limit
 from ..xbrl.gross_profit import attach_gross_profit
@@ -137,13 +137,49 @@ def compute_indicators(
     cols = ["code", "date", "adj_close", "ma50", "ma150", "ma200", "ma200_slope_1m",
             "high_52w", "low_52w", "rs_raw", "rs_rank", "stage", "avg_volume_50"]
     out = out[cols].rename(columns={"adj_close": "close"})
+    sync_indicators(db, out, chunk_size=chunk_size)
+
+
+_IND_VALUE_COLS = ["close", "ma50", "ma150", "ma200", "ma200_slope_1m", "high_52w", "low_52w",
+                   "rs_raw", "rs_rank", "stage", "avg_volume_50"]
+
+
+def sync_indicators(db: Session, out: pd.DataFrame, chunk_size: int = WRITE_CHUNK_SIZE) -> None:
+    """indicators を out と同じ中身にする。変わった行だけ書き、out に無い行だけ消す。
+
+    全件を消して入れ直すと本番規模で削除だけで数分かかる。日々変わるのは新しい日と
+    調整し直した銘柄くらいなので、今の行と突き合わせる。値は浮動小数の完全一致で比べる。
+    """
     # 読取スナップショットを解放してから書く。全置換を 1 トランザクションにすると
     # 本番規模で busy_timeout(30s) を超え、月次 PUT が locked になる (#522)。
     db.commit()
-    delete_all_chunked(db, Indicator, chunk_size=chunk_size)
+    cur = pd.DataFrame(
+        db.connection().exec_driver_sql(
+            f"SELECT code, date, {', '.join(_IND_VALUE_COLS)} FROM indicators").fetchall(),
+        columns=["code", "date", *_IND_VALUE_COLS],
+    )
+    db.commit()
+    new = out.assign(_key=out["date"].map(date.isoformat)).set_index(["code", "_key"])
+    cur = cur.set_index(["code", "date"]).astype(float)
+    cur.index = cur.index.set_names(["code", "_key"])
+
+    gone = cur.index.difference(new.index)
+    old = cur.reindex(new.index)
+    a = new[_IND_VALUE_COLS].astype(float).to_numpy()
+    b = old.to_numpy()
+    same = (a == b) | (np.isnan(a) & np.isnan(b))
+    exists = new.index.isin(cur.index)
+    changed = new[~(exists & same.all(axis=1))].reset_index().drop(columns="_key")
+    del cur, old, a, b, same
+
+    delete = text("DELETE FROM indicators WHERE code = :code AND date = :date")
+    keys = [{"code": c, "date": d} for c, d in gone]
+    for i in range(0, len(keys), chunk_size):
+        db.execute(delete, keys[i:i + chunk_size])
+        db.commit()
     # 全行を一度に dict にすると 1GB 超になるので区切る。チャンクごとに commit。
-    for i in range(0, len(out), chunk_size):
-        rows = out.iloc[i:i + chunk_size].replace({np.nan: None}).to_dict("records")
+    for i in range(0, len(changed), chunk_size):
+        rows = changed.iloc[i:i + chunk_size].replace({np.nan: None}).to_dict("records")
         for r in rows:
             r["rs_rank"] = int(r["rs_rank"]) if r["rs_rank"] is not None else None
             r["stage"] = int(r["stage"]) if r["stage"] is not None else None
