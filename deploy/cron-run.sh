@@ -42,7 +42,19 @@ else
   exit 127
 fi
 
-"$py" -u "$@" 2>&1 | while IFS= read -r line || [[ -n "${line-}" ]]; do
+# バッチの CPU / IO を下げて API を優先する。無いコマンドは外す。
+# ionice -c3（idle）は使わない。書き込みロックを握ったまま待たされると
+# 月次 PUT などが busy_timeout に当たる。uvicorn / MCP はここでは起動しない。
+run_py=()
+if nice_bin=$(command -v nice 2>/dev/null); then
+  run_py+=("$nice_bin" -n 10)
+fi
+if ionice_bin=$(command -v ionice 2>/dev/null); then
+  run_py+=("$ionice_bin" -c2 -n7)
+fi
+run_py+=("$py" -u)
+
+"${run_py[@]}" "$@" 2>&1 | while IFS= read -r line || [[ -n "${line-}" ]]; do
   printf '%s %s\n' "$(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M:%S')" "$line"
 done >> "$log"
 ec=${PIPESTATUS[0]}
