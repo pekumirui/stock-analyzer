@@ -108,8 +108,7 @@ def public_monthly_detail(code: str, request: Request, db: Session = Depends(get
         return HTMLResponse(version_static_urls(not_found_html(request)), status_code=404)
     if len(raw) == 5:
         return RedirectResponse(f"/monthly/{code4(parsed)}", status_code=301)
-    issuers = list_tables_payload(db)
-    issuer = next((row for row in issuers if row["code"] == parsed), None)
+    issuer = next(iter(list_tables_payload(db, parsed)), None)
     if issuer is None:
         return HTMLResponse(version_static_urls(not_found_html(request)), status_code=404)
     tables = []
