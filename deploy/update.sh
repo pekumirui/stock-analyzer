@@ -239,6 +239,9 @@ ensure_app_venv() {
 venv_py=""
 ensure_app_venv
 "$venv_py" -m pip install -r requirements.txt -q
+# uvicorn --workers N が同時に init_db(strict=True) / CREATE INDEX すると
+# already exists で落ちうる。migrate.py が起動前に 1 回だけ init_db する。
+# --preload は使わない（fork 前の SQLite 接続がワーカーで壊れる）。
 "$venv_py" jobs/migrate.py
 
 sudo systemctl restart stock-analyzer

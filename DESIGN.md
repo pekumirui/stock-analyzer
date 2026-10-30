@@ -498,7 +498,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 
 | 役割 | 置き場 |
 |---|---|
-| API + SPA | 同一 VPS の uvicorn（systemd、ワーカー1） |
+| API + SPA | 同一 VPS の uvicorn（systemd。ワーカー数はコアと MemAvailable。`UVICORN_WORKERS` で上書き） |
 | DB | `stock.db`（VPS の SSD）。`DATABASE_URL` は今の SQLite のまま |
 | バッチ | crontab（19:30 JST の J-Quants 日次。株探 PTS は平日 15:30〜24:00 の 30 分ごと。yfinance 1 分足は平日 20:30。為替は 08:00 JST。パッケージ一覧は 06:40 JST。SQLite バックアップは 05:00 JST） |
 | バックアップ | VPS ローカル gzip（直近 1 世代）+ OneDrive（日次 7・週次 4）。手順は [`docs/DESIGN_backup.md`](docs/DESIGN_backup.md) |
@@ -510,7 +510,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 データ量は VPS のディスクなら余裕。
 ローカル backfill 完了後に `stock.db` を scp する（サーバで取り直さない）。
 
-見本は `deploy/`（systemd / nginx / crontab）。SQLite は複数ライターに弱いので uvicorn はワーカー1。日次バッチは定常で 7 リクエスト。接続は WAL + `busy_timeout=30s`。指標の全置換はチャンク commit。月次の書き込み API は `database is locked` を短い回数だけ再試行する。`jobs/migrate.py`（deploy 含む）は同じエラーを指数バックオフで再試行する。
+見本は `deploy/`（systemd / nginx / crontab）。uvicorn のワーカー数は `nproc` と MemAvailable（1 本あたり数百 MiB。`deploy/uvicorn_workers.py`）で決める。SQLite はライター 1 本のまま WAL + `busy_timeout=30s` で待ち合わせる。日次バッチは定常で 7 リクエスト。指標の全置換はチャンク commit。月次の書き込み API は `database is locked` を短い回数だけ再試行する。`jobs/migrate.py`（deploy 含む）は同じエラーを指数バックオフで再試行する。起動前に migrate が `init_db` を 1 回だけ流す（`--preload` は使わない）。
 
 Postgres 切替は将来オプション。今は使わない。`DATABASE_URL` だけ変えれば SQLAlchemy は両対応のまま。
 
