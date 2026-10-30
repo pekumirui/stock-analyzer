@@ -26,6 +26,11 @@ def test_sheet_css_is_shared() -> None:
     assert ".supply-tbl { width:auto; margin-top:6px; font-size" not in css
     assert "tr.below-h td { color:var(--sub); }" in css
     assert "tr.below-h td { color:var(--sub); font-size" not in css
+    assert "-webkit-text-size-adjust:100%; text-size-adjust:100%;" in css
+    assert "table.sheet td { padding:7px 8px; vertical-align:top; background:var(--panel); font-size:13px; }" in css
+    assert "table.sheet td.num { font-weight:500; }" in css
+    assert "table.sheet td.num { font-size" not in css
+    assert "table.sheet td { font-size:12px; }" in css
 
 
 def test_ranking_table_matches_sheet() -> None:

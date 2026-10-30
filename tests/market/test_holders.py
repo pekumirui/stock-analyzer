@@ -294,9 +294,13 @@ def test_spa_holders_tab() -> None:
     assert html.index('data-tab="ranking"') < html.index('data-tab="holders"')
     css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
     assert "#hd-holdings .purpose" not in css
+    assert "-webkit-text-size-adjust:100%; text-size-adjust:100%;" in css
+    assert "table.sheet td { padding:7px 8px; vertical-align:top; background:var(--panel); font-size:13px; }" in css
+    assert "table.sheet td.num { font-size" not in css
     assert "#tab-holders .tbl-wrap" in css
     assert "#hd-activity" not in css and "#hd-note" not in css
     assert "pinCols" in js and "hdHolderCell" in js and "hdPurposeCell" in js
+    assert 'return `<td class="l" title="${hdEsc(s)}">${hdEsc(s)}</td>`;' in js
     assert "shortName(raw)" in js
     assert "table.sheet" in js
     assert "hdFileDateCell" in js
