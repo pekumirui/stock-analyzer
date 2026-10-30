@@ -130,6 +130,7 @@ def _main_conf(tmp: Path, site: Path) -> Path:
         "events {}\n"
         "http {\n"
         f"{mime_line}"
+        "    gzip on;\n"
         f"    include {tmp}/gzip.conf;\n"
         f"    include {tmp}/log.conf;\n"
         f"    access_log {tmp}/access.log timed;\n"

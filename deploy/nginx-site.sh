@@ -29,7 +29,6 @@ EOF
 
 render_gzip_conf() {
   cat <<'EOF'
-gzip on;
 gzip_vary on;
 gzip_types text/css application/javascript text/javascript application/json text/plain application/xml text/xml;
 EOF
