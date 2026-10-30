@@ -64,6 +64,8 @@ statements        -- 決算短信 (J-Quants /fins/summary ほぼ生保存)
   fy_net_sales, fy_operating_profit, fy_ordinary_profit, fy_profit, fy_eps  -- 通期会社予想
   is_revision             -- 予想修正開示フラグ
   raw_json                -- 元データ全項目 (将来の項目追加に備え保持)
+  -- ix_statements_earnings_cover (code, disclosed_date, disclosure_no, … raw_json 以外)
+  -- カレンダーの重複判定と決算一覧の履歴が表本体 (raw_json) を読まない (KAB-292)
 
 indicators        -- 日次算出テクニカル (バッチで更新, 最新日分を保持+履歴)
   code, date PK(複合)
@@ -89,7 +91,7 @@ earnings_date_pubs -- 決算発表予定の発表履歴。現在の予定は (co
   sch_date                -- NULL は未定。欠測ではない
   fye                     -- MMDD の4文字。0299 は 2月末
   co_name
-  -- FK は付けない。sch_date の索引は付けない。日付で先に絞ると移動前の日が戻る
+  -- FK は付けない。ix_earnings_date_pubs_sch_date。日付で先に絞っても移動前の日は最新 pub_date で捨てる
 
 earnings_date_fetches -- 取り終えた発表日。空の応答も n=0 で残す。pubs の写しではない
   pub_date PK
