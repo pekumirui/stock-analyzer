@@ -14,7 +14,7 @@ from ...monthly.tree import (
 )
 from ...monthly.ingest import monthly_element_label
 from ._common import (
-    _DEFAULT_INDUSTRY, _element_unit, _get_table, _latest_yoy_for_kind, _new_flags, _parse_code,
+    _DEFAULT_INDUSTRY, _element_unit, _get_table, _latest_yoy_by_kind, _new_flags, _parse_code,
     _parse_industry, _parse_year, _public_get_cache, _require_any_monthly_table, _require_object,
     _require_stock, forbid_proxied_monthly_write,
 )
@@ -42,14 +42,15 @@ def put_industry(code: str, payload: dict | None = Body(None),
     return {"code": code, "industry": industry}
 
 
-def list_tables_payload(db: Session) -> list[dict]:
-    """月次表がある銘柄。名前は stocks を LEFT JOIN。無いときは null。"""
-    rows = (db.query(
-                MonthlyTable.code, MonthlyTable.year,
-                Stock.name, Stock.market, Stock.sector33)
-            .outerjoin(Stock, Stock.code == MonthlyTable.code)
-            .order_by(MonthlyTable.code, MonthlyTable.year)
-            .all())
+def list_tables_payload(db: Session, only_code: str | None = None) -> list[dict]:
+    """月次表がある銘柄。名前は stocks を LEFT JOIN。無いときは null。only_code で 1 銘柄に絞る。"""
+    q = (db.query(
+             MonthlyTable.code, MonthlyTable.year,
+             Stock.name, Stock.market, Stock.sector33)
+         .outerjoin(Stock, Stock.code == MonthlyTable.code))
+    if only_code is not None:
+        q = q.filter(MonthlyTable.code == only_code)
+    rows = q.order_by(MonthlyTable.code, MonthlyTable.year).all()
     by_code: dict[str, dict] = {}
     for code, year, name, market, sector33 in rows:
         item = by_code.get(code)
@@ -103,8 +104,9 @@ def list_tables_payload(db: Session) -> list[dict]:
         item["last_ingested_at"] = last_at.isoformat() if last_at is not None else None
         item["is_new"] = is_new
         item["ingested_today"] = ingested_today
-        item["all_store_yoy"] = _latest_yoy_for_kind(elems, vals, "all_store")
-        item["existing_store_yoy"] = _latest_yoy_for_kind(elems, vals, "existing")
+        yoy = _latest_yoy_by_kind(elems, vals)
+        item["all_store_yoy"] = yoy.get("all_store")
+        item["existing_store_yoy"] = yoy.get("existing")
         out.append(item)
     return out
 
