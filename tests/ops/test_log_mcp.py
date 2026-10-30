@@ -1004,6 +1004,147 @@ def test_db_query_and_schema() -> None:
                 os.environ["DATABASE_URL"] = prev_url
 
 
+def test_db_query_explain() -> None:
+    from tempfile import TemporaryDirectory
+    import sqlite3
+
+    desc, schema, _fn = m.TOOLS["db_query"]
+    if "EXPLAIN" not in desc or "EXPLAIN QUERY PLAN" not in desc:
+        raise SystemExit(f"tool description missing EXPLAIN: {desc}")
+    sql_desc = schema["properties"]["sql"]["description"]
+    if "EXPLAIN" not in sql_desc:
+        raise SystemExit(f"sql property missing EXPLAIN: {sql_desc}")
+
+    allowed = [
+        "EXPLAIN SELECT 1",
+        "EXPLAIN QUERY PLAN SELECT 1",
+        "explain query plan select 1",
+        "EXPLAIN QUERY PLAN SELECT 1;",
+        "EXPLAIN\nQUERY PLAN\nSELECT 1",
+        "EXPLAIN QUERY PLAN WITH x AS (SELECT 1 AS n) SELECT n FROM x",
+        "EXPLAIN (SELECT 1)",
+    ]
+    for sql in allowed:
+        got = m.parse_db_sql(sql)
+        if m._LEAD_SQL_RE.match(got) is None:
+            raise SystemExit(f"parse allowed failed: {sql!r} -> {got!r}")
+
+    denied = [
+        "EXPLAIN DELETE FROM stocks",
+        "EXPLAIN INSERT INTO stocks VALUES ('00000', 'x')",
+        "EXPLAIN UPDATE stocks SET name = 'x'",
+        "EXPLAIN QUERY PLAN PRAGMA table_info(stocks)",
+        "EXPLAIN QUERY PLAN INSERT INTO stocks VALUES ('00000', 'x')",
+        "EXPLAIN PRAGMA query_only = OFF",
+        "EXPLAIN SELECT 1; SELECT 2",
+        "EXPLAIN QUERY PLAN SELECT 1; EXPLAIN QUERY PLAN SELECT 2",
+        "EXPLAIN SELECT 1; DROP TABLE stocks",
+        "EXPLAIN",
+        "QUERY PLAN SELECT 1",
+    ]
+    for sql in denied:
+        try:
+            m.parse_db_sql(sql)
+        except ValueError:
+            continue
+        raise SystemExit(f"parse must reject {sql!r}")
+
+    prev = os.environ.get("MCP_APP_DIR")
+    prev_url = os.environ.get("DATABASE_URL")
+    with TemporaryDirectory() as d:
+        os.environ["MCP_APP_DIR"] = d
+        os.environ.pop("DATABASE_URL", None)
+        dbp = Path(d) / "stock.db"
+        setup = sqlite3.connect(dbp)
+        setup.executescript(
+            """
+            CREATE TABLE stocks (code TEXT PRIMARY KEY, name TEXT NOT NULL);
+            INSERT INTO stocks VALUES ('72030', 'トヨタ'), ('99840', 'ソフバン');
+            CREATE TABLE api_tokens (token TEXT);
+            INSERT INTO api_tokens VALUES ('secret-token');
+            """
+        )
+        setup.commit()
+        setup.close()
+        try:
+            if m._query_authorizer(
+                sqlite3.SQLITE_READ, "sqlite_dbstat", "name", "main", None,
+            ) != sqlite3.SQLITE_DENY:
+                raise SystemExit("authorizer must deny dbstat")
+
+            plan, plan_err = m.call_tool(
+                "db_query",
+                {"sql": "EXPLAIN QUERY PLAN SELECT code, name FROM stocks WHERE code = '72030'"},
+            )
+            if plan_err:
+                raise SystemExit(f"explain query plan: {plan}")
+            plan_body = json.loads(plan)
+            if plan_body["row_count"] < 1 or plan_body["truncated"]:
+                raise SystemExit(f"explain query plan body: {plan_body}")
+            cols = [c.lower() for c in plan_body["columns"]]
+            if "detail" not in cols:
+                raise SystemExit(f"explain query plan columns: {plan_body['columns']}")
+            detail = " ".join(
+                str(cell) for row in plan_body["rows"] for cell in row if cell is not None
+            ).lower()
+            if "stocks" not in detail and "scan" not in detail and "search" not in detail:
+                raise SystemExit(f"explain query plan detail: {plan_body}")
+
+            bytecode, bytecode_err = m.call_tool(
+                "db_query",
+                {"sql": "EXPLAIN SELECT code FROM stocks ORDER BY code"},
+            )
+            if bytecode_err:
+                raise SystemExit(f"explain: {bytecode}")
+            bytecode_body = json.loads(bytecode)
+            opcode_cols = [c.lower() for c in bytecode_body["columns"]]
+            if bytecode_body["row_count"] < 1 or "opcode" not in opcode_cols:
+                raise SystemExit(f"explain bytecode: {bytecode_body}")
+
+            cte, cte_err = m.call_tool(
+                "db_query",
+                {
+                    "sql": (
+                        "EXPLAIN QUERY PLAN WITH x AS (SELECT code FROM stocks) "
+                        "SELECT code FROM x"
+                    )
+                },
+            )
+            if cte_err or json.loads(cte)["row_count"] < 1:
+                raise SystemExit(f"explain cte: {cte}")
+
+            rejected = [
+                "EXPLAIN DELETE FROM stocks",
+                "EXPLAIN INSERT INTO stocks VALUES ('00000', 'x')",
+                "EXPLAIN UPDATE stocks SET name = 'x'",
+                "EXPLAIN QUERY PLAN PRAGMA table_info(stocks)",
+                "EXPLAIN QUERY PLAN INSERT INTO stocks VALUES ('00000', 'x')",
+                "EXPLAIN SELECT 1; SELECT 2",
+                "EXPLAIN QUERY PLAN SELECT 1; DROP TABLE stocks",
+                "EXPLAIN QUERY PLAN SELECT * FROM sqlite_dbstat",
+                "EXPLAIN SELECT token FROM api_tokens",
+            ]
+            for sql in rejected:
+                text, is_error = m.call_tool("db_query", {"sql": sql})
+                if not is_error:
+                    raise SystemExit(f"must reject {sql!r}: {text}")
+                if "secret-token" in text:
+                    raise SystemExit(f"secret leaked for {sql!r}: {text}")
+
+            still = json.loads(m.tool_db_query({"sql": "SELECT COUNT(*) AS n FROM stocks"}))
+            if still["rows"] != [[2]]:
+                raise SystemExit(f"writes leaked after explain: {still}")
+        finally:
+            if prev is None:
+                os.environ.pop("MCP_APP_DIR", None)
+            else:
+                os.environ["MCP_APP_DIR"] = prev
+            if prev_url is None:
+                os.environ.pop("DATABASE_URL", None)
+            else:
+                os.environ["DATABASE_URL"] = prev_url
+
+
 def test_fx_tools() -> None:
     from tempfile import TemporaryDirectory
 
@@ -2660,6 +2801,7 @@ def main() -> None:
     test_db_stats_approx_timeout_and_stat1()
     test_timed_fetch_progress_interrupt()
     test_db_query_and_schema()
+    test_db_query_explain()
     test_xbrl_compare_tools()
     test_fx_tools()
     test_monthly_tools()
