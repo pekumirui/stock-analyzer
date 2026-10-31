@@ -19,7 +19,7 @@ Read this index, then the matching feature file, before driving the app.
 - Boot restores the last tab (and the 銘柄 code + sub tab / news id, monthly code, supply id) from `location.hash` or `localStorage` key `ui.route` via `restoreRoute()` (`static/js/tabs.js`, called from `boot.js`). For a cold 決算速報 start, clear hash + `ui.route` then reload, or open a fresh profile.
 - Prefer `nav button[data-tab]`, `#id`, and `data-fin` / `data-no` over pixel clicks.
 - Treat every command as literal.
-- HTTP proofs use `helpers/capture.py <feature>` against the same `/api/*` the SPA calls (including `capture.py ranking`).
+- HTTP proofs use `helpers/capture.py <feature>` against the same `/api/*` the SPA calls (including `capture.py ranking` and `capture.py holders`).
 - Browser proofs use `browser-use`: open `{url}/app` then click the tab handle. At ≤720px the tabs are in the `#menu-btn` drawer; open it first (or call `selectTab`).
 - Cleanup removes `.run/` only. Leave `artifacts/`.
 
@@ -43,7 +43,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 
 ## Features
 
-- [決算速報](./earnings.md) calendar day list (累計 / 3か月 / 進捗率 view, 1Q–4Q filter), issuer search + sector chips (top 5 + 他N業種), row detail, 累計 / 3か月 / 進捗率 / 修正履歴 tabs.
+- [決算速報](./earnings.md) calendar day list (累計 / 3か月 / 進捗率 view, 1Q–4Q filter; list metrics 売上 / 粗利 / 営利 / 経利 / 純利), issuer search + sector chips (top 5 + 他N業種), row detail, 累計 / 3か月 / 進捗率 / 修正履歴 tabs.
 - [銘柄](./stock.md) issuer search, common header (price, 時価総額, 次回決算), sub tabs 概要 (指標 + 累計 / 3か月 / 進捗率 / 修正履歴) / 株価 / ニュース (決算短信の原文 in sandboxed iframes, 幅に合わせる / 中 / 原寸 zoom) / 株主 (大量保有 + 自己株), `#stock/{code}/{sub}` route.
 - [大量保有報告書](./holders.md) date list (`file_date`, default Asia/Tokyo today), search by issuer / holder without the date, holder page with holdings / history / estimates, `#holders/{edinet}`.
 - [銘柄 › 株価](./chart.md) daily/weekly/monthly candles, 対TOPIX, 決算発表後リターン (was the チャート tab until KAB-181; `gotoChart` lands here).

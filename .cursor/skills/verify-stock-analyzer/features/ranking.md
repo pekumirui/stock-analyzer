@@ -11,8 +11,8 @@ The ranking tab has two inner tabs: 決算後パフォーマンス (default) and
 - `rk-table` fills `#rk-tbl.sheet`: 順位 / 銘柄 / 市場 / 業種 / 騰落率 / 決算日 / 経過日数. 騰落率 heading is `騰落率` with `(対TOPIX)` under it. Each 騰落率 lower line is `(+x.x%)` / `(-x.x%)` / `–` (null α), with no `対TOPIX` word on the row. 銘柄 is `shortName` (5 chars) + `code.slice(0,4)` (7203 / 262A). 市場 is `fmtMarket` (`東証P` / `東証S` / `東証G`). 業種 is `fmtSector`. 決算日 has 場中 / 引け後 under it. 経過日数 is `N日`, `〜M/D`, or `–`. 順位 and 銘柄 pin; there is no pin hairline between 銘柄 and 市場 (`.grp` left border is on 騰落率).
 - `rk-info` reads `N 銘柄 / M/D 終値まで` (filtered view count). Empty dir reads `この月の上昇率はありません` / `この月の下落率はありません`.
 - `rk-share` is `#rk-share` (`X に投稿`). Post text is 3 lines (`YYYY年M月決算 上昇率ランキングTOPN` or `下落率ランキングTOPN`, then the two 計測方法 lines). The PNG title is the first line only.
-- `rk-to-chart` clicks a name → `gotoChart(code)` → 銘柄 › 株価, hash `#stock/{code}/price`.
-- `rk-route` writes `#ranking` (決算後パフォーマンス) or `#ranking/pts` to `location.hash` + `ui.route`; reload reopens that inner tab. Old `#pts` is rewritten to `#ranking/pts`.
+- `rk-to-chart` clicks a name → `gotoChart(code)` → 銘柄 › 株価, hash `#stock/{code}/price?from=ranking` (or `?from=ranking-pts` from PTS).
+- `rk-route` writes `#ranking` (決算後パフォーマンス) or `#ranking/pts` to `location.hash` + `ui.route`; a click from the other inner tab appends `?from=ranking` or `?from=ranking-pts`. Reload of a bare hash reopens that inner tab without `from`. Old `#pts` is rewritten to `#ranking/pts`.
 
 ## How to get to it (user POV)
 
@@ -31,9 +31,9 @@ Preconditions:
 - Rows need `earnings_events` with `is_first` and prices. Golden DB has them. Empty is `決算のデータがまだありません`.
 
 - **API.** `helpers/capture.py ranking` (optional `--month YYYY-MM`) writes `artifacts/ranking/body.json` from `GET /api/ranking/earnings-perf`. Body is `{months, month, as_of, rows}` with mixed signs in one list, nulls last. The UI splits that payload; there is no `dir=` query. Empty `months` is `決算のデータがまだありません`.
-- **Tab.** Click `nav button[data-tab="ranking"]` → `#tab-ranking` displayed, hash `#ranking`, `#rk-subs [data-rksub="perf"]` `.on`, one `GET /api/ranking/earnings-perf`. 上昇率 is `.on`. `#rk-tbl` last row is still `> 0`. Header cell 騰落率 has `(対TOPIX)` under the name. 市場 cells read `東証P` / `東証S` / `東証G`. 決算日 has 場中 or 引け後 under the date. Header has no PTS tab.
+- **Tab.** Click `nav button[data-tab="ranking"]` → `#tab-ranking` displayed, hash `#ranking`, `#rk-subs [data-rksub="perf"]` `.on`, one `GET /api/ranking/earnings-perf`. 上昇率 is `.on`. `#rk-tbl` last row is still `> 0`. Header cell 騰落率 has `(対TOPIX)` under the name. 市場 cells read `東証P` / `東証S` / `東証G`. 決算日 has 場中 or 引け後 under the date. Header has no PTS tab. Clicking PTS then 決算後パフォーマンス writes `#ranking?from=ranking-pts` and crumbs トップ / ランキング / PTS / ランキング.
 - **下落率.** Click `.ftab[data-dir="down"]` → no extra `/api/ranking` request, 下落率 is `.on`, row 1 is the most negative `return_to_next`, last row is still `< 0`. A month with no negatives (2026-03 on the golden DB) reads `この月の下落率はありません` with an empty table; a month with no positives (2026-09) reads `この月の上昇率はありません`. Do not accept `この月の上昇はありません` / `この月の下落はありません`.
-- **To 株価.** Click a name → 銘柄 active with 株価 `.on`, hash `#stock/{code}/price`.
+- **To 株価.** Click a name → 銘柄 active with 株価 `.on`, hash `#stock/{code}/price?from=ranking`.
 - **Route.** On `#ranking`, reload → ランキング active and `#rk-tbl` filled again.
 - **Proof.** If CDP: screenshots of both tabs at ~390px and desktop, plus the 騰落率 header.
 
