@@ -341,7 +341,11 @@ def _recreate_xbrl_financials_table(conn) -> None:
     # RENAME 後も名前付き INDEX は残る。新しい CREATE と衝突するので先に外す。
     for row in conn.execute(text("PRAGMA index_list('xbrl_financials__old')")).fetchall():
         name = row[1]
-        if name in ("uq_xbrl_financials_key", "idx_xbrl_financials_lookup"):
+        if name in (
+            "uq_xbrl_financials_key",
+            "idx_xbrl_financials_lookup",
+            "idx_xbrl_financials_gp_cover",
+        ):
             conn.execute(text(f'DROP INDEX IF EXISTS "{name}"'))
     XbrlFinancial.__table__.create(bind=conn)
     new_cols = [
@@ -382,19 +386,58 @@ def _server_default_sql(col) -> str | None:
     return str(arg)
 
 
+# covering に置き換えた索引。ensure_indexes が covering を作ったあと外す (KAB-295)
+_OBSOLETE_INDEXES = ("idx_xbrl_financials_lookup",)
+
+
+def _sqlite_index_names(conn) -> dict[str, set[str]]:
+    rows = conn.execute(
+        text("SELECT tbl_name, name FROM sqlite_master WHERE type='index' AND name IS NOT NULL")
+    ).fetchall()
+    out: dict[str, set[str]] = {}
+    for tbl, name in rows:
+        out.setdefault(tbl, set()).add(name)
+    return out
+
+
 def ensure_indexes() -> None:
     """create_all は既存テーブルに索引を足さない。起動と migrate で不足分を足す。
 
     uvicorn --workers N が同時に走ると checkfirst のあと別ワーカーが CREATE INDEX
     して already exists になる。WAL の busy_timeout では消えないので無視する。
+    新しく索引を足した表は ANALYZE する（統計が無いと covering を選ばない。KAB-295）。
     """
+    with engine.connect() as conn:
+        existing = _sqlite_index_names(conn)
+    created_tables: set[str] = set()
     for table in Base.metadata.sorted_tables:
+        have = existing.get(table.name, set())
         for idx in table.indexes:
+            if idx.name not in have:
+                created_tables.add(table.name)
             try:
                 idx.create(bind=engine, checkfirst=True)
             except OperationalError as exc:
                 if not is_already_exists(exc):
                     raise
+    created_tables.update(_drop_obsolete_indexes())
+    for name in sorted(created_tables):
+        with engine.begin() as conn:
+            conn.execute(text(f'ANALYZE "{name}"'))
+
+
+def _drop_obsolete_indexes() -> set[str]:
+    dropped: set[str] = set()
+    with engine.begin() as conn:
+        for name in _OBSOLETE_INDEXES:
+            row = conn.execute(
+                text("SELECT tbl_name FROM sqlite_master WHERE type='index' AND name=:n"),
+                {"n": name},
+            ).fetchone()
+            conn.execute(text(f'DROP INDEX IF EXISTS "{name}"'))
+            if row:
+                dropped.add(row[0])
+    return dropped
 
 
 def init_db(strict: bool = False):

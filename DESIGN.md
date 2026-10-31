@@ -259,6 +259,7 @@ IR 月次 HTML（`jobs/monthly/ir_monthly_html_r2.py`）:
 
 TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。
 スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。EDINET の提出者・書類一覧は [`docs/DESIGN_edinet.md`](docs/DESIGN_edinet.md)。決算速報 UI の正本は当面 `statements` のまま。XBRL 層で上書きしない。
+決算一覧の売上総利益は `idx_xbrl_financials_gp_cover` と `idx_xbrl_filings_id_cover` で表本体を読まない（KAB-295）。
 
 **PTS ランキング（`pts_snapshots`）。** 株探 `https://kabutan.jp/warning/` の `pts_night_price_increase` / `pts_night_price_decrease` / `pts_night_volume_ranking`（夜間 PTS。株価は 15 分ディレイ）。取得は `app/market/pts.py`、ジョブは `jobs/market/pts_snapshot.py`。キー不要。画面は `docs/DESIGN_pts.md`。
 

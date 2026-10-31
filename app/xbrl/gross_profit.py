@@ -26,14 +26,9 @@ def _start(stmt):
     return stmt.period_start or stmt.fiscal_year_start
 
 
-def gross_profit_map(db: Session, stmts) -> dict[str, float]:
-    """開示番号 → 売上総利益（円）。値の無い開示は載らない。"""
-    targets = [s for s in stmts
-               if s.disclosure_no and s.period_end and "FinancialStatements" in (s.type_of_document or "")]
-    if not targets:
-        return {}
-    codes = sorted({s.code for s in targets})
-    rows = (db.query(XbrlFinancial.code, XbrlFinancial.is_consolidated, XbrlFinancial.period_start,
+def gross_profit_query(db: Session, codes):
+    """売上総利益の引き当て SELECT。covering index の EXPLAIN と共有する (KAB-295)。"""
+    return (db.query(XbrlFinancial.code, XbrlFinancial.is_consolidated, XbrlFinancial.period_start,
                      XbrlFinancial.period_end, XbrlFinancial.value,
                      XbrlFiling.source, XbrlFiling.doc_id, XbrlFiling.submitted_at)
             .join(XbrlFiling, XbrlFiling.id == XbrlFinancial.filing_id)
@@ -41,8 +36,17 @@ def gross_profit_map(db: Session, stmts) -> dict[str, float]:
             .filter(XbrlFinancial.code.in_(codes),
                     XbrlStdItem.code == "gross_profit",
                     XbrlFinancial.value_kind == "actual",
-                    XbrlFiling.parse_status == "parsed")
-            .all())
+                    XbrlFiling.parse_status == "parsed"))
+
+
+def gross_profit_map(db: Session, stmts) -> dict[str, float]:
+    """開示番号 → 売上総利益（円）。値の無い開示は載らない。"""
+    targets = [s for s in stmts
+               if s.disclosure_no and s.period_end and "FinancialStatements" in (s.type_of_document or "")]
+    if not targets:
+        return {}
+    codes = sorted({s.code for s in targets})
+    rows = gross_profit_query(db, codes).all()
     by_key: dict[tuple, list] = defaultdict(list)
     for r in rows:
         by_key[(r.code, bool(r.is_consolidated), r.period_start, r.period_end)].append(r)
