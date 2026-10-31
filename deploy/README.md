@@ -291,7 +291,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 | `jobs/monthly/ir_monthly_html_ingest.py` | 10:30 / 16:30（HTML 取得の後。ledger は `/var/log/app/html_ingest_ledger.json`） |
 | `jobs/monthly/ir_monthly_json_ingest.py` | 10:30 / 16:30（CloudFront JSON → loopback POST。7649） |
 | `jobs/monthly/ir_monthly_xls_ingest.py --all --post` | 10:40 / 16:40（`ir_monthly_r2.py` が保存した最新の xls / xlsx → loopback POST。1878 / 7606） |
-| `jobs/xbrl/tdnet_xbrl_r2.py 2` | 12–23 時の毎時 00 分（前日と当日。一覧は TDnet、取れない日だけやのしん） |
+| `jobs/xbrl/tdnet_xbrl_r2.py 2` | 12–23 時の毎時 00 分（前日と当日。一覧は TDnet） |
 | `jobs/xbrl/xbrl_parse.py` / `jobs/xbrl/xbrl_normalize.py` | 12–23 時の毎時 10 分 / 20 分 |
 | `jobs/market/pts_snapshot.py` | 平日 15:30〜24:00 の 30 分ごと（株探 PTS ランキング。24:00 は翌日 0:00 の回） |
 | `jobs/market/intraday_1m.py` | 平日 20:30（yfinance 1 分足 → `data/intraday/1m/`。日次バッチの後。約 45 分） |

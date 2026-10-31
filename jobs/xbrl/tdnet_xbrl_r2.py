@@ -8,7 +8,7 @@ N は今日(JST)から遡る日数（当日を含む）。ネットワークと 
 
 skip の正本は dest/manifest/{YYYY-MM-DD}.jsonl の xbrl_id。ファイル名や .part は skip に使わない。
 マスタ無し・インフラは落とさず _unmatched/ へ置く（TDnet の約30日保持）。
-一覧は TDnet の開示一覧（I_list_NNN_YYYYMMDD.html）の XBRL 列。TDnet が取れない日だけ yanoshin（KAB-294）。
+一覧は TDnet の開示一覧（I_list_NNN_YYYYMMDD.html）の XBRL 列（KAB-294。以前は yanoshin）。
 ZIP URL は list の url_xbrl、または .zip の document_url。取れなければその開示は skip する。
 """
 from __future__ import annotations
@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import TypedDict
-from urllib.parse import urlencode
+from urllib.error import HTTPError
 from zoneinfo import ZoneInfo
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -42,7 +42,6 @@ from jobs._r2common import (  # noqa: E402
     fail_if_mount_down,
     http_get as _http_get,
     load_stock_product_map as _load_stock_product_map,
-    parse_list_body,
     sanitize_filename_part,
     yyyymmdd_from_pubdate,
 )
@@ -50,10 +49,8 @@ from app.config import XBRL_DEST  # noqa: E402
 
 JST = ZoneInfo("Asia/Tokyo")
 DEFAULT_DEST = XBRL_DEST
-LIST_BASE = "https://webapi.yanoshin.jp/webapi/tdnet/list"
 ZIP_BASE = "https://www.release.tdnet.info/inbs"
 USER_AGENT = "stock-analyzer-tdnet-xbrl/1.0"
-LIST_LIMIT = 1000
 SLEEP_SEC = 0.4
 HTTP_TIMEOUT = 30.0
 STEM_MAX = 180
@@ -279,14 +276,6 @@ def xbrl_id_from_record(rec: Mapping[str, object]) -> str | None:
     return None
 
 
-def list_url(start: date, end: date, by_id: int | None = None) -> str:
-    span = f"{start:%Y%m%d}-{end:%Y%m%d}"
-    q = {"hasXBRL": "1", "limit": str(LIST_LIMIT)}
-    if by_id is not None:
-        q["by_id"] = str(by_id)
-    return f"{LIST_BASE}/{span}.json?{urlencode(q)}"
-
-
 def http_get(url: str, timeout: float = HTTP_TIMEOUT) -> bytes:
     """このジョブの識別 UA。403 と AIA は _r2common.http_get。"""
     return _http_get(url, timeout=timeout, user_agent=USER_AGENT)
@@ -303,7 +292,7 @@ def _cell_text(html_text: str) -> str:
 def parse_tdnet_list_page(text: str, day: date) -> tuple[list[dict], set[int]]:
     """TDnet の開示一覧 1 ページ → (XBRL のある行, ページ番号)。
 
-    行は yanoshin と同じキー（company_code / company_name / title / pubdate / url_xbrl）。
+    行のキーは company_code / company_name / title / pubdate / url_xbrl。
     表が無い（開示ゼロの日）なら ([], {1})。
     """
     pages = {int(n) for n in _TDNET_PAGE_RE.findall(text) if n} or {1}
@@ -340,48 +329,26 @@ def fetch_tdnet_day(day: date, getter: Callable[[str], bytes]) -> list[dict]:
     return rows
 
 
-def fetch_yanoshin_day(day: date, getter: Callable[[str], bytes]) -> list[dict]:
-    """Yanoshin truncates at `limit` (and reports that cap as total_count). by_id next
-    pages come back empty, so one same-day URL per day.
-    """
-    body = getter(list_url(day, day)).decode("utf-8", errors="replace")
-    time.sleep(SLEEP_SEC)
-    batch = parse_list_body(body)
-    if len(batch) == LIST_LIMIT:
-        print(
-            f"warn list truncated for {day.isoformat()}: "
-            f"got {LIST_LIMIT} items (day may be incomplete)",
-            flush=True,
-        )
-    return batch
-
-
 def fetch_xbrl_records(
     start: date,
     end: date,
     get: Callable[[str], bytes] | None = None,
-    sources: tuple[str, ...] = ("tdnet", "yanoshin"),
 ) -> list[dict]:
-    """1 日ずつ一覧を取る。TDnet が先、取れなかった日だけ yanoshin（KAB-294）。
+    """1 日ずつ TDnet の開示一覧を読む（KAB-294）。
 
-    yanoshin は TDnet をまとめて写すので、15:30 以降の開示が夜まで載らない日がある。
+    yanoshin は TDnet をまとめて写すので、15:30 以降の開示が夜まで載らない日があった。
+    TDnet は約 1 か月で一覧も ZIP も消す（404）。その日は飛ばす。
     """
     getter = http_get if get is None else get
-    fetchers = {"tdnet": fetch_tdnet_day, "yanoshin": fetch_yanoshin_day}
     out: list[dict] = []
     cur = start
     while cur <= end:
-        last: Exception | None = None
-        for src in sources:
-            try:
-                out.extend(fetchers[src](cur, getter))
-                break
-            except Exception as e:
-                last = e
-                print(f"warn list {src} {cur.isoformat()}: {e}", flush=True)
-        else:
-            if last is not None:
-                raise last
+        try:
+            out.extend(fetch_tdnet_day(cur, getter))
+        except HTTPError as e:
+            if e.code != 404:
+                raise
+            print(f"warn list gone {cur.isoformat()}: TDnet keeps about a month", flush=True)
         cur += timedelta(days=1)
     rows: list[dict] = []
     seen_ids: set[str] = set()

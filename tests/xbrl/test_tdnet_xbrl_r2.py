@@ -8,9 +8,10 @@ import re
 import sys
 import zipfile
 from contextlib import redirect_stdout
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from email.message import Message
+from urllib.error import HTTPError
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -18,7 +19,6 @@ sys.path.insert(0, str(ROOT))
 from app.config import XBRL_DEST  # noqa: E402
 import jobs.xbrl.tdnet_xbrl_r2 as xbrl_mod  # noqa: E402
 from jobs.xbrl.tdnet_xbrl_r2 import (  # noqa: E402
-    LIST_LIMIT,
     NOCODE_DIR,
     UNMATCHED_DIR,
     append_manifest,
@@ -28,7 +28,6 @@ from jobs.xbrl.tdnet_xbrl_r2 import (  # noqa: E402
     dest_path,
     dest_route,
     fetch_xbrl_records,
-    list_url,
     parse_tdnet_list_page,
     tdnet_list_url,
     load_seen_xbrl_ids,
@@ -176,136 +175,8 @@ def test_tdnet_xbrl_id() -> None:
         _fail("pdf-only record has no zip id")
 
 
-def test_list_url() -> None:
-    url = list_url(date(2026, 8, 5), date(2026, 8, 5))
-    if "hasXBRL=1" not in url:
-        _fail(f"missing hasXBRL: {url}")
-    if "keyword=" in url:
-        _fail(f"must not filter keyword: {url}")
-    if "20260805-20260805.json" not in url:
-        _fail(f"span: {url}")
-    if LIST_LIMIT < 1000:
-        _fail(f"LIST_LIMIT too small for a full day: {LIST_LIMIT}")
-    qs = parse_qs(urlparse(url).query)
-    if qs.get("limit") != [str(LIST_LIMIT)]:
-        _fail(f"limit in URL: {url}")
-    paged = list_url(date(2026, 8, 1), date(2026, 8, 5), by_id=99)
-    if "by_id=99" not in paged:
-        _fail(f"by_id: {paged}")
-
-
 def _no_sleep(*_a: object, **_k: object) -> None:
     return None
-
-
-def _tdnet_item(day: date, n: int) -> dict:
-    ymd = day.strftime("%Y%m%d")
-    xid = f"{ymd}{n:06d}"
-    return {
-        "Tdnet": {
-            "company_code": "72030",
-            "title": f"item-{n}",
-            "pubdate": f"{day.isoformat()} 10:00:00",
-            "url_xbrl": f"https://www.release.tdnet.info/inbs/{xid}.zip",
-        }
-    }
-
-
-def test_fetch_splits_per_day() -> None:
-    """A 30-day window must hit one same-day list URL per day, not one span cap."""
-    start, end = date_window(30, today=date(2026, 8, 5))
-    if str(start) != "2026-07-07" or str(end) != "2026-08-05":
-        _fail(f"fixture window: {start} {end}")
-    n_days = (end - start).days + 1
-    if n_days != 30:
-        _fail(f"expected 30 days, got {n_days}")
-    per_day = 20
-    urls: list[str] = []
-
-    def fake_get(url: str) -> bytes:
-        urls.append(url)
-        m = re.search(r"/(\d{8})-(\d{8})\.json", url)
-        if not m:
-            _fail(f"not a list URL: {url}")
-        if m.group(1) != m.group(2):
-            _fail(f"multi-day span list URL: {url}")
-        if "by_id=" in url:
-            _fail(f"by_id on main path: {url}")
-        day = date.fromisoformat(f"{m.group(1)[0:4]}-{m.group(1)[4:6]}-{m.group(1)[6:8]}")
-        payload = {"items": [_tdnet_item(day, i) for i in range(per_day)]}
-        return json.dumps(payload).encode("utf-8")
-
-    orig_sleep = xbrl_mod.time.sleep
-    xbrl_mod.time.sleep = _no_sleep
-    try:
-        rows = fetch_xbrl_records(start, end, get=fake_get, sources=("yanoshin",))
-    finally:
-        xbrl_mod.time.sleep = orig_sleep
-
-    if len(urls) != n_days:
-        _fail(f"expected {n_days} daily list URLs, got {len(urls)}")
-    span = f"{start:%Y%m%d}-{end:%Y%m%d}.json"
-    if any(span in u for u in urls):
-        _fail(f"used multi-day span {span}")
-    cur = start
-    for i, url in enumerate(urls):
-        want = f"{cur:%Y%m%d}-{cur:%Y%m%d}.json"
-        if want not in url:
-            _fail(f"day {i} expected {want} in {url}")
-        if f"limit={LIST_LIMIT}" not in url:
-            _fail(f"day {i} missing raised limit: {url}")
-        cur += timedelta(days=1)
-    expect_n = n_days * per_day
-    if len(rows) != expect_n:
-        _fail(f"listed {len(rows)} != {expect_n} (must not stop at a 300 cap)")
-    if expect_n <= 300:
-        _fail("fixture too small to prove 300-cap is gone")
-
-
-def test_fetch_warns_when_day_hits_list_limit() -> None:
-    day = date(2026, 8, 5)
-
-    def fake_get(url: str) -> bytes:
-        if f"{day:%Y%m%d}-{day:%Y%m%d}.json" not in url:
-            _fail(f"expected single-day URL: {url}")
-        payload = {"items": [_tdnet_item(day, i) for i in range(LIST_LIMIT)]}
-        return json.dumps(payload).encode("utf-8")
-
-    buf = io.StringIO()
-    orig_sleep = xbrl_mod.time.sleep
-    xbrl_mod.time.sleep = _no_sleep
-    try:
-        with redirect_stdout(buf):
-            rows = fetch_xbrl_records(day, day, get=fake_get, sources=("yanoshin",))
-    finally:
-        xbrl_mod.time.sleep = orig_sleep
-
-    text = buf.getvalue()
-    want = (
-        f"warn list truncated for {day.isoformat()}: "
-        f"got {LIST_LIMIT} items (day may be incomplete)"
-    )
-    if want not in text:
-        _fail(f"missing truncation warn: {text!r}")
-    if len(rows) != LIST_LIMIT:
-        _fail(f"rows {len(rows)} != LIST_LIMIT {LIST_LIMIT}")
-
-    def fake_get_short(url: str) -> bytes:
-        payload = {"items": [_tdnet_item(day, 0)]}
-        return json.dumps(payload).encode("utf-8")
-
-    buf2 = io.StringIO()
-    orig_sleep = xbrl_mod.time.sleep
-    xbrl_mod.time.sleep = _no_sleep
-    try:
-        with redirect_stdout(buf2):
-            short_rows = fetch_xbrl_records(day, day, get=fake_get_short, sources=("yanoshin",))
-    finally:
-        xbrl_mod.time.sleep = orig_sleep
-    if "warn list truncated" in buf2.getvalue():
-        _fail(f"short day should not warn: {buf2.getvalue()!r}")
-    if len(short_rows) != 1:
-        _fail(f"short day rows: {len(short_rows)}")
 
 
 def _tdnet_row(hhmm: str, code: str, name: str, title: str, zip_name: str | None,
@@ -358,18 +229,15 @@ def test_parse_tdnet_list_page() -> None:
         _fail(f"empty day {empty} {pages0}")
 
 
-def test_fetch_tdnet_reads_all_pages_then_falls_back() -> None:
-    d1, d2 = date(2026, 10, 29), date(2026, 10, 30)
+def test_fetch_reads_all_pages_and_skips_gone_days() -> None:
+    """1 日ずつ全ページ読む。TDnet が消した日（404）は飛ばし、ほかの例外は上げる。"""
+    d1, d2 = date(2026, 9, 1), date(2026, 10, 30)
     urls: list[str] = []
 
     def fake_get(url: str) -> bytes:
         urls.append(url)
         if f"_{d1:%Y%m%d}.html" in url:
-            raise OSError("HTTP Error 404: Not Found")
-        if "yanoshin" in url:
-            if f"{d1:%Y%m%d}-{d1:%Y%m%d}.json" not in url:
-                _fail(f"fallback only for the failed day: {url}")
-            return json.dumps({"items": [_tdnet_item(d1, 1)]}).encode("utf-8")
+            raise HTTPError(url, 404, "Not Found", Message(), None)
         page = int(re.search(r"I_list_(\d{3})_", url).group(1))
         return _tdnet_page(d2, 2, [_tdnet_row("15:30", f"1000{page}", "x", "t", f"08122026103000000{page}.zip")])
 
@@ -378,18 +246,26 @@ def test_fetch_tdnet_reads_all_pages_then_falls_back() -> None:
     xbrl_mod.time.sleep = _no_sleep
     try:
         with redirect_stdout(buf):
-            rows = fetch_xbrl_records(d1, d2, get=fake_get)
+            rows = fetch_xbrl_records(d1, d1, get=fake_get) + fetch_xbrl_records(d2, d2, get=fake_get)
     finally:
         xbrl_mod.time.sleep = orig_sleep
-    want_urls = [tdnet_list_url(d1), list_url(d1, d1), tdnet_list_url(d2), tdnet_list_url(d2, 2)]
-    if urls != want_urls:
+    if urls != [tdnet_list_url(d1), tdnet_list_url(d2), tdnet_list_url(d2, 2)]:
         _fail(f"urls {urls}")
     ids = sorted(r["_xbrl_id"] for r in rows)
-    if ids != ["081220261030000001", "081220261030000002", "20261029000001"]:
+    if ids != ["081220261030000001", "081220261030000002"]:
         _fail(f"ids {ids}")
-    if "warn list tdnet 2026-10-29" not in buf.getvalue():
-        _fail(f"missing fallback warn: {buf.getvalue()!r}")
+    if "warn list gone 2026-09-01" not in buf.getvalue():
+        _fail(f"missing gone warn: {buf.getvalue()!r}")
 
+    def boom(url: str) -> bytes:
+        raise HTTPError(url, 500, "err", Message(), None)
+
+    try:
+        fetch_xbrl_records(d2, d2, get=boom)
+    except HTTPError:
+        pass
+    else:
+        _fail("non-404 must raise")
 
 def test_corrupt_zip_not_promoted(tmp: Path) -> None:
     dest = tmp / "corrupt"
@@ -647,11 +523,8 @@ def main() -> None:
     test_to_code4()
     test_unmatched_and_dest_paths()
     test_tdnet_xbrl_id()
-    test_list_url()
-    test_fetch_splits_per_day()
-    test_fetch_warns_when_day_hits_list_limit()
     test_parse_tdnet_list_page()
-    test_fetch_tdnet_reads_all_pages_then_falls_back()
+    test_fetch_reads_all_pages_and_skips_gone_days()
     test_date_window()
     test_http_get_uses_job_ua_then_browser()
     with TemporaryDirectory() as d:
