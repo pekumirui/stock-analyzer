@@ -29,6 +29,8 @@ from jobs.xbrl.tdnet_xbrl_r2 import (  # noqa: E402
     dest_route,
     fetch_xbrl_records,
     list_url,
+    parse_tdnet_list_page,
+    tdnet_list_url,
     load_seen_xbrl_ids,
     part_path,
     pubdate_iso_date,
@@ -236,7 +238,7 @@ def test_fetch_splits_per_day() -> None:
     orig_sleep = xbrl_mod.time.sleep
     xbrl_mod.time.sleep = _no_sleep
     try:
-        rows = fetch_xbrl_records(start, end, get=fake_get)
+        rows = fetch_xbrl_records(start, end, get=fake_get, sources=("yanoshin",))
     finally:
         xbrl_mod.time.sleep = orig_sleep
 
@@ -274,7 +276,7 @@ def test_fetch_warns_when_day_hits_list_limit() -> None:
     xbrl_mod.time.sleep = _no_sleep
     try:
         with redirect_stdout(buf):
-            rows = fetch_xbrl_records(day, day, get=fake_get)
+            rows = fetch_xbrl_records(day, day, get=fake_get, sources=("yanoshin",))
     finally:
         xbrl_mod.time.sleep = orig_sleep
 
@@ -297,13 +299,96 @@ def test_fetch_warns_when_day_hits_list_limit() -> None:
     xbrl_mod.time.sleep = _no_sleep
     try:
         with redirect_stdout(buf2):
-            short_rows = fetch_xbrl_records(day, day, get=fake_get_short)
+            short_rows = fetch_xbrl_records(day, day, get=fake_get_short, sources=("yanoshin",))
     finally:
         xbrl_mod.time.sleep = orig_sleep
     if "warn list truncated" in buf2.getvalue():
         _fail(f"short day should not warn: {buf2.getvalue()!r}")
     if len(short_rows) != 1:
         _fail(f"short day rows: {len(short_rows)}")
+
+
+def _tdnet_row(hhmm: str, code: str, name: str, title: str, zip_name: str | None,
+               tr: str = "<tr>") -> str:
+    xbrl = (f'<div class="xbrl-mask"><div class="xbrl-button"><a class="style002" '
+            f'href="{zip_name}">XBRL</a></div></div> ') if zip_name else " "
+    return (f'{tr}\n<td class="oddnew-L kjTime" noWrap>{hhmm}</td>\n'
+            f'<td class="oddnew-M kjCode" noWrap>{code}</td>\n'
+            f'<td class="oddnew-M kjName" noWrap>{name}          </td>\n'
+            f'<td class="oddnew-M kjTitle" align="left"><a href="1401x.pdf" target="_blank">{title}</a></td>\n'
+            f'<td class="oddnew-M kjXbrl" noWrap align="center">{xbrl}</td>\n'
+            f'<td class="oddnew-M kjPlace" noWrap align="left">東       </td>\n</tr>\n')
+
+
+def _tdnet_page(day: date, n_pages: int, rows: list[str]) -> bytes:
+    pager = "".join(
+        f"<div onClick=\"pagerLink('I_list_{p:03d}_{day:%Y%m%d}.html')\">{p}</div>"
+        for p in range(1, n_pages + 1)
+    )
+    body = (f'<html><body>{pager}<table id="main-list-table">\n'
+            + "".join(rows) + "</table></body></html>")
+    return body.encode("utf-8")
+
+
+def test_parse_tdnet_list_page() -> None:
+    day = date(2026, 10, 30)
+    text = _tdnet_page(day, 3, [
+        _tdnet_row("15:30", "19440", "きんでん", "2027年３月期 決算短信", "081220261028557709.zip"),
+        _tdnet_row("15:30", "19440", "きんでん", "決算補足資料", None),
+        _tdnet_row("16:00", "42160", "旭有機材",
+                   "新表題 &amp; X</a><BR><s>旧表題</s>", "081220261027556253.zip",
+                   tr='<tr class="hyodaiUpd">'),
+    ]).decode("utf-8")
+    rows, pages = parse_tdnet_list_page(text, day)
+    if pages != {1, 2, 3}:
+        _fail(f"pages {pages}")
+    if len(rows) != 2:
+        _fail(f"XBRL rows only (incl. hyodaiUpd): {rows}")
+    a, b = rows
+    if (a["company_code"], a["company_name"], a["pubdate"]) != ("19440", "きんでん", "2026-10-30 15:30:00"):
+        _fail(f"row a {a}")
+    if a["url_xbrl"] != "https://www.release.tdnet.info/inbs/081220261028557709.zip":
+        _fail(f"url_xbrl {a['url_xbrl']}")
+    if xbrl_id_from_record(a) != "081220261028557709":
+        _fail("xbrl id from tdnet row")
+    if b["title"] != "新表題 & X":
+        _fail(f"title must drop struck old title: {b['title']!r}")
+    empty, pages0 = parse_tdnet_list_page("<html>no table</html>", day)
+    if empty or pages0 != {1}:
+        _fail(f"empty day {empty} {pages0}")
+
+
+def test_fetch_tdnet_reads_all_pages_then_falls_back() -> None:
+    d1, d2 = date(2026, 10, 29), date(2026, 10, 30)
+    urls: list[str] = []
+
+    def fake_get(url: str) -> bytes:
+        urls.append(url)
+        if f"_{d1:%Y%m%d}.html" in url:
+            raise OSError("HTTP Error 404: Not Found")
+        if "yanoshin" in url:
+            if f"{d1:%Y%m%d}-{d1:%Y%m%d}.json" not in url:
+                _fail(f"fallback only for the failed day: {url}")
+            return json.dumps({"items": [_tdnet_item(d1, 1)]}).encode("utf-8")
+        page = int(re.search(r"I_list_(\d{3})_", url).group(1))
+        return _tdnet_page(d2, 2, [_tdnet_row("15:30", f"1000{page}", "x", "t", f"08122026103000000{page}.zip")])
+
+    buf = io.StringIO()
+    orig_sleep = xbrl_mod.time.sleep
+    xbrl_mod.time.sleep = _no_sleep
+    try:
+        with redirect_stdout(buf):
+            rows = fetch_xbrl_records(d1, d2, get=fake_get)
+    finally:
+        xbrl_mod.time.sleep = orig_sleep
+    want_urls = [tdnet_list_url(d1), list_url(d1, d1), tdnet_list_url(d2), tdnet_list_url(d2, 2)]
+    if urls != want_urls:
+        _fail(f"urls {urls}")
+    ids = sorted(r["_xbrl_id"] for r in rows)
+    if ids != ["081220261030000001", "081220261030000002", "20261029000001"]:
+        _fail(f"ids {ids}")
+    if "warn list tdnet 2026-10-29" not in buf.getvalue():
+        _fail(f"missing fallback warn: {buf.getvalue()!r}")
 
 
 def test_corrupt_zip_not_promoted(tmp: Path) -> None:
@@ -565,6 +650,8 @@ def main() -> None:
     test_list_url()
     test_fetch_splits_per_day()
     test_fetch_warns_when_day_hits_list_limit()
+    test_parse_tdnet_list_page()
+    test_fetch_tdnet_reads_all_pages_then_falls_back()
     test_date_window()
     test_http_get_uses_job_ua_then_browser()
     with TemporaryDirectory() as d:

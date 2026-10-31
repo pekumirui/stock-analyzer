@@ -53,8 +53,8 @@ SHELL=/bin/bash
 40 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/ir_monthly_xls_ingest.py --all --post
 40 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/ir_monthly_xls_ingest.py --all --post
 
-# TDnet XBRL ZIP → data/xbrl（当日分・毎時 12–23）
-0 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/tdnet_xbrl_r2.py 1
+# TDnet XBRL ZIP → data/xbrl（一覧は TDnet。前日と当日・毎時 12–23。前日 23 時より後の開示を翌日に拾う）
+0 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/tdnet_xbrl_r2.py 2
 10 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/xbrl_parse.py
 20 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/xbrl_normalize.py
 

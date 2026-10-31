@@ -8,12 +8,14 @@ N は今日(JST)から遡る日数（当日を含む）。ネットワークと 
 
 skip の正本は dest/manifest/{YYYY-MM-DD}.jsonl の xbrl_id。ファイル名や .part は skip に使わない。
 マスタ無し・インフラは落とさず _unmatched/ へ置く（TDnet の約30日保持）。
+一覧は TDnet の開示一覧（I_list_NNN_YYYYMMDD.html）の XBRL 列。TDnet が取れない日だけ yanoshin（KAB-294）。
 ZIP URL は list の url_xbrl、または .zip の document_url。取れなければその開示は skip する。
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
+import html
 import json
 import re
 import sys
@@ -61,6 +63,12 @@ NOCODE_DIR = "_nocode"
 _INBS_ZIP_RE = re.compile(r"/inbs/([0-9A-Za-z]+)\.zip", re.I)
 _ZIP_NAME_RE = re.compile(r"([0-9A-Za-z]+)\.zip(?:\?|$)", re.I)
 _CODE4_HEAD_RE = re.compile(r"^[0-9][0-9A-Z]{3}$")
+_TDNET_PAGE_RE = re.compile(r"I_list_(\d{3})_\d{8}\.html")
+_TR_RE = re.compile(r"<tr[^>]*>(.*?)</tr>", re.S | re.I)
+_STRIKE_RE = re.compile(r"<s>.*?</s>", re.S | re.I)
+_TD_RE = re.compile(r'<td class="[^"]*\b(kj[A-Za-z]+)"[^>]*>(.*?)</td>', re.S | re.I)
+_HREF_ZIP_RE = re.compile(r'href="([0-9A-Za-z]+\.zip)"', re.I)
+_TAG_RE = re.compile(r"<[^>]+>")
 _NON_SQLITE_UNMATCHED = "warn stocks db not sqlite; infra unmatched uses company_name only"
 
 # Infra funds share ProdCat 013/022 with REITs; J-Quants has no dedicated category.
@@ -284,31 +292,96 @@ def http_get(url: str, timeout: float = HTTP_TIMEOUT) -> bytes:
     return _http_get(url, timeout=timeout, user_agent=USER_AGENT)
 
 
+def tdnet_list_url(day: date, page: int = 1) -> str:
+    return f"{ZIP_BASE}/I_list_{page:03d}_{day:%Y%m%d}.html"
+
+
+def _cell_text(html_text: str) -> str:
+    return html.unescape(_TAG_RE.sub("", html_text)).strip()
+
+
+def parse_tdnet_list_page(text: str, day: date) -> tuple[list[dict], set[int]]:
+    """TDnet の開示一覧 1 ページ → (XBRL のある行, ページ番号)。
+
+    行は yanoshin と同じキー（company_code / company_name / title / pubdate / url_xbrl）。
+    表が無い（開示ゼロの日）なら ([], {1})。
+    """
+    pages = {int(n) for n in _TDNET_PAGE_RE.findall(text) if n} or {1}
+    rows: list[dict] = []
+    i = text.find('id="main-list-table"')
+    if i < 0:
+        return rows, pages
+    for tr in _TR_RE.findall(text[i:]):
+        cells = dict(_TD_RE.findall(tr))
+        zm = _HREF_ZIP_RE.search(cells.get("kjXbrl", ""))
+        if not zm:
+            continue
+        hhmm = _cell_text(cells.get("kjTime", ""))
+        rows.append({
+            "company_code": _cell_text(cells.get("kjCode", "")),
+            "company_name": _cell_text(cells.get("kjName", "")),
+            # 表題変更の行は旧表題を <s> で並べる
+            "title": _cell_text(_STRIKE_RE.sub("", cells.get("kjTitle", ""))),
+            "pubdate": f"{day.isoformat()} {hhmm}:00" if hhmm else f"{day.isoformat()} 00:00:00",
+            "url_xbrl": f"{ZIP_BASE}/{zm.group(1)}",
+        })
+    return rows, pages
+
+
+def fetch_tdnet_day(day: date, getter: Callable[[str], bytes]) -> list[dict]:
+    """TDnet の開示一覧を全ページ読む。TDnet は約 1 か月分しか置かない（それより前は 404）。"""
+    first = getter(tdnet_list_url(day)).decode("utf-8", errors="replace")
+    time.sleep(SLEEP_SEC)
+    rows, pages = parse_tdnet_list_page(first, day)
+    for page in sorted(pages - {1}):
+        text = getter(tdnet_list_url(day, page)).decode("utf-8", errors="replace")
+        time.sleep(SLEEP_SEC)
+        rows.extend(parse_tdnet_list_page(text, day)[0])
+    return rows
+
+
+def fetch_yanoshin_day(day: date, getter: Callable[[str], bytes]) -> list[dict]:
+    """Yanoshin truncates at `limit` (and reports that cap as total_count). by_id next
+    pages come back empty, so one same-day URL per day.
+    """
+    body = getter(list_url(day, day)).decode("utf-8", errors="replace")
+    time.sleep(SLEEP_SEC)
+    batch = parse_list_body(body)
+    if len(batch) == LIST_LIMIT:
+        print(
+            f"warn list truncated for {day.isoformat()}: "
+            f"got {LIST_LIMIT} items (day may be incomplete)",
+            flush=True,
+        )
+    return batch
+
+
 def fetch_xbrl_records(
     start: date,
     end: date,
     get: Callable[[str], bytes] | None = None,
+    sources: tuple[str, ...] = ("tdnet", "yanoshin"),
 ) -> list[dict]:
-    """List one calendar day at a time. Multi-day span URLs and by_id paging are not used.
+    """1 日ずつ一覧を取る。TDnet が先、取れなかった日だけ yanoshin（KAB-294）。
 
-    Yanoshin truncates at `limit` (and reports that cap as total_count). by_id next
-    pages come back empty, so a 30-day span with limit=300 stops at 300 items.
+    yanoshin は TDnet をまとめて写すので、15:30 以降の開示が夜まで載らない日がある。
     """
     getter = http_get if get is None else get
+    fetchers = {"tdnet": fetch_tdnet_day, "yanoshin": fetch_yanoshin_day}
     out: list[dict] = []
     cur = start
     while cur <= end:
-        url = list_url(cur, cur)
-        body = getter(url).decode("utf-8", errors="replace")
-        time.sleep(SLEEP_SEC)
-        batch = parse_list_body(body)
-        if len(batch) == LIST_LIMIT:
-            print(
-                f"warn list truncated for {cur.isoformat()}: "
-                f"got {LIST_LIMIT} items (day may be incomplete)",
-                flush=True,
-            )
-        out.extend(batch)
+        last: Exception | None = None
+        for src in sources:
+            try:
+                out.extend(fetchers[src](cur, getter))
+                break
+            except Exception as e:
+                last = e
+                print(f"warn list {src} {cur.isoformat()}: {e}", flush=True)
+        else:
+            if last is not None:
+                raise last
         cur += timedelta(days=1)
     rows: list[dict] = []
     seen_ids: set[str] = set()
