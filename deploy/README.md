@@ -56,7 +56,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 1. GitHub SSH（deploy key）を冪等に揃えてから `git pull --ff-only origin main`
 2. `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `EDINET_API_KEY` / `MCP_TOKEN` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` があれば `.env` のその行だけ upsert。R2 の両方が揃っていれば `~/.config/rclone/rclone.conf` の `[r2]` だけ upsert（`onedrive` など他 remote は消さない）。`SLACK_WEBHOOK_URL` と `SLACK_WEBHOOK_URL_{APP,BATCH,INFRA,QUIET}` は `.env` に書かない
 3. `sudo provision.sh --sudoers-only`（`APP_DIR` だけ preserve。live sudoers を repo に合わせる）→ `sudo provision.sh`（パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers、R2 user mount、fluent-bit。Slack webhook は `--preserve-env`）。Webhook が空なら fluent-bit は enable のみで start しない
-4. venv / `pip install` / `migrate.py`（`database is locked` は最大約 6 分まで再試行。19:30 の日次バッチや毎時 `xbrl_normalize` と重なるため）。`migrate.py` が `init_db` を 1 回やってから uvicorn を上げる（`--workers N` の同時 CREATE INDEX を避ける。`--preload` は使わない）
+4. venv / `pip install` / `migrate.py`（`database is locked` は最大約 6 分まで再試行。19:30 の日次バッチや毎時の TDnet XBRL（parse / normalize）と重なるため）。`migrate.py` が `init_db` を 1 回やってから uvicorn を上げる（`--workers N` の同時 CREATE INDEX を避ける。`--preload` は使わない）
 5. `systemctl restart stock-analyzer` と `stock-analyzer-mcp`、localhost:8000 / :8010 のヘルスチェック
 
 uvicorn のワーカー数は `deploy/uvicorn_workers.py` が起動時に決める（`nproc` と MemAvailable。1 本あたり 384MiB）。`.env` の `UVICORN_WORKERS` で上書きする。MCP（`stock-analyzer-mcp.service`）は対象外。
@@ -291,8 +291,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 | `jobs/monthly/ir_monthly_html_ingest.py` | 10:30 / 16:30（HTML 取得の後。ledger は `/var/log/app/html_ingest_ledger.json`） |
 | `jobs/monthly/ir_monthly_json_ingest.py` | 10:30 / 16:30（CloudFront JSON → loopback POST。7649） |
 | `jobs/monthly/ir_monthly_xls_ingest.py --all --post` | 10:40 / 16:40（`ir_monthly_r2.py` が保存した最新の xls / xlsx → loopback POST。1878 / 7606） |
-| `jobs/xbrl/tdnet_xbrl_r2.py 2` | 12–23 時の毎時 00 分（前日と当日。一覧は TDnet） |
-| `jobs/xbrl/xbrl_parse.py` / `jobs/xbrl/xbrl_normalize.py` | 12–23 時の毎時 10 分 / 20 分 |
+| `jobs/xbrl/tdnet_xbrl_r2.py 2` → `xbrl_parse.py` → `xbrl_normalize.py` | 12–23 時の毎時 00 分（1 行で順に。前日と当日。取得が失敗しても parse / normalize は走らせる。単独やり直しは `deploy/cron-run.sh jobs/xbrl/xbrl_parse.py` など） |
 | `jobs/market/pts_snapshot.py` | 平日 15:30〜24:00 の 30 分ごと（株探 PTS ランキング。24:00 は翌日 0:00 の回） |
 | `jobs/market/intraday_1m.py` | 平日 20:30（yfinance 1 分足 → `data/intraday/1m/`。日次バッチの後。約 45 分） |
 | `jobs/ops/vps_packages_r2.py` | 06:40 |
