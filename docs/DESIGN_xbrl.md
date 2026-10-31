@@ -81,7 +81,7 @@
 
 | ジョブ | 実装 | 責務 |
 |---|---|---|
-| (1) fetch | `jobs/xbrl/tdnet_xbrl_r2.py`（既存・変更最小） | 一覧 → ZIP → dest（既定 `data/xbrl`）。skip 正本は manifest の `xbrl_id` |
+| (1) fetch | `jobs/xbrl/tdnet_xbrl_r2.py`（既存・変更最小） | 一覧（TDnet の開示一覧）→ ZIP → dest（既定 `data/xbrl`）。skip 正本は manifest の `xbrl_id` |
 | (2) parse | `jobs/xbrl/xbrl_parse.py`（新規） | ZIP → xbrlp → `xbrl_*` 生データ |
 | (3) normalize | `jobs/xbrl/xbrl_normalize.py`（新規） | facts + YAML マッピング → `xbrl_financials` |
 

@@ -23,7 +23,7 @@ SHELL=/bin/bash
 # Frankfurter / ECB 対EUR 日次レート。公表は 16:00 CET 前後なので翌朝 JST。空なら 1999-01-04〜。
 0 8 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/fx_rates.py
 
-# TDnet 月次PDF → data/monthly（直近7日分。やのしん登録遅れの拾い直し。既存は skip）
+# TDnet 月次PDF → data/monthly（一覧は TDnet。直近7日分。取りこぼしの拾い直し。既存は skip）
 0 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_r2.py 7
 0 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_r2.py 7
 
@@ -53,8 +53,8 @@ SHELL=/bin/bash
 40 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/ir_monthly_xls_ingest.py --all --post
 40 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/ir_monthly_xls_ingest.py --all --post
 
-# TDnet XBRL ZIP → data/xbrl（当日分・毎時 12–23）
-0 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/tdnet_xbrl_r2.py 1
+# TDnet XBRL ZIP → data/xbrl（一覧は TDnet。前日と当日・毎時 12–23。前日 23 時より後の開示を翌日に拾う）
+0 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/tdnet_xbrl_r2.py 2
 10 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/xbrl_parse.py
 20 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/xbrl_normalize.py
 
