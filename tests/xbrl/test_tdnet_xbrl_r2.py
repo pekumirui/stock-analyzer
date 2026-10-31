@@ -4,14 +4,11 @@ from __future__ import annotations
 import hashlib
 import io
 import json
-import re
 import sys
 import zipfile
 from contextlib import redirect_stdout
 from datetime import date
 from pathlib import Path
-from email.message import Message
-from urllib.error import HTTPError
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -28,8 +25,6 @@ from jobs.xbrl.tdnet_xbrl_r2 import (  # noqa: E402
     dest_path,
     dest_route,
     fetch_xbrl_records,
-    parse_tdnet_list_page,
-    tdnet_list_url,
     load_seen_xbrl_ids,
     part_path,
     pubdate_iso_date,
@@ -144,18 +139,10 @@ def test_unmatched_and_dest_paths() -> None:
 
 
 def test_tdnet_xbrl_id() -> None:
-    zip_url = (
-        "https://webapi.yanoshin.jp/rd.php?"
-        "https://www.release.tdnet.info/inbs/081220260805509698.zip"
-    )
+    zip_url = "https://www.release.tdnet.info/inbs/081220260805509698.zip"
     got = tdnet_xbrl_id(zip_url)
     if got != "081220260805509698":
         _fail(f"zip id from url: {got!r}")
-    if got == "1271048":
-        _fail("used yanoshin numeric id")
-    direct = "https://www.release.tdnet.info/inbs/081220260805509698.zip"
-    if tdnet_xbrl_id(direct) != "081220260805509698":
-        _fail(f"direct inbs zip: {tdnet_xbrl_id(direct)!r}")
     pdf = "https://www.release.tdnet.info/inbs/140120260805509698.pdf"
     if tdnet_xbrl_id(pdf) is not None:
         _fail("pdf url must not yield zip id")
@@ -167,7 +154,7 @@ def test_tdnet_xbrl_id() -> None:
     }
     if xbrl_id_from_record(rec) != "081220260805509698":
         _fail("prefer url_xbrl")
-    rec2 = {"document_url": direct}
+    rec2 = {"document_url": zip_url}
     if xbrl_id_from_record(rec2) != "081220260805509698":
         _fail("document_url .zip")
     rec3 = {"document_url": pdf, "title": "決算短信"}
@@ -179,93 +166,32 @@ def _no_sleep(*_a: object, **_k: object) -> None:
     return None
 
 
-def _tdnet_row(hhmm: str, code: str, name: str, title: str, zip_name: str | None,
-               tr: str = "<tr>") -> str:
-    xbrl = (f'<div class="xbrl-mask"><div class="xbrl-button"><a class="style002" '
-            f'href="{zip_name}">XBRL</a></div></div> ') if zip_name else " "
-    return (f'{tr}\n<td class="oddnew-L kjTime" noWrap>{hhmm}</td>\n'
-            f'<td class="oddnew-M kjCode" noWrap>{code}</td>\n'
-            f'<td class="oddnew-M kjName" noWrap>{name}          </td>\n'
-            f'<td class="oddnew-M kjTitle" align="left"><a href="1401x.pdf" target="_blank">{title}</a></td>\n'
-            f'<td class="oddnew-M kjXbrl" noWrap align="center">{xbrl}</td>\n'
-            f'<td class="oddnew-M kjPlace" noWrap align="left">東       </td>\n</tr>\n')
+def test_fetch_keeps_xbrl_rows_only() -> None:
+    """一覧は jobs/_tdnet.py。XBRL 列のある行だけ、ZIP ID で重複を落として時刻順。"""
+    def row(t: str, code: str, zip_name: str) -> dict:
+        return {"company_code": code, "company_name": "x", "title": "t",
+                "pubdate": f"2026-10-30 {t}:00",
+                "document_url": "https://www.release.tdnet.info/inbs/1401.pdf",
+                "url_xbrl": f"https://www.release.tdnet.info/inbs/{zip_name}" if zip_name else ""}
 
+    listed = [row("16:00", "20000", "081220261030000002.zip"), row("15:30", "10000", "081220261030000001.zip"),
+              row("15:30", "10000", ""), row("16:00", "20000", "081220261030000002.zip")]
+    calls: list[tuple] = []
 
-def _tdnet_page(day: date, n_pages: int, rows: list[str]) -> bytes:
-    pager = "".join(
-        f"<div onClick=\"pagerLink('I_list_{p:03d}_{day:%Y%m%d}.html')\">{p}</div>"
-        for p in range(1, n_pages + 1)
-    )
-    body = (f'<html><body>{pager}<table id="main-list-table">\n'
-            + "".join(rows) + "</table></body></html>")
-    return body.encode("utf-8")
+    def fake_days(start, end, get, sleep_sec):
+        calls.append((start, end))
+        return listed
 
-
-def test_parse_tdnet_list_page() -> None:
-    day = date(2026, 10, 30)
-    text = _tdnet_page(day, 3, [
-        _tdnet_row("15:30", "19440", "きんでん", "2027年３月期 決算短信", "081220261028557709.zip"),
-        _tdnet_row("15:30", "19440", "きんでん", "決算補足資料", None),
-        _tdnet_row("16:00", "42160", "旭有機材",
-                   "新表題 &amp; X</a><BR><s>旧表題</s>", "081220261027556253.zip",
-                   tr='<tr class="hyodaiUpd">'),
-    ]).decode("utf-8")
-    rows, pages = parse_tdnet_list_page(text, day)
-    if pages != {1, 2, 3}:
-        _fail(f"pages {pages}")
-    if len(rows) != 2:
-        _fail(f"XBRL rows only (incl. hyodaiUpd): {rows}")
-    a, b = rows
-    if (a["company_code"], a["company_name"], a["pubdate"]) != ("19440", "きんでん", "2026-10-30 15:30:00"):
-        _fail(f"row a {a}")
-    if a["url_xbrl"] != "https://www.release.tdnet.info/inbs/081220261028557709.zip":
-        _fail(f"url_xbrl {a['url_xbrl']}")
-    if xbrl_id_from_record(a) != "081220261028557709":
-        _fail("xbrl id from tdnet row")
-    if b["title"] != "新表題 & X":
-        _fail(f"title must drop struck old title: {b['title']!r}")
-    empty, pages0 = parse_tdnet_list_page("<html>no table</html>", day)
-    if empty or pages0 != {1}:
-        _fail(f"empty day {empty} {pages0}")
-
-
-def test_fetch_reads_all_pages_and_skips_gone_days() -> None:
-    """1 日ずつ全ページ読む。TDnet が消した日（404）は飛ばし、ほかの例外は上げる。"""
-    d1, d2 = date(2026, 9, 1), date(2026, 10, 30)
-    urls: list[str] = []
-
-    def fake_get(url: str) -> bytes:
-        urls.append(url)
-        if f"_{d1:%Y%m%d}.html" in url:
-            raise HTTPError(url, 404, "Not Found", Message(), None)
-        page = int(re.search(r"I_list_(\d{3})_", url).group(1))
-        return _tdnet_page(d2, 2, [_tdnet_row("15:30", f"1000{page}", "x", "t", f"08122026103000000{page}.zip")])
-
-    buf = io.StringIO()
-    orig_sleep = xbrl_mod.time.sleep
-    xbrl_mod.time.sleep = _no_sleep
+    orig = xbrl_mod.tdnet_list.fetch_days
+    xbrl_mod.tdnet_list.fetch_days = fake_days
     try:
-        with redirect_stdout(buf):
-            rows = fetch_xbrl_records(d1, d1, get=fake_get) + fetch_xbrl_records(d2, d2, get=fake_get)
+        rows = fetch_xbrl_records(date(2026, 10, 29), date(2026, 10, 30), get=lambda u: b"")
     finally:
-        xbrl_mod.time.sleep = orig_sleep
-    if urls != [tdnet_list_url(d1), tdnet_list_url(d2), tdnet_list_url(d2, 2)]:
-        _fail(f"urls {urls}")
-    ids = sorted(r["_xbrl_id"] for r in rows)
-    if ids != ["081220261030000001", "081220261030000002"]:
-        _fail(f"ids {ids}")
-    if "warn list gone 2026-09-01" not in buf.getvalue():
-        _fail(f"missing gone warn: {buf.getvalue()!r}")
-
-    def boom(url: str) -> bytes:
-        raise HTTPError(url, 500, "err", Message(), None)
-
-    try:
-        fetch_xbrl_records(d2, d2, get=boom)
-    except HTTPError:
-        pass
-    else:
-        _fail("non-404 must raise")
+        xbrl_mod.tdnet_list.fetch_days = orig
+    if calls != [(date(2026, 10, 29), date(2026, 10, 30))]:
+        _fail(f"calls {calls}")
+    if [r["_xbrl_id"] for r in rows] != ["081220261030000001", "081220261030000002"]:
+        _fail(f"rows {rows}")
 
 def test_corrupt_zip_not_promoted(tmp: Path) -> None:
     dest = tmp / "corrupt"
@@ -523,8 +449,7 @@ def main() -> None:
     test_to_code4()
     test_unmatched_and_dest_paths()
     test_tdnet_xbrl_id()
-    test_parse_tdnet_list_page()
-    test_fetch_reads_all_pages_and_skips_gone_days()
+    test_fetch_keeps_xbrl_rows_only()
     test_date_window()
     test_http_get_uses_job_ua_then_browser()
     with TemporaryDirectory() as d:

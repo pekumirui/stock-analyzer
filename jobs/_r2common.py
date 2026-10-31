@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import base64
 import errno
-import json
 import os
 import random
 import re
@@ -390,36 +389,6 @@ def yyyymmdd_from_pubdate(pubdate: str) -> str:
     if len(digits) == 8:
         return digits
     raise ValueError(f"unusable pubdate: {pubdate!r}")
-
-
-def parse_list_body(text: str) -> list[dict]:
-    text = (text or "").strip()
-    if not text:
-        return []
-    if text[0] not in "{[":
-        left = text.find("(")
-        right = text.rfind(")")
-        if left != -1 and right > left:
-            text = text[left + 1 : right]
-    data = json.loads(text)
-    items = data.get("items") if isinstance(data, dict) else data
-    if not isinstance(items, list):
-        return []
-    out: list[dict] = []
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        inner = None
-        for key in ("Tdnet", "TDnet", "tdnet"):
-            cand = item.get(key)
-            if isinstance(cand, dict):
-                inner = cand
-                break
-        if inner is None and ("title" in item or "document_url" in item):
-            inner = item
-        if inner:
-            out.append(inner)
-    return out
 
 
 def _der_len(buf: bytes, i: int) -> tuple[int, int]:

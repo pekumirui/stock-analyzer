@@ -8,14 +8,13 @@ N は今日(JST)から遡る日数（当日を含む）。ネットワークと 
 
 skip の正本は dest/manifest/{YYYY-MM-DD}.jsonl の xbrl_id。ファイル名や .part は skip に使わない。
 マスタ無し・インフラは落とさず _unmatched/ へ置く（TDnet の約30日保持）。
-一覧は TDnet の開示一覧（I_list_NNN_YYYYMMDD.html）の XBRL 列（KAB-294。以前は yanoshin）。
+一覧は TDnet の開示一覧の XBRL 列（jobs/_tdnet.py。KAB-294）。
 ZIP URL は list の url_xbrl、または .zip の document_url。取れなければその開示は skip する。
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
-import html
 import json
 import re
 import sys
@@ -26,7 +25,6 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import TypedDict
-from urllib.error import HTTPError
 from zoneinfo import ZoneInfo
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -36,6 +34,7 @@ if str(REPO_ROOT) not in sys.path:
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
+from jobs import _tdnet as tdnet_list  # noqa: E402
 from jobs._r2common import (  # noqa: E402
     abort_if_disconnected,
     date_window,
@@ -49,7 +48,7 @@ from app.config import XBRL_DEST  # noqa: E402
 
 JST = ZoneInfo("Asia/Tokyo")
 DEFAULT_DEST = XBRL_DEST
-ZIP_BASE = "https://www.release.tdnet.info/inbs"
+ZIP_BASE = tdnet_list.TDNET_BASE
 USER_AGENT = "stock-analyzer-tdnet-xbrl/1.0"
 SLEEP_SEC = 0.4
 HTTP_TIMEOUT = 30.0
@@ -60,12 +59,6 @@ NOCODE_DIR = "_nocode"
 _INBS_ZIP_RE = re.compile(r"/inbs/([0-9A-Za-z]+)\.zip", re.I)
 _ZIP_NAME_RE = re.compile(r"([0-9A-Za-z]+)\.zip(?:\?|$)", re.I)
 _CODE4_HEAD_RE = re.compile(r"^[0-9][0-9A-Z]{3}$")
-_TDNET_PAGE_RE = re.compile(r"I_list_(\d{3})_\d{8}\.html")
-_TR_RE = re.compile(r"<tr[^>]*>(.*?)</tr>", re.S | re.I)
-_STRIKE_RE = re.compile(r"<s>.*?</s>", re.S | re.I)
-_TD_RE = re.compile(r'<td class="[^"]*\b(kj[A-Za-z]+)"[^>]*>(.*?)</td>', re.S | re.I)
-_HREF_ZIP_RE = re.compile(r'href="([0-9A-Za-z]+\.zip)"', re.I)
-_TAG_RE = re.compile(r"<[^>]+>")
 _NON_SQLITE_UNMATCHED = "warn stocks db not sqlite; infra unmatched uses company_name only"
 
 # Infra funds share ProdCat 013/022 with REITs; J-Quants has no dedicated category.
@@ -256,7 +249,7 @@ def part_path(final: Path) -> Path:
 
 
 def tdnet_xbrl_id(url: str) -> str | None:
-    """TDnet の inbs ZIP ID。やのしん numeric id は使わない。"""
+    """TDnet の inbs ZIP ID。"""
     if not url:
         return None
     m = _INBS_ZIP_RE.search(url)
@@ -281,75 +274,14 @@ def http_get(url: str, timeout: float = HTTP_TIMEOUT) -> bytes:
     return _http_get(url, timeout=timeout, user_agent=USER_AGENT)
 
 
-def tdnet_list_url(day: date, page: int = 1) -> str:
-    return f"{ZIP_BASE}/I_list_{page:03d}_{day:%Y%m%d}.html"
-
-
-def _cell_text(html_text: str) -> str:
-    return html.unescape(_TAG_RE.sub("", html_text)).strip()
-
-
-def parse_tdnet_list_page(text: str, day: date) -> tuple[list[dict], set[int]]:
-    """TDnet の開示一覧 1 ページ → (XBRL のある行, ページ番号)。
-
-    行のキーは company_code / company_name / title / pubdate / url_xbrl。
-    表が無い（開示ゼロの日）なら ([], {1})。
-    """
-    pages = {int(n) for n in _TDNET_PAGE_RE.findall(text) if n} or {1}
-    rows: list[dict] = []
-    i = text.find('id="main-list-table"')
-    if i < 0:
-        return rows, pages
-    for tr in _TR_RE.findall(text[i:]):
-        cells = dict(_TD_RE.findall(tr))
-        zm = _HREF_ZIP_RE.search(cells.get("kjXbrl", ""))
-        if not zm:
-            continue
-        hhmm = _cell_text(cells.get("kjTime", ""))
-        rows.append({
-            "company_code": _cell_text(cells.get("kjCode", "")),
-            "company_name": _cell_text(cells.get("kjName", "")),
-            # 表題変更の行は旧表題を <s> で並べる
-            "title": _cell_text(_STRIKE_RE.sub("", cells.get("kjTitle", ""))),
-            "pubdate": f"{day.isoformat()} {hhmm}:00" if hhmm else f"{day.isoformat()} 00:00:00",
-            "url_xbrl": f"{ZIP_BASE}/{zm.group(1)}",
-        })
-    return rows, pages
-
-
-def fetch_tdnet_day(day: date, getter: Callable[[str], bytes]) -> list[dict]:
-    """TDnet の開示一覧を全ページ読む。TDnet は約 1 か月分しか置かない（それより前は 404）。"""
-    first = getter(tdnet_list_url(day)).decode("utf-8", errors="replace")
-    time.sleep(SLEEP_SEC)
-    rows, pages = parse_tdnet_list_page(first, day)
-    for page in sorted(pages - {1}):
-        text = getter(tdnet_list_url(day, page)).decode("utf-8", errors="replace")
-        time.sleep(SLEEP_SEC)
-        rows.extend(parse_tdnet_list_page(text, day)[0])
-    return rows
-
-
 def fetch_xbrl_records(
     start: date,
     end: date,
     get: Callable[[str], bytes] | None = None,
 ) -> list[dict]:
-    """1 日ずつ TDnet の開示一覧を読む（KAB-294）。
-
-    yanoshin は TDnet をまとめて写すので、15:30 以降の開示が夜まで載らない日があった。
-    TDnet は約 1 か月で一覧も ZIP も消す（404）。その日は飛ばす。
-    """
+    """TDnet の開示一覧から XBRL 列のある行を取る（jobs/_tdnet.py。404 の日は飛ばす）。"""
     getter = http_get if get is None else get
-    out: list[dict] = []
-    cur = start
-    while cur <= end:
-        try:
-            out.extend(fetch_tdnet_day(cur, getter))
-        except HTTPError as e:
-            if e.code != 404:
-                raise
-            print(f"warn list gone {cur.isoformat()}: TDnet keeps about a month", flush=True)
-        cur += timedelta(days=1)
+    out = [r for r in tdnet_list.fetch_days(start, end, getter, SLEEP_SEC) if r.get("url_xbrl")]
     rows: list[dict] = []
     seen_ids: set[str] = set()
     for rec in out:
