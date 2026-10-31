@@ -174,6 +174,8 @@ CREATE TABLE xbrl_filings (
 );
 CREATE INDEX idx_xbrl_filings_code ON xbrl_filings(code, submitted_at);
 CREATE INDEX idx_xbrl_filings_parse_status ON xbrl_filings(parse_status);
+CREATE INDEX idx_xbrl_filings_id_cover
+    ON xbrl_filings(id, parse_status, source, doc_id, submitted_at);
 
 CREATE TABLE xbrl_elements (
     id              INTEGER PRIMARY KEY,
@@ -263,8 +265,9 @@ CREATE TABLE xbrl_financials (
     generated_at        TEXT NOT NULL,
     UNIQUE (filing_id, std_item_id, is_consolidated, period_end, value_kind, range_side, target_period)
 );
-CREATE INDEX idx_xbrl_financials_lookup
-    ON xbrl_financials(code, std_item_id, is_consolidated, period_end, value_kind);
+CREATE INDEX idx_xbrl_financials_gp_cover
+    ON xbrl_financials(code, std_item_id, value_kind, is_consolidated,
+                       period_start, period_end, value, filing_id);
 
 CREATE TABLE xbrl_job_runs (
     id              INTEGER PRIMARY KEY,
@@ -287,6 +290,7 @@ CREATE TABLE xbrl_job_runs (
 - **マッピングは element_id ではなく `namespace_key + local_name`**: 年度で `namespace_uri` が変わる。element 行が増えても YAML を書き換えなくてよい。
 - **金額は float にしない**: 既存の `statements` は Float だが、生 fact は `NUMERIC`（Decimal）。正規化層も同様。
 - **容量**: 全 fact を数年分入れると行数が大きくなり得る。第1弾は同一 DB。膨らんだら `xbrl_*.db` への分離を検討（今は作らない）。
+- **決算一覧の売上総利益**: `idx_xbrl_financials_gp_cover`（code, std_item_id, value_kind, … value, filing_id）と `idx_xbrl_filings_id_cover` で表本体を読まない（KAB-295）。旧 `idx_xbrl_financials_lookup` は先頭 2 列が同じなので `ensure_indexes` が外す。統計が無いと planner が parse_status 経由になるので、索引を足した表は ANALYZE する。
 - **source**: `tdnet`（短信 ZIP。`doc_id` は ZIP 名）、`edinet`（有報・半期報）、`tdnet_pdf`（ZIP の無い短信 PDF。`doc_id` は開示番号 14 桁。`raw_path` は `tdnet_pdf:<開示番号>`。KAB-173、§16.5）。同じ 14 桁の `tdnet` が `parse_status='parsed'` になったら `tdnet_pdf` の filing は消す。`failed` / `no-ixbrl` の ZIP は消さない。
 
 ---

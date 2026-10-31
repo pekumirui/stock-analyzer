@@ -275,6 +275,12 @@ class XbrlFiling(Base):
         UniqueConstraint("source", "doc_id", name="uq_xbrl_filings_source_doc"),
         Index("idx_xbrl_filings_code_submitted", "code", "submitted_at"),
         Index("idx_xbrl_filings_parse_status", "parse_status"),
+        # 決算一覧の売上総利益。id 引きのあと source / doc_id / submitted_at / parse_status
+        # を表本体から読まない (KAB-295)
+        Index(
+            "idx_xbrl_filings_id_cover",
+            "id", "parse_status", "source", "doc_id", "submitted_at",
+        ),
     )
 
 
@@ -444,9 +450,13 @@ class XbrlFinancial(Base):
             "value_kind", "range_side", "target_period",
             name="uq_xbrl_financials_key",
         ),
+        # 決算一覧の売上総利益。code / std_item_id / value_kind で引き、表本体を読まない (KAB-295)
+        # 旧 idx_xbrl_financials_lookup (code, std_item_id, is_consolidated, period_end, value_kind)
+        # は先頭 2 列が同じなので ensure_indexes が外す
         Index(
-            "idx_xbrl_financials_lookup",
-            "code", "std_item_id", "is_consolidated", "period_end", "value_kind",
+            "idx_xbrl_financials_gp_cover",
+            "code", "std_item_id", "value_kind", "is_consolidated",
+            "period_start", "period_end", "value", "filing_id",
         ),
     )
 
