@@ -1,0 +1,54 @@
+name: Wiki
+
+# リポジトリ内 Markdown を MkDocs でビルドし、Cloudflare Pages へ Direct Upload する。
+# 既存の CI/CD（self-hosted / メモリ 4GB）には載せない。
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.md"
+      - "mkdocs.yml"
+      - "requirements-wiki.txt"
+      - "tools/wiki/**"
+      - ".github/workflows/wiki.yml"
+      - ".wiki-docs/.gitkeep"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wiki-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-wiki.txt
+
+      - name: Install
+        run: pip install -r requirements-wiki.txt
+
+      - name: Build
+        run: mkdocs build --strict
+
+      - name: Skip deploy (secrets unset)
+        if: env.CLOUDFLARE_API_TOKEN == '' || env.CLOUDFLARE_ACCOUNT_ID == '' || env.CLOUDFLARE_PAGES_PROJECT == ''
+        run: echo "::warning::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_PAGES_PROJECT が未設定のため Pages デプロイをスキップします"
+
+      - name: Deploy
+        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_ACCOUNT_ID != '' && env.CLOUDFLARE_PAGES_PROJECT != ''
+        run: npx --yes wrangler@4 pages deploy site --project-name="$CLOUDFLARE_PAGES_PROJECT" --commit-dirty=true

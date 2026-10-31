@@ -1,0 +1,53 @@
+site_name: 株式分析ツール wiki
+site_description: リポジトリ内 Markdown の閲覧用（元ファイルの配置は動かさない）
+docs_dir: .wiki-docs
+site_dir: site
+use_directory_urls: true
+
+theme:
+  name: material
+  language: ja
+  features:
+    - navigation.expand
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.suggest
+    - toc.follow
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: ダークモード
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: ライトモード
+
+plugins:
+  - search:
+      lang: ja
+
+hooks:
+  - tools/wiki/mkdocs_hook.py
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+
+# 絶対パス（/app など）とアンカー不足は元 md の書き方のまま。
+# md 同士の相対リンクは配置を保って解決する。解決できないリンクは警告＝ --strict で失敗。
+validation:
+  omitted_files: warn
+  absolute_links: ignore
+  unrecognized_links: warn
+  anchors: ignore
