@@ -77,7 +77,7 @@
 
 パースが読むのは `data/xbrl`。FUSE `/home/stock/r2-share` は残置（ジョブの dest ではない）。
 
-3 ジョブは独立して再実行できる。
+3 ジョブは独立して再実行できる。cron は毎時 :00 に (1)→(2)→(3) を 1 行で続けて走らせるが、各スクリプトは今までどおり単独で呼べる。
 
 | ジョブ | 実装 | 責務 |
 |---|---|---|
@@ -430,7 +430,7 @@ manifest の `title` から機械判定する。取りこぼしは `other` / NUL
 
 仕様の正本は `jobs/xbrl/tdnet_xbrl_r2.py` の docstring。本設計では変えない。
 
-- 入力: 日数 N（cron は 1）
+- 入力: 日数 N（cron は 2。前日と当日。前日 23 時より後の開示を翌日に拾う）
 - 出力: `{dest}/{code4}/YYYYMMDD_..._{xbrl_id}.zip` と `manifest/{YYYY-MM-DD}.jsonl`
 - skip 正本は lookback 内 manifest の `xbrl_id`
 - マスタ無し・インフラは `_unmatched/` に保存（消さない）
@@ -507,7 +507,7 @@ python jobs/xbrl/xbrl_normalize.py --rebuild --code 72030
 
 dest 既定は `tdnet_xbrl_r2.DEFAULT_DEST`。`--dest` で上書き。
 
-cron は 12–23 時 JST に毎時 `fetch :00` → `parse :10` → `normalize :20`。短信 PDF の数値（§16.5）は cron に無い。normalize は未反映と再パース分だけ（マッピング変更は `--rebuild`）。
+cron は 12–23 時 JST の毎時 :00 に fetch → parse → normalize を 1 行で順に走らせる（段の間は `;`。fetch が失敗しても parse / normalize は走らせる。手元の未解析 ZIP を拾う）。:10 / :20 の単独 cron は置かない（次の毎時の連鎖が拾う。手でやり直すときは各ジョブを `deploy/cron-run.sh` で単独実行）。短信 PDF の数値（§16.5）は cron に無い。normalize は未反映と再パース分だけ（マッピング変更は `--rebuild`）。
 
 ---
 
@@ -695,7 +695,7 @@ XBRL_PARSE_WORKERS=2
 6. normalize + `--rebuild`
 7. `report-unmapped` を実行し上位要素を報告（マッピング追加は確認後）
 8. テスト
-9. cron は 12–23 時 JST の毎時 fetch / parse+10分 / normalize+20分
+9. cron は 12–23 時 JST の毎時 :00 に fetch → parse → normalize を続けて走らせる
 
 フロント・`statements` 置換・EDINET はこのリストの外。
 
