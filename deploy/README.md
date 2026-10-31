@@ -336,6 +336,25 @@ tail -n 50 /var/log/app/backup_db.log
 
 ログに `offsite ok daily` と `pruned ... offsite=ok` があり、VPS の `daily/` が直近 1 件、OneDrive に今日のファイルがあること。`fail backup_db:` や `offsite skipped` なら送信側を見る。VPS の古い世代が残っていれば、成功するまで消さない。
 
+### daily_prices を WITHOUT ROWID に作り直す（一度だけ・KAB-289）
+
+rowid 表の `daily_prices` は日ごとに全銘柄を追記するので、1 銘柄の行が表全体に散り、チャートなど銘柄ごとの読み出しがページのランダム読みになる。`WITHOUT ROWID` は行を (code, date) 順に置く。新しい DB はモデルのとおり最初から `WITHOUT ROWID`。本番の既存 DB は `jobs/ops/rebuild_daily_prices.py` を一度だけ手で流す。デプロイの `migrate.py` は作り直さない。アプリはどちらの形でも動く。
+
+- 作り直しは 1 トランザクション。コピーの間は書き込みロックを握るので、他のライター（cron のバッチ・月次 PUT）は `busy_timeout` のあと失敗しうる。読み取り（API）は WAL なので止まらない
+- 流す時間: 書き込みジョブの少ない夜中。00:15 の `edinet_archive` が終わったあと（00:30 ごろ）に始める。19:30 の日次バッチと重ねない
+- 先に `jobs/ops/backup_db.py` でバックアップを取る
+- ディスクは表の約 3 倍（新しい表と WAL）を一時的に使う。足りなければジョブが止まる（引数なしで見積もりだけ出る）
+- DB ファイルは縮まない（空いたページは次の書き込みで使われる）
+
+```bash
+cd /home/stock/stock-analyzer
+deploy/cron-run.sh jobs/ops/backup_db.py
+.venv/bin/python jobs/ops/rebuild_daily_prices.py          # 見積もりだけ
+deploy/cron-run.sh jobs/ops/rebuild_daily_prices.py --yes   # 作り直す。MCP batch_logs job=rebuild_daily_prices で読める
+```
+
+2 回目は「既に WITHOUT ROWID です」で何もしない。
+
 ### TDnet 月次 PDF の未投入レポート（読み取り専用）
 
 前回と同じ書式の PDF は次の節の cron が入れる。残りは MCP `monthly_ingest` の手作業。`data/monthly` の PDF と `monthly_values` の差は、VPS 上のスクリプトで見る（MCP ツールは足さない。cron にも載せない）。
