@@ -13,6 +13,7 @@
 | SQLite バックアップ | `docs/DESIGN_backup.md` |
 | VPS・MCP・共有データ（`data/`）の運用 | `deploy/README.md` |
 | 利用者向け手順・コマンド | `README.md` |
+| Markdown wiki（MkDocs / Cloudflare Pages） | `docs/wiki-setup.md` |
 
 ## 環境構築
 
