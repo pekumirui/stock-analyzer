@@ -63,7 +63,6 @@
   input,select { background:var(--panel); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:14px; }
   button.btn { background:var(--accent); border:none; color:#fff; border-radius:6px; padding:6px 12px; cursor:pointer; }
   #chart { width:100%; }
-  #chart-range .ftab { padding:5px 9px; }
   .chart-nav { margin-top:4px; touch-action:pan-y; user-select:none; -webkit-user-select:none; }
   .chart-nav canvas { display:block; }
   .chart-legend { position:absolute; top:4px; left:6px; z-index:3; pointer-events:none; font-size:12px; line-height:1.5;

@@ -27,18 +27,16 @@ const out = {
   // 年をまたぐ ISO 週（2026-12-31 木 と 2027-01-01 金 は同じ週）
   isoWeek: [c.chartWeekKey("2026-12-28"), c.chartWeekKey("2027-01-03"), c.chartWeekKey("2027-01-04")],
   sma: c.chartSma([1, 2, 3, 4], 3),
-  maLen: [c.chartMaLen(50, "D"), c.chartMaLen(50, "W"), c.chartMaLen(50, "M"), c.chartMaLen(10, "M")],
+  maLen: [c.chartMaLen(50, "D"), c.chartMaLen(50, "W"), c.chartMaLen(50, "M"), c.chartMaLen(30, "M"), c.chartMaLen(200, "Y"), c.chartMaLen(500, "Y")],
   mas: c.chartParseMas(" 50, 150,x,0,50 ,200"),
   spikes: c.chartSpikes(many).map((x, i) => x ? i : -1).filter(i => i >= 0),
   rel: [...c.chartRelative(daily, topix)],
   swings: c.chartSwings([5, 6, 9, 7, 6, 8, 12, 10, 9, 9], [4, 5, 8, 6, 5, 7, 11, 9, 8, 8], 0, 9, 2),
   swingsEdge: c.chartSwings([3, 2, 1], [3, 2, 1], 0, 2, 5),
   hl: [c.chartHlText("2026-08-13", 26020, false), c.chartHlText("2025-01-30", 2821.5, true)],
-  pick: [c.chartPickTf(tf => c.chartBars(daily, tf), "2026-08-17", "2026-09-01", 24),
-         c.chartPickTf(tf => c.chartBars(daily, tf), "2026-08-17", "2026-09-01", 12),
-         c.chartPickTf(tf => c.chartBars(daily, tf), "2026-08-17", "2026-09-01", 4)],
-  before: [c.chartMonthsBefore("2026-03-31", 1), c.chartMonthsBefore("2026-10-16", 6),
-           c.chartMonthsBefore("2026-10-16", 12), c.chartMonthsBefore("2026-10-16", -3)],
+  year: c.chartBars(daily, "Y"),
+  latest: [c.chartLatestSpan(daily, c.chartBars(daily, "W"), 2), c.chartLatestSpan(daily, daily, 99)],
+  around: c.chartSpanAround(daily, daily, "2026-08-21", 3),
   qty: [c.chartQty(800, "株"), c.chartQty(25007500, "株"), c.chartQty(77110432900, "円"), c.chartQty(1.5e12, "円")],
   price: [c.chartPrice(2821.5), c.chartPrice(3094), c.chartPrice(null)],
   fund: c.chartFundDaily({
@@ -73,7 +71,7 @@ def test_chart_core_bars_and_indicators() -> None:
     assert o["isoWeek"][0] == o["isoWeek"][1] != o["isoWeek"][2]
     # 移動平均は窓が埋まるまで null。日数は週=÷5、月=÷20 の本数
     assert o["sma"] == [None, None, 2, 3]
-    assert o["maLen"] == [50, 10, 2, 1]
+    assert o["maLen"] == [50, 10, 2, 0, 0, 2]  # 2 本に満たなければ引かない
     assert o["mas"] == [50, 150, 200]
     # 直前 20 本の平均の 2 倍以上
     assert o["spikes"] == [22]
@@ -85,9 +83,10 @@ def test_chart_core_bars_and_indicators() -> None:
     assert o["swings"] == {"highs": [2, 6], "lows": [0, 4, 8]}
     assert o["swingsEdge"] == {"highs": [0], "lows": [2]}
     assert o["hl"] == ["8/13 26,020", "25/1/30 2,821.5"]
-    # 期間を幅に出すとき 1 本が 4px 以上になる一番細かい足（日足 6 本・週足 3 本）
-    assert o["pick"] == ["D", "W", "M"]
-    assert o["before"] == ["2026-02-28", "2026-04-16", "2025-10-16", "2027-01-16"]
+    assert o["year"]["t"] == ["2026-09-01"] and o["year"]["o"] == [2980] and o["year"]["v"] == [4200]
+    # 最新の n 本。先頭は足の期間の初日（週足の 2 本目は 8/24 の週から）
+    assert o["latest"] == [["2026-08-24", "2026-09-01"], ["2026-08-17", "2026-09-01"]]
+    assert o["around"] == ["2026-08-18", "2026-08-24"]
     assert o["qty"] == ["800株", "2,500.8万株", "771.1億円", "1.5兆円"]
     assert o["price"] == ["2,821.5", "3,094", "–"]
     # 業績の階段を日足にそろえる。使い始める日より前は null、予想EPS・営業利益が 0 以下なら倍率を出さない

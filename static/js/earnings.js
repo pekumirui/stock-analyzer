@@ -119,7 +119,7 @@ function chartMaybe(code, signal){
   return chartDaily(code, signal).catch(e => { if(e.name === "AbortError") throw e; return null; });
 }
 
-// #e-chart は銘柄タブの株価と同じ部品（chart-core.js）。直近 6 か月、発表日がそれより前なら前後 3 か月
+// #e-chart は銘柄タブの株価と同じ部品（chart-core.js）。日足の最新、発表日がそれより前なら発表日を真ん中に
 let eChart = null;
 function dropEChart(){
   if(eChart){ eChart.destroy(); eChart = null; }
@@ -129,9 +129,8 @@ function drawEChart(ch, mark){
   if(!ch){ dropEChart(); $("#e-chart").innerHTML = `<div class="sub">株価データなし</div>`; return; }
   if(!eChart) eChart = createStockChart($("#e-chart"), {height: 320});
   eChart.setData(ch, {mark});
-  const t = ch.t, from = chartMonthsBefore(t[t.length - 1], 6);
-  if(mark && mark < from) eChart.showAround(mark, 3);
-  else eChart.showRange("6M");
+  if(mark && !eChart.latestHas(mark)) eChart.showAround(mark);
+  else eChart.showLatest();
 }
 let earnDay="", earnToday="";
 let earnSector="", earnChipsOpen=false, earnView="cum";

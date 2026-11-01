@@ -3,9 +3,9 @@
 
 // ---- 足と指標（DOM に触らない。tests/market/test_chart_core_js.py が node で呼ぶ） ----
 
-const CHART_TF_DAYS = {D: 1, W: 5, M: 20};  // 移動平均の日数 → 本数（週=÷5、月=÷20）
-const CHART_WIDE = 4;   // 期間を出すとき 1 本がこれ以上の幅になる一番細かい足を選ぶ (px)
-const CHART_RANGE_MONTHS = {"1M": 1, "3M": 3, "6M": 6, "1Y": 12, "3Y": 36, "5Y": 60, "ALL": 0};
+const CHART_TF_DAYS = {D: 1, W: 5, M: 20, Y: 250};  // 移動平均の日数 → 本数（週=÷5、月=÷20、年=÷250）
+const CHART_TF_NAMES = {D: "日足", W: "週足", M: "月足", Y: "年足"};
+const CHART_BAR_PX = 6;  // 足を選んだときは 1 本がこの幅になるだけ最新の足を出す
 
 const chartTs = iso => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 1000;
 
@@ -16,10 +16,10 @@ function chartWeekKey(iso){
   return d.toISOString().slice(0, 10);
 }
 
-// 日足 {t,o,h,l,c,v,tv} → 足。週足は ISO 週、月足は暦月。足の日付は期間の最終営業日
+// 日足 {t,o,h,l,c,v,tv} → 足。週足は ISO 週、月足は暦月、年足は暦年。足の日付は期間の最終営業日
 function chartBars(daily, tf){
   if(tf === "D") return daily;
-  const keyOf = tf === "W" ? chartWeekKey : (t => t.slice(0, 7));
+  const keyOf = tf === "W" ? chartWeekKey : tf === "M" ? (t => t.slice(0, 7)) : (t => t.slice(0, 4));
   const out = {t: [], o: [], h: [], l: [], c: [], v: [], tv: []};
   let key = null, n = -1;
   for(let i = 0; i < daily.t.length; i++){
@@ -39,7 +39,8 @@ function chartBars(daily, tf){
   return out;
 }
 
-const chartMaLen = (days, tf) => Math.max(1, Math.floor(days / CHART_TF_DAYS[tf]));
+// 移動平均の本数。2 本に満たなければ 0（線を引かない）
+const chartMaLen = (days, tf) => { const n = Math.floor(days / CHART_TF_DAYS[tf]); return n >= 2 ? n : 0; };
 
 function chartParseMas(text){
   return [...new Set(String(text || "").split(",").map(x => parseInt(x.trim(), 10)).filter(x => x > 0))];
@@ -82,24 +83,25 @@ function chartRelative(daily, topix){
   return out;
 }
 
-// t（昇順）のうち from 以上 to 以下の本数
-function chartCountIn(t, from, to){
-  const lo = lowerBound(t, from), hi = lowerBound(t, to + "~");
-  return Math.max(0, hi - lo);
-}
 function lowerBound(a, x){
   let lo = 0, hi = a.length;
   while(lo < hi){ const m = (lo + hi) >> 1; if(a[m] < x) lo = m + 1; else hi = m; }
   return lo;
 }
 
-// 期間 [from, to] を幅 width px に出すとき、1 本が CHART_WIDE 以上になる一番細かい足
-function chartPickTf(barsByTf, from, to, width){
-  for(const tf of ["D", "W"]){
-    const n = chartCountIn(barsByTf(tf).t, from, to);
-    if(n === 0 || width / n >= CHART_WIDE) return tf;
-  }
-  return "M";
+// 最新の n 本の足を出す期間 [from, to]（日足の日付）。from は先頭の足の期間の初日
+function chartLatestSpan(daily, bars, n){
+  const t = bars.t, i = Math.max(0, t.length - n);
+  return [chartSpanStart(daily, bars, i), t[t.length - 1]];
+}
+// iso を真ん中にした n 本の期間。右端を越えるなら最新に寄せる
+function chartSpanAround(daily, bars, iso, n){
+  const t = bars.t, last = t.length - 1;
+  const z = Math.min(last, Math.max(0, lowerBound(t, iso)) + Math.floor(n / 2)), a = Math.max(0, z - n + 1);
+  return [chartSpanStart(daily, bars, a), t[z]];
+}
+function chartSpanStart(daily, bars, i){
+  return i > 0 ? daily.t[Math.min(daily.t.length - 1, lowerBound(daily.t, bars.t[i - 1] + "~"))] : daily.t[0];
 }
 
 // 業績の階段 fund {t, eps, op_q, op_ttm} を日足の日付にそろえる（t 以降、次の点まで同じ値）。
@@ -161,13 +163,6 @@ function chartSwings(h, l, a, b, k){
 function chartHlText(iso, v, long){
   const d = `${+iso.slice(5, 7)}/${+iso.slice(8, 10)}`;
   return `${long ? iso.slice(2, 4) + "/" : ""}${d} ${chartPrice(v)}`;
-}
-
-// YYYY-MM-DD から months か月前（月末は丸める）
-function chartMonthsBefore(iso, months){
-  const y = +iso.slice(0, 4), m = +iso.slice(5, 7) - 1 - months, d = +iso.slice(8, 10);
-  const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
-  return new Date(Date.UTC(y, m, Math.min(d, last))).toISOString().slice(0, 10);
 }
 
 // 値の書き方。株価は小数 1 桁まで、株数と円は 万・億
@@ -271,7 +266,7 @@ function fillEventToggles(){
 }
 
 // ---- チャート ----
-// el に作る。opt: {height（業績の段・対TOPIX を出すとそのぶん高くする）, onTf(tf), onRange(key|null)}。onTf は足が変わったとき、onRange は期間のバーを手で動かしたとき null
+// el に作る。opt: {height（業績の段・対TOPIX を出すとそのぶん高くする）}
 function createStockChart(el, opt = {}){
   const LW = LightweightCharts;
   const th = chartTheme();
@@ -303,7 +298,7 @@ function createStockChart(el, opt = {}){
   const baseHeight = opt.height || 420;
   el.style.height = baseHeight + "px";
 
-  const st = {daily: null, byTf: {}, rel: null, tf: "D", mode: "A", mas: [50, 150, 200], sub: "v",
+  const st = {daily: null, byTf: {}, rel: null, tf: "D", mas: [50, 150, 200], sub: "v",
               log: false, relOn: false, topix: null, mark: null, bars: null, idx: new Map(),
               fund: "", band: false, hl: true, fd: null, dIdx: new Map(), win: null};
   const barsOf = tf => st.byTf[tf] || (st.byTf[tf] = chartBars(st.daily, tf));
@@ -370,7 +365,7 @@ function createStockChart(el, opt = {}){
       const c = CHART_MA_COLORS[i % CHART_MA_COLORS.length];
       const s = chart.addSeries(LW.LineSeries, {color: th[c] || c, lineWidth: 1, priceLineVisible: false,
         lastValueVisible: false, crosshairMarkerVisible: false, title: `MA${w}`, autoscaleInfoProvider: () => null}, 0);
-      const ma = chartSma(st.bars.c, chartMaLen(w, st.tf));
+      const len = chartMaLen(w, st.tf), ma = len ? chartSma(st.bars.c, len) : [];
       const pts = [];
       for(let k = 0; k < ma.length; k++) if(ma[k] != null) pts.push({time: chartTs(st.bars.t[k]), value: ma[k]});
       s.setData(pts);
@@ -459,7 +454,7 @@ function createStockChart(el, opt = {}){
       const d = b.c[i] - prev, cls = d > 0 ? "up" : d < 0 ? "down" : "";
       chg = ` <span class="${cls}">${d > 0 ? "+" : ""}${chartPrice(d)} (${d > 0 ? "+" : ""}${(d / prev * 100).toFixed(2)}%)</span>`;
     }
-    const tfName = {D: "日足", W: "週足", M: "月足"}[st.tf];
+    const tfName = CHART_TF_NAMES[st.tf];
     legend.innerHTML = `<span class="sub">${b.t[i].replaceAll("-", "/")} ${tfName}</span> `
       + `始 ${chartPrice(b.o[i])} 高 ${chartPrice(b.h[i])} 安 ${chartPrice(b.l[i])} 終 <b>${chartPrice(b.c[i])}</b>${chg}`
       + `<br>出来高 ${chartQty(b.v[i], "株")} 売買代金 ${chartQty(b.tv[i], "円")}`
@@ -482,20 +477,18 @@ function createStockChart(el, opt = {}){
     candle.setData(b.t.map((t, i) => ({time: chartTs(t), open: b.o[i], high: b.h[i], low: b.l[i], close: b.c[i]})));
     drawMas(); drawBand(); drawSub(); drawExtra(); drawMarkers(); drawLegend();
     if(st.win) setRange(st.win.from, st.win.to);
-    if(opt.onTf) opt.onTf(tf);
   }
 
   chart.subscribeCrosshairMove(p => drawLegend(p && p.time != null ? st.idx.get(p.time) : null));
 
-  // 期間 [from, to] を幅いっぱいに出す。足が自動なら期間から足を選ぶ。user は期間のバーを手で動かしたとき
-  function showSpan(from, to, user){
+  // 期間 [from, to] を幅いっぱいに出す
+  function showSpan(from, to){
     st.win = {from, to};
-    const tf = st.mode === "A" ? chartPickTf(barsOf, from, to, width()) : st.mode;
-    if(tf !== st.tf) applyTf(tf);
-    else { setRange(from, to); drawMarkers(); }
+    setRange(from, to);
+    drawMarkers();
     nav.draw();
-    if(user && opt.onRange) opt.onRange(null);
   }
+  const latestCount = () => Math.max(20, Math.floor(width() / CHART_BAR_PX));
 
   // ---- 期間のバー（チャートの下。全期間の終値と、いまの期間の窓） ----
   const nav = (() => {
@@ -554,7 +547,7 @@ function createStockChart(el, opt = {}){
     function apply(a, z){
       const t = st.daily.t;
       pending = [t[a], t[z]];
-      requestAnimationFrame(() => { if(pending){ const [f, to] = pending; pending = null; showSpan(f, to, true); } });
+      requestAnimationFrame(() => { if(pending){ const [f, to] = pending; pending = null; showSpan(f, to); } });
     }
     cv.addEventListener("pointerdown", e => {
       if(!st.daily || !st.win || !n()) return;
@@ -608,11 +601,12 @@ function createStockChart(el, opt = {}){
       st.daily = daily; st.byTf = {}; st.rel = null; st.mark = opt2.mark || null;
       st.fd = chartFundDaily(daily);
       st.dIdx = new Map(daily.t.map((t, i) => [t, i]));
-      applyTf(st.mode === "A" ? st.tf : st.mode);
+      applyTf(st.tf);
     },
-    // 表示の設定を変える。見えている期間は保つ
+    // 表示の設定を変える。足を変えたらその足の最新を出し、ほかは見えている期間を保つ
     set(o){
-      if(o.mode !== undefined) st.mode = o.mode;
+      const newTf = o.tf !== undefined && o.tf !== st.tf;
+      if(o.tf !== undefined) st.tf = o.tf;
       if(o.mas !== undefined) st.mas = o.mas;
       if(o.sub !== undefined) st.sub = o.sub;
       if(o.log !== undefined) candle.priceScale().applyOptions({mode: o.log ? LW.PriceScaleMode.Logarithmic : LW.PriceScaleMode.Normal});
@@ -622,21 +616,24 @@ function createStockChart(el, opt = {}){
       if(o.hl !== undefined) st.hl = o.hl;
       if(o.topix !== undefined){ st.topix = o.topix; st.rel = null; }
       if(!st.daily) return;
-      if(st.win) showSpan(st.win.from, st.win.to);
-      else applyTf(st.mode === "A" ? st.tf : st.mode);
+      applyTf(st.tf);
+      if(newTf || !st.win) view.showLatest();
+      else showSpan(st.win.from, st.win.to);
     },
-    // 期間ボタン（CHART_RANGE_MONTHS のキー）
-    showRange(key){
-      const t = st.daily && st.daily.t;
-      if(!t || !t.length) return;
-      const last = t[t.length - 1], m = CHART_RANGE_MONTHS[key];
-      showSpan(m ? chartMonthsBefore(last, m) : t[0], last);
+    // いまの足の最新の足を、1 本が CHART_BAR_PX になるだけ出す
+    showLatest(){
+      if(!st.daily || !st.daily.t.length) return;
+      const [f, to] = chartLatestSpan(st.daily, st.bars, latestCount());
+      showSpan(f, to);
     },
-    // iso の前後 months か月
-    showAround(iso, months){
-      const t = st.daily.t, last = t[t.length - 1];
-      const to = chartMonthsBefore(iso, -months);
-      showSpan(chartMonthsBefore(iso, months), to < last ? to : last);
+    // iso を真ん中に、同じ本数を出す（決算速報で古い発表日を選んだとき）
+    showAround(iso){
+      const [f, to] = chartSpanAround(st.daily, st.bars, iso, latestCount());
+      showSpan(f, to);
+    },
+    // 最新の足を出したとき iso が入るか
+    latestHas(iso){
+      return chartLatestSpan(st.daily, st.bars, latestCount())[0] <= iso;
     },
     refreshMarkers: drawMarkers,
     tf: () => st.tf,
@@ -655,5 +652,5 @@ function createStockChart(el, opt = {}){
 
 if(typeof module !== "undefined" && module.exports){
   module.exports = {chartSwings, chartHlText, chartFundDaily, chartQuantile, chartBandMultiples, chartBars, chartWeekKey, chartSma, chartMaLen, chartParseMas, chartSpikes, chartRelative,
-                    chartPickTf, chartCountIn, chartMonthsBefore, chartPrice, chartQty};
+                    chartLatestSpan, chartSpanAround, chartPrice, chartQty};
 }

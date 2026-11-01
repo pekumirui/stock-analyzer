@@ -72,7 +72,7 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 | 月次 tab | `nav button[data-tab="monthly"]` |
 | 銘柄 tab | `nav button[data-tab="stock"]` (between 決算速報 and スクリーナー). Search `#st-sym` + `#st-suggest`. `#st-head` (hidden until the overview loads): `#st-title`, `#st-quote`, sub tabs `#st-tabs .ftab[data-sub="summary"|"price"|"news"|"holders"]` (概要 / 株価 / ニュース / 株主) → `#st-sub-*`. `#st-msg` for 銘柄が見つかりません。 / 読み込めませんでした。 / ニュースがありません。 See `features/stock.md` |
 | 銘柄 › 概要 | `#st-metrics` (PER（予想） / PBR（実績） / 配当利回り（予想） / ROE（実績） / 自己資本比率), `#st-fin-tabs .ftab[data-stfin="cum"|"q"|"prog"|"rev"]` → `#st-cum-tbl` / `#st-q-tbl` / `#st-prog-tbl` / `#st-rev-tbl` |
-| 銘柄 › 株価 | `#chart-range`, `#tf`, `#mas`, `#chart-sub`, `#chart-fund`, `#chart-hl`, `#chart-band`, `#chart-log`, `#rel`, `#chart-msg`, `#chart` (+ `.chart-legend`, `.chart-nav` below), `.evt-toggles`, `#perf-tbl`. No 表示 button; controls redraw without a request. See `features/chart.md` |
+| 銘柄 › 株価 | `#tf` (日足/週足/月足/年足), `#mas`, `#chart-sub`, `#chart-fund`, `#chart-hl`, `#chart-band`, `#chart-log`, `#rel`, `#chart-msg`, `#chart` (+ `.chart-legend`, `.chart-nav` below), `.evt-toggles`, `#perf-tbl`. No 表示 button; controls redraw without a request. See `features/chart.md` |
 | 銘柄 › ニュース | `table#st-news` `tr.go[data-id]` → `#st-news-detail`: `#st-back` (← ニュース), `#st-zoom .ftab[data-zoom="fit"|"mid"|"actual"]`, `#st-news-head`, `#st-src`, `#st-doc` (one sandboxed iframe per document) |
 | スクリーナー tab | `nav button[data-tab="screener"]` |
 | ランキング tab | `nav button[data-tab="ranking"]` (`#tab-ranking`). Inner `#rk-subs .ftab[data-rksub="perf"|"pts"]` → `#rk-sub-perf` / `#rk-sub-pts`. PTS is not a header tab |
