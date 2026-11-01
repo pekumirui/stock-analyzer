@@ -130,13 +130,21 @@ def test_api_smoke() -> None:
         raise SystemExit("GET /app must not show the brand title")
     menu = r.text.find('id="menu-btn"')
     cur = r.text.find('id="cur-tab"')
-    if menu < 0 or cur < 0 or menu > cur:
-        raise SystemExit("GET /app header must put #menu-btn before #cur-tab")
+    crumbs = r.text.find('id="crumbs"')
+    header_end = r.text.find("</header>")
+    if menu < 0 or cur < 0 or crumbs < 0 or menu > cur or cur > crumbs:
+        raise SystemExit("GET /app header must put #menu-btn, #cur-tab, then #crumbs")
+    if crumbs > header_end:
+        raise SystemExit("GET /app #crumbs must be in the header")
 
     r = client.get("/monthly")
     _expect(r, 200, "GET /monthly")
     if "株KPI" not in r.text:
         raise SystemExit("GET /monthly missing site name")
+    pub_crumbs = r.text.find('id="crumbs"')
+    pub_header_end = r.text.find("</header>")
+    if pub_crumbs < 0 or pub_header_end < 0 or pub_crumbs > pub_header_end:
+        raise SystemExit("GET /monthly #crumbs must be in the header")
 
     r = client.get("/robots.txt")
     _expect(r, 200, "GET /robots.txt")

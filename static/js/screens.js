@@ -158,12 +158,22 @@ function currentCrumbContext(){
   };
 }
 
+function pinCrumbsEnd(host){
+  if(!host || host.hidden) return;
+  host.scrollLeft = host.scrollWidth;
+}
+
 function renderBreadcrumbs(){
   if(typeof document === "undefined") return;
   const host = document.getElementById("crumbs");
   if(!host) return;
   const ctx = currentCrumbContext();
   const trail = breadcrumbTrail(ctx.screenId, ctx.fromId);
+  if(!trail.length){
+    host.innerHTML = "";
+    host.hidden = true;
+    return;
+  }
   const last = trail.length - 1;
   let html = "<ol>";
   for(let i = 0; i < trail.length; i++){
@@ -175,6 +185,8 @@ function renderBreadcrumbs(){
     }
   }
   host.innerHTML = html + "</ol>";
+  host.hidden = false;
+  requestAnimationFrame(() => pinCrumbsEnd(host));
 }
 
 if(typeof window !== "undefined"){
@@ -186,6 +198,7 @@ if(typeof window !== "undefined"){
   window.breadcrumbTrail = breadcrumbTrail;
   window.routeHref = routeHref;
   window.renderBreadcrumbs = renderBreadcrumbs;
+  window.addEventListener("resize", () => pinCrumbsEnd(document.getElementById("crumbs")));
 }
 if(typeof module !== "undefined" && module.exports){
   module.exports = {
