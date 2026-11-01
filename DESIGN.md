@@ -21,7 +21,7 @@
 ```
 
 - **言語**: Python 3.10+ / FastAPI / SQLAlchemy / pandas
-- **フロント**: `static/index.html` + `static/css/` + `static/js/` の vanilla JS SPA (lightweight-charts)。スマホ対応
+- **フロント**: `static/index.html` + `static/css/` + `static/js/` の vanilla JS SPA (lightweight-charts。`static/vendor/` から配る)。スマホ対応
 - **バッチ**: `jobs/market/run_batch.py` を cron / スケジューラで日次実行
 
 ## 2. J-Quants API
@@ -422,7 +422,8 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `GET /api/earnings?date=2026-08-14&today=2026-10-02` | `{kind, actuals, scheduled}`。`actuals` は開示1件が1行で、QoQ(Q単独の前四半期比) と YoY(累計の前年同期比) を指標ごとに返す（売上・売上総利益・営業利益・経常利益・純利益・EPS。売上総利益は `xbrl_financials` から。KAB-278）。金額は `single`（Q単独。算出できなければ null）と `cumulative`（累計）で、円。決算短信本体のみ (予想修正のみの開示、および損益が初回と同一の再提出は除外。損益が変わった再提出は `restated` を立てて残す)。通期営利予想が直前開示から ±0.1% 以上動いていれば `forecast_revision: {direction: "up"|"down", pct}`、無ければ null。`scheduled` は `{code, name, periods:[{fq, fye, label}], latest}` で銘柄1行。`latest` は直近の実績開示（`disclosure_no` / `period` / `fy_label` / `single` / `cumulative` / `qoq` / `yoy` / `progress` / `forecast_fy`）。実績が無ければ null。どちらの行にも `sector33`（マスタに無ければ null）。`kind` は `actual` / `scheduled` / `mixed`。過去は `actual` で `scheduled` は空。今日は開示と、そのコードが今日の開示に無い未発表。未来は予定だけ。`today` を省略するとサーバの今日。台帳が lookback を埋める前の未来には `ready: false`（空なら画面は 予定未取得）。`product_category` が REIT (`013`/`022`) の銘柄は出さない |
 | `GET /api/earnings/detail/{code}?disclosure_no=…` | 選択銘柄の累計テーブル (過去4期+当期の同一四半期 + 中間予想 + 通期予想 + 前期通期実績。本決算は予想が `raw_json` の来期予想 `NxF*` で、前期通期は出さない) と3か月決算テーブル (直近12四半期のQ単独)。各行に会計期末 (`26.11`) または Q単独の四半期末 (`25.08`) と発表日を付ける。同一銘柄が同日に複数開示する日があるため `disclosure_no` で一意に引く (`?date=` でも可)。どちらも無ければ最新の実績開示（決算速報の銘柄検索が使う）。実績が無ければ 404。`revisions` は通期予想の修正履歴 (`kind` = `forecast_initial` / `forecast` / `forecast_revised` / `actual_fy`、`growth` は前の行からの修正率で同値は `state: flat`)。選んだ開示の日までの開示から作る。データ源は `revision_source`（既定 `EARNINGS_PARAMS["revision_source"]` = `jquants`）で、`?rev_source=jquants|xbrl` で上書きできる。`jquants` は `statements` の `fy_*` と本決算の `NxF*`（期初）と本決算の実績。`xbrl` は `xbrl_financials` の `forecast`/`FY`（連結優先、レンジは中点）と `annual` の実績。組み立ては `app/revisions.py`、データ源は `app/market/revisions.py` / `app/xbrl/revisions.py` |
 | `GET /api/earnings/calendar?month=2026-08&today=2026-10-02` | 日付 → `{kind, n}`。`pending` は今日かつ未発表がいるときだけ。件数は銘柄の distinct。疎。一覧と同じく本体のみを数え、REIT も除外する。`today` を省略するとサーバの今日 |
-| `GET /api/chart/{code}?tf=D|W|M&ma=50,150,200&rel=topix` | 株価チャートデータ。W/M は日足を ISO週 / 暦月で集約 (足の日付は期間の最終営業日)。MA 期間は営業日換算 (週=÷5、月=÷20) |
+| `GET /api/chart/{code}` | 日足を列ごとの配列で返す `{code, name, t, o, h, l, c, v, tv, earnings_dates}`。`t` は日付、`o`〜`c` は調整後の四本値（調整後が無い日は生の値）、`v` は調整後の出来高、`tv` は売買代金（円）。週足・月足・移動平均はブラウザで作る（`docs/DESIGN_stock.md`「株価」）。`ETag` は中身のハッシュで、`If-None-Match` が合えば 304。行が無ければ 404 |
+| `GET /api/topix` | TOPIX の終値 `{t, c}`。対TOPIX 相対に使う。`ETag` は同じ |
 | `GET /api/earnings-performance/{code}` | 決算日からの対TOPIXリターン |
 | `GET /api/ranking/earnings-perf?month=YYYY-MM` | 決算月ごとの決算発表後パフォーマンス（次の決算の前日終値まで）のランキング。`docs/DESIGN_ranking.md` |
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |

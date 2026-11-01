@@ -105,10 +105,10 @@ def main() -> None:
 
     if args.feature == "chart":
         code = args.code or "72030"
-        url = f"{base}/api/chart/{code}?tf=D&ma=50,150,200&rel=false"
+        url = f"{base}/api/chart/{code}"
         status, body = _get(url)
         path = _write("chart", "body.json", "GET", url, status, body)
-        candles = body.get("candles") if isinstance(body, dict) else None
+        candles = body.get("t") if isinstance(body, dict) else None
         if status != 200 or not candles:
             raise SystemExit(f"chart {code} has no candles")
         perf_url = f"{base}/api/earnings-performance/{code}"
