@@ -54,7 +54,7 @@ def _pick_earnings_date(base: str, month: str, today: str) -> str | None:
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("feature", choices=["screener", "earnings", "chart", "stock", "monthly", "search", "supply", "pts", "ranking"])
+    p.add_argument("feature", choices=["screener", "earnings", "chart", "stock", "monthly", "search", "supply", "pts", "ranking", "holders"])
     p.add_argument("--date", default="")
     p.add_argument("--code", default="")
     p.add_argument("--month", default="")
@@ -199,6 +199,21 @@ def main() -> None:
             raise SystemExit(f"pts failed status={status}")
         # 空の DB（pts_snapshots なし）でも 200。行数は表示して判断を任せる
         print(path, f"dates={len(body.get('dates') or [])} rows={len(body.get('rows') or [])}")
+        return
+
+    if args.feature == "holders":
+        today = date.today().isoformat()
+        url = f"{base}/api/holders/activity?file_date={today}&limit=1000"
+        status, body = _get(url)
+        path = _write("holders", "body.json", "GET", url, status, body)
+        surl = f"{base}/api/holders/search?" + urllib.parse.urlencode({"q": "ブラックロック"})
+        sst, sbody = _get(surl)
+        _write("holders", "search.json", "GET", surl, sst, sbody)
+        req = f"GET {url}\nstatus {status}\nGET {surl}\nstatus {sst}\n"
+        (ART / "holders" / "request.txt").write_text(req, encoding="utf-8")
+        items = body.get("items") if isinstance(body, dict) else None
+        results = sbody.get("results") if isinstance(sbody, dict) else None
+        print(path, f"items={len(items or [])} search={len(results or [])}")
         return
 
     if args.feature == "supply":
