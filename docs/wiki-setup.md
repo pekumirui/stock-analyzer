@@ -1,6 +1,22 @@
 # Markdown wiki（MkDocs + Cloudflare Pages）
 
-リポジトリ内の Markdown を GitHub を開かずに読む。元の md の配置は動かさない。ビルド時に `.wiki-docs/` へ集め、MkDocs Material で静的サイトにする。公開は Cloudflare Pages の Direct Upload。既存の VPS CI/CD には載せない。
+`docs/` の Markdown と、リポジトリ内のすべての `AGENTS.md` を GitHub を開かずに読む。元の md の配置は動かさない。ビルド時に `.wiki-docs/` へ集め、MkDocs Material で静的サイトにする。公開は Cloudflare Pages の Direct Upload。既存の VPS CI/CD には載せない。
+
+## 何を載せるか
+
+載せる:
+
+- `docs/` 配下の md。ホームは `docs/index.md`（無ければビルド時に仮の `index.md` を置く）。コピー時に `docs/` プレフィックスを外すので、wiki のトップになる
+- リポジトリ内のすべての `AGENTS.md`（ルート、`app/api/AGENTS.md`、`static/AGENTS.md` など）。パスはそのまま
+
+載せない:
+
+- `.cursor/` と `.claude/`（中の `AGENTS.md` も含む）
+- ルートの `README.md` / `DESIGN.md`
+- `analyzer/` / `deploy/` など、上記以外の md
+- `.venv` / `node_modules` / `data/` などの生成物・依存物
+
+wiki に無いファイルへの相対リンクは **コピー側だけ** 外す（元の md は触らない）。`--strict` は wiki 内の壊れたリンクだけ落とす。`docs/index.md` の `../AGENTS.md` は GitHub 上ではリポジトリ直下へ向かい、wiki では `AGENTS.md` に付け替える。
 
 ## ローカル
 
@@ -53,7 +69,7 @@ Repository → **Settings** → **Secrets and variables** → **Actions**。
 
 未設定の間は `.github/workflows/wiki.yml` がビルドだけしてデプロイを飛ばす（失敗にしない）。既存の `CI/CD` workflow（self-hosted）は触らない。wiki は `ubuntu-latest`。
 
-`main` へ md / `mkdocs.yml` / `tools/wiki/` / この workflow が入ったときだけ動く。
+`main` へ `docs/` / `AGENTS.md` / `mkdocs.yml` / `tools/wiki/` / この workflow が入ったときだけ動く。
 
 ## Cloudflare Access（本人のメールだけ）
 

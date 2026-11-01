@@ -1,9 +1,9 @@
-"""MkDocs wiki 用の Markdown 収集。元ファイルは動かさない。"""
+"""MkDocs wiki 用の Markdown 収集。対象は docs/ と AGENTS.md だけ。"""
 from __future__ import annotations
 
 from pathlib import Path
 
-from tools.wiki.collect import build_nav, collect_into
+from tools.wiki.collect import build_nav, collect_into, dest_rel_for
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -13,74 +13,107 @@ def _write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def test_collect_keeps_layout_and_rewrites_readme(tmp_path: Path) -> None:
+def test_collect_docs_and_agents_only(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
-    _write(repo / "README.md", "# 根\n\n[設計](DESIGN.md)\n")
-    _write(repo / "DESIGN.md", "# 設計\n\n[README.md](README.md)\n")
-    _write(repo / "docs" / "a.md", "# A\n\n[根](../README.md)\n\n[logs](logs/)\n")
-    _write(repo / "data" / "skip.md", "# 除外\n")
-    _write(repo / ".venv" / "hidden.md", "# venv\n")
-    _write(repo / "node_modules" / "pkg" / "x.md", "# npm\n")
+    _write(repo / "README.md", "# 根\n")
+    _write(repo / "DESIGN.md", "# 全体\n")
+    _write(repo / "AGENTS.md", "# 約束\n")
+    _write(repo / "app" / "api" / "AGENTS.md", "# api\n")
+    _write(repo / "static" / "AGENTS.md", "# static\n")
+    _write(
+        repo / "docs" / "index.md",
+        "# ホーム\n\n[A](a.md)\n[約束](../AGENTS.md)\n",
+    )
+    _write(
+        repo / "docs" / "a.md",
+        "# A\n\n[`DESIGN.md`](../DESIGN.md)\n"
+        "[`AGENTS.md`](../AGENTS.md)\n[B](b.md)\n"
+        "![pic](pic.png)\n",
+    )
+    _write(repo / "docs" / "b.md", "# B\n")
     _write(repo / "docs" / "pic.png", "x")
     _write(repo / "analyzer" / "README.md", "# analyzer\n")
-    _write(repo / "docs" / "logs" / "a.json", "{}")
+    _write(repo / ".cursor" / "skills" / "SKILL.md", "# skill\n")
+    _write(repo / ".cursor" / "AGENTS.md", "# cursor agents\n")
+    _write(repo / "data" / "skip.md", "# 除外\n")
     dest = tmp_path / "out"
 
     result = collect_into(repo, dest)
 
     assert (dest / "index.md").is_file()
+    assert (dest / "a.md").is_file()
+    assert (dest / "b.md").is_file()
+    assert (dest / "pic.png").is_file()
+    assert (dest / "AGENTS.md").is_file()
+    assert (dest / "app" / "api" / "AGENTS.md").is_file()
+    assert (dest / "static" / "AGENTS.md").is_file()
     assert not (dest / "README.md").exists()
-    assert (dest / "DESIGN.md").is_file()
-    assert (dest / "docs" / "a.md").is_file()
-    assert (dest / "docs" / "pic.png").is_file()
-    assert (dest / "docs" / "logs" / "a.json").is_file()
-    assert (dest / "docs" / "logs" / "index.md").is_file()
-    assert (dest / "docs" / "index.md").is_file()
-    assert (dest / "analyzer" / "README.md").is_file()
-    assert not (dest / "analyzer" / "index.md").exists()
-    assert "](logs/index.md)" in (dest / "docs" / "a.md").read_text(encoding="utf-8")
+    assert not (dest / "DESIGN.md").exists()
+    assert not (dest / "analyzer").exists()
+    assert not (dest / ".cursor").exists()
     assert not (dest / "data").exists()
-    assert not (dest / ".venv").exists()
-    assert not (dest / "node_modules").exists()
-    assert (repo / "README.md").read_text(encoding="utf-8").startswith("# 根")
-    design = (dest / "DESIGN.md").read_text(encoding="utf-8")
-    assert "[README.md](index.md)" in design
-    assert "](../index.md)" in (dest / "docs" / "a.md").read_text(encoding="utf-8")
+    assert (repo / "docs" / "a.md").read_text(encoding="utf-8").count(
+        "](../DESIGN.md)"
+    )
+    copied = (dest / "a.md").read_text(encoding="utf-8")
+    assert "](../DESIGN.md)" not in copied
+    assert "`DESIGN.md`" in copied
+    assert "](AGENTS.md)" in copied
+    assert "](pic.png)" in copied
+    home = (dest / "index.md").read_text(encoding="utf-8")
+    assert "](AGENTS.md)" in home
     assert "index.md" in result.pages
-    titles = {next(iter(item)) for item in result.nav if isinstance(item, dict)}
-    assert "根" in titles
-    assert "docs" in titles
+    assert "app/api/AGENTS.md" in result.pages
+    assert not any(p.startswith(".cursor/") for p in result.pages)
 
 
-def test_build_nav_follows_folders() -> None:
-    pages = ["index.md", "AGENTS.md", "docs/a.md", "docs/b.md"]
-    titles = {
-        "index.md": "ホーム",
-        "AGENTS.md": "AGENTS",
-        "docs/a.md": "A",
-        "docs/b.md": "B",
-    }
+def test_dest_rel_strips_docs_keeps_agents() -> None:
+    repo = Path("/repo")
+    assert dest_rel_for(repo / "docs" / "a.md", repo) == Path("a.md")
+    assert dest_rel_for(repo / "AGENTS.md", repo) == Path("AGENTS.md")
+    assert dest_rel_for(repo / "app" / "api" / "AGENTS.md", repo) == Path(
+        "app/api/AGENTS.md"
+    )
+    assert dest_rel_for(repo / "README.md", repo) is None
+    assert dest_rel_for(repo / "DESIGN.md", repo) is None
+    assert dest_rel_for(repo / "docs" / "pic.png", repo) == Path("pic.png")
+    assert dest_rel_for(repo / ".cursor" / "AGENTS.md", repo) is None
+    assert dest_rel_for(repo / "analyzer" / "README.md", repo) is None
+
+
+def test_build_nav_home_first() -> None:
+    pages = ["index.md", "AGENTS.md", "a.md"]
+    titles = {"index.md": "ホーム", "AGENTS.md": "約束", "a.md": "A"}
     nav = build_nav(pages, titles)
     assert nav[0] == {"ホーム": "index.md"}
-    assert {"AGENTS": "AGENTS.md"} in nav
-    docs = next(item["docs"] for item in nav if "docs" in item)
-    assert docs == [{"A": "docs/a.md"}, {"B": "docs/b.md"}]
+    assert {"約束": "AGENTS.md"} in nav
+    assert {"A": "a.md"} in nav
 
 
-def test_collect_real_repo_excludes_generated(tmp_path: Path) -> None:
+def test_collect_real_repo_scope(tmp_path: Path) -> None:
     dest = tmp_path / "wiki"
     result = collect_into(ROOT, dest)
     assert (dest / "index.md").is_file()
+    assert (dest / "wiki-setup.md").is_file()
+    assert (dest / "DESIGN_monthly.md").is_file()
     assert (dest / "AGENTS.md").is_file()
-    assert (dest / "docs" / "DESIGN_monthly.md").is_file()
-    assert (dest / "docs" / "wiki-setup.md").is_file()
-    assert (dest / "analyzer" / "README.md").is_file()
+    assert (dest / "app" / "api" / "AGENTS.md").is_file()
+    assert (dest / "static" / "AGENTS.md").is_file()
+    assert (dest / "app" / "api" / "index.md").is_file()
+    assert (dest / "static" / "index.md").is_file()
+    assert not (dest / "README.md").exists()
+    assert not (dest / "DESIGN.md").exists()
+    assert not (dest / "analyzer").exists()
+    assert not (dest / ".cursor").exists()
     assert not (dest / "data").exists()
-    assert not any(p.startswith("data/") for p in result.pages)
-    xbrl = (dest / "docs" / "DESIGN_xbrl.md").read_text(encoding="utf-8")
-    assert "](../DESIGN.md)" in xbrl
-    design = (dest / "DESIGN.md").read_text(encoding="utf-8")
-    assert "(index.md)" in design
-    assert (dest / "analyzer" / "momentum" / "spread_by_year_3m.png").is_file()
-    cursor_pages = [p for p in result.pages if p.startswith(".cursor/")]
-    assert cursor_pages
+    assert not any(p.startswith("docs/") for p in result.pages)
+    xbrl = (dest / "DESIGN_xbrl.md").read_text(encoding="utf-8")
+    assert "](../DESIGN.md)" not in xbrl
+    assert "`DESIGN.md`" in xbrl
+    assert "](AGENTS.md)" in xbrl
+    backup = (dest / "DESIGN_backup.md").read_text(encoding="utf-8")
+    assert "](../deploy/README.md)" not in backup
+    assert "deploy/README.md" in backup
+    home = (dest / "index.md").read_text(encoding="utf-8")
+    assert "](AGENTS.md)" in home
+    assert "](app/api/AGENTS.md)" in home

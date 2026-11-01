@@ -1,4 +1,4 @@
-"""MkDocs のビルド前にリポジトリ内 Markdown を docs_dir へ集める。"""
+"""MkDocs のビルド前に docs/ と AGENTS.md を docs_dir へ集める。"""
 from __future__ import annotations
 
 import sys
@@ -8,7 +8,7 @@ REPO = Path(__file__).resolve().parents[2]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
-from tools.wiki.collect import collect_into  # noqa: E402
+from tools.wiki.collect import collect_into
 
 
 def on_config(config):
@@ -20,7 +20,7 @@ def on_config(config):
 
 
 def on_files(files, config):
-    """`.` で始まるディレクトリ（`.cursor` など）もページに含める。"""
+    """収集したファイルをすべてサイトに含める。テーマ由来のファイルは残す。"""
     from mkdocs.structure.files import File, Files, InclusionLevel
 
     docs_dir = Path(config["docs_dir"]).resolve()

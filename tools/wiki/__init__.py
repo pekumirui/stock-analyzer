@@ -1,1 +1,1 @@
-"""リポジトリ内 Markdown を MkDocs 用に集める。"""
+"""docs/ の Markdown と AGENTS.md を MkDocs 用に集める。"""

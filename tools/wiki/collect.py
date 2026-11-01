@@ -1,4 +1,4 @@
-"""リポジトリ内の Markdown を MkDocs の docs_dir へ、配置を保ったまま集める。"""
+"""docs/ の Markdown とリポジトリ内の AGENTS.md を MkDocs の docs_dir へ集める。"""
 from __future__ import annotations
 
 import os
@@ -28,21 +28,15 @@ SKIP_DIR_NAMES = frozenset(
         "tmp",
         ".wiki-docs",
         "site",
+        ".cursor",
+        ".claude",
     }
 )
 ROOT_SKIP_DIR_NAMES = frozenset({"data", "forecast-exp", "DESIGN"})
 IMAGE_SUFFIXES = frozenset(
     {".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp"}
 )
-LINKED_SUFFIXES = IMAGE_SUFFIXES | {
-    ".json",
-    ".csv",
-    ".txt",
-    ".yaml",
-    ".yml",
-    ".html",
-}
-MD_LINK_RE = re.compile(r"\[[^\]]*\]\(\s*<?([^>\s)]+)>?\s*\)")
+MD_LINK_RE = re.compile(r"\[([^\]]*)\]\(\s*<?([^>\s)]+)>?\s*\)")
 HEADING_RE = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
 FRONT_MATTER_RE = re.compile(r"\A---\r?\n.*?\r?\n---\r?\n?", re.DOTALL)
 
@@ -67,34 +61,30 @@ def collect_into(repo: Path, dest: Path) -> CollectResult:
     dest = dest.resolve()
     _reset_dest(dest)
 
-    md_sources: list[Path] = []
+    sources: list[Path] = []
     images: list[Path] = []
     for path in _iter_repo_files(repo):
-        suffix = path.suffix.lower()
-        if suffix == ".md":
-            md_sources.append(path)
-        elif suffix in IMAGE_SUFFIXES:
+        mapped = dest_rel_for(path, repo)
+        if mapped is None:
+            continue
+        if path.suffix.lower() == ".md":
+            sources.append(path)
+        elif path.suffix.lower() in IMAGE_SUFFIXES:
             images.append(path)
 
-    root_readme = _root_readme(repo, md_sources)
-    for src in md_sources:
-        if src == root_readme:
-            continue
-        _copy_file(src, repo, dest)
-
-    if root_readme is not None:
-        index_dest = dest / "index.md"
-        index_dest.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(root_readme, index_dest)
-
+    for src in sources:
+        _copy_mapped(src, repo, dest)
     for src in images:
-        _copy_file(src, repo, dest)
+        _copy_mapped(src, repo, dest)
 
-    for src in md_sources:
-        _copy_linked_extras(src, repo, dest)
+    if not (dest / "index.md").is_file():
+        (dest / "index.md").write_text(
+            "# 株式分析ツール wiki\n\n`docs/` の設計と `AGENTS.md`。\n",
+            encoding="utf-8",
+        )
 
-    _rewrite_readme_links(dest, repo)
-    _rewrite_dir_index_links(dest, repo)
+    included = {p.resolve() for p in (*sources, *images)}
+    _rewrite_links(dest, repo, included)
     _ensure_section_indexes(dest)
     (dest / "_headers").write_text(HEADERS_FILE, encoding="utf-8")
 
@@ -104,17 +94,32 @@ def collect_into(repo: Path, dest: Path) -> CollectResult:
         if p.is_file()
     )
     titles = {page: _page_title(dest / page, page) for page in pages}
-    result = CollectResult(
+    return CollectResult(
         pages=pages,
         assets=sorted(
             p.relative_to(dest).as_posix()
             for p in dest.rglob("*")
-            if p.is_file() and p.suffix.lower() != ".md" and p.name != ".gitkeep"
+            if p.is_file()
+            and p.suffix.lower() != ".md"
+            and p.name != ".gitkeep"
         ),
         titles=titles,
         nav=build_nav(pages, titles),
     )
-    return result
+
+
+def dest_rel_for(src: Path, repo: Path) -> Path | None:
+    rel = _rel_inside_repo(src, repo)
+    if rel is None:
+        return None
+    suffix = src.suffix.lower()
+    if suffix != ".md" and suffix not in IMAGE_SUFFIXES:
+        return None
+    if rel.parts[:1] == ("docs",) and len(rel.parts) > 1:
+        return Path(*rel.parts[1:])
+    if src.name == "AGENTS.md":
+        return rel
+    return None
 
 
 def build_nav(pages: list[str], titles: dict[str, str]) -> list:
@@ -141,8 +146,7 @@ def _render_nav(node: dict, titles: dict[str, str]) -> list:
 
 def _sort_pages(pages: list[str], titles: dict[str, str]) -> list[str]:
     def key(page: str) -> tuple[int, str]:
-        name = Path(page).name.lower()
-        home = name == "index.md"
+        home = Path(page).name.lower() == "index.md"
         return (0 if home else 1, titles.get(page, page).lower())
 
     return sorted(pages, key=key)
@@ -175,52 +179,30 @@ def _iter_repo_files(repo: Path):
             yield Path(dirpath) / name
 
 
-def _root_readme(repo: Path, md_sources: list[Path]) -> Path | None:
-    for src in md_sources:
-        if src.parent == repo and src.name.lower() == "readme.md":
-            return src
-    return None
-
-
-def _copy_file(src: Path, repo: Path, dest: Path) -> Path | None:
-    rel = _rel_inside_repo(src, repo)
-    if rel is None:
+def _copy_mapped(src: Path, repo: Path, dest: Path) -> Path | None:
+    mapped = dest_rel_for(src, repo)
+    if mapped is None:
         return None
-    target = dest / rel
+    target = dest / mapped
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, target)
     return target
 
 
-def _copy_linked_extras(md_src: Path, repo: Path, dest: Path) -> None:
-    text = md_src.read_text(encoding="utf-8", errors="replace")
-    for url in MD_LINK_RE.findall(text):
-        target = _resolve_local(md_src, url)
-        if target is None:
-            continue
-        if target.is_dir():
-            copied = False
-            for child in target.rglob("*"):
-                if child.is_file() and child.suffix.lower() in LINKED_SUFFIXES:
-                    _copy_file(child, repo, dest)
-                    copied = True
-            if copied:
-                _write_dir_index(target, repo, dest)
-            continue
-        if target.is_file() and target.suffix.lower() in LINKED_SUFFIXES:
-            _copy_file(target, repo, dest)
+def _source_for_dest(current: Path, dest: Path, repo: Path) -> Path:
+    rel = current.relative_to(dest)
+    if rel.name == "AGENTS.md":
+        return repo / rel
+    return repo / "docs" / rel
 
 
-def _rewrite_readme_links(dest: Path, repo: Path) -> None:
-    readme = repo / "README.md"
-    if not readme.is_file():
-        return
-    readme_resolved = readme.resolve()
+def _rewrite_links(dest: Path, repo: Path, included: set[Path]) -> None:
     for md in dest.rglob("*.md"):
+        src = _source_for_dest(md, dest, repo)
         text = md.read_text(encoding="utf-8", errors="replace")
         new = MD_LINK_RE.sub(
-            lambda m, current=md: _replace_readme_url(
-                m, current, dest, repo, readme_resolved
+            lambda m, source=src, current=md: _replace_url(
+                m, source, current, dest, repo, included
             ),
             text,
         )
@@ -228,84 +210,53 @@ def _rewrite_readme_links(dest: Path, repo: Path) -> None:
             md.write_text(new, encoding="utf-8")
 
 
-def _source_for_dest(current: Path, dest: Path, repo: Path) -> Path:
-    rel = current.relative_to(dest)
-    if rel.as_posix() == "index.md":
-        return repo / "README.md"
-    return repo / rel
-
-
-def _replace_readme_url(
+def _replace_url(
     match: re.Match[str],
+    source: Path,
     current: Path,
     dest: Path,
     repo: Path,
-    readme_resolved: Path,
+    included: set[Path],
 ) -> str:
-    url = match.group(1)
-    source = _source_for_dest(current, dest, repo)
+    url = match.group(2)
     target = _resolve_local(source, url)
-    if target is None or target.resolve() != readme_resolved:
+    if target is None:
         return match.group(0)
-    rest = ""
-    if "#" in url:
-        rest = "#" + url.split("#", 1)[1]
-    rel = Path(os.path.relpath(dest / "index.md", current.parent)).as_posix()
-    full = match.group(0)
-    start = match.start(1) - match.start(0)
-    end = match.end(1) - match.start(0)
-    return full[:start] + rel + rest + full[end:]
+    resolved = target.resolve()
+    mapped = dest_rel_for(resolved, repo) if resolved.is_file() else None
+    if mapped is not None and resolved in included:
+        dest_tgt = dest / mapped
+        rest = f"#{url.split('#', 1)[1]}" if "#" in url else ""
+        new_url = Path(os.path.relpath(dest_tgt, current.parent)).as_posix()
+        return f"[{match.group(1)}]({new_url}{rest})"
+    if _is_http(url):
+        return match.group(0)
+    return _neutralize(match)
 
 
-def _rewrite_dir_index_links(dest: Path, repo: Path) -> None:
-    for md in dest.rglob("*.md"):
-        text = md.read_text(encoding="utf-8", errors="replace")
-        new = MD_LINK_RE.sub(
-            lambda m, current=md: _replace_dir_index_url(m, current, dest, repo),
-            text,
-        )
-        if new != text:
-            md.write_text(new, encoding="utf-8")
+def _neutralize(match: re.Match[str]) -> str:
+    text = match.group(1)
+    url = match.group(2).split("#", 1)[0]
+    stripped = text.strip("`")
+    if stripped == url or stripped == Path(url).name:
+        return text if text.startswith("`") else f"`{stripped}`"
+    return f"{text} (`{url}`)"
 
 
-def _replace_dir_index_url(
-    match: re.Match[str],
-    current: Path,
-    dest: Path,
-    repo: Path,
-) -> str:
-    url = match.group(1)
-    source = _source_for_dest(current, dest, repo)
-    target = _resolve_local(source, url)
-    if target is None or not target.is_dir():
-        return match.group(0)
-    rel = _rel_inside_repo(target, repo)
-    if rel is None:
-        return match.group(0)
-    index = dest / rel / "index.md"
-    if not index.is_file():
-        return match.group(0)
-    rest = ""
-    if "#" in url:
-        rest = "#" + url.split("#", 1)[1]
-    new_url = Path(os.path.relpath(index, current.parent)).as_posix()
-    full = match.group(0)
-    start = match.start(1) - match.start(0)
-    end = match.end(1) - match.start(0)
-    return full[:start] + new_url + rest + full[end:]
+def _is_http(url: str) -> bool:
+    return url.startswith(("http://", "https://", "mailto:", "tel:"))
 
 
 def _resolve_local(src_file: Path, url: str) -> Path | None:
-    if url.startswith(("http://", "https://", "mailto:", "tel:")):
+    if _is_http(url):
         return None
     path_part = url.split("#", 1)[0].split("?", 1)[0]
     if not path_part or path_part.startswith("/"):
         return None
-    return (src_file.parent / path_part)
+    return src_file.parent / path_part
 
 
 def _ensure_section_indexes(dest: Path) -> None:
-    """フォルダをクリックしても 404 にならないよう、index.md が無い階層に目次を足す。"""
     md_files = [p for p in dest.rglob("*.md") if p.is_file()]
     dirs_with_md: set[Path] = set()
     for path in md_files:
@@ -319,7 +270,6 @@ def _ensure_section_indexes(dest: Path) -> None:
     for rel in sorted(dirs_with_md, key=lambda p: len(p.parts)):
         index = dest / rel / "index.md"
         readme = dest / rel / "README.md"
-        # MkDocs は README.md をそのフォルダの index として使う。両方あると --strict で落ちる。
         if index.exists() or readme.exists():
             continue
         folder = dest / rel
@@ -335,34 +285,14 @@ def _ensure_section_indexes(dest: Path) -> None:
         lines.extend(f"- [{name}]({name})" for name in child_pages)
         for name in child_dirs:
             child = folder / name
-            if (child / "README.md").is_file():
-                href = f"{name}/README.md"
-            else:
-                href = f"{name}/index.md"
+            href = (
+                f"{name}/README.md"
+                if (child / "README.md").is_file()
+                else f"{name}/index.md"
+            )
             lines.append(f"- [{name}]({href})")
         lines.append("")
         index.write_text("\n".join(lines), encoding="utf-8")
-
-
-def _write_dir_index(dir_src: Path, repo: Path, dest: Path) -> None:
-    rel = _rel_inside_repo(dir_src, repo)
-    if rel is None:
-        return
-    index = dest / rel / "index.md"
-    if index.exists():
-        return
-    names = sorted(
-        p.name
-        for p in dir_src.iterdir()
-        if p.is_file() and p.suffix.lower() in LINKED_SUFFIXES
-    )
-    if not names:
-        return
-    lines = [f"# {dir_src.name}", ""]
-    lines.extend(f"- [{name}]({name})" for name in names)
-    lines.append("")
-    index.parent.mkdir(parents=True, exist_ok=True)
-    index.write_text("\n".join(lines), encoding="utf-8")
 
 
 def _rel_inside_repo(src: Path, repo: Path) -> Path | None:

@@ -1,5 +1,5 @@
 site_name: 株式分析ツール wiki
-site_description: リポジトリ内 Markdown の閲覧用（元ファイルの配置は動かさない）
+site_description: docs/ の設計と AGENTS.md の閲覧用（元ファイルの配置は動かさない）
 docs_dir: .wiki-docs
 site_dir: site
 use_directory_urls: true
@@ -45,7 +45,8 @@ markdown_extensions:
   - pymdownx.superfences
 
 # 絶対パス（/app など）とアンカー不足は元 md の書き方のまま。
-# md 同士の相対リンクは配置を保って解決する。解決できないリンクは警告＝ --strict で失敗。
+# wiki 内の相対リンクは dest 上で付け替える。wiki 外（README / DESIGN.md / deploy など）
+# への相対リンクはコピー側で外す。wiki 内の壊れたリンクは警告＝ --strict で失敗。
 validation:
   omitted_files: warn
   absolute_links: ignore

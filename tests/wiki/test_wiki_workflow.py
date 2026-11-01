@@ -22,8 +22,16 @@ def _on(data: dict) -> dict:
 
 def test_wiki_workflow_uses_github_hosted_and_skips_unset_secrets() -> None:
     data = yaml.safe_load(WIKI.read_text(encoding="utf-8"))
-    if _on(data).get("push", {}).get("branches") != ["main"]:
+    push = _on(data).get("push", {})
+    if push.get("branches") != ["main"]:
         _fail("wiki workflow push must be main only")
+    paths = push.get("paths") or []
+    if "docs/**" not in paths:
+        _fail("wiki push must watch docs/")
+    if "**/AGENTS.md" not in paths:
+        _fail("wiki push must watch AGENTS.md")
+    if "**/*.md" in paths:
+        _fail("wiki must not rebuild on every md (README/DESIGN/.cursor are out of scope)")
     job = data["jobs"]["build"]
     if job.get("runs-on") != "ubuntu-latest":
         _fail("wiki must run on ubuntu-latest, not self-hosted")

@@ -1,12 +1,13 @@
 name: Wiki
 
-# リポジトリ内 Markdown を MkDocs でビルドし、Cloudflare Pages へ Direct Upload する。
+# docs/ の md とリポジトリ内の AGENTS.md を MkDocs でビルドし、Cloudflare Pages へ Direct Upload する。
 # 既存の CI/CD（self-hosted / メモリ 4GB）には載せない。
 on:
   push:
     branches: [main]
     paths:
-      - "**/*.md"
+      - "docs/**"
+      - "**/AGENTS.md"
       - "mkdocs.yml"
       - "requirements-wiki.txt"
       - "tools/wiki/**"
