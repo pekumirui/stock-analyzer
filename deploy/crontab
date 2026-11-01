@@ -83,6 +83,7 @@ SHELL=/bin/bash
 
 # data/xbrl と data/monthly を OneDrive へ copy、data/edinet は move（sync はしない。手順は docs/DESIGN_backup.md）
 # 03:30 は data/ に書くジョブ（10〜23 時）と backup_db（05:00）の間。
+# edinet の move は 50 分で区切る（残りは翌日。打ち切りは fail にしない）。
 30 3 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/backup_data.py
 
 # SQLite 整合バックアップ（WAL 中の cp は不可。手順は docs/DESIGN_backup.md）

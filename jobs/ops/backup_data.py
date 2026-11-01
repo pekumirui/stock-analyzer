@@ -9,8 +9,9 @@ onedrive:stock-analyzer-backups/data/{xbrl,monthly} へ rclone copy し、
 rclone check --one-way で確かめる。sync は使わない（VPS で消すと
 OneDrive からも消える）。VPS 側も消さない。
 data/edinet（EDINET の ZIP。KAB-281）だけは rclone move で、送って確かめたものから
-VPS 側を消す。remote・パス・BACKUP_OFFSITE は
-backup_db と同じ。rclone が無い / remote が無いときは警告してスキップ（exit 0）。
+VPS 側を消す。1 回の量は --max-duration で区切り、打ち切りは失敗にしない
+（残りは翌日。KAB-304）。remote・パス・BACKUP_OFFSITE は backup_db と同じ。
+rclone が無い / remote が無いときは警告してスキップ（exit 0）。
 送信・確認の失敗は非ゼロ終了（cron-run.sh の fail cron が page する）。
 """
 from __future__ import annotations
@@ -27,6 +28,7 @@ from jobs.ops.backup_db import (  # noqa: E402
     RCLONE_CHECK_TIMEOUT_S,
     RCLONE_COPY_TIMEOUT_S,
     BackupError,
+    CmdResult,
     OffsiteSettings,
     OffsiteSkip,
     RcloneRunFn,
@@ -45,10 +47,32 @@ KINDS = ("xbrl", "monthly", "edinet")
 MOVE_KINDS = frozenset({"edinet"})
 # 書きかけ（archive.save の一時ファイル）と、書いた直後のものは送らない
 MOVE_MIN_AGE = "10m"
+# Python の 3600s kill より先に rclone が自分で止まる。SOFT は送り中のファイルを完了してから止める
+RCLONE_MOVE_MAX_DURATION = "50m"
+RCLONE_LIMIT_TRANSFER_EXIT = 8
+RCLONE_LIMIT_DURATION_EXIT = 10
 
 
 def remote_kind(kind: str) -> str:
     return f"data/{kind}"
+
+
+def _zip_count(local: Path) -> int:
+    return sum(1 for p in local.rglob("*.zip") if p.is_file())
+
+
+def move_limit_reason(result: CmdResult) -> str | None:
+    """rclone の計画した打ち切りなら理由。本当の失敗なら None。
+
+    v1.75 は --max-duration が 10、--max-transfer が 8。古い版は fatal (7) の
+    ことがあるので、文言でも見る。account suspended などの fatal は残す。
+    """
+    blob = f"{result.stdout}\n{result.stderr}".lower()
+    if result.returncode == RCLONE_LIMIT_DURATION_EXIT or "max transfer duration reached" in blob:
+        return "max-duration"
+    if result.returncode == RCLONE_LIMIT_TRANSFER_EXIT or "max transfer limit reached" in blob:
+        return "max-transfer"
+    return None
 
 
 def copy_dir(local: Path, kind: str, settings: OffsiteSettings, run: RcloneRunFn) -> None:
@@ -75,19 +99,39 @@ def move_dir(local: Path, kind: str, settings: OffsiteSettings, run: RcloneRunFn
     if not local.is_dir():
         print(f"offsite ok {kind} files=0 (no {local})", flush=True)
         return
-    files = sum(1 for p in local.rglob("*.zip") if p.is_file())
+    files = _zip_count(local)
     dest = settings.dest(remote_kind(kind))
     moved = run(
-        ["move", str(local), dest, "--include", "*.zip", "--min-age", MOVE_MIN_AGE,
-         "--delete-empty-src-dirs", *rclone_flags()],
+        [
+            "move",
+            str(local),
+            dest,
+            "--include",
+            "*.zip",
+            "--min-age",
+            MOVE_MIN_AGE,
+            "--delete-empty-src-dirs",
+            "--max-duration",
+            RCLONE_MOVE_MAX_DURATION,
+            "--cutoff-mode",
+            "SOFT",
+            *rclone_flags(),
+        ],
         RCLONE_COPY_TIMEOUT_S,
     )
-    if moved.returncode != 0:
+    capped = move_limit_reason(moved)
+    if moved.returncode != 0 and capped is None:
         raise BackupError(
             f"rclone move {kind} exit={moved.returncode} {clip_cmd_output(moved.stderr)}"
         )
-    left = sum(1 for p in local.rglob("*.zip") if p.is_file())
-    print(f"offsite ok {kind} moved={files - left} left={left} dest={dest}", flush=True)
+    left = _zip_count(local)
+    sent = files - left
+    if capped and sent == 0 and left > 0:
+        raise BackupError(
+            f"rclone move {kind} {capped} moved=0 left={left} {clip_cmd_output(moved.stderr)}"
+        )
+    extra = f" capped={capped}" if capped else ""
+    print(f"offsite ok {kind} moved={sent} left={left} dest={dest}{extra}", flush=True)
 
 
 def run(

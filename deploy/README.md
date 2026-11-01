@@ -295,7 +295,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 | `jobs/market/pts_snapshot.py` | 平日 15:30〜24:00 の 30 分ごと（株探 PTS ランキング。24:00 は翌日 0:00 の回） |
 | `jobs/market/intraday_1m.py` | 平日 20:30（yfinance 1 分足 → `data/intraday/1m/`。日次バッチの後。約 45 分） |
 | `jobs/ops/vps_packages_r2.py` | 06:40 |
-| `jobs/ops/backup_data.py` | 03:30（`data/xbrl` と `data/monthly` を OneDrive へ `rclone copy`。VPS 側は消さない。`data/edinet` は `rclone move`。[`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
+| `jobs/ops/backup_data.py` | 03:30（`data/xbrl` と `data/monthly` を OneDrive へ `rclone copy`。VPS 側は消さない。`data/edinet` は `rclone move`。edinet は 50 分で区切り、残りは翌日。[`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
 | `jobs/ops/backup_db.py` | 05:00（SQLite 整合バックアップ。成功後に OneDrive へ送る。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
 
 振る舞いは `DESIGN.md` §3 と `docs/DESIGN_xbrl.md`。`rclone.conf` と取得ファイルはリポジトリに置かない。
