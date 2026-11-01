@@ -1,6 +1,6 @@
 # Markdown wiki（MkDocs + Cloudflare Pages）
 
-`docs/` の Markdown と、リポジトリ内のすべての `AGENTS.md` を GitHub を開かずに読む。元の md の配置は動かさない。ビルド時に `.wiki-docs/` へ集め、MkDocs Material で静的サイトにする。公開は Cloudflare Pages の Direct Upload。既存の VPS CI/CD には載せない。
+`docs/` の Markdown と、リポジトリ内のすべての `AGENTS.md` を GitHub を開かずに読む。元の md の配置は動かさない。ビルド時に `.wiki-docs/` へ集め、MkDocs Material で静的サイトにする。公開は Cloudflare Pages の Direct Upload。既存の VPS CI/CD には載せない。kabukpi.com の `/app` ナビから新しいタブで開く（公開月次には出さない）。
 
 ## 何を載せるか
 

@@ -53,6 +53,8 @@ DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'stock.db'}")
 
 PUBLIC_SITE_NAME = os.getenv("PUBLIC_SITE_NAME", "株KPI")
 PUBLIC_ORIGIN = os.getenv("PUBLIC_ORIGIN", "").rstrip("/")
+# /app ナビの社内 wiki（Cloudflare Access）。公開月次には出さない
+WIKI_URL = "https://stock-analyzer-wiki.pages.dev"
 
 XBRL_DEST = os.getenv("XBRL_DEST", str(share_path("xbrl")))
 # Local taxonomy bundle (KAB-60). Never downloaded at parse time.

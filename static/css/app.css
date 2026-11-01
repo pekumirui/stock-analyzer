@@ -6,8 +6,9 @@
   body { background:var(--bg); color:var(--text); font-family:-apple-system,"Hiragino Sans","Noto Sans JP",Meiryo,sans-serif; font-size:14px; }
   header { display:flex; align-items:center; gap:8px; padding:10px 14px;
            border-bottom:1px solid var(--border); flex-wrap:wrap; background:var(--panel); }
-  nav button { background:none; border:none; color:var(--sub); padding:8px 10px; cursor:pointer; font-size:14px; border-bottom:2px solid transparent; }
+  nav button, #app-nav a { background:none; border:none; color:var(--sub); padding:8px 10px; cursor:pointer; font-size:14px; border-bottom:2px solid transparent; }
   nav button.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+  #app-nav a { text-decoration:none; display:inline-block; font-family:inherit; }
   #cur-tab, #menu-btn, #nav-backdrop { display:none; }
   /* スマホはヘッダーを 1 行にし、タブは左端の三本線から左のドロワーで出す（tabs.js） */
   @media (max-width:720px){
@@ -21,8 +22,9 @@
                display:flex; flex-direction:column; padding:calc(12px + env(safe-area-inset-top)) 0 12px; box-shadow:4px 0 18px rgba(0,0,0,.18);
                transform:translateX(-105%); transition:transform .22s ease; overflow-y:auto; }
     #app-nav.open { transform:translateX(0); }
-    #app-nav button { text-align:left; font-size:16px; padding:14px 22px; border-bottom:0; border-left:3px solid transparent; color:var(--text); }
+    #app-nav button, #app-nav a { text-align:left; font-size:16px; padding:14px 22px; border-bottom:0; border-left:3px solid transparent; color:var(--text); }
     #app-nav button.active { background:var(--row-sel); border-left-color:var(--accent); color:var(--accent); }
+    #app-nav a { display:block; }
     #nav-backdrop { display:block; position:fixed; inset:0; z-index:49; background:rgba(0,0,0,.35); }
     #nav-backdrop[hidden] { display:none; }
   }
