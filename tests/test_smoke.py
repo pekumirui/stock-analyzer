@@ -217,7 +217,8 @@ def test_api_smoke() -> None:
     body = r.json()
     if body.get("t") != ["2026-08-17", "2026-08-21", "2026-08-24"]:
         raise SystemExit(f"daily chart dates: {body.get('t')!r}")
-    if body["o"][0] != 2980 or body["c"][-1] != 3040 or body["v"][0] != 800 or body["tv"][0] != 2_388_000:
+    if body["o"][0] != 2980 or body["c"][-1] != 3040 or body["v"][0] != 800 or body["tv"][0] != 2_388_000 \
+            or body["mc"][0] != 50_000 or set(body["fund"]) != {"t", "eps", "op_q", "op_ttm"}:
         raise SystemExit(f"daily chart columns: {body!r}")
     etag = r.headers.get("etag")
     r = client.get(f"/api/chart/{code}", headers={"If-None-Match": etag or ""})

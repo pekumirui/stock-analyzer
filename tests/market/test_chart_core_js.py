@@ -40,6 +40,14 @@ const out = {
            c.chartMonthsBefore("2026-10-16", 12), c.chartMonthsBefore("2026-10-16", -3)],
   qty: [c.chartQty(800, "株"), c.chartQty(25007500, "株"), c.chartQty(77110432900, "円"), c.chartQty(1.5e12, "円")],
   price: [c.chartPrice(2821.5), c.chartPrice(3094), c.chartPrice(null)],
+  fund: c.chartFundDaily({
+    t: ["2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06"], c: [1000, 1200, 1100, 900],
+    mc: [100, 120, null, 90],
+    fund: {t: ["2026-08-04", "2026-08-06"], eps: [100, -5], op_q: [5e6, 6e6], op_ttm: [1e7, 0]},
+  }),
+  quantile: [c.chartQuantile([1, 2, 3, 4], 0.5), c.chartQuantile([], 0.5)],
+  band: [c.chartBandMultiples([null, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, -3]), c.chartBandMultiples([12, 12]),
+         c.chartBandMultiples([null])],
 };
 console.log(JSON.stringify(out));
 """
@@ -78,3 +86,11 @@ def test_chart_core_bars_and_indicators() -> None:
     assert o["before"] == ["2026-02-28", "2026-04-16", "2025-10-16", "2027-01-16"]
     assert o["qty"] == ["800株", "2,500.8万株", "771.1億円", "1.5兆円"]
     assert o["price"] == ["2,821.5", "3,094", "–"]
+    # 業績の階段を日足にそろえる。使い始める日より前は null、予想EPS・営業利益が 0 以下なら倍率を出さない
+    assert o["fund"] == {
+        "eps": [None, 100, 100, -5], "opq": [None, 5e6, 5e6, 6e6], "opttm": [None, 1e7, 1e7, 0],
+        "per": [None, 12, 11, None], "mcop": [None, 12, None, None],
+    }
+    assert o["quantile"] == [2.5, None]
+    # PERバンドは 10%・50%・90% 点。10 倍未満は小数 1 桁、重なれば 1 本
+    assert o["band"] == [[8.9, 13, 16], [12], []]
