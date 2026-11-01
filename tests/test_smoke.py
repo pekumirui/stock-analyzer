@@ -124,7 +124,7 @@ def test_api_smoke() -> None:
     _expect(r, 200, "GET /app")
     if len(r.content) < 200:
         raise SystemExit("GET /app returned too little content")
-    if "週足" not in r.text or 'value="W"' not in r.text:
+    if "週足" not in r.text or 'data-tf="W"' not in r.text or 'data-tf="Y"' not in r.text:
         raise SystemExit("chart timeframe missing 週足")
     if "📈 株式分析" in r.text or 'id="home"' in r.text:
         raise SystemExit("GET /app must not show the brand title")

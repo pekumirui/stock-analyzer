@@ -140,13 +140,13 @@
     </div>
     <div id="st-sub-price" class="st-sub" hidden>
       <div class="row">
-        <div id="chart-range" class="fin-tabs" role="group" aria-label="期間">
-          <button class="ftab" data-range="1M">1M</button><button class="ftab" data-range="3M">3M</button><button class="ftab on" data-range="6M">6M</button><button class="ftab" data-range="1Y">1Y</button><button class="ftab" data-range="3Y">3Y</button><button class="ftab" data-range="5Y">5Y</button><button class="ftab" data-range="ALL">全</button>
+        <div id="tf" class="fin-tabs" role="group" aria-label="足">
+          <button class="ftab on" data-tf="D">日足</button><button class="ftab" data-tf="W">週足</button><button class="ftab" data-tf="M">月足</button><button class="ftab" data-tf="Y">年足</button>
         </div>
-        <select id="tf" aria-label="足"><option value="A">自動</option><option value="D">日足</option><option value="W">週足</option><option value="M">月足</option></select>
         <input id="mas" value="50,150,200" style="width:110px" title="移動平均(カンマ区切り)" aria-label="移動平均">
         <select id="chart-sub" aria-label="下段"><option value="v">出来高</option><option value="tv">売買代金</option></select>
         <select id="chart-fund" aria-label="業績の段"><option value="">業績なし</option><option value="op">営業利益</option><option value="per">予想PER</option><option value="mcop">時価総額÷営業利益</option></select>
+        <label><input type="checkbox" id="chart-hl" checked> 高安値</label>
         <label><input type="checkbox" id="chart-band"> PERバンド</label>
         <label><input type="checkbox" id="chart-log"> 対数</label>
         <label><input type="checkbox" id="rel"> 対TOPIX</label>

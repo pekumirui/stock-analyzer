@@ -109,7 +109,7 @@ def test_chart_tab_moved_into_stock_price() -> None:
     assert 'data-tab="chart"' not in html and 'id="tab-chart"' not in html
     assert not (ROOT / "static/js/chart-tab.js").exists()
     sub = html[html.index('id="st-sub-price"'):html.index('id="st-sub-news"')]
-    for el in ('id="chart-range"', 'id="tf"', 'id="mas"', 'id="chart-sub"', 'id="chart-fund"', 'id="chart-band"',
+    for el in ('id="tf"', 'id="mas"', 'id="chart-sub"', 'id="chart-fund"', 'id="chart-hl"', 'id="chart-band"',
                'id="chart-log"', 'id="rel"',
                'id="chart"', 'id="perf-tbl" class="sheet"', 'class="evt-toggles"'):
         assert el in sub
