@@ -311,6 +311,7 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
 - 輸入・輸出: 普通貿易統計（00350300）の「全国分 品別国別表 輸入 / 輸出」（`source` は `trade`。表題で速報の月は revision 1、ほかは 2）。石油統計で取る素材は載せない。統計品目番号 9 桁の前方一致で素材に寄せ、国は合計する。輸入と輸出で番号体系が違う
 - 輸出入の相手国別（`material_trade_country`。素材 × 月 × 輸出入 × 国）: 同じ表の値を国ごとに足して別に持つ。国は貿易統計の国コード 3 桁（`137_サウジアラビア` の `137`）と国名。revision は `trade` と同じで、下がる上書きはしない。`trade.items` の素材に加え、国合計は石油統計が正の素材も `trade.country_items` に書けば国別だけ取る（原油 2709、LPG 271112・271113）。対応表から外した (素材, 輸出入) の行はジョブの最初に消す
 - 数量は 単位1 があれば 数量1、無ければ 数量2（化学品の多くは KG）。KG と MT は t に、KL は kl に、NO は 本 に寄せる。0 の月は書かない（API が埋める。`docs/DESIGN_supply.md`）。未公表の月は 0 で入っているので、表題の「(1-7月：確報、8月：速報)」の最後の月より後は捨てる。前年の表は 2021 年からの 5 年分を持つ
+- UPSERT は revision 照会のあと commit し、行は短いチャンクで commit する。SELECT のトランザクションのまま 1 本の `executemany` で書くと、別接続が書き込みロックを持ったときに昇格待ちで `busy_timeout`（30s）まで `database is locked` になる（KAB-305）
 - 冪等。初回は `python jobs/supply/material_stats.py --years 2021-<今年>`。cron は経産省 Excel が毎日（生産動態 07:15、石油統計 07:45）、e-Stat が月曜 07:10（前年と今年）
 - 見掛け消費（生産 + 輸入 − 輸出 − 在庫の増加分）は保存せず API で出す。4 つと前月在庫が同じ単位で揃う月だけ。revision は材料の最小
 
@@ -446,6 +447,14 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 
 月次 API のエラーは `{"error": {"code": "...", "message": "..."}}`。閲覧 GET は公開。書き込みは loopback のみ（nginx 経由は 403）。本番の個人ツールは `/app` と Basic 認証。
 
+### ヘッダーとパンくずの置き場所
+
+見た目の正本は `docs/SCREEN_SPEC.md`（共通見た目 9・10）。置き場所だけここにも書く。
+
+- `nav#crumbs` はヘッダーに置く。`/app` は `#menu-btn` の右（PC はタブ行の下）。公開月次はサイト名の右。`main` には置かない
+- パンくずがある画面はヘッダーのページ名（`#cur-tab`）を出さない。無い画面はいまどおりページ名
+- 区切りは ` > `。幅に収まらないときは折り返さず横スクロールし、先頭を省略して末尾（いまの画面）が見えるようにする
+
 ### 決算速報の画面
 
 画面は `docs/DESIGN_earnings.md`。書き方は `docs/SCREEN_SPEC.md`。
@@ -515,7 +524,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 データ量は VPS のディスクなら余裕。
 ローカル backfill 完了後に `stock.db` を scp する（サーバで取り直さない）。
 
-見本は `deploy/`（systemd / nginx / crontab）。uvicorn のワーカー数は `nproc` と MemAvailable（1 本あたり数百 MiB。`deploy/uvicorn_workers.py`）で決める。SQLite はライター 1 本のまま WAL + `busy_timeout=30s` で待ち合わせる。日次バッチは定常で 7 リクエスト。指標は差分だけをチャンク commit。月次の書き込み API は `database is locked` を短い回数だけ再試行する。`jobs/migrate.py`（deploy 含む）は同じエラーを指数バックオフで再試行する。起動前に migrate が `init_db` を 1 回だけ流す（`--preload` は使わない）。
+見本は `deploy/`（systemd / nginx / crontab）。uvicorn のワーカー数は `nproc` と MemAvailable（1 本あたり数百 MiB。`deploy/uvicorn_workers.py`）で決める。SQLite はライター 1 本のまま WAL + `busy_timeout=30s` で待ち合わせる。ファイル SQLite は `NullPool`（SQLAlchemy 2.1 の QueuePool 既定は使わない。接続が増えると locked になる）。日次バッチは定常で 7 リクエスト。指標は差分だけをチャンク commit。月次の書き込み API は `database is locked` を短い回数だけ再試行する。`jobs/migrate.py`（deploy 含む）は同じエラーを指数バックオフで再試行する。起動前に migrate が `init_db` を 1 回だけ流す（`--preload` は使わない）。
 
 Postgres 切替は将来オプション。今は使わない。`DATABASE_URL` だけ変えれば SQLAlchemy は両対応のまま。
 

@@ -10,14 +10,30 @@
   nav button.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
   #app-nav a { text-decoration:none; display:inline-block; font-family:inherit; }
   #cur-tab, #menu-btn, #nav-backdrop { display:none; }
+  /* パンくずはヘッダー。PC はタブ行の下。幅に収まらないときは折り返さず横スクロールし、末尾を見せる */
+  #crumbs { font-size:12px; color:var(--sub); line-height:1.4; min-width:0;
+            flex:1 0 100%; order:5; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  #crumbs[hidden] { display:none; }
+  #crumbs ol { display:inline-flex; flex-wrap:nowrap; align-items:center; list-style:none; padding:0; margin:0; white-space:nowrap; }
+  #crumbs li { display:flex; align-items:center; flex-shrink:0; }
+  #crumbs li:not(:last-child)::after { content:" > "; white-space:pre; color:var(--sub); }
+  #crumbs a { color:var(--accent); text-decoration:none; }
+  #crumbs a:hover { text-decoration:underline; }
+  #crumbs [aria-current="page"] { color:var(--text); }
+  body.public-monthly #crumbs { flex:1 1 auto; order:0; }
   /* スマホはヘッダーを 1 行にし、タブは左端の三本線から左のドロワーで出す（tabs.js） */
   @media (max-width:720px){
     header { flex-wrap:nowrap; padding:8px 10px 8px 6px; }
-    #cur-tab { display:block; font-size:14px; font-weight:600; color:var(--accent); white-space:nowrap; }
+    #cur-tab { display:block; font-size:14px; font-weight:600; color:var(--accent); white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+    header:has(#crumbs:not([hidden])) #cur-tab { display:none; }
+    #crumbs { display:block; flex:1 1 auto; order:0; padding:0; font-size:13px; }
+    #crumbs[hidden] { display:none; }
+    #crumbs [aria-current="page"] { font-weight:600; color:var(--accent); }
     #menu-btn { display:flex; flex-shrink:0; background:none; border:0; color:var(--text); padding:6px; cursor:pointer; position:relative; z-index:1; }
     #menu-btn svg { width:24px; height:24px; }
     header:has(#app-nav.open) #menu-btn,
-    header:has(#app-nav.open) #cur-tab { visibility:hidden; }
+    header:has(#app-nav.open) #cur-tab,
+    header:has(#app-nav.open) #crumbs { visibility:hidden; }
     #app-nav { position:fixed; top:0; left:0; bottom:0; z-index:50; width:min(78vw, 300px); background:var(--panel);
                display:flex; flex-direction:column; padding:calc(12px + env(safe-area-inset-top)) 0 12px; box-shadow:4px 0 18px rgba(0,0,0,.18);
                transform:translateX(-105%); transition:transform .22s ease; overflow-y:auto; }
@@ -29,13 +45,6 @@
     #nav-backdrop[hidden] { display:none; }
   }
   main { padding:8px 12px; }
-  #crumbs { font-size:12px; color:var(--sub); line-height:1.4; padding:0 0 6px; }
-  #crumbs ol { display:flex; flex-wrap:wrap; align-items:center; list-style:none; padding:0; margin:0; }
-  #crumbs li { display:flex; align-items:center; }
-  #crumbs li:not(:last-child)::after { content:" > "; white-space:pre; color:var(--sub); }
-  #crumbs a { color:var(--accent); text-decoration:none; }
-  #crumbs a:hover { text-decoration:underline; }
-  #crumbs [aria-current="page"] { color:var(--text); }
   .panel { background:var(--panel); padding:12px; margin-bottom:12px; }
   .a-chart, .a-fin { border:1px solid var(--border); }
   .a-list.panel { border:none; padding-left:0; padding-right:0; }
@@ -65,7 +74,8 @@
   input,select { background:var(--panel); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:14px; }
   button.btn { background:var(--accent); border:none; color:#fff; border-radius:6px; padding:6px 12px; cursor:pointer; }
   #chart { width:100%; }
-  #chart-range .ftab { padding:5px 9px; }
+  .chart-nav { margin-top:4px; touch-action:pan-y; user-select:none; -webkit-user-select:none; }
+  .chart-nav canvas { display:block; }
   .chart-legend { position:absolute; top:4px; left:6px; z-index:3; pointer-events:none; font-size:12px; line-height:1.5;
                   font-variant-numeric:tabular-nums; color:var(--text); background:rgba(255,255,255,.8); padding:0 4px; }
   .chart-legend .up { color:var(--up); }

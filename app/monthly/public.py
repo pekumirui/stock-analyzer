@@ -98,9 +98,9 @@ def _shell(
 <body class="public-monthly" data-public-monthly="1">
 <header>
   <a class="brand" href="/monthly">{escape(PUBLIC_SITE_NAME)}</a>
+  <nav id="crumbs" aria-label="パンくず" hidden></nav>
 </header>
 <main>
-<nav id="crumbs" aria-label="パンくず"></nav>
 <section id="tab-monthly">
   <div id="monthly-top"{' style="display:none"' if top_hidden else ""}>
     <div class="phead"><h1>月次売上</h1></div>
