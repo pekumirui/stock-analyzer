@@ -31,8 +31,9 @@ const out = {
   mas: c.chartParseMas(" 50, 150,x,0,50 ,200"),
   spikes: c.chartSpikes(many).map((x, i) => x ? i : -1).filter(i => i >= 0),
   rel: [...c.chartRelative(daily, topix)],
-  zoom: [c.chartZoomTf("D", 1.5), c.chartZoomTf("D", 30), c.chartZoomTf("W", 10), c.chartZoomTf("W", 20),
-         c.chartZoomTf("M", 1), c.chartZoomTf("M", 17.2), c.chartZoomTf("M", 10)],
+  swings: c.chartSwings([5, 6, 9, 7, 6, 8, 12, 10, 9, 9], [4, 5, 8, 6, 5, 7, 11, 9, 8, 8], 0, 9, 2),
+  swingsEdge: c.chartSwings([3, 2, 1], [3, 2, 1], 0, 2, 5),
+  hl: [c.chartHlText("2026-08-13", 26020, false), c.chartHlText("2025-01-30", 2821.5, true)],
   pick: [c.chartPickTf(tf => c.chartBars(daily, tf), "2026-08-17", "2026-09-01", 24),
          c.chartPickTf(tf => c.chartBars(daily, tf), "2026-08-17", "2026-09-01", 12),
          c.chartPickTf(tf => c.chartBars(daily, tf), "2026-08-17", "2026-09-01", 4)],
@@ -80,7 +81,10 @@ def test_chart_core_bars_and_indicators() -> None:
     assert o["rel"] == [["2026-08-17", 100], ["2026-08-18", 100.5], ["2026-08-21", 91.52],
                         ["2026-08-24", 101.84], ["2026-08-31", 104.52], ["2026-09-01", 107.54]]
     # 2px より細いと粗い足へ、1 つ細かい足が 4px 以上なら細かい足へ
-    assert o["zoom"] == ["W", "D", "W", "D", "M", "W", "M"]
+    # 高安値: 前後 2 本の中の山と谷。見えている最高値・最安値は必ず入る
+    assert o["swings"] == {"highs": [2, 6], "lows": [0, 4, 8]}
+    assert o["swingsEdge"] == {"highs": [0], "lows": [2]}
+    assert o["hl"] == ["8/13 26,020", "25/1/30 2,821.5"]
     # 期間を幅に出すとき 1 本が 4px 以上になる一番細かい足（日足 6 本・週足 3 本）
     assert o["pick"] == ["D", "W", "M"]
     assert o["before"] == ["2026-02-28", "2026-04-16", "2025-10-16", "2027-01-16"]

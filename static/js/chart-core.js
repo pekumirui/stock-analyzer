@@ -4,11 +4,7 @@
 // ---- 足と指標（DOM に触らない。tests/market/test_chart_core_js.py が node で呼ぶ） ----
 
 const CHART_TF_DAYS = {D: 1, W: 5, M: 20};  // 移動平均の日数 → 本数（週=÷5、月=÷20）
-const CHART_TF_STEP = {W: 5, M: 4.3};       // 1 つ細かい足の何本ぶんか
-const CHART_TF_FINER = {W: "D", M: "W"};
-const CHART_TF_COARSER = {D: "W", W: "M"};
-const CHART_THIN = 2;   // 1 本がこれより細くなったら粗い足へ (px)
-const CHART_WIDE = 4;   // 細かい足でもこれ以上の幅なら細かい足へ (px)
+const CHART_WIDE = 4;   // 期間を出すとき 1 本がこれ以上の幅になる一番細かい足を選ぶ (px)
 const CHART_RANGE_MONTHS = {"1M": 1, "3M": 3, "6M": 6, "1Y": 12, "3Y": 36, "5Y": 60, "ALL": 0};
 
 const chartTs = iso => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 1000;
@@ -86,13 +82,6 @@ function chartRelative(daily, topix){
   return out;
 }
 
-// ズームで変える足。いまの 1 本の幅 px から決める。変えないなら tf のまま
-function chartZoomTf(tf, spacing){
-  if(spacing < CHART_THIN && CHART_TF_COARSER[tf]) return CHART_TF_COARSER[tf];
-  if(CHART_TF_FINER[tf] && spacing / CHART_TF_STEP[tf] >= CHART_WIDE) return CHART_TF_FINER[tf];
-  return tf;
-}
-
 // t（昇順）のうち from 以上 to 以下の本数
 function chartCountIn(t, from, to){
   const lo = lowerBound(t, from), hi = lowerBound(t, to + "~");
@@ -143,6 +132,35 @@ function chartBandMultiples(per){
   if(!v.length) return [];
   const r = x => x < 10 ? Math.round(x * 10) / 10 : Math.round(x);
   return [...new Set([0.1, 0.5, 0.9].map(q => r(chartQuantile(v, q))))];
+}
+
+// 高安値。足 a..b（両端を含む）のうち、前後それぞれ k 本の中で一番高い山・一番安い谷の位置。
+// 同じ値なら先の足。見えている最高値・最安値は必ず入れる
+function chartSwings(h, l, a, b, k){
+  const highs = [], lows = [];
+  if(b < a) return {highs, lows};
+  let top = a, bottom = a;
+  for(let i = a; i <= b; i++){
+    if(h[i] > h[top]) top = i;
+    if(l[i] < l[bottom]) bottom = i;
+    let isH = true, isL = true;
+    for(let j = Math.max(a, i - k); j <= Math.min(b, i + k) && (isH || isL); j++){
+      if(j === i) continue;
+      if(h[j] > h[i] || (h[j] === h[i] && j < i)) isH = false;
+      if(l[j] < l[i] || (l[j] === l[i] && j < i)) isL = false;
+    }
+    if(isH) highs.push(i);
+    if(isL) lows.push(i);
+  }
+  if(!highs.includes(top)) highs.push(top);
+  if(!lows.includes(bottom)) lows.push(bottom);
+  return {highs: highs.sort((x, y) => x - y), lows: lows.sort((x, y) => x - y)};
+}
+
+// 高安値のラベル。期間が 1 年を超えると年も付ける
+function chartHlText(iso, v, long){
+  const d = `${+iso.slice(5, 7)}/${+iso.slice(8, 10)}`;
+  return `${long ? iso.slice(2, 4) + "/" : ""}${d} ${chartPrice(v)}`;
 }
 
 // YYYY-MM-DD から months か月前（月末は丸める）
@@ -208,6 +226,9 @@ function chartTheme(){
 const CHART_VOL_COLOR = "#aab4bf";
 const CHART_MA_COLORS = ["accent", "warn", "#8e4ec6", "down"];
 const CHART_BAND_COLOR = "#7d8792";
+const CHART_NAV_H = 44;          // 期間のバーの高さ (px)
+const CHART_NAV_MIN_DAYS = 10;   // 期間のバーで縮められる最短（営業日）
+const CHART_HL_PX = 80;          // 高安値のラベルをおよそこの幅に 1 つ
 const CHART_EXTRA_PANE_PX = 120;  // 業績の段・対TOPIX を 1 段出すごとに高くする
 const CHART_FUND_NAMES = {op: "営業利益", per: "予想PER", mcop: "時価総額÷営業利益"};
 
@@ -250,7 +271,7 @@ function fillEventToggles(){
 }
 
 // ---- チャート ----
-// el に作る。opt: {height（業績の段・対TOPIX を出すとそのぶん高くする）, onTf(tf), onRange(key|null)}。onTf は足が変わったとき、onRange は手で動かしたとき null
+// el に作る。opt: {height（業績の段・対TOPIX を出すとそのぶん高くする）, onTf(tf), onRange(key|null)}。onTf は足が変わったとき、onRange は期間のバーを手で動かしたとき null
 function createStockChart(el, opt = {}){
   const LW = LightweightCharts;
   const th = chartTheme();
@@ -262,7 +283,9 @@ function createStockChart(el, opt = {}){
     localization: {locale: "ja-JP", dateFormat: "yyyy/MM/dd"},
     grid: {vertLines: {color: th.grid}, horzLines: {color: th.grid}},
     crosshair: {mode: LW.CrosshairMode.Normal},
-    timeScale: {borderColor: th.border, minBarSpacing: 0.5},
+    // 動かすのは下の期間のバーだけ。チャートに触れても動かさない（スマホは画面のスクロールになる）
+    handleScroll: false, handleScale: false,
+    timeScale: {borderColor: th.border, minBarSpacing: 0.05, rightOffset: 0},
     rightPriceScale: {borderColor: th.border},
   });
   const legend = document.createElement("div");
@@ -282,7 +305,7 @@ function createStockChart(el, opt = {}){
 
   const st = {daily: null, byTf: {}, rel: null, tf: "D", mode: "A", mas: [50, 150, 200], sub: "v",
               log: false, relOn: false, topix: null, mark: null, bars: null, idx: new Map(),
-              fund: "", band: false, fd: null, dIdx: new Map(), quiet: 0, userMoved: false};
+              fund: "", band: false, hl: true, fd: null, dIdx: new Map(), win: null};
   const barsOf = tf => st.byTf[tf] || (st.byTf[tf] = chartBars(st.daily, tf));
   const width = () => chart.timeScale().width() || el.clientWidth || 600;
 
@@ -293,18 +316,7 @@ function createStockChart(el, opt = {}){
     for(let k = 2; k < panes.length; k++) panes[k].setStretchFactor(1.15);
   }
 
-  // 自分で動かしたぶんは手で動かしたことにしない（範囲の通知は描画のフレームで届くので 2 フレーム待つ）
-  function quietly(fn){
-    st.quiet++;
-    try { fn(); } finally { requestAnimationFrame(() => requestAnimationFrame(() => { st.quiet--; })); }
-  }
-  const setRange = (from, to) => quietly(() => chart.timeScale().setVisibleRange({from: chartTs(from), to: chartTs(to)}));
-  function visible(){
-    const r = chart.timeScale().getVisibleRange();
-    if(!r) return null;
-    const iso = x => new Date(x * 1000).toISOString().slice(0, 10);
-    return {from: iso(r.from), to: iso(r.to)};
-  }
+  const setRange = (from, to) => chart.timeScale().setVisibleRange({from: chartTs(from), to: chartTs(to)});
 
   function drawMarkers(){
     if(!st.bars) return;
@@ -323,9 +335,33 @@ function createStockChart(el, opt = {}){
       for(const d of (st.daily[layer.key] || [])) put(d, th[layer.color] || th.warn, layer.text);
     }
     if(st.mark) put(st.mark, th.accent, "決");
-    const list = [...byTime.values()].sort((a, b) => a.time - b.time);
+    const list = [...byTime.values(), ...hlMarkers()].sort((a, b) => a.time - b.time);
     if(markers) markers.setMarkers(list);
     else markers = LW.createSeriesMarkers(candle, list);
+  }
+
+  // 見えている期間の山と谷
+  function hlMarkers(){
+    if(!st.hl || !st.win) return [];
+    const t = st.bars.t, a = lowerBound(t, st.win.from), z = lowerBound(t, st.win.to + "~") - 1;
+    if(z < a) return [];
+    const k = Math.max(2, Math.round((z - a + 1) * CHART_HL_PX / width() / 2));
+    const long = chartTs(st.win.to) - chartTs(st.win.from) > 366 * 86400;
+    const {highs, lows} = chartSwings(st.bars.h, st.bars.l, a, z, k);
+    const W = width(), px = W / (z - a + 1);
+    // ラベルは足の真上・真下の中央に出る。端ではみ出すなら日付を外し、それでもはみ出せば出さない
+    const fits = (i, text) => { const x = (i - a + 0.5) * px, half = text.length * 3.5; return x >= half && x <= W - half; };
+    const out = [];
+    const mk = (i, high) => {
+      const v = high ? st.bars.h[i] : st.bars.l[i];
+      let text = chartHlText(t[i], v, long);
+      if(!fits(i, text)) text = chartPrice(v);
+      if(!fits(i, text)) return;
+      out.push({time: chartTs(t[i]), position: high ? "aboveBar" : "belowBar", shape: "circle", size: 0, color: th.text, text});
+    };
+    highs.forEach(i => mk(i, true));
+    lows.forEach(i => mk(i, false));
+    return out;
   }
 
   function drawMas(){
@@ -333,7 +369,7 @@ function createStockChart(el, opt = {}){
     maSeries = st.mas.map((w, i) => {
       const c = CHART_MA_COLORS[i % CHART_MA_COLORS.length];
       const s = chart.addSeries(LW.LineSeries, {color: th[c] || c, lineWidth: 1, priceLineVisible: false,
-        lastValueVisible: false, crosshairMarkerVisible: false, title: `MA${w}`}, 0);
+        lastValueVisible: false, crosshairMarkerVisible: false, title: `MA${w}`, autoscaleInfoProvider: () => null}, 0);
       const ma = chartSma(st.bars.c, chartMaLen(w, st.tf));
       const pts = [];
       for(let k = 0; k < ma.length; k++) if(ma[k] != null) pts.push({time: chartTs(st.bars.t[k]), value: ma[k]});
@@ -438,47 +474,132 @@ function createStockChart(el, opt = {}){
   }
 
   // 足を tf にして全部描き直す。range があればその期間を出す
-  function applyTf(tf, range){ quietly(() => applyTfNow(tf, range)); }
-  function applyTfNow(tf, range){
+  function applyTf(tf){
     st.tf = tf;
     st.bars = barsOf(tf);
     st.idx = new Map(st.bars.t.map((t, i) => [chartTs(t), i]));
     const b = st.bars;
     candle.setData(b.t.map((t, i) => ({time: chartTs(t), open: b.o[i], high: b.h[i], low: b.l[i], close: b.c[i]})));
     drawMas(); drawBand(); drawSub(); drawExtra(); drawMarkers(); drawLegend();
-    if(range) setRange(range.from, range.to);
+    if(st.win) setRange(st.win.from, st.win.to);
     if(opt.onTf) opt.onTf(tf);
   }
 
-  // ズームで足を変える（足が自動のときだけ）
-  let zoomPending = false;
-  chart.timeScale().subscribeVisibleLogicalRangeChange(lr => {
-    if(!st.bars || !lr) return;
-    if(!st.quiet && !zoomPending){
-      st.userMoved = true;
-      if(opt.onRange) opt.onRange(null);
-    }
-    if(st.mode !== "A" || zoomPending) return;
-    zoomPending = true;
-    requestAnimationFrame(() => {
-      zoomPending = false;
-      const r = chart.timeScale().getVisibleLogicalRange();
-      if(!r || r.to - r.from <= 0) return;
-      const next = chartZoomTf(st.tf, width() / (r.to - r.from));
-      if(next !== st.tf){ const v = visible(); applyTf(next, v); }
-    });
-  });
   chart.subscribeCrosshairMove(p => drawLegend(p && p.time != null ? st.idx.get(p.time) : null));
 
-  // 期間 [from, to] を出す。足が自動なら足も選ぶ
-  function showSpan(from, to){
+  // 期間 [from, to] を幅いっぱいに出す。足が自動なら期間から足を選ぶ。user は期間のバーを手で動かしたとき
+  function showSpan(from, to, user){
+    st.win = {from, to};
     const tf = st.mode === "A" ? chartPickTf(barsOf, from, to, width()) : st.mode;
     if(tf !== st.tf) applyTf(tf);
-    setRange(from, to);
-    st.userMoved = false;
-    // 幅は作った直後のレイアウトで決まるので、決まったらもう一度合わせる
-    requestAnimationFrame(() => { if(!st.userMoved) setRange(from, to); });
+    else { setRange(from, to); drawMarkers(); }
+    nav.draw();
+    if(user && opt.onRange) opt.onRange(null);
   }
+
+  // ---- 期間のバー（チャートの下。全期間の終値と、いまの期間の窓） ----
+  const nav = (() => {
+    const box = document.createElement("div");
+    box.className = "chart-nav";
+    const cv = document.createElement("canvas");
+    box.appendChild(cv);
+    el.insertAdjacentElement("afterend", box);
+    const ctx = cv.getContext("2d");
+    let drag = null, pending = null;
+    const n = () => st.daily ? st.daily.t.length : 0;
+    const w = () => box.clientWidth || el.clientWidth || 600;
+    const X = i => n() > 1 ? i / (n() - 1) * (w() - 1) : 0;
+    const I = x => Math.round(x / Math.max(1, w() - 1) * (n() - 1));
+    const winIdx = () => {
+      const t = st.daily.t;
+      return [lowerBound(t, st.win.from), Math.max(lowerBound(t, st.win.from), lowerBound(t, st.win.to + "~") - 1)];
+    };
+    function draw(){
+      if(!st.daily || !n()) return;
+      const dpr = window.devicePixelRatio || 1, W = w(), H = CHART_NAV_H;
+      cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + "px"; cv.style.height = H + "px";
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      const c = st.daily.c, t = st.daily.t;
+      let lo = Infinity, hi = -Infinity;
+      for(const v of c){ if(v < lo) lo = v; if(v > hi) hi = v; }
+      const top = 4, bot = H - 14, Y = v => hi > lo ? bot - (v - lo) / (hi - lo) * (bot - top) : (top + bot) / 2;
+      // 終値の線（1px に 1 点）
+      ctx.beginPath();
+      const step = Math.max(1, Math.floor(n() / W));
+      for(let i = 0; i < n(); i += step) ctx[i ? "lineTo" : "moveTo"](X(i), Y(c[i]));
+      ctx.lineTo(X(n() - 1), Y(c[n() - 1]));
+      ctx.strokeStyle = th.accent; ctx.lineWidth = 1; ctx.stroke();
+      ctx.lineTo(X(n() - 1), bot); ctx.lineTo(0, bot); ctx.closePath();
+      ctx.fillStyle = "rgba(0,119,182,.12)"; ctx.fill();
+      // 年の目盛り
+      ctx.fillStyle = th.text; ctx.strokeStyle = th.border; ctx.font = "10px sans-serif"; ctx.textBaseline = "bottom";
+      let lastX = -99;
+      for(let i = 1; i < n(); i++){
+        if(t[i].slice(0, 4) === t[i - 1].slice(0, 4)) continue;
+        const x = X(i);
+        ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, bot); ctx.stroke();
+        if(x - lastX > 24){ ctx.fillText(t[i].slice(2, 4), x + 2, H - 1); lastX = x; }
+      }
+      if(!st.win) return;
+      const [a, z] = winIdx(), xa = X(a), xz = X(z);
+      ctx.fillStyle = "rgba(0,0,0,.08)";
+      ctx.fillRect(0, 0, xa, H); ctx.fillRect(xz, 0, W - xz, H);
+      ctx.strokeStyle = th.accent; ctx.lineWidth = 1.5; ctx.strokeRect(xa, 1, Math.max(1, xz - xa), H - 2);
+      for(const x of [xa, xz]){
+        ctx.fillStyle = "#fff"; ctx.fillRect(x - 4, H / 2 - 10, 8, 20);
+        ctx.strokeStyle = th.accent; ctx.lineWidth = 1; ctx.strokeRect(x - 4, H / 2 - 10, 8, 20);
+      }
+    }
+    function apply(a, z){
+      const t = st.daily.t;
+      pending = [t[a], t[z]];
+      requestAnimationFrame(() => { if(pending){ const [f, to] = pending; pending = null; showSpan(f, to, true); } });
+    }
+    cv.addEventListener("pointerdown", e => {
+      if(!st.daily || !st.win || !n()) return;
+      const x = e.offsetX, [a, z] = winIdx(), xa = X(a), xz = X(z);
+      const tol = e.pointerType === "touch" ? 16 : 8;
+      let mode = Math.abs(x - xa) <= tol ? "a" : Math.abs(x - xz) <= tol ? "z" : x > xa && x < xz ? "move" : "jump";
+      let sa = a, sz = z;
+      if(mode === "jump"){  // 押したところへ窓を動かす（幅はそのまま）
+        const span = z - a, mid = I(x);
+        sa = Math.min(Math.max(0, mid - Math.round(span / 2)), n() - 1 - span); sz = sa + span;
+        apply(sa, sz);
+        mode = "move";
+      }
+      drag = {mode, x, a: sa, z: sz};
+      cv.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+    cv.addEventListener("pointermove", e => {
+      if(!drag){
+        if(!st.win || !n()) return;
+        const [a, z] = winIdx(), x = e.offsetX;
+        cv.style.cursor = Math.abs(x - X(a)) <= 8 || Math.abs(x - X(z)) <= 8 ? "ew-resize" : x > X(a) && x < X(z) ? "grab" : "pointer";
+        return;
+      }
+      const d = I(e.offsetX) - I(drag.x), last = n() - 1, min = Math.min(CHART_NAV_MIN_DAYS, last);
+      let a = drag.a, z = drag.z;
+      if(drag.mode === "move"){
+        const span = z - a;
+        a = Math.min(Math.max(0, a + d), last - span); z = a + span;
+      } else if(drag.mode === "a") a = Math.min(Math.max(0, a + d), z - min);
+      else z = Math.max(Math.min(last, z + d), a + min);
+      apply(a, z);
+    });
+    const end = () => { drag = null; };
+    cv.addEventListener("pointerup", end);
+    cv.addEventListener("pointercancel", end);
+    return {draw, remove: () => box.remove()};
+  })();
+
+  // 幅が変わっても期間は保つ（autoSize で幅が変わると 1 本の幅が保たれ、期間がずれるため）
+  const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => requestAnimationFrame(() => {
+    if(st.win && st.bars){ setRange(st.win.from, st.win.to); drawMarkers(); }
+    nav.draw();
+  }));
+  if(ro) ro.observe(el);
 
   const view = {
     chart,
@@ -491,7 +612,6 @@ function createStockChart(el, opt = {}){
     },
     // 表示の設定を変える。見えている期間は保つ
     set(o){
-      const keep = st.bars ? visible() : null;
       if(o.mode !== undefined) st.mode = o.mode;
       if(o.mas !== undefined) st.mas = o.mas;
       if(o.sub !== undefined) st.sub = o.sub;
@@ -499,10 +619,11 @@ function createStockChart(el, opt = {}){
       if(o.rel !== undefined) st.relOn = o.rel;
       if(o.fund !== undefined) st.fund = o.fund;
       if(o.band !== undefined) st.band = o.band;
+      if(o.hl !== undefined) st.hl = o.hl;
       if(o.topix !== undefined){ st.topix = o.topix; st.rel = null; }
       if(!st.daily) return;
-      const tf = st.mode === "A" ? st.tf : st.mode;
-      applyTf(tf, keep);
+      if(st.win) showSpan(st.win.from, st.win.to);
+      else applyTf(st.mode === "A" ? st.tf : st.mode);
     },
     // 期間ボタン（CHART_RANGE_MONTHS のキー）
     showRange(key){
@@ -521,6 +642,8 @@ function createStockChart(el, opt = {}){
     tf: () => st.tf,
     destroy(){
       chartViews.delete(view);
+      if(ro) ro.disconnect();
+      nav.remove();
       try { chart.remove(); } catch(e) {}
       el.innerHTML = "";
     },
@@ -531,6 +654,6 @@ function createStockChart(el, opt = {}){
 }
 
 if(typeof module !== "undefined" && module.exports){
-  module.exports = {chartFundDaily, chartQuantile, chartBandMultiples, chartBars, chartWeekKey, chartSma, chartMaLen, chartParseMas, chartSpikes, chartRelative,
-                    chartZoomTf, chartPickTf, chartCountIn, chartMonthsBefore, chartPrice, chartQty};
+  module.exports = {chartSwings, chartHlText, chartFundDaily, chartQuantile, chartBandMultiples, chartBars, chartWeekKey, chartSma, chartMaLen, chartParseMas, chartSpikes, chartRelative,
+                    chartPickTf, chartCountIn, chartMonthsBefore, chartPrice, chartQty};
 }
