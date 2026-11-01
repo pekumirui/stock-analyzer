@@ -7,7 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from ..db import get_session
-from ..models import Stock, DailyPrice, Topix, EarningsEvent
+from ..market.chart_fund import fund_steps
+from ..models import Stock, DailyPrice, Topix, EarningsEvent, Statement
 
 
 router = APIRouter()
@@ -30,14 +31,16 @@ def _etag_json(request: Request, body: dict) -> Response:
 
 @router.get("/chart/{code}")
 def chart(code: str, request: Request, db: Session = Depends(get_session)):
-    """日足を列ごとの配列で。四本値と出来高は調整後（無い日は生の値）、売買代金は円"""
+    """日足を列ごとの配列で。四本値と出来高は調整後（無い日は生の値）、売買代金は円、時価総額は百万円。
+    fund は業績の階段（app/market/chart_fund.py）"""
     rows = (db.query(DailyPrice.date, DailyPrice.adj_open, DailyPrice.adj_high, DailyPrice.adj_low,
                      DailyPrice.adj_close, DailyPrice.adj_volume,
                      DailyPrice.open, DailyPrice.high, DailyPrice.low,
-                     DailyPrice.close, DailyPrice.volume, DailyPrice.turnover)
+                     DailyPrice.close, DailyPrice.volume, DailyPrice.turnover,
+                     DailyPrice.market_cap, DailyPrice.adj_factor)
             .filter(DailyPrice.code == code).order_by(DailyPrice.date).all())
-    t, o, h, lo, c, v, tv = [], [], [], [], [], [], []
-    for d, ao, ah, al, ac, av, ro, rh, rl, rc, rv, rtv in rows:
+    t, o, h, lo, c, v, tv, mc = [], [], [], [], [], [], [], []
+    for d, ao, ah, al, ac, av, ro, rh, rl, rc, rv, rtv, rmc, _ in rows:
         close = ac if ac is not None else rc
         if close is None:
             continue
@@ -52,14 +55,17 @@ def chart(code: str, request: Request, db: Session = Depends(get_session)):
         c.append(_px(close))
         v.append(round(vol or 0))
         tv.append(round(rtv or 0))
+        mc.append(None if rmc is None else round(rmc))
     if not t:
         raise HTTPException(404, "no data")
     stock = db.get(Stock, code)
     events = sorted(e.disclosed_date.isoformat() for e in
                     db.query(EarningsEvent.disclosed_date).filter(EarningsEvent.code == code).all())
+    stmts = db.query(Statement).filter(Statement.code == code).all()
+    fund = fund_steps(stmts, [r[0] for r in rows], [r[-1] for r in rows])
     return _etag_json(request, {"code": code, "name": stock.name if stock else code,
-                                "t": t, "o": o, "h": h, "l": lo, "c": c, "v": v, "tv": tv,
-                                "earnings_dates": events})
+                                "t": t, "o": o, "h": h, "l": lo, "c": c, "v": v, "tv": tv, "mc": mc,
+                                "earnings_dates": events, "fund": fund})
 
 
 @router.get("/topix")

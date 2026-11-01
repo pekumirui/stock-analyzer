@@ -113,6 +113,38 @@ function chartPickTf(barsByTf, from, to, width){
   return "M";
 }
 
+// 業績の階段 fund {t, eps, op_q, op_ttm} を日足の日付にそろえる（t 以降、次の点まで同じ値）。
+// per は 調整後の終値 ÷ 予想EPS、mcop は 時価総額 ÷ 直近 12 か月の営業利益。0 以下・無い日は null
+function chartFundDaily(daily){
+  const n = daily.t.length, f = daily.fund || {t: []};
+  const out = {eps: [], opq: [], opttm: [], per: [], mcop: []};
+  let j = -1;
+  for(let i = 0; i < n; i++){
+    while(j + 1 < f.t.length && f.t[j + 1] <= daily.t[i]) j++;
+    const eps = j >= 0 ? f.eps[j] : null, opq = j >= 0 ? f.op_q[j] : null, ttm = j >= 0 ? f.op_ttm[j] : null;
+    const mc = daily.mc ? daily.mc[i] : null;
+    out.eps.push(eps); out.opq.push(opq); out.opttm.push(ttm);
+    out.per.push(eps > 0 ? Math.round(daily.c[i] / eps * 10) / 10 : null);
+    out.mcop.push(mc != null && ttm > 0 ? Math.round(mc * 1e6 / ttm * 10) / 10 : null);
+  }
+  return out;
+}
+
+// 昇順の配列の q 点（線形補間）
+function chartQuantile(sorted, q){
+  if(!sorted.length) return null;
+  const x = (sorted.length - 1) * q, lo = Math.floor(x), hi = Math.ceil(x);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (x - lo);
+}
+
+// PERバンドの倍率。予想PER の 10%・50%・90% 点。10 倍未満は小数 1 桁、ほかは整数。重なれば 1 本
+function chartBandMultiples(per){
+  const v = per.filter(x => x != null && x > 0).sort((a, b) => a - b);
+  if(!v.length) return [];
+  const r = x => x < 10 ? Math.round(x * 10) / 10 : Math.round(x);
+  return [...new Set([0.1, 0.5, 0.9].map(q => r(chartQuantile(v, q))))];
+}
+
 // YYYY-MM-DD から months か月前（月末は丸める）
 function chartMonthsBefore(iso, months){
   const y = +iso.slice(0, 4), m = +iso.slice(5, 7) - 1 - months, d = +iso.slice(8, 10);
@@ -175,6 +207,9 @@ function chartTheme(){
 }
 const CHART_VOL_COLOR = "#aab4bf";
 const CHART_MA_COLORS = ["accent", "warn", "#8e4ec6", "down"];
+const CHART_BAND_COLOR = "#7d8792";
+const CHART_EXTRA_PANE_PX = 120;  // 業績の段・対TOPIX を 1 段出すごとに高くする
+const CHART_FUND_NAMES = {op: "営業利益", per: "予想PER", mcop: "時価総額÷営業利益"};
 
 const EVENT_LAYERS = [
   {id: "earnings", label: "決算発表", color: "warn", text: "決", key: "earnings_dates"},
@@ -215,7 +250,7 @@ function fillEventToggles(){
 }
 
 // ---- チャート ----
-// el に作る。opt: {height, onTf(tf), onRange(key|null)}。onTf は足が変わったとき、onRange は手で動かしたとき null
+// el に作る。opt: {height（業績の段・対TOPIX を出すとそのぶん高くする）, onTf(tf), onRange(key|null)}。onTf は足が変わったとき、onRange は手で動かしたとき null
 function createStockChart(el, opt = {}){
   const LW = LightweightCharts;
   const th = chartTheme();
@@ -241,11 +276,13 @@ function createStockChart(el, opt = {}){
     priceLineVisible: false, lastValueVisible: false,
     priceFormat: {type: "custom", formatter: v => chartQty(v), minMove: 1}}, 1);
   sub.priceScale().applyOptions({scaleMargins: {top: 0.1, bottom: 0}});
-  let maSeries = [], relSeries = null, markers = null;
+  let maSeries = [], bandSeries = [], extra = [], markers = null;
+  const baseHeight = opt.height || 420;
+  el.style.height = baseHeight + "px";
 
   const st = {daily: null, byTf: {}, rel: null, tf: "D", mode: "A", mas: [50, 150, 200], sub: "v",
               log: false, relOn: false, topix: null, mark: null, bars: null, idx: new Map(),
-              quiet: 0, userMoved: false};
+              fund: "", band: false, fd: null, dIdx: new Map(), quiet: 0, userMoved: false};
   const barsOf = tf => st.byTf[tf] || (st.byTf[tf] = chartBars(st.daily, tf));
   const width = () => chart.timeScale().width() || el.clientWidth || 600;
 
@@ -253,7 +290,7 @@ function createStockChart(el, opt = {}){
     const panes = chart.panes();
     if(panes[0]) panes[0].setStretchFactor(4);
     if(panes[1]) panes[1].setStretchFactor(1);
-    if(panes[2]) panes[2].setStretchFactor(1.2);
+    for(let k = 2; k < panes.length; k++) panes[k].setStretchFactor(1.15);
   }
 
   // 自分で動かしたぶんは手で動かしたことにしない（範囲の通知は描画のフレームで届くので 2 フレーム待つ）
@@ -312,23 +349,68 @@ function createStockChart(el, opt = {}){
     sub.applyOptions({priceFormat: {type: "custom", formatter: v => chartQty(v), minMove: 1}});
   }
 
-  function drawRel(){
-    if(!(st.relOn && st.topix)){
-      if(relSeries){
-        chart.removeSeries(relSeries); relSeries = null;
-        if(chart.panes().length > 2) chart.removePane(2);
+  // 足の日付ごとの値（業績・対TOPIX）。無い日は線を切る（whitespace）
+  function barPoints(get){
+    return st.bars.t.map(t => {
+      const v = get(t);
+      return v == null ? {time: chartTs(t)} : {time: chartTs(t), value: v};
+    });
+  }
+  const fundAt = (key, t) => { const i = st.dIdx.get(t); return i == null ? null : st.fd[key][i]; };
+
+  // ローソク足の段に PERバンド（予想EPS × n 倍）。縦軸の伸び縮みには使わない
+  function drawBand(){
+    bandSeries.forEach(x => chart.removeSeries(x));
+    bandSeries = [];
+    if(!st.band || !st.fd) return;
+    bandSeries = chartBandMultiples(st.fd.per).map(m => {
+      const x = chart.addSeries(LW.LineSeries, {color: CHART_BAND_COLOR, lineWidth: 1, lineStyle: LW.LineStyle.Dashed,
+        lineType: LW.LineType.WithSteps, priceLineVisible: false, crosshairMarkerVisible: false,
+        title: `PER ${m}倍`, autoscaleInfoProvider: () => null,
+        priceFormat: {type: "custom", formatter: chartPrice, minMove: 0.1}}, 0);
+      x.setData(barPoints(t => { const e = fundAt("eps", t); return e > 0 ? Math.round(e * m * 10) / 10 : null; }));
+      return x;
+    });
+  }
+
+  // 3 段目からの段（業績の段、対TOPIX）を作り直す。出す段の数だけチャートを高くする
+  function drawExtra(){
+    extra.forEach(x => chart.removeSeries(x));
+    extra = [];
+    while(chart.panes().length > 2) chart.removePane(chart.panes().length - 1);
+    let pane = 2;
+    const line = (o, data) => {
+      const x = chart.addSeries(LW.LineSeries, {lineWidth: 2, priceLineVisible: false, ...o}, pane);
+      x.setData(data);
+      extra.push(x);
+      return x;
+    };
+    const times = {type: "custom", formatter: v => chartPrice(v) + "倍", minMove: 0.1};
+    if(st.fund && st.fd){
+      if(st.fund === "op"){
+        const yen = {type: "custom", formatter: v => chartQty(v, "円"), minMove: 1};
+        line({color: th.accent, title: "四半期", lineType: LW.LineType.WithSteps, priceFormat: yen},
+             barPoints(t => fundAt("opq", t)));
+        line({color: th.warn, title: "12か月", lineType: LW.LineType.WithSteps, priceFormat: yen},
+             barPoints(t => fundAt("opttm", t)));
+      } else {
+        const x = line({color: th.accent, title: CHART_FUND_NAMES[st.fund], priceFormat: times},
+                       barPoints(t => fundAt(st.fund, t)));
+        const v = st.fd[st.fund].filter(y => y != null && y > 0).sort((a, b) => a - b);
+        if(st.fund === "per" && v.length)
+          x.createPriceLine({price: Math.round(chartQuantile(v, 0.5) * 10) / 10, color: th.text, lineWidth: 1,
+                             lineStyle: LW.LineStyle.Dotted, axisLabelVisible: true, title: "中央値"});
       }
-      return;
+      pane++;
     }
-    if(!st.rel) st.rel = chartRelative(st.daily, st.topix);
-    if(!relSeries){
-      relSeries = chart.addSeries(LW.LineSeries, {color: th.warn, lineWidth: 2, priceLineVisible: false,
-        title: "対TOPIX", priceFormat: {type: "price", precision: 1, minMove: 0.1}}, 2);
-      layoutPanes();
+    if(st.relOn && st.topix){
+      if(!st.rel) st.rel = chartRelative(st.daily, st.topix);
+      line({color: th.warn, title: "対TOPIX", priceFormat: {type: "price", precision: 1, minMove: 0.1}},
+           barPoints(t => st.rel.get(t)));
+      pane++;
     }
-    const pts = [];
-    for(const t of st.bars.t){ const v = st.rel.get(t); if(v != null) pts.push({time: chartTs(t), value: v}); }
-    relSeries.setData(pts);
+    el.style.height = baseHeight + (pane - 2) * CHART_EXTRA_PANE_PX + "px";
+    layoutPanes();
   }
 
   function drawLegend(i){
@@ -344,7 +426,15 @@ function createStockChart(el, opt = {}){
     const tfName = {D: "日足", W: "週足", M: "月足"}[st.tf];
     legend.innerHTML = `<span class="sub">${b.t[i].replaceAll("-", "/")} ${tfName}</span> `
       + `始 ${chartPrice(b.o[i])} 高 ${chartPrice(b.h[i])} 安 ${chartPrice(b.l[i])} 終 <b>${chartPrice(b.c[i])}</b>${chg}`
-      + `<br>出来高 ${chartQty(b.v[i], "株")} 売買代金 ${chartQty(b.tv[i], "円")}`;
+      + `<br>出来高 ${chartQty(b.v[i], "株")} 売買代金 ${chartQty(b.tv[i], "円")}`
+      + legendFund(b.t[i]);
+  }
+  function legendFund(t){
+    if(!st.fund || !st.fd) return "";
+    if(st.fund === "op")
+      return `<br>営業利益 四半期 ${chartQty(fundAt("opq", t), "円")} 12か月 ${chartQty(fundAt("opttm", t), "円")}`;
+    const v = fundAt(st.fund, t);
+    return `<br>${CHART_FUND_NAMES[st.fund]} ${v == null ? "–" : chartPrice(v) + "倍"}`;
   }
 
   // 足を tf にして全部描き直す。range があればその期間を出す
@@ -355,7 +445,7 @@ function createStockChart(el, opt = {}){
     st.idx = new Map(st.bars.t.map((t, i) => [chartTs(t), i]));
     const b = st.bars;
     candle.setData(b.t.map((t, i) => ({time: chartTs(t), open: b.o[i], high: b.h[i], low: b.l[i], close: b.c[i]})));
-    drawMas(); drawSub(); drawRel(); drawMarkers(); drawLegend();
+    drawMas(); drawBand(); drawSub(); drawExtra(); drawMarkers(); drawLegend();
     if(range) setRange(range.from, range.to);
     if(opt.onTf) opt.onTf(tf);
   }
@@ -395,6 +485,8 @@ function createStockChart(el, opt = {}){
     // 銘柄を差し替える。opt2: {mark}
     setData(daily, opt2 = {}){
       st.daily = daily; st.byTf = {}; st.rel = null; st.mark = opt2.mark || null;
+      st.fd = chartFundDaily(daily);
+      st.dIdx = new Map(daily.t.map((t, i) => [t, i]));
       applyTf(st.mode === "A" ? st.tf : st.mode);
     },
     // 表示の設定を変える。見えている期間は保つ
@@ -405,6 +497,8 @@ function createStockChart(el, opt = {}){
       if(o.sub !== undefined) st.sub = o.sub;
       if(o.log !== undefined) candle.priceScale().applyOptions({mode: o.log ? LW.PriceScaleMode.Logarithmic : LW.PriceScaleMode.Normal});
       if(o.rel !== undefined) st.relOn = o.rel;
+      if(o.fund !== undefined) st.fund = o.fund;
+      if(o.band !== undefined) st.band = o.band;
       if(o.topix !== undefined){ st.topix = o.topix; st.rel = null; }
       if(!st.daily) return;
       const tf = st.mode === "A" ? st.tf : st.mode;
@@ -437,6 +531,6 @@ function createStockChart(el, opt = {}){
 }
 
 if(typeof module !== "undefined" && module.exports){
-  module.exports = {chartBars, chartWeekKey, chartSma, chartMaLen, chartParseMas, chartSpikes, chartRelative,
+  module.exports = {chartFundDaily, chartQuantile, chartBandMultiples, chartBars, chartWeekKey, chartSma, chartMaLen, chartParseMas, chartSpikes, chartRelative,
                     chartZoomTf, chartPickTf, chartCountIn, chartMonthsBefore, chartPrice, chartQty};
 }

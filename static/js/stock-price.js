@@ -18,20 +18,22 @@ function showStockPrice(){
   if(stockPriceCode !== stockCode) loadChart();
 }
 
-// 足・下段・対数は localStorage に残す
+// 足・下段・業績の段・PERバンド・対数は localStorage に残す
 function loadChartView(){
-  const v = {tf: "A", sub: "v", log: false};
+  const v = {tf: "A", sub: "v", fund: "", band: false, log: false};
   try { Object.assign(v, JSON.parse(localStorage.getItem("chart.view") || "{}")); } catch(e) {}
   return v;
 }
 function saveChartView(){
   try {
-    localStorage.setItem("chart.view", JSON.stringify({tf: $("#tf").value, sub: $("#chart-sub").value, log: $("#chart-log").checked}));
+    localStorage.setItem("chart.view", JSON.stringify({tf: $("#tf").value, sub: $("#chart-sub").value,
+      fund: $("#chart-fund").value, band: $("#chart-band").checked, log: $("#chart-log").checked}));
   } catch(e) {}
 }
 function chartViewOpts(){
   return {mode: $("#tf").value, mas: chartParseMas($("#mas").value), sub: $("#chart-sub").value,
-          log: $("#chart-log").checked, rel: $("#rel").checked};
+          fund: $("#chart-fund").value, band: $("#chart-band").checked, log: $("#chart-log").checked,
+          rel: $("#rel").checked};
 }
 function markRange(key){
   document.querySelectorAll("#chart-range .ftab").forEach(b => b.classList.toggle("on", b.dataset.range === key));
@@ -96,9 +98,11 @@ async function loadChart(){
   const v = loadChartView();
   if(TF_NAMES[v.tf] || v.tf === "A") $("#tf").value = v.tf;
   if(v.sub === "tv") $("#chart-sub").value = "tv";
+  if(CHART_FUND_NAMES[v.fund]) $("#chart-fund").value = v.fund;
+  $("#chart-band").checked = !!v.band;
   $("#chart-log").checked = !!v.log;
   const redraw = () => { saveChartView(); if(stockChart) stockChart.set(chartViewOpts()); };
-  ["#tf", "#mas", "#chart-sub", "#chart-log"].forEach(s => $(s).addEventListener("change", redraw));
+  ["#tf", "#mas", "#chart-sub", "#chart-fund", "#chart-band", "#chart-log"].forEach(s => $(s).addEventListener("change", redraw));
   $("#rel").addEventListener("change", () => { if(stockChart) applyRel(stockPriceAc && stockPriceAc.signal); });
   $("#chart-range").addEventListener("click", e => {
     const b = e.target.closest("[data-range]");
