@@ -6,6 +6,7 @@ from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from .config import DATABASE_URL
 from .models import Base
@@ -16,6 +17,16 @@ def sqlite_connect_args(url: str) -> dict[str, float]:
     if not str(url).startswith("sqlite"):
         return {}
     return {"timeout": 30.0}
+
+
+def sqlite_engine_kwargs(url: str) -> dict:
+    """ファイル SQLite は NullPool。SQLAlchemy 2.1 の QueuePool 既定は接続が残り locked になる。"""
+    if not str(url).startswith("sqlite"):
+        return {}
+    kwargs: dict = {"connect_args": sqlite_connect_args(url)}
+    if ":memory:" not in str(url):
+        kwargs["poolclass"] = NullPool
+    return kwargs
 
 
 def apply_sqlite_pragmas(dbapi_connection, connection_record=None) -> None:  # noqa: ARG001
@@ -29,9 +40,7 @@ def apply_sqlite_pragmas(dbapi_connection, connection_record=None) -> None:  # n
         cursor.close()
 
 
-engine = create_engine(
-    DATABASE_URL, future=True, connect_args=sqlite_connect_args(DATABASE_URL),
-)
+engine = create_engine(DATABASE_URL, future=True, **sqlite_engine_kwargs(DATABASE_URL))
 SessionLocal = sessionmaker(bind=engine, autoflush=False, future=True)
 
 if str(DATABASE_URL).startswith("sqlite"):

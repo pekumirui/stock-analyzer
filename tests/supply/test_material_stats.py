@@ -4,9 +4,13 @@ from __future__ import annotations
 import io
 import os
 import re
+import sqlite3
 import sys
 import tempfile
+import threading
+import time
 from contextlib import redirect_stdout
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -17,13 +21,18 @@ sys.path.insert(0, str(ROOT))
 _tmp = tempfile.mkdtemp(prefix="stock-analyzer-material-stats-")
 os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 
-from app.db import SessionLocal, init_db  # noqa: E402
+from sqlalchemy import create_engine, event, tuple_  # noqa: E402
+from sqlalchemy.exc import OperationalError  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+from sqlalchemy.pool import NullPool  # noqa: E402
+
+from app.db import SessionLocal, apply_sqlite_pragmas, init_db, upsert  # noqa: E402
 from app.supply.estat import (  # noqa: E402
     match_codes, month_of, parse_production_label, production_dims, published_through,
     seidou_records, sokuho_month, trade_country_rows, trade_rows,
 )
 from app.supply.material_stats import (  # noqa: E402
-    REVISION_KAKUHO, REVISION_NENPO, REVISION_SOKUHO, CountryRow, MappingError, Row, SeidouRecord,
+    REVISION_KAKUHO, REVISION_NENPO, REVISION_SOKUHO, WRITE_CHUNK, CountryRow, MappingError, Row, SeidouRecord,
     load_mapping, prune_unmapped, sekiyu_rows, seidou_rows, validate_mapping, write_country_rows, write_rows,
 )
 from app.supply.meti import (  # noqa: E402
@@ -31,7 +40,7 @@ from app.supply.meti import (  # noqa: E402
     sekiyu_nenpo_inventory_cells, sekiyu_sokuho_cells, seidou_december_kakuho, seidou_files,
 )
 from app.supply.meti import seidou_records as meti_records  # noqa: E402
-from app.models import MaterialMonthly, MaterialTradeCountry  # noqa: E402
+from app.models import Base, MaterialMonthly, MaterialTradeCountry  # noqa: E402
 from app.supply.chain import apparent_consumption, load_supply_chain, monthly_payload  # noqa: E402
 
 from jobs._r2common import MountDisconnected  # noqa: E402
@@ -820,6 +829,188 @@ def test_material_stats_ok_failed_zero() -> None:
     _eq(_batch_pages(out), [], f"failed=0 must not page: {out}")
 
 
+def _lock_engine(path: Path, timeout_s: float):
+    url = f"sqlite:///{path}"
+    eng = create_engine(url, future=True, poolclass=NullPool, connect_args={"timeout": timeout_s})
+    event.listen(eng, "connect", apply_sqlite_pragmas)
+
+    @event.listens_for(eng, "connect")
+    def _timeout(dbapi_connection, connection_record):  # noqa: ARG001
+        cur = dbapi_connection.cursor()
+        try:
+            cur.execute(f"PRAGMA busy_timeout={int(timeout_s * 1000)}")
+        finally:
+            cur.close()
+
+    Base.metadata.create_all(eng)
+    return eng, sessionmaker(bind=eng, autoflush=False, future=True)
+
+
+def _hold_write_lock(path: Path, timeout_s: float, hold_s: float, started: threading.Event,
+                     result: dict) -> None:
+    conn = sqlite3.connect(path, timeout=timeout_s, check_same_thread=False)
+    try:
+        apply_sqlite_pragmas(conn)
+        conn.execute(f"PRAGMA busy_timeout={int(timeout_s * 1000)}")
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute("CREATE TABLE IF NOT EXISTS lock_hold (id INTEGER)")
+        conn.execute("INSERT INTO lock_hold (id) VALUES (1)")
+        started.set()
+        time.sleep(hold_s)
+        conn.commit()
+        result["holder"] = "ok"
+    except Exception as exc:  # noqa: BLE001
+        result["holder"] = f"{type(exc).__name__}: {exc}"
+        started.set()
+    finally:
+        conn.close()
+
+
+def _rows(n: int, source: str, metric: str = "import") -> list[Row]:
+    return [
+        Row(f"m{i}", f"2025-{(i % 12) + 1:02d}", metric, source, float(i), "t", REVISION_NENPO, "o")
+        for i in range(n)
+    ]
+
+
+def test_lookup_then_upsert_locks_when_other_writer_holds() -> None:
+    """KAB-305 の再現: revision 照会のトランザクションのまま upsert すると、別接続の
+    書き込みロックで busy_timeout まで待って database is locked になる。"""
+    path = Path(tempfile.mkdtemp(prefix="material-lock-old-")) / "stock.db"
+    timeout_s, hold_s = 0.25, 0.9
+    eng, Session = _lock_engine(path, timeout_s)
+    db = Session()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    looking = threading.Event()
+    started = threading.Event()
+    result: dict = {}
+
+    def holder() -> None:
+        looking.wait(timeout=2)
+        _hold_write_lock(path, timeout_s, hold_s, started, result)
+
+    t = threading.Thread(target=holder)
+    t.start()
+    try:
+        rs = _rows(80, "trade")
+        pk = (MaterialMonthly.material_id, MaterialMonthly.month, MaterialMonthly.metric, MaterialMonthly.source)
+        keys = [(r.material_id, r.month, r.metric, r.source) for r in rs]
+        list(db.query(*pk, MaterialMonthly.revision).filter(tuple_(*pk).in_(keys[:50])))
+        looking.set()
+        if not started.wait(timeout=2):
+            _fail("holder did not take the write lock")
+        t0 = time.monotonic()
+        try:
+            upsert(db, MaterialMonthly, [r.as_dict(now) for r in rs])
+            _fail("expected database is locked, upsert succeeded")
+        except OperationalError as exc:
+            waited = time.monotonic() - t0
+            if "locked" not in str(exc).lower():
+                _fail(f"expected locked, got {exc}")
+            if waited < timeout_s * 0.6:
+                _fail(f"busy_timeout did not wait: {waited:.3f}s")
+    finally:
+        t.join()
+        db.close()
+        eng.dispose()
+
+
+def test_write_rows_seidou_then_trade_with_brief_writer() -> None:
+    """同じセッションで seidou → trade。間に別接続が短く書き込みロックを持っても trade が書き切る。"""
+    path = Path(tempfile.mkdtemp(prefix="material-lock-new-")) / "stock.db"
+    timeout_s, hold_s = 0.4, 0.12
+    eng, Session = _lock_engine(path, timeout_s)
+    db = Session()
+    started = threading.Event()
+    result: dict = {}
+    t = threading.Thread(target=_hold_write_lock, args=(path, timeout_s, hold_s, started, result))
+    try:
+        n = write_rows(db, _rows(40, "seidou:6100", "production"))
+        _eq(n, 40, "seidou written")
+        if db.in_transaction():
+            _fail("seidou write_rows must commit before trade")
+        t.start()
+        if not started.wait(timeout=2):
+            _fail("holder did not take the write lock")
+        n = write_rows(db, _rows(80, "trade"))
+        _eq(n, 80, "trade written through brief lock")
+        if db.in_transaction():
+            _fail("trade write_rows must not leave a transaction open")
+        _eq(db.query(MaterialMonthly).filter(MaterialMonthly.source == "trade").count(), 80, "trade rows")
+    finally:
+        t.join(timeout=3)
+        db.close()
+        eng.dispose()
+    if result.get("holder") != "ok":
+        _fail(f"holder: {result!r}")
+
+
+def test_write_rows_retries_past_one_busy_timeout() -> None:
+    """補助の再試行: 1 回分の busy_timeout を超えるロックでも、ほどけたあとに書き切る。"""
+    path = Path(tempfile.mkdtemp(prefix="material-lock-retry-")) / "stock.db"
+    timeout_s, hold_s = 0.25, 0.45
+    eng, Session = _lock_engine(path, timeout_s)
+    db = Session()
+    started = threading.Event()
+    result: dict = {}
+    t = threading.Thread(target=_hold_write_lock, args=(path, timeout_s, hold_s, started, result))
+    t.start()
+    try:
+        if not started.wait(timeout=2):
+            _fail("holder did not take the write lock")
+        n = write_rows(db, _rows(30, "trade"))
+        _eq(n, 30, "retried write")
+    finally:
+        t.join(timeout=3)
+        db.close()
+        eng.dispose()
+    if result.get("holder") != "ok":
+        _fail(f"holder: {result!r}")
+
+
+def test_write_rows_empty_keep_releases_transaction() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        first = Row("ethylene", "2026-07", "production", "seidou:6100", 100.0, "t", REVISION_KAKUHO, "k")
+        _eq(write_rows(db, [first]), 1, "seed")
+        n = write_rows(db, [Row("ethylene", "2026-07", "production", "seidou:6100", 90.0, "t",
+                                REVISION_SOKUHO, "s")])
+        _eq(n, 0, "sokuho skipped")
+        if db.in_transaction():
+            _fail("empty keep must commit the revision lookup")
+    finally:
+        db.close()
+
+
+def test_write_rows_one_connection_at_a_time() -> None:
+    """同一セッションの write_rows が接続を 2 本同時に持たない（自分自身へのロック待ちをしない）。"""
+    path = Path(tempfile.mkdtemp(prefix="material-lock-conn-")) / "stock.db"
+    eng, Session = _lock_engine(path, 1.0)
+    live: set[int] = set()
+    max_live = 0
+
+    @event.listens_for(eng, "checkout")
+    def _out(dbapi_con, con_record, con_proxy):  # noqa: ARG001
+        nonlocal max_live
+        live.add(id(dbapi_con))
+        max_live = max(max_live, len(live))
+
+    @event.listens_for(eng, "checkin")
+    def _in(dbapi_con, con_record):  # noqa: ARG001
+        live.discard(id(dbapi_con))
+
+    db = Session()
+    try:
+        write_rows(db, _rows(40, "seidou:6100", "production"))
+        write_rows(db, _rows(WRITE_CHUNK + 20, "trade"))
+    finally:
+        db.close()
+        eng.dispose()
+    if max_live != 1:
+        _fail(f"write_rows overlapped connections: max_live={max_live}")
+
+
 def main() -> None:
     test_config_mapping()
     test_labels()
@@ -842,6 +1033,11 @@ def main() -> None:
     test_revision_guard()
     test_prune_and_done()
     test_apparent_and_payload()
+    test_lookup_then_upsert_locks_when_other_writer_holds()
+    test_write_rows_seidou_then_trade_with_brief_writer()
+    test_write_rows_retries_past_one_busy_timeout()
+    test_write_rows_empty_keep_releases_transaction()
+    test_write_rows_one_connection_at_a_time()
     print("ok: material_stats")
 
 
