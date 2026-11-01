@@ -181,7 +181,7 @@ def test_api_smoke() -> None:
 
     r = client.get(f"/api/chart/{code}")
     _expect(r, 200, f"GET /api/chart/{code}")
-    candles = r.json().get("candles") or []
+    candles = r.json().get("t") or []
     if not candles:
         raise SystemExit("chart had no candles")
 
@@ -211,28 +211,17 @@ def test_api_smoke() -> None:
     finally:
         db.close()
 
-    r = client.get(f"/api/chart/{code}", params={"tf": "D"})
-    _expect(r, 200, f"GET /api/chart/{code}?tf=D")
-    daily_n = len(r.json().get("candles") or [])
-    r = client.get(f"/api/chart/{code}", params={"tf": "W"})
-    _expect(r, 200, f"GET /api/chart/{code}?tf=W")
-    weekly = r.json().get("candles") or []
-    r = client.get(f"/api/chart/{code}", params={"tf": "M"})
-    _expect(r, 200, f"GET /api/chart/{code}?tf=M")
-    monthly = r.json().get("candles") or []
-    if daily_n != 3:
-        raise SystemExit(f"daily chart expected 3 candles, got {daily_n}")
-    if len(weekly) != 2:
-        raise SystemExit(f"weekly chart expected 2 candles, got {weekly!r}")
-    if len(monthly) != 1:
-        raise SystemExit(f"monthly chart expected 1 candle, got {monthly!r}")
-    w0, w1 = weekly
-    if (w0.get("time") != "2026-08-21" or w0.get("open") != 2980
-            or w0.get("high") != 3010 or w0.get("low") != 2970
-            or w0.get("close") != 3005 or w0.get("volume") != 1800):
-        raise SystemExit(f"weekly first candle: {w0!r}")
-    if w1.get("time") != "2026-08-24" or w1.get("open") != 3010 or w1.get("close") != 3040:
-        raise SystemExit(f"weekly second candle: {w1!r}")
+    # 週足・月足はブラウザで作る（tests/market/test_chart_core_js.py）。API は日足を列ごとに返すだけ
+    r = client.get(f"/api/chart/{code}")
+    _expect(r, 200, f"GET /api/chart/{code} (3 days)")
+    body = r.json()
+    if body.get("t") != ["2026-08-17", "2026-08-21", "2026-08-24"]:
+        raise SystemExit(f"daily chart dates: {body.get('t')!r}")
+    if body["o"][0] != 2980 or body["c"][-1] != 3040 or body["v"][0] != 800 or body["tv"][0] != 2_388_000:
+        raise SystemExit(f"daily chart columns: {body!r}")
+    etag = r.headers.get("etag")
+    r = client.get(f"/api/chart/{code}", headers={"If-None-Match": etag or ""})
+    _expect(r, 304, f"GET /api/chart/{code} (If-None-Match)")
 
     db = SessionLocal()
     try:

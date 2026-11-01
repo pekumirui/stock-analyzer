@@ -43,7 +43,7 @@ def _screen_files() -> list[Path]:
         p
         for ext in ("html", "js", "css")
         for p in SCREEN.rglob(f"*.{ext}")
-        if p.is_file()
+        if p.is_file() and "vendor" not in p.relative_to(SCREEN).parts  # 配るだけの外部ライブラリ
     )
 
 

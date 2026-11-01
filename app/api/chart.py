@@ -1,7 +1,9 @@
-"""チャートタブ。/chart と決算後リターン /earnings-performance。"""
+"""株価チャート /chart と /topix、決算後リターン /earnings-performance。"""
 
-import pandas as pd
-from fastapi import APIRouter, Depends, HTTPException
+import hashlib
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from ..db import get_session
@@ -11,63 +13,60 @@ from ..models import Stock, DailyPrice, Topix, EarningsEvent
 router = APIRouter()
 
 
+def _px(v: float) -> float:
+    r = round(v, 1)
+    return int(r) if r == int(r) else r
+
+
+def _etag_json(request: Request, body: dict) -> Response:
+    """中身のハッシュを ETag にして返す。合えば 304。足・移動平均はブラウザで作るので日足は一度だけ送る"""
+    raw = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    headers = {"ETag": '"' + hashlib.sha256(raw).hexdigest()[:32] + '"',
+               "Cache-Control": "private, no-cache"}
+    if request.headers.get("if-none-match") == headers["ETag"]:
+        return Response(status_code=304, headers=headers)
+    return Response(raw, media_type="application/json", headers=headers)
+
+
 @router.get("/chart/{code}")
-def chart(code: str, tf: str = "D", ma: str = "50,150,200", rel: bool = False,
-          db: Session = Depends(get_session)):
-    q = (db.query(DailyPrice.date, DailyPrice.adj_open, DailyPrice.adj_high, DailyPrice.adj_low,
-                  DailyPrice.adj_close, DailyPrice.adj_volume,
-                  DailyPrice.open, DailyPrice.high, DailyPrice.low,
-                  DailyPrice.close, DailyPrice.volume)
-         .filter(DailyPrice.code == code).order_by(DailyPrice.date))
-    df = pd.DataFrame(q.all(), columns=["date", "adj_open", "adj_high", "adj_low", "adj_close",
-                                        "adj_volume", "open", "high", "low", "close", "volume"])
-    if df.empty:
+def chart(code: str, request: Request, db: Session = Depends(get_session)):
+    """日足を列ごとの配列で。四本値と出来高は調整後（無い日は生の値）、売買代金は円"""
+    rows = (db.query(DailyPrice.date, DailyPrice.adj_open, DailyPrice.adj_high, DailyPrice.adj_low,
+                     DailyPrice.adj_close, DailyPrice.adj_volume,
+                     DailyPrice.open, DailyPrice.high, DailyPrice.low,
+                     DailyPrice.close, DailyPrice.volume, DailyPrice.turnover)
+            .filter(DailyPrice.code == code).order_by(DailyPrice.date).all())
+    t, o, h, lo, c, v, tv = [], [], [], [], [], [], []
+    for d, ao, ah, al, ac, av, ro, rh, rl, rc, rv, rtv in rows:
+        close = ac if ac is not None else rc
+        if close is None:
+            continue
+        op = ao if ao is not None else ro
+        hi = ah if ah is not None else rh
+        low = al if al is not None else rl
+        vol = av if av is not None else rv
+        t.append(d.isoformat())
+        o.append(_px(op if op is not None else close))
+        h.append(_px(hi if hi is not None else close))
+        lo.append(_px(low if low is not None else close))
+        c.append(_px(close))
+        v.append(round(vol or 0))
+        tv.append(round(rtv or 0))
+    if not t:
         raise HTTPException(404, "no data")
-    for a, b in (("adj_open", "open"), ("adj_high", "high"), ("adj_low", "low"),
-                 ("adj_close", "close"), ("adj_volume", "volume")):
-        df[b] = df[a].fillna(df[b])
-    df = df.dropna(subset=["close"])
-    if df.empty:
-        raise HTTPException(404, "no data")
-
-    mas = {}
-    for w in [int(x) for x in ma.split(",") if x.strip().isdigit()]:
-        mas[w] = df["close"].rolling(w).mean()
-
-    relative = None
-    if rel:
-        tp = pd.DataFrame(db.query(Topix.date, Topix.close).all(), columns=["date", "tclose"])
-        m = df.merge(tp, on="date", how="inner")
-        if not m.empty:
-            base = m.iloc[0]
-            relative = [{"time": d.isoformat(), "value": round((c / base["close"]) / (t / base["tclose"]) * 100, 2)}
-                        for d, c, t in zip(m["date"], m["close"], m["tclose"])]
-
-    if tf in ("W", "M"):
-        if tf == "M":
-            df["_k"] = df["date"].map(lambda d: (d.year, d.month))
-            ma_div = 20  # 日数→月数 (約20営業日/月)
-        else:
-            df["_k"] = df["date"].map(lambda d: d.isocalendar()[:2])
-            ma_div = 5   # 日数→週数 (約5営業日/週)
-        agg = df.groupby("_k").agg(
-            date=("date", "last"), open=("open", "first"), high=("high", "max"),
-            low=("low", "min"), close=("close", "last"), volume=("volume", "sum")).reset_index(drop=True)
-        df = agg
-        mas = {w: df["close"].rolling(min(w // ma_div or 1, len(df))).mean() for w in mas}
-
-    candles = [{"time": d.isoformat(), "open": round(o, 1), "high": round(h, 1),
-                "low": round(l, 1), "close": round(c, 1), "volume": v}
-               for d, o, h, l, c, v in zip(df["date"], df["open"], df["high"], df["low"], df["close"], df["volume"])]
-    ma_out = {str(w): [{"time": d.isoformat(), "value": round(v, 1)}
-                       for d, v in zip(df["date"], s) if pd.notna(v)]
-              for w, s in mas.items()}
     stock = db.get(Stock, code)
+    events = sorted(e.disclosed_date.isoformat() for e in
+                    db.query(EarningsEvent.disclosed_date).filter(EarningsEvent.code == code).all())
+    return _etag_json(request, {"code": code, "name": stock.name if stock else code,
+                                "t": t, "o": o, "h": h, "l": lo, "c": c, "v": v, "tv": tv,
+                                "earnings_dates": events})
 
-    events = [e.disclosed_date.isoformat() for e in
-              db.query(EarningsEvent).filter(EarningsEvent.code == code).all()]
-    return {"code": code, "name": stock.name if stock else code,
-            "candles": candles, "ma": ma_out, "relative": relative, "earnings_dates": events}
+
+@router.get("/topix")
+def topix(request: Request, db: Session = Depends(get_session)):
+    """TOPIX の終値。対TOPIX 相対はブラウザで作る"""
+    rows = db.query(Topix.date, Topix.close).filter(Topix.close.isnot(None)).order_by(Topix.date).all()
+    return _etag_json(request, {"t": [d.isoformat() for d, _ in rows], "c": [round(x, 2) for _, x in rows]})
 
 
 @router.get("/earnings-performance/{code}")

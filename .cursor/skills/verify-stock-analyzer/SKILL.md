@@ -72,7 +72,7 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 | 月次 tab | `nav button[data-tab="monthly"]` |
 | 銘柄 tab | `nav button[data-tab="stock"]` (between 決算速報 and スクリーナー). Search `#st-sym` + `#st-suggest`. `#st-head` (hidden until the overview loads): `#st-title`, `#st-quote`, sub tabs `#st-tabs .ftab[data-sub="summary"|"price"|"news"|"holders"]` (概要 / 株価 / ニュース / 株主) → `#st-sub-*`. `#st-msg` for 銘柄が見つかりません。 / 読み込めませんでした。 / ニュースがありません。 See `features/stock.md` |
 | 銘柄 › 概要 | `#st-metrics` (PER（予想） / PBR（実績） / 配当利回り（予想） / ROE（実績） / 自己資本比率), `#st-fin-tabs .ftab[data-stfin="cum"|"q"|"prog"|"rev"]` → `#st-cum-tbl` / `#st-q-tbl` / `#st-prog-tbl` / `#st-rev-tbl` |
-| 銘柄 › 株価 | `#tf`, `#mas`, `#rel`, `#chart-msg`, `#chart`, `.evt-toggles`, `#relwrap`, `#perf-tbl`. No 表示 button: a `change` on `#tf` / `#rel` / `#mas` redraws. See `features/chart.md` |
+| 銘柄 › 株価 | `#chart-range`, `#tf`, `#mas`, `#chart-sub`, `#chart-log`, `#rel`, `#chart-msg`, `#chart` (+ `.chart-legend`), `.evt-toggles`, `#perf-tbl`. No 表示 button; controls redraw without a request. See `features/chart.md` |
 | 銘柄 › ニュース | `table#st-news` `tr.go[data-id]` → `#st-news-detail`: `#st-back` (← ニュース), `#st-zoom .ftab[data-zoom="fit"|"mid"|"actual"]`, `#st-news-head`, `#st-src`, `#st-doc` (one sandboxed iframe per document) |
 | スクリーナー tab | `nav button[data-tab="screener"]` |
 | ランキング tab | `nav button[data-tab="ranking"]` (`#tab-ranking`). Inner `#rk-subs .ftab[data-rksub="perf"|"pts"]` → `#rk-sub-perf` / `#rk-sub-pts`. PTS is not a header tab |
@@ -109,12 +109,12 @@ HTTP against the same routes the SPA uses, plus the browser when CDP is availabl
 |---|---|
 | Open 決算速報 calendar | `GET /api/earnings/calendar?month=YYYY-MM&today=YYYY-MM-DD` |
 | Click a day | `GET /api/earnings?date=YYYY-MM-DD&today=YYYY-MM-DD` |
-| Select a filing row | `GET /api/earnings/detail/{code}?disclosure_no=...` (also carries `revisions` for 修正履歴) and `GET /api/chart/{code}?tf=D&ma=50,150,200` into `#e-chart` |
-| Select a scheduled row | `GET /api/chart/{code}?tf=D&ma=50,150,200`. When `latest` is set, also `GET /api/earnings/detail/{code}?disclosure_no=` for that prior filing. With no prior filing the four fin tables read `まだ開示されていません` |
+| Select a filing row | `GET /api/earnings/detail/{code}?disclosure_no=...` (also carries `revisions` for 修正履歴) and `GET /api/chart/{code}` into `#e-chart` (same `chart-core.js` module; skipped when that code was loaded in the last 10 minutes) |
+| Select a scheduled row | `GET /api/chart/{code}`. When `latest` is set, also `GET /api/earnings/detail/{code}?disclosure_no=` for that prior filing. With no prior filing the four fin tables read `まだ開示されていません` |
 | Open 銘柄 tab | nothing until a code is picked |
 | 銘柄 search typeahead | `GET /api/stocks/search?q=...` |
 | 銘柄 pick / reload on `#stock/{code}` | `GET /api/stock/{code}/overview` (`{code, name, market, sector33, quote{date, close, change, change_pct, market_cap}, next_earnings{date, fq}|null, metrics{per, pbr, dividend_yield, roe, equity_ratio}}`; 404 `銘柄がありません。`), then the open sub tab's request. 概要: `GET /api/earnings/detail/{code}` (no `disclosure_no`) |
-| 銘柄 › 株価 (first open per code, UI defaults) | `GET /api/chart/{code}?tf=D&ma=50,150,200&rel=false` (may include `earnings_dates`) and `GET /api/earnings-performance/{code}` in parallel. Each `#tf` / `#rel` / `#mas` change repeats both. Reopening the tab for the same code sends nothing unless the last chart call 404'd (`stockPriceCode` cleared; golden 31160) |
+| 銘柄 › 株価 (first open per code, UI defaults) | `GET /api/chart/{code}` (daily columns, may include `earnings_dates`; skipped when the code was loaded in the last 10 minutes) and `GET /api/earnings-performance/{code}` in parallel. Controls send nothing, except the first `#rel` tick (`GET /api/topix`). Reopening the tab for the same code sends nothing unless the last chart call 404'd (`stockPriceCode` cleared; golden 31160) |
 | 銘柄 › ニュース | `GET /api/stock/{code}/filings` once per code; a detail row loads each iframe `GET /api/stock/filings/{id}/documents/{seq}` (HTML, CSP + ETag, 304 on `If-None-Match`) or `/api/stock/pdf/{disclosure_no}` |
 | 銘柄 › 株主 | `GET /api/stock/{code}/holders` |
 | 大量保有報告書 search / pick | `GET /api/holders/search?q=` then `GET /api/holders/{edinet}`. Typing also `GET /api/holders/activity?q=` (no `file_date`) |
@@ -160,7 +160,7 @@ Proof standards:
 - Exercise the real SPA routes (`/app` + `/api/*` the UI calls). Do not hit TestClient, `tests/test_smoke.py` fixtures, or invent test-only endpoints.
 - Capture the **action** (request URL + status, or the click) and the **resulting state** (JSON body and/or screenshot), not only a final screen.
 - Screener / search / earnings lists must show real names. API `code` is 5 characters and must not start with `0`. Table labels use the first 4 (`code.slice(0,4)`: 7203 / 262A), not the stored 5-digit string.
-- 株価 proof needs `candles` length > 0 in `/api/chart/{code}`.
+- 株価 proof needs `t` length > 0 in `/api/chart/{code}`.
 - Side effects: this UI is read-only. Do not write `stock.db`. If a run did write, say so.
 - No mocks. J-Quants is not called by `serve`; empty tables mean the DB was never backfilled.
 

@@ -77,7 +77,7 @@ def test_load_and_serve() -> None:
     if not any(h["code"] == "72030" for h in hits):
         _fail(f"search トヨタ: {hits!r}")
     r = c.get("/api/chart/72030")
-    if r.status_code != 200 or len(r.json().get("candles") or []) < 200:
+    if r.status_code != 200 or len(r.json().get("t") or []) < 200:
         _fail(f"chart 72030 needs 200+ candles for MA200: {r.status_code}")
     r = c.get("/api/v1/tables/78230/2026")
     if r.status_code != 200 or not r.json().get("elements"):

@@ -28,7 +28,7 @@
 | 場所 | 役割 |
 |---|---|
 | `app/` | アプリ本体。直下は機能をまたぐ共通部分、機能ごとに `market/` / `monthly/` / `supply/` / `xbrl/` と `api/`。`app/xbrlp/` と `app/edinet_wrapper/` は vendor なので改変しない |
-| `static/` | SPA（`index.html` + `css/` + `js/<tab>.js`） |
+| `static/` | SPA（`index.html` + `css/` + `js/<tab>.js`）。`static/vendor/` は自前で配る外部ライブラリなので改変しない |
 | `jobs/` | バッチ・cron。機能ごとのフォルダ、直下は共通 |
 | `config/` | 機能ごとの JSON / YAML 設定と `pyproject.toml`（Ruff / Bandit） |
 | `tests/` | 機能ごとのフォルダ。`python -m pytest tests` が `test_*.py` を全部集める（登録は要らない）。DB はファイルごとに空から（`tests/conftest.py`） |

@@ -201,11 +201,11 @@
 
 ### 要素
 
-`#e-chart` に日足と MA 50, 150, 200。タイトルは会社名と 4 桁コード。直近開示があれば期のラベル（`27.3 1Q実績`）。`#cum-tbl` / `#q-tbl` / `#prog-tbl` / `#rev-tbl` は直近開示の表。実績が無ければ「まだ開示されていません」。
+`#e-chart`（高さ 320px）は銘柄タブの株価と同じ部品（`static/js/chart-core.js`）。ローソク足と MA 50, 150, 200、下段に出来高、左上に凡例。操作の行と対TOPIX は無く、足は自動、ズームは同じ。開いたときは直近 6 か月。発表済みの行で発表日がそれより前なら、発表日の前後 3 か月を出す。タイトルは会社名と 4 桁コード。直近開示があれば期のラベル（`27.3 1Q実績`）。`#cum-tbl` / `#q-tbl` / `#prog-tbl` / `#rev-tbl` は直近開示の表。実績が無ければ「まだ開示されていません」。
 
 ### 操作
 
-予定の行をクリックすると `GET /api/chart/{code}?tf=D&ma=50,150,200`。`latest.disclosure_no` があれば `GET /api/earnings/detail/{code}?disclosure_no=` も呼ぶ（発表済みの行と同じ）。会社名は `gotoChart`。
+予定の行をクリックすると `GET /api/chart/{code}`。`latest.disclosure_no` があれば `GET /api/earnings/detail/{code}?disclosure_no=` も呼ぶ（発表済みの行と同じ）。会社名は `gotoChart`。
 
 ### 空とエラー
 
@@ -221,7 +221,7 @@
 
 `GET /api/earnings?date=YYYY-MM-DD&today=YYYY-MM-DD` は `{kind, actuals, scheduled}`。フィールドの意味は `DESIGN.md` §5。実績の行は `restated`（既出期間の損益訂正）と `forecast_revision`（`{direction: "up"|"down", pct}`。無ければ null）。
 
-実績の行は `GET /api/earnings/detail/{code}?disclosure_no=`（修正履歴 `revisions` と進捗率 `progress` もこの応答）と `GET /api/chart/{code}?tf=D&ma=50,150,200`。予定の行は chart に加え、`latest` があれば同じ detail。
+実績の行は `GET /api/earnings/detail/{code}?disclosure_no=`（修正履歴 `revisions` と進捗率 `progress` もこの応答）と `GET /api/chart/{code}`。予定の行は chart に加え、`latest` があれば同じ detail。
 
 検索は `GET /api/stocks/search?q=` と、選んだ銘柄の `GET /api/earnings/detail/{code}`（引数なし）。
 

@@ -62,7 +62,12 @@
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
   input,select { background:var(--panel); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:14px; }
   button.btn { background:var(--accent); border:none; color:#fff; border-radius:6px; padding:6px 12px; cursor:pointer; }
-  #chart, #relchart { width:100%; }
+  #chart { width:100%; }
+  #chart-range .ftab { padding:5px 9px; }
+  .chart-legend { position:absolute; top:4px; left:6px; z-index:3; pointer-events:none; font-size:12px; line-height:1.5;
+                  font-variant-numeric:tabular-nums; color:var(--text); background:rgba(255,255,255,.8); padding:0 4px; }
+  .chart-legend .up { color:var(--up); }
+  .chart-legend .down { color:var(--down); }
   .evt-toggles { display:flex; gap:14px; flex-wrap:wrap; align-items:center;
                  margin-top:8px; padding-top:8px; border-top:1px solid var(--border);
                  font-size:13px; color:var(--sub); }
