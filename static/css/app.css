@@ -76,6 +76,11 @@
   #chart { width:100%; }
   .chart-nav { margin-top:4px; touch-action:pan-y; user-select:none; -webkit-user-select:none; }
   .chart-nav canvas { display:block; }
+  .chart-ohlc { display:flex; flex-wrap:wrap; align-items:baseline; column-gap:0.7em; row-gap:0;
+                font-size:12px; line-height:1.5; font-variant-numeric:tabular-nums; color:var(--text);
+                padding:0 4px 4px; min-height:1.5em; }
+  .chart-ohlc .up { color:var(--up); }
+  .chart-ohlc .down { color:var(--down); }
   .chart-legend { position:absolute; top:4px; left:6px; z-index:3; pointer-events:none; font-size:12px; line-height:1.5;
                   font-variant-numeric:tabular-nums; color:var(--text); background:rgba(255,255,255,.8); padding:0 4px; }
   .chart-legend .up { color:var(--up); }
