@@ -27,31 +27,46 @@ def test_html_background_is_canvas_white() -> None:
         _fail("html の背景は --bg（Safari の枠と overscroll）")
 
 
-def test_nav_backdrop_background_color_is_white() -> None:
+def _rule(css: str, selector: str) -> str:
+    m = re.search(re.escape(selector) + r" \{([^}]+)\}", css)
+    if not m:
+        _fail(f"{selector} のルールが無い")
+    return re.sub(r"\s+", "", m.group(1))
+
+
+def test_bar_tint_strips_keep_safari_bars_white() -> None:
+    """Safari 26 は端の少し内側の一番手前の fixed（10px 超）の background-color を枠に使う。"""
+    html = INDEX.read_text(encoding="utf-8")
+    for pos in ("top", "bottom"):
+        if f'<div class="bar-tint {pos}" aria-hidden="true"></div>' not in html:
+            _fail(f".bar-tint.{pos} を index.html に置く")
     css = CSS.read_text(encoding="utf-8")
-    visible = hidden = after = None
-    for m in re.finditer(r"#nav-backdrop(::after|\[hidden\])? \{([^}]+)\}", css):
-        body = m.group(2)
-        kind = m.group(1) or ""
-        if kind == "::after":
-            after = body
-        elif kind == "[hidden]":
-            hidden = body
-        elif "position:fixed" in body:
-            visible = body
-    if not visible:
-        _fail("#nav-backdrop の fixed ルールが無い")
-    compact = re.sub(r"\s+", "", visible)
-    if "background-color:var(--bg)" not in compact:
-        _fail("幕本体の background-color は --bg（Safari が枠に使う）")
-    if "rgba(0,0,0" in compact:
-        _fail("幕本体に半透明の黒を置かない")
-    if not after or "rgba(0,0,0,.35)" not in re.sub(r"\s+", "", after):
-        _fail("暗いのは #nav-backdrop::after")
-    after_c = re.sub(r"\s+", "", after)
-    if "top:48px" not in after_c or "bottom:48px" not in after_c:
-        _fail("::after は上下端から外す")
-    if not hidden or "display:none" not in hidden:
+    tint = _rule(css, ".bar-tint")
+    for want in ("position:fixed", "background-color:var(--bg)", "background-clip:content-box",
+                 "height:0", "pointer-events:none"):
+        if want not in tint:
+            _fail(f".bar-tint に {want}")
+    pad = re.search(r"padding-top:(\d+)px", tint)
+    if not pad or int(pad.group(1)) <= 10:
+        _fail(".bar-tint は 10px より高くする（Safari は 10px 以下を見ない）")
+    z = int(re.search(r"z-index:(\d+)", tint).group(1))
+    for sel in ("#app-nav", "#nav-backdrop"):
+        for m in re.finditer(re.escape(sel) + r" \{[^}]*z-index:(\d+)", css):
+            if int(m.group(1)) >= z:
+                _fail(f".bar-tint は {sel} より手前")
+
+
+def test_nav_backdrop_has_no_white_bands() -> None:
+    css = CSS.read_text(encoding="utf-8")
+    if "#nav-backdrop::" in css:
+        _fail("幕に疑似要素の帯を作らない（白い帯が見える）")
+    if re.search(r"html::(before|after)", css):
+        _fail("html の疑似要素で端に線を引かない（幕を開くと白い線が見える）")
+    m = re.search(r"#nav-backdrop \{\s*(display:block;[^}]+)\}", css)
+    body = re.sub(r"\s+", "", m.group(1)) if m else ""
+    if "inset:0" not in body or "rgba(0,0,0,.35)" not in body:
+        _fail("幕は inset:0 で全面を暗くする")
+    if "display:none" not in _rule(css, "#nav-backdrop[hidden]"):
         _fail("#nav-backdrop[hidden] は display:none")
 
 

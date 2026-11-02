@@ -42,11 +42,15 @@
     #app-nav button, #app-nav a { text-align:left; font-size:16px; padding:14px 22px; border-bottom:0; border-left:3px solid transparent; color:var(--text); }
     #app-nav button.active { background:var(--row-sel); border-left-color:var(--accent); color:var(--accent); }
     #app-nav a { display:block; }
-    /* Safari 26 は fixed の background-color を枠の色にする。本体は白、暗いのは端から外した ::after */
-    #nav-backdrop { display:block; position:fixed; inset:0; z-index:49; background-color:var(--bg); }
-    #nav-backdrop::after { content:""; position:absolute; top:48px; right:0; bottom:48px; left:0; background:rgba(0,0,0,.35); }
+    #nav-backdrop { display:block; position:fixed; inset:0; z-index:49; background:rgba(0,0,0,.35); }
     #nav-backdrop[hidden] { display:none; }
   }
+  /* iOS Safari 26 は上下端の少し内側にある一番手前の fixed の background-color を枠の色にする（10px 以下は見ない）。
+     幕やドロワーより手前に白の帯を常に置き、枠をいつも白にする。帯は padding だけで何も塗らない */
+  .bar-tint { position:fixed; left:0; right:0; z-index:60; height:0; padding-top:16px;
+              background-color:var(--bg); background-clip:content-box; pointer-events:none; }
+  .bar-tint.top { top:0; }
+  .bar-tint.bottom { bottom:0; }
   main { padding:8px 12px; }
   .panel { background:var(--panel); padding:12px; margin-bottom:12px; }
   .a-chart, .a-fin { border:1px solid var(--border); }
