@@ -6,7 +6,7 @@ The 銘柄 tab picks one issuer and shows a common header (name, price, 時価�
 
 - `stock-tab` shows `#tab-stock` on `nav button[data-tab="stock"]` (second, between 決算速報 and スクリーナー). With no code it sends no request; `#st-head` is `hidden`, every `.st-sub` is hidden, `#st-msg` is hidden, hash `#stock`.
 - `stock-search` types into `#st-sym` (placeholder `銘柄名 or コード`) and fills `#st-suggest` from `GET /api/stocks/search?q=` (`4桁コード 銘柄名`). Enter takes the first hit, a click takes that row, Esc closes. Picking keeps the current sub tab (from a news detail it goes to the list).
-- `stock-head` loads `GET /api/stock/{code}/overview` once per code (`showStock`). `#st-title` reads `{name} {code4} / {market} / {sector33}`; `#st-quote` reads `{close} {±change} ({±pct}%) MM/DD 終値 時価総額 N億円` plus `次回決算 MM/DD` (or `未定` when `next_earnings.date` is null; nothing when `next_earnings` is null). No quote → 「株価データなし」. `#st-sym` is set to the issuer name. Then `#st-head` is shown and `#st-tabs .ftab[data-sub]` gets `.on` on the current sub.
+- `stock-head` loads `GET /api/stock/{code}/overview` once per code (`showStock`). `#st-title` reads `{name} {code4} / {market} / {sector33}`; `#st-quote` reads `{close} {±change} ({±pct}%) MM/DD 終値 時価総額 N億円` plus `次回決算 MM/DD` (or `未定` when `next_earnings.date` is null; nothing when `next_earnings` is null). No quote → 「株価データなし」. `#st-sym` is set to the issuer name. Then `#st-head` is shown and `#st-tabs.nav-tabs .ftab[data-sub]` gets `.on` on the current sub (folder tab: top+side border, not the filled `.fin-tabs` look).
 - `stock-summary` (概要, default) fills `#st-metrics`: PER（予想） `x.x倍` / PBR（実績） `x.xx倍` / 配当利回り（予想） `x.xx%` / ROE（実績） `x.x%` / 自己資本比率 `x.x%`, `–` when the metric is null. Below, `#st-fin-tabs .ftab[data-stfin="cum"|"q"|"prog"|"rev"]` (累計 / 3か月 / 進捗率 / 修正履歴) switch `[data-stfin-wrap]` → `#st-cum-tbl` / `#st-q-tbl` / `#st-prog-tbl` / `#st-rev-tbl`, drawn by earnings.js `renderFin` / `renderProg` / `renderRev` from one `GET /api/earnings/detail/{code}` (no `disclosure_no`, latest filing). A 404 is treated as success with empty rows: 累計 / 3か月 / 進捗率 read `データなし`, 修正履歴 reads `修正履歴なし`. Any other error reads 読み込めませんでした。 in each table.
 - `stock-price` (株価) is `features/chart.md`.
 - `stock-news` (ニュース) loads `GET /api/stock/{code}/filings` once per code into `table#st-news` (日時 `YY/MM/DD HH:MM` / 種類 / 題名). 種類 is `決算` for annual / semiannual / quarterly, else `修正`, plus `訂正` when `is_amendment`. PDF titles end with `（PDF から変換）`. Rows with documents are `tr.go[data-id]` (`x{id}` XBRL, `p{disclosure_no}` PDF). No filings → `#st-msg` 「ニュースがありません。」. Only /filings today; DESIGN_stock.md's `/news` and `#st-news-kinds` are KAB-180 and not in the code.
@@ -21,7 +21,7 @@ The 銘柄 tab picks one issuer and shows a common header (name, price, 時価�
 
 - Click `nav button[data-tab="stock"]` (at ≤720px inside the `#menu-btn` drawer).
 - Type a name or code into `#st-sym`, then Enter or click a `#st-suggest` row.
-- Click 概要 / 株価 / ニュース / 株主 in `#st-tabs`, and 累計 / 3か月 / 進捗率 / 修正履歴 in `#st-fin-tabs`.
+- Click 概要 / 株価 / ニュース / 株主 in `#st-tabs.nav-tabs`, and 累計 / 3か月 / 進捗率 / 修正履歴 in `#st-fin-tabs` (still `.fin-tabs`).
 - On ニュース click a row, then 幅に合わせる / 中 / 原寸 in `#st-zoom`, and 「← ニュース」 or the browser back button.
 - From other tabs, an issuer name (`gotoChart`) opens 株価.
 - Reload with `#stock/{code}`, `#stock/{code}/{sub}`, or `#stock/{code}/news/{id}`.
@@ -46,7 +46,7 @@ Preconditions:
 
 ## Gotchas
 
-- `#st-tabs`, `#st-fin-tabs`, and `#st-zoom` buttons are `.ftab` like 決算速報 / PTS. Select by `[data-sub]`, `[data-stfin]`, `[data-zoom]`.
+- `#st-tabs` is `.nav-tabs` (folder tabs, KAB-315). `#st-fin-tabs` and `#st-zoom` stay `.fin-tabs` like 決算速報 / PTS. Select by `[data-sub]`, `[data-stfin]`, `[data-zoom]`. At 390px the four `#st-tabs` labels stay on one row; `.on` has top+left+right border and a white bottom that meets the content, inactive tabs sit on the bottom line only.
 - There is no `#st-filing` select any more; filings are the ニュース rows.
 - The overview is fetched once per code. Switching sub tabs does not refetch it; 概要 fetches `/api/earnings/detail` once per code (`stockFinCode`), ニュース fetches `/filings` once per code.
 - Routing has no `hashchange` handler. Setting `location.hash` to `#stock/...` from another tab (same document) does nothing until reload; `popstate` only routes while `#tab-stock` is visible.

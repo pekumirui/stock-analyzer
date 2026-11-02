@@ -92,6 +92,8 @@ def test_spa_stock_sub_tabs() -> None:
     js = (ROOT / "static/js/stock.js").read_text(encoding="utf-8")
     for sub in ("summary", "price", "news", "holders"):
         assert f'data-sub="{sub}"' in html and f'id="st-sub-{sub}"' in html
+    st_tabs = html[html.index('id="st-tabs"') - 80:html.index('id="st-tabs"') + 80]
+    assert 'class="nav-tabs"' in st_tabs and "fin-tabs" not in st_tabs
     assert 'id="st-quote"' in html and 'id="st-news" class="sheet"' in html and 'id="st-back"' in html
     assert 'id="st-filing"' not in html
     assert "/api/stock/${code}/overview" in js
