@@ -152,7 +152,7 @@ VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 認
 
 - `service_status` — プロセスと localhost:80 / :8000 の HTTP コード。MCP 自身（:8010）は自己 curl せず、この応答自体を ok とする
 - `app_logs` — `/var/log/app/stock-analyzer.log` と journalctl。uvicorn は `deploy/uvicorn-log.json` で行頭に JST `YYYY-MM-DD HH:MM:SS` を付ける。`since` / `until` は `batch_logs` と同じ形。省略時は journal が直近 1h、ファイルは live の末尾だけ。指定すると `.1` / `.gz` も読み、行頭の時刻で絞る。時刻の無い行（Traceback の続き）は直前の行に付く
-- `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` は crontab / cron-run.sh の stem（`run_batch` / `pts_snapshot` / `fx_rates` / `tdnet_monthly_r2` / `tdnet_briefing_r2` / `tdnet_monthly_pdf_sidecar` / `tdnet_monthly_pdf_ingest` / `ir_monthly_r2` / `ir_monthly_html_r2` / `ir_monthly_html_ingest` / `ir_monthly_json_ingest` / `ir_monthly_xls_ingest` / `tdnet_xbrl_r2` / `xbrl_parse` / `xbrl_normalize` / `edinet_codes` / `edinet_documents` / `edinet_xbrl` / `edinet_large_holdings` / `edinet_tender_offers` / `edinet_buybacks` / `edinet_archive` / `vps_packages_r2` / `backup_db` / `backup_data` / `migrate_r2_share`）。一覧に無い名前とパスは拒否。省略時は `stock-analyzer.log` と `mcp.log` 以外の live ファイル（古い `batch.log` を含む）。`since` / `until` は `1h` / `30m` / `today` / `yesterday` / `YYYY-MM-DD`。`until` はその時刻を含まない。昨日は `since=yesterday` と `until=today`。日時を指定したときは `.1` と `.gz` も読み、行頭の JST `YYYY-MM-DD HH:MM:SS` で絞る。`lines` は 1-500。超えた分は末尾だけ返すので範囲を狭める
+- `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` は crontab / cron-run.sh の stem（`run_batch` / `pts_snapshot` / `fx_rates` / `tdnet_monthly_r2` / `tdnet_briefing_r2` / `tdnet_monthly_pdf_sidecar` / `tdnet_monthly_pdf_ingest` / `ir_monthly_r2` / `ir_monthly_html_r2` / `ir_monthly_html_ingest` / `ir_monthly_json_ingest` / `ir_monthly_xls_ingest` / `tdnet_xbrl_r2` / `xbrl_parse` / `xbrl_normalize` / `edinet_codes` / `edinet_documents` / `edinet_xbrl` / `edinet_large_holdings` / `edinet_tender_offers` / `edinet_buybacks` / `edinet_archive` / `vps_packages_r2` / `backup_db` / `backup_data` / `migrate_r2_share` / `irbank_ingest`）。一覧に無い名前とパスは拒否。省略時は `stock-analyzer.log` と `mcp.log` 以外の live ファイル（古い `batch.log` を含む）。`since` / `until` は `1h` / `30m` / `today` / `yesterday` / `YYYY-MM-DD`。`until` はその時刻を含まない。昨日は `since=yesterday` と `until=today`。日時を指定したときは `.1` と `.gz` も読み、行頭の JST `YYYY-MM-DD HH:MM:SS` で絞る。`lines` は 1-500。超えた分は末尾だけ返すので範囲を狭める
 - `nginx_logs` — nginx journal と error.log と `/var/log/nginx/stock-analyzer.access.log`。アクセスログの `rt=` は nginx 全体、`urt=` は uvicorn の処理秒。遅いリクエストは `grep` に `rt=[1-9]` などを渡す。`since` / `until` は `batch_logs` と同じ形。省略時は journal が直近 1h、ファイルは live の末尾だけ。指定すると logrotate 済みの `.1` / `.gz`（既定で 14 日分）も読み、行の時刻（JST）で絞る。URL の OAuth 一時値（`code` / `state` など）は伏せる
 - `fs_list` / `fs_read` / `fs_grep` — 読み取り専用。`root` は `data`（リポジトリの `data/`、`MCP_DATA_DIR`）か `logs`（`/var/log/app`、`MCP_LOG_DIR`）。それ以外・絶対パス・`..`・symlink で root の外へ出るものは拒否。`.env*` / `*.db` / `*.sqlite*` / `stock.db` / `*.pem` / `id_*` / `*.key` / `rclone.conf` と `/home/stock/backups` / `/home/stock/r2-share` は二重に拒否。`fs_read` は 1 回あたり `MCP_FS_MAX_BYTES`（既定 1MiB）、切り詰め時は `truncated` とファイル全体の `size` を返す。認証は他ツールと同じ `MCP_TOKEN` / OAuth
 - `db_stats` — stock.db の件数。固定9テーブルは日付範囲・デモ混在つき。残りは `sqlite_master` から件数（`sqlite_*` 除く）。既定は `MAX(rowid)` の概算（削除があると多め）。`exact=true` で `COUNT(*)`。`tables` で対象を絞る。`daily_prices` の codes/days は exact のときだけ。1クエリ約2秒・全体約8秒で打ち切り、超えた表は `(timeout)`
@@ -278,6 +278,13 @@ deploy/cron-run.sh jobs/market/run_batch.py --refetch-prices   # ログは batch
 
 ```bash
 deploy/cron-run.sh jobs/market/run_batch.py --readjust-prices
+```
+
+TDnet が約 30 日で消すより前の決算説明資料（KAB-330）は、IR BANK の開示一覧から一度だけ手で取る。cron には入れない。毎日の分は 22:10 の `jobs/market/tdnet_briefing_r2.py`。429 / 503 で止まっても、次の実行は未了の銘柄から続く。`--limit` は 1 回の社数。`--dry-run` は一覧だけ見て PDF も索引も書かない。ログは `deploy/cron-run.sh` なら `/var/log/app/irbank_ingest.log`（`batch_logs` の `job=irbank_ingest`）。
+
+```bash
+python tools/briefing/irbank_ingest.py --code 7203 --dry-run
+deploy/cron-run.sh tools/briefing/irbank_ingest.py --all --limit 80 --sleep 1
 ```
 
 cron（JST）。`run_batch.py` は 19:30 の 1 回。

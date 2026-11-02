@@ -47,12 +47,13 @@ class Homepage(Base):
 class BriefingDocument(Base):
     """保存した決算説明資料（KAB-327）。FK は付けない。
 
-    TDnet の保存ジョブが source=tdnet で書き、会社ホームページで見つけた PDF は
-    同じ表に source=homepage で足す。document_id は出所ごとの安定した ID
-    （TDnet は PDF のファイル名）。code は普通株の 5 桁。rel_path は data/briefing から。
+    TDnet の保存ジョブが source=tdnet で書き、IR BANK の過去分は source=irbank、
+    会社ホームページで見つけた PDF は source=homepage。document_id は出所をまたいで
+    同じ開示番号（TDnet の PDF ファイル名。18 桁）。code は普通株の 5 桁。
+    rel_path は data/briefing から。
     """
     __tablename__ = "briefing_documents"
-    source = Column(String(16), primary_key=True)       # tdnet / homepage
+    source = Column(String(16), primary_key=True)       # tdnet / irbank / homepage
     document_id = Column(String(80), primary_key=True)
     code = Column(String(5), nullable=False)            # 普通株の 5 桁
     company_name = Column(String)
@@ -67,6 +68,23 @@ class BriefingDocument(Base):
     __table_args__ = (
         Index("ix_briefing_documents_code_pubdate", "code", "pubdate"),
     )
+
+
+class BriefingIrbankScan(Base):
+    """IR BANK の開示一覧を読み終えた銘柄（KAB-330）。FK は付けない。
+
+    過去分の一括取得が 1 社 1 回で済むようにする。行がある銘柄は次の実行で一覧を取りに行かない。
+    429 / 503 で止めた銘柄と、PDF の取得に失敗した銘柄は行を書かないので、次の実行が続きから取る。
+    """
+    __tablename__ = "briefing_irbank_scans"
+    code = Column(String(5), primary_key=True)          # 代表の 5 桁（末尾 0 を優先）
+    scanned_at = Column(DateTime, nullable=False)       # JST naive
+    listed = Column(Integer, nullable=False)            # 説明資料と判定した件数
+    saved = Column(Integer, nullable=False)
+    skipped = Column(Integer, nullable=False)           # 開示番号が索引済み
+    reindexed = Column(Integer, nullable=False)         # PDF は既にあり索引だけ足した
+    missing = Column(Integer, nullable=False)           # PDF が 404
+    failed = Column(Integer, nullable=False)
 
 
 class DailyPrice(Base):

@@ -1,0 +1,445 @@
+"""IR BANK の過去の決算説明資料（KAB-330）。ネットワークには出ない。"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import httpx
+import pytest
+
+from app.db import SessionLocal
+from app.market.briefing_store import SOURCE_IRBANK, SOURCE_TDNET, record_briefing
+from app.models import BriefingDocument, BriefingIrbankScan, Stock
+from jobs.monthly.tdnet_monthly_r2 import dest_path
+from tools.briefing import irbank_ingest as mod
+
+ROOT = Path(__file__).resolve().parents[2]
+PDF = b"%PDF-1.4 briefing"
+MAT = "2027年3月期第1四半期決算報告プレゼンテーション資料"
+OLDER = "2025年3月期決算報告プレゼンテーション資料"
+CORR = "(訂正)「2027年3月期第1四半期決算短信〔IFRS〕(連結)」補足資料の一部訂正に関するお知らせ"
+
+
+def _db():
+    db = SessionLocal()
+    db.query(BriefingIrbankScan).delete()
+    db.query(BriefingDocument).delete()
+    db.query(Stock).delete()
+    db.commit()
+    return db
+
+
+def _stock(db, code: str, name: str, category: str | None) -> None:
+    db.add(Stock(code=code, name=name, product_category=category))
+    db.commit()
+
+
+def _page(code4: str, rows: list[tuple[str, str, str, str]]) -> str:
+    parts = ['<dl class="sdl">']
+    for doc, title, ymd, hm in rows:
+        attr = f"{code4} 社 | {title}（{ymd} {hm}提出）".replace("&", "&amp;")
+        parts.append(
+            f'<dt>{ymd}</dt><dd><a class="nxq" title="{attr}" href="/{code4}/{doc}">'
+            f"{title}（{hm}）</a></dd>"
+        )
+    parts.append("</dl>")
+    return "".join(parts)
+
+
+def _client(routes: dict[str, str | bytes | int], calls: list[str]) -> httpx.Client:
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        found = routes.get(str(request.url))
+        if isinstance(found, str):
+            return httpx.Response(200, text=found)
+        if isinstance(found, bytes):
+            return httpx.Response(200, content=found)
+        if isinstance(found, int):
+            return httpx.Response(found)
+        return httpx.Response(404)
+
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def _run(db, dest: Path, routes: dict, calls: list[str], **kwargs):
+    kwargs.setdefault("sleep", 0)
+    with _client(routes, calls) as client:
+        return mod.run(db, dest, client=client, log=lambda *_: None, **kwargs)
+
+
+def _row(source: str, document_id: str) -> BriefingDocument | None:
+    db = SessionLocal()
+    try:
+        return db.get(BriefingDocument, (source, document_id))
+    finally:
+        db.close()
+
+
+def _scanned() -> list[str]:
+    db = SessionLocal()
+    try:
+        return [code for (code,) in db.query(BriefingIrbankScan.code).order_by(BriefingIrbankScan.code)]
+    finally:
+        db.close()
+
+
+def test_issuer_filter_follows_cover_target_rules() -> None:
+    assert mod.is_briefing_issuer("011", "トヨタ自動車")
+    assert mod.is_briefing_issuer("021", "外国株")
+    assert mod.is_briefing_issuer("013", "日本都市投資法人")
+    assert mod.is_briefing_issuer("011", "名前にファンドが付く普通株")
+    assert mod.is_briefing_issuer(None, "区分の無い会社")
+    assert mod.is_briefing_issuer("", "区分の無い会社")
+    assert not mod.is_briefing_issuer("014", "上場ETF")
+    assert not mod.is_briefing_issuer("023", "外国ETF")
+    assert not mod.is_briefing_issuer("013", "産業ファンド投資法人")
+    assert not mod.is_briefing_issuer("013", "いちごグリーンインフラ投資法人")
+    assert not mod.is_briefing_issuer("012", "その他の区分")
+    assert not mod.is_briefing_issuer(None, "テストETF")
+    assert not mod.is_briefing_issuer("", "インフラファンド")
+
+
+def test_parse_reads_title_and_uses_the_shared_gate() -> None:
+    page = _page("7203", [
+        ("140120260804507860", MAT, "2026/08/04", "14:00"),
+        ("140120260807513909", CORR, "2026/08/07", "12:00"),
+        ("140120260101000001", "決算&説明資料", "2026/01/01", "15:00"),
+    ])
+    items = mod.parse_ir_list(page, "7203")
+    assert [item.document_id for item in items] == [
+        "140120260804507860", "140120260807513909", "140120260101000001",
+    ]
+    assert items[0].pdf_id == "20260804507860"
+    assert items[0].pubdate == "2026-08-04 14:00:00"
+    assert items[0].title == MAT
+    assert items[2].title == "決算&説明資料"
+    picked = mod.select_materials(items)
+    assert [item.title for item in picked] == [MAT, "決算&説明資料"]
+    assert CORR not in [item.title for item in picked]
+    # 実ページは <dt class="dsp">。表題属性に提出日時が無いときはリンク文字と dt から取る
+    fallback = (
+        '<dl><dt class="dsp">2026/08/04</dt><dd><a class="nxq" title="plain" '
+        'href="/7203/140120260804507860">2027年3月期決算説明資料（14:00）</a></dd></dl>'
+    )
+    got = mod.parse_ir_list(fallback, "7203")
+    assert len(got) == 1
+    assert got[0].title == "2027年3月期決算説明資料"
+    assert got[0].pubdate == "2026-08-04 14:00:00"
+    assert got[0].pdf_id == "20260804507860"
+
+
+def test_skips_indexed_disclosure_and_saves_irbank_once(tmp_path: Path) -> None:
+    db = _db()
+    try:
+        _stock(db, "72030", "トヨタ自動車", "011")
+        _stock(db, "72031", "トヨタ自動車優先", "011")
+        record_briefing(
+            source=SOURCE_TDNET, document_id="140120260804507860", code="72030",
+            company_name="トヨタ自動車", pubdate="2026-08-04 14:00:00", title=MAT,
+            rel_path="7203/already.pdf", url="https://www.release.tdnet.info/inbs/140120260804507860.pdf",
+            sha256="abc", size=3,
+        )
+        record_briefing(
+            source=SOURCE_TDNET, document_id="20250508534308", code="72030",
+            company_name="トヨタ自動車", pubdate="2025-05-08 16:00:00", title=OLDER,
+            rel_path="7203/short.pdf", url=None, sha256="def", size=3,
+        )
+        new = "140120241106513334"
+        new_title = "2025年3月期第2四半期(中間期)決算報告プレゼンテーション資料"
+        page = _page("7203", [
+            ("140120260804507860", MAT, "2026/08/04", "14:00"),
+            ("140120250508534308", OLDER, "2025/05/08", "16:00"),
+            (new, new_title, "2024/11/06", "18:00"),
+            ("140120260807513909", CORR, "2026/08/07", "12:00"),
+        ])
+        routes = {
+            "https://irbank.net/7203/ir": page,
+            "https://api.irbank.net/api/market-files/v1/tdnet/20241106513334.pdf": PDF,
+        }
+        calls: list[str] = []
+        stats = _run(db, tmp_path, routes, calls, codes=["72030"])
+        assert stats.stopped == "done"
+        assert stats.saved == 1 and stats.skipped == 2 and stats.listed == 3
+        assert stats.remaining == 0
+        assert calls == [
+            "https://irbank.net/7203/ir",
+            "https://api.irbank.net/api/market-files/v1/tdnet/20241106513334.pdf",
+        ]
+        row = _row(SOURCE_IRBANK, new)
+        assert row is not None
+        assert row.code == "72030"
+        assert row.title == new_title
+        assert row.pubdate == "2024-11-06 18:00:00"
+        assert row.rel_path.startswith("7203/")
+        assert "20241106" in row.rel_path
+        assert row.url.endswith("/20241106513334.pdf")
+        assert row.status == "saved"
+        saved = tmp_path / row.rel_path
+        assert saved.read_bytes() == PDF
+        assert row.size == len(PDF)
+        assert _row(SOURCE_IRBANK, "140120260804507860") is None
+        again: list[str] = []
+        second = _run(db, tmp_path, routes, again, codes=["72030"])
+        assert again == []
+        assert second.companies == 0 and second.remaining == 0
+        assert _scanned() == ["72030"]
+    finally:
+        db.close()
+
+
+def test_rate_limit_stops_and_next_run_continues(tmp_path: Path) -> None:
+    db = _db()
+    try:
+        _stock(db, "72030", "トヨタ自動車", "011")
+        page = _page("7203", [
+            ("140120260804507860", MAT, "2026/08/04", "14:00"),
+            ("140120250508534308", OLDER, "2025/05/08", "16:00"),
+        ])
+        pdf_newer = "https://api.irbank.net/api/market-files/v1/tdnet/20260804507860.pdf"
+        pdf_older = "https://api.irbank.net/api/market-files/v1/tdnet/20250508534308.pdf"
+        state = {"older": 429}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            url = str(request.url)
+            calls.append(url)
+            if url.endswith("/7203/ir"):
+                return httpx.Response(200, text=page)
+            if url == pdf_newer:
+                return httpx.Response(200, content=PDF)
+            if url == pdf_older:
+                code = state["older"]
+                state["older"] = 200
+                if code != 200:
+                    return httpx.Response(code)
+                return httpx.Response(200, content=PDF + b"2")
+            return httpx.Response(503)
+
+        calls: list[str] = []
+        with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+            first = mod.run(db, tmp_path, codes=["72030"], sleep=0, client=client, log=lambda *_: None)
+            assert first.stopped == "rate_limited"
+            assert first.saved == 1 and first.companies == 0
+            assert _scanned() == []
+            assert calls == [
+                "https://irbank.net/7203/ir",
+                pdf_newer,
+                pdf_older,
+            ]
+            calls.clear()
+            second = mod.run(db, tmp_path, codes=["72030"], sleep=0, client=client, log=lambda *_: None)
+        assert second.stopped == "done"
+        assert second.saved == 1 and second.skipped == 1
+        assert pdf_newer not in calls
+        assert _scanned() == ["72030"]
+        assert _row(SOURCE_IRBANK, "140120250508534308") is not None
+    finally:
+        db.close()
+
+
+def test_list_503_does_not_fetch_the_next_company(tmp_path: Path) -> None:
+    db = _db()
+    try:
+        _stock(db, "11110", "先", "011")
+        _stock(db, "22220", "後", "011")
+        calls: list[str] = []
+        routes = {
+            "https://irbank.net/1111/ir": 503,
+            "https://irbank.net/2222/ir": _page("2222", []),
+        }
+        stats = _run(db, tmp_path, routes, calls, codes=None)
+        assert stats.stopped == "rate_limited"
+        assert calls == ["https://irbank.net/1111/ir"]
+        assert _scanned() == []
+        assert stats.remaining == 2
+    finally:
+        db.close()
+
+
+def test_missing_list_is_not_fetched_again(tmp_path: Path) -> None:
+    db = _db()
+    try:
+        _stock(db, "11110", "ページ無し", "011")
+        calls: list[str] = []
+        routes = {"https://irbank.net/1111/ir": 404}
+        stats = _run(db, tmp_path, routes, calls, codes=["11110"])
+        assert stats.companies == 1 and stats.listed == 0 and _scanned() == ["11110"]
+        calls.clear()
+        again = _run(db, tmp_path, routes, calls, codes=["11110"])
+        assert calls == [] and again.remaining == 0
+    finally:
+        db.close()
+
+
+def test_limit_resumes_with_the_next_issuer(tmp_path: Path) -> None:
+    db = _db()
+    try:
+        _stock(db, "22220", "後", "011")
+        _stock(db, "11110", "先", "011")
+        routes = {
+            "https://irbank.net/1111/ir": "<dl></dl>",
+            "https://irbank.net/2222/ir": "<dl></dl>",
+        }
+        calls: list[str] = []
+        first = _run(db, tmp_path, routes, calls, codes=None, limit=1)
+        assert first.stopped == "limit" and first.companies == 1 and first.remaining == 1
+        assert calls == ["https://irbank.net/1111/ir"]
+        calls.clear()
+        second = _run(db, tmp_path, routes, calls, codes=None, limit=1)
+        assert second.stopped == "done" and second.remaining == 0
+        assert calls == ["https://irbank.net/2222/ir"]
+    finally:
+        db.close()
+
+
+def test_dry_run_does_not_write(tmp_path: Path) -> None:
+    db = _db()
+    try:
+        _stock(db, "72030", "トヨタ自動車", "011")
+        page = _page("7203", [("140120260804507860", MAT, "2026/08/04", "14:00")])
+        calls: list[str] = []
+        lines: list[str] = []
+        routes = {"https://irbank.net/7203/ir": page}
+        with _client(routes, calls) as client:
+            stats = mod.run(
+                db, tmp_path, codes=["72030"], sleep=0, dry_run=True, client=client, log=lines.append,
+            )
+        assert stats.stopped == "done" and stats.listed == 1 and stats.saved == 0
+        assert stats.remaining == 1
+        assert calls == ["https://irbank.net/7203/ir"]
+        assert any(line.startswith("todo 72030 140120260804507860") and MAT in line for line in lines)
+        assert not list(tmp_path.rglob("*.pdf"))
+        assert _row(SOURCE_IRBANK, "140120260804507860") is None
+        assert _scanned() == []
+    finally:
+        db.close()
+
+
+def test_etf_and_funds_are_not_requested(tmp_path: Path) -> None:
+    db = _db()
+    try:
+        _stock(db, "13060", "上場ETF", "014")
+        _stock(db, "89510", "産業ファンド投資法人", "013")
+        _stock(db, "92820", "いちごグリーンインフラ投資法人", "013")
+        _stock(db, "72030", "トヨタ自動車", "011")
+        _stock(db, "00010", "外国株", "021")
+        calls: list[str] = []
+        routes = {
+            "https://irbank.net/7203/ir": "<dl></dl>",
+            "https://irbank.net/0001/ir": "<dl></dl>",
+            "https://irbank.net/1306/ir": "<dl></dl>",
+        }
+        stats = _run(db, tmp_path, routes, calls, codes=None)
+        assert stats.companies == 2
+        assert sorted(calls) == [
+            "https://irbank.net/0001/ir",
+            "https://irbank.net/7203/ir",
+        ]
+    finally:
+        db.close()
+
+
+def test_missing_pdf_is_finished_and_bad_pdf_is_retried(tmp_path: Path) -> None:
+    db = _db()
+    try:
+        _stock(db, "11110", "無い", "011")
+        _stock(db, "22220", "壊れた", "011")
+        missing_page = _page("1111", [("140120260101000011", "2026年3月期決算説明資料", "2026/01/01", "15:00")])
+        bad_page = _page("2222", [("140120260101000022", "2026年3月期決算補足資料", "2026/01/02", "15:00")])
+        routes = {
+            "https://irbank.net/1111/ir": missing_page,
+            "https://irbank.net/2222/ir": bad_page,
+            "https://api.irbank.net/api/market-files/v1/tdnet/20260101000011.pdf": 404,
+            "https://api.irbank.net/api/market-files/v1/tdnet/20260101000022.pdf": b"not-a-pdf",
+        }
+        calls: list[str] = []
+        stats = _run(db, tmp_path, routes, calls, codes=None)
+        assert stats.missing == 1 and stats.failed == 1
+        assert _scanned() == ["11110"]
+        assert stats.remaining == 1
+        calls.clear()
+        again = _run(db, tmp_path, routes, calls, codes=None)
+        assert "1111/ir" not in "".join(calls)
+        assert "2222/ir" in "".join(calls)
+        assert again.failed == 1 and _scanned() == ["11110"]
+    finally:
+        db.close()
+
+
+def test_existing_pdf_is_indexed_without_download(tmp_path: Path) -> None:
+    db = _db()
+    try:
+        _stock(db, "72030", "トヨタ自動車", "011")
+        page = _page("7203", [("140120260804507860", MAT, "2026/08/04", "14:00")])
+        path = dest_path(tmp_path, "2026-08-04 14:00:00", "7203", "トヨタ自動車", MAT)
+        path.parent.mkdir(parents=True)
+        path.write_bytes(PDF)
+        calls: list[str] = []
+        routes = {"https://irbank.net/7203/ir": page}
+        stats = _run(db, tmp_path, routes, calls, codes=["72030"])
+        assert stats.reindexed == 1 and stats.saved == 0
+        assert calls == ["https://irbank.net/7203/ir"]
+        row = _row(SOURCE_IRBANK, "140120260804507860")
+        assert row is not None and row.rel_path == path.relative_to(tmp_path).as_posix()
+    finally:
+        db.close()
+
+
+def test_gate_is_is_material_title(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db = _db()
+    try:
+        _stock(db, "72030", "トヨタ自動車", "011")
+        monkeypatch.setattr(mod, "is_material_title", lambda _title: False)
+        page = _page("7203", [("140120260804507860", MAT, "2026/08/04", "14:00")])
+        calls: list[str] = []
+        routes = {"https://irbank.net/7203/ir": page}
+        stats = _run(db, tmp_path, routes, calls, codes=["72030"])
+        assert stats.listed == 0 and stats.saved == 0
+        assert calls == ["https://irbank.net/7203/ir"]
+        assert _scanned() == ["72030"]
+    finally:
+        db.close()
+
+
+def test_sleep_is_between_requests(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    db = _db()
+    try:
+        _stock(db, "72030", "トヨタ自動車", "011")
+        page = _page("7203", [("140120260804507860", MAT, "2026/08/04", "14:00")])
+        slept: list[float] = []
+        monkeypatch.setattr(mod.time, "sleep", slept.append)
+        routes = {
+            "https://irbank.net/7203/ir": page,
+            "https://api.irbank.net/api/market-files/v1/tdnet/20260804507860.pdf": PDF,
+        }
+        _run(db, tmp_path, routes, [], codes=["72030"], sleep=1.5)
+        assert slept == [1.5]
+    finally:
+        db.close()
+
+
+def test_not_scheduled_and_documented() -> None:
+    scheduled = []
+    for line in (ROOT / "deploy" / "crontab").read_text(encoding="utf-8").splitlines():
+        if line.lstrip().startswith("#"):
+            continue
+        if "irbank_ingest" in line:
+            scheduled.append(line)
+    assert scheduled == []
+    readme = (ROOT / "deploy" / "README.md").read_text(encoding="utf-8")
+    assert "python tools/briefing/irbank_ingest.py --code 7203 --dry-run" in readme
+    assert "tools/briefing/irbank_ingest.py --all --limit 80 --sleep 1" in readme
+    sys.path.insert(0, str(ROOT / "mcp"))
+    import log_mcp
+
+    assert "irbank_ingest" in log_mcp.BATCH_JOBS
+    assert "irbank_ingest" not in log_mcp.crontab_job_names()
+
+
+def test_main_requires_one_scope() -> None:
+    with pytest.raises(SystemExit) as both:
+        mod.main(["--code", "7203", "--all"])
+    assert both.value.code == 2
+    with pytest.raises(SystemExit) as neither:
+        mod.main([])
+    assert neither.value.code == 2
+    assert mod.main(["--code", "!!!!"]) == 2

@@ -228,9 +228,19 @@ TDnet 決算説明資料 PDF（`jobs/market/tdnet_briefing_r2.py`。KAB-327）:
 - 「修正」だけでは落とさない。補足資料の表題に業績予想の修正が入ることがある
 - 保存先は `data/briefing/{code}/YYYYMMDD_CODE_名前_表題.pdf`。`{code}` とファイル名は月次 PDF と同じ（display_code。J-Quants の 5 桁にはしない）。`SHARE_ROOT` を置くとその直下の `briefing/`
 - 既存ファイルが PDF なら取り直さない。索引が無ければ索引だけ足す。その件数は `reindexed`（新規に保存した `saved` とは別）。PDF でなければ取り直す
-- 索引は `briefing_documents`。列は source / document_id / code（5 桁）/ company_name / pubdate / title / rel_path（`data/briefing` から）/ url / sha256 / size / status / saved_at。このジョブは source=`tdnet`、document_id は TDnet の PDF ファイル名、status=`saved`。ホームページで見つけた PDF は同じ表に source=`homepage`（取得はこのジョブではしない。`app/market/briefing_store.record_briefing`）
+- 索引は `briefing_documents`。列は source / document_id / code（5 桁）/ company_name / pubdate / title / rel_path（`data/briefing` から）/ url / sha256 / size / status / saved_at。このジョブは source=`tdnet`、document_id は TDnet の PDF ファイル名、status=`saved`。ホームページで見つけた PDF は同じ表に source=`homepage`（取得はこのジョブではしない。`app/market/briefing_store.record_briefing`）。IR BANK の過去分は source=`irbank`（下）
 - 日次 cron は直近 7 日（22:10 JST。取りこぼしの拾い直し）。初回の約 30 日は `deploy/cron-run.sh jobs/market/tdnet_briefing_r2.py 30` を手で一度。デプロイでは走らない
 - OneDrive への控え（`backup_data`）にはまだ載せない。TDnet は約 1 か月で PDF を消す
+
+IR BANK の過去の決算説明資料（`tools/briefing/irbank_ingest.py`。KAB-330）:
+
+- TDnet が消した分を一度だけ手で取る。cron には入れない。毎日の分は上の `tdnet_briefing_r2.py`
+- 対象は普通株（`stocks.product_category` が内国株券 `011` または外国株券 `021`）と REIT（`013`）。ETF（`014`）と外国 ETF / ETN（`023`）は除く。REIT でも名称に「ファンド」または「インフラ」がある投資法人は除く。区分が空の銘柄は、名称がファンド・投資信託・ETF・ETN でなければ残す。KAB-325 の `tanshin_covers` と同じ考え方
+- 一覧は `https://irbank.net/{4桁}/ir` を 1 社 1 回。同じ 4 桁の株は末尾 0 の行を代表にする。表題の採否は `is_material_title` だけ。PDF は `https://api.irbank.net/api/market-files/v1/tdnet/{18桁の末尾14桁}.pdf`（`tools/tdnet_pdf/ingest.py` と同じ）
+- 保存先とファイル名は TDnet のジョブと同じ（`data/briefing/{4桁}/YYYYMMDD_CODE_名前_表題.pdf`）。索引の code は 5 桁、document_id は 18 桁の開示番号。同じ番号、またはその末尾 14 桁が、どの source でも索引にあれば取り直さない
+- 読み終えた銘柄は `briefing_irbank_scans`（code / scanned_at / listed / saved / skipped / reindexed / missing / failed）。429 / 503 で止めた銘柄と、PDF の取得に失敗した銘柄は行を書かないので次の実行が続きから。PDF が 404 だけの銘柄は行を書く。成功した PDF は索引にあるので取り直さない
+- `--limit` はこの実行の社数。`--sleep` は請求の間隔（既定 1 秒）。`--dry-run` は一覧だけ見て、PDF も索引も `briefing_irbank_scans` も書かない（見た社は残件のまま）
+- 手での実行は `deploy/README.md`。デプロイでも cron でも走らない
 
 TDnet 月次 PDF の自動投入（`jobs/monthly/tdnet_monthly_pdf_sidecar.py` → `jobs/monthly/tdnet_monthly_pdf_ingest.py`）:
 
