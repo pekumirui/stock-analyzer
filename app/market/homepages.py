@@ -3,7 +3,10 @@
 候補は新しい提出を優先。同じ日なら manual > xbrl_url > tanshin_html。
 XBRL は code ごとに最新 1 件だけ。短信は『URL』『ホームページ』ラベル近くの URL。
 スキーム無しのドメインはラベルの近くだけ候補にし、https:// を補う。
-訂正の題名と本文が 5KB 未満の短信は飛ばし、新しい順に最大 5 本見て最初に取れた URL を採る。
+URL 中の空白は除き、http://https:// のような二重スキームは内側を残す。
+末尾ラベルが ICANN の TLD でないホストは捨て、次の候補へ進む。
+訂正の題名と本文が 5KB 未満の短信は飛ばし、新しい順に最初に取れた URL を採る。
+直近でどれからも取れなければ、取れるまで古い短信へさかのぼる。
 題名の「決算短信」「FinancialStatements」、または statements の種類が FinancialStatements。
 jpx.co.jp は 86970 だけ残す。持株会社化の旧コードは PREDECESSOR_CODES。
 普通株コード（末尾 0）に畳む。HTTP はしない。ジョブは init_db しない。
@@ -20,6 +23,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..db import upsert
+from .tlds import TLDS
 from ..models import (
     Homepage,
     Statement,
@@ -72,9 +76,10 @@ _LABEL_WINDOW = 400
 # pdfium が ToUnicode のない欧文を (cid:N) にする。N + 29 が印字 ASCII（日本トリムの表紙）
 _CID_RE = re.compile(r"\(cid:(\d+)\)")
 _CID_ASCII_DELTA = 29
+_WS_RE = re.compile(r"\s+")
+_MULTI_SCHEME_RE = re.compile(r"^(?:https?://){2,}", re.I)
 
 JPX_CODE = "86970"
-TANSHIN_SCAN = 5
 SHORT_HTML_BYTES = 5_000
 # 持株会社化で書類が旧コードに残っている。新しいコードに書類が無いときだけ旧を見る
 PREDECESSOR_CODES = {
@@ -169,10 +174,32 @@ def _bare_file_host(host: str) -> bool:
     return host.rsplit(".", 1)[-1] in _BARE_FILE_TLDS
 
 
+def _repair_url_text(raw: str) -> str:
+    """空白を除き、先頭の二重スキームは内側だけ残す。"""
+    s = _WS_RE.sub("", raw)
+    match = _MULTI_SCHEME_RE.match(s)
+    if match is None:
+        return s
+    inner = re.findall(r"https?://", match.group(0), flags=re.I)[-1].lower()
+    return inner + s[match.end():]
+
+
+# RFC 2606。ICANN の一覧には無いが TLD ではある（テストの example を含む）
+_RESERVED_TLDS = frozenset({"example", "invalid", "localhost", "test"})
+
+
+def _host_has_tld(host: str) -> bool:
+    labels = [part for part in host.lower().rstrip(".").split(".") if part]
+    if len(labels) < 2:
+        return False
+    tld = labels[-1]
+    return tld in TLDS or tld in _RESERVED_TLDS
+
+
 def normalize_url(raw: str | None, *, allow_jpx: bool = False) -> str | None:
     if raw is None:
         return None
-    s = str(raw).strip().translate(_FW)
+    s = _repair_url_text(str(raw).strip().translate(_FW))
     if not s:
         return None
     s = s.rstrip(_TRAIL_PUNCT)
@@ -185,6 +212,8 @@ def normalize_url(raw: str | None, *, allow_jpx: bool = False) -> str | None:
         return None
     host = (parsed.hostname or "").lower()
     if bare and _bare_file_host(host):
+        return None
+    if not _host_has_tld(host):
         return None
     if host_is_skipped(host, allow_jpx=allow_jpx):
         return None
@@ -397,7 +426,7 @@ def _tanshin_rejected(title: str | None, nbytes: int | None) -> bool:
 
 
 def _load_tanshin(db: Session, codes: list[str]) -> dict[str, tuple[str, str, date]]:
-    """code -> (url, origin, disclosed_date)。新しい順に最大 TANSHIN_SCAN 本。"""
+    """code -> (url, origin, disclosed_date)。新しい順に、URL が取れるまで。"""
     if not codes:
         return {}
     query_codes = _codes_with_predecessors(codes)
@@ -429,6 +458,7 @@ def _load_tanshin(db: Session, codes: list[str]) -> dict[str, tuple[str, str, da
         )
         .subquery()
     )
+    # 直近で URL が無い会社（表紙が空 SVG・パスアウトライン等）は、取れるまで古い短信を見る
     stmt = (
         select(
             ranked.c.disclosure_no,
@@ -437,7 +467,6 @@ def _load_tanshin(db: Session, codes: list[str]) -> dict[str, tuple[str, str, da
             ranked.c.title,
             ranked.c.bytes,
         )
-        .where(ranked.c.rn <= TANSHIN_SCAN)
         .order_by(ranked.c.code, ranked.c.rn)
     )
     grouped: dict[str, list[tuple]] = {}

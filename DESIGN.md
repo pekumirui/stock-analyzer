@@ -295,21 +295,21 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
 
 **VPS パッケージ一覧（`jobs/ops/vps_packages_r2.py`）。** 読み取り専用。`data/inventory/` へ書く。中身と cron は [`deploy/README.md`](deploy/README.md)。
 
-**ホームページ URL（`homepages`）。** 企業マスタの各社について、会社ホームページの URL を 1 本残す。IR ページとの区別はまだしない。API / SPA / cron はまだ無い。ジョブは `python jobs/market/homepages.py --code 4543 --dry-run`。手入力は `--set 7203 https://…`（`source=manual`。`--refresh` でも上書きしない）。`--all` の本番投入は承認後。表は `jobs/migrate.py` が作る。HTTP はしない。
+**ホームページ URL（`homepages`）。** 企業マスタの各社について、会社ホームページの URL を 1 本残す。IR ページとの区別はまだしない。API / SPA / cron はまだ無い。ジョブは `python jobs/market/homepages.py --code 4543 --dry-run`。手入力は `--set 7203 https://…`（`source=manual`。`--refresh` でも上書きしない）。束は `config/market/homepage_manual.json` を `--set-file` で入れる（`--dry-run` 可。本番にはまだ入れない）。`--all` の本番投入は承認後。表は `jobs/migrate.py` が作る。HTTP はしない。
 
 コードは J-Quants の 5 桁普通株。CLI と XBRL / 短信の code は `ordinary_code` で畳む（4 桁は末尾 0、優先株は先頭 4 文字 + 0）。
 
 候補は提出の新しさ優先。同じ日なら source の順。XBRL は code ごとに `submitted_at` 最新 1 件だけ読み、その URL が捨てられれば XBRL 候補なし（古い提出へは下がらない）。有効な短信より XBRL の提出が古ければ短信を採る。再実行は UPSERT。値が同じなら `checked_at` だけ進める。
 
-短信は新しい順に最大 5 本。題名に「訂正」があるもの、変換後 HTML（`bytes`）が 5KB 未満のものは飛ばし、URL が取れた最初を採る。対象は題名に「決算短信」または `FinancialStatements` を含むもの、および `statements.type_of_document` に `FinancialStatements` を含むもの（題名が本文の切れ端でも種類の列で判定。KAB-322）。
+短信は新しい順に、URL が取れた最初を採る。題名に「訂正」があるもの、変換後 HTML（`bytes`）が 5KB 未満のものは飛ばす。直近の数本から URL が取れない会社は、そこで打ち切らず取れるまで古い短信へさかのぼる（表紙が空の変換や文字の無いパスだけの短信より、URL の書いてある古い短信を採る。KAB-322）。対象は題名に「決算短信」または `FinancialStatements` を含むもの、および `statements.type_of_document` に `FinancialStatements` を含むもの（題名が本文の切れ端でも種類の列で判定）。
 
-スキームの無いドメイン（`www.toray.co.jp`、`wize-inc.jp`）は `https://` を補う。本文中のスキーム無しは『URL』『ホームページ』の近くだけ。XBRL の値はラベルが無くても `normalize_url` が受ける。pdfium が `(cid:N)` にした欧文（`N + 29` が印字 ASCII）は戻してから探す。
+スキームの無いドメイン（`www.toray.co.jp`、`wize-inc.jp`）は `https://` を補う。本文中のスキーム無しは『URL』『ホームページ』の近くだけ。XBRL の値はラベルが無くても `normalize_url` が受ける。pdfium が `(cid:N)` にした欧文（`N + 29` が印字 ASCII）は戻してから探す。URL 中の空白は除く（`http:// www.example.co.jp`）。`http://https://` のような二重スキームは内側を残す。末尾ラベルが ICANN の TLD でないホスト（`www.prologis`）は捨て、同じ短信の次の URL、無ければより古い短信へ進む。`.toyota` などブランド gTLD は残す。
 
 `jpx.co.jp` は捨てる。例外は日本取引所グループ（86970）自身。持株会社化で書類が旧コードに残る会社は `PREDECESSOR_CODES`（641A0←72400、642A0←95080、590A0←44490）。新しいコードに書類が無いときだけ旧コードを見る。
 
 | source | 出どころ | origin | 備考 |
 |---|---|---|---|
-| `manual` | `--set` の手入力 | `manual` | 最上位。自動更新では触らない |
+| `manual` | `--set` / `--set-file` の手入力 | `manual` | 最上位。自動更新では触らない |
 | `xbrl_url` | 最新 1 件の `tse-ed-t:URL` / `tse-re-t:URL` | `xbrl:{doc_id}` | スキーム無し（www. 無しも）と全角コロンを直す |
 | `tanshin_html` | 上の条件の決算短信 `tdnet_pdf_documents.html_gz` | `tanshin:{disclosure_no}` | 『URL』『ホームページ』ラベル近くの URL を優先。監査法人・親会社の URL を先頭だけ見ると取り違える。w3.org / TDnet / EDINET / JPX / SEC / SNS はホストの完全一致かドット区切りの末尾一致で捨てる（86970 の `jpx.co.jp` は残す） |
 
