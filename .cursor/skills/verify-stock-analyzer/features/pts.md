@@ -10,8 +10,8 @@ PTS lives inside the ランキング tab. It lists one night-session PTS ranking
 - `pts-at` is `#pts-at` (one option per fetch, `MM-DD HH:MM（HH:MM現在）`, newest first; `hidden` when there are no snapshots). Picking one sends `at=`.
 - `pts-table` fills `#pts-tbl.sheet`: 順位 / 銘柄 / 市場 / 終値 / PTS / 終値比 / PTS出来高 / 翌始値 / 終値→翌始値 / PTS→翌始値 / 追随率. 銘柄 is `shortName` (5 chars, `title` full) + `code.slice(0,4)` under it (same `table.sheet` look as ランキング). 追随率 = (翌始値 − 終値) / (PTS − 終値), `–` when PTS equals 終値 or there is no open. A row whose `next_date` differs from the table's adds `M/D` beside 翌始値.
 - `pts-info` reads `{date} 終値比 / 翌営業日 {next_date}` (`未取込` when no row has an open yet). `#pts-summary` reads `翌始値あり N 銘柄: PTS→翌始値 平均 … / 追随率 中央値 …`, empty when `summary.n` is 0.
-- `pts-to-chart` clicks a name → `gotoChart(code)` → 銘柄 › 株価, hash `#stock/{code}/price`.
-- `pts-route` writes `#ranking/pts` to `location.hash` + `ui.route`; reload reopens ランキング › PTS. Old `#pts` (hash or `ui.route`) is rewritten to `#ranking/pts`.
+- `pts-to-chart` clicks a name → `gotoChart(code)` → 銘柄 › 株価, hash `#stock/{code}/price?from=ranking-pts`.
+- `pts-route` writes `#ranking/pts` to `location.hash` + `ui.route` (path only). Opening PTS from 決算後パフォーマンス adds `?from=ranking`. Reload reopens ランキング › PTS. Old `#pts` (hash or `ui.route`) is rewritten to `#ranking/pts`.
 
 ## How to get to it (user POV)
 
@@ -32,7 +32,7 @@ Preconditions:
 - **API.** `helpers/capture.py pts [--ranking …] [--date …]` writes `artifacts/pts/body.json` + `request.txt`. Assert `{dates, ranking, date, snapshots, fetched_at, as_of, rows, summary}`; each row has `rank`, `code` (5 chars, no leading `0`), `name`, `market`, `base_close`, `pts_price`, `pts_chg_pct`, `volume`, `next_date`, `next_open`, `open_gap_pct`, `open_vs_pts_pct`, `follow_ratio`. `GET /api/pts?ranking=bad` → 400.
 - **Tab.** Click `nav button[data-tab="ranking"]` then `#rk-subs .ftab[data-rksub="pts"]` → `#tab-ranking` displayed, `#rk-sub-pts` visible, `#rk-sub-perf` hidden, hash `#ranking/pts`, one `GET /api/pts?ranking=night_up`. Header has no `data-tab="pts"`. With data: `#pts-tbl` has 11 header cells and 75 rows; `#pts-ranking` 値上がり is `.on`; `#pts-date` selects the newest day. On 2026-10-19 (copy filled at 10:01 JST): session 2026-10-16, `#pts-at` `10-19 10:01（06:02現在）`, row 1 `オンデック 7360` 711.0 → 861.0 `+21.1%`, info `2026-10-16 終値比 / 翌営業日 未取込`.
 - **Ranking.** Click `.ftab[data-ranking="night_down"]` → `GET /api/pts?ranking=night_down&date=2026-10-16`, 値下がり is `.on`, row 1 has a negative 終値比.
-- **To 株価.** Click a name → 銘柄 active with 株価 `.on`, hash `#stock/{code}/price`, `GET /api/stock/{code}/overview` then `GET /api/chart/{code}` + `/api/earnings-performance/{code}` (2026-10-27: row 1 サークレイス → `#stock/50290/price`).
+- **To 株価.** Click a name → 銘柄 active with 株価 `.on`, hash `#stock/{code}/price?from=ranking-pts`, `GET /api/stock/{code}/overview` then `GET /api/chart/{code}` + `/api/earnings-performance/{code}` (filled DB 2026-10-27: row 1 サークレイス → `#stock/50290/price?from=ranking-pts`). Golden `pts_snapshots` is empty, so this path is `verified-unreachable`.
 - **Route.** On `#pts` or `#ranking/pts`, reload → ランキング active, PTS sub `.on`, hash `#ranking/pts`, and `#pts-tbl` filled again.
 - **Proof.** Keep `artifacts/pts/body.json`. If CDP: `ui.png` of `#pts-tbl` with the header, and a shot of the header nav with no PTS tab.
 
