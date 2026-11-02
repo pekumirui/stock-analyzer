@@ -79,6 +79,10 @@ def test_job_defaults_follow_share_prefixes() -> None:
 
     if tdnet_dest != str(share_path("monthly")) or "data/monthly" not in tdnet_dest:
         _fail(f"tdnet dest {tdnet_dest}")
+    from jobs.market.tdnet_briefing_r2 import DEFAULT_DEST as briefing_dest
+
+    if briefing_dest != str(share_path("briefing")) or "data/briefing" not in briefing_dest:
+        _fail(f"briefing dest {briefing_dest}")
     if ir_dest != tdnet_dest:
         _fail(f"ir dest {ir_dest}")
     if inventory_dest != str(share_path("inventory")) or "data/inventory" not in inventory_dest:
