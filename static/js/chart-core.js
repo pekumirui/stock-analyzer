@@ -176,6 +176,21 @@ function chartQty(v, unit = ""){
   return Math.round(v).toLocaleString("ja-JP") + unit;
 }
 
+// 日付・始高安終・前日比。プロットの外（.chart-ohlc）に出す。足種は出さない（KAB-314）
+function chartOhlcHtml(bars, i){
+  if(!bars || !bars.t.length) return "";
+  if(i == null || i < 0 || i >= bars.t.length) i = bars.t.length - 1;
+  const prev = i > 0 ? bars.c[i - 1] : null;
+  let chg = "";
+  if(prev){
+    const d = bars.c[i] - prev, cls = d > 0 ? "up" : d < 0 ? "down" : "";
+    chg = `<span class="${cls}">${d > 0 ? "+" : ""}${chartPrice(d)} (${d > 0 ? "+" : ""}${(d / prev * 100).toFixed(2)}%)</span>`;
+  }
+  return `<span class="sub">${bars.t[i].replaceAll("-", "/")}</span>`
+    + `<span>始 ${chartPrice(bars.o[i])}</span><span>高 ${chartPrice(bars.h[i])}</span>`
+    + `<span>安 ${chartPrice(bars.l[i])}</span><span>終 <b>${chartPrice(bars.c[i])}</b></span>${chg}`;
+}
+
 // ---- 読み込み（銘柄ごとに一度。10 分たったら次に開いたとき ETag で確かめる） ----
 
 const CHART_TTL_MS = 10 * 60 * 1000;
@@ -272,6 +287,12 @@ function createStockChart(el, opt = {}){
   const th = chartTheme();
   el.innerHTML = "";
   el.style.position = "relative";
+  let ohlc = el.previousElementSibling;
+  if(!ohlc || ohlc.className !== "chart-ohlc"){
+    ohlc = document.createElement("div");
+    ohlc.className = "chart-ohlc";
+    el.insertAdjacentElement("beforebegin", ohlc);
+  }
   const chart = LW.createChart(el, {
     height: opt.height || 420, autoSize: true,
     layout: {background: {color: "transparent"}, textColor: th.text, panes: {separatorColor: th.border}},
@@ -448,7 +469,7 @@ function createStockChart(el, opt = {}){
     layoutPanes();
   }
 
-  // 凡例は段ごとに左上へ重ねる（縦軸にラベルを並べると軸が太り、グラフが狭くなる）
+  // 日付・始高安終はプロットの上（.chart-ohlc）。MA・出来高などは段ごとに左上へ重ねる
   const legends = [];
   function paneLegend(k){
     if(!legends[k]){
@@ -462,21 +483,19 @@ function createStockChart(el, opt = {}){
   const sw = (color, text) => `<span style="color:${color}">${text}</span>`;
   function drawLegend(i){
     const b = st.bars;
-    if(!b || !b.t.length){ legends.forEach(d => { d.innerHTML = ""; }); return; }
-    if(i == null || i < 0 || i >= b.t.length) i = b.t.length - 1;
-    const prev = i > 0 ? b.c[i - 1] : null, t = b.t[i];
-    let chg = "";
-    if(prev){
-      const d = b.c[i] - prev, cls = d > 0 ? "up" : d < 0 ? "down" : "";
-      chg = ` <span class="${cls}">${d > 0 ? "+" : ""}${chartPrice(d)} (${d > 0 ? "+" : ""}${(d / prev * 100).toFixed(2)}%)</span>`;
+    if(!b || !b.t.length){
+      ohlc.innerHTML = "";
+      legends.forEach(d => { d.innerHTML = ""; });
+      return;
     }
-    let price = `<span class="sub">${t.replaceAll("-", "/")} ${CHART_TF_NAMES[st.tf]}</span> `
-      + `始 ${chartPrice(b.o[i])} 高 ${chartPrice(b.h[i])} 安 ${chartPrice(b.l[i])} 終 <b>${chartPrice(b.c[i])}</b>${chg}`;
-    const mas = (st.maVals || []).map(m => sw(m.color, `MA${m.w} ${chartPrice(m.vals[i])}`)).join(" ");
-    if(mas) price += `<br>${mas}`;
+    if(i == null || i < 0 || i >= b.t.length) i = b.t.length - 1;
+    const t = b.t[i];
+    ohlc.innerHTML = chartOhlcHtml(b, i);
+    let price = (st.maVals || []).map(m => sw(m.color, `MA${m.w} ${chartPrice(m.vals[i])}`)).join(" ");
     if(st.band && st.bandMs && st.bandMs.length){
       const e = fundAt("eps", t);
-      price += "<br>" + sw(CHART_BAND_COLOR, "PER " + st.bandMs.map(m => `${m}倍 ${e > 0 ? chartPrice(Math.round(e * m * 10) / 10) : "–"}`).join(" / "));
+      const band = sw(CHART_BAND_COLOR, "PER " + st.bandMs.map(m => `${m}倍 ${e > 0 ? chartPrice(Math.round(e * m * 10) / 10) : "–"}`).join(" / "));
+      price = price ? price + "<br>" + band : band;
     }
     const texts = {
       price,
@@ -675,6 +694,7 @@ function createStockChart(el, opt = {}){
     destroy(){
       chartViews.delete(view);
       if(ro) ro.disconnect();
+      ohlc.remove();
       nav.remove();
       try { chart.remove(); } catch(e) {}
       el.innerHTML = "";
@@ -687,5 +707,5 @@ function createStockChart(el, opt = {}){
 
 if(typeof module !== "undefined" && module.exports){
   module.exports = {chartSwings, chartHlText, chartFundDaily, chartQuantile, chartBandMultiples, chartBars, chartWeekKey, chartSma, chartMaLen, chartParseMas, chartSpikes, chartRelative,
-                    chartLatestSpan, chartSpanAround, chartPrice, chartQty};
+                    chartLatestSpan, chartSpanAround, chartPrice, chartQty, chartOhlcHtml};
 }

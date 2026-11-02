@@ -39,6 +39,13 @@ const out = {
   around: c.chartSpanAround(daily, daily, "2026-08-21", 3),
   qty: [c.chartQty(800, "株"), c.chartQty(25007500, "株"), c.chartQty(77110432900, "円"), c.chartQty(1.5e12, "円")],
   price: [c.chartPrice(2821.5), c.chartPrice(3094), c.chartPrice(null)],
+  ohlcLast: c.chartOhlcHtml(daily, null),
+  ohlc0: c.chartOhlcHtml(daily, 0),
+  ohlc1: c.chartOhlcHtml(daily, 1),
+  ohlcEmpty: c.chartOhlcHtml({t: [], o: [], h: [], l: [], c: []}, 0),
+  ohlcDown: c.chartOhlcHtml({t: ["2026-08-17", "2026-08-18"], o: [100, 90], h: [110, 95], l: [99, 80], c: [105, 85]}, 1),
+  ohlcFlat: c.chartOhlcHtml({t: ["2026-08-17", "2026-08-18"], o: [100, 100], h: [110, 110], l: [99, 99], c: [100, 100]}, 1),
+  ohlcWeek: c.chartOhlcHtml(c.chartBars(daily, "W"), null),
   fund: c.chartFundDaily({
     t: ["2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06"], c: [1000, 1200, 1100, 900],
     mc: [100, 120, null, 90],
@@ -97,3 +104,39 @@ def test_chart_core_bars_and_indicators() -> None:
     assert o["quantile"] == [2.5, None]
     # PERバンドは 10%・50%・90% 点。10 倍未満は小数 1 桁、重なれば 1 本
     assert o["band"] == [[8.9, 13, 16], [12], []]
+
+
+def test_chart_ohlc_html_outside_plot() -> None:
+    o = _run()
+    last, first, second = o["ohlcLast"], o["ohlc0"], o["ohlc1"]
+    assert o["ohlcEmpty"] == ""
+    # 日付は YYYY/MM/DD。足種は出さない。始高安終と前日比
+    assert "2026/09/01" in last and "始 3,200" in last and "高 3,250" in last
+    assert "安 3,190" in last and "終 <b>3,210</b>" in last
+    assert 'class="up">+90 (+2.88%)</span>' in last
+    assert "2026/08/17" in first and "終 <b>2,985</b>" in first
+    assert 'class="up"' not in first and 'class="down"' not in first  # 先頭の足に前日比は無い
+    assert "2026/08/18" in second and 'class="up">+15 (+0.50%)</span>' in second
+    assert 'class="down">-20 (-19.05%)</span>' in o["ohlcDown"]
+    assert 'class="">0 (0.00%)</span>' in o["ohlcFlat"]
+    assert "2026/09/01" in o["ohlcWeek"] and "週足" not in o["ohlcWeek"]
+    for html in (last, first, second, o["ohlcDown"], o["ohlcFlat"], o["ohlcWeek"]):
+        for word in ("日足", "週足", "月足", "年足"):
+            assert word not in html
+        assert "MA" not in html
+
+
+def test_chart_ohlc_row_is_outside_plot_source() -> None:
+    js = (ROOT / "static" / "js" / "chart-core.js").read_text(encoding="utf-8")
+    css = (ROOT / "static" / "css" / "app.css").read_text(encoding="utf-8")
+    assert 'className = "chart-ohlc"' in js
+    assert 'insertAdjacentElement("beforebegin", ohlc)' in js
+    assert "ohlc.innerHTML = chartOhlcHtml(b, i)" in js
+    assert "ohlc.remove()" in js
+    assert "CHART_TF_NAMES[st.tf]" not in js
+    assert "MA${m.w}" in js and 'className = "chart-legend"' in js
+    assert "createStockChart($(\"#chart\")" in (ROOT / "static" / "js" / "stock-price.js").read_text(encoding="utf-8")
+    assert "createStockChart($(\"#e-chart\")" in (ROOT / "static" / "js" / "earnings.js").read_text(encoding="utf-8")
+    assert ".chart-ohlc { display:flex; flex-wrap:wrap;" in css
+    assert "position:absolute" not in css.split(".chart-ohlc {")[1].split("}", 1)[0]
+    assert ".chart-legend { position:absolute;" in css
