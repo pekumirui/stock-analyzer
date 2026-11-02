@@ -467,6 +467,8 @@
 
   @media (max-width:640px){
     main { padding-left:6px; padding-right:6px; }
+    /* 株価のチャートは .panel の左右の余白まで広げる（株探と同じくらいの横幅にする） */
+    #st-sub-price #chart, #st-sub-price .chart-nav { width:auto; margin-left:-12px; margin-right:-12px; }
     table.sheet th, table.sheet td { padding-left:3px; padding-right:3px; }
     table.sheet td.name, table.sheet th.name { max-width:8em; }
     .earn-box { padding:10px 6px; }

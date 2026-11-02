@@ -283,9 +283,6 @@ function createStockChart(el, opt = {}){
     timeScale: {borderColor: th.border, minBarSpacing: 0.05, rightOffset: 0},
     rightPriceScale: {borderColor: th.border},
   });
-  const legend = document.createElement("div");
-  legend.className = "chart-legend";
-  el.appendChild(legend);
 
   const candle = chart.addSeries(LW.CandlestickSeries, {
     upColor: th.up, downColor: th.down, borderVisible: false, wickUpColor: th.up, wickDownColor: th.down,
@@ -361,11 +358,13 @@ function createStockChart(el, opt = {}){
 
   function drawMas(){
     maSeries.forEach(s => chart.removeSeries(s));
+    st.maVals = [];
     maSeries = st.mas.map((w, i) => {
       const c = CHART_MA_COLORS[i % CHART_MA_COLORS.length];
       const s = chart.addSeries(LW.LineSeries, {color: th[c] || c, lineWidth: 1, priceLineVisible: false,
-        lastValueVisible: false, crosshairMarkerVisible: false, title: `MA${w}`, autoscaleInfoProvider: () => null}, 0);
+        lastValueVisible: false, crosshairMarkerVisible: false, autoscaleInfoProvider: () => null}, 0);
       const len = chartMaLen(w, st.tf), ma = len ? chartSma(st.bars.c, len) : [];
+      if(len) st.maVals.push({w, color: th[c] || c, vals: ma});
       const pts = [];
       for(let k = 0; k < ma.length; k++) if(ma[k] != null) pts.push({time: chartTs(st.bars.t[k]), value: ma[k]});
       s.setData(pts);
@@ -393,11 +392,13 @@ function createStockChart(el, opt = {}){
   function drawBand(){
     bandSeries.forEach(x => chart.removeSeries(x));
     bandSeries = [];
+    st.bandMs = [];
     if(!st.band || !st.fd) return;
-    bandSeries = chartBandMultiples(st.fd.per).map(m => {
+    st.bandMs = chartBandMultiples(st.fd.per);
+    bandSeries = st.bandMs.map(m => {
       const x = chart.addSeries(LW.LineSeries, {color: CHART_BAND_COLOR, lineWidth: 1, lineStyle: LW.LineStyle.Dashed,
-        lineType: LW.LineType.WithSteps, priceLineVisible: false, crosshairMarkerVisible: false,
-        title: `PER ${m}倍`, autoscaleInfoProvider: () => null,
+        lineType: LW.LineType.WithSteps, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+        autoscaleInfoProvider: () => null,
         priceFormat: {type: "custom", formatter: chartPrice, minMove: 0.1}}, 0);
       x.setData(barPoints(t => { const e = fundAt("eps", t); return e > 0 ? Math.round(e * m * 10) / 10 : null; }));
       return x;
@@ -409,6 +410,7 @@ function createStockChart(el, opt = {}){
     extra.forEach(x => chart.removeSeries(x));
     extra = [];
     while(chart.panes().length > 2) chart.removePane(chart.panes().length - 1);
+    st.panes = ["price", "sub"];
     let pane = 2;
     const line = (o, data) => {
       const x = chart.addSeries(LW.LineSeries, {lineWidth: 2, priceLineVisible: false, ...o}, pane);
@@ -420,52 +422,85 @@ function createStockChart(el, opt = {}){
     if(st.fund && st.fd){
       if(st.fund === "op"){
         const yen = {type: "custom", formatter: v => chartQty(v, "円"), minMove: 1};
-        line({color: th.accent, title: "四半期", lineType: LW.LineType.WithSteps, priceFormat: yen},
+        line({color: th.accent, lineType: LW.LineType.WithSteps, priceFormat: yen},
              barPoints(t => fundAt("opq", t)));
-        line({color: th.warn, title: "12か月", lineType: LW.LineType.WithSteps, priceFormat: yen},
+        line({color: th.warn, lineType: LW.LineType.WithSteps, priceFormat: yen},
              barPoints(t => fundAt("opttm", t)));
       } else {
-        const x = line({color: th.accent, title: CHART_FUND_NAMES[st.fund], priceFormat: times},
+        const x = line({color: th.accent, priceFormat: times},
                        barPoints(t => fundAt(st.fund, t)));
         const v = st.fd[st.fund].filter(y => y != null && y > 0).sort((a, b) => a - b);
         if(st.fund === "per" && v.length)
           x.createPriceLine({price: Math.round(chartQuantile(v, 0.5) * 10) / 10, color: th.text, lineWidth: 1,
                              lineStyle: LW.LineStyle.Dotted, axisLabelVisible: true, title: "中央値"});
       }
+      st.panes.push("fund");
       pane++;
     }
     if(st.relOn && st.topix){
       if(!st.rel) st.rel = chartRelative(st.daily, st.topix);
-      line({color: th.warn, title: "対TOPIX", priceFormat: {type: "price", precision: 1, minMove: 0.1}},
+      line({color: th.warn, priceFormat: {type: "price", precision: 1, minMove: 0.1}},
            barPoints(t => st.rel.get(t)));
+      st.panes.push("rel");
       pane++;
     }
     el.style.height = baseHeight + (pane - 2) * CHART_EXTRA_PANE_PX + "px";
     layoutPanes();
   }
 
+  // 凡例は段ごとに左上へ重ねる（縦軸にラベルを並べると軸が太り、グラフが狭くなる）
+  const legends = [];
+  function paneLegend(k){
+    if(!legends[k]){
+      const d = document.createElement("div");
+      d.className = "chart-legend";
+      el.appendChild(d);
+      legends[k] = d;
+    }
+    return legends[k];
+  }
+  const sw = (color, text) => `<span style="color:${color}">${text}</span>`;
   function drawLegend(i){
     const b = st.bars;
-    if(!b || !b.t.length){ legend.innerHTML = ""; return; }
+    if(!b || !b.t.length){ legends.forEach(d => { d.innerHTML = ""; }); return; }
     if(i == null || i < 0 || i >= b.t.length) i = b.t.length - 1;
-    const prev = i > 0 ? b.c[i - 1] : null;
+    const prev = i > 0 ? b.c[i - 1] : null, t = b.t[i];
     let chg = "";
     if(prev){
       const d = b.c[i] - prev, cls = d > 0 ? "up" : d < 0 ? "down" : "";
       chg = ` <span class="${cls}">${d > 0 ? "+" : ""}${chartPrice(d)} (${d > 0 ? "+" : ""}${(d / prev * 100).toFixed(2)}%)</span>`;
     }
-    const tfName = CHART_TF_NAMES[st.tf];
-    legend.innerHTML = `<span class="sub">${b.t[i].replaceAll("-", "/")} ${tfName}</span> `
-      + `始 ${chartPrice(b.o[i])} 高 ${chartPrice(b.h[i])} 安 ${chartPrice(b.l[i])} 終 <b>${chartPrice(b.c[i])}</b>${chg}`
-      + `<br>出来高 ${chartQty(b.v[i], "株")} 売買代金 ${chartQty(b.tv[i], "円")}`
-      + legendFund(b.t[i]);
+    let price = `<span class="sub">${t.replaceAll("-", "/")} ${CHART_TF_NAMES[st.tf]}</span> `
+      + `始 ${chartPrice(b.o[i])} 高 ${chartPrice(b.h[i])} 安 ${chartPrice(b.l[i])} 終 <b>${chartPrice(b.c[i])}</b>${chg}`;
+    const mas = (st.maVals || []).map(m => sw(m.color, `MA${m.w} ${chartPrice(m.vals[i])}`)).join(" ");
+    if(mas) price += `<br>${mas}`;
+    if(st.band && st.bandMs && st.bandMs.length){
+      const e = fundAt("eps", t);
+      price += "<br>" + sw(CHART_BAND_COLOR, "PER " + st.bandMs.map(m => `${m}倍 ${e > 0 ? chartPrice(Math.round(e * m * 10) / 10) : "–"}`).join(" / "));
+    }
+    const texts = {
+      price,
+      sub: st.sub === "tv" ? `売買代金 ${chartQty(b.tv[i], "円")}` : `出来高 ${chartQty(b.v[i], "株")}`,
+      fund: legendFund(t),
+      rel: st.rel ? sw(th.warn, `対TOPIX ${st.rel.get(t) ?? "–"}`) : "",
+    };
+    const panes = chart.panes(), kinds = st.panes || ["price", "sub"];
+    let top = 0;
+    kinds.forEach((kind, k) => {
+      const d = paneLegend(k);
+      d.style.top = top + 4 + "px";
+      d.innerHTML = texts[kind] || "";
+      d.hidden = !d.innerHTML;
+      top += (panes[k] ? panes[k].getHeight() : 0) + 1;
+    });
+    for(let k = kinds.length; k < legends.length; k++) legends[k].hidden = true;
   }
   function legendFund(t){
     if(!st.fund || !st.fd) return "";
     if(st.fund === "op")
-      return `<br>営業利益 四半期 ${chartQty(fundAt("opq", t), "円")} 12か月 ${chartQty(fundAt("opttm", t), "円")}`;
+      return `営業利益 ${sw(th.accent, "四半期 " + chartQty(fundAt("opq", t), "円"))} ${sw(th.warn, "12か月 " + chartQty(fundAt("opttm", t), "円"))}`;
     const v = fundAt(st.fund, t);
-    return `<br>${CHART_FUND_NAMES[st.fund]} ${v == null ? "–" : chartPrice(v) + "倍"}`;
+    return sw(th.accent, `${CHART_FUND_NAMES[st.fund]} ${v == null ? "–" : chartPrice(v) + "倍"}`);
   }
 
   // 足を tf にして全部描き直す。range があればその期間を出す
@@ -589,7 +624,7 @@ function createStockChart(el, opt = {}){
 
   // 幅が変わっても期間は保つ（autoSize で幅が変わると 1 本の幅が保たれ、期間がずれるため）
   const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => requestAnimationFrame(() => {
-    if(st.win && st.bars){ setRange(st.win.from, st.win.to); drawMarkers(); }
+    if(st.win && st.bars){ setRange(st.win.from, st.win.to); drawMarkers(); drawLegend(); }
     nav.draw();
   }));
   if(ro) ro.observe(el);
