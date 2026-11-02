@@ -123,17 +123,53 @@ def test_routes_cover_tabs_js_and_public_paths() -> None:
         _fail("公開 /monthly/{code} に対応する monthly-detail ルートが無い")
 
 
+def _header_and_main(src: str) -> tuple[str, str]:
+    hs = src.find("<header>")
+    he = src.find("</header>")
+    ms = src.find("<main>")
+    me = src.find("</main>")
+    if min(hs, he, ms, me) < 0 or he < hs or me < ms:
+        _fail("header / main の組が見つからない")
+    return src[hs:he], src[ms:me]
+
+
 def test_breadcrumb_markup_is_on_every_html_shell() -> None:
     html = INDEX.read_text(encoding="utf-8")
     public = PUBLIC_PY.read_text(encoding="utf-8")
-    if 'id="crumbs"' not in html or 'aria-label="パンくず"' not in html:
-        _fail("SPA に nav#crumbs が無い")
+    spa_header, spa_main = _header_and_main(html)
+    pub_header, pub_main = _header_and_main(public)
+    if 'id="crumbs"' not in spa_header or 'aria-label="パンくず"' not in spa_header:
+        _fail("SPA の nav#crumbs は header に置く")
+    if 'id="crumbs"' in spa_main:
+        _fail("SPA の main に nav#crumbs を置かない")
+    if 'id="cur-tab"' not in spa_header:
+        _fail("SPA の header に #cur-tab が無い")
+    if spa_header.find('id="menu-btn"') > spa_header.find('id="cur-tab"'):
+        _fail("#menu-btn は #cur-tab より前")
+    if spa_header.find('id="cur-tab"') > spa_header.find('id="crumbs"'):
+        _fail("#cur-tab は #crumbs より前（パンくず無しのときのページ名位置）")
     if "/static/js/screens.js" not in html:
         _fail("SPA が screens.js を読んでいない")
     if html.index("/static/js/screens.js") > html.index("/static/js/tabs.js"):
         _fail("screens.js は tabs.js より前に置く")
-    if 'id="crumbs"' not in public or "/static/js/screens.js" not in public:
-        _fail("公開月次に nav#crumbs か screens.js が無い")
+    if 'id="crumbs"' not in pub_header or "/static/js/screens.js" not in public:
+        _fail("公開月次の nav#crumbs は header に置く")
+    if 'id="crumbs"' in pub_main:
+        _fail("公開月次の main に nav#crumbs を置かない")
+
+
+def test_header_crumbs_do_not_wrap() -> None:
+    """幅に収まらないときは折り返さず、末尾が見える（overflow-x + nowrap）。"""
+    css = (ROOT / "static" / "css" / "app.css").read_text(encoding="utf-8")
+    ol = re.search(r"#crumbs ol \{([^}]+)\}", css)
+    crumbs = re.search(r"#crumbs \{([^}]+)\}", css)
+    if not ol or "flex-wrap:nowrap" not in ol.group(1) or "white-space:nowrap" not in ol.group(1):
+        _fail("#crumbs ol は nowrap")
+    if not crumbs or "overflow-x:auto" not in crumbs.group(1):
+        _fail("#crumbs は overflow-x:auto")
+    js = SCREENS_JS.read_text(encoding="utf-8")
+    if "scrollLeft" not in js or "scrollWidth" not in js:
+        _fail("screens.js がパンくずの末尾を見せる（scrollLeft = scrollWidth）")
 
 
 def test_trail_uses_from_and_falls_back_to_default() -> None:

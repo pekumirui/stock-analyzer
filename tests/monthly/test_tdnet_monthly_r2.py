@@ -1,8 +1,10 @@
 """tdnet_monthly_r2 の純関数。ネットワークには出ない。"""
 from __future__ import annotations
 
+import io
 import re
 import sys
+from contextlib import redirect_stdout
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -134,7 +136,11 @@ def test_stock_product_map_sqlite(tmp: Path) -> None:
     conn.commit()
     conn.close()
 
+    before = db.read_bytes()
     m = load_stock_product_map(db_path=db)
+    # 読み取り専用で開く。DB の中身を変えない（この DB は WAL でないので -wal / -shm もできない。WAL の DB は ro でも SQLite が作る）
+    if db.read_bytes() != before or any(Path(f"{db}{s}").exists() for s in ("-wal", "-shm", "-journal")):
+        _fail("load_stock_product_map must not write to the db")
     cat, name = m[jq_lookup_code("9282")]
     if not should_skip_infra_fund(cat, name, "ジャパン・インフラファンド投資法人"):
         _fail("sqlite 9282 should skip")
@@ -148,6 +154,15 @@ def test_stock_product_map_sqlite(tmp: Path) -> None:
     empty = load_stock_product_map(db_path=tmp / "absent.db")
     if empty:
         _fail(f"missing db should be empty map: {empty!r}")
+    if (tmp / "absent.db").exists():
+        _fail("missing db must not be created")
+    broken = tmp / "broken.db"
+    broken.write_bytes(b"not a sqlite file")
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        got = load_stock_product_map(db_path=broken)
+    if got != {} or "warn stocks db unreadable" not in buf.getvalue():
+        _fail(f"unreadable db should warn and return empty: {got!r} {buf.getvalue()!r}")
     if not should_skip_infra_fund(None, None, "○○インフラ投資法人"):
         _fail("DB missing fallback should still skip インフラ投資法人")
     if should_skip_infra_fund(None, None, "ジャパン・ホテル・リート投資法人"):

@@ -196,7 +196,7 @@ ingest が新しい行を作るとき、同じ (code, year) に `strip_yoy_fragm
 - stocks に無いコードはダウンロードしない。DB が読めない／map が空なら警告のみで継続
 - 既存ファイルは消さない。IR（PDF/xlsx/HTML）は同じ URL の上書き公開を日付付きで残し、中身の sha256 が同じなら skip
 - 3 本のバッチ（TDnet PDF / IR PDF・xlsx / IR HTML）の cron は分ける
-- 日付・HTTP・銘柄マスタ・ファイル名の共通処理は `jobs/_r2common.py`（`app` は import しない）。`http_get` は TDnet も IR も同じ。識別 UA はジョブごとで、403 のときだけブラウザ UA に一度切り替え、中間証明書の欠落は AIA で補う。429 / 408 / 5xx は Retry-After があればそれに従い（最大 60 秒）、無ければ指数バックオフ＋jitter（5→10→20→40→60 秒、最大 6 回）。打ち切ったら例外を上げる。発行体ログは原則 `fail issuer {code} fetch:`（IR HTML の 429 だけ下の例外）
+- 日付・HTTP・銘柄マスタ・ファイル名の共通処理は `jobs/_r2common.py`。銘柄マスタは `app.db` の読み取り専用エンジン（`sqlite_readonly_engine`）で読み、DB が無い・読めないときは空のまま続ける。`http_get` は TDnet も IR も同じ。識別 UA はジョブごとで、403 のときだけブラウザ UA に一度切り替え、中間証明書の欠落は AIA で補う。429 / 408 / 5xx は Retry-After があればそれに従い（最大 60 秒）、無ければ指数バックオフ＋jitter（5→10→20→40→60 秒、最大 6 回）。打ち切ったら例外を上げる。発行体ログは原則 `fail issuer {code} fetch:`（IR HTML の 429 だけ下の例外）
 - 新しいファイルは `data/` に書く。rclone FUSE（`/home/stock/r2-share`）の切断プロトコルは、dest がまだそのマウント上にあるときに働く。`data/` の dest は `/proc/mounts` を見ない。マウントが切れたら各社 `fail` を並べない。開始時と処理中に dest を probe し、ECONNABORTED / ENOTCONN / ESTALE / ルート消失なら `RestartSec` と同じ 5 秒を挟んで再試行し、駄目なら `R2 マウント切断` の 1 行で exit≠0。正常時の行は変えない。マウントの再起動は `deploy/r2-share.service` と `r2-share-watch.timer`。デプロイはハッシュが変わったときだけ `r2-share.service` を restart する（`deploy/README.md`）
 
 TDnet 月次 PDF（`jobs/monthly/tdnet_monthly_r2.py`）:
@@ -446,6 +446,14 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `PUT /api/v1/tables/{code}/{year}/doc` | 文書を丸ごと返して 1 トランザクションで書く。body `{version, elements, allow_structure_change?, dry_run?}`。行名は渡したまま（正規化・エイリアスを掛けない）。`was` で改名（値はサーバーが移す）、文書に無い行は削除、`was` の無い新しい名前は作成（`unit` 必須、末尾に並ぶ）。`values` を渡した行は 12 か月を置き換え（無い月・null は削除）、省いた行は値をそのまま。`version` が違えば 409 `VERSION_MISMATCH`。改名・作成・削除・unit 変更は `allow_structure_change=true` のときだけ（無ければ 409 `STRUCTURE_CHANGED`）。`dry_run=true` は書かずに `changes` を返す。config の木に入らない行は `warnings` の `NOT_IN_TREE` |
 
 月次 API のエラーは `{"error": {"code": "...", "message": "..."}}`。閲覧 GET は公開。書き込みは loopback のみ（nginx 経由は 403）。本番の個人ツールは `/app` と Basic 認証。
+
+### ヘッダーとパンくずの置き場所
+
+見た目の正本は `docs/SCREEN_SPEC.md`（共通見た目 9・10）。置き場所だけここにも書く。
+
+- `nav#crumbs` はヘッダーに置く。`/app` は `#menu-btn` の右（PC はタブ行の下）。公開月次はサイト名の右。`main` には置かない
+- パンくずがある画面はヘッダーのページ名（`#cur-tab`）を出さない。無い画面はいまどおりページ名
+- 区切りは ` > `。幅に収まらないときは折り返さず横スクロールし、先頭を省略して末尾（いまの画面）が見えるようにする
 
 ### 決算速報の画面
 

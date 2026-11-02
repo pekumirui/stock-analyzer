@@ -18,6 +18,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from app.db import sqlite_readonly_engine  # noqa: E402
 import jobs.monthly.tdnet_monthly_pdf_ingest as pdf_ingest  # noqa: E402
 import jobs.monthly.tdnet_monthly_pdf_sidecar as sc  # noqa: E402
 
@@ -120,11 +121,12 @@ def _seed_db(path: Path, rows: list[tuple[str, int, str, int, float]]) -> Path:
 def _db(rows: list[tuple[str, int, str, int, float]]) -> sc.DbIssuer:
     with tempfile.TemporaryDirectory() as tmp:
         path = _seed_db(Path(tmp) / "m.db", rows)
-        conn = sqlite3.connect(path)
+        engine = sqlite_readonly_engine(path)
         try:
-            return sc.load_db_issuer(conn, "428A0")
+            with engine.connect() as conn:
+                return sc.load_db_issuer(conn, "428A0")
         finally:
-            conn.close()
+            engine.dispose()
 
 
 def _grids(text: str) -> list[sc.Grid]:

@@ -1,4 +1,5 @@
 from itertools import groupby
+from pathlib import Path
 import re
 import time
 
@@ -45,6 +46,15 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, future=True)
 
 if str(DATABASE_URL).startswith("sqlite"):
     event.listens_for(engine, "connect")(apply_sqlite_pragmas)
+
+
+def sqlite_readonly_engine(path: Path | str, timeout: float = 8.0):
+    """SQLite ファイルを読み取り専用で開くエンジン。ファイルが無くても作らない（`mode=ro`）。
+
+    WAL などの PRAGMA は掛けない（書き込みになる）。使い終わったら `dispose()`。
+    """
+    url = f"sqlite:///file:{Path(path).resolve().as_posix()}?mode=ro&uri=true"
+    return create_engine(url, future=True, poolclass=NullPool, connect_args={"timeout": timeout})
 
 
 LOCK_MARKERS = ("database is locked", "database is busy")

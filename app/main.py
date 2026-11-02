@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from .api import router, router_v1
 from .api.monthly import ApiError, _parse_code, list_tables_payload, table_year_payload
-from .assets import html_etag, version_static_urls
-from .config import MONTHLY_ROW_ORDER_PATH
+from .assets import html_etag, inject_wiki_nav, version_static_urls
+from .config import MONTHLY_ROW_ORDER_PATH, WIKI_URL
 from .db import get_session, init_db
 from .monthly.ir_codes import load_ir_monthly_codes
 from .monthly.public import (
@@ -74,6 +74,7 @@ def root():
 @app.get("/app/")
 def app_spa():
     html = version_static_urls((STATIC / "index.html").read_text(encoding="utf-8"))
+    html = inject_wiki_nav(html, WIKI_URL)
     return HTMLResponse(html, headers={"ETag": html_etag(html)})
 
 

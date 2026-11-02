@@ -18,7 +18,7 @@ Read this index, then the matching feature file, before driving the app.
 ## Driving conventions
 
 - Boot restores the last tab (and the 銘柄 code + sub tab / news id, monthly code, supply id) from `location.hash` or `localStorage` key `ui.route` via `restoreRoute()` (`static/js/tabs.js`, called from `boot.js`). For a cold 決算速報 start, clear hash + `ui.route` then reload, or open a fresh profile.
-- Prefer `nav button[data-tab]`, `#id`, and `data-fin` / `data-no` over pixel clicks.
+- Prefer `nav button[data-tab]`, `#id`, and `data-fin` / `data-no` over pixel clicks. `#wiki-link` is an external tab, not a screen. `#view-mode-btn` is phone-only chrome (`screen.width` ≤ 720).
 - Treat every command as literal.
 - HTTP proofs use `helpers/capture.py <feature>` against the same `/api/*` the SPA calls (including `capture.py ranking` and `capture.py holders`).
 - Browser proofs use `browser-use`: open `{url}/app` then click the tab handle. At ≤720px the tabs are in the `#menu-btn` drawer; open it first (or call `selectTab`).
@@ -27,7 +27,7 @@ Read this index, then the matching feature file, before driving the app.
 ## Proof and skip reporting
 
 - Capture the user action and the resulting state, not only the final screen.
-- UI proof includes a screenshot of the header (document title is `株式分析ツール`; no brand `h1`, no `#home`; ≤720px `#menu-btn` then `#cur-tab`).
+- UI proof includes a screenshot of the header (document title is `株式分析ツール`; no brand `h1`, no `#home`; ≤720px `#menu-btn` then `nav#crumbs`, or `#cur-tab` if crumbs are hidden).
 - HTTP proof includes `request.txt` and `body.json`.
 - Record the feature ID and entry point with every artifact.
 - Report an unreachable path with the attempted command and the unmet precondition.

@@ -80,8 +80,9 @@ jobs:
       - name: Compile
         run: python -m compileall -q -f app jobs tests tools deploy mcp .cursor
 
+      # --dataflow=check: テスト中の SQL から作った読み書き表と docs/DATA_FLOW.md が合わなければ落とす
       - name: Test
-        run: python -m pytest tests -q
+        run: python -m pytest tests -q --dataflow=check
 
   lint:
     name: Lint

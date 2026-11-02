@@ -21,7 +21,7 @@ The default tab lists financial-statement disclosures for a calendar day, then s
 
 ## How to get to it (user POV)
 
-- Open `{url}/app` with no hash and no `ui.route` (or after clearing them). 決算速報 is the fallback tab; boot still runs `selectDate(todayISO())` before `restoreRoute()`, so today's list loads even if another tab is restored. With a clean route: nav is `.active` on 決算速報, `nav#crumbs` reads `トップ` then `決算速報`, and `#earn-title` reads `{date}の決算発表`.
+- Open `{url}/app` with no hash and no `ui.route` (or after clearing them). 決算速報 is the fallback tab; boot still runs `selectDate(todayISO())` before `restoreRoute()`, so today's list loads even if another tab is restored. With a clean route: nav is `.active` on 決算速報, header crumbs are `トップ > 決算速報` (`#cur-tab` hidden), and `#earn-title` reads `{date}の決算発表`.
 - Click `nav button[data-tab="earnings"]` from any other tab.
 - Click `#cal-btn` to open `#cal-pop`. Use `#cal-title` ◀/▶ (`calMove`) to change month when needed. Click a day cell `#cal .d` that shows `.cnt` (accent for filings, muted `.cnt.sched` for a future schedule, `.cnt.pend` for `+N` still scheduled today). The popover closes.
 - Click a filing row `#earn-tbl tr[data-no]`, or a scheduled row `#earn-tbl tr[data-code]`.
@@ -52,7 +52,7 @@ Preconditions:
 - **Table.** For a FY filing, `#cum-tbl` 決算期 cells read like `26.8` with no `期` and no `actual_fy_prev` row; when the filing has next-year forecasts the last rows carry `中予` / `通予` (30480 ビックカメラ FY26.8 → `27.8`). 営業益 and 粗利益 cells end with `.opm` `(x.x%)` when the amount is present; a `通予` / `中予` 粗利益 is `–`.
 - **3か月.** Click `.ftab[data-fin="q"]`. `#q-wrap` is not `hidden`; `#cum-wrap` is.
 - **イベント.** `.evt-toggles` under `#e-chart` is in the markup and filled at boot (`fillEventToggles`). After a row loads `#e-chart`, one 「決」 mark is already on the selected `disclosed_date`. Checking 決算発表 adds the rest from `earnings_dates` (same layer as 銘柄 › 株価, which has no selected-filing `mark`).
-- **Proof.** Keep `calendar.json`, `body.json`, and (if CDP) `artifacts/earnings/ui.png` showing `#earn-tbl` (or a chosen day's list) plus the header (`#menu-btn` then `#cur-tab` at ≤720px). Prefer a calendar day with `.cnt` — today's empty `予定なし` is not a list proof. The month grid must not occupy the first row; the list is at the top of `#tab-earnings`.
+- **Proof.** Keep `calendar.json`, `body.json`, and (if CDP) `artifacts/earnings/ui.png` showing `#earn-tbl` (or a chosen day's list) plus the header (`#menu-btn` then `nav#crumbs` at ≤720px). Prefer a calendar day with `.cnt` — today's empty `予定なし` is not a list proof. The month grid must not occupy the first row; the list is at the top of `#tab-earnings`.
 
 ## Gotchas
 

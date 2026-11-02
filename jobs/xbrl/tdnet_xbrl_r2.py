@@ -4,7 +4,7 @@
   python jobs/xbrl/tdnet_xbrl_r2.py 1
   python jobs/xbrl/tdnet_xbrl_r2.py 30 --dest /tmp/xbrl
 
-N は今日(JST)から遡る日数（当日を含む）。ネットワークと app/ はテストから分離する。
+N は今日(JST)から遡る日数（当日を含む）。ネットワークはテストから差し替える。
 
 skip の正本は dest/manifest/{YYYY-MM-DD}.jsonl の xbrl_id。ファイル名や .part は skip に使わない。
 マスタ無し・インフラは落とさず _unmatched/ へ置く（TDnet の約30日保持）。
