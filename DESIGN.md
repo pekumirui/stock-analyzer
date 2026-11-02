@@ -44,12 +44,18 @@ stocks            -- 銘柄マスタ
   -- (株価・財務の再取得は不要)
 
 homepages         -- 上場会社のホームページ URL（KAB-319）。将来 TDnet に無い IR を取る起点
-  code PK                 -- 普通株の 5 桁（末尾 0）。優先株は親へ畳む。FK は付けない
+  code PK                 -- 普通株の 5 桁（末尾 0）。FK は付けない
   url                     -- 選んだ 1 本（会社ホームページ）
-  source                  -- xbrl_url / tanshin_html
-  confidence              -- high / medium
-  origin                  -- XBRL doc_id または短信 disclosure_no
-  fetched_at              -- 書いた時刻（JST naive）
+  host                    -- 正規化ホスト（小文字、先頭 www. を除く。KAB-320 の月次設定と突き合わせる）
+  source                  -- manual / xbrl_url / tanshin_html
+  origin                  -- manual / xbrl:{doc_id} / tanshin:{disclosure_no}
+  changed_at              -- url / source / origin / host が変わった時刻（JST naive）
+  checked_at              -- 最後に確認した時刻（値が同じでも進む）
+  -- 4 桁は末尾 0（7203→72030）。5 桁の優先株は先頭 4 文字 + 0（72031→72030）。262A0 はそのまま
+  -- 確度は source で一意なので列にしない（manual > xbrl_url > tanshin_html）
+  -- 上場廃止: stocks は UPSERT のみで消えない。homepages も消さない。--all は今の stocks だけ対象
+  -- 1 社 1 行のまま。IR / 月次ページは将来別表（code, kind, url の複数行）。実装はまだ無い
+  -- 月次ページ URL の正本は今どおり config/monthly/ir_monthly.json の index_url
 
 daily_prices      -- 日足。WITHOUT ROWID (行を code, date 順に置く。KAB-289)
   code, date PK(複合)
@@ -289,14 +295,21 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
 
 **VPS パッケージ一覧（`jobs/ops/vps_packages_r2.py`）。** 読み取り専用。`data/inventory/` へ書く。中身と cron は [`deploy/README.md`](deploy/README.md)。
 
-**ホームページ URL（`homepages`）。** 企業マスタの各社について、会社ホームページの URL を 1 本残す。IR ページとの区別はまだしない。API / SPA / cron はまだ無い。ジョブは `python jobs/market/homepages.py --code 4543 --dry-run`。`--all` の本番投入は承認後。表は `jobs/migrate.py` が作る。HTTP はしない。
+**ホームページ URL（`homepages`）。** 企業マスタの各社について、会社ホームページの URL を 1 本残す。IR ページとの区別はまだしない。API / SPA / cron はまだ無い。ジョブは `python jobs/market/homepages.py --code 4543 --dry-run`。手入力は `--set 7203 https://…`（`source=manual`。`--refresh` でも上書きしない）。`--all` の本番投入は承認後。表は `jobs/migrate.py` が作る。HTTP はしない。
 
-候補は強い順。再実行は UPSERT。強い source を弱い source で上書きしない（`--refresh` だけ例外）。
+コードは J-Quants の 5 桁普通株。CLI と XBRL / 短信の code は `ordinary_code` で畳む（4 桁は末尾 0、優先株は先頭 4 文字 + 0）。
 
-| source | 出どころ | 確度 | 備考 |
+候補は提出の新しさ優先。同じ日なら source の順。XBRL は code ごとに `submitted_at` 最新 1 件だけ読み、その URL が捨てられれば XBRL 候補なし（古い提出へは下がらない）。最新短信の開示日より XBRL の提出が古ければ短信を採る。再実行は UPSERT。値が同じなら `checked_at` だけ進める。
+
+| source | 出どころ | origin | 備考 |
 |---|---|---|---|
-| `xbrl_url` | 最新の `tse-ed-t:URL` / `tse-re-t:URL` | high | 短信カバーの会社ホームページ。スキーム無しと全角コロンを直す |
-| `tanshin_html` | 最新の決算短信 `tdnet_pdf_documents.html_gz` の先頭の会社 URL | medium | 題名に「決算短信」を含む行だけ。w3.org / TDnet / EDINET / JPX / SEC / SNS は捨てる |
+| `manual` | `--set` の手入力 | `manual` | 最上位。自動更新では触らない |
+| `xbrl_url` | 最新 1 件の `tse-ed-t:URL` / `tse-re-t:URL` | `xbrl:{doc_id}` | スキーム無しと全角コロンを直す |
+| `tanshin_html` | 最新の決算短信 `tdnet_pdf_documents.html_gz` | `tanshin:{disclosure_no}` | 題名に「決算短信」を含む行だけ。『URL』『ホームページ』ラベル近くの URL を優先。監査法人・親会社の URL を先頭だけ見ると取り違える。w3.org / TDnet / EDINET / JPX / SEC / SNS はホストの完全一致かドット区切りの末尾一致で捨てる |
+
+将来の IR / 月次ページは `homepages` に足さず、別表（`code`, `kind`, `url` の複数行）にする。月次ページ URL の正本は `config/monthly/ir_monthly.json` の `index_url`。KAB-320 で `homepages.host` と突き合わせる。上場廃止会社の行は残す（stocks も消さない）。
+
+ホスト一致の確認は `python jobs/market/homepages.py --all --compare-hosts`（書き込みしない）。
 
 **為替（`fx_rates`）。** Frankfurter v1（`https://api.frankfurter.dev/v1`、ECB、基準通貨 EUR、キー不要。旧 `api.frankfurter.app` は 301）。UI は出さない。
 
