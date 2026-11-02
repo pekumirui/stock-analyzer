@@ -111,7 +111,6 @@
   #st-title { margin:4px 0 2px; }
   #st-quote { display:flex; flex-wrap:wrap; gap:4px 14px; align-items:baseline; margin-bottom:8px; font-variant-numeric:tabular-nums; }
   #st-quote .px { font-size:18px; font-weight:700; }
-  #st-tabs { display:inline-flex; margin-bottom:10px; }
   #st-metrics { display:flex; flex-wrap:wrap; gap:8px 24px; margin:4px 0 12px; font-variant-numeric:tabular-nums; }
   #st-metrics .k { font-size:12px; color:var(--sub); }
   #st-metrics .v { font-size:18px; font-weight:600; }
@@ -457,6 +456,17 @@
   .fin-tabs { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
   .ftab { background:transparent; border:none; color:var(--sub); padding:5px 14px; cursor:pointer; font-size:13px; }
   .ftab.on { background:var(--accent); color:#fff; }
+  /* 銘柄の中のタブ。Bootstrap nav-tabs 風。塗りつぶしの .fin-tabs とは別（KAB-315） */
+  .nav-tabs { display:flex; flex-wrap:nowrap; width:100%; margin:0 0 10px; padding:0;
+              border-bottom:1px solid var(--border); gap:0; }
+  .nav-tabs .ftab { flex:0 0 auto; margin-bottom:-1px; background:transparent;
+                    border:1px solid transparent; border-top-left-radius:6px; border-top-right-radius:6px;
+                    color:var(--sub); padding:6px 14px; cursor:pointer; font-size:13px; line-height:1.3;
+                    white-space:nowrap; text-align:center; }
+  .nav-tabs .ftab:hover { isolation:isolate; color:var(--text);
+                          border-color:var(--grid) var(--grid) var(--border); }
+  .nav-tabs .ftab.on { background:var(--panel); color:var(--text); font-weight:600;
+                       border-color:var(--border) var(--border) var(--panel); }
   .qb { display:inline-block; font-size:10px; padding:0 5px; border-radius:3px; background:var(--row); color:var(--sub); vertical-align:middle; }
   table.fin .g .qb { margin-left:0; }
   .qb-1Q { color:#c48a00; }
@@ -477,6 +487,7 @@
 
   @media (max-width:640px){
     main { padding-left:6px; padding-right:6px; }
+    .nav-tabs .ftab { flex:1 1 0; min-width:0; padding:6px 4px; font-size:13px; }
     /* 株価のチャートは .panel の左右の余白まで広げる（株探と同じくらいの横幅にする） */
     #st-sub-price #chart, #st-sub-price .chart-nav { width:auto; margin-left:-12px; margin-right:-12px; }
     table.sheet th, table.sheet td { padding-left:3px; padding-right:3px; }
