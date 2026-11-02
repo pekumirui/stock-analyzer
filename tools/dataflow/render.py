@@ -16,7 +16,6 @@ HEADER = """\
 - バッチが HTTP で API を呼ぶとき（月次の取込は loopback の API に POST する）は「呼ぶ API」に出し、その API の読み書きも足す
 - API はルートごと
 - 数えないもの: DDL（`CREATE` / `ALTER` など）、`init_db` のスキーマ直し、テストが下ごしらえで `upsert` などの汎用の関数を直に呼んだ分
-- SQLAlchemy を通さず `sqlite3` で開く接続（`backup_db` など）も数える
 """
 
 
