@@ -285,7 +285,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 | スクリプト | cron |
 |---|---|
 | `jobs/monthly/tdnet_monthly_r2.py 7` | 18:00 / 21:00（直近7日。一覧は TDnet。取りこぼしの拾い直し） |
-| `jobs/market/tdnet_briefing_r2.py 7` | 22:10（決算説明資料 → `data/briefing`。直近7日。既存 PDF は skip。初回の約30日は `deploy/cron-run.sh jobs/market/tdnet_briefing_r2.py 30` を手で一度。デプロイでは走らない） |
+| `jobs/market/tdnet_briefing_r2.py 7` | 22:10（決算説明資料 → `data/briefing`。直近7日。既存 PDF は skip。索引行だけの補完は `reindexed`。初回の約30日は `deploy/cron-run.sh jobs/market/tdnet_briefing_r2.py 30` を手で一度。デプロイでは走らない） |
 | `jobs/monthly/tdnet_monthly_pdf_sidecar.py` | 18:20 / 21:20（TDnet PDF 取得の後） |
 | `jobs/monthly/tdnet_monthly_pdf_ingest.py` | 18:30 / 21:30（sidecar の後。ledger は `/var/log/app/pdf_ingest_ledger.json`） |
 | `jobs/monthly/ir_monthly_r2.py` | 10:00 / 16:00 |

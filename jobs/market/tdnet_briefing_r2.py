@@ -9,6 +9,7 @@ N は今日(JST)から遡る日数（当日を含む）。日次 cron は 7（�
 初回の約 30 日は手で一度。デプロイでは走らない。
 一覧は jobs/_tdnet.py の fetch_days。表題は app.market.briefing_title.is_material_title。
 パスは月次 PDF と同じ {code}/YYYYMMDD_CODE_名前_表題.pdf。既存の PDF は取り直さない。
+PDF があるのに索引が無いときだけ行を足し、その件数は reindexed（saved とは別）。
 索引は briefing_documents（source=tdnet）。ホームページ分は source=homepage で同じ表。
 ネットワークはテストから差し替える。
 """
@@ -199,7 +200,7 @@ def run(days: int, dest: Path, *, dry_run: bool = False) -> int:
             flush=True,
         )
         return 0
-    saved = skipped = indexed = failed = 0
+    saved = skipped = reindexed = failed = 0
     for rec in records:
         pdf_id = rec["_pdf_id"]
         company_code = str(rec.get("company_code") or "")
@@ -219,8 +220,8 @@ def run(days: int, dest: Path, *, dry_run: bool = False) -> int:
                     print(f"skip exists {rel}", flush=True)
                 else:
                     index_saved(rec, pdf_id, path, dest, existing)
-                    indexed += 1
-                    print(f"indexed {rel}", flush=True)
+                    reindexed += 1
+                    print(f"reindexed {rel}", flush=True)
                 continue
             data = download_pdf(str(rec.get("document_url") or ""), path)
             index_saved(rec, pdf_id, path, dest, data)
@@ -235,7 +236,7 @@ def run(days: int, dest: Path, *, dry_run: bool = False) -> int:
         time.sleep(SLEEP_SEC)
     print(
         f"tdnet_briefing_r2 done listed={len(records)} "
-        f"saved={saved} skipped={skipped} indexed={indexed} failed={failed}",
+        f"saved={saved} skipped={skipped} reindexed={reindexed} failed={failed}",
         flush=True,
     )
     return 1 if failed else 0

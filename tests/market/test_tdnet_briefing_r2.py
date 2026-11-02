@@ -200,7 +200,8 @@ def test_existing_pdf_is_indexed_without_download(tmp_path: Path) -> None:
     rc, out, gets = _run(mod, dest, [row])
     assert rc == 0, out
     assert gets == []
-    assert "indexed" in out
+    assert "reindexed " in out
+    assert "reindexed=1" in out
     saved = _fields(SOURCE_TDNET, "140120261030000011")
     assert saved["rel_path"] == path.relative_to(dest).as_posix()
     assert saved["sha256"] == hashlib.sha256(body).hexdigest()

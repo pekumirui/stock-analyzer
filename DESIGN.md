@@ -227,7 +227,7 @@ TDnet 決算説明資料 PDF（`jobs/market/tdnet_briefing_r2.py`。KAB-327）:
 - 落とす: 訂正・誤記。お知らせ、開催・中止・延期、掲載について・公開について（決算説明会開催のお知らせ、説明資料を載せた案内）。英語の notice / correction。資料の語が無い「決算説明会」。決算短信そのもの。成長可能性の説明資料や、決算などの語が無い補足説明資料。中期経営計画の説明会資料（決算・四半期などの語が無いもの）
 - 「修正」だけでは落とさない。補足資料の表題に業績予想の修正が入ることがある
 - 保存先は `data/briefing/{code}/YYYYMMDD_CODE_名前_表題.pdf`。`{code}` とファイル名は月次 PDF と同じ（display_code。J-Quants の 5 桁にはしない）。`SHARE_ROOT` を置くとその直下の `briefing/`
-- 既存ファイルが PDF なら取り直さない。索引が無ければ索引だけ足す。PDF でなければ取り直す
+- 既存ファイルが PDF なら取り直さない。索引が無ければ索引だけ足す。その件数は `reindexed`（新規に保存した `saved` とは別）。PDF でなければ取り直す
 - 索引は `briefing_documents`。列は source / document_id / code（5 桁）/ company_name / pubdate / title / rel_path（`data/briefing` から）/ url / sha256 / size / status / saved_at。このジョブは source=`tdnet`、document_id は TDnet の PDF ファイル名、status=`saved`。ホームページで見つけた PDF は同じ表に source=`homepage`（取得はこのジョブではしない。`app/market/briefing_store.record_briefing`）
 - 日次 cron は直近 7 日（22:10 JST。取りこぼしの拾い直し）。初回の約 30 日は `deploy/cron-run.sh jobs/market/tdnet_briefing_r2.py 30` を手で一度。デプロイでは走らない
 - OneDrive への控え（`backup_data`）にはまだ載せない。TDnet は約 1 か月で PDF を消す
