@@ -339,6 +339,14 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
 
 ホスト一致の確認は `python jobs/market/homepages.py --all --compare-hosts`（書き込みしない）。
 
+**短信表紙の説明資料（`tanshin_covers`）。** 決算短信1ページ目の「決算補足説明資料作成の有無」「決算説明会開催の有無」を、短信ごとに1行残す（KAB-325）。主キーは `disclosure_no`。`code` にインデックスを付ける。最新の1件は `disclosed_at` が新しい行。API / SPA / cron はまだ無い。表は `jobs/migrate.py` が作る。ジョブは `python jobs/market/tanshin_covers.py --code 7203`。`--limit` は DB に既にある短信から新しい順にその社数だけ、各社の最新1件を書く。前の短信の行は消さない。`--all` は無い。本番への一括投入はしない。説明資料 PDF の保存は `jobs/market/tdnet_briefing_r2.py`（KAB-327、`briefing_documents`）。有無の判定とホームページ探索は、その索引を見て別 PR で足す。
+
+- 対象は普通株（`stocks.product_category` が内国株券 `011` または外国株券 `021`）と REIT（`013`）。ETF（`014`）と外国 ETF / ETN（`023`）は除く。REIT でも名称に「ファンド」または「インフラ」がある投資法人は除く。マスタが無い銘柄は、題名が ETF・ETN・投資信託・ファンドでなければ残す
+- 題名に「決算短信」があるもの。`訂正` と「決算短信…の修正について／の一部修正」は飛ばす
+- 書くのは各社の最新の提出日だけ。PDF（`tdnet_pdf_documents`）は変換 HTML の1ページ目。XBRL はサマリー iXBRL（表紙に相当）。その日に両方あるときは、有無が読めたほうを使い、どちらも読めたときは時刻が新しいほう。同じ日のもう一方の `disclosure_no` は残さない
+- 有は 1、無は 0、表紙に文言が無ければ NULL。画像だけの表紙も NULL。説明会の括弧は、投資家・アナリストなど対象が読めるときだけ `briefing_note`。単位の注記や、列の並びに紛れた「氏名」は残さない
+- 「有・無」と両方印字されてどちらとも取れないときは NULL（丸印の位置までは見ない）
+
 **為替（`fx_rates`）。** Frankfurter v1（`https://api.frankfurter.dev/v1`、ECB、基準通貨 EUR、キー不要。旧 `api.frankfurter.app` は 301）。UI は出さない。
 
 - 保存は対 EUR だけ。USD/JPY などは `EURJPY / EURUSD`。ヘルパーは `app.fx.cross_rate`
