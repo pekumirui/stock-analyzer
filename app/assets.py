@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from html import escape
 from pathlib import Path
 
 STATIC = Path(__file__).resolve().parent.parent / "static"
@@ -38,3 +39,18 @@ def version_static_urls(html: str) -> str:
 
 def html_etag(html: str) -> str:
     return '"' + hashlib.sha256(html.encode("utf-8")).hexdigest()[:32] + '"'
+
+
+def inject_wiki_nav(html: str, url: str) -> str:
+    """#app-nav の末尾に wiki リンクを足す。テンプレートは触らない。"""
+    if not url:
+        return html
+    start = html.find('<nav id="app-nav">')
+    if start < 0:
+        return html
+    end = html.find("</nav>", start)
+    if end < 0:
+        return html
+    href = escape(url, quote=True)
+    link = f'<a id="wiki-link" href="{href}" target="_blank" rel="noopener noreferrer">wiki</a>'
+    return html[:end].rstrip() + "\n    " + link + "\n  " + html[end:]
