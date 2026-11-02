@@ -59,7 +59,7 @@
 
 `app/models.py` にあるのに、どの入口の読み書きにも出なかった表:
 
-- （無し）
+- `briefing_irbank_scans`
 
 ## SQL を観測しなかった入口
 
