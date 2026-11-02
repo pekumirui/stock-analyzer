@@ -37,10 +37,11 @@ class Homepage(Base):
     __tablename__ = "homepages"
     code = Column(String(5), primary_key=True)
     url = Column(Text, nullable=False)
-    source = Column(String(32), nullable=False)       # xbrl_url / tanshin_html
-    confidence = Column(String(16), nullable=False)   # high / medium
-    origin = Column(Text)                             # XBRL doc_id または短信 disclosure_no
-    fetched_at = Column(DateTime, nullable=False)
+    host = Column(String(255), nullable=False)        # 小文字。先頭 www. を除く（KAB-320）
+    source = Column(String(32), nullable=False)       # manual / xbrl_url / tanshin_html
+    origin = Column(Text, nullable=False)             # manual / xbrl:{doc_id} / tanshin:{disclosure_no}
+    changed_at = Column(DateTime, nullable=False)     # url 等が変わった時刻
+    checked_at = Column(DateTime, nullable=False)     # 最後に確認した時刻
 
 
 class DailyPrice(Base):

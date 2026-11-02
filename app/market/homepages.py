@@ -1,6 +1,7 @@
 """上場会社のホームページ URL を homepages に残す（KAB-319）。
 
-候補は強い順: 短信カバーの tse-ed-t:URL / tse-re-t:URL → 最新の決算短信 HTML の先頭の会社 URL。
+候補は新しい提出を優先。同じ日なら manual > xbrl_url > tanshin_html。
+XBRL は code ごとに最新 1 件だけ。短信は『URL』『ホームページ』ラベル近くの URL。
 普通株コード（末尾 0）に畳む。HTTP はしない。ジョブは init_db しない。
 """
 from __future__ import annotations
@@ -8,7 +9,7 @@ from __future__ import annotations
 import gzip
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlparse
 
 from sqlalchemy import func, select
@@ -19,12 +20,12 @@ from ..models import Homepage, Stock, TdnetPdfDocument, XbrlElement, XbrlFact, X
 
 JST = timezone(timedelta(hours=9))
 
+SOURCE_MANUAL = "manual"
 SOURCE_XBRL_URL = "xbrl_url"
 SOURCE_TANSHIN_HTML = "tanshin_html"
-SOURCE_ORDER = (SOURCE_XBRL_URL, SOURCE_TANSHIN_HTML)
+SOURCE_ORDER = (SOURCE_MANUAL, SOURCE_XBRL_URL, SOURCE_TANSHIN_HTML)
 
-CONF_HIGH = "high"
-CONF_MEDIUM = "medium"
+ORIGIN_MANUAL = "manual"
 
 XBRL_URL_KEYS = ("tse-ed-t", "tse-re-t")
 XBRL_URL_NAME = "URL"
@@ -36,8 +37,12 @@ _FILE_RE = re.compile(
     r"\.(?:pdf|xlsx?|csv|zip|docx?|pptx?|exe|wmv|mp4)(?:$|[?#])", re.I)
 _FW = str.maketrans({"：": ":", "／": "/", "．": "."})
 _TRAIL_PUNCT = ".,);]）｣」'\"、。"
+_LABEL_RE = re.compile(
+    r"(?:ホームページ|ＨＰ|(?<![A-Za-z0-9])URL(?![A-Za-z0-9])|ＵＲＬ)")
+_LABEL_WINDOW = 400
 
-_SKIP_HOST_NEEDLES = (
+# 完全一致、またはドット区切りの末尾一致（examplex.com は x.com に当たらない）
+_SKIP_HOSTS = (
     "w3.org",
     "tdnet.info",
     "edinet-fsa.go.jp",
@@ -55,12 +60,9 @@ _SKIP_HOST_NEEDLES = (
 )
 
 _RANK = {
+    SOURCE_MANUAL: 100,
     SOURCE_XBRL_URL: 80,
     SOURCE_TANSHIN_HTML: 40,
-}
-_CONF = {
-    SOURCE_XBRL_URL: CONF_HIGH,
-    SOURCE_TANSHIN_HTML: CONF_MEDIUM,
 }
 
 
@@ -82,6 +84,34 @@ def source_rank(source: str) -> int:
     return _RANK.get(source, 0)
 
 
+def origin_xbrl(doc_id: str) -> str:
+    return f"xbrl:{doc_id}"
+
+
+def origin_tanshin(disclosure_no: str) -> str:
+    return f"tanshin:{disclosure_no}"
+
+
+def host_is_skipped(host: str) -> bool:
+    h = (host or "").lower().rstrip(".")
+    if not h:
+        return True
+    for needle in _SKIP_HOSTS:
+        if h == needle or h.endswith("." + needle):
+            return True
+    return False
+
+
+def url_host(url: str | None) -> str | None:
+    """正規化したホスト。小文字、末尾ドット無し、先頭の www. を除く。"""
+    if not url:
+        return None
+    host = (urlparse(url).hostname or "").lower().rstrip(".")
+    if host.startswith("www."):
+        host = host[4:]
+    return host or None
+
+
 def normalize_url(raw: str | None) -> str | None:
     if raw is None:
         return None
@@ -95,7 +125,7 @@ def normalize_url(raw: str | None) -> str | None:
     if parsed.scheme not in ("http", "https"):
         return None
     host = (parsed.hostname or "").lower()
-    if not host or any(n in host for n in _SKIP_HOST_NEEDLES):
+    if host_is_skipped(host):
         return None
     if "/wp-content/" in (parsed.path or "").lower():
         return None
@@ -104,10 +134,12 @@ def normalize_url(raw: str | None) -> str | None:
     return parsed.geturl()
 
 
-def extract_urls_from_html(html: str) -> list[str]:
-    """タグを剥がした本文から会社サイトの URL を出現順で返す。"""
+def _plain_text(html: str) -> str:
     text = re.sub(r"<[^>]+>", " ", html or "")
-    text = text.translate(_FW)
+    return text.translate(_FW)
+
+
+def _urls_from_text(text: str) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
     for match in _URL_RE.finditer(text):
@@ -119,24 +151,52 @@ def extract_urls_from_html(html: str) -> list[str]:
     return out
 
 
-def pick_homepage_url(urls: list[str]) -> str | None:
-    """短信本文の先頭の会社 URL（カバーのホームページ欄）。"""
-    for url in urls:
-        if normalize_url(url):
-            return url
-    return None
+def extract_urls_from_html(html: str) -> list[str]:
+    """タグを剥がした本文から会社サイトの URL を出現順で返す。"""
+    return _urls_from_text(_plain_text(html))
+
+
+def pick_homepage_url(html: str) -> str | None:
+    """『URL』『ホームページ』ラベルの直後を優先。無ければ先頭の会社 URL。"""
+    text = _plain_text(html)
+    for match in _LABEL_RE.finditer(text):
+        window = text[match.end(): match.end() + _LABEL_WINDOW]
+        urls = _urls_from_text(window)
+        if urls:
+            return urls[0]
+    urls = _urls_from_text(text)
+    return urls[0] if urls else None
+
+
+_ASOF_MIN = datetime(1, 1, 1)  # noqa: DTZ001
+
+
+def _as_of_dt(value: datetime | date | None) -> datetime:
+    if value is None:
+        return _ASOF_MIN
+    if isinstance(value, datetime):
+        return value.replace(tzinfo=None)
+    return datetime(value.year, value.month, value.day)  # noqa: DTZ001
 
 
 @dataclass(frozen=True)
 class Candidate:
     url: str
     source: str
-    confidence: str
     origin: str
+    as_of: datetime | date | None = None
 
     @property
     def rank(self) -> int:
         return source_rank(self.source)
+
+    @property
+    def host(self) -> str:
+        return url_host(self.url) or ""
+
+    @property
+    def sort_key(self) -> tuple:
+        return (_as_of_dt(self.as_of), self.rank, self.url)
 
 
 @dataclass
@@ -157,13 +217,23 @@ class SyncReport:
         )
 
 
-def _candidate(url: str, source: str, origin: str) -> Candidate:
-    return Candidate(
-        url=url,
-        source=source,
-        confidence=_CONF[source],
-        origin=origin,
-    )
+@dataclass
+class HostCompareReport:
+    both: int = 0
+    same_host: int = 0
+    diff_host: int = 0
+    diffs: list[str] = field(default_factory=list)
+
+    def summary(self) -> str:
+        rate = (self.same_host / self.both) if self.both else 0.0
+        return (
+            f"homepages compare_hosts both={self.both} same={self.same_host} "
+            f"diff={self.diff_host} rate={rate:.3f}"
+        )
+
+
+def _candidate(url: str, source: str, origin: str, as_of: datetime | date | None) -> Candidate:
+    return Candidate(url=url, source=source, origin=origin, as_of=as_of)
 
 
 def _target_codes(db: Session, codes: list[str] | None) -> list[str]:
@@ -173,15 +243,20 @@ def _target_codes(db: Session, codes: list[str] | None) -> list[str]:
     return sorted({ordinary_code(c) for c in rows})
 
 
-def _load_xbrl_urls(db: Session, codes: list[str]) -> dict[str, tuple[str, str]]:
+def _load_xbrl_urls(db: Session, codes: list[str]) -> dict[str, tuple[str, str, datetime]]:
+    """code -> (url, origin, submitted_at)。最新 1 件だけ。無効なら候補なし。"""
     if not codes:
         return {}
-    stmt = (
+    ranked = (
         select(
             XbrlFiling.code,
             XbrlFact.value_text,
             XbrlFiling.doc_id,
             XbrlFiling.submitted_at,
+            func.row_number().over(
+                partition_by=XbrlFiling.code,
+                order_by=(XbrlFiling.submitted_at.desc(), XbrlFiling.id.desc()),
+            ).label("rn"),
         )
         .join(XbrlFact, XbrlFact.filing_id == XbrlFiling.id)
         .join(XbrlElement, XbrlElement.id == XbrlFact.element_id)
@@ -192,22 +267,26 @@ def _load_xbrl_urls(db: Session, codes: list[str]) -> dict[str, tuple[str, str]]
             XbrlFact.is_nil.is_(False),
             XbrlFact.value_text.isnot(None),
         )
-        .order_by(XbrlFiling.submitted_at.desc(), XbrlFiling.id.desc())
+        .subquery()
     )
-    out: dict[str, tuple[str, str]] = {}
-    for code, value, doc_id, _submitted in db.execute(stmt):
+    stmt = select(
+        ranked.c.code, ranked.c.value_text, ranked.c.doc_id, ranked.c.submitted_at,
+    ).where(ranked.c.rn == 1)
+    out: dict[str, tuple[str, str, datetime]] = {}
+    for code, value, doc_id, submitted in db.execute(stmt):
         key = ordinary_code(code)
-        if key in out:
-            continue
         url = normalize_url(value)
         if url is None:
             continue
-        out[key] = (url, f"xbrl:{doc_id}")
+        prev = out.get(key)
+        if prev is not None and _as_of_dt(prev[2]) >= _as_of_dt(submitted):
+            continue
+        out[key] = (url, origin_xbrl(doc_id), submitted)
     return out
 
 
-def _load_tanshin(db: Session, codes: list[str]) -> dict[str, tuple[str, str]]:
-    """code -> (url, disclosure_no)。最新の決算短信 HTML 1 本。"""
+def _load_tanshin(db: Session, codes: list[str]) -> dict[str, tuple[str, str, date]]:
+    """code -> (url, origin, disclosed_date)。最新の決算短信 HTML 1 本。"""
     if not codes:
         return {}
     ranked = (
@@ -235,51 +314,99 @@ def _load_tanshin(db: Session, codes: list[str]) -> dict[str, tuple[str, str]]:
         .join(ranked, TdnetPdfDocument.disclosure_no == ranked.c.disclosure_no)
         .where(ranked.c.rn == 1)
     )
-    out: dict[str, tuple[str, str]] = {}
+    out: dict[str, tuple[str, str, date]] = {}
     for doc in db.execute(stmt).scalars():
         key = ordinary_code(doc.code)
         if key in out:
             continue
         html = gzip.decompress(doc.html_gz).decode("utf-8", "replace")
-        url = pick_homepage_url(extract_urls_from_html(html))
+        url = pick_homepage_url(html)
         if url is None:
             continue
-        out[key] = (url, doc.disclosure_no)
+        as_of = doc.disclosed_date or date.min
+        out[key] = (url, origin_tanshin(doc.disclosure_no), as_of)
     return out
 
 
 def _pick(cands: list[Candidate]) -> Candidate | None:
     if not cands:
         return None
-    return max(cands, key=lambda c: (c.rank, c.url))
-
-
-def _keep_existing(existing: Homepage | None, chosen: Candidate | None, refresh: bool) -> bool:
-    if existing is None or chosen is None:
-        return False
-    if refresh:
-        return False
-    return source_rank(existing.source) > chosen.rank
+    return max(cands, key=lambda c: c.sort_key)
 
 
 def _same_row(existing: Homepage, chosen: Candidate) -> bool:
     return (
         existing.url == chosen.url
+        and existing.host == chosen.host
         and existing.source == chosen.source
-        and existing.confidence == chosen.confidence
-        and (existing.origin or "") == chosen.origin
+        and existing.origin == chosen.origin
     )
+
+
+def _touch_dict(existing: Homepage, checked_at: datetime) -> dict:
+    """INSERT は NOT NULL を全部載せる。ON CONFLICT で checked_at だけ進めたいときも同じ。"""
+    return {
+        "code": existing.code,
+        "url": existing.url,
+        "host": existing.host,
+        "source": existing.source,
+        "origin": existing.origin,
+        "changed_at": existing.changed_at,
+        "checked_at": checked_at,
+    }
+
+
+def _row_dict(code: str, chosen: Candidate, *, changed_at: datetime, checked_at: datetime) -> dict:
+    return {
+        "code": code,
+        "url": chosen.url,
+        "host": chosen.host,
+        "source": chosen.source,
+        "origin": chosen.origin,
+        "changed_at": changed_at,
+        "checked_at": checked_at,
+    }
+
+
+def set_manual(
+    db: Session,
+    code: str,
+    url: str,
+    *,
+    dry_run: bool = False,
+    now: datetime | None = None,
+) -> SyncReport:
+    """手入力。source=manual。ジョブの自動更新では上書きしない。"""
+    fetched_at = now if now is not None else now_jst()
+    key = ordinary_code(code)
+    normalized = normalize_url(url)
+    if normalized is None:
+        raise ValueError(f"invalid homepage url: {url!r}")
+    chosen = _candidate(normalized, SOURCE_MANUAL, ORIGIN_MANUAL, fetched_at)
+    existing = db.get(Homepage, key)
+    report = SyncReport(codes=1)
+    report.chosen[SOURCE_MANUAL] = 1
+    if existing is not None and _same_row(existing, chosen):
+        report.unchanged = 1
+        if not dry_run:
+            upsert(db, Homepage, [_touch_dict(existing, fetched_at)])
+        return report
+    report.put = 1
+    report.lines.append(f"put {key} {chosen.source} {chosen.url} origin={chosen.origin}")
+    if not dry_run:
+        upsert(db, Homepage, [_row_dict(key, chosen, changed_at=fetched_at, checked_at=fetched_at)])
+    return report
 
 
 def sync_homepages(
     db: Session,
     codes: list[str] | None = None,
     *,
-    refresh: bool = False,
+    refresh: bool = False,  # noqa: ARG001  manual 以外は毎回新しさで選び直す
     dry_run: bool = False,
     now: datetime | None = None,
 ) -> SyncReport:
-    """codes が None なら stocks の普通株すべて。"""
+    """codes が None なら stocks の普通株すべて。manual は refresh でも残す。"""
     fetched_at = now if now is not None else now_jst()
     targets = _target_codes(db, codes)
     xbrl_map = _load_xbrl_urls(db, targets)
@@ -290,39 +417,61 @@ def sync_homepages(
     } if targets else {}
 
     report = SyncReport(codes=len(targets))
-    writes: list[dict] = []
+    value_writes: list[dict] = []
+    check_writes: list[dict] = []
     for code in targets:
         existing = existing_rows.get(code)
         local: list[Candidate] = []
         if code in xbrl_map:
-            url, origin = xbrl_map[code]
-            local.append(_candidate(url, SOURCE_XBRL_URL, origin))
+            url, origin, submitted = xbrl_map[code]
+            local.append(_candidate(url, SOURCE_XBRL_URL, origin, submitted))
         if code in tanshin_map:
-            url, disc = tanshin_map[code]
-            local.append(_candidate(url, SOURCE_TANSHIN_HTML, disc))
+            url, origin, disclosed = tanshin_map[code]
+            local.append(_candidate(url, SOURCE_TANSHIN_HTML, origin, disclosed))
         chosen = _pick(local)
+        if existing is not None and existing.source == SOURCE_MANUAL:
+            report.unchanged += 1
+            report.chosen[SOURCE_MANUAL] = report.chosen.get(SOURCE_MANUAL, 0) + 1
+            if not dry_run:
+                check_writes.append(_touch_dict(existing, fetched_at))
+            continue
         if chosen is None:
             report.chosen["none"] = report.chosen.get("none", 0) + 1
-            continue
-        if _keep_existing(existing, chosen, refresh):
-            report.unchanged += 1
-            report.chosen[existing.source] = report.chosen.get(existing.source, 0) + 1
             continue
         report.chosen[chosen.source] = report.chosen.get(chosen.source, 0) + 1
         if existing is not None and _same_row(existing, chosen):
             report.unchanged += 1
+            check_writes.append(_touch_dict(existing, fetched_at))
             continue
         report.put += 1
         report.lines.append(f"put {code} {chosen.source} {chosen.url} origin={chosen.origin}")
-        writes.append({
-            "code": code,
-            "url": chosen.url,
-            "source": chosen.source,
-            "confidence": chosen.confidence,
-            "origin": chosen.origin,
-            "fetched_at": fetched_at,
-        })
+        value_writes.append(_row_dict(
+            code, chosen, changed_at=fetched_at, checked_at=fetched_at))
 
-    if writes and not dry_run:
-        upsert(db, Homepage, writes)
+    if not dry_run:
+        if value_writes:
+            upsert(db, Homepage, value_writes)
+        if check_writes:
+            upsert(db, Homepage, check_writes)
+    return report
+
+
+def compare_hosts(db: Session, codes: list[str] | None = None) -> HostCompareReport:
+    """XBRL と短信の両方がある会社のホスト一致。書き込みしない。"""
+    targets = _target_codes(db, codes)
+    xbrl_map = _load_xbrl_urls(db, targets)
+    tanshin_map = _load_tanshin(db, targets)
+    report = HostCompareReport()
+    for code in sorted(set(xbrl_map) & set(tanshin_map)):
+        report.both += 1
+        x_url, x_origin, _ = xbrl_map[code]
+        t_url, t_origin, _ = tanshin_map[code]
+        x_host = url_host(x_url)
+        t_host = url_host(t_url)
+        if x_host == t_host:
+            report.same_host += 1
+        else:
+            report.diff_host += 1
+            report.diffs.append(
+                f"{code} xbrl={x_url} ({x_origin}) tanshin={t_url} ({t_origin})")
     return report
