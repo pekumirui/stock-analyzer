@@ -304,6 +304,208 @@ def test_jpigp_2018_in_bundle_parses_offline(tmp: Path) -> None:
         _fail(f"expected ja label 売上収益, got {lab}")
 
 
+# KAB-324: editions published before jpcrp/jppfs 2016-02-29.
+# 2014-03-31 does not exist for jpcrp/jppfs. jpigp has no edition before 2018-03-31.
+PRE_2016_EDITIONS = (
+    ("jpcrp", "2013-08-31", False),
+    ("jpcrp", "2015-03-31", False),
+    ("jppfs", "2013-08-31", True),
+    ("jppfs", "2015-03-31", True),
+    ("jpsps", "2013-08-31", False),
+    ("jpsps", "2014-07-31", False),
+    ("jpsps", "2015-03-31", False),
+)
+
+
+def _edition_urls(family: str, date: str, *, pe: bool) -> dict[str, str]:
+    base = f"http://disclosure.edinet-fsa.go.jp/taxonomy/{family}/{date}"
+    urls = {
+        "cor": f"{base}/{family}_cor_{date}.xsd",
+        "rt": f"{base}/{family}_rt_{date}.xsd",
+        "lab": f"{base}/label/{family}_{date}_lab.xml",
+        "lab_en": f"{base}/label/{family}_{date}_lab-en.xml",
+        "ns": f"{base}/{family}_cor",
+        "rt_ns": f"{base}/{family}_rt",
+    }
+    if pe:
+        urls["pe"] = f"{base}/jppfs_pe_2012.xsd"
+    return urls
+
+
+def _entry_files(urls: dict[str, str]) -> tuple[str, ...]:
+    keys = ("cor", "rt", "lab", "lab_en", "pe")
+    return tuple(urls[key] for key in keys if key in urls)
+
+
+def _schema_zip(
+    *,
+    imports: list[tuple[str, str]],
+    label_hrefs: list[str],
+    extra_linkbases: list[tuple[str, str]] | None = None,
+    fact_prefix: str = "jppfs_cor",
+    fact_ns: str = "",
+    fact_name: str = "CashAndDeposits",
+) -> bytes:
+    """Company schema + one iXBRL fact. extra_linkbases are roles the parser ignores."""
+    import_xml = "\n".join(
+        f'  <xsd:import namespace="{ns}" schemaLocation="{loc}"/>' for ns, loc in imports
+    )
+    label_xml = "\n".join(
+        "  <link:linkbaseRef "
+        f'xlink:type="simple" xlink:href="{href}" '
+        'xlink:role="http://www.xbrl.org/2003/role/labelLinkbaseRef"/>'
+        for href in label_hrefs
+    )
+    extra_xml = "\n".join(
+        "  <link:linkbaseRef "
+        f'xlink:type="simple" xlink:href="{href}" xlink:role="{role}"/>'
+        for href, role in (extra_linkbases or [])
+    )
+    company_xsd = f"""<?xml version="1.0" encoding="UTF-8"?>
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            xmlns:link="http://www.xbrl.org/2003/linkbase"
+            xmlns:xlink="http://www.w3.org/1999/xlink"
+            targetNamespace="http://example.jp/filing">
+{import_xml}
+{label_xml}
+{extra_xml}
+</xsd:schema>
+"""
+    ixbrl = f"""<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"
+      xmlns:xbrli="http://www.xbrl.org/2003/instance"
+      xmlns:link="http://www.xbrl.org/2003/linkbase"
+      xmlns:xlink="http://www.w3.org/1999/xlink"
+      xmlns:{fact_prefix}="{fact_ns}"
+      xmlns:iso4217="http://www.xbrl.org/2003/iso4217">
+<head>
+  <ix:header>
+    <link:schemaRef xlink:type="simple" xlink:href="company.xsd"/>
+    <ix:hidden>
+      <ix:nonFraction name="{fact_prefix}:{fact_name}" contextRef="CurrentYearInstant"
+                      unitRef="JPY" scale="0" decimals="0">100</ix:nonFraction>
+    </ix:hidden>
+    <ix:resources>
+      <xbrli:context id="CurrentYearInstant">
+        <xbrli:entity><xbrli:identifier scheme="http://disclosure.edinet-fsa.go.jp">E03044</xbrli:identifier></xbrli:entity>
+        <xbrli:period><xbrli:instant>2016-11-30</xbrli:instant></xbrli:period>
+      </xbrli:context>
+      <xbrli:unit id="JPY"><xbrli:measure>iso4217:JPY</xbrli:measure></xbrli:unit>
+    </ix:resources>
+  </ix:header>
+</head>
+<body></body>
+</html>
+"""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("XBRL/PublicDoc/filing.htm", ixbrl)
+        zf.writestr("XBRL/PublicDoc/company.xsd", company_xsd)
+    return buf.getvalue()
+
+
+def _assert_edition_files(family: str, date: str, *, pe: bool) -> dict[str, str]:
+    urls = _edition_urls(family, date, pe=pe)
+    for url in _entry_files(urls):
+        if not tb.cache_path_for(BUNDLE, url).is_file():
+            _fail(f"bundle missing {url}")
+    return urls
+
+
+def _check_edition_zip(tmp: Path, name: str, families: list[tuple[str, str, bool]]) -> None:
+    imports: list[tuple[str, str]] = []
+    labels: list[str] = []
+    for family, date, pe in families:
+        urls = _assert_edition_files(family, date, pe=pe)
+        imports.append((urls["ns"], urls["cor"]))
+        imports.append((urls["rt_ns"], urls["rt"]))
+        labels.extend((urls["lab"], urls["lab_en"]))
+    zips = tmp / name
+    zips.mkdir()
+    prefix, date, pe = families[0]
+    urls = _edition_urls(prefix, date, pe=pe)
+    (zips / "sample.zip").write_bytes(
+        _schema_zip(
+            imports=imports,
+            label_hrefs=labels,
+            fact_prefix=f"{prefix}_cor",
+            fact_ns=urls["ns"],
+        )
+    )
+    rc, out = _run_check(zips, BUNDLE)
+    if rc != 0 or "missing=0" not in out:
+        _fail(f"{name} check should be missing=0: {rc} {out}")
+
+
+def test_pre_2016_editions_are_in_bundle(tmp: Path) -> None:
+    """Pre-2016 jpcrp/jppfs/jpsps editions a backfill filing can schemaRef are bundled."""
+    for family, date, pe in PRE_2016_EDITIONS:
+        _assert_edition_files(family, date, pe=pe)
+    # 2013 is the other generation (2015 is S100M0FI). jpsps stayed on 2015-03-31 in the 2016 package.
+    _check_edition_zip(tmp, "2013", [("jpcrp", "2013-08-31", False), ("jppfs", "2013-08-31", True)])
+    _check_edition_zip(tmp, "jpsps-2015", [("jpsps", "2015-03-31", False)])
+    _check_edition_zip(tmp, "jpsps-2014", [("jpsps", "2014-07-31", False)])
+    _check_edition_zip(tmp, "jpsps-2013", [("jpsps", "2013-08-31", False)])
+
+
+def test_s100m0fi_2015_taxonomy_parses_offline(tmp: Path) -> None:
+    """KAB-324: S100M0FI (82540) schemaRefs jpcrp/jppfs 2015-03-31, including ignored gla/def."""
+    from unittest.mock import patch
+
+    from app.xbrl.parser import extract_zip, parse_package, reset_taxonomy_caches
+
+    jpcrp = _edition_urls("jpcrp", "2015-03-31", pe=False)
+    jppfs = _edition_urls("jppfs", "2015-03-31", pe=True)
+    # Real company schema also points at these. The parser does not read them.
+    ignored = (
+        "http://disclosure.edinet-fsa.go.jp/taxonomy/jpcrp/2015-03-31/label/jpcrp_2015-03-31_gla.xml",
+        "http://disclosure.edinet-fsa.go.jp/taxonomy/jppfs/2015-03-31/label/jppfs_2015-03-31_gla.xml",
+        "http://disclosure.edinet-fsa.go.jp/taxonomy/jpdei/2013-08-31/r/jpdei_000100-000_2013-08-31_def.xml",
+    )
+    zips = tmp / "zips"
+    zips.mkdir()
+    (zips / "S100M0FI.zip").write_bytes(
+        _schema_zip(
+            imports=[
+                (jpcrp["ns"], jpcrp["cor"]),
+                (jpcrp["rt_ns"], jpcrp["rt"]),
+                (jppfs["ns"], jppfs["cor"]),
+                (jppfs["rt_ns"], jppfs["rt"]),
+            ],
+            label_hrefs=[jpcrp["lab"], jpcrp["lab_en"], jppfs["lab"], jppfs["lab_en"]],
+            extra_linkbases=[
+                (ignored[0], "http://www.xbrl.org/2009/role/genericLabelLinkbaseRef"),
+                (ignored[1], "http://www.xbrl.org/2009/role/genericLabelLinkbaseRef"),
+                (ignored[2], "http://www.xbrl.org/2003/role/definitionLinkbaseRef"),
+            ],
+            fact_prefix="jppfs_cor",
+            fact_ns=jppfs["ns"],
+            fact_name="CashAndDeposits",
+        )
+    )
+    rc, out = _run_check(zips, BUNDLE)
+    if rc != 0 or "missing=0" not in out:
+        _fail(f"S100M0FI check should be missing=0: {rc} {out}")
+    for url in ignored:
+        if url in out:
+            _fail(f"ignored linkbase reported missing: {url}")
+
+    reset_taxonomy_caches()
+    try:
+        unpacked = extract_zip(zips / "S100M0FI.zip", tmp / "unpacked")
+        with patch("urllib.request.urlopen", side_effect=AssertionError("network")):
+            pkg = parse_package(unpacked, cache_dir=BUNDLE, text_max=1000)
+    finally:
+        reset_taxonomy_caches()
+    names = {(f.namespace_key, f.local_name) for f in pkg.facts}
+    if ("jppfs_cor", "CashAndDeposits") not in names:
+        _fail(f"expected CashAndDeposits fact, got {names}")
+    lab = pkg.labels.get(("jppfs_cor", "CashAndDeposits")) or {}
+    if lab.get("label_ja") != "現金及び預金":
+        _fail(f"expected ja label 現金及び預金, got {lab}")
+
+
 def test_sync_skips_unused_files(tmp: Path) -> None:
     zips = _write_filing(tmp)
     src = tmp / "cache"
@@ -341,6 +543,8 @@ def main() -> None:
         test_check_fails_when_needed_label_missing(root / "need-lab")
         test_sync_skips_unused_files(root / "sync")
         test_jpigp_2018_in_bundle_parses_offline(root / "jpigp-2018")
+        test_pre_2016_editions_are_in_bundle(root / "pre-2016")
+        test_s100m0fi_2015_taxonomy_parses_offline(root / "s100m0fi")
     print("ok: taxonomy bundle")
 
 

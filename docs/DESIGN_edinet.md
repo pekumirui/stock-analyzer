@@ -123,7 +123,7 @@ EDINET は修正・不開示・取下げを、後の日の一覧に別レコー�
 - `parsed` / `skipped` の docID は飛ばす（`--reparse` で取り直し）。`failed` は `--retry-failed`。ダウンロードに失敗した書類は filing を作らないので次の回にまた取る
 - `doc_type` / `period_type` / `is_amendment` は書類種別コードから決める（120/130 → `annual`/`FY`、160/170 → `semiannual`/`Q2`、140/150 → `quarterly` で期はタイトル）。会計基準は DEI の `AccountingStandardsDEI`（`Japan GAAP` / `IFRS` / `US GAAP`）
 - 取り込み済みの書類が後から取下げ・不開示になったら、`xbrl_financials` / `xbrl_segments` / 大株主の表と生 fact を消して `parse_status='skipped'`、`parse_error='withdrawn'`
-- タクソノミは同梱（`data/xbrl_taxonomy`）だけを読む。10 年分の書類が参照する版を同梱した（`tools/edinet/sample_zips.py --sample-years 10` の見本から `tools/xbrl/taxonomy_bundle.py fetch`）。それでも足りない書類は `failed`（`TaxonomyMissingError`）になる。`sample_zips.py --failed` → `fetch` → `edinet_xbrl.py --retry-failed`
+- タクソノミは同梱（`data/xbrl_taxonomy`）だけを読む。10 年分の書類が参照する版を同梱した（`tools/edinet/sample_zips.py --sample-years 10` の見本から `tools/xbrl/taxonomy_bundle.py fetch`）。見本が拾わなかった 2016-02-29 より前は、公表パッケージを洗って jpcrp / jppfs（2013-08-31 と 2015-03-31）と jpsps（2013-08-31、2014-07-31、2015-03-31）を足した（KAB-324。範囲は `data/xbrl_taxonomy/README.md`）。それでも足りない書類は `failed`（`TaxonomyMissingError`）になる。`sample_zips.py --failed` → `fetch` → `edinet_xbrl.py --retry-failed`
 
 ### ZIP と fact は持ちすぎない
 
