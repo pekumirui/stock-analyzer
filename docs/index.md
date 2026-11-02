@@ -15,7 +15,7 @@
 
 ## 取込
 
-- [データの流れ（バッチ・API × テーブル）](DATA_FLOW.md)（自動生成）
+- [データの流れ（バッチ・API × テーブル）](DATA_FLOW.md)（自動生成。機能ごとの図と、全体の表の[ビューア](dataflow/viewer.html)）
 - [XBRL](DESIGN_xbrl.md) / [XBRL 検証](XBRL_VERIFY.md)
 - [EDINET](DESIGN_edinet.md)
 - [SQLite バックアップ](DESIGN_backup.md)

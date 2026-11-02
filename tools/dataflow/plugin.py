@@ -1,6 +1,6 @@
-"""pytest プラグイン。テスト中に SQLite へ流れた SQL から docs/DATA_FLOW.md を作る。
+"""pytest プラグイン。テスト中に SQLite へ流れた SQL から docs/DATA_FLOW.md と docs/dataflow/ を作る。
 
-`--dataflow=write` で書き出し、`--dataflow=check` で今のファイルと突き合わせる（CI）。どちらも `tests` 全体を走らせる前提。
+`--dataflow=write` で書き出し、`--dataflow=check` で今のファイルと突き合わせる（作るファイルは `render.py`）（CI）。どちらも `tests` 全体を走らせる前提。
 付けなければ何もしない。
 
 1. SQL は SQLAlchemy の `before_cursor_execute` で拾う。DB に触るのは SQLAlchemy だけという約束は
@@ -25,11 +25,10 @@ from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
 from tools.dataflow.callgraph import CallGraph, Key, is_project_file, match_route, module_name
-from tools.dataflow.render import render
+from tools.dataflow.render import PAGE_DIR, render
 from tools.dataflow.sql import tables
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / "docs" / "DATA_FLOW.md"
 # 銘柄ごとの月次 HTML の読み方。入口ではない
 JOBS_SKIP_DIRS = {"html_issuers"}
 # スキーマの付け足しと、それに付く既存行の直し。どの入口も起動時に通るので、入口の読み書きに数えない
@@ -52,7 +51,7 @@ def pytest_addoption(parser):
         "--dataflow",
         choices=("write", "check"),
         default=None,
-        help="テスト中の SQL から docs/DATA_FLOW.md を書く（write）か、今のファイルと突き合わせる（check）",
+        help="テスト中の SQL から docs/DATA_FLOW.md と docs/dataflow/ を書く（write）か、今のファイルと突き合わせる（check）",
     )
 
 
@@ -178,6 +177,7 @@ def collect():
         sorted(jobs_all),
         sorted(apis_all),
         sorted(unknown),
+        sorted(known),
     )
 
 
@@ -188,24 +188,42 @@ def pytest_sessionfinish(session, exitstatus):
         return
     event.remove(Engine, "before_cursor_execute", _before_cursor_execute)
     tw = session.config.get_terminal_writer()
-    rel = OUT.relative_to(ROOT).as_posix()
+    what = f"docs/DATA_FLOW.md と {PAGE_DIR}/"
     if exitstatus != 0:
-        tw.line(f"dataflow: テストが通っていないので {rel} を{'書かない' if mode == 'write' else '突き合わせない'}", red=True)
+        tw.line(f"dataflow: テストが通っていないので {what} を{'書かない' if mode == 'write' else '突き合わせない'}", red=True)
         return
     if os.environ.get("DATAFLOW_DUMP"):  # 調べる用。関数ごとの記録を JSON で
         Path(os.environ["DATAFLOW_DUMP"]).write_text(json.dumps(
             {f"{m}:{q}": {t: "".join(sorted(rw)) for t, rw in v.items()} for (m, q), v in _seen.items()},
             ensure_ascii=False, indent=1, sort_keys=True), encoding="utf-8")
-    text = render(*collect())
+    files = render(*collect())
+    # 作らなくなったファイル（機能が消えたページなど）も差分に数える
+    stale = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / PAGE_DIR).glob("*") if p.is_file())
+    stale = [rel for rel in stale if rel not in files]
     if mode == "write":
-        OUT.write_text(text, encoding="utf-8")
-        tw.line(f"dataflow: {rel} を書いた", green=True)
+        for rel, text in files.items():
+            path = ROOT / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        for rel in stale:
+            (ROOT / rel).unlink()
+        tw.line(f"dataflow: {what} を書いた", green=True)
         return
-    current = OUT.read_text(encoding="utf-8") if OUT.exists() else ""
-    if current == text:
-        tw.line(f"dataflow: {rel} は最新", green=True)
+    bad = False
+    for rel, text in files.items():
+        path = ROOT / rel
+        current = path.read_text(encoding="utf-8") if path.exists() else ""
+        if current == text:
+            continue
+        bad = True
+        tw.line(f"dataflow: {rel} が実装と合わない", red=True)
+        for line in difflib.unified_diff(current.splitlines(), text.splitlines(), rel, "(テストから作った版)", lineterm=""):
+            tw.line(line)
+    for rel in stale:
+        bad = True
+        tw.line(f"dataflow: {rel} はもう作らないファイル", red=True)
+    if not bad:
+        tw.line(f"dataflow: {what} は最新", green=True)
         return
-    tw.line(f"dataflow: {rel} が実装と合わない。`python -m pytest tests --dataflow=write` で作り直す", red=True)
-    for line in difflib.unified_diff(current.splitlines(), text.splitlines(), rel, "(テストから作った版)", lineterm=""):
-        tw.line(line)
+    tw.line("dataflow: `python -m pytest tests --dataflow=write` で作り直す", red=True)
     session.exitstatus = pytest.ExitCode.TESTS_FAILED

@@ -77,6 +77,8 @@ def test_dest_rel_strips_docs_keeps_agents() -> None:
     assert dest_rel_for(repo / "README.md", repo) is None
     assert dest_rel_for(repo / "DESIGN.md", repo) is None
     assert dest_rel_for(repo / "docs" / "pic.png", repo) == Path("pic.png")
+    assert dest_rel_for(repo / "docs" / "dataflow" / "viewer.html", repo) == Path("dataflow/viewer.html")
+    assert dest_rel_for(repo / "static" / "index.html", repo) is None
     assert dest_rel_for(repo / ".cursor" / "AGENTS.md", repo) is None
     assert dest_rel_for(repo / "analyzer" / "README.md", repo) is None
 

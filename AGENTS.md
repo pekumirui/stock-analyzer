@@ -5,7 +5,7 @@
 | 何 | 正本 |
 |---|---|
 | 設計・スキーマ・取込・API | `DESIGN.md` |
-| どのバッチ・API がどのテーブルを読み書きするか | `docs/DATA_FLOW.md`（テストから自動生成。手で直さない。テーブルを読み書きする変更をしたら `python -m pytest tests --dataflow=write`） |
+| どのバッチ・API がどのテーブルを読み書きするか | `docs/DATA_FLOW.md` と機能ごとの `docs/dataflow/<機能>.md`（テストから自動生成。手で直さない。テーブルを読み書きする変更をしたら `python -m pytest tests --dataflow=write`）。`docs/dataflow/viewer.html` は人が見る用なので読まない |
 | J-Quants API の仕様（Light プラン） | J-Quants の MCP。md に写さない |
 | 画面（タブ別） | `docs/DESIGN_<tab>.md`。書き方と共通見た目は `docs/SCREEN_SPEC.md` |
 | 月次の行名 | `docs/DESIGN_monthly_labels.md` |

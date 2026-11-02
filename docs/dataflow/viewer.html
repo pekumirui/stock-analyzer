@@ -1,0 +1,364 @@
+<!doctype html>
+<!-- docs/dataflow/viewer.html のテンプレート。tools/dataflow/render.py が id="data" の script に観測結果を埋める。外部のライブラリ・CDN は使わない -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>データの流れ ビューア</title>
+<style>
+  :root {
+    --bg: #fff; --fg: #212529; --muted: #868e96; --line: #dee2e6; --head: #f8f9fa;
+    --job: #e3ecff; --job-b: #3b5bdb; --api: #e6f7ec; --api-b: #2b8a3e;
+    --tbl: #fff4e0; --tbl-b: #e8590c; --w: #ffa94d; --r: #a5d8ff; --hl: #fff3bf; --sel: #ffe066;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1b1e; --fg: #e9ecef; --muted: #909296; --line: #373a40; --head: #25262b;
+      --job: #1c2c52; --job-b: #748ffc; --api: #193325; --api-b: #69db7c;
+      --tbl: #3d2a12; --tbl-b: #ff922b; --w: #d9480f; --r: #1864ab; --hl: #3b3417; --sel: #5c4a00;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.5 system-ui, -apple-system, "Hiragino Sans", "Yu Gothic UI", sans-serif; background: var(--bg); color: var(--fg); }
+  header { position: sticky; left: 0; padding: 10px 16px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  header h1 { font-size: 16px; margin: 0; }
+  header .note { color: var(--muted); }
+  header input[type=search] { width: 18em; padding: 3px 6px; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+  #panel { padding: 8px 16px 12px; border-bottom: 1px solid var(--line); max-height: 45vh; overflow: auto; }
+  #panel .hint { color: var(--muted); }
+  #panel h2 { font-size: 14px; margin: 0 0 4px; }
+  #panel h2 button { margin-left: 8px; font-size: 12px; }
+  #graph { display: block; max-width: 100%; height: auto; }
+  #graph .node { cursor: pointer; }
+  #graph .node rect { stroke-width: 1.2; }
+  #graph .node:hover rect { stroke-width: 2.5; }
+  #graph text { font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: var(--fg); dominant-baseline: middle; }
+  #graph .cap { font: 12px system-ui, sans-serif; fill: var(--muted); }
+  #graph path { fill: none; stroke-width: 1.5; }
+  #graph path.w { stroke: var(--w); }
+  #graph path.r { stroke: var(--r); stroke-dasharray: 5 4; }
+  .k-job { fill: var(--job); stroke: var(--job-b); }
+  .k-api { fill: var(--api); stroke: var(--api-b); }
+  .k-tbl { fill: var(--tbl); stroke: var(--tbl-b); }
+  #calls { margin: 4px 0 0; color: var(--muted); }
+  #wrap { overflow: auto; max-height: calc(100vh - 60px); }
+  table { border-collapse: separate; border-spacing: 0; }
+  th, td { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 0; }
+  thead th { position: sticky; background: var(--head); z-index: 2; }
+  thead tr.dom th { top: 0; height: 24px; font-weight: 600; text-align: center; padding: 0 4px; }
+  thead tr.col th { top: 24px; }
+  thead th.corner { left: 0; z-index: 4; text-align: left; padding: 4px 8px; vertical-align: bottom; font-weight: normal; color: var(--muted); }
+  thead tr.col th.t { writing-mode: vertical-rl; transform: rotate(180deg); text-align: left; padding: 6px 2px; height: 230px; width: 24px; cursor: pointer; font-weight: normal; }
+  tbody th { position: sticky; left: 0; background: var(--bg); z-index: 1; text-align: left; font-weight: normal; padding: 1px 8px; white-space: nowrap; cursor: pointer; }
+  tbody th .kind { display: inline-block; width: 3.6em; color: var(--muted); }
+  tbody tr.grp th { background: var(--head); font-weight: 600; cursor: default; }
+  td { width: 24px; min-width: 24px; height: 22px; text-align: center; font-size: 11px; font-weight: 600; }
+  td.W { background: var(--w); }
+  td.R { background: var(--r); }
+  tbody tr:hover th, tbody tr:hover td:empty, td.hc:empty, th.hc { background: var(--hl); }
+  .sel, tbody tr.sel th, th.t.sel { background: var(--sel) !important; }
+  .legend span { display: inline-block; min-width: 1.6em; text-align: center; margin-right: 4px; font-weight: 600; }
+  .legend .W { background: var(--w); } .legend .R { background: var(--r); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>データの流れ ビューア</h1>
+  <label>絞り込み <input id="q" type="search" placeholder="テーブル名・バッチ・API の一部"></label>
+  <label>機能 <select id="dom"><option value="">すべて</option></select></label>
+  <span class="legend"><span class="W">W</span>書く（読むも含む） <span class="R">R</span>読むだけ</span>
+  <span class="note">自動生成（<code>python -m pytest tests --dataflow=write</code>）。テストが通った道だけなので下限。</span>
+</header>
+<section id="panel">
+  <p class="hint" id="hint">行（バッチ・API）か列（テーブル）の名前を押すと、つながる入口とテーブルをここに図で出す。図の箱を押すとそこへ移る。</p>
+  <div id="detail" hidden>
+    <h2 id="title"></h2>
+    <svg id="graph" xmlns="http://www.w3.org/2000/svg"></svg>
+    <p id="calls"></p>
+  </div>
+</section>
+<div id="wrap"><table id="m"></table></div>
+<script type="application/json" id="data">{
+"domains":[{"key":"market","label":"株価・決算"},{"key":"monthly","label":"月次"},{"key":"xbrl","label":"XBRL・決算書類"},{"key":"edinet","label":"EDINET・大量保有"},{"key":"supply","label":"サプライ"},{"key":"common","label":"共通・運用"}],
+"tables":{"daily_prices":"market","earnings_date_fetches":"market","earnings_date_pubs":"market","earnings_events":"market","fx_rates":"market","indicators":"market","pts_snapshots":"market","statements":"market","stocks":"market","topix":"market","monthly_element_sources":"monthly","monthly_elements":"monthly","monthly_issuers":"monthly","monthly_tables":"monthly","monthly_values":"monthly","tdnet_pdf_documents":"xbrl","xbrl_contexts":"xbrl","xbrl_documents":"xbrl","xbrl_element_mappings":"xbrl","xbrl_elements":"xbrl","xbrl_facts":"xbrl","xbrl_filings":"xbrl","xbrl_financials":"xbrl","xbrl_job_runs":"xbrl","xbrl_major_shareholders":"xbrl","xbrl_segments":"xbrl","xbrl_shareholder_filings":"xbrl","xbrl_shareholding_by_category":"xbrl","xbrl_std_items":"xbrl","edinet_archives":"edinet","edinet_buyback_resolutions":"edinet","edinet_buybacks":"edinet","edinet_documents":"edinet","edinet_filers":"edinet","edinet_list_days":"edinet","edinet_tender_offer_docs":"edinet","edinet_tender_offers":"edinet","large_holding_reports":"edinet","large_holdings":"edinet","material_monthly":"supply","material_trade_country":"supply"},
+"entries":[
+{"name":"jobs/edinet/edinet_archive.py","kind":"job","domain":"edinet","rw":{"edinet_archives":"W","edinet_buybacks":"R","edinet_documents":"R","edinet_tender_offer_docs":"R","large_holding_reports":"R","xbrl_filings":"R"},"calls":[]},
+{"name":"jobs/edinet/edinet_buybacks.py","kind":"job","domain":"edinet","rw":{"edinet_archives":"W","edinet_buyback_resolutions":"W","edinet_buybacks":"W","edinet_documents":"R","edinet_filers":"R","stocks":"R"},"calls":[]},
+{"name":"jobs/edinet/edinet_codes.py","kind":"job","domain":"edinet","rw":{"edinet_documents":"W","edinet_filers":"W","stocks":"W"},"calls":[]},
+{"name":"jobs/edinet/edinet_documents.py","kind":"job","domain":"edinet","rw":{"edinet_documents":"W","edinet_filers":"R","edinet_list_days":"W","stocks":"R"},"calls":[]},
+{"name":"jobs/edinet/edinet_large_holdings.py","kind":"job","domain":"edinet","rw":{"edinet_archives":"W","edinet_documents":"R","edinet_filers":"R","large_holding_reports":"W","large_holdings":"W","stocks":"R"},"calls":[]},
+{"name":"jobs/edinet/edinet_shareholders.py","kind":"job","domain":"edinet","rw":{"edinet_documents":"R","xbrl_contexts":"R","xbrl_elements":"R","xbrl_facts":"R","xbrl_filings":"R","xbrl_major_shareholders":"W","xbrl_shareholder_filings":"W","xbrl_shareholding_by_category":"W"},"calls":[]},
+{"name":"jobs/edinet/edinet_tender_offers.py","kind":"job","domain":"edinet","rw":{"edinet_archives":"W","edinet_documents":"R","edinet_filers":"R","edinet_tender_offer_docs":"W","edinet_tender_offers":"W","stocks":"R"},"calls":[]},
+{"name":"jobs/edinet/edinet_xbrl.py","kind":"job","domain":"edinet","rw":{"edinet_archives":"W","edinet_documents":"R","stocks":"R","xbrl_contexts":"W","xbrl_element_mappings":"R","xbrl_elements":"W","xbrl_facts":"W","xbrl_filings":"W","xbrl_financials":"W","xbrl_job_runs":"W","xbrl_major_shareholders":"W","xbrl_segments":"W","xbrl_shareholder_filings":"W","xbrl_shareholding_by_category":"W","xbrl_std_items":"R"},"calls":[]},
+{"name":"jobs/fx_rates.py","kind":"job","domain":"common","rw":{"fx_rates":"W"},"calls":[]},
+{"name":"jobs/golden_db.py","kind":"job","domain":"common","rw":{"daily_prices":"W","earnings_date_fetches":"W","earnings_date_pubs":"W","earnings_events":"W","fx_rates":"W","indicators":"W","material_monthly":"W","material_trade_country":"W","monthly_element_sources":"W","monthly_elements":"W","monthly_issuers":"W","monthly_tables":"W","monthly_values":"W","statements":"W","stocks":"W","topix":"W"},"calls":[]},
+{"name":"jobs/market/check_demo.py","kind":"job","domain":"market","rw":{"statements":"R","stocks":"R"},"calls":[]},
+{"name":"jobs/market/pts_snapshot.py","kind":"job","domain":"market","rw":{"pts_snapshots":"W"},"calls":[]},
+{"name":"jobs/market/run_batch.py","kind":"job","domain":"market","rw":{"daily_prices":"W","earnings_date_fetches":"W","earnings_date_pubs":"W","earnings_events":"W","indicators":"W","statements":"W","stocks":"W","topix":"W"},"calls":[]},
+{"name":"jobs/migrate.py","kind":"job","domain":"common","rw":{"monthly_element_sources":"W","monthly_elements":"W","monthly_issuers":"W","monthly_tables":"W","monthly_values":"W","stocks":"R","xbrl_elements":"W","xbrl_financials":"W"},"calls":[]},
+{"name":"jobs/monthly/ir_monthly_html_ingest.py","kind":"job","domain":"monthly","rw":{"monthly_element_sources":"W","monthly_elements":"W","monthly_issuers":"W","monthly_tables":"W","monthly_values":"W","statements":"R","stocks":"R"},"calls":["GET /api/v1/tables/{code}","POST /api/v1/tables/{code}/ingest"]},
+{"name":"jobs/monthly/ir_monthly_html_r2.py","kind":"job","domain":"monthly","rw":{"stocks":"R"},"calls":[]},
+{"name":"jobs/monthly/ir_monthly_json_ingest.py","kind":"job","domain":"monthly","rw":{"monthly_element_sources":"W","monthly_elements":"W","monthly_issuers":"W","monthly_tables":"W","monthly_values":"W","statements":"R","stocks":"R"},"calls":["POST /api/v1/tables/{code}/ingest"]},
+{"name":"jobs/monthly/ir_monthly_r2.py","kind":"job","domain":"monthly","rw":{"stocks":"R"},"calls":[]},
+{"name":"jobs/monthly/ir_monthly_xls_ingest.py","kind":"job","domain":"monthly","rw":{"monthly_element_sources":"W","monthly_elements":"W","monthly_issuers":"W","monthly_tables":"W","monthly_values":"W","statements":"R","stocks":"R"},"calls":["GET /api/v1/tables/{code}/{year}","POST /api/v1/tables/{code}/ingest"]},
+{"name":"jobs/monthly/monthly_names.py","kind":"job","domain":"monthly","rw":{"monthly_element_sources":"W","monthly_elements":"W","monthly_values":"W"},"calls":[]},
+{"name":"jobs/monthly/tdnet_monthly_pdf_ingest.py","kind":"job","domain":"monthly","rw":{"monthly_element_sources":"W","monthly_elements":"W","monthly_issuers":"W","monthly_tables":"W","monthly_values":"W","statements":"R","stocks":"R"},"calls":["GET /api/v1/tables/{code}","POST /api/v1/tables/{code}/ingest"]},
+{"name":"jobs/monthly/tdnet_monthly_pdf_sidecar.py","kind":"job","domain":"monthly","rw":{"monthly_elements":"R","monthly_tables":"R","monthly_values":"R"},"calls":["GET /api/v1/tables/{code}/{year}"]},
+{"name":"jobs/monthly/tdnet_monthly_r2.py","kind":"job","domain":"monthly","rw":{"stocks":"R"},"calls":[]},
+{"name":"jobs/ops/rebuild_daily_prices.py","kind":"job","domain":"common","rw":{"daily_prices":"W"},"calls":[]},
+{"name":"jobs/supply/material_stats.py","kind":"job","domain":"supply","rw":{"material_monthly":"W","material_trade_country":"W"},"calls":[]},
+{"name":"jobs/xbrl/tdnet_xbrl_r2.py","kind":"job","domain":"xbrl","rw":{"stocks":"R"},"calls":[]},
+{"name":"jobs/xbrl/xbrl_normalize.py","kind":"job","domain":"xbrl","rw":{"edinet_documents":"R","xbrl_contexts":"R","xbrl_element_mappings":"W","xbrl_elements":"R","xbrl_facts":"R","xbrl_filings":"R","xbrl_financials":"W","xbrl_job_runs":"W","xbrl_major_shareholders":"W","xbrl_segments":"W","xbrl_shareholder_filings":"W","xbrl_shareholding_by_category":"W","xbrl_std_items":"W"},"calls":[]},
+{"name":"jobs/xbrl/xbrl_parse.py","kind":"job","domain":"xbrl","rw":{"statements":"R","stocks":"R","tdnet_pdf_documents":"R","xbrl_contexts":"W","xbrl_documents":"W","xbrl_element_mappings":"W","xbrl_elements":"W","xbrl_facts":"W","xbrl_filings":"W","xbrl_financials":"W","xbrl_job_runs":"W","xbrl_major_shareholders":"W","xbrl_segments":"W","xbrl_shareholder_filings":"W","xbrl_shareholding_by_category":"W","xbrl_std_items":"W"},"calls":[]},
+{"name":"DELETE /api/v1/tables/{code}/{year}/elements","kind":"api","domain":"monthly","rw":{"monthly_element_sources":"W","monthly_elements":"W","monthly_tables":"R","monthly_values":"R","stocks":"R"},"calls":[]},
+{"name":"GET /api/chart/{code}","kind":"api","domain":"market","rw":{"daily_prices":"R","earnings_events":"R","statements":"R","stocks":"R"},"calls":[]},
+{"name":"GET /api/earnings","kind":"api","domain":"market","rw":{"earnings_date_fetches":"R","earnings_date_pubs":"R","statements":"R","stocks":"R","xbrl_filings":"R","xbrl_financials":"R","xbrl_std_items":"R"},"calls":[]},
+{"name":"GET /api/earnings-performance/{code}","kind":"api","domain":"market","rw":{"earnings_events":"R"},"calls":[]},
+{"name":"GET /api/earnings/calendar","kind":"api","domain":"market","rw":{"earnings_date_pubs":"R","statements":"R","stocks":"R"},"calls":[]},
+{"name":"GET /api/earnings/detail/{code}","kind":"api","domain":"xbrl","rw":{"statements":"R","stocks":"R","xbrl_filings":"R","xbrl_financials":"R","xbrl_std_items":"R"},"calls":[]},
+{"name":"GET /api/holders/activity","kind":"api","domain":"edinet","rw":{"large_holding_reports":"R","large_holdings":"R","stocks":"R"},"calls":[]},
+{"name":"GET /api/holders/search","kind":"api","domain":"edinet","rw":{"large_holding_reports":"R","large_holdings":"R"},"calls":[]},
+{"name":"GET /api/holders/{edinet}","kind":"api","domain":"edinet","rw":{"daily_prices":"R","large_holding_reports":"R","large_holdings":"R","stocks":"R"},"calls":[]},
+{"name":"GET /api/pts","kind":"api","domain":"market","rw":{"daily_prices":"R","pts_snapshots":"R"},"calls":[]},
+{"name":"GET /api/ranking/earnings-perf","kind":"api","domain":"market","rw":{"daily_prices":"R","earnings_events":"R","stocks":"R","topix":"R"},"calls":[]},
+{"name":"GET /api/screener","kind":"api","domain":"market","rw":{"indicators":"R","stocks":"R"},"calls":[]},
+{"name":"GET /api/stock/filings/{filing_id}/documents/{seq}","kind":"api","domain":"xbrl","rw":{"xbrl_documents":"R"},"calls":[]},
+{"name":"GET /api/stock/pdf/{disclosure_no}","kind":"api","domain":"xbrl","rw":{"tdnet_pdf_documents":"R"},"calls":[]},
+{"name":"GET /api/stock/{code}/filings","kind":"api","domain":"xbrl","rw":{"stocks":"R","tdnet_pdf_documents":"R","xbrl_documents":"R","xbrl_filings":"R"},"calls":[]},
+{"name":"GET /api/stock/{code}/holders","kind":"api","domain":"edinet","rw":{"edinet_buyback_resolutions":"R","edinet_buybacks":"R","large_holding_reports":"R","large_holdings":"R","stocks":"R"},"calls":[]},
+{"name":"GET /api/stock/{code}/overview","kind":"api","domain":"market","rw":{"daily_prices":"R","earnings_date_pubs":"R","statements":"R","stocks":"R"},"calls":[]},
+{"name":"GET /api/stocks/search","kind":"api","domain":"market","rw":{"stocks":"R"},"calls":[]},
+{"name":"GET /api/supply/countries/{material_id}","kind":"api","domain":"supply","rw":{"material_trade_country":"R"},"calls":[]},
+{"name":"GET /api/supply/monthly/{material_id}","kind":"api","domain":"supply","rw":{"material_monthly":"R"},"calls":[]},
+{"name":"GET /api/v1/tables","kind":"api","domain":"monthly","rw":{"monthly_elements":"R","monthly_issuers":"R","monthly_tables":"R","monthly_values":"R","stocks":"R"},"calls":[]},
+{"name":"GET /api/v1/tables/{code}","kind":"api","domain":"monthly","rw":{"monthly_tables":"R"},"calls":[]},
+{"name":"GET /api/v1/tables/{code}/{year}","kind":"api","domain":"monthly","rw":{"monthly_elements":"R","monthly_tables":"R","monthly_values":"R"},"calls":[]},
+{"name":"GET /api/v1/tables/{code}/{year}/doc","kind":"api","domain":"monthly","rw":{"monthly_elements":"R","monthly_tables":"R","monthly_values":"R"},"calls":[]},
+{"name":"POST /api/v1/tables/{code}/ingest","kind":"api","domain":"monthly","rw":{"monthly_element_sources":"W","monthly_elements":"W","monthly_issuers":"W","monthly_tables":"W","monthly_values":"W","statements":"R","stocks":"R"},"calls":[]},
+{"name":"POST /api/v1/tables/{code}/{year}/elements","kind":"api","domain":"monthly","rw":{"monthly_element_sources":"W","monthly_elements":"W","monthly_tables":"W","stocks":"R"},"calls":[]},
+{"name":"PUT /api/v1/tables/{code}/industry","kind":"api","domain":"monthly","rw":{"monthly_issuers":"W","monthly_tables":"R","stocks":"R"},"calls":[]},
+{"name":"PUT /api/v1/tables/{code}/{year}/doc","kind":"api","domain":"monthly","rw":{"monthly_element_sources":"W","monthly_elements":"W","monthly_tables":"R","monthly_values":"W","stocks":"R"},"calls":[]},
+{"name":"PUT /api/v1/tables/{code}/{year}/elements","kind":"api","domain":"monthly","rw":{"monthly_element_sources":"W","monthly_elements":"W","monthly_tables":"R","monthly_values":"R","stocks":"R"},"calls":[]},
+{"name":"PUT /api/v1/tables/{code}/{year}/values","kind":"api","domain":"monthly","rw":{"monthly_elements":"R","monthly_tables":"R","monthly_values":"W","stocks":"R"},"calls":[]},
+{"name":"PUT /api/v1/tables/{code}/{year}/values/batch","kind":"api","domain":"monthly","rw":{"monthly_elements":"R","monthly_tables":"R","monthly_values":"W","stocks":"R"},"calls":[]}
+]}</script>
+<script>
+(() => {
+  "use strict";
+  const DATA = JSON.parse(document.getElementById("data").textContent);
+  const domLabel = Object.fromEntries(DATA.domains.map((d) => [d.key, d.label]));
+  const domOrder = Object.fromEntries(DATA.domains.map((d, i) => [d.key, i]));
+  const tables = Object.keys(DATA.tables);  // 機能順に並んでいる
+  const entries = DATA.entries.slice().sort((a, b) =>
+    domOrder[a.domain] - domOrder[b.domain] || (a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === "job" ? -1 : 1));
+  const byName = Object.fromEntries(entries.map((e) => [e.name, e]));
+  const short = (name) => name.replace(/^jobs\//, "");
+  const el = (tag, attrs = {}, text) => {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    if (text != null) n.textContent = text;
+    return n;
+  };
+
+  // --- 表 ---
+  const m = document.getElementById("m");
+  const thead = m.createTHead();
+  const domRow = thead.insertRow();
+  domRow.className = "dom";
+  const colRow = thead.insertRow();
+  colRow.className = "col";
+  const corner = el("th", { class: "corner", rowspan: "2" }, "入口 ＼ テーブル");
+  domRow.appendChild(corner);
+  const colHead = {};
+  const domHead = {};
+  for (const t of tables) {
+    const d = DATA.tables[t];
+    if (!domHead[d]) {
+      domHead[d] = el("th", {}, domLabel[d]);
+      domRow.appendChild(domHead[d]);
+    }
+    const th = el("th", { class: "t mono", title: t }, t);
+    th.addEventListener("click", () => select("t", t));
+    colRow.appendChild(th);
+    colHead[t] = th;
+  }
+  const tbody = m.createTBody();
+  const rows = {};
+  const groups = {};
+  for (const e of entries) {
+    if (!groups[e.domain]) {
+      const g = tbody.insertRow();
+      g.className = "grp";
+      g.appendChild(el("th", {}, domLabel[e.domain]));
+      for (let i = 0; i < tables.length; i++) g.insertCell();
+      groups[e.domain] = g;
+    }
+    const tr = tbody.insertRow();
+    const th = el("th", { title: e.name });
+    th.appendChild(el("span", { class: "kind" }, e.kind === "job" ? "バッチ" : "API"));
+    th.appendChild(el("span", { class: "mono" }, short(e.name)));
+    th.addEventListener("click", () => select("e", e.name));
+    tr.appendChild(th);
+    for (const t of tables) {
+      const td = tr.insertCell();
+      const v = e.rw[t];
+      if (v) { td.className = v; td.textContent = v; td.title = `${short(e.name)} → ${t}`; }
+      td.dataset.t = t;
+    }
+    rows[e.name] = tr;
+  }
+  m.addEventListener("mouseover", (ev) => {
+    const td = ev.target.closest("td");
+    for (const n of m.querySelectorAll(".hc")) n.classList.remove("hc");
+    if (!td || !td.dataset.t) return;
+    colHead[td.dataset.t].classList.add("hc");
+    for (const c of m.querySelectorAll(`td[data-t="${td.dataset.t}"]`)) c.classList.add("hc");
+  });
+  m.addEventListener("click", (ev) => {
+    const td = ev.target.closest("td");
+    if (td && td.dataset.t) select("t", td.dataset.t);
+  });
+
+  // --- 絞り込み ---
+  const q = document.getElementById("q");
+  const dom = document.getElementById("dom");
+  for (const d of DATA.domains) dom.appendChild(el("option", { value: d.key }, d.label));
+  function applyFilter() {
+    const s = q.value.trim().toLowerCase();
+    const d = dom.value;
+    // 名前が当たった入口はその読み書きする表を、名前が当たった表はそれを読み書きする入口を出す
+    const hitT = new Set(tables.filter((t) => s && t.toLowerCase().includes(s)));
+    const inDom = entries.filter((e) => !d || e.domain === d);
+    const hitE = inDom.filter((e) => !s || e.name.toLowerCase().includes(s));
+    const showE = new Set([...hitE, ...inDom.filter((e) => Object.keys(e.rw).some((t) => hitT.has(t)))].map((e) => e.name));
+    const showT = new Set([...hitT, ...hitE.flatMap((e) => Object.keys(e.rw))]);
+    if (!s && d) for (const t of tables) if (DATA.tables[t] === d) showT.add(t);
+    const idx = tables.map((t) => showT.has(t));
+    const span = {};
+    tables.forEach((t, i) => { if (idx[i]) span[DATA.tables[t]] = (span[DATA.tables[t]] || 0) + 1; });
+    for (const [k, th] of Object.entries(domHead)) { th.hidden = !span[k]; th.colSpan = span[k] || 1; }
+    tables.forEach((t, i) => { colHead[t].hidden = !idx[i]; });
+    for (const tr of tbody.rows) {
+      if (tr.className.includes("grp")) continue;
+      const name = tr.cells[0].title;
+      tr.hidden = !showE.has(name);
+      for (let i = 0; i < tables.length; i++) tr.cells[i + 1].hidden = !idx[i];
+    }
+    for (const [k, g] of Object.entries(groups)) {
+      g.hidden = !entries.some((e) => e.domain === k && showE.has(e.name));
+      for (let i = 0; i < tables.length; i++) g.cells[i + 1].hidden = !idx[i];
+    }
+  }
+  q.addEventListener("input", applyFilter);
+  dom.addEventListener("change", applyFilter);
+  applyFilter();
+
+  // --- 選んだものの図 ---
+  const svg = document.getElementById("graph");
+  const NS = "http://www.w3.org/2000/svg";
+  const H = 24, GAP = 8, CH = 7.4, PAD = 10, COLGAP = 90;
+  const sv = (tag, attrs) => {
+    const n = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+    return n;
+  };
+  const boxW = (label) => Math.ceil(label.length * CH) + PAD * 2;
+
+  function node(x, y, w, label, kind, go) {
+    const g = sv("g", { class: "node", transform: `translate(${x},${y})` });
+    g.appendChild(sv("rect", { width: w, height: H, rx: kind === "tbl" ? 10 : 3, class: `k-${kind}` }));
+    const tx = sv("text", { x: PAD, y: H / 2 });
+    tx.textContent = label;
+    g.appendChild(tx);
+    const tt = sv("title", {});
+    tt.textContent = go[1];
+    g.appendChild(tt);
+    g.addEventListener("click", () => select(go[0], go[1]));
+    svg.appendChild(g);
+  }
+
+  // left/right: [{label, kind, go:[type, name], edge:"w"|"r"}]。線は左 → 中央 → 右
+  function draw(center, left, right, capL, capR) {
+    svg.replaceChildren();
+    const wl = Math.max(0, ...left.map((n) => boxW(n.label)));
+    const wr = Math.max(0, ...right.map((n) => boxW(n.label)));
+    const wc = boxW(center.label);
+    const xc = (left.length ? wl + COLGAP : 0);
+    const xr = xc + wc + COLGAP;
+    const n = Math.max(left.length, right.length, 1);
+    const height = 22 + n * (H + GAP);
+    const yc = 22 + (n * (H + GAP) - GAP) / 2 - H / 2;
+    const col = (items, x, w, cap, isLeft) => {
+      if (!items.length) return;
+      const t = sv("text", { x, y: 10, class: "cap" });
+      t.textContent = cap;
+      svg.appendChild(t);
+      const top = 22 + ((n - items.length) * (H + GAP)) / 2;
+      items.forEach((it, i) => {
+        const y = top + i * (H + GAP);
+        const x1 = isLeft ? x + w : xc + wc, y1 = isLeft ? y + H / 2 : yc + H / 2;
+        const x2 = isLeft ? xc : x, y2 = isLeft ? yc + H / 2 : y + H / 2;
+        const mx = (x1 + x2) / 2;
+        svg.appendChild(sv("path", { d: `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`, class: it.edge }));
+        node(x, y, isLeft ? w : boxW(it.label), it.label, it.kind, it.go);
+      });
+    };
+    col(left, 0, wl, capL, true);
+    col(right, xr, wr, capR, false);
+    node(xc, yc, wc, center.label, center.kind, center.go);
+    const width = right.length ? xr + wr : xc + wc;
+    svg.setAttribute("viewBox", `0 0 ${width + 2} ${height}`);
+    svg.setAttribute("width", width + 2);
+    svg.setAttribute("height", height);
+  }
+
+  const eNode = (e, edge) => ({ label: short(e.name), kind: e.kind, go: ["e", e.name], edge });
+  const tNode = (t, edge) => ({ label: t, kind: "tbl", go: ["t", t], edge });
+
+  function select(type, name) {
+    for (const n of m.querySelectorAll(".sel")) n.classList.remove("sel");
+    document.getElementById("hint").hidden = true;
+    document.getElementById("detail").hidden = false;
+    const title = document.getElementById("title");
+    const calls = document.getElementById("calls");
+    calls.textContent = "";
+    if (type === "t") {
+      const w = entries.filter((e) => e.rw[name] === "W");
+      const r = entries.filter((e) => e.rw[name] === "R");
+      title.textContent = `テーブル ${name}（${domLabel[DATA.tables[name]]}）: 書く ${w.length} ・ 読むだけ ${r.length}`;
+      draw(tNode(name), w.map((e) => eNode(e, "w")), r.map((e) => eNode(e, "r")), "書く入口", "読むだけの入口");
+      colHead[name].classList.add("sel");
+      colHead[name].scrollIntoView({ block: "nearest", inline: "nearest" });
+    } else {
+      const e = byName[name];
+      const r = Object.keys(e.rw).filter((t) => e.rw[t] === "R");
+      const w = Object.keys(e.rw).filter((t) => e.rw[t] === "W");
+      title.textContent = `${e.kind === "job" ? "バッチ" : "API"} ${name}（${domLabel[e.domain]}）`;
+      draw(eNode(e), r.map((t) => tNode(t, "r")), w.map((t) => tNode(t, "w")), "読むだけの表", "書く表");
+      if (e.calls.length) calls.textContent = `呼ぶ API: ${e.calls.join(" / ")}（その API の読み書きも含めて図にしている）`;
+      rows[name].classList.add("sel");
+      rows[name].scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+    const button = el("button", { type: "button" }, "閉じる");
+    button.addEventListener("click", () => {
+      document.getElementById("detail").hidden = true;
+      document.getElementById("hint").hidden = false;
+      for (const n of m.querySelectorAll(".sel")) n.classList.remove("sel");
+      history.replaceState(null, "", location.pathname + location.search);
+    });
+    title.appendChild(button);
+    history.replaceState(null, "", `#${type}=${encodeURIComponent(name)}`);
+  }
+
+  const h = /^#([te])=(.+)$/.exec(location.hash);
+  if (h) {
+    const name = decodeURIComponent(h[2]);
+    if (h[1] === "t" ? name in DATA.tables : name in byName) select(h[1], name);
+  }
+})();
+</script>
+</body>
+</html>
