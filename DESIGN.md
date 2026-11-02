@@ -317,6 +317,16 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
 
 ホスト一致の確認は `python jobs/market/homepages.py --all --compare-hosts`（書き込みしない）。
 
+**短信表紙の説明資料（`tanshin_covers`）。** 各社の最新の決算短信について、1ページ目の「決算補足説明資料作成の有無」「決算説明会開催の有無」を1行残す（KAB-325）。API / SPA / cron はまだ無い。表は `jobs/migrate.py` が作る。ジョブは `python jobs/market/tanshin_covers.py --code 7203`。`--limit` は DB に既にある短信から新しい順にその件数だけ。`--all` は無い。本番への一括投入はしない。
+
+- 対象は題名に「決算短信」があるもの。`訂正` と「決算短信…の修正について／の一部修正」は飛ばし、それ以外で提出が新しい1件
+- PDF（`tdnet_pdf_documents`）は変換 HTML の1ページ目だけ。XBRL はサマリー iXBRL（表紙に相当）。提出日が新しい日だけを見る。その日に両方あるときは、有無が読めたほうを使い、どちらも読めたときは時刻が新しいほう
+- 有は 1、無は 0、表紙に文言が無ければ NULL。説明会の括弧は、投資家・アナリストなど対象が読めるときだけ `briefing_note`。単位の注記や、列の並びに紛れた「氏名」は残さない
+- 「有・無」と両方印字されてどちらとも取れないときは NULL（丸印の位置までは見ない）
+- TDnet に説明資料が出ているかは、短信の日から7日以内の開示一覧で判定する。題名が説明資料・説明会資料・補足資料で、PDF の先頭が `%PDF-` なら `found`。一覧にあるが PDF でないものは `listed`。7日がまだ過ぎていないとき、または一覧が保持期間外で無いと言い切れないときは `unknown`。一覧の取得は `jobs/_tdnet.py`
+- 説明資料が「有」で TDnet が `absent` の会社だけ、`homepages` の URL から説明資料の PDF を探す。ブラウザの User-Agent、リクエスト間隔 2.5 秒、1社あたりホームページを含めて4ページまで。リンクの非 ASCII は百分率符号化する。説明資料と数えるのは、リンク文言か URL が説明資料・説明会資料・補足資料、または決算の付いた PDF のとき。決算短信・有価証券報告書・半期報告書は数えない。`/ir` のような目次は辿るだけ。最初に条件を満たした PDF を採用し、短信と同じ期かは見ない。`eir-parts.net` など既知の IR ホストへは1段だけ出る。`--probe-homepage` の既定は8社、上限12社
+- ネットワークの試行は `python jobs/market/tanshin_covers.py --sample-tdnet --days 14 --limit 40`。`--limit` は80まで、`--days` は21まで。PDF は保存しない
+
 **為替（`fx_rates`）。** Frankfurter v1（`https://api.frankfurter.dev/v1`、ECB、基準通貨 EUR、キー不要。旧 `api.frankfurter.app` は 301）。UI は出さない。
 
 - 保存は対 EUR だけ。USD/JPY などは `EURJPY / EURUSD`。ヘルパーは `app.fx.cross_rate`

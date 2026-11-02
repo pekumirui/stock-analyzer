@@ -44,6 +44,32 @@ class Homepage(Base):
     checked_at = Column(DateTime, nullable=False)     # 最後に確認した時刻
 
 
+class TanshinCover(Base):
+    """最新の決算短信の表紙（KAB-325）。1社1行。FK は付けない。
+
+    決算補足説明資料作成の有無と決算説明会開催の有無。有は True、無は False、
+    表紙から読めなければ NULL。訂正・修正のお知らせは使わない。
+    """
+    __tablename__ = "tanshin_covers"
+    code = Column(String(5), primary_key=True)         # 普通株の 5 桁
+    disclosure_no = Column(String(32), nullable=False)  # TDnet の書類 ID（PDF/ZIP の stem）
+    disclosed_at = Column(DateTime)
+    title = Column(Text)
+    source = Column(String(16), nullable=False)        # xbrl_summary / tdnet_pdf / tdnet_live
+    has_material = Column(Boolean)                     # 決算補足説明資料作成の有無
+    material_note = Column(String(80))
+    has_briefing = Column(Boolean)                     # 決算説明会開催の有無
+    briefing_note = Column(String(80))
+    tdnet_status = Column(String(16))                  # found / listed / absent / unknown
+    tdnet_title = Column(Text)
+    tdnet_url = Column(Text)
+    tdnet_pubdate = Column(String(32))
+    hp_status = Column(String(16))                     # found / not_found / blocked / error / no_homepage
+    hp_url = Column(Text)
+    hp_detail = Column(Text)
+    checked_at = Column(DateTime, nullable=False)
+
+
 class DailyPrice(Base):
     __tablename__ = "daily_prices"
     code = Column(String(5), primary_key=True)

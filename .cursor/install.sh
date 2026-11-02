@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 sudo apt-get update -qq
-sudo apt-get install -y -qq --no-install-recommends python3-venv poppler-utils rclone
+sudo apt-get install -y -qq --no-install-recommends python3-venv poppler-utils poppler-data rclone
 
 # PATH で /usr/bin より先に立つラッパー。remote r2 を R2_* から定義する（鍵はディスクに書かない）。
 # AWS_CA_BUNDLE（プロキシ環境）があると S3 が LoadCustomCABundleError で落ちるので --ca-cert で渡し直す
