@@ -23,11 +23,6 @@
   body.public-monthly #crumbs { flex:1 1 auto; order:0; }
   /* スマホはヘッダーを 1 行にし、タブは左端の三本線から左のドロワーで出す（tabs.js） */
   @media (max-width:720px){
-    /* iOS Safari 26 は画面端の fixed を枠の色にする。常に白の 1px を端に置く */
-    html::before, html::after { content:""; position:fixed; left:0; right:0; height:1px;
-      background:var(--bg); pointer-events:none; z-index:100; }
-    html::before { top:0; }
-    html::after { bottom:0; }
     header { flex-wrap:nowrap; padding:8px 10px 8px 6px; }
     #cur-tab { display:block; font-size:14px; font-weight:600; color:var(--accent); white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; }
     header:has(#crumbs:not([hidden])) #cur-tab { display:none; }
@@ -43,11 +38,13 @@
                display:flex; flex-direction:column; padding:calc(12px + env(safe-area-inset-top)) 0 12px; box-shadow:4px 0 18px rgba(0,0,0,.18);
                transform:translateX(-105%); transition:transform .22s ease; overflow-y:auto; }
     #app-nav.open { transform:translateX(0); }
+    #app-nav[hidden] { display:none; }
     #app-nav button, #app-nav a { text-align:left; font-size:16px; padding:14px 22px; border-bottom:0; border-left:3px solid transparent; color:var(--text); }
     #app-nav button.active { background:var(--row-sel); border-left-color:var(--accent); color:var(--accent); }
     #app-nav a { display:block; }
-    /* 幕は上下端を空けて枠にグレーを残さない。閉じたら display:none（opacity:0 だと枠に残る） */
-    #nav-backdrop { display:block; position:fixed; top:1px; right:0; bottom:1px; left:0; z-index:49; background:rgba(0,0,0,.35); }
+    /* Safari 26 は fixed の background-color を枠の色にする。本体は白、暗いのは端から外した ::after */
+    #nav-backdrop { display:block; position:fixed; inset:0; z-index:49; background-color:var(--bg); }
+    #nav-backdrop::after { content:""; position:absolute; top:48px; right:0; bottom:48px; left:0; background:rgba(0,0,0,.35); }
     #nav-backdrop[hidden] { display:none; }
   }
   main { padding:8px 12px; }

@@ -141,11 +141,47 @@ async function restoreRoute(){
 }
 
 // スマホのドロワー（三本線で左から出す）。PC では nav が常に出ているので開け閉めは見た目に効かない
+const MOBILE_NAV_MQ = "(max-width: 720px)";
+function mobileNav(){
+  return window.matchMedia(MOBILE_NAV_MQ).matches;
+}
 function setMenu(open){
-  $("#app-nav").classList.toggle("open", open);
-  $("#nav-backdrop").hidden = !open;
+  const nav = $("#app-nav");
+  const bd = $("#nav-backdrop");
+  if(open){
+    if(mobileNav()) nav.hidden = false;
+    void nav.offsetWidth;
+    nav.classList.add("open");
+    bd.hidden = false;
+  } else {
+    nav.classList.remove("open");
+    bd.hidden = true;
+    if(mobileNav()){
+      const hideNav = ev => {
+        if(ev && ev.target !== nav) return;
+        if(ev && ev.propertyName && ev.propertyName !== "transform") return;
+        nav.removeEventListener("transitionend", hideNav);
+        if(!nav.classList.contains("open") && mobileNav()) nav.hidden = true;
+      };
+      nav.addEventListener("transitionend", hideNav);
+      setTimeout(hideNav, 280);
+    } else {
+      nav.hidden = false;
+    }
+  }
   $("#menu-btn").setAttribute("aria-expanded", String(open));
 }
+if(mobileNav()) $("#app-nav").hidden = true;
+window.matchMedia(MOBILE_NAV_MQ).addEventListener("change", e => {
+  if(!e.matches){
+    $("#app-nav").hidden = false;
+    $("#app-nav").classList.remove("open");
+    $("#nav-backdrop").hidden = true;
+    $("#menu-btn").setAttribute("aria-expanded", "false");
+  } else if(!$("#app-nav").classList.contains("open")){
+    $("#app-nav").hidden = true;
+  }
+});
 
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => { setMenu(false); selectTab(b.dataset.tab); });
 $("#menu-btn").onclick = () => setMenu(!$("#app-nav").classList.contains("open"));
