@@ -25,6 +25,7 @@ from app.market.homepages import (
 )
 from app.models import (
     Homepage,
+    Statement,
     Stock,
     TdnetPdfDocument,
     XbrlContext,
@@ -45,6 +46,7 @@ def _clean_homepage_tables() -> None:
     db = SessionLocal()
     try:
         db.query(Homepage).delete()
+        db.query(Statement).delete()
         db.query(TdnetPdfDocument).delete()
         db.query(XbrlFact).delete()
         db.query(XbrlContext).delete()
@@ -56,6 +58,15 @@ def _clean_homepage_tables() -> None:
 
 def _gz(path: Path) -> bytes:
     return path.read_bytes()
+
+
+def _page(body: str) -> bytes:
+    return gzip.compress(f"<html><body>{body}</body></html>".encode(), mtime=0)
+
+
+def _cid_ascii(text: str) -> str:
+    """pdfium の (cid:N)。N + 29 が ASCII。"""
+    return "".join(f"(cid:{ord(ch) - 29})" for ch in text)
 
 
 def _seed_stock(db, code: str, name: str = "x") -> None:
@@ -443,3 +454,251 @@ def test_job_set_manual() -> None:
         assert row.source == SOURCE_MANUAL and row.host == "global.toyota"
     finally:
         db.close()
+
+
+def test_normalize_url_bare_domain_and_jpx() -> None:
+    assert normalize_url("wize-inc.jp") == "https://wize-inc.jp"
+    assert normalize_url("jp.medialinks.com") == "https://jp.medialinks.com"
+    assert normalize_url("www.kao.com/jp/") == "https://www.kao.com/jp/"
+    assert normalize_url("file.txt") is None
+    assert normalize_url("not a domain") is None
+    assert normalize_url("https://www.jpx.co.jp/") is None
+    assert normalize_url("https://www.jpx.co.jp/", allow_jpx=True) == "https://www.jpx.co.jp/"
+    assert host_is_skipped("www.jpx.co.jp")
+    assert not host_is_skipped("www.jpx.co.jp", allow_jpx=True)
+
+
+def test_schemeless_url_only_near_label() -> None:
+    buried = "<p>監査法人 https://www.deloitte.com/</p><p>参照 www.toray.co.jp</p>"
+    assert pick_homepage_url(buried) == "https://www.deloitte.com/"
+    assert pick_homepage_url("<p>www.only.example</p>") is None
+    labeled = "<p>URL www.toray.co.jp</p><p>https://www.auditor.example/</p>"
+    assert pick_homepage_url(labeled) == "https://www.toray.co.jp"
+    assert pick_homepage_url("<p>ＵＲＬ jp.medialinks.com</p>") == "https://jp.medialinks.com"
+    assert pick_homepage_url("<p>ホームページ www.kao.com/jp/</p>") == "https://www.kao.com/jp/"
+
+
+def test_cid_ascii_cover_url() -> None:
+    html = f"<p>{_cid_ascii('URL https://www.nihon-trim.co.jp/')}</p>"
+    assert pick_homepage_url(html) == "https://www.nihon-trim.co.jp/"
+    kept = "<p>URL https://www.terumo.co.jp/</p><p>(cid:9000)(cid:9001)</p>"
+    assert pick_homepage_url(kept) == "https://www.terumo.co.jp/"
+
+
+def test_xbrl_bare_domain_without_www() -> None:
+    db = SessionLocal()
+    try:
+        _seed_stock(db, "36640")
+        _seed_xbrl_url(
+            db, code="36640", url="wize-inc.jp",
+            doc_id="wize-xbrl", submitted_at=datetime(2026, 8, 14),  # noqa: DTZ001
+        )
+        sync_homepages(db, ["36640"], now=NOW)
+        row = db.get(Homepage, "36640")
+        assert row.source == SOURCE_XBRL_URL
+        assert row.url == "https://wize-inc.jp"
+        assert row.host == "wize-inc.jp"
+    finally:
+        db.close()
+
+
+def test_correction_title_skips_to_older_tanshin() -> None:
+    db = SessionLocal()
+    try:
+        _seed_stock(db, "23950")
+        _seed_tanshin(
+            db, disclosure_no="20260805510172", code="23950",
+            title="(訂正・数値データ訂正)「2027年３月期 第１四半期決算短信」の一部",
+            html_gz=_page("URL https://www.wrong.example/"),
+            disclosed_date=date(2026, 8, 5),
+        )
+        _seed_tanshin(
+            db, disclosure_no="20260804508568", code="23950",
+            title="2027年３月期 第１四半期決算短信〔日本基準〕（連結）",
+            html_gz=_page("ＵＲＬ https://snbl.com/"),
+            disclosed_date=date(2026, 8, 4),
+        )
+        sync_homepages(db, ["23950"], now=NOW)
+        row = db.get(Homepage, "23950")
+        assert row.url == "https://snbl.com/"
+        assert row.origin == "tanshin:20260804508568"
+    finally:
+        db.close()
+
+
+def test_short_html_skips_to_older_tanshin() -> None:
+    db = SessionLocal()
+    try:
+        _seed_stock(db, "40280")
+        short = _seed_doc_with_bytes(
+            db, disclosure_no="20260807514112", code="40280",
+            title="2026年３月期 決算短信〔日本基準〕(連結)",
+            html_gz=_page("URL https://www.short.example/"),
+            disclosed_date=date(2026, 8, 7), nbytes=4000,
+        )
+        assert short.bytes == 4000
+        _seed_doc_with_bytes(
+            db, disclosure_no="20260807513965", code="40280",
+            title="2027年３月期 第１四半期決算短信〔日本基準〕(連結)",
+            html_gz=_page("URL https://www.iskweb.co.jp/"),
+            disclosed_date=date(2026, 8, 6), nbytes=20_000,
+        )
+        sync_homepages(db, ["40280"], now=NOW)
+        row = db.get(Homepage, "40280")
+        assert row.url == "https://www.iskweb.co.jp/"
+        assert row.origin == "tanshin:20260807513965"
+    finally:
+        db.close()
+
+
+def test_financial_statements_title_is_a_tanshin() -> None:
+    db = SessionLocal()
+    try:
+        _seed_stock(db, "67880")
+        _seed_tanshin(
+            db, disclosure_no="20260806511222", code="67880",
+            title="1QFinancialStatements_Consolidated_JP",
+            html_gz=_page(_cid_ascii("URL https://www.nihon-trim.co.jp/")),
+            disclosed_date=date(2026, 8, 6),
+        )
+        sync_homepages(db, ["67880"], now=NOW)
+        row = db.get(Homepage, "67880")
+        assert row.url == "https://www.nihon-trim.co.jp/"
+        assert row.origin == "tanshin:20260806511222"
+    finally:
+        db.close()
+
+
+def test_fragment_title_needs_statement_type() -> None:
+    db = SessionLocal()
+    try:
+        _seed_stock(db, "72420")
+        title = "(注)１．直近に公表されている配当予想からの修正の有無 ：無"
+        _seed_tanshin(
+            db, disclosure_no="20260806511329", code="72420",
+            title=title,
+            html_gz=_page("ＵＲＬ https://www.kyb.co.jp/"),
+            disclosed_date=date(2026, 8, 6),
+        )
+        assert sync_homepages(db, ["72420"], now=NOW).chosen.get("none") == 1
+        db.merge(Statement(
+            disclosure_no="20260806511329",
+            code="72420",
+            type_of_document="1QFinancialStatements_Consolidated_IFRS",
+        ))
+        db.commit()
+        sync_homepages(db, ["72420"], now=NOW)
+        row = db.get(Homepage, "72420")
+        assert row.url == "https://www.kyb.co.jp/"
+        assert row.origin == "tanshin:20260806511329"
+    finally:
+        db.close()
+
+
+def test_scan_uses_fifth_and_not_sixth() -> None:
+    db = SessionLocal()
+    try:
+        _seed_stock(db, "41250")
+        for i in range(5):
+            _seed_tanshin(
+                db, disclosure_no=f"2026080{i}000000", code="41250",
+                title="決算短信 本文にURLなし" if i else "決算短信の一部訂正について",
+                html_gz=_page("URLが無く、訂正でもない本文" if i else "URL https://www.skip.example/"),
+                disclosed_date=date(2026, 8, 7 - i),
+            )
+        _seed_tanshin(
+            db, disclosure_no="20260101000000", code="41250",
+            title="2026年３月期 決算短信〔日本基準〕(連結)",
+            html_gz=_page("URL https://www.sanwayuka.co.jp/"),
+            disclosed_date=date(2026, 1, 1),
+        )
+        report = sync_homepages(db, ["41250"], now=NOW)
+        assert report.chosen.get("none") == 1
+        assert db.get(Homepage, "41250") is None
+        _seed_tanshin(
+            db, disclosure_no="20260804000001", code="41250",
+            title="2027年３月期 第１四半期決算短信〔日本基準〕(連結)",
+            html_gz=_page("URL https://www.sanwayuka.co.jp/"),
+            disclosed_date=date(2026, 8, 3),
+        )
+        # 8/7 訂正、8/6・8/5・8/4 は URL なし、8/3 が 5 本目で URL あり。1月は 6 本目
+        sync_homepages(db, ["41250"], now=NOW)
+        row = db.get(Homepage, "41250")
+        assert row.url == "https://www.sanwayuka.co.jp/"
+        assert row.origin == "tanshin:20260804000001"
+    finally:
+        db.close()
+
+
+def test_jpx_url_kept_only_for_jpx() -> None:
+    db = SessionLocal()
+    try:
+        _seed_stock(db, "86970")
+        _seed_stock(db, "72030")
+        page = _page("ＵＲＬ https://www.jpx.co.jp/")
+        _seed_tanshin(
+            db, disclosure_no="20261026556190", code="86970",
+            title="2027年３月期 第２四半期（中間期）決算短信〔ＩＦＲＳ〕（連結）",
+            html_gz=page, disclosed_date=date(2026, 10, 27),
+        )
+        _seed_tanshin(
+            db, disclosure_no="20261026556191", code="72030",
+            title="決算短信",
+            html_gz=page, disclosed_date=date(2026, 10, 27),
+        )
+        sync_homepages(db, ["86970", "72030"], now=NOW)
+        jpx = db.get(Homepage, "86970")
+        assert jpx.url == "https://www.jpx.co.jp/"
+        assert jpx.host == "jpx.co.jp"
+        assert db.get(Homepage, "72030") is None
+    finally:
+        db.close()
+
+
+def test_holding_company_reads_predecessor_until_it_has_its_own() -> None:
+    db = SessionLocal()
+    try:
+        _seed_stock(db, "641A0")
+        _seed_stock(db, "72400")
+        _seed_tanshin(
+            db, disclosure_no="20260803507417", code="72400",
+            title="2027年３月期 第１四半期決算短信〔日本基準〕（連結）",
+            html_gz=_page("ＵＲＬ https://www.nokgrp.com"),
+            disclosed_date=date(2026, 8, 6),
+        )
+        sync_homepages(db, ["641A0"], now=NOW)
+        row = db.get(Homepage, "641A0")
+        assert row.url == "https://www.nokgrp.com"
+        assert row.origin == "tanshin:20260803507417"
+        assert db.get(Homepage, "72400") is None
+        _seed_tanshin(
+            db, disclosure_no="20260901000001", code="641A0",
+            title="決算短信",
+            html_gz=_page("URL https://www.nok-group.example/"),
+            disclosed_date=date(2026, 9, 1),
+        )
+        sync_homepages(db, ["641A0"], now=LATER)
+        row = db.get(Homepage, "641A0")
+        assert row.url == "https://www.nok-group.example/"
+        assert row.origin == "tanshin:20260901000001"
+    finally:
+        db.close()
+
+
+def _seed_doc_with_bytes(
+    db, *, disclosure_no: str, code: str, title: str, html_gz: bytes,
+    disclosed_date: date, nbytes: int,
+) -> TdnetPdfDocument:
+    doc = TdnetPdfDocument(
+        disclosure_no=disclosure_no,
+        code=code,
+        disclosed_date=disclosed_date,
+        title=title,
+        status="ok",
+        html_gz=html_gz,
+        bytes=nbytes,
+        created_at=NOW,
+    )
+    db.merge(doc)
+    db.commit()
+    return doc
