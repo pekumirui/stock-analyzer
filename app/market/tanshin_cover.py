@@ -1,7 +1,7 @@
-"""最新の決算短信の表紙から、説明資料・説明会の有無を tanshin_covers に残す（KAB-325）。
+"""決算短信の表紙から、説明資料・説明会の有無を tanshin_covers に残す（KAB-325）。
 
 PDF は変換 HTML の1ページ目だけ。XBRL はサマリー iXBRL（表紙）。
-訂正と「決算短信の修正について」は飛ばす。ジョブは init_db しない。
+訂正と「決算短信の修正について」は飛ばす。1短信1行。ジョブは init_db しない。
 """
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import gzip
 import re
 import unicodedata
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import datetime
 from html.parser import HTMLParser
 
 from sqlalchemy import select
@@ -18,25 +18,16 @@ from sqlalchemy.orm import Session
 from app.xbrl.documents import load_html
 from app.xbrl.pdf import read_pages
 
-from ..models import Homepage, TanshinCover, TdnetPdfDocument, XbrlDocument, XbrlFiling
-from .briefing_docs import (
-    MATERIAL_WINDOW_DAYS,
-    ProbeResult,
-    TdnetJudgement,
-    fetch_tdnet_range,
-    judge_tdnet_rows,
-    probe_homepage,
-    pub_date,
-)
+from ..models import Stock, TanshinCover, TdnetPdfDocument, XbrlDocument, XbrlFiling
 from .homepages import now_jst, ordinary_code
 
 SOURCE_XBRL = "xbrl_summary"
 SOURCE_PDF = "tdnet_pdf"
-SOURCE_LIVE = "tdnet_live"
 _NO_TIME = datetime(1, 1, 1)  # noqa: DTZ001
-SAMPLE_LIMIT_MAX = 80
-PROBE_LIMIT_MAX = 12
-SAMPLE_DAYS_MAX = 21
+# J-Quants ProdCat。011 内国株券、021 外国株券、013 REIT、014 ETF、023 外国ETF/ETN
+_ORDINARY = frozenset({"011", "021"})
+_REIT = "013"
+_ETF = frozenset({"014", "023"})
 
 _WS = re.compile(r"\s+")
 _AMENDMENT = re.compile(r"決算短信.*(?:の修正について|の一部修正)")
@@ -44,6 +35,10 @@ _AMENDMENT = re.compile(r"決算短信.*(?:の修正について|の一部修正
 _FLAG = r"\s*[:：]\s*(有|無)(?!・)(?:\s*[（(]([^）)]{0,80})[）)])?"
 _MATERIAL_RE = re.compile(r"(?:中間期|中間|四半期)?決算補足説明資料(?:の)?作成の有無" + _FLAG)
 _BRIEFING_RE = re.compile(r"(?:中間期|中間|四半期)?決算説明会開催の有無" + _FLAG)
+_UNIT_NOTE = re.compile(r"百万円|千円|億円|切捨て|切り捨て|四捨五入|未満")
+# 列順で隣の「（氏名）」などを括弧ごと拾う。対象者の注記だけ残す
+_AUDIENCE_NOTE = re.compile(r"向け|投資家|アナリスト|機関|証券|電話会議|動画|配信")
+_FUND_WORD = ("ファンド", "投資信託", "ＥＴＦ", "ＥＴＮ", "ETF", "ETN")
 
 
 @dataclass(frozen=True)
@@ -69,60 +64,6 @@ class CoverReport:
         return f"{head} written={self.written} skipped={self.skipped}"
 
 
-@dataclass
-class SampleReport:
-    lines: list[str] = field(default_factory=list)
-    n: int = 0
-    errors: int = 0
-    material_yes: int = 0
-    material_no: int = 0
-    material_unknown: int = 0
-    briefing_yes: int = 0
-    briefing_no: int = 0
-    briefing_unknown: int = 0
-    tdnet_found: int = 0
-    tdnet_listed: int = 0
-    tdnet_absent: int = 0
-    tdnet_unknown: int = 0
-
-    def summary(self) -> str:
-        yes = self.material_yes
-        found_pct = _pct(self.tdnet_found, yes)
-        mat_pct = _pct(self.material_yes, self.n)
-        return (
-            f"sample n={self.n} errors={self.errors} "
-            f"material_yes={self.material_yes} ({mat_pct}) "
-            f"material_no={self.material_no} unknown={self.material_unknown} "
-            f"briefing_yes={self.briefing_yes} no={self.briefing_no} unknown={self.briefing_unknown} "
-            f"tdnet_found={self.tdnet_found}/{yes} ({found_pct}) "
-            f"listed={self.tdnet_listed} absent={self.tdnet_absent} unknown={self.tdnet_unknown}"
-        )
-
-
-@dataclass
-class ProbeReport:
-    lines: list[str] = field(default_factory=list)
-    probed: int = 0
-    found: int = 0
-    not_found: int = 0
-    blocked: int = 0
-    error: int = 0
-    no_homepage: int = 0
-
-    def summary(self) -> str:
-        return (
-            f"homepage probed={self.probed} found={self.found} ({_pct(self.found, self.probed)}) "
-            f"not_found={self.not_found} blocked={self.blocked} error={self.error} "
-            f"no_homepage={self.no_homepage}"
-        )
-
-
-def _pct(part: int, whole: int) -> str:
-    if whole <= 0:
-        return "-"
-    return f"{100.0 * part / whole:.0f}%"
-
-
 def _compact(text: str | None) -> str:
     return _WS.sub("", unicodedata.normalize("NFKC", text or ""))
 
@@ -133,9 +74,24 @@ def _cover_body(text: str | None) -> str:
     return re.sub(r"[^\S\n]+", "", normalized)
 
 
-_UNIT_NOTE = re.compile(r"百万円|千円|億円|切捨て|切り捨て|四捨五入|未満")
-# 列順で隣の「（氏名）」などを括弧ごと拾う。対象者の注記だけ残す
-_AUDIENCE_NOTE = re.compile(r"向け|投資家|アナリスト|機関|証券|電話会議|動画|配信")
+def _fundish(name: str | None, title: str | None = None) -> bool:
+    text = unicodedata.normalize("NFKC", f"{name or ''} {title or ''}")
+    return any(word in text for word in _FUND_WORD)
+
+
+def is_cover_target(category: str | None, name: str | None, title: str | None = None) -> bool:
+    """普通株と REIT。ETF・ETN・ファンドは除く。マスタが無いときは題名で判断する。"""
+    cat = (category or "").strip()
+    if cat in _ETF:
+        return False
+    if cat == _REIT:
+        folded = unicodedata.normalize("NFKC", name or "")
+        return "ファンド" not in folded and "インフラ" not in folded
+    if cat in _ORDINARY:
+        return True
+    if cat:
+        return False
+    return not _fundish(name, title)
 
 
 def is_cover_tanshin_title(title: str | None) -> bool:
@@ -313,6 +269,19 @@ def _yn(value: bool | None) -> str:
     return "unknown"
 
 
+def _drop_same_day(db: Session, code: str, item: _Candidate) -> None:
+    """同じ発表日の別書類は残さない。別の日の行は履歴として残す。"""
+    if item.at == _NO_TIME:
+        return
+    day = item.at.date()
+    rows = db.execute(select(TanshinCover).where(TanshinCover.code == code)).scalars()
+    for row in rows:
+        if row.disclosure_no == item.disclosure_no or row.disclosed_at is None:
+            continue
+        if row.disclosed_at.date() == day:
+            db.delete(row)
+
+
 def save_cover(
     db: Session,
     code: str,
@@ -321,15 +290,19 @@ def save_cover(
     *,
     dry_run: bool = False,
 ) -> None:
-    """表紙を書く。書類が変わったら TDnet / HP の判定は消す。"""
+    """この短信の行を書く。別の短信の行は消さない。"""
     if dry_run:
         return
-    row = db.get(TanshinCover, code)
-    changed = row is None or row.disclosure_no != item.disclosure_no
+    row = db.get(TanshinCover, item.disclosure_no)
     if row is None:
-        row = TanshinCover(code=code, disclosure_no=item.disclosure_no, source=item.source, checked_at=now_jst())
+        row = TanshinCover(
+            disclosure_no=item.disclosure_no,
+            code=code,
+            source=item.source,
+            checked_at=now_jst(),
+        )
         db.add(row)
-    row.disclosure_no = item.disclosure_no
+    row.code = code
     row.disclosed_at = item.at if item.at != _NO_TIME else None
     row.title = item.title
     row.source = item.source
@@ -338,42 +311,15 @@ def save_cover(
     row.has_briefing = flags.has_briefing
     row.briefing_note = flags.briefing_note
     row.checked_at = now_jst()
-    if changed:
-        row.tdnet_status = None
-        row.tdnet_title = None
-        row.tdnet_url = None
-        row.tdnet_pubdate = None
-        row.hp_status = None
-        row.hp_url = None
-        row.hp_detail = None
+    _drop_same_day(db, code, item)
     db.commit()
 
 
-def save_tdnet(db: Session, code: str, judgement: TdnetJudgement, *, dry_run: bool = False) -> None:
-    if dry_run:
-        return
-    row = db.get(TanshinCover, code)
-    if row is None:
-        return
-    row.tdnet_status = judgement.status
-    row.tdnet_title = judgement.title
-    row.tdnet_url = judgement.url
-    row.tdnet_pubdate = judgement.pubdate
-    row.checked_at = now_jst()
-    db.commit()
-
-
-def save_homepage(db: Session, code: str, result: ProbeResult, *, dry_run: bool = False) -> None:
-    if dry_run:
-        return
-    row = db.get(TanshinCover, code)
-    if row is None:
-        return
-    row.hp_status = result.status
-    row.hp_url = result.url
-    row.hp_detail = result.detail[:500] if result.detail else None
-    row.checked_at = now_jst()
-    db.commit()
+def _target(db: Session, code: str, title: str | None) -> bool:
+    stock = db.get(Stock, code)
+    if stock is None:
+        return is_cover_target(None, None, title)
+    return is_cover_target(stock.product_category, stock.name, title)
 
 
 def sync_covers(
@@ -399,6 +345,10 @@ def sync_covers(
             report.lines.append(f"skip {ordinary} no tanshin")
             continue
         item, flags = picked
+        if not _target(db, ordinary, item.title):
+            report.skipped += 1
+            report.lines.append(f"skip {ordinary} not ordinary")
+            continue
         report.lines.append(_line(ordinary, item, flags))
         save_cover(db, ordinary, item, flags, dry_run=dry_run)
         report.written += 1
@@ -417,7 +367,7 @@ def _recent_codes(db: Session, limit: int) -> list[str]:
         .limit(limit * 8)
     ).all()
     for code, title, amended in filings:
-        if amended or not is_cover_tanshin_title(title) or code in seen:
+        if amended or not is_cover_tanshin_title(title) or code in seen or not _target(db, code, title):
             continue
         seen.add(code)
         found.append(code)
@@ -430,229 +380,10 @@ def _recent_codes(db: Session, limit: int) -> list[str]:
         .limit(limit * 8)
     ).all()
     for code, title in docs:
-        if not is_cover_tanshin_title(title) or code in seen:
+        if not is_cover_tanshin_title(title) or code in seen or not _target(db, code, title):
             continue
         seen.add(code)
         found.append(code)
         if len(found) >= limit:
             break
     return found
-
-
-def select_sample_rows(rows: list[dict], *, limit: int, today: date) -> list[dict]:
-    """会社ごとに最新の短信。説明資料の窓（7日）が閉じた会社を先に取る。"""
-    best: dict[str, dict] = {}
-    for row in rows:
-        if not is_cover_tanshin_title(row.get("title")):
-            continue
-        try:
-            code = ordinary_code(str(row.get("company_code") or ""))
-        except ValueError:
-            continue
-        current = best.get(code)
-        pub = str(row.get("pubdate") or "")
-        if current is None or pub > str(current.get("pubdate") or ""):
-            best[code] = {**row, "code": code}
-    items = sorted(best.values(), key=lambda item: str(item.get("pubdate") or ""), reverse=True)
-    closed: list[dict] = []
-    still_open: list[dict] = []
-    for item in items:
-        on = pub_date(item.get("pubdate"))
-        if on is not None and on + timedelta(days=MATERIAL_WINDOW_DAYS) <= today:
-            closed.append(item)
-        else:
-            still_open.append(item)
-    chosen = closed[:limit]
-    if len(chosen) < limit:
-        have = {item["code"] for item in chosen}
-        for item in still_open:
-            if item["code"] in have:
-                continue
-            chosen.append(item)
-            if len(chosen) >= limit:
-                break
-    return chosen
-
-
-def _count_flags(report: SampleReport, flags: CoverFlags) -> None:
-    if flags.has_material is True:
-        report.material_yes += 1
-    elif flags.has_material is False:
-        report.material_no += 1
-    else:
-        report.material_unknown += 1
-    if flags.has_briefing is True:
-        report.briefing_yes += 1
-    elif flags.has_briefing is False:
-        report.briefing_no += 1
-    else:
-        report.briefing_unknown += 1
-
-
-def _count_tdnet(report: SampleReport, status: str) -> None:
-    if status == "found":
-        report.tdnet_found += 1
-    elif status == "listed":
-        report.tdnet_listed += 1
-    elif status == "unknown":
-        report.tdnet_unknown += 1
-    else:
-        report.tdnet_absent += 1
-
-
-def sample_from_tdnet(
-    db: Session,
-    *,
-    days: int,
-    limit: int,
-    today: date,
-    get,
-    pdf_text,
-    confirm,
-    sleep_sec: float = 0.4,
-    dry_run: bool = False,
-) -> SampleReport:
-    """直近 days 日の開示一覧から、最大 limit 社の短信 PDF 1ページ目を読む。
-
-    get(url)->bytes は一覧用。pdf_text(bytes)->str は1ページ目。
-    confirm(url)->bool は説明資料 PDF の先頭が %PDF- か。失敗は listed のまま。
-    """
-    if days < 1 or days > SAMPLE_DAYS_MAX:
-        raise ValueError(f"days must be 1..{SAMPLE_DAYS_MAX}")
-    if limit < 1 or limit > SAMPLE_LIMIT_MAX:
-        raise ValueError(f"limit must be 1..{SAMPLE_LIMIT_MAX}")
-    report = SampleReport()
-    start = today - timedelta(days=days - 1)
-    rows, missing = fetch_tdnet_range(start, today, get, sleep_sec)
-    chosen = select_sample_rows(rows, limit=limit, today=today)
-    for row in chosen:
-        code = row["code"]
-        url = row.get("document_url") or ""
-        print(f"fetch {code} {url}", flush=True)
-        try:
-            text = pdf_text(get(url))
-        except (OSError, ValueError, RuntimeError) as exc:
-            report.errors += 1
-            report.lines.append(f"error {code} pdf {exc}")
-            continue
-        flags = parse_cover_text(text)
-        on = pub_date(row.get("pubdate")) or today
-        item = _Candidate(
-            at=_pub_datetime(row.get("pubdate"), on),
-            disclosure_no=_stem(url) or code,
-            title=row.get("title") or "",
-            source=SOURCE_LIVE,
-            html="",
-        )
-        report.lines.append(_line(code, item, flags))
-        save_cover(db, code, item, flags, dry_run=dry_run)
-        report.n += 1
-        _count_flags(report, flags)
-        if flags.has_material is not True:
-            continue
-        judgement = judge_tdnet_rows(rows, code, on, missing_days=missing, today=today)
-        if judgement.status == "listed" and judgement.url:
-            try:
-                ok = bool(confirm(judgement.url))
-            except (OSError, ValueError, RuntimeError) as exc:
-                ok = False
-                judgement = TdnetJudgement(
-                    "listed", judgement.title, judgement.url, judgement.pubdate, str(exc)[:200],
-                )
-            if ok:
-                judgement = TdnetJudgement("found", judgement.title, judgement.url, judgement.pubdate)
-        report.lines.append(
-            f"  tdnet {code} {judgement.status} {judgement.title or ''} {judgement.url or ''}".rstrip()
-        )
-        save_tdnet(db, code, judgement, dry_run=dry_run)
-        _count_tdnet(report, judgement.status)
-    return report
-
-
-def _pub_datetime(pubdate: str | None, on: date) -> datetime:
-    text = (pubdate or "").strip()
-    try:
-        return datetime.fromisoformat(text)
-    except ValueError:
-        return datetime.combine(on, datetime.min.time())
-
-
-def _stem(url: str) -> str:
-    name = url.rsplit("/", 1)[-1]
-    if "." in name:
-        name = name.split(".", 1)[0]
-    return name[:32]
-
-
-def homepage_targets(db: Session, limit: int) -> list[tuple[str, str | None]]:
-    """説明資料が有で、TDnet に無い会社。(code, homepage url or None)。"""
-    if limit < 1:
-        return []
-    rows = db.execute(
-        select(TanshinCover)
-        .where(TanshinCover.has_material.is_(True), TanshinCover.tdnet_status == "absent")
-        .order_by(TanshinCover.disclosed_at.desc())
-        .limit(limit)
-    ).scalars()
-    out: list[tuple[str, str | None]] = []
-    for row in rows:
-        page = db.get(Homepage, row.code)
-        out.append((row.code, page.url if page is not None else None))
-    return out
-
-
-def apply_probe(db: Session, code: str, result: ProbeResult, *, dry_run: bool = False) -> None:
-    if result.status == "no_homepage":
-        if dry_run:
-            return
-        row = db.get(TanshinCover, code)
-        if row is None:
-            return
-        row.hp_status = "no_homepage"
-        row.hp_url = None
-        row.hp_detail = "no homepages row"
-        row.checked_at = now_jst()
-        db.commit()
-        return
-    save_homepage(db, code, result, dry_run=dry_run)
-
-
-def probe_saved(
-    db: Session,
-    opener,
-    pacer,
-    *,
-    limit: int,
-    dry_run: bool = False,
-) -> ProbeReport:
-    """TDnet で説明資料が取れなかった会社を、最大 limit 社だけホームページから試す。"""
-    if limit < 1 or limit > PROBE_LIMIT_MAX:
-        raise ValueError(f"probe limit must be 1..{PROBE_LIMIT_MAX}")
-    report = ProbeReport()
-    for code, url in homepage_targets(db, limit):
-        if not url:
-            report.no_homepage += 1
-            report.lines.append(f"{code} no_homepage")
-            apply_probe(db, code, ProbeResult("no_homepage"), dry_run=dry_run)
-            continue
-        if dry_run:
-            report.lines.append(f"{code} dry_run {url}")
-            report.probed += 1
-            continue
-        result = probe_homepage(url, opener, pacer)
-        report.lines.append(f"{code} {result.status} pages={result.pages} {result.url or ''} {result.detail}".rstrip())
-        apply_probe(db, code, result, dry_run=False)
-        report.probed += 1
-        if result.status == "found":
-            report.found += 1
-        elif result.status == "blocked":
-            report.blocked += 1
-        elif result.status == "error":
-            report.error += 1
-        else:
-            report.not_found += 1
-    return report
-
-
-def looks_like_pdf(body: bytes) -> bool:
-    return body[:5] == b"%PDF-"

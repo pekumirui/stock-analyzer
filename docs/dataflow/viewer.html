@@ -122,7 +122,7 @@
 {"name":"jobs/market/homepages.py","kind":"job","domain":"market","rw":{"homepages":"W","statements":"R","tdnet_pdf_documents":"R","xbrl_elements":"R","xbrl_facts":"R","xbrl_filings":"R"},"calls":[]},
 {"name":"jobs/market/pts_snapshot.py","kind":"job","domain":"market","rw":{"pts_snapshots":"W"},"calls":[]},
 {"name":"jobs/market/run_batch.py","kind":"job","domain":"market","rw":{"daily_prices":"W","earnings_date_fetches":"W","earnings_date_pubs":"W","earnings_events":"W","indicators":"W","statements":"W","stocks":"W","topix":"W"},"calls":[]},
-{"name":"jobs/market/tanshin_covers.py","kind":"job","domain":"market","rw":{"homepages":"R","tanshin_covers":"W","tdnet_pdf_documents":"R","xbrl_documents":"R","xbrl_filings":"R"},"calls":[]},
+{"name":"jobs/market/tanshin_covers.py","kind":"job","domain":"market","rw":{"stocks":"R","tanshin_covers":"W","tdnet_pdf_documents":"R","xbrl_documents":"R","xbrl_filings":"R"},"calls":[]},
 {"name":"jobs/migrate.py","kind":"job","domain":"common","rw":{"monthly_element_sources":"W","monthly_elements":"W","monthly_issuers":"W","monthly_tables":"W","monthly_values":"W","stocks":"R","xbrl_elements":"W","xbrl_financials":"W"},"calls":[]},
 {"name":"jobs/monthly/ir_monthly_html_ingest.py","kind":"job","domain":"monthly","rw":{"monthly_element_sources":"W","monthly_elements":"W","monthly_issuers":"W","monthly_tables":"W","monthly_values":"W","statements":"R","stocks":"R"},"calls":["GET /api/v1/tables/{code}","POST /api/v1/tables/{code}/ingest"]},
 {"name":"jobs/monthly/ir_monthly_html_r2.py","kind":"job","domain":"monthly","rw":{"stocks":"R"},"calls":[]},
