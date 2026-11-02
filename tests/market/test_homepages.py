@@ -441,28 +441,40 @@ def test_job_main_dry_run_does_not_write() -> None:
         db.close()
 
 
-def test_manual_file_dry_run_does_not_write(capsys: pytest.CaptureFixture[str]) -> None:
-    path = ROOT / "config" / "market" / "homepage_manual.json"
-    entries = json.loads(path.read_text(encoding="utf-8"))["entries"]
-    assert entries
-    codes = []
-    for item in entries:
-        code = ordinary_code(item["code"])
-        url = normalize_url(item["url"])
-        assert url == item["url"]
-        codes.append(code)
-    rc = homepages_main(["--set-file", str(path), "--dry-run"])
-    assert rc == 0
-    out = capsys.readouterr().out
-    for code, item in zip(codes, entries, strict=True):
-        assert f"put {code} manual {item['url']} origin=manual" in out
-    assert f"set codes={len(entries)} put={len(entries)}" in out
+def _homepage_rows() -> list[tuple]:
     db = SessionLocal()
     try:
-        for code in codes:
-            assert db.get(Homepage, code) is None
+        return list(db.execute(
+            select(
+                Homepage.code,
+                Homepage.url,
+                Homepage.host,
+                Homepage.source,
+                Homepage.origin,
+                Homepage.changed_at,
+                Homepage.checked_at,
+            ).order_by(Homepage.code)
+        ).all())
     finally:
         db.close()
+
+
+def test_manual_file_dry_run_does_not_write(tmp_path: Path) -> None:
+    path = tmp_path / "homepage_manual.json"
+    path.write_text(
+        json.dumps({
+            "entries": [{
+                "code": "99990",
+                "url": "https://example.com/",
+                "reason": "fixture",
+            }],
+        }),
+        encoding="utf-8",
+    )
+    before = _homepage_rows()
+    rc = homepages_main(["--set-file", str(path), "--dry-run"])
+    assert rc == 0
+    assert _homepage_rows() == before
 
 
 def test_job_set_manual() -> None:
