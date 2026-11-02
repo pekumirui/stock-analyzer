@@ -32,6 +32,18 @@ class Stock(Base):
     edinet_code = Column(String(6))    # EDINET コードリストの証券コードで付ける。無い銘柄は NULL
 
 
+class Homepage(Base):
+    """上場会社のホームページ URL（KAB-319）。code は普通株（末尾 0）。FK は付けない。"""
+    __tablename__ = "homepages"
+    code = Column(String(5), primary_key=True)
+    url = Column(Text, nullable=False)
+    host = Column(String(255), nullable=False)        # 小文字。先頭 www. を除く（KAB-320）
+    source = Column(String(32), nullable=False)       # manual / xbrl_url / tanshin_html
+    origin = Column(Text, nullable=False)             # manual / xbrl:{doc_id} / tanshin:{disclosure_no}
+    changed_at = Column(DateTime, nullable=False)     # url 等が変わった時刻
+    checked_at = Column(DateTime, nullable=False)     # 最後に確認した時刻
+
+
 class DailyPrice(Base):
     __tablename__ = "daily_prices"
     code = Column(String(5), primary_key=True)

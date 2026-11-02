@@ -54,6 +54,7 @@ notepad .env                    # JQUANTS_API_KEY を記入
 | `python jobs/market/intraday_1m.py --limit 300` | yfinance の 1 分足（直近 7 日）を `data/intraday/1m/` へ。省略で内国株全銘柄（cron は平日 20:30） |
 | `python jobs/fx_rates.py --backfill` | 為替（ECB/EUR）を 1999-01-04 から取得。以後は引数なしで差分 |
 | `python jobs/edinet/edinet_codes.py` | EDINET コードリスト → `edinet_filers` と `stocks.edinet_code`（キー不要） |
+| `python jobs/market/homepages.py --code 4543 --dry-run` | 会社ホームページ URL を `homepages` へ（`--code` 繰返し or `--all`。`--set CODE URL` は manual。本番の一括は承認後） |
 | `python jobs/edinet/edinet_documents.py --backfill-years 10` | EDINET 書類一覧を 10 年分（`EDINET_API_KEY`）。以後は引数なしで直近 7 日の未確定の日 |
 | `python jobs/edinet/edinet_large_holdings.py --limit 1000` | 大量保有報告書・変更報告書・訂正 → `large_holding_reports` / `large_holdings`。新しい書類から |
 | `python jobs/edinet/edinet_buybacks.py --limit 500` | 自己株券買付状況報告書・訂正 → `edinet_buybacks` / `edinet_buyback_resolutions`。新しい書類から |
@@ -168,6 +169,7 @@ jobs/           機能ごと (market/ monthly/ supply/ xbrl/ edinet/ ops/)。cro
   market/run_batch.py   日次バッチ / バックフィル
   market/check_demo.py  スキーマ + 旧デモ取り残しガード
   market/pts_snapshot.py  株探 PTS ランキング → pts_snapshots（cron は平日 15:30〜24:00）
+  market/homepages.py   会社ホームページ URL → homepages（cron なし。`--dry-run` / `--code` / `--all` / `--set` / `--compare-hosts`）
   market/intraday_1m.py  yfinance 1 分足 → data/intraday/1m/（cron は平日 20:30）
   ops/backup_db.py      本番 SQLite の日次バックアップ（cron は 05:00 JST。成功後に OneDrive。手順は docs/DESIGN_backup.md）
   ops/vps_packages_r2.py  VPS パッケージ一覧 → data/inventory/（cron は 06:40 JST）
