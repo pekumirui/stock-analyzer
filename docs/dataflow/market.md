@@ -9,27 +9,38 @@
 ```mermaid
 flowchart LR
   n0["market/check_demo.py"]:::job
-  n1["market/pts_snapshot.py"]:::job
-  n2["market/run_batch.py"]:::job
-  n3[("daily_prices")]:::tbl
-  n4[("earnings_date_fetches")]:::tbl
-  n5[("earnings_date_pubs")]:::tbl
-  n6[("earnings_events")]:::tbl
-  n7[("indicators")]:::tbl
-  n8[("pts_snapshots")]:::tbl
-  n9[("statements")]:::tbl
-  n10[("stocks")]:::tbl
-  n11[("topix")]:::tbl
-  n0 -.- n9
-  n1 --> n8
-  n2 --> n3
-  n2 --> n4
-  n2 --> n5
-  n2 --> n6
-  n2 --> n7
-  n2 --> n9
+  n1["market/ir_sites.py"]:::job
+  n2["market/pts_snapshot.py"]:::job
+  n3["market/run_batch.py"]:::job
+  n4[("daily_prices")]:::tbl
+  n5[("earnings_date_fetches")]:::tbl
+  n6[("earnings_date_pubs")]:::tbl
+  n7[("earnings_events")]:::tbl
+  n8[("indicators")]:::tbl
+  n9[("ir_sites")]:::tbl
+  n10[("pts_snapshots")]:::tbl
+  n11[("statements")]:::tbl
+  n12[("stocks")]:::tbl
+  n13[("tdnet_pdf_documents")]:::ext
+  n14[("topix")]:::tbl
+  n15[("xbrl_elements")]:::ext
+  n16[("xbrl_facts")]:::ext
+  n17[("xbrl_filings")]:::ext
+  n0 -.- n11
+  n1 --> n9
+  n1 -.- n13
+  n1 -.- n15
+  n1 -.- n16
+  n1 -.- n17
   n2 --> n10
-  n2 --> n11
+  n3 --> n4
+  n3 --> n5
+  n3 --> n6
+  n3 --> n7
+  n3 --> n8
+  n3 --> n11
+  n3 --> n12
+  n3 --> n14
   classDef job fill:#e3ecff,stroke:#3b5bdb
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -39,6 +50,7 @@ flowchart LR
 | バッチ | 書く | 読むだけ |
 |---|---|---|
 | `jobs/market/check_demo.py` |  | `statements`, `stocks` |
+| `jobs/market/ir_sites.py` | `ir_sites` | `tdnet_pdf_documents`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings` |
 | `jobs/market/pts_snapshot.py` | `pts_snapshots` |  |
 | `jobs/market/run_batch.py` | `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `earnings_events`, `indicators`, `statements`, `stocks`, `topix` |  |
 
@@ -137,6 +149,11 @@ flowchart LR
 
 - 書く: `jobs/golden_db.py（共通・運用）`, `jobs/market/run_batch.py`
 - 読むだけ: `GET /api/screener`
+
+### ir_sites
+
+- 書く: `jobs/market/ir_sites.py`
+- 読むだけ: （観測なし）
 
 ### pts_snapshots
 

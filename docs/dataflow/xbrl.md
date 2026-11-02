@@ -109,7 +109,7 @@ flowchart LR
 ### tdnet_pdf_documents
 
 - 書く: （観測なし）
-- 読むだけ: `jobs/xbrl/xbrl_parse.py`, `GET /api/stock/pdf/{disclosure_no}`, `GET /api/stock/{code}/filings`
+- 読むだけ: `jobs/market/ir_sites.py（株価・決算）`, `jobs/xbrl/xbrl_parse.py`, `GET /api/stock/pdf/{disclosure_no}`, `GET /api/stock/{code}/filings`
 
 ### xbrl_contexts
 
@@ -129,17 +129,17 @@ flowchart LR
 ### xbrl_elements
 
 - 書く: `jobs/edinet/edinet_xbrl.py（EDINET・大量保有）`, `jobs/migrate.py（共通・運用）`, `jobs/xbrl/xbrl_parse.py`
-- 読むだけ: `jobs/edinet/edinet_shareholders.py（EDINET・大量保有）`, `jobs/xbrl/xbrl_normalize.py`
+- 読むだけ: `jobs/edinet/edinet_shareholders.py（EDINET・大量保有）`, `jobs/market/ir_sites.py（株価・決算）`, `jobs/xbrl/xbrl_normalize.py`
 
 ### xbrl_facts
 
 - 書く: `jobs/edinet/edinet_xbrl.py（EDINET・大量保有）`, `jobs/xbrl/xbrl_parse.py`
-- 読むだけ: `jobs/edinet/edinet_shareholders.py（EDINET・大量保有）`, `jobs/xbrl/xbrl_normalize.py`
+- 読むだけ: `jobs/edinet/edinet_shareholders.py（EDINET・大量保有）`, `jobs/market/ir_sites.py（株価・決算）`, `jobs/xbrl/xbrl_normalize.py`
 
 ### xbrl_filings
 
 - 書く: `jobs/edinet/edinet_xbrl.py（EDINET・大量保有）`, `jobs/xbrl/xbrl_parse.py`
-- 読むだけ: `jobs/edinet/edinet_archive.py（EDINET・大量保有）`, `jobs/edinet/edinet_shareholders.py（EDINET・大量保有）`, `jobs/xbrl/xbrl_normalize.py`, `GET /api/earnings（株価・決算）`, `GET /api/earnings/detail/{code}`, `GET /api/stock/{code}/filings`
+- 読むだけ: `jobs/edinet/edinet_archive.py（EDINET・大量保有）`, `jobs/edinet/edinet_shareholders.py（EDINET・大量保有）`, `jobs/market/ir_sites.py（株価・決算）`, `jobs/xbrl/xbrl_normalize.py`, `GET /api/earnings（株価・決算）`, `GET /api/earnings/detail/{code}`, `GET /api/stock/{code}/filings`
 
 ### xbrl_financials
 
