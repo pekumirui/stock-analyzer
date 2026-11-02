@@ -3,7 +3,8 @@
 `--dataflow=write` で書き出し、`--dataflow=check` で今のファイルと突き合わせる（CI）。どちらも `tests` 全体を走らせる前提。
 付けなければ何もしない。
 
-1. SQL は `sqlite3.connect` を包んで、接続ごとの trace callback で拾う。SQLAlchemy も `sqlite3` を直接開くジョブも同じ口を通る
+1. SQL は SQLAlchemy の `before_cursor_execute` で拾う。DB に触るのは SQLAlchemy だけという約束は
+   `tests/nonfunctional/test_db_access.py` が守る（例外は SQL を出さない `backup_db` と、`app/db.py` の PRAGMA）
 2. 1 文ごとに、呼び出しスタックでいちばん外側にある `app/`・`jobs/` の関数へ、その文が読み書きしたテーブルを付ける
    （テストは `jobs/` を通さず `app/` を直に呼ぶことが多いので、入口のフレームは探さない）
 3. 入口（`jobs/` の `__main__`、`app/api/` のルート関数）から関数の参照グラフ（`callgraph.py`）で届く関数のテーブルを足す
@@ -14,14 +15,14 @@ from __future__ import annotations
 import difflib
 import json
 import os
-import sqlite3
-import sqlite3.dbapi2
 import sys
 import threading
 from collections import defaultdict
 from pathlib import Path
 
 import pytest
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
 
 from tools.dataflow.callgraph import CallGraph, Key, is_project_file, match_route, module_name
 from tools.dataflow.render import render
@@ -44,7 +45,6 @@ GENERIC: frozenset[Key] = frozenset({
 _lock = threading.Lock()
 _seen: dict[Key, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))  # 関数 → テーブル → {"R", "W"}
 _modules: dict[str, str] = {}  # 絶対パス → モジュール名（app/ と jobs/ だけ）
-_orig_connect = sqlite3.connect
 
 
 def pytest_addoption(parser):
@@ -58,7 +58,7 @@ def pytest_addoption(parser):
 
 def _outer_function() -> Key | None:
     found = None
-    f = sys._getframe(2)
+    f = sys._getframe(1)
     while f is not None:
         code = f.f_code
         mod = _modules.get(code.co_filename)
@@ -70,8 +70,8 @@ def _outer_function() -> Key | None:
     return found
 
 
-def _trace(sql: str) -> None:
-    writes, reads = tables(sql)
+def _before_cursor_execute(conn, cursor, statement, parameters, context, executemany) -> None:  # noqa: ARG001
+    writes, reads = tables(statement)
     if not writes and not reads:
         return
     key = _outer_function()
@@ -85,12 +85,6 @@ def _trace(sql: str) -> None:
             seen[t].add("R")
 
 
-def _connect(*args, **kwargs):
-    conn = _orig_connect(*args, **kwargs)
-    conn.set_trace_callback(_trace)
-    return conn
-
-
 def pytest_configure(config):
     if not config.getoption("--dataflow"):
         return
@@ -98,8 +92,8 @@ def pytest_configure(config):
         rel = path.relative_to(ROOT).as_posix()
         if is_project_file(rel):
             _modules[str(path)] = module_name(rel)
-    # SQLAlchemy（pysqlite）は sqlite3.dbapi2.connect を呼ぶ。直接開くジョブは sqlite3.connect
-    sqlite3.connect = sqlite3.dbapi2.connect = _connect
+    # Engine のクラスに付けると、app.db.engine も sqlite_readonly_engine も、テストが作るエンジンも通る
+    event.listen(Engine, "before_cursor_execute", _before_cursor_execute)
 
 
 def job_entries(graph: CallGraph) -> dict[str, str]:
@@ -192,7 +186,7 @@ def pytest_sessionfinish(session, exitstatus):
     mode = session.config.getoption("--dataflow")
     if not mode:
         return
-    sqlite3.connect = sqlite3.dbapi2.connect = _orig_connect
+    event.remove(Engine, "before_cursor_execute", _before_cursor_execute)
     tw = session.config.get_terminal_writer()
     rel = OUT.relative_to(ROOT).as_posix()
     if exitstatus != 0:
