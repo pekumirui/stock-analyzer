@@ -220,6 +220,18 @@ TDnet 月次 PDF（`jobs/monthly/tdnet_monthly_r2.py`）:
 - 通常の REIT は残す。決算速報の REIT 全除外とは別。`MONTHLY_SKIP_CODES`（display_code の4桁）に入った銘柄は保存しない。8985 ジャパン・ホテル・リート投資法人、8798 アドバンスクリエイト（グラフ画像のみ）、8739 スパークス（運用資産残高のストック表）は取得対象外
 - stocks に無いコード（名証単独の 3032 / 3066 など）は `unknown-stock` で skip。東証マスタには載せない
 
+TDnet 決算説明資料 PDF（`jobs/market/tdnet_briefing_r2.py`。KAB-327）:
+
+- 一覧は `jobs/_tdnet.py` の `fetch_days`。採否は `app/market/briefing_title.py` の `is_material_title` だけ（保存も、あとから同じ判定が要る処理もここを呼ぶ）
+- 採る: 空白と全角半角を畳んだ表題が、決算・四半期・中間・通期・業績のどれかと、説明資料・説明会資料・補足資料・プレゼン資料（プレゼンテーション資料を含む）のどれかを両方含むもの。英語は earnings / financial results の presentation、または briefing / supplementary materials。決算短信の補足資料は採る
+- 落とす: 訂正・誤記。お知らせ、開催・中止・延期、掲載について・公開について（決算説明会開催のお知らせ、説明資料を載せた案内）。英語の notice / correction。資料の語が無い「決算説明会」。決算短信そのもの。成長可能性の説明資料や、決算などの語が無い補足説明資料。中期経営計画の説明会資料（決算・四半期などの語が無いもの）
+- 「修正」だけでは落とさない。補足資料の表題に業績予想の修正が入ることがある
+- 保存先は `data/briefing/{code}/YYYYMMDD_CODE_名前_表題.pdf`。`{code}` とファイル名は月次 PDF と同じ（display_code。J-Quants の 5 桁にはしない）。`SHARE_ROOT` を置くとその直下の `briefing/`
+- 既存ファイルが PDF なら取り直さない。索引が無ければ索引だけ足す。その件数は `reindexed`（新規に保存した `saved` とは別）。PDF でなければ取り直す
+- 索引は `briefing_documents`。列は source / document_id / code（5 桁）/ company_name / pubdate / title / rel_path（`data/briefing` から）/ url / sha256 / size / status / saved_at。このジョブは source=`tdnet`、document_id は TDnet の PDF ファイル名、status=`saved`。ホームページで見つけた PDF は同じ表に source=`homepage`（取得はこのジョブではしない。`app/market/briefing_store.record_briefing`）
+- 日次 cron は直近 7 日（22:10 JST。取りこぼしの拾い直し）。初回の約 30 日は `deploy/cron-run.sh jobs/market/tdnet_briefing_r2.py 30` を手で一度。デプロイでは走らない
+- OneDrive への控え（`backup_data`）にはまだ載せない。TDnet は約 1 か月で PDF を消す
+
 TDnet 月次 PDF の自動投入（`jobs/monthly/tdnet_monthly_pdf_sidecar.py` → `jobs/monthly/tdnet_monthly_pdf_ingest.py`）:
 
 - 銘柄ごとの書式は宣言しない。DB に開示月（ファイル名日付の前暦月）の値がある前回の PDF（最大 3 本さかのぼる）から、DB の各行を再現する PDF の行を探して学ぶ。unit は DB から。DB が指数で PDF が増減率なら `yoy_pct`（+100 で一致）
@@ -317,7 +329,7 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
 
 ホスト一致の確認は `python jobs/market/homepages.py --all --compare-hosts`（書き込みしない）。
 
-**短信表紙の説明資料（`tanshin_covers`）。** 決算短信1ページ目の「決算補足説明資料作成の有無」「決算説明会開催の有無」を、短信ごとに1行残す（KAB-325）。主キーは `disclosure_no`。`code` にインデックスを付ける。最新の1件は `disclosed_at` が新しい行。API / SPA / cron はまだ無い。表は `jobs/migrate.py` が作る。ジョブは `python jobs/market/tanshin_covers.py --code 7203`。`--limit` は DB に既にある短信から新しい順にその社数だけ、各社の最新1件を書く。前の短信の行は消さない。`--all` は無い。本番への一括投入はしない。説明資料 PDF を TDnet から保存する処理は KAB-328。その索引ができてから、有無の判定とホームページ探索を別 PR で足す。
+**短信表紙の説明資料（`tanshin_covers`）。** 決算短信1ページ目の「決算補足説明資料作成の有無」「決算説明会開催の有無」を、短信ごとに1行残す（KAB-325）。主キーは `disclosure_no`。`code` にインデックスを付ける。最新の1件は `disclosed_at` が新しい行。API / SPA / cron はまだ無い。表は `jobs/migrate.py` が作る。ジョブは `python jobs/market/tanshin_covers.py --code 7203`。`--limit` は DB に既にある短信から新しい順にその社数だけ、各社の最新1件を書く。前の短信の行は消さない。`--all` は無い。本番への一括投入はしない。説明資料 PDF の保存は `jobs/market/tdnet_briefing_r2.py`（KAB-327、`briefing_documents`）。有無の判定とホームページ探索は、その索引を見て別 PR で足す。
 
 - 対象は普通株（`stocks.product_category` が内国株券 `011` または外国株券 `021`）と REIT（`013`）。ETF（`014`）と外国 ETF / ETN（`023`）は除く。REIT でも名称に「ファンド」または「インフラ」がある投資法人は除く。マスタが無い銘柄は、題名が ETF・ETN・投資信託・ファンドでなければ残す
 - 題名に「決算短信」があるもの。`訂正` と「決算短信…の修正について／の一部修正」は飛ばす

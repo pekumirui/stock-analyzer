@@ -44,6 +44,31 @@ class Homepage(Base):
     checked_at = Column(DateTime, nullable=False)     # 最後に確認した時刻
 
 
+class BriefingDocument(Base):
+    """保存した決算説明資料（KAB-327）。FK は付けない。
+
+    TDnet の保存ジョブが source=tdnet で書き、会社ホームページで見つけた PDF は
+    同じ表に source=homepage で足す。document_id は出所ごとの安定した ID
+    （TDnet は PDF のファイル名）。code は普通株の 5 桁。rel_path は data/briefing から。
+    """
+    __tablename__ = "briefing_documents"
+    source = Column(String(16), primary_key=True)       # tdnet / homepage
+    document_id = Column(String(80), primary_key=True)
+    code = Column(String(5), nullable=False)            # 普通株の 5 桁
+    company_name = Column(String)
+    pubdate = Column(String(32), nullable=False)        # 開示日時 YYYY-MM-DD HH:MM:SS
+    title = Column(Text, nullable=False)
+    rel_path = Column(Text, nullable=False)
+    url = Column(Text)
+    sha256 = Column(String(64))
+    size = Column(Integer)
+    status = Column(String(16), nullable=False)         # saved
+    saved_at = Column(DateTime, nullable=False)         # JST naive
+    __table_args__ = (
+        Index("ix_briefing_documents_code_pubdate", "code", "pubdate"),
+    )
+
+
 class TanshinCover(Base):
     """決算短信の表紙（KAB-325）。短信ごとに1行。FK は付けない。
 

@@ -13,42 +13,45 @@ flowchart LR
   n2["market/pts_snapshot.py"]:::job
   n3["market/run_batch.py"]:::job
   n4["market/tanshin_covers.py"]:::job
-  n5[("daily_prices")]:::tbl
-  n6[("earnings_date_fetches")]:::tbl
-  n7[("earnings_date_pubs")]:::tbl
-  n8[("earnings_events")]:::tbl
-  n9[("homepages")]:::tbl
-  n10[("indicators")]:::tbl
-  n11[("pts_snapshots")]:::tbl
-  n12[("statements")]:::tbl
-  n13[("stocks")]:::tbl
-  n14[("tanshin_covers")]:::tbl
-  n15[("tdnet_pdf_documents")]:::ext
-  n16[("topix")]:::tbl
-  n17[("xbrl_documents")]:::ext
-  n18[("xbrl_elements")]:::ext
-  n19[("xbrl_facts")]:::ext
-  n20[("xbrl_filings")]:::ext
-  n0 -.- n12
-  n1 --> n9
-  n1 -.- n12
-  n1 -.- n15
-  n1 -.- n18
-  n1 -.- n19
+  n5["market/tdnet_briefing_r2.py"]:::job
+  n6[("briefing_documents")]:::tbl
+  n7[("daily_prices")]:::tbl
+  n8[("earnings_date_fetches")]:::tbl
+  n9[("earnings_date_pubs")]:::tbl
+  n10[("earnings_events")]:::tbl
+  n11[("homepages")]:::tbl
+  n12[("indicators")]:::tbl
+  n13[("pts_snapshots")]:::tbl
+  n14[("statements")]:::tbl
+  n15[("stocks")]:::tbl
+  n16[("tanshin_covers")]:::tbl
+  n17[("tdnet_pdf_documents")]:::ext
+  n18[("topix")]:::tbl
+  n19[("xbrl_documents")]:::ext
+  n20[("xbrl_elements")]:::ext
+  n21[("xbrl_facts")]:::ext
+  n22[("xbrl_filings")]:::ext
+  n0 -.- n14
+  n1 --> n11
+  n1 -.- n14
+  n1 -.- n17
   n1 -.- n20
-  n2 --> n11
-  n3 --> n5
-  n3 --> n6
+  n1 -.- n21
+  n1 -.- n22
+  n2 --> n13
   n3 --> n7
   n3 --> n8
+  n3 --> n9
   n3 --> n10
   n3 --> n12
-  n3 --> n13
-  n3 --> n16
-  n4 --> n14
-  n4 -.- n15
+  n3 --> n14
+  n3 --> n15
+  n3 --> n18
+  n4 --> n16
   n4 -.- n17
-  n4 -.- n20
+  n4 -.- n19
+  n4 -.- n22
+  n5 --> n6
   classDef job fill:#e3ecff,stroke:#3b5bdb
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -62,6 +65,7 @@ flowchart LR
 | `jobs/market/pts_snapshot.py` | `pts_snapshots` |  |
 | `jobs/market/run_batch.py` | `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `earnings_events`, `indicators`, `statements`, `stocks`, `topix` |  |
 | `jobs/market/tanshin_covers.py` | `tanshin_covers` | `stocks`, `tdnet_pdf_documents`, `xbrl_documents`, `xbrl_filings` |
+| `jobs/market/tdnet_briefing_r2.py` | `briefing_documents` |  |
 
 ## API
 
@@ -128,6 +132,11 @@ flowchart LR
 ## テーブル
 
 ほかの機能のバッチ・API も含めて、その表を書く・読む入口。
+
+### briefing_documents
+
+- 書く: `jobs/market/tdnet_briefing_r2.py`
+- 読むだけ: （観測なし）
 
 ### daily_prices
 
