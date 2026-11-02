@@ -140,63 +140,15 @@ async function restoreRoute(){
   writeRoute("earnings");
 }
 
-// スマホのドロワー（三本線で左から出す）。PC では nav が常に出ているので開け閉めは見た目に効かない
-const MOBILE_NAV_MQ = "(max-width: 720px)";
-function mobileNav(){
-  return window.matchMedia(MOBILE_NAV_MQ).matches;
-}
+// スマホのメニュー（三本線でヘッダーの下に開く）。PC では nav が常に出ているので開け閉めは見た目に効かない
 function setMenu(open){
-  const nav = $("#app-nav");
-  const bd = $("#nav-backdrop");
-  if(open){
-    if(mobileNav()) nav.hidden = false;
-    void nav.offsetWidth;
-    nav.classList.add("open");
-    bd.hidden = false;
-  } else {
-    nav.classList.remove("open");
-    bd.hidden = true;
-    if(mobileNav()){
-      const hideNav = ev => {
-        if(ev && ev.target !== nav) return;
-        if(ev && ev.propertyName && ev.propertyName !== "transform") return;
-        nav.removeEventListener("transitionend", hideNav);
-        if(!nav.classList.contains("open") && mobileNav()) nav.hidden = true;
-      };
-      nav.addEventListener("transitionend", hideNav);
-      setTimeout(hideNav, 280);
-    } else {
-      nav.hidden = false;
-    }
-  }
+  $("#app-nav").classList.toggle("open", open);
   $("#menu-btn").setAttribute("aria-expanded", String(open));
 }
-if(mobileNav()) $("#app-nav").hidden = true;
-window.matchMedia(MOBILE_NAV_MQ).addEventListener("change", e => {
-  if(!e.matches){
-    $("#app-nav").hidden = false;
-    $("#app-nav").classList.remove("open");
-    $("#nav-backdrop").hidden = true;
-    $("#menu-btn").setAttribute("aria-expanded", "false");
-  } else if(!$("#app-nav").classList.contains("open")){
-    $("#app-nav").hidden = true;
-  }
-});
 
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => { setMenu(false); selectTab(b.dataset.tab); });
 $("#menu-btn").onclick = () => setMenu(!$("#app-nav").classList.contains("open"));
-$("#nav-backdrop").onclick = () => setMenu(false);
 document.addEventListener("keydown", e => { if(e.key === "Escape") setMenu(false); });
-// ドロワーを左へスワイプで閉じる
-{
-  let x0 = null;
-  const nav = $("#app-nav");
-  nav.addEventListener("touchstart", e => { x0 = e.touches[0].clientX; }, {passive: true});
-  nav.addEventListener("touchend", e => {
-    if(x0 !== null && e.changedTouches[0].clientX - x0 < -50) setMenu(false);
-    x0 = null;
-  });
-}
 window.writeRoute = writeRoute;
 window.restoreRoute = restoreRoute;
 window.currentScreenId = currentScreenId;

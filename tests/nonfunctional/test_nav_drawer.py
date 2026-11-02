@@ -1,4 +1,8 @@
-"""スマホドロワーの幕が iOS Safari の枠をグレーに残さない（KAB-317）。"""
+"""スマホのメニューが iOS Safari の枠をグレーにしない（KAB-317）。
+
+Safari 26 は画面上下端の fixed の background-color を枠の色にし、閉じても残す。
+メニューはヘッダーの下に流れで開き、fixed の幕やドロワーを置かない。
+"""
 from __future__ import annotations
 
 import re
@@ -14,6 +18,13 @@ def _fail(msg: str) -> None:
     raise AssertionError(msg)
 
 
+def _mobile_block(css: str) -> str:
+    parts = css.split("@media (max-width:720px){", 1)
+    if len(parts) < 2:
+        _fail("720px のメディアクエリが無い")
+    return parts[1].split("\n  }\n", 1)[0]
+
+
 def test_theme_color_is_white() -> None:
     html = INDEX.read_text(encoding="utf-8")
     if 'name="theme-color" content="#ffffff"' not in html:
@@ -27,40 +38,33 @@ def test_html_background_is_canvas_white() -> None:
         _fail("html の背景は --bg（Safari の枠と overscroll）")
 
 
-def test_nav_backdrop_background_color_is_white() -> None:
-    css = CSS.read_text(encoding="utf-8")
-    visible = hidden = after = None
-    for m in re.finditer(r"#nav-backdrop(::after|\[hidden\])? \{([^}]+)\}", css):
-        body = m.group(2)
-        kind = m.group(1) or ""
-        if kind == "::after":
-            after = body
-        elif kind == "[hidden]":
-            hidden = body
-        elif "position:fixed" in body:
-            visible = body
-    if not visible:
-        _fail("#nav-backdrop の fixed ルールが無い")
-    compact = re.sub(r"\s+", "", visible)
-    if "background-color:var(--bg)" not in compact:
-        _fail("幕本体の background-color は --bg（Safari が枠に使う）")
-    if "rgba(0,0,0" in compact:
-        _fail("幕本体に半透明の黒を置かない")
-    if not after or "rgba(0,0,0,.35)" not in re.sub(r"\s+", "", after):
-        _fail("暗いのは #nav-backdrop::after")
-    after_c = re.sub(r"\s+", "", after)
-    if "top:48px" not in after_c or "bottom:48px" not in after_c:
-        _fail("::after は上下端から外す")
-    if not hidden or "display:none" not in hidden:
-        _fail("#nav-backdrop[hidden] は display:none")
+def test_no_fixed_overlay_for_menu() -> None:
+    html = INDEX.read_text(encoding="utf-8")
+    if "nav-backdrop" in html:
+        _fail("幕 #nav-backdrop を置かない")
+    block = _mobile_block(CSS.read_text(encoding="utf-8"))
+    if "position:fixed" in block:
+        _fail("スマホのヘッダー・メニューに position:fixed を使わない（Safari が枠の色に使う）")
 
 
-def test_set_menu_hides_drawer_from_render_tree() -> None:
+def test_menu_opens_below_header_in_flow() -> None:
+    block = _mobile_block(CSS.read_text(encoding="utf-8"))
+    nav = re.search(r"#app-nav \{([^}]+)\}", block)
+    if not nav:
+        _fail("スマホの #app-nav ルールが無い")
+    body = re.sub(r"\s+", "", nav.group(1))
+    for want in ("display:none", "flex:10100%"):
+        if want not in body:
+            _fail(f"#app-nav は閉じて {want}（ヘッダーの下の 1 行を占める）")
+    if not re.search(r"#app-nav\.open \{\s*display:flex;", block):
+        _fail("#app-nav.open で開く")
+    if not re.search(r"header \{[^}]*flex-wrap:wrap", block):
+        _fail("ヘッダーは折り返してメニューを下の行に出す")
+
+
+def test_set_menu_toggles_open_class() -> None:
     js = TABS_JS.read_text(encoding="utf-8")
-    if "nav.hidden = false" not in js or "nav.hidden = true" not in js:
-        _fail("setMenu はモバイルで #app-nav を hidden にして描画ツリーから外す")
-    if "bd.hidden = false" not in js or "bd.hidden = true" not in js:
-        _fail("setMenu は #nav-backdrop.hidden で開閉する")
-    css = CSS.read_text(encoding="utf-8")
-    if "#app-nav[hidden] { display:none; }" not in css:
-        _fail("#app-nav[hidden] は display:none")
+    if '$("#app-nav").classList.toggle("open", open)' not in js:
+        _fail("setMenu は #app-nav.open で開閉する")
+    if "aria-expanded" not in js:
+        _fail("setMenu は #menu-btn の aria-expanded を更新する")

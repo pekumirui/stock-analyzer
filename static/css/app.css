@@ -9,7 +9,7 @@
   nav button, #app-nav a { background:none; border:none; color:var(--sub); padding:8px 10px; cursor:pointer; font-size:14px; border-bottom:2px solid transparent; }
   nav button.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
   #app-nav a { text-decoration:none; display:inline-block; font-family:inherit; }
-  #cur-tab, #menu-btn, #nav-backdrop { display:none; }
+  #cur-tab, #menu-btn { display:none; }
   /* パンくずはヘッダー。PC はタブ行の下。幅に収まらないときは折り返さず横スクロールし、末尾を見せる */
   #crumbs { font-size:12px; color:var(--sub); line-height:1.4; min-width:0;
             flex:1 0 100%; order:5; overflow-x:auto; -webkit-overflow-scrolling:touch; }
@@ -21,31 +21,22 @@
   #crumbs a:hover { text-decoration:underline; }
   #crumbs [aria-current="page"] { color:var(--text); }
   body.public-monthly #crumbs { flex:1 1 auto; order:0; }
-  /* スマホはヘッダーを 1 行にし、タブは左端の三本線から左のドロワーで出す（tabs.js） */
+  /* スマホはヘッダーを 1 行にし、タブは左端の三本線でヘッダーの下に開く（tabs.js）。
+     fixed の幕やドロワーは使わない（iOS Safari 26 は fixed の色を画面上下の枠に使い、閉じてもグレーが残る） */
   @media (max-width:720px){
-    header { flex-wrap:nowrap; padding:8px 10px 8px 6px; }
-    #cur-tab { display:block; font-size:14px; font-weight:600; color:var(--accent); white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+    header { flex-wrap:wrap; padding:8px 10px 8px 6px; }
+    #cur-tab { display:block; flex:1 1 0; font-size:14px; font-weight:600; color:var(--accent); white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; }
     header:has(#crumbs:not([hidden])) #cur-tab { display:none; }
-    #crumbs { display:block; flex:1 1 auto; order:0; padding:0; font-size:13px; }
+    #crumbs { display:block; flex:1 1 0; order:0; padding:0; font-size:13px; }
     #crumbs[hidden] { display:none; }
     #crumbs [aria-current="page"] { font-weight:600; color:var(--accent); }
-    #menu-btn { display:flex; flex-shrink:0; background:none; border:0; color:var(--text); padding:6px; cursor:pointer; position:relative; z-index:1; }
+    #menu-btn { display:flex; flex-shrink:0; background:none; border:0; color:var(--text); padding:6px; cursor:pointer; }
     #menu-btn svg { width:24px; height:24px; }
-    header:has(#app-nav.open) #menu-btn,
-    header:has(#app-nav.open) #cur-tab,
-    header:has(#app-nav.open) #crumbs { visibility:hidden; }
-    #app-nav { position:fixed; top:0; left:0; bottom:0; z-index:50; width:min(78vw, 300px); background:var(--panel);
-               display:flex; flex-direction:column; padding:calc(12px + env(safe-area-inset-top)) 0 12px; box-shadow:4px 0 18px rgba(0,0,0,.18);
-               transform:translateX(-105%); transition:transform .22s ease; overflow-y:auto; }
-    #app-nav.open { transform:translateX(0); }
-    #app-nav[hidden] { display:none; }
-    #app-nav button, #app-nav a { text-align:left; font-size:16px; padding:14px 22px; border-bottom:0; border-left:3px solid transparent; color:var(--text); }
+    #app-nav { display:none; order:10; flex:1 0 100%; flex-direction:column; margin:8px -10px -8px -6px; border-top:1px solid var(--border); }
+    #app-nav.open { display:flex; }
+    #app-nav button, #app-nav a { text-align:left; font-size:16px; padding:12px 20px; border-bottom:0; border-left:3px solid transparent; color:var(--text); }
     #app-nav button.active { background:var(--row-sel); border-left-color:var(--accent); color:var(--accent); }
     #app-nav a { display:block; }
-    /* Safari 26 は fixed の background-color を枠の色にする。本体は白、暗いのは端から外した ::after */
-    #nav-backdrop { display:block; position:fixed; inset:0; z-index:49; background-color:var(--bg); }
-    #nav-backdrop::after { content:""; position:absolute; top:48px; right:0; bottom:48px; left:0; background:rgba(0,0,0,.35); }
-    #nav-backdrop[hidden] { display:none; }
   }
   main { padding:8px 12px; }
   .panel { background:var(--panel); padding:12px; margin-bottom:12px; }
