@@ -1,4 +1,4 @@
-"""バッチ共通処理。ネットワークと app/ はテストから分離する。app は import しない。
+"""バッチ共通処理。ネットワークはテストから差し替えられるよう引数で受ける。
 
 http_get は IR 側の実装（識別 UA が 403 ならブラウザ UA に一度だけ切替、
 中間証明書の欠落は AIA で補う）。各ジョブの識別 UA は user_agent で渡す。
@@ -12,7 +12,6 @@ import os
 import random
 import re
 import socket
-import sqlite3
 import ssl
 import subprocess
 import tempfile
@@ -277,25 +276,6 @@ def date_window(days: int, today: date | None = None) -> tuple[date, date]:
     return start, end
 
 
-def _dotenv_setdefault(text: str, environ: dict[str, str]) -> None:
-    for line in text.splitlines():
-        s = line.strip()
-        if not s or s.startswith("#"):
-            continue
-        if s.startswith("export "):
-            s = s[7:].strip()
-        if "=" not in s:
-            continue
-        key, _, val = s.partition("=")
-        key = key.strip()
-        if not key:
-            continue
-        val = val.strip()
-        if len(val) >= 2 and val[0] == val[-1] and val[0] in ("'", '"'):
-            val = val[1:-1]
-        environ.setdefault(key, val)
-
-
 def resolve_database_url(
     environ: Mapping[str, str] | None = None,
     dotenv_path: Path | None = None,
@@ -307,12 +287,10 @@ def resolve_database_url(
     url = (env.get("DATABASE_URL") or "").strip()
     if url:
         return url
+    from app.config import load_dotenv
+
     merged = dict(env)
-    src = root / ".env" if dotenv_path is None else dotenv_path
-    try:
-        _dotenv_setdefault(src.read_text(encoding="utf-8"), merged)
-    except OSError:
-        pass
+    load_dotenv(root / ".env" if dotenv_path is None else dotenv_path, merged)
     url = (merged.get("DATABASE_URL") or "").strip()
     if url:
         return url
@@ -353,13 +331,18 @@ def load_stock_product_map(
         if not db_path.is_file():
             print(f"warn stocks db missing {db_path}", flush=True)
             return {}
-        conn = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True, timeout=8)
+        # app.db は import 時に DATABASE_URL のエンジンを作る。sqlite でないときに読み込まないよう、ここで import
+        from sqlalchemy import select
+
+        from app.db import sqlite_readonly_engine
+        from app.models import Stock
+
+        engine = sqlite_readonly_engine(db_path)
         try:
-            rows = conn.execute(
-                "SELECT code, product_category, name FROM stocks"
-            ).fetchall()
+            with engine.connect() as conn:
+                rows = conn.execute(select(Stock.code, Stock.product_category, Stock.name)).all()
         finally:
-            conn.close()
+            engine.dispose()
         out: dict[str, tuple[str | None, str | None]] = {}
         for code, cat, name in rows:
             if not code:
