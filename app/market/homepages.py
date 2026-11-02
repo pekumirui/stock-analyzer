@@ -1,7 +1,14 @@
-"""上場会社のホームページ URL を homepages に残す（KAB-319）。
+"""上場会社のホームページ URL を homepages に残す（KAB-319、取りこぼしは KAB-322）。
 
 候補は新しい提出を優先。同じ日なら manual > xbrl_url > tanshin_html。
 XBRL は code ごとに最新 1 件だけ。短信は『URL』『ホームページ』ラベル近くの URL。
+スキーム無しのドメインはラベルの近くだけ候補にし、https:// を補う。
+URL 中の空白は除き、http://https:// のような二重スキームは内側を残す。
+末尾ラベルが ICANN の TLD でないホストは捨て、次の候補へ進む。
+訂正の題名と本文が 5KB 未満の短信は飛ばし、新しい順に最初に取れた URL を採る。
+直近でどれからも取れなければ、取れるまで古い短信へさかのぼる。
+題名の「決算短信」「FinancialStatements」、または statements の種類が FinancialStatements。
+jpx.co.jp は 86970 だけ残す。持株会社化の旧コードは PREDECESSOR_CODES。
 普通株コード（末尾 0）に畳む。HTTP はしない。ジョブは init_db しない。
 """
 from __future__ import annotations
@@ -12,11 +19,20 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlparse
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..db import upsert
-from ..models import Homepage, Stock, TdnetPdfDocument, XbrlElement, XbrlFact, XbrlFiling
+from .tlds import TLDS
+from ..models import (
+    Homepage,
+    Statement,
+    Stock,
+    TdnetPdfDocument,
+    XbrlElement,
+    XbrlFact,
+    XbrlFiling,
+)
 
 JST = timezone(timedelta(hours=9))
 
@@ -32,14 +48,45 @@ XBRL_URL_NAME = "URL"
 
 _CODE4_RE = re.compile(r"^[0-9][0-9A-Z]{3}$")
 _URL_RE = re.compile(r"https?://[A-Za-z0-9][A-Za-z0-9._~:/\?#@!$&'()*+,;=%\-]*", re.I)
-_SCHEMELESS_RE = re.compile(r"^(?:www\.)[A-Za-z0-9.-]+(?:[/:].*)?$", re.I)
+# 値全体がドメイン（XBRL の wize-inc.jp、www. 無しも）。パスが付いてもよい
+_SCHEMELESS_DOMAIN_RE = re.compile(
+    r"^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,}"
+    r"(?:[/:?#].*)?$",
+    re.I,
+)
+# 本文中。メールと、すでにスキームがある URL の途中には当たらない
+_SCHEMELESS_IN_TEXT_RE = re.compile(
+    r"(?<![A-Za-z0-9@./])"
+    r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+"
+    r"[A-Za-z]{2,}"
+    r"(?:/[A-Za-z0-9._~:/?#@!$&'()*+,;=%\-]*)?",
+    re.I,
+)
 _FILE_RE = re.compile(
     r"\.(?:pdf|xlsx?|csv|zip|docx?|pptx?|exe|wmv|mp4)(?:$|[?#])", re.I)
+_BARE_FILE_TLDS = frozenset({
+    "pdf", "xls", "xlsx", "csv", "zip", "doc", "docx", "ppt", "pptx",
+    "exe", "wmv", "mp4", "html", "htm", "txt", "xml", "json",
+})
 _FW = str.maketrans({"：": ":", "／": "/", "．": "."})
 _TRAIL_PUNCT = ".,);]）｣」'\"、。"
 _LABEL_RE = re.compile(
     r"(?:ホームページ|ＨＰ|(?<![A-Za-z0-9])URL(?![A-Za-z0-9])|ＵＲＬ)")
 _LABEL_WINDOW = 400
+# pdfium が ToUnicode のない欧文を (cid:N) にする。N + 29 が印字 ASCII（日本トリムの表紙）
+_CID_RE = re.compile(r"\(cid:(\d+)\)")
+_CID_ASCII_DELTA = 29
+_WS_RE = re.compile(r"\s+")
+_MULTI_SCHEME_RE = re.compile(r"^(?:https?://){2,}", re.I)
+
+JPX_CODE = "86970"
+SHORT_HTML_BYTES = 5_000
+# 持株会社化で書類が旧コードに残っている。新しいコードに書類が無いときだけ旧を見る
+PREDECESSOR_CODES = {
+    "641A0": "72400",  # ＮＯＫ Group ← ＮＯＫ
+    "642A0": "95080",  # キューデンホールディングス ← 九州電力
+    "590A0": "44490",  # ギフティグループ ← ギフティ
+}
 
 # 完全一致、またはドット区切りの末尾一致（examplex.com は x.com に当たらない）
 _SKIP_HOSTS = (
@@ -92,11 +139,22 @@ def origin_tanshin(disclosure_no: str) -> str:
     return f"tanshin:{disclosure_no}"
 
 
-def host_is_skipped(host: str) -> bool:
+def _allows_jpx(code: str | None) -> bool:
+    if not code:
+        return False
+    try:
+        return ordinary_code(code) == JPX_CODE
+    except ValueError:
+        return False
+
+
+def host_is_skipped(host: str, *, allow_jpx: bool = False) -> bool:
     h = (host or "").lower().rstrip(".")
     if not h:
         return True
     for needle in _SKIP_HOSTS:
+        if allow_jpx and needle == "jpx.co.jp":
+            continue
         if h == needle or h.endswith("." + needle):
             return True
     return False
@@ -112,20 +170,52 @@ def url_host(url: str | None) -> str | None:
     return host or None
 
 
-def normalize_url(raw: str | None) -> str | None:
+def _bare_file_host(host: str) -> bool:
+    return host.rsplit(".", 1)[-1] in _BARE_FILE_TLDS
+
+
+def _repair_url_text(raw: str) -> str:
+    """空白を除き、先頭の二重スキームは内側だけ残す。"""
+    s = _WS_RE.sub("", raw)
+    match = _MULTI_SCHEME_RE.match(s)
+    if match is None:
+        return s
+    inner = re.findall(r"https?://", match.group(0), flags=re.I)[-1].lower()
+    return inner + s[match.end():]
+
+
+# RFC 2606。ICANN の一覧には無いが TLD ではある（テストの example を含む）
+_RESERVED_TLDS = frozenset({"example", "invalid", "localhost", "test"})
+
+
+def _host_has_tld(host: str) -> bool:
+    labels = [part for part in host.lower().rstrip(".").split(".") if part]
+    if len(labels) < 2:
+        return False
+    tld = labels[-1]
+    return tld in TLDS or tld in _RESERVED_TLDS
+
+
+def normalize_url(raw: str | None, *, allow_jpx: bool = False) -> str | None:
     if raw is None:
         return None
-    s = str(raw).strip().translate(_FW)
+    s = _repair_url_text(str(raw).strip().translate(_FW))
     if not s:
         return None
     s = s.rstrip(_TRAIL_PUNCT)
-    if "://" not in s and _SCHEMELESS_RE.match(s):
+    bare = False
+    if "://" not in s and _SCHEMELESS_DOMAIN_RE.fullmatch(s):
         s = "https://" + s
+        bare = True
     parsed = urlparse(s)
     if parsed.scheme not in ("http", "https"):
         return None
     host = (parsed.hostname or "").lower()
-    if host_is_skipped(host):
+    if bare and _bare_file_host(host):
+        return None
+    if not _host_has_tld(host):
+        return None
+    if host_is_skipped(host, allow_jpx=allow_jpx):
         return None
     if "/wp-content/" in (parsed.path or "").lower():
         return None
@@ -134,16 +224,41 @@ def normalize_url(raw: str | None) -> str | None:
     return parsed.geturl()
 
 
+def _decode_cid_ascii(html: str) -> str:
+    def repl(match: re.Match[str]) -> str:
+        code = int(match.group(1)) + _CID_ASCII_DELTA
+        if 32 <= code <= 126:
+            return chr(code)
+        return " "
+    return _CID_RE.sub(repl, html)
+
+
 def _plain_text(html: str) -> str:
-    text = re.sub(r"<[^>]+>", " ", html or "")
+    text = _decode_cid_ascii(html or "")
+    text = re.sub(r"<[^>]+>", " ", text)
     return text.translate(_FW)
 
 
-def _urls_from_text(text: str) -> list[str]:
+def _url_matches(text: str, *, schemeless: bool) -> list[re.Match[str]]:
+    http_matches = list(_URL_RE.finditer(text))
+    spans = [(match.start(), match.end()) for match in http_matches]
+    found = list(http_matches)
+    if schemeless:
+        for match in _SCHEMELESS_IN_TEXT_RE.finditer(text):
+            if any(start <= match.start() < end for start, end in spans):
+                continue
+            found.append(match)
+    found.sort(key=lambda match: match.start())
+    return found
+
+
+def _urls_from_text(
+    text: str, *, allow_jpx: bool = False, schemeless: bool = False,
+) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
-    for match in _URL_RE.finditer(text):
-        url = normalize_url(match.group(0))
+    for match in _url_matches(text, schemeless=schemeless):
+        url = normalize_url(match.group(0), allow_jpx=allow_jpx)
         if url is None or url in seen:
             continue
         seen.add(url)
@@ -152,19 +267,22 @@ def _urls_from_text(text: str) -> list[str]:
 
 
 def extract_urls_from_html(html: str) -> list[str]:
-    """タグを剥がした本文から会社サイトの URL を出現順で返す。"""
+    """タグを剥がした本文から会社サイトの URL を出現順で返す。スキーム無しは含めない。"""
     return _urls_from_text(_plain_text(html))
 
 
-def pick_homepage_url(html: str) -> str | None:
-    """『URL』『ホームページ』ラベルの直後を優先。無ければ先頭の会社 URL。"""
+def pick_homepage_url(html: str, *, allow_jpx: bool = False) -> str | None:
+    """『URL』『ホームページ』ラベルの直後を優先。無ければ先頭の会社 URL。
+
+    スキーム無しのドメインはラベルの近くだけ。本文のどこにでも拾うと誤検出になる。
+    """
     text = _plain_text(html)
     for match in _LABEL_RE.finditer(text):
         window = text[match.end(): match.end() + _LABEL_WINDOW]
-        urls = _urls_from_text(window)
+        urls = _urls_from_text(window, allow_jpx=allow_jpx, schemeless=True)
         if urls:
             return urls[0]
-    urls = _urls_from_text(text)
+    urls = _urls_from_text(text, allow_jpx=allow_jpx)
     return urls[0] if urls else None
 
 
@@ -243,10 +361,25 @@ def _target_codes(db: Session, codes: list[str] | None) -> list[str]:
     return sorted({ordinary_code(c) for c in rows})
 
 
+def _codes_with_predecessors(codes: list[str]) -> list[str]:
+    extra = [PREDECESSOR_CODES[code] for code in codes if code in PREDECESSOR_CODES]
+    return sorted(set(codes) | set(extra))
+
+
+def _fill_predecessors(found: dict, requested: list[str]) -> dict:
+    """新しいコードに候補が無いときだけ、手で持つ旧コードの候補をコピーする。"""
+    wanted = set(requested)
+    for new, old in PREDECESSOR_CODES.items():
+        if new in wanted and new not in found and old in found:
+            found[new] = found[old]
+    return {code: row for code, row in found.items() if code in wanted}
+
+
 def _load_xbrl_urls(db: Session, codes: list[str]) -> dict[str, tuple[str, str, datetime]]:
     """code -> (url, origin, submitted_at)。最新 1 件だけ。無効なら候補なし。"""
     if not codes:
         return {}
+    query_codes = _codes_with_predecessors(codes)
     ranked = (
         select(
             XbrlFiling.code,
@@ -261,7 +394,7 @@ def _load_xbrl_urls(db: Session, codes: list[str]) -> dict[str, tuple[str, str, 
         .join(XbrlFact, XbrlFact.filing_id == XbrlFiling.id)
         .join(XbrlElement, XbrlElement.id == XbrlFact.element_id)
         .where(
-            XbrlFiling.code.in_(codes),
+            XbrlFiling.code.in_(query_codes),
             XbrlElement.namespace_key.in_(XBRL_URL_KEYS),
             XbrlElement.local_name == XBRL_URL_NAME,
             XbrlFact.is_nil.is_(False),
@@ -275,24 +408,35 @@ def _load_xbrl_urls(db: Session, codes: list[str]) -> dict[str, tuple[str, str, 
     out: dict[str, tuple[str, str, datetime]] = {}
     for code, value, doc_id, submitted in db.execute(stmt):
         key = ordinary_code(code)
-        url = normalize_url(value)
+        url = normalize_url(value, allow_jpx=_allows_jpx(code))
         if url is None:
             continue
         prev = out.get(key)
         if prev is not None and _as_of_dt(prev[2]) >= _as_of_dt(submitted):
             continue
         out[key] = (url, origin_xbrl(doc_id), submitted)
-    return out
+    return _fill_predecessors(out, codes)
+
+
+def _tanshin_rejected(title: str | None, nbytes: int | None) -> bool:
+    """訂正短信と、変換後 HTML が 5KB 未満の短信は候補にしない。"""
+    if title and "訂正" in title:
+        return True
+    return nbytes is not None and nbytes < SHORT_HTML_BYTES
 
 
 def _load_tanshin(db: Session, codes: list[str]) -> dict[str, tuple[str, str, date]]:
-    """code -> (url, origin, disclosed_date)。最新の決算短信 HTML 1 本。"""
+    """code -> (url, origin, disclosed_date)。新しい順に、URL が取れるまで。"""
     if not codes:
         return {}
+    query_codes = _codes_with_predecessors(codes)
     ranked = (
         select(
             TdnetPdfDocument.disclosure_no,
             TdnetPdfDocument.code,
+            TdnetPdfDocument.disclosed_date,
+            TdnetPdfDocument.title,
+            TdnetPdfDocument.bytes,
             func.row_number().over(
                 partition_by=TdnetPdfDocument.code,
                 order_by=(
@@ -301,31 +445,53 @@ def _load_tanshin(db: Session, codes: list[str]) -> dict[str, tuple[str, str, da
                 ),
             ).label("rn"),
         )
+        .outerjoin(Statement, Statement.disclosure_no == TdnetPdfDocument.disclosure_no)
         .where(
-            TdnetPdfDocument.code.in_(codes),
+            TdnetPdfDocument.code.in_(query_codes),
             TdnetPdfDocument.status == "ok",
             TdnetPdfDocument.html_gz.isnot(None),
-            TdnetPdfDocument.title.contains("決算短信"),
+            or_(
+                TdnetPdfDocument.title.contains("決算短信"),
+                TdnetPdfDocument.title.contains("FinancialStatements"),
+                Statement.type_of_document.contains("FinancialStatements"),
+            ),
         )
         .subquery()
     )
+    # 直近で URL が無い会社（表紙が空 SVG・パスアウトライン等）は、取れるまで古い短信を見る
     stmt = (
-        select(TdnetPdfDocument)
-        .join(ranked, TdnetPdfDocument.disclosure_no == ranked.c.disclosure_no)
-        .where(ranked.c.rn == 1)
+        select(
+            ranked.c.disclosure_no,
+            ranked.c.code,
+            ranked.c.disclosed_date,
+            ranked.c.title,
+            ranked.c.bytes,
+        )
+        .order_by(ranked.c.code, ranked.c.rn)
     )
+    grouped: dict[str, list[tuple]] = {}
+    for disclosure_no, code, disclosed, title, nbytes in db.execute(stmt):
+        grouped.setdefault(ordinary_code(code), []).append(
+            (disclosure_no, disclosed, title, nbytes))
     out: dict[str, tuple[str, str, date]] = {}
-    for doc in db.execute(stmt).scalars():
-        key = ordinary_code(doc.code)
-        if key in out:
-            continue
-        html = gzip.decompress(doc.html_gz).decode("utf-8", "replace")
-        url = pick_homepage_url(html)
-        if url is None:
-            continue
-        as_of = doc.disclosed_date or date.min
-        out[key] = (url, origin_tanshin(doc.disclosure_no), as_of)
-    return out
+    wanted = set(codes) | {
+        old for new, old in PREDECESSOR_CODES.items() if new in codes
+    }
+    for code in wanted:
+        allow_jpx = _allows_jpx(code)
+        for disclosure_no, disclosed, title, nbytes in grouped.get(code, ()):
+            if _tanshin_rejected(title, nbytes):
+                continue
+            doc = db.get(TdnetPdfDocument, disclosure_no)
+            if doc is None or not doc.html_gz:
+                continue
+            html = gzip.decompress(doc.html_gz).decode("utf-8", "replace")
+            url = pick_homepage_url(html, allow_jpx=allow_jpx)
+            if url is None:
+                continue
+            out[code] = (url, origin_tanshin(disclosure_no), disclosed or date.min)
+            break
+    return _fill_predecessors(out, codes)
 
 
 def _pick(cands: list[Candidate]) -> Candidate | None:
