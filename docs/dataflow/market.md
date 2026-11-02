@@ -12,39 +12,46 @@ flowchart LR
   n1["market/homepages.py"]:::job
   n2["market/pts_snapshot.py"]:::job
   n3["market/run_batch.py"]:::job
-  n4["market/tdnet_briefing_r2.py"]:::job
-  n5[("briefing_documents")]:::tbl
-  n6[("daily_prices")]:::tbl
-  n7[("earnings_date_fetches")]:::tbl
-  n8[("earnings_date_pubs")]:::tbl
-  n9[("earnings_events")]:::tbl
-  n10[("homepages")]:::tbl
-  n11[("indicators")]:::tbl
-  n12[("pts_snapshots")]:::tbl
-  n13[("statements")]:::tbl
-  n14[("stocks")]:::tbl
-  n15[("tdnet_pdf_documents")]:::ext
-  n16[("topix")]:::tbl
-  n17[("xbrl_elements")]:::ext
-  n18[("xbrl_facts")]:::ext
-  n19[("xbrl_filings")]:::ext
-  n0 -.- n13
-  n1 --> n10
-  n1 -.- n13
-  n1 -.- n15
+  n4["market/tanshin_covers.py"]:::job
+  n5["market/tdnet_briefing_r2.py"]:::job
+  n6[("briefing_documents")]:::tbl
+  n7[("daily_prices")]:::tbl
+  n8[("earnings_date_fetches")]:::tbl
+  n9[("earnings_date_pubs")]:::tbl
+  n10[("earnings_events")]:::tbl
+  n11[("homepages")]:::tbl
+  n12[("indicators")]:::tbl
+  n13[("pts_snapshots")]:::tbl
+  n14[("statements")]:::tbl
+  n15[("stocks")]:::tbl
+  n16[("tanshin_covers")]:::tbl
+  n17[("tdnet_pdf_documents")]:::ext
+  n18[("topix")]:::tbl
+  n19[("xbrl_documents")]:::ext
+  n20[("xbrl_elements")]:::ext
+  n21[("xbrl_facts")]:::ext
+  n22[("xbrl_filings")]:::ext
+  n0 -.- n14
+  n1 --> n11
+  n1 -.- n14
   n1 -.- n17
-  n1 -.- n18
-  n1 -.- n19
-  n2 --> n12
-  n3 --> n6
+  n1 -.- n20
+  n1 -.- n21
+  n1 -.- n22
+  n2 --> n13
   n3 --> n7
   n3 --> n8
   n3 --> n9
-  n3 --> n11
-  n3 --> n13
+  n3 --> n10
+  n3 --> n12
   n3 --> n14
-  n3 --> n16
-  n4 --> n5
+  n3 --> n15
+  n3 --> n18
+  n4 --> n16
+  n4 -.- n17
+  n4 -.- n19
+  n4 -.- n22
+  n5 --> n6
   classDef job fill:#e3ecff,stroke:#3b5bdb
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -57,6 +64,7 @@ flowchart LR
 | `jobs/market/homepages.py` | `homepages` | `statements`, `tdnet_pdf_documents`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings` |
 | `jobs/market/pts_snapshot.py` | `pts_snapshots` |  |
 | `jobs/market/run_batch.py` | `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `earnings_events`, `indicators`, `statements`, `stocks`, `topix` |  |
+| `jobs/market/tanshin_covers.py` | `tanshin_covers` | `stocks`, `tdnet_pdf_documents`, `xbrl_documents`, `xbrl_filings` |
 | `jobs/market/tdnet_briefing_r2.py` | `briefing_documents` |  |
 
 ## API
@@ -178,7 +186,12 @@ flowchart LR
 ### stocks
 
 - 書く: `jobs/edinet/edinet_codes.py（EDINET・大量保有）`, `jobs/golden_db.py（共通・運用）`, `jobs/market/run_batch.py`
-- 読むだけ: `jobs/edinet/edinet_buybacks.py（EDINET・大量保有）`, `jobs/edinet/edinet_documents.py（EDINET・大量保有）`, `jobs/edinet/edinet_large_holdings.py（EDINET・大量保有）`, `jobs/edinet/edinet_tender_offers.py（EDINET・大量保有）`, `jobs/edinet/edinet_xbrl.py（EDINET・大量保有）`, `jobs/market/check_demo.py`, `jobs/migrate.py（共通・運用）`, `jobs/monthly/ir_monthly_html_ingest.py（月次）`, `jobs/monthly/ir_monthly_html_r2.py（月次）`, `jobs/monthly/ir_monthly_json_ingest.py（月次）`, `jobs/monthly/ir_monthly_r2.py（月次）`, `jobs/monthly/ir_monthly_xls_ingest.py（月次）`, `jobs/monthly/tdnet_monthly_pdf_ingest.py（月次）`, `jobs/monthly/tdnet_monthly_r2.py（月次）`, `jobs/xbrl/tdnet_xbrl_r2.py（XBRL・決算書類）`, `jobs/xbrl/xbrl_parse.py（XBRL・決算書類）`, `DELETE /api/v1/tables/{code}/{year}/elements（月次）`, `GET /api/chart/{code}`, `GET /api/earnings`, `GET /api/earnings/calendar`, `GET /api/earnings/detail/{code}（XBRL・決算書類）`, `GET /api/holders/activity（EDINET・大量保有）`, `GET /api/holders/{edinet}（EDINET・大量保有）`, `GET /api/ranking/earnings-perf`, `GET /api/screener`, `GET /api/stock/{code}/filings（XBRL・決算書類）`, `GET /api/stock/{code}/holders（EDINET・大量保有）`, `GET /api/stock/{code}/overview`, `GET /api/stocks/search`, `GET /api/v1/tables（月次）`, `POST /api/v1/tables/{code}/ingest（月次）`, `POST /api/v1/tables/{code}/{year}/elements（月次）`, `PUT /api/v1/tables/{code}/industry（月次）`, `PUT /api/v1/tables/{code}/{year}/doc（月次）`, `PUT /api/v1/tables/{code}/{year}/elements（月次）`, `PUT /api/v1/tables/{code}/{year}/values（月次）`, `PUT /api/v1/tables/{code}/{year}/values/batch（月次）`
+- 読むだけ: `jobs/edinet/edinet_buybacks.py（EDINET・大量保有）`, `jobs/edinet/edinet_documents.py（EDINET・大量保有）`, `jobs/edinet/edinet_large_holdings.py（EDINET・大量保有）`, `jobs/edinet/edinet_tender_offers.py（EDINET・大量保有）`, `jobs/edinet/edinet_xbrl.py（EDINET・大量保有）`, `jobs/market/check_demo.py`, `jobs/market/tanshin_covers.py`, `jobs/migrate.py（共通・運用）`, `jobs/monthly/ir_monthly_html_ingest.py（月次）`, `jobs/monthly/ir_monthly_html_r2.py（月次）`, `jobs/monthly/ir_monthly_json_ingest.py（月次）`, `jobs/monthly/ir_monthly_r2.py（月次）`, `jobs/monthly/ir_monthly_xls_ingest.py（月次）`, `jobs/monthly/tdnet_monthly_pdf_ingest.py（月次）`, `jobs/monthly/tdnet_monthly_r2.py（月次）`, `jobs/xbrl/tdnet_xbrl_r2.py（XBRL・決算書類）`, `jobs/xbrl/xbrl_parse.py（XBRL・決算書類）`, `DELETE /api/v1/tables/{code}/{year}/elements（月次）`, `GET /api/chart/{code}`, `GET /api/earnings`, `GET /api/earnings/calendar`, `GET /api/earnings/detail/{code}（XBRL・決算書類）`, `GET /api/holders/activity（EDINET・大量保有）`, `GET /api/holders/{edinet}（EDINET・大量保有）`, `GET /api/ranking/earnings-perf`, `GET /api/screener`, `GET /api/stock/{code}/filings（XBRL・決算書類）`, `GET /api/stock/{code}/holders（EDINET・大量保有）`, `GET /api/stock/{code}/overview`, `GET /api/stocks/search`, `GET /api/v1/tables（月次）`, `POST /api/v1/tables/{code}/ingest（月次）`, `POST /api/v1/tables/{code}/{year}/elements（月次）`, `PUT /api/v1/tables/{code}/industry（月次）`, `PUT /api/v1/tables/{code}/{year}/doc（月次）`, `PUT /api/v1/tables/{code}/{year}/elements（月次）`, `PUT /api/v1/tables/{code}/{year}/values（月次）`, `PUT /api/v1/tables/{code}/{year}/values/batch（月次）`
+
+### tanshin_covers
+
+- 書く: `jobs/market/tanshin_covers.py`
+- 読むだけ: （観測なし）
 
 ### topix
 
