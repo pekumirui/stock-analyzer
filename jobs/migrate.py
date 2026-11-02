@@ -13,9 +13,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
 from app.db import (
+    engine,
     ensure_indexes,
     init_db,
     is_sqlite_lock,
@@ -34,6 +36,9 @@ LOCK_SLEEP_CAP_S = 60.0
 
 def migrate_once() -> None:
     init_db()
+    # KAB-319 初稿の ir_sites。本番には載っていない。homepages に差し替える
+    with engine.begin() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS ir_sites"))
     ensure_indexes()
     migrate_columns()
     if migrate_xbrl_financials_unique():

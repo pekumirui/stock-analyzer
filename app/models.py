@@ -32,15 +32,14 @@ class Stock(Base):
     edinet_code = Column(String(6))    # EDINET コードリストの証券コードで付ける。無い銘柄は NULL
 
 
-class IrSite(Base):
-    """上場会社の自社 IR サイト URL（KAB-319）。code は普通株（末尾 0）。FK は付けない。"""
-    __tablename__ = "ir_sites"
+class Homepage(Base):
+    """上場会社のホームページ URL（KAB-319）。code は普通株（末尾 0）。FK は付けない。"""
+    __tablename__ = "homepages"
     code = Column(String(5), primary_key=True)
     url = Column(Text, nullable=False)
-    source = Column(String(32), nullable=False)       # ir_monthly / homepage_nav / xbrl_url / tanshin_html
-    confidence = Column(String(16), nullable=False)   # verified / high / medium / low
-    url_kind = Column(String(8), nullable=False)      # ir / home
-    origin = Column(Text)                             # 設定名・doc_id・disclosure_no・取得元ホームページ
+    source = Column(String(32), nullable=False)       # xbrl_url / tanshin_html
+    confidence = Column(String(16), nullable=False)   # high / medium
+    origin = Column(Text)                             # XBRL doc_id または短信 disclosure_no
     fetched_at = Column(DateTime, nullable=False)
 
 

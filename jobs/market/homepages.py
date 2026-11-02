@@ -1,12 +1,12 @@
-"""上場会社の自社 IR サイト URL を ir_sites へ（KAB-319）。
+"""上場会社のホームページ URL を homepages へ（KAB-319）。
 
 使い方:
-  python jobs/market/ir_sites.py --code 4543 --code 9501 --dry-run
-  python jobs/market/ir_sites.py --code 4543 --code 9501
-  python jobs/market/ir_sites.py --all
-  python jobs/market/ir_sites.py --code 4543 --refresh
+  python jobs/market/homepages.py --code 4543 --code 9501 --dry-run
+  python jobs/market/homepages.py --code 4543 --code 9501
+  python jobs/market/homepages.py --all
+  python jobs/market/homepages.py --code 4543 --refresh
 
-表 ir_sites はデプロイの jobs/migrate.py が作る。ここでは作らない。
+表 homepages はデプロイの jobs/migrate.py が作る。ここでは作らない。
 本番の一括投入は KPI 承認後。この PR では --all を本番に走らせない。
 """
 from __future__ import annotations
@@ -18,12 +18,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from app.db import SessionLocal  # noqa: E402
-from app.market.ir_sites import ordinary_code, sync_ir_sites  # noqa: E402
-from jobs._r2common import http_get_result  # noqa: E402
+from app.market.homepages import ordinary_code, sync_homepages  # noqa: E402
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    ap = argparse.ArgumentParser(description="Save each listed company's IR-site URL")
+    ap = argparse.ArgumentParser(description="Save each listed company's homepage URL")
     ap.add_argument("--code", action="append", default=[], help="4 or 5 digit code (repeatable)")
     ap.add_argument("--all", action="store_true", help="every ordinary stocks.code")
     ap.add_argument("--dry-run", action="store_true", help="print plan, do not write")
@@ -39,10 +38,9 @@ def main(argv: list[str] | None = None) -> int:
     codes = None if args.all else [ordinary_code(c) for c in args.code]
     db = SessionLocal()
     try:
-        report = sync_ir_sites(
+        report = sync_homepages(
             db,
             codes,
-            fetch=http_get_result,
             refresh=args.refresh,
             dry_run=args.dry_run,
         )
