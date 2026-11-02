@@ -43,13 +43,12 @@ stocks            -- 銘柄マスタ
   -- 既存DBは migrate で列追加。値は次の日次バッチの銘柄マスタ更新で埋まる
   -- (株価・財務の再取得は不要)
 
-ir_sites          -- 上場会社の自社 IR サイト URL（KAB-319）。将来 TDnet に無い IR を取る起点
+homepages         -- 上場会社のホームページ URL（KAB-319）。将来 TDnet に無い IR を取る起点
   code PK                 -- 普通株の 5 桁（末尾 0）。優先株は親へ畳む。FK は付けない
-  url                     -- 選んだ 1 本。IR ページをホームページより優先
-  source                  -- ir_monthly / homepage_nav / xbrl_url / tanshin_html
-  confidence              -- verified / high / medium / low
-  url_kind                -- ir / home
-  origin                  -- 設定ファイル名・XBRL doc_id・短信 disclosure_no・刈り取り元ホームページ
+  url                     -- 選んだ 1 本（会社ホームページ）
+  source                  -- xbrl_url / tanshin_html
+  confidence              -- high / medium
+  origin                  -- XBRL doc_id または短信 disclosure_no
   fetched_at              -- 書いた時刻（JST naive）
 
 daily_prices      -- 日足。WITHOUT ROWID (行を code, date 順に置く。KAB-289)
@@ -290,16 +289,14 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
 
 **VPS パッケージ一覧（`jobs/ops/vps_packages_r2.py`）。** 読み取り専用。`data/inventory/` へ書く。中身と cron は [`deploy/README.md`](deploy/README.md)。
 
-**IR サイト URL（`ir_sites`）。** 企業マスタの各社について、自社 IR サイトの URL を 1 本残す。API / SPA / cron はまだ無い。ジョブは `python jobs/market/ir_sites.py --code 4543 --dry-run`。`--all` の本番投入は承認後。表は `jobs/migrate.py` が作る。
+**ホームページ URL（`homepages`）。** 企業マスタの各社について、会社ホームページの URL を 1 本残す。IR ページとの区別はまだしない。API / SPA / cron はまだ無い。ジョブは `python jobs/market/homepages.py --code 4543 --dry-run`。`--all` の本番投入は承認後。表は `jobs/migrate.py` が作る。HTTP はしない。
 
-候補は強い順。同じ強さなら IR ページをホームページより優先。再実行は UPSERT。強い source を弱い source で上書きしない（`--refresh` だけ例外）。
+候補は強い順。再実行は UPSERT。強い source を弱い source で上書きしない（`--refresh` だけ例外）。
 
 | source | 出どころ | 確度 | 備考 |
 |---|---|---|---|
-| `ir_monthly` | `config/monthly/ir_monthly.json` の `index_url` | verified | 61 社。E-IR（7616 / 8153）も会社側の `index_url`。JSON API（7649）は載せない |
-| `homepage_nav` | ホームページ HTML の `<a>` から IR / 投資家 / investors | high | 推測で `/ir/` は付けない。`http_get_result` を注入 |
-| `xbrl_url` | 最新の `tse-ed-t:URL` / `tse-re-t:URL` | medium | 短信カバーの会社ホームページ。スキーム無しと全角コロンを直す |
-| `tanshin_html` | 最新の決算短信 `tdnet_pdf_documents.html_gz` | medium（IR パス）/ low（トップ） | 題名に「決算短信」を含む行だけ。w3.org / TDnet / EDINET / JPX / SEC / SNS は捨てる |
+| `xbrl_url` | 最新の `tse-ed-t:URL` / `tse-re-t:URL` | high | 短信カバーの会社ホームページ。スキーム無しと全角コロンを直す |
+| `tanshin_html` | 最新の決算短信 `tdnet_pdf_documents.html_gz` の先頭の会社 URL | medium | 題名に「決算短信」を含む行だけ。w3.org / TDnet / EDINET / JPX / SEC / SNS は捨てる |
 
 **為替（`fx_rates`）。** Frankfurter v1（`https://api.frankfurter.dev/v1`、ECB、基準通貨 EUR、キー不要。旧 `api.frankfurter.app` は 301）。UI は出さない。
 

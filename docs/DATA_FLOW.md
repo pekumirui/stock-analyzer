@@ -20,7 +20,7 @@
 
 | 機能 | バッチ | API | テーブル |
 |---|---|---|---|
-| [株価・決算](dataflow/market.md) | 4 | 9 | `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `earnings_events`, `fx_rates`, `indicators`, `ir_sites`, `pts_snapshots`, `statements`, `stocks`, `topix` |
+| [株価・決算](dataflow/market.md) | 4 | 9 | `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `earnings_events`, `fx_rates`, `homepages`, `indicators`, `pts_snapshots`, `statements`, `stocks`, `topix` |
 | [月次](dataflow/monthly.md) | 9 | 12 | `monthly_element_sources`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values` |
 | [XBRL・決算書類](dataflow/xbrl.md) | 3 | 4 | `tdnet_pdf_documents`, `xbrl_contexts`, `xbrl_documents`, `xbrl_element_mappings`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`, `xbrl_financials`, `xbrl_job_runs`, `xbrl_major_shareholders`, `xbrl_segments`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category`, `xbrl_std_items` |
 | [EDINET・大量保有](dataflow/edinet.md) | 8 | 4 | `edinet_archives`, `edinet_buyback_resolutions`, `edinet_buybacks`, `edinet_documents`, `edinet_filers`, `edinet_list_days`, `edinet_tender_offer_docs`, `edinet_tender_offers`, `large_holding_reports`, `large_holdings` |
@@ -38,7 +38,7 @@
 画面の API から読まれない表（バッチの中だけで使う表）:
 
 - `fx_rates`
-- `ir_sites`
+- `homepages`
 - `xbrl_contexts`
 - `xbrl_element_mappings`
 - `xbrl_elements`

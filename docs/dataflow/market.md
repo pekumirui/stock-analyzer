@@ -9,15 +9,15 @@
 ```mermaid
 flowchart LR
   n0["market/check_demo.py"]:::job
-  n1["market/ir_sites.py"]:::job
+  n1["market/homepages.py"]:::job
   n2["market/pts_snapshot.py"]:::job
   n3["market/run_batch.py"]:::job
   n4[("daily_prices")]:::tbl
   n5[("earnings_date_fetches")]:::tbl
   n6[("earnings_date_pubs")]:::tbl
   n7[("earnings_events")]:::tbl
-  n8[("indicators")]:::tbl
-  n9[("ir_sites")]:::tbl
+  n8[("homepages")]:::tbl
+  n9[("indicators")]:::tbl
   n10[("pts_snapshots")]:::tbl
   n11[("statements")]:::tbl
   n12[("stocks")]:::tbl
@@ -27,7 +27,7 @@ flowchart LR
   n16[("xbrl_facts")]:::ext
   n17[("xbrl_filings")]:::ext
   n0 -.- n11
-  n1 --> n9
+  n1 --> n8
   n1 -.- n13
   n1 -.- n15
   n1 -.- n16
@@ -37,7 +37,7 @@ flowchart LR
   n3 --> n5
   n3 --> n6
   n3 --> n7
-  n3 --> n8
+  n3 --> n9
   n3 --> n11
   n3 --> n12
   n3 --> n14
@@ -50,7 +50,7 @@ flowchart LR
 | バッチ | 書く | 読むだけ |
 |---|---|---|
 | `jobs/market/check_demo.py` |  | `statements`, `stocks` |
-| `jobs/market/ir_sites.py` | `ir_sites` | `tdnet_pdf_documents`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings` |
+| `jobs/market/homepages.py` | `homepages` | `tdnet_pdf_documents`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings` |
 | `jobs/market/pts_snapshot.py` | `pts_snapshots` |  |
 | `jobs/market/run_batch.py` | `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `earnings_events`, `indicators`, `statements`, `stocks`, `topix` |  |
 
@@ -145,15 +145,15 @@ flowchart LR
 - 書く: `jobs/fx_rates.py（共通・運用）`, `jobs/golden_db.py（共通・運用）`
 - 読むだけ: （観測なし）
 
+### homepages
+
+- 書く: `jobs/market/homepages.py`
+- 読むだけ: （観測なし）
+
 ### indicators
 
 - 書く: `jobs/golden_db.py（共通・運用）`, `jobs/market/run_batch.py`
 - 読むだけ: `GET /api/screener`
-
-### ir_sites
-
-- 書く: `jobs/market/ir_sites.py`
-- 読むだけ: （観測なし）
 
 ### pts_snapshots
 
