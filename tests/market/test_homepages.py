@@ -444,19 +444,23 @@ def test_job_main_dry_run_does_not_write() -> None:
 def test_manual_file_dry_run_does_not_write(capsys: pytest.CaptureFixture[str]) -> None:
     path = ROOT / "config" / "market" / "homepage_manual.json"
     entries = json.loads(path.read_text(encoding="utf-8"))["entries"]
-    assert [item["code"] for item in entries] == ["43430", "93480", "93270"]
+    assert entries
+    codes = []
     for item in entries:
-        assert normalize_url(item["url"]) == item["url"]
+        code = ordinary_code(item["code"])
+        url = normalize_url(item["url"])
+        assert url == item["url"]
+        codes.append(code)
     rc = homepages_main(["--set-file", str(path), "--dry-run"])
     assert rc == 0
     out = capsys.readouterr().out
-    assert "put 43430 manual https://www.fantasy.co.jp/company/" in out
-    assert "put 93480 manual https://www.ispace-inc.com/ja/home-jp/" in out
-    assert "put 93270 manual https://www.e-logit.com/" in out
-    assert "set codes=3 put=3" in out
+    for code, item in zip(codes, entries, strict=True):
+        assert f"put {code} manual {item['url']} origin=manual" in out
+    assert f"set codes={len(entries)} put={len(entries)}" in out
     db = SessionLocal()
     try:
-        assert db.get(Homepage, "43430") is None
+        for code in codes:
+            assert db.get(Homepage, code) is None
     finally:
         db.close()
 
