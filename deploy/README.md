@@ -152,7 +152,7 @@ VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 認
 
 - `service_status` — プロセスと localhost:80 / :8000 の HTTP コード。MCP 自身（:8010）は自己 curl せず、この応答自体を ok とする
 - `app_logs` — `/var/log/app/stock-analyzer.log` と journalctl。uvicorn は `deploy/uvicorn-log.json` で行頭に JST `YYYY-MM-DD HH:MM:SS` を付ける。`since` / `until` は `batch_logs` と同じ形。省略時は journal が直近 1h、ファイルは live の末尾だけ。指定すると `.1` / `.gz` も読み、行頭の時刻で絞る。時刻の無い行（Traceback の続き）は直前の行に付く
-- `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` は crontab / cron-run.sh の stem（`run_batch` / `pts_snapshot` / `fx_rates` / `tdnet_monthly_r2` / `tdnet_monthly_pdf_sidecar` / `tdnet_monthly_pdf_ingest` / `ir_monthly_r2` / `ir_monthly_html_r2` / `ir_monthly_html_ingest` / `ir_monthly_json_ingest` / `ir_monthly_xls_ingest` / `tdnet_xbrl_r2` / `xbrl_parse` / `xbrl_normalize` / `edinet_codes` / `edinet_documents` / `edinet_xbrl` / `edinet_large_holdings` / `edinet_tender_offers` / `edinet_buybacks` / `edinet_archive` / `vps_packages_r2` / `backup_db` / `backup_data` / `migrate_r2_share`）。一覧に無い名前とパスは拒否。省略時は `stock-analyzer.log` と `mcp.log` 以外の live ファイル（古い `batch.log` を含む）。`since` / `until` は `1h` / `30m` / `today` / `yesterday` / `YYYY-MM-DD`。`until` はその時刻を含まない。昨日は `since=yesterday` と `until=today`。日時を指定したときは `.1` と `.gz` も読み、行頭の JST `YYYY-MM-DD HH:MM:SS` で絞る。`lines` は 1-500。超えた分は末尾だけ返すので範囲を狭める
+- `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` は crontab / cron-run.sh の stem（`run_batch` / `pts_snapshot` / `fx_rates` / `tdnet_monthly_r2` / `tdnet_briefing_r2` / `tdnet_monthly_pdf_sidecar` / `tdnet_monthly_pdf_ingest` / `ir_monthly_r2` / `ir_monthly_html_r2` / `ir_monthly_html_ingest` / `ir_monthly_json_ingest` / `ir_monthly_xls_ingest` / `tdnet_xbrl_r2` / `xbrl_parse` / `xbrl_normalize` / `edinet_codes` / `edinet_documents` / `edinet_xbrl` / `edinet_large_holdings` / `edinet_tender_offers` / `edinet_buybacks` / `edinet_archive` / `vps_packages_r2` / `backup_db` / `backup_data` / `migrate_r2_share`）。一覧に無い名前とパスは拒否。省略時は `stock-analyzer.log` と `mcp.log` 以外の live ファイル（古い `batch.log` を含む）。`since` / `until` は `1h` / `30m` / `today` / `yesterday` / `YYYY-MM-DD`。`until` はその時刻を含まない。昨日は `since=yesterday` と `until=today`。日時を指定したときは `.1` と `.gz` も読み、行頭の JST `YYYY-MM-DD HH:MM:SS` で絞る。`lines` は 1-500。超えた分は末尾だけ返すので範囲を狭める
 - `nginx_logs` — nginx journal と error.log と `/var/log/nginx/stock-analyzer.access.log`。アクセスログの `rt=` は nginx 全体、`urt=` は uvicorn の処理秒。遅いリクエストは `grep` に `rt=[1-9]` などを渡す。`since` / `until` は `batch_logs` と同じ形。省略時は journal が直近 1h、ファイルは live の末尾だけ。指定すると logrotate 済みの `.1` / `.gz`（既定で 14 日分）も読み、行の時刻（JST）で絞る。URL の OAuth 一時値（`code` / `state` など）は伏せる
 - `fs_list` / `fs_read` / `fs_grep` — 読み取り専用。`root` は `data`（リポジトリの `data/`、`MCP_DATA_DIR`）か `logs`（`/var/log/app`、`MCP_LOG_DIR`）。それ以外・絶対パス・`..`・symlink で root の外へ出るものは拒否。`.env*` / `*.db` / `*.sqlite*` / `stock.db` / `*.pem` / `id_*` / `*.key` / `rclone.conf` と `/home/stock/backups` / `/home/stock/r2-share` は二重に拒否。`fs_read` は 1 回あたり `MCP_FS_MAX_BYTES`（既定 1MiB）、切り詰め時は `truncated` とファイル全体の `size` を返す。認証は他ツールと同じ `MCP_TOKEN` / OAuth
 - `db_stats` — stock.db の件数。固定9テーブルは日付範囲・デモ混在つき。残りは `sqlite_master` から件数（`sqlite_*` 除く）。既定は `MAX(rowid)` の概算（削除があると多め）。`exact=true` で `COUNT(*)`。`tables` で対象を絞る。`daily_prices` の codes/days は exact のときだけ。1クエリ約2秒・全体約8秒で打ち切り、超えた表は `(timeout)`
@@ -253,6 +253,7 @@ deploy/cron-run.sh jobs/ops/migrate_r2_share.py --list-mismatches
 マウント上と `data/` の接頭辞:
 
 - `monthly/{code}/YYYYMMDD_CODE_….pdf|xlsx|xls|html`（`{code}` は TDnet の発行体コードそのまま。9279 / 262A。J-Quants 5桁にはしない）
+- `briefing/{code}/YYYYMMDD_CODE_….pdf`（決算説明資料。`{code}` は月次と同じ 4 桁。索引の code は 5 桁。`DESIGN.md`）
 - `xbrl/{code4}/…zip` と `xbrl/_unmatched/`
 - `inventory/vps-packages.txt`（上書き）と `inventory/history/vps-packages-YYYYMMDD.txt`
 - `intraday/1m/YYYY/YYYY-MM-DD.parquet`（yfinance 1 分足。1 日 1 ファイル・全銘柄。書いた銘柄は上書きしない。`DESIGN.md` §3「分足」）
@@ -284,6 +285,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 | スクリプト | cron |
 |---|---|
 | `jobs/monthly/tdnet_monthly_r2.py 7` | 18:00 / 21:00（直近7日。一覧は TDnet。取りこぼしの拾い直し） |
+| `jobs/market/tdnet_briefing_r2.py 7` | 22:10（決算説明資料 → `data/briefing`。直近7日。既存 PDF は skip。初回の約30日は `deploy/cron-run.sh jobs/market/tdnet_briefing_r2.py 30` を手で一度。デプロイでは走らない） |
 | `jobs/monthly/tdnet_monthly_pdf_sidecar.py` | 18:20 / 21:20（TDnet PDF 取得の後） |
 | `jobs/monthly/tdnet_monthly_pdf_ingest.py` | 18:30 / 21:30（sidecar の後。ledger は `/var/log/app/pdf_ingest_ledger.json`） |
 | `jobs/monthly/ir_monthly_r2.py` | 10:00 / 16:00 |

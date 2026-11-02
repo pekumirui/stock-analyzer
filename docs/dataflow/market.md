@@ -12,36 +12,39 @@ flowchart LR
   n1["market/homepages.py"]:::job
   n2["market/pts_snapshot.py"]:::job
   n3["market/run_batch.py"]:::job
-  n4[("daily_prices")]:::tbl
-  n5[("earnings_date_fetches")]:::tbl
-  n6[("earnings_date_pubs")]:::tbl
-  n7[("earnings_events")]:::tbl
-  n8[("homepages")]:::tbl
-  n9[("indicators")]:::tbl
-  n10[("pts_snapshots")]:::tbl
-  n11[("statements")]:::tbl
-  n12[("stocks")]:::tbl
-  n13[("tdnet_pdf_documents")]:::ext
-  n14[("topix")]:::tbl
-  n15[("xbrl_elements")]:::ext
-  n16[("xbrl_facts")]:::ext
-  n17[("xbrl_filings")]:::ext
-  n0 -.- n11
-  n1 --> n8
-  n1 -.- n11
+  n4["market/tdnet_briefing_r2.py"]:::job
+  n5[("briefing_documents")]:::tbl
+  n6[("daily_prices")]:::tbl
+  n7[("earnings_date_fetches")]:::tbl
+  n8[("earnings_date_pubs")]:::tbl
+  n9[("earnings_events")]:::tbl
+  n10[("homepages")]:::tbl
+  n11[("indicators")]:::tbl
+  n12[("pts_snapshots")]:::tbl
+  n13[("statements")]:::tbl
+  n14[("stocks")]:::tbl
+  n15[("tdnet_pdf_documents")]:::ext
+  n16[("topix")]:::tbl
+  n17[("xbrl_elements")]:::ext
+  n18[("xbrl_facts")]:::ext
+  n19[("xbrl_filings")]:::ext
+  n0 -.- n13
+  n1 --> n10
   n1 -.- n13
   n1 -.- n15
-  n1 -.- n16
   n1 -.- n17
-  n2 --> n10
-  n3 --> n4
-  n3 --> n5
+  n1 -.- n18
+  n1 -.- n19
+  n2 --> n12
   n3 --> n6
   n3 --> n7
+  n3 --> n8
   n3 --> n9
   n3 --> n11
-  n3 --> n12
+  n3 --> n13
   n3 --> n14
+  n3 --> n16
+  n4 --> n5
   classDef job fill:#e3ecff,stroke:#3b5bdb
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -54,6 +57,7 @@ flowchart LR
 | `jobs/market/homepages.py` | `homepages` | `statements`, `tdnet_pdf_documents`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings` |
 | `jobs/market/pts_snapshot.py` | `pts_snapshots` |  |
 | `jobs/market/run_batch.py` | `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `earnings_events`, `indicators`, `statements`, `stocks`, `topix` |  |
+| `jobs/market/tdnet_briefing_r2.py` | `briefing_documents` |  |
 
 ## API
 
@@ -120,6 +124,11 @@ flowchart LR
 ## テーブル
 
 ほかの機能のバッチ・API も含めて、その表を書く・読む入口。
+
+### briefing_documents
+
+- 書く: `jobs/market/tdnet_briefing_r2.py`
+- 読むだけ: （観測なし）
 
 ### daily_prices
 
