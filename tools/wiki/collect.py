@@ -33,8 +33,9 @@ SKIP_DIR_NAMES = frozenset(
     }
 )
 ROOT_SKIP_DIR_NAMES = frozenset({"data", "forecast-exp", "DESIGN"})
-IMAGE_SUFFIXES = frozenset(
-    {".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp"}
+# 画像と、1 枚で完結する HTML（自動生成の docs/dataflow/viewer.html）
+ASSET_SUFFIXES = frozenset(
+    {".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp", ".html"}
 )
 MD_LINK_RE = re.compile(r"\[([^\]]*)\]\(\s*<?([^>\s)]+)>?\s*\)")
 HEADING_RE = re.compile(r"^#\s+(.+?)\s*$", re.MULTILINE)
@@ -69,7 +70,7 @@ def collect_into(repo: Path, dest: Path) -> CollectResult:
             continue
         if path.suffix.lower() == ".md":
             sources.append(path)
-        elif path.suffix.lower() in IMAGE_SUFFIXES:
+        elif path.suffix.lower() in ASSET_SUFFIXES:
             images.append(path)
 
     for src in sources:
@@ -113,7 +114,7 @@ def dest_rel_for(src: Path, repo: Path) -> Path | None:
     if rel is None:
         return None
     suffix = src.suffix.lower()
-    if suffix != ".md" and suffix not in IMAGE_SUFFIXES:
+    if suffix != ".md" and suffix not in ASSET_SUFFIXES:
         return None
     if rel.parts[:1] == ("docs",) and len(rel.parts) > 1:
         return Path(*rel.parts[1:])

@@ -1,10 +1,13 @@
-"""docs/DATA_FLOW.md を作る部品（tools/dataflow/）。SQL からテーブルを取る所と、関数の参照グラフ。"""
+"""docs/DATA_FLOW.md を作る部品（tools/dataflow/）。SQL からテーブルを取る所、関数の参照グラフ、書き出し。"""
 from __future__ import annotations
 
+import json
+import re
 import textwrap
 from pathlib import Path
 
 from tools.dataflow.callgraph import CallGraph, match_route
+from tools.dataflow.render import entry_domain, render, table_domain
 from tools.dataflow.sql import tables
 
 
@@ -94,3 +97,56 @@ def test_callgraph_finds_http_api_urls(tmp_path):
         ("POST", "/api/v1/tables/\x00/ingest"),
         ("GET", "/api/v1/tables/\x00"),
     }
+
+
+def test_domains_of_tables_and_entries():
+    assert table_domain("monthly_values") == "monthly"
+    assert table_domain("large_holdings") == "edinet"
+    assert table_domain("stocks") == "market"
+    assert entry_domain("jobs/monthly/x.py", "job", {"stocks": "R"}) == "monthly"
+    assert entry_domain("jobs/golden_db.py", "job", {"monthly_values": "W"}) == "common"
+    # API は書く表、無ければ stocks 以外の読む表で決める
+    assert entry_domain("GET /a", "api", {"stocks": "R", "xbrl_filings": "R"}) == "xbrl"
+    assert entry_domain("PUT /a", "api", {"monthly_values": "W", "xbrl_filings": "R", "xbrl_facts": "R"}) == "monthly"
+    assert entry_domain("GET /a", "api", {"stocks": "R"}) == "market"
+
+
+def _render():
+    jobs = {"jobs/monthly/ingest.py": {"monthly_values": {"R", "W"}, "statements": {"R"}, "stocks": {"R"}},
+            "jobs/monthly/fetch.py": {"stocks": {"R"}}}
+    apis = {"GET /api/v1/tables": {"monthly_values": {"R"}, "stocks": {"R"}}}
+    return render(jobs, {"jobs/monthly/ingest.py": ["GET /api/v1/tables"]}, apis,
+                  ["jobs/monthly/fetch.py", "jobs/monthly/ingest.py", "jobs/ops/backup.py"],
+                  ["GET /api/v1/tables", "GET /api/topix"], [], ["monthly_values", "statements", "stocks", "topix"])
+
+
+def test_render_writes_overview_pages_and_viewer():
+    out = _render()
+    assert set(out) == {"docs/DATA_FLOW.md", "docs/dataflow/market.md", "docs/dataflow/monthly.md",
+                        "docs/dataflow/viewer.html"}
+    overview = out["docs/DATA_FLOW.md"]
+    assert "[月次](dataflow/monthly.md) | 2 | 1 |" in overview
+    assert "- `jobs/ops/backup.py`" in overview and "- `GET /api/topix`" in overview
+    assert "どの入口の読み書きにも出なかった表:\n\n- `topix`" in overview
+
+
+def test_mermaid_draws_entry_to_table_and_skips_hub_reads():
+    page = _render()["docs/dataflow/monthly.md"]
+    graph = page.split("```mermaid", 1)[1].split("```", 1)[0]
+    ids = dict(re.findall(r"^  (n\d+)\[\(?\"([^\"]+)\"", graph, re.M))
+    names = {v: k for k, v in ids.items()}
+    assert f"{names['monthly/ingest.py']} --> {names['monthly_values']}" in graph
+    assert f"{names['monthly/ingest.py']} -.- {names['statements']}" in graph
+    assert "stocks" not in names and "monthly/fetch.py" not in names  # stocks を読むだけの入口は図から外す
+    assert '[("statements")]:::ext' in graph  # ほかの機能の表
+
+
+def test_viewer_embeds_parseable_data():
+    html = _render()["docs/dataflow/viewer.html"]
+    raw = re.search(r'<script type="application/json" id="data">(.*?)</script>', html, re.S).group(1)
+    data = json.loads(raw)
+    assert data["entries"][0]["name"] == "jobs/monthly/fetch.py"
+    assert data["tables"]["monthly_values"] == "monthly"
+    assert data["entries"][1]["rw"] == {"monthly_values": "W", "statements": "R", "stocks": "R"}
+    assert "<script" not in raw
+    assert not re.search(r"""(?:src|href)=["']?(?:https?:)?//""", html)  # 外から読み込まない
