@@ -304,6 +304,250 @@ def test_jpigp_2018_in_bundle_parses_offline(tmp: Path) -> None:
         _fail(f"expected ja label 売上収益, got {lab}")
 
 
+def _edinet_urls(family: str, date: str) -> tuple[str, str, str, str, str]:
+    """cor xsd, rt xsd, ja label, en label, namespace. Parser closure for one edition."""
+    base = f"http://disclosure.edinet-fsa.go.jp/taxonomy/{family}/{date}"
+    return (
+        f"{base}/{family}_cor_{date}.xsd",
+        f"{base}/{family}_rt_{date}.xsd",
+        f"{base}/label/{family}_{date}_lab.xml",
+        f"{base}/label/{family}_{date}_lab-en.xml",
+        f"{base}/{family}_cor",
+    )
+
+
+def _require_bundled(*urls: str) -> None:
+    for url in urls:
+        if not tb.cache_path_for(BUNDLE, url).is_file():
+            _fail(f"bundle missing {url}")
+
+
+def _company_xsd(
+    imports: list[tuple[str, str]],
+    labels: list[str],
+    unused: list[str],
+) -> str:
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"',
+        '            xmlns:link="http://www.xbrl.org/2003/linkbase"',
+        '            xmlns:xlink="http://www.w3.org/1999/xlink"',
+        '            targetNamespace="http://example.jp/filing">',
+    ]
+    for ns, loc in imports:
+        lines.append(f'  <xsd:import namespace="{ns}" schemaLocation="{loc}"/>')
+    label_role = "http://www.xbrl.org/2003/role/labelLinkbaseRef"
+    for href in labels:
+        lines.append(
+            f'  <link:linkbaseRef xlink:type="simple" xlink:href="{href}" xlink:role="{label_role}"/>'
+        )
+    for href in unused:
+        role = (
+            "http://www.xbrl.org/2003/role/definitionLinkbaseRef"
+            if href.endswith("_def.xml")
+            else "http://www.xbrl.org/2009/role/genericLabelLinkbaseRef"
+        )
+        lines.append(
+            f'  <link:linkbaseRef xlink:type="simple" xlink:href="{href}" xlink:role="{role}"/>'
+        )
+    lines.append("</xsd:schema>")
+    return "\n".join(lines) + "\n"
+
+
+def _ixbrl_zip(
+    *,
+    prefix: str,
+    ns: str,
+    company_xsd: str,
+    hidden: str,
+    instant: bool,
+) -> bytes:
+    period = (
+        "<xbrli:instant>2016-11-30</xbrli:instant>"
+        if instant
+        else "<xbrli:startDate>2016-03-01</xbrli:startDate><xbrli:endDate>2016-11-30</xbrli:endDate>"
+    )
+    ctx = "AsOf" if instant else "CurrentYearDuration"
+    ixbrl = f"""<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml"
+      xmlns:ix="http://www.xbrl.org/2013/inlineXBRL"
+      xmlns:xbrli="http://www.xbrl.org/2003/instance"
+      xmlns:link="http://www.xbrl.org/2003/linkbase"
+      xmlns:xlink="http://www.w3.org/1999/xlink"
+      xmlns:{prefix}="{ns}"
+      xmlns:iso4217="http://www.xbrl.org/2003/iso4217">
+<head>
+  <ix:header>
+    <link:schemaRef xlink:type="simple" xlink:href="company.xsd"/>
+    <ix:hidden>
+      {hidden}
+    </ix:hidden>
+    <ix:resources>
+      <xbrli:context id="{ctx}">
+        <xbrli:entity><xbrli:identifier scheme="http://disclosure.edinet-fsa.go.jp">E03044</xbrli:identifier></xbrli:entity>
+        <xbrli:period>{period}</xbrli:period>
+      </xbrli:context>
+      <xbrli:unit id="JPY"><xbrli:measure>iso4217:JPY</xbrli:measure></xbrli:unit>
+    </ix:resources>
+  </ix:header>
+</head>
+<body></body>
+</html>
+"""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("XBRL/PublicDoc/filing.htm", ixbrl)
+        zf.writestr("XBRL/PublicDoc/company.xsd", company_xsd)
+    return buf.getvalue()
+
+
+def _parse_offline(zip_path: Path, unpacked: Path):
+    from unittest.mock import patch
+
+    from app.xbrl.parser import extract_zip, parse_package, reset_taxonomy_caches
+
+    reset_taxonomy_caches()
+    try:
+        root = extract_zip(zip_path, unpacked)
+        with patch("urllib.request.urlopen", side_effect=AssertionError("network")):
+            return parse_package(root, cache_dir=BUNDLE, text_max=1000)
+    finally:
+        reset_taxonomy_caches()
+
+
+# KAB-324: S100M0FI (82540, 訂正四半期報告書 2016/09/01–2016/11/30) imports these.
+# jpigp has no edition before 2018-03-31. Pre-2016 inline jpcrp/jppfs are only these two dates.
+_PRE2016_GAAP = ("2013-08-31", "2015-03-31")
+_PRE2016_JPSPS = ("2013-08-31", "2014-07-31", "2015-03-31")
+
+
+def _gaap_filing(date: str) -> tuple[str, list[str], list[str]]:
+    """Company schema shaped like S100M0FI: jpcrp + jppfs + jpdei, plus ignored gla/def."""
+    imports: list[tuple[str, str]] = []
+    labels: list[str] = []
+    for family, edition in (("jpcrp", date), ("jppfs", date), ("jpdei", "2013-08-31")):
+        cor, rt, lab, lab_en, ns = _edinet_urls(family, edition)
+        imports.append((ns, cor))
+        imports.append((ns.replace("_cor", "_rt"), rt))
+        labels.extend((lab, lab_en))
+    imports.append(("http://www.xbrl.org/2003/instance", "http://www.xbrl.org/2003/xbrl-instance-2003-12-31.xsd"))
+    unused = [
+        f"http://disclosure.edinet-fsa.go.jp/taxonomy/jpcrp/{date}/label/jpcrp_{date}_gla.xml",
+        "http://disclosure.edinet-fsa.go.jp/taxonomy/jpdei/2013-08-31/r/jpdei_000100-000_2013-08-31_def.xml",
+    ]
+    xsd = _company_xsd(imports, labels, unused)
+    return xsd, labels, unused
+
+
+def test_s100m0fi_2015_taxonomy_parses_offline(tmp: Path) -> None:
+    """KAB-324: S100M0FI's jpcrp/jppfs 2015-03-31 closure is bundled and parses with no network."""
+    date = "2015-03-31"
+    needed: list[str] = []
+    for family in ("jpcrp", "jppfs"):
+        cor, rt, lab, lab_en, _ns = _edinet_urls(family, date)
+        needed.extend((cor, rt, lab, lab_en))
+    _require_bundled(*needed)
+    # jppfs cor imports the part-element schema that sits beside it.
+    _require_bundled(
+        "http://disclosure.edinet-fsa.go.jp/taxonomy/jppfs/2015-03-31/jppfs_pe_2012.xsd"
+    )
+
+    xsd, _labels, unused = _gaap_filing(date)
+    zips = tmp / "zips"
+    zips.mkdir(parents=True)
+    hidden = (
+        '<ix:nonFraction name="jppfs_cor:NetSales" contextRef="CurrentYearDuration"'
+        ' unitRef="JPY" scale="0" decimals="0">100</ix:nonFraction>'
+    )
+    (zips / "S100M0FI.zip").write_bytes(
+        _ixbrl_zip(
+            prefix="jppfs_cor",
+            ns=_edinet_urls("jppfs", date)[4],
+            company_xsd=xsd,
+            hidden=hidden,
+            instant=False,
+        )
+    )
+    rc, out = _run_check(zips, BUNDLE)
+    if rc != 0 or "missing=0" not in out:
+        _fail(f"S100M0FI check should be missing=0: {rc} {out}")
+    for href in unused:
+        if href in out:
+            _fail(f"unused linkbase counted as missing: {href}\n{out}")
+
+    pkg = _parse_offline(zips / "S100M0FI.zip", tmp / "unpacked")
+    names = {(f.namespace_key, f.local_name) for f in pkg.facts}
+    if ("jppfs_cor", "NetSales") not in names:
+        _fail(f"expected NetSales fact, got {names}")
+    lab = pkg.labels.get(("jppfs_cor", "NetSales")) or {}
+    if lab.get("label_ja") != "売上高":
+        _fail(f"expected ja label 売上高, got {lab}")
+
+
+def test_pre2016_gaap_and_jpsps_editions_parse_offline(tmp: Path) -> None:
+    """Every inline jpcrp/jppfs/jpsps edition before 2016-02-29 is bundled."""
+    # 2013-08-31 is the other GAAP edition (次世代). 2014 did not revise jpcrp/jppfs.
+    xsd, _labels, unused = _gaap_filing("2013-08-31")
+    zips = tmp / "gaap-2013"
+    zips.mkdir(parents=True)
+    hidden = (
+        '<ix:nonFraction name="jppfs_cor:NetSales" contextRef="CurrentYearDuration"'
+        ' unitRef="JPY" scale="0" decimals="0">100</ix:nonFraction>'
+    )
+    (zips / "nextgen.zip").write_bytes(
+        _ixbrl_zip(
+            prefix="jppfs_cor",
+            ns=_edinet_urls("jppfs", "2013-08-31")[4],
+            company_xsd=xsd,
+            hidden=hidden,
+            instant=False,
+        )
+    )
+    rc, out = _run_check(zips, BUNDLE)
+    if rc != 0 or "missing=0" not in out:
+        _fail(f"2013-08-31 GAAP check should be missing=0: {rc} {out}")
+    for href in unused:
+        if href in out:
+            _fail(f"unused linkbase counted as missing: {href}\n{out}")
+    pkg = _parse_offline(zips / "nextgen.zip", tmp / "gaap-unpacked")
+    lab = pkg.labels.get(("jppfs_cor", "NetSales")) or {}
+    if lab.get("label_ja") != "売上高":
+        _fail(f"2013-08-31 expected ja label 売上高, got {lab}")
+
+    for date in _PRE2016_JPSPS:
+        cor, rt, lab_url, lab_en, ns = _edinet_urls("jpsps", date)
+        _require_bundled(cor, rt, lab_url, lab_en)
+        jxsd = _company_xsd(
+            [(ns, cor), (ns.replace("_cor", "_rt"), rt)],
+            [lab_url, lab_en],
+            [f"http://disclosure.edinet-fsa.go.jp/taxonomy/jpsps/{date}/label/jpsps_{date}_gla.xml"],
+        )
+        jz = tmp / f"jpsps-{date}"
+        jz.mkdir(parents=True)
+        jhidden = (
+            '<ix:nonNumeric name="jpsps_cor:FundNameTextBlock" contextRef="AsOf">'
+            "sample</ix:nonNumeric>"
+        )
+        (jz / "filing.zip").write_bytes(
+            _ixbrl_zip(
+                prefix="jpsps_cor",
+                ns=ns,
+                company_xsd=jxsd,
+                hidden=jhidden,
+                instant=True,
+            )
+        )
+        rc, out = _run_check(jz, BUNDLE)
+        if rc != 0 or "missing=0" not in out:
+            _fail(f"jpsps {date} check should be missing=0: {rc} {out}")
+        if "_gla.xml" in out:
+            _fail(f"jpsps gla counted as missing: {out}")
+        jpkg = _parse_offline(jz / "filing.zip", tmp / f"jpsps-unpacked-{date}")
+        jlab = jpkg.labels.get(("jpsps_cor", "FundNameTextBlock")) or {}
+        if jlab.get("label_ja") != "ファンドの名称":
+            _fail(f"jpsps {date} expected ファンドの名称, got {jlab}")
+
+
 def test_sync_skips_unused_files(tmp: Path) -> None:
     zips = _write_filing(tmp)
     src = tmp / "cache"
@@ -341,6 +585,8 @@ def main() -> None:
         test_check_fails_when_needed_label_missing(root / "need-lab")
         test_sync_skips_unused_files(root / "sync")
         test_jpigp_2018_in_bundle_parses_offline(root / "jpigp-2018")
+        test_s100m0fi_2015_taxonomy_parses_offline(root / "s100m0fi")
+        test_pre2016_gaap_and_jpsps_editions_parse_offline(root / "pre2016")
     print("ok: taxonomy bundle")
 
 
