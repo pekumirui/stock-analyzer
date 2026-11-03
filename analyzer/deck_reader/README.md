@@ -30,6 +30,7 @@
 | `fetch.py` | doc_id のある資料を IR Bank から `<root>/pdf/<id>.pdf` に取る |
 | `run.py` | 1 ページ 1 回 `claude -p` を起動して読ませ、`<root>/results/<id>_<model>.json` を作る |
 | `recheck.py` | 保存済みの結果 JSON を LLM なしで照合・検算し直す（`extract.py` を直したあと用） |
+| `view.py` | 復元ビュー：結果 JSON の表（v2 以降の `tables`）と要約から、ページごとにグラフ（SVG）と表を組み直した HTML / PDF。原本を画面に出さずに読めるかを確かめる試し。`run.py --publish` は v2 以降なら一緒に作って上げる |
 | `report.py` | 結果 1 冊を HTML か PDF にする（スライド画像と facts の表を並べ、未照合を赤くする）。画像は読ませたページだけ。id と `--root` で呼ぶ |
 | `compare.py` | 2 つの結果をページごとに並べた HTML。`--notes` で画像照合のメモを添える |
 | `results/` | 結果の要約（Markdown）。JSON・PDF・HTML はコミットしない |
