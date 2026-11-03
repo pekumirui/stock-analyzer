@@ -18,7 +18,7 @@ work の下の result.json に残る（トークン・費用・所要時間）�
   .venv/bin/python analyzer/deck_reader/run.py --pdf <PDF> --prompt v3 --effort low \\
       --publish onedrive:deck-reader/<フォルダ> --clean                                  # レポートと結果を上げて手元を消す
 
---publish は 1 冊読み終わるごとに PDF のレポートを作り、レポートと結果 JSON を rclone で上げる。--clean は上げ終わった冊の
+--publish は 1 冊読み終わるごとに PDF のレポート（v2 以降は復元ビューも）を作り、それらと結果 JSON を rclone で上げる。--clean は上げ終わった冊の
 手元（work・レポート・結果・--pdf で写した PDF）を消す。上げに失敗したら消さない。
 文字データで照合できない数字のあるページは、RapidOCR が入っていれば OCR で照合する（--no-ocr で止める）。
 --pdf の PDF は <root>/pdf/<id>.pdf に写してから読む（report.py / compare.py が同じ場所を見る）。--id を省くとファイル名。
@@ -37,6 +37,7 @@ from pathlib import Path
 
 import extract as d
 import report as rp
+import view
 from fetch import DEFAULT_ROOT, load_decks, pdf_path
 
 TASK = (
@@ -179,10 +180,14 @@ def publish_deck(deck: dict, root: Path, name: str, remote: str, clean: bool) ->
     result = root / "results" / f"{deck['id']}_{name}.json"
     pdf = pdf_path(root, deck["id"])
     report = rp.build(result, pdf if pdf.exists() else None, root / "reports" / f"{deck['id']}_{name}.pdf", "pdf")
-    rp.publish([report, result], remote)
+    files = [report, result]
+    if any(p.get("tables") for p in json.loads(result.read_text())["pages"]):
+        files.insert(1, view.build(result, root / "reports" / f"{deck['id']}_{name}_view.pdf", "pdf"))  # 復元ビュー（v2 以降）
+    rp.publish(files, remote)
     if clean:
         shutil.rmtree(root / "work" / deck["id"] / name, ignore_errors=True)
-        report.unlink()
+        for f in files[:-1]:
+            f.unlink()
         result.unlink()
         if deck.get("source"):  # --pdf で写したものだけ消す（fetch.py で取った PDF は残す）
             pdf.unlink(missing_ok=True)

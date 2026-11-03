@@ -217,7 +217,8 @@ def parse_json(s: str) -> dict:
 
 
 def expand_tables(out: dict) -> dict:
-    """v2 の tables を v1 と同じ facts の並びに展開する。行の of は part_of（"metric|segment"）として残す。"""
+    """v2 以降の tables を v1 と同じ facts の並びに展開する。行の of は part_of（"metric|segment"）として残す。
+    tables もそのまま残す（view.py が表の並び・列の順のままグラフと表に組み直す）。"""
     if "tables" not in out:
         return out
     facts = []
@@ -234,7 +235,7 @@ def expand_tables(out: dict) -> dict:
                     "value": str(v), "unit": r.get("unit"), "note": r.get("note") or "",
                     "part_of": r.get("of"),
                 })
-    return dict({k: v for k, v in out.items() if k != "tables"}, facts=facts)
+    return dict(out, facts=facts)
 
 
 def strip_unit(value, unit) -> str:
