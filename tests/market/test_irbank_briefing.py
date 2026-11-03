@@ -6,6 +6,7 @@ import sys
 import tempfile
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -561,6 +562,127 @@ def test_record_briefing_retries_past_one_busy_timeout(monkeypatch: pytest.Monke
         thread.join(timeout=3)
         eng.dispose()
     assert result.get("holder") == "ok"
+
+
+def _scanned_row(db, code: str) -> None:
+    db.add(BriefingIrbankScan(
+        code=code,
+        scanned_at=datetime(2026, 10, 1, 9, 0, tzinfo=timezone.utc),
+        listed=1,
+        saved=1,
+        skipped=0,
+        reindexed=0,
+        missing=0,
+        failed=0,
+    ))
+    db.commit()
+
+
+def test_rescan_rereads_scanned_companies_and_skips_indexed_pdfs(tmp_path: Path) -> None:
+    """記録済みの会社は --rescan で一覧を読み直す。付けなければ飛ばす。索引済み PDF は取り直さない。"""
+    db = _db()
+    try:
+        _stock(db, "72030", "トヨタ自動車", "011")
+        _stock(db, "11110", "別の会社", "011")
+        indexed = "140120260804507860"
+        fresh = "140120260807599001"
+        other_indexed = "140120260101000111"
+        other_fresh = "140120260202000222"
+        qa = "2027年3月期第1四半期決算説明会質疑応答(要旨)"
+        other_qa = "2026年3月期第2四半期決算説明会質疑応答(要旨)"
+        record_briefing(
+            source=SOURCE_IRBANK, document_id=indexed, code="72030",
+            company_name="トヨタ自動車", pubdate="2026-08-04 14:00:00", title=MAT,
+            rel_path="7203/already.pdf", url="https://api.irbank.net/already.pdf",
+            sha256="abc", size=3,
+        )
+        record_briefing(
+            source=SOURCE_IRBANK, document_id=other_indexed, code="11110",
+            company_name="別の会社", pubdate="2026-01-01 10:00:00", title=MAT,
+            rel_path="1111/already.pdf", url="https://api.irbank.net/other.pdf",
+            sha256="def", size=3,
+        )
+        _scanned_row(db, "72030")
+        _scanned_row(db, "11110")
+        page = _page("7203", [
+            (indexed, MAT, "2026/08/04", "14:00"),
+            (fresh, qa, "2026/08/07", "15:00"),
+        ])
+        other = _page("1111", [
+            (other_indexed, MAT, "2026/01/01", "10:00"),
+            (other_fresh, other_qa, "2026/02/02", "11:00"),
+        ])
+        fresh_pdf = "https://api.irbank.net/api/market-files/v1/tdnet/20260807599001.pdf"
+        other_pdf = "https://api.irbank.net/api/market-files/v1/tdnet/20260202000222.pdf"
+        indexed_pdf = "https://api.irbank.net/api/market-files/v1/tdnet/20260804507860.pdf"
+        other_indexed_pdf = "https://api.irbank.net/api/market-files/v1/tdnet/20260101000111.pdf"
+        routes = {
+            "https://irbank.net/7203/ir": page,
+            "https://irbank.net/1111/ir": other,
+            fresh_pdf: PDF,
+            other_pdf: PDF,
+        }
+
+        held, held_notes = mod.issuers(db, ["72030"])
+        assert held == [] and held_notes == ["skip scanned 72030"]
+        assert mod.issuers(db, None)[0] == []
+        assert [item.code for item in mod.issuers(db, ["72030"], rescan=True)[0]] == ["72030"]
+        assert [item.code for item in mod.issuers(db, None, rescan=True)[0]] == ["11110", "72030"]
+
+        calls: list[str] = []
+        skipped = _run(db, tmp_path, routes, calls, codes=["72030"])
+        assert calls == []
+        assert skipped.companies == 0 and skipped.saved == 0 and skipped.remaining == 0
+        calls = []
+        skipped_all = _run(db, tmp_path, routes, calls, codes=None)
+        assert calls == []
+        assert skipped_all.companies == 0 and skipped_all.remaining == 0
+
+        calls = []
+        again = _run(db, tmp_path, routes, calls, codes=["72030"], rescan=True)
+        assert calls == ["https://irbank.net/7203/ir", fresh_pdf]
+        assert indexed_pdf not in calls
+        assert again.companies == 1 and again.listed == 2 and again.saved == 1 and again.skipped == 1
+        assert again.remaining == 0
+        row = _row(SOURCE_IRBANK, fresh)
+        assert row is not None and row.title == qa
+        assert (tmp_path / row.rel_path).read_bytes() == PDF
+        assert _scanned() == ["11110", "72030"]
+
+        calls = []
+        whole = _run(db, tmp_path, routes, calls, codes=None, rescan=True)
+        assert calls == ["https://irbank.net/1111/ir", other_pdf, "https://irbank.net/7203/ir"]
+        assert indexed_pdf not in calls and other_indexed_pdf not in calls and fresh_pdf not in calls
+        assert whole.companies == 2 and whole.listed == 4 and whole.saved == 1 and whole.skipped == 3
+        assert whole.remaining == 0
+        other_row = _row(SOURCE_IRBANK, other_fresh)
+        assert other_row is not None and (tmp_path / other_row.rel_path).read_bytes() == PDF
+    finally:
+        db.close()
+
+
+def test_main_passes_rescan_for_code_and_all(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    seen: list[dict] = []
+
+    def fake_run(_db, _dest, **kwargs):
+        seen.append(kwargs)
+        return mod.RunStats()
+
+    class _DB:
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(mod, "init_db", lambda: None)
+    monkeypatch.setattr(mod, "SessionLocal", lambda: _DB())
+    monkeypatch.setattr(mod, "run", fake_run)
+    dest = str(tmp_path)
+    assert mod.main(["--code", "7203", "--rescan", "--dry-run", "--dest", dest]) == 0
+    assert mod.main(["--all", "--rescan", "--dry-run", "--dest", dest]) == 0
+    assert seen[0]["codes"] == ["72030"] and seen[0]["rescan"] is True and seen[0]["dry_run"] is True
+    assert seen[1]["codes"] is None and seen[1]["rescan"] is True
+    seen.clear()
+    assert mod.main(["--code", "7203", "--dry-run", "--dest", dest]) == 0
+    assert seen[0]["rescan"] is False
 
 
 def test_main_requires_one_scope() -> None:

@@ -238,9 +238,9 @@ IR BANK の過去の決算説明資料（`tools/briefing/irbank_ingest.py`。KAB
 - 対象は普通株（`stocks.product_category` が内国株券 `011` または外国株券 `021`）と REIT（`013`）。ETF（`014`）と外国 ETF / ETN（`023`）は除く。REIT でも名称に「ファンド」または「インフラ」がある投資法人は除く。区分が空の銘柄は、名称がファンド・投資信託・ETF・ETN でなければ残す。KAB-325 の `tanshin_covers` と同じ考え方
 - 一覧は `https://irbank.net/{4桁}/ir` を 1 社 1 回。同じ 4 桁の株は末尾 0 の行を代表にする。表題の採否は `is_material_title` だけ。PDF は `https://api.irbank.net/api/market-files/v1/tdnet/{18桁の末尾14桁}.pdf`（`tools/tdnet_pdf/ingest.py` と同じ）
 - 保存先とファイル名は TDnet のジョブと同じ（`data/briefing/{4桁}/YYYYMMDD_CODE_名前_表題.pdf`）。索引の code は 5 桁、document_id は 18 桁の開示番号。同じ番号、またはその末尾 14 桁が、どの source でも索引にあれば取り直さない
-- 読み終えた銘柄は `briefing_irbank_scans`（code / scanned_at / listed / saved / skipped / reindexed / missing / failed）。429 / 503 で止めた銘柄と、PDF の取得に失敗した銘柄は行を書かないので次の実行が続きから。PDF が 404 だけの銘柄は行を書く。成功した PDF は索引にあるので取り直さない
+- 読み終えた銘柄は `briefing_irbank_scans`（code / scanned_at / listed / saved / skipped / reindexed / missing / failed）。429 / 503 で止めた銘柄と、PDF の取得に失敗した銘柄は行を書かないので次の実行が続きから。PDF が 404 だけの銘柄は行を書く。成功した PDF は索引にあるので取り直さない。`--rescan` を付けるとこの表を無視して一覧を読み直す（`--code` と `--all` のどちらとも。KAB-338）。索引にある PDF は取り直さず、新しく対象になったものだけ保存する。付けないときの対象は変わらない
 - 一覧の SELECT は読み終わったら閉じ、PDF の取得中はトランザクションを持たない。索引（`briefing_documents`）と進捗（`briefing_irbank_scans`）の UPSERT は `run_sqlite_write` で locked を数回、待ちを伸ばして再試行する（KAB-305 と同じ。KAB-332）
-- `--limit` はこの実行の社数。`--sleep` は請求の間隔（既定 1 秒）。`--dry-run` は一覧だけ見て、PDF も索引も `briefing_irbank_scans` も書かない（見た社は残件のまま）
+- `--limit` はこの実行の社数。`--sleep` は請求の間隔（既定 1 秒）。`--dry-run` は一覧だけ見て、PDF も索引も `briefing_irbank_scans` も書かない（見た社は残件のまま）。`--rescan` でも `remaining` は scans が無い社数のまま（読み直した社は残件に入らない）
 - 手での実行は `deploy/README.md`。デプロイでも cron でも走らない
 
 TDnet 月次 PDF の自動投入（`jobs/monthly/tdnet_monthly_pdf_sidecar.py` → `jobs/monthly/tdnet_monthly_pdf_ingest.py`）:
