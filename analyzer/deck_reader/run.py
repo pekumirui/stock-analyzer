@@ -4,7 +4,8 @@
 読めるのはそのフォルダだけ（Read の許可ルール）。道具は Read だけで、Bash・Web・書き込み・MCP は無い。
 `--setting-sources ""` でリポジトリの指示・メモリを読ませない。全許可モードは使わない。
 
-結果は <root>/results/<id>_<model>.json（report.py / compare.py が読む形）。各ページの claude の出力は
+結果は <root>/results/<id>_<variant>.json（report.py / compare.py が読む形）。variant はモデル名に、
+--prompt v2 なら _v2、--effort low なら _elow が付く（例: haiku_v2_elow。report.py の --model にこの名前を渡す）。各ページの claude の出力は
 work の下の result.json に残る（トークン・費用・所要時間）。
 
   .venv/bin/python analyzer/deck_reader/run.py toyota_2027q1 --model haiku              # まず 1 冊
@@ -12,6 +13,7 @@ work の下の result.json に残る（トークン・費用・所要時間）�
   .venv/bin/python analyzer/deck_reader/run.py --all --model haiku --jobs 4
   .venv/bin/python analyzer/deck_reader/run.py toyota_2027q1 --dry-run                  # 起動コマンドだけ表示
   .venv/bin/python analyzer/deck_reader/run.py --pdf <PDF> --id advantest_2027q2        # decks.json に無い PDF
+  .venv/bin/python analyzer/deck_reader/run.py toyota_2027q1 --prompt v2 --effort low    # 表の形の出力・考える量を減らす
 
 --pdf の PDF は <root>/pdf/<id>.pdf に写してから読む（report.py / compare.py が同じ場所を見る）。--id を省くとファイル名。
 """
@@ -36,11 +38,15 @@ TASK = (
 )
 
 
-def claude_cmd(page_dir: Path, model: str) -> list[str]:
+def variant(model: str, prompt: str, effort: str | None) -> str:
+    return model + ("" if prompt == "v1" else f"_{prompt}") + (f"_e{effort}" if effort else "")
+
+
+def claude_cmd(page_dir: Path, model: str, prompt: str = "v1", effort: str | None = None) -> list[str]:
     cmd = [
         "claude",
         "-p",
-        d.SYSTEM + TASK,
+        d.system_prompt(prompt) + TASK,
         "--tools",
         "Read",
         "--allowedTools",
@@ -54,10 +60,12 @@ def claude_cmd(page_dir: Path, model: str) -> list[str]:
     ]
     if model:
         cmd += ["--model", model]
+    if effort:
+        cmd += ["--effort", effort]
     return cmd
 
 
-def run_page(page: dict, page_dir: Path, model: str, timeout: int) -> dict:
+def run_page(page: dict, page_dir: Path, model: str, timeout: int, prompt: str = "v1", effort: str | None = None) -> dict:
     """1 ページを読ませて {title, summary, facts, usage...} を返す。失敗は error にして続ける。"""
     page_dir.mkdir(parents=True, exist_ok=True)
     (page_dir / "slide.png").write_bytes(page["png"])
@@ -66,7 +74,7 @@ def run_page(page: dict, page_dir: Path, model: str, timeout: int) -> dict:
     t0 = time.time()
     try:
         proc = subprocess.run(  # nosec B603
-            claude_cmd(page_dir, model), cwd=page_dir, capture_output=True, text=True, timeout=timeout, check=False
+            claude_cmd(page_dir, model, prompt, effort), cwd=page_dir, capture_output=True, text=True, timeout=timeout, check=False
         )
         out.write_text(proc.stdout or proc.stderr)
         res = json.loads(proc.stdout)
@@ -90,23 +98,25 @@ def run_page(page: dict, page_dir: Path, model: str, timeout: int) -> dict:
         return dict(meta, error=f"{type(e).__name__}: {e}", raw=text[:2000])
 
 
-def run_deck(deck: dict, root: Path, model: str, pages_filter: set[int] | None, jobs: int, timeout: int, dry: bool):
+def run_deck(deck: dict, root: Path, model: str, pages_filter: set[int] | None, jobs: int, timeout: int, dry: bool,
+             prompt: str = "v1", effort: str | None = None):
     pdf = pdf_path(root, deck["id"])
     if not pdf.exists():
         raise SystemExit(f"{pdf} が無い。fetch.py を先に（doc_id が無い資料は decks.json の note に従って置く）")
     pages, meta = d.load_pages(pdf.read_bytes())
     todo = [p for p in pages if d.needs_llm(p["kind"]) and (not pages_filter or p["page"] in pages_filter)]
-    work = root / "work" / deck["id"] / model
+    name = variant(model, prompt, effort)
+    work = root / "work" / deck["id"] / name
     if dry:
         for p in todo:
             pdir = work / f"p{p['page']}"
-            cmd = claude_cmd(pdir, model)
+            cmd = claude_cmd(pdir, model, prompt, effort)
             cmd[2] = "<プロンプト>"
             print(f"p{p['page']} ({p['kind']}): cd {pdir} && {shlex.join(cmd)}")
         return None
     t0 = time.time()
     with ThreadPoolExecutor(max_workers=jobs) as ex:
-        futs = {p["page"]: ex.submit(run_page, p, work / f"p{p['page']}", model, timeout) for p in todo}
+        futs = {p["page"]: ex.submit(run_page, p, work / f"p{p['page']}", model, timeout, prompt, effort) for p in todo}
         by_page = {n: f.result() for n, f in futs.items()}
     out_pages = []
     for p in pages:
@@ -119,7 +129,8 @@ def run_deck(deck: dict, root: Path, model: str, pages_filter: set[int] | None, 
         "deck": deck,
         "meta": meta,
         "model": model,
-        "prompt_version": d.PROMPT_VERSION,
+        "prompt_version": f"deck-{prompt}",
+        "effort": effort,
         "pages": out_pages,
         "stats": dict(
             d.stats(out_pages),
@@ -131,12 +142,12 @@ def run_deck(deck: dict, root: Path, model: str, pages_filter: set[int] | None, 
             denials=sum(x.get("denials", 0) for x in done),
         ),
     }
-    dst = root / "results" / f"{deck['id']}_{model}.json"
+    dst = root / "results" / f"{deck['id']}_{name}.json"
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(json.dumps(res, ensure_ascii=False, indent=1))
     s = res["stats"]
-    print(f"{deck['id']} ({model}): {s['llm_sec']}s facts={s['facts']} verified={s['verified_ratio']} "
-          f"errors={s['errors']} cost=${s['cost_usd']} in={s['input_tokens']:,} out={s['output_tokens']:,} -> {dst}")
+    print(f"{deck['id']} ({name}): {s['llm_sec']}s facts={s['facts']} verified={s['verified_ratio']} "
+          f"errors={s['errors']} sum_mismatch={s['sum_mismatch']}/{s['sum_checks']} cost=${s['cost_usd']} in={s['input_tokens']:,} out={s['output_tokens']:,} -> {dst}")
     return res
 
 
@@ -163,6 +174,8 @@ def main() -> None:
     ap.add_argument("--pages", help="7,13 のようにページを絞る（1 冊のとき）")
     ap.add_argument("--jobs", type=int, default=2, help="同時に起動する claude -p の数")
     ap.add_argument("--timeout", type=int, default=600, help="1 ページの上限秒")
+    ap.add_argument("--prompt", choices=d.PROMPT_VERSIONS, default="v1", help="v2 は表の形の出力（短く、内訳の検算ができる）")
+    ap.add_argument("--effort", choices=("low", "medium", "high"), help="claude -p の --effort（省くとモデルの既定）")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
     if args.pdf:
@@ -175,7 +188,7 @@ def main() -> None:
         ap.error("id か --all か --pdf を指定する")
     pages_filter = {int(x) for x in args.pages.split(",")} if args.pages else None
     for deck in decks:
-        run_deck(deck, args.root, args.model, pages_filter, args.jobs, args.timeout, args.dry_run)
+        run_deck(deck, args.root, args.model, pages_filter, args.jobs, args.timeout, args.dry_run, args.prompt, args.effort)
 
 
 if __name__ == "__main__":
