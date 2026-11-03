@@ -16,7 +16,9 @@ import unicodedata
 PROMPT_VERSIONS = ("v1", "v2")  # run.py --prompt で選ぶ。結果 JSON の prompt_version は deck-<選んだ方>
 
 # ---------- 数値 ----------
-_NUM = re.compile(r"[△▲▼\-−+＋]?\s*\d[\d,]*(?:\.\d+)?")
+# カンマは 3 桁区切りのときだけ数字の一部とみなす。ラベルが重なって「34,30734,155」となった文字データを 34,307 と 34,155 に分ける
+_DIGITS = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"
+_NUM = re.compile(r"[△▲▼\-−+＋]?\s*" + _DIGITS)
 
 
 def norm_text(s: str | None) -> str:
@@ -27,7 +29,7 @@ def parse_number(s) -> float | None:
     """'△1,026' -> -1026.0, '+3,450' -> 3450.0, '99.3%' -> 99.3。数値でなければ None。"""
     s = norm_text(str(s)).strip().replace(" ", "")
     neg = s.startswith(("△", "▲", "▼", "-", "−"))
-    m = re.search(r"\d[\d,]*(?:\.\d+)?", s)
+    m = re.search(_DIGITS, s)
     if not m:
         return None
     v = float(m.group(0).replace(",", ""))
@@ -212,31 +214,66 @@ def _decimals(s: str) -> int:
     return len(m.group(1)) if m else 0
 
 
+_RATE_COL = re.compile(r"[%％]|率")
+_RATE_UNITS = ("%", "pts", "pt", "ポイント")
+
+
+def _paren(s) -> bool:
+    return bool(re.fullmatch(r"\(.*\)", norm_text(str(s)).strip()))
+
+
 def check_sums(facts: list[dict]) -> list[dict]:
-    """part_of の付いた facts を親ごと・期間ごとに足し、親の値と比べる。親の fact に sum_ok / sum_of を付ける。
-    丸めの許容: 表示桁の半分 × (内訳の数 + 1)。"""
+    """part_of の付いた facts を親ごと・期間ごとに足し、親の値と比べる。丸めの許容: 表示桁の半分 × (内訳の数 + 1)。
+
+    status: ok / paren（括弧をマイナスとみなすと一致）/ partial（内訳がすべてプラスで合計に届かない＝一部だけの内訳）/ mismatch。
+    親の fact に sum_status / sum_of を付ける。括弧の意味（マイナス・前回予想・率）は資料ごとに違うので値は書き換えない。
+    同じ行が 2 つの表に出るときは 1 つにして足す。率の列（期間に % や「率」）と率の行は検算しない。"""
     by_key = {}
     for f in facts:
         by_key.setdefault((fact_key(f), f.get("period"), f.get("period_kind")), f)
-    groups: dict[tuple, list[dict]] = {}
+    groups: dict[tuple, dict[str, dict]] = {}
     for f in facts:
         parent = f.get("part_of")
         if parent and f.get("value_num") is not None:
             p = norm_text(parent).strip()
             p = p if "|" in p else f"{p}|null"
-            groups.setdefault((p, f.get("period"), f.get("period_kind")), []).append(f)
+            groups.setdefault((p, f.get("period"), f.get("period_kind")), {}).setdefault(fact_key(f), f)
     checks = []
-    for (pkey, period, kind), parts in groups.items():
+    for (pkey, period, kind), uniq in groups.items():
+        parts = list(uniq.values())
         parent = by_key.get((pkey, period, kind))
         if parent is None or parent.get("value_num") is None or len(parts) < 2:
             continue
+        if _RATE_COL.search(norm_text(str(period))) or norm_text(str(parent.get("unit") or "")).strip() in _RATE_UNITS:
+            continue
+        value = parent["value_num"]
         total = sum(x["value_num"] for x in parts)
-        tol = 0.5 * 10 ** -max(_decimals(x["value"]) for x in [parent, *parts]) * (len(parts) + 1)
-        ok = abs(total - parent["value_num"]) <= tol + 1e-9
-        parent["sum_ok"], parent["sum_of"] = ok, round(total, 6)
-        checks.append({"key": pkey, "period": period, "kind": kind, "value": parent["value_num"],
-                       "sum": round(total, 6), "parts": len(parts), "ok": ok})
+        tol = 0.5 * 10 ** -max(_decimals(x["value"]) for x in [parent, *parts]) * (len(parts) + 1) + 1e-9
+        if abs(total - value) <= tol:
+            status = "ok"
+        else:
+            signed = lambda x: -abs(x["value_num"]) if _paren(x["value"]) else x["value_num"]  # noqa: E731
+            alt = sum(signed(x) for x in parts)
+            if abs(alt - signed(parent)) <= tol and any(_paren(x["value"]) for x in [parent, *parts]):
+                status, total = "paren", alt
+            elif all(x["value_num"] >= 0 for x in parts) and 0 <= total < value:
+                status = "partial"
+            else:
+                status = "mismatch"
+        parent["sum_status"], parent["sum_of"] = status, round(total, 6)
+        checks.append({"key": pkey, "period": period, "kind": kind, "value": value,
+                       "sum": round(total, 6), "parts": len(parts), "status": status, "ok": status in ("ok", "paren")})
     return checks
+
+
+def recheck(page: dict) -> dict:
+    """保存済みの結果のページを、LLM を呼ばずに照合・検算し直す（スクリプトを直したあと用）。"""
+    if "facts" not in page:
+        return page
+    facts = [{k: v for k, v in f.items() if k not in ("value_num", "verified", "sum_status", "sum_of", "sum_ok")}
+             for f in page["facts"]]
+    out = verify(page, {"facts": facts})
+    return dict(page, facts=out["facts"], sum_checks=out["sum_checks"])
 
 
 def verify(page: dict, out: dict) -> dict:
@@ -268,5 +305,6 @@ def stats(pages: list[dict]) -> dict:
         "verified_ratio": round(ok / len(fs), 3) if fs else None,
         "errors": sum(1 for p in pages if p.get("error")),
         "sum_checks": sum(len(p.get("sum_checks") or []) for p in pages),
-        "sum_mismatch": sum(1 for p in pages for c in p.get("sum_checks") or [] if not c["ok"]),
+        "sum_mismatch": sum(1 for p in pages for c in p.get("sum_checks") or [] if c.get("status", "ok" if c["ok"] else "mismatch") == "mismatch"),
+        "sum_partial": sum(1 for p in pages for c in p.get("sum_checks") or [] if c.get("status") == "partial"),
     }

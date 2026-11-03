@@ -63,9 +63,14 @@ def fact_issues(f):
     v, u = str(f.get("value") or ""), str(f.get("unit") or "")
     if u and u not in ("null", "None") and v.endswith(u):
         issues.append(("info", "value に単位が重複"))
-    if f.get("sum_ok") is False:
+    st = f.get("sum_status") or {True: "ok", False: "mismatch"}.get(f.get("sum_ok"))
+    if st == "mismatch":
         issues.append(("bad", f"内訳の合計 {f.get('sum_of'):g} と合わない"))
-    elif f.get("sum_ok"):
+    elif st == "partial":
+        issues.append(("info", f"内訳は一部だけ（計 {f.get('sum_of'):g}）"))
+    elif st == "paren":
+        issues.append(("info", "括弧をマイナスとみなすと内訳の合計と一致"))
+    elif st == "ok":
         issues.append(("info", "内訳の合計と一致"))
     if f.get("part_of"):
         issues.append(("info", f"内訳 → {f['part_of']}"))
@@ -79,12 +84,27 @@ def page_status(p):
         return "unread"
     if p.get("error"):
         return "error"
-    if any(not f.get("verified") or f.get("sum_ok") is False for f in p.get("facts", [])):
+    if page_problems(p):
         return "warn"
     return "ok"
 
 
-STATUS_LABEL = {"ok": "全件照合", "warn": "未照合・検算不一致あり", "error": "JSON エラー", "skip": "VLM 対象外", "unread": "未読"}
+def sum_mismatch(f):
+    return f.get("sum_status") == "mismatch" or f.get("sum_ok") is False
+
+
+def page_problems(p):
+    """ページにある問題の名前（見出しに出す）。"""
+    facts = p.get("facts", [])
+    out = []
+    if any(not f.get("verified") for f in facts):
+        out.append("未照合あり")
+    if any(sum_mismatch(f) for f in facts):
+        out.append("検算不一致あり")
+    return out
+
+
+STATUS_LABEL = {"ok": "全件照合", "warn": "要確認", "error": "JSON エラー", "skip": "VLM 対象外", "unread": "未読"}
 
 
 def render_metric(metric):
@@ -133,7 +153,7 @@ def render_page(p, img):
         f'<header class="page-head"><span class="pno">p{n}</span>'
         f'<span class="kind">{esc(p["kind"])}</span>'
         f'<h2>{esc(p.get("title") or "")}</h2>'
-        f'<span class="status status-{st}">{STATUS_LABEL[st]}</span>'
+        f'<span class="status status-{st}">{"・".join(page_problems(p)) if st == "warn" else STATUS_LABEL[st]}</span>'
         + (f'<span class="count">facts {len(facts)} / 未照合 {bad}</span>' if "facts" in p else "")
         + "</header>"
     )
@@ -160,7 +180,8 @@ def render(res, images, source):
     tiles = [
         ("verified 率", f"{ratio * 100:.1f}%" if ratio is not None else "-", f'{s.get("verified")}/{s.get("facts")} 件'),
         ("JSON エラー", str(s.get("errors", 0)), "ページ"),
-        ("検算 不一致", str(s.get("sum_mismatch", "-")), f'/ {s.get("sum_checks", "-")} 件（内訳の合計）'),
+        ("検算 不一致", str(s.get("sum_mismatch", "-")),
+         f'/ {s.get("sum_checks", "-")} 件（内訳の合計）。一部だけの内訳 {s.get("sum_partial", 0)} 件'),
         ("LLM 対象", f'{s.get("llm_pages")}', f'/ {s.get("pages")} ページ'),
         ("所要時間", f'{s.get("llm_sec")}s', "並列実行の壁時計"),
         ("費用", f'${s.get("cost_usd")}', f'入力 {s.get("input_tokens", 0):,} / 出力 {s.get("output_tokens", 0):,} トークン'),
