@@ -438,4 +438,12 @@ else
   echo "fluent-bit missing; skip enable"
 fi
 
+# 監視（KAB-333）。slack.env の後。失敗してもアプリの provision は続ける。
+# shellcheck source=monitoring/apply.sh
+# shellcheck disable=SC1091
+source "$APP_DIR/deploy/monitoring/apply.sh"
+if ! monitoring_apply; then
+  echo "monitoring: apply failed (metrics/alerts incomplete; app deploy continues)" >&2
+fi
+
 echo "provision ok domain=${DOMAIN} tz=$(timedatectl show -p Timezone --value 2>/dev/null || echo Asia/Tokyo)"

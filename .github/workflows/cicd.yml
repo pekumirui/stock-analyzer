@@ -77,6 +77,18 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends "${need[@]}"
 
+      # tests/ops/test_monitoring.py が実物の vmalert-tool / Alertmanager / VictoriaMetrics を動かす。
+      # 永続ランナーなので binaries.txt のハッシュごとに一度だけ落とす。
+      - name: Fetch monitoring binaries
+        run: |
+          set -euo pipefail
+          key="$(sha256sum deploy/monitoring/binaries.txt | cut -c1-16)"
+          dir="$HOME/.cache/stock-analyzer-monitoring/$key"
+          if [ ! -x "$dir/victoria-metrics" ]; then
+            bash deploy/monitoring/fetch.sh "$dir"
+          fi
+          echo "MONITORING_BIN_DIR=$dir" >> "$GITHUB_ENV"
+
       - name: Compile
         run: python -m compileall -q -f app jobs tests tools deploy mcp .cursor
 

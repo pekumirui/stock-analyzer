@@ -1,0 +1,13 @@
+# 監視の実行ファイル。fetch.sh が arch に合う行だけ落とし、sha256 を照合して取り出す。
+# 値は各リリースの checksum ファイル（GitHub のアセット digest と同じ）。上げるときは行ごと差し替える。
+# 列: 名前 arch sha256 URL 取り出すメンバー（アーカイブ内のファイル名:入れる名前、カンマ区切り）
+victoria-metrics amd64 7180e65913d55ab99c0be8f4a3ad17a0fafe5598a21ff6327fecba3190d7b176 https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/v1.155.0/victoria-metrics-linux-amd64-v1.155.0.tar.gz victoria-metrics-prod:victoria-metrics
+victoria-metrics arm64 c6af3f35c597e2cb45c9bbb7a7fc1638c6f1ec10a8198c2861aa14531bf439d7 https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/v1.155.0/victoria-metrics-linux-arm64-v1.155.0.tar.gz victoria-metrics-prod:victoria-metrics
+vmutils amd64 b6181fc16cf19835706ea5d67215eea56c1fe87350fdfd82a5ff803ea2c1a907 https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/v1.155.0/vmutils-linux-amd64-v1.155.0.tar.gz vmalert-prod:vmalert,vmalert-tool-prod:vmalert-tool
+vmutils arm64 45fa04b8d616dd644c33c00698f22bbe67f9402bc474a1e6df8025f7e649d78f https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/v1.155.0/vmutils-linux-arm64-v1.155.0.tar.gz vmalert-prod:vmalert,vmalert-tool-prod:vmalert-tool
+alertmanager amd64 17ee14acd0f6ba6e25a436ff223d9c17ddd5cf484f543ad12f0932eaa89ba186 https://github.com/prometheus/alertmanager/releases/download/v0.34.2/alertmanager-0.34.2.linux-amd64.tar.gz alertmanager:alertmanager,amtool:amtool
+alertmanager arm64 5aaad82e3d167c30c06ce7d38677d2892a6f66f4c3613ea17af7481750fdd0b0 https://github.com/prometheus/alertmanager/releases/download/v0.34.2/alertmanager-0.34.2.linux-arm64.tar.gz alertmanager:alertmanager,amtool:amtool
+node_exporter amd64 b51d8a76aa2a9156a55d501aca6276fae09e262259a5e4e831d2c2222f084e63 https://github.com/prometheus/node_exporter/releases/download/v1.12.1/node_exporter-1.12.1.linux-amd64.tar.gz node_exporter:node_exporter
+node_exporter arm64 ad35b605f9954b9f1ffddf5ba054bdc5a98d790b9eae5291e1eeb83f1ecbd0e7 https://github.com/prometheus/node_exporter/releases/download/v1.12.1/node_exporter-1.12.1.linux-arm64.tar.gz node_exporter:node_exporter
+process-exporter amd64 6d274cca5e94c6a25e55ec05762a472561859ce0a05b984aaedb67dd857ceee2 https://github.com/ncabatoff/process-exporter/releases/download/v0.8.7/process-exporter-0.8.7.linux-amd64.tar.gz process-exporter:process-exporter
+process-exporter arm64 4a2502f290323e57eeeb070fc10e64047ad0cd838ae5a1b347868f75667b5ab0 https://github.com/ncabatoff/process-exporter/releases/download/v0.8.7/process-exporter-0.8.7.linux-arm64.tar.gz process-exporter:process-exporter
