@@ -45,7 +45,7 @@ if str(ROOT) not in sys.path:
 import httpx  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
-from app.db import SessionLocal, init_db, upsert  # noqa: E402
+from app.db import SessionLocal, init_db, run_sqlite_write, upsert  # noqa: E402
 from app.market.briefing_store import (  # noqa: E402
     SOURCE_IRBANK,
     record_briefing,
@@ -214,8 +214,19 @@ def _pick(group: list[Stock]) -> Stock:
 
 
 def issuers(db: Session, codes: list[str] | None) -> tuple[list[Issuer], list[str]]:
-    """未了の対象社。同じ 4 桁は 1 社。notes は --code で外した銘柄。"""
+    """未了の対象社。同じ 4 桁は 1 社。notes は --code で外した銘柄。
+
+    読み終わったらトランザクションを閉じる。開いたまま PDF を落とすと、索引の
+    UPSERT が同じプロセスの 2 本目の接続になる（KAB-332）。
+    """
     db.rollback()
+    try:
+        return _issuers(db, codes)
+    finally:
+        db.rollback()
+
+
+def _issuers(db: Session, codes: list[str] | None) -> tuple[list[Issuer], list[str]]:
     stocks = db.query(Stock).order_by(Stock.code).all()
     by_code = {str(s.code): s for s in stocks}
     scanned4 = {code4_of(str(code)) for (code,) in db.query(BriefingIrbankScan.code)}
@@ -399,7 +410,7 @@ def mark_scanned(issuer: Issuer, counts: CompanyCounts) -> None:
     }
     db = SessionLocal()
     try:
-        upsert(db, BriefingIrbankScan, [row])
+        run_sqlite_write(db, lambda: upsert(db, BriefingIrbankScan, [row], commit=False))
     finally:
         db.close()
 

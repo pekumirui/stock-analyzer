@@ -1,15 +1,22 @@
 """IR BANK の過去の決算説明資料（KAB-330）。ネットワークには出ない。"""
 from __future__ import annotations
 
+import sqlite3
 import sys
+import tempfile
+import threading
+import time
 from pathlib import Path
 
 import httpx
 import pytest
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 
-from app.db import SessionLocal
+from app.db import SessionLocal, apply_sqlite_pragmas, engine
 from app.market.briefing_store import SOURCE_IRBANK, SOURCE_TDNET, record_briefing
-from app.models import BriefingDocument, BriefingIrbankScan, Stock
+from app.models import Base, BriefingDocument, BriefingIrbankScan, Stock
 from jobs.monthly.tdnet_monthly_r2 import dest_path
 from tools.briefing import irbank_ingest as mod
 
@@ -433,6 +440,127 @@ def test_not_scheduled_and_documented() -> None:
 
     assert "irbank_ingest" in log_mcp.BATCH_JOBS
     assert "irbank_ingest" not in log_mcp.crontab_job_names()
+
+
+def test_download_does_not_hold_a_reader_or_a_second_connection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """PDF を取っている間、一覧のトランザクションも 2 本目の接続も残さない。"""
+    db = _db()
+    held = {"list": None, "pdf": None}
+    real_list, real_pdf = mod.fetch_list, mod.fetch_pdf
+
+    def fetch_list(client, code4):
+        held["list"] = db.in_transaction()
+        return real_list(client, code4)
+
+    def fetch_pdf(client, pdf_id):
+        held["pdf"] = db.in_transaction()
+        return real_pdf(client, pdf_id)
+
+    monkeypatch.setattr(mod, "fetch_list", fetch_list)
+    monkeypatch.setattr(mod, "fetch_pdf", fetch_pdf)
+    live = {"n": 0, "max": 0}
+
+    def _out(*_args) -> None:
+        live["n"] += 1
+        live["max"] = max(live["max"], live["n"])
+
+    def _in(*_args) -> None:
+        live["n"] -= 1
+
+    event.listen(engine, "checkout", _out)
+    event.listen(engine, "checkin", _in)
+    try:
+        _stock(db, "72030", "トヨタ自動車", "011")
+        page = _page("7203", [("140120260804507860", MAT, "2026/08/04", "14:00")])
+        routes = {
+            "https://irbank.net/7203/ir": page,
+            "https://api.irbank.net/api/market-files/v1/tdnet/20260804507860.pdf": PDF,
+        }
+        stats = _run(db, tmp_path, routes, [], codes=["72030"])
+        assert stats.saved == 1
+        assert held["list"] is False and held["pdf"] is False
+        assert live["max"] == 1 and live["n"] == 0
+        assert not db.in_transaction()
+    finally:
+        event.remove(engine, "checkout", _out)
+        event.remove(engine, "checkin", _in)
+        db.close()
+
+
+def test_record_briefing_retries_past_one_busy_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    """別接続の書き込みロックが 1 回の busy_timeout を超えても、索引の行は残る。"""
+    path = Path(tempfile.mkdtemp(prefix="briefing-lock-")) / "stock.db"
+    timeout_s, hold_s = 0.25, 0.45
+    eng = create_engine(
+        f"sqlite:///{path}", future=True, poolclass=NullPool,
+        connect_args={"timeout": timeout_s},
+    )
+    event.listen(eng, "connect", apply_sqlite_pragmas)
+
+    @event.listens_for(eng, "connect")
+    def _short(dbapi_connection, connection_record) -> None:  # noqa: ARG001
+        cur = dbapi_connection.cursor()
+        try:
+            cur.execute(f"PRAGMA busy_timeout={int(timeout_s * 1000)}")
+        finally:
+            cur.close()
+
+    Base.metadata.create_all(eng)
+    Session = sessionmaker(bind=eng, autoflush=False, future=True)
+    probe = Session()
+    try:
+        got = int(probe.execute(text("PRAGMA busy_timeout")).scalar())
+    finally:
+        probe.rollback()
+        probe.close()
+    assert got == int(timeout_s * 1000)
+    monkeypatch.setattr("app.market.briefing_store.SessionLocal", Session)
+
+    started = threading.Event()
+    result: dict[str, str] = {}
+
+    def holder() -> None:
+        conn = sqlite3.connect(path, timeout=timeout_s, check_same_thread=False)
+        try:
+            apply_sqlite_pragmas(conn)
+            conn.execute(f"PRAGMA busy_timeout={int(timeout_s * 1000)}")
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute("CREATE TABLE IF NOT EXISTS lock_hold (id INTEGER)")
+            conn.execute("INSERT INTO lock_hold (id) VALUES (1)")
+            started.set()
+            time.sleep(hold_s)
+            conn.commit()
+            result["holder"] = "ok"
+        except Exception as exc:  # noqa: BLE001
+            result["holder"] = f"{type(exc).__name__}: {exc}"
+            started.set()
+        finally:
+            conn.close()
+
+    thread = threading.Thread(target=holder)
+    thread.start()
+    try:
+        assert started.wait(timeout=2)
+        t0 = time.monotonic()
+        record_briefing(
+            source=SOURCE_IRBANK, document_id="140120260101000099", code="72030",
+            company_name="トヨタ自動車", pubdate="2026-01-01 15:00:00", title=MAT,
+            rel_path="7203/locked.pdf", url=None, sha256="abc", size=3,
+        )
+        waited = time.monotonic() - t0
+        check = Session()
+        try:
+            row = check.get(BriefingDocument, (SOURCE_IRBANK, "140120260101000099"))
+            assert row is not None and row.rel_path == "7203/locked.pdf"
+        finally:
+            check.close()
+        assert waited >= timeout_s * 0.6
+    finally:
+        thread.join(timeout=3)
+        eng.dispose()
+    assert result.get("holder") == "ok"
 
 
 def test_main_requires_one_scope() -> None:

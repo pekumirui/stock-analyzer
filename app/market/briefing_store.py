@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from app.db import SessionLocal, upsert
+from app.db import SessionLocal, run_sqlite_write, upsert
 from app.models import BriefingDocument
 
 JST = ZoneInfo("Asia/Tokyo")
@@ -31,7 +31,10 @@ def record_briefing(
     size: int,
     saved_at: datetime | None = None,
 ) -> None:
-    """保存済み PDF を索引する。同じ (source, document_id) は上書きする。"""
+    """保存済み PDF を索引する。同じ (source, document_id) は上書きする。
+
+    locked は run_sqlite_write が数回、待ちを伸ばして再試行する（KAB-305 と同じ）。
+    """
     if source not in SOURCES:
         names = ", ".join(sorted(SOURCES))
         raise ValueError(f"briefing source must be one of {names}: {source!r}")
@@ -54,7 +57,7 @@ def record_briefing(
     }
     db = SessionLocal()
     try:
-        upsert(db, BriefingDocument, [row])
+        run_sqlite_write(db, lambda: upsert(db, BriefingDocument, [row], commit=False))
     finally:
         db.close()
 
