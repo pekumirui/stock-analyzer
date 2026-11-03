@@ -4,7 +4,7 @@ The ranking tab has two inner tabs: 決算後パフォーマンス (default) and
 
 ## Sub-features
 
-- `rk-subs` switches `#rk-subs .ftab[data-rksub]` (`perf` 決算後パフォーマンス default / `pts` PTS). Hash is `#ranking` or `#ranking/pts`. PTS details are in `features/pts.md`.
+- `rk-subs` switches `#rk-subs .ftab[data-rksub]` (`perf` 決算後パフォーマンス default / `pts` PTS). A header open or a reload of a bare hash is `#ranking` or `#ranking/pts`. Clicking the other inner tab writes `#ranking/pts?from=ranking` or `#ranking?from=ranking-pts`. `ui.route` stays `ranking` or `ranking/pts`. PTS details are in `features/pts.md`.
 - `rk-open` shows `#tab-ranking` with 決算後パフォーマンス `.on` and calls `loadRanking()` (`GET /api/ranking/earnings-perf`) when `#rk-tbl` is empty. `restoreRoute` on `#ranking` always calls it.
 - `rk-dir` switches `#rk-kind .ftab[data-dir]` (`up` 上昇率 default / `down` 下落率). No refetch: the client keeps positives (`return_to_next > 0`, high first) or negatives (`return_to_next < 0`, most-negative first) and re-ranks. 0 and null are in neither list.
 - `rk-month` is `#rk-month` (`YYYY年M月決算`, newest first). Changing it refetches that month and keeps the current 上昇率 / 下落率.
@@ -12,7 +12,7 @@ The ranking tab has two inner tabs: 決算後パフォーマンス (default) and
 - `rk-info` reads `N 銘柄 / M/D 終値まで` (filtered view count). Empty dir reads `この月の上昇率はありません` / `この月の下落率はありません`.
 - `rk-share` is `#rk-share` (`X に投稿`). Post text is 3 lines (`YYYY年M月決算 上昇率ランキングTOPN` or `下落率ランキングTOPN`, then the two 計測方法 lines). The PNG title is the first line only.
 - `rk-to-chart` clicks a name → `gotoChart(code)` → 銘柄 › 株価, hash `#stock/{code}/price?from=ranking`.
-- `rk-route` writes `#ranking` (決算後パフォーマンス) or `#ranking/pts` to `location.hash` + `ui.route`; reload reopens that inner tab. Old `#pts` is rewritten to `#ranking/pts`.
+- `rk-route` writes `#ranking` (決算後パフォーマンス) or `#ranking/pts` to `location.hash` + `ui.route` (path only). An inner-tab click adds `?from=ranking` / `?from=ranking-pts`. Reload of a bare hash reopens that inner tab. Old `#pts` is rewritten to `#ranking/pts`.
 
 ## How to get to it (user POV)
 

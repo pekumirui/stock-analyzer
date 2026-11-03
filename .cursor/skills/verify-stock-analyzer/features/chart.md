@@ -12,14 +12,14 @@ The 株価 sub tab of 銘柄 draws adjusted daily, weekly, monthly, or yearly ca
 - `price-rel` `#rel` adds the 対TOPIX pane (first common day = 100) from `GET /api/topix` (fetched once per page).
 - `price-perf` fills `#perf-tbl` (発表日 / +1d / α / +5d / α / +20d / α / +60d / α / 現在まで / α) from `/api/earnings-performance/{code}`, at most 12 rows.
 - `price-events` `.evt-toggles` (決算発表) inside `#st-sub-price` overlays markers from chart JSON `earnings_dates`; on/off is kept in `localStorage.chartEventOverlays`.
-- `price-goto` `gotoChart(code)` from 決算速報 (`#e-chart-title .clicky`), スクリーナー / PTS / ランキング / 大量保有報告書 (name `.clicky`), サプライ (`#supply-chart-link` 「株価を開く」) opens 銘柄 with 株価 `.on`, hash `#stock/{code}/price?from=` when the caller screen is allowed (`earnings`, `screener`, `ranking`, `ranking-pts`, `supply`, `holders`, `stock-*`). A reload of `#stock/{code}/price` has no query. `ui.route` stores the path only.
+- `price-goto` `gotoChart(code)` from 決算速報 (`#e-chart-title .clicky`), スクリーナー / PTS / ランキング / 大量保有報告書 (name `.clicky`), サプライ (`#supply-chart-link` 「株価を開く」) opens 銘柄 with 株価 `.on`, hash `#stock/{code}/price?from=` when the caller screen is allowed (`earnings`, `screener`, `ranking`, `ranking-pts`, `supply`, `holders`, `holders-detail`, `stock-*`). A reload of `#stock/{code}/price` has no query. `ui.route` stores the path only.
 - `price-route` `#stock/{code}/price` restores it on reload. Old `#chart/{code}` or `ui.route` `chart/{code}` is read as `stock/{code}/price`; bare `#chart` → `#stock`.
 
 ## How to get to it (user POV)
 
 - In 銘柄, pick an issuer (`#st-sym`) and click 株価 in `#st-tabs`.
 - Click an issuer name on 決算速報 (chart title), スクリーナー, PTS, ランキング, or 「株価を開く」 on a listed サプライ company.
-- Click a `#tf` button, drag the window in `.chart-nav`, change `#tf` / `#chart-sub`, tick `#chart-log` / `#rel`, or edit `#mas` and dispatch `change` (Enter/blur).
+- Click a `#tf` button, drag the window in `.chart-nav`, change `#tf` / `#chart-sub`, tick `#chart-log` / `#rel`, or edit `#mas` and dispatch `change` (blur). Enter on `#mas` does not fire `change` (the field is not in a form).
 - Tick `.evt-toggles` 決算発表.
 - Reload with `#stock/{code}/price` (or an old `#chart/{code}` bookmark).
 
@@ -33,11 +33,11 @@ Preconditions:
 - **Capture.** `helpers/capture.py chart --code 72030` writes `artifacts/chart/body.json` (`t` length > 0, `o`/`h`/`l`/`c` already from `adj_*`, `v`, `tv`, `mc`, `earnings_dates`, `fund` = `{t, eps, op_q, op_ttm}`) and `performance.json` (a list, may be empty; still 200).
 - **Open.** Reload `#stock/72030/price` (golden DB has candles; 31160 does not — see Gotchas). Hash `#stock/72030/price`, `#st-title` `トヨタ自動車 7203 / プライム / 輸送用機器`, `#chart canvas` present, `#chart-msg` hidden/empty, requests `GET /api/chart/72030` + `GET /api/earnings-performance/72030`, `#tf .on` is `日足`, `#chart-fund` shows `業績なし`, and the visible range covers the latest ≈ width/6 trading days. No button whose label contains 表示.
 - **404.** Cold reload `#stock/31160/price`: overview 200, `#st-quote` 「株価データなし」, chart HTTP 404 `no data`, `#chart-msg` 「読み込めませんでした。」, no canvas from that response. A same-document jump from a drawn 72030 (hash or inner tab) leaves the previous canvas and keeps `#tf` / `#rel` / `#chart-fund`; do not treat leftover 72030 candles as 31160 data. Click 概要 then 株価: both price requests fire again (`stockPriceCode` was cleared).
-- **Controls.** On the 72030 draw, click `#tf [data-tf="W"]` (range jumps to the latest ≈ width/6 weeks), set `#mas` to `25` + `change`, `#chart-sub` to `tv` + `change`: no new `/api/` request. Tick `#rel` → one `GET /api/topix` (only the first time) and a third pane. Click `[data-tf="Y"]` → yearly bars (3 on the golden DB) and no MA lines (50/150/200 days are under 2 years).
+- **Controls.** On the 72030 draw, click `#tf [data-tf="W"]` (range jumps to the latest ≈ width/6 weeks), set `#mas` to `25` and dispatch `change` (Enter alone leaves the legend on MA50/150/200), `#chart-sub` to `tv` + `change`: no new `/api/` request. Tick `#rel` → one `GET /api/topix` (only the first time) and a third pane. Click `[data-tf="Y"]` → yearly bars (3 on the golden DB) and no MA lines (50/150/200 days are under 2 years).
 - **Period bar.** Wheel over `#chart`: `stockChart.chart.timeScale().getVisibleRange()` does not change. Drag the window in `.chart-nav` left: the range moves by the same share of the history. Drag the left edge left to the start → still 日足, just thinner.
 - **Reopen.** On that successful 72030 draw, click 概要 then 株価 again: no `/api/chart` or `/api/earnings-performance`. Opening another code and coming back within 10 minutes reuses the in-memory daily data (no `/api/chart`); after that the browser revalidates with `If-None-Match` (304).
 - **Old route.** Reload on `#chart/72030` → hash `#stock/72030/price`, `#st-title` `トヨタ自動車 7203 / プライム / 輸送用機器`, only `#st-sub-price` visible. `localStorage` `ui.route=chart/39120` with no hash → `#stock/39120/price`.
-- **gotoChart.** From each caller above: 銘柄 active, 株価 `.on`, hash `#stock/{code}/price?from=…`, `GET /api/stock/{code}/overview` then the two price requests.
+- **gotoChart.** From each caller above: 銘柄 active, 株価 `.on`, hash `#stock/{code}/price?from=…`, `GET /api/stock/{code}/overview` and `GET /api/earnings-performance/{code}`. `GET /api/chart/{code}` is skipped when that code was loaded in the last 10 minutes (including 決算速報 `#e-chart`). A second `gotoChart` of the same code sends nothing.
 - **Proof.** Keep `body.json` and (if CDP) a screenshot with `#chart` tall enough to show candles and the 銘柄 header.
 
 ## Gotchas

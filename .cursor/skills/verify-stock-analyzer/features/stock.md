@@ -19,7 +19,7 @@ The 銘柄 tab picks one issuer and shows a common header (name, price, 時価�
 
 ## How to get to it (user POV)
 
-- Click `nav button[data-tab="stock"]` (at ≤720px inside the `#menu-btn` drawer).
+- Click `nav button[data-tab="stock"]` (at ≤720px open `#menu-btn` first so `#app-nav` has `.open`).
 - Type a name or code into `#st-sym`, then Enter or click a `#st-suggest` row.
 - Click 概要 / 株価 / ニュース / 株主 in `#st-tabs.nav-tabs`, and 累計 / 3か月 / 進捗率 / 修正履歴 in `#st-fin-tabs` (still `.fin-tabs`).
 - On ニュース click a row, then 幅に合わせる / 中 / 原寸 in `#st-zoom`, and 「← ニュース」 or the browser back button.
