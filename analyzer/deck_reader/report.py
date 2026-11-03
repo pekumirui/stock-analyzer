@@ -63,6 +63,12 @@ def fact_issues(f):
     v, u = str(f.get("value") or ""), str(f.get("unit") or "")
     if u and u not in ("null", "None") and v.endswith(u):
         issues.append(("info", "value に単位が重複"))
+    if f.get("sum_ok") is False:
+        issues.append(("bad", f"内訳の合計 {f.get('sum_of'):g} と合わない"))
+    elif f.get("sum_ok"):
+        issues.append(("info", "内訳の合計と一致"))
+    if f.get("part_of"):
+        issues.append(("info", f"内訳 → {f['part_of']}"))
     return issues
 
 
@@ -73,12 +79,12 @@ def page_status(p):
         return "unread"
     if p.get("error"):
         return "error"
-    if any(not f.get("verified") for f in p.get("facts", [])):
+    if any(not f.get("verified") or f.get("sum_ok") is False for f in p.get("facts", [])):
         return "warn"
     return "ok"
 
 
-STATUS_LABEL = {"ok": "全件照合", "warn": "未照合あり", "error": "JSON エラー", "skip": "VLM 対象外", "unread": "未読"}
+STATUS_LABEL = {"ok": "全件照合", "warn": "未照合・検算不一致あり", "error": "JSON エラー", "skip": "VLM 対象外", "unread": "未読"}
 
 
 def render_metric(metric):
@@ -95,11 +101,11 @@ def render_facts(facts):
     rows = []
     for f in facts:
         issues = fact_issues(f)
-        cls = "row-bad" if any(l == "bad" for l, _ in issues) else ""
+        cls = "row-bad" if any(lv == "bad" for lv, _ in issues) else ""
         pk = f.get("period_kind")
         badge = f'<span class="pk pk-{esc(pk) if pk in PERIOD_KINDS else "bad"}">{esc(PERIOD_KINDS.get(pk, pk))}</span>'
         mark = "✓" if f.get("verified") else "✗"
-        notes = "".join(f'<span class="issue issue-{l}">{esc(m)}</span>' for l, m in issues)
+        notes = "".join(f'<span class="issue issue-{lv}">{esc(m)}</span>' for lv, m in issues)
         note = f'<span class="note">{esc(f.get("note"))}</span>' if f.get("note") else ""
         seg = f.get("segment")
         rows.append(
@@ -154,6 +160,7 @@ def render(res, images, source):
     tiles = [
         ("verified 率", f"{ratio * 100:.1f}%" if ratio is not None else "-", f'{s.get("verified")}/{s.get("facts")} 件'),
         ("JSON エラー", str(s.get("errors", 0)), "ページ"),
+        ("検算 不一致", str(s.get("sum_mismatch", "-")), f'/ {s.get("sum_checks", "-")} 件（内訳の合計）'),
         ("LLM 対象", f'{s.get("llm_pages")}', f'/ {s.get("pages")} ページ'),
         ("所要時間", f'{s.get("llm_sec")}s', "並列実行の壁時計"),
         ("費用", f'${s.get("cost_usd")}', f'入力 {s.get("input_tokens", 0):,} / 出力 {s.get("output_tokens", 0):,} トークン'),
@@ -352,7 +359,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("result", help="decks の id（<root>/results/<id>_<model>.json）か、run.py の結果 JSON のパス")
     ap.add_argument("--root", type=pathlib.Path, default=DEFAULT_ROOT)
-    ap.add_argument("--model", default="haiku", help="id を渡したときの結果のモデル")
+    ap.add_argument("--model", default="haiku", help="id を渡したときの結果の名前（haiku、haiku_v2_elow など。run.py の表示どおり）")
     ap.add_argument("--pdf", help="元の PDF (スライド画像を埋め込む)。id のときは <root>/pdf/<id>.pdf")
     ap.add_argument("-o", "--out", help="出力。id のときは <root>/reports/<id>_<model>.<format>、パスのときは report.<format>")
     ap.add_argument("--format", choices=("html", "pdf"), help="省くと -o の拡張子、それも無ければ html")
