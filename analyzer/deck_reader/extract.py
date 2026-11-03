@@ -13,7 +13,7 @@ import json
 import re
 import unicodedata
 
-PROMPT_VERSIONS = ("v1", "v2")  # run.py --prompt で選ぶ。結果 JSON の prompt_version は deck-<選んだ方>
+PROMPT_VERSIONS = ("v1", "v2", "v3")  # run.py --prompt で選ぶ。結果 JSON の prompt_version は deck-<選んだ方>
 
 # ---------- 数値 ----------
 # カンマは 3 桁区切りのときだけ数字の一部とみなす。ラベルが重なって「34,30734,155」となった文字データを 34,307 と 34,155 に分ける
@@ -156,8 +156,47 @@ SYSTEM_V2 = """あなたは日本の上場企業の決算説明資料を読み�
 - 文字データに無い数字を作らない。読み取れない場合は入れない"""
 
 
+SYSTEM_V3 = """あなたは日本の上場企業の決算説明資料を読み取り、データベース用の構造化データを作る専門家です。
+スライド画像と、そのスライドから機械抽出した文字データ (数字は正確だが並び順が崩れている) を渡します。
+画像でレイアウト (どの数字がどの項目・期間・区分に属するか) を読み取ってください。数字の桁は文字データの表記を使い、符号だけ下のルールで揃えます。
+
+数値は「表」の形で返します。グラフも表として書きます (横軸の期間が列、系列が行)。出力は次の JSON オブジェクトだけ (前後に文章やコードブロックを付けない):
+{
+  "title": "スライドのタイトル",
+  "summary": "このスライドが伝えていることを日本語 1〜3 文で。数字の羅列ではなく要点 (増減の理由、見通しの変更、施策) を書く",
+  "tables": [
+    {
+      "cols": [{"period": "資料の期間表記そのまま (例: FY25 Q1, 2027年3月期)", "kind": "actual | forecast | previous_forecast | plan | change"}],
+      "rows": [
+        {"metric": "指標名。階層は / で区切る", "segment": "区分 (セグメント・地域・製品)。無ければ null",
+         "unit": "億円, 10億円, 千台, %, pts, 円 など", "of": "内訳の親 (下のルール)。その行の metric と segment を「metric|segment」で。無ければ null",
+         "values": ["cols と同じ順・同じ数。値が無いセルは null"], "note": "行名だけで意味が分からないときだけ短く。普段は省く"}
+      ]
+    }
+  ]
+}
+数値のルール:
+- スライド上の数値はすべて入れる (グラフの棒・表のセル・注記の内訳も)。ページ番号・年号・軸目盛りは入れない
+- values には数字だけを書く。単位・「円安」などの語は付けない (例: "55.9" と unit "%"、"+3,450")。円安・円高などの向きは metric に入れる (例: 為替レート/米ドル/円安幅)
+- マイナスは必ず - で書く。資料が △1,026・▲1,026・(731) のようにマイナスを表していたら "-1,026"、"-731" と書く
+- 表の「-」「―」「—」や空欄は「値が無い」という意味。values は null にする (0 やマイナスにしない)
+- マイナスでない括弧 (前回予想・構成比・利益率などの補足) は括弧を外して書き、意味は kind や行で表す (例: 前回予想 (1,575.0) → kind previous_forecast の列に "1,575.0")
+- unit は行で 1 つ。金額の行に率 (%) を入れない。増減率・利益率・その増減 (pts) は落とさずに、それぞれ別の行にする
+- 種類 (kind) の違う列は 1 つの表に混ぜてよい。前年差・前四半期比などの増減は kind を change にする
+- 決議・決定済みの値は actual。将来の目標・計画は plan、会社の業績予想は forecast、前回の予想は previous_forecast
+- 注記の金額 (減損損失・一時的な利益など) や期間の無い目標 (生産能力の目標など) も入れる。period には資料の言葉 (例: 注記 FY24 Q4、目標) を書く
+- 入れないのは、指数名・制度名・製品名の一部になっている数字だけ (例: 「JPX日経インデックス人的資本100」の 100)
+- 文字データに無くても、画像にはっきり書かれている数字は入れる (グラフが画像で貼られている資料がある)。画像にも無い数字は作らない
+内訳 (of) のルール:
+- of は「その親の内訳を全部足すと親の値になる」ときだけ付ける。比率・増減率の行には付けない
+- 一部だけを並べた内訳 (「うち」「主な」「主要製品」など、足しても親にならないもの) には付けない
+- 階層は 1 段ずつ。中身は小計に、小計は合計に付ける。小計とその中身の両方を合計に付けない (二重に数えることになる)
+- 親と内訳の unit が違うとき (兆円と億円など) は付けない
+- 同じ親に別の切り口の内訳 (部門別と地域別など) があるときは、両方に付けてよい"""
+
+
 def system_prompt(version: str) -> str:
-    return {"v1": SYSTEM, "v2": SYSTEM_V2}[version]
+    return {"v1": SYSTEM, "v2": SYSTEM_V2, "v3": SYSTEM_V3}[version]
 
 
 def page_text(page: dict) -> str:
@@ -222,10 +261,23 @@ def _paren(s) -> bool:
     return bool(re.fullmatch(r"\(.*\)", norm_text(str(s)).strip()))
 
 
-def check_sums(facts: list[dict]) -> list[dict]:
-    """part_of の付いた facts を親ごと・期間ごとに足し、親の値と比べる。丸めの許容: 表示桁の半分 × (内訳の数 + 1)。
+def _two_breakdowns(values: list[float], total: float, tol: float) -> bool:
+    """内訳を 2 組に分けて、両方とも total に一致するか（部門別と地域別のように、同じ親に 2 通りの内訳があるとき）。
+    内訳が多いと組み合わせが増えるので 18 個まで。"""
+    if len(values) < 3 or len(values) > 18 or abs(sum(values) - 2 * total) > 2 * tol:
+        return False
+    first, rest = values[0], values[1:]
+    for mask in range(1 << len(rest)):  # values[0] を含む組を数える（組の入れ替えを重複して数えない）
+        s = first + sum(v for i, v in enumerate(rest) if mask >> i & 1)
+        if abs(s - total) <= tol and mask.bit_count() + 1 < len(values):
+            return True
+    return False
 
-    status: ok / paren（括弧をマイナスとみなすと一致）/ partial（内訳がすべてプラスで合計に届かない＝一部だけの内訳）/ mismatch。
+
+def check_sums(facts: list[dict]) -> list[dict]:
+    """part_of の付いた facts を親ごと・期間ごとに足し、親の値と比べる。丸めの許容: 一番粗い表示桁の半分 × (内訳の数 + 1)。
+
+    status: ok / split（別の切り口の内訳が 2 組あり、それぞれが一致）/ paren（括弧をマイナスとみなすと一致）/ partial（内訳がすべてプラスで合計に届かない＝一部だけの内訳）/ mismatch。
     親の fact に sum_status / sum_of を付ける。括弧の意味（マイナス・前回予想・率）は資料ごとに違うので値は書き換えない。
     同じ行が 2 つの表に出るときは 1 つにして足す。率の列（期間に % や「率」）と率の行は検算しない。"""
     by_key = {}
@@ -248,9 +300,12 @@ def check_sums(facts: list[dict]) -> list[dict]:
             continue
         value = parent["value_num"]
         total = sum(x["value_num"] for x in parts)
-        tol = 0.5 * 10 ** -max(_decimals(x["value"]) for x in [parent, *parts]) * (len(parts) + 1) + 1e-9
+        # 丸めの許容は一番粗い桁に合わせる（親が整数・内訳が小数 1 桁なら 0.5 単位）
+        tol = 0.5 * 10 ** -min(_decimals(x["value"]) for x in [parent, *parts]) * (len(parts) + 1) + 1e-9
         if abs(total - value) <= tol:
             status = "ok"
+        elif _two_breakdowns([x["value_num"] for x in parts], value, tol):
+            status = "split"
         else:
             signed = lambda x: -abs(x["value_num"]) if _paren(x["value"]) else x["value_num"]  # noqa: E731
             alt = sum(signed(x) for x in parts)
@@ -262,7 +317,7 @@ def check_sums(facts: list[dict]) -> list[dict]:
                 status = "mismatch"
         parent["sum_status"], parent["sum_of"] = status, round(total, 6)
         checks.append({"key": pkey, "period": period, "kind": kind, "value": value,
-                       "sum": round(total, 6), "parts": len(parts), "status": status, "ok": status in ("ok", "paren")})
+                       "sum": round(total, 6), "parts": len(parts), "status": status, "ok": status in ("ok", "split", "paren")})
     return checks
 
 
