@@ -1,0 +1,32 @@
+[Unit]
+Description=VictoriaMetrics (metrics store, 127.0.0.1 only)
+After=network.target
+
+[Service]
+User=monitoring
+Group=monitoring
+StateDirectory=monitoring-victoria-metrics
+ExecStart=/opt/monitoring/bin/victoria-metrics \
+  -httpListenAddr=127.0.0.1:8428 \
+  -storageDataPath=/var/lib/monitoring-victoria-metrics \
+  -retentionPeriod=6 \
+  -promscrape.config=/etc/monitoring/scrape.yml \
+  -promscrape.config.strictParse \
+  -selfScrapeInterval=30s \
+  -memory.allowedBytes=192MiB
+MemoryMax=512M
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

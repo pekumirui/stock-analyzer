@@ -1,0 +1,92 @@
+# CPU・メモリ・ディスクの使用率と、そのしきい値。
+# 同じ alertname で warning と critical の 2 本。critical が出ている間の warning は
+# Alertmanager の inhibit_rules で抑える。解消の通知は Alertmanager の send_resolved。
+groups:
+  - name: host-usage
+    interval: 30s
+    rules:
+      - record: host:cpu_usage:percent
+        expr: 100 * (1 - avg(rate(node_cpu_seconds_total{job="node",mode="idle"}[2m])))
+      - record: host:memory_usage:percent
+        expr: 100 * (1 - node_memory_MemAvailable_bytes{job="node"} / node_memory_MemTotal_bytes{job="node"})
+      # df と同じ: used / (used + avail)。予約ブロックは分母に入れない。
+      - record: host:disk_usage:percent
+        expr: >-
+          100 * (node_filesystem_size_bytes{job="node"} - node_filesystem_free_bytes{job="node"})
+          / (node_filesystem_size_bytes{job="node"} - node_filesystem_free_bytes{job="node"} + node_filesystem_avail_bytes{job="node"})
+
+  - name: host-alerts
+    interval: 30s
+    rules:
+      # CPU とメモリは一瞬の跳ね上がりで鳴らさない（for）。下がってもすぐには解消にしない（keep_firing_for）。
+      - alert: HostCpuUsage
+        expr: host:cpu_usage:percent >= 80
+        for: 5m
+        keep_firing_for: 5m
+        labels:
+          severity: warning
+          resource: cpu
+        annotations:
+          summary: CPU 使用率が 80% 以上で 5 分続いています
+          value: '{{ $value | printf "%.1f" }}%'
+      - alert: HostCpuUsage
+        expr: host:cpu_usage:percent >= 90
+        for: 5m
+        keep_firing_for: 5m
+        labels:
+          severity: critical
+          resource: cpu
+        annotations:
+          summary: CPU 使用率が 90% 以上で 5 分続いています
+          value: '{{ $value | printf "%.1f" }}%'
+      - alert: HostMemoryUsage
+        expr: host:memory_usage:percent >= 80
+        for: 5m
+        keep_firing_for: 5m
+        labels:
+          severity: warning
+          resource: memory
+        annotations:
+          summary: メモリ使用率が 80% 以上で 5 分続いています
+          value: '{{ $value | printf "%.1f" }}%'
+      - alert: HostMemoryUsage
+        expr: host:memory_usage:percent >= 90
+        for: 5m
+        keep_firing_for: 5m
+        labels:
+          severity: critical
+          resource: memory
+        annotations:
+          summary: メモリ使用率が 90% 以上で 5 分続いています
+          value: '{{ $value | printf "%.1f" }}%'
+      # ディスクはすぐ鳴らす。
+      - alert: HostDiskUsage
+        expr: host:disk_usage:percent >= 80
+        labels:
+          severity: warning
+          resource: disk
+        annotations:
+          summary: 'ディスク {{ $labels.mountpoint }} の使用率が 80% 以上です'
+          value: '{{ $value | printf "%.1f" }}%'
+      - alert: HostDiskUsage
+        expr: host:disk_usage:percent >= 90
+        labels:
+          severity: critical
+          resource: disk
+        annotations:
+          summary: 'ディスク {{ $labels.mountpoint }} の使用率が 90% 以上です'
+          value: '{{ $value | printf "%.1f" }}%'
+
+  - name: monitoring-self
+    interval: 30s
+    rules:
+      # 取れていないと上のしきい値は黙る。取れない状態そのものを知らせる。
+      - alert: MetricsTargetDown
+        expr: up{job=~"node|process"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          resource: monitoring
+        annotations:
+          summary: '{{ $labels.job }} のメトリクスが 5 分取れていません'
+          value: down

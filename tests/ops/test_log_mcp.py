@@ -350,6 +350,7 @@ def test_http_auth_and_tools() -> None:
         "db_schema",
         "xbrl_compare",
         "xbrl_diff_summary",
+        "metrics_query",
         "fx_rate",
         "fx_rates",
         "monthly_list",
