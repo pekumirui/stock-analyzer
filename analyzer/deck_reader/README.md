@@ -47,6 +47,8 @@ R=/workspace/deck-reader; cd analyzer/deck_reader
 ../../.venv/bin/python run.py toyota_2027q1 --root $R --model haiku --pages 7   # まず 1 ページ
 ../../.venv/bin/python run.py --all --root $R --model haiku --jobs 4
 ../../.venv/bin/python run.py toyota_2027q1 --root $R --prompt v3 --effort low   # 安い方式。結果は toyota_2027q1_haiku_v3_elow.json
+../../.venv/bin/python run.py --pdf <PDF> --id <id> --root $R --prompt v3 --effort low --publish onedrive:deck-reader/<フォルダ> --clean   # レポートと結果 JSON を上げて手元を消す
+../../.venv/bin/python report.py <結果 JSON> --pdf <PDF> -o /tmp/x.pdf --publish onedrive:deck-reader/<フォルダ>   # 既にある結果から（LLM なし）
 ../../.venv/bin/python report.py toyota_2027q1 --root $R --model haiku   # -> $R/reports/toyota_2027q1_haiku.html
 ../../.venv/bin/python report.py toyota_2027q1 --root $R --format pdf      # スマホで見る用の PDF（Chromium が要る）
 ../../.venv/bin/python run.py --pdf /path/to/deck.pdf --id advantest_2027q2 --root $R --pages 5,7   # decks.json に無い PDF
@@ -56,7 +58,7 @@ R=/workspace/deck-reader; cd analyzer/deck_reader
 
 - 費用は claude.ai の利用枠から出る（`claude -p`）。全社を回すなら利用枠では足りないので、本番では API キーと Batch API にする
 - `run.py` の隔離：作業フォルダ `<root>/work/<id>/<model>/p<N>/` に `slide.png` と `text.txt` を置き、読めるのはそこだけ（`Read(//<作業フォルダ>/**)` の許可ルール）。道具は Read だけ。`--setting-sources ""` と `--strict-mcp-config` でリポジトリの指示・メモリ・MCP を読ませない。全許可モードは使わない
-- スマホで見るときは `--format pdf` で PDF にして、OneDrive などに置いて開く（HTML はスマホのアプリでうまく開けないことがある）
+- スマホで見るときは PDF にして OneDrive などに置いて開く（HTML はスマホのアプリでうまく開けないことがある）。`run.py --publish` が 1 冊ごとに PDF のレポートと結果 JSON を rclone で上げる。`--clean` は上げ終わった冊の手元を消す（上げに失敗したら消さない）。結果 JSON も上げるので、手元を消しても `recheck.py` と `report.py` で作り直せる
 - 1 ページの `claude -p` の出力（トークン・費用・秒）は作業フォルダの `result.json` に残り、冊の集計は結果 JSON の `stats` に入る
 
 決まった資料を繰り返し試すときは `decks.json` に 1 件足す。その場で 1 冊試すだけなら `run.py --pdf`（`<root>/pdf/<id>.pdf` に写してから読むので、`report.py` / `compare.py` は id で呼べる）。TDnet の資料は IR Bank MCP の `list_disclosures`（`edinet_code` は `edinet_filers`）で doc_id を引く。TDnet に出ていない資料（会社の IR サイトだけのもの）は `doc_id` を null にして `note` に取り方を書く。
