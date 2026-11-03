@@ -1,7 +1,10 @@
 """検証レポート: run.py の結果 JSON (+ 元 PDF) -> HTML 1 枚。LLM を使わない。
 
-    .venv/bin/python analyzer/deck_reader/report.py /workspace/deck-reader/results/toyota_2027q1_haiku.json \
-        --pdf /workspace/deck-reader/pdf/toyota_2027q1.pdf -o /tmp/report.html
+    .venv/bin/python analyzer/deck_reader/report.py toyota_2027q1 --root /workspace/deck-reader --model haiku
+    .venv/bin/python analyzer/deck_reader/report.py /tmp/toyota_2027q1_haiku.json --pdf /tmp/toyota.pdf -o /tmp/report.html
+
+- id を渡すと <root>/results/<id>_<model>.json を読み、<root>/pdf/<id>.pdf があれば画像を埋め込み、
+  <root>/reports/<id>_<model>.html に書く（run.py と同じ置き場）。パスを渡したときは --pdf / -o で指定する
 
 - スライド画像と読み取り結果 (title / summary / facts) を横に並べ、項目と数字の対応を目で確かめる
 - 未照合 (verified=false) の数字、JSON エラー、period_kind の不正値などを機械的に強調する
@@ -12,6 +15,8 @@ import base64
 import html
 import json
 import pathlib
+
+from fetch import DEFAULT_ROOT, pdf_path
 
 PERIOD_KINDS = {
     "actual": "実績",
@@ -296,14 +301,26 @@ document.getElementById('only-bad').addEventListener('change', e => document.bod
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("result", help="app.py --out で保存した結果 JSON")
-    ap.add_argument("--pdf", help="元の PDF (スライド画像を埋め込む)")
-    ap.add_argument("-o", "--out", default="report.html")
+    ap.add_argument("result", help="decks の id（<root>/results/<id>_<model>.json）か、run.py の結果 JSON のパス")
+    ap.add_argument("--root", type=pathlib.Path, default=DEFAULT_ROOT)
+    ap.add_argument("--model", default="haiku", help="id を渡したときの結果のモデル")
+    ap.add_argument("--pdf", help="元の PDF (スライド画像を埋め込む)。id のときは <root>/pdf/<id>.pdf")
+    ap.add_argument("-o", "--out", help="出力 HTML。id のときは <root>/reports/<id>_<model>.html、パスのときは report.html")
     a = ap.parse_args()
-    res = json.loads(pathlib.Path(a.result).read_text())
-    images = page_images(a.pdf, [p["page"] for p in res["pages"] if p["kind"] not in SKIP_KINDS]) if a.pdf else {}
-    source = pathlib.Path(a.pdf).name if a.pdf else pathlib.Path(a.result).name
-    out = pathlib.Path(a.out)
+    path = pathlib.Path(a.result)
+    if path.suffix == ".json":
+        pdf, out = a.pdf, pathlib.Path(a.out or "report.html")
+    else:
+        path = a.root / "results" / f"{a.result}_{a.model}.json"
+        default_pdf = pdf_path(a.root, a.result)
+        pdf = a.pdf or (str(default_pdf) if default_pdf.exists() else None)
+        out = pathlib.Path(a.out) if a.out else a.root / "reports" / f"{a.result}_{a.model}.html"
+    if not path.exists():
+        raise SystemExit(f"{path} が無い。run.py を先に")
+    res = json.loads(path.read_text())
+    images = page_images(pdf, [p["page"] for p in res["pages"] if p["kind"] not in SKIP_KINDS]) if pdf else {}
+    source = pathlib.Path(pdf).name if pdf else path.name
+    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(render(res, images, source))
     print(f"{out} ({out.stat().st_size / 1e6:.1f} MB)")
 

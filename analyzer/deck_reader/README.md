@@ -25,7 +25,7 @@
 | `extract.py` | テキスト層・ページ分類・画像・プロンプト・JSON の解析・照合。LLM を呼ばない |
 | `fetch.py` | doc_id のある資料を IR Bank から `<root>/pdf/<id>.pdf` に取る |
 | `run.py` | 1 ページ 1 回 `claude -p` を起動して読ませ、`<root>/results/<id>_<model>.json` を作る |
-| `report.py` | 結果 1 冊を HTML にする（スライド画像と facts の表を横に並べ、未照合を赤くする） |
+| `report.py` | 結果 1 冊を HTML にする（スライド画像と facts の表を横に並べ、未照合を赤くする）。id と `--root` で呼ぶ |
 | `compare.py` | 2 つの結果をページごとに並べた HTML。`--notes` で画像照合のメモを添える |
 | `results/` | 結果の要約（Markdown）。JSON・PDF・HTML はコミットしない |
 
@@ -41,7 +41,8 @@ R=/workspace/deck-reader; cd analyzer/deck_reader
 ../../.venv/bin/python run.py toyota_2027q1 --root $R --dry-run  # 起動コマンドだけ確かめる
 ../../.venv/bin/python run.py toyota_2027q1 --root $R --model haiku --pages 7   # まず 1 ページ
 ../../.venv/bin/python run.py --all --root $R --model haiku --jobs 4
-../../.venv/bin/python report.py $R/results/toyota_2027q1_haiku.json --pdf $R/pdf/toyota_2027q1.pdf -o /tmp/toyota.html
+../../.venv/bin/python report.py toyota_2027q1 --root $R --model haiku   # -> $R/reports/toyota_2027q1_haiku.html
+../../.venv/bin/python run.py --pdf /path/to/deck.pdf --id advantest_2027q2 --root $R --pages 5,7   # decks.json に無い PDF
 ../../.venv/bin/python compare.py --root $R --pages toyota_2027q1:7,11,19 \
     --a "Haiku=$R/results/{deck}_haiku.json" --b "Sonnet=$R/results/{deck}_sonnet.json" -o /tmp/compare.html
 ```
@@ -50,7 +51,7 @@ R=/workspace/deck-reader; cd analyzer/deck_reader
 - `run.py` の隔離：作業フォルダ `<root>/work/<id>/<model>/p<N>/` に `slide.png` と `text.txt` を置き、読めるのはそこだけ（`Read(//<作業フォルダ>/**)` の許可ルール）。道具は Read だけ。`--setting-sources ""` と `--strict-mcp-config` でリポジトリの指示・メモリ・MCP を読ませない。全許可モードは使わない
 - 1 ページの `claude -p` の出力（トークン・費用・秒）は作業フォルダの `result.json` に残り、冊の集計は結果 JSON の `stats` に入る
 
-資料を足すときは `decks.json` に 1 件足す。TDnet の資料は IR Bank MCP の `list_disclosures`（`edinet_code` は `edinet_filers`）で doc_id を引く。TDnet に出ていない資料（会社の IR サイトだけのもの）は `doc_id` を null にして `note` に取り方を書く。
+決まった資料を繰り返し試すときは `decks.json` に 1 件足す。その場で 1 冊試すだけなら `run.py --pdf`（`<root>/pdf/<id>.pdf` に写してから読むので、`report.py` / `compare.py` は id で呼べる）。TDnet の資料は IR Bank MCP の `list_disclosures`（`edinet_code` は `edinet_filers`）で doc_id を引く。TDnet に出ていない資料（会社の IR サイトだけのもの）は `doc_id` を null にして `note` に取り方を書く。
 
 ## 結果
 

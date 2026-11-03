@@ -11,6 +11,9 @@ work の下の result.json に残る（トークン・費用・所要時間）�
   .venv/bin/python analyzer/deck_reader/run.py toyota_2027q1 --model haiku --pages 7,13 # ページを絞る
   .venv/bin/python analyzer/deck_reader/run.py --all --model haiku --jobs 4
   .venv/bin/python analyzer/deck_reader/run.py toyota_2027q1 --dry-run                  # 起動コマンドだけ表示
+  .venv/bin/python analyzer/deck_reader/run.py --pdf <PDF> --id advantest_2027q2        # decks.json に無い PDF
+
+--pdf の PDF は <root>/pdf/<id>.pdf に写してから読む（report.py / compare.py が同じ場所を見る）。--id を省くとファイル名。
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import shlex
+import shutil
 import subprocess  # nosec B404
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -136,10 +140,24 @@ def run_deck(deck: dict, root: Path, model: str, pages_filter: set[int] | None, 
     return res
 
 
+def pdf_deck(src: Path, deck_id: str | None, root: Path) -> dict:
+    """decks.json に無い PDF を <root>/pdf/<id>.pdf に写し、decks.json と同じ形の dict を返す。"""
+    if not src.is_file():
+        raise SystemExit(f"{src} が無い")
+    deck_id = deck_id or src.stem
+    dst = pdf_path(root, deck_id)
+    if not dst.exists():
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dst)
+    return {"id": deck_id, "source": str(src)}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("ids", nargs="*", help="decks.json の id")
     ap.add_argument("--all", action="store_true", help="decks.json の全部")
+    ap.add_argument("--pdf", type=Path, help="decks.json に無い PDF を直接読む（data/briefing/ の資料など）")
+    ap.add_argument("--id", help="--pdf のときの id（省くとファイル名）")
     ap.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     ap.add_argument("--model", default="haiku", help="claude -p の --model（haiku / sonnet / opus）")
     ap.add_argument("--pages", help="7,13 のようにページを絞る（1 冊のとき）")
@@ -147,10 +165,16 @@ def main() -> None:
     ap.add_argument("--timeout", type=int, default=600, help="1 ページの上限秒")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
-    if not args.ids and not args.all:
-        ap.error("id か --all を指定する")
+    if args.pdf:
+        if args.ids or args.all:
+            ap.error("--pdf と id / --all は一緒に使えない")
+        decks = [pdf_deck(args.pdf, args.id, args.root)]
+    elif args.ids or args.all:
+        decks = load_decks(None if args.all else args.ids)
+    else:
+        ap.error("id か --all か --pdf を指定する")
     pages_filter = {int(x) for x in args.pages.split(",")} if args.pages else None
-    for deck in load_decks(None if args.all else args.ids):
+    for deck in decks:
         run_deck(deck, args.root, args.model, pages_filter, args.jobs, args.timeout, args.dry_run)
 
 
