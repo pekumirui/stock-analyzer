@@ -12,8 +12,8 @@
 2. 表紙・中扉・注意事項のページは LLM に回さない（`extract.classify`）
 3. 残りのページは「スライド画像（110dpi の PNG）＋テキスト層」を LLM に渡し、JSON（title / summary / facts）で返させる。数字はテキスト層の表記をそのまま使わせる
 4. facts の数字がテキスト層に実在するかを機械的に照合する（`verified`）
-5. 出力の形は 2 つ（`run.py --prompt`）。v1 は facts を 1 件ずつ、v2 は表の形（期間の列 × 行）で、行に「どの行の内訳か（`of`）」を書かせる。v2 はスクリプトで v1 と同じ facts に展開し、内訳を足して合計と比べる（検算。合わない行はレポートで赤くする）。値の末尾に重なった単位はどちらでもスクリプトで外す
-6. 検算の約束（`extract.check_sums`）: 同じ行が 2 つの表に出るときは 1 つにして足す。率の列（期間に % や「率」）と率の行は見ない。内訳がすべてプラスで合計に届かないときは「一部だけの内訳」（主要製品だけの表など）として不一致に数えない。括弧の意味は資料で違う（マイナス・前回予想・率）ので値は書き換えず、合わないときだけ括弧をマイナスとみなして試す
+5. 出力の形は `run.py --prompt` で選ぶ。v1 は facts を 1 件ずつ、v2・v3 は表の形（期間の列 × 行）で、行に「どの行の内訳か（`of`）」を書かせる。v2 はスクリプトで v1 と同じ facts に展開し、内訳を足して合計と比べる（検算。合わない行はレポートで赤くする）。値の末尾に重なった単位はどちらでもスクリプトで外す
+6. 検算の約束（`extract.check_sums`）: 同じ行が 2 つの表に出るときは 1 つにして足す。同じ親に別の切り口の内訳が 2 組あるときは、2 組に分けてそれぞれ確かめる。率の列（期間に % や「率」）と率の行は見ない。内訳がすべてプラスで合計に届かないときは「一部だけの内訳」（主要製品だけの表など）として不一致に数えない。括弧の意味は資料で違う（マイナス・前回予想・率）ので値は書き換えず、合わないときだけ括弧をマイナスとみなして試す
 
 ### 照合の限界
 
@@ -46,7 +46,7 @@ R=/workspace/deck-reader; cd analyzer/deck_reader
 ../../.venv/bin/python run.py toyota_2027q1 --root $R --dry-run  # 起動コマンドだけ確かめる
 ../../.venv/bin/python run.py toyota_2027q1 --root $R --model haiku --pages 7   # まず 1 ページ
 ../../.venv/bin/python run.py --all --root $R --model haiku --jobs 4
-../../.venv/bin/python run.py toyota_2027q1 --root $R --prompt v2 --effort low   # 安い方式。結果は toyota_2027q1_haiku_v2_elow.json
+../../.venv/bin/python run.py toyota_2027q1 --root $R --prompt v3 --effort low   # 安い方式。結果は toyota_2027q1_haiku_v3_elow.json
 ../../.venv/bin/python report.py toyota_2027q1 --root $R --model haiku   # -> $R/reports/toyota_2027q1_haiku.html
 ../../.venv/bin/python report.py toyota_2027q1 --root $R --format pdf      # スマホで見る用の PDF（Chromium が要る）
 ../../.venv/bin/python run.py --pdf /path/to/deck.pdf --id advantest_2027q2 --root $R --pages 5,7   # decks.json に無い PDF
@@ -65,5 +65,6 @@ R=/workspace/deck-reader; cd analyzer/deck_reader
 
 | 対象 | 日付 | 結論 |
 |---|---|---|
+| [プロンプト v3（内訳の印・マイナス・率の行）](results/2026-11-03_prompt_v3.md) | 2026-11-03 | 問題のあった 30 ページで v2 と比べ、検算不一致 46 → 3、一部だけの内訳 74 → 7、括弧付きの値 26 → 0。表の「-」を 0 と書く誤りは「- は null」で直った |
 | [表の形の出力（v2）と effort で費用を下げる](results/2026-11-03_cost.md) | 2026-11-03 | アドバンテスト 16 ページで $0.065 → $0.041（v2・effort low）。数字は v1 とほぼ同じ（欠け 1 件は不要な年号）、検算 60 件すべて一致。残りの出力は考えた分で、`claude -p` では止められない |
 | [Qwen3.5-9B（自前 GPU）と Haiku の比較](results/2026-11-02_poc.md) | 2026-11-02 | 9B は多系列の積み上げ棒で読み飛ばしと捏造、数字の多いページで出力が切れる（3 冊で 7 ページ）。Haiku は 9B が失敗した 8 ページで JSON 正常・未照合 0、地域別 56 件 × 2 ページは画像照合で全件正しい。抽出役は Haiku にする |

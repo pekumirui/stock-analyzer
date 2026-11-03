@@ -174,7 +174,7 @@ def main() -> None:
     ap.add_argument("--pages", help="7,13 のようにページを絞る（1 冊のとき）")
     ap.add_argument("--jobs", type=int, default=2, help="同時に起動する claude -p の数")
     ap.add_argument("--timeout", type=int, default=600, help="1 ページの上限秒")
-    ap.add_argument("--prompt", choices=d.PROMPT_VERSIONS, default="v1", help="v2 は表の形の出力（短く、内訳の検算ができる）")
+    ap.add_argument("--prompt", choices=d.PROMPT_VERSIONS, default="v1", help="v2/v3 は表の形の出力（短く、内訳の検算ができる）。v3 は内訳の印・マイナス・率の行のルールを足したもの")
     ap.add_argument("--effort", choices=("low", "medium", "high"), help="claude -p の --effort（省くとモデルの既定）")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()

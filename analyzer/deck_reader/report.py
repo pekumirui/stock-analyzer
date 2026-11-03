@@ -68,6 +68,8 @@ def fact_issues(f):
         issues.append(("bad", f"内訳の合計 {f.get('sum_of'):g} と合わない"))
     elif st == "partial":
         issues.append(("info", f"内訳は一部だけ（計 {f.get('sum_of'):g}）"))
+    elif st == "split":
+        issues.append(("info", "別の切り口の内訳が 2 組あり、それぞれ合計と一致"))
     elif st == "paren":
         issues.append(("info", "括弧をマイナスとみなすと内訳の合計と一致"))
     elif st == "ok":
