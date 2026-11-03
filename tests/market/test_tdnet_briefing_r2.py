@@ -56,6 +56,11 @@ def test_material_titles_match_briefing_pdfs() -> None:
         "Financial Results Presentation",
         "Q2 Earnings Presentation Materials",
         "Supplementary Materials for the Financial Results",
+        "2027年3月期第1四半期決算投資家向け決算説明会質疑応答(要旨)",
+        "2026年3月期 通期決算説明会における主な質疑",
+        "2027年3月期 第1四半期決算説明会 Q&A",
+        "2027年3月期 決算説明会 Ｑ＆Ａ",
+        "Questions and Answers for the Financial Results",
     )
     for title in accept:
         assert is_material_title(title), title
@@ -65,10 +70,12 @@ def test_material_titles_match_briefing_pdfs() -> None:
 def test_corrections_and_notices_are_not_materials() -> None:
     corrections = (
         "（訂正）「2026年８月期通期 決算説明資料」の一部訂正について",
+        "（訂正）「決算説明会質疑応答(要旨)」の一部訂正について",
         "Correction of the Earnings Presentation",
     )
     notices = (
         "決算説明会開催のお知らせ",
+        "決算説明会質疑応答(要旨)開催のお知らせ",
         "決算説明会の開催中止に関するお知らせ",
         "2027年５月期第１四半期 決算説明資料の掲載に関するお知らせ",
         "決算説明資料の公開について",
@@ -82,6 +89,9 @@ def test_corrections_and_notices_are_not_materials() -> None:
         "本日公表のプレスリリースに関する補足説明資料",
         "中期経営計画説明会資料",
         "8月度 月次売上高のお知らせ",
+        "2027年3月期 第1四半期決算概要",
+        "決算短信の要旨",
+        "中期経営計画に関する質疑応答",
     )
     for title in corrections:
         assert not is_material_title(title), title

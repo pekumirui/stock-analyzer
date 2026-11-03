@@ -223,8 +223,8 @@ TDnet 月次 PDF（`jobs/monthly/tdnet_monthly_r2.py`）:
 TDnet 決算説明資料 PDF（`jobs/market/tdnet_briefing_r2.py`。KAB-327）:
 
 - 一覧は `jobs/_tdnet.py` の `fetch_days`。採否は `app/market/briefing_title.py` の `is_material_title` だけ（保存も、あとから同じ判定が要る処理もここを呼ぶ）
-- 採る: 空白と全角半角を畳んだ表題が、決算・四半期・中間・通期・業績のどれかと、説明資料・説明会資料・補足資料・プレゼン資料（プレゼンテーション資料を含む）のどれかを両方含むもの。英語は earnings / financial results の presentation、または briefing / supplementary materials。決算短信の補足資料は採る
-- 落とす: 訂正・誤記。お知らせ、開催・中止・延期、掲載について・公開について（決算説明会開催のお知らせ、説明資料を載せた案内）。英語の notice / correction。資料の語が無い「決算説明会」。決算短信そのもの。成長可能性の説明資料や、決算などの語が無い補足説明資料。中期経営計画の説明会資料（決算・四半期などの語が無いもの）
+- 採る: 空白と全角半角を畳んだ表題が、決算・四半期・中間・通期・業績のどれかと、説明資料・説明会資料・補足資料・プレゼン資料（プレゼンテーション資料を含む）・質疑応答（主な質疑、Q&A。要旨・概要だけでは採らない。KAB-336）のどれかを両方含むもの。英語は earnings / financial results の presentation、または briefing / supplementary materials、または Q&A / questions and answers。決算短信の補足資料は採る
+- 落とす: 訂正・誤記。お知らせ、開催・中止・延期、掲載について・公開について（決算説明会開催のお知らせ、説明資料を載せた案内）。英語の notice / correction。資料の語も質疑応答の語も無い「決算説明会」。決算短信そのもの。成長可能性の説明資料や、決算などの語が無い補足説明資料。中期経営計画の説明会資料（決算・四半期などの語が無いもの）
 - 「修正」だけでは落とさない。補足資料の表題に業績予想の修正が入ることがある
 - 保存先は `data/briefing/{code}/YYYYMMDD_CODE_名前_表題.pdf`。`{code}` とファイル名は月次 PDF と同じ（display_code。J-Quants の 5 桁にはしない）。`SHARE_ROOT` を置くとその直下の `briefing/`
 - 既存ファイルが PDF なら取り直さない。索引が無ければ索引だけ足す。その件数は `reindexed`（新規に保存した `saved` とは別）。PDF でなければ取り直す
