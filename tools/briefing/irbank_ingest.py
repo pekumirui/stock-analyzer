@@ -4,7 +4,7 @@
 TDnet は約 30 日で開示を消す。毎日の分は jobs/market/tdnet_briefing_r2.py（cron 22:10）が取る。
 このツールは cron に入れない。止め方は tools/tdnet_pdf/ingest.py と同じ。
 
-会社ごとの開示一覧 https://irbank.net/{4桁}/ir を 1 社 1 回だけ読む。表題は
+会社ごとの開示一覧 https://irbank.net/{4桁}/ir を読む。読み終えた社は次回飛ばす（--rescan のときは読み直す）。表題は
 app.market.briefing_title.is_material_title。PDF は
 https://api.irbank.net/api/market-files/v1/tdnet/{18桁の末尾14桁}.pdf。
 保存先とファイル名は TDnet のジョブと同じ。索引は briefing_documents（source=irbank）。
@@ -13,6 +13,8 @@ https://api.irbank.net/api/market-files/v1/tdnet/{18桁の末尾14桁}.pdf。
 429 / 503 で止める（終了コード 0）。その銘柄は briefing_irbank_scans に書かないので、次の実行が続きから。
 PDF の取得に失敗した銘柄も書かない（404 だけなら書く）。成功した PDF は索引にあるので取り直さない。
 --limit はこの実行の社数。--dry-run は一覧だけ見て、PDF も索引も進捗も書かない。
+--rescan は briefing_irbank_scans を無視して一覧を読み直す。--code とも --all とも併用できる。
+索引にある PDF は取り直さない。付けないときの対象は、読み終えた社を飛ばす今までどおり。
 
   python tools/briefing/irbank_ingest.py --code 7203 --dry-run
   python tools/briefing/irbank_ingest.py --all --limit 80 --sleep 1
@@ -20,7 +22,8 @@ PDF の取得に失敗した銘柄も書かない（404 だけなら書く）。
 
 最後の 1 行: irbank_briefing stopped=<done|limit|rate_limited> companies=… listed=…
 saved=… skipped=… reindexed=… missing=… failed=… remaining=…
-remaining は実行後にまだ scans が無い対象社数。--dry-run は進捗を書かないので、見た社も残る。
+remaining は実行後にまだ scans が無い対象社数。--rescan で読み直した社は数えない。
+--dry-run は進捗を書かないので、見た社も残る。
 表は jobs/migrate.py（init_db）が作る。
 """
 from __future__ import annotations
@@ -213,20 +216,25 @@ def _pick(group: list[Stock]) -> Stock:
     return min(group, key=lambda s: (not str(s.code).endswith("0"), str(s.code)))
 
 
-def issuers(db: Session, codes: list[str] | None) -> tuple[list[Issuer], list[str]]:
-    """未了の対象社。同じ 4 桁は 1 社。notes は --code で外した銘柄。
+def issuers(
+    db: Session, codes: list[str] | None, *, rescan: bool = False,
+) -> tuple[list[Issuer], list[str]]:
+    """対象社。同じ 4 桁は 1 社。notes は --code で外した銘柄。
 
+    rescan でなければ briefing_irbank_scans にある 4 桁は除く。
     読み終わったらトランザクションを閉じる。開いたまま PDF を落とすと、索引の
     UPSERT が同じプロセスの 2 本目の接続になる（KAB-332）。
     """
     db.rollback()
     try:
-        return _issuers(db, codes)
+        return _issuers(db, codes, rescan=rescan)
     finally:
         db.rollback()
 
 
-def _issuers(db: Session, codes: list[str] | None) -> tuple[list[Issuer], list[str]]:
+def _issuers(
+    db: Session, codes: list[str] | None, *, rescan: bool = False,
+) -> tuple[list[Issuer], list[str]]:
     stocks = db.query(Stock).order_by(Stock.code).all()
     by_code = {str(s.code): s for s in stocks}
     scanned4 = {code4_of(str(code)) for (code,) in db.query(BriefingIrbankScan.code)}
@@ -266,7 +274,7 @@ def _issuers(db: Session, codes: list[str] | None) -> tuple[list[Issuer], list[s
     out: list[Issuer] = []
     for key in sorted(grouped):
         stock = _pick(grouped[key])
-        if key in scanned4:
+        if key in scanned4 and not rescan:
             if codes is not None:
                 notes.append(f"skip scanned {stock.code}")
             continue
@@ -497,12 +505,13 @@ def run(
     limit: int | None = None,
     sleep: float = 1.0,
     dry_run: bool = False,
+    rescan: bool = False,
     client: httpx.Client | None = None,
     log: Callable[[str], None] | None = None,
 ) -> RunStats:
     write = print if log is None else log
     stats = RunStats()
-    todo, notes = issuers(db, codes)
+    todo, notes = issuers(db, codes, rescan=rescan)
     for note in notes:
         write(note)
     own = client is None
@@ -542,6 +551,7 @@ def run(
     finally:
         if own:
             client.close()
+    # remaining は scans が無い社数。--rescan で読み直した社は記録が残るので数えない。
     stats.remaining = len(issuers(db, codes)[0])
     return stats
 
@@ -550,6 +560,10 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--code", action="append", default=[], help="銘柄コード（4 桁か 5 桁）。複数可")
     ap.add_argument("--all", action="store_true", help="対象の全銘柄（普通株と REIT。読み終えた社は飛ばす）")
+    ap.add_argument(
+        "--rescan", action="store_true",
+        help="briefing_irbank_scans を無視して一覧を読み直す。索引済みの PDF は取り直さない",
+    )
     ap.add_argument("--limit", type=int, help="この実行で見る最大社数")
     ap.add_argument("--sleep", type=float, default=1.0, help="IR BANK への請求間隔（秒）。既定 1")
     ap.add_argument("--dest", default=DEFAULT_DEST, help="PDF の保存先。既定は data/briefing")
@@ -579,6 +593,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         stats = run(
             db, dest, codes=codes, limit=args.limit, sleep=args.sleep, dry_run=args.dry_run,
+            rescan=args.rescan,
         )
     finally:
         db.close()

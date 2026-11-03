@@ -303,7 +303,7 @@ deploy/cron-run.sh jobs/market/run_batch.py --refetch-prices   # ログは batch
 deploy/cron-run.sh jobs/market/run_batch.py --readjust-prices
 ```
 
-TDnet が約 30 日で消すより前の決算説明資料（KAB-330）は、IR BANK の開示一覧から一度だけ手で取る。cron には入れない。毎日の分は 22:10 の `jobs/market/tdnet_briefing_r2.py`。429 / 503 で止まっても、次の実行は未了の銘柄から続く。`--limit` は 1 回の社数。`--dry-run` は一覧だけ見て PDF も索引も書かない。ログは `deploy/cron-run.sh` なら `/var/log/app/irbank_ingest.log`（`batch_logs` の `job=irbank_ingest`）。
+TDnet が約 30 日で消すより前の決算説明資料（KAB-330）は、IR BANK の開示一覧から一度だけ手で取る。cron には入れない。毎日の分は 22:10 の `jobs/market/tdnet_briefing_r2.py`。429 / 503 で止まっても、次の実行は未了の銘柄から続く。`--limit` は 1 回の社数。`--dry-run` は一覧だけ見て PDF も索引も書かない。`--rescan` は読み終えた社の一覧も読み直す（`--code` と `--all` のどちらとも。KAB-338）。索引にある PDF は取り直さない。ログは `deploy/cron-run.sh` なら `/var/log/app/irbank_ingest.log`（`batch_logs` の `job=irbank_ingest`）。
 
 ```bash
 python tools/briefing/irbank_ingest.py --code 7203 --dry-run
