@@ -202,7 +202,10 @@ def main() -> None:
         return
 
     if args.feature == "holders":
-        today = date.today().isoformat()
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        today = datetime.now(ZoneInfo("Asia/Tokyo")).date().isoformat()
         url = f"{base}/api/holders/activity?file_date={today}&limit=1000"
         status, body = _get(url)
         path = _write("holders", "body.json", "GET", url, status, body)

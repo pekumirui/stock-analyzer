@@ -21,7 +21,7 @@ Read this index, then the matching feature file, before driving the app.
 - Prefer `nav button[data-tab]`, `#id`, and `data-fin` / `data-no` over pixel clicks. `#wiki-link` is an external tab, not a screen. `#view-mode-btn` is phone-only chrome (`screen.width` ≤ 720).
 - Treat every command as literal.
 - HTTP proofs use `helpers/capture.py <feature>` against the same `/api/*` the SPA calls (including `capture.py ranking` and `capture.py holders`).
-- Browser proofs use `browser-use`: open `{url}/app` then click the tab handle. At ≤720px the tabs are in the `#menu-btn` drawer; open it first (or call `selectTab`).
+- Browser proofs use `browser-use`: open `{url}/app` then click the tab handle. At ≤720px the tabs are in `#app-nav` until `#menu-btn` adds `.open` (in-flow under the header, not a fixed drawer); open it first (or call `selectTab`).
 - Cleanup removes `.run/` only. Leave `artifacts/`.
 
 ## Proof and skip reporting
