@@ -10,7 +10,7 @@
 - 生成物（CSV・パネル）は `--out` で `/tmp` などリポジトリ外へ出す。コミットするのは結果の要約とグラフの PNG だけ
 - 分析期間と確認期間を分ける。分析期間だけで良く見えた結論は採らない
 - 2 つ目の分析で同じ処理（価格の調整、月末判定、Newey-West など）が要ったら `common/` に切り出す。それまでは各スクリプトに置く
-- 例外: `agent_forecast/` は stock.db を読まない。開示（IR Bank）と本番の月次 API を材料にしてベンダーごとのエージェント（Claude は `claude -p`、Grok 4.6 は Cursor の Task）を回す。予想に渡した財務 JSON も `results/` に残す。Cursor では `/agent-forecast`
+- 例外: `agent_forecast/` と `deck_reader/` は stock.db を読まない。`deck_reader/` は説明資料の PDF を `claude -p` に読ませる PoC（約束は `deck_reader/README.md`）。`agent_forecast/` は開示（IR Bank）と本番の月次 API を材料にしてベンダーごとのエージェント（Claude は `claude -p`、Grok 4.6 は Cursor の Task）を回す。予想に渡した財務 JSON も `results/` に残す。Cursor では `/agent-forecast`
 - 依存は `analyzer/requirements.txt`（`.venv/bin/python -m pip install -r analyzer/requirements.txt`）
 
 ## 一覧
@@ -19,3 +19,4 @@
 |---|---|---|---|
 | [`momentum/`](momentum/README.md) | 過去 3 か月（と 12-1）の対 TOPIX 超過リターンは、次の 3 か月を予測するか | 予測力は確認できない | 2026-10-02 |
 | [`agent_forecast/`](agent_forecast/README.md) | 決算予想をエージェントにさせるとき、月次（PDF / 月次 API）と説明資料は精度とトークンにどう効くか | 売上は月次で決まる（Claude / Grok 4.6）。利益は Claude では月次＋説明資料、Grok 4.6 では月次までで頭打ち。月次は API の方が少ないトークン（ＫｅｅＰｅｒ技研、Claude は E・F 3 回、Grok は各 1 回） | 2026-10-07 |
+| [`deck_reader/`](deck_reader/README.md) | 決算説明資料を LLM に読ませ、ページ要約と数値ファクトを正確・安価に取れるか（PoC。本番の取込は別 issue） | 抽出役は Haiku。Qwen3.5-9B（自前 GPU）は多系列の積み上げ棒で読み飛ばしと捏造、数字の多いページで出力切れ。Haiku は 9B が失敗した 8 ページで JSON 正常・未照合 0 | 2026-11-02 |
