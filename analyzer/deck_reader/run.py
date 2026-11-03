@@ -15,6 +15,11 @@ work の下の result.json に残る（トークン・費用・所要時間）�
   .venv/bin/python analyzer/deck_reader/run.py --pdf <PDF> --id advantest_2027q2        # decks.json に無い PDF
   .venv/bin/python analyzer/deck_reader/run.py toyota_2027q1 --prompt v2 --effort low    # 表の形の出力・考える量を減らす
 
+  .venv/bin/python analyzer/deck_reader/run.py --pdf <PDF> --prompt v3 --effort low \\
+      --publish onedrive:deck-reader/<フォルダ> --clean                                  # レポートと結果を上げて手元を消す
+
+--publish は 1 冊読み終わるごとに PDF のレポートを作り、レポートと結果 JSON を rclone で上げる。--clean は上げ終わった冊の
+手元（work・レポート・結果・--pdf で写した PDF）を消す。上げに失敗したら消さない。
 --pdf の PDF は <root>/pdf/<id>.pdf に写してから読む（report.py / compare.py が同じ場所を見る）。--id を省くとファイル名。
 """
 
@@ -30,6 +35,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import extract as d
+import report as rp
 from fetch import DEFAULT_ROOT, load_decks, pdf_path
 
 TASK = (
@@ -163,6 +169,20 @@ def pdf_deck(src: Path, deck_id: str | None, root: Path) -> dict:
     return {"id": deck_id, "source": str(src)}
 
 
+def publish_deck(deck: dict, root: Path, name: str, remote: str, clean: bool) -> None:
+    """読み終わった 1 冊のレポートを作り、レポートと結果 JSON を remote に上げる。clean なら手元を消す。"""
+    result = root / "results" / f"{deck['id']}_{name}.json"
+    pdf = pdf_path(root, deck["id"])
+    report = rp.build(result, pdf if pdf.exists() else None, root / "reports" / f"{deck['id']}_{name}.pdf", "pdf")
+    rp.publish([report, result], remote)
+    if clean:
+        shutil.rmtree(root / "work" / deck["id"] / name, ignore_errors=True)
+        report.unlink()
+        result.unlink()
+        if deck.get("source"):  # --pdf で写したものだけ消す（fetch.py で取った PDF は残す）
+            pdf.unlink(missing_ok=True)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("ids", nargs="*", help="decks.json の id")
@@ -176,8 +196,12 @@ def main() -> None:
     ap.add_argument("--timeout", type=int, default=600, help="1 ページの上限秒")
     ap.add_argument("--prompt", choices=d.PROMPT_VERSIONS, default="v1", help="v2/v3 は表の形の出力（短く、内訳の検算ができる）。v3 は内訳の印・マイナス・率の行のルールを足したもの")
     ap.add_argument("--effort", choices=("low", "medium", "high"), help="claude -p の --effort（省くとモデルの既定）")
+    ap.add_argument("--publish", metavar="REMOTE", help="1 冊ごとに PDF のレポートと結果 JSON を rclone で上げる（例: onedrive:deck-reader/10decks）")
+    ap.add_argument("--clean", action="store_true", help="--publish で上げ終わった冊の手元を消す")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
+    if args.clean and not args.publish:
+        ap.error("--clean は --publish と一緒に使う（上げずに消さない）")
     if args.pdf:
         if args.ids or args.all:
             ap.error("--pdf と id / --all は一緒に使えない")
@@ -188,7 +212,9 @@ def main() -> None:
         ap.error("id か --all か --pdf を指定する")
     pages_filter = {int(x) for x in args.pages.split(",")} if args.pages else None
     for deck in decks:
-        run_deck(deck, args.root, args.model, pages_filter, args.jobs, args.timeout, args.dry_run, args.prompt, args.effort)
+        res = run_deck(deck, args.root, args.model, pages_filter, args.jobs, args.timeout, args.dry_run, args.prompt, args.effort)
+        if res is not None and args.publish:
+            publish_deck(deck, args.root, variant(args.model, args.prompt, args.effort), args.publish, args.clean)
 
 
 if __name__ == "__main__":

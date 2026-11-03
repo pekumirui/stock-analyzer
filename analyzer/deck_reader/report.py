@@ -7,6 +7,7 @@
   <root>/reports/<id>_<model>.html に書く（run.py と同じ置き場）。パスを渡したときは --pdf / -o で指定する
 - 画像は LLM に読ませたページだけ入れる（--pages で絞った残りは「未読」として畳む）。全ページなら --all-pages
 - --format pdf（または -o *.pdf）で Chromium (headless) を使って PDF にする。スマホで見るとき用。中間の HTML は残さない
+- --publish onedrive:deck-reader/<フォルダ> で、PDF のレポートと結果 JSON を rclone で上げる（run.py --publish と同じ）
 
 - スライド画像と読み取り結果 (title / summary / facts) を横に並べ、項目と数字の対応を目で確かめる
 - 未照合 (verified=false) の数字、JSON エラー、period_kind の不正値などを機械的に強調する
@@ -378,6 +379,32 @@ def write_pdf(html_text, out):
         raise SystemExit(f"PDF にできなかった: {proc.stderr[-500:]}")
 
 
+def build(path, pdf, out, fmt="pdf", all_pages=False):
+    """結果 JSON（path）と元の PDF（pdf、無ければ画像なし）からレポートを out に書く。"""
+    res = json.loads(pathlib.Path(path).read_text())
+    want = ("ok", "warn", "error", "unread") if all_pages else ("ok", "warn", "error")
+    images = page_images(str(pdf), [p["page"] for p in res["pages"] if page_status(p) in want]) if pdf else {}
+    source = pathlib.Path(pdf).name if pdf else pathlib.Path(path).name
+    out = pathlib.Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if fmt == "pdf":
+        write_pdf(render(res, images, source), out)
+    else:
+        out.write_text(render(res, images, source))
+    return out
+
+
+def publish(files, remote):
+    """files を rclone で remote（例: onedrive:deck-reader/10decks）に上げる。失敗したら例外。"""
+    rclone = shutil.which("rclone")
+    if not rclone:
+        raise SystemExit("rclone が無い（bash .cursor/install.sh で入る）")
+    for f in files:
+        dst = f"{remote.rstrip('/')}/{pathlib.Path(f).name}"
+        subprocess.run([rclone, "copyto", str(f), dst], check=True, timeout=600)  # nosec B603
+        print(f"  -> {dst}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("result", help="decks の id（<root>/results/<id>_<model>.json）か、run.py の結果 JSON のパス")
@@ -387,8 +414,9 @@ def main():
     ap.add_argument("-o", "--out", help="出力。id のときは <root>/reports/<id>_<model>.<format>、パスのときは report.<format>")
     ap.add_argument("--format", choices=("html", "pdf"), help="省くと -o の拡張子、それも無ければ html")
     ap.add_argument("--all-pages", action="store_true", help="LLM に読ませていないページの画像も入れる")
+    ap.add_argument("--publish", metavar="REMOTE", help="PDF のレポートと結果 JSON を rclone で上げる（例: onedrive:deck-reader/10decks）")
     a = ap.parse_args()
-    fmt = a.format or ("pdf" if a.out and a.out.lower().endswith(".pdf") else "html")
+    fmt = a.format or ("pdf" if a.publish or (a.out and a.out.lower().endswith(".pdf")) else "html")
     path = pathlib.Path(a.result)
     if path.suffix == ".json":
         pdf, out = a.pdf, pathlib.Path(a.out or f"report.{fmt}")
@@ -399,16 +427,10 @@ def main():
         out = pathlib.Path(a.out) if a.out else a.root / "reports" / f"{a.result}_{a.model}.{fmt}"
     if not path.exists():
         raise SystemExit(f"{path} が無い。run.py を先に")
-    res = json.loads(path.read_text())
-    want = ("ok", "warn", "error", "unread") if a.all_pages else ("ok", "warn", "error")
-    images = page_images(pdf, [p["page"] for p in res["pages"] if page_status(p) in want]) if pdf else {}
-    source = pathlib.Path(pdf).name if pdf else path.name
-    out.parent.mkdir(parents=True, exist_ok=True)
-    if fmt == "pdf":
-        write_pdf(render(res, images, source), out)
-    else:
-        out.write_text(render(res, images, source))
+    out = build(path, pdf, out, fmt, a.all_pages)
     print(f"{out} ({out.stat().st_size / 1e6:.1f} MB)")
+    if a.publish:
+        publish([out, path], a.publish)
 
 
 if __name__ == "__main__":
