@@ -3,6 +3,8 @@
 - 数字はテキスト層（PDF の文字データ）が正。LLM には「どの数字がどの項目・期間か」の対応付けだけをさせる
 - LLM が出した数字はテキスト層に実在するかを機械的に照合する（verified）。数字自体の捏造は見つかるが、
   実在する数字を別の項目に付けた誤りは見つからない（README の「照合の限界」）
+- 文字データに無い数字（グラフが画像で貼られた資料）は、そのページだけ OCR（RapidOCR）にかけて照合する（verified_by: ocr）。
+  OCR も「ページのどこかにある」しか見ないうえ、数字の多いページでは 1 単位ずれた値でも 1 割ほど当たるので、文字データより一段弱い照合
 - PDF は pypdfium2 で読む（本体の requirements.txt にある。PyMuPDF は AGPL なので使わない）
 """
 
@@ -325,16 +327,43 @@ def recheck(page: dict) -> dict:
     """保存済みの結果のページを、LLM を呼ばずに照合・検算し直す（スクリプトを直したあと用）。"""
     if "facts" not in page:
         return page
-    facts = [{k: v for k, v in f.items() if k not in ("value_num", "verified", "sum_status", "sum_of", "sum_ok")}
+    facts = [{k: v for k, v in f.items() if k not in ("value_num", "verified", "verified_by", "sum_status", "sum_of", "sum_ok")}
              for f in page["facts"]]
     out = verify(page, {"facts": facts})
     return dict(page, facts=out["facts"], sum_checks=out["sum_checks"])
 
 
+# ---------- OCR ----------
+_OCR = None
+
+
+def ocr_available() -> bool:
+    try:
+        import rapidocr  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def ocr_numbers(pdf_bytes: bytes, page_no: int, dpi: int = 150) -> list[float]:
+    """1 ページを画像にして RapidOCR にかけ、読めた数字（絶対値）を返す。150dpi で 300dpi と同じ結果だった（KAB-342）。"""
+    global _OCR
+    import pypdfium2 as pdfium
+
+    if _OCR is None:
+        from rapidocr import RapidOCR
+
+        _OCR = RapidOCR()
+    img = pdfium.PdfDocument(pdf_bytes)[page_no - 1].render(scale=dpi / 72).to_pil()
+    return sorted(numbers_in(" ".join(_OCR(img).txts or [])))
+
+
 def verify(page: dict, out: dict) -> dict:
-    """facts に value_num と verified（テキスト層に実在するか）を付ける。v2 は表を展開し、内訳の合計を検算する。"""
+    """facts に value_num・verified・verified_by（text / ocr）を付ける。v2 以降は表を展開し、内訳の合計を検算する。
+    page に ocr_numbers（ocr_numbers() の結果）があれば、文字データに無い数字をそれで照合する。"""
     out = expand_tables(out)
     nums = numbers_in(page["text"])
+    ocr = set(page.get("ocr_numbers") or [])
     facts = []
     for f in out.get("facts") or []:
         if not isinstance(f, dict) or "value" not in f:
@@ -342,7 +371,8 @@ def verify(page: dict, out: dict) -> dict:
         f["value"] = strip_unit(f.get("value"), f.get("unit"))
         v = parse_number(f.get("value"))
         f["value_num"] = v
-        f["verified"] = v is not None and abs(v) in nums
+        f["verified_by"] = None if v is None else "text" if abs(v) in nums else "ocr" if abs(v) in ocr else None
+        f["verified"] = f["verified_by"] is not None
         facts.append(f)
     out["facts"] = facts
     out["sum_checks"] = check_sums(facts)
@@ -357,6 +387,7 @@ def stats(pages: list[dict]) -> dict:
         "llm_pages": sum(1 for p in pages if needs_llm(p["kind"])),
         "facts": len(fs),
         "verified": ok,
+        "verified_ocr": sum(1 for f in fs if f.get("verified_by") == "ocr"),
         "verified_ratio": round(ok / len(fs), 3) if fs else None,
         "errors": sum(1 for p in pages if p.get("error")),
         "sum_checks": sum(len(p.get("sum_checks") or []) for p in pages),
