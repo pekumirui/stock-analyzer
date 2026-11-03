@@ -57,7 +57,9 @@ def fact_issues(f):
     """1 件の fact に対する機械チェック。[(level, message)]"""
     issues = []
     if not f.get("verified"):
-        issues.append(("bad", "テキスト層に無い数字" if f.get("value_num") is not None else "数値でない値"))
+        issues.append(("bad", "文字データにも OCR にも無い数字" if f.get("value_num") is not None else "数値でない値"))
+    elif f.get("verified_by") == "ocr":
+        issues.append(("warn", "OCR で照合（画像の数字。文字データより弱い）"))
     pk = f.get("period_kind")
     if pk not in PERIOD_KINDS:
         issues.append(("warn", f"period_kind が不正: {pk}"))
@@ -127,7 +129,7 @@ def render_facts(facts):
         cls = "row-bad" if any(lv == "bad" for lv, _ in issues) else ""
         pk = f.get("period_kind")
         badge = f'<span class="pk pk-{esc(pk) if pk in PERIOD_KINDS else "bad"}">{esc(PERIOD_KINDS.get(pk, pk))}</span>'
-        mark = "✓" if f.get("verified") else "✗"
+        mark = "✗" if not f.get("verified") else "◯" if f.get("verified_by") == "ocr" else "✓"
         notes = "".join(f'<span class="issue issue-{lv}">{esc(m)}</span>' for lv, m in issues)
         note = f'<span class="note">{esc(f.get("note"))}</span>' if f.get("note") else ""
         seg = f.get("segment")
@@ -136,13 +138,13 @@ def render_facts(facts):
             f'<td>{esc(seg) if seg not in (None, "null") else ""}</td>'
             f'<td class="period">{esc(f.get("period"))}</td><td>{badge}</td>'
             f'<td class="num">{esc(f.get("value"))}</td><td class="unit">{esc(f.get("unit"))}</td>'
-            f'<td class="mark mark-{"ok" if f.get("verified") else "bad"}">{mark}</td>'
+            f'<td class="mark mark-{"bad" if not f.get("verified") else "ocr" if f.get("verified_by") == "ocr" else "ok"}">{mark}</td>'
             f'<td class="issues">{notes}{note}</td></tr>'
         )
     return (
         '<div class="table-wrap"><table class="facts"><thead><tr>'
         "<th>metric</th><th>segment</th><th>period</th><th>種類</th>"
-        '<th class="num">value</th><th>unit</th><th title="テキスト層に実在するか">照合</th><th>チェック</th>'
+        '<th class="num">value</th><th>unit</th><th title="✓ 文字データにある / ◯ OCR で読めた画像の数字にある / ✗ どちらにも無い">照合</th><th>チェック</th>'
         "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div>"
     )
 
@@ -181,7 +183,8 @@ def render(res, images, source):
     pages = res["pages"]
     ratio = s.get("verified_ratio")
     tiles = [
-        ("verified 率", f"{ratio * 100:.1f}%" if ratio is not None else "-", f'{s.get("verified")}/{s.get("facts")} 件'),
+        ("verified 率", f"{ratio * 100:.1f}%" if ratio is not None else "-",
+         f'{s.get("verified")}/{s.get("facts")} 件（うち OCR {s.get("verified_ocr", 0)}）'),
         ("JSON エラー", str(s.get("errors", 0)), "ページ"),
         ("検算 不一致", str(s.get("sum_mismatch", "-")),
          f'/ {s.get("sum_checks", "-")} 件（内訳の合計）。一部だけの内訳 {s.get("sum_partial", 0)} 件'),
@@ -290,7 +293,7 @@ table.facts{border-collapse:collapse;width:100%;font-size:13px}
 .num{text-align:right;font-family:var(--f-num);font-variant-numeric:tabular-nums;white-space:nowrap}
 .unit{white-space:nowrap;color:var(--muted)}
 .mark{text-align:center;font-weight:700}
-.mark-ok{color:var(--ok)} .mark-bad{color:var(--bad)}
+.mark-ok{color:var(--ok)} .mark-bad{color:var(--bad)} .mark-ocr{color:var(--warn)}
 tr.row-bad td{background:var(--bad-bg)}
 .issues{font-size:12px}
 .issue{display:inline-block;margin:0 4px 2px 0;padding:0 6px;border-radius:3px;white-space:nowrap}

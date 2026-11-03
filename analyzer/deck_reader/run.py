@@ -20,6 +20,7 @@ work の下の result.json に残る（トークン・費用・所要時間）�
 
 --publish は 1 冊読み終わるごとに PDF のレポートを作り、レポートと結果 JSON を rclone で上げる。--clean は上げ終わった冊の
 手元（work・レポート・結果・--pdf で写した PDF）を消す。上げに失敗したら消さない。
+文字データで照合できない数字のあるページは、RapidOCR が入っていれば OCR で照合する（--no-ocr で止める）。
 --pdf の PDF は <root>/pdf/<id>.pdf に写してから読む（report.py / compare.py が同じ場所を見る）。--id を省くとファイル名。
 """
 
@@ -105,11 +106,12 @@ def run_page(page: dict, page_dir: Path, model: str, timeout: int, prompt: str =
 
 
 def run_deck(deck: dict, root: Path, model: str, pages_filter: set[int] | None, jobs: int, timeout: int, dry: bool,
-             prompt: str = "v1", effort: str | None = None):
+             prompt: str = "v1", effort: str | None = None, ocr: bool = True):
     pdf = pdf_path(root, deck["id"])
     if not pdf.exists():
         raise SystemExit(f"{pdf} が無い。fetch.py を先に（doc_id が無い資料は decks.json の note に従って置く）")
-    pages, meta = d.load_pages(pdf.read_bytes())
+    pdf_bytes = pdf.read_bytes()
+    pages, meta = d.load_pages(pdf_bytes)
     todo = [p for p in pages if d.needs_llm(p["kind"]) and (not pages_filter or p["page"] in pages_filter)]
     name = variant(model, prompt, effort)
     work = root / "work" / deck["id"] / name
@@ -128,6 +130,9 @@ def run_deck(deck: dict, root: Path, model: str, pages_filter: set[int] | None, 
     for p in pages:
         r = {"page": p["page"], "kind": p["kind"], "text": p["text"]}
         r.update(by_page.get(p["page"], {}))
+        if ocr and any(not f["verified"] for f in r.get("facts", [])):
+            r["ocr_numbers"] = d.ocr_numbers(pdf_bytes, p["page"])
+            r = d.recheck(r)
         out_pages.append(r)
     done = list(by_page.values())
     usage = [x.get("usage") or {} for x in done]
@@ -152,7 +157,7 @@ def run_deck(deck: dict, root: Path, model: str, pages_filter: set[int] | None, 
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_text(json.dumps(res, ensure_ascii=False, indent=1))
     s = res["stats"]
-    print(f"{deck['id']} ({name}): {s['llm_sec']}s facts={s['facts']} verified={s['verified_ratio']} "
+    print(f"{deck['id']} ({name}): {s['llm_sec']}s facts={s['facts']} verified={s['verified_ratio']}（OCR {s['verified_ocr']}） "
           f"errors={s['errors']} sum_mismatch={s['sum_mismatch']}/{s['sum_checks']} cost=${s['cost_usd']} in={s['input_tokens']:,} out={s['output_tokens']:,} -> {dst}")
     return res
 
@@ -196,6 +201,7 @@ def main() -> None:
     ap.add_argument("--timeout", type=int, default=600, help="1 ページの上限秒")
     ap.add_argument("--prompt", choices=d.PROMPT_VERSIONS, default="v1", help="v2/v3 は表の形の出力（短く、内訳の検算ができる）。v3 は内訳の印・マイナス・率の行のルールを足したもの")
     ap.add_argument("--effort", choices=("low", "medium", "high"), help="claude -p の --effort（省くとモデルの既定）")
+    ap.add_argument("--no-ocr", action="store_true", help="文字データで照合できない数字を OCR で照合しない")
     ap.add_argument("--publish", metavar="REMOTE", help="1 冊ごとに PDF のレポートと結果 JSON を rclone で上げる（例: onedrive:deck-reader/10decks）")
     ap.add_argument("--clean", action="store_true", help="--publish で上げ終わった冊の手元を消す")
     ap.add_argument("--dry-run", action="store_true")
@@ -211,8 +217,12 @@ def main() -> None:
     else:
         ap.error("id か --all か --pdf を指定する")
     pages_filter = {int(x) for x in args.pages.split(",")} if args.pages else None
+    ocr = not args.no_ocr and d.ocr_available()
+    if not args.no_ocr and not ocr:
+        print("RapidOCR が無いので OCR の照合を飛ばす（pip install -r analyzer/requirements.txt）")
     for deck in decks:
-        res = run_deck(deck, args.root, args.model, pages_filter, args.jobs, args.timeout, args.dry_run, args.prompt, args.effort)
+        res = run_deck(deck, args.root, args.model, pages_filter, args.jobs, args.timeout, args.dry_run, args.prompt, args.effort,
+                       ocr)
         if res is not None and args.publish:
             publish_deck(deck, args.root, variant(args.model, args.prompt, args.effort), args.publish, args.clean)
 

@@ -4,6 +4,7 @@
 
 - 各ページの text（テキスト層）と facts から verified・検算をやり直し、stats を更新して同じファイルに書く
 - facts の中身（LLM が読んだ値）は変えない。値の末尾の単位の重なりだけは外す（extract.strip_unit）
+- OCR の照合は、結果 JSON に残したページの ocr_numbers を使う（PDF も OCR も要らない）
 """
 import argparse
 import json
