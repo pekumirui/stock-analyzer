@@ -5,6 +5,8 @@
 
 - id を渡すと <root>/results/<id>_<model>.json を読み、<root>/pdf/<id>.pdf があれば画像を埋め込み、
   <root>/reports/<id>_<model>.html に書く（run.py と同じ置き場）。パスを渡したときは --pdf / -o で指定する
+- 画像は LLM に読ませたページだけ入れる（--pages で絞った残りは「未読」として畳む）。全ページなら --all-pages
+- --format pdf（または -o *.pdf）で Chromium (headless) を使って PDF にする。スマホで見るとき用。中間の HTML は残さない
 
 - スライド画像と読み取り結果 (title / summary / facts) を横に並べ、項目と数字の対応を目で確かめる
 - 未照合 (verified=false) の数字、JSON エラー、period_kind の不正値などを機械的に強調する
@@ -15,6 +17,9 @@ import base64
 import html
 import json
 import pathlib
+import shutil
+import subprocess  # nosec B404
+import tempfile
 
 from fetch import DEFAULT_ROOT, pdf_path
 
@@ -64,6 +69,8 @@ def fact_issues(f):
 def page_status(p):
     if p["kind"] in SKIP_KINDS and "facts" not in p:
         return "skip"
+    if "facts" not in p and not p.get("error"):
+        return "unread"
     if p.get("error"):
         return "error"
     if any(not f.get("verified") for f in p.get("facts", [])):
@@ -71,7 +78,7 @@ def page_status(p):
     return "ok"
 
 
-STATUS_LABEL = {"ok": "全件照合", "warn": "未照合あり", "error": "JSON エラー", "skip": "VLM 対象外"}
+STATUS_LABEL = {"ok": "全件照合", "warn": "未照合あり", "error": "JSON エラー", "skip": "VLM 対象外", "unread": "未読"}
 
 
 def render_metric(metric):
@@ -124,8 +131,8 @@ def render_page(p, img):
         + (f'<span class="count">facts {len(facts)} / 未照合 {bad}</span>' if "facts" in p else "")
         + "</header>"
     )
-    text = f'<details class="text"><summary>テキスト層 (PyMuPDF)</summary><pre>{esc(p.get("text"))}</pre></details>'
-    if st == "skip":
+    text = f'<details class="text"><summary>テキスト層 (pypdfium2)</summary><pre>{esc(p.get("text"))}</pre></details>'
+    if st == "skip" or (st == "unread" and not img):
         return f'<section class="page page-skip" id="p{n}">{head}{text}</section>'
     body = []
     if p.get("summary"):
@@ -135,7 +142,7 @@ def render_page(p, img):
                     f'<details><summary>VLM の生出力 (先頭 2000 文字)</summary><pre>{esc(p.get("raw"))}</pre></details></div>')
     body.append(render_facts(facts))
     body.append(text)
-    fig = f'<figure class="slide"><img src="{img}" alt="p{n} のスライド画像" loading="lazy"></figure>' if img else ""
+    fig = f'<figure class="slide"><img src="{img}" alt="p{n} のスライド画像"></figure>' if img else ""
     return (f'<section class="page page-{st}" id="p{n}">{head}'
             f'<div class="page-body{" has-img" if img else ""}">{fig}<div class="read">{"".join(body)}</div></div></section>')
 
@@ -210,7 +217,7 @@ a.chip:hover,a.chip:focus-visible{outline:2px solid var(--accent);outline-offset
 .chip-ok{background:var(--ok-bg);border-color:transparent}
 .chip-warn{background:var(--warn-bg);border-color:var(--warn);color:var(--warn)}
 .chip-error{background:var(--bad);border-color:var(--bad);color:var(--surface);font-weight:600}
-.chip-skip{color:var(--muted);border-style:dashed;background:transparent}
+.chip-skip,.chip-unread{color:var(--muted);border-style:dashed;background:transparent}
 .controls{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;font-size:13px;color:var(--muted)}
 .controls label{display:inline-flex;gap:6px;align-items:center;color:var(--fg);cursor:pointer}
 .pk-legend{display:inline-flex;flex-wrap:wrap;gap:4px 6px;align-items:center}
@@ -227,7 +234,7 @@ a.chip:hover,a.chip:focus-visible{outline:2px solid var(--accent);outline-offset
 .status-ok{background:var(--ok-bg);color:var(--ok)}
 .status-warn{background:var(--warn-bg);color:var(--warn)}
 .status-error{background:var(--bad-bg);color:var(--bad);font-weight:600}
-.status-skip{color:var(--muted)}
+.status-skip,.status-unread{color:var(--muted)}
 .count{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .page-body{display:grid;gap:16px;grid-template-columns:1fr}
 .page-body.has-img{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
@@ -269,6 +276,19 @@ pre{white-space:pre-wrap;word-break:break-all;font-family:var(--f-num);font-size
   padding:8px;background:var(--sunk);border-radius:4px;max-height:360px;overflow:auto}
 body.only-bad .facts tbody tr:not(.row-bad){display:none}
 body.only-bad .page-ok, body.only-bad .page-skip{display:none}
+/* PDF（スマホ）: 読ませたページは PDF の新しいページから。スライドを上、読み取り結果を下に 1 列で。表はページをまたがせる */
+@media print{
+  body{background:#fff;font-size:12px}
+  .wrap{max-width:none;padding:0;gap:12px}
+  .controls{display:none}
+  .page{break-inside:auto}
+  .page:not(.page-skip){break-before:page}
+  .page-body.has-img{grid-template-columns:1fr}
+  .slide{position:static;break-inside:avoid}
+  .table-wrap{overflow:visible}
+  .facts th{position:static}
+  .facts tr{break-inside:avoid}
+}
 """
 
 TEMPLATE = """<title>{stem} 読み取り検証</title>
@@ -299,29 +319,65 @@ document.getElementById('only-bad').addEventListener('change', e => document.bod
 """
 
 
+CHROME_NAMES = ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable")
+CHROME_GLOBS = ("~/.cache/ms-playwright/chromium-*/chrome-linux*/chrome", "/opt/pw-browsers/chromium*/chrome-linux*/chrome")
+
+
+def find_chrome():
+    for name in CHROME_NAMES:
+        if path := shutil.which(name):
+            return path
+    for pattern in CHROME_GLOBS:
+        p = pathlib.Path(pattern).expanduser()
+        hits = sorted(pathlib.Path(p.anchor).glob(str(p.relative_to(p.anchor))))
+        if hits:
+            return str(hits[-1])
+    raise SystemExit("PDF にするには Chromium が要る（PATH か ~/.cache/ms-playwright/）")
+
+
+def write_pdf(html_text, out):
+    """HTML を一時フォルダに書き、Chromium の --print-to-pdf で PDF にする。一時ファイルは消える。"""
+    chrome = find_chrome()
+    with tempfile.TemporaryDirectory() as tmp:
+        src = pathlib.Path(tmp) / "report.html"
+        src.write_text(html_text)
+        cmd = [chrome, "--headless", "--no-sandbox", "--disable-gpu", "--no-pdf-header-footer",
+               f"--user-data-dir={tmp}/profile", f"--print-to-pdf={out.resolve()}", src.as_uri()]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300, check=False)  # nosec B603
+    if not out.exists():
+        raise SystemExit(f"PDF にできなかった: {proc.stderr[-500:]}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("result", help="decks の id（<root>/results/<id>_<model>.json）か、run.py の結果 JSON のパス")
     ap.add_argument("--root", type=pathlib.Path, default=DEFAULT_ROOT)
     ap.add_argument("--model", default="haiku", help="id を渡したときの結果のモデル")
     ap.add_argument("--pdf", help="元の PDF (スライド画像を埋め込む)。id のときは <root>/pdf/<id>.pdf")
-    ap.add_argument("-o", "--out", help="出力 HTML。id のときは <root>/reports/<id>_<model>.html、パスのときは report.html")
+    ap.add_argument("-o", "--out", help="出力。id のときは <root>/reports/<id>_<model>.<format>、パスのときは report.<format>")
+    ap.add_argument("--format", choices=("html", "pdf"), help="省くと -o の拡張子、それも無ければ html")
+    ap.add_argument("--all-pages", action="store_true", help="LLM に読ませていないページの画像も入れる")
     a = ap.parse_args()
+    fmt = a.format or ("pdf" if a.out and a.out.lower().endswith(".pdf") else "html")
     path = pathlib.Path(a.result)
     if path.suffix == ".json":
-        pdf, out = a.pdf, pathlib.Path(a.out or "report.html")
+        pdf, out = a.pdf, pathlib.Path(a.out or f"report.{fmt}")
     else:
         path = a.root / "results" / f"{a.result}_{a.model}.json"
         default_pdf = pdf_path(a.root, a.result)
         pdf = a.pdf or (str(default_pdf) if default_pdf.exists() else None)
-        out = pathlib.Path(a.out) if a.out else a.root / "reports" / f"{a.result}_{a.model}.html"
+        out = pathlib.Path(a.out) if a.out else a.root / "reports" / f"{a.result}_{a.model}.{fmt}"
     if not path.exists():
         raise SystemExit(f"{path} が無い。run.py を先に")
     res = json.loads(path.read_text())
-    images = page_images(pdf, [p["page"] for p in res["pages"] if p["kind"] not in SKIP_KINDS]) if pdf else {}
+    want = ("ok", "warn", "error", "unread") if a.all_pages else ("ok", "warn", "error")
+    images = page_images(pdf, [p["page"] for p in res["pages"] if page_status(p) in want]) if pdf else {}
     source = pathlib.Path(pdf).name if pdf else path.name
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render(res, images, source))
+    if fmt == "pdf":
+        write_pdf(render(res, images, source), out)
+    else:
+        out.write_text(render(res, images, source))
     print(f"{out} ({out.stat().st_size / 1e6:.1f} MB)")
 
 
