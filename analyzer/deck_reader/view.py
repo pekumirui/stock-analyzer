@@ -4,7 +4,7 @@
     .venv/bin/python analyzer/deck_reader/view.py <結果 JSON> -o /tmp/view.pdf --publish onedrive:deck-reader/<フォルダ>
 
 原本の PDF を画面に出さずに、読み取った数値だけで人が読める形にできるかを確かめる試し（KAB-344）。
-- グラフは実績・予想・計画の列が 3 つ以上ある表だけ。内訳（of）のある行は積み上げ棒、内訳の無い金額の行（3 本まで）は棒、
+- グラフは実績・予想・計画の列が 3 つ以上ある表だけ。値はすべての棒・点に付ける。内訳（of）のある行は積み上げ棒（マイナスが混ざれば並べた棒）、内訳の無い金額の行（3 本まで）は棒、
   率（%・pts）の行は別の折れ線（軸は 1 本だけ。金額と率を 1 つのグラフに重ねない）。予想・計画の棒は斜線
 - 表は必ず出す（グラフに出ない列・行もすべて表にある）。数字の無いページは要約だけ
 - SVG を直接書く（外部のライブラリも通信も無いので PDF にそのまま入る）。--format html なら <title> でホバー表示
@@ -53,9 +53,12 @@ def kid_label(c, parent):
     return str(c.get("metric") or "").split("/")[-1]
 
 
-def fmt(v, unit=""):
+def fmt(v, unit="", dec=None):
+    """dec があればその桁で（元の表の書き方に合わせる。17.0 を 17 にしない）。"""
     if v is None:
         return ""
+    if dec is not None:
+        return f"{v:,.{dec}f}".replace("-", "−")
     if unit in RATE_UNITS or abs(v) < 100:
         s = f"{v:,.2f}".rstrip("0").rstrip(".") if v != int(v) else f"{int(v):,}"
     else:
@@ -135,59 +138,92 @@ def legend(names, colors, shape="box"):
     return f'<div class="legend">{items}</div>'
 
 
-def bar_chart(cols, series, unit, title, total=None):
-    """series: [(name, [値…])]。2 本以上で total（合計の行）があれば積み上げ、無ければ並べた棒。"""
+def text_w(s, size):
+    """数字の文字の幅のおおよそ（px）。"""
+    return sum(0.3 if ch in ",.:" else 0.58 for ch in s) * size
+
+
+def ink_on(color):
+    """塗りの上に置く文字の色（明るい塗りには黒、暗い塗りには白）。"""
+    r, g, b = (int(color[i:i + 2], 16) / 255 for i in (1, 3, 5))
+    return "#0b0b0b" if 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.55 else "#ffffff"
+
+
+def bar_label(cx, slot, y_tip, v, unit, up, dec=None):
+    """棒の先の値。横に収まらなければ縦書き。"""
+    s = fmt(v, unit, dec)
+    if text_w(s, 10) <= slot:
+        ty = y_tip - 5 if up else y_tip + 13
+        return f'<text x="{cx:.1f}" y="{ty:.1f}" class="val" text-anchor="middle">{esc(s)}</text>'
+    ty = y_tip - 4 if up else y_tip + 4
+    anchor = "start" if up else "end"
+    return (f'<text x="{cx + 3.5:.1f}" y="{ty:.1f}" class="val" text-anchor="{anchor}" '
+            f'transform="rotate(-90 {cx + 3.5:.1f} {ty:.1f})">{esc(s)}</text>')
+
+
+def scale(lo, hi, head):
+    """値の範囲に、値ラベルの分の余白を足して目盛りを作る。"""
+    span = (hi - lo) or abs(hi) or 1
+    ticks = nice_ticks(lo - (span * head if lo < 0 else 0), hi + (span * head if hi > 0 else 0))
+    lo, hi = min(ticks), max(ticks)
+    return ticks, (lambda v: MT + (hi - v) / (hi - lo) * (H - MT - MB))
+
+
+def bar_chart(cols, series, unit, title, total=None, total_name="合計", dec=None):
+    """series: [(name, [値…])]。total（合計の行）があり、内訳がすべてプラスなら積み上げ。
+    マイナスが混ざる内訳（キャッシュ・フローなど）は積み上げず、内訳と合計を並べた棒にする。値はすべての棒に付ける。"""
+    if total is not None and any(v is not None and v < 0 for _, vs in series for v in vs):
+        series, total = series + [(total_name, total)], None
     stacked = total is not None
-    colors = [OTHER if n == "その他" else SERIES[i % len(SERIES)] for i, (n, _) in enumerate(series)]
+    colors = [OTHER if nm == "その他" else SERIES[i % len(SERIES)] for i, (nm, _) in enumerate(series)]
     n = len(cols)
     band = (W - ML - MR) / n
-    vals = [v for _, vs in series for v in vs if v is not None]
-    if stacked:
-        pos = [sum(max(vs[i] or 0, 0) for _, vs in series) for i in range(n)]
-        neg = [sum(min(vs[i] or 0, 0) for _, vs in series) for i in range(n)]
-        tot = [v for v in total if v is not None]
-        hi, lo = max(pos + tot + [0]), min(neg + tot + [0])
-    else:
-        hi, lo = max(vals + [0]), min(vals + [0])
-    ticks = nice_ticks(lo, hi)
-    lo, hi = min(ticks), max(ticks)
-    y = lambda v: MT + (hi - v) / (hi - lo) * (H - MT - MB)  # noqa: E731
     marks = []
     if stacked:
-        bw = min(24, band * 0.55)
+        pos = [sum(max(vs[i] or 0, 0) for _, vs in series) for i in range(n)]
+        tot = [v for v in total if v is not None]
+        ticks, y = scale(0, max(pos + tot + [0]), 0.1)
+        bw = min(48 if n <= 5 else 28, band * 0.5)  # 列が少なければ太くして、値を棒の中に書ける区分を増やす
         for i, c in enumerate(cols):
             x = ML + band * (i + 0.5) - bw / 2
-            up = down = 0.0
+            up = 0.0
             segs = []
             for k, (name, vs) in enumerate(series):
                 v = vs[i]
-                if not v:
-                    continue
-                base = up if v > 0 else down
-                top = base + v
-                segs.append((k, name, v, base, top))
-                if v > 0:
-                    up = top
-                else:
-                    down = top
-            for j, (k, name, v, base, top) in enumerate(segs):
-                outer = (v > 0 and top == up) or (v < 0 and top == down)
+                if v:
+                    segs.append((k, name, v, up, up + v))
+                    up += v
+            side = []
+            for k, name, v, base, top in segs:
                 y0, y1 = y(base), y(top)
-                gap = 1 if abs(y1 - y0) > 3 else 0  # 2px のすき間（上下 1px ずつ）
-                y0 += -gap if v > 0 else gap
-                y1 += gap if v > 0 else -gap
-                path = bar_path(x, bw, y0, y1, 4 if outer else 0)
-                marks.append(f'<path d="{path}" fill="{fill_for(k, colors[k], c["kind"])}">'
+                gap = 1 if y0 - y1 > 3 else 0  # 2px のすき間（上下 1px ずつ）
+                fill = fill_for(k, colors[k], c["kind"])
+                marks.append(f'<path d="{bar_path(x, bw, y0 - gap, y1 + gap, 4 if top == up else 0)}" fill="{fill}">'
                              f'<title>{esc(c["period"])} {esc(name)} {esc(fmt(v, unit))}</title></path>')
-            t = total[i] if total[i] is not None else up + down
-            if i == n - 1 or t == max(tv for tv in total if tv is not None):
-                ty = y(max(t, up)) - 6
-                marks.append(f'<text x="{x + bw / 2:.1f}" y="{ty:.1f}" class="val" text-anchor="middle">{esc(fmt(t, unit))}</text>')
+                s = fmt(v, unit, dec)
+                ym = (y0 + y1) / 2 + 3.2
+                if y0 - y1 >= 13 and text_w(s, 9) <= bw - 4 and c["kind"] == "actual":
+                    marks.append(f'<text x="{x + bw / 2:.1f}" y="{ym:.1f}" class="seg" fill="{ink_on(colors[k])}" '
+                                 f'text-anchor="middle">{esc(s)}</text>')
+                else:  # 棒の中に収まらない区分は右横に（隣の列の棒にかからない幅だけ）
+                    side.append((ym, s, x + bw + 2, (band - bw) / 2 - 2))
+            t = total[i] if total[i] is not None else (up if segs else None)
+            top_label = y(max(t if t is not None else up, up)) - 5  # 合計のラベルの位置（右横の値はこれより下に置く）
+            last = None
+            for ym, s, sx, room in side:  # 下から順。重なる分は 1 段ずらし、ずらせなければ省く（表にある）
+                ty = ym if last is None else max(min(ym, last - 10), MT + 8)
+                if text_w(s, 9) <= room and (last is None or last - ty >= 10) and ty - top_label >= 10:
+                    marks.append(f'<text x="{sx:.1f}" y="{ty:.1f}" class="seg side" text-anchor="start">{esc(s)}</text>')
+                    last = ty
+            if t is not None:
+                marks.append(bar_label(x + bw / 2, band - 4, y(max(t, up)), t, unit, True, dec))
     else:
+        vals = [v for _, vs in series for v in vs if v is not None]
+        ticks, y = scale(min(vals + [0]), max(vals + [0]), 0.14)
         k_n = len(series)
         bw = min(24, band * 0.7 / k_n)
         for i, c in enumerate(cols):
-            x0 = ML + band * (i + 0.5) - bw * k_n / 2 - (k_n - 1)
+            x0 = ML + band * (i + 0.5) - (bw * k_n + 2 * (k_n - 1)) / 2
             for k, (name, vs) in enumerate(series):
                 v = vs[i]
                 if v is None:
@@ -195,9 +231,7 @@ def bar_chart(cols, series, unit, title, total=None):
                 x = x0 + k * (bw + 2)
                 marks.append(f'<path d="{bar_path(x, bw, y(0), y(v))}" fill="{fill_for(k, colors[k], c["kind"])}">'
                              f'<title>{esc(c["period"])} {esc(name)} {esc(fmt(v, unit))}</title></path>')
-                if i == n - 1 and k_n == 1:
-                    ty = y(v) - 6 if v >= 0 else y(v) + 14
-                    marks.append(f'<text x="{x + bw / 2:.1f}" y="{ty:.1f}" class="val" text-anchor="middle">{esc(fmt(v, unit))}</text>')
+                marks.append(bar_label(x + bw / 2, bw + 2 if k_n > 1 else band - 4, y(v), v, unit, v >= 0, dec))
     svg = (f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="{esc(title)}"><defs>{patterns(colors)}</defs>'
            f'{frame(ticks, y, unit)}{"".join(marks)}{x_labels(cols, band)}</svg>')
     names = [nm for nm, _ in series]
@@ -207,15 +241,14 @@ def bar_chart(cols, series, unit, title, total=None):
             f'{legend(names, colors)}{svg}</figure>')
 
 
-def line_chart(cols, series, unit, title):
+def line_chart(cols, series, unit, title, dec=None):
+    """折れ線。値はすべての点に付ける。同じ期で重なるときは上下に振り分け、置けなければ省く（表にある）。"""
     colors = [SERIES[i % len(SERIES)] for i in range(len(series))]
     n = len(cols)
     band = (W - ML - MR) / n
     vals = [v for _, vs in series for v in vs if v is not None]
-    ticks = nice_ticks(min(vals + [0]), max(vals))
-    lo, hi = min(ticks), max(ticks)
-    y = lambda v: MT + (hi - v) / (hi - lo) * (H - MT - MB)  # noqa: E731
-    marks = []
+    ticks, y = scale(min(vals + [0]), max(vals), 0.12)
+    marks, labels = [], []
     for k, (name, vs) in enumerate(series):
         pts = [(ML + band * (i + 0.5), y(v), v, cols[i]) for i, v in enumerate(vs) if v is not None]
         if len(pts) >= 2:
@@ -226,15 +259,28 @@ def line_chart(cols, series, unit, title):
             marks.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="4.5" fill="{"#fcfcfb" if hollow else colors[k]}" '
                          f'stroke="{colors[k] if hollow else "#fcfcfb"}" stroke-width="2">'
                          f'<title>{esc(c["period"])} {esc(name)} {esc(fmt(v, unit))}{esc(unit)}</title></circle>')
-        if pts:
-            px, py, v, _ = pts[-1]
-            marks.append(f'<text x="{px:.1f}" y="{py - 9:.1f}" class="val" text-anchor="middle">{esc(fmt(v, unit))}</text>')
+    for i in range(n):
+        pts = sorted((y(vs[i]), vs[i]) for _, vs in series if vs[i] is not None)
+        taken = []  # 置いた値ラベルの y の範囲
+        for j, (py, v) in enumerate(pts):
+            for ty in ((py - 9, py + 17) if j == 0 else (py + 17, py - 9)):
+                if MT <= ty - 10 and ty <= H - MB and all(abs(ty - t) >= 12 for t in taken) \
+                        and all(abs(ty - 3 - q) >= 8 for q, _ in pts):
+                    taken.append(ty)
+                    labels.append(f'<text x="{ML + band * (i + 0.5):.1f}" y="{ty:.1f}" class="val" text-anchor="middle">'
+                                  f'{esc(fmt(v, unit, dec))}</text>')
+                    break
     svg = (f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="{esc(title)}">'
-           f'{frame(ticks, y, unit)}{"".join(marks)}{x_labels(cols, band)}</svg>')
+           f'{frame(ticks, y, unit)}{"".join(marks)}{"".join(labels)}{x_labels(cols, band)}</svg>')
     fc = any(c["kind"] in ("forecast", "plan") for c in cols)
     note = '<span class="note">白抜きは予想・計画</span>' if fc else ""
     return (f'<figure class="chart"><figcaption>{esc(title)}<span class="unit">（{esc(unit)}）</span>{note}</figcaption>'
             f'{legend([nm for nm, _ in series], colors, "line")}{svg}</figure>')
+
+
+def decimals(rows):
+    """行の値の表記の小数の桁（いちばん多いもの）。"""
+    return max((d._decimals(str(v)) for r in rows for v in (r.get("values") or []) if v not in (None, "")), default=0)
 
 
 def charts_for(table):
@@ -264,7 +310,8 @@ def charts_for(table):
             rest = kids[7:]
             other = [sum(v[i] or 0 for _, v in rest) for i in range(len(scols))]
             kids = kids[:7] + [("その他", other)]
-        out.append(bar_chart(scols, kids, unit, f"{row_label(r)}の内訳", total=vals))
+        out.append(bar_chart(scols, kids, unit, f"{row_label(r)}の内訳", total=vals, total_name=row_label(r),
+                             dec=decimals([r] + [c for c, _ in data if c.get("of") and (c["of"] if "|" in c["of"] else c["of"] + "|null") == key])))
         used.add(key)
         used.update(row_key(c) for c, _ in data if c.get("of") and (c["of"] if "|" in c["of"] else c["of"] + "|null") == key)
         if len(out) >= 3:
@@ -286,10 +333,11 @@ def charts_for(table):
             continue
         series = [(row_label(r), v) for r, v in items]
         title = "・".join(row_label(r) for r, _ in items)
+        dec = decimals([r for r, _ in items])
         if unit in RATE_UNITS:
-            out.append(line_chart(scols, series, unit, title))
+            out.append(line_chart(scols, series, unit, title, dec))
         elif len(items) <= 3:
-            out.append(bar_chart(scols, series, unit, title))
+            out.append(bar_chart(scols, series, unit, title, dec=dec))
         if len(out) >= 3:
             break
     return out
@@ -305,9 +353,10 @@ def table_html(table):
         unit = str(r.get("unit") or "")
         cells = []
         for i, c in enumerate(cols):
-            v = num(vals[i]) if i < len(vals) else None
-            s = fmt(v, unit)
-            if v is not None and c.get("kind") == "change" and v > 0:
+            raw = vals[i] if i < len(vals) else None
+            v = num(raw)
+            s = "" if v is None else d.norm_text(str(raw)).strip().replace("-", "−")  # 表は資料の表記のまま（丸めない）
+            if v is not None and c.get("kind") == "change" and v > 0 and not s.startswith("+"):
                 s = "+" + s
             cells.append(f"<td class=\"n\">{esc(s)}</td>")
         depth = 1 if r.get("of") else 0
@@ -359,7 +408,9 @@ svg{width:100%;height:auto;display:block}
 .grid{stroke:var(--line);stroke-width:1}
 .grid.zero{stroke:#c9c8c2}
 .ax{fill:var(--ink2);font-size:11px}
-.val{fill:var(--ink);font-size:11px;font-weight:600}
+.val{fill:var(--ink);font-size:10px;font-weight:600}
+.seg{font-size:9px;font-weight:600}
+.seg.side{fill:var(--ink2);font-weight:400}
 .tw{overflow-x:auto;margin:6px 0 10px}
 table{border-collapse:collapse;font-size:11px;font-variant-numeric:tabular-nums;width:100%}
 th,td{border-bottom:1px solid var(--line);padding:3px 6px;vertical-align:bottom}
