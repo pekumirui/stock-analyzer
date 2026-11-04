@@ -6,6 +6,9 @@ let stockDeckKey = "";
 const DECK_SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
 const DECK_OTHER = "#a3a29c";
 const DECK_RATE_UNITS = ["%", "pts", "pt", "ポイント"];
+// 為替の行。単位「円」だけでは見ない（一株当たり利益なども円）
+const deckFxRow = r => String(r.metric || "").includes("為替");
+const deckFcst = c => ["forecast", "plan"].includes(c.kind);
 const DECK_SERIES_KINDS = ["actual", "forecast", "plan"];
 const DECK_KIND = {actual: "実績", forecast: "予想", previous_forecast: "前回予想", plan: "計画", change: "増減"};
 // 幅は描くときの画面の幅（320〜760px）。SVG を縮めずに描くので、スマホでも値の文字が小さくならない
@@ -191,17 +194,47 @@ function deckBarChart(cols, series, unit, title, dec, total, totalName){
   return deckFigure(title, unit, note, deckLegend(series.map(([n]) => n), colors, "box"), svg);
 }
 
-function deckLineChart(cols, series, unit, title, dec){
+function deckLinePaths(pts, color, fx){
+  if(pts.length < 2) return "";
+  if(!fx) return `<path d="M${pts.map(([px, py]) => `${px.toFixed(1)},${py.toFixed(1)}`).join("L")}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  // 右の列が予想・計画のときだけ破線（その列へ入る区間）。実績どうしは実線
+  let out = "", d = "", dash = false, on = false;
+  const flush = () => {
+    if(!on) return;
+    out += `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="${dash ? "butt" : "round"}"${dash ? ' stroke-dasharray="6 4"' : ""}/>`;
+    on = false;
+  };
+  for(let i = 1; i < pts.length; i++){
+    const segDash = deckFcst(pts[i][3]);
+    const bit = `${pts[i][0].toFixed(1)},${pts[i][1].toFixed(1)}`;
+    if(on && dash === segDash) d += `L${bit}`;
+    else {
+      flush();
+      dash = segDash;
+      on = true;
+      d = `M${pts[i - 1][0].toFixed(1)},${pts[i - 1][1].toFixed(1)}L${bit}`;
+    }
+  }
+  flush();
+  return out;
+}
+
+function deckLineChart(cols, series, unit, title, dec, fx){
   const colors = series.map((_, i) => DECK_SERIES[i % DECK_SERIES.length]);
   const n = cols.length, band = (DECK_W - DECK_ML - DECK_MR) / n;
   const vals = series.flatMap(([, vs]) => vs.filter(v => v != null));
-  const {ticks, y} = deckScale(Math.min(0, ...vals), Math.max(...vals), 0.12);
+  // 為替は 0 を起点にすると 150 と 160 が潰れる。率の折れ線は今までどおり 0 起点
+  let ticks, y;
+  if(fx){
+    const span = Math.max(...vals) - Math.min(...vals) || Math.abs(Math.max(...vals)) || 1;
+    ({ticks, y} = deckScale(Math.min(...vals) - span * 0.18, Math.max(...vals) + span * 0.22, 0));
+  } else ({ticks, y} = deckScale(Math.min(0, ...vals), Math.max(...vals), 0.12));
   let marks = "", labels = "";
   series.forEach(([name, vs], k) => {
     const pts = vs.map((v, i) => v == null ? null : [DECK_ML + band * (i + 0.5), y(v), v, cols[i]]).filter(Boolean);
-    if(pts.length >= 2) marks += `<path d="M${pts.map(([px, py]) => `${px.toFixed(1)},${py.toFixed(1)}`).join("L")}" fill="none" stroke="${colors[k]}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    marks += deckLinePaths(pts, colors[k], fx);
     for(const [px, py, v, c] of pts){
-      const hollow = ["forecast", "plan"].includes(c.kind);
+      const hollow = deckFcst(c);
       marks += `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="4.5" fill="${hollow ? "#fff" : colors[k]}" stroke="${hollow ? colors[k] : "#fff"}" stroke-width="2"><title>${deckEsc(`${c.period} ${name} ${deckFmt(v, dec)}${unit}`)}</title></circle>`;
     }
   });
@@ -219,11 +252,11 @@ function deckLineChart(cols, series, unit, title, dec){
     });
   }
   const svg = `<svg viewBox="0 0 ${DECK_W} ${DECK_H}" role="img" aria-label="${deckEsc(title)}">${deckFrame(ticks, y, dec)}${marks}${labels}${deckXLabels(cols, band)}</svg>`;
-  const note = cols.some(c => ["forecast", "plan"].includes(c.kind)) ? "白抜きは予想・計画" : "";
+  const note = cols.some(deckFcst) ? (fx ? "破線・白抜きは予想・計画" : "白抜きは予想・計画") : "";
   return deckFigure(title, unit, note, deckLegend(series.map(([nm]) => nm), colors, "line"), svg);
 }
 
-// 表 → グラフ（実績・予想・計画の列が 3 つ以上のときだけ）。内訳は積み上げ、内訳の無い金額は棒（3 本まで）、率は折れ線
+// 表 → グラフ（実績・予想・計画の列が 3 つ以上のときだけ）。内訳は積み上げ、内訳の無い金額は棒（3 本まで）、率と為替は折れ線
 function deckCharts(table){
   const cols = table.cols || [], rows = table.rows || [];
   const idx = cols.map((c, i) => DECK_SERIES_KINDS.includes(c.kind) ? i : -1).filter(i => i >= 0);
@@ -266,7 +299,8 @@ function deckCharts(table){
     if(items.length > 4) continue;
     const series = items.map(([r, v]) => [deckLabel(r), v]), title = items.map(([r]) => deckLabel(r)).join("・");
     const dec = deckDec(items.map(([r]) => r));
-    if(DECK_RATE_UNITS.includes(unit)) out.push(deckLineChart(scols, series, unit, title, dec));
+    const fx = items.every(([r]) => deckFxRow(r));
+    if(DECK_RATE_UNITS.includes(unit) || fx) out.push(deckLineChart(scols, series, unit, title, dec, fx));
     else if(items.length <= 3) out.push(deckBarChart(scols, series, unit, title, dec));
     if(out.length >= 3) break;
   }
