@@ -73,6 +73,12 @@ apt_retry() {
   apt-get -o Acquire::ForceIPv4=true install -y -qq --fix-missing "$@"
 }
 
+# CVE-2026-109518: apt 自身を先に上げる（Acquire::Retries=0）。カーネルは上げない。
+# shellcheck source=cve-2026-98432.sh
+# shellcheck disable=SC1091
+source "$APP_DIR/deploy/cve-2026-98432.sh"
+apt_security_upgrade
+
 apt_retry \
   python3-venv python3-pip git curl gnupg ca-certificates \
   nginx apache2-utils certbot \
@@ -256,6 +262,8 @@ ln -sfn /etc/nginx/sites-available/stock-analyzer /etc/nginx/sites-enabled/stock
 nginx -t
 systemctl enable nginx >/dev/null
 systemctl reload nginx 2>/dev/null || systemctl start nginx
+# 差し替え済みの libpcre2 をワーカーが掴んだままなら reload する（USN-8974-1）。
+nginx_reload_if_pcre_deleted
 
 ufw allow OpenSSH >/dev/null || ufw allow 22/tcp >/dev/null
 ufw allow 80/tcp >/dev/null
@@ -263,6 +271,9 @@ ufw allow 443/tcp >/dev/null
 if ! ufw status | grep -qi "Status: active"; then
   echo "y" | ufw --force enable >/dev/null
 fi
+
+# CVE-2026-98432。ufw を消さない。nftables.service は flush ruleset するので有効にしない。
+cve_2026_98432_apply
 
 if [[ -n "$DOMAIN" && "$DOMAIN" != "_" ]]; then
   certbot_opts=(--non-interactive --agree-tos)
@@ -290,6 +301,7 @@ EOF
   write_if_changed /etc/nginx/sites-available/stock-analyzer 644 < <(render_https) || true
   nginx -t
   systemctl reload nginx
+  nginx_reload_if_pcre_deleted
 fi
 
 if [[ -f "$APP_DIR/deploy/cron-run.sh" ]]; then
