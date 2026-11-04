@@ -9,6 +9,8 @@ const ROUTES = JSON.parse(String.raw`[
   {"id":"stock-news","tab":"stock","path":":code/news"},
   {"id":"stock-news-detail","tab":"stock","path":":code/news/:newsId"},
   {"id":"stock-holders","tab":"stock","path":":code/holders"},
+  {"id":"stock-decks","tab":"stock","path":":code/decks"},
+  {"id":"stock-deck-detail","tab":"stock","path":":code/decks/:deckKey"},
   {"id":"screener","tab":"screener","path":""},
   {"id":"monthly","tab":"monthly","path":""},
   {"id":"monthly-detail","tab":"monthly","path":":code"},
@@ -23,11 +25,13 @@ const ROUTES = JSON.parse(String.raw`[
 const BREADCRUMBS = JSON.parse(String.raw`{
   "earnings": {"label":"決算速報","defaultFrom":null,"from":[]},
   "stock": {"label":"銘柄","defaultFrom":null,"from":[]},
-  "stock-summary": {"label":"概要","defaultFrom":"stock","from":["stock","stock-price","stock-news","stock-holders"]},
-  "stock-price": {"label":"株価","defaultFrom":"stock","from":["stock","stock-summary","stock-news","stock-holders","earnings","screener","ranking","ranking-pts","supply","holders","holders-detail"]},
-  "stock-news": {"label":"ニュース","defaultFrom":"stock","from":["stock","stock-summary","stock-price","stock-holders","stock-news-detail"]},
+  "stock-summary": {"label":"概要","defaultFrom":"stock","from":["stock","stock-price","stock-news","stock-holders","stock-decks"]},
+  "stock-price": {"label":"株価","defaultFrom":"stock","from":["stock","stock-summary","stock-news","stock-holders","stock-decks","earnings","screener","ranking","ranking-pts","supply","holders","holders-detail"]},
+  "stock-news": {"label":"ニュース","defaultFrom":"stock","from":["stock","stock-summary","stock-price","stock-holders","stock-decks","stock-news-detail"]},
   "stock-news-detail": {"label":"ニュース詳細","defaultFrom":"stock-news","from":["stock-news"]},
-  "stock-holders": {"label":"株主","defaultFrom":"stock","from":["stock","stock-summary","stock-price","stock-news"]},
+  "stock-holders": {"label":"株主","defaultFrom":"stock","from":["stock","stock-summary","stock-price","stock-news","stock-decks"]},
+  "stock-decks": {"label":"説明資料","defaultFrom":"stock","from":["stock","stock-summary","stock-price","stock-news","stock-holders","stock-deck-detail"]},
+  "stock-deck-detail": {"label":"説明資料の中身","defaultFrom":"stock-decks","from":["stock-decks"]},
   "screener": {"label":"スクリーナー","defaultFrom":null,"from":[]},
   "monthly": {"label":"月次","defaultFrom":null,"from":[]},
   "monthly-detail": {"label":"月次詳細","defaultFrom":"monthly","from":["monthly"]},
@@ -119,8 +123,8 @@ function routeHref(id, ctx){
     return "/monthly";
   }
   let rest = String(r.path || "").replace(/\?$/, "");
-  const fill = {code: p.code, newsId: p.newsId, edinet: p.edinet, id: p.supplyId};
-  rest = rest.replace(/:(code|newsId|edinet|id)/g, (_, k) => fill[k] || "");
+  const fill = {code: p.code, newsId: p.newsId, deckKey: p.deckKey, edinet: p.edinet, id: p.supplyId};
+  rest = rest.replace(/:(code|newsId|deckKey|edinet|id)/g, (_, k) => fill[k] || "");
   if(!rest) return "#" + r.tab;
   if(rest.indexOf(":") >= 0 || /(^|\/)$/.test(rest) || rest.indexOf("//") >= 0) return "#" + r.tab;
   return "#" + r.tab + "/" + rest;
@@ -152,7 +156,8 @@ function currentCrumbContext(){
     screenId: screenIdFromTabCode(parsed.tab, parsed.code),
     fromId: parsed.from || searchFrom,
     code: parts[0] || "",
-    newsId: parsed.tab === "stock" ? (parts[2] || "") : "",
+    newsId: parsed.tab === "stock" && parts[1] === "news" ? (parts[2] || "") : "",
+    deckKey: parsed.tab === "stock" && parts[1] === "decks" ? (parts[2] || "") : "",
     edinet: parsed.tab === "holders" ? (parts[0] || "") : "",
     supplyId: parsed.tab === "supply" ? (parts[0] || "") : "",
   };

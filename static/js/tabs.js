@@ -3,9 +3,10 @@ const UI_ROUTE_KEY = "ui.route";
 const CODE_RE = /^[0-9][0-9A-Z]{3}[0-9]$/;
 const SUPPLY_ID_RE = /^[a-z][a-z0-9_]*$/;
 const EDINET_RE = /^E[0-9]{5}$/;
-// 銘柄タブは {code5}/{中のタブ}、ニュースの詳細は {code5}/news/{news_id}（docs/DESIGN_stock.md）
-const STOCK_SUBS = ["summary", "price", "news", "holders"];
+// 銘柄タブは {code5}/{中のタブ}、ニュースの詳細は {code5}/news/{news_id}、説明資料は {code5}/decks/{key}（docs/DESIGN_stock.md）
+const STOCK_SUBS = ["summary", "price", "news", "holders", "decks"];
 const NEWS_ID_RE = /^[a-z][0-9A-Za-z]{1,40}$/;
+const DECK_KEY_RE = /^d[0-9a-f]{20}$/;
 // ランキングの中の PTS。既定（決算後パフォーマンス）はルートに出さない
 const RANKING_SUBS = ["pts"];
 
@@ -14,6 +15,7 @@ function stockRouteArg(raw){
   if(!CODE_RE.test(code || "")) return "";
   if(!STOCK_SUBS.includes(sub)) return code;
   if(sub === "news" && NEWS_ID_RE.test(id || "")) return `${code}/news/${id}`;
+  if(sub === "decks" && DECK_KEY_RE.test(id || "")) return `${code}/decks/${id}`;
   return `${code}/${sub}`;
 }
 

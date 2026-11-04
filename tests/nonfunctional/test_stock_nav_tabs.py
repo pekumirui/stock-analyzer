@@ -10,7 +10,7 @@ CSS = (ROOT / "static" / "css" / "app.css").read_text(encoding="utf-8")
 
 ST_TABS_IDS = ("st-tabs",)
 FIN_TABS_IDS = ("earn-view", "st-fin-tabs", "tf", "st-zoom", "rk-subs", "rk-kind", "pts-ranking")
-ST_SUBS = ("summary", "price", "news", "holders")
+ST_SUBS = ("summary", "price", "news", "holders", "decks")
 
 
 def _block(src: str, selector: str) -> str:
@@ -30,7 +30,7 @@ def test_st_tabs_is_nav_tabs_not_fin_tabs() -> None:
     inner = HTML[HTML.index('id="st-tabs"'):HTML.index('id="st-metrics"')]
     for sub in ST_SUBS:
         assert f'data-sub="{sub}"' in inner
-    assert inner.count("class=\"ftab") == 4
+    assert inner.count("class=\"ftab") == 5
 
 
 def test_other_fin_tabs_stay_segmented() -> None:
@@ -70,7 +70,7 @@ def test_nav_tabs_folder_css() -> None:
     mpad = re.search(r"padding:(\d+)px (\d+)px", mtab)
     assert mpad, mtab
     mh = int(mpad.group(2))
-    # 390px: main 6+6 + panel 12+12 = 36。残り 354px を 4 等分 ≈ 88px。
-    # 最長ラベル「ニュース」4 字 × 13px + padding でも収まる。
+    # 390px: main 6+6 + panel 12+12 = 36。残り 354px を 5 等分 ≈ 70px。
+    # 最長ラベル「ニュース」「説明資料」4 字 × 13px + padding でも収まる。
     longest = 4 * 13 + 2 * mh
-    assert longest <= 88, f"ニュース tab {longest}px exceeds 390px slot"
+    assert longest <= 70, f"4 字のタブ {longest}px exceeds 390px slot"

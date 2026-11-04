@@ -8,7 +8,7 @@
 
 ## 画面と遷移
 
-ヘッダーの `銘柄` タブ（`data-tab="stock"`）。上に共通ヘッダー、その下に中のタブ 概要 / 株価 / ニュース / 株主。ニュースの行を押すと詳細。
+ヘッダーの `銘柄` タブ（`data-tab="stock"`）。上に共通ヘッダー、その下に中のタブ 概要 / 株価 / ニュース / 株主 / 説明資料。ニュースの行を押すと詳細。説明資料の行（読み取り済み）を押すと中身。
 
 | 画面 | ルート |
 |---|---|
@@ -17,6 +17,8 @@
 | ニュース | `#stock/{code5}/news` |
 | ニュースの詳細 | `#stock/{code5}/news/{news_id}` |
 | 株主 | `#stock/{code5}/holders` |
+| 説明資料 | `#stock/{code5}/decks` |
+| 説明資料の中身 | `#stock/{code5}/decks/{key}`（key は開示番号から作る `d` + 16 進 20 字） |
 
 - 開いたときは概要。銘柄を選び直しても中のタブはそのまま（ニュースの詳細にいたときはニュースの一覧へ）
 - 再読込は銘柄・中のタブ・ニュースの詳細まで戻す（`ui.route` にも同じパスを残す）
@@ -25,7 +27,7 @@
 
 ## データ形
 
-共通ヘッダーと概要の指標は `GET /api/stock/{code}/overview`。概要の業績の表は決算速報と同じ `GET /api/earnings/detail/{code}`（引数なし = 最新の実績開示）。株価は `GET /api/chart/{code}` と `GET /api/earnings-performance/{code}`。ニュースは `GET /api/stock/{code}/news`。株主は `GET /api/stock/{code}/holders`。中のタブは開いたときに初めて読み、同じ銘柄のあいだは読み直さない。
+共通ヘッダーと概要の指標は `GET /api/stock/{code}/overview`。概要の業績の表は決算速報と同じ `GET /api/earnings/detail/{code}`（引数なし = 最新の実績開示）。株価は `GET /api/chart/{code}` と `GET /api/earnings-performance/{code}`。ニュースは `GET /api/stock/{code}/news`。株主は `GET /api/stock/{code}/holders`。説明資料は `GET /api/stock/{code}/decks` と `GET /api/stock/{code}/decks/{key}`（読み取りは `DESIGN.md` の「決算説明資料の読み取り」）。中のタブは開いたときに初めて読み、同じ銘柄のあいだは読み直さない。
 
 指標の出どころ（`statements` は決算短信本体の開示。予想修正だけの開示は予想にだけ使う）:
 
@@ -51,7 +53,7 @@
 1. 銘柄の入力 `#st-sym`（銘柄名かコード。候補 `#st-suggest` は `GET /api/stocks/search` の最大 20 件、`4 桁コード 銘柄名`）
 2. `#st-title`。銘柄名（太字）、4 桁コード / 市場 / 33 業種
 3. `#st-quote`。株価（太字）と前日比（`+12 (+0.98%)`。上げは `--up`、下げは `--down`）、終値の日付、時価総額（`245億円`）、次回の決算日（`次回決算 11/07`。決まっていなければ `次回決算 未定`、行が無ければ出さない）
-4. 中のタブ `#st-tabs`（`.nav-tabs`。`data-sub="summary|price|news|holders"`）。選択中は `.on`（上と左右の枠、下は内容と同じ白でつながる）。非選択は下線のみ。塗りつぶしの `.fin-tabs` は使わない
+4. 中のタブ `#st-tabs`（`.nav-tabs`。`data-sub="summary|price|news|holders|decks"`）。選択中は `.on`（上と左右の枠、下は内容と同じ白でつながる）。非選択は下線のみ。塗りつぶしの `.fin-tabs` は使わない
 
 **操作。** 入力すると候補を出す。候補をクリックか Enter（先頭の候補）で選ぶ。Esc か外のクリックで候補を閉じる。中のタブを押すとその中身に切り替え、ルートを書き換える。
 
@@ -191,6 +193,24 @@
 
 **スマホと PC。** 同じ構造。表は横スクロール。提出者列は `pinCols` で左に残す。
 
+## 説明資料
+
+**目的。** 決算説明資料を、原本の PDF を開かずに数字と要点で読む（VPS に原本を置き続けないため、読み取った表と要約から組み直す）。
+
+**要素。** 一覧と中身を切り替える。
+
+1. 一覧 `#st-decks`（`table.sheet`）。開示の新しい順。列は左から 開示日（`yy/mm/dd`）/ 表題 / 読み取り（`読み取り済み（N ページ）`・`読み取り中`・`読めなかった`・`未読`）。同じ開示番号が TDnet と IR BANK の両方にあれば 1 行
+2. 中身 `#st-deck-detail`。上に `← 説明資料`。表題・開示日・`原本の PDF`（出所の URL を新しいタブで。TDnet の URL は約 1 か月で切れる）。その下に「読み取った数値と要約から組み直したもの（原本ではない）」と、数字の件数・文字データで確かめた件数・内訳の合計が合わない件数
+3. ページごとに `p{N}` とタイトル、要約（灰色の帯）、グラフ、表。表紙・中扉・注意事項のページは出さない。読めなかったページは `このページは読めませんでした。` 文字データで確かめられない数字・内訳の合計が合わない行があれば、ページの末尾に件数
+4. グラフ（SVG。`static/js/stock-deck.js`。規則は `analyzer/deck_reader/view.py` と同じ）。実績・予想・計画の列が 3 つ以上ある表だけ。内訳（`of`）は積み上げ棒（9 区分以上は 8 番目から「その他」）、内訳にマイナスが混ざれば内訳と合計を並べた棒、内訳の無い金額の行は 3 本までの棒、率（%・pts）は折れ線（金額と同じ軸にしない）。円（為替・1 株当たり）は他とまとめない。予想・計画は斜線（折れ線は白抜き）。値はすべての棒・点に付ける（横に入らなければ縦書き、積み上げの区分は棒の中、入らなければ右横。置けなければ省いて表で読む）。凡例は 2 系列から
+5. 表（`table.sheet`）。列は期間と種類（実績・予想・前回予想・計画・増減）、行は指標（区分）と単位。値は資料の表記のまま（丸めない）。マイナスは `−`、増減のプラスは `+`。内訳の行は字下げ
+
+**操作。** 一覧の読み取り済みの行を押すと中身（ルートを書き換える）。`← 説明資料` か中のタブの `説明資料` で一覧へ。読み取り済みでない行は押せない。
+
+**空とエラー。** 資料が無ければ `説明資料はありません。` 中身が読み取り前なら状態（`読み取り中` など）だけ。key が無ければ `説明資料が見つかりません。` API 失敗は `読み込めませんでした。`
+
+**スマホと PC。** 同じ構造。グラフは幅に合わせて縮む（SVG）。表は横スクロール。二段組にしない。
+
 ## API
 
 `GET /api/stock/{code}/overview`（`code` は 4 桁か 5 桁）
@@ -251,10 +271,15 @@
 
 `GET /api/stock/{code}/filings` は残す（ニュースの決算・修正の元）。形は 1 件が `{id, submitted_at, title, doc_type, period_type, is_amendment, documents}`、PDF から変換した回は `id: null`・`disclosure_no`・`attribution` が付き `source: "pdf"`。
 
+`GET /api/stock/{code}/decks` は銘柄の決算説明資料の一覧（最大 200 件、開示の新しい順。同じ開示番号は tdnet → irbank → homepage の 1 行）。1 件は `{key, pubdate, title, url, status, pages, facts}`。`status` は読み取りの状態（`done` / `submitted` / `failed`、未読は null）。銘柄が無ければ 404。
+
+`GET /api/stock/{code}/decks/{key}` は 1 冊の中身。`{document: {key, pubdate, title, url, status}, extract, pages}`。`extract` は `done` のときだけ `{model, prompt_version, pages, llm_pages, facts, verified, sum_checks, sum_mismatch, extracted_at}`、それ以外は null で `pages` は空。`pages` の 1 件は `{page, kind, title, summary, tables, error, unverified, mismatch}`（`tables` は読み取ったときの表そのまま。`unverified` は文字データで確かめられない数字の数、`mismatch` は内訳の合計が合わない行の数）。key がその銘柄の資料に無ければ 404。原本の PDF は返さない。
+
 ## 対象外
 
 - 概要: BS / CF の表、PBR の過去レンジ（PER は株価の業績の段）、セグメント、月次の抜粋
 - 株価: 決算ごとの騰落を業績の増減率と並べる表、スクリーナーなどの一覧から銘柄を次々に送る見方と先読み、価格帯別出来高、期間を URL に残すこと
 - ニュース: TDnet の決算以外の適時開示（XBRL の付かない書類。自己株買いの決議・配当予想の修正・M&A など）、決算・修正の要点（修正の幅など）、有報・半期報の原文、決算補足説明資料、前回の短信との文章の差分、訂正前後の差分
 - 株主: 大株主の上位 10 社（有報）、所有者別の構成、信用残・空売り残
+- 説明資料: 原本のページ画像、銘柄をまたいだ指標の検索、画面からの読み取りの依頼（ジョブは手で回す。`deploy/README.md`）
 - 原文の印刷・PDF の保存
