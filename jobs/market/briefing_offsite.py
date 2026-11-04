@@ -7,18 +7,22 @@
 
 順はコピー、サイズ確認、索引を onedrive に更新、手元の削除。
 失敗したファイルは索引も手元も変えない。行は消さない。
-cron には入れない。本番の移動は承認後に手で行う。
+毎日 1 回、deploy/crontab から deploy/cron-run.sh で動く。
+同じスクリプトが既に動いているときは移さず、終了コード 0 で終わる。
 rclone はテストから差し替える。
 """
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
+import os
 import re
 import shutil
 import sys
 from collections import defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -52,6 +56,11 @@ from jobs.ops.backup_db import (  # noqa: E402
 from jobs.share_paths import share_path  # noqa: E402
 
 _FILE_DAY = re.compile(r"^(\d{4})(\d{2})(\d{2})(?:_|\.|$)")
+# update.sh と同じく /tmp の flock。手で先に動いているプロセスはロックを持たないので、
+# それとは別にコマンド行でも見る。
+_LOCK_PATH = Path("/tmp/stock-analyzer-briefing_offsite.lock")
+_SCRIPT_NAME = "briefing_offsite.py"
+_MODULE_NAME = "jobs.market.briefing_offsite"
 
 
 class OffsiteError(Exception):
@@ -189,7 +198,109 @@ def move_one(doc: Doc, root: Path, run: RcloneRunFn, *, environ: Mapping[str, st
     path.unlink()
 
 
+def _is_python_argv0(argv0: str) -> bool:
+    base = Path(argv0).name
+    if base == "python":
+        return True
+    if not base.startswith("python"):
+        return False
+    rest = base[len("python"):]
+    return bool(rest) and any(ch.isdigit() for ch in rest) and all(ch.isdigit() or ch == "." for ch in rest)
+
+
+def _is_this_job(arg: str) -> bool:
+    text = arg.replace("\\", "/")
+    if text in {_SCRIPT_NAME, _MODULE_NAME}:
+        return True
+    return text.endswith("/" + _SCRIPT_NAME)
+
+
+def other_offsite_pids() -> list[int]:
+    """このプロセス以外で、同じジョブの Python が動いていればその pid。
+
+    ロック導入より前に手で始めた全件移動もここで拾う。
+    テストファイル名（test_briefing_offsite.py）は対象にしない。
+    """
+    me = os.getpid()
+    found: list[int] = []
+    proc = Path("/proc")
+    if not proc.is_dir():
+        return found
+    for entry in proc.iterdir():
+        if not entry.name.isdigit():
+            continue
+        pid = int(entry.name)
+        if pid == me:
+            continue
+        try:
+            raw = (entry / "cmdline").read_bytes()
+        except OSError:
+            continue
+        if not raw:
+            continue
+        argv = [part for part in raw.split(b"\0") if part]
+        text = [part.decode("utf-8", "surrogateescape") for part in argv]
+        if len(text) < 2 or not _is_python_argv0(text[0]):
+            continue
+        if any(_is_this_job(arg) for arg in text[1:]):
+            found.append(pid)
+    return found
+
+
+@contextmanager
+def instance_lock() -> Iterator[bool]:
+    """排他ロックを持てたら True。他が持っている、または古いプロセスがいるときは False。
+
+    False のときはロックを残さない。True のあいだは呼び出し側が移し終えるまで持つ。
+    """
+    _LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    fh = _LOCK_PATH.open("a+")
+    acquired = False
+    try:
+        try:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            yield False
+            return
+        acquired = True
+        if other_offsite_pids():
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+            acquired = False
+            yield False
+            return
+        yield True
+    finally:
+        if acquired:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        fh.close()
+
+
 def run(
+    dest: Path | None = None,
+    *,
+    dry_run: bool = False,
+    limit: int | None = None,
+    environ: Mapping[str, str] | None = None,
+    which: WhichFn = shutil.which,
+    rclone: RcloneRunFn | None = None,
+) -> int:
+    with instance_lock() as acquired:
+        if not acquired:
+            others = other_offsite_pids()
+            suffix = f" pids={','.join(str(pid) for pid in others)}" if others else ""
+            print(f"briefing_offsite skip already running{suffix}", flush=True)
+            return 0
+        return _run_once(
+            dest,
+            dry_run=dry_run,
+            limit=limit,
+            environ=environ,
+            which=which,
+            rclone=rclone,
+        )
+
+
+def _run_once(
     dest: Path | None = None,
     *,
     dry_run: bool = False,
