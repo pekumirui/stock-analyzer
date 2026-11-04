@@ -92,7 +92,9 @@ def main() -> None:
         _write("earnings", "calendar.json", "GET", cal_url, st, counts)
         day = args.date or _pick_earnings_date(base, month, today)
         if not day:
-            raise SystemExit(f"no earnings days in {month}")
+            raise SystemExit(
+                f"no earnings days in {month} (pass --month YYYY-MM or --date YYYY-MM-DD; golden 2026-10 is 08/13/14)"
+            )
         url = f"{base}/api/earnings?date={day}&today={today}"
         status, body = _get(url)
         path = _write("earnings", "body.json", "GET", url, status, body)
