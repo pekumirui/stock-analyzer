@@ -5,7 +5,8 @@
 
 原本の PDF を画面に出さずに、読み取った数値だけで人が読める形にできるかを確かめる試し（KAB-344）。
 - グラフは実績・予想・計画の列が 3 つ以上ある表だけ。値はすべての棒・点に付ける。内訳（of）のある行は積み上げ棒（マイナスが混ざれば並べた棒）、内訳の無い金額の行（3 本まで）は棒、
-  率（%・pts）の行は別の折れ線（軸は 1 本だけ。金額と率を 1 つのグラフに重ねない）。予想・計画の棒は斜線
+  率（%・pts）の行は別の折れ線（軸は 1 本だけ。金額と率を 1 つのグラフに重ねない）。為替の行（指標名に「為替」。単位が円でも）は通貨ごとに折れ線。
+  予想・計画の棒は斜線、率の折れ線は白抜き、為替の折れ線は破線と白抜き
 - 表は必ず出す（グラフに出ない列・行もすべて表にある）。数字の無いページは要約だけ
 - SVG を直接書く（外部のライブラリも通信も無いので PDF にそのまま入る）。--format html なら <title> でホバー表示
 """
@@ -241,19 +242,53 @@ def bar_chart(cols, series, unit, title, total=None, total_name="合計", dec=No
             f'{legend(names, colors)}{svg}</figure>')
 
 
-def line_chart(cols, series, unit, title, dec=None):
-    """折れ線。値はすべての点に付ける。同じ期で重なるときは上下に振り分け、置けなければ省く（表にある）。"""
+def _line_paths(pts, color, fx):
+    """折れ線の path。fx のとき、右の列が予想・計画の区間だけ破線。"""
+    if len(pts) < 2:
+        return []
+    if not fx:
+        dpath = "M" + "L".join(f"{px:.1f},{py:.1f}" for px, py, _, _ in pts)
+        return [f'<path d="{dpath}" fill="none" stroke="{color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>']
+    parts, run, dash = [], "", None
+
+    def flush():
+        nonlocal run
+        if not run:
+            return
+        cap = "butt" if dash else "round"
+        extra = ' stroke-dasharray="6 4"' if dash else ""
+        parts.append(f'<path d="{run}" fill="none" stroke="{color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="{cap}"{extra}/>')
+        run = ""
+
+    for i in range(1, len(pts)):
+        seg = pts[i][3].get("kind") in ("forecast", "plan")
+        bit = f"{pts[i][0]:.1f},{pts[i][1]:.1f}"
+        if run and dash == seg:
+            run += "L" + bit
+        else:
+            flush()
+            dash = seg
+            run = f"M{pts[i - 1][0]:.1f},{pts[i - 1][1]:.1f}L{bit}"
+    flush()
+    return parts
+
+
+def line_chart(cols, series, unit, title, dec=None, fx=False):
+    """折れ線。値はすべての点に付ける。同じ期で重なるときは上下に振り分け、置けなければ省く（表にある）。
+    fx のとき予想・計画へ入る区間は破線で点は白抜き。縦軸は 0 を起点にしない。"""
     colors = [SERIES[i % len(SERIES)] for i in range(len(series))]
     n = len(cols)
     band = (W - ML - MR) / n
     vals = [v for _, vs in series for v in vs if v is not None]
-    ticks, y = scale(min(vals + [0]), max(vals), 0.12)
+    if fx:
+        span = (max(vals) - min(vals)) or abs(max(vals)) or 1
+        ticks, y = scale(min(vals) - span * 0.18, max(vals) + span * 0.22, 0)
+    else:
+        ticks, y = scale(min(vals + [0]), max(vals), 0.12)
     marks, labels = [], []
     for k, (name, vs) in enumerate(series):
         pts = [(ML + band * (i + 0.5), y(v), v, cols[i]) for i, v in enumerate(vs) if v is not None]
-        if len(pts) >= 2:
-            dpath = "M" + "L".join(f"{px:.1f},{py:.1f}" for px, py, _, _ in pts)
-            marks.append(f'<path d="{dpath}" fill="none" stroke="{colors[k]}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>')
+        marks.extend(_line_paths(pts, colors[k], fx))
         for px, py, v, c in pts:
             hollow = c["kind"] in ("forecast", "plan")
             marks.append(f'<circle cx="{px:.1f}" cy="{py:.1f}" r="4.5" fill="{"#fcfcfb" if hollow else colors[k]}" '
@@ -273,7 +308,12 @@ def line_chart(cols, series, unit, title, dec=None):
     svg = (f'<svg viewBox="0 0 {W} {H}" role="img" aria-label="{esc(title)}">'
            f'{frame(ticks, y, unit)}{"".join(marks)}{"".join(labels)}{x_labels(cols, band)}</svg>')
     fc = any(c["kind"] in ("forecast", "plan") for c in cols)
-    note = '<span class="note">白抜きは予想・計画</span>' if fc else ""
+    if not fc:
+        note = ""
+    elif fx:
+        note = '<span class="note">破線・白抜きは予想・計画</span>'
+    else:
+        note = '<span class="note">白抜きは予想・計画</span>'
     return (f'<figure class="chart"><figcaption>{esc(title)}<span class="unit">（{esc(unit)}）</span>{note}</figcaption>'
             f'{legend([nm for nm, _ in series], colors, "line")}{svg}</figure>')
 
@@ -316,7 +356,7 @@ def charts_for(table):
         used.update(row_key(c) for c, _ in data if c.get("of") and (c["of"] if "|" in c["of"] else c["of"] + "|null") == key)
         if len(out) >= 3:
             return out
-    # 内訳に使っていない行を、単位と指標の根（/ の前）ごとに棒（金額）・折れ線（率）。
+    # 内訳に使っていない行を、単位と指標の根（/ の前）ごとに棒（金額）・折れ線（率・為替）。
     # 根が 1 行ずつのものは単位ごとに 3 本までまとめる（売上高と営業利益、各利益率など）。円（為替・1 株当たり）はまとめない
     rest = [(r, v) for r, v in data if row_key(r) not in used and not r.get("of")]
     groups = {}
@@ -334,8 +374,9 @@ def charts_for(table):
         series = [(row_label(r), v) for r, v in items]
         title = "・".join(row_label(r) for r, _ in items)
         dec = decimals([r for r, _ in items])
-        if unit in RATE_UNITS:
-            out.append(line_chart(scols, series, unit, title, dec))
+        fx = all("為替" in str(r.get("metric") or "") for r, _ in items)
+        if unit in RATE_UNITS or fx:
+            out.append(line_chart(scols, series, unit, title, dec, fx=fx))
         elif len(items) <= 3:
             out.append(bar_chart(scols, series, unit, title, dec=dec))
         if len(out) >= 3:

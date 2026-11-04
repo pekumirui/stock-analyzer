@@ -85,16 +85,24 @@ def test_detail(c) -> None:
     assert c.get("/api/stock/6857/decks/d0000000000000000000a").status_code == 404
 
 
-def test_charts_js() -> None:
+def _deck(table: dict) -> dict:
     script = (
         "const m = require(process.argv[1]);"
         "const t = JSON.parse(process.argv[2]);"
         "process.stdout.write(JSON.stringify({charts: m.deckCharts(t), table: m.deckTable(t),"
         " num: [m.deckNum('△1,026'), m.deckNum('(731)'), m.deckNum('－')]}));"
     )
-    out = subprocess.run(["node", "-e", script, str(ROOT / "static/js/stock-deck.js"), json.dumps(TABLE)],
+    out = subprocess.run(["node", "-e", script, str(ROOT / "static/js/stock-deck.js"), json.dumps(table)],
                          capture_output=True, text=True, check=True, timeout=30)
-    res = json.loads(out.stdout)
+    return json.loads(out.stdout)
+
+
+def _caption(html: str) -> str:
+    return re.search(r"<figcaption>(.*?)</figcaption>", html).group(1)
+
+
+def test_charts_js() -> None:
+    res = _deck(TABLE)
     charts = res["charts"]
     titles = [re.search(r"<figcaption>([^<]*)<", h).group(1) for h in charts]
     # 内訳（積み上げ）、マイナスの混ざる内訳（並べた棒）、率（折れ線）
@@ -105,5 +113,46 @@ def test_charts_js() -> None:
     assert "斜線は予想・計画" in stacked and "url(#dk" in stacked
     assert "−25.8" in cf and "<circle" not in cf and "FCF" in cf
     assert "<circle" in rate and ">47.0<" in rate
+    assert "白抜きは予想・計画" in rate and "stroke-dasharray" not in rate
     assert "<table class=\"sheet dk-tbl\">" in res["table"] and "−3.4" in res["table"]
     assert res["num"] == [-1026, 731, None]
+
+
+def test_fx_rows_are_lines_and_money_stays_bars() -> None:
+    # 振る舞いだけ。為替の行は折れ線、売上・利益と単位が円だけの行は棒
+    cols = [{"period": "FY24", "kind": "actual"}, {"period": "FY25", "kind": "actual"},
+            {"period": "FY26 Q1", "kind": "forecast"}, {"period": "FY26 通期", "kind": "plan"}]
+
+    def row(metric: str, unit: str, values: list[str]) -> dict:
+        return {"metric": metric, "segment": None, "unit": unit, "of": None, "values": values}
+
+    charts = _deck({"cols": cols, "rows": [
+        row("売上高", "10億円", ["100", "110", "120", "230"]),
+        row("営業利益", "10億円", ["10", "12", "14", "25"]),
+        row("基本的一株当たり利益", "円", ["500.5", "510.5", "520.5", "530.5"]),
+        row("為替レート/米ドル", "円", ["150", "152", "159", "161"]),
+        row("為替レート/ユーロ", "円", ["170", "176", "185", "188"]),
+    ]})["charts"]
+
+    def figs(name: str) -> list[str]:
+        return [h for h in charts if name in _caption(h)]
+
+    bars = figs("売上高") + figs("営業利益") + figs("一株当たり")
+    assert bars
+    for html in bars:
+        assert "<circle" not in html and "stroke-dasharray" not in html
+        assert "斜線は予想・計画" in html
+    fx = figs("為替レート")
+    assert len(fx) == 1 and "米ドル" in _caption(fx[0]) and "ユーロ" in _caption(fx[0])
+    html = fx[0]
+    assert "<circle" in html and "dk-sw line" in html
+    assert "破線・白抜きは予想・計画" in html and "斜線は予想・計画" not in html
+    paths = re.findall(r"<path\b[^>]*>", html)
+    assert any("stroke-dasharray" in p for p in paths)
+    assert any("stroke=" in p and "stroke-dasharray" not in p for p in paths)
+    circles = re.findall(r"<circle\b[^>]*>", html)
+    assert len(circles) == 8
+    assert any('fill="#fff"' in c for c in circles) and any('fill="#fff"' not in c for c in circles)
+    labels = re.findall(r'class="val"[^>]*>([^<]+)<', html)
+    for v in ("150", "152", "159", "161", "170", "176", "185", "188"):
+        assert v in labels
