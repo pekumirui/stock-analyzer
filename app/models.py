@@ -50,7 +50,8 @@ class BriefingDocument(Base):
     TDnet の保存ジョブが source=tdnet で書き、IR BANK の過去分は source=irbank、
     会社ホームページで見つけた PDF は source=homepage。document_id は出所をまたいで
     同じ開示番号（TDnet の PDF ファイル名。18 桁）。code は普通株の 5 桁。
-    rel_path は data/briefing から。
+    rel_path は data/briefing から。storage は local / onedrive（KAB-345）。
+    行は残す。OneDrive へ移しても status と rel_path は変えない。
     """
     __tablename__ = "briefing_documents"
     source = Column(String(16), primary_key=True)       # tdnet / irbank / homepage
@@ -64,6 +65,7 @@ class BriefingDocument(Base):
     sha256 = Column(String(64))
     size = Column(Integer)
     status = Column(String(16), nullable=False)         # saved
+    storage = Column(String(16), nullable=False, default="local", server_default="local")
     saved_at = Column(DateTime, nullable=False)         # JST naive
     __table_args__ = (
         Index("ix_briefing_documents_code_pubdate", "code", "pubdate"),
