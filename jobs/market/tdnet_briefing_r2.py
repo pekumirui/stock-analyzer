@@ -30,7 +30,8 @@ if str(SCRIPT_DIR.parents[1]) not in sys.path:
 
 from app.market.briefing_store import (  # noqa: E402
     SOURCE_TDNET,
-    has_saved,
+    STORAGE_ONEDRIVE,
+    get_saved,
     record_briefing,
 )
 from app.market.briefing_title import (  # noqa: E402
@@ -213,9 +214,14 @@ def run(days: int, dest: Path, *, dry_run: bool = False) -> int:
         )
         rel = path.relative_to(dest)
         try:
+            indexed = get_saved(SOURCE_TDNET, pdf_id)
+            if indexed is not None and indexed.storage == STORAGE_ONEDRIVE:
+                skipped += 1
+                print(f"skip offsite {rel}", flush=True)
+                continue
             existing = read_pdf(path)
             if existing is not None:
-                if has_saved(SOURCE_TDNET, pdf_id):
+                if indexed is not None:
                     skipped += 1
                     print(f"skip exists {rel}", flush=True)
                 else:

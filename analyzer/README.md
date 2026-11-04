@@ -10,7 +10,7 @@
 - 生成物（CSV・パネル）は `--out` で `/tmp` などリポジトリ外へ出す。コミットするのは結果の要約とグラフの PNG だけ
 - 分析期間と確認期間を分ける。分析期間だけで良く見えた結論は採らない
 - 2 つ目の分析で同じ処理（価格の調整、月末判定、Newey-West など）が要ったら `common/` に切り出す。それまでは各スクリプトに置く
-- 例外: `agent_forecast/` と `deck_reader/` は stock.db を読まない。`deck_reader/` は説明資料の PDF を `claude -p` に読ませる PoC（約束は `deck_reader/README.md`）。`agent_forecast/` は開示（IR Bank）と本番の月次 API を材料にしてベンダーごとのエージェント（Claude は `claude -p`、Grok 4.6 は Cursor の Task）を回す。予想に渡した財務 JSON も `results/` に残す。Cursor では `/agent-forecast`
+- 例外: `deck_reader/` は stock.db を読まない。説明資料の PDF を `claude -p` に読ませる PoC（約束は `deck_reader/README.md`）。`agent_forecast/` は開示と本番の月次 API を材料にしてベンダーごとのエージェント（Claude は `claude -p`、Grok 4.6 は Cursor の Task）を回す。説明資料の PDF は、索引にあれば `fetch_docs.py` が stock.db と（OneDrive なら一時取得）から読む。それ以外は stock.db を読まない。予想に渡した財務 JSON も `results/` に残す。Cursor では `/agent-forecast`
 - 依存は `analyzer/requirements.txt`（`.venv/bin/python -m pip install -r analyzer/requirements.txt`）
 
 ## 一覧
