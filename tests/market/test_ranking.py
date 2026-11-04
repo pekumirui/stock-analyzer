@@ -115,3 +115,33 @@ def test_earnings_perf_ranking() -> None:
     assert c.get("/api/ranking/earnings-perf", params={"month": "2026-08"}).json()["rows"] == []
     for bad in ("2026-13", "2026/10", "26-10"):
         assert c.get("/api/ranking/earnings-perf", params={"month": bad}).status_code == 400
+
+
+def test_pts_tab_moved_into_ranking() -> None:
+    """PTS はランキングの中のタブになった（KAB-265）。古い #pts は #ranking/pts へ読み替える。"""
+    html = (ROOT / "static/index.html").read_text(encoding="utf-8")
+    tabs = (ROOT / "static/js/tabs.js").read_text(encoding="utf-8")
+    rk = (ROOT / "static/js/ranking.js").read_text(encoding="utf-8")
+    pts = (ROOT / "static/js/pts.js").read_text(encoding="utf-8")
+    nav = html[html.index("<nav id=\"app-nav\">"):html.index("</nav>")]
+    ranking = html[html.index('id="tab-ranking"'):html.index('id="tab-monthly"')]
+    assert 'data-tab="pts"' not in html and 'id="tab-pts"' not in html
+    assert 'data-tab="pts"' not in nav
+    assert 'id="rk-subs"' in ranking and 'data-rksub="perf"' in ranking and 'data-rksub="pts"' in ranking
+    assert ">決算後パフォーマンス</button>" in ranking and ">PTS</button>" in ranking
+    assert 'id="rk-sub-perf"' in ranking and 'id="rk-sub-pts"' in ranking
+    for el in ('id="pts-date"', 'id="pts-ranking"', 'id="pts-at"', 'id="pts-info"',
+               'id="pts-summary"', 'id="pts-tbl"', 'data-ranking="night_up"',
+               'data-ranking="night_down"', 'data-ranking="night_volume"'):
+        assert el in ranking
+    assert 'id="rk-kind"' in ranking and 'id="rk-tbl"' in ranking
+    tabs_lit = tabs.split("const TABS")[1].split(";")[0]
+    assert '"pts"' not in tabs_lit
+    assert 'const RANKING_SUBS = ["pts"]' in tabs
+    assert 'if(tab === "pts")' in tabs and 'code: "pts"' in tabs
+    assert "showRankingSub" in tabs and "showRankingSub" in rk
+    assert 'rkSub === "pts"' in rk
+    assert "$(\"#pts-date\")" in pts and "$(\"#pts-tbl\")" in pts
+    assert 'id="pts-tbl" class="sheet"' in html
+    assert "shortName(raw)" in pts
+    assert "<thead>" in pts and "</tbody>" in pts

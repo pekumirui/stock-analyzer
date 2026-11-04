@@ -221,28 +221,30 @@ def _headline_tier_of(code: str, element: str, unit: str | None) -> int:
     return 0 if company_wide and sales else 1
 
 
-def _latest_yoy_for_kind(
-    elems: list[MonthlyElement], vals: list[MonthlyValue], kind: str,
-) -> float | None:
-    matched: dict[tuple[int, str], MonthlyElement] = {}
-    tier_of: dict[tuple[int, str], int] = {}
+def _latest_yoy_by_kind(
+    elems: list[MonthlyElement], vals: list[MonthlyValue],
+) -> dict[str, float]:
+    """系列の種類ごとに、会社計を優先して最新月の前年比。値が無い種類は入れない。
+
+    一覧は銘柄数 × 種類ぶん呼ばれるので、行と値を 1 回ずつだけ回す。
+    """
+    matched: dict[tuple[int, str], tuple[str, int, MonthlyElement]] = {}
     for e in elems:
-        if _series_kind(e.element, e.unit) != kind:
+        kind = _series_kind(e.element, e.unit)
+        if kind is None:
             continue
-        key = (e.year, e.element)
-        matched[key] = e
-        tier_of[key] = _headline_yoy_tier(e)
-    best: tuple[tuple[int, int, int, int, str], float] | None = None
+        matched[(e.year, e.element)] = (kind, _headline_yoy_tier(e), e)
+    best: dict[str, tuple[tuple[int, int, int, int, str], float]] = {}
     for v in vals:
-        el = matched.get((v.year, v.element))
-        if el is None:
+        hit = matched.get((v.year, v.element))
+        if hit is None:
             continue
-        rank = (tier_of[(v.year, v.element)], -v.year, -v.month, el.sort_order, el.element)
-        if best is None or rank < best[0]:
-            best = (rank, float(v.value))
-    if best is None:
-        return None
-    return best[1]
+        kind, tier, el = hit
+        rank = (tier, -v.year, -v.month, el.sort_order, el.element)
+        cur = best.get(kind)
+        if cur is None or rank < cur[0]:
+            best[kind] = (rank, float(v.value))
+    return {kind: value for kind, (_rank, value) in best.items()}
 
 
 def _new_flags(last_ingested_at: datetime | None) -> tuple[bool, bool]:

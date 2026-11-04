@@ -1,6 +1,7 @@
 # shellcheck shell=bash
 
 ACCESS_LOG="${ACCESS_LOG:-/var/log/nginx/stock-analyzer.access.log}"
+APP_DIR="${APP_DIR:-/home/stock/stock-analyzer}"
 APP_UPSTREAM="${APP_UPSTREAM:-127.0.0.1:8000}"
 MCP_UPSTREAM="${MCP_UPSTREAM:-127.0.0.1:8010}"
 
@@ -23,6 +24,13 @@ render_log_conf() {
   cat <<'EOF'
 log_format timed '$remote_addr [$time_local] "$request" $status $body_bytes_sent '
                  'rt=$request_time urt=$upstream_response_time "$http_user_agent"';
+EOF
+}
+
+render_gzip_conf() {
+  cat <<'EOF'
+gzip_vary on;
+gzip_types text/css application/javascript text/javascript application/json text/plain application/xml text/xml;
 EOF
 }
 
@@ -86,7 +94,7 @@ ${pub_headers}
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 60s;
     }
-    location ^~ /static/ {
+    location = /static/monthly_row_order.json {
         auth_basic off;
 ${pub_headers}
         proxy_pass http://${APP_UPSTREAM};
@@ -95,6 +103,22 @@ ${pub_headers}
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_read_timeout 60s;
+    }
+    location = /static/ir_monthly_codes.json {
+        auth_basic off;
+${pub_headers}
+        proxy_pass http://${APP_UPSTREAM};
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 60s;
+    }
+    location ^~ /static/ {
+        auth_basic off;
+${pub_headers}
+        add_header Cache-Control "no-cache" always;
+        alias ${APP_DIR}/static/;
     }
     location = /api/v1/tables {
         auth_basic off;

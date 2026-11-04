@@ -454,8 +454,8 @@ async function supplyCountries(id){
   const sum = v >= 1e8 ? `${fmt(v / 1e8, 1)}億` : v >= 1e6 ? `${fmt(v / 1e4)}万` : v >= 1e4 ? `${fmt(v / 1e4, 1)}万` : fmt(v);
   box.innerHTML = `<h3>輸入元の国</h3>
     <div class="supply-pie">${supplyDonut(segs, d.unit, sum, `${d.unit}・12か月計`, "国別の輸入シェア")}
-      <table class="supply-tbl supply-share-tbl">${segs.map(s => `<tr title="${fmt(s.v)} ${d.unit}">
-        <td class="l"><i style="background:${s.color}"></i>${s.name}</td><td>${(s.share * 100).toFixed(1)}%</td></tr>`).join("")}</table></div>
+      <table class="sheet supply-tbl supply-share-tbl">${segs.map(s => `<tr title="${fmt(s.v)} ${d.unit}">
+        <td class="l"><i style="background:${s.color}"></i>${s.name}</td><td class="num">${(s.share * 100).toFixed(1)}%</td></tr>`).join("")}</table></div>
     <div class="sub supply-src">${d.from}〜${d.to}${d.sokuho ? "（最新月は速報）" : ""}の輸入量 ${fmt(v)} ${d.unit}・普通貿易統計（品別国別表）</div>`;
   $("#supply-body .supply-tabs [data-tab=ctry]").hidden = false;
   if(supplyTab === "ctry") supplyShowTab("ctry");
@@ -554,9 +554,9 @@ function supplyShare(t){
     <h3>${t.label}のシェア</h3>
     ${t.note ? `<div class="sub supply-hint">${t.note}</div>` : ""}
     <div class="supply-share-body">${supplyDonut(supplyShareSegs(rows), t.unit, fmt(total), t.unit, "会社別シェア")}
-      <table class="supply-tbl supply-share-tbl"><tr><th class="l">${supplyGroup ? "グループ" : "会社"}</th><th>能力</th><th>シェア</th></tr>
+      <table class="sheet supply-tbl supply-share-tbl"><tr><th class="l">${supplyGroup ? "グループ" : "会社"}</th><th>能力</th><th>シェア</th></tr>
       ${rows.map(r => `<tr class="supply-row" data-co="${r.id}"><td class="l"><i style="background:${r.color}"></i>${supply.co.byId[r.id].name}</td>
-        <td>${fmt(r.v)}</td><td>${(r.share * 100).toFixed(1)}%</td></tr>`).join("")}</table></div>
+        <td class="num">${fmt(r.v)}</td><td class="num">${(r.share * 100).toFixed(1)}%</td></tr>`).join("")}</table></div>
     <div class="sub supply-src">${t.unit}・${t.as_of.slice(0, 4)}年${Number(t.as_of.slice(5))}月末・${link ? `<a href="${link}" target="_blank" rel="noopener">${src.title}</a>` : src.title}</div>
     <label class="sub supply-tg"><input type="checkbox" class="supply-group"${supplyGroup ? " checked" : ""}>親会社でまとめる</label>
   </div>`;
@@ -573,7 +573,7 @@ function supplyCompanyPanel(id){
   const caps = capacities.filter(t => t.rows.some(r => r[0] === id)).map(t => {
     const v = t.rows.find(r => r[0] === id)[1], tot = t.rows.reduce((a, r) => a + r[1], 0);
     return `<tr class="supply-row" data-id="${t.materials[0]}"><td class="l">${t.label.replace(/生産能力$/, "")}</td>
-      <td>${fmt(v)}</td><td class="l">${t.unit}</td><td>${(v / tot * 100).toFixed(1)}%</td></tr>`;
+      <td class="num">${fmt(v)}</td><td class="l">${t.unit}</td><td class="num">${(v / tot * 100).toFixed(1)}%</td></tr>`;
   });
   const parents = c.owners.length ? c.owners.map(([o, pct]) => [o, `${pct}%`])
     : c.parent_id ? [[c.parent_id, ""]] : [];
@@ -584,13 +584,13 @@ function supplyCompanyPanel(id){
     ...trade.filter(t => t.seller === id || t.buyer === id).map(t => t.source)].filter(Boolean))];
   const code = c.code ? c.code.slice(0, 4) : "";
   p.innerHTML = `<h2>${c.name} <span class="supply-kind k-co">${SUPPLY_STATUS[c.status]}${code ? ` ${code}` : ""}</span></h2>
-    ${code ? `<div class="sub supply-meta"><a href="#stock/${c.code}/price" id="supply-chart-link">株価を開く</a></div>` : ""}
+    ${code ? `<div class="sub supply-meta"><a href="#stock/${c.code}/price?from=supply" id="supply-chart-link">株価を開く</a></div>` : ""}
     ${c.note ? `<p class="supply-note">${c.note}</p>` : ""}
     <h3>作っている素材</h3>${mats.length ? `<div class="supply-chips">${mats.map(m => {
       const x = supply.byId[m], ok = made.find(y => y.material === m).source;
       return `<button type="button" class="supply-chip${ok ? "" : " unverified"}" data-id="${m}"><i class="k-${x.kind}"></i>${x.name}</button>`;
     }).join("")}</div>` : '<span class="sub">なし</span>'}
-    ${caps.length ? `<h3>生産能力</h3><table class="supply-tbl"><tr><th class="l">品目</th><th>能力</th><th class="l">単位</th><th>シェア</th></tr>${caps.join("")}</table>` : ""}
+    ${caps.length ? `<h3>生産能力</h3><table class="sheet supply-tbl"><tr><th class="l">品目</th><th>能力</th><th class="l">単位</th><th>シェア</th></tr>${caps.join("")}</table>` : ""}
     <h3>${c.owners.length ? "出資者" : "親会社"}</h3>${supplyCoChips(parents)}
     <h3>子会社・出資先</h3>${supplyCoChips(children)}
     <h3>販売先</h3>${supplyCoChips(sellTo)}
@@ -649,11 +649,11 @@ async function supplyMonthly(id){
   box.innerHTML = `<div class="sub supply-unit" id="supply-unit"></div>
     <div id="supply-legend" class="supply-legend-v"></div>
     <div class="supply-chart-wrap"><div id="supply-chart"></div><div id="supply-tip" hidden></div></div>
-    <table class="supply-tbl"><tr><th class="l">指標</th><th>最新月</th><th>値</th><th class="l">単位</th></tr>
+    <table class="sheet supply-tbl"><tr><th class="l">指標</th><th>最新月</th><th>値</th><th class="l">単位</th></tr>
     ${d.series.map((x, i) => {
       const [m, v, rev] = x.points[x.points.length - 1];
       return `<tr class="supply-row" data-i="${i}"><td class="l"><i style="background:${SUPPLY_METRIC[x.metric].color}"></i>${SUPPLY_METRIC[x.metric].label}</td>
-        <td>${rev === 1 ? '<span class="supply-rev">速報</span>' : ""}${m}</td><td>${fmt(v)}</td><td class="l">${x.unit}</td></tr>`;
+        <td>${rev === 1 ? '<span class="supply-rev">速報</span>' : ""}${m}</td><td class="num">${fmt(v)}</td><td class="l">${x.unit}</td></tr>`;
     }).join("")}</table>
     <div class="sub supply-hint">指標を押すと選んだ指標だけ（複数可）。もう一度押すと外す</div>`;
   box.querySelectorAll(".supply-row").forEach(tr => tr.onclick = () => {

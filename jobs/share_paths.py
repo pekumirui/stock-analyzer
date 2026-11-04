@@ -17,6 +17,8 @@ PREFIXES = {
     "inventory": "inventory",
     "stats": "stats",
     "intraday": "intraday",
+    "edinet": "edinet",
+    "briefing": "briefing",
 }
 
 

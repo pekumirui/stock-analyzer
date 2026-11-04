@@ -1,9 +1,9 @@
-"""一覧表（決算速報・スクリーナー・ランキング）が table.sheet を共有し、スマホ幅に収まる（KAB-196 / KAB-197）。"""
+"""一覧表（決算速報・スクリーナー・ランキング・大量保有報告書）が table.sheet を共有し、スマホ幅に収まる（KAB-196 / KAB-197 / KAB-270）。"""
 from __future__ import annotations
 
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_sheet_css_is_shared() -> None:
@@ -14,19 +14,36 @@ def test_sheet_css_is_shared() -> None:
     assert "#rk-tbl.sheet" in css
     assert "#sc-tbl.sheet" in css
     assert "#earn-tbl.sheet" in css
+    assert "#pts-tbl.sheet" in css
     assert "table.sheet td.name, table.sheet th.name { max-width:8em; }" in css
     assert "#rk-tbl th.grp { white-space:nowrap; }" in css
-    assert "#earn-tbl .pin2, #sc-tbl .pin0 { box-shadow:inset -1px 0 0 var(--border); }" in css
+    assert "#earn-tbl .pin2, #sc-tbl .pin0, #hd-feed .pin2, #hd-holdings .pin0, #st-holders-large .pin0 { box-shadow:inset -1px 0 0 var(--border); }" in css
     assert "#rk-tbl .pin1" not in css
+    assert "#hd-feed.sheet" in css
+    assert "#pts-tbl td.name, #pts-tbl th.name" in css
+    assert "#tab-holders .tbl-wrap" in css
+    assert ".supply-tbl { width:auto; margin-top:6px; }" in css
+    assert ".supply-tbl { width:auto; margin-top:6px; font-size" not in css
+    assert "tr.below-h td { color:var(--sub); }" in css
+    assert "tr.below-h td { color:var(--sub); font-size" not in css
+    assert "-webkit-text-size-adjust:100%; text-size-adjust:100%;" in css
+    assert "table.sheet td { padding:7px 8px; vertical-align:top; background:var(--panel); font-size:13px; }" in css
+    assert "table.sheet td.num { font-weight:500; }" in css
+    assert "table.sheet td.num { font-size" not in css
+    assert "table.sheet td { font-size:12px; }" in css
 
 
 def test_ranking_table_matches_sheet() -> None:
     html = (ROOT / "static/index.html").read_text(encoding="utf-8")
     assert 'id="rk-tbl" class="sheet"' in html
+    assert 'id="pts-tbl" class="sheet"' in html
     assert 'data-dir="up"' in html
     assert 'data-dir="down"' in html
     assert ">上昇率</button>" in html
     assert ">下落率</button>" in html
+    assert 'id="rk-subs"' in html
+    assert 'data-rksub="perf"' in html
+    assert 'data-rksub="pts"' in html
     assert 'data-kind="earnings-perf"' not in html
     src = (ROOT / "static/js/ranking.js").read_text(encoding="utf-8")
     assert "<thead>" in src
@@ -66,6 +83,12 @@ def test_ranking_table_matches_sheet() -> None:
     assert "この月の${RK_DIR[rkDir]}はありません" in src
 
 
+def test_supply_tables_use_sheet() -> None:
+    src = (ROOT / "static/js/supply.js").read_text(encoding="utf-8")
+    assert src.count('class="sheet supply-tbl') == 4
+    assert 'class="supply-tbl' not in src.replace('class="sheet supply-tbl', "")
+
+
 def test_screener_table_matches_sheet() -> None:
     html = (ROOT / "static/index.html").read_text(encoding="utf-8")
     assert 'id="sc-tbl" class="sheet"' in html
@@ -82,6 +105,22 @@ def test_screener_table_matches_sheet() -> None:
     assert "pinCols($(\"#sc-tbl\"), 1)" in src
 
 
+def test_fin_perf_news_use_sheet() -> None:
+    """決算表・銘柄パフォーマンス・銘柄ニュースは table.sheet（KAB-274）。"""
+    html = (ROOT / "static/index.html").read_text(encoding="utf-8")
+    css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
+    for tid in ("cum-tbl", "q-tbl", "prog-tbl", "rev-tbl",
+                "st-cum-tbl", "st-q-tbl", "st-prog-tbl", "st-rev-tbl"):
+        assert f'class="sheet fin" id="{tid}"' in html
+    assert 'id="perf-tbl" class="sheet"' in html
+    assert 'id="st-news" class="sheet"' in html
+    assert "table.sheet .opm" in css
+    assert "table.fin th { font-size" not in css
+    assert "table.fin td.num { font-size" not in css
+    assert "table.fin .opm { font-size" not in css
+    assert "table.fin .g { display:block; font-size" not in css
+
+
 def test_earnings_keeps_sheet_and_shared_pin() -> None:
     src = (ROOT / "static/js/earnings.js").read_text(encoding="utf-8")
     assert 'id="earn-tbl" class="sheet"' in src
@@ -92,3 +131,18 @@ def test_earnings_keeps_sheet_and_shared_pin() -> None:
     assert "const under =" in api
     assert "const shortName =" in api
     assert "const shortName" not in src
+    assert "latestPeriodLabel" in src
+    assert "qb-act" in src
+    assert "metricCells(latest" in src
+    assert "metricCells(r, r.period)" in src
+
+
+def test_monthly_tables_use_sheet() -> None:
+    src = (ROOT / "static/js/monthly.js").read_text(encoding="utf-8")
+    assert 'id="monthly-tbl" class="sheet"' in src
+    assert 'class="sheet monthly-tl"' in src
+    assert 'class="sheet">${head}${rows}</table>' in src
+    css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
+    assert "table.sheet .tl-sub { font-size:11px; }" in css
+    pub = (ROOT / "app/monthly/public.py").read_text(encoding="utf-8")
+    assert 'id="monthly-tbl" class="sheet"' in pub

@@ -9,6 +9,7 @@ from __future__ import annotations
 __all__ = [
     "EdinetMaintenanceError",
     "is_maintenance",
+    "is_not_found",
     "reraise",
     "skip_on_maintenance",
     "warn_maintenance",
@@ -22,6 +23,16 @@ class EdinetMaintenanceError(Exception):
 def is_maintenance(exc: BaseException) -> bool:
     """vendor / アプリのどちらの EdinetMaintenanceError でも True。"""
     return any(c.__name__ == "EdinetMaintenanceError" for c in type(exc).__mro__)
+
+
+def is_not_found(exc: BaseException) -> bool:
+    """書類取得が 404。取り下げ・非公開・取得可能期間外。次の回に取り直しても同じ。"""
+    if getattr(exc, "status", None) == 404:
+        return True
+    resp = getattr(exc, "response", None)
+    if getattr(resp, "status_code", None) == 404:
+        return True
+    return type(exc).__name__ == "EdinetNotFoundError"
 
 
 def reraise(exc: BaseException) -> None:

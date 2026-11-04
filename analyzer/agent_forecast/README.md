@@ -37,7 +37,7 @@ Cursor では `/agent-forecast`（`.cursor/skills/agent-forecast/SKILL.md`）で
 
 ## 他の銘柄で回す
 
-材料と結果はリポジトリの外（既定 `/workspace/forecast-exp/<id>/`、`<id>` は設定ファイル名）に置く。PDF はコミットしない。スクリプトは標準ライブラリだけ。
+材料と結果はリポジトリの外（既定 `/workspace/forecast-exp/<id>/`、`<id>` は設定ファイル名）に置く。PDF はコミットしない。`fetch_docs.py` 以外は標準ライブラリだけ。説明資料は索引にあればそこから読み、無ければ IR Bank。
 
 ### 1. 設定ファイルを作る（`targets/<code4>_FY<YYYY>Q<n>.json`）
 
@@ -66,7 +66,7 @@ T=targets/6036_FY2026Q4.json; R=/workspace/forecast-exp/6036_FY2026Q4; cd analyz
 3. 残りはスクリプト
 
 ```bash
-python3 fetch_docs.py --target $T              # 月次・説明資料の PDF（IR Bank）
+python3 fetch_docs.py --target $T              # 月次は IR Bank。説明資料は索引（無ければ IR Bank）
 python3 build_financials.py --target $T        # raw/financials.json。組替があれば「注意」が出る → cost_reclass を書く
 python3 build_monthly_snapshot.py --target $T  # 本番の月次 API を切る（月次がある銘柄だけ）
 python3 build_conditions.py --target $T        # cond_A〜F と mcp/

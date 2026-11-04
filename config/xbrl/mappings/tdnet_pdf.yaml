@@ -16,7 +16,7 @@
     - { ns: pdf-pl, name: 売上高合計, priority: 8 }
     - { ns: pdf-pl, name: 売上収益合計, priority: 8, standard: IFRS }
     - { ns: pdf-pl, name: 収益, priority: 12, standard: IFRS }
-    - { ns: pdf-pl, name: 収益合計, priority: 11, standard: IFRS }
+    - { ns: pdf-pl, name: 収益合計, priority: 13, standard: IFRS }
     - { ns: pdf-pl, name: 経常収益, priority: 22, standard: JPGAAP }
     - { ns: pdf-sum, name: 経常収益, priority: 52, standard: JPGAAP }
     - { ns: pdf-sum, name: 収益, priority: 55, standard: IFRS }
@@ -68,10 +68,12 @@
     - { ns: pdf-pl, name: 親会社株主に帰属する当期純利益, priority: 10 }
     - { ns: pdf-pl, name: 親会社株主に帰属する当期純損失, priority: 10 }
     - { ns: pdf-pl, name: 親会社の所有者に帰属する当期利益, priority: 10, standard: IFRS }
+    - { ns: pdf-pl, name: 親会社の所有者に帰属する当期純利益, priority: 10, standard: IFRS }
     - { ns: pdf-pl, name: 当期純利益, priority: 30 }
     - { ns: pdf-pl, name: 当期純損失, priority: 30 }
     - { ns: pdf-sum, name: 親会社株主に帰属する当期純利益, priority: 50 }
     - { ns: pdf-sum, name: 親会社の所有者に帰属する当期利益, priority: 50 }
+    - { ns: pdf-sum, name: 親会社の所有者に帰属する当期純利益, priority: 50, standard: IFRS }
     - { ns: pdf-sum, name: 当期純利益, priority: 70 }
     - { ns: pdf-pl, name: 当社株主に帰属する当期純利益, priority: 10 }
     - { ns: pdf-pl, name: 当社株主に帰属する当期純損失, priority: 10 }

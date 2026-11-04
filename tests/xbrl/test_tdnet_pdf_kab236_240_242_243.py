@@ -517,7 +517,7 @@ def test_cash_end_not_glued_to_scope_change_zougengaku() -> None:
         fiscal_year_start=date(2023, 1, 1), fiscal_year_end=date(2023, 12, 31),
     )
     facts = _facts(read_tdnet_pdf(_pages(parts), d))
-    if facts.get(("現金及び現金同等物の期末残高", "CurrentYearDuration")) != MILLION * 59945:
+    if facts.get(("現金及び現金同等物の期末残高", "CurrentYearInstant")) != MILLION * 59945:
         _fail(facts)
     if any("期末残高" in name and "減少" in name for name, _ref in facts):
         _fail(f"glued {facts}")

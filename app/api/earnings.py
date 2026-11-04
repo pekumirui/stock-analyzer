@@ -1,6 +1,7 @@
 """決算タブ。/earnings の速報一覧・カレンダー・詳細。"""
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, func, or_, select
@@ -14,6 +15,7 @@ from ..market.analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual
 from ..market.earnings_schedule import ActualMonth, day_payload, month_payload
 from ..market.revisions import jquants_points
 from ..revisions import revision_rows
+from ..xbrl.gross_profit import attach_gross_profit
 from ..xbrl.revisions import xbrl_points
 
 
@@ -83,7 +85,7 @@ _LIST_HISTORY_COLUMNS = tuple(
 
 
 def prefetch_list_history(db: Session, codes, day: date) -> dict[str, list]:
-    """指定日までの一覧用履歴を銘柄ごとにまとめて取る。"""
+    """指定日までの一覧用履歴を銘柄ごとにまとめて取る。売上総利益（gross_profit）を付ける。"""
     hist_by_code: dict[str, list] = defaultdict(list)
     since = day - timedelta(days=EP["list_history_days"])
     for row in db.execute(
@@ -92,8 +94,72 @@ def prefetch_list_history(db: Session, codes, day: date) -> dict[str, list]:
                    Statement.disclosed_date <= day,
                    Statement.disclosed_date >= since)
             .order_by(Statement.code, Statement.disclosed_date, Statement.disclosure_no)):
-        hist_by_code[row.code].append(row)
+        hist_by_code[row.code].append(SimpleNamespace(**row._asdict()))
+    attach_gross_profit(db, [s for hist in hist_by_code.values() for s in hist])
     return hist_by_code
+
+
+_LATEST_KEYS = (
+    "disclosure_no", "period", "fiscal_year_end", "fy_label",
+    "qoq", "yoy", "single", "cumulative", "forecast_fy", "progress",
+)
+
+
+def _list_row(db: Session, s, hist, code: str, name: str) -> dict:
+    """一覧 1 行。hist は同一銘柄の開示履歴。"""
+    state = disclosure_state(hist, s)
+    summary = quarter_summary(db, s, hist=hist)
+    return {
+        "restated": state == "restated",
+        "forecast_revision": summary["forecast_revision"],
+        "disclosure_no": s.disclosure_no,
+        "code": code, "name": name,
+        "disclosed_time": s.disclosed_time,
+        "period": s.type_of_period,
+        "fiscal_year_end": s.fiscal_year_end.isoformat() if s.fiscal_year_end else None,
+        "fy_label": period_label(s.fiscal_year_end),
+        "qoq": summary["qoq"],
+        "yoy": summary["yoy"],
+        "single": summary["single"],
+        "cumulative": summary["cumulative"],
+        "forecast_fy": summary["forecast_fy"],
+        "progress": summary["progress"],
+    }
+
+
+def _latest_statement(hist):
+    """履歴の末尾から、重複再提出でない短信本体を 1 件。"""
+    for s in reversed(hist):
+        if not is_actual(s):
+            continue
+        if disclosure_state(hist, s) == "duplicate":
+            continue
+        return s
+    return None
+
+
+def latest_actuals(db: Session, codes, as_of: date) -> dict[str, dict]:
+    """未発表銘柄の、as_of 以前の直近実績。キーはコード。無ければ載らない。"""
+    if not codes:
+        return {}
+    hist_by_code = prefetch_list_history(db, codes, as_of)
+    out: dict[str, dict] = {}
+    for code, hist in hist_by_code.items():
+        s = _latest_statement(hist)
+        if s is None:
+            continue
+        row = _list_row(db, s, hist, code, code)
+        out[code] = {k: row[k] for k in _LATEST_KEYS}
+    return out
+
+
+def attach_latest_actuals(db: Session, payload: dict, as_of: date) -> dict:
+    """予定行に latest を足す。実績が無ければ null。actuals は触らない。"""
+    scheduled = payload.get("scheduled") or []
+    found = latest_actuals(db, [row["code"] for row in scheduled], as_of)
+    for row in scheduled:
+        row["latest"] = found.get(row["code"])
+    return payload
 
 
 def earnings_rows(db: Session, day: date) -> list[dict]:
@@ -108,26 +174,9 @@ def earnings_rows(db: Session, day: date) -> list[dict]:
         for s in hist:
             if s.disclosed_date != day or not is_actual(s):
                 continue
-            state = disclosure_state(hist, s)
-            if state == "duplicate":
+            if disclosure_state(hist, s) == "duplicate":
                 continue
-            summary = quarter_summary(db, s, hist=hist)
-            out.append({
-                "restated": state == "restated",
-                "forecast_revision": summary["forecast_revision"],
-                "disclosure_no": s.disclosure_no,
-                "code": code, "name": names.get(code, code),
-                "disclosed_time": s.disclosed_time,
-                "period": s.type_of_period,
-                "fiscal_year_end": s.fiscal_year_end.isoformat() if s.fiscal_year_end else None,
-                "fy_label": period_label(s.fiscal_year_end),
-                "qoq": summary["qoq"],
-                "yoy": summary["yoy"],
-                "single": summary["single"],
-                "cumulative": summary["cumulative"],
-                "forecast_fy": summary["forecast_fy"],
-                "progress": summary["progress"],
-            })
+            out.append(_list_row(db, s, hist, code, names.get(code, code)))
     out.sort(key=lambda r: (r["disclosed_time"] or "", r["code"]))
     return out
 
@@ -145,7 +194,8 @@ def earnings_by_date(date_: str = Query(..., alias="date"),
                      today: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
                      db: Session = Depends(get_session)):
     day = _pd(date_)
-    return day_payload(db, day, resolve_today(today), earnings_rows(db, day))
+    payload = day_payload(db, day, resolve_today(today), earnings_rows(db, day))
+    return attach_latest_actuals(db, payload, day)
 
 
 @router.get("/earnings/detail/{code}")

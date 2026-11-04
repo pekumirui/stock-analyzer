@@ -49,6 +49,7 @@ _DIVIDEND_SLOTS = frozenset({
 _LEADING = re.compile(r"^(?:[①-⑳]|※\d*|\(注\d*\)|\(\d+\)|\d+\.)+")
 _HEADING_LEAD = re.compile(r"^(?:[①-⑳]|\(\d+\)|\d+\.)+")
 _HINTS = re.compile(r"\([△▲][^)]*\)")
+_BREAKDOWN_LEAD = re.compile(r"^[（(]内訳[)）]")
 # 本表の途中に出る分類見出し。grid が次の行名へ連結しない。
 _CLASS_HEAD = re.compile(r"の部$")
 # 続きページの柱（銘柄コードと題名）。数値の無い行として次の科目名に連結しない。
@@ -60,6 +61,8 @@ _UNIT_PAREN = re.compile(
 )
 # 配当の親見出し末尾の単位括弧（KAB-245。「年間配当金（円）」）。百万円・% は外さない。
 _DIV_YEN_PAREN = re.compile(r"^(.+?)[\(（](円銭|円)[\)）]$")
+# 「年間配当金」＋分かれた「期」「末」（KAB-251 9507）。
+_DIV_SLOT_SUFFIX = re.compile(r"(第[123]四半期末|中間期末|期末|(年間)?合計)$")
 _NUMERIC_ITEM = re.compile(r"\d")
 # 1 ページ目の列見出しのうち、科目名ではなく列の役割・単位。
 _HEADER_ROLE = re.compile(
@@ -74,6 +77,16 @@ _CF_CLASS = re.compile(r"^(営業|投資|財務)活動によるキャッシュ�
 _BS_CLASS = re.compile(
     r"^(資産|負債|純資産|資本|流動資産|固定資産|非流動資産|流動負債|固定負債|非流動負債|株主資本)$"
 )
+# 数値の無い PL の区分見出し。hanging が「収益売上収益」にしない（KAB-261）。
+_PL_CLASS = re.compile(r"^収益$")
+# 数値の無い「…の帰属」。次の行が「当社株主に帰属する…」なら区分見出し（KAB-264）。
+# 「親会社の所有者」だけの行は残して連結する（KAB-240）。
+_ATTR_CLASS = re.compile(r"の帰属:?$")
+_ATTR_ITEM = re.compile(r"に帰属する")
+# 内訳の行。親会社株主に帰属する行の頭に付くと名寄せできない（KAB-260）。
+_BREAKDOWN = re.compile(r"^[（(]内訳[)）]$")
+# CF の現金残高。期間ではなく時点（KAB-263。EDINET / TDnet ZIP の CashAndCashEquivalents に合わせる）。
+_CASH_BALANCE = re.compile(r"現金及び現金同等物.*(期首|期末)残高")
 # 訂正短信の「（訂正前）」ブロック（KAB-212）。drop_pre_correction はこれだけ。
 _CORR_BEFORE = re.compile(r"^[【\[(（]*訂正前[)）】\]]*$")
 _CORR_AFTER = re.compile(r"^[【\[(（]*訂正後[)）】\]]*$")
@@ -116,6 +129,8 @@ _SYNONYMS = (
      r"\g<1>1株当たり当期利益"),
 )
 _STMT = r"(要約)?(四半期|中間)?(連結|個別)?"
+# 包括利益計算書だけを PL と読む見出し（損益計算書が別に無いとき。KAB-259）。
+_CI_AS_PL = re.compile(r"^" + _STMT + r"包括利益計算書$")
 
 
 def parse_disclosure_no(raw: str) -> DisclosureNo:
@@ -305,7 +320,7 @@ SECTIONS: tuple[SectionSpec, ...] = (
     ),
     SectionSpec(
         "pl",
-        _h(r"^" + _STMT + r"(損益計算書|損益及び包括利益計算書)(及び" + _STMT + r"包括利益計算書)?$"),
+        _h(r"^" + _STMT + r"(純?損益計算書|損益及び包括利益計算書|包括利益計算書)(及び" + _STMT + r"包括利益計算書)?$"),
         NS_PL, Axis.ITEM_ROWS, Shape.DURATION, _E, frozenset(),
     ),
     SectionSpec(
@@ -415,6 +430,10 @@ class UnitKind(Enum):
     PERCENT = ("pure", -2)
 
 
+# 1 株当たりとして残す上限。これ以上は百万円を円と取り違えた誤値（KAB-251）。
+_PER_SHARE_ABS_MAX = Decimal(100000)
+
+
 def _compact(raw: str) -> str:
     return re.sub(r"\s+", "", unicodedata.normalize("NFKC", raw or ""))
 
@@ -435,7 +454,7 @@ def drop_pre_correction(pages: list[Page]) -> list[Page]:
                 continue
             if not dropping:
                 kept.append(line)
-        out.append(Page(page.index, tuple(kept)))
+        out.append(Page(page.index, tuple(kept), page.drawings))
     return out
 
 
@@ -456,12 +475,14 @@ def label_key(raw: str) -> str:
     text = unicodedata.normalize("NFKC", raw or "")
     text = text.replace("·", "・").replace("･", "・")
     text = text.replace("－", "ー").replace("−", "ー").replace("‐", "ー")
+    text = text.replace("当り", "当たり")
     text = re.sub(r"\s+", "", text)
     previous = None
     while previous != text:
         previous = text
         text = _LEADING.sub("", text)
         text = _HINTS.sub("", text)
+        text = _BREAKDOWN_LEAD.sub("", text)
     # 「営業利益又は営業損失(△)」は前半の名前。符号は印字の △ のまま。
     # 「又は損失の帰属親会社の所有者」はの帰属を残し、_OWNERS_PROFIT に渡す（KAB-240）。
     head = _ALTERNATIVE.sub("", text)
@@ -630,6 +651,38 @@ def _strip_dividend_yen_paren(item_text: str, role_texts: tuple[str, ...]) -> tu
     return match.group(1), role_texts
 
 
+def _dividend_slot_item(
+    item_text: str,
+    extra: tuple[str, ...],
+    role_texts: tuple[str, ...],
+) -> tuple[str, tuple[str, ...], bool]:
+    """時点だけの列、または親見出しに張り付いた「期末」を 1 株当たり配当にする（KAB-251）。
+
+    列見出しが「第１四半期末」等の時点だけなら、科目は年間配当金。配当金総額・配当性向の列は
+    見出しの科目名のまま。「第 / 2 / 四半期末」と語が分かれると、つないだ時点は役割に残って
+    いない（8511）。「年間配当金」＋分かれた「期」「末」は「年間配当金期末」になる（9507）。
+    """
+    compact = _compact(item_text)
+    if _HEADER_ROLE.search(compact):
+        if item_text not in extra:
+            role_texts = (*role_texts, item_text)
+        return "年間配当金", role_texts, True
+    if "総額" in compact or "性向" in compact:
+        return item_text, role_texts, False
+    match = _DIV_SLOT_SUFFIX.search(compact)
+    if match is None:
+        return item_text, role_texts, False
+    remainder = compact[: match.start()]
+    slot = match.group(1)
+    if not remainder:
+        if item_text not in extra:
+            role_texts = (*role_texts, item_text)
+        return "年間配当金", role_texts, True
+    if slot not in {_compact(text) for text in role_texts}:
+        role_texts = (*role_texts, slot)
+    return remainder, role_texts, True
+
+
 def _split_item_headers(headers: tuple[str, ...]) -> tuple[str, tuple[str, ...]]:
     """折り返した科目名を結合し、四半期末・単位は列の役割に残す。"""
     items: list[str] = []
@@ -784,21 +837,23 @@ def context_for(
     d: PdfDisclosure,
     *,
     consolidated: bool,
+    instant: bool | None = None,
 ) -> ParsedContext:
-    instant = spec.shape is Shape.INSTANT
-    start, end = _bounds(role, d, instant)
-    suffix = "Instant" if instant else "Duration"
-    ref = f"{role.period.value}{role.span.value}{suffix}"
-    if role.members:
-        ref = f"{ref}_{'_'.join(sorted(role.members))}"
+    use_instant = spec.shape is Shape.INSTANT if instant is None else instant
+    used = replace(role, span=Span.YEAR) if use_instant and role.span is not Span.YEAR else role
+    start, end = _bounds(used, d, use_instant)
+    suffix = "Instant" if use_instant else "Duration"
+    ref = f"{used.period.value}{used.span.value}{suffix}"
+    if used.members:
+        ref = f"{ref}_{'_'.join(sorted(used.members))}"
     if not consolidated:
         # context は ref で使い回す。連結の短信の単体の値（配当）が連結の本表の context を奪わない。
         ref = f"{ref}_NonConsolidated"
-    dimensions = {f"pdf:{_AXIS.get(member, member)}:{member}": member for member in role.members}
+    dimensions = {f"pdf:{_AXIS.get(member, member)}:{member}": member for member in used.members}
     return ParsedContext(
         context_ref=ref,
-        period_type="instant" if instant else "duration",
-        start_date=None if instant else start,
+        period_type="instant" if use_instant else "duration",
+        start_date=None if use_instant else start,
         end_date=end,
         is_consolidated=1 if consolidated else 0,
         relative_period=None,
@@ -808,7 +863,9 @@ def context_for(
 
 def unit_of(grid_note: str | None, texts: tuple[str, ...]) -> UnitKind:
     joined = "".join(_compact(text) for text in texts)
-    if "円銭" in joined or "銭" in joined or "1株当たり" in joined:
+    tokens = [_compact(text) for text in texts]
+    # 「1株当り」も「1株当たり」。銭列・円銭は 1 株当たり（KAB-251）。
+    if "円銭" in joined or "銭" in joined or "株当" in joined:
         return UnitKind.PER_SHARE
     if "%" in joined or "％" in joined or "比率" in joined:
         return UnitKind.PERCENT
@@ -822,8 +879,9 @@ def unit_of(grid_note: str | None, texts: tuple[str, ...]) -> UnitKind:
     if "千円" in joined:
         return UnitKind.YEN_THOUSANDS
     # 配当列の「年間配当金（円）」。NFKC 後は "(円)"。括弧付きの円は 1 株当たり（KAB-245）。
+    # 見出しが裸の「円」だけの列も 1 株当たり（KAB-251。注記の百万円を採らない）。
     # 注記の裸の「円」は下の YEN（金額）。百万円・千円の列は上で先に決まる。
-    if "(円)" in joined:
+    if "(円)" in joined or "円" in tokens:
         return UnitKind.PER_SHARE
     note = _compact(grid_note or "")
     # 配当表は 円銭 と 百万円 が同じ注記に並ぶ。列ヘッダで決まらなかった金額列は百万円。
@@ -844,6 +902,23 @@ def unit_of(grid_note: str | None, texts: tuple[str, ...]) -> UnitKind:
 
 def scaled(value: Decimal, unit: UnitKind) -> Decimal:
     return value * (Decimal(10) ** unit.value[1])
+
+
+def _implausible_per_share(unit: UnitKind, value: Decimal, local_name: str, spec: SectionSpec) -> bool:
+    """1 株当たりが 1e5 以上なら入れない（百万円を掛けた誤値。KAB-251）。配当金総額は残す。
+
+    「株主」だけの行名（親会社株主に帰属する当期純利益）は金額のまま。
+    """
+    if abs(value) < _PER_SHARE_ABS_MAX:
+        return False
+    if unit is UnitKind.PER_SHARE or "1株" in local_name or "一株" in local_name:
+        return True
+    return (
+        spec.shape is Shape.DIVIDEND
+        and "総額" not in local_name
+        and "性向" not in local_name
+        and "率" not in local_name
+    )
 
 
 def _consolidation(text: str, d: PdfDisclosure, spec: SectionSpec | None = None) -> bool | None:
@@ -925,15 +1000,26 @@ def _blocks(pages: list[Page], d: PdfDisclosure) -> list[tuple[SectionSpec, list
         candidates.append((spec, _table_lines(body), consolidated, text))
     blocks: list[tuple[SectionSpec, list[Line], bool, str]] = []
     taken: set[str] = set()
+    has_income_pl = any(
+        other.name == "pl" and body and not _ci_as_pl_heading(other_text)
+        for other, body, _cons, other_text in candidates
+    )
     for spec, body, consolidated, text in candidates:
         if spec.name in _STATEMENTS:
             if spec.name in taken or sum(1 for line in body if split_amounts(line)[1]) < _MIN_STATEMENT_ROWS:
+                continue
+            if spec.name == "pl" and _ci_as_pl_heading(text) and has_income_pl:
                 continue
             if d.kind is DocKind.EARNINGS and not _statement_matches(text, spec, d, candidates):
                 continue
             taken.add(spec.name)
         blocks.append((spec, body, consolidated, text))
     return blocks
+
+
+def _ci_as_pl_heading(text: str) -> bool:
+    """「包括利益計算書」単体。損益計算書や「損益及び包括利益計算書」は含めない（KAB-259）。"""
+    return bool(_CI_AS_PL.fullmatch(_heading_key(text)) or _CI_AS_PL.fullmatch(_compact(text)))
 
 
 def _statement_body(lines: list[Line]) -> list[Line]:
@@ -962,10 +1048,18 @@ def _statement_matches(text: str, spec: SectionSpec, d: PdfDisclosure, candidate
     )
 
 
+def _attr_class_heading(line: Line, rest: list[Line]) -> bool:
+    """値の無い「…の帰属」を、次の数値行が既に帰属先の科目なら落とす（KAB-264）。"""
+    if not _ATTR_CLASS.search(_compact(line.text)) or split_amounts(line)[1]:
+        return False
+    nxt = next((other for other in rest if split_amounts(other)[1]), None)
+    return nxt is None or bool(_ATTR_ITEM.search(_compact(nxt.text)))
+
+
 def _table_lines(lines: list[Line]) -> list[Line]:
     """ブロック内の分類見出しを落とす。折り返しの行名は残す。"""
     kept: list[Line] = []
-    for line in lines:
+    for index, line in enumerate(lines):
         compact = _compact(line.text)
         if not compact:
             continue
@@ -974,6 +1068,12 @@ def _table_lines(lines: list[Line]) -> list[Line]:
         if _CF_CLASS.fullmatch(compact) and not split_amounts(line)[1]:
             continue
         if _BS_CLASS.fullmatch(compact) and not split_amounts(line)[1]:
+            continue
+        if _PL_CLASS.fullmatch(compact) and not split_amounts(line)[1]:
+            continue
+        if _BREAKDOWN.fullmatch(compact) and not split_amounts(line)[1]:
+            continue
+        if _attr_class_heading(line, lines[index + 1:]):
             continue
         if _RUNNING_HEAD.search(compact):
             continue
@@ -1139,14 +1239,7 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                         role_texts = (row.label, *extra)
                         if spec.shape is Shape.DIVIDEND:
                             item_text, role_texts = _strip_dividend_yen_paren(item_text, role_texts)
-                        if spec.shape is Shape.DIVIDEND and _HEADER_ROLE.search(_compact(item_text)):
-                            # 配当表の列見出しが「第１四半期末」等の時点だけなら、科目は 1 株当たり配当金。
-                            # 配当金総額・配当性向の列は見出しの科目名のまま。
-                            # 「第 / 2 / 四半期末」と語が分かれると、つないだ時点は役割に残っていない（8511）。
-                            if item_text not in extra:
-                                role_texts = (*role_texts, item_text)
-                            item_text = "年間配当金"
-                            slot_only = True
+                            item_text, role_texts, slot_only = _dividend_slot_item(item_text, extra, role_texts)
                         role = role_of(role_texts, spec, d, rightmost=False, hint=hint)
                     if role is None or not item_text.strip() or _is_unit_token(item_text):
                         continue
@@ -1172,6 +1265,8 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                         continue
                     for side, raw in sides(role, amount):
                         value = scaled(raw, unit)
+                        if _implausible_per_share(unit, value, base_local, spec):
+                            continue
                         if (
                             spec.namespace is NS_PL
                             and d.standard == "IFRS"
@@ -1180,9 +1275,12 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                         ):
                             value = -value
                         # 配当は ZIP と同じく単体（連結の軸が無い）として持つ。
+                        # CF の現金残高は時点（KAB-263。EDINET / TDnet ZIP に合わせる）。
+                        cash_instant = spec.namespace is NS_CF and bool(_CASH_BALANCE.search(base_local))
                         ctx = context_for(
                             side, spec, d,
                             consolidated=consolidated and spec.shape is not Shape.DIVIDEND,
+                            instant=True if cash_instant else None,
                         )
                         contexts.setdefault(ctx.context_ref, ctx)
                         fact = ParsedFact(

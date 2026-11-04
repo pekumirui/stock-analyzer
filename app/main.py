@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from .api import router, router_v1
 from .api.monthly import ApiError, _parse_code, list_tables_payload, table_year_payload
-from .assets import html_etag, version_static_urls
-from .config import MONTHLY_ROW_ORDER_PATH
+from .assets import html_etag, inject_wiki_nav, version_static_urls
+from .config import MONTHLY_ROW_ORDER_PATH, WIKI_URL
 from .db import get_session, init_db
 from .monthly.ir_codes import load_ir_monthly_codes
 from .monthly.public import (
@@ -74,6 +74,7 @@ def root():
 @app.get("/app/")
 def app_spa():
     html = version_static_urls((STATIC / "index.html").read_text(encoding="utf-8"))
+    html = inject_wiki_nav(html, WIKI_URL)
     return HTMLResponse(html, headers={"ETag": html_etag(html)})
 
 
@@ -108,8 +109,7 @@ def public_monthly_detail(code: str, request: Request, db: Session = Depends(get
         return HTMLResponse(version_static_urls(not_found_html(request)), status_code=404)
     if len(raw) == 5:
         return RedirectResponse(f"/monthly/{code4(parsed)}", status_code=301)
-    issuers = list_tables_payload(db)
-    issuer = next((row for row in issuers if row["code"] == parsed), None)
+    issuer = next(iter(list_tables_payload(db, parsed)), None)
     if issuer is None:
         return HTMLResponse(version_static_urls(not_found_html(request)), status_code=404)
     tables = []

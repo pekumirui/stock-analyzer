@@ -34,6 +34,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 | `VPS_SSH_KEY` | はい | デプロイ用秘密鍵 |
 | `JQUANTS_API_KEY` | 推奨 | あるときだけ `.env` の当該行を更新。無ければ既存 `.env` を触らない |
 | `EDINET_API_KEY` | 任意 | EDINET API v2 のキー（`docs/DESIGN_edinet.md`）。あるときだけ `.env` の当該行を更新。無ければ `jobs/edinet/edinet_documents.py` は何もしない（コードリストはキー不要） |
+| `ANTHROPIC_API_KEY` | 任意 | Claude API のキー（従量課金。Console で利用額の上限を付ける）。あるときだけ `.env` の当該行を更新。無ければ `jobs/market/briefing_extract.py` の submit / collect は動かない（`--dry-run` と `status` は動く） |
 | `ESTAT_APP_ID` | 任意 | e-Stat API のアプリケーション ID（サプライタブの月次量）。あるときだけ `.env` の当該行を更新。無ければ `jobs/supply/material_stats.py --source estat` は何もしない（経産省 Excel はキー不要） |
 | `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | 残置 | 残置の rclone FUSE（`/home/stock/r2-share`）用。ジョブの dest は `data/`。あるときだけ `.env` と `~/.config/rclone/rclone.conf` の `[r2]` を upsert（他 remote は残す）。無ければ既存を触らない |
 | `SLACK_WEBHOOK_URL` | 推奨 | Slack Incoming Webhook（#alerts）。コミットしない。漏れたら rotate。provision が `/etc/fluent-bit/slack.env` に URL と `SLACK_WEBHOOK_URI` を書く。`.env` には入れない |
@@ -56,14 +57,16 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 1. GitHub SSH（deploy key）を冪等に揃えてから `git pull --ff-only origin main`
 2. `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `EDINET_API_KEY` / `MCP_TOKEN` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` があれば `.env` のその行だけ upsert。R2 の両方が揃っていれば `~/.config/rclone/rclone.conf` の `[r2]` だけ upsert（`onedrive` など他 remote は消さない）。`SLACK_WEBHOOK_URL` と `SLACK_WEBHOOK_URL_{APP,BATCH,INFRA,QUIET}` は `.env` に書かない
 3. `sudo provision.sh --sudoers-only`（`APP_DIR` だけ preserve。live sudoers を repo に合わせる）→ `sudo provision.sh`（パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers、R2 user mount、fluent-bit。Slack webhook は `--preserve-env`）。Webhook が空なら fluent-bit は enable のみで start しない
-4. venv / `pip install` / `migrate.py`（`database is locked` は最大約 6 分まで再試行。19:30 の日次バッチや毎時 `xbrl_normalize` と重なるため）
+4. venv / `pip install` / `migrate.py`（`database is locked` は最大約 6 分まで再試行。19:30 の日次バッチや毎時の TDnet XBRL（parse / normalize）と重なるため）。`migrate.py` が `init_db` を 1 回やってから uvicorn を上げる（`--workers N` の同時 CREATE INDEX を避ける。`--preload` は使わない）
 5. `systemctl restart stock-analyzer` と `stock-analyzer-mcp`、localhost:8000 / :8010 のヘルスチェック
+
+uvicorn のワーカー数は `deploy/uvicorn_workers.py` が起動時に決める（`nproc` と MemAvailable。1 本あたり 384MiB）。`.env` の `UVICORN_WORKERS` で上書きする。MCP（`stock-analyzer-mcp.service`）は対象外。
 
 証明書の更新は `certbot.timer`（1日2回）。更新後は `renewal-hooks/deploy` で nginx を reload する。
 
 ブラウザは [https://kabukpi.com/monthly](https://kabukpi.com/monthly) が公開の月次。個人ツールは [https://kabukpi.com/app](https://kabukpi.com/app)（Basic 認証）。証明書は RSA + ISRG Root X1。ECDSA 既定の Root YE は端末にまだ無く「セキュリティ保護なし」になる。
 
-公開 location は `/monthly`・GET `/api/v1/tables`（code/year まで）・`/static/`・`robots.txt` / `sitemap.xml`。書き込み API と `/app` は Basic。公開側に `limit_req` は付けない。
+公開 location は `/monthly`・GET `/api/v1/tables`（code/year まで）・`/static/`・`robots.txt` / `sitemap.xml`。書き込み API と `/app` は Basic。公開側に `limit_req` は付けない。`/static/` は `$APP_DIR/static/` を nginx が `alias` で直配信する（`Cache-Control: no-cache`）。`/static/monthly_row_order.json` と `/static/ir_monthly_codes.json` だけ uvicorn。provision が `www-data` 用に `$HOME` へ `o+x`、`static/` へ `a+rX` を付け、`gzip_types` に css/js を入れる（`conf.d/stock-analyzer-gzip.conf`）。
 
 ホスト鍵は `deploy/known_hosts` にピン留め。VPS を作り直したら `ssh-keyscan YOUR_HOST` で更新する。
 
@@ -148,18 +151,19 @@ VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 認
 
 ツール:
 
-- `service_status` — プロセスと localhost:80 / :8000 の HTTP コード。MCP 自身（:8010）は自己 curl せず、この応答自体を ok とする
+- `service_status` — プロセス（監視の `monitoring-*` も）と localhost:80 / :8000 の HTTP コード。MCP 自身（:8010）は自己 curl せず、この応答自体を ok とする
 - `app_logs` — `/var/log/app/stock-analyzer.log` と journalctl。uvicorn は `deploy/uvicorn-log.json` で行頭に JST `YYYY-MM-DD HH:MM:SS` を付ける。`since` / `until` は `batch_logs` と同じ形。省略時は journal が直近 1h、ファイルは live の末尾だけ。指定すると `.1` / `.gz` も読み、行頭の時刻で絞る。時刻の無い行（Traceback の続き）は直前の行に付く
-- `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` は crontab / cron-run.sh の stem（`run_batch` / `pts_snapshot` / `fx_rates` / `tdnet_monthly_r2` / `tdnet_monthly_pdf_sidecar` / `tdnet_monthly_pdf_ingest` / `ir_monthly_r2` / `ir_monthly_html_r2` / `ir_monthly_html_ingest` / `ir_monthly_json_ingest` / `ir_monthly_xls_ingest` / `tdnet_xbrl_r2` / `xbrl_parse` / `xbrl_normalize` / `edinet_codes` / `edinet_documents` / `edinet_xbrl` / `edinet_large_holdings` / `edinet_tender_offers` / `edinet_buybacks` / `vps_packages_r2` / `backup_db` / `migrate_r2_share`）。一覧に無い名前とパスは拒否。省略時は `stock-analyzer.log` と `mcp.log` 以外の live ファイル（古い `batch.log` を含む）。`since` / `until` は `1h` / `30m` / `today` / `yesterday` / `YYYY-MM-DD`。`until` はその時刻を含まない。昨日は `since=yesterday` と `until=today`。日時を指定したときは `.1` と `.gz` も読み、行頭の JST `YYYY-MM-DD HH:MM:SS` で絞る。`lines` は 1-500。超えた分は末尾だけ返すので範囲を狭める
+- `batch_logs` — `/var/log/app/<ジョブ>.log`。`job` は crontab / cron-run.sh の stem（`run_batch` / `pts_snapshot` / `fx_rates` / `tdnet_monthly_r2` / `tdnet_briefing_r2` / `tdnet_monthly_pdf_sidecar` / `tdnet_monthly_pdf_ingest` / `ir_monthly_r2` / `ir_monthly_html_r2` / `ir_monthly_html_ingest` / `ir_monthly_json_ingest` / `ir_monthly_xls_ingest` / `tdnet_xbrl_r2` / `xbrl_parse` / `xbrl_normalize` / `edinet_codes` / `edinet_documents` / `edinet_xbrl` / `edinet_large_holdings` / `edinet_tender_offers` / `edinet_buybacks` / `edinet_archive` / `vps_packages_r2` / `backup_db` / `backup_data` / `migrate_r2_share` / `irbank_ingest` / `briefing_extract` / `briefing_offsite`）。一覧に無い名前とパスは拒否。省略時は `stock-analyzer.log` と `mcp.log` 以外の live ファイル（古い `batch.log` を含む）。`since` / `until` は `1h` / `30m` / `today` / `yesterday` / `YYYY-MM-DD`。`until` はその時刻を含まない。昨日は `since=yesterday` と `until=today`。日時を指定したときは `.1` と `.gz` も読み、行頭の JST `YYYY-MM-DD HH:MM:SS` で絞る。`lines` は 1-500。超えた分は末尾だけ返すので範囲を狭める
 - `nginx_logs` — nginx journal と error.log と `/var/log/nginx/stock-analyzer.access.log`。アクセスログの `rt=` は nginx 全体、`urt=` は uvicorn の処理秒。遅いリクエストは `grep` に `rt=[1-9]` などを渡す。`since` / `until` は `batch_logs` と同じ形。省略時は journal が直近 1h、ファイルは live の末尾だけ。指定すると logrotate 済みの `.1` / `.gz`（既定で 14 日分）も読み、行の時刻（JST）で絞る。URL の OAuth 一時値（`code` / `state` など）は伏せる
 - `fs_list` / `fs_read` / `fs_grep` — 読み取り専用。`root` は `data`（リポジトリの `data/`、`MCP_DATA_DIR`）か `logs`（`/var/log/app`、`MCP_LOG_DIR`）。それ以外・絶対パス・`..`・symlink で root の外へ出るものは拒否。`.env*` / `*.db` / `*.sqlite*` / `stock.db` / `*.pem` / `id_*` / `*.key` / `rclone.conf` と `/home/stock/backups` / `/home/stock/r2-share` は二重に拒否。`fs_read` は 1 回あたり `MCP_FS_MAX_BYTES`（既定 1MiB）、切り詰め時は `truncated` とファイル全体の `size` を返す。認証は他ツールと同じ `MCP_TOKEN` / OAuth
 - `db_stats` — stock.db の件数。固定9テーブルは日付範囲・デモ混在つき。残りは `sqlite_master` から件数（`sqlite_*` 除く）。既定は `MAX(rowid)` の概算（削除があると多め）。`exact=true` で `COUNT(*)`。`tables` で対象を絞る。`daily_prices` の codes/days は exact のときだけ。1クエリ約2秒・全体約8秒で打ち切り、超えた表は `(timeout)`
 - `db_lookup` — 1銘柄のマスタ・直近株価・決算・指標
-- `db_query` — stock.db に SELECT / WITH を 1 文だけ実行。読み取り専用（`open_db()` の `mode=ro` と `PRAGMA query_only=ON`、`set_authorizer` で READ / SELECT / FUNCTION / RECURSIVE と schema 用 PRAGMA 以外を拒否）。INSERT / UPDATE / DELETE / DROP / ATTACH / PRAGMA 書き込み / 複数文 / CTE 内の書き込みは拒否。`limit` は 1-2000（既定 200）。超えた行と出力バイト（約 1MiB）は `truncated`。約 10 秒で打ち切り。`params` は `?` の配列か `:name` のオブジェクト。OAuth トークンは `.mcp-oauth.json`（DB 外）。秘密表（名前に token/secret/password/credential）は拒否。実行 SQL（先頭 400 文字）・所要時間・行数を `mcp.log` に書く
+- `db_query` — stock.db に SELECT / WITH を 1 文だけ実行。先頭の `EXPLAIN` / `EXPLAIN QUERY PLAN` も可。読み取り専用（`open_db()` の `mode=ro` と `PRAGMA query_only=ON`、`set_authorizer` で READ / SELECT / FUNCTION / RECURSIVE と schema 用 PRAGMA 以外を拒否）。INSERT / UPDATE / DELETE / DROP / ATTACH / PRAGMA 書き込み / 複数文 / CTE 内の書き込みは拒否。`EXPLAIN` の後ろも SELECT / WITH 以外は拒否。`limit` は 1-2000（既定 200）。超えた行と出力バイト（約 1MiB）は `truncated`。約 10 秒で打ち切り。`params` は `?` の配列か `:name` のオブジェクト。OAuth トークンは `.mcp-oauth.json`（DB 外）。秘密表（名前に token/secret/password/credential）は拒否。実行 SQL（先頭 400 文字）・所要時間・行数を `mcp.log` に書く
 - `db_schema` — テーブル/ビューと列（`sqlite_master` と `pragma_table_info`）。`sqlite_*` と秘密表は出さない。`tables` で対象を絞る。読み取り専用
 - `xbrl_compare` — 1銘柄の実績を期末（period_end）ごとに statements / TDnet XBRL / EDINET XBRL で並べる。既定は直近 8 期。`period_end`（YYYY-MM-DD）で 1 期だけ。`items` で科目を絞る（std コード `operating_income` か statements の列名 `operating_profit`）。各期の行に各 source の doc_id・提出日・連結/単体・訂正（AMENDED）。判定は st:td / st:ed / td:ed。OK / DIFF / MISSING。読み取り専用
 - `xbrl_diff_summary` — 市場全体で XBRL（既定 edinet。`source=tdnet` も可）と statements を期末で突き合わせる。期の件数（XBRL の期・statements と組めた期・XBRL だけの期）、科目別・会計基準別・33業種別の一致率、ずれの大きい DIFF 上位 `limit` 件（既定 20、最大 500）。`since`（YYYY-MM-DD）は xbrl_filings.submitted_at。全期間は重いので since で絞る。約 9 秒で打ち切る
 - 判定: 両方ある・符号が逆 → DIFF。statements との金額差が 100 万円未満なら OK（J-Quants の百万円丸め）。td:ed にその許容は無い。EPS も丸め許容なし。相対差 > 0.1% → DIFF。片方が空 → MISSING。四半期は累計のまま。1 期 1 書類（提出が新しい方。訂正も含む）、その書類に連結があれば連結
+- `metrics_query` — VictoriaMetrics（`127.0.0.1:8428`）に PromQL / MetricsQL を GET で投げるだけ（`/api/v1/query` / `query_range` / メトリクス名一覧）。`start` が無ければ instant、あれば range。時刻は `batch_logs` と同じ形（JST）。1 系列 1100 点まで（`step` 省略時は自動）、200 系列まで、応答は約 1MiB で打ち切り。`list_metrics=true` で名前の一覧。主な名前は下の「監視」
 - `fx_rate` — 指定日の為替。EUR ベースのクロス（例 USD/JPY）。休日・ECB非公表日は直近営業日（`as_of`）。`holiday_fallback` で明示
 - `fx_rates` — 期間の為替（公表日のみ）。休日を直近営業日で埋めたいときは `fx_rate`
 - `monthly_list` — 月次表一覧。localhost:8000 の GET /api/v1/tables
@@ -172,7 +176,7 @@ VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 認
 - `monthly_ingest` — PDF 月次の新規登録。POST /api/v1/tables/{code}/ingest。year は渡さない。
   列順 + as_of 時点の最新 `fiscal_year_end` から暦年を決める。月が重複する year-wrap は列順配列の `values`。`dry_run: true` は書かずに年割当と書くはずのセルを返す。`only_months` は `YYYY-MM` で列を絞る
 
-任意コマンドも restart もない。任意 SQL は `db_query` の読み取り専用 SELECT / WITH 1 文だけ。月次ツールは FastAPI の `http://127.0.0.1:8000` だけを叩く（nginx Basic は使わない）。ログ系の行数は最大 500。`.env` の値は伏せる。
+任意コマンドも restart もない。任意 SQL は `db_query` の読み取り専用 SELECT / WITH 1 文（先頭の `EXPLAIN` / `EXPLAIN QUERY PLAN` 可）だけ。月次ツールは FastAPI の `http://127.0.0.1:8000` だけを叩く（nginx Basic は使わない）。ログ系の行数は最大 500。`.env` の値は伏せる。
 `fs_*` のプロセスユーザは `stock`。`stock-analyzer-mcp.service` の `LogsDirectory=app`（mode 0755）で `/var/log/app` の所有者は既に `stock` なので、ログ root を読むための追加 ACL や supplementary group は不要。`data/` は `WorkingDirectory` 配下。`LogsDirectoryMode` を後から絞るときは `stock` が `/var/log/app` を読める状態を保つ。
 `monthly_get` の `values` は 1〜12。無い月は null。0 は実ゼロ。1年通して値のない行は出さない。
 月次の unit は PDF 見出しから付ける（`DESIGN.md` §3 の表）。既存行の unit 変更は `PUT /api/v1/tables/{code}/{year}/elements`（`{element, unit}`）。行はその unit の正規名へ付け替わる。
@@ -180,10 +184,10 @@ VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 認
 
 認証は `MCP_TOKEN`（Bearer または OAuth で発行した access token）。GitHub secret と同値。値をログに出さない。
 
-アプリと MCP のファイルログは `/var/log/app/`（`stock-analyzer.log` / `mcp.log`）。cron はジョブごと `/var/log/app/<stem>.log`（例: `tdnet_monthly_r2.log`、日次は `run_batch.log`）。`deploy/cron-run.sh` が標準出力と標準エラーをそこへ書き、各行の行頭に JST の `YYYY-MM-DD HH:MM:SS` を付ける。インタプリタは `.venv/bin/python3` を優先し、無ければ `.venv/bin/python`。どちらも無ければ `fail cron … exit=127` で終わる。ジョブプロセスの TZ は変えない。crontab はリダイレクトしない。古い `/var/log/app/batch.log` には新しい行を書かず、logrotate で消えるまで残す。アプリ直下の古い `batch.log` は provision が消す（rotate 後の再コピーはしない）。journal も残る。
+アプリと MCP のファイルログは `/var/log/app/`（`stock-analyzer.log` / `mcp.log`）。cron はジョブごと `/var/log/app/<stem>.log`（例: `tdnet_monthly_r2.log`、日次は `run_batch.log`）。`deploy/cron-run.sh` が標準出力と標準エラーをそこへ書き、各行の行頭に JST の `YYYY-MM-DD HH:MM:SS` を付ける。インタプリタは `.venv/bin/python3` を優先し、無ければ `.venv/bin/python`。どちらも無ければ `fail cron … exit=127` で終わる。python は `nice -n 10 ionice -c2 -n7` 経由で起動する（無いコマンドは外す。`ionice -c3` は使わない）。uvicorn と MCP の service は優先度を下げない。ジョブプロセスの TZ は変えない。crontab はリダイレクトしない。古い `/var/log/app/batch.log` には新しい行を書かず、logrotate で消えるまで残す。アプリ直下の古い `batch.log` は provision が消す（rotate 後の再コピーはしない）。journal も残る。
 14 日で logrotate（`/var/log/app/*.log`、copytruncate）。nginx は従来どおり `/var/log/nginx/`。
 
-fluent-bit は live ファイルだけを tail する（`stock-analyzer.log` / `mcp.log` / ジョブの `/var/log/app/*.log`、`/var/log/nginx/error.log`）。ジョブログの Slack 見出しの source はファイル名。`stock-analyzer.log` と `mcp.log` と古い `batch.log` はジョブ側の tail から外す。systemd は `stock-analyzer.service` と `stock-analyzer-mcp.service` の `Failed with result` / `Main process exited`。access.log と `html_ingest_ledger.json` と `material_stats_ledger.json` と rotate 済みの `.1` / `.gz` は見ない。batch は行頭の時刻のあとの `fail cron` と非ゼロの `failed=` と `errors=` を page する。行単位の `fail ` と batch の Traceback は page しない。Webhook が無いときはユニットを enable するだけで start しない。Slack は公式 slack 出力ではなく http + `fluent-bit_slack.lua`（JST と `#E01E5A` の赤帯）。`[OUTPUT]` はタグ別（`app` → #alerts-app、`batch` → #alerts-batch、`nginx` / `mcp` / `systemd` → #alerts-infra、`quiet` → #alerts-quiet、未分類 → #alerts）。nginx の `limiting connections by zone` と `connect() failed (111: Connection refused)` は rewrite_tag で `quiet` にする。URI は `slack.env` の `SLACK_WEBHOOK_URI` と `SLACK_WEBHOOK_URI_{APP,BATCH,INFRA,QUIET}`。新しい Webhook が未設定・空なら provision が従来の URI をコピーする（QUIET だけ INFRA へ）。secret 未登録のままデプロイしても #alerts / #alerts-infra に届く。アプリにログ API は足さない。
+fluent-bit は live ファイルだけを tail する（`stock-analyzer.log` / `mcp.log` / ジョブの `/var/log/app/*.log`、`/var/log/nginx/error.log`）。ジョブログの Slack 見出しの source はファイル名。`stock-analyzer.log` と `mcp.log` と古い `batch.log` はジョブ側の tail から外す。systemd は `stock-analyzer.service` と `stock-analyzer-mcp.service` と監視の `monitoring-*.service` の `Failed with result` / `Main process exited`。access.log と `html_ingest_ledger.json` と `material_stats_ledger.json` と rotate 済みの `.1` / `.gz` は見ない。batch は行頭の時刻のあとの `fail cron` と非ゼロの `failed=` と `errors=` を page する。行単位の `fail ` と batch の Traceback は page しない。Webhook が無いときはユニットを enable するだけで start しない。Slack は公式 slack 出力ではなく http + `fluent-bit_slack.lua`（JST と `#E01E5A` の赤帯）。`[OUTPUT]` はタグ別（`app` → #alerts-app、`batch` → #alerts-batch、`nginx` / `mcp` / `systemd` → #alerts-infra、`quiet` → #alerts-quiet、未分類 → #alerts）。nginx の `limiting connections by zone` と `connect() failed (111: Connection refused)` は rewrite_tag で `quiet` にする。URI は `slack.env` の `SLACK_WEBHOOK_URI` と `SLACK_WEBHOOK_URI_{APP,BATCH,INFRA,QUIET}`。新しい Webhook が未設定・空なら provision が従来の URI をコピーする（QUIET だけ INFRA へ）。secret 未登録のままデプロイしても #alerts / #alerts-infra に届く。アプリにログ API は足さない。
 
 Actions の backfill は `cron-run.sh` を通さず、ワークフローのログに出す。VPS のジョブファイルには混ぜない。`cron-run.sh` を手で叩いたときだけ、cron と同じファイルに追記する。
 
@@ -226,6 +230,28 @@ well-known は Basic 認証の外。`/.well-known/oauth-authorization-server` �
 
 MCP 自体が死んだときの退避路は Actions の **Debug VPS**。
 
+## 監視（メトリクスとしきい値・KAB-333）
+
+`deploy/monitoring/` を provision が入れる（`apply.sh` の `monitoring_apply`。失敗してもアプリの provision は続ける）。どれもユーザ `monitoring` で動き、`127.0.0.1` だけで待ち受ける。ufw も開けない。
+
+| ユニット | 役割 | 待ち受け |
+|---|---|---|
+| `monitoring-victoria-metrics` | メトリクスの保存（`-retentionPeriod` で保持期間）。下の 4 つを 30 秒ごとに取りに行く（`scrape.yml`） | 8428 |
+| `monitoring-vmalert` | `rules/*.yml` を評価して Alertmanager へ送る。状態は VictoriaMetrics に書くので再起動しても `for` の経過は消えない | 8880 |
+| `monitoring-alertmanager` | Slack #alerts-infra へ送る（`alertmanager.yml`） | 9093 |
+| `monitoring-node-exporter` | CPU・メモリ・ディスク・ネットワーク。FUSE（rclone / sshfs）と仮想 fs は見ない | 9100 |
+| `monitoring-process-exporter` | プロセスのまとめ（`process-exporter.yml`。`app` / `mcp` / `job:<ジョブ名>` / nginx など / `other`） | 9256 |
+
+- 実行ファイルは `binaries.txt`（版と sha256 を固定）を `fetch.sh` が GitHub Releases から落として `/opt/monitoring/bin` に入れる。上げるときは `binaries.txt` の行を差し替える（各リリースの checksum ファイルの値）
+- 設定は `/etc/monitoring/`。デプロイのたびに repo と同じにし、中身が変わったサービスだけ restart する。止まっていれば start する
+- しきい値は `rules/host.yml`。CPU とメモリは 80% / 90% が 5 分続いたら warning / critical、下がってから 5 分で解消。ディスクはすぐ。critical の間は同じものの warning を出さない（`inhibit_rules`）。解消は 1 回送る（`send_resolved`）。続いている間は送り直さない（`repeat_interval` と `--data.retention`）。node / process が 5 分取れないときは `MetricsTargetDown`
+- Webhook は Secret を増やさない。provision が `slack.env` の `SLACK_WEBHOOK_URI_INFRA` から `/etc/monitoring/slack_infra_url`（640 root:monitoring）を作る。無いときは Alertmanager を起こさない
+- 監視のユニット自体が落ちたときは fluent-bit の systemd 入力（`Failed with result` / `Main process exited`）が #alerts-infra に送る
+- バッチ: `deploy/cron-run.sh` がジョブの終わりに `cron_job_duration_seconds` / `cron_job_exit_code` / `cron_job_last_run_timestamp_seconds`（ラベル `cron_job`）を `127.0.0.1:8428/api/v1/import/prometheus` に送る。送れなくてもジョブの結果とログは変わらない。`CRON_METRICS_URL=` で止める
+- 記録ルール: `host:cpu_usage:percent` / `host:memory_usage:percent` / `host:disk_usage:percent`（df と同じ used / (used + avail)、ラベル `mountpoint`）
+- AI からはログ MCP の `metrics_query`。手元から直接見るときは `ssh -L 8428:127.0.0.1:8428` してブラウザで `http://127.0.0.1:8428/vmui/`
+- テスト: `tests/ops/test_monitoring.py`。ルールは `deploy/monitoring/tests/*_test.yml` を `vmalert-tool unittest` で、通知は実物の Alertmanager と偽の Slack で、バッチは実物の VictoriaMetrics で確かめる。実行ファイルは `MONITORING_BIN_DIR`（`bash deploy/monitoring/fetch.sh <dir>`）。無ければその分だけ skip。CI は先に落とす
+
 ## 共有ファイル（data/）と月次 / XBRL バッチ
 
 ジョブが `--dest` を省略したときの保存先はリポジトリの `data/` である。接頭辞は `monthly`、`xbrl`、`inventory`、`stats`、`intraday`。`SHARE_ROOT` を置くとその直下になる。読むときは MCP `fs_*`（`root=data`）か box の `/mnt/vps/data`。R2 は使わない（KAB-66 以降。KPI 方針 2026-10-20）。
@@ -251,6 +277,7 @@ deploy/cron-run.sh jobs/ops/migrate_r2_share.py --list-mismatches
 マウント上と `data/` の接頭辞:
 
 - `monthly/{code}/YYYYMMDD_CODE_….pdf|xlsx|xls|html`（`{code}` は TDnet の発行体コードそのまま。9279 / 262A。J-Quants 5桁にはしない）
+- `briefing/{code}/YYYYMMDD_CODE_….pdf`（決算説明資料。`{code}` は月次と同じ 4 桁。索引の code は 5 桁。`DESIGN.md`）
 - `xbrl/{code4}/…zip` と `xbrl/_unmatched/`
 - `inventory/vps-packages.txt`（上書き）と `inventory/history/vps-packages-YYYYMMDD.txt`
 - `intraday/1m/YYYY/YYYY-MM-DD.parquet`（yfinance 1 分足。1 日 1 ファイル・全銘柄。書いた銘柄は上書きしない。`DESIGN.md` §3「分足」）
@@ -277,11 +304,35 @@ deploy/cron-run.sh jobs/market/run_batch.py --refetch-prices   # ログは batch
 deploy/cron-run.sh jobs/market/run_batch.py --readjust-prices
 ```
 
+TDnet が約 30 日で消すより前の決算説明資料（KAB-330）は、IR BANK の開示一覧から一度だけ手で取る。cron には入れない。毎日の分は 22:10 の `jobs/market/tdnet_briefing_r2.py`。429 / 503 で止まっても、次の実行は未了の銘柄から続く。`--limit` は 1 回の社数。`--dry-run` は一覧だけ見て PDF も索引も書かない。`--rescan` は読み終えた社の一覧も読み直す（`--code` と `--all` のどちらとも。KAB-338）。索引にある PDF は取り直さない。ログは `deploy/cron-run.sh` なら `/var/log/app/irbank_ingest.log`（`batch_logs` の `job=irbank_ingest`）。
+
+```bash
+python tools/briefing/irbank_ingest.py --code 7203 --dry-run
+deploy/cron-run.sh tools/briefing/irbank_ingest.py --all --limit 80 --sleep 1
+```
+
+保存した決算説明資料を Claude の Message Batches API で読む（KAB-349。`DESIGN.md`）のも、いまは手で回す。cron には入れない。`ANTHROPIC_API_KEY` が要る（従量課金）。`submit` で出し、1 時間ほどしてから `collect`（終わっていない Batch は次の `collect` で拾う。何度流してもよい）。`--dry-run` は PDF を読んで依頼の数を数えるだけ。ログは `/var/log/app/briefing_extract.log`（`batch_logs` の `job=briefing_extract`）。
+
+```bash
+python jobs/market/briefing_extract.py submit --code 6857 --dry-run
+deploy/cron-run.sh jobs/market/briefing_extract.py submit --limit 50
+deploy/cron-run.sh jobs/market/briefing_extract.py collect
+python jobs/market/briefing_extract.py status
+```
+
+1 年以上前の決算説明資料（KAB-345）は `jobs/market/briefing_offsite.py` が OneDrive へ移す。会社ごとに最新の資料の日付から 1 年以上前の PDF だけ。順はコピー、サイズ確認、索引を `onedrive` に更新、手元の削除。行は消さない。`--dry-run` は対象を出すだけ。`--limit` はその実行の件数。cron には入れない。本番の移動は承認後に手で行う。ログは `deploy/cron-run.sh` なら `/var/log/app/briefing_offsite.log`（`batch_logs` の `job=briefing_offsite`）。
+
+```bash
+deploy/cron-run.sh jobs/market/briefing_offsite.py --dry-run
+deploy/cron-run.sh jobs/market/briefing_offsite.py --limit 20
+```
+
 cron（JST）。`run_batch.py` は 19:30 の 1 回。
 
 | スクリプト | cron |
 |---|---|
-| `jobs/monthly/tdnet_monthly_r2.py 1` | 18:00 / 21:00 |
+| `jobs/monthly/tdnet_monthly_r2.py 7` | 18:00 / 21:00（直近7日。一覧は TDnet。取りこぼしの拾い直し） |
+| `jobs/market/tdnet_briefing_r2.py 7` | 22:10（決算説明資料 → `data/briefing`。直近7日。既存 PDF は skip。索引行だけの補完は `reindexed`。初回の約30日は `deploy/cron-run.sh jobs/market/tdnet_briefing_r2.py 30` を手で一度。デプロイでは走らない） |
 | `jobs/monthly/tdnet_monthly_pdf_sidecar.py` | 18:20 / 21:20（TDnet PDF 取得の後） |
 | `jobs/monthly/tdnet_monthly_pdf_ingest.py` | 18:30 / 21:30（sidecar の後。ledger は `/var/log/app/pdf_ingest_ledger.json`） |
 | `jobs/monthly/ir_monthly_r2.py` | 10:00 / 16:00 |
@@ -289,11 +340,11 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 | `jobs/monthly/ir_monthly_html_ingest.py` | 10:30 / 16:30（HTML 取得の後。ledger は `/var/log/app/html_ingest_ledger.json`） |
 | `jobs/monthly/ir_monthly_json_ingest.py` | 10:30 / 16:30（CloudFront JSON → loopback POST。7649） |
 | `jobs/monthly/ir_monthly_xls_ingest.py --all --post` | 10:40 / 16:40（`ir_monthly_r2.py` が保存した最新の xls / xlsx → loopback POST。1878 / 7606） |
-| `jobs/xbrl/tdnet_xbrl_r2.py 1` | 12–23 時の毎時 00 分 |
-| `jobs/xbrl/xbrl_parse.py` / `jobs/xbrl/xbrl_normalize.py` | 12–23 時の毎時 10 分 / 20 分 |
+| `jobs/xbrl/tdnet_xbrl_r2.py 2` → `xbrl_parse.py` → `xbrl_normalize.py` | 12–23 時の毎時 00 分（1 行で順に。前日と当日。取得が失敗しても parse / normalize は走らせる。単独やり直しは `deploy/cron-run.sh jobs/xbrl/xbrl_parse.py` など） |
 | `jobs/market/pts_snapshot.py` | 平日 15:30〜24:00 の 30 分ごと（株探 PTS ランキング。24:00 は翌日 0:00 の回） |
 | `jobs/market/intraday_1m.py` | 平日 20:30（yfinance 1 分足 → `data/intraday/1m/`。日次バッチの後。約 45 分） |
 | `jobs/ops/vps_packages_r2.py` | 06:40 |
+| `jobs/ops/backup_data.py` | 03:30（`data/xbrl` と `data/monthly` を OneDrive へ `rclone copy`。VPS 側は消さない。`data/edinet` は `rclone move`。edinet は 50 分で区切り、残りは翌日。[`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
 | `jobs/ops/backup_db.py` | 05:00（SQLite 整合バックアップ。成功後に OneDrive へ送る。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
 
 振る舞いは `DESIGN.md` §3 と `docs/DESIGN_xbrl.md`。`rclone.conf` と取得ファイルはリポジトリに置かない。
@@ -332,6 +383,25 @@ tail -n 50 /var/log/app/backup_db.log
 ```
 
 ログに `offsite ok daily` と `pruned ... offsite=ok` があり、VPS の `daily/` が直近 1 件、OneDrive に今日のファイルがあること。`fail backup_db:` や `offsite skipped` なら送信側を見る。VPS の古い世代が残っていれば、成功するまで消さない。
+
+### daily_prices を WITHOUT ROWID に作り直す（一度だけ・KAB-289）
+
+rowid 表の `daily_prices` は日ごとに全銘柄を追記するので、1 銘柄の行が表全体に散り、チャートなど銘柄ごとの読み出しがページのランダム読みになる。`WITHOUT ROWID` は行を (code, date) 順に置く。新しい DB はモデルのとおり最初から `WITHOUT ROWID`。本番の既存 DB は `jobs/ops/rebuild_daily_prices.py` を一度だけ手で流す。デプロイの `migrate.py` は作り直さない。アプリはどちらの形でも動く。
+
+- 作り直しは 1 トランザクション。コピーの間は書き込みロックを握るので、他のライター（cron のバッチ・月次 PUT）は `busy_timeout` のあと失敗しうる。読み取り（API）は WAL なので止まらない
+- 流す時間: 書き込みジョブの少ない夜中。00:15 の `edinet_archive` が終わったあと（00:30 ごろ）に始める。19:30 の日次バッチと重ねない
+- 先に `jobs/ops/backup_db.py` でバックアップを取る
+- ディスクは表の約 3 倍（新しい表と WAL）を一時的に使う。足りなければジョブが止まる（引数なしで見積もりだけ出る）
+- DB ファイルは縮まない（空いたページは次の書き込みで使われる）
+
+```bash
+cd /home/stock/stock-analyzer
+deploy/cron-run.sh jobs/ops/backup_db.py
+.venv/bin/python jobs/ops/rebuild_daily_prices.py          # 見積もりだけ
+deploy/cron-run.sh jobs/ops/rebuild_daily_prices.py --yes   # 作り直す。MCP batch_logs job=rebuild_daily_prices で読める
+```
+
+2 回目は「既に WITHOUT ROWID です」で何もしない。
 
 ### TDnet 月次 PDF の未投入レポート（読み取り専用）
 

@@ -578,6 +578,83 @@ def test_limit_reports_remaining() -> None:
         db.close()
 
 
+def test_sync_pdf_filings_rank_skips_html_gz() -> None:
+    """KAB-257: rank 用の一括 SELECT は html_gz を読まない。limit=0 なら 1 件も処理しない。"""
+    from sqlalchemy import event
+
+    from app.db import engine
+
+    db = SessionLocal()
+    try:
+        code = "88880"
+        _stock(db, code)
+        no = "20240101588880"
+        raw = b"<html>" + (b"x" * 40_000) + b"</html>"
+        db.merge(Statement(
+            disclosure_no=no, code=code, disclosed_date=date(2024, 1, 1), disclosed_time="15:00",
+            type_of_period="FY", type_of_document="REITFinancialStatements_Consolidated_JP",
+            period_start=date(2023, 4, 1), period_end=date(2024, 3, 31),
+            fiscal_year_start=date(2023, 4, 1), fiscal_year_end=date(2024, 3, 31),
+        ))
+        db.merge(TdnetPdfDocument(
+            disclosure_no=no, code=code, disclosed_date=date(2024, 1, 1), disclosed_time="15:00",
+            title="reit", status="ok", html_gz=gzip.compress(raw), bytes=len(raw),
+            sha256=hashlib.sha256(raw).hexdigest(), created_at=_dt(2024, 1, 1),
+        ))
+        db.add(XbrlFiling(
+            code=code,
+            source="tdnet_pdf",
+            doc_id="20231201588880",
+            doc_type="annual",
+            period_type="FY",
+            submitted_at=_dt(2023, 12, 1, 15, 0),
+            raw_path="tdnet_pdf:20231201588880",
+            parse_status="parsed",
+            is_amendment=False,
+            created_at=_dt(2023, 12, 1, 15, 0),
+        ))
+        db.commit()
+
+        seen: list[str] = []
+
+        def _capture(_conn, _cursor, statement, _parameters, _context, _executemany):
+            seen.append(statement)
+
+        event.listen(engine, "before_cursor_execute", _capture)
+        try:
+            counts = sync_pdf_filings(db, codes=[code], limit=0)
+        finally:
+            event.remove(engine, "before_cursor_execute", _capture)
+
+        if counts["remaining"] != 2:
+            _fail(f"remaining {counts['remaining']}")
+        if any(counts[outcome] for outcome in SyncOutcome):
+            _fail(f"limit=0 processed {dict(counts)}")
+        pdf_sql = [sql for sql in seen if "tdnet_pdf_documents" in sql.lower()]
+        if not pdf_sql:
+            _fail("tdnet_pdf_documents was not queried")
+        for sql in pdf_sql:
+            lowered = sql.lower()
+            if "html_gz" in lowered:
+                _fail(f"html_gz in rank SQL {sql}")
+            if "disclosure_no" not in lowered or "disclosed_date" not in lowered:
+                _fail(f"rank SQL missing date columns {sql}")
+        filing_sql = [
+            sql for sql in seen
+            if "xbrl_filings" in sql.lower() and "submitted_at" in sql.lower()
+        ]
+        if not filing_sql:
+            _fail("tdnet_pdf filings were not queried")
+        for sql in filing_sql:
+            lowered = sql.lower()
+            if "html_gz" in lowered:
+                _fail(f"html_gz in filings SQL {sql}")
+            if "doc_id" not in lowered:
+                _fail(f"filings SQL missing doc_id {sql}")
+    finally:
+        db.close()
+
+
 def test_failed_html_stays_failed_until_reparse() -> None:
     no = "20250901512351"
     db = SessionLocal()

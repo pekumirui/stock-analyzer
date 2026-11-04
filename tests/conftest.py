@@ -16,6 +16,9 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+# `--dataflow=write|check` で docs/DATA_FLOW.md を作る・突き合わせる。付けなければ何もしない
+pytest_plugins = ["tools.dataflow.plugin"]
+
 DB_PATH = Path(tempfile.mkdtemp(prefix="stock-analyzer-pytest-")) / "stock.db"
 os.environ["DATABASE_URL"] = f"sqlite:///{DB_PATH}"
 
@@ -32,6 +35,12 @@ def _fresh_db_per_file():
     reset_taxonomy_caches()
     init_db()
     yield
+
+
+@pytest.fixture(autouse=True)
+def _edinet_archive_dir(tmp_path_factory, monkeypatch):
+    """EDINET の ZIP（app/edinet/archive.py）は テストごとの一時ディレクトリへ。repo の data/edinet に書かない。"""
+    monkeypatch.setenv("EDINET_ARCHIVE_DIR", str(tmp_path_factory.mktemp("edinet-archive")))
 
 
 @pytest.fixture

@@ -1,6 +1,6 @@
 # EDINET 取込 設計
 
-EDINET API v2（金融庁）の提出者・書類一覧と、有報・半期報の財務 XBRL を `stock.db` に載せる。親 issue は KAB-71。§1〜3 は KAB-72（土台）、§4 は KAB-73（財務 XBRL）、§5 は KAB-74（大量保有）、§6・§7 は KAB-79（自己株買い・公開買付）。有報テキスト（KAB-75）は、`edinet_documents` を入口にして節を足す。
+EDINET API v2（金融庁）の提出者・書類一覧と、有報・半期報の財務 XBRL を `stock.db` に載せる。親 issue は KAB-71。§1〜3 は KAB-72（土台）、§4 は KAB-73（財務 XBRL）、§5 は KAB-74（大量保有）、§6・§7 は KAB-79（自己株買い・公開買付）、§9 は KAB-266（大株主・所有者別）。有報テキスト（KAB-75）は、`edinet_documents` を入口にして節を足す。
 
 ## 書類種別の早見表
 
@@ -98,7 +98,7 @@ edinet_list_days   -- 取った日ごと
 - 既定（cron）は直近 7 日のうち確定していない日と、それより古い未確定の日。毎時 08:40〜23:40
 - 期間指定は `--from` / `--to`。`--backfill-years N`（最大 10）。確定済みの日は飛ばすので、止めても続きから。`--force` で取り直す
 - 確定: EDINET の一覧作成時刻（`processDateTime`）が `file_date` の翌日以降の回で取ったら `finalized`。前日分は翌朝の回で確定する
-- 過去分は EDINET が 10 年分まで持つ。1 日約 1 秒。1 行は索引込み約 390 バイトで、年 8 万行ほど（2025-06〜2026-04 の実測から）。5 年で約 150MB、10 年で約 300MB。本番は 10 年全部取る（`--backfill-years 10`。約 1 時間）
+- 過去分は EDINET が 10 年分まで持つ。1 日 1 リクエスト。本番は 10 年全部取る（`--backfill-years 10`）
 
 ### 状態の書き換え（イベント行）
 
@@ -122,14 +122,14 @@ EDINET は修正・不開示・取下げを、後の日の一覧に別レコー�
 - 新しい日から取る。一覧を backfill したあとの過去分は、毎時の cron が新着の後に少しずつ取る（1 日約 4,800 件）
 - `parsed` / `skipped` の docID は飛ばす（`--reparse` で取り直し）。`failed` は `--retry-failed`。ダウンロードに失敗した書類は filing を作らないので次の回にまた取る
 - `doc_type` / `period_type` / `is_amendment` は書類種別コードから決める（120/130 → `annual`/`FY`、160/170 → `semiannual`/`Q2`、140/150 → `quarterly` で期はタイトル）。会計基準は DEI の `AccountingStandardsDEI`（`Japan GAAP` / `IFRS` / `US GAAP`）
-- 取り込み済みの書類が後から取下げ・不開示になったら、`xbrl_financials` / `xbrl_segments` と生 fact を消して `parse_status='skipped'`、`parse_error='withdrawn'`
-- タクソノミは同梱（`data/xbrl_taxonomy`）だけを読む。10 年分の書類が参照する版を同梱した（`tools/edinet/sample_zips.py --sample-years 10` の見本から `tools/xbrl/taxonomy_bundle.py fetch`）。それでも足りない書類は `failed`（`TaxonomyMissingError`）になる。`sample_zips.py --failed` → `fetch` → `edinet_xbrl.py --retry-failed`
+- 取り込み済みの書類が後から取下げ・不開示になったら、`xbrl_financials` / `xbrl_segments` / 大株主の表と生 fact を消して `parse_status='skipped'`、`parse_error='withdrawn'`
+- タクソノミは同梱（`data/xbrl_taxonomy`）だけを読む。10 年分の書類が参照する版を同梱した（`tools/edinet/sample_zips.py --sample-years 10` の見本から `tools/xbrl/taxonomy_bundle.py fetch`）。見本は 2016-02-29 以降から始まっていた。訂正は提出が新しくても元書類の版を参照するので、インライン XBRL でそれより前に公開されている jpcrp / jppfs（2013-08-31 と 2015-03-31）と jpsps（2013-08-31、2014-07-31、2015-03-31）も同梱する（KAB-324。jpigp の初版は 2018-03-31）。それでも足りない書類は `failed`（`TaxonomyMissingError`）になる。`sample_zips.py --failed` → `fetch` → `edinet_xbrl.py --retry-failed`
 
 ### ZIP と fact は持ちすぎない
 
-- ZIP は保存しない（一時ディレクトリで読んで捨てる）。1 件 0.5〜3MB で、年 8,000 件だと数 GB になる。EDINET が 10 年分持っているので、取り直しはダウンロードし直す。`raw_path` は `edinet:<docID>`、`raw_sha256` はダウンロードした ZIP のもの
-- `xbrl_facts` / `xbrl_contexts` には、正規化が使う当期（`relative_period='current'`）・次元なし（連結/単体のメンバーだけは可）の fact、当期のセグメント軸（`jpcrp_cor:OperatingSegmentsAxis`。連結/単体の軸は付いてよい）だけの fact（KAB-77）と DEI だけ入れる（`app/edinet/xbrl.py keep_fact`）。有報は 1 件 1,000〜2,000 fact あり、全部だと年 800MB を超える。絞ると fact は約 4 分の 1、context は 2%。会計基準と期末の判定は絞る前の全 fact で行う
-- 前期の値やほかの軸が要るようになったら、`keep_fact` を広げて `--reparse`。KAB-78 の有報の科目（従業員・株式数・主要な経営指標等など。`DESIGN_xbrl.md` §7.2）は今の `keep_fact` で残っている。入れるのは `load-mappings` → `xbrl_normalize.py --rebuild` だけ
+- ZIP は §10 のとおり残す（`data/edinet` → OneDrive）。取り直しは手元 → EDINET → OneDrive の順。`raw_path` は `edinet:<docID>`、`raw_sha256` はダウンロードした ZIP のもの
+- `xbrl_facts` / `xbrl_contexts` には、正規化が使う当期（`relative_period='current'`）・次元なし（連結/単体のメンバーだけは可）の fact、当期のセグメント軸（`jpcrp_cor:OperatingSegmentsAxis`。連結/単体の軸は付いてよい）だけの fact（KAB-77）、当期の大株主・所有者別の軸だけの fact（KAB-266。§9。要素名で絞る）と DEI だけ入れる（`app/edinet/xbrl.py keep_fact`）。全 fact を入れると DB が大きくなりすぎるので絞る。会計基準と期末の判定は絞る前の全 fact で行う
+- 前期の値やほかの軸が要るようになったら、`keep_fact` を広げて `--reparse`。KAB-78 の有報の科目（従業員・株式数・主要な経営指標等など。`DESIGN_xbrl.md` §7.2）は今の `keep_fact` で残っている。入れるのは `load-mappings` → `xbrl_normalize.py --rebuild` だけ。大株主・所有者別は軸付き fact が要るので `--reparse` が要る（§9）
 
 ### 正規化と TDnet との関係
 
@@ -137,8 +137,6 @@ EDINET は修正・不開示・取下げを、後の日の一覧に別レコー�
 - 同じ決算期の実績が TDnet（短信）と EDINET（有報）の両方に入る。`xbrl_financials` は filing ごとなので重ならない。`statements` は上書きしない
 - 修正履歴（KAB-57、`app/xbrl/revisions.py`）は `source='tdnet'` だけ読む。有報の実績が提出日にもう一度出ないように
 - 実データ（2025-06-27 の有報、2025-11-14 の半期報）で、日本基準は 22 科目が取れ、IR Bank の値（百万円）と一致した。IFRS は KAB-73 で本表の 14 要素を足した（`config/xbrl/mappings/ifrs.yaml` 末尾。承認済み）
-- 容量: 有報 1 件約 46KB（fact・context・正規化）。10 年分（有報・半期報・四半期報）で数 GB 規模
-- セグメント（KAB-77、`docs/DESIGN_xbrl.md` §14）で 1 件あたり有報 +約 16KB、半期報・四半期報 +約 12KB（fact +50 / context +14 / `xbrl_segments` +16 行ほど。2025 年の 17 件で計測）。10 万件で +1.5GB 前後
 
 ## 5. 大量保有報告書（KAB-74）
 
@@ -170,13 +168,14 @@ large_holdings          -- 1 書類 × 1 人
 - 対象: 350 / 360・`csv_flag`、取下げ（`withdrawal_status=2`）・不開示・修正通知の行を除く。発行者が上場していない書類も取る（`code` は NULL）。新しい日から。`parsed` は飛ばす（`--reparse` で取り直し）、`failed` は `--retry-failed`。CSV が 404（取り下げ・非公開・取得可能期間外）なら `parse_status='failed'`（`parse_error` に 404 か `outside-edinet-window`）として残し、次の回は飛ばす。ログは `missing n=` に集約（1 件ごとの `download-failed doc_id=` は出さない。Slack の `failed doc_id=` に当たるため）。`errors` にも `failed=` にも数えない。cron は exit=0。5xx・タイムアウトは行を作らず次の回にまた取る（`errors`、exit=1。ログは `download-error n=`）
 - EDINET は大量保有を 5 年分しか持たない（一覧の書類メタは 10 年分残るが type=5 は期限切れで 404）。`pending_documents` は `file_date` が 5 年より前を除く。report が無い期間外はダウンロードせず `mark_outside_window` で failed に残す。1 日 20〜50 件、年 1 万件ほど。全部で 5 万件前後、1 件 1KB 前後で数十 MB。初回は毎時の cron で 4 日ほどかかる
 - 値: 割合は小数（`0.0507` = 5.07%）。CSV の「－」は NULL。保有者が 1 人の書類は書類レベルの合計が CSV に無いので、保有者 1 の値を合計に入れる。「該当事項なし」の文章（共同保有者・重要提案行為等）は NULL
+- 報告義務発生日の提出者誤記は `config/large_holding_date_fixes.json` で補正する（KAB-269）。取り込み時に docID で引き、CSV の値が `recorded` と一致したときだけ `correct` に差し替える（何度実行しても同じ）。不一致は差し替えず `WARNING edinet lvh obligation-date-mismatch`。差し替え後も義務発生日が提出日より 30 日以上先の書類（設定に無いもの）は `WARNING edinet lvh obligation-date-future`（doc_id・提出者・銘柄・日付）。どちらも fluent-bit の batch パターンで `#alerts-batch` に載る。本番の既存行は `python jobs/edinet/edinet_large_holdings.py --reparse-fixes`（実行は承認後）
 - 発行者の `code` は `issuer_edinet_code` → `edinet_filers.sec_code`、無ければ CSV の発行者の証券コード（4 桁 → 末尾 0 の 5 桁）。どちらも `stocks` にあるときだけ付ける。`edinet_documents.code` は提出者（保有者）の銘柄なので使わない
 - 共同保有者: 連名の書類は全員が `large_holdings` に並ぶ（`holder_count` = 人数）。連名でない共同保有者は「第3 共同保有者に関する事項」の文章にしか無いので `joint_holders_text` に入れる。2021-11 と 2026-10 の 101 件では、文章に名前があるものは無かった
 - 訂正: 訂正報告書（360）の CSV は訂正後の全文（大量保有報告書・変更報告書の様式そのまま）。訂正の対象は DEI の `IdentificationOfDocumentSubjectToAmendmentDEI`（無ければ一覧の `parentDocID`）。DEI が docID の形（S + 英数字 7）でないときは `parentDocID` を使う（末尾を推測しない）。訂正の訂正もたどって大元を `original_doc_id` に入れる（訂正でなければ自分）
 - 最新: 取込のたびに全件から決め直す（`refresh_versions`。`--refresh-only` で手でも）。`original_doc_id` ごとに、`parsed` で取下げ・不開示でない書類のうち `submit_datetime` が新しい 1 件が `is_latest`。取下げ・不開示は `edinet_documents` の状態から `withdrawn` に入れ、行は消さない
 - 使う側: 銘柄の大量保有の推移は `WHERE code = ? AND is_latest ORDER BY obligation_date`。保有者ごとの最新は、そこから `large_holdings.edinet_code` ごとに最後の行
 - 実データ（2026-10-15 の 52 件、2021-11-15 の 47 件）で全件パースでき、3 件を閲覧画面の本文（XBRL の honbun）と突き合わせて、保有割合・直前の割合・保有株数・発行済株式等総数・報告義務発生日が一致した
-- 画面と API はまだ出さない（別 issue）
+- 画面は大量保有報告書タブ `docs/DESIGN_holders.md` と銘柄の株主タブ `docs/DESIGN_stock.md`。API は読み取り（`GET /api/holders/*` と `GET /api/stock/{code}/holders`）
 
 ## 6. 自己株券買付状況報告書（KAB-79）
 
@@ -273,9 +272,135 @@ edinet_tender_offers         -- 1 案件。取込のたびに全件から作り�
 
 ## 8. 運用
 
-- cron は `deploy/crontab`（07:30 コードリスト、09:05〜23:05 毎時 大量保有、09:20〜23:20 毎時 公開買付、09:25〜23:25 毎時 自己株買い、08:40〜23:40 毎時 一覧、08:50〜23:50 毎時 XBRL）。ログは `/var/log/app/edinet_codes.log` / `edinet_documents.log` / `edinet_xbrl.log` / `edinet_large_holdings.log` / `edinet_tender_offers.log` / `edinet_buybacks.log`（MCP `batch_logs`）
+- cron は `deploy/crontab`（00:15〜06:15 毎時 ZIP の取り直し（§10）、07:30 コードリスト、09:05〜23:05 毎時 大量保有、09:20〜23:20 毎時 公開買付、09:25〜23:25 毎時 自己株買い、08:40〜23:40 毎時 一覧、08:50〜23:50 毎時 XBRL）。ログは `/var/log/app/edinet_codes.log` / `edinet_documents.log` / `edinet_xbrl.log` / `edinet_large_holdings.log` / `edinet_tender_offers.log` / `edinet_buybacks.log` / `edinet_archive.log`（MCP `batch_logs`）
 - EDINET がメンテ画面（HTML または案内への 302）を返すと、ラッパーが `EdinetMaintenanceError` にする。ジョブは 1 件目で打ち切り、`WARN edinet maintenance skip` 1 行で exit 0（KAB-149。`edinet_codes` は httpx 直叩きなので対象外）。5xx・タイムアウトは今までどおり exit=1。半日以上メンテが続いたときの昇格はしない（次回 cron が取り直す）
 - MCP `db_stats` に `edinet_documents` / `edinet_list_days` の件数と範囲、`large_holding_reports` / `large_holdings` / `edinet_buybacks` / `edinet_buyback_resolutions` / `edinet_tender_offers` / `edinet_tender_offer_docs` の件数が出る
-- 初回の本番投入: デプロイ（`jobs/migrate.py` が表と `stocks.edinet_code` を足す）→ `python jobs/edinet/edinet_codes.py` → `python jobs/edinet/edinet_documents.py --backfill-years 10`（約 1 時間）→ IFRS マッピングの追加を TDnet 分にも効かせる `python jobs/xbrl/xbrl_parse.py load-mappings` と `python jobs/xbrl/xbrl_normalize.py --rebuild`。XBRL は cron に任せる（急ぐなら `python jobs/edinet/edinet_xbrl.py --limit 0` を手で）
-- 大量保有の初回: デプロイ（`jobs/migrate.py` が表を足す）のあとは cron に任せる。急ぐなら `python jobs/edinet/edinet_large_holdings.py --limit 0` を手で（5 万件で約 14 時間）
-- 自己株買い・公開買付の初回: デプロイ（`jobs/migrate.py` が表を足す）のあとは cron に任せる。自己株買いは 1 年分約 7,000 件で 14 時間ほど、公開買付は 5 年分約 2,500 件で 1 日ほど。急ぐなら `--limit 0` を手で
+- 初回の本番投入: デプロイ（`jobs/migrate.py` が表と `stocks.edinet_code` を足す）→ `python jobs/edinet/edinet_codes.py` → `python jobs/edinet/edinet_documents.py --backfill-years 10` → IFRS マッピングの追加を TDnet 分にも効かせる `python jobs/xbrl/xbrl_parse.py load-mappings` と `python jobs/xbrl/xbrl_normalize.py --rebuild`。XBRL は cron に任せる（急ぐなら `python jobs/edinet/edinet_xbrl.py --limit 0` を手で）
+- 大量保有の初回: デプロイ（`jobs/migrate.py` が表を足す）のあとは cron に任せる。急ぐなら `python jobs/edinet/edinet_large_holdings.py --limit 0` を手で
+- 自己株買い・公開買付の初回: デプロイ（`jobs/migrate.py` が表を足す）のあとは cron に任せる。急ぐなら `--limit 0` を手で
+- 大株主・所有者別（KAB-266、§9）: デプロイ後の新着は XBRL cron に乗る。過去分は fact が無いので `edinet_xbrl.py --reparse` が要る（一括はこの PR では走らせない）
+
+## 9. 有報の大株主の状況・所有者別状況（KAB-266）
+
+有報（120/130）の「大株主の状況」と「所有者別状況」を `xbrl_facts` から正規化する。API・株主タブは別 issue。新着は既存の `edinet_xbrl.py` が `keep_fact` を広げて取り込み、`normalize_filing` が表を作る。専用 cron は足さない。
+
+### 既存 fact では足りない
+
+`xbrl_elements` に `NameMajorShareholders` / `AddressMajorShareholders` / `NameMajorShareholdersVotingRights` / `NumberOfShareholdersFinancialInstitutions` 等はある（タクソノミ版ごとに複数 URI）。ただし `keep_fact` が `MajorShareholdersAxis` / `MajorShareholdersVotingRightsAxis` / `ClassesOfSharesAxis` を落としていた。
+
+本番（MCP `db_query`、2026-10-29）:
+
+- `NameMajorShareholders` の fact は 19 件で、値はすべて「計」。context は次元なしの `CurrentYearInstant` / `CurrentQuarterInstant`（計の行だけ残っていた）
+- `NameMajorShareholdersVotingRights` は 30 件ほど（element 6 種）。順位付きの軸は無い
+- `NumberOfShareholdersFinancialInstitutions` は 2 fact（古い CUC。`ClassesOfSharesAxis` 無し）
+- 順位付き（`NoNMajorShareholdersMember`）と、近時の所有者別（`OrdinaryShareMember`）は入っていない
+
+取り方: `keep_fact` を広げて有報を `--reparse` する。ZIP は §10 の順に取り直す（2026-10 までに取り込んだ分は §10 の取り直しが済むまで EDINET から）。本番への一括投入はこの PR では走らせない。
+
+### タクソノミ（jpcrp_cor。実 ZIP で確認）
+
+- 大株主の状況: `MajorShareholdersAxis` × `NoNMajorShareholdersMember`（N=1..）。氏名 `NameMajorShareholders`、住所 `AddressMajorShareholders`、株数 `NumberOfSharesHeld`（`scale` 込み）、割合 `ShareholdingRatio`（表示 24.43 → 格納 0.2443）
+- 議決権ベース（伊藤園など）: 対の軸 `MajorShareholdersVotingRightsAxis` と `NameMajorShareholdersVotingRights` / `NumberOfVotingRightsHeld` / `RatioOfVotingRightsHeld`
+- 所有者別: 区分は要素名（`NumberOfShareholdersFinancialInstitutions` 等）。軸は `ClassesOfSharesAxis`（普通株式 `OrdinaryShareMember`。種類株式は会社独自メンバー。伊藤園は `ClassOnePreferredShareMember`）
+- 単元株式数 `NumberOfSharesConstitutingOneUnit`、単元未満 `NumberOfSharesHeldSharesLessThanOneUnit`（区分の計の行へ）
+- 「計」は軸なしの `NameMajorShareholders`=計、または名前が 計/合計。正規化では捨てる
+
+### テーブル
+
+```sql
+xbrl_shareholder_filings          -- 1 書類
+  filing_id PK                    -- xbrl_filings.id
+  code, doc_id
+  as_of                           -- 大株主・所有者別の instant（期末）
+  basis                           -- shares / voting_rights / both
+  shares_per_unit                 -- 普通株式の単元。無ければ NULL
+  is_amendment, amends_doc_id, original_doc_id, is_latest, withdrawn
+  generated_at
+
+xbrl_major_shareholders           -- 1 書類 × 順位 × ベース
+  filing_id, rank, basis PK       -- basis は shares / voting_rights
+  name, address
+  shares_held, shareholding_ratio -- 株式ベース。比率は 0.1650 = 16.50%
+  voting_rights, voting_rights_ratio
+
+xbrl_shareholding_by_category     -- 1 書類 × 株式の種類 × 区分
+  filing_id, share_class, category PK
+                                  -- share_class は qname。軸が無ければ ''
+  shareholder_count, units_held, shareholding_ratio
+  shares_less_than_one_unit       -- 計の行だけ
+```
+
+- 訂正の最新は `(code, fiscal_year_end, doc_type)` ごとに、取下げでない `submitted_at` が新しい 1 件（120 と 130 はどちらも `doc_type='annual'`）
+- `amends_doc_id` は DEI `IdentificationOfDocumentSubjectToAmendmentDEI`、無ければ `edinet_documents.parent_doc_id`
+- 種類株式は `ClassesOfSharesAxis` のメンバーをすべて残す（普通株式だけに落とさない）
+- 半期報・四半期報に表が無ければ 0 行（ヘッダも作らない）
+- `xbrl_financials` は次元付き fact を使わない（`classify_context` が落とす）
+
+### ジョブ
+
+- 新着: `python jobs/edinet/edinet_xbrl.py`（`keep_fact` + `normalize_filing`）
+- 作り直し: `python jobs/edinet/edinet_shareholders.py --rebuild`（`--code` 可）。訂正フラグだけなら `--refresh-only`
+- `python jobs/xbrl/xbrl_normalize.py --rebuild` も大株主を消して作り直す（fact が無ければ空のまま）
+
+### 本番投入（KPI 承認後。この PR では走らせない）
+
+1. デプロイ（`jobs/migrate.py` が 3 表を `create_all`）
+2. 煙: `python jobs/edinet/edinet_xbrl.py --code 80350 --reparse`（東京エレクトロン。日本基準）
+3. 過去の有報: `python jobs/edinet/edinet_xbrl.py --reparse --limit 300` を繰り返す（ZIP 再取得。1 件 2〜3 秒。cron の `--limit 300` は `--reparse` しないので新着だけ）
+4. 新着はデプロイ後の cron に乗る
+5. fact だけ先に入っているときは `python jobs/edinet/edinet_shareholders.py --rebuild`
+
+### 実データ（閲覧の表と突き合わせ）
+
+合成 ZIP の数値は 2026 年提出の実物。同じ書類の実 ZIP をこの PR でパースし、下の値と一致した（ZIP はコミットしない）。
+
+| 書類 | 基準 | 確認したこと |
+|---|---|---|
+| 東京エレクトロン S100YEOO | 日本基準 | 1 位 日本マスタートラスト 111,481×10^3 株・24.43%。金融機関 143 / 1,712,829 単元 / 36.37% |
+| 日立製作所 S100YGBO | IFRS | 1 位 742,663,700 株・16.50%。金融機関 221 / 27.80% |
+| 伊藤園 S100YRK7 | 日本基準 | 株式 グリーンコア 22,676×10^3・19.68%。議決権 167,812・19.93%。第一種優先の金融機関 15 / 7,848 / 2.48% |
+
+## 10. ZIP を残して OneDrive へ退避する（KAB-281）
+
+閲覧期間（早見表）を過ぎた書類は EDINET から二度と取れない。`--reparse` や本文の取込のため、取った ZIP を残す。
+
+### 残すもの
+
+| 書類 | type | 理由 |
+|---|---|---|
+| 有報・四半期報・半期報（120〜170）、自己株買い（220/230）、公開買付けのうち読む書類（240/250/270/280/290/300） | 1（XBRL・本文 iXBRL・監査報告書） | パースしているもの。本文の HTML も入っている |
+| 大量保有（350/360） | 5（CSV） | パースしているもの |
+
+PDF（type=2。type=1 の本文と同じ）・代替書面と添付（type=3。添付の PDF だけ）・英文（type=4）は残さない。
+
+### 取り方（`app/edinet/archive.py download`）
+
+1. 手元 `data/edinet/{書類種別}/{docID}_type{n}.zip` があればそれ。docID の中身は変わらない（訂正は別の docID）
+2. EDINET から取り、ZIP として読める（`testzip`）ものだけ一時ファイル → rename で手元に書き、`edinet_archives` に `saved` で記録する。壊れた ZIP は残さず、そのまま返す（パースが失敗にし、`--retry-failed` で取り直せる）
+3. EDINET が 404 で `edinet_archives` が `saved` なら OneDrive から `rclone cat`。閲覧期間外と分かっている書類（大量保有・公開買付け・自己株買いの `keep_after`）は EDINET を飛ばして OneDrive へ。残していなければ今までどおり missing
+4. OneDrive から読めない（rclone が無い・失敗）は一時的な失敗（`error`）
+
+各取込（`edinet_xbrl` / `edinet_buybacks` / `edinet_tender_offers` / `edinet_large_holdings`）はこれを通す。
+
+### 表 `edinet_archives`
+
+| 列 | 中身 |
+|---|---|
+| `doc_id` / `file_type` | 主キー。書類取得 API の type（1 / 5） |
+| `doc_type_code` | 書類種別 |
+| `rel_path` | `data/edinet` からの相対パス。OneDrive でも同じ |
+| `status` | `saved`（手元に書いた。OneDrive へは翌朝）/ `gone`（取り直しのとき EDINET が 404） |
+| `bytes` / `sha256` / `saved_at` | ZIP の大きさ・ハッシュ・書いた時刻（JST） |
+
+### 退避（`jobs/ops/backup_data.py`）
+
+毎朝 03:30 に `data/edinet` を `onedrive:stock-analyzer-backups/data/edinet/` へ `rclone move`（`*.zip` だけ、10 分より古いもの）。1 ファイルずつ送って確かめてから VPS 側を消す。1 回の上限は `--max-duration 50m`（SOFT。KAB-304）。届かなかった分は翌日。過去分の取り直し（下）が続いている間は VPS に残り得る。`data/xbrl` / `data/monthly` は copy のまま（`docs/DESIGN_backup.md`）。
+
+### 過去分の取り直し（`jobs/edinet/edinet_archive.py`）
+
+2026-10 までに取り込んだ書類は ZIP を捨てていたので、一度 EDINET から取り直す。対象は取込済み（`xbrl_filings` の edinet、`edinet_buybacks`、`edinet_tender_offer_docs` の meta 以外、`large_holding_reports`）で `edinet_archives` に無い書類。閲覧期間の終わり（`file_date` + 年数）が近い順。404 は `gone` にして次から飛ばす。パースはしない。
+
+- cron は 00:15〜06:15 の毎時 `--limit 1000`（ほかの EDINET ジョブは 07:30 から）。最後の行 `edinet archive done saved=… gone=… errors=… remaining=…`
+- `--dry-run` で残件と先頭 10 件
+- 取り直しが終われば cron の行は残してよい（対象 0 件で終わる）
+

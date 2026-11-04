@@ -7,8 +7,9 @@ EDINET_API_KEY が要る。入口は edinet_documents（先に jobs/edinet/edine
   python jobs/edinet/edinet_large_holdings.py --from 2026-10-01 --to 2026-10-15
   python jobs/edinet/edinet_large_holdings.py --retry-failed --limit 100
   python jobs/edinet/edinet_large_holdings.py --refresh-only              # 訂正・取下げ・最新の付け直しだけ
+  python jobs/edinet/edinet_large_holdings.py --reparse-fixes             # 義務発生日の誤記補正（KAB-269）を既存行へ反映
 
-1 書類 約 1 秒（CSV を 1 回ダウンロード。ラッパーの既定で 1 秒間隔）。ZIP は保存しない。
+1 書類 約 1 秒（CSV を 1 回ダウンロード。ラッパーの既定で 1 秒間隔）。ZIP は残す（docs/DESIGN_edinet.md §10）。
 設計は docs/DESIGN_edinet.md §5。
 """
 from __future__ import annotations
@@ -25,6 +26,7 @@ from app.db import SessionLocal  # noqa: E402
 from app.edinet.client import skip_on_maintenance  # noqa: E402
 from app.edinet.large_holdings import (  # noqa: E402
     exit_status,
+    load_obligation_date_fixes,
     mark_outside_window,
     pending_documents,
     refresh_versions,
@@ -42,6 +44,10 @@ def main() -> int:
     ap.add_argument("--to", dest="date_to", help="file_date YYYY-MM-DD")
     ap.add_argument("--retry-failed", action="store_true")
     ap.add_argument("--reparse", action="store_true", help="取り込み済みもダウンロードし直す")
+    ap.add_argument("--doc-id", action="append", dest="doc_ids", metavar="DOC_ID",
+                    help="指定した docID だけ（繰り返し可）")
+    ap.add_argument("--reparse-fixes", action="store_true",
+                    help="config/large_holding_date_fixes.json の docID を取り直す")
     ap.add_argument("--limit", type=int, help="最大件数（0 以下は無制限）")
     ap.add_argument("--refresh-only", action="store_true", help="ダウンロードせず、訂正・取下げ・最新だけ付け直す")
     args = ap.parse_args()
@@ -60,10 +66,17 @@ def main() -> int:
         expired = mark_outside_window(db)
         if expired:
             print(f"edinet lvh outside-window n={expired}", flush=True)
+        doc_ids = list(args.doc_ids or [])
+        reparse = args.reparse
+        if args.reparse_fixes:
+            reparse = True
+            doc_ids = list(load_obligation_date_fixes())
+            print(f"edinet lvh reparse-fixes n={len(doc_ids)}", flush=True)
         docs = pending_documents(
             db, start=_d(args.date_from), end=_d(args.date_to),
-            retry_failed=args.retry_failed, reparse=args.reparse,
+            retry_failed=args.retry_failed, reparse=reparse,
             limit=args.limit if args.limit and args.limit > 0 else None,
+            doc_ids=doc_ids or None,
         )
         print(f"edinet lvh docs={len(docs)}", flush=True)
         try:

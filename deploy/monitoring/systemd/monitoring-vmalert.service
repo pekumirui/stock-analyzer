@@ -1,0 +1,33 @@
+[Unit]
+Description=vmalert (rules on VictoriaMetrics, notify Alertmanager)
+After=network.target monitoring-victoria-metrics.service
+Wants=monitoring-victoria-metrics.service
+
+[Service]
+User=monitoring
+Group=monitoring
+# remoteWrite / remoteRead: 再起動しても for の経過を引き継ぐ
+ExecStart=/opt/monitoring/bin/vmalert \
+  -httpListenAddr=127.0.0.1:8880 \
+  -rule=/etc/monitoring/rules/*.yml \
+  -datasource.url=http://127.0.0.1:8428 \
+  -remoteWrite.url=http://127.0.0.1:8428 \
+  -remoteRead.url=http://127.0.0.1:8428 \
+  -notifier.url=http://127.0.0.1:9093 \
+  -evaluationInterval=30s
+MemoryMax=128M
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

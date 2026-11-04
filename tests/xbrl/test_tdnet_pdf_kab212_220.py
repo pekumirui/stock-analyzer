@@ -733,7 +733,7 @@ def test_kab220_dash_104_is_not_a_page_number() -> None:
     )
     pkg = read_tdnet_pdf(_pages(parts), d)
     facts = _facts(pkg)
-    if facts.get(("現金及び現金同等物の期末残高", "CurrentAccumulatedQ2Duration")) != MILLION * 223770:
+    if facts.get(("現金及び現金同等物の期末残高", "CurrentYearInstant")) != MILLION * 223770:
         _fail(f"cash_end {facts}")
     merged = "非連結子会社との合併に伴う現金及び現金同等物の増加額"
     if facts.get((merged, "CurrentAccumulatedQ2Duration")) != MILLION * 104:
@@ -846,7 +846,7 @@ def test_cash_end_tail_gaku_does_not_glue() -> None:
     )
     pkg = read_tdnet_pdf(_pages(parts), d)
     facts = _facts(pkg)
-    if facts.get(("現金及び現金同等物の期末残高", "CurrentAccumulatedQ2Duration")) != MILLION * 180000:
+    if facts.get(("現金及び現金同等物の期末残高", "CurrentYearInstant")) != MILLION * 180000:
         _fail(f"cash_end {facts}")
     if any("期末残高" in name and "減少" in name for name, _ref in facts):
         _fail(f"glued {facts}")

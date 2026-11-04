@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -52,6 +54,15 @@ PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "failed doc_id=S100ABC code=72030 err=boom"),
     ("batch", "2026-10-22 12:00:00 failed doc_id=S100ABC code=72030 err=boom"),
     ("batch", "normalize failed doc_id=S100ABC code=72030 err=boom"),
+    ("batch", "WARNING edinet lvh obligation-date-mismatch doc_id=S100QKKW recorded=2024-04-03 parsed=2025-04-03"),
+    (
+        "batch",
+        (
+            "2026-10-29 09:05:01 WARNING edinet lvh obligation-date-future "
+            "doc_id=S100LATE filer=大量保有証券株式会社 code=190A0 "
+            "obligation_date=2026-12-01 submit_date=2026-10-15"
+        ),
+    ),
     ("batch", "edinet lvh done parsed=0 failed=0 missing=0 errors=3 refreshed=0"),
     ("nginx", "2026/08/05 12:00:00 [error] 12#12: *1 connect() failed (111: Connection refused)"),
     (
@@ -99,6 +110,7 @@ NOT_PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "edinet lvh outside-window n=12"),
     ("batch", "edinet lvh parse-error n=1 sample=S100BRKN"),
     ("batch", "edinet lvh download-error n=2 sample=S100SRV1,S100TMO1"),
+    ("batch", "edinet lvh reparse-fixes n=23"),
     ("batch", "WARN edinet maintenance skip job=edinet_xbrl err=EDINET returned HTML instead of API data"),
     (
         "batch",
@@ -874,6 +886,129 @@ def test_cron_run_splits_and_stamps(tmp_path: Path) -> None:
         _fail(f"cwd failure not logged: {cwd_log!r}")
 
 
+_TDNET_XBRL_JOBS = (
+    "jobs/xbrl/tdnet_xbrl_r2.py",
+    "jobs/xbrl/xbrl_parse.py",
+    "jobs/xbrl/xbrl_normalize.py",
+)
+
+
+def _tdnet_xbrl_cron_line() -> str:
+    crontab = (ROOT / "deploy" / "crontab").read_text(encoding="utf-8")
+    lines = [
+        raw.strip()
+        for raw in crontab.splitlines()
+        if raw.strip()
+        and not raw.strip().startswith("#")
+        and any(job in raw for job in _TDNET_XBRL_JOBS)
+    ]
+    if len(lines) != 1:
+        _fail(f"expected 1 TDnet XBRL cron line, got {len(lines)}: {lines!r}")
+    return lines[0]
+
+
+def test_crontab_chains_tdnet_xbrl() -> None:
+    line = _tdnet_xbrl_cron_line()
+    if not line.startswith("0 12-23 * * * "):
+        _fail(f"TDnet XBRL cron must be hourly :00 at 12-23: {line!r}")
+    if "deploy/cron-run.sh jobs/xbrl/tdnet_xbrl_r2.py 2" not in line:
+        _fail(f"fetch must stay cron-run.sh days=2: {line!r}")
+    if "deploy/cron-run.sh jobs/xbrl/xbrl_parse.py" not in line:
+        _fail(f"parse must stay cron-run.sh: {line!r}")
+    if "deploy/cron-run.sh jobs/xbrl/xbrl_normalize.py" not in line:
+        _fail(f"normalize must stay cron-run.sh: {line!r}")
+    if "tdnet_xbrl_r2.py 2; deploy/cron-run.sh jobs/xbrl/xbrl_parse.py;" not in line:
+        _fail(f"fetch failure must still run parse (; not &&): {line!r}")
+    if "xbrl_parse.py; deploy/cron-run.sh jobs/xbrl/xbrl_normalize.py;" not in line:
+        _fail(f"parse failure must still run normalize (; not &&): {line!r}")
+    i_fetch = line.index("tdnet_xbrl_r2.py")
+    i_parse = line.index("xbrl_parse.py")
+    i_norm = line.index("xbrl_normalize.py")
+    if not (i_fetch < i_parse < i_norm):
+        _fail(f"order must be fetch → parse → normalize: {line!r}")
+    crontab = (ROOT / "deploy" / "crontab").read_text(encoding="utf-8")
+    for raw in crontab.splitlines():
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if re.match(r"^(10|20)\s", stripped) and (
+            "xbrl_parse.py" in stripped or "xbrl_normalize.py" in stripped
+        ):
+            _fail(f":10/:20 standalone XBRL cron must be removed: {stripped!r}")
+
+
+def test_cron_xbrl_chain_continues_after_fetch_fail(tmp_path: Path) -> None:
+    app = tmp_path / "app"
+    logs = tmp_path / "logs"
+    bindir = app / ".venv" / "bin"
+    bindir.mkdir(parents=True)
+    order = tmp_path / "order.txt"
+    py = bindir / "python"
+    py.write_text(
+        "#!/usr/bin/env python3\n"
+        "import os\n"
+        "import sys\n"
+        "from pathlib import Path\n"
+        "script = next(a for a in sys.argv[1:] if a.endswith('.py'))\n"
+        "order = Path(os.environ['CHAIN_ORDER'])\n"
+        "prev = order.read_text(encoding='utf-8') if order.exists() else ''\n"
+        "order.write_text(prev + script + '\\n', encoding='utf-8')\n"
+        "print('out ' + script, flush=True)\n"
+        "raise SystemExit(3 if 'tdnet_xbrl_r2.py' in script else 0)\n",
+        encoding="utf-8",
+    )
+    py.chmod(0o755)
+    env = os.environ.copy()
+    env["CRON_APP_DIR"] = str(app)
+    env["CRON_LOG_DIR"] = str(logs)
+    env["CHAIN_ORDER"] = str(order)
+    line = _tdnet_xbrl_cron_line()
+    fields = line.split(None, 5)
+    if len(fields) != 6:
+        _fail(f"crontab command missing: {line!r}")
+    cmd = fields[5]
+    prefix = "cd /home/stock/stock-analyzer && "
+    if not cmd.startswith(prefix):
+        _fail(f"crontab must cd then chain: {cmd!r}")
+    body = cmd[len(prefix) :]
+    wrapper = str(ROOT / "deploy" / "cron-run.sh")
+    if body.count("deploy/cron-run.sh") != 3:
+        _fail(f"chain must call cron-run.sh 3 times: {body!r}")
+    body = body.replace("deploy/cron-run.sh", shlex.quote(wrapper))
+    full = f"cd {shlex.quote(str(app))} && {body}"
+    proc = subprocess.run(
+        ["bash", "-c", full],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        _fail(
+            f"chain exit should be normalize (0) after fetch fail, got {proc.returncode}: "
+            f"{proc.stdout!r} {proc.stderr!r}"
+        )
+    if proc.stdout or proc.stderr:
+        _fail(f"chain leaked stdio: {proc.stdout!r} {proc.stderr!r}")
+    got = order.read_text(encoding="utf-8").splitlines()
+    if got != list(_TDNET_XBRL_JOBS):
+        _fail(f"chain order after fetch fail: {got!r}")
+    fetch_log = (logs / "tdnet_xbrl_r2.log").read_text(encoding="utf-8")
+    parse_log = (logs / "xbrl_parse.log").read_text(encoding="utf-8")
+    norm_log = (logs / "xbrl_normalize.log").read_text(encoding="utf-8")
+    if "fail cron jobs/xbrl/tdnet_xbrl_r2.py 2 exit=3" not in fetch_log:
+        _fail(f"fetch fail cron missing: {fetch_log!r}")
+    if "out jobs/xbrl/xbrl_parse.py" not in parse_log:
+        _fail(f"parse log missing: {parse_log!r}")
+    if "out jobs/xbrl/xbrl_normalize.py" not in norm_log:
+        _fail(f"normalize log missing: {norm_log!r}")
+    if "fail cron" in parse_log or "fail cron" in norm_log:
+        _fail(f"later stages must not page: {parse_log!r} {norm_log!r}")
+    if "xbrl_parse.py" in fetch_log or "tdnet_xbrl_r2.py" in parse_log:
+        _fail(f"job logs mixed: {fetch_log!r} {parse_log!r}")
+
+
 def _write_cron_python(path: Path, marker: str) -> None:
     path.write_text(
         "#!/usr/bin/env python3\n"
@@ -955,6 +1090,228 @@ def test_cron_run_picks_venv_python(tmp_path: Path) -> None:
         _fail(f"missing interpreter must page fail cron: {missing_log!r}")
 
 
+def test_cron_run_nice_ionice_source() -> None:
+    chk = subprocess.run(
+        ["bash", "-n", str(ROOT / "deploy" / "cron-run.sh")],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if chk.returncode != 0:
+        _fail(f"bash -n deploy/cron-run.sh failed: {chk.stderr or chk.stdout}")
+    src = (ROOT / "deploy" / "cron-run.sh").read_text(encoding="utf-8")
+    active = "\n".join(line.split("#", 1)[0] for line in src.splitlines())
+    if "-c3" in active:
+        _fail("cron-run.sh must not use ionice idle class -c3")
+    if "-n 10" not in active:
+        _fail("cron-run.sh must nice -n 10")
+    if "-c2" not in active or "-n7" not in active:
+        _fail("cron-run.sh must ionice -c2 -n7")
+    for rel in (
+        "deploy/stock-analyzer.service",
+        "deploy/stock-analyzer-mcp.service",
+        "deploy/uvicorn-start.sh",
+    ):
+        text = (ROOT / rel).read_text(encoding="utf-8")
+        for needle in ("Nice=", "IOSchedulingClass=", "IOSchedulingPriority=", "ionice", "nice -n"):
+            if needle in text:
+                _fail(f"{rel} must not lower service priority ({needle!r})")
+
+
+def _cron_run_env(app: Path, logs: Path, path: str | None = None) -> dict[str, str]:
+    env = os.environ.copy()
+    env["CRON_APP_DIR"] = str(app)
+    env["CRON_LOG_DIR"] = str(logs)
+    env["TZ"] = "UTC"
+    if path is not None:
+        env["PATH"] = path
+    return env
+
+
+def _write_prio_python(path: Path, exit_code: int = 0) -> None:
+    path.write_text(
+        f"#!{sys.executable}\n"
+        "import os\n"
+        "import shutil\n"
+        "import subprocess\n"
+        "pid = os.getpid()\n"
+        "print('ni=%d' % os.nice(0), flush=True)\n"
+        "print('pid=%d' % pid, flush=True)\n"
+        "ps = shutil.which('ps')\n"
+        "if ps:\n"
+        "    print('ps_ni=%d' % int(subprocess.check_output(\n"
+        "        [ps, '-o', 'ni=', '-p', str(pid)], text=True).strip()), flush=True)\n"
+        "    print(subprocess.check_output([ps, '-o', 'ni,cmd', '-p', str(pid)], text=True), flush=True)\n"
+        "ionice = shutil.which('ionice')\n"
+        "if ionice:\n"
+        "    print(\n"
+        "        'ioprio=' + subprocess.check_output(\n"
+        "            [ionice, '-p', str(pid)], text=True\n"
+        "        ).strip(),\n"
+        "        flush=True,\n"
+        "    )\n"
+        f"raise SystemExit({exit_code})\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+
+
+def _write_exec_recorder(path: Path, tag: str, log: Path, real: str) -> None:
+    path.write_text(
+        "#!/usr/bin/env bash\n"
+        f"printf '%s %s\\n' {tag!r} \"$*\" >> {log.as_posix()!r}\n"
+        f"exec {real!r} \"$@\"\n",
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
+
+
+def _path_without(names: tuple[str, ...], extra: Path | None = None) -> str:
+    kept: list[str] = []
+    if extra is not None:
+        extra.mkdir(parents=True, exist_ok=True)
+        for name in ("date", "mkdir", "touch", "ps", "bash"):
+            dest = extra / name
+            if not dest.exists():
+                src = shutil.which(name)
+                if src:
+                    dest.symlink_to(src)
+        kept.append(str(extra))
+    for directory in os.environ.get("PATH", "").split(os.pathsep):
+        if not directory:
+            continue
+        if any((Path(directory) / name).exists() for name in names):
+            continue
+        kept.append(directory)
+    return os.pathsep.join(kept) if kept else str(extra or "/usr/bin")
+
+
+def test_cron_run_nices_python(tmp_path: Path) -> None:
+    wrapper = str(ROOT / "deploy" / "cron-run.sh")
+    app = tmp_path / "app"
+    logs = tmp_path / "logs"
+    bindir = app / ".venv" / "bin"
+    bindir.mkdir(parents=True)
+    _write_prio_python(bindir / "python3", exit_code=0)
+    env = _cron_run_env(app, logs)
+    proc = subprocess.run(
+        ["bash", wrapper, "jobs/edinet/edinet_xbrl.py", "--limit", "300"],
+        cwd=app,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        _fail(f"niced cron-run exit {proc.returncode}: {proc.stdout!r} {proc.stderr!r}")
+    if proc.stdout or proc.stderr:
+        _fail(f"niced cron-run leaked stdio: {proc.stdout!r} {proc.stderr!r}")
+    text = (logs / "edinet_xbrl.log").read_text(encoding="utf-8")
+    if "fail cron" in text:
+        _fail(f"success log has fail cron: {text!r}")
+    if "ni=10" not in text:
+        _fail(f"python niceness is not 10: {text!r}")
+    if "ps_ni=10" not in text:
+        _fail(f"ps -o ni did not show 10: {text!r}")
+    if shutil.which("ionice") and "ioprio=" in text:
+        if "idle" in text or "ioprio=idle" in text:
+            _fail(f"ionice idle class is forbidden: {text!r}")
+        if "best-effort: prio 7" not in text and "best-effort: prio 07" not in text:
+            _fail(f"ionice class is not best-effort 7: {text!r}")
+
+    fail_app = tmp_path / "fail-app"
+    fail_logs = tmp_path / "fail-logs"
+    fail_bin = fail_app / ".venv" / "bin"
+    fail_bin.mkdir(parents=True)
+    _write_prio_python(fail_bin / "python3", exit_code=3)
+    fail = subprocess.run(
+        ["bash", wrapper, "jobs/market/run_batch.py", "--fail"],
+        cwd=fail_app,
+        env=_cron_run_env(fail_app, fail_logs),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if fail.returncode != 3:
+        _fail(f"niced fail exit {fail.returncode}: {fail.stdout!r} {fail.stderr!r}")
+    fail_log = (fail_logs / "run_batch.log").read_text(encoding="utf-8")
+    if "fail cron jobs/market/run_batch.py --fail exit=3" not in fail_log:
+        _fail(f"niced fail must page: {fail_log!r}")
+    if "ni=10" not in fail_log:
+        _fail(f"failed job niceness is not 10: {fail_log!r}")
+
+
+def test_cron_run_skips_missing_nice_ionice(tmp_path: Path) -> None:
+    wrapper = str(ROOT / "deploy" / "cron-run.sh")
+    rec = tmp_path / "rec.log"
+    fake = tmp_path / "fake-bin"
+    fake.mkdir()
+    nice_real = shutil.which("nice")
+    ionice_real = shutil.which("ionice")
+    if nice_real:
+        _write_exec_recorder(fake / "nice", "nice-argv", rec, nice_real)
+    if ionice_real:
+        _write_exec_recorder(fake / "ionice", "ionice-argv", rec, ionice_real)
+
+    app = tmp_path / "with-wrap"
+    logs = tmp_path / "with-wrap-logs"
+    bindir = app / ".venv" / "bin"
+    bindir.mkdir(parents=True)
+    _write_prio_python(bindir / "python3")
+    wrapped = subprocess.run(
+        ["bash", wrapper, "jobs/edinet/edinet_xbrl.py"],
+        cwd=app,
+        env=_cron_run_env(app, logs, path=f"{fake}{os.pathsep}{os.environ.get('PATH', '')}"),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if wrapped.returncode != 0:
+        _fail(f"recorder cron-run exit {wrapped.returncode}: {wrapped.stdout!r} {wrapped.stderr!r}")
+    recorded = rec.read_text(encoding="utf-8") if rec.exists() else ""
+    if nice_real:
+        if "nice-argv -n 10 " not in recorded:
+            _fail(f"nice was not invoked as nice -n 10: {recorded!r}")
+        if " -c3" in recorded.split("nice-argv", 1)[-1]:
+            _fail(f"nice argv must not pass -c3: {recorded!r}")
+    if ionice_real:
+        if "ionice-argv -c2 -n7 " not in recorded:
+            _fail(f"ionice was not invoked as ionice -c2 -n7: {recorded!r}")
+        if "ionice-argv -c3" in recorded or " -c3 " in recorded:
+            _fail(f"ionice -c3 is forbidden: {recorded!r}")
+
+    bare = tmp_path / "bare-bin"
+    bare.mkdir()
+    hidden_path = _path_without(("nice", "ionice"), extra=bare)
+    if shutil.which("nice", path=hidden_path) or shutil.which("ionice", path=hidden_path):
+        _fail(f"hidden PATH still has nice/ionice: {hidden_path!r}")
+    miss_app = tmp_path / "no-wrap"
+    miss_logs = tmp_path / "no-wrap-logs"
+    miss_bin = miss_app / ".venv" / "bin"
+    miss_bin.mkdir(parents=True)
+    _write_prio_python(miss_bin / "python3", exit_code=4)
+    missing = subprocess.run(
+        ["bash", wrapper, "jobs/xbrl/xbrl_parse.py"],
+        cwd=miss_app,
+        env=_cron_run_env(miss_app, miss_logs, path=hidden_path),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if missing.returncode != 4:
+        _fail(
+            f"missing nice/ionice should keep python exit, got {missing.returncode}: "
+            f"{missing.stdout!r} {missing.stderr!r}"
+        )
+    if missing.stdout or missing.stderr:
+        _fail(f"missing nice/ionice leaked stdio: {missing.stdout!r} {missing.stderr!r}")
+    miss_log = (miss_logs / "xbrl_parse.log").read_text(encoding="utf-8")
+    if "fail cron jobs/xbrl/xbrl_parse.py exit=4" not in miss_log:
+        _fail(f"missing nice/ionice must still page: {miss_log!r}")
+    if "ni=10" in miss_log:
+        _fail(f"python was niced without nice in PATH: {miss_log!r}")
+
+
 def main() -> None:
     from tempfile import TemporaryDirectory
 
@@ -967,8 +1324,16 @@ def main() -> None:
     test_slack_payload_jst_danger()
     with TemporaryDirectory() as d:
         test_cron_run_splits_and_stamps(Path(d))
+    test_crontab_chains_tdnet_xbrl()
+    with TemporaryDirectory() as d:
+        test_cron_xbrl_chain_continues_after_fetch_fail(Path(d))
     with TemporaryDirectory() as d:
         test_cron_run_picks_venv_python(Path(d))
+    test_cron_run_nice_ionice_source()
+    with TemporaryDirectory() as d:
+        test_cron_run_nices_python(Path(d))
+    with TemporaryDirectory() as d:
+        test_cron_run_skips_missing_nice_ionice(Path(d))
     print("ok: alert patterns")
 
 

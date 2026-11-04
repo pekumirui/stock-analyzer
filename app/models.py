@@ -32,6 +32,151 @@ class Stock(Base):
     edinet_code = Column(String(6))    # EDINET コードリストの証券コードで付ける。無い銘柄は NULL
 
 
+class Homepage(Base):
+    """上場会社のホームページ URL（KAB-319）。code は普通株（末尾 0）。FK は付けない。"""
+    __tablename__ = "homepages"
+    code = Column(String(5), primary_key=True)
+    url = Column(Text, nullable=False)
+    host = Column(String(255), nullable=False)        # 小文字。先頭 www. を除く（KAB-320）
+    source = Column(String(32), nullable=False)       # manual / xbrl_url / tanshin_html
+    origin = Column(Text, nullable=False)             # manual / xbrl:{doc_id} / tanshin:{disclosure_no}
+    changed_at = Column(DateTime, nullable=False)     # url 等が変わった時刻
+    checked_at = Column(DateTime, nullable=False)     # 最後に確認した時刻
+
+
+class BriefingDocument(Base):
+    """保存した決算説明資料（KAB-327）。FK は付けない。
+
+    TDnet の保存ジョブが source=tdnet で書き、IR BANK の過去分は source=irbank、
+    会社ホームページで見つけた PDF は source=homepage。document_id は出所をまたいで
+    同じ開示番号（TDnet の PDF ファイル名。18 桁）。code は普通株の 5 桁。
+    rel_path は data/briefing から。storage は local / onedrive（KAB-345）。
+    行は残す。OneDrive へ移しても status と rel_path は変えない。
+    """
+    __tablename__ = "briefing_documents"
+    source = Column(String(16), primary_key=True)       # tdnet / irbank / homepage
+    document_id = Column(String(80), primary_key=True)
+    code = Column(String(5), nullable=False)            # 普通株の 5 桁
+    company_name = Column(String)
+    pubdate = Column(String(32), nullable=False)        # 開示日時 YYYY-MM-DD HH:MM:SS
+    title = Column(Text, nullable=False)
+    rel_path = Column(Text, nullable=False)
+    url = Column(Text)
+    sha256 = Column(String(64))
+    size = Column(Integer)
+    status = Column(String(16), nullable=False)         # saved
+    storage = Column(String(16), nullable=False, default="local", server_default="local")
+    saved_at = Column(DateTime, nullable=False)         # JST naive
+    __table_args__ = (
+        Index("ix_briefing_documents_code_pubdate", "code", "pubdate"),
+    )
+
+
+class BriefingIrbankScan(Base):
+    """IR BANK の開示一覧を読み終えた銘柄（KAB-330）。FK は付けない。
+
+    過去分の一括取得が 1 社 1 回で済むようにする。行がある銘柄は次の実行で一覧を取りに行かない。
+    tools/briefing/irbank_ingest.py の --rescan を付けたときだけ、記録を無視して読み直す。
+    429 / 503 で止めた銘柄と、PDF の取得に失敗した銘柄は行を書かないので、次の実行が続きから取る。
+    """
+    __tablename__ = "briefing_irbank_scans"
+    code = Column(String(5), primary_key=True)          # 代表の 5 桁（末尾 0 を優先）
+    scanned_at = Column(DateTime, nullable=False)       # JST naive
+    listed = Column(Integer, nullable=False)            # 説明資料と判定した件数
+    saved = Column(Integer, nullable=False)
+    skipped = Column(Integer, nullable=False)           # 開示番号が索引済み
+    reindexed = Column(Integer, nullable=False)         # PDF は既にあり索引だけ足した
+    missing = Column(Integer, nullable=False)           # PDF が 404
+    failed = Column(Integer, nullable=False)
+
+
+class BriefingExtract(Base):
+    """決算説明資料の読み取り（KAB-349）。資料 1 つに 1 行。FK は付けない。
+
+    jobs/market/briefing_extract.py が Claude の Message Batches API に出すときに submitted で書き、
+    結果を受け取ったら done（1 ページでも読めたら）か failed にする。document_id は briefing_documents と
+    同じ開示番号（出所をまたいで同じ。どの出所の PDF を読んだかは source）。request_key は Batch の
+    custom_id の頭（document_id は custom_id に使えない文字を含みうる）。
+    """
+    __tablename__ = "briefing_extracts"
+    __table_args__ = (Index("ix_briefing_extracts_code", "code"), Index("ix_briefing_extracts_batch", "batch_id"))
+    document_id = Column(String(80), primary_key=True)
+    source = Column(String(16), nullable=False)          # 読んだ PDF の briefing_documents.source
+    code = Column(String(5), nullable=False)
+    status = Column(String(16), nullable=False)          # submitted / done / failed
+    batch_id = Column(String(80))
+    request_key = Column(String(24), nullable=False)
+    model = Column(String(40), nullable=False)
+    prompt_version = Column(String(16), nullable=False)
+    pages = Column(Integer)                              # PDF のページ数
+    llm_pages = Column(Integer)                          # Claude に回したページ数
+    error_pages = Column(Integer)
+    facts = Column(Integer)
+    verified = Column(Integer)                           # 文字データにある数字
+    sum_checks = Column(Integer)
+    sum_mismatch = Column(Integer)
+    input_tokens = Column(Integer)                       # キャッシュの読み書きを含む
+    output_tokens = Column(Integer)
+    error = Column(Text)
+    submitted_at = Column(DateTime, nullable=False)      # JST naive
+    extracted_at = Column(DateTime)
+
+
+class BriefingPage(Base):
+    """読み取った説明資料のページ（KAB-349）。表紙・注意事項など Claude に回さないページも kind だけ残す。
+
+    tables_json は Claude が返した表（列 × 行、行の of）をそのまま。画面の復元ビューが組み直す。
+    """
+    __tablename__ = "briefing_pages"
+    document_id = Column(String(80), primary_key=True)
+    page = Column(Integer, primary_key=True)
+    kind = Column(String(24), nullable=False)            # divider / disclaimer / chart_or_table / table_or_text / text
+    title = Column(Text)
+    summary = Column(Text)
+    tables_json = Column(Text)
+    error = Column(Text)
+
+
+class BriefingFact(Base):
+    """読み取った数値（KAB-349）。briefing_pages の表を 1 セル 1 行に展開したもの。銘柄・指標をまたいで引く用。"""
+    __tablename__ = "briefing_facts"
+    __table_args__ = (Index("ix_briefing_facts_doc", "document_id", "page"),)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    document_id = Column(String(80), nullable=False)
+    page = Column(Integer, nullable=False)
+    metric = Column(Text, nullable=False)
+    segment = Column(Text)
+    period = Column(Text)
+    period_kind = Column(String(24))                     # actual / forecast / previous_forecast / plan / change
+    value = Column(Text, nullable=False)                 # 資料の表記（符号は - にそろえる）
+    value_num = Column(Float)
+    unit = Column(String(24))
+    part_of = Column(Text)                               # 内訳の親（metric|segment）
+    verified = Column(Boolean, nullable=False)           # 文字データにある
+    sum_status = Column(String(12))                      # 親の行だけ: ok / split / paren / partial / mismatch
+
+
+class TanshinCover(Base):
+    """決算短信の表紙（KAB-325）。短信ごとに1行。FK は付けない。
+
+    決算補足説明資料作成の有無と決算説明会開催の有無。有は True、無は False、
+    表紙から読めなければ NULL。訂正・修正のお知らせは使わない。
+    説明資料の所在（TDnet / ホームページ）はこの表に置かない。
+    """
+    __tablename__ = "tanshin_covers"
+    __table_args__ = (Index("ix_tanshin_covers_code", "code"),)
+    disclosure_no = Column(String(32), primary_key=True)  # TDnet の書類 ID（PDF/ZIP の stem）
+    code = Column(String(5), nullable=False)              # 普通株の 5 桁
+    disclosed_at = Column(DateTime)
+    title = Column(Text)
+    source = Column(String(16), nullable=False)           # xbrl_summary / tdnet_pdf
+    has_material = Column(Boolean)                        # 決算補足説明資料作成の有無
+    material_note = Column(String(80))
+    has_briefing = Column(Boolean)                        # 決算説明会開催の有無
+    briefing_note = Column(String(80))
+    checked_at = Column(DateTime, nullable=False)
+
+
 class DailyPrice(Base):
     __tablename__ = "daily_prices"
     code = Column(String(5), primary_key=True)
@@ -52,7 +197,9 @@ class DailyPrice(Base):
     upper_limit = Column(Integer)     # J-Quants UL。その日にストップ高を付けたら 1。取込前の行は NULL
     lower_limit = Column(Integer)     # J-Quants LL。ストップ安
     ex_rt = Column(String)            # J-Quants ExRT。権利落ち日だけ 1=分割（無償割当を含む）/ 2=併合 / 3=ライツイシュー
-    __table_args__ = (Index("ix_prices_date", "date"),)
+    # 行を (code, date) 順に置く。rowid 表だと日ごとの追記で 1 銘柄の行が表全体に散り、
+    # チャート 1 回で千ページ以上をランダムに読む (KAB-289)。既存 DB は jobs/ops/rebuild_daily_prices.py
+    __table_args__ = (Index("ix_prices_date", "date"), {"sqlite_with_rowid": False})
 
 
 class Topix(Base):
@@ -93,6 +240,38 @@ class Statement(Base):
     fy_eps = Column(Float)
     is_revision = Column(Boolean, default=False)
     raw_json = Column(Text)
+    __table_args__ = (
+        # カレンダーの重複判定と決算一覧の履歴。raw_json 以外を載せて表本体を読まない (KAB-292)
+        Index(
+            "ix_statements_earnings_cover",
+            "code",
+            "disclosed_date",
+            "disclosure_no",
+            "disclosed_time",
+            "type_of_period",
+            "type_of_document",
+            "period_start",
+            "period_end",
+            "fiscal_year_start",
+            "fiscal_year_end",
+            "net_sales",
+            "operating_profit",
+            "ordinary_profit",
+            "profit",
+            "eps",
+            "f2_net_sales",
+            "f2_operating_profit",
+            "f2_ordinary_profit",
+            "f2_profit",
+            "f2_eps",
+            "fy_net_sales",
+            "fy_operating_profit",
+            "fy_ordinary_profit",
+            "fy_profit",
+            "fy_eps",
+            "is_revision",
+        ),
+    )
 
 
 class Indicator(Base):
@@ -125,6 +304,7 @@ class EarningsDatePub(Base):
     sch_date = Column(Date, nullable=True)  # NULL は未定。欠測ではない
     fye = Column(String(4), nullable=False)  # MMDD。0299 は 2月末
     co_name = Column(String, nullable=False)
+    __table_args__ = (Index("ix_earnings_date_pubs_sch_date", "sch_date"),)
 
 
 class EarningsDateFetch(Base):
@@ -240,6 +420,12 @@ class XbrlFiling(Base):
         UniqueConstraint("source", "doc_id", name="uq_xbrl_filings_source_doc"),
         Index("idx_xbrl_filings_code_submitted", "code", "submitted_at"),
         Index("idx_xbrl_filings_parse_status", "parse_status"),
+        # 決算一覧の売上総利益。id 引きのあと source / doc_id / submitted_at / parse_status
+        # を表本体から読まない (KAB-295)
+        Index(
+            "idx_xbrl_filings_id_cover",
+            "id", "parse_status", "source", "doc_id", "submitted_at",
+        ),
     )
 
 
@@ -409,9 +595,13 @@ class XbrlFinancial(Base):
             "value_kind", "range_side", "target_period",
             name="uq_xbrl_financials_key",
         ),
+        # 決算一覧の売上総利益。code / std_item_id / value_kind で引き、表本体を読まない (KAB-295)
+        # 旧 idx_xbrl_financials_lookup (code, std_item_id, is_consolidated, period_end, value_kind)
+        # は先頭 2 列が同じなので ensure_indexes が外す
         Index(
-            "idx_xbrl_financials_lookup",
-            "code", "std_item_id", "is_consolidated", "period_end", "value_kind",
+            "idx_xbrl_financials_gp_cover",
+            "code", "std_item_id", "value_kind", "is_consolidated",
+            "period_start", "period_end", "value", "filing_id",
         ),
     )
 
@@ -444,6 +634,62 @@ class XbrlSegment(Base):
         ),
         Index("idx_xbrl_segments_lookup", "code", "std_item_id", "period_end"),
         Index("idx_xbrl_segments_filing", "filing_id"),
+    )
+
+
+class XbrlShareholderFiling(Base):
+    """有報の大株主・所有者別の 1 書類（KAB-266）。xbrl_facts から正規化。API は別 issue。
+
+    訂正は同じ code / fiscal_year_end / doc_type のうち提出が新しい 1 件が is_latest。
+    """
+    __tablename__ = "xbrl_shareholder_filings"
+    filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), primary_key=True)
+    code = Column(String(5), nullable=False)
+    doc_id = Column(String(64), nullable=False)
+    as_of = Column(Date)                            # 大株主・所有者別の instant（期末）
+    basis = Column(String(16), nullable=False)      # shares / voting_rights / both
+    shares_per_unit = Column(Integer)               # 単元株式数（普通株式。無ければ NULL）
+    is_amendment = Column(Boolean, nullable=False, default=False)
+    amends_doc_id = Column(String(8))
+    original_doc_id = Column(String(8), nullable=False)
+    is_latest = Column(Boolean, nullable=False, default=False)
+    withdrawn = Column(Boolean, nullable=False, default=False)
+    generated_at = Column(DateTime, nullable=False)
+    __table_args__ = (
+        Index("idx_xbrl_shareholder_filings_code", "code", "as_of"),
+        Index("idx_xbrl_shareholder_filings_latest", "code", "is_latest"),
+    )
+
+
+class XbrlMajorShareholder(Base):
+    """大株主の状況 1 行（順位 × 株式ベース / 議決権ベース）。"""
+    __tablename__ = "xbrl_major_shareholders"
+    filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), primary_key=True)
+    rank = Column(Integer, primary_key=True)        # NoNMajorShareholdersMember の N
+    basis = Column(String(16), primary_key=True)    # shares / voting_rights
+    name = Column(Text)
+    address = Column(Text)
+    shares_held = Column(Numeric(30, 4))            # 所有株式数。議決権ベースの表は NULL
+    shareholding_ratio = Column(Numeric(18, 6))     # 0.1650 = 16.50%
+    voting_rights = Column(Numeric(30, 4))          # 所有議決権数（個）
+    voting_rights_ratio = Column(Numeric(18, 6))
+    __table_args__ = (
+        Index("idx_xbrl_major_shareholders_filing", "filing_id"),
+    )
+
+
+class XbrlShareholdingByCategory(Base):
+    """所有者別状況 1 行（株式の種類 × 区分）。"""
+    __tablename__ = "xbrl_shareholding_by_category"
+    filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), primary_key=True)
+    share_class = Column(String(255), primary_key=True)  # OrdinaryShareMember 等。軸が無ければ ''
+    category = Column(String(32), primary_key=True)
+    shareholder_count = Column(Integer)
+    units_held = Column(BigInteger)                 # 所有株式数（単元）
+    shareholding_ratio = Column(Numeric(18, 6))     # 0.2780 = 27.80%。計の行は無いので NULL
+    shares_less_than_one_unit = Column(Numeric(30, 4))  # 単元未満株式。区分の計の行に載せる
+    __table_args__ = (
+        Index("idx_xbrl_shareholding_by_category_filing", "filing_id"),
     )
 
 
@@ -589,6 +835,23 @@ class EdinetDocument(Base):
     )
 
 
+class EdinetArchive(Base):
+    """EDINET の書類取得 API の ZIP を残した記録（KAB-281）。中身は data/edinet → OneDrive。
+
+    status: saved（data/edinet に書いた。翌朝 backup_data が OneDrive へ move する）/
+    gone（取り直しのとき EDINET が 404。残っていない）。
+    """
+    __tablename__ = "edinet_archives"
+    doc_id = Column(String(8), primary_key=True)
+    file_type = Column(Integer, primary_key=True)    # 書類取得 API の type（1 / 5）
+    doc_type_code = Column(String(3))
+    rel_path = Column(Text, nullable=False)           # data/edinet からの相対パス
+    status = Column(String(8), nullable=False)
+    bytes = Column(Integer)
+    sha256 = Column(String(64))
+    saved_at = Column(DateTime, nullable=False)       # JST naive
+
+
 class EdinetListDay(Base):
     """書類一覧を取った日ごとの記録。finalized の日は取り直さない。"""
     __tablename__ = "edinet_list_days"
@@ -639,6 +902,8 @@ class LargeHoldingReport(Base):
     fetched_at = Column(DateTime, nullable=False)
     __table_args__ = (
         Index("ix_large_holding_reports_code", "code", "obligation_date"),
+        Index("ix_large_holding_reports_file_date", "file_date"),
+        Index("ix_large_holding_reports_latest_file", "is_latest", "file_date"),
     )
 
 

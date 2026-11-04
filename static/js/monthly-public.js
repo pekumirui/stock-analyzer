@@ -31,8 +31,8 @@ function bootPublicMonthly(){
     if(!/^\/monthly(?:\/[0-9][0-9A-Z]{3}[0-9]?)?$/i.test(url.pathname)) return;
     ev.preventDefault();
     if(url.pathname === "/monthly"){
-      showMonthlyTop();
       if(location.pathname !== "/monthly") history.pushState({}, "", "/monthly");
+      showMonthlyTop();
       document.title = "月次売上 | 株KPI";
       return;
     }

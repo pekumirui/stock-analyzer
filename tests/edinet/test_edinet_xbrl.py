@@ -27,7 +27,10 @@ from app.models import (  # noqa: E402
     XbrlFact,
     XbrlFiling,
     XbrlFinancial,
+    XbrlMajorShareholder,
     XbrlSegment,
+    XbrlShareholderFiling,
+    XbrlShareholdingByCategory,
     XbrlStdItem,
 )
 from app.xbrl.context import ParsedContext  # noqa: E402
@@ -84,7 +87,8 @@ def _doc(seq: int, doc_id: str, **over) -> EdinetDocument:
 
 
 def _reset(db) -> None:
-    for model in (XbrlSegment, XbrlFinancial, XbrlFact, XbrlContext, XbrlFiling, EdinetDocument, Stock):
+    for model in (XbrlMajorShareholder, XbrlShareholdingByCategory, XbrlShareholderFiling,
+                  XbrlSegment, XbrlFinancial, XbrlFact, XbrlContext, XbrlFiling, EdinetDocument, Stock):
         db.execute(delete(model))
     db.add(Stock(code="72030", name="トヨタ", product_category="011", market="プライム"))
     db.commit()
@@ -131,6 +135,28 @@ def test_keep_fact() -> None:
     # セグメント軸は残す（KAB-77。tests/edinet/test_edinet_segments.py）。ほかの軸は捨てる
     assert keep_fact(fact(), ctx("current", {"jpcrp_cor:OperatingSegmentsAxis": "x:AutoMember"}))
     assert not keep_fact(fact(), ctx("current", {"jppfs_cor:ComponentsOfEquityAxis": "x:CapitalStockMember"}))
+    # 大株主・所有者別の軸は要素名があるときだけ残す（KAB-266）
+    name = ParsedFact(namespace_uri="u", namespace_key="jpcrp_cor", local_name="NameMajorShareholders",
+                      context_ref="c", unit=None, scale=None, value_num=None, value_text="A",
+                      is_nil=False, is_numeric=False)
+    assert keep_fact(name, ctx("current", {"jpcrp_cor:MajorShareholdersAxis":
+                                           "jpcrp_cor:No1MajorShareholdersMember"}))
+    vr = ParsedFact(namespace_uri="u", namespace_key="jpcrp_cor",
+                    local_name="NameMajorShareholdersVotingRights",
+                    context_ref="c", unit=None, scale=None, value_num=None, value_text="A",
+                    is_nil=False, is_numeric=False)
+    assert keep_fact(vr, ctx("current", {"jpcrp_cor:MajorShareholdersVotingRightsAxis":
+                                         "jpcrp_cor:No1MajorShareholdersVotingRightsMember"}))
+    assert not keep_fact(fact(), ctx("current", {"jpcrp_cor:MajorShareholdersAxis":
+                                                "jpcrp_cor:No1MajorShareholdersMember"}))
+    cat = ParsedFact(namespace_uri="u", namespace_key="jpcrp_cor",
+                     local_name="NumberOfShareholdersFinancialInstitutions",
+                     context_ref="c", unit=None, scale=None, value_num=Decimal(1),
+                     value_text=None, is_nil=False, is_numeric=True)
+    assert keep_fact(cat, ctx("current", {"jpcrp_cor:ClassesOfSharesAxis":
+                                         "jpcrp_cor:OrdinaryShareMember"}))
+    assert not keep_fact(cat, ctx("prior1", {"jpcrp_cor:ClassesOfSharesAxis":
+                                            "jpcrp_cor:OrdinaryShareMember"}))
     assert keep_fact(fact("jpdei_cor"), ctx(None))
     assert not keep_fact(fact(), None)
 

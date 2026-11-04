@@ -77,11 +77,24 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends "${need[@]}"
 
+      # tests/ops/test_monitoring.py が実物の vmalert-tool / Alertmanager / VictoriaMetrics を動かす。
+      # 永続ランナーなので binaries.txt のハッシュごとに一度だけ落とす。
+      - name: Fetch monitoring binaries
+        run: |
+          set -euo pipefail
+          key="$(sha256sum deploy/monitoring/binaries.txt | cut -c1-16)"
+          dir="$HOME/.cache/stock-analyzer-monitoring/$key"
+          if [ ! -x "$dir/victoria-metrics" ]; then
+            bash deploy/monitoring/fetch.sh "$dir"
+          fi
+          echo "MONITORING_BIN_DIR=$dir" >> "$GITHUB_ENV"
+
       - name: Compile
         run: python -m compileall -q -f app jobs tests tools deploy mcp .cursor
 
+      # --dataflow=check: テスト中の SQL から作った読み書き表と docs/DATA_FLOW.md が合わなければ落とす
       - name: Test
-        run: python -m pytest tests -q
+        run: python -m pytest tests -q --dataflow=check
 
   lint:
     name: Lint
@@ -237,6 +250,7 @@ jobs:
       JQUANTS_API_KEY: ${{ secrets.JQUANTS_API_KEY }}
       ESTAT_APP_ID: ${{ secrets.ESTAT_APP_ID }}
       EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
       BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
       MCP_TOKEN: ${{ secrets.MCP_TOKEN }}
@@ -305,6 +319,7 @@ jobs:
               "JQUANTS_API_KEY",
               "ESTAT_APP_ID",
               "EDINET_API_KEY",
+              "ANTHROPIC_API_KEY",
               "BASIC_AUTH_USER",
               "BASIC_AUTH_PASSWORD",
               "CERTBOT_EMAIL",

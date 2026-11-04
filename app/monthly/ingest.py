@@ -6,6 +6,7 @@ import re
 import unicodedata
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal, Sequence, TypedDict
 
@@ -1403,6 +1404,14 @@ def monthly_element_label(
     element: str, unit: str | None, code: str | None = None,
 ) -> MonthlyElementLabel:
     """code は銘柄別の件数・率指標を層と保存名に効かせる。#534 の件数語の並べ替えはしない。"""
+    # 月次の画面は行ごとに何度も呼ぶ。語彙は起動時に読むだけなので結果は入力で決まる
+    return dict(_monthly_element_label(element, unit, code))  # type: ignore[return-value]
+
+
+@lru_cache(maxsize=65536)
+def _monthly_element_label(
+    element: str, unit: str | None, code: str | None,
+) -> MonthlyElementLabel:
     u = unit or "number"
     canon = canonicalize_element_label(strip_monthly_display_unit(element, u), u, code)
     display = monthly_display_label(canon, u)

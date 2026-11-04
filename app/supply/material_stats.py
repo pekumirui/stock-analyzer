@@ -20,11 +20,13 @@ from sqlalchemy import tuple_
 from sqlalchemy.orm import Session
 
 from ..config import MATERIAL_STATS_PATH
-from ..db import upsert
+from ..db import run_sqlite_write, upsert
 from ..models import MaterialMonthly, MaterialTradeCountry
 
 METRICS = ("production", "shipment", "inventory", "import", "export", "processing", "domestic_sales")
 REVISION_SOKUHO, REVISION_KAKUHO, REVISION_NENPO = 1, 2, 3
+# revision 照会と UPSERT をこの件数で切る。1 本の executemany で busy_timeout を超えない
+WRITE_CHUNK = 500
 SEIDOU_SOURCE = "seidou:{report}"
 TRADE_SOURCE = "trade"
 SEKIYU_SOURCE = "sekiyu"
@@ -325,19 +327,37 @@ def prune_unmapped(db: Session, data: dict) -> int:
     return n
 
 
+def _commit(db: Session) -> None:
+    if db.in_transaction():
+        db.commit()
+
+
+def _upsert_chunks(db: Session, model, payload: list[dict]) -> None:
+    """短いトランザクションで UPSERT。locked は run_sqlite_write が補助で再試行する。"""
+    for i in range(0, len(payload), WRITE_CHUNK):
+        chunk = payload[i:i + WRITE_CHUNK]
+        run_sqlite_write(db, lambda chunk=chunk: upsert(db, model, chunk, commit=False))
+
+
 def write_rows(db: Session, rows: list[Row]) -> int:
-    """UPSERT。保存済みより revision が低い行は書かない（確報を速報で上書きしない）。書いた行数"""
+    """UPSERT。保存済みより revision が低い行は書かない（確報を速報で上書きしない）。書いた行数
+
+    revision 照会は読んですぐ commit する。SELECT のまま INSERT すると、別接続が
+    書き込みロックを持ったときに昇格待ちで busy_timeout まで database is locked になる。
+    """
     if not rows:
         return 0
+    _commit(db)
     keys = [(r.material_id, r.month, r.metric, r.source) for r in rows]
     have: dict[tuple, int] = {}
     pk = (MaterialMonthly.material_id, MaterialMonthly.month, MaterialMonthly.metric, MaterialMonthly.source)
-    for i in range(0, len(keys), 500):
-        q = db.query(*pk, MaterialMonthly.revision).filter(tuple_(*pk).in_(keys[i:i + 500]))
+    for i in range(0, len(keys), WRITE_CHUNK):
+        q = db.query(*pk, MaterialMonthly.revision).filter(tuple_(*pk).in_(keys[i:i + WRITE_CHUNK]))
         have.update({(a, b, c, d): rev for a, b, c, d, rev in q})
+    _commit(db)
     keep = [r for r, k in zip(rows, keys) if r.revision >= have.get(k, 0)]
     now = now_utc()
-    upsert(db, MaterialMonthly, [r.as_dict(now) for r in keep])
+    _upsert_chunks(db, MaterialMonthly, [r.as_dict(now) for r in keep])
     return len(keep)
 
 
@@ -345,14 +365,16 @@ def write_country_rows(db: Session, rows: list[CountryRow]) -> int:
     """国別の UPSERT。write_rows と同じく revision が下がる上書きはしない。書いた行数"""
     if not rows:
         return 0
+    _commit(db)
     pk = (MaterialTradeCountry.material_id, MaterialTradeCountry.month,
           MaterialTradeCountry.flow, MaterialTradeCountry.country)
     keys = [(r.material_id, r.month, r.flow, r.country) for r in rows]
     have: dict[tuple, int] = {}
-    for i in range(0, len(keys), 500):
-        q = db.query(*pk, MaterialTradeCountry.revision).filter(tuple_(*pk).in_(keys[i:i + 500]))
+    for i in range(0, len(keys), WRITE_CHUNK):
+        q = db.query(*pk, MaterialTradeCountry.revision).filter(tuple_(*pk).in_(keys[i:i + WRITE_CHUNK]))
         have.update({(a, b, c, d): rev for a, b, c, d, rev in q})
+    _commit(db)
     keep = [r for r, k in zip(rows, keys) if r.revision >= have.get(k, 0)]
     now = now_utc()
-    upsert(db, MaterialTradeCountry, [r.as_dict(now) for r in keep])
+    _upsert_chunks(db, MaterialTradeCountry, [r.as_dict(now) for r in keep])
     return len(keep)

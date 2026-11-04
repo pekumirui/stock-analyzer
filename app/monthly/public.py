@@ -82,6 +82,7 @@ def _shell(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="/static/js/view-mode.js"></script>
 <title>{t}</title>
 <meta name="description" content="{d}">
 <link rel="canonical" href="{can}">
@@ -98,6 +99,7 @@ def _shell(
 <body class="public-monthly" data-public-monthly="1">
 <header>
   <a class="brand" href="/monthly">{escape(PUBLIC_SITE_NAME)}</a>
+  <nav id="crumbs" aria-label="パンくず" hidden></nav>
 </header>
 <main>
 <section id="tab-monthly">
@@ -123,7 +125,9 @@ def _shell(
 </section>
 </main>
 <footer class="site-foot">{escape(DISCLAIMER)} {escape(SOURCE)}</footer>
+<p id="view-mode" hidden><a href="#view-mode" id="view-mode-btn">PC版を表示</a></p>
 <script src="/static/js/api.js"></script>
+<script src="/static/js/screens.js"></script>
 <script src="/static/js/monthly.js"></script>
 <script src="/static/js/monthly-public.js"></script>
 </body>
@@ -137,7 +141,7 @@ def render_top_list(issuers: list[dict]) -> str:
     rows = []
     for r in issuers:
         code = str(r.get("code") or "")
-        href = f"/monthly/{escape(code4(code))}"
+        href = f"/monthly/{escape(code4(code))}?from=monthly"
         label = escape(issuer_label(code, r.get("name")))
         neu = '<span class="badge new">NEW</span>' if r.get("ingested_today") else ""
         ind = escape(str(r.get("industry") or "その他"))
@@ -153,7 +157,7 @@ def render_top_list(issuers: list[dict]) -> str:
         )
     body = "".join(rows)
     return (
-        '<table id="monthly-tbl"><thead><tr>'
+        '<table id="monthly-tbl" class="sheet"><thead><tr>'
         '<th class="l">会社名</th><th class="l">月次業種</th>'
         "<th>全店(前年比)</th><th>既存店(前年比)</th>"
         f"</tr></thead><tbody>{body}</tbody></table>"

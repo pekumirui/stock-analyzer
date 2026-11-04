@@ -22,8 +22,11 @@ from app.xbrl.parser import ParsedPackage
 from app.xbrl.pdf._layout import (
     PdfLayoutError,
     format_garbled_pages,
+    format_textless_pages,
     garbled_page_indexes,
+    outlined_page,
     read_pages,
+    textless_page_indexes,
 )
 from app.xbrl.pdf._tanshin import (
     DocKind,
@@ -50,17 +53,20 @@ __all__ = [
     "SyncOutcome",
     "Unsupported",
     "format_garbled_pages",
+    "format_textless_pages",
     "garbled_page_indexes",
     "label_key",
+    "outlined_page",
     "read_pages",
     "read_tdnet_pdf",
     "sync_pdf_filing",
     "sync_pdf_filings",
+    "textless_page_indexes",
 ]
 
 SOURCE = "tdnet_pdf"
 # レイアウト・行名・label_key の結果が変わったら上げる。上げると全 PDF filing の指紋がずれる。
-READER_VERSION = 15
+READER_VERSION = 19
 _STD_DOC = re.compile(
     r"^(?:1Q|2Q|3Q|FY)FinancialStatements_(Consolidated|NonConsolidated)_(IFRS|JP)$"
 )
@@ -278,7 +284,9 @@ def _sync(db: Session, disclosure_no: str, zip_parsed: bool, *, reparse: bool) -
     try:
         html = gzip.decompress(plan.doc.html_gz).decode("utf-8")
         pages = read_pages(html)
-        garbled_note = format_garbled_pages(garbled_page_indexes(pages))
+        garbled_idx = garbled_page_indexes(pages)
+        garbled_note = format_garbled_pages(garbled_idx)
+        textless_note = format_textless_pages(textless_page_indexes(pages, exclude=garbled_idx))
         amendment = is_amendment_notice(plan.doc.title, pages)
         pkg = _kept(package(drop_pre_correction(pages), plan.disclosure))
     except PdfLayoutError as exc:
@@ -301,8 +309,9 @@ def _sync(db: Session, disclosure_no: str, zip_parsed: bool, *, reparse: bool) -
     store_package(db, filing, pkg)
     normalize_filing(db, filing)
     filing.is_amendment = amendment
-    if garbled_note:
-        filing.parse_error = garbled_note
+    notes = [note for note in (garbled_note, textless_note) if note]
+    if notes:
+        filing.parse_error = "; ".join(notes)
     db.commit()
     return SyncOutcome.PARSED
 
@@ -315,18 +324,20 @@ def sync_pdf_filings(
     limit: int = 2000,
 ) -> Counter:
     """ok の HTML か、既存の PDF filing がある開示。新しい順。remaining は今回見なかった件数。"""
-    docs = db.query(TdnetPdfDocument).filter(TdnetPdfDocument.status == "ok")
-    filings = db.query(XbrlFiling).filter_by(source=SOURCE)
+    docs = db.query(
+        TdnetPdfDocument.disclosure_no, TdnetPdfDocument.disclosed_date,
+    ).filter(TdnetPdfDocument.status == "ok")
+    filings = db.query(XbrlFiling.doc_id, XbrlFiling.submitted_at).filter_by(source=SOURCE)
     if codes:
         docs = docs.filter(TdnetPdfDocument.code.in_(codes))
         filings = filings.filter(XbrlFiling.code.in_(codes))
     rank: dict[str, date] = {}
-    for doc in docs:
-        rank[doc.disclosure_no] = doc.disclosed_date or date.min
-    for filing in filings:
+    for disclosure_no, disclosed_date in docs:
+        rank[disclosure_no] = disclosed_date or date.min
+    for doc_id, submitted_at in filings:
         rank.setdefault(
-            filing.doc_id,
-            filing.submitted_at.date() if filing.submitted_at else date.min,
+            doc_id,
+            submitted_at.date() if submitted_at else date.min,
         )
     ordered = sorted(rank, key=lambda number: (rank[number], number), reverse=True)
     zip_rows = db.query(XbrlFiling.doc_id).filter_by(source="tdnet", parse_status="parsed")
@@ -338,8 +349,11 @@ def sync_pdf_filings(
             counts[outcome] += 1
             if outcome is SyncOutcome.PARSED:
                 filing = _filing(db, number)
-                if filing is not None and (filing.parse_error or "").startswith("garbled"):
+                err = filing.parse_error or "" if filing is not None else ""
+                if err.startswith("garbled"):
                     counts["garbled"] += 1
+                if "textless" in err:
+                    counts["textless"] += 1
         except Exception as exc:
             db.rollback()
             counts[SyncOutcome.FAILED] += 1

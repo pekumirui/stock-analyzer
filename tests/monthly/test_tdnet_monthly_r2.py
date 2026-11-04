@@ -1,8 +1,10 @@
 """tdnet_monthly_r2 の純関数。ネットワークには出ない。"""
 from __future__ import annotations
 
-import json
+import io
+import re
 import sys
+from contextlib import redirect_stdout
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -19,7 +21,7 @@ from jobs.monthly.tdnet_monthly_r2 import (  # noqa: E402
     is_monthly_title,
     jq_lookup_code,
     load_stock_product_map,
-    parse_list_body,
+    has_list_keyword,
     should_skip_infra_fund,
     tdnet_pdf_id,
 )
@@ -27,6 +29,32 @@ from jobs.monthly.tdnet_monthly_r2 import (  # noqa: E402
 
 def _fail(msg: str) -> None:
     raise SystemExit(msg)
+
+
+_CRON_DAYS_RE = re.compile(
+    r"^[^#]*jobs/monthly/tdnet_monthly_r2\.py\s+(\d+)\b"
+)
+
+
+def test_crontab_lookback_covers_late_days() -> None:
+    """日次 cron が当日1日だと、取りこぼした日を翌日以降拾えない（KAB-275）。"""
+    crontab = (ROOT / "deploy" / "crontab").read_text(encoding="utf-8")
+    days_vals: list[int] = []
+    for line in crontab.splitlines():
+        m = _CRON_DAYS_RE.search(line)
+        if m:
+            days_vals.append(int(m.group(1)))
+    if not days_vals:
+        _fail("deploy/crontab has no tdnet_monthly_r2.py days argument")
+    if len(set(days_vals)) != 1:
+        _fail(f"tdnet_monthly_r2.py days must be the same on every cron line: {days_vals}")
+    days = days_vals[0]
+    if days < 4:
+        _fail(f"tdnet_monthly_r2.py cron days={days} must be >= 4 (KAB-275)")
+    readme = (ROOT / "deploy" / "README.md").read_text(encoding="utf-8")
+    needle = f"`jobs/monthly/tdnet_monthly_r2.py {days}`"
+    if needle not in readme:
+        _fail(f"deploy/README.md must document {needle}")
 
 
 def test_display_code() -> None:
@@ -108,7 +136,11 @@ def test_stock_product_map_sqlite(tmp: Path) -> None:
     conn.commit()
     conn.close()
 
+    before = db.read_bytes()
     m = load_stock_product_map(db_path=db)
+    # 読み取り専用で開く。DB の中身を変えない（この DB は WAL でないので -wal / -shm もできない。WAL の DB は ro でも SQLite が作る）
+    if db.read_bytes() != before or any(Path(f"{db}{s}").exists() for s in ("-wal", "-shm", "-journal")):
+        _fail("load_stock_product_map must not write to the db")
     cat, name = m[jq_lookup_code("9282")]
     if not should_skip_infra_fund(cat, name, "ジャパン・インフラファンド投資法人"):
         _fail("sqlite 9282 should skip")
@@ -122,6 +154,15 @@ def test_stock_product_map_sqlite(tmp: Path) -> None:
     empty = load_stock_product_map(db_path=tmp / "absent.db")
     if empty:
         _fail(f"missing db should be empty map: {empty!r}")
+    if (tmp / "absent.db").exists():
+        _fail("missing db must not be created")
+    broken = tmp / "broken.db"
+    broken.write_bytes(b"not a sqlite file")
+    buf = io.StringIO()
+    with redirect_stdout(buf):
+        got = load_stock_product_map(db_path=broken)
+    if got != {} or "warn stocks db unreadable" not in buf.getvalue():
+        _fail(f"unreadable db should warn and return empty: {got!r} {buf.getvalue()!r}")
     if not should_skip_infra_fund(None, None, "○○インフラ投資法人"):
         _fail("DB missing fallback should still skip インフラ投資法人")
     if should_skip_infra_fund(None, None, "ジャパン・ホテル・リート投資法人"):
@@ -215,15 +256,6 @@ def test_download_skip_reason() -> None:
 
 
 def test_tdnet_pdf_id() -> None:
-    url = (
-        "https://webapi.yanoshin.jp/rd.php?"
-        "https://www.release.tdnet.info/inbs/140120260805509698.pdf"
-    )
-    got = tdnet_pdf_id(url)
-    if got != "140120260805509698":
-        _fail(f"pdf id from document_url: {got!r}")
-    if got == "1271048":
-        _fail("used yanoshin numeric id")
     direct = "https://www.release.tdnet.info/inbs/140120260805509698.pdf"
     if tdnet_pdf_id(direct) != "140120260805509698":
         _fail(f"direct inbs url: {tdnet_pdf_id(direct)!r}")
@@ -306,7 +338,7 @@ def test_dest_path_per_code_dir() -> None:
     if not b.name.startswith("20260805_386A_"):
         _fail(f"386A dest: {b.name!r}")
     if "386A0" in str(b):
-        _fail(f"must not keep yanoshin 5-char padding: {b}")
+        _fail(f"must not keep the 5-char code padding: {b}")
     if b.parent == dest:
         _fail("dest must be nested under {code}, not flat monthly/")
 
@@ -380,31 +412,13 @@ def test_is_monthly_title() -> None:
             _fail(f"should exclude: {t!r}")
 
 
-def test_parse_list_body_tdnet_key() -> None:
-    raw = """
-    {"items": [
-      {"Tdnet": {
-        "id": "1271048",
-        "pubdate": "2026-08-05 19:00:00",
-        "company_code": "92790",
-        "company_name": "ギフトHD",
-        "title": "直営店売上速報についてのお知らせ",
-        "document_url": "https://webapi.yanoshin.jp/rd.php?https://www.release.tdnet.info/inbs/140120260805509698.pdf"
-      }},
-      {"TDnet": {
-        "id": "1",
-        "title": "月次",
-        "document_url": "https://www.release.tdnet.info/inbs/140199999999999999.pdf"
-      }}
-    ]}
-    """
-    rows = parse_list_body(raw)
-    if len(rows) != 2:
-        _fail(f"parse_list_body rows: {rows!r}")
-    if tdnet_pdf_id(rows[0]["document_url"]) != "140120260805509698":
-        _fail("Tdnet wrapper pdf id")
-    if rows[0]["id"] == tdnet_pdf_id(rows[0]["document_url"]):
-        _fail("yanoshin id must not equal TDnet pdf id")
+def test_has_list_keyword() -> None:
+    for t in ("8月度 月次売上高", "売上速報", "MONTHLY REPORT 2026", "店舗売上のお知らせ"):
+        if not has_list_keyword(t):
+            _fail(f"keyword: {t!r}")
+    for t in ("受注速報", "決算短信", ""):
+        if has_list_keyword(t):
+            _fail(f"no keyword: {t!r}")
 
 
 def test_date_window_and_skip(tmp: Path) -> None:
@@ -462,7 +476,7 @@ def test_http_get_uses_job_ua_then_browser() -> None:
         return cm
 
     with patch("urllib.request.urlopen", side_effect=fake_urlopen):
-        body = mod.http_get("https://webapi.yanoshin.jp/webapi/tdnet/list/x.json")
+        body = mod.http_get("https://www.release.tdnet.info/inbs/I_list_001_20260805.html")
     if body != b"ok":
         _fail(f"body {body!r}")
     if uas != [mod.USER_AGENT, BROWSER_UA]:
@@ -504,54 +518,50 @@ def test_resolve_database_url(tmp: Path) -> None:
         _fail("non-sqlite DATABASE_URL must give an empty map")
 
 
-def test_run_pages_dedups_and_saves(tmp: Path) -> None:
+def test_run_filters_dedups_and_saves(tmp: Path) -> None:
     import io
     from contextlib import redirect_stdout
     from datetime import date
     from unittest.mock import patch
-    from urllib.parse import parse_qs, urlparse
 
     import jobs.monthly.tdnet_monthly_r2 as mod
 
-    def rec(yid: str, code: str, name: str, title: str, pdf: str) -> dict:
+    def rec(code: str, name: str, title: str, pdf: str) -> dict:
         return {
-            "id": yid, "pubdate": "2026-08-05 15:00:00", "company_code": code,
+            "pubdate": "2026-08-05 15:00:00", "company_code": code,
             "company_name": name, "title": title,
-            "document_url": f"https://www.release.tdnet.info/inbs/{pdf}.pdf",
+            "document_url": f"https://www.release.tdnet.info/inbs/{pdf}.pdf" if pdf else "",
+            "url_xbrl": "",
         }
 
-    gift = rec("1005", "92790", "ギフトHD", "8月度 月次売上高のお知らせ", "140120260805000001")
-    kichiri = rec("1001", "30820", "きちり", "8月度 月次報告", "140120260805000002")
-    tanshin = rec("1003", "72030", "トヨタ", "決算短信", "140120260805000003")
-    no_id = rec("n/a", "72030", "トヨタ", "人事異動", "140120260805000004")
-    unknown = rec("2001", "99990", "未上場", "8月度 月次売上高", "140120260805000005")
-    broken = rec("2002", "26640", "カワチ薬品", "8月度 月次営業概況", "140120260805000006")
-    lists = {
-        (mod.LIST_KEYWORDS[0], None): [gift, tanshin, no_id],
-        (mod.LIST_KEYWORDS[0], "1003"): [kichiri],
-        (mod.LIST_KEYWORDS[1], None): [gift, unknown, broken],
-    }
+    gift = rec("92790", "ギフトHD", "8月度 月次売上高のお知らせ", "140120260805000001")
+    kichiri = rec("30820", "きちり", "8月度 月次報告", "140120260805000002")
+    tanshin = rec("72030", "トヨタ", "決算短信", "140120260805000003")
+    no_id = rec("72030", "トヨタ", "8月度 月次売上高", "")
+    unknown = rec("99990", "未上場", "8月度 月次売上高", "140120260805000005")
+    broken = rec("26640", "カワチ薬品", "8月度 月次営業概況", "140120260805000006")
+    # 月次らしいが LIST_KEYWORDS に無い表題は取らない
+    juchu = rec("64660", "x", "受注速報", "140120260805000007")
+    listed = [gift, tanshin, no_id, kichiri, gift, unknown, broken, juchu]
+    days_calls: list[tuple] = []
     pdf_gets: list[str] = []
-    list_urls: list[str] = []
+
+    def fake_days(start, end, get, sleep_sec):
+        days_calls.append((start, end))
+        return listed
 
     def fake_get(url: str, timeout: float = 30.0) -> bytes:
-        if url.startswith(mod.LIST_BASE):
-            list_urls.append(url)
-            q = parse_qs(urlparse(url).query)
-            if q["limit"] != ["3"] or "20260805-20260805" not in url:
-                _fail(f"list url {url}")
-            items = lists.get((q["keyword"][0], q.get("by_id", [None])[0]), [])
-            return json.dumps({"items": [{"Tdnet": r} for r in items]}).encode("utf-8")
         pdf_id = url.rsplit("/", 1)[1].removesuffix(".pdf")
         pdf_gets.append(pdf_id)
         return b"<html>" if pdf_id.endswith("6") else b"%PDF-1.4 " + pdf_id.encode()
 
     stocks = {c: ("011", n) for c, n in (("92790", "ギフトHD"), ("30820", "きちり"),
-                                         ("72030", "トヨタ"), ("26640", "カワチ薬品"))}
+                                         ("72030", "トヨタ"), ("26640", "カワチ薬品"),
+                                         ("64660", "x"))}
     dest = tmp / "run-monthly"
     buf = io.StringIO()
     with patch.object(mod, "http_get", fake_get), \
-            patch.object(mod, "LIST_LIMIT", 3), \
+            patch.object(mod.tdnet_list, "fetch_days", fake_days), \
             patch.object(mod, "load_stock_product_map", lambda: stocks), \
             patch.object(mod, "date_window", lambda days: (date(2026, 8, 5), date(2026, 8, 5))), \
             patch.object(mod.time, "sleep", lambda s: None), \
@@ -560,16 +570,18 @@ def test_run_pages_dedups_and_saves(tmp: Path) -> None:
     out = buf.getvalue()
     if rc != 1:
         _fail(f"broken PDF must fail the run rc={rc}\n{out}")
+    if days_calls != [(date(2026, 8, 5), date(2026, 8, 5))]:
+        _fail(f"fetch_days {days_calls}")
     if sorted(pdf_gets) != ["140120260805000001", "140120260805000002", "140120260805000006"]:
         _fail(f"downloads {pdf_gets}\n{out}")
-    if not any("by_id=1003" in u for u in list_urls):
-        _fail(f"second page must use the smallest yanoshin id: {list_urls}")
     for r, pdf in ((gift, "140120260805000001"), (kichiri, "140120260805000002")):
         path = dest_path(dest, r["pubdate"], r["company_code"], r["company_name"], r["title"])
         if not path.is_file() or path.read_bytes() != b"%PDF-1.4 " + pdf.encode():
             _fail(f"missing saved PDF {path}\n{out}")
     if list(dest.rglob("*.part")) or list((dest / "2664").glob("*.pdf")):
         _fail(f"non-PDF body must not be saved: {list(dest.rglob('*'))}")
+    if "skip no-pdf-id 72030" not in out:
+        _fail(out)
     if "skip unknown-stock 9999" not in out or "listed=4 saved=2 skipped=1 failed=1" not in out:
         _fail(out)
 
@@ -577,6 +589,7 @@ def test_run_pages_dedups_and_saves(tmp: Path) -> None:
 def main() -> None:
     from tempfile import TemporaryDirectory
 
+    test_crontab_lookback_covers_late_days()
     test_display_code()
     test_jq_lookup_code()
     test_should_skip_infra_fund()
@@ -585,13 +598,13 @@ def main() -> None:
     test_dest_filename_gift()
     test_dest_path_per_code_dir()
     test_is_monthly_title()
-    test_parse_list_body_tdnet_key()
+    test_has_list_keyword()
     test_http_get_uses_job_ua_then_browser()
     with TemporaryDirectory() as d:
         test_date_window_and_skip(Path(d))
         test_stock_product_map_sqlite(Path(d))
         test_resolve_database_url(Path(d))
-        test_run_pages_dedups_and_saves(Path(d))
+        test_run_filters_dedups_and_saves(Path(d))
     print("ok: tdnet monthly r2")
 
 

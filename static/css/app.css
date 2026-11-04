@@ -2,29 +2,41 @@
           --accent:#0077b6; --up:#d32f2f; --down:#1b8a5a; --warn:#e6a100;
           --row:#f6f8fa; --row-sel:#e7f3fb; --now:#fff8e1; --grid:#e8ecf0; }
   * { box-sizing:border-box; margin:0; }
-  html { color-scheme: light; }
+  html { color-scheme: light; background:var(--bg); }
   body { background:var(--bg); color:var(--text); font-family:-apple-system,"Hiragino Sans","Noto Sans JP",Meiryo,sans-serif; font-size:14px; }
   header { display:flex; align-items:center; gap:8px; padding:10px 14px;
            border-bottom:1px solid var(--border); flex-wrap:wrap; background:var(--panel); }
-  nav button { background:none; border:none; color:var(--sub); padding:8px 10px; cursor:pointer; font-size:14px; border-bottom:2px solid transparent; }
+  nav button, #app-nav a { background:none; border:none; color:var(--sub); padding:8px 10px; cursor:pointer; font-size:14px; border-bottom:2px solid transparent; }
   nav button.active { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
-  #cur-tab, #menu-btn, #nav-backdrop { display:none; }
-  /* スマホはヘッダーを 1 行にし、タブは左端の三本線から左のドロワーで出す（tabs.js） */
+  #app-nav a { text-decoration:none; display:inline-block; font-family:inherit; }
+  #cur-tab, #menu-btn { display:none; }
+  /* パンくずはヘッダー。PC はタブ行の下。幅に収まらないときは折り返さず横スクロールし、末尾を見せる */
+  #crumbs { font-size:12px; color:var(--sub); line-height:1.4; min-width:0;
+            flex:1 0 100%; order:5; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  #crumbs[hidden] { display:none; }
+  #crumbs ol { display:inline-flex; flex-wrap:nowrap; align-items:center; list-style:none; padding:0; margin:0; white-space:nowrap; }
+  #crumbs li { display:flex; align-items:center; flex-shrink:0; }
+  #crumbs li:not(:last-child)::after { content:" > "; white-space:pre; color:var(--sub); }
+  #crumbs a { color:var(--accent); text-decoration:none; }
+  #crumbs a:hover { text-decoration:underline; }
+  #crumbs [aria-current="page"] { color:var(--text); }
+  body.public-monthly #crumbs { flex:1 1 auto; order:0; }
+  /* スマホはヘッダーを 1 行にし、タブは左端の三本線でヘッダーの下に開く（tabs.js）。
+     fixed の幕やドロワーは使わない（iOS Safari 26 は fixed の色を画面上下の枠に使い、閉じてもグレーが残る） */
   @media (max-width:720px){
-    header { flex-wrap:nowrap; padding:8px 10px 8px 6px; }
-    #cur-tab { display:block; font-size:14px; font-weight:600; color:var(--accent); white-space:nowrap; }
-    #menu-btn { display:flex; flex-shrink:0; background:none; border:0; color:var(--text); padding:6px; cursor:pointer; position:relative; z-index:1; }
+    header { flex-wrap:wrap; padding:8px 10px 8px 6px; }
+    #cur-tab { display:block; flex:1 1 0; font-size:14px; font-weight:600; color:var(--accent); white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis; }
+    header:has(#crumbs:not([hidden])) #cur-tab { display:none; }
+    #crumbs { display:block; flex:1 1 0; order:0; padding:0; font-size:13px; }
+    #crumbs[hidden] { display:none; }
+    #crumbs [aria-current="page"] { font-weight:600; color:var(--accent); }
+    #menu-btn { display:flex; flex-shrink:0; background:none; border:0; color:var(--text); padding:6px; cursor:pointer; }
     #menu-btn svg { width:24px; height:24px; }
-    header:has(#app-nav.open) #menu-btn,
-    header:has(#app-nav.open) #cur-tab { visibility:hidden; }
-    #app-nav { position:fixed; top:0; left:0; bottom:0; z-index:50; width:min(78vw, 300px); background:var(--panel);
-               display:flex; flex-direction:column; padding:calc(12px + env(safe-area-inset-top)) 0 12px; box-shadow:4px 0 18px rgba(0,0,0,.18);
-               transform:translateX(-105%); transition:transform .22s ease; overflow-y:auto; }
-    #app-nav.open { transform:translateX(0); }
-    #app-nav button { text-align:left; font-size:16px; padding:14px 22px; border-bottom:0; border-left:3px solid transparent; color:var(--text); }
+    #app-nav { display:none; order:10; flex:1 0 100%; flex-direction:column; margin:8px -10px -8px -6px; border-top:1px solid var(--border); }
+    #app-nav.open { display:flex; }
+    #app-nav button, #app-nav a { text-align:left; font-size:16px; padding:12px 20px; border-bottom:0; border-left:3px solid transparent; color:var(--text); }
     #app-nav button.active { background:var(--row-sel); border-left-color:var(--accent); color:var(--accent); }
-    #nav-backdrop { display:block; position:fixed; inset:0; z-index:49; background:rgba(0,0,0,.35); }
-    #nav-backdrop[hidden] { display:none; }
+    #app-nav a { display:block; }
   }
   main { padding:8px 12px; }
   .panel { background:var(--panel); padding:12px; margin-bottom:12px; }
@@ -55,7 +67,18 @@
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px; }
   input,select { background:var(--panel); color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:14px; }
   button.btn { background:var(--accent); border:none; color:#fff; border-radius:6px; padding:6px 12px; cursor:pointer; }
-  #chart, #relchart { width:100%; }
+  #chart { width:100%; }
+  .chart-nav { margin-top:4px; touch-action:pan-y; user-select:none; -webkit-user-select:none; }
+  .chart-nav canvas { display:block; }
+  .chart-ohlc { display:flex; flex-wrap:wrap; align-items:baseline; column-gap:0.7em; row-gap:0;
+                font-size:12px; line-height:1.5; font-variant-numeric:tabular-nums; color:var(--text);
+                padding:0 4px 4px; min-height:1.5em; }
+  .chart-ohlc .up { color:var(--up); }
+  .chart-ohlc .down { color:var(--down); }
+  .chart-legend { position:absolute; top:4px; left:6px; z-index:3; pointer-events:none; font-size:12px; line-height:1.5;
+                  font-variant-numeric:tabular-nums; color:var(--text); background:rgba(255,255,255,.8); padding:0 4px; }
+  .chart-legend .up { color:var(--up); }
+  .chart-legend .down { color:var(--down); }
   .evt-toggles { display:flex; gap:14px; flex-wrap:wrap; align-items:center;
                  margin-top:8px; padding-top:8px; border-top:1px solid var(--border);
                  font-size:13px; color:var(--sub); }
@@ -63,9 +86,9 @@
   .evt-toggles .evt-label { display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none; }
   .evt-toggles .swatch { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
   .tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  #tab-ranking .tbl-wrap, #tab-screener .tbl-wrap { max-height:calc(100vh - 140px); overflow:auto; }
-  #pts-tbl { width:auto; }
+  #rk-sub-perf .tbl-wrap, #tab-screener .tbl-wrap, #tab-holders .tbl-wrap, #st-sub-holders .tbl-wrap { max-height:calc(100vh - 140px); overflow:auto; }
   #pts-summary { font-size:12px; margin:0 0 6px; }
+  #rk-subs { display:inline-flex; margin:0 0 10px; }
   #rk-kind { display:inline-flex; margin:0 0 8px; }
   .sheet .badge { margin-left:0; }
   .clicky { cursor:pointer; color:var(--accent); }
@@ -78,10 +101,10 @@
   .a-list > .row { z-index:5; }
   #earn-suggest { left:0; top:100%; }
   #st-suggest { left:0; top:100%; }
+  #hd-suggest { left:0; top:100%; }
   #st-title { margin:4px 0 2px; }
   #st-quote { display:flex; flex-wrap:wrap; gap:4px 14px; align-items:baseline; margin-bottom:8px; font-variant-numeric:tabular-nums; }
   #st-quote .px { font-size:18px; font-weight:700; }
-  #st-tabs { display:inline-flex; margin-bottom:10px; }
   #st-metrics { display:flex; flex-wrap:wrap; gap:8px 24px; margin:4px 0 12px; font-variant-numeric:tabular-nums; }
   #st-metrics .k { font-size:12px; color:var(--sub); }
   #st-metrics .v { font-size:18px; font-weight:600; }
@@ -92,6 +115,35 @@
   #st-news td.t { white-space:normal; min-width:12em; }
   .st-detail-bar { justify-content:space-between; }
   #st-news-head { margin:6px 0; }
+  /* 説明資料（KAB-350）。読み取った表と要約から組み直したグラフ（SVG）と表。原本は出さない */
+  #st-decks tr.go { cursor:pointer; }
+  #st-decks tr.go:hover td { background:var(--now); }
+  #st-decks td { white-space:nowrap; }
+  #st-decks td.t { white-space:normal; min-width:12em; }
+  .dk-head { display:flex; flex-wrap:wrap; gap:4px 12px; align-items:baseline; margin:6px 0 2px; }
+  .dk-meta { margin:0 0 8px; }
+  .dk-page { border-top:1px solid var(--border); padding:10px 0 4px; }
+  .dk-page h3 { margin:0 0 6px; font-size:15px; }
+  .dk-sum { margin:0 0 8px; }
+  .dk-warn { margin:4px 0 0; }
+  .dk-chart { margin:8px 0 2px; max-width:760px; }
+  .dk-chart figcaption { font-weight:600; }
+  .dk-unit, .dk-note { color:var(--sub); font-weight:400; }
+  .dk-note { margin-left:8px; font-size:11px; }
+  .dk-legend { display:flex; flex-wrap:wrap; gap:2px 12px; color:var(--sub); font-size:12px; }
+  .dk-legend span { display:inline-flex; align-items:center; gap:5px; }
+  .dk-sw { display:inline-block; width:10px; height:10px; border-radius:2px; }
+  .dk-sw.line { width:14px; height:3px; }
+  .dk-chart svg { width:100%; height:auto; display:block; }
+  .dk-chart .grid { stroke:var(--grid); stroke-width:1; }
+  .dk-chart .grid.zero { stroke:#c9c8c2; }
+  .dk-chart .ax { fill:var(--sub); font-size:11px; }
+  .dk-chart .val { fill:var(--text); font-size:10px; font-weight:600; }
+  .dk-chart .seg { font-size:9px; font-weight:600; }
+  .dk-chart .seg.side { fill:var(--sub); font-weight:400; }
+  .dk-k { display:block; color:var(--sub); font-weight:400; }
+  .dk-tbl th.dk-r { text-align:left; }
+  .dk-tbl th.dk-r.d1 { font-weight:400; padding-left:16px; }
   /* 短信の原文。iframe は中身の幅・高さまで広げる。幅に合わせるときは縮めて .st-page を縮めた大きさにする（stock.js）。原寸ではみ出す分は #st-doc が横スクロール */
   #st-doc { overflow-x:auto; }
   .st-page { overflow:hidden; border-top:1px solid var(--border); }
@@ -109,27 +161,34 @@
     .a-chart { grid-column:span 1; } .a-fin { grid-column:span 1; }
     .a-list .scroll { max-height:46vh; }
   }
-  table.sheet { border-collapse:separate; border-spacing:0; }
+  /* スマホが長い本文セル（保有目的など）だけ字を大きくするのを止める */
+  table.sheet { border-collapse:separate; border-spacing:0;
+                -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   #earn-tbl.sheet { width:100%; }
-  #rk-tbl.sheet, #sc-tbl.sheet { width:auto; }
+  #rk-tbl.sheet, #sc-tbl.sheet, #hd-feed.sheet, #pts-tbl.sheet,
+  #hd-holdings table.sheet, #st-holders-large table.sheet, #hd-series table.sheet { width:auto; }
   /* 幅 1% の列があると auto の表が横いっぱいに伸びる。ランキングの銘柄は順位の右だが、1% だと表が伸びるので外す */
-  #rk-tbl td.name, #rk-tbl th.name { width:auto; }
+  #rk-tbl td.name, #rk-tbl th.name, #pts-tbl td.name, #pts-tbl th.name,
+  #hd-feed td.name, #hd-feed th.name,
+  #hd-holdings td.name, #hd-holdings th.name { width:auto; }
   /* 見出しは「騰落率」1 行 + 下に (対TOPIX)。数字列の幅で折り返さない */
   #rk-tbl th.grp { white-space:nowrap; }
   table.sheet th { font-size:11px; letter-spacing:.02em; padding:6px 8px; }
-  table.sheet td { padding:7px 8px; vertical-align:top; background:var(--panel); }
-  table.sheet td.num { font-size:13px; font-weight:500; }
+  table.sheet td { padding:7px 8px; vertical-align:top; background:var(--panel); font-size:13px; }
+  table.sheet td.num { font-weight:500; }
   table.sheet th.l { text-align:left; }
   table.sheet td.name, table.sheet th.name { width:1%; white-space:nowrap; }
   table.sheet .g { display:block; font-size:11px; font-weight:400; line-height:1.35; min-height:1.35em; }
-  #earn-tbl td.fy, #earn-tbl th.fy { width:1%; }
+  table.sheet .tl-sub { font-size:11px; }
+  table.sheet .opm { font-size:11px; font-weight:400; color:var(--sub); }
+  #earn-tbl td.fy, #earn-tbl th.fy { width:1%; white-space:nowrap; }
   #earn-tbl .g .qb + .qb { margin-left:3px; }
   #earn-tbl .loss { color:var(--up); }
   table.sheet .pin0, table.sheet .pin1, table.sheet .pin2 { position:sticky; z-index:1; }
   table.sheet .pin0 { left:var(--pin0, 0); }
   table.sheet .pin1 { left:var(--pin1, 0); }
   table.sheet .pin2 { left:var(--pin2, 0); }
-  #earn-tbl .pin2, #sc-tbl .pin0 { box-shadow:inset -1px 0 0 var(--border); }
+  #earn-tbl .pin2, #sc-tbl .pin0, #hd-feed .pin2, #hd-holdings .pin0, #st-holders-large .pin0 { box-shadow:inset -1px 0 0 var(--border); }
   .phead { display:flex; align-items:center; gap:8px; justify-content:space-between; margin-bottom:8px; }
   .phead h3 { margin:0; }
   .phead-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
@@ -155,12 +214,11 @@
   table.fin td:first-child, table.fin th:first-child { position:sticky; left:0; z-index:2; background:var(--panel); width:1%; }
   table.fin th:first-child { z-index:3; }  /* 縦スクロールで本文の決算期セルより上に出す */
   table.fin { font-variant-numeric:tabular-nums; }
-  table.fin th { font-size:11px; letter-spacing:.02em; }
+  table.fin th { letter-spacing:.02em; }
   table.fin td { padding:7px 8px; vertical-align:top; }
-  table.fin td.num { font-size:13px; font-weight:500; }
-  table.fin .opm { font-size:11px; font-weight:400; color:var(--sub); }
+  table.fin td.num { font-weight:500; }
   table.fin .opm.loss { color:var(--up); }
-  table.fin .g { display:block; font-size:11px; font-weight:400; line-height:1.35; min-height:1.35em; }
+  table.fin .g { display:block; font-weight:400; line-height:1.35; min-height:1.35em; }
   table.fin tbody tr:nth-child(even) td { background:var(--row); }
   table.fin tbody tr:hover td { background:var(--row-sel); }
   table.fin tr.now td { background:var(--now) !important; color:var(--text); }
@@ -168,6 +226,10 @@
   table.fin tr.fc td { background:#f0f7fc !important; }
   table.fin tr.prevfy td { opacity:.78; }
   table.fin tr.sep td { border-top:1px solid var(--border); }
+  /* 修正履歴は縞を付けず、実績の行だけ地の色（株探と同じ）。決算期は年度の最初の行だけ（KAB-279） */
+  table.fin.rev tbody tr:nth-child(even) td { background:none; }
+  table.fin.rev tbody tr.act td { background:var(--row); }
+  table.fin.rev tbody tr:hover td { background:var(--row-sel); }
   table.fin tr.act td.num { font-weight:600; }
   table.fin .loss { color:var(--up); }
   #monthly-groups, #earn-groups { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; }
@@ -198,6 +260,7 @@
   #monthly-tbl td.sector {
     white-space:nowrap;
     width:1%;
+    max-width:none;
   }
   #monthly-tbl td.name { cursor:pointer; color:var(--accent); }
   #monthly-tbl td.name:hover { text-decoration:underline; }
@@ -209,7 +272,21 @@
   td.mkt-s::before { background:#9ca3af; }
   td.mkt-g::before { background:#16a34a; }
   .badge.new { background:var(--warn); color:#fff; margin-left:6px; }
-  #monthly-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
+  #monthly-back, #hd-back { background:transparent; border:1px solid var(--border); color:var(--text); border-radius:6px; padding:4px 10px; cursor:pointer; font-size:13px; }
+  #hd-date { font-variant-numeric:tabular-nums; }
+  #hd-date:disabled { opacity:.55; }
+  #hd-holdings tr.on td { background:var(--row-sel); }
+  #hd-holdings tr.below td, #st-holders-large tr.below td,
+  #hd-holdings tr.below-h td, #st-holders-large tr.below-h td { color:var(--sub); }
+  #hd-feed .odd-date, #hd-holdings .odd-date, #st-holders-large .odd-date, #hd-series .odd-date { color:var(--warn); }
+  .hd-legend { display:flex; flex-wrap:wrap; gap:6px 12px; font-size:12px; color:var(--sub); margin:4px 0; }
+  .hd-legend i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:4px; }
+  .hd-line svg { width:100%; max-width:720px; height:auto; }
+  .hd-pair { display:flex; flex-wrap:wrap; gap:8px; }
+  .hd-pair > div { flex:1 1 280px; min-width:0; }
+  .hd-bar-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:6px 0; }
+  .hd-bar { width:min(240px, 60vw); height:6px; background:var(--row); }
+  .hd-bar > i { display:block; height:100%; background:var(--accent); }
   #monthly-chart { width:100%; margin:0 0 16px; }
   #monthly-chart svg { width:100%; height:auto; display:block; font-family:inherit; overflow:visible; }
   #monthly-chart .monthly-legend {
@@ -234,7 +311,6 @@
   #monthly-chart .monthly-tip .monthly-year-swatch { margin-right:6px; }
   #monthly-chart .monthly-tip b { font-weight:600; margin-left:10px; }
   table.monthly {
-    font-size:14px;
     font-variant-numeric:tabular-nums;
     table-layout:fixed;
     width:max-content;
@@ -287,7 +363,6 @@
   table.monthly.monthly-gated td.monthly-stub-leaf { left:calc(var(--stub-ch) + var(--stub-sc)); }
   table.monthly.monthly-gated td.monthly-stub-leaf.monthly-bd {
     padding-left:1.25em;
-    font-size:12px;
     font-weight:600;
   }
   table.monthly.monthly-gated td.monthly-stub-leaf.monthly-bd-2 {
@@ -300,7 +375,6 @@
     background:var(--up);
     color:#fff;
     font-weight:700;
-    font-size:13px;
   }
   table.monthly tbody tr:nth-child(even) td,
   table.monthly tbody tr:nth-child(even) td:first-child {
@@ -321,7 +395,7 @@
   }
   table.monthly tbody tr.monthly-sec td.monthly-sec-label,
   table.monthly tbody tr.monthly-sec:hover td.monthly-sec-label {
-    background:#f0f3f6; color:#111827; font-weight:700; font-size:12px;
+    background:#f0f3f6; color:#111827; font-weight:700;
     padding:7px 10px;
     position:sticky; left:0; z-index:2;
   }
@@ -337,7 +411,6 @@
     background:#eceff2;
     color:var(--sub);
     font-weight:700;
-    font-size:11px;
     letter-spacing:.02em;
     text-align:center;
   }
@@ -351,13 +424,13 @@
   table.monthly tbody tr[data-series] { cursor:pointer; }
   table.monthly-tl {
     width:max-content; table-layout:fixed; border-collapse:separate; border-spacing:0;
-    font-size:13px; font-variant-numeric:tabular-nums; background:#fff;
+    font-variant-numeric:tabular-nums; background:#fff;
   }
   table.monthly-tl th,
   table.monthly-tl td { border:0 solid var(--border); border-width:0 1px 1px 0; padding:5px 6px; }
   table.monthly-tl thead th { position:static; text-align:center; font-weight:700; color:var(--text); background:#eceff2; width:var(--monthly-m-w); min-width:var(--monthly-m-w); }
   table.monthly-tl thead tr:first-child th { border-top-width:1px; }
-  table.monthly-tl thead th .tl-hy { display:block; font-size:10px; font-weight:400; color:var(--sub); line-height:1.2; }
+  table.monthly-tl thead th .tl-hy { display:block; font-weight:400; color:var(--sub); line-height:1.2; }
   table.monthly-tl .tl-corner,
   table.monthly-tl td.tl-name {
     position:sticky; left:0; z-index:2; background:#fff; text-align:left; font-weight:700;
@@ -366,12 +439,15 @@
   table.monthly-tl .tl-corner { z-index:3; vertical-align:bottom; background:#eceff2; }
   table.monthly-tl .tl-yb { border-left:2px solid #9aa5b1; }
   table.monthly-tl tbody tr[data-series] { cursor:pointer; }
+  table.monthly-tl tbody tr[data-series]:nth-child(even) td,
+  table.monthly-tl tbody tr[data-series]:hover td { background:#fff; }
   table.monthly-tl tbody tr[data-series]:hover td.tl-name,
   table.monthly-tl tbody tr[data-series].on td.tl-name { background:var(--row-sel); }
   table.monthly-tl tbody tr[data-series].on td { box-shadow:inset 0 2px 0 var(--accent), inset 0 -2px 0 var(--accent); }
   table.monthly-tl tr.tl-sec { cursor:pointer; }
-  table.monthly-tl tr.tl-sec td { background:#f0f3f6; font-size:12px; padding:7px 10px; }
-  table.monthly-tl tr.tl-sec:hover td { background:#e4e9ee; }
+  table.monthly-tl tbody tr.tl-sec td,
+  table.monthly-tl tbody tr.tl-sec:nth-child(even) td { background:#f0f3f6; padding:7px 10px; }
+  table.monthly-tl tbody tr.tl-sec:hover td { background:#e4e9ee; }
   table.monthly-tl .tl-cnt { margin-left:6px; font-weight:400; color:var(--sub); }
   table.monthly-tl .tl-tw { display:inline-block; width:1.1em; color:var(--sub); }
   table.monthly-tl td.tl-tog { cursor:pointer; }
@@ -384,15 +460,18 @@
   .monthly-pop .mpop-head { display:flex; align-items:flex-start; gap:6px; margin:0 0 4px; font-weight:700; font-size:12px; max-width:14em; }
   .monthly-pop .mpop-m { color:var(--sub); white-space:nowrap; }
   .monthly-pop .mpop-x { margin-left:auto; background:none; border:none; font-size:18px; line-height:1; color:var(--sub); cursor:pointer; padding:0 2px; }
-  .monthly-pop table { width:auto; font-size:13px; margin-left:auto; }
-  .monthly-pop th { position:static; text-align:right; font-size:11px; font-weight:700; padding:1px 6px; }
-  .monthly-pop td { padding:3px 6px; border-bottom:1px solid var(--grid); }
+  .monthly-pop table { width:auto; margin-left:auto; }
+  .monthly-pop table.sheet th { position:static; text-align:right; font-weight:700; padding:1px 6px; }
+  .monthly-pop table.sheet td { padding:3px 6px; border-bottom:1px solid var(--grid); }
   .monthly-pop td.yr { font-weight:700; color:var(--sub); white-space:nowrap; }
   .monthly-pop .sw { display:inline-block; width:7px; height:7px; margin-right:4px; vertical-align:middle; }
-  table.monthly-tl .tl-sub { display:block; font-size:11px; color:var(--sub); line-height:1.2; }
+  table.monthly-tl .tl-sub { display:block; color:var(--sub); line-height:1.2; }
   header a.brand { font-size:16px; font-weight:700; color:var(--text); text-decoration:none; margin-right:8px; }
   a#monthly-back { display:inline-block; background:var(--accent); border:none; color:#fff; border-radius:6px; padding:6px 12px; cursor:pointer; text-decoration:none; font-size:14px; }
   .site-foot { padding:16px 14px 24px; font-size:12px; color:var(--sub); border-top:1px solid var(--border); line-height:1.6; }
+  #view-mode { text-align:center; padding:12px 14px 20px; font-size:12px; color:var(--sub); }
+  #view-mode a { color:var(--sub); }
+  #view-mode[hidden] { display:none; }
   body.public-monthly #monthly-tbl td.name a { color:inherit; text-decoration:none; }
   body.public-monthly #monthly-tbl td.name a:hover { color:var(--accent); }
   body.public-monthly #tab-monthly h1 { font-size:16px; color:var(--text); margin:0; }
@@ -400,6 +479,17 @@
   .fin-tabs { display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
   .ftab { background:transparent; border:none; color:var(--sub); padding:5px 14px; cursor:pointer; font-size:13px; }
   .ftab.on { background:var(--accent); color:#fff; }
+  /* 銘柄の中のタブ。Bootstrap nav-tabs 風。塗りつぶしの .fin-tabs とは別（KAB-315） */
+  .nav-tabs { display:flex; flex-wrap:nowrap; width:100%; margin:0 0 10px; padding:0;
+              border-bottom:1px solid var(--border); gap:0; }
+  .nav-tabs .ftab { flex:0 0 auto; margin-bottom:-1px; background:transparent;
+                    border:1px solid transparent; border-top-left-radius:6px; border-top-right-radius:6px;
+                    color:var(--sub); padding:6px 14px; cursor:pointer; font-size:13px; line-height:1.3;
+                    white-space:nowrap; text-align:center; }
+  .nav-tabs .ftab:hover { isolation:isolate; color:var(--text);
+                          border-color:var(--grid) var(--grid) var(--border); }
+  .nav-tabs .ftab.on { background:var(--panel); color:var(--text); font-weight:600;
+                       border-color:var(--border) var(--border) var(--panel); }
   .qb { display:inline-block; font-size:10px; padding:0 5px; border-radius:3px; background:var(--row); color:var(--sub); vertical-align:middle; }
   table.fin .g .qb { margin-left:0; }
   .qb-1Q { color:#c48a00; }
@@ -420,16 +510,16 @@
 
   @media (max-width:640px){
     main { padding-left:6px; padding-right:6px; }
+    .nav-tabs .ftab { flex:1 1 0; min-width:0; padding:6px 4px; font-size:13px; }
+    /* 株価のチャートは .panel の左右の余白まで広げる（株探と同じくらいの横幅にする） */
+    #st-sub-price #chart, #st-sub-price .chart-nav { width:auto; margin-left:-12px; margin-right:-12px; }
     table.sheet th, table.sheet td { padding-left:3px; padding-right:3px; }
     table.sheet td.name, table.sheet th.name { max-width:8em; }
     .earn-box { padding:10px 6px; }
-    table.sheet td.num { font-size:12px; }
+    table.sheet td { font-size:12px; }
     body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:34px}
     .evt-toggles .evt-label { min-height:32px; }
     #monthly-chart .monthly-line-chart { min-height:230px; }
-    table.monthly th,
-    table.monthly td { font-size:13px; }
-    table.monthly.monthly-gated td.monthly-stub-leaf.monthly-bd { font-size:12px; }
     table.monthly col.monthly-name { width:8em; min-width:8em; }
     table.monthly thead th:first-child,
     table.monthly td:first-child {
@@ -454,9 +544,11 @@
     table.monthly tbody tr[data-series].on td.monthly-stub { background:var(--row-sel); }
     table.monthly tbody tr.monthly-sec td.monthly-sec-label { position:static; background:#f0f3f6; }
     table.monthly.monthly-gated { --stub-ch:2em; --stub-sc:4.25em; --stub-leaf:8.5em; }
+    table.monthly-tl th,
+    table.monthly-tl td { padding:5px 6px; }
     table.monthly-tl .tl-corner,
-    table.monthly-tl td.tl-name { width:12em; min-width:12em; max-width:12em; font-size:12px; }
-        table.monthly.monthly-gated thead th:first-child { min-width:14.75em; width:14.75em; }
+    table.monthly-tl td.tl-name { width:12em; min-width:12em; max-width:12em; }
+    table.monthly.monthly-gated thead th:first-child { min-width:14.75em; width:14.75em; }
     table.monthly.monthly-gated td.monthly-stub,
     table.monthly.monthly-gated td.monthly-stub-ch,
     table.monthly.monthly-gated td.monthly-stub-sc,
@@ -487,12 +579,12 @@
   .supply-legend i, .supply-chip i { background:var(--k-fill); border-color:var(--k-line); }
   .supply-grid { display:grid; grid-template-columns:1fr; gap:12px; }
   @media (min-width:900px){ .supply-grid { grid-template-columns:minmax(0,1fr) 300px; } }
-  #supply-map { height:calc(100vh - 150px); min-height:360px; border:1px solid var(--border); position:relative; min-width:0; }
+  #supply-map { height:calc(100vh - 174px); min-height:360px; border:1px solid var(--border); position:relative; min-width:0; }
   #supply-msg { position:absolute; left:10px; top:8px; font-size:13px; }
   #supply-grip { display:none; }
   /* スマホは詳細を下からのシート（画面の下 45%。supply.js の SUPPLY_SHEET_H）で出す */
   @media (max-width:899px){
-    #supply-map { height:calc(100dvh - 186px); min-height:300px; }
+    #supply-map { height:calc(100dvh - 210px); min-height:300px; }
     #supply-panel { position:fixed; left:0; right:0; bottom:0; z-index:30; height:45dvh; display:flex; flex-direction:column;
       background:var(--panel); border-radius:12px 12px 0 0; box-shadow:0 -4px 18px rgba(0,0,0,.16);
       transform:translateY(100%); transition:transform .25s ease; }
@@ -514,7 +606,7 @@
   }
   .supply-unit { font-size:11px; margin-bottom:2px; }
   #supply-chart { width:100%; height:180px; }
-  .supply-tbl { width:auto; margin-top:6px; font-size:12px; }
+  .supply-tbl { width:auto; margin-top:6px; }
   .supply-tbl th, .supply-tbl td { padding:3px 6px; }
   .supply-tbl i { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; }
   .supply-rev { font-size:10px; color:var(--warn); margin-right:4px; }

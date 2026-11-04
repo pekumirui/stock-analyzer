@@ -1,7 +1,7 @@
 """EDINET 自己株券買付状況報告書・訂正（220 / 230）→ edinet_buybacks / edinet_buyback_resolutions。
 
 設計は docs/DESIGN_edinet.md §6（KAB-79）。中身は書類取得 API type=1（XBRL）のテキストブロックの表。
-入口は edinet_documents（先に jobs/edinet/edinet_documents.py）。ZIP は保存しない。
+入口は edinet_documents（先に jobs/edinet/edinet_documents.py）。ZIP は data/edinet に残し、毎朝 OneDrive へ退避する（app/edinet/archive.py。KAB-281）。
 """
 from __future__ import annotations
 
@@ -17,9 +17,9 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.db import run_sqlite_write, upsert
-from app.edinet.client import reraise
+from app.edinet.archive import archived, download
+from app.edinet.client import is_not_found, reraise
 from app.edinet.documents import CodeLookup, now_jst
-from app.edinet.large_holdings import is_not_found
 from app.edinet.textblocks import (
     Block,
     Instance,
@@ -646,12 +646,13 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
     """1 書類: XBRL をダウンロード → パース → 保存。戻り値は parsed / meta / failed / missing / error。"""
     from app.edinet_wrapper import DocumentFileType
 
-    if doc.file_date < keep_after(today):
+    expired = doc.file_date < keep_after(today)
+    if expired and not archived(db, doc.doc_id, DocumentFileType.MAIN):
         store_failed(db, doc, OutsideEdinetWindow(f"file_date={doc.file_date} keep_years={KEEP_YEARS}"),
                      now_jst())
         return "missing"
     try:
-        got = client.download(doc.doc_id, DocumentFileType.MAIN)
+        got = download(db, client, doc, DocumentFileType.MAIN, expired=expired)
     except Exception as exc:
         reraise(exc)
         if is_not_found(exc):

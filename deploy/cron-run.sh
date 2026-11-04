@@ -22,13 +22,33 @@ log_line() {
   printf '%s %s\n' "$(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M:%S')" "$1" >> "$log"
 }
 
+# 所要時間と終了コードを VictoriaMetrics（127.0.0.1）へ送る。送れなくてもジョブの結果は変えない。
+# CRON_METRICS_URL を空にすると送らない。
+started=$(date +%s)
+push_metrics() {
+  local ec="$1"
+  local url="${CRON_METRICS_URL-http://127.0.0.1:8428/api/v1/import/prometheus}"
+  [[ -n "$url" ]] || return 0
+  command -v curl >/dev/null 2>&1 || return 0
+  local now
+  now=$(date +%s)
+  printf 'cron_job_duration_seconds{cron_job="%s"} %s\ncron_job_exit_code{cron_job="%s"} %s\ncron_job_last_run_timestamp_seconds{cron_job="%s"} %s\n' \
+    "$job" "$((now - started))" "$job" "$ec" "$job" "$now" \
+    | curl -fsS --max-time 3 --data-binary @- "$url" >/dev/null 2>&1 || true
+}
+
+finish() {
+  push_metrics "$1"
+  exit "$1"
+}
+
 mkdir -p "$LOG_DIR" || { echo "fail cron log exit=1" >&2; exit 1; }
 if ! touch "$log"; then
   echo "fail cron log exit=1" >&2
   exit 1
 fi
 
-cd "$APP_DIR" || { log_line "fail cron cwd exit=1"; exit 1; }
+cd "$APP_DIR" || { log_line "fail cron cwd exit=1"; finish 1; }
 
 # uvicorn の shebang は python3。デプロイ中に python だけ消える／無いことがある。
 py=""
@@ -39,14 +59,26 @@ elif [[ -x "$APP_DIR/.venv/bin/python" ]]; then
 else
   log_line "missing interpreter $APP_DIR/.venv/bin/python3 $APP_DIR/.venv/bin/python"
   log_line "fail cron $* exit=127"
-  exit 127
+  finish 127
 fi
 
-"$py" -u "$@" 2>&1 | while IFS= read -r line || [[ -n "${line-}" ]]; do
+# バッチの CPU / IO を下げて API を優先する。無いコマンドは外す。
+# ionice -c3（idle）は使わない。書き込みロックを握ったまま待たされると
+# 月次 PUT などが busy_timeout に当たる。uvicorn / MCP はここでは起動しない。
+run_py=()
+if nice_bin=$(command -v nice 2>/dev/null); then
+  run_py+=("$nice_bin" -n 10)
+fi
+if ionice_bin=$(command -v ionice 2>/dev/null); then
+  run_py+=("$ionice_bin" -c2 -n7)
+fi
+run_py+=("$py" -u)
+
+"${run_py[@]}" "$@" 2>&1 | while IFS= read -r line || [[ -n "${line-}" ]]; do
   printf '%s %s\n' "$(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M:%S')" "$line"
 done >> "$log"
 ec=${PIPESTATUS[0]}
 if [[ $ec -ne 0 ]]; then
   log_line "fail cron $* exit=$ec"
 fi
-exit "$ec"
+finish "$ec"

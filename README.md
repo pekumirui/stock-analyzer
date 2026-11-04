@@ -6,7 +6,7 @@
 ## 機能
 
 1. **決算速報サマリ.** 日付を選ぶとその日の開示一覧（累計/Q単独、YoY、半期・通期予想、上方修正バッジ）
-2. **銘柄.** 概要（指標）・株価（日足/週足/月足、移動平均、対TOPIX、決算発表日マーカー）・ニュース（決算短信の原文）・株主をタブで切り替え
+2. **銘柄.** 概要（指標）・株価（日足/週足/月足、移動平均、対TOPIX、決算発表日マーカー）・ニュース（決算短信の原文）・株主（大量保有と自己株）をタブで切り替え。大量保有報告書タブで提出者から保有銘柄を見る
 3. **決算発表後リターン.** +1d/+5d/+20d/+60d/現在までの対TOPIX超過リターン (α)
 4. **ミネルヴィニ・スクリーナー.** Stage1〜4 と RS ランク (1-99) でフィルタ
 
@@ -54,11 +54,13 @@ notepad .env                    # JQUANTS_API_KEY を記入
 | `python jobs/market/intraday_1m.py --limit 300` | yfinance の 1 分足（直近 7 日）を `data/intraday/1m/` へ。省略で内国株全銘柄（cron は平日 20:30） |
 | `python jobs/fx_rates.py --backfill` | 為替（ECB/EUR）を 1999-01-04 から取得。以後は引数なしで差分 |
 | `python jobs/edinet/edinet_codes.py` | EDINET コードリスト → `edinet_filers` と `stocks.edinet_code`（キー不要） |
+| `python jobs/market/homepages.py --code 4543 --dry-run` | 会社ホームページ URL を `homepages` へ（`--code` 繰返し or `--all`。`--set CODE URL` は manual。本番の一括は承認後） |
 | `python jobs/edinet/edinet_documents.py --backfill-years 10` | EDINET 書類一覧を 10 年分（`EDINET_API_KEY`）。以後は引数なしで直近 7 日の未確定の日 |
 | `python jobs/edinet/edinet_large_holdings.py --limit 1000` | 大量保有報告書・変更報告書・訂正 → `large_holding_reports` / `large_holdings`。新しい書類から |
 | `python jobs/edinet/edinet_buybacks.py --limit 500` | 自己株券買付状況報告書・訂正 → `edinet_buybacks` / `edinet_buyback_resolutions`。新しい書類から |
 | `python jobs/edinet/edinet_tender_offers.py --limit 100` | 公開買付けの書類 → `edinet_tender_offer_docs` / 案件の `edinet_tender_offers` |
-| `python jobs/edinet/edinet_xbrl.py --limit 300` | 有報・半期報・四半期報の XBRL → `xbrl_financials`（`source='edinet'`）とセグメント注記の `xbrl_segments`。新しい書類から |
+| `python jobs/edinet/edinet_xbrl.py --limit 300` | 有報・半期報・四半期報の XBRL → `xbrl_financials`（`source='edinet'`）とセグメント注記の `xbrl_segments`、有報の大株主・所有者別。新しい書類から |
+| `python jobs/edinet/edinet_shareholders.py --rebuild` | 既存の `xbrl_facts` から大株主・所有者別を作り直す。過去分は先に `edinet_xbrl.py --reparse` |
 
 > **バックフィル年数の目安**
 > 指標の計算にはRSが252営業日、MA200が200営業日の履歴を必要とするため、
@@ -113,7 +115,7 @@ cp .env.example .env            # 既存 .env がある場合は上書きしな�
 初期設定（nginx / ufw / certbot / systemd / crontab）はパイプラインが冪等にやる。root でやるのはデプロイ用 SSH 鍵と sudoers だけ。
 手順は [deploy/README.md](deploy/README.md)。
 
-uvicorn はワーカー 1。SQLite は複数ライターに弱い。日次バッチは定常で 7 リクエスト。
+uvicorn のワーカー数は VPS のコアとメモリから決める（`.env` の `UVICORN_WORKERS` で上書き可）。SQLite のライターは 1 本のまま。日次バッチは定常で 7 リクエスト。
 
 ```bash
 # 開発PC → VPS（backfill 完了後。journal が残っていないことを確認）
@@ -134,7 +136,7 @@ cd /home/stock/stock-analyzer
 
 `main` にマージすると GitHub Actions がテスト → GitHub Release（タグ）→ ConoHa VPS へデプロイする。変更が `.md` / `docs/` / `.claude/memory/` だけのときは走らない。
 
-1. **PR.** `python -m pytest tests`（`tests/` 以下の `test_*.py` を全部。API スモークは `tests/test_smoke.py`）と Ruff / Bandit（`app` `jobs` `tests` `tools` `deploy`。`app/xbrlp` は除外）。draft で開いた同リポの PR は `mark-draft-ready.yml` が Ready にする
+1. **PR.** `python -m pytest tests --dataflow=check`（`tests/` 以下の `test_*.py` を全部。API スモークは `tests/test_smoke.py`。`--dataflow=check` はテスト中の SQL から作った読み書き表と `docs/DATA_FLOW.md`・`docs/dataflow/` を突き合わせる。合わなければ `--dataflow=write` で作り直してコミット）と Ruff / Bandit（`app` `jobs` `tests` `tools` `deploy`。`app/xbrlp` は除外）。draft で開いた同リポの PR は `mark-draft-ready.yml` が Ready にする
 2. **main マージ.** コミットメッセージでバージョンを自動バンプ（`feat:` は minor、`BREAKING CHANGE` / `feat!:` は major、それ以外は patch）。初回は `v0.1.0`
 3. **VPS.** SSH で `git pull` → `provision.sh`（nginx/ufw/certbot/systemd）→ `pip install` → `migrate.py` → `systemctl restart`。
    `stock.db` は触らない
@@ -167,6 +169,7 @@ jobs/           機能ごと (market/ monthly/ supply/ xbrl/ edinet/ ops/)。cro
   market/run_batch.py   日次バッチ / バックフィル
   market/check_demo.py  スキーマ + 旧デモ取り残しガード
   market/pts_snapshot.py  株探 PTS ランキング → pts_snapshots（cron は平日 15:30〜24:00）
+  market/homepages.py   会社ホームページ URL → homepages（cron なし。`--dry-run` / `--code` / `--all` / `--set` / `--compare-hosts`）
   market/intraday_1m.py  yfinance 1 分足 → data/intraday/1m/（cron は平日 20:30）
   ops/backup_db.py      本番 SQLite の日次バックアップ（cron は 05:00 JST。成功後に OneDrive。手順は docs/DESIGN_backup.md）
   ops/vps_packages_r2.py  VPS パッケージ一覧 → data/inventory/（cron は 06:40 JST）
@@ -184,7 +187,7 @@ tools/          機能ごと (market/ monthly/ supply/ xbrl/)
   market/check_api.py  J-Quants 疎通確認
 analyzer/       stock.db を読むだけの分析（一覧は analyzer/README.md）
 deploy/
-  stock-analyzer.service  systemd（uvicorn ワーカー1）
+  stock-analyzer.service  systemd（uvicorn。ワーカー数はコアとメモリ）
   nginx-site.sh           nginx の設定の正本（provision.sh が書く）。月次閲覧は公開、/app は Basic 認証
   crontab                 J-Quants 19:30 JST、為替 08:00 JST、パッケージ一覧 06:40 JST、SQLite バックアップ 05:00 JST
   update.sh               VPS 側デプロイ（Actions から実行）

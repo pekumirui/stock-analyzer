@@ -78,7 +78,7 @@ document.addEventListener("click", e => {
   if(!$("#cal-wrap").contains(e.target) && e.target!==$("#cal-backdrop")) calClose();
 });
 
-const MET = [["net_sales","売上"],["operating_profit","営利"],["ordinary_profit","経利"],["profit","純利"]];
+const MET = [["net_sales","売上"],["gross_profit","粗利"],["operating_profit","営利"],["ordinary_profit","経利"],["profit","純利"]];
 function revBadge(r){
   const bits = [];
   const fr = r.forecast_revision;
@@ -91,6 +91,12 @@ function revBadge(r){
   return bits.join("");
 }
 const listQ = q => q ? qBadge({kind:"single", period:q}) : "";
+const latestQ = p => p==="FY" ? "4Q" : (p || "");
+const latestPeriodLabel = p => { const q = latestQ(p); return q ? q+"実績" : ""; };
+const latestBadge = p => {
+  const label = latestPeriodLabel(p);
+  return label ? `<span class="qb qb-act">${label}</span>` : "";
+};
 const nameCell = r => `<td class="l name pin2" title="${r.name}">${shortName(r.name)}${under(`<span class="sub">${r.code.slice(0,4)}</span>`)}</td>`;
 const valCell = (vals, g, k, i) => `<td class="num ${i?'':'grp'}">${amt((vals||{})[k])}${under(gc(g && g[k]))}</td>`;
 const progTxt = v => v==null ? "–" : `<span class="${v<0?"loss":""}">${fmt(v,1)}%</span>`;
@@ -108,6 +114,23 @@ function beginDetail(){
 }
 function apiMaybe(p, signal){
   return api(p, {signal}).catch(e => { if(e.name === "AbortError") throw e; return null; });
+}
+function chartMaybe(code, signal){
+  return chartDaily(code, signal).catch(e => { if(e.name === "AbortError") throw e; return null; });
+}
+
+// #e-chart は銘柄タブの株価と同じ部品（chart-core.js）。日足の最新、発表日がそれより前なら発表日を真ん中に
+let eChart = null;
+function dropEChart(){
+  if(eChart){ eChart.destroy(); eChart = null; }
+  $("#e-chart").innerHTML = "";
+}
+function drawEChart(ch, mark){
+  if(!ch){ dropEChart(); $("#e-chart").innerHTML = `<div class="sub">株価データなし</div>`; return; }
+  if(!eChart) eChart = createStockChart($("#e-chart"), {height: 320});
+  eChart.setData(ch, {mark});
+  if(mark && !eChart.latestHas(mark)) eChart.showAround(mark);
+  else eChart.showLatest();
 }
 let earnDay="", earnToday="";
 let earnSector="", earnChipsOpen=false, earnView="cum";
@@ -230,6 +253,12 @@ function scrollToSel(){
   if(el) el.scrollIntoView({block:"nearest"});
 }
 
+function metricCells(src, period){
+  const tip = period==="1Q" ? ' title="前期4Q単独比"' : "";
+  if(earnView==="q") return MET.map(([k],i)=>valCell(src.single, src.qoq, k, i).replace("<td ", `<td${tip} `)).join("");
+  if(earnView==="cum") return MET.map(([k],i)=>valCell(src.cumulative, src.yoy, k, i)).join("");
+  return MET.map(([k],i)=>progCell(src.progress, k, i)).join("");
+}
 function tableHtml(actuals, scheduled){
   const sub = () => MET.map(([k,l],i) => `<th class="${i?'':'grp'}">${l}</th>`).join("");
   const dash = MET.map((_,i)=>`<td class="num ${i?'':'grp'}">–</td>`).join("");
@@ -237,24 +266,25 @@ function tableHtml(actuals, scheduled){
         + `<tr><th class="pin0">時刻</th><th class="l fy pin1">決算期</th>`
         + `<th class="l name pin2">銘柄</th>${sub()}</tr></thead><tbody>`;
   for(const r of actuals){
-    const tip = r.period==="1Q" ? ' title="前期4Q単独比"' : "";
     h += `<tr data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">`
        + `<td class="pin0">${(r.disclosed_time||"").slice(0,5)}${under(revBadge(r))}</td>`
        + `<td class="l fy pin1">${fyShort(r.fy_label)}${under(listQ(r.period))}</td>`
        + nameCell(r)
-       + (earnView==="q" ? MET.map(([k],i)=>valCell(r.single, r.qoq, k, i).replace("<td ", `<td${tip} `)).join("")
-        : earnView==="cum" ? MET.map(([k],i)=>valCell(r.cumulative, r.yoy, k, i)).join("")
-        : MET.map(([k],i)=>progCell(r.progress, k, i)).join(""))
+       + metricCells(r, r.period)
        + `</tr>`;
   }
   for(const r of scheduled){
+    const latest = r.latest;
     const fq = (r.periods||[]).map(p => listQ(p.fq)).join("");
     const label = (r.periods||[]).map(p => fyShort(p.label)).join(" / ");
+    const fy = latest
+      ? `${fyShort(latest.fy_label)}${under(latestBadge(latest.period))}`
+      : `${label}${under(fq)}`;
     h += `<tr data-code="${r.code}" onclick="selectSched('${r.code}')">`
        + `<td class="pin0">–</td>`
-       + `<td class="l fy pin1">${label}${under(fq)}</td>`
+       + `<td class="l fy pin1">${fy}</td>`
        + nameCell(r)
-       + dash
+       + (latest ? metricCells(latest, latest.period) : dash)
        + `</tr>`;
   }
   return h + `</tbody></table>`;
@@ -289,19 +319,28 @@ function selectSched(code){
 function clearDetail(msg){
   if(detailAc){ detailAc.abort(); detailAc = null; }
   $("#e-chart-title").textContent = msg;
-  $("#e-chart").innerHTML = ""; $("#cum-tbl").innerHTML = ""; $("#prog-tbl").innerHTML = ""; $("#q-tbl").innerHTML = ""; $("#rev-tbl").innerHTML = "";
+  dropEChart(); $("#cum-tbl").innerHTML = ""; $("#prog-tbl").innerHTML = ""; $("#q-tbl").innerHTML = ""; $("#rev-tbl").innerHTML = "";
 }
 
 async function loadSched(row){
+  const latest = row.latest;
+  if(latest && latest.disclosure_no){
+    loadDetail({
+      code: row.code, name: row.name,
+      disclosure_no: latest.disclosure_no,
+      fy_label: latest.fy_label,
+      period: latestPeriodLabel(latest.period),
+    });
+    return;
+  }
   const signal = beginDetail();
   $("#e-chart-title").innerHTML = `<span class="clicky" onclick="gotoChart('${row.code}')">${row.name}</span>
     <small class="sub">${row.code.slice(0,4)}</small>`;
   let ch;
-  try { ch = await apiMaybe(`/api/chart/${row.code}?tf=D&ma=50,150,200`, signal); }
+  try { ch = await chartMaybe(row.code, signal); }
   catch(e){ if(e.name === "AbortError") return; throw e; }
   if(signal.aborted) return;
-  if(ch) eChartObj = renderPriceChart($("#e-chart"), ch, {height:320, prev:eChartObj});
-  else { $("#e-chart").innerHTML = `<div class="sub">株価データなし</div>`; }
+  drawEChart(ch, null);
   const pending = `<tr><td class="l sub">まだ開示されていません</td></tr>`;
   $("#cum-tbl").innerHTML = pending;
   $("#q-tbl").innerHTML = pending;
@@ -317,22 +356,23 @@ async function loadDetail(row){
   try {
     [d, ch] = await Promise.all([
       apiMaybe(`/api/earnings/detail/${row.code}?disclosure_no=${encodeURIComponent(row.disclosure_no)}`, signal),
-      apiMaybe(`/api/chart/${row.code}?tf=D&ma=50,150,200`, signal)]);
+      chartMaybe(row.code, signal)]);
   } catch(e){ if(e.name === "AbortError") return; throw e; }
   if(signal.aborted) return;
-  if(ch) eChartObj = renderPriceChart($("#e-chart"), ch, {height:320, prev:eChartObj, mark:d && d.disclosed_date});
-  else { $("#e-chart").innerHTML = `<div class="sub">株価データなし</div>`; }
+  drawEChart(ch, d && d.disclosed_date);
   renderFin($("#cum-tbl"), d && d.cumulative, d);
   renderFin($("#q-tbl"),   d && d.quarterly,  d);
   renderProg($("#prog-tbl"), d && d.progress, d);
   renderRev($("#rev-tbl"), d && d.revisions,  d);
 }
 
-const FIN_MET = [["net_sales","売上高"],["operating_profit","営業益"],
+const FIN_MET = [["net_sales","売上高"],["gross_profit","粗利益"],["operating_profit","営業益"],
                  ["ordinary_profit","経常益"],["profit","最終益"]];
+// 進捗率と修正履歴は予想で割る・予想を並べる表。短信の予想に売上総利益は無いので列を置かない
+const FC_MET = FIN_MET.filter(([k]) => k !== "gross_profit");
 function disc(iso){ if(!iso) return "–"; const [y,m,d]=iso.split("-"); return `${y.slice(2)}/${m}/${d}`; }
-function opm(v){
-  const s = v && v.net_sales, o = v && v.operating_profit;
+function margin(v, k){
+  const s = v && v.net_sales, o = v && v[k];
   if(s == null || s <= 0 || o == null) return null;
   return o / s * 100;
 }
@@ -340,12 +380,14 @@ function amt(v){
   if(v == null) return "–";
   return `<span class="${v<0?"loss":""}">${mil(v)}</span>`;
 }
-function opAmt(r){
-  const v = r.values && r.values.operating_profit;
-  const m = opm(r.values);
+// 営業益と粗利益は売上に対する率を薄い括弧で添える
+function rateAmt(r, k){
+  const v = r.values && r.values[k];
+  const m = margin(r.values, k);
   const rate = m==null ? "" : `<span class="opm${m<0?" loss":""}">(${fmt(m,1)}%)</span>`;
   return `${amt(v)}${rate}`;
 }
+const finAmt = (r, k) => k==="operating_profit" || k==="gross_profit" ? rateAmt(r, k) : amt(r.values[k]);
 function epsTxt(v){
   if(v == null) return "–";
   return `<span class="${v<0?"loss":""}">${fmt(v,1)}</span>`;
@@ -396,7 +438,7 @@ function renderFin(el, rows, d){
       return `<td class="num${dc(k)}">${txt}<span class="g">${g ? gc(g) : " "}</span></td>`;
     };
     h += `<tr class="${cls}"><td class="l" title="${finTitle(r)}">${finLabel(r)}<span class="g">${finBadge(r) || " "}</span></td>`
-       + FIN_MET.map(([k])=>cell(k, k==="operating_profit" ? opAmt(r) : amt(r.values[k]))).join("")
+       + FIN_MET.map(([k])=>cell(k, finAmt(r, k))).join("")
        + cell("eps", epsTxt(r.values.eps))
        + `<td class="num disc sub">${disc(r.disclosed_date)}</td></tr>`;
   });
@@ -411,7 +453,7 @@ function renderProg(el, rows, d){
   const dim = d && d.notes && d.notes.no_ordinary;
   const dc = k => k==="ordinary_profit" && dim ? " dim" : "";
   let h = `<thead><tr><th class="l">決算期</th>`
-        + FIN_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
+        + FC_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
         + `<th class="disc">発表日</th></tr></thead><tbody>`;
   rows.forEach(r => {
     const now = r.kind==="actual_current";
@@ -422,7 +464,7 @@ function renderProg(el, rows, d){
            + `<span class="g"><span class="base" title="${tip}">${b==null ? " " : mil(b)}</span></span></td>`;
     };
     h += `<tr class="${now?"now":""}"><td class="l" title="${now ? "累計 / 通期予想" : "累計 / 通期実績"}">${finLabel(r)}<span class="g">${finBadge(r) || " "}</span></td>`
-       + FIN_MET.map(([k])=>cell(k)).join("")
+       + FC_MET.map(([k])=>cell(k)).join("")
        + `<td class="num disc sub">${disc(r.disclosed_date)}</td></tr>`;
   });
   el.innerHTML = h + `</tbody>`;
@@ -444,21 +486,26 @@ function renderRev(el, rows, d){
   }
   const dim = rows.every(r => r.values.ordinary_profit == null);
   const dc = k => k==="ordinary_profit" && dim ? " dim" : "";
+  el.classList.add("rev");
   let h = `<thead><tr><th class="l">決算期</th><th class="disc">発表日</th>`
-        + FIN_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
+        + FC_MET.map(([k,l])=>`<th class="${dc(k).trim()}">${l}</th>`).join("")
         + `<th>EPS</th></tr></thead><tbody>`;
+  // 年度のまとまり: 決算期は年度の最初の行だけに書く。地の色は実績の行だけ（KAB-279）
   rows.forEach((r,i) => {
     const [txt, bc, tip] = REV_BADGE[r.kind] || ["", "", ""];
     const now = d && r.disclosed_date === d.disclosed_date;
-    const sep = i > 0 && r.fiscal_year_end !== rows[i-1].fiscal_year_end;
-    const cls = [now&&"now", r.kind==="actual_fy"&&"act", sep&&"sep"].filter(Boolean).join(" ");
+    const head = i === 0 || r.fiscal_year_end !== rows[i-1].fiscal_year_end;
+    const cls = [now&&"now", r.kind==="actual_fy"&&"act", head&&i>0&&"sep"].filter(Boolean).join(" ");
     const cell = (k, txt) => {
       const g = r.growth && r.growth[k];
       return `<td class="num${dc(k)}">${txt}<span class="g">${g ? revG(g) : " "}</span></td>`;
     };
-    h += `<tr class="${cls}"><td class="l" title="${r.label||""} ${tip}">${r.range}<span class="g"><span class="qb ${bc}">${txt}</span></span></td>`
+    const badge = `<span class="qb ${bc}">${txt}</span>`;
+    // バッジはどの行も決算期の下の段（数値の修正率と同じ段）。決算期は年度の最初の行だけ
+    const label = `${head ? r.range : "&nbsp;"}<span class="g">${badge}</span>`;
+    h += `<tr class="${cls}"><td class="l" title="${r.label||""} ${tip}">${label}</td>`
        + `<td class="num disc sub">${disc(r.disclosed_date)}</td>`
-       + FIN_MET.map(([k])=>cell(k, k==="operating_profit" ? opAmt(r) : amt(r.values[k]))).join("")
+       + FC_MET.map(([k])=>cell(k, finAmt(r, k))).join("")
        + cell("eps", epsTxt(r.values.eps)) + `</tr>`;
   });
   el.innerHTML = h + `</tbody>`;

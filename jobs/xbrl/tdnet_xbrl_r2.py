@@ -4,10 +4,11 @@
   python jobs/xbrl/tdnet_xbrl_r2.py 1
   python jobs/xbrl/tdnet_xbrl_r2.py 30 --dest /tmp/xbrl
 
-N は今日(JST)から遡る日数（当日を含む）。ネットワークと app/ はテストから分離する。
+N は今日(JST)から遡る日数（当日を含む）。ネットワークはテストから差し替える。
 
 skip の正本は dest/manifest/{YYYY-MM-DD}.jsonl の xbrl_id。ファイル名や .part は skip に使わない。
 マスタ無し・インフラは落とさず _unmatched/ へ置く（TDnet の約30日保持）。
+一覧は TDnet の開示一覧の XBRL 列（jobs/_tdnet.py。KAB-294）。
 ZIP URL は list の url_xbrl、または .zip の document_url。取れなければその開示は skip する。
 """
 from __future__ import annotations
@@ -24,7 +25,6 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import TypedDict
-from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -34,13 +34,13 @@ if str(REPO_ROOT) not in sys.path:
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
+from jobs import _tdnet as tdnet_list  # noqa: E402
 from jobs._r2common import (  # noqa: E402
     abort_if_disconnected,
     date_window,
     fail_if_mount_down,
     http_get as _http_get,
     load_stock_product_map as _load_stock_product_map,
-    parse_list_body,
     sanitize_filename_part,
     yyyymmdd_from_pubdate,
 )
@@ -48,10 +48,8 @@ from app.config import XBRL_DEST  # noqa: E402
 
 JST = ZoneInfo("Asia/Tokyo")
 DEFAULT_DEST = XBRL_DEST
-LIST_BASE = "https://webapi.yanoshin.jp/webapi/tdnet/list"
-ZIP_BASE = "https://www.release.tdnet.info/inbs"
+ZIP_BASE = tdnet_list.TDNET_BASE
 USER_AGENT = "stock-analyzer-tdnet-xbrl/1.0"
-LIST_LIMIT = 1000
 SLEEP_SEC = 0.4
 HTTP_TIMEOUT = 30.0
 STEM_MAX = 180
@@ -251,7 +249,7 @@ def part_path(final: Path) -> Path:
 
 
 def tdnet_xbrl_id(url: str) -> str | None:
-    """TDnet の inbs ZIP ID。やのしん numeric id は使わない。"""
+    """TDnet の inbs ZIP ID。"""
     if not url:
         return None
     m = _INBS_ZIP_RE.search(url)
@@ -271,14 +269,6 @@ def xbrl_id_from_record(rec: Mapping[str, object]) -> str | None:
     return None
 
 
-def list_url(start: date, end: date, by_id: int | None = None) -> str:
-    span = f"{start:%Y%m%d}-{end:%Y%m%d}"
-    q = {"hasXBRL": "1", "limit": str(LIST_LIMIT)}
-    if by_id is not None:
-        q["by_id"] = str(by_id)
-    return f"{LIST_BASE}/{span}.json?{urlencode(q)}"
-
-
 def http_get(url: str, timeout: float = HTTP_TIMEOUT) -> bytes:
     """このジョブの識別 UA。403 と AIA は _r2common.http_get。"""
     return _http_get(url, timeout=timeout, user_agent=USER_AGENT)
@@ -289,27 +279,9 @@ def fetch_xbrl_records(
     end: date,
     get: Callable[[str], bytes] | None = None,
 ) -> list[dict]:
-    """List one calendar day at a time. Multi-day span URLs and by_id paging are not used.
-
-    Yanoshin truncates at `limit` (and reports that cap as total_count). by_id next
-    pages come back empty, so a 30-day span with limit=300 stops at 300 items.
-    """
+    """TDnet の開示一覧から XBRL 列のある行を取る（jobs/_tdnet.py。404 の日は飛ばす）。"""
     getter = http_get if get is None else get
-    out: list[dict] = []
-    cur = start
-    while cur <= end:
-        url = list_url(cur, cur)
-        body = getter(url).decode("utf-8", errors="replace")
-        time.sleep(SLEEP_SEC)
-        batch = parse_list_body(body)
-        if len(batch) == LIST_LIMIT:
-            print(
-                f"warn list truncated for {cur.isoformat()}: "
-                f"got {LIST_LIMIT} items (day may be incomplete)",
-                flush=True,
-            )
-        out.extend(batch)
-        cur += timedelta(days=1)
+    out = [r for r in tdnet_list.fetch_days(start, end, getter, SLEEP_SEC) if r.get("url_xbrl")]
     rows: list[dict] = []
     seen_ids: set[str] = set()
     for rec in out:

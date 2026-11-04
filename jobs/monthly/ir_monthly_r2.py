@@ -7,7 +7,7 @@
 
 対象は config/monthly/ir_monthly.json。表計算と pdf が両方あるページは表計算だけ取る。
 xlsx があれば xlsx、なければ xls。JSON 化は ir_monthly_xls_ingest.py（このスクリプトは取得だけ）。
-ネットワークと app/ はテストから分離する。
+ネットワークはテストから差し替える。
 """
 from __future__ import annotations
 

@@ -77,11 +77,11 @@
 
 パースが読むのは `data/xbrl`。FUSE `/home/stock/r2-share` は残置（ジョブの dest ではない）。
 
-3 ジョブは独立して再実行できる。
+3 ジョブは独立して再実行できる。cron は毎時 :00 に (1)→(2)→(3) を 1 行で続けて走らせるが、各スクリプトは今までどおり単独で呼べる。
 
 | ジョブ | 実装 | 責務 |
 |---|---|---|
-| (1) fetch | `jobs/xbrl/tdnet_xbrl_r2.py`（既存・変更最小） | 一覧 → ZIP → dest（既定 `data/xbrl`）。skip 正本は manifest の `xbrl_id` |
+| (1) fetch | `jobs/xbrl/tdnet_xbrl_r2.py`（既存・変更最小） | 一覧（TDnet の開示一覧）→ ZIP → dest（既定 `data/xbrl`）。skip 正本は manifest の `xbrl_id` |
 | (2) parse | `jobs/xbrl/xbrl_parse.py`（新規） | ZIP → xbrlp → `xbrl_*` 生データ |
 | (3) normalize | `jobs/xbrl/xbrl_normalize.py`（新規） | facts + YAML マッピング → `xbrl_financials` |
 
@@ -174,6 +174,8 @@ CREATE TABLE xbrl_filings (
 );
 CREATE INDEX idx_xbrl_filings_code ON xbrl_filings(code, submitted_at);
 CREATE INDEX idx_xbrl_filings_parse_status ON xbrl_filings(parse_status);
+CREATE INDEX idx_xbrl_filings_id_cover
+    ON xbrl_filings(id, parse_status, source, doc_id, submitted_at);
 
 CREATE TABLE xbrl_elements (
     id              INTEGER PRIMARY KEY,
@@ -263,8 +265,9 @@ CREATE TABLE xbrl_financials (
     generated_at        TEXT NOT NULL,
     UNIQUE (filing_id, std_item_id, is_consolidated, period_end, value_kind, range_side, target_period)
 );
-CREATE INDEX idx_xbrl_financials_lookup
-    ON xbrl_financials(code, std_item_id, is_consolidated, period_end, value_kind);
+CREATE INDEX idx_xbrl_financials_gp_cover
+    ON xbrl_financials(code, std_item_id, value_kind, is_consolidated,
+                       period_start, period_end, value, filing_id);
 
 CREATE TABLE xbrl_job_runs (
     id              INTEGER PRIMARY KEY,
@@ -286,7 +289,8 @@ CREATE TABLE xbrl_job_runs (
 - **正規化層は再生成可能**: マッピング修正 → `--rebuild` で `xbrl_financials` を作り直す。手で INSERT しない。
 - **マッピングは element_id ではなく `namespace_key + local_name`**: 年度で `namespace_uri` が変わる。element 行が増えても YAML を書き換えなくてよい。
 - **金額は float にしない**: 既存の `statements` は Float だが、生 fact は `NUMERIC`（Decimal）。正規化層も同様。
-- **容量**: 本番 `stock.db` は既に約 1.1GB。短信 iXBRL は有報より小さいが、全 fact を数年分入れると億行にはならない想定でも数千万行になり得る。第1弾は同一 DB。膨らんだら `xbrl_*.db` への分離を検討（今は作らない）。
+- **容量**: 全 fact を数年分入れると行数が大きくなり得る。第1弾は同一 DB。膨らんだら `xbrl_*.db` への分離を検討（今は作らない）。
+- **決算一覧の売上総利益**: `idx_xbrl_financials_gp_cover`（code, std_item_id, value_kind, … value, filing_id）と `idx_xbrl_filings_id_cover` で表本体を読まない（KAB-295）。旧 `idx_xbrl_financials_lookup` は先頭 2 列が同じなので `ensure_indexes` が外す。統計が無いと planner が parse_status 経由になるので、索引を足した表は ANALYZE する。
 - **source**: `tdnet`（短信 ZIP。`doc_id` は ZIP 名）、`edinet`（有報・半期報）、`tdnet_pdf`（ZIP の無い短信 PDF。`doc_id` は開示番号 14 桁。`raw_path` は `tdnet_pdf:<開示番号>`。KAB-173、§16.5）。同じ 14 桁の `tdnet` が `parse_status='parsed'` になったら `tdnet_pdf` の filing は消す。`failed` / `no-ixbrl` の ZIP は消さない。
 
 ---
@@ -426,7 +430,7 @@ manifest の `title` から機械判定する。取りこぼしは `other` / NUL
 
 仕様の正本は `jobs/xbrl/tdnet_xbrl_r2.py` の docstring。本設計では変えない。
 
-- 入力: 日数 N（cron は 1）
+- 入力: 日数 N（cron は 2。前日と当日。前日 23 時より後の開示を翌日に拾う）
 - 出力: `{dest}/{code4}/YYYYMMDD_..._{xbrl_id}.zip` と `manifest/{YYYY-MM-DD}.jsonl`
 - skip 正本は lookback 内 manifest の `xbrl_id`
 - マスタ無し・インフラは `_unmatched/` に保存（消さない）
@@ -479,7 +483,7 @@ filing 単位。
 9. filing 単位で既存の `xbrl_financials` を消してから入れ直す
 10. `is_required=1` が欠けたら警告ログ（`code, filing_id, std_item.code`）。処理は継続。required は本表実績だけ
 
-通常実行は `xbrl_financials` が無い filing と、`parsed_at` が既存の `generated_at` より新しい filing だけ。`--rebuild` は `xbrl_financials` と `xbrl_segments` を全削除して全 parsed filing を再処理する。ログの `deleted` / `segments_deleted` は消す前、`financials` / `segments` は作り直した後の行数（KAB-83。正規化が変わっていなければ前後が同じ）。`--code` で銘柄を限定できる。
+通常実行は `xbrl_financials` が無い filing と、`parsed_at` が既存の `generated_at` より新しい filing だけ。`--rebuild` は `xbrl_financials` と `xbrl_segments` と大株主の表を全削除して全 parsed filing を再処理する。ログの `deleted` / `segments_deleted` は消す前、`financials` / `segments` は作り直した後の行数（KAB-83。正規化が変わっていなければ前後が同じ）。`--code` で銘柄を限定できる。大株主は軸付き fact が無ければ 0 行のまま（`docs/DESIGN_edinet.md` §9）。
 
 ### 6.5 CLI
 
@@ -503,7 +507,7 @@ python jobs/xbrl/xbrl_normalize.py --rebuild --code 72030
 
 dest 既定は `tdnet_xbrl_r2.DEFAULT_DEST`。`--dest` で上書き。
 
-cron は 12–23 時 JST に毎時 `fetch :00` → `parse :10` → `normalize :20`。短信 PDF の数値（§16.5）は cron に無い。normalize は未反映と再パース分だけ（マッピング変更は `--rebuild`）。
+cron は 12–23 時 JST の毎時 :00 に fetch → parse → normalize を 1 行で順に走らせる（段の間は `;`。fetch が失敗しても parse / normalize は走らせる。手元の未解析 ZIP を拾う）。:10 / :20 の単独 cron は置かない（次の毎時の連鎖が拾う。手でやり直すときは各ジョブを `deploy/cron-run.sh` で単独実行）。短信 PDF の数値（§16.5）は cron に無い。normalize は未反映と再パース分だけ（マッピング変更は `--rebuild`）。
 
 ---
 
@@ -691,7 +695,7 @@ XBRL_PARSE_WORKERS=2
 6. normalize + `--rebuild`
 7. `report-unmapped` を実行し上位要素を報告（マッピング追加は確認後）
 8. テスト
-9. cron は 12–23 時 JST の毎時 fetch / parse+10分 / normalize+20分
+9. cron は 12–23 時 JST の毎時 :00 に fetch → parse → normalize を続けて走らせる
 
 フロント・`statements` 置換・EDINET はこのリストの外。
 
@@ -737,7 +741,7 @@ XBRL_PARSE_WORKERS=2
 
 ### 14.2 生データ層
 
-- EDINET の `keep_fact` は、当期でセグメント軸だけ（連結/単体の軸は付いてよい）の fact も残す（`app/edinet/xbrl.py`）。前期のセグメントは残さない
+- EDINET の `keep_fact` は、当期でセグメント軸だけ（連結/単体の軸は付いてよい）の fact も残す（`app/edinet/xbrl.py`）。前期のセグメントは残さない。大株主・所有者別の軸（`MajorShareholdersAxis` / `MajorShareholdersVotingRightsAxis` / `ClassesOfSharesAxis`）も、要素名があるときだけ残す（KAB-266。`docs/DESIGN_edinet.md` §9）
 - `xbrl_contexts.member_labels_json`: 連結/単体以外の次元メンバー → その書類の日本語ラベル（`{"prefix:Member": "自動車"}`）。無ければ NULL。パーサは fact の要素に加えて、context の次元メンバーのラベルも引く（`app/xbrl/parser.py parse_package`）
 - 過去分は `edinet_xbrl.py --reparse` でダウンロードし直さないと入らない
 - デプロイ: `jobs/migrate.py`（表と列）→ `python jobs/xbrl/xbrl_parse.py load-mappings`（SEG の科目とマッピング）。そのあとの取込から入る。取込済みの書類は `edinet_xbrl.py --reparse`
@@ -793,7 +797,7 @@ CREATE TABLE xbrl_segments (
 
 - 短信 ZIP には `Summary/*-ixbrl.htm`（サマリー）と `Attachment/qualitative.htm`（タグの無い HTML。添付資料まるごと: 定性的情報・財務諸表・注記）がある。`qualitative.htm` は本決算・中間・四半期の短信でほぼ全件、REIT は 39 件中 28 件。訂正は訂正箇所だけの書類で欠けることがある
 - 5933（2027/3 中間期）でサマリー＋`qualitative.htm` を Chromium で PDF にすると 12 ページ、数字 650 個と文字が元の PDF と一致した。違いはページのヘッダー・フッター、ロゴ、フォント。外の画像は TDnet の FASF マーク（`release.tdnet.info/img/mark1.gif`）だけ。`script` は 0 件
-- 大きさ（サマリー＋添付、1 件あたり）: HTML 平均 765KB / 中央値 584KB、gzip 後 平均 35KB。8/10〜10/23 で 2,347 件なので年 1 万件前後、DB は年 約 400MB 増える
+- HTML はよく縮むので gzip で持つ
 - 数値タグの無い表（EBITDA、定性的情報の中のセグメント表、収益の分解など）は原文にしか無い
 - 業績予想・配当予想の修正（`tse-rvfc…`）の ZIP はフォルダが無く、`*-ixbrl.htm` が ZIP の直下にある（`Summary/` も `qualitative.htm` も `Attachment/` も無い）。2026-10-25 時点で原文の無い TDnet の filing が 362 件あり、この形の ZIP は 0 件のまま毎時読み直されていた
 
@@ -813,7 +817,7 @@ CREATE TABLE xbrl_segments (
 
 選び方（`app/xbrl/documents.py pick_documents`）: `Summary/` の `*-ixbrl.htm`（名前順）、続けて `qualitative.htm` を 1 つ。`qualitative.htm` が無いときは `Attachment/` の `*-ixbrl.htm` をファイル名順（`0101010-…` の並びが本表の順）。`Summary/` も `qualitative.htm` も `Attachment/` も無いフォルダなしの ZIP（`tse-rvfc` など）は、ZIP の中の `*-ixbrl.htm` を名前順に `summary` として入れる。それでも無ければ 0 行で、`documents_status='empty'` にする。
 
-既存の表に入れない: `xbrl_filings` は取込・正規化・API で何度も引く表で、1 行 35KB の BLOB を載せない。`xbrl_facts.value_text` は fact 単位で 1000 文字で切る（§1.2）。`qualitative.htm` はタグが無く fact にならない。
+既存の表に入れない: `xbrl_filings` は取込・正規化・API で何度も引く表で、原文の BLOB を載せない。`xbrl_facts.value_text` は fact 単位で 1000 文字で切る（§1.2）。`qualitative.htm` はタグが無く fact にならない。
 
 ### 15.3 取込
 
@@ -858,7 +862,6 @@ pdfium（pypdfium2）でページごとに読む。文字は textpage の 1 文�
 - 最後の 1 行: `tdnet_pdf stopped=<done|limit|rate_limited> ok=… missing=… failed=… remaining=…`。`remaining` はこの実行のあとに `targets()` を取り直した件数で、`failed`（この実行で failed にした件数）とは別。`--retry-failed` 無しでは failed 済みは残件に入らない。`stopped=done` なのに remaining>0 なら、実行開始時の対象に含まれなかった回（実行中に statements が増えた等）が残っている。`--dry-run` は対象の件数と先頭 10 件だけ
 - 取った PDF が `/Linearized` の `/L`（ファイル全体の長さ）より短ければ、途中で切れたものとして `failed`（`truncated pdf`）。IR BANK に途中までしか無い PDF がある（79520 の 20260212556420 は 277,188 バイト中 76,224 バイト。pdfium も pdfminer も poppler も読めない）。旧変換器（pdfplumber）でも読めないのでフォールバックはせず `failed` のまま残し、`--retry-failed` で取り直す
 - VPS で動かす（bot が銘柄を指定して毎日）。pypdfium2 は `requirements.txt` に入れた（KAB-169 で pdfplumber から替えた）
-- 規模の見込み: `statements` 約 9.6 万件を全部入れると DB は約 4GB 増える（1 件 43KB）
 
 ### 16.5 短信 PDF の数値（KAB-173）
 
@@ -879,11 +882,11 @@ HTML は svg1（`<line>`）でも svg2（`<path>`）でも、`<text>` の位置�
 
 context は ZIP の短信サマリーと同じメンバー（`ResultMember` など）と、`CurrentYearDuration` / `CurrentAccumulatedQ2Duration` / `NextYearDuration` のようなトークンを使う。前期の実績は `is_normalizable_context` で fact ごと落とす。印字の行は、マッピングが無くても残った列については fact として残す。
 
-読み方（ZIP・J-Quants と突き合わせて直したもの。`READER_VERSION=15`）:
+読み方（ZIP・J-Quants と突き合わせて直したもの。`READER_VERSION=19`）:
 
 - ページ番号（`- 6 -`）と柱（ページの上下の帯で 3 ページ以上同じ高さに出る行。2 行に分かれる柱も行ごと）は読む前に落とす。ダッシュが金額の「－」と読まれて幻の列になり、列見出しを吸っていた。ページ番号の判定は上下の帯の外だけ（表の途中の「- 104」を落とさない。KAB-220）
 - 列見出しは、最初の数値の行のすぐ上に続く行だけ。上にたどって「。」を含む行・(注) / ※ / ＝ で始まる行・空白を除いて 40 字を超える語で切る（KAB-216。行全体ではない。武田の EPS 見出しは短い語が 1 行に並び 40 字を超える。KAB-224）。数値の無い行で ＝ を含む行（「事業利益 ＝ 売上収益 － …」）と、－ の後ろに文字が続く行（折り返しの「－ 売上原価」）は式の注記として見出しにしない（KAB-216 9983 20251007569462）。左が「前回/今回/増減/前期実績」で右が円銭などの単位だけの行は見出し帯に入れず行ラベルにする（KAB-243。6268 個別の「前回発表予想（Ａ）　円銭」。本表のあとに前回/今回が列見出しとして並ぶ修正表は列見出しのまま）。同じ行の語が 1 列に重なっても左から列に付け直さない。1 語の上段見出しも語の下の列にだけ付け、ほかの列へ広げない（#1071 で期間見出し「（自 …」がずれて本表が落ち、単位がずれて ROE・配当が 100 万倍になったので戻した）。数値の列の幅（左端は数値の左端の最小）に重なる語は、重なりが正の列に載せる。端だけ接する隣の列には載せない（KAB-213 の経常利益）。語が ％ 列を挟んで金額列を 2 つ以上またぐときは、`textLength / 字数` で 1 文字ごとの x を推定し、文字を最寄りの金額列へ分ける（KAB-238。6268 の「親会社の所有者に基本的１株当たり」が NP と EPS の 1 語になっている書式）。隣り合う金額列にまたがる親見出し（「年間配当金」）と、金額列と％列だけにまたがる語（1377 の純利益）と、表の左（行名側）から伸びる見出し（7865「2025年1月期第1四半期業績予想（日付）」）と、第1四半期・通期・業績予想を含む語は、語全体を金額列に載せる。％ だけの列は分け先にしない。列に重ならない 1 字は右隣の金額列へ付ける（KAB-236。9501 の「る」「１」を中心の最寄りにすると経常損益る・帰属す1 になる）。単位の 1 字（円・銭・%）は右隣へ飛ばさず中心の最寄り（％ が経常利益列に、円銭が ROE 列に載ると金額が落ちる / 100 万倍になる）。それ以外の重ならない語は中心がいちばん近い列（80pt 以内）。右端だけで当てると中央寄せの見出しが付かず「右端が当期」の決め打ちになる（伊藤忠は当期が左、増減額が右）。表の右上の注記（「％表示は、対前期増減率」）と「(注)」の行は見出しにしない
-- 金額は、直前が行頭・空白・△▲・～ のときだけ取る（語の途中の数字や電話番号の末尾は金額にしない。KAB-216）。`※` / `※n` は後ろに空白があるときだけ消してから金額を取る（KAB-214）。配当の「40 円」の円は金額の飾り（KAB-213）。「20円00銭」は 20.00 の 1 数値（語が分かれても。KAB-237）。1 語の「801円98銭」も 801.98（KAB-233）。「未定」はダッシュと同じ欠け（列見出しにしない）
+- 金額は、直前が行頭・空白・△▲・～ のときだけ取る（語の途中の数字や電話番号の末尾は金額にしない。KAB-216）。`※` / `※n` は後ろに空白があるときだけ消してから金額を取る（KAB-214）。配当の「40 円」の円は金額の飾り（KAB-213）。「20円00銭」は 20.00 の 1 数値（語が分かれても。KAB-237）。1 語の「801円98銭」も 801.98（KAB-233）。円列と隣の銭列は 1 つの 1 株当たり値にする（KAB-251。3608 の EPS 35円21銭、3944・7590 の FEPS）。「15円00銭」の列の右端は円の数字に合わせ、未定の列と揃える（9507）。未定セルが無い EPS の桁違い（7865 20241126529281 の 65.53 と △41.80）は束ねない（「1」「株当たり」が列末尾に回ると名寄せできない）。「未定」はダッシュと同じ欠け（列見出しにしない）
 - 「（訂正前）」から「（訂正後）」の手前までを捨て、訂正後の表を使う（KAB-212）
 - 数値より上にずれた行名（数値のすぐ上で、列より左からだけ始まる行）は見出しにせず次の数値の行の行名にする。数値の下にずれた「今回予定」「前回予定」「実績」（列より左だけ、直前の数値行の方が次の数値行より近い）は直前の行の行名（KAB-237）。値だけの行のあと、「(予想)」「額（△は減少）」「増減額（△は減少）」は前の行の続き。前回/今回/増減/前期で始まる行は新しい行名（pending の連結もしない。KAB-236。CF の折り返し「増減額（△は減少）」は増減の行の役割にしない）。業績予想・配当予想の修正は Forecast の行だけ残す（前期実績を今期末の実績にしない）。pdf-sum の行名の先頭の「連結」「個別」は対応表に渡す前に落とす（KAB-213）。目次の点線は捨てるが、空白区切りの「－」だけの金額行は残す（KAB-236。9501 の前回予想が未定）
 - 修正開示の会計基準は、同じ銘柄の `statements`（`*_IFRS` / `*_JP`）のうち日付が近いものから取る。基準は指紋に含める
@@ -895,13 +898,14 @@ context は ZIP の短信サマリーと同じメンバー（`ResultMember` な�
   - 業績予想の修正（`fc_rev`）は、列にも行にも期の語が無ければ表の見出しの期を使う。見出しの日付の範囲（「2021年9月1日～2022年2月28日」）を先に、期首からの月数（3・6・9・12）で第1〜第3四半期累計・通期を決める（20 日決算も同じ）。日付が無ければ「第2四半期（累計）」「通期」の語。見出しに期が無ければ題名。累計と通期の両方が書いてあって決まらなければ入れない（通期と決めつけて上書きしない。7513・7865 で累計の値が通期の予想になっていた）
 - 本表で捨てる列: 増減・比率（%・前年同期比・売上収益比）・3 か月だけ（「第2四半期連結会計期間」）・予想（本表の後ろの「業績予想の修正」表）。同じ役割の列が 2 つなら見出しで決まった方を残し、どちらも見出しで決まっていれば両方捨てる。ダッシュだけの列は役割を付けない
 - △ だけ右端が数 pt ずれる列（JT）は、同じ行に並ばない 8pt 以内の列を 1 列にまとめる。見出し語の範囲（x0–x1）に右端が入る数値は、同じ行に 2 つ以上入る見出し（またがり。KAB-238）を除き、その見出しに入った数値の最大 x1 へ寄せてから列を決める（KAB-229。7865 の小さい業績予想修正表。見出しの右端へ寄せると隣の ％ 列まで伸びる）。単位の 1 字（円・銭・%）と百万円等は寄せ先にしない（KAB-236 の ROE）
-- 本表は決算短信ごとに BS・PL・CF の最初の 1 つ（数値の行があるもの）。見出しは行頭から（「自動車等セグメントと…区分した連結損益計算書」は本表でない）。先頭の ①–⑳・`(1)`・`1.` は正規化の前に落とす（① は NFKC で 1 になり `1.` に当たらない。KAB-234）。連結の短信は「連結」のある見出し、非連結は無い見出し（子会社・単体の表を読まない）。見出しの後ろの補足（「[第1四半期連結累計期間(…3ヵ月間)]」）は外して判定。ほかの「…計算書」「…対照表」と、後ろの注記（「(…に関する注記)」、文章の行）でブロックを切る
+- 本表は決算短信ごとに BS・PL・CF の最初の 1 つ（数値の行があるもの）。見出しは行頭から（「自動車等セグメントと…区分した連結損益計算書」は本表でない）。先頭の ①–⑳・`(1)`・`1.` は正規化の前に落とす（① は NFKC で 1 になり `1.` に当たらない。KAB-234）。連結の短信は「連結」のある見出し、非連結は無い見出し（子会社・単体の表を読まない）。見出しの後ろの補足（「[第1四半期連結累計期間(…3ヵ月間)]」）は外して判定。ほかの「…計算書」「…対照表」と、後ろの注記（「(…に関する注記)」、文章の行）でブロックを切る。「純損益計算書」は PL。「包括利益計算書」は、同じ書類に損益計算書が無いときだけ PL として読む（KAB-259。IFRS の要約中間/四半期連結包括利益計算書）
 - サマリーは起点から 2 ページ、ページをまたがない（目次のページ番号を予想の値にしない）。起点は最初のサマリー見出し（「(1)連結経営成績」等）があるページ。通常の短信は 0。訂正理由書のあとに全文がある書類は 3 ページ目以降（KAB-226 / KAB-235）。「(2)個別財政状態」「(参考)個別業績」は単体の値として読む。実績の表で期の読めない行（「(金融を除く)」）は読まない。同じ表で同じ科目・同じ期に違う値が出たら両方捨てる
-- 配当は ZIP と同じく単体（`is_consolidated=0`）。context の ref に `_NonConsolidated` を付け、連結の本表の context と取り違えない。列見出しが時点（「第１四半期末」「年間」）だけの列は 1 株当たり配当金。単位の注記も「円銭」も無い配当の修正では、時点だけの列を 1 株当たりとして読む（KAB-223 9983 20221215579485。「１株当たり配当金」は期末列の上にしか無い）。時点が「第 / 2 / 四半期末」と語に分かれていても、つないだ時点で列の役割を決める（8511 20260212556179）。親見出しが「年間配当金（円）」のように単位の括弧付きで期末列だけに付くときは、括弧を外して 1 株当たりとして読む（KAB-245。`READER_VERSION=8`）。「配当金総額（百万円）」「配当性向（%）」は外さない。配当予想の修正のほか、「予定配当額について」「中間配当（予定）について」も読む（KAB-237）。業績予想と配当予想の同時修正（`EarnForecastRevision`）でも「配当予想の修正」ブロックを読む（KAB-231。題名の「業績予想及び配当予想の修正」は `fc_rev` が先に取る）。行の「今回予定」「前回予定」「今回決定」は今回/前回予想と同じ。短信の「配当の状況」は当たらない
+- 配当は ZIP と同じく単体（`is_consolidated=0`）。context の ref に `_NonConsolidated` を付け、連結の本表の context と取り違えない。列見出しが時点（「第１四半期末」「年間」）だけの列は 1 株当たり配当金。単位の注記も「円銭」も無い配当の修正では、時点だけの列を 1 株当たりとして読む（KAB-223 9983 20221215579485。「１株当たり配当金」は期末列の上にしか無い）。時点が「第 / 2 / 四半期末」と語が分かれていても、つないだ時点で列の役割を決める（8511 20260212556179）。親見出しが「年間配当金（円）」のように単位の括弧付きで期末列だけに付くときは、括弧を外して 1 株当たりとして読む（KAB-245。`READER_VERSION=8`）。親見出しに分かれた「期」「末」が張り付いて「年間配当金期末」になった列は、時点を戻して 1 株当たりとして読む（KAB-251 9507）。「配当金総額（百万円）」「配当性向（%）」は外さない。配当予想の修正のほか、「予定配当額について」「中間配当（予定）について」も読む（KAB-237）。業績予想と配当予想の同時修正（`EarnForecastRevision`）でも「配当予想の修正」ブロックを読む（KAB-231。題名の「業績予想及び配当予想の修正」は `fc_rev` が先に取る）。行の「今回予定」「前回予定」「今回決定」は今回/前回予想と同じ。短信の「配当の状況」は当たらない
 - レンジ予想は 3 行（「下限 / ～ / 上限」「下限～ / ダッシュ / 上限」「下限 / 行名 / ～上限」）を 1 行の下限・上限にする。「5,100～ 30.9～」のように語をまたいで 1 つのレンジと読まない
-- 行名は `label_key` でそろえる: 「又は…損失」だけ落とす（末尾、または「の帰属」の直前。「営業利益又は営業損失(△)」→ 営業利益。「四半期利益又は損失(△)の帰属 親会社の所有者」の「の帰属…」は残す。KAB-240）、「(△…)」を落とす、「営業損益」「経常損益」「当期純損益」は利益の名前、末尾の `(A)` / `(B)` を落とす、四半期・中間の利益は当期の名前、「X利益の帰属 親会社の所有者」→ 親会社の所有者に帰属する当期利益、「営業活動に関する／から得た…(純額)」→ 営業活動によるキャッシュ・フロー、「四半期末残高」→ 期末残高。列見出しの「(百万円)」「(円)」は単位（KAB-242）。折り返した行名は、前の行が「及び」等で終わるか、値だけの行の後なら前の行の続き。「損失」で始まる数値の無い行は前の行名の尾。数値の無い「営業/投資/財務活動によるキャッシュ・フロー」と BS の「資産」「流動資産」等は区分見出しとして落とす（KAB-216）
+- 行名は `label_key` でそろえる: 「又は…損失」だけ落とす（末尾、または「の帰属」の直前。「営業利益又は営業損失(△)」→ 営業利益。「四半期利益又は損失(△)の帰属 親会社の所有者」の「の帰属…」は残す。KAB-240）、「(△…)」を落とす、先頭の「(内訳)」を落とす（KAB-260）、「営業損益」「経常損益」「当期純損益」は利益の名前、末尾の `(A)` / `(B)` を落とす、四半期・中間の利益は当期の名前、「X利益の帰属 親会社の所有者」→ 親会社の所有者に帰属する当期利益、「営業活動に関する／から得た…(純額)」→ 営業活動によるキャッシュ・フロー、「四半期末残高」→ 期末残高、「1株当り」→「1株当たり」（KAB-251）。列見出しの「(百万円)」「(円)」は単位（KAB-242）。見出しが裸の「円」だけの列と「株当」を含む行名は 1 株当たり（表の注記の百万円を採らない。KAB-251）。1 株当たりの値が 1e5 以上なら入れない。折り返した行名は、前の行が「及び」等で終わるか、値だけの行の後なら前の行の続き。「損失」で始まる数値の無い行は前の行名の尾。数値の無い「（内訳）」は区分見出しとして落とす（KAB-260。親会社株主に帰属する行の頭に付くと名寄せできない）。数値の無い「…の帰属」は、次の数値行が「に帰属する」を含むときだけ区分見出しとして落とす（KAB-264。81330。次が「親会社の所有者」だけのときは残して連結する。KAB-240）。数値の無い「営業/投資/財務活動によるキャッシュ・フロー」と BS の「資産」「流動資産」等と PL の「収益」（IFRS の内訳の親。KAB-261）は区分見出しとして落とす（KAB-216）
 - サマリーの「第2四半期」（末尾が「末」でないもの）は累計 Q2（KAB-215）
-- 本表ページが文字化けした PDF は `parsed` のまま残し、`parse_error` に `garbled pages=3-14` のように印を付ける。1〜2 ページ目のサマリー（売上高・EPS）は入れる。文字が図形だけで表が 1 つも無いときだけ `failed`（`no in-scope table`）。`tools/tdnet_pdf/financials.py` の最後の行に `garbled=` を出す（KAB-218）
+- 本表ページが文字化けした PDF は `parsed` のまま残し、`parse_error` に `garbled pages=3-14` のように印を付ける。1〜2 ページ目のサマリー（売上高・EPS）は入れる。文字が図形だけで表が 1 つも無いときだけ `failed`（`no in-scope table`）。柱を落としたあとの字数が少なく、図形（`<path>` / `<line>`）が多いページも同じ印を付ける（KAB-227。アウトライン化されたページ。取れた値は残す）。2 ページ目以降で、柱・ページ番号を除いた文字が無いページは `textless pages=4-6`（KAB-262。画像・アウトラインで `<text>` が 0。garbled と同じく `parsed` のまま、サマリーの値は入れる。OCR はしない）。`tools/tdnet_pdf/financials.py` の最後の行に `garbled=` と `textless=` を出す（KAB-218）
+- CF の「現金及び現金同等物の期末残高」「期首残高」は時点（`period_start` 空。KAB-263）。TDnet ZIP / EDINET の `CashAndCashEquivalents` に合わせる。営業・投資・財務 CF は期間のまま
 
 突き合わせの結果（2026-10-26。`verify_financials.py`。共有データの TDnet ZIP と、同じ回の IR BANK の PDF）:
 
@@ -935,7 +939,7 @@ ZIP との付き合わせは `tools/tdnet_pdf/verify_financials.py` がスクラ
 - **J-Quants の業績予想の修正の欄**（KAB-246）: `CurPerType=1Q / 3Q` の修正は、第1・第3四半期累計の予想を末尾なしの欄（`FSales` / `FNCSales` など）に入れて返す。`jquants_checks` はこれを期末 `CurPerEn` の Q1 / Q3 累計（`F*` は連結、`FNC*` は単体）として突き合わせ、通期にしない。`2Q` の修正は末尾なしが通期、`2Q` の欄が上期。`CurPerType` が分からない修正の末尾なしの欄は突き合わせない。検証 bot の `cmp_jq.py` は古い規則（通期扱い）のままなので、`build` は bot の `match` を値の一致の裏付けとしてだけ使う
 
 ```bash
-# HTML を用意する（初回だけ。約 1 時間。IR BANK に 1 秒おき）
+# HTML を用意する（初回だけ。IR BANK に 1 秒おき）
 python tools/tdnet_pdf/golden_check.py fetch
 # 今のチェックアウトを正解データと比べ、main との全行の差も出す
 git worktree add /tmp/sa-main origin/main

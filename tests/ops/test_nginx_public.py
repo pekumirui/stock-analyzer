@@ -1,15 +1,19 @@
 """nginx の設定（deploy/nginx-site.sh）を組み立てて nginx -t を通し、起動して振り分けを確かめる。
 
 公開は /monthly・公開 API の GET・静的ファイル、/app などは Basic 認証、MCP の経路は MCP へ。
+/static/ は alias で nginx 直配信。monthly_row_order.json と ir_monthly_codes.json だけ proxy。
 nginx が無い手元では飛ばす。CI（CI=true）では nginx が無ければ落とす。
 """
 from __future__ import annotations
 
 import base64
+import gzip
 import http.client
 import os
+import re
 import shutil
 import socket
+import stat
 import subprocess
 import tempfile
 import threading
@@ -21,7 +25,9 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 SITE = ROOT / "deploy" / "nginx-site.sh"
+PROVISION = ROOT / "deploy" / "provision.sh"
 USER, PASSWORD = "u", "p"
+MIME_TYPES = Path("/etc/nginx/mime.types")
 
 
 def _fail(msg: str) -> None:
@@ -88,12 +94,16 @@ def _render(tmp: Path, env: dict[str, str]) -> dict[str, str]:
         f'source "{SITE}"\n'
         f'render_limit_conf > "{tmp}/limit.conf"\n'
         f'render_log_conf > "{tmp}/log.conf"\n'
+        f'render_gzip_conf > "{tmp}/gzip.conf"\n'
         f'render_http_only > "{tmp}/http_only.conf"\n'
         f'render_https > "{tmp}/https.conf"\n',
         encoding="utf-8",
     )
     _run_resolved(bash, ["-euo", "pipefail", str(script)], env={**os.environ, **env}, check=True)
-    return {n: (tmp / f"{n}.conf").read_text(encoding="utf-8") for n in ("limit", "log", "http_only", "https")}
+    return {
+        n: (tmp / f"{n}.conf").read_text(encoding="utf-8")
+        for n in ("limit", "log", "gzip", "http_only", "https")
+    }
 
 
 def _local_listen(site: str, port: int, ssl_port: int) -> str:
@@ -113,19 +123,23 @@ def _local_listen(site: str, port: int, ssl_port: int) -> str:
 
 def _main_conf(tmp: Path, site: Path) -> Path:
     conf = tmp / f"nginx-{site.stem}.conf"
+    mime_line = f"    include {MIME_TYPES};\n" if MIME_TYPES.is_file() else ""
     conf.write_text(
         f"pid {tmp}/nginx.pid;\n"
         f"error_log {tmp}/error.log;\n"
         "events {}\n"
         "http {\n"
-        f"    access_log off;\n"
+        f"{mime_line}"
+        "    gzip on;\n"
+        f"    include {tmp}/gzip.conf;\n"
+        f"    include {tmp}/log.conf;\n"
+        f"    access_log {tmp}/access.log timed;\n"
         f"    client_body_temp_path {tmp}/cb;\n"
         f"    proxy_temp_path {tmp}/px;\n"
         f"    fastcgi_temp_path {tmp}/fc;\n"
         f"    uwsgi_temp_path {tmp}/uw;\n"
         f"    scgi_temp_path {tmp}/sc;\n"
         f"    include {tmp}/limit.conf;\n"
-        f"    include {tmp}/log.conf;\n"
         f"    include {site};\n"
         "}\n",
         encoding="utf-8",
@@ -155,8 +169,15 @@ def _self_signed(tmp: Path) -> Path:
     return live
 
 
-def _request(port: int, path: str, method: str = "GET", auth: bool = False) -> tuple[int, str, dict[str, str]]:
-    headers: dict[str, str] = {}
+def _request(
+    port: int,
+    path: str,
+    method: str = "GET",
+    auth: bool = False,
+    extra_headers: dict[str, str] | None = None,
+    decode: bool = True,
+) -> tuple[int, bytes | str, dict[str, str]]:
+    headers: dict[str, str] = dict(extra_headers or {})
     body = b"{}" if method == "POST" else None
     if auth:
         headers["Authorization"] = "Basic " + base64.b64encode(f"{USER}:{PASSWORD}".encode()).decode()
@@ -168,7 +189,10 @@ def _request(port: int, path: str, method: str = "GET", auth: bool = False) -> t
         conn.request(method, path, body=body, headers=headers)
         resp = conn.getresponse()
         raw = {k: v for k, v in resp.getheaders()}
-        return resp.status, resp.read().decode(errors="replace"), raw
+        payload = resp.read()
+        if decode:
+            return resp.status, payload.decode(errors="replace"), raw
+        return resp.status, payload, raw
     finally:
         conn.close()
 
@@ -181,11 +205,106 @@ def _header(headers: dict[str, str], name: str) -> str:
     return ""
 
 
+def _location_block(conf: str, header: str) -> str:
+    start = conf.find(header)
+    if start < 0:
+        _fail(f"missing {header}")
+    rest = conf[start + len(header):]
+    nxt = rest.find("\n    location ")
+    if nxt < 0:
+        return conf[start:]
+    return conf[start:start + len(header) + nxt]
+
+
+def test_nginx_static_direct_contracts() -> None:
+    site = SITE.read_text(encoding="utf-8")
+    gzip_block = _location_block(site, "render_gzip_conf() {")
+    if "text/css" not in gzip_block or "application/javascript" not in gzip_block:
+        _fail("gzip_types must include text/css and application/javascript")
+    static_block = _location_block(site, "location ^~ /static/ {")
+    if "proxy_pass" in static_block:
+        _fail("location ^~ /static/ must not proxy_pass")
+    if "alias ${APP_DIR}/static/;" not in static_block:
+        _fail("location ^~ /static/ must alias ${APP_DIR}/static/")
+    if 'add_header Cache-Control "no-cache" always;' not in static_block:
+        _fail("location ^~ /static/ must set Cache-Control no-cache always")
+    if "${pub_headers}" not in static_block:
+        _fail("location ^~ /static/ must keep ${pub_headers} in the same location")
+    for path in ("/static/monthly_row_order.json", "/static/ir_monthly_codes.json"):
+        block = _location_block(site, f"location = {path} {{")
+        if "proxy_pass" not in block:
+            _fail(f"location = {path} must proxy_pass")
+        if "alias " in block:
+            _fail(f"location = {path} must not alias")
+        if "${pub_headers}" not in block:
+            _fail(f"location = {path} must keep ${{pub_headers}}")
+    provision = PROVISION.read_text(encoding="utf-8")
+    if "ensure_nginx_static_readable" not in provision:
+        _fail("provision.sh must make static/ readable by the nginx worker")
+    if "chmod o+x" not in provision or "chmod -R a+rX" not in provision:
+        _fail("provision.sh must chmod o+x on $HOME and a+rX on static/")
+    if "stock-analyzer-gzip.conf" not in provision or "render_gzip_conf" not in provision:
+        _fail("provision.sh must write gzip_types (css/js) to conf.d")
+    print("ok: nginx static direct contracts")
+
+
+def test_ensure_nginx_static_readable_chmod() -> None:
+    text = PROVISION.read_text(encoding="utf-8")
+    m = re.search(r"ensure_nginx_static_readable\(\) \{.*?\n\}\n", text, re.S)
+    if not m:
+        _fail("could not extract ensure_nginx_static_readable")
+    tmp = Path(tempfile.mkdtemp(prefix="nginx-static-perm-"))
+    home = tmp / "stock"
+    app = home / "stock-analyzer"
+    static = app / "static"
+    static.mkdir(parents=True)
+    css = static / "app.css"
+    css.write_text("body{}\n", encoding="utf-8")
+    home.chmod(0o750)
+    app.chmod(0o750)
+    static.chmod(0o750)
+    css.chmod(0o640)
+    fake_bin = tmp / "bin"
+    fake_bin.mkdir()
+    getent = fake_bin / "getent"
+    getent.write_text(
+        "#!/usr/bin/env bash\n"
+        f'if [[ "$1" == passwd && "$2" == stock ]]; then\n'
+        f'  echo "stock:x:1000:1000::{home}:/bin/bash"\n'
+        "  exit 0\n"
+        "fi\n"
+        "exit 1\n",
+        encoding="utf-8",
+    )
+    getent.chmod(0o755)
+    script = tmp / "run.sh"
+    script.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        f"APP_DIR={app.as_posix()!r}\n"
+        "STOCK_USER=stock\n"
+        f"{m.group(0)}"
+        "ensure_nginx_static_readable\n",
+        encoding="utf-8",
+    )
+    env = {**os.environ, "PATH": f"{fake_bin}{os.pathsep}{os.environ.get('PATH', '')}"}
+    r = subprocess.run(
+        ["bash", str(script)], env=env, capture_output=True, text=True, check=False,
+    )
+    if r.returncode != 0:
+        _fail(f"ensure_nginx_static_readable failed: {r.stderr or r.stdout}")
+    if stat.S_IMODE(home.stat().st_mode) & 0o001 != 0o001:
+        _fail(f"$HOME must be traversable by others, mode={oct(stat.S_IMODE(home.stat().st_mode))}")
+    if stat.S_IMODE(css.stat().st_mode) & 0o004 != 0o004:
+        _fail(f"static file must be world-readable, mode={oct(stat.S_IMODE(css.stat().st_mode))}")
+    print("ok: nginx static dir permissions")
+
+
 def check_routes(port: int) -> None:
     def want(path, status, body_prefix=None, method="GET", auth=False):
         code, body, headers = _request(port, path, method, auth)
-        if code != status or (body_prefix and not body.startswith(body_prefix)):
-            _fail(f"{method} {path}{' (auth)' if auth else ''}: want {status} {body_prefix or ''}, got {code} {body[:80]!r}")
+        if code != status or (body_prefix and not str(body).startswith(body_prefix)):
+            _fail(f"{method} {path}{' (auth)' if auth else ''}: want {status} {body_prefix or ''}, got {code} {str(body)[:80]!r}")
         return headers
 
     h = want("/", 301)
@@ -200,7 +319,41 @@ def check_routes(port: int) -> None:
     want("/api/v1/tables", 403, method="POST")
     want("/api/v1/tables/72030/2026", 200, "app:GET:")
     want("/api/v1/tables/72030/2026/elements", 401, method="POST")
-    want("/static/js/monthly.js", 200, "app:GET:")
+    css_path = ROOT / "static" / "css" / "app.css"
+    js_path = ROOT / "static" / "js" / "monthly.js"
+    css_text = css_path.read_text(encoding="utf-8")
+    js_text = js_path.read_text(encoding="utf-8")
+    code, body, headers = _request(port, "/static/css/app.css")
+    if code != 200 or body != css_text:
+        _fail(f"GET /static/css/app.css must be nginx alias, got {code} {str(body)[:80]!r}")
+    if str(body).startswith("app:GET:"):
+        _fail("GET /static/css/app.css must not hit upstream")
+    if _header(headers, "Cache-Control") != "no-cache":
+        _fail(f"static Cache-Control: {_header(headers, 'Cache-Control')!r}")
+    if not _header(headers, "ETag"):
+        _fail("static must send ETag")
+    if not _header(headers, "Last-Modified"):
+        _fail("static must send Last-Modified")
+    if "nosniff" not in _header(headers, "X-Content-Type-Options"):
+        _fail("static must keep pub_headers")
+    code, body, headers = _request(port, "/static/css/app.css", method="HEAD")
+    if code != 200 or body:
+        _fail(f"HEAD /static/css/app.css: want 200 empty, got {code} {body!r}")
+    if _header(headers, "Cache-Control") != "no-cache" or not _header(headers, "ETag"):
+        _fail("HEAD /static/css/app.css must send Cache-Control and ETag")
+    code, body, _headers = _request(port, "/static/js/monthly.js")
+    if code != 200 or body != js_text:
+        _fail(f"GET /static/js/monthly.js must be nginx alias, got {code} {str(body)[:80]!r}")
+    if MIME_TYPES.is_file():
+        code, raw, headers = _request(
+            port, "/static/css/app.css", extra_headers={"Accept-Encoding": "gzip"}, decode=False,
+        )
+        if code != 200 or "gzip" not in _header(headers, "Content-Encoding"):
+            _fail(f"gzip css: status={code} encoding={_header(headers, 'Content-Encoding')!r}")
+        if gzip.decompress(raw).decode("utf-8") != css_text:
+            _fail("gzip css body mismatch")
+    want("/static/monthly_row_order.json", 200, "app:GET:/static/monthly_row_order.json")
+    want("/static/ir_monthly_codes.json", 200, "app:GET:/static/ir_monthly_codes.json")
     want("/robots.txt", 200, "app:GET:")
     want("/app", 401)
     want("/app", 200, "app:GET:/app", auth=True)
@@ -234,11 +387,16 @@ def test_nginx_public_routes() -> None:
         "HTPASSWD": str(htpasswd), "DOMAIN": "kabukpi.test", "WWW": "www.kabukpi.test",
         "SERVER_NAMES": "kabukpi.test www.kabukpi.test _", "CERT_LIVE": str(live),
         "ACME_ROOT": str(tmp / "acme"), "ACCESS_LOG": str(tmp / "access.log"),
+        "APP_DIR": str(ROOT),
         "APP_UPSTREAM": f"127.0.0.1:{app_port}", "MCP_UPSTREAM": f"127.0.0.1:{mcp_port}",
     }
     out = _render(tmp, env)
     if "auth_basic_user_file" not in out["http_only"]:
         _fail("htpasswd があるとき /app などに Basic 認証を付ける")
+    if f"alias {ROOT}/static/;" not in out["http_only"]:
+        _fail(f"rendered site must alias {ROOT}/static/")
+    if "text/css" not in out["gzip"] or "application/javascript" not in out["gzip"]:
+        _fail("gzip.conf must include css/js types")
     port, ssl_port = _free_port(), _free_port()
     for name in ("http_only", "https"):
         site = tmp / f"site-{name}.conf"
@@ -258,6 +416,18 @@ def test_nginx_public_routes() -> None:
             except OSError:
                 time.sleep(0.1)
         check_routes(port)
+        access = (tmp / "access.log").read_text(encoding="utf-8")
+        css_lines = [ln for ln in access.splitlines() if "/static/css/app.css" in ln]
+        if not css_lines:
+            _fail("access log missing /static/css/app.css")
+        for ln in css_lines:
+            if "urt=-" not in ln:
+                _fail(f"static must not hit upstream (want urt=-): {ln}")
+        json_lines = [ln for ln in access.splitlines() if "monthly_row_order.json" in ln]
+        if not json_lines:
+            _fail("access log missing /static/monthly_row_order.json")
+        if all("urt=-" in ln for ln in json_lines):
+            _fail("JSON route must still go to upstream")
     finally:
         proc.terminate()
         proc.wait(timeout=10)
@@ -267,4 +437,6 @@ def test_nginx_public_routes() -> None:
 
 
 if __name__ == "__main__":
+    test_nginx_static_direct_contracts()
+    test_ensure_nginx_static_readable_chmod()
     test_nginx_public_routes()

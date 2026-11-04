@@ -74,3 +74,8 @@ tmp/
 
 # --- 手元のデザインメモ（リポジトリの DESIGN.md とは別） ---
 DESIGN/
+
+# --- MkDocs wiki（ビルド時に集める。元の md は動かさない） ---
+.wiki-docs/*
+!.wiki-docs/.gitkeep
+site/

@@ -1,0 +1,30 @@
+# 通知先は #alerts-infra だけ。Webhook の URL は provision が slack.env から
+# /etc/monitoring/slack_infra_url に書く（この repo には入れない）。
+route:
+  receiver: slack-infra
+  group_by: [alertname, severity, mountpoint]
+  group_wait: 30s
+  group_interval: 5m
+  # 続いている間は同じ通知を送り直さない（--data.retention も同じ長さにする）
+  repeat_interval: 8760h
+
+inhibit_rules:
+  # critical が出ている間は同じものの warning を出さない
+  - source_matchers: [severity="critical"]
+    target_matchers: [severity="warning"]
+    equal: [alertname, mountpoint]
+
+receivers:
+  - name: slack-infra
+    slack_configs:
+      - api_url_file: /etc/monitoring/slack_infra_url
+        send_resolved: true
+        # 既定は Alertmanager の内部 URL（外から開けない）
+        title_link: ''
+        color: '{{ if eq .Status "resolved" }}#2EB67D{{ else if eq .CommonLabels.severity "critical" }}#E01E5A{{ else }}#ECB22E{{ end }}'
+        title: '{{ if eq .Status "resolved" }}解消{{ else if eq .CommonLabels.severity "critical" }}重大{{ else }}警告{{ end }} · {{ .CommonLabels.alertname }}{{ with .CommonLabels.mountpoint }} {{ . }}{{ end }}'
+        text: |-
+          {{ range .Alerts }}{{ .Annotations.summary }}（{{ if eq .Status "resolved" }}直前の値 {{ end }}{{ .Annotations.value }}）
+          開始 {{ .StartsAt.Local.Format "2006-01-02 15:04:05 MST" }}{{ if eq .Status "resolved" }} / 解消 {{ .EndsAt.Local.Format "2006-01-02 15:04:05 MST" }}{{ end }}
+          {{ end }}
+        fallback: '{{ if eq .Status "resolved" }}解消{{ else }}{{ .CommonLabels.severity }}{{ end }} {{ .CommonLabels.alertname }}'

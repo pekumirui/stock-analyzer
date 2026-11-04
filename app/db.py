@@ -1,4 +1,5 @@
 from itertools import groupby
+from pathlib import Path
 import re
 import time
 
@@ -6,6 +7,7 @@ from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from .config import DATABASE_URL
 from .models import Base
@@ -16,6 +18,16 @@ def sqlite_connect_args(url: str) -> dict[str, float]:
     if not str(url).startswith("sqlite"):
         return {}
     return {"timeout": 30.0}
+
+
+def sqlite_engine_kwargs(url: str) -> dict:
+    """ファイル SQLite は NullPool。SQLAlchemy 2.1 の QueuePool 既定は接続が残り locked になる。"""
+    if not str(url).startswith("sqlite"):
+        return {}
+    kwargs: dict = {"connect_args": sqlite_connect_args(url)}
+    if ":memory:" not in str(url):
+        kwargs["poolclass"] = NullPool
+    return kwargs
 
 
 def apply_sqlite_pragmas(dbapi_connection, connection_record=None) -> None:  # noqa: ARG001
@@ -29,19 +41,28 @@ def apply_sqlite_pragmas(dbapi_connection, connection_record=None) -> None:  # n
         cursor.close()
 
 
-engine = create_engine(
-    DATABASE_URL, future=True, connect_args=sqlite_connect_args(DATABASE_URL),
-)
+engine = create_engine(DATABASE_URL, future=True, **sqlite_engine_kwargs(DATABASE_URL))
 SessionLocal = sessionmaker(bind=engine, autoflush=False, future=True)
 
 if str(DATABASE_URL).startswith("sqlite"):
     event.listens_for(engine, "connect")(apply_sqlite_pragmas)
 
 
+def sqlite_readonly_engine(path: Path | str, timeout: float = 8.0):
+    """SQLite ファイルを読み取り専用で開くエンジン。ファイルが無くても作らない（`mode=ro`）。
+
+    WAL などの PRAGMA は掛けない（書き込みになる）。使い終わったら `dispose()`。
+    """
+    url = f"sqlite:///file:{Path(path).resolve().as_posix()}?mode=ro&uri=true"
+    return create_engine(url, future=True, poolclass=NullPool, connect_args={"timeout": timeout})
+
+
 LOCK_MARKERS = ("database is locked", "database is busy")
+ALREADY_EXISTS_MARKERS = ("already exists",)
 WRITE_LOCK_ATTEMPTS = 6
 WRITE_LOCK_SLEEP_S = 0.05
 WRITE_LOCK_SLEEP_CAP_S = 2.0
+SCHEMA_DDL_ATTEMPTS = 4
 
 
 def is_sqlite_lock(exc: BaseException) -> bool:
@@ -50,6 +71,15 @@ def is_sqlite_lock(exc: BaseException) -> bool:
     if orig is not None:
         msg = f"{msg} {orig}".lower()
     return any(marker in msg for marker in LOCK_MARKERS)
+
+
+def is_already_exists(exc: BaseException) -> bool:
+    """CREATE TABLE / INDEX の競合。WAL の待ち合わせでは消えない。"""
+    msg = str(exc).lower()
+    orig = getattr(exc, "orig", None)
+    if orig is not None:
+        msg = f"{msg} {orig}".lower()
+    return any(marker in msg for marker in ALREADY_EXISTS_MARKERS)
 
 
 def run_sqlite_write(db, fn, *, attempts: int = WRITE_LOCK_ATTEMPTS):
@@ -330,7 +360,11 @@ def _recreate_xbrl_financials_table(conn) -> None:
     # RENAME 後も名前付き INDEX は残る。新しい CREATE と衝突するので先に外す。
     for row in conn.execute(text("PRAGMA index_list('xbrl_financials__old')")).fetchall():
         name = row[1]
-        if name in ("uq_xbrl_financials_key", "idx_xbrl_financials_lookup"):
+        if name in (
+            "uq_xbrl_financials_key",
+            "idx_xbrl_financials_lookup",
+            "idx_xbrl_financials_gp_cover",
+        ):
             conn.execute(text(f'DROP INDEX IF EXISTS "{name}"'))
     XbrlFinancial.__table__.create(bind=conn)
     new_cols = [
@@ -371,9 +405,70 @@ def _server_default_sql(col) -> str | None:
     return str(arg)
 
 
+# covering に置き換えた索引。ensure_indexes が covering を作ったあと外す (KAB-295)
+_OBSOLETE_INDEXES = ("idx_xbrl_financials_lookup",)
+
+
+def _sqlite_index_names(conn) -> dict[str, set[str]]:
+    rows = conn.execute(
+        text("SELECT tbl_name, name FROM sqlite_master WHERE type='index' AND name IS NOT NULL")
+    ).fetchall()
+    out: dict[str, set[str]] = {}
+    for tbl, name in rows:
+        out.setdefault(tbl, set()).add(name)
+    return out
+
+
+def ensure_indexes() -> None:
+    """create_all は既存テーブルに索引を足さない。起動と migrate で不足分を足す。
+
+    uvicorn --workers N が同時に走ると checkfirst のあと別ワーカーが CREATE INDEX
+    して already exists になる。WAL の busy_timeout では消えないので無視する。
+    新しく索引を足した表は ANALYZE する（統計が無いと covering を選ばない。KAB-295）。
+    """
+    with engine.connect() as conn:
+        existing = _sqlite_index_names(conn)
+    created_tables: set[str] = set()
+    for table in Base.metadata.sorted_tables:
+        have = existing.get(table.name, set())
+        for idx in table.indexes:
+            if idx.name not in have:
+                created_tables.add(table.name)
+            try:
+                idx.create(bind=engine, checkfirst=True)
+            except OperationalError as exc:
+                if not is_already_exists(exc):
+                    raise
+    created_tables.update(_drop_obsolete_indexes())
+    for name in sorted(created_tables):
+        with engine.begin() as conn:
+            conn.execute(text(f'ANALYZE "{name}"'))
+
+
+def _drop_obsolete_indexes() -> set[str]:
+    dropped: set[str] = set()
+    with engine.begin() as conn:
+        for name in _OBSOLETE_INDEXES:
+            row = conn.execute(
+                text("SELECT tbl_name FROM sqlite_master WHERE type='index' AND name=:n"),
+                {"n": name},
+            ).fetchone()
+            conn.execute(text(f'DROP INDEX IF EXISTS "{name}"'))
+            if row:
+                dropped.add(row[0])
+    return dropped
+
+
 def init_db(strict: bool = False):
     """テーブル作成。strict=True なら既存スキーマの不整合で例外を投げる。"""
-    Base.metadata.create_all(engine)
+    for attempt in range(1, SCHEMA_DDL_ATTEMPTS + 1):
+        try:
+            Base.metadata.create_all(engine)
+            break
+        except OperationalError as exc:
+            if not is_already_exists(exc) or attempt >= SCHEMA_DDL_ATTEMPTS:
+                raise
+    ensure_indexes()
     if strict:
         lacks = missing_columns()
         if lacks:

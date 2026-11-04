@@ -13,8 +13,9 @@ LogsDirectory=app
 LogsDirectoryMode=0755
 StandardOutput=append:/var/log/app/stock-analyzer.log
 StandardError=append:/var/log/app/stock-analyzer.log
-# SQLite は複数ライターに弱いのでワーカーは1。行頭の JST 時刻は MCP app_logs の since / until が読む
-ExecStart=/home/stock/stock-analyzer/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1 --log-config deploy/uvicorn-log.json
+# ワーカー数は deploy/uvicorn_workers.py（nproc と MemAvailable。UVICORN_WORKERS で上書き）。
+# --preload は使わない。行頭の JST 時刻は MCP app_logs の since / until が読む
+ExecStart=/bin/bash /home/stock/stock-analyzer/deploy/uvicorn-start.sh
 Restart=on-failure
 RestartSec=5
 

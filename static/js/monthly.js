@@ -357,7 +357,7 @@ function renderMonthlyList(){
     return;
   }
   const pub = monthlyPublic();
-  let h = `<table id="monthly-tbl"><thead><tr>` +
+  let h = `<table id="monthly-tbl" class="sheet"><thead><tr>` +
     `<th class="l">会社名</th>` +
     (pub ? "" : `<th class="l">市場</th><th class="l">業種</th>`) +
     `<th class="l">月次業種</th><th>全店(前年比)</th><th>既存店(前年比)</th>` +
@@ -367,7 +367,7 @@ function renderMonthlyList(){
     const mkt = fmtMarket(r.market);
     const label = escHtml(fmtMonthlyIssuerLabel(r.code, r.name));
     const nameCell = pub
-      ? `<td class="l name"><a href="/monthly/${monthlyCode4(r.code)}">${label}</a>${neu}</td>`
+      ? `<td class="l name"><a href="/monthly/${monthlyCode4(r.code)}?from=monthly">${label}</a>${neu}</td>`
       : `<td class="l name" onclick="showMonthlyDetail('${r.code}')">${label}${neu}</td>`;
     h += `<tr data-code="${r.code}">` + nameCell +
       (pub ? "" : `<td class="l ${mkt.cls}">${escHtml(mkt.label)}</td>` +
@@ -383,6 +383,7 @@ function renderMonthlyList(){
 function showMonthlyTop(){
   $("#monthly-top").style.display = "";
   $("#monthly-detail").style.display = "none";
+  if(typeof renderBreadcrumbs === "function") renderBreadcrumbs();
 }
 
 function hideMonthlySuggest(){
@@ -454,6 +455,7 @@ function findMonthlyIssuer(code){
 function showMonthlyDetail(code, opts){
   hideMonthlySuggest();
   const skipHist = !!(opts && opts.skipHist);
+  const keepFrom = !!(opts && (opts.skipHist || opts.keepFrom));
   const row = findMonthlyIssuer(code);
   if(!row){
     if(monthlyPublic()){
@@ -474,19 +476,21 @@ function showMonthlyDetail(code, opts){
   $("#monthly-detail").style.display = "";
   if(monthlyPublic()){
     const path = `/monthly/${monthlyCode4(row.code)}`;
-    if(!skipHist && location.pathname !== path) history.pushState({code: row.code}, "", path);
+    const url = skipHist ? (location.pathname + location.search) : `${path}?from=monthly`;
+    if(!skipHist && location.pathname + location.search !== url) history.pushState({code: row.code}, "", url);
     document.title = `${nm || monthlyCode4(row.code)}（${monthlyCode4(row.code)}）の月次売上 | 株KPI`;
-  }else if(typeof writeRoute === "function") writeRoute("monthly", row.code);
+  }else if(typeof writeRoute === "function") writeRoute("monthly", row.code, keepFrom ? undefined : "monthly");
   loadMonthlyTables();
+  if(typeof renderBreadcrumbs === "function") renderBreadcrumbs();
 }
 
 function backMonthly(ev){
   if(ev) ev.preventDefault();
-  showMonthlyTop();
   if(monthlyPublic()){
     if(location.pathname !== "/monthly") history.pushState({}, "", "/monthly");
     document.title = "月次売上 | 株KPI";
-  }else if(typeof writeRoute === "function") writeRoute("monthly", "");
+  }else if(typeof writeRoute === "function") writeRoute("monthly", "", "");
+  showMonthlyTop();
 }
 
 function renderMonthlySeriesSelect(){
@@ -1023,7 +1027,7 @@ function renderMonthlyTimeline(tables, opts){
   monthlyTlRecs = new Map();
   const body = monthlyTreeHtml(tm, cellsFor, cols);
   wrap.style.setProperty("--monthly-m-w", `calc(${Math.max(maxNumLen, 3)}ch + 14px)`);
-  wrap.innerHTML = `<table class="monthly-tl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  wrap.innerHTML = `<table class="sheet monthly-tl"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
   if(!(opts && opts.keepScroll)){
     wrap.scrollLeft = wrap.scrollWidth;
     requestAnimationFrame(() => { wrap.scrollLeft = wrap.scrollWidth; });
@@ -1091,7 +1095,7 @@ async function openMonthlyPopup(td){
     const head = paired ? `<tr><th></th><th>金額</th><th>前年比</th></tr>` : "";
     pop.innerHTML = `<div class="mpop-head"><span class="mpop-title">${escHtml(name)}</span><span class="mpop-m">${m}月</span>`
       + `<button type="button" class="mpop-x" aria-label="閉じる" onclick="closeMonthlyPopup()">×</button></div>`
-      + `<table>${head}${rows}</table>`;
+      + `<table class="sheet">${head}${rows}</table>`;
     // PC もスマホも押したセルの近くに出す。iOS は表が横にはみ出すと layout viewport が見える幅より
     // 広くなるので、見えている範囲（visualViewport）に収める。
     const vv = window.visualViewport;
