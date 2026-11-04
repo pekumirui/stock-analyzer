@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from app.db import run_sqlite_write, upsert
 from app.market import briefing_extract as bx
+from app.market.briefing_files import read_briefing
 from app.models import BriefingDocument, BriefingExtract, BriefingFact, BriefingPage
 
 JST = ZoneInfo("Asia/Tokyo")
@@ -85,13 +86,15 @@ class Pending:
     code: str
     rel_path: str
     pubdate: str
+    storage: str | None = None
 
 
 def pending_documents(db: Session, codes: Iterable[str] | None = None, limit: int | None = None,
                       redo: bool = False) -> list[Pending]:
     """読む資料。新しい開示から。redo なら読み取り済み（done / failed）も読み直す（submitted は除く）。"""
     q = select(BriefingDocument.document_id, BriefingDocument.source, BriefingDocument.code,
-               BriefingDocument.rel_path, BriefingDocument.pubdate).where(BriefingDocument.status == "saved")
+               BriefingDocument.rel_path, BriefingDocument.pubdate, BriefingDocument.storage
+               ).where(BriefingDocument.status == "saved")
     if codes:
         q = q.where(BriefingDocument.code.in_(list(codes)))
     rows = db.execute(q.order_by(BriefingDocument.pubdate.desc())).all()
@@ -104,7 +107,8 @@ def pending_documents(db: Session, codes: Iterable[str] | None = None, limit: in
         cur = best.get(r.document_id)
         rank = SOURCE_ORDER.index(r.source) if r.source in SOURCE_ORDER else len(SOURCE_ORDER)
         if cur is None or rank < (SOURCE_ORDER.index(cur.source) if cur.source in SOURCE_ORDER else len(SOURCE_ORDER)):
-            best[r.document_id] = Pending(r.document_id, r.source, r.code, r.rel_path, r.pubdate)
+            best[r.document_id] = Pending(
+                r.document_id, r.source, r.code, r.rel_path, r.pubdate, r.storage)
     out = sorted(best.values(), key=lambda p: p.pubdate, reverse=True)
     return out[:limit] if limit else out
 
@@ -152,9 +156,8 @@ def submit(db: Session, client, briefing_root: Path, docs: list[Pending], *, thi
         chunk, chunk_docs, size = [], [], 0
 
     for p in docs:
-        path = briefing_root / p.rel_path
         try:
-            pages, _meta = bx.load_pages(path.read_bytes())
+            pages, _meta = bx.load_pages(read_briefing(p.rel_path, storage=p.storage, root=briefing_root))
         except Exception as e:  # noqa: BLE001 - 壊れた PDF は飛ばして次へ
             out.skipped.append(p.document_id)
             log(f"skip {p.document_id}: {type(e).__name__}: {e}")
@@ -308,7 +311,8 @@ def collect(db: Session, client, briefing_root: Path, *, log: Callable[[str], No
             try:
                 if doc is None:
                     raise FileNotFoundError("briefing_documents に無い")
-                pages, _meta = bx.load_pages((briefing_root / doc.rel_path).read_bytes(), render=False)
+                pages, _meta = bx.load_pages(
+                    read_briefing(doc.rel_path, storage=doc.storage, root=briefing_root), render=False)
             except Exception as e:  # noqa: BLE001 - PDF が消えた・壊れた資料は failed にして次へ
                 def fail(ext=ext, e=e):
                     ext.status, ext.error, ext.extracted_at = STATUS_FAILED, f"PDF が読めない: {e}", _now()

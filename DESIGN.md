@@ -228,9 +228,9 @@ TDnet 決算説明資料 PDF（`jobs/market/tdnet_briefing_r2.py`。KAB-327）:
 - 「修正」だけでは落とさない。補足資料の表題に業績予想の修正が入ることがある
 - 保存先は `data/briefing/{code}/YYYYMMDD_CODE_名前_表題.pdf`。`{code}` とファイル名は月次 PDF と同じ（display_code。J-Quants の 5 桁にはしない）。`SHARE_ROOT` を置くとその直下の `briefing/`
 - 既存ファイルが PDF なら取り直さない。索引が無ければ索引だけ足す。その件数は `reindexed`（新規に保存した `saved` とは別）。PDF でなければ取り直す
-- 索引は `briefing_documents`。列は source / document_id / code（5 桁）/ company_name / pubdate / title / rel_path（`data/briefing` から）/ url / sha256 / size / status / saved_at。このジョブは source=`tdnet`、document_id は TDnet の PDF ファイル名、status=`saved`。ホームページで見つけた PDF は同じ表に source=`homepage`（取得はこのジョブではしない。`app/market/briefing_store.record_briefing`）。IR BANK の過去分は source=`irbank`（下）
+- 索引は `briefing_documents`。列は source / document_id / code（5 桁）/ company_name / pubdate / title / rel_path（`data/briefing` から）/ url / sha256 / size / status / storage（`local` / `onedrive`。既存行は `local`。KAB-345）/ saved_at。このジョブは source=`tdnet`、document_id は TDnet の PDF ファイル名、status=`saved`、storage=`local`。ホームページで見つけた PDF は同じ表に source=`homepage`（取得はこのジョブではしない。`app/market/briefing_store.record_briefing`）。IR BANK の過去分は source=`irbank`（下）。`storage=onedrive` の行は手元が無くても取り直さない
 - 日次 cron は直近 7 日（22:10 JST。取りこぼしの拾い直し）。初回の約 30 日は `deploy/cron-run.sh jobs/market/tdnet_briefing_r2.py 30` を手で一度。デプロイでは走らない
-- OneDrive への控え（`backup_data`）にはまだ載せない。TDnet は約 1 か月で PDF を消す
+- 日次の `backup_data` には載せない（コピーだと手元が残る）。1 年以上前の PDF は下の `briefing_offsite` が移す。TDnet は約 1 か月で PDF を消す
 
 IR BANK の過去の決算説明資料（`tools/briefing/irbank_ingest.py`。KAB-330）:
 
@@ -243,9 +243,20 @@ IR BANK の過去の決算説明資料（`tools/briefing/irbank_ingest.py`。KAB
 - `--limit` はこの実行の社数。`--sleep` は請求の間隔（既定 1 秒）。`--dry-run` は一覧だけ見て、PDF も索引も `briefing_irbank_scans` も書かない（見た社は残件のまま）。`--rescan` でも `remaining` は scans が無い社数のまま（読み直した社は残件に入らない）
 - 手での実行は `deploy/README.md`。デプロイでも cron でも走らない
 
+決算説明資料を OneDrive へ移す（`jobs/market/briefing_offsite.py`。KAB-345）:
+
+- 会社（索引の `code`）ごとに、資料の日付の最新から 1 年以上前の PDF だけを移す。日付はファイル名先頭の `YYYYMMDD`、取れなければ `pubdate`。最新の日付そのものは残る。別の会社の日付では切らない
+- 置き場所は backup と同じ `BACKUP_OFFSITE_REMOTE` / `BACKUP_OFFSITE_PATH`（既定 `onedrive:stock-analyzer-backups`）の `data/briefing/` の下。相対パス（`rel_path`）は変えない
+- 1 ファイルの順は rclone `copyto`、サイズが手元と一致、`storage=onedrive`、手元を削除。どれかで失敗したファイルは索引も手元も変えない。行は消さない（`status` も `rel_path` も残す）。移し済みで手元だけ残っているときは、同じ順でもう一度やってから消す
+- `--dry-run` は対象を出すだけ。`--limit` はこの実行で手を付ける最大件数。何度流しても、移るものは移った状態に揃う
+- cron には入れない。本番の移動は承認後。手では `deploy/cron-run.sh jobs/market/briefing_offsite.py --dry-run` のあと、`--limit` を付けて少しずつ
+- 読む側は `app/market/briefing_files.open_briefing`。`storage=onedrive` は rclone で一時ファイルにして読み、`data/briefing` には戻さない。`analyzer/agent_forecast/fetch_docs.py` の説明資料と、下の読み取りジョブは、索引にあればここから取る
+- 保存済み判定（`has_saved` / `saved_document_ids`）は `storage` を見ない
+
 決算説明資料の読み取り（`jobs/market/briefing_extract.py`。KAB-349）:
 
 - `briefing_documents` の PDF を 1 ページずつ Claude（Haiku 5.5）に読ませ、ページのタイトル・要約・表（期間の列 × 行。行に内訳の親 `of`）を返させる。Message Batches API（通常の半額。終わるまで最長 24 時間）で出す。規則と試験は `analyzer/deck_reader/`（`results/` に費用・精度の記録）。本番のコードは `app/market/briefing_extract.py`（文字データ・分類・プロンプト deck-v3・照合・検算）と `app/market/briefing_batch.py`（出す・受け取る・書く）
+- PDF は `open_briefing` で開く。手元（`storage=local`）は `data/briefing`（`SHARE_ROOT` があればその下）。`storage=onedrive` は rclone で一時ファイルにして読み、`data/briefing` には戻さない
 - `submit`: まだ読んでいない資料（`briefing_extracts` に行が無い）を開示の新しい順に。同じ開示番号が複数の出所にあれば tdnet → irbank → homepage の PDF を読む。表紙・中扉・注意事項のページ（文字が少ない・注意事項の語）は出さない。依頼は 1 ページ 1 件（入力が 10 万トークンを超えると単価が上がるので丸ごと 1 件にしない）。画像は 110dpi の PNG、文字データを添える。システムプロンプトはキャッシュに置く。effort は low。`--no-thinking` で thinking を止める（未検証）。1 Batch は 5000 件・150MB まで。出した資料は `briefing_extracts` に status=`submitted`（batch_id、custom_id の頭 `request_key`）。`--redo` は読み取り済みも出し直す。`--dry-run` は依頼の数を数えるだけ
 - `collect`: `submitted` の Batch を見て、終わったものだけ書く（終わっていなければ次の実行で）。PDF の文字データを読み直し、数字が文字データにあるか（`verified`）と内訳の合計（`sum_status`）を確かめる。`briefing_pages`（ページごと。Claude に回さないページも kind だけ）と `briefing_facts`（表を 1 セル 1 行）を資料ごとに消して書き直す。1 ページでも読めれば `done`、全部だめ・PDF が無ければ `failed`。トークンは `briefing_extracts` に（入力はキャッシュの読み書きを含む）
 - 照合は「ページのどこかにその数字がある」しか見ない。別の項目・期間に付けた誤りは見つからない（検算と画面の表で補う）。グラフが画像で貼られた資料は文字データに数字が無く `verified` が付かない（OCR の照合は analyzer の PoC だけ）

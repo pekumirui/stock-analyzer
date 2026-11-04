@@ -9,7 +9,8 @@
 
 ANTHROPIC_API_KEY が要る（従量課金）。Batch は通常の半額で、終わるまで最長 24 時間（多くは 1 時間以内）。
 submit と collect は別に回す（cron はまだ置かない）。表はデプロイの jobs/migrate.py が作る。
-PDF は data/briefing（SHARE_ROOT があればその下）から読む。
+PDF は open_briefing で開く。手元は data/briefing（SHARE_ROOT があればその下）。
+storage=onedrive は rclone で一時ファイルにして読み、data/briefing には戻さない。
 """
 from __future__ import annotations
 
