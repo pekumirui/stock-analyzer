@@ -31,7 +31,7 @@ Preconditions:
 - Rows need `earnings_events` with `is_first` and prices. Golden DB has them. Empty is `決算のデータがまだありません`.
 
 - **API.** `helpers/capture.py ranking` (optional `--month YYYY-MM`) writes `artifacts/ranking/body.json` from `GET /api/ranking/earnings-perf`. Body is `{months, month, as_of, rows}` with mixed signs in one list, nulls last. The UI splits that payload; there is no `dir=` query. Empty `months` is `決算のデータがまだありません`.
-- **Tab.** Click `nav button[data-tab="ranking"]` → `#tab-ranking` displayed, hash `#ranking`, `#rk-subs [data-rksub="perf"]` `.on`, one `GET /api/ranking/earnings-perf`. 上昇率 is `.on`. `#rk-tbl` last row is still `> 0`. Header cell 騰落率 has `(対TOPIX)` under the name. 市場 cells read `東証P` / `東証S` / `東証G`. 決算日 has 場中 or 引け後 under the date. Header has no PTS tab. Clicking PTS then 決算後パフォーマンス writes `#ranking?from=ranking-pts` and crumbs トップ / ランキング / PTS / ランキング.
+- **Tab.** From a cold `rkSub` (reload of `#ranking`, or first open this document): click `nav button[data-tab="ranking"]` → `#tab-ranking` displayed, hash `#ranking`, `#rk-subs [data-rksub="perf"]` `.on`, one `GET /api/ranking/earnings-perf` (the request URL is `/api/ranking/earnings-perf?` with a trailing `?` and no `month`). 上昇率 is `.on`. `#rk-tbl` last row is still `> 0`. Header cell 騰落率 has `(対TOPIX)` under the name. 市場 cells read `東証P` / `東証S` / `東証G`. 決算日 has 場中 or 引け後 under the date. Header has no PTS tab. After PTS has been opened in this document, the same header click keeps PTS (`#ranking/pts`, `rkSub` sticks; `docs/DESIGN_ranking.md`).
 - **下落率.** Click `.ftab[data-dir="down"]` → no extra `/api/ranking` request, 下落率 is `.on`, row 1 is the most negative `return_to_next`, last row is still `< 0`. A month with no negatives (2026-03 on the golden DB) reads `この月の下落率はありません` with an empty table; a month with no positives (2026-09) reads `この月の上昇率はありません`. Do not accept `この月の上昇はありません` / `この月の下落はありません`.
 - **To 株価.** Click a name → 銘柄 active with 株価 `.on`, hash `#stock/{code}/price?from=ranking`.
 - **Route.** On `#ranking`, reload → ランキング active and `#rk-tbl` filled again.
@@ -41,6 +41,6 @@ Preconditions:
 
 - `#rk-subs` and `#rk-kind` buttons are `.ftab` like 決算速報's 累計 / 3か月. Select by `[data-rksub]` or `[data-dir]`, not bare `.ftab`.
 - Switching away and back does not reload when `#rk-tbl` already has HTML (`showRankingSub`). Reload or change the month to refetch. Leaving PTS and returning to 決算後パフォーマンス also skips the fetch when `#rk-tbl` has HTML.
-- Hash-only `#ranking` does not call `selectTab`. Reload after setting the hash, or click the tab.
+- Hash-only `#ranking` does not call `selectTab`. Reload after setting the hash, or click the tab. A later header click of ランキング does not force 決算後パフォーマンス if PTS was the last inner tab (`rkSub` sticks).
 - Narrow viewports keep `#rk-tbl` and scroll horizontally. Do not look for `.card` or a hidden 対TOPIX column. 順位 / 銘柄 pin; there is no `#rk-tbl .pin1` hairline between 銘柄 and 市場. 騰落率 still has `.grp`’s left border.
 - An empty direction, empty month, or failed load sets `#rk-tbl` `innerHTML` to `""`, so the next `selectTab("ranking")` refetches.
