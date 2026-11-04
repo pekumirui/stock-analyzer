@@ -82,6 +82,7 @@ def _shell(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="/static/js/view-mode.js"></script>
 <title>{t}</title>
 <meta name="description" content="{d}">
 <link rel="canonical" href="{can}">
@@ -98,9 +99,9 @@ def _shell(
 <body class="public-monthly" data-public-monthly="1">
 <header>
   <a class="brand" href="/monthly">{escape(PUBLIC_SITE_NAME)}</a>
+  <nav id="crumbs" aria-label="パンくず" hidden></nav>
 </header>
 <main>
-<nav id="crumbs" aria-label="パンくず"></nav>
 <section id="tab-monthly">
   <div id="monthly-top"{' style="display:none"' if top_hidden else ""}>
     <div class="phead"><h1>月次売上</h1></div>
@@ -124,6 +125,7 @@ def _shell(
 </section>
 </main>
 <footer class="site-foot">{escape(DISCLAIMER)} {escape(SOURCE)}</footer>
+<p id="view-mode" hidden><a href="#view-mode" id="view-mode-btn">PC版を表示</a></p>
 <script src="/static/js/api.js"></script>
 <script src="/static/js/screens.js"></script>
 <script src="/static/js/monthly.js"></script>

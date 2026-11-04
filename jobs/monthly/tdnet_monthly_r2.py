@@ -6,7 +6,7 @@
 
 N は今日(JST)から遡る日数（当日を含む）。日次 cron は 7（取りこぼしの拾い直し）。
 一覧は TDnet の開示一覧（jobs/_tdnet.py。KAB-294）。表題が LIST_KEYWORDS を含み、is_monthly_title が通すものを取る。
-ネットワークと app/ はテストから分離する。
+ネットワークはテストから差し替える。
 """
 from __future__ import annotations
 

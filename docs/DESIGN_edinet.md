@@ -123,7 +123,7 @@ EDINET は修正・不開示・取下げを、後の日の一覧に別レコー�
 - `parsed` / `skipped` の docID は飛ばす（`--reparse` で取り直し）。`failed` は `--retry-failed`。ダウンロードに失敗した書類は filing を作らないので次の回にまた取る
 - `doc_type` / `period_type` / `is_amendment` は書類種別コードから決める（120/130 → `annual`/`FY`、160/170 → `semiannual`/`Q2`、140/150 → `quarterly` で期はタイトル）。会計基準は DEI の `AccountingStandardsDEI`（`Japan GAAP` / `IFRS` / `US GAAP`）
 - 取り込み済みの書類が後から取下げ・不開示になったら、`xbrl_financials` / `xbrl_segments` / 大株主の表と生 fact を消して `parse_status='skipped'`、`parse_error='withdrawn'`
-- タクソノミは同梱（`data/xbrl_taxonomy`）だけを読む。10 年分の書類が参照する版を同梱した（`tools/edinet/sample_zips.py --sample-years 10` の見本から `tools/xbrl/taxonomy_bundle.py fetch`）。それでも足りない書類は `failed`（`TaxonomyMissingError`）になる。`sample_zips.py --failed` → `fetch` → `edinet_xbrl.py --retry-failed`
+- タクソノミは同梱（`data/xbrl_taxonomy`）だけを読む。10 年分の書類が参照する版を同梱した（`tools/edinet/sample_zips.py --sample-years 10` の見本から `tools/xbrl/taxonomy_bundle.py fetch`）。見本は 2016-02-29 以降から始まっていた。訂正は提出が新しくても元書類の版を参照するので、インライン XBRL でそれより前に公開されている jpcrp / jppfs（2013-08-31 と 2015-03-31）と jpsps（2013-08-31、2014-07-31、2015-03-31）も同梱する（KAB-324。jpigp の初版は 2018-03-31）。それでも足りない書類は `failed`（`TaxonomyMissingError`）になる。`sample_zips.py --failed` → `fetch` → `edinet_xbrl.py --retry-failed`
 
 ### ZIP と fact は持ちすぎない
 
@@ -394,7 +394,7 @@ PDF（type=2。type=1 の本文と同じ）・代替書面と添付（type=3。�
 
 ### 退避（`jobs/ops/backup_data.py`）
 
-毎朝 03:30 に `data/edinet` を `onedrive:stock-analyzer-backups/data/edinet/` へ `rclone move`（`*.zip` だけ、10 分より古いもの）。1 ファイルずつ送って確かめてから VPS 側を消すので、VPS には次の 03:30 までの分しか溜まらない。`data/xbrl` / `data/monthly` は copy のまま（`docs/DESIGN_backup.md`）。
+毎朝 03:30 に `data/edinet` を `onedrive:stock-analyzer-backups/data/edinet/` へ `rclone move`（`*.zip` だけ、10 分より古いもの）。1 ファイルずつ送って確かめてから VPS 側を消す。1 回の上限は `--max-duration 50m`（SOFT。KAB-304）。届かなかった分は翌日。過去分の取り直し（下）が続いている間は VPS に残り得る。`data/xbrl` / `data/monthly` は copy のまま（`docs/DESIGN_backup.md`）。
 
 ### 過去分の取り直し（`jobs/edinet/edinet_archive.py`）
 

@@ -1,1 +1,4 @@
 matplotlib
+# deck_reader の OCR 照合（文字データに無い画像のグラフの数字）。入っていなければ OCR を飛ばす
+rapidocr>=3.10
+onnxruntime>=1.20

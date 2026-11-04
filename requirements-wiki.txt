@@ -1,0 +1,3 @@
+# MkDocs wiki 専用。アプリ本体の CI では入れない。
+mkdocs==1.6.1
+mkdocs-material==9.6.22

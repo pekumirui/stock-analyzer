@@ -27,6 +27,9 @@ SHELL=/bin/bash
 0 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_r2.py 7
 0 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_r2.py 7
 
+# TDnet 決算説明資料 PDF → data/briefing（一覧は TDnet。直近7日。既存 PDF は skip。初回の30日は手で一度）
+10 22 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/tdnet_briefing_r2.py 7
+
 # TDnet 月次PDF → ingest JSON（前回投入分と同じ書式だけ。自動 POST しない）→ DB（loopback POST。ledger は dest に置かない）
 20 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_pdf_sidecar.py
 20 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_pdf_sidecar.py
@@ -83,6 +86,7 @@ SHELL=/bin/bash
 
 # data/xbrl と data/monthly を OneDrive へ copy、data/edinet は move（sync はしない。手順は docs/DESIGN_backup.md）
 # 03:30 は data/ に書くジョブ（10〜23 時）と backup_db（05:00）の間。
+# edinet の move は 50 分で区切る（残りは翌日。打ち切りは fail にしない）。
 30 3 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/backup_data.py
 
 # SQLite 整合バックアップ（WAL 中の cp は不可。手順は docs/DESIGN_backup.md）

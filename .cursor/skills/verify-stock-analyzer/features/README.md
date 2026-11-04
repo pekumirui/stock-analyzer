@@ -18,16 +18,16 @@ Read this index, then the matching feature file, before driving the app.
 ## Driving conventions
 
 - Boot restores the last tab (and the 銘柄 code + sub tab / news id, monthly code, supply id) from `location.hash` or `localStorage` key `ui.route` via `restoreRoute()` (`static/js/tabs.js`, called from `boot.js`). For a cold 決算速報 start, clear hash + `ui.route` then reload, or open a fresh profile.
-- Prefer `nav button[data-tab]`, `#id`, and `data-fin` / `data-no` over pixel clicks.
+- Prefer `nav button[data-tab]`, `#id`, and `data-fin` / `data-no` over pixel clicks. `#wiki-link` is an external tab, not a screen. `#view-mode-btn` is phone-only chrome (`screen.width` ≤ 720).
 - Treat every command as literal.
 - HTTP proofs use `helpers/capture.py <feature>` against the same `/api/*` the SPA calls (including `capture.py ranking` and `capture.py holders`).
-- Browser proofs use `browser-use`: open `{url}/app` then click the tab handle. At ≤720px the tabs are in the `#menu-btn` drawer; open it first (or call `selectTab`).
+- Browser proofs use `browser-use`: open `{url}/app` then click the tab handle. At ≤720px the tabs are in `#app-nav` until `#menu-btn` adds `.open` (in-flow under the header, not a fixed drawer); open it first (or call `selectTab`).
 - Cleanup removes `.run/` only. Leave `artifacts/`.
 
 ## Proof and skip reporting
 
 - Capture the user action and the resulting state, not only the final screen.
-- UI proof includes a screenshot of the header (document title is `株式分析ツール`; no brand `h1`, no `#home`; ≤720px `#menu-btn` then `#cur-tab`).
+- UI proof includes a screenshot of the header (document title is `株式分析ツール`; no brand `h1`, no `#home`; ≤720px `#menu-btn` then `nav#crumbs`, or `#cur-tab` if crumbs are hidden).
 - HTTP proof includes `request.txt` and `body.json`.
 - Record the feature ID and entry point with every artifact.
 - Report an unreachable path with the attempted command and the unmet precondition.
@@ -47,7 +47,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 - [決算速報](./earnings.md) calendar day list (累計 / 3か月 / 進捗率 view, 1Q–4Q filter; list metrics 売上 / 粗利 / 営利 / 経利 / 純利), issuer search + sector chips (top 5 + 他N業種), row detail, 累計 / 3か月 / 進捗率 / 修正履歴 tabs.
 - [銘柄](./stock.md) issuer search, common header (price, 時価総額, 次回決算), sub tabs 概要 (指標 + 累計 / 3か月 / 進捗率 / 修正履歴) / 株価 / ニュース (決算短信の原文 in sandboxed iframes, 幅に合わせる / 中 / 原寸 zoom) / 株主 (大量保有 + 自己株), `#stock/{code}/{sub}` route.
 - [大量保有報告書](./holders.md) date list (`file_date`, default Asia/Tokyo today), search by issuer / holder without the date, holder page with holdings / history / estimates, `#holders/{edinet}`.
-- [銘柄 › 株価](./chart.md) daily/weekly/monthly candles, 対TOPIX, 決算発表後リターン (was the チャート tab until KAB-181; `gotoChart` lands here).
+- [銘柄 › 株価](./chart.md) daily/weekly/monthly/yearly candles, 対TOPIX, 決算発表後リターン (was the チャート tab until KAB-181; `gotoChart` lands here).
 - [スクリーナー](./screener.md) Stage + RS filter table (UI defaults Stage 2, RS≥70).
 - [PTS](./pts.md) night PTS ranking inside ランキング (値上がり / 値下がり / 出来高) per session and fetch time, with the next-day open gap and 追随率. Header has no PTS tab; old `#pts` opens ランキング › PTS.
 - [ランキング](./ranking.md) inner tabs 決算後パフォーマンス / PTS. 決算後パフォーマンス is 上昇率 / 下落率 per 決算月, with `(対TOPIX)` in the 騰落率 column name.

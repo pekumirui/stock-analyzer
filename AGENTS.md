@@ -5,6 +5,7 @@
 | 何 | 正本 |
 |---|---|
 | 設計・スキーマ・取込・API | `DESIGN.md` |
+| どのバッチ・API がどのテーブルを読み書きするか | `docs/DATA_FLOW.md` と機能ごとの `docs/dataflow/<機能>.md`（テストから自動生成。手で直さない。テーブルを読み書きする変更をしたら `python -m pytest tests --dataflow=write`）。`docs/dataflow/viewer.html` は人が見る用なので読まない |
 | J-Quants API の仕様（Light プラン） | J-Quants の MCP。md に写さない |
 | 画面（タブ別） | `docs/DESIGN_<tab>.md`。書き方と共通見た目は `docs/SCREEN_SPEC.md` |
 | 月次の行名 | `docs/DESIGN_monthly_labels.md` |
@@ -13,13 +14,14 @@
 | SQLite バックアップ | `docs/DESIGN_backup.md` |
 | VPS・MCP・共有データ（`data/`）の運用 | `deploy/README.md` |
 | 利用者向け手順・コマンド | `README.md` |
+| Markdown wiki（MkDocs / Cloudflare Pages） | `docs/wiki-setup.md` |
 
 ## 環境構築
 
 - Python 3.10+ / FastAPI / SQLAlchemy 2 / pandas。フロントは `static/` の vanilla JS。DB はローカル SQLite (`stock.db`)
 - 仮想環境は `.venv`。Windows は `.\setup.ps1` / `.\run.ps1`、Linux は `./setup.sh` / `./run.sh`。システムの python で依存を入れない
 - クラウドのエージェント（ベンダー問わず）は `bash .cursor/install.sh`（冪等）で `.venv` / `pdftotext` / `rclone` と `stock.db` を用意する。`stock.db` は既定でゴールデンデータ（`tests/golden/db/` の実データの切り出し）から作る（数秒）。全銘柄の実データが要るときだけ `STOCK_DB=full`（backfill 2。約40分。`JQUANTS_API_KEY` が要る）SPA は `bash .cursor/start-web.sh` が 8000 で配信する。8000 を止めない・`reset` しない
-- 秘密情報は各ベンダーの Secrets / 環境変数で渡す: `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `EDINET_API_KEY` / `VPS_SSH_KEY` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`（`R2_*` は残置マウント用。共有ファイルは `data/`）。無い変数の機能は使えないものとして進める。チャットで鍵を求めない
+- 秘密情報は各ベンダーの Secrets / 環境変数で渡す: `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `EDINET_API_KEY` / `ANTHROPIC_API_KEY` / `VPS_SSH_KEY` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`（`R2_*` は残置マウント用。共有ファイルは `data/`）。無い変数の機能は使えないものとして進める。チャットで鍵を求めない
 - Claude Code の自動メモリは `.claude/memory/`。環境は消えるので、メモリを足したら作業ブランチに一緒にコミットする
 
 ## モジュール分担
@@ -27,7 +29,7 @@
 | 場所 | 役割 |
 |---|---|
 | `app/` | アプリ本体。直下は機能をまたぐ共通部分、機能ごとに `market/` / `monthly/` / `supply/` / `xbrl/` と `api/`。`app/xbrlp/` と `app/edinet_wrapper/` は vendor なので改変しない |
-| `static/` | SPA（`index.html` + `css/` + `js/<tab>.js`） |
+| `static/` | SPA（`index.html` + `css/` + `js/<tab>.js`）。`static/vendor/` は自前で配る外部ライブラリなので改変しない |
 | `jobs/` | バッチ・cron。機能ごとのフォルダ、直下は共通 |
 | `config/` | 機能ごとの JSON / YAML 設定と `pyproject.toml`（Ruff / Bandit） |
 | `tests/` | 機能ごとのフォルダ。`python -m pytest tests` が `test_*.py` を全部集める（登録は要らない）。DB はファイルごとに空から（`tests/conftest.py`） |

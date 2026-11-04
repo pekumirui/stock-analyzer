@@ -1,0 +1,31 @@
+[Unit]
+Description=process-exporter (per-process groups)
+After=network.target
+
+[Service]
+User=monitoring
+Group=monitoring
+# 他ユーザの /proc/<pid>/io を読むのに要る。読むだけ
+AmbientCapabilities=CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+CapabilityBoundingSet=CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+ExecStart=/opt/monitoring/bin/process-exporter \
+  -web.listen-address=127.0.0.1:9256 \
+  -config.path=/etc/monitoring/process-exporter.yml \
+  -threads=false \
+  -gather-smaps=false
+MemoryMax=64M
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

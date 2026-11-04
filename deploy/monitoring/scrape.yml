@@ -1,0 +1,19 @@
+# VictoriaMetrics が取りに行く先。どれも 127.0.0.1 だけで待ち受ける。
+# VictoriaMetrics 自身は -selfScrapeInterval で取る。
+global:
+  scrape_interval: 30s
+  scrape_timeout: 10s
+
+scrape_configs:
+  - job_name: node
+    static_configs:
+      - targets: ["127.0.0.1:9100"]
+  - job_name: process
+    static_configs:
+      - targets: ["127.0.0.1:9256"]
+  - job_name: vmalert
+    static_configs:
+      - targets: ["127.0.0.1:8880"]
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["127.0.0.1:9093"]
