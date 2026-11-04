@@ -115,6 +115,35 @@
   #st-news td.t { white-space:normal; min-width:12em; }
   .st-detail-bar { justify-content:space-between; }
   #st-news-head { margin:6px 0; }
+  /* 説明資料（KAB-350）。読み取った表と要約から組み直したグラフ（SVG）と表。原本は出さない */
+  #st-decks tr.go { cursor:pointer; }
+  #st-decks tr.go:hover td { background:var(--now); }
+  #st-decks td { white-space:nowrap; }
+  #st-decks td.t { white-space:normal; min-width:12em; }
+  .dk-head { display:flex; flex-wrap:wrap; gap:4px 12px; align-items:baseline; margin:6px 0 2px; }
+  .dk-meta { margin:0 0 8px; }
+  .dk-page { border-top:1px solid var(--border); padding:10px 0 4px; }
+  .dk-page h3 { margin:0 0 6px; font-size:15px; }
+  .dk-sum { margin:0 0 8px; }
+  .dk-warn { margin:4px 0 0; }
+  .dk-chart { margin:8px 0 2px; max-width:760px; }
+  .dk-chart figcaption { font-weight:600; }
+  .dk-unit, .dk-note { color:var(--sub); font-weight:400; }
+  .dk-note { margin-left:8px; font-size:11px; }
+  .dk-legend { display:flex; flex-wrap:wrap; gap:2px 12px; color:var(--sub); font-size:12px; }
+  .dk-legend span { display:inline-flex; align-items:center; gap:5px; }
+  .dk-sw { display:inline-block; width:10px; height:10px; border-radius:2px; }
+  .dk-sw.line { width:14px; height:3px; }
+  .dk-chart svg { width:100%; height:auto; display:block; }
+  .dk-chart .grid { stroke:var(--grid); stroke-width:1; }
+  .dk-chart .grid.zero { stroke:#c9c8c2; }
+  .dk-chart .ax { fill:var(--sub); font-size:11px; }
+  .dk-chart .val { fill:var(--text); font-size:10px; font-weight:600; }
+  .dk-chart .seg { font-size:9px; font-weight:600; }
+  .dk-chart .seg.side { fill:var(--sub); font-weight:400; }
+  .dk-k { display:block; color:var(--sub); font-weight:400; }
+  .dk-tbl th.dk-r { text-align:left; }
+  .dk-tbl th.dk-r.d1 { font-weight:400; padding-left:16px; }
   /* 短信の原文。iframe は中身の幅・高さまで広げる。幅に合わせるときは縮めて .st-page を縮めた大きさにする（stock.js）。原寸ではみ出す分は #st-doc が横スクロール */
   #st-doc { overflow-x:auto; }
   .st-page { overflow:hidden; border-top:1px solid var(--border); }

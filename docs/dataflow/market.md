@@ -8,50 +8,60 @@
 
 ```mermaid
 flowchart LR
-  n0["market/check_demo.py"]:::job
-  n1["market/homepages.py"]:::job
-  n2["market/pts_snapshot.py"]:::job
-  n3["market/run_batch.py"]:::job
-  n4["market/tanshin_covers.py"]:::job
-  n5["market/tdnet_briefing_r2.py"]:::job
-  n6[("briefing_documents")]:::tbl
-  n7[("daily_prices")]:::tbl
-  n8[("earnings_date_fetches")]:::tbl
-  n9[("earnings_date_pubs")]:::tbl
-  n10[("earnings_events")]:::tbl
-  n11[("homepages")]:::tbl
-  n12[("indicators")]:::tbl
-  n13[("pts_snapshots")]:::tbl
-  n14[("statements")]:::tbl
-  n15[("stocks")]:::tbl
-  n16[("tanshin_covers")]:::tbl
-  n17[("tdnet_pdf_documents")]:::ext
-  n18[("topix")]:::tbl
-  n19[("xbrl_documents")]:::ext
-  n20[("xbrl_elements")]:::ext
-  n21[("xbrl_facts")]:::ext
-  n22[("xbrl_filings")]:::ext
-  n0 -.- n14
-  n1 --> n11
-  n1 -.- n14
-  n1 -.- n17
-  n1 -.- n20
-  n1 -.- n21
-  n1 -.- n22
-  n2 --> n13
-  n3 --> n7
-  n3 --> n8
-  n3 --> n9
-  n3 --> n10
-  n3 --> n12
-  n3 --> n14
-  n3 --> n15
-  n3 --> n18
-  n4 --> n16
-  n4 -.- n17
-  n4 -.- n19
-  n4 -.- n22
-  n5 --> n6
+  n0["market/briefing_extract.py"]:::job
+  n1["market/briefing_offsite.py"]:::job
+  n2["market/check_demo.py"]:::job
+  n3["market/homepages.py"]:::job
+  n4["market/pts_snapshot.py"]:::job
+  n5["market/run_batch.py"]:::job
+  n6["market/tanshin_covers.py"]:::job
+  n7["market/tdnet_briefing_r2.py"]:::job
+  n8[("briefing_documents")]:::tbl
+  n9[("briefing_extracts")]:::tbl
+  n10[("briefing_facts")]:::tbl
+  n11[("briefing_pages")]:::tbl
+  n12[("daily_prices")]:::tbl
+  n13[("earnings_date_fetches")]:::tbl
+  n14[("earnings_date_pubs")]:::tbl
+  n15[("earnings_events")]:::tbl
+  n16[("homepages")]:::tbl
+  n17[("indicators")]:::tbl
+  n18[("pts_snapshots")]:::tbl
+  n19[("statements")]:::tbl
+  n20[("stocks")]:::tbl
+  n21[("tanshin_covers")]:::tbl
+  n22[("tdnet_pdf_documents")]:::ext
+  n23[("topix")]:::tbl
+  n24[("xbrl_documents")]:::ext
+  n25[("xbrl_elements")]:::ext
+  n26[("xbrl_facts")]:::ext
+  n27[("xbrl_filings")]:::ext
+  n0 -.- n8
+  n0 --> n9
+  n0 --> n10
+  n0 --> n11
+  n1 --> n8
+  n2 -.- n19
+  n3 --> n16
+  n3 -.- n19
+  n3 -.- n22
+  n3 -.- n25
+  n3 -.- n26
+  n3 -.- n27
+  n4 --> n18
+  n5 --> n12
+  n5 --> n13
+  n5 --> n14
+  n5 --> n15
+  n5 --> n17
+  n5 --> n19
+  n5 --> n20
+  n5 --> n23
+  n6 --> n21
+  n6 -.- n22
+  n6 -.- n24
+  n6 -.- n27
+  n7 --> n8
   classDef job fill:#e3ecff,stroke:#3b5bdb
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -60,6 +70,8 @@ flowchart LR
 
 | バッチ | 書く | 読むだけ |
 |---|---|---|
+| `jobs/market/briefing_extract.py` | `briefing_extracts`, `briefing_facts`, `briefing_pages` | `briefing_documents` |
+| `jobs/market/briefing_offsite.py` | `briefing_documents` |  |
 | `jobs/market/check_demo.py` |  | `statements`, `stocks` |
 | `jobs/market/homepages.py` | `homepages` | `statements`, `tdnet_pdf_documents`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings` |
 | `jobs/market/pts_snapshot.py` | `pts_snapshots` |  |
@@ -78,39 +90,51 @@ flowchart LR
   n4["GET /api/pts"]:::api
   n5["GET /api/ranking/earnings-perf"]:::api
   n6["GET /api/screener"]:::api
-  n7["GET /api/stock/{code}/overview"]:::api
-  n8[("daily_prices")]:::tbl
-  n9[("earnings_date_fetches")]:::tbl
-  n10[("earnings_date_pubs")]:::tbl
-  n11[("earnings_events")]:::tbl
-  n12[("indicators")]:::tbl
-  n13[("pts_snapshots")]:::tbl
-  n14[("statements")]:::tbl
-  n15[("topix")]:::tbl
-  n16[("xbrl_filings")]:::ext
-  n17[("xbrl_financials")]:::ext
-  n18[("xbrl_std_items")]:::ext
-  n0 -.- n8
-  n0 -.- n11
+  n7["GET /api/stock/{code}/decks"]:::api
+  n8["GET /api/stock/{code}/decks/{key}"]:::api
+  n9["GET /api/stock/{code}/overview"]:::api
+  n10[("briefing_documents")]:::tbl
+  n11[("briefing_extracts")]:::tbl
+  n12[("briefing_facts")]:::tbl
+  n13[("briefing_pages")]:::tbl
+  n14[("daily_prices")]:::tbl
+  n15[("earnings_date_fetches")]:::tbl
+  n16[("earnings_date_pubs")]:::tbl
+  n17[("earnings_events")]:::tbl
+  n18[("indicators")]:::tbl
+  n19[("pts_snapshots")]:::tbl
+  n20[("statements")]:::tbl
+  n21[("topix")]:::tbl
+  n22[("xbrl_filings")]:::ext
+  n23[("xbrl_financials")]:::ext
+  n24[("xbrl_std_items")]:::ext
   n0 -.- n14
-  n1 -.- n9
-  n1 -.- n10
-  n1 -.- n14
+  n0 -.- n17
+  n0 -.- n20
+  n1 -.- n15
   n1 -.- n16
-  n1 -.- n17
-  n1 -.- n18
-  n2 -.- n11
-  n3 -.- n10
-  n3 -.- n14
-  n4 -.- n8
-  n4 -.- n13
-  n5 -.- n8
-  n5 -.- n11
-  n5 -.- n15
-  n6 -.- n12
-  n7 -.- n8
+  n1 -.- n20
+  n1 -.- n22
+  n1 -.- n23
+  n1 -.- n24
+  n2 -.- n17
+  n3 -.- n16
+  n3 -.- n20
+  n4 -.- n14
+  n4 -.- n19
+  n5 -.- n14
+  n5 -.- n17
+  n5 -.- n21
+  n6 -.- n18
   n7 -.- n10
-  n7 -.- n14
+  n7 -.- n11
+  n8 -.- n10
+  n8 -.- n11
+  n8 -.- n12
+  n8 -.- n13
+  n9 -.- n14
+  n9 -.- n16
+  n9 -.- n20
   classDef job fill:#e3ecff,stroke:#3b5bdb
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -126,6 +150,8 @@ flowchart LR
 | `GET /api/pts` |  | `daily_prices`, `pts_snapshots` |
 | `GET /api/ranking/earnings-perf` |  | `daily_prices`, `earnings_events`, `stocks`, `topix` |
 | `GET /api/screener` |  | `indicators`, `stocks` |
+| `GET /api/stock/{code}/decks` |  | `briefing_documents`, `briefing_extracts`, `stocks` |
+| `GET /api/stock/{code}/decks/{key}` |  | `briefing_documents`, `briefing_extracts`, `briefing_facts`, `briefing_pages` |
 | `GET /api/stock/{code}/overview` |  | `daily_prices`, `earnings_date_pubs`, `statements`, `stocks` |
 | `GET /api/stocks/search` |  | `stocks` |
 
@@ -135,8 +161,23 @@ flowchart LR
 
 ### briefing_documents
 
-- 書く: `jobs/market/tdnet_briefing_r2.py`
-- 読むだけ: （観測なし）
+- 書く: `jobs/market/briefing_offsite.py`, `jobs/market/tdnet_briefing_r2.py`
+- 読むだけ: `jobs/market/briefing_extract.py`, `GET /api/stock/{code}/decks`, `GET /api/stock/{code}/decks/{key}`
+
+### briefing_extracts
+
+- 書く: `jobs/market/briefing_extract.py`
+- 読むだけ: `GET /api/stock/{code}/decks`, `GET /api/stock/{code}/decks/{key}`
+
+### briefing_facts
+
+- 書く: `jobs/market/briefing_extract.py`
+- 読むだけ: `GET /api/stock/{code}/decks/{key}`
+
+### briefing_pages
+
+- 書く: `jobs/market/briefing_extract.py`
+- 読むだけ: `GET /api/stock/{code}/decks/{key}`
 
 ### daily_prices
 
@@ -186,7 +227,7 @@ flowchart LR
 ### stocks
 
 - 書く: `jobs/edinet/edinet_codes.py（EDINET・大量保有）`, `jobs/golden_db.py（共通・運用）`, `jobs/market/run_batch.py`
-- 読むだけ: `jobs/edinet/edinet_buybacks.py（EDINET・大量保有）`, `jobs/edinet/edinet_documents.py（EDINET・大量保有）`, `jobs/edinet/edinet_large_holdings.py（EDINET・大量保有）`, `jobs/edinet/edinet_tender_offers.py（EDINET・大量保有）`, `jobs/edinet/edinet_xbrl.py（EDINET・大量保有）`, `jobs/market/check_demo.py`, `jobs/market/tanshin_covers.py`, `jobs/migrate.py（共通・運用）`, `jobs/monthly/ir_monthly_html_ingest.py（月次）`, `jobs/monthly/ir_monthly_html_r2.py（月次）`, `jobs/monthly/ir_monthly_json_ingest.py（月次）`, `jobs/monthly/ir_monthly_r2.py（月次）`, `jobs/monthly/ir_monthly_xls_ingest.py（月次）`, `jobs/monthly/tdnet_monthly_pdf_ingest.py（月次）`, `jobs/monthly/tdnet_monthly_r2.py（月次）`, `jobs/xbrl/tdnet_xbrl_r2.py（XBRL・決算書類）`, `jobs/xbrl/xbrl_parse.py（XBRL・決算書類）`, `DELETE /api/v1/tables/{code}/{year}/elements（月次）`, `GET /api/chart/{code}`, `GET /api/earnings`, `GET /api/earnings/calendar`, `GET /api/earnings/detail/{code}（XBRL・決算書類）`, `GET /api/holders/activity（EDINET・大量保有）`, `GET /api/holders/{edinet}（EDINET・大量保有）`, `GET /api/ranking/earnings-perf`, `GET /api/screener`, `GET /api/stock/{code}/filings（XBRL・決算書類）`, `GET /api/stock/{code}/holders（EDINET・大量保有）`, `GET /api/stock/{code}/overview`, `GET /api/stocks/search`, `GET /api/v1/tables（月次）`, `POST /api/v1/tables/{code}/ingest（月次）`, `POST /api/v1/tables/{code}/{year}/elements（月次）`, `PUT /api/v1/tables/{code}/industry（月次）`, `PUT /api/v1/tables/{code}/{year}/doc（月次）`, `PUT /api/v1/tables/{code}/{year}/elements（月次）`, `PUT /api/v1/tables/{code}/{year}/values（月次）`, `PUT /api/v1/tables/{code}/{year}/values/batch（月次）`
+- 読むだけ: `jobs/edinet/edinet_buybacks.py（EDINET・大量保有）`, `jobs/edinet/edinet_documents.py（EDINET・大量保有）`, `jobs/edinet/edinet_large_holdings.py（EDINET・大量保有）`, `jobs/edinet/edinet_tender_offers.py（EDINET・大量保有）`, `jobs/edinet/edinet_xbrl.py（EDINET・大量保有）`, `jobs/market/check_demo.py`, `jobs/market/tanshin_covers.py`, `jobs/migrate.py（共通・運用）`, `jobs/monthly/ir_monthly_html_ingest.py（月次）`, `jobs/monthly/ir_monthly_html_r2.py（月次）`, `jobs/monthly/ir_monthly_json_ingest.py（月次）`, `jobs/monthly/ir_monthly_r2.py（月次）`, `jobs/monthly/ir_monthly_xls_ingest.py（月次）`, `jobs/monthly/tdnet_monthly_pdf_ingest.py（月次）`, `jobs/monthly/tdnet_monthly_r2.py（月次）`, `jobs/xbrl/tdnet_xbrl_r2.py（XBRL・決算書類）`, `jobs/xbrl/xbrl_parse.py（XBRL・決算書類）`, `DELETE /api/v1/tables/{code}/{year}/elements（月次）`, `GET /api/chart/{code}`, `GET /api/earnings`, `GET /api/earnings/calendar`, `GET /api/earnings/detail/{code}（XBRL・決算書類）`, `GET /api/holders/activity（EDINET・大量保有）`, `GET /api/holders/{edinet}（EDINET・大量保有）`, `GET /api/ranking/earnings-perf`, `GET /api/screener`, `GET /api/stock/{code}/decks`, `GET /api/stock/{code}/filings（XBRL・決算書類）`, `GET /api/stock/{code}/holders（EDINET・大量保有）`, `GET /api/stock/{code}/overview`, `GET /api/stocks/search`, `GET /api/v1/tables（月次）`, `POST /api/v1/tables/{code}/ingest（月次）`, `POST /api/v1/tables/{code}/{year}/elements（月次）`, `PUT /api/v1/tables/{code}/industry（月次）`, `PUT /api/v1/tables/{code}/{year}/doc（月次）`, `PUT /api/v1/tables/{code}/{year}/elements（月次）`, `PUT /api/v1/tables/{code}/{year}/values（月次）`, `PUT /api/v1/tables/{code}/{year}/values/batch（月次）`
 
 ### tanshin_covers
 

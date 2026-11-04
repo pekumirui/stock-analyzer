@@ -1,4 +1,4 @@
-// 銘柄タブ（KAB-161 / KAB-177。docs/DESIGN_stock.md）。共通ヘッダーと中のタブ 概要 / 株価 / ニュース / 株主。
+// 銘柄タブ（KAB-161 / KAB-177。docs/DESIGN_stock.md）。共通ヘッダーと中のタブ 概要 / 株価 / ニュース / 株主 / 説明資料（stock-deck.js）。
 // ニュースの詳細で決算短信の原文を PDF と同じ並びで読む
 let stockCode = "";
 let stockSub = "summary";
@@ -53,13 +53,14 @@ function stockPick(s){
 function stockRoutePath(){
   if(!stockCode) return "";
   if(stockSub === "news" && stockNewsId) return `${stockCode}/news/${stockNewsId}`;
+  if(stockSub === "decks" && stockDeckKey) return `${stockCode}/decks/${stockDeckKey}`;
   return `${stockCode}/${stockSub}`;
 }
 
-// ルート（{code5} / {code5}/{sub} / {code5}/news/{id}。tabs.js で形は確かめ済み）を開く
+// ルート（{code5} / {code5}/{sub} / {code5}/news/{id} / {code5}/decks/{key}。tabs.js で形は確かめ済み）を開く
 function openStockRoute(path){
   const [code, sub, id] = String(path).split("/");
-  showStock(code, sub || "summary", sub === "news" ? (id || "") : "");
+  showStock(code, sub || "summary", sub === "news" ? (id || "") : "", undefined, sub === "decks" ? (id || "") : "");
 }
 
 // 銘柄を選び直す。中のタブはそのまま（ニュースの詳細にいたら一覧へ）
@@ -73,11 +74,13 @@ function stockMsg(text){
   m.hidden = !text;
 }
 
-async function showStock(code, sub, newsId, from){
+async function showStock(code, sub, newsId, from, deckKey = ""){
   const changed = code !== stockCode || !stockOverview;
   stockCode = code;
   stockSub = sub;
   stockNewsId = newsId;
+  if(changed) resetStockDecks();
+  stockDeckKey = deckKey;
   writeRoute("stock", stockRoutePath(), from);
   if(changed){
     if(stockAc) stockAc.abort();
@@ -139,10 +142,11 @@ function renderStockHead(d){
 
 document.querySelectorAll("#st-tabs .ftab").forEach(b => b.onclick = () => {
   if(!stockCode) return;
-  if(b.dataset.sub === stockSub && !(stockSub === "news" && stockNewsId)) return;
+  if(b.dataset.sub === stockSub && !(stockSub === "news" && stockNewsId) && !(stockSub === "decks" && stockDeckKey)) return;
   const from = typeof currentScreenId === "function" ? currentScreenId() : "";
   stockSub = b.dataset.sub;
   stockNewsId = "";
+  stockDeckKey = "";
   writeRoute("stock", stockRoutePath(), from);
   renderStockSub();
 });
@@ -156,6 +160,7 @@ function renderStockSub(){
   if(stockSub === "price") showStockPrice();
   if(stockSub === "news") renderStockNews();
   if(stockSub === "holders") renderStockHoldersTab();
+  if(stockSub === "decks") renderStockDecks();
 }
 
 function renderStockSummary(){

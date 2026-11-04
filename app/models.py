@@ -50,7 +50,8 @@ class BriefingDocument(Base):
     TDnet の保存ジョブが source=tdnet で書き、IR BANK の過去分は source=irbank、
     会社ホームページで見つけた PDF は source=homepage。document_id は出所をまたいで
     同じ開示番号（TDnet の PDF ファイル名。18 桁）。code は普通株の 5 桁。
-    rel_path は data/briefing から。
+    rel_path は data/briefing から。storage は local / onedrive（KAB-345）。
+    行は残す。OneDrive へ移しても status と rel_path は変えない。
     """
     __tablename__ = "briefing_documents"
     source = Column(String(16), primary_key=True)       # tdnet / irbank / homepage
@@ -64,6 +65,7 @@ class BriefingDocument(Base):
     sha256 = Column(String(64))
     size = Column(Integer)
     status = Column(String(16), nullable=False)         # saved
+    storage = Column(String(16), nullable=False, default="local", server_default="local")
     saved_at = Column(DateTime, nullable=False)         # JST naive
     __table_args__ = (
         Index("ix_briefing_documents_code_pubdate", "code", "pubdate"),
@@ -86,6 +88,72 @@ class BriefingIrbankScan(Base):
     reindexed = Column(Integer, nullable=False)         # PDF は既にあり索引だけ足した
     missing = Column(Integer, nullable=False)           # PDF が 404
     failed = Column(Integer, nullable=False)
+
+
+class BriefingExtract(Base):
+    """決算説明資料の読み取り（KAB-349）。資料 1 つに 1 行。FK は付けない。
+
+    jobs/market/briefing_extract.py が Claude の Message Batches API に出すときに submitted で書き、
+    結果を受け取ったら done（1 ページでも読めたら）か failed にする。document_id は briefing_documents と
+    同じ開示番号（出所をまたいで同じ。どの出所の PDF を読んだかは source）。request_key は Batch の
+    custom_id の頭（document_id は custom_id に使えない文字を含みうる）。
+    """
+    __tablename__ = "briefing_extracts"
+    __table_args__ = (Index("ix_briefing_extracts_code", "code"), Index("ix_briefing_extracts_batch", "batch_id"))
+    document_id = Column(String(80), primary_key=True)
+    source = Column(String(16), nullable=False)          # 読んだ PDF の briefing_documents.source
+    code = Column(String(5), nullable=False)
+    status = Column(String(16), nullable=False)          # submitted / done / failed
+    batch_id = Column(String(80))
+    request_key = Column(String(24), nullable=False)
+    model = Column(String(40), nullable=False)
+    prompt_version = Column(String(16), nullable=False)
+    pages = Column(Integer)                              # PDF のページ数
+    llm_pages = Column(Integer)                          # Claude に回したページ数
+    error_pages = Column(Integer)
+    facts = Column(Integer)
+    verified = Column(Integer)                           # 文字データにある数字
+    sum_checks = Column(Integer)
+    sum_mismatch = Column(Integer)
+    input_tokens = Column(Integer)                       # キャッシュの読み書きを含む
+    output_tokens = Column(Integer)
+    error = Column(Text)
+    submitted_at = Column(DateTime, nullable=False)      # JST naive
+    extracted_at = Column(DateTime)
+
+
+class BriefingPage(Base):
+    """読み取った説明資料のページ（KAB-349）。表紙・注意事項など Claude に回さないページも kind だけ残す。
+
+    tables_json は Claude が返した表（列 × 行、行の of）をそのまま。画面の復元ビューが組み直す。
+    """
+    __tablename__ = "briefing_pages"
+    document_id = Column(String(80), primary_key=True)
+    page = Column(Integer, primary_key=True)
+    kind = Column(String(24), nullable=False)            # divider / disclaimer / chart_or_table / table_or_text / text
+    title = Column(Text)
+    summary = Column(Text)
+    tables_json = Column(Text)
+    error = Column(Text)
+
+
+class BriefingFact(Base):
+    """読み取った数値（KAB-349）。briefing_pages の表を 1 セル 1 行に展開したもの。銘柄・指標をまたいで引く用。"""
+    __tablename__ = "briefing_facts"
+    __table_args__ = (Index("ix_briefing_facts_doc", "document_id", "page"),)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    document_id = Column(String(80), nullable=False)
+    page = Column(Integer, nullable=False)
+    metric = Column(Text, nullable=False)
+    segment = Column(Text)
+    period = Column(Text)
+    period_kind = Column(String(24))                     # actual / forecast / previous_forecast / plan / change
+    value = Column(Text, nullable=False)                 # 資料の表記（符号は - にそろえる）
+    value_num = Column(Float)
+    unit = Column(String(24))
+    part_of = Column(Text)                               # 内訳の親（metric|segment）
+    verified = Column(Boolean, nullable=False)           # 文字データにある
+    sum_status = Column(String(12))                      # 親の行だけ: ok / split / paren / partial / mismatch
 
 
 class TanshinCover(Base):
