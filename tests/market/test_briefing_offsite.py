@@ -3,7 +3,10 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import subprocess
 import sys
+import time
 from contextlib import redirect_stdout
 from datetime import date
 from pathlib import Path
@@ -502,16 +505,199 @@ def test_adding_storage_keeps_existing_rows() -> None:
         migrate_add_columns(verbose=False)
 
 
-def test_job_is_not_scheduled() -> None:
-    import mcp.log_mcp as logs
+def _field_values(field: str, low: int, high: int) -> set[int]:
+    if field == "*":
+        return set(range(low, high + 1))
+    values: set[int] = set()
+    for part in field.split(","):
+        step = 1
+        body = part
+        if "/" in part:
+            body, step_text = part.split("/", 1)
+            step = int(step_text)
+        if body in {"*", ""}:
+            start, end = low, high
+        elif "-" in body:
+            start_text, end_text = body.split("-", 1)
+            start, end = int(start_text), int(end_text)
+        else:
+            start = end = int(body)
+        values.update(range(start, end + 1, step))
+    return values
 
-    for line in (ROOT / "deploy" / "crontab").read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
+
+def _cron_slots(spec: list[str]) -> set[tuple[int, int, int]]:
+    minute, hour, _dom, _month, dow = spec
+    minutes = _field_values(minute, 0, 59)
+    hours = _field_values(hour, 0, 23)
+    dows = _field_values(dow, 0, 6)
+    return {(day, hr, min_) for day in dows for hr in hours for min_ in minutes}
+
+
+def _active_crontab_lines() -> list[str]:
+    lines: list[str] = []
+    for raw in (ROOT / "deploy" / "crontab").read_text(encoding="utf-8").splitlines():
+        stripped = raw.strip()
         if not stripped or stripped.startswith("#"):
             continue
-        assert "briefing_offsite" not in stripped
+        if "=" in stripped.split()[0]:
+            continue
+        lines.append(stripped)
+    return lines
+
+
+def test_daily_run_uses_cron_runner_and_does_not_share_a_start() -> None:
+    """時刻そのものは見ない。毎日 1 回、深夜、他のジョブと同時に始まらないこと。"""
+    import mcp.log_mcp as logs
+
+    lines = _active_crontab_lines()
+    ours = [line for line in lines if "briefing_offsite.py" in line]
+    assert len(ours) == 1
+    parts = ours[0].split()
+    assert len(parts) >= 6
+    minute, hour, dom, month, dow = parts[:5]
+    hours = _field_values(hour, 0, 23)
+    minutes = _field_values(minute, 0, 59)
+    assert len(hours) == 1 and len(minutes) == 1
+    assert hours <= set(range(7))
+    assert _field_values(dom, 1, 31) == set(range(1, 32))
+    assert _field_values(month, 1, 12) == set(range(1, 13))
+    assert _field_values(dow, 0, 6) == set(range(7))
+    command = " ".join(parts[5:])
+    assert command.startswith("cd ")
+    assert command.count("cron-run.sh") == 1
+    assert "deploy/cron-run.sh" in command
+    assert "jobs/market/briefing_offsite.py" in command
+    assert ">" not in command
+    mine = _cron_slots(parts[:5])
+    for other in lines:
+        if other == ours[0]:
+            continue
+        overlap = mine & _cron_slots(other.split()[:5])
+        assert not overlap, other
     assert "briefing_offsite" in logs.BATCH_JOBS
-    assert "briefing_offsite" not in logs.crontab_job_names()
+    assert "briefing_offsite" in logs.crontab_job_names()
+
+
+def _child_env() -> dict[str, str]:
+    env = os.environ.copy()
+    prev = env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = str(ROOT) if not prev else str(ROOT) + os.pathsep + prev
+    return env
+
+
+def _stop(proc: subprocess.Popen[bytes]) -> None:
+    if proc.poll() is None:
+        proc.kill()
+    proc.wait(timeout=5)
+
+
+def _wait_text(path: Path, proc: subprocess.Popen[bytes]) -> str:
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        if path.is_file():
+            return path.read_text(encoding="utf-8")
+        if proc.poll() is not None:
+            err = proc.stderr.read().decode() if proc.stderr else ""
+            raise AssertionError(f"child exited {proc.returncode}: {err}")
+        time.sleep(0.05)
+    raise AssertionError("child did not signal")
+
+
+def _pair(root: Path, document_id: str) -> str:
+    rel = "7203/20200101_7203_old.pdf"
+    _IDS[rel] = document_id
+    _add(root, code="72030", rel=rel, pubdate="2020-01-01 00:00:00", document_id=document_id)
+    _add(
+        root, code="72030", rel="7203/20260301_7203_new.pdf",
+        pubdate="2026-03-01 00:00:00", document_id=document_id + "-new",
+    )
+    return rel
+
+
+def _assert_left_alone(root: Path, rel: str, document_id: str, rclone: _Rclone, out: str, rc: int) -> None:
+    assert rc == 0, out
+    assert rclone.calls == []
+    assert (root / rel).is_file()
+    saved = get_saved(SOURCE_TDNET, document_id)
+    assert saved is not None and saved.storage == STORAGE_LOCAL
+    assert "already running" in out
+    assert "done moved=" not in out
+
+
+def test_second_run_does_not_move_while_the_lock_is_held(tmp_path: Path) -> None:
+    _clear()
+    _IDS.clear()
+    root = tmp_path / "briefing"
+    rel = _pair(root, "locked")
+    ready = tmp_path / "ready"
+    code = (
+        "import time\n"
+        "from pathlib import Path\n"
+        "import jobs.market.briefing_offsite as job\n"
+        "with job.instance_lock() as acquired:\n"
+        f"    Path({str(ready)!r}).write_text('1' if acquired else '0', encoding='utf-8')\n"
+        "    if not acquired:\n"
+        "        raise SystemExit(3)\n"
+        "    time.sleep(120)\n"
+    )
+    proc = subprocess.Popen(
+        [sys.executable, "-c", code],
+        cwd=ROOT,
+        env=_child_env(),
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
+    try:
+        assert _wait_text(ready, proc) == "1"
+        rclone = _Rclone(root)
+        rc, out = _run(root, rclone)
+        _assert_left_alone(root, rel, "locked", rclone, out, rc)
+        assert proc.poll() is None
+    finally:
+        _stop(proc)
+    again = _Rclone(root)
+    rc2, out2 = _run(root, again)
+    assert rc2 == 0, out2
+    assert not (root / rel).exists()
+    assert get_saved(SOURCE_TDNET, "locked").storage == STORAGE_ONEDRIVE
+
+
+def test_run_skips_a_manual_process_that_does_not_hold_the_lock(tmp_path: Path) -> None:
+    _clear()
+    _IDS.clear()
+    root = tmp_path / "briefing"
+    rel = _pair(root, "manual")
+    script = ROOT / "jobs" / "market" / "briefing_offsite.py"
+    proc = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(120)", str(script)],
+        stderr=subprocess.PIPE,
+        start_new_session=True,
+    )
+    try:
+        deadline = time.monotonic() + 5
+        needle = b"briefing_offsite.py"
+        while True:
+            try:
+                raw = Path(f"/proc/{proc.pid}/cmdline").read_bytes()
+            except OSError:
+                raw = b""
+            if needle in raw:
+                break
+            if time.monotonic() > deadline or proc.poll() is not None:
+                raise AssertionError("manual process was not visible")
+            time.sleep(0.02)
+        rclone = _Rclone(root)
+        rc, out = _run(root, rclone)
+        _assert_left_alone(root, rel, "manual", rclone, out, rc)
+        assert proc.poll() is None
+    finally:
+        _stop(proc)
+    again = _Rclone(root)
+    rc2, out2 = _run(root, again)
+    assert rc2 == 0, out2
+    assert not (root / rel).exists()
+    assert get_saved(SOURCE_TDNET, "manual").storage == STORAGE_ONEDRIVE
 
 
 def test_cli_dry_run(tmp_path: Path) -> None:

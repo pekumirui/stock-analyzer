@@ -249,7 +249,7 @@ IR BANK の過去の決算説明資料（`tools/briefing/irbank_ingest.py`。KAB
 - 置き場所は backup と同じ `BACKUP_OFFSITE_REMOTE` / `BACKUP_OFFSITE_PATH`（既定 `onedrive:stock-analyzer-backups`）の `data/briefing/` の下。相対パス（`rel_path`）は変えない
 - 1 ファイルの順は rclone `copyto`、サイズが手元と一致、`storage=onedrive`、手元を削除。どれかで失敗したファイルは索引も手元も変えない。行は消さない（`status` も `rel_path` も残す）。移し済みで手元だけ残っているときは、同じ順でもう一度やってから消す
 - `--dry-run` は対象を出すだけ。`--limit` はこの実行で手を付ける最大件数。何度流しても、移るものは移った状態に揃う
-- cron には入れない。本番の移動は承認後。手では `deploy/cron-run.sh jobs/market/briefing_offsite.py --dry-run` のあと、`--limit` を付けて少しずつ
+- 毎日 1 回、`deploy/crontab` から `deploy/cron-run.sh` で動く（KAB-353）。同じジョブが既に動いているときは移さず終わる（終了コード 0）。ロックを持たない、先に手で始めたプロセスも対象なので、全件移動の途中で cron が来ても二重には移さない。手では `deploy/cron-run.sh jobs/market/briefing_offsite.py --dry-run` のあと、`--limit` を付けて少しずつ
 - 読む側は `app/market/briefing_files.open_briefing`。`storage=onedrive` は rclone で一時ファイルにして読み、`data/briefing` には戻さない。`analyzer/agent_forecast/fetch_docs.py` の説明資料と、下の読み取りジョブは、索引にあればここから取る
 - 保存済み判定（`has_saved` / `saved_document_ids`）は `storage` を見ない
 

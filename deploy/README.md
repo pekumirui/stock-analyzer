@@ -320,7 +320,7 @@ deploy/cron-run.sh jobs/market/briefing_extract.py collect
 python jobs/market/briefing_extract.py status
 ```
 
-1 年以上前の決算説明資料（KAB-345）は `jobs/market/briefing_offsite.py` が OneDrive へ移す。会社ごとに最新の資料の日付から 1 年以上前の PDF だけ。順はコピー、サイズ確認、索引を `onedrive` に更新、手元の削除。行は消さない。`--dry-run` は対象を出すだけ。`--limit` はその実行の件数。cron には入れない。本番の移動は承認後に手で行う。ログは `deploy/cron-run.sh` なら `/var/log/app/briefing_offsite.log`（`batch_logs` の `job=briefing_offsite`）。
+1 年以上前の決算説明資料（KAB-345）は `jobs/market/briefing_offsite.py` が OneDrive へ移す。会社ごとに最新の資料の日付から 1 年以上前の PDF だけ。順はコピー、サイズ確認、索引を `onedrive` に更新、手元の削除。行は消さない。`--dry-run` は対象を出すだけ。`--limit` はその実行の件数。毎日 1 回 cron が動かす（KAB-353。01:40 JST）。同じジョブが既に動いているときは移さず終わる。手の全件移動が先に走っていても二重にはならない。ログは `deploy/cron-run.sh` なら `/var/log/app/briefing_offsite.log`（`batch_logs` の `job=briefing_offsite`）。
 
 ```bash
 deploy/cron-run.sh jobs/market/briefing_offsite.py --dry-run
@@ -346,6 +346,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 | `jobs/ops/vps_packages_r2.py` | 06:40 |
 | `jobs/ops/backup_data.py` | 03:30（`data/xbrl` と `data/monthly` を OneDrive へ `rclone copy`。VPS 側は消さない。`data/edinet` は `rclone move`。edinet は 50 分で区切り、残りは翌日。[`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
 | `jobs/ops/backup_db.py` | 05:00（SQLite 整合バックアップ。成功後に OneDrive へ送る。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
+| `jobs/market/briefing_offsite.py` | 01:40（1 年以上前の決算説明資料を OneDrive へ。既に同じジョブが動いていれば始めない） |
 
 振る舞いは `DESIGN.md` §3 と `docs/DESIGN_xbrl.md`。`rclone.conf` と取得ファイルはリポジトリに置かない。
 

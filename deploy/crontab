@@ -84,6 +84,11 @@ SHELL=/bin/bash
 # e-Stat（生産動態の年報、貿易統計）。ESTAT_APP_ID が無ければ何もしない
 10 7 * * 1 cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/supply/material_stats.py --source estat
 
+# 1 年以上前の決算説明資料 → OneDrive（KAB-345）。毎日 1 回（KAB-353）。
+# 01:40 は 00:00 の PTS、0–6 時 :15 の edinet_archive、03:30 の backup_data、05:00 の backup_db と開始がずれている。
+# 二重起動はジョブが止める。手の全件移動が先に動いていても、こちらは始めない。
+40 1 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/briefing_offsite.py
+
 # data/xbrl と data/monthly を OneDrive へ copy、data/edinet は move（sync はしない。手順は docs/DESIGN_backup.md）
 # 03:30 は data/ に書くジョブ（10〜23 時）と backup_db（05:00）の間。
 # edinet の move は 50 分で区切る（残りは翌日。打ち切りは fail にしない）。
