@@ -6,6 +6,7 @@ let stockNewsId = "";
 let stockOverview = null;
 let stockFilings = null;   // null = まだ読んでいない
 let stockFilingsReq = null;
+let stockNewsDecksReq = null;
 let stockDocKey = "";
 let stockAc = null;
 
@@ -88,6 +89,7 @@ async function showStock(code, sub, newsId, from, deckKey = ""){
     stockOverview = null;
     stockFilings = null;
     stockFilingsReq = null;
+    stockNewsDecksReq = null;
     if(typeof resetStockHolders === "function") resetStockHolders();
     stockDocKey = "";
     $("#st-doc").innerHTML = "";
@@ -209,7 +211,7 @@ document.querySelectorAll("#st-fin-tabs .ftab").forEach(b => b.onclick = () => {
   document.querySelectorAll("[data-stfin-wrap]").forEach(w => { w.hidden = w.dataset.stfinWrap !== b.dataset.stfin; });
 });
 
-// ニュース（KAB-178 では短信の一覧 /filings の決算・修正だけ。ほかの種類は KAB-180）
+// ニュース（短信 /filings の決算・修正と、決算説明資料 /decks を日時で混ぜる。KAB-352）
 function loadStockFilings(){
   if(stockFilings) return Promise.resolve(stockFilings);
   if(stockFilingsReq) return stockFilingsReq;
@@ -221,9 +223,49 @@ function loadStockFilings(){
   return stockFilingsReq;
 }
 
+// 説明資料タブと同じ一覧（stock-deck.js の stockDecks）。同じ銘柄のあいだは読み直さない
+function loadStockNewsDecks(){
+  if(typeof stockDecks !== "undefined" && stockDecks) return Promise.resolve(stockDecks);
+  if(stockNewsDecksReq) return stockNewsDecksReq;
+  const code = stockCode;
+  stockNewsDecksReq = api(`/api/stock/${code}/decks`, {signal: stockAc.signal}).then(d => {
+    const rows = d.decks || [];
+    if(code === stockCode && typeof stockDecks !== "undefined") stockDecks = rows;
+    return rows;
+  }).finally(() => { if(code === stockCode) stockNewsDecksReq = null; });
+  return stockNewsDecksReq;
+}
+
 const stockAt = s => (s || "").slice(2).replace(/-/g, "/");
 const stockKind = f => STOCK_MAIN_DOC_TYPES.includes(f.doc_type) ? "決算" : "修正";
 const stockTitle = f => `${f.title || ""}${f.source === "pdf" ? "（PDF から変換）" : ""}`;
+
+// 並べる時刻。秒は落とす。時刻が無ければ日付だけ（YYYY-MM-DD[ HH:MM]）
+function stockNewsAt(s){
+  const m = String(s || "").trim().replace("T", " ").match(/^(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2}))?/);
+  if(!m) return "";
+  return m[2] ? `${m[1]} ${m[2]}` : m[1];
+}
+
+// 短信の行と説明資料の行。新しい順。説明資料のキーは d{decks の key}（x / p と重ならない）
+function stockNewsRows(filings, decks){
+  const rows = [];
+  for(const f of filings || []){
+    rows.push({
+      at: stockNewsAt(f.submitted_at), kind: stockKind(f), title: stockTitle(f), amend: !!f.is_amendment,
+      key: stockNewsKey(f), open: (f.documents || []).length > 0 ? "news" : "",
+    });
+  }
+  for(const d of decks || []){
+    if(!d || d.key == null || d.key === "") continue;
+    rows.push({
+      at: stockNewsAt(d.pubdate), kind: "決算", title: d.title || "", amend: false,
+      key: `d${d.key}`, open: "deck", deckKey: d.key,
+    });
+  }
+  rows.sort((a, b) => (b.at || "").localeCompare(a.at || "") || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  return rows;
+}
 
 async function renderStockNews(){
   const code = stockCode;
@@ -243,26 +285,51 @@ async function renderStockNews(){
     showStockNewsDetail(fs.find(f => stockNewsKey(f) === stockNewsId));
     return;
   }
+  let decks = [];
+  try {
+    decks = await loadStockNewsDecks();
+  } catch(e){
+    if(e.name === "AbortError" || code !== stockCode) return;
+    stockMsg("読み込めませんでした。");
+    return;
+  }
+  if(code !== stockCode || stockSub !== "news" || stockNewsId) return;
   detail.hidden = true;
   list.hidden = false;
-  if(!fs.length){
+  const rows = stockNewsRows(fs, decks);
+  if(!rows.length){
     $("#st-news").innerHTML = "";
     stockMsg("ニュースがありません。");
     return;
   }
-  $("#st-news").innerHTML = "<tr><th class='l'>日時</th><th class='l'>種類</th><th class='l'>題名</th></tr>" + fs.map(f => {
-    const go = f.documents.length > 0;
-    const amend = f.is_amendment ? ' <span class="kind">訂正</span>' : "";
-    return `<tr${go ? ` class="go" data-id="${stockEsc(stockNewsKey(f))}"` : ""}>
-      <td class="l">${stockEsc(stockAt(f.submitted_at))}</td>
-      <td class="l"><span class="kind">${stockKind(f)}</span>${amend}</td>
-      <td class="l t">${stockEsc(stockTitle(f))}</td></tr>`;
+  stockMsg("");
+  $("#st-news").innerHTML = "<tr><th class='l'>日時</th><th class='l'>種類</th><th class='l'>題名</th></tr>" + rows.map(r => {
+    const go = !!r.open;
+    const amend = r.amend ? ' <span class="kind">訂正</span>' : "";
+    const deck = r.open === "deck" ? ` data-open="deck" data-deck="${stockEsc(r.deckKey)}"` : "";
+    return `<tr${go ? ` class="go" data-id="${stockEsc(r.key)}"${deck}` : ""}>
+      <td class="l">${stockEsc(stockAt(r.at))}</td>
+      <td class="l"><span class="kind">${stockEsc(r.kind)}</span>${amend}</td>
+      <td class="l t">${stockEsc(r.title)}</td></tr>`;
   }).join("");
+}
+
+// 説明資料の行はニュース詳細ではなく、説明資料の中身（{code}/decks/{key}）を開く
+function openStockNewsDeck(key){
+  stockNewsId = "";
+  stockSub = "decks";
+  stockDeckKey = key;
+  writeRoute("stock", stockRoutePath(), "stock-news", true);
+  renderStockSub();
 }
 
 $("#st-news").addEventListener("click", e => {
   const tr = e.target.closest("tr.go");
   if(!tr) return;
+  if(tr.dataset.open === "deck"){
+    openStockNewsDeck(tr.dataset.deck);
+    return;
+  }
   stockNewsId = tr.dataset.id;
   // 詳細は履歴に積む（ブラウザの戻るで一覧へ）
   writeRoute("stock", stockRoutePath(), "stock-news", true);
@@ -411,4 +478,8 @@ if(typeof ResizeObserver === "function"){
       fitAllStockFrames();
     });
   }).observe(stDoc);
+}
+
+if(typeof module !== "undefined" && module.exports){
+  module.exports = {stockNewsRows, stockNewsAt, stockRoutePath, renderStockNews, showStock, openStockNewsDeck};
 }
