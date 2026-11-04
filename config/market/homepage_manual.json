@@ -1,0 +1,29 @@
+{
+  "entries": [
+    {
+      "code": "43430",
+      "url": "https://www.fantasy.co.jp/company/",
+      "reason": "イオンファンタジー。最新XBRL（2026-10-13、xbrl:081220261013549512）は http://www.fantasy.co.jp/ で 404。2026-04-09 と 2026-07-10 の短信は https://www.fantasy.co.jp/company/ 。2026-11-02 に 200 で題名はコーポレートサイトトップ。日付が新しい XBRL が勝つので手入力。"
+    },
+    {
+      "code": "93480",
+      "url": "https://www.ispace-inc.com/ja/home-jp/",
+      "reason": "ispace。直近の短信はすべて https://ispace-inc.com/jpn/ 。www へ 301 した先は 404。日本語ホーム https://www.ispace-inc.com/ja/home-jp/ は 2026-11-02 に 200（lang=ja、Home - ispace）。書類に後継URLは無い。"
+    },
+    {
+      "code": "93270",
+      "url": "https://www.e-logit.com/",
+      "reason": "イー・ロジット。最新XBRL（2026-08-14）は https://ec.bpo.e-logit.com/ で DNS なし。2025-11 以降の短信は https://ec-bpo.e-logit.com/ で 200 だが題名は FC・物流運営のサービス画面。会社サイトは 2024-08-13 の短信にある https://www.e-logit.com/ 。2026-11-02 に 200 で題名は通販物流代行・コンサルティング・物流教育｜株式会社イー・ロジット。"
+    },
+    {
+      "code": "27880",
+      "url": "https://www.apple-international.com/index.html",
+      "reason": "アップルインターナショナル。短信・XBRLの https://www.apple-international.com は /en/ へ飛び 404。日本語トップ https://www.apple-international.com/index.html は 2026-11-02 に 200。"
+    },
+    {
+      "code": "71800",
+      "url": "https://www.kyushu-fg.co.jp/",
+      "reason": "九州フィナンシャルグループ。短信の http://www.kyushu-fg.co.jp/ は 2026-11-02 にVPSから 404。https://www.kyushu-fg.co.jp/ は 200。"
+    }
+  ]
+}

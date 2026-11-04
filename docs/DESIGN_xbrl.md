@@ -77,11 +77,11 @@
 
 パースが読むのは `data/xbrl`。FUSE `/home/stock/r2-share` は残置（ジョブの dest ではない）。
 
-3 ジョブは独立して再実行できる。
+3 ジョブは独立して再実行できる。cron は毎時 :00 に (1)→(2)→(3) を 1 行で続けて走らせるが、各スクリプトは今までどおり単独で呼べる。
 
 | ジョブ | 実装 | 責務 |
 |---|---|---|
-| (1) fetch | `jobs/xbrl/tdnet_xbrl_r2.py`（既存・変更最小） | 一覧 → ZIP → dest（既定 `data/xbrl`）。skip 正本は manifest の `xbrl_id` |
+| (1) fetch | `jobs/xbrl/tdnet_xbrl_r2.py`（既存・変更最小） | 一覧（TDnet の開示一覧）→ ZIP → dest（既定 `data/xbrl`）。skip 正本は manifest の `xbrl_id` |
 | (2) parse | `jobs/xbrl/xbrl_parse.py`（新規） | ZIP → xbrlp → `xbrl_*` 生データ |
 | (3) normalize | `jobs/xbrl/xbrl_normalize.py`（新規） | facts + YAML マッピング → `xbrl_financials` |
 
@@ -174,6 +174,8 @@ CREATE TABLE xbrl_filings (
 );
 CREATE INDEX idx_xbrl_filings_code ON xbrl_filings(code, submitted_at);
 CREATE INDEX idx_xbrl_filings_parse_status ON xbrl_filings(parse_status);
+CREATE INDEX idx_xbrl_filings_id_cover
+    ON xbrl_filings(id, parse_status, source, doc_id, submitted_at);
 
 CREATE TABLE xbrl_elements (
     id              INTEGER PRIMARY KEY,
@@ -263,8 +265,9 @@ CREATE TABLE xbrl_financials (
     generated_at        TEXT NOT NULL,
     UNIQUE (filing_id, std_item_id, is_consolidated, period_end, value_kind, range_side, target_period)
 );
-CREATE INDEX idx_xbrl_financials_lookup
-    ON xbrl_financials(code, std_item_id, is_consolidated, period_end, value_kind);
+CREATE INDEX idx_xbrl_financials_gp_cover
+    ON xbrl_financials(code, std_item_id, value_kind, is_consolidated,
+                       period_start, period_end, value, filing_id);
 
 CREATE TABLE xbrl_job_runs (
     id              INTEGER PRIMARY KEY,
@@ -287,6 +290,7 @@ CREATE TABLE xbrl_job_runs (
 - **マッピングは element_id ではなく `namespace_key + local_name`**: 年度で `namespace_uri` が変わる。element 行が増えても YAML を書き換えなくてよい。
 - **金額は float にしない**: 既存の `statements` は Float だが、生 fact は `NUMERIC`（Decimal）。正規化層も同様。
 - **容量**: 全 fact を数年分入れると行数が大きくなり得る。第1弾は同一 DB。膨らんだら `xbrl_*.db` への分離を検討（今は作らない）。
+- **決算一覧の売上総利益**: `idx_xbrl_financials_gp_cover`（code, std_item_id, value_kind, … value, filing_id）と `idx_xbrl_filings_id_cover` で表本体を読まない（KAB-295）。旧 `idx_xbrl_financials_lookup` は先頭 2 列が同じなので `ensure_indexes` が外す。統計が無いと planner が parse_status 経由になるので、索引を足した表は ANALYZE する。
 - **source**: `tdnet`（短信 ZIP。`doc_id` は ZIP 名）、`edinet`（有報・半期報）、`tdnet_pdf`（ZIP の無い短信 PDF。`doc_id` は開示番号 14 桁。`raw_path` は `tdnet_pdf:<開示番号>`。KAB-173、§16.5）。同じ 14 桁の `tdnet` が `parse_status='parsed'` になったら `tdnet_pdf` の filing は消す。`failed` / `no-ixbrl` の ZIP は消さない。
 
 ---
@@ -426,7 +430,7 @@ manifest の `title` から機械判定する。取りこぼしは `other` / NUL
 
 仕様の正本は `jobs/xbrl/tdnet_xbrl_r2.py` の docstring。本設計では変えない。
 
-- 入力: 日数 N（cron は 1）
+- 入力: 日数 N（cron は 2。前日と当日。前日 23 時より後の開示を翌日に拾う）
 - 出力: `{dest}/{code4}/YYYYMMDD_..._{xbrl_id}.zip` と `manifest/{YYYY-MM-DD}.jsonl`
 - skip 正本は lookback 内 manifest の `xbrl_id`
 - マスタ無し・インフラは `_unmatched/` に保存（消さない）
@@ -503,7 +507,7 @@ python jobs/xbrl/xbrl_normalize.py --rebuild --code 72030
 
 dest 既定は `tdnet_xbrl_r2.DEFAULT_DEST`。`--dest` で上書き。
 
-cron は 12–23 時 JST に毎時 `fetch :00` → `parse :10` → `normalize :20`。短信 PDF の数値（§16.5）は cron に無い。normalize は未反映と再パース分だけ（マッピング変更は `--rebuild`）。
+cron は 12–23 時 JST の毎時 :00 に fetch → parse → normalize を 1 行で順に走らせる（段の間は `;`。fetch が失敗しても parse / normalize は走らせる。手元の未解析 ZIP を拾う）。:10 / :20 の単独 cron は置かない（次の毎時の連鎖が拾う。手でやり直すときは各ジョブを `deploy/cron-run.sh` で単独実行）。短信 PDF の数値（§16.5）は cron に無い。normalize は未反映と再パース分だけ（マッピング変更は `--rebuild`）。
 
 ---
 
@@ -691,7 +695,7 @@ XBRL_PARSE_WORKERS=2
 6. normalize + `--rebuild`
 7. `report-unmapped` を実行し上位要素を報告（マッピング追加は確認後）
 8. テスト
-9. cron は 12–23 時 JST の毎時 fetch / parse+10分 / normalize+20分
+9. cron は 12–23 時 JST の毎時 :00 に fetch → parse → normalize を続けて走らせる
 
 フロント・`statements` 置換・EDINET はこのリストの外。
 

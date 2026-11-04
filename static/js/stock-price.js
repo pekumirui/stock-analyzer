@@ -1,6 +1,7 @@
-// 銘柄タブの株価（KAB-181。docs/DESIGN_stock.md「株価」）。もとのチャートタブの中身
+// 銘柄タブの株価（KAB-181 / KAB-300。docs/DESIGN_stock.md「株価」）。チャートは chart-core.js
 let stockPriceCode = "";   // 描いた銘柄。違えば描き直す
 let stockPriceAc = null;
+let stockChart = null;
 
 // ほかのタブの銘柄名から開く（決算速報・スクリーナー・ランキング・サプライ）
 function gotoChart(code){
@@ -16,6 +17,44 @@ function showStockPrice(){
   if(stockPriceCode !== stockCode) loadChart();
 }
 
+// 足・下段・業績の段・高安値・PERバンド・対数は localStorage に残す
+function loadChartView(){
+  const v = {tf: "D", sub: "v", fund: "", hl: true, band: false, log: false};
+  try { Object.assign(v, JSON.parse(localStorage.getItem("chart.view") || "{}")); } catch(e) {}
+  return v;
+}
+function saveChartView(){
+  try {
+    localStorage.setItem("chart.view", JSON.stringify({tf: chartTf(), sub: $("#chart-sub").value,
+      fund: $("#chart-fund").value, hl: $("#chart-hl").checked, band: $("#chart-band").checked,
+      log: $("#chart-log").checked}));
+  } catch(e) {}
+}
+function chartViewOpts(){
+  return {tf: chartTf(), mas: chartParseMas($("#mas").value), sub: $("#chart-sub").value,
+          fund: $("#chart-fund").value, hl: $("#chart-hl").checked, band: $("#chart-band").checked,
+          log: $("#chart-log").checked,
+          rel: $("#rel").checked};
+}
+const chartTf = () => ($("#tf .ftab.on") || {dataset: {tf: "D"}}).dataset.tf;
+function markTf(tf){
+  document.querySelectorAll("#tf .ftab").forEach(b => b.classList.toggle("on", b.dataset.tf === tf));
+}
+
+function ensureStockChart(){
+  if(stockChart) return stockChart;
+  stockChart = createStockChart($("#chart"), {height: 520});
+  stockChart.set(chartViewOpts());
+  return stockChart;
+}
+
+// 対TOPIX を入れていれば TOPIX も読む（一度だけ）
+async function applyRel(signal){
+  if(!$("#rel").checked){ stockChart.set({rel: false}); return; }
+  try { stockChart.set({rel: true, topix: await chartTopix(signal)}); }
+  catch(e){ if(e.name !== "AbortError") stockChart.set({rel: false}); }
+}
+
 async function loadChart(){
   const code = stockCode;
   if(!code) return;
@@ -23,14 +62,10 @@ async function loadChart(){
   if(stockPriceAc) stockPriceAc.abort();
   stockPriceAc = new AbortController();
   const signal = stockPriceAc.signal;
-  const tf = $("#tf").value, mas = $("#mas").value, rel = $("#rel").checked;
   const msg = $("#chart-msg");
   let d, perf;
   try {
-    [d, perf] = await Promise.all([
-      api(`/api/chart/${code}?tf=${tf}&ma=${encodeURIComponent(mas)}&rel=${rel}`, {signal}),
-      api(`/api/earnings-performance/${code}`, {signal}),
-    ]);
+    [d, perf] = await Promise.all([chartDaily(code, signal), api(`/api/earnings-performance/${code}`, {signal})]);
   } catch(e){
     if(e.name === "AbortError") return;
     stockPriceCode = "";
@@ -39,18 +74,12 @@ async function loadChart(){
     return;
   }
   if(code !== stockCode) return;
-  msg.hidden = d.candles.length > 0;
-  msg.textContent = d.candles.length ? "" : "株価データなし";
-  chartObj = renderPriceChart($("#chart"), d, {height: 420, prev: chartObj});
-  if(rel && d.relative){
-    $("#relwrap").style.display = "";
-    if(relObj){ try { relObj.remove(); } catch(e) {} }
-    $("#relchart").innerHTML = "";
-    const th = chartTheme();
-    relObj = LightweightCharts.createChart($("#relchart"), {height: 160, autoSize: true, layout: {background: {color: "transparent"}, textColor: th.text}, grid: {vertLines: {color: th.grid}, horzLines: {color: th.grid}}, timeScale: {borderColor: th.border}, rightPriceScale: {borderColor: th.border}});
-    relObj.addSeries(LightweightCharts.LineSeries, {color: th.warn, lineWidth: 2}).setData(d.relative);
-    relObj.timeScale().fitContent();
-  } else $("#relwrap").style.display = "none";
+  msg.hidden = d.t.length > 0;
+  msg.textContent = d.t.length ? "" : "株価データなし";
+  const ch = ensureStockChart();
+  ch.setData(d);
+  ch.showLatest();
+  applyRel(signal);
   let h = "<tr><th class='l'>発表日</th><th>+1d</th><th>α</th><th>+5d</th><th>α</th><th>+20d</th><th>α</th><th>+60d</th><th>α</th><th>現在まで</th><th>α</th></tr>";
   for(const p of perf.slice(0, 12)){
     h += `<tr><td class="l">${p.disclosed_date}</td><td>${pct(p.return_1d)}</td><td>${pct(p.alpha_1d)}</td>
@@ -60,8 +89,26 @@ async function loadChart(){
   $("#perf-tbl").innerHTML = h;
 }
 
-// 足と対TOPIX は変えたらすぐ、移動平均は Enter か入力から外れたとき（change）に描き直す
-["#tf", "#rel", "#mas"].forEach(s => $(s).addEventListener("change", loadChart));
+// 操作は読み直さない。移動平均は Enter か入力から外れたとき（change）
+(function setupPriceControls(){
+  const v = loadChartView();
+  markTf(CHART_TF_NAMES[v.tf] ? v.tf : "D");
+  if(v.sub === "tv") $("#chart-sub").value = "tv";
+  if(CHART_FUND_NAMES[v.fund]) $("#chart-fund").value = v.fund;
+  $("#chart-hl").checked = v.hl !== false;
+  $("#chart-band").checked = !!v.band;
+  $("#chart-log").checked = !!v.log;
+  const redraw = () => { saveChartView(); if(stockChart) stockChart.set(chartViewOpts()); };
+  ["#mas", "#chart-sub", "#chart-fund", "#chart-hl", "#chart-band", "#chart-log"].forEach(s => $(s).addEventListener("change", redraw));
+  $("#rel").addEventListener("change", () => { if(stockChart) applyRel(stockPriceAc && stockPriceAc.signal); });
+  $("#tf").addEventListener("click", e => {
+    const b = e.target.closest("[data-tf]");
+    if(!b || b.classList.contains("on")) return;
+    markTf(b.dataset.tf);
+    saveChartView();
+    if(stockChart) stockChart.set({tf: b.dataset.tf});
+  });
+})();
 
 window.gotoChart = gotoChart;
 window.loadChart = loadChart;

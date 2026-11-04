@@ -4,15 +4,15 @@ The ranking tab has two inner tabs: 決算後パフォーマンス (default) and
 
 ## Sub-features
 
-- `rk-subs` switches `#rk-subs .ftab[data-rksub]` (`perf` 決算後パフォーマンス default / `pts` PTS). Hash is `#ranking` or `#ranking/pts`. PTS details are in `features/pts.md`.
+- `rk-subs` switches `#rk-subs .ftab[data-rksub]` (`perf` 決算後パフォーマンス default / `pts` PTS). A header open or a reload of a bare hash is `#ranking` or `#ranking/pts`. Clicking the other inner tab writes `#ranking/pts?from=ranking` or `#ranking?from=ranking-pts`. `ui.route` stays `ranking` or `ranking/pts`. PTS details are in `features/pts.md`.
 - `rk-open` shows `#tab-ranking` with 決算後パフォーマンス `.on` and calls `loadRanking()` (`GET /api/ranking/earnings-perf`) when `#rk-tbl` is empty. `restoreRoute` on `#ranking` always calls it.
 - `rk-dir` switches `#rk-kind .ftab[data-dir]` (`up` 上昇率 default / `down` 下落率). No refetch: the client keeps positives (`return_to_next > 0`, high first) or negatives (`return_to_next < 0`, most-negative first) and re-ranks. 0 and null are in neither list.
 - `rk-month` is `#rk-month` (`YYYY年M月決算`, newest first). Changing it refetches that month and keeps the current 上昇率 / 下落率.
 - `rk-table` fills `#rk-tbl.sheet`: 順位 / 銘柄 / 市場 / 業種 / 騰落率 / 決算日 / 経過日数. 騰落率 heading is `騰落率` with `(対TOPIX)` under it. Each 騰落率 lower line is `(+x.x%)` / `(-x.x%)` / `–` (null α), with no `対TOPIX` word on the row. 銘柄 is `shortName` (5 chars) + `code.slice(0,4)` (7203 / 262A). 市場 is `fmtMarket` (`東証P` / `東証S` / `東証G`). 業種 is `fmtSector`. 決算日 has 場中 / 引け後 under it. 経過日数 is `N日`, `〜M/D`, or `–`. 順位 and 銘柄 pin; there is no pin hairline between 銘柄 and 市場 (`.grp` left border is on 騰落率).
 - `rk-info` reads `N 銘柄 / M/D 終値まで` (filtered view count). Empty dir reads `この月の上昇率はありません` / `この月の下落率はありません`.
 - `rk-share` is `#rk-share` (`X に投稿`). Post text is 3 lines (`YYYY年M月決算 上昇率ランキングTOPN` or `下落率ランキングTOPN`, then the two 計測方法 lines). The PNG title is the first line only.
-- `rk-to-chart` clicks a name → `gotoChart(code)` → 銘柄 › 株価, hash `#stock/{code}/price?from=ranking` (or `?from=ranking-pts` from PTS).
-- `rk-route` writes `#ranking` (決算後パフォーマンス) or `#ranking/pts` to `location.hash` + `ui.route`; a click from the other inner tab appends `?from=ranking` or `?from=ranking-pts`. Reload of a bare hash reopens that inner tab without `from`. Old `#pts` is rewritten to `#ranking/pts`.
+- `rk-to-chart` clicks a name → `gotoChart(code)` → 銘柄 › 株価, hash `#stock/{code}/price?from=ranking`.
+- `rk-route` writes `#ranking` (決算後パフォーマンス) or `#ranking/pts` to `location.hash` + `ui.route` (path only). An inner-tab click adds `?from=ranking` / `?from=ranking-pts`. Reload of a bare hash reopens that inner tab. Old `#pts` is rewritten to `#ranking/pts`.
 
 ## How to get to it (user POV)
 

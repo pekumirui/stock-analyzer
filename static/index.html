@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="/static/js/view-mode.js"></script>
 <meta name="theme-color" content="#ffffff">
 <title>株式分析ツール</title>
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
@@ -14,6 +15,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
   </button>
   <span id="cur-tab"></span>
+  <nav id="crumbs" aria-label="パンくず" hidden></nav>
   <nav id="app-nav">
     <button data-tab="earnings" class="active">決算速報</button>
     <button data-tab="stock">銘柄</button>
@@ -24,9 +26,7 @@
     <button data-tab="holders">大量保有報告書</button>
   </nav>
 </header>
-<div id="nav-backdrop" hidden></div>
 <main>
-<nav id="crumbs" aria-label="パンくず"></nav>
 
 <section id="tab-earnings">
   <div class="egrid">
@@ -112,11 +112,12 @@
     <div id="st-head" hidden>
       <div id="st-title"></div>
       <div id="st-quote"></div>
-      <div class="fin-tabs" id="st-tabs" role="tablist" aria-label="銘柄の中のタブ">
+      <div class="nav-tabs" id="st-tabs" role="tablist" aria-label="銘柄の中のタブ">
         <button type="button" class="ftab on" data-sub="summary">概要</button>
         <button type="button" class="ftab" data-sub="price">株価</button>
         <button type="button" class="ftab" data-sub="news">ニュース</button>
         <button type="button" class="ftab" data-sub="holders">株主</button>
+        <button type="button" class="ftab" data-sub="decks">説明資料</button>
       </div>
     </div>
     <p id="st-msg" class="sub" hidden></p>
@@ -140,14 +141,20 @@
     </div>
     <div id="st-sub-price" class="st-sub" hidden>
       <div class="row">
-        <select id="tf" aria-label="足"><option value="D">日足</option><option value="W">週足</option><option value="M">月足</option></select>
+        <div id="tf" class="fin-tabs" role="group" aria-label="足">
+          <button class="ftab on" data-tf="D">日足</button><button class="ftab" data-tf="W">週足</button><button class="ftab" data-tf="M">月足</button><button class="ftab" data-tf="Y">年足</button>
+        </div>
         <input id="mas" value="50,150,200" style="width:110px" title="移動平均(カンマ区切り)" aria-label="移動平均">
+        <select id="chart-sub" aria-label="下段"><option value="v">出来高</option><option value="tv">売買代金</option></select>
+        <select id="chart-fund" aria-label="業績の段"><option value="">業績なし</option><option value="op">営業利益</option><option value="per">予想PER</option><option value="mcop">時価総額÷営業利益</option></select>
+        <label><input type="checkbox" id="chart-hl" checked> 高安値</label>
+        <label><input type="checkbox" id="chart-band"> PERバンド</label>
+        <label><input type="checkbox" id="chart-log"> 対数</label>
         <label><input type="checkbox" id="rel"> 対TOPIX</label>
       </div>
       <p id="chart-msg" class="sub" hidden></p>
-      <div id="chart" style="height:420px"></div>
+      <div id="chart" style="height:520px"></div>
       <div class="evt-toggles"></div>
-      <div id="relwrap" style="display:none"><h3>対TOPIX相対 (期首=100)</h3><div id="relchart" style="height:160px"></div></div>
       <h3>決算発表後パフォーマンス (%, α=対TOPIX超過)</h3>
       <div class="tbl-wrap"><table id="perf-tbl" class="sheet"></table></div>
     </div>
@@ -173,6 +180,15 @@
       <div class="tbl-wrap" id="st-holders-large"></div>
       <div id="st-holders-chart"></div>
       <div id="st-holders-treasury"></div>
+    </div>
+    <div id="st-sub-decks" class="st-sub" hidden>
+      <div id="st-deck-list">
+        <div class="tbl-wrap"><table id="st-decks" class="sheet"></table></div>
+      </div>
+      <div id="st-deck-detail" hidden>
+        <div class="row st-detail-bar"><a href="#" id="st-deck-back">← 説明資料</a></div>
+        <div id="st-deck-body"></div>
+      </div>
     </div>
   </div>
 </section>
@@ -288,14 +304,16 @@
 
 </main>
 <div id="cal-backdrop" hidden></div>
-<script src="https://unpkg.com/lightweight-charts@5.2.1/dist/lightweight-charts.standalone.production.js"></script>
+<p id="view-mode" hidden><a href="#view-mode" id="view-mode-btn">PC版を表示</a></p>
+<script src="/static/vendor/lightweight-charts-5.2.1/lightweight-charts.standalone.production.js"></script>
 <script src="/static/js/api.js"></script>
 <script src="/static/js/screens.js"></script>
 <script src="/static/js/tabs.js"></script>
-<script src="/static/js/chart-shared.js"></script>
+<script src="/static/js/chart-core.js"></script>
 <script src="/static/js/earnings.js"></script>
 <script src="/static/js/stock.js"></script>
 <script src="/static/js/stock-price.js"></script>
+<script src="/static/js/stock-deck.js"></script>
 <script src="/static/js/holders.js"></script>
 <script src="/static/js/screener.js"></script>
 <script src="/static/js/pts.js"></script>

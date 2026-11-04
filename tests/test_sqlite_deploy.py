@@ -22,6 +22,8 @@ os.environ.setdefault("DATABASE_URL", f"sqlite:///{_tmp}/stock.db")
 from sqlalchemy import text  # noqa: E402
 from sqlalchemy.exc import OperationalError  # noqa: E402
 
+from sqlalchemy.pool import NullPool  # noqa: E402
+
 from app.db import (  # noqa: E402
     apply_sqlite_pragmas,
     engine,
@@ -29,6 +31,7 @@ from app.db import (  # noqa: E402
     is_sqlite_lock,
     run_sqlite_write,
     sqlite_connect_args,
+    sqlite_engine_kwargs,
 )
 
 
@@ -53,6 +56,13 @@ def test_connect_args() -> None:
         _fail(f"sqlite timeout: {sqlite_connect_args('sqlite:///x.db')!r}")
     if sqlite_connect_args("postgresql://localhost/x"):
         _fail("non-sqlite must not set connect_args")
+    kwargs = sqlite_engine_kwargs("sqlite:///x.db")
+    if kwargs.get("poolclass") is not NullPool:
+        _fail(f"file sqlite must use NullPool, got {kwargs!r}")
+    if sqlite_engine_kwargs("postgresql://localhost/x"):
+        _fail("non-sqlite must not set engine kwargs")
+    if type(engine.pool) is not NullPool:
+        _fail(f"app engine pool is {type(engine.pool).__name__}, want NullPool")
 
 
 def test_engine_pragmas() -> None:

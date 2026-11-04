@@ -24,7 +24,6 @@ import argparse
 import json
 import re
 import shutil
-import sqlite3
 import subprocess  # nosec B404
 import sys
 import time
@@ -39,6 +38,12 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
+from sqlalchemy import select  # noqa: E402
+from sqlalchemy.engine import Connection  # noqa: E402
+from sqlalchemy.exc import SQLAlchemyError  # noqa: E402
+
+from app.db import sqlite_readonly_engine  # noqa: E402
+from app.models import MonthlyElement, MonthlyValue  # noqa: E402
 from app.monthly.calendar import column_years  # noqa: E402
 from jobs._r2common import (  # noqa: E402
     MountDisconnected,
@@ -499,17 +504,19 @@ class DbIssuer:
         return {ym for cells in self.values.values() for ym in cells}
 
 
-def load_db_issuer(conn: sqlite3.Connection, code5: str) -> DbIssuer:
+def load_db_issuer(conn: Connection, code5: str) -> DbIssuer:
     values: DbValues = {}
+    v = MonthlyValue
     for element, year, month, value in conn.execute(
-        "SELECT element, year, month, value FROM monthly_values WHERE code = ?", (code5,)
+        select(v.element, v.year, v.month, v.value).where(v.code == code5)
     ):
         if value is None:
             continue
         values.setdefault(str(element), {})[(int(year), int(month))] = float(value)
     units: dict[str, str] = {}
+    e = MonthlyElement
     for element, unit in conn.execute(
-        "SELECT element, unit FROM monthly_elements WHERE code = ? ORDER BY year", (code5,)
+        select(e.element, e.unit).where(e.code == code5).order_by(e.year)
     ):
         units[str(element)] = str(unit or "number")
     return DbIssuer(values=values, units=units)
@@ -941,7 +948,8 @@ def run(
             return lines_from_tsv(pdftotext_tsv(path))
 
     want = frozenset(display_code(c.strip().upper()) for c in only if c.strip()) if only else None
-    conn = sqlite3.connect(f"file:{db_path.resolve().as_posix()}?mode=ro", uri=True, timeout=8)
+    engine = sqlite_readonly_engine(db_path)
+    conn = engine.connect()
     counts = {"written": 0, "same": 0, "current": 0, "manual": 0, "skip": 0, "failed": 0}
     mount_kw = {"sleep": sleep, "listdir": listdir}
 
@@ -960,7 +968,7 @@ def run(
             except MountDisconnected as e:
                 print(f"tdnet_monthly_pdf_sidecar {e}", flush=True)
                 return 1
-            except (OSError, subprocess.SubprocessError, sqlite3.Error) as e:
+            except (OSError, subprocess.SubprocessError, SQLAlchemyError) as e:
                 counts["failed"] += 1
                 print(f"fail {code}: {e}", flush=True)
                 continue
@@ -998,6 +1006,7 @@ def run(
                 print(f"fail {code}: {e}", flush=True)
     finally:
         conn.close()
+        engine.dispose()
     summary = " ".join(f"{k}={v}" for k, v in counts.items())
     print(f"tdnet_monthly_pdf_sidecar done dry_run={int(dry_run)} {summary}", flush=True)
     return 1 if counts["failed"] else 0

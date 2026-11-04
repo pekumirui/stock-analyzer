@@ -1,0 +1,28 @@
+[
+  {
+    "id": "toyota_2027q1",
+    "name": "トヨタ自動車",
+    "code": "72030",
+    "title": "2027年3月期第１四半期決算報告プレゼンテーション資料",
+    "date": "2026-08-04",
+    "doc_id": "20260804507860"
+  },
+  {
+    "id": "lasertec_2027q1",
+    "name": "レーザーテック",
+    "code": "69200",
+    "title": "2027年6月期 第1四半期(2026年7月～9月) レーザーテック決算説明会",
+    "date": "2026-10-30",
+    "doc_id": null,
+    "note": "TDnet には無い（会社の IR サイトのみ）。https://www.lasertec.co.jp/ir から取り、<root>/pdf/lasertec_2027q1.pdf に置く"
+  },
+  {
+    "id": "lasertec_2026fy",
+    "name": "レーザーテック",
+    "code": "69200",
+    "title": "2026年(2025年7月～2026年6月) レーザーテック決算説明会",
+    "date": "2026-08-06",
+    "doc_id": null,
+    "note": "TDnet には無い（会社の IR サイトのみ）。https://www.lasertec.co.jp/ir から取り、<root>/pdf/lasertec_2026fy.pdf に置く"
+  }
+]

@@ -21,7 +21,7 @@
 ```
 
 - **言語**: Python 3.10+ / FastAPI / SQLAlchemy / pandas
-- **フロント**: `static/index.html` + `static/css/` + `static/js/` の vanilla JS SPA (lightweight-charts)。スマホ対応
+- **フロント**: `static/index.html` + `static/css/` + `static/js/` の vanilla JS SPA (lightweight-charts。`static/vendor/` から配る)。スマホ対応
 - **バッチ**: `jobs/market/run_batch.py` を cron / スケジューラで日次実行
 
 ## 2. J-Quants API
@@ -43,7 +43,21 @@ stocks            -- 銘柄マスタ
   -- 既存DBは migrate で列追加。値は次の日次バッチの銘柄マスタ更新で埋まる
   -- (株価・財務の再取得は不要)
 
-daily_prices      -- 日足
+homepages         -- 上場会社のホームページ URL（KAB-319）。将来 TDnet に無い IR を取る起点
+  code PK                 -- 普通株の 5 桁（末尾 0）。FK は付けない
+  url                     -- 選んだ 1 本（会社ホームページ）
+  host                    -- 正規化ホスト（小文字、先頭 www. を除く。KAB-320 の月次設定と突き合わせる）
+  source                  -- manual / xbrl_url / tanshin_html
+  origin                  -- manual / xbrl:{doc_id} / tanshin:{disclosure_no}
+  changed_at              -- url / source / origin / host が変わった時刻（JST naive）
+  checked_at              -- 最後に確認した時刻（値が同じでも進む）
+  -- 4 桁は末尾 0（7203→72030）。5 桁の優先株は先頭 4 文字 + 0（72031→72030）。262A0 はそのまま
+  -- 確度は source で一意なので列にしない（manual > xbrl_url > tanshin_html）
+  -- 上場廃止: stocks は UPSERT のみで消えない。homepages も消さない。--all は今の stocks だけ対象
+  -- 1 社 1 行のまま。IR / 月次ページは将来別表（code, kind, url の複数行）。実装はまだ無い
+  -- 月次ページ URL の正本は今どおり config/monthly/ir_monthly.json の index_url
+
+daily_prices      -- 日足。WITHOUT ROWID (行を code, date 順に置く。KAB-289)
   code, date PK(複合)
   open, high, low, close, volume, turnover      -- 調整前(報告時生値)
   adj_factor
@@ -196,15 +210,58 @@ ingest が新しい行を作るとき、同じ (code, year) に `strip_yoy_fragm
 - stocks に無いコードはダウンロードしない。DB が読めない／map が空なら警告のみで継続
 - 既存ファイルは消さない。IR（PDF/xlsx/HTML）は同じ URL の上書き公開を日付付きで残し、中身の sha256 が同じなら skip
 - 3 本のバッチ（TDnet PDF / IR PDF・xlsx / IR HTML）の cron は分ける
-- 日付・HTTP・銘柄マスタ・ファイル名の共通処理は `jobs/_r2common.py`（`app` は import しない）。`http_get` は TDnet も IR も同じ。識別 UA はジョブごとで、403 のときだけブラウザ UA に一度切り替え、中間証明書の欠落は AIA で補う。429 / 408 / 5xx は Retry-After があればそれに従い（最大 60 秒）、無ければ指数バックオフ＋jitter（5→10→20→40→60 秒、最大 6 回）。打ち切ったら例外を上げる。発行体ログは原則 `fail issuer {code} fetch:`（IR HTML の 429 だけ下の例外）
+- 日付・HTTP・銘柄マスタ・ファイル名の共通処理は `jobs/_r2common.py`。銘柄マスタは `app.db` の読み取り専用エンジン（`sqlite_readonly_engine`）で読み、DB が無い・読めないときは空のまま続ける。`http_get` は TDnet も IR も同じ。識別 UA はジョブごとで、403 のときだけブラウザ UA に一度切り替え、中間証明書の欠落は AIA で補う。429 / 408 / 5xx は Retry-After があればそれに従い（最大 60 秒）、無ければ指数バックオフ＋jitter（5→10→20→40→60 秒、最大 6 回）。打ち切ったら例外を上げる。発行体ログは原則 `fail issuer {code} fetch:`（IR HTML の 429 だけ下の例外）
 - 新しいファイルは `data/` に書く。rclone FUSE（`/home/stock/r2-share`）の切断プロトコルは、dest がまだそのマウント上にあるときに働く。`data/` の dest は `/proc/mounts` を見ない。マウントが切れたら各社 `fail` を並べない。開始時と処理中に dest を probe し、ECONNABORTED / ENOTCONN / ESTALE / ルート消失なら `RestartSec` と同じ 5 秒を挟んで再試行し、駄目なら `R2 マウント切断` の 1 行で exit≠0。正常時の行は変えない。マウントの再起動は `deploy/r2-share.service` と `r2-share-watch.timer`。デプロイはハッシュが変わったときだけ `r2-share.service` を restart する（`deploy/README.md`）
 
 TDnet 月次 PDF（`jobs/monthly/tdnet_monthly_r2.py`）:
 
-- やのしん list をキーワード union。`月次` が無い売上速報・○月度・受注速報・売上推移・業績速報なども取る。`is_monthly_title` が四半期短信・自己株式・新株予約権の月間行使・業績予想を落とす。`月度` 単体では取らず、売上/受注/IRニュースなどのヒントが要る。日次 cron と backfill は同じ判定
+- TDnet の開示一覧（`jobs/_tdnet.py`）の表題を `LIST_KEYWORDS` で絞る。`月次` が無い売上速報・○月度・受注速報・売上推移・業績速報なども取る。`is_monthly_title` が四半期短信・自己株式・新株予約権の月間行使・業績予想を落とす。`月度` 単体では取らず、売上/受注/IRニュースなどのヒントが要る。日次 cron と backfill は同じ判定
 - ダウンロード時にインフラファンドを除外する。商品区分は REIT と同じ `013`/`022` しか無いので、名称に「インフラ」を含むものだけ落とす（マスタ欠落時は TDnet 社名の「インフラ投資法人」）
 - 通常の REIT は残す。決算速報の REIT 全除外とは別。`MONTHLY_SKIP_CODES`（display_code の4桁）に入った銘柄は保存しない。8985 ジャパン・ホテル・リート投資法人、8798 アドバンスクリエイト（グラフ画像のみ）、8739 スパークス（運用資産残高のストック表）は取得対象外
 - stocks に無いコード（名証単独の 3032 / 3066 など）は `unknown-stock` で skip。東証マスタには載せない
+
+TDnet 決算説明資料 PDF（`jobs/market/tdnet_briefing_r2.py`。KAB-327）:
+
+- 一覧は `jobs/_tdnet.py` の `fetch_days`。採否は `app/market/briefing_title.py` の `is_material_title` だけ（保存も、あとから同じ判定が要る処理もここを呼ぶ）
+- 採る: 空白と全角半角を畳んだ表題が、決算・四半期・中間・通期・業績のどれかと、説明資料・説明会資料・補足資料・プレゼン資料（プレゼンテーション資料を含む）・質疑応答（主な質疑、Q&A。要旨・概要だけでは採らない。KAB-336）のどれかを両方含むもの。英語は earnings / financial results の presentation、または briefing / supplementary materials、または Q&A / questions and answers。決算短信の補足資料は採る
+- 落とす: 訂正・誤記。お知らせ、開催・中止・延期、掲載について・公開について（決算説明会開催のお知らせ、説明資料を載せた案内）。英語の notice / correction。資料の語も質疑応答の語も無い「決算説明会」。決算短信そのもの。成長可能性の説明資料や、決算などの語が無い補足説明資料。中期経営計画の説明会資料（決算・四半期などの語が無いもの）
+- 「修正」だけでは落とさない。補足資料の表題に業績予想の修正が入ることがある
+- 保存先は `data/briefing/{code}/YYYYMMDD_CODE_名前_表題.pdf`。`{code}` とファイル名は月次 PDF と同じ（display_code。J-Quants の 5 桁にはしない）。`SHARE_ROOT` を置くとその直下の `briefing/`
+- 既存ファイルが PDF なら取り直さない。索引が無ければ索引だけ足す。その件数は `reindexed`（新規に保存した `saved` とは別）。PDF でなければ取り直す
+- 索引は `briefing_documents`。列は source / document_id / code（5 桁）/ company_name / pubdate / title / rel_path（`data/briefing` から）/ url / sha256 / size / status / storage（`local` / `onedrive`。既存行は `local`。KAB-345）/ saved_at。このジョブは source=`tdnet`、document_id は TDnet の PDF ファイル名、status=`saved`、storage=`local`。ホームページで見つけた PDF は同じ表に source=`homepage`（取得はこのジョブではしない。`app/market/briefing_store.record_briefing`）。IR BANK の過去分は source=`irbank`（下）。`storage=onedrive` の行は手元が無くても取り直さない
+- 日次 cron は直近 7 日（22:10 JST。取りこぼしの拾い直し）。初回の約 30 日は `deploy/cron-run.sh jobs/market/tdnet_briefing_r2.py 30` を手で一度。デプロイでは走らない
+- 日次の `backup_data` には載せない（コピーだと手元が残る）。1 年以上前の PDF は下の `briefing_offsite` が移す。TDnet は約 1 か月で PDF を消す
+
+IR BANK の過去の決算説明資料（`tools/briefing/irbank_ingest.py`。KAB-330）:
+
+- TDnet が消した分を一度だけ手で取る。cron には入れない。毎日の分は上の `tdnet_briefing_r2.py`
+- 対象は普通株（`stocks.product_category` が内国株券 `011` または外国株券 `021`）と REIT（`013`）。ETF（`014`）と外国 ETF / ETN（`023`）は除く。REIT でも名称に「ファンド」または「インフラ」がある投資法人は除く。区分が空の銘柄は、名称がファンド・投資信託・ETF・ETN でなければ残す。KAB-325 の `tanshin_covers` と同じ考え方
+- 一覧は `https://irbank.net/{4桁}/ir` を 1 社 1 回。同じ 4 桁の株は末尾 0 の行を代表にする。表題の採否は `is_material_title` だけ。PDF は `https://api.irbank.net/api/market-files/v1/tdnet/{18桁の末尾14桁}.pdf`（`tools/tdnet_pdf/ingest.py` と同じ）
+- 保存先とファイル名は TDnet のジョブと同じ（`data/briefing/{4桁}/YYYYMMDD_CODE_名前_表題.pdf`）。索引の code は 5 桁、document_id は 18 桁の開示番号。同じ番号、またはその末尾 14 桁が、どの source でも索引にあれば取り直さない
+- 読み終えた銘柄は `briefing_irbank_scans`（code / scanned_at / listed / saved / skipped / reindexed / missing / failed）。429 / 503 で止めた銘柄と、PDF の取得に失敗した銘柄は行を書かないので次の実行が続きから。PDF が 404 だけの銘柄は行を書く。成功した PDF は索引にあるので取り直さない。`--rescan` を付けるとこの表を無視して一覧を読み直す（`--code` と `--all` のどちらとも。KAB-338）。索引にある PDF は取り直さず、新しく対象になったものだけ保存する。付けないときの対象は変わらない
+- 一覧の SELECT は読み終わったら閉じ、PDF の取得中はトランザクションを持たない。索引（`briefing_documents`）と進捗（`briefing_irbank_scans`）の UPSERT は `run_sqlite_write` で locked を数回、待ちを伸ばして再試行する（KAB-305 と同じ。KAB-332）
+- `--limit` はこの実行の社数。`--sleep` は請求の間隔（既定 1 秒）。`--dry-run` は一覧だけ見て、PDF も索引も `briefing_irbank_scans` も書かない（見た社は残件のまま）。`--rescan` でも `remaining` は scans が無い社数のまま（読み直した社は残件に入らない）
+- 手での実行は `deploy/README.md`。デプロイでも cron でも走らない
+
+決算説明資料を OneDrive へ移す（`jobs/market/briefing_offsite.py`。KAB-345）:
+
+- 会社（索引の `code`）ごとに、資料の日付の最新から 1 年以上前の PDF だけを移す。日付はファイル名先頭の `YYYYMMDD`、取れなければ `pubdate`。最新の日付そのものは残る。別の会社の日付では切らない
+- 置き場所は backup と同じ `BACKUP_OFFSITE_REMOTE` / `BACKUP_OFFSITE_PATH`（既定 `onedrive:stock-analyzer-backups`）の `data/briefing/` の下。相対パス（`rel_path`）は変えない
+- 1 ファイルの順は rclone `copyto`、サイズが手元と一致、`storage=onedrive`、手元を削除。どれかで失敗したファイルは索引も手元も変えない。行は消さない（`status` も `rel_path` も残す）。移し済みで手元だけ残っているときは、同じ順でもう一度やってから消す
+- `--dry-run` は対象を出すだけ。`--limit` はこの実行で手を付ける最大件数。何度流しても、移るものは移った状態に揃う
+- cron には入れない。本番の移動は承認後。手では `deploy/cron-run.sh jobs/market/briefing_offsite.py --dry-run` のあと、`--limit` を付けて少しずつ
+- 読む側は `app/market/briefing_files.open_briefing`。`storage=onedrive` は rclone で一時ファイルにして読み、`data/briefing` には戻さない。`analyzer/agent_forecast/fetch_docs.py` の説明資料と、下の読み取りジョブは、索引にあればここから取る
+- 保存済み判定（`has_saved` / `saved_document_ids`）は `storage` を見ない
+
+決算説明資料の読み取り（`jobs/market/briefing_extract.py`。KAB-349）:
+
+- `briefing_documents` の PDF を 1 ページずつ Claude（Haiku 5.5）に読ませ、ページのタイトル・要約・表（期間の列 × 行。行に内訳の親 `of`）を返させる。Message Batches API（通常の半額。終わるまで最長 24 時間）で出す。規則と試験は `analyzer/deck_reader/`（`results/` に費用・精度の記録）。本番のコードは `app/market/briefing_extract.py`（文字データ・分類・プロンプト deck-v3・照合・検算）と `app/market/briefing_batch.py`（出す・受け取る・書く）
+- PDF は `open_briefing` で開く。手元（`storage=local`）は `data/briefing`（`SHARE_ROOT` があればその下）。`storage=onedrive` は rclone で一時ファイルにして読み、`data/briefing` には戻さない
+- `submit`: まだ読んでいない資料（`briefing_extracts` に行が無い）を開示の新しい順に。同じ開示番号が複数の出所にあれば tdnet → irbank → homepage の PDF を読む。表紙・中扉・注意事項のページ（文字が少ない・注意事項の語）は出さない。依頼は 1 ページ 1 件（入力が 10 万トークンを超えると単価が上がるので丸ごと 1 件にしない）。画像は 110dpi の PNG、文字データを添える。システムプロンプトはキャッシュに置く。effort は low。`--no-thinking` で thinking を止める（未検証）。1 Batch は 5000 件・150MB まで。出した資料は `briefing_extracts` に status=`submitted`（batch_id、custom_id の頭 `request_key`）。`--redo` は読み取り済みも出し直す。`--dry-run` は依頼の数を数えるだけ
+- `collect`: `submitted` の Batch を見て、終わったものだけ書く（終わっていなければ次の実行で）。PDF の文字データを読み直し、数字が文字データにあるか（`verified`）と内訳の合計（`sum_status`）を確かめる。`briefing_pages`（ページごと。Claude に回さないページも kind だけ）と `briefing_facts`（表を 1 セル 1 行）を資料ごとに消して書き直す。1 ページでも読めれば `done`、全部だめ・PDF が無ければ `failed`。トークンは `briefing_extracts` に（入力はキャッシュの読み書きを含む）
+- 照合は「ページのどこかにその数字がある」しか見ない。別の項目・期間に付けた誤りは見つからない（検算と画面の表で補う）。グラフが画像で貼られた資料は文字データに数字が無く `verified` が付かない（OCR の照合は analyzer の PoC だけ）
+- 検算の約束（`check_sums`）: 同じ行が 2 つの表に出たら 1 つにして足す。同じ親に別の切り口の内訳が 2 組（部門別と地域別など）あれば 2 組に分けて確かめる（`split`）。率の列・行は見ない。内訳がすべてプラスで合計に届かなければ一部だけの内訳（`partial`。主要製品だけの表など）。括弧の意味は資料で違う（マイナス・前回予想・率）ので値は書き換えず、合わないときだけ括弧をマイナスとみなして試す（`paren`）。許容は一番粗い表示桁の半分 × (内訳の数 + 1)
+- `ANTHROPIC_API_KEY` が要る（従量課金）。手での実行は `deploy/README.md`。cron とデプロイでは走らない
 
 TDnet 月次 PDF の自動投入（`jobs/monthly/tdnet_monthly_pdf_sidecar.py` → `jobs/monthly/tdnet_monthly_pdf_ingest.py`）:
 
@@ -259,6 +316,7 @@ IR 月次 HTML（`jobs/monthly/ir_monthly_html_r2.py`）:
 
 TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。
 スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。EDINET の提出者・書類一覧は [`docs/DESIGN_edinet.md`](docs/DESIGN_edinet.md)。決算速報 UI の正本は当面 `statements` のまま。XBRL 層で上書きしない。
+決算一覧の売上総利益は `idx_xbrl_financials_gp_cover` と `idx_xbrl_filings_id_cover` で表本体を読まない（KAB-295）。
 
 **PTS ランキング（`pts_snapshots`）。** 株探 `https://kabutan.jp/warning/` の `pts_night_price_increase` / `pts_night_price_decrease` / `pts_night_volume_ranking`（夜間 PTS。株価は 15 分ディレイ）。取得は `app/market/pts.py`、ジョブは `jobs/market/pts_snapshot.py`。キー不要。画面は `docs/DESIGN_pts.md`。
 
@@ -279,6 +337,36 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
 - 約定の無い分は足が無い。同じ足を SQLite（主キー込み）に入れるとファイルの数倍だった
 
 **VPS パッケージ一覧（`jobs/ops/vps_packages_r2.py`）。** 読み取り専用。`data/inventory/` へ書く。中身と cron は [`deploy/README.md`](deploy/README.md)。
+
+**ホームページ URL（`homepages`）。** 企業マスタの各社について、会社ホームページの URL を 1 本残す。IR ページとの区別はまだしない。API / SPA / cron はまだ無い。ジョブは `python jobs/market/homepages.py --code 4543 --dry-run`。手入力は `--set 7203 https://…`（`source=manual`。`--refresh` でも上書きしない）。束は `config/market/homepage_manual.json` を `--set-file` で入れる（`--dry-run` 可。本番にはまだ入れない）。`--all` の本番投入は承認後。表は `jobs/migrate.py` が作る。HTTP はしない。
+
+コードは J-Quants の 5 桁普通株。CLI と XBRL / 短信の code は `ordinary_code` で畳む（4 桁は末尾 0、優先株は先頭 4 文字 + 0）。
+
+候補は提出の新しさ優先。同じ日なら source の順。XBRL は code ごとに `submitted_at` 最新 1 件だけ読み、その URL が捨てられれば XBRL 候補なし（古い提出へは下がらない）。有効な短信より XBRL の提出が古ければ短信を採る。再実行は UPSERT。値が同じなら `checked_at` だけ進める。
+
+短信は新しい順に、URL が取れた最初を採る。題名に「訂正」があるもの、変換後 HTML（`bytes`）が 5KB 未満のものは飛ばす。直近の数本から URL が取れない会社は、そこで打ち切らず取れるまで古い短信へさかのぼる（表紙が空の変換や文字の無いパスだけの短信より、URL の書いてある古い短信を採る。KAB-322）。対象は題名に「決算短信」または `FinancialStatements` を含むもの、および `statements.type_of_document` に `FinancialStatements` を含むもの（題名が本文の切れ端でも種類の列で判定）。
+
+スキームの無いドメイン（`www.toray.co.jp`、`wize-inc.jp`）は `https://` を補う。本文中のスキーム無しは『URL』『ホームページ』の近くだけ。XBRL の値はラベルが無くても `normalize_url` が受ける。pdfium が `(cid:N)` にした欧文（`N + 29` が印字 ASCII）は戻してから探す。URL 中の空白は除く（`http:// www.example.co.jp`）。`http://https://` のような二重スキームは内側を残す。末尾ラベルが ICANN の TLD でないホスト（`www.prologis`）は捨て、同じ短信の次の URL、無ければより古い短信へ進む。`.toyota` などブランド gTLD は残す。
+
+`jpx.co.jp` は捨てる。例外は日本取引所グループ（86970）自身。持株会社化で書類が旧コードに残る会社は `PREDECESSOR_CODES`（641A0←72400、642A0←95080、590A0←44490）。新しいコードに書類が無いときだけ旧コードを見る。
+
+| source | 出どころ | origin | 備考 |
+|---|---|---|---|
+| `manual` | `--set` / `--set-file` の手入力 | `manual` | 最上位。自動更新では触らない |
+| `xbrl_url` | 最新 1 件の `tse-ed-t:URL` / `tse-re-t:URL` | `xbrl:{doc_id}` | スキーム無し（www. 無しも）と全角コロンを直す |
+| `tanshin_html` | 上の条件の決算短信 `tdnet_pdf_documents.html_gz` | `tanshin:{disclosure_no}` | 『URL』『ホームページ』ラベル近くの URL を優先。監査法人・親会社の URL を先頭だけ見ると取り違える。w3.org / TDnet / EDINET / JPX / SEC / SNS はホストの完全一致かドット区切りの末尾一致で捨てる（86970 の `jpx.co.jp` は残す） |
+
+将来の IR / 月次ページは `homepages` に足さず、別表（`code`, `kind`, `url` の複数行）にする。月次ページ URL の正本は `config/monthly/ir_monthly.json` の `index_url`。KAB-320 で `homepages.host` と突き合わせる。上場廃止会社の行は残す（stocks も消さない）。
+
+ホスト一致の確認は `python jobs/market/homepages.py --all --compare-hosts`（書き込みしない）。
+
+**短信表紙の説明資料（`tanshin_covers`）。** 決算短信1ページ目の「決算補足説明資料作成の有無」「決算説明会開催の有無」を、短信ごとに1行残す（KAB-325）。主キーは `disclosure_no`。`code` にインデックスを付ける。最新の1件は `disclosed_at` が新しい行。API / SPA / cron はまだ無い。表は `jobs/migrate.py` が作る。ジョブは `python jobs/market/tanshin_covers.py --code 7203`。`--limit` は DB に既にある短信から新しい順にその社数だけ、各社の最新1件を書く。前の短信の行は消さない。`--all` は無い。本番への一括投入はしない。説明資料 PDF の保存は `jobs/market/tdnet_briefing_r2.py`（KAB-327、`briefing_documents`）。有無の判定とホームページ探索は、その索引を見て別 PR で足す。
+
+- 対象は普通株（`stocks.product_category` が内国株券 `011` または外国株券 `021`）と REIT（`013`）。ETF（`014`）と外国 ETF / ETN（`023`）は除く。REIT でも名称に「ファンド」または「インフラ」がある投資法人は除く。マスタが無い銘柄は、題名が ETF・ETN・投資信託・ファンドでなければ残す
+- 題名に「決算短信」があるもの。`訂正` と「決算短信…の修正について／の一部修正」は飛ばす
+- 書くのは各社の最新の提出日だけ。PDF（`tdnet_pdf_documents`）は変換 HTML の1ページ目。XBRL はサマリー iXBRL（表紙に相当）。その日に両方あるときは、有無が読めたほうを使い、どちらも読めたときは時刻が新しいほう。同じ日のもう一方の `disclosure_no` は残さない
+- 有は 1、無は 0、表紙に文言が無ければ NULL。画像だけの表紙も NULL。説明会の括弧は、投資家・アナリストなど対象が読めるときだけ `briefing_note`。単位の注記や、列の並びに紛れた「氏名」は残さない
+- 「有・無」と両方印字されてどちらとも取れないときは NULL（丸印の位置までは見ない）
 
 **為替（`fx_rates`）。** Frankfurter v1（`https://api.frankfurter.dev/v1`、ECB、基準通貨 EUR、キー不要。旧 `api.frankfurter.app` は 301）。UI は出さない。
 
@@ -310,6 +398,7 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
 - 輸入・輸出: 普通貿易統計（00350300）の「全国分 品別国別表 輸入 / 輸出」（`source` は `trade`。表題で速報の月は revision 1、ほかは 2）。石油統計で取る素材は載せない。統計品目番号 9 桁の前方一致で素材に寄せ、国は合計する。輸入と輸出で番号体系が違う
 - 輸出入の相手国別（`material_trade_country`。素材 × 月 × 輸出入 × 国）: 同じ表の値を国ごとに足して別に持つ。国は貿易統計の国コード 3 桁（`137_サウジアラビア` の `137`）と国名。revision は `trade` と同じで、下がる上書きはしない。`trade.items` の素材に加え、国合計は石油統計が正の素材も `trade.country_items` に書けば国別だけ取る（原油 2709、LPG 271112・271113）。対応表から外した (素材, 輸出入) の行はジョブの最初に消す
 - 数量は 単位1 があれば 数量1、無ければ 数量2（化学品の多くは KG）。KG と MT は t に、KL は kl に、NO は 本 に寄せる。0 の月は書かない（API が埋める。`docs/DESIGN_supply.md`）。未公表の月は 0 で入っているので、表題の「(1-7月：確報、8月：速報)」の最後の月より後は捨てる。前年の表は 2021 年からの 5 年分を持つ
+- UPSERT は revision 照会のあと commit し、行は短いチャンクで commit する。SELECT のトランザクションのまま 1 本の `executemany` で書くと、別接続が書き込みロックを持ったときに昇格待ちで `busy_timeout`（30s）まで `database is locked` になる（KAB-305）
 - 冪等。初回は `python jobs/supply/material_stats.py --years 2021-<今年>`。cron は経産省 Excel が毎日（生産動態 07:15、石油統計 07:45）、e-Stat が月曜 07:10（前年と今年）
 - 見掛け消費（生産 + 輸入 − 輸出 − 在庫の増加分）は保存せず API で出す。4 つと前月在庫が同じ単位で揃う月だけ。revision は材料の最小
 
@@ -421,7 +510,8 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `GET /api/earnings?date=2026-08-14&today=2026-10-02` | `{kind, actuals, scheduled}`。`actuals` は開示1件が1行で、QoQ(Q単独の前四半期比) と YoY(累計の前年同期比) を指標ごとに返す（売上・売上総利益・営業利益・経常利益・純利益・EPS。売上総利益は `xbrl_financials` から。KAB-278）。金額は `single`（Q単独。算出できなければ null）と `cumulative`（累計）で、円。決算短信本体のみ (予想修正のみの開示、および損益が初回と同一の再提出は除外。損益が変わった再提出は `restated` を立てて残す)。通期営利予想が直前開示から ±0.1% 以上動いていれば `forecast_revision: {direction: "up"|"down", pct}`、無ければ null。`scheduled` は `{code, name, periods:[{fq, fye, label}], latest}` で銘柄1行。`latest` は直近の実績開示（`disclosure_no` / `period` / `fy_label` / `single` / `cumulative` / `qoq` / `yoy` / `progress` / `forecast_fy`）。実績が無ければ null。どちらの行にも `sector33`（マスタに無ければ null）。`kind` は `actual` / `scheduled` / `mixed`。過去は `actual` で `scheduled` は空。今日は開示と、そのコードが今日の開示に無い未発表。未来は予定だけ。`today` を省略するとサーバの今日。台帳が lookback を埋める前の未来には `ready: false`（空なら画面は 予定未取得）。`product_category` が REIT (`013`/`022`) の銘柄は出さない |
 | `GET /api/earnings/detail/{code}?disclosure_no=…` | 選択銘柄の累計テーブル (過去4期+当期の同一四半期 + 中間予想 + 通期予想 + 前期通期実績。本決算は予想が `raw_json` の来期予想 `NxF*` で、前期通期は出さない) と3か月決算テーブル (直近12四半期のQ単独)。各行に会計期末 (`26.11`) または Q単独の四半期末 (`25.08`) と発表日を付ける。同一銘柄が同日に複数開示する日があるため `disclosure_no` で一意に引く (`?date=` でも可)。どちらも無ければ最新の実績開示（決算速報の銘柄検索が使う）。実績が無ければ 404。`revisions` は通期予想の修正履歴 (`kind` = `forecast_initial` / `forecast` / `forecast_revised` / `actual_fy`、`growth` は前の行からの修正率で同値は `state: flat`)。選んだ開示の日までの開示から作る。データ源は `revision_source`（既定 `EARNINGS_PARAMS["revision_source"]` = `jquants`）で、`?rev_source=jquants|xbrl` で上書きできる。`jquants` は `statements` の `fy_*` と本決算の `NxF*`（期初）と本決算の実績。`xbrl` は `xbrl_financials` の `forecast`/`FY`（連結優先、レンジは中点）と `annual` の実績。組み立ては `app/revisions.py`、データ源は `app/market/revisions.py` / `app/xbrl/revisions.py` |
 | `GET /api/earnings/calendar?month=2026-08&today=2026-10-02` | 日付 → `{kind, n}`。`pending` は今日かつ未発表がいるときだけ。件数は銘柄の distinct。疎。一覧と同じく本体のみを数え、REIT も除外する。`today` を省略するとサーバの今日 |
-| `GET /api/chart/{code}?tf=D|W|M&ma=50,150,200&rel=topix` | 株価チャートデータ。W/M は日足を ISO週 / 暦月で集約 (足の日付は期間の最終営業日)。MA 期間は営業日換算 (週=÷5、月=÷20) |
+| `GET /api/chart/{code}` | 日足を列ごとの配列で返す `{code, name, t, o, h, l, c, v, tv, mc, earnings_dates, fund}`。`t` は日付、`o`〜`c` は調整後の四本値（調整後が無い日は生の値）、`v` は調整後の出来高、`tv` は売買代金（円）、`mc` は時価総額（百万円。無い日は null）。`fund` は業績の階段 `{t, eps, op_q, op_ttm}`（`t` は使い始める日、`eps` は調整後の予想EPS、営業利益は円。値は次の点まで続く。作り方は `docs/DESIGN_stock.md`「業績の数字の作り方」）。週足・月足・移動平均はブラウザで作る（`docs/DESIGN_stock.md`「株価」）。`ETag` は中身のハッシュで、`If-None-Match` が合えば 304。行が無ければ 404 |
+| `GET /api/topix` | TOPIX の終値 `{t, c}`。対TOPIX 相対に使う。`ETag` は同じ |
 | `GET /api/earnings-performance/{code}` | 決算日からの対TOPIXリターン |
 | `GET /api/ranking/earnings-perf?month=YYYY-MM` | 決算月ごとの決算発表後パフォーマンス（次の決算の前日終値まで）のランキング。`docs/DESIGN_ranking.md` |
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
@@ -443,6 +533,14 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | `PUT /api/v1/tables/{code}/{year}/doc` | 文書を丸ごと返して 1 トランザクションで書く。body `{version, elements, allow_structure_change?, dry_run?}`。行名は渡したまま（正規化・エイリアスを掛けない）。`was` で改名（値はサーバーが移す）、文書に無い行は削除、`was` の無い新しい名前は作成（`unit` 必須、末尾に並ぶ）。`values` を渡した行は 12 か月を置き換え（無い月・null は削除）、省いた行は値をそのまま。`version` が違えば 409 `VERSION_MISMATCH`。改名・作成・削除・unit 変更は `allow_structure_change=true` のときだけ（無ければ 409 `STRUCTURE_CHANGED`）。`dry_run=true` は書かずに `changes` を返す。config の木に入らない行は `warnings` の `NOT_IN_TREE` |
 
 月次 API のエラーは `{"error": {"code": "...", "message": "..."}}`。閲覧 GET は公開。書き込みは loopback のみ（nginx 経由は 403）。本番の個人ツールは `/app` と Basic 認証。
+
+### ヘッダーとパンくずの置き場所
+
+見た目の正本は `docs/SCREEN_SPEC.md`（共通見た目 9・10）。置き場所だけここにも書く。
+
+- `nav#crumbs` はヘッダーに置く。`/app` は `#menu-btn` の右（PC はタブ行の下）。公開月次はサイト名の右。`main` には置かない
+- パンくずがある画面はヘッダーのページ名（`#cur-tab`）を出さない。無い画面はいまどおりページ名
+- 区切りは ` > `。幅に収まらないときは折り返さず横スクロールし、先頭を省略して末尾（いまの画面）が見えるようにする
 
 ### 決算速報の画面
 
@@ -513,7 +611,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 データ量は VPS のディスクなら余裕。
 ローカル backfill 完了後に `stock.db` を scp する（サーバで取り直さない）。
 
-見本は `deploy/`（systemd / nginx / crontab）。uvicorn のワーカー数は `nproc` と MemAvailable（1 本あたり数百 MiB。`deploy/uvicorn_workers.py`）で決める。SQLite はライター 1 本のまま WAL + `busy_timeout=30s` で待ち合わせる。日次バッチは定常で 7 リクエスト。指標は差分だけをチャンク commit。月次の書き込み API は `database is locked` を短い回数だけ再試行する。`jobs/migrate.py`（deploy 含む）は同じエラーを指数バックオフで再試行する。起動前に migrate が `init_db` を 1 回だけ流す（`--preload` は使わない）。
+見本は `deploy/`（systemd / nginx / crontab）。uvicorn のワーカー数は `nproc` と MemAvailable（1 本あたり数百 MiB。`deploy/uvicorn_workers.py`）で決める。SQLite はライター 1 本のまま WAL + `busy_timeout=30s` で待ち合わせる。ファイル SQLite は `NullPool`（SQLAlchemy 2.1 の QueuePool 既定は使わない。接続が増えると locked になる）。日次バッチは定常で 7 リクエスト。指標は差分だけをチャンク commit。月次の書き込み API は `database is locked` を短い回数だけ再試行する。`jobs/migrate.py`（deploy 含む）は同じエラーを指数バックオフで再試行する。起動前に migrate が `init_db` を 1 回だけ流す（`--preload` は使わない）。
 
 Postgres 切替は将来オプション。今は使わない。`DATABASE_URL` だけ変えれば SQLAlchemy は両対応のまま。
 

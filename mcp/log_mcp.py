@@ -132,7 +132,14 @@ def crontab_job_names() -> tuple[str, ...]:
 
 # crontab に無いが cron-run.sh が /var/log/app/<stem>.log に書くジョブ。
 # migrate_r2_share は定期 cron に載せない（初回移行とギャップ埋めだけ）。
-EXTRA_BATCH_JOBS = frozenset({"migrate_r2_share"})
+# rebuild_daily_prices は daily_prices を WITHOUT ROWID にする一度きりの作り直し（KAB-289）。
+# irbank_ingest は IR BANK の決算説明資料の過去分を一度だけ取る（KAB-330）。
+# briefing_extract は決算説明資料を Claude の Batch API で読む（KAB-349。cron はまだ置かない）。
+# briefing_offsite は 1 年以上前の説明資料を OneDrive へ移す。cron には入れない（KAB-345）。
+EXTRA_BATCH_JOBS = frozenset({
+    "migrate_r2_share", "rebuild_daily_prices", "irbank_ingest",
+    "briefing_extract", "briefing_offsite",
+})
 BATCH_JOBS = frozenset(crontab_job_names()) | EXTRA_BATCH_JOBS
 YEAR_RE = re.compile(r"^\d{4}$")
 DB_TABLES = (
@@ -344,12 +351,21 @@ def env_flag(name: str) -> str:
     return "missing"
 
 
+MONITORING_UNITS = tuple(
+    sorted(p.stem for p in (_REPO_ROOT / "deploy" / "monitoring" / "systemd").glob("*.service"))
+)
+
+
 def tool_service_status(_args: dict[str, Any]) -> str:
     parts = [
         "=== services ===",
         f"stock-analyzer: {run_cmd(['systemctl', 'is-active', 'stock-analyzer'])}",
         f"nginx: {run_cmd(['systemctl', 'is-active', 'nginx'])}",
         f"stock-analyzer-mcp: {run_cmd(['systemctl', 'is-active', 'stock-analyzer-mcp'])}",
+        *(
+            f"{unit}: {run_cmd(['systemctl', 'is-active', unit])}"
+            for unit in MONITORING_UNITS
+        ),
         "",
         "=== stock-analyzer status ===",
         run_cmd(["systemctl", "status", "stock-analyzer", "--no-pager", "-l", "-n", "15"]),
@@ -1860,6 +1876,161 @@ def tool_xbrl_diff_summary(args: dict[str, Any]) -> str:
         conn.close()
 
 
+DEFAULT_METRICS_HTTP = "http://127.0.0.1:8428"
+METRICS_HTTP_TIMEOUT = 15
+METRICS_MAX_QUERY_CHARS = 4000
+METRICS_MAX_POINTS = 1100
+METRICS_MAX_SERIES = 200
+METRICS_MAX_BYTES = 1024 * 1024
+METRICS_READ_PATHS = frozenset({"/api/v1/query", "/api/v1/query_range", "/api/v1/label/__name__/values"})
+STEP_RE = re.compile(r"^(\d+)([smhd]?)$", re.I)
+_STEP_SECONDS = {"": 1, "s": 1, "m": 60, "h": 3600, "d": 86400}
+
+
+def metrics_http_base() -> str:
+    """Loopback VictoriaMetrics only. MCP_METRICS_HTTP may override host/port for tests."""
+    raw = (os.environ.get("MCP_METRICS_HTTP") or DEFAULT_METRICS_HTTP).strip() or DEFAULT_METRICS_HTTP
+    parsed = urlparse(raw)
+    if parsed.scheme != "http" or not _is_loopback_host(parsed.hostname) or parsed.path not in ("", "/"):
+        raise ValueError("MCP_METRICS_HTTP must be http://127.0.0.1:<port>")
+    host = (parsed.hostname or "").lower()
+    netloc = f"[{host}]" if ":" in host else host
+    if parsed.port:
+        netloc += f":{parsed.port}"
+    return f"http://{netloc}"
+
+
+def metrics_get(path: str, params: dict[str, str]) -> dict[str, Any]:
+    """GET only, read paths only. Returns the decoded Prometheus API JSON."""
+    if path not in METRICS_READ_PATHS:
+        raise ValueError("metrics path not allowed")
+    base = metrics_http_base()
+    req = urllib.request.Request(
+        f"{base}{path}?{urlencode(params)}", headers={"Accept": "application/json"}, method="GET"
+    )
+    try:
+        with _monthly_opener().open(req, timeout=METRICS_HTTP_TIMEOUT) as resp:
+            raw = resp.read(METRICS_MAX_BYTES + 1)
+    except urllib.error.HTTPError as exc:
+        raw = exc.read(METRICS_MAX_BYTES + 1) if exc.fp is not None else b""
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        reason = getattr(exc, "reason", exc)
+        raise ValueError(f"VictoriaMetrics unreachable at {base}: {reason}") from None
+    if len(raw) > METRICS_MAX_BYTES:
+        raise ValueError("metrics response too large; narrow the query or raise step")
+    try:
+        body = json.loads(raw.decode("utf-8", errors="replace") or "{}")
+    except json.JSONDecodeError:
+        raise ValueError("VictoriaMetrics returned non-JSON") from None
+    if not isinstance(body, dict):
+        raise ValueError("VictoriaMetrics returned non-JSON")
+    if body.get("status") != "success":
+        raise ValueError(f"query failed: {body.get('errorType', '')} {body.get('error', '')}".strip())
+    return body
+
+
+def parse_metrics_query(raw: Any) -> str:
+    if not isinstance(raw, str) or not raw.strip():
+        raise ValueError("query is required (PromQL / MetricsQL)")
+    q = raw.strip()
+    if len(q) > METRICS_MAX_QUERY_CHARS or "\x00" in q:
+        raise ValueError(f"query must be at most {METRICS_MAX_QUERY_CHARS} characters")
+    return q
+
+
+def parse_metrics_step(raw: Any) -> int | None:
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    if isinstance(raw, bool):
+        raise ValueError("step must be like 30s, 5m, 1h")
+    if isinstance(raw, int):
+        n = raw
+    else:
+        match = STEP_RE.fullmatch(str(raw).strip())
+        if match is None:
+            raise ValueError("step must be like 30s, 5m, 1h")
+        n = int(match.group(1)) * _STEP_SECONDS[match.group(2).lower()]
+    if n < 1:
+        raise ValueError("step must be at least 1s")
+    return n
+
+
+def _jst_epoch(dt: datetime) -> float:
+    return dt.replace(tzinfo=JST).timestamp()
+
+
+def _format_metric_value(pair: Any) -> str:
+    if not isinstance(pair, list) or len(pair) != 2:
+        return str(pair)
+    ts, val = pair
+    stamp = datetime.fromtimestamp(float(ts), JST).strftime("%Y-%m-%d %H:%M:%S")
+    return f"{stamp} {val}"
+
+
+def _format_metric_labels(metric: Any) -> str:
+    if not isinstance(metric, dict) or not metric:
+        return "{}"
+    name = metric.get("__name__", "")
+    rest = ",".join(f'{k}="{v}"' for k, v in sorted(metric.items()) if k != "__name__")
+    return f"{name}{{{rest}}}"
+
+
+def tool_metrics_query(args: dict[str, Any]) -> str:
+    if args.get("list_metrics"):
+        names = metrics_get("/api/v1/label/__name__/values", {}).get("data") or []
+        grep = parse_grep(args.get("grep"))
+        if grep:
+            names = _filter_grep([str(n) for n in names], grep)
+        return f"{len(names)} metric names\n" + "\n".join(str(n) for n in names)
+    query = parse_metrics_query(args.get("query"))
+    start = _optional_bound(args.get("start"), "start")
+    end = _optional_bound(args.get("end"), "end")
+    step = parse_metrics_step(args.get("step"))
+    if start is None:
+        if step is not None:
+            raise ValueError("step needs start (range query)")
+        params = {"query": query}
+        if end is not None:
+            params["time"] = f"{_jst_epoch(end):.3f}"
+        body = metrics_get("/api/v1/query", params)
+    else:
+        end_dt = end or _jst_now()
+        if start >= end_dt:
+            raise ValueError("end must be after start")
+        span = _jst_epoch(end_dt) - _jst_epoch(start)
+        if step is None:
+            step = max(1, int(span // (METRICS_MAX_POINTS - 1)) + 1)
+        if span / step + 1 > METRICS_MAX_POINTS:
+            raise ValueError(f"too many points (max {METRICS_MAX_POINTS} per series); raise step or shorten the range")
+        body = metrics_get(
+            "/api/v1/query_range",
+            {
+                "query": query,
+                "start": f"{_jst_epoch(start):.3f}",
+                "end": f"{_jst_epoch(end_dt):.3f}",
+                "step": f"{step}s",
+            },
+        )
+    data = body.get("data") or {}
+    result_type = data.get("resultType", "")
+    result = data.get("result") or []
+    if result_type == "scalar" or result_type == "string":
+        return f"{result_type}: {_format_metric_value(result)}"
+    lines = [f"{result_type} series={len(result)}" + (f" step={step}s" if start is not None else "")]
+    for series in result[:METRICS_MAX_SERIES]:
+        if not isinstance(series, dict):
+            continue
+        label = _format_metric_labels(series.get("metric"))
+        if "values" in series:
+            lines.append(label)
+            lines.extend("  " + _format_metric_value(v) for v in series.get("values") or [])
+        else:
+            lines.append(f"{label} {_format_metric_value(series.get('value'))}")
+    if len(result) > METRICS_MAX_SERIES:
+        lines.append(f"... {len(result) - METRICS_MAX_SERIES} more series (narrow with labels or aggregate)")
+    return "\n".join(lines)
+
+
 TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = {
     "fs_list": (
         (
@@ -1919,7 +2090,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         fs_tools.tool_fs_grep,
     ),
     "service_status": (
-        "nginx / stock-analyzer / MCP の active 状態、待ち受けポート、localhost:80 / :8000 の HTTP コード。MCP 自身はこの応答自体を ok とし、自分へは curl しない。",
+        "nginx / stock-analyzer / MCP / 監視（monitoring-*）の active 状態、待ち受けポート、localhost:80 / :8000 の HTTP コード。MCP 自身はこの応答自体を ok とし、自分へは curl しない。",
         {"type": "object", "properties": {}},
         tool_service_status,
     ),
@@ -2100,6 +2271,30 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
             },
         },
         tool_xbrl_diff_summary,
+    ),
+    "metrics_query": (
+        (
+            "VPS のメトリクス（VictoriaMetrics、127.0.0.1 だけ。読み取り専用、保持 6 か月）を PromQL / MetricsQL で引く。"
+            "start が無ければ instant（end はその時刻）、あれば range（end 省略は今。step 省略は自動）。"
+            "時刻は 1h, 30m, today, yesterday, YYYY-MM-DD[ HH:MM[:SS]]（JST）。結果の時刻も JST。"
+            "list_metrics=true でメトリクス名の一覧（grep で絞る）。"
+            "主な名前: host:cpu_usage:percent / host:memory_usage:percent / host:disk_usage:percent（mountpoint）、"
+            "node_*（node_exporter）、namedprocess_namegroup_*（groupname=app / mcp / job:<ジョブ名> / nginx など）、"
+            "cron_job_duration_seconds / cron_job_exit_code / cron_job_last_run_timestamp_seconds（cron_job=<ジョブ名>。"
+            "ジョブの終わりに 1 点だけ入るので last_over_time(...[1d]) で引く）、ALERTS（vmalert の発火中アラート）。"
+        ),
+        {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "PromQL / MetricsQL expression"},
+                "start": {"type": "string", "description": "range start: 1h, 30m, today, yesterday, or YYYY-MM-DD[ HH:MM]"},
+                "end": {"type": "string", "description": "range end or instant time. Same forms. Default now"},
+                "step": {"type": "string", "description": "range step like 30s, 5m, 1h. Default: auto (max 1100 points)"},
+                "list_metrics": {"type": "boolean", "description": "list metric names instead of querying"},
+                "grep": {"type": "string", "description": "with list_metrics: regex or substring, max 120 chars"},
+            },
+        },
+        tool_metrics_query,
     ),
     "fx_rate": (
         (

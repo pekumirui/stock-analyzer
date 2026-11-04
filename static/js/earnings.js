@@ -115,6 +115,23 @@ function beginDetail(){
 function apiMaybe(p, signal){
   return api(p, {signal}).catch(e => { if(e.name === "AbortError") throw e; return null; });
 }
+function chartMaybe(code, signal){
+  return chartDaily(code, signal).catch(e => { if(e.name === "AbortError") throw e; return null; });
+}
+
+// #e-chart は銘柄タブの株価と同じ部品（chart-core.js）。日足の最新、発表日がそれより前なら発表日を真ん中に
+let eChart = null;
+function dropEChart(){
+  if(eChart){ eChart.destroy(); eChart = null; }
+  $("#e-chart").innerHTML = "";
+}
+function drawEChart(ch, mark){
+  if(!ch){ dropEChart(); $("#e-chart").innerHTML = `<div class="sub">株価データなし</div>`; return; }
+  if(!eChart) eChart = createStockChart($("#e-chart"), {height: 320});
+  eChart.setData(ch, {mark});
+  if(mark && !eChart.latestHas(mark)) eChart.showAround(mark);
+  else eChart.showLatest();
+}
 let earnDay="", earnToday="";
 let earnSector="", earnChipsOpen=false, earnView="cum";
 const CHIP_TOP = 5;  // 畳んだときに見せる業種の数 (「すべて」は別)
@@ -302,7 +319,7 @@ function selectSched(code){
 function clearDetail(msg){
   if(detailAc){ detailAc.abort(); detailAc = null; }
   $("#e-chart-title").textContent = msg;
-  $("#e-chart").innerHTML = ""; $("#cum-tbl").innerHTML = ""; $("#prog-tbl").innerHTML = ""; $("#q-tbl").innerHTML = ""; $("#rev-tbl").innerHTML = "";
+  dropEChart(); $("#cum-tbl").innerHTML = ""; $("#prog-tbl").innerHTML = ""; $("#q-tbl").innerHTML = ""; $("#rev-tbl").innerHTML = "";
 }
 
 async function loadSched(row){
@@ -320,11 +337,10 @@ async function loadSched(row){
   $("#e-chart-title").innerHTML = `<span class="clicky" onclick="gotoChart('${row.code}')">${row.name}</span>
     <small class="sub">${row.code.slice(0,4)}</small>`;
   let ch;
-  try { ch = await apiMaybe(`/api/chart/${row.code}?tf=D&ma=50,150,200`, signal); }
+  try { ch = await chartMaybe(row.code, signal); }
   catch(e){ if(e.name === "AbortError") return; throw e; }
   if(signal.aborted) return;
-  if(ch) eChartObj = renderPriceChart($("#e-chart"), ch, {height:320, prev:eChartObj});
-  else { $("#e-chart").innerHTML = `<div class="sub">株価データなし</div>`; }
+  drawEChart(ch, null);
   const pending = `<tr><td class="l sub">まだ開示されていません</td></tr>`;
   $("#cum-tbl").innerHTML = pending;
   $("#q-tbl").innerHTML = pending;
@@ -340,11 +356,10 @@ async function loadDetail(row){
   try {
     [d, ch] = await Promise.all([
       apiMaybe(`/api/earnings/detail/${row.code}?disclosure_no=${encodeURIComponent(row.disclosure_no)}`, signal),
-      apiMaybe(`/api/chart/${row.code}?tf=D&ma=50,150,200`, signal)]);
+      chartMaybe(row.code, signal)]);
   } catch(e){ if(e.name === "AbortError") return; throw e; }
   if(signal.aborted) return;
-  if(ch) eChartObj = renderPriceChart($("#e-chart"), ch, {height:320, prev:eChartObj, mark:d && d.disclosed_date});
-  else { $("#e-chart").innerHTML = `<div class="sub">株価データなし</div>`; }
+  drawEChart(ch, d && d.disclosed_date);
   renderFin($("#cum-tbl"), d && d.cumulative, d);
   renderFin($("#q-tbl"),   d && d.quarterly,  d);
   renderProg($("#prog-tbl"), d && d.progress, d);

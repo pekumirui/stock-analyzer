@@ -11,7 +11,13 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from jobs.ops.backup_data import KINDS, MOVE_KINDS, run  # noqa: E402
+from jobs.ops.backup_data import (  # noqa: E402
+    KINDS,
+    MOVE_KINDS,
+    RCLONE_MOVE_MAX_DURATION,
+    move_limit_reason,
+    run,
+)
 from jobs.ops.backup_db import BackupError, CmdResult  # noqa: E402
 
 
@@ -53,7 +59,10 @@ def test_copy_then_check_each_kind_never_sync(tmp_path: Path) -> None:
     move = calls[-1]
     assert move[1:3] == [str(tmp_path / "edinet"), "onedrive:stock-analyzer-backups/data/edinet"]
     assert "--min-age" in move and "*.zip" in move
+    assert move[move.index("--max-duration") + 1] == RCLONE_MOVE_MAX_DURATION
+    assert move[move.index("--cutoff-mode") + 1] == "SOFT"
     copies = [c for c in calls if c[0] == "copy"]
+    assert all("--max-duration" not in c for c in copies)
     assert copies[0][1:3] == [str(tmp_path / "xbrl"), "onedrive:stock-analyzer-backups/data/xbrl"]
     assert copies[1][1:3] == [
         str(tmp_path / "monthly"),
@@ -85,6 +94,86 @@ def test_move_failure_raises(tmp_path: Path) -> None:
     env = _share(tmp_path)
     with pytest.raises(BackupError, match="rclone move edinet exit=1"):
         run(["edinet"], environ=env, which=lambda _n: "/usr/bin/rclone", rclone=_fake([], fail="move"))
+
+
+def test_move_python_timeout_still_fails(tmp_path: Path) -> None:
+    env = _share(tmp_path)
+
+    def boom(argv, timeout):  # noqa: ANN001, ANN202, ARG001
+        if argv[0] == "listremotes":
+            return CmdResult(0, "onedrive:\n", "")
+        raise BackupError("rclone timeout move")
+
+    with pytest.raises(BackupError, match="rclone timeout move"):
+        run(["edinet"], environ=env, which=lambda _n: "/usr/bin/rclone", rclone=boom)
+
+
+def test_move_duration_cap_is_ok_and_keeps_unsent(tmp_path: Path) -> None:
+    env = _share(tmp_path)
+    leftover = tmp_path / "edinet" / "1234" / "b.zip"
+    leftover.write_bytes(b"zip2")
+
+    def capped(argv, timeout):  # noqa: ANN001, ANN202, ARG001
+        if argv[0] == "listremotes":
+            return CmdResult(0, "onedrive:\n", "")
+        if argv[0] == "move":
+            (tmp_path / "edinet" / "1234" / "a.zip").unlink()
+            return CmdResult(10, "", "max transfer duration reached as set by --max-duration")
+        return CmdResult(0, "", "")
+
+    rc, out = _run_out(
+        kinds=["edinet"], environ=env, which=lambda _n: "/usr/bin/rclone", rclone=capped
+    )
+    assert rc == 0
+    assert "offsite ok edinet moved=1 left=1" in out and "capped=max-duration" in out
+    assert leftover.is_file()
+
+
+def test_move_transfer_cap_is_ok(tmp_path: Path) -> None:
+    env = _share(tmp_path)
+
+    def capped(argv, timeout):  # noqa: ANN001, ANN202, ARG001
+        if argv[0] == "listremotes":
+            return CmdResult(0, "onedrive:\n", "")
+        if argv[0] == "move":
+            (tmp_path / "edinet" / "1234" / "a.zip").unlink()
+            return CmdResult(8, "", "max transfer limit reached as set by --max-transfer")
+        return CmdResult(0, "", "")
+
+    rc, out = _run_out(
+        kinds=["edinet"], environ=env, which=lambda _n: "/usr/bin/rclone", rclone=capped
+    )
+    assert rc == 0 and "capped=max-transfer" in out and "moved=1 left=0" in out
+
+
+def test_move_cap_with_nothing_moved_fails(tmp_path: Path) -> None:
+    env = _share(tmp_path)
+
+    def capped(argv, timeout):  # noqa: ANN001, ANN202, ARG001
+        if argv[0] == "listremotes":
+            return CmdResult(0, "onedrive:\n", "")
+        if argv[0] == "move":
+            return CmdResult(10, "", "max transfer duration reached as set by --max-duration")
+        return CmdResult(0, "", "")
+
+    with pytest.raises(BackupError, match="max-duration moved=0 left=1"):
+        run(["edinet"], environ=env, which=lambda _n: "/usr/bin/rclone", rclone=capped)
+
+
+@pytest.mark.parametrize(
+    ("code", "stderr", "want"),
+    [
+        (0, "", None),
+        (1, "network broke", None),
+        (7, "account suspended", None),
+        (8, "", "max-transfer"),
+        (10, "", "max-duration"),
+        (7, "Max transfer duration reached as set by --max-duration", "max-duration"),
+        (7, "max transfer limit reached as set by --max-transfer", "max-transfer"),
+    ],
+)
+def test_move_limit_reason(code: int, stderr: str, want: str | None) -> None:
+    assert move_limit_reason(CmdResult(code, "", stderr)) == want
 
 
 def test_only_limits_kinds(tmp_path: Path) -> None:

@@ -1,0 +1,27 @@
+# プロセスのまとめ方。上から順に最初に合った名前に入る。最後の other が残り全部。
+process_names:
+  # deploy/cron-run.sh が起動するジョブ（.venv/bin/python3 -u jobs/<機能>/<名前>.py）
+  - name: "job:{{.Matches.job}}"
+    cmdline:
+      - '\bjobs/(?:[A-Za-z0-9_]+/)*(?P<job>[A-Za-z0-9_]+)\.py\b'
+  - name: app
+    cmdline:
+      - '\buvicorn\b.*\bapp\.main\b'
+  - name: mcp
+    cmdline:
+      - '\bmcp/log_mcp\.py\b'
+  - name: "{{.Comm}}"
+    comm:
+      - nginx
+      - fluent-bit
+      - rclone
+      - sshd
+      - cron
+      - victoria-metric
+      - vmalert
+      - alertmanager
+      - node_exporter
+      - process-exporte
+  - name: other
+    cmdline:
+      - '.+'

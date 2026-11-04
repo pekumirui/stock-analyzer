@@ -1,0 +1,33 @@
+[Unit]
+Description=Alertmanager (Slack #alerts-infra)
+After=network.target
+
+[Service]
+User=monitoring
+Group=monitoring
+StateDirectory=monitoring-alertmanager
+Environment=TZ=Asia/Tokyo
+# --cluster.listen-address= で gossip を切る。--data.retention は repeat_interval と同じ長さ
+ExecStart=/opt/monitoring/bin/alertmanager \
+  --config.file=/etc/monitoring/alertmanager.yml \
+  --storage.path=/var/lib/monitoring-alertmanager \
+  --web.listen-address=127.0.0.1:9093 \
+  --cluster.listen-address= \
+  --data.retention=8760h
+ExecReload=/bin/kill -HUP $MAINPID
+MemoryMax=128M
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

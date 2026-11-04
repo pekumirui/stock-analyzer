@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -885,6 +886,129 @@ def test_cron_run_splits_and_stamps(tmp_path: Path) -> None:
         _fail(f"cwd failure not logged: {cwd_log!r}")
 
 
+_TDNET_XBRL_JOBS = (
+    "jobs/xbrl/tdnet_xbrl_r2.py",
+    "jobs/xbrl/xbrl_parse.py",
+    "jobs/xbrl/xbrl_normalize.py",
+)
+
+
+def _tdnet_xbrl_cron_line() -> str:
+    crontab = (ROOT / "deploy" / "crontab").read_text(encoding="utf-8")
+    lines = [
+        raw.strip()
+        for raw in crontab.splitlines()
+        if raw.strip()
+        and not raw.strip().startswith("#")
+        and any(job in raw for job in _TDNET_XBRL_JOBS)
+    ]
+    if len(lines) != 1:
+        _fail(f"expected 1 TDnet XBRL cron line, got {len(lines)}: {lines!r}")
+    return lines[0]
+
+
+def test_crontab_chains_tdnet_xbrl() -> None:
+    line = _tdnet_xbrl_cron_line()
+    if not line.startswith("0 12-23 * * * "):
+        _fail(f"TDnet XBRL cron must be hourly :00 at 12-23: {line!r}")
+    if "deploy/cron-run.sh jobs/xbrl/tdnet_xbrl_r2.py 2" not in line:
+        _fail(f"fetch must stay cron-run.sh days=2: {line!r}")
+    if "deploy/cron-run.sh jobs/xbrl/xbrl_parse.py" not in line:
+        _fail(f"parse must stay cron-run.sh: {line!r}")
+    if "deploy/cron-run.sh jobs/xbrl/xbrl_normalize.py" not in line:
+        _fail(f"normalize must stay cron-run.sh: {line!r}")
+    if "tdnet_xbrl_r2.py 2; deploy/cron-run.sh jobs/xbrl/xbrl_parse.py;" not in line:
+        _fail(f"fetch failure must still run parse (; not &&): {line!r}")
+    if "xbrl_parse.py; deploy/cron-run.sh jobs/xbrl/xbrl_normalize.py;" not in line:
+        _fail(f"parse failure must still run normalize (; not &&): {line!r}")
+    i_fetch = line.index("tdnet_xbrl_r2.py")
+    i_parse = line.index("xbrl_parse.py")
+    i_norm = line.index("xbrl_normalize.py")
+    if not (i_fetch < i_parse < i_norm):
+        _fail(f"order must be fetch → parse → normalize: {line!r}")
+    crontab = (ROOT / "deploy" / "crontab").read_text(encoding="utf-8")
+    for raw in crontab.splitlines():
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if re.match(r"^(10|20)\s", stripped) and (
+            "xbrl_parse.py" in stripped or "xbrl_normalize.py" in stripped
+        ):
+            _fail(f":10/:20 standalone XBRL cron must be removed: {stripped!r}")
+
+
+def test_cron_xbrl_chain_continues_after_fetch_fail(tmp_path: Path) -> None:
+    app = tmp_path / "app"
+    logs = tmp_path / "logs"
+    bindir = app / ".venv" / "bin"
+    bindir.mkdir(parents=True)
+    order = tmp_path / "order.txt"
+    py = bindir / "python"
+    py.write_text(
+        "#!/usr/bin/env python3\n"
+        "import os\n"
+        "import sys\n"
+        "from pathlib import Path\n"
+        "script = next(a for a in sys.argv[1:] if a.endswith('.py'))\n"
+        "order = Path(os.environ['CHAIN_ORDER'])\n"
+        "prev = order.read_text(encoding='utf-8') if order.exists() else ''\n"
+        "order.write_text(prev + script + '\\n', encoding='utf-8')\n"
+        "print('out ' + script, flush=True)\n"
+        "raise SystemExit(3 if 'tdnet_xbrl_r2.py' in script else 0)\n",
+        encoding="utf-8",
+    )
+    py.chmod(0o755)
+    env = os.environ.copy()
+    env["CRON_APP_DIR"] = str(app)
+    env["CRON_LOG_DIR"] = str(logs)
+    env["CHAIN_ORDER"] = str(order)
+    line = _tdnet_xbrl_cron_line()
+    fields = line.split(None, 5)
+    if len(fields) != 6:
+        _fail(f"crontab command missing: {line!r}")
+    cmd = fields[5]
+    prefix = "cd /home/stock/stock-analyzer && "
+    if not cmd.startswith(prefix):
+        _fail(f"crontab must cd then chain: {cmd!r}")
+    body = cmd[len(prefix) :]
+    wrapper = str(ROOT / "deploy" / "cron-run.sh")
+    if body.count("deploy/cron-run.sh") != 3:
+        _fail(f"chain must call cron-run.sh 3 times: {body!r}")
+    body = body.replace("deploy/cron-run.sh", shlex.quote(wrapper))
+    full = f"cd {shlex.quote(str(app))} && {body}"
+    proc = subprocess.run(
+        ["bash", "-c", full],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        _fail(
+            f"chain exit should be normalize (0) after fetch fail, got {proc.returncode}: "
+            f"{proc.stdout!r} {proc.stderr!r}"
+        )
+    if proc.stdout or proc.stderr:
+        _fail(f"chain leaked stdio: {proc.stdout!r} {proc.stderr!r}")
+    got = order.read_text(encoding="utf-8").splitlines()
+    if got != list(_TDNET_XBRL_JOBS):
+        _fail(f"chain order after fetch fail: {got!r}")
+    fetch_log = (logs / "tdnet_xbrl_r2.log").read_text(encoding="utf-8")
+    parse_log = (logs / "xbrl_parse.log").read_text(encoding="utf-8")
+    norm_log = (logs / "xbrl_normalize.log").read_text(encoding="utf-8")
+    if "fail cron jobs/xbrl/tdnet_xbrl_r2.py 2 exit=3" not in fetch_log:
+        _fail(f"fetch fail cron missing: {fetch_log!r}")
+    if "out jobs/xbrl/xbrl_parse.py" not in parse_log:
+        _fail(f"parse log missing: {parse_log!r}")
+    if "out jobs/xbrl/xbrl_normalize.py" not in norm_log:
+        _fail(f"normalize log missing: {norm_log!r}")
+    if "fail cron" in parse_log or "fail cron" in norm_log:
+        _fail(f"later stages must not page: {parse_log!r} {norm_log!r}")
+    if "xbrl_parse.py" in fetch_log or "tdnet_xbrl_r2.py" in parse_log:
+        _fail(f"job logs mixed: {fetch_log!r} {parse_log!r}")
+
+
 def _write_cron_python(path: Path, marker: str) -> None:
     path.write_text(
         "#!/usr/bin/env python3\n"
@@ -1200,6 +1324,9 @@ def main() -> None:
     test_slack_payload_jst_danger()
     with TemporaryDirectory() as d:
         test_cron_run_splits_and_stamps(Path(d))
+    test_crontab_chains_tdnet_xbrl()
+    with TemporaryDirectory() as d:
+        test_cron_xbrl_chain_continues_after_fetch_fail(Path(d))
     with TemporaryDirectory() as d:
         test_cron_run_picks_venv_python(Path(d))
     test_cron_run_nice_ionice_source()

@@ -23,9 +23,12 @@ SHELL=/bin/bash
 # Frankfurter / ECB 対EUR 日次レート。公表は 16:00 CET 前後なので翌朝 JST。空なら 1999-01-04〜。
 0 8 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/fx_rates.py
 
-# TDnet 月次PDF → data/monthly（直近7日分。やのしん登録遅れの拾い直し。既存は skip）
+# TDnet 月次PDF → data/monthly（一覧は TDnet。直近7日分。取りこぼしの拾い直し。既存は skip）
 0 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_r2.py 7
 0 21 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_r2.py 7
+
+# TDnet 決算説明資料 PDF → data/briefing（一覧は TDnet。直近7日。既存 PDF は skip。初回の30日は手で一度）
+10 22 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/market/tdnet_briefing_r2.py 7
 
 # TDnet 月次PDF → ingest JSON（前回投入分と同じ書式だけ。自動 POST しない）→ DB（loopback POST。ledger は dest に置かない）
 20 18 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/tdnet_monthly_pdf_sidecar.py
@@ -53,10 +56,10 @@ SHELL=/bin/bash
 40 10 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/ir_monthly_xls_ingest.py --all --post
 40 16 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/monthly/ir_monthly_xls_ingest.py --all --post
 
-# TDnet XBRL ZIP → data/xbrl（当日分・毎時 12–23）
-0 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/tdnet_xbrl_r2.py 1
-10 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/xbrl_parse.py
-20 12-23 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/xbrl/xbrl_normalize.py
+# TDnet XBRL ZIP → parse → normalize（一覧は TDnet。前日と当日・毎時 12–23。
+# 取得のあと続けて走らせる。取得が失敗しても parse / normalize は走らせる（手元の未解析 ZIP を拾う）。
+# :10 / :20 の単独 cron は置かない。取りこぼしは次の毎時。手でやり直すときは各ジョブを cron-run.sh で単独実行）
+0 12-23 * * * cd /home/stock/stock-analyzer && { deploy/cron-run.sh jobs/xbrl/tdnet_xbrl_r2.py 2; deploy/cron-run.sh jobs/xbrl/xbrl_parse.py; deploy/cron-run.sh jobs/xbrl/xbrl_normalize.py; }
 
 # EDINET（KAB-72）。コードリスト → edinet_filers / stocks.edinet_code（キー不要）、書類一覧 → edinet_documents（EDINET_API_KEY）
 # 一覧は直近 7 日の未確定の日だけ取る。前日分は翌朝の回で確定する
@@ -83,6 +86,7 @@ SHELL=/bin/bash
 
 # data/xbrl と data/monthly を OneDrive へ copy、data/edinet は move（sync はしない。手順は docs/DESIGN_backup.md）
 # 03:30 は data/ に書くジョブ（10〜23 時）と backup_db（05:00）の間。
+# edinet の move は 50 分で区切る（残りは翌日。打ち切りは fail にしない）。
 30 3 * * * cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/backup_data.py
 
 # SQLite 整合バックアップ（WAL 中の cp は不可。手順は docs/DESIGN_backup.md）

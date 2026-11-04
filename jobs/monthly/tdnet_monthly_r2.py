@@ -4,8 +4,9 @@
   python jobs/monthly/tdnet_monthly_r2.py 1
   python jobs/monthly/tdnet_monthly_r2.py 30 --dest /tmp/monthly
 
-N は今日(JST)から遡る日数（当日を含む）。日次 cron は 7（やのしん登録遅れの拾い直し）。
-ネットワークと app/ はテストから分離する。
+N は今日(JST)から遡る日数（当日を含む）。日次 cron は 7（取りこぼしの拾い直し）。
+一覧は TDnet の開示一覧（jobs/_tdnet.py。KAB-294）。表題が LIST_KEYWORDS を含み、is_monthly_title が通すものを取る。
+ネットワークはテストから差し替える。
 """
 from __future__ import annotations
 
@@ -13,15 +14,15 @@ import argparse
 import re
 import sys
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import date
 from pathlib import Path
-from urllib.parse import urlencode
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR.parents[1]) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 
+from jobs import _tdnet as tdnet_list  # noqa: E402
 from jobs._r2common import (  # noqa: E402
     abort_if_disconnected,
     date_window,
@@ -29,17 +30,14 @@ from jobs._r2common import (  # noqa: E402
     http_get as _http_get,
     is_mount_disconnect_error,
     load_stock_product_map,
-    parse_list_body,
     sanitize_filename_part,
     yyyymmdd_from_pubdate,
 )
 from jobs.share_paths import share_path  # noqa: E402
 
 DEFAULT_DEST = str(share_path("monthly"))
-LIST_BASE = "https://webapi.yanoshin.jp/webapi/tdnet/list"
-PDF_BASE = "https://www.release.tdnet.info/inbs"
+PDF_BASE = tdnet_list.TDNET_BASE
 USER_AGENT = "stock-analyzer-tdnet-monthly/1.0"
-LIST_LIMIT = 300
 SLEEP_SEC = 0.4
 HTTP_TIMEOUT = 30.0
 
@@ -125,7 +123,7 @@ def is_monthly_title(title: str) -> bool:
 
 
 def tdnet_pdf_id(document_url: str) -> str | None:
-    """TDnet の inbs ファイル ID。やのしん numeric id は使わない。"""
+    """TDnet の inbs ファイル ID。"""
     if not document_url:
         return None
     m = _INBS_PDF_RE.search(document_url)
@@ -219,64 +217,34 @@ def already_have(path: Path) -> bool:
         return False
 
 
-def list_url(start: date, end: date, keyword: str, by_id: int | None = None) -> str:
-    span = f"{start.strftime('%Y%m%d')}-{end.strftime('%Y%m%d')}"
-    q = {"keyword": keyword, "limit": str(LIST_LIMIT)}
-    if by_id is not None:
-        q["by_id"] = str(by_id)
-    return f"{LIST_BASE}/{span}.json?{urlencode(q)}"
-
-
 def http_get(url: str, timeout: float = HTTP_TIMEOUT) -> bytes:
     """このジョブの識別 UA。403 と AIA は _r2common.http_get。"""
     return _http_get(url, timeout=timeout, user_agent=USER_AGENT)
 
 
-def _min_yanoshin_id(records: list[dict]) -> int | None:
-    ids: list[int] = []
-    for rec in records:
-        raw = rec.get("id")
-        try:
-            ids.append(int(raw))
-        except (TypeError, ValueError):
-            continue
-    return min(ids) if ids else None
+def has_list_keyword(title: str) -> bool:
+    """LIST_KEYWORDS のどれかを含むか（大文字小文字は見ない）。is_monthly_title の前の絞り込み。"""
+    t = (title or "").casefold()
+    return any(k.casefold() in t for k in LIST_KEYWORDS)
 
 
-def fetch_keyword_items(start: date, end: date, keyword: str) -> list[dict]:
-    out: list[dict] = []
-    by_id: int | None = None
-    seen_by: set[int] = set()
-    while True:
-        url = list_url(start, end, keyword, by_id=by_id)
-        body = http_get(url).decode("utf-8", errors="replace")
-        time.sleep(SLEEP_SEC)
-        batch = parse_list_body(body)
-        if not batch:
-            break
-        out.extend(batch)
-        if len(batch) < LIST_LIMIT:
-            break
-        nxt = _min_yanoshin_id(batch)
-        if nxt is None or nxt in seen_by:
-            break
-        seen_by.add(nxt)
-        by_id = nxt
-    return out
-
-
-def union_monthly_records(start: date, end: date) -> list[dict]:
+def union_monthly_records(
+    start: date,
+    end: date,
+    get: Callable[[str], bytes] | None = None,
+) -> list[dict]:
+    """TDnet の開示一覧（jobs/_tdnet.py）から月次の表題の行を取る。PDF ID で重複を落とす。"""
+    getter = http_get if get is None else get
     by_pdf: dict[str, dict] = {}
-    for kw in LIST_KEYWORDS:
-        for rec in fetch_keyword_items(start, end, kw):
-            title = str(rec.get("title") or "")
-            if not is_monthly_title(title):
-                continue
-            pdf_id = tdnet_pdf_id(str(rec.get("document_url") or ""))
-            if not pdf_id:
-                print(f"skip no-pdf-id {rec.get('company_code')} {title}", flush=True)
-                continue
-            by_pdf.setdefault(pdf_id, rec)
+    for rec in tdnet_list.fetch_days(start, end, getter, SLEEP_SEC):
+        title = str(rec.get("title") or "")
+        if not (has_list_keyword(title) and is_monthly_title(title)):
+            continue
+        pdf_id = tdnet_pdf_id(str(rec.get("document_url") or ""))
+        if not pdf_id:
+            print(f"skip no-pdf-id {rec.get('company_code')} {title}", flush=True)
+            continue
+        by_pdf.setdefault(pdf_id, rec)
     rows = list(by_pdf.items())
     rows.sort(key=lambda kv: str(kv[1].get("pubdate") or ""))
     return [{"_pdf_id": pdf_id, **rec} for pdf_id, rec in rows]
