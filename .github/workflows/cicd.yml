@@ -250,6 +250,7 @@ jobs:
       JQUANTS_API_KEY: ${{ secrets.JQUANTS_API_KEY }}
       ESTAT_APP_ID: ${{ secrets.ESTAT_APP_ID }}
       EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
       BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
       MCP_TOKEN: ${{ secrets.MCP_TOKEN }}
@@ -318,6 +319,7 @@ jobs:
               "JQUANTS_API_KEY",
               "ESTAT_APP_ID",
               "EDINET_API_KEY",
+              "ANTHROPIC_API_KEY",
               "BASIC_AUTH_USER",
               "BASIC_AUTH_PASSWORD",
               "CERTBOT_EMAIL",

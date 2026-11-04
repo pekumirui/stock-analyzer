@@ -134,7 +134,8 @@ def crontab_job_names() -> tuple[str, ...]:
 # migrate_r2_share は定期 cron に載せない（初回移行とギャップ埋めだけ）。
 # rebuild_daily_prices は daily_prices を WITHOUT ROWID にする一度きりの作り直し（KAB-289）。
 # irbank_ingest は IR BANK の決算説明資料の過去分を一度だけ取る（KAB-330）。
-EXTRA_BATCH_JOBS = frozenset({"migrate_r2_share", "rebuild_daily_prices", "irbank_ingest"})
+# briefing_extract は決算説明資料を Claude の Batch API で読む（KAB-349。cron はまだ置かない）。
+EXTRA_BATCH_JOBS = frozenset({"migrate_r2_share", "rebuild_daily_prices", "irbank_ingest", "briefing_extract"})
 BATCH_JOBS = frozenset(crontab_job_names()) | EXTRA_BATCH_JOBS
 YEAR_RE = re.compile(r"^\d{4}$")
 DB_TABLES = (
