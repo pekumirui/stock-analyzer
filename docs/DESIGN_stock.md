@@ -8,7 +8,7 @@
 
 ## 画面と遷移
 
-ヘッダーの `銘柄` タブ（`data-tab="stock"`）。上に共通ヘッダー、その下に中のタブ 概要 / 株価 / ニュース / 株主 / 説明資料。ニュースの行を押すと詳細。説明資料の行（読み取り済み）を押すと中身。
+ヘッダーの `銘柄` タブ（`data-tab="stock"`）。上に共通ヘッダー、その下に中のタブ 概要 / 株価 / ニュース / 株主 / 説明資料。ニュースの短信の行を押すと詳細。ニュースの決算説明資料の行を押すと説明資料の中身。説明資料タブの行（読み取り済み）を押すと中身。
 
 | 画面 | ルート |
 |---|---|
@@ -27,7 +27,7 @@
 
 ## データ形
 
-共通ヘッダーと概要の指標は `GET /api/stock/{code}/overview`。概要の業績の表は決算速報と同じ `GET /api/earnings/detail/{code}`（引数なし = 最新の実績開示）。株価は `GET /api/chart/{code}` と `GET /api/earnings-performance/{code}`。ニュースは `GET /api/stock/{code}/news`。株主は `GET /api/stock/{code}/holders`。説明資料は `GET /api/stock/{code}/decks` と `GET /api/stock/{code}/decks/{key}`（読み取りは `DESIGN.md` の「決算説明資料の読み取り」）。中のタブは開いたときに初めて読み、同じ銘柄のあいだは読み直さない。
+共通ヘッダーと概要の指標は `GET /api/stock/{code}/overview`。概要の業績の表は決算速報と同じ `GET /api/earnings/detail/{code}`（引数なし = 最新の実績開示）。株価は `GET /api/chart/{code}` と `GET /api/earnings-performance/{code}`。ニュース一覧は `GET /api/stock/{code}/filings` と `GET /api/stock/{code}/decks` を日時で混ぜる（種類チップと `GET /api/stock/{code}/news` はまだ無い）。株主は `GET /api/stock/{code}/holders`。説明資料は `GET /api/stock/{code}/decks` と `GET /api/stock/{code}/decks/{key}`（読み取りは `DESIGN.md` の「決算説明資料の読み取り」）。中のタブは開いたときに初めて読み、同じ銘柄のあいだは読み直さない。
 
 指標の出どころ（`statements` は決算短信本体の開示。予想修正だけの開示は予想にだけ使う）:
 
@@ -145,18 +145,18 @@
 
 | 種類 | 元 | 題名 | 要点 |
 |---|---|---|---|
-| 決算 | `xbrl_filings`（`source = tdnet`、`doc_type` が `annual` / `semiannual` / `quarterly`）と `tdnet_pdf_documents`（`ok`） | 書類名。PDF から変換した回は末尾に `（PDF から変換）` | なし |
+| 決算 | `xbrl_filings`（`source = tdnet`、`doc_type` が `annual` / `semiannual` / `quarterly`）と `tdnet_pdf_documents`（`ok`）と `briefing_documents`（`saved`。`GET /api/stock/{code}/decks` と同じ行。同じ開示番号は 1 行） | 書類名。PDF から変換した回は末尾に `（PDF から変換）`。説明資料は表題 | なし |
 | 修正 | `xbrl_filings`（`source = tdnet`、`doc_type` が `forecast_revision` / `dividend_revision` / `other`） | 書類名 | なし |
 | 有報 | `xbrl_filings`（`source = edinet`） | 書類名 | なし |
 | 自社株買い | `edinet_buybacks`（`is_latest` で取下げでない） | `自己株券買付状況報告書（YYYY年M月）` | `取得 12,300株`、決議が 1 つなら `累計の進捗 52.9%` を足す |
 | 大量保有 | `large_holding_reports`（`code` がこの銘柄、`is_latest` で取下げでない） | 提出者名と `大量保有報告書` / `変更報告書` | `5.21% → 6.40%`（大量保有報告書は `6.40%`） |
 | TOB | `edinet_tender_offers`（`target_code` がこの銘柄） | 買付者名と `公開買付け`（自社株は `自社株 TOB`） | `1株 1,500円 / 成立`（状態は 期間中 / 成立 / 不成立 / 撤回） |
 
-訂正の書類は元の種類のまま並べ、種類のバッジの横に `訂正`。原文の無い決算・修正（`documents: []`）は行は出すが押せない。有報は押せない（原文は対象外）。
+訂正の書類は元の種類のまま並べ、種類のバッジの横に `訂正`。原文の無い決算・修正（`documents: []`）は行は出すが押せない。有報は押せない（原文は対象外）。説明資料は日時が `pubdate`（秒は出さない。時刻が無ければ日付だけ）。行のキーは短信が `x{xbrl_filings.id}` / `p{disclosure_no}`、説明資料が `d{key}`（`key` は説明資料の key）。
 
-**操作。** チップで種類を絞る（ルートには残さない）。押せる行を押すとニュースの詳細。
+**操作。** チップで種類を絞る（ルートには残さない）。短信の押せる行を押すとニュースの詳細。説明資料の行を押すと説明資料の中身（`#stock/{code5}/decks/{key}`。ニュースの詳細は開かない）。
 
-**空とエラー。** 1 件も無ければ `ニュースがありません。` API 失敗は `読み込めませんでした。`
+**空とエラー。** 短信も説明資料も無ければ `ニュースがありません。` API 失敗は `読み込めませんでした。`
 
 **スマホと PC。** 同じ構造。題名と要点は折り返す。チップは折り返す。
 
@@ -269,7 +269,7 @@
 
 `GET /api/stock/pdf/{disclosure_no}` は PDF から変換した原文（`tdnet_pdf_documents` の `ok` の行）。ヘッダーは上と同じ。`ok` でなければ 404。
 
-`GET /api/stock/{code}/filings` は残す（ニュースの決算・修正の元）。形は 1 件が `{id, submitted_at, title, doc_type, period_type, is_amendment, documents}`、PDF から変換した回は `id: null`・`disclosure_no`・`attribution` が付き `source: "pdf"`。
+`GET /api/stock/{code}/filings` は残す（ニュースの決算・修正の元。説明資料は混ぜない）。形は 1 件が `{id, submitted_at, title, doc_type, period_type, is_amendment, documents}`、PDF から変換した回は `id: null`・`disclosure_no`・`attribution` が付き `source: "pdf"`。ニュース一覧は画面がこの応答と `decks` を `submitted_at` / `pubdate` で混ぜる。
 
 `GET /api/stock/{code}/decks` は銘柄の決算説明資料の一覧（最大 200 件、開示の新しい順。同じ開示番号は tdnet → irbank → homepage の 1 行）。1 件は `{key, pubdate, title, url, status, pages, facts}`。`status` は読み取りの状態（`done` / `submitted` / `failed`、未読は null）。銘柄が無ければ 404。
 
