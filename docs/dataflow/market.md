@@ -8,52 +8,60 @@
 
 ```mermaid
 flowchart LR
-  n0["market/briefing_offsite.py"]:::job
-  n1["market/check_demo.py"]:::job
-  n2["market/homepages.py"]:::job
-  n3["market/pts_snapshot.py"]:::job
-  n4["market/run_batch.py"]:::job
-  n5["market/tanshin_covers.py"]:::job
-  n6["market/tdnet_briefing_r2.py"]:::job
-  n7[("briefing_documents")]:::tbl
-  n8[("daily_prices")]:::tbl
-  n9[("earnings_date_fetches")]:::tbl
-  n10[("earnings_date_pubs")]:::tbl
-  n11[("earnings_events")]:::tbl
-  n12[("homepages")]:::tbl
-  n13[("indicators")]:::tbl
-  n14[("pts_snapshots")]:::tbl
-  n15[("statements")]:::tbl
-  n16[("stocks")]:::tbl
-  n17[("tanshin_covers")]:::tbl
-  n18[("tdnet_pdf_documents")]:::ext
-  n19[("topix")]:::tbl
-  n20[("xbrl_documents")]:::ext
-  n21[("xbrl_elements")]:::ext
-  n22[("xbrl_facts")]:::ext
-  n23[("xbrl_filings")]:::ext
-  n0 --> n7
-  n1 -.- n15
-  n2 --> n12
-  n2 -.- n15
-  n2 -.- n18
-  n2 -.- n21
-  n2 -.- n22
-  n2 -.- n23
-  n3 --> n14
-  n4 --> n8
-  n4 --> n9
-  n4 --> n10
-  n4 --> n11
-  n4 --> n13
-  n4 --> n15
-  n4 --> n16
-  n4 --> n19
+  n0["market/briefing_extract.py"]:::job
+  n1["market/briefing_offsite.py"]:::job
+  n2["market/check_demo.py"]:::job
+  n3["market/homepages.py"]:::job
+  n4["market/pts_snapshot.py"]:::job
+  n5["market/run_batch.py"]:::job
+  n6["market/tanshin_covers.py"]:::job
+  n7["market/tdnet_briefing_r2.py"]:::job
+  n8[("briefing_documents")]:::tbl
+  n9[("briefing_extracts")]:::tbl
+  n10[("briefing_facts")]:::tbl
+  n11[("briefing_pages")]:::tbl
+  n12[("daily_prices")]:::tbl
+  n13[("earnings_date_fetches")]:::tbl
+  n14[("earnings_date_pubs")]:::tbl
+  n15[("earnings_events")]:::tbl
+  n16[("homepages")]:::tbl
+  n17[("indicators")]:::tbl
+  n18[("pts_snapshots")]:::tbl
+  n19[("statements")]:::tbl
+  n20[("stocks")]:::tbl
+  n21[("tanshin_covers")]:::tbl
+  n22[("tdnet_pdf_documents")]:::ext
+  n23[("topix")]:::tbl
+  n24[("xbrl_documents")]:::ext
+  n25[("xbrl_elements")]:::ext
+  n26[("xbrl_facts")]:::ext
+  n27[("xbrl_filings")]:::ext
+  n0 -.- n8
+  n0 --> n9
+  n0 --> n10
+  n0 --> n11
+  n1 --> n8
+  n2 -.- n19
+  n3 --> n16
+  n3 -.- n19
+  n3 -.- n22
+  n3 -.- n25
+  n3 -.- n26
+  n3 -.- n27
+  n4 --> n18
+  n5 --> n12
+  n5 --> n13
+  n5 --> n14
+  n5 --> n15
   n5 --> n17
-  n5 -.- n18
-  n5 -.- n20
-  n5 -.- n23
-  n6 --> n7
+  n5 --> n19
+  n5 --> n20
+  n5 --> n23
+  n6 --> n21
+  n6 -.- n22
+  n6 -.- n24
+  n6 -.- n27
+  n7 --> n8
   classDef job fill:#e3ecff,stroke:#3b5bdb
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -62,6 +70,7 @@ flowchart LR
 
 | バッチ | 書く | 読むだけ |
 |---|---|---|
+| `jobs/market/briefing_extract.py` | `briefing_extracts`, `briefing_facts`, `briefing_pages` | `briefing_documents` |
 | `jobs/market/briefing_offsite.py` | `briefing_documents` |  |
 | `jobs/market/check_demo.py` |  | `statements`, `stocks` |
 | `jobs/market/homepages.py` | `homepages` | `statements`, `tdnet_pdf_documents`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings` |
@@ -139,6 +148,21 @@ flowchart LR
 ### briefing_documents
 
 - 書く: `jobs/market/briefing_offsite.py`, `jobs/market/tdnet_briefing_r2.py`
+- 読むだけ: `jobs/market/briefing_extract.py`
+
+### briefing_extracts
+
+- 書く: `jobs/market/briefing_extract.py`
+- 読むだけ: （観測なし）
+
+### briefing_facts
+
+- 書く: `jobs/market/briefing_extract.py`
+- 読むだけ: （観測なし）
+
+### briefing_pages
+
+- 書く: `jobs/market/briefing_extract.py`
 - 読むだけ: （観測なし）
 
 ### daily_prices
