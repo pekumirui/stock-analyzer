@@ -155,6 +155,8 @@
 {"name":"GET /api/screener","kind":"api","domain":"market","rw":{"indicators":"R","stocks":"R"},"calls":[]},
 {"name":"GET /api/stock/filings/{filing_id}/documents/{seq}","kind":"api","domain":"xbrl","rw":{"xbrl_documents":"R"},"calls":[]},
 {"name":"GET /api/stock/pdf/{disclosure_no}","kind":"api","domain":"xbrl","rw":{"tdnet_pdf_documents":"R"},"calls":[]},
+{"name":"GET /api/stock/{code}/decks","kind":"api","domain":"market","rw":{"briefing_documents":"R","briefing_extracts":"R","stocks":"R"},"calls":[]},
+{"name":"GET /api/stock/{code}/decks/{key}","kind":"api","domain":"market","rw":{"briefing_documents":"R","briefing_extracts":"R","briefing_facts":"R","briefing_pages":"R"},"calls":[]},
 {"name":"GET /api/stock/{code}/filings","kind":"api","domain":"xbrl","rw":{"stocks":"R","tdnet_pdf_documents":"R","xbrl_documents":"R","xbrl_filings":"R"},"calls":[]},
 {"name":"GET /api/stock/{code}/holders","kind":"api","domain":"edinet","rw":{"edinet_buyback_resolutions":"R","edinet_buybacks":"R","large_holding_reports":"R","large_holdings":"R","stocks":"R"},"calls":[]},
 {"name":"GET /api/stock/{code}/overview","kind":"api","domain":"market","rw":{"daily_prices":"R","earnings_date_pubs":"R","statements":"R","stocks":"R"},"calls":[]},
