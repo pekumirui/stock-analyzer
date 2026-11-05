@@ -84,52 +84,54 @@ flowchart LR
   n9["PUT /api/v1/tables/{code}/{year}/elements"]:::api
   n10["PUT /api/v1/tables/{code}/{year}/values"]:::api
   n11["PUT /api/v1/tables/{code}/{year}/values/batch"]:::api
-  n12[("monthly_element_sources")]:::tbl
-  n13[("monthly_elements")]:::tbl
-  n14[("monthly_issuers")]:::tbl
-  n15[("monthly_tables")]:::tbl
-  n16[("monthly_values")]:::tbl
-  n17[("statements")]:::ext
-  n0 --> n12
+  n12[("data_versions")]:::ext
+  n13[("monthly_element_sources")]:::tbl
+  n14[("monthly_elements")]:::tbl
+  n15[("monthly_issuers")]:::tbl
+  n16[("monthly_tables")]:::tbl
+  n17[("monthly_values")]:::tbl
+  n18[("statements")]:::ext
   n0 --> n13
-  n0 -.- n15
+  n0 --> n14
   n0 -.- n16
-  n1 -.- n13
+  n0 -.- n17
+  n1 -.- n12
   n1 -.- n14
   n1 -.- n15
   n1 -.- n16
-  n2 -.- n15
-  n3 -.- n13
-  n3 -.- n15
+  n1 -.- n17
+  n2 -.- n16
+  n3 -.- n14
   n3 -.- n16
-  n4 -.- n13
-  n4 -.- n15
+  n3 -.- n17
+  n4 -.- n14
   n4 -.- n16
-  n5 --> n12
+  n4 -.- n17
   n5 --> n13
   n5 --> n14
   n5 --> n15
   n5 --> n16
-  n5 -.- n17
-  n6 --> n12
+  n5 --> n17
+  n5 -.- n18
   n6 --> n13
-  n6 --> n15
-  n7 --> n14
-  n7 -.- n15
-  n8 --> n12
+  n6 --> n14
+  n6 --> n16
+  n7 --> n15
+  n7 -.- n16
   n8 --> n13
-  n8 -.- n15
-  n8 --> n16
-  n9 --> n12
+  n8 --> n14
+  n8 -.- n16
+  n8 --> n17
   n9 --> n13
-  n9 -.- n15
+  n9 --> n14
   n9 -.- n16
-  n10 -.- n13
-  n10 -.- n15
-  n10 --> n16
-  n11 -.- n13
-  n11 -.- n15
-  n11 --> n16
+  n9 -.- n17
+  n10 -.- n14
+  n10 -.- n16
+  n10 --> n17
+  n11 -.- n14
+  n11 -.- n16
+  n11 --> n17
   classDef job fill:#e3ecff,stroke:#3b5bdb
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -139,7 +141,7 @@ flowchart LR
 | API | 書く | 読むだけ |
 |---|---|---|
 | `DELETE /api/v1/tables/{code}/{year}/elements` | `monthly_element_sources`, `monthly_elements` | `monthly_tables`, `monthly_values`, `stocks` |
-| `GET /api/v1/tables` |  | `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`, `stocks` |
+| `GET /api/v1/tables` |  | `data_versions`, `monthly_elements`, `monthly_issuers`, `monthly_tables`, `monthly_values`, `stocks` |
 | `GET /api/v1/tables/{code}` |  | `monthly_tables` |
 | `GET /api/v1/tables/{code}/{year}` |  | `monthly_elements`, `monthly_tables`, `monthly_values` |
 | `GET /api/v1/tables/{code}/{year}/doc` |  | `monthly_elements`, `monthly_tables`, `monthly_values` |

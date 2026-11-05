@@ -6,13 +6,15 @@ from fastapi import APIRouter, Body, Depends
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
-from ...db import get_session, run_sqlite_write
+from ...db import get_session, monthly_list_version, run_sqlite_write
 from ...models import Stock, MonthlyIssuer, MonthlyTable, MonthlyElement, MonthlyValue
+from ...monthly import list_cache
 from ...monthly.tree import (
     MONTHLY_TREES, assign_tree_rows, auto_tree_payload, build_auto_tree, monthly_display_years,
     tree_payload,
 )
-from ...monthly.ingest import monthly_element_label
+from ...monthly.ingest import _YOY_UNITS, monthly_element_label
+from . import _common
 from ._common import (
     _DEFAULT_INDUSTRY, _element_unit, _get_table, _latest_yoy_by_kind, _new_flags, _parse_code,
     _parse_industry, _parse_year, _public_get_cache, _require_any_monthly_table, _require_object,
@@ -42,8 +44,38 @@ def put_industry(code: str, payload: dict | None = Body(None),
     return {"code": code, "industry": industry}
 
 
+def clear_list_tables_cache() -> None:
+    list_cache.clear()
+
+
 def list_tables_payload(db: Session, only_code: str | None = None) -> list[dict]:
-    """月次表がある銘柄。名前は stocks を LEFT JOIN。無いときは null。only_code で 1 銘柄に絞る。"""
+    """月次表がある銘柄。名前は stocks を LEFT JOIN。無いときは null。only_code で 1 銘柄に絞る。
+
+    全銘柄の結果は (版, JST の今日) でこのプロセスに置く。is_new / ingested_today は日付で変わる。
+    呼び元は返したリストを書き換えない。only_code は、全銘柄の結果が既にあればそこから取る。
+    """
+    if only_code is None:
+        return _cached_tables(db)
+    cached = _cached_tables(db, store=False)
+    if cached is not None:
+        return [row for row in cached if row["code"] == only_code]
+    return _build_tables(db, only_code)
+
+
+def _cached_tables(db: Session, *, store: bool = True) -> list[dict] | None:
+    version = monthly_list_version(db)
+    today = _common._jst_today()
+    hit = list_cache.get(version, today)
+    if hit is not None:
+        return hit
+    if not store:
+        return None
+    payload = _build_tables(db, None)
+    list_cache.put(version, today, payload)
+    return payload
+
+
+def _build_tables(db: Session, only_code: str | None) -> list[dict]:
     q = (db.query(
              MonthlyTable.code, MonthlyTable.year,
              Stock.name, Stock.market, Stock.sector33)
@@ -73,15 +105,23 @@ def list_tables_payload(db: Session, only_code: str | None = None) -> list[dict]
         issuers = {
             r.code: r for r in db.query(MonthlyIssuer).filter(MonthlyIssuer.code.in_(codes))
         }
-        # 読むだけなので Row で受ける。値は行ごとの最新月しか順位に効かないのでそれだけ引く
+        # 一覧の前年比は all_store / existing だけ。monthly_series_kind がそれを返すのは
+        # yoy の unit だけなので、number（店舗数を含む）は読まない。
         for e in db.execute(select(
                 MonthlyElement.code, MonthlyElement.year, MonthlyElement.element,
                 MonthlyElement.unit, MonthlyElement.sort_order)
-                .where(MonthlyElement.code.in_(codes))):
+                .where(MonthlyElement.code.in_(codes),
+                       MonthlyElement.unit.in_(tuple(_YOY_UNITS)))):
             elems_by[e.code].append(e)
+        # 値は行ごとの最新月しか順位に効かないのでそれだけ引く。
+        elem = MonthlyElement
         last = (select(MonthlyValue.code, MonthlyValue.year, MonthlyValue.element,
                        func.max(MonthlyValue.month).label("month"))
-                .where(MonthlyValue.code.in_(codes))
+                .join(elem, and_(elem.code == MonthlyValue.code,
+                                 elem.year == MonthlyValue.year,
+                                 elem.element == MonthlyValue.element))
+                .where(MonthlyValue.code.in_(codes),
+                       elem.unit.in_(tuple(_YOY_UNITS)))
                 .group_by(MonthlyValue.code, MonthlyValue.year, MonthlyValue.element)
                 .subquery())
         for v in db.execute(select(

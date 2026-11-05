@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sqlalchemy.exc import OperationalError
 
 from app.db import (
+    ensure_data_versions,
     ensure_indexes,
     init_db,
     is_sqlite_lock,
@@ -46,6 +47,8 @@ def migrate_once() -> None:
         print(f"xbrl_elements.is_custom を付け直した: 独自へ {flips['to_custom']} 行、"
               f"標準へ {flips['to_standard']} 行（KAB-81）。")
     run_deploy_maintenance()
+    # 月次一覧の版トリガー。init_db も付ける。既存 DB はここを通ってからワーカーが起動する。
+    ensure_data_versions()
     # uvicorn --workers N が同時に init_db(strict=True) しても CREATE INDEX しないよう、
     # 起動前に 1 回だけ strict まで通す（--preload は使わない）。
     init_db(strict=True)
