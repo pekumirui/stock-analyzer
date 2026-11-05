@@ -81,12 +81,12 @@ function writeRoute(tab, code, from, push){
   if(typeof renderBreadcrumbs === "function") renderBreadcrumbs();
 }
 
+// 銘柄はメニューに無い（ヘッダー右上の銘柄検索から開く。KAB-365）
 function showTab(tab){
-  const b = document.querySelector(`nav button[data-tab="${tab}"]`);
-  if(!b) return;
-  document.querySelectorAll("nav button").forEach(x => x.classList.remove("active"));
-  b.classList.add("active");
-  $("#cur-tab").textContent = b.textContent;
+  if(!TABS.includes(tab)) return;
+  const b = document.querySelector(`#app-nav button[data-tab="${tab}"]`);
+  document.querySelectorAll("#app-nav button").forEach(x => x.classList.toggle("active", x === b));
+  $("#cur-tab").textContent = b ? b.textContent : "銘柄";
   TABS.forEach(t => $("#tab-" + t).style.display = t === tab ? "" : "none");
 }
 
@@ -120,7 +120,10 @@ async function restoreRoute(){
   }
   if(tab === "stock"){
     if(code) openStockRoute(code);
-    else writeRoute("stock");
+    else {
+      writeRoute("stock");
+      if(!stockCode) stockMsg("右上の「銘柄検索」から銘柄を選んでください。");
+    }
     return;
   }
   if(tab === "supply"){
@@ -148,8 +151,12 @@ function setMenu(open){
   $("#menu-btn").setAttribute("aria-expanded", String(open));
 }
 
-document.querySelectorAll("nav button").forEach(b => b.onclick = () => { setMenu(false); selectTab(b.dataset.tab); });
-$("#menu-btn").onclick = () => setMenu(!$("#app-nav").classList.contains("open"));
+document.querySelectorAll("#app-nav button").forEach(b => b.onclick = () => { setMenu(false); selectTab(b.dataset.tab); });
+$("#menu-btn").onclick = () => {
+  const open = !$("#app-nav").classList.contains("open");
+  if(open && typeof setSymSearch === "function") setSymSearch(false);
+  setMenu(open);
+};
 document.addEventListener("keydown", e => { if(e.key === "Escape") setMenu(false); });
 window.writeRoute = writeRoute;
 window.restoreRoute = restoreRoute;
