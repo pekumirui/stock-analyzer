@@ -1,4 +1,4 @@
-"""backup_db の世代間引きと失敗時に残すこと。本番 VPS には出ない。"""
+"""backup_db は送信できたら今回のローカルだけ消し、失敗なら残す。本番 VPS には出ない。"""
 from __future__ import annotations
 
 import gzip
@@ -20,8 +20,6 @@ from jobs.ops.backup_db import (  # noqa: E402
     DEFAULT_DEST,
     DEFAULT_OFFSITE_PATH,
     DEFAULT_OFFSITE_REMOTE,
-    LOCAL_DAILY_KEEP,
-    LOCAL_WEEKLY_KEEP,
     OFFSITE_DAILY_KEEP,
     OFFSITE_WEEKLY_KEEP,
     BackupError,
@@ -86,6 +84,15 @@ def _make_db(path: Path, rows: list[str]) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+def _gunzip_bytes(payload: bytes, dest: Path) -> list[str]:
+    path = dest / "roundtrip.db.gz"
+    path.write_bytes(payload)
+    try:
+        return _gunzip_names(path)
+    finally:
+        path.unlink(missing_ok=True)
 
 
 def _gunzip_names(path: Path) -> list[str]:
@@ -170,8 +177,6 @@ def _run_out(**kwargs):  # noqa: ANN003
 def test_constants() -> None:
     if DEFAULT_DEST != Path("/home/stock/backups"):
         _fail(f"DEFAULT_DEST {DEFAULT_DEST!r}")
-    if LOCAL_DAILY_KEEP != 1 or LOCAL_WEEKLY_KEEP != 1:
-        _fail(f"local keep daily={LOCAL_DAILY_KEEP} weekly={LOCAL_WEEKLY_KEEP}")
     if OFFSITE_DAILY_KEEP != 7 or OFFSITE_WEEKLY_KEEP != 4:
         _fail(f"offsite keep daily={OFFSITE_DAILY_KEEP} weekly={OFFSITE_WEEKLY_KEEP}")
     if DEFAULT_OFFSITE_REMOTE != "onedrive" or DEFAULT_OFFSITE_PATH != "stock-analyzer-backups":
@@ -192,16 +197,14 @@ def test_keep_and_offsite_from_env() -> None:
         _fail(f"defaults {got}")
     got = keep_from_env(
         {
-            "BACKUP_LOCAL_DAILY_KEEP": "2",
-            "BACKUP_LOCAL_WEEKLY_KEEP": "3",
             "BACKUP_OFFSITE_DAILY_KEEP": "9",
             "BACKUP_OFFSITE_WEEKLY_KEEP": "5",
         }
     )
-    if got != BackupKeep(local_daily=2, local_weekly=3, offsite_daily=9, offsite_weekly=5):
+    if got != BackupKeep(offsite_daily=9, offsite_weekly=5):
         _fail(f"override {got}")
     try:
-        keep_from_env({"BACKUP_LOCAL_DAILY_KEEP": "0"})
+        keep_from_env({"BACKUP_OFFSITE_DAILY_KEEP": "0"})
     except BackupError:
         pass
     else:
@@ -277,19 +280,23 @@ def test_wal_backup_roundtrip(tmp_path: Path) -> None:
         wal = Path(str(db) + "-wal")
         if not wal.exists() or wal.stat().st_size == 0:
             _fail("expected WAL sidecar for backup coverage")
+        offsite = _ok_offsite()
         friday = datetime(2026, 10, 9, 5, 0, tzinfo=JST)
-        rc = run(db, dest, now=friday, offsite=_ok_offsite())
+        rc = run(db, dest, now=friday, offsite=offsite)
         if rc != 0:
             _fail("roundtrip rc")
         _assert_tmp_empty(dest)
     finally:
         live.close()
-    daily = dest / "daily" / backup_name("2026-10-09")
-    if not daily.is_file():
-        _fail("daily missing")
-    if (dest / "weekly" / backup_name("2026-10-09")).exists():
+    name = backup_name("2026-10-09")
+    if (dest / "daily" / name).exists():
+        _fail("success must remove local daily")
+    if (dest / "weekly" / name).exists():
         _fail("weekday must not write weekly")
-    if _gunzip_names(daily) != ["alpha", "beta"]:
+    payload = offsite.remote["daily"].get(name)
+    if payload is None:
+        _fail("remote daily missing")
+    if _gunzip_bytes(payload, tmp_path) != ["alpha", "beta"]:
         _fail("roundtrip rows")
     raw = tmp_path / "raw.db"
     sqlite_backup(db, raw)
@@ -302,58 +309,54 @@ def test_wal_backup_roundtrip(tmp_path: Path) -> None:
     raw.unlink()
 
 
-def test_sunday_offsite_success_prunes_local_to_one(tmp_path: Path) -> None:
+def test_upload_success_drops_this_run_and_keeps_older_local(tmp_path: Path) -> None:
     db = tmp_path / "stock.db"
     dest = tmp_path / "backups"
     _make_db(db, ["ok"])
-    daily_days = [f"2026-09-{n:02d}" for n in range(27, 31)] + [
-        f"2026-10-{n:02d}" for n in range(1, 4)
-    ]
-    _seed_gz(dest / "daily", daily_days)
-    weekly_days = ["2026-09-06", "2026-09-13", "2026-09-20", "2026-09-27"]
-    _seed_gz(dest / "weekly", weekly_days)
+    daily_days = ["2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03"]
+    weekly_days = ["2026-09-13", "2026-09-20", "2026-09-27"]
+    marker = b"already-on-vps"
+    _seed_gz(dest / "daily", daily_days, marker)
+    _seed_gz(dest / "weekly", weekly_days, marker)
+    (dest / "daily" / "notes.txt").write_text("no", encoding="utf-8")
     offsite = MemoryOffsite()
     offsite.seed("daily", daily_days)
     offsite.seed("weekly", weekly_days)
     offsite.remote["daily"]["notes.txt"] = b"leave-me"
+    keep = BackupKeep(offsite_daily=3, offsite_weekly=2)
     sunday = datetime(2026, 10, 4, 5, 0, tzinfo=JST)
-    rc, out = _run_out(db=db, dest=dest, now=sunday, offsite=offsite)
+    today = backup_name("2026-10-04")
+    rc, out = _run_out(db=db, dest=dest, now=sunday, offsite=offsite, keep=keep)
     if rc != 0:
         _fail(f"sunday rc {out}")
-    daily_names = _gz_names(dest / "daily")
-    if daily_names != [backup_name("2026-10-04")]:
-        _fail(f"local daily {daily_names}")
-    weekly_names = _gz_names(dest / "weekly")
-    if weekly_names != [backup_name("2026-10-04")]:
-        _fail(f"local weekly {weekly_names}")
-    daily = dest / "daily" / backup_name("2026-10-04")
-    weekly = dest / "weekly" / backup_name("2026-10-04")
-    if daily.stat().st_ino != weekly.stat().st_ino:
-        _fail("sunday weekly should hardlink daily")
-    if offsite.names("daily") != [
-        backup_name(d)
-        for d in (
-            "2026-10-04",
-            "2026-10-03",
-            "2026-10-02",
-            "2026-10-01",
-            "2026-09-30",
-            "2026-09-29",
-            "2026-09-28",
-        )
-    ]:
+    if _gz_names(dest / "daily") != [backup_name(d) for d in reversed(daily_days)]:
+        _fail(f"local daily {_gz_names(dest / 'daily')}")
+    if _gz_names(dest / "weekly") != [backup_name(d) for d in reversed(weekly_days)]:
+        _fail(f"local weekly {_gz_names(dest / 'weekly')}")
+    if (dest / "daily" / today).exists() or (dest / "weekly" / today).exists():
+        _fail("success must remove this run's gzip")
+    for day in daily_days:
+        if (dest / "daily" / backup_name(day)).read_bytes() != marker:
+            _fail(f"older daily {day} changed")
+    for day in weekly_days:
+        if (dest / "weekly" / backup_name(day)).read_bytes() != marker:
+            _fail(f"older weekly {day} changed")
+    if not (dest / "daily" / "notes.txt").is_file():
+        _fail("local noise removed")
+    if "weekly link" not in out:
+        _fail(f"sunday should hardlink {out}")
+    daily_payload = offsite.remote["daily"].get(today)
+    weekly_payload = offsite.remote["weekly"].get(today)
+    if daily_payload is None or daily_payload != weekly_payload:
+        _fail("remote sunday copies differ")
+    if offsite.names("daily") != [today, backup_name("2026-10-03"), backup_name("2026-10-02")]:
         _fail(f"remote daily {offsite.names('daily')}")
-    if offsite.names("weekly") != [
-        backup_name("2026-10-04"),
-        backup_name("2026-09-27"),
-        backup_name("2026-09-20"),
-        backup_name("2026-09-13"),
-    ]:
+    if offsite.names("weekly") != [today, backup_name("2026-09-27")]:
         _fail(f"remote weekly {offsite.names('weekly')}")
     if offsite.remote["daily"].get("notes.txt") != b"leave-me":
         _fail("remote noise deleted")
-    if "offsite=ok" not in out:
-        _fail(f"missing offsite=ok {out}")
+    if "removed local daily=1 weekly=1 offsite=ok" not in out:
+        _fail(f"missing removal line {out}")
     _assert_tmp_empty(dest)
 
 
@@ -533,6 +536,7 @@ def test_cleans_stale_tmp_sidecars(tmp_path: Path) -> None:
     db = tmp_path / "stock.db"
     dest = tmp_path / "backups"
     _make_db(db, ["ok"])
+    _seed_gz(dest / "daily", ["2026-10-09"], b"older")
     stale = dest / ".tmp"
     stale.mkdir(parents=True)
     (stale / "stock-2026-10-10.875585.db-wal").write_bytes(b"")
@@ -546,6 +550,10 @@ def test_cleans_stale_tmp_sidecars(tmp_path: Path) -> None:
     )
     if rc != 0:
         _fail("stale sidecar run rc")
+    if (dest / "daily" / backup_name("2026-10-10")).exists():
+        _fail("success must remove this run's gzip")
+    if (dest / "daily" / backup_name("2026-10-09")).read_bytes() != b"older":
+        _fail("older local gzip removed")
     _assert_tmp_empty(dest)
 
 
@@ -553,19 +561,23 @@ def test_rclone_argv_copy_check_prune(tmp_path: Path) -> None:
     gz = tmp_path / "stock-2026-10-09.db.gz"
     gz.write_bytes(b"payload-bytes")
     calls: list[list[str]] = []
+    settings = OffsiteSettings(remote="remote-a", root="root-b")
+    keep = BackupKeep(offsite_daily=2, offsite_weekly=2)
+    listed = [backup_name(f"2026-10-0{n}") for n in (1, 2, 3)] + [gz.name]
 
     def fake_run(argv: list[str], timeout: float) -> CmdResult:  # noqa: ARG001
         calls.append(list(argv))
         cmd = argv[0]
         if cmd == "listremotes":
-            return CmdResult(0, "onedrive:\nr2:\n", "")
+            return CmdResult(0, "remote-a:\nother:\n", "")
         if cmd == "copy":
             return CmdResult(0, "", "")
         if cmd == "check":
             return CmdResult(0, "", "")
         if cmd == "lsf":
-            extra = "\n".join(backup_name(f"2026-10-{n:02d}") for n in range(1, 10))
-            extra += "\nnotes.txt\nstock-foo.db.gz\n"
+            if settings.dest("weekly") in argv:
+                return CmdResult(0, "notes.txt\n", "")
+            extra = "\n".join(listed) + "\nnotes.txt\nstock-foo.db.gz\n"
             return CmdResult(0, extra, "")
         if cmd == "deletefile":
             return CmdResult(0, "", "")
@@ -574,8 +586,8 @@ def test_rclone_argv_copy_check_prune(tmp_path: Path) -> None:
 
     sync_offsite(
         [(gz, "daily")],
-        keep=BackupKeep(),
-        settings=OffsiteSettings(),
+        keep=keep,
+        settings=settings,
         which=lambda _name: "/usr/bin/rclone",
         run=fake_run,
     )
@@ -583,7 +595,7 @@ def test_rclone_argv_copy_check_prune(tmp_path: Path) -> None:
     if cmds[0] != "listremotes" or "copy" not in cmds or "check" not in cmds:
         _fail(f"cmds {cmds}")
     copy = next(c for c in calls if c[0] == "copy")
-    if copy[1] != str(gz) or copy[2] != "onedrive:stock-analyzer-backups/daily":
+    if copy[1] != str(gz) or copy[2] != settings.dest("daily"):
         _fail(f"copy argv {copy}")
     check = next(c for c in calls if c[0] == "check")
     if "--include" not in check or f"/{gz.name}" not in check or "--one-way" not in check:
@@ -591,24 +603,30 @@ def test_rclone_argv_copy_check_prune(tmp_path: Path) -> None:
     deletes = [c[1] for c in calls if c[0] == "deletefile"]
     if any("notes.txt" in d or "stock-foo.db.gz" in d for d in deletes):
         _fail(f"deleted noise {deletes}")
-    if "onedrive:stock-analyzer-backups/daily/stock-2026-10-01.db.gz" not in deletes:
-        _fail(f"oldest daily not deleted {deletes}")
-    if any("stock-2026-10-09.db.gz" in d and "/daily/" in d for d in deletes):
-        _fail(f"kept daily deleted {deletes}")
+    expect_deleted = {
+        f"{settings.dest('daily')}/{backup_name('2026-10-01')}",
+        f"{settings.dest('daily')}/{backup_name('2026-10-02')}",
+    }
+    if set(deletes) != expect_deleted:
+        _fail(f"prune deletes {deletes}")
+    if not gz.is_file():
+        _fail("rclone helper must not delete the local gzip")
 
 
 def test_rclone_missing_remote_skips() -> None:
+    settings = OffsiteSettings(remote="remote-a", root="root-b")
+
     def fake_run(argv: list[str], timeout: float) -> CmdResult:  # noqa: ARG001
         if argv[0] == "listremotes":
-            return CmdResult(0, "r2:\n", "")
+            return CmdResult(0, "other:\n", "")
         _fail(f"should not run {argv!r}")
         return CmdResult(1, "", "")
 
     try:
         sync_offsite(
             [],
-            keep=BackupKeep(),
-            settings=OffsiteSettings(),
+            keep=BackupKeep(offsite_daily=2, offsite_weekly=2),
+            settings=settings,
             which=lambda _name: "/usr/bin/rclone",
             run=fake_run,
         )
@@ -622,17 +640,20 @@ def test_rclone_missing_remote_skips() -> None:
 def test_rclone_check_falls_back_to_size(tmp_path: Path) -> None:
     gz = tmp_path / "stock-2026-10-09.db.gz"
     gz.write_bytes(b"abc")
+    settings = OffsiteSettings(remote="remote-a", root="root-b")
 
     def fake_run(argv: list[str], timeout: float) -> CmdResult:  # noqa: ARG001
         cmd = argv[0]
         if cmd == "listremotes":
-            return CmdResult(0, "onedrive:\n", "")
+            return CmdResult(0, f"{settings.remote}:\n", "")
         if cmd == "copy":
+            if argv[2] != settings.dest("daily"):
+                _fail(f"copy dest {argv}")
             return CmdResult(0, "", "")
         if cmd == "check":
             return CmdResult(1, "", "hash not supported")
         if cmd == "lsjson":
-            return CmdResult(0, '[{"Name":"stock-2026-10-09.db.gz","Size":3}]', "")
+            return CmdResult(0, '[{"Name":"x","Size":3}]', "")
         if cmd == "lsf":
             return CmdResult(1, "", "directory not found")
         _fail(f"unexpected {argv!r}")
@@ -640,8 +661,8 @@ def test_rclone_check_falls_back_to_size(tmp_path: Path) -> None:
 
     sync_offsite(
         [(gz, "daily")],
-        keep=BackupKeep(),
-        settings=OffsiteSettings(),
+        keep=BackupKeep(offsite_daily=2, offsite_weekly=2),
+        settings=settings,
         which=lambda _name: "/usr/bin/rclone",
         run=fake_run,
     )
@@ -673,7 +694,7 @@ def main_tests() -> None:
     with TemporaryDirectory() as d:
         test_wal_backup_roundtrip(Path(d))
     with TemporaryDirectory() as d:
-        test_sunday_offsite_success_prunes_local_to_one(Path(d))
+        test_upload_success_drops_this_run_and_keeps_older_local(Path(d))
     with TemporaryDirectory() as d:
         test_offsite_failure_keeps_local_generations(Path(d))
     with TemporaryDirectory() as d:

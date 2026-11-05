@@ -7,11 +7,12 @@
 ローカルに gzip したあと、rclone で OneDrive へ送る（既定
 onedrive:stock-analyzer-backups/{daily,weekly}）。トークンは
 rclone のユーザ設定（リポジトリと CI には置かない）。
-VPS の古い世代を消すのは、中身チェックとオフサイトの送信・確認が
-成功したあとだけ。rclone が無い / remote が無いときは警告してスキップ
-（ローカルは成功のまま、古い世代は残す）。オフサイト失敗は非ゼロ終了。
+今回書いた gzip を消すのは、送信・確認と OneDrive 側の世代整理が
+成功したあとだけ。失敗したときはそのファイルを残して非ゼロ終了する。
+それより前からあるローカルの世代は触らない。
+rclone が無い / remote が無いときは警告してスキップ
+（今回のファイルも古い世代も残す）。
 cron-run.sh が fail cron を書き、fluent-bit が #alerts-batch へ page する。
-ローカルの成功ファイルは消さない。
 """
 from __future__ import annotations
 
@@ -34,8 +35,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DEST = Path("/home/stock/backups")
 DEFAULT_OFFSITE_REMOTE = "onedrive"
 DEFAULT_OFFSITE_PATH = "stock-analyzer-backups"
-LOCAL_DAILY_KEEP = 1
-LOCAL_WEEKLY_KEEP = 1
 OFFSITE_DAILY_KEEP = 7
 OFFSITE_WEEKLY_KEEP = 4
 COMPRESSLEVEL = 1
@@ -68,8 +67,6 @@ class OffsiteSkip(Exception):
 
 @dataclass(frozen=True)
 class BackupKeep:
-    local_daily: int = LOCAL_DAILY_KEEP
-    local_weekly: int = LOCAL_WEEKLY_KEEP
     offsite_daily: int = OFFSITE_DAILY_KEEP
     offsite_weekly: int = OFFSITE_WEEKLY_KEEP
 
@@ -172,7 +169,7 @@ def list_generations(folder: Path) -> list[Path]:
 
 
 def prune_generations(folder: Path, keep: int) -> list[Path]:
-    """新しい keep 件を残し、それより古い世代だけ消す。失敗時は呼ばない。"""
+    """新しい keep 件を残し、それより古い世代だけ消す。"""
     kept: list[Path] = []
     removed: list[Path] = []
     for index, path in enumerate(list_generations(folder)):
@@ -182,6 +179,19 @@ def prune_generations(folder: Path, keep: int) -> list[Path]:
         path.unlink()
         removed.append(path)
     return removed
+
+
+def drop_uploaded(items: list[tuple[Path, str]]) -> tuple[int, int]:
+    """今回送った gzip だけ消す。別の日のファイルは渡さない。"""
+    daily = 0
+    weekly = 0
+    for path, kind in items:
+        path.unlink(missing_ok=True)
+        if kind == "weekly":
+            weekly += 1
+        else:
+            daily += 1
+    return daily, weekly
 
 
 def sqlite_sidecar_paths(path: Path) -> tuple[Path, ...]:
@@ -313,8 +323,6 @@ def env_int(environ: Mapping[str, str], name: str, default: int) -> int:
 def keep_from_env(environ: Mapping[str, str] | None = None) -> BackupKeep:
     env = os.environ if environ is None else environ
     return BackupKeep(
-        local_daily=env_int(env, "BACKUP_LOCAL_DAILY_KEEP", LOCAL_DAILY_KEEP),
-        local_weekly=env_int(env, "BACKUP_LOCAL_WEEKLY_KEEP", LOCAL_WEEKLY_KEEP),
         offsite_daily=env_int(env, "BACKUP_OFFSITE_DAILY_KEEP", OFFSITE_DAILY_KEEP),
         offsite_weekly=env_int(env, "BACKUP_OFFSITE_WEEKLY_KEEP", OFFSITE_WEEKLY_KEEP),
     )
@@ -626,12 +634,11 @@ def _run(
             _push_offsite(items, policy, settings, offsite)
         except OffsiteSkip as exc:
             print(f"warn backup_db offsite skipped: {exc}", flush=True)
-            print("pruned daily=0 weekly=0 offsite=skip", flush=True)
+            print("removed local daily=0 weekly=0 offsite=skip", flush=True)
             return
-        removed_daily = prune_generations(daily_dir(dest), policy.local_daily)
-        removed_weekly = prune_generations(weekly_dir(dest), policy.local_weekly)
+        removed_daily, removed_weekly = drop_uploaded(items)
         print(
-            f"pruned daily={len(removed_daily)} weekly={len(removed_weekly)} offsite=ok",
+            f"removed local daily={removed_daily} weekly={removed_weekly} offsite=ok",
             flush=True,
         )
     except BackupError:
@@ -663,7 +670,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--no-offsite",
         action="store_true",
-        help="skip OneDrive copy (local success, do not prune old generations)",
+        help="skip OneDrive copy (keep the new gzip and any older local files)",
     )
     args = ap.parse_args(argv)
     try:
