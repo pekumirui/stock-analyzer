@@ -6,10 +6,6 @@ UVICORN_WORKERS があればそれを使う。無ければ:
 
 1 ワーカーは pandas 込みで数百 MiB。SQLite はライター 1 本なので、コアより多くしても
 CPU は足りず RAM だけ食う。MCP（stock-analyzer-mcp.service）は対象外。
-
-MemAvailable は起動時の値で、19:30 の日次バッチなどのピークは見えない。4 本だと
-バッチ中に待機ワーカーがスワップへ出され、次のリクエストで戻す間にヘルスチェックに
-答えられず kill される（KAB-366）。そのため MAX_WORKERS で頭打ちにする。
 """
 from __future__ import annotations
 

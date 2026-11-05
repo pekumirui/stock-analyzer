@@ -2,7 +2,6 @@
 # uvicorn のワーカー数は deploy/uvicorn_workers.py（nproc と MemAvailable）。
 # UVICORN_WORKERS で上書き。--preload は使わない（fork 前の SQLite 接続がワーカーで壊れる）。
 # lru_cache（app/api/monthly/_common.py, app/supply/chain.py）はワーカーごとに持つ。
-# ヘルスチェックは既定 5 秒。スワップから戻す間に答えられず kill されるので 10 秒（KAB-366）。
 set -euo pipefail
 APP_DIR="${APP_DIR:-/home/stock/stock-analyzer}"
 cd "$APP_DIR"
