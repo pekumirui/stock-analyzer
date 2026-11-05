@@ -707,6 +707,22 @@ def _usage(free: int, seen: list[Path] | None = None):
     return usage
 
 
+@pytest.fixture(autouse=True)
+def _host_disk_does_not_stop_ingest(monkeypatch: pytest.MonkeyPatch) -> None:
+    """run の disk_usage 既定は定義時に shutil.disk_usage へ束縛される。
+
+    渡さないテストはホストの空きを見ない。しきい値未満の検証は呼び出し側が disk_usage を渡す。
+    """
+    real = mod.run
+    enough = _usage(mod.MIN_FREE_BYTES)
+
+    def run(*args, **kwargs):
+        kwargs.setdefault("disk_usage", enough)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(mod, "run", run)
+
+
 class _Ship:
     def __init__(self, *, differ: set[str] | None = None) -> None:
         self.differ = differ or set()
