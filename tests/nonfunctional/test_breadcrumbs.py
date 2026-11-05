@@ -182,12 +182,16 @@ const def = s.breadcrumbTrail('stock-price', 'nope').map(x => x.label).join(' > 
 const bogus = s.breadcrumbTrail('stock-price', 'monthly').map(x => x.label).join(' > ');
 const news = s.breadcrumbTrail('stock-news-detail', '').map(x => x.label).join(' > ');
 const holder = s.breadcrumbTrail('holders-detail', 'stock-holders').map(x => x.label).join(' > ');
+const deck = s.breadcrumbTrail('stock-deck-detail', 'stock-news').map(x => x.id);
+const deckDefault = s.breadcrumbTrail('stock-deck-detail', '').map(x => x.id);
 if (s.resolveFrom('stock-price', 'earnings') !== 'earnings') process.exit(2);
 if (s.resolveFrom('stock-price', 'monthly') !== '') process.exit(3);
 if (s.screenIdFromTabCode('stock', '72030/price') !== 'stock-price') process.exit(4);
 if (s.screenIdFromTabCode('stock', '72030') !== 'stock-summary') process.exit(5);
 if (s.screenIdFromTabCode('supply', 'ethylene') !== 'supply') process.exit(6);
-console.log(JSON.stringify({price, pts, def, bogus, news, holder}));
+if (s.screenIdFromTabCode('stock', '72030/decks/' + 'd' + 'a'.repeat(20)) !== 'stock-deck-detail') process.exit(7);
+if (s.screenIdFromTabCode('stock', '72030/decks') !== 'stock') process.exit(8);
+console.log(JSON.stringify({price, pts, def, bogus, news, holder, deck, deckDefault}));
 """, str(SCREENS_JS)],
         cwd=str(ROOT),
         capture_output=True,
@@ -209,3 +213,7 @@ console.log(JSON.stringify({price, pts, def, bogus, news, holder}));
         _fail(f"news-detail default: {got['news']!r}")
     if got["holder"] != "トップ > 銘柄 > 株主 > 保有者":
         _fail(f"from=stock-holders: {got['holder']!r}")
+    if got["deck"] != ["top", "stock", "stock-news", "stock-deck-detail"]:
+        _fail(f"deck from news: {got['deck']!r}")
+    if got["deckDefault"] != got["deck"]:
+        _fail(f"deck default parent is not news: {got['deckDefault']!r}")

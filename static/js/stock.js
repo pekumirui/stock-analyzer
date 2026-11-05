@@ -1,4 +1,4 @@
-// 銘柄タブ（KAB-161 / KAB-177。docs/DESIGN_stock.md）。共通ヘッダーと中のタブ 概要 / 株価 / ニュース / 株主 / 説明資料（stock-deck.js）。
+// 銘柄タブ（KAB-161 / KAB-177。docs/DESIGN_stock.md）。共通ヘッダーと中のタブ 概要 / 株価 / ニュース / 株主。説明資料の中身は stock-deck.js。
 // ニュースの詳細で決算短信の原文を PDF と同じ並びで読む
 let stockCode = "";
 let stockSub = "summary";
@@ -61,7 +61,7 @@ document.addEventListener("click", e => {
   if(!e.target.closest("#sym-pop") && !e.target.closest("#sym-btn")) setSymSearch(false);
 });
 
-// 銘柄画面にいれば中のタブはそのまま（ニュース・説明資料の詳細にいたら一覧へ）。ほかの画面からは概要
+// 銘柄画面にいれば中のタブはそのまま（ニュースの詳細か説明資料の中身にいたらニュースの一覧へ）。ほかの画面からは概要
 function stockPick(s){
   const from = typeof currentScreenId === "function" ? currentScreenId() : "";
   const onStock = $("#tab-stock").style.display !== "none" && stockCode;
@@ -97,8 +97,9 @@ async function showStock(code, sub, newsId, from, deckKey = ""){
   stockCode = code;
   stockSub = sub;
   stockNewsId = newsId;
+  if(stockSub === "decks" && !deckKey) stockSub = "news";
   if(changed) resetStockDecks();
-  stockDeckKey = deckKey;
+  stockDeckKey = stockSub === "decks" ? deckKey : "";
   writeRoute("stock", stockRoutePath(), from);
   if(changed){
     if(stockAc) stockAc.abort();
@@ -170,7 +171,8 @@ document.querySelectorAll("#st-tabs .ftab").forEach(b => b.onclick = () => {
 
 function renderStockSub(){
   if(!stockOverview) return;
-  document.querySelectorAll("#st-tabs .ftab").forEach(b => b.classList.toggle("on", b.dataset.sub === stockSub));
+  const tab = stockSub === "decks" ? "news" : stockSub;
+  document.querySelectorAll("#st-tabs .ftab").forEach(b => b.classList.toggle("on", b.dataset.sub === tab));
   document.querySelectorAll(".st-sub").forEach(x => x.hidden = x.id !== `st-sub-${stockSub}`);
   stockMsg("");
   if(stockSub === "summary") renderStockSummary();
@@ -238,7 +240,7 @@ function loadStockFilings(){
   return stockFilingsReq;
 }
 
-// 説明資料タブと同じ一覧（stock-deck.js の stockDecks）。同じ銘柄のあいだは読み直さない
+// ニュースに混ぜる決算説明資料（stock-deck.js の stockDecks）。同じ銘柄のあいだは読み直さない
 function loadStockNewsDecks(){
   if(typeof stockDecks !== "undefined" && stockDecks) return Promise.resolve(stockDecks);
   if(stockNewsDecksReq) return stockNewsDecksReq;
