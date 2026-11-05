@@ -141,6 +141,9 @@ def _shown_at(raw: str | None) -> str:
 
 def _seed() -> None:
     db = SessionLocal()
+    if db.get(Stock, CODE) is not None:
+        db.close()
+        return
     now = datetime(2026, 11, 3, 12, 0)  # noqa: DTZ001
     db.add(Stock(code=CODE, name="説明資料ニュース"))
     db.add(Stock(code=EMPTY, name="空の銘柄"))
@@ -263,3 +266,197 @@ def test_news_lists_saved_deck_and_keeps_filings(c) -> None:
     assert out["emptyHtml"] == ""
     assert out["emptyMsg"] == "ニュースがありません。"
     assert out["emptyHidden"] is False
+
+
+_DRIVE = r"""
+const fs = require("fs");
+const vm = require("vm");
+const path = require("path");
+const payload = JSON.parse(process.argv[1]);
+const root = process.argv[2];
+function makeEl(id){
+  const classes = new Set();
+  const el = {
+    id: id || "", hidden: false, innerHTML: "", textContent: "", value: "", style: {},
+    dataset: {}, clientWidth: 800, listeners: {},
+    classList: {
+      toggle(name, on){ if(on) classes.add(name); else classes.delete(name); },
+      add(name){ classes.add(name); },
+      remove(name){ classes.delete(name); },
+      contains(name){ return classes.has(name); },
+    },
+    addEventListener(type, fn){ this.listeners[type] = fn; },
+    setAttribute(){}, getAttribute(){ return null; },
+    append(){}, appendChild(){},
+    querySelector(){ return null; }, querySelectorAll(){ return []; }, closest(){ return null; },
+  };
+  return el;
+}
+const cache = new Map();
+function $(sel){
+  if(!cache.has(sel)) cache.set(sel, makeEl(String(sel).replace(/^#/, "")));
+  return cache.get(sel);
+}
+const tabs = ["summary", "price", "news", "holders"].map(sub => {
+  const b = makeEl("ftab-" + sub);
+  b.dataset.sub = sub;
+  return b;
+});
+const subs = ["summary", "price", "news", "holders", "decks"].map(sub => {
+  const el = makeEl("st-sub-" + sub);
+  el.id = "st-sub-" + sub;
+  el.hidden = true;
+  return el;
+});
+const document = {
+  querySelector: $,
+  querySelectorAll(sel){
+    if(sel === "#st-tabs .ftab") return tabs;
+    if(sel === ".st-sub") return subs;
+    if(sel === "nav button") return [];
+    return [];
+  },
+  addEventListener(){},
+  getElementById(id){ return $("#" + id); },
+  createElement(){ return makeEl(); },
+  body: makeEl("body"),
+};
+const location = {hash: "", pathname: "/", search: ""};
+function applyUrl(url){
+  const s = String(url);
+  const h = s.indexOf("#");
+  location.hash = h >= 0 ? s.slice(h) : "";
+  const q = s.indexOf("?");
+  location.search = (q >= 0 && (h < 0 || q < h)) ? s.slice(q, h < 0 ? undefined : h) : "";
+}
+const context = {
+  console, document, location,
+  history: {pushState(_a, _b, url){ applyUrl(url); }, replaceState(_a, _b, url){ applyUrl(url); }},
+  localStorage: {getItem(){ return null; }, setItem(){}},
+  URLSearchParams, AbortController,
+  requestAnimationFrame(fn){ fn(); },
+  setTimeout, clearTimeout, setImmediate,
+  addEventListener(){},
+};
+context.window = context;
+context.globalThis = context;
+context.$ = $;
+context.api = (url) => {
+  const u = String(url);
+  const hit = payload;
+  if(u.includes("/overview")){
+    return Promise.resolve({code: hit.code, name: hit.name, market: null, sector33: null,
+      quote: null, next_earnings: null, metrics: {}});
+  }
+  if(u.endsWith("/filings")) return Promise.resolve({filings: hit.filings});
+  const detail = u.match(/\/decks\/([^/?#]+)$/);
+  if(detail){
+    const deck = (hit.decks || []).find(d => d.key === detail[1]);
+    if(!deck) return Promise.reject(Object.assign(new Error("404"), {message: "404"}));
+    return Promise.resolve({document: {title: deck.title, pubdate: deck.pubdate, url: deck.url || "", status: deck.status}, extract: null, pages: []});
+  }
+  if(u.includes("/decks")) return Promise.resolve({decks: hit.decks});
+  return Promise.reject(Object.assign(new Error("404"), {message: "404"}));
+};
+vm.createContext(context);
+for(const f of ["static/js/screens.js", "static/js/tabs.js", "static/js/stock.js", "static/js/stock-deck.js"]){
+  vm.runInContext(fs.readFileSync(path.join(root, f), "utf8"), context, {filename: f});
+}
+function snap(){
+  return vm.runInContext(`JSON.stringify({
+    hash: location.hash,
+    sub: stockSub,
+    deckKey: stockDeckKey,
+    newsOn: document.querySelectorAll("#st-tabs .ftab").find(b => b.dataset.sub === "news").classList.contains("on"),
+    otherOn: document.querySelectorAll("#st-tabs .ftab").filter(b => b.dataset.sub !== "news" && b.classList.contains("on")).map(b => b.dataset.sub),
+    deckHidden: document.querySelectorAll(".st-sub").find(x => x.id === "st-sub-decks").hidden,
+    newsHidden: document.querySelectorAll(".st-sub").find(x => x.id === "st-sub-news").hidden,
+    listHidden: $("#st-news-list").hidden,
+    detailHidden: $("#st-news-detail").hidden,
+  })`, context);
+}
+(async () => {
+  const code = payload.code;
+  const routes = vm.runInContext(`JSON.stringify({
+    bare: parseRoute("#stock/${code}/decks").code,
+    bad: parseRoute("#stock/${code}/decks/NOPE").code,
+  })`, context);
+  await vm.runInContext(`showStock(${JSON.stringify(code)}, "news", "")`, context);
+  for(let i = 0; i < 12; i++) await new Promise(r => setImmediate(r));
+  const row = vm.runInContext(`(() => {
+    const html = $("#st-news").innerHTML;
+    const m = html.match(/data-open="deck" data-deck="([^"]*)"/);
+    return m ? m[1] : "";
+  })()`, context);
+  if(!row) throw new Error("deck row missing");
+  vm.runInContext(`
+    $("#st-news").listeners.click({target: {closest(sel){
+      if(sel !== "tr.go") return null;
+      return {dataset: {open: "deck", deck: ${JSON.stringify(row)}, id: "d" + ${JSON.stringify(row)}}};
+    }}});
+  `, context);
+  for(let i = 0; i < 12; i++) await new Promise(r => setImmediate(r));
+  const opened = snap();
+  vm.runInContext(`$("#st-deck-back").listeners.click({preventDefault(){}})`, context);
+  for(let i = 0; i < 12; i++) await new Promise(r => setImmediate(r));
+  const back = snap();
+  vm.runInContext(`openStockRoute(parseRoute("#stock/" + ${JSON.stringify(code)} + "/decks/" + ${JSON.stringify(row)}).code)`, context);
+  for(let i = 0; i < 12; i++) await new Promise(r => setImmediate(r));
+  const reload = snap();
+  vm.runInContext(`openStockRoute(parseRoute("#stock/" + ${JSON.stringify(code)} + "/decks").code)`, context);
+  for(let i = 0; i < 12; i++) await new Promise(r => setImmediate(r));
+  const bareOpen = snap();
+  process.stdout.write(JSON.stringify({
+    bare: JSON.parse(routes).bare,
+    bad: JSON.parse(routes).bad,
+    row,
+    opened: JSON.parse(opened),
+    back: JSON.parse(back),
+    reload: JSON.parse(reload),
+    bareOpen: JSON.parse(bareOpen),
+  }));
+})().catch(e => { console.error(e); process.exit(1); });
+"""
+
+
+def _drive(case: dict) -> dict:
+    proc = subprocess.run(
+        ["node", "-e", _DRIVE, json.dumps(case), str(ROOT)],
+        capture_output=True, text=True, check=False, timeout=30,
+    )
+    if proc.returncode != 0:
+        raise AssertionError(proc.stderr or proc.stdout)
+    return json.loads(proc.stdout)
+
+
+def test_deck_open_keeps_news_tab_and_back_returns_to_the_list(c) -> None:
+    """説明資料はニュースの行から開き、タブはニュースのまま。← ニュースで一覧へ戻る。
+
+    出所の優先や表題の文言は期待値にしない。API が返した資料の key で動くことを見る。
+    """
+    _seed()
+    filings = c.get(f"/api/stock/{CODE}/filings").json()["filings"]
+    decks = c.get(f"/api/stock/{CODE}/decks").json()["decks"]
+    assert decks
+    out = _drive({"code": CODE, "name": "説明資料ニュース", "filings": filings, "decks": decks})
+    keys = {d["key"] for d in decks}
+    assert out["row"] in keys
+    assert out["bare"] == f"{CODE}/news"
+    assert out["bad"] == f"{CODE}/news"
+    opened = out["opened"]
+    assert opened["deckKey"] == out["row"]
+    assert opened["newsOn"] is True and opened["otherOn"] == []
+    assert opened["deckHidden"] is False and opened["newsHidden"] is True
+    assert f"/decks/{out['row']}" in opened["hash"] and "from=stock-news" in opened["hash"]
+    back = out["back"]
+    assert back["sub"] == "news" and back["deckKey"] == ""
+    assert back["newsOn"] is True
+    assert back["listHidden"] is False and back["detailHidden"] is True
+    assert back["deckHidden"] is True and back["newsHidden"] is False
+    assert back["hash"].startswith(f"#stock/{CODE}/news") and "from=stock-deck-detail" in back["hash"]
+    reload = out["reload"]
+    assert reload["sub"] == "decks" and reload["newsOn"] is True and reload["deckHidden"] is False
+    assert f"/decks/{out['row']}" in reload["hash"]
+    bare_open = out["bareOpen"]
+    assert bare_open["sub"] == "news" and bare_open["newsHidden"] is False
+    assert bare_open["hash"].startswith(f"#stock/{CODE}/news")

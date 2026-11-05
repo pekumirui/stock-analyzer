@@ -10,7 +10,15 @@ CSS = (ROOT / "static" / "css" / "app.css").read_text(encoding="utf-8")
 
 ST_TABS_IDS = ("st-tabs",)
 FIN_TABS_IDS = ("earn-view", "st-fin-tabs", "tf", "st-zoom", "rk-subs", "rk-kind", "pts-ranking")
-ST_SUBS = ("summary", "price", "news", "holders", "decks")
+
+
+def _st_tabs_inner() -> str:
+    return HTML[HTML.index('id="st-tabs"'):HTML.index('id="st-metrics"')]
+
+
+def _st_tab_buttons(inner: str) -> list[tuple[str, str]]:
+    """#st-tabs の (data-sub, ラベル)。タブの一覧は HTML から読む。"""
+    return re.findall(r'data-sub="([^"]+)"[^>]*>([^<]*)</button>', inner)
 
 
 def _block(src: str, selector: str) -> str:
@@ -27,10 +35,11 @@ def test_st_tabs_is_nav_tabs_not_fin_tabs() -> None:
     tag = m.group(0)
     assert "nav-tabs" in tag, tag
     assert "fin-tabs" not in tag, tag
-    inner = HTML[HTML.index('id="st-tabs"'):HTML.index('id="st-metrics"')]
-    for sub in ST_SUBS:
-        assert f'data-sub="{sub}"' in inner
-    assert inner.count("class=\"ftab") == 5
+    inner = _st_tabs_inner()
+    buttons = _st_tab_buttons(inner)
+    assert buttons, "missing #st-tabs buttons"
+    assert "decks" not in {sub for sub, _ in buttons}
+    assert inner.count("class=\"ftab") == len(buttons)
 
 
 def test_other_fin_tabs_stay_segmented() -> None:
@@ -70,7 +79,8 @@ def test_nav_tabs_folder_css() -> None:
     mpad = re.search(r"padding:(\d+)px (\d+)px", mtab)
     assert mpad, mtab
     mh = int(mpad.group(2))
-    # 390px: main 6+6 + panel 12+12 = 36。残り 354px を 5 等分 ≈ 70px。
-    # 最長ラベル「ニュース」「説明資料」4 字 × 13px + padding でも収まる。
-    longest = 4 * 13 + 2 * mh
-    assert longest <= 70, f"4 字のタブ {longest}px exceeds 390px slot"
+    labels = [label for _, label in _st_tab_buttons(_st_tabs_inner())]
+    # 390px: main 6+6 + panel 12+12 = 36。残り 354px をタブ数で割る。
+    longest = max(len(label) for label in labels) * int(fs.group(1)) + 2 * mh
+    slot = 354 // len(labels)
+    assert longest <= slot, f"longest tab {longest}px exceeds 390px slot {slot}px"

@@ -1,4 +1,4 @@
-// 銘柄タブの「説明資料」（KAB-350。docs/DESIGN_stock.md）。決算説明資料の一覧と、読み取った表・要約の復元ビュー。
+// 決算説明資料の中身（KAB-350。docs/DESIGN_stock.md）。ニュースの行から開く。読み取った表・要約の復元ビュー。
 // 原本の PDF は出さない。表（列 × 行、行の of）からグラフと表を組み直す。規則は analyzer/deck_reader/view.py と同じ
 let stockDecks = null;      // null = まだ読んでいない
 let stockDeckKey = "";
@@ -20,7 +20,6 @@ const deckEsc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<
 function resetStockDecks(){
   stockDecks = null;
   stockDeckKey = "";
-  $("#st-decks").innerHTML = "";
   $("#st-deck-body").innerHTML = "";
 }
 
@@ -325,45 +324,16 @@ function deckTable(table){
 
 const DECK_STATUS = {done: "読み取り済み", submitted: "読み取り中", failed: "読めなかった"};
 
-async function renderStockDecks(){
-  if(stockDeckKey) return showStockDeck(stockDeckKey);
-  $("#st-deck-list").hidden = false;
-  $("#st-deck-detail").hidden = true;
-  const code = stockCode;
-  if(!stockDecks){
-    try {
-      const d = await api(`/api/stock/${code}/decks`, {signal: stockAc.signal});
-      if(code !== stockCode) return;
-      stockDecks = d.decks;
-    } catch(e){
-      if(e.name === "AbortError" || code !== stockCode) return;
-      stockMsg("読み込めませんでした。");
-      return;
-    }
-  }
-  if(!stockDecks.length){
-    $("#st-decks").innerHTML = "";
-    stockMsg("説明資料はありません。");
+function renderStockDecks(){
+  if(!stockDeckKey){
+    stockSub = "news";
+    renderStockSub();
     return;
   }
-  const rows = stockDecks.map(d => {
-    const go = d.status === "done";
-    const st = DECK_STATUS[d.status] || "未読";
-    return `<tr class="${go ? "go" : ""}" data-key="${deckEsc(d.key)}"><td>${deckEsc(stockAt(d.pubdate.slice(0, 10)))}</td>`
-      + `<td class="t">${deckEsc(d.title)}</td><td class="${go ? "" : "sub"}">${st}${go && d.pages ? `（${d.pages}ページ）` : ""}</td></tr>`;
-  }).join("");
-  $("#st-decks").innerHTML = `<thead><tr><th>開示日</th><th>表題</th><th>読み取り</th></tr></thead><tbody>${rows}</tbody>`;
-  $("#st-decks").querySelectorAll("tr.go").forEach(tr => tr.onclick = () => {
-    stockDeckKey = tr.dataset.key;
-    // 中身は履歴に積む（ブラウザの戻るで一覧へ）
-    writeRoute("stock", stockRoutePath(), "stock-decks", true);
-    showStockDeck(stockDeckKey);
-  });
+  showStockDeck(stockDeckKey);
 }
 
 async function showStockDeck(key){
-  $("#st-deck-list").hidden = true;
-  $("#st-deck-detail").hidden = false;
   const body = $("#st-deck-body");
   body.innerHTML = "";
   const code = stockCode;
@@ -405,8 +375,9 @@ async function showStockDeck(key){
 if(typeof document !== "undefined") $("#st-deck-back").addEventListener("click", e => {
   e.preventDefault();
   stockDeckKey = "";
+  stockSub = "news";
   writeRoute("stock", stockRoutePath(), "stock-deck-detail");
-  renderStockDecks();
+  renderStockSub();
 });
 // node のテスト（tests/market/test_stock_decks.py）が組み立てを呼ぶ
 if(typeof module !== "undefined") module.exports = {deckCharts, deckTable, deckNum};
