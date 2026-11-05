@@ -2,10 +2,14 @@
 
 UVICORN_WORKERS があればそれを使う。無ければ:
 
-  N = max(1, min(nproc, MemAvailableMiB // PER_WORKER_MIB))
+  N = max(1, min(nproc, MemAvailableMiB // PER_WORKER_MIB, MAX_WORKERS))
 
 1 ワーカーは pandas 込みで数百 MiB。SQLite はライター 1 本なので、コアより多くしても
 CPU は足りず RAM だけ食う。MCP（stock-analyzer-mcp.service）は対象外。
+
+MemAvailable は起動時の値で、19:30 の日次バッチなどのピークは見えない。4 本だと
+バッチ中に待機ワーカーがスワップへ出され、次のリクエストで戻す間にヘルスチェックに
+答えられず kill される（KAB-366）。そのため MAX_WORKERS で頭打ちにする。
 """
 from __future__ import annotations
 
@@ -13,6 +17,7 @@ import os
 from pathlib import Path
 
 PER_WORKER_MIB = 384
+MAX_WORKERS = 2
 MEMINFO_PATH = Path("/proc/meminfo")
 
 
@@ -58,11 +63,12 @@ def choose_workers(
     nproc: int,
     mem_available_kib: int | None,
     per_worker_mib: int = PER_WORKER_MIB,
+    max_workers: int = MAX_WORKERS,
 ) -> int:
     pinned = parse_env_workers(env_value)
     if pinned is not None:
         return pinned
-    by_cpu = max(1, int(nproc))
+    by_cpu = max(1, min(int(nproc), int(max_workers)))
     if mem_available_kib is None:
         return by_cpu
     by_mem = max(1, int(mem_available_kib) // 1024 // max(1, int(per_worker_mib)))

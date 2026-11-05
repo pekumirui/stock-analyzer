@@ -60,7 +60,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 4. venv / `pip install` / `migrate.py`（`database is locked` は最大約 6 分まで再試行。19:30 の日次バッチや毎時の TDnet XBRL（parse / normalize）と重なるため）。`migrate.py` が `init_db` を 1 回やってから uvicorn を上げる（`--workers N` の同時 CREATE INDEX を避ける。`--preload` は使わない）
 5. `systemctl restart stock-analyzer` と `stock-analyzer-mcp`、localhost:8000 / :8010 のヘルスチェック
 
-uvicorn のワーカー数は `deploy/uvicorn_workers.py` が起動時に決める（`nproc` と MemAvailable。1 本あたり 384MiB）。`.env` の `UVICORN_WORKERS` で上書きする。MCP（`stock-analyzer-mcp.service`）は対象外。
+uvicorn のワーカー数は `deploy/uvicorn_workers.py` が起動時に決める（`nproc` と MemAvailable。1 本あたり 384MiB。上限 2 本）。`.env` の `UVICORN_WORKERS` で上書きする。ワーカーのヘルスチェックは 10 秒（`deploy/uvicorn-start.sh`）。日次バッチ中にスワップへ出たワーカーが 5 秒で kill され 502 になったため（KAB-366）。MCP（`stock-analyzer-mcp.service`）は対象外。
 
 証明書の更新は `certbot.timer`（1日2回）。更新後は `renewal-hooks/deploy` で nginx を reload する。
 

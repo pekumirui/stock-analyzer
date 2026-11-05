@@ -115,7 +115,7 @@ cp .env.example .env            # 既存 .env がある場合は上書きしな�
 初期設定（nginx / ufw / certbot / systemd / crontab）はパイプラインが冪等にやる。root でやるのはデプロイ用 SSH 鍵と sudoers だけ。
 手順は [deploy/README.md](deploy/README.md)。
 
-uvicorn のワーカー数は VPS のコアとメモリから決める（`.env` の `UVICORN_WORKERS` で上書き可）。SQLite のライターは 1 本のまま。日次バッチは定常で 7 リクエスト。
+uvicorn のワーカー数は VPS のコアとメモリから決める（上限 2 本。`.env` の `UVICORN_WORKERS` で上書き可）。SQLite のライターは 1 本のまま。日次バッチは定常で 7 リクエスト。
 
 ```bash
 # 開発PC → VPS（backfill 完了後。journal が残っていないことを確認）
