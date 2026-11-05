@@ -16,7 +16,15 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 
 from app.db import SessionLocal, apply_sqlite_pragmas, engine
-from app.market.briefing_store import SOURCE_IRBANK, SOURCE_TDNET, record_briefing
+from app.market.briefing_files import open_briefing
+from app.market.briefing_store import (
+    SOURCE_IRBANK,
+    SOURCE_TDNET,
+    STORAGE_LOCAL,
+    STORAGE_ONEDRIVE,
+    record_briefing,
+)
+from jobs.ops.backup_db import CmdResult
 from app.models import Base, BriefingDocument, BriefingIrbankScan, Stock
 from jobs.monthly.tdnet_monthly_r2 import dest_path
 from tools.briefing import irbank_ingest as mod
@@ -157,7 +165,7 @@ def test_skips_indexed_disclosure_and_saves_irbank_once(tmp_path: Path) -> None:
         page = _page("7203", [
             ("140120260804507860", MAT, "2026/08/04", "14:00"),
             ("140120250508534308", OLDER, "2025/05/08", "16:00"),
-            (new, new_title, "2024/11/06", "18:00"),
+            (new, new_title, "2026/07/06", "18:00"),
             ("140120260807513909", CORR, "2026/08/07", "12:00"),
         ])
         routes = {
@@ -177,9 +185,9 @@ def test_skips_indexed_disclosure_and_saves_irbank_once(tmp_path: Path) -> None:
         assert row is not None
         assert row.code == "72030"
         assert row.title == new_title
-        assert row.pubdate == "2024-11-06 18:00:00"
+        assert row.pubdate == "2026-07-06 18:00:00"
         assert row.rel_path.startswith("7203/")
-        assert "20241106" in row.rel_path
+        assert "20260706" in row.rel_path
         assert row.url.endswith("/20241106513334.pdf")
         assert row.status == "saved"
         saved = tmp_path / row.rel_path
@@ -201,7 +209,7 @@ def test_rate_limit_stops_and_next_run_continues(tmp_path: Path) -> None:
         _stock(db, "72030", "トヨタ自動車", "011")
         page = _page("7203", [
             ("140120260804507860", MAT, "2026/08/04", "14:00"),
-            ("140120250508534308", OLDER, "2025/05/08", "16:00"),
+            ("140120250508534308", OLDER, "2026/05/08", "16:00"),
         ])
         pdf_newer = "https://api.irbank.net/api/market-files/v1/tdnet/20260804507860.pdf"
         pdf_older = "https://api.irbank.net/api/market-files/v1/tdnet/20250508534308.pdf"
@@ -685,6 +693,66 @@ def test_main_passes_rescan_for_code_and_all(monkeypatch: pytest.MonkeyPatch, tm
     assert seen[0]["rescan"] is False
 
 
+class _Free:
+    def __init__(self, free: int) -> None:
+        self.free = free
+
+
+def _usage(free: int, seen: list[Path] | None = None):
+    def usage(path: Path) -> _Free:
+        if seen is not None:
+            seen.append(Path(path))
+        return _Free(free)
+
+    return usage
+
+
+class _Ship:
+    def __init__(self, *, differ: set[str] | None = None) -> None:
+        self.differ = differ or set()
+        self.calls: list[list[str]] = []
+        self.files_from: list[list[str]] = []
+        self.by_rel: dict[str, bytes] = {}
+        self.roots: list[Path] = []
+
+    def __call__(self, argv: list[str], timeout: float) -> CmdResult:  # noqa: ARG002
+        op = argv[0]
+        self.calls.append(list(argv))
+        if op in {"copyto", "size", "move", "delete", "deletefile"}:
+            raise AssertionError(op)
+        rels = [
+            line.strip()
+            for line in Path(argv[argv.index("--files-from") + 1]).read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        root = Path(argv[1])
+        if op == "copy":
+            self.files_from.append(rels)
+            self.roots.append(root)
+            for rel in rels:
+                src = root / rel
+                if not src.is_file():
+                    raise AssertionError(rel)
+                self.by_rel[rel] = src.read_bytes()
+            return CmdResult(0, "", "")
+        if op == "check":
+            if "--one-way" not in argv:
+                raise AssertionError(argv)
+            lines = []
+            bad = False
+            for rel in rels:
+                if not (root / rel).is_file():
+                    raise AssertionError("removed before check")
+                if rel in self.differ:
+                    lines.append(f"* {rel}")
+                    bad = True
+                else:
+                    lines.append(f"= {rel}")
+            Path(argv[argv.index("--combined") + 1]).write_text("\n".join(lines) + "\n", encoding="utf-8")
+            return CmdResult(1 if bad else 0, "", "")
+        return CmdResult(1, "", op)
+
+
 def test_main_requires_one_scope() -> None:
     with pytest.raises(SystemExit) as both:
         mod.main(["--code", "7203", "--all"])
@@ -693,3 +761,263 @@ def test_main_requires_one_scope() -> None:
         mod.main([])
     assert neither.value.code == 2
     assert mod.main(["--code", "!!!!"]) == 2
+
+
+def test_low_disk_writes_nothing_and_the_next_run_continues(tmp_path: Path) -> None:
+    db = _db()
+    try:
+        _stock(db, "11110", "先", "011")
+        _stock(db, "22220", "後", "011")
+        title = "2026年3月期決算説明資料"
+        first = _page("1111", [("140120260101000011", title, "2026/01/01", "15:00")])
+        second = _page("2222", [("140120260202000022", title, "2026/02/02", "15:00")])
+        pdf = "https://api.irbank.net/api/market-files/v1/tdnet/20260101000011.pdf"
+        routes = {
+            "https://irbank.net/1111/ir": first,
+            "https://irbank.net/2222/ir": second,
+            pdf: PDF,
+            "https://api.irbank.net/api/market-files/v1/tdnet/20260202000022.pdf": PDF,
+        }
+        seen: list[Path] = []
+        calls: list[str] = []
+        stats = _run(
+            db, tmp_path, routes, calls, codes=None,
+            disk_usage=_usage(mod.MIN_FREE_BYTES - 1, seen),
+        )
+        assert stats.stopped == "disk_low" and stats.exit_code == 0
+        assert stats.companies == 0 and stats.saved == 0
+        assert _scanned() == []
+        assert seen and all(path == tmp_path for path in seen)
+        assert pdf in calls
+        assert "2222" not in "".join(calls)
+        assert list(tmp_path.rglob("*.pdf")) == []
+        assert _row(SOURCE_IRBANK, "140120260101000011") is None
+        calls.clear()
+        again = _run(
+            db, tmp_path, routes, calls, codes=None,
+            disk_usage=_usage(mod.MIN_FREE_BYTES),
+        )
+        assert again.stopped == "done" and again.saved == 2 and again.companies == 2
+        assert _scanned() == ["11110", "22220"]
+        assert pdf in calls and "2222" in "".join(calls)
+        row = _row(SOURCE_IRBANK, "140120260101000011")
+        assert row is not None and row.storage == STORAGE_LOCAL
+        assert (tmp_path / row.rel_path).read_bytes() == PDF
+    finally:
+        db.close()
+
+
+def test_dry_run_ignores_disk_and_does_not_ship(tmp_path: Path) -> None:
+    db = _db()
+    try:
+        _stock(db, "72030", "トヨタ自動車", "011")
+        page = _page("7203", [
+            ("140120260301000001", "2026年3月期決算説明資料", "2026/03/01", "15:00"),
+            ("140120240101000002", "2024年3月期決算説明資料", "2024/01/01", "15:00"),
+        ])
+        routes = {"https://irbank.net/7203/ir": page}
+
+        def boom_disk(_path: Path) -> _Free:
+            raise AssertionError("disk")
+
+        def boom_rclone(argv, timeout):  # noqa: ARG001
+            raise AssertionError(argv)
+
+        calls: list[str] = []
+        stats = _run(
+            db, tmp_path, routes, calls, codes=["72030"], dry_run=True,
+            disk_usage=boom_disk, rclone=boom_rclone,
+        )
+        assert stats.stopped == "done" and stats.listed == 2 and stats.saved == 0
+        assert stats.remaining == 1 and _scanned() == []
+        assert list(tmp_path.rglob("*.pdf")) == []
+    finally:
+        db.close()
+
+
+def test_old_pdfs_go_to_onedrive_and_the_latest_stays_local(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """最新と、その 1 年より新しい分は手元。ちょうど 1 年前から先は OneDrive。"""
+    db = _db()
+    try:
+        _stock(db, "72030", "トヨタ自動車", "011")
+        latest = "140120260301000001"
+        keep = "140120250302000003"
+        boundary = "140120250301000002"
+        older = "140120240101000004"
+        page = _page("7203", [
+            (latest, "2026年3月期決算説明資料", "2026/03/01", "15:00"),
+            (keep, "2025年3月期第1四半期決算説明資料", "2025/03/02", "15:00"),
+            (boundary, "2025年3月期決算説明資料", "2025/03/01", "15:00"),
+            (older, "2024年3月期決算説明資料", "2024/01/01", "15:00"),
+        ])
+        routes = {"https://irbank.net/7203/ir": page}
+        bodies = {doc: PDF + doc.encode() for doc in (latest, keep, boundary, older)}
+        for doc, body in bodies.items():
+            routes[f"https://api.irbank.net/api/market-files/v1/tdnet/{doc[-14:]}.pdf"] = body
+        storages: list[tuple[str, str]] = []
+        real = mod.record_briefing
+
+        def spy(**kwargs):
+            storages.append((kwargs["document_id"], kwargs["storage"]))
+            return real(**kwargs)
+
+        monkeypatch.setattr(mod, "record_briefing", spy)
+        ship = _Ship()
+        seen: list[Path] = []
+        stats = _run(
+            db, tmp_path, routes, [], codes=["72030"],
+            disk_usage=_usage(mod.MIN_FREE_BYTES, seen), rclone=ship,
+        )
+        assert stats.stopped == "done" and stats.saved == 4 and stats.failed == 0
+        assert _scanned() == ["72030"]
+        assert seen and all(path == tmp_path for path in seen)
+        assert [call[0] for call in ship.calls] == ["copy", "check"]
+        assert ship.roots and ship.roots[0] != tmp_path
+        assert not any(root == tmp_path or tmp_path in root.parents for root in ship.roots)
+        local_ids = {latest, keep}
+        remote_ids = {boundary, older}
+        assert {doc for doc, storage in storages if storage == STORAGE_LOCAL} == local_ids
+        assert {doc for doc, storage in storages if storage == STORAGE_ONEDRIVE} == remote_ids
+        for doc in local_ids:
+            row = _row(SOURCE_IRBANK, doc)
+            assert row is not None and row.storage == STORAGE_LOCAL
+            assert (tmp_path / row.rel_path).read_bytes() == bodies[doc]
+        sent: set[str] = set()
+        for doc in remote_ids:
+            row = _row(SOURCE_IRBANK, doc)
+            assert row is not None and row.storage == STORAGE_ONEDRIVE
+            assert not (tmp_path / row.rel_path).exists()
+            sent.add(row.rel_path)
+            with open_briefing(row.rel_path, storage=STORAGE_ONEDRIVE, remote_get=ship.by_rel.get) as path:
+                assert path.read_bytes() == bodies[doc]
+        assert set(ship.files_from[0]) == sent
+    finally:
+        db.close()
+
+
+def test_existing_index_moves_the_cutoff_and_a_lone_latest_stays(tmp_path: Path) -> None:
+    db = _db()
+    try:
+        _stock(db, "72030", "トヨタ自動車", "011")
+        _stock(db, "11110", "別の会社", "011")
+        record_briefing(
+            source=SOURCE_TDNET, document_id="140120260301000099", code="72030",
+            company_name="トヨタ自動車", pubdate="2026-03-01 15:00:00", title=MAT,
+            rel_path="7203/already.pdf", url=None, sha256="abc", size=3,
+        )
+        old = "140120240101000004"
+        lone = "140120190101000111"
+        routes = {
+            "https://irbank.net/7203/ir": _page("7203", [
+                (old, "2024年3月期決算説明資料", "2024/01/01", "15:00"),
+            ]),
+            "https://irbank.net/1111/ir": _page("1111", [
+                (lone, "2019年3月期決算説明資料", "2019/01/01", "15:00"),
+            ]),
+            f"https://api.irbank.net/api/market-files/v1/tdnet/{old[-14:]}.pdf": PDF + b"old",
+            f"https://api.irbank.net/api/market-files/v1/tdnet/{lone[-14:]}.pdf": PDF + b"lone",
+        }
+        ship = _Ship()
+        stats = _run(db, tmp_path, routes, [], codes=None, rclone=ship)
+        assert stats.stopped == "done" and stats.saved == 2
+        old_row = _row(SOURCE_IRBANK, old)
+        lone_row = _row(SOURCE_IRBANK, lone)
+        assert old_row is not None and old_row.storage == STORAGE_ONEDRIVE
+        assert not (tmp_path / old_row.rel_path).exists()
+        assert lone_row is not None and lone_row.storage == STORAGE_LOCAL
+        assert (tmp_path / lone_row.rel_path).read_bytes() == PDF + b"lone"
+        assert ship.files_from == [[old_row.rel_path]]
+        assert _scanned() == ["11110", "72030"]
+    finally:
+        db.close()
+
+
+def test_low_disk_before_a_temp_file_does_not_ship(tmp_path: Path) -> None:
+    db = _db()
+    try:
+        _stock(db, "72030", "トヨタ自動車", "011")
+        record_briefing(
+            source=SOURCE_TDNET, document_id="140120260301000099", code="72030",
+            company_name="トヨタ自動車", pubdate="2026-03-01 15:00:00", title=MAT,
+            rel_path="7203/already.pdf", url=None, sha256="abc", size=3,
+        )
+        old = "140120240101000004"
+        routes = {
+            "https://irbank.net/7203/ir": _page("7203", [
+                (old, "2024年3月期決算説明資料", "2024/01/01", "15:00"),
+            ]),
+            f"https://api.irbank.net/api/market-files/v1/tdnet/{old[-14:]}.pdf": PDF,
+        }
+        seen: list[Path] = []
+
+        def boom(argv, timeout):  # noqa: ARG001
+            raise AssertionError(argv)
+
+        stats = _run(
+            db, tmp_path, routes, [], codes=["72030"],
+            disk_usage=_usage(mod.MIN_FREE_BYTES - 1, seen), rclone=boom,
+        )
+        assert stats.stopped == "disk_low" and stats.exit_code == 0 and stats.saved == 0
+        assert seen and all(path == tmp_path for path in seen)
+        assert _scanned() == []
+        assert _row(SOURCE_IRBANK, old) is None
+        assert list(tmp_path.rglob("*.pdf")) == []
+    finally:
+        db.close()
+
+
+def test_a_failed_offsite_file_is_retried_and_the_match_is_not(tmp_path: Path) -> None:
+    db = _db()
+    try:
+        _stock(db, "72030", "トヨタ自動車", "011")
+        bad = "140120200101000001"
+        good = "140120210101000002"
+        page = _page("7203", [
+            ("140120260301000003", "2026年3月期決算説明資料", "2026/03/01", "15:00"),
+            (good, "2021年3月期決算説明資料", "2021/01/01", "15:00"),
+            (bad, "2020年3月期決算説明資料", "2020/01/01", "15:00"),
+        ])
+        routes = {
+            "https://irbank.net/7203/ir": page,
+            "https://api.irbank.net/api/market-files/v1/tdnet/20260301000003.pdf": PDF + b"new",
+            "https://api.irbank.net/api/market-files/v1/tdnet/20210101000002.pdf": PDF + b"good",
+            "https://api.irbank.net/api/market-files/v1/tdnet/20200101000001.pdf": PDF + b"bad",
+        }
+        calls: list[str] = []
+        first_ship = _Ship()
+        # differ は rel が実行まで分からないので、check のときに後から埋める。
+        def marking(argv, timeout):
+            result = _Ship.__call__(first_ship, argv, timeout)
+            if argv[0] == "copy":
+                for rel in first_ship.files_from[-1]:
+                    if "20200101" in rel:
+                        first_ship.differ.add(rel)
+            return result
+
+        first = _run(
+            db, tmp_path, routes, calls, codes=["72030"], rclone=marking,
+            disk_usage=_usage(mod.MIN_FREE_BYTES),
+        )
+        assert first.stopped == "done" and first.failed == 1 and first.saved == 2
+        assert _scanned() == []
+        assert _row(SOURCE_IRBANK, bad) is None
+        good_row = _row(SOURCE_IRBANK, good)
+        assert good_row is not None and good_row.storage == STORAGE_ONEDRIVE
+        assert not (tmp_path / good_row.rel_path).exists()
+        calls.clear()
+        second_ship = _Ship()
+        second = _run(
+            db, tmp_path, routes, calls, codes=["72030"], rclone=second_ship,
+            disk_usage=_usage(mod.MIN_FREE_BYTES),
+        )
+        assert second.stopped == "done" and second.failed == 0 and second.saved == 1
+        assert _scanned() == ["72030"]
+        assert "20260301000003" not in "".join(calls)
+        assert "20210101000002" not in "".join(calls)
+        bad_row = _row(SOURCE_IRBANK, bad)
+        assert bad_row is not None and bad_row.storage == STORAGE_ONEDRIVE
+        assert second_ship.files_from == [[bad_row.rel_path]]
+    finally:
+        db.close()

@@ -238,7 +238,7 @@ IR BANK の過去の決算説明資料（`tools/briefing/irbank_ingest.py`。KAB
 - 対象は普通株（`stocks.product_category` が内国株券 `011` または外国株券 `021`）と REIT（`013`）。ETF（`014`）と外国 ETF / ETN（`023`）は除く。REIT でも名称に「ファンド」または「インフラ」がある投資法人は除く。区分が空の銘柄は、名称がファンド・投資信託・ETF・ETN でなければ残す。KAB-325 の `tanshin_covers` と同じ考え方
 - 一覧は `https://irbank.net/{4桁}/ir` を 1 社 1 回。同じ 4 桁の株は末尾 0 の行を代表にする。表題の採否は `is_material_title` だけ。PDF は `https://api.irbank.net/api/market-files/v1/tdnet/{18桁の末尾14桁}.pdf`（`tools/tdnet_pdf/ingest.py` と同じ）
 - 保存先とファイル名は TDnet のジョブと同じ（`data/briefing/{4桁}/YYYYMMDD_CODE_名前_表題.pdf`）。索引の code は 5 桁、document_id は 18 桁の開示番号。同じ番号、またはその末尾 14 桁が、どの source でも索引にあれば取り直さない
-- 読み終えた銘柄は `briefing_irbank_scans`（code / scanned_at / listed / saved / skipped / reindexed / missing / failed）。429 / 503 で止めた銘柄と、PDF の取得に失敗した銘柄は行を書かないので次の実行が続きから。PDF が 404 だけの銘柄は行を書く。成功した PDF は索引にあるので取り直さない。`--rescan` を付けるとこの表を無視して一覧を読み直す（`--code` と `--all` のどちらとも。KAB-338）。索引にある PDF は取り直さず、新しく対象になったものだけ保存する。付けないときの対象は変わらない
+- 読み終えた銘柄は `briefing_irbank_scans`（code / scanned_at / listed / saved / skipped / reindexed / missing / failed）。429 / 503 で止めた銘柄、空き不足で止めた銘柄、PDF の取得に失敗した銘柄は行を書かないので次の実行が続きから。PDF を書く直前に `shutil.disk_usage(--dest).free` を見て、25GiB（`MIN_FREE_BYTES`）未満ならその PDF は書かず `stopped=disk_low`、終了コード 0（KAB-355）。一時ファイルの直前も同じ。同じ `code` の既存索引と今回の一覧を合わせた最新から 1 年以上前の PDF は `data/briefing` に置かず、一時ファイルからその会社の分だけ下のバッチで OneDrive へ送り、一致したものだけ索引を最初から `storage=onedrive` で書く。最新そのものは手元に残す。PDF が 404 だけの銘柄は行を書く。成功した PDF は索引にあるので取り直さない。`--rescan` を付けるとこの表を無視して一覧を読み直す（`--code` と `--all` のどちらとも。KAB-338）。索引にある PDF は取り直さず、新しく対象になったものだけ保存する。付けないときの対象は変わらない
 - 一覧の SELECT は読み終わったら閉じ、PDF の取得中はトランザクションを持たない。索引（`briefing_documents`）と進捗（`briefing_irbank_scans`）の UPSERT は `run_sqlite_write` で locked を数回、待ちを伸ばして再試行する（KAB-305 と同じ。KAB-332）
 - `--limit` はこの実行の社数。`--sleep` は請求の間隔（既定 1 秒）。`--dry-run` は一覧だけ見て、PDF も索引も `briefing_irbank_scans` も書かない（見た社は残件のまま）。`--rescan` でも `remaining` は scans が無い社数のまま（読み直した社は残件に入らない）
 - 手での実行は `deploy/README.md`。デプロイでも cron でも走らない
@@ -247,7 +247,7 @@ IR BANK の過去の決算説明資料（`tools/briefing/irbank_ingest.py`。KAB
 
 - 会社（索引の `code`）ごとに、資料の日付の最新から 1 年以上前の PDF だけを移す。日付はファイル名先頭の `YYYYMMDD`、取れなければ `pubdate`。最新の日付そのものは残る。別の会社の日付では切らない
 - 置き場所は backup と同じ `BACKUP_OFFSITE_REMOTE` / `BACKUP_OFFSITE_PATH`（既定 `onedrive:stock-analyzer-backups`）の `data/briefing/` の下。相対パス（`rel_path`）は変えない
-- 1 ファイルの順は rclone `copyto`、サイズが手元と一致、`storage=onedrive`、手元を削除。どれかで失敗したファイルは索引も手元も変えない。行は消さない（`status` も `rel_path` も残す）。移し済みで手元だけ残っているときは、同じ順でもう一度やってから消す
+- 対象はバッチごとに取り直す。1 回の rclone は `BATCH_SIZE` 件（100。50〜200 のあいだ）を `copy --files-from`（`--transfers` は `TRANSFERS`=4）で送り、`check --one-way` で一致したものだけ `storage=onedrive` にしてから手元を削除する（KAB-355）。copy が非ゼロでも、check で一致した分は進める。一致しないファイルと、check 自体が失敗したバッチは索引も手元も変えない。行は消さない（`status` も `rel_path` も残す）。途中で落ちても、同じコマンドの再実行で続きから揃う。移し済みで手元だけ残っているときも、同じバッチにもう一度載せてから消す
 - `--dry-run` は対象を出すだけ。`--limit` はこの実行で手を付ける最大件数。何度流しても、移るものは移った状態に揃う
 - 毎日 1 回、`deploy/crontab` から `deploy/cron-run.sh` で動く（KAB-353）。同じジョブが既に動いているときは移さず終わる（終了コード 0）。ロックを持たない、先に手で始めたプロセスも対象なので、全件移動の途中で cron が来ても二重には移さない。手では `deploy/cron-run.sh jobs/market/briefing_offsite.py --dry-run` のあと、`--limit` を付けて少しずつ
 - 読む側は `app/market/briefing_files.open_briefing`。`storage=onedrive` は rclone で一時ファイルにして読み、`data/briefing` には戻さない。`analyzer/agent_forecast/fetch_docs.py` の説明資料と、下の読み取りジョブは、索引にあればここから取る

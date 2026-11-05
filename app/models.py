@@ -77,7 +77,7 @@ class BriefingIrbankScan(Base):
 
     過去分の一括取得が 1 社 1 回で済むようにする。行がある銘柄は次の実行で一覧を取りに行かない。
     tools/briefing/irbank_ingest.py の --rescan を付けたときだけ、記録を無視して読み直す。
-    429 / 503 で止めた銘柄と、PDF の取得に失敗した銘柄は行を書かないので、次の実行が続きから取る。
+    429 / 503 で止めた銘柄、空き不足で止めた銘柄、PDF の取得に失敗した銘柄は行を書かないので、次の実行が続きから取る。
     """
     __tablename__ = "briefing_irbank_scans"
     code = Column(String(5), primary_key=True)          # 代表の 5 桁（末尾 0 を優先）
