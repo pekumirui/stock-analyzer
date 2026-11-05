@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import io
-import json
 import os
 import subprocess
 import sys
@@ -85,44 +84,86 @@ def _rows() -> list[BriefingDocument]:
         db.close()
 
 
+def _flag(argv: list[str], name: str) -> str:
+    try:
+        return argv[argv.index(name) + 1]
+    except (ValueError, IndexError) as exc:
+        raise AssertionError(argv) from exc
+
+
+def _listed(argv: list[str]) -> list[str]:
+    text = Path(_flag(argv, "--files-from")).read_text(encoding="utf-8")
+    return [line.strip() for line in text.splitlines() if line.strip()]
+
+
 class _Rclone:
-    def __init__(self, root: Path, *, fail: str | None = None, remote_size: int | None = None) -> None:
+    """copy --files-from で受け、check --one-way の combined を書く。"""
+
+    def __init__(
+        self,
+        root: Path,
+        *,
+        fail: str | None = None,
+        remote_size: int | None = None,
+        differ: set[str] | None = None,
+        copy_rc: int = 0,
+        already_offsite: bool = False,
+    ) -> None:
         self.root = root
         self.fail = fail
         self.remote_size = remote_size
+        self.differ = differ or set()
+        self.copy_rc = copy_rc
+        self.already_offsite = already_offsite
         self.calls: list[list[str]] = []
         self.by_rel: dict[str, bytes] = {}
-
-    def rel_of(self, remote: str) -> str:
-        matches = [rel for rel in self.by_rel if remote.endswith(rel)]
-        if not matches:
-            raise AssertionError(remote)
-        return max(matches, key=len)
+        self.files_from: list[list[str]] = []
 
     def __call__(self, argv: list[str], timeout: float) -> CmdResult:  # noqa: ARG002
         op = argv[0]
         self.calls.append(list(argv))
-        if op == "move" or op == "delete" or op == "deletefile":
+        if op in ("copyto", "size", "move", "delete", "deletefile"):
             raise AssertionError(argv)
         if op == self.fail:
-            return CmdResult(1, "", "boom")
-        if op == "copyto":
-            src = Path(argv[1])
-            rel = src.resolve().relative_to(self.root.resolve()).as_posix()
-            if not argv[2].endswith(rel):
+            return CmdResult(2 if op == "check" else 1, "", "boom")
+        if op == "copy":
+            rels = _listed(argv)
+            self.files_from.append(rels)
+            if not str(argv[2]).rstrip("/").endswith("data/briefing"):
                 raise AssertionError(argv[2])
-            saved = get_saved(SOURCE_TDNET, _doc_id(rel))
-            if saved is None or saved.storage != STORAGE_LOCAL or not src.is_file():
-                raise AssertionError("copy before the index is still local")
-            self.by_rel[rel] = src.read_bytes()
-            return CmdResult(0, "", "")
-        if op == "size":
-            rel = self.rel_of(argv[1])
-            saved = get_saved(SOURCE_TDNET, _doc_id(rel))
-            if saved is None or saved.storage != STORAGE_LOCAL or not (self.root / rel).is_file():
-                raise AssertionError("size before the local file is removed")
-            size = self.remote_size if self.remote_size is not None else len(self.by_rel[rel])
-            return CmdResult(0, json.dumps({"bytes": size}), "")
+            for rel in rels:
+                src = self.root / rel
+                if not src.is_file():
+                    raise AssertionError(rel)
+                saved = get_saved(SOURCE_TDNET, _doc_id(rel))
+                if saved is None:
+                    raise AssertionError(rel)
+                if not self.already_offsite and saved.storage != STORAGE_LOCAL:
+                    raise AssertionError("index changed before copy")
+                self.by_rel[rel] = src.read_bytes()
+            return CmdResult(self.copy_rc, "", "" if self.copy_rc == 0 else "partial")
+        if op == "check":
+            if "--one-way" not in argv:
+                raise AssertionError(argv)
+            rels = _listed(argv)
+            lines: list[str] = []
+            bad = False
+            for rel in rels:
+                if not (self.root / rel).is_file():
+                    raise AssertionError("removed before check")
+                saved = get_saved(SOURCE_TDNET, _doc_id(rel))
+                if saved is None:
+                    raise AssertionError(rel)
+                if not self.already_offsite and saved.storage != STORAGE_LOCAL:
+                    raise AssertionError("index changed before check")
+                size = self.remote_size if self.remote_size is not None else len(self.by_rel.get(rel, b""))
+                if rel not in self.by_rel or rel in self.differ or size != len(self.by_rel[rel]):
+                    lines.append(f"* {rel}")
+                    bad = True
+                else:
+                    lines.append(f"= {rel}")
+            Path(_flag(argv, "--combined")).write_text("\n".join(lines) + "\n", encoding="utf-8")
+            return CmdResult(1 if bad else 0, "", "")
         return CmdResult(1, "", f"unexpected {op}")
 
 
@@ -188,8 +229,9 @@ def test_only_files_a_year_older_than_the_companys_latest_move(tmp_path: Path) -
     for rel in kept:
         assert (root / rel).is_file(), rel
         assert get_saved(SOURCE_TDNET, _IDS[rel]).storage == STORAGE_LOCAL
-    verbs = [call[0] for call in rclone.calls]
-    assert verbs == ["copyto", "size"] * len(moved)
+    assert [call[0] for call in rclone.calls] == ["copy", "check"]
+    assert set(rclone.files_from[0]) == moved
+    assert not (set(rclone.files_from[0]) & kept)
     again = _Rclone(root)
     rc2, out2 = _run(root, again)
     assert rc2 == 0, out2
@@ -234,14 +276,14 @@ def test_copy_failure_keeps_local_file_and_index(tmp_path: Path) -> None:
         root, code="72030", rel="7203/20260301_7203_new.pdf",
         pubdate="2026-03-01 00:00:00", document_id="fresh",
     )
-    rclone = _Rclone(root, fail="copyto")
+    rclone = _Rclone(root, fail="copy")
     rc, out = _run(root, rclone)
     assert rc == 1
     assert "fail" in out
     assert (root / rel).read_bytes() == PDF
     saved = get_saved(SOURCE_TDNET, "copyfail")
     assert saved is not None and saved.storage == STORAGE_LOCAL and saved.rel_path == rel
-    assert all(call[0] != "size" for call in rclone.calls)
+    assert [call[0] for call in rclone.calls] == ["copy", "check"]
 
 
 def test_size_mismatch_keeps_local_file_and_index(tmp_path: Path) -> None:
@@ -260,7 +302,7 @@ def test_size_mismatch_keeps_local_file_and_index(tmp_path: Path) -> None:
     assert rc == 1
     assert (root / rel).read_bytes() == PDF
     assert get_saved(SOURCE_TDNET, "sizemismatch").storage == STORAGE_LOCAL
-    assert [call[0] for call in rclone.calls] == ["copyto", "size"]
+    assert [call[0] for call in rclone.calls] == ["copy", "check"]
 
 
 def test_limit_moves_the_oldest_first(tmp_path: Path) -> None:
@@ -280,7 +322,7 @@ def test_limit_moves_the_oldest_first(tmp_path: Path) -> None:
     rclone = _Rclone(root)
     rc, out = _run(root, rclone, limit=1)
     assert rc == 0, out
-    assert "batch=1" in out
+    assert "files=1" in out
     assert not (root / older).exists()
     assert (root / later).is_file()
     assert get_saved(SOURCE_TDNET, "older").storage == STORAGE_ONEDRIVE
@@ -301,32 +343,158 @@ def test_leftover_local_file_is_removed_on_the_next_run(tmp_path: Path) -> None:
         root, code="72030", rel="7203/20260301_7203_new.pdf",
         pubdate="2026-03-01 00:00:00", document_id="fresh",
     )
-    # 索引は更新済みで手元が残っている。コピーの時点ではもう local ではない。
-    calls: list[str] = []
-
-    def allow_already_offsite(argv, timeout):  # noqa: ARG001
-        calls.append(argv[0])
-        if argv[0] in ("move", "delete", "deletefile"):
-            raise AssertionError(argv)
-        if argv[0] == "copyto":
-            src = Path(argv[1])
-            rel_now = src.resolve().relative_to(root.resolve()).as_posix()
-            if not argv[2].endswith(rel_now) or not src.is_file():
-                raise AssertionError(argv)
-            return CmdResult(0, "", "")
-        if argv[0] == "size":
-            if not (root / rel).is_file():
-                raise AssertionError("removed before size check")
-            return CmdResult(0, json.dumps({"bytes": (root / rel).stat().st_size}), "")
-        return CmdResult(1, "", argv[0])
-
-    rc, out = _run(root, allow_already_offsite)
-    assert calls == ["copyto", "size"]
+    rclone = _Rclone(root, already_offsite=True)
+    rc, out = _run(root, rclone)
+    assert [call[0] for call in rclone.calls] == ["copy", "check"]
     assert rc == 0, out
     assert not (root / rel).exists()
     saved = get_saved(SOURCE_TDNET, "half")
     assert saved is not None and saved.storage == STORAGE_ONEDRIVE and saved.rel_path == rel
     assert len(_rows()) == 2
+
+
+def test_one_mismatch_does_not_block_the_files_that_match(tmp_path: Path) -> None:
+    _clear()
+    _IDS.clear()
+    root = tmp_path / "briefing"
+    older = "7203/20200101_7203_older.pdf"
+    later = "7203/20240101_7203_later.pdf"
+    fresh = "7203/20260301_7203_new.pdf"
+    _IDS[older] = "older"
+    _IDS[later] = "later"
+    _add(root, code="72030", rel=older, pubdate="2020-01-01 00:00:00", document_id="older", body=PDF + b"a")
+    _add(root, code="72030", rel=later, pubdate="2024-01-01 00:00:00", document_id="later", body=PDF + b"b")
+    _add(root, code="72030", rel=fresh, pubdate="2026-03-01 00:00:00", document_id="fresh", body=PDF + b"c")
+    rclone = _Rclone(root, differ={later})
+    rc, out = _run(root, rclone)
+    assert rc == 1, out
+    assert [call[0] for call in rclone.calls] == ["copy", "check"]
+    assert set(rclone.files_from[0]) == {older, later}
+    assert not (root / older).exists()
+    assert (root / later).read_bytes() == PDF + b"b"
+    assert (root / fresh).is_file()
+    assert get_saved(SOURCE_TDNET, "older").storage == STORAGE_ONEDRIVE
+    assert get_saved(SOURCE_TDNET, "later").storage == STORAGE_LOCAL
+
+
+def test_nonzero_copy_still_moves_files_the_check_accepts(tmp_path: Path) -> None:
+    _clear()
+    _IDS.clear()
+    root = tmp_path / "briefing"
+    rel = "7203/20200101_7203_old.pdf"
+    _IDS[rel] = "partial"
+    _add(root, code="72030", rel=rel, pubdate="2020-01-01 00:00:00", document_id="partial", body=PDF + b"p")
+    _add(
+        root, code="72030", rel="7203/20260301_7203_new.pdf",
+        pubdate="2026-03-01 00:00:00", document_id="fresh", body=PDF + b"n",
+    )
+    rclone = _Rclone(root, copy_rc=1)
+    rc, out = _run(root, rclone)
+    assert rc == 0, out
+    assert not (root / rel).exists()
+    assert get_saved(SOURCE_TDNET, "partial").storage == STORAGE_ONEDRIVE
+    assert rclone.by_rel[rel] == PDF + b"p"
+
+
+def test_check_error_keeps_every_local_file(tmp_path: Path) -> None:
+    _clear()
+    _IDS.clear()
+    root = tmp_path / "briefing"
+    rel = "7203/20200101_7203_old.pdf"
+    _IDS[rel] = "checkfail"
+    _add(root, code="72030", rel=rel, pubdate="2020-01-01 00:00:00", document_id="checkfail")
+    _add(
+        root, code="72030", rel="7203/20260301_7203_new.pdf",
+        pubdate="2026-03-01 00:00:00", document_id="fresh",
+    )
+    rclone = _Rclone(root, fail="check")
+    rc, _out = _run(root, rclone)
+    assert rc == 1
+    assert (root / rel).read_bytes() == PDF
+    assert get_saved(SOURCE_TDNET, "checkfail").storage == STORAGE_LOCAL
+    assert [call[0] for call in rclone.calls] == ["copy", "check"]
+
+
+def test_index_failure_leaves_the_file_for_the_next_run(tmp_path: Path, monkeypatch) -> None:
+    _clear()
+    _IDS.clear()
+    root = tmp_path / "briefing"
+    rel = "7203/20200101_7203_old.pdf"
+    _IDS[rel] = "crash"
+    body = PDF + b"crash"
+    _add(root, code="72030", rel=rel, pubdate="2020-01-01 00:00:00", document_id="crash", body=body)
+    _add(
+        root, code="72030", rel="7203/20260301_7203_new.pdf",
+        pubdate="2026-03-01 00:00:00", document_id="fresh", body=PDF + b"n",
+    )
+    import jobs.market.briefing_offsite as offsite
+
+    real = offsite.mark_storage
+    calls = {"n": 0}
+
+    def flaky(source: str, document_id: str, storage: str) -> None:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("crash")
+        real(source, document_id, storage)
+
+    monkeypatch.setattr(offsite, "mark_storage", flaky)
+    first = _Rclone(root)
+    rc, out = _run(root, first)
+    assert rc == 1, out
+    assert (root / rel).read_bytes() == body
+    assert get_saved(SOURCE_TDNET, "crash").storage == STORAGE_LOCAL
+    second = _Rclone(root)
+    rc2, out2 = _run(root, second)
+    assert rc2 == 0, out2
+    assert not (root / rel).exists()
+    assert get_saved(SOURCE_TDNET, "crash").storage == STORAGE_ONEDRIVE
+    with open_briefing(rel, storage=STORAGE_ONEDRIVE, remote_get=second.by_rel.get) as path:
+        assert path.read_bytes() == body
+
+
+def test_each_batch_rereads_what_is_still_local(tmp_path: Path, monkeypatch) -> None:
+    _clear()
+    _IDS.clear()
+    import jobs.market.briefing_offsite as offsite
+
+    monkeypatch.setattr(offsite, "BATCH_SIZE", 1)
+    root = tmp_path / "briefing"
+    older = "7203/20200101_7203_older.pdf"
+    later = "7203/20240101_7203_later.pdf"
+    extra = "7203/20190101_7203_extra.pdf"
+    fresh = "7203/20260301_7203_new.pdf"
+    _IDS[older] = "older"
+    _IDS[later] = "later"
+    _add(root, code="72030", rel=older, pubdate="2020-01-01 00:00:00", document_id="older", body=PDF + b"a")
+    _add(root, code="72030", rel=later, pubdate="2024-01-01 00:00:00", document_id="later", body=PDF + b"b")
+    _add(root, code="72030", rel=fresh, pubdate="2026-03-01 00:00:00", document_id="fresh", body=PDF + b"c")
+    added = {"done": False}
+
+    class _Adding(_Rclone):
+        def __call__(self, argv: list[str], timeout: float) -> CmdResult:
+            result = super().__call__(argv, timeout)
+            if argv[0] == "check" and not added["done"]:
+                added["done"] = True
+                _IDS[extra] = "extra"
+                _add(
+                    root, code="72030", rel=extra, pubdate="2019-01-01 00:00:00",
+                    document_id="extra", body=PDF + b"e",
+                )
+            return result
+
+    rclone = _Adding(root)
+    rc, out = _run(root, rclone)
+    assert rc == 0, out
+    assert extra not in rclone.files_from[0]
+    assert all(len(batch) == 1 for batch in rclone.files_from)
+    assert any(extra in batch for batch in rclone.files_from[1:])
+    assert not (root / extra).exists()
+    assert not (root / older).exists()
+    assert not (root / later).exists()
+    assert (root / fresh).is_file()
+    assert get_saved(SOURCE_TDNET, "extra").storage == STORAGE_ONEDRIVE
+    assert get_saved(SOURCE_TDNET, "fresh").storage == STORAGE_LOCAL
 
 
 def test_moved_rows_stay_saved_for_lookup() -> None:

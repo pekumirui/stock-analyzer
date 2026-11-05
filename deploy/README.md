@@ -304,7 +304,7 @@ deploy/cron-run.sh jobs/market/run_batch.py --refetch-prices   # ログは batch
 deploy/cron-run.sh jobs/market/run_batch.py --readjust-prices
 ```
 
-TDnet が約 30 日で消すより前の決算説明資料（KAB-330）は、IR BANK の開示一覧から一度だけ手で取る。cron には入れない。毎日の分は 22:10 の `jobs/market/tdnet_briefing_r2.py`。429 / 503 で止まっても、次の実行は未了の銘柄から続く。`--limit` は 1 回の社数。`--dry-run` は一覧だけ見て PDF も索引も書かない。`--rescan` は読み終えた社の一覧も読み直す（`--code` と `--all` のどちらとも。KAB-338）。索引にある PDF は取り直さない。ログは `deploy/cron-run.sh` なら `/var/log/app/irbank_ingest.log`（`batch_logs` の `job=irbank_ingest`）。
+TDnet が約 30 日で消すより前の決算説明資料（KAB-330）は、IR BANK の開示一覧から一度だけ手で取る。cron には入れない。毎日の分は 22:10 の `jobs/market/tdnet_briefing_r2.py`。429 / 503 で止まっても、次の実行は未了の銘柄から続く。PDF を書く直前に保存先の空きを見て、25GiB 未満なら `stopped=disk_low` で終了コード 0（その社は未了のまま。KAB-355）。同じ code の最新資料から 1 年以上前の PDF は手元に残さず、その会社の分だけ OneDrive へ送って索引は最初から `onedrive`。`--limit` は 1 回の社数。`--dry-run` は一覧だけ見て PDF も索引も書かない。`--rescan` は読み終えた社の一覧も読み直す（`--code` と `--all` のどちらとも。KAB-338）。索引にある PDF は取り直さない。ログは `deploy/cron-run.sh` なら `/var/log/app/irbank_ingest.log`（`batch_logs` の `job=irbank_ingest`）。
 
 ```bash
 python tools/briefing/irbank_ingest.py --code 7203 --dry-run
@@ -320,7 +320,7 @@ deploy/cron-run.sh jobs/market/briefing_extract.py collect
 python jobs/market/briefing_extract.py status
 ```
 
-1 年以上前の決算説明資料（KAB-345）は `jobs/market/briefing_offsite.py` が OneDrive へ移す。会社ごとに最新の資料の日付から 1 年以上前の PDF だけ。順はコピー、サイズ確認、索引を `onedrive` に更新、手元の削除。行は消さない。`--dry-run` は対象を出すだけ。`--limit` はその実行の件数。毎日 1 回 cron が動かす（KAB-353。01:40 JST）。同じジョブが既に動いているときは移さず終わる。手の全件移動が先に走っていても二重にはならない。ログは `deploy/cron-run.sh` なら `/var/log/app/briefing_offsite.log`（`batch_logs` の `job=briefing_offsite`）。
+1 年以上前の決算説明資料（KAB-345、送り方は KAB-355）は `jobs/market/briefing_offsite.py` が OneDrive へ移す。会社ごとに最新の資料の日付から 1 年以上前の PDF だけ。対象はバッチごとに取り直し、`rclone copy --files-from` でまとめて送り、`check --one-way` で一致したものだけ索引を `onedrive` にしてから手元を消す。行は消さない。途中で落ちても再実行で続きから揃う。`--dry-run` は対象を出すだけ。`--limit` はその実行の件数。毎日 1 回 cron が動かす（KAB-353。01:40 JST）。同じジョブが既に動いているときは移さず終わる。1 件ずつ送っている古いプロセスが残っている間も、新しい実行は移さない。止めてから次を始める。手の全件移動が先に走っていても二重にはならない。ログは `deploy/cron-run.sh` なら `/var/log/app/briefing_offsite.log`（`batch_logs` の `job=briefing_offsite`）。
 
 ```bash
 deploy/cron-run.sh jobs/market/briefing_offsite.py --dry-run

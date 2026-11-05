@@ -12,6 +12,11 @@ https://api.irbank.net/api/market-files/v1/tdnet/{18桁の末尾14桁}.pdf。
 
 429 / 503 で止める（終了コード 0）。その銘柄は briefing_irbank_scans に書かないので、次の実行が続きから。
 PDF の取得に失敗した銘柄も書かない（404 だけなら書く）。成功した PDF は索引にあるので取り直さない。
+PDF を書く直前に shutil.disk_usage(--dest).free を見る。空きが MIN_FREE_BYTES 未満なら、
+その社は scans に書かず stopped=disk_low、終了コード 0。一時ファイルの直前も同じ。
+同じ code の既存索引と今回の一覧を合わせた最新の日付から 1 年以上前の PDF は data/briefing に置かない。
+一時ファイルへ書き、その会社の分だけ jobs/market/briefing_offsite.py と同じバッチで OneDrive へ送る。
+一致したものだけ索引を最初から onedrive で書く。最新そのものは手元に残す。
 --limit はこの実行の社数。--dry-run は一覧だけ見て、PDF も索引も進捗も書かない。
 --rescan は briefing_irbank_scans を無視して一覧を読み直す。--code とも --all とも併用できる。
 索引にある PDF は取り直さない。付けないときの対象は、読み終えた社を飛ばす今までどおり。
@@ -20,7 +25,7 @@ PDF の取得に失敗した銘柄も書かない（404 だけなら書く）。
   python tools/briefing/irbank_ingest.py --all --limit 80 --sleep 1
   deploy/cron-run.sh tools/briefing/irbank_ingest.py --all --limit 80 --sleep 1
 
-最後の 1 行: irbank_briefing stopped=<done|limit|rate_limited> companies=… listed=…
+最後の 1 行: irbank_briefing stopped=<done|limit|rate_limited|disk_low> companies=… listed=…
 saved=… skipped=… reindexed=… missing=… failed=… remaining=…
 remaining は実行後にまだ scans が無い対象社数。--rescan で読み直した社は数えない。
 --dry-run は進捗を書かないので、見た社も残る。
@@ -32,12 +37,14 @@ import argparse
 import hashlib
 import html
 import re
+import shutil
 import sys
+import tempfile
 import time
 import unicodedata
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -51,22 +58,33 @@ from sqlalchemy.orm import Session  # noqa: E402
 from app.db import SessionLocal, init_db, run_sqlite_write, upsert  # noqa: E402
 from app.market.briefing_store import (  # noqa: E402
     SOURCE_IRBANK,
+    STATUS_SAVED,
+    STORAGE_LOCAL,
+    STORAGE_ONEDRIVE,
     record_briefing,
     saved_document_ids,
 )
 from app.market.briefing_title import is_material_title  # noqa: E402
-from app.models import BriefingIrbankScan, Stock  # noqa: E402
+from app.models import BriefingDocument, BriefingIrbankScan, Stock  # noqa: E402
 from jobs._r2common import (  # noqa: E402
     abort_if_disconnected,
     fail_if_mount_down,
     is_mount_disconnect_error,
 )
+from jobs.market import briefing_offsite  # noqa: E402
 from jobs.monthly.tdnet_monthly_r2 import dest_path  # noqa: E402
+from jobs.ops.backup_db import (  # noqa: E402
+    RcloneRunFn,
+    make_rclone_runner,
+    offsite_settings_from_env,
+)
 from jobs.share_paths import share_path  # noqa: E402
 
 LIST_URL = "https://irbank.net/{code}/ir"
 PDF_URL = "https://api.irbank.net/api/market-files/v1/tdnet/{no}.pdf"
 USER_AGENT = "stock-analyzer/1.0 (personal; tools/briefing)"
+# df の GiB で 25G。未満なら PDF を書かず止める（KAB-355）。
+MIN_FREE_BYTES = 25 * 1024 * 1024 * 1024
 DEFAULT_DEST = str(share_path("briefing"))
 JST = ZoneInfo("Asia/Tokyo")
 # J-Quants ProdCat。KAB-325 の tanshin_covers と同じ。011 内国株券、021 外国株券、013 REIT。
@@ -381,7 +399,14 @@ def write_pdf(path: Path, data: bytes) -> None:
     tmp.replace(path)
 
 
-def _index(issuer: Issuer, item: Disclosure, dest: Path, path: Path, data: bytes) -> None:
+def _index(
+    issuer: Issuer,
+    item: Disclosure,
+    rel_path: str,
+    data: bytes,
+    *,
+    storage: str = STORAGE_LOCAL,
+) -> None:
     record_briefing(
         source=SOURCE_IRBANK,
         document_id=item.document_id,
@@ -389,10 +414,11 @@ def _index(issuer: Issuer, item: Disclosure, dest: Path, path: Path, data: bytes
         company_name=issuer.name or None,
         pubdate=item.pubdate,
         title=item.title,
-        rel_path=path.relative_to(dest).as_posix(),
+        rel_path=rel_path,
         url=PDF_URL.format(no=item.pdf_id),
         sha256=hashlib.sha256(data).hexdigest(),
         size=len(data),
+        storage=storage,
     )
 
 
@@ -429,6 +455,100 @@ def _pause(sleep: float, state: dict[str, int]) -> None:
     state["n"] += 1
 
 
+@dataclass
+class _Staged:
+    item: Disclosure
+    rel_path: str
+    data: bytes
+
+
+def _indexed_days(code: str) -> list[date]:
+    """同じ code の保存済み資料の日付。storage は問わない。"""
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(BriefingDocument.rel_path, BriefingDocument.pubdate)
+            .filter(BriefingDocument.code == code, BriefingDocument.status == STATUS_SAVED)
+            .all()
+        )
+    finally:
+        db.close()
+    days: list[date] = []
+    for rel, pub in rows:
+        day = briefing_offsite.document_day(rel or "", pub or "")
+        if day is not None:
+            days.append(day)
+    return days
+
+
+def _cutoff(issuer: Issuer, materials: list[Disclosure]) -> date | None:
+    """最新資料の 1 年前。既存索引と今回の一覧の両方を見る。"""
+    days = _indexed_days(issuer.code)
+    for item in materials:
+        day = briefing_offsite.document_day("", item.pubdate)
+        if day is not None:
+            days.append(day)
+    if not days:
+        return None
+    return briefing_offsite.year_before(max(days))
+
+
+def _is_old(item: Disclosure, cutoff: date | None) -> bool:
+    if cutoff is None:
+        return False
+    day = briefing_offsite.document_day("", item.pubdate)
+    return day is not None and day <= cutoff
+
+
+def disk_is_low(dest: Path, disk_usage: Callable[[Path], object]) -> bool:
+    """--dest の空きが閾値未満、または空きを読めない。"""
+    try:
+        target = dest if dest.exists() else dest.parent
+        free = getattr(disk_usage(target), "free", None)
+    except OSError:
+        return True
+    if isinstance(free, bool) or not isinstance(free, int):
+        return True
+    return free < MIN_FREE_BYTES
+
+
+def _ship_old(
+    staged: list[_Staged],
+    temp_root: Path,
+    issuer: Issuer,
+    *,
+    run: RcloneRunFn,
+    environ: Mapping[str, str] | None,
+    log: Callable[[str], None],
+) -> tuple[int, int]:
+    """この会社の古い PDF だけを、offsite と同じバッチで送る。"""
+    saved = failed = 0
+    offset = 0
+    while offset < len(staged):
+        chunk = staged[offset:offset + briefing_offsite.BATCH_SIZE]
+        offset += len(chunk)
+        by_rel = {item.rel_path: item for item in chunk}
+
+        def commit(pdf: briefing_offsite.LocalPdf, _by: dict[str, _Staged] = by_rel) -> None:
+            item = _by[pdf.rel_path]
+            _index(issuer, item.item, item.rel_path, item.data, storage=STORAGE_ONEDRIVE)
+
+        result = briefing_offsite.deliver_matches(
+            temp_root,
+            [briefing_offsite.LocalPdf(item.rel_path, temp_root / item.rel_path) for item in chunk],
+            run=run,
+            commit=commit,
+            environ=environ,
+        )
+        saved += len(result.ok)
+        failed += len(result.failed)
+        for rel in result.ok:
+            log(f"offsite {rel}")
+        for rel, reason in result.failed:
+            log(f"fail {rel}: {reason}")
+    return saved, failed
+
+
 def process_company(
     client: httpx.Client,
     issuer: Issuer,
@@ -438,6 +558,9 @@ def process_company(
     dry_run: bool,
     pause_state: dict[str, int],
     log: Callable[[str], None],
+    disk_usage: Callable[[Path], object] = shutil.disk_usage,
+    rclone: RcloneRunFn | None = None,
+    environ: Mapping[str, str] | None = None,
 ) -> CompanyOutcome:
     outcome = CompanyOutcome()
     counts = outcome.counts
@@ -457,42 +580,74 @@ def process_company(
     materials = select_materials(parse_ir_list(page, issuer.code4))
     counts.listed = len(materials)
     indexed = _already_indexed(materials)
-    for item in materials:
-        if item.document_id in indexed:
-            counts.skipped += 1
-            log(f"skip indexed {issuer.code} {item.document_id} {item.pubdate} {item.title}")
-            continue
-        if dry_run:
-            log(f"todo {issuer.code} {item.document_id} {item.pubdate} {item.title}")
-            continue
-        path = dest_path(dest, item.pubdate, issuer.code4, issuer.name, item.title)
-        try:
-            existing = read_pdf(path)
-            if existing is not None:
-                _index(issuer, item, dest, path, existing)
-                counts.reindexed += 1
-                log(f"reindexed {path.relative_to(dest).as_posix()}")
+    cutoff = None if dry_run else _cutoff(issuer, materials)
+    staged: list[_Staged] = []
+    temp_dir: tempfile.TemporaryDirectory | None = None
+    temp_root: Path | None = None
+    try:
+        for item in materials:
+            if item.document_id in indexed:
+                counts.skipped += 1
+                log(f"skip indexed {issuer.code} {item.document_id} {item.pubdate} {item.title}")
                 continue
-            _pause(sleep, pause_state)
-            data = fetch_pdf(client, item.pdf_id)
-            write_pdf(path, data)
-            _index(issuer, item, dest, path, data)
-            counts.saved += 1
-            log(f"saved {path.relative_to(dest).as_posix()} ({len(data)} bytes)")
-        except RateLimited as exc:
-            outcome.status = "rate_limited"
-            outcome.detail = str(exc)
-            return outcome
-        except Missing as exc:
-            counts.missing += 1
-            log(f"missing {item.document_id} {exc}")
-        except Exception as exc:
-            down = abort_if_disconnected("irbank_briefing", dest, exc)
-            if down is not None:
-                raise
-            counts.failed += 1
-            log(f"fail {item.document_id} {type(exc).__name__}: {exc}")
-    if not dry_run and counts.failed == 0:
+            if dry_run:
+                log(f"todo {issuer.code} {item.document_id} {item.pubdate} {item.title}")
+                continue
+            path = dest_path(dest, item.pubdate, issuer.code4, issuer.name, item.title)
+            try:
+                existing = read_pdf(path)
+                if existing is not None:
+                    _index(issuer, item, path.relative_to(dest).as_posix(), existing)
+                    counts.reindexed += 1
+                    log(f"reindexed {path.relative_to(dest).as_posix()}")
+                    continue
+                _pause(sleep, pause_state)
+                data = fetch_pdf(client, item.pdf_id)
+                if disk_is_low(dest, disk_usage):
+                    outcome.status = "disk_low"
+                    break
+                if _is_old(item, cutoff):
+                    if temp_dir is None:
+                        temp_dir = tempfile.TemporaryDirectory(prefix="irbank-briefing-")
+                        temp_root = Path(temp_dir.name)
+                    staged_path = dest_path(temp_root, item.pubdate, issuer.code4, issuer.name, item.title)
+                    write_pdf(staged_path, data)
+                    staged.append(_Staged(
+                        item=item,
+                        rel_path=staged_path.relative_to(temp_root).as_posix(),
+                        data=data,
+                    ))
+                    continue
+                write_pdf(path, data)
+                _index(issuer, item, path.relative_to(dest).as_posix(), data)
+                counts.saved += 1
+                log(f"saved {path.relative_to(dest).as_posix()} ({len(data)} bytes)")
+            except RateLimited as exc:
+                outcome.status = "rate_limited"
+                outcome.detail = str(exc)
+                break
+            except Missing as exc:
+                counts.missing += 1
+                log(f"missing {item.document_id} {exc}")
+            except Exception as exc:
+                down = abort_if_disconnected("irbank_briefing", dest, exc)
+                if down is not None:
+                    raise
+                counts.failed += 1
+                log(f"fail {item.document_id} {type(exc).__name__}: {exc}")
+        if staged and temp_root is not None and not dry_run:
+            runner = rclone
+            if runner is None:
+                runner = make_rclone_runner(offsite_settings_from_env(environ).rclone_bin)
+            shipped, broken = _ship_old(
+                staged, temp_root, issuer, run=runner, environ=environ, log=log,
+            )
+            counts.saved += shipped
+            counts.failed += broken
+    finally:
+        if temp_dir is not None:
+            temp_dir.cleanup()
+    if not dry_run and outcome.status == "ok" and counts.failed == 0:
         mark_scanned(issuer, counts)
     return outcome
 
@@ -508,6 +663,9 @@ def run(
     rescan: bool = False,
     client: httpx.Client | None = None,
     log: Callable[[str], None] | None = None,
+    disk_usage: Callable[[Path], object] = shutil.disk_usage,
+    rclone: RcloneRunFn | None = None,
+    environ: Mapping[str, str] | None = None,
 ) -> RunStats:
     write = print if log is None else log
     stats = RunStats()
@@ -527,7 +685,8 @@ def run(
             try:
                 outcome = process_company(
                     client, issuer, dest, sleep=sleep, dry_run=dry_run,
-                    pause_state=pause_state, log=write,
+                    pause_state=pause_state, log=write, disk_usage=disk_usage,
+                    rclone=rclone, environ=environ,
                 )
             except Exception as exc:
                 down = abort_if_disconnected("irbank_briefing", dest, exc)
@@ -537,15 +696,15 @@ def run(
                     break
                 outcome = CompanyOutcome(counts=CompanyCounts(failed=1), status="list_failed")
                 write(f"fail list {issuer.code} {type(exc).__name__}: {exc}")
-            if outcome.status == "rate_limited":
-                stats.stopped = "rate_limited"
+            if outcome.status in ("rate_limited", "disk_low"):
+                stats.stopped = outcome.status
                 stats.listed += outcome.counts.listed
                 stats.saved += outcome.counts.saved
                 stats.skipped += outcome.counts.skipped
                 stats.reindexed += outcome.counts.reindexed
                 stats.missing += outcome.counts.missing
                 stats.failed += outcome.counts.failed
-                write(f"rate_limited {issuer.code} {outcome.detail}".rstrip())
+                write(f"{outcome.status} {issuer.code} {outcome.detail}".rstrip())
                 break
             stats.add(outcome.counts)
     finally:

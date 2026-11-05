@@ -37,15 +37,20 @@ def record_briefing(
     url: str | None,
     sha256: str,
     size: int,
+    storage: str = STORAGE_LOCAL,
     saved_at: datetime | None = None,
 ) -> None:
     """保存済み PDF を索引する。同じ (source, document_id) は上書きする。
 
+    storage の既定は local。IR BANK が最初から OneDrive へ置く分は onedrive を渡す。
     locked は run_sqlite_write が数回、待ちを伸ばして再試行する（KAB-305 と同じ）。
     """
     if source not in SOURCES:
         names = ", ".join(sorted(SOURCES))
         raise ValueError(f"briefing source must be one of {names}: {source!r}")
+    if storage not in STORAGES:
+        names = ", ".join(sorted(STORAGES))
+        raise ValueError(f"briefing storage must be one of {names}: {storage!r}")
     if not document_id or not code or not rel_path:
         raise ValueError("document_id, code, and rel_path are required")
     when = saved_at or datetime.now(JST).replace(tzinfo=None)
@@ -61,7 +66,7 @@ def record_briefing(
         "sha256": sha256,
         "size": size,
         "status": STATUS_SAVED,
-        "storage": STORAGE_LOCAL,
+        "storage": storage,
         "saved_at": when,
     }
     db = SessionLocal()
