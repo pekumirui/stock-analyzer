@@ -18,13 +18,20 @@
   <nav id="crumbs" aria-label="パンくず" hidden></nav>
   <nav id="app-nav">
     <button data-tab="earnings" class="active">決算速報</button>
-    <button data-tab="stock">銘柄</button>
     <button data-tab="screener">スクリーナー</button>
     <button data-tab="monthly">月次</button>
     <button data-tab="supply">サプライ</button>
     <button data-tab="ranking">ランキング</button>
     <button data-tab="holders">大量保有報告書</button>
   </nav>
+  <button type="button" id="sym-btn" aria-label="銘柄検索" aria-expanded="false" aria-controls="sym-pop">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+    <span>銘柄検索</span>
+  </button>
+  <div id="sym-pop" hidden>
+    <input id="sym-q" type="search" placeholder="銘柄名 or コード" autocomplete="off" enterkeyhint="search">
+    <div id="sym-suggest" class="suggest" style="display:none"></div>
+  </div>
 </header>
 <main>
 
@@ -105,10 +112,6 @@
 
 <section id="tab-stock" style="display:none">
   <div class="panel">
-    <div class="row" id="st-search" style="position:relative">
-      <input id="st-sym" placeholder="銘柄名 or コード" autocomplete="off" style="width:200px">
-      <div id="st-suggest" class="suggest" style="display:none"></div>
-    </div>
     <div id="st-head" hidden>
       <div id="st-title"></div>
       <div id="st-quote"></div>

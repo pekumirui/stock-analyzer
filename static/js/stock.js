@@ -15,8 +15,9 @@ const STOCK_MAIN_DOC_TYPES = ["annual", "semiannual", "quarterly"];
 const stockNewsKey = f => f.source === "pdf" ? `p${f.disclosure_no}` : `x${f.id}`;
 const stockEsc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
 
+// ヘッダー右上の銘柄検索（KAB-365）。押すとヘッダーの下に入力欄が開き、候補を選ぶと銘柄画面へ飛ぶ
 function stockSuggest(rs){
-  const box = $("#st-suggest");
+  const box = $("#sym-suggest");
   box.innerHTML = "";
   for(const s of rs){
     const d = document.createElement("div");
@@ -28,27 +29,48 @@ function stockSuggest(rs){
   return rs;
 }
 
+function setSymSearch(open){
+  $("#sym-pop").hidden = !open;
+  $("#sym-btn").setAttribute("aria-expanded", String(open));
+  if(open){
+    if(typeof setMenu === "function") setMenu(false);
+    $("#sym-q").focus();
+  } else {
+    stockSuggest([]);
+  }
+}
+
 let stockLastSuggest = [];
-$("#st-sym").addEventListener("input", async e => {
-  const q = e.target.value.trim();
+async function refreshStockSuggest(){
+  const el = $("#sym-q");
+  const q = el.value.trim();
   if(!q){ stockSuggest([]); stockLastSuggest = []; return; }
   const rs = await api(`/api/stocks/search?q=${encodeURIComponent(q)}`).catch(() => []);
-  if(e.target.value.trim() !== q) return;
+  if(el.value.trim() !== q) return;
   stockLastSuggest = stockSuggest(rs);
-});
-$("#st-sym").addEventListener("keydown", e => {
+}
+$("#sym-btn").addEventListener("click", () => setSymSearch($("#sym-pop").hidden));
+$("#sym-q").addEventListener("input", refreshStockSuggest);
+$("#sym-q").addEventListener("compositionend", refreshStockSuggest);
+$("#sym-q").addEventListener("keydown", e => {
+  if(e.isComposing) return;
   if(e.key === "Enter" && stockLastSuggest.length) stockPick(stockLastSuggest[0]);
-  if(e.key === "Escape") stockSuggest([]);
+  if(e.key === "Escape") setSymSearch(false);
 });
 document.addEventListener("click", e => {
-  if(!e.target.closest("#st-search")) $("#st-suggest").style.display = "none";
+  if(!e.target.closest("#sym-pop") && !e.target.closest("#sym-btn")) setSymSearch(false);
 });
 
+// 銘柄画面にいれば中のタブはそのまま（ニュースの詳細か説明資料の中身にいたらニュースの一覧へ）。ほかの画面からは概要
 function stockPick(s){
-  stockSuggest([]);
+  const from = typeof currentScreenId === "function" ? currentScreenId() : "";
+  const onStock = $("#tab-stock").style.display !== "none" && stockCode;
+  $("#sym-q").value = "";
   stockLastSuggest = [];
-  $("#st-sym").value = s.name;
-  loadStock(s.code);
+  setSymSearch(false);
+  $("#sym-q").blur();
+  showTab("stock");
+  showStock(s.code, onStock ? stockSub : "summary", "", from);
 }
 
 function stockRoutePath(){
@@ -62,11 +84,6 @@ function stockRoutePath(){
 function openStockRoute(path){
   const [code, sub, id] = String(path).split("/");
   showStock(code, sub || "summary", sub === "news" ? (id || "") : "", undefined, sub === "decks" ? (id || "") : "");
-}
-
-// 銘柄を選び直す。中のタブはそのまま（ニュースの詳細か説明資料の中身にいたらニュースの一覧へ）
-function loadStock(code){
-  showStock(code, stockSub, "", "stock");
 }
 
 function stockMsg(text){
@@ -119,8 +136,6 @@ function renderStockHead(d){
   const small = document.createElement("small");
   small.textContent = ` ${d.code.slice(0, 4)}` + [d.market, d.sector33].filter(Boolean).map(x => ` / ${x}`).join("");
   t.append(b, small);
-  // ほかのタブから銘柄が変わることもあるので、入力も選んだ銘柄名にそろえる
-  $("#st-sym").value = d.name || "";
 
   const q = d.quote;
   let h = "";

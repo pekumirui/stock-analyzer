@@ -17,7 +17,7 @@ The 株価 sub tab of 銘柄 draws adjusted daily, weekly, monthly, or yearly ca
 
 ## How to get to it (user POV)
 
-- In 銘柄, pick an issuer (`#st-sym`) and click 株価 in `#st-tabs`.
+- Pick an issuer from the header search (`#sym-btn` → `#sym-q`) and click 株価 in `#st-tabs`.
 - Click an issuer name on 決算速報 (chart title), スクリーナー, PTS, ランキング, or 「株価を開く」 on a listed サプライ company.
 - Click a `#tf` button, drag the window in `.chart-nav`, change `#tf` / `#chart-sub`, tick `#chart-log` / `#rel`, or edit `#mas` and dispatch `change` (blur). Enter on `#mas` does not fire `change` (the field is not in a form).
 - Tick `.evt-toggles` 決算発表.

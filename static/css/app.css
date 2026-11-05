@@ -21,6 +21,16 @@
   #crumbs a:hover { text-decoration:underline; }
   #crumbs [aria-current="page"] { color:var(--text); }
   body.public-monthly #crumbs { flex:1 1 auto; order:0; }
+  /* 銘柄検索はヘッダーの右端。押すとヘッダーの下に入力欄が開く（tabs.js） */
+  #sym-btn { margin-left:auto; display:flex; align-items:center; gap:4px; flex-shrink:0; background:none; border:0;
+             color:var(--accent); padding:6px 8px; cursor:pointer; font:inherit; font-size:13px; }
+  #sym-btn svg { width:20px; height:20px; }
+  #sym-btn[aria-expanded="true"] { color:var(--text); }
+  #sym-pop { position:relative; flex:1 0 100%; order:4; z-index:20; }
+  #sym-pop[hidden] { display:none; }
+  #sym-q { width:100%; font-size:16px; padding:8px 10px; border:1px solid var(--border); border-radius:6px; }
+  #sym-suggest { left:0; right:0; top:100%; margin-top:2px; max-height:60vh; }
+  #sym-suggest div { padding:10px 12px; border-bottom:1px solid var(--grid); }
   /* スマホはヘッダーを 1 行にし、タブは左端の三本線でヘッダーの下に開く（tabs.js）。
      fixed の幕やドロワーは使わない（iOS Safari 26 は fixed の色を画面上下の枠に使い、閉じてもグレーが残る） */
   @media (max-width:720px){
@@ -37,6 +47,9 @@
     #app-nav button, #app-nav a { text-align:left; font-size:16px; padding:12px 20px; border-bottom:0; border-left:3px solid transparent; color:var(--text); }
     #app-nav button.active { background:var(--row-sel); border-left-color:var(--accent); color:var(--accent); }
     #app-nav a { display:block; }
+    #sym-btn { flex-direction:column; gap:1px; padding:2px 4px; font-size:10px; color:var(--text); }
+    #sym-btn svg { width:22px; height:22px; }
+    #sym-pop { order:9; }
   }
   main { padding:8px 12px; }
   .panel { background:var(--panel); padding:12px; margin-bottom:12px; }
@@ -100,7 +113,6 @@
   #monthly-suggest { left:0; top:100%; }
   .a-list > .row { z-index:5; }
   #earn-suggest { left:0; top:100%; }
-  #st-suggest { left:0; top:100%; }
   #hd-suggest { left:0; top:100%; }
   #st-title { margin:4px 0 2px; }
   #st-quote { display:flex; flex-wrap:wrap; gap:4px 14px; align-items:baseline; margin-bottom:8px; font-variant-numeric:tabular-nums; }

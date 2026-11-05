@@ -142,7 +142,9 @@ def test_spa_has_stock_tab() -> None:
     html = (root / "static/index.html").read_text(encoding="utf-8")
     tabs = (root / "static/js/tabs.js").read_text(encoding="utf-8")
     js = (root / "static/js/stock.js").read_text(encoding="utf-8")
-    assert 'data-tab="stock"' in html and 'id="tab-stock"' in html
+    # 銘柄はメニューに置かず、ヘッダー右上の銘柄検索から開く（KAB-365）
+    assert 'data-tab="stock"' not in html and 'id="tab-stock"' in html
+    assert 'id="sym-btn"' in html and 'id="sym-q"' in html and 'id="st-sym"' not in html
     assert '/static/js/stock.js' in html
     assert '"stock"' in tabs and "openStockRoute(code)" in tabs
     # 原文は script を動かさない iframe で出す
