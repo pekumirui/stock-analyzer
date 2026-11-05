@@ -6,11 +6,11 @@
 
 - 対象は本番の `stock.db`（既定 `/home/stock/stock-analyzer/stock.db`）。WAL モードなので `cp` は使わない。
 - `jobs/ops/backup_db.py` が Python の sqlite3 backup API で整合コピーし、`PRAGMA quick_check` のあと `gzip` 圧縮レベル 1 で保存する。
-- ローカルが成功したあとだけ、その gzip を rclone で OneDrive personal へ送る。既定は `onedrive:stock-analyzer-backups/{daily,weekly}/`。R2 には出さない。
-- 世代数は OneDrive 側で持つ（日次 7・週次 4）。VPS は確認済みの直近だけ残す（既定は日次 1・週次 1）。
-- VPS の古い世代を消すのは、新しいファイルの中身チェックと OneDrive の送信・確認（と OneDrive 側の世代整理）が成功したあとだけ。送信が失敗した日は VPS の新しいファイルも古い世代も残し、非ゼロ終了する。Slack は他ジョブと同じく `deploy/cron-run.sh` の `fail cron` → fluent-bit → `#alerts-batch`。
-- rclone が無い、または remote が無いときは警告してスキップする。ローカルは成功のまま（exit 0）。オフサイト未確認なので VPS の古い世代は消さない。
-- 容量が足りないとき・quick_check 失敗では取得せず非ゼロ終了する。既存の正常ファイルを触らない。
+- ローカルが成功したあとだけ、その gzip を rclone で OneDrive personal へ送る。既定は `onedrive:stock-analyzer-backups/{daily,weekly}/`。R2 には出さない。正本は OneDrive。戻すときのダウンロード時間は許容する。
+- 世代数は OneDrive 側だけ（日次 7・週次 4）。VPS には置かない。今回書いた gzip を消すのは、送信・確認（`rclone check`、失敗時はサイズ）と OneDrive 側の世代整理が成功したあと。
+- どれかが失敗した日は今回の gzip を残し、非ゼロ終了する。それより前から VPS にある世代も消さない。Slack は他ジョブと同じく `deploy/cron-run.sh` の `fail cron` → fluent-bit → `#alerts-batch`。
+- rclone が無い、または remote が無いときは警告してスキップする。ローカルは成功のまま（exit 0）。今回のファイルも古い世代も消さない。
+- 容量が足りないとき・quick_check 失敗では取得せず非ゼロ終了する。既存のファイルを触らない。作業前に、コピーと gzip が同時に乗る空きがあるかを見る。成功したあとの gzip は消えるので、その分の空きは一時的。
 
 ## 時刻
 
@@ -19,8 +19,8 @@
 ## 配置
 
 ```
-/home/stock/backups/daily/stock-YYYY-MM-DD.db.gz
-/home/stock/backups/weekly/stock-YYYY-MM-DD.db.gz   # 日曜のみ。日次と hardlink
+/home/stock/backups/daily/stock-YYYY-MM-DD.db.gz    # 送信確認が終わるまで。成功したら消す
+/home/stock/backups/weekly/stock-YYYY-MM-DD.db.gz   # 日曜のみ。日次と hardlink。成功したら消す
 /home/stock/backups/.tmp/                          # 作業用。実行の前後で空（-wal / -shm 含む）
 
 onedrive:stock-analyzer-backups/daily/stock-YYYY-MM-DD.db.gz
@@ -29,7 +29,7 @@ onedrive:stock-analyzer-backups/weekly/stock-YYYY-MM-DD.db.gz   # 日曜のみ�
 
 一時コピーはソースの WAL を引き継がない（`journal_mode=DELETE`）。本体を消すときは `-wal` / `-shm` も消す。
 
-OneDrive 側に hardlink は無い。日曜は daily と weekly へ同じ gzip を 2 回送る。消すのは `stock-YYYY-MM-DD.db.gz` だけ。`notes.txt` など命名規則外は残す。
+OneDrive 側に hardlink は無い。日曜は daily と weekly へ同じ gzip を 2 回送る。VPS から消すのは今回の `stock-YYYY-MM-DD.db.gz` だけ。別の日のローカルファイルと、`notes.txt` など命名規則外は残す。OneDrive は保持数を超えた `stock-*.db.gz` だけ消す。デプロイ前から VPS に残っている世代の消し方は「既にある VPS の世代」。
 
 ## 環境変数
 
@@ -37,22 +37,20 @@ OneDrive 側に hardlink は無い。日曜は daily と weekly へ同じ gzip �
 
 | 名前 | 既定 | 意味 |
 |---|---|---|
-| `BACKUP_OFFSITE` | `1` | `0` / `false` / `off` で送信しない（ローカル成功、古い世代は残す） |
+| `BACKUP_OFFSITE` | `1` | `0` / `false` / `off` で送信しない（今回の gzip も古い世代も残す） |
 | `BACKUP_OFFSITE_REMOTE` | `onedrive` | rclone remote 名（末尾の `:` は不要） |
 | `BACKUP_OFFSITE_PATH` | `stock-analyzer-backups` | remote 上のルート |
 | `BACKUP_RCLONE_BIN` | `rclone` | rclone 実行ファイル |
-| `BACKUP_LOCAL_DAILY_KEEP` | `1` | VPS `daily/` の保持数（1 以上） |
-| `BACKUP_LOCAL_WEEKLY_KEEP` | `1` | VPS `weekly/` の保持数 |
 | `BACKUP_OFFSITE_DAILY_KEEP` | `7` | OneDrive `daily/` の保持数 |
 | `BACKUP_OFFSITE_WEEKLY_KEEP` | `4` | OneDrive `weekly/` の保持数 |
 
-CLI の `--no-offsite` は `BACKUP_OFFSITE=0` と同じ（送信しない・VPS の古い世代は消さない）。
+CLI の `--no-offsite` は `BACKUP_OFFSITE=0` と同じ（送信しない。今回の gzip も古い世代も消さない）。
 
 デプロイ（`deploy/update.sh`）が R2 キーを書くときは `[r2]` セクションだけ upsert する。`onedrive` など他 remote は消さない。
 
 ## 復元
 
-アプリを止めて WAL を外し、gzip を戻す。動かしたまま上書きしない。直近は VPS ローカルを優先する。古い世代は OneDrive から取る。
+アプリを止めて WAL を外し、gzip を戻す。動かしたまま上書きしない。正本は OneDrive。ダウンロードに時間がかかることは許容する。送信に失敗して VPS に残った gzip がある日だけ、そのファイルを使える。
 
 ```bash
 sudo systemctl stop stock-analyzer stock-analyzer-mcp
@@ -60,16 +58,56 @@ cd /home/stock/stock-analyzer
 mv -n stock.db stock.db.bak-$(date +%F)
 mv -n stock.db-wal stock.db-wal.bak-$(date +%F) 2>/dev/null || true
 mv -n stock.db-shm stock.db-shm.bak-$(date +%F) 2>/dev/null || true
-gzip -dc /home/stock/backups/daily/stock-YYYY-MM-DD.db.gz > stock.db
-# 日曜世代なら weekly/ でも同じ。VPS に無い日は:
-# rclone copy onedrive:stock-analyzer-backups/daily/stock-YYYY-MM-DD.db.gz /tmp/
-# gzip -dc /tmp/stock-YYYY-MM-DD.db.gz > stock.db
+rclone copy onedrive:stock-analyzer-backups/daily/stock-YYYY-MM-DD.db.gz /tmp/
+gzip -dc /tmp/stock-YYYY-MM-DD.db.gz > stock.db
+rm /tmp/stock-YYYY-MM-DD.db.gz
+# 日曜世代なら weekly/ でも同じ。送信失敗で VPS に残っている日は:
+# gzip -dc /home/stock/backups/daily/stock-YYYY-MM-DD.db.gz > stock.db
 chown stock:stock stock.db
 chmod 644 stock.db
 sudo systemctl start stock-analyzer stock-analyzer-mcp
 ```
 
 戻したファイルで `PRAGMA quick_check` が `ok` であることを確認してからアプリを付ける。ダメなら `stock.db.bak-*` に戻す。
+
+## 既にある VPS の世代
+
+ジョブは今回書いた `stock-YYYY-MM-DD.db.gz` しか消さない。`/home/stock/backups` に既にあるファイルを空けるのは人が行う。OneDrive に同じものがあると確かめたファイルだけを消し、確かめる前には消さない。cron には入れない。本番の削除なので、実行前に承認を取る。
+
+ユーザ `stock` で。
+
+1. 一覧。`notes.txt` など命名規則外は対象にしない。
+
+```bash
+find /home/stock/backups/daily /home/stock/backups/weekly -maxdepth 1 -type f -name 'stock-*.db.gz' -printf '%s %p\n' | sort
+```
+
+2. ファイルごとに確認する。`rclone check` が 0 の行だけが OneDrive と一致している。0 以外は残す。
+
+```bash
+REMOTE=onedrive:stock-analyzer-backups
+for kind in daily weekly; do
+  for path in /home/stock/backups/$kind/stock-*.db.gz; do
+    [ -f "$path" ] || continue
+    name=$(basename "$path")
+    if rclone check "$(dirname "$path")" "$REMOTE/$kind" --one-way --include "/$name"; then
+      echo "confirmed $kind/$name"
+    else
+      echo "KEEP $kind/$name"
+    fi
+  done
+done
+```
+
+check がハッシュ非対応で失敗するときは、`rclone lsjson` の `Size` と `stat -c %s` が一致するものだけを confirmed にする。サイズが違う、または remote に無いものは KEEP のまま。
+
+3. `confirmed` のパスだけを、出力を見てから消す。`KEEP` は消さない。
+
+```bash
+rm /home/stock/backups/daily/stock-YYYY-MM-DD.db.gz
+```
+
+このジョブは上の `rm` を走らせない。古い世代が残っている間も、次の実行は新しい gzip の分の空きが要る。足りなければ取得せずに非ゼロ終了し、古いファイルは残る。
 
 ## 取得ファイルの控え
 

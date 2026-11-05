@@ -613,7 +613,7 @@ ProdCat がまだ1件も入っていないDBでは従来どおり全銘柄でラ
 | API + SPA | 同一 VPS の uvicorn（systemd。ワーカー数はコアと MemAvailable、上限 2 本。`UVICORN_WORKERS` で上書き） |
 | DB | `stock.db`（VPS の SSD）。`DATABASE_URL` は今の SQLite のまま |
 | バッチ | crontab（19:30 JST の J-Quants 日次。株探 PTS は平日 15:30〜24:00 の 30 分ごと。yfinance 1 分足は平日 20:30。為替は 08:00 JST。パッケージ一覧は 06:40 JST。SQLite バックアップは 05:00 JST） |
-| バックアップ | VPS ローカル gzip（直近 1 世代）+ OneDrive（日次 7・週次 4）。手順は [`docs/DESIGN_backup.md`](docs/DESIGN_backup.md) |
+| バックアップ | OneDrive（日次 7・週次 4）。VPS の gzip は送信確認後に消す。手順は [`docs/DESIGN_backup.md`](docs/DESIGN_backup.md) |
 | 公開 | nginx + Let's Encrypt。月次閲覧は `/monthly`（Basic なし）。個人ツールは `/app` + Basic 認証。`/static/` は nginx が直配信（`monthly_row_order.json` / `ir_monthly_codes.json` だけ uvicorn） |
 | 開発 | 今どおり Windows + `.\run.ps1` |
 

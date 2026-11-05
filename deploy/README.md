@@ -391,7 +391,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 | `jobs/market/intraday_1m.py` | 平日 20:30（yfinance 1 分足 → `data/intraday/1m/`。日次バッチの後。約 45 分） |
 | `jobs/ops/vps_packages_r2.py` | 06:40 |
 | `jobs/ops/backup_data.py` | 03:30（`data/xbrl` と `data/monthly` を OneDrive へ `rclone copy`。VPS 側は消さない。`data/edinet` は `rclone move`。edinet は 50 分で区切り、残りは翌日。[`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
-| `jobs/ops/backup_db.py` | 05:00（SQLite 整合バックアップ。成功後に OneDrive へ送る。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
+| `jobs/ops/backup_db.py` | 05:00（SQLite 整合バックアップ。OneDrive へ送れて確認できたら、VPS の今回の gzip は消す。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)） |
 | `jobs/market/briefing_offsite.py` | 01:40（1 年以上前の決算説明資料を OneDrive へ。既に同じジョブが動いていれば始めない） |
 
 振る舞いは `DESIGN.md` §3 と `docs/DESIGN_xbrl.md`。`rclone.conf` と取得ファイルはリポジトリに置かない。
@@ -415,7 +415,7 @@ cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/vps_packages_r2.py
 
 ### SQLite 日次バックアップ
 
-WAL 中の `cp` は使わない。`jobs/ops/backup_db.py` が sqlite3 backup API → `PRAGMA quick_check` → gzip 圧縮レベル 1。ローカル成功後に `rclone copy` で `onedrive:stock-analyzer-backups/{daily,weekly}/` へ送り、`rclone check`（失敗時はサイズ）で確認する。世代数は OneDrive（日次 7・週次 4）。VPS は確認後の直近だけ（既定 1）。送信失敗では VPS の新旧を残し、`fail cron` が `#alerts-batch` に page する。rclone / remote が無いときは警告してスキップ（ローカル成功、古い世代は残す）。R2 には出さない。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)。
+WAL 中の `cp` は使わない。`jobs/ops/backup_db.py` が sqlite3 backup API → `PRAGMA quick_check` → gzip 圧縮レベル 1。ローカル成功後に `rclone copy` で `onedrive:stock-analyzer-backups/{daily,weekly}/` へ送り、`rclone check`（失敗時はサイズ）で確認する。世代数は OneDrive（日次 7・週次 4）。確認と OneDrive 側の世代整理が成功したら、今回の gzip は VPS から消す。失敗したときは今回のファイルを残し、`fail cron` が `#alerts-batch` に page する。それより前からあるローカルの世代は消さない。rclone / remote が無いときは警告してスキップ（今回のファイルも残す）。R2 には出さない。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)。
 
 `deploy/crontab` は `provision.sh` が `crontab -u stock` で入れる。デプロイ後に一度だけ手で走らせる（ユーザ `stock`）:
 
@@ -429,7 +429,7 @@ rclone ls onedrive:stock-analyzer-backups/weekly
 tail -n 50 /var/log/app/backup_db.log
 ```
 
-ログに `offsite ok daily` と `pruned ... offsite=ok` があり、VPS の `daily/` が直近 1 件、OneDrive に今日のファイルがあること。`fail backup_db:` や `offsite skipped` なら送信側を見る。VPS の古い世代が残っていれば、成功するまで消さない。
+ログに `offsite ok daily` と `removed local daily=1 ... offsite=ok` があり、今回の `stock-YYYY-MM-DD.db.gz` は VPS に無く、OneDrive にあること。`fail backup_db:` なら今回の gzip は VPS に残る。`offsite skipped` なら送信していないので残る。デプロイ前からある世代はジョブでは消えない。空ける手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md) の「既にある VPS の世代」。
 
 ### daily_prices を WITHOUT ROWID に作り直す（一度だけ・KAB-289）
 
