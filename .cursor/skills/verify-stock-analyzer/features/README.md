@@ -13,6 +13,7 @@ Read this index, then the matching feature file, before driving the app.
 - PTS rows need `pts_snapshots` (prod cron `jobs/market/pts_snapshot.py`). Neither the golden DB nor a DB copy has them; empty is 「PTS のデータがまだありません」 (see `features/pts.md`).
 - 大量保有報告書 rows need `large_holding_reports` (`parsed` and `is_latest`). Golden has none; empty is 「この日の大量保有報告書はありません。」 and `capture.py holders` prints `items=0 search=0` (see `features/holders.md`).
 - 銘柄 needs `xbrl_filings` + `xbrl_documents` (TDnet XBRL from `jobs/xbrl/xbrl_parse.py`) or `tdnet_pdf_documents`. A plain DB copy may have none; on a copy you own, `jobs/xbrl/xbrl_parse.py parse --from D --to D --dest <xbrl dir>` fills one day (see `features/stock.md`).
+- 銘柄 › 説明資料 rows need `briefing_documents` (`status=saved`). Golden has none; empty is 「説明資料はありません。」 and `capture.py stock` prints `decks=0`. Detail / FX line need a `done` extract (see `features/stock.md`).
 - 修正履歴 with `?rev_source=xbrl` needs `xbrl_financials` rows from TDnet filings (`source='tdnet'`; EDINET rows are not read); the default `jquants` source reads `statements` only.
 
 ## Driving conventions
@@ -45,7 +46,7 @@ Each feature file starts with an H1 title and one paragraph describing the user-
 ## Features
 
 - [決算速報](./earnings.md) calendar day list (累計 / 3か月 / 進捗率 view, 1Q–4Q filter; list metrics 売上 / 粗利 / 営利 / 経利 / 純利), issuer search + sector chips (top 5 + 他N業種), row detail, 累計 / 3か月 / 進捗率 / 修正履歴 tabs.
-- [銘柄](./stock.md) issuer search, common header (price, 時価総額, 次回決算), sub tabs 概要 (指標 + 累計 / 3か月 / 進捗率 / 修正履歴) / 株価 / ニュース (決算短信の原文 in sandboxed iframes, 幅に合わせる / 中 / 原寸 zoom) / 株主 (大量保有 + 自己株), `#stock/{code}/{sub}` route.
+- [銘柄](./stock.md) issuer search, common header (price, 時価総額, 次回決算), sub tabs 概要 (指標 + 累計 / 3か月 / 進捗率 / 修正履歴) / 株価 / ニュース (決算短信の原文 in sandboxed iframes, 幅に合わせる / 中 / 原寸 zoom) / 株主 (大量保有 + 自己株) / 説明資料 (決算説明資料 list + reconstructed pages), `#stock/{code}/{sub}` and `#stock/{code}/decks/{key}` routes.
 - [大量保有報告書](./holders.md) date list (`file_date`, default Asia/Tokyo today), search by issuer / holder without the date, holder page with holdings / history / estimates, `#holders/{edinet}`.
 - [銘柄 › 株価](./chart.md) daily/weekly/monthly/yearly candles, 対TOPIX, 決算発表後リターン (was the チャート tab until KAB-181; `gotoChart` lands here).
 - [スクリーナー](./screener.md) Stage + RS filter table (UI defaults Stage 2, RS≥70).

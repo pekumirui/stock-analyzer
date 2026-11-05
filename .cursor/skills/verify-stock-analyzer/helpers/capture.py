@@ -145,9 +145,16 @@ def main() -> None:
                 html = r.read()
                 (ART / "stock" / "document.html").write_bytes(html)
                 req += f"GET {doc_url}\nstatus {r.status}\n"
+        decks_url = f"{base}/api/stock/{code}/decks"
+        dst, dbody = _get(decks_url)
+        _write("stock", "decks.json", "GET", decks_url, dst, dbody)
+        decks = dbody.get("decks") if isinstance(dbody, dict) else None
+        if dst != 200 or decks is None:
+            raise SystemExit(f"stock {code} decks status={dst}")
+        req += f"GET {decks_url}\nstatus {dst}\n"
         (ART / "stock" / "request.txt").write_text(req, encoding="utf-8")
-        # xbrl_documents が空の DB でも 200。件数を出して判断を任せる
-        print(path, f"filings={len(filings)} documents={len(docs)}")
+        # xbrl_documents / briefing_documents が空の DB でも 200。件数を出して判断を任せる
+        print(path, f"filings={len(filings)} documents={len(docs)} decks={len(decks)}")
         return
 
     if args.feature == "monthly":
