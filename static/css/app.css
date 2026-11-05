@@ -115,11 +115,7 @@
   #st-news td.t { white-space:normal; min-width:12em; }
   .st-detail-bar { justify-content:space-between; }
   #st-news-head { margin:6px 0; }
-  /* 説明資料（KAB-350）。読み取った表と要約から組み直したグラフ（SVG）と表。原本は出さない */
-  #st-decks tr.go { cursor:pointer; }
-  #st-decks tr.go:hover td { background:var(--now); }
-  #st-decks td { white-space:nowrap; }
-  #st-decks td.t { white-space:normal; min-width:12em; }
+  /* 説明資料の中身（KAB-350）。読み取った表と要約から組み直したグラフ（SVG）と表。原本は出さない */
   .dk-head { display:flex; flex-wrap:wrap; gap:4px 12px; align-items:baseline; margin:6px 0 2px; }
   .dk-meta { margin:0 0 8px; }
   .dk-page { border-top:1px solid var(--border); padding:10px 0 4px; }
