@@ -1,4 +1,4 @@
-"""uvicorn ワーカー数は nproc と MemAvailable。決め打ちせず UVICORN_WORKERS で上書き。"""
+"""uvicorn ワーカー数は nproc と MemAvailable（上限 MAX_WORKERS）。UVICORN_WORKERS で上書き。"""
 from __future__ import annotations
 
 import os
@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "deploy"))
 
 from uvicorn_workers import (
+    MAX_WORKERS,
     PER_WORKER_MIB,
     choose_workers,
     mem_available_kib,
@@ -35,12 +36,18 @@ def test_choose_workers_formula() -> None:
         _fail("UVICORN_WORKERS must win over nproc and memory")
     if choose_workers(env_value=" 2 ", nproc=8, mem_available_kib=64 * 1024) != 2:
         _fail("UVICORN_WORKERS may have surrounding space")
-    if choose_workers(env_value=None, nproc=4, mem_available_kib=4 * 384 * 1024) != 4:
+    if choose_workers(env_value=None, nproc=2, mem_available_kib=4 * 384 * 1024) != 2:
         _fail("N must follow nproc when memory is enough")
+    if choose_workers(env_value=None, nproc=8, mem_available_kib=8 * 384 * 1024) != MAX_WORKERS:
+        _fail("N must stop at MAX_WORKERS")
+    if MAX_WORKERS != 2:
+        _fail(f"KAB-366 caps workers at 2, got {MAX_WORKERS}")
     if choose_workers(env_value=None, nproc=8, mem_available_kib=384 * 1024) != 1:
         _fail("N must follow memory when RAM is tighter than cores")
-    if choose_workers(env_value=None, nproc=3, mem_available_kib=None) != 3:
+    if choose_workers(env_value=None, nproc=1, mem_available_kib=None) != 1:
         _fail("unknown memory must not invent a cap; use nproc")
+    if choose_workers(env_value=None, nproc=3, mem_available_kib=None) != MAX_WORKERS:
+        _fail("unknown memory still stops at MAX_WORKERS")
     if choose_workers(env_value="", nproc=2, mem_available_kib=10 * 1024 * 1024) != 2:
         _fail("empty UVICORN_WORKERS is unset")
     got = choose_workers(
@@ -177,6 +184,12 @@ def test_uvicorn_start_passes_workers(tmp_path: Path) -> None:
         _fail(f"expected --workers 3, got {argv!r}")
     if "--preload" in argv:
         _fail(f"must not pass --preload: {argv!r}")
+    try:
+        hc = argv[argv.index("--timeout-worker-healthcheck") + 1]
+    except (ValueError, IndexError):
+        _fail(f"uvicorn argv missing --timeout-worker-healthcheck: {argv!r}")
+    if hc != "10":
+        _fail(f"expected --timeout-worker-healthcheck 10, got {argv!r}")
 
 
 def main() -> None:

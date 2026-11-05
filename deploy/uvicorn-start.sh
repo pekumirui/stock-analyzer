@@ -15,9 +15,12 @@ else
 fi
 WORKERS="$("$PY" "$APP_DIR/deploy/uvicorn_workers.py")"
 echo "uvicorn workers=${WORKERS}"
+HEALTHCHECK_TIMEOUT=10
 if [[ -x "$APP_DIR/.venv/bin/uvicorn" ]]; then
   exec "$APP_DIR/.venv/bin/uvicorn" app.main:app --host 127.0.0.1 --port 8000 \
-    --workers "$WORKERS" --log-config deploy/uvicorn-log.json
+    --workers "$WORKERS" --timeout-worker-healthcheck "$HEALTHCHECK_TIMEOUT" \
+    --log-config deploy/uvicorn-log.json
 fi
 exec "$PY" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 \
-  --workers "$WORKERS" --log-config deploy/uvicorn-log.json
+  --workers "$WORKERS" --timeout-worker-healthcheck "$HEALTHCHECK_TIMEOUT" \
+  --log-config deploy/uvicorn-log.json
