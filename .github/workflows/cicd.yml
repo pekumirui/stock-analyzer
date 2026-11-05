@@ -69,6 +69,13 @@ jobs:
           if ! command -v openssl >/dev/null 2>&1; then
             need+=(openssl)
           fi
+          # tests/ops/test_cve_2026_98432.py が netns で nft を動かす。
+          if ! command -v nft >/dev/null 2>&1; then
+            need+=(nftables)
+          fi
+          if ! command -v ip >/dev/null 2>&1; then
+            need+=(iproute2)
+          fi
           if [ "${#need[@]}" -eq 0 ]; then
             nginx -v 2>&1 || /usr/sbin/nginx -v
             openssl version

@@ -56,7 +56,7 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 
 1. GitHub SSH（deploy key）を冪等に揃えてから `git pull --ff-only origin main`
 2. `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `EDINET_API_KEY` / `MCP_TOKEN` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` があれば `.env` のその行だけ upsert。R2 の両方が揃っていれば `~/.config/rclone/rclone.conf` の `[r2]` だけ upsert（`onedrive` など他 remote は消さない）。`SLACK_WEBHOOK_URL` と `SLACK_WEBHOOK_URL_{APP,BATCH,INFRA,QUIET}` は `.env` に書かない
-3. `sudo provision.sh --sudoers-only`（`APP_DIR` だけ preserve。live sudoers を repo に合わせる）→ `sudo provision.sh`（パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers、R2 user mount、fluent-bit。Slack webhook は `--preserve-env`）。Webhook が空なら fluent-bit は enable のみで start しない
+3. `sudo provision.sh --sudoers-only`（`APP_DIR` だけ preserve。live sudoers を repo に合わせる）→ `sudo provision.sh`（apt のセキュリティ更新、CVE-2026-98432 の nftables 緩和、パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers、R2 user mount、fluent-bit。Slack webhook は `--preserve-env`）。Webhook が空なら fluent-bit は enable のみで start しない
 4. venv / `pip install` / `migrate.py`（`database is locked` は最大約 6 分まで再試行。19:30 の日次バッチや毎時の TDnet XBRL（parse / normalize）と重なるため）。`migrate.py` が `init_db` を 1 回やってから uvicorn を上げる（`--workers N` の同時 CREATE INDEX を避ける。`--preload` は使わない）
 5. `systemctl restart stock-analyzer` と `stock-analyzer-mcp`、localhost:8000 / :8010 のヘルスチェック
 
@@ -69,6 +69,52 @@ uvicorn のワーカー数は `deploy/uvicorn_workers.py` が起動時に決め�
 公開 location は `/monthly`・GET `/api/v1/tables`（code/year まで）・`/static/`・`robots.txt` / `sitemap.xml`。書き込み API と `/app` は Basic。公開側に `limit_req` は付けない。`/static/` は `$APP_DIR/static/` を nginx が `alias` で直配信する（`Cache-Control: no-cache`）。`/static/monthly_row_order.json` と `/static/ir_monthly_codes.json` だけ uvicorn。provision が `www-data` 用に `$HOME` へ `o+x`、`static/` へ `a+rX` を付け、`gzip_types` に css/js を入れる（`conf.d/stock-analyzer-gzip.conf`）。
 
 ホスト鍵は `deploy/known_hosts` にピン留め。VPS を作り直したら `ssh-keyscan YOUR_HOST` で更新する。
+
+## CVE-2026-98432（IPv4 TCP の緩和）
+
+カーネル修正（noble の `linux` 6.8.0-149 以上）はまだ updates に出ていない。`provision.sh` が [Ubuntu の緩和](https://ubuntu.com/security/CVE-2026-98432)を入れる。IPv4 オプション付きの TCP だけを落とし、オプションの無い TCP（SSH、80/443、`/mcp`）は通す。TCP のタイムスタンプやウィンドウスケーリング、IPv6 は対象外。Ubuntu の注記どおり、リスクは下がるが完全には防げない。
+
+`deploy/cve-2026-98432.nft`:
+
+```
+table inet cve_2026_98432 {
+	chain input {
+		type filter hook input priority -310; policy accept;
+		ip protocol tcp ip hdrlength > 5 counter drop
+	}
+}
+```
+
+`/etc/cve-2026-98432.nft` に置き、`nft -c -f` のあと `nft -f` で読む。再起動後は `cve-2026-98432.service` が同じファイルだけを読み込む。distro の `nftables.service` は `ExecStop` が `nft flush ruleset` で、既定の `/etc/nftables.conf` も `flush ruleset` なので有効にしない（有効だと ufw のルールが消える）。既に有効なら disable する（stop / restart はしない）。ufw の 22/80/443 はそのまま。
+
+同じ provision で `apt` / `apt-utils` / `libapt-pkg6.0t64` だけ `--only-upgrade` する（CVE-2026-109518、KAB-359 の残り）。apt 自身の取得は `Acquire::Retries=0`。カーネルは上げない。再起動しない。稼働中の nginx が差し替え済みの libpcre2 を掴んだままなら reload する。
+
+デプロイ後:
+
+```bash
+sudo nft list table inet cve_2026_98432
+sudo systemctl is-enabled cve-2026-98432.service
+sudo ufw status
+apt-cache policy apt | head -n 3
+if sudo grep -q 'libpcre2.*deleted' /proc/"$(pgrep -o nginx)"/maps; then
+  echo "nginx still maps a deleted libpcre2"
+fi
+```
+
+SSH、[https://kabukpi.com/](https://kabukpi.com/) 、[https://kabukpi.com/mcp](https://kabukpi.com/mcp) がつながること。`ufw status` は 22/80/443 のまま。`apt` は 2.8.4ubuntu0.1 以上。nginx の maps に `libpcre2` の `(deleted)` が無いこと。
+
+戻し方（このテーブルだけ外す。ufw は触らない）:
+
+```bash
+sudo systemctl disable --now cve-2026-98432.service
+sudo rm -f /etc/systemd/system/cve-2026-98432.service /etc/cve-2026-98432.nft
+sudo systemctl daemon-reload
+if sudo nft list table inet cve_2026_98432 >/dev/null 2>&1; then
+  sudo nft delete table inet cve_2026_98432
+fi
+```
+
+`disable --now` の停止処理がこのテーブルだけを消す（`flush ruleset` はしない）。`nftables.service` は ufw と併用しているあいだ有効にしない。
 
 ## このPCから SSH（鍵のみ）
 
