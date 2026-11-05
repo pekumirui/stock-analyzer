@@ -396,6 +396,18 @@ class MonthlyValue(Base):
     value = Column(Float, nullable=False)
 
 
+class DataVersion(Base):
+    """読み取り結果を使い回すための版。対象表のトリガーが version を +1 する。
+
+    name は使い回す結果の名前。monthly_list は月次一覧
+    （/monthly、/api/v1/tables、/sitemap.xml）。
+    行は最初の書き込みでトリガーが作る。last_ingested_at では数えない。
+    """
+    __tablename__ = "data_versions"
+    name = Column(String, primary_key=True)
+    version = Column(Integer, nullable=False, default=0, server_default="0")
+
+
 class XbrlFiling(Base):
     __tablename__ = "xbrl_filings"
     id = Column(Integer, primary_key=True)

@@ -129,6 +129,17 @@ monthly_values    -- セル。値は数値のみ (単位・カンマ付き文字
   code, year, element, month PK
   value
 
+data_versions     -- プロセス内キャッシュの版。対象の表が変わると +1
+  name PK                 -- monthly_list = 月次一覧（/monthly、/api/v1/tables、/sitemap.xml）
+  version                 -- 最初の対象書き込みで 1。その後の INSERT/UPDATE/DELETE ごとに +1
+
+月次一覧の版（name = monthly_list）を上げるのは monthly_tables / monthly_elements /
+monthly_values / monthly_issuers / stocks の INSERT・UPDATE・DELETE（行ごと）。
+API・cron・MCP・手書きの SQL のどれでも上がる。トリガーは init_db と jobs/migrate.py が作る。
+行がまだ無いあいだの版は 0。last_ingested_at は版に使わない（更新しない書き込みがある）。
+一覧の is_new / ingested_today は JST の日付で変わるので、使い回しのキーは (version, JST の今日)。
+結果はワーカーのメモリに置く。別プロセスの書き込みは、次の読みで版が変わって作り直す。
+
 monthly_element_sources  -- 送られてきたままの行名 → 今の保存名。正規化の差分スナップショットの入力 (KAB-17)
   code, year, source_label, unit PK  -- source_label は前後の空白だけ落とした受信のまま。unit も受信のまま (yoy_pct 可)
   element                 -- 今の保存名。付け替え・統合 (rename_monthly_element) に付いていく。行を消すと一緒に消える

@@ -184,6 +184,11 @@ flowchart LR
 - 書く: `jobs/golden_db.py（共通・運用）`, `jobs/market/run_batch.py`, `jobs/ops/rebuild_daily_prices.py（共通・運用）`
 - 読むだけ: `GET /api/chart/{code}`, `GET /api/holders/{edinet}（EDINET・大量保有）`, `GET /api/pts`, `GET /api/ranking/earnings-perf`, `GET /api/stock/{code}/overview`
 
+### data_versions
+
+- 書く: （観測なし）
+- 読むだけ: `GET /api/v1/tables（月次）`
+
 ### earnings_date_fetches
 
 - 書く: `jobs/golden_db.py（共通・運用）`, `jobs/market/run_batch.py`

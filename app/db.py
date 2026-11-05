@@ -459,6 +459,69 @@ def _drop_obsolete_indexes() -> set[str]:
     return dropped
 
 
+# 月次一覧（list_tables_payload）の版。last_ingested_at では数えない。
+MONTHLY_LIST_VERSION = "monthly_list"
+_MONTHLY_LIST_TABLES = (
+    "monthly_tables",
+    "monthly_elements",
+    "monthly_values",
+    "monthly_issuers",
+    "stocks",
+)
+_TRIGGER_EVENTS = (("INSERT", "ai"), ("UPDATE", "au"), ("DELETE", "ad"))
+
+
+def monthly_list_version(db: Session) -> int:
+    """月次一覧の版。まだ書き込みが無ければ 0。"""
+    row = db.execute(
+        text("SELECT version FROM data_versions WHERE name = :name"),
+        {"name": MONTHLY_LIST_VERSION},
+    ).scalar()
+    return int(row or 0)
+
+
+def ensure_data_versions() -> None:
+    """data_versions と月次一覧のトリガーを足す。何度走っても同じ。
+
+    init_db と jobs/migrate.py から呼ぶ。create_all は既存 DB にトリガーを足さない。
+    API・cron・MCP・手書き SQL のどれで書いても、対象表の行ごとに版が +1 される。
+    """
+    for attempt in range(1, SCHEMA_DDL_ATTEMPTS + 1):
+        try:
+            _ensure_data_versions_once()
+            break
+        except OperationalError as exc:
+            if not is_already_exists(exc) or attempt >= SCHEMA_DDL_ATTEMPTS:
+                raise
+    # 表を作り直したあとのプロセスは、前の DB の一覧を持たない。
+    from .monthly.list_cache import clear as clear_monthly_list_cache
+    clear_monthly_list_cache()
+
+
+def _ensure_data_versions_once() -> None:
+    for table in _MONTHLY_LIST_TABLES:
+        if not _TABLE_NAME_RE.fullmatch(table):
+            raise ValueError(f"unsafe table name: {table!r}")
+    bump = (
+        "INSERT INTO data_versions (name, version) VALUES "
+        f"('{MONTHLY_LIST_VERSION}', 1) "
+        "ON CONFLICT(name) DO UPDATE SET version = version + 1"
+    )
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE IF NOT EXISTS data_versions ("
+            "name TEXT PRIMARY KEY, version INTEGER NOT NULL DEFAULT 0)"
+        ))
+        for table in _MONTHLY_LIST_TABLES:
+            for event, suffix in _TRIGGER_EVENTS:
+                name = f"trg_{table}_{suffix}_monthly_list"
+                conn.execute(text(
+                    f"CREATE TRIGGER IF NOT EXISTS {name} "
+                    f"AFTER {event} ON {table} "
+                    f"BEGIN {bump}; END"
+                ))
+
+
 def init_db(strict: bool = False):
     """テーブル作成。strict=True なら既存スキーマの不整合で例外を投げる。"""
     for attempt in range(1, SCHEMA_DDL_ATTEMPTS + 1):
@@ -469,6 +532,7 @@ def init_db(strict: bool = False):
             if not is_already_exists(exc) or attempt >= SCHEMA_DDL_ATTEMPTS:
                 raise
     ensure_indexes()
+    ensure_data_versions()
     if strict:
         lacks = missing_columns()
         if lacks:
