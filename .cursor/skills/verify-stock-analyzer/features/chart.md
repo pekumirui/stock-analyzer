@@ -12,7 +12,7 @@ The 株価 sub tab of 銘柄 draws adjusted daily, weekly, monthly, or yearly ca
 - `price-rel` `#rel` adds the 対TOPIX pane (first common day = 100) from `GET /api/topix` (fetched once per page).
 - `price-perf` fills `#perf-tbl` (発表日 / +1d / α / +5d / α / +20d / α / +60d / α / 現在まで / α) from `/api/earnings-performance/{code}`, at most 12 rows.
 - `price-events` `.evt-toggles` (決算発表) inside `#st-sub-price` overlays markers from chart JSON `earnings_dates`; on/off is kept in `localStorage.chartEventOverlays`.
-- `price-goto` `gotoChart(code)` from 決算速報 (`#e-chart-title .clicky`), スクリーナー / PTS / ランキング / 大量保有報告書 (name `.clicky`), サプライ (`#supply-chart-link` 「株価を開く」) opens 銘柄 with 株価 `.on`, hash `#stock/{code}/price?from=` when the caller screen is allowed (`earnings`, `screener`, `ranking`, `ranking-pts`, `supply`, `holders`, `holders-detail`, `stock-*`). A reload of `#stock/{code}/price` has no query. `ui.route` stores the path only.
+- `price-goto` `gotoChart(code)` from 決算速報 (`#e-chart-title .clicky`), スクリーナー / PTS / ランキング / 大量保有報告書 (issuer name `.clicky`; the 保有者 name is `gotoHolder`), サプライ (`#supply-chart-link` 「株価を開く」) opens 銘柄 with 株価 `.on`, hash `#stock/{code}/price?from=` when the caller screen is in the exact allow-list (`earnings`, `screener`, `ranking`, `ranking-pts`, `supply`, `holders`, `holders-detail`, `stock`, `stock-summary`, `stock-news`, `stock-holders`, `stock-decks`). `stock-news-detail` and `stock-deck-detail` are dropped. A reload of `#stock/{code}/price` has no query. `ui.route` stores the path only.
 - `price-route` `#stock/{code}/price` restores it on reload. Old `#chart/{code}` or `ui.route` `chart/{code}` is read as `stock/{code}/price`; bare `#chart` → `#stock`.
 
 ## How to get to it (user POV)

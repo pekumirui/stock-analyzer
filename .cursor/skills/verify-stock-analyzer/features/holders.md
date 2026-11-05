@@ -34,7 +34,7 @@ Preconditions:
 ## Gotchas
 
 - EDINET codes are `E` + 5 digits. A bad hash `#holders/foo` falls back to the list. `#holders/e09096` (lowercase) also restores the list; the API uppercases.
-- List sorts by `file_date`, not `obligation_date`. A 2027-10-01 obligation with a 2026-10-08 filing is a source typo; the row is kept. Dates more than 30 days after the filing, or after Asia/Tokyo today, get class `odd-date` (warn color, not muted `--sub`) on the feed, holder tables, and 銘柄 › 株主.
+- List sorts by `file_date`, not `obligation_date`. Unchanged-ratio filings (`classify_move` returns `None`) are omitted from the date list, so a 2027-10-01 obligation filed 2026-10-08 does not appear on `#hd-feed` for that day (it still appears on the holder page). Dates more than 30 days after the filing, or after Asia/Tokyo today, get class `odd-date` (warn color, not muted `--sub`) on the feed, holder tables, and 銘柄 › 株主.
 - Joint holders without `edinet_code` are omitted from search and holder pages.
 - PTS is inside ランキング (`#ranking/pts`, KAB-265). Header has no PTS tab.
 - One-character `#hd-sym` is not a search; the date list stays.

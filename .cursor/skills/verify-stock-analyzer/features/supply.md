@@ -51,7 +51,7 @@ Preconditions:
 
 - The tab starts at 0×0 while hidden; `loadSupply` calls `cy.resize()` on each open. `#supply-msg` is removed before ELK runs, so it is not a ready signal. Wait until `#supply-body` is non-empty (`supplyPanel()` runs after layout + fit). `#supply-panel` always holds `#supply-grip` + `#supply-body`, so its own emptiness says nothing. The unpkg libraries can take well over 20 s on the box.
 - Hash with an uppercase or invalid id (`#supply/NOPE`) is rewritten to `#supply` by `routeArg`. A valid-looking unknown id keeps the hash but selects nothing.
-- Donut slices and share rows carry `data-co`, so clicking them switches to the company panel (the share table disappears). Do not chain a share-row click after a donut click.
+- Company-share donut slices and share rows carry `data-co` only when that slice has a company `id`. Clicking those switches to the company panel (the share table disappears). 「その他 n 社」 and every 輸入元 country slice have no `data-co` and do not change the panel (ethylene live: `#supply-countries path` `data-co` is all null). Do not chain a share-row click after a company-donut click.
 - Edges have `events: "no"`; you cannot tap a line. Returns have no edge at all. There are no country boxes on the map any more.
 - While the page itself is pinch-zoomed (`visualViewport.scale` > 1) map pan/zoom is off (#636). Cytoscape `minZoom` is 0.2; there is no `maxZoom` (default unbounded). Fly-to-pick still clamps at 1.2, and the phone sheet floor is 0.6.
 - Layout: ≥900px the panel is a 300px right column and the map fills the rest of the screen. Below 900px the panel is the bottom sheet and the map is `calc(100dvh - 210px)` (min 300px).
