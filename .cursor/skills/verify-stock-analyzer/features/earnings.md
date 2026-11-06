@@ -23,7 +23,7 @@ The default tab lists financial-statement disclosures for a calendar day, then s
 
 - Open `{url}/app` with no hash and no `ui.route` (or after clearing them). 決算速報 is the fallback tab; boot still runs `selectDate(todayISO())` before `restoreRoute()`, so today's list loads even if another tab is restored. With a clean route: nav is `.active` on 決算速報, header crumbs are `トップ > 決算速報` (`#cur-tab` hidden), and `#earn-title` reads `{date}の決算発表`.
 - Click `nav button[data-tab="earnings"]` from any other tab. At ≤720px open `#menu-btn` first.
-- Click `#cal-btn` to open `#cal-pop`. Use `#cal-title` ◀/▶ (`calMove`) to change month when needed. Click a day cell `#cal .d` that shows `.cnt` (accent for filings, muted `.cnt.sched` for a future schedule, `.cnt.pend` for `+N` still scheduled today). The popover closes (Esc, `#cal-backdrop`, a day click, or a click outside `#cal-wrap`).
+- Click `#cal-btn` to open `#cal-pop`. Use `#cal-pop .row button.btn` ◀/▶ (`calMove`; siblings of `#cal-title`) to change month when needed. Click a day cell `#cal .d` that shows `.cnt` (accent for filings, muted `.cnt.sched` for a future schedule, `.cnt.pend` for `+N` still scheduled today). The popover closes (Esc, `#cal-backdrop`, a day click, or a click outside `#cal-wrap`).
 - Click a filing row `#earn-tbl tr[data-no]`, or a scheduled row `#earn-tbl tr[data-code]`.
 - Type in `#earn-sym` and pick a suggestion, or click a `#earn-groups` chip.
 - Click 累計 / 3か月 / 進捗率 in `#earn-view`, or untick a `#earn-qf` quarter.
