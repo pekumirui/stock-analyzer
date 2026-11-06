@@ -504,11 +504,12 @@ python jobs/xbrl/xbrl_parse.py report-unmapped --limit 50
 python jobs/xbrl/xbrl_normalize.py
 python jobs/xbrl/xbrl_normalize.py --rebuild
 python jobs/xbrl/xbrl_normalize.py --rebuild --code 72030
+python jobs/xbrl/xbrl_normalize.py --since 2026-08-01 --source tdnet
 ```
 
 dest 既定は `tdnet_xbrl_r2.DEFAULT_DEST`。`--dest` で上書き。
 
-cron は 12–23 時 JST の毎時 :00 に fetch → parse → normalize を 1 行で順に走らせる（段の間は `;`。fetch が失敗しても parse / normalize は走らせる。手元の未解析 ZIP を拾う）。:10 / :20 の単独 cron は置かない（次の毎時の連鎖が拾う。手でやり直すときは各ジョブを `deploy/cron-run.sh` で単独実行）。短信 PDF の数値（§16.5）は cron に無い。normalize は未反映と再パース分だけ（マッピング変更は `--rebuild`）。
+cron は 12–23 時 JST の毎時 :00 に fetch → parse → normalize を 1 行で順に走らせる（段の間は `;`。fetch が失敗しても parse / normalize は走らせる。手元の未解析 ZIP を拾う）。:10 / :20 の単独 cron は置かない（次の毎時の連鎖が拾う。手でやり直すときは各ジョブを `deploy/cron-run.sh` で単独実行）。短信 PDF の数値（§16.5）は cron に無い。normalize は未反映と再パース分だけ（マッピング変更は `--rebuild`）。`--rebuild` は最初に全部消すので、作り直しの間は修正履歴・粗利などが空になる。範囲を絞れるときは `--since YYYY-MM-DD`（`--source` で tdnet / tdnet_pdf / edinet に限定）を使う。提出日がその日以降の parsed filing を、消さずに 1 件ずつやり直す。`--rebuild` とは併用しない。
 
 ---
 

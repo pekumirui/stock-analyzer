@@ -2653,6 +2653,7 @@ def test_xbrl_compare_tools() -> None:
                 (6, "72030", "tdnet", "TD-B", "FY", "2024-05-10 15:00:00", "JPGAAP", 0, "parsed"),
                 (7, "72030", "tdnet", "TD-C", "3Q", "2025-02-10 15:00:00", "JPGAAP", 0, "parsed"),
                 (8, "72030", "edinet", "S100ONLY", "FY", "2023-11-01 09:00:00", "JPGAAP", 0, "parsed"),
+                (9, "72030", "tdnet", "081220260930543461", "FY", "2026-09-30 17:00:00", "JPGAAP", 1, "parsed"),
             ],
         )
         conn.executemany(
@@ -2680,6 +2681,7 @@ def test_xbrl_compare_tools() -> None:
                 (6, 1, 1, "2024-03-31", 2_222_000_000, "actual", "point"),
                 (7, 1, 1, "2024-12-31", 3_000_000_000, "actual", "point"),
                 (8, 1, 1, "2023-09-30", 8_000_000_000, "actual", "point"),
+                (9, 1, 1, "2023-03-31", 99_000, "actual", "point"),
             ],
         )
         conn.commit()
@@ -2774,6 +2776,10 @@ def test_xbrl_compare_tools() -> None:
             td_sum, td_err = m.call_tool("xbrl_diff_summary", {"source": "tdnet"})
             if td_err or "source=tdnet" not in td_sum or "paired=" not in td_sum:
                 raise SystemExit(f"tdnet summary: {td_sum!r}")
+            if "restated=1" not in td_sum or "99,000" in td_sum:
+                raise SystemExit(f"tdnet restatement must not count as DIFF: {td_sum!r}")
+            if "restated=0" not in summary:
+                raise SystemExit(f"edinet restated: {summary}")
             bad_source, bad_source_err = m.call_tool("xbrl_diff_summary", {"source": "statements"})
             if not bad_source_err or "source must be" not in bad_source:
                 raise SystemExit(f"bad source: {bad_source!r}")

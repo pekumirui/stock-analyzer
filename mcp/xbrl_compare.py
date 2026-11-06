@@ -142,6 +142,7 @@ class Summary:
     since: date | None
     xbrl_periods: int
     paired: int
+    restated: int
     by_item: Mapping[str, _Tally]
     by_standard: Mapping[str, _Tally]
     by_sector: Mapping[str, _Tally]
@@ -273,6 +274,17 @@ def compare_period(
     return rows
 
 
+def is_restated(period: Period, pair: Pair) -> bool:
+    """TDnet の訂正短信が、statements の行より後に別の開示で過去の期を出し直したもの。"""
+    if pair.left is not Source.STATEMENTS or pair.right is not Source.TDNET:
+        return False
+    left = period.docs.get(pair.left)
+    right = period.docs.get(pair.right)
+    if left is None or right is None or not right.amended:
+        return False
+    return right.doc_id[-14:] != left.doc_id and right.submitted[:10] > left.submitted[:10]
+
+
 def summarize(
     periods: Iterable[Period],
     pair: Pair,
@@ -286,6 +298,7 @@ def summarize(
     by_sector: dict[str, _Tally] = defaultdict(_Tally)
     xbrl_periods = 0
     paired = 0
+    restated = 0
     heap: list[tuple[float, int, Row]] = []
     seq = 0
     for period in periods:
@@ -295,6 +308,9 @@ def summarize(
         if pair.left not in period.docs:
             continue
         paired += 1
+        if is_restated(period, pair):
+            restated += 1
+            continue
         standard = period.docs[pair.right].standard or "-"
         sector = sectors.get(period.code) or "-"
         for row in compare_period(period, items, (pair,)):
@@ -320,6 +336,7 @@ def summarize(
         since=since,
         xbrl_periods=xbrl_periods,
         paired=paired,
+        restated=restated,
         by_item=by_item,
         by_standard=by_standard,
         by_sector=by_sector,
@@ -683,7 +700,10 @@ def _render_summary(summary: Summary) -> str:
     xbrl_only = summary.xbrl_periods - summary.paired
     lines = [
         f"xbrl_diff_summary source={summary.source.value} since={since}",
-        f"xbrl_periods={summary.xbrl_periods} paired={summary.paired} xbrl_only={xbrl_only}",
+        (
+            f"xbrl_periods={summary.xbrl_periods} paired={summary.paired} xbrl_only={xbrl_only} "
+            f"restated={summary.restated}"
+        ),
         "by item",
     ]
     for code, tally in summary.by_item.items():
