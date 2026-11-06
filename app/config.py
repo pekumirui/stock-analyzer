@@ -104,6 +104,12 @@ MONTHLY_NEW_DAYS = 7
 
 STAGE_PARAMS = {
     "rs_min_stage2": 70,
+    "ma200_up_days": 21,           # Stage2: 200日線がこの営業日数つづけて前日より上
+    "stage3_lookback": 120,        # Stage3: この営業日数以内に Stage2 だった。傾きの最大もこの期間
+    "stage3_slope_decay": 0.5,     # Stage3: 上向きでも1か月の傾きが期間の最大のこの倍以下なら失速
+    "stage3_atr_days": 20,         # Stage3: 直近のATR/株価を、その前の同じ日数と比べる
+    "stage3_vol_mult": 1.5,        # Stage3: 50日平均のこの倍以上の出来高で下げた日を大商いの下げ
+    "stage3_vol_days": 20,         # Stage3: 大商いの下げを探す営業日数
     "low52_margin": 1.30,
     "high52_margin": 0.75,
     "ma200_flat_th": 0.005,
