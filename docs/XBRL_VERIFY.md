@@ -154,6 +154,6 @@ DATABASE_URL="sqlite:///$VERIFY_DB" python jobs/xbrl/xbrl_normalize.py --rebuild
 python tools/xbrl/xbrl_vs_statements.py --db "$VERIFY_DB" --out /tmp/xbrl_vs_statements.json
 ```
 
-突合は `disclosed_date == date(submitted_at)` の filing だけ。日付が合わない statements は `skipped_date`（全履歴フォールバックしない）。配当は `fiscal_year_end` と `period_end` が同じ行を使う。statements が百万円切捨てで |差|<1e6 なら `rounding`（一致率の分子に入れるが別集計）。
+突合は開示番号（`statements.disclosure_no` と `xbrl_filings.doc_id` の末尾 14 桁）を先に使い、合わなければ `code` と `disclosed_date == date(submitted_at)`。どちらも合わない statements は `skipped_date`（全履歴フォールバックしない）。配当は `fiscal_year_end` と `period_end` が同じ行を使う。statements が百万円切捨てで |差|<1e6 なら `rounding`（一致率の分子に入れるが別集計）。
 
 ZIP が無いときは `tests/xbrl/test_xbrl_forecast.py` のフィクスチャでコマンド形を確認する。

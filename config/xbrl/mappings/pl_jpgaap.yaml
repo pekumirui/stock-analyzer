@@ -28,6 +28,7 @@
     - { ns: tse-ed-t, name: RevenuesUS, priority: 88 }
     - { ns: tse-ed-t, name: NetSalesAndOperatingRevenuesUS, priority: 90 }
     - { ns: tse-ed-t, name: TotalRevenuesUS, priority: 92 }
+    - { ns: tse-re-t, name: OperatingRevenuesREIT, priority: 94 }
 - std_item: cost_of_sales
   elements:
     - { ns: jppfs_cor, name: CostOfSales, priority: 10 }
@@ -42,10 +43,13 @@
     - { ns: jppfs_cor, name: OperatingIncome, priority: 10 }
     - { ns: jppfs_cor, name: OperatingIncomeLoss, priority: 20 }
     - { ns: tse-ed-t, name: OperatingIncome, priority: 50 }
+    - { ns: tse-ed-t, name: OperatingIncomeUS, priority: 60 }
+    - { ns: tse-re-t, name: OperatingIncome, priority: 70 }
 - std_item: ordinary_income
   elements:
     - { ns: jppfs_cor, name: OrdinaryIncome, priority: 10 }
     - { ns: tse-ed-t, name: OrdinaryIncome, priority: 50 }
+    - { ns: tse-re-t, name: OrdinaryIncome, priority: 70 }
 - std_item: profit_before_tax
   elements:
     - { ns: jppfs_cor, name: IncomeBeforeIncomeTaxes, priority: 10 }
@@ -56,3 +60,5 @@
     - { ns: jppfs_cor, name: NetIncome, priority: 30 }
     - { ns: tse-ed-t, name: ProfitAttributableToOwnersOfParent, priority: 50 }
     - { ns: tse-ed-t, name: NetIncome, priority: 60 }
+    - { ns: tse-ed-t, name: NetIncomeUS, priority: 65 }
+    - { ns: tse-re-t, name: NetIncome, priority: 70 }
