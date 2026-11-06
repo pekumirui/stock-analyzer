@@ -1,6 +1,7 @@
 - std_item: eps_basic
   elements:
     - { ns: tse-ed-t, name: NetIncomePerShare, priority: 10 }
+    - { ns: tse-re-t, name: NetIncomePerUnitREIT, priority: 10 }
     - { ns: jppfs_cor, name: BasicEarningsPerShare, priority: 20 }
     - { ns: jppfs_cor, name: NetIncomePerShare, priority: 30 }
     # 有報の主要な経営指標等（KAB-78）。日本基準の有報は本表に EPS の数値 fact が無い。

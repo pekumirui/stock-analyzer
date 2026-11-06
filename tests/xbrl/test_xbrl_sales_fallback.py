@@ -1,4 +1,4 @@
-"""KAB-58: 本表に標準売上タグが無いときだけ短信サマリーの実績売上で補う。"""
+"""短信サマリーの当期実績（KAB-58 の売上補完、KAB-375 のサマリー優先）。"""
 from __future__ import annotations
 
 import os
@@ -105,33 +105,118 @@ def test_summary_fills_actual_sales_when_primary_is_custom_tag(tmp: Path) -> Non
         db.close()
 
 
-def test_primary_sales_not_overwritten_by_summary(tmp: Path) -> None:
-    """本表で売上が取れている値はサマリー実績があっても変えない。"""
+def test_summary_actual_wins_over_primary(tmp: Path) -> None:
+    """8267 型: 本表の売上高より、サマリーの営業収益（J-Quants と同じ値）を使う。"""
     init_db()
     db = SessionLocal()
     try:
         facts = [
             ("jppfs_cor", "NetSales", "CurrentYTDDuration", "JPY", "6", "200", "-6"),
+            ("jppfs_cor", "OperatingRevenue1", "CurrentYTDDuration", "JPY", "6", "230", "-6"),
             ("jppfs_cor", "OperatingIncome", "CurrentYTDDuration", "JPY", "6", "50", "-6"),
-            ("tse-ed-t", "NetSales", "CurrentYTDResult", "JPY", "6", "999", "-6"),
+            ("jppfs_cor", "OrdinaryIncome", "CurrentYTDDuration", "JPY", "6", "45", "-6"),
+            ("tse-ed-t", "OperatingRevenues", "CurrentYTDResult", "JPY", "6", "230", "-6"),
+            ("tse-ed-t", "OperatingIncome", "CurrentYTDResult", "JPY", "6", "51", "-6"),
+            ("tse-ed-t", "OperatingIncome", "CurrentYTDResultNC", "JPY", "6", "7", "-6"),
             ("tse-ed-t", "NetSales", "CurrentYearDuration", "JPY", "6", "500", "-6"),
         ]
         html = build_ixbrl(facts=facts, contexts=_ytd_result_forecast_contexts())
         filing = parse_and_normalize(
-            db, tmp, code="80350", doc_id="kab58-keep",
-            title="2026年3月期 第2四半期決算短信〔日本基準〕（連結）",
+            db, tmp, code="82670", doc_id="kab375-aeon",
+            title="2027年2月期 第2四半期決算短信〔日本基準〕（連結）",
             html=html,
         )
         sales = _one(db, filing.id, "net_sales", value_kind="actual")
-        if sales is None or Decimal(str(sales.value)) != Decimal("200000000"):
-            _fail(f"primary overwritten {sales.value if sales else None}")
-        if sales.source_layer != SOURCE_LAYER_PRIMARY:
-            _fail(f"primary source_layer {sales.source_layer}")
+        if sales is None or Decimal(str(sales.value)) != Decimal("230000000"):
+            _fail(f"summary sales {sales.value if sales else None}")
+        if sales.source_layer != SOURCE_LAYER_SUMMARY:
+            _fail(f"sales source_layer {sales.source_layer}")
+        op = _one(db, filing.id, "operating_income", value_kind="actual")
+        if op is None or Decimal(str(op.value)) != Decimal("51000000") or not op.is_consolidated:
+            _fail(f"consolidated summary op {op.value if op else None}")
+        ordinary = _one(db, filing.id, "ordinary_income", value_kind="actual")
+        if ordinary is None or Decimal(str(ordinary.value)) != Decimal("45000000"):
+            _fail(f"primary kept when summary missing {ordinary.value if ordinary else None}")
+        if ordinary.source_layer != SOURCE_LAYER_PRIMARY:
+            _fail(f"ordinary source_layer {ordinary.source_layer}")
         if filing.fiscal_year_end != date(2025, 9, 30):
-            _fail(f"primary fy_end changed {filing.fiscal_year_end}")
+            _fail(f"fy_end changed {filing.fiscal_year_end}")
         fc = _one(db, filing.id, "net_sales", value_kind="forecast")
         if fc is None or Decimal(str(fc.value)) != Decimal("500000000"):
             _fail(f"forecast {fc.value if fc else None}")
+    finally:
+        db.close()
+
+
+def test_summary_us_gaap_profits(tmp: Path) -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        facts = [
+            ("tse-ed-t", "NetSalesUS", "CurrentYTDResult", "JPY", "6", "900", "-6"),
+            ("tse-ed-t", "OperatingIncomeUS", "CurrentYTDResult", "JPY", "6", "90", "-6"),
+            ("tse-ed-t", "NetIncomeUS", "CurrentYTDResult", "JPY", "6", "60", "-6"),
+        ]
+        contexts = _context(
+            "CurrentYTDResult", start="2025-04-01", end="2025-09-30",
+            members=[(AXIS_C, CONS), (AXIS_RF, RESULT)],
+        )
+        html = build_ixbrl(facts=facts, contexts=contexts)
+        filing = parse_and_normalize(
+            db, tmp, code="77510", doc_id="kab375-us",
+            title="2026年3月期 第2四半期決算短信〔米国基準〕（連結）",
+            html=html,
+        )
+        for code, want in (("net_sales", "900000000"), ("operating_income", "90000000"), ("net_income", "60000000")):
+            row = _one(db, filing.id, code, value_kind="actual")
+            if row is None or Decimal(str(row.value)) != Decimal(want):
+                _fail(f"US {code} {row.value if row else None}")
+    finally:
+        db.close()
+
+
+REIT_NS = "http://www.xbrl.tdnet.info/taxonomy/jp/tse/tdnet/re/t/2014-01-12"
+
+
+def test_reit_summary_actuals(tmp: Path) -> None:
+    """89840 型: REIT のサマリーは tse-re-t。営業収益・利益・1口当たり利益を取る。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        members = [
+            ("tse-re-t:ConsolidatedNonconsolidatedAxis", "tse-re-t:NonConsolidatedMember"),
+            ("tse-re-t:ResultForecastAxis", "tse-re-t:ResultMember"),
+        ]
+        contexts = _context(
+            "CurrentYearDuration_NonConsolidatedMember_ResultMember",
+            start="2026-03-01", end="2026-08-31", members=members,
+        )
+        facts = [
+            ("tse-re-t", "OperatingRevenuesREIT", "CurrentYearDuration_NonConsolidatedMember_ResultMember", "JPY", "6", "31249", "-6"),
+            ("tse-re-t", "OperatingIncome", "CurrentYearDuration_NonConsolidatedMember_ResultMember", "JPY", "6", "15000", "-6"),
+            ("tse-re-t", "OrdinaryIncome", "CurrentYearDuration_NonConsolidatedMember_ResultMember", "JPY", "6", "13000", "-6"),
+            ("tse-re-t", "NetIncome", "CurrentYearDuration_NonConsolidatedMember_ResultMember", "JPY", "6", "12999", "-6"),
+            ("tse-re-t", "NetIncomePerUnitREIT", "CurrentYearDuration_NonConsolidatedMember_ResultMember", "JPYPershare", "0", "2673", "0"),
+        ]
+        html = build_ixbrl(facts=facts, contexts=contexts, extra_xmlns=f'xmlns:tse-re-t="{REIT_NS}"')
+        filing = parse_and_normalize(
+            db, tmp, code="89840", doc_id="kab375-reit",
+            title="2026年8月期 決算短信（REIT）",
+            html=html,
+        )
+        want = {
+            "net_sales": "31249000000",
+            "operating_income": "15000000000",
+            "ordinary_income": "13000000000",
+            "net_income": "12999000000",
+            "eps_basic": "2673",
+        }
+        for code, value in want.items():
+            row = _one(db, filing.id, code, value_kind="actual")
+            if row is None or Decimal(str(row.value)) != Decimal(value):
+                _fail(f"REIT {code} {row.value if row else None}")
+            if row.source_layer != SOURCE_LAYER_SUMMARY:
+                _fail(f"REIT {code} source_layer {row.source_layer}")
     finally:
         db.close()
 
@@ -582,7 +667,9 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as d:
         tmp = Path(d)
         test_summary_fills_actual_sales_when_primary_is_custom_tag(tmp)
-        test_primary_sales_not_overwritten_by_summary(tmp)
+        test_summary_actual_wins_over_primary(tmp)
+        test_summary_us_gaap_profits(tmp)
+        test_reit_summary_actuals(tmp)
         test_revenue2_summary_fills_when_primary_missing(tmp)
         test_sfrs_summary_sales_without_ifrs_standard(tmp)
         test_insurance_without_summary_sales_stays_empty(tmp)

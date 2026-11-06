@@ -94,9 +94,12 @@ RANGE_POINT = "point"
 RANGE_LOWER_SIDE = "lower"
 RANGE_UPPER_SIDE = "upper"
 SUMMARY_NS = "tse-ed-t"
+REIT_SUMMARY_NS = "tse-re-t"
 PDF_SUMMARY_NS = "pdf-sum"
+ZIP_SUMMARY_NAMESPACES = frozenset({SUMMARY_NS, REIT_SUMMARY_NS})
 # 短信サマリー（1 ページ目）。ZIP の tse-ed-t と PDF の pdf-sum は同じ扱い（KAB-173）
-SUMMARY_NAMESPACES = frozenset({SUMMARY_NS, PDF_SUMMARY_NS})
+SUMMARY_NAMESPACES = ZIP_SUMMARY_NAMESPACES | {PDF_SUMMARY_NS}
+SUMMARY_FIRST_CODES = frozenset({"net_sales", "operating_income", "ordinary_income", "net_income"})
 SOURCE_LAYER_PRIMARY = "primary"
 SOURCE_LAYER_SUMMARY = "summary"
 NET_SALES_CODE = "net_sales"
@@ -301,20 +304,32 @@ def _legacy_actual_key(std: XbrlStdItem) -> tuple:
     return ("legacy", std.id)
 
 
+def _is_summary_result(el: XbrlElement, ctx: XbrlContext, klass: ContextClass, namespaces: frozenset) -> bool:
+    if (el.namespace_key or "") not in namespaces:
+        return False
+    if klass.value_kind != VALUE_KIND_ACTUAL or klass.range_side != RANGE_POINT:
+        return False
+    return "ResultMember" in _members_of(ctx)
+
+
+def is_summary_first_actual(
+    el: XbrlElement,
+    ctx: XbrlContext,
+    klass: ContextClass,
+    std: XbrlStdItem,
+) -> bool:
+    """本表より優先する、ZIP の短信サマリーの当期実績。"""
+    return std.code in SUMMARY_FIRST_CODES and _is_summary_result(el, ctx, klass, ZIP_SUMMARY_NAMESPACES)
+
+
 def is_summary_actual_net_sales_fallback(
     el: XbrlElement,
     ctx: XbrlContext,
     klass: ContextClass,
     std: XbrlStdItem,
 ) -> bool:
-    """本表に売上がないときだけ使う、短信サマリーの当期実績売上。"""
-    if std.code != NET_SALES_CODE:
-        return False
-    if (el.namespace_key or "") not in SUMMARY_NAMESPACES:
-        return False
-    if klass.value_kind != VALUE_KIND_ACTUAL or klass.range_side != RANGE_POINT:
-        return False
-    return "ResultMember" in _members_of(ctx)
+    """本表に売上がないときだけ使う、短信 PDF サマリーの当期実績売上。"""
+    return std.code == NET_SALES_CODE and _is_summary_result(el, ctx, klass, frozenset({PDF_SUMMARY_NS}))
 
 
 def _chosen_key(
@@ -409,6 +424,7 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
     chosen: dict[tuple, tuple] = {}
     months: dict[tuple, tuple] = {}
     fallback_sales: list[tuple] = []
+    summary_first: dict[int, list[tuple]] = {}
     for fact in facts:
         if fact.is_nil or fact.value_num is None:
             continue
@@ -435,16 +451,21 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         if std is None:
             continue
         if not _accepts_fact(std, ctx, klass):
-            if is_summary_actual_net_sales_fallback(el, ctx, klass, std):
+            summary = is_summary_first_actual(el, ctx, klass, std)
+            if summary or is_summary_actual_net_sales_fallback(el, ctx, klass, std):
                 target_period = infer_target_period(ctx, filing, klass, std.code)
                 value = Decimal(str(fact.value_num))
                 if std.sign == "invert":
                     value = -value
-                fallback_sales.append((
-                    0 if ctx.is_consolidated else 1,
+                cand = (
+                    0 if consolidated(ctx) else 1,
                     mapping.priority,
                     value, fact, el, ctx, mapping.priority, klass, target_period, std,
-                ))
+                )
+                if summary:
+                    summary_first.setdefault(std.id, []).append(cand)
+                else:
+                    fallback_sales.append(cand)
             continue
         target_period = infer_target_period(ctx, filing, klass, std.code)
         value = Decimal(str(fact.value_num))
@@ -456,6 +477,10 @@ def normalize_filing(db: Session, filing: XbrlFiling, now: datetime | None = Non
         if prev is None or mapping.priority < prev[4]:
             pick[key] = (value, fact, el, ctx, mapping.priority, klass, target_period, std)
     _add_months(chosen, months)
+
+    for std_id, cands in summary_first.items():
+        cands.sort(key=lambda t: (t[0], t[1]))
+        chosen[_legacy_actual_key(std_items[std_id])] = cands[0][2:]
 
     net_sales_std = next((s for s in std_items.values() if s.code == NET_SALES_CODE), None)
     if net_sales_std is not None:
