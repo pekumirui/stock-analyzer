@@ -33,12 +33,14 @@ def price_frame(db: Session) -> pd.DataFrame:
     """
     q = select(DailyPrice.code, DailyPrice.date, DailyPrice.adj_close,
                DailyPrice.close, DailyPrice.adj_volume, DailyPrice.volume,
-               DailyPrice.adj_open, DailyPrice.open) \
+               DailyPrice.adj_open, DailyPrice.open, DailyPrice.adj_high, DailyPrice.high,
+               DailyPrice.adj_low, DailyPrice.low) \
         .order_by(DailyPrice.code, DailyPrice.date)
     shared: dict = {}
     parts = []
     for rows in db.execute(q).yield_per(200_000).partitions():
-        code, d, adj_close, close, adj_volume, volume, adj_open, open_ = zip(*rows)
+        code, d, adj_close, close, adj_volume, volume, adj_open, open_, \
+            adj_high, high, adj_low, low = zip(*rows)
         parts.append(pd.DataFrame({
             "code": [shared.setdefault(x, x) for x in code],
             "date": [shared.setdefault(x, x) for x in d],
@@ -48,16 +50,24 @@ def price_frame(db: Session) -> pd.DataFrame:
             "volume": np.array(volume, dtype=float),
             "adj_open": np.array(adj_open, dtype=float),
             "open": np.array(open_, dtype=float),
+            "adj_high": np.array(adj_high, dtype=float),
+            "high": np.array(high, dtype=float),
+            "adj_low": np.array(adj_low, dtype=float),
+            "low": np.array(low, dtype=float),
         }))
-        del rows, code, d, adj_close, close, adj_volume, volume, adj_open, open_
+        del rows, code, d, adj_close, close, adj_volume, volume, adj_open, open_, \
+            adj_high, high, adj_low, low
     if not parts:
         return pd.DataFrame(columns=["code", "date", "adj_close", "close", "adj_volume", "volume",
-                                     "adj_open", "open"])
+                                     "adj_open", "open", "adj_high", "adj_low"])
     df = pd.concat(parts, ignore_index=True)
     del parts
     df["adj_close"] = df["adj_close"].fillna(df["close"])
     df["volume"] = df["adj_volume"].fillna(df["volume"])
     df["adj_open"] = df["adj_open"].fillna(df["open"])
+    df["adj_high"] = df["adj_high"].fillna(df["high"])
+    df["adj_low"] = df["adj_low"].fillna(df["low"])
+    df = df.drop(columns=["high", "low"])  # ステージの ATR だけが使う。生の値は要らない
     return df.dropna(subset=["adj_close"])
 
 
@@ -103,10 +113,18 @@ def compute_indicators(
         lambda s: s.rolling(P["stage1_band_days"]).mean())
 
     c = df["adj_close"]
+    by = df["code"]
+
+    def per_code(s: pd.Series, f) -> pd.Series:
+        return s.groupby(by).transform(f)
+
+    # 200日線が ma200_up_days 営業日つづけて前日より上（21日前と比べるだけでは途中の下げを通す）
+    up = (g["ma200"].diff() > 0).astype(float)
+    ma200_rising = per_code(up, lambda s: s.rolling(P["ma200_up_days"]).min()) == 1
     stage2 = (
         (c > df["ma150"]) & (c > df["ma200"]) &
         (df["ma150"] > df["ma200"]) &
-        (df["ma200_slope_1m"] > 0) &
+        ma200_rising &
         (df["ma50"] > df["ma150"]) & (df["ma50"] > df["ma200"]) &
         (c > df["ma50"]) &
         (c >= df["low_52w"] * P["low52_margin"]) &
@@ -118,19 +136,32 @@ def compute_indicators(
         (df["ma200_slope_1m"] < P["ma200_down_th"]) &
         (c <= df["low_52w"] * P["stage4_near_low"])
     )
+
+    # Stage3: 直近まで Stage2 で、200日線が失速し、値動きが荒いか大商いで下げた
+    lb = P["stage3_lookback"]
+    recent_s2 = per_code(stage2.astype(float), lambda s: s.rolling(lb, min_periods=1).max()) == 1
+    slope = df["ma200_slope_1m"]
+    slope_peak = per_code(slope, lambda s: s.rolling(lb, min_periods=1).max())
+    stalled = (slope.abs() < P["ma200_flat_th"]) | \
+        ((slope > 0) & (slope <= slope_peak * P["stage3_slope_decay"]))
+    prev_c = g["adj_close"].shift(1)
+    tr = pd.concat([df["adj_high"], prev_c], axis=1).max(axis=1) - \
+        pd.concat([df["adj_low"], prev_c], axis=1).min(axis=1)
+    n_atr = P["stage3_atr_days"]
+    atr_pct = per_code(tr, lambda s: s.rolling(n_atr).mean()) / c
+    wider = atr_pct > per_code(atr_pct, lambda s: s.shift(n_atr))
+    heavy_down = ((c < prev_c) &
+                  (df["volume"] >= g["avg_volume_50"].shift(1) * P["stage3_vol_mult"])).astype(float)
+    heavy_down = per_code(heavy_down, lambda s: s.rolling(P["stage3_vol_days"], min_periods=1).max()) == 1
+    stage3 = recent_s2 & stalled & (wider | heavy_down)
+    del up, prev_c, tr, atr_pct, slope_peak
+
     stage1 = (
-        (~stage2) & (~stage4) &
-        (df["ma200_slope_1m"].abs() < P["ma200_flat_th"]) &
-        (df["band_ratio"] >= P["stage1_band_ratio"]) &
-        (c < df["low_52w"] * P["low52_margin"])
+        (slope.abs() < P["ma200_flat_th"]) &
+        (df["band_ratio"] >= P["stage1_band_ratio"])
     )
-    stage3 = (
-        (~stage2) & (~stage4) & (~stage1) &
-        (c > df["ma200"] * (1 - P["stage1_band"])) &
-        (df["ma200_slope_1m"] < P["ma200_flat_th"]) &
-        (c >= df["low_52w"] * P["low52_margin"])
-    )
-    df["stage"] = np.select([stage2, stage4, stage1, stage3], [2, 4, 1, 3], default=np.nan)
+    # 上から優先。Stage3 は Stage1 より先に見る（天井圏で200日線に沿って横ばいの銘柄を底固めにしない）
+    df["stage"] = np.select([stage2, stage4, stage3, stage1], [2, 4, 3, 1], default=np.nan)
 
     cutoff = sorted(df["date"].unique())[-keep_days] if df["date"].nunique() > keep_days else df["date"].min()
     out = df[df["date"] >= cutoff]
