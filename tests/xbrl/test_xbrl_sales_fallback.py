@@ -116,6 +116,7 @@ def test_summary_actual_wins_over_primary(tmp: Path) -> None:
             ("jppfs_cor", "OperatingIncome", "CurrentYTDDuration", "JPY", "6", "50", "-6"),
             ("jppfs_cor", "OrdinaryIncome", "CurrentYTDDuration", "JPY", "6", "45", "-6"),
             ("tse-ed-t", "OperatingRevenues", "CurrentYTDResult", "JPY", "6", "230", "-6"),
+            ("tse-ed-t", "NetSales", "CurrentYTDResult", "JPY", "6", "200", "-6"),
             ("tse-ed-t", "OperatingIncome", "CurrentYTDResult", "JPY", "6", "51", "-6"),
             ("tse-ed-t", "OperatingIncome", "CurrentYTDResultNC", "JPY", "6", "7", "-6"),
             ("tse-ed-t", "NetSales", "CurrentYearDuration", "JPY", "6", "500", "-6"),
@@ -129,6 +130,8 @@ def test_summary_actual_wins_over_primary(tmp: Path) -> None:
         sales = _one(db, filing.id, "net_sales", value_kind="actual")
         if sales is None or Decimal(str(sales.value)) != Decimal("230000000"):
             _fail(f"summary sales {sales.value if sales else None}")
+        if db.get(XbrlElement, sales.source_element_id).local_name != "OperatingRevenues":
+            _fail("summary OperatingRevenues must beat summary NetSales")
         if sales.source_layer != SOURCE_LAYER_SUMMARY:
             _fail(f"sales source_layer {sales.source_layer}")
         op = _one(db, filing.id, "operating_income", value_kind="actual")
@@ -156,6 +159,7 @@ def test_summary_us_gaap_profits(tmp: Path) -> None:
             ("tse-ed-t", "NetSalesUS", "CurrentYTDResult", "JPY", "6", "900", "-6"),
             ("tse-ed-t", "OperatingIncomeUS", "CurrentYTDResult", "JPY", "6", "90", "-6"),
             ("tse-ed-t", "NetIncomeUS", "CurrentYTDResult", "JPY", "6", "60", "-6"),
+            ("tse-ed-t", "NetIncomePerShareUS", "CurrentYTDResult", "JPYPershare", "0", "287.24", "2"),
         ]
         contexts = _context(
             "CurrentYTDResult", start="2025-04-01", end="2025-09-30",
@@ -167,7 +171,10 @@ def test_summary_us_gaap_profits(tmp: Path) -> None:
             title="2026年3月期 第2四半期決算短信〔米国基準〕（連結）",
             html=html,
         )
-        for code, want in (("net_sales", "900000000"), ("operating_income", "90000000"), ("net_income", "60000000")):
+        for code, want in (
+            ("net_sales", "900000000"), ("operating_income", "90000000"),
+            ("net_income", "60000000"), ("eps_basic", "287.24"),
+        ):
             row = _one(db, filing.id, code, value_kind="actual")
             if row is None or Decimal(str(row.value)) != Decimal(want):
                 _fail(f"US {code} {row.value if row else None}")

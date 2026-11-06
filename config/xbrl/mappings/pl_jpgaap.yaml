@@ -13,8 +13,8 @@
     - { ns: jppfs_cor, name: OperatingRevenueSEC, priority: 31 }
     - { ns: jppfs_cor, name: NetSalesOfCompletedConstructionContractsCNS, priority: 32 }
     - { ns: tse-ed-t, name: GrossOperatingRevenues, priority: 45 }
+    - { ns: tse-ed-t, name: OperatingRevenues, priority: 48 }
     - { ns: tse-ed-t, name: NetSales, priority: 50 }
-    - { ns: tse-ed-t, name: OperatingRevenues, priority: 60 }
     - { ns: tse-ed-t, name: OperatingRevenuesSpecific, priority: 62 }
     - { ns: tse-ed-t, name: OperatingRevenuesSE, priority: 64 }
     - { ns: tse-ed-t, name: OrdinaryRevenuesBK, priority: 70 }
