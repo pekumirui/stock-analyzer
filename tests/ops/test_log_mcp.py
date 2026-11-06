@@ -950,12 +950,12 @@ def test_db_query_and_schema() -> None:
             orig_ops = m.DB_QUERY_PROGRESS_OPS
             orig_budget = m._QueryBudget
 
-            class _ImmediateTimeout(m._QueryBudget):
-                def handler(self) -> int:
-                    return 1
+            def short_budget(*_args, **kwargs):
+                kwargs["timeout_s"] = 0.0
+                return orig_budget(**kwargs)
 
             m.DB_QUERY_PROGRESS_OPS = 1
-            m._QueryBudget = lambda *a, **k: _ImmediateTimeout(timeout_s=0)  # noqa: ARG005
+            m._QueryBudget = short_budget
             try:
                 to_text, to_err = m.call_tool(
                     "db_query",
@@ -1003,6 +1003,46 @@ def test_db_query_and_schema() -> None:
                 os.environ.pop("DATABASE_URL", None)
             else:
                 os.environ["DATABASE_URL"] = prev_url
+
+
+def test_db_query_budget_interrupts_after_timeout_s() -> None:
+    """progress handler は渡した timeout_s を過ぎたときだけクエリを切る。"""
+    import sqlite3
+
+    sql = (
+        "WITH RECURSIVE n(x) AS ("
+        "SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x < 100000"
+        ") SELECT COUNT(*) AS c FROM n"
+    )
+
+    def run(timeout_s: float, now) -> str | None:
+        conn = sqlite3.connect(":memory:")
+        budget = m._QueryBudget(timeout_s=timeout_s, now=now)
+        conn.set_progress_handler(budget.handler, 1)
+        try:
+            conn.execute(sql).fetchone()
+        except sqlite3.OperationalError as exc:
+            if m._is_interrupt(exc):
+                return "timeout"
+            raise
+        else:
+            return None
+        finally:
+            conn.set_progress_handler(None, 0)
+            conn.close()
+
+    held = {"t": 50.0}
+    if run(1.0, lambda: held["t"]) is not None:
+        raise SystemExit("query was cut while the clock stayed inside timeout_s")
+
+    moved = {"t": 0.0}
+
+    def step() -> float:
+        moved["t"] += 1.0
+        return moved["t"]
+
+    if run(0.25, step) != "timeout":
+        raise SystemExit("query was not cut after timeout_s elapsed")
 
 
 def test_db_query_explain() -> None:
@@ -2802,6 +2842,7 @@ def main() -> None:
     test_db_stats_approx_timeout_and_stat1()
     test_timed_fetch_progress_interrupt()
     test_db_query_and_schema()
+    test_db_query_budget_interrupts_after_timeout_s()
     test_db_query_explain()
     test_xbrl_compare_tools()
     test_fx_tools()
