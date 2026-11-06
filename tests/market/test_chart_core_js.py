@@ -38,6 +38,8 @@ const out = {
   latest: [c.chartLatestSpan(daily, c.chartBars(daily, "W"), 2), c.chartLatestSpan(daily, daily, 99)],
   around: c.chartSpanAround(daily, daily, "2026-08-21", 3),
   qty: [c.chartQty(800, "株"), c.chartQty(25007500, "株"), c.chartQty(77110432900, "円"), c.chartQty(1.5e12, "円")],
+  unit: [c.chartAxisUnit(9999, "share"), c.chartAxisUnit(10000, "share"), c.chartAxisUnit(-2e6, "yen"),
+         c.chartAxisUnit(999999, "yen"), c.chartAxisUnit(null, "yen")],
   price: [c.chartPrice(2821.5), c.chartPrice(3094), c.chartPrice(null)],
   ohlcLast: c.chartOhlcHtml(daily, null),
   ohlc0: c.chartOhlcHtml(daily, 0),
@@ -95,6 +97,9 @@ def test_chart_core_bars_and_indicators() -> None:
     assert o["latest"] == [["2026-08-24", "2026-09-01"], ["2026-08-17", "2026-09-01"]]
     assert o["around"] == ["2026-08-18", "2026-08-24"]
     assert o["qty"] == ["800株", "2,500.8万株", "771.1億円", "1.5兆円"]
+    # 縦軸は数字だけ。万株・百万円に届かなければ単位を付けない
+    assert o["unit"] == [{"div": 1, "label": ""}, {"div": 10000, "label": "万株"}, {"div": 1000000, "label": "百万円"},
+                         {"div": 1, "label": ""}, {"div": 1, "label": ""}]
     assert o["price"] == ["2,821.5", "3,094", "–"]
     # 業績の階段を日足にそろえる。使い始める日より前は null、予想EPS・営業利益が 0 以下なら倍率を出さない
     assert o["fund"] == {
@@ -134,7 +139,7 @@ def test_chart_ohlc_row_is_outside_plot_source() -> None:
     assert "ohlc.innerHTML = chartOhlcHtml(b, i)" in js
     assert "ohlc.remove()" in js
     assert "CHART_TF_NAMES[st.tf]" not in js
-    assert "MA${m.w}" in js and 'className = "chart-legend"' in js
+    assert "MA${m.w}" in js and 'paneDiv(legends, k, "chart-legend")' in js
     assert "createStockChart($(\"#chart\")" in (ROOT / "static" / "js" / "stock-price.js").read_text(encoding="utf-8")
     assert "createStockChart($(\"#e-chart\")" in (ROOT / "static" / "js" / "earnings.js").read_text(encoding="utf-8")
     assert ".chart-ohlc { display:flex; flex-wrap:wrap;" in css

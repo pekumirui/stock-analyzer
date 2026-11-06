@@ -176,6 +176,12 @@ function chartQty(v, unit = ""){
   return Math.round(v).toLocaleString("ja-JP") + unit;
 }
 
+const CHART_AXIS_UNITS = {share: [1e4, "万株"], yen: [1e6, "百万円"]};
+function chartAxisUnit(max, kind){
+  const [div, label] = CHART_AXIS_UNITS[kind];
+  return Math.abs(max || 0) >= div ? {div, label} : {div: 1, label: ""};
+}
+
 // 日付・始高安終・前日比。プロットの外（.chart-ohlc）に出す。足種は出さない（KAB-314）
 function chartOhlcHtml(bars, i){
   if(!bars || !bars.t.length) return "";
@@ -295,7 +301,7 @@ function createStockChart(el, opt = {}){
   }
   const chart = LW.createChart(el, {
     height: opt.height || 420, autoSize: true,
-    layout: {background: {color: "transparent"}, textColor: th.text, panes: {separatorColor: th.border}},
+    layout: {background: {color: "transparent"}, textColor: th.text, panes: {separatorColor: th.border, enableResize: false}},
     localization: {locale: "ja-JP", dateFormat: "yyyy/MM/dd"},
     grid: {vertLines: {color: th.grid}, horzLines: {color: th.grid}},
     crosshair: {mode: LW.CrosshairMode.Normal},
@@ -318,7 +324,7 @@ function createStockChart(el, opt = {}){
 
   const st = {daily: null, byTf: {}, rel: null, tf: "D", mas: [50, 150, 200], sub: "v",
               log: false, relOn: false, topix: null, mark: null, bars: null, idx: new Map(),
-              fund: "", band: false, hl: true, fd: null, dIdx: new Map(), win: null};
+              fund: "", band: false, hl: true, fd: null, dIdx: new Map(), win: null, units: {}, subDiv: 0};
   const barsOf = tf => st.byTf[tf] || (st.byTf[tf] = chartBars(st.daily, tf));
   const width = () => chart.timeScale().width() || el.clientWidth || 600;
 
@@ -397,7 +403,18 @@ function createStockChart(el, opt = {}){
     const b = st.bars, vals = st.sub === "tv" ? b.tv : b.v;
     const spike = chartSpikes(vals);
     sub.setData(b.t.map((t, i) => ({time: chartTs(t), value: vals[i], color: spike[i] ? th.accent : CHART_VOL_COLOR})));
-    sub.applyOptions({priceFormat: {type: "custom", formatter: v => chartQty(v), minMove: 1}});
+    subUnit();
+  }
+  const axisFormat = u => ({type: "custom", formatter: v => chartPrice(v / u.div), minMove: 1});
+  function subUnit(){
+    const b = st.bars, vals = st.sub === "tv" ? b.tv : b.v;
+    let a = 0, z = b.t.length - 1, max = 0;
+    if(st.win){ a = lowerBound(b.t, st.win.from); z = lowerBound(b.t, st.win.to + "~") - 1; }
+    for(let i = a; i <= z; i++) if(vals[i] > max) max = vals[i];
+    const u = chartAxisUnit(max, st.sub === "tv" ? "yen" : "share");
+    if(st.units.sub === u.label && st.subDiv === u.div) return;
+    st.units.sub = u.label; st.subDiv = u.div;
+    sub.applyOptions({priceFormat: axisFormat(u)});
   }
 
   // 足の日付ごとの値（業績・対TOPIX）。無い日は線を切る（whitespace）
@@ -432,6 +449,7 @@ function createStockChart(el, opt = {}){
     extra = [];
     while(chart.panes().length > 2) chart.removePane(chart.panes().length - 1);
     st.panes = ["price", "sub"];
+    st.units.fund = "";
     let pane = 2;
     const line = (o, data) => {
       const x = chart.addSeries(LW.LineSeries, {lineWidth: 2, priceLineVisible: false, ...o}, pane);
@@ -442,7 +460,10 @@ function createStockChart(el, opt = {}){
     const times = {type: "custom", formatter: v => chartPrice(v) + "倍", minMove: 0.1};
     if(st.fund && st.fd){
       if(st.fund === "op"){
-        const yen = {type: "custom", formatter: v => chartQty(v, "円"), minMove: 1};
+        let max = 0;
+        for(const k of ["opq", "opttm"]) for(const v of st.fd[k]) if(v != null && Math.abs(v) > max) max = Math.abs(v);
+        const u = chartAxisUnit(max, "yen"), yen = axisFormat(u);
+        st.units.fund = u.label;
         line({color: th.accent, lineType: LW.LineType.WithSteps, priceFormat: yen},
              barPoints(t => fundAt("opq", t)));
         line({color: th.warn, lineType: LW.LineType.WithSteps, priceFormat: yen},
@@ -470,16 +491,17 @@ function createStockChart(el, opt = {}){
   }
 
   // 日付・始高安終はプロットの上（.chart-ohlc）。MA・出来高などは段ごとに左上へ重ねる
-  const legends = [];
-  function paneLegend(k){
-    if(!legends[k]){
+  const legends = [], unitTags = [];
+  function paneDiv(list, k, cls){
+    if(!list[k]){
       const d = document.createElement("div");
-      d.className = "chart-legend";
+      d.className = cls;
       el.appendChild(d);
-      legends[k] = d;
+      list[k] = d;
     }
-    return legends[k];
+    return list[k];
   }
+  const paneLegend = k => paneDiv(legends, k, "chart-legend");
   const sw = (color, text) => `<span style="color:${color}">${text}</span>`;
   function drawLegend(i){
     const b = st.bars;
@@ -504,15 +526,22 @@ function createStockChart(el, opt = {}){
       rel: st.rel ? sw(th.warn, `対TOPIX ${st.rel.get(t) ?? "–"}`) : "",
     };
     const panes = chart.panes(), kinds = st.panes || ["price", "sub"];
+    const axisW = chart.priceScale("right", 0).width();
     let top = 0;
     kinds.forEach((kind, k) => {
       const d = paneLegend(k);
       d.style.top = top + 4 + "px";
       d.innerHTML = texts[kind] || "";
       d.hidden = !d.innerHTML;
+      const u = paneDiv(unitTags, k, "chart-unit");
+      u.style.top = top + 2 + "px";
+      u.style.right = axisW + 4 + "px";
+      u.textContent = st.units[kind] ? `(${st.units[kind]})` : "";
+      u.hidden = !u.textContent;
       top += (panes[k] ? panes[k].getHeight() : 0) + 1;
     });
     for(let k = kinds.length; k < legends.length; k++) legends[k].hidden = true;
+    for(let k = kinds.length; k < unitTags.length; k++) unitTags[k].hidden = true;
   }
   function legendFund(t){
     if(!st.fund || !st.fd) return "";
@@ -535,9 +564,24 @@ function createStockChart(el, opt = {}){
 
   chart.subscribeCrosshairMove(p => drawLegend(p && p.time != null ? st.idx.get(p.time) : null));
 
+  // pan-y で横の指の動きをブラウザに取られないようにする。LWC は handleScroll: false だと横に滑らせても十字カーソルを動かさない
+  el.style.touchAction = "pan-y";
+  function touchCrosshair(e){
+    if(e.pointerType !== "touch" || !st.bars) return;
+    const x = e.clientX - el.getBoundingClientRect().left;
+    if(x < 0 || x > chart.timeScale().width()) return;
+    const time = chart.timeScale().coordinateToTime(x), i = time == null ? null : st.idx.get(time);
+    if(i == null) return;
+    chart.setCrosshairPosition(st.bars.c[i], time, candle);
+    drawLegend(i);
+  }
+  el.addEventListener("pointerdown", touchCrosshair);
+  el.addEventListener("pointermove", touchCrosshair);
+
   // 期間 [from, to] を幅いっぱいに出す
   function showSpan(from, to){
     st.win = {from, to};
+    subUnit();
     setRange(from, to);
     drawMarkers();
     nav.draw();
@@ -707,5 +751,5 @@ function createStockChart(el, opt = {}){
 
 if(typeof module !== "undefined" && module.exports){
   module.exports = {chartSwings, chartHlText, chartFundDaily, chartQuantile, chartBandMultiples, chartBars, chartWeekKey, chartSma, chartMaLen, chartParseMas, chartSpikes, chartRelative,
-                    chartLatestSpan, chartSpanAround, chartPrice, chartQty, chartOhlcHtml};
+                    chartLatestSpan, chartSpanAround, chartPrice, chartQty, chartAxisUnit, chartOhlcHtml};
 }
