@@ -342,14 +342,40 @@ def filings_pending_normalize(db: Session) -> list[XbrlFiling]:
     )
 
 
-def run_normalize(db: Session, *, rebuild: bool = False, code: str | None = None) -> dict:
+def filings_submitted_since(db: Session, since: date, source: str | None = None) -> list[XbrlFiling]:
+    """parsed のうち since 以降に提出された filing（正規化済みも含む）。"""
+    q = (
+        db.query(XbrlFiling)
+        .filter(XbrlFiling.parse_status == "parsed")
+        .filter(XbrlFiling.submitted_at >= datetime.combine(since, datetime.min.time()))
+    )
+    if source:
+        q = q.filter(XbrlFiling.source == source)
+    return q.order_by(XbrlFiling.submitted_at).all()
+
+
+def run_normalize(
+    db: Session,
+    *,
+    rebuild: bool = False,
+    code: str | None = None,
+    since: date | None = None,
+    source: str | None = None,
+) -> dict:
+    if rebuild and since:
+        raise ValueError("rebuild and since cannot be combined")
     run = start_run(db, "normalize")
     if rebuild:
         stats = rebuild_all(db, code=code)
         finish_run(db, run, "success" if stats["errors"] == 0 else "failed", stats["processed"], stats["errors"])
         return stats
     processed = errors = 0
-    pending = filings_pending_normalize(db)
+    if since:
+        pending = filings_submitted_since(db, since, source)
+    else:
+        pending = filings_pending_normalize(db)
+        if source:
+            pending = [f for f in pending if f.source == source]
     if code:
         pending = [f for f in pending if f.code == code]
     for filing in pending:

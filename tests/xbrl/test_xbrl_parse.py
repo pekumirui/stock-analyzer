@@ -23,7 +23,7 @@ from app.xbrl.context import (  # noqa: E402
     fiscal_year_end_from_title,
     infer_consolidated,
 )
-from datetime import date  # noqa: E402
+from datetime import date, timedelta  # noqa: E402
 from app.xbrl.jobs import run_normalize  # noqa: E402
 from app.xbrl.mappings import apply_mappings  # noqa: E402
 from app.xbrl.parser import (  # noqa: E402
@@ -414,6 +414,16 @@ def test_parse_normalize_idempotent(tmp: Path) -> None:
         second = run_normalize(db)
         if second.get("processed", 0) != 0:
             _fail(f"second normalize should skip: {second}")
+        day = filing.submitted_at.date()
+        redo = run_normalize(db, since=day, source=filing.source)
+        if redo.get("processed", 0) != 1 or redo.get("errors", 0) != 0:
+            _fail(f"since should redo normalized filing: {redo}")
+        if _std_value(db, filing.id, "net_sales") != Decimal("200000000"):
+            _fail("since redo lost net_sales")
+        later = run_normalize(db, since=day + timedelta(days=1))
+        other = run_normalize(db, since=day, source="edinet")
+        if later.get("processed", 0) != 0 or other.get("processed", 0) != 0:
+            _fail(f"since/source filter {later} {other}")
     finally:
         db.close()
 
