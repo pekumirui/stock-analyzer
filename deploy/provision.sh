@@ -43,6 +43,22 @@ if [[ "${1:-}" == "--sudoers-only" ]]; then
 fi
 
 STOCK_USER="${STOCK_USER:-stock}"
+
+defer_reboot=0
+for arg in "$@"; do
+  if [[ "$arg" == "--defer-reboot" ]]; then
+    defer_reboot=1
+  fi
+done
+
+# shellcheck source=kernel-upgrade.sh
+# shellcheck disable=SC1091
+source "$APP_DIR/deploy/kernel-upgrade.sh"
+if [[ "${1:-}" == "--kernel-reboot-only" ]]; then
+  kernel_maybe_reboot
+  exit 0
+fi
+
 DOMAIN="${VPS_DOMAIN:-160.251.179.50.sslip.io}"
 DOMAIN="${DOMAIN#"${DOMAIN%%[![:space:]]*}"}"
 DOMAIN="${DOMAIN%"${DOMAIN##*[![:space:]]}"}"
@@ -73,7 +89,7 @@ apt_retry() {
   apt-get -o Acquire::ForceIPv4=true install -y -qq --fix-missing "$@"
 }
 
-# CVE-2026-109518: apt 自身を先に上げる（Acquire::Retries=0）。カーネルは上げない。
+# CVE-2026-109518: apt 自身を先に上げる（Acquire::Retries=0）。この関数はカーネルを指名しない。
 # shellcheck source=cve-2026-98432.sh
 # shellcheck disable=SC1091
 source "$APP_DIR/deploy/cve-2026-98432.sh"
@@ -83,6 +99,8 @@ apt_retry \
   python3-venv python3-pip git curl gnupg ca-certificates \
   nginx apache2-utils certbot \
   ufw tzdata fuse3 unzip poppler-utils rsync
+
+kernel_packages_upgrade
 
 timedatectl set-timezone Asia/Tokyo
 
@@ -456,6 +474,12 @@ fi
 source "$APP_DIR/deploy/monitoring/apply.sh"
 if ! monitoring_apply; then
   echo "monitoring: apply failed (metrics/alerts incomplete; app deploy continues)" >&2
+fi
+
+if [[ "$defer_reboot" -eq 0 ]]; then
+  kernel_maybe_reboot
+else
+  echo "reboot deferred until deploy finishes"
 fi
 
 echo "provision ok domain=${DOMAIN} tz=$(timedatectl show -p Timezone --value 2>/dev/null || echo Asia/Tokyo)"

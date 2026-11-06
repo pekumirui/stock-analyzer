@@ -189,8 +189,9 @@ chmod +x "$APP_DIR/deploy/provision.sh"
 # enable-cicd), then pass channel webhooks on the full run.
 sudo --preserve-env=APP_DIR \
   "$APP_DIR/deploy/provision.sh" --sudoers-only
+# shutdown -r +1 はヘルスチェックのあと。ここだと pip / migrate が 1 分で切れる。
 sudo --preserve-env=APP_DIR,VPS_DOMAIN,BASIC_AUTH_USER,BASIC_AUTH_PASSWORD,CERTBOT_EMAIL,SLACK_WEBHOOK_URL,SLACK_WEBHOOK_URL_APP,SLACK_WEBHOOK_URL_BATCH,SLACK_WEBHOOK_URL_INFRA,SLACK_WEBHOOK_URL_QUIET \
-  "$APP_DIR/deploy/provision.sh"
+  "$APP_DIR/deploy/provision.sh" --defer-reboot
 
 install_venv() {
   echo "venv が無いので作ります"
@@ -294,3 +295,5 @@ sudo systemctl is-active stock-analyzer
 sudo systemctl is-active stock-analyzer-mcp
 git log -1 --oneline
 echo "==> $(date -Is) deploy done"
+sudo --preserve-env=APP_DIR \
+  "$APP_DIR/deploy/provision.sh" --kernel-reboot-only
