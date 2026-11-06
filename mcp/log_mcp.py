@@ -154,7 +154,7 @@ DB_STATS_PROGRESS_OPS = 10_000
 # db_query: WAL 読取はライターを止めない。progress で打ち切り、行とバイトも上限。
 DB_QUERY_DEFAULT_LIMIT = 200
 DB_QUERY_MAX_LIMIT = 2000
-DB_QUERY_TIMEOUT_S = 10.0
+DB_QUERY_TIMEOUT_S = 120.0
 DB_QUERY_PROGRESS_OPS = 10_000
 DB_QUERY_MAX_BYTES = 1024 * 1024
 DB_QUERY_SQL_LOG_CHARS = 400
@@ -2202,7 +2202,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
             "INSERT / UPDATE / DELETE / DROP / ATTACH / PRAGMA 書き込み / 複数文 / CTE 内の書き込みは拒否。"
             "EXPLAIN の後ろも SELECT / WITH 以外は拒否。"
             "limit は 1-2000（既定 200）。超えた行と出力バイトは truncated。"
-            "約10秒で打ち切り。params は ? の配列か :name のオブジェクト。"
+            "約2分で打ち切り。params は ? の配列か :name のオブジェクト。"
         ),
         {
             "type": "object",
