@@ -240,6 +240,7 @@ class Statement(Base):
     fy_eps = Column(Float)
     is_revision = Column(Boolean, default=False)
     raw_json = Column(Text)
+    source = Column(String(16))
     __table_args__ = (
         # カレンダーの重複判定と決算一覧の履歴。raw_json 以外を載せて表本体を読まない (KAB-292)
         Index(

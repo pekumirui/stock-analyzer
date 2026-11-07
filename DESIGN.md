@@ -68,7 +68,7 @@ daily_prices      -- 日足。WITHOUT ROWID (行を code, date 順に置く。KA
 topix             -- TOPIX日足
   date PK, open, high, low, close
 
-statements        -- 決算短信 (J-Quants /fins/summary ほぼ生保存)
+statements        -- 決算短信 (J-Quants /fins/summary ほぼ生保存。短信 XBRL から作った行も入る。docs/DESIGN_xbrl.md §3.2)
   disclosure_no PK
   code, disclosed_date, disclosed_time
   type_of_period          -- 1Q/2Q/3Q/FY
@@ -78,7 +78,8 @@ statements        -- 決算短信 (J-Quants /fins/summary ほぼ生保存)
   fy_net_sales, fy_operating_profit, fy_ordinary_profit, fy_profit, fy_eps  -- 通期会社予想
   is_revision             -- 予想修正開示フラグ
   raw_json                -- 元データ全項目 (将来の項目追加に備え保持)
-  -- ix_statements_earnings_cover (code, disclosed_date, disclosure_no, … raw_json 以外)
+  source                  -- jquants / xbrl（KAB-383。xbrl の行は数値を J-Quants で上書きしない。NULL は J-Quants）
+  -- ix_statements_earnings_cover (code, disclosed_date, disclosure_no, … raw_json と source 以外)
   -- カレンダーの重複判定と決算一覧の履歴が表本体 (raw_json) を読まない (KAB-292)
 
 indicators        -- 日次算出テクニカル (バッチで更新, 最新日分を保持+履歴)
@@ -326,7 +327,7 @@ IR 月次 HTML（`jobs/monthly/ir_monthly_html_r2.py`）:
 - パーサーを直したら保存済み HTML を `--reparse`。HTML が同じでも、現行パーサの `.ingest.json` が保存済みと違えば hash skip 時に書き直す（古い sidecar を latest-per-code に残さない）
 
 TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。
-スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。EDINET の提出者・書類一覧は [`docs/DESIGN_edinet.md`](docs/DESIGN_edinet.md)。決算速報 UI の正本は当面 `statements` のまま。XBRL 層で上書きしない。
+スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。EDINET の提出者・書類一覧は [`docs/DESIGN_edinet.md`](docs/DESIGN_edinet.md)。決算速報 UI が読むのは `statements`。短信 XBRL から同じ形の行を作って入れ、数値は XBRL を優先する（KAB-383。`docs/DESIGN_xbrl.md` §3.2）。
 決算一覧の売上総利益は `idx_xbrl_financials_gp_cover` と `idx_xbrl_filings_id_cover` で表本体を読まない（KAB-295）。
 
 **PTS ランキング（`pts_snapshots`）。** 株探 `https://kabutan.jp/warning/` の `pts_night_price_increase` / `pts_night_price_decrease` / `pts_night_volume_ranking`（夜間 PTS。株価は 15 分ディレイ）。取得は `app/market/pts.py`、ジョブは `jobs/market/pts_snapshot.py`。キー不要。画面は `docs/DESIGN_pts.md`。

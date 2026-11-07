@@ -14,7 +14,7 @@
 2. 企業キーは `stocks.code`（5桁）だけ。`stocks.edinet_code`（nullable）は KAB-72 で足した（`docs/DESIGN_edinet.md` §2）。XBRL 層のキーには使わない。
 3. context から連結/単体が取れなければ **連結として扱う**（`is_consolidated=1`）。
 4. 生データ・正規化層は **既存と同じ SQLite**（`DATABASE_URL` / 本番 `stock.db`）に載せる。分離は容量が問題になってから。
-5. 決算速報 UI / API の正本は当面 **`statements` のまま**。XBRL 層とマージしない。精度が出てから実績列の読み出し寄せを検討する。例外として、決算表の修正履歴（KAB-57）は `?rev_source=xbrl` / `EARNINGS_PARAMS["revision_source"]` で `xbrl_financials` を読める（既定は `jquants`）。読むだけで `statements` は変えない。修正履歴が読むのは `source='tdnet'` の filing だけ。
+5. 決算速報 UI / API が読むのは **`statements`**。短信 XBRL から同じ形の行を開示番号で作って入れる（KAB-383。§3.2）。例外として、決算表の修正履歴（KAB-57）は `?rev_source=xbrl` / `EARNINGS_PARAMS["revision_source"]` で `xbrl_financials` を読める（既定は `jquants`）。読むだけで `statements` は変えない。修正履歴が読むのは `source='tdnet'` の filing だけ。
 
 ---
 
@@ -71,7 +71,7 @@
 │ 正規化層  xbrl_financials             │
 └──────────────────────────────────────┘
 
-[J-Quants /v2/fins/summary] ──既存──▶ statements   ← 決算速報 UI は当面ここ
+[J-Quants /v2/fins/summary] ──既存──▶ statements ◀── (4) xbrl_statements（短信 XBRL。数値は XBRL を優先）  ← 決算速報 UI はここ
 [stocks] ──既存──▶ 銘柄マスタ（5桁）。XBRL 側の FK 相当は code 文字列照合のみ
 ```
 
@@ -110,12 +110,20 @@ stocks.code   例 7203 → 72030、262A → 262A0
 
 | | `statements` | `xbrl_financials` |
 |---|---|---|
-| ソース | J-Quants 短信サマリ | TDnet XBRL 生 fact を正規化 |
+| ソース | J-Quants 短信サマリと、短信 XBRL から作った行（`source`） | TDnet XBRL 生 fact を正規化 |
 | 形 | 横持ち（売上・営利・予想など固定列） | 縦持ち（標準科目 × 値） |
 | UI | 決算速報・詳細の正本 | 決算表の修正履歴だけデータ源に選べる（既定は `statements`） |
 | 期間 | 累計実績 + 会社予想 | 本表の当期実績に加え、EPS・配当・会社予想（通期/中間、レンジ、予想修正） |
 
-突合（同じ開示の `net_sales` が一致するか）は実装後の検証用であり、自動で `statements` を上書きしない。
+**XBRL から `statements` の行を作る（KAB-383。`app/xbrl/statements.py`、`jobs/xbrl/xbrl_statements.py`）**: J-Quants の取込は 19:30 の 1 回だけで、短信 XBRL は毎時入る。決算速報を早く出すため、TDnet の解析済み filing（決算短信・業績予想の修正・配当予想の修正）から J-Quants と同じ形の行を作る。
+
+- キーは開示番号（`doc_id` の後ろ 14 桁）。J-Quants の `disclosure_no` と同じで、開示日時も一致する（2026-10 以降の 1,829 件すべて）
+- 数値は XBRL を優先する。XBRL に値がある列は上書きし、無い列は既にある J-Quants の値を残す。行は `source='xbrl'`
+- J-Quants の取込は `source='xbrl'` の行の数値を変えない。`raw_json` を J-Quants のものにし、空の数値だけ埋める。XBRL が無い開示（`stocks` に無い銘柄・取込漏れ）は今までどおり J-Quants の行（`source='jquants'`。KAB-383 より前の行は NULL）
+- 列の作り方: 実績は §6.4 の当期実績（連結があれば連結）。期首は累計実績の期首、年度末は同じ期首の通期予想の期末（無ければ期首から 1 年）。本決算以外の `fy_*` は当期の通期予想、`f2_*` は当期の中間予想。本決算は `fy_*` / `f2_*` を空にして来期予想を `raw_json` の `NxF*` / `NxF*2Q` / `NxtFYEn` に入れる。業績予想の修正は中間予想があれば `type_of_period='2Q'`、無ければ `FY`
+- `raw_json` は J-Quants のものがあれば残す。無ければ画面が読むキー（`F*` / `NxF*` / 配当 `Div*` `FDiv*` `NxFDiv*` / `BPS` / `EqAR` / `ROE`）だけ作り、`"Source": "xbrl"` を付ける。配当は単体の context にあるので連結の書類でも単体を見る
+- `type_of_document` は J-Quants の形（`2QFinancialStatements_Consolidated_IFRS`、`EarnForecastRevision` など）。題名に REIT があれば `_REIT`
+- 突合は `tools/xbrl/xbrl_statements_check.py --db … --since …`（読み取り専用。作る行と J-Quants の行を列ごとに比べる）
 
 ### 3.3 コード規則
 
