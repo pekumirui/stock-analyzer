@@ -70,17 +70,28 @@ function chartSpikes(values, n = 20, k = 2){
   return out;
 }
 
-// 対TOPIX 相対（TOPIX がある最初の日=100）。日足の日付ごとの値。TOPIX の無い日は直前の値を使う
-function chartRelative(daily, topix){
-  const out = new Map();
-  let j = 0, last = null, base = null;
+// 株価と TOPIX を from 以降で両方そろう最初の日=100 にした値。日足の日付ごと。TOPIX の無い日は直前の値を使う
+function chartCompare(daily, topix, from){
+  const tp = [], s = new Map(), x = new Map();
+  let j = 0, last = null, b = -1;
   for(let i = 0; i < daily.t.length; i++){
     while(j < topix.t.length && topix.t[j] <= daily.t[i]){ last = topix.c[j]; j++; }
-    if(last == null) continue;
-    if(base == null) base = {c: daily.c[i], tc: last};
-    out.set(daily.t[i], Math.round((daily.c[i] / base.c) / (last / base.tc) * 10000) / 100);
+    tp.push(last);
+    if(b < 0 && last != null && daily.t[i] >= from) b = i;
   }
-  return out;
+  if(b < 0) return {s, x};
+  const r = v => Math.round(v * 100) / 100;
+  for(let i = 0; i < daily.t.length; i++){
+    if(tp[i] == null) continue;
+    s.set(daily.t[i], r(daily.c[i] / daily.c[b] * 100));
+    x.set(daily.t[i], r(tp[i] / tp[b] * 100));
+  }
+  return {s, x};
+}
+
+// 次の足で値が変わる足。そこから次の足への線を透明にして、階段の縦の線を引かない
+function chartStepJumps(values){
+  return values.map((v, i) => v != null && values[i + 1] != null && v !== values[i + 1]);
 }
 
 function lowerBound(a, x){
@@ -158,6 +169,12 @@ function chartBandMultiples(per){
   return [...new Set([0.1, 0.5, 0.9].map(q => r(chartQuantile(v, q))))];
 }
 
+// PERバンドの色。安い倍率=down（緑）、高い倍率=up（赤）、間は灰
+function chartBandColors(n){
+  if(n === 1) return [CHART_BAND_COLOR];
+  return Array.from({length: n}, (_, k) => k === 0 ? "down" : k === n - 1 ? "up" : CHART_BAND_COLOR);
+}
+
 // 高安値。足 a..b（両端を含む）のうち、前後それぞれ k 本の中で一番高い山・一番安い谷の位置。
 // 同じ値なら先の足。見えている最高値・最安値は必ず入れる
 function chartSwings(h, l, a, b, k){
@@ -203,13 +220,6 @@ function chartAxisUnit(max, kind){
   const [div, label] = CHART_AXIS_UNITS[kind];
   return Math.abs(max || 0) >= div ? {div, label} : {div: 1, label: ""};
 }
-
-const chartFade = (hex, a) => {
-  const m = /^#([0-9a-f]{6})$/i.exec(hex || "");
-  if(!m) return hex;
-  const n = parseInt(m[1], 16);
-  return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
-};
 
 // 日付・始高安終・前日比。プロットの外（.chart-ohlc）に出す。足種は出さない（KAB-314）
 function chartOhlcHtml(bars, i){
@@ -265,13 +275,12 @@ const chartTopix = signal => chartAwait(chartGet("/api/topix"), signal);
 function chartTheme(){
   const s = getComputedStyle(document.documentElement);
   const v = n => s.getPropertyValue(n).trim();
-  return {text: v("--sub"), ink: v("--text"), grid: v("--grid"), border: v("--border"),
+  return {text: v("--sub"), grid: v("--grid"), border: v("--border"),
           up: v("--up"), down: v("--down"), accent: v("--accent"), warn: v("--warn")};
 }
 const CHART_VOL_COLOR = "#aab4bf";
 const CHART_MA_COLORS = ["accent", "warn", "#8e4ec6", "down"];
 const CHART_BAND_COLOR = "#7d8792";
-const CHART_REL_FADE = 0.3;      // 対TOPIX を重ねている間のローソク足・移動平均の濃さ
 const CHART_NAV_H = 44;          // 期間のバーの高さ (px)
 const CHART_NAV_MIN_DAYS = 10;   // 期間のバーで縮められる最短（営業日）
 const CHART_HL_PX = 80;          // 高安値のラベルをおよそこの幅に 1 つ
@@ -348,15 +357,15 @@ function createStockChart(el, opt = {}){
     priceLineVisible: false, lastValueVisible: false,
     priceFormat: {type: "custom", formatter: v => chartQty(v), minMove: 1}}, 1);
   sub.priceScale().applyOptions({scaleMargins: {top: 0.1, bottom: 0}});
-  let maSeries = [], bandSeries = [], extra = [], markers = null;
+  let maSeries = [], bandSeries = [], extra = [], cmpSeries = [], markers = null;
   const baseHeight = opt.height || 420;
   el.style.height = baseHeight + "px";
 
-  const st = {daily: null, byTf: {}, rel: null, tf: "D", mas: [50, 150, 200], sub: "v",
+  const st = {daily: null, byTf: {}, cmp: null, tf: "D", mas: [50, 150, 200], sub: "v",
               log: false, relOn: false, topix: null, mark: null, bars: null, idx: new Map(),
               fund: "", band: false, hl: true, fd: null, dIdx: new Map(), win: null, units: {}, subDiv: 0};
   const barsOf = tf => st.byTf[tf] || (st.byTf[tf] = chartBars(st.daily, tf));
-  const relFade = c => st.relOn && st.topix ? chartFade(c, CHART_REL_FADE) : c;
+  const cmpOn = () => !!(st.relOn && st.topix);
   const width = () => chart.timeScale().width() || el.clientWidth || 600;
 
   function layoutPanes(){
@@ -417,9 +426,9 @@ function createStockChart(el, opt = {}){
   function drawMas(){
     maSeries.forEach(s => chart.removeSeries(s));
     st.maVals = [];
-    maSeries = st.mas.map((w, i) => {
+    maSeries = (cmpOn() ? [] : st.mas).map((w, i) => {
       const c = CHART_MA_COLORS[i % CHART_MA_COLORS.length];
-      const s = chart.addSeries(LW.LineSeries, {color: relFade(th[c] || c), lineWidth: 1, priceLineVisible: false,
+      const s = chart.addSeries(LW.LineSeries, {color: th[c] || c, lineWidth: 1, priceLineVisible: false,
         lastValueVisible: false, crosshairMarkerVisible: false, autoscaleInfoProvider: () => null}, 0);
       const len = chartMaLen(w, st.tf), ma = len ? chartSma(st.bars.c, len) : [];
       if(len) st.maVals.push({w, color: th[c] || c, vals: ma});
@@ -462,19 +471,23 @@ function createStockChart(el, opt = {}){
     bandSeries.forEach(x => chart.removeSeries(x));
     bandSeries = [];
     st.bandMs = [];
-    if(!st.band || !st.fd) return;
+    if(!st.band || !st.fd || cmpOn()) return;
     st.bandMs = chartBandMultiples(st.fd.per);
-    bandSeries = st.bandMs.map(m => {
-      const x = chart.addSeries(LW.LineSeries, {color: CHART_BAND_COLOR, lineWidth: 1, lineStyle: LW.LineStyle.Dashed,
-        lineType: LW.LineType.WithSteps, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+    st.bandColors = chartBandColors(st.bandMs.length).map(k => th[k] || k);
+    bandSeries = st.bandMs.map((m, k) => {
+      const x = chart.addSeries(LW.LineSeries, {color: st.bandColors[k], lineWidth: 2, lineStyle: LW.LineStyle.Dashed,
+        priceLineVisible: false, lastValueVisible: true, title: `${m}倍`, crosshairMarkerVisible: false,
         autoscaleInfoProvider: () => null,
         priceFormat: {type: "custom", formatter: chartPrice, minMove: 0.1}}, 0);
-      x.setData(barPoints(t => { const e = fundAt("eps", t); return e > 0 ? Math.round(e * m * 10) / 10 : null; }));
+      const vals = st.bars.t.map(t => { const e = fundAt("eps", t); return e > 0 ? Math.round(e * m * 10) / 10 : null; });
+      const jump = chartStepJumps(vals);
+      x.setData(st.bars.t.map((t, i) => vals[i] == null ? {time: chartTs(t)}
+        : jump[i] ? {time: chartTs(t), value: vals[i], color: "transparent"} : {time: chartTs(t), value: vals[i]}));
       return x;
     });
   }
 
-  // 3 段目からの段（業績の段、対TOPIX）を作り直す。出す段の数だけチャートを高くする
+  // 業績の段と対TOPIX を作り直す。業績の段を出せばチャートを高くする
   function drawExtra(){
     extra.forEach(x => chart.removeSeries(x));
     extra = [];
@@ -510,19 +523,27 @@ function createStockChart(el, opt = {}){
       st.panes.push("fund");
       pane++;
     }
-    const relShown = st.relOn && st.topix;
-    if(relShown){
-      if(!st.rel) st.rel = chartRelative(st.daily, st.topix);
-      const x = chart.addSeries(LW.LineSeries, {color: th.ink, lineWidth: 2, priceLineVisible: false, lastValueVisible: false,
-        priceScaleId: "rel", priceFormat: {type: "price", precision: 1, minMove: 0.1}}, 0);
-      x.priceScale().applyOptions({scaleMargins: {top: 0.1, bottom: 0.1}});
-      x.setData(barPoints(t => st.rel.get(t)));
-      extra.push(x);
+    cmpSeries.forEach(x => chart.removeSeries(x));
+    cmpSeries = [];
+    candle.applyOptions({visible: !cmpOn()});
+    if(cmpOn()){
+      const pf = {type: "price", precision: 1, minMove: 0.1};
+      cmpSeries = [th.accent, th.warn].map(color =>
+        chart.addSeries(LW.LineSeries, {color, lineWidth: 2, priceLineVisible: false, lastValueVisible: true, priceFormat: pf}, 0));
+      cmpSeries[0].createPriceLine({price: 100, color: th.text, lineWidth: 1, lineStyle: LW.LineStyle.Dotted, axisLabelVisible: false});
+      drawCompare();
     }
-    const up = relShown ? chartFade(th.up, CHART_REL_FADE) : th.up, down = relShown ? chartFade(th.down, CHART_REL_FADE) : th.down;
-    candle.applyOptions({upColor: up, downColor: down, wickUpColor: up, wickDownColor: down});
     el.style.height = baseHeight + (pane - 2) * CHART_EXTRA_PANE_PX + "px";
     layoutPanes();
+  }
+
+  // 対TOPIX。見えている最初の足=100
+  function drawCompare(){
+    if(!cmpSeries.length) return;
+    const t = st.bars.t, from = st.win ? t[Math.min(t.length - 1, lowerBound(t, st.win.from))] : t[0];
+    st.cmp = chartCompare(st.daily, st.topix, from);
+    cmpSeries[0].setData(barPoints(d => st.cmp.s.get(d)));
+    cmpSeries[1].setData(barPoints(d => st.cmp.x.get(d)));
   }
 
   // 日付・始高安終はプロットの上（.chart-ohlc）。MA・出来高などは段ごとに左上へ重ねる
@@ -549,10 +570,13 @@ function createStockChart(el, opt = {}){
     const t = b.t[i];
     ohlc.innerHTML = chartOhlcHtml(b, i);
     let price = (st.maVals || []).map(m => sw(m.color, `MA${m.w} ${chartPrice(m.vals[i])}`)).join(" ");
-    if(st.relOn && st.rel) price = sw(th.ink, `対TOPIX ${st.rel.get(t) ?? "–"}`) + (price ? " " + price : "");
-    if(st.band && st.bandMs && st.bandMs.length){
+    if(cmpOn() && st.cmp){
+      const a = st.cmp.s.get(t), x = st.cmp.x.get(t);
+      price = `${sw(th.accent, `株価 ${chartPrice(a)}`)} ${sw(th.warn, `TOPIX ${chartPrice(x)}`)} 相対 ${a != null && x ? chartPrice(Math.round(a / x * 1000) / 10) : "–"}`;
+    }
+    if(st.bandMs && st.bandMs.length){
       const e = fundAt("eps", t);
-      const band = sw(CHART_BAND_COLOR, "PER " + st.bandMs.map(m => `${m}倍 ${e > 0 ? chartPrice(Math.round(e * m * 10) / 10) : "–"}`).join(" / "));
+      const band = "PER " + st.bandMs.map((m, k) => sw(st.bandColors[k], `${m}倍 ${e > 0 ? chartPrice(Math.round(e * m * 10) / 10) : "–"}`)).join(" / ");
       price = price ? price + "<br>" + band : band;
     }
     const texts = {
@@ -607,7 +631,8 @@ function createStockChart(el, opt = {}){
     if(x < 0 || x > chart.timeScale().width()) return;
     const time = chart.timeScale().coordinateToTime(x), i = time == null ? null : st.idx.get(time);
     if(i == null) return;
-    chart.setCrosshairPosition(st.bars.c[i], time, candle);
+    if(cmpSeries.length){ const v = st.cmp && st.cmp.s.get(st.bars.t[i]); if(v != null) chart.setCrosshairPosition(v, time, cmpSeries[0]); }
+    else chart.setCrosshairPosition(st.bars.c[i], time, candle);
     drawLegend(i);
   }
   el.addEventListener("pointerdown", touchCrosshair);
@@ -617,8 +642,10 @@ function createStockChart(el, opt = {}){
   function showSpan(from, to){
     st.win = {from, to};
     subUnit();
+    drawCompare();
     setRange(from, to);
     drawMarkers();
+    if(cmpSeries.length) drawLegend();
     nav.draw();
   }
   const latestCount = () => Math.max(20, Math.floor(width() / CHART_BAR_PX));
@@ -731,7 +758,7 @@ function createStockChart(el, opt = {}){
     chart,
     // 銘柄を差し替える。opt2: {mark}
     setData(daily, opt2 = {}){
-      st.daily = daily; st.byTf = {}; st.rel = null; st.mark = opt2.mark || null;
+      st.daily = daily; st.byTf = {}; st.mark = opt2.mark || null;
       st.fd = chartFundDaily(daily);
       st.dIdx = new Map(daily.t.map((t, i) => [t, i]));
       applyTf(st.tf);
@@ -747,7 +774,7 @@ function createStockChart(el, opt = {}){
       if(o.fund !== undefined) st.fund = o.fund;
       if(o.band !== undefined) st.band = o.band;
       if(o.hl !== undefined) st.hl = o.hl;
-      if(o.topix !== undefined){ st.topix = o.topix; st.rel = null; }
+      if(o.topix !== undefined) st.topix = o.topix;
       if(!st.daily) return;
       applyTf(st.tf);
       if(newTf || !st.win) view.showLatest();
@@ -786,6 +813,6 @@ function createStockChart(el, opt = {}){
 }
 
 if(typeof module !== "undefined" && module.exports){
-  module.exports = {chartSwings, chartHlText, chartFundDaily, chartQuantile, chartBandMultiples, chartBars, chartWeekKey, chartSma, chartMaLen, chartParseMas, chartSpikes, chartRelative,
-                    chartLatestSpan, chartSpanAround, chartInitialSpan, chartInitialCount, chartPrice, chartQty, chartAxisUnit, chartFade, chartOhlcHtml};
+  module.exports = {chartSwings, chartHlText, chartFundDaily, chartQuantile, chartBandMultiples, chartBars, chartWeekKey, chartSma, chartMaLen, chartParseMas, chartSpikes, chartCompare, chartStepJumps, chartBandColors,
+                    chartLatestSpan, chartSpanAround, chartInitialSpan, chartInitialCount, chartPrice, chartQty, chartAxisUnit, chartOhlcHtml};
 }
