@@ -56,9 +56,9 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 
 1. GitHub SSH（deploy key）を冪等に揃えてから `git pull --ff-only origin main`
 2. `JQUANTS_API_KEY` / `ESTAT_APP_ID` / `EDINET_API_KEY` / `MCP_TOKEN` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` があれば `.env` のその行だけ upsert。R2 の両方が揃っていれば `~/.config/rclone/rclone.conf` の `[r2]` だけ upsert（`onedrive` など他 remote は消さない）。`SLACK_WEBHOOK_URL` と `SLACK_WEBHOOK_URL_{APP,BATCH,INFRA,QUIET}` は `.env` に書かない
-3. `sudo provision.sh --sudoers-only`（`APP_DIR` だけ preserve。live sudoers を repo に合わせる）→ `sudo provision.sh`（apt のセキュリティ更新、CVE-2026-98432 の nftables 緩和、パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers、R2 user mount、fluent-bit。Slack webhook は `--preserve-env`）。Webhook が空なら fluent-bit は enable のみで start しない
+3. `sudo provision.sh --sudoers-only`（`APP_DIR` だけ preserve。live sudoers を repo に合わせる）→ `sudo provision.sh --defer-reboot`（apt のセキュリティ更新、`linux-image-generic` と `linux-headers-generic` だけの `--only-upgrade`、CVE-2026-98432 の nftables 緩和、パッケージ、systemd、nginx、ufw 22/80/443、Let's Encrypt、crontab、sudoers、R2 user mount、fluent-bit。Slack webhook は `--preserve-env`）。Webhook が空なら fluent-bit は enable のみで start しない。この段では再起動しない
 4. venv / `pip install` / `migrate.py`（`database is locked` は最大約 6 分まで再試行。19:30 の日次バッチや毎時の TDnet XBRL（parse / normalize）と重なるため）。`migrate.py` が `init_db` を 1 回やってから uvicorn を上げる（`--workers N` の同時 CREATE INDEX を避ける。`--preload` は使わない）
-5. `systemctl restart stock-analyzer` と `stock-analyzer-mcp`、localhost:8000 / :8010 のヘルスチェック
+5. `systemctl restart stock-analyzer` と `stock-analyzer-mcp`、localhost:8000 / :8010 のヘルスチェック。成功したあと `sudo provision.sh --kernel-reboot-only`。`/var/run/reboot-required` があり、`/home/stock/jobs/*/pid` の生きているプロセスも `deploy/cron-run.sh` も無ければ `shutdown -r +1`。ジョブが動いていれば再起動せず `reboot pending`。ヘルスチェックが失敗したデプロイは再起動しない
 
 uvicorn のワーカー数は `deploy/uvicorn_workers.py` が起動時に決める（`nproc` と MemAvailable。1 本あたり 384MiB。上限 2 本）。`.env` の `UVICORN_WORKERS` で上書きする。ワーカーのヘルスチェックは 10 秒（`deploy/uvicorn-start.sh`）。日次バッチ中にスワップへ出たワーカーが 5 秒で kill され 502 になったため（KAB-366）。MCP（`stock-analyzer-mcp.service`）は対象外。
 
@@ -70,9 +70,9 @@ uvicorn のワーカー数は `deploy/uvicorn_workers.py` が起動時に決め�
 
 ホスト鍵は `deploy/known_hosts` にピン留め。VPS を作り直したら `ssh-keyscan YOUR_HOST` で更新する。
 
-## CVE-2026-98432（IPv4 TCP の緩和）
+## CVE-2026-98432（IPv4 TCP の緩和とカーネル）
 
-カーネル修正（noble の `linux` 6.8.0-149 以上）はまだ updates に出ていない。`provision.sh` が [Ubuntu の緩和](https://ubuntu.com/security/CVE-2026-98432)を入れる。IPv4 オプション付きの TCP だけを落とし、オプションの無い TCP（SSH、80/443、`/mcp`）は通す。TCP のタイムスタンプやウィンドウスケーリング、IPv6 は対象外。Ubuntu の注記どおり、リスクは下がるが完全には防げない。
+`provision.sh` が [Ubuntu の緩和](https://ubuntu.com/security/CVE-2026-98432)を入れる。IPv4 オプション付きの TCP だけを落とし、オプションの無い TCP（SSH、80/443、`/mcp`）は通す。TCP のタイムスタンプやウィンドウスケーリング、IPv6 は対象外。Ubuntu の注記どおり、リスクは下がるが完全には防げない。noble-updates に新しいメタパッケージがあれば、同じ provision が `linux-image-generic` と `linux-headers-generic` だけを上げて、条件を満たすとき再起動する。
 
 `deploy/cve-2026-98432.nft`:
 
@@ -87,7 +87,11 @@ table inet cve_2026_98432 {
 
 `/etc/cve-2026-98432.nft` に置き、`nft -c -f` のあと `nft -f` で読む。再起動後は `cve-2026-98432.service` が同じファイルだけを読み込む。distro の `nftables.service` は `ExecStop` が `nft flush ruleset` で、既定の `/etc/nftables.conf` も `flush ruleset` なので有効にしない（有効だと ufw のルールが消える）。既に有効なら disable する（stop / restart はしない）。ufw の 22/80/443 はそのまま。
 
-同じ provision で `apt` / `apt-utils` / `libapt-pkg6.0t64` だけ `--only-upgrade` する（CVE-2026-109518、KAB-359 の残り）。apt 自身の取得は `Acquire::Retries=0`。カーネルは上げない。再起動しない。稼働中の nginx が差し替え済みの libpcre2 を掴んだままなら reload する。
+同じ provision で `apt` / `apt-utils` / `libapt-pkg6.0t64` だけ `--only-upgrade` する（CVE-2026-109518、KAB-359 の残り）。apt 自身の取得は `Acquire::Retries=0`。この更新はカーネルを指名しない。稼働中の nginx が差し替え済みの libpcre2 を掴んだままなら reload する。
+
+その直後に `linux-image-generic` と `linux-headers-generic` だけ `apt-get install -y --only-upgrade` する（`DEBIAN_FRONTEND=noninteractive`、`Acquire::ForceIPv4=true`）。他のパッケージは指名しない。`/var/run/reboot-required` が無いときは再起動しない。あるとき、`/home/stock/jobs`（stock の `~/jobs`）の `*/pid` に生きているプロセス、そのディレクトリ（またはその下）を cwd にしているプロセス、または引数が `deploy/cron-run.sh` のように `/cron-run.sh` で終わるプロセスがあれば再起動せず `reboot pending` と出して終わる。無ければ `stock-analyzer` と `stock-analyzer-mcp` が enable であることを確認し（`cve-2026-98432.service` の unit があればそれも）、`shutdown -r +1` する。`/run/systemd/shutdown/scheduled` が既にあれば予約しない。`/etc/cve-2026-98432.nft` は消さない。
+
+`update.sh` は provision に `--defer-reboot` を渡す。pip / migrate は 1 分を超えることがあり、provision の途中で `shutdown -r +1` するとデプロイの SSH が切れる。ヘルスチェックの成功後に `--kernel-reboot-only` で同じ判定をする。手動の `sudo provision.sh`（`--defer-reboot` なし）は provision の最後に同じ判定をする。2 回目は、メタパッケージが最新なら apt は何も入れず、再起動が予約済みか `reboot-required` が無ければ `shutdown` を呼ばない。
 
 デプロイ後:
 
