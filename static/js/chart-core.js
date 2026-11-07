@@ -279,6 +279,7 @@ function chartTheme(){
           up: v("--up"), down: v("--down"), accent: v("--accent"), warn: v("--warn")};
 }
 const CHART_VOL_COLOR = "#aab4bf";
+const CHART_VOL_SHARE = 0.2;     // 出来高の棒はローソク足の段の下からこの割合
 const CHART_MA_COLORS = ["accent", "warn", "#8e4ec6", "down"];
 const CHART_BAND_COLOR = "#7d8792";
 const CHART_NAV_H = 44;          // 期間のバーの高さ (px)
@@ -354,16 +355,17 @@ function createStockChart(el, opt = {}){
     upColor: th.up, downColor: th.down, borderVisible: false, wickUpColor: th.up, wickDownColor: th.down,
     priceFormat: {type: "custom", formatter: chartPrice, minMove: 0.1}}, 0);
   const sub = chart.addSeries(LW.HistogramSeries, {
-    priceLineVisible: false, lastValueVisible: false,
-    priceFormat: {type: "custom", formatter: v => chartQty(v), minMove: 1}}, 1);
-  sub.priceScale().applyOptions({scaleMargins: {top: 0.1, bottom: 0}});
+    priceLineVisible: false, lastValueVisible: false, priceScaleId: "vol",
+    priceFormat: {type: "custom", formatter: v => chartQty(v), minMove: 1}}, 0);
+  sub.priceScale().applyOptions({scaleMargins: {top: 1 - CHART_VOL_SHARE, bottom: 0}});
+  candle.priceScale().applyOptions({scaleMargins: {top: 0.1, bottom: CHART_VOL_SHARE + 0.02}});
   let maSeries = [], bandSeries = [], extra = [], cmpSeries = [], markers = null;
   const baseHeight = opt.height || 420;
   el.style.height = baseHeight + "px";
 
   const st = {daily: null, byTf: {}, cmp: null, tf: "D", mas: [50, 150, 200], sub: "v",
               log: false, relOn: false, topix: null, mark: null, bars: null, idx: new Map(),
-              fund: "", band: false, hl: true, fd: null, dIdx: new Map(), win: null, units: {}, subDiv: 0};
+              fund: "", band: false, hl: true, fd: null, dIdx: new Map(), win: null, units: {}};
   const barsOf = tf => st.byTf[tf] || (st.byTf[tf] = chartBars(st.daily, tf));
   const cmpOn = () => !!(st.relOn && st.topix);
   const width = () => chart.timeScale().width() || el.clientWidth || 600;
@@ -371,8 +373,7 @@ function createStockChart(el, opt = {}){
   function layoutPanes(){
     const panes = chart.panes();
     if(panes[0]) panes[0].setStretchFactor(4);
-    if(panes[1]) panes[1].setStretchFactor(1);
-    for(let k = 2; k < panes.length; k++) panes[k].setStretchFactor(1.15);
+    for(let k = 1; k < panes.length; k++) panes[k].setStretchFactor(1.15);
   }
 
   const setRange = (from, to) => chart.timeScale().setVisibleRange({from: chartTs(from), to: chartTs(to)});
@@ -443,19 +444,8 @@ function createStockChart(el, opt = {}){
     const b = st.bars, vals = st.sub === "tv" ? b.tv : b.v;
     const spike = chartSpikes(vals);
     sub.setData(b.t.map((t, i) => ({time: chartTs(t), value: vals[i], color: spike[i] ? th.accent : CHART_VOL_COLOR})));
-    subUnit();
   }
   const axisFormat = u => ({type: "custom", formatter: v => chartPrice(v / u.div), minMove: 1});
-  function subUnit(){
-    const b = st.bars, vals = st.sub === "tv" ? b.tv : b.v;
-    let a = 0, z = b.t.length - 1, max = 0;
-    if(st.win){ a = lowerBound(b.t, st.win.from); z = lowerBound(b.t, st.win.to + "~") - 1; }
-    for(let i = a; i <= z; i++) if(vals[i] > max) max = vals[i];
-    const u = chartAxisUnit(max, st.sub === "tv" ? "yen" : "share");
-    if(st.units.sub === u.label && st.subDiv === u.div) return;
-    st.units.sub = u.label; st.subDiv = u.div;
-    sub.applyOptions({priceFormat: axisFormat(u)});
-  }
 
   // 足の日付ごとの値（業績・対TOPIX）。無い日は線を切る（whitespace）
   function barPoints(get){
@@ -491,10 +481,10 @@ function createStockChart(el, opt = {}){
   function drawExtra(){
     extra.forEach(x => chart.removeSeries(x));
     extra = [];
-    while(chart.panes().length > 2) chart.removePane(chart.panes().length - 1);
-    st.panes = ["price", "sub"];
+    while(chart.panes().length > 1) chart.removePane(chart.panes().length - 1);
+    st.panes = ["price"];
     st.units.fund = "";
-    let pane = 2;
+    let pane = 1;
     const line = (o, data) => {
       const x = chart.addSeries(LW.LineSeries, {lineWidth: 2, priceLineVisible: false, ...o}, pane);
       x.setData(data);
@@ -533,7 +523,7 @@ function createStockChart(el, opt = {}){
       cmpSeries[0].createPriceLine({price: 100, color: th.text, lineWidth: 1, lineStyle: LW.LineStyle.Dotted, axisLabelVisible: false});
       drawCompare();
     }
-    el.style.height = baseHeight + (pane - 2) * CHART_EXTRA_PANE_PX + "px";
+    el.style.height = baseHeight + (pane - 1) * CHART_EXTRA_PANE_PX + "px";
     layoutPanes();
   }
 
@@ -579,12 +569,10 @@ function createStockChart(el, opt = {}){
       const band = "PER " + st.bandMs.map((m, k) => sw(st.bandColors[k], `${m}倍 ${e > 0 ? chartPrice(Math.round(e * m * 10) / 10) : "–"}`)).join(" / ");
       price = price ? price + "<br>" + band : band;
     }
-    const texts = {
-      price,
-      sub: st.sub === "tv" ? `売買代金 ${chartQty(b.tv[i], "円")}` : `出来高 ${chartQty(b.v[i], "株")}`,
-      fund: legendFund(t),
-    };
-    const panes = chart.panes(), kinds = st.panes || ["price", "sub"];
+    const vol = st.sub === "tv" ? `売買代金 ${chartQty(b.tv[i], "円")}` : `出来高 ${chartQty(b.v[i], "株")}`;
+    price = price ? price + "<br>" + vol : vol;
+    const texts = {price, fund: legendFund(t)};
+    const panes = chart.panes(), kinds = st.panes || ["price"];
     const axisW = chart.priceScale("right", 0).width();
     let top = 0;
     kinds.forEach((kind, k) => {
@@ -641,7 +629,6 @@ function createStockChart(el, opt = {}){
   // 期間 [from, to] を幅いっぱいに出す
   function showSpan(from, to){
     st.win = {from, to};
-    subUnit();
     drawCompare();
     setRange(from, to);
     drawMarkers();
