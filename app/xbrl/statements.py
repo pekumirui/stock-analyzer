@@ -165,7 +165,7 @@ def _financial_row(filing: XbrlFiling, facts: _Facts) -> dict | None:
     return row
 
 
-def _revision_row(filing: XbrlFiling, facts: _Facts) -> dict | None:
+def _revision_row(filing: XbrlFiling, facts: _Facts, standalone_company: bool) -> dict | None:
     fc = [r for r in facts.mine if r.value_kind == "forecast"]
     if not fc:
         return None
@@ -190,11 +190,15 @@ def _revision_row(filing: XbrlFiling, facts: _Facts) -> dict | None:
     half_end = half_rows[0].period_end if half_rows else None
     row = {col: None for col in PL.values()}
     raw = {}
+    individual = not facts.consolidated and not standalone_company
+    prefix = "FNC" if individual else "F"
     for code, col in PL.items():
-        row["fy_" + col] = facts.pick(code, "forecast", target="FY", end=fy_end)
-        row["f2_" + col] = facts.pick(code, "forecast", target="H1", start=fy_start)
-        raw["F" + RAW_PL[code]] = _raw_num(row["fy_" + col])
-        raw["F" + RAW_PL[code] + "2Q"] = _raw_num(row["f2_" + col])
+        full = facts.pick(code, "forecast", target="FY", end=fy_end)
+        half = facts.pick(code, "forecast", target="H1", start=fy_start)
+        row["fy_" + col] = None if individual else full
+        row["f2_" + col] = None if individual else half
+        raw[prefix + RAW_PL[code]] = _raw_num(full)
+        raw[prefix + RAW_PL[code] + "2Q"] = _raw_num(half)
     for target, key in RAW_DIV.items():
         raw["F" + key] = _raw_num(facts.pick("dps", "forecast", target=target, end=fy_end))
     period = "2Q" if half_end and not dps_rows else "FY"
@@ -211,15 +215,19 @@ def _revision_row(filing: XbrlFiling, facts: _Facts) -> dict | None:
     return row
 
 
-def statement_row(filing: XbrlFiling, rows) -> dict | None:
-    """1 書類から statements の 1 行（dict）。作れなければ None。"""
+def statement_row(filing: XbrlFiling, rows, *, standalone_company: bool = False) -> dict | None:
+    """1 書類から statements の 1 行（dict）。作れなければ None。
+
+    standalone_company は直近の決算短信が単体の会社。単体だけの業績予想の修正を、連結の会社なら
+    J-Quants と同じく FNC* に分け、fy_* / f2_* には入れない（個別予想を連結予想と混ぜない）。
+    """
     if _standard(filing) == "REIT":
         return None
     facts = _Facts(rows)
     if filing.doc_type in FINANCIAL_DOC_TYPES:
         row = _financial_row(filing, facts)
     elif filing.doc_type in REVISION_DOC_TYPES:
-        row = _revision_row(filing, facts)
+        row = _revision_row(filing, facts, standalone_company)
     else:
         return None
     if row is None:
@@ -303,12 +311,24 @@ def _facts_by_filing(db: Session, ids: list[int]) -> dict[int, list]:
     return out
 
 
+def is_standalone_company(db: Session, code: str, before: date) -> bool:
+    """その日までの直近の決算短信が単体か。決算短信が無ければ False（連結として扱う）。"""
+    doc = (db.query(Statement.type_of_document)
+           .filter(Statement.code == code, Statement.disclosed_date <= before,
+                   Statement.type_of_document.contains("FinancialStatements"))
+           .order_by(Statement.disclosed_date.desc(), Statement.disclosure_no.desc())
+           .limit(1).scalar())
+    return "NonConsolidated" in (doc or "")
+
+
 def sync_statements(db: Session, since: date) -> dict[str, int]:
     filings = filings_since(db, since)
     facts = _facts_by_filing(db, [f.id for f in filings])
     stats = {"filings": len(filings), "inserted": 0, "updated": 0, "skipped": 0}
     for filing in filings:
-        row = statement_row(filing, facts.get(filing.id, []))
+        standalone = (filing.doc_type in REVISION_DOC_TYPES
+                      and is_standalone_company(db, filing.code, filing.submitted_at.date()))
+        row = statement_row(filing, facts.get(filing.id, []), standalone_company=standalone)
         if row is None:
             stats["skipped"] += 1
             continue
