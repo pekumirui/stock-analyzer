@@ -43,7 +43,7 @@ function markTf(tf){
 
 function ensureStockChart(){
   if(stockChart) return stockChart;
-  stockChart = createStockChart($("#chart"), {height: 520});
+  stockChart = createStockChart($("#chart"), {height: 440});
   stockChart.set(chartViewOpts());
   return stockChart;
 }
