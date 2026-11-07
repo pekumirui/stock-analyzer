@@ -127,21 +127,22 @@ def _financial_row(filing: XbrlFiling, facts: _Facts) -> dict | None:
     for target, key in RAW_DIV.items():
         raw[key] = _raw_num(facts.pick("dps", "actual", target=target, end=fy_end))
     if period == "FY":
-        later = [r.period_end for r in facts.mine
-                 if r.value_kind == "forecast" and r.target_period == "FY" and r.period_end > fy_end]
-        nx_end = min(later) if later else None
         nx_start = fy_end + timedelta(days=1)
-        raw["NxtFYSt"] = nx_start.isoformat() if nx_end else ""
-        raw["NxtFYEn"] = nx_end.isoformat() if nx_end else ""
+        later = [r.period_end for r in facts.rows
+                 if r.value_kind == "forecast" and r.target_period in ("FY", "annual", "year_end")
+                 and r.period_end > fy_end]
+        nx_end = min(later) if later else _one_year_end(nx_start)
+        raw["NxtFYSt"] = nx_start.isoformat()
+        raw["NxtFYEn"] = nx_end.isoformat()
         for code, col in PL.items():
-            full = facts.pick(code, "forecast", target="FY", end=nx_end) if nx_end else None
+            full = facts.pick(code, "forecast", target="FY", end=nx_end)
             half = facts.pick(code, "forecast", target="H1", start=nx_start)
             raw["NxF" + RAW_NEXT_PL[code]] = _raw_num(full)
             raw["NxF" + RAW_NEXT_PL[code] + "2Q"] = _raw_num(half)
             row["fy_" + col] = None
             row["f2_" + col] = None
         for target, key in RAW_DIV.items():
-            raw["NxF" + key] = _raw_num(facts.pick("dps", "forecast", target=target, end=nx_end)) if nx_end else ""
+            raw["NxF" + key] = _raw_num(facts.pick("dps", "forecast", target=target, end=nx_end))
     else:
         for code, col in PL.items():
             row["fy_" + col] = facts.pick(code, "forecast", target="FY", end=fy_end)
@@ -170,7 +171,7 @@ def _revision_row(filing: XbrlFiling, facts: _Facts) -> dict | None:
         return None
     fy_rows = [r for r in fc if r.target_period == "FY" and r.code != "dps"]
     half_rows = [r for r in fc if r.target_period == "H1"]
-    dps_rows = [r for r in fc if r.code == "dps"]
+    dps_rows = [r for r in facts.rows if r.value_kind == "forecast" and r.code == "dps"]
     if fy_rows:
         fy_end = fy_rows[0].period_end
         fy_start = fy_rows[0].period_start
@@ -196,12 +197,12 @@ def _revision_row(filing: XbrlFiling, facts: _Facts) -> dict | None:
         raw["F" + RAW_PL[code] + "2Q"] = _raw_num(row["f2_" + col])
     for target, key in RAW_DIV.items():
         raw["F" + key] = _raw_num(facts.pick("dps", "forecast", target=target, end=fy_end))
-    period = "2Q" if half_end else "FY"
+    period = "2Q" if half_end and not dps_rows else "FY"
     row.update(
         type_of_period=period,
         type_of_document=REVISION_DOC_TYPES[filing.doc_type],
         period_start=fy_start,
-        period_end=half_end or fy_end,
+        period_end=half_end if period == "2Q" else fy_end,
         fiscal_year_start=fy_start,
         fiscal_year_end=fy_end,
         is_revision=True,
@@ -212,6 +213,8 @@ def _revision_row(filing: XbrlFiling, facts: _Facts) -> dict | None:
 
 def statement_row(filing: XbrlFiling, rows) -> dict | None:
     """1 書類から statements の 1 行（dict）。作れなければ None。"""
+    if _standard(filing) == "REIT":
+        return None
     facts = _Facts(rows)
     if filing.doc_type in FINANCIAL_DOC_TYPES:
         row = _financial_row(filing, facts)

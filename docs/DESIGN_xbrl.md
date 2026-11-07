@@ -120,9 +120,11 @@ stocks.code   例 7203 → 72030、262A → 262A0
 - キーは開示番号（`doc_id` の後ろ 14 桁）。J-Quants の `disclosure_no` と同じで、開示日時も一致する（2026-10 以降の 1,829 件すべて）
 - 数値は XBRL を優先する。XBRL に値がある列は上書きし、無い列は既にある J-Quants の値を残す。行は `source='xbrl'`
 - J-Quants の取込は `source='xbrl'` の行の数値を変えない。`raw_json` を J-Quants のものにし、空の数値だけ埋める。XBRL が無い開示（`stocks` に無い銘柄・取込漏れ）は今までどおり J-Quants の行（`source='jquants'`。KAB-383 より前の行は NULL）
-- 列の作り方: 実績は §6.4 の当期実績（連結があれば連結）。期首は累計実績の期首、年度末は同じ期首の通期予想の期末（無ければ期首から 1 年）。本決算以外の `fy_*` は当期の通期予想、`f2_*` は当期の中間予想。本決算は `fy_*` / `f2_*` を空にして来期予想を `raw_json` の `NxF*` / `NxF*2Q` / `NxtFYEn` に入れる。業績予想の修正は中間予想があれば `type_of_period='2Q'`、無ければ `FY`
+- 列の作り方: 実績は §6.4 の当期実績（連結があれば連結）。期首は累計実績の期首、年度末は同じ期首の通期予想の期末（無ければ期首から 1 年）。本決算以外の `fy_*` は当期の通期予想、`f2_*` は当期の中間予想。本決算は `fy_*` / `f2_*` を空にして来期予想を `raw_json` の `NxF*` / `NxF*2Q` / `NxtFYEn` に入れる。`NxtFYEn` は来期予想（配当を含む）の期末、無ければ年度末の 1 年後（J-Quants は来期予想が無くても入れる）。業績予想の修正は、中間予想があり配当予想が無ければ `type_of_period='2Q'`（期末は中間期末）、それ以外は `FY`（期末は年度末）。J-Quants と 2026-08 以降の 237 件中 217 件で同じ。残りは J-Quants の決め方が読めない
 - `raw_json` は J-Quants のものがあれば残す。無ければ画面が読むキー（`F*` / `NxF*` / 配当 `Div*` `FDiv*` `NxFDiv*` / `BPS` / `EqAR` / `ROE`）だけ作り、`"Source": "xbrl"` を付ける。配当は単体の context にあるので連結の書類でも単体を見る
-- `type_of_document` は J-Quants の形（`2QFinancialStatements_Consolidated_IFRS`、`EarnForecastRevision` など）。題名に REIT があれば `_REIT`
+- `type_of_document` は J-Quants の形（`2QFinancialStatements_Consolidated_IFRS`、`EarnForecastRevision` など）
+- REIT（題名に REIT）は作らず J-Quants の行のまま。決算速報の対象外で、1 口あたりの要素が `tse-re-t` で違う
+- J-Quants が「決算速報値のお知らせ」を業績予想の修正として持つ行（KAB-222）は、XBRL では四半期の書類で実績が無いので作らない
 - 突合は `tools/xbrl/xbrl_statements_check.py --db … --since …`（読み取り専用。作る行と J-Quants の行を列ごとに比べる）
 
 ### 3.3 コード規則
