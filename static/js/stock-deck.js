@@ -346,15 +346,16 @@ async function showStockDeck(key){
     return;
   }
   if(code !== stockCode || key !== stockDeckKey) return;
+  body.innerHTML = deckDocHtml(d, body.clientWidth);
+}
+
+function deckDocHtml(d, width){
   const doc = d.document, ex = d.extract;
   let h = `<div class="dk-head"><b>${deckEsc(doc.title)}</b><span class="sub">${deckEsc(doc.pubdate.slice(0, 10))}</span>`;
   if(doc.url) h += `<a href="${deckEsc(doc.url)}" target="_blank" rel="noopener noreferrer">原本の PDF</a>`;
   h += "</div>";
-  if(!ex){
-    body.innerHTML = h + `<p class="sub">${DECK_STATUS[doc.status] || "まだ読み取っていません"}。</p>`;
-    return;
-  }
-  DECK_W = Math.max(320, Math.min(760, body.clientWidth || 720));
+  if(!ex) return h + `<p class="sub">${DECK_STATUS[doc.status] || "まだ読み取っていません"}。</p>`;
+  DECK_W = Math.max(320, Math.min(760, width || 720));
   h += `<p class="sub dk-meta">読み取った数値と要約から組み直したもの（原本ではない）。数字 ${ex.facts} 件のうち文字データで確かめた ${ex.verified} 件、`
     + `内訳の合計が合わない ${ex.sum_mismatch} 件。</p>`;
   for(const p of d.pages){
@@ -369,7 +370,7 @@ async function showStockDeck(key){
     if(notes.length) s += `<p class="sub dk-warn">${notes.join("・")}</p>`;
     h += s + "</section>";
   }
-  body.innerHTML = h;
+  return h;
 }
 
 if(typeof document !== "undefined") $("#st-deck-back").addEventListener("click", e => {
@@ -380,4 +381,4 @@ if(typeof document !== "undefined") $("#st-deck-back").addEventListener("click",
   renderStockSub();
 });
 // node のテスト（tests/market/test_stock_decks.py）が組み立てを呼ぶ
-if(typeof module !== "undefined") module.exports = {deckCharts, deckTable, deckNum};
+if(typeof module !== "undefined") module.exports = {deckCharts, deckTable, deckNum, deckDocHtml};

@@ -437,9 +437,11 @@ function fitStockFrame(frame){
 }
 
 function showStockFiling(f){
-  const host = $("#st-doc");
+  mountFilingFrames($("#st-doc"), $("#st-src"), f);
+}
+
+function mountFilingFrames(host, src, f){
   host.innerHTML = "";
-  const src = $("#st-src");
   src.textContent = f.attribution ? `出典: ${f.attribution}。PDF から変換した原文（画像は出ません）` : "";
   src.hidden = !f.attribution;
   for(const doc of f.documents){
@@ -498,5 +500,5 @@ if(typeof ResizeObserver === "function"){
 }
 
 if(typeof module !== "undefined" && module.exports){
-  module.exports = {stockNewsRows, stockNewsAt, stockRoutePath, renderStockNews, showStock, openStockNewsDeck};
+  module.exports = {stockNewsRows, stockNewsAt, stockRoutePath, renderStockNews, showStock, openStockNewsDeck, mountFilingFrames};
 }

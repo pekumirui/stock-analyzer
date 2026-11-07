@@ -156,6 +156,7 @@ function flatRows(){
 
 async function selectDate(ds, want){
   selDate = ds;
+  closeSheet();
   earnSector = "";
   earnChipsOpen = false;
   calClose();
@@ -230,7 +231,10 @@ function refilter(){
   renderGroups();
   renderList();
   const rows = flatRows();
-  if(rows.length && !rows.some(r => (r.side==="a" ? "a:" : "s:")+r.id === selKey)) selectFlat(rows[0]);
+  if(rows.length && !rows.some(r => (r.side==="a" ? "a:" : "s:")+r.id === selKey)){
+    closeSheet();
+    selectFlat(rows[0]);
+  }
 }
 
 function renderList(){
@@ -266,7 +270,7 @@ function tableHtml(actuals, scheduled){
         + `<tr><th class="pin0">時刻</th><th class="l fy pin1">決算期</th>`
         + `<th class="l name pin2">銘柄</th>${sub()}</tr></thead><tbody>`;
   for(const r of actuals){
-    h += `<tr data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">`
+    h += `<tr data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}', true)">`
        + `<td class="pin0">${(r.disclosed_time||"").slice(0,5)}${under(revBadge(r))}</td>`
        + `<td class="l fy pin1">${fyShort(r.fy_label)}${under(listQ(r.period))}</td>`
        + nameCell(r)
@@ -280,7 +284,7 @@ function tableHtml(actuals, scheduled){
     const fy = latest
       ? `${fyShort(latest.fy_label)}${under(latestBadge(latest.period))}`
       : `${label}${under(fq)}`;
-    h += `<tr data-code="${r.code}" onclick="selectSched('${r.code}')">`
+    h += `<tr data-code="${r.code}" onclick="selectSched('${r.code}', true)">`
        + `<td class="pin0">–</td>`
        + `<td class="l fy pin1">${fy}</td>`
        + nameCell(r)
@@ -302,25 +306,176 @@ function selectFlat(entry){
   else selectSched(entry.id);
 }
 
-function selectRow(no){
+function selectRow(no, open){
   selKey = "a:"+no; markSel();
   const row = (earnBoard.actuals||[]).find(r => r.disclosure_no === no);
   if(!row) return;
   loadDetail(row);
+  if(open) openSheet();
 }
 
-function selectSched(code){
+function selectSched(code, open){
   selKey = "s:"+code; markSel();
   const row = (earnBoard.scheduled||[]).find(r => r.code === code);
   if(!row) return;
   loadSched(row);
+  if(open) openSheet();
 }
 
 function clearDetail(msg){
   if(detailAc){ detailAc.abort(); detailAc = null; }
+  closeSheet();
+  clearNews();
   $("#e-chart-title").textContent = msg;
+  $("#earn-sheet-title").textContent = "";
   dropEChart(); $("#cum-tbl").innerHTML = ""; $("#prog-tbl").innerHTML = ""; $("#q-tbl").innerHTML = ""; $("#rev-tbl").innerHTML = "";
 }
+
+const earnSheet = $("#earn-sheet");
+function openSheet(){
+  if(!earnSheet.hidden && !earnSheet.classList.contains("off")) return;
+  earnSheet.classList.add("off");
+  earnSheet.hidden = false;
+  void earnSheet.offsetHeight;
+  earnSheet.classList.remove("off");
+}
+function closeSheet(){
+  if(earnSheet.hidden || earnSheet.classList.contains("off")) return;
+  earnSheet.classList.add("off");
+  setTimeout(() => { if(earnSheet.classList.contains("off")) earnSheet.hidden = true; }, 250);
+}
+$("#earn-sheet-x").addEventListener("click", closeSheet);
+document.addEventListener("keydown", e => { if(e.key==="Escape" && $("#cal-pop").hidden) closeSheet(); });
+
+// 引けるのはつまみと見出しだけ（表の横スクロールとぶつかる）
+let sheetDrag = null;
+const sheetGrab = earnSheet.querySelector(".bsheet-grab");
+sheetGrab.addEventListener("pointerdown", e => {
+  if(e.target.closest(".bsheet-x, .clicky")) return;
+  sheetDrag = {y: e.clientY, dy: 0, id: e.pointerId};
+  sheetGrab.setPointerCapture(e.pointerId);
+  earnSheet.classList.add("drag");
+});
+sheetGrab.addEventListener("pointermove", e => {
+  if(!sheetDrag || e.pointerId !== sheetDrag.id) return;
+  sheetDrag.dy = Math.max(0, e.clientY - sheetDrag.y);
+  earnSheet.style.transform = `translateY(${sheetDrag.dy}px)`;
+});
+function endSheetDrag(e){
+  if(!sheetDrag || e.pointerId !== sheetDrag.id) return;
+  const far = sheetDrag.dy > Math.min(120, earnSheet.offsetHeight / 4);
+  sheetDrag = null;
+  earnSheet.classList.remove("drag");
+  earnSheet.style.transform = "";
+  if(far) closeSheet();
+}
+sheetGrab.addEventListener("pointerup", endSheetDrag);
+sheetGrab.addEventListener("pointercancel", endSheetDrag);
+
+let newsCode = "", newsAc = null, newsFilings = [];
+function newsMsg(text){
+  $("#en-msg").textContent = text || "";
+  $("#en-msg").hidden = !text;
+}
+function clearNews(){
+  if(newsAc){ newsAc.abort(); newsAc = null; }
+  newsCode = "";
+  newsFilings = [];
+  showNewsList();
+  $("#en-title").textContent = "ニュース";
+  $("#en-news").innerHTML = "";
+  newsMsg("");
+}
+function showNewsList(){
+  $("#en-detail").hidden = true;
+  $("#en-list").hidden = false;
+  $("#en-doc").innerHTML = "";
+  $("#en-deck").innerHTML = "";
+  $("#en-head").innerHTML = "";
+  $("#en-src").hidden = true;
+}
+async function loadNews(code, name){
+  if(code === newsCode) return;
+  clearNews();
+  newsCode = code;
+  const ac = newsAc = new AbortController();
+  $("#en-title").innerHTML = `ニュース <small class="sub">${stockEsc(shortName(name || ""))} ${code.slice(0,4)}</small>`;
+  let fs, decks;
+  try {
+    [fs, decks] = await Promise.all([
+      api(`/api/stock/${code}/filings`, {signal: ac.signal}).then(d => d.filings || []),
+      api(`/api/stock/${code}/decks`, {signal: ac.signal}).then(d => d.decks || [])]);
+  } catch(e){
+    if(e.name === "AbortError" || ac.signal.aborted) return;
+    newsMsg("読み込めませんでした。");
+    return;
+  }
+  if(ac.signal.aborted) return;
+  newsFilings = fs;
+  const rows = stockNewsRows(fs, decks);
+  if(!rows.length){ newsMsg("ニュースがありません。"); return; }
+  $("#en-news").innerHTML = "<tr><th class='l'>日時</th><th class='l'>種類</th><th class='l'>題名</th></tr>" + rows.map(r => {
+    const amend = r.amend ? ' <span class="kind">訂正</span>' : "";
+    const open = r.open === "deck" ? ` data-deck="${stockEsc(r.deckKey)}"` : "";
+    return `<tr${r.open ? ` class="go" data-id="${stockEsc(r.key)}"${open}` : ""}>
+      <td class="l">${stockEsc(stockAt(r.at))}</td>
+      <td class="l"><span class="kind">${stockEsc(r.kind)}</span>${amend}</td>
+      <td class="l t">${stockEsc(r.title)}</td></tr>`;
+  }).join("");
+}
+function showNewsDetail(){
+  closeSheet();
+  $("#en-list").hidden = true;
+  $("#en-detail").hidden = false;
+  $("#earn-news").scrollIntoView({block:"start"});
+}
+function openNewsFiling(key){
+  const f = newsFilings.find(x => stockNewsKey(x) === key);
+  showNewsDetail();
+  $("#en-deck").innerHTML = "";
+  if(!f || !f.documents.length){
+    $("#en-head").textContent = "書類が見つかりません。";
+    $("#en-doc").innerHTML = "";
+    $("#en-src").hidden = true;
+    return;
+  }
+  $("#en-head").innerHTML = `<span class="sub">${stockEsc(stockAt(f.submitted_at))}</span> <span class="kind">${stockKind(f)}</span>`
+    + `${f.is_amendment ? ' <span class="kind">訂正</span>' : ""} <b>${stockEsc(stockTitle(f))}</b>`;
+  mountFilingFrames($("#en-doc"), $("#en-src"), f);
+}
+async function openNewsDeck(key){
+  const code = newsCode, ac = newsAc;
+  showNewsDetail();
+  $("#en-doc").innerHTML = "";
+  $("#en-deck").innerHTML = "";
+  let d;
+  try { d = await api(`/api/stock/${code}/decks/${key}`, {signal: ac.signal}); }
+  catch(e){
+    if(e.name === "AbortError" || code !== newsCode) return;
+    $("#en-head").textContent = String(e.message) === "404" ? "説明資料が見つかりません。" : "読み込めませんでした。";
+    return;
+  }
+  if(code !== newsCode || $("#en-detail").hidden) return;
+  $("#en-deck").innerHTML = deckDocHtml(d, $("#en-deck").clientWidth);
+}
+$("#en-news").addEventListener("click", e => {
+  const tr = e.target.closest("tr.go");
+  if(!tr) return;
+  if(tr.dataset.deck != null) openNewsDeck(tr.dataset.deck);
+  else openNewsFiling(tr.dataset.id);
+});
+$("#en-back").addEventListener("click", e => {
+  e.preventDefault();
+  showNewsList();
+  $("#earn-news").scrollIntoView({block:"nearest"});
+});
+let enDocWidth = 0;
+new ResizeObserver(() => {
+  const w = $("#en-doc").clientWidth;
+  if(w === 0 || w === enDocWidth) return;
+  enDocWidth = w;
+  document.querySelectorAll("#en-doc iframe").forEach(fitStockFrame);
+}).observe($("#en-doc"));
 
 async function loadSched(row){
   const latest = row.latest;
@@ -336,6 +491,8 @@ async function loadSched(row){
   const signal = beginDetail();
   $("#e-chart-title").innerHTML = `<span class="clicky" onclick="gotoChart('${row.code}')">${row.name}</span>
     <small class="sub">${row.code.slice(0,4)}</small>`;
+  $("#earn-sheet-title").innerHTML = $("#e-chart-title").innerHTML;
+  loadNews(row.code, row.name);
   let ch;
   try { ch = await chartMaybe(row.code, signal); }
   catch(e){ if(e.name === "AbortError") return; throw e; }
@@ -352,6 +509,8 @@ async function loadDetail(row){
   const signal = beginDetail();
   $("#e-chart-title").innerHTML = `<span class="clicky" onclick="gotoChart('${row.code}')">${row.name}</span>
     <small class="sub">${row.code.slice(0,4)} / ${fyShort(row.fy_label)} ${row.period||""}</small>`;
+  $("#earn-sheet-title").innerHTML = $("#e-chart-title").innerHTML;
+  loadNews(row.code, row.name);
   let d, ch;
   try {
     [d, ch] = await Promise.all([
@@ -572,11 +731,13 @@ async function pickEarnStock(code, name){
   if(!d){
     selKey = null; markSel();
     loadSched({code, name});
+    openSheet();
     return;
   }
   const [y, m] = d.disclosed_date.split("-").map(Number);
   calY = y; calM = m;
   await selectDate(d.disclosed_date, {no:d.disclosure_no, code, name:d.name, period:d.period});
+  openSheet();
 }
 $("#earn-sym").addEventListener("input", refreshEarnSuggest);
 $("#earn-sym").addEventListener("compositionend", refreshEarnSuggest);
