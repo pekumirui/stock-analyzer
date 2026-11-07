@@ -14,6 +14,7 @@ from .adjust import readjust
 from .jquants import JQuantsClient
 from ..db import upsert
 from ..models import Stock, DailyPrice, Topix, Statement
+from ..xbrl.statements import NUMERIC_COLUMNS as STATEMENT_NUMERIC_COLUMNS, SOURCE_JQUANTS, SOURCE_XBRL
 
 
 def _d(s):
@@ -158,19 +159,42 @@ def _statement_row(s: dict) -> dict:
     }
 
 
+def upsert_statements(db: Session, rows: list[dict], *, commit: bool = True) -> None:
+    """XBRL から作った行（source='xbrl'）は数値を上書きしない。raw_json と空の数値だけ J-Quants で埋める。"""
+    rows = [{**r, "source": SOURCE_JQUANTS} for r in rows if r["disclosed_date"]]
+    nos = [r["disclosure_no"] for r in rows]
+    xbrl = {}
+    for i in range(0, len(nos), 500):
+        xbrl.update({s.disclosure_no: s for s in db.query(Statement).filter(
+            Statement.disclosure_no.in_(nos[i:i + 500]), Statement.source == SOURCE_XBRL)})
+    plain = []
+    for r in rows:
+        s = xbrl.get(r["disclosure_no"])
+        if s is None:
+            plain.append(r)
+            continue
+        s.raw_json = r["raw_json"]
+        for col in STATEMENT_NUMERIC_COLUMNS:
+            if getattr(s, col) is None and r[col] is not None:
+                setattr(s, col, r[col])
+    upsert(db, Statement, plain, commit=False)
+    if commit:
+        db.commit()
+
+
 def ingest_statements_for_date(
     db: Session, jq: JQuantsClient, day: str, *, commit: bool = True,
 ) -> int:
     rows = [_statement_row(s) for s in jq.fins_summary(date=day)]
     rows = [r for r in rows if r["disclosed_date"]]
-    upsert(db, Statement, rows, commit=commit)
+    upsert_statements(db, rows, commit=commit)
     return len(rows)
 
 
 def ingest_statements_for_code(db: Session, jq: JQuantsClient, code: str) -> int:
     rows = [_statement_row(s) for s in jq.fins_summary(code=code)]
     rows = [r for r in rows if r["disclosed_date"]]
-    upsert(db, Statement, rows)
+    upsert_statements(db, rows)
     return len(rows)
 
 
