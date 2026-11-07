@@ -1,4 +1,4 @@
-"""config/monthly/ir_monthly.json の銘柄コード。デバッグ用グループの正本。URL は出さない。"""
+"""config/monthly/ir_monthly.json の銘柄コード。URL は出さない。"""
 from __future__ import annotations
 
 import json

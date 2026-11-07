@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 import sys
 import tempfile
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -287,29 +287,67 @@ def test_ingest_touch_only_on_change() -> None:
 
 
 def test_new_window() -> None:
+    """JST の暦日。当日・前日・前々日は新着。3日前は新着ではない。"""
+    from app.api.monthly import _common
+    from app.api.monthly._common import _new_flags
+    from app.api.monthly.tables import clear_list_tables_cache
     from app.db import SessionLocal
     from app.models import MonthlyIssuer
 
+    today = date(2026, 3, 1)
+    jst = timezone(timedelta(hours=9))
+
+    def naive_jst(y: int, m: int, d: int, hh: int, mm: int) -> datetime:
+        return datetime(y, m, d, hh, mm, tzinfo=jst).replace(tzinfo=None)
+
+    # (code, naive JST timestamp, is_new, ingested_today)
+    cases = (
+        ("92790", naive_jst(2026, 3, 1, 0, 0), True, True),
+        ("92791", naive_jst(2026, 2, 28, 23, 59), True, False),
+        ("92792", naive_jst(2026, 2, 27, 0, 1), True, False),
+        ("92793", naive_jst(2026, 2, 26, 23, 59), False, False),
+    )
     c = TestClient(app)
-    _ensure_stock("92790", "ギフト")
-    r = c.post("/api/v1/tables/92790/2025/elements", json={"element": "店舗数", "unit": "number"})
-    _expect(r, 201, "seed stores")
-    old = datetime.now() - timedelta(days=MONTHLY_NEW_DAYS + 1)
+    for code, _when, _want_new, _want_today in cases:
+        _ensure_stock(code, "ギフト")
+        r = c.post(
+            f"/api/v1/tables/{code}/2025/elements",
+            json={"element": "店舗数", "unit": "number"},
+        )
+        _expect(r, 201, f"seed {code}")
     db = SessionLocal()
     try:
-        row = db.get(MonthlyIssuer, "92790")
-        if row is None:
-            db.add(MonthlyIssuer(code="92790", industry="その他", last_ingested_at=old))
-        else:
-            row.last_ingested_at = old
+        for code, when, _want_new, _want_today in cases:
+            row = db.get(MonthlyIssuer, code)
+            if row is None:
+                db.add(MonthlyIssuer(code=code, industry="その他", last_ingested_at=when))
+            else:
+                row.last_ingested_at = when
         db.commit()
     finally:
         db.close()
-    r = c.get("/api/v1/tables")
-    by = {x["code"]: x for x in r.json()}
-    row = by["92790"]
-    if row["is_new"] is not False or row["ingested_today"] is not False:
-        _fail(f"eight days ago is not 新着: {row!r}")
+
+    original = _common._jst_today
+    _common._jst_today = lambda: today
+    try:
+        clear_list_tables_cache()
+        r = c.get("/api/v1/tables")
+        _expect(r, 200, "GET tables")
+        by = {x["code"]: x for x in r.json()}
+        for code, when, want_new, want_today in cases:
+            row = by[code]
+            if row["is_new"] is not want_new or row["ingested_today"] is not want_today:
+                _fail(f"{code} {when.isoformat()} vs {today.isoformat()}: {row!r}")
+        # UTC の日付が 1 日ずれても、JST の暦日で切る。
+        prev_eve_jst = _new_flags(datetime(2026, 2, 26, 15, 0, tzinfo=timezone.utc))
+        if prev_eve_jst != (True, False):
+            _fail(f"UTC 15:00 on Feb 26 is 前々日 JST: {prev_eve_jst!r}")
+        three_days_jst = _new_flags(datetime(2026, 2, 26, 14, 59, tzinfo=timezone.utc))
+        if three_days_jst != (False, False):
+            _fail(f"UTC 14:59 on Feb 26 is 3日前 JST: {three_days_jst!r}")
+    finally:
+        _common._jst_today = original
+        clear_list_tables_cache()
 
 
 def test_year_payload_unchanged() -> None:

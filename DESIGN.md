@@ -138,7 +138,7 @@ data_versions     -- プロセス内キャッシュの版。対象の表が変�
 monthly_values / monthly_issuers / stocks の INSERT・UPDATE・DELETE（行ごと）。
 API・cron・MCP・手書きの SQL のどれでも上がる。トリガーは init_db と jobs/migrate.py が作る。
 行がまだ無いあいだの版は 0。last_ingested_at は版に使わない（更新しない書き込みがある）。
-一覧の is_new / ingested_today は JST の日付で変わるので、使い回しのキーは (version, JST の今日)。
+一覧の is_new は `last_ingested_at` の JST 暦日が今日を含む直近 3 日（当日・前日・前々日）。`ingested_today` は JST の今日。どちらも日付で変わるので、使い回しのキーは (version, JST の今日)。
 結果はワーカーのメモリに置く。別プロセスの書き込みは、次の読みで版が変わって作り直す。
 
 monthly_element_sources  -- 送られてきたままの行名 → 今の保存名。正規化の差分スナップショットの入力 (KAB-17)
