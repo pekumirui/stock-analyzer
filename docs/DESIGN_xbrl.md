@@ -123,6 +123,7 @@ stocks.code   例 7203 → 72030、262A → 262A0
 - 列の作り方: 実績は §6.4 の当期実績（連結があれば連結）。期首は累計実績の期首、年度末は同じ期首の通期予想の期末（無ければ期首から 1 年）。本決算以外の `fy_*` は当期の通期予想、`f2_*` は当期の中間予想。本決算は `fy_*` / `f2_*` を空にして来期予想を `raw_json` の `NxF*` / `NxF*2Q` / `NxtFYEn` に入れる。`NxtFYEn` は来期予想（配当を含む）の期末、無ければ年度末の 1 年後（J-Quants は来期予想が無くても入れる）。業績予想の修正は、中間予想があり配当予想が無ければ `type_of_period='2Q'`（期末は中間期末）、それ以外は `FY`（期末は年度末）。J-Quants と 2026-08 以降の 237 件中 217 件で同じ。残りは J-Quants の決め方が読めない
 - `raw_json` は J-Quants のものがあれば残す。無ければ画面が読むキー（`F*` / `NxF*` / 配当 `Div*` `FDiv*` `NxFDiv*` / `BPS` / `EqAR` / `ROE`）だけ作り、`"Source": "xbrl"` を付ける。配当は単体の context にあるので連結の書類でも単体を見る
 - `type_of_document` は J-Quants の形（`2QFinancialStatements_Consolidated_IFRS`、`EarnForecastRevision` など）
+- 単体だけの業績予想の修正（個別業績予想の修正）は、J-Quants と同じく `raw_json` の `FNC*` に入れ、`fy_*` / `f2_*` は空にする（連結の会社の個別予想を連結予想と混ぜない）。ただし直近の決算短信が単体の会社は `fy_*` / `f2_*` に入れる。J-Quants はこの場合も `FNC*` だけなので、単体の会社の修正は J-Quants の行と違って上方 / 下方が出る
 - REIT（題名に REIT）は作らず J-Quants の行のまま。決算速報の対象外で、1 口あたりの要素が `tse-re-t` で違う
 - J-Quants が「決算速報値のお知らせ」を業績予想の修正として持つ行（KAB-222）は、XBRL では四半期の書類で実績が無いので作らない
 - 突合は `tools/xbrl/xbrl_statements_check.py --db … --since …`（読み取り専用。作る行と J-Quants の行を列ごとに比べる）

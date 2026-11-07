@@ -35,11 +35,13 @@
     - { ns: tse-ed-t, name: NetAssetsPerShare, priority: 60 }
     - { ns: tse-ed-t, name: EquityAttributableToOwnersOfParentPerShareIFRS, priority: 60, standard: IFRS }
     - { ns: tse-ed-t, name: NetAssetsPerShareUS, priority: 60 }
+    - { ns: tse-ed-t, name: ShareholdersEquityPerShareUS, priority: 60 }
 - std_item: equity_ratio
   elements:
     - { ns: tse-ed-t, name: CapitalAdequacyRatio, priority: 60 }
     - { ns: tse-ed-t, name: EquityAttributableToOwnersOfParentToTotalAssetsRatioIFRS, priority: 60, standard: IFRS }
     - { ns: tse-ed-t, name: CapitalAdequacyRatioUS, priority: 60 }
+    - { ns: tse-ed-t, name: ShareholdersEquityRatioUS, priority: 60 }
 - std_item: roe
   elements:
     - { ns: tse-ed-t, name: NetIncomeToShareholdersEquityRatio, priority: 60 }

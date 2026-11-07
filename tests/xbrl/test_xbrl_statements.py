@@ -110,6 +110,19 @@ def test_revision_with_dividend_is_fy_and_reit_is_left_to_jquants() -> None:
     assert statement_row(_filing("quarterly", "Q2", title="2026年8月期 決算短信（REIT）"), _q2_rows()) is None
 
 
+def test_individual_revision_goes_to_fnc_unless_company_is_standalone() -> None:
+    rows = [
+        _r("net_sales", "forecast", "FY", FY_START, FY_END, 260_000, consolidated=0),
+        _r("net_income", "forecast", "FY", FY_START, FY_END, 14_000, consolidated=0),
+    ]
+    consolidated_co = statement_row(_filing("forecast_revision", "FY"), rows)
+    assert consolidated_co["fy_net_sales"] is None and consolidated_co["fy_profit"] is None
+    raw = json.loads(consolidated_co["raw_json"])
+    assert raw["FNCSales"] == "260000" and raw["FNCNP"] == "14000" and "FSales" not in raw
+    single = statement_row(_filing("forecast_revision", "FY"), rows, standalone_company=True)
+    assert single["fy_net_sales"] == 260_000 and json.loads(single["raw_json"])["FSales"] == "260000"
+
+
 def test_revision_row_period_follows_half_year() -> None:
     rows = [
         _r("net_sales", "forecast", "H1", FY_START, H1_END, 24_000),
@@ -187,6 +200,23 @@ def test_xbrl_first_then_jquants_fills_raw_and_blanks() -> None:
         upsert_statements(db, [_jq_row("20261030569999", net_sales=3.0)])
         other = db.get(Statement, "20261030569999")
         assert other.source == SOURCE_JQUANTS and other.net_sales == 3.0
+    finally:
+        db.close()
+
+
+def test_standalone_company_from_latest_financial_statement() -> None:
+    from app.xbrl.statements import is_standalone_company
+
+    init_db()
+    db = SessionLocal()
+    try:
+        row = _jq_row("20260801000001")
+        row["type_of_document"] = "1QFinancialStatements_NonConsolidated_JP"
+        row["disclosed_date"] = date(2026, 8, 1)
+        upsert_statements(db, [row])
+        assert is_standalone_company(db, "72030", date(2026, 8, 2))
+        assert not is_standalone_company(db, "72030", date(2026, 7, 31))
+        assert not is_standalone_company(db, "99990", date(2026, 8, 2))
     finally:
         db.close()
 

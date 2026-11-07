@@ -31,7 +31,7 @@ from app.xbrl.statements import (  # noqa: E402
 
 META = ("type_of_period", "type_of_document", "period_start", "period_end", "fiscal_year_start",
         "fiscal_year_end", "disclosed_date", "disclosed_time", "is_revision")
-RAW_KEYS = ("FSales", "FOP", "FOdP", "FNP", "FEPS", "NxtFYEn", "NxFSales", "NxFOP", "NxFOdP", "NxFNp", "NxFEPS",
+RAW_KEYS = ("FSales", "FOP", "FOdP", "FNP", "FEPS", "FNCSales", "FNCOP", "FNCNP", "FNCSales2Q", "NxtFYEn", "NxFSales", "NxFOP", "NxFOdP", "NxFNp", "NxFEPS",
             "NxFSales2Q", "NxFOP2Q", "NxFNp2Q", "NxFEPS2Q", "Div2Q", "DivFY", "DivAnn", "FDivFY", "FDivAnn",
             "NxFDivAnn", "BPS", "EqAR", "ROE")
 PER_SHARE = {"eps", "f2_eps", "fy_eps", "FEPS", "NxFEPS", "NxFEPS2Q", "Div2Q", "DivFY", "DivAnn",
@@ -105,7 +105,15 @@ def main(argv: list[str] | None = None) -> int:
     bad = Counter()
     samples: dict[str, list[str]] = defaultdict(list)
     for f in filings:
-        row = statement_row(f, rows.get(f.id, []))
+        standalone = False
+        if f.doc_type in REVISION_DOC_TYPES:
+            doc = conn.execute(
+                "SELECT type_of_document FROM statements WHERE code = ? AND disclosed_date <= ? "
+                "AND type_of_document LIKE '%FinancialStatements%' "
+                "ORDER BY disclosed_date DESC, disclosure_no DESC LIMIT 1",
+                [f.code, f.submitted_at.date().isoformat()]).fetchone()
+            standalone = doc is not None and "NonConsolidated" in (doc[0] or "")
+        row = statement_row(f, rows.get(f.id, []), standalone_company=standalone)
         if row is None:
             continue
         built += 1
