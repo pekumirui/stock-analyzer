@@ -31,7 +31,10 @@ const out = {
   maLen: [c.chartMaLen(50, "D"), c.chartMaLen(50, "W"), c.chartMaLen(50, "M"), c.chartMaLen(30, "M"), c.chartMaLen(200, "Y"), c.chartMaLen(500, "Y")],
   mas: c.chartParseMas(" 50, 150,x,0,50 ,200"),
   spikes: c.chartSpikes(many).map((x, i) => x ? i : -1).filter(i => i >= 0),
-  rel: [...c.chartRelative(daily, topix)],
+  cmp: (r => ({s: [...r.s], x: [...r.x]}))(c.chartCompare(daily, topix, "2026-08-18")),
+  cmpNone: c.chartCompare(daily, topix, "2027-01-01").s.size,
+  jumps: c.chartStepJumps([null, 10, 10, 12, 12, null, 12, 15]),
+  bandColors: [c.chartBandColors(3), c.chartBandColors(2), c.chartBandColors(1)],
   swings: c.chartSwings([5, 6, 9, 7, 6, 8, 12, 10, 9, 9], [4, 5, 8, 6, 5, 7, 11, 9, 8, 8], 0, 9, 2),
   swingsEdge: c.chartSwings([3, 2, 1], [3, 2, 1], 0, 2, 5),
   hl: [c.chartHlText("2026-08-13", 26020, false), c.chartHlText("2025-01-30", 2821.5, true)],
@@ -41,7 +44,6 @@ const out = {
   qty: [c.chartQty(800, "株"), c.chartQty(25007500, "株"), c.chartQty(77110432900, "円"), c.chartQty(1.5e12, "円")],
   unit: [c.chartAxisUnit(9999, "share"), c.chartAxisUnit(10000, "share"), c.chartAxisUnit(-2e6, "yen"),
          c.chartAxisUnit(999999, "yen"), c.chartAxisUnit(null, "yen")],
-  fade: [c.chartFade("#d32f2f", 0.3), c.chartFade("var(--x)", 0.3)],
   price: [c.chartPrice(2821.5), c.chartPrice(3094), c.chartPrice(null)],
   ohlcLast: c.chartOhlcHtml(daily, null),
   ohlc0: c.chartOhlcHtml(daily, 0),
@@ -87,8 +89,14 @@ def test_chart_core_bars_and_indicators() -> None:
     # 直前 20 本の平均の 2 倍以上
     assert o["spikes"] == [22]
     # 対TOPIX（TOPIX がある最初の日=100、TOPIX の無い日は直前の値）
-    assert o["rel"] == [["2026-08-17", 100], ["2026-08-18", 100.5], ["2026-08-21", 91.52],
-                        ["2026-08-24", 101.84], ["2026-08-31", 104.52], ["2026-09-01", 107.54]]
+    # 対TOPIX: from 以降で両方そろう最初の日=100。前の日も同じ基準で出す。TOPIX の無い日は直前の値
+    days = ["2026-08-17", "2026-08-18", "2026-08-21", "2026-08-24", "2026-08-31", "2026-09-01"]
+    assert o["cmp"]["s"] == [[d, v] for d, v in zip(days, [99.5, 100, 100.17, 101.33, 104, 107])]
+    assert o["cmp"]["x"] == [[d, v] for d, v in zip(days, [100, 100, 110, 100, 100, 100])]
+    assert o["cmpNone"] == 0
+    # PERバンドは値が変わる手前の足からの線を透明にする。色は安い倍率=緑（down）、高い倍率=赤（up）
+    assert o["jumps"] == [False, False, True, False, False, False, True, False]
+    assert o["bandColors"] == [["down", "#7d8792", "up"], ["down", "up"], ["#7d8792"]]
     # 2px より細いと粗い足へ、1 つ細かい足が 4px 以上なら細かい足へ
     # 高安値: 前後 2 本の中の山と谷。見えている最高値・最安値は必ず入る
     assert o["swings"] == {"highs": [2, 6], "lows": [0, 4, 8]}
@@ -99,7 +107,6 @@ def test_chart_core_bars_and_indicators() -> None:
     assert o["latest"] == [["2026-08-24", "2026-09-01"], ["2026-08-17", "2026-09-01"]]
     assert o["around"] == ["2026-08-18", "2026-08-24"]
     assert o["qty"] == ["800株", "2,500.8万株", "771.1億円", "1.5兆円"]
-    assert o["fade"] == ["rgba(211,47,47,0.3)", "var(--x)"]
     # 縦軸は数字だけ。万株・百万円に届かなければ単位を付けない
     assert o["unit"] == [{"div": 1, "label": ""}, {"div": 10000, "label": "万株"}, {"div": 1000000, "label": "百万円"},
                          {"div": 1, "label": ""}, {"div": 1, "label": ""}]
