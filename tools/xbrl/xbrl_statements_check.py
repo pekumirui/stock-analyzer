@@ -52,6 +52,8 @@ def _num(v):
 
 
 def same(key: str, a, b) -> bool:
+    if key == "is_revision":
+        return bool(a) == bool(b)
     if key in META or key == "NxtFYEn":
         return str(a or "")[:10] == str(b or "")[:10] if key != "disclosed_time" else (a or "") == (b or "")
     x, y = _num(a), _num(b)
@@ -91,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", required=True)
     ap.add_argument("--since", type=date.fromisoformat, required=True)
-    ap.add_argument("--limit", type=int, default=30)
+    ap.add_argument("--limit", type=int, default=5, help="ずれの例を項目ごとに何件まで出すか")
     args = ap.parse_args(argv)
     conn = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
     conn.row_factory = sqlite3.Row
@@ -101,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     no_jq = 0
     ok = Counter()
     bad = Counter()
-    samples = []
+    samples: dict[str, list[str]] = defaultdict(list)
     for f in filings:
         row = statement_row(f, rows.get(f.id, []))
         if row is None:
@@ -121,14 +123,16 @@ def main(argv: list[str] | None = None) -> int:
                 ok[key] += 1
             else:
                 bad[key] += 1
-                if len(samples) < args.limit:
-                    samples.append(f"  {row['code']} {row['disclosure_no']} {row['type_of_document']} {key}: xbrl={a} jquants={b}")
+                if len(samples[key]) < args.limit:
+                    samples[key].append(
+                        f"  {row['code']} {row['disclosure_no']} {row['type_of_document']} {f.doc_type} {key}: xbrl={a} jquants={b}")
     print(f"xbrl_statements_check since={args.since} filings={len(filings)} built={built} paired={paired} no_jquants={no_jq}")
     for key in sorted(set(ok) | set(bad), key=lambda k: (-bad[k], k)):
         total = ok[key] + bad[key]
         print(f"  {key} ok={ok[key]} diff={bad[key]} match={ok[key] / total:.1%}")
     print("samples")
-    print("\n".join(samples))
+    for key in sorted(samples, key=lambda k: (-bad[k], k)):
+        print("\n".join(samples[key]))
     return 0
 
 

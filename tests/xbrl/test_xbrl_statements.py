@@ -88,6 +88,28 @@ def test_fy_row_puts_forecasts_into_next_year_keys() -> None:
     assert raw["NxFSales2Q"] == "25000" and raw["NxFDivAnn"] == "110.0" and not raw.get("FSales")
 
 
+def test_fy_row_without_next_forecast_still_has_next_year_end() -> None:
+    rows = [
+        _r("net_sales", "actual", "FY", FY_START, FY_END, 50_000),
+        _r("dps", "forecast", "annual", date(2027, 4, 1), date(2028, 3, 31), 5, consolidated=0),
+    ]
+    raw = json.loads(statement_row(_filing("annual", "FY"), rows)["raw_json"])
+    assert raw["NxtFYEn"] == "2028-03-31" and raw["NxFDivAnn"] == "5.0" and raw["NxFSales"] == ""
+    bare = json.loads(statement_row(_filing("annual", "FY"), rows[:1])["raw_json"])
+    assert bare["NxtFYSt"] == "2027-04-01" and bare["NxtFYEn"] == "2028-03-31"
+
+
+def test_revision_with_dividend_is_fy_and_reit_is_left_to_jquants() -> None:
+    rows = [
+        _r("net_sales", "forecast", "H1", FY_START, H1_END, 24_000),
+        _r("net_sales", "forecast", "FY", FY_START, FY_END, 48_000),
+        _r("dps", "forecast", "annual", FY_START, FY_END, 30, consolidated=0),
+    ]
+    row = statement_row(_filing("forecast_revision", "Q2"), rows)
+    assert row["type_of_period"] == "FY" and row["period_end"] == FY_END and row["f2_net_sales"] == 24_000
+    assert statement_row(_filing("quarterly", "Q2", title="2026年8月期 決算短信（REIT）"), _q2_rows()) is None
+
+
 def test_revision_row_period_follows_half_year() -> None:
     rows = [
         _r("net_sales", "forecast", "H1", FY_START, H1_END, 24_000),
