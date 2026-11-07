@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -147,3 +148,125 @@ def test_chart_ohlc_row_is_outside_plot_source() -> None:
     assert ".chart-ohlc { display:flex; flex-wrap:wrap;" in css
     assert "position:absolute" not in css.split(".chart-ohlc {")[1].split("}", 1)[0]
     assert ".chart-legend { position:absolute;" in css
+
+
+def _weekdays(start: str, end: str) -> list[str]:
+    d, last = date.fromisoformat(start), date.fromisoformat(end)
+    out = []
+    while d <= last:
+        if d.weekday() < 5:
+            out.append(d.isoformat())
+        d += timedelta(days=1)
+    return out
+
+
+def _shift_years(iso: str, years: int) -> str:
+    y, m, day = (int(x) for x in iso.split("-"))
+    y += years
+    month_end = (date(y + (m == 12), 1 if m == 12 else m + 1, 1) - timedelta(days=1)).day
+    return date(y, m, min(day, month_end)).isoformat()
+
+
+def _first_on_or_after(dates: list[str], iso: str) -> str:
+    return next(t for t in dates if t >= iso)
+
+
+def _bars_between(dates: list[str], start: str, end: str) -> int:
+    return sum(1 for t in dates if start <= t <= end)
+
+
+_INITIAL_SCRIPT = r"""
+const c = require(process.argv[1]);
+const spec = JSON.parse(process.argv[2]);
+function pack(t){
+  const z = () => Array(t.length).fill(1);
+  return {t, o: z(), h: z(), l: z(), c: z(), v: z(), tv: z()};
+}
+const long = pack(spec.long), short = pack(spec.short), leap = pack(spec.leap);
+const monday = pack(spec.monday), one = pack(spec.one);
+const weeks = c.chartBars(long, "W"), months = c.chartBars(long, "M"), years = c.chartBars(long, "Y");
+const mid = spec.long[Math.floor(spec.long.length / 2)];
+const yearN = c.chartInitialCount(long, long, "D", 15);
+const out = {
+  dailyFew: c.chartInitialSpan(long, long, "D", 20),
+  dailyMany: c.chartInitialSpan(long, long, "D", 400),
+  dailyByBars: c.chartLatestSpan(long, long, 20),
+  shortFew: c.chartInitialSpan(short, short, "D", 5),
+  shortLast5: c.chartLatestSpan(short, short, 5),
+  leap: c.chartInitialSpan(leap, leap, "D", 30),
+  monday: c.chartInitialSpan(monday, monday, "D", 40),
+  one: c.chartInitialSpan(one, one, "D", 20),
+  week20: c.chartInitialSpan(long, weeks, "W", 20),
+  week8: c.chartInitialSpan(long, weeks, "W", 8),
+  week80: c.chartInitialSpan(long, weeks, "W", 80),
+  weekLatest20: c.chartLatestSpan(long, weeks, 20),
+  weekLatest8: c.chartLatestSpan(long, weeks, 8),
+  weekLatest80: c.chartLatestSpan(long, weeks, 80),
+  month24: c.chartInitialSpan(long, months, "M", 24),
+  monthLatest24: c.chartLatestSpan(long, months, 24),
+  year2: c.chartInitialSpan(long, years, "Y", 2),
+  yearLatest2: c.chartLatestSpan(long, years, 2),
+  count15: yearN,
+  count80: c.chartInitialCount(long, long, "D", 80),
+  weekCount: c.chartInitialCount(long, weeks, "W", 20),
+  around: c.chartSpanAround(long, long, mid, yearN),
+  mid,
+};
+console.log(JSON.stringify(out));
+"""
+
+
+def _initial() -> dict:
+    payload = {
+        "long": _weekdays("2022-01-03", "2026-11-06"),
+        "short": _weekdays("2026-08-03", "2026-11-06"),
+        "leap": _weekdays("2022-01-03", "2024-02-29"),
+        "monday": _weekdays("2023-01-02", "2026-11-02"),
+        "one": ["2026-11-06"],
+    }
+    js = ROOT / "static" / "js" / "chart-core.js"
+    r = subprocess.run(
+        ["node", "-e", _INITIAL_SCRIPT, str(js), json.dumps(payload)],
+        capture_output=True, text=True, check=True,
+    )
+    got = json.loads(r.stdout)
+    got["_dates"] = payload
+    return got
+
+
+def test_daily_initial_span_is_one_calendar_year() -> None:
+    o = _initial()
+    long, short, leap, monday = (o["_dates"][k] for k in ("long", "short", "leap", "monday"))
+
+    def expect(dates: list[str]) -> list[str]:
+        end = dates[-1]
+        return [_first_on_or_after(dates, _shift_years(end, -1)), end]
+
+    # 渡す本数（画面幅）が違っても日足の期間は同じ。幅から数えた 20 本ではない
+    assert o["dailyFew"] == o["dailyMany"] == expect(long)
+    assert o["dailyFew"] != o["dailyByBars"]
+    assert (date.fromisoformat(o["dailyFew"][1]) - date.fromisoformat(o["dailyFew"][0])).days >= 360
+    # 1 年に満たない銘柄は、本数を少なく指定しても全期間
+    assert o["shortFew"] == [short[0], short[-1]]
+    assert o["shortFew"] != o["shortLast5"]
+    assert date.fromisoformat(short[0]) > date.fromisoformat(_shift_years(short[-1], -1))
+    # うるう日の 1 年前は 2/28。日曜の応当日は次の営業日
+    assert o["leap"] == expect(leap)
+    assert _shift_years(leap[-1], -1) == "2023-02-28"
+    assert o["monday"] == expect(monday)
+    assert _shift_years(monday[-1], -1) == "2025-11-02"
+    assert date.fromisoformat("2025-11-02").weekday() == 6
+    assert o["monday"][0] > "2025-11-02"
+    assert o["one"] == ["2026-11-06", "2026-11-06"]
+    # 週足・月足・年足は本数のまま。日足の 1 年にはしない
+    assert o["week20"] == o["weekLatest20"] and o["week8"] == o["weekLatest8"]
+    assert o["week80"] == o["weekLatest80"] and o["week20"] != o["week8"]
+    assert o["week20"][0] > o["dailyFew"][0] and o["week80"][0] < o["dailyFew"][0]
+    assert o["month24"] == o["monthLatest24"] and o["month24"][0] < o["dailyFew"][0]
+    assert o["year2"] == o["yearLatest2"]
+    # 発表日を真ん中に出す本数も、日足は 1 年分。週足は渡した本数
+    assert o["count15"] == o["count80"] == _bars_between(long, o["dailyFew"][0], o["dailyFew"][1])
+    assert o["count15"] > 200
+    assert o["weekCount"] == 20
+    assert _bars_between(long, o["around"][0], o["around"][1]) == o["count15"]
+    assert o["around"][0] <= o["mid"] <= o["around"][1]
