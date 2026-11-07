@@ -1,4 +1,4 @@
-"""決算速報の決算表はボトムシート、一覧の下は選んだ銘柄のニュース（KAB-386）。"""
+"""決算速報の決算表は行の ▶ でその下に開き、一覧の下は選んだ銘柄のニュース（KAB-386 / KAB-387）。"""
 from __future__ import annotations
 
 import json
@@ -16,24 +16,28 @@ def _block(start: str, end: str) -> str:
     return HTML[i:HTML.index(end, i)]
 
 
-def test_fin_tables_live_in_sheet_inside_earnings_tab() -> None:
+def test_fin_tables_live_in_one_panel_inside_earnings_tab() -> None:
     tab = _block('<section id="tab-earnings">', "</section>")
-    sheet = tab[tab.index('id="earn-sheet"'):]
+    fin = tab[tab.index('id="earn-fin"'):]
     for tid in ("cum-tbl", "q-tbl", "prog-tbl", "rev-tbl"):
-        assert f'id="{tid}"' in sheet
-    assert 'id="earn-sheet-x"' in sheet
+        assert f'id="{tid}"' in fin
+    assert "earn-sheet" not in HTML and "bsheet" not in JS
     assert "panel a-fin" not in HTML
     assert 'id="earn-news"' in tab
     assert 'id="en-news" class="sheet"' in tab
 
 
-def test_sheet_opens_only_from_row_press_and_search() -> None:
-    assert "selectRow('${r.disclosure_no}', true)" in JS
-    assert "selectSched('${r.code}', true)" in JS
+def test_fin_opens_only_from_toggle_and_search() -> None:
+    assert "selectRow('${r.disclosure_no}')" in JS
+    assert "selectSched('${r.code}')" in JS
+    assert "event.stopPropagation();toggleExp(" in JS
     flat = re.search(r"function selectFlat\(entry\)\{(.*?)\n\}", JS, re.S).group(1)
-    assert "true" not in flat and "openSheet" not in flat
+    assert "setExp" not in flat
     pick = re.search(r"async function pickEarnStock\(.*?\n\}", JS, re.S).group(0)
-    assert pick.count("openSheet()") == 2
+    assert "setExp(selKey)" in pick
+    assert "td.colSpan = 3 + MET.length" in JS
+    css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
+    assert ".xpanel { position:sticky; left:0; width:var(--xw" in css
 
 
 def test_news_reuses_stock_tab_rows_frames_and_deck() -> None:

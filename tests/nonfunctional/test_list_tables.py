@@ -9,8 +9,8 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_sheet_css_is_shared() -> None:
     css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
     assert "table.sheet" in css
-    assert "table.sheet tbody tr:nth-child(even) td" in css
-    assert "table.sheet tbody tr:hover td" in css
+    assert "table.sheet > tbody > tr:nth-child(even) > td" in css
+    assert "table.sheet > tbody > tr:hover > td" in css
     assert "#rk-tbl.sheet" in css
     assert "#sc-tbl.sheet" in css
     assert "#earn-tbl.sheet" in css
