@@ -108,27 +108,22 @@
 
   </div>
 
-  <div id="earn-sheet" class="bsheet" hidden role="dialog" aria-labelledby="earn-sheet-title">
-    <div class="bsheet-grab">
-      <span class="bsheet-bar" aria-hidden="true"></span>
-      <div class="bsheet-head">
-        <h3 id="earn-sheet-title"></h3>
-        <button type="button" class="bsheet-x" id="earn-sheet-x" aria-label="業績を閉じる">×</button>
+  <div id="earn-fin-home" hidden>
+    <div id="earn-fin" class="xpanel">
+      <div class="phead">
+        <div class="fin-tabs">
+          <button type="button" class="ftab on" data-fin="cum">累計</button>
+          <button type="button" class="ftab" data-fin="q">3か月</button>
+          <button type="button" class="ftab" data-fin="prog">進捗率</button>
+          <button type="button" class="ftab" data-fin="rev">修正履歴</button>
+        </div>
+        <span class="sub" style="font-size:12px">単位: 百万円</span>
       </div>
+      <div class="tbl-wrap" id="cum-wrap"><table class="sheet fin" id="cum-tbl"></table></div>
+      <div class="tbl-wrap" id="q-wrap" hidden><table class="sheet fin" id="q-tbl"></table></div>
+      <div class="tbl-wrap" id="prog-wrap" hidden><table class="sheet fin" id="prog-tbl"></table></div>
+      <div class="tbl-wrap" id="rev-wrap" hidden><table class="sheet fin" id="rev-tbl"></table></div>
     </div>
-    <div class="phead">
-      <div class="fin-tabs">
-        <button type="button" class="ftab on" data-fin="cum">累計</button>
-        <button type="button" class="ftab" data-fin="q">3か月</button>
-        <button type="button" class="ftab" data-fin="prog">進捗率</button>
-        <button type="button" class="ftab" data-fin="rev">修正履歴</button>
-      </div>
-      <span class="sub" style="font-size:12px">単位: 百万円</span>
-    </div>
-    <div class="tbl-wrap" id="cum-wrap"><table class="sheet fin" id="cum-tbl"></table></div>
-    <div class="tbl-wrap" id="q-wrap" hidden><table class="sheet fin" id="q-tbl"></table></div>
-    <div class="tbl-wrap" id="prog-wrap" hidden><table class="sheet fin" id="prog-tbl"></table></div>
-    <div class="tbl-wrap" id="rev-wrap" hidden><table class="sheet fin" id="rev-tbl"></table></div>
   </div>
 </section>
 
