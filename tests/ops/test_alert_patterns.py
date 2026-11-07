@@ -890,6 +890,7 @@ _TDNET_XBRL_JOBS = (
     "jobs/xbrl/tdnet_xbrl_r2.py",
     "jobs/xbrl/xbrl_parse.py",
     "jobs/xbrl/xbrl_normalize.py",
+    "jobs/xbrl/xbrl_statements.py",
 )
 
 
@@ -921,11 +922,14 @@ def test_crontab_chains_tdnet_xbrl() -> None:
         _fail(f"fetch failure must still run parse (; not &&): {line!r}")
     if "xbrl_parse.py; deploy/cron-run.sh jobs/xbrl/xbrl_normalize.py;" not in line:
         _fail(f"parse failure must still run normalize (; not &&): {line!r}")
+    if "xbrl_normalize.py; deploy/cron-run.sh jobs/xbrl/xbrl_statements.py;" not in line:
+        _fail(f"normalize failure must still run statements (; not &&): {line!r}")
     i_fetch = line.index("tdnet_xbrl_r2.py")
     i_parse = line.index("xbrl_parse.py")
     i_norm = line.index("xbrl_normalize.py")
-    if not (i_fetch < i_parse < i_norm):
-        _fail(f"order must be fetch → parse → normalize: {line!r}")
+    i_stmt = line.index("xbrl_statements.py")
+    if not (i_fetch < i_parse < i_norm < i_stmt):
+        _fail(f"order must be fetch → parse → normalize → statements: {line!r}")
     crontab = (ROOT / "deploy" / "crontab").read_text(encoding="utf-8")
     for raw in crontab.splitlines():
         stripped = raw.strip()
@@ -972,8 +976,8 @@ def test_cron_xbrl_chain_continues_after_fetch_fail(tmp_path: Path) -> None:
         _fail(f"crontab must cd then chain: {cmd!r}")
     body = cmd[len(prefix) :]
     wrapper = str(ROOT / "deploy" / "cron-run.sh")
-    if body.count("deploy/cron-run.sh") != 3:
-        _fail(f"chain must call cron-run.sh 3 times: {body!r}")
+    if body.count("deploy/cron-run.sh") != len(_TDNET_XBRL_JOBS):
+        _fail(f"chain must call cron-run.sh {len(_TDNET_XBRL_JOBS)} times: {body!r}")
     body = body.replace("deploy/cron-run.sh", shlex.quote(wrapper))
     full = f"cd {shlex.quote(str(app))} && {body}"
     proc = subprocess.run(
@@ -986,7 +990,7 @@ def test_cron_xbrl_chain_continues_after_fetch_fail(tmp_path: Path) -> None:
     )
     if proc.returncode != 0:
         _fail(
-            f"chain exit should be normalize (0) after fetch fail, got {proc.returncode}: "
+            f"chain exit should be statements (0) after fetch fail, got {proc.returncode}: "
             f"{proc.stdout!r} {proc.stderr!r}"
         )
     if proc.stdout or proc.stderr:
@@ -1003,6 +1007,9 @@ def test_cron_xbrl_chain_continues_after_fetch_fail(tmp_path: Path) -> None:
         _fail(f"parse log missing: {parse_log!r}")
     if "out jobs/xbrl/xbrl_normalize.py" not in norm_log:
         _fail(f"normalize log missing: {norm_log!r}")
+    stmt_log = (logs / "xbrl_statements.log").read_text(encoding="utf-8")
+    if "out jobs/xbrl/xbrl_statements.py" not in stmt_log or "fail cron" in stmt_log:
+        _fail(f"statements log: {stmt_log!r}")
     if "fail cron" in parse_log or "fail cron" in norm_log:
         _fail(f"later stages must not page: {parse_log!r} {norm_log!r}")
     if "xbrl_parse.py" in fetch_log or "tdnet_xbrl_r2.py" in parse_log:
