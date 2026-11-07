@@ -29,7 +29,7 @@
 書き込みは先に `db.get(Stock, code)`。無ければ 4xx `NOT_IN_MASTER`。既存の `monthly_tables` / `monthly_elements` / `monthly_values` は変えない。
 ingest の列割り当てと暦年は `DESIGN.md` §3。
 
-**新着。** 仮想グループ。`last_ingested_at` の JST 日付が今日を含む直近 7 日。業種グループと重複してよい。JST の日付が今日なら、行に NEW を付ける。
+**新着。** 仮想グループ。`last_ingested_at` の JST 暦日が今日を含む直近 3 日（当日・前日・前々日）。3 日前は新着ではない。業種グループと重複してよい。JST の日付が今日なら、行に NEW を付ける。
 
 **系列の対応。** PDF の `element` 名を ID にはしない。一覧とグラフは次の規則で行を拾う。一覧の前年比は、セグメント・国・チャネルなしの売上高/連結売上高を優先する。セグメント・国・チャネル付き行は、セグメントなしの行が無いときだけ使う。同じ条件なら `sort_order` が先の行を使う。
 
@@ -78,8 +78,6 @@ AI による業種付けはしない。`industry` の更新は MCP と `PUT /api
 照合は折りたたみ後に、名前の部分一致、コード 4 桁または 5 桁の前方一致、月次業種 `industry` の部分一致、`sector33` の部分一致。折りたたみは NFKC とひらがな→カタカナ。IME の compositionend でも候補を更新する。候補は最大 20 件。
 
 チップをクリックすると検索絞り込みを外し、そのグループの行だけ残す。新着は `is_new` が真の行。業種チップは `industry` が一致する行。会社名をクリックすると Detail を開く。チップ以外の列は遷移しない。
-
-**一時デバッグ:** 新着の右に `IR（一時）`（`data-group="__ir__"`）。`config/monthly/ir_monthly.json` の `issuers` と `html` に書いた code と、一覧 code の先頭 4 桁が一致する行だけ残す。コードは `GET /static/ir_monthly_codes.json` の `codes`（4 桁、URL は出さない）。0 件は「IR対象はありません」。月次表がまだ無い銘柄は出ない。公開 `/monthly` には出さない。
 
 公開 TOP の既定チップは すべて。列は会社名・月次業種・全店(前年比)・既存店(前年比)。市場と `sector33` は出さない。
 

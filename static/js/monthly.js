@@ -5,7 +5,6 @@ const MONTHLY_YEAR_COLORS = ["#0077b6","#2e8b57","#b8860b","#8e4ec6"];
 let MONTHLY_ROW_ORDER = {};
 let _monthlyRowOrderReady = null;
 const MONTHLY_SEGMENT_TAIL_BASE = 10000;
-let monthlyIrCodes = null;
 let monthlyTlOpen = new Set();
 // セルのポップアップで同じ月を並べる最初の暦年（それより前は取込済みと未取込が混ざる）。
 const MONTHLY_POPUP_MIN_YEAR = 2024;
@@ -14,7 +13,6 @@ let monthlyExtraTables = new Map();
 let monthlyTlRecs = new Map();
 let monthlyTlRevealed = "";
 let monthlyTlTreeSeeded = false;
-let _monthlyIrCodesReady = null;
 
 function monthlyPublic(){
   return !!(document.body && document.body.dataset.publicMonthly === "1");
@@ -32,24 +30,6 @@ function loadMonthlyRowOrderConfig(){
     .then(j => { MONTHLY_ROW_ORDER = (j && typeof j === "object") ? j : {}; return MONTHLY_ROW_ORDER; })
     .catch(() => { MONTHLY_ROW_ORDER = {}; return MONTHLY_ROW_ORDER; });
   return _monthlyRowOrderReady;
-}
-
-function loadMonthlyIrCodes(){
-  if(monthlyPublic()) return Promise.resolve(new Set());
-  if(_monthlyIrCodesReady) return _monthlyIrCodesReady;
-  _monthlyIrCodesReady = fetch("/static/ir_monthly_codes.json", {cache: "no-store"})
-    .then(r => r.ok ? r.json() : {codes:[]})
-    .then(j => {
-      const codes = new Set();
-      for(const c of (j && j.codes) || []){
-        const s = String(c || "").trim().toUpperCase();
-        if(s) codes.add(s.slice(0, 4));
-      }
-      monthlyIrCodes = codes;
-      return monthlyIrCodes;
-    })
-    .catch(() => { monthlyIrCodes = new Set(); return monthlyIrCodes; });
-  return _monthlyIrCodesReady;
 }
 
 function issuerSegmentTail(code){
@@ -276,10 +256,6 @@ function filteredMonthlyIssuers(){
   if(q) return issuers.filter(r => matchMonthlyIssuerQuery(r, q));
   if(monthlyGroup==="__all__") return issuers;
   if(monthlyGroup==="__new__") return issuers.filter(r => r.is_new);
-  if(monthlyGroup==="__ir__"){
-    const want = monthlyIrCodes || new Set();
-    return issuers.filter(r => want.has(monthlyCode4(r.code).toUpperCase()));
-  }
   return issuers.filter(r => (r.industry || "その他") === monthlyGroup);
 }
 
@@ -293,7 +269,6 @@ async function loadMonthlyList(opts){
     return;
   }
   monthlyRows = rows;
-  if(!monthlyPublic()) await loadMonthlyIrCodes();
   const issuers = uniqueMonthlyIssuers(monthlyRows);
   if(!monthlyGroup) monthlyGroup = monthlyPublic() ? "__all__" : "__new__";
   if(!issuers.length){
@@ -303,7 +278,7 @@ async function loadMonthlyList(opts){
     return;
   }
   const groups = monthlyIndustries(issuers);
-  if(monthlyGroup!=="__new__" && monthlyGroup!=="__all__" && monthlyGroup!=="__ir__" && !groups.includes(monthlyGroup)){
+  if(monthlyGroup!=="__new__" && monthlyGroup!=="__all__" && !groups.includes(monthlyGroup)){
     monthlyGroup = monthlyPublic() ? "__all__" : defaultMonthlyGroup(issuers);
   }else if(monthlyGroup==="__new__" && !issuers.some(r => r.is_new) && groups.length){
     monthlyGroup = groups[0];
@@ -318,9 +293,6 @@ function renderMonthlyGroups(groups){
     h += `<button type="button" class="mchip${monthlyGroup==="__all__"?" on":""}" data-group="__all__" onclick="setMonthlyGroup('__all__')">すべて</button>`;
   }
   h += `<button type="button" class="mchip${monthlyGroup==="__new__"?" on":""}" data-group="__new__" onclick="setMonthlyGroup('__new__')">新着</button>`;
-  if(!monthlyPublic()){
-    h += `<button type="button" class="mchip${monthlyGroup==="__ir__"?" on":""}" data-group="__ir__" onclick="setMonthlyGroup('__ir__')">IR（一時）</button>`;
-  }
   for(const g of groups){
     const on = monthlyGroup===g ? " on" : "";
     h += `<button type="button" class="mchip${on}" data-group="${g.replace(/"/g,"&quot;")}" onclick="setMonthlyGroup(this.dataset.group)">${g}</button>`;
@@ -328,17 +300,13 @@ function renderMonthlyGroups(groups){
   $("#monthly-groups").innerHTML = h;
 }
 
-async function setMonthlyGroup(g){
+function setMonthlyGroup(g){
   monthlyGroup = g;
   monthlySearchApplied = "";
   const inp = $("#monthly-sym");
   if(inp) inp.value = "";
   hideMonthlySuggest();
   renderMonthlyGroups(monthlyIndustries(uniqueMonthlyIssuers(monthlyRows)));
-  if(g === "__ir__"){
-    await loadMonthlyIrCodes();
-    if(monthlyGroup !== "__ir__") return;
-  }
   renderMonthlyList();
 }
 
@@ -352,7 +320,7 @@ function renderMonthlyList(){
   if(!issuers.length){
     const empty = String(monthlySearchApplied || "").trim()
       ? "該当する発行体はありません"
-      : (monthlyGroup === "__ir__" ? "IR対象はありません" : "登録された月次データはありません");
+      : "登録された月次データはありません";
     $("#monthly-list").innerHTML = `<div class="sub">${empty}</div>`;
     return;
   }

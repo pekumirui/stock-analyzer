@@ -1401,6 +1401,165 @@ console.log(JSON.stringify({sugi, life, hirose, gmo, nissan, abc, robot, daito, 
         _fail(f"23110 screen: {got.get('epco')!r}")
 
 
+def test_monthly_list_has_no_ir_chip() -> None:
+    """IR（一時）は出さない。設定に残る銘柄は業種チップと検索に残る。"""
+    import json
+    import subprocess
+    import tempfile
+
+    from app.monthly.ir_codes import load_ir_monthly_codes
+
+    codes = load_ir_monthly_codes()
+    if not codes:
+        _fail("config/monthly/ir_monthly.json has no codes")
+    code4 = codes[0]
+    code5 = f"{code4}0"
+    js_path = ROOT / "static" / "js" / "monthly.js"
+    rows = [
+        {
+            "code": code5,
+            "name": "月次サンプル",
+            "industry": "家具",
+            "is_new": False,
+            "sector33": "小売業",
+            "market": "東証S",
+            "all_store_yoy": None,
+            "existing_store_yoy": None,
+        },
+        {
+            "code": "72030",
+            "name": "トヨタ自動車",
+            "industry": "輸送",
+            "is_new": True,
+            "sector33": "輸送用機器",
+            "market": "東証P",
+            "all_store_yoy": None,
+            "existing_store_yoy": None,
+        },
+    ]
+    harness = r"""
+const fs = require("fs");
+const vm = require("vm");
+const jsPath = process.argv[process.argv.length - 1];
+const rows = """ + json.dumps(rows, ensure_ascii=False) + r""";
+const code5 = """ + json.dumps(code5) + r""";
+const code4 = """ + json.dumps(code4) + r""";
+const code = fs.readFileSync(jsPath, "utf8");
+const els = {};
+function blank(){
+  return {
+    innerHTML: "", value: "", textContent: "",
+    style: { display: "" }, classList: { toggle(){} }, dataset: {},
+    addEventListener() {},
+  };
+}
+function $(sel){
+  if(!els[sel]) els[sel] = blank();
+  return els[sel];
+}
+const fetched = [];
+const sandbox = {
+  console,
+  fetch: async (url) => { fetched.push(String(url)); return { ok: false, json: async () => ({}) }; },
+  api: async () => rows,
+  fmtMarket: () => ({ cls: "", label: "" }),
+  fmtSector: () => "",
+  $: $,
+  document: {
+    body: { dataset: {} },
+    querySelector: () => blank(),
+    querySelectorAll: () => [],
+    documentElement: { clientWidth: 720 },
+  },
+  window: {
+    matchMedia: () => ({ matches: false, addEventListener() {} }),
+    addEventListener() {},
+  },
+};
+sandbox.globalThis = sandbox;
+vm.createContext(sandbox);
+vm.runInContext(code, sandbox);
+
+function chipText(){ return els["#monthly-groups"] ? els["#monthly-groups"].innerHTML : ""; }
+function listText(){ return els["#monthly-list"] ? els["#monthly-list"].innerHTML : ""; }
+function resetList(){
+  vm.runInContext("monthlyGroup = ''; monthlySearchApplied = '';", sandbox);
+}
+
+(async () => {
+  resetList();
+  await sandbox.loadMonthlyList();
+  sandbox.setMonthlyGroup("家具");
+  const industryList = listText();
+  sandbox.applyMonthlyIssuerSearch("サンプル");
+  const nameSearch = listText();
+  sandbox.applyMonthlyIssuerSearch(code4);
+  const codeSearch = listText();
+  const privateChips = chipText();
+  const privateFetched = fetched.slice();
+
+  fetched.length = 0;
+  for(const k of Object.keys(els)) delete els[k];
+  resetList();
+  sandbox.document.body.dataset.publicMonthly = "1";
+  await sandbox.loadMonthlyList();
+  const publicChips = chipText();
+  const publicList = listText();
+
+  console.log(JSON.stringify({
+    privateChips, industryList, nameSearch, codeSearch, privateFetched,
+    publicChips, publicList, publicFetched: fetched.slice(),
+    code5,
+  }));
+})();
+"""
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as tmp:
+        tmp.write(harness)
+        harness_path = tmp.name
+    try:
+        proc = subprocess.run(
+            ["node", harness_path, str(js_path)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            cwd=str(ROOT),
+        )
+    finally:
+        Path(harness_path).unlink(missing_ok=True)
+    if proc.returncode != 0:
+        _fail(f"monthly list js: {proc.stderr.strip() or proc.stdout.strip() or proc.returncode}")
+    try:
+        got = json.loads(proc.stdout.strip().splitlines()[-1])
+    except json.JSONDecodeError:
+        _fail(f"monthly list js stdout: {proc.stdout[:400]!r}")
+
+    def _no_ir(label: str, html: str) -> None:
+        if "IR（一時）" in html or 'data-group="__ir__"' in html:
+            _fail(f"{label} still has the IR chip: {html!r}")
+
+    _no_ir("private chips", got.get("privateChips") or "")
+    _no_ir("public chips", got.get("publicChips") or "")
+    if "新着" not in (got.get("privateChips") or ""):
+        _fail(f"private chips missing 新着: {got.get('privateChips')!r}")
+    if "家具" not in (got.get("privateChips") or ""):
+        _fail(f"private chips missing industry: {got.get('privateChips')!r}")
+    if code5 not in (got.get("industryList") or ""):
+        _fail(f"industry chip hid {code4}: {got.get('industryList')!r}")
+    if "72030" in (got.get("industryList") or ""):
+        _fail(f"industry chip kept another industry: {got.get('industryList')!r}")
+    if code5 not in (got.get("nameSearch") or ""):
+        _fail(f"name search hid {code4}: {got.get('nameSearch')!r}")
+    if code5 not in (got.get("codeSearch") or ""):
+        _fail(f"code search hid {code4}: {got.get('codeSearch')!r}")
+    for url in (got.get("privateFetched") or []) + (got.get("publicFetched") or []):
+        if "ir_monthly_codes" in url:
+            _fail(f"list still loads IR codes: {url}")
+    if code5 not in (got.get("publicList") or ""):
+        _fail(f"public list hid {code4}: {got.get('publicList')!r}")
+    if "すべて" not in (got.get("publicChips") or ""):
+        _fail(f"public chips missing すべて: {got.get('publicChips')!r}")
+
+
 def test_monthly_year_color_stable() -> None:
     """色は暦年。2025 は 2026 の有無で変わらない。"""
     if _monthly_year_color(2025) != _MONTHLY_YEAR_COLORS[2025 % 4]:
@@ -1417,6 +1576,7 @@ def main() -> None:
     test_monthly_layout_js()
     test_display_units_match_js()
     test_monthly_year_window()
+    test_monthly_list_has_no_ir_chip()
     test_monthly_year_color_stable()
     test_monthly_tree_html_kab87()
 
