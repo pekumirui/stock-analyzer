@@ -5,7 +5,7 @@
 
 const CHART_TF_DAYS = {D: 1, W: 5, M: 20, Y: 250};  // 移動平均の日数 → 本数（週=÷5、月=÷20、年=÷250）
 const CHART_TF_NAMES = {D: "日足", W: "週足", M: "月足", Y: "年足"};
-const CHART_BAR_PX = 6;  // 足を選んだときは 1 本がこの幅になるだけ最新の足を出す
+const CHART_BAR_PX = 6;  // 週足・月足・年足は 1 本がこの幅になるだけ最新を出す
 
 const chartTs = iso => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 1000;
 
@@ -102,6 +102,28 @@ function chartSpanAround(daily, bars, iso, n){
 }
 function chartSpanStart(daily, bars, i){
   return i > 0 ? daily.t[Math.min(daily.t.length - 1, lowerBound(daily.t, bars.t[i - 1] + "~"))] : daily.t[0];
+}
+
+// iso から years 年。2/29 を平年へ移すときはその月の最終日
+function chartShiftYears(iso, years){
+  const y = +iso.slice(0, 4) + years, m = +iso.slice(5, 7), day = +iso.slice(8, 10);
+  const dim = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return y + "-" + String(m).padStart(2, "0") + "-" + String(Math.min(day, dim)).padStart(2, "0");
+}
+
+// 初期の期間。日足は直近 1 年（最後の足から 1 年前の同じ日付以降。足りなければ全期間）。ほかの足は最新 n 本
+function chartInitialSpan(daily, bars, tf, n){
+  if(tf !== "D") return chartLatestSpan(daily, bars, n);
+  const t = bars.t, end = t[t.length - 1];
+  const i = Math.min(lowerBound(t, chartShiftYears(end, -1)), t.length - 1);
+  return [chartSpanStart(daily, bars, i), end];
+}
+
+// 初期の本数。日足は直近 1 年の本数（決算速報が発表日を真ん中に出すときもこれ）
+function chartInitialCount(daily, bars, tf, n){
+  if(tf !== "D") return n;
+  const t = bars.t, from = chartInitialSpan(daily, bars, tf, n)[0];
+  return t.length - lowerBound(t, from);
 }
 
 // 業績の階段 fund {t, eps, op_q, op_ttm} を日足の日付にそろえる（t 以降、次の点まで同じ値）。
@@ -718,20 +740,21 @@ function createStockChart(el, opt = {}){
       if(newTf || !st.win) view.showLatest();
       else showSpan(st.win.from, st.win.to);
     },
-    // いまの足の最新の足を、1 本が CHART_BAR_PX になるだけ出す
+    // 日足は直近 1 年。ほかの足は 1 本が CHART_BAR_PX になるだけ
     showLatest(){
       if(!st.daily || !st.daily.t.length) return;
-      const [f, to] = chartLatestSpan(st.daily, st.bars, latestCount());
+      const [f, to] = chartInitialSpan(st.daily, st.bars, st.tf, latestCount());
       showSpan(f, to);
     },
     // iso を真ん中に、同じ本数を出す（決算速報で古い発表日を選んだとき）
     showAround(iso){
-      const [f, to] = chartSpanAround(st.daily, st.bars, iso, latestCount());
+      const n = chartInitialCount(st.daily, st.bars, st.tf, latestCount());
+      const [f, to] = chartSpanAround(st.daily, st.bars, iso, n);
       showSpan(f, to);
     },
     // 最新の足を出したとき iso が入るか
     latestHas(iso){
-      return chartLatestSpan(st.daily, st.bars, latestCount())[0] <= iso;
+      return chartInitialSpan(st.daily, st.bars, st.tf, latestCount())[0] <= iso;
     },
     refreshMarkers: drawMarkers,
     tf: () => st.tf,
@@ -751,5 +774,5 @@ function createStockChart(el, opt = {}){
 
 if(typeof module !== "undefined" && module.exports){
   module.exports = {chartSwings, chartHlText, chartFundDaily, chartQuantile, chartBandMultiples, chartBars, chartWeekKey, chartSma, chartMaLen, chartParseMas, chartSpikes, chartRelative,
-                    chartLatestSpan, chartSpanAround, chartPrice, chartQty, chartAxisUnit, chartOhlcHtml};
+                    chartLatestSpan, chartSpanAround, chartInitialSpan, chartInitialCount, chartPrice, chartQty, chartAxisUnit, chartOhlcHtml};
 }
