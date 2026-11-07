@@ -41,6 +41,7 @@ const out = {
   qty: [c.chartQty(800, "株"), c.chartQty(25007500, "株"), c.chartQty(77110432900, "円"), c.chartQty(1.5e12, "円")],
   unit: [c.chartAxisUnit(9999, "share"), c.chartAxisUnit(10000, "share"), c.chartAxisUnit(-2e6, "yen"),
          c.chartAxisUnit(999999, "yen"), c.chartAxisUnit(null, "yen")],
+  fade: [c.chartFade("#d32f2f", 0.3), c.chartFade("var(--x)", 0.3)],
   price: [c.chartPrice(2821.5), c.chartPrice(3094), c.chartPrice(null)],
   ohlcLast: c.chartOhlcHtml(daily, null),
   ohlc0: c.chartOhlcHtml(daily, 0),
@@ -98,6 +99,7 @@ def test_chart_core_bars_and_indicators() -> None:
     assert o["latest"] == [["2026-08-24", "2026-09-01"], ["2026-08-17", "2026-09-01"]]
     assert o["around"] == ["2026-08-18", "2026-08-24"]
     assert o["qty"] == ["800株", "2,500.8万株", "771.1億円", "1.5兆円"]
+    assert o["fade"] == ["rgba(211,47,47,0.3)", "var(--x)"]
     # 縦軸は数字だけ。万株・百万円に届かなければ単位を付けない
     assert o["unit"] == [{"div": 1, "label": ""}, {"div": 10000, "label": "万株"}, {"div": 1000000, "label": "百万円"},
                          {"div": 1, "label": ""}, {"div": 1, "label": ""}]
