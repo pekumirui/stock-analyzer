@@ -28,14 +28,20 @@ def test_fin_tables_live_in_one_panel_inside_earnings_tab() -> None:
 
 
 def test_fin_opens_only_from_toggle_and_search() -> None:
-    assert "selectRow('${r.disclosure_no}')" in JS
-    assert "selectSched('${r.code}')" in JS
+    assert "pickRow('a:${r.disclosure_no}')" in JS
+    assert "pickRow('s:${r.code}')" in JS
     assert "event.stopPropagation();toggleExp(" in JS
     flat = re.search(r"function selectFlat\(entry\)\{(.*?)\n\}", JS, re.S).group(1)
     assert "setExp" not in flat
     pick = re.search(r"async function pickEarnStock\(.*?\n\}", JS, re.S).group(0)
-    assert "setExp(selKey)" in pick
+    assert "keepRow(selKey, () => setExp(selKey))" in pick
     assert "td.colSpan = 3 + MET.length" in JS
+    toggle = re.search(r"function toggleExp\(key\)\{.*?\n\}", JS, re.S).group(0)
+    assert "keepRow(key" in toggle
+    pick_row = re.search(r"function pickRow\(key\)\{.*?\n\}", JS, re.S).group(0)
+    assert "setExp(null)" in pick_row and "keepRow(key" in pick_row
+    set_exp = re.search(r"function setExp\(key\)\{.*?\n\}", JS, re.S).group(0)
+    assert "scrollIntoView" not in set_exp
     css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")
     assert ".xpanel { position:sticky; left:0; width:var(--xw" in css
 
