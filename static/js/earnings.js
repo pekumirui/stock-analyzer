@@ -156,7 +156,6 @@ function flatRows(){
 
 async function selectDate(ds, want){
   selDate = ds;
-  expKey = null;
   earnSector = "";
   earnChipsOpen = false;
   calClose();
@@ -231,10 +230,7 @@ function refilter(){
   renderGroups();
   renderList();
   const rows = flatRows();
-  if(rows.length && !rows.some(r => (r.side==="a" ? "a:" : "s:")+r.id === selKey)){
-    setExp(null);
-    selectFlat(rows[0]);
-  }
+  if(rows.length && !rows.some(r => (r.side==="a" ? "a:" : "s:")+r.id === selKey)) selectFlat(rows[0]);
 }
 
 function renderList(){
@@ -244,18 +240,12 @@ function renderList(){
     $("#earn-list").innerHTML = `<div class="sub">${any ? "該当なし" : emptyCopy(earnDay, earnToday, earnBoard)}</div>`;
     return;
   }
-  $("#earn-fin-home").appendChild($("#earn-fin"));
   $("#earn-list").innerHTML = tableHtml(actuals, scheduled);
   pinEarn();
   markSel();
-  placeFin();
 }
 
-function pinEarn(){
-  pinCols($("#earn-tbl"), 3);
-  const t = $("#earn-tbl");
-  if(t) t.style.setProperty("--xw", `${$("#earn-list").clientWidth}px`);
-}
+function pinEarn(){ pinCols($("#earn-tbl"), 3); }
 new ResizeObserver(pinEarn).observe($("#earn-list"));
 
 function scrollToSel(){
@@ -276,8 +266,8 @@ function tableHtml(actuals, scheduled){
         + `<tr><th class="pin0">時刻</th><th class="l fy pin1">決算期</th>`
         + `<th class="l name pin2">銘柄</th>${sub()}</tr></thead><tbody>`;
   for(const r of actuals){
-    h += `<tr data-no="${r.disclosure_no}" onclick="pickRow('a:${r.disclosure_no}')">`
-       + `<td class="pin0">${xBtn("a:"+r.disclosure_no)}${(r.disclosed_time||"").slice(0,5)}${under(revBadge(r))}</td>`
+    h += `<tr data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">`
+       + `<td class="pin0">${(r.disclosed_time||"").slice(0,5)}${under(revBadge(r))}</td>`
        + `<td class="l fy pin1">${fyShort(r.fy_label)}${under(listQ(r.period))}</td>`
        + nameCell(r)
        + metricCells(r, r.period)
@@ -290,8 +280,8 @@ function tableHtml(actuals, scheduled){
     const fy = latest
       ? `${fyShort(latest.fy_label)}${under(latestBadge(latest.period))}`
       : `${label}${under(fq)}`;
-    h += `<tr data-code="${r.code}" onclick="pickRow('s:${r.code}')">`
-       + `<td class="pin0">${latest && latest.disclosure_no ? xBtn("s:"+r.code) : `<span class="xsp"></span>`}–</td>`
+    h += `<tr data-code="${r.code}" onclick="selectSched('${r.code}')">`
+       + `<td class="pin0">–</td>`
        + `<td class="l fy pin1">${fy}</td>`
        + nameCell(r)
        + (latest ? metricCells(latest, latest.period) : dash)
@@ -328,182 +318,9 @@ function selectSched(code){
 
 function clearDetail(msg){
   if(detailAc){ detailAc.abort(); detailAc = null; }
-  setExp(null);
-  clearNews();
   $("#e-chart-title").textContent = msg;
   dropEChart(); $("#cum-tbl").innerHTML = ""; $("#prog-tbl").innerHTML = ""; $("#q-tbl").innerHTML = ""; $("#rev-tbl").innerHTML = "";
 }
-
-let expKey = null;
-const rowEl = key => key && document.querySelector(key.startsWith("a:")
-  ? `#earn-tbl tr[data-no="${key.slice(2)}"]` : `#earn-tbl tr[data-code="${key.slice(2)}"]`);
-const hasFin = key => !!rowEl(key)?.querySelector(".xbtn");
-function xBtn(key){
-  const on = key === expKey;
-  return `<button type="button" class="xbtn" data-key="${key}" aria-expanded="${on}" aria-label="業績を${on ? "閉じる" : "開く"}"`
-    + ` onclick="event.stopPropagation();toggleExp('${key}')">${on ? "▼" : "▶"}</button>`;
-}
-function selectKey(key){
-  if(key.startsWith("a:")) selectRow(key.slice(2));
-  else selectSched(key.slice(2));
-}
-function keepRow(key, fn){
-  const before = rowEl(key)?.getBoundingClientRect().top;
-  fn();
-  const tr = rowEl(key);
-  if(before == null || !tr) return;
-  const list = $("#earn-list");
-  if(!list.classList.contains("xopen")){
-    const box = list.getBoundingClientRect().top;
-    const head = list.querySelector("thead").offsetHeight;
-    const want = Math.max(head, Math.min(before - box, list.clientHeight - tr.offsetHeight));
-    list.scrollTop += tr.getBoundingClientRect().top - box - want;
-  }
-  const d = tr.getBoundingClientRect().top - before;
-  if(d) window.scrollBy(0, d);
-}
-function pickRow(key){
-  keepRow(key, () => {
-    if(expKey && expKey !== key) setExp(null);
-    selectKey(key);
-  });
-}
-function toggleExp(key){
-  keepRow(key, () => {
-    const open = key !== expKey;
-    if(key !== selKey) selectKey(key);
-    setExp(open ? key : null);
-  });
-}
-function setExp(key){
-  expKey = key;
-  placeFin();
-}
-function placeFin(){
-  $("#earn-fin-home").appendChild($("#earn-fin"));
-  document.querySelectorAll("#earn-tbl tr.xrow").forEach(x => x.remove());
-  if(expKey && !hasFin(expKey)) expKey = null;
-  document.querySelectorAll("#earn-tbl .xbtn").forEach(b => {
-    const on = b.dataset.key === expKey;
-    b.textContent = on ? "▼" : "▶";
-    b.setAttribute("aria-expanded", String(on));
-    b.setAttribute("aria-label", on ? "業績を閉じる" : "業績を開く");
-  });
-  $("#earn-list").classList.toggle("xopen", !!expKey);
-  if(!expKey) return;
-  const x = document.createElement("tr");
-  x.className = "xrow";
-  const td = document.createElement("td");
-  td.colSpan = 3 + MET.length;
-  td.appendChild($("#earn-fin"));
-  x.appendChild(td);
-  rowEl(expKey).after(x);
-  pinEarn();
-}
-
-let newsCode = "", newsAc = null, newsFilings = [];
-function newsMsg(text){
-  $("#en-msg").textContent = text || "";
-  $("#en-msg").hidden = !text;
-}
-function clearNews(){
-  if(newsAc){ newsAc.abort(); newsAc = null; }
-  newsCode = "";
-  newsFilings = [];
-  showNewsList();
-  $("#en-title").textContent = "ニュース";
-  $("#en-news").innerHTML = "";
-  newsMsg("");
-}
-function showNewsList(){
-  $("#en-detail").hidden = true;
-  $("#en-list").hidden = false;
-  $("#en-doc").innerHTML = "";
-  $("#en-deck").innerHTML = "";
-  $("#en-head").innerHTML = "";
-  $("#en-src").hidden = true;
-}
-async function loadNews(code, name){
-  if(code === newsCode) return;
-  clearNews();
-  newsCode = code;
-  const ac = newsAc = new AbortController();
-  $("#en-title").innerHTML = `ニュース <small class="sub">${stockEsc(shortName(name || ""))} ${code.slice(0,4)}</small>`;
-  let fs, decks;
-  try {
-    [fs, decks] = await Promise.all([
-      api(`/api/stock/${code}/filings`, {signal: ac.signal}).then(d => d.filings || []),
-      api(`/api/stock/${code}/decks`, {signal: ac.signal}).then(d => d.decks || [])]);
-  } catch(e){
-    if(e.name === "AbortError" || ac.signal.aborted) return;
-    newsMsg("読み込めませんでした。");
-    return;
-  }
-  if(ac.signal.aborted) return;
-  newsFilings = fs;
-  const rows = stockNewsRows(fs, decks);
-  if(!rows.length){ newsMsg("ニュースがありません。"); return; }
-  $("#en-news").innerHTML = "<tr><th class='l'>日時</th><th class='l'>種類</th><th class='l'>題名</th></tr>" + rows.map(r => {
-    const amend = r.amend ? ' <span class="kind">訂正</span>' : "";
-    const open = r.open === "deck" ? ` data-deck="${stockEsc(r.deckKey)}"` : "";
-    return `<tr${r.open ? ` class="go" data-id="${stockEsc(r.key)}"${open}` : ""}>
-      <td class="l">${stockEsc(stockAt(r.at))}</td>
-      <td class="l"><span class="kind">${stockEsc(r.kind)}</span>${amend}</td>
-      <td class="l t">${stockEsc(r.title)}</td></tr>`;
-  }).join("");
-}
-function showNewsDetail(){
-  $("#en-list").hidden = true;
-  $("#en-detail").hidden = false;
-  $("#earn-news").scrollIntoView({block:"start"});
-}
-function openNewsFiling(key){
-  const f = newsFilings.find(x => stockNewsKey(x) === key);
-  showNewsDetail();
-  $("#en-deck").innerHTML = "";
-  if(!f || !f.documents.length){
-    $("#en-head").textContent = "書類が見つかりません。";
-    $("#en-doc").innerHTML = "";
-    $("#en-src").hidden = true;
-    return;
-  }
-  $("#en-head").innerHTML = `<span class="sub">${stockEsc(stockAt(f.submitted_at))}</span> <span class="kind">${stockKind(f)}</span>`
-    + `${f.is_amendment ? ' <span class="kind">訂正</span>' : ""} <b>${stockEsc(stockTitle(f))}</b>`;
-  mountFilingFrames($("#en-doc"), $("#en-src"), f);
-}
-async function openNewsDeck(key){
-  const code = newsCode, ac = newsAc;
-  showNewsDetail();
-  $("#en-doc").innerHTML = "";
-  $("#en-deck").innerHTML = "";
-  let d;
-  try { d = await api(`/api/stock/${code}/decks/${key}`, {signal: ac.signal}); }
-  catch(e){
-    if(e.name === "AbortError" || code !== newsCode) return;
-    $("#en-head").textContent = String(e.message) === "404" ? "説明資料が見つかりません。" : "読み込めませんでした。";
-    return;
-  }
-  if(code !== newsCode || $("#en-detail").hidden) return;
-  $("#en-deck").innerHTML = deckDocHtml(d, $("#en-deck").clientWidth);
-}
-$("#en-news").addEventListener("click", e => {
-  const tr = e.target.closest("tr.go");
-  if(!tr) return;
-  if(tr.dataset.deck != null) openNewsDeck(tr.dataset.deck);
-  else openNewsFiling(tr.dataset.id);
-});
-$("#en-back").addEventListener("click", e => {
-  e.preventDefault();
-  showNewsList();
-  $("#earn-news").scrollIntoView({block:"nearest"});
-});
-let enDocWidth = 0;
-new ResizeObserver(() => {
-  const w = $("#en-doc").clientWidth;
-  if(w === 0 || w === enDocWidth) return;
-  enDocWidth = w;
-  document.querySelectorAll("#en-doc iframe").forEach(fitStockFrame);
-}).observe($("#en-doc"));
 
 async function loadSched(row){
   const latest = row.latest;
@@ -519,7 +336,6 @@ async function loadSched(row){
   const signal = beginDetail();
   $("#e-chart-title").innerHTML = `<span class="clicky" onclick="gotoChart('${row.code}')">${row.name}</span>
     <small class="sub">${row.code.slice(0,4)}</small>`;
-  loadNews(row.code, row.name);
   let ch;
   try { ch = await chartMaybe(row.code, signal); }
   catch(e){ if(e.name === "AbortError") return; throw e; }
@@ -536,7 +352,6 @@ async function loadDetail(row){
   const signal = beginDetail();
   $("#e-chart-title").innerHTML = `<span class="clicky" onclick="gotoChart('${row.code}')">${row.name}</span>
     <small class="sub">${row.code.slice(0,4)} / ${fyShort(row.fy_label)} ${row.period||""}</small>`;
-  loadNews(row.code, row.name);
   let d, ch;
   try {
     [d, ch] = await Promise.all([
@@ -717,7 +532,6 @@ $("#earn-list").addEventListener("keydown", e => {
   const nxt = rows[Math.max(0, Math.min(rows.length-1, i + (e.key==="ArrowDown"?1:-1)))];
   if(!nxt) return;
   selectFlat(nxt);
-  if(expKey) setExp(hasFin(selKey) ? selKey : null);
   const el = nxt.side==="a"
     ? document.querySelector(`#earn-list [data-no="${nxt.id}"]`)
     : document.querySelector(`#earn-list [data-code="${nxt.id}"]`);
@@ -763,7 +577,6 @@ async function pickEarnStock(code, name){
   const [y, m] = d.disclosed_date.split("-").map(Number);
   calY = y; calM = m;
   await selectDate(d.disclosed_date, {no:d.disclosure_no, code, name:d.name, period:d.period});
-  if(hasFin(selKey)) keepRow(selKey, () => setExp(selKey));
 }
 $("#earn-sym").addEventListener("input", refreshEarnSuggest);
 $("#earn-sym").addEventListener("compositionend", refreshEarnSuggest);
@@ -785,5 +598,3 @@ window.calMove = calMove;
 window.selectDate = selectDate;
 window.selectRow = selectRow;
 window.selectSched = selectSched;
-window.toggleExp = toggleExp;
-window.pickRow = pickRow;
