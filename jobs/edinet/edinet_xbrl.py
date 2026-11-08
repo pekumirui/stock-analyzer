@@ -68,10 +68,13 @@ def main() -> int:
             raise
         errors = st["errors"] + st["failed"]
         finish_run(db, job, "success" if errors == 0 else "failed",
-                   st["parsed"], errors, f"skipped={st['skipped']} retracted={st['retracted']}")
+                   st["parsed"], errors,
+                   f"skipped={st['skipped']} missing={st['missing']} retracted={st['retracted']}")
+        # missing（type=1 が 404）は failed で残したので exit=1 にしない（KAB-388）
         print(
             f"edinet xbrl done parsed={st['parsed']} skipped={st['skipped']} "
-            f"failed={st['failed']} errors={st['errors']} retracted={st['retracted']}"
+            f"failed={st['failed']} missing={st['missing']} errors={st['errors']} "
+            f"retracted={st['retracted']}"
         )
         return 0 if errors == 0 else 1
     finally:

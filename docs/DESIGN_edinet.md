@@ -120,7 +120,7 @@ EDINET は修正・不開示・取下げを、後の日の一覧に別レコー�
 - ジョブ: `python jobs/edinet/edinet_xbrl.py`。cron は毎時 08:50〜23:50 に `--limit 300`（1 件 2〜3 秒で約 14 分。cron-run.sh にロックが無いので 1 時間に収める）
 - 対象: `code` あり（上場銘柄）、`xbrl_flag`、取下げ（`withdrawal_status=2`）・不開示（`disclosure_status≠0`）・修正通知の行を除く。書類種別は有報 120 / 訂正 130、半期報 160 / 訂正 170、四半期報告書 140 / 150（2024-03 まで。`--no-quarterly` で除く）。EDINET が持つ 10 年分を全部取る
 - 新しい日から取る。一覧を backfill したあとの過去分は、毎時の cron が新着の後に少しずつ取る（1 日約 4,800 件）
-- `parsed` / `skipped` の docID は飛ばす（`--reparse` で取り直し）。`failed` は `--retry-failed`。ダウンロードに失敗した書類は filing を作らないので次の回にまた取る
+- `parsed` / `skipped` の docID は飛ばす（`--reparse` で取り直し）。`failed` は `--retry-failed`。404（取下げ・非公開。OneDrive にも無い）は `missing` として `failed` で残し、exit=0（KAB-388）。5xx・タイムアウトは filing を作らないので次の回にまた取る（exit=1）
 - `doc_type` / `period_type` / `is_amendment` は書類種別コードから決める（120/130 → `annual`/`FY`、160/170 → `semiannual`/`Q2`、140/150 → `quarterly` で期はタイトル）。会計基準は DEI の `AccountingStandardsDEI`（`Japan GAAP` / `IFRS` / `US GAAP`）
 - 取り込み済みの書類が後から取下げ・不開示になったら、`xbrl_financials` / `xbrl_segments` / 大株主の表と生 fact を消して `parse_status='skipped'`、`parse_error='withdrawn'`
 - タクソノミは同梱（`data/xbrl_taxonomy`）だけを読む。10 年分の書類が参照する版を同梱した（`tools/edinet/sample_zips.py --sample-years 10` の見本から `tools/xbrl/taxonomy_bundle.py fetch`）。見本は 2016-02-29 以降から始まっていた。訂正は提出が新しくても元書類の版を参照するので、インライン XBRL でそれより前に公開されている jpcrp / jppfs（2013-08-31 と 2015-03-31）と jpsps（2013-08-31、2014-07-31、2015-03-31）も同梱する（KAB-324。jpigp の初版は 2018-03-31）。それでも足りない書類は `failed`（`TaxonomyMissingError`）になる。`sample_zips.py --failed` → `fetch` → `edinet_xbrl.py --retry-failed`

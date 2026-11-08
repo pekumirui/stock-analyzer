@@ -8,7 +8,7 @@ from __future__ import annotations
 import hashlib
 import re
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.config import XBRL_CACHE_DIR
 from app.edinet.archive import download
-from app.edinet.client import reraise
+from app.edinet.client import is_not_found, reraise
 from app.models import EdinetDocument, XbrlFiling, XbrlFinancial, XbrlSegment
 from app.xbrl.context import ParsedContext, classify_title
 from app.xbrl.normalize import normalize_filing
@@ -157,9 +157,30 @@ def _jst_naive(dt: datetime | None) -> str:
     return dt.strftime("%Y-%m-%d %H:%M:%S") if dt else ""
 
 
+def store_missing(db: Session, doc: EdinetDocument, exc: BaseException) -> None:
+    """type=1 が 404 の書類を failed で残す（KAB-388）。次の回の pending から外れる。"""
+    meta = title_meta(doc.doc_type_code or "", doc.doc_description)
+    filing = db.query(XbrlFiling).filter_by(source=SOURCE, doc_id=doc.doc_id).one_or_none()
+    if filing is None:
+        filing = XbrlFiling(
+            code=doc.code, source=SOURCE, doc_id=doc.doc_id, raw_path=f"edinet:{doc.doc_id}",
+            submitted_at=doc.submit_datetime or datetime.combine(doc.file_date, datetime.min.time()),
+            title=doc.doc_description, doc_type=meta["doc_type"] or "other",
+            period_type=meta["period_type"], is_amendment=meta["is_amendment"],
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),  # xbrl/store と同じ UTC naive
+        )
+        db.add(filing)
+        db.flush()
+    mark_failed(db, filing, exc)
+
+
 def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
                     cache_dir: Path | None = None) -> str:
-    """1 書類: ダウンロード → パース → 正規化。戻り値は parse_status か 'error'。"""
+    """1 書類: ダウンロード → パース → 正規化。戻り値は parse_status か 'missing' / 'error'。
+
+    missing は EDINET が 404（取下げ・非公開。OneDrive にも無い）。failed で残し、次の回は飛ばす。
+    error は 5xx・タイムアウトなど一時的な失敗。filing を作らず次の回にまた取る。
+    """
     from app.edinet_wrapper import DocumentFileType
 
     with TemporaryDirectory(prefix="edinet-xbrl-") as tmp:
@@ -169,6 +190,10 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
             zip_path.write_bytes(got.content)
         except Exception as exc:
             reraise(exc)
+            if is_not_found(exc):
+                store_missing(db, doc, exc)
+                print(f"edinet xbrl missing doc_id={doc.doc_id} code={doc.code} err={exc}", flush=True)
+                return "missing"
             print(f"edinet xbrl download-failed doc_id={doc.doc_id} code={doc.code} err={exc}", flush=True)
             return "error"
         sha = hashlib.sha256(zip_path.read_bytes()).hexdigest()
@@ -214,7 +239,8 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
 
 
 def run(db: Session, client: EdinetClient, docs: list[EdinetDocument]) -> dict:
-    out = {"parsed": 0, "skipped": 0, "failed": 0, "errors": 0, "retracted": 0, "refreshed": 0}
+    out = {"parsed": 0, "skipped": 0, "failed": 0, "missing": 0, "errors": 0, "retracted": 0,
+           "refreshed": 0}
     for filing in withdrawn_filings(db):
         retract(db, filing)
         print(f"edinet xbrl retracted doc_id={filing.doc_id} code={filing.code}", flush=True)
@@ -227,6 +253,8 @@ def run(db: Session, client: EdinetClient, docs: list[EdinetDocument]) -> dict:
             out["skipped"] += 1
         elif st == "failed":
             out["failed"] += 1
+        elif st == "missing":
+            out["missing"] += 1
         else:
             out["errors"] += 1
     out["refreshed"] = refresh_versions(db)
