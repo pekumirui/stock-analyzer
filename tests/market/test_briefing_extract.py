@@ -182,7 +182,8 @@ def test_submit_and_collect(setup, capsys) -> None:
     pages = {r.page: r for r in db.query(BriefingPage).filter_by(document_id=DOC_ID)}
     assert pages[1].kind == "divider" and pages[1].tables_json is None
     assert json.loads(pages[2].tables_json) == ANSWER["tables"] and pages[2].summary == "増えた。"
-    assert pages[3].error.startswith("errored")
+    assert pages[3].error.startswith("errored") and pages[3].raw_text is None
+    assert pages[2].raw_text is None
     out = capsys.readouterr().out
     assert "unparsed=1/2" in out and "errors=" not in out
     assert f"{DOC_ID} page 3: errored" in out
@@ -195,14 +196,17 @@ def test_submit_and_collect(setup, capsys) -> None:
     job.main(["submit", "--code", "6857"], client=client)
     assert len(setup.created) == 1
     setup.answers.clear()
+    setup.answers[3] = '{"title": "業績", "summary": "s"}, "tables": []}'
     setup.status = "in_progress"
     job.main(["submit", "--code", "6857", "--redo"], client=client)
     setup.status = "ended"
     job.main(["collect"], client=client)
     db = SessionLocal()
     ext = db.get(BriefingExtract, DOC_ID)
-    assert (ext.batch_id, ext.error_pages, ext.facts) == ("msgbatch_2", 0, 12)
-    assert db.query(BriefingFact).filter_by(document_id=DOC_ID).count() == 12
+    assert (ext.batch_id, ext.error_pages, ext.facts) == ("msgbatch_2", 1, 6)
+    assert db.query(BriefingFact).filter_by(document_id=DOC_ID).count() == 6
+    page3 = db.get(BriefingPage, (DOC_ID, 3))
+    assert page3.error.startswith("JSON が読めない") and page3.raw_text == setup.answers[3]
     db.close()
     job.main(["status"], client=client)
     assert "done: 1" in capsys.readouterr().out
