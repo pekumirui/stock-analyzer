@@ -143,13 +143,32 @@ def page_text(page: dict) -> str:
 
 # ---------- 出力の解析と照合 ----------
 def parse_json(s: str) -> dict:
+    """応答の JSON を 1 ページ分の dict にする。1 枚を複数に分けた [{...}, {...}] や {...}, {...} は表をつないで 1 つにする。"""
     s = re.sub(r"^```(?:json)?\s*|\s*```$", "", s.strip())
-    i = s.find("{")
-    if i < 0:
+    dec = json.JSONDecoder()
+    if s.startswith("["):
+        got, end = dec.raw_decode(s)
+        objs = [o for o in got if isinstance(o, dict)] if isinstance(got, list) else []
+    else:
+        i = s.find("{")
+        if i < 0:
+            raise ValueError("no json object")
+        objs, end = [], i
+        while end < len(s) and s[end] == "{":
+            o, end = dec.raw_decode(s, end)
+            objs.append(o)
+            end = len(s) - len(s[end:].lstrip(" \t\r\n,"))
+    if not objs:
         raise ValueError("no json object")
-    out, end = json.JSONDecoder().raw_decode(s, i)
-    if s[end:].strip() and "tables" not in out and "facts" not in out:
+    if s[end:].strip() and not any("tables" in o or "facts" in o for o in objs):
         raise ValueError(f"表が無いまま JSON が閉じた (後ろに余分: char {end})")
+    if len(objs) == 1:
+        return objs[0]
+    out = {"title": " / ".join(str(o["title"]) for o in objs if o.get("title")),
+           "summary": " ".join(str(o["summary"]) for o in objs if o.get("summary"))}
+    for key in ("tables", "facts"):
+        if any(key in o for o in objs):
+            out[key] = [x for o in objs for x in o.get(key) or []]
     return out
 
 

@@ -62,12 +62,16 @@ def test_verify_expands_tables_and_keeps_them() -> None:
     assert bb.parse_custom_id(bb.custom_id(bb.request_key(DOC_ID), 12)) == (bb.request_key(DOC_ID), 12)
 
 
-def test_parse_json_ignores_trailing_extra() -> None:
-    first = {"title": "業績", "summary": "s", "tables": [{"cols": [], "rows": []}]}
-    text = json.dumps(first, ensure_ascii=False, indent=2) + '\n{"title": "続き", "tables": []}\n'
-    assert bx.parse_json(text) == first
-    assert bx.parse_json("```json\n" + json.dumps(first) + "\n```") == first
-    assert bx.parse_json(json.dumps(first) + "\n}") == first
+def test_parse_json_joins_split_pages() -> None:
+    seg = {"title": "売上高 事業セグメント別", "summary": "増えた。", "tables": [{"cols": [], "rows": [{"metric": "a"}]}]}
+    area = {"title": "売上高 地域(出荷先)別", "summary": "中国が伸びた。", "tables": [{"cols": [], "rows": [{"metric": "b"}]}]}
+    joined = {"title": "売上高 事業セグメント別 / 売上高 地域(出荷先)別", "summary": "増えた。 中国が伸びた。",
+              "tables": seg["tables"] + area["tables"]}
+    as_list = json.dumps([seg, area], ensure_ascii=False, indent=2)
+    assert bx.parse_json("```json\n" + as_list + "\n```") == joined
+    assert bx.parse_json(json.dumps(seg, ensure_ascii=False) + ",\n" + json.dumps(area, ensure_ascii=False)) == joined
+    assert bx.parse_json(json.dumps([seg], ensure_ascii=False)) == seg
+    assert bx.parse_json(json.dumps(seg) + "\n}") == seg
     with pytest.raises(ValueError, match="表が無い"):
         bx.parse_json('{"title": "業績", "summary": "s"}, "tables": [{"cols": [], "rows": []}]}')
     with pytest.raises(json.JSONDecodeError):
