@@ -210,10 +210,13 @@ def page_text(page: dict) -> str:
 # ---------- 出力の解析と照合 ----------
 def parse_json(s: str) -> dict:
     s = re.sub(r"^```(?:json)?\s*|\s*```$", "", s.strip())
-    i, j = s.find("{"), s.rfind("}")
-    if i < 0 or j < 0:
+    i = s.find("{")
+    if i < 0:
         raise ValueError("no json object")
-    return json.loads(s[i : j + 1])
+    out, end = json.JSONDecoder().raw_decode(s, i)
+    if s[end:].strip() and "tables" not in out and "facts" not in out:
+        raise ValueError(f"表が無いまま JSON が閉じた (後ろに余分: char {end})")
+    return out
 
 
 def expand_tables(out: dict) -> dict:

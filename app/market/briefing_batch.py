@@ -323,5 +323,10 @@ def collect(db: Session, client, briefing_root: Path, *, log: Callable[[str], No
             out.done += status == STATUS_DONE
             out.failed += status == STATUS_FAILED
             log(f"{ext.document_id} ({ext.code}): {status} facts={ext.facts} verified={ext.verified} "
-                f"sum_mismatch={ext.sum_mismatch}/{ext.sum_checks} errors={ext.error_pages}/{ext.llm_pages}")
+                f"sum_mismatch={ext.sum_mismatch}/{ext.sum_checks} unparsed={ext.error_pages}/{ext.llm_pages}")
+            if ext.error_pages:
+                for n, why in db.execute(select(BriefingPage.page, BriefingPage.error).where(
+                        BriefingPage.document_id == ext.document_id, BriefingPage.error.is_not(None))
+                        .order_by(BriefingPage.page)).all():
+                    log(f"  {ext.document_id} page {n}: {why}")
     return out

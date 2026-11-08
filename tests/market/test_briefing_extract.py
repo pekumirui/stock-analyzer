@@ -62,6 +62,18 @@ def test_verify_expands_tables_and_keeps_them() -> None:
     assert bb.parse_custom_id(bb.custom_id(bb.request_key(DOC_ID), 12)) == (bb.request_key(DOC_ID), 12)
 
 
+def test_parse_json_ignores_trailing_extra() -> None:
+    first = {"title": "業績", "summary": "s", "tables": [{"cols": [], "rows": []}]}
+    text = json.dumps(first, ensure_ascii=False, indent=2) + '\n{"title": "続き", "tables": []}\n'
+    assert bx.parse_json(text) == first
+    assert bx.parse_json("```json\n" + json.dumps(first) + "\n```") == first
+    assert bx.parse_json(json.dumps(first) + "\n}") == first
+    with pytest.raises(ValueError, match="表が無い"):
+        bx.parse_json('{"title": "業績", "summary": "s"}, "tables": [{"cols": [], "rows": []}]}')
+    with pytest.raises(json.JSONDecodeError):
+        bx.parse_json('{"title": "業績", "tables": [')
+
+
 # ---------- Batch に出して書く ----------
 
 ANSWER = {"title": "四半期売上高", "summary": "増えた。", "tables": [{
@@ -95,7 +107,8 @@ class FakeBatches:
                     type="errored", error=SimpleNamespace(type="api_error")))
                 continue
             msg = SimpleNamespace(
-                content=[SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(type="text", text=json.dumps(ans, ensure_ascii=False))],
+                content=[SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(
+                    type="text", text=ans if isinstance(ans, str) else json.dumps(ans, ensure_ascii=False))],
                 stop_reason="end_turn",
                 usage=SimpleNamespace(input_tokens=100, cache_read_input_tokens=2000, cache_creation_input_tokens=0, output_tokens=500))
             yield SimpleNamespace(custom_id=req["custom_id"], result=SimpleNamespace(type="succeeded", message=msg))
@@ -142,6 +155,7 @@ def test_submit_dry_run_writes_nothing(setup, capsys) -> None:
 
 def test_submit_and_collect(setup, capsys) -> None:
     client = _client(setup)
+    setup.answers[2] = json.dumps(ANSWER, ensure_ascii=False) + '\n{"note": "余分"}'
     setup.answers[3] = "errored"
     assert job.main(["submit", "--code", "6857"], client=client) == 0
     (reqs,) = setup.created
@@ -169,6 +183,9 @@ def test_submit_and_collect(setup, capsys) -> None:
     assert pages[1].kind == "divider" and pages[1].tables_json is None
     assert json.loads(pages[2].tables_json) == ANSWER["tables"] and pages[2].summary == "増えた。"
     assert pages[3].error.startswith("errored")
+    out = capsys.readouterr().out
+    assert "unparsed=1/2" in out and "errors=" not in out
+    assert f"{DOC_ID} page 3: errored" in out
     facts = db.query(BriefingFact).filter_by(document_id=DOC_ID).all()
     assert len(facts) == 6 and all(f.verified for f in facts)
     assert {f.sum_status for f in facts if f.segment == "合計"} == {"ok"}
