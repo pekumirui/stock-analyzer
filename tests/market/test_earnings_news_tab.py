@@ -11,8 +11,9 @@ JS = (ROOT / "static/js/earnings.js").read_text(encoding="utf-8")
 
 
 def test_news_is_a_tab_of_the_fin_panel() -> None:
-    i = HTML.index('<div class="panel a-fin">')
+    i = HTML.index('<div class="a-fin">')
     fin = HTML[i:HTML.index('<div class="panel a-chart">', i)]
+    assert fin.index('id="earn-tabs"') < fin.index('<div class="panel">') < fin.index('id="fin-box"')
     assert re.findall(r'data-etab="(\w+)"', fin) == ["fin", "news"]
     assert 'class="nav-tabs" id="earn-tabs"' in fin
     assert re.findall(r'data-fin="(\w+)"', fin) == ["cum", "q", "prog", "rev"]
