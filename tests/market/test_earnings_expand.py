@@ -40,6 +40,8 @@ def test_fin_opens_only_from_toggle_and_search() -> None:
     assert "keepRow(key" in toggle
     pick_row = re.search(r"function pickRow\(key\)\{.*?\n\}", JS, re.S).group(0)
     assert "setExp(null)" in pick_row and "keepRow(key" in pick_row
+    keep = re.search(r"function keepRow\(key, fn\)\{.*?\n\}", JS, re.S).group(0)
+    assert "list.clientHeight - tr.offsetHeight" in keep and 'querySelector("thead").offsetHeight' in keep
     set_exp = re.search(r"function setExp\(key\)\{.*?\n\}", JS, re.S).group(0)
     assert "scrollIntoView" not in set_exp
     css = (ROOT / "static/css/app.css").read_text(encoding="utf-8")

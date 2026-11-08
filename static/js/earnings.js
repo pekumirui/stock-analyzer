@@ -352,13 +352,14 @@ function keepRow(key, fn){
   fn();
   const tr = rowEl(key);
   if(before == null || !tr) return;
-  let d = tr.getBoundingClientRect().top - before;
   const list = $("#earn-list");
-  if(d && !list.classList.contains("xopen")){
-    const t = list.scrollTop;
-    list.scrollTop = t + d;
-    d -= list.scrollTop - t;
+  if(!list.classList.contains("xopen")){
+    const box = list.getBoundingClientRect().top;
+    const head = list.querySelector("thead").offsetHeight;
+    const want = Math.max(head, Math.min(before - box, list.clientHeight - tr.offsetHeight));
+    list.scrollTop += tr.getBoundingClientRect().top - box - want;
   }
+  const d = tr.getBoundingClientRect().top - before;
   if(d) window.scrollBy(0, d);
 }
 function pickRow(key){
