@@ -60,13 +60,21 @@ class _Got:
         self.content = content
 
 
+class NotFound(Exception):
+    """vendor の 404（status 属性。app.edinet.client.is_not_found が見る）。"""
+    status = 404
+
+
 class FakeClient:
-    def __init__(self, payloads: dict[str, bytes]):
+    def __init__(self, payloads: dict[str, bytes], gone: tuple[str, ...] = ()):
         self.payloads = payloads
+        self.gone = gone
         self.calls: list[str] = []
 
     def download(self, doc_id, file_type):
         self.calls.append(doc_id)
+        if doc_id in self.gone:
+            raise NotFound("404 Not Found")
         if doc_id not in self.payloads:
             raise RuntimeError("404")
         return _Got(self.payloads[doc_id])
@@ -224,3 +232,77 @@ def test_ifrs_and_withdrawal_retracts() -> None:
         assert run(db, FakeClient({}), [])["retracted"] == 0
     finally:
         db.close()
+
+
+def test_not_found_is_stored_failed_and_not_retried() -> None:
+    """type=1 が 404 の書類は failed で残し、次の回は取らない。errors に数えない（KAB-388）。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add_all([_doc(1, "S100GY6A", doc_type_code="130",
+                         doc_description="訂正有価証券報告書－第59期(2018/04/01－2019/03/31)"),
+                    _doc(2, "S100TEMP")])
+        db.commit()
+        client = FakeClient({}, gone=("S100GY6A",))
+        st = run(db, client, pending_documents(db))
+        # S100TEMP は 404 でない失敗（一時的）なので従来どおり errors
+        assert (st["missing"], st["errors"], st["failed"]) == (1, 1, 0)
+        f = db.query(XbrlFiling).filter_by(source="edinet", doc_id="S100GY6A").one()
+        assert (f.code, f.parse_status, f.doc_type, f.is_amendment) == ("72030", "failed", "annual", True)
+        assert "404" in f.parse_error
+        assert db.query(XbrlFiling).filter_by(source="edinet", doc_id="S100TEMP").count() == 0
+        # 次の回は 404 の書類を取らない。一時的な失敗はまた取る
+        assert [d.doc_id for d in pending_documents(db)] == ["S100TEMP"]
+        # --retry-failed で取り直して、また 404 でも行は 1 つのまま
+        retry = pending_documents(db, retry_failed=True)
+        assert [d.doc_id for d in retry] == ["S100GY6A", "S100TEMP"]
+        st = run(db, FakeClient({"S100TEMP": _zip()}, gone=("S100GY6A",)), retry)
+        assert (st["parsed"], st["missing"], st["errors"]) == (1, 1, 0)
+        assert db.query(XbrlFiling).filter_by(source="edinet", doc_id="S100GY6A").count() == 1
+    finally:
+        db.close()
+
+
+def test_job_exit_zero_on_not_found(monkeypatch, capsys) -> None:
+    """404 だけなら cron は exit=0。404 以外の失敗は exit=1 のまま（KAB-388）。"""
+    import importlib
+
+    import app.edinet_wrapper as wrapper
+
+    job = importlib.import_module("jobs.edinet.edinet_xbrl")
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add(_doc(1, "S100GY6A"))
+        db.commit()
+    finally:
+        db.close()
+
+    class Client(FakeClient):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    monkeypatch.setenv("EDINET_API_KEY", "dummy")
+    monkeypatch.setattr(sys, "argv", ["edinet_xbrl.py", "--limit", "300"])
+    monkeypatch.setattr(wrapper, "EdinetClient", lambda: Client({}, gone=("S100GY6A",)))
+    assert job.main() == 0
+    assert "missing=1 errors=0" in capsys.readouterr().out
+    # 2 回目は pending に出ないのでダウンロードしない
+    calls: list[Client] = []
+    monkeypatch.setattr(wrapper, "EdinetClient", lambda: calls.append(Client({})) or calls[-1])
+    assert job.main() == 0
+    assert calls[-1].calls == []
+
+    db = SessionLocal()
+    try:
+        db.add(_doc(2, "S100TEMP"))
+        db.commit()
+    finally:
+        db.close()
+    monkeypatch.setattr(wrapper, "EdinetClient", lambda: Client({}))
+    assert job.main() == 1
