@@ -276,7 +276,7 @@ function tableHtml(actuals, scheduled){
         + `<tr><th class="pin0">時刻</th><th class="l fy pin1">決算期</th>`
         + `<th class="l name pin2">銘柄</th>${sub()}</tr></thead><tbody>`;
   for(const r of actuals){
-    h += `<tr data-no="${r.disclosure_no}" onclick="selectRow('${r.disclosure_no}')">`
+    h += `<tr data-no="${r.disclosure_no}" onclick="pickRow('a:${r.disclosure_no}')">`
        + `<td class="pin0">${xBtn("a:"+r.disclosure_no)}${(r.disclosed_time||"").slice(0,5)}${under(revBadge(r))}</td>`
        + `<td class="l fy pin1">${fyShort(r.fy_label)}${under(listQ(r.period))}</td>`
        + nameCell(r)
@@ -290,7 +290,7 @@ function tableHtml(actuals, scheduled){
     const fy = latest
       ? `${fyShort(latest.fy_label)}${under(latestBadge(latest.period))}`
       : `${label}${under(fq)}`;
-    h += `<tr data-code="${r.code}" onclick="selectSched('${r.code}')">`
+    h += `<tr data-code="${r.code}" onclick="pickRow('s:${r.code}')">`
        + `<td class="pin0">${latest && latest.disclosure_no ? xBtn("s:"+r.code) : `<span class="xsp"></span>`}–</td>`
        + `<td class="l fy pin1">${fy}</td>`
        + nameCell(r)
@@ -343,23 +343,40 @@ function xBtn(key){
   return `<button type="button" class="xbtn" data-key="${key}" aria-expanded="${on}" aria-label="業績を${on ? "閉じる" : "開く"}"`
     + ` onclick="event.stopPropagation();toggleExp('${key}')">${on ? "▼" : "▶"}</button>`;
 }
-function toggleExp(key){
-  const open = key !== expKey;
-  if(key !== selKey){
-    if(key.startsWith("a:")) selectRow(key.slice(2));
-    else selectSched(key.slice(2));
+function selectKey(key){
+  if(key.startsWith("a:")) selectRow(key.slice(2));
+  else selectSched(key.slice(2));
+}
+function keepRow(key, fn){
+  const before = rowEl(key)?.getBoundingClientRect().top;
+  fn();
+  const tr = rowEl(key);
+  if(before == null || !tr) return;
+  let d = tr.getBoundingClientRect().top - before;
+  const list = $("#earn-list");
+  if(d && !list.classList.contains("xopen")){
+    const t = list.scrollTop;
+    list.scrollTop = t + d;
+    d -= list.scrollTop - t;
   }
-  setExp(open ? key : null);
+  if(d) window.scrollBy(0, d);
+}
+function pickRow(key){
+  keepRow(key, () => {
+    if(expKey && expKey !== key) setExp(null);
+    selectKey(key);
+  });
+}
+function toggleExp(key){
+  keepRow(key, () => {
+    const open = key !== expKey;
+    if(key !== selKey) selectKey(key);
+    setExp(open ? key : null);
+  });
 }
 function setExp(key){
-  const was = rowEl(expKey);
   expKey = key;
   placeFin();
-  const tr = rowEl(expKey);
-  if(tr){
-    const x = tr.nextElementSibling;
-    if(x.getBoundingClientRect().bottom > window.innerHeight) tr.scrollIntoView({block:"start"});
-  } else if(was) was.scrollIntoView({block:"nearest"});
 }
 function placeFin(){
   $("#earn-fin-home").appendChild($("#earn-fin"));
@@ -745,7 +762,7 @@ async function pickEarnStock(code, name){
   const [y, m] = d.disclosed_date.split("-").map(Number);
   calY = y; calM = m;
   await selectDate(d.disclosed_date, {no:d.disclosure_no, code, name:d.name, period:d.period});
-  if(hasFin(selKey)) setExp(selKey);
+  if(hasFin(selKey)) keepRow(selKey, () => setExp(selKey));
 }
 $("#earn-sym").addEventListener("input", refreshEarnSuggest);
 $("#earn-sym").addEventListener("compositionend", refreshEarnSuggest);
@@ -768,3 +785,4 @@ window.selectDate = selectDate;
 window.selectRow = selectRow;
 window.selectSched = selectSched;
 window.toggleExp = toggleExp;
+window.pickRow = pickRow;
