@@ -56,6 +56,10 @@ PUBLIC_ORIGIN = os.getenv("PUBLIC_ORIGIN", "").rstrip("/")
 # /app ナビの社内 wiki（Cloudflare Access）。公開月次には出さない
 WIKI_URL = "https://stock-analyzer-wiki.pages.dev"
 
+# Cloudflare Access。チームのドメイン（例: kabukpi.cloudflareaccess.com）と Application の AUD
+CF_ACCESS_TEAM_DOMAIN = os.getenv("CF_ACCESS_TEAM_DOMAIN", "").strip().removeprefix("https://").rstrip("/")
+CF_ACCESS_AUD = os.getenv("CF_ACCESS_AUD", "").strip()
+
 XBRL_DEST = os.getenv("XBRL_DEST", str(share_path("xbrl")))
 # Local taxonomy bundle (KAB-60). Never downloaded at parse time.
 XBRL_CACHE_DIR = os.getenv("XBRL_CACHE_DIR", str(BASE_DIR / "data" / "xbrl_taxonomy"))

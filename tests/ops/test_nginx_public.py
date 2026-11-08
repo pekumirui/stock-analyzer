@@ -1,6 +1,6 @@
 """nginx の設定（deploy/nginx-site.sh）を組み立てて nginx -t を通し、起動して振り分けを確かめる。
 
-公開は /monthly・公開 API の GET・静的ファイル、/app などは Basic 認証、MCP の経路は MCP へ。
+公開は /monthly・公開 API の GET・静的ファイル、/app などは Basic 認証か Cloudflare Access、MCP の経路は MCP へ。
 /static/ は alias で nginx 直配信。monthly_row_order.json と ir_monthly_codes.json だけ proxy。
 nginx が無い手元では飛ばす。CI（CI=true）では nginx が無ければ落とす。
 """
@@ -27,6 +27,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SITE = ROOT / "deploy" / "nginx-site.sh"
 PROVISION = ROOT / "deploy" / "provision.sh"
 USER, PASSWORD = "u", "p"
+CF_HEADER, CF_GOOD = "Cf-Access-Jwt-Assertion", "good-token"
 MIME_TYPES = Path("/etc/nginx/mime.types")
 
 
@@ -65,10 +66,15 @@ def _popen_resolved(exe: str, args: Sequence[str], **kwargs: Any) -> subprocess.
 
 
 def _stub(name: str) -> tuple[ThreadingHTTPServer, int]:
-    """どの経路に届いたかを本文で返すだけのアップストリーム。"""
+    """どの経路に届いたかを本文で返すだけのアップストリーム。Access の確認は CF_GOOD だけ通す。"""
 
     class Handler(BaseHTTPRequestHandler):
         def _reply(self) -> None:
+            if self.path == "/_auth/cf-access":
+                self.send_response(204 if self.headers.get(CF_HEADER) == CF_GOOD else 401)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             body = f"{name}:{self.command}:{self.path}".encode()
             self.send_response(200)
             self.send_header("Content-Length", str(len(body)))
@@ -95,6 +101,7 @@ def _render(tmp: Path, env: dict[str, str]) -> dict[str, str]:
         f'render_limit_conf > "{tmp}/limit.conf"\n'
         f'render_log_conf > "{tmp}/log.conf"\n'
         f'render_gzip_conf > "{tmp}/gzip.conf"\n'
+        f'render_realip_conf > "{tmp}/realip.conf"\n'
         f'render_http_only > "{tmp}/http_only.conf"\n'
         f'render_https > "{tmp}/https.conf"\n',
         encoding="utf-8",
@@ -102,7 +109,7 @@ def _render(tmp: Path, env: dict[str, str]) -> dict[str, str]:
     _run_resolved(bash, ["-euo", "pipefail", str(script)], env={**os.environ, **env}, check=True)
     return {
         n: (tmp / f"{n}.conf").read_text(encoding="utf-8")
-        for n in ("limit", "log", "gzip", "http_only", "https")
+        for n in ("limit", "log", "gzip", "realip", "http_only", "https")
     }
 
 
@@ -133,6 +140,7 @@ def _main_conf(tmp: Path, site: Path) -> Path:
         "    gzip on;\n"
         f"    include {tmp}/gzip.conf;\n"
         f"    include {tmp}/log.conf;\n"
+        f"    include {tmp}/realip.conf;\n"
         f"    access_log {tmp}/access.log timed;\n"
         f"    client_body_temp_path {tmp}/cb;\n"
         f"    proxy_temp_path {tmp}/px;\n"
@@ -245,6 +253,8 @@ def test_nginx_static_direct_contracts() -> None:
         _fail("provision.sh must chmod o+x on $HOME and a+rX on static/")
     if "stock-analyzer-gzip.conf" not in provision or "render_gzip_conf" not in provision:
         _fail("provision.sh must write gzip_types (css/js) to conf.d")
+    if "stock-analyzer-realip.conf" not in provision or "render_realip_conf" not in provision:
+        _fail("provision.sh must write the Cloudflare real_ip conf to conf.d")
     print("ok: nginx static direct contracts")
 
 
@@ -355,8 +365,18 @@ def check_routes(port: int) -> None:
     want("/static/monthly_row_order.json", 200, "app:GET:/static/monthly_row_order.json")
     want("/static/ir_monthly_codes.json", 200, "app:GET:/static/ir_monthly_codes.json")
     want("/robots.txt", 200, "app:GET:")
-    want("/app", 401)
+    h = want("/app", 401)
+    if not _header(h, "WWW-Authenticate").startswith("Basic"):
+        _fail(f"/app without auth must still ask Basic: {_header(h, 'WWW-Authenticate')!r}")
     want("/app", 200, "app:GET:/app", auth=True)
+    for path in ("/app", "/api/screener", "/docs"):
+        code, body, _h = _request(port, path, extra_headers={CF_HEADER: CF_GOOD})
+        if code != 200 or not str(body).startswith(f"app:GET:{path}"):
+            _fail(f"{path} with a valid Access token must pass without Basic, got {code}")
+    code, _body, h = _request(port, "/app", extra_headers={CF_HEADER: "forged"})
+    if code != 401 or not _header(h, "WWW-Authenticate").startswith("Basic"):
+        _fail(f"/app with a bad Access token must fall back to Basic, got {code}")
+    want("/_cf_access", 404)
     want("/api/screener", 401)
     want("/docs", 401)
     want("/.well-known/openid-configuration", 200, "mcp:GET:")
@@ -393,6 +413,8 @@ def test_nginx_public_routes() -> None:
     out = _render(tmp, env)
     if "auth_basic_user_file" not in out["http_only"]:
         _fail("htpasswd があるとき /app などに Basic 認証を付ける")
+    if "real_ip_header CF-Connecting-IP;" not in out["realip"] or "set_real_ip_from" not in out["realip"]:
+        _fail("realip.conf must trust CF-Connecting-IP from Cloudflare ranges")
     if f"alias {ROOT}/static/;" not in out["http_only"]:
         _fail(f"rendered site must alias {ROOT}/static/")
     if "text/css" not in out["gzip"] or "application/javascript" not in out["gzip"]:

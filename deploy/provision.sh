@@ -266,6 +266,7 @@ source "$APP_DIR/deploy/nginx-site.sh"
 write_if_changed /etc/nginx/conf.d/stock-analyzer-limit.conf 644 < <(render_limit_conf)
 write_if_changed /etc/nginx/conf.d/stock-analyzer-log.conf 644 < <(render_log_conf)
 write_if_changed /etc/nginx/conf.d/stock-analyzer-gzip.conf 644 < <(render_gzip_conf)
+write_if_changed /etc/nginx/conf.d/stock-analyzer-realip.conf 644 < <(render_realip_conf)
 ensure_nginx_static_readable
 
 nginx_changed=0

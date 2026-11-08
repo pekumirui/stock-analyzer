@@ -261,6 +261,8 @@ jobs:
       BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
       BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
       MCP_TOKEN: ${{ secrets.MCP_TOKEN }}
+      CF_ACCESS_TEAM_DOMAIN: ${{ vars.CF_ACCESS_TEAM_DOMAIN }}
+      CF_ACCESS_AUD: ${{ vars.CF_ACCESS_AUD }}
       R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
       R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -331,6 +333,8 @@ jobs:
               "BASIC_AUTH_PASSWORD",
               "CERTBOT_EMAIL",
               "MCP_TOKEN",
+              "CF_ACCESS_TEAM_DOMAIN",
+              "CF_ACCESS_AUD",
               "R2_ACCESS_KEY_ID",
               "R2_SECRET_ACCESS_KEY",
               "SLACK_WEBHOOK_URL",
