@@ -515,7 +515,7 @@ function renderRev(el, rows, d){
   el.innerHTML = h + `</tbody>`;
 }
 
-const FIN_WRAP = {cum:"#cum-wrap", q:"#q-wrap", prog:"#prog-wrap", rev:"#rev-wrap", news:"#news-wrap"};
+const FIN_WRAP = {cum:"#cum-wrap", q:"#q-wrap", prog:"#prog-wrap", rev:"#rev-wrap"};
 document.querySelectorAll(".ftab[data-view]").forEach(b => b.onclick = () => {
   document.querySelectorAll(".ftab[data-view]").forEach(x => x.classList.toggle("on", x===b));
   earnView = b.dataset.view;
@@ -526,8 +526,13 @@ document.querySelectorAll(".ftab[data-view]").forEach(b => b.onclick = () => {
 document.querySelectorAll(".ftab[data-fin]").forEach(b => b.onclick = () => {
   document.querySelectorAll(".ftab[data-fin]").forEach(x => x.classList.toggle("on", x===b));
   for(const [k, sel] of Object.entries(FIN_WRAP)) $(sel).hidden = k !== b.dataset.fin;
-  $("#fin-unit").hidden = b.dataset.fin === "news";
-  if(b.dataset.fin === "news" && newsWant) loadNews(newsWant);
+});
+document.querySelectorAll("#earn-tabs .ftab").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#earn-tabs .ftab").forEach(x => x.classList.toggle("on", x===b));
+  const news = b.dataset.etab === "news";
+  $("#fin-box").hidden = news;
+  $("#news-wrap").hidden = !news;
+  if(news && newsWant) loadNews(newsWant);
 });
 
 let newsWant = null, newsCode = "", newsAc = null, newsFilings = [];

@@ -1,4 +1,4 @@
-"""決算速報の決算表のタブに選んだ銘柄のニュース（KAB-392）。"""
+"""決算速報の決算表の枠に 業績 / ニュース のタブ（KAB-392）。"""
 from __future__ import annotations
 
 import re
@@ -13,11 +13,11 @@ JS = (ROOT / "static/js/earnings.js").read_text(encoding="utf-8")
 def test_news_is_a_tab_of_the_fin_panel() -> None:
     i = HTML.index('<div class="panel a-fin">')
     fin = HTML[i:HTML.index('<div class="panel a-chart">', i)]
-    tabs = re.findall(r'data-fin="(\w+)"', fin)
-    assert tabs == ["cum", "q", "prog", "rev", "news"]
-    assert 'id="news-wrap" hidden' in fin
+    assert re.findall(r'data-etab="(\w+)"', fin) == ["fin", "news"]
+    assert 'class="nav-tabs" id="earn-tabs"' in fin
+    assert re.findall(r'data-fin="(\w+)"', fin) == ["cum", "q", "prog", "rev"]
+    assert fin.index('id="fin-box"') < fin.index('id="cum-tbl"') < fin.index('id="news-wrap" hidden')
     assert 'id="en-news" class="sheet"' in fin
-    assert 'news:"#news-wrap"' in JS
     for gone in ("earn-sheet", "earn-news", "xbtn", "toggleExp", "keepRow"):
         assert gone not in HTML and gone not in JS
 
@@ -25,7 +25,7 @@ def test_news_is_a_tab_of_the_fin_panel() -> None:
 def test_news_loads_only_while_its_tab_is_open() -> None:
     want = re.search(r"function wantNews\(code\)\{.*?\n\}", JS, re.S).group(0)
     assert '!$("#news-wrap").hidden' in want
-    assert 'b.dataset.fin === "news" && newsWant' in JS
+    assert "if(news && newsWant) loadNews(newsWant)" in JS
     assert JS.count("wantNews(row.code)") == 2
 
 

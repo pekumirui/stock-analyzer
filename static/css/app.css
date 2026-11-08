@@ -516,9 +516,6 @@
   .qb-mod { color:#c2410c; }
   .qb-act { color:var(--text); font-weight:600; }
   .a-fin .tbl-wrap { max-height:min(52vh, 560px); }
-  .a-fin > .phead { flex-wrap:wrap; justify-content:flex-end; }
-  .a-fin > .phead .fin-tabs { margin-right:auto; }
-  .a-fin .ftab { white-space:nowrap; }
   #en-news tr.go { cursor:pointer; }
   #en-news tr.go:hover td { background:var(--now); }
   #en-news td { white-space:nowrap; }
