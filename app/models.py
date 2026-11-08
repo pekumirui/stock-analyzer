@@ -126,6 +126,7 @@ class BriefingPage(Base):
     """読み取った説明資料のページ（KAB-349）。表紙・注意事項など Claude に回さないページも kind だけ残す。
 
     tables_json は Claude が返した表（列 × 行、行の of）をそのまま。画面の復元ビューが組み直す。
+    raw_text は JSON が読めなかったページだけ、Claude の応答をそのまま残す（Batch の結果は 29 日で消える）。
     """
     __tablename__ = "briefing_pages"
     document_id = Column(String(80), primary_key=True)
@@ -135,6 +136,7 @@ class BriefingPage(Base):
     summary = Column(Text)
     tables_json = Column(Text)
     error = Column(Text)
+    raw_text = Column(Text)
 
 
 class BriefingFact(Base):

@@ -234,7 +234,7 @@ def _page_result(page: dict, item: dict | None) -> dict:
         parsed = bx.parse_json(item["text"])
     except (ValueError, json.JSONDecodeError) as e:
         why = "出力が max_tokens で切れた" if item.get("truncated") else f"JSON が読めない: {e}"
-        return {"error": why}
+        return {"error": why, "raw_text": item["text"]}
     return bx.verify(page, parsed)
 
 
@@ -246,7 +246,7 @@ def store_document(db: Session, ext: BriefingExtract, pages: list[dict], results
         n = pg["page"]
         if not bx.needs_llm(pg["kind"]):
             page_rows.append({"document_id": ext.document_id, "page": n, "kind": pg["kind"], "title": None,
-                              "summary": None, "tables_json": None, "error": None})
+                              "summary": None, "tables_json": None, "error": None, "raw_text": None})
             continue
         item = results.get(n)
         if item:
@@ -258,7 +258,7 @@ def store_document(db: Session, ext: BriefingExtract, pages: list[dict], results
         page_rows.append({
             "document_id": ext.document_id, "page": n, "kind": pg["kind"], "title": r.get("title"),
             "summary": r.get("summary"), "tables_json": json.dumps(r["tables"], ensure_ascii=False) if r.get("tables") else None,
-            "error": r.get("error"),
+            "error": r.get("error"), "raw_text": r.get("raw_text"),
         })
         for f in r.get("facts") or []:
             fact_rows.append({
@@ -323,5 +323,10 @@ def collect(db: Session, client, briefing_root: Path, *, log: Callable[[str], No
             out.done += status == STATUS_DONE
             out.failed += status == STATUS_FAILED
             log(f"{ext.document_id} ({ext.code}): {status} facts={ext.facts} verified={ext.verified} "
-                f"sum_mismatch={ext.sum_mismatch}/{ext.sum_checks} errors={ext.error_pages}/{ext.llm_pages}")
+                f"sum_mismatch={ext.sum_mismatch}/{ext.sum_checks} unparsed={ext.error_pages}/{ext.llm_pages}")
+            if ext.error_pages:
+                for n, why in db.execute(select(BriefingPage.page, BriefingPage.error).where(
+                        BriefingPage.document_id == ext.document_id, BriefingPage.error.is_not(None))
+                        .order_by(BriefingPage.page)).all():
+                    log(f"  {ext.document_id} page {n}: {why}")
     return out

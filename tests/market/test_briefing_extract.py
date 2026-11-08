@@ -62,6 +62,22 @@ def test_verify_expands_tables_and_keeps_them() -> None:
     assert bb.parse_custom_id(bb.custom_id(bb.request_key(DOC_ID), 12)) == (bb.request_key(DOC_ID), 12)
 
 
+def test_parse_json_joins_split_pages() -> None:
+    seg = {"title": "売上高 事業セグメント別", "summary": "増えた。", "tables": [{"cols": [], "rows": [{"metric": "a"}]}]}
+    area = {"title": "売上高 地域(出荷先)別", "summary": "中国が伸びた。", "tables": [{"cols": [], "rows": [{"metric": "b"}]}]}
+    joined = {"title": "売上高 事業セグメント別 / 売上高 地域(出荷先)別", "summary": "増えた。 中国が伸びた。",
+              "tables": seg["tables"] + area["tables"]}
+    as_list = json.dumps([seg, area], ensure_ascii=False, indent=2)
+    assert bx.parse_json("```json\n" + as_list + "\n```") == joined
+    assert bx.parse_json(json.dumps(seg, ensure_ascii=False) + ",\n" + json.dumps(area, ensure_ascii=False)) == joined
+    assert bx.parse_json(json.dumps([seg], ensure_ascii=False)) == seg
+    assert bx.parse_json(json.dumps(seg) + "\n}") == seg
+    with pytest.raises(ValueError, match="表が無い"):
+        bx.parse_json('{"title": "業績", "summary": "s"}, "tables": [{"cols": [], "rows": []}]}')
+    with pytest.raises(json.JSONDecodeError):
+        bx.parse_json('{"title": "業績", "tables": [')
+
+
 # ---------- Batch に出して書く ----------
 
 ANSWER = {"title": "四半期売上高", "summary": "増えた。", "tables": [{
@@ -95,7 +111,8 @@ class FakeBatches:
                     type="errored", error=SimpleNamespace(type="api_error")))
                 continue
             msg = SimpleNamespace(
-                content=[SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(type="text", text=json.dumps(ans, ensure_ascii=False))],
+                content=[SimpleNamespace(type="thinking", thinking=""), SimpleNamespace(
+                    type="text", text=ans if isinstance(ans, str) else json.dumps(ans, ensure_ascii=False))],
                 stop_reason="end_turn",
                 usage=SimpleNamespace(input_tokens=100, cache_read_input_tokens=2000, cache_creation_input_tokens=0, output_tokens=500))
             yield SimpleNamespace(custom_id=req["custom_id"], result=SimpleNamespace(type="succeeded", message=msg))
@@ -142,6 +159,7 @@ def test_submit_dry_run_writes_nothing(setup, capsys) -> None:
 
 def test_submit_and_collect(setup, capsys) -> None:
     client = _client(setup)
+    setup.answers[2] = json.dumps(ANSWER, ensure_ascii=False) + '\n{"note": "余分"}'
     setup.answers[3] = "errored"
     assert job.main(["submit", "--code", "6857"], client=client) == 0
     (reqs,) = setup.created
@@ -168,7 +186,11 @@ def test_submit_and_collect(setup, capsys) -> None:
     pages = {r.page: r for r in db.query(BriefingPage).filter_by(document_id=DOC_ID)}
     assert pages[1].kind == "divider" and pages[1].tables_json is None
     assert json.loads(pages[2].tables_json) == ANSWER["tables"] and pages[2].summary == "増えた。"
-    assert pages[3].error.startswith("errored")
+    assert pages[3].error.startswith("errored") and pages[3].raw_text is None
+    assert pages[2].raw_text is None
+    out = capsys.readouterr().out
+    assert "unparsed=1/2" in out and "errors=" not in out
+    assert f"{DOC_ID} page 3: errored" in out
     facts = db.query(BriefingFact).filter_by(document_id=DOC_ID).all()
     assert len(facts) == 6 and all(f.verified for f in facts)
     assert {f.sum_status for f in facts if f.segment == "合計"} == {"ok"}
@@ -178,14 +200,17 @@ def test_submit_and_collect(setup, capsys) -> None:
     job.main(["submit", "--code", "6857"], client=client)
     assert len(setup.created) == 1
     setup.answers.clear()
+    setup.answers[3] = '{"title": "業績", "summary": "s"}, "tables": []}'
     setup.status = "in_progress"
     job.main(["submit", "--code", "6857", "--redo"], client=client)
     setup.status = "ended"
     job.main(["collect"], client=client)
     db = SessionLocal()
     ext = db.get(BriefingExtract, DOC_ID)
-    assert (ext.batch_id, ext.error_pages, ext.facts) == ("msgbatch_2", 0, 12)
-    assert db.query(BriefingFact).filter_by(document_id=DOC_ID).count() == 12
+    assert (ext.batch_id, ext.error_pages, ext.facts) == ("msgbatch_2", 1, 6)
+    assert db.query(BriefingFact).filter_by(document_id=DOC_ID).count() == 6
+    page3 = db.get(BriefingPage, (DOC_ID, 3))
+    assert page3.error.startswith("JSON が読めない") and page3.raw_text == setup.answers[3]
     db.close()
     job.main(["status"], client=client)
     assert "done: 1" in capsys.readouterr().out
