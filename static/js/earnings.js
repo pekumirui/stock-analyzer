@@ -318,6 +318,8 @@ function selectSched(code){
 
 function clearDetail(msg){
   if(detailAc){ detailAc.abort(); detailAc = null; }
+  newsWant = null;
+  clearNews();
   $("#e-chart-title").textContent = msg;
   dropEChart(); $("#cum-tbl").innerHTML = ""; $("#prog-tbl").innerHTML = ""; $("#q-tbl").innerHTML = ""; $("#rev-tbl").innerHTML = "";
 }
@@ -336,6 +338,7 @@ async function loadSched(row){
   const signal = beginDetail();
   $("#e-chart-title").innerHTML = `<span class="clicky" onclick="gotoChart('${row.code}')">${row.name}</span>
     <small class="sub">${row.code.slice(0,4)}</small>`;
+  wantNews(row.code);
   let ch;
   try { ch = await chartMaybe(row.code, signal); }
   catch(e){ if(e.name === "AbortError") return; throw e; }
@@ -352,6 +355,7 @@ async function loadDetail(row){
   const signal = beginDetail();
   $("#e-chart-title").innerHTML = `<span class="clicky" onclick="gotoChart('${row.code}')">${row.name}</span>
     <small class="sub">${row.code.slice(0,4)} / ${fyShort(row.fy_label)} ${row.period||""}</small>`;
+  wantNews(row.code);
   let d, ch;
   try {
     [d, ch] = await Promise.all([
@@ -511,7 +515,7 @@ function renderRev(el, rows, d){
   el.innerHTML = h + `</tbody>`;
 }
 
-const FIN_WRAP = {cum:"#cum-wrap", q:"#q-wrap", prog:"#prog-wrap", rev:"#rev-wrap"};
+const FIN_WRAP = {cum:"#cum-wrap", q:"#q-wrap", prog:"#prog-wrap", rev:"#rev-wrap", news:"#news-wrap"};
 document.querySelectorAll(".ftab[data-view]").forEach(b => b.onclick = () => {
   document.querySelectorAll(".ftab[data-view]").forEach(x => x.classList.toggle("on", x===b));
   earnView = b.dataset.view;
@@ -522,7 +526,113 @@ document.querySelectorAll(".ftab[data-view]").forEach(b => b.onclick = () => {
 document.querySelectorAll(".ftab[data-fin]").forEach(b => b.onclick = () => {
   document.querySelectorAll(".ftab[data-fin]").forEach(x => x.classList.toggle("on", x===b));
   for(const [k, sel] of Object.entries(FIN_WRAP)) $(sel).hidden = k !== b.dataset.fin;
+  $("#fin-unit").hidden = b.dataset.fin === "news";
+  if(b.dataset.fin === "news" && newsWant) loadNews(newsWant);
 });
+
+let newsWant = null, newsCode = "", newsAc = null, newsFilings = [];
+function wantNews(code){
+  newsWant = code;
+  if(!$("#news-wrap").hidden) loadNews(code);
+}
+function newsMsg(text){
+  $("#en-msg").textContent = text || "";
+  $("#en-msg").hidden = !text;
+}
+function clearNews(){
+  if(newsAc){ newsAc.abort(); newsAc = null; }
+  newsCode = "";
+  newsFilings = [];
+  showNewsList();
+  $("#en-news").innerHTML = "";
+  newsMsg("");
+}
+function showNewsList(){
+  $("#en-detail").hidden = true;
+  $("#en-list").hidden = false;
+  $("#en-doc").innerHTML = "";
+  $("#en-deck").innerHTML = "";
+  $("#en-head").innerHTML = "";
+  $("#en-src").hidden = true;
+}
+async function loadNews(code){
+  if(code === newsCode) return;
+  clearNews();
+  newsCode = code;
+  const ac = newsAc = new AbortController();
+  let fs, decks;
+  try {
+    [fs, decks] = await Promise.all([
+      api(`/api/stock/${code}/filings`, {signal: ac.signal}).then(d => d.filings || []),
+      api(`/api/stock/${code}/decks`, {signal: ac.signal}).then(d => d.decks || [])]);
+  } catch(e){
+    if(e.name === "AbortError" || ac.signal.aborted) return;
+    newsMsg("読み込めませんでした。");
+    return;
+  }
+  if(ac.signal.aborted) return;
+  newsFilings = fs;
+  const rows = stockNewsRows(fs, decks);
+  if(!rows.length){ newsMsg("ニュースがありません。"); return; }
+  $("#en-news").innerHTML = "<tr><th class='l'>日時</th><th class='l'>種類</th><th class='l'>題名</th></tr>" + rows.map(r => {
+    const amend = r.amend ? ' <span class="kind">訂正</span>' : "";
+    const open = r.open === "deck" ? ` data-deck="${stockEsc(r.deckKey)}"` : "";
+    return `<tr${r.open ? ` class="go" data-id="${stockEsc(r.key)}"${open}` : ""}>
+      <td class="l">${stockEsc(stockAt(r.at))}</td>
+      <td class="l"><span class="kind">${stockEsc(r.kind)}</span>${amend}</td>
+      <td class="l t">${stockEsc(r.title)}</td></tr>`;
+  }).join("");
+}
+function showNewsDetail(){
+  $("#en-list").hidden = true;
+  $("#en-detail").hidden = false;
+}
+function openNewsFiling(key){
+  const f = newsFilings.find(x => stockNewsKey(x) === key);
+  showNewsDetail();
+  $("#en-deck").innerHTML = "";
+  if(!f || !f.documents.length){
+    $("#en-head").textContent = "書類が見つかりません。";
+    $("#en-doc").innerHTML = "";
+    $("#en-src").hidden = true;
+    return;
+  }
+  $("#en-head").innerHTML = `<span class="sub">${stockEsc(stockAt(f.submitted_at))}</span> <span class="kind">${stockKind(f)}</span>`
+    + `${f.is_amendment ? ' <span class="kind">訂正</span>' : ""} <b>${stockEsc(stockTitle(f))}</b>`;
+  mountFilingFrames($("#en-doc"), $("#en-src"), f);
+}
+async function openNewsDeck(key){
+  const code = newsCode, ac = newsAc;
+  showNewsDetail();
+  $("#en-doc").innerHTML = "";
+  $("#en-deck").innerHTML = "";
+  let d;
+  try { d = await api(`/api/stock/${code}/decks/${key}`, {signal: ac.signal}); }
+  catch(e){
+    if(e.name === "AbortError" || code !== newsCode) return;
+    $("#en-head").textContent = String(e.message) === "404" ? "説明資料が見つかりません。" : "読み込めませんでした。";
+    return;
+  }
+  if(code !== newsCode || $("#en-detail").hidden) return;
+  $("#en-deck").innerHTML = deckDocHtml(d, $("#en-deck").clientWidth);
+}
+$("#en-news").addEventListener("click", e => {
+  const tr = e.target.closest("tr.go");
+  if(!tr) return;
+  if(tr.dataset.deck != null) openNewsDeck(tr.dataset.deck);
+  else openNewsFiling(tr.dataset.id);
+});
+$("#en-back").addEventListener("click", e => {
+  e.preventDefault();
+  showNewsList();
+});
+let enDocWidth = 0;
+new ResizeObserver(() => {
+  const w = $("#en-doc").clientWidth;
+  if(w === 0 || w === enDocWidth) return;
+  enDocWidth = w;
+  document.querySelectorAll("#en-doc iframe").forEach(fitStockFrame);
+}).observe($("#en-doc"));
 
 $("#earn-list").addEventListener("keydown", e => {
   if(e.key!=="ArrowDown" && e.key!=="ArrowUp") return;

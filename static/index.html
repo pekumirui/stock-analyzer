@@ -92,13 +92,27 @@
           <button type="button" class="ftab" data-fin="q">3か月</button>
           <button type="button" class="ftab" data-fin="prog">進捗率</button>
           <button type="button" class="ftab" data-fin="rev">修正履歴</button>
+          <button type="button" class="ftab" data-fin="news">ニュース</button>
         </div>
-        <span class="sub" style="font-size:12px">単位: 百万円</span>
+        <span class="sub" id="fin-unit" style="font-size:12px">単位: 百万円</span>
       </div>
       <div class="tbl-wrap" id="cum-wrap"><table class="sheet fin" id="cum-tbl"></table></div>
       <div class="tbl-wrap" id="q-wrap" hidden><table class="sheet fin" id="q-tbl"></table></div>
       <div class="tbl-wrap" id="prog-wrap" hidden><table class="sheet fin" id="prog-tbl"></table></div>
       <div class="tbl-wrap" id="rev-wrap" hidden><table class="sheet fin" id="rev-tbl"></table></div>
+      <div id="news-wrap" hidden>
+        <div id="en-list">
+          <div class="tbl-wrap"><table id="en-news" class="sheet"></table></div>
+          <p id="en-msg" class="sub" hidden></p>
+        </div>
+        <div id="en-detail" hidden>
+          <div class="row st-detail-bar"><a href="#" id="en-back">← ニュース</a></div>
+          <div id="en-head"></div>
+          <p id="en-src" class="sub" hidden></p>
+          <div id="en-doc"></div>
+          <div id="en-deck"></div>
+        </div>
+      </div>
     </div>
 
     <div class="panel a-chart">
