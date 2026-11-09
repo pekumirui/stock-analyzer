@@ -51,7 +51,7 @@ def _starts(d: date, t: str | None, days: list[date]) -> date:
 SPLIT_LOOKAHEAD_DAYS = 180
 
 
-def _adj_eps(eps: float | None, d: date, days: list[date], factors: list[float],
+def adjust_per_share(eps: float | None, d: date, days: list[date], factors: list[float],
              prev: float | None) -> float | None:
     """開示時点の 1 株あたりの値を今の調整後にそろえる。d より後の adj_factor を掛ける。
 
@@ -118,7 +118,7 @@ def fund_steps(stmts: list[Statement], days: list[date], factors: list[float]) -
         if out["t"] and start < out["t"][-1]:
             start = out["t"][-1]  # 引け後の開示の翌営業日より前に、休日付けの開示が来たとき
         prev_eps = next((x for x in reversed(out["eps"]) if x is not None), None)
-        adj_eps = _adj_eps(eps, s.disclosed_date, days, factors, prev_eps)
+        adj_eps = adjust_per_share(eps, s.disclosed_date, days, factors, prev_eps)
         row = (adj_eps, op_q, op_ttm)
         if out["t"] and out["t"][-1] == start:
             for k, v in zip(("eps", "op_q", "op_ttm"), row):
