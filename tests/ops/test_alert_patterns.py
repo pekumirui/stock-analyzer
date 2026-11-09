@@ -796,8 +796,12 @@ def test_secret_contract() -> None:
     for name in webhook_secrets:
         if name not in sudoers:
             _fail(f"deploy/sudoers must env_keep {name}")
+    visudo_bin = shutil.which("visudo", path=os.pathsep.join(
+        [os.environ.get("PATH", ""), "/usr/sbin", "/sbin"]))
+    if visudo_bin is None:
+        _fail("visudo not found (apt install sudo)")
     visudo = subprocess.run(
-        ["visudo", "-cf", str(ROOT / "deploy" / "sudoers")],
+        [visudo_bin, "-cf", str(ROOT / "deploy" / "sudoers")],
         capture_output=True,
         text=True,
         check=False,

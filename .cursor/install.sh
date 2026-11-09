@@ -25,7 +25,7 @@ SH
 sudo chmod 755 /usr/local/bin/rclone
 
 ./setup.sh
-.venv/bin/python -m pip install -q -r tools/requirements.txt
+.venv/bin/python -m pip install -q -r tools/requirements.txt -r requirements-dev.txt
 
 bash .cursor/setup-vps-ssh.sh || echo "setup-vps-ssh skipped"
 
