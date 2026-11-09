@@ -58,10 +58,19 @@ function currentScreenId(){
   return screenIdFromTabCode(r.tab, r.code);
 }
 
+function routeScreenKey(tab, code){
+  if(tab === "ranking") return tab;
+  return `${tab}/${String(code || "").split("/")[0]}`;
+}
+
 function writeRoute(tab, code, from, push){
   if(tab === "pts"){ tab = "ranking"; code = "pts"; }
   if(!TABS.includes(tab)) tab = "earnings";
   const useCode = routeArg(tab, code);
+  if(push === undefined && location.hash.length > 1){
+    const prev = parseRoute(location.hash);
+    push = routeScreenKey(prev.tab, prev.code) !== routeScreenKey(tab, useCode);
+  }
   const path = useCode ? `${tab}/${useCode}` : tab;
   const screen = screenIdFromTabCode(tab, useCode);
   const incoming = from === undefined
@@ -75,7 +84,10 @@ function writeRoute(tab, code, from, push){
   const next = location.pathname + (search ? "?" + search : "") + hash;
   const cur = location.pathname + location.search + location.hash;
   if(cur !== next){
-    if(push) history.pushState(null, "", next);
+    if(push){
+      history.replaceState({y: window.scrollY}, "");
+      history.pushState(null, "", next);
+    }
     else history.replaceState(null, "", next);
   }
   try { localStorage.setItem(UI_ROUTE_KEY, path); } catch(e) {}
@@ -107,16 +119,17 @@ function selectTab(tab){
   if(tab === "holders") loadHoldersHome();
 }
 
-async function restoreRoute(){
+async function restoreRoute(opts){
+  const pop = !!(opts && opts.pop);
   const {tab, code} = currentRoute();
   showTab(tab);
   if(tab === "screener"){
-    loadScreener();
+    if(!pop || !$("#sc-tbl").innerHTML) loadScreener();
     writeRoute("screener");
     return;
   }
   if(tab === "ranking"){
-    showRankingSub(code === "pts" ? "pts" : "perf", {force: true});
+    showRankingSub(code === "pts" ? "pts" : "perf", {force: !pop});
     return;
   }
   if(tab === "stock"){
@@ -171,7 +184,17 @@ if(crumbsNav){
     if(!a || document.body.getAttribute("data-public-monthly") === "1") return;
     ev.preventDefault();
     const href = a.getAttribute("href");
-    if(location.hash !== href) history.replaceState(null, "", href);
+    if(location.hash !== href){
+      history.replaceState({y: window.scrollY}, "");
+      history.pushState(null, "", href);
+    }
     restoreRoute();
   });
 }
+
+if("scrollRestoration" in history) history.scrollRestoration = "manual";
+window.addEventListener("popstate", async ev => {
+  const y = ev.state && ev.state.y;
+  await restoreRoute({pop: true});
+  if(typeof y === "number") requestAnimationFrame(() => window.scrollTo(0, y));
+});

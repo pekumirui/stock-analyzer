@@ -362,14 +362,6 @@ $("#hd-holdings").addEventListener("click", e => {
 });
 $("#hd-back").onclick = () => { hdHomeLoaded = false; loadHoldersHome(); };
 
-window.addEventListener("popstate", () => {
-  if($("#tab-holders").style.display === "none") return;
-  const r = parseRoute(location.hash);
-  if(r.tab !== "holders") return;
-  if(r.code) openHolder(r.code);
-  else loadHoldersHome();
-});
-
 function gotoHolderFromStock(edinet){
   if(!edinet) return;
   gotoHolder(edinet);
