@@ -220,6 +220,9 @@
   table.sheet tbody tr:nth-child(even) td { background:var(--row); }
   table.sheet tbody tr:hover td { background:var(--row-sel); }
   #earn-tbl tbody tr { cursor:pointer; }
+  #earn-tbl th.sort { cursor:pointer; user-select:none; white-space:nowrap; }
+  #earn-tbl th.sort:hover { color:var(--accent); }
+  #earn-tbl .sort-mark { margin-left:2px; color:var(--accent); }
   #earn-tbl tbody tr.sel td { background:var(--row-sel); }
   #earn-tbl tbody tr.sel td:first-child { box-shadow:inset 3px 0 0 var(--accent); }
   table.fin td:first-child, table.fin th:first-child { position:sticky; left:0; z-index:2; background:var(--panel); width:1%; }

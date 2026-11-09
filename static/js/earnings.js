@@ -105,6 +105,10 @@ const progCell = (p, k, i) => {
   return `<td class="num ${i?'':'grp'}">${progTxt(cur)}${under(prev==null ? "" : `<span class="prev" title="前年同期の進捗率">${progTxt(prev)}</span>`)}</td>`;
 };
 const fyShort = s => String(s||"").replace(/^FY/, "");
+const ptsPrice = v => v==null ? "–" : fmt(v, Number.isInteger(v) ? 0 : 1);
+const ptsCell = p => p
+  ? `<td class="num grp" title="${p.as_of ? p.as_of+"現在 " : ""}終値 ${ptsPrice(p.base_close)}">${ptsPrice(p.price)}${under(pct(p.chg_pct))}</td>`
+  : `<td class="num grp">–</td>`;
 let earnBoard={kind:"scheduled", actuals:[], scheduled:[]}, selKey=null;
 let detailAc = null;
 function beginDetail(){
@@ -141,6 +145,23 @@ const q4 = q => /^(FY|4Q|5Q)$/.test(q||"") ? "4Q" : q;  // 本決算と変則の
 const rowQs = r => r.periods ? r.periods.map(p => q4(p.fq)) : [q4(r.period)];
 const inQ = r => rowQs(r).some(q => earnQs.has(q));
 const isShown = r => (!earnSector || sectorOf(r) === earnSector) && inQ(r);
+let earnSort = null;
+function sortVal(r, key){
+  if(key === "pts") return r.pts ? r.pts.chg_pct : null;
+  const src = r.periods ? r.latest : r;
+  if(!src) return null;
+  const v = earnView==="q" ? src.single : earnView==="cum" ? src.cumulative : src.progress && src.progress.cur;
+  return v ? v[key] : null;
+}
+function sorted(rows){
+  if(!earnSort) return rows;
+  const {key, dir} = earnSort;
+  return rows.map((r, i) => [r, sortVal(r, key), i]).sort((a, b) =>
+    (a[1]==null) - (b[1]==null) || (a[1]==null ? 0 : (a[1] - b[1]) * dir) || a[2] - b[2]
+  ).map(x => x[0]);
+}
+const shownActuals = () => sorted((earnBoard.actuals||[]).filter(isShown));
+const shownScheduled = () => sorted((earnBoard.scheduled||[]).filter(isShown));
 
 function emptyCopy(ds, today, board){
   if(ds > today && board.ready === false) return "予定未取得";
@@ -149,8 +170,8 @@ function emptyCopy(ds, today, board){
 }
 
 function flatRows(){
-  const actuals = (earnBoard.actuals||[]).filter(isShown).map(r => ({side:"a", id:r.disclosure_no, row:r}));
-  const scheduled = (earnBoard.scheduled||[]).filter(isShown).map(r => ({side:"s", id:r.code, row:r}));
+  const actuals = shownActuals().map(r => ({side:"a", id:r.disclosure_no, row:r}));
+  const scheduled = shownScheduled().map(r => ({side:"s", id:r.code, row:r}));
   return actuals.concat(scheduled);
 }
 
@@ -234,7 +255,7 @@ function refilter(){
 }
 
 function renderList(){
-  const actuals = (earnBoard.actuals||[]).filter(isShown), scheduled = (earnBoard.scheduled||[]).filter(isShown);
+  const actuals = shownActuals(), scheduled = shownScheduled();
   if(!actuals.length && !scheduled.length){
     const any = (earnBoard.actuals||[]).length || (earnBoard.scheduled||[]).length;
     $("#earn-list").innerHTML = `<div class="sub">${any ? "該当なし" : emptyCopy(earnDay, earnToday, earnBoard)}</div>`;
@@ -260,7 +281,13 @@ function metricCells(src, period){
   return MET.map(([k],i)=>progCell(src.progress, k, i)).join("");
 }
 function tableHtml(actuals, scheduled){
-  const sub = () => MET.map(([k,l],i) => `<th class="${i?'':'grp'}">${l}</th>`).join("");
+  const head = (k, l, grp) => {
+    const on = earnSort && earnSort.key===k ? earnSort.dir : 0;
+    const mark = on ? `<span class="sort-mark">${on<0 ? "▼" : "▲"}</span>` : "";
+    const aria = on ? ` aria-sort="${on<0 ? "descending" : "ascending"}"` : "";
+    return `<th class="sort${grp?' grp':''}" data-sort="${k}"${aria}>${l}${mark}</th>`;
+  };
+  const sub = () => MET.map(([k,l],i) => head(k, l, !i)).join("") + head("pts", "PTS", true);
   const dash = MET.map((_,i)=>`<td class="num ${i?'':'grp'}">–</td>`).join("");
   let h = `<table id="earn-tbl" class="sheet"><thead>`
         + `<tr><th class="pin0">時刻</th><th class="l fy pin1">決算期</th>`
@@ -271,6 +298,7 @@ function tableHtml(actuals, scheduled){
        + `<td class="l fy pin1">${fyShort(r.fy_label)}${under(listQ(r.period))}</td>`
        + nameCell(r)
        + metricCells(r, r.period)
+       + ptsCell(r.pts)
        + `</tr>`;
   }
   for(const r of scheduled){
@@ -285,6 +313,7 @@ function tableHtml(actuals, scheduled){
        + `<td class="l fy pin1">${fy}</td>`
        + nameCell(r)
        + (latest ? metricCells(latest, latest.period) : dash)
+       + ptsCell(r.pts)
        + `</tr>`;
   }
   return h + `</tbody></table>`;
@@ -651,6 +680,18 @@ $("#earn-list").addEventListener("keydown", e => {
     ? document.querySelector(`#earn-list [data-no="${nxt.id}"]`)
     : document.querySelector(`#earn-list [data-code="${nxt.id}"]`);
   if(el) el.scrollIntoView({block:"nearest"});
+});
+
+$("#earn-list").addEventListener("click", e => {
+  const th = e.target.closest("th[data-sort]");
+  if(!th) return;
+  const key = th.dataset.sort;
+  const dir = earnSort && earnSort.key===key ? earnSort.dir : 0;
+  earnSort = dir===0 ? {key, dir:-1} : dir<0 ? {key, dir:1} : null;
+  const sc = $("#earn-list").scrollTop;
+  renderList();
+  $("#earn-list").scrollTop = sc;
+  scrollToSel();
 });
 
 $("#earn-groups").addEventListener("click", e => {

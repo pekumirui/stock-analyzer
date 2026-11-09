@@ -113,6 +113,7 @@ flowchart LR
   n0 -.- n20
   n1 -.- n15
   n1 -.- n16
+  n1 -.- n19
   n1 -.- n20
   n1 -.- n22
   n1 -.- n23
@@ -144,7 +145,7 @@ flowchart LR
 | API | 書く | 読むだけ |
 |---|---|---|
 | `GET /api/chart/{code}` |  | `daily_prices`, `earnings_events`, `statements`, `stocks` |
-| `GET /api/earnings` |  | `earnings_date_fetches`, `earnings_date_pubs`, `statements`, `stocks`, `xbrl_filings`, `xbrl_financials`, `xbrl_std_items` |
+| `GET /api/earnings` |  | `earnings_date_fetches`, `earnings_date_pubs`, `pts_snapshots`, `statements`, `stocks`, `xbrl_filings`, `xbrl_financials`, `xbrl_std_items` |
 | `GET /api/earnings-performance/{code}` |  | `earnings_events` |
 | `GET /api/earnings/calendar` |  | `earnings_date_pubs`, `statements`, `stocks` |
 | `GET /api/pts` |  | `daily_prices`, `pts_snapshots` |
@@ -222,7 +223,7 @@ flowchart LR
 ### pts_snapshots
 
 - 書く: `jobs/market/pts_snapshot.py`
-- 読むだけ: `GET /api/pts`
+- 読むだけ: `GET /api/earnings`, `GET /api/pts`
 
 ### statements
 
