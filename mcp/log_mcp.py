@@ -8,6 +8,7 @@ Monthly table tools call http://127.0.0.1:8000/api/v1/tables only (not nginx, no
 monthly_ingest POSTs /api/v1/tables/{code}/ingest and does not send year.
 FX tools read fx_rates (EUR base) and compute cross rates. They do not call Frankfurter.
 fs_list / fs_read / fs_grep are read-only over allowlisted roots (data/, /var/log/app).
+Earnings tools GET fixed read-only paths on the same loopback FastAPI (earnings, stock, chart, topix).
 """
 from __future__ import annotations
 
@@ -45,6 +46,7 @@ if str(_REPO_ROOT) not in sys.path:
 if str(_MCP_DIR) not in sys.path:
     sys.path.insert(0, str(_MCP_DIR))
 
+import earnings_tools  # noqa: E402
 import fs_tools  # noqa: E402
 import xbrl_compare
 
@@ -1876,6 +1878,40 @@ def tool_xbrl_diff_summary(args: dict[str, Any]) -> str:
         conn.close()
 
 
+def _earnings_get():
+    return earnings_tools.make_getters(app_http_base)
+
+
+def tool_earnings_day(args: dict[str, Any]) -> str:
+    get_json, _ = _earnings_get()
+    return earnings_tools.tool_earnings_day(args, get_json, open_db)
+
+
+def tool_earnings_detail(args: dict[str, Any]) -> str:
+    get_json, _ = _earnings_get()
+    return earnings_tools.tool_earnings_detail(args, get_json, parse_code(args.get("code")))
+
+
+def tool_earnings_docs(args: dict[str, Any]) -> str:
+    get_json, _ = _earnings_get()
+    return earnings_tools.tool_earnings_docs(get_json, parse_code(args.get("code")))
+
+
+def tool_earnings_doc_read(args: dict[str, Any]) -> str:
+    get_json, get_text = _earnings_get()
+    return earnings_tools.tool_earnings_doc_read(args, get_json, get_text, parse_code(args.get("code")))
+
+
+def tool_stock_overview(args: dict[str, Any]) -> str:
+    get_json, _ = _earnings_get()
+    return earnings_tools.tool_stock_overview(args, get_json, parse_code(args.get("code")))
+
+
+def tool_market_context(args: dict[str, Any]) -> str:
+    get_json, _ = _earnings_get()
+    return earnings_tools.tool_market_context(args, get_json)
+
+
 DEFAULT_METRICS_HTTP = "http://127.0.0.1:8428"
 METRICS_HTTP_TIMEOUT = 15
 METRICS_MAX_QUERY_CHARS = 4000
@@ -2272,6 +2308,98 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
             },
         },
         tool_xbrl_diff_summary,
+    ),
+    "earnings_day": (
+        (
+            "決算速報の 1 日分（決算速報画面と同じ計算）。開示 1 件 1 行と未発表の銘柄を TSV で。"
+            "列は業種・発表時刻・Q・通期営利予想の上方/下方・訂正・PTS 終値比（株探 PTS ランキング各75位以内だけ）・終値・時価総額・予想PER・"
+            "売上/営利/経利/純利の累計と YoY・3か月と QoQ（百万円）・営利進捗率と前年同期・決算翌日の騰落。"
+            "並べ替えと絞り込みは画面の操作と同じ程度だけ。好決算かどうかの判断はしない。"
+            "集中日は 700 行を超えるので offset / limit で読む。date 省略は今日。"
+        ),
+        {
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "YYYY-MM-DD. Default today"},
+                "today": {"type": "string", "description": "YYYY-MM-DD the caller treats as today (splits disclosed / not yet). Default server today"},
+                "sort": {"type": "string", "enum": list(earnings_tools.SORTS), "description": "time = screen order (default). pts_* by PTS change, rows without PTS last"},
+                "sectors": {"type": "array", "items": {"type": "string"}, "description": "33-sector names as in the rows (e.g. 電気機器). 未分類 for none"},
+                "quarters": {"type": "array", "items": {"type": "string", "enum": list(earnings_tools.QUARTERS)}, "description": "FY and 5Q count as 4Q"},
+                "codes": {"type": "array", "items": {"type": "string"}, "description": "only these codes (4 or 5 chars)"},
+                "offset": {"type": "integer", "description": "rows to skip, default 0"},
+                "limit": {"type": "integer", "description": f"rows, 1-{earnings_tools.MAX_DAY_LIMIT}, default {earnings_tools.DEFAULT_DAY_LIMIT}"},
+            },
+        },
+        tool_earnings_day,
+    ),
+    "earnings_detail": (
+        (
+            "1 銘柄の決算表（決算速報の業績と同じ）。累計の年比較と中間・通期予想、3か月の時系列、進捗率の年比較、通期予想の修正履歴（直近 4 年度）。"
+            "disclosure_no 省略は最新の実績開示。金額は百万円。"
+        ),
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
+                "disclosure_no": {"type": "string", "description": "disclosure_no column of earnings_day. Omit for the latest actual disclosure"},
+            },
+            "required": ["code"],
+        },
+        tool_earnings_detail,
+    ),
+    "earnings_docs": (
+        "1 銘柄の短信・開示（TDnet の XBRL 原文と IR BANK の PDF）と決算説明資料の一覧。本文は earnings_doc_read。",
+        {
+            "type": "object",
+            "properties": {"code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"}},
+            "required": ["code"],
+        },
+        tool_earnings_docs,
+    ),
+    "earnings_doc_read": (
+        (
+            "earnings_docs の 1 件の本文をテキストで。kind=filing は短信の原文（id と seq）、pdf は PDF から変換した原文（id=開示番号。崩れることがある）、"
+            "deck は決算説明資料の読み取り結果（id=key。ページごとのタイトル・要約・表）。長いので offset / length で読む。"
+        ),
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
+                "kind": {"type": "string", "enum": ["filing", "pdf", "deck"]},
+                "id": {"type": "string", "description": "filing id / disclosure_no / deck key from earnings_docs"},
+                "seq": {"type": "integer", "description": "filing document seq from earnings_docs (kind=filing)"},
+                "offset": {"type": "integer", "description": "character offset, default 0"},
+                "length": {"type": "integer", "description": f"characters, 1000-{earnings_tools.MAX_DOC_LENGTH}, default {earnings_tools.DEFAULT_DOC_LENGTH}"},
+            },
+            "required": ["code", "kind", "id"],
+        },
+        tool_earnings_doc_read,
+    ),
+    "stock_overview": (
+        (
+            "1 銘柄のバリュエーションと株価の位置。予想PER・PBR・予想配当利回り・ROE・自己資本比率・時価総額、次の決算予定、"
+            "today 時点の騰落（5〜240日）と 1 年高値・安値からの距離、出来高、過去の決算後の株価（翌日〜60日、対TOPIX）。"
+        ),
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
+                "today": {"type": "string", "description": "YYYY-MM-DD as-of for price stats and next earnings. Default today"},
+            },
+            "required": ["code"],
+        },
+        tool_stock_overview,
+    ),
+    "market_context": (
+        "地合い。TOPIX の date 時点の騰落（1〜240日）と 1 年高値からの距離、直近 days 日の終値。date 省略は今日。",
+        {
+            "type": "object",
+            "properties": {
+                "date": {"type": "string", "description": "YYYY-MM-DD. Default today"},
+                "days": {"type": "integer", "description": "daily rows, 1-250, default 20"},
+            },
+        },
+        tool_market_context,
     ),
     "metrics_query": (
         (
