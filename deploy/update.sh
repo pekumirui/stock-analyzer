@@ -164,6 +164,8 @@ upsert_env ESTAT_APP_ID "${ESTAT_APP_ID:-}"
 upsert_env EDINET_API_KEY "${EDINET_API_KEY:-}"
 upsert_env ANTHROPIC_API_KEY "${ANTHROPIC_API_KEY:-}"
 upsert_env MCP_TOKEN "${MCP_TOKEN:-}"
+upsert_env CF_ACCESS_TEAM_DOMAIN "${CF_ACCESS_TEAM_DOMAIN:-}"
+upsert_env CF_ACCESS_AUD "${CF_ACCESS_AUD:-}"
 upsert_env R2_ACCESS_KEY_ID "${R2_ACCESS_KEY_ID:-}"
 upsert_env R2_SECRET_ACCESS_KEY "${R2_SECRET_ACCESS_KEY:-}"
 

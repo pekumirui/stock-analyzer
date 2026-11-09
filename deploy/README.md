@@ -48,6 +48,12 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 | `VPS_HOST` / `VPS_USER` / `VPS_PORT` | 任意 | 未設定なら `160.251.179.50` / `stock` / `22` |
 | `CERTBOT_EMAIL` | 任意 | 無いと certbot は `--register-unsafely-without-email` |
 
+GitHub Variables（秘密ではない）:
+
+| Name | 内容 |
+|---|---|
+| `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD` | Cloudflare Access のチームのドメイン（`<team>.cloudflareaccess.com`）と Application の AUD。あるときだけ `.env` の当該行を更新。無ければ Access の証明は通らず Basic 認証だけ |
+
 `stock.db` はパイプラインが触らない。初回データは手元で backfill して scp するか、VPS 上で `jobs/market/run_batch.py`。
 
 ## パイプラインが毎回やること
@@ -64,11 +70,32 @@ uvicorn のワーカー数は `deploy/uvicorn_workers.py` が起動時に決め�
 
 証明書の更新は `certbot.timer`（1日2回）。更新後は `renewal-hooks/deploy` で nginx を reload する。
 
-ブラウザは [https://kabukpi.com/monthly](https://kabukpi.com/monthly) が公開の月次。個人ツールは [https://kabukpi.com/app](https://kabukpi.com/app)（Basic 認証）。証明書は RSA + ISRG Root X1。ECDSA 既定の Root YE は端末にまだ無く「セキュリティ保護なし」になる。
+ブラウザは [https://kabukpi.com/monthly](https://kabukpi.com/monthly) が公開の月次。個人ツールは [https://kabukpi.com/app](https://kabukpi.com/app)（Cloudflare Access か Basic 認証。下の「Cloudflare」）。証明書は RSA + ISRG Root X1。ECDSA 既定の Root YE は端末にまだ無く「セキュリティ保護なし」になる。
 
-公開 location は `/monthly`・GET `/api/v1/tables`（code/year まで）・`/static/`・`robots.txt` / `sitemap.xml`。書き込み API と `/app` は Basic。公開側に `limit_req` は付けない。`/static/` は `$APP_DIR/static/` を nginx が `alias` で直配信する（`Cache-Control: no-cache`）。`/static/monthly_row_order.json` と `/static/ir_monthly_codes.json` だけ uvicorn。provision が `www-data` 用に `$HOME` へ `o+x`、`static/` へ `a+rX` を付け、`gzip_types` に css/js を入れる（`conf.d/stock-analyzer-gzip.conf`）。
+公開 location は `/monthly`・GET `/api/v1/tables`（code/year まで）・`/static/`・`robots.txt` / `sitemap.xml`。書き込み API と `/app` は Basic か Access。公開側に `limit_req` は付けない。`/static/` は `$APP_DIR/static/` を nginx が `alias` で直配信する（`Cache-Control: no-cache`）。`/static/monthly_row_order.json` と `/static/ir_monthly_codes.json` だけ uvicorn。provision が `www-data` 用に `$HOME` へ `o+x`、`static/` へ `a+rX` を付け、`gzip_types` に css/js を入れる（`conf.d/stock-analyzer-gzip.conf`）。
 
 ホスト鍵は `deploy/known_hosts` にピン留め。VPS を作り直したら `ssh-keyscan YOUR_HOST` で更新する。
+
+## Cloudflare（プロキシと Access）
+
+kabukpi.com の DNS は Cloudflare。A レコードをプロキシ（オレンジの雲）にし、ログインが要る場所を Cloudflare Access で守る。
+
+nginx の Basic 認証の場所（`auth_block`）は `satisfy any` で、Basic 認証か Access の証明のどちらかで通す。Access の証明は Cloudflare が付ける `Cf-Access-Jwt-Assertion` を nginx の `auth_request` が uvicorn の `/_auth/cf-access`（`app/cf_access.py`）に渡し、署名・AUD・発行元・期限を確かめる。ヘッダーは偽造できるので、Cloudflare の IP からかどうかでは判断しない。VPS の IP に直接来たアクセスや Access の証明が無いアクセスは今までどおり Basic 認証。`conf.d/stock-analyzer-realip.conf` が Cloudflare の IP 範囲（[一覧](https://www.cloudflare.com/ips/)）からの `CF-Connecting-IP` を送り元として扱う（`limit_conn` とアクセスログ）。範囲が変わったら `deploy/nginx-site.sh` の `CF_IPS` を直す。
+
+ダッシュボードの手順（順番どおり）:
+
+1. nginx と `app/cf_access.py` をデプロイする（プロキシ前なので何も変わらない）
+2. **SSL/TLS** → **Overview** を **Full (strict)**。VPS の Let's Encrypt の証明書をそのまま使う
+3. **DNS** → `kabukpi.com`（と `www`）の A レコードを **Proxied** にする。SSH と Actions のデプロイは IP 直なので影響しない
+4. Zero Trust → **Access** → **Applications** → **Add** → **Self-hosted**。ログイン方法は wiki と同じ One-time PIN、ポリシーは **Allow**・Include は **Emails** に本人のアドレスだけ。**Session Duration** は最長（1 か月）
+5. 同じ Application の公開しない Hostname / Path: `kabukpi.com/app`、`kabukpi.com/api`、`kabukpi.com/docs`、`kabukpi.com/redoc`、`kabukpi.com/openapi.json`
+6. もう 1 つ Self-hosted の Application を `kabukpi.com/api/v1/tables` で作り、ポリシーは **Bypass**・Include は **Everyone**。公開の `/monthly` の画面がこの GET を読む。Access はより長いパスの Application を使う。SPA はここに書き込まない（書き込みは MCP と loopback）
+7. 1 つめの Application の **Overview** の **Application Audience (AUD) Tag** を GitHub Variables `CF_ACCESS_AUD`、チームのドメイン（**Settings** → **Custom Pages** の Team domain）を `CF_ACCESS_TEAM_DOMAIN` に入れてデプロイし直す
+8. 確認: 未ログインのブラウザで `/app` が Access の画面になり、ログイン後は Basic 認証が出ない。`/monthly`・`/api/v1/tables`・`/mcp`（Claude.ai のコネクタ）が今までどおり
+
+Cloudflare 経由では、オリジンの応答が約 100 秒止まると 524 で切れる（Free）。`/mcp` の `db_query` は約 2 分まで待つので、100 秒を超える問い合わせは切れる。
+
+戻すとき: DNS の A レコードを **DNS only** に戻す。nginx はそのままでよい（証明が来なければ Basic 認証）。
 
 ## CVE-2026-98432（IPv4 TCP の緩和とカーネル）
 
