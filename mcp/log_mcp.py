@@ -2314,7 +2314,6 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
             "決算速報の 1 日分（決算速報画面と同じ計算）。開示 1 件 1 行と未発表の銘柄を TSV で。"
             "列は業種・発表時刻・Q・通期営利予想の上方/下方・訂正・PTS 終値比（株探 PTS ランキング各75位以内だけ）・終値・時価総額・予想PER・"
             "売上/営利/経利/純利の累計と YoY・3か月と QoQ（百万円）・営利進捗率と前年同期・決算翌日の騰落。"
-            "並べ替えと絞り込みは画面の操作と同じ程度だけ。好決算かどうかの判断はしない。"
             "集中日は 700 行を超えるので offset / limit で読む。date 省略は今日。"
         ),
         {
@@ -2391,7 +2390,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_stock_overview,
     ),
     "market_context": (
-        "地合い。TOPIX の date 時点の騰落（1〜240日）と 1 年高値からの距離、直近 days 日の終値。date 省略は今日。",
+        "TOPIX の date 時点の騰落（1〜240日）と 1 年高値からの距離、直近 days 日の終値。date 省略は今日。",
         {
             "type": "object",
             "properties": {
