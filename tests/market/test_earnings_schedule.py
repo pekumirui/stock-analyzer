@@ -6,7 +6,7 @@ import os
 import sys
 import tempfile
 from contextlib import redirect_stdout
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -39,7 +39,7 @@ from app.market.earnings_schedule import (  # noqa: E402
     sync,
 )
 from app.db import upsert  # noqa: E402
-from app.models import EarningsDateFetch, EarningsDatePub, Statement, Stock  # noqa: E402
+from app.models import EarningsDateFetch, EarningsDatePub, PtsSnapshot, Statement, Stock  # noqa: E402
 
 TODAY = date(2026, 10, 2)
 
@@ -629,6 +629,61 @@ def test_scheduled_latest_markup() -> None:
         _fail("決算期 1Q実績 must stay on one line")
 
 
+def test_rows_carry_latest_pts_of_the_session() -> None:
+    """その日のセッションで最後に取ったランキングの値。どのランキングにも無い銘柄と別の日は null。"""
+    db = _db()
+    try:
+        ingest_pub_date(db, _JQ([  # type: ignore[arg-type]
+            _wire(Code="65040", SchDate="2026-11-05", CoName="富士電機", FQName="2Q"),
+        ]), date(2026, 9, 20))
+        upsert(db, Stock, [
+            {"code": "72030", "name": "トヨタ自動車", "product_category": "011"},
+            {"code": "40620", "name": "イビデン", "product_category": "011"},
+            {"code": "65040", "name": "富士電機", "product_category": "011"},
+        ])
+        _add_stmt(db, "toyota-2q", "72030", "2Q", date(2027, 3, 31), date(2026, 11, 5), 200_000_000)
+        _add_stmt(db, "ibiden-2q", "40620", "2Q", date(2027, 3, 31), date(2026, 11, 5), 100_000_000)
+
+        def snap(at, ranking, code, price, chg, sd=date(2026, 11, 5)):
+            at = datetime.fromisoformat(at)
+            return {"fetched_at": at, "ranking": ranking, "code": code, "session_date": sd,
+                    "as_of": at.strftime("%H:%M"), "rank": 1, "name": code, "market": "東Ｐ",
+                    "base_close": 1000.0, "pts_price": price, "pts_chg_pct": chg, "volume": 100}
+        upsert(db, PtsSnapshot, [
+            snap("2026-11-05 18:00", "night_up", "72030", 1050.0, 5.0),
+            snap("2026-11-05 23:30", "night_volume", "72030", 1080.0, 8.0),
+            snap("2026-11-05 23:30", "night_up", "65040", 1100.5, 10.05),
+            snap("2026-11-04 23:30", "night_down", "40620", 900.0, -10.0,
+                 sd=date(2026, 11, 4)),
+        ])
+        db.commit()
+    finally:
+        db.close()
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    body = TestClient(app).get("/api/earnings",
+                               params={"date": "2026-11-05", "today": "2026-11-05"}).json()
+    pts = {r["code"]: r["pts"] for r in body["actuals"] + body["scheduled"]}
+    if pts["72030"] != {"price": 1080.0, "chg_pct": 8.0, "base_close": 1000.0, "as_of": "23:30"}:
+        _fail(pts)
+    if pts["40620"] is not None or (pts["65040"] or {}).get("price") != 1100.5:
+        _fail(pts)
+
+
+def test_sort_and_pts_markup() -> None:
+    js = (ROOT / "static" / "js" / "earnings.js").read_text(encoding="utf-8")
+    if 'head("pts", "PTS", true)' not in js or js.count("ptsCell(r.pts)") != 2:
+        _fail("PTS column goes after 純利 on both published and scheduled rows")
+    if "th[data-sort]" not in js or "earnSort = dir===0 ? {key, dir:-1} : dir<0 ? {key, dir:1} : null" not in js:
+        _fail("header click cycles 降順 → 昇順 → 元の順")
+    if "const shownActuals = () => sorted(" not in js or "shownActuals().map" not in js:
+        _fail("arrow keys walk the sorted order")
+    if "(a[1]==null) - (b[1]==null)" not in js:
+        _fail("rows without a value stay at the bottom in both directions")
+
+
 def test_routes() -> None:
     db = _db()
     try:
@@ -652,6 +707,7 @@ def test_routes() -> None:
         "periods": [{"fq": "2Q", "fye": "0331", "label": "FY27.3"}],
         "sector33": None,
         "latest": None,
+        "pts": None,
     }]:
         _fail(body)
     if body.get("ready") is not False or body.get("actuals") != []:

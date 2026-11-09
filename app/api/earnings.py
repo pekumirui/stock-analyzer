@@ -13,6 +13,7 @@ from ..models import Stock, Statement
 from ..market.analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
                         disclosure_state, earnings_detail as build_earnings_detail)
 from ..market.earnings_schedule import ActualMonth, day_payload, month_payload
+from ..market.pts import latest_by_code as pts_by_code
 from ..market.revisions import jquants_points
 from ..revisions import revision_rows
 from ..xbrl.gross_profit import attach_gross_profit
@@ -162,6 +163,15 @@ def attach_latest_actuals(db: Session, payload: dict, as_of: date) -> dict:
     return payload
 
 
+def attach_pts(db: Session, payload: dict, day: date) -> dict:
+    """実績と予定の行に、その日のセッションの PTS を pts で足す。ランキングに無ければ null。"""
+    rows = (payload.get("actuals") or []) + (payload.get("scheduled") or [])
+    found = pts_by_code(db, day, {r["code"] for r in rows})
+    for r in rows:
+        r["pts"] = found.get(r["code"])
+    return payload
+
+
 def earnings_rows(db: Session, day: date) -> list[dict]:
     """その日の決算速報一覧 (QoQ=Q単独の前四半期比 / YoY=累計の前年同期比)。"""
     codes = select(Statement.code).where(
@@ -195,7 +205,7 @@ def earnings_by_date(date_: str = Query(..., alias="date"),
                      db: Session = Depends(get_session)):
     day = _pd(date_)
     payload = day_payload(db, day, resolve_today(today), earnings_rows(db, day))
-    return attach_latest_actuals(db, payload, day)
+    return attach_pts(db, attach_latest_actuals(db, payload, day), day)
 
 
 @router.get("/earnings/detail/{code}")

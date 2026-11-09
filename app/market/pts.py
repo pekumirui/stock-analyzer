@@ -202,3 +202,18 @@ def snapshot_all(db: Session, http: httpx.Client, *, now: datetime | None = None
 def client() -> httpx.Client:
     return httpx.Client(timeout=20, follow_redirects=True,
                         headers={"User-Agent": USER_AGENT, "Accept-Language": "ja"})
+
+
+def latest_by_code(db: Session, session_date: date, codes) -> dict[str, dict]:
+    """そのセッションで、どれかのランキングに載った銘柄の最新の取得。載らない銘柄はキーが無い。"""
+    codes = list(codes)
+    if not codes:
+        return {}
+    out: dict[str, dict] = {}
+    for r in (db.query(PtsSnapshot)
+              .filter(PtsSnapshot.session_date == session_date, PtsSnapshot.code.in_(codes))
+              .order_by(PtsSnapshot.fetched_at.desc())):
+        if r.code not in out:
+            out[r.code] = {"price": r.pts_price, "chg_pct": r.pts_chg_pct,
+                           "base_close": r.base_close, "as_of": r.as_of}
+    return out
