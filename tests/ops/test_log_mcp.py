@@ -362,6 +362,12 @@ def test_http_auth_and_tools() -> None:
         "monthly_put_doc",
         "monthly_set_industry",
         "monthly_ingest",
+        "earnings_day",
+        "earnings_detail",
+        "earnings_docs",
+        "earnings_doc_read",
+        "stock_overview",
+        "market_context",
     }
     if names != expect:
         raise SystemExit(f"tools {names} != {expect}")
