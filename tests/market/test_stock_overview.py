@@ -100,7 +100,7 @@ def test_spa_stock_sub_tabs() -> None:
     assert 'id="st-filing"' not in html
     assert "/api/stock/${code}/overview" in js
     assert 'writeRoute("stock", stockRoutePath(), "stock-news", true)' in js
-    assert '"popstate"' in js
+    assert '"popstate"' in tabs
     assert "history.pushState" in tabs
 
 

@@ -360,12 +360,6 @@ $("#st-back").onclick = e => {
   renderStockNews();
 };
 
-window.addEventListener("popstate", () => {
-  if($("#tab-stock").style.display === "none") return;
-  const r = parseRoute(location.hash);
-  if(r.tab === "stock" && r.code) openStockRoute(r.code);
-});
-
 function showStockNewsDetail(f){
   const head = $("#st-news-head");
   if(!f || !f.documents.length){

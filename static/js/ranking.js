@@ -36,7 +36,7 @@ function showRankingSub(sub, opts){
   document.querySelectorAll("#rk-subs .ftab").forEach(b => b.classList.toggle("on", b.dataset.rksub === rkSub));
   $("#rk-sub-perf").hidden = rkSub !== "perf";
   $("#rk-sub-pts").hidden = rkSub !== "pts";
-  const clicked = sub != null && !(opts && opts.force);
+  const clicked = sub != null && !opts;
   const from = clicked ? (rkSub === "pts" ? "ranking" : (prev === "ranking-pts" ? "ranking-pts" : "")) : undefined;
   writeRoute("ranking", rankingSubRoute(), from);
   const force = !!(opts && opts.force);
