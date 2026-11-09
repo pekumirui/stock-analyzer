@@ -52,6 +52,18 @@ QUIET_NGINX_REGEXES: tuple[str, ...] = (
 )
 QUIET_OUTPUT_TAG = "quiet"
 
+# Designed denials: nginx-site.sh `limit_except GET { deny all; }` on the public
+# /monthly and /api/v1/tables locations. Dropped (not paged) by a grep Exclude
+# on the nginx tag. GET/HEAD, other paths/methods/deny reasons still page.
+EXPECTED_NGINX_DENY_REGEXES: tuple[str, ...] = (
+    (
+        r'\[error\] [0-9]+.[0-9]+: \*[0-9]+ access forbidden by rule, client: [^ ,]+, server: [^ ,]+, '
+        r'request: "(POST|PUT|PATCH|DELETE|OPTIONS) '
+        r'(/monthly([/?][^ "]*)?|/api/v1/tables(\?[^ "]*)?|/api/v1/tables/[0-9][0-9A-Z]{3}[0-9](/[0-9]{4})?(\?[^ "]*)?) '
+        r'HTTP/[0-9.]+"'
+    ),
+)
+
 SECRET_LINE_MARKERS: tuple[str, ...] = (
     "hooks.slack.com",
     "?token=",
@@ -140,6 +152,8 @@ def alert_output_tag(source: str, line: str) -> str:
 
 def should_page(source: str, line: str) -> bool:
     if any(marker in line for marker in SECRET_LINE_MARKERS):
+        return False
+    if source == "nginx" and any(re.search(regex, line) for regex in EXPECTED_NGINX_DENY_REGEXES):
         return False
     for pattern in ALERT_PATTERNS:
         if pattern.source != source:

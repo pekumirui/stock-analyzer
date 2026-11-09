@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "deploy"))
 
 from alert_patterns import (  # noqa: E402
     ALERT_PATTERNS,
+    EXPECTED_NGINX_DENY_REGEXES,
     GREP_FIELD,
     QUIET_NGINX_REGEXES,
     QUIET_OUTPUT_TAG,
@@ -179,6 +180,136 @@ INFRA_NGINX_PAGE: tuple[tuple[str, str], ...] = (
 )
 
 
+# nginx-site.sh limit_except GET { deny all; } (real error.log lines 2026-10/11). Not paged.
+EXPECTED_NGINX_DENY: tuple[tuple[str, str], ...] = (
+    (
+        "nginx",
+        (
+            '2026/11/08 14:07:21 [error] 59941#59941: *4841 access forbidden by rule, client: 34.32.224.183, '
+            'server: kabukpi.com, request: "POST /monthly HTTP/1.1", host: "kabukpi.com"'
+        ),
+    ),
+    (
+        "nginx",
+        (
+            '2026/10/28 00:39:53 [error] 731395#731395: *4245 access forbidden by rule, client: 144.217.135.164, '
+            'server: kabukpi.com, request: "OPTIONS /monthly HTTP/1.1", host: "kabukpi.com"'
+        ),
+    ),
+    (
+        "nginx",
+        (
+            '2026/11/08 14:07:21 [error] 1#1: *2 access forbidden by rule, client: 2400:cb00::1, '
+            'server: kabukpi.com, request: "POST /monthly/7203?x=1 HTTP/2.0", host: "kabukpi.com"'
+        ),
+    ),
+    (
+        "nginx",
+        (
+            '2026/11/08 14:07:21 [error] 1#1: *2 access forbidden by rule, client: 1.2.3.4, '
+            'server: kabukpi.com, request: "DELETE /api/v1/tables HTTP/1.1", host: "kabukpi.com"'
+        ),
+    ),
+    (
+        "nginx",
+        (
+            '2026/11/08 14:07:21 [error] 1#1: *2 access forbidden by rule, client: 1.2.3.4, '
+            'server: kabukpi.com, request: "PUT /api/v1/tables/130A0/2025 HTTP/1.1", host: "kabukpi.com"'
+        ),
+    ),
+)
+
+# Must keep paging on #alerts-infra (KAB-401): auth failures, real 5xx, upstream, crit/emerg,
+# and any deny that is not the designed limit_except one.
+INFRA_NGINX_KEEP: tuple[tuple[str, str], ...] = (
+    (
+        "nginx",
+        (
+            "2026/11/09 09:42:06 [error] 97863#97863: *7449 auth request unexpected status: 404 while sending to client, "
+            'client: 74.235.120.220, server: kabukpi.com, request: "GET /app HTTP/1.1", host: "kabukpi.com"'
+        ),
+    ),
+    (
+        "nginx",
+        (
+            "2026/11/09 09:42:22 [error] 97860#97860: *7467 auth request unexpected status: 404 while sending to client, "
+            'client: 74.235.120.220, server: kabukpi.com, request: "GET /api/screener HTTP/1.1", host: "kabukpi.com"'
+        ),
+    ),
+    (
+        "nginx",
+        (
+            '2026/11/08 14:07:21 [error] 1#1: *2 access forbidden by rule, client: 1.2.3.4, '
+            'server: kabukpi.com, request: "GET /monthly HTTP/1.1", host: "kabukpi.com"'
+        ),
+    ),
+    (
+        "nginx",
+        (
+            '2026/11/08 14:07:21 [error] 1#1: *2 access forbidden by rule, client: 1.2.3.4, '
+            'server: kabukpi.com, request: "HEAD /monthly HTTP/1.1", host: "kabukpi.com"'
+        ),
+    ),
+    (
+        "nginx",
+        (
+            '2026/11/08 14:07:21 [error] 1#1: *2 access forbidden by rule, client: 1.2.3.4, '
+            'server: kabukpi.com, request: "POST /app HTTP/1.1", host: "kabukpi.com"'
+        ),
+    ),
+    (
+        "nginx",
+        (
+            '2026/11/08 14:07:21 [error] 1#1: *2 access forbidden by rule, client: 1.2.3.4, '
+            'server: kabukpi.com, request: "POST /monthlyx HTTP/1.1", host: "kabukpi.com"'
+        ),
+    ),
+    (
+        "nginx",
+        (
+            '2026/11/08 14:07:21 [error] 1#1: *2 access forbidden by rule, client: 1.2.3.4, '
+            'server: kabukpi.com, request: "PROPFIND /monthly HTTP/1.1", host: "kabukpi.com"'
+        ),
+    ),
+    (
+        "nginx",
+        (
+            '2026/11/08 14:07:21 [error] 1#1: *2 access forbidden by rule, client: 1.2.3.4, '
+            'server: kabukpi.com, request: "POST /api/v1/tables/7203/extra HTTP/1.1", host: "kabukpi.com"'
+        ),
+    ),
+    (
+        "nginx",
+        (
+            '2026/11/08 14:07:21 [error] 1#1: *2 directory index of "/x/" is forbidden, client: 1.2.3.4, '
+            'server: kabukpi.com, request: "POST /monthly HTTP/1.1", host: "kabukpi.com"'
+        ),
+    ),
+    (
+        "nginx",
+        (
+            '2026/11/08 14:07:21 [error] 1#1: *2 upstream prematurely closed connection while reading response header '
+            'from upstream, client: 1.2.3.4, server: kabukpi.com, request: "POST /monthly HTTP/1.1", '
+            'upstream: "http://127.0.0.1:8000/monthly", host: "kabukpi.com"'
+        ),
+    ),
+    (
+        "nginx",
+        (
+            '2026/11/08 14:07:21 [crit] 1#1: *2 access forbidden by rule, client: 1.2.3.4, '
+            'server: kabukpi.com, request: "POST /monthly HTTP/1.1", host: "kabukpi.com"'
+        ),
+    ),
+    ("nginx", "2026/08/05 12:00:00 [error] 12#12: *1 upstream timed out (110: Connection timed out)"),
+    ("nginx", "2026/08/05 12:00:00 [emerg] 12#12: bind() failed"),
+)
+
+# Real app access lines from the same 2026-11-09 incident must stay on #alerts-app.
+APP_KEEP: tuple[tuple[str, str], ...] = (
+    ("app", 'INFO:     127.0.0.1:43721 - "GET /app HTTP/1.1" 500 Internal Server Error'),
+    ("app", 'INFO:     127.0.0.1:43721 - "GET /api/screener HTTP/1.1" 500 Internal Server Error'),
+)
+
 def _fail(msg: str) -> None:
     raise SystemExit(msg)
 
@@ -206,6 +337,70 @@ def test_fixtures() -> None:
             _fail(f"real nginx error must not be quiet: {line!r}")
     if QUIET_OUTPUT_TAG.startswith("nginx"):
         _fail("quiet tag must not start with nginx (Match nginx is prefix)")
+    for source, line in EXPECTED_NGINX_DENY:
+        if should_page(source, line):
+            _fail(f"designed nginx deny must not page: {line!r}")
+    for source, line in (*INFRA_NGINX_KEEP, *APP_KEEP):
+        if not should_page(source, line):
+            _fail(f"must keep paging {source}: {line!r}")
+        if alert_output_tag(source, line) != source:
+            _fail(f"must stay on {source} tag: {line!r}")
+
+
+def test_expected_nginx_deny_exclude_in_conf() -> None:
+    """Exclude lines on Match nginx equal EXPECTED_NGINX_DENY_REGEXES; nowhere else."""
+    conf = (ROOT / "deploy" / "fluent-bit.conf").read_text(encoding="utf-8")
+    excludes: list[tuple[str, str]] = []
+    for block in _grep_blocks(conf):
+        lines = block["lines"]
+        assert isinstance(lines, list)
+        for line in lines:
+            assert isinstance(line, str)
+            parts = line.split(None, 2)
+            if len(parts) == 3 and parts[0].lower() == "exclude":
+                excludes.append((str(block["match"]), f"{parts[1]} {parts[2]}"))
+    nginx_excludes = sorted(val for match, val in excludes if match == "nginx")
+    want = sorted(f"log {regex}" for regex in EXPECTED_NGINX_DENY_REGEXES)
+    if nginx_excludes != want:
+        _fail(f"fluent-bit.conf nginx Exclude must equal EXPECTED_NGINX_DENY_REGEXES: {nginx_excludes!r}")
+    for regex in EXPECTED_NGINX_DENY_REGEXES:
+        if "#" in regex:
+            _fail("nginx Exclude regex must not contain # (config comment)")
+        for _match, val in excludes:
+            if val == f"log {regex}" and _match != "nginx":
+                _fail(f"designed deny Exclude must only Match nginx, got {_match}")
+    compiled = [re.compile(r) for r in EXPECTED_NGINX_DENY_REGEXES]
+    for _source, line in EXPECTED_NGINX_DENY:
+        if not any(rx.search(line) for rx in compiled):
+            _fail(f"Exclude must drop designed deny: {line!r}")
+    for _source, line in (*INFRA_NGINX_KEEP, *INFRA_NGINX_PAGE, *QUIET_PAGE):
+        if any(rx.search(line) for rx in compiled):
+            _fail(f"Exclude must not drop: {line!r}")
+
+
+def test_expected_nginx_deny_follows_limit_except() -> None:
+    """The suppressed paths are exactly the nginx-site.sh locations with limit_except GET deny all."""
+    site = (ROOT / "deploy" / "nginx-site.sh").read_text(encoding="utf-8")
+    denied: list[str] = []
+    location = ""
+    for raw in site.splitlines():
+        stripped = raw.strip()
+        if stripped.startswith("location "):
+            location = stripped
+        elif stripped == "limit_except GET { deny all; }":
+            denied.append(location)
+    want = [
+        "location ^~ /monthly {",
+        "location = /api/v1/tables {",
+        'location ~ "^/api/v1/tables/[0-9][0-9A-Z]{3}[0-9](?:/[0-9]{4})?\\$" {',
+    ]
+    if denied != want:
+        _fail(
+            "nginx-site.sh limit_except locations changed; update EXPECTED_NGINX_DENY_REGEXES "
+            f"and this test together: {denied!r}"
+        )
+    if "deny all;" in site.replace("limit_except GET { deny all; }", ""):
+        _fail("nginx-site.sh has another deny all; decide whether it should page before excluding it")
 
 
 def _section_body(conf: str, header: str, needle: str) -> str:
