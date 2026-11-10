@@ -549,10 +549,10 @@ Stage3 を Stage1 より先に見るのは、天井圏で 200日線に沿って�
 | `GET /api/v1/tables/{code}` | その銘柄の年度一覧 |
 | `DELETE /api/v1/tables/{code}/{year}/elements` | 空の月次行を消す。body `{element}`。値が残っていれば 409 `ELEMENT_HAS_VALUES`。表は残す。未登録は 404。マスタ無しは 4xx `NOT_IN_MASTER` |
 | `PUT /api/v1/tables/{code}/{year}/values/batch` | 複数月を検証してから一括 commit。マスタ無しは 4xx `NOT_IN_MASTER` |
-| `GET /api/v1/tables/{code}/{year}/doc` | `PUT /doc` の元になる文書。`{code, year, version, elements}`。行は `sort_order` 順で、値の無い行も出す。各行 `{element, unit, values, tree?}`（`values` は `"1"`〜`"12"`、`tree` は木の path）。`version` は行名・unit・並び・値のハッシュ。公開の nginx の口には載せない（Basic の後ろ） |
+| `GET /api/v1/tables/{code}/{year}/doc` | `PUT /doc` の元になる文書。`{code, year, version, elements}`。行は `sort_order` 順で、値の無い行も出す。各行 `{element, unit, values, tree?}`（`values` は `"1"`〜`"12"`、`tree` は木の path）。`version` は行名・unit・並び・値のハッシュ。公開の nginx の口には載せない（Access の後ろ） |
 | `PUT /api/v1/tables/{code}/{year}/doc` | 文書を丸ごと返して 1 トランザクションで書く。body `{version, elements, allow_structure_change?, dry_run?}`。行名は渡したまま（正規化・エイリアスを掛けない）。`was` で改名（値はサーバーが移す）、文書に無い行は削除、`was` の無い新しい名前は作成（`unit` 必須、末尾に並ぶ）。`values` を渡した行は 12 か月を置き換え（無い月・null は削除）、省いた行は値をそのまま。`version` が違えば 409 `VERSION_MISMATCH`。改名・作成・削除・unit 変更は `allow_structure_change=true` のときだけ（無ければ 409 `STRUCTURE_CHANGED`）。`dry_run=true` は書かずに `changes` を返す。config の木に入らない行は `warnings` の `NOT_IN_TREE` |
 
-月次 API のエラーは `{"error": {"code": "...", "message": "..."}}`。閲覧 GET は公開。書き込みは loopback のみ（nginx 経由は 403）。本番の個人ツールは `/app` と Cloudflare Access か Basic 認証（`deploy/README.md` の「Cloudflare」）。
+月次 API のエラーは `{"error": {"code": "...", "message": "..."}}`。閲覧 GET は公開。書き込みは loopback のみ（nginx 経由は 403）。本番の個人ツールは `/app` と Cloudflare Access（`deploy/README.md` の「Cloudflare」）。
 
 ### ヘッダーとパンくずの置き場所
 
@@ -623,7 +623,7 @@ Stage3 を Stage1 より先に見るのは、天井圏で 200日線に沿って�
 | DB | `stock.db`（VPS の SSD）。`DATABASE_URL` は今の SQLite のまま |
 | バッチ | crontab（19:30 JST の J-Quants 日次。株探 PTS は平日 15:30〜24:00 の 30 分ごと。yfinance 1 分足は平日 20:30。為替は 08:00 JST。パッケージ一覧は 06:40 JST。SQLite バックアップは 05:00 JST） |
 | バックアップ | OneDrive（日次 7・週次 4）。VPS の gzip は送信確認後に消す。手順は [`docs/DESIGN_backup.md`](docs/DESIGN_backup.md) |
-| 公開 | nginx + Let's Encrypt。月次閲覧は `/monthly`（Basic なし）。個人ツールは `/app` + Cloudflare Access か Basic 認証。`/static/` は nginx が直配信（`monthly_row_order.json` / `ir_monthly_codes.json` だけ uvicorn） |
+| 公開 | nginx + Let's Encrypt。月次閲覧は `/monthly`（Access なし）。個人ツールは `/app` + Cloudflare Access。`/static/` は nginx が直配信（`monthly_row_order.json` / `ir_monthly_codes.json` だけ uvicorn） |
 | 開発 | 今どおり Windows + `.\run.ps1` |
 
 推奨プランは **メモリ 2GB / SSD 100GB**（東京）。512MB は Python + pandas + SQLite で足りない。時間課金で立ててから長期契約を判断する。

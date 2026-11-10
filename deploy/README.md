@@ -3,7 +3,7 @@
 手で nginx / ufw / systemd を積む必要はない。**root でデプロイ鍵を一度入れる**と、あとは GitHub Actions が冪等に初期設定する。
 
 `deploy/provision.sh` が apt / nginx / ufw / certbot / systemd / crontab を冪等に揃える。
-nginx の設定の正本は `deploy/nginx-site.sh`（`provision.sh` が source して `/etc/nginx` に書く）。CI の `tests/ops/test_nginx_public.py` が同じものを組み立てて `nginx -t` に通し、起動して公開 / Basic 認証 / MCP の振り分けを確かめる。
+nginx の設定の正本は `deploy/nginx-site.sh`（`provision.sh` が source して `/etc/nginx` に書く）。CI の `tests/ops/test_nginx_public.py` が同じものを組み立てて `nginx -t` に通し、起動して公開 / Access / MCP の振り分けを確かめる。
 
 ## 一度だけ（root）
 
@@ -42,7 +42,6 @@ sudoers を更新したあとは、既存 VPS でも **もう一度 `enable-cicd
 | `SLACK_WEBHOOK_URL_BATCH` | 任意 | Incoming Webhook（#alerts-batch、タグ `batch`）。未設定・空なら #alerts にフォールバック |
 | `SLACK_WEBHOOK_URL_INFRA` | 任意 | Incoming Webhook（#alerts-infra、タグ `nginx` / `mcp` / `systemd`）。未設定・空なら #alerts にフォールバック |
 | `SLACK_WEBHOOK_URL_QUIET` | 任意 | Incoming Webhook（#alerts-quiet、タグ `quiet`。nginx の `limiting connections by zone` と再起動中の `connect() failed (111: Connection refused)`）。未設定・空なら `SLACK_WEBHOOK_URI_INFRA`（#alerts-infra）にフォールバック。`.env` には入れない |
-| `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | 推奨 | nginx Basic 認証。無ければ既存 `htpasswd` を残す |
 | `MCP_TOKEN` | 推奨 | ログ MCP の Bearer トークン。`openssl rand -hex 32`。無ければ VPS 上で生成（値は CI に出ない） |
 | `VPS_DOMAIN` | 任意 | 未設定なら `160.251.179.50.sslip.io` |
 | `VPS_HOST` / `VPS_USER` / `VPS_PORT` | 任意 | 未設定なら `160.251.179.50` / `stock` / `22` |
@@ -52,7 +51,7 @@ GitHub Variables（秘密ではない）:
 
 | Name | 内容 |
 |---|---|
-| `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD` | Cloudflare Access のチームのドメイン（`<team>.cloudflareaccess.com`）と Application の AUD。あるときだけ `.env` の当該行を更新。無ければ Access の証明は通らず Basic 認証だけ |
+| `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD` | Cloudflare Access のチームのドメイン（`<team>.cloudflareaccess.com`）と Application の AUD。あるときだけ `.env` の当該行を更新。無ければ Access の証明は通らず `/app` などは 401 |
 
 `stock.db` はパイプラインが触らない。初回データは手元で backfill して scp するか、VPS 上で `jobs/market/run_batch.py`。
 
@@ -70,9 +69,9 @@ uvicorn のワーカー数は `deploy/uvicorn_workers.py` が起動時に決め�
 
 証明書の更新は `certbot.timer`（1日2回）。更新後は `renewal-hooks/deploy` で nginx を reload する。
 
-ブラウザは [https://kabukpi.com/monthly](https://kabukpi.com/monthly) が公開の月次。個人ツールは [https://kabukpi.com/app](https://kabukpi.com/app)（Cloudflare Access か Basic 認証。下の「Cloudflare」）。証明書は RSA + ISRG Root X1。ECDSA 既定の Root YE は端末にまだ無く「セキュリティ保護なし」になる。
+ブラウザは [https://kabukpi.com/monthly](https://kabukpi.com/monthly) が公開の月次。個人ツールは [https://kabukpi.com/app](https://kabukpi.com/app)（Cloudflare Access。下の「Cloudflare」）。証明書は RSA + ISRG Root X1。ECDSA 既定の Root YE は端末にまだ無く「セキュリティ保護なし」になる。
 
-公開 location は `/monthly`・GET `/api/v1/tables`（code/year まで）・`/static/`・`robots.txt` / `sitemap.xml`。書き込み API と `/app` は Basic か Access。公開側に `limit_req` は付けない。`/static/` は `$APP_DIR/static/` を nginx が `alias` で直配信する（`Cache-Control: no-cache`）。`/static/monthly_row_order.json` と `/static/ir_monthly_codes.json` だけ uvicorn。provision が `www-data` 用に `$HOME` へ `o+x`、`static/` へ `a+rX` を付け、`gzip_types` に css/js を入れる（`conf.d/stock-analyzer-gzip.conf`）。
+公開 location は `/monthly`・GET `/api/v1/tables`（code/year まで）・`/static/`・`robots.txt` / `sitemap.xml`。書き込み API と `/app` は Access。公開側に `limit_req` は付けない。`/static/` は `$APP_DIR/static/` を nginx が `alias` で直配信する（`Cache-Control: no-cache`）。`/static/monthly_row_order.json` と `/static/ir_monthly_codes.json` だけ uvicorn。provision が `www-data` 用に `$HOME` へ `o+x`、`static/` へ `a+rX` を付け、`gzip_types` に css/js を入れる（`conf.d/stock-analyzer-gzip.conf`）。
 
 ホスト鍵は `deploy/known_hosts` にピン留め。VPS を作り直したら `ssh-keyscan YOUR_HOST` で更新する。
 
@@ -80,7 +79,7 @@ uvicorn のワーカー数は `deploy/uvicorn_workers.py` が起動時に決め�
 
 kabukpi.com の DNS は Cloudflare。A レコードをプロキシ（オレンジの雲）にし、ログインが要る場所を Cloudflare Access で守る。
 
-nginx の Basic 認証の場所（`auth_block`）は `satisfy any` で、Basic 認証か Access の証明のどちらかで通す。Access の証明は Cloudflare が付ける `Cf-Access-Jwt-Assertion` を nginx の `auth_request` が uvicorn の `/_auth/cf-access`（`app/cf_access.py`）に渡し、署名・AUD・発行元・期限を確かめる。ヘッダーは偽造できるので、Cloudflare の IP からかどうかでは判断しない。VPS の IP に直接来たアクセスや Access の証明が無いアクセスは今までどおり Basic 認証。`conf.d/stock-analyzer-realip.conf` が Cloudflare の IP 範囲（[一覧](https://www.cloudflare.com/ips/)）からの `CF-Connecting-IP` を送り元として扱う（`limit_conn` とアクセスログ）。範囲が変わったら `deploy/nginx-site.sh` の `CF_IPS` を直す。
+nginx の認証の場所（`auth_block`）は `auth_request` だけで、Access の証明は Cloudflare が付ける `Cf-Access-Jwt-Assertion` を nginx の `auth_request` が uvicorn の `/_auth/cf-access`（`app/cf_access.py`）に渡し、署名・AUD・発行元・期限を確かめる。ヘッダーは偽造できるので、Cloudflare の IP からかどうかでは判断しない。VPS の IP に直接来たアクセスや Access の証明が無いアクセスは 401。`CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD` が無いと全部 401 になる。`conf.d/stock-analyzer-realip.conf` が Cloudflare の IP 範囲（[一覧](https://www.cloudflare.com/ips/)）からの `CF-Connecting-IP` を送り元として扱う（`limit_conn` とアクセスログ）。範囲が変わったら `deploy/nginx-site.sh` の `CF_IPS` を直す。
 
 ダッシュボードの手順（順番どおり）:
 
@@ -91,11 +90,11 @@ nginx の Basic 認証の場所（`auth_block`）は `satisfy any` で、Basic �
 5. 同じ Application の公開しない Hostname / Path: `kabukpi.com/app`、`kabukpi.com/api`、`kabukpi.com/docs`、`kabukpi.com/redoc`、`kabukpi.com/openapi.json`
 6. もう 1 つ Self-hosted の Application を `kabukpi.com/api/v1/tables` で作り、ポリシーは **Bypass**・Include は **Everyone**。公開の `/monthly` の画面がこの GET を読む。Access はより長いパスの Application を使う。SPA はここに書き込まない（書き込みは MCP と loopback）
 7. 1 つめの Application の **Overview** の **Application Audience (AUD) Tag** を GitHub Variables `CF_ACCESS_AUD`、チームのドメイン（**Settings** → **Custom Pages** の Team domain）を `CF_ACCESS_TEAM_DOMAIN` に入れてデプロイし直す
-8. 確認: 未ログインのブラウザで `/app` が Access の画面になり、ログイン後は Basic 認証が出ない。`/monthly`・`/api/v1/tables`・`/mcp`（Claude.ai のコネクタ）が今までどおり
+8. 確認: 未ログインのブラウザで `/app` が Access の画面になり、直接 IP で `/app` を開くと 401。`/monthly`・`/api/v1/tables`・`/mcp`（Claude.ai のコネクタ）が今までどおり
 
 Cloudflare 経由では、オリジンの応答が約 100 秒止まると 524 で切れる（Free）。`/mcp` の `db_query` は約 2 分まで待つので、100 秒を超える問い合わせは切れる。
 
-戻すとき: DNS の A レコードを **DNS only** に戻す。nginx はそのままでよい（証明が来なければ Basic 認証）。
+戻すとき: DNS の A レコードを **DNS only** に戻す。Access の証明が来なくなるので `/app` などは 401 のまま（Basic 認証は無い）。
 
 ## CVE-2026-98432（IPv4 TCP の緩和とカーネル）
 
@@ -224,7 +223,7 @@ rsync -a --ignore-existing -e 'ssh -i ~/.ssh/vps_monthly_push -o IdentitiesOnly=
 
 ## ログ MCP（Grok）
 
-VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 認証なしで `/mcp` だけプロキシする。ポート 8010 は外に開けない。
+VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Access なしで `/mcp` だけプロキシする。ポート 8010 は外に開けない。
 
 ツール:
 
@@ -259,7 +258,7 @@ VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Basic 認
   - `stock_overview` — `/api/stock/{code}/overview` と `/api/chart/{code}` と `/api/earnings-performance/{code}`。PER・PBR・利回り・ROE・自己資本比率・時価総額、次の決算予定、`today` 時点の騰落と 1 年高安からの距離、過去の決算後の株価
   - `market_context` — `/api/topix` の `date` 時点の騰落と直近の日足
 
-任意コマンドも restart もない。任意 SQL は `db_query` の読み取り専用 SELECT / WITH 1 文（先頭の `EXPLAIN` / `EXPLAIN QUERY PLAN` 可）だけ。月次ツールと決算ツールは FastAPI の `http://127.0.0.1:8000` だけを叩く（nginx Basic は使わない。決算ツールは決まった GET だけ）。ログ系の行数は最大 500。`.env` の値は伏せる。
+任意コマンドも restart もない。任意 SQL は `db_query` の読み取り専用 SELECT / WITH 1 文（先頭の `EXPLAIN` / `EXPLAIN QUERY PLAN` 可）だけ。月次ツールと決算ツールは FastAPI の `http://127.0.0.1:8000` だけを叩く（nginx は通らない。決算ツールは決まった GET だけ）。ログ系の行数は最大 500。`.env` の値は伏せる。
 `fs_*` のプロセスユーザは `stock`。`stock-analyzer-mcp.service` の `LogsDirectory=app`（mode 0755）で `/var/log/app` の所有者は既に `stock` なので、ログ root を読むための追加 ACL や supplementary group は不要。`data/` は `WorkingDirectory` 配下。`LogsDirectoryMode` を後から絞るときは `stock` が `/var/log/app` を読める状態を保つ。
 `monthly_get` の `values` は 1〜12。無い月は null。0 は実ゼロ。1年通して値のない行は出さない。
 月次の unit は PDF 見出しから付ける（`DESIGN.md` §3 の表）。既存行の unit 変更は `PUT /api/v1/tables/{code}/{year}/elements`（`{element, unit}`）。行はその unit の正規名へ付け替わる。
@@ -308,7 +307,7 @@ Cursor / Grok Bot も同じ OAuth（PKCE、クライアントシークレット�
 - フォールバック: `cursor://anysphere.cursor-mcp/oauth/callback`
 - Claude: `https://claude.ai/api/mcp/auth_callback` と `https://claude.com/api/mcp/auth_callback`
 
-well-known は Basic 認証の外。`/.well-known/oauth-authorization-server` と `/.well-known/openid-configuration`（同じ AS メタデータ。`/mcp` 付きも含む）と `/oauth/` は MCP プロセスへプロキシする。
+well-known は Access の外。`/.well-known/oauth-authorization-server` と `/.well-known/openid-configuration`（同じ AS メタデータ。`/mcp` 付きも含む）と `/oauth/` は MCP プロセスへプロキシする。
 `/.well-known/` 全体は外さない（acme-challenge は従来どおり）。
 
 MCP 自体が死んだときの退避路は Actions の **Debug VPS**。

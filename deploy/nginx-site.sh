@@ -5,16 +5,10 @@ APP_DIR="${APP_DIR:-/home/stock/stock-analyzer}"
 APP_UPSTREAM="${APP_UPSTREAM:-127.0.0.1:8000}"
 MCP_UPSTREAM="${MCP_UPSTREAM:-127.0.0.1:8010}"
 
-auth_block=""
-if [[ -f "$HTPASSWD" ]]; then
-  auth_block=$(cat <<EOF
-    satisfy any;
-    auth_basic "stock-analyzer";
-    auth_basic_user_file ${HTPASSWD};
+auth_block=$(cat <<EOF
     auth_request /_cf_access;
 EOF
 )
-fi
 
 CF_IPS="173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32"
 
@@ -66,11 +60,9 @@ proxy_block=$(cat <<EOF
         proxy_read_timeout 10s;
     }
     location = / {
-        auth_basic off;
         return 301 /monthly;
     }
     location = /robots.txt {
-        auth_basic off;
         limit_conn addr 16;
 ${pub_headers}
         proxy_pass http://${APP_UPSTREAM};
@@ -81,7 +73,6 @@ ${pub_headers}
         proxy_read_timeout 60s;
     }
     location = /sitemap.xml {
-        auth_basic off;
         limit_conn addr 16;
 ${pub_headers}
         proxy_pass http://${APP_UPSTREAM};
@@ -92,7 +83,6 @@ ${pub_headers}
         proxy_read_timeout 60s;
     }
     location = /favicon.ico {
-        auth_basic off;
 ${pub_headers}
         proxy_pass http://${APP_UPSTREAM};
         proxy_set_header Host \$host;
@@ -102,7 +92,6 @@ ${pub_headers}
         proxy_read_timeout 60s;
     }
     location ^~ /monthly {
-        auth_basic off;
         limit_conn addr 16;
         limit_except GET { deny all; }
 ${pub_headers}
@@ -115,7 +104,6 @@ ${pub_headers}
         proxy_read_timeout 60s;
     }
     location = /static/monthly_row_order.json {
-        auth_basic off;
 ${pub_headers}
         proxy_pass http://${APP_UPSTREAM};
         proxy_set_header Host \$host;
@@ -125,7 +113,6 @@ ${pub_headers}
         proxy_read_timeout 60s;
     }
     location = /static/ir_monthly_codes.json {
-        auth_basic off;
 ${pub_headers}
         proxy_pass http://${APP_UPSTREAM};
         proxy_set_header Host \$host;
@@ -135,13 +122,11 @@ ${pub_headers}
         proxy_read_timeout 60s;
     }
     location ^~ /static/ {
-        auth_basic off;
 ${pub_headers}
         add_header Cache-Control "no-cache" always;
         alias ${APP_DIR}/static/;
     }
     location = /api/v1/tables {
-        auth_basic off;
         limit_conn addr 16;
         limit_except GET { deny all; }
 ${pub_headers}
@@ -153,7 +138,6 @@ ${pub_headers}
         proxy_read_timeout 60s;
     }
     location ~ "^/api/v1/tables/[0-9][0-9A-Z]{3}[0-9](?:/[0-9]{4})?\$" {
-        auth_basic off;
         limit_conn addr 16;
         limit_except GET { deny all; }
 ${pub_headers}
@@ -201,7 +185,6 @@ ${auth_block}
         proxy_read_timeout 60s;
     }
     location ^~ /.well-known/oauth- {
-        auth_basic off;
         proxy_pass http://${MCP_UPSTREAM};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -213,7 +196,6 @@ ${auth_block}
         client_max_body_size 1m;
     }
     location ^~ /.well-known/openid-configuration {
-        auth_basic off;
         proxy_pass http://${MCP_UPSTREAM};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -225,7 +207,6 @@ ${auth_block}
         client_max_body_size 1m;
     }
     location ^~ /oauth/ {
-        auth_basic off;
         proxy_pass http://${MCP_UPSTREAM};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -238,7 +219,6 @@ ${auth_block}
         client_max_body_size 1m;
     }
     location ~ ^/mcp/?$ {
-        auth_basic off;
         proxy_pass http://${MCP_UPSTREAM};
         proxy_http_version 1.1;
         proxy_set_header Host \$host;
@@ -272,7 +252,6 @@ EOF
 
 acme_block=$(cat <<EOF
     location /.well-known/acme-challenge/ {
-        auth_basic off;
         allow all;
         root ${ACME_ROOT};
     }
