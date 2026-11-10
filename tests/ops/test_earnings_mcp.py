@@ -292,3 +292,22 @@ def test_app_get_stays_on_loopback_paths(monkeypatch):
     monkeypatch.setenv("MCP_APP_HTTP", "http://example.com")
     text, err = m.call_tool("market_context", {})
     assert err and "loopback" in text
+
+
+def test_html_to_text_keeps_table_rows():
+    ixbrl = (
+        "<html><body><ix:header><xbrli:context>2027-03-31 98800</xbrli:context></ix:header>"
+        "<table><tr><td><p>売上高</p></td><td><p>百万円</p><p>13,996</p></td></tr>"
+        "<tr><td>予想</td><td></td><td>90.00</td></tr></table></body></html>"
+    )
+    text = et.html_to_text(ixbrl)
+    assert text.splitlines() == ["売上高\t百万円 13,996", "", "予想\t\t90.00"]
+    svg = (
+        '<svg><text x="10" y="50.2" font-size="9" textLength="27">売上高</text>'
+        '<text x="200" y="50" font-size="9" textLength="30">13,996</text>'
+        '<text x="10" y="20" font-size="9" textLength="18">決算</text>'
+        '<text x="29" y="20" font-size="9" textLength="18">短信</text>'
+        '<text x="50" y="20" font-size="9" textLength="9">A</text></svg>'
+        '<svg><text x="10" y="20" font-size="9" textLength="9">次</text></svg>'
+    )
+    assert et.html_to_text(svg).splitlines() == ["決算短信 A", "売上高\t13,996", "", "次"]

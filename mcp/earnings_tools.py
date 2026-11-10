@@ -429,38 +429,93 @@ def tool_earnings_docs(get_json: GetJson, code5: str) -> str:
 
 
 class _Text(HTMLParser):
-    BLOCK = frozenset({"p", "div", "br", "tr", "li", "h1", "h2", "h3", "h4", "h5", "h6", "table", "section", "text"})
-    SKIP = frozenset({"script", "style", "head"})
+    BLOCK = frozenset({"p", "div", "br", "tr", "li", "h1", "h2", "h3", "h4", "h5", "h6", "table", "section"})
+    ROW = frozenset({"tr", "table"})
+    SKIP = frozenset({"script", "style", "head", "ix:header"})
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.parts: list[str] = []
         self._skip = 0
+        self._cell = 0
+        self._words: list[list[Any]] | None = None
+        self._word: list[Any] | None = None
 
-    def handle_starttag(self, tag: str, attrs: Any) -> None:  # noqa: ARG002
+    def handle_starttag(self, tag: str, attrs: Any) -> None:
         if tag in self.SKIP:
             self._skip += 1
+        elif tag == "svg":
+            self._words = []
+        elif tag == "text" and self._words is not None:
+            a = dict(attrs)
+            self._word = [_attr_float(a, "y"), _attr_float(a, "x"), _attr_float(a, "textlength"),
+                          _attr_float(a, "font-size"), ""]
         elif tag in ("td", "th"):
             self.parts.append("\t")
+            self._cell += 1
         elif tag in self.BLOCK:
-            self.parts.append("\n")
+            self.parts.append(" " if self._cell and tag not in self.ROW else "\n")
 
     def handle_endtag(self, tag: str) -> None:
         if tag in self.SKIP and self._skip:
             self._skip -= 1
+        elif tag == "svg" and self._words is not None:
+            self.parts.append("\n" + _svg_rows(self._words) + "\n\n")
+            self._words = None
+        elif tag == "text" and self._word is not None and self._words is not None:
+            self._words.append(self._word)
+            self._word = None
+        elif tag in ("td", "th"):
+            self._cell = max(0, self._cell - 1)
         elif tag in self.BLOCK:
-            self.parts.append("\n")
+            self.parts.append(" " if self._cell and tag not in self.ROW else "\n")
 
     def handle_data(self, data: str) -> None:
-        if not self._skip:
+        if self._skip:
+            return
+        if self._word is not None:
+            self._word[4] += data
+        elif self._words is None:
             self.parts.append(data)
+
+
+def _attr_float(attrs: dict[str, Any], key: str) -> float:
+    try:
+        return float(attrs.get(key) or 0)
+    except ValueError:
+        return 0.0
+
+
+def _svg_rows(words: list[list[Any]]) -> str:
+    rows: list[list[list[Any]]] = []
+    for w in sorted(words, key=lambda w: (w[0], w[1])):
+        if rows and abs(rows[-1][0][0] - w[0]) <= 1.0:
+            rows[-1].append(w)
+        else:
+            rows.append([w])
+    out = []
+    for row in rows:
+        row.sort(key=lambda w: w[1])
+        line = row[0][4]
+        for prev, cur in zip(row, row[1:]):
+            gap = cur[1] - (prev[1] + prev[2])
+            size = max(prev[3], cur[3], 1.0)
+            line += ("\t" if gap > size else " " if gap > size * 0.25 else "") + cur[4]
+        out.append(line)
+    return "\n".join(out)
+
+
+def _cells(line: str) -> str:
+    line = re.sub(r" *\t *", "\t", re.sub(r" +", " ", line)).strip(" ")
+    line = line.removeprefix("\t").rstrip("\t")
+    return line if line.strip("\t") else ""
 
 
 def html_to_text(raw: str) -> str:
     p = _Text()
     p.feed(raw)
     text = html.unescape("".join(p.parts)).replace("　", " ").replace("\xa0", " ")
-    lines = [re.sub(r"[ \t]+", lambda m: "\t" if "\t" in m.group(0) else " ", ln).strip() for ln in text.split("\n")]
+    lines = [_cells(ln) for ln in text.split("\n")]
     out: list[str] = []
     for ln in lines:
         if ln or (out and out[-1]):
