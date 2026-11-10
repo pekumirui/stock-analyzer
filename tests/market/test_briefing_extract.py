@@ -260,3 +260,23 @@ def test_no_thinking_and_missing_pdf(setup, tmp_path) -> None:
     ext = db.get(BriefingExtract, DOC_ID)
     assert ext.status == "failed" and "PDF" in ext.error
     db.close()
+
+
+def test_script_versions_are_not_read(setup) -> None:
+    db = SessionLocal()
+    try:
+        for doc_id, title in (
+            ("hpscript1", "2027年6月期 第1四半期 ノーツ付き決算説明資料"),
+            ("hpscript2", "第2四半期 決算説明資料(スクリプト付)"),
+            ("hpscript3", "第2四半期決算 説明会資料(ノート付き)"),
+            ("hpqa", "2027年3月期 第2四半期 書き起こし(プレゼンテーション / 質疑応答)"),
+        ):
+            db.add(BriefingDocument(source="homepage", document_id=doc_id, code=CODE, company_name="アドバンテスト",
+                                    pubdate="2026-11-10 15:00:00", title=title, rel_path=REL, url=None,
+                                    sha256="x", size=10, status="saved",
+                                    saved_at=datetime.now(bb.JST).replace(tzinfo=None)))
+        db.commit()
+        assert {p.document_id for p in bb.pending_documents(db)} == {DOC_ID, "hpqa"}
+        assert {p.document_id for p in bb.pending_documents(db, redo=True)} == {DOC_ID, "hpqa"}
+    finally:
+        db.close()
