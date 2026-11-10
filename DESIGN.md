@@ -255,6 +255,17 @@ IR BANK の過去の決算説明資料（`tools/briefing/irbank_ingest.py`。KAB
 - `--limit` はこの実行の社数。`--sleep` は請求の間隔（既定 1 秒）。`--dry-run` は一覧だけ見て、PDF も索引も `briefing_irbank_scans` も書かない（見た社は残件のまま）。`--rescan` でも `remaining` は scans が無い社数のまま（読み直した社は残件に入らない）
 - 手での実行は `deploy/README.md`。デプロイでも cron でも走らない
 
+会社の IR ページの決算説明資料（`jobs/market/homepage_briefing.py`。KAB-413）:
+
+- TDnet に説明資料を出さない会社の分（例: アルバック）。対象は `config/market/briefing_pages.json` の `issuers`（code / name / index_url）。index_url は資料が並ぶ一覧ページ。TDnet に資料を出す会社は載せない（開示番号が無いので TDnet の行と 1 つにまとまらず、同じ資料が 2 行になる）
+- 一覧ページの `<a href>` のうち、パスが `.pdf` で終わり、リンクの文字が `is_material_title` を通るもの。一覧は決算の資料置き場なので決算の語は補って判定し、資料の種類（説明資料・質疑応答など）はリンクの文字に要る。決算短信のリンク、文字の無いアイコンのリンクは採らない
+- 表題は「h2 以下の見出しを上から並べたもの + リンクの文字」（例: `2027年6月期 第1四半期 決算説明資料`）。h1（ページ名）は入れない
+- document_id は `hp` + sha1(code 5 桁・表題・PDF のファイル名) の頭 24 桁。URL の途中の番号は資料が足されるとずれるので使わない。会社がファイル名か見出しを変えると別の資料として取り直す
+- pubdate は一覧に日付が無いので PDF の作成日時（無ければ更新日時。JST に直す）。どちらも無いか未来なら取得した時刻。会社が PDF を作り直すと開示日より後ろへずれる
+- 保存先とファイル名は TDnet のジョブと同じ。索引は source=`homepage`、storage=`local`。索引にある PDF は取りに行かない
+- `--only` は設定にある code だけ（無い code は終了コード 2）。`--limit` は 1 社で新しく保存する件数（ページの上から）。`--dry-run` は新しく保存する分を出すだけで、PDF も索引も書かない
+- cron にはまだ入れていない。手での実行は `deploy/README.md`
+
 決算説明資料を OneDrive へ移す（`jobs/market/briefing_offsite.py`。KAB-345）:
 
 - 会社（索引の `code`）ごとに、資料の日付の最新から 1 年以上前の PDF だけを移す。日付はファイル名先頭の `YYYYMMDD`、取れなければ `pubdate`。最新の日付そのものは残る。別の会社の日付では切らない

@@ -402,6 +402,13 @@ deploy/cron-run.sh jobs/market/briefing_extract.py collect
 python jobs/market/briefing_extract.py status
 ```
 
+TDnet に説明資料を出さない会社の分（KAB-413）は `jobs/market/homepage_briefing.py` が会社の IR ページから取る。対象は `config/market/briefing_pages.json`。cron にはまだ入れていない。索引にある PDF は取り直さない。`--dry-run` は新しく保存する分を出すだけ。`--limit` は 1 社で新しく保存する件数（ページの上から）。
+
+```bash
+deploy/cron-run.sh jobs/market/homepage_briefing.py --only 6728 --dry-run
+deploy/cron-run.sh jobs/market/homepage_briefing.py --only 6728 --limit 2
+```
+
 1 年以上前の決算説明資料（KAB-345、送り方は KAB-355）は `jobs/market/briefing_offsite.py` が OneDrive へ移す。会社ごとに最新の資料の日付から 1 年以上前の PDF だけ。対象はバッチごとに取り直し、`rclone copy --files-from` でまとめて送り、`check --one-way` で一致したものだけ索引を `onedrive` にしてから手元を消す。行は消さない。途中で落ちても再実行で続きから揃う。`--dry-run` は対象を出すだけ。`--limit` はその実行の件数。毎日 1 回 cron が動かす（KAB-353。01:40 JST）。同じジョブが既に動いているときは移さず終わる。1 件ずつ送っている古いプロセスが残っている間も、新しい実行は移さない。止めてから次を始める。手の全件移動が先に走っていても二重にはならない。ログは `deploy/cron-run.sh` なら `/var/log/app/briefing_offsite.log`（`batch_logs` の `job=briefing_offsite`）。
 
 ```bash
