@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from ..db import get_session
 from ..holders import stock_holders as holders_payload
+from ..market.chart_fund import adjust_per_share, fund_steps
 from ..models import DailyPrice, EarningsDatePub, Statement, Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
 from ..xbrl.documents import SANITIZE_VERSION, load_html, sanitize_html
 from .monthly._common import ApiError, _parse_code
@@ -87,28 +88,41 @@ def _is_fy_actual(s: Statement) -> bool:
     return _is_actual(s) and (s.type_of_document or "").startswith("FY")
 
 
-def _forecast(stmts: list[tuple[Statement, dict]], key: str) -> float | None:
-    """今期の予想。新しい順に見て、決算短信本体ならそこで決める（本決算は来期予想 NxF*）。
+def _forecast(stmts: list[tuple[Statement, dict]], key: str) -> tuple[float | None, date | None]:
+    """今期の予想と開示日。新しい順に見て、決算短信本体ならそこで決める（本決算は来期予想 NxF*）。
     予想修正だけの開示は値があるときだけ使う。"""
     for s, raw in stmts:
         if _is_fy_actual(s):
-            return _num(raw, f"NxF{key}")
+            return _num(raw, f"NxF{key}"), s.disclosed_date
         if _is_actual(s):
-            return _num(raw, f"F{key}")
+            return _num(raw, f"F{key}"), s.disclosed_date
         v = _num(raw, f"F{key}")
         if v is not None:
-            return v
-    return None
+            return v, s.disclosed_date
+    return None, None
 
 
-def _latest(stmts: list[tuple[Statement, dict]], key: str, *, fy_only: bool = False) -> float | None:
+def _latest_with_date(stmts: list[tuple[Statement, dict]], key: str,
+                      *, fy_only: bool = False) -> tuple[float | None, date | None]:
     for s, raw in stmts:
         if not _is_actual(s) or (fy_only and not _is_fy_actual(s)):
             continue
         v = _num(raw, key)
         if v is not None:
-            return v
-    return None
+            return v, s.disclosed_date
+    return None, None
+
+
+def _latest(stmts: list[tuple[Statement, dict]], key: str, *, fy_only: bool = False) -> float | None:
+    return _latest_with_date(stmts, key, fy_only=fy_only)[0]
+
+
+def _per_share_now(value: float | None, disclosed: date | None, days: list[date],
+                   factors: list[float]) -> float | None:
+    """開示時点の 1 株あたりの値を、その後の分割・併合で今の株数にそろえる。"""
+    if value is None or disclosed is None:
+        return value
+    return adjust_per_share(value, disclosed, days, factors, None)
 
 
 def _ratio(a: float | None, b: float | None) -> float | None:
@@ -173,11 +187,15 @@ def stock_overview(code: str, today: str | None = Query(None, pattern=r"^\d{4}-\
     quote = _quote(db, code5)
     stmts = _statements_newest_first(db, code5)
     close = quote["close"] if quote else None
-    eps = _forecast(stmts, "EPS")
-    div = _forecast(stmts, "DivAnn")
+    px = db.query(DailyPrice.date, DailyPrice.adj_factor).filter(DailyPrice.code == code5).order_by(DailyPrice.date).all()
+    days, factors = [r[0] for r in px], [r[1] for r in px]
+    steps = fund_steps([s for s, _ in stmts], days, factors)["eps"]
+    eps = steps[-1] if steps else None
+    div = _per_share_now(*_forecast(stmts, "DivAnn"), days, factors)
+    bps = _per_share_now(*_latest_with_date(stmts, "BPS"), days, factors)
     metrics = {
         "per": _ratio(close, eps) if eps and eps > 0 else None,
-        "pbr": _ratio(close, _latest(stmts, "BPS")),
+        "pbr": _ratio(close, bps),
         "dividend_yield": _ratio(div, close),
         "roe": _latest(stmts, "ROE", fy_only=True),
         "equity_ratio": _latest(stmts, "EqAR"),

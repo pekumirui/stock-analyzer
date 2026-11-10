@@ -83,7 +83,30 @@ def test_fy_actual_without_forecast_hides_per() -> None:
     fy = _st("9", "2026-05-12", "FYFinancialStatements_Consolidated_JP", NxFEPS="", FEPS="")
     q3 = _st("8", "2026-02-10", "3QFinancialStatements_Consolidated_JP", FEPS="30.0")
     # 本決算で来期予想を出していなければ、前の四半期の今期予想（終わった年度）に戻らない
-    assert _forecast([(fy, json.loads(fy.raw_json)), (q3, json.loads(q3.raw_json))], "EPS") is None
+    assert _forecast([(fy, json.loads(fy.raw_json)), (q3, json.loads(q3.raw_json))], "EPS")[0] is None
+
+
+def test_overview_after_split(c) -> None:
+    """本決算のあとに 1:10 の分割。BPS・予想EPS・配当予想を分割後の株数にそろえる（KAB-406）。"""
+    db = SessionLocal()
+    try:
+        db.add(Stock(code="99970", name="分割工業"))
+        db.add_all([
+            DailyPrice(code="99970", date=date(2026, 5, 12), close=40000.0, adj_factor=1.0),
+            DailyPrice(code="99970", date=date(2026, 6, 29), close=4000.0, adj_factor=0.1),
+            DailyPrice(code="99970", date=date(2026, 10, 23), close=4100.0, adj_factor=1.0),
+        ])
+        fy = _st("97", "2026-05-12", "FYFinancialStatements_Consolidated_JP",
+                 NxFEPS="400.0", NxFDivAnn="100.0", BPS="6000.0")
+        fy.code, fy.type_of_period, fy.fiscal_year_end = "99970", "FY", date(2026, 3, 31)
+        db.add(fy)
+        db.commit()
+    finally:
+        db.close()
+    m = c.get("/api/stock/9997/overview?today=2026-10-26").json()["metrics"]
+    assert abs(m["pbr"] - 4100.0 / 600.0) < 1e-9
+    assert abs(m["per"] - 4100.0 / 40.0) < 1e-9
+    assert abs(m["dividend_yield"] - 10.0 / 4100.0) < 1e-9
 
 
 def test_spa_stock_sub_tabs() -> None:
