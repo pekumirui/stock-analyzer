@@ -11,7 +11,7 @@ from ..config import EARNINGS_PARAMS as EP, EARNINGS_EXCLUDE_PRODUCT_CATEGORIES
 from ..db import get_session
 from ..models import Stock, Statement
 from ..market.analytics import (METRIC_KEYS, PL_KEYS, quarter_summary, is_actual, period_label,
-                        disclosure_state, earnings_detail as build_earnings_detail)
+                        align_eps, disclosure_state, earnings_detail as build_earnings_detail, split_factors)
 from ..market.earnings_schedule import ActualMonth, day_payload, month_payload
 from ..market.pts import latest_by_code as pts_by_code
 from ..market.revisions import jquants_points
@@ -97,6 +97,9 @@ def prefetch_list_history(db: Session, codes, day: date) -> dict[str, list]:
             .order_by(Statement.code, Statement.disclosed_date, Statement.disclosure_no)):
         hist_by_code[row.code].append(SimpleNamespace(**row._asdict()))
     attach_gross_profit(db, [s for hist in hist_by_code.values() for s in hist])
+    splits = split_factors(db, codes, since, day)
+    for code, hist in hist_by_code.items():
+        align_eps(hist, splits.get(code, []), day)
     return hist_by_code
 
 

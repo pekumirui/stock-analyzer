@@ -2,6 +2,7 @@
 import json
 from bisect import bisect_right
 from datetime import date, timedelta
+from math import log
 
 import pandas as pd
 import numpy as np
@@ -442,13 +443,71 @@ SIGNED = {"net_sales": False, "gross_profit": True, "operating_profit": True, "o
           "profit": True, "eps": True}
 
 
+def _scale_eps(values: dict, scale: float) -> dict:
+    if scale != 1.0 and values.get("eps") is not None:
+        values["eps"] = round(values["eps"] * scale, 4)
+    return values
+
+
 def metrics(s: Statement) -> dict[str, float | None]:
-    return {k: getattr(s, k, None) for k in METRIC_KEYS}
+    """実績。EPS は align_eps が付けた係数で、比べる相手の株数にそろえる。"""
+    return _scale_eps({k: getattr(s, k, None) for k in METRIC_KEYS}, getattr(s, "eps_scale", 1.0))
 
 
 def forecast_values(s: Statement, prefix: str) -> dict[str, float | None]:
     """f2_ / fy_ の予想。売上総利益の予想は短信に無いので None。"""
-    return {k: getattr(s, prefix + k, None) for k in METRIC_KEYS}
+    return _scale_eps({k: getattr(s, prefix + k, None) for k in METRIC_KEYS}, getattr(s, "fc_eps_scale", 1.0))
+
+
+def split_factors(db: Session, codes, since: date, upto: date) -> dict[str, list[tuple[date, float]]]:
+    """(since, upto] の分割・併合の権利落ち日と adj_factor（1 でない日だけ）。"""
+    out: dict[str, list[tuple[date, float]]] = {}
+    q = (select(DailyPrice.code, DailyPrice.date, DailyPrice.adj_factor)
+         .where(DailyPrice.code.in_(codes), DailyPrice.date > since, DailyPrice.date <= upto,
+                DailyPrice.adj_factor.isnot(None), DailyPrice.adj_factor != 1.0)
+         .order_by(DailyPrice.code, DailyPrice.date))
+    for code, d, f in db.execute(q):
+        out.setdefault(code, []).append((d, f))
+    return out
+
+
+def _shares(profit: float | None, eps: float | None) -> float | None:
+    return profit / eps if profit and eps and profit / eps > 0 else None
+
+
+def _forecast_shares(s) -> float | None:
+    for prefix in ("fy_", "f2_"):
+        n = _shares(getattr(s, prefix + "profit", None), getattr(s, prefix + "eps", None))
+        if n:
+            return n
+    raw = getattr(s, "raw_json", None)
+    if not raw:
+        return None
+    try:
+        r = json.loads(raw)
+    except ValueError:
+        return None
+    return _shares(_f(r.get("NxFNp")), _f(r.get("NxFEPS")))
+
+
+def align_eps(stmts, splits: list[tuple[date, float]], upto: date) -> None:
+    """各開示の EPS を upto の日の株数にそろえる係数（eps_scale / fc_eps_scale）を付ける。
+
+    開示より後、upto までの権利落ちの adj_factor を掛ける。売上や利益は分割で変わらないので EPS だけ。
+    分割を発表した短信は予想 EPS を分割後の株数で出していることがあるので、予想の株数
+    （予想純利益 ÷ 予想 EPS）が実績の株数より分割後の株数に近ければ予想には掛けない。
+    """
+    for s in stmts:
+        f = 1.0
+        for d, a in splits:
+            if s.disclosed_date < d <= upto:
+                f *= a
+        s.eps_scale = s.fc_eps_scale = f
+        if f == 1.0:
+            continue
+        act, fc = _shares(s.profit, s.eps), _forecast_shares(s)
+        if act and fc and abs(log(fc * f / act)) < abs(log(fc / act)):
+            s.fc_eps_scale = 1.0
 
 
 def shift_year(d: date, n: int) -> date:
@@ -465,12 +524,15 @@ def is_actual(s: Statement) -> bool:
 
 
 def statement_history(db: Session, code: str, upto: date, days: int) -> list[Statement]:
-    """指定日から遡った開示履歴。raw_json は使わないので defer する。"""
-    return (db.query(Statement).options(defer(Statement.raw_json))
+    """指定日から遡った開示履歴。raw_json は使わないので defer する。EPS は upto の株数にそろえる。"""
+    since = upto - timedelta(days=days)
+    hist = (db.query(Statement).options(defer(Statement.raw_json))
             .filter(Statement.code == code,
                     Statement.disclosed_date <= upto,
-                    Statement.disclosed_date >= upto - timedelta(days=days))
+                    Statement.disclosed_date >= since)
             .order_by(Statement.disclosed_date, Statement.disclosure_no).all())
+    align_eps(hist, split_factors(db, [code], since, upto).get(code, []), upto)
+    return hist
 
 
 def _disc_key(s: Statement) -> tuple:
@@ -701,8 +763,9 @@ def next_year_forecast(stmt: Statement) -> tuple[date | None, dict, dict]:
         fy_end = date.fromisoformat(raw.get("NxtFYEn") or "")
     except ValueError:
         fy_end = shift_year(stmt.fiscal_year_end, 1) if stmt.fiscal_year_end else None
-    half = {k: _f(raw.get(v + "2Q")) for k, v in _NEXT_FC_KEYS.items()}
-    full = {k: _f(raw.get(v)) for k, v in _NEXT_FC_KEYS.items()}
+    scale = getattr(stmt, "fc_eps_scale", 1.0)
+    half = _scale_eps({k: _f(raw.get(v + "2Q")) for k, v in _NEXT_FC_KEYS.items()}, scale)
+    full = _scale_eps({k: _f(raw.get(v)) for k, v in _NEXT_FC_KEYS.items()}, scale)
     return fy_end, half, full
 
 
