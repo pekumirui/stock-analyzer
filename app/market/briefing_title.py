@@ -24,6 +24,9 @@
 - 決算概要、決算短信の要旨（質疑応答の語が無い）
 
 「修正」だけでは落とさない。補足資料の表題に業績予想の修正が入ることがある。
+
+台本つき版（ノーツ付き・ノート付き・スクリプト付・台本付）は保存するが、読み取りには回さない
+（is_script_title）。スライドはスライドだけの版と同じ。書き起こしと質疑応答は別の中身なので含めない。
 """
 from __future__ import annotations
 
@@ -43,6 +46,7 @@ _KINDS = (
 )
 # 「主な質疑」「質疑応答」を含む。要旨・概要だけでは採らない。
 _QA = ("質疑",)
+_SCRIPT = ("ノーツ付", "ノート付", "スクリプト付", "台本付")
 _EN_NOTICE = re.compile(
     r"\b(notice|correction|postponement|cancellation|canceled|cancelled)\b",
     re.I,
@@ -95,3 +99,9 @@ def title_decision(title: str | None) -> str:
 def is_material_title(title: str | None) -> bool:
     """決算説明資料・決算補足説明資料・説明会の資料・質疑応答。通知と訂正は含まない。"""
     return title_decision(title) == "accept"
+
+
+def is_script_title(title: str | None) -> bool:
+    """スライドに台本を付けた版。"""
+    text = compact_title(title)
+    return any(word in text for word in _SCRIPT)

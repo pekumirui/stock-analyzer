@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from app.db import run_sqlite_write, upsert
 from app.market import briefing_extract as bx
 from app.market.briefing_files import read_briefing
+from app.market.briefing_title import is_script_title
 from app.models import BriefingDocument, BriefingExtract, BriefingFact, BriefingPage
 
 JST = ZoneInfo("Asia/Tokyo")
@@ -91,10 +92,13 @@ class Pending:
 
 def pending_documents(db: Session, codes: Iterable[str] | None = None, limit: int | None = None,
                       redo: bool = False) -> list[Pending]:
-    """読む資料。新しい開示から。redo なら読み取り済み（done / failed）も読み直す（submitted は除く）。"""
+    """読む資料。新しい開示から。redo なら読み取り済み（done / failed）も読み直す（submitted は除く）。
+
+    台本つき版（is_script_title）は読まない。
+    """
     q = select(BriefingDocument.document_id, BriefingDocument.source, BriefingDocument.code,
-               BriefingDocument.rel_path, BriefingDocument.pubdate, BriefingDocument.storage
-               ).where(BriefingDocument.status == "saved")
+               BriefingDocument.rel_path, BriefingDocument.pubdate, BriefingDocument.storage,
+               BriefingDocument.title).where(BriefingDocument.status == "saved")
     if codes:
         q = q.where(BriefingDocument.code.in_(list(codes)))
     rows = db.execute(q.order_by(BriefingDocument.pubdate.desc())).all()
@@ -102,7 +106,7 @@ def pending_documents(db: Session, codes: Iterable[str] | None = None, limit: in
     best: dict[str, Pending] = {}
     for r in rows:
         st = states.get(r.document_id)
-        if st == STATUS_SUBMITTED or (st and not redo):
+        if st == STATUS_SUBMITTED or (st and not redo) or is_script_title(r.title):
             continue
         cur = best.get(r.document_id)
         rank = SOURCE_ORDER.index(r.source) if r.source in SOURCE_ORDER else len(SOURCE_ORDER)

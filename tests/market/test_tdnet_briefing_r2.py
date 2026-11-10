@@ -13,7 +13,7 @@ import pytest
 
 from app.db import SessionLocal
 from app.market.briefing_store import SOURCE_HOMEPAGE, SOURCE_TDNET, record_briefing
-from app.market.briefing_title import is_material_title, title_decision
+from app.market.briefing_title import is_material_title, is_script_title, title_decision
 from app.models import BriefingDocument
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -101,6 +101,24 @@ def test_corrections_and_notices_are_not_materials() -> None:
         assert title_decision(title) == "notice"
     for title in others:
         assert not is_material_title(title), title
+
+
+def test_script_titles() -> None:
+    for title in (
+        "2027年6月期 第1四半期 ノーツ付き決算説明資料",
+        "決算説明資料（スクリプト付）",
+        "説明会資料（ノート付き）",
+        "決算説明会資料 台本付き",
+    ):
+        assert is_script_title(title), title
+    for title in (
+        "2027年6月期 第1四半期 決算説明資料",
+        "説明会資料（スライドのみ）",
+        "書き起こし（プレゼンテーション / 質疑応答）",
+        "質疑応答サマリー",
+        None,
+    ):
+        assert not is_script_title(title), title
 
 
 def test_crontab_retries_missed_days() -> None:
