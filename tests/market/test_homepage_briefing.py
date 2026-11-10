@@ -207,4 +207,109 @@ def test_only_rejects_codes_outside_the_config(tmp_path: Path) -> None:
 
 def test_shipped_config_loads() -> None:
     issuers = mod.load_registry(ROOT / "config" / "market" / "briefing_pages.json")
-    assert [issuer.code for issuer in issuers] == ["6728"]
+    codes = [issuer.code for issuer in issuers]
+    assert "6728" in codes
+    assert codes == sorted(codes)
+
+
+def test_link_text_drops_size_and_format_notes() -> None:
+    cases = {
+        "プレゼンテーション資料(1.7MB)": "プレゼンテーション資料",
+        "質疑応答[PDF: 548KB]": "質疑応答",
+        "決算説明資料(第2四半期)(PDF 4,887KB)": "決算説明資料(第2四半期)",
+        "要旨(Q&A) (486 KB) pdf": "要旨(Q&A)",
+        "Q&A (PDF形式)": "Q&A",
+        "【一括版】プレゼンテーション資料(6.10MB/106ページ)": "【一括版】プレゼンテーション資料",
+        "2026年度第1四半期決算プレゼンテーション資料PDF": "2026年度第1四半期決算プレゼンテーション資料",
+        "(591KB)(新しいウィンドウで開きます)": "",
+        "ノーツ付き決算説明資料(新中長期経営計画)": "ノーツ付き決算説明資料(新中長期経営計画)",
+    }
+    for raw, want in cases.items():
+        assert mod.clean_link_text(raw) == want, raw
+
+
+def test_size_change_keeps_the_document_id() -> None:
+    page = '<h2>2027年3月期 第2四半期</h2><a href="/a/q2.pdf">説明資料(%s)</a>'
+    before = mod.parse_deck_links(page % "1.54MB", INDEX_URL, "63670")
+    after = mod.parse_deck_links(page % "1.60MB", INDEX_URL, "63670")
+    assert before[0].title == "2027年3月期 第2四半期 説明資料"
+    assert before[0].document_id == after[0].document_id
+
+
+def test_link_re_takes_texts_without_a_kind_word() -> None:
+    page = (
+        "<h2>2026年度</h2>"
+        '<a href="/a/pre.pdf">プレゼンテーション:2027年3月期 第2四半期 連結決算の概要 (PDF形式)</a>'
+        '<a href="/a/digital.pdf">プレゼンテーション:Hitachi Digital Presentation (PDF形式)</a>'
+        '<a href="/a/tanshin.pdf">決算短信 (PDF形式)</a>'
+        '<a href="/a/qa.pdf">決算説明会 Q&amp;A (PDF形式)</a>'
+    )
+    assert [link.title for link in mod.parse_deck_links(page, INDEX_URL, "65010")] == ["2026年度 決算説明会 Q&A"]
+    links = mod.parse_deck_links(page, INDEX_URL, "65010", "^プレゼンテーション:.*決算")
+    assert [link.title for link in links] == [
+        "2026年度 プレゼンテーション:2027年3月期 第2四半期 連結決算の概要",
+        "2026年度 決算説明会 Q&A",
+    ]
+
+
+def test_bad_link_re_is_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "bad.json"
+    path.write_text(
+        json.dumps({"issuers": [{"code": "6501", "name": "日立", "index_url": INDEX_URL, "link_re": "("}]}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="bad link_re"):
+        mod.load_registry(path)
+
+
+def test_index_follows_redirect_and_meta_refresh(tmp_path: Path) -> None:
+    year_url = "https://ir.example.com/ja/meeting/2027/index.html"
+    pages = {
+        INDEX_URL: ('<meta http-equiv="Refresh" content="0;URL=/ja/meeting/2027/index.html">', "https://ir.example.com/ja/meeting/index.html"),
+        year_url: ('<h2>2027年3月期</h2><a href="../pdf/q2_ppt.pdf">プレゼンテーション資料 (PDF 4.08MB)</a>', year_url),
+    }
+    asked: list[str] = []
+
+    def fake_page(url: str) -> tuple[bytes, str]:
+        asked.append(url)
+        body, final = pages[url]
+        return body.encode("utf-8"), final
+
+    out = io.StringIO()
+    with redirect_stdout(out):
+        rc = mod.run(
+            tmp_path / "briefing", _config(tmp_path),
+            get=lambda url: _pdf(url), get_page=fake_page, read_date=lambda data: None, now=NOW,
+        )
+    assert rc == 0
+    assert asked == [INDEX_URL, year_url]
+    (row,) = _rows()
+    assert row.url == "https://ir.example.com/ja/meeting/pdf/q2_ppt.pdf"
+    assert row.title == "2027年3月期 プレゼンテーション資料"
+
+
+def test_date_falls_back_to_the_day_in_the_url(tmp_path: Path) -> None:
+    page = (
+        '<h2>2026年度 第1四半期</h2><a href="/pdf/260803/20260803j.pdf">決算説明会資料</a>'
+        '<h2>2026年度 第2四半期</h2><a href="/pdf/20269999j.pdf">決算説明会資料</a>'
+    )
+    rc, _gets, _out = _run(tmp_path, page=page)
+    assert rc == 0
+    rows = {row.title: row.pubdate for row in _rows()}
+    assert rows["2026年度 第1四半期 決算説明会資料"] == "2026-08-03 00:00:00"
+    assert rows["2026年度 第2四半期 決算説明会資料"] == "2026-11-10 18:00:00"
+
+
+def test_same_day_same_title_gets_its_own_file(tmp_path: Path) -> None:
+    page = (
+        '<h2>2027年3月期</h2>'
+        '<a href="/pdf/q2_ppt.pdf">プレゼンテーション資料</a>'
+        '<a href="/pdf/q1_ppt.pdf">プレゼンテーション資料</a>'
+    )
+    rc, _gets, _out = _run(tmp_path, page=page)
+    assert rc == 0
+    rows = _rows()
+    assert len(rows) == 2
+    assert len({row.rel_path for row in rows}) == 2
+    for row in rows:
+        assert (tmp_path / "briefing" / row.rel_path).read_bytes() == _pdf(row.url)

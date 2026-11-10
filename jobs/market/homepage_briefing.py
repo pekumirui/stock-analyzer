@@ -5,12 +5,15 @@
   python jobs/market/homepage_briefing.py --only 6728
   python jobs/market/homepage_briefing.py --only 6728 --limit 4 --dest /tmp/briefing
 
-対象は config/market/briefing_pages.json（code / name / index_url）。TDnet に資料を出す会社は
-載せない（同じ資料が別の番号で 2 行になる）。
+対象は config/market/briefing_pages.json（code / name / index_url、任意で link_re）。
+TDnet に資料を出す会社は載せない（同じ資料が別の番号で 2 行になる）。
+index_url が転送や meta refresh で別のページへ飛ばすときは、その先を読む。
 表題は「h2 以下の見出し + リンクの文字」。採否は app.market.briefing_title.is_material_title を
 リンクの文字に当てる。決算の資料置き場なので決算の語は補い、資料の種類はリンクの文字に要る
-（決算短信のリンクは採らない）。
-公開日は一覧に無いので PDF の作成日時（無ければ更新日時、どちらも無ければ取得した時刻）。
+（決算短信のリンクは採らない）。リンクの文字に種類の語が無い会社は link_re（リンクの文字に当てる
+正規表現）で採る。リンクの文字からは容量や「PDF」の注記を落とす。
+公開日は一覧に無いので PDF の更新日時（無ければ作成日時、どちらも無ければ URL の中の
+YYYYMMDD、それも無ければ取得した時刻）。
 番号は表題と PDF のファイル名から作る。索引にある PDF は取りに行かない。
 --limit は 1 社で新しく保存する件数（ページの上から）。
 索引は briefing_documents（source=homepage）。ネットワークはテストから差し替える。
@@ -45,6 +48,7 @@ from jobs._r2common import (  # noqa: E402
     abort_if_disconnected,
     fail_if_mount_down,
     http_get as _http_get,
+    http_get_result as _http_get_result,
 )
 from jobs.monthly.tdnet_monthly_r2 import dest_path, jq_lookup_code  # noqa: E402
 from jobs.share_paths import share_path  # noqa: E402
@@ -57,12 +61,21 @@ HTTP_TIMEOUT = 60.0
 _CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
 _PDF_RE = re.compile(r"\.pdf$", re.I)
 _HEADING = re.compile(r"^h([1-6])$")
+_TEXT_NOTE = re.compile(r"\s*[(\[][^()\[\]]*(?:\d\s*[KMG]B|PDF|新しいウィンドウ)[^()\[\]]*[)\]]", re.I)
+_TEXT_TAIL = re.compile(r"\s*PDF$", re.I)
+_META_REFRESH = re.compile(
+    r"<meta[^>]+http-equiv=[\"']?refresh[\"']?[^>]*content=[\"']?\s*\d+\s*;\s*url=([^\"'>\s]+)",
+    re.I,
+)
+MAX_REFRESH = 2
+_URL_DAY = re.compile(r"(?<!\d)(20\d{2})(\d{2})(\d{2})(?!\d)")
 _PDF_DATE = re.compile(
     r"^D:(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?(\d{2})?"
     r"(?:(Z)|([+-])(\d{2})'?(\d{2})?'?)?"
 )
 
 Getter = Callable[[str], bytes]
+PageGetter = Callable[[str], tuple[bytes, str]]
 PdfDate = Callable[[bytes], datetime | None]
 
 
@@ -71,6 +84,7 @@ class Issuer:
     code: str
     name: str
     index_url: str
+    link_re: str = ""
 
 
 @dataclass(frozen=True)
@@ -120,6 +134,10 @@ def http_get(url: str, timeout: float = HTTP_TIMEOUT) -> bytes:
     return _http_get(url, timeout=timeout, user_agent=USER_AGENT)
 
 
+def http_get_page(url: str, timeout: float = HTTP_TIMEOUT) -> tuple[bytes, str]:
+    return _http_get_result(url, timeout, user_agent=USER_AGENT)
+
+
 def document_id(code: str, title: str, url: str) -> str:
     """パスの途中の番号は資料が足されるとずれるので、表題とファイル名だけで決める。"""
     name = Path(unquote(urlparse(url).path)).name
@@ -127,22 +145,29 @@ def document_id(code: str, title: str, url: str) -> str:
     return f"hp{digest[:24]}"
 
 
-def parse_deck_links(html: str, base_url: str, code: str) -> list[DeckLink]:
+def clean_link_text(text: str) -> str:
+    """容量・形式の注記を落とす。容量が変わっても同じ番号になる。"""
+    return _TEXT_TAIL.sub("", _TEXT_NOTE.sub("", text)).strip()
+
+
+def parse_deck_links(html: str, base_url: str, code: str, link_re: str = "") -> list[DeckLink]:
     """ページの上から。文字の無いアイコンのリンクは飛ばし、同じ番号は最初の 1 本。"""
+    extra = re.compile(link_re) if link_re else None
     parser = _LinkParser()
     parser.feed(html or "")
     parser.close()
     out: list[DeckLink] = []
     seen: set[str] = set()
-    for href, text, heading in parser.links:
+    for href, label, heading in parser.links:
         raw = (href or "").strip()
+        text = clean_link_text(label)
         if not raw or not text:
             continue
         url = urljoin(base_url, raw).split("#", 1)[0]
         parsed = urlparse(url)
         if parsed.scheme not in ("http", "https") or not _PDF_RE.search(parsed.path):
             continue
-        if not is_material_title(f"決算 {text}"):
+        if not is_material_title(f"決算 {text}") and not (extra and extra.search(text)):
             continue
         title = f"{heading} {text}".strip()
         doc_id = document_id(code, title, url)
@@ -184,7 +209,16 @@ def pdf_date(data: bytes) -> datetime | None:
         meta = pdf.get_metadata_dict(skip_empty=True)
     finally:
         pdf.close()
-    return parse_pdf_date(meta.get("CreationDate")) or parse_pdf_date(meta.get("ModDate"))
+    return parse_pdf_date(meta.get("ModDate")) or parse_pdf_date(meta.get("CreationDate"))
+
+
+def url_date(url: str) -> datetime | None:
+    for year, month, day in _URL_DAY.findall(unquote(urlparse(url).path)):
+        try:
+            return datetime(int(year), int(month), int(day))  # noqa: DTZ001
+        except ValueError:
+            continue
+    return None
 
 
 def load_registry(path: Path) -> list[Issuer]:
@@ -200,15 +234,33 @@ def load_registry(path: Path) -> list[Issuer]:
         code = str(item.get("code") or "").strip().upper()
         name = str(item.get("name") or "").strip()
         index_url = str(item.get("index_url") or "").strip()
+        link_re = str(item.get("link_re") or "")
         if not _CODE_RE.fullmatch(code):
             raise ValueError(f"{path}: bad code {code!r}")
         if not name or urlparse(index_url).scheme not in ("http", "https"):
             raise ValueError(f"{path}: {code} needs name and http(s) index_url")
         if code in seen:
             raise ValueError(f"{path}: duplicate code {code}")
+        try:
+            re.compile(link_re)
+        except re.error as exc:
+            raise ValueError(f"{path}: {code} bad link_re: {exc}") from None
         seen.add(code)
-        out.append(Issuer(code=code, name=name, index_url=index_url))
+        out.append(Issuer(code=code, name=name, index_url=index_url, link_re=link_re))
     return out
+
+
+def fetch_index(url: str, get_page: PageGetter) -> tuple[str, str]:
+    """一覧ページの HTML と、転送と meta refresh をたどった先の URL。"""
+    for _ in range(MAX_REFRESH):
+        body, url = get_page(url)
+        html = body.decode("utf-8", "replace")
+        match = _META_REFRESH.search(html)
+        if not match:
+            return html, url
+        url = urljoin(url, match.group(1))
+    body, url = get_page(url)
+    return body.decode("utf-8", "replace"), url
 
 
 def save_pdf(path: Path, data: bytes) -> None:
@@ -223,6 +275,7 @@ def fetch_issuer(
     dest: Path,
     *,
     get: Getter,
+    get_page: PageGetter,
     read_date: PdfDate,
     now: datetime,
     limit: int | None,
@@ -230,8 +283,8 @@ def fetch_issuer(
 ) -> tuple[int, int, int, int]:
     """戻りは (listed, saved, skipped, failed)。一覧が取れなければ例外。"""
     code5 = jq_lookup_code(issuer.code)
-    html = get(issuer.index_url).decode("utf-8", "replace")
-    links = parse_deck_links(html, issuer.index_url, code5)
+    html, index_url = fetch_index(issuer.index_url, get_page)
+    links = parse_deck_links(html, index_url, code5, issuer.link_re)
     saved = skipped = failed = 0
     for link in links:
         if has_saved(SOURCE_HOMEPAGE, link.document_id):
@@ -247,11 +300,13 @@ def fetch_issuer(
             data = get(link.url)
             if not data.startswith(b"%PDF"):
                 raise ValueError(f"not a PDF ({len(data)} bytes)")
-            when = read_date(data)
+            when = read_date(data) or url_date(link.url)
             if when is None or when > now:
                 when = now
             pubdate = when.strftime("%Y-%m-%d %H:%M:%S")
             path = dest_path(dest, pubdate, issuer.code, issuer.name, link.title)
+            if path.exists():
+                path = path.with_name(f"{path.stem}_{link.document_id[-6:]}.pdf")
             save_pdf(path, data)
             record_briefing(
                 source=SOURCE_HOMEPAGE,
@@ -284,6 +339,7 @@ def run(
     limit: int | None = None,
     dry_run: bool = False,
     get: Getter | None = None,
+    get_page: PageGetter | None = None,
     read_date: PdfDate | None = None,
     now: datetime | None = None,
 ) -> int:
@@ -304,6 +360,13 @@ def run(
 
     init_db()
     getter = http_get if get is None else get
+    if get_page is not None:
+        pager = get_page
+    elif get is not None:
+        def pager(url: str) -> tuple[bytes, str]:
+            return get(url), url
+    else:
+        pager = http_get_page
     reader = pdf_date if read_date is None else read_date
     when = now or datetime.now(JST).replace(tzinfo=None)
     print(
@@ -314,7 +377,7 @@ def run(
     for issuer in issuers:
         try:
             counts = fetch_issuer(
-                issuer, dest, get=getter, read_date=reader, now=when, limit=limit, dry_run=dry_run,
+                issuer, dest, get=getter, get_page=pager, read_date=reader, now=when, limit=limit, dry_run=dry_run,
             )
         except Exception as exc:
             down = abort_if_disconnected("homepage_briefing", dest, exc)
