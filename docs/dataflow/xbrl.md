@@ -80,21 +80,23 @@ flowchart LR
   n1["GET /api/stock/filings/{filing_id}/documents/{seq}"]:::api
   n2["GET /api/stock/pdf/{disclosure_no}"]:::api
   n3["GET /api/stock/{code}/filings"]:::api
-  n4[("statements")]:::ext
-  n5[("tdnet_pdf_documents")]:::tbl
-  n6[("xbrl_documents")]:::tbl
-  n7[("xbrl_filings")]:::tbl
-  n8[("xbrl_financials")]:::tbl
-  n9[("xbrl_std_items")]:::tbl
+  n4[("daily_prices")]:::ext
+  n5[("statements")]:::ext
+  n6[("tdnet_pdf_documents")]:::tbl
+  n7[("xbrl_documents")]:::tbl
+  n8[("xbrl_filings")]:::tbl
+  n9[("xbrl_financials")]:::tbl
+  n10[("xbrl_std_items")]:::tbl
   n0 -.- n4
-  n0 -.- n7
+  n0 -.- n5
   n0 -.- n8
   n0 -.- n9
-  n1 -.- n6
-  n2 -.- n5
-  n3 -.- n5
+  n0 -.- n10
+  n1 -.- n7
+  n2 -.- n6
   n3 -.- n6
   n3 -.- n7
+  n3 -.- n8
   classDef job fill:#e3ecff,stroke:#3b5bdb
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -103,7 +105,7 @@ flowchart LR
 
 | API | 書く | 読むだけ |
 |---|---|---|
-| `GET /api/earnings/detail/{code}` |  | `statements`, `stocks`, `xbrl_filings`, `xbrl_financials`, `xbrl_std_items` |
+| `GET /api/earnings/detail/{code}` |  | `daily_prices`, `statements`, `stocks`, `xbrl_filings`, `xbrl_financials`, `xbrl_std_items` |
 | `GET /api/stock/filings/{filing_id}/documents/{seq}` |  | `xbrl_documents` |
 | `GET /api/stock/pdf/{disclosure_no}` |  | `tdnet_pdf_documents` |
 | `GET /api/stock/{code}/filings` |  | `stocks`, `tdnet_pdf_documents`, `xbrl_documents`, `xbrl_filings` |
