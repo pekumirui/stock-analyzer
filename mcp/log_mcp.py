@@ -2773,6 +2773,7 @@ def s256(verifier: str) -> str:
 
 
 # Claude.ai custom connectors POST https://claude.ai/api/mcp/auth_callback (and claude.com).
+# Muse (Meta) custom connectors POST https://agent.meta.ai/api/hatch/oauth/callback.
 REDIRECT_HTTPS_HOSTS = frozenset({
     "grok.com",
     "x.ai",
@@ -2780,6 +2781,7 @@ REDIRECT_HTTPS_HOSTS = frozenset({
     "claude.ai",
     "claude.com",
     "anthropic.com",
+    "meta.ai",
 })
 REDIRECT_CUSTOM_SCHEMES = frozenset({"grok", "x-grok", "grok-app", "cursor"})
 
@@ -3146,3 +3148,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
