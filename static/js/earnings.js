@@ -150,14 +150,18 @@ function sortVal(r, key){
   if(key === "pts") return r.pts ? r.pts.chg_pct : null;
   const src = r.periods ? r.latest : r;
   if(!src) return null;
-  const v = earnView==="q" ? src.single : earnView==="cum" ? src.cumulative : src.progress && src.progress.cur;
-  return v ? v[key] : null;
+  if(earnView==="prog"){ const v = src.progress && src.progress.cur; return v ? v[key] : null; }
+  const g = earnView==="q" ? src.qoq : src.yoy, c = g && g[key];
+  if(!c) return null;
+  if(c.state==="turn_profit") return Infinity;
+  if(c.state==="turn_loss") return -Infinity;
+  return (c.state==="up" || c.state==="down") && c.pct!=null ? c.pct : null;
 }
 function sorted(rows){
   if(!earnSort) return rows;
   const {key, dir} = earnSort;
   return rows.map((r, i) => [r, sortVal(r, key), i]).sort((a, b) =>
-    (a[1]==null) - (b[1]==null) || (a[1]==null ? 0 : (a[1] - b[1]) * dir) || a[2] - b[2]
+    (a[1]==null) - (b[1]==null) || (a[1]==null ? 0 : (a[1]===b[1] ? 0 : (a[1] - b[1]) * dir)) || a[2] - b[2]
   ).map(x => x[0]);
 }
 const shownActuals = () => sorted((earnBoard.actuals||[]).filter(isShown));
