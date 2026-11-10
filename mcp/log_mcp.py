@@ -1621,35 +1621,52 @@ def tool_fx_rate(args: dict[str, Any]) -> str:
     return json.dumps(body, ensure_ascii=False, indent=2)
 
 
+FX_INTERVALS = ("day", "week", "month")
+FX_INTERVAL_LABEL = {"day": "日次", "week": "週次（週の最後の公表日）", "month": "月次（月の最後の公表日）"}
+
+
+def _fx_fmt(rate: float) -> str:
+    if abs(rate) >= 100000:
+        return f"{rate:.0f}"
+    return f"{rate:.5g}"
+
+
+def _fx_thin(rows: list[tuple[str, float]], interval: str) -> list[tuple[str, float]]:
+    if interval == "day":
+        return rows
+    last: dict[tuple[int, int], tuple[str, float]] = {}
+    for day, rate in rows:
+        d = date.fromisoformat(day)
+        key = (d.isocalendar()[0], d.isocalendar()[1]) if interval == "week" else (d.year, d.month)
+        last[key] = (day, rate)
+    return [last[k] for k in sorted(last)]
+
+
 def tool_fx_rates(args: dict[str, Any]) -> str:
     fx = _fx_mod()
-    earliest, note, err, cross_rate, needed_quotes, _parse = fx
+    earliest, _note, err, cross_rate, needed_quotes, _parse = fx
     start = parse_iso_date(args.get("from") or args.get("start"), "from")
     end = parse_iso_date(args.get("to") or args.get("end"), "to")
     if end < start:
         raise ValueError("to must be on or after from")
     if start < earliest:
         raise ValueError(f"from must be on or after {earliest.isoformat()}")
+    interval = str(args.get("interval") or "day").strip().lower()
+    if interval not in FX_INTERVALS:
+        raise ValueError("interval must be day, week, or month")
     base, quote = _fx_pair_args(args)
     limit = clamp_lines(args.get("lines") or FX_MAX_OBS)
     conn = open_db()
     try:
         _fx_open(conn)
         need = needed_quotes(base, quote)
-        observations: list[dict[str, Any]] = []
-        truncated = False
+        daily: list[tuple[str, float]] = []
         if not need:
             rows = conn.execute(
-                "SELECT DISTINCT date FROM fx_rates "
-                "WHERE date >= ? AND date <= ? ORDER BY date LIMIT ?",
-                (start.isoformat(), end.isoformat(), limit + 1),
+                "SELECT DISTINCT date FROM fx_rates WHERE date >= ? AND date <= ? ORDER BY date",
+                (start.isoformat(), end.isoformat()),
             ).fetchall()
-            truncated = len(rows) > limit
-            for row in rows[:limit]:
-                day = str(row["date"])
-                observations.append({
-                    "date": day, "as_of": day, "holiday_fallback": False, "rate": 1.0,
-                })
+            daily = [(str(row["date"]), 1.0) for row in rows]
         else:
             placeholders = ",".join("?" * len(need))
             rows = conn.execute(
@@ -1667,32 +1684,33 @@ def tool_fx_rates(args: dict[str, Any]) -> str:
                     continue
                 rates["EUR"] = 1.0
                 try:
-                    rate = cross_rate(rates, base, quote)
+                    daily.append((day, cross_rate(rates, base, quote)))
                 except err as exc:
                     raise ValueError(str(exc)) from exc
-                observations.append({
-                    "date": day, "as_of": day, "holiday_fallback": False, "rate": rate,
-                })
-                if len(observations) >= limit:
-                    truncated = True
-                    break
-        body = {
-            "pair": f"{base}/{quote}",
-            "base": base,
-            "quote": quote,
-            "from": start.isoformat(),
-            "to": end.isoformat(),
-            "count": len(observations),
-            "truncated": truncated,
-            "holiday_policy": (
-                note
-                + " 期間指定では公表日だけを返す。休日を直近営業日で埋めたいときは fx_rate にその日を渡す。"
-            ),
-            "observations": observations,
-        }
     finally:
         conn.close()
-    return json.dumps(body, ensure_ascii=False, indent=2)
+    pair = f"{base}/{quote}"
+    head = f"{pair} {start.isoformat()}〜{end.isoformat()} {FX_INTERVAL_LABEL[interval]}"
+    if not daily:
+        return f"{head} 0件（この期間に公表日なし）"
+    series = _fx_thin(daily, interval)
+    shown = series[:limit]
+    (d0, r0), (d1, r1) = daily[0], daily[-1]
+    hi = max(daily, key=lambda x: x[1])
+    lo = min(daily, key=lambda x: x[1])
+    lines = [
+        f"{head} {len(shown)}件"
+        + (f"（全 {len(series)} 件のうち先頭 {limit} 件。lines か interval で調整）" if len(series) > limit else ""),
+        (
+            f"始め {_fx_fmt(r0)}（{d0}）→ 終わり {_fx_fmt(r1)}（{d1}） {(r1 / r0 - 1) * 100:+.1f}%"
+            f" 高値 {_fx_fmt(hi[1])}（{hi[0]}） 安値 {_fx_fmt(lo[1])}（{lo[0]}）"
+        ),
+        "要約は期間の日次の全公表日から。休日は含めない（埋めたい日は fx_rate）。保存は EUR ベースのクロス。",
+        "",
+        "date\trate",
+        *[f"{day}\t{_fx_fmt(rate)}" for day, rate in shown],
+    ]
+    return "\n".join(lines)
 
 
 def tool_monthly_list(_args: dict[str, Any]) -> str:
@@ -2446,10 +2464,10 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
     ),
     "fx_rates": (
         (
-            "期間の為替レート（公表日のみ）。保存は EUR ベースのクロス計算。"
-            "休日は系列に含めない。特定日を直近営業日で埋めたいときは fx_rate。"
-            "pair（USD/JPY）または base と quote。lines は 1-500。"
-            "読み取り専用。"
+            "期間の為替レート（公表日のみ）を TSV で。先頭に始め・終わり・変化率・高値・安値。"
+            "保存は EUR ベースのクロス計算。休日は系列に含めない。特定日を直近営業日で埋めたいときは fx_rate。"
+            "pair（USD/JPY）または base と quote。interval は day / week / month（週・月の最後の公表日）。"
+            "lines は 1-500。読み取り専用。"
         ),
         {
             "type": "object",
@@ -2459,7 +2477,8 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
                 "pair": {"type": "string", "description": "USD/JPY. Alternative to base+quote."},
                 "base": {"type": "string", "description": "ISO 4217, e.g. USD. Ignored if pair is set."},
                 "quote": {"type": "string", "description": "ISO 4217, e.g. JPY. Ignored if pair is set."},
-                "lines": {"type": "integer", "description": "max observations, 1-500, default 500"},
+                "interval": {"type": "string", "enum": ["day", "week", "month"], "description": "default day"},
+                "lines": {"type": "integer", "description": "max rows, 1-500, default 500"},
             },
             "required": ["from", "to"],
         },

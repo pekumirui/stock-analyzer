@@ -1216,6 +1216,12 @@ def test_fx_tools() -> None:
             INSERT INTO fx_rates VALUES ('2024-01-04', 'JPY', 165.0);
             INSERT INTO fx_rates VALUES ('2024-01-05', 'USD', 1.09);
             INSERT INTO fx_rates VALUES ('2024-01-05', 'JPY', 159.14);
+            INSERT INTO fx_rates VALUES ('2024-01-31', 'USD', 1.08);
+            INSERT INTO fx_rates VALUES ('2024-01-31', 'JPY', 159.3);
+            INSERT INTO fx_rates VALUES ('2024-02-01', 'USD', 1.08);
+            INSERT INTO fx_rates VALUES ('2024-02-01', 'JPY', 160.38);
+            INSERT INTO fx_rates VALUES ('2024-02-29', 'USD', 1.08);
+            INSERT INTO fx_rates VALUES ('2024-02-29', 'JPY', 162.0);
             """
         )
         conn.commit()
@@ -1248,13 +1254,41 @@ def test_fx_tools() -> None:
             )
             if series_err:
                 raise SystemExit(f"fx_rates: {series}")
-            sbody = json.loads(series)
-            if sbody["count"] != 2:
-                raise SystemExit(f"series count: {sbody}")
-            if [o["date"] for o in sbody["observations"]] != ["2024-01-04", "2024-01-05"]:
-                raise SystemExit(f"series days: {sbody}")
-            if "公表日だけ" not in sbody["holiday_policy"]:
-                raise SystemExit(f"series policy: {sbody}")
+            head, _, table = series.partition("\ndate\trate\n")
+            if table.splitlines() != ["2024-01-04\t150", "2024-01-05\t146"]:
+                raise SystemExit(f"series rows: {series}")
+            if "2件" not in head or "-2.7%" not in head or "高値 150（2024-01-04）" not in head:
+                raise SystemExit(f"series summary: {series}")
+            if "休日は含めない" not in head:
+                raise SystemExit(f"series policy: {series}")
+            eur, _ = m.call_tool("fx_rates", {"from": "2024-01-04", "to": "2024-01-05", "pair": "EUR/USD"})
+            if "2024-01-05\t1.09" not in eur:
+                raise SystemExit(f"5 significant digits: {eur}")
+            month, month_err = m.call_tool(
+                "fx_rates", {"from": "2024-01-01", "to": "2024-02-29", "pair": "USD/JPY", "interval": "month"},
+            )
+            if month_err or month.split("\ndate\trate\n")[1].splitlines() != ["2024-01-31\t147.5", "2024-02-29\t150"]:
+                raise SystemExit(f"fx_rates month: {month}")
+            if "安値 146（2024-01-05）" not in month:
+                raise SystemExit(f"month summary uses daily: {month}")
+            week, _ = m.call_tool(
+                "fx_rates", {"from": "2024-01-01", "to": "2024-02-29", "pair": "USD/JPY", "interval": "week"},
+            )
+            if [r.split("\t")[0] for r in week.split("\ndate\trate\n")[1].splitlines()] != [
+                "2024-01-05", "2024-02-01", "2024-02-29",
+            ]:
+                raise SystemExit(f"fx_rates week: {week}")
+            cut, _ = m.call_tool("fx_rates", {"from": "2024-01-01", "to": "2024-02-29", "pair": "USD/JPY", "lines": 1})
+            if "全 5 件のうち先頭 1 件" not in cut or len(cut.split("\ndate\trate\n")[1].splitlines()) != 1:
+                raise SystemExit(f"fx_rates lines: {cut}")
+            empty, empty_err = m.call_tool("fx_rates", {"from": "2024-03-02", "to": "2024-03-03", "pair": "USD/JPY"})
+            if empty_err or "0件" not in empty:
+                raise SystemExit(f"fx_rates empty: {empty}")
+            bad_iv, bad_iv_err = m.call_tool(
+                "fx_rates", {"from": "2024-01-04", "to": "2024-01-05", "pair": "USD/JPY", "interval": "year"},
+            )
+            if not bad_iv_err or "interval" not in bad_iv:
+                raise SystemExit(f"bad interval: {bad_iv!r}")
             bad, bad_err = m.call_tool("fx_rate", {"date": "2024-01-05"})
             if not bad_err or "pair" not in bad:
                 raise SystemExit(f"missing pair: {bad!r}")

@@ -241,7 +241,7 @@ VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Access �
 - 判定: 両方ある・符号が逆 → DIFF。statements との金額差が 100 万円未満なら OK（J-Quants の百万円丸め）。td:ed にその許容は無い。EPS も丸め許容なし。相対差 > 0.1% → DIFF。片方が空 → MISSING。四半期は累計のまま。1 期 1 書類（提出が新しい方。訂正も含む）、その書類に連結があれば連結
 - `metrics_query` — VictoriaMetrics（`127.0.0.1:8428`）に PromQL / MetricsQL を GET で投げるだけ（`/api/v1/query` / `query_range` / メトリクス名一覧）。`start` が無ければ instant、あれば range。時刻は `batch_logs` と同じ形（JST）。1 系列 1100 点まで（`step` 省略時は自動）、200 系列まで、応答は約 1MiB で打ち切り。`list_metrics=true` で名前の一覧。主な名前は下の「監視」
 - `fx_rate` — 指定日の為替。EUR ベースのクロス（例 USD/JPY）。休日・ECB非公表日は直近営業日（`as_of`）。`holiday_fallback` で明示
-- `fx_rates` — 期間の為替（公表日のみ）。休日を直近営業日で埋めたいときは `fx_rate`
+- `fx_rates` — 期間の為替（公表日のみ）を TSV で。値は有効数字 5 桁。先頭に始め・終わり・変化率・高値・安値（期間の日次の全公表日から）。`interval` は `day`（既定）/ `week` / `month`（週・月の最後の公表日）。休日を直近営業日で埋めたいときは `fx_rate`
 - `monthly_list` — 月次表一覧。localhost:8000 の GET /api/v1/tables
 - `monthly_get` — 銘柄×年度の月次表。values は 1〜12。無い月は null
 - `monthly_add_element` — 要素登録
