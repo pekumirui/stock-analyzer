@@ -258,8 +258,6 @@ jobs:
       ESTAT_APP_ID: ${{ secrets.ESTAT_APP_ID }}
       EDINET_API_KEY: ${{ secrets.EDINET_API_KEY }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
-      BASIC_AUTH_PASSWORD: ${{ secrets.BASIC_AUTH_PASSWORD }}
       MCP_TOKEN: ${{ secrets.MCP_TOKEN }}
       CF_ACCESS_TEAM_DOMAIN: ${{ vars.CF_ACCESS_TEAM_DOMAIN }}
       CF_ACCESS_AUD: ${{ vars.CF_ACCESS_AUD }}
@@ -329,8 +327,6 @@ jobs:
               "ESTAT_APP_ID",
               "EDINET_API_KEY",
               "ANTHROPIC_API_KEY",
-              "BASIC_AUTH_USER",
-              "BASIC_AUTH_PASSWORD",
               "CERTBOT_EMAIL",
               "MCP_TOKEN",
               "CF_ACCESS_TEAM_DOMAIN",

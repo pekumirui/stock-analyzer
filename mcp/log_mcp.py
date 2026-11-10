@@ -2466,7 +2466,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
         tool_fx_rates,
     ),
     "monthly_list": (
-        "月次表がある銘柄一覧。localhost:8000 の GET /api/v1/tables（nginx Basic は使わない）。",
+        "月次表がある銘柄一覧。localhost:8000 の GET /api/v1/tables（nginx は通らない）。",
         {"type": "object", "properties": {}},
         tool_monthly_list,
     ),

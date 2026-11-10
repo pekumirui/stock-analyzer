@@ -74,7 +74,6 @@ if [[ "$DOMAIN" != www.* && "$DOMAIN" != *.sslip.io ]]; then
 fi
 SERVER_NAMES="${DOMAIN}${WWW:+ ${WWW}} _"
 CERT_LIVE="/etc/letsencrypt/live/${DOMAIN}"
-HTPASSWD="/etc/nginx/stock-analyzer.htpasswd"
 ACME_ROOT="/var/www/letsencrypt"
 export DEBIAN_FRONTEND=noninteractive
 
@@ -97,7 +96,7 @@ apt_security_upgrade
 
 apt_retry \
   python3-venv python3-pip git curl gnupg ca-certificates \
-  nginx apache2-utils certbot \
+  nginx certbot \
   ufw tzdata fuse3 unzip poppler-utils rsync
 
 kernel_packages_upgrade
@@ -231,14 +230,6 @@ fi
 systemctl enable stock-analyzer-mcp >/dev/null
 
 install_sudoers
-
-if [[ -n "${BASIC_AUTH_USER:-}" && -n "${BASIC_AUTH_PASSWORD:-}" ]]; then
-  touch "$HTPASSWD"
-  htpasswd -bB "$HTPASSWD" "$BASIC_AUTH_USER" "$BASIC_AUTH_PASSWORD" >/dev/null
-  chmod 640 "$HTPASSWD"
-  chown root:www-data "$HTPASSWD"
-  echo "htpasswd ok (${BASIC_AUTH_USER})"
-fi
 
 ensure_nginx_static_readable() {
   # www-data が alias した static/ を読む。Ubuntu の adduser は $HOME を 750 にすることがある。

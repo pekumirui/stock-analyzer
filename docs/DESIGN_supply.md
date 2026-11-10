@@ -93,9 +93,9 @@
 
 ## API
 
-`GET /api/supply/companies` → `{sources: {key: {title, url, checked}}, companies: [{id, name, code, status, parent_id, owners, note, source}], makes: [{company, material, source}], capacities: [{id, materials, label, unit, as_of, source, url, note, rows: [[company id, value]]}], trade: [{seller, buyer, source}]}`。`parent_id` は `owners` から決めた親も入る。`makes` は能力表の組を足したもの。無い値は null。プロセス内で一度だけ読む。Basic の後ろ。
+`GET /api/supply/companies` → `{sources: {key: {title, url, checked}}, companies: [{id, name, code, status, parent_id, owners, note, source}], makes: [{company, material, source}], capacities: [{id, materials, label, unit, as_of, source, url, note, rows: [[company id, value]]}], trade: [{seller, buyer, source}]}`。`parent_id` は `owners` から決めた親も入る。`makes` は能力表の組を足したもの。無い値は null。プロセス内で一度だけ読む。Access の後ろ。
 
-`GET /api/supply/graph` → `{materials: [{id, name, kind, note}], flows: [[from, to]], returns: [[from, to]]}`。`note` が無ければ null。プロセス内で一度だけ読む（json を変えたら再起動。デプロイは再起動する）。Basic の後ろ。
+`GET /api/supply/graph` → `{materials: [{id, name, kind, note}], flows: [[from, to]], returns: [[from, to]]}`。`note` が無ければ null。プロセス内で一度だけ読む（json を変えたら再起動。デプロイは再起動する）。Access の後ろ。
 
 `GET /api/supply/countries/{material_id}?flow=import|export`（既定 import）→ `{material_id, flow, unit, from, to, sokuho, total, countries: [{code, name, value, share}]}`。保存済みの最新月から遡る 12 か月の国別合計を多い順に。`sokuho` は最新月に速報を含むか。単位が混ざれば最新月の単位の行だけ足す。行が無ければ `countries` は空で他は null / 0。素材が無ければ 404、flow が違えば 400。
 
