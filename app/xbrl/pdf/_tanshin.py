@@ -64,6 +64,7 @@ _DIV_YEN_PAREN = re.compile(r"^(.+?)[\(（](円銭|円)[\)）]$")
 # 「年間配当金」＋分かれた「期」「末」（KAB-251 9507）。
 _DIV_SLOT_SUFFIX = re.compile(r"(第[123]四半期末|中間期末|期末|(年間)?合計)$")
 _NUMERIC_ITEM = re.compile(r"\d")
+_ONE_YEAR_LEAD = re.compile(r"^1年以?内")
 # 1 ページ目の列見出しのうち、科目名ではなく列の役割・単位。
 _HEADER_ROLE = re.compile(
     r"増減率|対前期|前回発表予想|今回修正予想|今回発表予想|前回予想|今回予想"
@@ -1259,7 +1260,7 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                     if spec.name in {"fc_rev", "div_rev"} and "ForecastMember" not in role.members:
                         # 前期実績を今期末の実績として入れない。予想の行だけ残す。
                         continue
-                    if _NUMERIC_ITEM.search(base_local) and "株" not in base_local:
+                    if _NUMERIC_ITEM.search(_ONE_YEAR_LEAD.sub("", base_local)) and "株" not in base_local:
                         continue
                     if unit is UnitKind.PERCENT and "率" not in base_local:
                         continue
