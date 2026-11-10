@@ -40,7 +40,7 @@ ACTUAL2 = {**ACTUAL, "code": "72030", "name": "トヨタ", "disclosure_no": "X2"
            "pts": {"price": 1, "chg_pct": -3.0, "base_close": 1, "as_of": "23:45"}}
 ACTUAL3 = {**ACTUAL, "code": "99840", "name": "SBG", "disclosure_no": "X3", "sector33": "情報･通信業",
            "pts": None, "disclosed_time": "15:30:00"}
-SCHED = {"code": "67580", "name": "ソニー", "sector33": "電気機器", "periods": [{"fq": "2Q", "fye": "2027-03-31"}],
+SCHED = {"code": "67580", "name": "ソニー", "sector33": "電気機器", "periods": [{"fq": "2Q", "fye": "0331", "label": "FY27.3"}],
          "latest": {"fiscal_year_end": "2027-03-31", "period": "1Q", "yoy": _G(1, 2), "qoq": _G(3, -4)},
          "pts": None}
 
