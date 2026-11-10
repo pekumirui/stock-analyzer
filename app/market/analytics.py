@@ -883,6 +883,29 @@ def quarterly_rows(hist: list[Statement], stmt: Statement, n: int, tol_days: int
     return rows
 
 
+_HALF_KEYS = ("FSales2Q", "FOP2Q", "FOdP2Q", "FNP2Q", "FEPS2Q")
+
+
+def half_forecast_status(stmt: Statement, cum: list[dict]) -> str | None:
+    """中間予想の状態。1Q は当期、本決算は来期の中間。2Q / 3Q は None。
+
+    given=あり / fy_only=通期だけ出している / none=業績予想を出していない / unknown=元データに項目が無い。
+    """
+    period = stmt.type_of_period
+    if period not in ("1Q", "FY", "4Q"):
+        return None
+    if any(r["kind"] == "forecast_h" for r in cum):
+        return "given"
+    try:
+        raw = json.loads(stmt.raw_json or "{}")
+    except ValueError:
+        raw = {}
+    keys = [v + "2Q" for v in _NEXT_FC_KEYS.values()] if period in ("FY", "4Q") else _HALF_KEYS
+    if not any(k in raw for k in keys):
+        return "unknown"
+    return "fy_only" if any(r["kind"] == "forecast_fy" for r in cum) else "none"
+
+
 def earnings_detail(db: Session, stmt: Statement) -> dict:
     """1件の開示について 累計テーブル・3か月決算テーブルを組み立てる。"""
     tol = EP["fy_match_tol_days"]
@@ -900,6 +923,7 @@ def earnings_detail(db: Session, stmt: Statement) -> dict:
             # 全行で経常利益が空 = IFRS/米国基準。UI側で列を淡色化する
             "no_ordinary": all(r["values"].get("ordinary_profit") is None for r in cum + qtr),
             "single_unavailable": not qtr,
+            "half_forecast": half_forecast_status(stmt, cum),
         },
     }
 

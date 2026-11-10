@@ -30,6 +30,7 @@ from app.market.analytics import (  # noqa: E402
     find_statement,
     growth_cell,
     growth_map,
+    half_forecast_status,
     indicators_current,
     metrics,
     period_label,
@@ -262,6 +263,34 @@ def test_disclosure_and_rows() -> None:
         _fail(f"quarterly singles {got}")
 
 
+def test_half_forecast_status() -> None:
+    hist = _hist()
+    q1 = next(s for s in hist if s.disclosure_no == "c1q")
+    q2 = next(s for s in hist if s.disclosure_no == "c2q")
+    fy = next(s for s in hist if s.disclosure_no == "cfy")
+    if half_forecast_status(q2, cumulative_rows(hist, q2, 2, TOL)) is not None:
+        _fail("2Q has no half forecast status")
+    q1.raw_json = None
+    if half_forecast_status(q1, cumulative_rows(hist, q1, 2, TOL)) != "unknown":
+        _fail("1Q without raw keys is unknown")
+    q1.raw_json = json.dumps({"FSales2Q": "", "FOP2Q": "", "FSales": "500"})
+    q1.fy_operating_profit = 70
+    if half_forecast_status(q1, cumulative_rows(hist, q1, 2, TOL)) != "fy_only":
+        _fail("1Q with empty half and full-year forecast is fy_only")
+    q1.fy_operating_profit = None
+    if half_forecast_status(q1, cumulative_rows(hist, q1, 2, TOL)) != "none":
+        _fail("1Q with no forecasts is none")
+    q1.f2_operating_profit = 30
+    if half_forecast_status(q1, cumulative_rows(hist, q1, 2, TOL)) != "given":
+        _fail("1Q with half forecast is given")
+    fy.raw_json = json.dumps({"NxtFYEn": "2027-03-31", "NxFSales2Q": "", "NxFSales": "700"})
+    if half_forecast_status(fy, cumulative_rows(hist, fy, 2, TOL)) != "fy_only":
+        _fail("FY uses next-year half keys")
+    fy.raw_json = json.dumps({"NxtFYEn": "2027-03-31", "NxFSales2Q": "350", "NxFSales": "700"})
+    if half_forecast_status(fy, cumulative_rows(hist, fy, 2, TOL)) != "given":
+        _fail("FY with next-year half forecast is given")
+
+
 def test_progress() -> None:
     if progress_map({"net_sales": 50, "operating_profit": -5, "ordinary_profit": 1, "profit": None, "eps": 1},
                     {"net_sales": 200, "operating_profit": 20, "ordinary_profit": 0, "profit": 10, "eps": None}) \
@@ -446,6 +475,7 @@ def main() -> None:
     test_growth_and_metrics()
     test_single_quarter_from_cumulative()
     test_disclosure_and_rows()
+    test_half_forecast_status()
     test_progress()
     test_earnings_api()
     test_upsert_mixed_columns_and_freshness()

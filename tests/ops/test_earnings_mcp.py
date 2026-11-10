@@ -46,7 +46,7 @@ SCHED = {"code": "67580", "name": "ソニー", "sector33": "電気機器", "peri
 
 DETAIL = {
     "code": "26740", "name": "ハードオフ", "disclosure_no": "20260806511357", "disclosed_date": "2026-08-06",
-    "disclosed_time": "14:00:00", "label": "FY27.3_1Q", "notes": {"no_ordinary": True, "single_unavailable": False},
+    "disclosed_time": "14:00:00", "label": "FY27.3_1Q", "notes": {"no_ordinary": True, "single_unavailable": False, "half_forecast": "fy_only"},
     "revision_source": "jquants",
     "cumulative": [{"range": "27.3", "period": "1Q", "kind": "actual_current", "disclosed_date": "2026-08-06",
                     "values": {"net_sales": 11251e6, "eps": 104.71}, "growth": {"net_sales": {"pct": 30.0}}}],
@@ -229,6 +229,12 @@ def test_earnings_detail(app_env):
     text = _call("earnings_detail", {"code": "2674", "disclosure_no": "20260806511357"})
     assert "/api/earnings/detail/26740?disclosure_no=20260806511357" in app_env
     assert "経常利益なし" in text
+    assert "中間予想は会社が出していない（通期予想だけ）" in text and "来期の中間予想" not in text
+    fy = et.tool_earnings_detail({}, lambda *_a: {**DETAIL, "label": "FY27.3",
+                                                   "notes": {"half_forecast": "unknown"}}, "26740")
+    assert "来期の中間予想は元データに項目が無く、出しているかは不明" in fy
+    given = et.tool_earnings_detail({}, lambda *_a: {**DETAIL, "notes": {"half_forecast": "given"}}, "26740")
+    assert "中間予想は" not in given
     cum = _table(text, "累計")
     assert cum[0]["売上"] == "11,251" and cum[0]["売上増減%"] == "+30.0" and cum[0]["EPS"] == "104.71"
     prog = _table(text, "進捗率（累計 ÷ 分母。分母は過去の年度が通期実績、actual_current が当期の通期予想）")
