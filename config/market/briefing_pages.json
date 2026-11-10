@@ -6,6 +6,17 @@
       "index_url": "https://www.shinetsu.co.jp/jp/ir/ir-data/ir-briefing/"
     },
     {
+      "code": "4502",
+      "name": "武田薬品工業",
+      "index_url": "https://www.takeda.com/jp/investors/financial-results/quarterly-results/",
+      "link_re": "^プレゼンテーション$"
+    },
+    {
+      "code": "6098",
+      "name": "リクルートホールディングス",
+      "index_url": "https://recruit-holdings.com/ja/ir/financials/"
+    },
+    {
       "code": "6367",
       "name": "ダイキン工業",
       "index_url": "https://www.daikin.co.jp/investor/library/results_materials"
@@ -29,7 +40,7 @@
     {
       "code": "6861",
       "name": "キーエンス",
-      "index_url": "https://www.keyence.co.jp/investor/"
+      "index_url": "https://www.keyence.co.jp/investor/library/results.jsp"
     },
     {
       "code": "7267",
@@ -69,8 +80,11 @@
     {
       "code": "9983",
       "name": "ファーストリテイリング",
-      "index_url": "https://www.fastretailing.com/jp/ir/library/earning.html",
-      "link_re": "業績および"
+      "index_url": [
+        "https://www.fastretailing.com/jp/ir/library/earning.html",
+        "https://www.fastretailing.com/jp/ir/library/earning_back.html"
+      ],
+      "link_re": "業績.*(予想|見通し)"
     },
     {
       "code": "9984",

@@ -6,12 +6,14 @@
   python jobs/market/homepage_briefing.py --only 6728 --limit 4 --dest /tmp/briefing
 
 対象は config/market/briefing_pages.json（code / name / index_url、任意で link_re）。
+index_url は 1 本か、過去分が別ページの会社は配列。
 TDnet に資料を出す会社は載せない（同じ資料が別の番号で 2 行になる）。
 index_url が転送や meta refresh で別のページへ飛ばすときは、その先を読む。
 表題は「h2 以下の見出し + リンクの文字」。採否は app.market.briefing_title.is_material_title を
 リンクの文字に当てる。決算の資料置き場なので決算の語は補い、資料の種類はリンクの文字に要る
 （決算短信のリンクは採らない）。リンクの文字に種類の語が無い会社は link_re（リンクの文字に当てる
-正規表現）で採る。リンクの文字からは容量や「PDF」の注記を落とす。
+正規表現）で採る。リンクの文字からは容量や「PDF」の注記を落とす。リンクの文字が「PDF」だけのときは
+直前の文字（隣の欄の資料名）を使う。リンクの中の aria-hidden と、svg / style / script の文字は読まない。
 公開日は一覧に無いので PDF の更新日時（無ければ作成日時、どちらも無ければ URL の中の
 YYYYMMDD、それも無ければ取得した時刻）。
 番号は表題と PDF のファイル名から作る。索引にある PDF は取りに行かない。
@@ -68,6 +70,10 @@ _META_REFRESH = re.compile(
     re.I,
 )
 MAX_REFRESH = 2
+_VOID_TAGS = frozenset({"img", "br", "hr", "input", "meta", "link", "source", "wbr", "area", "col", "embed"})
+_SKIP_TAGS = frozenset({"svg", "style", "script"})
+_FORMAT_ONLY = re.compile(r"^PDF$", re.I)
+MAX_LABEL = 60
 _URL_DAY = re.compile(r"(?<!\d)(20\d{2})(\d{2})(\d{2})(?!\d)")
 _PDF_DATE = re.compile(
     r"^D:(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?(\d{2})?"
@@ -83,7 +89,7 @@ PdfDate = Callable[[bytes], datetime | None]
 class Issuer:
     code: str
     name: str
-    index_url: str
+    index_urls: tuple[str, ...]
     link_re: str = ""
 
 
@@ -97,14 +103,26 @@ class DeckLink:
 class _LinkParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
-        self.links: list[tuple[str, str, str]] = []
+        self.links: list[tuple[str, str, str, str]] = []
         self._path: dict[int, str] = {}
         self._level: int | None = None
         self._heading_text: list[str] = []
         self._href: str | None = None
         self._text: list[str] = []
+        self._before: list[str] = []
+        self._skip_tag: str | None = None
+        self._skip_depth = 0
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if self._skip_tag is not None:
+            if tag == self._skip_tag:
+                self._skip_depth += 1
+            return
+        hidden = self._href is not None and dict(attrs).get("aria-hidden") == "true"
+        if tag in _SKIP_TAGS or (hidden and tag not in _VOID_TAGS):
+            self._skip_tag = tag
+            self._skip_depth = 1
+            return
         heading = _HEADING.match(tag)
         if heading:
             self._level = int(heading.group(1))
@@ -114,20 +132,33 @@ class _LinkParser(HTMLParser):
             self._text = []
 
     def handle_data(self, data: str) -> None:
+        if self._skip_tag is not None:
+            return
         if self._level is not None:
             self._heading_text.append(data)
         if self._href is not None:
             self._text.append(data)
+        elif self._level is None:
+            self._before.append(data)
 
     def handle_endtag(self, tag: str) -> None:
+        if self._skip_tag is not None:
+            if tag == self._skip_tag:
+                self._skip_depth -= 1
+                if self._skip_depth == 0:
+                    self._skip_tag = None
+            return
         if self._level is not None and tag == f"h{self._level}":
             level, self._level = self._level, None
             self._path = {n: text for n, text in self._path.items() if n < level}
             self._path[level] = spaced_title("".join(self._heading_text))
+            self._before = []
         elif tag == "a" and self._href is not None:
             heading = " ".join(text for n, text in sorted(self._path.items()) if n >= 2 and text)
-            self.links.append((self._href, spaced_title("".join(self._text)), heading))
+            before = spaced_title("".join(self._before))
+            self.links.append((self._href, spaced_title("".join(self._text)), heading, before))
             self._href = None
+            self._before = []
 
 
 def http_get(url: str, timeout: float = HTTP_TIMEOUT) -> bytes:
@@ -158,9 +189,11 @@ def parse_deck_links(html: str, base_url: str, code: str, link_re: str = "") -> 
     parser.close()
     out: list[DeckLink] = []
     seen: set[str] = set()
-    for href, label, heading in parser.links:
+    for href, label, heading, before in parser.links:
         raw = (href or "").strip()
         text = clean_link_text(label)
+        if not text and _FORMAT_ONLY.match(label) and len(before) <= MAX_LABEL:
+            text = clean_link_text(before)
         if not raw or not text:
             continue
         url = urljoin(base_url, raw).split("#", 1)[0]
@@ -233,11 +266,12 @@ def load_registry(path: Path) -> list[Issuer]:
             raise ValueError(f"{path}: issuer must be an object")
         code = str(item.get("code") or "").strip().upper()
         name = str(item.get("name") or "").strip()
-        index_url = str(item.get("index_url") or "").strip()
+        raw_urls = item.get("index_url")
+        index_urls = tuple(str(u).strip() for u in (raw_urls if isinstance(raw_urls, list) else [raw_urls or ""]))
         link_re = str(item.get("link_re") or "")
         if not _CODE_RE.fullmatch(code):
             raise ValueError(f"{path}: bad code {code!r}")
-        if not name or urlparse(index_url).scheme not in ("http", "https"):
+        if not name or not index_urls or any(urlparse(u).scheme not in ("http", "https") for u in index_urls):
             raise ValueError(f"{path}: {code} needs name and http(s) index_url")
         if code in seen:
             raise ValueError(f"{path}: duplicate code {code}")
@@ -246,7 +280,7 @@ def load_registry(path: Path) -> list[Issuer]:
         except re.error as exc:
             raise ValueError(f"{path}: {code} bad link_re: {exc}") from None
         seen.add(code)
-        out.append(Issuer(code=code, name=name, index_url=index_url, link_re=link_re))
+        out.append(Issuer(code=code, name=name, index_urls=index_urls, link_re=link_re))
     return out
 
 
@@ -283,8 +317,14 @@ def fetch_issuer(
 ) -> tuple[int, int, int, int]:
     """戻りは (listed, saved, skipped, failed)。一覧が取れなければ例外。"""
     code5 = jq_lookup_code(issuer.code)
-    html, index_url = fetch_index(issuer.index_url, get_page)
-    links = parse_deck_links(html, index_url, code5, issuer.link_re)
+    links: list[DeckLink] = []
+    listed: set[str] = set()
+    for page_url in issuer.index_urls:
+        html, index_url = fetch_index(page_url, get_page)
+        for link in parse_deck_links(html, index_url, code5, issuer.link_re):
+            if link.document_id not in listed:
+                listed.add(link.document_id)
+                links.append(link)
     saved = skipped = failed = 0
     for link in links:
         if has_saved(SOURCE_HOMEPAGE, link.document_id):
@@ -384,7 +424,7 @@ def run(
             if down is not None:
                 return down
             failed += 1
-            print(f"fail {issuer.code} {issuer.index_url}: {exc}", flush=True)
+            print(f"fail {issuer.code} {' '.join(issuer.index_urls)}: {exc}", flush=True)
             continue
         print(
             f"homepage_briefing {issuer.code} listed={counts[0]} saved={counts[1]} "
