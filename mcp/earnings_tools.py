@@ -341,7 +341,7 @@ def tool_earnings_day(args: dict[str, Any], get_json: GetJson, open_db: Callable
             mc = m.get("market_cap")
             body.append([
                 code4(r["code"]), r.get("name"), r.get("sector33"),
-                " ".join(f"{_fye(p.get('fye'))}{p.get('fq') or ''}" for p in r.get("periods") or []),
+                " ".join(f"{str(p.get('label') or '').removeprefix('FY')}{p.get('fq') or ''}" for p in r.get("periods") or []),
                 _pct(_pts_chg(r)), _num(m.get("close"), 0), "" if mc is None else f"{mc / 100:,.0f}",
                 f"{_fye(lt.get('fiscal_year_end'))} {_quarter(lt.get('period'))}".strip() if lt else "",
                 _pct(_growth(lt.get("yoy"), "operating_profit")), _pct(_growth(lt.get("qoq"), "operating_profit")),
