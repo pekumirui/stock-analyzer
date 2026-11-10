@@ -62,6 +62,39 @@ def test_verify_expands_tables_and_keeps_them() -> None:
     assert bb.parse_custom_id(bb.custom_id(bb.request_key(DOC_ID), 12)) == (bb.request_key(DOC_ID), 12)
 
 
+def test_verify_drops_same_value_in_two_scales() -> None:
+    text = "SoC Testers / SoCテスタ $ 4.1B / 41億ドル $ 8.7 - 9.5B / 87 - 95億ドル メモリテスタ $ 1.9B / 19億ドル"
+    cols = [{"period": "CY24 実績", "kind": "actual"}, {"period": "CY26 推定", "kind": "forecast"}]
+    out = {"tables": [
+        {"cols": cols, "rows": [{"metric": "市場規模/SoCテスタ", "segment": None, "unit": "億ドル", "values": ["41", "87-95"]},
+                                {"metric": "市場規模/メモリテスタ", "segment": None, "unit": "億ドル", "values": ["19", None]}]},
+        {"cols": cols, "rows": [{"metric": "市場規模/SoCテスタ", "segment": None, "unit": "十億ドル", "values": ["4.1", "8.7-9.5"]},
+                                {"metric": "市場規模/メモリテスタ", "segment": None, "unit": "十億ドル", "values": ["1.8", None]}]}]}
+    r = bx.verify({"text": text}, out)
+    assert [(f["metric"], f["value"], f["unit"]) for f in r["facts"]] == [
+        ("市場規模/SoCテスタ", "41", "億ドル"), ("市場規模/SoCテスタ", "87-95", "億ドル"),
+        ("市場規模/メモリテスタ", "19", "億ドル"), ("市場規模/メモリテスタ", "1.8", "十億ドル")]
+
+
+@pytest.mark.parametrize("a, b", [
+    (("億円", "1,128.6"), ("億円", "1,128.6")),
+    (("億円", "11,286"), ("億ドル", "112.86")),
+    (("億円", "41"), ("%", "4.1")),
+    (("億円", "1,286"), ("円", "128,600,000,000")),
+])
+def test_scaled_duplicates_need_scale_prefix_and_same_base(a, b) -> None:
+    facts = [{"metric": "売上高", "segment": None, "period": "FY25", "period_kind": "actual", "unit": u, "value": v,
+              "value_num": bx.parse_number(v)} for u, v in (a, b)]
+    assert len(bx.drop_scaled_duplicates(facts)) == 2
+
+
+def test_unit_scale() -> None:
+    assert bx.unit_scale("十億ドル") == ("ドル", 1e9)
+    assert bx.unit_scale("百万円") == ("円", 1e6)
+    assert bx.unit_scale("10億円") == ("円", 1e9)
+    assert bx.unit_scale("%") is None
+
+
 def test_parse_json_joins_split_pages() -> None:
     seg = {"title": "売上高 事業セグメント別", "summary": "増えた。", "tables": [{"cols": [], "rows": [{"metric": "a"}]}]}
     area = {"title": "売上高 地域(出荷先)別", "summary": "中国が伸びた。", "tables": [{"cols": [], "rows": [{"metric": "b"}]}]}

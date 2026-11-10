@@ -14,6 +14,7 @@ import io
 import json
 import re
 import unicodedata
+from collections import Counter
 
 PROMPT_VERSIONS = ("v1", "v2", "v3")  # run.py --prompt で選ぶ。結果 JSON の prompt_version は deck-<選んだ方>
 
@@ -381,6 +382,52 @@ def ocr_numbers(pdf_bytes: bytes, page_no: int, dpi: int = 150) -> list[float]:
     return sorted(numbers_in(" ".join(_OCR(img).txts or [])))
 
 
+_SCALE_PREFIXES = (("千億", 1e11), ("百億", 1e10), ("十億", 1e9), ("10億", 1e9), ("千万", 1e7), ("百万", 1e6),
+                   ("十万", 1e5), ("兆", 1e12), ("億", 1e8), ("万", 1e4), ("千", 1e3), ("百", 1e2),
+                   ("bn", 1e9), ("mn", 1e6), ("B", 1e9), ("M", 1e6), ("K", 1e3), ("k", 1e3))
+
+
+def unit_scale(unit) -> tuple[str, float] | None:
+    """'十億ドル' -> ('ドル', 1e9)、'億円' -> ('円', 1e8)。倍率の接頭が無ければ None。"""
+    u = norm_text(str(unit or "")).strip()
+    for prefix, scale in _SCALE_PREFIXES:
+        if u.startswith(prefix):
+            return u[len(prefix):].strip(), scale
+    return None
+
+
+def _same_scaled(a: dict, b: dict) -> bool:
+    sa, sb = unit_scale(a.get("unit")), unit_scale(b.get("unit"))
+    if not sa or not sb or sa[0] != sb[0] or sa[1] == sb[1]:
+        return False
+    na, nb = re.findall(_DIGITS, norm_text(str(a["value"]))), re.findall(_DIGITS, norm_text(str(b["value"])))
+    if not na or len(na) != len(nb):
+        return False
+    tol = 0.5 * max(10 ** -_decimals(str(a["value"])) * sa[1], 10 ** -_decimals(str(b["value"])) * sb[1]) + 1e-9
+    return all(abs(float(x.replace(",", "")) * sa[1] - float(y.replace(",", "")) * sb[1]) <= tol for x, y in zip(na, nb))
+
+
+def drop_scaled_duplicates(facts: list[dict]) -> list[dict]:
+    """同じ行名・区分・期間・種類で、単位の倍率を直すと同じ値になる行（'$4.1B / 41億ドル' の 2 行）を 1 行にする。
+    残すのはページで多く使われている単位、同数なら倍率の小さい単位。"""
+    used = Counter(norm_text(str(f.get("unit") or "")).strip() for f in facts)
+
+    def rank(f: dict) -> tuple[int, float]:
+        return -used[norm_text(str(f.get("unit") or "")).strip()], unit_scale(f.get("unit"))[1]
+
+    groups: dict[tuple, list[dict]] = {}
+    for f in facts:
+        if f.get("value_num") is not None and unit_scale(f.get("unit")):
+            groups.setdefault((fact_key(f), f.get("period"), f.get("period_kind")), []).append(f)
+    drop: set[int] = set()
+    for fs in groups.values():
+        for i, a in enumerate(fs):
+            for b in fs[i + 1:]:
+                if id(a) not in drop and id(b) not in drop and _same_scaled(a, b):
+                    drop.add(id(max(a, b, key=rank)))
+    return [f for f in facts if id(f) not in drop]
+
+
 def verify(page: dict, out: dict) -> dict:
     """facts に value_num・verified・verified_by（text / ocr）を付ける。v2 以降は表を展開し、内訳の合計を検算する。
     page に ocr_numbers（ocr_numbers() の結果）があれば、文字データに無い数字をそれで照合する。"""
@@ -397,7 +444,7 @@ def verify(page: dict, out: dict) -> dict:
         f["verified_by"] = None if v is None else "text" if abs(v) in nums else "ocr" if abs(v) in ocr else None
         f["verified"] = f["verified_by"] is not None
         facts.append(f)
-    out["facts"] = facts
+    out["facts"] = facts = drop_scaled_duplicates(facts)
     out["sum_checks"] = check_sums(facts)
     return out
 
