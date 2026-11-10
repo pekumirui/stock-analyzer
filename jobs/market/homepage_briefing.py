@@ -18,6 +18,9 @@ index_url が転送や meta refresh で別のページへ飛ばすときは、�
 YYYYMMDD、それも無ければ取得した時刻）。
 番号は表題と PDF のファイル名から作る。索引にある PDF は取りに行かない。
 --limit は 1 社で新しく保存する件数（ページの上から）。
+一覧を eir-parts（プロネクサスの IR サービス）で出す会社は、index_url に会社のページでなく
+フィード（https://ssl4.eir-parts.net/V4Public/EIR/<code>/ja/announcement/announcement_<N>.js）を書く。
+フィードは公開日を持つのでそれを使い、番号は PDF の URL から作る。
 索引は briefing_documents（source=homepage）。ネットワークはテストから差し替える。
 """
 from __future__ import annotations
@@ -74,6 +77,9 @@ _VOID_TAGS = frozenset({"img", "br", "hr", "input", "meta", "link", "source", "w
 _SKIP_TAGS = frozenset({"svg", "style", "script"})
 _FORMAT_ONLY = re.compile(r"^PDF$", re.I)
 MAX_LABEL = 60
+_EIR_FEED = re.compile(r"^https://[a-z0-9]+\.eir-parts\.net/V4Public/EIR/[^/]+/[a-z]+/announcement/announcement_\d+\.js$")
+_EIR_DATE = re.compile(r"^(\d{4})/(\d{2})/(\d{2}) (\d{2}):(\d{2}):(\d{2})$")
+_EIR_FISCAL = re.compile(r"^(\d{4})(\d{2})$")
 _URL_DAY = re.compile(r"(?<!\d)(20\d{2})(\d{2})(\d{2})(?!\d)")
 _PDF_DATE = re.compile(
     r"^D:(\d{4})(\d{2})?(\d{2})?(\d{2})?(\d{2})?(\d{2})?"
@@ -98,6 +104,7 @@ class DeckLink:
     url: str
     title: str
     document_id: str
+    pubdate: str = ""
 
 
 class _LinkParser(HTMLParser):
@@ -211,6 +218,48 @@ def parse_deck_links(html: str, base_url: str, code: str, link_re: str = "") -> 
     return out
 
 
+def is_eir_feed(url: str) -> bool:
+    return bool(_EIR_FEED.match(url))
+
+
+def parse_eir_feed(text: str, code: str, link_re: str = "") -> list[DeckLink]:
+    """eir-parts のフィード（JSONP）から PDF の IR 資料を、並びのまま。
+
+    決算期つきの資料（news_type が ir_material_for_fiscal_ym）は決算の語を補って判定する。
+    決算期の無い IR 資料（ir_material）は表題そのものに決算の語が要る。短信・適時開示は採らない。
+    """
+    extra = re.compile(link_re) if link_re else None
+    body = text.lstrip("\ufeff")
+    data = json.loads(body[body.index("(") + 1:body.rindex(")")])
+    out: list[DeckLink] = []
+    seen: set[str] = set()
+    for item in data.get("item") or []:
+        kind = str(item.get("news_type") or "")
+        url = str(item.get("link") or "").strip()
+        parsed = urlparse(url)
+        if item.get("type") != "pdf" or not kind.startswith("ir_material"):
+            continue
+        if parsed.scheme not in ("http", "https") or not _PDF_RE.search(parsed.path):
+            continue
+        text_ = spaced_title(str(item.get("title") or ""))
+        fiscal = kind.startswith("ir_material_for_fiscal_ym")
+        if not is_material_title(f"決算 {text_}" if fiscal else text_) and not (extra and extra.search(text_)):
+            continue
+        year = _EIR_FISCAL.match(str(item.get("fiscal_ym") or ""))
+        title = text_
+        if fiscal and year and f"{year.group(1)}年" not in text_:
+            title = f"{year.group(1)}年{int(year.group(2))}月期 {text_}"
+        digest = hashlib.sha1(f"{code}\n{parsed.path}".encode(), usedforsecurity=False).hexdigest()
+        doc_id = f"hp{digest[:24]}"
+        if doc_id in seen:
+            continue
+        seen.add(doc_id)
+        when = _EIR_DATE.match(str(item.get("date") or ""))
+        pubdate = "{}-{}-{} {}:{}:{}".format(*when.groups()) if when else ""
+        out.append(DeckLink(url=url, title=title, document_id=doc_id, pubdate=pubdate))
+    return out
+
+
 def parse_pdf_date(value: str | None) -> datetime | None:
     """PDF の日時（D:YYYYMMDDHHmmSS+09'00'）を JST の naive に。時差が無ければそのまま。"""
     match = _PDF_DATE.match((value or "").strip())
@@ -320,8 +369,12 @@ def fetch_issuer(
     links: list[DeckLink] = []
     listed: set[str] = set()
     for page_url in issuer.index_urls:
-        html, index_url = fetch_index(page_url, get_page)
-        for link in parse_deck_links(html, index_url, code5, issuer.link_re):
+        if is_eir_feed(page_url):
+            found = parse_eir_feed(get(page_url).decode("utf-8", "replace"), code5, issuer.link_re)
+        else:
+            html, index_url = fetch_index(page_url, get_page)
+            found = parse_deck_links(html, index_url, code5, issuer.link_re)
+        for link in found:
             if link.document_id not in listed:
                 listed.add(link.document_id)
                 links.append(link)
@@ -340,10 +393,12 @@ def fetch_issuer(
             data = get(link.url)
             if not data.startswith(b"%PDF"):
                 raise ValueError(f"not a PDF ({len(data)} bytes)")
-            when = read_date(data) or url_date(link.url)
-            if when is None or when > now:
-                when = now
-            pubdate = when.strftime("%Y-%m-%d %H:%M:%S")
+            pubdate = link.pubdate
+            if not pubdate:
+                when = read_date(data) or url_date(link.url)
+                if when is None or when > now:
+                    when = now
+                pubdate = when.strftime("%Y-%m-%d %H:%M:%S")
             path = dest_path(dest, pubdate, issuer.code, issuer.name, link.title)
             if path.exists():
                 path = path.with_name(f"{path.stem}_{link.document_id[-6:]}.pdf")

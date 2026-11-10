@@ -43,6 +43,11 @@
       "index_url": "https://www.keyence.co.jp/investor/library/results.jsp"
     },
     {
+      "code": "6920",
+      "name": "レーザーテック",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/6920/ja/announcement/announcement_1.js"
+    },
+    {
       "code": "7267",
       "name": "本田技研工業",
       "index_url": "https://global.honda/jp/investors/library/financialresult.html"
@@ -51,6 +56,12 @@
       "code": "8001",
       "name": "伊藤忠商事",
       "index_url": "https://www.itochu.co.jp/ja/ir/financial_statements/index.html"
+    },
+    {
+      "code": "8002",
+      "name": "丸紅",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/8002/ja/announcement/announcement_2.js",
+      "link_re": "IR資料"
     },
     {
       "code": "8031",
