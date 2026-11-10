@@ -8,3 +8,4 @@
 - [信用残はあとで DB に入る](margin-balance-later.md) — 取込も画面もまだ作らない。株主タブでも対象外のまま
 - [文書に容量を書かない](no-sizes-in-docs.md) — ○GB・○MB は md に書かない。すぐ古くなる
 - [Azure VM のスクショ](azure-vm-screenshots.md) — playwright は使い捨て venv に入れ、キャッシュの chromium を executable_path で使う
+- [エージェント比較は agent-bench へ](agent-bench-onedrive.md) — onedrive:agent-bench/<コード>-<会社名>/。deck-reader に混ぜない

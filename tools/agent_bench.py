@@ -1,13 +1,14 @@
 """kabukpi MCP のあり・なしで同じプロンプトを claude -p に渡し、ツール呼び出しとトークンを集計する。
 
-  python tools/agent_bench.py run --name 9880_2026-11-10 --prompt-file prompt.txt --publish onedrive:deck-reader/kab-411
-  python tools/agent_bench.py report <mcp.jsonl と nomcp.jsonl のあるフォルダ> --publish onedrive:deck-reader/kab-411/9880_2026-11-10
+  python tools/agent_bench.py run --code 9880 --company イノテック --prompt-file prompt.txt
+  python tools/agent_bench.py report <フォルダ> --date 2026-11-10
 
-レポート（report.md）・ログ・プロンプトを OneDrive に上げ、手元の作業フォルダは消す。
+<保存先>/<コード>-<会社名>/<日付>_report.md と <日付>_mcp.jsonl などを OneDrive に上げ、手元の作業フォルダは消す。
 """
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import os
 import shutil
@@ -33,6 +34,8 @@ KABUKPI_DENY = [
 ]
 BUILTIN = ["WebSearch", "WebFetch"]
 CONDS = ("mcp", "nomcp")
+PUBLISH = "onedrive:agent-bench"
+TODAY = datetime.date.today().isoformat()
 
 
 def build_cmd(cond: str, model: str, budget: float) -> list[str]:
@@ -97,10 +100,10 @@ def summarize(path: Path) -> dict:
     return {"calls": calls, "per_tool": dict(per_tool), "result": result, "max_context": max(turns, default=0)}
 
 
-def render_report(folder: Path) -> str:
-    stats = {c: summarize(folder / f"{c}.jsonl") for c in CONDS if (folder / f"{c}.jsonl").exists()}
-    lines = [f"# {folder.name}", ""]
-    prompt = folder / "prompt.txt"
+def render_report(folder: Path, date: str) -> str:
+    stats = {c: summarize(folder / f"{date}_{c}.jsonl") for c in CONDS if (folder / f"{date}_{c}.jsonl").exists()}
+    lines = [f"# {folder.name} {date}", ""]
+    prompt = folder / f"{date}_prompt.txt"
     if prompt.exists():
         lines += ["## プロンプト", "", *[f"> {x}" for x in prompt.read_text(encoding="utf-8").splitlines()], ""]
 
@@ -133,9 +136,10 @@ def render_report(folder: Path) -> str:
     return "\n".join(lines)
 
 
-def publish(folder: Path, dest: str) -> None:
+def publish(folder: Path, root: str) -> None:
+    dest = f"{root.rstrip('/')}/{folder.name}"
     subprocess.run(["rclone", "copy", str(folder), dest], check=True)
-    remote = set(subprocess.run(["rclone", "lsf", dest], check=True, capture_output=True, text=True).stdout.split())
+    remote = set(subprocess.run(["rclone", "lsf", dest], check=True, capture_output=True, text=True).stdout.splitlines())
     missing = {p.name for p in folder.iterdir()} - remote
     if missing:
         sys.exit(f"上がっていないファイルがあるので手元を残す: {folder} {sorted(missing)}")
@@ -145,14 +149,14 @@ def publish(folder: Path, dest: str) -> None:
 
 def cmd_run(a: argparse.Namespace) -> None:
     prompt = Path(a.prompt_file).read_text(encoding="utf-8")
-    folder = Path(tempfile.mkdtemp(prefix="agent-bench-")) / a.name
+    folder = Path(tempfile.mkdtemp(prefix="agent-bench-")) / f"{a.code}-{a.company}"
     folder.mkdir()
-    (folder / "prompt.txt").write_text(prompt, encoding="utf-8")
+    (folder / f"{a.date}_prompt.txt").write_text(prompt, encoding="utf-8")
     with ThreadPoolExecutor(len(a.conds)) as ex:
-        list(ex.map(lambda c: run_one(c, prompt, folder / f"{c}.jsonl", a.model, a.budget), a.conds))
-    (folder / "report.md").write_text(render_report(folder), encoding="utf-8")
+        list(ex.map(lambda c: run_one(c, prompt, folder / f"{a.date}_{c}.jsonl", a.model, a.budget), a.conds))
+    (folder / f"{a.date}_report.md").write_text(render_report(folder, a.date), encoding="utf-8")
     if a.publish:
-        publish(folder, f"{a.publish.rstrip('/')}/{a.name}")
+        publish(folder, a.publish)
         shutil.rmtree(folder.parent, ignore_errors=True)
     else:
         print(f"saved: {folder}")
@@ -160,27 +164,31 @@ def cmd_run(a: argparse.Namespace) -> None:
 
 def cmd_report(a: argparse.Namespace) -> None:
     folder = Path(a.folder)
-    (folder / "report.md").write_text(render_report(folder), encoding="utf-8")
+    report = folder / f"{a.date}_report.md"
+    report.write_text(render_report(folder, a.date), encoding="utf-8")
     if a.publish:
         publish(folder, a.publish)
     else:
-        print((folder / "report.md").read_text(encoding="utf-8"))
+        print(report.read_text(encoding="utf-8"))
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(required=True)
     r = sub.add_parser("run")
-    r.add_argument("--name", required=True)
+    r.add_argument("--code", required=True)
+    r.add_argument("--company", required=True)
+    r.add_argument("--date", default=TODAY)
     r.add_argument("--prompt-file", required=True)
     r.add_argument("--conds", nargs="+", choices=CONDS, default=list(CONDS))
     r.add_argument("--model", default="claude-opus-5-5")
     r.add_argument("--budget", type=float, default=5.0)
-    r.add_argument("--publish", help="rclone の保存先。例: onedrive:deck-reader/kab-411")
+    r.add_argument("--publish", default=PUBLISH, help="rclone の保存先。空文字なら手元に残す")
     r.set_defaults(func=cmd_run)
     s = sub.add_parser("report")
-    s.add_argument("folder")
-    s.add_argument("--publish", help="rclone の保存先フォルダ")
+    s.add_argument("folder", help="<コード>-<会社名> のフォルダ")
+    s.add_argument("--date", default=TODAY)
+    s.add_argument("--publish", default=PUBLISH, help="rclone の保存先。空文字なら表示だけ")
     s.set_defaults(func=cmd_report)
     a = ap.parse_args()
     a.func(a)
