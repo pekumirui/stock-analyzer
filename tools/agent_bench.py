@@ -1,6 +1,6 @@
 """kabukpi MCP のあり・なしで同じプロンプトを claude -p に渡し、ツール呼び出しとトークンを集計する。
 
-  python tools/agent_bench.py run --code 9880 --company イノテック --prompt-file prompt.txt
+  python tools/agent_bench.py run --code 9880 --company イノテック --period "2027年3月期 第2四半期"
   python tools/agent_bench.py report <フォルダ> --date 2026-11-10
 
 <保存先>/<コード>-<会社名>/<日付>_report.md と <日付>_mcp.jsonl などを OneDrive に上げ、手元の作業フォルダは消す。
@@ -36,6 +36,7 @@ BUILTIN = ["WebSearch", "WebFetch"]
 CONDS = ("mcp", "nomcp")
 PUBLISH = "onedrive:agent-bench"
 TODAY = datetime.date.today().isoformat()
+PROMPT_TEMPLATE = Path(__file__).with_name("agent_bench_prompt.md")
 
 
 def build_cmd(cond: str, model: str, budget: float) -> list[str]:
@@ -148,7 +149,8 @@ def publish(folder: Path, root: str) -> None:
 
 
 def cmd_run(a: argparse.Namespace) -> None:
-    prompt = Path(a.prompt_file).read_text(encoding="utf-8")
+    template = Path(a.prompt_file or PROMPT_TEMPLATE).read_text(encoding="utf-8")
+    prompt = template.format(code=a.code, company=a.company, period=a.period)
     folder = Path(tempfile.mkdtemp(prefix="agent-bench-")) / f"{a.code}-{a.company}"
     folder.mkdir()
     (folder / f"{a.date}_prompt.txt").write_text(prompt, encoding="utf-8")
@@ -179,7 +181,8 @@ def main() -> None:
     r.add_argument("--code", required=True)
     r.add_argument("--company", required=True)
     r.add_argument("--date", default=TODAY)
-    r.add_argument("--prompt-file", required=True)
+    r.add_argument("--period", required=True, help="予想させる決算。例: 2027年3月期 第2四半期")
+    r.add_argument("--prompt-file", help="{code} {company} {period} を埋めるテンプレート。既定は agent_bench_prompt.md")
     r.add_argument("--conds", nargs="+", choices=CONDS, default=list(CONDS))
     r.add_argument("--model", default="claude-opus-5-5")
     r.add_argument("--budget", type=float, default=5.0)
