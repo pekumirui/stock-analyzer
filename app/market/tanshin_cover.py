@@ -216,14 +216,21 @@ def _latest_xbrl(db: Session, code: str) -> _Candidate | None:
 
 
 def _latest_pdf(db: Session, code: str) -> _Candidate | None:
-    docs = db.execute(
-        select(TdnetPdfDocument)
-        .where(TdnetPdfDocument.code == code, TdnetPdfDocument.status == "ok")
+    heads = db.execute(
+        select(TdnetPdfDocument.disclosure_no, TdnetPdfDocument.title)
+        .where(
+            TdnetPdfDocument.code == code,
+            TdnetPdfDocument.status == "ok",
+            TdnetPdfDocument.html_gz.is_not(None),
+        )
         .order_by(TdnetPdfDocument.disclosed_date.desc(), TdnetPdfDocument.disclosed_time.desc())
         .limit(40)
-    ).scalars()
-    for doc in docs:
-        if not doc.html_gz or not is_cover_tanshin_title(doc.title):
+    ).all()
+    for disclosure_no, title in heads:
+        if not is_cover_tanshin_title(title):
+            continue
+        doc = db.get(TdnetPdfDocument, disclosure_no)
+        if doc is None or not doc.html_gz:
             continue
         return _Candidate(
             at=_pdf_at(doc),
@@ -327,11 +334,17 @@ def sync_covers(
     codes: list[str] | None,
     *,
     limit: int | None = None,
+    since: datetime | None = None,
     dry_run: bool = False,
 ) -> CoverReport:
-    """DB にある最新短信の表紙を読む。codes が無しなら新しい順に limit 社。"""
+    """DB にある最新短信の表紙を読む。codes が無しなら since 以降に短信を出した会社、since も無しなら新しい順に limit 社。"""
     report = CoverReport()
-    chosen = list(codes) if codes is not None else _recent_codes(db, limit or 0)
+    if codes is not None:
+        chosen = list(codes)
+    elif since is not None:
+        chosen = _codes_since(db, since)
+    else:
+        chosen = _recent_codes(db, limit or 0)
     for code in chosen:
         try:
             ordinary = ordinary_code(code)
@@ -353,6 +366,25 @@ def sync_covers(
         save_cover(db, ordinary, item, flags, dry_run=dry_run)
         report.written += 1
     return report
+
+
+def _codes_since(db: Session, since: datetime) -> list[str]:
+    seen: set[str] = set()
+    filings = db.execute(
+        select(XbrlFiling.code, XbrlFiling.title, XbrlFiling.is_amendment)
+        .where(XbrlFiling.source == "tdnet", XbrlFiling.submitted_at >= since)
+    ).all()
+    for code, title, amended in filings:
+        if not amended and is_cover_tanshin_title(title):
+            seen.add(code)
+    docs = db.execute(
+        select(TdnetPdfDocument.code, TdnetPdfDocument.title)
+        .where(TdnetPdfDocument.status == "ok", TdnetPdfDocument.disclosed_date >= since.date())
+    ).all()
+    for code, title in docs:
+        if is_cover_tanshin_title(title):
+            seen.add(code)
+    return sorted(seen)
 
 
 def _recent_codes(db: Session, limit: int) -> list[str]:

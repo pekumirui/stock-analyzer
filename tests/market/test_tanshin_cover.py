@@ -16,7 +16,7 @@ from app.market.tanshin_cover import (
 )
 from app.models import Stock, TanshinCover, TdnetPdfDocument, XbrlDocument, XbrlFiling
 from jobs.market.tanshin_covers import main as covers_main
-from jobs.market.tanshin_covers import parse_args
+from jobs.market.tanshin_covers import parse_args, since_from_days
 
 ROOT = Path(__file__).resolve().parents[2]
 GOLDEN = ROOT / "tests" / "golden" / "tdnet_pdf" / "html"
@@ -276,6 +276,56 @@ def test_parse_args_rejects_a_full_fetch() -> None:
         parse_args([])
     with pytest.raises(SystemExit):
         parse_args(["--limit", "0"])
+    with pytest.raises(SystemExit):
+        parse_args(["--days", "0"])
+    with pytest.raises(SystemExit):
+        parse_args(["--days", "3", "--limit", "5"])
+    with pytest.raises(SystemExit):
+        parse_args(["--days", "3", "--code", "7203"])
+    assert parse_args(["--days", "3"]).days == 3
     args = parse_args(["--code", "7203", "--dry-run"])
     assert args.dry_run is True
     assert args.code == ["7203"]
+
+
+def test_days_window_includes_today() -> None:
+    assert since_from_days(1, NOW) == datetime(2026, 11, 2)  # noqa: DTZ001
+    assert since_from_days(3, NOW) == datetime(2026, 10, 31)  # noqa: DTZ001
+
+
+def test_since_takes_companies_that_filed_in_the_window() -> None:
+    db = SessionLocal()
+    try:
+        _stock(db, "72030", "011", "トヨタ自動車")
+        _stock(db, "67580", "011", "ソニーグループ")
+        _stock(db, "99840", "011", "ソフトバンクグループ")
+        _stock(db, "22370", "014", "ｉＦｒｅｅＥＴＦ　Ｓ＆Ｐ５００レバレッジ")
+        yes = _pdf_html(["決算補足説明資料作成の有無：有", "決算説明会開催の有無：無"])
+        _filing(
+            db, "72030", "081220261101000001", "2026年3月期 第2四半期決算短信〔日本基準〕（連結）",
+            datetime(2026, 11, 1, 15, 30), _ixbrl("有", "有"),  # noqa: DTZ001
+        )
+        _pdf(db, "67580", "20261031000002", "2026年3月期 第2四半期決算短信", date(2026, 10, 31), yes)
+        _pdf(db, "99840", "20261030000003", "2026年3月期 第2四半期決算短信", date(2026, 10, 30), yes)
+        _pdf(db, "22370", "etf-1", "2026年9月期 決算短信", date(2026, 11, 1), yes)
+        _pdf(db, "67580", "20261101000004", "業績予想の修正に関するお知らせ", date(2026, 11, 1), yes)
+        report = sync_covers(db, None, since=datetime(2026, 10, 31))  # noqa: DTZ001
+        assert report.written == 2
+        assert report.skipped == 1
+        assert db.get(TanshinCover, "081220261101000001").has_material is True
+        assert db.get(TanshinCover, "20261031000002").has_material is True
+        assert db.get(TanshinCover, "20261030000003") is None
+        assert db.get(TanshinCover, "etf-1") is None
+    finally:
+        db.close()
+
+
+def test_crontab_runs_covers_daily() -> None:
+    lines = [
+        line for line in (ROOT / "deploy" / "crontab").read_text(encoding="utf-8").splitlines()
+        if not line.lstrip().startswith("#") and "jobs/market/tanshin_covers.py" in line
+    ]
+    assert len(lines) == 1
+    assert "deploy/cron-run.sh jobs/market/tanshin_covers.py --days 3" in lines[0]
+    readme = (ROOT / "deploy" / "README.md").read_text(encoding="utf-8")
+    assert "jobs/market/tanshin_covers.py --days 3" in readme
