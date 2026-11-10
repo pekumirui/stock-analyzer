@@ -111,6 +111,7 @@ flowchart LR
   n0 -.- n14
   n0 -.- n17
   n0 -.- n20
+  n1 -.- n14
   n1 -.- n15
   n1 -.- n16
   n1 -.- n19
@@ -145,7 +146,7 @@ flowchart LR
 | API | 書く | 読むだけ |
 |---|---|---|
 | `GET /api/chart/{code}` |  | `daily_prices`, `earnings_events`, `statements`, `stocks` |
-| `GET /api/earnings` |  | `earnings_date_fetches`, `earnings_date_pubs`, `pts_snapshots`, `statements`, `stocks`, `xbrl_filings`, `xbrl_financials`, `xbrl_std_items` |
+| `GET /api/earnings` |  | `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `pts_snapshots`, `statements`, `stocks`, `xbrl_filings`, `xbrl_financials`, `xbrl_std_items` |
 | `GET /api/earnings-performance/{code}` |  | `earnings_events` |
 | `GET /api/earnings/calendar` |  | `earnings_date_pubs`, `statements`, `stocks` |
 | `GET /api/pts` |  | `daily_prices`, `pts_snapshots` |
@@ -183,7 +184,7 @@ flowchart LR
 ### daily_prices
 
 - 書く: `jobs/golden_db.py（共通・運用）`, `jobs/market/run_batch.py`, `jobs/ops/rebuild_daily_prices.py（共通・運用）`
-- 読むだけ: `GET /api/chart/{code}`, `GET /api/holders/{edinet}（EDINET・大量保有）`, `GET /api/pts`, `GET /api/ranking/earnings-perf`, `GET /api/stock/{code}/overview`
+- 読むだけ: `GET /api/chart/{code}`, `GET /api/earnings`, `GET /api/earnings/detail/{code}（XBRL・決算書類）`, `GET /api/holders/{edinet}（EDINET・大量保有）`, `GET /api/pts`, `GET /api/ranking/earnings-perf`, `GET /api/stock/{code}/overview`
 
 ### data_versions
 
