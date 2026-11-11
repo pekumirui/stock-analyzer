@@ -98,6 +98,9 @@ _CORR_NOTICE = re.compile(
 )
 # IFRS 本表は費用を △ で印字する。ZIP の CostOfSales は正なので符号を合わせる。合計の行も同じ。
 _IFRS_EXPENSE_ABS = re.compile(r"^(売上原価|原価|販売費及び一般管理費)(合計)?$")
+_PER_SHARE_SIBLING = re.compile(
+    r"^[-ー−・]?(?:(?:基本的?|希薄化後|潜在株式調整後)(?:継続事業|非継続事業|合計)?|継続事業|非継続事業|合計)(?:\(円\))?[:：]?$"
+)
 # 本表（BS/PL/CF）。決算短信ごとに最初の 1 つだけ読む（セグメント別・子会社・単体の表を読まない）。
 _STATEMENTS = frozenset({"bs", "pl", "cf"})
 # サマリーは起点から 2 ページ。通常は 0。訂正理由書のあとに全文があるときは、最初の
@@ -1224,7 +1227,13 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
             # 分からない（期の読み違い）ので、どちらも入れない。
             pending: list[tuple[ParsedFact, str]] = []
             column_roles = _statement_roles(table, spec, d) if spec.axis is Axis.ITEM_ROWS else None
+            per_share_above = False
             for row in table.rows:
+                row_label = _compact(row.label)
+                per_share_row = column_roles is not None and per_share_above and bool(
+                    _PER_SHARE_SIBLING.fullmatch(row_label)
+                )
+                per_share_above = column_roles is not None and ("株当" in row_label or per_share_row)
                 for index, (column, amount) in enumerate(zip(table.columns, row.cells)):
                     if amount is None or amount.value is None:
                         continue
@@ -1245,7 +1254,7 @@ def package(pages: list[Page], d: PdfDisclosure) -> ParsedPackage:
                     if role is None or not item_text.strip() or _is_unit_token(item_text):
                         continue
                     try:
-                        unit = unit_of(table.unit_note, (item_text, *role_texts))
+                        unit = UnitKind.PER_SHARE if per_share_row else unit_of(table.unit_note, (item_text, *role_texts))
                     except PdfLayoutError:
                         if not slot_only:
                             continue
