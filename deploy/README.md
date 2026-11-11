@@ -403,7 +403,7 @@ deploy/cron-run.sh jobs/market/briefing_extract.py collect
 python jobs/market/briefing_extract.py status
 ```
 
-TDnet に説明資料を出さない会社の分（KAB-413）は `jobs/market/homepage_briefing.py` が会社の IR ページから取る。対象は `config/market/briefing_pages.json`。毎日 22:25 に cron が `--years 5 --ledger /var/log/app/homepage_briefing_ledger.json` で動く（KAB-438）。索引にある PDF は取り直さない。`--dry-run` は新しく保存する分を出すだけ。`--limit` は 1 社で新しく保存する件数（ページの上から）。
+TDnet に説明資料を出さない会社の分（KAB-413）は `jobs/market/homepage_briefing.py` が会社の IR ページから取る。対象は `config/market/briefing_pages.json`。cron は 2 本（KAB-438）。毎時の短信の取り込みのあとに `--years 5 --pending 7 --ledger /var/log/app/homepage_briefing_ledger.json`（資料ありの短信を出した会社だけ）、日曜 22:25 に `--pending` 無しで全社。索引にある PDF は取り直さない。`--dry-run` は新しく保存する分を出すだけ。`--limit` は 1 社で新しく保存する件数（ページの上から）。
 
 ```bash
 deploy/cron-run.sh jobs/market/homepage_briefing.py --only 6728 --dry-run
@@ -437,7 +437,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 |---|---|
 | `jobs/monthly/tdnet_monthly_r2.py 7` | 18:00 / 21:00（直近7日。一覧は TDnet。取りこぼしの拾い直し） |
 | `jobs/market/tdnet_briefing_r2.py 7` | 22:10（決算説明資料 → `data/briefing`。直近7日。既存 PDF は skip。索引行だけの補完は `reindexed`。初回の約30日は `deploy/cron-run.sh jobs/market/tdnet_briefing_r2.py 30` を手で一度。デプロイでは走らない） |
-| `jobs/market/homepage_briefing.py --years 5 --ledger /var/log/app/homepage_briefing_ledger.json` | 22:25（会社の IR ページ・eir-parts の決算説明資料 → `data/briefing`。直近 5 年。索引にある PDF は取り直さない。取ってから古いと分かった資料は ledger に残す。KAB-438） |
+| `jobs/market/homepage_briefing.py --years 5 --ledger /var/log/app/homepage_briefing_ledger.json` | 日曜 22:25（週 1 回、設定の全社を見る。短信から日がたって載る質疑応答などの拾い直し。資料ありの短信なのに索引に無く設定にも無い会社を `missing` に出す。KAB-438） |
 | `jobs/market/tanshin_covers.py --days 3` | 23:35（決算短信の表紙の「補足説明資料の有無」「説明会の有無」→ `tanshin_covers`。直近 3 日に短信を出した会社の最新 1 件） |
 | `jobs/monthly/tdnet_monthly_pdf_sidecar.py` | 18:20 / 21:20（TDnet PDF 取得の後） |
 | `jobs/monthly/tdnet_monthly_pdf_ingest.py` | 18:30 / 21:30（sidecar の後。ledger は `/var/log/app/pdf_ingest_ledger.json`） |
@@ -446,7 +446,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 | `jobs/monthly/ir_monthly_html_ingest.py` | 10:30 / 16:30（HTML 取得の後。ledger は `/var/log/app/html_ingest_ledger.json`） |
 | `jobs/monthly/ir_monthly_json_ingest.py` | 10:30 / 16:30（CloudFront JSON → loopback POST。7649） |
 | `jobs/monthly/ir_monthly_xls_ingest.py --all --post` | 10:40 / 16:40（`ir_monthly_r2.py` が保存した最新の xls / xlsx → loopback POST。1878 / 7606） |
-| `jobs/xbrl/tdnet_xbrl_r2.py 2` → `xbrl_parse.py` → `xbrl_normalize.py` → `xbrl_statements.py` | 12–23 時の毎時 00 分（1 行で順に。前日と当日。取得が失敗しても parse / normalize / statements は走らせる。単独やり直しは `deploy/cron-run.sh jobs/xbrl/xbrl_parse.py` など） |
+| `jobs/xbrl/tdnet_xbrl_r2.py 2` → `xbrl_parse.py` → `xbrl_normalize.py` → `xbrl_statements.py` → `jobs/market/tanshin_covers.py --days 1` → `jobs/market/tdnet_briefing_r2.py 1` → `jobs/market/homepage_briefing.py --years 5 --pending 7 --ledger /var/log/app/homepage_briefing_ledger.json` | 12–23 時の毎時 00 分（1 行で順に。前日と当日。取得が失敗しても parse / normalize / statements は走らせる。単独やり直しは `deploy/cron-run.sh jobs/xbrl/xbrl_parse.py` など）。statements のあとに、その日の短信の表紙 → その日の TDnet の説明資料 → 直近 7 日に資料ありの短信を出し、まだ資料を取れていない設定の会社の会社ページ（短信の直後に 1 回、以後 1 日 1 回。KAB-438） |
 | `jobs/market/pts_snapshot.py` | 平日 15:30〜24:00 の 30 分ごと（株探 PTS ランキング。24:00 は翌日 0:00 の回） |
 | `jobs/market/intraday_1m.py` | 平日 20:30（yfinance 1 分足 → `data/intraday/1m/`。日次バッチの後。約 45 分） |
 | `jobs/ops/vps_packages_r2.py` | 06:40 |

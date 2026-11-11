@@ -44,6 +44,7 @@ flowchart LR
   n1 --> n9
   n2 -.- n20
   n3 --> n9
+  n3 -.- n22
   n4 --> n17
   n4 -.- n20
   n4 -.- n23
@@ -75,7 +76,7 @@ flowchart LR
 | `jobs/market/briefing_extract.py` | `briefing_extracts`, `briefing_facts`, `briefing_pages` | `briefing_documents` |
 | `jobs/market/briefing_offsite.py` | `briefing_documents` |  |
 | `jobs/market/check_demo.py` |  | `statements`, `stocks` |
-| `jobs/market/homepage_briefing.py` | `briefing_documents` |  |
+| `jobs/market/homepage_briefing.py` | `briefing_documents` | `tanshin_covers` |
 | `jobs/market/homepages.py` | `homepages` | `statements`, `tdnet_pdf_documents`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings` |
 | `jobs/market/pts_snapshot.py` | `pts_snapshots` |  |
 | `jobs/market/run_batch.py` | `daily_prices`, `earnings_date_fetches`, `earnings_date_pubs`, `earnings_events`, `indicators`, `statements`, `stocks`, `topix` |  |
@@ -242,7 +243,7 @@ flowchart LR
 ### tanshin_covers
 
 - 書く: `jobs/market/tanshin_covers.py`
-- 読むだけ: （観測なし）
+- 読むだけ: `jobs/market/homepage_briefing.py`
 
 ### topix
 

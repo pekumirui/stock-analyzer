@@ -22,7 +22,11 @@ YYYYMMDD、それも無ければ取得した時刻）。
 --years N は今日から N 年前の日より前の資料を保存しない。eir-parts はフィードの日付で決める。
 会社のページは表題か URL にある年（和暦を含む）が N 年前の年より古ければ取りに行かず、
 年が読めないものは取ってから公開日で決める。--ledger PATH を付けると、取ってから古いと
-分かった資料の番号と公開日を JSON に残し、次の実行では取りに行かない（日次 cron。dest には置かない）。
+分かった資料の番号と公開日と、--pending で会社を見た時刻を JSON に残す（dest には置かない）。
+--pending N は、直近 N 日に「補足説明資料 有」（読めないときも含む）の短信を出し、そのあとの資料を
+まだ会社ページから取れていない会社だけを見る。短信の直後に 1 回、見つからなければ RECHECK ごとに 1 回。
+毎時の短信の取り込みのあとに cron が動かす。--pending を付けない回（週 1 回）は全社を見て、
+直近 MISSING_DAYS 日に資料ありの短信を出したのに索引に資料が無く、設定にも無い会社を missing に出す。
 保存の直前に --dest の空きを見て、MIN_FREE_BYTES 未満なら保存せずに止める（終了コード 0）。
 一覧を eir-parts（プロネクサスの IR サービス）で出す会社は、index_url に会社のページでなく
 フィード（https://ssl4.eir-parts.net/V4Public/EIR/<code>/ja/announcement/announcement_<N>.js）を書く。
@@ -39,7 +43,7 @@ import shutil
 import sys
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -81,6 +85,9 @@ _META_REFRESH = re.compile(
 )
 MAX_REFRESH = 2
 MIN_FREE_BYTES = 25 * 1024 * 1024 * 1024
+RECHECK = timedelta(hours=20)
+FOUND_SLACK = timedelta(days=2)
+MISSING_DAYS = 7
 _TITLE_YEAR = re.compile(r"(?<!\d)(19[89]\d|20\d{2})(?!\d)")
 _WAREKI_YEAR = re.compile(r"(平成|令和)\s*(元|\d{1,2})\s*年")
 _WAREKI_BASE = {"平成": 1988, "令和": 2018}
@@ -416,22 +423,111 @@ def load_registry(path: Path) -> list[Issuer]:
     return out
 
 
-def load_ledger(path: Path) -> dict[str, str]:
-    """取ってから古いと分かった資料（番号 → 公開日）。無い・壊れていれば空。"""
+@dataclass
+class Ledger:
+    old: dict[str, str] = field(default_factory=dict)       # 取ってから古いと分かった資料の番号 → 公開日
+    checked: dict[str, str] = field(default_factory=dict)   # --pending で見た会社（5 桁）→ 時刻
+
+    def as_json(self) -> dict[str, dict[str, str]]:
+        return {"old": dict(sorted(self.old.items())), "checked": dict(sorted(self.checked.items()))}
+
+
+def _str_map(raw: object) -> dict[str, str]:
+    if not isinstance(raw, dict):
+        return {}
+    return {str(k): v for k, v in raw.items() if isinstance(v, str)}
+
+
+def load_ledger(path: Path) -> Ledger:
+    """無い・壊れていれば空。"""
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return {}
+        return Ledger()
     if not isinstance(raw, dict):
-        return {}
-    return {str(k): str(v) for k, v in raw.items() if isinstance(v, str)}
+        return Ledger()
+    return Ledger(old=_str_map(raw.get("old")), checked=_str_map(raw.get("checked")))
 
 
-def save_ledger(path: Path, data: dict[str, str]) -> None:
+def save_ledger(path: Path, data: Ledger) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".part")
-    tmp.write_text(json.dumps(dict(sorted(data.items())), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    tmp.write_text(json.dumps(data.as_json(), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     tmp.replace(path)
+
+
+def _ts(when: datetime) -> str:
+    return when.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _latest_covers(codes: set[str] | None, start: datetime) -> dict[str, tuple[datetime, bool | None, str]]:
+    """直近の短信の表紙（code 5 桁 → 開示時刻・資料の有無・表題）。codes が None なら全社。"""
+    from sqlalchemy import select
+
+    from app.db import SessionLocal
+    from app.models import TanshinCover
+
+    q = select(TanshinCover.code, TanshinCover.disclosed_at, TanshinCover.has_material, TanshinCover.title).where(
+        TanshinCover.disclosed_at >= start
+    )
+    if codes is not None:
+        q = q.where(TanshinCover.code.in_(sorted(codes)))
+    latest: dict[str, tuple[datetime, bool | None, str]] = {}
+    db = SessionLocal()
+    try:
+        for code, at, has, title in db.execute(q):
+            if at is not None and (code not in latest or at > latest[code][0]):
+                latest[code] = (at, has, title or "")
+    finally:
+        db.close()
+    return latest
+
+
+def _has_deck_since(code: str, at: datetime, source: str | None) -> bool:
+    """短信のころ以降の資料が索引にあるか。会社ページの公開日は PDF の日付なので少し前にずれうる。"""
+    from sqlalchemy import select
+
+    from app.db import SessionLocal
+    from app.models import BriefingDocument
+
+    q = select(BriefingDocument.document_id).where(
+        BriefingDocument.code == code,
+        BriefingDocument.status == "saved",
+        BriefingDocument.pubdate >= _ts(at - FOUND_SLACK),
+    )
+    if source is not None:
+        q = q.where(BriefingDocument.source == source)
+    db = SessionLocal()
+    try:
+        return db.execute(q.limit(1)).first() is not None
+    finally:
+        db.close()
+
+
+def pending_issuers(issuers: list[Issuer], now: datetime, days: int, checked: dict[str, str]) -> list[Issuer]:
+    """短信のあとの資料をまだ会社ページから取れていない会社。見たばかりの会社は外す。"""
+    by_code = {jq_lookup_code(issuer.code): issuer for issuer in issuers}
+    covers = _latest_covers(set(by_code), now - timedelta(days=days))
+    out: list[Issuer] = []
+    for code, (at, has, _title) in sorted(covers.items()):
+        if has is False or _has_deck_since(code, at, SOURCE_HOMEPAGE):
+            continue
+        last = checked.get(code, "")
+        if last >= _ts(at) and last > _ts(now - RECHECK):
+            continue
+        out.append(by_code[code])
+    return out
+
+
+def missing_companies(issuers: list[Issuer], now: datetime) -> list[tuple[str, datetime, str]]:
+    """資料ありの短信を出したのに、どの出所の資料も索引に無く、設定にも無い会社。"""
+    configured = {jq_lookup_code(issuer.code) for issuer in issuers}
+    covers = _latest_covers(None, now - timedelta(days=MISSING_DAYS))
+    return [
+        (code, at, title)
+        for code, (at, has, title) in sorted(covers.items())
+        if has is True and code not in configured and not _has_deck_since(code, at, None)
+    ]
 
 
 def fetch_index(url: str, get_page: PageGetter) -> tuple[str, str]:
@@ -564,6 +660,7 @@ def run(
     now: datetime | None = None,
     disk_usage: DiskUsage = shutil.disk_usage,
     ledger: Path | None = None,
+    pending: int | None = None,
 ) -> int:
     issuers = load_registry(config)
     if only:
@@ -597,8 +694,18 @@ def run(
         + (f" since={since.date()}" if since is not None else ""),
         flush=True,
     )
-    known_old = load_ledger(ledger) if ledger is not None else None
-    before = dict(known_old or {})
+    book = load_ledger(ledger) if ledger is not None else Ledger()
+    before = book.as_json()
+    known_old = book.old if ledger is not None else None
+    all_issuers = issuers
+    if pending is not None:
+        issuers = pending_issuers(issuers, when, pending, book.checked)
+        print(f"homepage_briefing pending={len(issuers)} {' '.join(i.code for i in issuers)}".rstrip(), flush=True)
+
+    def keep() -> None:
+        if ledger is not None and not dry_run and book.as_json() != before:
+            save_ledger(ledger, book)
+
     total = Counts()
     stopped = "done"
     for issuer in issuers:
@@ -613,17 +720,23 @@ def run(
         except Exception as exc:
             down = abort_if_disconnected("homepage_briefing", dest, exc)
             if down is not None:
-                if ledger is not None and known_old is not None and known_old != before:
-                    save_ledger(ledger, known_old)
+                keep()
                 return down
             counts.failed += 1
             print(f"fail {issuer.code} {' '.join(issuer.index_urls)}: {exc}", flush=True)
+        else:
+            if pending is not None:
+                book.checked[jq_lookup_code(issuer.code)] = _ts(when)
         print(f"homepage_briefing {issuer.code} {counts.text()}", flush=True)
         total.add(counts)
         if stopped != "done":
             break
-    if ledger is not None and known_old is not None and known_old != before and not dry_run:
-        save_ledger(ledger, known_old)
+    keep()
+    if pending is None and not only:
+        missing = missing_companies(all_issuers, when)
+        for code, at, title in missing:
+            print(f"missing {code} {_ts(at)} {title}", flush=True)
+        print(f"homepage_briefing missing={len(missing)}", flush=True)
     print(f"homepage_briefing stopped={stopped} {total.text()}", flush=True)
     return 1 if total.failed else 0
 
@@ -635,17 +748,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--only", action="append", help="stock code in the config (repeatable)")
     ap.add_argument("--limit", type=int, help="new PDFs per issuer in this run, from the top of the page")
     ap.add_argument("--years", type=int, help="skip documents older than N years from today")
-    ap.add_argument("--ledger", help="JSON of documents found too old after download (not under dest)")
+    ap.add_argument("--ledger", help="JSON of old documents and --pending checks (not under dest)")
+    ap.add_argument("--pending", type=int, help="only issuers with a material-flagged tanshin in the last N days")
     ap.add_argument("--dry-run", action="store_true", help="list new PDFs, do not download")
     args = ap.parse_args(argv)
-    for name in ("limit", "years"):
+    for name in ("limit", "years", "pending"):
         value = getattr(args, name)
         if value is not None and value < 1:
             print(f"--{name} must be a positive integer", file=sys.stderr)
             return 2
     return run(
         Path(args.dest), Path(args.config), only=args.only, limit=args.limit, years=args.years,
-        dry_run=args.dry_run, ledger=Path(args.ledger) if args.ledger else None,
+        dry_run=args.dry_run, ledger=Path(args.ledger) if args.ledger else None, pending=args.pending,
     )
 
 

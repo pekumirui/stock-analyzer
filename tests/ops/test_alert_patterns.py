@@ -1093,6 +1093,9 @@ _TDNET_XBRL_JOBS = (
     "jobs/xbrl/xbrl_parse.py",
     "jobs/xbrl/xbrl_normalize.py",
     "jobs/xbrl/xbrl_statements.py",
+    "jobs/market/tanshin_covers.py",
+    "jobs/market/tdnet_briefing_r2.py",
+    "jobs/market/homepage_briefing.py",
 )
 
 
@@ -1103,7 +1106,7 @@ def _tdnet_xbrl_cron_line() -> str:
         for raw in crontab.splitlines()
         if raw.strip()
         and not raw.strip().startswith("#")
-        and any(job in raw for job in _TDNET_XBRL_JOBS)
+        and _TDNET_XBRL_JOBS[0] in raw
     ]
     if len(lines) != 1:
         _fail(f"expected 1 TDnet XBRL cron line, got {len(lines)}: {lines!r}")
