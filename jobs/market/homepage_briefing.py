@@ -27,6 +27,9 @@ YYYYMMDD、それも無ければ取得した時刻）。
 まだ会社ページから取れていない会社だけを見る。短信の直後に 1 回、見つからなければ RECHECK ごとに 1 回。
 毎時の短信の取り込みのあとに cron が動かす。--pending を付けない回（週 1 回）は全社を見て、
 直近 MISSING_DAYS 日に資料ありの短信を出したのに索引に資料が無く、設定にも無い会社を missing に出す。
+同じ回で、設定にあるのに資料ありの短信から STALE_DAYS 日たってもその決算の資料がどの出所からも
+入っていない会社を stale に出す（フィードの番号や載せる場所が変わった疑い）。初めて出た会社の数が
+stale_new で、1 以上ならアラートになる（deploy/alert_patterns.py）。出した短信は ledger に残し、毎週は鳴らさない。
 取った PDF と同じ中身（sha256）の資料が同じ会社の索引（出所を問わない）にあれば保存せず dup に数え、
 --ledger の dup に残して次からは取りに行かない（同じ PDF を表題を変えて複数の分類に載せる会社がある）。
 保存の直前に --dest の空きを見て、MIN_FREE_BYTES 未満なら保存せずに止める（終了コード 0）。
@@ -90,6 +93,8 @@ MIN_FREE_BYTES = 25 * 1024 * 1024 * 1024
 RECHECK = timedelta(hours=20)
 FOUND_SLACK = timedelta(days=2)
 MISSING_DAYS = 7
+STALE_DAYS = 30
+STALE_LOOKBACK_DAYS = 120
 _TITLE_YEAR = re.compile(r"(?<!\d)(19[89]\d|20\d{2})(?!\d)")
 _WAREKI_YEAR = re.compile(r"(平成|令和)\s*(元|\d{1,2})\s*年")
 _WAREKI_BASE = {"平成": 1988, "令和": 2018}
@@ -431,12 +436,14 @@ class Ledger:
     old: dict[str, str] = field(default_factory=dict)       # 取ってから古いと分かった資料の番号 → 公開日
     checked: dict[str, str] = field(default_factory=dict)   # --pending で見た会社（5 桁）→ 時刻
     dup: dict[str, str] = field(default_factory=dict)       # 中身が索引の資料と同じだった番号 → その資料の番号
+    stale: dict[str, str] = field(default_factory=dict)     # stale に出した会社（5 桁）→ その短信の時刻
 
     def as_json(self) -> dict[str, dict[str, str]]:
         return {
             "old": dict(sorted(self.old.items())),
             "checked": dict(sorted(self.checked.items())),
             "dup": dict(sorted(self.dup.items())),
+            "stale": dict(sorted(self.stale.items())),
         }
 
 
@@ -454,7 +461,10 @@ def load_ledger(path: Path) -> Ledger:
         return Ledger()
     if not isinstance(raw, dict):
         return Ledger()
-    return Ledger(old=_str_map(raw.get("old")), checked=_str_map(raw.get("checked")), dup=_str_map(raw.get("dup")))
+    return Ledger(
+        old=_str_map(raw.get("old")), checked=_str_map(raw.get("checked")),
+        dup=_str_map(raw.get("dup")), stale=_str_map(raw.get("stale")),
+    )
 
 
 def same_content(code: str, sha256: str) -> str | None:
@@ -556,6 +566,18 @@ def missing_companies(issuers: list[Issuer], now: datetime) -> list[tuple[str, d
         (code, at, title)
         for code, (at, has, title) in sorted(covers.items())
         if has is True and code not in configured and not _has_deck_since(code, at, None)
+    ]
+
+
+def stale_companies(issuers: list[Issuer], now: datetime) -> list[tuple[str, datetime, str]]:
+    """設定にあるのに、資料ありの短信から STALE_DAYS 日たってもその決算の資料がどの出所からも無い会社。"""
+    configured = {jq_lookup_code(issuer.code) for issuer in issuers}
+    covers = _latest_covers(configured, now - timedelta(days=STALE_LOOKBACK_DAYS))
+    limit = now - timedelta(days=STALE_DAYS)
+    return [
+        (code, at, title)
+        for code, (at, has, title) in sorted(covers.items())
+        if has is True and at <= limit and not _has_deck_since(code, at, None)
     ]
 
 
@@ -780,6 +802,15 @@ def run(
         for code, at, title in missing:
             print(f"missing {code} {_ts(at)} {title}", flush=True)
         print(f"homepage_briefing missing={len(missing)}", flush=True)
+        stale = stale_companies(all_issuers, when)
+        fresh = 0
+        for code, at, title in stale:
+            known = book.stale.get(code) == _ts(at)
+            fresh += 0 if known else 1
+            print(f"stale {code} {_ts(at)} {'known' if known else 'new'} {title}", flush=True)
+        book.stale = {code: _ts(at) for code, at, _title in stale}
+        keep()
+        print(f"homepage_briefing stale_new={fresh} stale_known={len(stale) - fresh}", flush=True)
     print(f"homepage_briefing stopped={stopped} {total.text()}", flush=True)
     return 1 if total.failed else 0
 
