@@ -8,6 +8,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import re
+import time
 from collections import Counter
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timezone
@@ -70,6 +71,10 @@ READER_VERSION = 21
 _STD_DOC = re.compile(
     r"^(?:1Q|2Q|3Q|FY)FinancialStatements_(Consolidated|NonConsolidated)_(IFRS|JP)$"
 )
+
+
+# database is locked の回を区切りでやり直すまでの待ち（秒）。KAB-435
+LOCK_RETRY_WAIT = 5.0
 
 
 class SyncOutcome(str, Enum):
@@ -246,6 +251,10 @@ def _kept(pkg: ParsedPackage) -> ParsedPackage:
     )
 
 
+def _is_locked(exc: Exception) -> bool:
+    return "database is locked" in str(exc)
+
+
 def sync_pdf_filing(
     db: Session,
     disclosure_no: str,
@@ -316,14 +325,38 @@ def _sync(db: Session, disclosure_no: str, zip_parsed: bool, *, reparse: bool) -
     return SyncOutcome.PARSED
 
 
+def _sync_counted(db: Session, number: str, zip_parsed: bool, counts: Counter, *, reparse: bool) -> None:
+    outcome = _sync(db, number, zip_parsed, reparse=reparse)
+    counts[outcome] += 1
+    if outcome is SyncOutcome.PARSED:
+        filing = _filing(db, number)
+        err = filing.parse_error or "" if filing is not None else ""
+        if err.startswith("garbled"):
+            counts["garbled"] += 1
+        if "textless" in err:
+            counts["textless"] += 1
+
+
+def _sync_failed(db: Session, number: str, counts: Counter, exc: Exception) -> None:
+    db.rollback()
+    counts[SyncOutcome.FAILED] += 1
+    print(f"pdf failed disclosure_no={number} err={exc}", flush=True)
+
+
 def sync_pdf_filings(
     db: Session,
     *,
     codes: list[str] | None = None,
     reparse: bool = False,
     limit: int = 2000,
+    batch: int | None = None,
+    retry_wait: float = LOCK_RETRY_WAIT,
 ) -> Counter:
-    """ok の HTML か、既存の PDF filing がある開示。新しい順。remaining は今回見なかった件数。"""
+    """ok の HTML か、既存の PDF filing がある開示。新しい順。remaining は今回見なかった件数。
+
+    ``batch`` を渡すと N 件ごとに区切り、区切りごとに累計を 1 行出す（KAB-435）。database is locked で
+    落ちた回は区切りの終わりに ``retry_wait`` 秒待って 1 回やり直し、それでも落ちた回だけ failed に数える。
+    """
     docs = db.query(
         TdnetPdfDocument.disclosure_no, TdnetPdfDocument.disclosed_date,
     ).filter(TdnetPdfDocument.status == "ok")
@@ -343,20 +376,34 @@ def sync_pdf_filings(
     zip_rows = db.query(XbrlFiling.doc_id).filter_by(source="tdnet", parse_status="parsed")
     zip_set = {doc_id[-14:] for (doc_id,) in zip_rows if doc_id and len(doc_id) >= 14}
     counts: Counter = Counter()
-    for number in ordered[:limit]:
-        try:
-            outcome = _sync(db, number, number in zip_set, reparse=reparse)
-            counts[outcome] += 1
-            if outcome is SyncOutcome.PARSED:
-                filing = _filing(db, number)
-                err = filing.parse_error or "" if filing is not None else ""
-                if err.startswith("garbled"):
-                    counts["garbled"] += 1
-                if "textless" in err:
-                    counts["textless"] += 1
-        except Exception as exc:
-            db.rollback()
-            counts[SyncOutcome.FAILED] += 1
-            print(f"pdf failed disclosure_no={number} err={exc}", flush=True)
+    targets = ordered[:limit]
+    step = batch if batch and batch > 0 else len(targets) or 1
+    for start in range(0, len(targets), step):
+        chunk = targets[start:start + step]
+        locked: list[str] = []
+        for number in chunk:
+            try:
+                _sync_counted(db, number, number in zip_set, counts, reparse=reparse)
+            except Exception as exc:
+                if batch and _is_locked(exc):
+                    db.rollback()
+                    locked.append(number)
+                    continue
+                _sync_failed(db, number, counts, exc)
+        if locked:
+            print(f"pdf locked retry={len(locked)} wait={retry_wait:g}s", flush=True)
+            time.sleep(retry_wait)
+            for number in locked:
+                try:
+                    _sync_counted(db, number, number in zip_set, counts, reparse=reparse)
+                except Exception as exc:
+                    _sync_failed(db, number, counts, exc)
+        if batch:
+            done = start + len(chunk)
+            parts = [f"{outcome.value}={counts[outcome]}" for outcome in SyncOutcome]
+            parts.append(f"garbled={counts['garbled']}")
+            parts.append(f"textless={counts['textless']}")
+            parts.append(f"left={len(targets) - done}")
+            print(f"tdnet_pdf_financials batch done={done}/{len(targets)} " + " ".join(parts), flush=True)
     counts["remaining"] = max(0, len(ordered) - limit)
     return counts
