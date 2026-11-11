@@ -554,6 +554,7 @@ Stage3 を Stage1 より先に見るのは、天井圏で 200日線に沿って�
 | `GET /api/stocks/search?q=トヨタ` | 銘柄検索。名前の部分一致（q を NFKC とひらがな→カタカナに寄せたものでも引く）とコードの前方一致。最大 20 件 |
 | `GET /api/holders/search?q=` / `GET /api/holders/activity` / `GET /api/holders/{edinet}` | 大量保有の保有者検索・提出日（または検索）の一覧・保有者ページ。`docs/DESIGN_holders.md` |
 | `GET /api/stock/{code}/holders` | 銘柄の株主タブ。`docs/DESIGN_stock.md` |
+| `GET /api/stock/{code}/financials?statement=BS&periods=8&consolidated=auto` | 財務3表（BS / PL / CF）を有報・短信 XBRL・短信 PDF をまたいで科目×決算期に並べる。セルごとに円の値と出どころ。形は `docs/DESIGN_stock.md`、組み立ては `docs/DESIGN_xbrl.md` §17 |
 | `GET /api/supply/graph` | サプライタブの素材と流れ（`config/supply/supply_chain.json`）。形は `docs/DESIGN_supply.md` |
 | `GET /api/supply/monthly/{material_id}` | 素材の月次量（`material_monthly`）と見掛け消費。形は `docs/DESIGN_supply.md`。素材が無ければ 404 |
 | `POST /api/v1/tables/{code}/{year}/elements` | 月次表の要素登録。`unit` 必須。表が無ければ作成。保存名をトークン正規化（yoy は末尾 `(前年比)`）と銘柄エイリアスのあと、保存名と完全一致する行を探す（既存行は作り直さない。`docs/DESIGN_monthly_labels.md`「同一行・保存名の凍結」）。完全一致は冪等。類似は 409 (force=true で強制)。unit の食い違いは 409 `UNIT_CONFLICT` (force=true で上書き)。`stocks` に無ければ 4xx `NOT_IN_MASTER` |

@@ -80,23 +80,31 @@ flowchart LR
   n1["GET /api/stock/filings/{filing_id}/documents/{seq}"]:::api
   n2["GET /api/stock/pdf/{disclosure_no}"]:::api
   n3["GET /api/stock/{code}/filings"]:::api
-  n4[("daily_prices")]:::ext
-  n5[("statements")]:::ext
-  n6[("tdnet_pdf_documents")]:::tbl
-  n7[("xbrl_documents")]:::tbl
-  n8[("xbrl_filings")]:::tbl
-  n9[("xbrl_financials")]:::tbl
-  n10[("xbrl_std_items")]:::tbl
-  n0 -.- n4
+  n4["GET /api/stock/{code}/financials"]:::api
+  n5[("daily_prices")]:::ext
+  n6[("statements")]:::ext
+  n7[("tdnet_pdf_documents")]:::tbl
+  n8[("xbrl_contexts")]:::tbl
+  n9[("xbrl_documents")]:::tbl
+  n10[("xbrl_elements")]:::tbl
+  n11[("xbrl_facts")]:::tbl
+  n12[("xbrl_filings")]:::tbl
+  n13[("xbrl_financials")]:::tbl
+  n14[("xbrl_std_items")]:::tbl
   n0 -.- n5
-  n0 -.- n8
-  n0 -.- n9
-  n0 -.- n10
-  n1 -.- n7
-  n2 -.- n6
-  n3 -.- n6
+  n0 -.- n6
+  n0 -.- n12
+  n0 -.- n13
+  n0 -.- n14
+  n1 -.- n9
+  n2 -.- n7
   n3 -.- n7
-  n3 -.- n8
+  n3 -.- n9
+  n3 -.- n12
+  n4 -.- n8
+  n4 -.- n10
+  n4 -.- n11
+  n4 -.- n12
   classDef job fill:#e3ecff,stroke:#3b5bdb
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -109,6 +117,7 @@ flowchart LR
 | `GET /api/stock/filings/{filing_id}/documents/{seq}` |  | `xbrl_documents` |
 | `GET /api/stock/pdf/{disclosure_no}` |  | `tdnet_pdf_documents` |
 | `GET /api/stock/{code}/filings` |  | `stocks`, `tdnet_pdf_documents`, `xbrl_documents`, `xbrl_filings` |
+| `GET /api/stock/{code}/financials` |  | `stocks`, `xbrl_contexts`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings` |
 
 ## テーブル
 
@@ -122,7 +131,7 @@ flowchart LR
 ### xbrl_contexts
 
 - 書く: `jobs/edinet/edinet_xbrl.py（EDINET・大量保有）`, `jobs/xbrl/xbrl_parse.py`
-- 読むだけ: `jobs/edinet/edinet_shareholders.py（EDINET・大量保有）`, `jobs/xbrl/xbrl_normalize.py`
+- 読むだけ: `jobs/edinet/edinet_shareholders.py（EDINET・大量保有）`, `jobs/xbrl/xbrl_normalize.py`, `GET /api/stock/{code}/financials`
 
 ### xbrl_documents
 
@@ -137,17 +146,17 @@ flowchart LR
 ### xbrl_elements
 
 - 書く: `jobs/edinet/edinet_xbrl.py（EDINET・大量保有）`, `jobs/migrate.py（共通・運用）`, `jobs/xbrl/xbrl_parse.py`
-- 読むだけ: `jobs/edinet/edinet_shareholders.py（EDINET・大量保有）`, `jobs/market/homepages.py（株価・決算）`, `jobs/xbrl/xbrl_normalize.py`
+- 読むだけ: `jobs/edinet/edinet_shareholders.py（EDINET・大量保有）`, `jobs/market/homepages.py（株価・決算）`, `jobs/xbrl/xbrl_normalize.py`, `GET /api/stock/{code}/financials`
 
 ### xbrl_facts
 
 - 書く: `jobs/edinet/edinet_xbrl.py（EDINET・大量保有）`, `jobs/xbrl/xbrl_parse.py`
-- 読むだけ: `jobs/edinet/edinet_shareholders.py（EDINET・大量保有）`, `jobs/market/homepages.py（株価・決算）`, `jobs/xbrl/xbrl_normalize.py`
+- 読むだけ: `jobs/edinet/edinet_shareholders.py（EDINET・大量保有）`, `jobs/market/homepages.py（株価・決算）`, `jobs/xbrl/xbrl_normalize.py`, `GET /api/stock/{code}/financials`
 
 ### xbrl_filings
 
 - 書く: `jobs/edinet/edinet_xbrl.py（EDINET・大量保有）`, `jobs/xbrl/xbrl_parse.py`
-- 読むだけ: `jobs/edinet/edinet_archive.py（EDINET・大量保有）`, `jobs/edinet/edinet_shareholders.py（EDINET・大量保有）`, `jobs/market/homepages.py（株価・決算）`, `jobs/market/tanshin_covers.py（株価・決算）`, `jobs/xbrl/xbrl_normalize.py`, `jobs/xbrl/xbrl_statements.py`, `GET /api/earnings（株価・決算）`, `GET /api/earnings/detail/{code}`, `GET /api/stock/{code}/filings`
+- 読むだけ: `jobs/edinet/edinet_archive.py（EDINET・大量保有）`, `jobs/edinet/edinet_shareholders.py（EDINET・大量保有）`, `jobs/market/homepages.py（株価・決算）`, `jobs/market/tanshin_covers.py（株価・決算）`, `jobs/xbrl/xbrl_normalize.py`, `jobs/xbrl/xbrl_statements.py`, `GET /api/earnings（株価・決算）`, `GET /api/earnings/detail/{code}`, `GET /api/stock/{code}/filings`, `GET /api/stock/{code}/financials`
 
 ### xbrl_financials
 

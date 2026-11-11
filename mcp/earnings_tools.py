@@ -32,6 +32,9 @@ DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 DISCLOSURE_RE = re.compile(r"^[0-9A-Za-z]{1,32}$")
 DECK_KEY_RE = re.compile(r"^[0-9A-Za-z_-]{1,80}$")
 PATH_RE = re.compile(r"^/api/[A-Za-z0-9_\-/]+$")
+FS_STATEMENTS = ("BS", "PL", "CF")
+FS_DEFAULT_PERIODS = 8
+FS_MAX_PERIODS = 20
 
 GetJson = Callable[[str, dict[str, Any] | None, int], Any]
 GetText = Callable[[str, int], str]
@@ -598,3 +601,44 @@ def tool_market_context(args: dict[str, Any], get_json: GetJson) -> str:
     if t[i] != day.isoformat():
         out.insert(1, f"（{day.isoformat()} は休場か未取込。直近の {t[i]} を使った）")
     return "\n".join(out)
+
+
+def _fs_cell(cell: Any, per_share: bool) -> str:
+    if not cell or cell.get("value") is None:
+        return ""
+    value = float(cell["value"])
+    if per_share:
+        return f"{value:,.2f}"
+    return f"{value / 1e6:,.0f}"
+
+
+def tool_financial_statements(args: dict[str, Any], get_json: GetJson, code5: str) -> str:
+    statement = str(args.get("statement") or "BS").strip().upper()
+    if statement not in FS_STATEMENTS:
+        raise ValueError(f"statement must be one of {', '.join(FS_STATEMENTS)}")
+    periods = _clamp(args.get("periods"), FS_DEFAULT_PERIODS, 1, FS_MAX_PERIODS, "periods")
+    consolidated = args.get("consolidated", True)
+    if not isinstance(consolidated, bool):
+        raise ValueError("consolidated must be a boolean")
+    d = get_json(f"/api/stock/{quote(code5, safe='')}/financials", {
+        "statement": statement, "periods": periods, "consolidated": "true" if consolidated else "false",
+    }, APP_TIMEOUT)
+    code = d.get("code") or code5
+    basis = d.get("basis") or ("連結" if consolidated else "個別")
+    empty = d.get("empty")
+    if empty:
+        hint = "。個別は consolidated=false" if d.get("consolidated") and empty.get("other_basis_available") else ""
+        return f"{code}: {statement}（{basis}）の材料がない（{empty.get('message')}）{hint}"
+    cols = d.get("periods") or []
+    head = (
+        f"{code} {d.get('name') or ''} {statement} {basis} 単位:百万円（1株当たりは円） "
+        f"会計基準:{'/'.join(d.get('accounting_standards') or []) or '-'}"
+    ).replace("  ", " ")
+    if d.get("cumulative"):
+        head += " 期首からの累計"
+    rows: list[list[Any]] = [["科目", "要素", *(c.get("label") for c in cols)]]
+    for r in d.get("rows") or []:
+        per_share = r.get("unit") == "per_share"
+        rows.append([r.get("label"), r.get("key"), *(_fs_cell(c, per_share) for c in r.get("cells") or [])])
+    rows.append(["出どころ", "", *(c.get("source_label") for c in cols)])
+    return head + "\n" + _tsv(rows)

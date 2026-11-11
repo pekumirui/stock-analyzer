@@ -19,6 +19,7 @@ from ..holders import stock_holders as holders_payload
 from ..market.chart_fund import adjust_per_share, fund_steps
 from ..models import DailyPrice, EarningsDatePub, Statement, Stock, TdnetPdfDocument, XbrlDocument, XbrlFiling
 from ..xbrl.documents import SANITIZE_VERSION, load_html, sanitize_html
+from ..xbrl.three_statements import DEFAULT_PERIODS, MAX_PERIODS, financial_table
 from .monthly._common import ApiError, _parse_code
 
 router = APIRouter()
@@ -221,6 +222,20 @@ def stock_holders(code: str, today: str | None = Query(None, pattern=r"^\d{4}-\d
         raise ApiError(404, "NOT_FOUND", "銘柄がありません。")
     day = date.fromisoformat(today) if today else date.today()
     return holders_payload(db, code5, today=day)
+
+
+@router.get("/stock/{code}/financials")
+def stock_financials(code: str, statement: str = Query("BS", pattern=r"^(BS|PL|CF)$"),
+                     periods: int = Query(DEFAULT_PERIODS, ge=1, le=MAX_PERIODS),
+                     consolidated: str = Query("auto", pattern=r"^(auto|true|false)$"),
+                     db: Session = Depends(get_session)):
+    code5 = _parse_code(code)
+    stock = db.get(Stock, code5)
+    if stock is None:
+        raise ApiError(404, "NOT_FOUND", "銘柄がありません。")
+    basis = None if consolidated == "auto" else consolidated == "true"
+    table = financial_table(db, code5, statement=statement, periods=periods, consolidated=basis)
+    return {"code": stock.code, "name": stock.name, **table}
 
 
 @router.get("/stock/{code}/filings")

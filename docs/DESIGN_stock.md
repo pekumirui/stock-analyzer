@@ -27,7 +27,7 @@
 
 ## データ形
 
-共通ヘッダーと概要の指標は `GET /api/stock/{code}/overview`。概要の業績の表は決算速報と同じ `GET /api/earnings/detail/{code}`（引数なし = 最新の実績開示）。株価は `GET /api/chart/{code}` と `GET /api/earnings-performance/{code}`。ニュース一覧は `GET /api/stock/{code}/filings` と `GET /api/stock/{code}/decks` を日時で混ぜる（種類チップと `GET /api/stock/{code}/news` はまだ無い）。株主は `GET /api/stock/{code}/holders`。説明資料の中身は `GET /api/stock/{code}/decks/{key}`（読み取りは `DESIGN.md` の「決算説明資料の読み取り」）。中のタブは開いたときに初めて読み、同じ銘柄のあいだは読み直さない。
+共通ヘッダーと概要の指標は `GET /api/stock/{code}/overview`。概要の業績の表は決算速報と同じ `GET /api/earnings/detail/{code}`（引数なし = 最新の実績開示）。株価は `GET /api/chart/{code}` と `GET /api/earnings-performance/{code}`。ニュース一覧は `GET /api/stock/{code}/filings` と `GET /api/stock/{code}/decks` を日時で混ぜる（種類チップと `GET /api/stock/{code}/news` はまだ無い）。株主は `GET /api/stock/{code}/holders`。財務3表は `GET /api/stock/{code}/financials`（画面はまだ無い）。説明資料の中身は `GET /api/stock/{code}/decks/{key}`（読み取りは `DESIGN.md` の「決算説明資料の読み取り」）。中のタブは開いたときに初めて読み、同じ銘柄のあいだは読み直さない。
 
 指標の出どころ（`statements` は決算短信本体の開示。予想修正だけの開示は予想にだけ使う）:
 
@@ -274,6 +274,34 @@
 ```
 
 `treasury` は報告書が無ければ null。
+
+`GET /api/stock/{code}/financials?statement=BS&periods=8&consolidated=auto`
+
+```json
+{
+  "code": "59330", "name": "アルインコ", "statement": "BS", "consolidated": true, "basis": "連結",
+  "accounting_standards": ["JPGAAP"], "cumulative": false, "unit": "JPY",
+  "periods": [
+    {"period_end": "2025-06-30", "label": "25.06", "period_type": "Q1", "source": "tdnet_pdf", "source_label": "PDF",
+     "doc_id": "20250808512345", "submitted_at": "2025-08-08 15:30", "accounting_standard": "JPGAAP"}
+  ],
+  "rows": [
+    {"key": "CashAndDeposits", "label": "現金及び預金", "unit": "money", "unmatched_pdf": false,
+     "cells": [{"value": 6905000000.0, "source": "tdnet_pdf"}]},
+    {"key": "Goodwill", "label": "のれん", "unit": "money", "unmatched_pdf": false,
+     "cells": [{"value": 312000000.0, "source": "tdnet"}]},
+    {"key": "pdf:前受金", "label": "前受金", "unit": "money", "unmatched_pdf": true,
+     "cells": [{"value": 41000000.0, "source": "tdnet_pdf"}]}
+  ],
+  "empty": null
+}
+```
+
+財務3表（BS / PL / CF）を科目が行・決算期が列（古い → 新しい）で。組み立ては `docs/DESIGN_xbrl.md` §17。`statement` は `BS`（既定）/ `PL` / `CF`、`periods` は 1-20（既定 8）で新しい方から、`consolidated` は `auto`（既定。連結の材料があれば連結、無ければ個別）/ `true` / `false`。応答の `consolidated` / `basis` は出した方。`cumulative` は PL・CF（期首からの累計）で true。
+
+`periods` の 1 件は列。`source` は列の主たる出どころ（`edinet` / `tdnet` / `tdnet_pdf`、表示名は `source_label` の `有報` / `XBRL` / `PDF`）、`doc_id` と `submitted_at` はその書類、`period_type` は `Q1` / `Q2` / `Q3` / `FY`。`rows` の 1 件は科目。`key` は XBRL の要素名（会社独自は `ext:`、XBRL と対応が付かない短信 PDF の行は `pdf:` で `unmatched_pdf: true`）。`unit` は `money`（円）か `per_share`（1 株当たりの円）。`cells` は `periods` と同じ長さで、値が無ければ null。`value` は円のまま（百万円への丸めは表示側）、`source` はその値を採った出どころで、列の `source` と違えば下位の出どころで補ったセル。
+
+材料が無ければ `periods` と `rows` は空で、`empty` が `{reason: "no_material", message, other_basis_available}`（`other_basis_available` は連結/個別のもう一方なら組めるか）。マスタに無い銘柄は 404、形の違うコードは 400、引数の範囲外は 422。
 
 原文は今までどおり。`GET /api/stock/filings/{filing_id}/documents/{seq}` は原文の HTML（`text/html`）。`script` / `iframe` / `link` / イベント属性 / `javascript:` / 外の画像を除いて返す。ヘッダー `Content-Security-Policy` で script・外への通信を止め、`sandbox allow-same-origin`（親が高さを測るため）。`ETag` は原文の sha256 と除去の版（`SANITIZE_VERSION`。返す HTML を変えたら上げる。上げないと 304 が返り続け、ブラウザは古い HTML を使う）。iOS Safari の文字の自動拡大を止める `-webkit-text-size-adjust: 100%` を head の直後に差し込む。無ければ 404。
 

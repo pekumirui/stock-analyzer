@@ -1912,6 +1912,11 @@ def tool_market_context(args: dict[str, Any]) -> str:
     return earnings_tools.tool_market_context(args, get_json)
 
 
+def tool_financial_statements(args: dict[str, Any]) -> str:
+    get_json, _ = _earnings_get()
+    return earnings_tools.tool_financial_statements(args, get_json, parse_code(args.get("code")))
+
+
 DEFAULT_METRICS_HTTP = "http://127.0.0.1:8428"
 METRICS_HTTP_TIMEOUT = 15
 METRICS_MAX_QUERY_CHARS = 4000
@@ -2292,6 +2297,28 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
             "required": ["code"],
         },
         tool_xbrl_compare,
+    ),
+    "financial_statements": (
+        (
+            "1銘柄の財務3表（BS / PL / CF）を科目が行・決算期が列の TSV で。百万円（1株当たりは円）、列は古い→新しい（YY.MM）。"
+            "PL・CF は期首からの累計。2 列目は XBRL の要素名（ext: は会社独自、pdf: は短信 PDF にしかない行）。"
+            "期ごとに 有報 > 短信 XBRL > 短信 PDF の順で採り、無い科目は下位で補う。PDF だけの期は、同じ会社で PDF と XBRL が"
+            "そろった回の対応（値と印字順で突き合わせ）を近い回から当てる。最後の行が出どころ。読み取り専用。"
+        ),
+        {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "4-5 character stock code (7203, 72030, 262A0)"},
+                "statement": {"type": "string", "enum": list(earnings_tools.FS_STATEMENTS), "description": "default BS"},
+                "periods": {
+                    "type": "integer",
+                    "description": f"newest periods, 1-{earnings_tools.FS_MAX_PERIODS}, default {earnings_tools.FS_DEFAULT_PERIODS}",
+                },
+                "consolidated": {"type": "boolean", "description": "false = 個別（単体）。default true"},
+            },
+            "required": ["code"],
+        },
+        tool_financial_statements,
     ),
     "xbrl_diff_summary": (
         (
