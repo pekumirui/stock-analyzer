@@ -48,6 +48,7 @@ PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "2026-10-17 07:15:01 material_stats done written=0 failed=2"),
     ("batch", "parse processed=3 errors=2 skipped=0"),
     ("batch", "parse processed=3 errors=10 skipped=0"),
+    ("batch", "2026-12-13 22:27:10 homepage_briefing stale_new=1 stale_known=2"),
     ("batch", "リトライ上限に達しました: /v2/equities/bars/daily"),
     ("batch", "JQUANTS_API_KEY が未設定です。"),
     ("batch", "warn list truncated for 2026-08-05: next_flag=1"),
@@ -99,6 +100,8 @@ NOT_PAGE: tuple[tuple[str, str], ...] = (
     ("batch", "normalize missing-required doc_id=S100ABC code=72030 items=NetSales"),
     ("batch", "saved xbrl/3032/foo.zip (12 bytes) unknown-stock"),
     ("batch", "tdnet_monthly_r2 done listed=10 saved=1 skipped=9 failed=0"),
+    ("batch", "2026-12-13 22:27:10 homepage_briefing stale_new=0 stale_known=2"),
+    ("batch", "2026-12-13 22:27:10 stale 80020 2026-11-04 15:00:00 known 2027年3月期 第2四半期決算短信"),
     ("batch", "edinet lvh download-failed doc_id=S100MMVL err=404 Not Found"),
     (
         "batch",

@@ -26,6 +26,7 @@ ALERT_PATTERNS: tuple[AlertPattern, ...] = (
     ),
     AlertPattern("batch", "summary", r"failed=0*[1-9][0-9]*"),
     AlertPattern("batch", "summary", r"errors=0*[1-9][0-9]*"),
+    AlertPattern("batch", "summary", r"stale_new=0*[1-9][0-9]*"),
     AlertPattern("batch", "jquants", r"リトライ上限"),
     AlertPattern("batch", "jquants", r"JQUANTS_API_KEY が未設定"),
     AlertPattern("batch", "xbrl", r"list truncated"),

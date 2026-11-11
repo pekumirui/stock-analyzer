@@ -437,7 +437,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 |---|---|
 | `jobs/monthly/tdnet_monthly_r2.py 7` | 18:00 / 21:00（直近7日。一覧は TDnet。取りこぼしの拾い直し） |
 | `jobs/market/tdnet_briefing_r2.py 7` | 22:10（決算説明資料 → `data/briefing`。直近7日。既存 PDF は skip。索引行だけの補完は `reindexed`。初回の約30日は `deploy/cron-run.sh jobs/market/tdnet_briefing_r2.py 30` を手で一度。デプロイでは走らない） |
-| `jobs/market/homepage_briefing.py --years 5 --ledger /var/log/app/homepage_briefing_ledger.json` | 日曜 22:25（週 1 回、設定の全社を見る。短信から日がたって載る質疑応答などの拾い直し。資料ありの短信なのに索引に無く設定にも無い会社を `missing` に出す。KAB-438） |
+| `jobs/market/homepage_briefing.py --years 5 --ledger /var/log/app/homepage_briefing_ledger.json` | 日曜 22:25（週 1 回、設定の全社を見る。短信から日がたって載る質疑応答などの拾い直し。資料ありの短信なのに索引に無く設定にも無い会社を `missing` に出す。KAB-438。設定にあるのに資料ありの短信から 30 日たっても資料が入らない会社は `stale` に出し、初めての会社があれば `stale_new=` の行でアラート。フィードの番号や一覧ページの URL を見直す。KAB-442） |
 | `jobs/market/tanshin_covers.py --days 3` | 23:35（決算短信の表紙の「補足説明資料の有無」「説明会の有無」→ `tanshin_covers`。直近 3 日に短信を出した会社の最新 1 件） |
 | `jobs/monthly/tdnet_monthly_pdf_sidecar.py` | 18:20 / 21:20（TDnet PDF 取得の後） |
 | `jobs/monthly/tdnet_monthly_pdf_ingest.py` | 18:30 / 21:30（sidecar の後。ledger は `/var/log/app/pdf_ingest_ledger.json`） |

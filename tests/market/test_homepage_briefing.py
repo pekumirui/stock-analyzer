@@ -614,6 +614,7 @@ def test_ledger_remembers_old_ones_found_after_download(tmp_path: Path) -> None:
     assert list(saved["old"].values()) == ["2021-01-05 00:00:00"]
     assert saved["checked"] == {}
     assert saved["dup"] == {}
+    assert saved["stale"] == {}
 
     rc, gets, out = _run(tmp_path, page=page, dates=dates, years=5, ledger=ledger)
     assert rc == 0
@@ -813,3 +814,37 @@ def test_same_content_is_not_saved_twice(tmp_path: Path) -> None:
     out = run_once()
     assert "saved=0 skipped=2 old=0 failed=0 dup=2" in out
     assert gets == [INDEX_URL]
+
+
+def test_stale_takes_configured_companies_without_a_deck_after_30_days() -> None:
+    _cover("67280", _at(2026, 10, 1, 15, 0), True)
+    _cover("80010", _at(2026, 10, 1, 15, 0), True)
+    _deck("80010", "2026-10-20 00:00:00")
+    _cover("80310", _at(2026, 10, 1, 15, 0), True)
+    _deck("80310", "2026-10-01 15:00:00", source="tdnet")
+    _cover("80530", _at(2026, 10, 20, 15, 0), True)
+    _cover("80580", _at(2026, 10, 1, 15, 0), False)
+    _cover("12340", _at(2026, 10, 1, 15, 0), True)
+    _cover("94340", _at(2026, 6, 1, 15, 0), True)
+    issuers = _issuers("6728", "8001", "8031", "8053", "8058", "9434")
+    assert [code for code, _at_, _title in mod.stale_companies(issuers, NOW)] == ["67280"]
+
+
+def test_stale_alerts_once_per_tanshin(tmp_path: Path) -> None:
+    _cover("67280", _at(2026, 10, 1, 15, 0), True, title="2027年6月期 第1四半期決算短信")
+    ledger = tmp_path / "ledger.json"
+    page = "<h2>x</h2>"
+    rc, _gets, out = _run(tmp_path, page=page, ledger=ledger)
+    assert rc == 0
+    assert "stale 67280 2026-10-01 15:00:00 new 2027年6月期 第1四半期決算短信" in out
+    assert "homepage_briefing stale_new=1 stale_known=0" in out
+    assert json.loads(ledger.read_text(encoding="utf-8"))["stale"] == {"67280": "2026-10-01 15:00:00"}
+    rc, _gets, out = _run(tmp_path, page=page, ledger=ledger)
+    assert "stale 67280 2026-10-01 15:00:00 known" in out
+    assert "homepage_briefing stale_new=0 stale_known=1" in out
+    _deck("67280", "2026-10-25 00:00:00")
+    rc, _gets, out = _run(tmp_path, page=page, ledger=ledger)
+    assert "homepage_briefing stale_new=0 stale_known=0" in out
+    assert json.loads(ledger.read_text(encoding="utf-8"))["stale"] == {}
+    rc, _gets, out = _run(tmp_path, page=page, ledger=ledger, pending=7)
+    assert "stale_new" not in out

@@ -274,7 +274,8 @@ IR BANK の過去の決算説明資料（`tools/briefing/irbank_ingest.py`。KAB
 - `--ledger PATH` は、取ってから公開日で `--years` より前と分かった資料の番号と公開日を JSON に残し、次の実行では取りに行かない（KAB-438）。ledger が無い・壊れていれば空から。`--dry-run` では書かない
 - PDF を取ったら sha256 を出し、同じ会社の索引（出所を問わない。TDnet・IR BANK も）に同じ中身の資料があれば保存しない（`dup`。KAB-439）。同じ PDF を表題を変えて複数の分類に載せる会社がある（丸紅の「第1四半期 IR資料」「IR資料_2026年3月期第1四半期」「プレゼンテーション資料 2025年8月1日」は同じファイル）。番号を ledger の `dup` に残し、次からは取りに行かない
 - `--pending N`（KAB-438）は、設定の会社のうち、直近 N 日の最新の短信の表紙（`tanshin_covers`）が「補足説明資料 有」か読めない会社で、短信の開示の 2 日前以降の公開日の資料が会社ページから索引に入っていない会社だけを見る。最後に見た時刻を ledger の `checked` に残し、その短信のあとにまだ見ていなければすぐ、見ていれば 20 時間（`RECHECK`）たってから見る。一覧が取れなかった会社は残さない（次の回にまた見る）
-- ledger は `{"old": {番号: 公開日}, "checked": {code 5 桁: 時刻}, "dup": {番号: 中身が同じ索引の番号}}`
+- `--pending` も `--only` も無い回は、設定にある会社のうち、最新の短信（直近 120 日）が「資料 有」で、開示から 30 日（`STALE_DAYS`）たっても、短信の 2 日前以降の公開日の資料がどの出所からも索引に無い会社を `stale <code> <開示時刻> <new|known> <表題>` で出す（KAB-442。フィードの番号や載せる場所が変わった疑い。遅れて載せる会社の資料は週 1 回の全社の回で入るので、30 日あれば外れる）。最後に `homepage_briefing stale_new=N stale_known=M`。`stale_new` は ledger の `stale` にまだ無い（会社・短信の組が初めての）数で、1 以上の行は `deploy/alert_patterns.py` のアラートになる。終了コードは変えない。ledger が無いと毎回 new になる
+- ledger は `{"old": {番号: 公開日}, "checked": {code 5 桁: 時刻}, "dup": {番号: 中身が同じ索引の番号}, "stale": {code 5 桁: stale に出した短信の時刻}}`
 - cron は 2 本。毎時（12–23 時）の短信の取り込み（`xbrl_statements`）のあとに `tanshin_covers --days 1` → `tdnet_briefing_r2 1` → `homepage_briefing --years 5 --pending 7 --ledger /var/log/app/homepage_briefing_ledger.json`。日曜 22:25 に `--pending` 無しで全社（短信から日がたって載る質疑応答などの拾い直し）。`--pending` も `--only` も無い回は、直近 7 日（`MISSING_DAYS`）に「資料 有」の短信を出したのに、どの出所の資料も短信の 2 日前以降に索引に無く、設定にも無い会社を `missing <code> <開示時刻> <表題>` で出す（設定に足す候補）。手での実行は `deploy/README.md`
 
 決算説明資料を OneDrive へ移す（`jobs/market/briefing_offsite.py`。KAB-345）:
