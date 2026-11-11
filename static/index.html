@@ -139,6 +139,7 @@
       <div class="nav-tabs" id="st-tabs" role="tablist" aria-label="銘柄の中のタブ">
         <button type="button" class="ftab on" data-sub="summary">概要</button>
         <button type="button" class="ftab" data-sub="price">株価</button>
+        <button type="button" class="ftab" data-sub="financials">業績詳細</button>
         <button type="button" class="ftab" data-sub="news">ニュース</button>
         <button type="button" class="ftab" data-sub="holders">株主</button>
       </div>
@@ -180,6 +181,22 @@
       <div class="evt-toggles"></div>
       <h3>決算発表後パフォーマンス (%, α=対TOPIX超過)</h3>
       <div class="tbl-wrap"><table id="perf-tbl" class="sheet"></table></div>
+    </div>
+    <div id="st-sub-financials" class="st-sub" hidden>
+      <div class="row">
+        <div class="fin-tabs" id="st-fs-tabs" role="group" aria-label="財務3表">
+          <button type="button" class="ftab on" data-fs="BS">貸借対照表</button>
+          <button type="button" class="ftab" data-fs="PL">損益計算書</button>
+          <button type="button" class="ftab" data-fs="CF">CF計算書</button>
+        </div>
+        <div class="fin-tabs" id="st-fs-periods" role="group" aria-label="期数">
+          <button type="button" class="ftab on" data-periods="8">8期</button>
+          <button type="button" class="ftab" data-periods="20">20期</button>
+        </div>
+        <span id="st-fs-meta" class="sub"></span>
+      </div>
+      <p id="st-fs-legend" class="sub">列の下 = 列の出どころ（有報 / XBRL = 短信 / PDF = 短信 PDF）。<span class="qb fs-fill">XBRL</span><span class="qb fs-fill">PDF</span> = 列の出どころに無く、その書類から補った値。<span class="qb fs-pdf">PDFのみ</span> = XBRL の科目に対応が付かなかった短信 PDF の行</p>
+      <div class="tbl-wrap"><table id="st-fs-tbl" class="sheet fin"></table></div>
     </div>
     <div id="st-sub-news" class="st-sub" hidden>
       <div id="st-news-list">
@@ -334,6 +351,7 @@
 <script src="/static/js/stock.js"></script>
 <script src="/static/js/stock-price.js"></script>
 <script src="/static/js/stock-deck.js"></script>
+<script src="/static/js/stock-financials.js"></script>
 <script src="/static/js/holders.js"></script>
 <script src="/static/js/screener.js"></script>
 <script src="/static/js/pts.js"></script>

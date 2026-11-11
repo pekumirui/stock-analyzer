@@ -1,4 +1,4 @@
-// 銘柄タブ（KAB-161 / KAB-177。docs/DESIGN_stock.md）。共通ヘッダーと中のタブ 概要 / 株価 / ニュース / 株主。説明資料の中身は stock-deck.js。
+// 銘柄タブ（KAB-161 / KAB-177。docs/DESIGN_stock.md）。共通ヘッダーと中のタブ 概要 / 株価 / 業績詳細 / ニュース / 株主。説明資料の中身は stock-deck.js、業績詳細は stock-financials.js。
 // ニュースの詳細で決算短信の原文を PDF と同じ並びで読む
 let stockCode = "";
 let stockSub = "summary";
@@ -109,6 +109,7 @@ async function showStock(code, sub, newsId, from, deckKey = ""){
     stockFilingsReq = null;
     stockNewsDecksReq = null;
     if(typeof resetStockHolders === "function") resetStockHolders();
+    if(typeof resetStockFs === "function") resetStockFs();
     stockDocKey = "";
     $("#st-doc").innerHTML = "";
     $("#st-head").hidden = true;
@@ -177,6 +178,7 @@ function renderStockSub(){
   stockMsg("");
   if(stockSub === "summary") renderStockSummary();
   if(stockSub === "price") showStockPrice();
+  if(stockSub === "financials") renderStockFs();
   if(stockSub === "news") renderStockNews();
   if(stockSub === "holders") renderStockHoldersTab();
   if(stockSub === "decks") renderStockDecks();
