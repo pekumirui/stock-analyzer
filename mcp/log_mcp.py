@@ -138,9 +138,10 @@ def crontab_job_names() -> tuple[str, ...]:
 # irbank_ingest は IR BANK の決算説明資料の過去分を一度だけ取る（KAB-330）。
 # briefing_extract は決算説明資料を Claude の Batch API で読む（KAB-349。cron はまだ置かない）。
 # briefing_offsite は crontab に載る（KAB-353）。ログ名は cron-run.sh の stem。
+# homepage_briefing は会社の IR ページの決算説明資料を手で入れる（KAB-429。cron はまだ置かない）。
 EXTRA_BATCH_JOBS = frozenset({
     "migrate_r2_share", "rebuild_daily_prices", "irbank_ingest",
-    "briefing_extract",
+    "briefing_extract", "homepage_briefing",
 })
 BATCH_JOBS = frozenset(crontab_job_names()) | EXTRA_BATCH_JOBS
 YEAR_RE = re.compile(r"^\d{4}$")
