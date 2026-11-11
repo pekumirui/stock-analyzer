@@ -18,6 +18,7 @@ index_url が転送や meta refresh で別のページへ飛ばすときは、�
 YYYYMMDD、それも無ければ取得した時刻）。
 番号は表題と PDF のファイル名から作る。索引にある PDF は取りに行かない。
 --limit は 1 社で新しく保存する件数（ページの上から）。
+表題に英文版と書いてある資料（is_english_version）は取らない。
 --years N は今日から N 年前の日より前の資料を保存しない。eir-parts はフィードの日付で決める。
 会社のページは表題か URL にある年（和暦を含む）が N 年前の年より古ければ取りに行かず、
 年が読めないものは取ってから公開日で決める（保存しないので次の実行でもまた取る）。
@@ -53,7 +54,7 @@ from app.market.briefing_store import (  # noqa: E402
     has_saved,
     record_briefing,
 )
-from app.market.briefing_title import is_material_title, spaced_title  # noqa: E402
+from app.market.briefing_title import is_english_version, is_material_title, spaced_title  # noqa: E402
 from jobs._r2common import (  # noqa: E402
     abort_if_disconnected,
     fail_if_mount_down,
@@ -88,6 +89,7 @@ _FORMAT_ONLY = re.compile(r"^PDF$", re.I)
 MAX_LABEL = 60
 _EIR_FEED = re.compile(r"^https://[a-z0-9]+\.eir-parts\.net/V4Public/EIR/[^/]+/[a-z]+/announcement/announcement_\d+\.js$")
 _EIR_DATE = re.compile(r"^(\d{4})/(\d{2})/(\d{2}) (\d{2}):(\d{2}):(\d{2})$")
+_JAPANESE = re.compile(r"[ぁ-んァ-ヶ一-龠々]")
 _EIR_FISCAL = re.compile(r"^(\d{4})(\d{2})$")
 _URL_DAY = re.compile(r"(?<!\d)(20\d{2})(\d{2})(\d{2})(?!\d)")
 _PDF_DATE = re.compile(
@@ -219,6 +221,8 @@ def parse_deck_links(html: str, base_url: str, code: str, link_re: str = "") -> 
             continue
         if not is_material_title(f"決算 {text}") and not (extra and extra.search(text)):
             continue
+        if is_english_version(text):
+            continue
         title = f"{heading} {text}".strip()
         doc_id = document_id(code, title, url)
         if doc_id in seen:
@@ -237,12 +241,14 @@ def parse_eir_feed(text: str, code: str, link_re: str = "") -> list[DeckLink]:
 
     会社のページと違って決算以外の IR 資料も並ぶので、決算の語は補わない。表題そのものが
     is_material_title を通るか、link_re に合うものだけ。短信・適時開示は採らない。
+    同じ決算期・四半期に日本語の表題の資料があれば、表題に日本語の無い資料は英文版として採らない。
+    同じ表題・同じ日の資料が複数の分類に載っていれば最初の 1 本。
     """
     extra = re.compile(link_re) if link_re else None
     body = text.lstrip("\ufeff")
     data = json.loads(body[body.index("(") + 1:body.rindex(")")])
-    out: list[DeckLink] = []
-    seen: set[str] = set()
+    picked: list[tuple[dict, str]] = []
+    japanese: set[tuple[str, str]] = set()
     for item in data.get("item") or []:
         kind = str(item.get("news_type") or "")
         url = str(item.get("link") or "").strip()
@@ -255,17 +261,32 @@ def parse_eir_feed(text: str, code: str, link_re: str = "") -> list[DeckLink]:
         fiscal = kind.startswith("ir_material_for_fiscal_ym")
         if not is_material_title(text_) and not (extra and extra.search(text_)):
             continue
+        if is_english_version(text_):
+            continue
+        picked.append((item, text_))
+        if _JAPANESE.search(text_):
+            japanese.add((str(item.get("fiscal_ym") or ""), str(item.get("quarter") or "")))
+    out: list[DeckLink] = []
+    seen: set[object] = set()
+    for item, text_ in picked:
+        group = (str(item.get("fiscal_ym") or ""), str(item.get("quarter") or ""))
+        if group[0] and group in japanese and not _JAPANESE.search(text_):
+            continue
+        kind = str(item.get("news_type") or "")
+        fiscal = kind.startswith("ir_material_for_fiscal_ym")
+        url = str(item.get("link") or "").strip()
+        parsed = urlparse(url)
         year = _EIR_FISCAL.match(str(item.get("fiscal_ym") or ""))
         title = text_
         if fiscal and year and f"{year.group(1)}年" not in text_:
             title = f"{year.group(1)}年{int(year.group(2))}月期 {text_}"
         digest = hashlib.sha1(f"{code}\n{parsed.path}".encode(), usedforsecurity=False).hexdigest()
         doc_id = f"hp{digest[:24]}"
-        if doc_id in seen:
-            continue
-        seen.add(doc_id)
         when = _EIR_DATE.match(str(item.get("date") or ""))
         pubdate = "{}-{}-{} {}:{}:{}".format(*when.groups()) if when else ""
+        if doc_id in seen or (title, pubdate) in seen:
+            continue
+        seen.update({doc_id, (title, pubdate)})
         out.append(DeckLink(url=url, title=title, document_id=doc_id, pubdate=pubdate))
     return out
 

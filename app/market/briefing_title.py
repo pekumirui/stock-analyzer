@@ -27,6 +27,9 @@
 
 台本つき版（ノーツ付き・ノート付き・スクリプト付・台本付）は保存するが、読み取りには回さない
 （is_script_title）。スライドはスライドだけの版と同じ。書き起こしと質疑応答は別の中身なので含めない。
+
+英文版（is_english_version）は会社の IR ページからは取り込まない。表題が英語だけの資料は対象外
+（日本語版を出さない会社がある）。
 """
 from __future__ import annotations
 
@@ -47,6 +50,8 @@ _KINDS = (
 # 「主な質疑」「質疑応答」を含む。要旨・概要だけでは採らない。
 _QA = ("質疑",)
 _SCRIPT = ("ノーツ付", "ノート付", "スクリプト付", "台本付")
+_ENGLISH = ("英文", "英語")
+_EN_ENGLISH = re.compile(r"(?<![a-z])english(?![a-z])", re.I)
 _EN_NOTICE = re.compile(
     r"\b(notice|correction|postponement|cancellation|canceled|cancelled)\b",
     re.I,
@@ -105,3 +110,9 @@ def is_script_title(title: str | None) -> bool:
     """スライドに台本を付けた版。"""
     text = compact_title(title)
     return any(word in text for word in _SCRIPT)
+
+
+def is_english_version(title: str | None) -> bool:
+    """日本語の表題に英文版と書いてある資料。"""
+    text = compact_title(title)
+    return any(word in text for word in _ENGLISH) or bool(_EN_ENGLISH.search(spaced_title(title)))

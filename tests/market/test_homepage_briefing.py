@@ -558,3 +558,41 @@ def test_log_mcp_can_read_the_job_log() -> None:
     import mcp.log_mcp as logs
 
     assert "homepage_briefing" in logs.BATCH_JOBS
+
+
+def test_english_versions_are_not_taken() -> None:
+    from app.market.briefing_title import is_english_version
+
+    for title in ("第61期 2023年3月期決算説明資料(英文)", "決算説明会資料(英語版)", "決算説明資料 English"):
+        assert is_english_version(title), title
+    for title in ("FY2026 3Q Financial Results Presentation", "決算説明資料", "英雄の決算", None):
+        assert not is_english_version(title), title
+    page = (
+        "<h2>2027年3月期 第2四半期</h2>"
+        '<a href="/a/ja.pdf">決算説明資料</a><a href="/a/en.pdf">決算説明資料(英文)</a>'
+        '<a href="/a/en2.pdf">Financial Results Presentation (English)</a>'
+    )
+    assert [link.url.rsplit("/", 1)[-1] for link in mod.parse_deck_links(page, INDEX_URL, "69190")] == ["ja.pdf"]
+    items = [
+        _eir_item("2023年3月期決算説明資料", "https://ssl4.eir-parts.net/doc/6919/ir_material2/1/00.pdf"),
+        _eir_item("2023年3月期決算説明資料(英文)", "https://ssl4.eir-parts.net/doc/6919/ir_material2/2/00.pdf"),
+    ]
+    assert [link.url for link in mod.parse_eir_feed(_eir_feed(items), "69190")] == [items[0]["link"]]
+
+
+def test_eir_drops_english_titled_twins_and_same_day_duplicates() -> None:
+    def item(title: str, n: int, fiscal: str, quarter: str, kind: str = "ir_material_for_fiscal_ym") -> dict:
+        it = _eir_item(title, f"https://ssl4.eir-parts.net/doc/4212/{kind}/{n}/00.pdf", news_type=kind, fiscal_ym=fiscal)
+        it["quarter"] = quarter
+        return it
+
+    items = [
+        item("2027年3月期第2四半期(中間期)決算説明資料", 1, "202703", "2"),
+        item("2027年3月期第2四半期(中間期)決算説明資料", 2, "202703", "2", "ir_material_for_fiscal_ym4"),
+        item("2025年3月期 決算説明資料", 3, "202503", "0"),
+        item("Presentation of Financial Results for FYE March 2025", 4, "202503", "0"),
+        item("FY2026 3Q Financial Results Presentation", 5, "202610", "3"),
+    ]
+    links = mod.parse_eir_feed(_eir_feed(items), "42120")
+    assert [link.url.split("/")[-2] for link in links] == ["1", "3", "5"]
+    assert links[2].title == "2026年10月期 FY2026 3Q Financial Results Presentation"
