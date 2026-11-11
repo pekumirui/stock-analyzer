@@ -963,3 +963,23 @@ python tools/tdnet_pdf/golden_check.py check --base-repo /tmp/sa-main --md /tmp/
 python tools/tdnet_pdf/golden_check.py build --statements fins_summary.json \
   --cmp-jq r2_prev5=.../cmp_jq_prev5.json --cmp-jq r2_new5=.../cmp_jq_new5.json --cmp-jq r3=.../cmp_jq.json
 ```
+
+## 17. 財務3表を出どころをまたいで並べる（`GET /api/stock/{code}/financials`）
+
+`app/xbrl/three_statements.py`。テーブルもバッチも足さず、読むたびに 1 銘柄の `xbrl_facts` から組み立てる（filing_id で絞る。連結と個別は 1 回の読み込みで分ける）。API の形は `docs/DESIGN_stock.md` の「API」、MCP `financial_statements`（`mcp/earnings_tools.py`）はこの API を TSV にするだけ。
+
+**材料**: `source` が `edinet` / `tdnet` / `tdnet_pdf`、`doc_type` が `annual` / `semiannual` / `quarterly` の `parsed` の filing。当期（`relative_period='current'`）の fact で、次元が連結/単体のメンバーだけのもの（`is_primary_statement` と同じ）。連結/個別は `xbrl_contexts.is_consolidated`（有報の単体は `NonConsolidatedMember` の軸付きで 0、PDF は `_NonConsolidated` の context で 0）。DEI が「連結財務諸表を作っていない」の有報は全部個別（`normalize` と同じ）。`consolidated=auto`（API の既定）は、連結の fact でどれかの表が組める filing が 1 つでもあれば連結、無ければ個別（BS / PL / CF で連結と個別が混ざらないよう、表ごとには決めない）。`jpdei_cor` / `jpcrp_cor` / `tse-ed-t` / `pdf-sum` は出さない。XBRL は `jppfs_cor` / `jpigp_cor` と会社独自（`is_custom`）だけ。
+
+**表の振り分け**: PDF は名前空間（`pdf-bs` / `pdf-pl` / `pdf-cf`）。XBRL は fact の id 順（印字順）で決める。BS は合計要素（`Assets` / `LiabilitiesAndNetAssets` / IFRS の `…IFRS`）を含む時点の fact の連なり。CF は要素名が `…OpeCF` / `…InvCF` / `…FinCF`・`NetCashProvidedByUsedIn…`・`NetIncreaseDecreaseInCashAndCashEquivalents…`・`EffectOfExchangeRateChange…` の最初から最後まで（`NetCashProvidedByUsedIn…` が無ければ CF なし。四半期報告書の注記の減価償却費を CF にしない）と、すぐ後ろの `CashAndCashEquivalents…` の時点。PL は BS の後ろ・CF の前の期間の fact のうち、最後の `ProfitLoss` / `NetIncome` / `ComprehensiveIncome` / `…PerShare` までで、その後ろ（株主資本等変動計算書の合計欄、注記の販管費内訳）は捨てる。
+
+**行のキー**: 標準要素は `local_name`、会社独自は `ext:<local_name>`（有報と短信 XBRL で名前空間が違っても同じ行にする）、対応が付かない PDF の行は `pdf:<local_name>`。
+
+**PDF の行と要素の対応**: 同じ期末に PDF と XBRL の両方がある回（XBRL は 有報 > 短信 XBRL の新しい方）で、表ごとに絶対値の一致で LCS（印字順を保つ最長の対応）を取る。0 は対応させない。単位の丸めが違う（有報が千円、短信が百万円）ときは粒度の差まで同じとみなす。LCS で付かない行は、その表で値が 1 回だけ・XBRL 全体でも要素が 1 つだけ・粒度の 100 倍以上なら表をまたいで付ける（CF の税引前利益、IFRS の CF 期末の現金）。PDF と XBRL で符号が逆なら向きも覚える。XBRL の振り分けでその表に入らない要素が PDF で付いたら、その会社ではその表の要素として足す（XBRL だけの期の CF に税引前利益が出る）。
+
+**PDF だけの期**: PDF の `local_name` で覚えた対応を引く。回は「通期どうし・四半期どうし」を先に、その中で期末が近い順。名前ごとに最初に見つかった回の対応を使う。同じ期で 2 行が同じ要素になったら両方とも当てない。全回の印字順をまとめた順位で最長増加部分列を取り、順序が食い違う対応（通期と四半期で `その他#n` がずれた行）は捨てる。当たらない行は PDF の行名のまま印字の位置に残す。値は覚えた向きで XBRL の符号にそろえる。
+
+**同じ期末に複数の出どころ**: 表ごとに、その表がある出どころのうち 有報 > 短信 XBRL > 短信 PDF を主にし、同じ出どころは提出が新しい方。主に無い要素は下位の出どころで補う。PDF は対応が付いた行だけ補い、付かない行は主が XBRL なら出さない。列の出どころ（TSV の最後の行 `出どころ`）は主。セルごとに、その値を採った出どころも持つ（主と違えば補ったセル）。
+
+**行の並びと名前**: いちばん新しい期の並びを土台に、古い期にだけある行はその期の直前の行の後ろに差し込む。行名は、PDF との対応があれば PDF の印字名（`#n` と、区分見出しがくっついたもの（`有形固定資産建物…`）は要素のラベルに戻す）、無ければ要素の `label_ja`（「又は…損失（△）」「（△は増加）」を落とす）。
+
+**限界**: CF の期首残高は XBRL に当期の fact が無い（有報は前期末の fact を残さない）ので、PDF だけの期にしか出ない。四半期に新しく出た科目・0 の行・前の回と値も名前も違う行は当たらない。米国基準は PDF を読んでいないので XBRL の期だけ。XBRL の振り分けは要素名と並びの規則なので、規則に当たらない会社独自の並びでは BS / PL / CF の境がずれることがある。
