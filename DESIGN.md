@@ -241,7 +241,7 @@ TDnet 決算説明資料 PDF（`jobs/market/tdnet_briefing_r2.py`。KAB-327）:
 - 保存先は `data/briefing/{code}/YYYYMMDD_CODE_名前_表題.pdf`。`{code}` とファイル名は月次 PDF と同じ（display_code。J-Quants の 5 桁にはしない）。`SHARE_ROOT` を置くとその直下の `briefing/`
 - 既存ファイルが PDF なら取り直さない。索引が無ければ索引だけ足す。その件数は `reindexed`（新規に保存した `saved` とは別）。PDF でなければ取り直す
 - 索引は `briefing_documents`。列は source / document_id / code（5 桁）/ company_name / pubdate / title / rel_path（`data/briefing` から）/ url / sha256 / size / status / storage（`local` / `onedrive`。既存行は `local`。KAB-345）/ saved_at。このジョブは source=`tdnet`、document_id は TDnet の PDF ファイル名、status=`saved`、storage=`local`。ホームページで見つけた PDF は同じ表に source=`homepage`（取得はこのジョブではしない。`app/market/briefing_store.record_briefing`）。IR BANK の過去分は source=`irbank`（下）。`storage=onedrive` の行は手元が無くても取り直さない
-- 日次 cron は直近 7 日（22:10 JST。取りこぼしの拾い直し）。初回の約 30 日は `deploy/cron-run.sh jobs/market/tdnet_briefing_r2.py 30` を手で一度。デプロイでは走らない
+- 毎時（12–23 時）の短信の取り込みのあとに当日分（`tdnet_briefing_r2.py 1`。KAB-438）。日次 cron は直近 7 日（22:10 JST。取りこぼしの拾い直し）。初回の約 30 日は `deploy/cron-run.sh jobs/market/tdnet_briefing_r2.py 30` を手で一度。デプロイでは走らない
 - 日次の `backup_data` には載せない（コピーだと手元が残る）。1 年以上前の PDF は下の `briefing_offsite` が移す。TDnet は約 1 か月で PDF を消す
 
 IR BANK の過去の決算説明資料（`tools/briefing/irbank_ingest.py`。KAB-330）:
@@ -271,7 +271,10 @@ IR BANK の過去の決算説明資料（`tools/briefing/irbank_ingest.py`。KAB
 - PDF を取る直前に `shutil.disk_usage(--dest).free` を見て、IR BANK の一括取得と同じしきい値（`MIN_FREE_BYTES`）未満か読めなければ、保存せずに止まる（`stopped=disk_low`、終了コード 0）。最後の行は `homepage_briefing stopped=<done|disk_low> listed=… saved=… skipped=… old=… failed=…`。失敗が 1 件でもあれば終了コード 1
 - 一覧を eir-parts（プロネクサスの IR サービス。`ssl4.eir-parts.net`）で出す会社は、会社のページに PDF のリンクが無い。`index_url` に eir-parts のフィード `https://ssl4.eir-parts.net/V4Public/EIR/<4桁>/ja/announcement/announcement_<N>.js`（JSONP。N は会社ごとで 1〜10 に散らばる。同じ中身のフィードを複数持つ会社が多いので、決算資料のいちばん多い 1 本を書く。KAB-430）を書くと、HTML でなくフィードとして読む。採るのは `type` が `pdf` で `news_type` が `ir_material` で始まるもの。会社のページと違って決算以外の IR 資料（事業説明会、個人投資家向け説明会など）も並ぶので、決算の語は補わず、表題そのものが `is_material_title` を通るものだけ。`link_re` も効く（例: 丸紅の「IR資料」「質疑応答」）。短信・適時開示（`tanshin` / `press`）は採らない。同じ決算期・四半期（`fiscal_ym` / `quarter`）に日本語の表題の資料があれば、表題に日本語の無い資料は英文版として採らない（日本語版を出さず英語の表題だけの会社の分は残る）。同じ表題・同じ日の資料が複数の分類に載っていれば最初の 1 本（中身が同じ。例: 積水樹脂）。表題に年度が無ければ `fiscal_ym` から「2027年3月期」を頭に付ける。pubdate はフィードの `date`（時刻は 00:00:00）。document_id は `hp` + sha1(code 5 桁・PDF の URL のパス) の頭 24 桁
 - 拾えない形: 一覧を JavaScript で組み立てるページ（ソフトバンク、任天堂）、eir-parts でも標準のフィードに資料が入っていない会社（キオクシア）。設定に載せていない。リクルートは過去分が JavaScript の中にあり、HTML に出ている最新の 1 本だけ拾う
-- cron にはまだ入れていない。手での実行は `deploy/README.md`
+- `--ledger PATH` は、取ってから公開日で `--years` より前と分かった資料の番号と公開日を JSON に残し、次の実行では取りに行かない（KAB-438）。ledger が無い・壊れていれば空から。`--dry-run` では書かない
+- `--pending N`（KAB-438）は、設定の会社のうち、直近 N 日の最新の短信の表紙（`tanshin_covers`）が「補足説明資料 有」か読めない会社で、短信の開示の 2 日前以降の公開日の資料が会社ページから索引に入っていない会社だけを見る。最後に見た時刻を ledger の `checked` に残し、その短信のあとにまだ見ていなければすぐ、見ていれば 20 時間（`RECHECK`）たってから見る。一覧が取れなかった会社は残さない（次の回にまた見る）
+- ledger は `{"old": {番号: 公開日}, "checked": {code 5 桁: 時刻}}`
+- cron は 2 本。毎時（12–23 時）の短信の取り込み（`xbrl_statements`）のあとに `tanshin_covers --days 1` → `tdnet_briefing_r2 1` → `homepage_briefing --years 5 --pending 7 --ledger /var/log/app/homepage_briefing_ledger.json`。日曜 22:25 に `--pending` 無しで全社（短信から日がたって載る質疑応答などの拾い直し）。`--pending` も `--only` も無い回は、直近 7 日（`MISSING_DAYS`）に「資料 有」の短信を出したのに、どの出所の資料も短信の 2 日前以降に索引に無く、設定にも無い会社を `missing <code> <開示時刻> <表題>` で出す（設定に足す候補）。手での実行は `deploy/README.md`
 
 決算説明資料を OneDrive へ移す（`jobs/market/briefing_offsite.py`。KAB-345）:
 
@@ -390,7 +393,7 @@ TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl
 
 ホスト一致の確認は `python jobs/market/homepages.py --all --compare-hosts`（書き込みしない）。
 
-**短信表紙の説明資料（`tanshin_covers`）。** 決算短信1ページ目の「決算補足説明資料作成の有無」「決算説明会開催の有無」を、短信ごとに1行残す（KAB-325）。主キーは `disclosure_no`。`code` にインデックスを付ける。最新の1件は `disclosed_at` が新しい行。API / SPA はまだ無い。表は `jobs/migrate.py` が作る。ジョブは `python jobs/market/tanshin_covers.py --code 7203`。`--limit` は DB に既にある短信から新しい順にその社数だけ、`--days N` は今日（JST）を含む直近 N 日に決算短信を出した会社について、各社の最新1件を書く（`--code` / `--limit` / `--days` はどれか 1 つ）。前の短信の行は消さない。`--all` は無い。日次 cron は 23:35 に `--days 3`（XBRL の最後の回のあと。KAB-416）。初回は `--days` を 1 四半期より長くして手で一度（`deploy/README.md`）。説明資料 PDF の保存は `jobs/market/tdnet_briefing_r2.py`（KAB-327、`briefing_documents`）。有無の判定とホームページ探索は、その索引を見て別 PR で足す。
+**短信表紙の説明資料（`tanshin_covers`）。** 決算短信1ページ目の「決算補足説明資料作成の有無」「決算説明会開催の有無」を、短信ごとに1行残す（KAB-325）。主キーは `disclosure_no`。`code` にインデックスを付ける。最新の1件は `disclosed_at` が新しい行。API / SPA はまだ無い。表は `jobs/migrate.py` が作る。ジョブは `python jobs/market/tanshin_covers.py --code 7203`。`--limit` は DB に既にある短信から新しい順にその社数だけ、`--days N` は今日（JST）を含む直近 N 日に決算短信を出した会社について、各社の最新1件を書く（`--code` / `--limit` / `--days` はどれか 1 つ）。前の短信の行は消さない。`--all` は無い。日次 cron は 23:35 に `--days 3`（XBRL の最後の回のあと。KAB-416）。毎時の短信の取り込みのあとにも `--days 1`（KAB-438。会社ページの説明資料の `--pending` が読む）。初回は `--days` を 1 四半期より長くして手で一度（`deploy/README.md`）。説明資料 PDF の保存は `jobs/market/tdnet_briefing_r2.py`（KAB-327、`briefing_documents`）。有無の判定とホームページ探索は、その索引を見て別 PR で足す。
 
 - 対象は普通株（`stocks.product_category` が内国株券 `011` または外国株券 `021`）と REIT（`013`）。ETF（`014`）と外国 ETF / ETN（`023`）は除く。REIT でも名称に「ファンド」または「インフラ」がある投資法人は除く。マスタが無い銘柄は、題名が ETF・ETN・投資信託・ファンドでなければ残す
 - 題名に「決算短信」があるもの。`訂正` と「決算短信…の修正について／の一部修正」は飛ばす

@@ -320,12 +320,16 @@ def test_since_takes_companies_that_filed_in_the_window() -> None:
         db.close()
 
 
-def test_crontab_runs_covers_daily() -> None:
+def test_crontab_runs_covers_after_tanshin_and_daily() -> None:
     lines = [
         line for line in (ROOT / "deploy" / "crontab").read_text(encoding="utf-8").splitlines()
         if not line.lstrip().startswith("#") and "jobs/market/tanshin_covers.py" in line
     ]
-    assert len(lines) == 1
-    assert "deploy/cron-run.sh jobs/market/tanshin_covers.py --days 3" in lines[0]
+    assert len(lines) == 2
+    hourly = next(line for line in lines if "tdnet_xbrl_r2.py" in line)
+    daily = next(line for line in lines if "tdnet_xbrl_r2.py" not in line)
+    assert "xbrl_statements.py; deploy/cron-run.sh jobs/market/tanshin_covers.py --days 1;" in hourly
+    assert "deploy/cron-run.sh jobs/market/tanshin_covers.py --days 3" in daily
     readme = (ROOT / "deploy" / "README.md").read_text(encoding="utf-8")
     assert "jobs/market/tanshin_covers.py --days 3" in readme
+    assert "jobs/market/tanshin_covers.py --days 1" in readme

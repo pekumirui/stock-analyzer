@@ -130,9 +130,11 @@ def test_crontab_retries_missed_days() -> None:
         if match:
             days.append(int(match.group(1)))
     assert days, "deploy/crontab has no tdnet_briefing_r2.py days"
-    assert all(n >= 4 for n in days)
+    assert sorted(days) == [1, max(days)]
+    assert max(days) >= 4
     readme = (ROOT / "deploy" / "README.md").read_text(encoding="utf-8")
-    assert f"jobs/market/tdnet_briefing_r2.py {days[0]}" in readme
+    assert f"jobs/market/tdnet_briefing_r2.py {max(days)}" in readme
+    assert "jobs/market/tdnet_briefing_r2.py 1" in readme
 
 
 def _rec(code: str, name: str, title: str, pdf: str) -> dict:

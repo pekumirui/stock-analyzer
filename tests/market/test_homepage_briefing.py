@@ -12,7 +12,7 @@ import pytest
 
 from app.db import SessionLocal
 from app.market.briefing_store import SOURCE_HOMEPAGE
-from app.models import BriefingDocument
+from app.models import BriefingDocument, TanshinCover
 from jobs.market import homepage_briefing as mod
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -72,6 +72,7 @@ def _no_rows() -> None:
     db = SessionLocal()
     try:
         db.query(BriefingDocument).delete()
+        db.query(TanshinCover).delete()
         db.commit()
     finally:
         db.close()
@@ -596,3 +597,170 @@ def test_eir_drops_english_titled_twins_and_same_day_duplicates() -> None:
     links = mod.parse_eir_feed(_eir_feed(items), "42120")
     assert [link.url.split("/")[-2] for link in links] == ["1", "3", "5"]
     assert links[2].title == "2026年10月期 FY2026 3Q Financial Results Presentation"
+
+
+def test_ledger_remembers_old_ones_found_after_download(tmp_path: Path) -> None:
+    page = (
+        '<h2>第2四半期</h2><a href="/a/undated_old.pdf">決算説明資料</a>'
+        '<h2>第3四半期</h2><a href="/a/undated_new.pdf">決算説明資料</a>'
+    )
+    dates = {"undated_old": _at(2021, 1, 5), "undated_new": _at(2026, 1, 5)}
+    ledger = tmp_path / "logs" / "ledger.json"
+    rc, gets, out = _run(tmp_path, page=page, dates=dates, years=5, ledger=ledger)
+    assert rc == 0
+    assert "saved=1 skipped=0 old=1 failed=0" in out
+    assert any(url.endswith("undated_old.pdf") for url in gets)
+    saved = json.loads(ledger.read_text(encoding="utf-8"))
+    assert list(saved["old"].values()) == ["2021-01-05 00:00:00"]
+    assert saved["checked"] == {}
+
+    rc, gets, out = _run(tmp_path, page=page, dates=dates, years=5, ledger=ledger)
+    assert rc == 0
+    assert "saved=0 skipped=1 old=1 failed=0" in out
+    assert gets == [INDEX_URL]
+
+
+def test_broken_ledger_starts_empty_and_dry_run_does_not_write(tmp_path: Path) -> None:
+    ledger = tmp_path / "ledger.json"
+    ledger.write_text("{broken", encoding="utf-8")
+    assert mod.load_ledger(ledger) == mod.Ledger()
+    assert mod.load_ledger(tmp_path / "missing.json") == mod.Ledger()
+    page = '<h2>第2四半期</h2><a href="/a/undated_old.pdf">決算説明資料</a>'
+    rc, _gets, _out = _run(tmp_path, page=page, years=5, ledger=ledger, dry_run=True)
+    assert rc == 0
+    assert ledger.read_text(encoding="utf-8") == "{broken"
+
+
+def test_crontab_runs_homepage_briefing_after_tanshin_and_weekly() -> None:
+    lines = [
+        line for line in (ROOT / "deploy" / "crontab").read_text(encoding="utf-8").splitlines()
+        if not line.lstrip().startswith("#") and "jobs/market/homepage_briefing.py" in line
+    ]
+    ledger = "--ledger /var/log/app/homepage_briefing_ledger.json"
+    hourly = [line for line in lines if "--pending" in line]
+    weekly = [line for line in lines if "--pending" not in line]
+    assert len(hourly) == 1 and len(weekly) == 1
+    assert hourly[0].startswith("0 12-23 * * * ")
+    chain = hourly[0]
+    order = ["xbrl_statements.py", "tanshin_covers.py --days 1", "tdnet_briefing_r2.py 1",
+             f"homepage_briefing.py --years 5 --pending 7 {ledger}"]
+    assert all(step in chain for step in order)
+    assert [chain.index(step) for step in order] == sorted(chain.index(step) for step in order)
+    assert weekly[0].split()[4] != "*"
+    assert f"deploy/cron-run.sh jobs/market/homepage_briefing.py --years 5 {ledger}" in weekly[0]
+    readme = (ROOT / "deploy" / "README.md").read_text(encoding="utf-8")
+    assert f"jobs/market/homepage_briefing.py --years 5 --pending 7 {ledger}" in readme
+    assert f"jobs/market/homepage_briefing.py --years 5 {ledger}" in readme
+
+
+def _cover(code: str, at: datetime, has: bool | None, no: str | None = None, title: str = "決算短信") -> None:
+    db = SessionLocal()
+    try:
+        db.add(TanshinCover(
+            disclosure_no=no or f"{code}{at:%Y%m%d%H%M}", code=code, disclosed_at=at, title=title,
+            source="xbrl_summary", has_material=has, checked_at=at,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+
+def _deck(code: str, pubdate: str, source: str = "homepage", doc: str | None = None) -> None:
+    db = SessionLocal()
+    try:
+        db.add(BriefingDocument(
+            source=source, document_id=doc or f"{source}{code}{pubdate[:10]}", code=code, company_name="x",
+            pubdate=pubdate, title="決算説明資料", rel_path="x.pdf", url=None, sha256="x", size=1,
+            status="saved", storage="local", saved_at=NOW,
+        ))
+        db.commit()
+    finally:
+        db.close()
+
+
+def _issuers(*codes: str) -> list:
+    return [mod.Issuer(code=c, name=c, index_urls=(f"https://ir.example.co.jp/{c}.html",)) for c in codes]
+
+
+def test_pending_takes_companies_whose_deck_is_not_in_yet() -> None:
+    _cover("67280", _at(2026, 11, 10, 15, 30), True)
+    _cover("80010", _at(2026, 11, 9, 15, 0), True)
+    _deck("80010", "2026-11-09 14:50:00")
+    _cover("80310", _at(2026, 11, 4, 15, 0), False)
+    _cover("80530", _at(2026, 10, 1, 15, 0), True)
+    _cover("80580", _at(2026, 11, 8, 15, 0), None)
+    _cover("80580", _at(2026, 8, 3, 15, 0), True)
+    _deck("80580", "2026-08-03 15:00:00")
+    issuers = _issuers("6728", "8001", "8031", "8053", "8058", "9999")
+    got = mod.pending_issuers(issuers, NOW, 7, {})
+    assert [i.code for i in got] == ["6728", "8058"]
+
+
+def test_pending_checks_right_after_the_tanshin_then_once_a_day() -> None:
+    _cover("67280", _at(2026, 11, 10, 15, 30), True)
+    issuers = _issuers("6728")
+    assert mod.pending_issuers(issuers, NOW, 7, {"67280": "2026-11-10 12:00:00"})
+    assert not mod.pending_issuers(issuers, NOW, 7, {"67280": "2026-11-10 16:00:00"})
+    later = _at(2026, 11, 11, 13, 0)
+    assert mod.pending_issuers(issuers, later, 7, {"67280": "2026-11-10 16:00:00"})
+    assert not mod.pending_issuers(issuers, _at(2026, 11, 18, 13, 0), 7, {})
+
+
+def test_pending_run_only_visits_pending_issuers_and_records_the_check(tmp_path: Path) -> None:
+    path = tmp_path / "two.json"
+    other = "https://ir.example.co.jp/other.html"
+    path.write_text(
+        json.dumps({"issuers": [
+            {"code": "6728", "name": "アルバック", "index_url": INDEX_URL},
+            {"code": "8001", "name": "伊藤忠", "index_url": other},
+        ]}),
+        encoding="utf-8",
+    )
+    _cover("67280", _at(2026, 11, 10, 15, 30), True)
+    ledger = tmp_path / "ledger.json"
+    gets: list[str] = []
+
+    def fake_get(url: str) -> bytes:
+        gets.append(url)
+        return PAGE.encode("utf-8") if url == INDEX_URL else _pdf(url)
+
+    def run_once(now: datetime) -> str:
+        out = io.StringIO()
+        with redirect_stdout(out):
+            assert mod.run(
+                tmp_path / "briefing", path, get=fake_get, read_date=lambda data: _at(2026, 11, 10, 15, 18),
+                now=now, pending=7, ledger=ledger, limit=1,
+            ) == 0
+        return out.getvalue()
+
+    out = run_once(NOW)
+    assert "homepage_briefing pending=1 6728" in out
+    assert other not in gets
+    assert json.loads(ledger.read_text(encoding="utf-8"))["checked"] == {"67280": "2026-11-10 18:00:00"}
+    gets.clear()
+    out = run_once(_at(2026, 11, 10, 19, 0))
+    assert "homepage_briefing pending=0" in out
+    assert gets == []
+    assert "missing=" not in out
+
+
+def test_pending_without_covers_hits_nothing(tmp_path: Path) -> None:
+    rc, gets, out = _run(tmp_path, pending=7)
+    assert rc == 0
+    assert gets == []
+    assert "pending=0" in out
+
+
+def test_full_run_lists_missing_companies(tmp_path: Path) -> None:
+    _cover("12340", _at(2026, 11, 9, 15, 0), True, title="2027年3月期 第2四半期決算短信")
+    _cover("23450", _at(2026, 11, 9, 15, 0), True)
+    _deck("23450", "2026-11-09 15:00:00", source="tdnet")
+    _cover("34560", _at(2026, 11, 9, 15, 0), False)
+    _cover("45670", _at(2026, 10, 1, 15, 0), True)
+    _cover("67280", _at(2026, 11, 9, 15, 0), True)
+    rc, _gets, out = _run(tmp_path)
+    assert rc == 0
+    assert "missing 12340 2026-11-09 15:00:00 2027年3月期 第2四半期決算短信" in out
+    assert "homepage_briefing missing=1" in out
+    rc, _gets, out = _run(tmp_path, only=["6728"])
+    assert "missing=" not in out

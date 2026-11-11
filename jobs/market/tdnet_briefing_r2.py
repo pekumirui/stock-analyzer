@@ -5,7 +5,7 @@
   python jobs/market/tdnet_briefing_r2.py 3 --dry-run
   python jobs/market/tdnet_briefing_r2.py 7 --dest /tmp/briefing
 
-N は今日(JST)から遡る日数（当日を含む）。日次 cron は 7（取りこぼしの拾い直し）。
+N は今日(JST)から遡る日数（当日を含む）。毎時の短信の取り込みのあとに 1、日次 cron は 7（取りこぼしの拾い直し）。
 初回の約 30 日は手で一度。デプロイでは走らない。
 一覧は jobs/_tdnet.py の fetch_days。表題は app.market.briefing_title.is_material_title。
 パスは月次 PDF と同じ {code}/YYYYMMDD_CODE_名前_表題.pdf。既存の PDF は取り直さない。
