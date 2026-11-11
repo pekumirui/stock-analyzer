@@ -7,6 +7,9 @@ TDnet の ZIP があり、ingest は PDF を取らない）。取り込み済み
   python tools/tdnet_pdf/financials.py --limit 100000 --batch 500   # 500 件ごとに進み具合を 1 行出す
   python tools/tdnet_pdf/financials.py --code 7203
   python tools/tdnet_pdf/financials.py --reparse
+  python tools/tdnet_pdf/financials.py --code 7203 --no-matches   # PDF 行と XBRL 要素の対応を付け直さない
+
+最後に、読み直した（parsed / retired / failed）銘柄の xbrl_pdf_matches を付け直す（tools/tdnet_pdf/matches.py と同じ）。
 """
 from __future__ import annotations
 
@@ -21,6 +24,7 @@ sys.path.insert(0, str(ROOT))
 from app.db import SessionLocal  # noqa: E402
 from app.xbrl.mappings import apply_mappings  # noqa: E402
 from app.xbrl.pdf import SyncOutcome, sync_pdf_filings  # noqa: E402
+from app.xbrl.pdf_matches import rebuild_matches, summary  # noqa: E402
 
 _CODE_RE = re.compile(r"^[0-9][0-9A-Z]{3}[0-9]?$")
 
@@ -41,6 +45,10 @@ def main(argv: list[str] | None = None) -> int:
         "--batch", type=int, default=None,
         help="N 件ごとに区切って累計を 1 行出す。database is locked の回は区切りで待って 1 回やり直す",
     )
+    parser.add_argument(
+        "--no-matches", action="store_true",
+        help="読み直した銘柄の xbrl_pdf_matches を付け直さない（あとで tools/tdnet_pdf/matches.py）",
+    )
     args = parser.parse_args(argv)
     if args.batch is not None and args.batch < 1:
         parser.error("--batch は 1 以上")
@@ -48,15 +56,25 @@ def main(argv: list[str] | None = None) -> int:
     db = SessionLocal()
     try:
         apply_mappings(db)
+        changed: set[str] = set()
         counts = sync_pdf_filings(
-            db, codes=codes, reparse=args.reparse, limit=args.limit, batch=args.batch,
+            db, codes=codes, reparse=args.reparse, limit=args.limit, batch=args.batch, changed=changed,
         )
         parts = [f"{outcome.value}={counts[outcome]}" for outcome in SyncOutcome]
         parts.append(f"garbled={counts['garbled']}")
         parts.append(f"textless={counts['textless']}")
         parts.append(f"remaining={counts['remaining']}")
         print("tdnet_pdf_financials " + " ".join(parts), flush=True)
-        return 0
+        if args.no_matches or not changed:
+            return 0
+        try:
+            matched = rebuild_matches(db, codes=sorted(changed), batch=args.batch)
+        except Exception as exc:
+            db.rollback()
+            print(f"pdf_matches failed err={exc}", flush=True)
+            return 1
+        print(summary(matched), flush=True)
+        return 1 if matched["failed"] else 0
     finally:
         db.close()
 

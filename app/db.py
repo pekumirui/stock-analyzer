@@ -432,10 +432,11 @@ def ensure_indexes() -> None:
     for table in Base.metadata.sorted_tables:
         have = existing.get(table.name, set())
         for idx in table.indexes:
-            if idx.name not in have:
-                created_tables.add(table.name)
+            if idx.name in have:
+                continue
+            created_tables.add(table.name)
             try:
-                idx.create(bind=engine, checkfirst=True)
+                idx.create(bind=engine)
             except OperationalError as exc:
                 if not is_already_exists(exc):
                     raise
@@ -522,6 +523,26 @@ def _ensure_data_versions_once() -> None:
                 ))
 
 
+def ensure_views() -> None:
+    from .xbrl.statement_values import VIEW_NAME, view_sql
+
+    sql = view_sql()
+    for attempt in range(1, SCHEMA_DDL_ATTEMPTS + 1):
+        try:
+            with engine.begin() as conn:
+                row = conn.exec_driver_sql(
+                    "SELECT sql FROM sqlite_master WHERE type = 'view' AND name = ?", (VIEW_NAME,)
+                ).fetchone()
+                if row is not None and row[0] == sql:
+                    return
+                conn.exec_driver_sql(f"DROP VIEW IF EXISTS {VIEW_NAME}")
+                conn.exec_driver_sql(sql)
+            return
+        except OperationalError as exc:
+            if not is_already_exists(exc) or attempt >= SCHEMA_DDL_ATTEMPTS:
+                raise
+
+
 def init_db(strict: bool = False):
     """テーブル作成。strict=True なら既存スキーマの不整合で例外を投げる。"""
     for attempt in range(1, SCHEMA_DDL_ATTEMPTS + 1):
@@ -533,6 +554,7 @@ def init_db(strict: bool = False):
                 raise
     ensure_indexes()
     ensure_data_versions()
+    ensure_views()
     if strict:
         lacks = missing_columns()
         if lacks:

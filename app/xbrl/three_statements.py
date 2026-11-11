@@ -17,12 +17,15 @@ __all__ = [
     "STATEMENTS",
     "Fact",
     "Filing",
+    "Mapped",
     "Names",
+    "PdfMatch",
     "apply_learned",
     "financial_table",
     "learn_pair",
     "load_filings",
     "name_index",
+    "pdf_only_matches",
     "sections",
 ]
 
@@ -131,6 +134,16 @@ class Filing:
 class Mapped:
     key: str
     sign: int
+    by: str = "value"
+
+
+@dataclass(frozen=True)
+class PdfMatch:
+    filing: Filing
+    consolidated: bool
+    statement: str
+    fact: Fact
+    mapped: Mapped | None
 
 
 @dataclass
@@ -597,7 +610,7 @@ def _by_name(
             continue
         key = names.keys.get(name)
         if key is not None and key not in claimed:
-            out[i] = Mapped(key, 1)
+            out[i] = Mapped(key, 1, "name")
     counts = defaultdict(int)
     for m in out.values():
         counts[m.key] += 1
@@ -654,6 +667,22 @@ def _with_extras(filing: Filing, statement: str, learned: Sequence[Learned]) -> 
             facts.insert(at, by_key[key])
             present.add(key)
     return facts
+
+
+def pdf_only_matches(db: Session, code: str) -> list[PdfMatch]:
+    out: list[PdfMatch] = []
+    for basis, filings in load_both(db, code).items():
+        learned = [learn_pair(pdf, xbrl) for pdf, xbrl in _pairs(filings)]
+        xbrl_ends = {f.period_end for f in filings if not f.is_pdf and f.by_statement}
+        for statement in STATEMENTS:
+            names = name_index(filings, statement)
+            for filing in filings:
+                if not filing.is_pdf or filing.period_end in xbrl_ends or statement not in filing.by_statement:
+                    continue
+                facts = filing.by_statement[statement]
+                for fact, mapped in apply_learned(facts, learned, statement, filing.period_end, filing.cls, names):
+                    out.append(PdfMatch(filing, basis, statement, fact, mapped))
+    return out
 
 
 def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], statement: str) -> list[Column]:

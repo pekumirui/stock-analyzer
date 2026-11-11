@@ -325,7 +325,7 @@ def _sync(db: Session, disclosure_no: str, zip_parsed: bool, *, reparse: bool) -
     return SyncOutcome.PARSED
 
 
-def _sync_counted(db: Session, number: str, zip_parsed: bool, counts: Counter, *, reparse: bool) -> None:
+def _sync_counted(db: Session, number: str, zip_parsed: bool, counts: Counter, *, reparse: bool) -> SyncOutcome:
     outcome = _sync(db, number, zip_parsed, reparse=reparse)
     counts[outcome] += 1
     if outcome is SyncOutcome.PARSED:
@@ -335,6 +335,7 @@ def _sync_counted(db: Session, number: str, zip_parsed: bool, counts: Counter, *
             counts["garbled"] += 1
         if "textless" in err:
             counts["textless"] += 1
+    return outcome
 
 
 def _sync_failed(db: Session, number: str, counts: Counter, exc: Exception) -> None:
@@ -351,6 +352,7 @@ def sync_pdf_filings(
     limit: int = 2000,
     batch: int | None = None,
     retry_wait: float = LOCK_RETRY_WAIT,
+    changed: set[str] | None = None,
 ) -> Counter:
     """ok の HTML か、既存の PDF filing がある開示。新しい順。remaining は今回見なかった件数。
 
@@ -358,24 +360,33 @@ def sync_pdf_filings(
     落ちた回は区切りの終わりに ``retry_wait`` 秒待って 1 回やり直し、それでも落ちた回だけ failed に数える。
     """
     docs = db.query(
-        TdnetPdfDocument.disclosure_no, TdnetPdfDocument.disclosed_date,
+        TdnetPdfDocument.disclosure_no, TdnetPdfDocument.disclosed_date, TdnetPdfDocument.code,
     ).filter(TdnetPdfDocument.status == "ok")
-    filings = db.query(XbrlFiling.doc_id, XbrlFiling.submitted_at).filter_by(source=SOURCE)
+    filings = db.query(XbrlFiling.doc_id, XbrlFiling.submitted_at, XbrlFiling.code).filter_by(source=SOURCE)
     if codes:
         docs = docs.filter(TdnetPdfDocument.code.in_(codes))
         filings = filings.filter(XbrlFiling.code.in_(codes))
     rank: dict[str, date] = {}
-    for disclosure_no, disclosed_date in docs:
+    code_of: dict[str, str] = {}
+    for disclosure_no, disclosed_date, code in docs:
         rank[disclosure_no] = disclosed_date or date.min
-    for doc_id, submitted_at in filings:
+        code_of[disclosure_no] = code
+    for doc_id, submitted_at, code in filings:
         rank.setdefault(
             doc_id,
             submitted_at.date() if submitted_at else date.min,
         )
+        code_of.setdefault(doc_id, code)
     ordered = sorted(rank, key=lambda number: (rank[number], number), reverse=True)
     zip_rows = db.query(XbrlFiling.doc_id).filter_by(source="tdnet", parse_status="parsed")
     zip_set = {doc_id[-14:] for (doc_id,) in zip_rows if doc_id and len(doc_id) >= 14}
     counts: Counter = Counter()
+
+    def run(number: str) -> None:
+        outcome = _sync_counted(db, number, number in zip_set, counts, reparse=reparse)
+        if changed is not None and outcome not in (SyncOutcome.UNCHANGED, SyncOutcome.ABSENT) and number in code_of:
+            changed.add(code_of[number])
+
     targets = ordered[:limit]
     step = batch if batch and batch > 0 else len(targets) or 1
     for start in range(0, len(targets), step):
@@ -383,7 +394,7 @@ def sync_pdf_filings(
         locked: list[str] = []
         for number in chunk:
             try:
-                _sync_counted(db, number, number in zip_set, counts, reparse=reparse)
+                run(number)
             except Exception as exc:
                 if batch and _is_locked(exc):
                     db.rollback()
@@ -395,7 +406,7 @@ def sync_pdf_filings(
             time.sleep(retry_wait)
             for number in locked:
                 try:
-                    _sync_counted(db, number, number in zip_set, counts, reparse=reparse)
+                    run(number)
                 except Exception as exc:
                     _sync_failed(db, number, counts, exc)
         if batch:

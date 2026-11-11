@@ -280,6 +280,24 @@ CREATE INDEX idx_xbrl_financials_gp_cover
     ON xbrl_financials(code, std_item_id, value_kind, is_consolidated,
                        period_start, period_end, value, filing_id);
 
+-- 短信 PDF の行 → XBRL の要素（§18）。PDF だけの期の本表の当期 fact 1 つに 1 行。値は持たない
+CREATE TABLE xbrl_pdf_matches (
+    fact_id             INTEGER PRIMARY KEY REFERENCES xbrl_facts(id),
+    filing_id           INTEGER NOT NULL REFERENCES xbrl_filings(id),
+    code                TEXT NOT NULL,
+    is_consolidated     BOOLEAN NOT NULL,
+    statement           TEXT NOT NULL,   -- 'BS'|'PL'|'CF'
+    element_key         TEXT,            -- §17 の行のキー（'AdvancesReceived' / 'ext:<local_name>'）。付かなければ NULL
+    sign                INTEGER NOT NULL DEFAULT 1,  -- PDF の値に掛けると XBRL の向き
+    matched_by          TEXT,            -- 'value'|'name'。付かなければ NULL
+    generated_at        TEXT NOT NULL
+);
+CREATE INDEX idx_xbrl_pdf_matches_filing ON xbrl_pdf_matches(filing_id);
+CREATE INDEX idx_xbrl_pdf_matches_code ON xbrl_pdf_matches(code);
+CREATE INDEX idx_xbrl_pdf_matches_key ON xbrl_pdf_matches(element_key, code);
+CREATE INDEX idx_xbrl_elements_local ON xbrl_elements(local_name);
+CREATE INDEX idx_xbrl_elements_ext_key ON xbrl_elements('ext:' || local_name);
+
 CREATE TABLE xbrl_job_runs (
     id              INTEGER PRIMARY KEY,
     job_name        TEXT NOT NULL,   -- 'parse'|'normalize'|'load-mappings'
@@ -292,7 +310,7 @@ CREATE TABLE xbrl_job_runs (
 );
 ```
 
-`unmapped` は VIEW ではなく `jobs/xbrl/xbrl_parse.py report-unmapped` のクエリで出す（SQLite の VIEW 運用を増やさない）。
+`unmapped` は VIEW ではなく `jobs/xbrl/xbrl_parse.py report-unmapped` のクエリで出す。VIEW は §18 の `xbrl_statement_values` だけ（定義は `app/xbrl/statement_values.py`、作るのは `init_db`）。
 
 ### 4.3 設計意図
 
@@ -936,6 +954,8 @@ context は ZIP の短信サマリーと同じメンバー（`ResultMember` な�
 
 `tools/tdnet_pdf/financials.py` が新しい順に最大 `--limit`（既定 2000）件。cron では動かさない。新しい短信は ZIP があり `tools/tdnet_pdf/ingest.py` が PDF を取らないので、過去の PDF を入れたあとに手で流す（`--limit 100000` で全件）。後から ZIP が来た回の PDF filing は ZIP の取込が消す。指紋が同じ `parsed` / `failed` は HTML を読まない（`unchanged`）ので何度流してもよい。`READER_VERSION` を上げるか会計基準が後から決まると指紋がずれ、次の実行が HTML を読み直す。`--reparse` は指紋を無視する。マッピングだけ変えたときは `jobs/xbrl/xbrl_normalize.py --rebuild` で足りる。
 
+最後に、その実行で `parsed` / `retired` / `failed` になった開示の銘柄の `xbrl_pdf_matches` を付け直す（§18。`--no-matches` で付けない）。
+
 `--batch N`（例 500）は N 件ごとに区切り、区切りごとに `tdnet_pdf_financials batch done=500/100000 parsed=… unchanged=… failed=… retired=… absent=… garbled=… textless=… left=99500` を 1 行出す（KAB-435。数は累計、`left` は今回の残り）。コミットは `--batch` があっても 1 件ごとなので、途中で止めて流し直せば取り込み済みは `unchanged` で飛ばして続きから進む。`database is locked` で落ちた回は区切りの終わりに 5 秒待って 1 回やり直し、それでも落ちた回だけ `failed` に数える（`pdf failed disclosure_no=…` の行が出る。filing は残らないので次の実行がまた試す）。`--batch` なしは区切らず、やり直しもしない。最後の集計行はどちらも同じ。
 
 ZIP の `parse_manifest_row` は、パースが `parsed` のあと、失敗を `mark_failed` する `try` の外で `sync_pdf_filing(db, doc_id の後ろ 14 桁)` を呼ぶ。PDF 側の例外は ZIP を `failed` にしない。`parse_status='parsed'` の `source='tdnet'` がある 14 桁は PDF filing を消す。
@@ -968,7 +988,7 @@ python tools/tdnet_pdf/golden_check.py build --statements fins_summary.json \
 
 ## 17. 財務3表を出どころをまたいで並べる（`GET /api/stock/{code}/financials`）
 
-`app/xbrl/three_statements.py`。テーブルもバッチも足さず、読むたびに 1 銘柄の `xbrl_facts` から組み立てる（filing_id で絞る。連結と個別は 1 回の読み込みで分ける）。API の形は `docs/DESIGN_stock.md` の「API」、MCP `financial_statements`（`mcp/earnings_tools.py`）はこの API を TSV にするだけ。
+`app/xbrl/three_statements.py`。テーブルもバッチも足さず、読むたびに 1 銘柄の `xbrl_facts` から組み立てる（filing_id で絞る。連結と個別は 1 回の読み込みで分ける）。PDF だけの期の対応は §18 の `xbrl_pdf_matches` にも残す（API は読まない）。API の形は `docs/DESIGN_stock.md` の「API」、MCP `financial_statements`（`mcp/earnings_tools.py`）はこの API を TSV にするだけ。
 
 **材料**: `source` が `edinet` / `tdnet` / `tdnet_pdf`、`doc_type` が `annual` / `semiannual` / `quarterly` の `parsed` の filing。当期（`relative_period='current'`）の fact で、次元が連結/単体のメンバーだけのもの（`is_primary_statement` と同じ）。連結/個別は `xbrl_contexts.is_consolidated`（有報の単体は `NonConsolidatedMember` の軸付きで 0、PDF は `_NonConsolidated` の context で 0）。DEI が「連結財務諸表を作っていない」の有報は全部個別（`normalize` と同じ）。`consolidated=auto`（API の既定）は、連結の fact でどれかの表が組める filing が 1 つでもあれば連結、無ければ個別（BS / PL / CF で連結と個別が混ざらないよう、表ごとには決めない）。`jpdei_cor` / `jpcrp_cor` / `tse-ed-t` / `pdf-sum` は出さない。XBRL は `jppfs_cor` / `jpigp_cor` と会社独自（`is_custom`）だけ。
 
@@ -989,3 +1009,44 @@ python tools/tdnet_pdf/golden_check.py build --statements fins_summary.json \
 **区分**: BS と CF の行に区分を付ける（PL は付けない）。行名の文字列からは決めず、出来上がった行の並びで「その行より後ろで最初に来る合計の要素」を区分にする（合計の行そのものはその区分の最後の行）。BS は 2 段。大区分は `Assets` / `Liabilities` / `NetAssets`（IFRS は `AssetsIFRS` / `LiabilitiesIFRS` / `EquityIFRS`）、区分は大区分の中で `CurrentAssets` / `PropertyPlantAndEquipment` / `IntangibleAssets` / `InvestmentsAndOtherAssets` / `NoncurrentAssets` / `DeferredAssets` / `CurrentLiabilities` / `NoncurrentLiabilities` / `ShareholdersEquity` / `ValuationAndTranslationAdjustments`（IFRS は `CurrentAssetsIFRS` / `NonCurrentAssetsIFRS` / `TotalCurrentLiabilitiesIFRS` / `NonCurrentLabilitiesIFRS` / `EquityAttributableToOwnersOfParentIFRS`）。固定資産合計の行は区分「固定資産」（有形・無形・投資その他の後ろ）。大区分の合計の行、区分の合計の後ろの行（新株予約権・非支配株主持分）は区分なしで大区分だけ。`LiabilitiesAndNetAssets` / `LiabilitiesAndEquityIFRS` から後ろはどちらも無し。大区分の合計が無い、日本基準と IFRS の合計が混ざる、並びが 資産 → 負債 → 純資産 でない、のどれかなら BS 全体を区分なし（銀行・保険などは大区分だけになることがある）。CF は `NetCashProvidedByUsedIn(Operating|Investment|Investing|Financing)Activities(IFRS)` で 営業・投資・財務 の 3 区分。この順で並んでいなければ区分なし。財務 CF の合計より後ろ（換算差額・増減額・期首・期末残高）は区分なし。見出しの名前は合計の行の行名から末尾の「合計」「計」を落としたもの（PDF の印字名があればそれ。「その他の包括利益累計額」と「評価・換算差額等」はそのまま分かれる）。PDF だけの期・古い期にだけある行は、差し込まれた位置で区分が決まる。
 
 **限界**: CF の期首残高は XBRL に当期の fact が無い（有報は前期末の fact を残さない）ので、PDF だけの期にしか出ない。四半期に新しく出た科目・0 の行・前の回と値も名前も違う行は当たらない。米国基準は PDF を読んでいないので XBRL の期だけ。XBRL の振り分けは要素名と並びの規則なので、規則に当たらない会社独自の並びでは BS / PL / CF の境がずれることがある。名前での当てはめは、会社が期をまたいで同じ行名を別の科目に使い回すと誤る（同じ表の XBRL に同じラベルの要素が 1 つだけで、値の対応が無いときに限る）。区分の合計を会社独自の要素（`ext:`）で出す会社は、その区分が付かず前後の区分に入る。
+
+## 18. 出どころをまたいで要素名で引く（`xbrl_pdf_matches` と `xbrl_statement_values`）
+
+§17 の対応（PDF の行 → XBRL の要素）を表に残し、有報・短信 XBRL・短信 PDF を同じ要素名で SQL から引く。画面・API は使わない（集計用）。
+
+**対応の表 `xbrl_pdf_matches`**（DDL は §4.2）: 対象は PDF だけの期の開示。同じ銘柄・同じ期末・同じ連結区分に、本表の付いた `edinet` / `tdnet` の `parsed` の filing が無い `tdnet_pdf` の filing（§17 の材料と同じ `doc_type`）。その本表（`pdf-bs` / `pdf-pl` / `pdf-cf`）の当期 fact ごとに 1 行。同じ期末に XBRL がある期の PDF は入れない。突き合わせは `three_statements.pdf_only_matches`（§17 の `load_both` → `learn_pair` → `apply_learned` を、PDF が主の列と同じ引数で呼ぶ。別の実装は持たない）。`element_key` は §17 の行のキー（標準は `local_name`、会社独自は `ext:<local_name>`）。会社独自の要素は有報（`jpcrp…_E…`）と短信 XBRL（`tse-…-証券コード`）で `xbrl_elements` の行が分かれるので、`element_id` ではなく文字列で持つ。付かない行は `element_key` と `matched_by` が NULL。同じ期末の PDF が 2 つ（訂正）なら両方に付ける（ビューが新しい方を採る）。
+
+**付け直し**: `tools/tdnet_pdf/matches.py`（全銘柄か `--code`）。銘柄ごとに消して入れ直して commit するので何度流しても同じ。`--batch N` は N 銘柄ごとに `pdf_matches batch done=… codes=… filings=… matched=… unmatched=… failed=… left=…` を 1 行出し、`database is locked` の銘柄は区切りの終わりに 5 秒待って 1 回やり直す（§16.5 の `financials.py` と同じ）。最後の行は `pdf_matches codes=… filings=… matched=… unmatched=… failed=…`。`tools/tdnet_pdf/financials.py` は最後に、その実行で `parsed` / `retired` / `failed` になった開示の銘柄だけ同じ処理を流す（`--no-matches` で流さない。失敗しても読み直しの結果は残り、終了コードが 1）。cron には入れない。付け直すのは次のとき:
+
+- PDF を読み直したとき（`financials.py` が続けて付ける）
+- 突き合わせの規則（`three_statements.py`）を直したとき（全銘柄）
+- 直近の PDF だけの期の次に、有報・短信 XBRL が入ったとき（値の対応を覚える回が増える。四半期に 1 回、全銘柄で足りる）
+
+PDF の fact は読み直しのたびに消して入れ直す（id が変わる）。`delete_filing_payload`（`store.py`）が fact より先にその filing の対応を消すので、古い対応が別の fact を指して残らない。
+
+**ビュー `xbrl_statement_values`**: 1 行が 1 つの値。列は `code` / `period_end`（`xbrl_filings.fiscal_year_end`）/ `period_type`（Q1/Q2/Q3/FY）/ `is_consolidated`（1=連結）/ `context_type`（instant/duration）/ `period_start`（duration の期首）/ `element_key` / `value` / `unit` / `source`（edinet/tdnet/tdnet_pdf）/ `filing_id` / `submitted_at` / `fact_id` / `matched_by`（PDF の行だけ value/name）。日本語のラベルは持たない（`xbrl_elements.label_ja` を引く）。
+
+- XBRL の行: `edinet` / `tdnet` の §17 の材料の filing。当期の fact、次元が連結/単体のメンバーだけ、単位が円・円/株・無し、`jppfs_cor` / `jpigp_cor` と会社独自（`is_custom` で `jpdei_cor` / `jpcrp_cor` / `tse-ed-t` / `tse-re-t` / `pdf-*` 以外）。DEI が「連結財務諸表を作っていない」の filing は全部個別。Q2 / Q3 の duration は期首からの累計だけ（期間が 120 日 / 210 日以上。3 か月だけの値は出さない）
+- PDF の行: `xbrl_pdf_matches` で要素の付いた行だけ。値は `value_num * sign`。付かない行は出ない
+- 同じ `code` / `period_end` / `is_consolidated` / `element_key` は 1 行: 有報 > 短信 XBRL > 短信 PDF、同じ出どころは提出が新しい方（訂正を含む）、同じ filing なら fact の id の小さい方。上位の書類に無い要素は下位から出る（§17 の補いと同じ）
+- 速さ: 1 つ選ぶのは `row_number() OVER (PARTITION BY code, period_end, is_consolidated, element_key …)`。外の WHERE が `code` か `element_key`（PARTITION BY の列）だけなら SQLite は中の 3 つの SELECT まで押し込み、`element_key` は `idx_xbrl_elements_local` / `idx_xbrl_elements_ext_key` / `idx_xbrl_pdf_matches_key`、`code` は `idx_xbrl_filings_code_submitted` / `idx_xbrl_pdf_matches_filing` で引く。`period_end` / `is_consolidated` も押し込める。`value` や `source` だけの絞り込みは全件を読む。標準要素の行は `+e.namespace_key`（索引に使わせない）で、銘柄で引くときに名前空間の索引で全要素を読むのを止めている
+- §17 と違うところ: 表（BS / PL / CF）を振り分けないので、注記・株主資本等変動計算書の要素も出る。PDF の期に XBRL もある回（PDF が補うセル）は出ない。API は同じ要素の当期 fact が 2 つあると id の小さい方を採るが、ビューは累計を採る（四半期報告書の 3 か月の値。36790 の `ProfitLossBeforeTaxIFRS`）。`fiscal_year_end` が同じでも決算期を変えた回の期間の長さは見ない
+
+```sql
+-- 前受金の全社・全期間（連結）
+SELECT code, period_end, period_type, value, source
+FROM xbrl_statement_values
+WHERE element_key = 'AdvancesReceived' AND is_consolidated = 1
+ORDER BY code, period_end;
+
+-- 1 銘柄の全要素
+SELECT period_end, element_key, value, source FROM xbrl_statement_values
+WHERE code = '98800' AND is_consolidated = 1 ORDER BY element_key, period_end;
+
+-- 付かなかった行の多い順（tools/tdnet_pdf/matches.py --unmatched 50 と同じ）
+SELECT m.statement, e.local_name, count(*) AS n
+FROM xbrl_pdf_matches m JOIN xbrl_facts f ON f.id = m.fact_id JOIN xbrl_elements e ON e.id = f.element_id
+WHERE m.element_key IS NULL GROUP BY 1, 2 ORDER BY n DESC LIMIT 50;
+```
+
+**限界**: §17 の限界（四半期に新しく出た科目・0 の行・名前の使い回し）はそのまま。PDF だけの期の CF の期首残高は XBRL に当期の要素が無いので付かない。ビューの定義を変えると `init_db` が作り直す（定義の文字列が違えば DROP して CREATE）。

@@ -23,10 +23,11 @@ flowchart LR
   n12[("xbrl_financials")]:::tbl
   n13[("xbrl_job_runs")]:::tbl
   n14[("xbrl_major_shareholders")]:::tbl
-  n15[("xbrl_segments")]:::tbl
-  n16[("xbrl_shareholder_filings")]:::tbl
-  n17[("xbrl_shareholding_by_category")]:::tbl
-  n18[("xbrl_std_items")]:::tbl
+  n15[("xbrl_pdf_matches")]:::tbl
+  n16[("xbrl_segments")]:::tbl
+  n17[("xbrl_shareholder_filings")]:::tbl
+  n18[("xbrl_shareholding_by_category")]:::tbl
+  n19[("xbrl_std_items")]:::tbl
   n0 -.- n3
   n0 -.- n6
   n0 --> n8
@@ -36,10 +37,10 @@ flowchart LR
   n0 --> n12
   n0 --> n13
   n0 --> n14
-  n0 --> n15
   n0 --> n16
   n0 --> n17
   n0 --> n18
+  n0 --> n19
   n1 -.- n4
   n1 -.- n5
   n1 --> n6
@@ -55,10 +56,11 @@ flowchart LR
   n1 --> n16
   n1 --> n17
   n1 --> n18
+  n1 --> n19
   n2 --> n4
   n2 -.- n11
   n2 -.- n12
-  n2 -.- n18
+  n2 -.- n19
   classDef job fill:#e3ecff,stroke:#3b5bdb
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -69,7 +71,7 @@ flowchart LR
 |---|---|---|
 | `jobs/xbrl/tdnet_xbrl_r2.py` |  | `stocks` |
 | `jobs/xbrl/xbrl_normalize.py` | `xbrl_element_mappings`, `xbrl_financials`, `xbrl_job_runs`, `xbrl_major_shareholders`, `xbrl_segments`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category`, `xbrl_std_items` | `edinet_documents`, `xbrl_contexts`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings` |
-| `jobs/xbrl/xbrl_parse.py` | `xbrl_contexts`, `xbrl_documents`, `xbrl_element_mappings`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`, `xbrl_financials`, `xbrl_job_runs`, `xbrl_major_shareholders`, `xbrl_segments`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category`, `xbrl_std_items` | `statements`, `stocks`, `tdnet_pdf_documents` |
+| `jobs/xbrl/xbrl_parse.py` | `xbrl_contexts`, `xbrl_documents`, `xbrl_element_mappings`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`, `xbrl_financials`, `xbrl_job_runs`, `xbrl_major_shareholders`, `xbrl_pdf_matches`, `xbrl_segments`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category`, `xbrl_std_items` | `statements`, `stocks`, `tdnet_pdf_documents` |
 | `jobs/xbrl/xbrl_statements.py` | `statements` | `xbrl_filings`, `xbrl_financials`, `xbrl_std_items` |
 
 ## API
@@ -171,6 +173,11 @@ flowchart LR
 ### xbrl_major_shareholders
 
 - 書く: `jobs/edinet/edinet_shareholders.py（EDINET・大量保有）`, `jobs/edinet/edinet_xbrl.py（EDINET・大量保有）`, `jobs/xbrl/xbrl_normalize.py`, `jobs/xbrl/xbrl_parse.py`
+- 読むだけ: （観測なし）
+
+### xbrl_pdf_matches
+
+- 書く: `jobs/edinet/edinet_xbrl.py（EDINET・大量保有）`, `jobs/xbrl/xbrl_parse.py`
 - 読むだけ: （観測なし）
 
 ### xbrl_segments
