@@ -66,14 +66,43 @@ def test_wiki_workflow_uses_github_hosted_and_skips_unset_secrets() -> None:
         _fail("build step must run mkdocs build --strict")
 
 
-def test_cicd_still_self_hosted_and_ignores_md_on_push() -> None:
+def test_cicd_runners_and_ignores_md() -> None:
     data = yaml.safe_load(CICD.read_text(encoding="utf-8"))
-    test_job = data["jobs"]["test"]
-    if "self-hosted" not in test_job.get("runs-on", []):
-        _fail("existing CI/CD test job must stay on self-hosted")
-    paths_ignore = _on(data).get("push", {}).get("paths-ignore") or []
-    if "**/*.md" not in paths_ignore:
-        _fail("CI/CD push must keep ignoring markdown")
+    jobs = data["jobs"]
+    # Test は変数 CI_TEST_RUNNER で替える。空なら self-hosted。
+    test_runs_on = str(jobs["test"].get("runs-on"))
+    if "vars.CI_TEST_RUNNER ||" not in test_runs_on or '"self-hosted"' not in test_runs_on:
+        _fail("CI/CD test job must default to self-hosted unless CI_TEST_RUNNER is set")
+    if jobs["lint"].get("runs-on") != "ubuntu-latest":
+        _fail("CI/CD lint job must run on ubuntu-latest")
+    for name in ("release", "deploy"):
+        if "self-hosted" not in jobs[name].get("runs-on", []):
+            _fail(f"CI/CD {name} job must stay on self-hosted")
+    for event in ("push", "pull_request"):
+        paths_ignore = _on(data).get(event, {}).get("paths-ignore") or []
+        if "**/*.md" not in paths_ignore:
+            _fail(f"CI/CD {event} must keep ignoring markdown")
+
+
+def test_cicd_push_skips_test_but_still_deploys() -> None:
+    """push では test を省く。release / deploy は skipped の test を push のときだけ通す。"""
+    jobs = yaml.safe_load(CICD.read_text(encoding="utf-8"))["jobs"]
+    if jobs["test"].get("if") != "github.event_name != 'push'":
+        _fail("CI/CD test job must be skipped on push only")
+    passed = "(needs.test.result == 'success' || (github.event_name == 'push' && needs.test.result == 'skipped'))"
+    for name in ("release", "deploy"):
+        cond = str(jobs[name].get("if"))
+        if "test" not in jobs[name].get("needs", []) or passed not in cond:
+            _fail(f"CI/CD {name} must accept a skipped test only on push")
+        if "needs.lint.result == 'success'" not in cond:
+            _fail(f"CI/CD {name} must require lint")
+        # skipped の needs があると、状態関数の無い if は評価されずに skipped になる
+        if "always()" not in cond and "!cancelled()" not in cond:
+            _fail(f"CI/CD {name} if needs a status function to run after a skipped test")
+
+
+def test_cicd_wiki_name_differs() -> None:
+    data = yaml.safe_load(CICD.read_text(encoding="utf-8"))
     wiki = yaml.safe_load(WIKI.read_text(encoding="utf-8"))
     if wiki["name"] == data["name"]:
         _fail("wiki workflow name must differ from CI/CD")

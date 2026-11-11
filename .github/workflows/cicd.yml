@@ -4,6 +4,10 @@ name: CI/CD
 on:
   pull_request:
     branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - ".claude/memory/**"
   push:
     branches: [main]
     paths-ignore:
@@ -33,9 +37,12 @@ env:
   PYTHON_VERSION: "3.12"
 
 jobs:
+  # main への push では走らせない（PR で通っている前提）。Run workflow では走る。
+  # ランナーは変数 CI_TEST_RUNNER（例 ubuntu-latest）で替える。空なら self-hosted。
   test:
     name: Test
-    runs-on: [self-hosted, arm64]
+    if: github.event_name != 'push'
+    runs-on: ${{ vars.CI_TEST_RUNNER || fromJSON('["self-hosted", "arm64"]') }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -85,7 +92,13 @@ jobs:
           sudo apt-get install -y -qq --no-install-recommends "${need[@]}"
 
       # tests/ops/test_monitoring.py が実物の vmalert-tool / Alertmanager / VictoriaMetrics を動かす。
-      # 永続ランナーなので binaries.txt のハッシュごとに一度だけ落とす。
+      # 永続ランナーなので binaries.txt のハッシュごとに一度だけ落とす。GitHub ホストでは cache に置く。
+      - uses: actions/cache@v4
+        if: runner.environment == 'github-hosted'
+        with:
+          path: ~/.cache/stock-analyzer-monitoring
+          key: monitoring-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('deploy/monitoring/binaries.txt') }}
+
       - name: Fetch monitoring binaries
         run: |
           set -euo pipefail
@@ -105,7 +118,7 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: [self-hosted, arm64]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -114,12 +127,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
+          cache-dependency-path: requirements-dev.txt
 
+      # 分課金なので Ruff と Bandit だけ入れる（版は requirements-dev.txt のまま）。
       - name: Install
-        run: pip install -r requirements.txt -r requirements-dev.txt
+        run: pip install $(grep -E '^(ruff|bandit)==' requirements-dev.txt)
 
       - name: Ruff
         run: python -m ruff check --config config/pyproject.toml app jobs tests tools deploy mcp
@@ -130,7 +142,12 @@ jobs:
   release:
     name: Release
     needs: [test, lint]
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.bump != 'none')
+    # push では test が skipped になる。skipped の needs があると既定では止まるので結果を自分で見る。
+    if: |
+      !cancelled()
+      && (needs.test.result == 'success' || (github.event_name == 'push' && needs.test.result == 'skipped'))
+      && needs.lint.result == 'success'
+      && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.bump != 'none'))
     runs-on: [self-hosted, arm64]
     timeout-minutes: 10
     permissions:
@@ -239,7 +256,7 @@ jobs:
     needs: [test, lint, release]
     if: |
       always()
-      && needs.test.result == 'success'
+      && (needs.test.result == 'success' || (github.event_name == 'push' && needs.test.result == 'skipped'))
       && needs.lint.result == 'success'
       && (needs.release.result == 'success' || needs.release.result == 'skipped')
       && github.event_name != 'pull_request'

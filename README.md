@@ -134,7 +134,9 @@ cd /home/stock/stock-analyzer
 
 ## CI/CD
 
-`main` にマージすると GitHub Actions がテスト → GitHub Release（タグ）→ ConoHa VPS へデプロイする。変更が `.md` / `docs/` / `.claude/memory/` だけのときは走らない。
+`main` にマージすると GitHub Actions が Lint → GitHub Release（タグ）→ ConoHa VPS へデプロイする。テストは PR で通す（`main` への push では走らない。確かめたいときは **Run workflow**）。変更が `.md` / `docs/` / `.claude/memory/` だけのときは PR でも push でも走らない。
+
+ランナー: Lint は GitHub ホスト（`ubuntu-latest`）、Release と Deploy VPS は self-hosted（Azure VM）。Test は self-hosted で、GitHub の Variable `CI_TEST_RUNNER` にラベル（例 `ubuntu-latest`）を入れるとそのランナーで走る。空にすると self-hosted に戻る。GitHub ホストは無料枠の分数を使う。
 
 1. **PR.** `python -m pytest tests --dataflow=check`（`tests/` 以下の `test_*.py` を全部。API スモークは `tests/test_smoke.py`。`--dataflow=check` はテスト中の SQL から作った読み書き表と `docs/DATA_FLOW.md`・`docs/dataflow/` を突き合わせる。合わなければ `--dataflow=write` で作り直してコミット）と Ruff / Bandit（`app` `jobs` `tests` `tools` `deploy`。`app/xbrlp` は除外）。draft で開いた同リポの PR は `mark-draft-ready.yml` が Ready にする
 2. **main マージ.** コミットメッセージでバージョンを自動バンプ（`feat:` は minor、`BREAKING CHANGE` / `feat!:` は major、それ以外は patch）。初回は `v0.1.0`
