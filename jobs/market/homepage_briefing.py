@@ -27,6 +27,8 @@ YYYYMMDD、それも無ければ取得した時刻）。
 まだ会社ページから取れていない会社だけを見る。短信の直後に 1 回、見つからなければ RECHECK ごとに 1 回。
 毎時の短信の取り込みのあとに cron が動かす。--pending を付けない回（週 1 回）は全社を見て、
 直近 MISSING_DAYS 日に資料ありの短信を出したのに索引に資料が無く、設定にも無い会社を missing に出す。
+取った PDF と同じ中身（sha256）の資料が同じ会社の索引（出所を問わない）にあれば保存せず dup に数え、
+--ledger の dup に残して次からは取りに行かない（同じ PDF を表題を変えて複数の分類に載せる会社がある）。
 保存の直前に --dest の空きを見て、MIN_FREE_BYTES 未満なら保存せずに止める（終了コード 0）。
 一覧を eir-parts（プロネクサスの IR サービス）で出す会社は、index_url に会社のページでなく
 フィード（https://ssl4.eir-parts.net/V4Public/EIR/<code>/ja/announcement/announcement_<N>.js）を書く。
@@ -341,6 +343,7 @@ class Counts:
     skipped: int = 0
     old: int = 0
     failed: int = 0
+    dup: int = 0
 
     def add(self, other: Counts) -> None:
         for f in fields(self):
@@ -427,9 +430,14 @@ def load_registry(path: Path) -> list[Issuer]:
 class Ledger:
     old: dict[str, str] = field(default_factory=dict)       # 取ってから古いと分かった資料の番号 → 公開日
     checked: dict[str, str] = field(default_factory=dict)   # --pending で見た会社（5 桁）→ 時刻
+    dup: dict[str, str] = field(default_factory=dict)       # 中身が索引の資料と同じだった番号 → その資料の番号
 
     def as_json(self) -> dict[str, dict[str, str]]:
-        return {"old": dict(sorted(self.old.items())), "checked": dict(sorted(self.checked.items()))}
+        return {
+            "old": dict(sorted(self.old.items())),
+            "checked": dict(sorted(self.checked.items())),
+            "dup": dict(sorted(self.dup.items())),
+        }
 
 
 def _str_map(raw: object) -> dict[str, str]:
@@ -446,7 +454,28 @@ def load_ledger(path: Path) -> Ledger:
         return Ledger()
     if not isinstance(raw, dict):
         return Ledger()
-    return Ledger(old=_str_map(raw.get("old")), checked=_str_map(raw.get("checked")))
+    return Ledger(old=_str_map(raw.get("old")), checked=_str_map(raw.get("checked")), dup=_str_map(raw.get("dup")))
+
+
+def same_content(code: str, sha256: str) -> str | None:
+    """同じ会社の索引にある、中身が同じ資料の番号。出所は問わない。"""
+    from sqlalchemy import select
+
+    from app.db import SessionLocal
+    from app.models import BriefingDocument
+
+    db = SessionLocal()
+    try:
+        row = db.execute(
+            select(BriefingDocument.document_id).where(
+                BriefingDocument.code == code,
+                BriefingDocument.sha256 == sha256,
+                BriefingDocument.status == "saved",
+            ).limit(1)
+        ).first()
+    finally:
+        db.close()
+    return row[0] if row else None
 
 
 def save_ledger(path: Path, data: Ledger) -> None:
@@ -564,6 +593,7 @@ def fetch_issuer(
     disk_usage: DiskUsage = shutil.disk_usage,
     counts: Counts | None = None,
     known_old: dict[str, str] | None = None,
+    known_dup: dict[str, str] | None = None,
 ) -> Counts:
     """一覧が取れなければ例外。空きが足りなければ DiskLow（counts にそこまでの件数）。"""
     counts = Counts() if counts is None else counts
@@ -585,6 +615,9 @@ def fetch_issuer(
     for link in links:
         if has_saved(SOURCE_HOMEPAGE, link.document_id):
             counts.skipped += 1
+            continue
+        if known_dup is not None and link.document_id in known_dup:
+            counts.dup += 1
             continue
         if since is not None:
             hint = year_hint(link.title, link.url)
@@ -618,6 +651,14 @@ def fetch_issuer(
                     known_old[link.document_id] = pubdate
                 print(f"old {issuer.code} {pubdate} {link.title}", flush=True)
                 continue
+            digest = hashlib.sha256(data).hexdigest()
+            existing = same_content(code5, digest)
+            if existing is not None:
+                counts.dup += 1
+                if known_dup is not None:
+                    known_dup[link.document_id] = existing
+                print(f"dup {issuer.code} {link.title} same={existing}", flush=True)
+                continue
             path = dest_path(dest, pubdate, issuer.code, issuer.name, link.title)
             if path.exists():
                 path = path.with_name(f"{path.stem}_{link.document_id[-6:]}.pdf")
@@ -631,7 +672,7 @@ def fetch_issuer(
                 title=link.title,
                 rel_path=path.relative_to(dest).as_posix(),
                 url=link.url,
-                sha256=hashlib.sha256(data).hexdigest(),
+                sha256=digest,
                 size=len(data),
             )
             counts.saved += 1
@@ -697,6 +738,7 @@ def run(
     book = load_ledger(ledger) if ledger is not None else Ledger()
     before = book.as_json()
     known_old = book.old if ledger is not None else None
+    known_dup = book.dup
     all_issuers = issuers
     if pending is not None:
         issuers = pending_issuers(issuers, when, pending, book.checked)
@@ -714,6 +756,7 @@ def run(
             fetch_issuer(
                 issuer, dest, get=getter, get_page=pager, read_date=reader, now=when, limit=limit,
                 dry_run=dry_run, since=since, disk_usage=disk_usage, counts=counts, known_old=known_old,
+                known_dup=known_dup,
             )
         except DiskLow:
             stopped = "disk_low"
