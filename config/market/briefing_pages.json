@@ -1,9 +1,39 @@
 {
   "issuers": [
     {
+      "code": "1736",
+      "name": "オーテック",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/1736/ja/announcement/announcement_7.js"
+    },
+    {
+      "code": "1799",
+      "name": "第一建設工業",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/1799/ja/announcement/announcement_8.js"
+    },
+    {
       "code": "1801",
       "name": "大成建設",
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/1801/ja/announcement/announcement_2.js"
+    },
+    {
+      "code": "1828",
+      "name": "田辺工業",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/1828/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "1926",
+      "name": "ライト工業",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/1926/ja/announcement/announcement_6.js"
+    },
+    {
+      "code": "2158",
+      "name": "ＦＲＯＮＴＥＯ",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/2158/ja/announcement/announcement_10.js"
+    },
+    {
+      "code": "2385",
+      "name": "総医研ホールディングス",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/2385/ja/announcement/announcement_9.js"
     },
     {
       "code": "2462",
@@ -11,14 +41,34 @@
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/2462/ja/announcement/announcement_2.js"
     },
     {
+      "code": "2484",
+      "name": "出前館",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/2484/ja/announcement/announcement_1.js"
+    },
+    {
       "code": "2491",
       "name": "バリューコマース",
-      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/2491/ja/announcement/announcement_3.js"
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/2491/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "2762",
+      "name": "ＳＡＮＫＯ　ＭＡＲＫＥＴＩＮＧ　ＦＯＯＤＳ",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/2762/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "2784",
+      "name": "アルフレッサ　ホールディングス",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/2784/ja/announcement/announcement_9.js"
+    },
+    {
+      "code": "3088",
+      "name": "マツキヨココカラ＆カンパニー",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3088/ja/announcement/announcement_8.js"
     },
     {
       "code": "3110",
       "name": "日東紡績",
-      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3110/ja/announcement/announcement_1.js"
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3110/ja/announcement/announcement_8.js"
     },
     {
       "code": "3151",
@@ -26,9 +76,19 @@
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3151/ja/announcement/announcement_1.js"
     },
     {
+      "code": "3196",
+      "name": "ホットランドホールディングス",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3196/ja/announcement/announcement_7.js"
+    },
+    {
       "code": "3291",
       "name": "飯田グループホールディングス",
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3291/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "3352",
+      "name": "バッファロー",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3352/ja/announcement/announcement_1.js"
     },
     {
       "code": "3401",
@@ -41,9 +101,54 @@
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3475/ja/announcement/announcement_1.js"
     },
     {
+      "code": "3484",
+      "name": "イノベーションホールディングス",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3484/ja/announcement/announcement_5.js"
+    },
+    {
+      "code": "3543",
+      "name": "コメダホールディングス",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3543/ja/announcement/announcement_5.js"
+    },
+    {
+      "code": "3560",
+      "name": "ほぼ日",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3560/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "3607",
+      "name": "クラウディアホールディングス",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3607/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "3640",
+      "name": "電算",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3640/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "3641",
+      "name": "パピレス",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3641/ja/announcement/announcement_1.js"
+    },
+    {
       "code": "3765",
       "name": "ガンホー・オンライン・エンターテイメント",
-      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3765/ja/announcement/announcement_2.js"
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3765/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "3791",
+      "name": "ＩＧポート",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3791/ja/announcement/announcement_5.js"
+    },
+    {
+      "code": "3816",
+      "name": "大和コンピューター",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3816/ja/announcement/announcement_9.js"
+    },
+    {
+      "code": "3891",
+      "name": "ニッポン高度紙工業",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/3891/ja/announcement/announcement_5.js"
     },
     {
       "code": "3932",
@@ -66,10 +171,35 @@
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/4189/ja/announcement/announcement_1.js"
     },
     {
+      "code": "4212",
+      "name": "積水樹脂",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/4212/ja/announcement/announcement_2.js"
+    },
+    {
       "code": "4502",
       "name": "武田薬品工業",
       "index_url": "https://www.takeda.com/jp/investors/financial-results/quarterly-results/",
       "link_re": "^プレゼンテーション$"
+    },
+    {
+      "code": "4534",
+      "name": "持田製薬",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/4534/ja/announcement/announcement_2.js"
+    },
+    {
+      "code": "4574",
+      "name": "大幸薬品",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/4574/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "4733",
+      "name": "オービックビジネスコンサルタント",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/4733/ja/announcement/announcement_6.js"
+    },
+    {
+      "code": "4920",
+      "name": "日本色材工業研究所",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/4920/ja/announcement/announcement_3.js"
     },
     {
       "code": "4980",
@@ -77,9 +207,29 @@
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/4980/ja/announcement/announcement_1.js"
     },
     {
+      "code": "505A",
+      "name": "ギークリー",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/505A/ja/announcement/announcement_2.js"
+    },
+    {
+      "code": "5480",
+      "name": "日本冶金工業",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/5480/ja/announcement/announcement_3.js"
+    },
+    {
       "code": "6098",
       "name": "リクルートホールディングス",
       "index_url": "https://recruit-holdings.com/ja/ir/financials/"
+    },
+    {
+      "code": "6157",
+      "name": "日進工具",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/6157/ja/announcement/announcement_10.js"
+    },
+    {
+      "code": "6239",
+      "name": "ナガオカ",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/6239/ja/announcement/announcement_1.js"
     },
     {
       "code": "6367",
@@ -92,15 +242,30 @@
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/6376/ja/announcement/announcement_1.js"
     },
     {
+      "code": "6425",
+      "name": "ユニバーサルエンターテインメント",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/6425/ja/announcement/announcement_2.js"
+    },
+    {
+      "code": "6490",
+      "name": "ＰＩＬＬＡＲ",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/6490/ja/announcement/announcement_2.js"
+    },
+    {
       "code": "6501",
       "name": "日立製作所",
       "index_url": "https://www.hitachi.com/ja-jp/ir/library/fr/",
       "link_re": "^プレゼンテーション:.*決算"
     },
     {
+      "code": "6547",
+      "name": "グリーンズ",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/6547/ja/announcement/announcement_1.js"
+    },
+    {
       "code": "6619",
       "name": "ダブル・スコープ",
-      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/6619/ja/announcement/announcement_3.js"
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/6619/ja/announcement/announcement_1.js"
     },
     {
       "code": "6728",
@@ -118,9 +283,19 @@
       "index_url": "https://holdings.panasonic/jp/corporate/investors/release.html"
     },
     {
+      "code": "6810",
+      "name": "マクセル",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/6810/ja/announcement/announcement_8.js"
+    },
+    {
       "code": "6861",
       "name": "キーエンス",
       "index_url": "https://www.keyence.co.jp/investor/library/results.jsp"
+    },
+    {
+      "code": "6919",
+      "name": "ケル",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/6919/ja/announcement/announcement_2.js"
     },
     {
       "code": "6920",
@@ -128,14 +303,24 @@
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/6920/ja/announcement/announcement_1.js"
     },
     {
-      "code": "7180",
-      "name": "九州フィナンシャルグループ",
-      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7180/ja/announcement/announcement_1.js"
+      "code": "6932",
+      "name": "遠藤照明",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/6932/ja/announcement/announcement_2.js"
+    },
+    {
+      "code": "7081",
+      "name": "コーユーレンティア",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7081/ja/announcement/announcement_1.js"
     },
     {
       "code": "7198",
       "name": "ＳＢＩアルヒ",
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7198/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "7240",
+      "name": "ＮＯＫ",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7240/ja/announcement/announcement_10.js"
     },
     {
       "code": "7267",
@@ -148,9 +333,19 @@
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7282/ja/announcement/announcement_1.js"
     },
     {
+      "code": "7283",
+      "name": "愛三工業",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7283/ja/announcement/announcement_4.js"
+    },
+    {
+      "code": "7314",
+      "name": "小田原機器",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7314/ja/announcement/announcement_8.js"
+    },
+    {
       "code": "7453",
       "name": "良品計画",
-      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7453/ja/announcement/announcement_2.js"
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7453/ja/announcement/announcement_1.js"
     },
     {
       "code": "7459",
@@ -163,9 +358,49 @@
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7508/ja/announcement/announcement_2.js"
     },
     {
+      "code": "7716",
+      "name": "ナカニシ",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7716/ja/announcement/announcement_2.js"
+    },
+    {
+      "code": "7776",
+      "name": "セルシード",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7776/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "7807",
+      "name": "幸和製作所",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7807/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "7812",
+      "name": "クレステック",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7812/ja/announcement/announcement_6.js"
+    },
+    {
+      "code": "7826",
+      "name": "フルヤ金属",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7826/ja/announcement/announcement_6.js"
+    },
+    {
       "code": "7867",
       "name": "タカラトミー",
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7867/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "7911",
+      "name": "ＴＯＰＰＡＮホールディングス",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7911/ja/announcement/announcement_8.js"
+    },
+    {
+      "code": "7983",
+      "name": "ミロク",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7983/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "7995",
+      "name": "バルカー",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/7995/ja/announcement/announcement_10.js"
     },
     {
       "code": "8001",
@@ -191,7 +426,7 @@
     {
       "code": "8050",
       "name": "セイコーグループ",
-      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/8050/ja/announcement/announcement_2.js"
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/8050/ja/announcement/announcement_1.js"
     },
     {
       "code": "8053",
@@ -202,6 +437,11 @@
       "code": "8058",
       "name": "三菱商事",
       "index_url": "https://www.mitsubishicorp.com/jp/ja/ir/library/earnings/"
+    },
+    {
+      "code": "8111",
+      "name": "ゴールドウイン",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/8111/ja/announcement/announcement_3.js"
     },
     {
       "code": "8424",
@@ -224,9 +464,34 @@
       "index_url": "https://www.tokiomarinehd.com/ir/event/presentation/"
     },
     {
+      "code": "8772",
+      "name": "アサックス",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/8772/ja/announcement/announcement_4.js"
+    },
+    {
+      "code": "8881",
+      "name": "日神グループホールディングス",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/8881/ja/announcement/announcement_2.js"
+    },
+    {
       "code": "9025",
       "name": "鴻池運輸",
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/9025/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "9036",
+      "name": "東部ネットワーク",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/9036/ja/announcement/announcement_2.js"
+    },
+    {
+      "code": "9206",
+      "name": "スターフライヤー",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/9206/ja/announcement/announcement_10.js"
+    },
+    {
+      "code": "9325",
+      "name": "ファイズホールディングス",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/9325/ja/announcement/announcement_1.js"
     },
     {
       "code": "9364",
@@ -234,14 +499,34 @@
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/9364/ja/announcement/announcement_1.js"
     },
     {
+      "code": "9368",
+      "name": "キムラユニティー",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/9368/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "9468",
+      "name": "ＫＡＤＯＫＡＷＡ",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/9468/ja/announcement/announcement_8.js"
+    },
+    {
       "code": "9629",
       "name": "ピー・シー・エー",
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/9629/ja/announcement/announcement_1.js"
     },
     {
+      "code": "9755",
+      "name": "応用地質",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/9755/ja/announcement/announcement_4.js"
+    },
+    {
       "code": "9880",
       "name": "イノテック",
       "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/9880/ja/announcement/announcement_1.js"
+    },
+    {
+      "code": "9904",
+      "name": "ベリテ",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/9904/ja/announcement/announcement_2.js"
     },
     {
       "code": "9983",
@@ -256,6 +541,11 @@
       "code": "9984",
       "name": "ソフトバンクグループ",
       "index_url": "https://group.softbank/ir/presentations"
+    },
+    {
+      "code": "9987",
+      "name": "スズケン",
+      "index_url": "https://ssl4.eir-parts.net/V4Public/EIR/9987/ja/announcement/announcement_10.js"
     }
   ]
 }
