@@ -253,7 +253,7 @@ VPS 上で `mcp/log_mcp.py` が `127.0.0.1:8010` を待ち、nginx が Access �
   列順 + as_of 時点の最新 `fiscal_year_end` から暦年を決める。月が重複する year-wrap は列順配列の `values`。`dry_run: true` は書かずに年割当と書くはずのセルを返す。`only_months` は `YYYY-MM` で列を絞る
 - 決算ツール（`mcp/earnings_tools.py`。KAB-404）— 決算速報画面と同じ API の数字を TSV に詰めて返す。サーバー側で並べ替えの既定・採点・足切りは持たない。どれも読み取りだけ
   - `earnings_day` — `GET /api/earnings` の 1 日分。開示 1 件 1 行と未発表の銘柄。列は業種・時刻・Q・通期営利予想の上方 / 下方・訂正・PTS 終値比・終値・時価総額・予想PER・売上 / 営利 / 経利 / 純利の累計と YoY・3か月と QoQ（百万円）・営利進捗率と前年同期・決算翌日の騰落と対TOPIX・`disclosure_no`。終値と時価総額はその日以前の直近の `daily_prices`、翌日の騰落は `earnings_events` を stock.db から読む。PTS は画面と同じく株探ランキング（各 75 位）に載った銘柄だけ。`sort`（`time` / `pts_up` / `pts_down` / `pts_abs`）・`sectors`・`quarters`・`codes`・`offset` / `limit`（既定 150、最大 1000）。集中日の API は数秒かかるので待ちは 60 秒
-  - `earnings_detail` — `GET /api/earnings/detail/{code}`。累計・3か月・進捗率・通期予想の修正履歴。過去の日を読むときは `earnings_day` の `disclosure_no` を渡す（省くと最新の開示）
+  - `earnings_detail` — `GET /api/earnings/detail/{code}`。累計・3か月・進捗率・通期予想の修正履歴。1Q と本決算で中間予想が無いときは、会社が出していないのか元データに無いのかを注に書く。過去の日を読むときは `earnings_day` の `disclosure_no` を渡す（省くと最新の開示）
   - `earnings_docs` / `earnings_doc_read` — `/api/stock/{code}/filings` と `/decks` の一覧、本文。短信の原文（`kind=filing`）と IR BANK の PDF 変換（`kind=pdf`）は HTML をテキストにして、説明資料（`kind=deck`）は読み取り済みのページ要約と表を返す。`offset` / `length` で区切る
   - `stock_overview` — `/api/stock/{code}/overview` と `/api/chart/{code}` と `/api/earnings-performance/{code}`。PER・PBR・利回り・ROE・自己資本比率・時価総額、次の決算予定、`today` 時点の騰落と 1 年高安からの距離、過去の決算後の株価
   - `market_context` — `/api/topix` の `date` 時点の騰落と直近の日足

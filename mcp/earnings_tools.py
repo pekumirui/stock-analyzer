@@ -374,6 +374,13 @@ def _detail_rows(rows: list[dict[str, Any]], metrics: tuple[tuple[str, str], ...
     return _tsv(out)
 
 
+HALF_FORECAST_NOTE = {
+    "fy_only": "中間予想は会社が出していない（通期予想だけ）",
+    "none": "中間予想は会社が出していない（通期予想も無い）",
+    "unknown": "中間予想は元データに項目が無く、出しているかは不明",
+}
+
+
 def tool_earnings_detail(args: dict[str, Any], get_json: GetJson, code5: str) -> str:
     params: dict[str, Any] = {}
     no = args.get("disclosure_no")
@@ -388,6 +395,10 @@ def tool_earnings_detail(args: dict[str, Any], get_json: GetJson, code5: str) ->
         note.append("経常利益なし（IFRS / 米国基準）")
     if notes.get("single_unavailable"):
         note.append("3か月は算出不能（決算期変更など）")
+    half = HALF_FORECAST_NOTE.get(notes.get("half_forecast") or "")
+    if half:
+        whose = "" if "_" in str(d.get("label") or "_") else "来期の"
+        note.append(whose + half)
     prog_metrics = tuple(m for m in DETAIL_METRICS if m[0] != "gross_profit")
     parts = [
         (f"{code4(d.get('code') or code5)} {d.get('name')} {d.get('label')} 発表 {d.get('disclosed_date')} "
