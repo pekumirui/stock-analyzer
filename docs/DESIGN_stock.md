@@ -161,14 +161,15 @@
    - 値は API の値をそのまま丸めるだけ。金額は百万円（四捨五入）、1株当たりは円で小数 2 桁。3 桁区切り。負の数は `-` を付けて `.loss`（決算表と同じ赤）。丸めて 0 になる負の数は `0`（色なし）。値の無いセルは空
    - 補ったセル（`cells[i].source` が `periods[i].source` と違う）は数字の右に、補った書類の札（`XBRL` / `PDF`）。`title` に `有報 に無く、XBRL から補った値`
    - XBRL の科目に対応が付かなかった短信 PDF の行（`unmatched_pdf`）は科目の右に `PDFのみ` の札
-   - 合計行を太字にするなどの区別はしない（API に区別が無い。行名からは推し量らない）
+   - 区分の見出し行（`tr.fs-sec`。数字の無い行。科目の列に名前、残りの列は 1 つにまとめた空のセル。背景は月次年表の見出し行と同じ `#f0f3f6`）。行の `group` が変わる所に大区分（`fs-sec0`。資産 / 負債 / 純資産、IFRS は 資本）、`section` が変わる所に区分（`fs-sec1`。流動資産 / 有形固定資産 / 流動負債 / 株主資本 …、CF は 営業・投資・財務 で `fs-sec0`）。科目は段に合わせて字下げ（`td.d1` / `td.d2`）。区分の外の行（資産合計・非支配株主持分・負債純資産合計、CF の換算差額から後ろ）は見出しを出さず浅い字下げのまま。どの行にも `group` / `section` が無い表（PL、合計の要素が無い会社）は見出しも字下げも無い
+   - 合計行を太字にするなどの区別はしない（行名からは推し量らない）
    - 増減・成長率・Q単独などの計算値は出さない
 
 **操作。** 表と期数を押すとその組み合わせで読み直して描く（同じ銘柄・同じ組み合わせは 2 回目から読まない）。銘柄を選び直しても表と期数はそのまま（ルートには残さない）。連結 / 個別の切り替えは置かない（`consolidated=auto`。連結の材料があれば連結、無ければ個別）。
 
 **空とエラー。** 材料が無ければ（`empty`）表に `データなし` の 1 行（`title` に API の `message`）。凡例と `#st-fs-meta` は出さない。API 失敗は表に `読み込めませんでした。`
 
-**スマホと PC。** 同じ構造。表の枠 `.tbl-wrap` は画面の高さまでで、枠の中で縦・横にスクロールする。列の見出しは上に、科目の列は左に固定（科目は折り返す。PC 12em、スマホ 7.5em）。操作の行は折り返す。
+**スマホと PC。** 同じ構造。表の枠 `.tbl-wrap` は画面の高さまでで、枠の中で縦・横にスクロールする。列の見出しは上に、科目の列は左に固定（科目は折り返す。PC 12em、スマホ 7.5em。区分の見出しも科目の列にあるので一緒に固定。字下げはスマホで浅くする）。操作の行は折り返す。
 
 ## ニュース
 
@@ -314,11 +315,13 @@
   ],
   "rows": [
     {"key": "CashAndDeposits", "label": "現金及び預金", "unit": "money", "unmatched_pdf": false,
-     "cells": [{"value": 6905000000.0, "source": "tdnet_pdf"}]},
+     "group": "資産", "section": "流動資産", "cells": [{"value": 6905000000.0, "source": "tdnet_pdf"}]},
     {"key": "Goodwill", "label": "のれん", "unit": "money", "unmatched_pdf": false,
-     "cells": [{"value": 312000000.0, "source": "tdnet"}]},
+     "group": "資産", "section": "無形固定資産", "cells": [{"value": 312000000.0, "source": "tdnet"}]},
     {"key": "pdf:前受金", "label": "前受金", "unit": "money", "unmatched_pdf": true,
-     "cells": [{"value": 41000000.0, "source": "tdnet_pdf"}]}
+     "group": "負債", "section": "流動負債", "cells": [{"value": 41000000.0, "source": "tdnet_pdf"}]},
+    {"key": "LiabilitiesAndNetAssets", "label": "負債純資産合計", "unit": "money", "unmatched_pdf": false,
+     "group": null, "section": null, "cells": [{"value": 21400000000.0, "source": "tdnet_pdf"}]}
   ],
   "empty": null
 }
@@ -326,7 +329,7 @@
 
 財務3表（BS / PL / CF）を科目が行・決算期が列（古い → 新しい）で。組み立ては `docs/DESIGN_xbrl.md` §17。`statement` は `BS`（既定）/ `PL` / `CF`、`periods` は 1-20（既定 8）で新しい方から、`consolidated` は `auto`（既定。連結の材料があれば連結、無ければ個別）/ `true` / `false`。応答の `consolidated` / `basis` は出した方。`cumulative` は PL・CF（期首からの累計）で true。
 
-`periods` の 1 件は列。`source` は列の主たる出どころ（`edinet` / `tdnet` / `tdnet_pdf`、表示名は `source_label` の `有報` / `XBRL` / `PDF`）、`doc_id` と `submitted_at` はその書類、`period_type` は `Q1` / `Q2` / `Q3` / `FY`。`rows` の 1 件は科目。`key` は XBRL の要素名（会社独自は `ext:`、XBRL と対応が付かない短信 PDF の行は `pdf:` で `unmatched_pdf: true`）。`unit` は `money`（円）か `per_share`（1 株当たりの円）。`cells` は `periods` と同じ長さで、値が無ければ null。`value` は円のまま（百万円への丸めは表示側）、`source` はその値を採った出どころで、列の `source` と違えば下位の出どころで補ったセル。
+`periods` の 1 件は列。`source` は列の主たる出どころ（`edinet` / `tdnet` / `tdnet_pdf`、表示名は `source_label` の `有報` / `XBRL` / `PDF`）、`doc_id` と `submitted_at` はその書類、`period_type` は `Q1` / `Q2` / `Q3` / `FY`。`rows` の 1 件は科目。`key` は XBRL の要素名（会社独自は `ext:`、XBRL と対応が付かない短信 PDF の行は `pdf:` で `unmatched_pdf: true`）。`unit` は `money`（円）か `per_share`（1 株当たりの円）。`group` は BS の大区分（`資産` / `負債` / `純資産`、IFRS は `資本`）、`section` は区分（BS は `流動資産` / `有形固定資産` / `流動負債` / `株主資本` …、CF は 営業・投資・財務 の合計の行名）で、どちらも名前の文字列。区分の外の行と PL、合計の要素が無い会社は null。決め方は `docs/DESIGN_xbrl.md` §17。`cells` は `periods` と同じ長さで、値が無ければ null。`value` は円のまま（百万円への丸めは表示側）、`source` はその値を採った出どころで、列の `source` と違えば下位の出どころで補ったセル。
 
 材料が無ければ `periods` と `rows` は空で、`empty` が `{reason: "no_material", message, other_basis_available}`（`other_basis_available` は連結/個別のもう一方なら組めるか）。マスタに無い銘柄は 404、形の違うコードは 400、引数の範囲外は 422。
 
@@ -343,7 +346,7 @@
 ## 対象外
 
 - 概要: PBR の過去レンジ（PER は株価の業績の段）、セグメント、月次の抜粋
-- 業績詳細: 連結 / 個別の切り替え、増減・成長率・Q単独・比率などの計算値、合計行と科目の階層の見せ分け、期数・表をルートに残すこと
+- 業績詳細: 連結 / 個別の切り替え、増減・成長率・Q単独・比率などの計算値、合計行の太字などの見せ分け、PL の区分（営業外収益・特別損益など）、区分の見出しの開け閉め、期数・表をルートに残すこと
 - 株価: 決算ごとの騰落を業績の増減率と並べる表、スクリーナーなどの一覧から銘柄を次々に送る見方と先読み、価格帯別出来高、期間を URL に残すこと
 - ニュース: TDnet の決算以外の適時開示（XBRL の付かない書類。自己株買いの決議・配当予想の修正・M&A など）、決算・修正の要点（修正の幅など）、有報・半期報の原文、決算補足説明資料、前回の短信との文章の差分、訂正前後の差分
 - 株主: 大株主の上位 10 社（有報）、所有者別の構成、信用残・空売り残

@@ -18,6 +18,7 @@ console.log(JSON.stringify({
   html: fs.fsTableHtml(d),
   empty: fs.fsTableHtml({periods: [], rows: [], empty: {reason: "no_material", message: "本表が無い"}}),
   meta: fs.fsMeta(d),
+  sectioned: fs.fsTableHtml(JSON.parse(process.argv[3])),
   amounts: [fs.fsAmount(1234567890, "money"), fs.fsAmount(-2500000, "money"), fs.fsAmount(-400000, "money"),
             fs.fsAmount(41.666, "per_share"), fs.fsAmount(null, "money")],
 }));
@@ -46,8 +47,25 @@ PAYLOAD = {
 }
 
 
+def _row(key: str, label: str, group: str | None, section: str | None) -> dict:
+    return {"key": key, "label": label, "unit": "money", "unmatched_pdf": False, "group": group, "section": section,
+            "cells": [{"value": 1_000_000, "source": "edinet"}, None, None]}
+
+
+SECTIONED = {**PAYLOAD, "rows": [
+    _row("CashAndDeposits", "現金及び預金", "資産", "流動資産"),
+    _row("CurrentAssets", "流動資産合計", "資産", "流動資産"),
+    _row("Land", "土地", "資産", "固定資産"),
+    _row("Assets", "資産合計", "資産", None),
+    _row("ShortTermLoansPayable", "借入金", "負債", "流動負債"),
+    _row("LongTermLoansPayable", "借入金", "負債", "固定負債"),
+    _row("LiabilitiesAndNetAssets", "負債純資産合計", None, None),
+]}
+
+
 def _run() -> dict:
-    out = subprocess.run(["node", "-e", _NODE, str(ROOT / "static/js/stock-financials.js"), json.dumps(PAYLOAD)],
+    out = subprocess.run(["node", "-e", _NODE, str(ROOT / "static/js/stock-financials.js"), json.dumps(PAYLOAD),
+                          json.dumps(SECTIONED)],
                          capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
 
@@ -112,3 +130,23 @@ def test_meta_and_empty() -> None:
     r = _run()
     assert r["meta"] == "連結 / 日本基準 / 単位: 百万円（1株当たりは円）"
     assert r["empty"] == '<tr><td class="l sub" title="本表が無い">データなし</td></tr>'
+
+
+def test_section_heading_rows() -> None:
+    rows = _rows(_run()["sectioned"])
+    heads = [(r.split('"')[1], re.sub(r"<[^>]+>", "", _cells(r)[0])) for r in rows if r.startswith(' class="fs-sec')]
+    assert heads == [("fs-sec fs-sec0", "資産"), ("fs-sec fs-sec1", "流動資産"), ("fs-sec fs-sec1", "固定資産"),
+                     ("fs-sec fs-sec0", "負債"), ("fs-sec fs-sec1", "流動負債"), ("fs-sec fs-sec1", "固定負債")]
+    assert all(_cells(r)[1] == '<td colspan="3"></td>' for r in rows if r.startswith(' class="fs-sec'))
+    body = [r for r in rows if not r.startswith(' class="fs-sec')]
+    depth = [re.search(r'<td class="([^"]*)"', r).group(1) for r in body]
+    assert depth == ["l d2", "l d2", "l d2", "l d1", "l d2", "l d2", "l"]
+    order = [re.sub(r"<[^>]+>", "", _cells(r)[0]) for r in rows]
+    assert order[:4] == ["資産", "流動資産", "現金及び預金", "流動資産合計"]
+    assert order[-1] == "負債純資産合計"
+
+
+def test_flat_table_without_sections() -> None:
+    html = _run()["html"]
+    assert "fs-sec" not in html
+    assert all(re.search(r'<td class="l"', r) for r in _rows(html))

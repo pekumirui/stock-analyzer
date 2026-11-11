@@ -17,10 +17,13 @@ __all__ = [
     "STATEMENTS",
     "Fact",
     "Filing",
+    "Names",
     "apply_learned",
     "financial_table",
     "learn_pair",
     "load_filings",
+    "name_index",
+    "sections",
 ]
 
 STATEMENTS = ("BS", "PL", "CF")
@@ -58,6 +61,38 @@ SECTION_HEADS = (
 )
 GENERIC_LABELS = frozenset({"その他"})
 MIN_LOOSE_MATCH = 100
+NAME_WEIGHT = 1
+KEPT_WEIGHT = 1_000_000
+
+BS_GROUPS = {
+    "Assets": "資産", "Liabilities": "負債", "NetAssets": "純資産",
+    "AssetsIFRS": "資産", "LiabilitiesIFRS": "負債", "EquityIFRS": "資本",
+}
+BS_GROUP_ORDERS = (("Assets", "Liabilities", "NetAssets"), ("AssetsIFRS", "LiabilitiesIFRS", "EquityIFRS"))
+BS_GROUP_END = frozenset({"LiabilitiesAndNetAssets", "LiabilitiesAndEquityIFRS"})
+BS_SECTIONS = {
+    "CurrentAssets": "Assets", "PropertyPlantAndEquipment": "Assets", "IntangibleAssets": "Assets",
+    "InvestmentsAndOtherAssets": "Assets", "NoncurrentAssets": "Assets", "DeferredAssets": "Assets",
+    "CurrentLiabilities": "Liabilities", "NoncurrentLiabilities": "Liabilities",
+    "ShareholdersEquity": "NetAssets", "ValuationAndTranslationAdjustments": "NetAssets",
+    "CurrentAssetsIFRS": "AssetsIFRS", "NonCurrentAssetsIFRS": "AssetsIFRS",
+    "TotalCurrentLiabilitiesIFRS": "LiabilitiesIFRS", "NonCurrentLabilitiesIFRS": "LiabilitiesIFRS",
+    "EquityAttributableToOwnersOfParentIFRS": "EquityIFRS",
+}
+SECTION_NAMES = {
+    "CurrentAssets": "流動資産", "PropertyPlantAndEquipment": "有形固定資産", "IntangibleAssets": "無形固定資産",
+    "InvestmentsAndOtherAssets": "投資その他の資産", "NoncurrentAssets": "固定資産", "DeferredAssets": "繰延資産",
+    "CurrentLiabilities": "流動負債", "NoncurrentLiabilities": "固定負債", "ShareholdersEquity": "株主資本",
+    "ValuationAndTranslationAdjustments": "その他の包括利益累計額",
+    "CurrentAssetsIFRS": "流動資産", "NonCurrentAssetsIFRS": "非流動資産", "TotalCurrentLiabilitiesIFRS": "流動負債",
+    "NonCurrentLabilitiesIFRS": "非流動負債", "EquityAttributableToOwnersOfParentIFRS": "親会社の所有者に帰属する持分",
+    "NetCashProvidedByUsedInOperatingActivities": "営業活動によるキャッシュ・フロー",
+    "NetCashProvidedByUsedInInvestmentActivities": "投資活動によるキャッシュ・フロー",
+    "NetCashProvidedByUsedInFinancingActivities": "財務活動によるキャッシュ・フロー",
+}
+CF_SECTION_RE = re.compile(r"^NetCashProvidedByUsedIn(Operating|Investment|Investing|Financing)Activities(IFRS)?$")
+CF_SECTION_ORDER = {"Operating": 0, "Investment": 1, "Investing": 1, "Financing": 2}
+TOTAL_TAIL_RE = re.compile(r"(合計|計)$")
 
 
 @dataclass(frozen=True)
@@ -109,6 +144,12 @@ class Learned:
 
 
 @dataclass
+class Names:
+    keys: dict[str, str] = field(default_factory=dict)
+    order: list[str] = field(default_factory=list)
+
+
+@dataclass
 class Column:
     primary: Filing
     values: dict[str, float]
@@ -149,19 +190,22 @@ def financial_table(
     keys: list[str] = []
     for column in reversed(columns):
         keys = _merge(keys, column.order)
+    parts = sections(keys, statement, labels)
     rows = [
         {
             "key": key,
             "label": labels.get(key, key),
             "unit": "per_share" if units.get(key) in PER_SHARE_UNITS else "money",
             "unmatched_pdf": key.startswith("pdf:"),
+            "group": group,
+            "section": section,
             "cells": [
                 None if key not in column.values
                 else {"value": column.values[key], "source": column.sources[key]}
                 for column in columns
             ],
         }
-        for key in keys
+        for key, (group, section) in zip(keys, parts)
     ]
     empty = None
     if not columns:
@@ -485,6 +529,7 @@ def _global_order(learned: Sequence[Learned], statement: str) -> dict[str, int]:
 
 def apply_learned(
     rows: Sequence[Fact], learned: Sequence[Learned], statement: str, period_end: date, cls: str,
+    names: Names | None = None,
 ) -> list[tuple[Fact, Mapped | None]]:
     ranked = _ranked(learned, period_end, cls)
     proposals: list[Mapped | None] = []
@@ -496,6 +541,7 @@ def apply_learned(
                 found = m
                 break
         proposals.append(found)
+    claimed = {m.key for m in proposals if m is not None}
     counts = defaultdict(int)
     for m in proposals:
         if m is not None:
@@ -506,7 +552,56 @@ def apply_learned(
         (i, rank[m.key], 1 if _generic(rows[i].local) else 2)
         for i, m in enumerate(proposals) if m is not None and m.key in rank
     ])
+    by_name = _by_name(rows, learned, statement, names, claimed) if names else {}
+    if by_name:
+        order = _merge(sorted(rank, key=rank.__getitem__), names.order)
+        rank = {k: i for i, k in enumerate(order)}
+        picked = _lis([
+            (i, rank[by_name[i].key] if i in by_name else rank[proposals[i].key],
+             NAME_WEIGHT if i in by_name else KEPT_WEIGHT)
+            for i in range(len(rows)) if (i in by_name and by_name[i].key in rank) or i in keep
+        ])
+        for i, m in by_name.items():
+            if i in picked:
+                proposals[i] = m
+                keep.add(i)
     return [(f, proposals[i] if i in keep else None) for i, f in enumerate(rows)]
+
+
+def name_index(filings: Sequence[Filing], statement: str) -> Names:
+    found: dict[str, set[str]] = defaultdict(set)
+    order: list[str] = []
+    for filing in sorted(filings, key=lambda f: (f.period_end, f.submitted), reverse=True):
+        if filing.is_pdf:
+            continue
+        facts = filing.by_statement.get(statement, [])
+        for f in facts:
+            name = _clean_label(f.label)
+            if name:
+                found[name].add(f.key)
+        order = _merge(order, [f.key for f in facts])
+    return Names({name: next(iter(keys)) for name, keys in found.items() if len(keys) == 1}, order)
+
+
+def _by_name(
+    rows: Sequence[Fact], learned: Sequence[Learned], statement: str, names: Names, claimed: set[str],
+) -> dict[int, Mapped]:
+    known = {local for item in learned for local in item.maps.get(statement, {})}
+    base = defaultdict(int)
+    for f in rows:
+        base[_clean_label(SUFFIX_RE.sub("", f.local))] += 1
+    out: dict[int, Mapped] = {}
+    for i, f in enumerate(rows):
+        name = _clean_label(SUFFIX_RE.sub("", f.local))
+        if f.local in known or SUFFIX_RE.search(f.local) or base[name] != 1:
+            continue
+        key = names.keys.get(name)
+        if key is not None and key not in claimed:
+            out[i] = Mapped(key, 1)
+    counts = defaultdict(int)
+    for m in out.values():
+        counts[m.key] += 1
+    return {i: m for i, m in out.items() if counts[m.key] == 1}
 
 
 def _generic(local: str) -> bool:
@@ -562,6 +657,7 @@ def _with_extras(filing: Filing, statement: str, learned: Sequence[Learned]) -> 
 
 
 def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], statement: str) -> list[Column]:
+    names = name_index(filings, statement)
     by_end: dict[date, list[Filing]] = defaultdict(list)
     for f in filings:
         if statement in f.by_statement:
@@ -584,7 +680,9 @@ def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], stateme
                 cls = filing.cls
                 pairs = [x for x in learned if x.period_end == period_end]
                 pool = pairs if not primary.is_pdf and pairs else learned
-                for fact, mapped in apply_learned(filing.by_statement[statement], pool, statement, period_end, cls):
+                facts = filing.by_statement[statement]
+                by_name = names if filing is primary else None
+                for fact, mapped in apply_learned(facts, pool, statement, period_end, cls, by_name):
                     if mapped is None:
                         if filing is primary:
                             values[fact.key] = fact.value
@@ -604,6 +702,52 @@ def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], stateme
             order = _merge(order, [k for k in seq if k in values])
         columns.append(Column(primary, values, order, sources))
     return columns
+
+
+def sections(keys: Sequence[str], statement: str, labels: Mapping[str, str]) -> list[tuple[str | None, str | None]]:
+    out: list[tuple[str | None, str | None]] = [(None, None)] * len(keys)
+    pos = {k: i for i, k in enumerate(keys)}
+    if statement == "CF":
+        totals = [(pos[k], CF_SECTION_ORDER[m.group(1)]) for k in keys if (m := CF_SECTION_RE.match(k))]
+        totals.sort()
+        if [n for _, n in totals] != sorted({n for _, n in totals}):
+            return out
+        _fill_sections(out, keys, [i for i, _ in totals], 0, len(keys), None, labels)
+        return out
+    if statement != "BS":
+        return out
+    groups = sorted(pos[k] for k in keys if k in BS_GROUPS)
+    found = [keys[i] for i in groups]
+    if not groups or found not in ([k for k in order if k in found] for order in BS_GROUP_ORDERS):
+        return out
+    end = min((pos[k] for k in keys if k in BS_GROUP_END), default=len(keys))
+    if end < groups[-1]:
+        return out
+    lo = 0
+    for gi in groups:
+        group = keys[gi]
+        inner = [pos[k] for k in keys if BS_SECTIONS.get(k) == group and lo <= pos[k] <= gi]
+        _fill_sections(out, keys, sorted(inner), lo, gi + 1, _heading(group, labels, BS_GROUPS), labels)
+        lo = gi + 1
+    return out
+
+
+def _fill_sections(
+    out: list[tuple[str | None, str | None]], keys: Sequence[str], totals: Sequence[int], lo: int, hi: int,
+    group: str | None, labels: Mapping[str, str],
+) -> None:
+    at = 0
+    for i in range(lo, hi):
+        while at < len(totals) and totals[at] < i:
+            at += 1
+        section = _heading(keys[totals[at]], labels, SECTION_NAMES) if at < len(totals) else None
+        out[i] = (group, section)
+
+
+def _heading(key: str, labels: Mapping[str, str], fallback: Mapping[str, str]) -> str:
+    label = labels.get(key, "")
+    name = "" if label == key else TOTAL_TAIL_RE.sub("", label)
+    return name or fallback.get(key) or fallback.get(key.removesuffix("IFRS")) or key
 
 
 def _clean_label(raw: str) -> str:

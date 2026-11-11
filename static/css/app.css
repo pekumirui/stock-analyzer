@@ -137,6 +137,10 @@
   #st-fs-tbl td:first-child, #st-fs-tbl th:first-child { white-space:normal; width:12em; min-width:12em; box-shadow:inset -1px 0 0 var(--border); }
   #st-fs-tbl td.num { min-width:5.5em; }
   #st-fs-tbl .fs-src { color:var(--sub); }
+  #st-fs-tbl tbody tr.fs-sec td { background:#f0f3f6; font-weight:600; padding-top:5px; padding-bottom:5px; }
+  #st-fs-tbl tbody tr.fs-sec1 td:first-child { padding-left:1.1em; font-weight:500; }
+  #st-fs-tbl td.d1 { padding-left:1.1em; }
+  #st-fs-tbl td.d2 { padding-left:2em; }
   .qb.fs-fill { color:#c2410c; margin-left:3px; }
   .qb.fs-pdf { color:#fff; background:var(--warn); margin-left:4px; }
   /* 説明資料の中身（KAB-350）。読み取った表と要約から組み直したグラフ（SVG）と表。原本は出さない */
@@ -545,6 +549,8 @@
     table.sheet th, table.sheet td { padding-left:3px; padding-right:3px; }
     table.sheet td.name, table.sheet th.name { max-width:8em; }
     #st-fs-tbl td:first-child, #st-fs-tbl th:first-child { width:7.5em; min-width:7.5em; }
+    #st-fs-tbl tbody tr.fs-sec1 td:first-child, #st-fs-tbl td.d1 { padding-left:.7em; }
+    #st-fs-tbl td.d2 { padding-left:1.2em; }
     .earn-box { padding:10px 6px; }
     table.sheet td { font-size:12px; }
     body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:34px}

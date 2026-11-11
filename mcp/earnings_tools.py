@@ -647,9 +647,16 @@ def tool_financial_statements(args: dict[str, Any], get_json: GetJson, code5: st
     ).replace("  ", " ")
     if d.get("cumulative"):
         head += " 期首からの累計"
-    rows: list[list[Any]] = [["科目", "要素", *(c.get("label") for c in cols)]]
-    for r in d.get("rows") or []:
+    lines = [_tsv([["科目", "要素", *(c.get("label") for c in cols)]])]
+    items = d.get("rows") or []
+    sectioned = any(r.get("group") or r.get("section") for r in items)
+    at: tuple[Any, Any] | None = None
+    for r in items:
+        part = (r.get("group"), r.get("section"))
+        if sectioned and part != at:
+            lines.append("# " + (" > ".join(p for p in part if p) or "-"))
+            at = part
         per_share = r.get("unit") == "per_share"
-        rows.append([r.get("label"), r.get("key"), *(_fs_cell(c, per_share) for c in r.get("cells") or [])])
-    rows.append(["出どころ", "", *(c.get("source_label") for c in cols)])
-    return head + "\n" + _tsv(rows)
+        lines.append(_tsv([[r.get("label"), r.get("key"), *(_fs_cell(c, per_share) for c in r.get("cells") or [])]]))
+    lines.append(_tsv([["出どころ", "", *(c.get("source_label") for c in cols)]]))
+    return head + "\n" + "\n".join(lines)
