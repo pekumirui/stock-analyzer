@@ -15,6 +15,7 @@ CODE = "12340"
 LOOSE = "56780"
 SINGLE = "24680"
 NAMED = "13570"
+QUARTER = "36790"
 NONCONSOL = {"jppfs_cor:ConsolidatedOrNonConsolidatedAxis": "jppfs_cor:NonConsolidatedMember"}
 SEGMENT = {"jpcrp_cor:OperatingSegmentsAxis": "jpcrp_cor:ReportableSegmentsMember"}
 
@@ -73,9 +74,9 @@ class Seeder:
         return self.elements[key]
 
     def _context(self, fid: int, kind: str, end: str, *, consolidated: bool, dims: dict | None,
-                 relative: str | None) -> int:
+                 relative: str | None, start: str = "2024-04-01") -> int:
         dims = dims or {}
-        ref = f"{kind}{'' if consolidated else '_NC'}{json.dumps(dims, sort_keys=True)}{relative}"
+        ref = f"{kind}{'' if consolidated else '_NC'}{json.dumps(dims, sort_keys=True)}{relative}{start}"
         key = (fid, ref)
         if key not in self.contexts:
             self.contexts[key] = len(self.contexts) + 1
@@ -84,17 +85,17 @@ class Seeder:
                 "is_consolidated, relative_period, dimensions_json, has_dimensions) "
                 "VALUES (:id, :fid, :ref, :pt, :start, :end, :consol, :rel, :dims, :has)",
                 {"id": self.contexts[key], "fid": fid, "ref": ref, "pt": "instant" if kind == "i" else "duration",
-                 "start": None if kind == "i" else "2024-04-01", "end": end, "consol": 1 if consolidated else 0,
+                 "start": None if kind == "i" else start, "end": end, "consol": 1 if consolidated else 0,
                  "rel": relative, "dims": json.dumps(dims), "has": 1 if dims else 0},
             )
         return self.contexts[key]
 
     def facts(self, fid: int, end: str, rows: list[tuple], *, consolidated: bool = True,
-              dims: dict | None = None, relative: str | None = "current") -> None:
+              dims: dict | None = None, relative: str | None = "current", start: str = "2024-04-01") -> None:
         for row in rows:
             ns, local, kind, value = row[:4]
             unit = row[4] if len(row) > 4 else "JPY"
-            ctx = self._context(fid, kind, end, consolidated=consolidated, dims=dims, relative=relative)
+            ctx = self._context(fid, kind, end, consolidated=consolidated, dims=dims, relative=relative, start=start)
             self.next_fact += 1
             self._run(
                 "INSERT INTO xbrl_facts (id, filing_id, element_id, context_id, unit, value_num, is_nil) "
@@ -229,6 +230,44 @@ def _company(s: Seeder, code: str, base: int, *, with_q_pair: bool = True) -> No
     s.facts(base + 10, "2026-03-31", [p("bs", "現金及び預金", 999)])
 
 
+def _quarter_pl(sales: float, pretax: float) -> list[tuple]:
+    return [x("NetSales", "d", sales), x("IncomeBeforeIncomeTaxes", "d", pretax), x("ProfitLoss", "d", pretax - 10),
+            ("jppfs_cor", "BasicEarningsLossPerShare", "d", pretax / 10, "JPYPerShares")]
+
+
+def _quarter_cf(depreciation: float, operating: float, cash: float) -> list[tuple]:
+    return [x("DepreciationAndAmortizationOpeCF", "d", depreciation),
+            x("NetCashProvidedByUsedInOperatingActivities", "d", operating), x("CashAndCashEquivalents", "i", cash)]
+
+
+def _quarterly(s: Seeder) -> None:
+    s.stock(QUARTER, "四半期報告書")
+    s.filing(401, "edinet", "Q2", "2024-09-30", "2024-11-12 15:00:00", code=QUARTER)
+    s.facts(401, "2024-09-30", [x("CashAndDeposits", "i", 40), x("Assets", "i", 40),
+                                x("LiabilitiesAndNetAssets", "i", 40)])
+    s.facts(401, "2024-09-30", _quarter_pl(130, 70), start="2024-07-01")
+    s.facts(401, "2024-09-30", _quarter_pl(250, 130))
+    s.facts(401, "2024-09-30", _quarter_cf(12, 140, 45))
+    s.filing(402, "tdnet_pdf", "Q2", "2024-09-30", "2024-11-08 15:00:00", code=QUARTER)
+    s.facts(402, "2024-09-30", [
+        p("bs", "現金及び預金", 40), p("bs", "資産合計", 40), p("bs", "負債純資産合計", 40),
+        p("pl", "売上高", 250), p("pl", "税金等調整前中間純利益", 130), p("pl", "中間純利益", 120),
+        p("cf", "税金等調整前中間純利益", 130), p("cf", "減価償却費", 12), p("cf", "営業活動によるキャッシュ・フロー", 140),
+        p("cf", "現金及び現金同等物の中間期末残高", 45),
+    ])
+    s.filing(403, "edinet", "Q3", "2024-12-31", "2025-02-12 15:00:00", code=QUARTER)
+    s.facts(403, "2024-12-31", [x("CashAndDeposits", "i", 50), x("Assets", "i", 50),
+                                x("LiabilitiesAndNetAssets", "i", 50)])
+    s.facts(403, "2024-12-31", _quarter_pl(390, 200))
+    s.facts(403, "2024-12-31", _quarter_pl(140, 70), start="2024-10-01")
+    s.facts(403, "2024-12-31", _quarter_cf(18, 210, 55))
+    s.filing(404, "edinet", "FY", "2025-03-31", "2025-06-20 15:00:00", code=QUARTER)
+    s.facts(404, "2025-03-31", [x("CashAndDeposits", "i", 60), x("Assets", "i", 60),
+                                x("LiabilitiesAndNetAssets", "i", 60)])
+    s.facts(404, "2025-03-31", _quarter_pl(520, 260))
+    s.facts(404, "2025-03-31", _quarter_cf(24, 280, 65))
+
+
 def seed() -> None:
     s = Seeder()
     _company(s, CODE, 0)
@@ -250,6 +289,7 @@ def seed() -> None:
         x("BorrowingsNCLIFRS", "i", 2, "jpigp_cor"), x("NoncurrentLiabilities", "i", 7), x("Liabilities", "i", 8),
         x("NetAssets", "i", 4), x("LiabilitiesAndNetAssets", "i", 12),
     ])
+    _quarterly(s)
     s.close()
 
 
@@ -610,3 +650,36 @@ def test_table_rows_carry_sections() -> None:
     t = table(statement="CF")
     assert {(r["group"], r["section"]) for r in t["rows"][:2]} == {(None, "営業活動によるキャッシュ・フロー")}
     assert {(r["group"], r["section"]) for r in table(statement="PL")["rows"]} == {(None, None)}
+
+
+def test_quarterly_report_takes_year_to_date_over_three_months() -> None:
+    by_id = filings(QUARTER)
+    for fid in (401, 403):
+        keys = [f.key for f in by_id[fid].seq if not f.instant]
+        assert len(keys) == len(set(keys))
+    assert {f.key: f.value for f in by_id[401].by_statement["PL"]}["NetSales"] == 250 * M
+    assert {f.key: f.value for f in by_id[403].by_statement["PL"]}["NetSales"] == 390 * M
+    assert [f.key for f in by_id[401].by_statement["BS"]] == ["CashAndDeposits", "Assets", "LiabilitiesAndNetAssets"]
+    t = table(QUARTER, statement="PL")
+    assert labels(t) == ["24.09", "24.12", "25.03"]
+    assert [r["key"] for r in t["rows"]] == ["NetSales", "IncomeBeforeIncomeTaxes", "ProfitLoss",
+                                             "BasicEarningsLossPerShare"]
+    assert [c["value"] for c in rows(t)["NetSales"]["cells"]] == [250 * M, 390 * M, 520 * M]
+    assert [c["value"] for c in rows(t)["BasicEarningsLossPerShare"]["cells"]] == [13, 20, 26]
+    assert [c["value"] for c in rows(table(QUARTER))["Assets"]["cells"]] == [40 * M, 50 * M, 60 * M]
+
+
+def test_quarterly_report_cf_rows_from_pl_are_year_to_date() -> None:
+    t = table(QUARTER, statement="CF")
+    assert t["rows"][0]["key"] == "IncomeBeforeIncomeTaxes"
+    assert [c["value"] for c in t["rows"][0]["cells"]] == [130 * M, 200 * M, 260 * M]
+
+
+def test_learn_pair_matches_pdf_against_year_to_date() -> None:
+    by_id = filings(QUARTER)
+    learned = fst.learn_pair(by_id[402], by_id[401])
+    assert {k: m.key for k, m in learned.maps["PL"].items()} == {
+        "売上高": "NetSales", "税金等調整前中間純利益": "IncomeBeforeIncomeTaxes", "中間純利益": "ProfitLoss",
+    }
+    assert learned.maps["CF"]["税金等調整前中間純利益"].key == "IncomeBeforeIncomeTaxes"
+    assert learned.extras["CF"] == {"IncomeBeforeIncomeTaxes": None}
