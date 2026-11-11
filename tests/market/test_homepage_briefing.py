@@ -371,3 +371,84 @@ def test_issuer_with_two_pages_reads_both(tmp_path: Path) -> None:
     assert rc == 0
     assert "listed=2 saved=2" in out.getvalue()
     assert [row.title for row in _rows()] == ["2025年8月期 決算説明会資料", "2026年8月期 決算説明会資料"]
+
+
+EIR_URL = "https://ssl4.eir-parts.net/V4Public/EIR/8002/ja/announcement/announcement_2.js"
+
+
+def _eir_item(title: str, link: str, news_type: str = "ir_material_for_fiscal_ym", kind: str = "pdf",
+              date: str = "2026/11/04 00:00:00", fiscal_ym: str = "202703") -> dict:
+    return {
+        "date": date, "link": link, "title": title, "type": kind, "news_type": news_type,
+        "fiscal_ym": fiscal_ym, "quarter": "2",
+    }
+
+
+def _eir_feed(items: list[dict]) -> str:
+    return "\ufeffeolparts_announcement_2(\n" + json.dumps({"header": [{}], "item": items}, ensure_ascii=False) + "\n);"
+
+
+EIR_ITEMS = [
+    _eir_item("第2四半期 IR資料（スクリプト付）", "https://ssl4.eir-parts.net/doc/8002/ir_material_for_fiscal_ym5/217107/00.pdf"),
+    _eir_item("質疑応答", "https://ssl4.eir-parts.net/doc/8002/ir_material_for_fiscal_ym5/217319/00.pdf"),
+    _eir_item("IR資料_2027年3月期第2四半期", "https://ssl4.eir-parts.net/doc/8002/ir_material_for_fiscal_ym4/216973/00.pdf"),
+    _eir_item("純利益", "", kind="space"),
+    _eir_item("インド事業説明会資料", "https://ssl4.eir-parts.net/doc/8002/ir_material_for_fiscal_ym5/200001/00.pdf"),
+    _eir_item("説明会動画 2026年11月4日", "https://www.irwebcasting.com/20261104/3/index.html", kind="url"),
+    _eir_item("2027年3月期 第2四半期（中間期）決算短信〔ＩＦＲＳ〕（連結）",
+              "https://ssl4.eir-parts.net/doc/8002/tdnet/2903789/00.pdf", news_type="tanshin"),
+    _eir_item("決算説明資料", "https://ssl4.eir-parts.net/doc/8002/tdnet/2903790/00.pdf", news_type="press"),
+    _eir_item("個人投資家向け説明会　プレゼンテーション資料",
+              "https://ssl4.eir-parts.net/doc/8002/ir_material2/286209/00.pdf",
+              news_type="ir_material", date="2026/09/04 00:00:00", fiscal_ym=""),
+    _eir_item("2026年3月期 決算説明会資料", "https://ssl4.eir-parts.net/doc/8002/ir_material2/280000/00.pdf",
+              news_type="ir_material", date="2026/05/01 00:00:00", fiscal_ym=""),
+]
+
+
+def test_eir_feed_takes_ir_material_pdfs_with_dates() -> None:
+    assert mod.is_eir_feed(EIR_URL)
+    assert not mod.is_eir_feed("https://www.marubeni.com/jp/ir/reports/year/")
+    links = mod.parse_eir_feed(_eir_feed(EIR_ITEMS), "80020", "IR資料|^質疑応答$")
+    assert [(link.title, link.pubdate) for link in links] == [
+        ("2027年3月期 第2四半期 IR資料(スクリプト付)", "2026-11-04 00:00:00"),
+        ("2027年3月期 質疑応答", "2026-11-04 00:00:00"),
+        ("IR資料_2027年3月期第2四半期", "2026-11-04 00:00:00"),
+        ("2026年3月期 決算説明会資料", "2026-05-01 00:00:00"),
+    ]
+    assert len({link.document_id for link in links}) == 4
+    without = mod.parse_eir_feed(_eir_feed(EIR_ITEMS), "80020")
+    assert [link.title for link in without] == ["2026年3月期 決算説明会資料"]
+
+
+def test_eir_issuer_saves_with_the_feed_date(tmp_path: Path) -> None:
+    path = tmp_path / "eir.json"
+    path.write_text(
+        json.dumps({"issuers": [{"code": "8002", "name": "丸紅", "index_url": EIR_URL, "link_re": "IR資料|^質疑応答$"}]}),
+        encoding="utf-8",
+    )
+    gets: list[str] = []
+
+    def fake_get(url: str) -> bytes:
+        gets.append(url)
+        return _eir_feed(EIR_ITEMS).encode("utf-8") if url == EIR_URL else _pdf(url)
+
+    def run_once() -> str:
+        out = io.StringIO()
+        with redirect_stdout(out):
+            assert mod.run(
+                tmp_path / "briefing", path, get=fake_get,
+                read_date=lambda data: _at(2020, 1, 1), now=NOW,
+            ) == 0
+        return out.getvalue()
+
+    assert "listed=4 saved=4 skipped=0 failed=0" in run_once()
+    rows = {row.title: row for row in _rows()}
+    deck = rows["2027年3月期 第2四半期 IR資料(スクリプト付)"]
+    assert deck.pubdate == "2026-11-04 00:00:00"
+    assert deck.code == "80020"
+    assert deck.rel_path == "8002/20261104_8002_丸紅_2027年3月期 第2四半期 IR資料(スクリプト付).pdf"
+    assert deck.url.endswith("/ir_material_for_fiscal_ym5/217107/00.pdf")
+    gets.clear()
+    assert "listed=4 saved=0 skipped=4 failed=0" in run_once()
+    assert gets == [EIR_URL]

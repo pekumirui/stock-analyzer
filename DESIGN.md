@@ -266,7 +266,8 @@ IR BANK の過去の決算説明資料（`tools/briefing/irbank_ingest.py`。KAB
 - pubdate は一覧に日付が無いので PDF の更新日時（無ければ作成日時。JST に直す）。どちらも無ければ URL のパスにある YYYYMMDD、それも無いか未来なら取得した時刻。作成日時はひな形の日付のままの会社があるので更新日時を先に見る。会社が PDF を作り直すと開示日より後ろへずれる
 - 保存先とファイル名は TDnet のジョブと同じ。同じ日・同じ表題のファイルが既にあれば、名前の末尾に番号の後ろ 6 桁を付ける。索引は source=`homepage`、storage=`local`。索引にある PDF は取りに行かない
 - `--only` は設定にある code だけ（無い code は終了コード 2）。`--limit` は 1 社で新しく保存する件数（ページの上から）。`--dry-run` は新しく保存する分を出すだけで、PDF も索引も書かない
-- 拾えない形: 一覧を JavaScript や外部の IR サービス（eir-parts）で出すページ（キオクシア、丸紅、ソフトバンク、任天堂）。設定に載せていない。リクルートは過去分が JavaScript の中にあり、HTML に出ている最新の 1 本だけ拾う
+- 一覧を eir-parts（プロネクサスの IR サービス。`ssl4.eir-parts.net`）で出す会社は、会社のページに PDF のリンクが無い。`index_url` に eir-parts のフィード `https://ssl4.eir-parts.net/V4Public/EIR/<4桁>/ja/announcement/announcement_<N>.js`（JSONP。N は会社ごと。多くは 1）を書くと、HTML でなくフィードとして読む。採るのは `type` が `pdf` で `news_type` が `ir_material` で始まるもの。会社のページと違って決算以外の IR 資料（事業説明会、個人投資家向け説明会など）も並ぶので、決算の語は補わず、表題そのものが `is_material_title` を通るものだけ。`link_re` も効く（例: 丸紅の「IR資料」「質疑応答」）。短信・適時開示（`tanshin` / `press`）は採らない。表題に年度が無ければ `fiscal_ym` から「2027年3月期」を頭に付ける。pubdate はフィードの `date`（時刻は 00:00:00）。document_id は `hp` + sha1(code 5 桁・PDF の URL のパス) の頭 24 桁
+- 拾えない形: 一覧を JavaScript で組み立てるページ（ソフトバンク、任天堂）、eir-parts でも標準のフィードに資料が入っていない会社（キオクシア）。設定に載せていない。リクルートは過去分が JavaScript の中にあり、HTML に出ている最新の 1 本だけ拾う
 - cron にはまだ入れていない。手での実行は `deploy/README.md`
 
 決算説明資料を OneDrive へ移す（`jobs/market/briefing_offsite.py`。KAB-345）:
