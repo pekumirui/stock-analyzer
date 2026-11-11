@@ -102,7 +102,7 @@
   .evt-toggles .evt-label { display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none; }
   .evt-toggles .swatch { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
   .tbl-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  #rk-sub-perf .tbl-wrap, #tab-screener .tbl-wrap, #tab-holders .tbl-wrap, #st-sub-holders .tbl-wrap { max-height:calc(100vh - 140px); overflow:auto; }
+  #rk-sub-perf .tbl-wrap, #tab-screener .tbl-wrap, #tab-holders .tbl-wrap, #st-sub-holders .tbl-wrap, #st-sub-financials .tbl-wrap { max-height:calc(100vh - 140px); overflow:auto; }
   #pts-summary { font-size:12px; margin:0 0 6px; }
   #rk-subs { display:inline-flex; margin:0 0 10px; }
   #rk-kind { display:inline-flex; margin:0 0 8px; }
@@ -130,6 +130,15 @@
   #st-news td.t { white-space:normal; min-width:12em; }
   .st-detail-bar { justify-content:space-between; }
   #st-news-head { margin:6px 0; }
+  #st-fs-meta { font-size:12px; }
+  #st-fs-legend { font-size:12px; margin:0 0 6px; }
+  #st-fs-legend .qb { margin-right:3px; }
+  #st-fs-tbl { width:auto; }
+  #st-fs-tbl td:first-child, #st-fs-tbl th:first-child { white-space:normal; width:12em; min-width:12em; box-shadow:inset -1px 0 0 var(--border); }
+  #st-fs-tbl td.num { min-width:5.5em; }
+  #st-fs-tbl .fs-src { color:var(--sub); }
+  .qb.fs-fill { color:#c2410c; margin-left:3px; }
+  .qb.fs-pdf { color:#fff; background:var(--warn); margin-left:4px; }
   /* 説明資料の中身（KAB-350）。読み取った表と要約から組み直したグラフ（SVG）と表。原本は出さない */
   .dk-head { display:flex; flex-wrap:wrap; gap:4px 12px; align-items:baseline; margin:6px 0 2px; }
   .dk-meta { margin:0 0 8px; }
@@ -535,6 +544,7 @@
     #st-sub-price #chart, #st-sub-price .chart-nav { width:auto; margin-left:-12px; margin-right:-12px; }
     table.sheet th, table.sheet td { padding-left:3px; padding-right:3px; }
     table.sheet td.name, table.sheet th.name { max-width:8em; }
+    #st-fs-tbl td:first-child, #st-fs-tbl th:first-child { width:7.5em; min-width:7.5em; }
     .earn-box { padding:10px 6px; }
     table.sheet td { font-size:12px; }
     body{font-size:13px} th,td{padding:4px 5px; font-size:12px} .cal .d{min-height:34px}

@@ -4,7 +4,7 @@ const CODE_RE = /^[0-9][0-9A-Z]{3}[0-9]$/;
 const SUPPLY_ID_RE = /^[a-z][a-z0-9_]*$/;
 const EDINET_RE = /^E[0-9]{5}$/;
 // 銘柄タブは {code5}/{中のタブ}、ニュースの詳細は {code5}/news/{news_id}、説明資料の中身は {code5}/decks/{key}（docs/DESIGN_stock.md）
-const STOCK_SUBS = ["summary", "price", "news", "holders"];
+const STOCK_SUBS = ["summary", "price", "financials", "news", "holders"];
 const NEWS_ID_RE = /^[a-z][0-9A-Za-z]{1,40}$/;
 const DECK_KEY_RE = /^d[0-9a-f]{20}$/;
 // ランキングの中の PTS。既定（決算後パフォーマンス）はルートに出さない
