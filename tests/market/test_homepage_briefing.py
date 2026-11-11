@@ -613,6 +613,7 @@ def test_ledger_remembers_old_ones_found_after_download(tmp_path: Path) -> None:
     saved = json.loads(ledger.read_text(encoding="utf-8"))
     assert list(saved["old"].values()) == ["2021-01-05 00:00:00"]
     assert saved["checked"] == {}
+    assert saved["dup"] == {}
 
     rc, gets, out = _run(tmp_path, page=page, dates=dates, years=5, ledger=ledger)
     assert rc == 0
@@ -764,3 +765,51 @@ def test_full_run_lists_missing_companies(tmp_path: Path) -> None:
     assert "homepage_briefing missing=1" in out
     rc, _gets, out = _run(tmp_path, only=["6728"])
     assert "missing=" not in out
+
+
+def test_same_content_is_not_saved_twice(tmp_path: Path) -> None:
+    page = (
+        "<h2>2026年3月期 第1四半期</h2>"
+        '<a href="/a/ir.pdf">決算説明会資料</a>'
+        '<a href="/a/presentation.pdf">プレゼンテーション資料</a>'
+        '<a href="/a/tdnet_copy.pdf">決算説明資料</a>'
+        '<a href="/a/qa.pdf">質疑応答</a>'
+    )
+    body = {"ir.pdf": b"%PDF same deck", "presentation.pdf": b"%PDF same deck",
+            "tdnet_copy.pdf": b"%PDF tdnet deck", "qa.pdf": b"%PDF qa"}
+    _deck("67280", "2026-08-01 15:00:00", source="tdnet", doc="081220260801000001")
+    db = SessionLocal()
+    try:
+        row = db.get(BriefingDocument, ("tdnet", "081220260801000001"))
+        row.sha256 = hashlib.sha256(b"%PDF tdnet deck").hexdigest()
+        db.commit()
+    finally:
+        db.close()
+    ledger = tmp_path / "ledger.json"
+    gets: list[str] = []
+
+    def fake_get(url: str) -> bytes:
+        gets.append(url)
+        if url == INDEX_URL:
+            return page.encode("utf-8")
+        return body[url.rsplit("/", 1)[-1]]
+
+    def run_once() -> str:
+        out = io.StringIO()
+        with redirect_stdout(out):
+            assert mod.run(
+                tmp_path / "briefing", _config(tmp_path), get=fake_get, read_date=lambda data: None,
+                now=NOW, ledger=ledger,
+            ) == 0
+        return out.getvalue()
+
+    out = run_once()
+    assert "listed=4 saved=2 skipped=0 old=0 failed=0 dup=2" in out
+    assert "same=081220260801000001" in out
+    titles = sorted(row.title for row in _rows() if row.source == "homepage")
+    assert titles == ["2026年3月期 第1四半期 決算説明会資料", "2026年3月期 第1四半期 質疑応答"]
+    assert len(json.loads(ledger.read_text(encoding="utf-8"))["dup"]) == 2
+    gets.clear()
+    out = run_once()
+    assert "saved=0 skipped=2 old=0 failed=0 dup=2" in out
+    assert gets == [INDEX_URL]
