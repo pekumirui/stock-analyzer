@@ -21,7 +21,8 @@ YYYYMMDD、それも無ければ取得した時刻）。
 表題に英文版と書いてある資料（is_english_version）は取らない。
 --years N は今日から N 年前の日より前の資料を保存しない。eir-parts はフィードの日付で決める。
 会社のページは表題か URL にある年（和暦を含む）が N 年前の年より古ければ取りに行かず、
-年が読めないものは取ってから公開日で決める（保存しないので次の実行でもまた取る）。
+年が読めないものは取ってから公開日で決める。--ledger PATH を付けると、取ってから古いと
+分かった資料の番号と公開日を JSON に残し、次の実行では取りに行かない（日次 cron。dest には置かない）。
 保存の直前に --dest の空きを見て、MIN_FREE_BYTES 未満なら保存せずに止める（終了コード 0）。
 一覧を eir-parts（プロネクサスの IR サービス）で出す会社は、index_url に会社のページでなく
 フィード（https://ssl4.eir-parts.net/V4Public/EIR/<code>/ja/announcement/announcement_<N>.js）を書く。
@@ -415,6 +416,24 @@ def load_registry(path: Path) -> list[Issuer]:
     return out
 
 
+def load_ledger(path: Path) -> dict[str, str]:
+    """取ってから古いと分かった資料（番号 → 公開日）。無い・壊れていれば空。"""
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    return {str(k): str(v) for k, v in raw.items() if isinstance(v, str)}
+
+
+def save_ledger(path: Path, data: dict[str, str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".part")
+    tmp.write_text(json.dumps(dict(sorted(data.items())), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    tmp.replace(path)
+
+
 def fetch_index(url: str, get_page: PageGetter) -> tuple[str, str]:
     """一覧ページの HTML と、転送と meta refresh をたどった先の URL。"""
     for _ in range(MAX_REFRESH):
@@ -448,6 +467,7 @@ def fetch_issuer(
     since: datetime | None = None,
     disk_usage: DiskUsage = shutil.disk_usage,
     counts: Counts | None = None,
+    known_old: dict[str, str] | None = None,
 ) -> Counts:
     """一覧が取れなければ例外。空きが足りなければ DiskLow（counts にそこまでの件数）。"""
     counts = Counts() if counts is None else counts
@@ -475,6 +495,9 @@ def fetch_issuer(
             if (link.pubdate and link.pubdate < cutoff) or (not link.pubdate and hint is not None and hint < since.year):
                 counts.old += 1
                 continue
+            if known_old is not None and known_old.get(link.document_id, cutoff) < cutoff:
+                counts.old += 1
+                continue
         if limit is not None and counts.saved >= limit:
             break
         if dry_run:
@@ -495,6 +518,8 @@ def fetch_issuer(
                 pubdate = when.strftime("%Y-%m-%d %H:%M:%S")
             if cutoff and pubdate < cutoff:
                 counts.old += 1
+                if known_old is not None:
+                    known_old[link.document_id] = pubdate
                 print(f"old {issuer.code} {pubdate} {link.title}", flush=True)
                 continue
             path = dest_path(dest, pubdate, issuer.code, issuer.name, link.title)
@@ -538,6 +563,7 @@ def run(
     read_date: PdfDate | None = None,
     now: datetime | None = None,
     disk_usage: DiskUsage = shutil.disk_usage,
+    ledger: Path | None = None,
 ) -> int:
     issuers = load_registry(config)
     if only:
@@ -571,6 +597,8 @@ def run(
         + (f" since={since.date()}" if since is not None else ""),
         flush=True,
     )
+    known_old = load_ledger(ledger) if ledger is not None else None
+    before = dict(known_old or {})
     total = Counts()
     stopped = "done"
     for issuer in issuers:
@@ -578,13 +606,15 @@ def run(
         try:
             fetch_issuer(
                 issuer, dest, get=getter, get_page=pager, read_date=reader, now=when, limit=limit,
-                dry_run=dry_run, since=since, disk_usage=disk_usage, counts=counts,
+                dry_run=dry_run, since=since, disk_usage=disk_usage, counts=counts, known_old=known_old,
             )
         except DiskLow:
             stopped = "disk_low"
         except Exception as exc:
             down = abort_if_disconnected("homepage_briefing", dest, exc)
             if down is not None:
+                if ledger is not None and known_old is not None and known_old != before:
+                    save_ledger(ledger, known_old)
                 return down
             counts.failed += 1
             print(f"fail {issuer.code} {' '.join(issuer.index_urls)}: {exc}", flush=True)
@@ -592,6 +622,8 @@ def run(
         total.add(counts)
         if stopped != "done":
             break
+    if ledger is not None and known_old is not None and known_old != before and not dry_run:
+        save_ledger(ledger, known_old)
     print(f"homepage_briefing stopped={stopped} {total.text()}", flush=True)
     return 1 if total.failed else 0
 
@@ -603,6 +635,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--only", action="append", help="stock code in the config (repeatable)")
     ap.add_argument("--limit", type=int, help="new PDFs per issuer in this run, from the top of the page")
     ap.add_argument("--years", type=int, help="skip documents older than N years from today")
+    ap.add_argument("--ledger", help="JSON of documents found too old after download (not under dest)")
     ap.add_argument("--dry-run", action="store_true", help="list new PDFs, do not download")
     args = ap.parse_args(argv)
     for name in ("limit", "years"):
@@ -612,7 +645,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
     return run(
         Path(args.dest), Path(args.config), only=args.only, limit=args.limit, years=args.years,
-        dry_run=args.dry_run,
+        dry_run=args.dry_run, ledger=Path(args.ledger) if args.ledger else None,
     )
 
 

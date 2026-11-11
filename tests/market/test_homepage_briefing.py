@@ -596,3 +596,45 @@ def test_eir_drops_english_titled_twins_and_same_day_duplicates() -> None:
     links = mod.parse_eir_feed(_eir_feed(items), "42120")
     assert [link.url.split("/")[-2] for link in links] == ["1", "3", "5"]
     assert links[2].title == "2026年10月期 FY2026 3Q Financial Results Presentation"
+
+
+def test_ledger_remembers_old_ones_found_after_download(tmp_path: Path) -> None:
+    page = (
+        '<h2>第2四半期</h2><a href="/a/undated_old.pdf">決算説明資料</a>'
+        '<h2>第3四半期</h2><a href="/a/undated_new.pdf">決算説明資料</a>'
+    )
+    dates = {"undated_old": _at(2021, 1, 5), "undated_new": _at(2026, 1, 5)}
+    ledger = tmp_path / "logs" / "ledger.json"
+    rc, gets, out = _run(tmp_path, page=page, dates=dates, years=5, ledger=ledger)
+    assert rc == 0
+    assert "saved=1 skipped=0 old=1 failed=0" in out
+    assert any(url.endswith("undated_old.pdf") for url in gets)
+    saved = json.loads(ledger.read_text(encoding="utf-8"))
+    assert list(saved.values()) == ["2021-01-05 00:00:00"]
+
+    rc, gets, out = _run(tmp_path, page=page, dates=dates, years=5, ledger=ledger)
+    assert rc == 0
+    assert "saved=0 skipped=1 old=1 failed=0" in out
+    assert gets == [INDEX_URL]
+
+
+def test_broken_ledger_starts_empty_and_dry_run_does_not_write(tmp_path: Path) -> None:
+    ledger = tmp_path / "ledger.json"
+    ledger.write_text("{broken", encoding="utf-8")
+    assert mod.load_ledger(ledger) == {}
+    assert mod.load_ledger(tmp_path / "missing.json") == {}
+    page = '<h2>第2四半期</h2><a href="/a/undated_old.pdf">決算説明資料</a>'
+    rc, _gets, _out = _run(tmp_path, page=page, years=5, ledger=ledger, dry_run=True)
+    assert rc == 0
+    assert ledger.read_text(encoding="utf-8") == "{broken"
+
+
+def test_crontab_runs_homepage_briefing_daily_with_a_ledger() -> None:
+    lines = [
+        line for line in (ROOT / "deploy" / "crontab").read_text(encoding="utf-8").splitlines()
+        if not line.lstrip().startswith("#") and "jobs/market/homepage_briefing.py" in line
+    ]
+    assert len(lines) == 1
+    assert "deploy/cron-run.sh jobs/market/homepage_briefing.py --years 5 --ledger /var/log/app/" in lines[0]
+    readme = (ROOT / "deploy" / "README.md").read_text(encoding="utf-8")
+    assert "jobs/market/homepage_briefing.py --years 5 --ledger /var/log/app/homepage_briefing_ledger.json" in readme

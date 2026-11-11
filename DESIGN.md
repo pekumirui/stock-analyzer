@@ -271,7 +271,8 @@ IR BANK の過去の決算説明資料（`tools/briefing/irbank_ingest.py`。KAB
 - PDF を取る直前に `shutil.disk_usage(--dest).free` を見て、IR BANK の一括取得と同じしきい値（`MIN_FREE_BYTES`）未満か読めなければ、保存せずに止まる（`stopped=disk_low`、終了コード 0）。最後の行は `homepage_briefing stopped=<done|disk_low> listed=… saved=… skipped=… old=… failed=…`。失敗が 1 件でもあれば終了コード 1
 - 一覧を eir-parts（プロネクサスの IR サービス。`ssl4.eir-parts.net`）で出す会社は、会社のページに PDF のリンクが無い。`index_url` に eir-parts のフィード `https://ssl4.eir-parts.net/V4Public/EIR/<4桁>/ja/announcement/announcement_<N>.js`（JSONP。N は会社ごとで 1〜10 に散らばる。同じ中身のフィードを複数持つ会社が多いので、決算資料のいちばん多い 1 本を書く。KAB-430）を書くと、HTML でなくフィードとして読む。採るのは `type` が `pdf` で `news_type` が `ir_material` で始まるもの。会社のページと違って決算以外の IR 資料（事業説明会、個人投資家向け説明会など）も並ぶので、決算の語は補わず、表題そのものが `is_material_title` を通るものだけ。`link_re` も効く（例: 丸紅の「IR資料」「質疑応答」）。短信・適時開示（`tanshin` / `press`）は採らない。同じ決算期・四半期（`fiscal_ym` / `quarter`）に日本語の表題の資料があれば、表題に日本語の無い資料は英文版として採らない（日本語版を出さず英語の表題だけの会社の分は残る）。同じ表題・同じ日の資料が複数の分類に載っていれば最初の 1 本（中身が同じ。例: 積水樹脂）。表題に年度が無ければ `fiscal_ym` から「2027年3月期」を頭に付ける。pubdate はフィードの `date`（時刻は 00:00:00）。document_id は `hp` + sha1(code 5 桁・PDF の URL のパス) の頭 24 桁
 - 拾えない形: 一覧を JavaScript で組み立てるページ（ソフトバンク、任天堂）、eir-parts でも標準のフィードに資料が入っていない会社（キオクシア）。設定に載せていない。リクルートは過去分が JavaScript の中にあり、HTML に出ている最新の 1 本だけ拾う
-- cron にはまだ入れていない。手での実行は `deploy/README.md`
+- `--ledger PATH` は、取ってから公開日で `--years` より前と分かった資料の番号と公開日を JSON に残し、次の実行では取りに行かない（KAB-438）。ledger が無い・壊れていれば空から。`--dry-run` では書かない
+- 毎日 22:25 に cron が `--years 5 --ledger /var/log/app/homepage_briefing_ledger.json` で動く（KAB-438。TDnet の説明資料の 22:10 のあと）。手での実行は `deploy/README.md`
 
 決算説明資料を OneDrive へ移す（`jobs/market/briefing_offsite.py`。KAB-345）:
 

@@ -403,7 +403,7 @@ deploy/cron-run.sh jobs/market/briefing_extract.py collect
 python jobs/market/briefing_extract.py status
 ```
 
-TDnet に説明資料を出さない会社の分（KAB-413）は `jobs/market/homepage_briefing.py` が会社の IR ページから取る。対象は `config/market/briefing_pages.json`。cron にはまだ入れていない。索引にある PDF は取り直さない。`--dry-run` は新しく保存する分を出すだけ。`--limit` は 1 社で新しく保存する件数（ページの上から）。
+TDnet に説明資料を出さない会社の分（KAB-413）は `jobs/market/homepage_briefing.py` が会社の IR ページから取る。対象は `config/market/briefing_pages.json`。毎日 22:25 に cron が `--years 5 --ledger /var/log/app/homepage_briefing_ledger.json` で動く（KAB-438）。索引にある PDF は取り直さない。`--dry-run` は新しく保存する分を出すだけ。`--limit` は 1 社で新しく保存する件数（ページの上から）。
 
 ```bash
 deploy/cron-run.sh jobs/market/homepage_briefing.py --only 6728 --dry-run
@@ -437,6 +437,7 @@ cron（JST）。`run_batch.py` は 19:30 の 1 回。
 |---|---|
 | `jobs/monthly/tdnet_monthly_r2.py 7` | 18:00 / 21:00（直近7日。一覧は TDnet。取りこぼしの拾い直し） |
 | `jobs/market/tdnet_briefing_r2.py 7` | 22:10（決算説明資料 → `data/briefing`。直近7日。既存 PDF は skip。索引行だけの補完は `reindexed`。初回の約30日は `deploy/cron-run.sh jobs/market/tdnet_briefing_r2.py 30` を手で一度。デプロイでは走らない） |
+| `jobs/market/homepage_briefing.py --years 5 --ledger /var/log/app/homepage_briefing_ledger.json` | 22:25（会社の IR ページ・eir-parts の決算説明資料 → `data/briefing`。直近 5 年。索引にある PDF は取り直さない。取ってから古いと分かった資料は ledger に残す。KAB-438） |
 | `jobs/market/tanshin_covers.py --days 3` | 23:35（決算短信の表紙の「補足説明資料の有無」「説明会の有無」→ `tanshin_covers`。直近 3 日に短信を出した会社の最新 1 件） |
 | `jobs/monthly/tdnet_monthly_pdf_sidecar.py` | 18:20 / 21:20（TDnet PDF 取得の後） |
 | `jobs/monthly/tdnet_monthly_pdf_ingest.py` | 18:30 / 21:30（sidecar の後。ledger は `/var/log/app/pdf_ingest_ledger.json`） |
