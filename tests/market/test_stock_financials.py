@@ -26,6 +26,9 @@ def test_financials(c) -> None:
     assert rows["Goodwill"]["cells"][2] == {"value": 3 * M, "source": "tdnet_pdf"}
     assert rows["Land"]["cells"][2] is None
     assert rows["pdf:前受金"]["unmatched_pdf"] is True and rows["pdf:前受金"]["label"] == "前受金"
+    assert set(rows["Goodwill"]) == {"key", "label", "unit", "unmatched_pdf", "group", "section", "cells"}
+    assert (rows["Goodwill"]["group"], rows["Goodwill"]["section"]) == ("資産", "無形固定資産")
+    assert (rows["LiabilitiesAndNetAssets"]["group"], rows["LiabilitiesAndNetAssets"]["section"]) == (None, None)
 
     d = c.get(f"/api/stock/{CODE}/financials?statement=PL&periods=2").json()
     assert d["cumulative"] is True and [p["label"] for p in d["periods"]] == ["25.06", "25.09"]

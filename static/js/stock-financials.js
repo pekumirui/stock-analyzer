@@ -50,18 +50,32 @@ function fsMeta(d){
   return parts.filter(Boolean).join(" / ");
 }
 
+function fsSecRow(name, level, span){
+  return `<tr class="fs-sec fs-sec${level}"><td class="l">${fsEsc(name)}</td><td colspan="${span}"></td></tr>`;
+}
+
 function fsTableHtml(d){
   if(!d || !(d.periods || []).length || !(d.rows || []).length){
     const tip = d && d.empty && d.empty.message ? ` title="${fsEsc(d.empty.message)}"` : "";
     return `<tr><td class="l sub"${tip}>データなし</td></tr>`;
   }
   const ps = d.periods;
+  const sectioned = d.rows.some(r => r.group || r.section);
   let h = `<thead><tr><th class="l">${d.cumulative ? "科目（累計）" : "科目"}</th>${ps.map(fsHeadCell).join("")}</tr></thead><tbody>`;
+  let at = null;
   for(const r of d.rows){
+    const g = r.group || null, s = r.section || null;
+    if(sectioned){
+      if(g && (!at || at.g !== g)) h += fsSecRow(g, 0, ps.length);
+      if(s && (!at || at.g !== g || at.s !== s)) h += fsSecRow(s, g ? 1 : 0, ps.length);
+      at = {g, s};
+    }
+    const depth = (g ? 1 : 0) + (s ? 1 : 0);
     const mark = r.unmatched_pdf
       ? `<span class="qb fs-pdf" title="XBRL の科目に対応が付かなかった短信 PDF の行">PDFのみ</span>` : "";
     const unit = r.unit === "per_share" ? `<span class="sub">（円）</span>` : "";
-    h += `<tr${r.unmatched_pdf ? ' class="pdf"' : ""}><td class="l" title="${fsEsc(r.key)}">${fsEsc(r.label)}${unit}${mark}</td>`
+    const cls = depth ? `l d${depth}` : "l";
+    h += `<tr${r.unmatched_pdf ? ' class="pdf"' : ""}><td class="${cls}" title="${fsEsc(r.key)}">${fsEsc(r.label)}${unit}${mark}</td>`
       + ps.map((p, i) => fsCell((r.cells || [])[i], p, r.unit)).join("") + `</tr>`;
   }
   return h + `</tbody>`;
