@@ -9,7 +9,7 @@ HTML = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
 CSS = (ROOT / "static" / "css" / "app.css").read_text(encoding="utf-8")
 
 ST_TABS_IDS = ("st-tabs",)
-FIN_TABS_IDS = ("earn-view", "st-fin-tabs", "tf", "st-zoom", "rk-subs", "rk-kind", "pts-ranking")
+FIN_TABS_IDS = ("earn-view", "st-fin-tabs", "st-fs-tabs", "st-fs-periods", "tf", "st-zoom", "rk-subs", "rk-kind", "pts-ranking")
 
 
 def _st_tabs_inner() -> str:
@@ -84,3 +84,19 @@ def test_nav_tabs_folder_css() -> None:
     longest = max(len(label) for label in labels) * int(fs.group(1)) + 2 * mh
     slot = 354 // len(labels)
     assert longest <= slot, f"longest tab {longest}px exceeds 390px slot {slot}px"
+
+
+def test_financials_sub_is_wired_like_other_subs() -> None:
+    subs = [sub for sub, _ in _st_tab_buttons(_st_tabs_inner())]
+    assert "financials" in subs
+    tabs_js = (ROOT / "static" / "js" / "tabs.js").read_text(encoding="utf-8")
+    m = re.search(r"const STOCK_SUBS = \[([^\]]*)\]", tabs_js)
+    assert m, "missing STOCK_SUBS"
+    assert re.findall(r'"([^"]+)"', m.group(1)) == subs
+    block = HTML[HTML.index('id="st-sub-financials"'):HTML.index('id="st-sub-news"')]
+    assert 'class="st-sub"' in HTML[HTML.index('id="st-sub-financials"') - 40:HTML.index('id="st-sub-financials"') + 60]
+    assert re.search(r'<table\b[^>]*\bid="st-fs-tbl"[^>]*class="sheet fin"', block)
+    assert '<div class="tbl-wrap">' in block
+    assert "#st-sub-financials .tbl-wrap" in CSS.split("max-height:calc(100vh - 140px)")[0].rsplit("\n", 1)[-1]
+    assert '<script src="/static/js/stock-financials.js"></script>' in HTML
+    assert 'consolidated' not in block
