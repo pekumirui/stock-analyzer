@@ -278,9 +278,11 @@ def load_both(db: Session, code: str) -> dict[bool, list[Filing]]:
     ids = sorted(filings[True])
     single = _single_entity(db, ids)
     picked: dict[bool, dict[int, list[Fact]]] = {True: defaultdict(list), False: defaultdict(list)}
+    starts: dict[int, str] = {}
     sql = text(
         "SELECT f.filing_id, f.id, e.namespace_key, e.local_name, e.label_ja, e.is_custom, "
-        "c.period_type, c.is_consolidated, c.has_dimensions, c.dimensions_json, f.unit, f.value_num "
+        "c.period_type, c.is_consolidated, c.has_dimensions, c.dimensions_json, f.unit, f.value_num, "
+        "c.start_date "
         "FROM xbrl_facts f "
         "JOIN xbrl_contexts c ON c.id = f.context_id "
         "JOIN xbrl_elements e ON e.id = f.element_id "
@@ -318,16 +320,29 @@ def load_both(db: Session, code: str) -> dict[bool, list[Filing]]:
                 filings[is_consol][fid].by_statement.setdefault(PDF_NS[ns], []).append(fact)
             else:
                 picked[is_consol][fid].append(fact)
+                starts[fact.id] = str(r[12] or "9999")
     out: dict[bool, list[Filing]] = {}
     for basis, by_id in filings.items():
         for fid, facts in picked[basis].items():
             filing = by_id[fid]
-            filing.seq = facts
-            filing.by_statement = split_xbrl(facts)
+            drop = _shorter_durations(facts, starts)
+            filing.seq = [f for f in facts if f.id not in drop]
+            filing.by_statement = {s: [f for f in v if f.id not in drop] for s, v in split_xbrl(facts).items()}
         for filing in by_id.values():
             filing.by_statement = {s: v for s, v in filing.by_statement.items() if v}
         out[basis] = sorted(by_id.values(), key=lambda f: (f.period_end, f.submitted, f.id))
     return out
+
+
+def _shorter_durations(facts: Sequence[Fact], starts: Mapping[int, str]) -> set[int]:
+    best: dict[str, Fact] = {}
+    for f in facts:
+        if f.instant:
+            continue
+        kept = best.get(f.key)
+        if kept is None or starts[f.id] < starts[kept.id]:
+            best[f.key] = f
+    return {f.id for f in facts if not f.instant and best[f.key] is not f}
 
 
 def _single_entity(db: Session, ids: Sequence[int]) -> set[int]:
