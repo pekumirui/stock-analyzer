@@ -351,6 +351,7 @@ IR 月次 HTML（`jobs/monthly/ir_monthly_html_r2.py`）:
 TDnet 短信 XBRL は取得済み ZIP（`jobs/xbrl/tdnet_xbrl_r2.py`）を `xbrl_filings` / `xbrl_facts` / `xbrl_financials` に載せる。
 スキーマとジョブは [`docs/DESIGN_xbrl.md`](docs/DESIGN_xbrl.md)。EDINET の提出者・書類一覧は [`docs/DESIGN_edinet.md`](docs/DESIGN_edinet.md)。決算速報 UI が読むのは `statements`。短信 XBRL から同じ形の行を作って入れ、数値は XBRL を優先する（KAB-383。`docs/DESIGN_xbrl.md` §3.2）。
 決算一覧の売上総利益は `idx_xbrl_financials_gp_cover` と `idx_xbrl_filings_id_cover` で表本体を読まない（KAB-295）。
+短信 PDF だけの期の行と XBRL の要素の対応は `xbrl_pdf_matches`（PDF の fact 1 つに 1 行。付け直しは `tools/tdnet_pdf/matches.py`）、有報・短信 XBRL・短信 PDF を要素名で並べる集計用のビューは `xbrl_statement_values`（`docs/DESIGN_xbrl.md` §18）。表と索引（`xbrl_elements` の `local_name` と `'ext:' || local_name`）は `init_db` / `jobs/migrate.py` が足す。ビューも `init_db` が作り、定義の文字列が変わっていれば作り直す。リポジトリのビューはこれだけ。
 
 **PTS ランキング（`pts_snapshots`）。** 株探 `https://kabutan.jp/warning/` の `pts_night_price_increase` / `pts_night_price_decrease` / `pts_night_volume_ranking`（夜間 PTS。株価は 15 分ディレイ）。取得は `app/market/pts.py`、ジョブは `jobs/market/pts_snapshot.py`。キー不要。画面は `docs/DESIGN_pts.md`。
 

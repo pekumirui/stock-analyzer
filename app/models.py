@@ -13,6 +13,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    literal_column,
 )
 from sqlalchemy.orm import declarative_base
 
@@ -500,7 +501,15 @@ class XbrlElement(Base):
     __table_args__ = (
         UniqueConstraint("namespace_uri", "local_name", name="uq_xbrl_elements_ns_local"),
         Index("idx_xbrl_elements_key", "namespace_key", "local_name"),
+        Index("idx_xbrl_elements_local", "local_name"),
     )
+
+
+Index(
+    "idx_xbrl_elements_ext_key",
+    literal_column("'ext:'").concat(XbrlElement.__table__.c.local_name),
+    _table=XbrlElement.__table__,
+)
 
 
 class XbrlContext(Base):
@@ -618,6 +627,24 @@ class XbrlFinancial(Base):
             "code", "std_item_id", "value_kind", "is_consolidated",
             "period_start", "period_end", "value", "filing_id",
         ),
+    )
+
+
+class XbrlPdfMatch(Base):
+    __tablename__ = "xbrl_pdf_matches"
+    fact_id = Column(Integer, ForeignKey("xbrl_facts.id"), primary_key=True)
+    filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), nullable=False)
+    code = Column(String(5), nullable=False)
+    is_consolidated = Column(Boolean, nullable=False)
+    statement = Column(String(8), nullable=False)
+    element_key = Column(String(300))
+    sign = Column(Integer, nullable=False, default=1)
+    matched_by = Column(String(8))
+    generated_at = Column(DateTime, nullable=False)
+    __table_args__ = (
+        Index("idx_xbrl_pdf_matches_filing", "filing_id"),
+        Index("idx_xbrl_pdf_matches_code", "code"),
+        Index("idx_xbrl_pdf_matches_key", "element_key", "code"),
     )
 
 

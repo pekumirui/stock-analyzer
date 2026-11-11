@@ -510,6 +510,17 @@ deploy/cron-run.sh jobs/ops/rebuild_daily_prices.py --yes   # 作り直す。MCP
 
 2 回目は「既に WITHOUT ROWID です」で何もしない。
 
+### 短信 PDF の行に XBRL の要素を付ける（`xbrl_pdf_matches`）
+
+デプロイの `migrate.py` が表・索引・ビュー `xbrl_statement_values` を足す（`xbrl_elements` の索引 2 本と ANALYZE。大きな表は書き換えない）。中身は入れないので、最初に一度だけ全銘柄を手で流す。短信 PDF の全件読み直し（`tools/tdnet_pdf/financials.py`）と同時には流さない（読み直しは最後に読み直した銘柄の分を自分で付ける）。そのあとは、読み直しのたび・`three_statements.py` の突き合わせを直したとき・四半期ごとに有報が出そろったあとに流す。cron には入れない。設計は `docs/DESIGN_xbrl.md` §18。
+
+```bash
+cd /home/stock/stock-analyzer
+.venv/bin/python tools/tdnet_pdf/matches.py --code 9880               # 1 銘柄で試す
+.venv/bin/python tools/tdnet_pdf/matches.py --batch 200               # 全銘柄。200 銘柄ごとに 1 行。止めて流し直してよい
+.venv/bin/python tools/tdnet_pdf/matches.py --unmatched 50            # 付かなかった行名の多い順（書き込まない）
+```
+
 ### TDnet 月次 PDF の未投入レポート（読み取り専用）
 
 前回と同じ書式の PDF は次の節の cron が入れる。残りは MCP `monthly_ingest` の手作業。`data/monthly` の PDF と `monthly_values` の差は、VPS 上のスクリプトで見る（MCP ツールは足さない。cron にも載せない）。

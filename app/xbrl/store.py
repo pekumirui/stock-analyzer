@@ -19,6 +19,7 @@ from app.models import (
     XbrlFiling,
     XbrlFinancial,
     XbrlMajorShareholder,
+    XbrlPdfMatch,
     XbrlSegment,
     XbrlShareholderFiling,
     XbrlShareholdingByCategory,
@@ -65,6 +66,7 @@ def _parse_submitted(raw: str) -> datetime:
 
 
 def delete_filing_payload(db: Session, filing_id: int) -> None:
+    db.execute(delete(XbrlPdfMatch).where(XbrlPdfMatch.filing_id == filing_id))
     db.execute(delete(XbrlFact).where(XbrlFact.filing_id == filing_id))
     db.execute(delete(XbrlContext).where(XbrlContext.filing_id == filing_id))
 
