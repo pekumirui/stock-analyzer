@@ -19,7 +19,6 @@ import gzip
 import hashlib
 import html
 import json
-import logging
 import os
 import re
 import hmac
@@ -157,10 +156,15 @@ DB_STATS_PROGRESS_OPS = 10_000
 # db_query: WAL 読取はライターを止めない。progress で打ち切り、行とバイトも上限。
 DB_QUERY_DEFAULT_LIMIT = 200
 DB_QUERY_MAX_LIMIT = 2000
-DB_QUERY_TIMEOUT_S = 120.0
+# nginx の /mcp（proxy_read_timeout 300s）より内側に置く。
+DB_QUERY_TIMEOUT_S = 180.0
 DB_QUERY_PROGRESS_OPS = 10_000
 DB_QUERY_MAX_BYTES = 1024 * 1024
-DB_QUERY_SQL_LOG_CHARS = 400
+# mcp.log の監査行。SQL はふつう全文が残る。極端に長いものだけ切る。
+DB_QUERY_SQL_LOG_CHARS = 10_000
+DB_QUERY_ERROR_LOG_CHARS = 300
+# 1 行に収める。tail_grep の splitlines が切る文字も空白にする。
+_LOG_BREAK_RE = re.compile(r"[\r\n\x0b\x0c\x1c-\x1e\x85\u2028\u2029]+")
 DB_QUERY_MAX_SQL_CHARS = 100_000
 # OAuth トークンは .mcp-oauth.json（DB 外）。stock.db に秘密表は今は無い。
 # 名前が token/secret/password/credential を含む表と sqlite_dbpage は拒否。
@@ -1308,16 +1312,33 @@ class _QueryBudget:
         return 1 if self._now() >= self.deadline else 0
 
 
-def _audit_db_query(sql: str, elapsed_s: float, row_count: int, truncated: bool) -> None:
-    snippet = redact(sql.replace("\n", " ").strip())
-    if len(snippet) > DB_QUERY_SQL_LOG_CHARS:
-        snippet = snippet[:DB_QUERY_SQL_LOG_CHARS] + "…"
-    line = (
-        f"db_query rows={row_count} elapsed={elapsed_s:.3f}s "
-        f"truncated={str(truncated).lower()} sql={snippet}"
-    )
-    print(line, flush=True)
-    logging.getLogger("mcp").info(line)
+def _log_line(text: str) -> None:
+    """mcp.log に 1 行。行頭は cron-run.sh と同じ JST の YYYY-MM-DD HH:MM:SS。"""
+    print(f"{_jst_now():%Y-%m-%d %H:%M:%S} {text}", flush=True)
+
+
+def _log_text(text: str, limit: int) -> str:
+    flat = redact(_LOG_BREAK_RE.sub(" ", text).strip())
+    return flat[:limit] + "…" if len(flat) > limit else flat
+
+
+def _audit_db_query(
+    sql: str,
+    elapsed_s: float,
+    row_count: int,
+    truncated: bool,
+    result: str = "ok",
+    error: str | None = None,
+) -> None:
+    """result は ok / timeout / error。params は値を含むので書かない。sql は行末まで。"""
+    fields = [
+        f"db_query result={result} rows={row_count} elapsed={elapsed_s:.3f}s",
+        f"truncated={str(truncated).lower()}",
+    ]
+    if error:
+        fields.append(f"error={json.dumps(_log_text(error, DB_QUERY_ERROR_LOG_CHARS), ensure_ascii=False)}")
+    fields.append(f"sql_chars={len(sql)} sql={_log_text(sql, DB_QUERY_SQL_LOG_CHARS)}")
+    _log_line(" ".join(fields))
 
 
 def _prepare_query_conn(conn: sqlite3.Connection, budget: _QueryBudget) -> None:
@@ -1351,6 +1372,8 @@ def tool_db_query(args: dict[str, Any]) -> str:
     started = time.monotonic()
     row_count = 0
     truncated = False
+    result = "error"
+    error: str | None = None
     try:
         _prepare_query_conn(conn, budget)
         cur = conn.execute(sql, params)
@@ -1379,11 +1402,20 @@ def tool_db_query(args: dict[str, Any]) -> str:
             "row_count": row_count,
             "truncated": truncated,
         }
-        return json.dumps(body, ensure_ascii=False, default=str)
+        text = json.dumps(body, ensure_ascii=False, default=str)
+        result = "ok"
+        return text
     except sqlite3.Error as exc:
+        if _is_interrupt(exc):
+            result = "timeout"
+        else:
+            error = str(exc)
         raise _query_error(exc) from exc
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"
+        raise
     finally:
-        _audit_db_query(sql, time.monotonic() - started, row_count, truncated)
+        _audit_db_query(sql, time.monotonic() - started, row_count, truncated, result, error)
         _close_query_conn(conn)
 
 
@@ -2262,7 +2294,7 @@ TOOLS: dict[str, tuple[str, dict[str, Any], Callable[[dict[str, Any]], str]]] = 
             "INSERT / UPDATE / DELETE / DROP / ATTACH / PRAGMA 書き込み / 複数文 / CTE 内の書き込みは拒否。"
             "EXPLAIN の後ろも SELECT / WITH 以外は拒否。"
             "limit は 1-2000（既定 200）。超えた行と出力バイトは truncated。"
-            "約2分で打ち切り。params は ? の配列か :name のオブジェクト。"
+            f"{DB_QUERY_TIMEOUT_S:.0f} 秒で打ち切り。params は ? の配列か :name のオブジェクト。"
         ),
         {
             "type": "object",
@@ -3191,7 +3223,7 @@ def main() -> None:
 
     token = configured_token()
     if not token:
-        print("MCP_TOKEN is unset; all requests will be 401", flush=True)
+        _log_line("MCP_TOKEN is unset; all requests will be 401")
     uvicorn.run(app, host=HOST, port=PORT, log_level="info", access_log=False)
 
 
