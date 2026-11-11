@@ -10,7 +10,7 @@ from sqlalchemy import text
 
 from app.db import SessionLocal, engine, ensure_views, init_db
 from app.xbrl import three_statements as fst
-from app.xbrl.pdf_matches import rebuild_matches, summary, unmatched_names
+from app.xbrl.pdf_matches import rebuild_matches, summary, target_codes, unmatched_names
 from app.xbrl.statement_values import VIEW_NAME
 from app.xbrl.store import delete_filing_payload
 
@@ -259,7 +259,7 @@ def test_summary_line() -> None:
     finally:
         db.close()
     assert summary(counts).startswith("pdf_matches codes=1 filings=1 matched=")
-    assert summary(counts).endswith("failed=0")
+    assert summary(counts).endswith("failed=0 skipped=0 deleted=0")
 
 
 def test_batch_lines_and_locked_retry(capsys, monkeypatch) -> None:
@@ -286,6 +286,52 @@ def test_batch_lines_and_locked_retry(capsys, monkeypatch) -> None:
     assert [line.split()[2] for line in out if line.startswith("pdf_matches batch")] == ["done=2/3", "done=3/3"]
     assert any(line.startswith("pdf_matches locked retry=1") for line in out)
     assert counts["failed"] == 0 and counts["codes"] == 3
+
+
+def _insert_unlisted_matches(code: str, n: int) -> None:
+    for i in range(n):
+        _run(
+            "INSERT INTO xbrl_pdf_matches (fact_id, filing_id, code, is_consolidated, statement, element_key, sign, "
+            "generated_at) VALUES (:f, 301, :c, 1, 'BS', NULL, 1, '2026-01-01')",
+            {"f": 700000 + i, "c": code},
+        )
+
+
+def test_unlisted_codes_are_skipped_and_their_rows_deleted(capsys) -> None:
+    unlisted = "99990"
+    _insert_unlisted_matches(unlisted, 3)
+    _filing(950, "tdnet_pdf", "FY", "2025-03-31", "2025-05-10 15:00:00")
+    _run("UPDATE xbrl_filings SET code = :c WHERE id = 950", {"c": unlisted})
+    db = SessionLocal()
+    try:
+        counts = rebuild_matches(db, batch=2)
+        out = capsys.readouterr().out
+        assert counts["deleted"] == 3 and counts["skipped"] == 1 and counts["failed"] == 0
+        assert counts["codes"] == len(target_codes(db)) and unlisted not in target_codes(db)
+        assert _rows("SELECT count(*) FROM xbrl_pdf_matches WHERE code = :c", {"c": unlisted}) == [(0,)]
+        assert _rows("SELECT count(*) FROM xbrl_facts") != [(0,)]
+        assert summary(counts).endswith("failed=0 skipped=1 deleted=3")
+        assert "skipped=1 deleted=3 left=" in out
+        again = rebuild_matches(db)
+        assert again["deleted"] == 0 and again["skipped"] == 1
+    finally:
+        db.close()
+        _run("DELETE FROM xbrl_filings WHERE id = 950")
+
+
+def test_code_option_skips_unlisted_and_keeps_its_rows(capsys) -> None:
+    unlisted = "99991"
+    _insert_unlisted_matches(unlisted, 2)
+    db = SessionLocal()
+    try:
+        counts = rebuild_matches(db, codes=[unlisted, NAMED])
+    finally:
+        db.close()
+    out = capsys.readouterr().out
+    assert f"pdf_matches skipped code={unlisted} reason=not in stocks" in out
+    assert counts["skipped"] == 1 and counts["codes"] == 1 and counts["deleted"] == 0
+    assert _rows("SELECT count(*) FROM xbrl_pdf_matches WHERE code = :c", {"c": unlisted}) == [(2,)]
+    _run("DELETE FROM xbrl_pdf_matches WHERE code = :c", {"c": unlisted})
 
 
 def test_view_is_recreated_when_definition_changes() -> None:
@@ -365,6 +411,24 @@ def test_financials_rebuilds_matches_for_reread_codes(capsys, monkeypatch) -> No
     assert cli.main([]) == 1
     out = capsys.readouterr().out
     assert "tdnet_pdf_financials " in out and "pdf_matches failed err=boom" in out
+
+
+def test_financials_skips_reread_codes_not_in_stocks(capsys, monkeypatch) -> None:
+    from collections import Counter
+
+    cli = _cli()
+    unlisted = "99992"
+
+    def fake_sync(db, *, codes, reparse, limit, batch, changed):
+        changed.update({unlisted, NAMED})
+        return Counter()
+
+    monkeypatch.setattr(cli, "sync_pdf_filings", fake_sync)
+    assert cli.main([]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert f"pdf_matches skipped code={unlisted} reason=not in stocks" in out
+    assert out[-1].startswith("pdf_matches codes=1 ") and out[-1].endswith("skipped=1 deleted=0")
+    assert matches(unlisted) == []
 
 
 def test_sync_reports_changed_codes() -> None:

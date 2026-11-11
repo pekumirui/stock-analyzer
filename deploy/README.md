@@ -512,7 +512,7 @@ deploy/cron-run.sh jobs/ops/rebuild_daily_prices.py --yes   # 作り直す。MCP
 
 ### 短信 PDF の行に XBRL の要素を付ける（`xbrl_pdf_matches`）
 
-デプロイの `migrate.py` が表・索引・ビュー `xbrl_statement_values` を足す（`xbrl_elements` の索引 2 本と ANALYZE。大きな表は書き換えない）。中身は入れないので、最初に一度だけ全銘柄を手で流す。短信 PDF の全件読み直し（`tools/tdnet_pdf/financials.py`）と同時には流さない（読み直しは最後に読み直した銘柄の分を自分で付ける）。そのあとは、読み直しのたび・`three_statements.py` の突き合わせを直したとき・四半期ごとに有報が出そろったあとに流す。cron には入れない。設計は `docs/DESIGN_xbrl.md` §18。
+デプロイの `migrate.py` が表・索引・ビュー `xbrl_statement_values` を足す（`xbrl_elements` の索引 2 本と ANALYZE。大きな表は書き換えない）。中身は入れないので、最初に一度だけ全銘柄を手で流す。短信 PDF の全件読み直し（`tools/tdnet_pdf/financials.py`）と同時には流さない（読み直しは最後に読み直した銘柄の分を自分で付ける）。そのあとは、読み直しのたび・`three_statements.py` の突き合わせを直したとき・四半期ごとに有報が出そろったあとに流す。cron には入れない。対象は `stocks` にある銘柄だけで、全銘柄で流すと `stocks` に無い銘柄の既存の行を消す。設計は `docs/DESIGN_xbrl.md` §18。
 
 ```bash
 cd /home/stock/stock-analyzer

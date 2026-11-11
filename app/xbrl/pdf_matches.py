@@ -7,13 +7,13 @@ from datetime import datetime, timezone
 from sqlalchemy import delete, insert, select, text, union
 from sqlalchemy.orm import Session
 
-from app.models import XbrlFiling, XbrlPdfMatch
+from app.models import Stock, XbrlFiling, XbrlPdfMatch
 from app.xbrl.three_statements import pdf_only_matches
 
 __all__ = ["LOCK_RETRY_WAIT", "rebuild_code", "rebuild_matches", "summary", "target_codes", "unmatched_names"]
 
 LOCK_RETRY_WAIT = 5.0
-COUNT_KEYS = ("codes", "filings", "matched", "unmatched", "failed")
+COUNT_KEYS = ("codes", "filings", "matched", "unmatched", "failed", "skipped", "deleted")
 
 
 def _now() -> datetime:
@@ -24,12 +24,31 @@ def _is_locked(exc: Exception) -> bool:
     return "database is locked" in str(exc)
 
 
-def target_codes(db: Session) -> list[str]:
+def listed_codes(db: Session) -> set[str]:
+    return {str(code) for (code,) in db.execute(select(Stock.code))}
+
+
+def _candidate_codes(db: Session) -> set[str]:
     stmt = union(
         select(XbrlFiling.code).where(XbrlFiling.source == "tdnet_pdf"),
         select(XbrlPdfMatch.code),
     )
-    return sorted(str(code) for (code,) in db.execute(stmt))
+    return {str(code) for (code,) in db.execute(stmt)}
+
+
+def target_codes(db: Session) -> list[str]:
+    return sorted(_candidate_codes(db) & listed_codes(db))
+
+
+def stale_codes(db: Session) -> list[str]:
+    stored = {str(code) for (code,) in db.execute(select(XbrlPdfMatch.code).distinct())}
+    return sorted(stored - listed_codes(db))
+
+
+def purge_code(db: Session, code: str) -> Counter:
+    result = db.execute(delete(XbrlPdfMatch).where(XbrlPdfMatch.code == code))
+    db.commit()
+    return Counter(deleted=result.rowcount or 0)
 
 
 def rebuild_code(db: Session, code: str) -> Counter:
@@ -72,12 +91,23 @@ def rebuild_matches(
     batch: int | None = None,
     retry_wait: float = LOCK_RETRY_WAIT,
 ) -> Counter:
-    targets = sorted(set(codes)) if codes else target_codes(db)
     counts: Counter = Counter()
+    stale: set[str] = set()
+    if codes:
+        listed = listed_codes(db)
+        targets = sorted(set(codes) & listed)
+        for code in sorted(set(codes) - listed):
+            counts["skipped"] += 1
+            print(f"pdf_matches skipped code={code} reason=not in stocks", flush=True)
+    else:
+        targets = target_codes(db)
+        stale = set(stale_codes(db))
+        counts["skipped"] = len(_candidate_codes(db) - set(targets))
+        targets = sorted(set(targets) | stale)
     step = batch if batch and batch > 0 else len(targets) or 1
 
     def run(code: str) -> None:
-        counts.update(rebuild_code(db, code))
+        counts.update(purge_code(db, code) if code in stale else rebuild_code(db, code))
 
     def failed(code: str, exc: Exception) -> None:
         db.rollback()
