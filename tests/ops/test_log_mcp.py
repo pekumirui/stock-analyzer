@@ -1,9 +1,12 @@
 """MCP サーバの認証・JSON-RPC・入力バリデーション。systemd は不要。"""
 from __future__ import annotations
 
+import contextlib
 import gzip
+import io
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime
@@ -860,12 +863,12 @@ def test_db_query_and_schema() -> None:
         )
         setup.commit()
         setup.close()
-        audits: list[tuple[str, float, int, bool]] = []
+        audits: list[tuple] = []
         orig_audit = m._audit_db_query
 
-        def capture_audit(sql: str, elapsed_s: float, row_count: int, truncated: bool) -> None:
-            audits.append((sql, elapsed_s, row_count, truncated))
-            orig_audit(sql, elapsed_s, row_count, truncated)
+        def capture_audit(sql, elapsed_s, row_count, truncated, result="ok", error=None):  # noqa: ANN001, ANN202
+            audits.append((sql, elapsed_s, row_count, truncated, result, error))
+            orig_audit(sql, elapsed_s, row_count, truncated, result, error)
 
         m._audit_db_query = capture_audit
         try:
@@ -897,6 +900,8 @@ def test_db_query_and_schema() -> None:
                 raise SystemExit(f"select rows: {body}")
             if not audits or "SELECT code, name FROM stocks" not in audits[-1][0] or audits[-1][2] != 1:
                 raise SystemExit(f"audit: {audits}")
+            if audits[-1][4] != "ok" or audits[-1][5] is not None:
+                raise SystemExit(f"audit result: {audits[-1]}")
 
             cte, cte_err = m.call_tool(
                 "db_query",
@@ -936,6 +941,9 @@ def test_db_query_and_schema() -> None:
             still = json.loads(m.tool_db_query({"sql": "SELECT COUNT(*) AS n FROM stocks"}))
             if still["rows"] != [[2]]:
                 raise SystemExit(f"writes leaked: {still}")
+            bad, bad_err = m.call_tool("db_query", {"sql": "SELECT nope FROM stocks"})
+            if not bad_err or audits[-1][4] != "error" or "nope" not in (audits[-1][5] or ""):
+                raise SystemExit(f"audit error: {bad!r} {audits[-1]}")
 
             secret, secret_err = m.call_tool("db_query", {"sql": "SELECT token FROM api_tokens"})
             if not secret_err or "secret-token" in secret:
@@ -977,8 +985,10 @@ def test_db_query_and_schema() -> None:
             finally:
                 m.DB_QUERY_PROGRESS_OPS = orig_ops
                 m._QueryBudget = orig_budget
-            if not to_err or "timeout" not in to_text.lower():
+            if not to_err or "query timeout after 180s" not in to_text:
                 raise SystemExit(f"timeout: {to_text!r} err={to_err}")
+            if audits[-1][4] != "timeout" or "WITH RECURSIVE" not in audits[-1][0]:
+                raise SystemExit(f"audit timeout: {audits[-1]}")
 
             schema = json.loads(m.tool_db_schema({}))
             names = [t["name"] for t in schema["tables"]]
@@ -1010,6 +1020,67 @@ def test_db_query_and_schema() -> None:
                 os.environ.pop("DATABASE_URL", None)
             else:
                 os.environ["DATABASE_URL"] = prev_url
+
+
+def test_db_query_timeout_value_and_description() -> None:
+    """上限は 180 秒。nginx の /mcp（300 秒）より内側で、ツール説明も同じ値。"""
+    if m.DB_QUERY_TIMEOUT_S != 180.0:
+        raise SystemExit(f"DB_QUERY_TIMEOUT_S {m.DB_QUERY_TIMEOUT_S} != 180")
+    nginx = (ROOT / "deploy" / "nginx-site.sh").read_text(encoding="utf-8")
+    block = nginx[nginx.index("location ~ ^/mcp/?$"):]
+    block = block[: block.index("\n    }")]
+    limits = [int(n) for n in re.findall(r"proxy_(?:read|send)_timeout (\d+)s;", block)]
+    if len(limits) != 2 or min(limits) <= m.DB_QUERY_TIMEOUT_S:
+        raise SystemExit(f"nginx /mcp timeouts {limits} must exceed {m.DB_QUERY_TIMEOUT_S}")
+    desc = m.TOOLS["db_query"][0]
+    if "180 秒で打ち切り" not in desc or "約2分" in desc:
+        raise SystemExit(f"db_query description: {desc}")
+
+
+def test_db_query_audit_line_format() -> None:
+    """監査行: 行頭に JST の日時、result、所要時間、SQL は 1 行で全文。秘密は伏せる。"""
+
+    def line_of(*args) -> str:  # noqa: ANN002
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            m._audit_db_query(*args)
+        out = buf.getvalue()
+        if len(out.splitlines()) != 1 or not out.endswith("\n"):
+            raise SystemExit(f"audit must be one line: {out!r}")
+        return out[:-1]
+
+    tail = "OR code = '72030' " * 60
+    sql = "SELECT code,\r\n  name\nFROM stocks WHERE name = 'x\u2028y' " + tail
+    ok = line_of(sql, 1.23456, 3, False)
+    stamp = m._cron_stamp(ok)
+    if stamp is None or abs((m._jst_now() - stamp).total_seconds()) > 5:
+        raise SystemExit(f"audit stamp: {ok[:40]!r}")
+    flat = ("SELECT code,   name FROM stocks WHERE name = 'x y' " + tail).strip()
+    want = f" db_query result=ok rows=3 elapsed=1.235s truncated=false sql_chars={len(sql)} sql={flat}"
+    if ok[19:] != want or len(flat) <= 400:
+        raise SystemExit(f"audit ok line: {ok!r}")
+
+    timeout = line_of("SELECT 1", 180.004, 0, False, "timeout")
+    if " db_query result=timeout rows=0 elapsed=180.004s " not in timeout or "error=" in timeout:
+        raise SystemExit(f"audit timeout line: {timeout!r}")
+
+    err = line_of("SELECT nope", 0.001, 0, False, "error", "no such column: nope\npassword=hunter2")
+    want_err = ' result=error rows=0 elapsed=0.001s truncated=false error="no such column: nope password=<redacted>" sql_chars=11 sql=SELECT nope'
+    if want_err not in err:
+        raise SystemExit(f"audit error line: {err!r}")
+    # fluent-bit は mcp.log の ERROR / Traceback を Slack に流す。監査行の語は小文字のまま。
+    if "ERROR" in err or "Traceback" in err:
+        raise SystemExit(f"audit line must not page: {err!r}")
+
+    secret = line_of("SELECT 'api_key=abc123' AS k", 0.0, 1, False)
+    if "abc123" in secret or "api_key=<redacted>" not in secret:
+        raise SystemExit(f"audit redact: {secret!r}")
+
+    huge = "SELECT '" + "あ" * (m.DB_QUERY_SQL_LOG_CHARS + 50) + "'"
+    cut = line_of(huge, 0.0, 1, False)
+    logged = cut.split(" sql=", 1)[1]
+    if len(logged) != m.DB_QUERY_SQL_LOG_CHARS + 1 or not logged.endswith("…") or f"sql_chars={len(huge)} " not in cut:
+        raise SystemExit(f"audit cut: len={len(logged)}")
 
 
 def test_db_query_budget_interrupts_after_timeout_s() -> None:
@@ -2889,6 +2960,8 @@ def main() -> None:
     test_db_stats_approx_timeout_and_stat1()
     test_timed_fetch_progress_interrupt()
     test_db_query_and_schema()
+    test_db_query_timeout_value_and_description()
+    test_db_query_audit_line_format()
     test_db_query_budget_interrupts_after_timeout_s()
     test_db_query_explain()
     test_xbrl_compare_tools()
