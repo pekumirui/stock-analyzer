@@ -47,6 +47,26 @@ PAGE = """
 """
 
 
+class _Usage:
+    def __init__(self, free: int) -> None:
+        self.free = free
+
+
+ENOUGH = _Usage(mod.MIN_FREE_BYTES)
+
+
+@pytest.fixture(autouse=True)
+def _host_disk_does_not_stop(monkeypatch: pytest.MonkeyPatch) -> None:
+    """渡さないテストはホストの空きを見ない。"""
+    real = mod.run
+
+    def run(*args, **kwargs):
+        kwargs.setdefault("disk_usage", lambda path: ENOUGH)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(mod, "run", run)
+
+
 @pytest.fixture(autouse=True)
 def _no_rows() -> None:
     db = SessionLocal()
@@ -141,7 +161,7 @@ def test_run_saves_and_indexes_then_skips(tmp_path: Path) -> None:
     dates = {"Presentation%20Q1": _at(2026, 11, 10, 15, 18, 10), "FY2026": _at(2099, 1, 1)}
     rc, gets, out = _run(tmp_path, dates=dates)
     assert rc == 0
-    assert "listed=5 saved=5 skipped=0 failed=0" in out
+    assert "listed=5 saved=5 skipped=0 old=0 failed=0" in out
     rows = {row.title: row for row in _rows()}
     assert len(rows) == 5
     deck = rows["2027年6月期 第1四半期 決算説明資料"]
@@ -159,7 +179,7 @@ def test_run_saves_and_indexes_then_skips(tmp_path: Path) -> None:
     rc, gets, out = _run(tmp_path, dates=dates)
     assert rc == 0
     assert gets == [INDEX_URL]
-    assert "listed=5 saved=0 skipped=5 failed=0" in out
+    assert "listed=5 saved=0 skipped=5 old=0 failed=0" in out
 
 
 def test_limit_takes_new_ones_from_the_top(tmp_path: Path) -> None:
@@ -442,7 +462,7 @@ def test_eir_issuer_saves_with_the_feed_date(tmp_path: Path) -> None:
             ) == 0
         return out.getvalue()
 
-    assert "listed=4 saved=4 skipped=0 failed=0" in run_once()
+    assert "listed=4 saved=4 skipped=0 old=0 failed=0" in run_once()
     rows = {row.title: row for row in _rows()}
     deck = rows["2027年3月期 第2四半期 IR資料(スクリプト付)"]
     assert deck.pubdate == "2026-11-04 00:00:00"
@@ -450,5 +470,91 @@ def test_eir_issuer_saves_with_the_feed_date(tmp_path: Path) -> None:
     assert deck.rel_path == "8002/20261104_8002_丸紅_2027年3月期 第2四半期 IR資料(スクリプト付).pdf"
     assert deck.url.endswith("/ir_material_for_fiscal_ym5/217107/00.pdf")
     gets.clear()
-    assert "listed=4 saved=0 skipped=4 failed=0" in run_once()
+    assert "listed=4 saved=0 skipped=4 old=0 failed=0" in run_once()
     assert gets == [EIR_URL]
+
+
+def test_year_hint_reads_western_and_japanese_years() -> None:
+    assert mod.year_hint("2027年6月期 第1四半期 決算説明資料", "/a.pdf") == 2027
+    assert mod.year_hint("2026年度(2027年3月期) 説明資料", "/a.pdf") == 2027
+    assert mod.year_hint("平成26年3月期第2四半期決算補足説明資料", "/PressRelease.pdf") == 2014
+    assert mod.year_hint("令和元年度 決算説明資料", "/a.pdf") == 2019
+    assert mod.year_hint("第2四半期 決算説明資料", "/pdf/261104/20261104j.pdf") == 2026
+    assert mod.year_hint("第2四半期 決算説明資料", "/pdf/q2.pdf") is None
+    assert mod.year_hint("FY2026 3Q Financial Results Presentation", "/a.pdf") == 2026
+
+
+def test_years_ago_keeps_the_day() -> None:
+    assert mod.years_ago(_at(2026, 11, 11, 9, 30), 5) == _at(2021, 11, 11)
+    assert mod.years_ago(_at(2028, 2, 29), 1) == _at(2027, 2, 28)
+
+
+def test_years_skips_old_ones_before_and_after_download(tmp_path: Path) -> None:
+    page = (
+        '<h2>2027年3月期</h2><a href="/a/new.pdf">決算説明資料</a>'
+        '<h2>2020年3月期</h2><a href="/a/old_title.pdf">決算説明資料</a>'
+        '<h2>平成26年3月期</h2><a href="/a/heisei.pdf">決算補足説明資料</a>'
+        '<h2>第2四半期</h2><a href="/a/undated_old.pdf">決算説明資料</a>'
+        '<h2>第3四半期</h2><a href="/a/undated_new.pdf">決算説明資料</a>'
+    )
+    dates = {"undated_old": _at(2021, 11, 9, 23, 59), "undated_new": _at(2021, 11, 10), "new.pdf": _at(2026, 5, 1)}
+    rc, gets, out = _run(tmp_path, page=page, dates=dates, years=5)
+    assert rc == 0
+    assert "since=2021-11-10" in out
+    assert "listed=5 saved=2 skipped=0 old=3 failed=0" in out
+    assert "old 6728 2021-11-09 23:59:00 第2四半期 決算説明資料" in out
+    assert not any("old_title" in url or "heisei" in url for url in gets)
+    assert sorted(row.title for row in _rows()) == ["2027年3月期 決算説明資料", "第3四半期 決算説明資料"]
+
+
+def test_years_uses_the_eir_feed_date_without_downloading(tmp_path: Path) -> None:
+    path = tmp_path / "eir.json"
+    path.write_text(
+        json.dumps({"issuers": [{"code": "8002", "name": "丸紅", "index_url": EIR_URL}]}),
+        encoding="utf-8",
+    )
+    items = [
+        _eir_item("2027年3月期 決算説明会資料", "https://ssl4.eir-parts.net/doc/8002/ir_material2/1/00.pdf",
+                  date="2026/11/04 00:00:00"),
+        _eir_item("2021年3月期 決算説明会資料", "https://ssl4.eir-parts.net/doc/8002/ir_material2/2/00.pdf",
+                  date="2021/05/01 00:00:00"),
+    ]
+    gets: list[str] = []
+
+    def fake_get(url: str) -> bytes:
+        gets.append(url)
+        return _eir_feed(items).encode("utf-8") if url == EIR_URL else _pdf(url)
+
+    out = io.StringIO()
+    with redirect_stdout(out):
+        rc = mod.run(tmp_path / "briefing", path, get=fake_get, read_date=lambda data: None, now=NOW, years=5)
+    assert rc == 0
+    assert "saved=1 skipped=0 old=1 failed=0" in out.getvalue()
+    assert gets == [EIR_URL, "https://ssl4.eir-parts.net/doc/8002/ir_material2/1/00.pdf"]
+
+
+def test_low_disk_stops_without_saving(tmp_path: Path) -> None:
+    rc, gets, out = _run(tmp_path, disk_usage=lambda path: _Usage(mod.MIN_FREE_BYTES - 1))
+    assert rc == 0
+    assert "stopped=disk_low" in out
+    assert gets == [INDEX_URL]
+    assert _rows() == []
+
+
+def test_unreadable_disk_counts_as_low(tmp_path: Path) -> None:
+    def broken(path: Path) -> object:
+        raise OSError("gone")
+
+    assert mod.disk_is_low(tmp_path, broken)
+    assert mod.disk_is_low(tmp_path, lambda path: object())
+    assert not mod.disk_is_low(tmp_path, lambda path: ENOUGH)
+
+
+def test_main_rejects_non_positive_years() -> None:
+    assert mod.main(["--years", "0", "--dry-run"]) == 2
+
+
+def test_log_mcp_can_read_the_job_log() -> None:
+    import mcp.log_mcp as logs
+
+    assert "homepage_briefing" in logs.BATCH_JOBS

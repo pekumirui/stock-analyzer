@@ -18,6 +18,10 @@ index_url が転送や meta refresh で別のページへ飛ばすときは、�
 YYYYMMDD、それも無ければ取得した時刻）。
 番号は表題と PDF のファイル名から作る。索引にある PDF は取りに行かない。
 --limit は 1 社で新しく保存する件数（ページの上から）。
+--years N は今日から N 年前の日より前の資料を保存しない。eir-parts はフィードの日付で決める。
+会社のページは表題か URL にある年（和暦を含む）が N 年前の年より古ければ取りに行かず、
+年が読めないものは取ってから公開日で決める（保存しないので次の実行でもまた取る）。
+保存の直前に --dest の空きを見て、MIN_FREE_BYTES 未満なら保存せずに止める（終了コード 0）。
 一覧を eir-parts（プロネクサスの IR サービス）で出す会社は、index_url に会社のページでなく
 フィード（https://ssl4.eir-parts.net/V4Public/EIR/<code>/ja/announcement/announcement_<N>.js）を書く。
 フィードは公開日を持つのでそれを使い、番号は PDF の URL から作る。
@@ -29,10 +33,11 @@ import argparse
 import hashlib
 import json
 import re
+import shutil
 import sys
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -73,6 +78,10 @@ _META_REFRESH = re.compile(
     re.I,
 )
 MAX_REFRESH = 2
+MIN_FREE_BYTES = 25 * 1024 * 1024 * 1024
+_TITLE_YEAR = re.compile(r"(?<!\d)(19[89]\d|20\d{2})(?!\d)")
+_WAREKI_YEAR = re.compile(r"(平成|令和)\s*(元|\d{1,2})\s*年")
+_WAREKI_BASE = {"平成": 1988, "令和": 2018}
 _VOID_TAGS = frozenset({"img", "br", "hr", "input", "meta", "link", "source", "wbr", "area", "col", "embed"})
 _SKIP_TAGS = frozenset({"svg", "style", "script"})
 _FORMAT_ONLY = re.compile(r"^PDF$", re.I)
@@ -87,6 +96,7 @@ _PDF_DATE = re.compile(
 )
 
 Getter = Callable[[str], bytes]
+DiskUsage = Callable[[Path], object]
 PageGetter = Callable[[str], tuple[bytes, str]]
 PdfDate = Callable[[bytes], datetime | None]
 
@@ -260,6 +270,57 @@ def parse_eir_feed(text: str, code: str, link_re: str = "") -> list[DeckLink]:
     return out
 
 
+def year_hint(title: str, url: str) -> int | None:
+    """表題と URL から読める一番新しい年。資料の年はこれより後にはならない。"""
+    years = [int(y) for y in _TITLE_YEAR.findall(title)]
+    years += [_WAREKI_BASE[era] + (1 if n == "元" else int(n)) for era, n in _WAREKI_YEAR.findall(title)]
+    day = url_date(url)
+    if day is not None:
+        years.append(day.year)
+    return max(years) if years else None
+
+
+def years_ago(now: datetime, years: int) -> datetime:
+    day = now.date()
+    try:
+        start = day.replace(year=day.year - years)
+    except ValueError:
+        start = day.replace(year=day.year - years, day=28)
+    return datetime(start.year, start.month, start.day)  # noqa: DTZ001
+
+
+def disk_is_low(dest: Path, disk_usage: DiskUsage) -> bool:
+    """--dest の空きがしきい値未満、または空きを読めない。"""
+    try:
+        target = dest if dest.exists() else dest.parent
+        free = getattr(disk_usage(target), "free", None)
+    except OSError:
+        return True
+    if isinstance(free, bool) or not isinstance(free, int):
+        return True
+    return free < MIN_FREE_BYTES
+
+
+class DiskLow(Exception):
+    """空きが足りないので、この実行ではもう保存しない。"""
+
+
+@dataclass
+class Counts:
+    listed: int = 0
+    saved: int = 0
+    skipped: int = 0
+    old: int = 0
+    failed: int = 0
+
+    def add(self, other: Counts) -> None:
+        for f in fields(self):
+            setattr(self, f.name, getattr(self, f.name) + getattr(other, f.name))
+
+    def text(self) -> str:
+        return " ".join(f"{f.name}={getattr(self, f.name)}" for f in fields(self))
+
+
 def parse_pdf_date(value: str | None) -> datetime | None:
     """PDF の日時（D:YYYYMMDDHHmmSS+09'00'）を JST の naive に。時差が無ければそのまま。"""
     match = _PDF_DATE.match((value or "").strip())
@@ -363,8 +424,12 @@ def fetch_issuer(
     now: datetime,
     limit: int | None,
     dry_run: bool,
-) -> tuple[int, int, int, int]:
-    """戻りは (listed, saved, skipped, failed)。一覧が取れなければ例外。"""
+    since: datetime | None = None,
+    disk_usage: DiskUsage = shutil.disk_usage,
+    counts: Counts | None = None,
+) -> Counts:
+    """一覧が取れなければ例外。空きが足りなければ DiskLow（counts にそこまでの件数）。"""
+    counts = Counts() if counts is None else counts
     code5 = jq_lookup_code(issuer.code)
     links: list[DeckLink] = []
     listed: set[str] = set()
@@ -378,17 +443,25 @@ def fetch_issuer(
             if link.document_id not in listed:
                 listed.add(link.document_id)
                 links.append(link)
-    saved = skipped = failed = 0
+    counts.listed = len(links)
+    cutoff = since.strftime("%Y-%m-%d %H:%M:%S") if since is not None else ""
     for link in links:
         if has_saved(SOURCE_HOMEPAGE, link.document_id):
-            skipped += 1
+            counts.skipped += 1
             continue
-        if limit is not None and saved >= limit:
+        if since is not None:
+            hint = year_hint(link.title, link.url)
+            if (link.pubdate and link.pubdate < cutoff) or (not link.pubdate and hint is not None and hint < since.year):
+                counts.old += 1
+                continue
+        if limit is not None and counts.saved >= limit:
             break
         if dry_run:
-            saved += 1
+            counts.saved += 1
             print(f"would save {issuer.code} {link.title} {link.url}", flush=True)
             continue
+        if disk_is_low(dest, disk_usage):
+            raise DiskLow(dest)
         try:
             data = get(link.url)
             if not data.startswith(b"%PDF"):
@@ -399,6 +472,10 @@ def fetch_issuer(
                 if when is None or when > now:
                     when = now
                 pubdate = when.strftime("%Y-%m-%d %H:%M:%S")
+            if cutoff and pubdate < cutoff:
+                counts.old += 1
+                print(f"old {issuer.code} {pubdate} {link.title}", flush=True)
+                continue
             path = dest_path(dest, pubdate, issuer.code, issuer.name, link.title)
             if path.exists():
                 path = path.with_name(f"{path.stem}_{link.document_id[-6:]}.pdf")
@@ -415,15 +492,16 @@ def fetch_issuer(
                 sha256=hashlib.sha256(data).hexdigest(),
                 size=len(data),
             )
-            saved += 1
+            counts.saved += 1
             print(f"saved {path.relative_to(dest)} ({len(data)} bytes)", flush=True)
         except Exception as exc:
             if abort_if_disconnected("homepage_briefing", dest, exc) is not None:
                 raise
-            failed += 1
+            counts.failed += 1
             print(f"fail {issuer.code} {link.title} {link.url}: {exc}", flush=True)
-        time.sleep(SLEEP_SEC)
-    return len(links), saved, skipped, failed
+        finally:
+            time.sleep(SLEEP_SEC)
+    return counts
 
 
 def run(
@@ -432,11 +510,13 @@ def run(
     *,
     only: list[str] | None = None,
     limit: int | None = None,
+    years: int | None = None,
     dry_run: bool = False,
     get: Getter | None = None,
     get_page: PageGetter | None = None,
     read_date: PdfDate | None = None,
     now: datetime | None = None,
+    disk_usage: DiskUsage = shutil.disk_usage,
 ) -> int:
     issuers = load_registry(config)
     if only:
@@ -464,37 +544,35 @@ def run(
         pager = http_get_page
     reader = pdf_date if read_date is None else read_date
     when = now or datetime.now(JST).replace(tzinfo=None)
+    since = years_ago(when, years) if years is not None else None
     print(
-        f"homepage_briefing start issuers={len(issuers)} dry_run={int(dry_run)} dest={dest}",
+        f"homepage_briefing start issuers={len(issuers)} dry_run={int(dry_run)} dest={dest}"
+        + (f" since={since.date()}" if since is not None else ""),
         flush=True,
     )
-    listed = saved = skipped = failed = 0
+    total = Counts()
+    stopped = "done"
     for issuer in issuers:
+        counts = Counts()
         try:
-            counts = fetch_issuer(
-                issuer, dest, get=getter, get_page=pager, read_date=reader, now=when, limit=limit, dry_run=dry_run,
+            fetch_issuer(
+                issuer, dest, get=getter, get_page=pager, read_date=reader, now=when, limit=limit,
+                dry_run=dry_run, since=since, disk_usage=disk_usage, counts=counts,
             )
+        except DiskLow:
+            stopped = "disk_low"
         except Exception as exc:
             down = abort_if_disconnected("homepage_briefing", dest, exc)
             if down is not None:
                 return down
-            failed += 1
+            counts.failed += 1
             print(f"fail {issuer.code} {' '.join(issuer.index_urls)}: {exc}", flush=True)
-            continue
-        print(
-            f"homepage_briefing {issuer.code} listed={counts[0]} saved={counts[1]} "
-            f"skipped={counts[2]} failed={counts[3]}",
-            flush=True,
-        )
-        listed += counts[0]
-        saved += counts[1]
-        skipped += counts[2]
-        failed += counts[3]
-    print(
-        f"homepage_briefing done listed={listed} saved={saved} skipped={skipped} failed={failed}",
-        flush=True,
-    )
-    return 1 if failed else 0
+        print(f"homepage_briefing {issuer.code} {counts.text()}", flush=True)
+        total.add(counts)
+        if stopped != "done":
+            break
+    print(f"homepage_briefing stopped={stopped} {total.text()}", flush=True)
+    return 1 if total.failed else 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -503,13 +581,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--config", default=str(DEFAULT_CONFIG), help="issuer list JSON")
     ap.add_argument("--only", action="append", help="stock code in the config (repeatable)")
     ap.add_argument("--limit", type=int, help="new PDFs per issuer in this run, from the top of the page")
+    ap.add_argument("--years", type=int, help="skip documents older than N years from today")
     ap.add_argument("--dry-run", action="store_true", help="list new PDFs, do not download")
     args = ap.parse_args(argv)
-    if args.limit is not None and args.limit < 1:
-        print("--limit must be a positive integer", file=sys.stderr)
-        return 2
+    for name in ("limit", "years"):
+        value = getattr(args, name)
+        if value is not None and value < 1:
+            print(f"--{name} must be a positive integer", file=sys.stderr)
+            return 2
     return run(
-        Path(args.dest), Path(args.config), only=args.only, limit=args.limit, dry_run=args.dry_run,
+        Path(args.dest), Path(args.config), only=args.only, limit=args.limit, years=args.years,
+        dry_run=args.dry_run,
     )
 
 
