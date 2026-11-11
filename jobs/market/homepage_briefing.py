@@ -225,8 +225,8 @@ def is_eir_feed(url: str) -> bool:
 def parse_eir_feed(text: str, code: str, link_re: str = "") -> list[DeckLink]:
     """eir-parts のフィード（JSONP）から PDF の IR 資料を、並びのまま。
 
-    決算期つきの資料（news_type が ir_material_for_fiscal_ym）は決算の語を補って判定する。
-    決算期の無い IR 資料（ir_material）は表題そのものに決算の語が要る。短信・適時開示は採らない。
+    会社のページと違って決算以外の IR 資料も並ぶので、決算の語は補わない。表題そのものが
+    is_material_title を通るか、link_re に合うものだけ。短信・適時開示は採らない。
     """
     extra = re.compile(link_re) if link_re else None
     body = text.lstrip("\ufeff")
@@ -243,7 +243,7 @@ def parse_eir_feed(text: str, code: str, link_re: str = "") -> list[DeckLink]:
             continue
         text_ = spaced_title(str(item.get("title") or ""))
         fiscal = kind.startswith("ir_material_for_fiscal_ym")
-        if not is_material_title(f"決算 {text_}" if fiscal else text_) and not (extra and extra.search(text_)):
+        if not is_material_title(text_) and not (extra and extra.search(text_)):
             continue
         year = _EIR_FISCAL.match(str(item.get("fiscal_ym") or ""))
         title = text_

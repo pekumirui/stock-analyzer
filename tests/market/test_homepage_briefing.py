@@ -393,6 +393,7 @@ EIR_ITEMS = [
     _eir_item("質疑応答", "https://ssl4.eir-parts.net/doc/8002/ir_material_for_fiscal_ym5/217319/00.pdf"),
     _eir_item("IR資料_2027年3月期第2四半期", "https://ssl4.eir-parts.net/doc/8002/ir_material_for_fiscal_ym4/216973/00.pdf"),
     _eir_item("純利益", "", kind="space"),
+    _eir_item("インド事業説明会資料", "https://ssl4.eir-parts.net/doc/8002/ir_material_for_fiscal_ym5/200001/00.pdf"),
     _eir_item("説明会動画 2026年11月4日", "https://www.irwebcasting.com/20261104/3/index.html", kind="url"),
     _eir_item("2027年3月期 第2四半期（中間期）決算短信〔ＩＦＲＳ〕（連結）",
               "https://ssl4.eir-parts.net/doc/8002/tdnet/2903789/00.pdf", news_type="tanshin"),
@@ -408,7 +409,7 @@ EIR_ITEMS = [
 def test_eir_feed_takes_ir_material_pdfs_with_dates() -> None:
     assert mod.is_eir_feed(EIR_URL)
     assert not mod.is_eir_feed("https://www.marubeni.com/jp/ir/reports/year/")
-    links = mod.parse_eir_feed(_eir_feed(EIR_ITEMS), "80020", "IR資料")
+    links = mod.parse_eir_feed(_eir_feed(EIR_ITEMS), "80020", "IR資料|^質疑応答$")
     assert [(link.title, link.pubdate) for link in links] == [
         ("2027年3月期 第2四半期 IR資料(スクリプト付)", "2026-11-04 00:00:00"),
         ("2027年3月期 質疑応答", "2026-11-04 00:00:00"),
@@ -417,13 +418,13 @@ def test_eir_feed_takes_ir_material_pdfs_with_dates() -> None:
     ]
     assert len({link.document_id for link in links}) == 4
     without = mod.parse_eir_feed(_eir_feed(EIR_ITEMS), "80020")
-    assert [link.title for link in without] == ["2027年3月期 質疑応答", "2026年3月期 決算説明会資料"]
+    assert [link.title for link in without] == ["2026年3月期 決算説明会資料"]
 
 
 def test_eir_issuer_saves_with_the_feed_date(tmp_path: Path) -> None:
     path = tmp_path / "eir.json"
     path.write_text(
-        json.dumps({"issuers": [{"code": "8002", "name": "丸紅", "index_url": EIR_URL, "link_re": "IR資料"}]}),
+        json.dumps({"issuers": [{"code": "8002", "name": "丸紅", "index_url": EIR_URL, "link_re": "IR資料|^質疑応答$"}]}),
         encoding="utf-8",
     )
     gets: list[str] = []
