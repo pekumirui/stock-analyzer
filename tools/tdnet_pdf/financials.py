@@ -4,6 +4,7 @@ cron では動かさない。tools/tdnet_pdf/ingest.py で過去の短信 PDF �
 TDnet の ZIP があり、ingest は PDF を取らない）。取り込み済みの回は飛ばすので何度流してもよい。
 
   python tools/tdnet_pdf/financials.py --limit 100000
+  python tools/tdnet_pdf/financials.py --limit 100000 --batch 500   # 500 件ごとに進み具合を 1 行出す
   python tools/tdnet_pdf/financials.py --code 7203
   python tools/tdnet_pdf/financials.py --reparse
 """
@@ -36,12 +37,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--code", action="append", default=[], help="4 桁または 5 桁。繰り返し可")
     parser.add_argument("--reparse", action="store_true", help="指紋を無視して HTML を読み直す")
     parser.add_argument("--limit", type=int, default=2000)
+    parser.add_argument(
+        "--batch", type=int, default=None,
+        help="N 件ごとに区切って累計を 1 行出す。database is locked の回は区切りで待って 1 回やり直す",
+    )
     args = parser.parse_args(argv)
+    if args.batch is not None and args.batch < 1:
+        parser.error("--batch は 1 以上")
     codes = [code5(code) for code in args.code] or None
     db = SessionLocal()
     try:
         apply_mappings(db)
-        counts = sync_pdf_filings(db, codes=codes, reparse=args.reparse, limit=args.limit)
+        counts = sync_pdf_filings(
+            db, codes=codes, reparse=args.reparse, limit=args.limit, batch=args.batch,
+        )
         parts = [f"{outcome.value}={counts[outcome]}" for outcome in SyncOutcome]
         parts.append(f"garbled={counts['garbled']}")
         parts.append(f"textless={counts['textless']}")

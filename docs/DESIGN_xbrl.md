@@ -936,6 +936,8 @@ context は ZIP の短信サマリーと同じメンバー（`ResultMember` な�
 
 `tools/tdnet_pdf/financials.py` が新しい順に最大 `--limit`（既定 2000）件。cron では動かさない。新しい短信は ZIP があり `tools/tdnet_pdf/ingest.py` が PDF を取らないので、過去の PDF を入れたあとに手で流す（`--limit 100000` で全件）。後から ZIP が来た回の PDF filing は ZIP の取込が消す。指紋が同じ `parsed` / `failed` は HTML を読まない（`unchanged`）ので何度流してもよい。`READER_VERSION` を上げるか会計基準が後から決まると指紋がずれ、次の実行が HTML を読み直す。`--reparse` は指紋を無視する。マッピングだけ変えたときは `jobs/xbrl/xbrl_normalize.py --rebuild` で足りる。
 
+`--batch N`（例 500）は N 件ごとに区切り、区切りごとに `tdnet_pdf_financials batch done=500/100000 parsed=… unchanged=… failed=… retired=… absent=… garbled=… textless=… left=99500` を 1 行出す（KAB-435。数は累計、`left` は今回の残り）。コミットは `--batch` があっても 1 件ごとなので、途中で止めて流し直せば取り込み済みは `unchanged` で飛ばして続きから進む。`database is locked` で落ちた回は区切りの終わりに 5 秒待って 1 回やり直し、それでも落ちた回だけ `failed` に数える（`pdf failed disclosure_no=…` の行が出る。filing は残らないので次の実行がまた試す）。`--batch` なしは区切らず、やり直しもしない。最後の集計行はどちらも同じ。
+
 ZIP の `parse_manifest_row` は、パースが `parsed` のあと、失敗を `mark_failed` する `try` の外で `sync_pdf_filing(db, doc_id の後ろ 14 桁)` を呼ぶ。PDF 側の例外は ZIP を `failed` にしない。`parse_status='parsed'` の `source='tdnet'` がある 14 桁は PDF filing を消す。
 
 ZIP との付き合わせは `tools/tdnet_pdf/verify_financials.py` がスクラッチの SQLite で行う（本番 `stock.db` へは書かない）。提出日は `statements.disclosed_date` / `disclosed_time` を優先し、無ければ ZIP 名の先頭 8 桁から取る（開示番号からは作らない）。`statements` に J-Quants の日付がそろっているときは ZIP の期末で上書きしない（KAB-219）。テストは本番 DB も IR BANK も呼ばない。
