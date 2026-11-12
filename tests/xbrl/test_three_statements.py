@@ -16,6 +16,7 @@ LOOSE = "56780"
 SINGLE = "24680"
 NAMED = "13570"
 QUARTER = "36790"
+TWICE = "22820"
 NONCONSOL = {"jppfs_cor:ConsolidatedOrNonConsolidatedAxis": "jppfs_cor:NonConsolidatedMember"}
 SEGMENT = {"jpcrp_cor:OperatingSegmentsAxis": "jpcrp_cor:ReportableSegmentsMember"}
 
@@ -33,6 +34,10 @@ LABELS = {
     "NetIncreaseDecreaseInCashAndCashEquivalents": "現金及び現金同等物の増減額（△は減少）",
     "CashAndCashEquivalents": "現金及び現金同等物の残高",
     "BondsPayable": "社債", "BorrowingsCLIFRS": "借入金", "BorrowingsNCLIFRS": "借入金",
+    "ProfitLossAttributableToOwnersOfParent": "親会社株主に帰属する当期純利益",
+    "ProfitLossAttributableToNonControllingInterests": "非支配株主に帰属する当期純利益",
+    "ComprehensiveIncome": "包括利益", "ComprehensiveIncomeAttributableToOwnersOfTheParent": "親会社株主に係る包括利益",
+    "ComprehensiveIncomeAttributableToNonControllingInterests": "非支配株主に係る包括利益",
 }
 
 
@@ -268,6 +273,26 @@ def _quarterly(s: Seeder) -> None:
     s.facts(404, "2025-03-31", _quarter_cf(24, 280, 65))
 
 
+def _twice(s: Seeder) -> None:
+    s.stock(TWICE, "2 回印字")
+    s.filing(501, "edinet", "FY", "2025-03-31", "2025-06-20 15:00:00", code=TWICE)
+    s.facts(501, "2025-03-31", [
+        x("CashAndDeposits", "i", 90), x("Assets", "i", 90), x("LiabilitiesAndNetAssets", "i", 90),
+        x("NetSales", "d", 500), x("ProfitLoss", "d", 150), x("ProfitLossAttributableToOwnersOfParent", "d", 140),
+        x("ProfitLossAttributableToNonControllingInterests", "d", 10), x("ComprehensiveIncome", "d", 170),
+        x("ComprehensiveIncomeAttributableToOwnersOfTheParent", "d", 160),
+        x("ComprehensiveIncomeAttributableToNonControllingInterests", "d", 10),
+    ])
+    pl = ["売上高", "当期利益", "親会社の所有者", "非支配持分", "当期利益#2", "当期包括利益", "親会社の所有者#2",
+          "非支配持分#2"]
+    s.filing(502, "tdnet_pdf", "FY", "2025-03-31", "2025-05-10 15:00:00", code=TWICE)
+    s.facts(502, "2025-03-31", [p("pl", n, v) for n, v in zip(pl, [500, 150, 140, 10, 150, 170, 160, 10])])
+    s.filing(503, "tdnet_pdf", "Q1", "2025-06-30", "2025-08-08 15:00:00", code=TWICE)
+    s.facts(503, "2025-06-30", [p("pl", n, v) for n, v in zip(pl, [120, 30, 28, 2, 30, 35, 33, 2])])
+    s.filing(504, "tdnet_pdf", "Q2", "2025-09-30", "2025-11-08 15:00:00", code=TWICE)
+    s.facts(504, "2025-09-30", [p("pl", n, v) for n, v in zip(pl, [250, 60, 56, 4, 25, 70, 66, 4])])
+
+
 def seed() -> None:
     s = Seeder()
     _company(s, CODE, 0)
@@ -290,6 +315,7 @@ def seed() -> None:
         x("NetAssets", "i", 4), x("LiabilitiesAndNetAssets", "i", 12),
     ])
     _quarterly(s)
+    _twice(s)
     s.close()
 
 
@@ -354,7 +380,8 @@ def test_learn_pair_uses_value_and_print_order() -> None:
     assert bs["その他#2"].key == "OtherPPE"
     assert bs["その他#3"].key == "OtherIA"
     assert bs["その他#4"].key == "OtherCL"
-    assert bs["有形固定資産土地"].key == "Land"
+    assert bs["土地"].key == "Land"
+    assert "有形固定資産土地" not in bs
     assert bs["有形固定資産合計"].key == "PropertyPlantAndEquipment"
     assert bs["資産合計"].key == "Assets"
     assert bs["負債純資産合計"].key == "LiabilitiesAndNetAssets"
@@ -394,12 +421,11 @@ def test_pdf_only_period_uses_nearest_same_kind_pair() -> None:
                    "accounting_standard": "JPGAAP"}
 
 
-def test_pdf_only_period_drops_order_conflicts_without_matching_kind() -> None:
+def test_pdf_only_period_matches_others_within_sections_across_kinds() -> None:
     t = table(LOOSE)
-    assert value(t, "OtherIA", "25.06") is None
-    assert value(t, "OtherCL", "25.06") is None
-    assert value(t, "pdf:その他#2", "25.06") == 11 * M
-    assert value(t, "pdf:その他#3", "25.06") == 6 * M
+    assert value(t, "OtherIA", "25.06") == 11 * M
+    assert value(t, "OtherCL", "25.06") == 6 * M
+    assert "pdf:その他#2" not in rows(t) and "pdf:その他#3" not in rows(t)
     assert value(t, "Goodwill", "25.06") == 3 * M
     assert value(t, "OtherCA", "25.06") == 5 * M
 
@@ -683,3 +709,262 @@ def test_learn_pair_matches_pdf_against_year_to_date() -> None:
     }
     assert learned.maps["CF"]["税金等調整前中間純利益"].key == "IncomeBeforeIncomeTaxes"
     assert learned.extras["CF"] == {"IncomeBeforeIncomeTaxes": None}
+
+
+def test_second_printing_of_the_same_value_is_the_same_item() -> None:
+    by_id = filings(TWICE)
+    learned = fst.learn_pair(by_id[502], by_id[501])
+    assert learned.twice["PL"] == {"当期利益"}
+    assert learned.maps["PL"]["当期利益"].key == "ProfitLoss"
+    assert "当期利益#2" not in learned.maps["PL"]
+    assert learned.maps["PL"]["非支配持分#2"].key == "ComprehensiveIncomeAttributableToNonControllingInterests"
+    t = table(TWICE, statement="PL")
+    assert labels(t) == ["25.03", "25.06", "25.09"]
+    assert [c["value"] for c in rows(t)["ProfitLoss"]["cells"]] == [150 * M, 30 * M, 60 * M]
+    assert "pdf:当期利益#2" in rows(t)
+    assert [c and c["value"] for c in rows(t)["pdf:当期利益#2"]["cells"]] == [None, None, 25 * M]
+    assert value(t, "ComprehensiveIncomeAttributableToNonControllingInterests", "25.06") == 2 * M
+    assert value(t, "ProfitLossAttributableToNonControllingInterests", "25.06") == 2 * M
+
+
+def pl_fact(local: str, value: float) -> fst.Fact:
+    f = fact(local, value)
+    return fst.Fact(id=f.id, key=f.key, local=local, label="", instant=False, unit="JPY", value=f.value)
+
+
+def test_second_printing_survives_the_one_element_per_row_check() -> None:
+    learned = fst.Learned(period_end=date(2025, 3, 31), cls="FY",
+                          maps={"PL": {"当期利益": fst.Mapped("ProfitLoss", 1)}}, order={"PL": ["ProfitLoss"]},
+                          twice={"PL": {"当期利益"}})
+    got = fst.apply_learned([pl_fact("当期利益", 30), pl_fact("当期利益#2", 30)], [learned], "PL",
+                            date(2025, 6, 30), "Q")
+    assert [m and m.key for _, m in got] == ["ProfitLoss", "ProfitLoss"]
+    got = fst.apply_learned([pl_fact("当期利益", 30), pl_fact("当期利益#2", 25)], [learned], "PL",
+                            date(2025, 6, 30), "Q")
+    assert [m and m.key for _, m in got] == ["ProfitLoss", None]
+    plain = fst.Learned(period_end=date(2025, 3, 31), cls="FY",
+                        maps={"PL": {"当期利益": fst.Mapped("ProfitLoss", 1), "当期利益#2": fst.Mapped("ProfitLoss", 1)}},
+                        order={"PL": ["ProfitLoss"]})
+    got = fst.apply_learned([pl_fact("当期利益", 30), pl_fact("当期利益#2", 30)], [plain], "PL",
+                            date(2025, 6, 30), "Q")
+    assert [m for _, m in got] == [None, None]
+
+
+def test_pdf_rows_drop_section_heads_but_keep_totals() -> None:
+    assert fst.strip_heads("特別損失固定資産除却損", "PL") == "固定資産除却損"
+    assert fst.strip_heads("特別損失のれん償却額", "PL") == "のれん償却額"
+    assert fst.strip_heads("営業外費用計量法関連費用", "PL") == "計量法関連費用"
+    assert fst.strip_heads("有形固定資産無形固定資産のれん", "BS") == "のれん"
+    assert fst.strip_heads("流動負債:借入金及び社債", "BS") == "借入金及び社債"
+    for name, statement in [
+        ("特別損失合計", "PL"), ("営業外収益合計", "PL"), ("営業外費用計", "PL"), ("無形固定資産合計", "BS"),
+        ("有形固定資産合計#2", "BS"), ("その他の包括利益累計額合計", "BS"), ("有形固定資産(純額)", "BS"),
+        ("その他の包括利益累計額の内訳その他有価証券", "BS"), ("有形固定資産及び無形固定資産の増加額", "BS"),
+        ("有形固定資産の取得による支出", "CF"), ("営業活動によるキャッシュ・フロー計", "CF"), ("特別損失", "PL"),
+        ("固定資産仮勘定", "BS"),
+    ]:
+        assert fst.strip_heads(name, statement) == name
+    rows = [fact("有形固定資産建物", 1), fact("その他", 2), fact("無形固定資産その他", 3), fact("その他#2", 4)]
+    info = fst.pdf_rows(rows, "BS")
+    assert info.names == ["建物", "その他", "その他#2", "その他#3"]
+    assert info.bases == ["建物", "その他", "その他", "その他"] and info.copies == {}
+
+
+def xbrl_fact(fid: int, key: str, value: float, label: str = "", instant: bool = False) -> fst.Fact:
+    return fst.Fact(id=fid, key=key, local=key, label=label, instant=instant, unit="JPY", value=value * M)
+
+
+def pair(statement: str, xbrl: list[fst.Fact], pdf: list[fst.Fact], end: date = date(2025, 3, 31),
+         kind: str = "FY") -> fst.Learned:
+    x = fst.Filing(id=1, doc_id="X", source="edinet", period_type=kind, period_end=end, submitted="2025-06-20",
+                   standard="JPGAAP")
+    x.by_statement = {statement: xbrl}
+    x.seq = list(xbrl)
+    pdf_filing = fst.Filing(id=2, doc_id="P", source="tdnet_pdf", period_type=kind, period_end=end,
+                            submitted="2025-05-10", standard="JPGAAP")
+    pdf_filing.by_statement = {statement: pdf}
+    return fst.learn_pair(pdf_filing, x)
+
+
+def keys_of(got: list[tuple[fst.Fact, fst.Mapped | None]]) -> list[str | None]:
+    return [None if m is None else m.key for _, m in got]
+
+
+def test_section_heads_that_move_between_periods_keep_the_learned_item() -> None:
+    learned = pair("PL", [
+        xbrl_fact(1, "NetSales", 500), xbrl_fact(2, "LossOnRetirementOfNoncurrentAssetsEL", 7),
+        xbrl_fact(3, "ImpairmentLossEL", 9),
+    ], [pl_fact("売上高", 500), pl_fact("特別損失固定資産除却損", 7), pl_fact("減損損失", 9)])
+    assert set(learned.maps["PL"]) == {"売上高", "固定資産除却損", "減損損失"}
+    got = fst.apply_learned([pl_fact("売上高", 120), pl_fact("固定資産除却損", 1), pl_fact("特別損失減損損失", 3)],
+                            [learned], "PL", date(2025, 6, 30), "Q")
+    assert keys_of(got) == ["NetSales", "LossOnRetirementOfNoncurrentAssetsEL", "ImpairmentLossEL"]
+
+
+def bs_fact(local: str, value: float) -> fst.Fact:
+    return fact(local, value)
+
+
+def section_names(*extra: fst.Fact) -> fst.Names:
+    xbrl = fst.Filing(id=1, doc_id="X", source="edinet", period_type="FY", period_end=date(2025, 3, 31),
+                      submitted="2025-06-20", standard="JPGAAP")
+    xbrl.by_statement = {"BS": [
+        xbrl_fact(1, "CashAndDeposits", 100, "現金及び預金", True),
+        xbrl_fact(2, "AllowanceForDoubtfulAccountsCA", -1, "貸倒引当金", True),
+        xbrl_fact(3, "OtherCA", 5, "その他", True),
+        xbrl_fact(4, "CurrentAssets", 104, "流動資産合計", True),
+        xbrl_fact(5, "InvestmentSecurities", 50, "投資有価証券", True),
+        xbrl_fact(6, "AllowanceForDoubtfulAccountsIOAByGroup", -2, "貸倒引当金", True),
+        xbrl_fact(7, "InvestmentsAndOtherAssets", 48, "投資その他の資産合計", True),
+        xbrl_fact(8, "Assets", 152, "資産合計", True),
+        *extra,
+    ]}
+    return fst.name_index([xbrl], "BS")
+
+
+TOTALS = fst.Learned(
+    period_end=date(2025, 3, 31), cls="FY",
+    maps={"BS": {"流動資産合計": fst.Mapped("CurrentAssets", 1), "投資その他の資産合計": fst.Mapped("InvestmentsAndOtherAssets", 1),
+                 "資産合計": fst.Mapped("Assets", 1)}},
+    order={"BS": ["CurrentAssets", "InvestmentsAndOtherAssets", "Assets"]},
+)
+
+
+def bs_rows(*, second_ca: bool = False) -> list[fst.Fact]:
+    rows = [bs_fact("現金", 90), bs_fact("貸倒引当金", -1)]
+    if second_ca:
+        rows.append(bs_fact("貸倒引当金#2", -3))
+    rows += [bs_fact("その他", 4), bs_fact("流動資産合計", 90), bs_fact("投資有価証券", 40),
+             bs_fact(f"貸倒引当金#{3 if second_ca else 2}", -2), bs_fact("投資その他の資産合計", 38),
+             bs_fact("資産合計", 128)]
+    return rows
+
+
+def test_name_index_keeps_labels_within_sections() -> None:
+    names = section_names()
+    assert "貸倒引当金" not in names.keys
+    assert names.by_section[("CurrentAssets", "貸倒引当金")] == "AllowanceForDoubtfulAccountsCA"
+    assert names.by_section[("InvestmentsAndOtherAssets", "貸倒引当金")] == "AllowanceForDoubtfulAccountsIOAByGroup"
+    assert names.by_section[("CurrentAssets", "その他")] == "OtherCA"
+
+
+def test_name_match_within_sections() -> None:
+    got = keys_of(fst.apply_learned(bs_rows(), [TOTALS], "BS", date(2025, 6, 30), "Q", section_names()))
+    assert got == [None, "AllowanceForDoubtfulAccountsCA", "OtherCA", "CurrentAssets", "InvestmentSecurities",
+                   "AllowanceForDoubtfulAccountsIOAByGroup", "InvestmentsAndOtherAssets", "Assets"]
+    assert all(m.by == "name" for _, m in fst.apply_learned(bs_rows(), [TOTALS], "BS", date(2025, 6, 30), "Q",
+                                                             section_names())[1:3])
+
+
+def test_name_match_within_sections_needs_one_row_and_a_section() -> None:
+    got = keys_of(fst.apply_learned(bs_rows(second_ca=True), [TOTALS], "BS", date(2025, 6, 30), "Q", section_names()))
+    assert got[1] is None and got[2] is None and got[6] == "AllowanceForDoubtfulAccountsIOAByGroup"
+    no_totals = fst.Learned(period_end=date(2025, 3, 31), cls="FY", maps={"BS": {"資産合計": fst.Mapped("Assets", 1)}},
+                            order={"BS": ["Assets"]})
+    got = keys_of(fst.apply_learned(bs_rows(), [no_totals], "BS", date(2025, 6, 30), "Q", section_names()))
+    assert got[1] is None and got[5] is None
+
+
+def test_generic_others_are_not_matched_by_name_within_sections() -> None:
+    rows = [bs_fact("現金", 90), bs_fact("その他", 4), bs_fact("流動資産合計", 90), bs_fact("投資有価証券", 40),
+            bs_fact("その他#2", 7), bs_fact("投資その他の資産合計", 38), bs_fact("資産合計", 128)]
+    names = section_names(xbrl_fact(9, "OtherIOA", 7, "その他", True))
+    assert names.by_section[("CurrentAssets", "その他")] == "OtherCA"
+    got = keys_of(fst.apply_learned(rows, [TOTALS], "BS", date(2025, 6, 30), "Q", names))
+    assert got[1] is None and got[4] is None
+
+
+def test_two_elements_with_one_label_in_a_section_are_not_matched_by_name() -> None:
+    names = section_names(xbrl_fact(9, "AllowanceForDoubtfulAccountsInvestmentsIOA", -1, "貸倒引当金", True))
+    assert ("InvestmentsAndOtherAssets", "貸倒引当金") in names.by_section
+    xbrl = fst.Filing(id=1, doc_id="X", source="edinet", period_type="FY", period_end=date(2025, 3, 31),
+                      submitted="2025-06-20", standard="JPGAAP")
+    xbrl.by_statement = {"BS": [
+        xbrl_fact(1, "AllowanceForDoubtfulAccountsCA", -1, "貸倒引当金", True),
+        xbrl_fact(2, "AllowanceForDoubtfulAccountsOtherCA", -1, "貸倒引当金", True),
+        xbrl_fact(3, "CurrentAssets", 104, "流動資産合計", True),
+    ]}
+    assert ("CurrentAssets", "貸倒引当金") not in fst.name_index([xbrl], "BS").by_section
+
+
+PL_X = [
+    xbrl_fact(1, "OperatingIncome", 100), xbrl_fact(2, "InterestIncomeNOI", 3), xbrl_fact(3, "OtherNOI", 4),
+    xbrl_fact(4, "NonOperatingIncome", 7), xbrl_fact(5, "InterestExpensesNOE", 2), xbrl_fact(6, "OtherNOE", 5),
+    xbrl_fact(7, "NonOperatingExpenses", 7), xbrl_fact(8, "OrdinaryIncome", 100),
+    xbrl_fact(9, "GainOnSalesOfNoncurrentAssetsEI", 6), xbrl_fact(10, "OtherEI", 8),
+    xbrl_fact(11, "ExtraordinaryIncome", 14), xbrl_fact(12, "ImpairmentLossEL", 11), xbrl_fact(13, "OtherEL", 9),
+    xbrl_fact(14, "ExtraordinaryLoss", 20), xbrl_fact(15, "ProfitLoss", 94),
+]
+PL_P = [
+    pl_fact("営業利益", 100), pl_fact("受取利息", 3), pl_fact("その他", 4), pl_fact("営業外収益合計", 7),
+    pl_fact("支払利息", 2), pl_fact("その他#2", 5), pl_fact("営業外費用合計", 7), pl_fact("経常利益", 100),
+    pl_fact("固定資産売却益", 6), pl_fact("その他#3", 8), pl_fact("特別利益合計", 14), pl_fact("減損損失", 11),
+    pl_fact("その他#4", 9), pl_fact("特別損失合計", 20), pl_fact("当期純利益", 94),
+]
+
+
+def test_value_pairs_for_others_are_kept_by_section_in_pl() -> None:
+    learned = pair("PL", PL_X, PL_P)
+    assert learned.by_section["PL"][("NonOperatingIncome", "その他")].key == "OtherNOI"
+    assert learned.by_section["PL"][("ExtraordinaryLoss", "その他")].key == "OtherEL"
+    rows = [
+        pl_fact("営業利益", 30), pl_fact("受取利息", 1), pl_fact("その他", 2), pl_fact("営業外収益合計", 3),
+        pl_fact("支払利息", 1), pl_fact("営業外費用合計", 1), pl_fact("経常利益", 32), pl_fact("減損損失", 4),
+        pl_fact("その他#2", 5), pl_fact("特別損失合計", 9), pl_fact("当期純利益", 23),
+    ]
+    got = keys_of(fst.apply_learned(rows, [learned], "PL", date(2025, 6, 30), "Q"))
+    assert got[2] == "OtherNOI" and got[8] == "OtherEL"
+    assert None not in got
+
+
+def test_value_pairs_for_others_are_kept_by_section_in_cf() -> None:
+    learned = pair("CF", [
+        xbrl_fact(1, "DepreciationAndAmortizationOpeCF", 10), xbrl_fact(2, "OtherNetOpeCF", 3),
+        xbrl_fact(3, "NetCashProvidedByUsedInOperatingActivities", 13), xbrl_fact(4, "PurchaseOfPropertyPlantAndEquipmentInvCF", -8),
+        xbrl_fact(5, "OtherNetInvCF", -1), xbrl_fact(6, "NetCashProvidedByUsedInInvestmentActivities", -9),
+        xbrl_fact(7, "CashDividendsPaidFinCF", -4), xbrl_fact(8, "OtherNetFinCF", -2),
+        xbrl_fact(9, "NetCashProvidedByUsedInFinancingActivities", -6),
+    ], [
+        pl_fact("減価償却費", 10), pl_fact("その他", 3), pl_fact("営業活動によるキャッシュ・フロー", 13),
+        pl_fact("有形固定資産の取得による支出", -8), pl_fact("その他#2", -1), pl_fact("投資活動によるキャッシュ・フロー", -9),
+        pl_fact("配当金の支払額", -4), pl_fact("その他#3", -2), pl_fact("財務活動によるキャッシュ・フロー", -6),
+    ])
+    rows = [
+        pl_fact("減価償却費", 5), pl_fact("その他", 1), pl_fact("営業活動によるキャッシュ・フロー", 6),
+        pl_fact("有形固定資産の取得による支出", -3), pl_fact("投資活動によるキャッシュ・フロー", -3),
+        pl_fact("配当金の支払額", -4), pl_fact("その他#2", -7), pl_fact("財務活動によるキャッシュ・フロー", -11),
+    ]
+    got = keys_of(fst.apply_learned(rows, [learned], "CF", date(2025, 6, 30), "Q"))
+    assert got[1] == "OtherNetOpeCF" and got[6] == "OtherNetFinCF"
+    assert None not in got
+
+
+def test_pdf_only_period_drops_numbered_others_without_sections() -> None:
+    learned = fst.Learned(
+        period_end=date(2025, 3, 31), cls="FY",
+        maps={"BS": {"その他": fst.Mapped("OtherCA", 1), "その他#2": fst.Mapped("OtherPPE", 1),
+                     "のれん": fst.Mapped("Goodwill", 1), "その他#3": fst.Mapped("OtherIA", 1),
+                     "短期借入金": fst.Mapped("ShortTermLoansPayable", 1), "その他#4": fst.Mapped("OtherCL", 1)}},
+        order={"BS": ["OtherCA", "OtherPPE", "Goodwill", "OtherIA", "ShortTermLoansPayable", "OtherCL"]},
+    )
+    rows = [bs_fact("その他", 5), bs_fact("のれん", 3), bs_fact("その他#2", 11), bs_fact("短期借入金", 33),
+            bs_fact("その他#3", 6)]
+    got = keys_of(fst.apply_learned(rows, [learned], "BS", date(2025, 6, 30), "Q"))
+    assert got == ["OtherCA", "Goodwill", None, "ShortTermLoansPayable", None]
+
+
+def test_order_check_follows_the_same_kind_of_period() -> None:
+    names = {"未収入金": "AccountsReceivableOther", "棚卸資産": "OtherInventories", "賞与引当金": "ProvisionForBonuses",
+             "工事損失引当金": "ProvisionForLossOnConstructionContracts"}
+    maps = {"BS": {k: fst.Mapped(v, 1) for k, v in names.items()}}
+    fy = fst.Learned(period_end=date(2026, 3, 31), cls="FY", maps=maps, order={"BS": [
+        "OtherInventories", "AccountsReceivableOther", "ProvisionForLossOnConstructionContracts", "ProvisionForBonuses",
+    ]})
+    q = fst.Learned(period_end=date(2025, 9, 30), cls="Q", maps=maps, order={"BS": [
+        "AccountsReceivableOther", "OtherInventories", "ProvisionForBonuses", "ProvisionForLossOnConstructionContracts",
+    ]})
+    rows = [bs_fact("未収入金", 6), bs_fact("棚卸資産", 2), bs_fact("賞与引当金", 4), bs_fact("工事損失引当金", 1)]
+    assert None not in keys_of(fst.apply_learned(rows, [fy, q], "BS", date(2026, 6, 30), "Q"))
+    assert keys_of(fst.apply_learned(rows, [fy], "BS", date(2026, 6, 30), "Q")).count(None) == 2
+    fy_rows = [bs_fact("棚卸資産", 2), bs_fact("未収入金", 6), bs_fact("工事損失引当金", 1), bs_fact("賞与引当金", 4)]
+    assert None not in keys_of(fst.apply_learned(fy_rows, [fy, q], "BS", date(2027, 3, 31), "FY"))

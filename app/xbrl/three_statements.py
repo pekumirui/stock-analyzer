@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Iterable, Mapping, Sequence
@@ -20,13 +20,17 @@ __all__ = [
     "Mapped",
     "Names",
     "PdfMatch",
+    "PdfRows",
     "apply_learned",
     "financial_table",
     "learn_pair",
     "load_filings",
     "name_index",
     "pdf_only_matches",
+    "pdf_rows",
+    "printed_twice",
     "sections",
+    "strip_heads",
 ]
 
 STATEMENTS = ("BS", "PL", "CF")
@@ -97,6 +101,25 @@ CF_SECTION_RE = re.compile(r"^NetCashProvidedByUsedIn(Operating|Investment|Inves
 CF_SECTION_ORDER = {"Operating": 0, "Investment": 1, "Investing": 1, "Financing": 2}
 TOTAL_TAIL_RE = re.compile(r"(合計|計)$")
 
+PL_MARKERS = frozenset({
+    "GrossProfit", "OperatingIncome", "NonOperatingIncome", "NonOperatingExpenses",
+    "ExtraordinaryIncome", "ExtraordinaryLoss",
+})
+MATCH_MARKERS = {
+    "BS": frozenset(BS_SECTIONS) | frozenset(BS_GROUPS),
+    "PL": PL_MARKERS,
+}
+PDF_HEADS = {
+    "BS": (
+        "流動資産", "有形固定資産", "無形固定資産", "投資その他の資産", "繰延資産", "非流動資産", "流動負債",
+        "固定負債", "非流動負債", "株主資本", "その他の包括利益累計額", "評価・換算差額等",
+    ),
+    "PL": ("営業外収益", "営業外費用", "特別利益", "特別損失"),
+    "CF": ("営業活動によるキャッシュ・フロー", "投資活動によるキャッシュ・フロー", "財務活動によるキャッシュ・フロー"),
+}
+HEAD_KEEP_RE = re.compile(r"^(合計|小計|合$|計(#\d+|[─―ー]*)$|#|[（(、─―ー※・にへをと]|の(?!れん)|及び|並びに|等$)")
+HEAD_SEP_RE = re.compile(r"^[:：]")
+
 
 @dataclass(frozen=True)
 class Fact:
@@ -154,12 +177,22 @@ class Learned:
     order: dict[str, list[str]] = field(default_factory=dict)
     extras: dict[str, dict[str, str | None]] = field(default_factory=dict)
     pdf_names: dict[str, str] = field(default_factory=dict)
+    by_section: dict[str, dict[tuple[str, str], Mapped]] = field(default_factory=dict)
+    twice: dict[str, set[str]] = field(default_factory=dict)
 
 
 @dataclass
 class Names:
     keys: dict[str, str] = field(default_factory=dict)
     order: list[str] = field(default_factory=list)
+    by_section: dict[tuple[str, str], str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class PdfRows:
+    names: list[str]
+    bases: list[str]
+    copies: dict[int, int]
 
 
 @dataclass
@@ -493,6 +526,15 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
             if len(cands) == 1 and len({c.key for c in _near(pool, f.value, tol)}) == 1:
                 hit[i] = cands[0]
                 used.add(cands[0].id)
+        twice: set[str] = set()
+        for i, at in pdf_rows(rows, statement, None).copies.items():
+            if (i in hit) != (at in hit):
+                twice.add(_base(rows[i], statement))
+                if i in hit:
+                    hit[at] = hit.pop(i)
+        info = pdf_rows(rows, statement, twice)
+        names = info.names
+        learned.twice[statement] = twice
         in_rule = {f.key for f in target}
         maps: dict[str, Mapped] = {}
         order: list[str] = []
@@ -500,15 +542,19 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
         prev: str | None = None
         for i, f in enumerate(rows):
             x = hit.get(i)
-            if x is None:
+            if x is None or i in info.copies:
                 continue
             sign = -1 if f.value * x.value < 0 else 1
-            maps[f.local] = Mapped(x.key, sign)
+            maps[names[i]] = Mapped(x.key, sign)
             order.append(x.key)
             learned.pdf_names.setdefault(x.key, f.local)
             if x.key not in in_rule:
                 extras[x.key] = prev
             prev = x.key
+        live = [i for i in range(len(rows)) if i not in info.copies]
+        marks = [hit[i].key if i in hit else None for i in live]
+        within = _section_names([info.bases[i] for i in live], marks, statement)
+        learned.by_section[statement] = {k: maps[names[live[n]]] for n, k in within.items() if live[n] in hit}
         learned.maps[statement] = maps
         learned.order[statement] = order
         learned.extras[statement] = extras
@@ -548,82 +594,214 @@ def _ranked(learned: Sequence[Learned], period_end: date, cls: str) -> list[Lear
     )
 
 
-def _global_order(learned: Sequence[Learned], statement: str) -> dict[str, int]:
+def _global_order(learned: Iterable[Learned], statement: str) -> dict[str, int]:
     keys: list[str] = []
     for item in sorted(learned, key=lambda x: x.period_end, reverse=True):
         keys = _merge(keys, item.order.get(statement, []))
     return {k: i for i, k in enumerate(keys)}
 
 
-def apply_learned(
-    rows: Sequence[Fact], learned: Sequence[Learned], statement: str, period_end: date, cls: str,
-    names: Names | None = None,
-) -> list[tuple[Fact, Mapped | None]]:
-    ranked = _ranked(learned, period_end, cls)
-    proposals: list[Mapped | None] = []
-    for f in rows:
-        found = None
-        for item in ranked:
-            m = item.maps.get(statement, {}).get(f.local)
-            if m is not None:
-                found = m
+def _ranks(learned: Sequence[Learned], statement: str, cls: str) -> list[dict[str, int]]:
+    ranks = [_global_order(learned, statement)]
+    same = [x for x in learned if x.cls == cls]
+    if same and len(same) < len(learned):
+        ranks.append(_global_order(same, statement))
+    return ranks
+
+
+def strip_heads(name: str, statement: str) -> str:
+    heads = sorted(PDF_HEADS.get(statement, ()), key=len, reverse=True)
+    while True:
+        for head in heads:
+            if not name.startswith(head):
+                continue
+            rest = HEAD_SEP_RE.sub("", name[len(head):])
+            if rest and not HEAD_KEEP_RE.search(rest):
+                name = rest
                 break
-        proposals.append(found)
-    claimed = {m.key for m in proposals if m is not None}
+        else:
+            return name
+
+
+def _base(fact: Fact, statement: str) -> str:
+    return _clean_label(strip_heads(SUFFIX_RE.sub("", fact.local), statement))
+
+
+def pdf_rows(rows: Sequence[Fact], statement: str, twice: Iterable[str] | None = ()) -> PdfRows:
+    bases = [_base(f, statement) for f in rows]
+    allowed = None if twice is None else set(twice)
+    copies: dict[int, int] = {}
+    if statement == "PL":
+        first: dict[tuple[str, float], int] = {}
+        for i, f in enumerate(rows):
+            if not f.value or bases[i] in GENERIC_LABELS or (allowed is not None and bases[i] not in allowed):
+                continue
+            at = first.setdefault((bases[i], f.value), i)
+            if at != i:
+                copies[i] = at
+    seen: dict[str, int] = defaultdict(int)
+    names: list[str] = []
+    for i, base in enumerate(bases):
+        if i in copies:
+            names.append(names[copies[i]])
+            continue
+        seen[base] += 1
+        names.append(base if seen[base] == 1 else f"{base}#{seen[base]}")
+    return PdfRows(names, bases, copies)
+
+
+def printed_twice(learned: Iterable[Learned], statement: str) -> set[str]:
+    return {name for item in learned for name in item.twice.get(statement, ())}
+
+
+def _is_marker(key: str | None, statement: str) -> bool:
+    if key is None:
+        return False
+    if statement == "CF":
+        return bool(CF_SECTION_RE.match(key))
+    return key in MATCH_MARKERS.get(statement, ())
+
+
+def _section_names(
+    bases: Sequence[str], marks: Sequence[str | None], statement: str,
+) -> dict[int, tuple[str, str]]:
+    out: dict[int, tuple[str, str]] = {}
+    section: str | None = None
+    for i in range(len(bases) - 1, -1, -1):
+        if _is_marker(marks[i], statement):
+            section = marks[i]
+        if section is not None and bases[i]:
+            out[i] = (section, bases[i])
+    counts = defaultdict(int)
+    for k in out.values():
+        counts[k] += 1
+    return {i: k for i, k in out.items() if counts[k] == 1}
+
+
+def _lookup(ranked: Sequence[Learned], statement: str, name: str) -> Mapped | None:
+    for item in ranked:
+        m = item.maps.get(statement, {}).get(name)
+        if m is not None:
+            return m
+    return None
+
+
+def _lookup_section(ranked: Sequence[Learned], statement: str, key: tuple[str, str]) -> Mapped | None:
+    for item in ranked:
+        m = item.by_section.get(statement, {}).get(key)
+        if m is not None:
+            return m
+    return None
+
+
+def _ordered(
+    names: Sequence[str], proposals: Sequence[Mapped | None], ranks: Sequence[Mapping[str, int]],
+) -> tuple[list[Mapped | None], list[set[int]]]:
     counts = defaultdict(int)
     for m in proposals:
         if m is not None:
             counts[m.key] += 1
-    proposals = [m if m is not None and counts[m.key] == 1 else None for m in proposals]
-    rank = _global_order(learned, statement)
-    keep = _lis([
-        (i, rank[m.key], 1 if _generic(rows[i].local) else 2)
-        for i, m in enumerate(proposals) if m is not None and m.key in rank
-    ])
-    by_name = _by_name(rows, learned, statement, names, claimed) if names else {}
-    if by_name:
-        order = _merge(sorted(rank, key=rank.__getitem__), names.order)
-        rank = {k: i for i, k in enumerate(order)}
-        picked = _lis([
-            (i, rank[by_name[i].key] if i in by_name else rank[proposals[i].key],
-             NAME_WEIGHT if i in by_name else KEPT_WEIGHT)
-            for i in range(len(rows)) if (i in by_name and by_name[i].key in rank) or i in keep
+    unique = [m if m is not None and counts[m.key] == 1 else None for m in proposals]
+    keeps = [
+        _lis([
+            (i, rank[m.key], 1 if _generic(names[i]) else 2)
+            for i, m in enumerate(unique) if m is not None and m.key in rank
         ])
+        for rank in ranks
+    ]
+    return unique, keeps
+
+
+def apply_learned(
+    rows: Sequence[Fact], learned: Sequence[Learned], statement: str, period_end: date, cls: str,
+    names: Names | None = None,
+) -> list[tuple[Fact, Mapped | None]]:
+    info = pdf_rows(rows, statement, printed_twice(learned, statement))
+    live = [i for i in range(len(rows)) if i not in info.copies]
+    keys = [info.names[i] for i in live]
+    bases = [info.bases[i] for i in live]
+    ranked = _ranked(learned, period_end, cls)
+    ranks = _ranks(learned, statement, cls)
+    proposals = [_lookup(ranked, statement, name) for name in keys]
+    first, keeps = _ordered(keys, proposals, ranks)
+    kept = set().union(*keeps)
+    marks = [first[i].key if i in kept and first[i] is not None else None for i in range(len(live))]
+    by_section = _section_names(bases, marks, statement)
+    count = Counter(bases)
+    for i, sk in by_section.items():
+        if count[bases[i]] > 1:
+            m = _lookup_section(ranked, statement, sk)
+            if m is not None:
+                proposals[i] = m
+    claimed = {m.key for m in proposals if m is not None}
+    proposals, keeps = _ordered(keys, proposals, ranks)
+    keep = set().union(*keeps)
+    by_name: dict[int, Mapped] = {}
+    if names:
+        known = {
+            k for item in learned for k in item.maps.get(statement, {})
+        } | {k for item in learned for k in item.by_section.get(statement, {})}
+        by_name = _by_name(keys, bases, by_section, known, names, claimed)
+    if by_name:
+        picked: set[int] = set()
+        for rank, kept_here in zip(ranks, keeps):
+            pos = {k: i for i, k in enumerate(_merge(sorted(rank, key=rank.__getitem__), names.order))}
+            picked |= _lis([
+                (i, pos[by_name[i].key] if i in by_name else pos[proposals[i].key],
+                 NAME_WEIGHT if i in by_name else KEPT_WEIGHT)
+                for i in range(len(live)) if (i in by_name and by_name[i].key in pos) or i in kept_here
+            ])
         for i, m in by_name.items():
             if i in picked:
                 proposals[i] = m
                 keep.add(i)
-    return [(f, proposals[i] if i in keep else None) for i, f in enumerate(rows)]
+    result: list[Mapped | None] = [None] * len(rows)
+    for n, i in enumerate(live):
+        result[i] = proposals[n] if n in keep else None
+    for i, at in info.copies.items():
+        result[i] = result[at]
+    return list(zip(rows, result))
 
 
 def name_index(filings: Sequence[Filing], statement: str) -> Names:
     found: dict[str, set[str]] = defaultdict(set)
+    within: dict[tuple[str, str], set[str]] = defaultdict(set)
     order: list[str] = []
     for filing in sorted(filings, key=lambda f: (f.period_end, f.submitted), reverse=True):
         if filing.is_pdf:
             continue
         facts = filing.by_statement.get(statement, [])
-        for f in facts:
-            name = _clean_label(f.label)
+        labels = [_clean_label(f.label) for f in facts]
+        for f, name in zip(facts, labels):
             if name:
                 found[name].add(f.key)
+        section: str | None = None
+        for f, name in zip(reversed(facts), reversed(labels)):
+            if _is_marker(f.key, statement):
+                section = f.key
+            if section is not None and name:
+                within[(section, name)].add(f.key)
         order = _merge(order, [f.key for f in facts])
-    return Names({name: next(iter(keys)) for name, keys in found.items() if len(keys) == 1}, order)
+    return Names(
+        {name: next(iter(keys)) for name, keys in found.items() if len(keys) == 1},
+        order,
+        {k: next(iter(keys)) for k, keys in within.items() if len(keys) == 1},
+    )
 
 
 def _by_name(
-    rows: Sequence[Fact], learned: Sequence[Learned], statement: str, names: Names, claimed: set[str],
+    keys: Sequence[str], bases: Sequence[str], by_section: Mapping[int, tuple[str, str]], known: set[object],
+    names: Names, claimed: set[str],
 ) -> dict[int, Mapped]:
-    known = {local for item in learned for local in item.maps.get(statement, {})}
-    base = defaultdict(int)
-    for f in rows:
-        base[_clean_label(SUFFIX_RE.sub("", f.local))] += 1
+    count = Counter(bases)
     out: dict[int, Mapped] = {}
-    for i, f in enumerate(rows):
-        name = _clean_label(SUFFIX_RE.sub("", f.local))
-        if f.local in known or SUFFIX_RE.search(f.local) or base[name] != 1:
+    for i, name in enumerate(keys):
+        sk = by_section.get(i)
+        if name in known or (sk is not None and sk in known):
             continue
-        key = names.keys.get(name)
+        key = names.keys.get(name) if count[bases[i]] == 1 else None
+        if key is None and sk is not None and bases[i] not in GENERIC_LABELS:
+            key = names.by_section.get(sk)
         if key is not None and key not in claimed:
             out[i] = Mapped(key, 1, "name")
     counts = defaultdict(int)
@@ -632,8 +810,8 @@ def _by_name(
     return {i: m for i, m in out.items() if counts[m.key] == 1}
 
 
-def _generic(local: str) -> bool:
-    return bool(SUFFIX_RE.search(local)) or local in GENERIC_LABELS
+def _generic(name: str) -> bool:
+    return bool(SUFFIX_RE.search(name)) or name in GENERIC_LABELS
 
 
 def _lis(items: Sequence[tuple[int, int, int]]) -> set[int]:
@@ -726,7 +904,10 @@ def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], stateme
                 pool = pairs if not primary.is_pdf and pairs else learned
                 facts = filing.by_statement[statement]
                 by_name = names if filing is primary else None
-                for fact, mapped in apply_learned(facts, pool, statement, period_end, cls, by_name):
+                copies = pdf_rows(facts, statement, printed_twice(pool, statement)).copies
+                for n, (fact, mapped) in enumerate(apply_learned(facts, pool, statement, period_end, cls, by_name)):
+                    if n in copies:
+                        continue
                     if mapped is None:
                         if filing is primary:
                             values[fact.key] = fact.value

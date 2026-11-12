@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tests.xbrl.test_three_statements import CODE, LOOSE, NAMED, SINGLE, M, seed  # noqa: E402
+from tests.xbrl.test_three_statements import CODE, LOOSE, NAMED, SINGLE, TWICE, M, seed  # noqa: E402
 
 EXTRA = "11110"
 
@@ -139,15 +139,15 @@ def test_value_name_unmatched_and_sign() -> None:
 
 
 def test_rerun_gives_the_same_rows() -> None:
-    before = {code: matches(code) for code in (CODE, LOOSE, NAMED)}
+    before = {code: matches(code) for code in (CODE, LOOSE, NAMED, TWICE)}
     db = SessionLocal()
     try:
         counts = rebuild_matches(db)
         again = rebuild_matches(db, codes=[CODE])
     finally:
         db.close()
-    assert {code: matches(code) for code in (CODE, LOOSE, NAMED)} == before
-    assert counts["failed"] == 0 and counts["filings"] == 3
+    assert {code: matches(code) for code in (CODE, LOOSE, NAMED, TWICE)} == before
+    assert counts["failed"] == 0 and counts["filings"] == 5
     assert counts["matched"] + counts["unmatched"] == sum(len(v) for v in before.values())
     assert again["codes"] == 1 and again["filings"] == 1
 
@@ -204,6 +204,17 @@ def test_view_priority_supplement_and_pdf_rows() -> None:
     }
 
 
+def test_second_printing_shares_the_element_and_the_view_keeps_one_value() -> None:
+    rows = {(r[0], r[2]): r[3] for r in matches(TWICE)}
+    assert rows[(503, "当期利益")] == rows[(503, "当期利益#2")] == "ProfitLoss"
+    assert rows[(504, "当期利益")] == "ProfitLoss" and rows[(504, "当期利益#2")] is None
+    assert rows[(503, "非支配持分#2")] == "ComprehensiveIncomeAttributableToNonControllingInterests"
+    profit = view(TWICE, "ProfitLoss")
+    assert profit["2025-06-30"] == (30 * M, "tdnet_pdf", 503, "value")
+    assert _rows(f"SELECT count(*) FROM {VIEW_NAME} WHERE code = :c AND element_key = 'ProfitLoss' "
+                 "AND period_end = '2025-06-30'", {"c": TWICE}) == [(1,)]
+
+
 def test_view_basis_dimensions_and_namespaces() -> None:
     assert view(CODE, "CashAndDeposits", 0) == {"2025-03-31": (50 * M, "edinet", 1, None)}
     assert view(CODE, "NetSales")["2025-03-31"][:2] == (500 * M, "edinet")
@@ -237,7 +248,7 @@ def _api_cells(code: str) -> dict[tuple[str, str], tuple[float, str, str]]:
         db.close()
 
 
-@pytest.mark.parametrize("code", [CODE, LOOSE, NAMED])
+@pytest.mark.parametrize("code", [CODE, LOOSE, NAMED, TWICE])
 def test_view_agrees_with_api(code: str) -> None:
     rows = _rows(f"SELECT element_key, period_end, value, source FROM {VIEW_NAME} WHERE code = :c "
                  "AND is_consolidated = 1", {"c": code})
