@@ -4,6 +4,7 @@ import unicodedata
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from ..config import STOCK_PRODUCT_CATEGORIES
 from ..db import get_session
 from ..models import Stock
 
@@ -17,8 +18,11 @@ def search(q: str, db: Session = Depends(get_session)):
     if not q:
         return []
     folded = unicodedata.normalize("NFKC", q)
-    kata = "".join(chr(ord(ch) + 0x60) if "\u3041" <= ch <= "\u3096" else ch for ch in folded)
-    rows = (db.query(Stock).filter(
+    kata = "".join(chr(ord(ch) + 0x60) if "ぁ" <= ch <= "ゖ" else ch for ch in folded)
+    query = db.query(Stock).filter(
         Stock.name.contains(q) | Stock.name.contains(folded) | Stock.name.contains(kata)
-        | Stock.code.startswith(folded.upper())).order_by(Stock.code).limit(20).all())
+        | Stock.code.startswith(folded.upper()))
+    if db.query(Stock.code).filter(Stock.product_category.in_(STOCK_PRODUCT_CATEGORIES)).first():
+        query = query.filter(Stock.product_category.in_(STOCK_PRODUCT_CATEGORIES))
+    rows = query.order_by(Stock.code).limit(20).all()
     return [{"code": s.code, "name": s.name, "market": s.market} for s in rows]

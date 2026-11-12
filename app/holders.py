@@ -10,6 +10,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import or_, text
 from sqlalchemy.orm import Session
 
+from .config import STOCK_PRODUCT_CATEGORIES
 from .models import (
     EdinetBuyback,
     EdinetBuybackResolution,
@@ -56,6 +57,12 @@ def _ok_report():
         LargeHoldingReport.withdrawn.is_(False),
         LargeHoldingReport.parse_status == "parsed",
     )
+
+
+def _stock_issuer(db: Session):
+    if db.query(Stock.code).filter(Stock.product_category.in_(STOCK_PRODUCT_CATEGORIES)).first() is None:
+        return ()
+    return (or_(Stock.code.is_(None), Stock.product_category.in_(STOCK_PRODUCT_CATEGORIES)),)
 
 
 def _has_holder_code():
@@ -254,7 +261,8 @@ def search_holders(db: Session, q: str) -> dict[str, Any]:
             LargeHoldingReport.file_date, LargeHoldingReport.submit_datetime,
         )
         .join(LargeHoldingReport, LargeHoldingReport.doc_id == LargeHolding.doc_id)
-        .filter(*_ok_report(), *_has_holder_code(), or_(*conds))
+        .outerjoin(Stock, Stock.code == LargeHoldingReport.code)
+        .filter(*_ok_report(), *_has_holder_code(), *_stock_issuer(db), or_(*conds))
         .order_by(LargeHoldingReport.file_date.desc(), LargeHoldingReport.submit_datetime.desc())
         .limit(400)
         .all()
@@ -316,7 +324,7 @@ def activity_feed(
     max_n = SEARCH_ACTIVITY_MAX if searching else ACTIVITY_MAX
     n = max(1, min(int(limit or ACTIVITY_DEFAULT), max_n))
     off = max(0, int(offset or 0))
-    filters = [*_ok_report(), *_has_holder_code(), *_activity_move_sql()]
+    filters = [*_ok_report(), *_has_holder_code(), *_activity_move_sql(), *_stock_issuer(db)]
     day: date | None = None
     if searching:
         search_f = _activity_search_filter(raw)
@@ -375,7 +383,7 @@ def holder_page(db: Session, edinet: str, *, today: date | None = None) -> dict[
         db.query(LargeHolding, LargeHoldingReport, Stock)
         .join(LargeHoldingReport, LargeHoldingReport.doc_id == LargeHolding.doc_id)
         .outerjoin(Stock, Stock.code == LargeHoldingReport.code)
-        .filter(*_ok_report(), LargeHolding.edinet_code == code)
+        .filter(*_ok_report(), *_stock_issuer(db), LargeHolding.edinet_code == code)
         .all()
     )
     if not rows:
