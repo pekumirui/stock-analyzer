@@ -131,6 +131,8 @@ def test_code_list_links_stocks() -> None:
         f = db.get(EdinetFiler, "E10001")
         assert (f.sec_code, f.listed, f.industry, f.list_date) == (
             "72030", "上場", "電気機器", date(2023, 4, 3))
+        assert (f.filer_name_en, f.filer_name_yomi) == ("EDINET", "エディネット")
+        assert db.get(EdinetFiler, "E10003").filer_name_yomi is None
         st = link_stocks(db)
         codes = dict(db.execute(select(Stock.code, Stock.edinet_code)).all())
         # 同じ証券コードは「上場」の提出者を採る

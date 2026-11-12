@@ -149,6 +149,24 @@ def test_hand_sql_bumps_version_and_list_follows() -> None:
     if _by_code()["72030"]["all_store_yoy"] is not None:
         _fail(f"deleted yoy still listed: {_by_code()['72030']!r}")
 
+    _exec("UPDATE stocks SET edinet_code = 'E02144' WHERE code = '72030'")
+    cached = _version()
+    _exec(
+        "INSERT INTO edinet_filers (edinet_code, filer_name, filer_name_en, filer_name_yomi, updated_at) "
+        "VALUES ('E02144', 'BBBBB自動車', 'BBBBB MOTOR', 'ビービージドウシャカブシキカイシャ', '2026-11-04 07:30:00')",
+    )
+    if _version() <= cached:
+        _fail("edinet_filers INSERT must bump version")
+    row = _by_code()["72030"]
+    if (row["name_yomi"], row["name_en"]) != ("ビービージドウシャ", "BBBBB MOTOR"):
+        _fail(f"list missed the filer names: {row!r}")
+    cached = _version()
+    _exec("UPDATE edinet_filers SET filer_name_yomi = 'カブシキガイシャ　シービー' WHERE edinet_code = 'E02144'")
+    if _version() <= cached:
+        _fail("edinet_filers UPDATE must bump version")
+    if _by_code()["72030"]["name_yomi"] != "シービー":
+        _fail(f"list kept the old yomi: {_by_code()['72030']!r}")
+
 
 def test_public_pages_follow_the_list() -> None:
     """/monthly と /sitemap.xml と /api/v1/tables は同じ一覧を見る。"""

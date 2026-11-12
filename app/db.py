@@ -468,6 +468,7 @@ _MONTHLY_LIST_TABLES = (
     "monthly_values",
     "monthly_issuers",
     "stocks",
+    "edinet_filers",
 )
 _TRIGGER_EVENTS = (("INSERT", "ai"), ("UPDATE", "au"), ("DELETE", "ad"))
 

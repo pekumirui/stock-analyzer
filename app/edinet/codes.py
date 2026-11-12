@@ -5,9 +5,10 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from datetime import date, datetime
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.db import upsert
@@ -15,6 +16,22 @@ from app.models import EdinetFiler, Stock
 
 TOKYO_PRO_MARKET = "TOKYO PRO MARKET"
 _LIST_DATE_RE = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")
+YOMI_DROP_WORDS = ("カブシキガイシャ", "カブシキカイシャ")
+_YOMI_SPACES = (" ", "\u3000")
+
+
+def yomi_key(yomi: str | None) -> str:
+    s = re.sub(r"\s+", "", unicodedata.normalize("NFKC", yomi or ""))
+    for w in YOMI_DROP_WORDS:
+        s = s.replace(w, "")
+    return s
+
+
+def yomi_key_sql(col):
+    expr = col
+    for w in (*_YOMI_SPACES, *YOMI_DROP_WORDS):
+        expr = func.replace(expr, w, "")
+    return expr
 
 
 def parse_list_date(payload: bytes) -> date | None:
@@ -40,6 +57,7 @@ def filer_rows(payload: bytes, now: datetime) -> list[dict]:
             "sec_code": e.sec_code or None,
             "filer_name": e.filer_name,
             "filer_name_en": x.get("提出者名（英字）") or None,
+            "filer_name_yomi": x.get("提出者名（ヨミ）") or None,
             "filer_type": x.get("提出者種別") or None,
             "listed": x.get("上場区分") or None,
             "is_consolidated": x.get("連結の有無") or None,

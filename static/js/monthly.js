@@ -83,8 +83,13 @@ function matchMonthlyIssuerQuery(issuer, q){
   const code = monthlySearchFold(issuer && issuer.code).toUpperCase();
   const industry = monthlySearchFold((issuer && issuer.industry) || "その他");
   const sector = monthlySearchFold(issuer && issuer.sector33);
+  const yomi = monthlySearchFold(issuer && issuer.name_yomi);
+  const nameEn = monthlySearchFold(issuer && issuer.name_en);
+  const qYomi = raw.replace(/\s+/g, "").replace(/カブシキガイシャ|カブシキカイシャ/g, "");
   const qCode = raw.toUpperCase();
   return name.includes(raw)
+    || (qYomi && yomi.includes(qYomi))
+    || nameEn.includes(raw)
     || code.slice(0, 4).startsWith(qCode)
     || code.startsWith(qCode)
     || industry.includes(raw)

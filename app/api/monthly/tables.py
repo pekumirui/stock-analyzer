@@ -7,7 +7,8 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session
 
 from ...db import get_session, monthly_list_version, run_sqlite_write
-from ...models import Stock, MonthlyIssuer, MonthlyTable, MonthlyElement, MonthlyValue
+from ...edinet.codes import yomi_key
+from ...models import EdinetFiler, Stock, MonthlyIssuer, MonthlyTable, MonthlyElement, MonthlyValue
 from ...monthly import list_cache
 from ...monthly.tree import (
     MONTHLY_TREES, assign_tree_rows, auto_tree_payload, build_auto_tree, monthly_display_years,
@@ -78,13 +79,15 @@ def _cached_tables(db: Session, *, store: bool = True) -> list[dict] | None:
 def _build_tables(db: Session, only_code: str | None) -> list[dict]:
     q = (db.query(
              MonthlyTable.code, MonthlyTable.year,
-             Stock.name, Stock.market, Stock.sector33)
-         .outerjoin(Stock, Stock.code == MonthlyTable.code))
+             Stock.name, Stock.market, Stock.sector33,
+             EdinetFiler.filer_name_yomi, EdinetFiler.filer_name_en)
+         .outerjoin(Stock, Stock.code == MonthlyTable.code)
+         .outerjoin(EdinetFiler, EdinetFiler.edinet_code == Stock.edinet_code))
     if only_code is not None:
         q = q.filter(MonthlyTable.code == only_code)
     rows = q.order_by(MonthlyTable.code, MonthlyTable.year).all()
     by_code: dict[str, dict] = {}
-    for code, year, name, market, sector33 in rows:
+    for code, year, name, market, sector33, yomi, name_en in rows:
         item = by_code.get(code)
         if item is None:
             item = {
@@ -93,6 +96,8 @@ def _build_tables(db: Session, only_code: str | None) -> list[dict]:
                 "years": [],
                 "market": market,
                 "sector33": sector33,
+                "name_yomi": yomi_key(yomi) or None,
+                "name_en": name_en,
             }
             by_code[code] = item
         item["years"].append(year)

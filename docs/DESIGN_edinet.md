@@ -51,7 +51,7 @@ EDINET API v2（金融庁）の提出者・書類一覧と、有報・半期報�
 edinet_filers      -- EDINET コードリスト（Edinetcode.zip、キー不要）の写し
   edinet_code PK   -- E00004 など
   sec_code         -- 証券コード 5 桁（stocks.code と同じ形）。無い提出者は NULL
-  filer_name, filer_name_en, filer_type, listed, is_consolidated,
+  filer_name, filer_name_en, filer_name_yomi, filer_type, listed, is_consolidated,
   capital, fiscal_year_end, industry, jcn
   list_date        -- リスト 1 行目の「ダウンロード実行日」
   updated_at
@@ -67,6 +67,7 @@ stocks.edinet_code -- nullable。jobs/edinet/edinet_codes.py が付け直す
 - TOKYO PRO MARKET は EDINET に出さないので、付かなくて正しい。ログの `unmatched_equity` に数えない
 - 2026-10-20 の実データ: 提出者 11,420、証券コード付き 3,813。TOKYO PRO MARKET を除く内国株で付かなかったのは 4 件（コードリストに証券コードがまだ無い新規上場など）。翌日以降のリスト更新で付く
 - 取り込んだあと、`edinet_documents.code` が空の行を付け直す（`relink_codes`）
+- 提出者名（ヨミ）`filer_name_yomi` と（英字）`filer_name_en` はリストの文字列のまま持つ。銘柄検索（`GET /api/stocks/search`）と月次一覧（`GET /api/v1/tables` の `name_yomi` / `name_en`）が使う。ヨミは照合のときに「カブシキガイシャ」「カブシキカイシャ」と空白を外す（`app/edinet/codes.py` の `yomi_key`）。列を足した既存 DB は次の取込でヨミが入る
 
 ## 3. 書類一覧（`edinet_documents` / `edinet_list_days`）
 

@@ -135,7 +135,7 @@ data_versions     -- プロセス内キャッシュの版。対象の表が変�
   version                 -- 最初の対象書き込みで 1。その後の INSERT/UPDATE/DELETE ごとに +1
 
 月次一覧の版（name = monthly_list）を上げるのは monthly_tables / monthly_elements /
-monthly_values / monthly_issuers / stocks の INSERT・UPDATE・DELETE（行ごと）。
+monthly_values / monthly_issuers / stocks / edinet_filers の INSERT・UPDATE・DELETE（行ごと）。
 API・cron・MCP・手書きの SQL のどれでも上がる。トリガーは init_db と jobs/migrate.py が作る。
 行がまだ無いあいだの版は 0。last_ingested_at は版に使わない（更新しない書き込みがある）。
 一覧の is_new は `last_ingested_at` の JST 暦日が今日を含む直近 3 日（当日・前日・前々日）。`ingested_today` は JST の今日。どちらも日付で変わるので、使い回しのキーは (version, JST の今日)。
@@ -560,7 +560,7 @@ Stage3 を Stage1 より先に見るのは、天井圏で 200日線に沿って�
 | `GET /api/ranking/earnings-perf?month=YYYY-MM` | 決算月ごとの決算発表後パフォーマンス（次の決算の前日終値まで）のランキング。`docs/DESIGN_ranking.md` |
 | `GET /api/screener?stage=2&rs_min=70&sort=rs` | ステージフィルタ |
 | `GET /api/pts?date=2026-10-16&ranking=night_up&at=2026-10-16 23:30:00` | PTS ランキング 1 回分と翌営業日の始値とのギャップ。`ranking` は `night_up` / `night_down` / `night_volume`（ほかは 400）。`date` 省略で最新のセッション、`at`（`fetched_at`）省略かつ不一致で最新の取得。形は `docs/DESIGN_pts.md` |
-| `GET /api/stocks/search?q=トヨタ` | 銘柄検索。名前の部分一致（q を NFKC とひらがな→カタカナに寄せたものでも引く）とコードの前方一致。最大 20 件。株（`product_category` が `011` / `021`）だけで、ETF・ETN・REIT・出資証券は出さない。ProdCat がまだ 1 件も入っていない DB では全銘柄 |
+| `GET /api/stocks/search?q=トヨタ` | 銘柄検索。名前の部分一致（q を NFKC とひらがな→カタカナに寄せたものでも引く）とコードの前方一致に、`stocks.edinet_code` で結んだ `edinet_filers` の提出者名（ヨミ）・（英字）の部分一致を足す。ヨミは両側から「カブシキガイシャ」「カブシキカイシャ」と空白を外して比べる（外すと空になる q はヨミで引かない）。英字は q を NFKC に寄せ、大文字小文字を区別しない。最大 20 件。株（`product_category` が `011` / `021`）だけで、ETF・ETN・REIT・出資証券は出さない。ProdCat がまだ 1 件も入っていない DB では全銘柄 |
 | `GET /api/holders/search?q=` / `GET /api/holders/activity` / `GET /api/holders/{edinet}` | 大量保有の保有者検索・提出日（または検索）の一覧・保有者ページ。発行体が株でない報告は出さない。`docs/DESIGN_holders.md` |
 | `GET /api/stock/{code}/holders` | 銘柄の株主タブ。`docs/DESIGN_stock.md` |
 | `GET /api/stock/{code}/financials?statement=BS&periods=8&consolidated=auto` | 財務3表（BS / PL / CF）を有報・短信 XBRL・短信 PDF をまたいで科目×決算期に並べる。セルごとに円の値と出どころ。形は `docs/DESIGN_stock.md`、組み立ては `docs/DESIGN_xbrl.md` §17 |
@@ -568,7 +568,7 @@ Stage3 を Stage1 より先に見るのは、天井圏で 200日線に沿って�
 | `GET /api/supply/monthly/{material_id}` | 素材の月次量（`material_monthly`）と見掛け消費。形は `docs/DESIGN_supply.md`。素材が無ければ 404 |
 | `POST /api/v1/tables/{code}/{year}/elements` | 月次表の要素登録。`unit` 必須。表が無ければ作成。保存名をトークン正規化（yoy は末尾 `(前年比)`）と銘柄エイリアスのあと、保存名と完全一致する行を探す（既存行は作り直さない。`docs/DESIGN_monthly_labels.md`「同一行・保存名の凍結」）。完全一致は冪等。類似は 409 (force=true で強制)。unit の食い違いは 409 `UNIT_CONFLICT` (force=true で上書き)。`stocks` に無ければ 4xx `NOT_IN_MASTER` |
 | `POST /api/v1/tables/{code}/ingest` | PDF 列順 + as_of 時点の最新 `fiscal_year_end` から暦年を割り当てて登録。year は受け取らない。`as_of` と各行の `unit` は必須。`dry_run: true` は書かずに mapping と書くはずのセルを返す。`only_months` は `YYYY-MM` で列を絞る。マスタ無しでは 4xx `NOT_IN_MASTER`。mapping の年月が as_of より後なら 400 `FUTURE_COLUMN`。新規行で、`strip_yoy_fragments` 後の名前が同じ yoy と number の既存行が今回の `rows` に無いときは 409 `YOY_NUMBER_CONFLICT`（`force=true` で作成。両方を同じ POST に含めれば通る）。銘柄エイリアスで同じ保存名に寄る行（別表の同じ数字）は 1 行にまとめる。同じ列で値か unit が食い違えば 409 `ROW_MERGE_CONFLICT`（後勝ちで上書きしない） |
-| `GET /api/v1/tables` | 月次表がある銘柄一覧 (code 順)。各要素は `{code, name, years, market, sector33, industry, last_ingested_at, is_new, ingested_today, all_store_yoy, existing_store_yoy}`。name/market/sector33 は stocks を LEFT JOIN (無ければ null)。industry は無ければ `その他`。years は昇順。表が無ければ `[]` |
+| `GET /api/v1/tables` | 月次表がある銘柄一覧 (code 順)。各要素は `{code, name, years, market, sector33, name_yomi, name_en, industry, last_ingested_at, is_new, ingested_today, all_store_yoy, existing_store_yoy}`。name/market/sector33 は stocks を LEFT JOIN (無ければ null)。name_yomi / name_en は `stocks.edinet_code` で結んだ `edinet_filers` の提出者名（ヨミ）・（英字）で、無ければ null。name_yomi は「カブシキガイシャ」「カブシキカイシャ」と空白を外した形（画面の検索用）。industry は無ければ `その他`。years は昇順。表が無ければ `[]` |
 | `PUT /api/v1/tables/{code}/industry` | 月次業種。body `{industry}`。stocks 無ければ 4xx `NOT_IN_MASTER`。月次表が無ければ 4xx `TABLE_NOT_FOUND` |
 | `GET /api/v1/tables/{code}/{year}` | 月次表。要素は登録順。各行は `{element, unit, label, values}`。`element` は保存名。`label` は GET 派生（display / group / kinds / 7層）。`values` は 1〜12。無い月は null（0 は実ゼロ）。1年通して値のない行は出さない。全銘柄で親子関係を足す。`config/monthly/monthly_row_order.json` に `tree` があればそれ、無ければ自動の木（`tree_auto: true`）。各行に `tree: {path, leaf, metric}`（根から自分の節までの名前の列、節の中での行名、指標名。指標に振り分けていなければ null。自動の木は全行に指標が付き、3 年を通した並び `order` も付く）、表に `tree`（節 `{name, heading, part, elements, children}` の木。形は config、自動なら表示する 3 年で決まり年で変えない。`elements` はその年の保存名）と `tree_metrics`（指標名の並び。横持ちの一番上の行の順。自動の木は既存 → 全店 → 店舗 の見る順。自動の木は指標どうしの親子 `tree_metric_parent` も付く）を足す。config の木でどの節にも当たらない行に `tree` は付かない（自動の木は全行に付く）。書式は `docs/DESIGN_monthly.md`「親子関係」。表が無ければ 404 |
 | `GET /api/v1/tables/{code}` | その銘柄の年度一覧 |

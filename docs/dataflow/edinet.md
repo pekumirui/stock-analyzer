@@ -115,22 +115,25 @@ flowchart LR
   n1["GET /api/holders/search"]:::api
   n2["GET /api/holders/{edinet}"]:::api
   n3["GET /api/stock/{code}/holders"]:::api
-  n4[("daily_prices")]:::ext
-  n5[("edinet_buyback_resolutions")]:::tbl
-  n6[("edinet_buybacks")]:::tbl
-  n7[("large_holding_reports")]:::tbl
-  n8[("large_holdings")]:::tbl
-  n0 -.- n7
-  n0 -.- n8
-  n1 -.- n7
-  n1 -.- n8
-  n2 -.- n4
-  n2 -.- n7
-  n2 -.- n8
-  n3 -.- n5
+  n4["GET /api/stocks/search"]:::api
+  n5[("daily_prices")]:::ext
+  n6[("edinet_buyback_resolutions")]:::tbl
+  n7[("edinet_buybacks")]:::tbl
+  n8[("edinet_filers")]:::tbl
+  n9[("large_holding_reports")]:::tbl
+  n10[("large_holdings")]:::tbl
+  n0 -.- n9
+  n0 -.- n10
+  n1 -.- n9
+  n1 -.- n10
+  n2 -.- n5
+  n2 -.- n9
+  n2 -.- n10
   n3 -.- n6
   n3 -.- n7
-  n3 -.- n8
+  n3 -.- n9
+  n3 -.- n10
+  n4 -.- n8
   classDef job fill:#e3ecff,stroke:#3b5bdb
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -143,6 +146,7 @@ flowchart LR
 | `GET /api/holders/search` |  | `large_holding_reports`, `large_holdings`, `stocks` |
 | `GET /api/holders/{edinet}` |  | `daily_prices`, `large_holding_reports`, `large_holdings`, `stocks` |
 | `GET /api/stock/{code}/holders` |  | `edinet_buyback_resolutions`, `edinet_buybacks`, `large_holding_reports`, `large_holdings`, `stocks` |
+| `GET /api/stocks/search` |  | `edinet_filers`, `stocks` |
 
 ## テーブル
 
@@ -171,7 +175,7 @@ flowchart LR
 ### edinet_filers
 
 - 書く: `jobs/edinet/edinet_codes.py`
-- 読むだけ: `jobs/edinet/edinet_buybacks.py`, `jobs/edinet/edinet_documents.py`, `jobs/edinet/edinet_large_holdings.py`, `jobs/edinet/edinet_tender_offers.py`
+- 読むだけ: `jobs/edinet/edinet_buybacks.py`, `jobs/edinet/edinet_documents.py`, `jobs/edinet/edinet_large_holdings.py`, `jobs/edinet/edinet_tender_offers.py`, `GET /api/stocks/search`, `GET /api/v1/tables（月次）`
 
 ### edinet_list_days
 

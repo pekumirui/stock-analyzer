@@ -815,6 +815,7 @@ class EdinetFiler(Base):
     sec_code = Column(String(5), index=True)        # 証券コード 5 桁。stocks.code と同じ形
     filer_name = Column(String)
     filer_name_en = Column(String)
+    filer_name_yomi = Column(String)
     filer_type = Column(String)                     # 提出者種別（内国法人・組合 / 外国法人・組合 / 個人 など）
     listed = Column(String)                         # 上場区分（上場 / 非上場）
     is_consolidated = Column(String)                # 連結の有無（有 / 無）
