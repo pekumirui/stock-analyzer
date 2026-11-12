@@ -301,8 +301,8 @@ def test_api_smoke() -> None:
 
     r = client.get("/api/stocks/search", params={"q": "ビルファンド"})
     _expect(r, 200, "GET /api/stocks/search (REIT)")
-    if not any(x.get("code") == "89510" for x in r.json()):
-        raise SystemExit("search should still find REIT for charts")
+    if any(x.get("code") == "89510" for x in r.json()):
+        raise SystemExit("search should exclude REIT")
 
     db = SessionLocal()
     try:

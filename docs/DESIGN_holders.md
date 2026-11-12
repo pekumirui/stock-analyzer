@@ -24,6 +24,8 @@
 
 保有者候補は `GET /api/holders/search?q=`。一覧は `GET /api/holders/activity`（提出日または検索）。保有者は `GET /api/holders/{edinet}`。銘柄の株主タブは `GET /api/stock/{code}/holders`。
 
+発行体が株でない報告（`stocks.product_category` が `011` / `021` 以外。ETF・ETN・REIT・出資証券）は、保有者候補・一覧・保有者ページのどれにも出さない。`stocks` に無い発行体（未上場など）は出す。ProdCat がまだ 1 件も入っていない DB では絞らない。銘柄の株主タブは絞らない。
+
 共同保有・表記ゆれは `large_holdings.edinet_code` 単位。コードの無い行は保有者ページに出さない（検索もヒットしない）。銘柄の株主タブは提出者（書類の `filer_edinet_code`）でまとめ、共同保有は 1 行（書類の合計）。
 
 最新の保有は `is_latest` かつ取下げでない `parsed` の報告を、発行体ごとに提出日（`file_date`、同時刻なら `submit_datetime`）が新しい 1 件。推移は同じ条件の報告を報告義務発生日の順に最大 5 年。

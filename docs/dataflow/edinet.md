@@ -140,7 +140,7 @@ flowchart LR
 | API | 書く | 読むだけ |
 |---|---|---|
 | `GET /api/holders/activity` |  | `large_holding_reports`, `large_holdings`, `stocks` |
-| `GET /api/holders/search` |  | `large_holding_reports`, `large_holdings` |
+| `GET /api/holders/search` |  | `large_holding_reports`, `large_holdings`, `stocks` |
 | `GET /api/holders/{edinet}` |  | `daily_prices`, `large_holding_reports`, `large_holdings`, `stocks` |
 | `GET /api/stock/{code}/holders` |  | `edinet_buyback_resolutions`, `edinet_buybacks`, `large_holding_reports`, `large_holdings`, `stocks` |
 
