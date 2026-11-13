@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from datetime import date
 
 import pytest
@@ -558,6 +559,13 @@ def test_name_match_skips_elements_taken_in_the_same_period() -> None:
 def test_name_match_respects_print_order() -> None:
     names = fst.Names({"社債": "BondsPayable"}, ["BondsPayable", "Cash", "Assets"])
     assert apply([fact("現金", 1), fact("資産合計", 2), fact("社債", 3)], [LEARNED], names) == ["Cash", "Assets", None]
+
+
+def test_name_match_skips_rows_whose_unit_kind_differs() -> None:
+    assert apply([replace(fact("社債", 3), unit="JPYPerShares")], []) == [None]
+    names = fst.Names({"1株当たり純資産": "NetAssetsPerShare"}, ["NetAssetsPerShare"], per_share={"NetAssetsPerShare"})
+    assert apply([replace(fact("1株当たり純資産", 3), unit="JPYPerShares")], [], names) == ["NetAssetsPerShare"]
+    assert apply([fact("1株当たり純資産", 3)], [], names) == [None]
 
 
 def test_name_index_keeps_labels_of_one_element() -> None:

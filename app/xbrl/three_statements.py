@@ -186,6 +186,7 @@ class Names:
     keys: dict[str, str] = field(default_factory=dict)
     order: list[str] = field(default_factory=list)
     by_section: dict[tuple[str, str], str] = field(default_factory=dict)
+    per_share: set[str] = field(default_factory=set)
 
 
 @dataclass(frozen=True)
@@ -741,7 +742,8 @@ def apply_learned(
         known = {
             k for item in learned for k in item.maps.get(statement, {})
         } | {k for item in learned for k in item.by_section.get(statement, {})}
-        by_name = _by_name(keys, bases, by_section, known, names, claimed)
+        per_share = [rows[i].unit in PER_SHARE_UNITS for i in live]
+        by_name = _by_name(keys, bases, by_section, known, names, claimed, per_share)
     if by_name:
         picked: set[int] = set()
         for rank, kept_here in zip(ranks, keeps):
@@ -767,11 +769,13 @@ def name_index(filings: Sequence[Filing], statement: str) -> Names:
     found: dict[str, set[str]] = defaultdict(set)
     within: dict[tuple[str, str], set[str]] = defaultdict(set)
     order: list[str] = []
+    per_share: set[str] = set()
     for filing in sorted(filings, key=lambda f: (f.period_end, f.submitted), reverse=True):
         if filing.is_pdf:
             continue
         facts = filing.by_statement.get(statement, [])
         labels = [_clean_label(f.label) for f in facts]
+        per_share.update(f.key for f in facts if f.unit in PER_SHARE_UNITS)
         for f, name in zip(facts, labels):
             if name:
                 found[name].add(f.key)
@@ -786,12 +790,13 @@ def name_index(filings: Sequence[Filing], statement: str) -> Names:
         {name: next(iter(keys)) for name, keys in found.items() if len(keys) == 1},
         order,
         {k: next(iter(keys)) for k, keys in within.items() if len(keys) == 1},
+        per_share,
     )
 
 
 def _by_name(
     keys: Sequence[str], bases: Sequence[str], by_section: Mapping[int, tuple[str, str]], known: set[object],
-    names: Names, claimed: set[str],
+    names: Names, claimed: set[str], per_share: Sequence[bool],
 ) -> dict[int, Mapped]:
     count = Counter(bases)
     out: dict[int, Mapped] = {}
@@ -802,7 +807,7 @@ def _by_name(
         key = names.keys.get(name) if count[bases[i]] == 1 else None
         if key is None and sk is not None and bases[i] not in GENERIC_LABELS:
             key = names.by_section.get(sk)
-        if key is not None and key not in claimed:
+        if key is not None and key not in claimed and (key in names.per_share) == per_share[i]:
             out[i] = Mapped(key, 1, "name")
     counts = defaultdict(int)
     for m in out.values():
