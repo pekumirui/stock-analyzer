@@ -1076,6 +1076,183 @@ def test_run_real_s100xz69_zip_is_parsed() -> None:
         db.close()
 
 
+_VITAL_ZIPS = {d: Path(__file__).resolve().parent / "testdata" / f"{d}.zip"
+               for d in ("S100YVSC", "S100Z275", "S100Z80G", "S100ZHJ0")}
+_VITAL_FILED = {"S100YVSC": date(2026, 8, 10), "S100Z275": date(2026, 9, 14),
+                "S100Z80G": date(2026, 10, 14), "S100ZHJ0": date(2026, 11, 13)}
+_VITAL_TODAY = date(2026, 11, 13)
+
+
+def _vital_docs(*doc_ids: str) -> list[EdinetDocument]:
+    return [_doc(i, d, edinet_code="E22440", sec_code="31510", code="31510",
+                 filer_name="株式会社バイタルケーエスケー・ホールディングス", file_date=_VITAL_FILED[d])
+            for i, d in enumerate(doc_ids, start=1)]
+
+
+def _vital_client(*doc_ids: str) -> _ErrClient:
+    return _ErrClient({d: _VITAL_ZIPS[d].read_bytes() for d in doc_ids})
+
+
+def _vital_run(db, *doc_ids: str):
+    for d in _vital_docs(*doc_ids):
+        db.add(d)
+    db.commit()
+    return _run(db, _vital_client(*doc_ids), pending_documents(db, today=_VITAL_TODAY),
+                today=_VITAL_TODAY)
+
+
+def test_real_s100yvsc_zip_reads_written_cumulative() -> None:
+    """本番の type=1 ZIP（3151 の 7 月分）。累計の行は株数・金額。"""
+    content = _VITAL_ZIPS["S100YVSC"].read_bytes()
+    rep = parse_buyback(read_instance(content), honbun_html(content))
+    assert (rep.period_start, rep.period_end) == (date(2026, 7, 1), date(2026, 7, 31))
+    r = rep.resolutions[0]
+    assert (r.limit_shares, r.limit_amount) == (2000000, 4000000000)
+    assert (r.month_shares, r.month_amount) == (241500, 386741190)
+    assert (r.cumulative_shares, r.cumulative_amount) == (579700, 908445472)
+    assert (r.progress_shares, r.progress_amount) == (0.2899, 0.2271)
+
+
+def test_real_ratio_cumulative_zips_are_not_read_as_counts() -> None:
+    """本番の type=1 ZIP（3151 の 8〜10 月分）。累計の行が当月÷枠の割合。株数にしない。"""
+    for doc_id, cells, month, progress in (
+        ("S100Z275", ("9.76%", "7.93%"), (195100, 317019391), (0.4341, 0.3441)),
+        ("S100Z80G", ("7.02%", "5.67%"), (140400, 226973996), (0.4576, 0.3631)),
+        ("S100ZHJ0", ("16.35%", "12.47%"), (326900, 498675989), (0.6211, 0.4878)),
+    ):
+        content = _VITAL_ZIPS[doc_id].read_bytes()
+        inst = read_instance(content)
+        block = inst.block("AcquisitionsByResolutionOfBoardOfDirectorsMeetingTextBlock")
+        cum = next(row for row in block.rows() if "累計" in squash(row[0]))
+        assert (cum[-2], cum[-1]) == cells, doc_id
+        rep = parse_buyback(inst, honbun_html(content))
+        r = rep.resolutions[0]
+        assert (r.kind, r.resolution_date) == ("board", date(2026, 5, 14)), doc_id
+        assert (r.month_shares, r.month_amount) == month, doc_id
+        assert (r.cumulative_shares, r.cumulative_amount) == (None, None), doc_id
+        assert (r.progress_shares, r.progress_amount) == progress, doc_id
+
+
+def test_run_real_ratio_cumulative_chain_sums_previous_months() -> None:
+    """7 月の累計に当月を足していく。8 月の書類の進捗率は累計÷枠と合わないが落とさない。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        st, out = _vital_run(db, "S100YVSC", "S100Z275", "S100Z80G", "S100ZHJ0")
+        assert (st["parsed"], st["failed"], st["errors"], exit_status(st)) == (4, 0, 0, 0), out
+        assert "parse-error" not in out
+        want = {
+            "S100YVSC": (241500, 579700, 908445472),
+            "S100Z275": (195100, 774800, 1225464863),
+            "S100Z80G": (140400, 915200, 1452438859),
+            "S100ZHJ0": (326900, 1242100, 1951114848),
+        }
+        for doc_id, (month, cum_s, cum_a) in want.items():
+            row = db.get(EdinetBuyback, doc_id)
+            assert (row.parse_status, row.parse_error, row.month_shares) == ("parsed", None, month), doc_id
+            res = db.get(EdinetBuybackResolution, (doc_id, 1))
+            assert (res.month_shares, res.cumulative_shares, res.cumulative_amount) == (
+                month, cum_s, cum_a), doc_id
+        assert "cum-derived doc_id=S100YVSC" not in out
+        assert ("cum-derived doc_id=S100Z275 resolution=2026-05-14 shares=774800 "
+                "amount=1225464863 progress-check=mismatch/mismatch") in out
+        assert ("cum-derived doc_id=S100Z80G resolution=2026-05-14 shares=915200 "
+                "amount=1452438859 progress-check=ok/ok") in out
+        assert ("cum-derived doc_id=S100ZHJ0 resolution=2026-05-14 shares=1242100 "
+                "amount=1951114848 progress-check=ok/ok") in out
+    finally:
+        db.close()
+
+
+def test_run_ratio_cumulative_without_previous_month_is_failed() -> None:
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        err = StringIO()
+        with contextlib.redirect_stderr(err):
+            st, _ = _vital_run(db, "S100ZHJ0")
+        assert (st["parsed"], st["failed"], exit_status(st)) == (0, 1, 1)
+        row = db.get(EdinetBuyback, "S100ZHJ0")
+        assert row.parse_status == "failed" and "前月の累計が無い" in row.parse_error
+        assert db.get(EdinetBuybackResolution, ("S100ZHJ0", 1)) is None
+    finally:
+        db.close()
+
+
+def test_run_ratio_cumulative_rejects_broken_previous_month() -> None:
+    """前月の行が「累計 7 株」（割合を株数に読んだ値）のままなら足さない。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        st, _ = _vital_run(db, "S100YVSC", "S100Z275", "S100Z80G")
+        assert st["parsed"] == 3
+        prev = db.get(EdinetBuybackResolution, ("S100Z80G", 1))
+        prev.cumulative_shares, prev.cumulative_amount = 7, 5
+        db.commit()
+        err = StringIO()
+        with contextlib.redirect_stderr(err):
+            st, _ = _vital_run(db, "S100ZHJ0")
+        assert (st["parsed"], st["failed"]) == (0, 1)
+        row = db.get(EdinetBuyback, "S100ZHJ0")
+        assert row.parse_status == "failed" and "前月の累計が使えない(株): 7" in row.parse_error
+    finally:
+        db.close()
+
+
+def _board_ratio(*, cum_s="12.45%", cum_a="10.45%", kei_s="189,200",
+                 period="2026年７月１日～2026年12月末日") -> str:
+    return para("（２）【取締役会決議による取得の状況】", "2026年9月30日現在") + table(
+        ["区分", "株式数（株）", "価額の総額（円）"],
+        ["取締役会（2026年６月30日）での決議状況", "1,520,000（上限）", "7,000,000,000（上限）"],
+        [f"（取得期間 {period}）"],
+        ["報告月における取得自己株式（取得日）", "9月1日", "189,200", "731,179,500"],
+        ["計", "－", kei_s, "731,179,500"],
+        ["報告月末現在の累積取得自己株式", cum_s, cum_a],
+        ["自己株式取得の進捗状況（％）", "12.45", "10.45"],
+    )
+
+
+def _assert_parse_error(board: str, needle: str) -> None:
+    try:
+        parse_buyback(read_instance(_report(board)))
+    except ValueError as exc:
+        assert needle in str(exc), exc
+        return
+    raise AssertionError("expected ValueError")
+
+
+def test_parse_ratio_cumulative_must_match_month_over_limit() -> None:
+    r = parse_buyback(read_instance(_report(_board_ratio()))).resolutions[0]
+    assert (r.month_shares, r.cumulative_shares, r.cumulative_amount) == (189200, None, None)
+    _assert_parse_error(_board_ratio(cum_s="62.11％"), "累計の行の割合が当月÷枠と合わない(株)")
+    _assert_parse_error(_board_ratio(cum_a="6,067,616,000"), "累計の行の割合が当月÷枠と合わない(円)")
+
+
+def test_parse_percent_in_count_cell_is_error() -> None:
+    _assert_parse_error(_board_ratio(kei_s="12.45%"), "株数・金額の欄が割合で書かれている: 12.45%")
+
+
+def test_run_ratio_cumulative_in_first_month_is_month() -> None:
+    """取得期間が報告月に始まる決議は、前月の行が無くても累計 = 当月。"""
+    init_db()
+    db = SessionLocal()
+    try:
+        _reset(db)
+        db.add(_doc(1, "S100RAT1"))
+        db.commit()
+        client = _ErrClient({"S100RAT1": _report(_board_ratio(period="2026年９月１日～2026年12月末日"))})
+        st, out = _run(db, client, pending_documents(db, today=TODAY), today=TODAY)
+        assert (st["parsed"], st["failed"]) == (1, 0), out
+        res = db.get(EdinetBuybackResolution, ("S100RAT1", 1))
+        assert (res.cumulative_shares, res.cumulative_amount) == (189200, 731179500)
+        assert "cum-derived doc_id=S100RAT1" in out and "progress-check=ok/ok" in out
+    finally:
+        db.close()
+
+
 def test_missing_and_outside_window() -> None:
     init_db()
     db = SessionLocal()
@@ -1201,6 +1378,14 @@ def main() -> None:
     test_run_real_s100y8wi_zip_is_parsed()
     test_real_s100xz69_zip_keeps_month_when_cum_is_zero()
     test_run_real_s100xz69_zip_is_parsed()
+    test_real_s100yvsc_zip_reads_written_cumulative()
+    test_real_ratio_cumulative_zips_are_not_read_as_counts()
+    test_run_real_ratio_cumulative_chain_sums_previous_months()
+    test_run_ratio_cumulative_without_previous_month_is_failed()
+    test_run_ratio_cumulative_rejects_broken_previous_month()
+    test_parse_ratio_cumulative_must_match_month_over_limit()
+    test_parse_percent_in_count_cell_is_error()
+    test_run_ratio_cumulative_in_first_month_is_month()
     test_run_versions_and_rerun()
     test_missing_and_outside_window()
     test_parse_error_logs_to_stderr()

@@ -9,7 +9,7 @@ import re
 import sys
 import traceback
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -62,6 +62,7 @@ _COVER_AMEND_RE = re.compile(r"提出書類.{0,120}訂正報告書")
 _TRUE = frozenset({"true", "1", "t", "yes"})
 _SCALED_UNIT_RE = re.compile(r"(千|万|百万|億)(株|円)")
 _PROGRESS_TOL = 0.005   # 進捗率と累計÷枠の差（0.5 ポイント）
+_PCT_RE = re.compile(r"[%％]")
 _LOG = "edinet buyback"
 _TRACE_FRAMES = 6
 _MSG_MAX = 500
@@ -139,6 +140,7 @@ class Resolution:
     _month_details: bool = False   # 報告月のあとに日付の内訳行がある
     _kei_row: bool = False         # 「計」の行がある（空欄・「―」も含む）
     _month_parts: list[tuple[int | None, int | None]] = field(default_factory=list)
+    _cum_ratio: tuple[float | None, float | None] | None = None   # 累計の行が当月÷枠の割合
 
 
 @dataclass
@@ -174,6 +176,12 @@ def _pct(cell: str) -> float | None:
     return None if v is None else round(float(v) / 100, 6)
 
 
+def _count(cell: str) -> int | None:
+    if _PCT_RE.search(cell):
+        raise ValueError(f"株数・金額の欄が割合で書かれている: {squash(cell)}")
+    return integer(cell)
+
+
 def _start(label_cells: list[str], kind: str, row: list[str]) -> Resolution:
     raw = label_cells[0]
     head = squash(raw)
@@ -184,7 +192,7 @@ def _start(label_cells: list[str], kind: str, row: list[str]) -> Resolution:
     if dates:
         res.resolution_date = dates[0]
     _period(res, " ".join(label_cells))
-    res.limit_shares, res.limit_amount = _last2(row, integer)
+    res.limit_shares, res.limit_amount = _last2(row, _count)
     return res
 
 
@@ -230,6 +238,7 @@ def _finish_month(res: Resolution) -> None:
     計が空欄で日付の内訳がある書類は内訳の合計。計が累計を超え、内訳が無く、
     報告月の行が累計を超えないときは報告月（計の誤記）。累計が 0 で当月が正、
     進捗が当月÷枠と合う書類は当月も累計も書類の値のまま。どれも書類の行を読む。
+    累計の行が割合の書類は、割合が当月÷枠と合うことだけ確かめて累計は空のまま返す。
     """
     if res.month_shares is None:
         if res._kei_row and res._month_details and res._month_parts:
@@ -240,6 +249,13 @@ def _finish_month(res: Resolution) -> None:
             res.month_shares, res.month_amount = res._month_from_report
         elif res._month_row:
             res.month_shares, res.month_amount = 0, 0
+    if res._cum_ratio is not None:
+        for unit, ratio, month, lim in (
+            ("株", res._cum_ratio[0], res.month_shares, res.limit_shares),
+            ("円", res._cum_ratio[1], res.month_amount, res.limit_amount),
+        ):
+            if ratio is None or month is None or not lim or abs(ratio - month / lim) > _PROGRESS_TOL:
+                raise ValueError(f"累計の行の割合が当月÷枠と合わない({unit}): {ratio} / 当月 {month} / 枠 {lim}")
     raw = res._month_from_report_raw
     for unit, month_attr, cum_attr, lim_attr, prog_attr, idx in (
         ("株", "month_shares", "cumulative_shares", "limit_shares", "progress_shares", 0),
@@ -276,23 +292,27 @@ def parse_acquisitions(block: Block, kind: str) -> list[Resolution]:
             _period(cur, label)   # 期間が決議の行の下の行にある書類
         elif "報告月における取得" in label:
             cur._month_row = True
-            raw = _last2(row, integer)
+            raw = _last2(row, _count)
             cur._month_from_report_raw = (raw[0], raw[1])
-            shares, amount = _last2(row, integer, dash_zero=True)
+            shares, amount = _last2(row, _count, dash_zero=True)
             cur._month_from_report = (shares, amount)
             if raw[0] is not None or raw[1] is not None:
                 cur._month_parts.append((raw[0], raw[1]))
         elif label == "計" and cur.month_shares is None:
             cur._kei_row = True
-            raw = _last2(row, integer)
+            raw = _last2(row, _count)
             if raw[0] is not None or raw[1] is not None:
-                cur.month_shares, cur.month_amount = _last2(row, integer, dash_zero=True)
+                cur.month_shares, cur.month_amount = _last2(row, _count, dash_zero=True)
         elif "累計" in label or "累積" in label:
-            cur.cumulative_shares, cur.cumulative_amount = _last2(row, integer, dash_zero=True)
+            if any(_PCT_RE.search(v) for v in _values(row)[-2:]):
+                ratio = _last2(row, _pct)
+                cur._cum_ratio = (ratio[0], ratio[1])
+            else:
+                cur.cumulative_shares, cur.cumulative_amount = _last2(row, _count, dash_zero=True)
         elif "進捗" in label:
             cur.progress_shares, cur.progress_amount = _last2(row, _pct)
         elif cur._month_row and not cur._kei_row and cur.month_shares is None:
-            extra = _last2(row, integer)
+            extra = _last2(row, _count)
             if extra[0] is not None or extra[1] is not None:
                 cur._month_details = True
                 cur._month_parts.append((extra[0], extra[1]))
@@ -496,6 +516,59 @@ def parse_buyback(inst: Instance, honbun: str | list[str] | None = None,
     return out
 
 
+def _prev_resolution(db: Session, doc: EdinetDocument, rep: ParsedBuyback, r: Resolution):
+    """同じ提出者・同じ決議の前月の行。訂正があれば提出の新しいほう。無ければ None。"""
+    B, R = EdinetBuyback, EdinetBuybackResolution
+    prev_month = (rep.period_start - timedelta(days=1)).strftime("%Y-%m")
+    prev_id = db.scalar(
+        select(B.doc_id)
+        .where(B.edinet_code == doc.edinet_code, B.report_month == prev_month,
+               B.parse_status == "parsed", B.withdrawn.is_(False), B.doc_id != doc.doc_id)
+        .order_by(B.submit_datetime.desc(), B.doc_id.desc()).limit(1)
+    )
+    if prev_id is None:
+        return None
+    rows = db.scalars(select(R).where(
+        R.doc_id == prev_id, R.kind == r.kind, R.resolution_date == r.resolution_date)).all()
+    return rows[0] if len(rows) == 1 else None
+
+
+def fill_ratio_cumulative(db: Session, doc: EdinetDocument, rep: ParsedBuyback) -> None:
+    """累計の行が割合の決議に、前月の累計 + 当月を入れる。前月が無い・使えないときは ValueError。
+
+    取得期間が報告月に始まる決議は前月を 0 とする。進捗率は検算だけに使う（合わなくても落とさない）。
+    """
+    for r in rep.resolutions:
+        if r._cum_ratio is None:
+            continue
+        if rep.period_start is None or r.resolution_date is None or not doc.edinet_code:
+            raise ValueError("累計が割合で書かれていて、前月の行を引く鍵（報告期間・決議日・提出者）が無い")
+        first = r.acquire_from is not None and r.acquire_from >= rep.period_start
+        prev = None if first else _prev_resolution(db, doc, rep, r)
+        if not first and prev is None:
+            raise ValueError("累計が割合で書かれていて、前月の累計が無い")
+        checks = []
+        for unit, month_attr, cum_attr, lim_attr, prog_attr in (
+            ("株", "month_shares", "cumulative_shares", "limit_shares", "progress_shares"),
+            ("円", "month_amount", "cumulative_amount", "limit_amount", "progress_amount"),
+        ):
+            base = 0
+            if prev is not None:
+                base, prev_m = getattr(prev, cum_attr), getattr(prev, month_attr)
+                if base is None or (prev_m is not None and prev_m > base):
+                    raise ValueError(f"累計が割合で書かれていて、前月の累計が使えない({unit}): {base}")
+            cum = base + getattr(r, month_attr)
+            lim, prog = getattr(r, lim_attr), getattr(r, prog_attr)
+            if cum > lim:
+                raise ValueError(f"累計が枠を超えている({unit}): {cum} > {lim}")
+            setattr(r, cum_attr, cum)
+            checks.append("none" if prog is None else
+                          "ok" if abs(prog - cum / lim) <= _PROGRESS_TOL else "mismatch")
+        print(f"{_LOG} cum-derived doc_id={doc.doc_id} resolution={r.resolution_date} "
+              f"shares={r.cumulative_shares} amount={r.cumulative_amount} "
+              f"progress-check={checks[0]}/{checks[1]}", flush=True)
+
+
 def report_row(doc: EdinetDocument, rep: ParsedBuyback, lookup: CodeLookup,
                fetched_at: datetime) -> dict:
     is_amendment = doc.doc_type_code == AMENDMENT
@@ -666,6 +739,7 @@ def ingest_document(db: Session, client: EdinetClient, doc: EdinetDocument,
         # 取得状況の章は本文 iXBRL。訂正事項は PublicDoc の非 iXBRL HTML にあることがある
         rep = parse_buyback(inst, honbun, amendment=doc.doc_type_code == AMENDMENT,
                             texts=public_html(got.content))
+        fill_ratio_cumulative(db, doc, rep)
         row = report_row(doc, rep, lookup, fetched_at)
         res = resolution_rows(doc.doc_id, rep)
     except Exception as exc:
@@ -719,7 +793,7 @@ def run(db: Session, client: EdinetClient, docs: list[EdinetDocument],
     out = {"parsed": 0, "meta": 0, "failed": 0, "missing": 0, "errors": 0}
     lookup = CodeLookup.load(db)
     ids: dict[str, list[str]] = {"missing": [], "failed": [], "error": []}
-    for doc in docs:
+    for doc in sorted(docs, key=lambda d: d.file_date):
         st = ingest_document(db, client, doc, lookup, today=today)
         out[st if st in out else "errors"] += 1
         if st in ids:
