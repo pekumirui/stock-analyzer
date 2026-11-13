@@ -976,3 +976,98 @@ def test_order_check_follows_the_same_kind_of_period() -> None:
     assert keys_of(fst.apply_learned(rows, [fy], "BS", date(2026, 6, 30), "Q")).count(None) == 2
     fy_rows = [bs_fact("棚卸資産", 2), bs_fact("未収入金", 6), bs_fact("工事損失引当金", 1), bs_fact("賞与引当金", 4)]
     assert None not in keys_of(fst.apply_learned(fy_rows, [fy, q], "BS", date(2027, 3, 31), "FY"))
+
+
+def test_signed_profit_labels_give_the_loss_wording() -> None:
+    for label, profit in [
+        ("営業利益又は営業損失（△）", "営業利益"),
+        ("親会社株主に帰属する当期純利益又は親会社株主に帰属する当期純損失（△）", "親会社株主に帰属する当期純利益"),
+        ("附帯事業営業利益又は営業損失（△）", "附帯事業営業利益"),
+        ("当期利益（△損失）", "当期利益"),
+        ("非継続事業からの当期利益（△は損失）", "非継続事業からの当期利益"),
+    ]:
+        assert fst._profit_name(label) == profit
+    for label in [
+        "持分法による投資利益", "持分法による投資損失", "持分法による投資損益（△は損失）", "為替差益", "為替差損益（△は損失）",
+        "固定資産除却損", "減損損失", "法人税等の支払額又は還付額（△は支払）", "利益剰余金", "営業利益",
+    ]:
+        assert fst._profit_name(label) is None
+    assert fst._loss_name("税金等調整前四半期純利益") == "税金等調整前四半期純損失"
+    assert fst._loss_name("当期利益#2") is None and fst._loss_name("営業損失") is None
+
+
+LOSS_X = [
+    xbrl_fact(1, "NetSales", 500, "売上高"), xbrl_fact(2, "OperatingIncome", 40, "営業利益又は営業損失（△）"),
+    xbrl_fact(3, "ForeignExchangeGainsNOI", 3, "為替差益"), xbrl_fact(4, "EquityInEarningsOfAffiliatesNOI", 6, "持分法による投資利益"),
+    xbrl_fact(5, "OrdinaryIncome", 49, "経常利益又は経常損失（△）"),
+    xbrl_fact(6, "LossOnRetirementOfNoncurrentAssetsEL", 7, "固定資産除却損"),
+    xbrl_fact(7, "ImpairmentLossEL", 9, "減損損失"),
+    xbrl_fact(8, "ProfitLossAttributableToOwnersOfParent", 33,
+              "親会社株主に帰属する当期純利益又は親会社株主に帰属する当期純損失（△）"),
+]
+LOSS_P = [
+    pl_fact("売上高", 500), pl_fact("営業利益", 40), pl_fact("為替差益", 3), pl_fact("持分法による投資利益", 6),
+    pl_fact("経常利益", 49), pl_fact("固定資産除却損", 7), pl_fact("減損損失", 9),
+    pl_fact("親会社株主に帰属する四半期純利益", 33),
+]
+
+
+def loss_keys(rows: list[fst.Fact], learned: list[fst.Learned], names: fst.Names | None = None) -> list[str | None]:
+    return keys_of(fst.apply_learned(rows, learned, "PL", date(2025, 9, 30), "Q", names))
+
+
+def test_loss_wording_takes_the_learned_signed_profit() -> None:
+    learned = pair("PL", LOSS_X, LOSS_P, date(2025, 6, 30), "Q")
+    assert learned.losses["PL"] == {
+        "営業損失": fst.Mapped("OperatingIncome", 1), "経常損失": fst.Mapped("OrdinaryIncome", 1),
+        "親会社株主に帰属する四半期純損失": fst.Mapped("ProfitLossAttributableToOwnersOfParent", 1),
+        "親会社株主に帰属する当期純損失": fst.Mapped("ProfitLossAttributableToOwnersOfParent", 1),
+    }
+    rows = [
+        pl_fact("売上高", 300), pl_fact("営業損失", -20), pl_fact("為替差損", 2), pl_fact("持分法による投資損失", 4),
+        pl_fact("経常損失", -26), pl_fact("固定資産除却損", 1), pl_fact("減損損失", 3),
+        pl_fact("親会社株主に帰属する四半期純損失", -30),
+    ]
+    got = fst.apply_learned(rows, [learned], "PL", date(2025, 9, 30), "Q")
+    assert keys_of(got) == [
+        "NetSales", "OperatingIncome", None, None, "OrdinaryIncome", "LossOnRetirementOfNoncurrentAssetsEL",
+        "ImpairmentLossEL", "ProfitLossAttributableToOwnersOfParent",
+    ]
+    assert all(m is None or m.sign == 1 for _, m in got)
+
+
+def test_loss_wording_keeps_rows_matched_before() -> None:
+    learned = pair("PL", LOSS_X, LOSS_P, date(2025, 6, 30), "Q")
+    rows = [pl_fact("売上高", 300), pl_fact("営業利益", 20), pl_fact("営業損失", -20), pl_fact("経常利益", 26)]
+    assert loss_keys(rows, [learned]) == ["NetSales", "OperatingIncome", None, "OrdinaryIncome"]
+    assert loss_keys([pl_fact("売上高", 300), pl_fact("営業損失", 20)], [learned]) == ["NetSales", None]
+    assert loss_keys([pl_fact("営業損失", -20), pl_fact("営業損失#2", -20)], [learned]) == [None, None]
+    unsigned = [replace(f, label="営業利益") if f.key == "OperatingIncome" else f for f in LOSS_X]
+    plain = pair("PL", unsigned, LOSS_P, date(2025, 6, 30), "Q")
+    assert "営業損失" not in plain.losses["PL"]
+    assert loss_keys([pl_fact("売上高", 300), pl_fact("営業損失", -20)], [plain]) == ["NetSales", None]
+
+
+def test_loss_wording_of_ifrs_labels() -> None:
+    learned = pair("PL", [
+        xbrl_fact(1, "RevenueIFRS", 500, "売上収益"), xbrl_fact(2, "OperatingProfitLossIFRS", 40, "営業利益（△損失）"),
+        xbrl_fact(3, "ProfitLossIFRS", 30, "当期利益（△損失）"),
+    ], [pl_fact("売上収益", 500), pl_fact("営業利益", 40), pl_fact("当期利益", 30)], date(2025, 6, 30), "Q")
+    rows = [pl_fact("売上収益", 300), pl_fact("営業損失", -20), pl_fact("当期損失", -25)]
+    assert loss_keys(rows, [learned]) == ["RevenueIFRS", "OperatingProfitLossIFRS", "ProfitLossIFRS"]
+
+
+def test_loss_wording_is_matched_by_signed_label() -> None:
+    xbrl = fst.Filing(id=1, doc_id="X", source="edinet", period_type="FY", period_end=date(2025, 3, 31),
+                      submitted="2025-06-20", standard="JPGAAP")
+    xbrl.by_statement = {"PL": list(LOSS_X)}
+    names = fst.name_index([xbrl], "PL")
+    assert names.losses == {
+        "営業損失": "OperatingIncome", "経常損失": "OrdinaryIncome",
+        "親会社株主に帰属する当期純損失": "ProfitLossAttributableToOwnersOfParent",
+    }
+    rows = [pl_fact("売上高", 300), pl_fact("営業損失", -20), pl_fact("持分法による投資損失", -4), pl_fact("経常損失", 26),
+            pl_fact("親会社株主に帰属する当期純損失", 0)]
+    got = fst.apply_learned(rows, [], "PL", date(2025, 9, 30), "Q", names)
+    assert keys_of(got) == ["NetSales", "OperatingIncome", None, None, "ProfitLossAttributableToOwnersOfParent"]
+    assert got[1][1] == fst.Mapped("OperatingIncome", 1, "name")
