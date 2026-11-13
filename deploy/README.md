@@ -510,6 +510,23 @@ deploy/cron-run.sh jobs/ops/rebuild_daily_prices.py --yes   # 作り直す。MCP
 
 2 回目は「既に WITHOUT ROWID です」で何もしない。
 
+### J-Quants の期の日付が 1 年前の開示を直す（KAB-454）
+
+取込は `config/market/statement_period_fixes.json` の開示だけ期の日付を 1 年進める（`DESIGN.md` §6）。一覧を足したとき・初めて入れたときは、既存の `statements` の行を手で直す。J-Quants は引き直さず、DB の `raw_json` から取込と同じ関数で行を作り、一覧の開示の期の 4 列だけ書く。ほかの列・ほかの行は触らない。
+
+日次の回の `WARNING jquants statements period-candidate`（#alerts-batch）は候補。短信の原本の期の印字（1 ページ目の「2026年9月期 第2四半期決算短信」など）で確かめ、期が 1 年前なら一覧に足す（開示番号・J-Quants が返す `CurPerEn`・根拠）。1 年後の出し直し（訂正）なら何もしない（同じ開示では二度と出ない）。`period-fix-mismatch` は J-Quants が直した印なので、その開示を一覧から外す。
+
+```bash
+cd /home/stock/stock-analyzer
+deploy/cron-run.sh jobs/ops/backup_db.py
+.venv/bin/python tools/market/fix_statement_periods.py               # 変わる行を出すだけ。最後の行の changed= が書く件数
+.venv/bin/python tools/market/fix_statement_periods.py --write       # 書く。2 回目は changed=0
+.venv/bin/python tools/tdnet_pdf/financials.py --reparse --code 2121 # 期が変わった銘柄の短信 PDF を読み直す（--code は繰り返し可）
+.venv/bin/python tools/market/fix_statement_periods.py --candidates  # DB 全体の候補（書かない。一覧の開示は出ない）
+```
+
+短信 PDF の指紋は HTML と読み方の版と会計基準だけで、`statements` の日付を含まないので、読み直しには `--reparse` が要る（`--code` の銘柄の PDF を全部読み直し、その銘柄の `xbrl_pdf_matches` も付け直す）。決算後パフォーマンス（`earnings_events`）は次の日次バッチの再計算で付け直る。
+
 ### 短信 PDF の行に XBRL の要素を付ける（`xbrl_pdf_matches`）
 
 デプロイの `migrate.py` が表・索引・ビュー `xbrl_statement_values` を足す（`xbrl_elements` の索引 2 本と ANALYZE。大きな表は書き換えない）。中身は入れないので、最初に一度だけ全銘柄を手で流す。短信 PDF の全件読み直し（`tools/tdnet_pdf/financials.py`）と同時には流さない（読み直しは最後に読み直した銘柄の分を自分で付ける）。そのあとは、読み直しのたび・`three_statements.py` の突き合わせを直したとき・四半期ごとに有報が出そろったあとに流す。cron には入れない。対象は `stocks` にある銘柄だけで、全銘柄で流すと `stocks` に無い銘柄の既存の行を消す。設計は `docs/DESIGN_xbrl.md` §18。

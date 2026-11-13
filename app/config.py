@@ -15,6 +15,7 @@ SUPPLY_CHAIN_PATH = CONFIG_DIR / "supply" / "supply_chain.json"
 SUPPLY_COMPANIES_PATH = CONFIG_DIR / "supply" / "supply_companies.json"
 MATERIAL_STATS_PATH = CONFIG_DIR / "supply" / "material_stats.json"
 LARGE_HOLDING_DATE_FIXES_PATH = CONFIG_DIR / "large_holding_date_fixes.json"
+STATEMENT_PERIOD_FIXES_PATH = CONFIG_DIR / "market" / "statement_period_fixes.json"
 
 
 def apply_dotenv(text: str, environ: MutableMapping[str, str]) -> None:

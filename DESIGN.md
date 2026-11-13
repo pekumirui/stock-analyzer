@@ -628,6 +628,10 @@ Stage3 を Stage1 より先に見るのは、天井圏で 200日線に沿って�
 定常の夜は **計7リクエスト**。内訳はマスタ、株価、TOPIX、財務の当日、財務の前営業日、発表予定の当日、発表予定の昨日。発表予定の2本は `/fins/` の枠。台帳が空の初回は指標のあと PubDate を `EARNINGS_DATE_LOOKBACK_DAYS` 日さかのぼる。この歩きは 7 に入らない。決算開示は15時以降が多いため、当日夜(19:30)に1回実行する。
 19:30 より後の開示（全体の 0.3% 程度）は、翌営業日の回が前営業日の決算を取り直して拾う。
 
+J-Quants の応答には、当期の日付（`CurPerSt` / `CurPerEn` / `CurFYSt` / `CurFYEn`）が 1 年前になっている開示がある（KAB-454。API を引き直しても同じ）。規則では直さず、短信の原本などで確かめた開示だけを `config/market/statement_period_fixes.json`（開示番号・J-Quants が返す誤った期末 `period_end`・根拠）に載せる。`statements` の行を作る `_statement_row` が、開示番号が一覧にあり、応答の `CurPerEn` が一覧の期末と同じときだけ `period_start` / `period_end` / `fiscal_year_start` / `fiscal_year_end` を 1 年進める（月末は翌年の同じ月の月末）。期末が一覧と違えば直さず `WARNING jquants statements period-fix-mismatch` を出す（J-Quants が直したら一覧から外す）。`raw_json` は応答のまま。日付ごと・銘柄ごとの取込とバックフィルはどれも `_statement_row` を通る。短信 XBRL から作った行（`source='xbrl'`）の日付は J-Quants の取込で上書きしない（`docs/DESIGN_xbrl.md` §3.2）ので、その行は一覧に載せても日付が変わらない。
+
+日次の回は、J-Quants から初めて入った開示（XBRL から作っただけの行を含む）のうち、提出日が期末から 300 日以上あとで、通期は `NxtFYSt` が `CurFYEn` の翌日でないもの、四半期（1Q〜3Q の短信）は同じ銘柄・同じ期（`type_of_period`・`period_end`）の前の短信と売上高が違うものを `WARNING jquants statements period-candidate` で出す（直さない。一覧の開示は除く）。四半期の条件は 1 年後の出し直し（訂正）も拾うので候補にとどまる。1 つの開示で出るのは J-Quants から初めて入った回だけなので、確認済みの一覧は持たない（バックフィルと前営業日の取り直しでは同じ開示を出し直さない）。候補は原本の期の印字で確かめ、誤りなら一覧に足して既存の行を `tools/market/fix_statement_periods.py` で直す（手順は `deploy/README.md`）。
+
 冪等設計 (UPSERT) のため何度実行しても安全。バックフィルは株価と決算を同じ日に commit できた日付を
 スキップするので、中断しても再実行すれば続きから埋まる。カレンダーが空、またはその日が失敗したら非ゼロ終了。
 
