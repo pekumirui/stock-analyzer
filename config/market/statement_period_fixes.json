@@ -1,0 +1,29 @@
+{
+  "_meta": {"field": "statements.period_start / period_end / fiscal_year_start / fiscal_year_end", "researched_at": "2026-11-13", "source": "J-Quants /v2/fins/summary の応答（CurPerEn が 1 年前）と短信の原本の期の印字"},
+  "fixes": [
+    {"disclosure_no": "20240424575451", "code": "79490", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20240419572964", "code": "68370", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20240426578810", "code": "93010", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20240430579860", "code": "40620", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20240428579095", "code": "99950", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20240507583087", "code": "85960", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20240507583268", "code": "71890", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20240411568995", "code": "90060", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20240417571437", "code": "73500", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20240502581667", "code": "85500", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20240508585107", "code": "21210", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20240509586962", "code": "49750", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20240509587167", "code": "58300", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20240509587578", "code": "65880", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20240510588130", "code": "82140", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20240510589399", "code": "34220", "period_end": "2023-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2024-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20250507532726", "code": "81230", "period_end": "2024-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2025-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20250514551471", "code": "24750", "period_end": "2024-03-31", "evidence": "通期。同じ応答の NxtFYSt が 2025-04-01（CurFYEn の 1 年と 1 日あと）"},
+    {"disclosure_no": "20230814541711", "code": "51030", "period_end": "2022-06-30", "evidence": "1Q。短信の印字は 2024年3月期第1四半期（2023-04-01〜2023-06-30）"},
+    {"disclosure_no": "20240424575259", "code": "40990", "period_end": "2023-03-31", "evidence": "1Q。短信の印字は 2024年12月期第1四半期（2024-01-01〜2024-03-31）"},
+    {"disclosure_no": "20240509586144", "code": "17640", "period_end": "2023-03-31", "evidence": "3Q。短信の印字は 2024年6月期第3四半期（2023-07-01〜2024-03-31）"},
+    {"disclosure_no": "20240509586157", "code": "36720", "period_end": "2023-03-31", "evidence": "2Q。短信の印字は 2024年9月期第2四半期（2023-10-01〜2024-03-31）"},
+    {"disclosure_no": "20250731526200", "code": "39250", "period_end": "2024-06-30", "evidence": "1Q。短信の印字は 2026年3月期第1四半期（2025-04-01〜2025-06-30）"},
+    {"disclosure_no": "20260513530259", "code": "92490", "period_end": "2025-03-31", "evidence": "2Q。短信の印字は 2026年9月期中間期（2025-10-01〜2026-03-31）"}
+  ]
+}

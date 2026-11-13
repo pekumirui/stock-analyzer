@@ -34,6 +34,7 @@ ALERT_PATTERNS: tuple[AlertPattern, ...] = (
     AlertPattern("batch", "xbrl", r"(^|[^-])failed doc_id="),
     AlertPattern("batch", "xbrl", r"normalize failed"),
     AlertPattern("batch", "edinet", r"WARNING edinet lvh obligation-date"),
+    AlertPattern("batch", "jquants", r"WARNING jquants statements period-"),
     AlertPattern("nginx", "nginx", r"\[error\]"),
     AlertPattern("nginx", "nginx", r"\[crit\]"),
     AlertPattern("nginx", "nginx", r"\[emerg\]"),

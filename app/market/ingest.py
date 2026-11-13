@@ -12,9 +12,12 @@ from sqlalchemy.orm import Session
 
 from .adjust import readjust
 from .jquants import JQuantsClient
+from .period_fixes import apply_period_fix, default_period_fixes, warn_period_candidates
 from ..db import upsert
 from ..models import Stock, DailyPrice, Topix, Statement
-from ..xbrl.statements import NUMERIC_COLUMNS as STATEMENT_NUMERIC_COLUMNS, SOURCE_JQUANTS, SOURCE_XBRL
+from ..xbrl.statements import (
+    NUMERIC_COLUMNS as STATEMENT_NUMERIC_COLUMNS, SOURCE_JQUANTS, SOURCE_XBRL, is_xbrl_raw,
+)
 
 
 def _d(s):
@@ -124,9 +127,9 @@ def ingest_topix(db: Session, jq: JQuantsClient, from_: str | None = None, to: s
     return len(rows)
 
 
-def _statement_row(s: dict) -> dict:
+def _statement_row(s: dict, fixes: dict[str, date] | None = None) -> dict:
     doc = s.get("DocType", "") or ""
-    return {
+    row = {
         "disclosure_no": str(s["DiscNo"]),
         "code": s["Code"],
         "disclosed_date": _d(s.get("DiscDate")),
@@ -157,6 +160,7 @@ def _statement_row(s: dict) -> dict:
                        and "FinancialStatements" not in doc,
         "raw_json": json.dumps(s, ensure_ascii=False),
     }
+    return apply_period_fix(row, default_period_fixes() if fixes is None else fixes)
 
 
 def upsert_statements(db: Session, rows: list[dict], *, commit: bool = True) -> None:
@@ -182,12 +186,27 @@ def upsert_statements(db: Session, rows: list[dict], *, commit: bool = True) -> 
         db.commit()
 
 
+def _jquants_seen(db: Session, nos: list[str]) -> set[str]:
+    """J-Quants の応答がもう入っている開示。XBRL から作っただけの行は含めない。"""
+    out: set[str] = set()
+    for i in range(0, len(nos), 500):
+        out.update(no for no, raw in db.query(Statement.disclosure_no, Statement.raw_json).filter(
+            Statement.disclosure_no.in_(nos[i:i + 500])) if raw and not is_xbrl_raw(raw))
+    return out
+
+
 def ingest_statements_for_date(
-    db: Session, jq: JQuantsClient, day: str, *, commit: bool = True,
+    db: Session, jq: JQuantsClient, day: str, *, commit: bool = True, warn: bool = False,
 ) -> int:
-    rows = [_statement_row(s) for s in jq.fins_summary(date=day)]
-    rows = [r for r in rows if r["disclosed_date"]]
+    """warn は J-Quants から初めて入った開示のうち、期の日付が 1 年前の疑いがあるものを WARNING に出す（直さない）。"""
+    pairs = [(s, _statement_row(s)) for s in jq.fins_summary(date=day)]
+    pairs = [(s, r) for s, r in pairs if r["disclosed_date"]]
+    rows = [r for _, r in pairs]
+    known = _jquants_seen(db, [r["disclosure_no"] for r in rows]) if warn else set()
     upsert_statements(db, rows, commit=commit)
+    if warn:
+        warn_period_candidates(db, [(r, _d(s.get("NxtFYSt"))) for s, r in pairs
+                                    if r["disclosure_no"] not in known])
     return len(rows)
 
 
@@ -218,11 +237,11 @@ def run_daily(db: Session, day: str | None = None) -> int:
         n_p = len(px_rows)
         adjusted = refresh_adjusted(db, px_rows)
         n_t = ingest_topix(db, jq, from_=day, to=day)
-        n_s = ingest_statements_for_date(db, jq, day)
+        n_s = ingest_statements_for_date(db, jq, day, warn=True)
         n_late = 0
         if prev is not None:
             before = db.query(func.count()).filter(Statement.disclosed_date == prev).scalar()
-            ingest_statements_for_date(db, jq, prev.isoformat())
+            ingest_statements_for_date(db, jq, prev.isoformat(), warn=True)
             n_late = db.query(func.count()).filter(Statement.disclosed_date == prev).scalar() - before
     late = f" / {prev}の追加決算{n_late}" if prev is not None else ""
     adj = f" / 権利落ちで調整後を計算し直し {','.join(adjusted)}" if adjusted else ""
