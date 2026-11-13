@@ -67,6 +67,7 @@ SECTION_HEADS = (
     "その他の包括利益累計額", "評価・換算差額等", "営業外収益", "営業外費用", "特別利益", "特別損失",
 )
 GENERIC_LABELS = frozenset({"その他"})
+SIGNED_PROFIT_RE = re.compile(r"^(.+利益)(?:又は.*損失\(△\)|\(△は?損失\))$")
 MIN_LOOSE_MATCH = 100
 NAME_WEIGHT = 1
 KEPT_WEIGHT = 1_000_000
@@ -179,6 +180,7 @@ class Learned:
     pdf_names: dict[str, str] = field(default_factory=dict)
     by_section: dict[str, dict[tuple[str, str], Mapped]] = field(default_factory=dict)
     twice: dict[str, set[str]] = field(default_factory=dict)
+    losses: dict[str, dict[str, Mapped]] = field(default_factory=dict)
 
 
 @dataclass
@@ -187,6 +189,7 @@ class Names:
     order: list[str] = field(default_factory=list)
     by_section: dict[tuple[str, str], str] = field(default_factory=dict)
     per_share: set[str] = field(default_factory=set)
+    losses: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -557,9 +560,34 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
         within = _section_names([info.bases[i] for i in live], marks, statement)
         learned.by_section[statement] = {k: maps[names[live[n]]] for n, k in within.items() if live[n] in hit}
         learned.maps[statement] = maps
+        learned.losses[statement] = _losses(maps, xbrl.seq)
         learned.order[statement] = order
         learned.extras[statement] = extras
     return learned
+
+
+def _profit_name(label: str) -> str | None:
+    m = SIGNED_PROFIT_RE.match(unicodedata.normalize("NFKC", label).strip())
+    return m.group(1) if m else None
+
+
+def _loss_name(profit: str) -> str | None:
+    if not profit.endswith("利益") or SUFFIX_RE.search(profit):
+        return None
+    return profit.removesuffix("利益") + "損失"
+
+
+def _losses(maps: Mapping[str, Mapped], facts: Iterable[Fact]) -> dict[str, Mapped]:
+    signed = {f.key: profit for f in facts if (profit := _profit_name(f.label))}
+    found: dict[str, set[Mapped]] = defaultdict(set)
+    for name, m in maps.items():
+        if m.key not in signed:
+            continue
+        for profit in (name, signed[m.key]):
+            loss = _loss_name(profit)
+            if loss is not None:
+                found[loss].add(m)
+    return {name: next(iter(ms)) for name, ms in found.items() if len(ms) == 1 and name not in maps}
 
 
 def _near(pool: Mapping[float, list[Fact]], value: float, tol: float) -> list[Fact]:
@@ -695,6 +723,30 @@ def _lookup_section(ranked: Sequence[Learned], statement: str, key: tuple[str, s
     return None
 
 
+def _lookup_loss(ranked: Sequence[Learned], statement: str, name: str) -> Mapped | None:
+    for item in ranked:
+        m = item.losses.get(statement, {}).get(name)
+        if m is not None:
+            return m
+    return None
+
+
+def _loss_rows(
+    rows: Sequence[Fact], keys: Sequence[str], bases: Sequence[str], proposals: Sequence[Mapped | None],
+    ranked: Sequence[Learned], statement: str,
+) -> dict[int, Mapped]:
+    taken = {m.key for m in proposals if m is not None}
+    count = Counter(bases)
+    out: dict[int, Mapped] = {}
+    for i, name in enumerate(keys):
+        if proposals[i] is not None or count[name] != 1 or rows[i].value > 0:
+            continue
+        m = _lookup_loss(ranked, statement, name)
+        if m is not None and m.key not in taken:
+            out[i] = m
+    return out
+
+
 def _ordered(
     names: Sequence[str], proposals: Sequence[Mapped | None], ranks: Sequence[Mapping[str, int]],
 ) -> tuple[list[Mapped | None], list[set[int]]]:
@@ -724,6 +776,10 @@ def apply_learned(
     ranked = _ranked(learned, period_end, cls)
     ranks = _ranks(learned, statement, cls)
     proposals = [_lookup(ranked, statement, name) for name in keys]
+    live_rows = [rows[i] for i in live]
+    losses = _loss_rows(live_rows, keys, bases, proposals, ranked, statement)
+    for i, m in losses.items():
+        proposals[i] = m
     first, keeps = _ordered(keys, proposals, ranks)
     kept = set().union(*keeps)
     marks = [first[i].key if i in kept and first[i] is not None else None for i in range(len(live))]
@@ -734,6 +790,9 @@ def apply_learned(
             m = _lookup_section(ranked, statement, sk)
             if m is not None:
                 proposals[i] = m
+    for i, m in losses.items():
+        if proposals[i] is m and sum(1 for p in proposals if p is not None and p.key == m.key) > 1:
+            proposals[i] = None
     claimed = {m.key for m in proposals if m is not None}
     proposals, keeps = _ordered(keys, proposals, ranks)
     keep = set().union(*keeps)
@@ -741,9 +800,12 @@ def apply_learned(
     if names:
         known = {
             k for item in learned for k in item.maps.get(statement, {})
-        } | {k for item in learned for k in item.by_section.get(statement, {})}
-        per_share = [rows[i].unit in PER_SHARE_UNITS for i in live]
-        by_name = _by_name(keys, bases, by_section, known, names, claimed, per_share)
+        } | {k for item in learned for k in item.by_section.get(statement, {})} | {
+            k for item in learned for k in item.losses.get(statement, {})
+        }
+        per_share = [f.unit in PER_SHARE_UNITS for f in live_rows]
+        losing = [f.value <= 0 for f in live_rows]
+        by_name = _by_name(keys, bases, by_section, known, names, claimed, per_share, losing)
     if by_name:
         picked: set[int] = set()
         for rank, kept_here in zip(ranks, keeps):
@@ -770,6 +832,7 @@ def name_index(filings: Sequence[Filing], statement: str) -> Names:
     within: dict[tuple[str, str], set[str]] = defaultdict(set)
     order: list[str] = []
     per_share: set[str] = set()
+    losses: dict[str, set[str]] = defaultdict(set)
     for filing in sorted(filings, key=lambda f: (f.period_end, f.submitted), reverse=True):
         if filing.is_pdf:
             continue
@@ -779,6 +842,9 @@ def name_index(filings: Sequence[Filing], statement: str) -> Names:
         for f, name in zip(facts, labels):
             if name:
                 found[name].add(f.key)
+            loss = _loss_name(_profit_name(f.label) or "")
+            if loss is not None:
+                losses[loss].add(f.key)
         section: str | None = None
         for f, name in zip(reversed(facts), reversed(labels)):
             if _is_marker(f.key, statement):
@@ -791,12 +857,13 @@ def name_index(filings: Sequence[Filing], statement: str) -> Names:
         order,
         {k: next(iter(keys)) for k, keys in within.items() if len(keys) == 1},
         per_share,
+        {name: next(iter(keys)) for name, keys in losses.items() if len(keys) == 1},
     )
 
 
 def _by_name(
     keys: Sequence[str], bases: Sequence[str], by_section: Mapping[int, tuple[str, str]], known: set[object],
-    names: Names, claimed: set[str], per_share: Sequence[bool],
+    names: Names, claimed: set[str], per_share: Sequence[bool], losing: Sequence[bool],
 ) -> dict[int, Mapped]:
     count = Counter(bases)
     out: dict[int, Mapped] = {}
@@ -805,6 +872,8 @@ def _by_name(
         if name in known or (sk is not None and sk in known):
             continue
         key = names.keys.get(name) if count[bases[i]] == 1 else None
+        if key is None and count[bases[i]] == 1 and losing[i]:
+            key = names.losses.get(name)
         if key is None and sk is not None and bases[i] not in GENERIC_LABELS:
             key = names.by_section.get(sk)
         if key is not None and key not in claimed and (key in names.per_share) == per_share[i]:
