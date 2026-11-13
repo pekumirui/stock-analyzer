@@ -869,7 +869,7 @@ def unit_of(grid_note: str | None, texts: tuple[str, ...]) -> UnitKind:
     joined = "".join(_compact(text) for text in texts)
     tokens = [_compact(text) for text in texts]
     # 「1株当り」も「1株当たり」。銭列・円銭は 1 株当たり（KAB-251）。
-    if "円銭" in joined or "銭" in joined or "株当" in joined:
+    if "銭" in joined.replace("金銭", "") or "株当" in joined:
         return UnitKind.PER_SHARE
     if "%" in joined or "％" in joined or "比率" in joined:
         return UnitKind.PERCENT
