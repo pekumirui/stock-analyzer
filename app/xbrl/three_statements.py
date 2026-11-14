@@ -211,6 +211,7 @@ class Column:
     values: dict[str, float]
     order: list[str]
     sources: dict[str, str]
+    consolidated: bool = True
 
     @property
     def period_end(self) -> date:
@@ -236,13 +237,20 @@ def financial_table(
     if statement not in STATEMENTS:
         raise ValueError(f"statement must be one of {', '.join(STATEMENTS)}")
     both = load_both(db, code)
+    stitched = consolidated is None and _has_material(both[True]) and _has_material(both[False])
     if consolidated is None:
         consolidated = _has_material(both[True]) or not _has_material(both[False])
-    filings = both[consolidated]
-    learned = [learn_pair(pdf, xbrl) for pdf, xbrl in _pairs(filings)]
-    columns = build_columns(filings, learned, statement)[-periods:]
-    labels = _labels(filings, learned)
-    units = _units(filings)
+    columns, labels, units = _basis_columns(both[consolidated], consolidated, statement)
+    if stitched:
+        other, other_labels, other_units = _basis_columns(both[False], False, statement)
+        columns = _stitch(columns, other)
+        labels = {**other_labels, **labels}
+        units = {**other_units, **units}
+    columns = columns[-periods:]
+    bases = {c.consolidated for c in columns}
+    mixed = len(bases) > 1
+    if bases and not mixed:
+        consolidated = bases.pop()
     keys: list[str] = []
     for column in reversed(columns):
         keys = _merge(keys, column.order)
@@ -274,8 +282,8 @@ def financial_table(
         }
     return {
         "statement": statement,
-        "consolidated": consolidated,
-        "basis": "連結" if consolidated else "個別",
+        "consolidated": None if mixed else consolidated,
+        "basis": "連結・個別" if mixed else "連結" if consolidated else "個別",
         "accounting_standards": sorted({c.standard for c in columns if c.standard}),
         "cumulative": statement != "BS",
         "unit": "JPY",
@@ -296,7 +304,26 @@ def _period(column: Column) -> dict[str, Any]:
         "doc_id": f.doc_id,
         "submitted_at": f.submitted[:16].replace("T", " ") or None,
         "accounting_standard": f.standard,
+        "consolidated": column.consolidated,
     }
+
+
+def _basis_columns(
+    filings: Sequence[Filing], consolidated: bool, statement: str,
+) -> tuple[list[Column], dict[str, str], dict[str, str | None]]:
+    learned = [learn_pair(pdf, xbrl) for pdf, xbrl in _pairs(filings)]
+    columns = build_columns(filings, learned, statement)
+    for column in columns:
+        column.consolidated = consolidated
+    return columns, _labels(filings, learned), _units(filings)
+
+
+def _stitch(main: list[Column], other: list[Column]) -> list[Column]:
+    if not main:
+        return other
+    lo, hi = main[0].period_end, main[-1].period_end
+    outside = [c for c in other if c.period_end < lo or c.period_end > hi]
+    return sorted(main + outside, key=lambda c: c.period_end)
 
 
 def _has_material(filings: Sequence[Filing]) -> bool:

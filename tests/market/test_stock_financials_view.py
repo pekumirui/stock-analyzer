@@ -19,6 +19,8 @@ console.log(JSON.stringify({
   empty: fs.fsTableHtml({periods: [], rows: [], empty: {reason: "no_material", message: "本表が無い"}}),
   meta: fs.fsMeta(d),
   sectioned: fs.fsTableHtml(JSON.parse(process.argv[3])),
+  mixed: fs.fsTableHtml(JSON.parse(process.argv[4])),
+  mixedMeta: fs.fsMeta(JSON.parse(process.argv[4])),
   amounts: [fs.fsAmount(1234567890, "money"), fs.fsAmount(-2500000, "money"), fs.fsAmount(-400000, "money"),
             fs.fsAmount(41.666, "per_share"), fs.fsAmount(null, "money")],
 }));
@@ -63,9 +65,16 @@ SECTIONED = {**PAYLOAD, "rows": [
 ]}
 
 
+MIXED = {**PAYLOAD, "consolidated": None, "basis": "連結・個別", "periods": [
+    {**PAYLOAD["periods"][0], "consolidated": False},
+    {**PAYLOAD["periods"][1], "consolidated": True},
+    {**PAYLOAD["periods"][2], "consolidated": True},
+]}
+
+
 def _run() -> dict:
     out = subprocess.run(["node", "-e", _NODE, str(ROOT / "static/js/stock-financials.js"), json.dumps(PAYLOAD),
-                          json.dumps(SECTIONED)],
+                          json.dumps(SECTIONED), json.dumps(MIXED)],
                          capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
 
@@ -150,3 +159,16 @@ def test_flat_table_without_sections() -> None:
     html = _run()["html"]
     assert "fs-sec" not in html
     assert all(re.search(r'<td class="l"', r) for r in _rows(html))
+
+
+def test_single_columns_are_marked_and_edge_is_drawn() -> None:
+    r = _run()
+    assert r["mixedMeta"] == "連結・個別 / 日本基準 / 単位: 百万円（1株当たりは円）"
+    ths = re.findall(r"<th[^>]*>.*?</th>", r["mixed"].split("<tbody>", 1)[0])
+    assert "fs-basis" in ths[1] and "個別" in ths[1] and 'class="fs-edge"' not in ths[1]
+    assert "fs-basis" not in ths[2] and ths[2].startswith('<th class="fs-edge"')
+    assert "fs-basis" not in ths[3] and "fs-edge" not in ths[3]
+    goodwill = _cells(_rows(r["mixed"])[0])
+    assert goodwill[2] == '<td class="num fs-edge"></td>'
+    assert "fs-edge" not in goodwill[1] + goodwill[3]
+    assert "fs-basis" not in r["html"] and "fs-edge" not in r["html"]
