@@ -1171,3 +1171,114 @@ def test_value_pairs_moved_to_another_section_stay_dropped() -> None:
     assert noi_keys(rows)[5] is None
     assert noi_keys(rows, names)[5] is None
     assert None not in noi_keys(rows)[:5]
+
+
+TOTAL_X = [
+    xbrl_fact(1, "CashAndDeposits", 100, "現金及び預金", True),
+    xbrl_fact(2, "AllowanceForDoubtfulAccountsCA", -1, "貸倒引当金", True),
+    xbrl_fact(3, "CurrentAssets", 99, "流動資産", True),
+    xbrl_fact(4, "InvestmentSecurities", 50, "投資有価証券", True),
+    xbrl_fact(5, "AllowanceForDoubtfulAccountsIOAByGroup", -2, "貸倒引当金", True),
+    xbrl_fact(6, "InvestmentsAndOtherAssets", 48, "投資その他の資産", True),
+    xbrl_fact(7, "NoncurrentAssets", 48, "固定資産", True),
+    xbrl_fact(8, "Assets", 147, "資産", True),
+    xbrl_fact(9, "ShortTermLoansPayable", 40, "短期借入金", True),
+    xbrl_fact(10, "Liabilities", 40, "負債", True),
+    xbrl_fact(11, "CapitalStock", 100, "資本金", True),
+    xbrl_fact(12, "NetAssets", 107, "純資産", True),
+    xbrl_fact(13, "LiabilitiesAndNetAssets", 147, "負債純資産", True),
+]
+
+
+def total_rows(*, tail: str = "合計") -> list[fst.Fact]:
+    return [
+        bs_fact("現金及び預金", 90), bs_fact("貸倒引当金", -1), bs_fact(f"流動資産{tail}", 89), bs_fact("投資有価証券", 40),
+        bs_fact("貸倒引当金#2", -2), bs_fact(f"投資その他の資産{tail}", 38), bs_fact(f"固定資産{tail}", 38),
+        bs_fact(f"資産{tail}", 127), bs_fact("短期借入金", 30), bs_fact(f"負債{tail}", 30), bs_fact("資本金", 97),
+        bs_fact(f"純資産{tail}", 97), bs_fact(f"負債純資産{tail}", 127),
+    ]
+
+
+def total_keys(rows: list[fst.Fact], learned: list[fst.Learned], facts: list[fst.Fact],
+               statement: str = "BS") -> list[str | None]:
+    return keys_of(fst.apply_learned(rows, learned, statement, date(2026, 6, 30), "Q", xbrl_names(statement, facts)))
+
+
+def test_total_rows_are_matched_by_the_label_without_the_tail() -> None:
+    got = fst.apply_learned(total_rows(), [], "BS", date(2026, 6, 30), "Q", xbrl_names("BS", TOTAL_X))
+    assert keys_of(got) == [x.key for x in TOTAL_X]
+    assert all(m.by == "name" and m.sign == 1 for _, m in got)
+    assert total_keys(total_rows(tail="計"), [], TOTAL_X) == [x.key for x in TOTAL_X]
+
+
+def test_total_rows_open_their_sections_for_the_other_rows() -> None:
+    got = total_keys(total_rows(), [], TOTAL_X)
+    assert got[1] == "AllowanceForDoubtfulAccountsCA" and got[4] == "AllowanceForDoubtfulAccountsIOAByGroup"
+    no_totals = [replace(f, label=f"{f.label}の部") if f.key in ("CurrentAssets", "InvestmentsAndOtherAssets") else f
+                 for f in TOTAL_X]
+    got = total_keys(total_rows(), [], no_totals)
+    assert got[1] is None and got[4] is None
+
+
+def test_total_stem_needs_a_name_before_the_tail() -> None:
+    assert fst._total_stem("資産合計") == "資産" and fst._total_stem("流動資産計") == "流動資産"
+    assert fst._total_stem("負債純資産合計") == "負債純資産"
+    for name in ("合計", "計", "小計", "累計", "会計", "設計", "統計", "減価償却累計額", "その他合計", "その他計", "資産"):
+        assert fst._total_stem(name) is None
+
+
+def test_words_ending_in_kei_are_not_totals() -> None:
+    x = [xbrl_fact(1, "A", 5, "設", True), xbrl_fact(2, "B", 6, "会", True), xbrl_fact(3, "OtherCA", 7, "その他", True),
+         xbrl_fact(4, "C", 8, "小", True), xbrl_fact(5, "Assets", 26, "資産", True)]
+    rows = [bs_fact("設計", 5), bs_fact("会計", 6), bs_fact("その他合計", 7), bs_fact("小計", 8), bs_fact("合計", 26),
+            bs_fact("計", 26)]
+    assert total_keys(rows, [], x) == [None] * 6
+
+
+def test_total_rows_need_one_element_with_the_label() -> None:
+    x = [*TOTAL_X, xbrl_fact(20, "AssetsIFRS", 147, "資産", True)]
+    assert total_keys(total_rows(), [], x)[7] is None
+    assert total_keys([bs_fact("資産合計", 127), bs_fact("資産計", 127)], [], TOTAL_X) == [None, None]
+
+
+def test_total_rows_keep_rows_matched_before() -> None:
+    x = [xbrl_fact(1, "NetSales", 500, "売上高"), xbrl_fact(2, "CostOfSales", 300, "売上原価")]
+    rows = [pl_fact("売上高", 200), pl_fact("売上高合計", 200), pl_fact("売上原価", 120)]
+    assert total_keys(rows, [], x, "PL") == ["NetSales", None, "CostOfSales"]
+    learned = pair("PL", x, [pl_fact("売上高合計", 500), pl_fact("売上原価", 300)])
+    assert total_keys(rows, [learned], x, "PL") == [None, "NetSales", "CostOfSales"]
+
+
+def test_total_rows_keep_exact_labels_apart() -> None:
+    x = [replace(f, label="負債純資産合計") if f.key == "LiabilitiesAndNetAssets" else f for f in TOTAL_X]
+    got = total_keys(total_rows(), [], x)
+    assert got[7] == "Assets" and got[12] == "LiabilitiesAndNetAssets"
+
+
+def test_total_rows_follow_the_standard_of_the_other_totals() -> None:
+    ifrs = bs_learned({"流動資産合計": "CurrentAssetsIFRS", "非流動資産合計": "NonCurrentAssetsIFRS",
+                       "負債合計": "LiabilitiesIFRS"},
+                      ["CurrentAssetsIFRS", "NonCurrentAssetsIFRS", "LiabilitiesIFRS"])
+    rows = [bs_fact("流動資産合計", 89), bs_fact("非流動資産合計", 38), bs_fact("資産合計", 127), bs_fact("負債合計", 30)]
+    assert total_keys(rows, [ifrs], TOTAL_X) == ["CurrentAssetsIFRS", "NonCurrentAssetsIFRS", None, "LiabilitiesIFRS"]
+    jp = [bs_fact("流動資産合計", 89), bs_fact("投資その他の資産合計", 38), bs_fact("固定資産合計", 38),
+          bs_fact("資産合計", 127), bs_fact("負債合計", 30)]
+    one = bs_learned({"流動資産合計": "CurrentAssetsIFRS"}, ["CurrentAssetsIFRS"])
+    assert total_keys(jp, [one], TOTAL_X) == ["CurrentAssetsIFRS", "InvestmentsAndOtherAssets", "NoncurrentAssets",
+                                              "Assets", "Liabilities"]
+    tie = [bs_fact("流動資産合計", 89), bs_fact("資産合計", 127)]
+    assert total_keys(tie, [one], TOTAL_X) == ["CurrentAssetsIFRS", None]
+
+
+def test_total_rows_in_pl() -> None:
+    labels = ["営業利益", "受取利息", "その他", "営業外収益", "支払利息", "その他", "営業外費用", "経常利益",
+              "固定資産売却益", "その他", "特別利益", "減損損失", "その他", "特別損失", "法人税等", "当期純利益"]
+    x = [*PL_X[:14], xbrl_fact(16, "IncomeTaxes", 30), xbrl_fact(15, "ProfitLoss", 64)]
+    x = [replace(f, label=label) for f, label in zip(x, labels)]
+    rows = [pl_fact("営業利益", 30), pl_fact("受取利息", 1), pl_fact("その他", 2), pl_fact("営業外収益合計", 3),
+            pl_fact("支払利息", 1), pl_fact("営業外費用合計", 1), pl_fact("経常利益", 32), pl_fact("減損損失", 4),
+            pl_fact("その他#2", 5), pl_fact("特別損失合計", 9), pl_fact("法人税等合計", 7), pl_fact("当期純利益", 16)]
+    assert total_keys(rows, [], x, "PL") == [
+        "OperatingIncome", "InterestIncomeNOI", None, "NonOperatingIncome", "InterestExpensesNOE", "NonOperatingExpenses",
+        "OrdinaryIncome", "ImpairmentLossEL", None, "ExtraordinaryLoss", "IncomeTaxes", "ProfitLoss",
+    ]

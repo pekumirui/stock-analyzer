@@ -785,16 +785,82 @@ def apply_learned(
     live = [i for i in range(len(rows)) if i not in info.copies]
     keys = [info.names[i] for i in live]
     bases = [info.bases[i] for i in live]
+    live_rows = [rows[i] for i in live]
+    found = _matched(live_rows, keys, bases, learned, statement, period_end, cls, names, {})
+    if names:
+        totals = _totals(keys, bases, found, names, _known(learned, statement), live_rows, statement)
+        if totals:
+            more = _matched(live_rows, keys, bases, learned, statement, period_end, cls, names, totals)
+            taken = {m.key for m in found if m is not None}
+            added = {n: m for n, m in enumerate(more) if found[n] is None and m is not None and m.key not in taken}
+            counts = Counter(m.key for m in added.values())
+            for n, m in added.items():
+                if counts[m.key] == 1:
+                    found[n] = m
+    result: list[Mapped | None] = [None] * len(rows)
+    for n, i in enumerate(live):
+        result[i] = found[n]
+    for i, at in info.copies.items():
+        result[i] = result[at]
+    return list(zip(rows, result))
+
+
+def _known(learned: Sequence[Learned], statement: str) -> set[object]:
+    return {k for item in learned for k in item.maps.get(statement, {})} | {
+        k for item in learned for k in item.by_section.get(statement, {})
+    } | {k for item in learned for k in item.losses.get(statement, {})}
+
+
+def _total_stem(base: str) -> str | None:
+    stem = TOTAL_TAIL_RE.sub("", base)
+    if stem == base or len(stem) < 2 or stem in GENERIC_LABELS:
+        return None
+    return stem
+
+
+def _is_total(key: str, statement: str) -> bool:
+    return _is_marker(key, statement) or key in BS_TOTALS or key in BS_GROUP_END
+
+
+def _totals(
+    keys: Sequence[str], bases: Sequence[str], found: Sequence[Mapped | None], names: Names, known: set[object],
+    live_rows: Sequence[Fact], statement: str,
+) -> dict[int, Mapped]:
+    taken = {m.key for m in found if m is not None}
+    count = Counter(bases)
+    out: dict[int, Mapped] = {}
+    for n, base in enumerate(bases):
+        if found[n] is not None or count[base] != 1 or keys[n] in known or base in names.keys:
+            continue
+        stem = _total_stem(base)
+        key = names.keys.get(stem) if stem is not None else None
+        if key is None or key in taken or (key in names.per_share) != (live_rows[n].unit in PER_SHARE_UNITS):
+            continue
+        out[n] = Mapped(key, 1, "name")
+    counts = Counter(m.key for m in out.values())
+    out = {n: m for n, m in out.items() if counts[m.key] == 1}
+    votes = Counter(k.endswith("IFRS") for k in taken | {m.key for m in out.values()} if _is_total(k, statement))
+    if len(votes) > 1:
+        side = votes[True] > votes[False] if votes[True] != votes[False] else None
+        out = {n: m for n, m in out.items() if m.key.endswith("IFRS") == side}
+    return out
+
+
+def _matched(
+    live_rows: Sequence[Fact], keys: Sequence[str], bases: Sequence[str], learned: Sequence[Learned], statement: str,
+    period_end: date, cls: str, names: Names | None, totals: Mapping[int, Mapped],
+) -> list[Mapped | None]:
     ranked = _ranked(learned, period_end, cls)
     ranks = _ranks(learned, statement, cls)
     proposals = [_lookup(ranked, statement, name) for name in keys]
-    live_rows = [rows[i] for i in live]
     losses = _loss_rows(live_rows, keys, bases, proposals, ranked, statement)
     for i, m in losses.items():
         proposals[i] = m
     first, keeps = _ordered(keys, proposals, ranks)
     kept = set().union(*keeps)
-    marks = [first[i].key if i in kept and first[i] is not None else None for i in range(len(live))]
+    marks = [first[i].key if i in kept and first[i] is not None else None for i in range(len(keys))]
+    for i, m in totals.items():
+        marks[i] = marks[i] or m.key
     by_section = _section_names(bases, marks, statement)
     count = Counter(bases)
     for i, sk in by_section.items():
@@ -805,20 +871,20 @@ def apply_learned(
     for i, m in losses.items():
         if proposals[i] is m and sum(1 for p in proposals if p is not None and p.key == m.key) > 1:
             proposals[i] = None
+    for i in totals:
+        proposals[i] = None
     used = Counter(m.key for m in proposals if m is not None)
+    used.update(m.key for m in totals.values())
     claimed = set(used)
     proposals, keeps = _ordered(keys, proposals, ranks)
     keep = set().union(*keeps)
     by_name: dict[int, Mapped] = {}
     per_share = [f.unit in PER_SHARE_UNITS for f in live_rows]
     if names:
-        known = {
-            k for item in learned for k in item.maps.get(statement, {})
-        } | {k for item in learned for k in item.by_section.get(statement, {})} | {
-            k for item in learned for k in item.losses.get(statement, {})
-        }
         losing = [f.value <= 0 for f in live_rows]
-        by_name = _by_name(keys, bases, by_section, known, names, claimed, per_share, losing)
+        by_name = _by_name(keys, bases, by_section, _known(learned, statement), names, claimed, per_share, losing)
+        for i in totals:
+            by_name.pop(i, None)
     picked: set[int] = set()
     if by_name:
         for rank, kept_here in zip(ranks, keeps):
@@ -826,7 +892,7 @@ def apply_learned(
             picked |= _lis([
                 (i, pos[by_name[i].key] if i in by_name else pos[proposals[i].key],
                  NAME_WEIGHT if i in by_name else KEPT_WEIGHT)
-                for i in range(len(live)) if (i in by_name and by_name[i].key in pos) or i in kept_here
+                for i in range(len(keys)) if (i in by_name and by_name[i].key in pos) or i in kept_here
             ])
         for i, m in by_name.items():
             if i in picked:
@@ -838,12 +904,10 @@ def apply_learned(
     for i, m in _in_section(dropped, bases, by_section, ranked, statement, names, per_share, used).items():
         proposals[i] = m
         keep.add(i)
-    result: list[Mapped | None] = [None] * len(rows)
-    for n, i in enumerate(live):
-        result[i] = proposals[n] if n in keep else None
-    for i, at in info.copies.items():
-        result[i] = result[at]
-    return list(zip(rows, result))
+    for i, m in totals.items():
+        proposals[i] = m
+        keep.add(i)
+    return [proposals[n] if n in keep else None for n in range(len(keys))]
 
 
 def name_index(filings: Sequence[Filing], statement: str) -> Names:
