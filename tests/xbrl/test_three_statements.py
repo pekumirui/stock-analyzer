@@ -294,7 +294,7 @@ def _twice(s: Seeder) -> None:
     s.facts(504, "2025-09-30", [p("pl", n, v) for n, v in zip(pl, [250, 60, 56, 4, 25, 70, 66, 4])])
 
 
-def seed() -> None:
+def seed(extra=None) -> None:
     s = Seeder()
     _company(s, CODE, 0)
     _company(s, LOOSE, 100, with_q_pair=False)
@@ -317,6 +317,8 @@ def seed() -> None:
     ])
     _quarterly(s)
     _twice(s)
+    if extra:
+        extra(s)
     s.close()
 
 
@@ -472,7 +474,7 @@ def test_pdf_only_period_uses_nearest_same_kind_pair() -> None:
     jun = t["periods"][2]
     assert jun == {"period_end": "2025-06-30", "label": "25.06", "period_type": "Q1", "source": "tdnet_pdf",
                    "source_label": "PDF", "doc_id": "D5", "submitted_at": "2025-08-08 15:00",
-                   "accounting_standard": "JPGAAP"}
+                   "accounting_standard": "JPGAAP", "consolidated": True}
 
 
 def test_pdf_only_period_matches_others_within_sections_across_kinds() -> None:

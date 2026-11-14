@@ -153,11 +153,12 @@
 1. 操作の行。左から:
    - 表 `#st-fs-tabs`（`.fin-tabs`。貸借対照表 / 損益計算書 / CF計算書。既定は貸借対照表）
    - 期数 `#st-fs-periods`（`.fin-tabs`。8期 / 20期。既定は 8期。20期は API の上限）
-   - `#st-fs-meta`。出している方（`basis` の 連結 / 個別）、会計基準（`accounting_standards`。日本基準 / IFRS / 米国基準。複数なら `・` でつなぐ）、`単位: 百万円（1株当たりは円）`。損益計算書と CF計算書は `期首からの累計` を足す
-2. 凡例 `#st-fs-legend`（1 行。列の下の出どころの意味、補った値の札、`PDFのみ` の札）
+   - `#st-fs-meta`。出している方（`basis` の 連結 / 個別 / 連結・個別）、会計基準（`accounting_standards`。日本基準 / IFRS / 米国基準。複数なら `・` でつなぐ）、`単位: 百万円（1株当たりは円）`。損益計算書と CF計算書は `期首からの累計` を足す
+2. 凡例 `#st-fs-legend`（1 行。列の下の出どころの意味、補った値の札、`PDFのみ` の札、`個別` の札と境目の縦線）
 3. 表 `#st-fs-tbl`（`table.sheet.fin`）。行は科目（API の `rows` の順）、列は決算期（古い → 新しい）
    - 左端は科目。損益計算書と CF計算書は見出しを `科目（累計）`。`unit` が `per_share` の行は科目の後に `（円）`。`title` に要素名（`key`）
    - 列の見出しは 3 段: `label`（`25.06`）、`period_type` の札（1Q / 2Q / 3Q / 通期。色は決算表の札と同じ）、列の出どころ（`source_label` の 有報 / XBRL / PDF）。`title` に期末日・提出日時・書類 ID・会計基準
+   - 連結と個別が混ざる表（`consolidated` が null）は、個別の列の `period_type` の札の右に `個別` の札（灰色）。連結と個別が切り替わる列の左に縦線（`.fs-edge`。見出しと値のセル）。境目の前後は子会社の分だけ値が跳ぶ。同じ年度の中で切り替わると、累計の中身も途中で変わる
    - 値は API の値をそのまま丸めるだけ。金額は百万円（四捨五入）、1株当たりは円で小数 2 桁。3 桁区切り。負の数は `-` を付けて `.loss`（決算表と同じ赤）。丸めて 0 になる負の数は `0`（色なし）。値の無いセルは空
    - 補ったセル（`cells[i].source` が `periods[i].source` と違う）は数字の右に、補った書類の札（`XBRL` / `PDF`）。`title` に `有報 に無く、XBRL から補った値`
    - XBRL の科目に対応が付かなかった短信 PDF の行（`unmatched_pdf`）は科目の右に `PDFのみ` の札
@@ -165,7 +166,7 @@
    - 合計行を太字にするなどの区別はしない（行名からは推し量らない）
    - 増減・成長率・Q単独などの計算値は出さない
 
-**操作。** 表と期数を押すとその組み合わせで読み直して描く（同じ銘柄・同じ組み合わせは 2 回目から読まない）。銘柄を選び直しても表と期数はそのまま（ルートには残さない）。連結 / 個別の切り替えは置かない（`consolidated=auto`。連結の材料があれば連結、無ければ個別）。
+**操作。** 表と期数を押すとその組み合わせで読み直して描く（同じ銘柄・同じ組み合わせは 2 回目から読まない）。銘柄を選び直しても表と期数はそのまま（ルートには残さない）。連結 / 個別の切り替えは置かない（`consolidated=auto`。途中から連結を始めた会社は、始める前の期を個別でつないで 1 本の表にする）。
 
 **空とエラー。** 材料が無ければ（`empty`）表に `データなし` の 1 行（`title` に API の `message`）。凡例と `#st-fs-meta` は出さない。API 失敗は表に `読み込めませんでした。`
 
@@ -311,7 +312,8 @@
   "accounting_standards": ["JPGAAP"], "cumulative": false, "unit": "JPY",
   "periods": [
     {"period_end": "2025-06-30", "label": "25.06", "period_type": "Q1", "source": "tdnet_pdf", "source_label": "PDF",
-     "doc_id": "20250808512345", "submitted_at": "2025-08-08 15:30", "accounting_standard": "JPGAAP"}
+     "doc_id": "20250808512345", "submitted_at": "2025-08-08 15:30", "accounting_standard": "JPGAAP",
+     "consolidated": true}
   ],
   "rows": [
     {"key": "CashAndDeposits", "label": "現金及び預金", "unit": "money", "unmatched_pdf": false,
@@ -327,7 +329,7 @@
 }
 ```
 
-財務3表（BS / PL / CF）を科目が行・決算期が列（古い → 新しい）で。組み立ては `docs/DESIGN_xbrl.md` §17。`statement` は `BS`（既定）/ `PL` / `CF`、`periods` は 1-20（既定 8）で新しい方から、`consolidated` は `auto`（既定。連結の材料があれば連結、無ければ個別）/ `true` / `false`。応答の `consolidated` / `basis` は出した方。`cumulative` は PL・CF（期首からの累計）で true。
+財務3表（BS / PL / CF）を科目が行・決算期が列（古い → 新しい）で。組み立ては `docs/DESIGN_xbrl.md` §17。`statement` は `BS`（既定）/ `PL` / `CF`、`periods` は 1-20（既定 8）で新しい方から、`consolidated` は `auto`（既定。連結を主にして、連結の列が始まる前・終わった後の期を個別で埋める）/ `true` / `false`（どちらか一方だけ）。応答の `consolidated` / `basis` は出した方で、出した列に連結と個別が混ざれば `null` / `連結・個別`。列ごとの方は `periods[].consolidated`。`cumulative` は PL・CF（期首からの累計）で true。
 
 `periods` の 1 件は列。`source` は列の主たる出どころ（`edinet` / `tdnet` / `tdnet_pdf`、表示名は `source_label` の `有報` / `XBRL` / `PDF`）、`doc_id` と `submitted_at` はその書類、`period_type` は `Q1` / `Q2` / `Q3` / `FY`。`rows` の 1 件は科目。`key` は XBRL の要素名（会社独自は `ext:`、XBRL と対応が付かない短信 PDF の行は `pdf:` で `unmatched_pdf: true`）。`unit` は `money`（円）か `per_share`（1 株当たりの円）。`group` は BS の大区分（`資産` / `負債` / `純資産`、IFRS は `資本`）、`section` は区分（BS は `流動資産` / `有形固定資産` / `流動負債` / `株主資本` …、CF は 営業・投資・財務 の合計の行名）で、どちらも名前の文字列。区分の外の行と PL、合計の要素が無い会社は null。決め方は `docs/DESIGN_xbrl.md` §17。`cells` は `periods` と同じ長さで、値が無ければ null。`value` は円のまま（百万円への丸めは表示側）、`source` はその値を採った出どころで、列の `source` と違えば下位の出どころで補ったセル。
 

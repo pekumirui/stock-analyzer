@@ -25,21 +25,28 @@ function fsSourceLabel(src){
   return FS_SOURCE[src] || src || "";
 }
 
-function fsCell(cell, period, unit){
-  if(!cell) return `<td class="num"></td>`;
+function fsCell(cell, period, unit, edge){
+  const cls = edge ? "num fs-edge" : "num";
+  if(!cell) return `<td class="${cls}"></td>`;
   const txt = fsAmount(cell.value, unit);
-  if(!period || cell.source === period.source) return `<td class="num">${txt}</td>`;
+  if(!period || cell.source === period.source) return `<td class="${cls}">${txt}</td>`;
   const from = fsSourceLabel(cell.source), main = fsSourceLabel(period.source);
   const tip = `${main} に無く、${from} から補った値`;
-  return `<td class="num fill" title="${fsEsc(tip)}">${txt}<span class="qb fs-fill">${fsEsc(from)}</span></td>`;
+  return `<td class="${cls} fill" title="${fsEsc(tip)}">${txt}<span class="qb fs-fill">${fsEsc(from)}</span></td>`;
 }
 
-function fsHeadCell(p){
+function fsEdges(ps){
+  return ps.map((p, i) => i > 0 && p.consolidated !== ps[i - 1].consolidated);
+}
+
+function fsHeadCell(p, mixed, edge){
   const [pt, cls] = FS_PT[p.period_type] || [p.period_type || "", ""];
-  const tip = [p.period_end, pt, `出どころ ${p.source_label || fsSourceLabel(p.source)}`,
+  const single = mixed && p.consolidated === false;
+  const tip = [p.period_end, pt, single ? "個別" : "", `出どころ ${p.source_label || fsSourceLabel(p.source)}`,
     p.submitted_at ? `提出 ${p.submitted_at}` : "", p.doc_id || "", FS_STD[p.accounting_standard] || p.accounting_standard || ""]
     .filter(Boolean).join(" / ");
-  return `<th title="${fsEsc(tip)}">${fsEsc(p.label)}<span class="g"><span class="qb ${cls}">${fsEsc(pt)}</span></span>`
+  const badge = single ? `<span class="qb fs-basis">個別</span>` : "";
+  return `<th${edge ? ' class="fs-edge"' : ""} title="${fsEsc(tip)}">${fsEsc(p.label)}<span class="g"><span class="qb ${cls}">${fsEsc(pt)}</span>${badge}</span>`
     + `<span class="g fs-src">${fsEsc(p.source_label || fsSourceLabel(p.source))}</span></th>`;
 }
 
@@ -61,7 +68,10 @@ function fsTableHtml(d){
   }
   const ps = d.periods;
   const sectioned = d.rows.some(r => r.group || r.section);
-  let h = `<thead><tr><th class="l">${d.cumulative ? "科目（累計）" : "科目"}</th>${ps.map(fsHeadCell).join("")}</tr></thead><tbody>`;
+  const mixed = d.consolidated == null;
+  const edges = fsEdges(ps);
+  let h = `<thead><tr><th class="l">${d.cumulative ? "科目（累計）" : "科目"}</th>`
+    + `${ps.map((p, i) => fsHeadCell(p, mixed, edges[i])).join("")}</tr></thead><tbody>`;
   let at = null;
   for(const r of d.rows){
     const g = r.group || null, s = r.section || null;
@@ -76,7 +86,7 @@ function fsTableHtml(d){
     const unit = r.unit === "per_share" ? `<span class="sub">（円）</span>` : "";
     const cls = depth ? `l d${depth}` : "l";
     h += `<tr${r.unmatched_pdf ? ' class="pdf"' : ""}><td class="${cls}" title="${fsEsc(r.key)}">${fsEsc(r.label)}${unit}${mark}</td>`
-      + ps.map((p, i) => fsCell((r.cells || [])[i], p, r.unit)).join("") + `</tr>`;
+      + ps.map((p, i) => fsCell((r.cells || [])[i], p, r.unit, edges[i])).join("") + `</tr>`;
   }
   return h + `</tbody>`;
 }
