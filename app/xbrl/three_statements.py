@@ -59,6 +59,10 @@ CF_CASH_RE = re.compile(r"^CashAndCashEquivalents")
 PL_END_RE = re.compile(r"ProfitLoss|NetIncome|ComprehensiveIncome|EarningsLossPerShare|EarningsPerShare")
 AHEAD_SKIP_RE = re.compile(r"SummaryOfBusinessResults|KeyFinancialData|InvestmentEquitySecurities")
 SUFFIX_RE = re.compile(r"#\d+$")
+OPENING_CASH_RE = re.compile(
+    r"^[IVXⅠ-Ⅻ]*(?:会計方針の変更を反映した)?"
+    r"(?:現金(?:及び|および)現金同等物の?期首残高|期首現金(?:及び|および)現金同等物残高)(?:\(.*計上額\))?$"
+)
 LABEL_NOISE_RES = (
     re.compile(r"又は[^（(]*?(?:（△）|\(△\))"),
     re.compile(r"（△[^）]*）|\(△[^)]*\)"),
@@ -242,6 +246,8 @@ def financial_table(
     keys: list[str] = []
     for column in reversed(columns):
         keys = _merge(keys, column.order)
+    if statement == "CF":
+        keys = [k for k in keys if not _opening_cash(k)]
     parts = sections(keys, statement, labels)
     rows = [
         {
@@ -1053,6 +1059,10 @@ def _with_extras(filing: Filing, statement: str, learned: Sequence[Learned]) -> 
     return facts
 
 
+def _opening_cash(key: str) -> bool:
+    return key.startswith("pdf:") and OPENING_CASH_RE.match(SUFFIX_RE.sub("", key[4:])) is not None
+
+
 def pdf_only_matches(db: Session, code: str) -> list[PdfMatch]:
     out: list[PdfMatch] = []
     for basis, filings in load_both(db, code).items():
@@ -1065,6 +1075,8 @@ def pdf_only_matches(db: Session, code: str) -> list[PdfMatch]:
                     continue
                 facts = filing.by_statement[statement]
                 for fact, mapped in apply_learned(facts, learned, statement, filing.period_end, filing.cls, names):
+                    if statement == "CF" and mapped is None and _opening_cash(fact.key):
+                        continue
                     out.append(PdfMatch(filing, basis, statement, fact, mapped))
     return out
 
