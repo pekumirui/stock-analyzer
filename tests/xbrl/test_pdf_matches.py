@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tests.xbrl.test_three_statements import CODE, LOOSE, NAMED, SINGLE, TWICE, M, seed  # noqa: E402
+from tests.xbrl.test_three_statements import CODE, LOOSE, NAMED, OPENING, SINGLE, TWICE, M, seed  # noqa: E402
 
 EXTRA = "11110"
 
@@ -124,6 +124,7 @@ def test_only_pdf_only_periods_are_matched() -> None:
     assert {r[0] for r in matches(CODE)} == {5}
     assert {r[0] for r in matches(LOOSE)} == {105}
     assert {r[0] for r in matches(NAMED)} == {301}
+    assert {r[0] for r in matches(OPENING)} == {603}
     assert matches(SINGLE) == [] and matches(EXTRA) == []
 
 
@@ -136,18 +137,23 @@ def test_value_name_unmatched_and_sign() -> None:
     assert named[("BS", "社債")] == ("BondsPayable", 1, "name")
     assert named[("BS", "借入金")] == (None, 1, None)
     assert {r[6] for r in matches(CODE)} == {1}
+    opening = by_name(OPENING)
+    assert ("CF", "VI現金及び現金同等物の期首残高") not in opening
+    assert ("CF", "会計方針の変更を反映した現金及び現金同等物の期首残高") not in opening
+    assert opening[("CF", "新規連結子会社の現金及び現金同等物の期首残高")] == (None, 1, None)
+    assert opening[("CF", "現金及び現金同等物の期末残高")] == ("CashAndCashEquivalents", 1, "value")
 
 
 def test_rerun_gives_the_same_rows() -> None:
-    before = {code: matches(code) for code in (CODE, LOOSE, NAMED, TWICE)}
+    before = {code: matches(code) for code in (CODE, LOOSE, NAMED, TWICE, OPENING)}
     db = SessionLocal()
     try:
         counts = rebuild_matches(db)
         again = rebuild_matches(db, codes=[CODE])
     finally:
         db.close()
-    assert {code: matches(code) for code in (CODE, LOOSE, NAMED, TWICE)} == before
-    assert counts["failed"] == 0 and counts["filings"] == 5
+    assert {code: matches(code) for code in (CODE, LOOSE, NAMED, TWICE, OPENING)} == before
+    assert counts["failed"] == 0 and counts["filings"] == 6
     assert counts["matched"] + counts["unmatched"] == sum(len(v) for v in before.values())
     assert again["codes"] == 1 and again["filings"] == 1
 
