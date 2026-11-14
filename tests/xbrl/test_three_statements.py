@@ -294,7 +294,7 @@ def _twice(s: Seeder) -> None:
     s.facts(504, "2025-09-30", [p("pl", n, v) for n, v in zip(pl, [250, 60, 56, 4, 25, 70, 66, 4])])
 
 
-def seed(extra=None) -> None:
+def seed(more=None) -> None:
     s = Seeder()
     _company(s, CODE, 0)
     _company(s, LOOSE, 100, with_q_pair=False)
@@ -317,8 +317,8 @@ def seed(extra=None) -> None:
     ])
     _quarterly(s)
     _twice(s)
-    if extra:
-        extra(s)
+    if more:
+        more(s)
     s.close()
 
 
