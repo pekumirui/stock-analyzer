@@ -18,6 +18,7 @@ SINGLE = "24680"
 NAMED = "13570"
 QUARTER = "36790"
 TWICE = "22820"
+OPENING = "46810"
 NONCONSOL = {"jppfs_cor:ConsolidatedOrNonConsolidatedAxis": "jppfs_cor:NonConsolidatedMember"}
 SEGMENT = {"jpcrp_cor:OperatingSegmentsAxis": "jpcrp_cor:ReportableSegmentsMember"}
 
@@ -294,6 +295,21 @@ def _twice(s: Seeder) -> None:
     s.facts(504, "2025-09-30", [p("pl", n, v) for n, v in zip(pl, [250, 60, 56, 4, 25, 70, 66, 4])])
 
 
+def _opening(s: Seeder) -> None:
+    s.stock(OPENING, "期首残高")
+    s.filing(601, "edinet", "FY", "2025-03-31", "2025-06-20 15:00:00", code=OPENING)
+    s.facts(601, "2025-03-31", FY_CF)
+    s.filing(602, "tdnet_pdf", "FY", "2025-03-31", "2025-05-10 15:00:00", code=OPENING)
+    s.facts(602, "2025-03-31", FY_PDF_CF)
+    s.filing(603, "tdnet_pdf", "Q1", "2025-06-30", "2025-08-08 15:00:00", code=OPENING)
+    s.facts(603, "2025-06-30", [
+        p("cf", "減価償却費", 6), p("cf", "営業活動によるキャッシュ・フロー", 40),
+        p("cf", "現金及び現金同等物の増減額", 3), p("cf", "VI現金及び現金同等物の期首残高", 95),
+        p("cf", "会計方針の変更を反映した現金及び現金同等物の期首残高", 94),
+        p("cf", "新規連結子会社の現金及び現金同等物の期首残高", 2), p("cf", "現金及び現金同等物の期末残高", 99),
+    ], start="2025-04-01")
+
+
 def seed(more=None) -> None:
     s = Seeder()
     _company(s, CODE, 0)
@@ -317,6 +333,7 @@ def seed(more=None) -> None:
     ])
     _quarterly(s)
     _twice(s)
+    _opening(s)
     if more:
         more(s)
     s.close()
@@ -525,6 +542,39 @@ def test_cf_keeps_learned_members_in_xbrl_only_periods() -> None:
     assert rows(t)["CashAndCashEquivalents"]["label"] == "現金及び現金同等物の期末残高"
     assert value(t, "NetIncreaseDecreaseInCashAndCashEquivalents", "25.09") == -10 * M
     assert "pdf:現金及び現金同等物の期首残高" not in rows(t)
+
+
+def test_cf_drops_unmatched_opening_cash_rows() -> None:
+    t = table(OPENING, statement="CF")
+    assert labels(t) == ["25.03", "25.06"]
+    keys = [r["key"] for r in t["rows"]]
+    assert [k for k in keys if k.startswith("pdf:")] == ["pdf:新規連結子会社の現金及び現金同等物の期首残高"]
+    assert value(t, "pdf:新規連結子会社の現金及び現金同等物の期首残高", "25.06") == 2 * M
+    assert value(t, "CashAndCashEquivalents", "25.06") == 99 * M
+    assert keys[-1] == "CashAndCashEquivalents"
+    db = SessionLocal()
+    try:
+        got = [(m.fact.local, m.mapped and m.mapped.key) for m in fst.pdf_only_matches(db, OPENING)]
+    finally:
+        db.close()
+    assert got == [
+        ("減価償却費", "DepreciationAndAmortizationOpeCF"),
+        ("営業活動によるキャッシュ・フロー", "NetCashProvidedByUsedInOperatingActivities"),
+        ("現金及び現金同等物の増減額", "NetIncreaseDecreaseInCashAndCashEquivalents"),
+        ("新規連結子会社の現金及び現金同等物の期首残高", None),
+        ("現金及び現金同等物の期末残高", "CashAndCashEquivalents"),
+    ]
+
+
+def test_opening_cash_names() -> None:
+    names = ["現金及び現金同等物の期首残高", "現金及び現金同等物期首残高", "現金および現金同等物の期首残高",
+             "VI現金及び現金同等物の期首残高", "期首現金及び現金同等物残高", "現金及び現金同等物の期首残高#2",
+             "現金及び現金同等物の期首残高(連結財政状態計算書計上額)", "会計方針の変更を反映した現金及び現金同等物の期首残高"]
+    assert all(fst._opening_cash(f"pdf:{n}") for n in names)
+    kept = ["新規連結子会社の現金及び現金同等物の期首残高", "被取得企業の現金同等物期首残高",
+            "連結子会社の決算期変更に伴う現金及び現金同等物の期首残高増減額", "現金及び現金同等物の期末残高"]
+    assert not any(fst._opening_cash(f"pdf:{n}") for n in kept)
+    assert not fst._opening_cash("CashAndCashEquivalents")
 
 
 def test_non_consolidated() -> None:
