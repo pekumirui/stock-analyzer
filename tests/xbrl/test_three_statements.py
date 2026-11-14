@@ -918,6 +918,38 @@ def bs_fact(local: str, value: float) -> fst.Fact:
     return fact(local, value)
 
 
+def test_rows_outside_bs_do_not_take_balances_of_other_statements() -> None:
+    bs = [xbrl_fact(1, "CashAndCashEquivalentsIFRS", 950, instant=True), xbrl_fact(2, "IntangibleAssets", 410, instant=True),
+          xbrl_fact(3, "CurrentLiabilities", 264, instant=True), xbrl_fact(4, "Assets", 3000, instant=True)]
+    pl = [xbrl_fact(5, "NetSales", 5000), xbrl_fact(6, "IncomeBeforeIncomeTaxes", 1980), xbrl_fact(7, "ProfitLoss", 1500)]
+    cf = [xbrl_fact(8, "NetCashProvidedByUsedInOperatingActivities", 1800),
+          xbrl_fact(9, "NetIncreaseDecreaseInCashAndCashEquivalents", 686)]
+    x = fst.Filing(id=1, doc_id="X", source="edinet", period_type="Q2", period_end=date(2024, 6, 30),
+                   submitted="2024-08-10", standard="IFRS")
+    x.by_statement = {"BS": bs, "PL": pl, "CF": cf}
+    x.seq = [*bs, *pl, *cf]
+    pdf = fst.Filing(id=2, doc_id="P", source="tdnet_pdf", period_type="Q2", period_end=date(2024, 6, 30),
+                     submitted="2024-08-05", standard="IFRS")
+    balance = replace(pl_fact("現金及び現金同等物の期首残高", 264), instant=True)
+    pdf.by_statement = {
+        "BS": [bs_fact("無形資産", 410), bs_fact("流動負債合計", 264), bs_fact("資産合計", 3000)],
+        "PL": [pl_fact("売上高", 5000), pl_fact("法人税等", 410), pl_fact("当期純利益", 1500)],
+        "CF": [pl_fact("税引前利益", 1980), pl_fact("営業活動によるキャッシュ・フロー", 1800),
+               pl_fact("現金及び現金同等物の増減額", 686), balance, pl_fact("現金及び現金同等物の期末残高", 950)],
+    }
+    learned = fst.learn_pair(pdf, x)
+    assert set(learned.maps["PL"]) == {"売上高", "当期純利益"}
+    cf_maps = {k: v.key for k, v in learned.maps["CF"].items()}
+    assert cf_maps == {
+        "税引前利益": "IncomeBeforeIncomeTaxes", "営業活動によるキャッシュ・フロー": "NetCashProvidedByUsedInOperatingActivities",
+        "現金及び現金同等物の増減額": "NetIncreaseDecreaseInCashAndCashEquivalents",
+        "現金及び現金同等物の期末残高": "CashAndCashEquivalentsIFRS",
+    }
+    assert learned.extras["CF"] == {"IncomeBeforeIncomeTaxes": None,
+                                    "CashAndCashEquivalentsIFRS": "NetIncreaseDecreaseInCashAndCashEquivalents"}
+    assert learned.maps["BS"]["流動負債合計"].key == "CurrentLiabilities"
+
+
 def section_names(*extra: fst.Fact) -> fst.Names:
     xbrl = fst.Filing(id=1, doc_id="X", source="edinet", period_type="FY", period_end=date(2025, 3, 31),
                       submitted="2025-06-20", standard="JPGAAP")

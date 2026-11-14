@@ -555,6 +555,7 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
     loose_floor = MIN_LOOSE_MATCH * max(g_pdf, g_xbrl)
     for statement, rows in pdf.by_statement.items():
         target = xbrl.by_statement.get(statement, [])
+        in_rule = {f.key for f in target}
         pairs = _lcs([f.value for f in rows], [f.value for f in target], tol)
         hit: dict[int, Fact] = {i: target[j] for i, j in pairs}
         used = {target[j].id for _, j in pairs}
@@ -568,7 +569,9 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
             if i in hit or abs(f.value) < loose_floor or counts[abs(f.value)] != 1:
                 continue
             cands = [c for c in _near(pool, f.value, tol) if c.id not in used]
-            if len(cands) == 1 and len({c.key for c in _near(pool, f.value, tol)}) == 1:
+            if len(cands) != 1 or len({c.key for c in _near(pool, f.value, tol)}) != 1:
+                continue
+            if not _foreign_balance(statement, cands[0], in_rule):
                 hit[i] = cands[0]
                 used.add(cands[0].id)
         twice: set[str] = set()
@@ -580,7 +583,6 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
         info = pdf_rows(rows, statement, twice)
         names = info.names
         learned.twice[statement] = twice
-        in_rule = {f.key for f in target}
         maps: dict[str, Mapped] = {}
         order: list[str] = []
         extras: dict[str, str | None] = {}
@@ -606,6 +608,12 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
         learned.order[statement] = order
         learned.extras[statement] = extras
     return learned
+
+
+def _foreign_balance(statement: str, fact: Fact, own: set[str]) -> bool:
+    if statement == "BS" or not fact.instant or fact.key in own:
+        return False
+    return not (statement == "CF" and CF_CASH_RE.search(fact.local))
 
 
 def _profit_name(label: str) -> str | None:
