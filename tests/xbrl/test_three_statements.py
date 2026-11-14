@@ -373,6 +373,59 @@ def test_split_xbrl_drops_equity_changes_and_notes() -> None:
     assert "NumberOfEmployees" not in values
 
 
+def split(*items: str) -> dict[str, list[str]]:
+    seq = [
+        fst.Fact(id=n, key=item[2:], local=item[2:], label="", instant=item[0] == "i", unit="JPY", value=n)
+        for n, item in enumerate(items, 1)
+    ]
+    return {s: [f.local for f in facts] for s, facts in fst.split_xbrl(seq).items()}
+
+
+JP_BS = ("i CashAndDeposits", "i CurrentAssets", "i Assets", "i Liabilities", "i NetAssets", "i LiabilitiesAndNetAssets")
+JP_PL = ("d NetSales", "d OperatingIncome", "d OrdinaryIncome", "d ProfitLoss",
+         "d ProfitLossAttributableToOwnersOfParent", "d OtherComprehensiveIncome", "d ComprehensiveIncome")
+JP_SS = ("d DividendsFromSurplus", "d PurchaseOfTreasuryStock", "d TotalChangesOfItemsDuringThePeriod")
+JP_CF = ("d DepreciationAndAmortizationOpeCF", "d NetCashProvidedByUsedInOperatingActivities",
+         "d NetIncreaseDecreaseInCashAndCashEquivalents", "i CashAndCashEquivalents")
+IFRS_BS = ("i CashAndCashEquivalentsIFRS", "i AssetsIFRS", "i LiabilitiesIFRS", "i EquityIFRS",
+           "i LiabilitiesAndEquityIFRS")
+IFRS_PL = ("d RevenueIFRS", "d OperatingProfitLossIFRS", "d ProfitLossBeforeTaxIFRS", "d ProfitLossIFRS",
+           "d BasicEarningsLossPerShareIFRS", "d OtherComprehensiveIncomeIFRS", "d ComprehensiveIncomeIFRS",
+           "d ComprehensiveIncomeAttributableToNonControllingInterestsIFRS")
+IFRS_SS = ("d DividendsSSIFRS", "d PurchaseOfTreasurySharesSSIFRS", "d TotalTransactionsWithOwnersIFRS")
+IFRS_CF = ("d DepreciationAndAmortizationOpeCFIFRS", "d NetCashProvidedByUsedInOperatingActivitiesIFRS")
+HEAD = ("d RevenueShippingSummaryOfBusinessResults", "d ProfitLossSummaryOfBusinessResults",
+        "i TotalEquityIFRSSummaryOfBusinessResults", "d GrossInvestmentReturnKeyFinancialData",
+        "d TotalAcquisitionCostForIncreasedSharesEquitySecuritiesNotListedInvestmentEquitySecuritiesReportingCompany")
+NOTES = ("d DepreciationSGA", "d ProvisionForBonusesSGA")
+
+
+def names(items: tuple[str, ...]) -> list[str]:
+    return [item[2:] for item in items]
+
+
+def test_split_xbrl_pl_after_bs_is_unchanged() -> None:
+    got = split(*HEAD, *JP_BS, *JP_PL, *JP_SS, *JP_CF, *NOTES)
+    assert got == {"BS": names(JP_BS), "PL": names(JP_PL), "CF": names(JP_CF)}
+    got = split(*HEAD, *IFRS_BS, *IFRS_PL, *IFRS_SS, *IFRS_CF)
+    assert got == {"BS": names(IFRS_BS), "PL": names(IFRS_PL), "CF": names(IFRS_CF)}
+
+
+def test_split_xbrl_takes_pl_printed_before_bs() -> None:
+    got = split(*HEAD, *JP_PL, *JP_SS, *JP_BS, *JP_CF, *NOTES)
+    assert got == {"BS": names(JP_BS), "PL": names(JP_PL), "CF": names(JP_CF)}
+    got = split(*HEAD, *JP_PL, *JP_BS, *JP_SS, *JP_CF)
+    assert got == {"BS": names(JP_BS), "PL": names(JP_PL), "CF": names(JP_CF)}
+    got = split(*HEAD, *IFRS_PL, *IFRS_BS, *IFRS_SS, *IFRS_CF, "d ProfitLossBeforeTaxFromDiscontinuedOperationsIFRS")
+    assert got == {"BS": names(IFRS_BS), "PL": names(IFRS_PL), "CF": names(IFRS_CF)}
+    assert split(*IFRS_PL, *IFRS_BS, *IFRS_SS)["PL"] == names(IFRS_PL)
+
+
+def test_split_xbrl_keeps_pl_of_the_chosen_bs_when_two_sets_are_printed() -> None:
+    got = split(*IFRS_BS, *IFRS_PL, *JP_BS, "d NetSales", "d OperatingIncome", "d ProfitLoss")
+    assert got == {"BS": names(JP_BS), "PL": ["NetSales", "OperatingIncome", "ProfitLoss"], "CF": []}
+
+
 def test_learn_pair_uses_value_and_print_order() -> None:
     by_id = filings()
     learned = fst.learn_pair(by_id[2], by_id[1])

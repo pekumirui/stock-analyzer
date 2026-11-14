@@ -57,6 +57,7 @@ CF_MARK_RE = re.compile(
 CF_TOTAL_RE = re.compile(r"^NetCashProvidedByUsedIn")
 CF_CASH_RE = re.compile(r"^CashAndCashEquivalents")
 PL_END_RE = re.compile(r"ProfitLoss|NetIncome|ComprehensiveIncome|EarningsLossPerShare|EarningsPerShare")
+AHEAD_SKIP_RE = re.compile(r"SummaryOfBusinessResults|KeyFinancialData|InvestmentEquitySecurities")
 SUFFIX_RE = re.compile(r"#\d+$")
 LABEL_NOISE_RES = (
     re.compile(r"又は[^（(]*?(?:（△）|\(△\))"),
@@ -432,19 +433,25 @@ def split_xbrl(seq: Sequence[Fact]) -> dict[str, list[Fact]]:
         cf_lo, cf_hi = marks[0], marks[-1] + 1
         while cf_hi < len(seq) and seq[cf_hi].instant and CF_CASH_RE.search(seq[cf_hi].local):
             cf_hi += 1
-    pl_from = bs_hi if bs_hi <= cf_lo else 0
-    pl = [
-        (i, f) for i, f in enumerate(seq[:cf_lo])
-        if i >= pl_from and not f.instant and not (bs_lo <= i < bs_hi)
-    ]
-    ends = [n for n, (_, f) in enumerate(pl) if PL_END_RE.search(f.local)]
+    if bs_hi <= cf_lo:
+        pl = [f for f in seq[bs_hi:cf_lo] if not f.instant]
+        ahead = [f for f in seq[:bs_lo] if not f.instant and not AHEAD_SKIP_RE.search(f.local)]
+        if _pl_ends(ahead) > _pl_ends(pl) and not any(f.local in BS_TOTALS for f in seq[:bs_lo]):
+            pl = ahead
+    else:
+        pl = [f for i, f in enumerate(seq[:cf_lo]) if not f.instant and not (bs_lo <= i < bs_hi)]
+    ends = [n for n, f in enumerate(pl) if PL_END_RE.search(f.local)]
     if ends:
         pl = pl[: ends[-1] + 1]
     return {
         "BS": list(seq[bs_lo:bs_hi]),
-        "PL": [f for _, f in pl],
+        "PL": pl,
         "CF": list(seq[cf_lo:cf_hi]),
     }
+
+
+def _pl_ends(facts: Sequence[Fact]) -> int:
+    return sum(1 for f in facts if PL_END_RE.search(f.local))
 
 
 def _bs_run(seq: Sequence[Fact]) -> tuple[int, int]:
