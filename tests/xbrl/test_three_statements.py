@@ -1071,3 +1071,103 @@ def test_loss_wording_is_matched_by_signed_label() -> None:
     got = fst.apply_learned(rows, [], "PL", date(2025, 9, 30), "Q", names)
     assert keys_of(got) == ["NetSales", "OperatingIncome", None, None, "ProfitLossAttributableToOwnersOfParent"]
     assert got[1][1] == fst.Mapped("OperatingIncome", 1, "name")
+
+
+def xbrl_names(statement: str, facts: list[fst.Fact]) -> fst.Names:
+    xbrl = fst.Filing(id=9, doc_id="N", source="edinet", period_type="FY", period_end=date(2026, 3, 31),
+                      submitted="2026-06-20", standard="JPGAAP")
+    xbrl.by_statement = {statement: facts}
+    return fst.name_index([xbrl], statement)
+
+
+LIAB_X = [
+    xbrl_fact(1, "ShortTermLoansPayable", 100, "短期借入金", True), xbrl_fact(2, "CurrentLiabilities", 150, "流動負債合計", True),
+    xbrl_fact(3, "LongTermLoansPayable", 200, "長期借入金", True),
+    xbrl_fact(4, "AssetRetirementObligationsNCL", 78, "資産除去債務", True),
+    xbrl_fact(5, "NoncurrentLiabilities", 278, "固定負債合計", True), xbrl_fact(6, "Liabilities", 428, "負債合計", True),
+]
+LIAB_P = [
+    bs_fact("短期借入金", 100), bs_fact("流動負債合計", 150), bs_fact("長期借入金", 200), bs_fact("資産除去債務", 78),
+    bs_fact("固定負債合計", 278), bs_fact("負債合計", 428),
+]
+LIAB_NAMES = [
+    xbrl_fact(11, "ShortTermLoansPayable", 90, "短期借入金", True),
+    xbrl_fact(12, "AssetRetirementObligationsCL", 70, "資産除去債務", True),
+    xbrl_fact(13, "CurrentLiabilities", 160, "流動負債合計", True),
+    xbrl_fact(14, "LongTermLoansPayable", 210, "長期借入金", True),
+    xbrl_fact(15, "NoncurrentLiabilities", 210, "固定負債合計", True), xbrl_fact(16, "Liabilities", 370, "負債合計", True),
+]
+
+
+def liab_rows(*extra: fst.Fact, name: str = "資産除去債務") -> list[fst.Fact]:
+    return [bs_fact("短期借入金", 90), *extra, bs_fact(name, 70), bs_fact("流動負債合計", 160), bs_fact("長期借入金", 210),
+            bs_fact("固定負債合計", 210), bs_fact("負債合計", 370)]
+
+
+def test_row_dropped_by_order_is_matched_by_name_within_its_section() -> None:
+    learned = pair("BS", LIAB_X, LIAB_P)
+    names = xbrl_names("BS", LIAB_NAMES)
+    assert names.by_section[("CurrentLiabilities", "資産除去債務")] == "AssetRetirementObligationsCL"
+    assert keys_of(fst.apply_learned(liab_rows(), [learned], "BS", date(2025, 6, 30), "Q"))[1] is None
+    got = fst.apply_learned(liab_rows(), [learned], "BS", date(2025, 6, 30), "Q", names)
+    assert got[1][1] == fst.Mapped("AssetRetirementObligationsCL", 1, "name")
+    assert keys_of(got) == ["ShortTermLoansPayable", "AssetRetirementObligationsCL", "CurrentLiabilities",
+                            "LongTermLoansPayable", "NoncurrentLiabilities", "Liabilities"]
+
+
+def test_others_dropped_by_order_are_not_matched_by_name_within_the_section() -> None:
+    x = [replace(f, label="その他") if f.key == "AssetRetirementObligationsNCL" else f for f in LIAB_X]
+    p = [bs_fact("その他", 78) if f.local == "資産除去債務" else f for f in LIAB_P]
+    names = xbrl_names("BS", [replace(f, key="OtherCL", local="OtherCL", label="その他")
+                              if f.key == "AssetRetirementObligationsCL" else f for f in LIAB_NAMES])
+    assert names.by_section[("CurrentLiabilities", "その他")] == "OtherCL"
+    got = fst.apply_learned(liab_rows(name="その他"), [pair("BS", x, p)], "BS", date(2025, 6, 30), "Q", names)
+    assert keys_of(got)[1] is None
+
+
+def test_name_within_the_section_skips_elements_another_row_takes() -> None:
+    x = [*LIAB_X[:1], xbrl_fact(7, "AssetRetirementObligationsCL", 7, "資産除去債務", True), *LIAB_X[1:]]
+    p = [*LIAB_P[:1], bs_fact("除去債務引当金", 7), *LIAB_P[1:]]
+    learned = pair("BS", x, p)
+    rows = liab_rows(bs_fact("除去債務引当金", 6))
+    got = keys_of(fst.apply_learned(rows, [learned], "BS", date(2025, 6, 30), "Q", xbrl_names("BS", LIAB_NAMES)))
+    assert got[1] == "AssetRetirementObligationsCL" and got[2] is None
+
+
+NOI_X = [
+    xbrl_fact(1, "OperatingIncome", 100, "営業利益"), xbrl_fact(2, "InterestIncomeNOI", 3, "受取利息"),
+    xbrl_fact(3, "ForeignExchangeGainsNOI", 5, "為替差益"),
+    xbrl_fact(4, "EquityInEarningsOfAffiliatesNOI", 6, "持分法による投資利益"), xbrl_fact(5, "OtherNOI", 1, "その他"),
+    xbrl_fact(6, "NonOperatingIncome", 15, "営業外収益"), xbrl_fact(7, "InterestExpensesNOE", 2, "支払利息"),
+    xbrl_fact(8, "NonOperatingExpenses", 2, "営業外費用"), xbrl_fact(9, "OrdinaryIncome", 113, "経常利益"),
+]
+NOI_P = [
+    pl_fact("営業利益", 100), pl_fact("受取利息", 3), pl_fact("為替差益", 5), pl_fact("持分法による投資利益", 6),
+    pl_fact("その他", 1), pl_fact("営業外収益合計", 15), pl_fact("支払利息", 2), pl_fact("営業外費用合計", 2),
+    pl_fact("経常利益", 113),
+]
+
+
+def noi_keys(rows: list[fst.Fact], names: fst.Names | None = None) -> list[str | None]:
+    learned = pair("PL", NOI_X, NOI_P, date(2025, 6, 30), "Q")
+    return keys_of(fst.apply_learned(rows, [learned], "PL", date(2024, 6, 30), "Q", names))
+
+
+def test_value_pairs_reordered_within_their_section_are_kept() -> None:
+    rows = [pl_fact("営業利益", 80), pl_fact("受取利息", 2), pl_fact("持分法による投資利益", 4), pl_fact("為替差益", 201),
+            pl_fact("営業外収益合計", 207), pl_fact("支払利息", 1), pl_fact("営業外費用合計", 1), pl_fact("経常利益", 286)]
+    assert noi_keys(rows) == ["OperatingIncome", "InterestIncomeNOI", "EquityInEarningsOfAffiliatesNOI",
+                              "ForeignExchangeGainsNOI", "NonOperatingIncome", "InterestExpensesNOE",
+                              "NonOperatingExpenses", "OrdinaryIncome"]
+    others = [pl_fact("営業利益", 80), pl_fact("受取利息", 2), pl_fact("その他", 1), pl_fact("為替差益", 201),
+              pl_fact("営業外収益合計", 204), pl_fact("経常利益", 284)]
+    assert noi_keys(others)[2] == "OtherNOI"
+
+
+def test_value_pairs_moved_to_another_section_stay_dropped() -> None:
+    rows = [pl_fact("営業利益", 80), pl_fact("受取利息", 2), pl_fact("為替差益", 201), pl_fact("営業外収益合計", 203),
+            pl_fact("支払利息", 1), pl_fact("持分法による投資利益", 4), pl_fact("営業外費用合計", 5), pl_fact("経常利益", 279)]
+    names = xbrl_names("PL", NOI_X)
+    assert noi_keys(rows)[5] is None
+    assert noi_keys(rows, names)[5] is None
+    assert None not in noi_keys(rows)[:5]

@@ -181,6 +181,7 @@ class Learned:
     by_section: dict[str, dict[tuple[str, str], Mapped]] = field(default_factory=dict)
     twice: dict[str, set[str]] = field(default_factory=dict)
     losses: dict[str, dict[str, Mapped]] = field(default_factory=dict)
+    homes: dict[str, dict[str, str | None]] = field(default_factory=dict)
 
 
 @dataclass
@@ -561,6 +562,7 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
         learned.by_section[statement] = {k: maps[names[live[n]]] for n, k in within.items() if live[n] in hit}
         learned.maps[statement] = maps
         learned.losses[statement] = _losses(maps, xbrl.seq)
+        learned.homes[statement] = _homes(target, statement)
         learned.order[statement] = order
         learned.extras[statement] = extras
     return learned
@@ -707,6 +709,16 @@ def _section_names(
     return {i: k for i, k in out.items() if counts[k] == 1}
 
 
+def _homes(facts: Sequence[Fact], statement: str) -> dict[str, str | None]:
+    out: dict[str, str | None] = {}
+    section: str | None = None
+    for f in reversed(facts):
+        if _is_marker(f.key, statement):
+            section = f.key
+        out[f.key] = section if out.get(f.key, section) == section else None
+    return out
+
+
 def _lookup(ranked: Sequence[Learned], statement: str, name: str) -> Mapped | None:
     for item in ranked:
         m = item.maps.get(statement, {}).get(name)
@@ -793,21 +805,22 @@ def apply_learned(
     for i, m in losses.items():
         if proposals[i] is m and sum(1 for p in proposals if p is not None and p.key == m.key) > 1:
             proposals[i] = None
-    claimed = {m.key for m in proposals if m is not None}
+    used = Counter(m.key for m in proposals if m is not None)
+    claimed = set(used)
     proposals, keeps = _ordered(keys, proposals, ranks)
     keep = set().union(*keeps)
     by_name: dict[int, Mapped] = {}
+    per_share = [f.unit in PER_SHARE_UNITS for f in live_rows]
     if names:
         known = {
             k for item in learned for k in item.maps.get(statement, {})
         } | {k for item in learned for k in item.by_section.get(statement, {})} | {
             k for item in learned for k in item.losses.get(statement, {})
         }
-        per_share = [f.unit in PER_SHARE_UNITS for f in live_rows]
         losing = [f.value <= 0 for f in live_rows]
         by_name = _by_name(keys, bases, by_section, known, names, claimed, per_share, losing)
+    picked: set[int] = set()
     if by_name:
-        picked: set[int] = set()
         for rank, kept_here in zip(ranks, keeps):
             pos = {k: i for i, k in enumerate(_merge(sorted(rank, key=rank.__getitem__), names.order))}
             picked |= _lis([
@@ -819,6 +832,12 @@ def apply_learned(
             if i in picked:
                 proposals[i] = m
                 keep.add(i)
+    dropped = {i: m for i, m in enumerate(proposals) if m is not None and i not in keep}
+    dropped.update({i: m for i, m in by_name.items() if i not in picked})
+    used.update(m.key for m in by_name.values())
+    for i, m in _in_section(dropped, bases, by_section, ranked, statement, names, per_share, used).items():
+        proposals[i] = m
+        keep.add(i)
     result: list[Mapped | None] = [None] * len(rows)
     for n, i in enumerate(live):
         result[i] = proposals[n] if n in keep else None
@@ -881,6 +900,33 @@ def _by_name(
     counts = defaultdict(int)
     for m in out.values():
         counts[m.key] += 1
+    return {i: m for i, m in out.items() if counts[m.key] == 1}
+
+
+def _in_section(
+    dropped: Mapping[int, Mapped], bases: Sequence[str], by_section: Mapping[int, tuple[str, str]],
+    ranked: Sequence[Learned], statement: str, names: Names | None, per_share: Sequence[bool], used: Counter,
+) -> dict[int, Mapped]:
+    homes: dict[str, set[str | None]] = defaultdict(set)
+    for item in ranked:
+        for key, home in item.homes.get(statement, {}).items():
+            homes[key].add(home)
+    out: dict[int, Mapped] = {}
+    for i, m in dropped.items():
+        sk = by_section.get(i)
+        if sk is None:
+            continue
+        got = _lookup_section(ranked, statement, sk)
+        if got is None or homes.get(got.key) != {sk[0]}:
+            key = None
+            if names is not None and bases[i] not in GENERIC_LABELS:
+                key = names.by_section.get(sk)
+            if key is None or (key in names.per_share) != per_share[i]:
+                continue
+            got = m if m.key == key else Mapped(key, 1, "name")
+        if used[got.key] - (got.key == m.key) == 0:
+            out[i] = got
+    counts = Counter(m.key for m in out.values())
     return {i: m for i, m in out.items() if counts[m.key] == 1}
 
 
