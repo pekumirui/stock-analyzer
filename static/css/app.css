@@ -143,6 +143,8 @@
   #st-fs-tbl td.d2 { padding-left:2em; }
   .qb.fs-fill { color:#c2410c; margin-left:3px; }
   .qb.fs-pdf { color:#fff; background:var(--warn); margin-left:4px; }
+  .qb.fs-basis { color:#475569; background:#e2e8f0; margin-left:3px; }
+  #st-fs-tbl .fs-edge { border-left:2px solid #94a3b8; }
   /* 説明資料の中身（KAB-350）。読み取った表と要約から組み直したグラフ（SVG）と表。原本は出さない */
   .dk-head { display:flex; flex-wrap:wrap; gap:4px 12px; align-items:baseline; margin:6px 0 2px; }
   .dk-meta { margin:0 0 8px; }
@@ -207,6 +209,7 @@
   table.sheet .opm { font-size:11px; font-weight:400; color:var(--sub); }
   #earn-tbl td.fy, #earn-tbl th.fy { width:1%; white-space:nowrap; }
   #earn-tbl .g .qb + .qb { margin-left:3px; }
+  #st-fs-tbl .g .qb + .qb { margin-left:3px; }
   #earn-tbl .loss { color:var(--up); }
   table.sheet .pin0, table.sheet .pin1, table.sheet .pin2 { position:sticky; z-index:1; }
   table.sheet .pin0 { left:var(--pin0, 0); }
