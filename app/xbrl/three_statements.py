@@ -556,7 +556,6 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
     for statement, rows in pdf.by_statement.items():
         target = xbrl.by_statement.get(statement, [])
         in_rule = {f.key for f in target}
-        cash_flow = {f.key for f in xbrl.by_statement.get("CF", [])}
         pairs = _lcs([f.value for f in rows], [f.value for f in target], tol)
         hit: dict[int, Fact] = {i: target[j] for i, j in pairs}
         used = {target[j].id for _, j in pairs}
@@ -572,7 +571,7 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
             cands = [c for c in _near(pool, f.value, tol) if c.id not in used]
             if len(cands) != 1 or len({c.key for c in _near(pool, f.value, tol)}) != 1:
                 continue
-            if not _foreign(statement, cands[0], in_rule, cash_flow):
+            if not _foreign(statement, cands[0], in_rule):
                 hit[i] = cands[0]
                 used.add(cands[0].id)
         twice: set[str] = set()
@@ -611,10 +610,10 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
     return learned
 
 
-def _foreign(statement: str, fact: Fact, own: set[str], cash_flow: set[str]) -> bool:
+def _foreign(statement: str, fact: Fact, own: set[str]) -> bool:
     if statement == "BS" or fact.key in own:
         return False
-    if statement == "PL" and fact.key in cash_flow:
+    if statement == "PL" and CF_MARK_RE.search(fact.local):
         return True
     return fact.instant and not (statement == "CF" and CF_CASH_RE.search(fact.local))
 

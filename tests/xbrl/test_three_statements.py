@@ -954,7 +954,7 @@ def test_pl_rows_do_not_take_cash_flow_items() -> None:
     bs = [xbrl_fact(1, "CashAndDeposits", 950, instant=True), xbrl_fact(2, "Assets", 3000, instant=True)]
     pl = [xbrl_fact(3, "NetSales", 5000), xbrl_fact(4, "IncomeBeforeIncomeTaxes", 1062), xbrl_fact(5, "ProfitLoss", 912)]
     cf = [xbrl_fact(6, "DepreciationAndAmortizationOpeCF", 787),
-          xbrl_fact(7, "NetCashProvidedByUsedInOperatingActivities", 529)]
+          xbrl_fact(7, "NetCashProvidedByUsedInOperatingActivities", 529), xbrl_fact(9, "OperatingProfitLossIFRS", 333)]
     notes = [xbrl_fact(8, "ext:AircraftFuelCost", 1085)]
     x = fst.Filing(id=1, doc_id="X", source="edinet", period_type="FY", period_end=date(2024, 3, 31),
                    submitted="2024-06-20", standard="JPGAAP")
@@ -964,16 +964,16 @@ def test_pl_rows_do_not_take_cash_flow_items() -> None:
                      submitted="2024-04-30", standard="JPGAAP")
     pdf.by_statement = {
         "PL": [pl_fact("売上高", 5000), pl_fact("税引前当期純利益", 1062), pl_fact("当期純利益", 912),
-               pl_fact("燃油費及び燃料税", 1085), pl_fact("その他", 787), pl_fact("賃借料", 529)],
+               pl_fact("燃油費及び燃料税", 1085), pl_fact("その他", 787), pl_fact("賃借料", 529), pl_fact("営業利益", 333)],
         "CF": [pl_fact("税引前当期純利益", 1062), pl_fact("減価償却費", 787),
                pl_fact("営業活動によるキャッシュ・フロー", 529)],
     }
     learned = fst.learn_pair(pdf, x)
     assert {k: v.key for k, v in learned.maps["PL"].items()} == {
         "売上高": "NetSales", "税引前当期純利益": "IncomeBeforeIncomeTaxes", "当期純利益": "ProfitLoss",
-        "燃油費及び燃料税": "ext:AircraftFuelCost",
+        "燃油費及び燃料税": "ext:AircraftFuelCost", "営業利益": "OperatingProfitLossIFRS",
     }
-    assert learned.extras["PL"] == {"ext:AircraftFuelCost": "ProfitLoss"}
+    assert learned.extras["PL"] == {"ext:AircraftFuelCost": "ProfitLoss", "OperatingProfitLossIFRS": "ext:AircraftFuelCost"}
     assert learned.extras["CF"] == {"IncomeBeforeIncomeTaxes": None}
 
 
