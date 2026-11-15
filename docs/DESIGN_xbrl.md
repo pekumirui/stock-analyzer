@@ -146,6 +146,7 @@ stocks.code   例 7203 → 72030、262A → 262A0
 stocks.code  <文字列照合>  xbrl_filings.code
                      │
                      ├── xbrl_contexts
+                     ├── xbrl_presentation_roles
                      └── xbrl_facts ── xbrl_elements
                                 │
                                 └── xbrl_element_mappings ── xbrl_std_items
@@ -232,6 +233,19 @@ CREATE TABLE xbrl_facts (
 );
 CREATE INDEX idx_xbrl_facts_filing ON xbrl_facts(filing_id);
 CREATE INDEX idx_xbrl_facts_element ON xbrl_facts(element_id);
+
+-- 表示リンク（*pre.xml）の区分のうち財務3表に当たるもの。書類 × 区分で 1 行
+CREATE TABLE xbrl_presentation_roles (
+    filing_id           INTEGER NOT NULL REFERENCES xbrl_filings(id),
+    role                TEXT NOT NULL,   -- 区分名（role URI の最後。'rol_ConsolidatedBalanceSheet'）
+    seq                 INTEGER NOT NULL, -- 書類の中で保存した区分の順（0 から）
+    statement           TEXT NOT NULL,   -- 'BS'|'PL'|'CF'
+    is_consolidated     BOOLEAN NOT NULL,
+    is_ifrs             BOOLEAN NOT NULL,
+    items_json          TEXT NOT NULL,   -- 要素を表示の順に。[[namespace_key, local_name, is_custom, preferredLabel], ...]
+    generated_at        TEXT NOT NULL,
+    PRIMARY KEY (filing_id, role)
+);
 
 CREATE TABLE xbrl_std_items (
     id              INTEGER PRIMARY KEY,
@@ -321,6 +335,15 @@ CREATE TABLE xbrl_job_runs (
 - **容量**: 全 fact を数年分入れると行数が大きくなり得る。第1弾は同一 DB。膨らんだら `xbrl_*.db` への分離を検討（今は作らない）。
 - **決算一覧の売上総利益**: `idx_xbrl_financials_gp_cover`（code, std_item_id, value_kind, … value, filing_id）と `idx_xbrl_filings_id_cover` で表本体を読まない（KAB-295）。旧 `idx_xbrl_financials_lookup` は先頭 2 列が同じなので `ensure_indexes` が外す。統計が無いと planner が parse_status 経由になるので、索引を足した表は ANALYZE する。
 - **source**: `tdnet`（短信 ZIP。`doc_id` は ZIP 名）、`edinet`（有報・半期報）、`tdnet_pdf`（ZIP の無い短信 PDF。`doc_id` は開示番号 14 桁。`raw_path` は `tdnet_pdf:<開示番号>`。KAB-173、§16.5）。同じ 14 桁の `tdnet` が `parse_status='parsed'` になったら `tdnet_pdf` の filing は消す。`failed` / `no-ixbrl` の ZIP は消さない。
+
+### 4.4 表示リンクの区分 `xbrl_presentation_roles`
+
+書類の ZIP の表示リンク（`link:presentationLink`）は、どの要素がどの表に属し、どの順に印字されるかを会社が宣言したもの。読むのは `app/xbrl/presentation.py`（`read_presentation` が展開済みのフォルダの全区分を返し、`statement_roles` が財務3表に当たるものだけ残す）。取り込み（`parse_package` → `store_package`）で `edinet` / `tdnet` の書類ごとに入れ替える。`tdnet_pdf` は表示リンクが無いので行を持たない。
+
+- **区分名 → 表**: 区分名（role URI の最後）が `rol_` で始まり、注記（`rol_Notes…`）・株主資本等変動計算書（`…ChangesInEquity…` / `…ChangesInNetAssets…` / `…UnitholdersEquity…`）でないもの。CF は `StatementOfCashFlows`、BS は `BalanceSheet` / `StatementOfFinancialPosition`、PL は `StatementOfIncome` / `StatementOfProfitOrLoss` / `StatementOfComprehensiveIncome` を含むもの。包括利益計算書も PL。連結は名前に `Consolidated` があるもの、IFRS は `IFRS` があるもの。前後の `Quarterly` / `SemiAnnual` / `Type1SemiAnnual` / `YearToQuarterEnd` / `Condensed` / `TDnet` / `-indirect` は見ない。1 つの書類に日本基準と IFRS の 2 組の表がある会社（どちらも個別）は `is_ifrs` で分かれる。分け方を直せるように生の区分名を持つ
+- **要素の並び**: `presentationArc` の親子を `order` の順に深さ優先で辿った順（`loc` の出現順ではない）。親子は `loc` のラベルではなく要素で結ぶ（同じ要素に `loc` が 2 つあり、子として付く方と親になる方が別のラベルの書類がある）。根が複数なら `loc` の出現順。同じ要素が 2 回出る（CF の期首・期末の現金及び現金同等物）ときは 2 つとも残し、`preferredLabel` の種類（role の最後。`periodStartLabel` / `totalLabel` など）で見分ける。名前が `Heading` / `Table` / `Axis` / `Member` / `LineItems` で終わる要素は落とす。`…Abstract`（流動資産などの見出し）は残す。`use="prohibited"` の arc は同じ arc を消す
+- **要素の名前空間**: `loc` の `xlink:href` の `#` の後ろ（xsd の要素 id）から引く。書類の中の xsd を指すときはその xsd の `name` 属性を local_name にし、id の残りを `namespace_key` にする（`jpcrp030000-asr_E…` / `tse-…-証券コード`）。標準タクソノミ（`app/xbrl/parser.py` の `STANDARD_NS_URI_ROOTS` の配下の URL）はファイル名から日付を落としたもの（`jppfs_cor`）を `namespace_key` にする。`is_custom` は標準タクソノミの URL でないもの。§17 の行のキー（標準は `local_name`、会社独自は `ext:<local_name>`）と突き合わせられる
+- 同じ区分が複数の pre.xml にあれば、最初の区分の後ろに足す。`seq` は書類の中で保存した区分の順
 
 ---
 
@@ -478,8 +501,9 @@ parse ジョブは manifest を入力カタログにする。fetch 側に parse_
 6. 同じファイル群から context を読む。
 7. elements UPSERT（`namespace_uri + local_name`）。`namespace_key` は prefix。標準タクソノミ以外は `is_custom=1`。標準は名前空間 URI が `disclosure.edinet-fsa.go.jp/taxonomy/` か `www.xbrl.tdnet.info/taxonomy/` の配下のもの。URI が無いときだけ `namespace_key` の完全一致（`jppfs_cor` / `jpcrp_cor` / `tse-ed-t` など。`app/xbrl/parser.py STANDARD_NS_KEYS`）。部分一致にしない（EDINET の会社独自 `jpcrp030000-asr_E…` はキーにも URI にも jpcrp が入る。KAB-81）。既存行は `jobs/migrate.py` が付け直す。リストを勝手に増やさない。
 8. facts INSERT。数値は `Fact.value`（Decimal, scale/sign 済）を `value_num` へ。非数値は 1000 文字以内だけ `value_text`。超過は fact 行自体を作らない（要素は登録済み）。`xsi:nil` は `is_nil=1`、値 NULL。
-9. 成功なら `parse_status='parsed'`。例外は filing 単位でロールバックし `failed` + 要約トレース。ジョブは止めない。
-10. 再パースは当該 `filing_id` の contexts を DELETE（facts も CASCADE 相当をアプリ側で消す。SQLite で FK が効かないため明示 DELETE）。
+9. 表示リンク（`*pre.xml`。`AuditDoc` の下は読まない）の区分のうち財務3表に当たるものを `xbrl_presentation_roles` に入れる（§4.4）。読めない・無いときはその書類の行が 0 行になるだけで、取り込みは止めない。
+10. 成功なら `parse_status='parsed'`。例外は filing 単位でロールバックし `failed` + 要約トレース。ジョブは止めない。
+11. 再パースは当該 `filing_id` の contexts と表示リンクの行を DELETE（facts も CASCADE 相当をアプリ側で消す。SQLite で FK が効かないため明示 DELETE）。
 
 レート制限は TDnet に触れないので不要。同梱に無いタクソノミ URL は filing を `failed` にする（ネットワークには出ない）。`xbrl_parse.py` の `errors=` と cron の非ゼロ終了が既存の Slack バッチアラートに乗る。
 

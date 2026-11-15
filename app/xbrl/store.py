@@ -20,12 +20,14 @@ from app.models import (
     XbrlFinancial,
     XbrlMajorShareholder,
     XbrlPdfMatch,
+    XbrlPresentationRole,
     XbrlSegment,
     XbrlShareholderFiling,
     XbrlShareholdingByCategory,
 )
 from app.xbrl.context import classify_title, infer_accounting_standard_from_namespaces
 from app.xbrl.parser import ParsedPackage, extract_zip, namespace_is_standard, parse_package
+from app.xbrl.presentation import PresentationRole, statement_roles
 
 
 def inherit_accounting_standard_from_prior_filings(
@@ -69,6 +71,7 @@ def delete_filing_payload(db: Session, filing_id: int) -> None:
     db.execute(delete(XbrlPdfMatch).where(XbrlPdfMatch.filing_id == filing_id))
     db.execute(delete(XbrlFact).where(XbrlFact.filing_id == filing_id))
     db.execute(delete(XbrlContext).where(XbrlContext.filing_id == filing_id))
+    db.execute(delete(XbrlPresentationRole).where(XbrlPresentationRole.filing_id == filing_id))
 
 
 _IN_CHUNK = 500
@@ -291,6 +294,7 @@ def parse_zip_into_filing(
             labels=pkg.labels,
             ixbrl_files=pkg.ixbrl_files,
             fiscal_year_end=pkg.fiscal_year_end,
+            presentation=pkg.presentation,
         ),
     )
     db.commit()
@@ -298,7 +302,7 @@ def parse_zip_into_filing(
 
 
 def store_package(db: Session, filing: XbrlFiling, pkg: ParsedPackage) -> None:
-    """Write elements, contexts, and facts for a filing whose payload is already deleted.
+    """Write elements, contexts, facts, and presentation roles for a filing whose payload is already deleted.
 
     No commit. An empty fact list still marks the filing parsed. The ZIP path rejects
     a package that arrived with no facts (``no-facts``) before it calls this.
@@ -359,9 +363,31 @@ def store_package(db: Session, filing: XbrlFiling, pkg: ParsedPackage) -> None:
         })
     if fact_rows:
         db.execute(insert(XbrlFact.__table__), fact_rows)
+    store_presentation(db, filing.id, pkg.presentation)
     filing.parse_status = "parsed"
     filing.parse_error = None
     filing.parsed_at = _now()
+
+
+def store_presentation(db: Session, filing_id: int, roles: list[PresentationRole]) -> None:
+    """財務3表に当たる表示リンクの区分で filing の行を入れ替える。No commit."""
+    db.execute(delete(XbrlPresentationRole).where(XbrlPresentationRole.filing_id == filing_id))
+    now = _now()
+    rows = [
+        {
+            "filing_id": filing_id,
+            "role": role.role,
+            "seq": seq,
+            "statement": kind.statement,
+            "is_consolidated": kind.is_consolidated,
+            "is_ifrs": kind.is_ifrs,
+            "items_json": json.dumps([item.as_json() for item in role.items], separators=(",", ":")),
+            "generated_at": now,
+        }
+        for seq, (role, kind) in enumerate(statement_roles(roles))
+    ]
+    if rows:
+        db.execute(insert(XbrlPresentationRole.__table__), rows)
 
 
 def delete_filing(db: Session, filing: XbrlFiling) -> None:

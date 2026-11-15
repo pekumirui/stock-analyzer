@@ -546,6 +546,23 @@ class XbrlFact(Base):
     )
 
 
+class XbrlPresentationRole(Base):
+    """書類の表示リンク（*pre.xml）のうち財務3表の区分（docs/DESIGN_xbrl.md §4.2）。
+
+    items_json は区分の要素を表示の順に並べた JSON の配列。1 要素は
+    [namespace_key, local_name, is_custom(0/1), preferredLabel の種類 or null]。
+    """
+    __tablename__ = "xbrl_presentation_roles"
+    filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), primary_key=True)
+    role = Column(String(255), primary_key=True)
+    seq = Column(Integer, nullable=False)
+    statement = Column(String(8), nullable=False)
+    is_consolidated = Column(Boolean, nullable=False)
+    is_ifrs = Column(Boolean, nullable=False)
+    items_json = Column(Text, nullable=False)
+    generated_at = Column(DateTime, nullable=False)
+
+
 class XbrlStdItem(Base):
     __tablename__ = "xbrl_std_items"
     id = Column(Integer, primary_key=True)
