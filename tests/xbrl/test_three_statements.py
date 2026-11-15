@@ -717,6 +717,47 @@ def test_opening_cash_names() -> None:
     assert not fst._opening_cash("CashAndCashEquivalents")
 
 
+def test_layout_keeps_print_order_and_places_borrowed_facts_by_position() -> None:
+    items = lambda *names: [["jpigp_cor", n, 0, p] for n, p in names]  # noqa: E731
+    layouts = fst.statement_layouts([
+        (0, "rol_ConsolidatedStatementOfFinancialPositionIFRS", "BS", True, True,
+         items(("CashAndCashEquivalentsIFRS", None), ("AssetsIFRS", None))),
+        (1, "rol_ConsolidatedStatementOfProfitOrLossIFRS", "PL", True, True,
+         items(("RevenueIFRS", None), ("ProfitLossBeforeTaxIFRS", None), ("ProfitLossAttributableToOwnersOfParentIFRS", None),
+               ("ContinuingIFRS", None), ("ProfitLossAttributableToOwnersOfParentIFRS", "totalLabel"))),
+        (2, "rol_ConsolidatedStatementOfCashFlowsIFRS", "CF", True, True,
+         items(("ProfitLossBeforeTaxIFRS", None), ("DepreciationOpeCFIFRS", None),
+               ("CashAndCashEquivalentsIFRS", "periodStartLabel"), ("TransferCFIFRS", None),
+               ("CashAndCashEquivalentsIFRS", None))),
+    ], "IFRS")[True]
+    names = ["CashAndCashEquivalentsIFRS", "AssetsIFRS", "RevenueIFRS", "ProfitLossBeforeTaxIFRS", "ContinuingIFRS",
+             "ProfitLossAttributableToOwnersOfParentIFRS", "DepreciationOpeCFIFRS", "TransferCFIFRS"]
+    seq = [fst.Fact(n, k, k, "", k in ("CashAndCashEquivalentsIFRS", "AssetsIFRS"), "JPY", n)
+           for n, k in enumerate(names, 1)]
+    got = {s: [f.key for f in v] for s, v in fst.split_by_layout(seq, layouts).items()}
+    assert got["BS"] == ["CashAndCashEquivalentsIFRS", "AssetsIFRS"]
+    assert got["PL"] == ["RevenueIFRS", "ProfitLossBeforeTaxIFRS", "ContinuingIFRS",
+                         "ProfitLossAttributableToOwnersOfParentIFRS"]
+    assert got["CF"] == ["ProfitLossBeforeTaxIFRS", "DepreciationOpeCFIFRS", "TransferCFIFRS",
+                         "CashAndCashEquivalentsIFRS"]
+
+
+def test_layout_moves_facts_printed_before_the_statement_and_keeps_print_order_inside() -> None:
+    items = lambda *names: [["jppfs_cor", n, 0, p] for n, p in names]  # noqa: E731
+    layouts = fst.statement_layouts([
+        (0, "rol_ConsolidatedBalanceSheet", "BS", True, False,
+         items(("CashAndDeposits", None), ("Assets", None), ("NoncurrentLiabilities", "totalLabel"),
+               ("DeferredTaxLiabilities", None), ("Liabilities", None), ("CapitalStock", None), ("NetAssets", None))),
+    ], "JPGAAP")[True]
+    names = ["CapitalStock", "NetAssets", "CashAndDeposits", "Assets", "DeferredTaxLiabilities",
+             "NoncurrentLiabilities", "Liabilities"]
+    seq = [fst.Fact(n, k, k, "", True, "JPY", n) for n, k in enumerate(names, 1)]
+    assert [f.key for f in fst.split_by_layout(seq, layouts)["BS"]] == [
+        "CashAndDeposits", "Assets", "DeferredTaxLiabilities", "NoncurrentLiabilities", "Liabilities",
+        "CapitalStock", "NetAssets",
+    ]
+
+
 def test_name_index_ignores_opening_cash_labels() -> None:
     x = fst.Filing(id=1, doc_id="X", source="edinet", period_type="FY", period_end=date(2025, 3, 31),
                    submitted="2025-06-20", standard="IFRS")
