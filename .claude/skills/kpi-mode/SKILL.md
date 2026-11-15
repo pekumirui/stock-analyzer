@@ -10,6 +10,8 @@ disable-model-invocation: true
 
 ## 委任
 
+この節は本体が fable のときだけ当てはまる。本体が opus や sonnet のときは、委任せず自分で実装する。
+
 - 実装を頼まれたら、本体は指揮に回る。実装は opus か sonnet のサブエージェントに任せる（`Agent` の `model` に `opus` か `sonnet`）。
 - サブエージェントが実装している間、本体は次の issue の調査やユーザーの質問への回答を進める。待つだけにしない。
 - 分割が要る作業は、分けた単位ごとに issue を切り、issue 1 本につき 1 体に任せる。
