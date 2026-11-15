@@ -538,6 +538,19 @@ cd /home/stock/stock-analyzer
 .venv/bin/python tools/tdnet_pdf/matches.py --unmatched 50            # 付かなかった行名の多い順（書き込まない）
 ```
 
+### XBRL の表示リンクを過去の書類に埋める（`xbrl_presentation_roles`）
+
+デプロイの `migrate.py` が表と `xbrl_filings.presentation_status` の列を足す（全件 NULL）。新しく取り込む書類は取り込みが書くので、過去分を 1 回だけ手で流す。cron には入れない。新しい提出から 1 件ずつ commit するので、止めて流し直してよい。短信 XBRL と手元の EDINET の ZIP を先に流し、残りの EDINET（OneDrive・EDINET から取る分）は `--limit` で区切って流す。EDINET から取った ZIP は `data/edinet` にたまり、翌朝の `backup_data.py` が OneDrive へ移す。設計は `docs/DESIGN_xbrl.md` §4.5。
+
+```bash
+cd /home/stock/stock-analyzer
+.venv/bin/python jobs/xbrl/xbrl_presentation.py --dry-run                                  # 残りの件数だけ
+.venv/bin/python jobs/xbrl/xbrl_presentation.py --source tdnet --batch 500                 # 短信 XBRL（共有データの ZIP）
+.venv/bin/python jobs/xbrl/xbrl_presentation.py --source edinet --local-only --batch 500   # 手元の data/edinet にある分だけ
+.venv/bin/python jobs/xbrl/xbrl_presentation.py --source edinet --limit 3000 --batch 200 --sleep 1  # OneDrive・EDINET から取る分
+.venv/bin/python jobs/xbrl/xbrl_presentation.py --code 7203 --code 6758                    # 銘柄を絞る（繰り返し可）
+```
+
 ### TDnet 月次 PDF の未投入レポート（読み取り専用）
 
 前回と同じ書式の PDF は次の節の cron が入れる。残りは MCP `monthly_ingest` の手作業。`data/monthly` の PDF と `monthly_values` の差は、VPS 上のスクリプトで見る（MCP ツールは足さない。cron にも載せない）。
