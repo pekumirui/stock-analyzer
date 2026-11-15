@@ -36,10 +36,11 @@ flowchart LR
   n25[("xbrl_job_runs")]:::ext
   n26[("xbrl_major_shareholders")]:::ext
   n27[("xbrl_pdf_matches")]:::ext
-  n28[("xbrl_segments")]:::ext
-  n29[("xbrl_shareholder_filings")]:::ext
-  n30[("xbrl_shareholding_by_category")]:::ext
-  n31[("xbrl_std_items")]:::ext
+  n28[("xbrl_presentation_roles")]:::ext
+  n29[("xbrl_segments")]:::ext
+  n30[("xbrl_shareholder_filings")]:::ext
+  n31[("xbrl_shareholding_by_category")]:::ext
+  n32[("xbrl_std_items")]:::ext
   n0 --> n8
   n0 -.- n10
   n0 -.- n11
@@ -68,8 +69,8 @@ flowchart LR
   n5 -.- n22
   n5 -.- n23
   n5 --> n26
-  n5 --> n29
   n5 --> n30
+  n5 --> n31
   n6 --> n8
   n6 -.- n11
   n6 -.- n12
@@ -89,7 +90,8 @@ flowchart LR
   n7 --> n28
   n7 --> n29
   n7 --> n30
-  n7 -.- n31
+  n7 --> n31
+  n7 -.- n32
   classDef job fill:#e3ecff,stroke:#3b5bdb
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -105,7 +107,7 @@ flowchart LR
 | `jobs/edinet/edinet_large_holdings.py` | `edinet_archives`, `large_holding_reports`, `large_holdings` | `edinet_documents`, `edinet_filers`, `stocks` |
 | `jobs/edinet/edinet_shareholders.py` | `xbrl_major_shareholders`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category` | `edinet_documents`, `xbrl_contexts`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings` |
 | `jobs/edinet/edinet_tender_offers.py` | `edinet_archives`, `edinet_tender_offer_docs`, `edinet_tender_offers` | `edinet_documents`, `edinet_filers`, `stocks` |
-| `jobs/edinet/edinet_xbrl.py` | `edinet_archives`, `xbrl_contexts`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`, `xbrl_financials`, `xbrl_job_runs`, `xbrl_major_shareholders`, `xbrl_pdf_matches`, `xbrl_segments`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category` | `edinet_documents`, `stocks`, `xbrl_element_mappings`, `xbrl_std_items` |
+| `jobs/edinet/edinet_xbrl.py` | `edinet_archives`, `xbrl_contexts`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`, `xbrl_financials`, `xbrl_job_runs`, `xbrl_major_shareholders`, `xbrl_pdf_matches`, `xbrl_presentation_roles`, `xbrl_segments`, `xbrl_shareholder_filings`, `xbrl_shareholding_by_category` | `edinet_documents`, `stocks`, `xbrl_element_mappings`, `xbrl_std_items` |
 
 ## API
 

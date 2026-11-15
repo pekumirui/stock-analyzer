@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import xml.etree.ElementTree as ET
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from collections.abc import Iterable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from app.xbrl.context import (
     ParsedContext,
@@ -18,6 +19,9 @@ from app.xbrl.context import (
 )
 from app.xbrlp import Fact, FileLoader, Label, Parser
 from app.xbrlp.parser import LabelResourceParser, resolve_url
+
+if TYPE_CHECKING:
+    from app.xbrl.presentation import PresentationRole
 
 
 # 標準タクソノミの名前空間 URI はこの配下（KAB-81）。会社独自は
@@ -79,6 +83,7 @@ class ParsedPackage:
     labels: dict[tuple[str, str], dict[str, str]]
     ixbrl_files: list[Path]
     fiscal_year_end: date | None = None
+    presentation: list[PresentationRole] = field(default_factory=list)
 
 
 def looks_like_ixbrl(path: Path) -> bool:
@@ -502,7 +507,17 @@ def parse_package(
         labels=labels,
         ixbrl_files=list(parser.ixbrl_files),
         fiscal_year_end=fy_end,
+        presentation=_read_presentation(unpacked),
     )
+
+
+def _read_presentation(unpacked: Path) -> list[PresentationRole]:
+    from app.xbrl.presentation import read_presentation
+
+    try:
+        return read_presentation(unpacked)
+    except Exception:
+        return []
 
 
 def package_meta(title: str) -> dict:
