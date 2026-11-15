@@ -681,6 +681,19 @@ def test_opening_cash_names() -> None:
     assert not fst._opening_cash("CashAndCashEquivalents")
 
 
+def test_name_index_ignores_opening_cash_labels() -> None:
+    x = fst.Filing(id=1, doc_id="X", source="edinet", period_type="FY", period_end=date(2025, 3, 31),
+                   submitted="2025-06-20", standard="IFRS")
+    x.by_statement = {"CF": [
+        xbrl_fact(1, "NetCashProvidedByUsedInOperatingActivitiesIFRS", 10, "営業活動によるキャッシュ・フロー"),
+        xbrl_fact(2, "CashAndCashEquivalentsIFRS", 50, "現金及び現金同等物の期首残高", True),
+    ]}
+    names = fst.name_index([x], "CF")
+    assert set(names.keys) == {"営業活動によるキャッシュ・フロー"}
+    assert all(name != "現金及び現金同等物の期首残高" for _, name in names.by_section)
+    assert "CashAndCashEquivalentsIFRS" in names.order
+
+
 def _keys(code: str, fid: int, consolidated: bool = True) -> dict[str, list[str]]:
     return {s: [f.key for f in v] for s, v in filings(code, consolidated)[fid].by_statement.items()}
 
