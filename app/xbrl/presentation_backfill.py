@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import run_sqlite_write
-from app.models import EdinetDocument, XbrlFiling
+from app.models import EdinetArchive, EdinetDocument, XbrlFiling
 from app.xbrl.presentation import SKIPPED_DIRS, read_presentation
 from app.xbrl.store import (
     PRESENTATION_FAILED,
@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 
 SOURCES = ("edinet", "tdnet")
 COUNT_KEYS = ("done", "ok", "none", "gone", "failed", "errors")
+ORIGINS = ("local", "edinet", "offsite")
 EDINET_MAIN = 1
 
 
@@ -48,18 +49,24 @@ class ZipUnavailable(Exception):
 class Got:
     content: bytes
     remote: bool
+    origin: str = "local"
 
 
 Fetch = Callable[[XbrlFiling], Got]
 
 
-def targets(db: Session, *, sources: Iterable[str] = SOURCES, codes: Iterable[str] | None = None) -> list[int]:
-    """まだ埋めていない parsed の書類の id。新しい提出から。"""
+def targets(db: Session, *, sources: Iterable[str] = SOURCES, codes: Iterable[str] | None = None,
+            archived_only: bool = False) -> list[int]:
+    """まだ埋めていない parsed の書類の id。新しい提出から。archived_only は退避の記録がある EDINET の書類だけ。"""
     q = select(XbrlFiling.id).where(
         XbrlFiling.source.in_(list(sources)),
         XbrlFiling.parse_status == "parsed",
         XbrlFiling.presentation_status.is_(None),
     )
+    if archived_only:
+        q = q.where(XbrlFiling.source == "edinet", XbrlFiling.doc_id.in_(
+            select(EdinetArchive.doc_id).where(EdinetArchive.file_type == EDINET_MAIN, EdinetArchive.status == "saved")
+        ))
     wanted = list(codes or [])
     if wanted:
         q = q.where(XbrlFiling.code.in_(wanted))
@@ -92,7 +99,7 @@ def edinet_fetcher(
     today: date | None = None,
 ) -> Fetch:
     """client が None なら手元（data/edinet）だけを見る。"""
-    from app.edinet.archive import _expires, archive_dir, download, rel_path
+    from app.edinet.archive import _expires, archive_dir, archived, download, rel_path
     from app.edinet.client import is_not_found, reraise
 
     def fetch(filing: XbrlFiling) -> Got:
@@ -105,14 +112,14 @@ def edinet_fetcher(
                 raise ZipUnavailable("not in data/edinet")
             return Got(path.read_bytes(), remote=False)
         try:
-            got = download(db, client, doc, EDINET_MAIN, expired=_expires(doc) < (today or date.today()),
-                           root=root, remote_get=remote_get)
+            skip_edinet = archived(db, doc.doc_id, EDINET_MAIN) or _expires(doc) < (today or date.today())
+            got = download(db, client, doc, EDINET_MAIN, expired=skip_edinet, root=root, remote_get=remote_get)
         except Exception as exc:
             reraise(exc)
             if is_not_found(exc):
                 raise ZipGone(f"edinet 404 err={exc}") from exc
             raise
-        return Got(got.content, remote=got.source != "local")
+        return Got(got.content, remote=got.source != "local", origin=got.source)
 
     return fetch
 
@@ -138,7 +145,7 @@ def _mark(db: Session, filing_id: int, status: str) -> None:
     run_sqlite_write(db, write)
 
 
-def fill_one(db: Session, filing_id: int, fetch: Fetch) -> tuple[str, bool]:
+def fill_one(db: Session, filing_id: int, fetch: Fetch, seen: Counter | None = None) -> tuple[str, bool]:
     """1 書類を埋めて commit する。戻り値は (ok / none / gone / failed / errors / skipped, 遠くから取ったか)。
 
     一時的な失敗（取得の 5xx・タイムアウト・OneDrive の失敗・書き込みのロック）は印を付けず errors。
@@ -149,6 +156,7 @@ def fill_one(db: Session, filing_id: int, fetch: Fetch) -> tuple[str, bool]:
     filing = db.get(XbrlFiling, filing_id)
     if filing is None or filing.presentation_status is not None:
         return "skipped", False
+    began = time.monotonic()
     try:
         got = fetch(filing)
     except ZipGone as exc:
@@ -163,6 +171,9 @@ def fill_one(db: Session, filing_id: int, fetch: Fetch) -> tuple[str, bool]:
         db.rollback()
         print(f"presentation fetch-error id={filing_id} doc_id={filing.doc_id} err={exc}", flush=True)
         return "errors", False
+    if seen is not None:
+        seen[got.origin] += 1
+        seen[f"{got.origin}_ms"] += int((time.monotonic() - began) * 1000)
     try:
         roles = read_zip(got.content)
     except Exception as exc:
@@ -186,6 +197,10 @@ def line(counts: Counter) -> str:
     return " ".join(f"{key}={counts[key]}" for key in COUNT_KEYS)
 
 
+def origins(counts: Counter) -> str:
+    return " ".join(f"{key}={counts[key]}/{counts[key + '_ms'] / 1000:.0f}s" for key in ORIGINS)
+
+
 def run(
     db: Session,
     ids: list[int],
@@ -203,7 +218,7 @@ def run(
         if fetch is None:
             counts["skipped"] += 1
         else:
-            status, remote = fill_one(db, filing_id, fetch)
+            status, remote = fill_one(db, filing_id, fetch, counts)
             counts[status] += 1
             if status not in ("skipped", "errors"):
                 counts["done"] += 1
@@ -211,5 +226,5 @@ def run(
                 sleeper(sleep)
         if batch and (n % batch == 0 or n == len(ids)):
             print(f"presentation batch {n}/{len(ids)} {line(counts)} "
-                  f"skipped={counts['skipped']} sec={time.monotonic() - started:.0f}", flush=True)
+                  f"skipped={counts['skipped']} sec={time.monotonic() - started:.0f} {origins(counts)}", flush=True)
     return counts

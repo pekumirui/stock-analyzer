@@ -352,10 +352,11 @@ CREATE TABLE xbrl_job_runs (
 
 `presentation_status` が NULL の `edinet` / `tdnet` の `parsed` の filing を、提出の新しい順に 1 件ずつ読む（`app/xbrl/presentation_backfill.py`）。ZIP を取る → `*pre.xml` と `*.xsd` だけ展開（`AuditDoc` の下は展開しない）→ `read_presentation` → `store_presentation` と印 → commit。fact・taxonomy には触らない（`parse_package` を呼ばない）。止めても続きから進む。書き込みは `run_sqlite_write`（`database is locked` は待ってやり直す。やり直しても取れなければその書類は印を付けずに `errors`）。
 
-- **ZIP の取り方**: 短信 XBRL は `--dest`（既定 `XBRL_DEST`）からの `raw_path`。無ければ `gone`。読む前に共有データのマウントを確かめる（`fail_if_mount_down`。切れていたら何もしない）。EDINET は `edinet_documents` の行を引いて `app/edinet/archive.py download`（手元 → EDINET → 404 なら退避済みの OneDrive。閲覧期間を過ぎた書類は EDINET を飛ばす）。`edinet_documents` に行が無い・404 で退避も無いものは `gone`。5xx・タイムアウト・OneDrive の失敗は印を付けず `errors`（次の回にまた取る）。EDINET のメンテはその回を打ち切って exit 0（ほかの EDINET のジョブと同じ）。`EDINET_API_KEY` が無いとき・`--local-only` のときは手元（`data/edinet`）だけを見て、無い書類は印を付けずに飛ばす（`skipped`）
+- **ZIP の取り方**: 短信 XBRL は `--dest`（既定 `XBRL_DEST`）からの `raw_path`。無ければ `gone`。読む前に共有データのマウントを確かめる（`fail_if_mount_down`。切れていたら何もしない）。EDINET は `edinet_documents` の行を引いて `app/edinet/archive.py download`。手元（`data/edinet`）に無く、退避の記録（`edinet_archives` の `saved`）があれば EDINET には行かず OneDrive から読む（退避済みの ZIP を取り直して手元に書き直さない）。記録が無ければ EDINET（404 なら `gone`。閲覧期間を過ぎた書類は EDINET を飛ばす）。`edinet_documents` に行が無い・404 で退避も無いものは `gone`。5xx・タイムアウト・OneDrive の失敗は印を付けず `errors`（次の回にまた取る）。EDINET のメンテはその回を打ち切って exit 0（ほかの EDINET のジョブと同じ）。`EDINET_API_KEY` が無いとき・`--local-only` のときは手元（`data/edinet`）だけを見て、無い書類は印を付けずに飛ばす（`skipped`）
 - **手元にたまる ZIP**: EDINET から取った ZIP は既存の取得と同じく `data/edinet` に書いて `edinet_archives` に記録する。`edinet_archives` に記録の無い書類をまとめて流すとその分が手元にたまり、翌朝の `jobs/ops/backup_data.py` が OneDrive へ移すまで残る。`--limit` で 1 日に流す件数を区切る
 - **間隔**: `--sleep` 秒を、EDINET か OneDrive から取った書類のあとにだけ待つ（手元の ZIP では待たない）。EDINET のクライアントにも最小間隔がある
-- 出力は `--batch N` で N 件ごとに 1 行、最後に `xbrl_presentation done= ok= none= gone= failed= errors= skipped= remaining=`。`errors` があれば exit 1
+- 出力は `--batch N` で N 件ごとに 1 行、最後に `xbrl_presentation done= ok= none= gone= failed= errors= skipped= remaining=`。`errors` があれば exit 1。どちらの行にも、ZIP の出どころごとの件数と取得にかかった秒（`local=件/秒 edinet=件/秒 offsite=件/秒`。`offsite` が OneDrive）が付く
+- `--archived-only` は退避の記録がある EDINET の書類だけを対象にする（OneDrive からの読み出しの時間を少ない件数で測るとき）
 - cron には載せない。過去分を 1 回流すだけで、新しく取り込む書類は取り込みが印を付ける。`gone` / `failed` を流し直すときは、その filing の `presentation_status` を NULL に戻してから流す
 
 ---

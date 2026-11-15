@@ -231,6 +231,38 @@ def test_edinet_fetcher(tmp: Path) -> None:
         db.close()
 
 
+def test_archived_zip_is_read_from_offsite_without_edinet(tmp: Path) -> None:
+    from app.edinet.archive import SAVED
+    from app.edinet.documents import now_jst
+    from app.models import EdinetArchive
+
+    db = SessionLocal()
+    try:
+        _reset(db)
+        for fid in (1, 2):
+            _filing(db, fid, "edinet", f"2026-06-0{fid} 15:00")
+            _doc(db, fid)
+        db.add(EdinetArchive(doc_id="D1", file_type=1, doc_type_code="120", rel_path=rel_path("120", "D1", 1),
+                             status=SAVED, bytes=len(ANNUAL_ZIP), sha256="x", saved_at=now_jst()))
+        db.commit()
+        assert pb.targets(db, archived_only=True) == [1]
+        client = _Client({"D2": ANNUAL_ZIP})
+        asked: list[str] = []
+
+        def remote_get(rel: str) -> bytes:
+            asked.append(rel)
+            return ANNUAL_ZIP
+
+        fetch = pb.edinet_fetcher(db, client, root=tmp, remote_get=remote_get)
+        counts = pb.run(db, [1, 2], {"edinet": fetch})
+        assert asked == [rel_path("120", "D1", 1)] and client.calls == ["D2"]
+        assert [_status(db, i) for i in (1, 2)] == ["ok", "ok"]
+        assert counts["offsite"] == 1 and counts["edinet"] == 1 and counts["local"] == 0
+        assert pb.origins(counts).startswith("local=0/0s edinet=1/")
+    finally:
+        db.close()
+
+
 def test_ingest_marks_status(tmp: Path) -> None:
     db = SessionLocal()
     try:
