@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
+from bisect import bisect_left
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import date
@@ -50,6 +51,7 @@ PER_SHARE_UNITS = frozenset({"JPYPerShares"})
 MONEY_UNITS = frozenset({None, "JPY"})
 PRESENTATION_OK = "ok"
 PERIOD_END_LABEL = "periodEndLabel"
+PERIOD_START_LABEL = "periodStartLabel"
 CI_ONLY_ROLE_RE = re.compile(r"StatementOfComprehensiveIncome(?!SingleStatement)")
 
 BS_TOTALS = frozenset({
@@ -434,6 +436,7 @@ def load_both(db: Session, code: str) -> dict[bool, list[Filing]]:
 class Layout:
     first: dict[str, int]
     period_end: dict[str, int]
+    closing: dict[str, int] = field(default_factory=dict)
 
 
 def _item_key(item: Sequence[Any]) -> str:
@@ -459,6 +462,7 @@ def statement_layouts(
             parts = [p for p in parts if p[1] == want]
         first: dict[str, int] = {}
         period_end: dict[str, int] = {}
+        closing: dict[str, int] = {}
         n = 0
         for _, _, items in sorted(parts, key=lambda p: p[0]):
             for item in items:
@@ -466,8 +470,10 @@ def statement_layouts(
                 first.setdefault(key, n)
                 if item[3] == PERIOD_END_LABEL:
                     period_end.setdefault(key, n)
+                if item[3] != PERIOD_START_LABEL:
+                    closing[key] = n
                 n += 1
-        out[consolidated][statement] = Layout(first, period_end)
+        out[consolidated][statement] = Layout(first, period_end, closing)
     return out
 
 
@@ -486,18 +492,64 @@ def _layouts(db: Session, ids: Sequence[int], standards: Mapping[int, str | None
 
 
 def split_by_layout(seq: Sequence[Fact], layouts: Mapping[str, Layout]) -> dict[str, list[Fact]]:
-    """表示リンクの並びで表に分ける。当期の時点の fact は periodEndLabel の位置に置く。"""
+    """表示リンクの区分に載っている fact を表に分ける。並びは印字順（seq の順）。
+
+    印字順と表示リンクの順が合う fact のいちばん長い並びを本体にする。本体の範囲の中で順が合わない fact は
+    印字順のまま（会社の表示リンクで合計が内訳より前にある、同じ要素が見出しの位置にも出る）。範囲の外に
+    ある fact（株主資本等変動計算書で先に印字された純資産、PL で先に印字された税引前利益）と、PL・CF の
+    時点の fact（期末の現金）は、表示リンクの位置で本体の間に入れる。時点の fact の位置は periodEndLabel、
+    無ければ periodStartLabel でない最後の出現。
+    """
     out: dict[str, list[Fact]] = {}
     for statement, layout in layouts.items():
-        placed = []
+        balance = statement != "BS"
+        placed: list[tuple[int, int, Fact]] = []
         for n, f in enumerate(seq):
-            at = layout.period_end.get(f.key) if f.instant else None
+            at = None
+            if f.instant:
+                at = layout.period_end.get(f.key, layout.closing.get(f.key))
             if at is None:
                 at = layout.first.get(f.key)
             if at is not None:
                 placed.append((at, n, f))
-        out[statement] = [f for _, _, f in sorted(placed, key=lambda t: (t[0], t[1]))]
+        flow = [t for t in placed if not (balance and t[2].instant)]
+        body = _agreeing([t[0] for t in flow])
+        if not body:
+            out[statement] = [f for _, _, f in sorted(placed, key=lambda t: (t[0], t[1]))]
+            continue
+        lo, hi = flow[body[0]][1], flow[body[-1]][1]
+        anchors = {flow[i][1] for i in body}
+        inside = [t for t in flow if lo <= t[1] <= hi]
+        kept = {t[1] for t in inside}
+        for t in sorted((t for t in placed if t[1] not in kept), key=lambda t: (t[0], t[1])):
+            before = [i for i, x in enumerate(inside) if x[0] < t[0] and x[1] in anchors]
+            inside.insert(before[-1] + 1 if before else 0, t)
+            anchors.add(t[1])
+        out[statement] = [f for _, _, f in inside]
     return out
+
+
+def _agreeing(positions: Sequence[int]) -> list[int]:
+    if all(a < b for a, b in zip(positions, positions[1:])):
+        return list(range(len(positions)))
+    tails: list[int] = []
+    tail_at: list[int] = []
+    back: list[int] = [-1] * len(positions)
+    for i, value in enumerate(positions):
+        k = bisect_left(tails, value)
+        if k == len(tails):
+            tails.append(value)
+            tail_at.append(i)
+        else:
+            tails[k] = value
+            tail_at[k] = i
+        back[i] = tail_at[k - 1] if k else -1
+    out: list[int] = []
+    i = tail_at[-1] if tail_at else -1
+    while i >= 0:
+        out.append(i)
+        i = back[i]
+    return out[::-1]
 
 
 def _shorter_durations(facts: Sequence[Fact], starts: Mapping[int, str]) -> set[int]:
