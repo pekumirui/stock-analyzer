@@ -357,6 +357,7 @@ CREATE TABLE xbrl_job_runs (
 - **間隔**: `--sleep` 秒を、EDINET か OneDrive から取った書類のあとにだけ待つ（手元の ZIP では待たない）。EDINET のクライアントにも最小間隔がある
 - 出力は `--batch N` で N 件ごとに 1 行、最後に `xbrl_presentation done= ok= none= gone= failed= errors= skipped= remaining=`。`errors` があれば exit 1。どちらの行にも、ZIP の出どころごとの件数と取得にかかった秒（`local=件/秒 edinet=件/秒 offsite=件/秒`。`offsite` が OneDrive）が付く
 - `--archived-only` は退避の記録がある EDINET の書類だけを対象にする（OneDrive からの読み出しの時間を少ない件数で測るとき）
+- `--offsite-chunk N` は、N 件ごとに、退避の記録があって手元に無い ZIP を OneDrive から一時フォルダへまとめて写し（`rclone copy --files-from --no-traverse`）、読んだら一時フォルダを消す。1 件ずつの `rclone cat` は 1 件ごとに置き場所をたどるので遅い。写せなかった ZIP は 1 件ずつの読み出しに戻る。写した秒は `offsite` の秒に入る
 - cron には載せない。過去分を 1 回流すだけで、新しく取り込む書類は取り込みが印を付ける。`gone` / `failed` を流し直すときは、その filing の `presentation_status` を NULL に戻してから流す
 
 ---

@@ -548,7 +548,8 @@ cd /home/stock/stock-analyzer
 .venv/bin/python jobs/xbrl/xbrl_presentation.py --source tdnet --batch 500                 # 短信 XBRL（共有データの ZIP）
 .venv/bin/python jobs/xbrl/xbrl_presentation.py --source edinet --local-only --batch 500   # 手元の data/edinet にある分だけ
 .venv/bin/python jobs/xbrl/xbrl_presentation.py --archived-only --limit 50 --batch 10       # 退避済み（OneDrive）の読み出しを 50 件で測る
-.venv/bin/python jobs/xbrl/xbrl_presentation.py --source edinet --limit 3000 --batch 200 --sleep 1  # OneDrive・EDINET から取る分
+.venv/bin/python jobs/xbrl/xbrl_presentation.py --archived-only --offsite-chunk 2000 --batch 500  # 退避済みを 2,000 件ずつまとめて写して読む
+.venv/bin/python jobs/xbrl/xbrl_presentation.py --source edinet --limit 3000 --batch 200 --sleep 1  # 残り（EDINET から取る分）
 .venv/bin/python jobs/xbrl/xbrl_presentation.py --code 7203 --code 6758                    # 銘柄を絞る（繰り返し可）
 ```
 
