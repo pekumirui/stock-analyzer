@@ -19,6 +19,7 @@ NAMED = "13570"
 QUARTER = "36790"
 TWICE = "22820"
 OPENING = "46810"
+AMENDED = "57910"
 NONCONSOL = {"jppfs_cor:ConsolidatedOrNonConsolidatedAxis": "jppfs_cor:NonConsolidatedMember"}
 SEGMENT = {"jpcrp_cor:OperatingSegmentsAxis": "jpcrp_cor:ReportableSegmentsMember"}
 
@@ -57,14 +58,15 @@ class Seeder:
         self._run("INSERT INTO stocks (code, name) VALUES (:c, :n)", {"c": code, "n": name})
 
     def filing(self, fid: int, source: str, period_type: str, end: str, submitted: str, *,
-               code: str = CODE, standard: str = "JPGAAP", doc_type: str | None = None) -> None:
+               code: str = CODE, standard: str = "JPGAAP", doc_type: str | None = None,
+               amendment: bool = False) -> None:
         kind = doc_type or ("annual" if period_type == "FY" else "quarterly")
         self._run(
             "INSERT INTO xbrl_filings (id, code, source, doc_id, doc_type, period_type, fiscal_year_end, "
             "submitted_at, accounting_standard, is_amendment, raw_path, parse_status, created_at) "
-            "VALUES (:id, :code, :source, :doc, :kind, :pt, :end, :sub, :std, 0, 'x', 'parsed', '2026-01-01')",
+            "VALUES (:id, :code, :source, :doc, :kind, :pt, :end, :sub, :std, :am, 'x', 'parsed', '2026-01-01')",
             {"id": fid, "code": code, "source": source, "doc": f"D{fid}", "kind": kind, "pt": period_type,
-             "end": end, "sub": submitted, "std": standard},
+             "end": end, "sub": submitted, "std": standard, "am": int(amendment)},
         )
 
     def _element(self, ns: str, local: str) -> int:
@@ -310,6 +312,19 @@ def _opening(s: Seeder) -> None:
     ], start="2025-04-01")
 
 
+def _amended(s: Seeder) -> None:
+    s.stock(AMENDED, "一部訂正")
+    s.filing(701, "tdnet_pdf", "Q1", "2025-06-30", "2025-08-08 15:00:00", code=AMENDED)
+    s.facts(701, "2025-06-30", [
+        p("bs", "現金及び預金", 10), p("bs", "売掛金", 5), p("bs", "その他", 1), p("bs", "資産合計", 16),
+        p("pl", "売上高", 100), p("pl", "当期純利益", 10),
+    ])
+    s.filing(702, "tdnet_pdf", "Q1", "2025-06-30", "2025-09-10 15:00:00", code=AMENDED, amendment=True)
+    s.facts(702, "2025-06-30", [p("bs", "売掛金", 6), p("bs", "その他", 9), p("bs", "資産合計", 17)])
+    s.filing(703, "tdnet_pdf", "Q1", "2025-06-30", "2025-10-01 15:00:00", code=AMENDED, amendment=True)
+    s.facts(703, "2025-06-30", [p("bs", "現金及び現金同等物", 99), p("bs", "資産合計", 18)])
+
+
 def seed(more=None) -> None:
     s = Seeder()
     _company(s, CODE, 0)
@@ -334,6 +349,7 @@ def seed(more=None) -> None:
     _quarterly(s)
     _twice(s)
     _opening(s)
+    _amended(s)
     if more:
         more(s)
     s.close()
@@ -592,6 +608,14 @@ def test_cf_drops_unmatched_opening_cash_rows() -> None:
         ("新規連結子会社の現金及び現金同等物の期首残高", None),
         ("現金及び現金同等物の期末残高", "CashAndCashEquivalents"),
     ]
+
+
+def test_partial_amendments_revise_the_original_pdf() -> None:
+    t = table(AMENDED)
+    assert labels(t) == ["25.06"]
+    assert [r["key"] for r in t["rows"]] == ["pdf:現金及び預金", "pdf:売掛金", "pdf:その他", "pdf:資産合計"]
+    assert [r["cells"][0]["value"] for r in t["rows"]] == [10 * M, 6 * M, 1 * M, 18 * M]
+    assert value(table(AMENDED, statement="PL"), "pdf:売上高", "25.06") == 100 * M
 
 
 def test_opening_cash_names() -> None:

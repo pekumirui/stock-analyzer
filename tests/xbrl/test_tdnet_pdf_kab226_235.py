@@ -119,6 +119,12 @@ def test_kab226_tanshin_revision_title_is_amendment() -> None:
         _fail("業績予想の修正について")
     if is_amendment_notice("配当予想の修正について", pages):
         _fail("配当予想の修正について")
+    if not is_amendment_notice("「2026年３月期 第３四半期決算短信〔ＩＦＲＳ〕（非連結）」の一部追加のお知らせ", pages):
+        _fail("一部追加")
+    if not is_amendment_notice("(追加・数値データ追加)「2026年４月期 第３四半期決算短信〔ＩＦＲＳ〕（非連結）」", pages):
+        _fail("数値データ追加")
+    if is_amendment_notice("追加型投資信託の決算のお知らせ", pages):
+        _fail("決算短信でない追加")
 
 
 def test_kab235_change_and_teiseiban_markers_are_amendment() -> None:

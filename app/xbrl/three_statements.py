@@ -148,6 +148,7 @@ class Filing:
     period_end: date
     submitted: str
     standard: str | None
+    amendment: bool = False
     by_statement: dict[str, list[Fact]] = field(default_factory=dict)
     seq: list[Fact] = field(default_factory=list)
 
@@ -338,8 +339,8 @@ def load_filings(db: Session, code: str, consolidated: bool) -> list[Filing]:
 def load_both(db: Session, code: str) -> dict[bool, list[Filing]]:
     rows = db.execute(
         text(
-            "SELECT id, doc_id, source, period_type, fiscal_year_end, submitted_at, accounting_standard "
-            "FROM xbrl_filings WHERE code = :code AND parse_status = 'parsed' "
+            "SELECT id, doc_id, source, period_type, fiscal_year_end, submitted_at, accounting_standard, "
+            "is_amendment FROM xbrl_filings WHERE code = :code AND parse_status = 'parsed' "
             "AND source IN :sources AND doc_type IN :types AND fiscal_year_end IS NOT NULL"
         ).bindparams(bindparam("sources", expanding=True), bindparam("types", expanding=True)),
         {"code": code, "sources": list(SOURCES), "types": list(DOC_TYPES)},
@@ -354,6 +355,7 @@ def load_both(db: Session, code: str) -> dict[bool, list[Filing]]:
                 period_end=date.fromisoformat(str(r[4])[:10]),
                 submitted=str(r[5] or ""),
                 standard=None if r[6] is None else str(r[6]),
+                amendment=bool(r[7]),
             )
             for r in rows
         }
@@ -667,12 +669,38 @@ def _pairs(filings: Sequence[Filing]) -> list[tuple[Filing, Filing]]:
             continue
         top = min(SOURCES.index(f.source) for f in xbrls)
         xbrl = _newest([f for f in xbrls if SOURCES.index(f.source) == top])
-        out.append((_newest(pdfs), xbrl))
+        out.append((_pdf_base(pdfs), xbrl))
     return out
 
 
 def _newest(filings: Sequence[Filing]) -> Filing:
     return max(filings, key=lambda f: (f.submitted, f.id))
+
+
+def _pdf_base(pdfs: Sequence[Filing]) -> Filing:
+    return _newest([f for f in pdfs if not f.amendment] or pdfs)
+
+
+def _revisions(pdfs: Sequence[Filing], base: Filing) -> list[Filing]:
+    later = [f for f in pdfs if f.amendment and (f.submitted, f.id) > (base.submitted, base.id)]
+    return sorted(later, key=lambda f: (f.submitted, f.id), reverse=True)
+
+
+def _revised(
+    revisions: Sequence[Filing], pool: Sequence[Learned], statement: str, period_end: date, names: Names | None,
+) -> dict[str, float]:
+    out: dict[str, float] = {}
+    for filing in revisions:
+        facts = filing.by_statement.get(statement, [])
+        copies = pdf_rows(facts, statement, printed_twice(pool, statement)).copies
+        for n, (fact, mapped) in enumerate(apply_learned(facts, pool, statement, period_end, filing.cls, names)):
+            if n in copies:
+                continue
+            if mapped is not None:
+                out.setdefault(mapped.key, fact.value * mapped.sign)
+            elif not _generic(fact.local):
+                out.setdefault(fact.key, fact.value)
+    return out
 
 
 def _ranked(learned: Sequence[Learned], period_end: date, cls: str) -> list[Learned]:
@@ -1135,9 +1163,15 @@ def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], stateme
     for period_end in sorted(by_end):
         group = by_end[period_end]
         chosen = []
+        revisions: list[Filing] = []
         for source in SOURCES:
             same = [f for f in group if f.source == source]
-            if same:
+            if not same:
+                continue
+            if source == "tdnet_pdf":
+                chosen.append(_pdf_base(same))
+                revisions = _revisions(same, chosen[-1])
+            else:
                 chosen.append(_newest(same))
         values: dict[str, float] = {}
         sources: dict[str, str] = {}
@@ -1152,18 +1186,19 @@ def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], stateme
                 facts = filing.by_statement[statement]
                 by_name = names if filing is primary else None
                 copies = pdf_rows(facts, statement, printed_twice(pool, statement)).copies
+                revised = _revised(revisions, pool, statement, period_end, by_name)
                 for n, (fact, mapped) in enumerate(apply_learned(facts, pool, statement, period_end, cls, by_name)):
                     if n in copies:
                         continue
                     if mapped is None:
                         if filing is primary:
-                            values[fact.key] = fact.value
+                            values[fact.key] = revised.get(fact.key, fact.value)
                             sources[fact.key] = filing.source
                             seq.append(fact.key)
                         continue
                     seq.append(mapped.key)
                     if mapped.key not in values:
-                        values[mapped.key] = fact.value * mapped.sign
+                        values[mapped.key] = revised.get(mapped.key, fact.value * mapped.sign)
                         sources[mapped.key] = filing.source
             else:
                 for fact in _with_extras(filing, statement, learned):

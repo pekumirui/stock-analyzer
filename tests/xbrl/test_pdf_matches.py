@@ -18,7 +18,17 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from tests.xbrl.test_three_statements import CODE, LOOSE, NAMED, OPENING, SINGLE, TWICE, M, seed  # noqa: E402
+from tests.xbrl.test_three_statements import (  # noqa: E402
+    AMENDED,
+    CODE,
+    LOOSE,
+    NAMED,
+    OPENING,
+    SINGLE,
+    TWICE,
+    M,
+    seed,
+)
 
 EXTRA = "11110"
 
@@ -145,15 +155,15 @@ def test_value_name_unmatched_and_sign() -> None:
 
 
 def test_rerun_gives_the_same_rows() -> None:
-    before = {code: matches(code) for code in (CODE, LOOSE, NAMED, TWICE, OPENING)}
+    before = {code: matches(code) for code in (CODE, LOOSE, NAMED, TWICE, OPENING, AMENDED)}
     db = SessionLocal()
     try:
         counts = rebuild_matches(db)
         again = rebuild_matches(db, codes=[CODE])
     finally:
         db.close()
-    assert {code: matches(code) for code in (CODE, LOOSE, NAMED, TWICE, OPENING)} == before
-    assert counts["failed"] == 0 and counts["filings"] == 6
+    assert {code: matches(code) for code in (CODE, LOOSE, NAMED, TWICE, OPENING, AMENDED)} == before
+    assert counts["failed"] == 0 and counts["filings"] == 9
     assert counts["matched"] + counts["unmatched"] == sum(len(v) for v in before.values())
     assert again["codes"] == 1 and again["filings"] == 1
 
