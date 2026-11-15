@@ -181,6 +181,7 @@ CREATE TABLE xbrl_filings (
     parse_error         TEXT,
     parsed_at           TEXT,
     documents_status    TEXT,                   -- 原文（§15）: NULL|'stored'|'empty'
+    presentation_status TEXT,                   -- 表示リンク（§4.4）: NULL|'ok'|'none'|'gone'|'failed'
     created_at          TEXT NOT NULL,
     UNIQUE (source, doc_id)
 );
@@ -344,6 +345,19 @@ CREATE TABLE xbrl_job_runs (
 - **要素の並び**: `presentationArc` の親子を `order` の順に深さ優先で辿った順（`loc` の出現順ではない）。親子は `loc` のラベルではなく要素で結ぶ（同じ要素に `loc` が 2 つあり、子として付く方と親になる方が別のラベルの書類がある）。根が複数なら `loc` の出現順。同じ要素が 2 回出る（CF の期首・期末の現金及び現金同等物）ときは 2 つとも残し、`preferredLabel` の種類（role の最後。`periodStartLabel` / `totalLabel` など）で見分ける。名前が `Heading` / `Table` / `Axis` / `Member` / `LineItems` で終わる要素は落とす。`…Abstract`（流動資産などの見出し）は残す。`use="prohibited"` の arc は同じ arc を消す
 - **要素の名前空間**: `loc` の `xlink:href` の `#` の後ろ（xsd の要素 id）から引く。書類の中の xsd を指すときはその xsd の `name` 属性を local_name にし、id の残りを `namespace_key` にする（`jpcrp030000-asr_E…` / `tse-…-証券コード`）。標準タクソノミ（`app/xbrl/parser.py` の `STANDARD_NS_URI_ROOTS` の配下の URL）はファイル名から日付を落としたもの（`jppfs_cor`）を `namespace_key` にする。`is_custom` は標準タクソノミの URL でないもの。§17 の行のキー（標準は `local_name`、会社独自は `ext:<local_name>`）と突き合わせられる
 - 同じ区分が複数の pre.xml にあれば、最初の区分の後ろに足す。`seq` は書類の中で保存した区分の順
+- **済みの印 `xbrl_filings.presentation_status`**: NULL はまだ読んでいない。`ok` は 3 表の区分を 1 つ以上保存した、`none` は読んだが 3 表の区分が無い（業績予想の修正のお知らせ、CF の区分の無い有報・Q1/Q3 の四半期報告書と短信など。pre.xml が無い ZIP もここ）、`gone` は ZIP が手に入らない、`failed` は ZIP や表示リンクが読めない。取り込み（`store_package`）が毎回付け直す。`delete_filing_payload` は行を消して NULL に戻す。`tdnet_pdf` の filing は表示リンクが無いので `none`。行が無いだけでは「まだ」と「区分が無い」を見分けられないので列で持つ
+- 既存の DB には `jobs/migrate.py` が列を足す（`ALTER TABLE … ADD COLUMN`。NULL の列なので表は書き換えない）。足したあとは全件 NULL なので、§4.5 のバッチで過去分を埋める
+
+### 4.5 過去の書類の表示リンクを埋める（`jobs/xbrl/xbrl_presentation.py`）
+
+`presentation_status` が NULL の `edinet` / `tdnet` の `parsed` の filing を、提出の新しい順に 1 件ずつ読む（`app/xbrl/presentation_backfill.py`）。ZIP を取る → `*pre.xml` と `*.xsd` だけ展開（`AuditDoc` の下は展開しない）→ `read_presentation` → `store_presentation` と印 → commit。fact・taxonomy には触らない（`parse_package` を呼ばない）。止めても続きから進む。書き込みは `run_sqlite_write`（`database is locked` は待ってやり直す。やり直しても取れなければその書類は印を付けずに `errors`）。
+
+- **ZIP の取り方**: 短信 XBRL は `--dest`（既定 `XBRL_DEST`）からの `raw_path`。無ければ `gone`。読む前に共有データのマウントを確かめる（`fail_if_mount_down`。切れていたら何もしない）。EDINET は `edinet_documents` の行を引いて `app/edinet/archive.py download`。手元（`data/edinet`）に無く、退避の記録（`edinet_archives` の `saved`）があれば EDINET には行かず OneDrive から読む（退避済みの ZIP を取り直して手元に書き直さない）。記録が無ければ EDINET（404 なら `gone`。閲覧期間を過ぎた書類は EDINET を飛ばす）。`edinet_documents` に行が無い・404 で退避も無いものは `gone`。5xx・タイムアウト・OneDrive の失敗は印を付けず `errors`（次の回にまた取る）。EDINET のメンテはその回を打ち切って exit 0（ほかの EDINET のジョブと同じ）。`EDINET_API_KEY` が無いとき・`--local-only` のときは手元（`data/edinet`）だけを見て、無い書類は印を付けずに飛ばす（`skipped`）
+- **手元にたまる ZIP**: EDINET から取った ZIP は既存の取得と同じく `data/edinet` に書いて `edinet_archives` に記録する。`edinet_archives` に記録の無い書類をまとめて流すとその分が手元にたまり、翌朝の `jobs/ops/backup_data.py` が OneDrive へ移すまで残る。`--limit` で 1 日に流す件数を区切る
+- **間隔**: `--sleep` 秒を、EDINET か OneDrive から取った書類のあとにだけ待つ（手元の ZIP では待たない）。EDINET のクライアントにも最小間隔がある
+- 出力は `--batch N` で N 件ごとに 1 行、最後に `xbrl_presentation done= ok= none= gone= failed= errors= skipped= remaining=`。`errors` があれば exit 1。どちらの行にも、ZIP の出どころごとの件数と取得にかかった秒（`local=件/秒 edinet=件/秒 offsite=件/秒`。`offsite` が OneDrive）が付く
+- `--archived-only` は退避の記録がある EDINET の書類だけを対象にする（OneDrive からの読み出しの時間を少ない件数で測るとき）
+- cron には載せない。過去分を 1 回流すだけで、新しく取り込む書類は取り込みが印を付ける。`gone` / `failed` を流し直すときは、その filing の `presentation_status` を NULL に戻してから流す
 
 ---
 

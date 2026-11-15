@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from sqlalchemy import bindparam, delete, insert, select
+from sqlalchemy import bindparam, delete, insert, select, update
 from sqlalchemy.orm import Session
 
 from app.config import XBRL_CACHE_DIR, XBRL_TEXT_MAX_CHARS
@@ -53,6 +53,12 @@ def inherit_accounting_standard_from_prior_filings(
     return prior.accounting_standard
 
 
+PRESENTATION_OK = "ok"
+PRESENTATION_NONE = "none"
+PRESENTATION_GONE = "gone"
+PRESENTATION_FAILED = "failed"
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -72,6 +78,7 @@ def delete_filing_payload(db: Session, filing_id: int) -> None:
     db.execute(delete(XbrlFact).where(XbrlFact.filing_id == filing_id))
     db.execute(delete(XbrlContext).where(XbrlContext.filing_id == filing_id))
     db.execute(delete(XbrlPresentationRole).where(XbrlPresentationRole.filing_id == filing_id))
+    db.execute(update(XbrlFiling).where(XbrlFiling.id == filing_id).values(presentation_status=None))
 
 
 _IN_CHUNK = 500
@@ -363,14 +370,17 @@ def store_package(db: Session, filing: XbrlFiling, pkg: ParsedPackage) -> None:
         })
     if fact_rows:
         db.execute(insert(XbrlFact.__table__), fact_rows)
-    store_presentation(db, filing.id, pkg.presentation)
+    filing.presentation_status = store_presentation(db, filing.id, pkg.presentation)
     filing.parse_status = "parsed"
     filing.parse_error = None
     filing.parsed_at = _now()
 
 
-def store_presentation(db: Session, filing_id: int, roles: list[PresentationRole]) -> None:
-    """財務3表に当たる表示リンクの区分で filing の行を入れ替える。No commit."""
+def store_presentation(db: Session, filing_id: int, roles: list[PresentationRole] | None) -> str:
+    """財務3表に当たる表示リンクの区分で filing の行を入れ替え、presentation_status を返す。No commit.
+
+    None（表示リンクが読めなかった）は failed、3 表の区分が無ければ none、あれば ok。
+    """
     db.execute(delete(XbrlPresentationRole).where(XbrlPresentationRole.filing_id == filing_id))
     now = _now()
     rows = [
@@ -384,10 +394,13 @@ def store_presentation(db: Session, filing_id: int, roles: list[PresentationRole
             "items_json": json.dumps([item.as_json() for item in role.items], separators=(",", ":")),
             "generated_at": now,
         }
-        for seq, (role, kind) in enumerate(statement_roles(roles))
+        for seq, (role, kind) in enumerate(statement_roles(roles or []))
     ]
     if rows:
         db.execute(insert(XbrlPresentationRole.__table__), rows)
+    if roles is None:
+        return PRESENTATION_FAILED
+    return PRESENTATION_OK if rows else PRESENTATION_NONE
 
 
 def delete_filing(db: Session, filing: XbrlFiling) -> None:
