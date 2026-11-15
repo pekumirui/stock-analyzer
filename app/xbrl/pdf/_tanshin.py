@@ -343,9 +343,9 @@ SECTIONS: tuple[SectionSpec, ...] = (
         # 業績予想と配当予想の同時修正は EarnForecastRevision（KAB-231）。題名は fc_rev が先に取る。
         NS_SUMMARY, Axis.ITEM_COLUMNS, Shape.DIVIDEND, _FR | _DR, frozenset(),
     ),
-    # 上のどれでもない計算書・対照表（セグメント別の損益計算書、子会社の貸借対照表など）。読まないが、
+    # 上のどれでもない計算書・対照表・明細書（セグメント別の損益計算書、子会社の貸借対照表、製造原価明細書など）。読まないが、
     # 本表のブロックをここで切る。
-    SectionSpec("other_statement", _h(r"^.{0,40}(計算書|対照表)$"), None, Axis.ITEM_ROWS, Shape.DURATION, _E, frozenset()),
+    SectionSpec("other_statement", _h(r"^.{0,40}(計算書|対照表|明細書)$"), None, Axis.ITEM_ROWS, Shape.DURATION, _E, frozenset()),
 )
 
 
