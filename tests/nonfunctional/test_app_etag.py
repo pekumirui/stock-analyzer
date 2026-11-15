@@ -1,4 +1,4 @@
-"""/app の ETag は /static の中身が変わると変わる。boot.js はページの ETag だけを見て読み直す。"""
+"""/app の ETag と HTML の ?v= は /static の中身が変わると変わる。boot.js はこの 2 つを見て読み直す。"""
 from __future__ import annotations
 
 import os
