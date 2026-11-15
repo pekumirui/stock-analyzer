@@ -45,7 +45,6 @@
 - `xbrl_job_runs`
 - `xbrl_major_shareholders`
 - `xbrl_pdf_matches`
-- `xbrl_presentation_roles`
 - `xbrl_segments`
 - `xbrl_shareholder_filings`
 - `xbrl_shareholding_by_category`
