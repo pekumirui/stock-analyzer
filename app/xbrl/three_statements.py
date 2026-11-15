@@ -571,7 +571,7 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
             cands = [c for c in _near(pool, f.value, tol) if c.id not in used]
             if len(cands) != 1 or len({c.key for c in _near(pool, f.value, tol)}) != 1:
                 continue
-            if not _foreign_balance(statement, cands[0], in_rule):
+            if not _foreign(statement, cands[0], in_rule):
                 hit[i] = cands[0]
                 used.add(cands[0].id)
         twice: set[str] = set()
@@ -610,10 +610,12 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
     return learned
 
 
-def _foreign_balance(statement: str, fact: Fact, own: set[str]) -> bool:
-    if statement == "BS" or not fact.instant or fact.key in own:
+def _foreign(statement: str, fact: Fact, own: set[str]) -> bool:
+    if statement == "BS" or fact.key in own:
         return False
-    return not (statement == "CF" and CF_CASH_RE.search(fact.local))
+    if statement == "PL" and CF_MARK_RE.search(fact.local):
+        return True
+    return fact.instant and not (statement == "CF" and CF_CASH_RE.search(fact.local))
 
 
 def _profit_name(label: str) -> str | None:
