@@ -83,7 +83,7 @@ class ParsedPackage:
     labels: dict[tuple[str, str], dict[str, str]]
     ixbrl_files: list[Path]
     fiscal_year_end: date | None = None
-    presentation: list[PresentationRole] = field(default_factory=list)
+    presentation: list[PresentationRole] | None = field(default_factory=list)
 
 
 def looks_like_ixbrl(path: Path) -> bool:
@@ -511,13 +511,13 @@ def parse_package(
     )
 
 
-def _read_presentation(unpacked: Path) -> list[PresentationRole]:
+def _read_presentation(unpacked: Path) -> list[PresentationRole] | None:
     from app.xbrl.presentation import read_presentation
 
     try:
         return read_presentation(unpacked)
     except Exception:
-        return []
+        return None
 
 
 def package_meta(title: str) -> dict:
