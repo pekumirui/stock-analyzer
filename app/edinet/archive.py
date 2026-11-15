@@ -86,6 +86,29 @@ def rclone_get(rel: str, environ: Mapping[str, str] | None = None) -> bytes:
     return proc.stdout
 
 
+def rclone_copy(rels: list[str], dest: Path, *, transfers: int = 8, timeout: float = 3600.0,
+                environ: Mapping[str, str] | None = None) -> None:
+    """OneDrive の ZIP をまとめて dest へ写す（dest の下は rel_path と同じ並び）。1 件ずつの rclone cat より速い。"""
+    env = os.environ if environ is None else environ
+    bin_name = (env.get("BACKUP_RCLONE_BIN") or "rclone").strip() or "rclone"
+    if shutil.which(bin_name) is None and not Path(bin_name).is_file():
+        raise ArchiveError(f"rclone not installed ({bin_name})")
+    dest.mkdir(parents=True, exist_ok=True)
+    listing = dest / ".files-from"
+    listing.write_text("\n".join(rels) + "\n", encoding="utf-8")
+    cmd = [bin_name, "copy", offsite_root(env), str(dest), "--files-from", str(listing), "--no-traverse",
+           "--transfers", str(int(transfers))]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, timeout=timeout, check=False)  # nosec B603 - 固定の実行ファイル
+    except subprocess.TimeoutExpired as exc:
+        raise ArchiveError(f"rclone copy timeout files={len(rels)}") from exc
+    finally:
+        listing.unlink(missing_ok=True)
+    if proc.returncode != 0:
+        err = " ".join(proc.stderr.decode("utf-8", "replace").split())[:300]
+        raise ArchiveError(f"rclone copy exit={proc.returncode} files={len(rels)} {err}")
+
+
 def is_valid_zip(content: bytes) -> bool:
     """壊れた・途中で切れた ZIP は残さない（残すと手元・OneDrive の写しが取り直しを妨げる）。"""
     try:

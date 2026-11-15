@@ -263,6 +263,46 @@ def test_archived_zip_is_read_from_offsite_without_edinet(tmp: Path) -> None:
         db.close()
 
 
+def test_archived_zips_are_staged_in_bulk(tmp: Path) -> None:
+    from app.edinet.archive import SAVED
+    from app.edinet.documents import now_jst
+    from app.models import EdinetArchive
+
+    db = SessionLocal()
+    try:
+        _reset(db)
+        for fid in (1, 2, 3):
+            _filing(db, fid, "edinet", f"2026-06-0{fid} 15:00")
+            _doc(db, fid)
+        for doc_id in ("D1", "D2"):
+            db.add(EdinetArchive(doc_id=doc_id, file_type=1, doc_type_code="120", rel_path=rel_path("120", doc_id, 1),
+                                 status=SAVED, bytes=len(ANNUAL_ZIP), sha256="x", saved_at=now_jst()))
+        db.commit()
+        root, staged = tmp / "root", tmp / "staged"
+        local = root / rel_path("120", "D2", 1)
+        local.parent.mkdir(parents=True)
+        local.write_bytes(ANNUAL_ZIP)
+        asked: list[list[str]] = []
+
+        def copy(rels: list[str], dest: Path) -> None:
+            asked.append(rels)
+            for rel in rels:
+                (dest / rel).parent.mkdir(parents=True, exist_ok=True)
+                (dest / rel).write_bytes(ANNUAL_ZIP)
+
+        assert pb.stage_offsite(db, [1, 2, 3], staged, root=root, copy=copy) == 1
+        assert asked == [[rel_path("120", "D1", 1)]]
+        client = _Client({"D3": ANNUAL_ZIP})
+        fetch = pb.edinet_fetcher(db, client, root=root, remote_get=lambda rel: pytest.fail(rel), staged=staged)
+        counts = pb.run(db, [1, 2, 3], {"edinet": fetch}, sleep=1.0, sleeper=lambda s: None)
+        assert client.calls == ["D3"]
+        assert [_status(db, i) for i in (1, 2, 3)] == ["ok", "ok", "ok"]
+        assert (counts["offsite"], counts["local"], counts["edinet"]) == (1, 1, 1)
+        assert pb.stage_offsite(db, [1, 2, 3], staged, root=root, copy=copy) == 0 and len(asked) == 1
+    finally:
+        db.close()
+
+
 def test_ingest_marks_status(tmp: Path) -> None:
     db = SessionLocal()
     try:
@@ -306,3 +346,40 @@ def test_cli_dry_run(capsys) -> None:
     assert "remaining=2" in capsys.readouterr().out
     assert xbrl_presentation.main(["--dry-run", "--source", "tdnet", "--code", "9999"]) == 0
     assert "remaining=1" in capsys.readouterr().out
+
+
+def test_cli_offsite_chunk(capsys, monkeypatch) -> None:
+    from app.edinet.archive import SAVED
+    from app.edinet.documents import now_jst
+    from app.models import EdinetArchive
+    from jobs.xbrl import xbrl_presentation
+
+    db = SessionLocal()
+    try:
+        _reset(db)
+        for fid in (1, 2, 3):
+            _filing(db, fid, "edinet", f"2026-06-0{fid} 15:00")
+            _doc(db, fid)
+            db.add(EdinetArchive(doc_id=f"D{fid}", file_type=1, doc_type_code="120",
+                                 rel_path=rel_path("120", f"D{fid}", 1), status=SAVED, bytes=len(ANNUAL_ZIP),
+                                 sha256="x", saved_at=now_jst()))
+        db.commit()
+    finally:
+        db.close()
+    chunks: list[list[int]] = []
+
+    def stage(db, ids, staged, **_kw) -> int:
+        chunks.append(list(ids))
+        for fid in ids:
+            path = staged / rel_path("120", f"D{fid}", 1)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(ANNUAL_ZIP)
+        return len(chunks[-1])
+
+    monkeypatch.setattr(xbrl_presentation, "stage_offsite", stage)
+    monkeypatch.delenv("EDINET_API_KEY", raising=False)
+    assert xbrl_presentation.main(["--archived-only", "--offsite-chunk", "2"]) == 0
+    out = capsys.readouterr().out
+    assert chunks == [[3, 2], [1]]
+    assert "offsite-copy files=2" in out and "offsite-copy files=1" in out
+    assert "done=3 ok=3" in out and "remaining=0" in out and "offsite=3/" in out

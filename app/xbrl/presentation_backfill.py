@@ -90,6 +90,30 @@ def _edinet_doc(db: Session, doc_id: str) -> EdinetDocument | None:
     ).first()
 
 
+def stage_offsite(
+    db: Session, ids: Iterable[int], staged: Path, *, root: Path | None = None,
+    copy: Callable[[list[str], Path], None] | None = None,
+) -> int:
+    """ids のうち、退避の記録があって手元に無い EDINET の ZIP を OneDrive から staged へまとめて写す。写した件数。"""
+    from app.edinet.archive import archive_dir, rclone_copy
+
+    wanted = list(ids)
+    rels: list[str] = []
+    for start in range(0, len(wanted), 500):
+        rows = db.execute(
+            select(EdinetArchive.rel_path)
+            .join(XbrlFiling, XbrlFiling.doc_id == EdinetArchive.doc_id)
+            .where(XbrlFiling.id.in_(wanted[start:start + 500]), XbrlFiling.source == "edinet",
+                   XbrlFiling.presentation_status.is_(None),
+                   EdinetArchive.file_type == EDINET_MAIN, EdinetArchive.status == "saved")
+        )
+        rels.extend(rel for (rel,) in rows if not ((root or archive_dir()) / rel).is_file())
+    if not rels:
+        return 0
+    (copy or rclone_copy)(rels, staged)
+    return sum(1 for rel in rels if (staged / rel).is_file())
+
+
 def edinet_fetcher(
     db: Session,
     client: EdinetClient | None,
@@ -97,8 +121,9 @@ def edinet_fetcher(
     root: Path | None = None,
     remote_get: RemoteGet | None = None,
     today: date | None = None,
+    staged: Path | None = None,
 ) -> Fetch:
-    """client が None なら手元（data/edinet）だけを見る。"""
+    """client が None なら手元（data/edinet）だけを見る。staged は stage_offsite が写した ZIP の置き場。"""
     from app.edinet.archive import _expires, archive_dir, archived, download, rel_path
     from app.edinet.client import is_not_found, reraise
 
@@ -106,6 +131,10 @@ def edinet_fetcher(
         doc = _edinet_doc(db, filing.doc_id)
         if doc is None:
             raise ZipGone("no edinet_documents row")
+        if staged is not None:
+            path = staged / rel_path(doc.doc_type_code, doc.doc_id, EDINET_MAIN)
+            if path.is_file():
+                return Got(path.read_bytes(), remote=False, origin="offsite")
         if client is None:
             path = (root or archive_dir()) / rel_path(doc.doc_type_code, doc.doc_id, EDINET_MAIN)
             if not path.is_file():
