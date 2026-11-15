@@ -1089,6 +1089,7 @@ def name_index(filings: Sequence[Filing], statement: str) -> Names:
             continue
         facts = filing.by_statement.get(statement, [])
         labels = [_clean_label(f.label) for f in facts]
+        labels = ["" if OPENING_CASH_RE.match(name) else name for name in labels]
         per_share.update(f.key for f in facts if f.unit in PER_SHARE_UNITS)
         for f, name in zip(facts, labels):
             if name:
