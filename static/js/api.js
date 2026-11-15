@@ -1,6 +1,7 @@
 const $ = s => document.querySelector(s);
 const api = (p, init) => fetch(p, init).then(r => { if(!r.ok) throw new Error(r.status); return r.json(); });
-const fmt = (v,d=0) => v==null ? "–" : Number(v).toLocaleString("ja-JP",{maximumFractionDigits:d,minimumFractionDigits:d});
+const fmtNf = {};
+const fmt = (v,d=0) => v==null ? "–" : (fmtNf[d] ||= new Intl.NumberFormat("ja-JP",{maximumFractionDigits:d,minimumFractionDigits:d})).format(Number(v));
 const pct = v => v==null ? "–" : `<span class="${v>=0?'pos':'neg'}">${v>0?'+':''}${fmt(v,1)}%</span>`;
 const under = html => `<span class="g">${html || " "}</span>`;
 const shortName = n => { const s = String(n||""); return s.length>5 ? s.slice(0,5) : s; };
