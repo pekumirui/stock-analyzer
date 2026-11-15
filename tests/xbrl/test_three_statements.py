@@ -440,6 +440,34 @@ def test_split_xbrl_takes_pl_printed_before_bs() -> None:
     assert split(*IFRS_PL, *IFRS_BS, *IFRS_SS)["PL"] == names(IFRS_PL)
 
 
+JP_CF_SCOPE = ("d DepreciationAndAmortizationOpeCF", "d NetCashProvidedByUsedInOperatingActivities",
+               "d NetIncreaseDecreaseInCashAndCashEquivalents",
+               "d IncreaseInCashAndCashEquivalentsFromNewlyConsolidatedSubsidiaryCCE",
+               "d DecreaseInCashAndCashEquivalentsResultingFromExclusionOfSubsidiariesFromConsolidationCCE",
+               "i CashAndCashEquivalents")
+CASH_NOTE = ("i CashAndDeposits", "i TimeDepositsOverThreeMonths", "i CashAndCashEquivalents")
+
+
+def test_split_xbrl_takes_cash_changes_from_scope_of_consolidation_into_cf() -> None:
+    got = split(*HEAD, *JP_BS, *JP_PL, *JP_SS, *JP_CF_SCOPE, *NOTES)
+    assert got == {"BS": names(JP_BS), "PL": names(JP_PL), "CF": names(JP_CF_SCOPE)}
+    got = split(*JP_PL, *JP_BS, *JP_SS, *JP_CF_SCOPE)
+    assert got == {"BS": names(JP_BS), "PL": names(JP_PL), "CF": names(JP_CF_SCOPE)}
+    cf = (*JP_CF[:3], "d IncreaseInCashAndCashEquivalentsResultingFromMergerCCE")
+    assert split(*JP_BS, *JP_PL, *cf, *NOTES)["CF"] == names(cf)
+    cf = (*JP_CF[:3], "d IncreaseInCashAndCashEquivalentsFromShareExchange", "i CashAndCashEquivalents")
+    assert split(*JP_BS, *JP_PL, *cf, *NOTES)["CF"] == names(cf)
+
+
+def test_split_xbrl_cf_tail_stops_before_notes() -> None:
+    got = split(*JP_BS, *JP_PL, *JP_CF_SCOPE, *CASH_NOTE, *NOTES)
+    assert got["CF"] == names(JP_CF_SCOPE)
+    got = split(*JP_BS, *JP_PL, *JP_CF, *NOTES, "d IncreaseInCashAndCashEquivalentsResultingFromMergerCCE")
+    assert got["CF"] == names(JP_CF)
+    got = split(*IFRS_BS, *IFRS_PL, *IFRS_CF, "i CashAndCashEquivalentsIFRS", "d CashAndCashEquivalentsInterestIncomeIFRS")
+    assert got["CF"] == [*names(IFRS_CF), "CashAndCashEquivalentsIFRS"]
+
+
 def test_split_xbrl_keeps_pl_of_the_chosen_bs_when_two_sets_are_printed() -> None:
     got = split(*IFRS_BS, *IFRS_PL, *JP_BS, "d NetSales", "d OperatingIncome", "d ProfitLoss")
     assert got == {"BS": names(JP_BS), "PL": ["NetSales", "OperatingIncome", "ProfitLoss"], "CF": []}
