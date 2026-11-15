@@ -11,8 +11,13 @@ function pinCols(table, n){
   if(ths.length < n) return;
   const w = [...ths].slice(0, n).map(th => th.offsetWidth);
   if(w.some(x => x < 1)) return;
+  // 位置は表の親に持たせる。表を作り直しても残り、変わらなければ組み直しが 1 回で済む
+  const host = table.parentElement.style;
   let x = 0;
-  for(let i=0; i<n; i++){ table.style.setProperty(`--pin${i}`, `${x}px`); x += w[i]; }
+  for(let i=0; i<n; i++){
+    if(host.getPropertyValue(`--pin${i}`) !== `${x}px`) host.setProperty(`--pin${i}`, `${x}px`);
+    x += w[i];
+  }
 }
 // 市場と業種。月次とランキングで同じ表記（市場は 東証P / 東証S / 東証G。色の点は CSS の .mkt-*）
 // J-Quants の市場名（プライム）と株探の略記（東Ｐ）のどちらも受ける
