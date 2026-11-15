@@ -152,7 +152,7 @@ flowchart LR
 
 ### edinet_archives
 
-- 書く: `jobs/edinet/edinet_archive.py`, `jobs/edinet/edinet_buybacks.py`, `jobs/edinet/edinet_large_holdings.py`, `jobs/edinet/edinet_tender_offers.py`, `jobs/edinet/edinet_xbrl.py`
+- 書く: `jobs/edinet/edinet_archive.py`, `jobs/edinet/edinet_buybacks.py`, `jobs/edinet/edinet_large_holdings.py`, `jobs/edinet/edinet_tender_offers.py`, `jobs/edinet/edinet_xbrl.py`, `jobs/xbrl/xbrl_presentation.py（XBRL・決算書類）`
 - 読むだけ: （観測なし）
 
 ### edinet_buyback_resolutions
@@ -168,7 +168,7 @@ flowchart LR
 ### edinet_documents
 
 - 書く: `jobs/edinet/edinet_codes.py`, `jobs/edinet/edinet_documents.py`
-- 読むだけ: `jobs/edinet/edinet_archive.py`, `jobs/edinet/edinet_buybacks.py`, `jobs/edinet/edinet_large_holdings.py`, `jobs/edinet/edinet_shareholders.py`, `jobs/edinet/edinet_tender_offers.py`, `jobs/edinet/edinet_xbrl.py`, `jobs/xbrl/xbrl_normalize.py（XBRL・決算書類）`
+- 読むだけ: `jobs/edinet/edinet_archive.py`, `jobs/edinet/edinet_buybacks.py`, `jobs/edinet/edinet_large_holdings.py`, `jobs/edinet/edinet_shareholders.py`, `jobs/edinet/edinet_tender_offers.py`, `jobs/edinet/edinet_xbrl.py`, `jobs/xbrl/xbrl_normalize.py（XBRL・決算書類）`, `jobs/xbrl/xbrl_presentation.py（XBRL・決算書類）`
 
 ### edinet_filers
 
