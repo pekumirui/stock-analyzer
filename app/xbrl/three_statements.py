@@ -669,7 +669,7 @@ def _pairs(filings: Sequence[Filing]) -> list[tuple[Filing, Filing]]:
             continue
         top = min(SOURCES.index(f.source) for f in xbrls)
         xbrl = _newest([f for f in xbrls if SOURCES.index(f.source) == top])
-        out.append((_pdf_base(pdfs), xbrl))
+        out.append((_newest(pdfs), xbrl))
     return out
 
 
