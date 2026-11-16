@@ -156,10 +156,12 @@ SECTION_PARENTS = {
     "PropertyPlantAndEquipment": "NoncurrentAssets", "IntangibleAssets": "NoncurrentAssets",
     "InvestmentsAndOtherAssets": "NoncurrentAssets",
 }
-LONE_SECTIONS = frozenset({*SECTION_PARENTS, "DeferredAssets"})
+LONE_SECTIONS = {
+    **{key: key for key in (*SECTION_PARENTS, "DeferredAssets")},
+    "InvestmentsAndOtherAssetsGross": "InvestmentsAndOtherAssets",
+}
 OPEN_AFTER_TOTAL = frozenset({
-    "CurrentAssets", "NoncurrentAssets", "PropertyPlantAndEquipment", "IntangibleAssets", "InvestmentsAndOtherAssets",
-    "CurrentLiabilities", "NoncurrentLiabilities", "CurrentAssetsIFRS", "NonCurrentAssetsIFRS",
+    "CurrentAssets", "NoncurrentAssets", "CurrentLiabilities", "NoncurrentLiabilities", "CurrentAssetsIFRS", "NonCurrentAssetsIFRS",
     "TotalCurrentLiabilitiesIFRS", "NonCurrentLabilitiesIFRS",
     "NetCashProvidedByUsedInOperatingActivities", "NetCashProvidedByUsedInInvestmentActivities",
     "NetCashProvidedByUsedInOperatingActivitiesIFRS", "NetCashProvidedByUsedInInvestingActivitiesIFRS",
@@ -696,8 +698,8 @@ def _role_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> d
         elif key in stack:
             part = Part(group, key, ifrs)
             del stack[stack.index(key) + (key in OPEN_AFTER_TOTAL and i < last_head):]
-        elif key in LONE_SECTIONS and SECTION_PARENTS.get(key) in (None, *stack):
-            part = Part(group, key, ifrs)
+        elif key in LONE_SECTIONS and SECTION_PARENTS.get(LONE_SECTIONS[key]) in (None, *stack):
+            part = Part(group, LONE_SECTIONS[key], ifrs)
         else:
             part = Part(group, stack[-1] if stack else None, ifrs)
         if key not in out:

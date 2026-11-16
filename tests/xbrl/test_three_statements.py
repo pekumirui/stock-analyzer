@@ -1051,8 +1051,8 @@ def test_parts_skip_unknown_headings_and_close_at_the_next_heading() -> None:
 def test_parts_stay_open_after_the_total_and_take_single_lines() -> None:
     late = declared(["AssetsAbstract", "CurrentAssetsAbstract", "CashAndDeposits", "CurrentAssets", "PrepaidExpenses",
                      "NoncurrentAssetsAbstract", "PropertyPlantAndEquipment", "IntangibleAssetsAbstract", "Software",
-                     "IntangibleAssets", "InvestmentsAndOtherAssetsAbstract", "InvestmentsAndOtherAssets",
-                     "OtherLongTermAssetsIOAAbstract", "LeaseAndGuaranteeDeposits", "NoncurrentAssets", "Assets",
+                     "IntangibleAssets", "Goodwill", "InvestmentsAndOtherAssetsGross", "NoncurrentAssets",
+                     "LongTermPrepaidExpenses", "Assets",
                      "LiabilitiesAbstract", "CurrentLiabilitiesAbstract", "OtherCL", "CurrentLiabilities",
                      "ProvisionCLAbstract", "ProvisionForBonuses", "ReservesUnderTheSpecialLawsAbstract1",
                      "ReserveForFinancialProductsTransactionLiabilities", "Liabilities",
@@ -1061,7 +1061,8 @@ def test_parts_stay_open_after_the_total_and_take_single_lines() -> None:
     assert late["PrepaidExpenses"] == ("Assets", "CurrentAssets")
     assert late["PropertyPlantAndEquipment"] == ("Assets", "PropertyPlantAndEquipment")
     assert late["Software"] == late["IntangibleAssets"] == ("Assets", "IntangibleAssets")
-    assert late["LeaseAndGuaranteeDeposits"] == ("Assets", "InvestmentsAndOtherAssets")
+    assert late["Goodwill"] == late["LongTermPrepaidExpenses"] == ("Assets", "NoncurrentAssets")
+    assert late["InvestmentsAndOtherAssetsGross"] == ("Assets", "InvestmentsAndOtherAssets")
     assert late["NoncurrentAssets"] == ("Assets", "NoncurrentAssets")
     assert late["ProvisionForBonuses"] == ("Liabilities", "CurrentLiabilities")
     assert late["ReserveForFinancialProductsTransactionLiabilities"] == ("Liabilities", "ReservesUnderTheSpecialLaws1")
