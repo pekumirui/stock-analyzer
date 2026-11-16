@@ -161,6 +161,8 @@ OPEN_AFTER_TOTAL = frozenset({
     "CurrentAssets", "NoncurrentAssets", "PropertyPlantAndEquipment", "IntangibleAssets", "InvestmentsAndOtherAssets",
     "CurrentLiabilities", "NoncurrentLiabilities", "CurrentAssetsIFRS", "NonCurrentAssetsIFRS",
     "TotalCurrentLiabilitiesIFRS", "NonCurrentLabilitiesIFRS",
+    "NetCashProvidedByUsedInOperatingActivities", "NetCashProvidedByUsedInInvestmentActivities",
+    "NetCashProvidedByUsedInOperatingActivitiesIFRS", "NetCashProvidedByUsedInInvestingActivitiesIFRS",
 })
 COARSE_IDS = {
     False: {
@@ -658,7 +660,7 @@ def _role_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> d
     """表示リンクの 1 区分の並び → 要素の区分。見出しの要素（…Abstract）のうち HEAD_GROUPS / HEAD_SECTIONS にあるものだけを見る。
 
     区分は親でない次の見出しか、親の区分・大区分の合計で閉じる。区分の合計でも閉じるが、OPEN_AFTER_TOTAL の区分は
-    合計の後ろに科目が続く書類があるので閉じない。知らない見出しは飛ばす。LONE_SECTIONS の合計が見出し無しで出たら、
+    合計の後ろに科目が続く書類があるので、後ろにまだ見出しがある間は閉じない。知らない見出しは飛ばす。LONE_SECTIONS の合計が見出し無しで出たら、
     その 1 行がその区分。大区分の見出しが無いまま大区分の合計が出たら、前の大区分の後ろからその合計までをその大区分にする。
     """
     heads = HEAD_SECTIONS[statement]
@@ -666,7 +668,10 @@ def _role_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> d
     group: str | None = None
     stack: list[str] = []
     loose: list[str] = []
-    for item in items:
+    last_head = max(
+        (i for i, item in enumerate(items) if not item[2] and (item[1] in heads or item[1] in HEAD_GROUPS)), default=-1,
+    )
+    for i, item in enumerate(items):
         name = str(item[1])
         if not item[2]:
             if statement == "BS" and name in HEAD_GROUPS:
@@ -690,7 +695,7 @@ def _role_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> d
             group, stack, loose = None, [], []
         elif key in stack:
             part = Part(group, key, ifrs)
-            del stack[stack.index(key) + (key in OPEN_AFTER_TOTAL):]
+            del stack[stack.index(key) + (key in OPEN_AFTER_TOTAL and i < last_head):]
         elif key in LONE_SECTIONS and SECTION_PARENTS.get(key) in (None, *stack):
             part = Part(group, key, ifrs)
         else:

@@ -1066,6 +1066,14 @@ def test_parts_stay_open_after_the_total_and_take_single_lines() -> None:
     assert late["ProvisionForBonuses"] == ("Liabilities", "CurrentLiabilities")
     assert late["ReserveForFinancialProductsTransactionLiabilities"] == ("Liabilities", "ReservesUnderTheSpecialLaws1")
     assert late["SubscriptionRightsToShares"] == ("NetAssets", None)
+    cf = declared(["NetCashProvidedByUsedInOperatingActivitiesAbstract", "SubtotalOpeCF",
+                   "NetCashProvidedByUsedInOperatingActivities", "IncomeTaxesRefundOpeCF",
+                   "NetCashProvidedByUsedInInvestmentActivitiesAbstract", "NetCashProvidedByUsedInInvestmentActivities",
+                   "ProceedsFromLiquidationOfSubsidiariesInvCF", "NetCashProvidedByUsedInFinancingActivitiesAbstract",
+                   "NetCashProvidedByUsedInFinancingActivities", "CashAndCashEquivalents"], "CF")
+    assert cf["IncomeTaxesRefundOpeCF"] == (None, "NetCashProvidedByUsedInOperatingActivities")
+    assert cf["ProceedsFromLiquidationOfSubsidiariesInvCF"] == (None, "NetCashProvidedByUsedInInvestmentActivities")
+    assert cf["CashAndCashEquivalents"] == (None, None)
     bank = declared(["AssetsAbstract", "LoansAndBillsDiscountedAssetsBNK", "PropertyPlantAndEquipment", "BuildingsNet",
                      "Assets"])
     assert bank["PropertyPlantAndEquipment"] == bank["BuildingsNet"] == ("Assets", None)
