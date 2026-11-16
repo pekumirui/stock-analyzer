@@ -58,15 +58,14 @@ class Seeder:
         self._run("INSERT INTO stocks (code, name) VALUES (:c, :n)", {"c": code, "n": name})
 
     def filing(self, fid: int, source: str, period_type: str, end: str, submitted: str, *,
-               code: str = CODE, standard: str = "JPGAAP", doc_type: str | None = None,
-               amendment: bool = False) -> None:
+               code: str = CODE, standard: str = "JPGAAP", doc_type: str | None = None) -> None:
         kind = doc_type or ("annual" if period_type == "FY" else "quarterly")
         self._run(
             "INSERT INTO xbrl_filings (id, code, source, doc_id, doc_type, period_type, fiscal_year_end, "
             "submitted_at, accounting_standard, is_amendment, raw_path, parse_status, created_at) "
-            "VALUES (:id, :code, :source, :doc, :kind, :pt, :end, :sub, :std, :am, 'x', 'parsed', '2026-01-01')",
+            "VALUES (:id, :code, :source, :doc, :kind, :pt, :end, :sub, :std, 0, 'x', 'parsed', '2026-01-01')",
             {"id": fid, "code": code, "source": source, "doc": f"D{fid}", "kind": kind, "pt": period_type,
-             "end": end, "sub": submitted, "std": standard, "am": int(amendment)},
+             "end": end, "sub": submitted, "std": standard},
         )
 
     def _element(self, ns: str, local: str) -> int:
@@ -316,13 +315,13 @@ def _amended(s: Seeder) -> None:
     s.stock(AMENDED, "一部訂正")
     s.filing(701, "tdnet_pdf", "Q1", "2025-06-30", "2025-08-08 15:00:00", code=AMENDED)
     s.facts(701, "2025-06-30", [
-        p("bs", "現金及び預金", 10), p("bs", "売掛金", 5), p("bs", "その他", 1), p("bs", "資産合計", 16),
-        p("pl", "売上高", 100), p("pl", "当期純利益", 10),
+        p("bs", "現金及び預金", 10), p("bs", "売掛金", 5), p("bs", "その他", 1), p("bs", "建物", 3), p("bs", "土地", 2),
+        p("bs", "資産合計", 21), p("pl", "売上高", 100), p("pl", "当期純利益", 10),
     ])
-    s.filing(702, "tdnet_pdf", "Q1", "2025-06-30", "2025-09-10 15:00:00", code=AMENDED, amendment=True)
-    s.facts(702, "2025-06-30", [p("bs", "売掛金", 6), p("bs", "その他", 9), p("bs", "資産合計", 17)])
-    s.filing(703, "tdnet_pdf", "Q1", "2025-06-30", "2025-10-01 15:00:00", code=AMENDED, amendment=True)
-    s.facts(703, "2025-06-30", [p("bs", "現金及び現金同等物", 99), p("bs", "資産合計", 18)])
+    s.filing(702, "tdnet_pdf", "Q1", "2025-06-30", "2025-09-10 15:00:00", code=AMENDED)
+    s.facts(702, "2025-06-30", [p("bs", "売掛金", 6), p("bs", "その他", 9), p("bs", "資産合計", 22)])
+    s.filing(703, "tdnet_pdf", "Q1", "2025-06-30", "2025-10-01 15:00:00", code=AMENDED)
+    s.facts(703, "2025-06-30", [p("bs", "長期未払金", 99), p("bs", "資産合計", 23)])
 
 
 def seed(more=None) -> None:
@@ -613,9 +612,22 @@ def test_cf_drops_unmatched_opening_cash_rows() -> None:
 def test_partial_amendments_revise_the_original_pdf() -> None:
     t = table(AMENDED)
     assert labels(t) == ["25.06"]
-    assert [r["key"] for r in t["rows"]] == ["pdf:現金及び預金", "pdf:売掛金", "pdf:その他", "pdf:資産合計"]
-    assert [r["cells"][0]["value"] for r in t["rows"]] == [10 * M, 6 * M, 1 * M, 18 * M]
+    assert [r["key"] for r in t["rows"]] == ["pdf:現金及び預金", "pdf:売掛金", "pdf:その他", "pdf:建物", "pdf:土地",
+                                             "pdf:資産合計"]
+    assert [r["cells"][0]["value"] for r in t["rows"]] == [10 * M, 6 * M, 1 * M, 3 * M, 2 * M, 23 * M]
     assert value(table(AMENDED, statement="PL"), "pdf:売上高", "25.06") == 100 * M
+
+
+def test_full_reissue_stays_the_base() -> None:
+    old = fst.Filing(id=1, doc_id="A", source="tdnet_pdf", period_type="Q1", period_end=date(2025, 6, 30),
+                     submitted="2025-08-08", standard="JPGAAP")
+    new = fst.Filing(id=2, doc_id="B", source="tdnet_pdf", period_type="Q1", period_end=date(2025, 6, 30),
+                     submitted="2025-09-10", standard="JPGAAP")
+    old.by_statement = {"BS": [bs_fact(n, 1) for n in "abcdefghij"]}
+    new.by_statement = {"BS": [bs_fact(n, 1) for n in "abcdefgh"]}
+    assert fst._pdf_base([old, new], "BS") is new
+    new.by_statement = {"BS": [bs_fact(n, 1) for n in "abcdef"]}
+    assert fst._pdf_base([old, new], "BS") is old and fst._revisions([old, new], old) == [new]
 
 
 def test_opening_cash_names() -> None:

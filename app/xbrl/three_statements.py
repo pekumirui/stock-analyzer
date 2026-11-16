@@ -75,6 +75,7 @@ SECTION_HEADS = (
 GENERIC_LABELS = frozenset({"その他"})
 SIGNED_PROFIT_RE = re.compile(r"^(.+利益)(?:又は.*損失\(△\)|\(△は?損失\))$")
 MIN_LOOSE_MATCH = 100
+PDF_FULL_RATIO = 0.7
 NAME_WEIGHT = 1
 KEPT_WEIGHT = 1_000_000
 
@@ -148,7 +149,6 @@ class Filing:
     period_end: date
     submitted: str
     standard: str | None
-    amendment: bool = False
     by_statement: dict[str, list[Fact]] = field(default_factory=dict)
     seq: list[Fact] = field(default_factory=list)
 
@@ -339,8 +339,8 @@ def load_filings(db: Session, code: str, consolidated: bool) -> list[Filing]:
 def load_both(db: Session, code: str) -> dict[bool, list[Filing]]:
     rows = db.execute(
         text(
-            "SELECT id, doc_id, source, period_type, fiscal_year_end, submitted_at, accounting_standard, "
-            "is_amendment FROM xbrl_filings WHERE code = :code AND parse_status = 'parsed' "
+            "SELECT id, doc_id, source, period_type, fiscal_year_end, submitted_at, accounting_standard "
+            "FROM xbrl_filings WHERE code = :code AND parse_status = 'parsed' "
             "AND source IN :sources AND doc_type IN :types AND fiscal_year_end IS NOT NULL"
         ).bindparams(bindparam("sources", expanding=True), bindparam("types", expanding=True)),
         {"code": code, "sources": list(SOURCES), "types": list(DOC_TYPES)},
@@ -355,7 +355,6 @@ def load_both(db: Session, code: str) -> dict[bool, list[Filing]]:
                 period_end=date.fromisoformat(str(r[4])[:10]),
                 submitted=str(r[5] or ""),
                 standard=None if r[6] is None else str(r[6]),
-                amendment=bool(r[7]),
             )
             for r in rows
         }
@@ -677,12 +676,13 @@ def _newest(filings: Sequence[Filing]) -> Filing:
     return max(filings, key=lambda f: (f.submitted, f.id))
 
 
-def _pdf_base(pdfs: Sequence[Filing]) -> Filing:
-    return _newest([f for f in pdfs if not f.amendment] or pdfs)
+def _pdf_base(pdfs: Sequence[Filing], statement: str) -> Filing:
+    most = max(len(f.by_statement.get(statement, ())) for f in pdfs)
+    return _newest([f for f in pdfs if len(f.by_statement.get(statement, ())) >= most * PDF_FULL_RATIO])
 
 
 def _revisions(pdfs: Sequence[Filing], base: Filing) -> list[Filing]:
-    later = [f for f in pdfs if f.amendment and (f.submitted, f.id) > (base.submitted, base.id)]
+    later = [f for f in pdfs if (f.submitted, f.id) > (base.submitted, base.id)]
     return sorted(later, key=lambda f: (f.submitted, f.id), reverse=True)
 
 
@@ -1169,7 +1169,7 @@ def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], stateme
             if not same:
                 continue
             if source == "tdnet_pdf":
-                chosen.append(_pdf_base(same))
+                chosen.append(_pdf_base(same, statement))
                 revisions = _revisions(same, chosen[-1])
             else:
                 chosen.append(_newest(same))

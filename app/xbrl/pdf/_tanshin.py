@@ -467,8 +467,6 @@ def is_amendment_notice(title: str | None, pages: list[Page]) -> bool:
     compact_title = _compact(title or "")
     if "訂正" in compact_title or _AMENDMENT_TITLE.search(compact_title):
         return True
-    if "追加" in compact_title and "決算短信" in compact_title:
-        return True
     for page in pages:
         for line in page.lines:
             if _CORR_NOTICE.fullmatch(_compact(line.text)):

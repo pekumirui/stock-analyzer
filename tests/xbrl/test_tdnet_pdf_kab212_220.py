@@ -390,6 +390,29 @@ def test_kab213_flash_results_are_absent() -> None:
         db.close()
 
 
+def test_listed_other_standard_supplement_is_absent() -> None:
+    """2130 20260427511384: IFRS の短信に日本基準の財務諸表を追加したお知らせは、一覧にあるので読まない。"""
+    no = "20260427511384"
+    statement = SimpleNamespace(
+        disclosure_no=no, code="21300", disclosed_date=date(2026, 4, 28),
+        disclosed_time="15:00", type_of_period="3Q",
+        type_of_document="3QFinancialStatements_NonConsolidated_IFRS",
+        period_start=date(2025, 4, 1), period_end=date(2025, 12, 31),
+        fiscal_year_start=date(2025, 4, 1), fiscal_year_end=date(2026, 3, 31),
+    )
+    html_text = _pages([_text(40, 40, "四半期貸借対照表", 120), _cell(200, 80, "1,000", 40)])
+    db = SessionLocal()
+    try:
+        _seed(db, no, html_text, statement, title="「2026年３月期 第３四半期決算短信〔ＩＦＲＳ〕（非連結）」の一部追加のお知らせ")
+        apply_mappings(db)
+        if sync_pdf_filing(db, no) is not SyncOutcome.ABSENT:
+            _fail("supplement should be absent")
+        if db.query(XbrlFiling).filter_by(source="tdnet_pdf", doc_id=no).count() != 0:
+            _fail("supplement filing created")
+    finally:
+        db.close()
+
+
 def test_kab213_dividend_yen_and_hanging_label() -> None:
     """8511 20260212556179: 「40 円 40 円 80 円」。行名が数値より上。"""
     parts = [
