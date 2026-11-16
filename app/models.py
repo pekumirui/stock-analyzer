@@ -551,7 +551,8 @@ class XbrlPresentationRole(Base):
     """書類の表示リンク（*pre.xml）のうち財務3表の区分（docs/DESIGN_xbrl.md §4.2）。
 
     items_json は区分の要素を表示の順に並べた JSON の配列。1 要素は
-    [namespace_key, local_name, is_custom(0/1), preferredLabel の種類 or null]。
+    [namespace_key, local_name, is_custom(0/1), preferredLabel の種類 or null, 深さ]。
+    深さは区分の根からの段（0 から。落とした構造の要素は数えない）。深さの無い古い行は 4 つ。
     """
     __tablename__ = "xbrl_presentation_roles"
     filing_id = Column(Integer, ForeignKey("xbrl_filings.id"), primary_key=True)

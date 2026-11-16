@@ -1105,6 +1105,320 @@ def test_parts_cf_and_pl() -> None:
     assert declared(["AssetsAbstract", "CashAndDeposits"], "PL") == {"CashAndDeposits": (None, None)}
 
 
+def _tree_items(text: str) -> list[list]:
+    out = []
+    for line in text.strip("\n").splitlines():
+        name, depth = line.strip(), (len(line) - len(line.lstrip())) // 2
+        out.append(["x", name[4:], 1, None, depth] if name.startswith("ext:") else ["jppfs_cor", name, 0, None, depth])
+    return out
+
+
+def nested(text: str, statement: str = "BS", ifrs: bool = False) -> dict[str, tuple]:
+    return {k: (p.group, p.section) for k, p in fst._role_parts(_tree_items(text), statement, ifrs).items()}
+
+
+def _flat(text: str) -> list[str]:
+    return [line.strip() for line in text.strip("\n").splitlines()]
+
+
+JP_TREE = """
+AssetsAbstract
+  CurrentAssetsAbstract
+    CashAndDeposits
+    OtherCA
+    CurrentAssets
+  NoncurrentAssetsAbstract
+    PropertyPlantAndEquipmentAbstract
+      Land
+      PropertyPlantAndEquipment
+    IntangibleAssetsAbstract
+      Goodwill
+      IntangibleAssets
+    InvestmentsAndOtherAssetsAbstract
+      InvestmentSecurities
+      InvestmentsAndOtherAssets
+    NoncurrentAssets
+  DeferredAssets
+  Assets
+LiabilitiesAbstract
+  CurrentLiabilitiesAbstract
+    OtherCL
+    CurrentLiabilities
+  NoncurrentLiabilitiesAbstract
+    LongTermLoansPayable
+    NoncurrentLiabilities
+  Liabilities
+NetAssetsAbstract
+  ShareholdersEquityAbstract
+    CapitalStock
+    RetainedEarningsAbstract
+      LegalRetainedEarnings
+      RetainedEarnings
+    ShareholdersEquity
+  ValuationAndTranslationAdjustmentsAbstract
+    ValuationDifferenceOnAvailableForSaleSecurities
+    ValuationAndTranslationAdjustments
+  NonControllingInterests
+  NetAssets
+LiabilitiesAndNetAssets
+"""
+IFRS_TREE = """
+AssetsIFRSAbstract
+  CurrentAssetsIFRSAbstract
+    CashAndCashEquivalentsIFRS
+    CurrentAssetsIFRS
+  NonCurrentAssetsIFRSAbstract
+    GoodwillIFRS
+    NonCurrentAssetsIFRS
+  AssetsIFRS
+LiabilitiesAndEquityIFRSAbstract
+  CurrentLiabilitiesIFRSAbstract
+    BorrowingsCLIFRS
+    TotalCurrentLiabilitiesIFRS
+  NonCurrentLiabilitiesIFRSAbstract
+    BorrowingsNCLIFRS
+    NonCurrentLabilitiesIFRS
+  LiabilitiesIFRS
+  EquityIFRSAbstract
+    ShareCapitalIFRS
+    EquityAttributableToOwnersOfParentIFRS
+    NonControllingInterestsIFRS
+    EquityIFRS
+  LiabilitiesAndEquityIFRS
+"""
+LATE_TREE = """
+AssetsAbstract
+  CurrentAssetsAbstract
+    CashAndDeposits
+    CurrentAssets
+    OperationalInvestmentSecuritiesCA
+  NoncurrentAssetsAbstract
+    PropertyPlantAndEquipmentAbstract
+      OtherPPE
+        AccumulatedDepreciationOtherPPE
+      PropertyPlantAndEquipment
+      BuildingsAndOtherFacilitiesHeatingIlluminationVentilationAndOtherPPEAbstract
+        Buildings
+          BuildingsNet
+      ToolsFurnitureAndFixtures
+    IntangibleAssetsAbstract
+      Goodwill
+      IntangibleAssets
+      OtherIntangibleAssetsIAAbstract
+        ext:CustomerRelationshipIA
+    InvestmentsAndOtherAssetsAbstract
+      InvestmentSecurities
+      InvestmentsAndOtherAssets
+      OtherLongTermAssetsIOAAbstract
+        LeaseAndGuaranteeDeposits
+    NoncurrentAssets
+  Assets
+LiabilitiesAbstract
+  CurrentLiabilitiesAbstract
+    OtherCL
+    CurrentLiabilities
+    ProvisionCLAbstract
+      ProvisionForBonuses
+    AccountsPayableOrdinaryTransactionsPaidInShortTermCLAbstract
+      AccruedConsumptionTaxes
+  Liabilities
+NetAssetsAbstract
+  ShareholdersEquityAbstract
+    CapitalStock
+    ShareholdersEquity
+  NetAssets
+"""
+LATE_CF = """
+NetCashProvidedByUsedInOperatingActivitiesAbstract
+  SubtotalOpeCF
+    InterestIncomeOpeCF
+  NetCashProvidedByUsedInOperatingActivities
+  IncomeTaxesPaidRefundOpeCF
+NetCashProvidedByUsedInFinancingActivitiesAbstract
+  PurchaseOfTreasuryStockFinCF
+  NetCashProvidedByUsedInFinancingActivities
+  RepaymentsOfLeaseObligationsFinCF
+EffectOfExchangeRateChangeOnCashAndCashEquivalents
+NetIncreaseDecreaseInCashAndCashEquivalents
+CashAndCashEquivalents
+"""
+
+
+def test_tree_parts_match_the_flat_rules_for_ordinary_statements() -> None:
+    assert nested(JP_TREE) == declared(_flat(JP_TREE)) == declared(JP_ITEMS)
+    assert nested(IFRS_TREE, ifrs=True) == declared(_flat(IFRS_TREE), ifrs=True)
+    got = nested(IFRS_TREE, ifrs=True)
+    assert got["NonControllingInterestsIFRS"] == got["EquityAttributableToOwnersOfParentIFRS"] == ("EquityIFRS", None)
+    assert got["LiabilitiesAndEquityIFRS"] == (None, None)
+
+
+def test_tree_parts_put_rows_after_the_total_in_their_heading() -> None:
+    got = nested(LATE_TREE)
+    assert got["OperationalInvestmentSecuritiesCA"] == ("Assets", "CurrentAssets")
+    assert got["AccumulatedDepreciationOtherPPE"] == got["PropertyPlantAndEquipment"] == (
+        "Assets", "PropertyPlantAndEquipment")
+    assert got["Buildings"] == got["BuildingsNet"] == got["ToolsFurnitureAndFixtures"] == (
+        "Assets", "PropertyPlantAndEquipment")
+    assert got["ext:CustomerRelationshipIA"] == ("Assets", "IntangibleAssets")
+    assert got["LeaseAndGuaranteeDeposits"] == ("Assets", "InvestmentsAndOtherAssets")
+    assert got["NoncurrentAssets"] == ("Assets", "NoncurrentAssets") and got["Assets"] == ("Assets", None)
+    assert got["ProvisionForBonuses"] == got["AccruedConsumptionTaxes"] == ("Liabilities", "CurrentLiabilities")
+    flat = declared(_flat(LATE_TREE))
+    assert flat["Buildings"] == flat["LeaseAndGuaranteeDeposits"] == ("Assets", "NoncurrentAssets")
+    assert flat["ext:CustomerRelationshipIA"] == ("Assets", "NoncurrentAssets")
+    assert {k: v for k, v in got.items() if flat[k] != v} == {
+        k: ("Assets", s) for k, s in [
+            ("Buildings", "PropertyPlantAndEquipment"), ("BuildingsNet", "PropertyPlantAndEquipment"),
+            ("ToolsFurnitureAndFixtures", "PropertyPlantAndEquipment"), ("ext:CustomerRelationshipIA", "IntangibleAssets"),
+            ("LeaseAndGuaranteeDeposits", "InvestmentsAndOtherAssets"),
+        ]
+    }
+    cf = nested(LATE_CF, "CF")
+    assert cf["IncomeTaxesPaidRefundOpeCF"] == cf["InterestIncomeOpeCF"] == (
+        None, "NetCashProvidedByUsedInOperatingActivities")
+    assert cf["RepaymentsOfLeaseObligationsFinCF"] == (None, "NetCashProvidedByUsedInFinancingActivities")
+    assert declared(_flat(LATE_CF), "CF")["RepaymentsOfLeaseObligationsFinCF"] == (None, None)
+    for key in ("EffectOfExchangeRateChangeOnCashAndCashEquivalents", "NetIncreaseDecreaseInCashAndCashEquivalents",
+                "CashAndCashEquivalents"):
+        assert cf[key] == (None, None)
+
+
+def test_tree_parts_take_sections_from_parents_with_values() -> None:
+    bank = nested("""
+AssetsAbstract
+  LoansAndBillsDiscountedAssetsBNK
+  PropertyPlantAndEquipment
+    BuildingsNet
+    Land
+  IntangibleAssets
+  Assets
+""")
+    assert bank["PropertyPlantAndEquipment"] == bank["BuildingsNet"] == bank["Land"] == (
+        "Assets", "PropertyPlantAndEquipment")
+    assert bank["IntangibleAssets"] == bank["LoansAndBillsDiscountedAssetsBNK"] == ("Assets", None)
+    power = nested("""
+AssetsAbstract
+  NoncurrentAssets
+    ElectricUtilityPlantAndEquipmentAssetsELE
+      HydroelectricPowerProductionFacilitiesNCAElectricELE
+    InvestmentsAndOtherAssets
+      LongTermInvestmentsELE
+  CurrentAssets
+    CashAndDeposits
+  Assets
+LiabilitiesAndNetAssetsAbstractELE
+  NoncurrentLiabilities
+    BondsPayable
+  ReservesUnderTheSpecialLaws2
+    ReserveForFluctuationInWaterLevelsReservesUnderTheSpecialLawsELE
+  Liabilities
+  ShareholdersEquity
+    CapitalStock
+  NonControllingInterests
+  NetAssets
+  LiabilitiesAndNetAssets
+""")
+    assert power["NoncurrentAssets"] == power["HydroelectricPowerProductionFacilitiesNCAElectricELE"] == (
+        "Assets", "NoncurrentAssets")
+    assert power["InvestmentsAndOtherAssets"] == power["LongTermInvestmentsELE"] == ("Assets", "InvestmentsAndOtherAssets")
+    assert power["CashAndDeposits"] == ("Assets", "CurrentAssets")
+    assert power["BondsPayable"] == ("Liabilities", "NoncurrentLiabilities")
+    assert power["ReserveForFluctuationInWaterLevelsReservesUnderTheSpecialLawsELE"] == power["Liabilities"] == (
+        "Liabilities", None)
+    assert power["ShareholdersEquity"] == power["CapitalStock"] == ("NetAssets", "ShareholdersEquity")
+    assert power["NonControllingInterests"] == power["NetAssets"] == ("NetAssets", None)
+    assert power["LiabilitiesAndNetAssets"] == (None, None)
+    quarterly = nested("""
+AssetsAbstract
+  NoncurrentAssetsAbstract
+    PropertyPlantAndEquipment
+    IntangibleAssets
+    InvestmentsAndOtherAssetsGross
+    NoncurrentAssets
+  Assets
+""")
+    assert quarterly == declared(_flat("""
+AssetsAbstract
+NoncurrentAssetsAbstract
+PropertyPlantAndEquipment
+IntangibleAssets
+InvestmentsAndOtherAssetsGross
+NoncurrentAssets
+Assets
+"""))
+    assert quarterly["PropertyPlantAndEquipment"] == ("Assets", "PropertyPlantAndEquipment")
+    assert quarterly["InvestmentsAndOtherAssetsGross"] == ("Assets", "InvestmentsAndOtherAssets")
+    pl = nested("""
+OrdinaryIncome
+ExtraordinaryIncome
+  GainOnSalesOfInvestmentSecuritiesEI
+ProfitLoss
+""", "PL")
+    assert pl["ExtraordinaryIncome"] == pl["GainOnSalesOfInvestmentSecuritiesEI"] == (None, "ExtraordinaryIncome")
+    assert pl["OrdinaryIncome"] == pl["ProfitLoss"] == (None, None)
+
+
+def test_tree_parts_empty_headings_and_rows_outside_the_sections() -> None:
+    got = nested("""
+AssetsAbstract
+  NoncurrentAssetsAbstract
+    PropertyPlantAndEquipmentAbstract
+    Land
+    OtherNetPPE
+    PropertyPlantAndEquipment
+    Software
+    IntangibleAssetsAbstract
+      Goodwill
+    NoncurrentAssets
+  Assets
+NetAssetsAbstract
+  ValuationAndTranslationAdjustmentsAbstract
+    ValuationDifferenceOnAvailableForSaleSecurities
+    ValuationAndTranslationAdjustments
+    SubscriptionRightsToShares
+  NetAssets
+""")
+    assert got["Land"] == got["OtherNetPPE"] == got["PropertyPlantAndEquipment"] == ("Assets", "PropertyPlantAndEquipment")
+    assert got["Software"] == got["NoncurrentAssets"] == ("Assets", "NoncurrentAssets")
+    assert got["Goodwill"] == ("Assets", "IntangibleAssets")
+    assert got["SubscriptionRightsToShares"] == ("NetAssets", None)
+    pl = nested("""
+NetSales
+CostOfSalesAbstract
+  CostOfSalesOfCompletedConstructionContractsCNS
+GrossProfit
+SellingGeneralAndAdministrativeExpensesAbstract
+DirectorsCompensationsSGA
+SellingGeneralAndAdministrativeExpenses
+OperatingIncome
+""", "PL")
+    assert pl["CostOfSalesOfCompletedConstructionContractsCNS"] == (None, "CostOfSales")
+    assert pl["GrossProfit"] == pl["OperatingIncome"] == (None, None)
+    assert pl["DirectorsCompensationsSGA"] == pl["SellingGeneralAndAdministrativeExpenses"] == (
+        None, "SellingGeneralAndAdministrativeExpenses")
+    cf = nested("""
+NetCashProvidedByUsedInFinancingActivitiesAbstract
+  PurchaseOfTreasuryStockFinCF
+  NetCashProvidedByUsedInFinancingActivities
+  EffectOfExchangeRateChangeOnCashAndCashEquivalents
+  IncreaseInCashAndCashEquivalentsFromNewlyConsolidatedSubsidiaryCCE
+""", "CF")
+    assert cf["EffectOfExchangeRateChangeOnCashAndCashEquivalents"] == (None, None)
+    assert cf["IncreaseInCashAndCashEquivalentsFromNewlyConsolidatedSubsidiaryCCE"] == (None, None)
+
+
+def test_role_parts_use_the_tree_only_when_every_item_has_a_depth() -> None:
+    items = _tree_items(LATE_TREE)
+    flat = fst._flat_parts([item[:4] for item in items], "BS", False)
+    assert fst._role_parts([item[:4] for item in items], "BS", False) == flat
+    mixed = [*items[:-1], [*items[-1][:4], None]]
+    assert fst._role_parts(mixed, "BS", False) == flat
+    assert fst._role_parts(items, "BS", False) == fst._tree_parts(items, "BS", False) != flat
+    layouts = fst.statement_layouts([(0, "rol_BalanceSheet", "BS", False, False, items)], None)
+    assert layouts[False]["BS"].parts["Buildings"] == fst.Part("Assets", "PropertyPlantAndEquipment", False)
+    assert layouts[False]["BS"].first["Buildings"] == 11
+
+
 CA = fst.Part("Assets", "CurrentAssets", False)
 NCA = fst.Part("Assets", "NoncurrentAssets", False)
 TOP = fst.Part("Assets", None, False)

@@ -245,6 +245,32 @@ def test_annual_jpgaap_roles_and_order(tmp: Path) -> None:
     ]
 
 
+def test_depth_counts_kept_ancestors_only(tmp: Path) -> None:
+    link = _link(JPPFS_ROLE + "rol_BalanceSheet", [
+        (_p("BalanceSheetHeading"), _p("BalanceSheetTable"), 1),
+        (_p("BalanceSheetTable"), _p("BalanceSheetLineItems"), 1),
+        (_p("BalanceSheetLineItems"), _p("AssetsAbstract"), 1),
+        (_p("AssetsAbstract"), _p("PropertyPlantAndEquipmentAbstract"), 1),
+        (_p("PropertyPlantAndEquipmentAbstract"), _p("PropertyPlantAndEquipment"), 1, "totalLabel"),
+        (_p("PropertyPlantAndEquipmentAbstract"), _p("BuildingsAbstract"), 2),
+        (_p("BuildingsAbstract"), _p("Buildings"), 1),
+        (_p("Buildings"), _p("AccumulatedDepreciationBuildings"), 1),
+        (_p("AssetsAbstract"), _p("LandTable"), 2),
+        (_p("LandTable"), _p("LandLineItems"), 1),
+        (_p("LandLineItems"), _p("Land"), 1),
+        (_p("AssetsAbstract"), _p("Assets"), 3, "totalLabel"),
+        (_p("BalanceSheetLineItems"), _p("LiabilitiesAndNetAssets"), 2, "totalLabel"),
+    ])
+    root = _write(tmp / "unpacked", {"XBRLData/Attachment/x-pre.xml": _pre([link])})
+    (role, _), = statement_roles(read_presentation(root))
+    assert [(i.local_name, i.depth) for i in role.items] == [
+        ("AssetsAbstract", 0), ("PropertyPlantAndEquipmentAbstract", 1), ("PropertyPlantAndEquipment", 2),
+        ("BuildingsAbstract", 2), ("Buildings", 3), ("AccumulatedDepreciationBuildings", 4), ("Land", 1),
+        ("Assets", 1), ("LiabilitiesAndNetAssets", 0),
+    ]
+    assert role.items[2].as_json() == ["jppfs_cor", "PropertyPlantAndEquipment", 0, "totalLabel", 2]
+
+
 def test_ifrs_quarterly_tdnet_two_sets(tmp: Path) -> None:
     ifrs_bs = _link(
         "http://disclosure.edinet-fsa.go.jp/role/jpigp/rol_CondensedQuarterlyStatementOfFinancialPositionTDnetIFRS",
@@ -364,11 +390,11 @@ def test_ingest_stores_replaces_and_deletes(tmp: Path) -> None:
             ("rol_StatementOfIncome", 5, "PL", 0, 0),
         ]
         assert json.loads(got[0][5])[:3] == [
-            ["jppfs_cor", "AssetsAbstract", 0, None],
-            ["jppfs_cor", "CashAndDeposits", 0, None],
-            [COMPANY_PREFIX, "WidgetsCA", 1, None],
+            ["jppfs_cor", "AssetsAbstract", 0, None, 0],
+            ["jppfs_cor", "CashAndDeposits", 0, None, 1],
+            [COMPANY_PREFIX, "WidgetsCA", 1, None, 1],
         ]
-        assert json.loads(got[3][5])[-1] == ["jppfs_cor", "CashAndCashEquivalents", 0, "periodEndLabel"]
+        assert json.loads(got[3][5])[-1] == ["jppfs_cor", "CashAndCashEquivalents", 0, "periodEndLabel", 0]
         facts_before = _facts(db, filing.id)
 
         files[f"XBRLData/Attachment/{COMPANY_XSD.removesuffix('.xsd')}_pre.xml"] = _pre(

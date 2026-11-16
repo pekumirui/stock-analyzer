@@ -34,9 +34,10 @@ class PresentationItem:
     local_name: str
     is_custom: bool
     preferred_label: str | None = None
+    depth: int | None = None
 
     def as_json(self) -> list:
-        return [self.namespace_key, self.local_name, int(self.is_custom), self.preferred_label]
+        return [self.namespace_key, self.local_name, int(self.is_custom), self.preferred_label, self.depth]
 
 
 @dataclass
@@ -174,21 +175,22 @@ def _walk(link: ET.Element, base: Path, schemas: _Schemas) -> list[PresentationI
     roots = sorted((key for key in children if key not in targets), key=seq.__getitem__)
     out: list[PresentationItem] = []
 
-    def visit(key: tuple[str, str], pref: str | None, path: frozenset) -> None:
+    def visit(key: tuple[str, str], pref: str | None, path: frozenset, depth: int) -> None:
         item = items[key]
         if not STRUCTURE_RE.search(item.local_name):
-            out.append(PresentationItem(item.namespace_key, item.local_name, item.is_custom, pref))
+            out.append(PresentationItem(item.namespace_key, item.local_name, item.is_custom, pref, depth))
+            depth += 1
         for _, _, dst, dst_pref in children.get(key, ()):
             if dst not in path:
-                visit(dst, dst_pref, path | {dst})
+                visit(dst, dst_pref, path | {dst}, depth)
 
     for root in roots:
-        visit(root, None, frozenset({root}))
+        visit(root, None, frozenset({root}), 0)
     return out
 
 
 def read_presentation(root: Path) -> list[PresentationRole]:
-    """区分は出てきた順、要素は親子と order で辿った順。AuditDoc と読めないファイルは飛ばす。"""
+    """区分は出てきた順、要素は親子と order で辿った順と深さ。AuditDoc と読めないファイルは飛ばす。"""
     schemas = _Schemas()
     roles: dict[str, PresentationRole] = {}
     for path in find_presentation_files(root):

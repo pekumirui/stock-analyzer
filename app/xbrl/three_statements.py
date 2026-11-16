@@ -170,6 +170,10 @@ OPEN_AFTER_TOTAL = frozenset({
     "NetCashProvidedByUsedInOperatingActivities", "NetCashProvidedByUsedInInvestmentActivities",
     "NetCashProvidedByUsedInOperatingActivitiesIFRS", "NetCashProvidedByUsedInInvestingActivitiesIFRS",
 })
+OUTSIDE_SECTIONS = {
+    "BS": re.compile(r"^(SubscriptionRightsToShares|NonControllingInterests)(IFRS)?$"),
+    "CF": re.compile(r"^(EffectOfExchangeRateChange|NetIncreaseDecreaseInCashAndCashEquivalents|CashAndCashEquivalents)|CCE$"),
+}
 COARSE_IDS = {
     False: {
         "assets": "Assets", "liabilities": "Liabilities", "equity": "NetAssets",
@@ -662,8 +666,80 @@ def statement_layouts(
     return out
 
 
+def _depth(item: Sequence[Any]) -> int | None:
+    return item[4] if len(item) > 4 else None
+
+
 def _role_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> dict[str, Part]:
-    """表示リンクの 1 区分の並び → 要素の区分。見出しの要素（…Abstract）のうち HEAD_GROUPS / HEAD_SECTIONS にあるものだけを見る。
+    """表示リンクの 1 区分の並び → 要素の区分。要素に深さがあれば親子から（_tree_parts）、無ければ並びから（_flat_parts）。"""
+    if items and all(_depth(item) is not None for item in items):
+        return _tree_parts(items, statement, ifrs)
+    return _flat_parts(items, statement, ifrs)
+
+
+def _tree_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> dict[str, Part]:
+    """深さのある並び → 要素の区分。祖先のうちいちばん近い、表にある見出し（HEAD_GROUPS / HEAD_SECTIONS）か区分の親の要素の区分。
+
+    区分の親の要素は、子を持つ区分の合計の要素（電力・銀行の 固定資産・有形固定資産 など）と LONE_SECTIONS の 1 行。
+    子の無い見出しは、同じ段で後ろに続く要素をその区分の合計の要素まで（次の表にある見出しか、親が閉じるまで）その区分にする。
+    OUTSIDE_SECTIONS と BS_GROUP_END は区分の外。大区分の見出しの外で大区分の合計が出たら、前の大区分の後ろからその合計までをその大区分にする。
+    """
+    heads = HEAD_SECTIONS[statement]
+    totals = set(heads.values())
+    outside = OUTSIDE_SECTIONS.get(statement)
+    out: dict[str, Part] = {}
+    path: list[tuple[float, str | None, str | None]] = []
+    loose: list[str] = []
+    for i, item in enumerate(items):
+        depth = int(item[4])
+        name = str(item[1])
+        parent = i + 1 < len(items) and int(items[i + 1][4]) > depth
+        opens = None
+        if not item[2] and statement == "BS" and name in HEAD_GROUPS:
+            opens = (HEAD_GROUPS[name], None)
+        elif not item[2] and name in heads:
+            opens = (BS_SECTIONS.get(heads[name]), heads[name])
+        while path and (path[-1][0] >= depth or (opens and path[-1][0] == depth - 0.5)):
+            path.pop()
+        group, section = path[-1][1:] if path else (None, None)
+        if opens is not None:
+            if opens[1] is None:
+                loose = []
+            path.append((depth if parent else depth - 0.5, opens[0] or group, opens[1]))
+            continue
+        if "Abstract" in name:
+            path.append((depth, group, section))
+            continue
+        key = _item_key(item)
+        if statement == "BS" and key in BS_GROUPS and group in (None, key):
+            for held in loose:
+                out[held] = Part(key, out[held].section, ifrs)
+            part = Part(key, None, ifrs)
+            loose = []
+        elif statement == "BS" and key in BS_GROUP_END:
+            part = Part(None, None, ifrs)
+        elif outside is not None and outside.search(key):
+            part = Part(group if statement == "BS" else None, None, ifrs)
+        elif key != section and (
+            (parent and key in totals)
+            or (key in LONE_SECTIONS and SECTION_PARENTS.get(LONE_SECTIONS[key]) in (None, section))
+        ):
+            own = LONE_SECTIONS.get(key, key)
+            part = Part(BS_SECTIONS.get(own, group), own, ifrs)
+        else:
+            part = Part(group, section, ifrs)
+        if path and path[-1][0] == depth - 0.5 and key == (path[-1][2] or path[-1][1]):
+            path.pop()
+        path.append((depth, part.group, part.section))
+        if key not in out:
+            out[key] = part
+            if statement == "BS" and part.group is None and key not in BS_GROUP_END:
+                loose.append(key)
+    return out
+
+
+def _flat_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> dict[str, Part]:
+    """深さの無い並び → 要素の区分。見出しの要素（…Abstract）のうち HEAD_GROUPS / HEAD_SECTIONS にあるものだけを見る。
 
     区分は親でない次の見出しか、親の区分・大区分の合計で閉じる。区分の合計でも閉じるが、OPEN_AFTER_TOTAL の区分は
     合計の後ろに科目が続く書類があるので、後ろにまだ見出しがある間は閉じない。知らない見出しは飛ばす。LONE_SECTIONS の合計が見出し無しで出たら、
