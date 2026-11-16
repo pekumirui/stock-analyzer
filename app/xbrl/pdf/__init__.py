@@ -7,16 +7,19 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import json
 import re
 import time
 from collections import Counter
 from dataclasses import dataclass, replace
 from datetime import date, datetime, timezone
 from enum import Enum
+from functools import lru_cache
 from typing import Literal
 
 from sqlalchemy.orm import Session
 
+from app.config import PDF_OTHER_STANDARD_PATH
 from app.models import Statement, TdnetPdfDocument, XbrlFiling, XbrlFinancial
 from app.xbrl.normalize import is_normalizable_context, normalize_filing
 from app.xbrl.parser import ParsedPackage
@@ -158,7 +161,15 @@ class _Build:
 class _Absent:
     reason: Literal[
         "zip", "no-html", "no-statement", "doc-type", "reit", "irregular-period", "no-dates", "flash-results",
+        "other-standard",
     ]
+
+
+@lru_cache(maxsize=1)
+def other_standard_disclosures() -> frozenset[str]:
+    """元の短信と別の会計基準の財務諸表を追加したお知らせ（config の一覧。規則では決めない）。"""
+    raw = json.loads(PDF_OTHER_STANDARD_PATH.read_text(encoding="utf-8"))
+    return frozenset(str(item["disclosure_no"]).strip() for item in raw.get("disclosures") or [])
 
 
 def _now() -> datetime:
@@ -181,6 +192,8 @@ def _plan(db: Session, disclosure_no: str, zip_parsed: bool) -> _Build | _Absent
         return _Absent("no-statement")
     if doc.title and "速報値" in doc.title:
         return _Absent("flash-results")
+    if disclosure_no in other_standard_disclosures():
+        return _Absent("other-standard")
     parsed = PdfDisclosure.parse(statement)
     if isinstance(parsed, Unsupported):
         return _Absent(parsed.reason)

@@ -75,6 +75,7 @@ SECTION_HEADS = (
 GENERIC_LABELS = frozenset({"その他"})
 SIGNED_PROFIT_RE = re.compile(r"^(.+利益)(?:又は.*損失\(△\)|\(△は?損失\))$")
 MIN_LOOSE_MATCH = 100
+PDF_FULL_RATIO = 0.7
 NAME_WEIGHT = 1
 KEPT_WEIGHT = 1_000_000
 
@@ -675,6 +676,36 @@ def _newest(filings: Sequence[Filing]) -> Filing:
     return max(filings, key=lambda f: (f.submitted, f.id))
 
 
+def _pdf_base(pdfs: Sequence[Filing], statement: str) -> Filing:
+    most = max(len(f.by_statement.get(statement, ())) for f in pdfs)
+    return _newest([f for f in pdfs if len(f.by_statement.get(statement, ())) >= most * PDF_FULL_RATIO])
+
+
+def _revisions(pdfs: Sequence[Filing], base: Filing) -> list[Filing]:
+    later = [f for f in pdfs if (f.submitted, f.id) > (base.submitted, base.id)]
+    return sorted(later, key=lambda f: (f.submitted, f.id), reverse=True)
+
+
+def _revised(
+    revisions: Sequence[Filing], pool: Sequence[Learned], statement: str, period_end: date, names: Names | None,
+) -> tuple[dict[str, float], list[str]]:
+    out: dict[str, float] = {}
+    mapped_keys: list[str] = []
+    for filing in revisions:
+        facts = filing.by_statement.get(statement, [])
+        copies = pdf_rows(facts, statement, printed_twice(pool, statement)).copies
+        for n, (fact, mapped) in enumerate(apply_learned(facts, pool, statement, period_end, filing.cls, names)):
+            if n in copies:
+                continue
+            if mapped is not None:
+                if mapped.key not in out:
+                    mapped_keys.append(mapped.key)
+                out.setdefault(mapped.key, fact.value * mapped.sign)
+            elif not _generic(fact.local):
+                out.setdefault(fact.key, fact.value)
+    return out, mapped_keys
+
+
 def _ranked(learned: Sequence[Learned], period_end: date, cls: str) -> list[Learned]:
     return sorted(
         learned,
@@ -1135,9 +1166,15 @@ def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], stateme
     for period_end in sorted(by_end):
         group = by_end[period_end]
         chosen = []
+        revisions: list[Filing] = []
         for source in SOURCES:
             same = [f for f in group if f.source == source]
-            if same:
+            if not same:
+                continue
+            if source == "tdnet_pdf":
+                chosen.append(_pdf_base(same, statement))
+                revisions = _revisions(same, chosen[-1])
+            else:
                 chosen.append(_newest(same))
         values: dict[str, float] = {}
         sources: dict[str, str] = {}
@@ -1152,19 +1189,25 @@ def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], stateme
                 facts = filing.by_statement[statement]
                 by_name = names if filing is primary else None
                 copies = pdf_rows(facts, statement, printed_twice(pool, statement)).copies
+                revised, later = _revised(revisions, pool, statement, period_end, by_name)
                 for n, (fact, mapped) in enumerate(apply_learned(facts, pool, statement, period_end, cls, by_name)):
                     if n in copies:
                         continue
                     if mapped is None:
                         if filing is primary:
-                            values[fact.key] = fact.value
+                            values[fact.key] = revised.get(fact.key, fact.value)
                             sources[fact.key] = filing.source
                             seq.append(fact.key)
                         continue
                     seq.append(mapped.key)
                     if mapped.key not in values:
-                        values[mapped.key] = fact.value * mapped.sign
+                        values[mapped.key] = revised.get(mapped.key, fact.value * mapped.sign)
                         sources[mapped.key] = filing.source
+                for key in later:
+                    if key not in values:
+                        values[key] = revised[key]
+                        sources[key] = filing.source
+                        seq.append(key)
             else:
                 for fact in _with_extras(filing, statement, learned):
                     seq.append(fact.key)
