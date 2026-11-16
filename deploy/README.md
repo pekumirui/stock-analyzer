@@ -553,6 +553,15 @@ cd /home/stock/stock-analyzer
 .venv/bin/python jobs/xbrl/xbrl_presentation.py --code 7203 --code 6758                    # 銘柄を絞る（繰り返し可）
 ```
 
+要素の深さ（親子の段）を保存する前に埋めた書類は、`--redo-flat` で読み直す（`presentation_status` が `ok` で深さの無い書類だけが対象。ほかのオプションと組み合わせる）。ZIP が無い・読めない書類は今の行と印を残すので、`remaining` は 0 にならないことがある。新しく取り込む書類は取り込みが深さ付きで書く。
+
+```bash
+.venv/bin/python jobs/xbrl/xbrl_presentation.py --redo-flat --dry-run                                 # 読み直す件数だけ
+.venv/bin/python jobs/xbrl/xbrl_presentation.py --redo-flat --source tdnet --batch 500                # 短信 XBRL
+.venv/bin/python jobs/xbrl/xbrl_presentation.py --redo-flat --source edinet --local-only --batch 500  # 手元の EDINET の ZIP
+.venv/bin/python jobs/xbrl/xbrl_presentation.py --redo-flat --archived-only --offsite-chunk 2000 --batch 500  # 退避済み
+```
+
 ### TDnet 月次 PDF の未投入レポート（読み取り専用）
 
 前回と同じ書式の PDF は次の節の cron が入れる。残りは MCP `monthly_ingest` の手作業。`data/monthly` の PDF と `monthly_values` の差は、VPS 上のスクリプトで見る（MCP ツールは足さない。cron にも載せない）。

@@ -13,6 +13,8 @@ EDINET から取った ZIP は data/edinet に残り、翌朝 backup_data が On
   python jobs/xbrl/xbrl_presentation.py --archived-only --limit 50 --batch 10
   python jobs/xbrl/xbrl_presentation.py --archived-only --offsite-chunk 2000 --batch 500
   python jobs/xbrl/xbrl_presentation.py --code 7203 --code 6758
+  python jobs/xbrl/xbrl_presentation.py --redo-flat --dry-run
+  python jobs/xbrl/xbrl_presentation.py --redo-flat --source edinet --local-only --batch 500
 """
 from __future__ import annotations
 
@@ -54,6 +56,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--offsite-chunk", type=int, default=0,
                     help="退避済みの ZIP を N 件ずつ OneDrive から一時フォルダへまとめて写してから読む（0 は 1 件ずつ）")
     ap.add_argument("--dest", default=XBRL_DEST, help="短信 XBRL の ZIP の根（raw_path の起点）")
+    ap.add_argument("--redo-flat", action="store_true",
+                    help="埋めてある（ok）が要素に深さの無い書類を読み直す。ZIP が無い・読めないときは今の行を残す")
     ap.add_argument("--dry-run", action="store_true", help="対象の件数だけ")
     args = ap.parse_args(argv)
     if args.batch is not None and args.batch < 1:
@@ -64,7 +68,7 @@ def main(argv: list[str] | None = None) -> int:
     init_db()
     db = SessionLocal()
     try:
-        ids = targets(db, sources=sources, codes=codes, archived_only=args.archived_only)
+        ids = targets(db, sources=sources, codes=codes, archived_only=args.archived_only, redo=args.redo_flat)
         if args.dry_run:
             print(f"{JOB} dry-run remaining={len(ids)} sources={','.join(sources)}", flush=True)
             return 0
@@ -92,13 +96,13 @@ def main(argv: list[str] | None = None) -> int:
                 if "edinet" in sources and not args.local_only and args.offsite_chunk > 0:
                     counts = _run_staged(db, batch_ids, fetchers, client, args)
                 else:
-                    counts = run(db, batch_ids, fetchers, batch=args.batch, sleep=args.sleep)
+                    counts = run(db, batch_ids, fetchers, batch=args.batch, sleep=args.sleep, redo=args.redo_flat)
             except Exception as exc:
                 code = skip_on_maintenance(JOB, exc)
                 if code is not None:
                     return code
                 raise
-        left = len(targets(db, sources=sources, codes=codes, archived_only=args.archived_only))
+        left = len(targets(db, sources=sources, codes=codes, archived_only=args.archived_only, redo=args.redo_flat))
         print(f"{JOB} {line(counts)} skipped={counts['skipped']} remaining={left} {origins(counts)}", flush=True)
         return 0 if counts["errors"] == 0 else 1
     finally:
@@ -113,14 +117,14 @@ def _run_staged(db, ids, fetchers, client, args) -> Counter:
         try:
             began = time.monotonic()
             try:
-                copied = stage_offsite(db, chunk, staged)
+                copied = stage_offsite(db, chunk, staged, redo=args.redo_flat)
             except Exception as exc:
                 copied = 0
                 print(f"{JOB} offsite-copy error={exc}"[:500], flush=True)
             sec = time.monotonic() - began
             print(f"{JOB} offsite-copy files={copied} sec={sec:.0f} chunk={start + len(chunk)}/{len(ids)}", flush=True)
             fetchers["edinet"] = edinet_fetcher(db, client, staged=staged)
-            got = run(db, chunk, fetchers, batch=args.batch, sleep=args.sleep)
+            got = run(db, chunk, fetchers, batch=args.batch, sleep=args.sleep, redo=args.redo_flat)
             got["offsite_ms"] += int(sec * 1000)
             counts.update(got)
         finally:

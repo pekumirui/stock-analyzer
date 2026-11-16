@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import json
 import sys
 import zipfile
 from datetime import date, datetime
@@ -303,6 +304,66 @@ def test_archived_zips_are_staged_in_bulk(tmp: Path) -> None:
         db.close()
 
 
+def _stored(db, fid: int, items: list[list]) -> None:
+    db.add(XbrlPresentationRole(
+        filing_id=fid, role="rol_BalanceSheet", seq=0, statement="BS", is_consolidated=False, is_ifrs=False,
+        items_json=json.dumps(items), generated_at=CREATED,
+    ))
+    db.commit()
+
+
+def _first_items(fid: int) -> list[list]:
+    with engine.connect() as conn:
+        raw = conn.execute(text("SELECT items_json FROM xbrl_presentation_roles WHERE filing_id = :f AND seq = 0"),
+                           {"f": fid}).scalar()
+    return json.loads(raw)
+
+
+FLAT = [["jppfs_cor", "AssetsAbstract", 0, None], ["jppfs_cor", "Assets", 0, "totalLabel"]]
+DEEP = [["jppfs_cor", "AssetsAbstract", 0, None, 0], ["jppfs_cor", "Assets", 0, "totalLabel", 1]]
+
+
+def test_redo_targets_ok_filings_without_depth() -> None:
+    db = SessionLocal()
+    try:
+        _reset(db)
+        for fid, presentation, items in ((1, "ok", FLAT), (2, "ok", DEEP), (3, None, None), (4, "none", None),
+                                         (5, "ok", FLAT)):
+            _filing(db, fid, "edinet", f"2026-06-0{fid} 15:00", presentation=presentation,
+                    code=OTHER if fid == 5 else CODE)
+            if items:
+                _stored(db, fid, items)
+        _filing(db, 6, "tdnet", "2026-06-06 15:00", raw_path="9999/a.zip", presentation="ok")
+        _stored(db, 6, FLAT)
+        assert pb.targets(db) == [3]
+        assert pb.targets(db, redo=True) == [6, 5, 1]
+        assert pb.targets(db, redo=True, sources=["edinet"], codes=[CODE]) == [1]
+        assert pb.run(db, [3], {"edinet": _Fetch({3: ANNUAL_ZIP})}, redo=True)["skipped"] == 1
+    finally:
+        db.close()
+
+
+def test_redo_rewrites_with_depth_and_keeps_rows_it_cannot_read() -> None:
+    db = SessionLocal()
+    try:
+        _reset(db)
+        for fid in (1, 2, 3, 4, 5):
+            _filing(db, fid, "edinet", f"2026-06-0{fid} 15:00", presentation="ok")
+            _stored(db, fid, FLAT)
+        fetch = _Fetch({1: ANNUAL_ZIP, 2: pb.ZipGone("404"), 3: b"not a zip", 4: NOTICE_ZIP,
+                        5: RuntimeError("timeout")})
+        counts = pb.run(db, pb.targets(db, redo=True), {"edinet": fetch}, redo=True)
+        assert {k: counts[k] for k in ("ok", "none", "gone", "failed", "errors")} == {
+            "ok": 1, "none": 1, "gone": 1, "failed": 1, "errors": 1}
+        assert [_status(db, i) for i in (1, 2, 3, 4, 5)] == ["ok"] * 5
+        assert _first_items(1)[:2] == [["jppfs_cor", "AssetsAbstract", 0, None, 0],
+                                       ["jppfs_cor", "CashAndDeposits", 0, None, 1]]
+        assert all(_first_items(i) == FLAT for i in (2, 3, 4, 5))
+        assert pb.targets(db, redo=True) == [5, 4, 3, 2]
+    finally:
+        db.close()
+
+
 def test_ingest_marks_status(tmp: Path) -> None:
     db = SessionLocal()
     try:
@@ -345,6 +406,23 @@ def test_cli_dry_run(capsys) -> None:
     assert xbrl_presentation.main(["--dry-run"]) == 0
     assert "remaining=2" in capsys.readouterr().out
     assert xbrl_presentation.main(["--dry-run", "--source", "tdnet", "--code", "9999"]) == 0
+    assert "remaining=1" in capsys.readouterr().out
+
+
+def test_cli_redo_flat(capsys) -> None:
+    from jobs.xbrl import xbrl_presentation
+
+    db = SessionLocal()
+    try:
+        _reset(db)
+        _filing(db, 1, "edinet", "2026-06-01 15:00")
+        _filing(db, 2, "edinet", "2026-06-02 15:00", presentation="ok")
+        _stored(db, 2, FLAT)
+        _filing(db, 3, "edinet", "2026-06-03 15:00", presentation="ok")
+        _stored(db, 3, DEEP)
+    finally:
+        db.close()
+    assert xbrl_presentation.main(["--dry-run", "--redo-flat"]) == 0
     assert "remaining=1" in capsys.readouterr().out
 
 
