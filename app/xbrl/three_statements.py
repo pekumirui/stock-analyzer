@@ -157,7 +157,11 @@ SECTION_PARENTS = {
     "InvestmentsAndOtherAssets": "NoncurrentAssets",
 }
 LONE_SECTIONS = {
-    **{key: key for key in (*SECTION_PARENTS, "DeferredAssets")},
+    **{key: key for key in (
+        *SECTION_PARENTS, "DeferredAssets", "CurrentAssets", "NoncurrentAssets", "CurrentLiabilities",
+        "NoncurrentLiabilities", "CurrentAssetsIFRS", "NonCurrentAssetsIFRS", "TotalCurrentLiabilitiesIFRS",
+        "NonCurrentLabilitiesIFRS",
+    )},
     "InvestmentsAndOtherAssetsGross": "InvestmentsAndOtherAssets",
 }
 OPEN_AFTER_TOTAL = frozenset({
@@ -700,6 +704,8 @@ def _role_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> d
             del stack[stack.index(key) + (key in OPEN_AFTER_TOTAL and i < last_head):]
         elif key in LONE_SECTIONS and SECTION_PARENTS.get(LONE_SECTIONS[key]) in (None, *stack):
             part = Part(group, LONE_SECTIONS[key], ifrs)
+            if LONE_SECTIONS[key] not in SECTION_PARENTS:
+                stack = []
         else:
             part = Part(group, stack[-1] if stack else None, ifrs)
         if key not in out:
