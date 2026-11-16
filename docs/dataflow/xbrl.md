@@ -101,12 +101,13 @@ flowchart LR
   n11[("xbrl_facts")]:::tbl
   n12[("xbrl_filings")]:::tbl
   n13[("xbrl_financials")]:::tbl
-  n14[("xbrl_std_items")]:::tbl
+  n14[("xbrl_presentation_roles")]:::tbl
+  n15[("xbrl_std_items")]:::tbl
   n0 -.- n5
   n0 -.- n6
   n0 -.- n12
   n0 -.- n13
-  n0 -.- n14
+  n0 -.- n15
   n1 -.- n9
   n2 -.- n7
   n3 -.- n7
@@ -116,6 +117,7 @@ flowchart LR
   n4 -.- n10
   n4 -.- n11
   n4 -.- n12
+  n4 -.- n14
   classDef job fill:#e3ecff,stroke:#3b5bdb
   classDef api fill:#e6f7ec,stroke:#2b8a3e
   classDef tbl fill:#fff4e0,stroke:#e8590c
@@ -128,7 +130,7 @@ flowchart LR
 | `GET /api/stock/filings/{filing_id}/documents/{seq}` |  | `xbrl_documents` |
 | `GET /api/stock/pdf/{disclosure_no}` |  | `tdnet_pdf_documents` |
 | `GET /api/stock/{code}/filings` |  | `stocks`, `tdnet_pdf_documents`, `xbrl_documents`, `xbrl_filings` |
-| `GET /api/stock/{code}/financials` |  | `stocks`, `xbrl_contexts`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings` |
+| `GET /api/stock/{code}/financials` |  | `stocks`, `xbrl_contexts`, `xbrl_elements`, `xbrl_facts`, `xbrl_filings`, `xbrl_presentation_roles` |
 
 ## テーブル
 
@@ -192,7 +194,7 @@ flowchart LR
 ### xbrl_presentation_roles
 
 - 書く: `jobs/edinet/edinet_xbrl.py（EDINET・大量保有）`, `jobs/xbrl/xbrl_parse.py`, `jobs/xbrl/xbrl_presentation.py`
-- 読むだけ: （観測なし）
+- 読むだけ: `GET /api/stock/{code}/financials`
 
 ### xbrl_segments
 

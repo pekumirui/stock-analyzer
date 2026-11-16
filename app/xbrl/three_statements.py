@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
+from bisect import bisect_left
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import date
@@ -30,6 +31,8 @@ __all__ = [
     "pdf_rows",
     "printed_twice",
     "sections",
+    "split_by_layout",
+    "statement_layouts",
     "strip_heads",
 ]
 
@@ -46,6 +49,10 @@ CONSOL_MEMBERS = frozenset({"ConsolidatedMember", "NonConsolidatedMember"})
 DEI_CONSOLIDATED = "WhetherConsolidatedFinancialStatementsArePreparedDEI"
 PER_SHARE_UNITS = frozenset({"JPYPerShares"})
 MONEY_UNITS = frozenset({None, "JPY"})
+PRESENTATION_OK = "ok"
+PERIOD_END_LABEL = "periodEndLabel"
+PERIOD_START_LABEL = "periodStartLabel"
+CI_ONLY_ROLE_RE = re.compile(r"StatementOfComprehensiveIncome(?!SingleStatement)")
 
 BS_TOTALS = frozenset({
     "Assets", "Liabilities", "NetAssets", "LiabilitiesAndNetAssets",
@@ -339,8 +346,8 @@ def load_filings(db: Session, code: str, consolidated: bool) -> list[Filing]:
 def load_both(db: Session, code: str) -> dict[bool, list[Filing]]:
     rows = db.execute(
         text(
-            "SELECT id, doc_id, source, period_type, fiscal_year_end, submitted_at, accounting_standard "
-            "FROM xbrl_filings WHERE code = :code AND parse_status = 'parsed' "
+            "SELECT id, doc_id, source, period_type, fiscal_year_end, submitted_at, accounting_standard, "
+            "presentation_status FROM xbrl_filings WHERE code = :code AND parse_status = 'parsed' "
             "AND source IN :sources AND doc_type IN :types AND fiscal_year_end IS NOT NULL"
         ).bindparams(bindparam("sources", expanding=True), bindparam("types", expanding=True)),
         {"code": code, "sources": list(SOURCES), "types": list(DOC_TYPES)},
@@ -364,6 +371,8 @@ def load_both(db: Session, code: str) -> dict[bool, list[Filing]]:
         return {True: [], False: []}
     ids = sorted(filings[True])
     single = _single_entity(db, ids)
+    standards = {int(r[0]): None if r[6] is None else str(r[6]) for r in rows}
+    layouts = _layouts(db, [int(r[0]) for r in rows if r[7] == PRESENTATION_OK], standards)
     picked: dict[bool, dict[int, list[Fact]]] = {True: defaultdict(list), False: defaultdict(list)}
     starts: dict[int, str] = {}
     sql = text(
@@ -414,11 +423,134 @@ def load_both(db: Session, code: str) -> dict[bool, list[Filing]]:
             filing = by_id[fid]
             drop = _shorter_durations(facts, starts)
             filing.seq = [f for f in facts if f.id not in drop]
-            filing.by_statement = {s: [f for f in v if f.id not in drop] for s, v in split_xbrl(facts).items()}
+            if fid in layouts:
+                filing.by_statement = split_by_layout(filing.seq, layouts[fid].get(basis, {}))
+            else:
+                filing.by_statement = {s: [f for f in v if f.id not in drop] for s, v in split_xbrl(facts).items()}
         for filing in by_id.values():
             filing.by_statement = {s: v for s, v in filing.by_statement.items() if v}
         out[basis] = sorted(by_id.values(), key=lambda f: (f.period_end, f.submitted, f.id))
     return out
+
+
+@dataclass(frozen=True)
+class Layout:
+    first: dict[str, int]
+    period_end: dict[str, int]
+    closing: dict[str, int] = field(default_factory=dict)
+
+
+def _item_key(item: Sequence[Any]) -> str:
+    return f"ext:{item[1]}" if item[2] else str(item[1])
+
+
+def statement_layouts(
+    roles: Sequence[tuple[int, str, str, bool, bool, list]], standard: str | None,
+) -> dict[bool, dict[str, Layout]]:
+    """表示リンクの区分（seq, 区分名, statement, 連結か, IFRS か, 要素）→ 連結/個別 × 表の並び。
+
+    同じ表・同じ連結区分に IFRS と日本基準の区分が両方あれば、書類の会計基準に合う方。
+    区分は seq の順につなぐ。包括利益計算書だけの区分は損益計算書の区分の後ろ。
+    """
+    grouped: dict[tuple[bool, str], list[tuple[tuple[bool, int], bool, list]]] = defaultdict(list)
+    for seq, role, statement, consolidated, ifrs, items in roles:
+        rank = (CI_ONLY_ROLE_RE.search(role) is not None, seq)
+        grouped[(bool(consolidated), statement)].append((rank, bool(ifrs), items))
+    out: dict[bool, dict[str, Layout]] = {True: {}, False: {}}
+    for (consolidated, statement), parts in grouped.items():
+        if len({ifrs for _, ifrs, _ in parts}) > 1:
+            want = standard == "IFRS"
+            parts = [p for p in parts if p[1] == want]
+        first: dict[str, int] = {}
+        period_end: dict[str, int] = {}
+        closing: dict[str, int] = {}
+        n = 0
+        for _, _, items in sorted(parts, key=lambda p: p[0]):
+            for item in items:
+                key = _item_key(item)
+                first.setdefault(key, n)
+                if item[3] == PERIOD_END_LABEL:
+                    period_end.setdefault(key, n)
+                if item[3] != PERIOD_START_LABEL:
+                    closing[key] = n
+                n += 1
+        out[consolidated][statement] = Layout(first, period_end, closing)
+    return out
+
+
+def _layouts(db: Session, ids: Sequence[int], standards: Mapping[int, str | None]) -> dict[int, dict[bool, dict[str, Layout]]]:
+    roles: dict[int, list[tuple[int, str, str, bool, bool, list]]] = {fid: [] for fid in ids}
+    sql = text(
+        "SELECT filing_id, seq, role, statement, is_consolidated, is_ifrs, items_json FROM xbrl_presentation_roles "
+        "WHERE filing_id IN :ids ORDER BY filing_id, seq"
+    ).bindparams(bindparam("ids", expanding=True))
+    for start in range(0, len(ids), 500):
+        for r in db.execute(sql, {"ids": list(ids[start:start + 500])}):
+            roles[int(r[0])].append(
+                (int(r[1]), str(r[2]), str(r[3]), bool(r[4]), bool(r[5]), json.loads(str(r[6])))
+            )
+    return {fid: statement_layouts(found, standards.get(fid)) for fid, found in roles.items()}
+
+
+def split_by_layout(seq: Sequence[Fact], layouts: Mapping[str, Layout]) -> dict[str, list[Fact]]:
+    """表示リンクの区分に載っている fact を表に分ける。並びは印字順（seq の順）。
+
+    印字順と表示リンクの順が合う fact のいちばん長い並びを本体にする。本体の範囲の中で順が合わない fact は
+    印字順のまま（会社の表示リンクで合計が内訳より前にある、同じ要素が見出しの位置にも出る）。範囲の外に
+    ある fact（株主資本等変動計算書で先に印字された純資産、PL で先に印字された税引前利益）と、PL・CF の
+    時点の fact（期末の現金）は、表示リンクの位置で本体の間に入れる。時点の fact の位置は periodEndLabel、
+    無ければ periodStartLabel でない最後の出現。
+    """
+    out: dict[str, list[Fact]] = {}
+    for statement, layout in layouts.items():
+        balance = statement != "BS"
+        placed: list[tuple[int, int, Fact]] = []
+        for n, f in enumerate(seq):
+            at = None
+            if f.instant:
+                at = layout.period_end.get(f.key, layout.closing.get(f.key))
+            if at is None:
+                at = layout.first.get(f.key)
+            if at is not None:
+                placed.append((at, n, f))
+        flow = [t for t in placed if not (balance and t[2].instant)]
+        body = _agreeing([t[0] for t in flow])
+        if not body:
+            out[statement] = [f for _, _, f in sorted(placed, key=lambda t: (t[0], t[1]))]
+            continue
+        lo, hi = flow[body[0]][1], flow[body[-1]][1]
+        anchors = {flow[i][1] for i in body}
+        inside = [t for t in flow if lo <= t[1] <= hi]
+        kept = {t[1] for t in inside}
+        for t in sorted((t for t in placed if t[1] not in kept), key=lambda t: (t[0], t[1])):
+            before = [i for i, x in enumerate(inside) if x[0] < t[0] and x[1] in anchors]
+            inside.insert(before[-1] + 1 if before else 0, t)
+            anchors.add(t[1])
+        out[statement] = [f for _, _, f in inside]
+    return out
+
+
+def _agreeing(positions: Sequence[int]) -> list[int]:
+    if all(a < b for a, b in zip(positions, positions[1:])):
+        return list(range(len(positions)))
+    tails: list[int] = []
+    tail_at: list[int] = []
+    back: list[int] = [-1] * len(positions)
+    for i, value in enumerate(positions):
+        k = bisect_left(tails, value)
+        if k == len(tails):
+            tails.append(value)
+            tail_at.append(i)
+        else:
+            tails[k] = value
+            tail_at[k] = i
+        back[i] = tail_at[k - 1] if k else -1
+    out: list[int] = []
+    i = tail_at[-1] if tail_at else -1
+    while i >= 0:
+        out.append(i)
+        i = back[i]
+    return out[::-1]
 
 
 def _shorter_durations(facts: Sequence[Fact], starts: Mapping[int, str]) -> set[int]:
@@ -1009,6 +1141,7 @@ def name_index(filings: Sequence[Filing], statement: str) -> Names:
             continue
         facts = filing.by_statement.get(statement, [])
         labels = [_clean_label(f.label) for f in facts]
+        labels = ["" if OPENING_CASH_RE.match(name) else name for name in labels]
         per_share.update(f.key for f in facts if f.unit in PER_SHARE_UNITS)
         for f, name in zip(facts, labels):
             if name:

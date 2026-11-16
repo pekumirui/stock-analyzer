@@ -121,6 +121,20 @@ class Seeder:
             {"id": self.next_fact, "fid": fid, "el": self._element(ns, local), "ctx": ctx, "t": value},
         )
 
+    def roles(self, fid: int, roles: list[tuple], *, status: str = "ok") -> None:
+        for seq, (role, statement, consolidated, ifrs, items) in enumerate(roles):
+            body = [
+                [("jpigp_cor" if local.endswith("IFRS") else "jppfs_cor"), local, 0, pref]
+                for local, pref in (i if isinstance(i, tuple) else (i, None) for i in items)
+            ]
+            self._run(
+                "INSERT INTO xbrl_presentation_roles (filing_id, role, seq, statement, is_consolidated, is_ifrs, "
+                "items_json, generated_at) VALUES (:fid, :role, :seq, :st, :c, :i, :items, '2026-01-01')",
+                {"fid": fid, "role": role, "seq": seq, "st": statement, "c": int(consolidated), "i": int(ifrs),
+                 "items": json.dumps(body)},
+            )
+        self._run("UPDATE xbrl_filings SET presentation_status = :s WHERE id = :fid", {"s": status, "fid": fid})
+
     def close(self) -> None:
         self.db.commit()
         self.db.close()
@@ -313,15 +327,77 @@ def _opening(s: Seeder) -> None:
 
 def _amended(s: Seeder) -> None:
     s.stock(AMENDED, "一部訂正")
-    s.filing(701, "tdnet_pdf", "Q1", "2025-06-30", "2025-08-08 15:00:00", code=AMENDED)
-    s.facts(701, "2025-06-30", [
+    s.filing(751, "tdnet_pdf", "Q1", "2025-06-30", "2025-08-08 15:00:00", code=AMENDED)
+    s.facts(751, "2025-06-30", [
         p("bs", "現金及び預金", 10), p("bs", "売掛金", 5), p("bs", "その他", 1), p("bs", "建物", 3), p("bs", "土地", 2),
         p("bs", "資産合計", 21), p("pl", "売上高", 100), p("pl", "当期純利益", 10),
     ])
-    s.filing(702, "tdnet_pdf", "Q1", "2025-06-30", "2025-09-10 15:00:00", code=AMENDED)
-    s.facts(702, "2025-06-30", [p("bs", "売掛金", 6), p("bs", "その他", 9), p("bs", "資産合計", 22)])
-    s.filing(703, "tdnet_pdf", "Q1", "2025-06-30", "2025-10-01 15:00:00", code=AMENDED)
-    s.facts(703, "2025-06-30", [p("bs", "長期未払金", 99), p("bs", "資産合計", 23)])
+    s.filing(752, "tdnet_pdf", "Q1", "2025-06-30", "2025-09-10 15:00:00", code=AMENDED)
+    s.facts(752, "2025-06-30", [p("bs", "売掛金", 6), p("bs", "その他", 9), p("bs", "資産合計", 22)])
+    s.filing(753, "tdnet_pdf", "Q1", "2025-06-30", "2025-10-01 15:00:00", code=AMENDED)
+    s.facts(753, "2025-06-30", [p("bs", "長期未払金", 99), p("bs", "資産合計", 23)])
+
+
+DEFINED = "71110"
+PAIRS = "71120"
+NOCONSOL = "71130"
+DEF_BS = ["AssetsAbstract", "CashAndDeposits", "OtherCA", "CurrentAssets", "Assets", "ShortTermLoansPayable",
+          "Liabilities", "NetAssets", "LiabilitiesAndNetAssets"]
+DEF_PL = ["NetSales", "CostOfSales", "OperatingIncome", "InterestExpensesNOE", "IncomeBeforeIncomeTaxes", "ProfitLoss"]
+DEF_CI = ["ProfitLoss", "ComprehensiveIncome"]
+DEF_CF = ["IncomeBeforeIncomeTaxes", "DepreciationAndAmortizationOpeCF", "NetCashProvidedByUsedInOperatingActivities",
+          ("CashAndCashEquivalents", "periodStartLabel"), "NetIncreaseDecreaseInCashAndCashEquivalents",
+          ("CashAndCashEquivalents", "periodEndLabel")]
+
+
+def _presentation(s: Seeder) -> None:
+    s.stock(DEFINED, "表示リンクあり")
+    s.filing(701, "edinet", "FY", "2025-03-31", "2025-06-20 15:00:00", code=DEFINED)
+    s.facts(701, "2025-03-31", FY_BS + FY_PL + [x("ComprehensiveIncome", "d", 170)] + FY_SS + FY_CF + FY_NOTES)
+    s.facts(701, "2025-03-31", [x("CashAndDeposits", "i", 50), x("Assets", "i", 50)],
+            consolidated=False, dims=NONCONSOL)
+    s.roles(701, [
+        ("rol_ConsolidatedBalanceSheet", "BS", True, False, DEF_BS),
+        ("rol_ConsolidatedStatementOfComprehensiveIncome", "PL", True, False, DEF_CI),
+        ("rol_ConsolidatedStatementOfIncome", "PL", True, False, DEF_PL),
+        ("rol_ConsolidatedStatementOfCashFlows-indirect", "CF", True, False, DEF_CF),
+        ("rol_BalanceSheet", "BS", False, False, ["CashAndDeposits", "Assets"]),
+    ])
+    s.filing(702, "tdnet_pdf", "FY", "2025-03-31", "2025-05-10 15:00:00", code=DEFINED)
+    s.facts(702, "2025-03-31", FY_PDF_CF)
+    s.filing(703, "tdnet", "Q1", "2025-06-30", "2025-08-08 15:00:00", code=DEFINED)
+    s.facts(703, "2025-06-30", [x("CashAndDeposits", "i", 70), x("Assets", "i", 70), x("NetSales", "d", 120),
+                                x("ProfitLoss", "d", 30)] + _quarter_cf(6, 40, 99))
+    s.roles(703, [("rol_QuarterlyConsolidatedBalanceSheetTDnet", "BS", True, False, ["CashAndDeposits", "Assets"]),
+                  ("rol_YearToQuarterEndConsolidatedStatementOfIncomeTDnet", "PL", True, False,
+                   ["NetSales", "ProfitLoss"])])
+    s.stock(PAIRS, "2 組の表")
+    two = [x("CashAndDeposits", "i", 10), x("Assets", "i", 10), x("NetSales", "d", 5),
+           x("CashAndCashEquivalentsIFRS", "i", 11, "jpigp_cor"), x("AssetsIFRS", "i", 11, "jpigp_cor"),
+           x("RevenueIFRS", "d", 6, "jpigp_cor"), x("ProfitLossBeforeTaxIFRS", "d", 3, "jpigp_cor")]
+    roles = [
+        ("rol_QuarterlyBalanceSheetTDnet", "BS", False, False, ["CashAndDeposits", "Assets"]),
+        ("rol_YearToQuarterEndStatementOfIncomeTDnet", "PL", False, False, ["NetSales"]),
+        ("rol_CondensedQuarterlyStatementOfFinancialPositionTDnetIFRS", "BS", False, True,
+         ["CashAndCashEquivalentsIFRS", "AssetsIFRS"]),
+        ("rol_CondensedYearToQuarterEndStatementOfProfitOrLossTDnetIFRS", "PL", False, True,
+         ["RevenueIFRS", "ProfitLossBeforeTaxIFRS"]),
+    ]
+    for fid, end, std in ((711, "2025-07-31", "IFRS"), (712, "2025-10-31", "JPGAAP")):
+        s.filing(fid, "tdnet", "Q1", end, "2025-09-01 15:00:00", code=PAIRS, standard=std)
+        s.facts(fid, end, two, consolidated=False)
+        s.roles(fid, roles)
+    s.stock(NOCONSOL, "連結の区分が無い")
+    s.filing(721, "edinet", "FY", "2025-03-31", "2025-06-20 15:00:00", code=NOCONSOL, standard="IFRS")
+    s.facts(721, "2025-03-31", [x("AssetsIFRS", "i", 900, "jpigp_cor"), x("RevenueIFRS", "d", 100, "jpigp_cor"),
+                                x("ProfitLossIFRS", "d", 9, "jpigp_cor")])
+    s.facts(721, "2025-03-31", [x("CashAndDeposits", "i", 30), x("Assets", "i", 30)],
+            consolidated=False, dims=NONCONSOL)
+    s.roles(721, [("rol_BalanceSheet", "BS", False, False, ["CashAndDeposits", "Assets"])])
+    s.filing(722, "edinet", "FY", "2024-03-31", "2024-06-20 15:00:00", code=NOCONSOL, standard="IFRS")
+    s.facts(722, "2024-03-31", [x("AssetsIFRS", "i", 800, "jpigp_cor"), x("LiabilitiesAndEquityIFRS", "i", 800, "jpigp_cor"),
+                                x("RevenueIFRS", "d", 90, "jpigp_cor"), x("ProfitLossIFRS", "d", 8, "jpigp_cor")])
+    s.roles(722, [], status="none")
 
 
 def seed(more=None) -> None:
@@ -356,7 +432,7 @@ def seed(more=None) -> None:
 
 @pytest.fixture(scope="module", autouse=True)
 def _seeded(_fresh_db_per_file):
-    seed()
+    seed(_presentation)
 
 
 def table(code: str = CODE, statement: str = "BS", periods: int = fst.DEFAULT_PERIODS,
@@ -639,6 +715,129 @@ def test_opening_cash_names() -> None:
             "連結子会社の決算期変更に伴う現金及び現金同等物の期首残高増減額", "現金及び現金同等物の期末残高"]
     assert not any(fst._opening_cash(f"pdf:{n}") for n in kept)
     assert not fst._opening_cash("CashAndCashEquivalents")
+
+
+def test_layout_keeps_print_order_and_places_borrowed_facts_by_position() -> None:
+    items = lambda *names: [["jpigp_cor", n, 0, p] for n, p in names]  # noqa: E731
+    layouts = fst.statement_layouts([
+        (0, "rol_ConsolidatedStatementOfFinancialPositionIFRS", "BS", True, True,
+         items(("CashAndCashEquivalentsIFRS", None), ("AssetsIFRS", None))),
+        (1, "rol_ConsolidatedStatementOfProfitOrLossIFRS", "PL", True, True,
+         items(("RevenueIFRS", None), ("ProfitLossBeforeTaxIFRS", None), ("ProfitLossAttributableToOwnersOfParentIFRS", None),
+               ("ContinuingIFRS", None), ("ProfitLossAttributableToOwnersOfParentIFRS", "totalLabel"))),
+        (2, "rol_ConsolidatedStatementOfCashFlowsIFRS", "CF", True, True,
+         items(("ProfitLossBeforeTaxIFRS", None), ("DepreciationOpeCFIFRS", None),
+               ("CashAndCashEquivalentsIFRS", "periodStartLabel"), ("TransferCFIFRS", None),
+               ("CashAndCashEquivalentsIFRS", None))),
+    ], "IFRS")[True]
+    names = ["CashAndCashEquivalentsIFRS", "AssetsIFRS", "RevenueIFRS", "ProfitLossBeforeTaxIFRS", "ContinuingIFRS",
+             "ProfitLossAttributableToOwnersOfParentIFRS", "DepreciationOpeCFIFRS", "TransferCFIFRS"]
+    seq = [fst.Fact(n, k, k, "", k in ("CashAndCashEquivalentsIFRS", "AssetsIFRS"), "JPY", n)
+           for n, k in enumerate(names, 1)]
+    got = {s: [f.key for f in v] for s, v in fst.split_by_layout(seq, layouts).items()}
+    assert got["BS"] == ["CashAndCashEquivalentsIFRS", "AssetsIFRS"]
+    assert got["PL"] == ["RevenueIFRS", "ProfitLossBeforeTaxIFRS", "ContinuingIFRS",
+                         "ProfitLossAttributableToOwnersOfParentIFRS"]
+    assert got["CF"] == ["ProfitLossBeforeTaxIFRS", "DepreciationOpeCFIFRS", "TransferCFIFRS",
+                         "CashAndCashEquivalentsIFRS"]
+
+
+def test_layout_moves_facts_printed_before_the_statement_and_keeps_print_order_inside() -> None:
+    items = lambda *names: [["jppfs_cor", n, 0, p] for n, p in names]  # noqa: E731
+    layouts = fst.statement_layouts([
+        (0, "rol_ConsolidatedBalanceSheet", "BS", True, False,
+         items(("CashAndDeposits", None), ("Assets", None), ("NoncurrentLiabilities", "totalLabel"),
+               ("DeferredTaxLiabilities", None), ("Liabilities", None), ("CapitalStock", None), ("NetAssets", None))),
+    ], "JPGAAP")[True]
+    names = ["CapitalStock", "NetAssets", "CashAndDeposits", "Assets", "DeferredTaxLiabilities",
+             "NoncurrentLiabilities", "Liabilities"]
+    seq = [fst.Fact(n, k, k, "", True, "JPY", n) for n, k in enumerate(names, 1)]
+    assert [f.key for f in fst.split_by_layout(seq, layouts)["BS"]] == [
+        "CashAndDeposits", "Assets", "DeferredTaxLiabilities", "NoncurrentLiabilities", "Liabilities",
+        "CapitalStock", "NetAssets",
+    ]
+
+
+def test_name_index_ignores_opening_cash_labels() -> None:
+    x = fst.Filing(id=1, doc_id="X", source="edinet", period_type="FY", period_end=date(2025, 3, 31),
+                   submitted="2025-06-20", standard="IFRS")
+    x.by_statement = {"CF": [
+        xbrl_fact(1, "NetCashProvidedByUsedInOperatingActivitiesIFRS", 10, "営業活動によるキャッシュ・フロー"),
+        xbrl_fact(2, "CashAndCashEquivalentsIFRS", 50, "現金及び現金同等物の期首残高", True),
+    ]}
+    names = fst.name_index([x], "CF")
+    assert set(names.keys) == {"営業活動によるキャッシュ・フロー"}
+    assert all(name != "現金及び現金同等物の期首残高" for _, name in names.by_section)
+    assert "CashAndCashEquivalentsIFRS" in names.order
+
+
+def _keys(code: str, fid: int, consolidated: bool = True) -> dict[str, list[str]]:
+    return {s: [f.key for f in v] for s, v in filings(code, consolidated)[fid].by_statement.items()}
+
+
+def test_presentation_splits_by_definition() -> None:
+    keys = _keys(DEFINED, 701)
+    assert keys["BS"] == ["CashAndDeposits", "OtherCA", "CurrentAssets", "Assets", "ShortTermLoansPayable",
+                          "Liabilities", "NetAssets", "LiabilitiesAndNetAssets"]
+    assert keys["PL"] == DEF_PL + ["ComprehensiveIncome"]
+    assert keys["CF"] == ["IncomeBeforeIncomeTaxes", "DepreciationAndAmortizationOpeCF",
+                          "NetCashProvidedByUsedInOperatingActivities", "NetIncreaseDecreaseInCashAndCashEquivalents",
+                          "CashAndCashEquivalents"]
+    assert _keys(DEFINED, 701, consolidated=False) == {"BS": ["CashAndDeposits", "Assets"]}
+    filing = filings(DEFINED)[701]
+    pl = {f.key: f for f in filing.by_statement["PL"]}
+    cf = {f.key: f for f in filing.by_statement["CF"]}
+    assert pl["IncomeBeforeIncomeTaxes"] is cf["IncomeBeforeIncomeTaxes"]
+
+
+def test_presentation_without_cf_has_no_cf() -> None:
+    assert _keys(DEFINED, 703) == {"BS": ["CashAndDeposits", "Assets"], "PL": ["NetSales", "ProfitLoss"]}
+    t = table(DEFINED, "CF")
+    assert labels(t) == ["25.03"]
+
+
+def test_presentation_cf_takes_pretax_from_definition_not_extras() -> None:
+    by_id = filings(DEFINED)
+    learned = fst.learn_pair(by_id[702], by_id[701])
+    assert learned.maps["CF"]["税金等調整前当期純利益"].key == "IncomeBeforeIncomeTaxes"
+    assert learned.extras["CF"] == {}
+    t = table(DEFINED, "CF")
+    assert [r["key"] for r in t["rows"]][:2] == ["IncomeBeforeIncomeTaxes", "DepreciationAndAmortizationOpeCF"]
+    assert value(t, "IncomeBeforeIncomeTaxes", "25.03") == 198 * M
+    assert source(t, "IncomeBeforeIncomeTaxes", "25.03") == "edinet"
+
+
+def test_presentation_two_sets_follow_accounting_standard() -> None:
+    assert _keys(PAIRS, 711, consolidated=False) == {
+        "BS": ["CashAndCashEquivalentsIFRS", "AssetsIFRS"], "PL": ["RevenueIFRS", "ProfitLossBeforeTaxIFRS"]}
+    assert _keys(PAIRS, 712, consolidated=False) == {"BS": ["CashAndDeposits", "Assets"], "PL": ["NetSales"]}
+    only = fst.statement_layouts([(0, "rol_BalanceSheet", "BS", False, False, [["jppfs_cor", "Assets", 0, None]])],
+                                 "IFRS")
+    assert list(only[False]["BS"].first) == ["Assets"]
+
+
+def test_presentation_without_consolidated_roles_has_no_consolidated_statements() -> None:
+    assert _keys(NOCONSOL, 721) == {}
+    assert _keys(NOCONSOL, 721, consolidated=False) == {"BS": ["CashAndDeposits", "Assets"]}
+    assert set(_keys(NOCONSOL, 722)) == {"BS", "PL"}
+    t = table(NOCONSOL, "PL", consolidated=True)
+    assert labels(t) == ["24.03"]
+
+
+def test_presentation_layout_puts_ci_after_pl_and_period_end_cash_last() -> None:
+    items = lambda *names: [["jppfs_cor", n, 0, p] for n, p in names]  # noqa: E731
+    got = fst.statement_layouts([
+        (3, "rol_ConsolidatedStatementOfComprehensiveIncome", "PL", True, False,
+         items(("ProfitLoss", None), ("ComprehensiveIncome", None))),
+        (5, "rol_ConsolidatedStatementOfIncome", "PL", True, False, items(("NetSales", None), ("ProfitLoss", None))),
+        (6, "rol_ConsolidatedStatementOfCashFlows-indirect", "CF", True, False,
+         items(("CashAndCashEquivalents", "periodStartLabel"), ("NetIncreaseDecreaseInCashAndCashEquivalents", None),
+               ("CashAndCashEquivalents", "periodEndLabel"))),
+    ], "JPGAAP")[True]
+    assert sorted(got["PL"].first, key=got["PL"].first.get) == ["NetSales", "ProfitLoss", "ComprehensiveIncome"]
+    seq = [fst.Fact(1, "CashAndCashEquivalents", "CashAndCashEquivalents", "", True, "JPY", 9),
+           fst.Fact(2, "NetIncreaseDecreaseInCashAndCashEquivalents", "x", "", False, "JPY", 1)]
+    assert [f.id for f in fst.split_by_layout(seq, got)["CF"]] == [2, 1]
 
 
 def test_non_consolidated() -> None:
