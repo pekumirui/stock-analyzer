@@ -658,5 +658,8 @@ def tool_financial_statements(args: dict[str, Any], get_json: GetJson, code5: st
             at = part
         per_share = r.get("unit") == "per_share"
         lines.append(_tsv([[r.get("label"), r.get("key"), *(_fs_cell(c, per_share) for c in r.get("cells") or [])]]))
+    standards = [c.get("accounting_standard") for c in cols]
+    if len({s for s in standards if s}) > 1:
+        lines.append(_tsv([["会計基準", "", *standards]]))
     lines.append(_tsv([["出どころ", "", *(c.get("source_label") for c in cols)]]))
     return head + "\n" + "\n".join(lines)

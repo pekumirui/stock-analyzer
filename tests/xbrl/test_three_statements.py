@@ -41,6 +41,8 @@ LABELS = {
     "ProfitLossAttributableToNonControllingInterests": "非支配株主に帰属する当期純利益",
     "ComprehensiveIncome": "包括利益", "ComprehensiveIncomeAttributableToOwnersOfTheParent": "親会社株主に係る包括利益",
     "ComprehensiveIncomeAttributableToNonControllingInterests": "非支配株主に係る包括利益",
+    "NotesAndAccountsReceivableTrade": "売掛金", "AccountsReceivableTrade": "売掛金", "GuaranteeDeposits": "差入保証金",
+    "GoodwillIFRS": "のれん",
 }
 
 
@@ -432,7 +434,7 @@ def seed(more=None) -> None:
 
 @pytest.fixture(scope="module", autouse=True)
 def _seeded(_fresh_db_per_file):
-    seed(_presentation)
+    seed(lambda s: (_presentation(s), _split(s)))
 
 
 def table(code: str = CODE, statement: str = "BS", periods: int = fst.DEFAULT_PERIODS,
@@ -1709,3 +1711,138 @@ def test_total_rows_in_pl() -> None:
         "OperatingIncome", "InterestIncomeNOI", None, "NonOperatingIncome", "InterestExpensesNOE", "NonOperatingExpenses",
         "OrdinaryIncome", "ImpairmentLossEL", None, "ExtraordinaryLoss", "IncomeTaxes", "ProfitLoss",
     ]
+
+
+SPLIT = "81110"
+SWITCH = "81120"
+
+
+def _split(s: Seeder) -> None:
+    s.stock(SPLIT, "タグの付け替え")
+    ends = ("2022-03-31", "2023-03-31", "2024-03-31", "2025-03-31")
+    for n, end in enumerate(ends):
+        fid = 801 + n
+        s.filing(fid, "edinet", "FY", end, f"{end[:4]}-06-20 15:00:00", code=SPLIT)
+        receivable = "NotesAndAccountsReceivableTrade" if n < 2 else "AccountsReceivableTrade"
+        facts = [x("CashAndDeposits", "i", 10 + n), x(receivable, "i", 20 + n)]
+        if n < 3:
+            facts.append(x("GuaranteeDeposits", "i", 30 + n))
+        if n in (0, 3):
+            facts.append(x("GuaranteeDeposits", "i", 40 + n, "jpcrp030000-asr_E00001-000"))
+        s.facts(fid, end, facts)
+    s.stock(SWITCH, "IFRS に移った")
+    s.filing(811, "edinet", "FY", "2024-03-31", "2024-06-20 15:00:00", code=SWITCH)
+    s.facts(811, "2024-03-31", [x("CashAndDeposits", "i", 10), x("Goodwill", "i", 5)])
+    s.filing(812, "edinet", "FY", "2025-03-31", "2025-06-20 15:00:00", code=SWITCH, standard="IFRS")
+    s.facts(812, "2025-03-31", [x("CashAndCashEquivalentsIFRS", "i", 12, "jpigp_cor"),
+                                x("GoodwillIFRS", "i", 6, "jpigp_cor")])
+
+
+ENDS = ("2022-03-31", "2023-03-31", "2024-03-31", "2025-03-31")
+
+
+def column(end: str, values: dict[str, float]) -> fst.Column:
+    filing = fst.Filing(id=0, doc_id="", source="edinet", period_type="FY", period_end=date.fromisoformat(end),
+                        submitted="", standard="JPGAAP")
+    return fst.Column(filing, dict(values), list(values), {k: "edinet" for k in values})
+
+
+def merged(seq: list[dict[str, float]], labels: dict[str, str], statement: str = "BS",
+           units: dict | None = None, excluded: tuple = ()) -> tuple[dict[str, list[str]], list[str], list[fst.Column]]:
+    cols = [column(end, values) for end, values in zip(ENDS, seq)]
+    got = fst.merge_split_rows(cols, statement, labels, units or {}, excluded)
+    return got, fst._row_keys(cols, statement), cols
+
+
+def test_split_tags_of_one_item_become_one_row_at_the_newest_place() -> None:
+    labels = {"Cash": "現金及び預金", "NotesAR": "売掛金", "AR": "売掛金"}
+    got, keys, cols = merged([{"Cash": 1, "NotesAR": 2}, {"Cash": 1, "NotesAR": 3}, {"AR": 4, "Cash": 1}], labels)
+    assert got == {"AR": ["NotesAR"]}
+    assert keys == ["AR", "Cash"]
+    assert [c.values.get("AR") for c in cols] == [2, 3, 4]
+    assert all("NotesAR" not in c.values and "NotesAR" not in c.sources for c in cols)
+
+
+def test_split_rows_sharing_one_period_stay_apart() -> None:
+    labels = {"NotesAR": "売掛金", "AR": "売掛金"}
+    got, keys, _ = merged([{"NotesAR": 2}, {"NotesAR": 3, "AR": 3}, {"AR": 4}], labels)
+    assert got == {} and set(keys) == {"NotesAR", "AR"}
+
+
+def test_three_rows_merge_only_when_no_two_share_a_period() -> None:
+    labels = {"A": "差入保証金", "B": "差入保証金", "C": "差入保証金"}
+    got, keys, _ = merged([{"A": 1}, {"B": 2}, {"C": 3}], labels)
+    assert got == {"C": ["B", "A"]} and keys == ["C"]
+    got, keys, _ = merged([{"A": 1}, {"B": 2, "C": 2}, {"C": 3}], labels)
+    assert got == {} and set(keys) == {"A", "B", "C"}
+
+
+def test_generic_names_are_not_merged() -> None:
+    for name in ("その他", "その他(純額)", "減価償却累計額", "減価償却累計額及び減損損失累計額", "減損損失累計額", "貸倒引当金"):
+        got, _, _ = merged([{"A": 1}, {"B": 2}], {"A": name, "B": name})
+        assert got == {}, name
+    for name in ("その他有価証券評価差額金", "その他の固定負債", "その他の包括利益"):
+        got, _, _ = merged([{"A": 1}, {"B": 2}], {"A": name, "B": name})
+        assert got == {"B": ["A"]}, name
+
+
+def test_bs_rows_in_other_sections_stay_apart() -> None:
+    labels = {"A": "リース資産", "B": "リース資産"}
+    keys = ["A", "CurrentAssets", "B", "NoncurrentAssets", "Assets"]
+    got, _, _ = merged([{k: 1 for k in keys if k != "B"}, {k: 1 for k in keys if k != "A"}], labels)
+    assert got == {}
+
+
+def test_pl_sections_come_from_the_next_total() -> None:
+    labels = {"GainNOI": "投資有価証券売却益", "GainEI": "投資有価証券売却益", "SubsidyNOI": "助成金収入",
+              "ext:Subsidy": "助成金収入"}
+    first = ["OperatingIncome", "GainNOI", "SubsidyNOI", "NonOperatingIncome", "ExtraordinaryIncome"]
+    second = ["OperatingIncome", "ext:Subsidy", "NonOperatingIncome", "GainEI", "ExtraordinaryIncome"]
+    got, keys, _ = merged([dict.fromkeys(first, 1), dict.fromkeys(second, 2)], labels, "PL")
+    assert got == {"ext:Subsidy": ["SubsidyNOI"]}
+    assert "GainNOI" in keys and "GainEI" in keys
+    ifrs = {"A": "金融収益", "B": "金融収益"}
+    got, _, _ = merged([{"RevenueIFRS": 1, "A": 1}, {"RevenueIFRS": 2, "B": 2}], ifrs, "PL")
+    assert got == {"B": ["A"]}
+
+
+def test_pdf_rows_and_other_units_are_not_merged() -> None:
+    got, _, _ = merged([{"pdf:売掛金": 1}, {"AR": 2}], {"pdf:売掛金": "売掛金", "AR": "売掛金"})
+    assert got == {}
+    got, _, _ = merged([{"pdf:A": 1}, {"pdf:B": 2}], {"pdf:A": "売掛金", "pdf:B": "売掛金"})
+    assert got == {}
+    got, _, _ = merged([{"A": 1}, {"B": 2}], {"A": "1株当たり配当額", "B": "1株当たり配当額"}, "PL",
+                       {"A": "JPYPerShares", "B": "JPY"})
+    assert got == {}
+
+
+def test_listed_pairs_are_not_merged() -> None:
+    labels = {"A": "差入保証金", "B": "差入保証金", "C": "差入保証金"}
+    got, _, _ = merged([{"A": 1}, {"B": 2}], labels, excluded=(frozenset({"A", "B"}),))
+    assert got == {}
+    got, _, _ = merged([{"A": 1}, {"B": 2}, {"C": 3}], labels, excluded=(frozenset({"A", "B"}),))
+    assert got == {}
+    assert isinstance(fst._merge_exclusions(), dict)
+
+
+def test_table_merges_split_rows_over_all_periods(monkeypatch: pytest.MonkeyPatch) -> None:
+    for periods in (2, 8):
+        got = rows(table(SPLIT, periods=periods))
+        assert "NotesAndAccountsReceivableTrade" not in got
+        assert got["AccountsReceivableTrade"]["merged_keys"] == ["NotesAndAccountsReceivableTrade"]
+        assert {"GuaranteeDeposits", "ext:GuaranteeDeposits"} <= set(got)
+        assert got["GuaranteeDeposits"]["merged_keys"] == got["CashAndDeposits"]["merged_keys"] == []
+    t = table(SPLIT)
+    assert [c and c["value"] for c in rows(t)["AccountsReceivableTrade"]["cells"]] == [20 * M, 21 * M, 22 * M, 23 * M]
+    assert [r["key"] for r in t["rows"]].index("AccountsReceivableTrade") == 1
+    excluded = {(SPLIT, "BS"): {frozenset({"NotesAndAccountsReceivableTrade", "AccountsReceivableTrade"})}}
+    monkeypatch.setattr(fst, "_merge_exclusions", lambda: excluded)
+    assert {"NotesAndAccountsReceivableTrade", "AccountsReceivableTrade"} <= set(rows(table(SPLIT)))
+
+
+def test_table_merges_rows_split_by_a_new_accounting_standard() -> None:
+    t = table(SWITCH)
+    got = rows(t)
+    assert got["GoodwillIFRS"]["merged_keys"] == ["Goodwill"] and "Goodwill" not in got
+    assert [c["value"] for c in got["GoodwillIFRS"]["cells"]] == [5 * M, 6 * M]
+    assert [p["accounting_standard"] for p in t["periods"]] == ["JPGAAP", "IFRS"]
