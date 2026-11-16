@@ -688,8 +688,9 @@ def _revisions(pdfs: Sequence[Filing], base: Filing) -> list[Filing]:
 
 def _revised(
     revisions: Sequence[Filing], pool: Sequence[Learned], statement: str, period_end: date, names: Names | None,
-) -> dict[str, float]:
+) -> tuple[dict[str, float], list[str]]:
     out: dict[str, float] = {}
+    mapped_keys: list[str] = []
     for filing in revisions:
         facts = filing.by_statement.get(statement, [])
         copies = pdf_rows(facts, statement, printed_twice(pool, statement)).copies
@@ -697,10 +698,12 @@ def _revised(
             if n in copies:
                 continue
             if mapped is not None:
+                if mapped.key not in out:
+                    mapped_keys.append(mapped.key)
                 out.setdefault(mapped.key, fact.value * mapped.sign)
             elif not _generic(fact.local):
                 out.setdefault(fact.key, fact.value)
-    return out
+    return out, mapped_keys
 
 
 def _ranked(learned: Sequence[Learned], period_end: date, cls: str) -> list[Learned]:
@@ -1186,7 +1189,7 @@ def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], stateme
                 facts = filing.by_statement[statement]
                 by_name = names if filing is primary else None
                 copies = pdf_rows(facts, statement, printed_twice(pool, statement)).copies
-                revised = _revised(revisions, pool, statement, period_end, by_name)
+                revised, later = _revised(revisions, pool, statement, period_end, by_name)
                 for n, (fact, mapped) in enumerate(apply_learned(facts, pool, statement, period_end, cls, by_name)):
                     if n in copies:
                         continue
@@ -1200,6 +1203,11 @@ def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], stateme
                     if mapped.key not in values:
                         values[mapped.key] = revised.get(mapped.key, fact.value * mapped.sign)
                         sources[mapped.key] = filing.source
+                for key in later:
+                    if key not in values:
+                        values[key] = revised[key]
+                        sources[key] = filing.source
+                        seq.append(key)
             else:
                 for fact in _with_extras(filing, statement, learned):
                     seq.append(fact.key)
