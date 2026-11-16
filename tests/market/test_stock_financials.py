@@ -4,7 +4,9 @@ from __future__ import annotations
 import pytest
 
 from app.xbrl import three_statements as fst
-from tests.xbrl.test_three_statements import CODE, NONCONSOL, SINGLE, M, Seeder, seed, x
+from tests.xbrl.test_three_statements import (
+    CODE, DEFINED, NONCONSOL, SINGLE, M, Seeder, _presentation, seed, x,
+)
 
 STITCH = "55550"
 
@@ -28,7 +30,7 @@ def _stitched(s: Seeder) -> None:
 
 @pytest.fixture(scope="module", autouse=True)
 def _seeded(_fresh_db_per_file):
-    seed(_stitched)
+    seed(lambda s: (_stitched(s), _presentation(s)))
 
 
 def test_financials(c) -> None:
@@ -48,8 +50,10 @@ def test_financials(c) -> None:
     assert rows["pdf:前受金"]["unmatched_pdf"] is True and rows["pdf:前受金"]["label"] == "前受金"
     assert set(rows["Goodwill"]) == {"key", "label", "unit", "unmatched_pdf", "group", "section", "merged_keys", "cells"}
     assert rows["Goodwill"]["merged_keys"] == []
-    assert (rows["Goodwill"]["group"], rows["Goodwill"]["section"]) == ("資産", "無形固定資産")
-    assert (rows["LiabilitiesAndNetAssets"]["group"], rows["LiabilitiesAndNetAssets"]["section"]) == (None, None)
+    assert (rows["Goodwill"]["group"], rows["Goodwill"]["section"]) == (None, None)
+    defined = {row["key"]: row for row in c.get(f"/api/stock/{DEFINED}/financials").json()["rows"]}
+    assert (defined["CashAndDeposits"]["group"], defined["CashAndDeposits"]["section"]) == ("資産", "流動資産")
+    assert (defined["LiabilitiesAndNetAssets"]["group"], defined["LiabilitiesAndNetAssets"]["section"]) == (None, None)
 
     d = c.get(f"/api/stock/{CODE}/financials?statement=PL&periods=2").json()
     assert d["cumulative"] is True and [p["label"] for p in d["periods"]] == ["25.06", "25.09"]

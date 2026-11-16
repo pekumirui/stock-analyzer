@@ -650,16 +650,18 @@ def _role_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> d
     """表示リンクの 1 区分の並び → 要素の区分。見出しの要素（…Abstract）のうち HEAD_GROUPS / HEAD_SECTIONS にあるものだけを見る。
 
     区分はその合計の要素（合計の行はその区分の最後の行）か、親でない次の見出しで閉じる。知らない見出しは飛ばす。
+    大区分の見出しが無いまま大区分の合計が出たら、前の大区分の後ろからその合計までをその大区分にする。
     """
     heads = HEAD_SECTIONS[statement]
     out: dict[str, Part] = {}
     group: str | None = None
     stack: list[str] = []
+    loose: list[str] = []
     for item in items:
         name = str(item[1])
         if not item[2]:
             if statement == "BS" and name in HEAD_GROUPS:
-                group, stack = HEAD_GROUPS[name], []
+                group, stack, loose = HEAD_GROUPS[name], [], []
                 continue
             section = heads.get(name)
             if section is not None:
@@ -672,15 +674,20 @@ def _role_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> d
         if "Abstract" in name:
             continue
         key = _item_key(item)
-        if group is not None and key == group:
-            part = Part(group, None, ifrs)
-            group, stack = None, []
+        if statement == "BS" and key in BS_GROUPS and group in (None, key):
+            for held in loose:
+                out[held] = Part(key, out[held].section, ifrs)
+            part = Part(key, None, ifrs)
+            group, stack, loose = None, [], []
         elif key in stack:
             part = Part(group, key, ifrs)
             del stack[stack.index(key):]
         else:
             part = Part(group, stack[-1] if stack else None, ifrs)
-        out.setdefault(key, part)
+        if key not in out:
+            out[key] = part
+            if part.group is None:
+                loose.append(key)
     return out
 
 

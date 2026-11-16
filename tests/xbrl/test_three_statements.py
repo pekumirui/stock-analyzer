@@ -1041,7 +1041,11 @@ def test_parts_skip_unknown_headings_and_close_at_the_next_heading() -> None:
     assert railway["Land"] == ("Assets", "PropertyPlantAndEquipment") and railway["Goodwill"] == ("Assets", "IntangibleAssets")
     assert railway["InvestmentSecurities"] == ("Assets", "InvestmentsAndOtherAssets")
     assert railway["NoncurrentAssets"] == ("Assets", "NoncurrentAssets")
-    assert declared(["CashAndDeposits", "Assets"]) == {"CashAndDeposits": (None, None), "Assets": (None, None)}
+    power = declared(["AssetsAbstract", "NuclearFuel", "Assets", "LiabilitiesAndNetAssetsAbstractELE", "BondsPayable",
+                      "Liabilities", "CapitalStock", "NetAssets", "LiabilitiesAndNetAssets"])
+    assert power["BondsPayable"] == power["Liabilities"] == ("Liabilities", None)
+    assert power["CapitalStock"] == ("NetAssets", None) and power["LiabilitiesAndNetAssets"] == (None, None)
+    assert declared(["CashAndDeposits", "Assets"]) == {"CashAndDeposits": ("Assets", None), "Assets": ("Assets", None)}
 
 
 def test_parts_cf_and_pl() -> None:
