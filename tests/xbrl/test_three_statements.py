@@ -1007,7 +1007,7 @@ def test_parts_follow_the_headings_jpgaap() -> None:
     assert got["Goodwill"] == ("Assets", "IntangibleAssets")
     assert got["InvestmentSecurities"] == ("Assets", "InvestmentsAndOtherAssets")
     assert got["NoncurrentAssets"] == ("Assets", "NoncurrentAssets")
-    assert got["DeferredAssets"] == got["Assets"] == ("Assets", None)
+    assert got["DeferredAssets"] == ("Assets", "DeferredAssets") and got["Assets"] == ("Assets", None)
     assert got["OtherCL"] == ("Liabilities", "CurrentLiabilities")
     assert got["LongTermLoansPayable"] == ("Liabilities", "NoncurrentLiabilities")
     assert got["Liabilities"] == ("Liabilities", None)
@@ -1046,6 +1046,29 @@ def test_parts_skip_unknown_headings_and_close_at_the_next_heading() -> None:
     assert power["BondsPayable"] == power["Liabilities"] == ("Liabilities", None)
     assert power["CapitalStock"] == ("NetAssets", None) and power["LiabilitiesAndNetAssets"] == (None, None)
     assert declared(["CashAndDeposits", "Assets"]) == {"CashAndDeposits": ("Assets", None), "Assets": ("Assets", None)}
+
+
+def test_parts_stay_open_after_the_total_and_take_single_lines() -> None:
+    late = declared(["AssetsAbstract", "CurrentAssetsAbstract", "CashAndDeposits", "CurrentAssets", "PrepaidExpenses",
+                     "NoncurrentAssetsAbstract", "PropertyPlantAndEquipment", "IntangibleAssetsAbstract", "Software",
+                     "IntangibleAssets", "InvestmentsAndOtherAssetsAbstract", "InvestmentsAndOtherAssets",
+                     "OtherLongTermAssetsIOAAbstract", "LeaseAndGuaranteeDeposits", "NoncurrentAssets", "Assets",
+                     "LiabilitiesAbstract", "CurrentLiabilitiesAbstract", "OtherCL", "CurrentLiabilities",
+                     "ProvisionCLAbstract", "ProvisionForBonuses", "ReservesUnderTheSpecialLawsAbstract1",
+                     "ReserveForFinancialProductsTransactionLiabilities", "Liabilities",
+                     "NetAssetsAbstract", "ShareholdersEquityAbstract", "CapitalStock", "ShareholdersEquity",
+                     "SubscriptionRightsToShares", "NetAssets"])
+    assert late["PrepaidExpenses"] == ("Assets", "CurrentAssets")
+    assert late["PropertyPlantAndEquipment"] == ("Assets", "PropertyPlantAndEquipment")
+    assert late["Software"] == late["IntangibleAssets"] == ("Assets", "IntangibleAssets")
+    assert late["LeaseAndGuaranteeDeposits"] == ("Assets", "InvestmentsAndOtherAssets")
+    assert late["NoncurrentAssets"] == ("Assets", "NoncurrentAssets")
+    assert late["ProvisionForBonuses"] == ("Liabilities", "CurrentLiabilities")
+    assert late["ReserveForFinancialProductsTransactionLiabilities"] == ("Liabilities", "ReservesUnderTheSpecialLaws1")
+    assert late["SubscriptionRightsToShares"] == ("NetAssets", None)
+    bank = declared(["AssetsAbstract", "LoansAndBillsDiscountedAssetsBNK", "PropertyPlantAndEquipment", "BuildingsNet",
+                     "Assets"])
+    assert bank["PropertyPlantAndEquipment"] == bank["BuildingsNet"] == ("Assets", None)
 
 
 def test_parts_cf_and_pl() -> None:
@@ -1097,6 +1120,12 @@ def test_table_rows_carry_sections() -> None:
     assert (t["rows"][-1]["group"], t["rows"][-1]["section"]) == (None, None)
     assert {(r["group"], r["section"]) for r in table(DEFINED, statement="PL")["rows"]} == {(None, None)}
     assert {(r["group"], r["section"]) for r in table()["rows"]} == {(None, None)}
+
+
+def test_group_headings_ignore_labels_that_are_not_totals() -> None:
+    assert fst._heading("EquityIFRS", {"EquityIFRS": "四半期末残高"}, fst.BS_GROUPS) == "資本"
+    assert fst._heading("Assets", {"Assets": "資産の部合計"}, fst.BS_GROUPS) == "資産の部"
+    assert fst._heading("IntangibleAssets", {"IntangibleAssets": "無形固定資産"}, fst.SECTION_NAMES) == "無形固定資産"
 
 
 def test_table_shows_rows_of_the_older_standard_under_the_newest_sections() -> None:

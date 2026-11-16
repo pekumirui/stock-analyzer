@@ -109,6 +109,7 @@ SECTION_NAMES = {
     "CurrentAssets": "流動資産", "PropertyPlantAndEquipment": "有形固定資産", "IntangibleAssets": "無形固定資産",
     "InvestmentsAndOtherAssets": "投資その他の資産", "NoncurrentAssets": "固定資産", "DeferredAssets": "繰延資産",
     "CurrentLiabilities": "流動負債", "NoncurrentLiabilities": "固定負債", "ShareholdersEquity": "株主資本",
+    "ReservesUnderTheSpecialLaws1": "特別法上の準備金",
     "ValuationAndTranslationAdjustments": "その他の包括利益累計額",
     "CurrentAssetsIFRS": "流動資産", "NonCurrentAssetsIFRS": "非流動資産", "TotalCurrentLiabilitiesIFRS": "流動負債",
     "NonCurrentLabilitiesIFRS": "非流動負債", "EquityAttributableToOwnersOfParentIFRS": "親会社の所有者に帰属する持分",
@@ -128,6 +129,7 @@ HEAD_SECTIONS = {
         "PropertyPlantAndEquipmentAbstract": "PropertyPlantAndEquipment", "IntangibleAssetsAbstract": "IntangibleAssets",
         "InvestmentsAndOtherAssetsAbstract": "InvestmentsAndOtherAssets", "DeferredAssetsAbstract": "DeferredAssets",
         "CurrentLiabilitiesAbstract": "CurrentLiabilities", "NoncurrentLiabilitiesAbstract": "NoncurrentLiabilities",
+        "ReservesUnderTheSpecialLawsAbstract1": "ReservesUnderTheSpecialLaws1",
         "ShareholdersEquityAbstract": "ShareholdersEquity",
         "ValuationAndTranslationAdjustmentsAbstract": "ValuationAndTranslationAdjustments",
         "CurrentAssetsIFRSAbstract": "CurrentAssetsIFRS", "NonCurrentAssetsIFRSAbstract": "NonCurrentAssetsIFRS",
@@ -154,6 +156,12 @@ SECTION_PARENTS = {
     "PropertyPlantAndEquipment": "NoncurrentAssets", "IntangibleAssets": "NoncurrentAssets",
     "InvestmentsAndOtherAssets": "NoncurrentAssets",
 }
+LONE_SECTIONS = frozenset({*SECTION_PARENTS, "DeferredAssets"})
+OPEN_AFTER_TOTAL = frozenset({
+    "CurrentAssets", "NoncurrentAssets", "PropertyPlantAndEquipment", "IntangibleAssets", "InvestmentsAndOtherAssets",
+    "CurrentLiabilities", "NoncurrentLiabilities", "CurrentAssetsIFRS", "NonCurrentAssetsIFRS",
+    "TotalCurrentLiabilitiesIFRS", "NonCurrentLabilitiesIFRS",
+})
 COARSE_IDS = {
     False: {
         "assets": "Assets", "liabilities": "Liabilities", "equity": "NetAssets",
@@ -649,8 +657,9 @@ def statement_layouts(
 def _role_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> dict[str, Part]:
     """表示リンクの 1 区分の並び → 要素の区分。見出しの要素（…Abstract）のうち HEAD_GROUPS / HEAD_SECTIONS にあるものだけを見る。
 
-    区分はその合計の要素（合計の行はその区分の最後の行）か、親でない次の見出しで閉じる。知らない見出しは飛ばす。
-    大区分の見出しが無いまま大区分の合計が出たら、前の大区分の後ろからその合計までをその大区分にする。
+    区分は親でない次の見出しか、親の区分・大区分の合計で閉じる。区分の合計でも閉じるが、OPEN_AFTER_TOTAL の区分は
+    合計の後ろに科目が続く書類があるので閉じない。知らない見出しは飛ばす。LONE_SECTIONS の合計が見出し無しで出たら、
+    その 1 行がその区分。大区分の見出しが無いまま大区分の合計が出たら、前の大区分の後ろからその合計までをその大区分にする。
     """
     heads = HEAD_SECTIONS[statement]
     out: dict[str, Part] = {}
@@ -681,7 +690,9 @@ def _role_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> d
             group, stack, loose = None, [], []
         elif key in stack:
             part = Part(group, key, ifrs)
-            del stack[stack.index(key):]
+            del stack[stack.index(key) + (key in OPEN_AFTER_TOTAL):]
+        elif key in LONE_SECTIONS and SECTION_PARENTS.get(key) in (None, *stack):
+            part = Part(group, key, ifrs)
         else:
             part = Part(group, stack[-1] if stack else None, ifrs)
         if key not in out:
@@ -1629,6 +1640,8 @@ def _shown(
 def _heading(key: str, labels: Mapping[str, str], fallback: Mapping[str, str]) -> str:
     label = labels.get(key, "")
     name = "" if label == key else TOTAL_TAIL_RE.sub("", label)
+    if name == label and key in BS_GROUPS:
+        name = ""
     return name or fallback.get(key) or fallback.get(key.removesuffix("IFRS")) or key
 
 
