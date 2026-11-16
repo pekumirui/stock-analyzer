@@ -27,6 +27,9 @@ import app.config as app_config
 from app.xbrl import three_statements as old
 
 
+DETAILS: list[tuple] = []
+
+
 def load_new(path: str, exclusions: str):
     app_config.XBRL_ROW_MERGE_EXCLUSIONS_PATH = Path(exclusions)
     spec = importlib.util.spec_from_file_location("ts_new", path)
@@ -78,17 +81,38 @@ def compare(a: dict, b: dict) -> tuple[list[str], list[tuple]]:
             len(parts), int(len(used) > 1), len(newest),
             ";".join(",".join(labels[i] for i in s) for s in spans[1:]),
         ))
+    fields = ("key", "label", "group", "section", "unit", "cells")
     for row in b["rows"]:
         if row["key"] in touched:
             continue
         before = rows_a.get(row["key"])
         if before is None or shape(before) != shape(row):
             bad.append("same")
-            break
+            if before is None:
+                DETAILS.append(("same", row["key"], row["label"], "new_only", "", ""))
+            else:
+                diff = [f for f, x, y in zip(fields, shape(before), shape(row)) if x != y]
+                DETAILS.append((
+                    "same", row["key"], row["label"], ",".join(diff),
+                    f"{before['group']}>{before['section']}", f"{row['group']}>{row['section']}",
+                ))
     order_a = [r["key"] for r in a["rows"] if r["key"] not in gone]
     order_b = [r["key"] for r in b["rows"]]
     if order_a != order_b:
         bad.append("order" if sorted(order_a) == sorted(order_b) else "rows")
+        prev_a = dict(zip(order_a, [None, *order_a]))
+        prev_b = dict(zip(order_b, [None, *order_b]))
+        rows_b = {r["key"]: r for r in b["rows"]}
+        last = len(a["periods"]) - 1
+        for key in order_b:
+            if key in prev_a and prev_a[key] != prev_b[key]:
+                cells = rows_b[key]["cells"]
+                newest = max((i for i, c in enumerate(cells) if c is not None), default=-1)
+                DETAILS.append((
+                    "order", key, rows_b[key]["label"],
+                    f"merged={int(key in touched)},in_newest={int(newest == last)}",
+                    f"prev_old={prev_a[key]}", f"prev_new={prev_b[key]}",
+                ))
     if sum(r["key"].startswith("pdf:") for r in a["rows"]) != sum(r["key"].startswith("pdf:") for r in b["rows"]):
         bad.append("pdf")
     return sorted(set(bad)), merges
@@ -100,12 +124,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--exclusions", required=True)
     parser.add_argument("--db", required=True)
     parser.add_argument("--code", action="append", default=[])
+    parser.add_argument("--codes-file", default=None)
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--max-seconds", type=float, default=9000.0)
     args = parser.parse_args(argv)
     new = load_new(args.new, args.exclusions)
     db = Session(create_engine(f"sqlite:///file:{args.db}?mode=ro&uri=true"))
-    codes = args.code or [
+    listed = [c for c in Path(args.codes_file).read_text().split() if c] if args.codes_file else []
+    codes = args.code or listed or [
         r[0] for r in db.execute(text(
             "SELECT DISTINCT code FROM xbrl_filings WHERE parse_status = 'parsed' AND code IS NOT NULL ORDER BY code"
         ))
@@ -129,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
     members: dict[str, set[str]] = {}
     bad_rows: list[tuple] = []
     merge_rows: list[tuple] = []
+    detail_rows: list[tuple] = []
     started = time.monotonic()
     done = failed = 0
     for code in codes:
@@ -147,7 +174,9 @@ def main(argv: list[str] | None = None) -> int:
             if not a["rows"] and not b["rows"]:
                 continue
             totals["tables"] += 1
+            DETAILS.clear()
             bad, merges = compare(a, b)
+            detail_rows.extend((code, statement, *d) for d in DETAILS)
             for kind in bad:
                 totals[f"bad_{kind}"] += 1
                 members.setdefault(f"bad_{kind}", set()).add(code)
@@ -168,6 +197,9 @@ def main(argv: list[str] | None = None) -> int:
     print("## bad\tcode\tstatement\tkind")
     for row in bad_rows:
         print("bad\t" + "\t".join(str(v) for v in row))
+    print("## detail\tcode\tstatement\tkind\tkey\tlabel\twhat\told\tnew")
+    for row in detail_rows:
+        print("detail\t" + "\t".join(str(v) for v in row))
     print("## merge\tcode\tstatement\tgroup\tsection\tlabel\tkeep\tmerged_keys\tparts_in_old\tswitch\tfilled\tmerged_periods")
     for row in merge_rows:
         print("merge\t" + "\t".join(str(v) for v in row))
