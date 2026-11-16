@@ -126,8 +126,8 @@ class Seeder:
     def roles(self, fid: int, roles: list[tuple], *, status: str = "ok") -> None:
         for seq, (role, statement, consolidated, ifrs, items) in enumerate(roles):
             body = [
-                [("jpigp_cor" if local.endswith("IFRS") else "jppfs_cor"), local, 0, pref]
-                for local, pref in (i if isinstance(i, tuple) else (i, None) for i in items)
+                [ns or ("jpigp_cor" if local.endswith("IFRS") else "jppfs_cor"), local, int(ns is not None), pref]
+                for local, pref, ns in ((*i, None)[:3] if isinstance(i, tuple) else (i, None, None) for i in items)
             ]
             self._run(
                 "INSERT INTO xbrl_presentation_roles (filing_id, role, seq, statement, is_consolidated, is_ifrs, "
@@ -343,11 +343,13 @@ def _amended(s: Seeder) -> None:
 DEFINED = "71110"
 PAIRS = "71120"
 NOCONSOL = "71130"
-DEF_BS = ["AssetsAbstract", "CashAndDeposits", "OtherCA", "CurrentAssets", "Assets", "ShortTermLoansPayable",
-          "Liabilities", "NetAssets", "LiabilitiesAndNetAssets"]
+DEF_BS = ["AssetsAbstract", "CurrentAssetsAbstract", "CashAndDeposits", "OtherCA", "CurrentAssets", "Assets",
+          "LiabilitiesAbstract", "ShortTermLoansPayable", "Liabilities", "NetAssetsAbstract", "NetAssets",
+          "LiabilitiesAndNetAssets"]
 DEF_PL = ["NetSales", "CostOfSales", "OperatingIncome", "InterestExpensesNOE", "IncomeBeforeIncomeTaxes", "ProfitLoss"]
 DEF_CI = ["ProfitLoss", "ComprehensiveIncome"]
-DEF_CF = ["IncomeBeforeIncomeTaxes", "DepreciationAndAmortizationOpeCF", "NetCashProvidedByUsedInOperatingActivities",
+DEF_CF = ["NetCashProvidedByUsedInOperatingActivitiesAbstract", "IncomeBeforeIncomeTaxes",
+          "DepreciationAndAmortizationOpeCF", "NetCashProvidedByUsedInOperatingActivities",
           ("CashAndCashEquivalents", "periodStartLabel"), "NetIncreaseDecreaseInCashAndCashEquivalents",
           ("CashAndCashEquivalents", "periodEndLabel")]
 
@@ -370,7 +372,8 @@ def _presentation(s: Seeder) -> None:
     s.filing(703, "tdnet", "Q1", "2025-06-30", "2025-08-08 15:00:00", code=DEFINED)
     s.facts(703, "2025-06-30", [x("CashAndDeposits", "i", 70), x("Assets", "i", 70), x("NetSales", "d", 120),
                                 x("ProfitLoss", "d", 30)] + _quarter_cf(6, 40, 99))
-    s.roles(703, [("rol_QuarterlyConsolidatedBalanceSheetTDnet", "BS", True, False, ["CashAndDeposits", "Assets"]),
+    s.roles(703, [("rol_QuarterlyConsolidatedBalanceSheetTDnet", "BS", True, False,
+                   ["AssetsAbstract", "CurrentAssetsAbstract", "CashAndDeposits", "Assets"]),
                   ("rol_YearToQuarterEndConsolidatedStatementOfIncomeTDnet", "PL", True, False,
                    ["NetSales", "ProfitLoss"])])
     s.stock(PAIRS, "2 組の表")
@@ -423,6 +426,12 @@ def seed(more=None) -> None:
         x("BorrowingsNCLIFRS", "i", 2, "jpigp_cor"), x("NoncurrentLiabilities", "i", 7), x("Liabilities", "i", 8),
         x("NetAssets", "i", 4), x("LiabilitiesAndNetAssets", "i", 12),
     ])
+    s.roles(302, [("rol_QuarterlyConsolidatedBalanceSheetTDnet", "BS", True, False, [
+        "AssetsAbstract", "CurrentAssetsAbstract", "CashAndDeposits", "CurrentAssets", "Assets",
+        "LiabilitiesAbstract", "CurrentLiabilitiesAbstract", "BorrowingsCLIFRS", "CurrentLiabilities",
+        "NoncurrentLiabilitiesAbstract", "BondsPayable", "BorrowingsNCLIFRS", "NoncurrentLiabilities", "Liabilities",
+        "NetAssetsAbstract", "NetAssets", "LiabilitiesAndNetAssets",
+    ])])
     _quarterly(s)
     _twice(s)
     _opening(s)
@@ -964,96 +973,135 @@ def test_table_joins_pdf_rows_by_name() -> None:
     assert rows(t)["BondsPayable"]["section"] == "固定負債" and rows(t)["BorrowingsCLIFRS"]["section"] == "流動負債"
 
 
-JP_KEYS = [
-    "CashAndDeposits", "OtherCA", "CurrentAssets", "Land", "PropertyPlantAndEquipment", "Goodwill", "IntangibleAssets",
-    "InvestmentSecurities", "InvestmentsAndOtherAssets", "NoncurrentAssets", "Assets",
-    "OtherCL", "CurrentLiabilities", "LongTermLoansPayable", "NoncurrentLiabilities", "Liabilities",
-    "CapitalStock", "ShareholdersEquity", "ValuationDifferenceOnAvailableForSaleSecurities",
-    "ValuationAndTranslationAdjustments", "NonControllingInterests", "NetAssets", "LiabilitiesAndNetAssets",
+JP_ITEMS = [
+    "AssetsAbstract", "CurrentAssetsAbstract", "CashAndDeposits", "OtherCA", "CurrentAssets",
+    "NoncurrentAssetsAbstract", "PropertyPlantAndEquipmentAbstract", "Land", "PropertyPlantAndEquipment",
+    "IntangibleAssetsAbstract", "Goodwill", "IntangibleAssets", "InvestmentsAndOtherAssetsAbstract",
+    "InvestmentSecurities", "InvestmentsAndOtherAssets", "NoncurrentAssets", "DeferredAssets", "Assets",
+    "LiabilitiesAbstract", "CurrentLiabilitiesAbstract", "OtherCL", "CurrentLiabilities",
+    "NoncurrentLiabilitiesAbstract", "LongTermLoansPayable", "NoncurrentLiabilities", "Liabilities",
+    "NetAssetsAbstract", "ShareholdersEquityAbstract", "CapitalStock", "RetainedEarningsAbstract",
+    "LegalRetainedEarnings", "RetainedEarnings", "ShareholdersEquity", "ValuationAndTranslationAdjustmentsAbstract",
+    "ValuationDifferenceOnAvailableForSaleSecurities", "ValuationAndTranslationAdjustments",
+    "NonControllingInterests", "NetAssets", "LiabilitiesAndNetAssets",
 ]
-JP_LABELS = {
-    "CurrentAssets": "流動資産合計", "PropertyPlantAndEquipment": "有形固定資産合計", "IntangibleAssets": "無形固定資産",
-    "InvestmentsAndOtherAssets": "投資その他の資産合計", "NoncurrentAssets": "固定資産合計", "Assets": "資産合計",
-    "CurrentLiabilities": "流動負債合計", "NoncurrentLiabilities": "固定負債合計", "Liabilities": "負債合計",
-    "ShareholdersEquity": "株主資本合計", "ValuationAndTranslationAdjustments": "評価・換算差額等合計",
-    "NetAssets": "純資産合計",
-}
+IFRS_ITEMS = [
+    "AssetsIFRSAbstract", "CurrentAssetsIFRSAbstract", "CashAndCashEquivalentsIFRS", "CurrentAssetsIFRS",
+    "NonCurrentAssetsIFRSAbstract", "GoodwillIFRS", "NonCurrentAssetsIFRS", "AssetsIFRS",
+    "LiabilitiesAndEquityIFRSAbstract", "CurrentLiabilitiesIFRSAbstract", "BorrowingsCLIFRS",
+    "TotalCurrentLiabilitiesIFRS", "NonCurrentLiabilitiesIFRSAbstract", "BorrowingsNCLIFRS",
+    "NonCurrentLabilitiesIFRS", "LiabilitiesIFRS", "EquityIFRSAbstract", "ShareCapitalIFRS",
+    "EquityAttributableToOwnersOfParentIFRS", "NonControllingInterestsIFRS", "EquityIFRS", "LiabilitiesAndEquityIFRS",
+]
 
 
-def parts(keys: list[str], statement: str = "BS", labels: dict | None = None) -> dict[str, tuple]:
-    return dict(zip(keys, fst.sections(keys, statement, labels if labels is not None else JP_LABELS)))
+def declared(items: list, statement: str = "BS", ifrs: bool = False) -> dict[str, tuple]:
+    body = [["x", i[4:], 1, None] if i.startswith("ext:") else ["jppfs_cor", i, 0, None] for i in items]
+    return {k: (part.group, part.section) for k, part in fst._role_parts(body, statement, ifrs).items()}
 
 
-def test_sections_jpgaap() -> None:
-    got = parts(JP_KEYS)
-    assert got["OtherCA"] == got["CurrentAssets"] == ("資産", "流動資産")
-    assert got["Land"] == got["PropertyPlantAndEquipment"] == ("資産", "有形固定資産")
-    assert got["IntangibleAssets"] == ("資産", "無形固定資産")
-    assert got["InvestmentSecurities"] == ("資産", "投資その他の資産")
-    assert got["NoncurrentAssets"] == ("資産", "固定資産")
-    assert got["Assets"] == ("資産", None)
-    assert got["OtherCL"] == ("負債", "流動負債") and got["LongTermLoansPayable"] == ("負債", "固定負債")
-    assert got["Liabilities"] == ("負債", None)
-    assert got["CapitalStock"] == ("純資産", "株主資本")
-    assert got["ValuationDifferenceOnAvailableForSaleSecurities"] == ("純資産", "評価・換算差額等")
-    assert got["NonControllingInterests"] == got["NetAssets"] == ("純資産", None)
+def test_parts_follow_the_headings_jpgaap() -> None:
+    got = declared(JP_ITEMS)
+    assert got["OtherCA"] == got["CurrentAssets"] == ("Assets", "CurrentAssets")
+    assert got["Land"] == got["PropertyPlantAndEquipment"] == ("Assets", "PropertyPlantAndEquipment")
+    assert got["Goodwill"] == ("Assets", "IntangibleAssets")
+    assert got["InvestmentSecurities"] == ("Assets", "InvestmentsAndOtherAssets")
+    assert got["NoncurrentAssets"] == ("Assets", "NoncurrentAssets")
+    assert got["DeferredAssets"] == got["Assets"] == ("Assets", None)
+    assert got["OtherCL"] == ("Liabilities", "CurrentLiabilities")
+    assert got["LongTermLoansPayable"] == ("Liabilities", "NoncurrentLiabilities")
+    assert got["Liabilities"] == ("Liabilities", None)
+    assert got["CapitalStock"] == got["LegalRetainedEarnings"] == got["RetainedEarnings"] == ("NetAssets", "ShareholdersEquity")
+    assert got["ValuationDifferenceOnAvailableForSaleSecurities"] == ("NetAssets", "ValuationAndTranslationAdjustments")
+    assert got["NonControllingInterests"] == got["NetAssets"] == ("NetAssets", None)
     assert got["LiabilitiesAndNetAssets"] == (None, None)
+    assert not any("Abstract" in key for key in got)
 
 
-def test_sections_ifrs_and_inserted_rows() -> None:
-    keys = ["CashAndCashEquivalentsIFRS", "CurrentAssetsIFRS", "pdf:投資有価証券", "PropertyPlantAndEquipmentIFRS",
-            "NonCurrentAssetsIFRS", "AssetsIFRS", "BorrowingsCLIFRS", "TotalCurrentLiabilitiesIFRS",
-            "BorrowingsNCLIFRS", "NonCurrentLabilitiesIFRS", "LiabilitiesIFRS", "ShareCapitalIFRS",
-            "EquityAttributableToOwnersOfParentIFRS", "NonControllingInterestsIFRS", "EquityIFRS",
-            "LiabilitiesAndEquityIFRS"]
-    labels = {"CurrentAssetsIFRS": "流動資産合計", "NonCurrentAssetsIFRS": "非流動資産合計", "AssetsIFRS": "資産合計",
-              "TotalCurrentLiabilitiesIFRS": "流動負債合計", "NonCurrentLabilitiesIFRS": "非流動負債合計",
-              "LiabilitiesIFRS": "負債合計", "EquityAttributableToOwnersOfParentIFRS": "親会社の所有者に帰属する持分合計",
-              "EquityIFRS": "資本合計"}
-    got = parts(keys, labels=labels)
-    assert got["CashAndCashEquivalentsIFRS"] == ("資産", "流動資産")
-    assert got["pdf:投資有価証券"] == got["PropertyPlantAndEquipmentIFRS"] == ("資産", "非流動資産")
-    assert got["BorrowingsCLIFRS"] == ("負債", "流動負債") and got["BorrowingsNCLIFRS"] == ("負債", "非流動負債")
-    assert got["ShareCapitalIFRS"] == ("資本", "親会社の所有者に帰属する持分")
-    assert got["NonControllingInterestsIFRS"] == ("資本", None)
+def test_parts_follow_the_headings_ifrs() -> None:
+    got = declared(IFRS_ITEMS, ifrs=True)
+    assert got["CashAndCashEquivalentsIFRS"] == ("AssetsIFRS", "CurrentAssetsIFRS")
+    assert got["GoodwillIFRS"] == got["NonCurrentAssetsIFRS"] == ("AssetsIFRS", "NonCurrentAssetsIFRS")
+    assert got["BorrowingsCLIFRS"] == got["TotalCurrentLiabilitiesIFRS"] == ("LiabilitiesIFRS", "TotalCurrentLiabilitiesIFRS")
+    assert got["BorrowingsNCLIFRS"] == ("LiabilitiesIFRS", "NonCurrentLabilitiesIFRS")
+    assert got["ShareCapitalIFRS"] == got["EquityAttributableToOwnersOfParentIFRS"] == ("EquityIFRS", None)
+    assert got["NonControllingInterestsIFRS"] == ("EquityIFRS", None)
     assert got["LiabilitiesAndEquityIFRS"] == (None, None)
 
 
-def test_sections_absent_without_totals_or_in_odd_order() -> None:
-    bank = ["CashAndDueFromBanksAssetsBNK", "LoansAndBillsDiscountedAssetsBNK", "DepositsLiabilitiesBNK"]
-    assert set(parts(bank).values()) == {(None, None)}
-    odd = ["CashAndDeposits", "Liabilities", "CurrentAssets", "Assets", "NetAssets"]
-    assert set(parts(odd).values()) == {(None, None)}
-    assert parts(["Assets", "Liabilities"], labels={})["Assets"] == ("資産", None)
-    assert set(parts(JP_KEYS, "PL").values()) == {(None, None)}
+def test_parts_skip_unknown_headings_and_close_at_the_next_heading() -> None:
+    bank = declared(["AssetsAbstract", "CashAndDueFromBanksAssetsBNK", "Assets", "LiabilitiesAbstract",
+                     "DepositsLiabilitiesBNK", "Liabilities"])
+    assert bank["CashAndDueFromBanksAssetsBNK"] == ("Assets", None) and bank["DepositsLiabilitiesBNK"] == ("Liabilities", None)
+    railway = declared(["AssetsAbstract", "NoncurrentAssetsAbstract", "NoncurrentAssetsRailwayBusinessAbstractRWY",
+                        "ext:Tracks", "PropertyPlantAndEquipmentAbstract", "Land", "IntangibleAssetsAbstract",
+                        "Goodwill", "InvestmentsAndOtherAssetsAbstract", "ext:PropertyPlantAndEquipmentAbstract",
+                        "InvestmentSecurities", "NoncurrentAssets", "Assets"])
+    assert railway["ext:Tracks"] == ("Assets", "NoncurrentAssets")
+    assert railway["Land"] == ("Assets", "PropertyPlantAndEquipment") and railway["Goodwill"] == ("Assets", "IntangibleAssets")
+    assert railway["InvestmentSecurities"] == ("Assets", "InvestmentsAndOtherAssets")
+    assert railway["NoncurrentAssets"] == ("Assets", "NoncurrentAssets")
+    assert declared(["CashAndDeposits", "Assets"]) == {"CashAndDeposits": (None, None), "Assets": (None, None)}
 
 
-def test_sections_cf() -> None:
-    keys = ["IncomeBeforeIncomeTaxes", "SubtotalOpeCF", "NetCashProvidedByUsedInOperatingActivities",
-            "PurchaseOfPropertyPlantAndEquipmentInvCF", "NetCashProvidedByUsedInInvestmentActivities",
-            "DividendsPaidFinCF", "NetCashProvidedByUsedInFinancingActivities",
-            "NetIncreaseDecreaseInCashAndCashEquivalents", "CashAndCashEquivalents"]
-    labels = {"NetCashProvidedByUsedInOperatingActivities": "営業活動によるキャッシュ・フロー",
-              "NetCashProvidedByUsedInInvestmentActivities": "投資活動によるキャッシュ・フロー計",
-              "NetCashProvidedByUsedInFinancingActivities": "財務活動によるキャッシュ・フロー"}
-    got = parts(keys, "CF", labels)
-    assert got["IncomeBeforeIncomeTaxes"] == got["SubtotalOpeCF"] == (None, "営業活動によるキャッシュ・フロー")
-    assert got["PurchaseOfPropertyPlantAndEquipmentInvCF"] == (None, "投資活動によるキャッシュ・フロー")
-    assert got["NetCashProvidedByUsedInFinancingActivities"] == (None, "財務活動によるキャッシュ・フロー")
-    assert got["CashAndCashEquivalents"] == (None, None)
-    swapped = [keys[4], keys[2]]
-    assert set(parts(swapped, "CF", labels).values()) == {(None, None)}
+def test_parts_cf_and_pl() -> None:
+    cf = declared(["NetCashProvidedByUsedInOperatingActivitiesAbstract", "IncomeBeforeIncomeTaxes", "SubtotalOpeCF",
+                   "NetCashProvidedByUsedInOperatingActivities", "NetCashProvidedByUsedInInvestmentActivitiesAbstract",
+                   "PurchaseOfPropertyPlantAndEquipmentInvCF", "NetCashProvidedByUsedInInvestmentActivities",
+                   "NetIncreaseDecreaseInCashAndCashEquivalents", "CashAndCashEquivalents"], "CF")
+    assert cf["IncomeBeforeIncomeTaxes"] == cf["NetCashProvidedByUsedInOperatingActivities"] == (
+        None, "NetCashProvidedByUsedInOperatingActivities")
+    assert cf["PurchaseOfPropertyPlantAndEquipmentInvCF"] == (None, "NetCashProvidedByUsedInInvestmentActivities")
+    assert cf["CashAndCashEquivalents"] == (None, None)
+    ifrs = declared(["CashFlowsFromInvestingActivitiesIFRSAbstract", "OtherInvCFIFRS",
+                     "NetCashProvidedByUsedInInvestingActivitiesIFRS", "CashAndCashEquivalentsIFRS"], "CF", True)
+    assert ifrs["OtherInvCFIFRS"] == (None, "NetCashProvidedByUsedInInvestingActivitiesIFRS")
+    assert ifrs["CashAndCashEquivalentsIFRS"] == (None, None)
+    pl = declared(["NetSales", "OperatingIncome", "NonOperatingIncomeAbstract", "InterestIncomeNOI", "NonOperatingIncome",
+                   "OrdinaryIncome", "ExtraordinaryLossAbstract", "ImpairmentLossEL", "ExtraordinaryLoss", "ProfitLoss"],
+                  "PL")
+    assert pl["NetSales"] == pl["OrdinaryIncome"] == pl["ProfitLoss"] == (None, None)
+    assert pl["InterestIncomeNOI"] == pl["NonOperatingIncome"] == (None, "NonOperatingIncome")
+    assert pl["ImpairmentLossEL"] == (None, "ExtraordinaryLoss")
+    assert declared(["AssetsAbstract", "CashAndDeposits"], "PL") == {"CashAndDeposits": (None, None)}
+
+
+CA = fst.Part("Assets", "CurrentAssets", False)
+NCA = fst.Part("Assets", "NoncurrentAssets", False)
+TOP = fst.Part("Assets", None, False)
+
+
+def test_row_parts_take_the_newest_filing_and_fill_rows_without_a_definition() -> None:
+    old = column("2024-03-31", {"Tax": 1}, {"Tax": CA})
+    new = column("2025-03-31", {"Cash": 1, "CurrentAssets": 1, "Tax": 1, "Assets": 1},
+                 {"Cash": CA, "CurrentAssets": CA, "Tax": NCA, "Assets": TOP})
+    keys = ["pdf:頭", "Cash", "pdf:売掛金", "CurrentAssets", "pdf:土地", "Tax", "Assets", "pdf:末尾"]
+    assert fst.row_parts([old, new], keys) == [CA, CA, CA, CA, NCA, NCA, TOP, None]
+    assert fst.row_parts([new, old], keys)[5] == CA
+    assert fst.row_parts([column("2025-03-31", {"A": 1})], ["A", "pdf:B"]) == [None, None]
 
 
 def test_table_rows_carry_sections() -> None:
-    got = {k: (r["group"], r["section"]) for k, r in rows(table()).items()}
-    assert got["CashAndDeposits"] == ("資産", "流動資産")
-    assert got["Goodwill"] == got["IntangibleAssets"] == ("資産", "無形固定資産")
-    assert got["ShortTermLoansPayable"] == got["pdf:前受金"] == ("負債", None)
+    got = {k: (r["group"], r["section"]) for k, r in rows(table(DEFINED)).items()}
+    assert got["CashAndDeposits"] == got["CurrentAssets"] == ("資産", "流動資産")
+    assert got["Assets"] == ("資産", None)
+    assert got["ShortTermLoansPayable"] == ("負債", None)
+    assert got["NetAssets"] == ("純資産", None)
     assert got["LiabilitiesAndNetAssets"] == (None, None)
-    t = table(statement="CF")
-    assert {(r["group"], r["section"]) for r in t["rows"][:2]} == {(None, "営業活動によるキャッシュ・フロー")}
-    assert {(r["group"], r["section"]) for r in table(statement="PL")["rows"]} == {(None, None)}
+    t = table(DEFINED, statement="CF")
+    assert {(r["group"], r["section"]) for r in t["rows"][:3]} == {(None, "営業活動によるキャッシュ・フロー")}
+    assert (t["rows"][-1]["group"], t["rows"][-1]["section"]) == (None, None)
+    assert {(r["group"], r["section"]) for r in table(DEFINED, statement="PL")["rows"]} == {(None, None)}
+    assert {(r["group"], r["section"]) for r in table()["rows"]} == {(None, None)}
+
+
+def test_table_shows_rows_of_the_older_standard_under_the_newest_sections() -> None:
+    got = {k: (r["group"], r["section"]) for k, r in rows(table(SWITCH)).items()}
+    assert got["CashAndDeposits"] == got["CashAndCashEquivalentsIFRS"] == ("資産", "流動資産")
+    assert got["Land"] == got["GoodwillIFRS"] == got["ext:Deposits"] == ("資産", "非流動資産")
+    assert got["CapitalStock"] == ("資本", None)
+    one = {k: (r["group"], r["section"]) for k, r in rows(table(SWITCH, periods=1)).items()}
+    assert set(one) == {"CashAndCashEquivalentsIFRS", "GoodwillIFRS", "ShareCapitalIFRS", "ext:Deposits"}
 
 
 def test_quarterly_report_takes_year_to_date_over_three_months() -> None:
@@ -1713,6 +1761,7 @@ def test_total_rows_in_pl() -> None:
     ]
 
 
+CUSTOM_NS = "jpcrp030000-asr_E00001-000"
 SPLIT = "81110"
 SWITCH = "81120"
 
@@ -1732,24 +1781,38 @@ def _split(s: Seeder) -> None:
         s.facts(fid, end, facts)
     s.stock(SWITCH, "IFRS に移った")
     s.filing(811, "edinet", "FY", "2024-03-31", "2024-06-20 15:00:00", code=SWITCH)
-    s.facts(811, "2024-03-31", [x("CashAndDeposits", "i", 10), x("Goodwill", "i", 5)])
+    s.facts(811, "2024-03-31", [x("CashAndDeposits", "i", 10), x("Deposits", "i", 2, CUSTOM_NS), x("Land", "i", 7),
+                                x("Goodwill", "i", 5), x("CapitalStock", "i", 3)])
+    s.roles(811, [("rol_ConsolidatedBalanceSheet", "BS", True, False, [
+        "AssetsAbstract", "CurrentAssetsAbstract", "CashAndDeposits", ("Deposits", None, CUSTOM_NS),
+        "NoncurrentAssetsAbstract", "PropertyPlantAndEquipmentAbstract", "Land", "IntangibleAssetsAbstract", "Goodwill",
+        "NetAssetsAbstract", "ShareholdersEquityAbstract", "CapitalStock",
+    ])])
     s.filing(812, "edinet", "FY", "2025-03-31", "2025-06-20 15:00:00", code=SWITCH, standard="IFRS")
     s.facts(812, "2025-03-31", [x("CashAndCashEquivalentsIFRS", "i", 12, "jpigp_cor"),
-                                x("GoodwillIFRS", "i", 6, "jpigp_cor")])
+                                x("GoodwillIFRS", "i", 6, "jpigp_cor"), x("Deposits", "i", 4, CUSTOM_NS),
+                                x("ShareCapitalIFRS", "i", 3, "jpigp_cor")])
+    s.roles(812, [("rol_ConsolidatedStatementOfFinancialPositionIFRS", "BS", True, True, [
+        "AssetsIFRSAbstract", "CurrentAssetsIFRSAbstract", "CashAndCashEquivalentsIFRS",
+        "NonCurrentAssetsIFRSAbstract", "GoodwillIFRS", ("Deposits", None, CUSTOM_NS),
+        "EquityIFRSAbstract", "ShareCapitalIFRS",
+    ])])
 
 
 ENDS = ("2022-03-31", "2023-03-31", "2024-03-31", "2025-03-31")
 
 
-def column(end: str, values: dict[str, float]) -> fst.Column:
+def column(end: str, values: dict[str, float], parts: dict[str, fst.Part] | None = None) -> fst.Column:
     filing = fst.Filing(id=0, doc_id="", source="edinet", period_type="FY", period_end=date.fromisoformat(end),
                         submitted="", standard="JPGAAP")
-    return fst.Column(filing, dict(values), list(values), {k: "edinet" for k in values})
+    return fst.Column(filing, dict(values), list(values), {k: "edinet" for k in values}, parts=dict(parts or {}))
 
 
 def merged(seq: list[dict[str, float]], labels: dict[str, str], statement: str = "BS",
-           units: dict | None = None, excluded: tuple = ()) -> tuple[dict[str, list[str]], list[str], list[fst.Column]]:
-    cols = [column(end, values) for end, values in zip(ENDS, seq)]
+           units: dict | None = None, excluded: tuple = (),
+           parts: dict[str, fst.Part] | None = None) -> tuple[dict[str, list[str]], list[str], list[fst.Column]]:
+    cols = [column(end, values, {k: v for k, v in (parts or {}).items() if k in values})
+            for end, values in zip(ENDS, seq)]
     got = fst.merge_split_rows(cols, statement, labels, units or {}, excluded)
     return got, fst._row_keys(cols, statement), cols
 
@@ -1788,22 +1851,48 @@ def test_generic_names_are_not_merged() -> None:
 
 def test_bs_rows_in_other_sections_stay_apart() -> None:
     labels = {"A": "リース資産", "B": "リース資産"}
-    keys = ["A", "CurrentAssets", "B", "NoncurrentAssets", "Assets"]
-    got, _, _ = merged([{k: 1 for k in keys if k != "B"}, {k: 1 for k in keys if k != "A"}], labels)
+    seq = [{"A": 1}, {"B": 1}]
+    got, _, _ = merged(seq, labels, parts={"A": CA, "B": NCA})
+    assert got == {}
+    got, _, _ = merged(seq, labels, parts={"A": NCA, "B": NCA})
+    assert got == {"B": ["A"]}
+
+
+def test_rows_of_two_standards_merge_within_the_coarse_section() -> None:
+    labels = {"A": "繰延税金資産", "B": "繰延税金資産"}
+    seq = [{"A": 1}, {"B": 1}]
+    ppe = fst.Part("Assets", "PropertyPlantAndEquipment", False)
+    noncurrent = fst.Part("AssetsIFRS", "NonCurrentAssetsIFRS", True)
+    got, _, cols = merged(seq, labels, parts={"A": ppe, "B": noncurrent})
+    assert got == {"B": ["A"]} and cols[0].parts == {"B": ppe}
+    got, _, _ = merged(seq, labels, parts={"A": CA, "B": noncurrent})
+    assert got == {}
+    equity = {"A": fst.Part("NetAssets", "ShareholdersEquity", False), "B": fst.Part("EquityIFRS", None, True)}
+    got, _, _ = merged(seq, labels, parts=equity)
+    assert got == {"B": ["A"]}
+    cf = {"A": fst.Part(None, "NetCashProvidedByUsedInInvestmentActivities", False),
+          "B": fst.Part(None, "NetCashProvidedByUsedInInvestingActivitiesIFRS", True)}
+    got, _, _ = merged(seq, labels, "CF", parts=cf)
+    assert got == {"B": ["A"]}
+    cf["B"] = fst.Part(None, "NetCashProvidedByUsedInFinancingActivitiesIFRS", True)
+    got, _, _ = merged(seq, labels, "CF", parts=cf)
     assert got == {}
 
 
-def test_pl_sections_come_from_the_next_total() -> None:
+def test_pl_rows_in_other_sections_stay_apart_within_one_standard() -> None:
     labels = {"GainNOI": "投資有価証券売却益", "GainEI": "投資有価証券売却益", "SubsidyNOI": "助成金収入",
-              "ext:Subsidy": "助成金収入"}
-    first = ["OperatingIncome", "GainNOI", "SubsidyNOI", "NonOperatingIncome", "ExtraordinaryIncome"]
-    second = ["OperatingIncome", "ext:Subsidy", "NonOperatingIncome", "GainEI", "ExtraordinaryIncome"]
-    got, keys, _ = merged([dict.fromkeys(first, 1), dict.fromkeys(second, 2)], labels, "PL")
+              "ext:Subsidy": "助成金収入", "GainIFRS": "投資有価証券売却益", "SubsidyIFRS": "助成金収入"}
+    noi = fst.Part(None, "NonOperatingIncome", False)
+    ei = fst.Part(None, "ExtraordinaryIncome", False)
+    parts = {"GainNOI": noi, "SubsidyNOI": noi, "ext:Subsidy": noi, "GainEI": ei,
+             "GainIFRS": fst.Part(None, None, True), "SubsidyIFRS": fst.Part(None, None, True)}
+    seq = [{"GainNOI": 1, "SubsidyNOI": 1}, {"ext:Subsidy": 2, "GainEI": 2}]
+    got, keys, _ = merged(seq, labels, "PL", parts=parts)
     assert got == {"ext:Subsidy": ["SubsidyNOI"]}
     assert "GainNOI" in keys and "GainEI" in keys
-    ifrs = {"A": "金融収益", "B": "金融収益"}
-    got, _, _ = merged([{"RevenueIFRS": 1, "A": 1}, {"RevenueIFRS": 2, "B": 2}], ifrs, "PL")
-    assert got == {"B": ["A"]}
+    got, keys, _ = merged([*seq, {"GainIFRS": 3, "SubsidyIFRS": 3}], labels, "PL", parts=parts)
+    assert got == {"SubsidyIFRS": ["ext:Subsidy", "SubsidyNOI"]}
+    assert {"GainNOI", "GainEI", "GainIFRS"} <= set(keys)
 
 
 def test_pdf_rows_and_other_units_are_not_merged() -> None:
@@ -1844,5 +1933,6 @@ def test_table_merges_rows_split_by_a_new_accounting_standard() -> None:
     t = table(SWITCH)
     got = rows(t)
     assert got["GoodwillIFRS"]["merged_keys"] == ["Goodwill"] and "Goodwill" not in got
+    assert got["ext:Deposits"]["merged_keys"] == [] and [c["value"] for c in got["ext:Deposits"]["cells"]] == [2 * M, 4 * M]
     assert [c["value"] for c in got["GoodwillIFRS"]["cells"]] == [5 * M, 6 * M]
     assert [p["accounting_standard"] for p in t["periods"]] == ["JPGAAP", "IFRS"]
