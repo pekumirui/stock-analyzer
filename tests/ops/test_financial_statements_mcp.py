@@ -103,6 +103,14 @@ def test_tsv_section_lines() -> None:
     assert lines[2] == "# 営業活動によるキャッシュ・フロー"
 
 
+def test_standard_line_only_when_columns_differ() -> None:
+    periods = [TABLE["periods"][0], {**TABLE["periods"][1], "accounting_standard": "IFRS"}]
+    lines = et.tool_financial_statements({}, _getter({**TABLE, "periods": periods}, []), "12340").splitlines()
+    assert lines[-2:] == ["会計基準\t\tJPGAAP\tIFRS", "出どころ\t\t有報\tPDF"]
+    lines = et.tool_financial_statements({}, _getter(TABLE, []), "12340").splitlines()
+    assert not any(line.startswith("会計基準") for line in lines)
+
+
 def test_bs_head_without_name_and_standard() -> None:
     payload = {**TABLE, "statement": "BS", "name": None, "accounting_standards": [], "cumulative": False}
     head = et.tool_financial_statements({}, _getter(payload, []), "12340").splitlines()[0]

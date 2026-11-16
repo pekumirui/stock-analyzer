@@ -21,6 +21,7 @@ console.log(JSON.stringify({
   sectioned: fs.fsTableHtml(JSON.parse(process.argv[3])),
   mixed: fs.fsTableHtml(JSON.parse(process.argv[4])),
   mixedMeta: fs.fsMeta(JSON.parse(process.argv[4])),
+  standards: fs.fsTableHtml(JSON.parse(process.argv[5])),
   amounts: [fs.fsAmount(1234567890, "money"), fs.fsAmount(-2500000, "money"), fs.fsAmount(-400000, "money"),
             fs.fsAmount(41.666, "per_share"), fs.fsAmount(null, "money")],
 }));
@@ -72,9 +73,15 @@ MIXED = {**PAYLOAD, "consolidated": None, "basis": "連結・個別", "periods":
 ]}
 
 
+STANDARDS = {**PAYLOAD, "accounting_standards": ["IFRS", "JPGAAP"], "periods": [
+    PAYLOAD["periods"][0], {**PAYLOAD["periods"][1], "accounting_standard": "IFRS"},
+    {**PAYLOAD["periods"][2], "accounting_standard": "IFRS"},
+]}
+
+
 def _run() -> dict:
     out = subprocess.run(["node", "-e", _NODE, str(ROOT / "static/js/stock-financials.js"), json.dumps(PAYLOAD),
-                          json.dumps(SECTIONED), json.dumps(MIXED)],
+                          json.dumps(SECTIONED), json.dumps(MIXED), json.dumps(STANDARDS)],
                          capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
 
@@ -172,3 +179,11 @@ def test_single_columns_are_marked_and_edge_is_drawn() -> None:
     assert goodwill[2] == '<td class="num fs-edge"></td>'
     assert "fs-edge" not in goodwill[1] + goodwill[3]
     assert "fs-basis" not in r["html"] and "fs-edge" not in r["html"]
+
+
+def test_standard_is_shown_in_the_header_only_when_columns_differ() -> None:
+    r = _run()
+    ths = re.findall(r"<th[^>]*>.*?</th>", r["standards"].split("<tbody>", 1)[0])
+    assert '<span class="g fs-src fs-std">日本基準</span></th>' in ths[1]
+    assert '<span class="g fs-src fs-std">IFRS</span></th>' in ths[2] and "IFRS</span></th>" in ths[3]
+    assert "fs-std" not in r["html"] and "fs-std" not in r["mixed"]

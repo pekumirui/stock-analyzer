@@ -39,19 +39,24 @@ function fsEdges(ps){
   return ps.map((p, i) => i > 0 && p.consolidated !== ps[i - 1].consolidated);
 }
 
-function fsHeadCell(p, mixed, edge){
+function fsStdName(s){
+  return FS_STD[s] || s || "";
+}
+
+function fsHeadCell(p, mixed, edge, stds){
   const [pt, cls] = FS_PT[p.period_type] || [p.period_type || "", ""];
   const single = mixed && p.consolidated === false;
   const tip = [p.period_end, pt, single ? "個別" : "", `出どころ ${p.source_label || fsSourceLabel(p.source)}`,
-    p.submitted_at ? `提出 ${p.submitted_at}` : "", p.doc_id || "", FS_STD[p.accounting_standard] || p.accounting_standard || ""]
+    p.submitted_at ? `提出 ${p.submitted_at}` : "", p.doc_id || "", fsStdName(p.accounting_standard)]
     .filter(Boolean).join(" / ");
   const badge = single ? `<span class="qb fs-basis">個別</span>` : "";
   return `<th${edge ? ' class="fs-edge"' : ""} title="${fsEsc(tip)}">${fsEsc(p.label)}<span class="g"><span class="qb ${cls}">${fsEsc(pt)}</span>${badge}</span>`
-    + `<span class="g fs-src">${fsEsc(p.source_label || fsSourceLabel(p.source))}</span></th>`;
+    + `<span class="g fs-src">${fsEsc(p.source_label || fsSourceLabel(p.source))}</span>`
+    + (stds ? `<span class="g fs-src fs-std">${fsEsc(fsStdName(p.accounting_standard))}</span>` : "") + `</th>`;
 }
 
 function fsMeta(d){
-  const std = (d.accounting_standards || []).map(s => FS_STD[s] || s).join("・");
+  const std = (d.accounting_standards || []).map(fsStdName).join("・");
   const parts = [d.basis, std, "単位: 百万円（1株当たりは円）"];
   if(d.cumulative) parts.push("期首からの累計");
   return parts.filter(Boolean).join(" / ");
@@ -70,8 +75,9 @@ function fsTableHtml(d){
   const sectioned = d.rows.some(r => r.group || r.section);
   const mixed = d.consolidated == null;
   const edges = fsEdges(ps);
+  const stds = new Set(ps.map(p => p.accounting_standard).filter(Boolean)).size > 1;
   let h = `<thead><tr><th class="l">${d.cumulative ? "科目（累計）" : "科目"}</th>`
-    + `${ps.map((p, i) => fsHeadCell(p, mixed, edges[i])).join("")}</tr></thead><tbody>`;
+    + `${ps.map((p, i) => fsHeadCell(p, mixed, edges[i], stds)).join("")}</tr></thead><tbody>`;
   let at = null;
   for(const r of d.rows){
     const g = r.group || null, s = r.section || null;

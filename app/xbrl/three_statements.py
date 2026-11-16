@@ -7,10 +7,13 @@ from bisect import bisect_left
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import date
+from functools import lru_cache
 from typing import Any, Iterable, Mapping, Sequence
 
 from sqlalchemy import bindparam, text
 from sqlalchemy.orm import Session
+
+from app.config import XBRL_ROW_MERGE_EXCLUSIONS_PATH
 
 __all__ = [
     "DEFAULT_PERIODS",
@@ -26,6 +29,7 @@ __all__ = [
     "financial_table",
     "learn_pair",
     "load_filings",
+    "merge_split_rows",
     "name_index",
     "pdf_only_matches",
     "pdf_rows",
@@ -80,6 +84,8 @@ SECTION_HEADS = (
     "その他の包括利益累計額", "評価・換算差額等", "営業外収益", "営業外費用", "特別利益", "特別損失",
 )
 GENERIC_LABELS = frozenset({"その他"})
+NEVER_MERGED_LABELS = frozenset({"その他", "貸倒引当金"})
+NEVER_MERGED_PREFIXES = ("減価償却累計額", "減損損失累計額")
 SIGNED_PROFIT_RE = re.compile(r"^(.+利益)(?:又は.*損失\(△\)|\(△は?損失\))$")
 MIN_LOOSE_MATCH = 100
 PDF_FULL_RATIO = 0.7
@@ -255,25 +261,23 @@ def financial_table(
         columns = _stitch(columns, other)
         labels = {**other_labels, **labels}
         units = {**other_units, **units}
+    merged = merge_split_rows(columns, statement, labels, units, _merge_exclusions().get((code, statement), set()))
     columns = columns[-periods:]
     bases = {c.consolidated for c in columns}
     mixed = len(bases) > 1
     if bases and not mixed:
         consolidated = bases.pop()
-    keys: list[str] = []
-    for column in reversed(columns):
-        keys = _merge(keys, column.order)
-    if statement == "CF":
-        keys = [k for k in keys if not _opening_cash(k)]
+    keys = _row_keys(columns, statement)
     parts = sections(keys, statement, labels)
     rows = [
         {
             "key": key,
             "label": labels.get(key, key),
-            "unit": "per_share" if units.get(key) in PER_SHARE_UNITS else "money",
+            "unit": _unit_kind(units, key),
             "unmatched_pdf": key.startswith("pdf:"),
             "group": group,
             "section": section,
+            "merged_keys": merged.get(key, []),
             "cells": [
                 None if key not in column.values
                 else {"value": column.values[key], "source": column.sources[key]}
@@ -300,6 +304,99 @@ def financial_table(
         "rows": rows,
         "empty": empty,
     }
+
+
+def _unit_kind(units: Mapping[str, str | None], key: str) -> str:
+    return "per_share" if units.get(key) in PER_SHARE_UNITS else "money"
+
+
+def _row_keys(columns: Sequence[Column], statement: str) -> list[str]:
+    keys: list[str] = []
+    for column in reversed(columns):
+        keys = _merge(keys, column.order)
+    if statement == "CF":
+        keys = [k for k in keys if not _opening_cash(k)]
+    return keys
+
+
+@lru_cache(maxsize=1)
+def _merge_exclusions() -> dict[tuple[str, str], set[frozenset[str]]]:
+    raw = json.loads(XBRL_ROW_MERGE_EXCLUSIONS_PATH.read_text(encoding="utf-8"))
+    out: dict[tuple[str, str], set[frozenset[str]]] = defaultdict(set)
+    for item in raw.get("pairs") or []:
+        out[(str(item["code"]), str(item["statement"]))].add(frozenset(str(k) for k in item["keys"]))
+    return dict(out)
+
+
+def _merge_parts(keys: Sequence[str], statement: str, labels: Mapping[str, str]) -> list[object]:
+    if statement == "PL":
+        homes = _homes(keys, statement)
+        return [homes[k] for k in keys]
+    return list(sections(keys, statement, labels))
+
+
+def _never_merged(label: str) -> bool:
+    name = label.removesuffix("(純額)")
+    return name in NEVER_MERGED_LABELS or name.startswith(NEVER_MERGED_PREFIXES)
+
+
+def merge_split_rows(
+    columns: Sequence[Column], statement: str, labels: Mapping[str, str], units: Mapping[str, str | None],
+    excluded: Iterable[frozenset[str]] = (),
+) -> dict[str, list[str]]:
+    """同じ区分・同じ行名・同じ単位で値の期が 1 つも重ならない XBRL の行を 1 行にまとめる（columns を書き換える）。
+
+    残すのはいちばん新しい期に値がある行。返り値は 残した行 → まとめた行（新しい順）。
+    """
+    keys = _row_keys(columns, statement)
+    seen = {k: frozenset(i for i, c in enumerate(columns) if k in c.values) for k in keys}
+    groups: dict[tuple[object, str, str], list[str]] = defaultdict(list)
+    for key, part in zip(keys, _merge_parts(keys, statement, labels)):
+        label = labels.get(key, key)
+        if key.startswith("pdf:") or not seen[key] or _never_merged(label):
+            continue
+        groups[(part, label, _unit_kind(units, key))].append(key)
+    skip = set(excluded)
+    out: dict[str, list[str]] = {}
+    for members in groups.values():
+        if len(members) < 2:
+            continue
+        apart = {
+            (a, b) for a in members for b in members
+            if a != b and not seen[a] & seen[b] and frozenset((a, b)) not in skip
+        }
+        for part in _components(members, apart):
+            if len(part) < 2 or any((a, b) not in apart for a in part for b in part if a != b):
+                continue
+            ranked = sorted(part, key=lambda k: max(seen[k]), reverse=True)
+            keep, rest = ranked[0], ranked[1:]
+            for column in columns:
+                for key in rest:
+                    if key in column.values:
+                        column.values[keep] = column.values.pop(key)
+                        column.sources[keep] = column.sources.pop(key)
+                        column.order = [keep if k == key else k for k in column.order]
+            out[keep] = rest
+    return out
+
+
+def _components(members: Sequence[str], edges: set[tuple[str, str]]) -> list[list[str]]:
+    out: list[list[str]] = []
+    done: set[str] = set()
+    for start in members:
+        if start in done:
+            continue
+        part, todo = [], [start]
+        done.add(start)
+        while todo:
+            key = todo.pop()
+            part.append(key)
+            for other in members:
+                if other not in done and (key, other) in edges:
+                    done.add(other)
+                    todo.append(other)
+        out.append(part)
+    return out
 
 
 def _period(column: Column) -> dict[str, Any]:
@@ -744,7 +841,7 @@ def learn_pair(pdf: Filing, xbrl: Filing) -> Learned:
         learned.by_section[statement] = {k: maps[names[live[n]]] for n, k in within.items() if live[n] in hit}
         learned.maps[statement] = maps
         learned.losses[statement] = _losses(maps, xbrl.seq)
-        learned.homes[statement] = _homes(target, statement)
+        learned.homes[statement] = _homes([f.key for f in target], statement)
         learned.order[statement] = order
         learned.extras[statement] = extras
     return learned
@@ -929,13 +1026,13 @@ def _section_names(
     return {i: k for i, k in out.items() if counts[k] == 1}
 
 
-def _homes(facts: Sequence[Fact], statement: str) -> dict[str, str | None]:
+def _homes(keys: Sequence[str], statement: str) -> dict[str, str | None]:
     out: dict[str, str | None] = {}
     section: str | None = None
-    for f in reversed(facts):
-        if _is_marker(f.key, statement):
-            section = f.key
-        out[f.key] = section if out.get(f.key, section) == section else None
+    for key in reversed(keys):
+        if _is_marker(key, statement):
+            section = key
+        out[key] = section if out.get(key, section) == section else None
     return out
 
 
