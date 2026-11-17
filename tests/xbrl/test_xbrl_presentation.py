@@ -268,7 +268,82 @@ def test_depth_counts_kept_ancestors_only(tmp: Path) -> None:
         ("BuildingsAbstract", 2), ("Buildings", 3), ("AccumulatedDepreciationBuildings", 4), ("Land", 1),
         ("Assets", 1), ("LiabilitiesAndNetAssets", 0),
     ]
-    assert role.items[2].as_json() == ["jppfs_cor", "PropertyPlantAndEquipment", 0, "totalLabel", 2]
+    assert role.items[2].as_json() == ["jppfs_cor", "PropertyPlantAndEquipment", 0, "totalLabel", 2, None]
+
+
+LAB_ROLE = "http://www.xbrl.org/2003/role/label"
+CONSOLIDATED_LABEL = "http://disclosure.edinet-fsa.go.jp/jppfs/Consolidated/role/label"
+
+
+def _labels_xml(base: str, entries: list[tuple[str, str, str, str]]) -> str:
+    """entries: (要素の id, 役割, 言語, ラベル)。"""
+    body = []
+    for n, (el, role, lang, body_text) in enumerate(entries):
+        body.append(f'<link:loc xlink:type="locator" xlink:href="{base}#{el}" xlink:label="c{n}"/>')
+        body.append(f'<link:label xlink:type="resource" xlink:label="l{n}" xlink:role="{role}" xml:lang="{lang}">'
+                    f"{body_text}</link:label>")
+        body.append(f'<link:labelArc xlink:type="arc" xlink:arcrole="http://www.xbrl.org/2003/arcrole/concept-label" '
+                    f'xlink:from="c{n}" xlink:to="l{n}"/>')
+    return (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<link:linkbase xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:link="http://www.xbrl.org/2003/linkbase">\n'
+        '<link:labelLink xlink:type="extended" xlink:role="http://www.xbrl.org/2003/role/link">\n'
+        + "\n".join(body) + "\n</link:labelLink></link:linkbase>"
+    )
+
+
+def test_headings_get_company_then_taxonomy_labels(tmp: Path) -> None:
+    taxonomy = tmp / "taxonomy"
+    remote_lab = "http://disclosure.edinet-fsa.go.jp/taxonomy/jppfs/2024-11-01/label/jppfs_2024-11-01_lab.xml"
+    lab_path = taxonomy / "disclosure.edinet-fsa.go.jp/taxonomy/jppfs/2024-11-01/label/jppfs_2024-11-01_lab.xml"
+    lab_path.parent.mkdir(parents=True)
+    xsd = taxonomy / "disclosure.edinet-fsa.go.jp/taxonomy/jppfs/2024-11-01/jppfs_cor_2024-11-01.xsd"
+    xsd.write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema">'
+        + "".join(f'<xsd:element id="jppfs_cor_{n}" name="{n}"/>' for n in (
+            "AssetsAbstract", "CurrentAssetsAbstract", "ValuationAndTranslationAdjustmentsAbstract"))
+        + "</xsd:schema>", encoding="utf-8")
+    lab_path.write_text(_labels_xml("../jppfs_cor_2024-11-01.xsd", [
+        ("jppfs_cor_AssetsAbstract", LAB_ROLE, "ja", "資産の部"),
+        ("jppfs_cor_AssetsAbstract", LAB_ROLE, "en", "Assets"),
+        ("jppfs_cor_CurrentAssetsAbstract", LAB_ROLE, "ja", "流動資産"),
+        ("jppfs_cor_ValuationAndTranslationAdjustmentsAbstract", LAB_ROLE, "ja", "評価・換算差額等"),
+        ("jppfs_cor_ValuationAndTranslationAdjustmentsAbstract", CONSOLIDATED_LABEL, "ja", "その他の包括利益累計額"),
+    ]), encoding="utf-8")
+    company_lab = f"{COMPANY_XSD.removesuffix('.xsd')}_lab.xml"
+    company_xsd = _company_xsd("WidgetsAbstract", "WidgetsCA").replace(
+        "</xsd:schema>",
+        f'<link:linkbaseRef xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink" '
+        f'xlink:type="simple" xlink:href="{company_lab}" xlink:role="http://www.xbrl.org/2003/role/labelLinkbaseRef"/>'
+        f'<link:linkbaseRef xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink" '
+        f'xlink:type="simple" xlink:href="{remote_lab}" xlink:role="http://www.xbrl.org/2003/role/labelLinkbaseRef"/>'
+        "</xsd:schema>")
+    link = _link(JPPFS_ROLE + "rol_ConsolidatedBalanceSheet", [
+        (_p("BalanceSheetHeading"), _p("AssetsAbstract"), 1),
+        (_p("AssetsAbstract"), _p("CurrentAssetsAbstract"), 1),
+        (_p("CurrentAssetsAbstract"), _c("WidgetsAbstract"), 1),
+        (_c("WidgetsAbstract"), _c("WidgetsCA"), 1),
+        (_p("AssetsAbstract"), _p("ValuationAndTranslationAdjustmentsAbstract"), 2,
+         "CONSOLIDATED"),
+        (_p("ValuationAndTranslationAdjustmentsAbstract"), _p("CashAndDeposits"), 1),
+    ]).replace("http://www.xbrl.org/2003/role/CONSOLIDATED", CONSOLIDATED_LABEL)
+    root = _write(tmp / "unpacked", {
+        f"XBRL/PublicDoc/{COMPANY_XSD.removesuffix('.xsd')}_pre.xml": _pre([link]),
+        f"XBRL/PublicDoc/{COMPANY_XSD}": company_xsd,
+        f"XBRL/PublicDoc/{company_lab}": _labels_xml(COMPANY_XSD, [
+            (f"{COMPANY_PREFIX}_WidgetsAbstract", LAB_ROLE, "ja", "ウィジェット"),
+            ("jppfs_cor_CurrentAssetsAbstract", LAB_ROLE, "ja", "流動資産の部"),
+        ]).replace(f'{COMPANY_XSD}#jppfs_cor_', f"{PPFS}#jppfs_cor_"),
+    })
+    (role, _), = statement_roles(read_presentation(root, taxonomy))
+    assert [(i.local_name, i.label) for i in role.items] == [
+        ("AssetsAbstract", "資産の部"), ("CurrentAssetsAbstract", "流動資産の部"), ("WidgetsAbstract", "ウィジェット"),
+        ("WidgetsCA", None), ("ValuationAndTranslationAdjustmentsAbstract", "その他の包括利益累計額"),
+        ("CashAndDeposits", None),
+    ]
+    assert role.items[4].preferred_label == "label"
+    (role, _), = statement_roles(read_presentation(root, tmp / "missing"))
+    assert role.items[0].label is None and role.items[2].label == "ウィジェット"
 
 
 def test_ifrs_quarterly_tdnet_two_sets(tmp: Path) -> None:
@@ -390,11 +465,11 @@ def test_ingest_stores_replaces_and_deletes(tmp: Path) -> None:
             ("rol_StatementOfIncome", 5, "PL", 0, 0),
         ]
         assert json.loads(got[0][5])[:3] == [
-            ["jppfs_cor", "AssetsAbstract", 0, None, 0],
-            ["jppfs_cor", "CashAndDeposits", 0, None, 1],
-            [COMPANY_PREFIX, "WidgetsCA", 1, None, 1],
+            ["jppfs_cor", "AssetsAbstract", 0, None, 0, None],
+            ["jppfs_cor", "CashAndDeposits", 0, None, 1, None],
+            [COMPANY_PREFIX, "WidgetsCA", 1, None, 1, None],
         ]
-        assert json.loads(got[3][5])[-1] == ["jppfs_cor", "CashAndCashEquivalents", 0, "periodEndLabel", 0]
+        assert json.loads(got[3][5])[-1] == ["jppfs_cor", "CashAndCashEquivalents", 0, "periodEndLabel", 0, None]
         facts_before = _facts(db, filing.id)
 
         files[f"XBRLData/Attachment/{COMPANY_XSD.removesuffix('.xsd')}_pre.xml"] = _pre(
