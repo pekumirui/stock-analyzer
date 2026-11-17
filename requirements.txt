@@ -17,3 +17,5 @@ pyyaml>=6.0
 pypdfium2>=5.0
 # 決算説明資料を Claude の Message Batches API で読む（KAB-349。jobs/market/briefing_extract.py）
 anthropic>=2.4
+# backup_db の宛先だけ圧縮する。標準ライブラリの sqlite3 は VFS を差し替えられない
+apsw>=3.45

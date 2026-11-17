@@ -5,29 +5,32 @@
 ## 何をするか
 
 - 対象は本番の `stock.db`（既定 `/home/stock/stock-analyzer/stock.db`）。WAL モードなので `cp` は使わない。
-- `jobs/ops/backup_db.py` が Python の sqlite3 backup API で整合コピーし、`PRAGMA quick_check` のあと `gzip` 圧縮レベル 1 で保存する。
+- `jobs/ops/backup_db.py` が sqlite3 backup API で整合スナップショットを作る。宛先は圧縮 VFS（64KiB ブロックを zlib レベル 1。非圧縮の DB 複製は置かない）。`PRAGMA quick_check` が `ok` で、ジャーナルを `DELETE` に戻したバイト列だけを `gzip` 圧縮レベル 1 で保存する。標準ライブラリの sqlite3 は VFS を差し替えられないので、宛先接続だけ APSW を使う。ソースは読み取り専用かつ `query_only` で、100 ページごとにロックを離す。本番のジャーナルモードは変えない。
 - ローカルが成功したあとだけ、その gzip を rclone で OneDrive personal へ送る。既定は `onedrive:stock-analyzer-backups/{daily,weekly}/`。R2 には出さない。正本は OneDrive。戻すときのダウンロード時間は許容する。
 - 世代数は OneDrive 側だけ（日次 7・週次 4）。VPS には置かない。今回書いた gzip を消すのは、送信・確認（`rclone check`、失敗時はサイズ）と OneDrive 側の世代整理が成功したあと。
 - どれかが失敗した日は今回の gzip を残し、非ゼロ終了する。それより前から VPS にある世代も消さない。Slack は他ジョブと同じく `deploy/cron-run.sh` の `fail cron` → fluent-bit → `#alerts-batch`。
 - rclone が無い、または remote が無いときは警告してスキップする。ローカルは成功のまま（exit 0）。今回のファイルも古い世代も消さない。
-- 容量が足りないとき・quick_check 失敗では取得せず非ゼロ終了する。既存のファイルを触らない。作業前に、コピーと gzip が同時に乗る空きがあるかを見る。成功したあとの gzip は消えるので、その分の空きは一時的。
+- 容量が足りないとき・quick_check 失敗では取得せず非ゼロ終了する。既存のファイルを触らない。作業前の `need` は、圧縮予算（ソースの 75% と、小さい DB 向けの下限の大きい方）に 256MB を足した値。予算を超えて書いたら途中でやめて部分ファイルを消す。成功したあとの gzip は消えるので、その分の空きは一時的。ピークは圧縮ストア（実測では gzip と同程度。17GB 級ならおおよそ 8〜10GB）で、DB 1 つ分より小さい。`.blk` の見かけサイズは punch の穴の分だけ大きく見える。空きは `df` / `du` で見る。
 
 ## 時刻
 
-毎日 **05:00 JST**。`run_batch`（19:30）と毎時 XBRL（12–23 時）と重ならない隙間。バックアップ中は共有ロックを短く区切る（`pages=100`）。OneDrive 送信は gzip のあと。タイムアウトは copy 1 時間、check 30 分。
+毎日 **05:00 JST**。`run_batch`（19:30）と毎時 XBRL（12–23 時）と重ならない隙間。バックアップ中は共有ロックを短く区切る（`pages=100`。ソースが busy のときだけ 0.25 秒待つ）。OneDrive 送信は gzip のあと。同じ dest で既に動いているときは `backup_db skip: already running` で終了コード 0（2 本目は取らない）。
+
+段階ログは `stage=disk` / `copy` / `quick_check` / `gzip` / `gzip-test` / `offsite`。各段階の上限は copy 2 時間、quick_check 90 分、gzip 60 分、OneDrive の copy 3 時間・check 90 分。全体は 6 時間。超えたら `fail backup_db: timeout at <stage>`。90 分で全体を切ると、送信だけで 50 分かかる現状の成功も落ちる。無言で数時間止まるのは段階の上限で止める。
 
 ## 配置
 
 ```
 /home/stock/backups/daily/stock-YYYY-MM-DD.db.gz    # 送信確認が終わるまで。成功したら消す
 /home/stock/backups/weekly/stock-YYYY-MM-DD.db.gz   # 日曜のみ。日次と hardlink。成功したら消す
-/home/stock/backups/.tmp/                          # 作業用。実行の前後で空（-wal / -shm 含む）
+/home/stock/backups/.tmp/                          # 圧縮ストアと添えファイル。実行の前後で空
+/home/stock/backups/.backup_db.lock               # 二重起動防止。中身は使わない
 
 onedrive:stock-analyzer-backups/daily/stock-YYYY-MM-DD.db.gz
 onedrive:stock-analyzer-backups/weekly/stock-YYYY-MM-DD.db.gz   # 日曜のみ。別オブジェクト
 ```
 
-一時コピーはソースの WAL を引き継がない（`journal_mode=DELETE`）。本体を消すときは `-wal` / `-shm` も消す。
+gzip の中身は単一ファイル（`journal_mode=DELETE`）。ソースの WAL モードは変えない。作業ファイルを消すときは `.blk` / `-wal` / `-shm` / `-journal` も消す。
 
 OneDrive 側に hardlink は無い。日曜は daily と weekly へ同じ gzip を 2 回送る。VPS から消すのは今回の `stock-YYYY-MM-DD.db.gz` だけ。別の日のローカルファイルと、`notes.txt` など命名規則外は残す。OneDrive は保持数を超えた `stock-*.db.gz` だけ消す。デプロイ前から VPS に残っている世代の消し方は「既にある VPS の世代」。
 
@@ -107,7 +110,7 @@ check がハッシュ非対応で失敗するときは、`rclone lsjson` の `Si
 rm /home/stock/backups/daily/stock-YYYY-MM-DD.db.gz
 ```
 
-このジョブは上の `rm` を走らせない。古い世代が残っている間も、次の実行は新しい gzip の分の空きが要る。足りなければ取得せずに非ゼロ終了し、古いファイルは残る。
+このジョブは上の `rm` を走らせない。古い世代が残っている間も、次の実行は圧縮予算（ソースの 75% に 256MB）の空きが要る。足りなければ取得せずに非ゼロ終了し、古いファイルは残る。
 
 ## 取得ファイルの控え
 

@@ -10,6 +10,8 @@ copy --files-from（--transfers は TRANSFERS）で送り、check --one-way で
 一致したものだけ索引を onedrive にしてから手元を消す。
 落ちたあとは同じコマンドを再実行すれば続きから揃う。
 失敗したファイルは索引も手元も変えない。行は消さない。
+手元にファイルが無い行は gone と記録して終了コードは変えない（翌日も同じログ）。
+送信そのものの失敗は今までどおり終了コード 1。
 毎日 1 回、deploy/crontab から deploy/cron-run.sh で動く。
 同じスクリプトが既に動いているときは移さず、終了コード 0 で終わる。
 rclone はテストから差し替える。
@@ -116,6 +118,7 @@ class LocalPdf:
 class Delivered:
     ok: tuple[str, ...]
     failed: tuple[tuple[str, str], ...]
+    missing: tuple[str, ...] = ()
 
 
 def load_docs() -> list[Doc]:
@@ -225,6 +228,7 @@ def deliver_matches(
     check 自体が失敗して報告が無ければ、索引も手元も変えない。
     """
     failed: list[tuple[str, str]] = []
+    missing: list[str] = []
     ready: list[LocalPdf] = []
     seen: set[str] = set()
     for item in files:
@@ -243,11 +247,11 @@ def deliver_matches(
             failed.append((rel, str(exc)))
             continue
         if not path.is_file():
-            failed.append((rel, f"missing {rel}"))
+            missing.append(rel)
             continue
         ready.append(LocalPdf(rel, path))
     if not ready:
-        return Delivered(ok=(), failed=tuple(failed))
+        return Delivered(ok=(), failed=tuple(failed), missing=tuple(missing))
 
     remote = remote_briefing_root(environ)
     list_fd, list_name = tempfile.mkstemp(prefix="briefing-files-", suffix=".txt")
@@ -269,7 +273,7 @@ def deliver_matches(
             copied = run(copy_argv, RCLONE_COPY_TIMEOUT_S)
         except (BackupError, OffsiteSkip, OSError) as exc:
             failed.extend((item.rel_path, str(exc)) for item in ready)
-            return Delivered(ok=(), failed=tuple(failed))
+            return Delivered(ok=(), failed=tuple(failed), missing=tuple(missing))
         check_argv = [
             "check", str(root), remote,
             "--one-way",
@@ -281,7 +285,7 @@ def deliver_matches(
             checked = run(check_argv, RCLONE_CHECK_TIMEOUT_S)
         except (BackupError, OffsiteSkip, OSError) as exc:
             failed.extend((item.rel_path, str(exc)) for item in ready)
-            return Delivered(ok=(), failed=tuple(failed))
+            return Delivered(ok=(), failed=tuple(failed), missing=tuple(missing))
         matched = _matched_rels(combined_path, {item.rel_path for item in ready}, checked.returncode)
         copy_note = ""
         if copied.returncode != 0:
@@ -305,7 +309,7 @@ def deliver_matches(
                 failed.append((item.rel_path, f"unlink {exc}"))
                 continue
             ok.append(item.rel_path)
-        return Delivered(ok=tuple(ok), failed=tuple(failed))
+        return Delivered(ok=tuple(ok), failed=tuple(failed), missing=tuple(missing))
     finally:
         list_path.unlink(missing_ok=True)
         combined_path.unlink(missing_ok=True)
@@ -439,7 +443,7 @@ def _run_once(
         print(f"briefing_offsite dry-run listed={len(batch)}", flush=True)
         return 0
     if not eligible:
-        print("briefing_offsite done moved=0 failed=0", flush=True)
+        print("briefing_offsite done moved=0 failed=0 gone=0", flush=True)
         return 0
     settings = offsite_settings_from_env(environ)
     runner = rclone or make_rclone_runner(settings.rclone_bin)
@@ -452,12 +456,12 @@ def _run_once(
         except BackupError as exc:
             print(f"fail briefing_offsite: {exc}", flush=True)
             return 1
-    moved = failed = attempted = 0
-    failed_ids: set[tuple[str, str]] = set()
+    moved = failed = gone = attempted = 0
+    skipped: set[tuple[str, str]] = set()
     while True:
         pending = [
             item for item in candidates(load_docs(), root)
-            if (item[0].source, item[0].document_id) not in failed_ids
+            if (item[0].source, item[0].document_id) not in skipped
         ]
         if limit is not None:
             room = limit - attempted
@@ -476,7 +480,7 @@ def _run_once(
             key = (doc.source, doc.document_id)
             if doc.rel_path in seen_rel:
                 failed += 1
-                failed_ids.add(key)
+                skipped.add(key)
                 print(f"fail {doc.rel_path}: duplicate", flush=True)
                 continue
             seen_rel.add(doc.rel_path)
@@ -484,7 +488,7 @@ def _run_once(
                 path = local_file(doc.rel_path, root)
             except ValueError as exc:
                 failed += 1
-                failed_ids.add(key)
+                skipped.add(key)
                 print(f"fail {doc.rel_path}: {exc}", flush=True)
                 continue
             files.append(LocalPdf(doc.rel_path, path))
@@ -501,12 +505,17 @@ def _run_once(
             doc, day, _key = by_rel[rel]
             moved += 1
             print(f"moved {doc.code} {day.isoformat()} {rel}", flush=True)
+        for rel in result.missing:
+            doc, day, key = by_rel[rel]
+            gone += 1
+            skipped.add(key)
+            print(f"gone {doc.code} {day.isoformat()} {rel}: missing on disk", flush=True)
         for rel, reason in result.failed:
             doc, _day, key = by_rel[rel]
             failed += 1
-            failed_ids.add(key)
+            skipped.add(key)
             print(f"fail {rel}: {reason}", flush=True)
-    print(f"briefing_offsite done moved={moved} failed={failed}", flush=True)
+    print(f"briefing_offsite done moved={moved} failed={failed} gone={gone}", flush=True)
     return 1 if failed else 0
 
 

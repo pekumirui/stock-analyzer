@@ -1,10 +1,14 @@
 """backup_db は送信できたら今回のローカルだけ消し、失敗なら残す。本番 VPS には出ない。"""
 from __future__ import annotations
 
+import fcntl
 import gzip
 import io
+import os
 import sqlite3
+import subprocess
 import sys
+import time
 from contextlib import redirect_stdout
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +28,7 @@ from jobs.ops.backup_db import (  # noqa: E402
     OFFSITE_WEEKLY_KEEP,
     BackupError,
     BackupKeep,
+    BackupLimits,
     CmdResult,
     OffsiteSettings,
     OffsiteSkip,
@@ -37,12 +42,15 @@ from jobs.ops.backup_db import (  # noqa: E402
     offsite_settings_from_env,
     prune_generations,
     quick_check,
+    required_bytes,
     run,
+    source_bytes,
     sqlite_backup,
     sqlite_sidecar_paths,
     sync_offsite,
     tmp_dir,
 )
+from jobs.ops.backup_store import BlockStore, StoreError  # noqa: E402
 
 JST = ZoneInfo("Asia/Tokyo")
 
@@ -438,11 +446,11 @@ def test_failure_keeps_old_generations(tmp_path: Path) -> None:
     _seed_gz(dest / "weekly", weekly_days, marker)
     (dest / "daily" / "notes.txt").write_text("no", encoding="utf-8")
 
-    def _bad_check(_path: Path) -> tuple[bool, str]:
-        return False, "not ok"
+    def _bad(_src: Path, _part: Path) -> None:
+        raise BackupError("quick_check not ok")
 
     friday = datetime(2026, 10, 9, 5, 0, tzinfo=JST)
-    rc = run(db, dest, now=friday, check=_bad_check, offsite=_ok_offsite())
+    rc = run(db, dest, now=friday, snapshot=_bad, offsite=_ok_offsite())
     if rc == 0:
         _fail("integrity fail must be non-zero")
     if _gz_names(dest / "daily") != [backup_name(d) for d in reversed(daily_days)]:
@@ -474,7 +482,7 @@ def test_corrupt_backup_does_not_install(tmp_path: Path) -> None:
         db,
         dest,
         now=datetime(2026, 10, 9, 5, 0, tzinfo=JST),
-        backup=_garbage,
+        snapshot=_garbage,
         offsite=_ok_offsite(),
     )
     if rc == 0:
@@ -682,6 +690,246 @@ def test_provision_and_isolation() -> None:
         _fail("backup job must call rclone")
 
 
+def _stage_int(out: str, marker: str, key: str) -> int:
+    for line in out.splitlines():
+        if marker not in line:
+            continue
+        for part in line.split():
+            if part.startswith(key + "="):
+                return int(part.split("=", 1)[1])
+    _fail(f"missing {marker} {key} in {out}")
+    return 0
+
+
+def test_required_bytes_stays_under_one_database() -> None:
+    src = 17_058_856_960
+    need = required_bytes(src)
+    if need >= src:
+        _fail(f"need {need} is not under one copy")
+    if need >= 14 * 1024**3:
+        _fail(f"need {need} is still too large")
+
+
+def test_store_stops_at_its_budget(tmp_path: Path) -> None:
+    store = BlockStore(tmp_path / "x.blk", budget=4096)
+    try:
+        try:
+            store.write(os.urandom(256 * 1024), 0)
+            store.flush()
+        except StoreError as exc:
+            if "budget" not in str(exc):
+                _fail(exc)
+        else:
+            _fail("budget must trip")
+    finally:
+        store.close()
+
+
+def test_snapshot_is_smaller_than_the_db_and_offsite_ok_deletes_local(tmp_path: Path) -> None:
+    db = tmp_path / "stock.db"
+    dest = tmp_path / "backups"
+    conn = sqlite3.connect(db)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA wal_autocheckpoint=0")
+        conn.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)")
+        conn.executemany(
+            "INSERT INTO items (name) VALUES (?)",
+            [(f"{i % 4000}|{i * 3 % 80000}|{'px' * 30}",) for i in range(80_000)],
+        )
+        conn.commit()
+        src = source_bytes(db)
+        if src < 2_000_000:
+            _fail(f"fixture too small {src}")
+        held: dict[str, bytes] = {}
+
+        def fake_run(argv: list[str], timeout: float) -> CmdResult:  # noqa: ARG001
+            cmd = argv[0]
+            if cmd == "listremotes":
+                return CmdResult(0, "onedrive:\n", "")
+            if cmd == "copy":
+                held["gz"] = Path(argv[1]).read_bytes()
+                return CmdResult(0, "", "")
+            if cmd in ("check", "lsf"):
+                return CmdResult(0, "", "")
+            _fail(f"unexpected rclone {argv}")
+            return CmdResult(1, "", "")
+
+        def offsite(items: list[tuple[Path, str]], keep: BackupKeep) -> None:
+            sync_offsite(
+                items,
+                keep=keep,
+                settings=offsite_settings_from_env({}),
+                which=lambda _name: "/usr/bin/rclone",
+                run=fake_run,
+            )
+
+        friday = datetime(2026, 10, 9, 5, 0, tzinfo=JST)
+        rc, out = _run_out(db=db, dest=dest, now=friday, offsite=offsite)
+        if rc != 0:
+            _fail(out)
+        copy_bytes = _stage_int(out, "stage=copy done", "bytes")
+        gzip_bytes = _stage_int(out, "stage=gzip done", "bytes")
+        if copy_bytes >= src or gzip_bytes >= src:
+            _fail(f"temp copy={copy_bytes} gzip={gzip_bytes} src={src}")
+        if "stage=quick_check done ok" not in out or "offsite ok daily" not in out:
+            _fail(out)
+        if "removed local daily=1" not in out or "offsite=ok" not in out:
+            _fail(out)
+        name = backup_name("2026-10-09")
+        if (dest / "daily" / name).exists():
+            _fail("success must remove local daily")
+        if "gz" not in held:
+            _fail("copy did not see the gzip")
+        raw = gzip.decompress(held["gz"])
+        out_db = tmp_path / "out.db"
+        out_db.write_bytes(raw)
+        checked = sqlite3.connect(f"file:{out_db.resolve().as_posix()}?mode=ro", uri=True)
+        try:
+            ok = checked.execute("PRAGMA quick_check").fetchone()
+            if not ok or ok[0] != "ok":
+                _fail(f"roundtrip quick_check {ok}")
+            if checked.execute("PRAGMA journal_mode").fetchone()[0] != "delete":
+                _fail("roundtrip journal")
+            count = checked.execute("SELECT COUNT(*) FROM items").fetchone()[0]
+            if count < 80_000:
+                _fail(f"roundtrip rows {count}")
+        finally:
+            checked.close()
+        _assert_tmp_empty(dest)
+    finally:
+        conn.close()
+
+
+def test_writer_commits_during_backup(tmp_path: Path) -> None:
+    db = tmp_path / "stock.db"
+    dest = tmp_path / "backups"
+    conn = sqlite3.connect(db)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT)")
+    conn.executemany(
+        "INSERT INTO items (name) VALUES (?)",
+        [(f"base-{i}",) for i in range(20_000)],
+    )
+    conn.commit()
+    conn.close()
+    script = tmp_path / "writer.py"
+    script.write_text(
+        "import sqlite3, time\n"
+        f"db = {str(db)!r}\n"
+        "c = sqlite3.connect(db, timeout=5)\n"
+        "c.execute('PRAGMA busy_timeout=3000')\n"
+        "n = 0\n"
+        "end = time.time() + 1.5\n"
+        "while time.time() < end:\n"
+        "    try:\n"
+        "        c.execute('INSERT INTO items (name) VALUES (?)', (f'live-{n}',))\n"
+        "        c.commit()\n"
+        "        n += 1\n"
+        "    except sqlite3.OperationalError:\n"
+        "        time.sleep(0.01)\n"
+        "c.close()\n"
+        "print(n)\n",
+        encoding="utf-8",
+    )
+    proc = subprocess.Popen([sys.executable, str(script)], stdout=subprocess.PIPE, text=True)
+    time.sleep(0.05)
+    offsite = _ok_offsite()
+    try:
+        rc, out = _run_out(
+            db=db,
+            dest=dest,
+            now=datetime(2026, 10, 9, 5, 0, tzinfo=JST),
+            offsite=offsite,
+        )
+    finally:
+        stdout, _stderr = proc.communicate(timeout=10)
+    if proc.returncode != 0:
+        _fail(f"writer rc {proc.returncode}")
+    commits = int(stdout.strip() or "0")
+    if rc != 0:
+        _fail(out)
+    if commits < 1:
+        _fail(f"writer made no progress {stdout!r}")
+    live = sqlite3.connect(db)
+    try:
+        if live.execute("PRAGMA journal_mode").fetchone()[0] != "wal":
+            _fail("source journal changed")
+    finally:
+        live.close()
+    payload = offsite.remote["daily"].get(backup_name("2026-10-09"))
+    if payload is None:
+        _fail("remote payload missing")
+    out_db = tmp_path / "out.db"
+    out_db.write_bytes(gzip.decompress(payload))
+    checked = sqlite3.connect(out_db)
+    try:
+        ok = checked.execute("PRAGMA quick_check").fetchone()
+        if not ok or ok[0] != "ok":
+            _fail(f"concurrent quick_check {ok}")
+        base = checked.execute("SELECT COUNT(*) FROM items WHERE name LIKE 'base-%'").fetchone()[0]
+        if base != 20_000:
+            _fail(f"base rows {base}")
+    finally:
+        checked.close()
+
+
+def test_timeout_names_the_stage(tmp_path: Path) -> None:
+    db = tmp_path / "stock.db"
+    dest = tmp_path / "backups"
+    _make_db(db, ["ok"])
+    _seed_gz(dest / "daily", ["2026-10-08"], b"good")
+    limits = BackupLimits(overall_s=30, copy_s=0, check_s=30, gzip_s=30, offsite_copy_s=30, offsite_check_s=30)
+    rc, out = _run_out(
+        db=db,
+        dest=dest,
+        now=datetime(2026, 10, 9, 5, 0, tzinfo=JST),
+        offsite=_ok_offsite(),
+        limits=limits,
+    )
+    if rc == 0 or "timeout at copy" not in out:
+        _fail(out)
+    if "fail backup_db:" not in out:
+        _fail(out)
+    if (dest / "daily" / backup_name("2026-10-09")).exists():
+        _fail("timeout installed today")
+    if (dest / "daily" / backup_name("2026-10-08")).read_bytes() != b"good":
+        _fail("timeout touched the older file")
+
+
+def test_second_run_skips_while_locked(tmp_path: Path) -> None:
+    db = tmp_path / "stock.db"
+    dest = tmp_path / "backups"
+    _make_db(db, ["ok"])
+    dest.mkdir()
+    fh = (dest / ".backup_db.lock").open("a+")
+    fcntl.flock(fh.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    code = (
+        "import sys\n"
+        "from pathlib import Path\n"
+        "from jobs.ops.backup_db import run\n"
+        f"sys.exit(run(Path({str(db)!r}), Path({str(dest)!r}), offsite=False))\n"
+    )
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            cwd=ROOT,
+            env={**os.environ, "PYTHONPATH": str(ROOT)},
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    finally:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        fh.close()
+    if proc.returncode != 0:
+        _fail(f"skip rc {proc.returncode} {proc.stdout} {proc.stderr}")
+    if "backup_db skip: already running" not in proc.stdout:
+        _fail(proc.stdout + proc.stderr)
+    if list_generations(dest / "daily"):
+        _fail("locked run wrote a generation")
+
+
 def main_tests() -> None:
     test_constants()
     test_keep_and_offsite_from_env()
@@ -715,6 +963,17 @@ def main_tests() -> None:
         test_rclone_argv_copy_check_prune(Path(d))
     with TemporaryDirectory() as d:
         test_rclone_check_falls_back_to_size(Path(d))
+    test_required_bytes_stays_under_one_database()
+    with TemporaryDirectory() as d:
+        test_store_stops_at_its_budget(Path(d))
+    with TemporaryDirectory() as d:
+        test_snapshot_is_smaller_than_the_db_and_offsite_ok_deletes_local(Path(d))
+    with TemporaryDirectory() as d:
+        test_writer_commits_during_backup(Path(d))
+    with TemporaryDirectory() as d:
+        test_timeout_names_the_stage(Path(d))
+    with TemporaryDirectory() as d:
+        test_second_run_skips_while_locked(Path(d))
     print("ok: backup_db")
 
 

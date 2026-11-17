@@ -265,6 +265,36 @@ def test_dry_run_changes_nothing(tmp_path: Path) -> None:
     assert len(_rows()) == 2
 
 
+def test_missing_file_is_logged_and_does_not_fail(tmp_path: Path) -> None:
+    _clear()
+    _IDS.clear()
+    root = tmp_path / "briefing"
+    gone = "1332/20230512_1332_note.pdf"
+    fresh = "1332/20260301_1332_new.pdf"
+    _IDS[gone] = "gone"
+    _IDS[fresh] = "fresh"
+    _add(
+        root, code="13320", rel=gone, pubdate="2023-05-12 15:00:00",
+        document_id="gone", body=None,
+    )
+    _add(root, code="13320", rel=fresh, pubdate="2026-03-01 15:00:00", document_id="fresh")
+    rclone = _Rclone(root)
+
+    def boom(argv, timeout):  # noqa: ARG001
+        raise AssertionError(argv)
+
+    rc, out = _run(root, boom)
+    assert rc == 0, out
+    assert "gone 13320 2023-05-12 1332/20230512_1332_note.pdf: missing on disk" in out
+    assert "failed=0" in out
+    assert "gone=1" in out
+    assert "fail " not in out
+    assert rclone.calls == []
+    assert get_saved(SOURCE_TDNET, "gone").storage == STORAGE_LOCAL
+    assert (root / fresh).is_file()
+    assert not (root / gone).exists()
+
+
 def test_copy_failure_keeps_local_file_and_index(tmp_path: Path) -> None:
     _clear()
     _IDS.clear()
