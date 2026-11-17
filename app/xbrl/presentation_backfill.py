@@ -1,6 +1,6 @@
 """取り込み済みの書類の表示リンクを ZIP から埋める（xbrl_presentation_roles。docs/DESIGN_xbrl.md §4.5）。
 
-fact・taxonomy には触らない。ZIP から *pre.xml と *.xsd だけ展開して読む。1 件ごとに commit する。
+fact・taxonomy には触らない。ZIP から *pre.xml と *.xsd と *lab.xml だけ展開して読む。見出しの表示名はタクソノミ（XBRL_CACHE_DIR）のラベルも引く。1 件ごとに commit する。
 """
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ SOURCES = ("edinet", "tdnet")
 COUNT_KEYS = ("done", "ok", "none", "gone", "failed", "errors")
 ORIGINS = ("local", "edinet", "offsite")
 EDINET_MAIN = 1
-DEPTH_ITEM_LEN = 5
+DEPTH_ITEM_LEN = 6
 
 
 class ZipGone(Exception):
@@ -58,7 +58,7 @@ Fetch = Callable[[XbrlFiling], Got]
 
 
 def flat_filings():
-    """表示リンクの要素に深さが無い書類の id（区分は store_presentation が一度に書くので seq 0 の行だけ見る）。"""
+    """表示リンクの要素に深さか見出しの表示名が無い書類の id（区分は store_presentation が一度に書くので seq 0 の行だけ見る）。"""
     return select(XbrlPresentationRole.filing_id).where(
         XbrlPresentationRole.seq == 0,
         func.json_array_length(XbrlPresentationRole.items_json, "$[0]") < DEPTH_ITEM_LEN,
@@ -177,7 +177,7 @@ def read_zip(content: bytes) -> list:
     with zipfile.ZipFile(io.BytesIO(content)) as zf, TemporaryDirectory(prefix="xbrl-pre-") as tmp:
         for name in zf.namelist():
             low = name.lower()
-            if not (low.endswith("pre.xml") or low.endswith(".xsd")):
+            if not low.endswith(("pre.xml", ".xsd", "lab.xml")):
                 continue
             if {p.lower() for p in Path(name).parts} & SKIPPED_DIRS:
                 continue

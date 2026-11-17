@@ -553,7 +553,7 @@ cd /home/stock/stock-analyzer
 .venv/bin/python jobs/xbrl/xbrl_presentation.py --code 7203 --code 6758                    # 銘柄を絞る（繰り返し可）
 ```
 
-要素の深さ（親子の段）を保存する前に埋めた書類は、`--redo-flat` で読み直す（`presentation_status` が `ok` で深さの無い書類だけが対象。ほかのオプションと組み合わせる）。ZIP が無い・読めない書類は今の行と印を残すので、`remaining` は 0 にならないことがある。新しく取り込む書類は取り込みが深さ付きで書く。
+要素の深さ（親子の段）と見出しの表示名を保存する前に埋めた書類は、`--redo-flat` で読み直す（`presentation_status` が `ok` で深さか表示名の無い書類だけが対象。ほかのオプションと組み合わせる）。見出しの表示名はタクソノミ（`XBRL_CACHE_DIR`）のラベルも読む。ZIP が無い・読めない書類は今の行と印を残すので、`remaining` は 0 にならないことがある。新しく取り込む書類は取り込みが深さ付きで書く。
 
 ```bash
 .venv/bin/python jobs/xbrl/xbrl_presentation.py --redo-flat --dry-run                                 # 読み直す件数だけ

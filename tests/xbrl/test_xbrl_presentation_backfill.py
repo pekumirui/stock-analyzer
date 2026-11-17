@@ -320,7 +320,8 @@ def _first_items(fid: int) -> list[list]:
 
 
 FLAT = [["jppfs_cor", "AssetsAbstract", 0, None], ["jppfs_cor", "Assets", 0, "totalLabel"]]
-DEEP = [["jppfs_cor", "AssetsAbstract", 0, None, 0], ["jppfs_cor", "Assets", 0, "totalLabel", 1]]
+DEPTH_ONLY = [["jppfs_cor", "AssetsAbstract", 0, None, 0], ["jppfs_cor", "Assets", 0, "totalLabel", 1]]
+DEEP = [["jppfs_cor", "AssetsAbstract", 0, None, 0, "資産の部"], ["jppfs_cor", "Assets", 0, "totalLabel", 1, None]]
 
 
 def test_redo_targets_ok_filings_without_depth() -> None:
@@ -328,7 +329,7 @@ def test_redo_targets_ok_filings_without_depth() -> None:
     try:
         _reset(db)
         for fid, presentation, items in ((1, "ok", FLAT), (2, "ok", DEEP), (3, None, None), (4, "none", None),
-                                         (5, "ok", FLAT)):
+                                         (5, "ok", DEPTH_ONLY)):
             _filing(db, fid, "edinet", f"2026-06-0{fid} 15:00", presentation=presentation,
                     code=OTHER if fid == 5 else CODE)
             if items:
@@ -356,8 +357,9 @@ def test_redo_rewrites_with_depth_and_keeps_rows_it_cannot_read() -> None:
         assert {k: counts[k] for k in ("ok", "none", "gone", "failed", "errors")} == {
             "ok": 1, "none": 1, "gone": 1, "failed": 1, "errors": 1}
         assert [_status(db, i) for i in (1, 2, 3, 4, 5)] == ["ok"] * 5
-        assert _first_items(1)[:2] == [["jppfs_cor", "AssetsAbstract", 0, None, 0],
-                                       ["jppfs_cor", "CashAndDeposits", 0, None, 1]]
+        assert [item[:5] for item in _first_items(1)[:2]] == [["jppfs_cor", "AssetsAbstract", 0, None, 0],
+                                                            ["jppfs_cor", "CashAndDeposits", 0, None, 1]]
+        assert len(_first_items(1)[0]) == 6
         assert all(_first_items(i) == FLAT for i in (2, 3, 4, 5))
         assert pb.targets(db, redo=True) == [5, 4, 3, 2]
     finally:
