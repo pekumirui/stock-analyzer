@@ -125,10 +125,7 @@ class Seeder:
 
     def roles(self, fid: int, roles: list[tuple], *, status: str = "ok") -> None:
         for seq, (role, statement, consolidated, ifrs, items) in enumerate(roles):
-            body = [
-                [ns or ("jpigp_cor" if local.endswith("IFRS") else "jppfs_cor"), local, int(ns is not None), pref]
-                for local, pref, ns in ((*i, None)[:3] if isinstance(i, tuple) else (i, None, None) for i in items)
-            ]
+            body = [i if isinstance(i, list) else _role_item(i) for i in items]
             self._run(
                 "INSERT INTO xbrl_presentation_roles (filing_id, role, seq, statement, is_consolidated, is_ifrs, "
                 "items_json, generated_at) VALUES (:fid, :role, :seq, :st, :c, :i, :items, '2026-01-01')",
@@ -140,6 +137,11 @@ class Seeder:
     def close(self) -> None:
         self.db.commit()
         self.db.close()
+
+
+def _role_item(item: str | tuple) -> list:
+    local, pref, ns = (*item, None)[:3] if isinstance(item, tuple) else (item, None, None)
+    return [ns or ("jpigp_cor" if local.endswith("IFRS") else "jppfs_cor"), local, int(ns is not None), pref]
 
 
 def x(local: str, kind: str, value: float, ns: str = "jppfs_cor") -> tuple:
@@ -441,9 +443,46 @@ def seed(more=None) -> None:
     s.close()
 
 
+DECLARED = "71140"
+DECLARED_TREE = """
+AssetsAbstract=資産の部
+  CurrentAssetsAbstract=流動資産
+    CashAndDeposits
+    CurrentAssets
+  NoncurrentAssetsAbstract=固定資産
+    PropertyPlantAndEquipmentAbstract=有形固定資産
+      Buildings
+        AccumulatedDepreciationBuildings
+      Land
+      PropertyPlantAndEquipment
+  Assets
+"""
+
+
+def _declared(s: Seeder) -> None:
+    s.stock(DECLARED, "見出しの宣言あり")
+    s.filing(731, "edinet", "FY", "2025-03-31", "2025-06-20 15:00:00", code=DECLARED)
+    s.facts(731, "2025-03-31", [
+        x("CashAndDeposits", "i", 10), x("OtherCA", "i", 2), x("CurrentAssets", "i", 12), x("Land", "i", 5),
+        x("PropertyPlantAndEquipment", "i", 5), x("LongTermPrepaidExpenses", "i", 1), x("Assets", "i", 18),
+    ])
+    s.roles(731, [("rol_ConsolidatedBalanceSheet", "BS", True, False, [
+        "AssetsAbstract", "CurrentAssetsAbstract", "CashAndDeposits", "OtherCA", "CurrentAssets",
+        "NoncurrentAssetsAbstract", "PropertyPlantAndEquipmentAbstract", "Land", "PropertyPlantAndEquipment",
+        "LongTermPrepaidExpenses", "Assets",
+    ])])
+    s.filing(732, "tdnet", "Q1", "2025-06-30", "2025-08-08 15:00:00", code=DECLARED)
+    s.facts(732, "2025-06-30", [
+        x("CashAndDeposits", "i", 11), x("CurrentAssets", "i", 11), x("Buildings", "i", 4),
+        x("AccumulatedDepreciationBuildings", "i", -1), x("Land", "i", 5), x("PropertyPlantAndEquipment", "i", 8),
+        x("Assets", "i", 19),
+    ])
+    s.roles(732, [("rol_QuarterlyConsolidatedBalanceSheetTDnet", "BS", True, False, _tree_items(DECLARED_TREE))])
+
+
 @pytest.fixture(scope="module", autouse=True)
 def _seeded(_fresh_db_per_file):
-    seed(lambda s: (_presentation(s), _split(s)))
+    seed(lambda s: (_presentation(s), _split(s), _declared(s)))
 
 
 def table(code: str = CODE, statement: str = "BS", periods: int = fst.DEFAULT_PERIODS,
@@ -970,7 +1009,7 @@ def test_table_joins_pdf_rows_by_name() -> None:
     assert "pdf:社債" not in rows(t) and "pdf:現金及び預金" not in rows(t)
     assert rows(t)["pdf:借入金"]["cells"][0]["value"] == 3 * M
     assert rows(t)["BorrowingsCLIFRS"]["cells"][0] is None
-    assert rows(t)["BondsPayable"]["section"] == "固定負債" and rows(t)["BorrowingsCLIFRS"]["section"] == "流動負債"
+    assert heads(rows(t)["BondsPayable"])[-1] == "固定負債" and heads(rows(t)["BorrowingsCLIFRS"])[-1] == "流動負債"
 
 
 JP_ITEMS = [
@@ -1106,10 +1145,13 @@ def test_parts_cf_and_pl() -> None:
 
 
 def _tree_items(text: str) -> list[list]:
+    """1 行 1 要素。字下げ 2 つで 1 段。見出しは `要素=表示名` で表示名を付ける。"""
     out = []
     for line in text.strip("\n").splitlines():
-        name, depth = line.strip(), (len(line) - len(line.lstrip())) // 2
-        out.append(["x", name[4:], 1, None, depth] if name.startswith("ext:") else ["jppfs_cor", name, 0, None, depth])
+        name, _, label = line.strip().partition("=")
+        depth = (len(line) - len(line.lstrip())) // 2
+        custom = name.startswith("ext:")
+        out.append(["x" if custom else "jppfs_cor", name[4:] if custom else name, int(custom), None, depth, label or None])
     return out
 
 
@@ -1117,8 +1159,13 @@ def nested(text: str, statement: str = "BS", ifrs: bool = False) -> dict[str, tu
     return {k: (p.group, p.section) for k, p in fst._role_parts(_tree_items(text), statement, ifrs).items()}
 
 
+def shown(text: str, statement: str = "BS") -> dict[str, tuple]:
+    """要素 → (見出しの表示名の道筋, 字下げ)。"""
+    return {k: (tuple(n for _, n in p.heads), p.indent) for k, p in fst._role_parts(_tree_items(text), statement, False).items()}
+
+
 def _flat(text: str) -> list[str]:
-    return [line.strip() for line in text.strip("\n").splitlines()]
+    return [line.strip().partition("=")[0] for line in text.strip("\n").splitlines()]
 
 
 JP_TREE = """
@@ -1244,48 +1291,64 @@ CashAndCashEquivalents
 """
 
 
-def test_tree_parts_match_the_flat_rules_for_ordinary_statements() -> None:
+def test_parts_for_merging_come_from_the_order_even_with_depth() -> None:
     assert nested(JP_TREE) == declared(_flat(JP_TREE)) == declared(JP_ITEMS)
     assert nested(IFRS_TREE, ifrs=True) == declared(_flat(IFRS_TREE), ifrs=True)
-    got = nested(IFRS_TREE, ifrs=True)
-    assert got["NonControllingInterestsIFRS"] == got["EquityAttributableToOwnersOfParentIFRS"] == ("EquityIFRS", None)
-    assert got["LiabilitiesAndEquityIFRS"] == (None, None)
+    assert nested(LATE_TREE) == declared(_flat(LATE_TREE))
+    assert nested(LATE_TREE)["Buildings"] == ("Assets", "NoncurrentAssets")
 
 
-def test_tree_parts_put_rows_after_the_total_in_their_heading() -> None:
-    got = nested(LATE_TREE)
-    assert got["OperationalInvestmentSecuritiesCA"] == ("Assets", "CurrentAssets")
-    assert got["AccumulatedDepreciationOtherPPE"] == got["PropertyPlantAndEquipment"] == (
-        "Assets", "PropertyPlantAndEquipment")
-    assert got["Buildings"] == got["BuildingsNet"] == got["ToolsFurnitureAndFixtures"] == (
-        "Assets", "PropertyPlantAndEquipment")
-    assert got["ext:CustomerRelationshipIA"] == ("Assets", "IntangibleAssets")
-    assert got["LeaseAndGuaranteeDeposits"] == ("Assets", "InvestmentsAndOtherAssets")
-    assert got["NoncurrentAssets"] == ("Assets", "NoncurrentAssets") and got["Assets"] == ("Assets", None)
-    assert got["ProvisionForBonuses"] == got["AccruedConsumptionTaxes"] == ("Liabilities", "CurrentLiabilities")
-    flat = declared(_flat(LATE_TREE))
-    assert flat["Buildings"] == flat["LeaseAndGuaranteeDeposits"] == ("Assets", "NoncurrentAssets")
-    assert flat["ext:CustomerRelationshipIA"] == ("Assets", "NoncurrentAssets")
-    assert {k: v for k, v in got.items() if flat[k] != v} == {
-        k: ("Assets", s) for k, s in [
-            ("Buildings", "PropertyPlantAndEquipment"), ("BuildingsNet", "PropertyPlantAndEquipment"),
-            ("ToolsFurnitureAndFixtures", "PropertyPlantAndEquipment"), ("ext:CustomerRelationshipIA", "IntangibleAssets"),
-            ("LeaseAndGuaranteeDeposits", "InvestmentsAndOtherAssets"),
-        ]
-    }
-    cf = nested(LATE_CF, "CF")
-    assert cf["IncomeTaxesPaidRefundOpeCF"] == cf["InterestIncomeOpeCF"] == (
-        None, "NetCashProvidedByUsedInOperatingActivities")
-    assert cf["RepaymentsOfLeaseObligationsFinCF"] == (None, "NetCashProvidedByUsedInFinancingActivities")
-    assert declared(_flat(LATE_CF), "CF")["RepaymentsOfLeaseObligationsFinCF"] == (None, None)
-    for key in ("EffectOfExchangeRateChangeOnCashAndCashEquivalents", "NetIncreaseDecreaseInCashAndCashEquivalents",
-                "CashAndCashEquivalents"):
-        assert cf[key] == (None, None)
+def test_heads_follow_the_declared_headings() -> None:
+    got = shown(JP_TREE)
+    assert got["CashAndDeposits"] == (("AssetsAbstract", "CurrentAssetsAbstract"), 0)
+    assert got["Land"] == (("AssetsAbstract", "NoncurrentAssetsAbstract", "PropertyPlantAndEquipmentAbstract"), 0)
+    assert got["NoncurrentAssets"] == (("AssetsAbstract", "NoncurrentAssetsAbstract"), 0)
+    assert got["Assets"] == got["DeferredAssets"] == (("AssetsAbstract",), 0)
+    assert got["LegalRetainedEarnings"] == (("NetAssetsAbstract", "ShareholdersEquityAbstract", "RetainedEarningsAbstract"), 0)
+    assert got["LiabilitiesAndNetAssets"] == ((), 0)
+    railway = shown("""
+AssetsAbstract=資産の部
+  NoncurrentAssetsAbstract=固定資産
+    NoncurrentAssetsRailwayBusinessAbstractRWY=鉄道事業固定資産
+      ext:Tracks
+    ext:OwnAbstract=自社の見出し
+      Land
+""")
+    assert railway["ext:Tracks"] == (("資産の部", "固定資産", "鉄道事業固定資産"), 0)
+    assert railway["Land"] == (("資産の部", "固定資産", "自社の見出し"), 0)
+    pl = shown("""
+NetSales
+NonOperatingIncomeAbstract=営業外収益
+  InterestIncomeNOI
+  NonOperatingIncome
+OrdinaryIncome
+""", "PL")
+    assert pl["InterestIncomeNOI"] == pl["NonOperatingIncome"] == (("営業外収益",), 0)
+    assert pl["NetSales"] == pl["OrdinaryIncome"] == ((), 0)
 
 
-def test_tree_parts_take_sections_from_parents_with_values() -> None:
-    bank = nested("""
-AssetsAbstract
+def test_heads_put_rows_after_the_total_under_the_heading() -> None:
+    got = shown(LATE_TREE)
+    ppe = ("AssetsAbstract", "NoncurrentAssetsAbstract", "PropertyPlantAndEquipmentAbstract")
+    assert got["OperationalInvestmentSecuritiesCA"] == (("AssetsAbstract", "CurrentAssetsAbstract"), 0)
+    assert got["OtherPPE"] == got["PropertyPlantAndEquipment"] == got["Buildings"] == (ppe, 0)
+    assert got["AccumulatedDepreciationOtherPPE"] == got["BuildingsNet"] == (ppe, 1)
+    assert got["ToolsFurnitureAndFixtures"] == (ppe, 0)
+    assert got["ext:CustomerRelationshipIA"] == (("AssetsAbstract", "NoncurrentAssetsAbstract", "IntangibleAssetsAbstract"), 0)
+    assert got["LeaseAndGuaranteeDeposits"] == (
+        ("AssetsAbstract", "NoncurrentAssetsAbstract", "InvestmentsAndOtherAssetsAbstract"), 0)
+    assert got["ProvisionForBonuses"] == got["AccruedConsumptionTaxes"] == (
+        ("LiabilitiesAbstract", "CurrentLiabilitiesAbstract"), 0)
+    cf = shown(LATE_CF, "CF")
+    assert cf["InterestIncomeOpeCF"] == cf["IncomeTaxesPaidRefundOpeCF"] == (
+        ("NetCashProvidedByUsedInOperatingActivitiesAbstract",), 0)
+    assert cf["RepaymentsOfLeaseObligationsFinCF"] == (("NetCashProvidedByUsedInFinancingActivitiesAbstract",), 0)
+    assert cf["EffectOfExchangeRateChangeOnCashAndCashEquivalents"] == cf["CashAndCashEquivalents"] == ((), 0)
+
+
+def test_heads_indent_children_of_rows_with_values() -> None:
+    bank = shown("""
+AssetsAbstract=資産の部
   LoansAndBillsDiscountedAssetsBNK
   PropertyPlantAndEquipment
     BuildingsNet
@@ -1293,130 +1356,108 @@ AssetsAbstract
   IntangibleAssets
   Assets
 """)
-    assert bank["PropertyPlantAndEquipment"] == bank["BuildingsNet"] == bank["Land"] == (
-        "Assets", "PropertyPlantAndEquipment")
-    assert bank["IntangibleAssets"] == bank["LoansAndBillsDiscountedAssetsBNK"] == ("Assets", None)
-    power = nested("""
-AssetsAbstract
+    assert bank["PropertyPlantAndEquipment"] == bank["IntangibleAssets"] == (("資産の部",), 0)
+    assert bank["BuildingsNet"] == bank["Land"] == (("資産の部",), 1)
+    power = shown("""
+AssetsAbstract=資産の部
   NoncurrentAssets
     ElectricUtilityPlantAndEquipmentAssetsELE
       HydroelectricPowerProductionFacilitiesNCAElectricELE
-    InvestmentsAndOtherAssets
-      LongTermInvestmentsELE
-  CurrentAssets
-    CashAndDeposits
   Assets
-LiabilitiesAndNetAssetsAbstractELE
-  NoncurrentLiabilities
-    BondsPayable
-  ReservesUnderTheSpecialLaws2
-    ReserveForFluctuationInWaterLevelsReservesUnderTheSpecialLawsELE
-  Liabilities
+LiabilitiesAndNetAssetsAbstractELE=負債及び純資産の部
   ShareholdersEquity
     CapitalStock
   NonControllingInterests
-  NetAssets
-  LiabilitiesAndNetAssets
 """)
-    assert power["NoncurrentAssets"] == power["HydroelectricPowerProductionFacilitiesNCAElectricELE"] == (
-        "Assets", "NoncurrentAssets")
-    assert power["InvestmentsAndOtherAssets"] == power["LongTermInvestmentsELE"] == ("Assets", "InvestmentsAndOtherAssets")
-    assert power["CashAndDeposits"] == ("Assets", "CurrentAssets")
-    assert power["BondsPayable"] == ("Liabilities", "NoncurrentLiabilities")
-    assert power["ReserveForFluctuationInWaterLevelsReservesUnderTheSpecialLawsELE"] == power["Liabilities"] == (
-        "Liabilities", None)
-    assert power["ShareholdersEquity"] == power["CapitalStock"] == ("NetAssets", "ShareholdersEquity")
-    assert power["NonControllingInterests"] == power["NetAssets"] == ("NetAssets", None)
-    assert power["LiabilitiesAndNetAssets"] == (None, None)
-    quarterly = nested("""
-AssetsAbstract
-  NoncurrentAssetsAbstract
-    PropertyPlantAndEquipment
-    IntangibleAssets
-    InvestmentsAndOtherAssetsGross
-    NoncurrentAssets
-  Assets
-""")
-    assert quarterly == declared(_flat("""
-AssetsAbstract
-NoncurrentAssetsAbstract
-PropertyPlantAndEquipment
-IntangibleAssets
-InvestmentsAndOtherAssetsGross
-NoncurrentAssets
-Assets
-"""))
-    assert quarterly["PropertyPlantAndEquipment"] == ("Assets", "PropertyPlantAndEquipment")
-    assert quarterly["InvestmentsAndOtherAssetsGross"] == ("Assets", "InvestmentsAndOtherAssets")
-    pl = nested("""
-OrdinaryIncome
-ExtraordinaryIncome
-  GainOnSalesOfInvestmentSecuritiesEI
-ProfitLoss
-""", "PL")
-    assert pl["ExtraordinaryIncome"] == pl["GainOnSalesOfInvestmentSecuritiesEI"] == (None, "ExtraordinaryIncome")
-    assert pl["OrdinaryIncome"] == pl["ProfitLoss"] == (None, None)
+    assert power["NoncurrentAssets"] == (("資産の部",), 0)
+    assert power["ElectricUtilityPlantAndEquipmentAssetsELE"] == (("資産の部",), 1)
+    assert power["HydroelectricPowerProductionFacilitiesNCAElectricELE"] == (("資産の部",), 2)
+    assert power["CapitalStock"] == (("負債及び純資産の部",), 1)
+    assert power["NonControllingInterests"] == (("負債及び純資産の部",), 0)
 
 
-def test_tree_parts_empty_headings_and_rows_outside_the_sections() -> None:
-    got = nested("""
-AssetsAbstract
-  NoncurrentAssetsAbstract
-    PropertyPlantAndEquipmentAbstract
+def test_heads_empty_headings_and_rows_outside_the_sections() -> None:
+    got = shown("""
+AssetsAbstract=資産の部
+  NoncurrentAssetsAbstract=固定資産
+    PropertyPlantAndEquipmentAbstract=有形固定資産
     Land
     OtherNetPPE
     PropertyPlantAndEquipment
     Software
-    IntangibleAssetsAbstract
+    IntangibleAssetsAbstract=無形固定資産
       Goodwill
     NoncurrentAssets
   Assets
-NetAssetsAbstract
-  ValuationAndTranslationAdjustmentsAbstract
+NetAssetsAbstract=純資産の部
+  ShareholdersEquityAbstract=株主資本
+    CapitalStock
+    ShareholdersEquity
+    ValuationAndTranslationAdjustmentsAbstract=評価・換算差額等
     ValuationDifferenceOnAvailableForSaleSecurities
     ValuationAndTranslationAdjustments
+  ext:OtherAbstract=その他
     SubscriptionRightsToShares
+  ValuationAndTranslationAdjustmentsAbstract=評価・換算差額等
+    ForeignCurrencyTranslationAdjustment
+    ValuationAndTranslationAdjustments
+    NonControllingInterests
   NetAssets
 """)
-    assert got["Land"] == got["OtherNetPPE"] == got["PropertyPlantAndEquipment"] == ("Assets", "PropertyPlantAndEquipment")
-    assert got["Software"] == got["NoncurrentAssets"] == ("Assets", "NoncurrentAssets")
-    assert got["Goodwill"] == ("Assets", "IntangibleAssets")
-    assert got["SubscriptionRightsToShares"] == ("NetAssets", None)
-    pl = nested("""
+    assert got["Land"] == got["OtherNetPPE"] == got["PropertyPlantAndEquipment"] == (("資産の部", "固定資産", "有形固定資産"), 0)
+    assert got["Software"] == got["NoncurrentAssets"] == (("資産の部", "固定資産"), 0)
+    assert got["Goodwill"] == (("資産の部", "固定資産", "無形固定資産"), 0)
+    assert got["ValuationDifferenceOnAvailableForSaleSecurities"] == (("純資産の部", "株主資本", "評価・換算差額等"), 0)
+    assert got["SubscriptionRightsToShares"] == (("純資産の部", "その他"), 0)
+    assert got["NonControllingInterests"] == got["NetAssets"] == (("純資産の部",), 0)
+    pl = shown("""
 NetSales
-CostOfSalesAbstract
+CostOfSalesAbstract=売上原価
   CostOfSalesOfCompletedConstructionContractsCNS
 GrossProfit
-SellingGeneralAndAdministrativeExpensesAbstract
+SellingGeneralAndAdministrativeExpensesAbstract=販売費及び一般管理費
 DirectorsCompensationsSGA
 SellingGeneralAndAdministrativeExpenses
 OperatingIncome
 """, "PL")
-    assert pl["CostOfSalesOfCompletedConstructionContractsCNS"] == (None, "CostOfSales")
-    assert pl["GrossProfit"] == pl["OperatingIncome"] == (None, None)
-    assert pl["DirectorsCompensationsSGA"] == pl["SellingGeneralAndAdministrativeExpenses"] == (
-        None, "SellingGeneralAndAdministrativeExpenses")
-    cf = nested("""
-NetCashProvidedByUsedInFinancingActivitiesAbstract
+    assert pl["CostOfSalesOfCompletedConstructionContractsCNS"] == (("売上原価",), 0)
+    assert pl["GrossProfit"] == pl["OperatingIncome"] == ((), 0)
+    assert pl["DirectorsCompensationsSGA"] == pl["SellingGeneralAndAdministrativeExpenses"] == (("販売費及び一般管理費",), 0)
+    cf = shown("""
+NetCashProvidedByUsedInFinancingActivitiesAbstract=財務活動によるキャッシュ・フロー
   PurchaseOfTreasuryStockFinCF
   NetCashProvidedByUsedInFinancingActivities
   EffectOfExchangeRateChangeOnCashAndCashEquivalents
   IncreaseInCashAndCashEquivalentsFromNewlyConsolidatedSubsidiaryCCE
 """, "CF")
-    assert cf["EffectOfExchangeRateChangeOnCashAndCashEquivalents"] == (None, None)
-    assert cf["IncreaseInCashAndCashEquivalentsFromNewlyConsolidatedSubsidiaryCCE"] == (None, None)
+    assert cf["EffectOfExchangeRateChangeOnCashAndCashEquivalents"] == ((), 0)
+    assert cf["IncreaseInCashAndCashEquivalentsFromNewlyConsolidatedSubsidiaryCCE"] == ((), 0)
 
 
-def test_role_parts_use_the_tree_only_when_every_item_has_a_depth() -> None:
+def test_heads_only_when_every_item_has_a_depth() -> None:
     items = _tree_items(LATE_TREE)
-    flat = fst._flat_parts([item[:4] for item in items], "BS", False)
-    assert fst._role_parts([item[:4] for item in items], "BS", False) == flat
+    flat = fst._role_parts([item[:4] for item in items], "BS", False)
+    assert {p.heads for p in flat.values()} == {None}
     mixed = [*items[:-1], [*items[-1][:4], None]]
     assert fst._role_parts(mixed, "BS", False) == flat
-    assert fst._role_parts(items, "BS", False) == fst._tree_parts(items, "BS", False) != flat
+    deep = fst._role_parts(items, "BS", False)
+    assert all(p.heads is not None for p in deep.values())
+    assert {k: p.coarse for k, p in deep.items()} == {k: p.coarse for k, p in flat.items()}
+    no_label = fst._role_parts([item[:5] for item in items], "BS", False)
+    assert no_label["Buildings"].heads == deep["Buildings"].heads
     layouts = fst.statement_layouts([(0, "rol_BalanceSheet", "BS", False, False, items)], None)
-    assert layouts[False]["BS"].parts["Buildings"] == fst.Part("Assets", "PropertyPlantAndEquipment", False)
+    assert layouts[False]["BS"].parts["Buildings"].heads[-1] == (
+        "PropertyPlantAndEquipmentAbstract", "PropertyPlantAndEquipmentAbstract")
     assert layouts[False]["BS"].first["Buildings"] == 11
+
+
+def test_same_part_for_merging_ignores_heads() -> None:
+    a = fst.Part("Assets", "CurrentAssets", False, (("AssetsAbstract", "資産の部"),), 0)
+    b = fst.Part("Assets", "CurrentAssets", False, None, 0)
+    c = fst.Part("Assets", "CurrentAssets", False, (("X", "流動資産"),), 1)
+    assert fst._same_part(a, b) and fst._same_part(a, c)
+    assert not fst._same_part(a, fst.Part("Assets", "NoncurrentAssets", False, a.heads, 0))
+    assert fst._same_part(None, None) and not fst._same_part(a, None)
 
 
 CA = fst.Part("Assets", "CurrentAssets", False)
@@ -1434,18 +1475,23 @@ def test_row_parts_take_the_newest_filing_and_fill_rows_without_a_definition() -
     assert fst.row_parts([column("2025-03-31", {"A": 1})], ["A", "pdf:B"]) == [None, None]
 
 
+def heads(row: dict) -> tuple[str, ...]:
+    return tuple(h["name"] for h in row["heads"])
+
+
 def test_table_rows_carry_sections() -> None:
-    got = {k: (r["group"], r["section"]) for k, r in rows(table(DEFINED)).items()}
+    got = {k: heads(r) for k, r in rows(table(DEFINED)).items()}
     assert got["CashAndDeposits"] == got["CurrentAssets"] == ("資産", "流動資産")
-    assert got["Assets"] == ("資産", None)
-    assert got["ShortTermLoansPayable"] == ("負債", None)
-    assert got["NetAssets"] == ("純資産", None)
-    assert got["LiabilitiesAndNetAssets"] == (None, None)
+    assert got["Assets"] == ("資産",)
+    assert got["ShortTermLoansPayable"] == ("負債",)
+    assert got["NetAssets"] == ("純資産",)
+    assert got["LiabilitiesAndNetAssets"] == ()
+    assert {r["indent"] for r in rows(table(DEFINED)).values()} == {0}
     t = table(DEFINED, statement="CF")
-    assert {(r["group"], r["section"]) for r in t["rows"][:3]} == {(None, "営業活動によるキャッシュ・フロー")}
-    assert (t["rows"][-1]["group"], t["rows"][-1]["section"]) == (None, None)
-    assert {(r["group"], r["section"]) for r in table(DEFINED, statement="PL")["rows"]} == {(None, None)}
-    assert {(r["group"], r["section"]) for r in table()["rows"]} == {(None, None)}
+    assert {heads(r) for r in t["rows"][:3]} == {("営業活動によるキャッシュ・フロー",)}
+    assert heads(t["rows"][-1]) == ()
+    assert {heads(r) for r in table(DEFINED, statement="PL")["rows"]} == {()}
+    assert {heads(r) for r in table()["rows"]} == {()}
 
 
 def test_group_headings_ignore_labels_that_are_not_totals() -> None:
@@ -1455,11 +1501,11 @@ def test_group_headings_ignore_labels_that_are_not_totals() -> None:
 
 
 def test_table_shows_rows_of_the_older_standard_under_the_newest_sections() -> None:
-    got = {k: (r["group"], r["section"]) for k, r in rows(table(SWITCH)).items()}
+    got = {k: heads(r) for k, r in rows(table(SWITCH)).items()}
     assert got["CashAndDeposits"] == got["CashAndCashEquivalentsIFRS"] == ("資産", "流動資産")
     assert got["Land"] == got["GoodwillIFRS"] == got["ext:Deposits"] == ("資産", "非流動資産")
-    assert got["CapitalStock"] == ("資本", None)
-    one = {k: (r["group"], r["section"]) for k, r in rows(table(SWITCH, periods=1)).items()}
+    assert got["CapitalStock"] == ("資本",)
+    one = {k: heads(r) for k, r in rows(table(SWITCH, periods=1)).items()}
     assert set(one) == {"CashAndCashEquivalentsIFRS", "GoodwillIFRS", "ShareCapitalIFRS", "ext:Deposits"}
 
 
@@ -2295,3 +2341,16 @@ def test_table_merges_rows_split_by_a_new_accounting_standard() -> None:
     assert got["ext:Deposits"]["merged_keys"] == [] and [c["value"] for c in got["ext:Deposits"]["cells"]] == [2 * M, 4 * M]
     assert [c["value"] for c in got["GoodwillIFRS"]["cells"]] == [5 * M, 6 * M]
     assert [p["accounting_standard"] for p in t["periods"]] == ["JPGAAP", "IFRS"]
+
+
+def test_table_shows_declared_heads_and_lends_them_to_rows_of_older_filings() -> None:
+    got = {k: (heads(r), r["indent"]) for k, r in rows(table(DECLARED)).items()}
+    ppe = ("資産の部", "固定資産", "有形固定資産")
+    assert got["CashAndDeposits"] == got["CurrentAssets"] == (("資産の部", "流動資産"), 0)
+    assert got["OtherCA"] == (("資産の部", "流動資産"), 0)
+    assert got["Buildings"] == got["Land"] == got["PropertyPlantAndEquipment"] == (ppe, 0)
+    assert got["AccumulatedDepreciationBuildings"] == (ppe, 1)
+    assert got["Assets"] == (("資産の部",), 0)
+    assert got["LongTermPrepaidExpenses"] == (("資産", "固定資産"), 0)
+    lent = rows(table(DECLARED))["OtherCA"]["heads"]
+    assert [h["key"] for h in lent] == ["AssetsAbstract", "CurrentAssetsAbstract"]

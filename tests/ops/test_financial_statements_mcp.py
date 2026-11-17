@@ -71,8 +71,9 @@ def test_tsv_shape() -> None:
     ]
 
 
-def _bs_row(key: str, label: str, group: str | None, section: str | None) -> dict:
-    return {"key": key, "label": label, "unit": "money", "unmatched_pdf": False, "group": group, "section": section,
+def _bs_row(key: str, label: str, *heads: str, indent: int = 0) -> dict:
+    return {"key": key, "label": label, "unit": "money", "unmatched_pdf": False,
+            "heads": [{"key": f"h:{h}", "name": h} for h in heads], "indent": indent,
             "cells": [{"value": 5 * M, "source": "edinet"}, None]}
 
 
@@ -80,9 +81,9 @@ def test_tsv_section_lines() -> None:
     payload = {**TABLE, "statement": "BS", "cumulative": False, "rows": [
         _bs_row("CashAndDeposits", "現金及び預金", "資産", "流動資産"),
         _bs_row("CurrentAssets", "流動資産合計", "資産", "流動資産"),
-        _bs_row("Assets", "資産合計", "資産", None),
+        _bs_row("Assets", "資産合計", "資産"),
         _bs_row("ShortTermLoansPayable", "借入金", "負債", "流動負債"),
-        _bs_row("LiabilitiesAndNetAssets", "負債純資産合計", None, None),
+        _bs_row("LiabilitiesAndNetAssets", "負債純資産合計"),
     ]}
     text = et.tool_financial_statements({"statement": "BS"}, _getter(payload, []), "12340")
     assert text.splitlines()[1:] == [
@@ -98,9 +99,28 @@ def test_tsv_section_lines() -> None:
         "負債純資産合計\tLiabilitiesAndNetAssets\t5\t",
         "出どころ\t\t有報\tPDF",
     ]
-    cf = {**payload, "rows": [_bs_row("IncomeBeforeIncomeTaxes", "税引前利益", None, "営業活動によるキャッシュ・フロー")]}
+    cf = {**payload, "rows": [_bs_row("IncomeBeforeIncomeTaxes", "税引前利益", "営業活動によるキャッシュ・フロー")]}
     lines = et.tool_financial_statements({}, _getter(cf, []), "12340").splitlines()
     assert lines[2] == "# 営業活動によるキャッシュ・フロー"
+
+
+def test_tsv_heads_of_any_depth_and_indented_rows() -> None:
+    payload = {**TABLE, "statement": "BS", "cumulative": False, "rows": [
+        _bs_row("PropertyPlantAndEquipment", "有形固定資産", "資産の部"),
+        _bs_row("Buildings", "建物", "資産の部", indent=1),
+        _bs_row("Land", "土地", "資産の部", "固定資産", "有形固定資産", "ext:土地等"),
+        _bs_row("Tracks", "線路", "資産の部", "固定資産", "鉄道事業固定資産"),
+    ]}
+    lines = et.tool_financial_statements({}, _getter(payload, []), "12340").splitlines()
+    assert lines[2:9] == [
+        "# 資産の部",
+        "有形固定資産\tPropertyPlantAndEquipment\t5\t",
+        "\u3000建物\tBuildings\t5\t",
+        "# 資産の部 > 固定資産 > 有形固定資産 > ext:土地等",
+        "土地\tLand\t5\t",
+        "# 資産の部 > 固定資産 > 鉄道事業固定資産",
+        "線路\tTracks\t5\t",
+    ]
 
 
 def test_standard_line_only_when_columns_differ() -> None:

@@ -649,15 +649,16 @@ def tool_financial_statements(args: dict[str, Any], get_json: GetJson, code5: st
         head += " 期首からの累計"
     lines = [_tsv([["科目", "要素", *(c.get("label") for c in cols)]])]
     items = d.get("rows") or []
-    sectioned = any(r.get("group") or r.get("section") for r in items)
-    at: tuple[Any, Any] | None = None
+    sectioned = any(r.get("heads") for r in items)
+    at: list[tuple[Any, Any]] | None = None
     for r in items:
-        part = (r.get("group"), r.get("section"))
-        if sectioned and part != at:
-            lines.append("# " + (" > ".join(p for p in part if p) or "-"))
-            at = part
+        path = [(h.get("key"), h.get("name")) for h in r.get("heads") or []]
+        if sectioned and path != at:
+            lines.append("# " + (" > ".join(str(name) for _, name in path) or "-"))
+            at = path
         per_share = r.get("unit") == "per_share"
-        lines.append(_tsv([[r.get("label"), r.get("key"), *(_fs_cell(c, per_share) for c in r.get("cells") or [])]]))
+        label = "　" * int(r.get("indent") or 0) + str(r.get("label") or "")
+        lines.append(_tsv([[label, r.get("key"), *(_fs_cell(c, per_share) for c in r.get("cells") or [])]]))
     standards = [c.get("accounting_standard") for c in cols]
     if len({s for s in standards if s}) > 1:
         lines.append(_tsv([["会計基準", "", *standards]]))

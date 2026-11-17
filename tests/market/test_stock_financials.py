@@ -48,12 +48,13 @@ def test_financials(c) -> None:
     assert rows["Goodwill"]["cells"][2] == {"value": 3 * M, "source": "tdnet_pdf"}
     assert rows["Land"]["cells"][2] is None
     assert rows["pdf:前受金"]["unmatched_pdf"] is True and rows["pdf:前受金"]["label"] == "前受金"
-    assert set(rows["Goodwill"]) == {"key", "label", "unit", "unmatched_pdf", "group", "section", "merged_keys", "cells"}
+    assert set(rows["Goodwill"]) == {"key", "label", "unit", "unmatched_pdf", "heads", "indent", "merged_keys", "cells"}
     assert rows["Goodwill"]["merged_keys"] == []
-    assert (rows["Goodwill"]["group"], rows["Goodwill"]["section"]) == (None, None)
+    assert (rows["Goodwill"]["heads"], rows["Goodwill"]["indent"]) == ([], 0)
     defined = {row["key"]: row for row in c.get(f"/api/stock/{DEFINED}/financials").json()["rows"]}
-    assert (defined["CashAndDeposits"]["group"], defined["CashAndDeposits"]["section"]) == ("資産", "流動資産")
-    assert (defined["LiabilitiesAndNetAssets"]["group"], defined["LiabilitiesAndNetAssets"]["section"]) == (None, None)
+    assert defined["CashAndDeposits"]["heads"] == [{"key": "Assets", "name": "資産"},
+                                                   {"key": "CurrentAssets", "name": "流動資産"}]
+    assert defined["LiabilitiesAndNetAssets"]["heads"] == []
 
     d = c.get(f"/api/stock/{CODE}/financials?statement=PL&periods=2").json()
     assert d["cumulative"] is True and [p["label"] for p in d["periods"]] == ["25.06", "25.09"]

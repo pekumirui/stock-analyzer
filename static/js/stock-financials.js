@@ -62,8 +62,10 @@ function fsMeta(d){
   return parts.filter(Boolean).join(" / ");
 }
 
+const FS_MAX_DEPTH = 6;
+
 function fsSecRow(name, level, span){
-  return `<tr class="fs-sec fs-sec${level}"><td class="l">${fsEsc(name)}</td><td colspan="${span}"></td></tr>`;
+  return `<tr class="fs-sec fs-sec${Math.min(level, FS_MAX_DEPTH - 1)}"><td class="l">${fsEsc(name)}</td><td colspan="${span}"></td></tr>`;
 }
 
 function fsTableHtml(d){
@@ -72,21 +74,19 @@ function fsTableHtml(d){
     return `<tr><td class="l sub"${tip}>データなし</td></tr>`;
   }
   const ps = d.periods;
-  const sectioned = d.rows.some(r => r.group || r.section);
   const mixed = d.consolidated == null;
   const edges = fsEdges(ps);
   const stds = new Set(ps.map(p => p.accounting_standard).filter(Boolean)).size > 1;
   let h = `<thead><tr><th class="l">${d.cumulative ? "科目（累計）" : "科目"}</th>`
     + `${ps.map((p, i) => fsHeadCell(p, mixed, edges[i], stds)).join("")}</tr></thead><tbody>`;
-  let at = null;
+  let at = [];
   for(const r of d.rows){
-    const g = r.group || null, s = r.section || null;
-    if(sectioned){
-      if(g && (!at || at.g !== g)) h += fsSecRow(g, 0, ps.length);
-      if(s && (!at || at.g !== g || at.s !== s)) h += fsSecRow(s, g ? 1 : 0, ps.length);
-      at = {g, s};
-    }
-    const depth = (g ? 1 : 0) + (s ? 1 : 0);
+    const heads = r.heads || [];
+    let same = 0;
+    while(same < heads.length && same < at.length && heads[same].key === at[same].key && heads[same].name === at[same].name) same++;
+    for(let i = same; i < heads.length; i++) h += fsSecRow(heads[i].name, i, ps.length);
+    at = heads;
+    const depth = Math.min(heads.length + (r.indent || 0), FS_MAX_DEPTH);
     const mark = r.unmatched_pdf
       ? `<span class="qb fs-pdf" title="XBRL の科目に対応が付かなかった短信 PDF の行">PDFのみ</span>` : "";
     const unit = r.unit === "per_share" ? `<span class="sub">（円）</span>` : "";

@@ -5,7 +5,7 @@ import re
 import unicodedata
 from bisect import bisect_left
 from collections import Counter, defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from functools import lru_cache
 from typing import Any, Iterable, Mapping, Sequence
@@ -230,11 +230,20 @@ class Fact:
     value: float
 
 
+Head = tuple[str, str]
+
+
 @dataclass(frozen=True)
 class Part:
     group: str | None
     section: str | None
     ifrs: bool
+    heads: tuple[Head, ...] | None = None
+    indent: int = 0
+
+    @property
+    def coarse(self) -> tuple[str | None, str | None, bool]:
+        return self.group, self.section, self.ifrs
 
 
 @dataclass
@@ -356,15 +365,15 @@ def financial_table(
         consolidated = bases.pop()
     keys = _row_keys(columns, statement)
     ifrs = next((part.ifrs for c in reversed(shown_from) for part in c.parts.values()), False)
-    parts = _shown(row_parts(shown_from, keys), statement, labels, ifrs)
+    parts = _shown(keys, row_parts(shown_from, keys), statement, labels, ifrs)
     rows = [
         {
             "key": key,
             "label": labels.get(key, key),
             "unit": _unit_kind(units, key),
             "unmatched_pdf": key.startswith("pdf:"),
-            "group": group,
-            "section": section,
+            "heads": heads,
+            "indent": indent,
             "merged_keys": merged.get(key, []),
             "cells": [
                 None if key not in column.values
@@ -372,7 +381,7 @@ def financial_table(
                 for column in columns
             ],
         }
-        for key, (group, section) in zip(keys, parts)
+        for key, (heads, indent) in zip(keys, parts)
     ]
     empty = None
     if not columns:
@@ -671,70 +680,76 @@ def _depth(item: Sequence[Any]) -> int | None:
 
 
 def _role_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> dict[str, Part]:
-    """表示リンクの 1 区分の並び → 要素の区分。要素に深さがあれば親子から（_tree_parts）、無ければ並びから（_flat_parts）。"""
-    if items and all(_depth(item) is not None for item in items):
-        return _tree_parts(items, statement, ifrs)
-    return _flat_parts(items, statement, ifrs)
+    """表示リンクの 1 区分の並び → 要素の区分。
 
-
-def _tree_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> dict[str, Part]:
-    """深さのある並び → 要素の区分。祖先のうちいちばん近い、表にある見出し（HEAD_GROUPS / HEAD_SECTIONS）か区分の親の要素の区分。
-
-    区分の親の要素は、子を持つ区分の合計の要素（電力・銀行の 固定資産・有形固定資産 など）と LONE_SECTIONS の 1 行。
-    子の無い見出しは、同じ段で後ろに続く要素をその区分の合計の要素まで（次の表にある見出しか、親が閉じるまで）その区分にする。
-    OUTSIDE_SECTIONS と BS_GROUP_END は区分の外。大区分の見出しの外で大区分の合計が出たら、前の大区分の後ろからその合計までをその大区分にする。
+    大区分・区分（group / section。行をまとめる判定と、深さの無い書類の見出し）は、深さの有無にかかわらず並びから（_flat_parts）。
+    要素すべてに深さがあれば、宣言どおりの見出しの道筋と字下げ（_tree_heads）を足す。
     """
-    heads = HEAD_SECTIONS[statement]
-    totals = set(heads.values())
+    flat = _flat_parts([item[:4] for item in items], statement, ifrs)
+    if not items or any(_depth(item) is None for item in items):
+        return flat
+    heads = _tree_heads(items, statement)
+    return {key: replace(part, heads=heads[key][0], indent=heads[key][1]) if key in heads else part
+            for key, part in flat.items()}
+
+
+def _depth(item: Sequence[Any]) -> int | None:
+    return item[4] if len(item) > 4 else None
+
+
+def _head_name(item: Sequence[Any]) -> str:
+    label = item[5] if len(item) > 5 else None
+    return str(label or item[1])
+
+
+def _tree_heads(items: Sequence[Sequence[Any]], statement: str) -> dict[str, tuple[tuple[Head, ...], int]]:
+    """深さのある並び → 値の要素ごとの、見出しの道筋（外側から。(要素, 表示名)）と字下げ（値のある親の数）。
+
+    見出しは祖先の見出しの要素（名前に Abstract を含む）を全部、宣言どおり使う。値のある要素の子は親の行の下に字下げする。
+    次の見出しは出さない（中の要素は親の見出しの下）: 親の見出しの合計の要素より後ろに来る、子のある見出し（TDnet の書類で、会社が足した
+    科目がタクソノミの雛形の見出しごと合計の後ろに並ぶ。印字にこの見出しは無い）。子の無い見出しは、同じ段で後ろに続く要素を、
+    その見出しの合計の要素まで（次の見出しか、親が閉じるまで）の見出しにする。OUTSIDE_SECTIONS の要素は、表にある区分の見出し
+    （HEAD_SECTIONS）の中にあれば、その見出しの外に出す。小計の要素（名前が Subtotal で始まる）の子は字下げしない（TDnet の書類で、
+    小計の前に印字する科目が小計の子として後ろに並ぶ）。
+    """
+    sections = HEAD_SECTIONS[statement]
     outside = OUTSIDE_SECTIONS.get(statement)
-    out: dict[str, Part] = {}
-    path: list[tuple[float, str | None, str | None]] = []
-    loose: list[str] = []
+    out: dict[str, tuple[tuple[Head, ...], int]] = {}
+    path: list[dict[str, Any]] = []
     for i, item in enumerate(items):
         depth = int(item[4])
         name = str(item[1])
-        parent = i + 1 < len(items) and int(items[i + 1][4]) > depth
-        opens = None
-        if not item[2] and statement == "BS" and name in HEAD_GROUPS:
-            opens = (HEAD_GROUPS[name], None)
-        elif not item[2] and name in heads:
-            opens = (BS_SECTIONS.get(heads[name]), heads[name])
-        while path and (path[-1][0] >= depth or (opens and path[-1][0] == depth - 0.5)):
+        head = "Abstract" in name
+        kids = i + 1 < len(items) and int(items[i + 1][4]) > depth
+        while path and (path[-1]["depth"] >= depth or (head and path[-1]["depth"] == depth - 0.5)):
             path.pop()
-        group, section = path[-1][1:] if path else (None, None)
-        if opens is not None:
-            if opens[1] is None:
-                loose = []
-            path.append((depth if parent else depth - 0.5, opens[0] or group, opens[1]))
-            continue
-        if "Abstract" in name:
-            path.append((depth, group, section))
+        up = path[-1] if path else None
+        if head:
+            hidden = kids and up is not None and up["kind"] == "head" and up["closed"]
+            path.append({
+                "depth": depth if kids else depth - 0.5, "kind": "hidden" if hidden else "head",
+                "head": (_item_key(item), _head_name(item)), "total": name.replace("Abstract", "", 1),
+                "local": name, "closed": False,
+            })
             continue
         key = _item_key(item)
-        if statement == "BS" and key in BS_GROUPS and group in (None, key):
-            for held in loose:
-                out[held] = Part(key, out[held].section, ifrs)
-            part = Part(key, None, ifrs)
-            loose = []
-        elif statement == "BS" and key in BS_GROUP_END:
-            part = Part(None, None, ifrs)
-        elif outside is not None and outside.search(key):
-            part = Part(group if statement == "BS" else None, None, ifrs)
-        elif key != section and (
-            (parent and key in totals)
-            or (key in LONE_SECTIONS and SECTION_PARENTS.get(LONE_SECTIONS[key]) in (None, section))
-        ):
-            own = LONE_SECTIONS.get(key, key)
-            part = Part(BS_SECTIONS.get(own, group), own, ifrs)
-        else:
-            part = Part(group, section, ifrs)
-        if path and path[-1][0] == depth - 0.5 and key == (path[-1][2] or path[-1][1]):
-            path.pop()
-        path.append((depth, part.group, part.section))
+        shown = [e for e in path if e["kind"] == "head"]
+        last = max((n for n, e in enumerate(path) if e["kind"] == "head"), default=-1)
+        indent = sum(1 for e in path[last + 1:] if e["kind"] == "value")
+        if outside is not None and outside.search(key):
+            while shown and shown[-1]["local"] in sections:
+                shown.pop()
+            indent = 0
         if key not in out:
-            out[key] = part
-            if statement == "BS" and part.group is None and key not in BS_GROUP_END:
-                loose.append(key)
+            out[key] = (tuple(e["head"] for e in shown), indent)
+        for entry in reversed(path):
+            if entry["kind"] in ("head", "hidden"):
+                if not item[2] and name == entry["total"]:
+                    entry["closed"] = True
+                break
+        if path and path[-1]["depth"] == depth - 0.5 and not item[2] and name == path[-1]["total"]:
+            path.pop()
+        path.append({"depth": depth, "kind": "value" if not name.startswith("Subtotal") else "subtotal"})
     return out
 
 
@@ -1697,32 +1712,47 @@ def row_parts(columns: Sequence[Column], keys: Sequence[str]) -> list[Part | Non
 
 
 def _same_part(a: Part | None, b: Part | None) -> bool:
-    if a == b:
+    if a is None or b is None:
+        return a is b
+    if a.coarse == b.coarse:
         return True
-    if a is None or b is None or a.ifrs == b.ifrs:
+    if a.ifrs == b.ifrs:
         return False
     return (COARSE.get(a.group), COARSE.get(a.section)) == (COARSE.get(b.group), COARSE.get(b.section))
 
 
 def _shown(
-    parts: Sequence[Part | None], statement: str, labels: Mapping[str, str], ifrs: bool,
-) -> list[tuple[str | None, str | None]]:
-    """画面に出す 大区分・区分 の名前。PL は出さない。表の会計基準（いちばん新しい列）と違う基準の行は、粗い区分でその基準の区分に寄せる。"""
-    if statement == "PL":
-        return [(None, None)] * len(parts)
-    out: list[tuple[str | None, str | None]] = []
+    keys: Sequence[str], parts: Sequence[Part | None], statement: str, labels: Mapping[str, str], ifrs: bool,
+) -> list[tuple[list[dict[str, str]], int]]:
+    """画面に出す見出しの道筋（外側から {key, name}）と字下げ。
+
+    深さのある書類の行は、表示リンクの宣言どおり（Part.heads / indent）。深さの無い書類の行は、表の中に同じ大区分・区分の
+    合計の要素の行があって深さのある書類のものなら、その行の見出しを借りる。無ければ 大区分・区分 の 2 段（PL は出さない）。
+    表の会計基準（いちばん新しい列）と違う基準の深さの無い行は、粗い区分でその基準の区分に寄せる。
+    """
+    declared = {k: p for k, p in zip(keys, parts) if p is not None and p.heads is not None}
+    out: list[tuple[list[dict[str, str]], int]] = []
     for part in parts:
         if part is None:
-            out.append((None, None))
+            out.append(([], 0))
+            continue
+        if part.heads is not None:
+            out.append(([{"key": k, "name": n} for k, n in part.heads], part.indent))
             continue
         group, section = part.group, part.section
         if part.ifrs != ifrs:
             ids = COARSE_IDS[ifrs]
             group, section = ids.get(COARSE.get(group, "")), ids.get(COARSE.get(section, ""))
-        out.append((
-            None if group is None else _heading(group, labels, BS_GROUPS),
-            None if section is None else _heading(section, labels, SECTION_NAMES),
-        ))
+        anchor = declared.get(section or group or "")
+        if anchor is not None and (anchor.group, anchor.section) == (group, section):
+            out.append(([{"key": k, "name": n} for k, n in anchor.heads or ()], 0))
+        elif statement == "PL":
+            out.append(([], 0))
+        else:
+            out.append(([
+                {"key": key, "name": _heading(key, labels, names)}
+                for key, names in ((group, BS_GROUPS), (section, SECTION_NAMES)) if key is not None
+            ], 0))
     return out
 
 
