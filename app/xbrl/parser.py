@@ -507,15 +507,15 @@ def parse_package(
         labels=labels,
         ixbrl_files=list(parser.ixbrl_files),
         fiscal_year_end=fy_end,
-        presentation=_read_presentation(unpacked),
+        presentation=_read_presentation(unpacked, cache_dir),
     )
 
 
-def _read_presentation(unpacked: Path) -> list[PresentationRole] | None:
+def _read_presentation(unpacked: Path, cache_dir: Path | None = None) -> list[PresentationRole] | None:
     from app.xbrl.presentation import read_presentation
 
     try:
-        return read_presentation(unpacked)
+        return read_presentation(unpacked, cache_dir)
     except Exception:
         return None
 

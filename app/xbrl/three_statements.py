@@ -5,7 +5,7 @@ import re
 import unicodedata
 from bisect import bisect_left
 from collections import Counter, defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from functools import lru_cache
 from typing import Any, Iterable, Mapping, Sequence
@@ -34,7 +34,6 @@ __all__ = [
     "pdf_only_matches",
     "pdf_rows",
     "printed_twice",
-    "sections",
     "split_by_layout",
     "statement_layouts",
     "strip_heads",
@@ -96,7 +95,6 @@ BS_GROUPS = {
     "Assets": "資産", "Liabilities": "負債", "NetAssets": "純資産",
     "AssetsIFRS": "資産", "LiabilitiesIFRS": "負債", "EquityIFRS": "資本",
 }
-BS_GROUP_ORDERS = (("Assets", "Liabilities", "NetAssets"), ("AssetsIFRS", "LiabilitiesIFRS", "EquityIFRS"))
 BS_GROUP_END = frozenset({"LiabilitiesAndNetAssets", "LiabilitiesAndEquityIFRS"})
 BS_SECTIONS = {
     "CurrentAssets": "Assets", "PropertyPlantAndEquipment": "Assets", "IntangibleAssets": "Assets",
@@ -111,15 +109,94 @@ SECTION_NAMES = {
     "CurrentAssets": "流動資産", "PropertyPlantAndEquipment": "有形固定資産", "IntangibleAssets": "無形固定資産",
     "InvestmentsAndOtherAssets": "投資その他の資産", "NoncurrentAssets": "固定資産", "DeferredAssets": "繰延資産",
     "CurrentLiabilities": "流動負債", "NoncurrentLiabilities": "固定負債", "ShareholdersEquity": "株主資本",
+    "ReservesUnderTheSpecialLaws1": "特別法上の準備金",
     "ValuationAndTranslationAdjustments": "その他の包括利益累計額",
     "CurrentAssetsIFRS": "流動資産", "NonCurrentAssetsIFRS": "非流動資産", "TotalCurrentLiabilitiesIFRS": "流動負債",
     "NonCurrentLabilitiesIFRS": "非流動負債", "EquityAttributableToOwnersOfParentIFRS": "親会社の所有者に帰属する持分",
     "NetCashProvidedByUsedInOperatingActivities": "営業活動によるキャッシュ・フロー",
     "NetCashProvidedByUsedInInvestmentActivities": "投資活動によるキャッシュ・フロー",
     "NetCashProvidedByUsedInFinancingActivities": "財務活動によるキャッシュ・フロー",
+    "NetCashProvidedByUsedInInvestingActivitiesIFRS": "投資活動によるキャッシュ・フロー",
 }
 CF_SECTION_RE = re.compile(r"^NetCashProvidedByUsedIn(Operating|Investment|Investing|Financing)Activities(IFRS)?$")
-CF_SECTION_ORDER = {"Operating": 0, "Investment": 1, "Investing": 1, "Financing": 2}
+HEAD_GROUPS = {
+    "AssetsAbstract": "Assets", "LiabilitiesAbstract": "Liabilities", "NetAssetsAbstract": "NetAssets",
+    "AssetsIFRSAbstract": "AssetsIFRS", "LiabilitiesIFRSAbstract": "LiabilitiesIFRS", "EquityIFRSAbstract": "EquityIFRS",
+}
+HEAD_SECTIONS = {
+    "BS": {
+        "CurrentAssetsAbstract": "CurrentAssets", "NoncurrentAssetsAbstract": "NoncurrentAssets",
+        "PropertyPlantAndEquipmentAbstract": "PropertyPlantAndEquipment", "IntangibleAssetsAbstract": "IntangibleAssets",
+        "InvestmentsAndOtherAssetsAbstract": "InvestmentsAndOtherAssets", "DeferredAssetsAbstract": "DeferredAssets",
+        "CurrentLiabilitiesAbstract": "CurrentLiabilities", "NoncurrentLiabilitiesAbstract": "NoncurrentLiabilities",
+        "ReservesUnderTheSpecialLawsAbstract1": "ReservesUnderTheSpecialLaws1",
+        "ShareholdersEquityAbstract": "ShareholdersEquity",
+        "ValuationAndTranslationAdjustmentsAbstract": "ValuationAndTranslationAdjustments",
+        "CurrentAssetsIFRSAbstract": "CurrentAssetsIFRS", "NonCurrentAssetsIFRSAbstract": "NonCurrentAssetsIFRS",
+        "CurrentLiabilitiesIFRSAbstract": "TotalCurrentLiabilitiesIFRS",
+        "NonCurrentLiabilitiesIFRSAbstract": "NonCurrentLabilitiesIFRS",
+        "EquityAttributableToOwnersOfParentIFRSAbstract": "EquityAttributableToOwnersOfParentIFRS",
+    },
+    "PL": {
+        "CostOfSalesAbstract": "CostOfSales",
+        "SellingGeneralAndAdministrativeExpensesAbstract": "SellingGeneralAndAdministrativeExpenses",
+        "NonOperatingIncomeAbstract": "NonOperatingIncome", "NonOperatingExpensesAbstract": "NonOperatingExpenses",
+        "ExtraordinaryIncomeAbstract": "ExtraordinaryIncome", "ExtraordinaryLossAbstract": "ExtraordinaryLoss",
+    },
+    "CF": {
+        "NetCashProvidedByUsedInOperatingActivitiesAbstract": "NetCashProvidedByUsedInOperatingActivities",
+        "NetCashProvidedByUsedInInvestmentActivitiesAbstract": "NetCashProvidedByUsedInInvestmentActivities",
+        "NetCashProvidedByUsedInFinancingActivitiesAbstract": "NetCashProvidedByUsedInFinancingActivities",
+        "CashFlowsFromOperatingActivitiesIFRSAbstract": "NetCashProvidedByUsedInOperatingActivitiesIFRS",
+        "CashFlowsFromInvestingActivitiesIFRSAbstract": "NetCashProvidedByUsedInInvestingActivitiesIFRS",
+        "CashFlowsFromFinancingActivitiesIFRSAbstract": "NetCashProvidedByUsedInFinancingActivitiesIFRS",
+    },
+}
+SECTION_PARENTS = {
+    "PropertyPlantAndEquipment": "NoncurrentAssets", "IntangibleAssets": "NoncurrentAssets",
+    "InvestmentsAndOtherAssets": "NoncurrentAssets",
+}
+LONE_SECTIONS = {
+    **{key: key for key in (
+        *SECTION_PARENTS, "DeferredAssets", "CurrentAssets", "NoncurrentAssets", "CurrentLiabilities",
+        "NoncurrentLiabilities", "CurrentAssetsIFRS", "NonCurrentAssetsIFRS", "TotalCurrentLiabilitiesIFRS",
+        "NonCurrentLabilitiesIFRS",
+    )},
+    "InvestmentsAndOtherAssetsGross": "InvestmentsAndOtherAssets",
+}
+OPEN_AFTER_TOTAL = frozenset({
+    "CurrentAssets", "NoncurrentAssets", "CurrentLiabilities", "NoncurrentLiabilities", "CurrentAssetsIFRS", "NonCurrentAssetsIFRS",
+    "TotalCurrentLiabilitiesIFRS", "NonCurrentLabilitiesIFRS",
+    "NetCashProvidedByUsedInOperatingActivities", "NetCashProvidedByUsedInInvestmentActivities",
+    "NetCashProvidedByUsedInOperatingActivitiesIFRS", "NetCashProvidedByUsedInInvestingActivitiesIFRS",
+})
+OUTSIDE_SECTIONS = {
+    "BS": re.compile(r"^(SubscriptionRightsToShares|NonControllingInterests)(IFRS)?$"),
+    "CF": re.compile(r"^(EffectOfExchangeRateChange|NetIncreaseDecreaseInCashAndCashEquivalents|CashAndCashEquivalents)|CCE$"),
+}
+COARSE_IDS = {
+    False: {
+        "assets": "Assets", "liabilities": "Liabilities", "equity": "NetAssets",
+        "current_assets": "CurrentAssets", "noncurrent_assets": "NoncurrentAssets",
+        "current_liabilities": "CurrentLiabilities", "noncurrent_liabilities": "NoncurrentLiabilities",
+        "operating": "NetCashProvidedByUsedInOperatingActivities",
+        "investing": "NetCashProvidedByUsedInInvestmentActivities",
+        "financing": "NetCashProvidedByUsedInFinancingActivities",
+    },
+    True: {
+        "assets": "AssetsIFRS", "liabilities": "LiabilitiesIFRS", "equity": "EquityIFRS",
+        "current_assets": "CurrentAssetsIFRS", "noncurrent_assets": "NonCurrentAssetsIFRS",
+        "current_liabilities": "TotalCurrentLiabilitiesIFRS", "noncurrent_liabilities": "NonCurrentLabilitiesIFRS",
+        "operating": "NetCashProvidedByUsedInOperatingActivitiesIFRS",
+        "investing": "NetCashProvidedByUsedInInvestingActivitiesIFRS",
+        "financing": "NetCashProvidedByUsedInFinancingActivitiesIFRS",
+    },
+}
+COARSE = {
+    **{key: name for ids in COARSE_IDS.values() for name, key in ids.items()},
+    "PropertyPlantAndEquipment": "noncurrent_assets", "IntangibleAssets": "noncurrent_assets",
+    "InvestmentsAndOtherAssets": "noncurrent_assets",
+}
 TOTAL_TAIL_RE = re.compile(r"(合計|計)$")
 
 PL_MARKERS = frozenset({
@@ -153,6 +230,22 @@ class Fact:
     value: float
 
 
+Head = tuple[str, str]
+
+
+@dataclass(frozen=True)
+class Part:
+    group: str | None
+    section: str | None
+    ifrs: bool
+    heads: tuple[Head, ...] | None = None
+    indent: int = 0
+
+    @property
+    def coarse(self) -> tuple[str | None, str | None, bool]:
+        return self.group, self.section, self.ifrs
+
+
 @dataclass
 class Filing:
     id: int
@@ -164,6 +257,7 @@ class Filing:
     standard: str | None
     by_statement: dict[str, list[Fact]] = field(default_factory=dict)
     seq: list[Fact] = field(default_factory=list)
+    parts: dict[str, dict[str, Part]] = field(default_factory=dict)
 
     @property
     def is_pdf(self) -> bool:
@@ -227,6 +321,7 @@ class Column:
     order: list[str]
     sources: dict[str, str]
     consolidated: bool = True
+    parts: dict[str, Part] = field(default_factory=dict)
 
     @property
     def period_end(self) -> date:
@@ -262,21 +357,23 @@ def financial_table(
         labels = {**other_labels, **labels}
         units = {**other_units, **units}
     merged = merge_split_rows(columns, statement, labels, units, _merge_exclusions().get((code, statement), set()))
+    shown_from = columns
     columns = columns[-periods:]
     bases = {c.consolidated for c in columns}
     mixed = len(bases) > 1
     if bases and not mixed:
         consolidated = bases.pop()
     keys = _row_keys(columns, statement)
-    parts = sections(keys, statement, labels)
+    ifrs = next((part.ifrs for c in reversed(shown_from) for part in c.parts.values()), False)
+    parts = _shown(keys, row_parts(shown_from, keys), statement, labels, ifrs)
     rows = [
         {
             "key": key,
             "label": labels.get(key, key),
             "unit": _unit_kind(units, key),
             "unmatched_pdf": key.startswith("pdf:"),
-            "group": group,
-            "section": section,
+            "heads": heads,
+            "indent": indent,
             "merged_keys": merged.get(key, []),
             "cells": [
                 None if key not in column.values
@@ -284,7 +381,7 @@ def financial_table(
                 for column in columns
             ],
         }
-        for key, (group, section) in zip(keys, parts)
+        for key, (heads, indent) in zip(keys, parts)
     ]
     empty = None
     if not columns:
@@ -328,13 +425,6 @@ def _merge_exclusions() -> dict[tuple[str, str], set[frozenset[str]]]:
     return dict(out)
 
 
-def _merge_parts(keys: Sequence[str], statement: str, labels: Mapping[str, str]) -> list[object]:
-    if statement == "PL":
-        homes = _homes(keys, statement)
-        return [homes[k] for k in keys]
-    return list(sections(keys, statement, labels))
-
-
 def _never_merged(label: str) -> bool:
     name = label.removesuffix("(純額)")
     return name in NEVER_MERGED_LABELS or name.startswith(NEVER_MERGED_PREFIXES)
@@ -346,16 +436,18 @@ def merge_split_rows(
 ) -> dict[str, list[str]]:
     """同じ区分・同じ行名・同じ単位で値の期が 1 つも重ならない XBRL の行を 1 行にまとめる（columns を書き換える）。
 
+    区分が同じとは、行の区分（row_parts）が同じか、会計基準が違う行どうしで粗い区分（COARSE）が同じこと。
     残すのはいちばん新しい期に値がある行。返り値は 残した行 → まとめた行（新しい順）。
     """
     keys = _row_keys(columns, statement)
     seen = {k: frozenset(i for i, c in enumerate(columns) if k in c.values) for k in keys}
-    groups: dict[tuple[object, str, str], list[str]] = defaultdict(list)
-    for key, part in zip(keys, _merge_parts(keys, statement, labels)):
+    parts = dict(zip(keys, row_parts(columns, keys)))
+    groups: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for key in keys:
         label = labels.get(key, key)
         if key.startswith("pdf:") or not seen[key] or _never_merged(label):
             continue
-        groups[(part, label, _unit_kind(units, key))].append(key)
+        groups[(label, _unit_kind(units, key))].append(key)
     skip = set(excluded)
     out: dict[str, list[str]] = {}
     for members in groups.values():
@@ -363,7 +455,7 @@ def merge_split_rows(
             continue
         apart = {
             (a, b) for a in members for b in members
-            if a != b and not seen[a] & seen[b] and frozenset((a, b)) not in skip
+            if a != b and not seen[a] & seen[b] and frozenset((a, b)) not in skip and _same_part(parts[a], parts[b])
         }
         for part in _components(members, apart):
             if len(part) < 2 or any((a, b) not in apart for a in part for b in part if a != b):
@@ -375,6 +467,8 @@ def merge_split_rows(
                     if key in column.values:
                         column.values[keep] = column.values.pop(key)
                         column.sources[keep] = column.sources.pop(key)
+                        if key in column.parts:
+                            column.parts[keep] = column.parts.pop(key)
                         column.order = [keep if k == key else k for k in column.order]
             out[keep] = rest
     return out
@@ -522,6 +616,7 @@ def load_both(db: Session, code: str) -> dict[bool, list[Filing]]:
             filing.seq = [f for f in facts if f.id not in drop]
             if fid in layouts:
                 filing.by_statement = split_by_layout(filing.seq, layouts[fid].get(basis, {}))
+                filing.parts = {s: layout.parts for s, layout in layouts[fid].get(basis, {}).items()}
             else:
                 filing.by_statement = {s: [f for f in v if f.id not in drop] for s, v in split_xbrl(facts).items()}
         for filing in by_id.values():
@@ -535,6 +630,7 @@ class Layout:
     first: dict[str, int]
     period_end: dict[str, int]
     closing: dict[str, int] = field(default_factory=dict)
+    parts: dict[str, Part] = field(default_factory=dict)
 
 
 def _item_key(item: Sequence[Any]) -> str:
@@ -548,6 +644,7 @@ def statement_layouts(
 
     同じ表・同じ連結区分に IFRS と日本基準の区分が両方あれば、書類の会計基準に合う方。
     区分は seq の順につなぐ。包括利益計算書だけの区分は損益計算書の区分の後ろ。
+    parts は要素 → 見出しの要素から決めた区分（_role_parts）。
     """
     grouped: dict[tuple[bool, str], list[tuple[tuple[bool, int], bool, list]]] = defaultdict(list)
     for seq, role, statement, consolidated, ifrs, items in roles:
@@ -561,8 +658,11 @@ def statement_layouts(
         first: dict[str, int] = {}
         period_end: dict[str, int] = {}
         closing: dict[str, int] = {}
+        declared: dict[str, Part] = {}
         n = 0
-        for _, _, items in sorted(parts, key=lambda p: p[0]):
+        for _, ifrs, items in sorted(parts, key=lambda p: p[0]):
+            for key, part in _role_parts(items, statement, ifrs).items():
+                declared.setdefault(key, part)
             for item in items:
                 key = _item_key(item)
                 first.setdefault(key, n)
@@ -571,7 +671,138 @@ def statement_layouts(
                 if item[3] != PERIOD_START_LABEL:
                     closing[key] = n
                 n += 1
-        out[consolidated][statement] = Layout(first, period_end, closing)
+        out[consolidated][statement] = Layout(first, period_end, closing, declared)
+    return out
+
+
+def _depth(item: Sequence[Any]) -> int | None:
+    return item[4] if len(item) > 4 else None
+
+
+def _role_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> dict[str, Part]:
+    """表示リンクの 1 区分の並び → 要素の区分。
+
+    大区分・区分（group / section。行をまとめる判定と、深さの無い書類の見出し）は、深さの有無にかかわらず並びから（_flat_parts）。
+    要素すべてに深さがあれば、宣言どおりの見出しの道筋と字下げ（_tree_heads）を足す。
+    """
+    flat = _flat_parts([item[:4] for item in items], statement, ifrs)
+    if not items or any(_depth(item) is None for item in items):
+        return flat
+    heads = _tree_heads(items, statement)
+    return {key: replace(part, heads=heads[key][0], indent=heads[key][1]) if key in heads else part
+            for key, part in flat.items()}
+
+
+def _depth(item: Sequence[Any]) -> int | None:
+    return item[4] if len(item) > 4 else None
+
+
+def _head_name(item: Sequence[Any]) -> str:
+    label = item[5] if len(item) > 5 else None
+    return str(label or item[1])
+
+
+def _tree_heads(items: Sequence[Sequence[Any]], statement: str) -> dict[str, tuple[tuple[Head, ...], int]]:
+    """深さのある並び → 値の要素ごとの、見出しの道筋（外側から。(要素, 表示名)）と字下げ（値のある親の数）。
+
+    見出しは祖先の見出しの要素（名前に Abstract を含む）を全部、宣言どおり使う。値のある要素の子は親の行の下に字下げする。
+    次の見出しは出さない（中の要素は親の見出しの下）: 親の見出しの合計の要素より後ろに来る、子のある見出し（TDnet の書類で、会社が足した
+    科目がタクソノミの雛形の見出しごと合計の後ろに並ぶ。印字にこの見出しは無い）。子の無い見出しは、同じ段で後ろに続く要素を、
+    その見出しの合計の要素まで（次の見出しか、親が閉じるまで）の見出しにする。OUTSIDE_SECTIONS の要素は、表にある区分の見出し
+    （HEAD_SECTIONS）の中にあれば、その見出しの外に出す。小計の要素（名前が Subtotal で始まる）の子は字下げしない（TDnet の書類で、
+    小計の前に印字する科目が小計の子として後ろに並ぶ）。
+    """
+    sections = HEAD_SECTIONS[statement]
+    outside = OUTSIDE_SECTIONS.get(statement)
+    out: dict[str, tuple[tuple[Head, ...], int]] = {}
+    path: list[dict[str, Any]] = []
+    for i, item in enumerate(items):
+        depth = int(item[4])
+        name = str(item[1])
+        head = "Abstract" in name
+        kids = i + 1 < len(items) and int(items[i + 1][4]) > depth
+        while path and (path[-1]["depth"] >= depth or (head and path[-1]["depth"] == depth - 0.5)):
+            path.pop()
+        up = path[-1] if path else None
+        if head:
+            hidden = kids and up is not None and up["kind"] == "head" and up["closed"]
+            path.append({
+                "depth": depth if kids else depth - 0.5, "kind": "hidden" if hidden else "head",
+                "head": (_item_key(item), _head_name(item)), "total": name.replace("Abstract", "", 1),
+                "local": name, "closed": False,
+            })
+            continue
+        key = _item_key(item)
+        shown = [e for e in path if e["kind"] == "head"]
+        last = max((n for n, e in enumerate(path) if e["kind"] == "head"), default=-1)
+        indent = sum(1 for e in path[last + 1:] if e["kind"] == "value")
+        if outside is not None and outside.search(key):
+            while shown and shown[-1]["local"] in sections:
+                shown.pop()
+            indent = 0
+        if key not in out:
+            out[key] = (tuple(e["head"] for e in shown), indent)
+        for entry in reversed(path):
+            if entry["kind"] in ("head", "hidden"):
+                if not item[2] and name == entry["total"]:
+                    entry["closed"] = True
+                break
+        if path and path[-1]["depth"] == depth - 0.5 and not item[2] and name == path[-1]["total"]:
+            path.pop()
+        path.append({"depth": depth, "kind": "value" if not name.startswith("Subtotal") else "subtotal"})
+    return out
+
+
+def _flat_parts(items: Sequence[Sequence[Any]], statement: str, ifrs: bool) -> dict[str, Part]:
+    """深さの無い並び → 要素の区分。見出しの要素（…Abstract）のうち HEAD_GROUPS / HEAD_SECTIONS にあるものだけを見る。
+
+    区分は親でない次の見出しか、親の区分・大区分の合計で閉じる。区分の合計でも閉じるが、OPEN_AFTER_TOTAL の区分は
+    合計の後ろに科目が続く書類があるので、後ろにまだ見出しがある間は閉じない。知らない見出しは飛ばす。LONE_SECTIONS の合計が見出し無しで出たら、
+    その 1 行がその区分。大区分の見出しが無いまま大区分の合計が出たら、前の大区分の後ろからその合計までをその大区分にする。
+    """
+    heads = HEAD_SECTIONS[statement]
+    out: dict[str, Part] = {}
+    group: str | None = None
+    stack: list[str] = []
+    loose: list[str] = []
+    last_head = max(
+        (i for i, item in enumerate(items) if not item[2] and (item[1] in heads or item[1] in HEAD_GROUPS)), default=-1,
+    )
+    for i, item in enumerate(items):
+        name = str(item[1])
+        if not item[2]:
+            if statement == "BS" and name in HEAD_GROUPS:
+                group, stack, loose = HEAD_GROUPS[name], [], []
+                continue
+            section = heads.get(name)
+            if section is not None:
+                parent = SECTION_PARENTS.get(section)
+                while stack and stack[-1] != parent:
+                    stack.pop()
+                stack.append(section)
+                group = BS_SECTIONS.get(section, group)
+                continue
+        if "Abstract" in name:
+            continue
+        key = _item_key(item)
+        if statement == "BS" and key in BS_GROUPS and group in (None, key):
+            for held in loose:
+                out[held] = Part(key, out[held].section, ifrs)
+            part = Part(key, None, ifrs)
+            group, stack, loose = None, [], []
+        elif key in stack:
+            part = Part(group, key, ifrs)
+            del stack[stack.index(key) + (key in OPEN_AFTER_TOTAL and i < last_head):]
+        elif key in LONE_SECTIONS and SECTION_PARENTS.get(LONE_SECTIONS[key]) in (None, *stack):
+            part = Part(group, LONE_SECTIONS[key], ifrs)
+            if LONE_SECTIONS[key] not in SECTION_PARENTS:
+                stack = []
+        else:
+            part = Part(group, stack[-1] if stack else None, ifrs)
+        if key not in out:
+            out[key] = part
+            if part.group is None:
+                loose.append(key)
     return out
 
 
@@ -1408,6 +1639,7 @@ def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], stateme
                 chosen.append(_newest(same))
         values: dict[str, float] = {}
         sources: dict[str, str] = {}
+        parts: dict[str, Part] = {}
         order: list[str] = []
         primary = chosen[0]
         for filing in chosen:
@@ -1439,59 +1671,96 @@ def build_columns(filings: Sequence[Filing], learned: Sequence[Learned], stateme
                         sources[key] = filing.source
                         seq.append(key)
             else:
+                declared = filing.parts.get(statement, {})
                 for fact in _with_extras(filing, statement, learned):
                     seq.append(fact.key)
                     if fact.key not in values:
                         values[fact.key] = fact.value
                         sources[fact.key] = filing.source
+                        if fact.key in declared:
+                            parts[fact.key] = declared[fact.key]
             order = _merge(order, [k for k in seq if k in values])
-        columns.append(Column(primary, values, order, sources))
+        columns.append(Column(primary, values, order, sources, parts=parts))
     return columns
 
 
-def sections(keys: Sequence[str], statement: str, labels: Mapping[str, str]) -> list[tuple[str | None, str | None]]:
-    out: list[tuple[str | None, str | None]] = [(None, None)] * len(keys)
-    pos = {k: i for i, k in enumerate(keys)}
-    if statement == "CF":
-        totals = [(pos[k], CF_SECTION_ORDER[m.group(1)]) for k in keys if (m := CF_SECTION_RE.match(k))]
-        totals.sort()
-        if [n for _, n in totals] != sorted({n for _, n in totals}):
-            return out
-        _fill_sections(out, keys, [i for i, _ in totals], 0, len(keys), None, labels)
-        return out
-    if statement != "BS":
-        return out
-    groups = sorted(pos[k] for k in keys if k in BS_GROUPS)
-    found = [keys[i] for i in groups]
-    if not groups or found not in ([k for k in order if k in found] for order in BS_GROUP_ORDERS):
-        return out
-    end = min((pos[k] for k in keys if k in BS_GROUP_END), default=len(keys))
-    if end < groups[-1]:
-        return out
-    lo = 0
-    for gi in groups:
-        group = keys[gi]
-        inner = [pos[k] for k in keys if BS_SECTIONS.get(k) == group and lo <= pos[k] <= gi]
-        _fill_sections(out, keys, sorted(inner), lo, gi + 1, _heading(group, labels, BS_GROUPS), labels)
-        lo = gi + 1
+def row_parts(columns: Sequence[Column], keys: Sequence[str]) -> list[Part | None]:
+    """行の区分。その行に値があるいちばん新しい列の、書類の表示リンクの区分。
+
+    表示リンクの区分が無い行（対応の付かない PDF の行、表示リンクの無い書類だけの行）は、上で最初に区分のある行と同じ。
+    その行が区分か大区分の合計なら、下で最初に区分のある行と同じ。
+    """
+    declared: dict[str, Part] = {}
+    for column in columns:
+        declared.update(column.parts)
+    out = [declared.get(k) for k in keys]
+    below: Part | None = None
+    after: list[Part | None] = []
+    for part in reversed(out):
+        after.append(below)
+        below = part or below
+    after.reverse()
+    above: Part | None = None
+    closed = True
+    for i, key in enumerate(keys):
+        if out[i] is not None:
+            above = out[i]
+            closed = key in (above.group, above.section)
+        else:
+            out[i] = after[i] if closed else above
     return out
 
 
-def _fill_sections(
-    out: list[tuple[str | None, str | None]], keys: Sequence[str], totals: Sequence[int], lo: int, hi: int,
-    group: str | None, labels: Mapping[str, str],
-) -> None:
-    at = 0
-    for i in range(lo, hi):
-        while at < len(totals) and totals[at] < i:
-            at += 1
-        section = _heading(keys[totals[at]], labels, SECTION_NAMES) if at < len(totals) else None
-        out[i] = (group, section)
+def _same_part(a: Part | None, b: Part | None) -> bool:
+    if a is None or b is None:
+        return a is b
+    if a.coarse == b.coarse:
+        return True
+    if a.ifrs == b.ifrs:
+        return False
+    return (COARSE.get(a.group), COARSE.get(a.section)) == (COARSE.get(b.group), COARSE.get(b.section))
+
+
+def _shown(
+    keys: Sequence[str], parts: Sequence[Part | None], statement: str, labels: Mapping[str, str], ifrs: bool,
+) -> list[tuple[list[dict[str, str]], int]]:
+    """画面に出す見出しの道筋（外側から {key, name}）と字下げ。
+
+    深さのある書類の行は、表示リンクの宣言どおり（Part.heads / indent）。深さの無い書類の行は、表の中に同じ大区分・区分の
+    合計の要素の行があって深さのある書類のものなら、その行の見出しを借りる。無ければ 大区分・区分 の 2 段（PL は出さない）。
+    表の会計基準（いちばん新しい列）と違う基準の深さの無い行は、粗い区分でその基準の区分に寄せる。
+    """
+    declared = {k: p for k, p in zip(keys, parts) if p is not None and p.heads is not None}
+    out: list[tuple[list[dict[str, str]], int]] = []
+    for part in parts:
+        if part is None:
+            out.append(([], 0))
+            continue
+        if part.heads is not None:
+            out.append(([{"key": k, "name": n} for k, n in part.heads], part.indent))
+            continue
+        group, section = part.group, part.section
+        if part.ifrs != ifrs:
+            ids = COARSE_IDS[ifrs]
+            group, section = ids.get(COARSE.get(group, "")), ids.get(COARSE.get(section, ""))
+        anchor = declared.get(section or group or "")
+        if anchor is not None and (anchor.group, anchor.section) == (group, section):
+            out.append(([{"key": k, "name": n} for k, n in anchor.heads or ()], 0))
+        elif statement == "PL":
+            out.append(([], 0))
+        else:
+            out.append(([
+                {"key": key, "name": _heading(key, labels, names)}
+                for key, names in ((group, BS_GROUPS), (section, SECTION_NAMES)) if key is not None
+            ], 0))
+    return out
 
 
 def _heading(key: str, labels: Mapping[str, str], fallback: Mapping[str, str]) -> str:
     label = labels.get(key, "")
     name = "" if label == key else TOTAL_TAIL_RE.sub("", label)
+    if name == label and key in BS_GROUPS:
+        name = ""
     return name or fallback.get(key) or fallback.get(key.removesuffix("IFRS")) or key
 
 

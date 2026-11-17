@@ -1,6 +1,4 @@
 {
   "_meta": {"use": "財務3表で、規則では 1 行にまとまるが別の科目だと分かった行の組（会社の 5 桁コード・表・要素 2 つ）。この組はまとめない", "researched_at": "2026-11-16", "source": "本番の財務3表と有報・短信の原文"},
-  "pairs": [
-    {"code": "50760", "statement": "BS", "keys": ["ProvisionForShareBasedRemunerationCL", "ProvisionForShareBasedRemunerationNCL"], "note": "株式給付引当金。有報（2023年3月期 S100QZK6）の連結貸借対照表で、流動負債と固定負債に別の行で出ている"}
-  ]
+  "pairs": []
 }

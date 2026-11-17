@@ -22,6 +22,7 @@ console.log(JSON.stringify({
   mixed: fs.fsTableHtml(JSON.parse(process.argv[4])),
   mixedMeta: fs.fsMeta(JSON.parse(process.argv[4])),
   standards: fs.fsTableHtml(JSON.parse(process.argv[5])),
+  deep: fs.fsTableHtml(JSON.parse(process.argv[6])),
   amounts: [fs.fsAmount(1234567890, "money"), fs.fsAmount(-2500000, "money"), fs.fsAmount(-400000, "money"),
             fs.fsAmount(41.666, "per_share"), fs.fsAmount(null, "money")],
 }));
@@ -50,8 +51,9 @@ PAYLOAD = {
 }
 
 
-def _row(key: str, label: str, group: str | None, section: str | None) -> dict:
-    return {"key": key, "label": label, "unit": "money", "unmatched_pdf": False, "group": group, "section": section,
+def _row(key: str, label: str, *heads: str, indent: int = 0) -> dict:
+    return {"key": key, "label": label, "unit": "money", "unmatched_pdf": False,
+            "heads": [{"key": f"h:{h}", "name": h} for h in heads], "indent": indent,
             "cells": [{"value": 1_000_000, "source": "edinet"}, None, None]}
 
 
@@ -59,10 +61,10 @@ SECTIONED = {**PAYLOAD, "rows": [
     _row("CashAndDeposits", "現金及び預金", "資産", "流動資産"),
     _row("CurrentAssets", "流動資産合計", "資産", "流動資産"),
     _row("Land", "土地", "資産", "固定資産"),
-    _row("Assets", "資産合計", "資産", None),
+    _row("Assets", "資産合計", "資産"),
     _row("ShortTermLoansPayable", "借入金", "負債", "流動負債"),
     _row("LongTermLoansPayable", "借入金", "負債", "固定負債"),
-    _row("LiabilitiesAndNetAssets", "負債純資産合計", None, None),
+    _row("LiabilitiesAndNetAssets", "負債純資産合計"),
 ]}
 
 
@@ -79,9 +81,19 @@ STANDARDS = {**PAYLOAD, "accounting_standards": ["IFRS", "JPGAAP"], "periods": [
 ]}
 
 
+DEEP = {**PAYLOAD, "rows": [
+    _row("Buildings", "建物", "資産の部", "固定資産", "有形固定資産", "鉄道事業固定資産"),
+    _row("AccumulatedDepreciation", "減価償却累計額", "資産の部", "固定資産", "有形固定資産", "鉄道事業固定資産", indent=1),
+    _row("Land", "土地", "資産の部", "固定資産", "有形固定資産"),
+    _row("PropertyPlantAndEquipment", "有形固定資産", "資産の部"),
+    _row("BuildingsNet", "建物", "資産の部", indent=1),
+    _row("Software", "ソフトウエア", "資産の部", "固定資産", "無形固定資産", "その他", "x", "y", "z"),
+]}
+
+
 def _run() -> dict:
     out = subprocess.run(["node", "-e", _NODE, str(ROOT / "static/js/stock-financials.js"), json.dumps(PAYLOAD),
-                          json.dumps(SECTIONED), json.dumps(MIXED), json.dumps(STANDARDS)],
+                          json.dumps(SECTIONED), json.dumps(MIXED), json.dumps(STANDARDS), json.dumps(DEEP)],
                          capture_output=True, text=True, check=True)
     return json.loads(out.stdout)
 
@@ -187,3 +199,15 @@ def test_standard_is_shown_in_the_header_only_when_columns_differ() -> None:
     assert '<span class="g fs-src fs-std">日本基準</span></th>' in ths[1]
     assert '<span class="g fs-src fs-std">IFRS</span></th>' in ths[2] and "IFRS</span></th>" in ths[3]
     assert "fs-std" not in r["html"] and "fs-std" not in r["mixed"]
+
+
+def test_heading_rows_of_any_depth_and_indented_rows() -> None:
+    rows = _rows(_run()["deep"])
+    heads = [(r.split('"')[1], re.sub(r"<[^>]+>", "", _cells(r)[0])) for r in rows if r.startswith(' class="fs-sec')]
+    assert heads[:5] == [("fs-sec fs-sec0", "資産の部"), ("fs-sec fs-sec1", "固定資産"), ("fs-sec fs-sec2", "有形固定資産"),
+                         ("fs-sec fs-sec3", "鉄道事業固定資産"), ("fs-sec fs-sec1", "固定資産")]
+    assert heads[5:] == [("fs-sec fs-sec2", "無形固定資産"), ("fs-sec fs-sec3", "その他"), ("fs-sec fs-sec4", "x"),
+                         ("fs-sec fs-sec5", "y"), ("fs-sec fs-sec5", "z")]
+    body = [r for r in rows if not r.startswith(' class="fs-sec')]
+    depth = [re.search(r'<td class="([^"]*)"', r).group(1) for r in body]
+    assert depth == ["l d4", "l d5", "l d3", "l d1", "l d2", "l d6"]

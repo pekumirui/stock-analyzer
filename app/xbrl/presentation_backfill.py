@@ -1,6 +1,6 @@
 """取り込み済みの書類の表示リンクを ZIP から埋める（xbrl_presentation_roles。docs/DESIGN_xbrl.md §4.5）。
 
-fact・taxonomy には触らない。ZIP から *pre.xml と *.xsd だけ展開して読む。1 件ごとに commit する。
+fact・taxonomy には触らない。ZIP から *pre.xml と *.xsd と *lab.xml だけ展開して読む。見出しの表示名はタクソノミ（XBRL_CACHE_DIR）のラベルも引く。1 件ごとに commit する。
 """
 from __future__ import annotations
 
@@ -15,15 +15,16 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import run_sqlite_write
-from app.models import EdinetArchive, EdinetDocument, XbrlFiling
-from app.xbrl.presentation import SKIPPED_DIRS, read_presentation
+from app.models import EdinetArchive, EdinetDocument, XbrlFiling, XbrlPresentationRole
+from app.xbrl.presentation import SKIPPED_DIRS, read_presentation, statement_roles
 from app.xbrl.store import (
     PRESENTATION_FAILED,
     PRESENTATION_GONE,
+    PRESENTATION_OK,
     store_presentation,
 )
 
@@ -35,6 +36,7 @@ SOURCES = ("edinet", "tdnet")
 COUNT_KEYS = ("done", "ok", "none", "gone", "failed", "errors")
 ORIGINS = ("local", "edinet", "offsite")
 EDINET_MAIN = 1
+DEPTH_ITEM_LEN = 6
 
 
 class ZipGone(Exception):
@@ -55,13 +57,30 @@ class Got:
 Fetch = Callable[[XbrlFiling], Got]
 
 
+def flat_filings():
+    """表示リンクの要素に深さか見出しの表示名が無い書類の id（区分は store_presentation が一度に書くので seq 0 の行だけ見る）。"""
+    return select(XbrlPresentationRole.filing_id).where(
+        XbrlPresentationRole.seq == 0,
+        func.json_array_length(XbrlPresentationRole.items_json, "$[0]") < DEPTH_ITEM_LEN,
+    )
+
+
+def _pending(redo: bool):
+    if redo:
+        return (XbrlFiling.presentation_status == PRESENTATION_OK) & XbrlFiling.id.in_(flat_filings())
+    return XbrlFiling.presentation_status.is_(None)
+
+
 def targets(db: Session, *, sources: Iterable[str] = SOURCES, codes: Iterable[str] | None = None,
-            archived_only: bool = False) -> list[int]:
-    """まだ埋めていない parsed の書類の id。新しい提出から。archived_only は退避の記録がある EDINET の書類だけ。"""
+            archived_only: bool = False, redo: bool = False) -> list[int]:
+    """まだ埋めていない parsed の書類の id。新しい提出から。archived_only は退避の記録がある EDINET の書類だけ。
+
+    redo は、埋めてある（ok）が要素に深さが無い書類。
+    """
     q = select(XbrlFiling.id).where(
         XbrlFiling.source.in_(list(sources)),
         XbrlFiling.parse_status == "parsed",
-        XbrlFiling.presentation_status.is_(None),
+        _pending(redo),
     )
     if archived_only:
         q = q.where(XbrlFiling.source == "edinet", XbrlFiling.doc_id.in_(
@@ -92,7 +111,7 @@ def _edinet_doc(db: Session, doc_id: str) -> EdinetDocument | None:
 
 def stage_offsite(
     db: Session, ids: Iterable[int], staged: Path, *, root: Path | None = None,
-    copy: Callable[[list[str], Path], None] | None = None,
+    copy: Callable[[list[str], Path], None] | None = None, redo: bool = False,
 ) -> int:
     """ids のうち、退避の記録があって手元に無い EDINET の ZIP を OneDrive から staged へまとめて写す。写した件数。"""
     from app.edinet.archive import archive_dir, rclone_copy
@@ -104,7 +123,7 @@ def stage_offsite(
             select(EdinetArchive.rel_path)
             .join(XbrlFiling, XbrlFiling.doc_id == EdinetArchive.doc_id)
             .where(XbrlFiling.id.in_(wanted[start:start + 500]), XbrlFiling.source == "edinet",
-                   XbrlFiling.presentation_status.is_(None),
+                   XbrlFiling.presentation_status == (PRESENTATION_OK if redo else None),
                    EdinetArchive.file_type == EDINET_MAIN, EdinetArchive.status == "saved")
         )
         rels.extend(rel for (rel,) in rows if not ((root or archive_dir()) / rel).is_file())
@@ -158,7 +177,7 @@ def read_zip(content: bytes) -> list:
     with zipfile.ZipFile(io.BytesIO(content)) as zf, TemporaryDirectory(prefix="xbrl-pre-") as tmp:
         for name in zf.namelist():
             low = name.lower()
-            if not (low.endswith("pre.xml") or low.endswith(".xsd")):
+            if not low.endswith(("pre.xml", ".xsd", "lab.xml")):
                 continue
             if {p.lower() for p in Path(name).parts} & SKIPPED_DIRS:
                 continue
@@ -174,23 +193,28 @@ def _mark(db: Session, filing_id: int, status: str) -> None:
     run_sqlite_write(db, write)
 
 
-def fill_one(db: Session, filing_id: int, fetch: Fetch, seen: Counter | None = None) -> tuple[str, bool]:
+def fill_one(
+    db: Session, filing_id: int, fetch: Fetch, seen: Counter | None = None, *, redo: bool = False,
+) -> tuple[str, bool]:
     """1 書類を埋めて commit する。戻り値は (ok / none / gone / failed / errors / skipped, 遠くから取ったか)。
 
     一時的な失敗（取得の 5xx・タイムアウト・OneDrive の失敗・書き込みのロック）は印を付けず errors。
-    EDINET のメンテは呼び側へ投げる。
+    EDINET のメンテは呼び側へ投げる。redo は ok の書類を読み直す。ZIP が無い・読めない・3 表の区分が無いときは
+    今の行と印を残す（gone / failed / none と数えるだけ）。
     """
     from app.edinet.client import is_maintenance
 
     filing = db.get(XbrlFiling, filing_id)
-    if filing is None or filing.presentation_status is not None:
+    wanted = PRESENTATION_OK if redo else None
+    if filing is None or filing.presentation_status != wanted:
         return "skipped", False
     began = time.monotonic()
     try:
         got = fetch(filing)
     except ZipGone as exc:
         print(f"presentation gone id={filing_id} doc_id={filing.doc_id} {exc}", flush=True)
-        _mark(db, filing_id, PRESENTATION_GONE)
+        if not redo:
+            _mark(db, filing_id, PRESENTATION_GONE)
         return "gone", False
     except ZipUnavailable:
         return "skipped", False
@@ -207,8 +231,11 @@ def fill_one(db: Session, filing_id: int, fetch: Fetch, seen: Counter | None = N
         roles = read_zip(got.content)
     except Exception as exc:
         print(f"presentation failed id={filing_id} doc_id={filing.doc_id} err={exc!r}"[:500], flush=True)
-        _mark(db, filing_id, PRESENTATION_FAILED)
+        if not redo:
+            _mark(db, filing_id, PRESENTATION_FAILED)
         return "failed", got.remote
+    if redo and not statement_roles(roles):
+        return "none", got.remote
 
     def write() -> str:
         status = store_presentation(db, filing_id, roles)
@@ -238,6 +265,7 @@ def run(
     batch: int | None = None,
     sleep: float = 0.0,
     sleeper: Callable[[float], None] = time.sleep,
+    redo: bool = False,
 ) -> Counter:
     counts: Counter = Counter()
     started = time.monotonic()
@@ -247,7 +275,7 @@ def run(
         if fetch is None:
             counts["skipped"] += 1
         else:
-            status, remote = fill_one(db, filing_id, fetch, counts)
+            status, remote = fill_one(db, filing_id, fetch, counts, redo=redo)
             counts[status] += 1
             if status not in ("skipped", "errors"):
                 counts["done"] += 1
