@@ -541,9 +541,11 @@ def _ship_old(
             environ=environ,
         )
         saved += len(result.ok)
-        failed += len(result.failed)
+        failed += len(result.failed) + len(result.missing)
         for rel in result.ok:
             log(f"offsite {rel}")
+        for rel in result.missing:
+            log(f"fail {rel}: missing")
         for rel, reason in result.failed:
             log(f"fail {rel}: {reason}")
     return saved, failed

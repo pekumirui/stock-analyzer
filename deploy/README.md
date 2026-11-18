@@ -475,7 +475,7 @@ cd /home/stock/stock-analyzer && deploy/cron-run.sh jobs/ops/vps_packages_r2.py
 
 ### SQLite 日次バックアップ
 
-WAL 中の `cp` は使わない。`jobs/ops/backup_db.py` が sqlite3 backup API → `PRAGMA quick_check` → gzip 圧縮レベル 1。ローカル成功後に `rclone copy` で `onedrive:stock-analyzer-backups/{daily,weekly}/` へ送り、`rclone check`（失敗時はサイズ）で確認する。世代数は OneDrive（日次 7・週次 4）。確認と OneDrive 側の世代整理が成功したら、今回の gzip は VPS から消す。失敗したときは今回のファイルを残し、`fail cron` が `#alerts-batch` に page する。それより前からあるローカルの世代は消さない。rclone / remote が無いときは警告してスキップ（今回のファイルも残す）。R2 には出さない。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)。
+WAL 中の `cp` は使わない。`jobs/ops/backup_db.py` が sqlite3 backup API の宛先を圧縮してから `PRAGMA quick_check` → gzip 圧縮レベル 1（非圧縮の複製は置かない）。ローカル成功後に `rclone copy` で `onedrive:stock-analyzer-backups/{daily,weekly}/` へ送り、`rclone check`（ハッシュが使えないときだけサイズ。差分ありは失敗）で確認する。世代数は OneDrive（日次 7・週次 4）。確認と OneDrive 側の世代整理が成功したら、今回の gzip は VPS から消す。失敗したときは今回のファイルを残し、`fail cron` が `#alerts-batch` に page する。それより前からあるローカルの世代は消さない。rclone / remote が無いときは警告してスキップ（今回のファイルも残す）。R2 には出さない。手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md)。
 
 `deploy/crontab` は `provision.sh` が `crontab -u stock` で入れる。デプロイ後に一度だけ手で走らせる（ユーザ `stock`）:
 
@@ -489,7 +489,7 @@ rclone ls onedrive:stock-analyzer-backups/weekly
 tail -n 50 /var/log/app/backup_db.log
 ```
 
-ログに `offsite ok daily` と `removed local daily=1 ... offsite=ok` があり、今回の `stock-YYYY-MM-DD.db.gz` は VPS に無く、OneDrive にあること。`fail backup_db:` なら今回の gzip は VPS に残る。`offsite skipped` なら送信していないので残る。デプロイ前からある世代はジョブでは消えない。空ける手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md) の「既にある VPS の世代」。
+ログに `stage=disk`（`need` はソースの約 75% + 256MB。17GB 級なら約 12.2GiB）、`stage=copy done`、`stage=quick_check done ok`、`stage=gzip done`、`offsite ok daily`、`removed local daily=1 ... offsite=ok`、`backup_db done` があること。今回の `stock-YYYY-MM-DD.db.gz` は VPS に無く、OneDrive にあること。実行中の空きは `df -h /` と `du -sh /home/stock/backups/.tmp` で見る。`.blk` の `ls` は穴の分だけ大きく見える。増分のピークは gzip と同程度（17GB 級の実績は約 8GB）で、DB 1 つ分より小さい。`fail backup_db:` なら今回の gzip は VPS に残る。`offsite skipped` なら送信していないので残る。デプロイ前からある世代はジョブでは消えない。空ける手順は [`docs/DESIGN_backup.md`](../docs/DESIGN_backup.md) の「既にある VPS の世代」。
 
 ### daily_prices を WITHOUT ROWID に作り直す（一度だけ・KAB-289）
 
